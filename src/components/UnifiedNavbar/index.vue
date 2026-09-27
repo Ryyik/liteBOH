@@ -1,7 +1,14 @@
 <template>
-  <div id="unified-nav-container" class="unified-nav" :class="{
-    'mobile-menu-open': isMobileMenuOpen
-  }" data-theme>
+  <div
+    id="unified-nav-container"
+    class="unified-nav"
+    :class="{
+      'mobile-menu-open': isMobileMenuOpen,
+      'nav-immersive-on': immersiveNav,
+      'nav-immersive-expanded': immersiveNav && isExpandedLooking,
+    }"
+    data-theme
+  >
     <div
       class="unified-nav-surface"
       :class="{
@@ -17,7 +24,9 @@
         'has-nav-filter-menu': false,
         // 竖屏 Mini 形态（plans/009）：nav-mini-caps = 机制生效，nav-expanded = 当前视觉长条
         'nav-mini-caps': navMini,
-        'nav-expanded': isExpandedLooking
+        // 沉浸阅读形态：导航收成左上角迷你球（阅读页等 route.meta.immersiveNav 页面）
+        'nav-immersive': immersiveNav,
+        'nav-expanded': isExpandedLooking,
       }"
       @click="handleSurfaceTap"
       :style="{
@@ -26,283 +35,449 @@
         '--global-nav-custom-card-height': `${customCardHeight}px`,
       }"
     >
-    <div class="nav-container">
-      <router-link to="/" class="nav-logo" @click.stop>
-        <div class="nav-logo-icon">
-          <img :src="getImageUrl('favicon.webp')" alt="Logo" style="width: 100%; height: 100%; object-fit: contain;">
-        </div>
-        <span class="nav-logo-text">方块之家</span>
-      </router-link>
-
-      <ul class="nav-menu">
-        <li v-for="item in navItems" :key="item.name" class="nav-menu-item"
-          :class="{ 'has-dropdown': hasChildren(item) }">
-          <template v-if="hasChildren(item)">
-            <a href="javascript:;" class="nav-link-wrapper"
-              :class="{ active: item.isActive, expanded: item.isExpanded }" @click="toggleSubMenu(item.name)">
-              <span>{{ item.label }}</span>
-            </a>
-            <ul class="nav-submenu" :class="{ active: item.isExpanded }">
-              <!-- 有分组的菜单：分组列表 ↔ 三级下钻（带切换动画） -->
-              <template v-if="hasGroupChildren(item)">
-                <Transition name="nav-drill" mode="out-in">
-                  <div v-if="activeGroup" :key="`grand-${item.name}-${activeGroup}`" class="nav-submenu-pane nav-submenu-pane-grand">
-                    <li class="nav-submenu-back">
-                      <a href="javascript:;" @click="activeGroup = null">
-                        <span class="nav-submenu-back-arrow">←</span> 返回
-                      </a>
-                    </li>
-                    <li v-for="grand in activeGroupChildren(item)" :key="grand.name">
-                      <router-link v-if="grand.path" :to="grand.path" :class="{ active: isActive(grand.path) }"
-                        @click="expandedMenu = null">
-                        {{ grand.label }}
-                      </router-link>
-                      <a v-else-if="grand.action" href="javascript:;"
-                        @click="handleMenuAction(grand.action); expandedMenu = null">
-                        {{ grand.label }}
-                      </a>
-                    </li>
-                  </div>
-                  <div v-else :key="`groups-${item.name}`" class="nav-submenu-pane nav-submenu-pane-groups">
-                    <li v-for="child in item.children" :key="child.name">
-                      <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
-                        @click="expandedMenu = null">
-                        {{ child.label }}
-                      </router-link>
-                      <a v-else-if="child.action" href="javascript:;"
-                        @click="handleMenuAction(child.action); expandedMenu = null">
-                        {{ child.label }}
-                      </a>
-                      <a v-else href="javascript:;" class="nav-submenu-group-title"
-                        @click="activeGroup = child.name; activeGroupParent = item.name">
-                        {{ child.label }}
-                      </a>
-                    </li>
-                  </div>
-                </Transition>
-              </template>
-              <!-- 扁平二级（无分组，如社区） -->
-              <template v-else>
-                <li v-for="child in item.children" :key="child.name">
-                  <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
-                    @click="expandedMenu = null">
-                    {{ child.label }}
-                  </router-link>
-                  <a v-else-if="child.action" href="javascript:;"
-                    @click="handleMenuAction(child.action); expandedMenu = null">
-                    {{ child.label }}
-                  </a>
-                </li>
-              </template>
-            </ul>
-          </template>
-          <template v-else>
-            <router-link :to="item.path" :class="{ active: item.isActive }" active-class="" exact-active-class="">
-              {{ item.label }}
-            </router-link>
-          </template>
-        </li>
-      </ul>
-
-      <div class="nav-user" id="nav-user-area">
-        <!-- DEV-TEST：智能概览灵动岛手动触发按钮（仅开发环境渲染，上线前整块删除） -->
-        <button
-          v-if="isDevMode && isLoggedIn"
-          type="button"
-          class="nav-dev-island-btn"
-          title="测试：模拟离线 30 天，用数据库真实内容强制触发智能概览灵动岛"
-          @click.stop="forceShowOverviewIsland({ simulateDays: 30 })"
-        >
-          <Bot :size="13" :stroke-width="2.2" aria-hidden="true" />
-          <span>岛</span>
-        </button>
-        <template v-if="isLoggedIn">
-          <router-link to="/user-space" class="nav-user-info nav-user-profile" id="nav-user-info" title="进入我的方块" @click="handleMyBlockClick">
-            <span class="boh-avatar-wrap">
-              <div class="nav-avatar">
-                <img v-if="avatarUrl" :src="avatarUrl" alt="头像" class="nav-avatar-img" loading="lazy" decoding="async">
-                <span v-else>{{ username ? username.charAt(0).toUpperCase() : 'U' }}</span>
-                <!-- 未读消息红点 -->
-                <div v-if="hasUnreadMessages" class="unread-badge-nav">
-                  {{ unreadCount > 99 ? '99+' : unreadCount }}
-                </div>
-              </div>
-              <span v-if="navFrame" class="boh-avatar-frame"
-                :style="{ '--boh-avatar-frame-url': `url(${navFrame.url})`, '--boh-avatar-frame-scale': String(navFrame.scale) }"
-                aria-hidden="true"></span>
-            </span>
-            <span class="nav-username">我的方块</span>
-          </router-link>
-        </template>
-        <template v-else-if="isInitialized">
-          <button class="nav-login-btn" id="nav-login-btn" @click.stop="showLoginModal = true">
-            登录
-          </button>
-        </template>
-        <template v-else>
-          <!-- 初始化中，显示一个极简的占位 -->
-          <div class="nav-user-loading"></div>
-        </template>
-      </div>
-
-      <button type="button" class="nav-hamburger" id="nav-hamburger"
-        :class="{ active: isMobileMenuOpen }" :aria-expanded="isMobileMenuOpen"
-        aria-controls="nav-menu-mobile" :aria-label="isMobileMenuOpen ? '关闭导航菜单' : '打开导航菜单'"
-        @click.stop="toggleMobileMenu">
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-    </div>
-
-    <div class="nav-menu-mobile" id="nav-menu-mobile" :class="{ active: isMobileMenuOpen }">
-      <div class="nav-menu-mobile-content">
-        <HomeCatMascot v-if="isHomeCatActive" class="nav-mobile-menu-cat" pool="background"
-          :seed="`mobile-menu-${mobileMenuOpenCount}`" size="lg" decorative />
-        <div class="nav-mobile-main-menu" :class="{ hidden: expandedMenu }">
-          <template v-for="item in navItems" :key="item.name">
-            <template v-if="hasChildren(item)">
-              <div class="nav-mobile-item has-children">
-                <a href="javascript:;" class="nav-mobile-link" :class="{ active: item.isActive }"
-                  @click="toggleSubMenu(item.name)">
-                  <span>{{ item.label }}</span>
-                </a>
-              </div>
-            </template>
-            <template v-else>
-              <router-link class="nav-mobile-link" :class="{ active: item.isActive }" :to="item.path"
-                @click="closeMobileMenu">
-                {{ item.label }}
-              </router-link>
-            </template>
-          </template>
-        </div>
-        <div class="nav-mobile-submenu-container" :class="{ active: expandedMenu }" data-panel-variant="glass">
-          <div class="nav-mobile-back" @click="closeSubMenu">
-            <span class="back-arrow">←</span>
-            <span>返回</span>
+      <div class="nav-container">
+        <router-link to="/" class="nav-logo" @click.stop>
+          <div class="nav-logo-icon">
+            <img
+              :src="getImageUrl('favicon.webp')"
+              alt="Logo"
+              style="width: 100%; height: 100%; object-fit: contain"
+            />
           </div>
-          <template v-for="item in navItems" :key="item.name">
-            <div v-show="hasChildren(item) && item.isExpanded" class="nav-mobile-submenu-section">
-              <div class="nav-mobile-submenu-heading">{{ item.label }}</div>
-              <div class="nav-mobile-submenu" :class="{ active: item.isExpanded }">
-                <!-- 有分组的菜单：分组列表 ↔ 三级下钻 -->
+          <span class="nav-logo-text">方块之家</span>
+        </router-link>
+
+        <ul class="nav-menu">
+          <li
+            v-for="item in navItems"
+            :key="item.name"
+            class="nav-menu-item"
+            :class="{ 'has-dropdown': hasChildren(item) }"
+          >
+            <template v-if="hasChildren(item)">
+              <a
+                href="javascript:;"
+                class="nav-link-wrapper"
+                :class="{ active: item.isActive, expanded: item.isExpanded }"
+                @click="toggleSubMenu(item.name)"
+              >
+                <span>{{ item.label }}</span>
+              </a>
+              <ul class="nav-submenu" :class="{ active: item.isExpanded }">
+                <!-- 有分组的菜单：分组列表 ↔ 三级下钻（带切换动画） -->
                 <template v-if="hasGroupChildren(item)">
-                  <template v-if="activeGroup && activeGroupParent === item.name">
-                    <div class="nav-mobile-group-back" @click="activeGroup = null; activeGroupParent = null">
-                      <span class="group-back-arrow">←</span>
-                      <span>返回分组</span>
+                  <Transition name="nav-drill" mode="out-in">
+                    <div
+                      v-if="activeGroup"
+                      :key="`grand-${item.name}-${activeGroup}`"
+                      class="nav-submenu-pane nav-submenu-pane-grand"
+                    >
+                      <li class="nav-submenu-back">
+                        <a href="javascript:;" @click="activeGroup = null">
+                          <span class="nav-submenu-back-arrow">←</span> 返回
+                        </a>
+                      </li>
+                      <li v-for="grand in activeGroupChildren(item)" :key="grand.name">
+                        <router-link
+                          v-if="grand.path"
+                          :to="grand.path"
+                          :class="{ active: isActive(grand.path) }"
+                          @click="expandedMenu = null"
+                        >
+                          {{ grand.label }}
+                        </router-link>
+                        <a
+                          v-else-if="grand.action"
+                          href="javascript:;"
+                          @click="
+                            handleMenuAction(grand.action);
+                            expandedMenu = null;
+                          "
+                        >
+                          {{ grand.label }}
+                        </a>
+                      </li>
                     </div>
-                    <template v-for="grand in activeGroupChildren(item)" :key="grand.name">
-                      <router-link v-if="grand.path" :to="grand.path" :class="{ active: isActive(grand.path) }"
-                        @click="closeMobileMenu">
-                        {{ grand.label }}
-                      </router-link>
-                      <a v-else-if="grand.action" href="javascript:;"
-                        @click="handleMenuAction(grand.action); closeMobileMenu()">
-                        {{ grand.label }}
-                      </a>
-                    </template>
-                  </template>
-                  <template v-else>
-                    <template v-for="child in item.children" :key="child.name">
-                      <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
-                        @click="closeMobileMenu">
-                        {{ child.label }}
-                      </router-link>
-                      <a v-else-if="child.action" href="javascript:;"
-                        @click="handleMenuAction(child.action); closeMobileMenu()">
-                        {{ child.label }}
-                      </a>
-                      <div v-else class="nav-mobile-group-entry"
-                        @click="activeGroup = child.name; activeGroupParent = item.name">
-                        <span class="nav-mobile-group-entry-label">{{ child.label }}</span>
-                      </div>
-                    </template>
-                  </template>
+                    <div
+                      v-else
+                      :key="`groups-${item.name}`"
+                      class="nav-submenu-pane nav-submenu-pane-groups"
+                    >
+                      <li v-for="child in item.children" :key="child.name">
+                        <router-link
+                          v-if="child.path"
+                          :to="child.path"
+                          :class="{ active: isActive(child.path) }"
+                          @click="expandedMenu = null"
+                        >
+                          {{ child.label }}
+                        </router-link>
+                        <a
+                          v-else-if="child.action"
+                          href="javascript:;"
+                          @click="
+                            handleMenuAction(child.action);
+                            expandedMenu = null;
+                          "
+                        >
+                          {{ child.label }}
+                        </a>
+                        <a
+                          v-else
+                          href="javascript:;"
+                          class="nav-submenu-group-title"
+                          @click="
+                            activeGroup = child.name;
+                            activeGroupParent = item.name;
+                          "
+                        >
+                          {{ child.label }}
+                        </a>
+                      </li>
+                    </div>
+                  </Transition>
                 </template>
                 <!-- 扁平二级（无分组，如社区） -->
                 <template v-else>
-                  <template v-for="child in item.children" :key="child.name">
-                    <router-link v-if="child.path" :to="child.path" :class="{ active: isActive(child.path) }"
-                      @click="closeMobileMenu">
+                  <li v-for="child in item.children" :key="child.name">
+                    <router-link
+                      v-if="child.path"
+                      :to="child.path"
+                      :class="{ active: isActive(child.path) }"
+                      @click="expandedMenu = null"
+                    >
                       {{ child.label }}
                     </router-link>
-                    <a v-else-if="child.action" href="javascript:;"
-                      @click="handleMenuAction(child.action); closeMobileMenu()">
+                    <a
+                      v-else-if="child.action"
+                      href="javascript:;"
+                      @click="
+                        handleMenuAction(child.action);
+                        expandedMenu = null;
+                      "
+                    >
                       {{ child.label }}
                     </a>
-                  </template>
+                  </li>
                 </template>
-              </div>
-            </div>
+              </ul>
+            </template>
+            <template v-else>
+              <router-link
+                :to="item.path"
+                :class="{ active: item.isActive }"
+                active-class=""
+                exact-active-class=""
+              >
+                {{ item.label }}
+              </router-link>
+            </template>
+          </li>
+        </ul>
+
+        <div class="nav-user" id="nav-user-area">
+          <!-- 全局搜索入口：工具类操作归右侧工具区；mini 未展开态由样式隐藏（那会撑爆精算过的胶囊宽度） -->
+          <button
+            type="button"
+            class="nav-search-btn"
+            :class="{ active: isSearchOpen }"
+            :aria-expanded="isSearchOpen"
+            aria-label="搜索全站内容"
+            title="搜索（/）"
+            @click.stop="toggleSearch"
+          >
+            <Search :size="16" :stroke-width="2.2" aria-hidden="true" />
+          </button>
+          <!-- DEV-TEST：智能概览灵动岛手动触发按钮（仅开发环境渲染，上线前整块删除） -->
+          <button
+            v-if="isDevMode && isLoggedIn"
+            type="button"
+            class="nav-dev-island-btn"
+            title="测试：模拟离线 30 天，用数据库真实内容强制触发智能概览灵动岛"
+            @click.stop="forceShowOverviewIsland({ simulateDays: 30 })"
+          >
+            <Bot :size="13" :stroke-width="2.2" aria-hidden="true" />
+            <span>岛</span>
+          </button>
+          <template v-if="isLoggedIn">
+            <router-link
+              to="/user-space"
+              class="nav-user-info nav-user-profile"
+              id="nav-user-info"
+              title="进入我的方块"
+              @click="handleMyBlockClick"
+            >
+              <span class="boh-avatar-wrap">
+                <div class="nav-avatar">
+                  <img
+                    v-if="avatarUrl"
+                    :src="avatarUrl"
+                    alt="头像"
+                    class="nav-avatar-img"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span v-else>{{ username ? username.charAt(0).toUpperCase() : 'U' }}</span>
+                  <!-- 未读消息红点 -->
+                  <div v-if="hasUnreadMessages" class="unread-badge-nav">
+                    {{ unreadCount > 99 ? '99+' : unreadCount }}
+                  </div>
+                </div>
+                <span
+                  v-if="navFrame"
+                  class="boh-avatar-frame"
+                  :style="{
+                    '--boh-avatar-frame-url': `url(${navFrame.url})`,
+                    '--boh-avatar-frame-scale': String(navFrame.scale),
+                  }"
+                  aria-hidden="true"
+                ></span>
+              </span>
+              <span class="nav-username">我的方块</span>
+            </router-link>
+          </template>
+          <template v-else-if="isInitialized">
+            <button class="nav-login-btn" id="nav-login-btn" @click.stop="showLoginModal = true">
+              登录
+            </button>
+          </template>
+          <template v-else>
+            <!-- 初始化中，显示一个极简的占位 -->
+            <div class="nav-user-loading"></div>
           </template>
         </div>
+
+        <button
+          type="button"
+          class="nav-hamburger"
+          id="nav-hamburger"
+          :class="{ active: isMobileMenuOpen }"
+          :aria-expanded="isMobileMenuOpen"
+          aria-controls="nav-menu-mobile"
+          :aria-label="isMobileMenuOpen ? '关闭导航菜单' : '打开导航菜单'"
+          @click.stop="toggleMobileMenu"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
       </div>
-    </div>
-    <GlobalNavStatusCard
-      :item="statusCardItem"
-      @action="handleNavStatusAction"
-      @after-leave="handleNavStatusAfterLeave"
-      @resize="handleStatusCardResize"
-    />
-    <GlobalNavTaskCard
-      :item="islandTaskView"
-      @action="handleIslandTaskAction"
-      @after-leave="handleIslandTaskAfterLeave"
-      @resize="handleStatusCardResize"
-    />
-    <div
-      v-show="!isTaskCardShown && !isBohaiIslandOpen"
-      v-if="islandCustomSlot.component"
-      :key="`island-custom-${islandCustomSlot.key}`"
-      ref="islandCustomHost"
-      class="island-custom-host"
-    >
-      <!-- 仲裁：任务岛/AI 岛占用 surface 时自定义岛让位（v-show 保状态，隐藏后高度上报 0，收起后自动回归） -->
-      <component :is="islandCustomSlot.component" v-bind="islandCustomSlot.props || {}" />
-    </div>
-    <BOHAIIsland />
+
+      <div class="nav-menu-mobile" id="nav-menu-mobile" :class="{ active: isMobileMenuOpen }">
+        <div class="nav-menu-mobile-content">
+          <HomeCatMascot
+            v-if="isHomeCatActive"
+            class="nav-mobile-menu-cat"
+            pool="background"
+            :seed="`mobile-menu-${mobileMenuOpenCount}`"
+            size="lg"
+            decorative
+          />
+          <div class="nav-mobile-main-menu" :class="{ hidden: expandedMenu }">
+            <template v-for="item in navItems" :key="item.name">
+              <template v-if="hasChildren(item)">
+                <div class="nav-mobile-item has-children">
+                  <a
+                    href="javascript:;"
+                    class="nav-mobile-link"
+                    :class="{ active: item.isActive }"
+                    @click="toggleSubMenu(item.name)"
+                  >
+                    <span>{{ item.label }}</span>
+                  </a>
+                </div>
+              </template>
+              <template v-else>
+                <router-link
+                  class="nav-mobile-link"
+                  :class="{ active: item.isActive }"
+                  :to="item.path"
+                  @click="closeMobileMenu"
+                >
+                  {{ item.label }}
+                </router-link>
+              </template>
+            </template>
+          </div>
+          <div
+            class="nav-mobile-submenu-container"
+            :class="{ active: expandedMenu }"
+            data-panel-variant="glass"
+          >
+            <div class="nav-mobile-back" @click="closeSubMenu">
+              <span class="back-arrow">←</span>
+              <span>返回</span>
+            </div>
+            <template v-for="item in navItems" :key="item.name">
+              <div v-show="hasChildren(item) && item.isExpanded" class="nav-mobile-submenu-section">
+                <div class="nav-mobile-submenu-heading">{{ item.label }}</div>
+                <div class="nav-mobile-submenu" :class="{ active: item.isExpanded }">
+                  <!-- 有分组的菜单：分组列表 ↔ 三级下钻 -->
+                  <template v-if="hasGroupChildren(item)">
+                    <template v-if="activeGroup && activeGroupParent === item.name">
+                      <div
+                        class="nav-mobile-group-back"
+                        @click="
+                          activeGroup = null;
+                          activeGroupParent = null;
+                        "
+                      >
+                        <span class="group-back-arrow">←</span>
+                        <span>返回分组</span>
+                      </div>
+                      <template v-for="grand in activeGroupChildren(item)" :key="grand.name">
+                        <router-link
+                          v-if="grand.path"
+                          :to="grand.path"
+                          :class="{ active: isActive(grand.path) }"
+                          @click="closeMobileMenu"
+                        >
+                          {{ grand.label }}
+                        </router-link>
+                        <a
+                          v-else-if="grand.action"
+                          href="javascript:;"
+                          @click="
+                            handleMenuAction(grand.action);
+                            closeMobileMenu();
+                          "
+                        >
+                          {{ grand.label }}
+                        </a>
+                      </template>
+                    </template>
+                    <template v-else>
+                      <template v-for="child in item.children" :key="child.name">
+                        <router-link
+                          v-if="child.path"
+                          :to="child.path"
+                          :class="{ active: isActive(child.path) }"
+                          @click="closeMobileMenu"
+                        >
+                          {{ child.label }}
+                        </router-link>
+                        <a
+                          v-else-if="child.action"
+                          href="javascript:;"
+                          @click="
+                            handleMenuAction(child.action);
+                            closeMobileMenu();
+                          "
+                        >
+                          {{ child.label }}
+                        </a>
+                        <div
+                          v-else
+                          class="nav-mobile-group-entry"
+                          @click="
+                            activeGroup = child.name;
+                            activeGroupParent = item.name;
+                          "
+                        >
+                          <span class="nav-mobile-group-entry-label">{{ child.label }}</span>
+                        </div>
+                      </template>
+                    </template>
+                  </template>
+                  <!-- 扁平二级（无分组，如社区） -->
+                  <template v-else>
+                    <template v-for="child in item.children" :key="child.name">
+                      <router-link
+                        v-if="child.path"
+                        :to="child.path"
+                        :class="{ active: isActive(child.path) }"
+                        @click="closeMobileMenu"
+                      >
+                        {{ child.label }}
+                      </router-link>
+                      <a
+                        v-else-if="child.action"
+                        href="javascript:;"
+                        @click="
+                          handleMenuAction(child.action);
+                          closeMobileMenu();
+                        "
+                      >
+                        {{ child.label }}
+                      </a>
+                    </template>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+      <GlobalNavStatusCard
+        :item="statusCardItem"
+        @action="handleNavStatusAction"
+        @after-leave="handleNavStatusAfterLeave"
+        @resize="handleStatusCardResize"
+      />
+      <GlobalNavTaskCard
+        :item="islandTaskView"
+        @action="handleIslandTaskAction"
+        @after-leave="handleIslandTaskAfterLeave"
+        @resize="handleStatusCardResize"
+      />
+      <div
+        v-show="!isTaskCardShown && !isBohaiIslandOpen"
+        v-if="islandCustomSlot.component"
+        :key="`island-custom-${islandCustomSlot.key}`"
+        ref="islandCustomHost"
+        class="island-custom-host"
+      >
+        <!-- 仲裁：任务岛/AI 岛占用 surface 时自定义岛让位（v-show 保状态，隐藏后高度上报 0，收起后自动回归） -->
+        <component :is="islandCustomSlot.component" v-bind="islandCustomSlot.props || {}" />
+      </div>
+      <BOHAIIsland />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { getImageUrl } from "../../utils/asset-helper.js";
-import { useAuthStore } from "@/stores/auth";
-import { resolveFrameForAuthor } from "@/composables/useAvatarFrame.js";
-import { storeToRefs } from "pinia";
-import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
-import { Bot } from "lucide-vue-next";
-import HomeCatMascot from "@/components/HomeCatMascot.vue";
-import { themeManager } from "@/utils/theme-manager.js";
-import { isHomeCatTheme } from "@/utils/home-cat-theme.js";
-import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
-import { useVersionCheck } from "@/composables/useVersionCheck.js";
-import { useOverviewIsland } from "@/composables/useOverviewIsland.js";
-import { toggleHiagentChat } from "@/utils/hiagent-widget.js";
-import GlobalNavStatusCard from "./GlobalNavStatusCard.vue";
-import GlobalNavTaskCard from "./GlobalNavTaskCard.vue";
-import BOHAIIsland from "./BOHAIIsland.vue";
-import { useGlobalAiOverlay } from "@/composables/useGlobalAiOverlay.js";
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { getImageUrl } from '../../utils/asset-helper.js';
+import { useAuthStore } from '@/stores/auth';
+import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
+import { storeToRefs } from 'pinia';
+import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
+import { Bot, Search } from 'lucide-vue-next';
+import HomeCatMascot from '@/components/HomeCatMascot.vue';
+import { themeManager } from '@/utils/theme-manager.js';
+import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { useVersionCheck } from '@/composables/useVersionCheck.js';
+import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
+import { useGlobalSearch } from '@/composables/useGlobalSearch.js';
+import { toggleHiagentChat } from '@/utils/hiagent-widget.js';
+import { SITE_NAV_ITEMS } from '@/config/site-nav';
+import GlobalNavStatusCard from './GlobalNavStatusCard.vue';
+import GlobalNavTaskCard from './GlobalNavTaskCard.vue';
+import BOHAIIsland from './BOHAIIsland.vue';
+import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay.js';
 import {
   GLOBAL_NAV_STATUS_EVENT,
+  GLOBAL_NAV_PREEMPT_EVENT,
   registerIslandAiOpener,
   setIslandAiPaused,
   islandTaskAction,
   islandTaskCardLeft,
   islandTaskView,
-  islandCustomSlot
-} from "@/composables/useIsland.js";
+  islandCustomSlot,
+} from '@/composables/useIsland.js';
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
 const { maybeShowOverviewIsland, forceShowOverviewIsland } = useOverviewIsland();
 // BOHAI 灵动岛：岛组件内部已订阅 isExpanded，navbar 仅读取用于 surface 类名联动
 // （原 useBohaiIsland 薄包装已内联，状态统一来自 useGlobalAiOverlay 单例）
-const { isOpen: isBohaiOverlayOpen, canOpen: isBohaiIslandAllowed, open: openBohaiOverlay } = useGlobalAiOverlay();
+const {
+  isOpen: isBohaiOverlayOpen,
+  canOpen: isBohaiIslandAllowed,
+  open: openBohaiOverlay,
+} = useGlobalAiOverlay();
 const isBohaiIslandOpen = computed(() => isBohaiOverlayOpen.value && isBohaiIslandAllowed.value);
 // 注册 AI 岛 opener：showIsland.ai() 由这里真正打开 BOH AI 岛（可带种子 prompt 与期望模型模式）
 registerIslandAiOpener(({ prompt, mode } = {}) => {
@@ -318,9 +493,9 @@ const { checkForUpdate, applyUpdate, isChecking } = useVersionCheck();
 const router = useRouter();
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
-const isHomeCatActive = computed(() => (
-  isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value)
-));
+const isHomeCatActive = computed(
+  () => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value),
+);
 const navStatus = ref({
   visible: false,
   title: '',
@@ -330,7 +505,7 @@ const navStatus = ref({
   duration: 620,
   distance: 22,
   blur: 20,
-  reducedMotion: false
+  reducedMotion: false,
 });
 const navStatusCardHeight = ref(58);
 const customCardHeight = ref(0);
@@ -372,7 +547,7 @@ const normalizeNavStatus = (payload = {}) => {
           title: String(p.title).trim(),
           excerpt: String(p.excerpt || '').trim(),
           time: String(p.time || '').trim(),
-          image: String(p.image || '').trim()
+          image: String(p.image || '').trim(),
         }))
     : [];
 
@@ -395,7 +570,7 @@ const normalizeNavStatus = (payload = {}) => {
     options: payload.options || [],
     onSearch: payload.onSearch,
     onFilter: payload.onFilter,
-    persistent: Boolean(payload.persistent)
+    persistent: Boolean(payload.persistent),
   };
 };
 
@@ -444,7 +619,7 @@ const handleNavStatusPreview = (event) => {
     duration: Number(detail.duration) || 620,
     distance: Number(detail.distance) || 22,
     blur: Number(detail.blur) || 20,
-    reducedMotion: Boolean(detail.reducedMotion)
+    reducedMotion: Boolean(detail.reducedMotion),
   };
 };
 
@@ -460,6 +635,22 @@ const handleNavStatusAfterLeave = () => {
   clearNavStatusDismissTimer();
   flushNavStatusQueue();
 };
+
+// 被更高优先级的面板抢占（当前只有全局搜索）：
+// 通知卡与通知队列一起让位，否则面板打开后队列里的下一条会冒出来盖住它。
+const handleGlobalNavPreempt = () => {
+  clearNavStatusDismissTimer();
+  navStatusQueue.length = 0;
+  navStatus.value = { ...navStatus.value, visible: false };
+};
+
+// 全局搜索：入口按钮 + `/` 快捷键。面板经 showIsland.custom 渲染进本组件的
+// surface（高度由下方 ResizeObserver 上报 customCardHeight），逻辑见 useGlobalSearch.js。
+// onAction：动作搜索（Spotlight 式「搜到即执行」）的执行权统一归 handleMenuAction ——
+// 闭包在调用时才解引用，规避 handleMenuAction 定义在 setup 更靠后位置的 TDZ。
+const { isSearchOpen, toggleSearch } = useGlobalSearch({
+  onAction: (action) => handleMenuAction(action),
+});
 
 const handleStatusCardResize = (height) => {
   const nextHeight = Math.ceil(Number(height) || 58);
@@ -495,10 +686,14 @@ watch(isTaskCardShown, (shown, prev) => {
 
 // AI 岛开关：占用期间暂停任务卡展示，收起后恢复并冲刷通知队列
 // immediate：navbar 卸载期间 AI 岛仍可能保持展开，重挂载时需同步一次
-watch(isBohaiIslandOpen, (open) => {
-  setIslandAiPaused(open);
-  if (!open) flushNavStatusQueue();
-}, { immediate: true });
+watch(
+  isBohaiIslandOpen,
+  (open) => {
+    setIslandAiPaused(open);
+    if (!open) flushNavStatusQueue();
+  },
+  { immediate: true },
+);
 
 // ---- 自定义岛（showIsland.custom）高度上报 ----
 
@@ -517,10 +712,13 @@ const observeIslandCustomHost = async () => {
   customHostResizeObserver.observe(islandCustomHost.value);
 };
 
-watch(() => islandCustomSlot.component, (component) => {
-  if (!component) customCardHeight.value = 0;
-  observeIslandCustomHost();
-});
+watch(
+  () => islandCustomSlot.component,
+  (component) => {
+    if (!component) customCardHeight.value = 0;
+    observeIslandCustomHost();
+  },
+);
 
 // ============================================
 // 窗口缩放
@@ -592,85 +790,8 @@ const navFrame = computed(() => resolveFrameForAuthor('', authStore.userInfo?.id
  * - children 为二级项（直接链接）
  * - children[].children 为三级分组（分组标题 + 入口链接）
  */
-const navMenuItems = [
-  { name: "index", path: "/", label: "首页" },
-  {
-    name: "community",
-    label: "社区",
-    children: [
-      { name: "smart-overview", path: "/overview", label: "智能概览" },
-      { name: "news-shows", path: "/newsroom", label: "新闻&节目" },
-      { name: "forum", path: "/?view=latest", label: "论坛" },
-      { name: "activities-wall", path: "/activities-wall", label: "活动&方块墙" },
-      { name: "lotteries", path: "/lotteries", label: "抽奖" }
-    ]
-  },
-  {
-    name: "explore",
-    label: "探索",
-    children: [
-      { name: "boh-app", path: "/app", label: "BOH App" },
-      {
-        name: "ai-group",
-        label: "AI 助手",
-        children: [
-          { name: "boh-agent", action: "openAiAssistant", label: "BOHAgent" },
-          { name: "ai-chat", path: "/ai-chat", label: "BOH AI" }
-        ]
-      },
-      {
-        name: "lab-group",
-        label: "实验室",
-        children: [
-          { name: "lab", path: "/lab", label: "实验室" },
-          { name: "mbti", path: "/mbti", label: "MBTI" }
-        ]
-      },
-      {
-        name: "world-group",
-        label: "方块世界",
-        children: [
-          { name: "character-book", path: "/character-book", label: "设定集" },
-          { name: "birthday", path: "/birthday", label: "生日会" },
-          { name: "boh-8-years-journey", path: "/boh-8-years-journey", label: "八周年" }
-        ]
-      }
-    ]
-  },
-  {
-    name: "services",
-    label: "服务",
-    children: [
-      {
-        name: "health-group",
-        label: "健康服务",
-        children: [
-          { name: "boh-health", path: "/health", label: "BOH Health" }
-        ]
-      },
-      { name: "shop", path: "/shop", label: "周边商城" },
-      { name: "subscription", path: "/user-space/subscriptions", label: "订阅计划" },
-      {
-        name: "support-group",
-        label: "支持中心",
-        children: [
-          // 下载中心与教程中心已融合为「资源中心」单页（/download）
-          { name: "resources", path: "/download", label: "资源中心" },
-          { name: "admin-panel", action: "goToAdmin", label: "管理面板", adminOnly: true }
-        ]
-      }
-    ]
-  },
-  {
-    name: "about",
-    label: "关于",
-    children: [
-      { name: "anniversary-cafe", path: "/anniversary-cafe", label: "云上咖啡店" },
-      { name: "version-check", action: "checkVersion", label: "版本检测" },
-      { name: "about", path: "/about", label: "关于我们" }
-    ]
-  }
-];
+// 顶栏菜单单源见 @/config/site-nav.ts —— 导航渲染与全局搜索索引共用同一份（2026-09-27 抽出）
+const navMenuItems = SITE_NAV_ITEMS;
 
 /**
  * 当前展开的一级菜单名称
@@ -693,7 +814,9 @@ const activeGroupParent = ref(null);
  * @returns {boolean}
  */
 const hasGroupChildren = (item) => {
-  return item.children && item.children.some(child => child.children && child.children.length > 0);
+  return (
+    item.children && item.children.some((child) => child.children && child.children.length > 0)
+  );
 };
 
 /**
@@ -702,7 +825,7 @@ const hasGroupChildren = (item) => {
  * @returns {Array}
  */
 const activeGroupChildren = (item) => {
-  const group = item.children.find(child => child.name === activeGroup.value);
+  const group = item.children.find((child) => child.name === activeGroup.value);
   return group ? group.children : [];
 };
 
@@ -744,39 +867,39 @@ const hasChildren = (item) => {
  * @param {string} action - 操作类型
  */
 const handleMenuAction = async (action) => {
-  if (action === "createDesktop") {
+  if (action === 'createDesktop') {
     createDesktopShortcut();
-  } else if (action === "goToAdmin") {
+  } else if (action === 'goToAdmin') {
     // 权限检查：未登录或非管理员时拦截
     if (!isLoggedIn.value) {
       await alert({
-        title: "权限不足",
-        message: "请先登录后再访问管理面板。",
-        tone: "warning"
+        title: '权限不足',
+        message: '请先登录后再访问管理面板。',
+        tone: 'warning',
       });
       showLoginModal.value = true;
       return;
     }
     if (!isAdmin.value) {
       await alert({
-        title: "权限不足",
-        message: "您没有管理员权限，无法访问管理面板。",
-        tone: "warning"
+        title: '权限不足',
+        message: '您没有管理员权限，无法访问管理面板。',
+        tone: 'warning',
       });
       return;
     }
     // 有权限，跳转到管理面板
-    router.push("/admin/data-management");
-  } else if (action === "openAiAssistant") {
+    router.push('/admin/data-management');
+  } else if (action === 'openAiAssistant') {
     // 打开 BOHAgent AI 助手
     toggleHiagentChat();
-  } else if (action === "checkVersion") {
+  } else if (action === 'checkVersion') {
     // 版本检测
     if (isChecking.value) {
       await alert({
-        title: "检测中",
-        message: "版本检测正在进行中，请稍候...",
-        tone: "default"
+        title: '检测中',
+        message: '版本检测正在进行中，请稍候...',
+        tone: 'default',
       });
       return;
     }
@@ -784,11 +907,11 @@ const handleMenuAction = async (action) => {
     if (result.hasUpdate) {
       // 发现新版本，询问用户是否立即更新
       const shouldUpdate = await confirm({
-        title: "发现新版本",
-        message: result.message + "\n是否立即更新到最新版本？",
-        confirmText: "立即更新",
-        cancelText: "稍后更新",
-        tone: "success"
+        title: '发现新版本',
+        message: result.message + '\n是否立即更新到最新版本？',
+        confirmText: '立即更新',
+        cancelText: '稍后更新',
+        tone: 'success',
       });
       if (shouldUpdate) {
         await applyUpdate(result.remoteBuildId);
@@ -797,11 +920,24 @@ const handleMenuAction = async (action) => {
     } else {
       // 已是最新版本，询问用户是否强制刷新
       await alert({
-        title: "版本检测",
+        title: '版本检测',
         message: result.message,
-        tone: "success"
+        tone: 'success',
       });
     }
+  } else if (action === 'toggleTheme') {
+    // 搜索动作：切换深色/亮色主题（与主题面板同一套 themeManager 单源）
+    themeManager.toggle();
+  } else if (action === 'logout') {
+    // 搜索动作：退出登录。⚠️ 破坏性动作必须确认，防止键盘回车误触
+    const ok = await confirm({
+      title: '退出登录',
+      message: '确定要退出当前账号吗？',
+      confirmText: '退出',
+      cancelText: '取消',
+      tone: 'warning',
+    });
+    if (ok) authStore.logout();
   }
 };
 
@@ -816,18 +952,20 @@ const createDesktopShortcut = async () => {
     window.deferredPrompt.prompt();
     // 等待用户响应
     const { outcome } = await window.deferredPrompt.userChoice;
-    if (outcome === "accepted") {
-      console.log("用户接受了添加到桌面的请求");
+    if (outcome === 'accepted') {
+      console.log('用户接受了添加到桌面的请求');
     } else {
-      console.log("用户拒绝了添加到桌面的请求");
+      console.log('用户拒绝了添加到桌面的请求');
     }
     // 清除保存的事件
     window.deferredPrompt = null;
   } else {
     // 如果不支持或已经安装，显示提示信息
-    if (window.matchMedia("(display-mode: standalone)").matches ||
-      window.navigator.standalone === true) {
-      alert("您已经在使用BOH桌面版应用了！");
+    if (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true
+    ) {
+      alert('您已经在使用BOH桌面版应用了！');
     } else {
       // 尝试直接调用浏览器的添加到主屏幕功能
       // 对于 iOS Safari
@@ -849,7 +987,9 @@ const createDesktopShortcut = async () => {
       }
       // 其他浏览器
       else {
-        alert("您的浏览器不支持直接创建桌面快捷方式。请使用浏览器的\"添加到主屏幕\"或\"安装应用\"功能。");
+        alert(
+          '您的浏览器不支持直接创建桌面快捷方式。请使用浏览器的"添加到主屏幕"或"安装应用"功能。',
+        );
       }
     }
   }
@@ -865,7 +1005,7 @@ const isMenuActive = (item) => {
     return isActive(item.path);
   }
   if (item.children) {
-    return item.children.some(child => isMenuActive(child));
+    return item.children.some((child) => isMenuActive(child));
   }
   return false;
 };
@@ -875,17 +1015,22 @@ const isMenuActive = (item) => {
  * 使用 computed 确保响应式更新
  */
 const navItems = computed(() => {
-  return navMenuItems.map(item => ({
+  return navMenuItems.map((item) => ({
     ...item,
     children: item.children
       ? item.children
-          .map(child => child.children
-            ? { ...child, children: child.children.filter(g => g.adminOnly ? isAdmin.value : true) }
-            : child)
-          .filter(child => child.adminOnly ? isAdmin.value : true)
+          .map((child) =>
+            child.children
+              ? {
+                  ...child,
+                  children: child.children.filter((g) => (g.adminOnly ? isAdmin.value : true)),
+                }
+              : child,
+          )
+          .filter((child) => (child.adminOnly ? isAdmin.value : true))
       : undefined,
     isActive: isMenuActive(item),
-    isExpanded: expandedMenu.value === item.name
+    isExpanded: expandedMenu.value === item.name,
   }));
 });
 
@@ -911,7 +1056,7 @@ const toggleMobileMenu = () => {
   }
 
   // Beta 6：常驻悬浮导航下移动端菜单始终允许页面滚动。
-  document.body.style.overflow = "";
+  document.body.style.overflow = '';
 };
 
 /**
@@ -923,7 +1068,7 @@ const closeMobileMenu = () => {
   expandedMenu.value = null;
   activeGroup.value = null;
   activeGroupParent.value = null;
-  document.body.style.overflow = "";
+  document.body.style.overflow = '';
 };
 
 // 页面跳转后自动收起：菜单内链接各自 closeMobileMenu，但 logo / 头像这两个
@@ -934,7 +1079,7 @@ watch(
   () => route.fullPath,
   () => {
     if (isMobileMenuOpen.value) closeMobileMenu();
-  }
+  },
 );
 
 // ============================================
@@ -950,25 +1095,129 @@ const handlePortraitMiniChange = (event) => {
   navMini.value = event.matches;
 };
 
-const isExpandedLooking = computed(() => (
-  !navMini.value
-  || isMobileMenuOpen.value
-  || statusCardItem.value.visible
-  || isTaskCardShown.value
-  || isBohaiIslandOpen.value
-  || !!islandCustomSlot.component
-));
+// ============================================
+// 沉浸阅读形态（route.meta.immersiveNav）：导航收成左上角迷你球。
+// 点击球展开完整胶囊；点外部 / 跳转离开沉浸页自动收回。
+// 展开态与岛仲裁兼容：任意岛唤起时仍按岛形态展示。
+// ============================================
+const immersiveNav = computed(() => route.meta.immersiveNav === true);
+const immersiveExpanded = ref(false);
+
+watch(immersiveNav, (immersive) => {
+  immersiveExpanded.value = false;
+  if (!immersive) {
+    // 离开沉浸页：清掉 FLIP 动画的 fill 锁定，恢复导航常规形态
+    document
+      .querySelectorAll(
+        '#unified-nav-container .unified-nav-surface, #unified-nav-container.unified-nav',
+      )
+      .forEach((el) => el.getAnimations?.().forEach((a) => a.cancel()));
+  }
+});
+
+const isExpandedLooking = computed(() =>
+  immersiveNav.value
+    ? immersiveExpanded.value ||
+      isMobileMenuOpen.value ||
+      statusCardItem.value.visible ||
+      isTaskCardShown.value ||
+      isBohaiIslandOpen.value ||
+      !!islandCustomSlot.component
+    : !navMini.value ||
+      isMobileMenuOpen.value ||
+      statusCardItem.value.visible ||
+      isTaskCardShown.value ||
+      isBohaiIslandOpen.value ||
+      !!islandCustomSlot.component,
+);
+
+// ============================================
+// 沉浸形态 FLIP 灵动过渡：球 ↔ 展开胶囊位置连续 morph
+// （fixed 球与流内胶囊无法用 CSS transition 插值，改用 WAAPI：
+//   新态挂载后，从已知旧态几何反演 transform，再过渡回原位）
+// ============================================
+const IMMERSIVE_ORB = { x: 14, y: 14, size: 52 };
+const IMMERSIVE_CAPSULE = { width: 860, height: 58 };
+const IMMERSIVE_FLIP_MS = 460;
+const IMMERSIVE_FLIP_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
+
+watch(
+  isExpandedLooking,
+  () => {
+    if (!immersiveNav.value || typeof window === 'undefined') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
+
+    const surface = document.querySelector('#unified-nav-container .unified-nav-surface');
+    const bar = document.querySelector('#unified-nav-container.unified-nav');
+    if (!surface) return;
+
+    const toRect = surface.getBoundingClientRect();
+    const expanding = isExpandedLooking.value;
+    const fromRect = expanding
+      ? {
+          x: IMMERSIVE_ORB.x,
+          y: IMMERSIVE_ORB.y,
+          width: IMMERSIVE_ORB.size,
+          height: IMMERSIVE_ORB.size,
+        }
+      : {
+          x: (window.innerWidth - Math.min(IMMERSIVE_CAPSULE.width, window.innerWidth - 24)) / 2,
+          y: 10,
+          width: Math.min(IMMERSIVE_CAPSULE.width, window.innerWidth - 24),
+          height: IMMERSIVE_CAPSULE.height,
+        };
+
+    const dx = fromRect.x + fromRect.width / 2 - (toRect.x + toRect.width / 2);
+    const dy = fromRect.y + fromRect.height / 2 - (toRect.y + toRect.height / 2);
+    const sx = Math.max(fromRect.width / Math.max(toRect.width, 1), 0.02);
+    const sy = Math.max(fromRect.height / Math.max(toRect.height, 1), 0.02);
+
+    // FLIP：从旧形态几何反演到新态（fill 默认 none，结束后交还 CSS，避免锁死 hover transition）
+    surface.animate(
+      [
+        {
+          transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`,
+          borderRadius: '999px',
+          opacity: 0.55,
+        },
+        { transform: 'none', borderRadius: '100px', opacity: 1 },
+      ],
+      { duration: IMMERSIVE_FLIP_MS, easing: IMMERSIVE_FLIP_EASING },
+    );
+    // 白条随形态淡入淡出（球态透明 / 展开态白底）
+    bar?.animate([{ opacity: expanding ? 0 : 1 }, { opacity: expanding ? 1 : 0 }], {
+      duration: 300,
+      easing: 'ease',
+    });
+  },
+  { flush: 'post' },
+);
 
 // 任意岛唤起时收起移动菜单（岛需要全宽 surface，菜单与岛互斥）
 watch(
-  () => statusCardItem.value.visible || isTaskCardShown.value || isBohaiIslandOpen.value || !!islandCustomSlot.component,
+  () =>
+    statusCardItem.value.visible ||
+    isTaskCardShown.value ||
+    isBohaiIslandOpen.value ||
+    !!islandCustomSlot.component,
   (anyIsland) => {
     if (anyIsland && isMobileMenuOpen.value) closeMobileMenu();
-  }
+  },
 );
 
 // mini 态点胶囊空白 = 展开（logo/头像/汉堡/登录按钮已 stopPropagation，各自直达）
 const handleSurfaceTap = () => {
+  // 沉浸态：点球展开完整胶囊；展开后点空白收回球（岛卡展示中不抢行为）
+  if (immersiveNav.value) {
+    const islandShowing =
+      statusCardItem.value.visible ||
+      isTaskCardShown.value ||
+      isBohaiIslandOpen.value ||
+      !!islandCustomSlot.component;
+    if (islandShowing || isMobileMenuOpen.value) return;
+    immersiveExpanded.value = !immersiveExpanded.value;
+    return;
+  }
   if (navMini.value && !isExpandedLooking.value) {
     toggleMobileMenu();
   }
@@ -980,9 +1229,12 @@ const MINI_COLLAPSE_SCROLL_THRESHOLD = 140;
 let miniScrollRafId = null;
 
 const collapseMiniOnScroll = (target) => {
-  const scrollTop = target === document || target === document.documentElement || target === window
-    ? (window.scrollY || document.documentElement.scrollTop || 0)
-    : (target && typeof target.scrollTop === 'number' ? target.scrollTop : 0);
+  const scrollTop =
+    target === document || target === document.documentElement || target === window
+      ? window.scrollY || document.documentElement.scrollTop || 0
+      : target && typeof target.scrollTop === 'number'
+        ? target.scrollTop
+        : 0;
   if (scrollTop > MINI_COLLAPSE_SCROLL_THRESHOLD) {
     closeMobileMenu();
   }
@@ -1008,20 +1260,28 @@ const handleClickOutside = (event) => {
   }
   if (
     expandedMenu.value &&
-    !event.target.closest(".nav-menu-item") &&
-    !event.target.closest(".nav-submenu") &&
-    !event.target.closest(".nav-mobile-item") &&
-    !event.target.closest(".nav-mobile-submenu")
+    !event.target.closest('.nav-menu-item') &&
+    !event.target.closest('.nav-submenu') &&
+    !event.target.closest('.nav-mobile-item') &&
+    !event.target.closest('.nav-mobile-submenu')
   ) {
     expandedMenu.value = null;
   }
   // 竖屏 Mini 形态（plans/009）：移动菜单点外部关闭 → 派生态自动回缩 mini
   if (
     isMobileMenuOpen.value &&
-    !event.target.closest(".unified-nav-surface") &&
-    !event.target.closest(".nav-menu-mobile")
+    !event.target.closest('.unified-nav-surface') &&
+    !event.target.closest('.nav-menu-mobile')
   ) {
     closeMobileMenu();
+  }
+  // 沉浸形态：展开的胶囊点外部收回迷你球
+  if (
+    immersiveNav.value &&
+    immersiveExpanded.value &&
+    !event.target.closest('.unified-nav-surface')
+  ) {
+    immersiveExpanded.value = false;
   }
 };
 
@@ -1044,7 +1304,7 @@ const checkUnreadMessages = async () => {
     const notificationStore = await ensureNotificationStore();
     await notificationStore.refreshUnreadCount();
   } catch (_error) {
-    console.error("Error checking unread messages:", _error);
+    console.error('Error checking unread messages:', _error);
   }
 };
 
@@ -1093,29 +1353,30 @@ const handleThemeChange = (theme, preference = themeManager.getPreference?.() ||
 onMounted(() => {
   window.addEventListener('boh_global_nav_status_preview', handleNavStatusPreview);
   window.addEventListener(GLOBAL_NAV_STATUS_EVENT, handleGlobalNavStatus);
+  window.addEventListener(GLOBAL_NAV_PREEMPT_EVENT, handleGlobalNavPreempt);
   checkUnreadMessages();
   // 兜底轮询：实时订阅/事件异常时，最多 60 秒回补一次
   unreadRefreshInterval = setInterval(checkUnreadMessages, 60000);
 
   setTimeout(() => {
     if (!isInitialized.value) {
-      console.warn("Auth initialization timeout, forcing display.");
+      console.warn('Auth initialization timeout, forcing display.');
       isInitialized.value = true;
     }
   }, 3000);
 
   // 确保页面加载时滚动正常
   isMobileMenuOpen.value = false;
-  document.body.style.overflow = "";
-  window.addEventListener("resize", handleResize);
-  window.addEventListener("storage", handleStorageChange);
-  window.addEventListener("boh_unread_refresh", handleUnreadRefresh);
+  document.body.style.overflow = '';
+  window.addEventListener('resize', handleResize);
+  window.addEventListener('storage', handleStorageChange);
+  window.addEventListener('boh_unread_refresh', handleUnreadRefresh);
   // 竖屏 Mini 形态（plans/009）：断点切换 + 滚动回缩
   portraitMiniQuery.addEventListener('change', handlePortraitMiniChange);
   window.addEventListener('scroll', handleMiniCollapseScroll, { capture: true, passive: true });
   themeManager.addListener(handleThemeChange);
   // 添加点击外部关闭下拉菜单的事件监听
-  document.addEventListener("click", handleClickOutside);
+  document.addEventListener('click', handleClickOutside);
 });
 
 /**
@@ -1125,8 +1386,8 @@ watch(
   () => isMobileMenuOpen.value,
   () => {
     // Beta 6：常驻悬浮导航下移动端菜单始终允许页面滚动。
-    document.body.style.overflow = "";
-  }
+    document.body.style.overflow = '';
+  },
 );
 
 /**
@@ -1135,6 +1396,7 @@ watch(
 onUnmounted(() => {
   window.removeEventListener('boh_global_nav_status_preview', handleNavStatusPreview);
   window.removeEventListener(GLOBAL_NAV_STATUS_EVENT, handleGlobalNavStatus);
+  window.removeEventListener(GLOBAL_NAV_PREEMPT_EVENT, handleGlobalNavPreempt);
   clearNavStatusDismissTimer();
   navStatusQueue.length = 0;
   registerIslandAiOpener(null);
@@ -1147,9 +1409,9 @@ onUnmounted(() => {
     cancelAnimationFrame(resizeRafId);
     resizeRafId = null;
   }
-  window.removeEventListener("resize", handleResize);
-  window.removeEventListener("storage", handleStorageChange);
-  window.removeEventListener("boh_unread_refresh", handleUnreadRefresh);
+  window.removeEventListener('resize', handleResize);
+  window.removeEventListener('storage', handleStorageChange);
+  window.removeEventListener('boh_unread_refresh', handleUnreadRefresh);
   portraitMiniQuery.removeEventListener('change', handlePortraitMiniChange);
   window.removeEventListener('scroll', handleMiniCollapseScroll, { capture: true });
   if (miniScrollRafId) {
@@ -1158,7 +1420,7 @@ onUnmounted(() => {
   }
   themeManager.removeListener(handleThemeChange);
   // 移除点击外部关闭下拉菜单的事件监听
-  document.removeEventListener("click", handleClickOutside);
+  document.removeEventListener('click', handleClickOutside);
 });
 
 watch(isLoggedIn, (loggedIn) => {

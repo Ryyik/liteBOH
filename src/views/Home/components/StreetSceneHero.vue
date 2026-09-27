@@ -1,20 +1,47 @@
 <template>
-  <section ref="rootRef" class="street-hero"
-    :class="{ 'is-media-less': !mediaVisible, 'on-brand': !hasStreetImage }" aria-label="方块街开场">
+  <section
+    ref="rootRef"
+    class="street-hero"
+    :class="{ 'is-media-less': !mediaVisible, 'on-brand': !hasStreetImage }"
+    aria-label="方块街开场"
+  >
     <!-- 品牌兜底层（2026-09-24 起为「默认首屏」形态）：纯白底 + 居中红 logo。
          没配街景图、或街景图加载失败时启用；配了图则完全不渲染，整层让位给照片。 -->
     <div v-if="!hasStreetImage" class="street-hero-brand" aria-hidden="true">
-      <img class="street-hero-brand-logo" :src="BRAND_LOGO_SRC" alt=""
-        width="512" height="512" decoding="async" @error="onBrandLogoError">
+      <img
+        class="street-hero-brand-logo"
+        :src="BRAND_LOGO_SRC"
+        alt=""
+        width="512"
+        height="512"
+        decoding="async"
+        @error="onBrandLogoError"
+      />
     </div>
 
     <!-- 双构图：竖屏 1170x2532 / 横屏 2560x1440，按 orientation 切换。
          完全离开视口后卸载 <img>（IO 驱动），滚回顶部再挂载 —— 浏览器内存缓存即时恢复。
          这是 LCP 元素：fetchpriority=high + width/height 防 CLS。 -->
     <div v-if="hasStreetImage" class="street-hero-media">
-      <img v-if="mediaVisible" class="street-hero-img" :src="orientedSrc"
-        :width="activeWidth" :height="activeHeight" alt="" fetchpriority="high" decoding="async"
-        @error="onImageError">
+      <img
+        v-if="mediaVisible"
+        class="street-hero-img"
+        :src="orientedSrc"
+        :width="activeWidth"
+        :height="activeHeight"
+        alt=""
+        fetchpriority="high"
+        decoding="async"
+        @error="onImageError"
+      />
+    </div>
+
+    <!-- 静态模糊副本（2026-09-27）：跟手时的「虚化」由它承担，而不是去动上面那层的 filter。
+         理由：逐帧改 filter: blur() 半径会让整屏图层每帧重新栅格化（中低端机直接掉帧）。
+         这里把 blur() 定格成一个常量，只让 opacity 跟着 --gate-p 走 —— 全程纯合成器路径。
+         同一 src 的第二张 img 走浏览器缓存，不会产生第二次网络请求。 -->
+    <div v-if="hasStreetImage && mediaVisible" class="street-hero-media-blur" aria-hidden="true">
+      <img class="street-hero-img-blur" :src="orientedSrc" alt="" decoding="async" />
     </div>
 
     <!-- 浅 scrim：只在问候（上 22%）与提示（下 18%）两带渐晕，中段完全透明。
@@ -23,7 +50,7 @@
 
     <div class="street-hero-content">
       <p class="street-hero-greeting">{{ greetingText }}</p>
-      <p class="street-hero-hint" :class="{ 'is-dismissed': hintDismissed }" aria-hidden="true">
+      <p class="street-hero-hint" aria-hidden="true">
         <span class="street-hero-hint-text">{{ hintText }}</span>
         <span class="street-hero-hint-arrow">↓</span>
       </p>
@@ -53,7 +80,6 @@ const isPortrait = ref(true);
 // 两个正交状态，必须分开：图全挂了（永久）vs 滚出视口（可恢复）
 const imageUnavailable = ref(false);
 const isOffscreen = ref(false);
-const hintDismissed = ref(false);
 const mediaVisible = computed(() => !imageUnavailable.value && !isOffscreen.value);
 
 // —— 方向单源：matchMedia 驱动，避免 resize 里手算宽高比 ——
@@ -114,7 +140,9 @@ const resolveGreetingWord = () => {
 /* 问候语 / 提示文案：由 street-scene 行的 greeting_text / hint_text 控制（2026-09-24 起可配）。
    留空一律回落默认值。口径与装修台实时预览共用 utils/street-scene-copy.js —— 勿在此另立副本。
    时段词沿用 greetingWord（onMounted 回填，避免首帧取时间的抖动）。 */
-const greetingText = computed(() => resolveGreetingText(props.hero?.greeting_text, greetingWord.value));
+const greetingText = computed(() =>
+  resolveGreetingText(props.hero?.greeting_text, greetingWord.value),
+);
 
 /** 提示文案（「↓」箭头仍是组件的固定装饰，不落库） */
 const hintText = computed(() => resolveHintText(props.hero?.hint_text));
@@ -123,29 +151,28 @@ const hintText = computed(() => resolveHintText(props.hero?.hint_text));
 let io = null;
 const setupObserver = () => {
   if (typeof window === 'undefined' || !window.IntersectionObserver || !rootRef.value) return;
-  io = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      // threshold 0 + rootMargin 0：ratio 为 0 即「完全不可见」
-      isOffscreen.value = entry.intersectionRatio === 0;
-    });
-  }, { threshold: 0, rootMargin: '0px' });
+  io = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        // threshold 0 + rootMargin 0：ratio 为 0 即「完全不可见」
+        isOffscreen.value = entry.intersectionRatio === 0;
+      });
+    },
+    { threshold: 0, rootMargin: '0px' },
+  );
   io.observe(rootRef.value);
 };
 
-// —— 首次滚动后淡出呼吸提示（一次性）——
-let onFirstScroll = null;
-const setupHintDismiss = () => {
-  if (typeof window === 'undefined') return;
-  onFirstScroll = () => {
-    if (window.scrollY > 24) hintDismissed.value = true;
-  };
-  window.addEventListener('scroll', onFirstScroll, { passive: true });
-};
+/* —— 「往下逛逛」的呼吸提示：淡出改由进度驱动（2026-09-27）——
+   旧实现监听 window.scrollY > 24，但开场层是 fixed 覆盖层、跟手期间又由手势
+   preventDefault 拦住底层滚动 —— 文档根本不会滚，这条判定等于永远不触发；
+   而 24px 又与旧触发阈值 28px 几乎同时发生，用户在「提示刚淡出」和「整页开演」之间
+   只看到一次闪烁。现在直接由 --gate-p 派生 opacity（见样式里的 .street-hero-hint），
+   跟手多少就淡多少，既即时，也不会出现两套动画抢同一个元素。 */
 
 onMounted(() => {
   greetingWord.value = resolveGreetingWord();
   setupOrientation();
-  setupHintDismiss();
   setupObserver();
 });
 
@@ -162,17 +189,14 @@ onBeforeUnmount(() => {
     io.disconnect();
     io = null;
   }
-  if (onFirstScroll) {
-    window.removeEventListener('scroll', onFirstScroll);
-    onFirstScroll = null;
-  }
 });
 </script>
 
 <style scoped>
 .street-hero {
   /* 全站统一系统栈（不引入 web 字体，零 FOUT / 零 CLS） */
-  --street-hero-font: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif;
+  --street-hero-font:
+    -apple-system, 'PingFang SC', 'HarmonyOS Sans SC', 'MiSans', 'Microsoft YaHei', sans-serif;
   --street-hero-scrim-max: 0.25;
   --street-hero-warm-bg: #f3ece2;
 
@@ -202,19 +226,46 @@ onBeforeUnmount(() => {
   object-position: center;
 }
 
+/* ---------- 静态模糊副本（跟手「虚化」的唯一承担者，2026-09-27）----------
+   ⚠️ blur 半径必须是常量，绝不跟着进度变：逐帧改 filter 半径会让整屏图层每帧
+   重新栅格化，中低端机上跟手直接掉帧。定格成 14px，只让 opacity 跟着 --gate-p 走。
+   ⚠️ scale(1.08) 是必要的：blur 会让图像边缘出现透明羽化，放大一点把羽化顶出视口，
+   否则四周会露出暖色底。 */
+.street-hero-media-blur {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: calc(var(--gate-p, 0) * 1.15);
+  will-change: opacity;
+}
+
+.street-hero-img-blur {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  filter: blur(14px) saturate(1.06);
+  transform: scale(1.08);
+}
+
 .street-hero-scrim {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(to bottom,
+    linear-gradient(
+      to bottom,
       rgba(0, 0, 0, var(--street-hero-scrim-max)) 0%,
       rgba(0, 0, 0, calc(var(--street-hero-scrim-max) * 0.5)) 12%,
-      rgba(0, 0, 0, 0) 22%),
-    linear-gradient(to top,
+      rgba(0, 0, 0, 0) 22%
+    ),
+    linear-gradient(
+      to top,
       rgba(0, 0, 0, var(--street-hero-scrim-max)) 0%,
       rgba(0, 0, 0, calc(var(--street-hero-scrim-max) * 0.5)) 10%,
-      rgba(0, 0, 0, 0) 18%);
+      rgba(0, 0, 0, 0) 18%
+    );
 }
 
 .street-hero-content {
@@ -228,7 +279,8 @@ onBeforeUnmount(() => {
      拿不到时回退 78px）——竖屏是居中胶囊、横屏是全宽横条，写死必然一头空一头盖。
      底部留白给足：2026-09-24 把「往下逛逛」从贴底（旧值 6svh ≈ 50px）上提到视觉下三分之一，
      贴底既显得像被裁掉，也压住底栏安全区。 */
-  padding: max(84px, calc(var(--userspace-nav-h, 78px) + 16px)) clamp(20px, 5vw, 56px) clamp(72px, 17svh, 152px);
+  padding: max(84px, calc(var(--userspace-nav-h, 78px) + 16px)) clamp(20px, 5vw, 56px)
+    clamp(72px, 17svh, 152px);
   pointer-events: none;
 }
 
@@ -241,7 +293,45 @@ onBeforeUnmount(() => {
   line-height: 1.32;
   letter-spacing: 0.02em;
   color: #ffffff;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+  text-shadow:
+    0 1px 12px rgba(0, 0, 0, 0.45),
+    0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* ---------- 照片形态的入场编排（2026-09-27）----------
+   此前只有品牌兜底态（白底 + logo）有入场动画，配了街景图的默认形态是硬出现的 ——
+   文字、提示同时「啪」地出现。这里补上同一套节奏：问候先落，提示随后（120 / 260ms）。
+   ⚠️ 两组动画改的属性刻意不同：
+     · 问候语可以动 opacity + transform（它不参与任何后续过渡）；
+     · 提示只能动 transform —— 它的 opacity 由跟手进度派生，一旦被
+       animation-fill-mode: both 接管，那个派生值就永久失效了
+       （这是本项目踩过的老坑：both 会让属性在动画结束后仍由动画控制）。 */
+.street-hero:not(.on-brand) .street-hero-greeting {
+  animation: streetHeroGreetingIn 760ms 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+@keyframes streetHeroGreetingIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.street-hero:not(.on-brand) .street-hero-hint {
+  animation: streetHeroHintRise 640ms 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+@keyframes streetHeroHintRise {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 .street-hero-hint {
@@ -254,11 +344,10 @@ onBeforeUnmount(() => {
   letter-spacing: 0.08em;
   color: #ffffff;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
-  transition: opacity 320ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
-}
-
-.street-hero-hint.is-dismissed {
-  opacity: 0;
+  /* 提示的淡出直接由跟手进度派生（p≈0.45 完全消失）——
+     不再有 .is-dismissed 这类 JS 状态，也不需要 transition：
+     跟手时它应当即时跟随手指，而不是滞后 320ms。 */
+  opacity: calc(1 - var(--gate-p, 0) * 2.2);
 }
 
 .street-hero-hint-arrow {
@@ -267,8 +356,15 @@ onBeforeUnmount(() => {
 }
 
 @keyframes streetHeroBreath {
-  0%, 100% { transform: translateY(0); opacity: 0.75; }
-  50% { transform: translateY(5px); opacity: 1; }
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.75;
+  }
+  50% {
+    transform: translateY(5px);
+    opacity: 1;
+  }
 }
 
 /* ---------- 品牌兜底（默认首屏形态，2026-09-24） ----------
@@ -297,8 +393,14 @@ onBeforeUnmount(() => {
 }
 
 @keyframes streetHeroLogoIn {
-  from { opacity: 0; transform: scale(0.94); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* 白底态：文字翻转为暖黑、去阴影；整组文案做一次轻入场（logo 先落，文字随后） */
@@ -317,8 +419,12 @@ onBeforeUnmount(() => {
 }
 
 @keyframes streetHeroCopyIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* ---------- 横屏 / 矮视口适配（2026-09-24） ----------
@@ -333,7 +439,8 @@ onBeforeUnmount(() => {
 
   .street-hero-content {
     /* 横屏导航是全宽横条（比竖屏胶囊矮但更宽），同样按实测高度避让 */
-    padding: max(64px, calc(var(--userspace-nav-h, 60px) + 12px)) clamp(28px, 4vw, 64px) max(44px, 15svh);
+    padding: max(64px, calc(var(--userspace-nav-h, 60px) + 12px)) clamp(28px, 4vw, 64px)
+      max(44px, 15svh);
   }
 
   .street-hero-greeting {
@@ -352,15 +459,22 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .street-hero-hint {
-    transition: none;
-  }
   .street-hero-hint-arrow {
+    animation: none;
+  }
+  /* 照片形态的分层入场一并砍掉：reduce 用户不该看到「逐渐显现」 */
+  .street-hero:not(.on-brand) .street-hero-greeting,
+  .street-hero:not(.on-brand) .street-hero-hint {
     animation: none;
   }
   .street-hero-brand-logo,
   .street-hero.on-brand .street-hero-content {
     animation: none;
+  }
+  /* 静态模糊副本整层撤掉：reduce 下没有「跟手变糊」，
+     视觉只剩开场层的纯 opacity 淡出（时长由 index.vue 的 reduce 时长表控制）。 */
+  .street-hero-media-blur {
+    display: none;
   }
 }
 </style>

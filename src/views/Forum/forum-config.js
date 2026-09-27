@@ -8,16 +8,21 @@ export const FORUM_POST_DRAFT_PREFIX = 'boh_forum_post_draft';
 export const FORUM_POST_DRAFT_VERSION_LIMIT = 5;
 export const SEARCH_DEBOUNCE_MS = 350;
 export const FORUM_IMAGE_UPLOAD_CONCURRENCY = 1;
-export const FORUM_LIST_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_fill,w_720,h_540';
-export const FORUM_LIST_IMAGE_TRANSFORM_SM = 'f_auto,q_auto:good,c_fill,w_360,h_270';
-export const FORUM_LIST_IMAGE_TRANSFORM_MD = 'f_auto,q_auto:good,c_fill,w_540,h_405';
-export const FORUM_LIST_LQIP_TRANSFORM = 'f_auto,q_auto:low,c_fill,w_72,h_54,e_blur:1000';
-export const FORUM_DETAIL_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1600';
+/* 图片转换档位单源（2026-09-27）：这 5 个常量曾在 utils/api/forum-format.js（数据层，
+   真正在拼 URL 的地方）和本文件各写一份 —— 改一处忘另一处是迟早的事（LQIP 那次就差点分叉）。
+   现在只留数据层那份，这里做 re-export，调用方的 import 路径一行都不用改。 */
+export {
+  FORUM_LIST_IMAGE_TRANSFORM,
+  FORUM_LIST_IMAGE_TRANSFORM_SM,
+  FORUM_LIST_IMAGE_TRANSFORM_MD,
+  FORUM_LIST_LQIP_TRANSFORM,
+  FORUM_DETAIL_IMAGE_TRANSFORM,
+} from '@/utils/api/forum-format.js';
 export const AUTO_SAVE_DRAFT_INTERVAL_MS = 30000;
 export const FORUM_TAG_OPTIONS = [
   { value: 'server', label: '#服务器' },
   { value: 'activity', label: '#活动' },
   { value: 'daily', label: '#日常' },
-  { value: 'question', label: '#提问' }
+  { value: 'question', label: '#提问' },
 ];
 export const FORUM_TAG_MAP = Object.fromEntries(FORUM_TAG_OPTIONS.map((tag) => [tag.value, tag]));

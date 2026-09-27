@@ -1,0 +1,12 @@
+#!/bin/sh
+# 提交前只处理「这次要提交的文件」：prettier 统一格式 + eslint --fix。
+# 规则见 .lintstagedrc.json 与 .prettierrc；全仓格式化用 npm run format。
+#
+# 安装：cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+#
+# 刻意没有用 husky：husky 会接管 core.hooksPath，而本仓库 .git/hooks/post-commit
+# 被 Qoder 的 tracker 占用，切换后它会静默失效。这里选择让两者共存 ——
+# 换来的是钩子不随 clone 分发，新环境手动装一次。
+#
+# 临时绕过：git commit --no-verify（请在 commit message 里写清理由）
+npx --no-install lint-staged

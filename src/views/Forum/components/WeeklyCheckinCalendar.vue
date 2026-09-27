@@ -15,7 +15,7 @@ const props = defineProps({
   cardUsername: { type: String, default: '未命名用户' },
   cardTierLabel: { type: String, default: 'BOH' },
   cardSkin: { type: String, default: 'blank' },
-  cardImageUrl: { type: String, default: '' }
+  cardImageUrl: { type: String, default: '' },
 });
 
 const emit = defineEmits(['close', 'checkin']);
@@ -76,7 +76,11 @@ function handleCheckin() {
               </div>
               <div class="checkin-hero-copy">
                 <span class="checkin-hero-points">
-                  {{ signed ? `+${WEEKLY_CHECKIN_REWARD_POINTS} 积分已到账` : `+${WEEKLY_CHECKIN_REWARD_POINTS} 积分` }}
+                  {{
+                    signed
+                      ? `+${WEEKLY_CHECKIN_REWARD_POINTS} 积分已到账`
+                      : `+${WEEKLY_CHECKIN_REWARD_POINTS} 积分`
+                  }}
                 </span>
                 <span class="checkin-hero-title">{{ signed ? '本周已签到' : '本周签到奖励' }}</span>
                 <span class="checkin-hero-sub">
@@ -87,14 +91,28 @@ function handleCheckin() {
 
             <div class="checkin-week-section">
               <div class="checkin-week-row">
-                <span v-for="day in calendarDays" :key="day.key" class="checkin-week-day-label"
-                  :class="{ today: day.isToday }">{{ day.label }}</span>
+                <span
+                  v-for="day in calendarDays"
+                  :key="day.key"
+                  class="checkin-week-day-label"
+                  :class="{ today: day.isToday }"
+                  >{{ day.label }}</span
+                >
               </div>
               <div class="checkin-week-row">
-                <span v-for="day in calendarDays" :key="`date-${day.key}`" class="checkin-week-date"
-                  :class="{ today: day.isToday, signed: day.isSigned }">
+                <span
+                  v-for="day in calendarDays"
+                  :key="`date-${day.key}`"
+                  class="checkin-week-date"
+                  :class="{ today: day.isToday, signed: day.isSigned }"
+                >
                   {{ day.day }}
-                  <Check v-if="day.isSigned" :size="12" :stroke-width="3" class="checkin-week-check" />
+                  <Check
+                    v-if="day.isSigned"
+                    :size="12"
+                    :stroke-width="3"
+                    class="checkin-week-check"
+                  />
                 </span>
               </div>
             </div>
@@ -108,10 +126,12 @@ function handleCheckin() {
               <span v-if="signed" class="checkin-next-count">每周一刷新</span>
             </div>
 
-            <button class="checkin-submit-btn"
+            <button
+              class="checkin-submit-btn"
               :class="{ 'is-done': signed }"
               @click="handleCheckin"
-              :disabled="loading || submitting || signed">
+              :disabled="loading || submitting || signed"
+            >
               <span v-if="loading" class="checkin-skeleton-label"></span>
               <template v-else-if="submitting">
                 <span>签到中...</span>
@@ -133,6 +153,7 @@ function handleCheckin() {
 </template>
 
 <style scoped>
+/* 共享样式层：签到弹窗样式在 composer.css / 变量在 base.css（架构现状，说明见 base.css 顶部） */
 @import '../styles/base.css';
 @import '../styles/composer.css';
 </style>

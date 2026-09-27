@@ -1,28 +1,30 @@
 /* ============================================
-   BOH Home - Apple Style Scoped CSS
-   仅包含：首页基础、开场层、论坛层、底栏槽位、社区动态、骨架屏
-   其余区块样式已迁移至 HomeHeroRow / AppleHeroBanner / AppleGridCard 组件；
-   官方英雄区与四类周年弹窗的样式在 components/official-hero-stage.css
+   BOH Home - 首屏（开场画 → 论坛）
+   仅包含：首页基础、开场层与转场背板、论坛层（圆角卡片）、底栏槽位、响应式、reduce。
+   其余区块样式在 HomeHeroRow / HomeFooter / components/official-hero-stage.css。
+
+   2026-09-27 入场重构：从「阈值触发 + 一条写死的关键帧动画」改成「跟手进度派生」——
+   本文件里所有转场视觉都由 --gate-p / --forum-p 派生，时长与曲线不再出现在 CSS
+   （唯一真源是 index.vue 的 GATE_TIMINGS）。因此旧有的
+   --home-gate-duration / --home-gate-ease / --home-forum-duration / --home-forum-ease
+   一并删除：它们以前和 JS 的常量各写一份，正是「改一处要动两处」的典型，
+   而且已经漂移过（注释写 1320ms、变量是 980ms）。
    ============================================ */
 
 /* ============================================
    首页基础
    ============================================ */
 .home {
+  /* 入场进度默认值：模板以 inline style 覆盖，这里只兜底。
+     取 0（= 开场画在场）与 .home-gate 的存在性一致，避免极端情况下论坛层先闪一下。 */
+  --gate-p: 0;
+  --forum-p: 0;
+  /* 论坛层「对焦」时长：由模板从 GATE_TIMINGS.focusMs 注入（reduce 下自动变短） */
+  --home-focus-duration: 760ms;
+
   position: relative;
   width: 100%;
   overflow-x: hidden;
-  /* 开场层退出 / 论坛层就位的时长与缓动（2026-09-24 二调：动态感增强）。
-     ⚠️ --home-gate-duration 必须与 index.vue 的 GATE_TRANSITION_MS 一致。
-     「动态感」来自三件事：退场更快（880ms）、曲线改加速（easeIn 系 ——
-     起步蓄力、越走越快地冲出视口，而不是匀速滑走）、论坛层从更低处追赶（88px）：
-       ① 开场画里的文字先走（55% 时长）→ 前后景分离；
-       ② 开场画底图 880ms 加速冲出；
-       ③ 论坛层 980ms 追上落定 —— 收尾仍比开场画晚，保住余韵。 */
-  --home-gate-duration: 880ms;
-  --home-gate-ease: cubic-bezier(0.55, 0.085, 0.68, 0.53);
-  --home-forum-duration: 980ms;
-  --home-forum-ease: cubic-bezier(0.16, 1, 0.3, 1);
   /* 页面底色走 token（纯白 #ffffff；暗色在 themes/dark-mode.css 覆写同一变量）。 */
   background-color: var(--boh-page-bg, #ffffff);
   color: #000000;
@@ -35,63 +37,67 @@
   gap: 0;
 }
 
-/* 开场画未通过前不做「锁文档滚动」：开场层是 fixed 覆盖层（见 .home-gate），
-   底层文档就算能滚，用户也看不到变化；真正进入由手势判定（index.vue 的 enterForum），
-   进入瞬间把滚动位置归零。这样就不必去覆盖 style.global.css 里 html/body/.home
-   那几条 !important（!important 棘轮不许新增）。 */
-
-/* 开场画还在时：论坛层整体不可见。
-   为什么不能只靠 gate 的 z-index：论坛层的浮层分两种 ——
-   ① 留在 stage 内的（这条规则管）；
-   ② **Teleport 到 body 的**（实测 `.mobile-compose-fab` 父级直接是 body、z-index 1200），
-      visibility 管不到它，只能靠 gate 的层级压住 → 所以 gate 的 z-index 取 1300：
-      高于 1200（发帖按钮）、低于 9999（导航栏）与 10000（登录模态框），
-      这样开场画能盖住论坛浮层，又不挡用户点登录。 */
-.home:not(.home-forum-open) .home-forum-stage {
-  visibility: hidden;
+/* ---------- 论坛层＝「桌面」----------
+   2026-09-27 三调：它不再从视口下方升上来（那是 push 新页面的语言），
+   而是**一直待在原位**，只做一次极轻的 scale 归位 —— 像是本来就铺在那儿，
+   刚刚被一张浮层盖着、现在被揭开。位移全部交给上面那张浮层。
+   幅度只有 2%（浮层是 10%），刻意小一个量级：读者看到的才是「一张纸被拿走」，
+   而不是「两张纸对撞」。
+   ⚠️ transform 会创建包含块，让内部 position:fixed 的子元素改为相对本层定位 ——
+   所以落定后必须显式回到 transform: none（见 .home-forum-settled），不能停在 scale(1)。 */
+.home-forum-stage {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 100svh;
+  background-color: #ffffff;
+  transform: scale(calc(1 + (1 - var(--forum-p)) * 0.02));
+  /* ⚠️ 刻意不覆盖 --segment-tabs-inset：分区页签用 SegmentTabs 的默认避让
+     （吃 --userspace-nav-h，即导航胶囊实测高度 + safe-area + 4px）。
+     2026-09-23 修：原先这里写死 18px，页签会被悬浮导航胶囊压住（新闻/活动两项被盖）。
+     导航岛含状态卡时高度会变，静态值必然一头空一头盖 —— 高度由 index.vue 的
+     ResizeObserver 实测写入（与 UserSpaceMain 同口径）。 */
 }
 
-.home > section {
-  flex-shrink: 0;
-}
+/* ---------- 开场层（一次性）----------
+   fixed 而不是 absolute：与 .home 实际高度解耦 —— 首页文档流里有论坛层 + 归档区 + 页脚，
+   absolute inset:0 会被撑得比视口高，Hero 图（100svh）下方就会露出论坛。fixed 永远只覆盖视口。
 
-/* ---------- 开场层（一次性）---------- */
-/* fixed 而不是 absolute：与 .home 实际高度解耦 ——
-   首页文档流里有论坛层 + 归档区 + 页脚，absolute inset:0 会被撑得比视口高，
-   Hero 图（100svh）下方就会露出论坛。fixed 永远只覆盖视口。 */
+   2026-09-27 三调：改成「Apple 式揭开浮层」，不再让两页互相对滑。
+   · 旧观感：开场画上移一屏、论坛从视口下方 100vh 升上来 —— 那是 push 新页面的语言，
+     两头都在动、谁也不在原地，所以「不自然」。
+   · 新观感：论坛（＝桌面）**一直待在原位**，只做极轻的 scale 归位；
+     开场画是**盖在桌面上的一张浮层**，被手指推走 —— 上移 + 缩小 + 起圆角 + 变糊 + 淡出。
+     四周逐渐露出的就是那张一直在下面的桌面，观感与 iOS 上滑关闭 App / 锁屏一致。
+   ⚠️ 模糊刻意不在这里做：逐帧改 filter: blur() 的半径会让大面积图层每帧重新栅格化，
+   中低端机上直接掉到 20fps。模糊交给 StreetSceneHero 内部那张「静态模糊副本」，
+   用 opacity 交叉淡化实现（见该组件的 .street-hero-media-blur）。 */
 .home-gate {
   position: fixed;
   inset: 0;
   z-index: 1300;
-  will-change: transform, opacity;
-}
-
-/* 进入论坛：开场层线性上移退出（慢速）。
-   ⚠️ 时长与 index.vue 的 GATE_TRANSITION_MS 必须一致 —— 卸载时机与入场类摘除都按它计时。 */
-
-/* 位移配合极轻的推近（scale 1 → 1.04）：纯平移会显得像"贴纸被抽走"，
-   一点点推近才有「镜头让开」的空间感。亮度压在后段，收干净。 */
-.home-forum-open .home-gate.is-leaving {
-  animation: homeGateExit var(--home-gate-duration) var(--home-gate-ease) both;
-}
-
-@keyframes homeGateExit {
-  /* 失焦退场（2026-09-24）：开场画越退越糊 —— 与论坛层的「对焦落定」构成
-     完整的「旧世界失焦、新世界对焦」叙事，模糊渐显才真正可感知。 */
-  0% { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
-  /* -112%：scale(1.06) 后 -100% 不足以完全出屏，多退 12% 保证干净离场；
-     opacity 压到 0.25 —— 加速冲出时更彻底，动态感更足。 */
-  100% { transform: translateY(-112%) scale(1.06); opacity: 0.25; filter: blur(12px); }
-}
-
-/* 开场画里的文字比底图先退（55% 时长）：前后景分离，退场就有层次而不是一整块。 */
-.home-forum-open .home-gate.is-leaving :deep(.street-hero-content) {
-  animation: homeGateContentExit calc(var(--home-gate-duration) * 0.55) var(--home-gate-ease) both;
-}
-
-@keyframes homeGateContentExit {
-  0% { transform: translateY(0); opacity: 1; }
-  100% { transform: translateY(-46%); opacity: 0; }
+  /* 拦住底层滚动的第一道防线（第二道是 handleWheel / handleTouchMove 的 preventDefault）：
+     none 让浏览器一开始就不把这块上的手势当成滚动，touchmove 因此始终可取消。
+     本层内部没有可滚动内容，设为 none 零副作用。 */
+  touch-action: none;
+  /* 浮层被推走的三件事（全是合成器友好属性）：
+       · 上移 36%（2026-09-27 由 14% 上调）—— 手指推多少走多少。14% 时浮层只挪了一小截
+         就没了，谈不上「行程」；36% 才能看清它是一整层被推走、后面那张桌面一点点露出来；
+       · 缩到 0.90 —— 浮层被收走的纵深感（Apple 关闭 App 的同款语言）；
+       · 起圆角 —— 从满屏直角变成一张圆角卡片，四周露出下面的内容。
+     仍然不做满屏：走满一屏是「换页」（下一屏从屏外进来），缩着走才是「揭盖」。 */
+  transform: translateY(calc(var(--gate-p) * -42%)) scale(calc(1 - var(--gate-p) * 0.1));
+  border-radius: calc(var(--gate-p) * 32px);
+  /* 圆角要裁住内部的 hero 图，否则图片四角会溢出来 */
+  overflow: hidden;
+  /* 淡出只留到最后一段（2026-09-27 五调，用户反馈：「滑到一半就半透明、能看到下面内容了，
+     但卡片还没走完」）。原来是线性 `1 - p*1.15` —— p≈0.87 就全透了，于是拖动中段整块浮层
+     变成磨砂玻璃，观感「没走完就漏了」。
+     现在用 clamp 做分段：p ≤ 0.8 恒为 1（完全不透明），只有最后 20% 才从 1 降到 0。
+     配合 easeOutExpo 的后段极缓，这段淡出本身也跑得从容，不会仓促。
+     ⚠️ 数值不要改回线性：线性淡出 = 拖到一半就能透视到底下，这是被明确否掉的观感。 */
+  opacity: clamp(0, calc((1 - var(--gate-p)) * 5), 1);
+  will-change: transform, opacity, border-radius;
 }
 
 /* 键盘 / 读屏用户的等价入口：视觉隐藏，聚焦时可见 */
@@ -120,37 +126,64 @@
   outline-offset: 2px;
 }
 
-/* ---------- 论坛层 ---------- */
-.home-forum-stage {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  min-height: 100svh;
-  background-color: #ffffff;
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-  /* ⚠️ 刻意不覆盖 --segment-tabs-inset：分区页签用 SegmentTabs 的默认避让
-     （吃 --userspace-nav-h，即导航胶囊实测高度 + safe-area + 4px）。
-     2026-09-23 修：原先这里写死 18px，页签会被悬浮导航胶囊压住（新闻/活动两项被盖）。
-     导航岛含状态卡时高度会变，静态值必然一头空一头盖 —— 高度由 index.vue 的
-     ResizeObserver 实测写入（与 UserSpaceMain 同口径）。 */
+/* 只在转场期间提示合成器（落定后撤掉，不留常驻合成层开销） */
+.home:not(.home-forum-open) .home-forum-stage {
+  will-change: transform;
 }
 
-/* 论坛层就位：只在「本会话真播了开场画」时滑入。
-   比开场画多 120ms 且收尾更缓（--home-forum-ease = easeOutExpo 类）——
-   开场画已经在走了，论坛还在轻轻往下落，这个「迟到」就是优雅感的来源。 */
+/* 落定：解除 transform 的包含块、撤掉 will-change，回到干净的文档流 */
+.home-forum-settled .home-forum-stage {
+  transform: none;
+  will-change: auto;
+}
+
+/* ---------- 桌面 UI 的「浮上来」（2026-09-27 四调）----------
+   用户原话：「下滑之后 UI 组件浮上来的感觉」。
+   之前这些组件是**落定之后**才播一段一次性动画（挂在 .home-forum-entering 上），
+   于是跟手阶段它们纹丝不动、松手之后才突然开始动 —— 中间断了一拍，
+   这才是「不流畅」的真正来源（不是时长不够，是节奏不连续）。
+   现在改成**全程由 --forum-p 派生**：浮层被推走的同时，页签 / 工具栏 / 帖子卡
+   各自从下方浮起，幅度按层次递增（页签最浅 26px、帖子卡最深 44~60px），
+   读起来就是「一层层浮上来」，而不是「整块换掉」。
+
+   ⚠️ 三处刻意的写法：
+     1) 用 `:deep()` 穿透 —— 这些元素属于 ForumMain / ForumSectionShell 子组件；
+     2) 用 `.home:not(.home-forum-settled)` 而不是「落定后再写一条 transform: none」——
+        后者特异性会压住 PostCard 自带的 :hover transform（卡片从此不再有悬停反馈）；
+        这样写等于「落定后本规则整条不适用」，属性交还给元素自己。转场期间 hover 不动
+        是有意的（手指/指针都在推浮层，不该同时响应悬停）；
+     3) UserSpace 复用同一个论坛壳：那边没有 --forum-p（fallback 1）→ 位移恒为 0，零影响。 */
+.home:not(.home-forum-settled) .home-forum-stage :deep(.segment-tabs) {
+  transform: translateY(calc((1 - var(--forum-p, 1)) * 26px));
+}
+
+.home:not(.home-forum-settled) .home-forum-stage :deep(.forum-toolbar) {
+  transform: translateY(calc((1 - var(--forum-p, 1)) * 34px));
+}
+
+.home:not(.home-forum-settled) .home-forum-stage :deep(.forum-virtual-post .post-card-v2) {
+  transform: translateY(calc((1 - var(--forum-p, 1)) * 44px));
+}
+
+/* 前两张再多浮一点：层次靠幅度差给出来，不需要 animation-delay 那套时序 */
+.home:not(.home-forum-settled) .home-forum-stage :deep(.forum-virtual-post:nth-child(1) .post-card-v2) {
+  transform: translateY(calc((1 - var(--forum-p, 1)) * 60px));
+}
+
+.home:not(.home-forum-settled) .home-forum-stage :deep(.forum-virtual-post:nth-child(2) .post-card-v2) {
+  transform: translateY(calc((1 - var(--forum-p, 1)) * 52px));
+}
+
+/* 落定后的「对焦」：只改 opacity / filter，绝不碰 transform ——
+   否则 keyframes 里的 transform 会盖掉上面由 --forum-p 派生的位移，卡片会瞬跳。
+   filter 在这里只跑一次（不在跟手路径上），代价可接受。 */
 .home-forum-entering .home-forum-stage {
-  animation: homeForumStageIn var(--home-forum-duration, 1320ms) var(--home-forum-ease, cubic-bezier(0.16, 1, 0.3, 1)) both;
+  animation: homeForumFocus var(--home-focus-duration) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
-@keyframes homeForumStageIn {
-  /* 模糊渐显（2026-09-24 增强）：论坛层从失焦到对焦 —— 配合「被带到下面」的滚动锁，
-     观感是整个世界从虚到实落到眼前。清晰点推迟到 75%（4px），
-     让「对焦」过程有足够的可视时长。⚠️ filter 只挂在入场动画上：摘掉
-     forum-entering 类后 filter 自然归零，不给已落定的论坛层留常驻合成层开销。 */
-  0% { transform: translateY(88px); opacity: 0.5; filter: blur(12px); }
-  75% { filter: blur(4px); }
-  100% { transform: translateY(0); opacity: 1; filter: blur(0); }
+@keyframes homeForumFocus {
+  from { opacity: 0.9; filter: blur(5px); }
+  to { opacity: 1; filter: blur(0); }
 }
 
 /* 底栏槽位：display:contents 让固定定位的底栏照常相对视口定位；
@@ -165,20 +198,36 @@
   }
 }
 
+/* ============================================
+   reduce：位移 / 缩放 / 模糊 / 圆角 / 阴影全砍，只留可感知的淡入淡出
+   ============================================ */
 @media (prefers-reduced-motion: reduce) {
-  /* 2026-09-24 晚修：原先 animation: none 让「滑进论坛」变成瞬跳 ——
-     这段过渡是流程反馈（发生了「从开场画到论坛」这件事），不是装饰。
-     reduce 下降级为纯 opacity 淡出/淡入：位移、缩放、模糊全砍，但过渡仍可感知。 */
-  .home-forum-open .home-gate.is-leaving {
-    animation: homeGateExitReduced 300ms ease both;
+  /* 2026-09-24 晚修的口径延续：这段过渡是流程反馈（确实发生了「从开场画到论坛」这件事），
+     不是装饰，所以降级为纯 opacity 而不是直接 none。
+     ⚠️ 用后置覆盖而不是 !important —— !important 棘轮已有基线，新增会让 CI 变红。
+     ⚠️ JS 侧同时把时长表换成 GATE_TIMINGS.reduced：旧实现漏了这一步，
+     动画被压到 300ms 而计时器还是 880/980ms，用户看到的是「淡完了还盖着」的空窗。 */
+  .home-gate {
+    /* 位移、缩放、圆角全砍，只留一层纯 opacity 淡出（流程反馈仍可感知） */
+    transform: none;
+    border-radius: 0;
+    will-change: opacity;
   }
 
-  .home-forum-open .home-gate.is-leaving :deep(.street-hero-content) {
-    animation: none;
+  .home-forum-stage {
+    transform: none;
+  }
+
+  /* 桌面 UI 的浮起编排在 reduce 下整组砍掉（它是进度驱动的，不是开关式的，
+     所以要在这儿显式抵掉；前缀与上面保持同特异性、靠位置在后取胜）。 */
+  .home:not(.home-forum-settled) .home-forum-stage :deep(.segment-tabs),
+  .home:not(.home-forum-settled) .home-forum-stage :deep(.forum-toolbar),
+  .home:not(.home-forum-settled) .home-forum-stage :deep(.forum-virtual-post .post-card-v2) {
+    transform: none;
   }
 
   .home-forum-entering .home-forum-stage {
-    animation: homeForumStageInReduced 300ms ease both;
+    animation: homeForumFocusReduced var(--home-focus-duration) ease both;
   }
 
   .home-gate-enter {
@@ -186,257 +235,6 @@
   }
 }
 
-/* reduce 降级 keyframes：opacity-only（scoped 编译会同名替换 hash，本文件内引用安全） */
-@keyframes homeGateExitReduced {
-  to { opacity: 0; }
-}
-
-@keyframes homeForumStageInReduced {
-  from { opacity: 0; }
-}
-
-/* ============================================
-   社区动态区
-   ============================================ */
-.community-section {
-  background: transparent;
-}
-
-.community-posts-wrapper {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 0 40px;
-}
-
-.community-posts {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
-
-.community-post-item {
-  background: #ffffff;
-  border-radius: 18px;
-  padding: 24px;
-  cursor: pointer;
-  transition: transform .4s cubic-bezier(.165, .84, .44, 1), box-shadow .4s cubic-bezier(.165, .84, .44, 1);
-}
-
-.community-post-item:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
-}
-
-.cp-author-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.cp-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #f5f5f7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.cp-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.cp-avatar-placeholder {
-  font-size: 11px;
-  font-weight: 700;
-  color: #86868b;
-}
-
-.cp-author {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1d1d1f;
-}
-
-.cp-date {
-  font-size: 12px;
-  color: #86868b;
-  margin-left: auto;
-}
-
-.cp-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: #1d1d1f;
-  margin: 0 0 8px;
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.cp-excerpt {
-  font-size: 14px;
-  color: #86868b;
-  line-height: 1.5;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* 社区骨架屏 */
-.community-skeleton .community-post-item {
-  cursor: default;
-}
-
-.community-skeleton .community-post-item:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.cp-skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.cp-sk-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-}
-
-.cp-sk-title {
-  width: 80%;
-  height: 20px;
-  border-radius: 8px;
-}
-
-.cp-sk-line {
-  width: 60%;
-  height: 14px;
-  border-radius: 999px;
-}
-
-.home-skeleton-block {
-  position: relative;
-  display: block;
-  overflow: hidden;
-  border-radius: 999px;
-  background: #e8ebf0;
-}
-
-.home-skeleton-block::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), transparent);
-  animation: homeSkeletonShimmer 1.35s ease-in-out infinite;
-}
-
-@keyframes homeSkeletonShimmer {
-  100% { transform: translateX(100%); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home-skeleton-block::after { animation: none; }
-}
-
-/* ============================================
-   弹窗：加入游戏
-   ============================================ */
-.join-game-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(255, 255, 255, 0.4);
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  z-index: 10001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.join-game-modal-card {
-  background: #ffffff;
-  width: 100%;
-  max-width: 360px;
-  border-radius: 24px;
-  padding: 40px 24px;
-  position: relative;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.15);
-  animation: modalReveal .6s cubic-bezier(.16, 1, .3, 1);
-}
-
-.join-game-content {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.join-game-icon { font-size: 48px; margin-bottom: 24px; }
-
-.join-game-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1d1d1f;
-  margin-bottom: 12px;
-  letter-spacing: -0.02em;
-}
-
-.join-game-desc {
-  font-size: 16px;
-  color: #86868b;
-  line-height: 1.5;
-  margin-bottom: 32px;
-  font-weight: 500;
-}
-
-.join-game-actions { margin-top: 0; }
-
-.join-game-btn {
-  display: inline-block;
-  background: #0071e3;
-  color: #fff;
-  padding: 14px 40px;
-  border-radius: 980px;
-  font-size: 16px;
-  font-weight: 600;
-  text-decoration: none;
-  transition: transform .3s ease, background-color .3s ease;
-}
-
-.join-game-btn:hover {
-  background: #0077ed;
-  transform: scale(1.02);
-}
-
-/* ============================================
-   响应式
-   ============================================ */
-@media (max-width: 768px) {
-  .community-posts-wrapper { padding: 0 16px 40px; }
-  .community-posts { grid-template-columns: 1fr; gap: 16px; }
-}
-
-@media (max-width: 480px) {
-  .community-post-item { padding: 18px; }
-  .cp-title { font-size: 15px; }
+@keyframes homeForumFocusReduced {
+  from { opacity: 0.9; }
 }

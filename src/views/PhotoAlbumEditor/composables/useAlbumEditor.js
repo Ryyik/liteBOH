@@ -13,7 +13,7 @@ import {
   getMyAlbum,
   saveAlbumPages,
   updateAlbum,
-  updatePhotoCaption
+  updatePhotoCaption,
 } from '@/utils/api/photo-albums-api.js';
 import { buildAutoLayoutPages, appendPhotosToPages } from '@/utils/photo-albums/auto-layout.js';
 import { getLayout } from '@/utils/photo-albums/layouts.js';
@@ -40,7 +40,9 @@ export function useAlbumEditor() {
     return set;
   });
 
-  const unusedPhotos = computed(() => photos.value.filter((p) => !usedPhotoIds.value.has(String(p.id))));
+  const unusedPhotos = computed(() =>
+    photos.value.filter((p) => !usedPhotoIds.value.has(String(p.id))),
+  );
 
   const currentPage = computed(() => pages.value[currentIndex.value] || null);
 
@@ -57,7 +59,7 @@ export function useAlbumEditor() {
         layoutId: 'full',
         chapterTitle: '',
         note: '',
-        photoRefs: []
+        photoRefs: [],
       });
     }
   }
@@ -78,7 +80,7 @@ export function useAlbumEditor() {
       layoutId: p.layoutId,
       chapterTitle: p.chapterTitle,
       note: p.note,
-      photoRefs: [...p.photoRefs]
+      photoRefs: [...p.photoRefs],
     }));
     ensureCoverPage();
     currentIndex.value = 0;
@@ -97,7 +99,7 @@ export function useAlbumEditor() {
       const baseResult = await updateAlbum(album.value.id, {
         title: album.value.title,
         subtitle: album.value.subtitle,
-        coverUrl: album.value.coverUrl
+        coverUrl: album.value.coverUrl,
       });
       if (!baseResult.ok) return { ok: false, error: baseResult.error };
       album.value = baseResult.data;
@@ -113,19 +115,32 @@ export function useAlbumEditor() {
 
   /**
    * 上传照片进照片池：审核 → 压缩 → 上传 → 入库 → 自动追加进页面流
+   *
+   * 回调约定（2026-09-27 改造）：
+   * - onProgress(done, total, stage)    单张处理进度（兼容旧）
+   * - onPhotoRejected({name, reason})   保留旧回调，**调用方应不展示 UI**（避免逐张通知风暴）
+   * - onUploadedSummary({total, added, rejected: [{name, reason}]})
+   *     整批结束后一次性回调；调用方把 rejected 一次性渲染到聚合岛（UploadResultIsland）
+   *     —— **新逻辑唯一真源**，不要在这里 notify。
+   *
    * @param {File[]} files
-   * @param {object} [options] {onProgress?(done,total,stage), onPhotoRejected?({name,reason})}
+   * @param {object} [options] { onProgress?, onPhotoRejected?, onUploadedSummary? }
    */
   async function uploadPhotos(files, options = {}) {
     if (!album.value || !files?.length) return { ok: false, added: 0, error: '没有可上传的文件' };
 
     const quota = await checkPhotoQuota(album.value.id, files.length);
     if (!quota.allowed) {
-      return { ok: false, added: 0, error: quota.hint || `单集照片数已达上限（${quota.limit} 张）` };
+      return {
+        ok: false,
+        added: 0,
+        error: quota.hint || `单集照片数已达上限（${quota.limit} 张）`,
+      };
     }
 
     const { moderateImageWithFallback } = await import('@/utils/image-moderation-pipeline.js');
-    const { compressImageFileToUploadLimit, getImageCompressionPlan } = await import('@/utils/image-compression.js');
+    const { compressImageFileToUploadLimit, getImageCompressionPlan } =
+      await import('@/utils/image-compression.js');
     const { uploadImageToCloudinary } = await import('@/utils/cloudinary-client.js');
 
     isUploading.value = true;
@@ -133,8 +148,9 @@ export function useAlbumEditor() {
     const { signal } = uploadAbortController.value;
 
     const uploadedRows = [];
+    const rejected = []; // 整批累计，避免逐张 callback → UI 通知风暴
+    const total = files.length;
     try {
-      const total = files.length;
       for (let i = 0; i < total; i += 1) {
         if (signal.aborted) break;
         const file = files[i];
@@ -144,7 +160,9 @@ export function useAlbumEditor() {
           report('审核中');
           const moderation = await moderateImageWithFallback(file, { signal });
           if (moderation.status !== 'approved') {
-            options.onPhotoRejected?.({ name: file.name, reason: moderation.reason || '未通过安全检测' });
+            const entry = { name: file.name, reason: moderation.reason || '未通过安全检测' };
+            rejected.push(entry);
+            options.onPhotoRejected?.(entry); // 旧回调保留，调用方应忽视 UI
             continue;
           }
 
@@ -158,14 +176,19 @@ export function useAlbumEditor() {
           const uploaded = await uploadImageToCloudinary(payload, {
             folder: 'photo-album',
             pendingSource: 'photo-album',
-            signal
+            signal,
           });
 
           const width = Number(uploaded?.width || plan.dimensions?.width || 0);
           const height = Number(uploaded?.height || plan.dimensions?.height || 0);
-          const ratio = width && height
-            ? (Math.abs(width - height) <= Math.max(width, height) * 0.08 ? 'square' : (width > height ? 'landscape' : 'portrait'))
-            : 'landscape';
+          const ratio =
+            width && height
+              ? Math.abs(width - height) <= Math.max(width, height) * 0.08
+                ? 'square'
+                : width > height
+                  ? 'landscape'
+                  : 'portrait'
+              : 'landscape';
 
           uploadedRows.push({
             url: uploaded.secure_url,
@@ -176,27 +199,42 @@ export function useAlbumEditor() {
             moderationStatus: 'approved',
             moderationScore: Number(moderation.score || 0),
             moderationSource: moderation.source || 'auto',
-            createdAt: new Date(file.lastModified || Date.now()).toISOString()
+            createdAt: new Date(file.lastModified || Date.now()).toISOString(),
           });
         } catch (photoError) {
           if (photoError?.name === 'AbortError') break;
-          options.onPhotoRejected?.({ name: file?.name || '图片', reason: photoError?.message || '上传失败' });
+          const entry = { name: file?.name || '图片', reason: photoError?.message || '上传失败' };
+          rejected.push(entry);
+          options.onPhotoRejected?.(entry);
         }
       }
 
       if (signal.aborted && !uploadedRows.length) {
+        // 提前取消且没有成功入库 → 一次性回调，剩下的也明示给调用方
+        options.onUploadedSummary?.({ total, added: 0, rejected });
         return { ok: false, added: 0, error: '已取消上传' };
       }
 
       if (uploadedRows.length) {
         options.onProgress?.(total, total, '入库中');
         const insertResult = await addAlbumPhotos(album.value.id, uploadedRows);
-        if (!insertResult.ok) return { ok: false, added: 0, error: insertResult.error };
+        if (!insertResult.ok) {
+          // 入库失败：把整批（含已上传）作为被拒回传，让聚合岛展示可执行回退
+          const failed = uploadedRows.map((row, idx) => ({
+            name:
+              files.find(
+                (f) => new Date(f.lastModified || Date.now()).toISOString() === row.createdAt,
+              )?.name || `第 ${idx + 1} 张`,
+            reason: insertResult.error || '入库失败',
+          }));
+          options.onUploadedSummary?.({ total, added: 0, rejected: [...rejected, ...failed] });
+          return { ok: false, added: 0, error: insertResult.error };
+        }
 
         // addAlbumPhotos 保序插入：data[i] 对应 uploadedRows[i]
         const newPhotos = insertResult.data.map((photo, idx) => ({
           ...photo,
-          createdAt: uploadedRows[idx]?.createdAt
+          createdAt: uploadedRows[idx]?.createdAt,
         }));
         photos.value = [...photos.value, ...newPhotos];
 
@@ -206,6 +244,7 @@ export function useAlbumEditor() {
           markDirty();
         }
       }
+      options.onUploadedSummary?.({ total, added: uploadedRows.length, rejected });
       return { ok: true, added: uploadedRows.length, error: null };
     } finally {
       isUploading.value = false;
@@ -226,7 +265,7 @@ export function useAlbumEditor() {
     photos.value = photos.value.filter((p) => p.id !== photo.id);
     pages.value = pages.value.map((page) => ({
       ...page,
-      photoRefs: (page.photoRefs || []).filter((id) => String(id) !== String(photo.id))
+      photoRefs: (page.photoRefs || []).filter((id) => String(id) !== String(photo.id)),
     }));
     markDirty();
     return result;
@@ -263,7 +302,8 @@ export function useAlbumEditor() {
   function updateCurrentPage(patch = {}) {
     const page = currentPage.value;
     if (!page) return;
-    if (patch.chapterTitle !== undefined) page.chapterTitle = String(patch.chapterTitle).slice(0, 80);
+    if (patch.chapterTitle !== undefined)
+      page.chapterTitle = String(patch.chapterTitle).slice(0, 80);
     if (patch.note !== undefined) page.note = String(patch.note).slice(0, 500);
     markDirty();
   }
@@ -300,7 +340,7 @@ export function useAlbumEditor() {
       layoutId: pageType === 'content' ? 'full' : 'full',
       chapterTitle: '',
       note: '',
-      photoRefs: []
+      photoRefs: [],
     });
     currentIndex.value = insertAt;
     markDirty();
@@ -336,8 +376,10 @@ export function useAlbumEditor() {
     const contentPhotos = photos.value;
     const generated = buildAutoLayoutPages(contentPhotos);
     pages.value = [
-      pages.value[0]?.pageType === 'cover' ? pages.value[0] : { pageType: 'cover', layoutId: 'full', chapterTitle: '', note: '', photoRefs: [] },
-      ...generated
+      pages.value[0]?.pageType === 'cover'
+        ? pages.value[0]
+        : { pageType: 'cover', layoutId: 'full', chapterTitle: '', note: '', photoRefs: [] },
+      ...generated,
     ];
     currentIndex.value = pages.value.length > 1 ? 1 : 0;
     markDirty();
@@ -382,6 +424,6 @@ export function useAlbumEditor() {
     movePage,
     autoArrange,
     updateCover,
-    markDirty
+    markDirty,
   };
 }

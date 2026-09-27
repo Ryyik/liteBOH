@@ -10,9 +10,16 @@
         <!-- 分段控件：下载 / 教程（滑动式选择指示器） -->
         <div class="segmented liquid-glass--pill" role="tablist" ref="segmentedRef">
           <span class="segment-thumb" :style="thumbStyle" aria-hidden="true"></span>
-          <button v-for="(seg, i) in segments" :key="seg.id" :ref="el => setSegmentBtn(el, i)" class="segment-btn"
-            :class="{ active: activeSegment === seg.id }" role="tab" :aria-selected="activeSegment === seg.id"
-            @click="switchSegment(seg.id)">
+          <button
+            v-for="(seg, i) in segments"
+            :key="seg.id"
+            :ref="(el) => setSegmentBtn(el, i)"
+            class="segment-btn"
+            :class="{ active: activeSegment === seg.id }"
+            role="tab"
+            :aria-selected="activeSegment === seg.id"
+            @click="switchSegment(seg.id)"
+          >
             {{ seg.label }}
           </button>
         </div>
@@ -21,156 +28,231 @@
 
     <!-- ======================== 下载资源 ======================== -->
     <Transition name="seg" mode="out-in" @after-enter="onPanelEntered">
-    <main v-if="activeSegment === 'download'" class="download-container">
-      <!-- 类型筛选胶囊 -->
-      <div class="filter-row">
-        <div class="filter-glass liquid-glass--pill">
-          <button v-for="tab in tabs" :key="tab.id" class="filter-tab" :class="{ active: activeTab === tab.id }"
-            @click="activeTab = tab.id">
-            {{ tab.label }}
-          </button>
+      <main v-if="activeSegment === 'download'" class="download-container">
+        <!-- 类型筛选胶囊 -->
+        <div class="filter-row">
+          <div class="filter-glass liquid-glass--pill">
+            <button
+              v-for="tab in tabs"
+              :key="tab.id"
+              class="filter-tab"
+              :class="{ active: activeTab === tab.id }"
+              @click="activeTab = tab.id"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div class="download-grid">
-        <div v-for="(item, index) in filteredDownloads" :key="item.id" class="download-card"
-          :style="{ '--delay': index * 80 + 'ms' }">
-          <div class="liquid-glass liquid-glass--interactive card-glass">
-            <div class="card-top">
-              <span class="card-badge" :class="item.type">{{ getTypeName(item.type) }}</span>
-              <span class="card-size" v-if="item.size">{{ item.size }}</span>
-            </div>
-
-            <div class="card-content">
-              <h3 class="item-name">{{ item.name }}</h3>
-              <div class="version-glass liquid-glass--strong">
-                <span class="version-label">Version</span>
-                <span class="version-value">{{ item.version }}</span>
+        <div class="download-grid">
+          <div
+            v-for="(item, index) in filteredDownloads"
+            :key="item.id"
+            class="download-card"
+            :style="{ '--delay': index * 80 + 'ms' }"
+          >
+            <div class="liquid-glass liquid-glass--interactive card-glass">
+              <div class="card-top">
+                <span class="card-badge" :class="item.type">{{ getTypeName(item.type) }}</span>
+                <span class="card-size" v-if="item.size">{{ item.size }}</span>
               </div>
-              <p class="item-description" v-if="item.description">{{ item.description }}</p>
-            </div>
 
-            <div class="card-footer">
-              <button class="download-btn" @click="handleDownload(item.url)">
-                <span class="btn-text">立即下载</span>
-                <span class="btn-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="7 10 12 15 17 10"></polyline>
-                    <line x1="12" y1="15" x2="12" y2="3"></line>
-                  </svg>
-                </span>
-              </button>
+              <div class="card-content">
+                <h3 class="item-name">{{ item.name }}</h3>
+                <div class="version-glass liquid-glass--strong">
+                  <span class="version-label">Version</span>
+                  <span class="version-value">{{ item.version }}</span>
+                </div>
+                <p class="item-description" v-if="item.description">{{ item.description }}</p>
+              </div>
+
+              <div class="card-footer">
+                <button class="download-btn" @click="handleDownload(item.url)">
+                  <span class="btn-text">立即下载</span>
+                  <span class="btn-icon">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
 
-    <!-- ======================== 教程中心 ======================== -->
-    <main v-else class="tutorial-container">
-      <!-- 工具行：搜索 + 类型筛选 -->
-      <div class="tutorial-toolbar">
-        <div class="search-box liquid-glass--strong">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input type="text" v-model="searchQuery" placeholder="搜索教程内容..." @input="handleSearch"
-            @focus="isSearchFocused = true" @blur="handleSearchBlur" />
+      <!-- ======================== 教程中心 ======================== -->
+      <main v-else class="tutorial-container">
+        <!-- 工具行：搜索 + 类型筛选 -->
+        <div class="tutorial-toolbar">
+          <div class="search-box liquid-glass--strong">
+            <svg
+              class="search-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              v-model="searchQuery"
+              placeholder="搜索教程内容..."
+              @input="handleSearch"
+              @focus="isSearchFocused = true"
+              @blur="handleSearchBlur"
+            />
+            <transition name="fade">
+              <div
+                class="liquid-glass search-results-dropdown"
+                v-if="searchQuery && isSearchFocused && flattenedResults.length > 0"
+              >
+                <div
+                  v-for="item in flattenedResults"
+                  :key="item.id"
+                  class="search-result-item"
+                  @mousedown="selectSearchResult(item.id)"
+                >
+                  <span class="result-question">{{ item.question }}</span>
+                  <span class="result-section">{{ item.sectionTitle }}</span>
+                </div>
+              </div>
+            </transition>
+          </div>
+
+          <div class="filter-glass tutorial-type-pills liquid-glass--pill">
+            <button
+              v-for="t in tutorialTypes"
+              :key="t.id"
+              class="filter-tab"
+              :class="{ active: tutorialType === t.id }"
+              @click="tutorialType = t.id"
+            >
+              {{ t.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="tutorial-layout" ref="tocLayoutRef">
+          <!-- 移动端侧拉遮罩 -->
           <transition name="fade">
-            <div class="liquid-glass search-results-dropdown" v-if="searchQuery && isSearchFocused && flattenedResults.length > 0">
-              <div v-for="item in flattenedResults" :key="item.id" class="search-result-item"
-                @mousedown="selectSearchResult(item.id)">
-                <span class="result-question">{{ item.question }}</span>
-                <span class="result-section">{{ item.sectionTitle }}</span>
+            <div
+              class="sidebar-overlay"
+              v-if="isMobileTocOpen"
+              @click="isMobileTocOpen = false"
+            ></div>
+          </transition>
+
+          <!-- 左侧目录（滚动驱动停靠，见 tocTop/updateTocTop） -->
+          <aside
+            class="tutorial-sidebar liquid-glass--subtle"
+            :class="{ 'mobile-open': isMobileTocOpen }"
+            :style="{ '--toc-top': tocTop }"
+          >
+            <nav class="toc-nav">
+              <div v-for="(section, sIndex) in filteredContent" :key="sIndex" class="toc-section">
+                <h3 class="toc-section-title">{{ section.title }}</h3>
+                <ul class="toc-list">
+                  <li
+                    v-for="(item, iIndex) in section.items"
+                    :key="iIndex"
+                    :class="{ active: activeId === item.id }"
+                    @click="handleTocClick(item.id)"
+                  >
+                    {{ item.question }}
+                  </li>
+                </ul>
+              </div>
+            </nav>
+          </aside>
+
+          <!-- 右侧内容 -->
+          <div class="tutorial-content" ref="contentRef">
+            <div v-if="filteredContent.length === 0" class="no-results">未找到相关内容</div>
+            <div
+              v-else
+              v-for="(section, sIndex) in filteredContent"
+              :key="sIndex"
+              class="content-section"
+            >
+              <h2 class="section-title">{{ section.title }}</h2>
+              <div
+                v-for="(item, iIndex) in section.items"
+                :key="iIndex"
+                :id="item.id"
+                class="qa-item"
+                :style="{ '--rd': Math.min(iIndex * 50, 300) + sIndex * 80 + 'ms' }"
+              >
+                <h4 class="qa-question">{{ item.question }}</h4>
+                <div class="qa-answer">
+                  <div v-if="item.coreSteps" class="answer-block liquid-glass">
+                    <span class="block-label">核心步骤</span>
+                    <p>{{ item.coreSteps }}</p>
+                  </div>
+                  <div v-if="item.extraInfo" class="answer-block supplementary liquid-glass">
+                    <span class="block-label">补充说明</span>
+                    <p>{{ item.extraInfo }}</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </transition>
-        </div>
 
-        <div class="filter-glass tutorial-type-pills liquid-glass--pill">
-          <button v-for="t in tutorialTypes" :key="t.id" class="filter-tab" :class="{ active: tutorialType === t.id }"
-            @click="tutorialType = t.id">
-            {{ t.label }}
+            <!-- AI 提问卡片 -->
+            <div class="ai-suggestion-section">
+              <div class="ai-suggestion-card liquid-glass--subtle">
+                <div class="ai-icon-wrapper">AI</div>
+                <div class="ai-text-content">
+                  <p class="ai-prompt-text">未找到你想找的内容？来问问BOH AI</p>
+                </div>
+                <button class="ai-action-btn" @click="goToAiChat">
+                  立即提问
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 移动端目录按钮 -->
+          <button
+            class="mobile-toc-trigger"
+            @click="isMobileTocOpen = !isMobileTocOpen"
+            :class="{ active: isMobileTocOpen }"
+            aria-label="打开目录"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
           </button>
         </div>
-      </div>
-
-      <div class="tutorial-layout" ref="tocLayoutRef">
-        <!-- 移动端侧拉遮罩 -->
-        <transition name="fade">
-          <div class="sidebar-overlay" v-if="isMobileTocOpen" @click="isMobileTocOpen = false"></div>
-        </transition>
-
-        <!-- 左侧目录（滚动驱动停靠，见 tocTop/updateTocTop） -->
-        <aside class="tutorial-sidebar liquid-glass--subtle" :class="{ 'mobile-open': isMobileTocOpen }"
-          :style="{ '--toc-top': tocTop }">
-          <nav class="toc-nav">
-            <div v-for="(section, sIndex) in filteredContent" :key="sIndex" class="toc-section">
-              <h3 class="toc-section-title">{{ section.title }}</h3>
-              <ul class="toc-list">
-                <li v-for="(item, iIndex) in section.items" :key="iIndex" :class="{ active: activeId === item.id }"
-                  @click="handleTocClick(item.id)">
-                  {{ item.question }}
-                </li>
-              </ul>
-            </div>
-          </nav>
-        </aside>
-
-        <!-- 右侧内容 -->
-        <div class="tutorial-content" ref="contentRef">
-          <div v-if="filteredContent.length === 0" class="no-results">未找到相关内容</div>
-          <div v-else v-for="(section, sIndex) in filteredContent" :key="sIndex" class="content-section">
-            <h2 class="section-title">{{ section.title }}</h2>
-            <div v-for="(item, iIndex) in section.items" :key="iIndex" :id="item.id" class="qa-item"
-              :style="{ '--rd': Math.min(iIndex * 50, 300) + sIndex * 80 + 'ms' }">
-              <h4 class="qa-question">{{ item.question }}</h4>
-              <div class="qa-answer">
-                <div v-if="item.coreSteps" class="answer-block liquid-glass">
-                  <span class="block-label">核心步骤</span>
-                  <p>{{ item.coreSteps }}</p>
-                </div>
-                <div v-if="item.extraInfo" class="answer-block supplementary liquid-glass">
-                  <span class="block-label">补充说明</span>
-                  <p>{{ item.extraInfo }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- AI 提问卡片 -->
-          <div class="ai-suggestion-section">
-            <div class="ai-suggestion-card liquid-glass--subtle">
-              <div class="ai-icon-wrapper">AI</div>
-              <div class="ai-text-content">
-                <p class="ai-prompt-text">未找到你想找的内容？来问问BOH AI</p>
-              </div>
-              <button class="ai-action-btn" @click="goToAiChat">
-                立即提问
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                  <polyline points="12 5 19 12 12 19"></polyline>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 移动端目录按钮 -->
-        <button class="mobile-toc-trigger" @click="isMobileTocOpen = !isMobileTocOpen"
-          :class="{ 'active': isMobileTocOpen }" aria-label="打开目录">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="12" x2="21" y2="12"></line>
-            <line x1="3" y1="6" x2="21" y2="6"></line>
-            <line x1="3" y1="18" x2="21" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-    </main>
+      </main>
     </Transition>
   </div>
 </template>
@@ -179,6 +261,7 @@
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { downloadsData } from '@/data/downloads.js';
+import { TUTORIAL_SECTIONS } from '@/data/tutorials';
 
 const router = useRouter();
 const route = useRoute();
@@ -210,7 +293,7 @@ const updateTocTop = () => {
 const activeSegment = ref('download');
 const segments = [
   { id: 'download', label: '下载资源' },
-  { id: 'tutorial', label: '教程中心' }
+  { id: 'tutorial', label: '教程中心' },
 ];
 const segmentedRef = ref(null);
 const segmentBtnRefs = ref([]);
@@ -219,12 +302,12 @@ const setSegmentBtn = (el, i) => {
 };
 const thumbStyle = ref({ width: '90px', transform: 'translateX(0px)' });
 const updateThumb = () => {
-  const i = segments.findIndex(s => s.id === activeSegment.value);
+  const i = segments.findIndex((s) => s.id === activeSegment.value);
   const el = segmentBtnRefs.value[i];
   if (el) {
     thumbStyle.value = {
       width: `${el.offsetWidth}px`,
-      transform: `translateX(${el.offsetLeft}px)`
+      transform: `translateX(${el.offsetLeft}px)`,
     };
   }
 };
@@ -242,12 +325,12 @@ const tabs = [
   { id: 'all', label: '全部资源' },
   { id: 'client', label: '客户端' },
   { id: 'server', label: '服务端' },
-  { id: 'map', label: '地图' }
+  { id: 'map', label: '地图' },
 ];
 const downloads = ref(downloadsData);
 const filteredDownloads = computed(() => {
   if (activeTab.value === 'all') return downloads.value;
-  return downloads.value.filter(item => item.type === activeTab.value);
+  return downloads.value.filter((item) => item.type === activeTab.value);
 });
 const getTypeName = (type) => {
   const types = { client: '客户端', server: '服务端', map: '游戏/地图' };
@@ -267,147 +350,51 @@ const tutorialType = ref('all');
 const tutorialTypes = [
   { id: 'all', label: '全部' },
   { id: 'client', label: '客户端' },
-  { id: 'server', label: '服务端' }
+  { id: 'server', label: '服务端' },
 ];
 
 const goToAiChat = () => {
   router.push('/ai-chat');
 };
 
-const rawTutorialData = [
-  {
-    title: '一、客户端问题',
-    items: [
-      {
-        id: 'q1',
-        question: '如何使用 BakaXL 启动器安装 Minecraft 版本？',
-        coreSteps: '打开 BakaXL 启动器，点击「添加核心」按钮进入 “自动安装核心” 界面，选择需安装的 Minecraft 版本（如 1.19.3）及对应模组加载器，点击确认安装即可。安装完成后，启动游戏会生成多个核心文件夹，其中 logs 文件夹是游戏的日志文件夹，用于排查崩溃等问题；mods 文件夹专门存放 Mod 文件，需为 Jar 格式；resourcepacks 文件夹用于存放材质包（资源包），格式为压缩包；saves 文件夹是游戏存档的存放位置，为文件夹格式；shaderpacks 文件夹用于存放光影包，为压缩包格式；options.txt 是游戏基础设置的配置文件。',
-        extraInfo: '选择模组加载器时，Forge 是老牌加载器，支持大量 “大型模组”（如科技类、魔法类），但版本更新较慢，适合 1.12.2、1.16.5 等经典版本；Fabric 是轻量加载器，支持快照版本，更新快且运行流畅，适合 1.20.1、1.21.10 等新版本，使用时需搭配「Fabric API」才能运行多数 Mod；Quilt 兼容 Fabric Mod，能修复部分兼容性问题；OptiFine 是单独优化画质的版本，支持安装光影，常与 Forge 或 Fabric 搭配使用。'
-      },
-      {
-        id: 'q2',
-        question: 'Java 版 Minecraft 不同版本需要匹配什么 Java 环境？',
-        coreSteps: 'Java 版 Minecraft 必须依赖 Java 运行环境，不同游戏版本对 Java 版本要求严格，不匹配会导致启动失败。其中，1.12（17w13a）至 1.16.5 版本要求 Java 8 及以上，官方推荐 Oracle Java 1.8.0_51；1.17（21w19a）至 1.17.1 版本需 Java 16 及以上，推荐 Java 16.0.1；1.18（1.18-pre2）至 1.20.4 版本需 Java 17 及以上，推荐 Java 17 LTS；1.20.5（24w14a）及以上版本需 Java 21 及以上，推荐 Java 21 LTS。',
-        extraInfo: '官方启动器会自动下载匹配的 Java 版本，第三方启动器（如 BakaXL、PCL2）需手动安装，建议选择 64 位 Java，避免设备内存不足；若下载速度慢，可从 OpenJDK 官网（如 Adoptium）下载对应版本，注意避开捆绑软件。'
-      },
-      {
-        id: 'q3',
-        question: 'Minecraft 有哪些常见启动器？官方与第三方启动器各有什么特点？',
-        coreSteps: '启动器分为官方启动器和第三方启动器两类。官方启动器以 Minecraft 官方启动器为代表，安全可靠，仅支持正版登录，能自动匹配 Java 环境并更新游戏，但功能简洁，没有整合包和 Mod 管理功能。',
-        extraInfo: '第三方启动器包括 BakaXL、PCL2、HMCL、MultiMC 等，支持离线登录（未购买正版也可体验）和正版登录，能便捷管理 Mod、整合包、材质光影，还可切换下载源（如 BMCLAPI）解决官方下载慢的问题。'
-      },
-      {
-        id: 'q4',
-        question: '如何使用 PCL 启动器安装 Minecraft 版本？',
-        coreSteps: '打开 PCL 启动器（以 PCL2 为例），进入主界面后点击顶部「版本选择」按钮，在版本列表右侧找到「添加版本」选项并点击；进入版本安装界面后，先选择目标 Minecraft 版本（如 1.20.1、1.19.3 等，支持正式版、快照版），再选择对应的模组加载器（Forge、Fabric、Quilt、OptiFine 或原版），确认后点击「安装」。',
-        extraInfo: '安装时需注意游戏路径设置，建议在 PCL「设置」→「游戏目录」中选择全英文路径（如 D:\\PCL\\Minecraft），避免中文路径导致启动失败或存档丢失。'
-      },
-      {
-        id: 'q5',
-        question: '如何安装 Minecraft 光影？',
-        coreSteps: '启动游戏后进入「选项」→「视频设置」→「光影」，点击「打开光影包文件夹」，将下载的光影压缩包（如 ComplementaryUnbound_r5.1.1.zip）直接拖入文件夹，返回游戏光影界面选中新增光影，点击「应用」即可生效。',
-        extraInfo: '光影安装需满足依赖前提，Java 版需安装「OptiFine」（支持 Forge/Fabric）或「Iris 光影加载器」（仅 Fabric，更轻量）。'
-      },
-      {
-        id: 'q6',
-        question: '如何安装 Minecraft 材质包（资源包）？',
-        coreSteps: '进入游戏「选项」→「资源包」，点击「打开资源包文件夹」，将材质包压缩包（如 enhanced_default_w1.12.zip）拖入，在资源包列表中把新增材质包从 “可用” 移到 “已选择”，点击「完成」即可。',
-        extraInfo: '材质包需匹配游戏版本，且 Java 版与基岩版材质包格式不同（Java 版为 .zip，基岩版为 .mcpack）。'
-      },
-      {
-        id: 'q7',
-        question: '如何安装 Minecraft Mod？',
-        coreSteps: '以 PCL 启动器为例：打开 PCL 启动器，进入「版本设置」→「Mod 管理」，点击「打开 Mod 文件夹」，将 Mod 文件（后缀为 .jar）拖入，重启游戏后 Mod 会自动加载。',
-        extraInfo: '需注意加载器匹配（Forge vs Fabric）、版本匹配以及依赖前置（如 Fabric API）。'
-      },
-      {
-        id: 'q8',
-        question: '如何导入 Java 版 Minecraft 地图？',
-        coreSteps: '找到游戏版本目录，路径为：启动器对应的游戏目录 → versions → 目标版本文件夹 → saves，将下载的地图文件夹直接拖入 saves 文件夹，启动游戏后在 “单人游戏” 列表中即可看到。',
-        extraInfo: '若地图不显示，检查是否存在嵌套文件夹，需确保地图根目录下直接包含 level.dat 文件。'
-      },
-      {
-        id: 'q9',
-        question: '基岩版 Minecraft 如何导入地图？',
-        coreSteps: '自动安装推荐使用 .mcworld 格式，直接点击文件系统会自动调用 Minecraft 导入。手动安装需解压到 minecraftWorlds 文件夹。',
-        extraInfo: 'Java 版地图转基岩版可使用 Chunker 或 MCCToolChest PE 等工具。'
-      },
-      {
-        id: 'q10',
-        question: '如何用 BakaXL 启动器联机？',
-        coreSteps: '主机在单人世界按「ESC」→「对局域网开放」；打开 BakaXL 进入「领域 / 联机大厅」，创建大厅获取编号并开启“中继连接”；加入者输入编号后加入。',
-        extraInfo: '中继连接是解决无法建立直接连接的关键。'
-      },
-      {
-        id: 'q11',
-        question: '如何用 PCL 启动器联机？',
-        coreSteps: '所有玩家需使用相同游戏版本；主机按「ESC」→「对局域网开放」，加入者在“多人游戏”中刷新即可看到，或输入主机 IP + 端口。',
-        extraInfo: '若正版玩家与离线玩家联机，需在 PCL 设置中关闭“正版验证”。'
-      },
-      {
-        id: 'q12',
-        question: '樱花 Frp 远程联机教程',
-        coreSteps: '① 官网注册账号并下载客户端；② 完成实名认证获取流量；③ 创建隧道，填写服务器地区、本地端口（Java 25565 / 基岩 19132）；④ 启动隧道生成公网地址；⑤ 队友输入公网地址连接。',
-        extraInfo: '适用于玩家不在同一网络（如异地）的场景。'
-      },
-      {
-        id: 'q13',
-        question: '如何用 PCL 启动器安装 Minecraft 整合包？',
-        coreSteps: '打开 PCL 启动器，进入「版本选择」→「添加或导入」→「导入整合包」，选择 .zip 文件，启动器会自动解析并安装。',
-        extraInfo: '安装后建议检查 Java 环境是否匹配。'
-      }
-    ]
-  },
-  {
-    title: '二、服务端相关',
-    items: [
-      {
-        id: 'q14',
-        question: '原生服务端下载与启动',
-        coreSteps: '下载地址：https://getbukkit.org/download/spigot\n\n启动脚本（Windows）：\n@echo off\njava -Xmx1g -Xms1g -jar 这里是名字.jar\npause',
-        extraInfo: '注意：请确保路径中无中文，所需环境为 JAVA 21'
-      },
-      {
-        id: 'q15',
-        question: 'Fabric 服务端下载与启动',
-        coreSteps: '下载地址：fabricmc.net/use/server/\n\n启动命令：\njava -Xms6G -Xmx6G -jar server.jar nogui',
-        extraInfo: '注意：请确保路径中无中文，所需环境为 JAVA 21'
-      }
-    ]
-  }
-];
+// 教程数据单源见 @/data/tutorials.js —— 资源中心页与全局搜索（plans/020）共用一份
+const rawTutorialData = TUTORIAL_SECTIONS;
 
 const filteredContent = computed(() => {
-  let data = tutorialType.value === 'all'
-    ? rawTutorialData
-    : rawTutorialData.filter(section => {
-      if (tutorialType.value === 'client') return section.title.includes('客户端');
-      if (tutorialType.value === 'server') return section.title.includes('服务端');
-      return true;
-    });
+  let data =
+    tutorialType.value === 'all'
+      ? rawTutorialData
+      : rawTutorialData.filter((section) => {
+          if (tutorialType.value === 'client') return section.title.includes('客户端');
+          if (tutorialType.value === 'server') return section.title.includes('服务端');
+          return true;
+        });
 
   if (!searchQuery.value) return data;
 
   const query = searchQuery.value.toLowerCase();
-  return data.map(section => {
-    const matchedItems = section.items.filter(item =>
-      item.question.toLowerCase().includes(query) ||
-      item.coreSteps.toLowerCase().includes(query) ||
-      (item.extraInfo && item.extraInfo.toLowerCase().includes(query))
-    );
-    return { ...section, items: matchedItems };
-  }).filter(section => section.items.length > 0);
+  return data
+    .map((section) => {
+      const matchedItems = section.items.filter(
+        (item) =>
+          item.question.toLowerCase().includes(query) ||
+          item.coreSteps.toLowerCase().includes(query) ||
+          (item.extraInfo && item.extraInfo.toLowerCase().includes(query)),
+      );
+      return { ...section, items: matchedItems };
+    })
+    .filter((section) => section.items.length > 0);
 });
 
 const flattenedResults = computed(() => {
   if (!searchQuery.value) return [];
   const results = [];
-  filteredContent.value.forEach(section => {
-    section.items.forEach(item => {
+  filteredContent.value.forEach((section) => {
+    section.items.forEach((item) => {
       results.push({
         id: item.id,
         question: item.question,
-        sectionTitle: section.title.split('、')[1] || section.title
+        sectionTitle: section.title.split('、')[1] || section.title,
       });
     });
   });
@@ -529,7 +516,7 @@ onBeforeUnmount(() => {
   color: var(--text-1);
   position: relative;
   /* 注意：不要加 overflow-x: hidden，会让侧栏 position:sticky 失效 */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 /* ============================================================
@@ -607,8 +594,12 @@ onBeforeUnmount(() => {
   height: calc(100% - 10px);
   border-radius: 999px;
   background: #ffffff;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition: transform 0.45s var(--spring), width 0.45s var(--spring);
+  box-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition:
+    transform 0.45s var(--spring),
+    width 0.45s var(--spring);
   will-change: transform;
 }
 
@@ -686,7 +677,9 @@ onBeforeUnmount(() => {
   color: var(--text-1);
   background: #ffffff;
   font-weight: 600;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 4px 16px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .download-grid {
@@ -886,7 +879,9 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   border-radius: 999px;
-  transition: box-shadow 0.3s var(--spring), transform 0.3s var(--spring);
+  transition:
+    box-shadow 0.3s var(--spring),
+    transform 0.3s var(--spring);
 }
 
 .search-box:focus-within {
@@ -1104,7 +1099,7 @@ onBeforeUnmount(() => {
 }
 
 .qa-question::before {
-  content: "Q";
+  content: 'Q';
   color: #ffffff;
   background: linear-gradient(135deg, #1d1d1f 0%, #434345 100%);
   width: 32px;
@@ -1129,12 +1124,17 @@ onBeforeUnmount(() => {
   border-radius: 20px;
   padding: 26px 28px;
   margin-bottom: 20px;
-  transition: transform 0.35s var(--spring), box-shadow 0.35s var(--spring);
+  transition:
+    transform 0.35s var(--spring),
+    box-shadow 0.35s var(--spring);
 }
 
 .answer-block:hover {
   transform: translateY(-2px);
-  box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86)), inset 0 -1px 0 rgba(255, 255, 255, 0.22), 0 16px 40px rgba(15, 23, 42, 0.1);
+  box-shadow:
+    var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86)),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.22),
+    0 16px 40px rgba(15, 23, 42, 0.1);
 }
 
 .supplementary {
@@ -1438,11 +1438,15 @@ onBeforeUnmount(() => {
 
 /* 分段面板切换：旧的轻轻上浮淡出，新的自下而上淡入 */
 .seg-enter-active {
-  transition: opacity 0.4s var(--spring), transform 0.4s var(--spring);
+  transition:
+    opacity 0.4s var(--spring),
+    transform 0.4s var(--spring);
 }
 
 .seg-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
 }
 
 .seg-enter-from {
@@ -1483,62 +1487,66 @@ onBeforeUnmount(() => {
    变量重定义 + 半透明白底/白色激活底逐一换暗色等价物。
    整条 :global(html[data-theme="dark"] .class)，遵守 scoped 暗色铁律。
    ============================================================ */
-:global(html[data-theme="dark"] .resources-page) {
+:global(html[data-theme='dark'] .resources-page) {
   --text-1: #f5f5f7;
   --text-2: #a1a1a6;
   --text-3: #8d8d93;
   color: var(--text-1);
 }
 
-:global(html[data-theme="dark"] .resources-page .hero-label) {
+:global(html[data-theme='dark'] .resources-page .hero-label) {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.18);
   color: #a1a1a6;
 }
 
-:global(html[data-theme="dark"] .resources-page .segmented),
-:global(html[data-theme="dark"] .resources-page .filter-glass) {
+:global(html[data-theme='dark'] .resources-page .segmented),
+:global(html[data-theme='dark'] .resources-page .filter-glass) {
   background: rgba(255, 255, 255, 0.08);
 }
 
-:global(html[data-theme="dark"] .resources-page .segment-thumb) {
+:global(html[data-theme='dark'] .resources-page .segment-thumb) {
   background: #4a4a52;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
-:global(html[data-theme="dark"] .resources-page .segment-btn.active) {
+:global(html[data-theme='dark'] .resources-page .segment-btn.active) {
   color: #f5f5f7;
 }
 
-:global(html[data-theme="dark"] .resources-page .filter-tab:hover) {
+:global(html[data-theme='dark'] .resources-page .filter-tab:hover) {
   background: rgba(255, 255, 255, 0.1);
 }
 
-:global(html[data-theme="dark"] .resources-page .filter-tab.active) {
+:global(html[data-theme='dark'] .resources-page .filter-tab.active) {
   background: #4a4a52;
   color: #f5f5f7;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
-:global(html[data-theme="dark"] .resources-page .card-badge) {
+:global(html[data-theme='dark'] .resources-page .card-badge) {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.16);
 }
 
-:global(html[data-theme="dark"] .resources-page .card-top),
-:global(html[data-theme="dark"] .resources-page .card-footer) {
+:global(html[data-theme='dark'] .resources-page .card-top),
+:global(html[data-theme='dark'] .resources-page .card-footer) {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-:global(html[data-theme="dark"] .resources-page .search-result-item:hover) {
+:global(html[data-theme='dark'] .resources-page .search-result-item:hover) {
   background: rgba(255, 255, 255, 0.07);
 }
 
-:global(html[data-theme="dark"] .resources-page .block-label) {
+:global(html[data-theme='dark'] .resources-page .block-label) {
   background: rgba(255, 255, 255, 0.1);
 }
 
-:global(html[data-theme="dark"] .resources-page .supplementary) {
+:global(html[data-theme='dark'] .resources-page .supplementary) {
   border-left-color: #f5f5f7;
 }
 </style>

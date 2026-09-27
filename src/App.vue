@@ -1,23 +1,29 @@
 <script setup>
-import { watch, onMounted, onUnmounted, ref, computed, defineAsyncComponent } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import Footer from "./components/Footer.vue";
-import UnifiedNavbar from "@/components/UnifiedNavbar/index.vue";
-import GlobalErrorBoundary from "@/components/GlobalErrorBoundary.vue";
-import { useAuthStore } from "@/stores/auth";
-import { storeToRefs } from "pinia";
-import { loadNotificationStore, getNotificationStoreSync } from "@/stores/notification-loader";
-import { logger } from "@/utils/logger.js";
-import { useGlobalAiOverlay } from "@/composables/useGlobalAiOverlay";
-const AiEdgeTrigger = defineAsyncComponent(() => import("@/components/AiEdgeTrigger.vue"));
-const AdminConfirmModal = defineAsyncComponent(() => import("@/components/AdminConfirmModal.vue"));
+import { watch, onMounted, onUnmounted, ref, computed, defineAsyncComponent } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import Footer from './components/Footer.vue';
+import { isGlobalNavbarVisible } from '@/utils/global-navbar-visibility.js';
+import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
+import GlobalErrorBoundary from '@/components/GlobalErrorBoundary.vue';
+import { useAuthStore } from '@/stores/auth';
+import { storeToRefs } from 'pinia';
+import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
+import { logger } from '@/utils/logger.js';
+import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
+const AiEdgeTrigger = defineAsyncComponent(() => import('@/components/AiEdgeTrigger.vue'));
+const AdminConfirmModal = defineAsyncComponent(() => import('@/components/AdminConfirmModal.vue'));
 // 账户绑定引导（通行密钥 + 消息通知）：异步加载，不进首屏壳；自身判定何时该弹
-const AccountBindPrompt = defineAsyncComponent(() => import("@/components/AccountBindPrompt/index.vue"));
-import { useConfirmDialog } from "@/composables/useConfirmDialog.js";
-import PWAUpdateToast from "@/components/PWAUpdateToast/index.vue";
-import PostDetailModal from "./views/PostDetail/PostDetailModal.vue";
-import { useGlobalAiPreferences, matchesGlobalAiShortcut } from "@/composables/useGlobalAiPreferences.js";
-import { consumeEmailConfirmationRedirect } from "@/composables/useSignupEmailConfirmation.js";
+const AccountBindPrompt = defineAsyncComponent(
+  () => import('@/components/AccountBindPrompt/index.vue'),
+);
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import PWAUpdateToast from '@/components/PWAUpdateToast/index.vue';
+import PostDetailModal from './views/PostDetail/PostDetailModal.vue';
+import {
+  useGlobalAiPreferences,
+  matchesGlobalAiShortcut,
+} from '@/composables/useGlobalAiPreferences.js';
+import { consumeEmailConfirmationRedirect } from '@/composables/useSignupEmailConfirmation.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -40,7 +46,8 @@ const bootReady = ref(false);
 const bootTimedOut = ref(false);
 let bootTimeoutId = 0;
 
-router.isReady()
+router
+  .isReady()
   .then(() => {
     bootReady.value = true;
     window.clearTimeout(bootTimeoutId);
@@ -64,7 +71,7 @@ consumeEmailConfirmationRedirect();
 // forceUpdate 会触发 index.html 内联脚本的 SW 注销 + 缓存清理流程
 const reloadWithFreshBuild = () => {
   const url = new URL(window.location.href);
-  url.searchParams.set("forceUpdate", "true");
+  url.searchParams.set('forceUpdate', 'true');
   window.location.replace(url.href);
 };
 
@@ -99,13 +106,13 @@ watch(
     if (!boundaryErrored.value) return;
     boundaryErrored.value = false;
     boundaryKey.value += 1;
-  }
+  },
 );
 
 // 错误已由边界接管并渲染提示卡，这里只负责留痕并标记错误态（monitoring 上报链路建立后会自动收走）
 const handleBoundaryError = ({ error, info } = {}) => {
   boundaryErrored.value = true;
-  logger.error("app", `渲染错误已被全局边界捕获（${info || "未知来源"}）`, error);
+  logger.error('app', `渲染错误已被全局边界捕获（${info || '未知来源'}）`, error);
 };
 
 // 用户选择重试/回首页后重建子树：不重建的话出错的组件实例可能仍处于 errored 状态
@@ -116,17 +123,19 @@ const handleBoundaryRecover = () => {
 const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
 const notificationStoreRef = ref(getNotificationStoreSync());
-const LoginView = defineAsyncComponent(() => import("./views/Login/index.vue"));
+const LoginView = defineAsyncComponent(() => import('./views/Login/index.vue'));
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
 
 const {
-  isOpen: globalAiOpen, open: openGlobalAi, close: closeGlobalAi,
-  theme: globalAiTheme
+  isOpen: globalAiOpen,
+  open: openGlobalAi,
+  close: closeGlobalAi,
+  theme: globalAiTheme,
 } = useGlobalAiOverlay();
 const { preferences: globalAiPreferences } = useGlobalAiPreferences();
-const toastTitle = computed(() => notificationStoreRef.value?.toastTitle || "");
-const toastDesc = computed(() => notificationStoreRef.value?.toastDesc || "");
-const toastIcon = computed(() => notificationStoreRef.value?.toastIcon || "🔔");
+const toastTitle = computed(() => notificationStoreRef.value?.toastTitle || '');
+const toastDesc = computed(() => notificationStoreRef.value?.toastDesc || '');
+const toastIcon = computed(() => notificationStoreRef.value?.toastIcon || '🔔');
 let activeListenerUserId = '';
 
 const ensureNotificationStore = async () => {
@@ -151,7 +160,7 @@ const startNotificationListener = async () => {
   }
 
   const notificationStore = await ensureNotificationStore();
-  logger.debug("app", "启动实时通知监听器", { userId: userInfo.id });
+  logger.debug('app', '启动实时通知监听器', { userId: userInfo.id });
   await notificationStore.startNotificationListener(userInfo.id);
   activeListenerUserId = userInfo.id;
 };
@@ -165,7 +174,7 @@ const checkAndStartListener = () => {
 // 根据当前路由为body添加对应的class
 const updateBodyClass = () => {
   // 移除所有页面相关的class
-  document.body.className = document.body.className.replace(/page-\w+/g, "");
+  document.body.className = document.body.className.replace(/page-\w+/g, '');
 
   // 根据路由添加对应的class，确保route.name存在
   if (route.name) {
@@ -197,7 +206,7 @@ onMounted(() => {
       notificationStoreRef.value.displayToast(
         type === 'error' ? '操作受限' : type === 'warning' ? '提示' : '通知',
         message,
-        iconMap[type] || 'ℹ️'
+        iconMap[type] || 'ℹ️',
       );
     }
   };
@@ -213,7 +222,10 @@ onUnmounted(() => {
 
 // 全局 AI 覆盖层：键盘快捷键 (Cmd+K / Ctrl+K)
 const handleGlobalAiKeydown = (e) => {
-  if (globalAiPreferences.shortcutEnabled && matchesGlobalAiShortcut(e, globalAiPreferences.shortcut)) {
+  if (
+    globalAiPreferences.shortcutEnabled &&
+    matchesGlobalAiShortcut(e, globalAiPreferences.shortcut)
+  ) {
     // Lab 自带命令面板使用 Mod+K；保留该页面原有快捷键，用户仍可在设置中改为 Mod+J/Space。
     if (route.name === 'Lab' && globalAiPreferences.shortcut === 'mod+k') return;
     if (route.name === 'AiChat') return;
@@ -230,10 +242,7 @@ const handleGlobalAiKeydown = (e) => {
 };
 
 // 全局 confirm/prompt 弹窗 (替换 window.confirm / window.prompt)
-const {
-  state: confirmDialogState,
-  close: closeConfirmDialog
-} = useConfirmDialog();
+const { state: confirmDialogState, close: closeConfirmDialog } = useConfirmDialog();
 
 const handleConfirmDialogConfirm = (payload) => {
   // AdminConfirmModal 的 confirm 事件: prompt 模式返回输入值字符串, confirm/alert 模式返回 true
@@ -275,14 +284,18 @@ onUnmounted(() => {
 });
 
 // 监听用户ID变化，开启通知监听
-watch(() => userInfo.id, (newId) => {
-  if (newId && isInitialized.value && isLoggedIn.value) {
-    void startNotificationListener();
-  } else {
-    activeListenerUserId = '';
-    notificationStoreRef.value?.stopNotificationListener();
-  }
-}, { immediate: true });
+watch(
+  () => userInfo.id,
+  (newId) => {
+    if (newId && isInitialized.value && isLoggedIn.value) {
+      void startNotificationListener();
+    } else {
+      activeListenerUserId = '';
+      notificationStoreRef.value?.stopNotificationListener();
+    }
+  },
+  { immediate: true },
+);
 
 // 监听初始化状态
 watch(isInitialized, (newVal) => {
@@ -292,25 +305,9 @@ watch(isInitialized, (newVal) => {
 });
 
 // 全局导航栏：隐藏在桌面嵌入模式、路由标记隐藏、UserSpace内部子页面、或个人资料子页面时
-const showGlobalNavbar = computed(() => {
-  if (route.query?.embed === 'desktop') return false;
-  if (route.meta?.hideNavbar) return false;
-  if (String(route.query?.from || '').startsWith('userspace')) return false;
-  if (
-    route.path === '/user-space' &&
-    route.query?.tab === 'profile' &&
-    route.query?.view &&
-    route.query.view !== 'home'
-  ) return false;
-  // 设置子页（数据导出/数据与隐私/编辑资料）：悬浮导航岛会盖住 sticky 头部的返回按钮
-  if (
-    route.path === '/user-space' &&
-    route.query?.tab === 'settings' &&
-    route.query?.view &&
-    route.query.view !== 'home'
-  ) return false;
-  return true;
-});
+// ⚠️ 判据已抽到 utils/global-navbar-visibility.js（**单一真源**）：
+//    AI 岛的 canOpen 必须用同一函数，否则会出现「导航栏已卸载但 canOpen 说能开」的静默失败。
+const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
 </script>
 
 <template>
@@ -400,14 +397,24 @@ const showGlobalNavbar = computed(() => {
   <Footer v-if="bootReady && !route.meta?.hideFooter" />
 
   <!-- 全局登录模态框 -->
-  <LoginView v-if="showLoginModal" :show="showLoginModal" :is-modal="true" @close="showLoginModal = false" />
+  <LoginView
+    v-if="showLoginModal"
+    :show="showLoginModal"
+    :is-modal="true"
+    @close="showLoginModal = false"
+  />
 
   <!-- 帖子详情弹窗宿主（横屏）：壳很轻可常驻；重的 PostDetailMain 在弹窗内异步加载 -->
   <PostDetailModal />
 
   <!-- AI 边缘触发区（移动端侧拉唤起 BOHAI 灵动岛）；导航栏隐藏的路由上岛无宿主，一并隐藏 -->
   <AiEdgeTrigger
-    :show="showGlobalNavbar && !globalAiOpen && globalAiPreferences.gestureEnabled && route.name !== 'AiChat'"
+    :show="
+      showGlobalNavbar &&
+      !globalAiOpen &&
+      globalAiPreferences.gestureEnabled &&
+      route.name !== 'AiChat'
+    "
     :side="globalAiPreferences.gestureSide"
     :sensitivity="globalAiPreferences.gestureSensitivity"
     :haptics="globalAiPreferences.hapticsEnabled"
@@ -463,7 +470,9 @@ const showGlobalNavbar = computed(() => {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft YaHei", "微软雅黑", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Microsoft YaHei', '微软雅黑', sans-serif;
 }
 
 /* 移除全局平滑滚动，它会干扰路由跳转的回顶逻辑 */
@@ -491,7 +500,8 @@ html {
   display: flex;
   align-items: center;
   gap: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1),
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.1),
     inset 0 0 20px rgba(34, 197, 94, 0.05);
   min-width: 300px;
 }
@@ -517,17 +527,20 @@ html {
   opacity: 0.9;
 }
 
-
 /* 暗色：绿色玻璃 toast 提亮（dark audit 2026-09-08） */
-html[data-theme="dark"] .toast-content {
+html[data-theme='dark'] .toast-content {
   background: rgba(52, 199, 89, 0.16);
   border-color: rgba(52, 199, 89, 0.3);
 }
 
-html[data-theme="dark"] .toast-title,
-html[data-theme="dark"] .toast-close { color: #6ee7a0; }
+html[data-theme='dark'] .toast-title,
+html[data-theme='dark'] .toast-close {
+  color: #6ee7a0;
+}
 
-html[data-theme="dark"] .toast-desc { color: #b5f0c8; }
+html[data-theme='dark'] .toast-desc {
+  color: #b5f0c8;
+}
 
 .toast-close {
   background: none;
@@ -561,8 +574,7 @@ html[data-theme="dark"] .toast-desc { color: #b5f0c8; }
 }
 
 /* 响应式调整：避免竖屏或窄屏遮挡导航栏 */
-@media (max-width: 768px),
-(orientation: portrait) {
+@media (max-width: 768px), (orientation: portrait) {
   .welcome-toast {
     top: 80px;
     /* 避开导航栏高度 */
@@ -616,13 +628,22 @@ html[data-theme="dark"] .toast-desc { color: #b5f0c8; }
   border-radius: 8px;
 }
 
-.suspense-skeleton-line.w-60 { width: 60%; }
-.suspense-skeleton-line.w-80 { width: 80%; }
-.suspense-skeleton-line.w-40 { width: 40%; }
-
-@keyframes suspense-shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+.suspense-skeleton-line.w-60 {
+  width: 60%;
+}
+.suspense-skeleton-line.w-80 {
+  width: 80%;
+}
+.suspense-skeleton-line.w-40 {
+  width: 40%;
 }
 
+@keyframes suspense-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
 </style>

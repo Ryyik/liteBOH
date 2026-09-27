@@ -11,7 +11,14 @@ const props = defineProps({
   sortMode: { type: String, default: 'latest' },
   selectedTagFilter: { type: String, default: '' },
   isAiSearchLoading: { type: Boolean, default: false },
-  aiSearchHint: { type: String, default: '' }
+  aiSearchHint: { type: String, default: '' },
+  /* 最近搜索：数据由父级持有（存储读写也归它管），本组件只负责展示与透传点击 ——
+     面板必须**贴着搜索框**，所以它渲染在这里而不是信息流顶部：
+     隔着一个发帖框的话，手机上它会被底部导航栏压住（实测 y=773 / 视口 844，命中 nav-item），
+     用户既看不到也点不到。 */
+  searchHistory: { type: Array, default: () => [] },
+  // 展开与否也由父级单点判断（它才知道聚焦态 + 输入是否为空）
+  showSearchHistory: { type: Boolean, default: false },
 });
 
 const emit = defineEmits([
@@ -19,23 +26,33 @@ const emit = defineEmits([
   'searchSubmit',
   'askBohai',
   'clearTagFilter',
+  // 清除搜索词（输入框右侧 × / 无结果引导）。与「清除标签筛选」分开：
+  // 用户清关键词时不该顺手把 #标签 筛选也丢掉，反之亦然。
+  'clearSearch',
+  // 聚焦态：父级用它决定「最近搜索」条是否展开（空输入 + 聚焦时才展示）
+  'searchFocus',
+  'searchBlur',
+  // 最近搜索的点击：回填某个词 / 清空历史（数据与存储都在父级）
+  'applyHistoryKeyword',
+  'clearSearchHistory',
   'openWeeklyCheckin',
   'setSortMode',
-  'setTagFilter'
+  'setTagFilter',
 ]);
 
 const isFilterOpen = ref(false);
 const filterRef = ref(null);
+const searchInputRef = ref(null);
 
 const filterSummaryText = computed(() => {
   const sortLabel = props.sortMode === 'hottest' ? '最热' : '最新';
-  const tagOption = FORUM_TAG_OPTIONS.find(t => t.value === props.selectedTagFilter);
+  const tagOption = FORUM_TAG_OPTIONS.find((t) => t.value === props.selectedTagFilter);
   const tagLabel = tagOption ? tagOption.label : '全部标签';
   return `${sortLabel} · ${tagLabel}`;
 });
 
 const activeTagLabel = computed(() => {
-  const option = FORUM_TAG_OPTIONS.find(t => t.value === props.selectedTagFilter);
+  const option = FORUM_TAG_OPTIONS.find((t) => t.value === props.selectedTagFilter);
   return option ? option.label : `#${props.selectedTagFilter}`;
 });
 
@@ -78,6 +95,29 @@ const onClearTagFilter = () => {
   emit('clearTagFilter');
 };
 
+const onApplyHistory = (keyword) => {
+  emit('applyHistoryKeyword', keyword);
+};
+
+const onClearHistory = () => {
+  emit('clearSearchHistory');
+};
+
+/* 清除搜索词：清空后把焦点交还输入框 —— 用户点 × 十有八九是想重新输入，
+   焦点丢掉的话还得再点一次。 */
+const onClearSearch = () => {
+  emit('clearSearch');
+  searchInputRef.value?.focus();
+};
+
+const onSearchFocus = () => {
+  emit('searchFocus');
+};
+
+const onSearchBlur = () => {
+  emit('searchBlur');
+};
+
 const onOpenWeeklyCheckin = () => {
   emit('openWeeklyCheckin');
 };
@@ -98,6 +138,7 @@ const onSetTagFilter = (tag) => {
     <div class="toolbar-search-wrapper">
       <Search class="toolbar-search-icon" :size="18" :stroke-width="2" />
       <input
+        ref="searchInputRef"
         type="text"
         class="toolbar-search-input"
         :class="{ 'with-tag-chip': selectedTagFilter }"
@@ -105,6 +146,8 @@ const onSetTagFilter = (tag) => {
         :value="searchQuery"
         @input="onSearchInput"
         @keyup.enter="onSearchSubmit"
+        @focus="onSearchFocus"
+        @blur="onSearchBlur"
       />
       <!-- 横屏：已激活的标签筛选 chip（点 × 清除；移动端隐藏，走筛选下拉） -->
       <button
@@ -118,8 +161,31 @@ const onSetTagFilter = (tag) => {
         <X :size="12" :stroke-width="2.4" class="tag-chip-clear" aria-hidden="true" />
       </button>
 
-      <!-- 移动端：输入框内右侧操作（问BOHAI + 搜索）；横屏隐藏 -->
+      <!-- 清除搜索词：横屏独立定位（该档位 .toolbar-search-actions 整体隐藏） -->
+      <button
+        v-if="searchQuery"
+        type="button"
+        class="toolbar-clear-btn is-hero"
+        aria-label="清除搜索"
+        title="清除搜索"
+        @click="onClearSearch"
+      >
+        <X :size="15" :stroke-width="2.6" />
+      </button>
+
+      <!-- 移动端：输入框内右侧操作（清除 + 问BOHAI + 搜索）；横屏隐藏 -->
       <div class="toolbar-search-actions">
+        <!-- 清除按钮：只在有内容时出现（空着的时候多一个 × 只是噪音） -->
+        <button
+          v-if="searchQuery"
+          type="button"
+          class="toolbar-clear-btn"
+          aria-label="清除搜索"
+          title="清除搜索"
+          @click="onClearSearch"
+        >
+          <X :size="14" :stroke-width="2.6" />
+        </button>
         <button
           type="button"
           class="toolbar-ai-btn"
@@ -167,7 +233,12 @@ const onSetTagFilter = (tag) => {
           <span>问 BOHAI</span>
         </GlassPillButton>
       </div>
-      <button type="button" class="toolbar-hero-search-btn" aria-label="搜索" @click="onSearchSubmit">
+      <button
+        type="button"
+        class="toolbar-hero-search-btn"
+        aria-label="搜索"
+        @click="onSearchSubmit"
+      >
         <Search :size="19" :stroke-width="2.3" />
       </button>
     </div>
@@ -203,12 +274,16 @@ const onSetTagFilter = (tag) => {
                   class="filter-sort-btn"
                   :class="{ active: sortMode === 'latest' }"
                   @click="onSetSortMode('latest')"
-                >最新</button>
+                >
+                  最新
+                </button>
                 <button
                   class="filter-sort-btn"
                   :class="{ active: sortMode === 'hottest' }"
                   @click="onSetSortMode('hottest')"
-                >最热</button>
+                >
+                  最热
+                </button>
               </div>
             </div>
             <div class="filter-dropdown-divider"></div>
@@ -219,20 +294,51 @@ const onSetTagFilter = (tag) => {
                   class="filter-tag-btn"
                   :class="{ active: selectedTagFilter === '' }"
                   @click="onSetTagFilter('')"
-                >全部标签</button>
+                >
+                  全部标签
+                </button>
                 <button
                   v-for="tag in FORUM_TAG_OPTIONS"
                   :key="tag.value"
                   class="filter-tag-btn"
                   :class="{ active: selectedTagFilter === tag.value }"
                   @click="onSetTagFilter(tag.value)"
-                >{{ tag.label }}</button>
+                >
+                  {{ tag.label }}
+                </button>
               </div>
             </div>
           </div>
         </Transition>
       </div>
     </div>
+
+    <!-- 最近搜索：绝对定位贴在工具栏下方（脱离 flex 流，不影响工具栏自身高度）。
+         条目用 @mousedown.prevent 保住点击 —— 否则 pointerdown 先让输入框 blur、
+         面板收起，click 就落空了。 -->
+    <Transition name="toolbar-history-drop">
+      <div v-if="showSearchHistory" class="forum-search-history">
+        <span class="search-history-label">最近搜索</span>
+        <button
+          v-for="keyword in searchHistory"
+          :key="keyword"
+          type="button"
+          class="search-history-chip"
+          @mousedown.prevent
+          @click="onApplyHistory(keyword)"
+        >
+          {{ keyword }}
+        </button>
+        <button
+          type="button"
+          class="search-history-clear"
+          @mousedown.prevent
+          @click="onClearHistory"
+        >
+          清除
+        </button>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -250,7 +356,9 @@ const onSetTagFilter = (tag) => {
   -webkit-backdrop-filter: var(--liquid-filter-sm);
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 20px;
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05), var(--liquid-inner-highlight);
+  box-shadow:
+    0 8px 28px rgba(15, 23, 42, 0.05),
+    var(--liquid-inner-highlight);
 }
 
 .toolbar-search-wrapper {
@@ -274,14 +382,17 @@ const onSetTagFilter = (tag) => {
   flex: 1;
   width: 100%;
   min-width: 0;
-  padding: 10px 120px 10px 32px;
+  /* 右侧留出 清除× + 问BOHAI + 搜索 三个控件的宽度（原 120px + 清除键 30px） */
+  padding: 10px 150px 10px 32px;
   border: none;
   border-radius: 14px;
   font-size: 15px;
   background: rgba(245, 245, 247, 0.6);
   color: #1d1d1f;
   outline: none;
-  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+  transition:
+    background-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
 .toolbar-search-input::placeholder {
@@ -308,6 +419,168 @@ const onSetTagFilter = (tag) => {
   gap: 4px;
 }
 
+/* 清除搜索词：只在输入框有内容时渲染（v-if），所以没有「禁用态」要处理。
+   移动端作为 .toolbar-search-actions 的第一个子项内联；横屏用 .is-hero 版单独定位
+   （那个档位 .toolbar-search-actions 整体 display:none，无法复用同一份 DOM）。 */
+.toolbar-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.06);
+  color: #667085;
+  cursor: pointer;
+  transition:
+    background-color 0.18s,
+    color 0.18s,
+    transform 0.15s;
+}
+
+.toolbar-clear-btn:hover {
+  background: rgba(15, 23, 42, 0.12);
+  color: #1d1d1f;
+}
+
+.toolbar-clear-btn:active {
+  transform: scale(0.92);
+}
+
+.toolbar-clear-btn.is-hero {
+  display: none;
+}
+
+/* ---------- 最近搜索（贴在搜索框下方）----------
+   绝对定位而非占位：它是个浮层，不该把下面的内容顶下去 ——
+   工具栏高度随断点变化（移动端换行 / 横屏 152px），占位会让 composer 与列表跳动。 */
+.forum-search-history {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  /* 高于 .forum-toolbar 自身的 z-index: 5，确保盖住其后的发帖框与列表 */
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.1);
+}
+
+.search-history-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #86868b;
+}
+
+.search-history-chip {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.05);
+  color: #3f4a5a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.18s,
+    color 0.18s,
+    transform 0.15s;
+}
+
+.search-history-chip:hover {
+  background: rgba(15, 23, 42, 0.1);
+  color: #1d1d1f;
+  transform: translateY(-1px);
+}
+
+.search-history-chip:active {
+  transform: scale(0.97);
+}
+
+.search-history-clear {
+  margin-left: auto;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #86868b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.18s,
+    color 0.18s;
+}
+
+.search-history-clear:hover {
+  background: rgba(15, 23, 42, 0.05);
+  color: #3f4a5a;
+}
+
+.toolbar-history-drop-enter-active,
+.toolbar-history-drop-leave-active {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+
+.toolbar-history-drop-enter-from,
+.toolbar-history-drop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toolbar-history-drop-enter-active,
+  .toolbar-history-drop-leave-active {
+    transition: none;
+  }
+}
+
+/* 暗色：面板在 .forum-page[data-theme='dark'] 之内，用祖先选择器即可 ——
+   scoped 只给最后一个选择器加 [data-v-*]，祖先部分不受限，所以这里能命中本组件元素。 */
+[data-theme='dark'] .forum-search-history {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(30, 30, 34, 0.94);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+}
+
+[data-theme='dark'] .search-history-label,
+[data-theme='dark'] .search-history-clear {
+  color: #9a9aa2;
+}
+
+[data-theme='dark'] .search-history-chip {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d8d8de;
+}
+
+[data-theme='dark'] .search-history-chip:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+[data-theme='dark'] .search-history-clear:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #d8d8de;
+}
+
 .toolbar-ai-btn {
   display: inline-flex;
   align-items: center;
@@ -321,7 +594,10 @@ const onSetTagFilter = (tag) => {
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
   white-space: nowrap;
 }
 
@@ -350,7 +626,10 @@ const onSetTagFilter = (tag) => {
   background: transparent;
   color: #86868b;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, transform 0.15s;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    transform 0.15s;
 }
 
 .toolbar-search-btn:hover {
@@ -417,7 +696,10 @@ const onSetTagFilter = (tag) => {
 
 .toolbar-ai-status-enter-active,
 .toolbar-ai-status-leave-active {
-  transition: opacity 0.26s ease, transform 0.26s ease, filter 0.26s ease;
+  transition:
+    opacity 0.26s ease,
+    transform 0.26s ease,
+    filter 0.26s ease;
 }
 
 .toolbar-ai-status-enter-from,
@@ -534,7 +816,10 @@ const onSetTagFilter = (tag) => {
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
 }
 
 .filter-sort-btn.active {
@@ -559,7 +844,11 @@ const onSetTagFilter = (tag) => {
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    box-shadow 0.2s,
+    transform 0.15s;
 }
 
 .filter-tag-btn:hover {
@@ -575,7 +864,9 @@ const onSetTagFilter = (tag) => {
 
 .toolbar-filter-drop-enter-active,
 .toolbar-filter-drop-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .toolbar-filter-drop-enter-from,
@@ -598,7 +889,7 @@ const onSetTagFilter = (tag) => {
   }
 
   .toolbar-search-input {
-    padding: 10px 100px 10px 32px;
+    padding: 10px 130px 10px 32px;
     font-size: 16px;
   }
 
@@ -652,13 +943,18 @@ const onSetTagFilter = (tag) => {
     backdrop-filter: var(--liquid-filter);
     -webkit-backdrop-filter: var(--liquid-filter);
     border: 1px solid rgba(255, 255, 255, 0.55);
-    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07), var(--liquid-inner-highlight);
+    box-shadow:
+      0 18px 44px rgba(15, 23, 42, 0.07),
+      var(--liquid-inner-highlight);
   }
 
   /* 容器即输入框：输入区裸坐在容器上（无内嵌白底），聚焦反馈落在容器描边 */
   .forum-toolbar:focus-within {
     border-color: rgba(0, 113, 227, 0.3);
-    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07), 0 0 0 3px rgba(0, 113, 227, 0.07), var(--liquid-inner-highlight);
+    box-shadow:
+      0 18px 44px rgba(15, 23, 42, 0.07),
+      0 0 0 3px rgba(0, 113, 227, 0.07),
+      var(--liquid-inner-highlight);
   }
 
   .toolbar-search-wrapper {
@@ -672,7 +968,8 @@ const onSetTagFilter = (tag) => {
 
   .toolbar-search-input {
     height: 56px;
-    padding: 0 28px;
+    /* 右侧给清除键让位（横屏这一档只有它一个控件挂在输入行右侧） */
+    padding: 0 64px 0 28px;
     font-size: 16px;
     text-align: left;
     background: transparent;
@@ -698,6 +995,26 @@ const onSetTagFilter = (tag) => {
     display: none;
   }
 
+  /* 清除键：贴输入行右内侧（该档位输入行右侧没有别的控件，不与搜索按钮冲突 ——
+     横屏的搜索按钮在下方 hero 栏的右端） */
+  .toolbar-clear-btn.is-hero {
+    position: absolute;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    width: 30px;
+    height: 30px;
+  }
+
+  .toolbar-clear-btn.is-hero:hover {
+    transform: translateY(-50%) scale(1.06);
+  }
+
+  .toolbar-clear-btn.is-hero:active {
+    transform: translateY(-50%) scale(0.94);
+  }
+
   /* 标签筛选 chip：贴输入行左侧 */
   .toolbar-tag-chip {
     position: absolute;
@@ -718,7 +1035,9 @@ const onSetTagFilter = (tag) => {
     font-weight: 800;
     cursor: pointer;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-    transition: transform 0.18s ease, opacity 0.18s ease;
+    transition:
+      transform 0.18s ease,
+      opacity 0.18s ease;
   }
 
   .toolbar-tag-chip:hover {
@@ -773,14 +1092,21 @@ const onSetTagFilter = (tag) => {
     background: #1d1d1f;
     color: #ffffff;
     cursor: pointer;
-    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    box-shadow:
+      0 10px 24px rgba(17, 24, 39, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    transition:
+      transform 0.18s ease,
+      box-shadow 0.18s ease,
+      background-color 0.18s ease;
   }
 
   .toolbar-hero-search-btn:hover {
     transform: translateY(-1px) scale(1.02);
     background: #2b2b30;
-    box-shadow: 0 14px 30px rgba(17, 24, 39, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    box-shadow:
+      0 14px 30px rgba(17, 24, 39, 0.26),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
   .toolbar-hero-search-btn:active {
@@ -802,7 +1128,7 @@ const onSetTagFilter = (tag) => {
   }
 
   /* 周年皮肤：保持皮肤原有的行内工具栏形态（皮肤样式带感叹号 important，这里恢复结构与子件可见性） */
-  .forum-page[data-anniversary-skin="active"] .forum-toolbar {
+  .forum-page[data-anniversary-skin='active'] .forum-toolbar {
     flex-direction: row;
     align-items: center;
     min-height: 0;
@@ -811,31 +1137,31 @@ const onSetTagFilter = (tag) => {
     background: rgba(251, 247, 233, 0.97);
   }
 
-  .forum-page[data-anniversary-skin="active"] .toolbar-hero-bar {
+  .forum-page[data-anniversary-skin='active'] .toolbar-hero-bar {
     display: none;
   }
 
-  .forum-page[data-anniversary-skin="active"] .toolbar-search-actions {
+  .forum-page[data-anniversary-skin='active'] .toolbar-search-actions {
     display: inline-flex;
   }
 
-  .forum-page[data-anniversary-skin="active"] .toolbar-mobile-row {
+  .forum-page[data-anniversary-skin='active'] .toolbar-mobile-row {
     display: flex;
     gap: 8px;
     flex: 1 1 100%;
   }
 
-  .forum-page[data-anniversary-skin="active"] .toolbar-search-icon {
+  .forum-page[data-anniversary-skin='active'] .toolbar-search-icon {
     display: block;
   }
 
-  .forum-page[data-anniversary-skin="active"] .toolbar-search-input {
+  .forum-page[data-anniversary-skin='active'] .toolbar-search-input {
     height: auto;
-    padding: 10px 120px 10px 36px;
+    padding: 10px 150px 10px 36px;
     text-align: center;
   }
 
-  .forum-page[data-anniversary-skin="active"] .toolbar-search-input.with-tag-chip {
+  .forum-page[data-anniversary-skin='active'] .toolbar-search-input.with-tag-chip {
     padding-left: 156px;
     text-align: left;
   }

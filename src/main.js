@@ -1,53 +1,56 @@
-import { createApp } from "vue";
-import { MotionPlugin } from "@vueuse/motion";
+import { createApp } from 'vue';
+import { MotionPlugin } from '@vueuse/motion';
 
 // ============================================
 // Motion Tokens — 必须在所有其他样式之前加载
 // ============================================
-import "./styles/common/tokens.css";
-import "./styles/common/hero-surface.css";
-import "./styles/common/avatar-frame.css";
+import './styles/common/tokens.css';
+// 玻璃/旧版变量别名层（--glass-*/--apple-*）：只能全局引入一次，
+// 严禁放进 scoped @import（会把 :root 编译成 [data-v-x]:root 而失效）
+import './styles/common/glass-aliases.css';
+import './styles/common/hero-surface.css';
+import './styles/common/avatar-frame.css';
 
 // ============================================
 // 第三方库样式 (Vendor Styles)
 // ============================================
-import "./styles/vendor/unified-nav.css";
+import './styles/vendor/unified-nav.css';
 
 // ============================================
 // 公共样式库 (Common Styles)
 // ============================================
-import "./styles/common/glass-ui.css";
-import "./styles/common/liquid-glass.css";
-import "./styles/common/animations.css";
+import './styles/common/glass-ui.css';
+import './styles/common/liquid-glass.css';
+import './styles/common/animations.css';
 
 // ============================================
 // 辅助样式 (Helper Styles)
 // ============================================
-import "./styles/helpers/function.css";
+import './styles/helpers/function.css';
 
 // ============================================
 // 组件样式 (Component Styles)
 // ============================================
-import "./styles/components/buttons.css";
-import "./styles/components/headings.css";
-import "./styles/components/link_underline.css";
-import "./styles/components/overlay.css";
-import "./styles/components/close-button.css";
+import './styles/components/buttons.css';
+import './styles/components/headings.css';
+import './styles/components/link_underline.css';
+import './styles/components/overlay.css';
+import './styles/components/close-button.css';
 
 // ============================================
 // 布局与页面样式 (Layout & Page Styles)
 // ============================================
-import "./styles/layouts/footer.css";
-import "./styles/pages/globalpage.css";
-import "./styles/pages/homepages.css";
-import "./styles/pages/section__header.css";
-import "./style.css";
+import './styles/layouts/footer.css';
+import './styles/pages/globalpage.css';
+import './styles/pages/homepages.css';
+import './styles/pages/section__header.css';
+import './style.css';
 
 // ============================================
 // 应用核心
 // ============================================
-import App from "./App.vue";
-import router from "./router";
+import App from './App.vue';
+import router from './router';
 import { createPinia } from 'pinia';
 import piniaPluginPersistedstate from 'pinia-plugin-persistedstate';
 import { useAuthStore } from './stores/auth';
@@ -65,13 +68,15 @@ const registerPwaServiceWorker = () => {
   if (import.meta.env.DEV || !('serviceWorker' in navigator)) return;
 
   const register = () => {
-    navigator.serviceWorker.register('./sw.js', {
-      scope: './',
-      // sw.js 是无 hash 文件。禁止 HTTP 缓存参与更新检查，避免新旧应用壳长期混用。
-      updateViaCache: 'none',
-    }).catch((err) => {
-      logger.warn('pwa', 'Service Worker 注册失败', err);
-    });
+    navigator.serviceWorker
+      .register('./sw.js', {
+        scope: './',
+        // sw.js 是无 hash 文件。禁止 HTTP 缓存参与更新检查，避免新旧应用壳长期混用。
+        updateViaCache: 'none',
+      })
+      .catch((err) => {
+        logger.warn('pwa', 'Service Worker 注册失败', err);
+      });
   };
 
   if (document.readyState === 'complete') {
@@ -85,18 +90,18 @@ const registerPwaServiceWorker = () => {
 // 延迟加载的非关键样式
 // ============================================
 const deferredGlobalStyleLoaders = [
-  () => import("./styles/common/login-modal.css"),
-  () => import("./styles/components/cursor.css"),
-  () => import("./styles/components/page__animate.css"),
-  () => import("./views/DataManagement/styles/google-components.css"),
+  () => import('./styles/common/login-modal.css'),
+  () => import('./styles/components/cursor.css'),
+  () => import('./styles/components/page__animate.css'),
+  () => import('./views/DataManagement/styles/google-components.css'),
 ];
 
 const scheduleDeferredGlobalStyles = () => {
   const loadStyles = () => {
-    Promise.allSettled(deferredGlobalStyleLoaders.map((loader) => loader())).catch(() => { });
+    Promise.allSettled(deferredGlobalStyleLoaders.map((loader) => loader())).catch(() => {});
   };
 
-  if (typeof window.requestIdleCallback === "function") {
+  if (typeof window.requestIdleCallback === 'function') {
     window.requestIdleCallback(loadStyles, { timeout: 2500 });
     return;
   }
@@ -106,7 +111,7 @@ const scheduleDeferredGlobalStyles = () => {
 // ============================================
 // 浏览器端初始化
 // ============================================
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   registerPwaServiceWorker();
 
   applyPerformanceProfile(window);
@@ -130,15 +135,17 @@ if (typeof window !== "undefined") {
 
   // 开发环境下清理可能残留的旧 Service Worker / Cache，避免加载到历史 hash 资源。
   if (import.meta.env.DEV && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations()
+    navigator.serviceWorker
+      .getRegistrations()
       .then((registrations) => {
         registrations.forEach((registration) => registration.unregister());
       })
-      .catch(() => { });
+      .catch(() => {});
     if (typeof caches !== 'undefined') {
-      caches.keys()
+      caches
+        .keys()
         .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
-        .catch(() => { });
+        .catch(() => {});
     }
   }
 
@@ -157,15 +164,14 @@ if (typeof window !== "undefined") {
         if (rel === 'preconnect') link.crossOrigin = 'anonymous';
         document.head.appendChild(link);
       });
-    } catch { /* 忽略无效 URL */ }
+    } catch {
+      /* 忽略无效 URL */
+    }
   }
 
-  const elem = document.createElement("canvas");
-  const supported =
-    elem.toDataURL("image/webp").indexOf("data:image/webp") === 0;
-  document.documentElement.classList.add(
-    supported ? "webp-support" : "webp-no-support"
-  );
+  const elem = document.createElement('canvas');
+  const supported = elem.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+  document.documentElement.classList.add(supported ? 'webp-support' : 'webp-no-support');
 
   // ============================================
   // PWA 更新检测机制
@@ -193,9 +199,11 @@ if (typeof window !== "undefined") {
       // SW 检测到新版本安装完成时，派发统一事件供 PWAUpdateToast 弹窗
       // （作为 version-checker 的补充路径；skipWaiting:true 下新 SW 会立即激活）
       const dispatchUpdateAvailable = () => {
-        window.dispatchEvent(new CustomEvent('boh:update-available', {
-          detail: { message: '发现新版本，建议立即刷新以获取最新内容。' },
-        }));
+        window.dispatchEvent(
+          new CustomEvent('boh:update-available', {
+            detail: { message: '发现新版本，建议立即刷新以获取最新内容。' },
+          }),
+        );
       };
 
       if (registration.waiting) {
@@ -222,16 +230,16 @@ if (typeof window !== "undefined") {
   }
 
   // 监听 PWA 安装事件
-  window.addEventListener("beforeinstallprompt", (e) => {
+  window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     window.deferredPrompt = e;
-    logger.info("pwa", "PWA 安装事件已捕获");
+    logger.info('pwa', 'PWA 安装事件已捕获');
   });
 
   // 监听应用已安装事件
-  window.addEventListener("appinstalled", () => {
+  window.addEventListener('appinstalled', () => {
     window.deferredPrompt = null;
-    logger.info("pwa", "PWA 应用已安装");
+    logger.info('pwa', 'PWA 应用已安装');
   });
 
   // ============================================
@@ -243,7 +251,9 @@ if (typeof window !== "undefined") {
   // orientationchange 才稳定，因此立即、下一帧和延迟后各同步一次。
   const syncViewportMetrics = () => {
     const viewport = window.visualViewport;
-    const width = Math.round(viewport?.width || document.documentElement.clientWidth || window.innerWidth);
+    const width = Math.round(
+      viewport?.width || document.documentElement.clientWidth || window.innerWidth,
+    );
     const height = Math.round(viewport?.height || window.innerHeight);
     const orientation = width > height ? 'landscape' : 'portrait';
     const root = document.documentElement;
@@ -251,7 +261,10 @@ if (typeof window !== "undefined") {
     root.style.setProperty('--real-vh', `${height * 0.01}px`);
     root.style.setProperty('--viewport-width', `${width}px`);
     root.style.setProperty('--viewport-height', `${height}px`);
-    root.style.setProperty('--profile-shell-max-width', orientation === 'landscape' ? '1120px' : '980px');
+    root.style.setProperty(
+      '--profile-shell-max-width',
+      orientation === 'landscape' ? '1120px' : '980px',
+    );
     root.dataset.viewportOrientation = orientation;
   };
 
@@ -292,7 +305,7 @@ app.config.errorHandler = (err, instance, info) => {
 const authStore = useAuthStore();
 const bagStore = useBagStore();
 
-app.mount("#app");
+app.mount('#app');
 
 // 非首屏维护任务延后到首个可交互帧之后，避免与首页英雄区竞争主线程和网络。
 const schedulePostMountMaintenance = () => {
@@ -308,7 +321,7 @@ const schedulePostMountMaintenance = () => {
 schedulePostMountMaintenance();
 
 // 异步初始化登录状态和购物袋（不阻塞首屏渲染）
-authStore.initLoginState().catch(err => {
+authStore.initLoginState().catch((err) => {
   logger.warn('auth', '登录状态初始化失败', err);
 });
 bagStore.loadShoppingBag();
@@ -317,7 +330,9 @@ bagStore.loadShoppingBag();
 const scheduleAvatarFrameLoad = () => {
   void import('@/composables/useAvatarFrame.js')
     .then((m) => m.loadAvatarFrameData())
-    .catch(() => { /* 离线/未登录：静默走内置清单 */ });
+    .catch(() => {
+      /* 离线/未登录：静默走内置清单 */
+    });
 };
 if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
   window.requestIdleCallback(scheduleAvatarFrameLoad, { timeout: 3000 });

@@ -6,36 +6,36 @@
     "containerH": 138,
     "hasBohaiIsland": false,
     "railItemTop": 152,
-    "tabsTop": 142
+    "tabsTop": 144
   },
   "B_open": {
-    "navH": "527px",
-    "railTopH": "138px",
-    "railPadTop": "152px",
-    "containerH": 527,
-    "hasBohaiIsland": true,
-    "railItemTop": 152,
-    "tabsTop": 531
+    "navH": "78px",
+    "railTopH": "78px",
+    "railPadTop": "92px",
+    "containerH": 78,
+    "hasBohaiIsland": false,
+    "railItemTop": 92,
+    "tabsTop": 84
   },
   "C_reclosed": {
-    "navH": "138px",
-    "railTopH": "138px",
-    "railPadTop": "152px",
-    "containerH": 138,
+    "navH": "78px",
+    "railTopH": "78px",
+    "railPadTop": "92px",
+    "containerH": 78,
     "hasBohaiIsland": false,
-    "railItemTop": 152,
-    "tabsTop": 142
+    "railItemTop": 92,
+    "tabsTop": 84
   },
-  "openedViaShowIsland": true,
+  "openedViaShowIsland": false,
   "checks": {
-    "B_island_open": true,
-    "B_container_grew": true,
-    "B_rail_holds": true,
-    "B_rail_var_frozen": true,
-    "B_tabs_still_avoid": true,
-    "C_rail_restored": true,
-    "C_container_restored": true
+    "B_island_open": false,
+    "B_container_grew": false,
+    "B_rail_holds": false,
+    "B_rail_var_frozen": false,
+    "B_tabs_still_avoid": false,
+    "C_rail_restored": false,
+    "C_container_restored": false
   },
   "pageErrors": [],
-  "pass": true
+  "pass": false
 }

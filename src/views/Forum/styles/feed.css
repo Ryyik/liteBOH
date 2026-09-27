@@ -14,7 +14,7 @@
   border: none;
   border-radius: 11px;
   background: transparent;
-  color: #6e6e73;
+  color: var(--liquid-text-secondary, #6e6e73);
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
@@ -23,12 +23,12 @@
 
 .feed-mode-tab.active {
   background: #ffffff;
-  color: #1d1d1f;
+  color: var(--liquid-text-primary, #1d1d1f);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .feed-mode-tab:hover:not(.active) {
-  color: #1d1d1f;
+  color: var(--liquid-text-primary, #1d1d1f);
 }
 
 /* 关注与内容类型是两个维度：细分隔线区分（内容类型 tab + 关注开关正交共存） */
@@ -231,7 +231,7 @@
 .search-btn-inner:hover,
 .ai-search-btn-inner:hover:not(:disabled) {
   background: rgba(15, 23, 42, 0.07);
-  color: #1d1d1f;
+  color: var(--liquid-text-primary, #1d1d1f);
   transform: translateY(-1px);
 }
 
@@ -327,7 +327,7 @@
 
 .filter-btn-v2.active {
   background: #ffffff;
-  color: #1d1d1f;
+  color: var(--liquid-text-primary, #1d1d1f);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
@@ -342,7 +342,7 @@
   border: none;
   border-radius: 999px;
   background: #f5f5f7;
-  color: #6e6e73;
+  color: var(--liquid-text-secondary, #6e6e73);
   cursor: pointer;
   font-size: 13px;
   font-weight: 800;
@@ -865,7 +865,7 @@
 .quoted-post-title {
   font-size: 13.5px;
   font-weight: 700;
-  color: #1d1d1f;
+  color: var(--liquid-text-primary, #1d1d1f);
   line-height: 1.4;
 }
 
@@ -1107,7 +1107,7 @@
   justify-content: space-between;
   align-items: center;
   padding-top: 12px;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  border-top: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
   gap: 12px;
 }
 

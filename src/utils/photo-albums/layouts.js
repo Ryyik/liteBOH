@@ -15,7 +15,7 @@ export const PAGE_TYPES = {
   cover: '封面',
   chapter: '章节',
   content: '内容',
-  end: '尾页'
+  end: '尾页',
 };
 
 export const ALBUM_LAYOUTS = {
@@ -26,7 +26,8 @@ export const ALBUM_LAYOUTS = {
     description: '单张大图铺满整页',
     maxPhotos: 1,
     gridAreas: '"p0"',
-    gridTemplate: '1fr / 1fr'
+    gridRows: '1fr',
+    gridColumns: '1fr',
   },
   duo: {
     id: 'duo',
@@ -35,8 +36,9 @@ export const ALBUM_LAYOUTS = {
     description: '左右两张并排',
     maxPhotos: 2,
     gridAreas: '"p0 p1"',
-    gridTemplate: '1fr / 1fr 1fr',
-    gap: 'md'
+    gridRows: '1fr',
+    gridColumns: '1fr 1fr',
+    gap: 'md',
   },
   trio: {
     id: 'trio',
@@ -45,8 +47,9 @@ export const ALBUM_LAYOUTS = {
     description: '一横两竖组合',
     maxPhotos: 3,
     gridAreas: '"p0 p0" "p1 p2"',
-    gridTemplate: '1.4fr 1fr / 1fr 1fr',
-    gap: 'md'
+    gridRows: '1.4fr 1fr',
+    gridColumns: '1fr 1fr',
+    gap: 'md',
   },
   grid4: {
     id: 'grid4',
@@ -55,8 +58,9 @@ export const ALBUM_LAYOUTS = {
     description: '2×2 均衡排布',
     maxPhotos: 4,
     gridAreas: '"p0 p1" "p2 p3"',
-    gridTemplate: '1fr 1fr / 1fr 1fr',
-    gap: 'md'
+    gridRows: '1fr 1fr',
+    gridColumns: '1fr 1fr',
+    gap: 'md',
   },
   'img-left-text': {
     id: 'img-left-text',
@@ -66,7 +70,8 @@ export const ALBUM_LAYOUTS = {
     maxPhotos: 1,
     textArea: true,
     gridAreas: '"p0 t"',
-    gridTemplate: '1fr / 1.5fr 1fr'
+    gridRows: '1fr',
+    gridColumns: '1.5fr 1fr',
   },
   'img-right-text': {
     id: 'img-right-text',
@@ -76,7 +81,8 @@ export const ALBUM_LAYOUTS = {
     maxPhotos: 1,
     textArea: true,
     gridAreas: '"t p0"',
-    gridTemplate: '1fr / 1fr 1.5fr'
+    gridRows: '1fr',
+    gridColumns: '1fr 1.5fr',
   },
   'hero-text': {
     id: 'hero-text',
@@ -86,7 +92,8 @@ export const ALBUM_LAYOUTS = {
     maxPhotos: 1,
     heroText: true,
     gridAreas: '"p0" "t"',
-    gridTemplate: '1.7fr 1fr / 1fr'
+    gridRows: '1.7fr 1fr',
+    gridColumns: '1fr',
   },
   strip: {
     id: 'strip',
@@ -96,9 +103,10 @@ export const ALBUM_LAYOUTS = {
     maxPhotos: 5,
     strip: true,
     gridAreas: '"p0 p1 p2 p3 p4"',
-    gridTemplate: '1fr / repeat(5, 1fr)',
-    gap: 'sm'
-  }
+    gridRows: '1fr',
+    gridColumns: 'repeat(5, 1fr)',
+    gap: 'sm',
+  },
 };
 
 /** 内容页可用版式（章节页/封面页不开放版式切换） */
@@ -113,6 +121,6 @@ export function getLayoutOptions() {
     id,
     name,
     icon,
-    description
+    description,
   }));
 }

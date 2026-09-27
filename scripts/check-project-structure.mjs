@@ -1,18 +1,33 @@
 #!/usr/bin/env node
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const DEFAULT_IGNORES = new Set([".git", "node_modules", "dist"]);
-const VIEWS_ROOT = "src/views";
-const MIGRATIONS_ROOT = "supabase/migrations";
-const ROUTER_ROOT = "src/router";
+// 这里列的每一项要么不在版本库里（已在 .gitignore），要么是第三方源码，
+// 都不属于「项目结构」该管的东西。漏配的代价是实打实的：全仓 walkFiles 会顺着
+// 这些目录扫进 dist-check(526) / debug-screenshots(635) / output(132) 上千个文件，
+// 全并发跑 vitest 时 IO 一争抢就撞 20s 超时 —— 表现为 project-structure.test.js 偶发红。
+const DEFAULT_IGNORES = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'dist-check',
+  'dist-ssr',
+  '.build-verify',
+  'coverage',
+  'debug-screenshots',
+  'output',
+  '.uploads',
+]);
+const VIEWS_ROOT = 'src/views';
+const MIGRATIONS_ROOT = 'supabase/migrations';
+const ROUTER_ROOT = 'src/router';
 const LARGE_FILE_LINE_LIMITS = {
-  ".css": 2000,
-  ".js": 2500,
-  ".ts": 2500,
-  ".vue": 2500,
+  '.css': 2000,
+  '.js': 2500,
+  '.ts': 2500,
+  '.vue': 2500,
 };
 
 const walkFiles = (root, ignores = DEFAULT_IGNORES) => {
@@ -36,15 +51,19 @@ const walkFiles = (root, ignores = DEFAULT_IGNORES) => {
   return files;
 };
 
-const normalize = (projectRoot, filePath) => path.relative(projectRoot, filePath).split(path.sep).join("/");
+const normalize = (projectRoot, filePath) =>
+  path.relative(projectRoot, filePath).split(path.sep).join('/');
 
 const collectRouteImportIssues = (projectRoot) => {
   const routerDir = path.join(projectRoot, ROUTER_ROOT);
-  const routerFiles = walkFiles(routerDir).filter((file) => file.endsWith(".js"));
+  // 必须带上 ts：src/router 下是 index.ts + routes/*.ts，一个 .js 都没有。
+  // 只过滤 .js 会让 routerFiles 恒为空数组 —— 53 条懒加载 import 一条都查不到，
+  // 门禁照样打出 "Passed"，是标准的假绿灯禁。
+  const routerFiles = walkFiles(routerDir).filter((file) => /\.(js|ts)$/.test(file));
   const issues = [];
 
   for (const file of routerFiles) {
-    const source = readFileSync(file, "utf8");
+    const source = readFileSync(file, 'utf8');
     const importMatches = source.matchAll(/import\((['"`])([^'"`]+\.vue)\1\)/g);
 
     for (const match of importMatches) {
@@ -59,36 +78,41 @@ const collectRouteImportIssues = (projectRoot) => {
   return issues;
 };
 
-const stripCommentsAndStrings = (source) => source
-  .replace(/\/\*[\s\S]*?\*\//g, " ")
-  .replace(/\/\/[^\n\r]*/g, " ")
-  .replace(/`(?:\\[\s\S]|[^`\\])*`/g, " ")
-  .replace(/'(?:\\.|[^'\\])*'/g, " ")
-  .replace(/"(?:\\.|[^"\\])*"/g, " ");
+const stripCommentsAndStrings = (source) =>
+  source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n\r]*/g, ' ')
+    .replace(/`(?:\\[\s\S]|[^`\\])*`/g, ' ')
+    .replace(/'(?:\\.|[^'\\])*'/g, ' ')
+    .replace(/"(?:\\.|[^"\\])*"/g, ' ');
 
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const parseExportedNames = (exportList) => exportList
-  .split(",")
-  .map((part) => part.replace(/\/\*[\s\S]*?\*\//g, "").trim())
-  .filter(Boolean)
-  .map((part) => part.split(/\s+as\s+/)[0]?.trim())
-  .filter(Boolean);
+const parseExportedNames = (exportList) =>
+  exportList
+    .split(',')
+    .map((part) => part.replace(/\/\*[\s\S]*?\*\//g, '').trim())
+    .filter(Boolean)
+    .map((part) => part.split(/\s+as\s+/)[0]?.trim())
+    .filter(Boolean);
 
 const collectLocalBindings = (source) => {
   const bindings = new Set();
   const sourceWithoutComments = source
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/\/\/[^\n\r]*/g, " ");
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n\r]*/g, ' ');
   const namedImportPattern = /import\s*\{([\s\S]*?)\}\s*from\s*["'][^"']+["'];?/g;
   const declarationPattern = /\b(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)\b/g;
   let match;
 
   while ((match = namedImportPattern.exec(sourceWithoutComments))) {
-    for (const part of match[1].split(",")) {
+    for (const part of match[1].split(',')) {
       const cleaned = part.trim();
       if (!cleaned) continue;
-      const localName = cleaned.split(/\s+as\s+/).pop()?.trim();
+      const localName = cleaned
+        .split(/\s+as\s+/)
+        .pop()
+        ?.trim();
       if (localName) bindings.add(localName);
     }
   }
@@ -101,15 +125,14 @@ const collectLocalBindings = (source) => {
 };
 
 const collectReExportRuntimeBindingIssues = (projectRoot) => {
-  const srcDir = path.join(projectRoot, "src");
+  const srcDir = path.join(projectRoot, 'src');
   if (!existsSync(srcDir)) return [];
 
   const issues = [];
-  const sourceFiles = walkFiles(srcDir)
-    .filter((file) => /\.(vue|js|ts)$/.test(file));
+  const sourceFiles = walkFiles(srcDir).filter((file) => /\.(vue|js|ts)$/.test(file));
 
   for (const file of sourceFiles) {
-    const source = readFileSync(file, "utf8");
+    const source = readFileSync(file, 'utf8');
     const reExportPattern = /export\s*\{([\s\S]*?)\}\s*from\s*["'][^"']+["'];?/g;
     const reExports = [];
     let match;
@@ -129,7 +152,7 @@ const collectReExportRuntimeBindingIssues = (projectRoot) => {
 
     const sourceWithoutReExports = reExports.reduceRight(
       (current, item) => `${current.slice(0, item.start)}${current.slice(item.end)}`,
-      source
+      source,
     );
     const localBindings = collectLocalBindings(sourceWithoutReExports);
     const searchableSource = stripCommentsAndStrings(sourceWithoutReExports);
@@ -139,9 +162,11 @@ const collectReExportRuntimeBindingIssues = (projectRoot) => {
         continue;
       }
 
-      const runtimeReferencePattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, "m");
+      const runtimeReferencePattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, 'm');
       if (runtimeReferencePattern.test(searchableSource)) {
-        issues.push(`转发导出未创建本地绑定，但文件内部引用了 ${name}: ${normalize(projectRoot, file)}`);
+        issues.push(
+          `转发导出未创建本地绑定，但文件内部引用了 ${name}: ${normalize(projectRoot, file)}`,
+        );
       }
     }
   }
@@ -157,7 +182,7 @@ const collectStructureReport = (projectRoot = process.cwd()) => {
 
   if (existsSync(viewsDir)) {
     const topLevelViews = readdirSync(viewsDir, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".vue"))
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.vue'))
       .map((entry) => `${VIEWS_ROOT}/${entry.name}`);
 
     for (const file of topLevelViews) {
@@ -167,14 +192,14 @@ const collectStructureReport = (projectRoot = process.cwd()) => {
 
   for (const file of walkFiles(projectRoot)) {
     const relative = normalize(projectRoot, file);
-    if (path.basename(file) === ".DS_Store") {
+    if (path.basename(file) === '.DS_Store') {
       warnings.push(`发现 macOS 元数据文件，建议清理: ${relative}`);
     }
   }
 
   if (existsSync(migrationsDir)) {
     for (const entry of readdirSync(migrationsDir, { withFileTypes: true })) {
-      if (entry.isFile() && !entry.name.endsWith(".sql")) {
+      if (entry.isFile() && !entry.name.endsWith('.sql')) {
         errors.push(`supabase/migrations 只能放可执行 SQL: ${MIGRATIONS_ROOT}/${entry.name}`);
       }
     }
@@ -183,26 +208,27 @@ const collectStructureReport = (projectRoot = process.cwd()) => {
   errors.push(...collectRouteImportIssues(projectRoot));
   errors.push(...collectReExportRuntimeBindingIssues(projectRoot));
 
-  const viteConfig = path.join(projectRoot, "vite.config.js");
+  const viteConfig = path.join(projectRoot, 'vite.config.js');
   if (existsSync(viteConfig)) {
-    const source = readFileSync(viteConfig, "utf8");
-    if (source.includes("src/assets/styles")) {
-      errors.push("vite.config.js 的 @styles 仍指向 src/assets/styles，应指向 src/styles");
+    const source = readFileSync(viteConfig, 'utf8');
+    if (source.includes('src/assets/styles')) {
+      errors.push('vite.config.js 的 @styles 仍指向 src/assets/styles，应指向 src/styles');
     }
   }
 
-  const runtimeImageFiles = walkFiles(path.join(projectRoot, "src/assets/images"))
-    .map((file) => normalize(projectRoot, file));
+  const runtimeImageFiles = walkFiles(path.join(projectRoot, 'src/assets/images')).map((file) =>
+    normalize(projectRoot, file),
+  );
   const rawRuntimeImages = runtimeImageFiles.filter((file) => /\.(png|jpe?g)$/i.test(file));
   for (const file of rawRuntimeImages) {
     errors.push(`运行时图片目录只保留 WebP/SVG，请将原图归档到 docs/assets-source/images: ${file}`);
   }
 
-  const sourceFiles = walkFiles(path.join(projectRoot, "src"))
+  const sourceFiles = walkFiles(path.join(projectRoot, 'src'))
     .filter((file) => /\.(vue|js|ts|css)$/.test(file))
     .map((file) => ({
       file,
-      lines: readFileSync(file, "utf8").split(/\r?\n/).length,
+      lines: readFileSync(file, 'utf8').split(/\r?\n/).length,
     }))
     .sort((a, b) => b.lines - a.lines);
 
@@ -226,11 +252,11 @@ const runCli = () => {
   }
 
   if (report.errors.length === 0) {
-    console.log("[check:structure] Passed. Project structure checks are clean.");
+    console.log('[check:structure] Passed. Project structure checks are clean.');
     return;
   }
 
-  console.error("[check:structure] Found structure issues:");
+  console.error('[check:structure] Found structure issues:');
   for (const error of report.errors) {
     console.error(`- ${error}`);
   }

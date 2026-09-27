@@ -55,14 +55,16 @@ function extFromDataUrl(dataUrl) {
 function renderPageMarkup(page, index, photoById, imageSrc) {
   const layout = getLayout(page.layoutId);
   const refs = page.photoRefs || [];
-  const slots = refs.map((id, slotIndex) => {
-    const photo = photoById.get(String(id));
-    const caption = photo ? escapeHtml(photo.caption) : '';
-    const media = photo
-      ? `<figure class="slot" style="grid-area:p${slotIndex}"><img src="${imageSrc(photo)}" alt="${escapeHtml(caption || '照片')}" loading="lazy"><figcaption>${caption}</figcaption></figure>`
-      : `<div class="slot slot-empty" style="grid-area:p${slotIndex}"></div>`;
-    return media;
-  }).join('');
+  const slots = refs
+    .map((id, slotIndex) => {
+      const photo = photoById.get(String(id));
+      const caption = photo ? escapeHtml(photo.caption) : '';
+      const media = photo
+        ? `<figure class="slot" style="grid-area:p${slotIndex}"><img src="${imageSrc(photo)}" alt="${escapeHtml(caption || '照片')}" loading="lazy"><figcaption>${caption}</figcaption></figure>`
+        : `<div class="slot slot-empty" style="grid-area:p${slotIndex}"></div>`;
+      return media;
+    })
+    .join('');
 
   if (page.pageType === 'cover') {
     const coverPhoto = photoById.get(String(refs[0] || ''));
@@ -98,16 +100,20 @@ function renderPageMarkup(page, index, photoById, imageSrc) {
   }
 
   const textPhotos = refs.map((id) => photoById.get(String(id))).filter(Boolean);
-  const textHtml = layout.textArea || layout.heroText
-    ? `<aside class="page-text" style="grid-area:t">
+  const textHtml =
+    layout.textArea || layout.heroText
+      ? `<aside class="page-text" style="grid-area:t">
         ${page.note ? `<p class="page-note">${escapeHtml(page.note)}</p>` : ''}
-        ${textPhotos.filter((p) => p.caption).map((p) => `<p class="page-caption">${escapeHtml(p.caption)}</p>`).join('')}
+        ${textPhotos
+          .filter((p) => p.caption)
+          .map((p) => `<p class="page-caption">${escapeHtml(p.caption)}</p>`)
+          .join('')}
       </aside>`
-    : '';
+      : '';
 
   return `
     <section class="page page-content" data-page="${index}">
-      <div class="page-grid" style="grid-template-areas:${layout.gridAreas};grid-template:${layout.gridTemplate};gap:var(--album-gap)">
+      <div class="page-grid" style="grid-template-areas:${layout.gridAreas};grid-template-rows:${layout.gridRows};grid-template-columns:${layout.gridColumns};gap:var(--album-gap)">
         ${slots || ''}
         ${textHtml}
       </div>
@@ -169,9 +175,9 @@ body[data-mode="flip"] .page.is-active{display:block;animation:fadeIn .28s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .page{background:var(--card);border:1px solid #eae2d2;border-radius:18px;padding:22px;margin:0 0 26px;box-shadow:0 6px 24px rgba(60,45,20,.06)}
 .page-grid{display:grid;height:100%;min-height:52vh}
-.slot{position:relative;overflow:hidden;border-radius:12px;background:#efe9dc;min-height:0}
-.slot img{width:100%;height:100%;object-fit:cover}
-.slot figcaption{position:absolute;left:0;right:0;bottom:0;padding:22px 14px 10px;font-size:13px;color:#fff;background:linear-gradient(transparent,rgba(20,14,4,.62));line-height:1.5}
+.slot{position:relative;overflow:hidden;border-radius:12px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
+.slot img{flex:1 1 auto;min-height:0;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:8px}
+.slot figcaption{flex-shrink:0;padding:6px 4px 0;font-size:12px;color:#57503f;text-align:center;line-height:1.5}
 .slot-empty{border:1.5px dashed #d8d0c0}
 .page-text{display:flex;flex-direction:column;justify-content:center;gap:10px;padding:6px 4px}
 .page-note{font-size:16px;line-height:1.9}
@@ -195,7 +201,7 @@ body[data-mode="scroll"] .album-footer{display:none}
 @media (max-width:640px){
   .album-book{padding:12px 10px 90px}
   .page{padding:14px;border-radius:14px}
-  .page-grid{min-height:auto;grid-template:initial!important;grid-template-areas:initial!important}
+  .page-grid{min-height:auto;grid-template-rows:initial!important;grid-template-columns:initial!important;grid-template-areas:initial!important}
   .page-grid .slot{grid-area:auto!important;aspect-ratio:4/3;margin-bottom:10px}
   .page-grid .page-text{grid-area:auto!important}
   .cover-title{font-size:26px}
@@ -260,7 +266,9 @@ function buildToc(pages) {
     if (page.pageType === 'cover') {
       items.push(`<a href="#p1" data-index="0"><span>封面</span><span>01</span></a>`);
     } else if (page.pageType === 'chapter') {
-      items.push(`<a href="#p${index + 1}" data-index="${index}"><span>${escapeHtml(page.chapterTitle || '章节')}</span><span>${String(index + 1).padStart(2, '0')}</span></a>`);
+      items.push(
+        `<a href="#p${index + 1}" data-index="${index}"><span>${escapeHtml(page.chapterTitle || '章节')}</span><span>${String(index + 1).padStart(2, '0')}</span></a>`,
+      );
     }
   });
   return items.join('') || '<a href="#p1" data-index="0"><span>开始阅读</span><span>01</span></a>';
@@ -276,7 +284,8 @@ export async function buildAlbumExportHtml(payload, options = {}) {
   const mode = options.mode === 'zip' ? 'zip' : 'single';
   const photoList = photos || [];
   const photoById = new Map(photoList.map((p) => [String(p.id), p]));
-  const exportUrl = (photo) => getCloudinaryTransformedUrl(photo.url, EXPORT_TRANSFORM) || photo.url;
+  const exportUrl = (photo) =>
+    getCloudinaryTransformedUrl(photo.url, EXPORT_TRANSFORM) || photo.url;
 
   const safePages = (pages || []).filter(Boolean);
   const total = mode === 'single' ? photoList.length : 0;
@@ -310,13 +319,17 @@ export async function buildAlbumExportHtml(payload, options = {}) {
     pagesMarkup,
     tocMarkup: buildToc(safePages),
     inlineCss: ALBUM_EXPORT_CSS,
-    inlineJs: ALBUM_EXPORT_JS
+    inlineJs: ALBUM_EXPORT_JS,
   });
   return { html, imageMap, exportUrl };
 }
 
 function sanitizeFileName(title = '') {
-  return (String(title).trim().replace(/[\\/:*?"<>|\s]+/g, '_') || '我的影集').slice(0, 60);
+  return (
+    String(title)
+      .trim()
+      .replace(/[\\/:*?"<>|\s]+/g, '_') || '我的影集'
+  ).slice(0, 60);
 }
 
 export function downloadBlob(blob, fileName) {
@@ -341,7 +354,10 @@ export async function exportAlbumOffline({ album, photos, pages }, options = {})
   const report = typeof options.onProgress === 'function' ? options.onProgress : null;
 
   if (!useZip) {
-    const { html } = await buildAlbumExportHtml({ album, photos, pages }, { mode: 'single', onProgress: report, signal: options.signal });
+    const { html } = await buildAlbumExportHtml(
+      { album, photos, pages },
+      { mode: 'single', onProgress: report, signal: options.signal },
+    );
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const fileName = `${baseName}.html`;
     downloadBlob(blob, fileName);
@@ -350,7 +366,10 @@ export async function exportAlbumOffline({ album, photos, pages }, options = {})
 
   const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
-  const { html, imageMap, exportUrl } = await buildAlbumExportHtml({ album, photos, pages }, { mode: 'zip', signal: options.signal });
+  const { html, imageMap, exportUrl } = await buildAlbumExportHtml(
+    { album, photos, pages },
+    { mode: 'zip', signal: options.signal },
+  );
   zip.file('index.html', html);
 
   const imagesFolder = zip.folder('images');
@@ -362,7 +381,10 @@ export async function exportAlbumOffline({ album, photos, pages }, options = {})
     done += 1;
     if (report) report(done, list.length);
   }
-  zip.file('README.txt', `${album?.title || '我的影集'}\n\n用浏览器打开 index.html 即可翻阅；连接打印机可直接打印成册。`);
+  zip.file(
+    'README.txt',
+    `${album?.title || '我的影集'}\n\n用浏览器打开 index.html 即可翻阅；连接打印机可直接打印成册。`,
+  );
 
   const blob = await zip.generateAsync({ type: 'blob' });
   const fileName = `${baseName}.zip`;

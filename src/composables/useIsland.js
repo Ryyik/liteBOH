@@ -1,7 +1,14 @@
-import { computed, reactive, ref, shallowReactive, shallowRef } from 'vue'
+import { computed, reactive, ref, shallowReactive, shallowRef } from 'vue';
 
 /** navbar 监听的通知岛事件名（由 showIsland.notify 派发） */
-export const GLOBAL_NAV_STATUS_EVENT = 'boh_global_nav_status'
+export const GLOBAL_NAV_STATUS_EVENT = 'boh_global_nav_status';
+
+/**
+ * navbar 监听的抢占事件名（由 showIsland.preempt 派发）。
+ * navbar 收到后清空通知卡与通知队列 —— 通知状态与定时器都在 navbar 内部，
+ * 调度中心无法直接触碰，只能经事件请求。
+ */
+export const GLOBAL_NAV_PREEMPT_EVENT = 'boh_global_nav_preempt';
 
 /**
  * 灵动岛统一调度中心（useIsland）
@@ -16,22 +23,21 @@ export const GLOBAL_NAV_STATUS_EVENT = 'boh_global_nav_status'
  * 被高优先级岛占用时自动排队，待其收起后按序恢复展示。
  */
 
-const NAV_HOST_ID = 'unified-nav-container'
+const NAV_HOST_ID = 'unified-nav-container';
 
-const hasNavHost = () =>
-  typeof document !== 'undefined' && !!document.getElementById(NAV_HOST_ID)
+const hasNavHost = () => typeof document !== 'undefined' && !!document.getElementById(NAV_HOST_ID);
 
 const clampProgress = (value) => {
-  const n = Number(value)
-  if (!Number.isFinite(n)) return null
-  return Math.max(0, Math.min(100, Math.round(n)))
-}
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, Math.round(n)));
+};
 
 const normalizeThumbs = (raw) =>
   (Array.isArray(raw) ? raw : [])
     .map((url) => String(url || '').trim())
     .filter(Boolean)
-    .slice(0, 3)
+    .slice(0, 3);
 
 const normalizeActions = (raw) =>
   (Array.isArray(raw) ? raw : [])
@@ -40,8 +46,8 @@ const normalizeActions = (raw) =>
     .map((a) => ({
       id: String(a.id || a.label),
       label: String(a.label || a.id),
-      kind: ['primary', 'danger', 'ghost'].includes(a.kind) ? a.kind : 'ghost'
-    }))
+      kind: ['primary', 'danger', 'ghost'].includes(a.kind) ? a.kind : 'ghost',
+    }));
 
 // ---------- 任务岛状态（调度中心持有，navbar 只负责渲染） ----------
 const buildTaskState = (init = {}) =>
@@ -56,105 +62,106 @@ const buildTaskState = (init = {}) =>
     actions: normalizeActions(init.actions),
     onAction: typeof init.onAction === 'function' ? init.onAction : null,
     visible: false,
-    closed: false
-  })
+    closed: false,
+  });
 
-const currentTask = shallowRef(null)
-const pendingTasks = []
+const currentTask = shallowRef(null);
+const pendingTasks = [];
 // AI 岛占用标记：必须是响应式的，islandTaskView computed 依赖它触发卡片隐藏/恢复
-const aiPaused = ref(false)
+const aiPaused = ref(false);
 
 // ---------- 自定义岛槽位 ----------
-const customSlot = shallowReactive({ key: 0, component: null, props: null })
+const customSlot = shallowReactive({ key: 0, component: null, props: null });
 
 // ---------- AI 岛 opener（由 UnifiedNavbar 注册，规避路由上下文依赖） ----------
-let aiOpener = null
+let aiOpener = null;
 
 const presentTask = (task) => {
-  currentTask.value = task
-  task.visible = !aiPaused.value
-}
+  currentTask.value = task;
+  task.visible = !aiPaused.value;
+};
 
 const shiftTaskAfterLeave = () => {
-  if (aiPaused.value) return
-  const next = pendingTasks.shift() || null
-  currentTask.value = next
-  if (next) next.visible = true
-}
+  if (aiPaused.value) return;
+  const next = pendingTasks.shift() || null;
+  currentTask.value = next;
+  if (next) next.visible = true;
+};
 
 const attachHandle = (task) => {
-  let successTimer = null
+  let successTimer = null;
   const finish = () => {
-    if (task.closed) return
-    task.closed = true
+    if (task.closed) return;
+    task.closed = true;
     if (successTimer) {
-      clearTimeout(successTimer)
-      successTimer = null
+      clearTimeout(successTimer);
+      successTimer = null;
     }
-    const queuedIdx = pendingTasks.indexOf(task)
+    const queuedIdx = pendingTasks.indexOf(task);
     if (queuedIdx >= 0) {
-      pendingTasks.splice(queuedIdx, 1)
-      return
+      pendingTasks.splice(queuedIdx, 1);
+      return;
     }
     if (currentTask.value === task) {
       if (aiPaused.value || !task.visible) {
         // AI 岛占用中（或尚未展示过）：卡本就不可见，直接让位给队列
-        shiftTaskAfterLeave()
+        shiftTaskAfterLeave();
       } else {
-        task.visible = false // 播放退场动画，由 islandTaskCardLeft() 接续队列
+        task.visible = false; // 播放退场动画，由 islandTaskCardLeft() 接续队列
       }
     }
-  }
+  };
   return {
     id: task.id,
     /** 合并更新任务内容；任务已结束则静默忽略 */
     update(patch = {}) {
-      if (task.closed) return this
-      if (patch.title != null) task.title = String(patch.title).trim() || task.title
-      if (patch.message != null) task.message = String(patch.message)
-      if (patch.progress != null) task.progress = clampProgress(patch.progress)
-      if (patch.tone != null) task.tone = String(patch.tone)
-      if (patch.thumbs != null) task.thumbs = normalizeThumbs(patch.thumbs)
-      if (patch.actions != null) task.actions = normalizeActions(patch.actions)
-      if (patch.onAction != null) task.onAction = typeof patch.onAction === 'function' ? patch.onAction : null
-      return this
+      if (task.closed) return this;
+      if (patch.title != null) task.title = String(patch.title).trim() || task.title;
+      if (patch.message != null) task.message = String(patch.message);
+      if (patch.progress != null) task.progress = clampProgress(patch.progress);
+      if (patch.tone != null) task.tone = String(patch.tone);
+      if (patch.thumbs != null) task.thumbs = normalizeThumbs(patch.thumbs);
+      if (patch.actions != null) task.actions = normalizeActions(patch.actions);
+      if (patch.onAction != null)
+        task.onAction = typeof patch.onAction === 'function' ? patch.onAction : null;
+      return this;
     },
     /** 快捷更新进度（0-100），可附带新文案 */
     progress(pct, message) {
-      return this.update({ progress: pct, ...(message != null ? { message } : {}) })
+      return this.update({ progress: pct, ...(message != null ? { message } : {}) });
     },
     /** 标记成功：进度环满格变绿，停留 durationMs 后自动收起（600-8000ms，默认 1800） */
     success(opts = {}) {
-      if (task.closed) return this
-      task.state = 'success'
-      task.progress = 100
-      task.actions = []
-      task.tone = ''
-      if (opts.title != null) task.title = String(opts.title).trim() || task.title
-      if (opts.message != null) task.message = String(opts.message)
-      const ms = Math.min(Math.max(Number(opts.durationMs) || 1800, 600), 8000)
-      if (successTimer) clearTimeout(successTimer)
-      successTimer = setTimeout(finish, ms)
-      return this
+      if (task.closed) return this;
+      task.state = 'success';
+      task.progress = 100;
+      task.actions = [];
+      task.tone = '';
+      if (opts.title != null) task.title = String(opts.title).trim() || task.title;
+      if (opts.message != null) task.message = String(opts.message);
+      const ms = Math.min(Math.max(Number(opts.durationMs) || 1800, 600), 8000);
+      if (successTimer) clearTimeout(successTimer);
+      successTimer = setTimeout(finish, ms);
+      return this;
     },
     /** 标记失败：转为常驻态，可带最多 2 个操作按钮；tone: 'warning' | 'danger' */
     fail(opts = {}) {
-      if (task.closed) return this
+      if (task.closed) return this;
       if (successTimer) {
-        clearTimeout(successTimer)
-        successTimer = null
+        clearTimeout(successTimer);
+        successTimer = null;
       }
-      task.state = 'fail'
-      task.tone = String(opts.tone || 'danger')
-      if (opts.title != null) task.title = String(opts.title).trim() || task.title
-      if (opts.message != null) task.message = String(opts.message)
-      task.actions = normalizeActions(opts.actions)
-      return this
+      task.state = 'fail';
+      task.tone = String(opts.tone || 'danger');
+      if (opts.title != null) task.title = String(opts.title).trim() || task.title;
+      if (opts.message != null) task.message = String(opts.message);
+      task.actions = normalizeActions(opts.actions);
+      return this;
     },
     /** 手动收起（失败态恢复 / 提前结束） */
-    close: finish
-  }
-}
+    close: finish,
+  };
+};
 
 /**
  * 统一灵动岛 API（模块级单例，无需在 setup 中调用）
@@ -166,11 +173,35 @@ export const showIsland = {
    */
   notify(payload = {}) {
     if (!hasNavHost()) {
-      if (typeof payload.fallback === 'function') payload.fallback(payload)
-      return false
+      if (typeof payload.fallback === 'function') payload.fallback(payload);
+      return false;
     }
-    window.dispatchEvent(new CustomEvent(GLOBAL_NAV_STATUS_EVENT, { detail: payload }))
-    return true
+    window.dispatchEvent(new CustomEvent(GLOBAL_NAV_STATUS_EVENT, { detail: payload }));
+    return true;
+  },
+
+  /**
+   * 抢占 surface：收掉当前占位的岛，供更高优先级的临时面板使用（当前只有全局搜索）。
+   *
+   * 为什么需要它：`custom()` 槽位在任务岛 / AI 岛占用时是「v-show 让位」——
+   * 用户点了搜索按钮，搜索面板却因让位而不可见，表现成「点了没反应」。
+   * 调用方在打开面板前先 preempt()，语义是「我明确要占这块地方」。
+   *
+   * 行为：让当前任务岛退场（走正常离场动画，after-leave 后由 islandTaskCardLeft 接续），
+   * 丢弃排队中的任务，并请求 navbar 清掉通知卡与通知队列（经 GLOBAL_NAV_PREEMPT_EVENT）。
+   * ⚠️ 不碰 AI 岛 —— 它有自己的单例状态与开关入口，由调用方决定是否一并收起。
+   * @returns {boolean} 有宿主 navbar 接收了请求返回 true
+   */
+  preempt() {
+    const task = currentTask.value;
+    if (task && !task.closed) {
+      task.closed = true;
+      task.visible = false;
+    }
+    pendingTasks.length = 0;
+    if (!hasNavHost()) return false;
+    window.dispatchEvent(new CustomEvent(GLOBAL_NAV_PREEMPT_EVENT));
+    return true;
   },
 
   /**
@@ -178,14 +209,18 @@ export const showIsland = {
    * @returns {{ id, update, progress, success, fail, close }}
    */
   task(init = {}) {
-    const task = buildTaskState(init)
-    if (currentTask.value && !currentTask.value.closed && (currentTask.value.visible || aiPaused.value)) {
+    const task = buildTaskState(init);
+    if (
+      currentTask.value &&
+      !currentTask.value.closed &&
+      (currentTask.value.visible || aiPaused.value)
+    ) {
       // 已有任务在展示（或被 AI 岛暂停隐藏）：排队，保持先进先出
-      pendingTasks.push(task)
+      pendingTasks.push(task);
     } else {
-      presentTask(task)
+      presentTask(task);
     }
-    return attachHandle(task)
+    return attachHandle(task);
   },
 
   /**
@@ -193,8 +228,8 @@ export const showIsland = {
    * @returns {boolean} 成功交给 AI 岛返回 true；opener 未注册或当前路由不可开返回 false（调用方可自行降级，如跳 /ai-chat）
    */
   ai(options = {}) {
-    if (typeof aiOpener !== 'function') return false
-    return aiOpener(options) === true
+    if (typeof aiOpener !== 'function') return false;
+    return aiOpener(options) === true;
   },
 
   /**
@@ -202,66 +237,66 @@ export const showIsland = {
    * @returns {{ update, close } | null}
    */
   custom(component, props = {}) {
-    if (!component) return null
-    customSlot.key += 1
-    customSlot.component = component
-    customSlot.props = props || {}
+    if (!component) return null;
+    customSlot.key += 1;
+    customSlot.component = component;
+    customSlot.props = props || {};
     const self = {
       update(patch = {}) {
-        if (customSlot.component !== component) return self
-        customSlot.props = { ...customSlot.props, ...patch }
-        return self
+        if (customSlot.component !== component) return self;
+        customSlot.props = { ...customSlot.props, ...patch };
+        return self;
       },
       close() {
-        if (customSlot.component !== component) return
-        customSlot.component = null
-        customSlot.props = null
-      }
-    }
-    return self
-  }
-}
+        if (customSlot.component !== component) return;
+        customSlot.component = null;
+        customSlot.props = null;
+      },
+    };
+    return self;
+  },
+};
 
 /** UnifiedNavbar 挂载时注册 AI 岛 opener；卸载时传 null 注销。 */
 export const registerIslandAiOpener = (fn) => {
-  aiOpener = typeof fn === 'function' ? fn : null
-}
+  aiOpener = typeof fn === 'function' ? fn : null;
+};
 
 /** AI 岛开/关时由 navbar 调用：占用期间任务卡隐藏并暂停队列。 */
 export const setIslandAiPaused = (paused) => {
-  aiPaused.value = Boolean(paused)
+  aiPaused.value = Boolean(paused);
   if (!aiPaused.value) {
-    const task = currentTask.value
-    if (!task) return
+    const task = currentTask.value;
+    if (!task) return;
     if (task.closed) {
       // 暂停期间已结束：让位给队列中的下一个
-      shiftTaskAfterLeave()
+      shiftTaskAfterLeave();
     } else if (!task.visible) {
-      task.visible = true
+      task.visible = true;
     }
   }
-}
+};
 
 /** 任务卡退场动画结束后的接续（由 navbar 的 after-leave 回调触发）。 */
 export const islandTaskCardLeft = () => {
-  const task = currentTask.value
-  if (!task || task.visible) return
-  if (task.closed) shiftTaskAfterLeave()
-}
+  const task = currentTask.value;
+  if (!task || task.visible) return;
+  if (task.closed) shiftTaskAfterLeave();
+};
 
 /** 任务卡操作按钮点击（由 navbar 转发）。 */
 export const islandTaskAction = (actionId) => {
-  const task = currentTask.value
-  if (!task || task.closed) return
-  task.onAction?.(String(actionId), task.id)
-}
+  const task = currentTask.value;
+  if (!task || task.closed) return;
+  task.onAction?.(String(actionId), task.id);
+};
 
 /** navbar 渲染任务卡使用的视图（AI 岛占用或任务不可见时为 null）。 */
 export const islandTaskView = computed(() => {
-  const task = currentTask.value
-  if (!task || task.closed || !task.visible || aiPaused.value) return null
-  return task
-})
+  const task = currentTask.value;
+  if (!task || task.closed || !task.visible || aiPaused.value) return null;
+  return task;
+});
 
 /** navbar 渲染自定义岛使用的槽位。 */
-export const islandCustomSlot = customSlot
+export const islandCustomSlot = customSlot;

@@ -1,5 +1,16 @@
 <script setup>
-import { ref, shallowRef, computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, watch, triggerRef } from 'vue';
+import {
+  ref,
+  shallowRef,
+  computed,
+  nextTick,
+  onActivated,
+  onDeactivated,
+  onMounted,
+  onUnmounted,
+  watch,
+  triggerRef,
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Check,
@@ -10,7 +21,8 @@ import {
   ArrowUpRight,
   BookOpen,
   Newspaper,
-  X
+  Sparkles,
+  X,
 } from 'lucide-vue-next';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
@@ -20,7 +32,7 @@ import AdSlot from './components/AdSlot.vue';
 import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
 import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
-import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
+import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';
 import { useForumPostDraftStorage } from './composables/useForumPostDraftStorage.js';
 import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
 import { useActiveAds } from './composables/useActiveAds.js';
@@ -30,16 +42,103 @@ import { getImageUrl } from '@/utils/asset-helper.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
-import { isForumLandscape, isForumPortraitComposer, onForumPortraitComposerChange } from '@/utils/forum-viewport.js';
+import {
+  isForumLandscape,
+  isForumPortraitComposer,
+  onForumPortraitComposerChange,
+} from '@/utils/forum-viewport.js';
 import { isForumFeedSection } from '@/config/forum-sections';
 import { openForumPost } from '@/composables/usePostDetailModal.js';
+import CommonAlertModal from '../../components/CommonAlertModal.vue';
+import HomeCatMascot from '@/components/HomeCatMascot.vue';
+import {
+  getPosts,
+  createPost,
+  deleteUploadedForumImage,
+  getComments,
+  createComment,
+  toggleLike,
+  createQuoteRepost,
+  getUserPosts,
+  deleteComment,
+  getLatestForumWeeklyReport,
+  getPostEngagementStats,
+  getWeeklyCheckinStatus,
+  submitWeeklyCheckin,
+  claimPostPublishReward,
+  getForumPostDraft,
+  upsertForumPostDraft,
+  deleteForumPostDraft,
+  moderateForumImage,
+  preloadForumImageModeration,
+  getForumPostImages,
+  fetchQuotedPostsByIds,
+} from '../../utils/api/forum-api.js';
+import { uploadApprovedForumImageQueued } from '../../utils/api/forum-api.js';
+import { showIsland } from '@/composables/useIsland.js';
+import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
+import {
+  compressImageFileToUploadLimit,
+  formatImageFileSize,
+  getImageCompressionPlan,
+} from '@/utils/image-compression.js';
+import {
+  clearForumReturnState,
+  getForumReturnKeyFromQuery,
+  readForumReturnState,
+  saveForumReturnState,
+} from '@/utils/forum-return-state.js';
+import {
+  buildForumFeedSnapshotKey,
+  clearForumFeedSnapshots,
+  readForumFeedSnapshot,
+  writeForumFeedSnapshot,
+} from '@/utils/forum-feed-cache.js';
+import {
+  buildReplyDraft,
+  escapeHtml,
+  resolveReplyUsername,
+  calculateOptimisticLikeCount,
+  restoreImageAtPosition,
+  shouldFallbackReplyPreview,
+  buildFallbackReplyPreviewOptions,
+  getLikeErrorToast,
+} from '@/utils/forum-helpers.js';
+import { supabase } from '../../utils/supabase-client.js';
+import { themeManager } from '@/utils/theme-manager.js';
+import { getHomeCatAsset, getHomeCatTypeBySeed, isHomeCatTheme } from '@/utils/home-cat-theme.js';
+import anniversaryForumImage from '@/assets/images/blockschool.webp';
+import { addExperience, XP_REWARDS } from '../../utils/xp.js';
+import DOMPurify from '@/utils/dompurify.js';
+import { logger } from '@/utils/logger.js';
+import { getFollowing } from '@/utils/api/profile-api.js';
+import {
+  FORUM_DETAIL_IMAGE_TRANSFORM,
+  FORUM_LIST_IMAGE_TRANSFORM,
+  FORUM_LIST_IMAGE_TRANSFORM_MD,
+  FORUM_LIST_IMAGE_TRANSFORM_SM,
+  FORUM_LIST_LQIP_TRANSFORM,
+  FORUM_POST_DRAFT_PREFIX,
+  FORUM_POST_DRAFT_VERSION_LIMIT,
+  FORUM_POST_IMAGE_MAX_COUNT,
+  FORUM_TAG_MAP,
+  FORUM_TAG_OPTIONS,
+  LIST_REPLY_PREVIEW_COUNT,
+  POSTS_PER_PAGE,
+  SEARCH_DEBOUNCE_MS,
+  WEEKLY_CHECKIN_REWARD_POINTS,
+  AUTO_SAVE_DRAFT_INTERVAL_MS,
+} from './forum-config.js';
+import { getBohAIModelStatus } from '@/utils/bohai-model-client.js';
+
+import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
 
 // Props
 const props = defineProps({
   showHeader: { type: Boolean, default: true },
   embedded: { type: Boolean, default: false },
   // 外部接管「最新/关注/新闻/活动」筛选（用户空间社区段控驱动）：非空时隐藏内部筛选钮并跟随
-  externalFeed: { type: String, default: '' }
+  externalFeed: { type: String, default: '' },
 });
 const emit = defineEmits(['island-message']);
 
@@ -54,9 +153,11 @@ const currentTheme = ref(themeManager.getTheme());
 const isAnniversaryMcTheme = computed(() => currentTheme.value === 'anniversary-mc');
 const showAnniversaryBg = ref(false);
 let anniversaryObserver = null;
-const anniversaryForumStyle = computed(() => (isAnniversaryMcTheme.value && showAnniversaryBg.value)
-  ? { '--forum-anniversary-image': `url(${anniversaryForumImage})` }
-  : undefined);
+const anniversaryForumStyle = computed(() =>
+  isAnniversaryMcTheme.value && showAnniversaryBg.value
+    ? { '--forum-anniversary-image': `url(${anniversaryForumImage})` }
+    : undefined,
+);
 
 const readActiveForumTheme = () => {
   if (typeof document === 'undefined') return themeManager.getTheme();
@@ -86,79 +187,6 @@ const refreshUnreadCount = async () => {
   await notificationStore.refreshUnreadCount();
 };
 
-import CommonAlertModal from '../../components/CommonAlertModal.vue';
-import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import {
-  getPosts,
-  createPost,
-  deleteUploadedForumImage,
-  getComments,
-  createComment,
-  toggleLike,
-  createQuoteRepost,
-  getUserPosts,
-  deleteComment,
-  getLatestForumWeeklyReport,
-  getPostEngagementStats,
-  getWeeklyCheckinStatus,
-  submitWeeklyCheckin,
-  claimPostPublishReward,
-  getForumPostDraft,
-  upsertForumPostDraft,
-  deleteForumPostDraft,
-  moderateForumImage,
-  preloadForumImageModeration,
-  getForumPostImages,
-  fetchQuotedPostsByIds
-} from '../../utils/api/forum-api.js';
-import { uploadApprovedForumImageQueued } from '../../utils/api/forum-api.js';
-import { showIsland } from '@/composables/useIsland.js';
-import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
-import {
-  compressImageFileToUploadLimit,
-  formatImageFileSize,
-  getImageCompressionPlan
-} from '@/utils/image-compression.js';
-import {
-  clearForumReturnState,
-  getForumReturnKeyFromQuery,
-  readForumReturnState,
-  saveForumReturnState
-} from '@/utils/forum-return-state.js';
-import {
-  buildForumFeedSnapshotKey,
-  clearForumFeedSnapshots,
-  readForumFeedSnapshot,
-  writeForumFeedSnapshot
-} from '@/utils/forum-feed-cache.js';
-import { buildReplyDraft, escapeHtml, resolveReplyUsername, calculateOptimisticLikeCount, restoreImageAtPosition, shouldFallbackReplyPreview, buildFallbackReplyPreviewOptions, getLikeErrorToast } from '@/utils/forum-helpers.js';
-import { supabase } from '../../utils/supabase-client.js';
-import { themeManager } from '@/utils/theme-manager.js';
-import { getHomeCatAsset, getHomeCatTypeBySeed, isHomeCatTheme } from '@/utils/home-cat-theme.js';
-import anniversaryForumImage from '@/assets/images/blockschool.webp';
-import { addExperience, XP_REWARDS } from '../../utils/xp.js';
-import DOMPurify from '@/utils/dompurify.js';
-import { logger } from '@/utils/logger.js';
-import { getFollowing } from '@/utils/api/profile-api.js';
-import {
-  FORUM_DETAIL_IMAGE_TRANSFORM,
-  FORUM_LIST_IMAGE_TRANSFORM,
-  FORUM_LIST_IMAGE_TRANSFORM_MD,
-  FORUM_LIST_IMAGE_TRANSFORM_SM,
-  FORUM_LIST_LQIP_TRANSFORM,
-  FORUM_POST_DRAFT_PREFIX,
-  FORUM_POST_DRAFT_VERSION_LIMIT,
-  FORUM_POST_IMAGE_MAX_COUNT,
-  FORUM_TAG_MAP,
-  FORUM_TAG_OPTIONS,
-  LIST_REPLY_PREVIEW_COUNT,
-  POSTS_PER_PAGE,
-  SEARCH_DEBOUNCE_MS,
-  WEEKLY_CHECKIN_REWARD_POINTS,
-  AUTO_SAVE_DRAFT_INTERVAL_MS
-} from './forum-config.js';
-import { getBohAIModelStatus } from '@/utils/bohai-model-client.js';
-
 // 论坛数据
 const forumData = shallowRef([]);
 const isLoading = ref(true);
@@ -186,10 +214,8 @@ const forumWeeklyReport = ref(null);
 const isWeeklyReportLoading = ref(false);
 const isWeeklyReportOpen = ref(false);
 const forumPageRef = ref(null);
-const {
-  clearForumImageModerationPreloadTask,
-  scheduleForumImageModerationPreload
-} = useForumImageModerationPreload(preloadForumImageModeration);
+const { clearForumImageModerationPreloadTask, scheduleForumImageModerationPreload } =
+  useForumImageModerationPreload(preloadForumImageModeration);
 
 // 批量预取帖子作者的订阅等级：把原先 PostCard 挂载时各自发起的单发
 // get_user_subscription_tier RPC 合并为一次 get_user_subscription_tiers 批量请求。
@@ -202,16 +228,22 @@ const prefetchAuthorTiersFor = (rows) => {
 };
 
 const normalizeForumTagValue = (tag = '') => {
-  const safeTag = String(tag || '').trim().toLowerCase();
+  const safeTag = String(tag || '')
+    .trim()
+    .toLowerCase();
   return FORUM_TAG_MAP[safeTag] ? safeTag : '';
 };
 const getForumTagLabel = (tag = '') => FORUM_TAG_MAP[normalizeForumTagValue(tag)]?.label || '';
 const normalizeForumSortMode = (mode = '', fallback = 'latest') => {
-  const safeMode = String(mode || '').trim().toLowerCase();
+  const safeMode = String(mode || '')
+    .trim()
+    .toLowerCase();
   return ['latest', 'hottest'].includes(safeMode) ? safeMode : fallback;
 };
-const getQueryString = (value) => String(Array.isArray(value) ? value[0] || '' : value || '').trim();
-const getForumReturnKey = () => getForumReturnKeyFromQuery(route.query, props.embedded ? 'user-space' : 'forum');
+const getQueryString = (value) =>
+  String(Array.isArray(value) ? value[0] || '' : value || '').trim();
+const getForumReturnKey = () =>
+  getForumReturnKeyFromQuery(route.query, props.embedded ? 'user-space' : 'forum');
 const isHistoryReturnFromPostDetail = () => {
   if (typeof window === 'undefined') return false;
   const forwardPath = getQueryString(window.history.state?.forward);
@@ -245,7 +277,7 @@ const {
   setupForumWindowObserverOnce,
   cleanupForumLoadMoreObserver,
   cleanupForumWindowObserver,
-  stop: stopForumVirtualFeed
+  stop: stopForumVirtualFeed,
 } = useForumVirtualFeed({
   feedMode,
   forumData,
@@ -255,14 +287,11 @@ const {
   isLoadingMore,
   hasMoreData,
   getScrollContainer: getForumScrollContainer,
-  onLoadMore: () => fetchForumData(true)
+  onLoadMore: () => fetchForumData(true),
 });
 
 // ===== 广告：列表信息流（当前落地订阅计划广告）=====
-const {
-  ads: activeAds,
-  load: loadActiveAds
-} = useActiveAds('list_feed');
+const { ads: activeAds, load: loadActiveAds } = useActiveAds('list_feed');
 
 // 在可见帖子流中按 feed_interval 间隔插入广告卡片；广告项不带 data-forum-virtual-index，
 // 因此不影响虚拟滚动的窗口观测与滚动位置对齐
@@ -292,7 +321,7 @@ const getForumScrollMetrics = () => {
     return {
       scrollTop: scroller.scrollTop || 0,
       clientHeight: scroller.clientHeight || 0,
-      scrollHeight: scroller.scrollHeight || 0
+      scrollHeight: scroller.scrollHeight || 0,
     };
   }
   return {
@@ -300,8 +329,8 @@ const getForumScrollMetrics = () => {
     clientHeight: window.innerHeight || document.documentElement.clientHeight || 0,
     scrollHeight: Math.max(
       document.documentElement.scrollHeight || 0,
-      document.body.scrollHeight || 0
-    )
+      document.body.scrollHeight || 0,
+    ),
   };
 };
 const scrollForumTo = (top = 0) => {
@@ -323,7 +352,7 @@ defineExpose({
   // focusForumSearch 定义在本文件更靠后的位置，直接引用会撞 TDZ
   openComposer: () => openMobileComposer(),
   closeComposer: () => closeMobileComposer(),
-  focusSearch: () => focusForumSearch()
+  focusSearch: () => focusForumSearch(),
 });
 const getCurrentPageScrollY = () => {
   if (typeof window === 'undefined') return 0;
@@ -342,7 +371,7 @@ const buildForumReturnState = (postId = '') => ({
   selectedContentType: selectedContentType.value,
   feedMode: feedMode.value,
   currentPage: currentPage.value,
-  hasMoreData: hasMoreData.value
+  hasMoreData: hasMoreData.value,
 });
 
 const applyForumReturnStateFilters = (state = {}) => {
@@ -351,8 +380,12 @@ const applyForumReturnStateFilters = (state = {}) => {
   searchQuery.value = String(state.searchQuery ?? state.searchKeyword ?? '');
   searchKeyword.value = String(state.searchKeyword ?? state.searchQuery ?? '').trim();
   selectedTagFilter.value = normalizeForumTagValue(state.selectedTagFilter || '');
-  const savedContentType = String(state.selectedContentType || '').trim().toLowerCase();
-  selectedContentType.value = ['news', 'activity', 'post'].includes(savedContentType) ? savedContentType : '';
+  const savedContentType = String(state.selectedContentType || '')
+    .trim()
+    .toLowerCase();
+  selectedContentType.value = ['news', 'activity', 'post'].includes(savedContentType)
+    ? savedContentType
+    : '';
   feedMode.value = 'posts';
 };
 
@@ -368,9 +401,10 @@ const restoreForumScrollPosition = async (state = {}) => {
     }
     if (!targetPostId) return;
     window.requestAnimationFrame(() => {
-      const escapedPostId = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-        ? CSS.escape(targetPostId)
-        : targetPostId.replace(/"/g, '\\"');
+      const escapedPostId =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(targetPostId)
+          : targetPostId.replace(/"/g, '\\"');
       const selector = `[data-forum-post-id="${escapedPostId}"]`;
       const postEl = document.querySelector(selector);
       if (!postEl) return;
@@ -462,7 +496,7 @@ const createDefaultWeeklyCheckinStatus = () => ({
   pointsAwarded: 0,
   currentPoints: Number(userInfo.points || 0),
   nextRewardIn: 4,
-  currentWeekStart: null
+  currentWeekStart: null,
 });
 const weeklyCheckinStatus = ref(createDefaultWeeklyCheckinStatus());
 
@@ -479,7 +513,7 @@ const getWeeklyCheckinCycleProgress = (status) => {
 };
 const weeklyCheckinCardPoints = computed(() => {
   const statusPoints = Number(weeklyCheckinStatus.value.currentPoints);
-  return Number.isFinite(statusPoints) ? statusPoints : (Number(userInfo.points) || 0);
+  return Number.isFinite(statusPoints) ? statusPoints : Number(userInfo.points) || 0;
 });
 
 const newPost = ref({ title: '', content: '' });
@@ -489,10 +523,9 @@ const postImages = ref([]);
 const postLocation = ref(null);
 const isUploadingPostImage = ref(false);
 const postImageUploadStatus = ref('');
-const createSubmissionId = () => (
-  globalThis.crypto?.randomUUID?.()
-  || `00000000-0000-4000-8000-${`${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.slice(-12).padStart(12, '0')}`
-);
+const createSubmissionId = () =>
+  globalThis.crypto?.randomUUID?.() ||
+  `00000000-0000-4000-8000-${`${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`.slice(-12).padStart(12, '0')}`;
 // ===== 即发即走：后台发布队列（与灵动岛/顶部常驻条联动，简化进度不暴露压缩/检测细节） =====
 const publishQueueStore = useForumPublishQueueStore();
 const publishQueueItems = computed(() => publishQueueStore.items);
@@ -503,7 +536,7 @@ const showPublishIsland = (payload) => {
   showIsland.notify({
     ...payload,
     at: Date.now(),
-    fallback: () => showEmbeddedSuccessIsland(payload)
+    fallback: () => showEmbeddedSuccessIsland(payload),
   });
 };
 
@@ -515,68 +548,78 @@ const PUBLISH_TASK_ACTIONS = {
   moderation: [
     { id: 'fix', label: '移除该图', kind: 'danger' },
     { id: 'edit', label: '编辑', kind: 'ghost' },
-    { id: 'cancel', label: '取消', kind: 'ghost' }
+    { id: 'cancel', label: '取消', kind: 'ghost' },
   ],
   network: [
     { id: 'retry', label: '重试', kind: 'primary' },
     { id: 'edit', label: '编辑', kind: 'ghost' },
-    { id: 'cancel', label: '取消', kind: 'ghost' }
-  ]
+    { id: 'cancel', label: '取消', kind: 'ghost' },
+  ],
 };
-watch(publishQueueItems, (items) => {
-  const active = items.find(i => ['queued','uploading','publishing'].includes(i.state))
-    || items.find(i => i.state === 'failed')
-    || items[0]
-    || null;
-  if (!active) {
-    publishTaskHandle?.close();
-    publishTaskHandle = null;
-    publishTaskHandleId = '';
-    return;
-  }
-  const queueId = String(active.id);
-  if (publishTaskHandleId !== queueId || !publishTaskHandle) {
-    publishTaskHandle?.close();
-    publishTaskHandle = showIsland.task({
-      id: `forum-publish-${queueId}`,
-      onAction: (actionId) => {
-        if (actionId === 'retry') retryPublish(queueId);
-        else if (actionId === 'fix') fixModerationPublish(queueId);
-        else if (actionId === 'edit') editFailedPublish(queueId);
-        else if (actionId === 'cancel') cancelPublish(queueId);
-      }
-    });
-    publishTaskHandleId = queueId;
-  }
+watch(
+  publishQueueItems,
+  (items) => {
+    const active =
+      items.find((i) => ['queued', 'uploading', 'publishing'].includes(i.state)) ||
+      items.find((i) => i.state === 'failed') ||
+      items[0] ||
+      null;
+    if (!active) {
+      publishTaskHandle?.close();
+      publishTaskHandle = null;
+      publishTaskHandleId = '';
+      return;
+    }
+    const queueId = String(active.id);
+    if (publishTaskHandleId !== queueId || !publishTaskHandle) {
+      publishTaskHandle?.close();
+      publishTaskHandle = showIsland.task({
+        id: `forum-publish-${queueId}`,
+        onAction: (actionId) => {
+          if (actionId === 'retry') retryPublish(queueId);
+          else if (actionId === 'fix') fixModerationPublish(queueId);
+          else if (actionId === 'edit') editFailedPublish(queueId);
+          else if (actionId === 'cancel') cancelPublish(queueId);
+        },
+      });
+      publishTaskHandleId = queueId;
+    }
 
-  const progress = Math.round(active.progress || 0);
-  const thumbs = (active.images || [])
-    .map(i => String(i.localPreviewUrl || i.url || '').trim())
-    .filter(Boolean)
-    .slice(0, 3);
+    const progress = Math.round(active.progress || 0);
+    const thumbs = (active.images || [])
+      .map((i) => String(i.localPreviewUrl || i.url || '').trim())
+      .filter(Boolean)
+      .slice(0, 3);
 
-  if (active.state === 'success') {
-    publishTaskHandle.success({ title: '发帖成功', message: '已发布', durationMs: 900 });
-  } else if (active.state === 'failed') {
-    const isModeration = active.failType === 'moderation';
-    const detail = String(active.errorMessage || '').trim();
-    publishTaskHandle.fail({
-      tone: isModeration ? 'warning' : 'danger',
-      title: isModeration ? '审核未通过' : '发布失败',
-      message: detail ? detail.slice(0, 60) : (isModeration ? '点击处理' : '点击重试'),
-      actions: isModeration ? PUBLISH_TASK_ACTIONS.moderation : PUBLISH_TASK_ACTIONS.network
-    });
-  } else if (active.state === 'queued') {
-    publishTaskHandle.update({ title: '已提交，后台处理中', message: '系统会继续处理', progress, thumbs });
-  } else {
-    publishTaskHandle.update({
-      title: '正在处理',
-      message: active.images?.length ? `正在处理图片 · ${progress}%` : `正在发布 · ${progress}%`,
-      progress,
-      thumbs
-    });
-  }
-}, { deep: true });
+    if (active.state === 'success') {
+      publishTaskHandle.success({ title: '发帖成功', message: '已发布', durationMs: 900 });
+    } else if (active.state === 'failed') {
+      const isModeration = active.failType === 'moderation';
+      const detail = String(active.errorMessage || '').trim();
+      publishTaskHandle.fail({
+        tone: isModeration ? 'warning' : 'danger',
+        title: isModeration ? '审核未通过' : '发布失败',
+        message: detail ? detail.slice(0, 60) : isModeration ? '点击处理' : '点击重试',
+        actions: isModeration ? PUBLISH_TASK_ACTIONS.moderation : PUBLISH_TASK_ACTIONS.network,
+      });
+    } else if (active.state === 'queued') {
+      publishTaskHandle.update({
+        title: '已提交，后台处理中',
+        message: '系统会继续处理',
+        progress,
+        thumbs,
+      });
+    } else {
+      publishTaskHandle.update({
+        title: '正在处理',
+        message: active.images?.length ? `正在处理图片 · ${progress}%` : `正在发布 · ${progress}%`,
+        progress,
+        thumbs,
+      });
+    }
+  },
+  { deep: true },
+);
 onUnmounted(() => {
   publishTaskHandle?.close();
   publishTaskHandle = null;
@@ -585,57 +628,65 @@ onUnmounted(() => {
 const buildOptimisticPost = (queueItem) => {
   const nowIso = new Date().toISOString();
   // 上传队列快照全量图（≤ FORUM_POST_IMAGE_MAX_COUNT=6），经 prepare 进入 allImages 单一来源
-  const queuedImages = (queueItem.images || []).slice(0, FORUM_POST_IMAGE_MAX_COUNT).map((img, idx) => ({
-    id: img.uploadId || `optimistic-img-${queueItem.id}-${idx}`,
-    url: img.localPreviewUrl || img.url || '',
-    originalUrl: img.localPreviewUrl || img.url || '',
-    detailUrl: img.localPreviewUrl || img.url || '',
-    width: img.width || 0,
-    height: img.height || 0,
-    sortOrder: idx,
-    _optimistic: true,
-    _failed: queueItem.state==='failed' && queueItem.failedImageIndex===idx
-  })).filter(i=>i.url);
-  const titleText = String(queueItem.title||'').trim();
-  const bodyText = String(queueItem.body||'').trim();
-  const combined = titleText && bodyText ? `【${titleText}】\n${bodyText}` : (titleText || bodyText);
+  const queuedImages = (queueItem.images || [])
+    .slice(0, FORUM_POST_IMAGE_MAX_COUNT)
+    .map((img, idx) => ({
+      id: img.uploadId || `optimistic-img-${queueItem.id}-${idx}`,
+      url: img.localPreviewUrl || img.url || '',
+      originalUrl: img.localPreviewUrl || img.url || '',
+      detailUrl: img.localPreviewUrl || img.url || '',
+      width: img.width || 0,
+      height: img.height || 0,
+      sortOrder: idx,
+      _optimistic: true,
+      _failed: queueItem.state === 'failed' && queueItem.failedImageIndex === idx,
+    }))
+    .filter((i) => i.url);
+  const titleText = String(queueItem.title || '').trim();
+  const bodyText = String(queueItem.body || '').trim();
+  const combined = titleText && bodyText ? `【${titleText}】\n${bodyText}` : titleText || bodyText;
   // 头像自动加载：使用队列快照中的头像，失败时回退到当前 userInfo
-  const rawAvatar = String(queueItem.authorAvatarUrl || userInfo.avatarUrl || userInfo.avatar_url || '').trim();
-  return prepareForumPostForDisplay({
-    id: queueItem.id,
-    title: titleText,
-    body: bodyText,
-    content: combined,
-    author_id: queueItem.authorId,
-    author_username: queueItem.authorUsername,
-    author_avatar_url: rawAvatar,
-    author_avatar_frame_url: resolveFrameForAuthor('', queueItem.authorId)?.url || '',
-    created_at: nowIso,
-    tag: queueItem.tag,
-    location_name: queueItem.location?.name || queueItem.location?.cityName || '',
-    images: queuedImages,
-    cover_image_url: queuedImages[0]?.url || '',
-    like_count: 0,
-    comment_count: 0,
-    isLiked: false,
-    status: 'approved',
-    // 乐观扩展字段
-    _optimistic: true,
-    _queueId: queueItem.id,
-    _publishState: queueItem.state,
-    _progress: queueItem.progress,
-    _failType: queueItem.failType,
-    _failMessage: queueItem.errorMessage || '',
-    _failedImageIndex: queueItem.failedImageIndex
-  }, 0);
+  const rawAvatar = String(
+    queueItem.authorAvatarUrl || userInfo.avatarUrl || userInfo.avatar_url || '',
+  ).trim();
+  return prepareForumPostForDisplay(
+    {
+      id: queueItem.id,
+      title: titleText,
+      body: bodyText,
+      content: combined,
+      author_id: queueItem.authorId,
+      author_username: queueItem.authorUsername,
+      author_avatar_url: rawAvatar,
+      author_avatar_frame_url: resolveFrameForAuthor('', queueItem.authorId)?.url || '',
+      created_at: nowIso,
+      tag: queueItem.tag,
+      location_name: queueItem.location?.name || queueItem.location?.cityName || '',
+      images: queuedImages,
+      cover_image_url: queuedImages[0]?.url || '',
+      like_count: 0,
+      comment_count: 0,
+      isLiked: false,
+      status: 'approved',
+      // 乐观扩展字段
+      _optimistic: true,
+      _queueId: queueItem.id,
+      _publishState: queueItem.state,
+      _progress: queueItem.progress,
+      _failType: queueItem.failType,
+      _failMessage: queueItem.errorMessage || '',
+      _failedImageIndex: queueItem.failedImageIndex,
+    },
+    0,
+  );
 };
 const insertOptimisticPost = (queueItem) => {
   const optimistic = buildOptimisticPost(queueItem);
   // 去重：若已存在同 queueId 乐观卡则替换
-  const existsIdx = forumData.value.findIndex(p=> p._queueId===queueItem.id);
-  if (existsIdx>=0) {
+  const existsIdx = forumData.value.findIndex((p) => p._queueId === queueItem.id);
+  if (existsIdx >= 0) {
     const next = [...forumData.value];
-    next[existsIdx]=optimistic;
+    next[existsIdx] = optimistic;
     forumData.value = next;
   } else {
     forumData.value = [optimistic, ...forumData.value];
@@ -643,14 +694,14 @@ const insertOptimisticPost = (queueItem) => {
   addUiMarker(highlightedPostIds, queueItem.id, 2600, 'new-post');
   triggerRef(forumData);
 };
-const updateOptimisticPost = (queueId, patch={}) => {
-  const idx = forumData.value.findIndex(p=> p._queueId===queueId || p.id===queueId);
-  if (idx<0) return;
+const updateOptimisticPost = (queueId, patch = {}) => {
+  const idx = forumData.value.findIndex((p) => p._queueId === queueId || p.id === queueId);
+  if (idx < 0) return;
   const cur = forumData.value[idx];
   const next = { ...cur, ...patch, _queueId: queueId };
   // 若传了 queueItem 整体则重建 allImages 失败标记
-  if (patch._publishState || patch._progress!==undefined || patch._failType!==undefined) {
-    const q = publishQueueStore.items.find(i=>i.id===queueId);
+  if (patch._publishState || patch._progress !== undefined || patch._failType !== undefined) {
+    const q = publishQueueStore.items.find((i) => i.id === queueId);
     if (q) {
       const rebuilt = buildOptimisticPost(q);
       // 保留已有的 display 字段但更新状态相关
@@ -664,70 +715,87 @@ const updateOptimisticPost = (queueId, patch={}) => {
         hasImages: rebuilt.hasImages,
         imageCount: rebuilt.imageCount,
         hiddenImageCount: rebuilt.hiddenImageCount,
-        hasMultipleImages: rebuilt.hasMultipleImages
+        hasMultipleImages: rebuilt.hasMultipleImages,
       });
     }
   }
   const arr = [...forumData.value];
-  arr[idx]=next;
-  forumData.value=arr;
+  arr[idx] = next;
+  forumData.value = arr;
   triggerRef(forumData);
 };
 const removeOptimisticPost = (queueId) => {
   const beforeLen = forumData.value.length;
-  forumData.value = forumData.value.filter(p=> p._queueId!==queueId && p.id!==queueId);
-  if (forumData.value.length!==beforeLen) triggerRef(forumData);
+  forumData.value = forumData.value.filter((p) => p._queueId !== queueId && p.id !== queueId);
+  if (forumData.value.length !== beforeLen) triggerRef(forumData);
 };
 const replaceOptimisticWithReal = (queueId, realPost) => {
-  const idx = forumData.value.findIndex(p=> p._queueId===queueId || p.id===queueId);
-  const queueItem = publishQueueStore.items.find(i=>i.id===queueId);
+  const idx = forumData.value.findIndex((p) => p._queueId === queueId || p.id === queueId);
+  const queueItem = publishQueueStore.items.find((i) => i.id === queueId);
   // 真实接口仅返回 id，头像/用户名需用队列快照或当前用户信息回填，否则会显示 R
   const merged = {
     ...realPost,
     author_id: realPost.author_id || queueItem?.authorId || userInfo.id,
     author_username: realPost.author_username || queueItem?.authorUsername || userInfo.username,
-    author_avatar_url: realPost.author_avatar_url || queueItem?.authorAvatarUrl || userInfo.avatarUrl || '',
+    author_avatar_url:
+      realPost.author_avatar_url || queueItem?.authorAvatarUrl || userInfo.avatarUrl || '',
     title: realPost.title || queueItem?.title || '',
     body: realPost.body || queueItem?.body || '',
     content: realPost.content || (queueItem ? `【${queueItem.title}】\n${queueItem.body}` : ''),
     tag: realPost.tag || queueItem?.tag || 'daily',
-    location_name: realPost.location_name || queueItem?.location?.name || queueItem?.location?.cityName || '',
+    location_name:
+      realPost.location_name || queueItem?.location?.name || queueItem?.location?.cityName || '',
     // 若真实返回未含图片，使用队列最终上传结果
-    images: Array.isArray(realPost.images) && realPost.images.length ? realPost.images : (queueItem?.images || []),
-    cover_image_url: realPost.cover_image_url || queueItem?.images?.[0]?.url || queueItem?.images?.[0]?.localPreviewUrl || ''
+    images:
+      Array.isArray(realPost.images) && realPost.images.length
+        ? realPost.images
+        : queueItem?.images || [],
+    cover_image_url:
+      realPost.cover_image_url ||
+      queueItem?.images?.[0]?.url ||
+      queueItem?.images?.[0]?.localPreviewUrl ||
+      '',
   };
   const prepared = prepareForumPostForDisplay(merged, 0);
-  if (idx>=0) {
-    const arr=[...forumData.value];
-    arr[idx]=prepared;
-    forumData.value=arr;
+  if (idx >= 0) {
+    const arr = [...forumData.value];
+    arr[idx] = prepared;
+    forumData.value = arr;
   } else {
-    forumData.value=[prepared, ...forumData.value];
+    forumData.value = [prepared, ...forumData.value];
   }
-  addUiMarker(highlightedPostIds, String(realPost.id||queueId), 2600, 'new-post');
+  addUiMarker(highlightedPostIds, String(realPost.id || queueId), 2600, 'new-post');
   triggerRef(forumData);
 };
 const getQueueItemErrorType = (error) => {
-  const msg = String(error?.message||'').toLowerCase();
-  const code = String(error?.code||'').toUpperCase();
+  const msg = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '').toUpperCase();
   // 审核类：仅限真正的判定未通过（本地关键词、同步审核、NSFW 判定失败）
-  if (['LOCAL_KEYWORD_BLOCK','SYNC_MODERATION_BLOCK','BETA5_IMAGE_PIPELINE_FAILED'].includes(code)) return 'moderation';
+  if (
+    ['LOCAL_KEYWORD_BLOCK', 'SYNC_MODERATION_BLOCK', 'BETA5_IMAGE_PIPELINE_FAILED'].includes(code)
+  )
+    return 'moderation';
   if (msg.includes('未通过') || msg.includes('敏感') || msg.includes('审核')) return 'moderation';
   // 检测环境不可用（模型加载失败/超时/WebGL 挂起）按网络类处理，允许直接重试
-  if (['IMAGE_MODERATION_UNAVAILABLE','IMAGE_MODERATION_TIMEOUT'].includes(code)) return 'network';
+  if (['IMAGE_MODERATION_UNAVAILABLE', 'IMAGE_MODERATION_TIMEOUT'].includes(code)) return 'network';
   if (isLikelyNetworkError(error)) return 'network';
   return 'network';
 };
 const processPublishImagesForQueue = async (queueItem, signal) => {
   // 全部已就绪（预热已完成）：直接返回
-  const allApproved = (queueItem.images||[]).length > 0
-    && (queueItem.images||[]).every(img=> img?.uploadStatus==='approved' && (img?.url || img?.originalUrl));
+  const allApproved =
+    (queueItem.images || []).length > 0 &&
+    (queueItem.images || []).every(
+      (img) => img?.uploadStatus === 'approved' && (img?.url || img?.originalUrl),
+    );
   if (allApproved) {
     publishQueueStore.setProgress(queueItem.id, 82);
     return queueItem.images;
   }
 
-  const pending = (queueItem.images||[]).filter(img=> img?.file && img.uploadStatus!=='approved');
+  const pending = (queueItem.images || []).filter(
+    (img) => img?.file && img.uploadStatus !== 'approved',
+  );
   const total = pending.length;
   publishQueueStore.setProgress(queueItem.id, 2);
   const setProg = (v) => {
@@ -735,26 +803,39 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
     updateOptimisticPost(queueItem.id, { _progress: v });
   };
   const replaceUploadedImage = (uploadId, data) => {
-    const qIdx = publishQueueStore.items.findIndex(i=>i.id===queueItem.id);
-    if (qIdx<0) return;
+    const qIdx = publishQueueStore.items.findIndex((i) => i.id === queueItem.id);
+    if (qIdx < 0) return;
     const curItem = publishQueueStore.items[qIdx];
-    const imgIdx = curItem.images.findIndex(x=> x.uploadId===uploadId);
-    if (imgIdx<0) return;
-    const nextImages=[...curItem.images];
-    nextImages[imgIdx]={ ...data, uploadStatus:'approved', sortOrder: imgIdx, file: null, localPreviewUrl: data.url || nextImages[imgIdx].localPreviewUrl };
+    const imgIdx = curItem.images.findIndex((x) => x.uploadId === uploadId);
+    if (imgIdx < 0) return;
+    const nextImages = [...curItem.images];
+    nextImages[imgIdx] = {
+      ...data,
+      uploadStatus: 'approved',
+      sortOrder: imgIdx,
+      file: null,
+      localPreviewUrl: data.url || nextImages[imgIdx].localPreviewUrl,
+    };
     publishQueueStore.updateItem(queueItem.id, { images: nextImages });
   };
   const markImageFailure = (img, failIdx, error) => {
     const failType = getQueueItemErrorType(error);
     publishQueueStore.updateItem(queueItem.id, {
-      failType: failType==='moderation' ? 'moderation' : 'network',
+      failType: failType === 'moderation' ? 'moderation' : 'network',
       failedImageIndex: failIdx,
       failedImageId: img?.uploadId || null,
-      errorMessage: error?.message || '图片处理失败'
+      errorMessage: error?.message || '图片处理失败',
     });
-    updateOptimisticPost(queueItem.id, { _publishState:'failed', _failType: failType==='moderation'?'moderation':'network', _failMessage: error?.message || '图片处理失败', _failedImageIndex: failIdx });
+    updateOptimisticPost(queueItem.id, {
+      _publishState: 'failed',
+      _failType: failType === 'moderation' ? 'moderation' : 'network',
+      _failMessage: error?.message || '图片处理失败',
+      _failedImageIndex: failIdx,
+    });
     const wrapped = new Error(error?.message || '图片处理失败');
-    wrapped.code = error?.code || (failType==='moderation' ? 'BETA5_IMAGE_PIPELINE_FAILED' : 'IMAGE_UPLOAD_FAILED');
+    wrapped.code =
+      error?.code ||
+      (failType === 'moderation' ? 'BETA5_IMAGE_PIPELINE_FAILED' : 'IMAGE_UPLOAD_FAILED');
     wrapped.failType = failType;
     return wrapped;
   };
@@ -762,7 +843,7 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
   // 消费预热管线：等待每张图的「压缩→检测→上传」结果，成功则落库替换
   let resolvedCount = 0;
   const recalcProgress = () => {
-    setProg(2 + (resolvedCount/total)*80);
+    setProg(2 + (resolvedCount / total) * 80);
   };
   recalcProgress();
   let pipelineError = null; // { img, failIdx, error }
@@ -772,7 +853,10 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
   const resolvedUploadIds = new Set();
   let progressTicker = null;
   const stopProgressTicker = () => {
-    if (progressTicker) { clearInterval(progressTicker); progressTicker = null; }
+    if (progressTicker) {
+      clearInterval(progressTicker);
+      progressTicker = null;
+    }
   };
   const startProgressTicker = () => {
     if (total <= 0) return;
@@ -780,7 +864,10 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
     progressTicker = setInterval(() => {
       let agg = 0;
       pending.forEach((img) => {
-        if (resolvedUploadIds.has(img.uploadId)) { agg += 1; return; }
+        if (resolvedUploadIds.has(img.uploadId)) {
+          agg += 1;
+          return;
+        }
         const entry = draftImagePipelines.get(img.uploadId);
         agg += entry ? Math.min(1, Math.max(0, Number(entry.progress || 0))) : 0;
       });
@@ -791,15 +878,15 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
 
   const releaseSlot = (img) => {
     // 仅在编辑器未持有该图（已发布清空）时释放管线槽位；编辑器仍持有时（编辑失败重发）保留给下一轮
-    const stillInEditor = postImages.value.some(x=> x.uploadId===img?.uploadId);
+    const stillInEditor = postImages.value.some((x) => x.uploadId === img?.uploadId);
     if (!stillInEditor) draftImagePipelines.delete(img?.uploadId);
   };
 
   try {
-    for (let idx=0; idx<pending.length; idx++) {
-      if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+    for (let idx = 0; idx < pending.length; idx++) {
+      if (signal?.aborted) throw Object.assign(new Error('已取消'), { code: 'PUBLISH_CANCELLED' });
       const img = pending[idx];
-      const imgFailIdx = (queueItem.images||[]).findIndex(x=> x.uploadId===img.uploadId);
+      const imgFailIdx = (queueItem.images || []).findIndex((x) => x.uploadId === img.uploadId);
       let entry = draftImagePipelines.get(img.uploadId);
       // 无预热管线（模型不可用/会话失效/边界场景）：现场补建一条，走同一套等待逻辑
       if (!entry && img.file) {
@@ -807,7 +894,11 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
         entry = draftImagePipelines.get(img.uploadId);
       }
       if (!entry) {
-        pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: new Error('图片处理失败') };
+        pipelineError = {
+          img,
+          failIdx: imgFailIdx >= 0 ? imgFailIdx : idx,
+          error: new Error('图片处理失败'),
+        };
         break;
       }
       try {
@@ -815,12 +906,16 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
       } catch {
         // 失败态已在管线内记录，下面统一归因
       }
-      if (signal?.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+      if (signal?.aborted) throw Object.assign(new Error('已取消'), { code: 'PUBLISH_CANCELLED' });
       if (entry.cancelled) {
-        pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' }) };
+        pipelineError = {
+          img,
+          failIdx: imgFailIdx >= 0 ? imgFailIdx : idx,
+          error: Object.assign(new Error('已取消'), { code: 'PUBLISH_CANCELLED' }),
+        };
         break;
       }
-      if (entry.state==='done' && entry.data) {
+      if (entry.state === 'done' && entry.data) {
         replaceUploadedImage(img.uploadId, entry.data);
         resolvedUploadIds.add(img.uploadId);
         releaseSlot(img);
@@ -829,13 +924,14 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
       } else {
         const rawError = entry.error || new Error('图片处理失败');
         // 会话级失败：标记并取消后续图的预热（仍在等待的会被跳过/中止）
-        (queueItem.images||[]).forEach(other=> {
-          if (other?.uploadId && other.uploadId!==img.uploadId) cancelDraftImagePipeline(other.uploadId);
+        (queueItem.images || []).forEach((other) => {
+          if (other?.uploadId && other.uploadId !== img.uploadId)
+            cancelDraftImagePipeline(other.uploadId);
         });
         // 失败图自身的 entry 同样必须清除：否则残留在 map 中，
         // retryPublish 的 scheduleDraftImagePipeline 会因「已存在」拒绝重建 → 重试永远立即失败
         cancelDraftImagePipeline(img.uploadId);
-        pipelineError = { img, failIdx: imgFailIdx>=0? imgFailIdx : idx, error: rawError };
+        pipelineError = { img, failIdx: imgFailIdx >= 0 ? imgFailIdx : idx, error: rawError };
         break;
       }
     }
@@ -844,12 +940,12 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
   }
 
   if (pipelineError) {
-    if (pipelineError.error?.code==='PUBLISH_CANCELLED') throw pipelineError.error;
+    if (pipelineError.error?.code === 'PUBLISH_CANCELLED') throw pipelineError.error;
     throw markImageFailure(pipelineError.img, pipelineError.failIdx, pipelineError.error);
   }
 
   setProg(82);
-  const finalItem = publishQueueStore.items.find(i=>i.id===queueItem.id);
+  const finalItem = publishQueueStore.items.find((i) => i.id === queueItem.id);
   return finalItem ? finalItem.images : queueItem.images;
 };
 const runPublishQueue = async () => {
@@ -857,22 +953,23 @@ const runPublishQueue = async () => {
   publishWorkerRunning = true;
   try {
     while (true) {
-      const next = publishQueueStore.items.find(i=> i.state==='queued');
+      const next = publishQueueStore.items.find((i) => i.state === 'queued');
       if (!next) break;
       publishQueueStore.setState(next.id, 'uploading');
-      updateOptimisticPost(next.id, { _publishState:'uploading' });
+      updateOptimisticPost(next.id, { _publishState: 'uploading' });
       const controller = new AbortController();
       publishAbortControllers.set(next.id, controller);
       try {
         // 图片流水线（只要有图就走消费逻辑：内部判断全就绪则秒过，等待中则等剩余部分）
         let finalImages = next.images;
-        if ((next.images||[]).length > 0) {
+        if ((next.images || []).length > 0) {
           finalImages = await processPublishImagesForQueue(next, controller.signal);
         }
-        if (controller.signal.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+        if (controller.signal.aborted)
+          throw Object.assign(new Error('已取消'), { code: 'PUBLISH_CANCELLED' });
         // 发布阶段 82->96
         publishQueueStore.setProgress(next.id, 88);
-        updateOptimisticPost(next.id, { _progress: 88, _publishState:'publishing' });
+        updateOptimisticPost(next.id, { _progress: 88, _publishState: 'publishing' });
         publishQueueStore.setState(next.id, 'publishing');
         const result = await createPost(
           next.body,
@@ -883,53 +980,74 @@ const runPublishQueue = async () => {
           finalImages,
           next.tag,
           next.location,
-          { submissionId: next.submissionId }
+          { submissionId: next.submissionId },
         );
-        if (controller.signal.aborted) throw Object.assign(new Error('已取消'), { code:'PUBLISH_CANCELLED' });
+        if (controller.signal.aborted)
+          throw Object.assign(new Error('已取消'), { code: 'PUBLISH_CANCELLED' });
         if (result.error) throw result.error;
         const realPost = Array.isArray(result.data) ? result.data[0] : result.data;
         if (!realPost || !realPost.id) throw new Error('发布返回异常，请刷新后查看');
         // 成功
         publishQueueStore.setProgress(next.id, 100);
         publishQueueStore.setState(next.id, 'success');
-        updateOptimisticPost(next.id, { _progress:100, _publishState:'success' });
+        updateOptimisticPost(next.id, { _progress: 100, _publishState: 'success' });
         // 清理预览 URL
-        (next.images||[]).forEach(img=> { if (img.localPreviewUrl) { try{ URL.revokeObjectURL(img.localPreviewUrl);}catch{} } });
+        (next.images || []).forEach((img) => {
+          if (img.localPreviewUrl) {
+            try {
+              URL.revokeObjectURL(img.localPreviewUrl);
+            } catch {}
+          }
+        });
         // 替换乐观卡为真实卡
         replaceOptimisticWithReal(next.id, realPost);
         // 经验与奖励
-        void addExperience(supabase, next.authorId, XP_REWARDS.POST).catch(err=> logger.error('forum','经验值增加失败:',err));
+        void addExperience(supabase, next.authorId, XP_REWARDS.POST).catch((err) =>
+          logger.error('forum', '经验值增加失败:', err),
+        );
         if (realPost.id) {
-          claimPostPublishReward(supabase, String(realPost.id)).then(reward=>{
-            if (reward && reward.ok && Number(reward.awarded)>0) {
-              if (Number.isFinite(Number(reward.currentPoints))) userInfo.points = Number(reward.currentPoints);
-              const tip = reward.campaignTitle ? `「${reward.campaignTitle}」` : '';
-              // 奖励用瞬时岛（队列成功岛 900ms 后已收起，不冲突）
-              showPublishIsland({ title:'发帖得积分', message:`获得 ${reward.awarded} 积分${tip}`, icon:'gift', type:'success' });
-            }
-          }).catch(err=> logger.error('forum','发帖奖励发放失败:',err));
+          claimPostPublishReward(supabase, String(realPost.id))
+            .then((reward) => {
+              if (reward && reward.ok && Number(reward.awarded) > 0) {
+                if (Number.isFinite(Number(reward.currentPoints)))
+                  userInfo.points = Number(reward.currentPoints);
+                const tip = reward.campaignTitle ? `「${reward.campaignTitle}」` : '';
+                // 奖励用瞬时岛（队列成功岛 900ms 后已收起，不冲突）
+                showPublishIsland({
+                  title: '发帖得积分',
+                  message: `获得 ${reward.awarded} 积分${tip}`,
+                  icon: 'gift',
+                  type: 'success',
+                });
+              }
+            })
+            .catch((err) => logger.error('forum', '发帖奖励发放失败:', err));
         }
-        emitProfileSync({ userId: next.authorId, username: next.authorUsername, reason:'post_created' });
+        emitProfileSync({
+          userId: next.authorId,
+          username: next.authorUsername,
+          reason: 'post_created',
+        });
         // 成功态由常驻 Airdrop 岛展示（isSuccess），不再发瞬时岛避免重叠
         // 刷新周报但不整页重拉（避免覆盖刚插入的帖子）；后台静默刷新快照
         void loadForumWeeklyReport();
         persistForumFeedSnapshot();
         // 成功后短暂保留再移除队列项
-        await new Promise(r=> setTimeout(r, 900));
+        await new Promise((r) => setTimeout(r, 900));
         publishQueueStore.removeItem(next.id);
         publishAbortControllers.delete(next.id);
       } catch (error) {
         publishAbortControllers.delete(next.id);
-        if (error?.code==='PUBLISH_CANCELLED' || controller.signal.aborted) {
+        if (error?.code === 'PUBLISH_CANCELLED' || controller.signal.aborted) {
           // 已在 cancel 分支处理移除
           continue;
         }
-        logger.error('forum','后台发帖失败', error);
+        logger.error('forum', '后台发帖失败', error);
         // 限流
-        applyRateLimitCooldown(error,'post');
+        applyRateLimitCooldown(error, 'post');
         const failType = error?.failType || getQueueItemErrorType(error);
-        const isMod = failType==='moderation';
-        const code = String(error?.code||'').toUpperCase();
+        const isMod = failType === 'moderation';
+        const code = String(error?.code || '').toUpperCase();
         // 若为不可重试的本地校验类，直接清理图片但保留卡片供用户编辑
         const shouldCleanup = shouldCleanupImagesAfterPostError(error);
         if (shouldCleanup && !isMod) {
@@ -938,40 +1056,55 @@ const runPublishQueue = async () => {
         publishQueueStore.setState(next.id, 'failed', {
           failType: isMod ? 'moderation' : 'network',
           errorMessage: error?.message || (isMod ? '图片未通过审核' : '网络异常，发送失败'),
-          failedImageIndex: publishQueueStore.items.find(i=>i.id===next.id)?.failedImageIndex ?? null
+          failedImageIndex:
+            publishQueueStore.items.find((i) => i.id === next.id)?.failedImageIndex ?? null,
         });
-        publishQueueStore.setProgress(next.id, Math.max(12, Number(publishQueueStore.items.find(i=>i.id===next.id)?.progress||62)));
-        updateOptimisticPost(next.id, { _publishState:'failed', _failType: isMod?'moderation':'network', _failMessage: error?.message || (isMod ? '图片未通过审核' : '网络异常，发送失败') });
+        publishQueueStore.setProgress(
+          next.id,
+          Math.max(
+            12,
+            Number(publishQueueStore.items.find((i) => i.id === next.id)?.progress || 62),
+          ),
+        );
+        updateOptimisticPost(next.id, {
+          _publishState: 'failed',
+          _failType: isMod ? 'moderation' : 'network',
+          _failMessage: error?.message || (isMod ? '图片未通过审核' : '网络异常，发送失败'),
+        });
         // 失败态由常驻岛展示（橙/红常驻需操作），不再发瞬时岛
         break; // 中断队列，等待用户操作后继续
       }
     }
   } finally {
-    publishWorkerRunning=false;
+    publishWorkerRunning = false;
   }
 };
 const retryPublish = async (queueId) => {
-  const item = publishQueueStore.items.find(i=>i.id===queueId);
+  const item = publishQueueStore.items.find((i) => i.id === queueId);
   if (!item) return;
   publishQueueStore.incrementRetry(queueId);
   // 重置进度与失败标记，但保留已成功上传的图；未完成的图需重启预热管线（重试时可能已被取消）
-  (item.images||[]).forEach((img, idx)=> {
-    if (img?.file && img.uploadStatus!=='approved') {
+  (item.images || []).forEach((img, idx) => {
+    if (img?.file && img.uploadStatus !== 'approved') {
       scheduleDraftImagePipeline(img, idx, item.images.length);
     }
   });
   publishQueueStore.updateItem(queueId, {
-    state:'queued',
-    failType:null,
-    failedImageIndex:null,
-    failedImageId:null,
-    errorMessage:'',
-    progress: Math.max(8, Number(item.progress||0)-12)
+    state: 'queued',
+    failType: null,
+    failedImageIndex: null,
+    failedImageId: null,
+    errorMessage: '',
+    progress: Math.max(8, Number(item.progress || 0) - 12),
   });
-  updateOptimisticPost(queueId, { _publishState:'queued', _failType:null, _progress: Math.max(8, Number(item.progress||0)-12) });
+  updateOptimisticPost(queueId, {
+    _publishState: 'queued',
+    _failType: null,
+    _progress: Math.max(8, Number(item.progress || 0) - 12),
+  });
   // 隐藏失败提示，乐观卡回到发送中
   const elFailMsg = document.querySelector(`[data-queue-failmsg="${queueId}"]`);
-  if (elFailMsg) elFailMsg.style.display='none';
+  if (elFailMsg) elFailMsg.style.display = 'none';
   // 重试由常驻岛环恢复为发送态
   void runPublishQueue();
 };
@@ -983,7 +1116,9 @@ const handleNetworkOnline = () => {
   const now = Date.now();
   if (now - lastOnlineRecoveryAt < 2000) return;
   lastOnlineRecoveryAt = now;
-  const failedItems = publishQueueStore.items.filter((i) => i.state === 'failed' && i.failType === 'network');
+  const failedItems = publishQueueStore.items.filter(
+    (i) => i.state === 'failed' && i.failType === 'network',
+  );
   failedItems.forEach((item) => retryPublish(item.id));
 };
 onMounted(() => window.addEventListener('online', handleNetworkOnline));
@@ -991,73 +1126,114 @@ onUnmounted(() => window.removeEventListener('online', handleNetworkOnline));
 
 const cancelPublish = async (queueId) => {
   const controller = publishAbortControllers.get(queueId);
-  if (controller) { try{ controller.abort(); }catch{} publishAbortControllers.delete(queueId); }  const item = publishQueueStore.items.find(i=>i.id===queueId);
+  if (controller) {
+    try {
+      controller.abort();
+    } catch {}
+    publishAbortControllers.delete(queueId);
+  }
+  const item = publishQueueStore.items.find((i) => i.id === queueId);
   if (item) {
     // 取消未完成的预热管线；正在上传的让其自然完成并登记 pending（由云端兜底清理），不再主动删除
-    (item.images||[]).forEach(img=> { if (img?.uploadId) cancelDraftImagePipeline(img.uploadId); });
+    (item.images || []).forEach((img) => {
+      if (img?.uploadId) cancelDraftImagePipeline(img.uploadId);
+    });
     // 清理已上传但未落库的云端图（跳过仍被编辑器持有的管线图，避免误删）
-    const toCleanup = (item.images||[]).filter(img=> (img.publicId || img.deleteToken) && !postImages.value.some(x=> x.uploadId===img.uploadId));
+    const toCleanup = (item.images || []).filter(
+      (img) =>
+        (img.publicId || img.deleteToken) &&
+        !postImages.value.some((x) => x.uploadId === img.uploadId),
+    );
     if (toCleanup.length) {
-      toCleanup.forEach(img=> { void cleanupUploadedForumImage(img, { silent:true }); if (img.localPreviewUrl) try{ URL.revokeObjectURL(img.localPreviewUrl);}catch{} });
+      toCleanup.forEach((img) => {
+        void cleanupUploadedForumImage(img, { silent: true });
+        if (img.localPreviewUrl)
+          try {
+            URL.revokeObjectURL(img.localPreviewUrl);
+          } catch {}
+      });
     } else {
-      (item.images||[]).forEach(img=> { if (img.localPreviewUrl) try{ URL.revokeObjectURL(img.localPreviewUrl);}catch{} });
+      (item.images || []).forEach((img) => {
+        if (img.localPreviewUrl)
+          try {
+            URL.revokeObjectURL(img.localPreviewUrl);
+          } catch {}
+      });
     }
   }
   publishQueueStore.removeItem(queueId);
   removeOptimisticPost(queueId);
   // 取消后常驻岛自动收起（无瞬时岛）
   // 若还有队列则继续
-  if (publishQueueStore.items.some(i=>i.state==='queued')) void runPublishQueue();
+  if (publishQueueStore.items.some((i) => i.state === 'queued')) void runPublishQueue();
 };
 const fixModerationPublish = async (queueId) => {
-  const item = publishQueueStore.items.find(i=>i.id===queueId);
+  const item = publishQueueStore.items.find((i) => i.id === queueId);
   if (!item) return;
   const failedIdx = Number(item.failedImageIndex);
-  const hasFailed = Number.isInteger(failedIdx) && failedIdx>=0 && failedIdx < (item.images||[]).length;
+  const hasFailed =
+    Number.isInteger(failedIdx) && failedIdx >= 0 && failedIdx < (item.images || []).length;
   let nextImages;
   if (hasFailed) {
     const failedImg = item.images[failedIdx];
     if (failedImg?.uploadId) cancelDraftImagePipeline(failedImg.uploadId);
-    if (failedImg?.localPreviewUrl) try{ URL.revokeObjectURL(failedImg.localPreviewUrl);}catch{}
+    if (failedImg?.localPreviewUrl)
+      try {
+        URL.revokeObjectURL(failedImg.localPreviewUrl);
+      } catch {}
     // 若已上传到云端但未落库，需删除
-    if (failedImg?.publicId || failedImg?.deleteToken) void cleanupUploadedForumImage(failedImg, { silent:true });
-    nextImages = item.images.filter((_,i)=> i!==failedIdx).map((img,i)=> ({...img, sortOrder:i}));
+    if (failedImg?.publicId || failedImg?.deleteToken)
+      void cleanupUploadedForumImage(failedImg, { silent: true });
+    nextImages = item.images
+      .filter((_, i) => i !== failedIdx)
+      .map((img, i) => ({ ...img, sortOrder: i }));
     // 若移除后无图，则保留纯文
   } else {
     nextImages = item.images;
   }
   // 重启剩余未完成图的预热管线（失败时可能已被取消）
-  (nextImages||[]).forEach((img, idx)=> {
-    if (img?.file && img.uploadStatus!=='approved') {
+  (nextImages || []).forEach((img, idx) => {
+    if (img?.file && img.uploadStatus !== 'approved') {
       scheduleDraftImagePipeline(img, idx, nextImages.length);
     }
   });
   publishQueueStore.updateItem(queueId, {
     images: nextImages,
-    state:'queued',
-    failType:null,
-    failedImageIndex:null,
-    failedImageId:null,
-    errorMessage:'',
-    progress: Math.max(18, Number(item.progress||0)-10)
+    state: 'queued',
+    failType: null,
+    failedImageIndex: null,
+    failedImageId: null,
+    errorMessage: '',
+    progress: Math.max(18, Number(item.progress || 0) - 10),
   });
-  updateOptimisticPost(queueId, { _publishState:'queued', _failType:null, _progress: Math.max(18, Number(item.progress||0)-10) });
+  updateOptimisticPost(queueId, {
+    _publishState: 'queued',
+    _failType: null,
+    _progress: Math.max(18, Number(item.progress || 0) - 10),
+  });
   // 移除后由常驻岛恢复发送态
   void runPublishQueue();
 };
 // 发布失败后取回内容重新编辑：快照（含未上传的本地图片）交还编辑器，队列项与乐观卡移除
 const editFailedPublish = (queueId) => {
-  const item = publishQueueStore.items.find(i=>i.id===queueId);
+  const item = publishQueueStore.items.find((i) => i.id === queueId);
   if (!item) return;
   const controller = publishAbortControllers.get(queueId);
-  if (controller) { try{ controller.abort(); }catch{} publishAbortControllers.delete(queueId); }
+  if (controller) {
+    try {
+      controller.abort();
+    } catch {}
+    publishAbortControllers.delete(queueId);
+  }
   newPost.value.title = String(item.title || '');
   newPost.value.content = String(item.body || '');
   selectedPostTag.value = item.tag || 'daily';
   postLocation.value = item.location ? { ...item.location } : null;
   // 已上传成功的图保留 approved 状态（带云端 url，重发时跳过上传），
   // 未完成的图保留 file + 本地预览，重发时由队列重新走压缩/检测/上传
-  postImages.value = normalizePostImageSortState((item.images || []).map((img, idx) => ({ ...img, sortOrder: idx })));
+  postImages.value = normalizePostImageSortState(
+    (item.images || []).map((img, idx) => ({ ...img, sortOrder: idx })),
+  );
   postImageUploadStatus.value = '';
   publishQueueStore.removeItem(queueId);
   removeOptimisticPost(queueId);
@@ -1104,13 +1280,13 @@ const {
   writeLocalPostDraft,
   readPostDraftVersions,
   writePostDraftVersions,
-  rememberPostDraftVersion
+  rememberPostDraftVersion,
 } = useForumPostDraftStorage({
   getUserId: () => userInfo.id,
   normalizeTag: normalizeForumTagValue,
   prefix: FORUM_POST_DRAFT_PREFIX,
   versionLimit: FORUM_POST_DRAFT_VERSION_LIMIT,
-  logger
+  logger,
 });
 
 const refreshPostDraftState = () => {
@@ -1178,7 +1354,7 @@ const restorePostDraft = async () => {
   const editorSnapshot = {
     title: String(newPost.value.title || ''),
     content: String(newPost.value.content || ''),
-    tag: normalizeForumTagValue(selectedPostTag.value) || 'daily'
+    tag: normalizeForumTagValue(selectedPostTag.value) || 'daily',
   };
 
   const userId = String(userInfo.id || '').trim();
@@ -1189,10 +1365,11 @@ const restorePostDraft = async () => {
     if (restoreSeq !== postDraftRestoreSeq) return;
     if (String(userInfo.id || '').trim() !== userId) return;
     if (
-      String(newPost.value.title || '') !== editorSnapshot.title
-      || String(newPost.value.content || '') !== editorSnapshot.content
-      || (normalizeForumTagValue(selectedPostTag.value) || 'daily') !== editorSnapshot.tag
-    ) return;
+      String(newPost.value.title || '') !== editorSnapshot.title ||
+      String(newPost.value.content || '') !== editorSnapshot.content ||
+      (normalizeForumTagValue(selectedPostTag.value) || 'daily') !== editorSnapshot.tag
+    )
+      return;
     if (!result.ok) throw result.error;
 
     const remoteDraft = result.data;
@@ -1256,7 +1433,7 @@ const formatAutoSaveTime = (timestamp) => {
   if (!timestamp) return '';
   return new Date(timestamp).toLocaleTimeString('zh-CN', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
 };
 
@@ -1279,7 +1456,9 @@ const hasUnsavedChanges = () => {
 
 // ✨ 新增：beforeunload事件处理（刷新页面时提示保存草稿 + 队列发送中提示）
 const handleBeforeUnload = (e) => {
-  const hasPendingPublish = publishQueueStore.items.some(i=> ['queued','uploading','publishing'].includes(i.state));
+  const hasPendingPublish = publishQueueStore.items.some((i) =>
+    ['queued', 'uploading', 'publishing'].includes(i.state),
+  );
   if (hasPendingPublish) {
     e.preventDefault();
     e.returnValue = '有内容正在发送，离开将中断发送';
@@ -1318,7 +1497,7 @@ const formatDraftSavedTime = (savedAt = 0) => {
   if (!savedAt) return '尚未保存';
   return new Date(savedAt).toLocaleTimeString('zh-CN', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
 };
 
@@ -1328,7 +1507,9 @@ const draftPreviewText = computed(() => {
   return draft.title || draft.content || '未命名草稿';
 });
 
-const savedDraftTagLabel = computed(() => getForumTagLabel(savedPostDraft.value?.tag || '') || '#日常');
+const savedDraftTagLabel = computed(
+  () => getForumTagLabel(savedPostDraft.value?.tag || '') || '#日常',
+);
 
 const openMobileDraftPanel = async () => {
   // 打开面板不触发自动保存（已改为手动保存，保存在 saveDraftManually 里）
@@ -1375,24 +1556,31 @@ const clearMobileDraft = () => {
   closeMobileDraftPanel();
 };
 
-const getCooldownSeconds = (until) => Math.max(0, Math.ceil((Number(until || 0) - cooldownNow.value) / 1000));
+const getCooldownSeconds = (until) =>
+  Math.max(0, Math.ceil((Number(until || 0) - cooldownNow.value) / 1000));
 
 const postCooldownSeconds = computed(() => getCooldownSeconds(postCooldownUntil.value));
 const replyCooldownSeconds = computed(() => getCooldownSeconds(replyCooldownUntil.value));
-const imageUploadCooldownSeconds = computed(() => getCooldownSeconds(imageUploadCooldownUntil.value));
+const imageUploadCooldownSeconds = computed(() =>
+  getCooldownSeconds(imageUploadCooldownUntil.value),
+);
 
-const replySubmitLabel = computed(() => (
-  replyCooldownSeconds.value > 0 ? `${replyCooldownSeconds.value}s 后发送` : '发送'
-));
-const imageUploadCooldownLabel = computed(() => (
-  imageUploadCooldownSeconds.value > 0 ? `${imageUploadCooldownSeconds.value}s 后上传` : ''
-));
+const replySubmitLabel = computed(() =>
+  replyCooldownSeconds.value > 0 ? `${replyCooldownSeconds.value}s 后发送` : '发送',
+);
+const imageUploadCooldownLabel = computed(() =>
+  imageUploadCooldownSeconds.value > 0 ? `${imageUploadCooldownSeconds.value}s 后上传` : '',
+);
 
 const ensureCooldownTimer = () => {
   if (cooldownTimer) return;
   cooldownTimer = setInterval(() => {
     cooldownNow.value = Date.now();
-    if (postCooldownSeconds.value <= 0 && replyCooldownSeconds.value <= 0 && imageUploadCooldownSeconds.value <= 0) {
+    if (
+      postCooldownSeconds.value <= 0 &&
+      replyCooldownSeconds.value <= 0 &&
+      imageUploadCooldownSeconds.value <= 0
+    ) {
       clearInterval(cooldownTimer);
       cooldownTimer = null;
     }
@@ -1498,8 +1686,13 @@ const openPostCamera = (triggerCamera) => {
 
 const revokePostImagePreview = (image) => {
   const previewUrl = String(image?.localPreviewUrl || '').trim();
-  if (!previewUrl || typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') return;
-  try { URL.revokeObjectURL(previewUrl); } catch { /* ignore */ }
+  if (!previewUrl || typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function')
+    return;
+  try {
+    URL.revokeObjectURL(previewUrl);
+  } catch {
+    /* ignore */
+  }
 };
 
 const updatePendingPostImage = (uploadId, patch = {}) => {
@@ -1514,7 +1707,9 @@ const updatePendingPostImage = (uploadId, patch = {}) => {
 };
 
 const handlePostImageSelection = async (payload) => {
-  const files = Array.from(payload?.files || payload?.event?.target?.files || payload?.target?.files || []);
+  const files = Array.from(
+    payload?.files || payload?.event?.target?.files || payload?.target?.files || [],
+  );
   if (!files.length) return;
 
   const remaining = Math.max(0, FORUM_POST_IMAGE_MAX_COUNT - postImages.value.length);
@@ -1525,14 +1720,22 @@ const handlePostImageSelection = async (payload) => {
 
   const selectedFiles = files.slice(0, remaining);
   if (files.length > remaining) {
-    showModal('warning', '图片数量已限制', `每个帖子最多发布 ${FORUM_POST_IMAGE_MAX_COUNT} 张图片，多余图片未处理`);
+    showModal(
+      'warning',
+      '图片数量已限制',
+      `每个帖子最多发布 ${FORUM_POST_IMAGE_MAX_COUNT} 张图片，多余图片未处理`,
+    );
   }
 
   const batchKey = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const pendingImages = selectedFiles.map((file, fileIndex) => {
     let localPreviewUrl = '';
     if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
-      try { localPreviewUrl = URL.createObjectURL(file); } catch { /* ignore */ }
+      try {
+        localPreviewUrl = URL.createObjectURL(file);
+      } catch {
+        /* ignore */
+      }
     }
     return {
       id: `uploading-${batchKey}-${fileIndex}`,
@@ -1543,7 +1746,7 @@ const handlePostImageSelection = async (payload) => {
       localPreviewUrl,
       uploadStatus: 'staged',
       uploadStatusLabel: '',
-      sortOrder: postImages.value.length + fileIndex
+      sortOrder: postImages.value.length + fileIndex,
     };
   });
   postImages.value = normalizePostImageSortState([...postImages.value, ...pendingImages]);
@@ -1582,7 +1785,7 @@ const retryPostImageUpload = async (image, index) => {
   if (postImages.value.length > previousCount) {
     const newImages = postImages.value.slice(previousCount);
     postImages.value = normalizePostImageSortState(
-      restoreImageAtPosition(postImages.value.slice(0, previousCount), newImages, index)
+      restoreImageAtPosition(postImages.value.slice(0, previousCount), newImages, index),
     );
   }
 };
@@ -1599,18 +1802,30 @@ let draftPipelineDebounceTimer = null; // D2：选图预热 300ms debounce
 // 与检测解耦后，第 N 张的压缩可与第 N-1 张的检测重叠执行，多图总耗时从「压缩+检测之和」
 // 变为「两者取 max」。检测仍严格串行。低端机（deviceMemory<4）降回 1 路保内存。
 const COMPRESSION_CONCURRENCY = (() => {
-  try { return Number(navigator.deviceMemory || 8) < 4 ? 1 : 2; } catch { return 2; }
+  try {
+    return Number(navigator.deviceMemory || 8) < 4 ? 1 : 2;
+  } catch {
+    return 2;
+  }
 })();
 let activeCompressions = 0;
 const compressionWaitQueue = [];
-const acquireCompressionSlot = () => new Promise((resolve) => {
-  if (activeCompressions < COMPRESSION_CONCURRENCY) { activeCompressions += 1; resolve(); return; }
-  compressionWaitQueue.push(resolve);
-});
+const acquireCompressionSlot = () =>
+  new Promise((resolve) => {
+    if (activeCompressions < COMPRESSION_CONCURRENCY) {
+      activeCompressions += 1;
+      resolve();
+      return;
+    }
+    compressionWaitQueue.push(resolve);
+  });
 const releaseCompressionSlot = () => {
   activeCompressions -= 1;
   const next = compressionWaitQueue.shift();
-  if (next) { activeCompressions += 1; next(); }
+  if (next) {
+    activeCompressions += 1;
+    next();
+  }
 };
 
 const scheduleDraftImagePipeline = (img, index, total) => {
@@ -1638,20 +1853,23 @@ const scheduleDraftImagePipeline = (img, index, total) => {
     signal: controller.signal,
     controller,
     cleanupPending: false,
-    cancelled: false
+    cancelled: false,
   };
   draftImagePipelines.set(uploadId, entry);
   // 阶段一 A：压缩进 2 路并发池（Web Worker 内执行，不占检测串行链）
   const compressionPromise = (async () => {
     await acquireCompressionSlot();
     try {
-      if (entry.cancelled) throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
+      if (entry.cancelled)
+        throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
       entry.state = 'preparing';
       // quiet: 预热阶段不向编辑器写「优化中/待审核」等中间状态（设计意图：图片上不显示加载态）
       const prepared = await prepareForumImageForUpload(file, index, total, uploadId, {
         signal: entry.signal,
         quiet: true,
-        onProgress: (p) => { entry.progress = Math.min(0.35, Math.max(0, (Number(p || 0) / 100)) * 0.35); }
+        onProgress: (p) => {
+          entry.progress = Math.min(0.35, Math.max(0, Number(p || 0) / 100) * 0.35);
+        },
       });
       entry.progress = 0.35; // 压缩完成，等待/进入检测
       return prepared;
@@ -1679,7 +1897,7 @@ const scheduleDraftImagePipeline = (img, index, total) => {
         updatePendingPostImage(uploadId, {
           uploadStatus: 'failed',
           uploadStatusLabel: '处理失败',
-          uploadError: error?.message || '图片处理失败'
+          uploadError: error?.message || '图片处理失败',
         });
       }
       throw error;
@@ -1692,7 +1910,9 @@ const scheduleDraftImagePipeline = (img, index, total) => {
     if (entry.cancelled) return entry;
     const uploadPromise = uploadApprovedForumImageQueued(entry.file, entry.moderation, {
       signal: entry.signal,
-      onProgress: (p) => { entry.progress = 0.5 + Math.min(1, Math.max(0, Number(p || 0) / 100)) * 0.5; }
+      onProgress: (p) => {
+        entry.progress = 0.5 + Math.min(1, Math.max(0, Number(p || 0) / 100)) * 0.5;
+      },
     });
     entry.uploadPromise = uploadPromise;
     entry.state = 'uploading';
@@ -1711,7 +1931,7 @@ const scheduleDraftImagePipeline = (img, index, total) => {
         ...result.data,
         uploadStatus: 'approved',
         uploadStatusLabel: '已就绪',
-        file: entry.file
+        file: entry.file,
       });
     } catch (error) {
       if (!entry.cancelled) {
@@ -1720,7 +1940,7 @@ const scheduleDraftImagePipeline = (img, index, total) => {
         updatePendingPostImage(uploadId, {
           uploadStatus: 'failed',
           uploadStatusLabel: '上传失败',
-          uploadError: error?.message || '图片上传失败'
+          uploadError: error?.message || '图片上传失败',
         });
       }
     }
@@ -1740,7 +1960,11 @@ const cancelDraftImagePipeline = (uploadId) => {
     entry.cleanupPending = true;
     entry.uploadPromise?.catch(() => {});
   } else {
-    try { entry.controller.abort(); } catch { /* ignore */ }
+    try {
+      entry.controller.abort();
+    } catch {
+      /* ignore */
+    }
   }
   draftImagePipelines.delete(uploadId);
   return entry;
@@ -1756,7 +1980,13 @@ const clearAllDraftImagePipelines = () => {
   }
 };
 
-const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId = '', options = {}) => {
+const prepareForumImageForUpload = async (
+  file,
+  fileIndex,
+  totalCount,
+  uploadId = '',
+  options = {},
+) => {
   const plan = await getImageCompressionPlan(file, { optimizeForUpload: true });
   if (!plan.shouldCompress) return file;
 
@@ -1770,21 +2000,23 @@ const prepareForumImageForUpload = async (file, fileIndex, totalCount, uploadId 
   if (!options.quiet) {
     updatePendingPostImage(uploadId, {
       uploadStatus: 'optimizing',
-      uploadStatusLabel: plan.shouldOptimize ? '优化中' : '压缩中'
+      uploadStatusLabel: plan.shouldOptimize ? '优化中' : '压缩中',
     });
     postImageUploadStatus.value = `${actionLabel}第 ${fileIndex + 1}/${totalCount} 张图片...`;
   }
   const compressedFile = await compressImageFileToUploadLimit(file, plan, {
     onProgress: options.onProgress,
-    signal: options.signal
+    signal: options.signal,
   });
   if (Number(compressedFile.size || 0) > Number(plan.maxSizeBytes || 0)) {
-    throw new Error(`压缩后仍超过限制（${formatImageFileSize(compressedFile.size)}），请手动压缩后再上传`);
+    throw new Error(
+      `压缩后仍超过限制（${formatImageFileSize(compressedFile.size)}），请手动压缩后再上传`,
+    );
   }
   if (!options.quiet) {
     updatePendingPostImage(uploadId, {
       uploadStatus: 'queued',
-      uploadStatusLabel: '待审核'
+      uploadStatusLabel: '待审核',
     });
   }
   return compressedFile;
@@ -1794,7 +2026,7 @@ const normalizePostImageSortState = (images = []) => {
   const source = Array.isArray(images) ? images : [];
   return source.map((item, itemIndex) => ({
     ...item,
-    sortOrder: itemIndex
+    sortOrder: itemIndex,
   }));
 };
 
@@ -1821,13 +2053,19 @@ const reorderPostImage = ({ fromIndex, toIndex } = {}) => {
 };
 
 const cleanupUploadedForumImage = async (image, { silent = true } = {}) => {
-  const lockKey = String(image?.deleteToken || image?.publicId || image?.originalUrl || image?.url || '').trim();
+  const lockKey = String(
+    image?.deleteToken || image?.publicId || image?.originalUrl || image?.url || '',
+  ).trim();
   if (!lockKey || postImageCleanupLocks.has(lockKey)) return { ok: true, skipped: true };
   postImageCleanupLocks.add(lockKey);
   try {
     const result = await deleteUploadedForumImage(image);
     if (!result.ok && !silent) {
-      showModal('warning', '图片清理失败', result.error?.message || '云端图片删除失败，请稍后在 Cloudinary 后台检查');
+      showModal(
+        'warning',
+        '图片清理失败',
+        result.error?.message || '云端图片删除失败，请稍后在 Cloudinary 后台检查',
+      );
     }
     return result;
   } finally {
@@ -1838,16 +2076,16 @@ const cleanupUploadedForumImage = async (image, { silent = true } = {}) => {
 const cleanupDraftPostImages = async ({ silent = true } = {}) => {
   const images = [...postImages.value];
   if (!images.length) return;
-  await Promise.allSettled(
-    images.map((image) => cleanupUploadedForumImage(image, { silent }))
-  );
+  await Promise.allSettled(images.map((image) => cleanupUploadedForumImage(image, { silent })));
 };
 
 const clearPostImages = ({ cleanup = false, silent = true } = {}) => {
   const images = [...postImages.value];
   // 先收集正在上传中的管线（cancel 后 entry 已从 map 移除，需提前标记）
   const pendingCleanupIds = new Set(
-    images.filter((image) => draftImagePipelines.get(image?.uploadId)?.state === 'uploading').map((image) => image.uploadId)
+    images
+      .filter((image) => draftImagePipelines.get(image?.uploadId)?.state === 'uploading')
+      .map((image) => image.uploadId),
   );
   clearAllDraftImagePipelines();
   images.forEach(revokePostImagePreview);
@@ -1858,7 +2096,7 @@ const clearPostImages = ({ cleanup = false, silent = true } = {}) => {
     void Promise.allSettled(
       images
         .filter((image) => !pendingCleanupIds.has(image?.uploadId))
-        .map((image) => cleanupUploadedForumImage(image, { silent }))
+        .map((image) => cleanupUploadedForumImage(image, { silent })),
     );
   }
 };
@@ -1870,7 +2108,9 @@ const discardDraftPostImages = async ({ silent = true } = {}) => {
 
 // 移动端判断（窄屏档；竖屏编辑器形态由 forum-viewport 单源判据驱动，不在此处手算）
 const MOBILE_BREAKPOINT = 768;
-const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= MOBILE_BREAKPOINT : false);
+const isMobile = ref(
+  typeof window !== 'undefined' ? window.innerWidth <= MOBILE_BREAKPOINT : false,
+);
 let resizeRafId = null;
 const updateMobileStatus = () => {
   if (resizeRafId) return;
@@ -1947,7 +2187,7 @@ const closeMobileComposer = async () => {
       title: '保存草稿',
       message: '是否将当前编辑内容保存为草稿？',
       confirmText: '保存',
-      cancelText: '不保存'
+      cancelText: '不保存',
     });
 
     if (shouldSave) {
@@ -1972,7 +2212,11 @@ const closeMobileComposer = async () => {
   isMobileComposerOpen.value = false;
 };
 
-const handleThemeChange = (theme, _preference, uiStyle = themeManager.getUiStyle?.() || currentUiStyle.value) => {
+const handleThemeChange = (
+  theme,
+  _preference,
+  uiStyle = themeManager.getUiStyle?.() || currentUiStyle.value,
+) => {
   currentTheme.value = theme;
   currentUiStyle.value = uiStyle;
 };
@@ -2032,7 +2276,7 @@ const handleForumPostUpdated = (event) => {
       status: updated.status ?? item.status,
       like_count: Number(updated.like_count ?? item.like_count ?? 0),
       comment_count: Number(updated.comment_count ?? item.comment_count ?? 0),
-      updated_at: updated.updated_at ?? item.updated_at
+      updated_at: updated.updated_at ?? item.updated_at,
     };
   });
 
@@ -2047,15 +2291,18 @@ onMounted(() => {
   currentUiStyle.value = themeManager.getUiStyle?.() || 'glass';
   themeManager.addListener(handleThemeChange);
   if (forumPageRef.value && typeof IntersectionObserver !== 'undefined') {
-    anniversaryObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          showAnniversaryBg.value = true;
-          anniversaryObserver?.disconnect();
-          anniversaryObserver = null;
-        }
-      });
-    }, { rootMargin: '100px' });
+    anniversaryObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            showAnniversaryBg.value = true;
+            anniversaryObserver?.disconnect();
+            anniversaryObserver = null;
+          }
+        });
+      },
+      { rootMargin: '100px' },
+    );
     anniversaryObserver.observe(forumPageRef.value);
   } else {
     showAnniversaryBg.value = true;
@@ -2095,9 +2342,9 @@ onActivated(() => {
   setupForumLoadMoreObserver();
   setupForumWindowObserverOnce();
   if (
-    postCooldownUntil.value > Date.now()
-    || replyCooldownUntil.value > Date.now()
-    || imageUploadCooldownUntil.value > Date.now()
+    postCooldownUntil.value > Date.now() ||
+    replyCooldownUntil.value > Date.now() ||
+    imageUploadCooldownUntil.value > Date.now()
   ) {
     ensureCooldownTimer();
   }
@@ -2209,7 +2456,7 @@ watch(
       loadWeeklyCheckinStatus();
     }
     restorePostDraft();
-  }
+  },
 );
 
 // ✨ 移除：watch自动保存草稿（改为手动保存）
@@ -2225,25 +2472,29 @@ watch(
   () => {
     setupForumWindowObserverOnce();
   },
-  { flush: 'post' }
+  { flush: 'post' },
 );
 
 // 外部 feed 接管（用户空间社区段控）：latest/following/news/activity → 关注态 + 内容类型一次同步（单次 fetch）
-watch(() => props.externalFeed, (val) => {
-  const nextFollowing = val === 'following';
-  const nextKind = (val === 'news' || val === 'activity') ? val : '';
-  if (nextFollowing && !isLoggedIn.value) return; // 与 setFeedMode 一致：关注流需登录
-  if (showFollowingOnly.value === nextFollowing && selectedContentType.value === nextKind) return;
-  showFollowingOnly.value = nextFollowing;
-  selectedContentType.value = nextKind;
-  feedMode.value = 'posts';
-  /* ⚠️ 必须延到本组件 setup 跑完之后再取数（微任务即可）：
+watch(
+  () => props.externalFeed,
+  (val) => {
+    const nextFollowing = val === 'following';
+    const nextKind = val === 'news' || val === 'activity' ? val : '';
+    if (nextFollowing && !isLoggedIn.value) return; // 与 setFeedMode 一致：关注流需登录
+    if (showFollowingOnly.value === nextFollowing && selectedContentType.value === nextKind) return;
+    showFollowingOnly.value = nextFollowing;
+    selectedContentType.value = nextKind;
+    feedMode.value = 'posts';
+    /* ⚠️ 必须延到本组件 setup 跑完之后再取数（微任务即可）：
      immediate 会在 setup 中途同步回调，而 fetchForumData 是下方才声明的 const
      —— 直接调用就是 TDZ ReferenceError（Cannot access 'fetchForumData' before initialization）。
      实测触发路径：点「关注 / 新闻 / 活动」→ 这里进不去前面的 early return → 整页被
      全局错误边界接管成「页面出了问题」。状态同步赋值保持同步（首帧样式不吃延迟）。 */
-  void Promise.resolve().then(() => fetchForumData());
-}, { immediate: true });
+    void Promise.resolve().then(() => fetchForumData());
+  },
+  { immediate: true },
+);
 
 watch(showFollowingOnly, (val) => {
   if (val && viewMode.value === 'my') {
@@ -2258,7 +2509,7 @@ watch(
       showFollowingOnly.value = false;
     }
     activeForumWindowIndex.value = 0;
-  }
+  },
 );
 
 // 帖子列表预览：保留用户原始排版，溢出交给 CSS 控制。
@@ -2270,9 +2521,8 @@ const extractPostTitle = (postOrContent) => {
     const explicitTitle = String(postOrContent.title || '').trim();
     if (explicitTitle) return explicitTitle;
   }
-  const rawContent = postOrContent && typeof postOrContent === 'object'
-    ? postOrContent.content
-    : postOrContent;
+  const rawContent =
+    postOrContent && typeof postOrContent === 'object' ? postOrContent.content : postOrContent;
   const safeContent = String(rawContent || '').trim();
   return safeContent.match(/【(.*?)】/)?.[1] || '无标题';
 };
@@ -2304,9 +2554,7 @@ const isBodyPreviewOverflowLikely = (content = '') => {
 };
 
 const getPostImages = (post) => {
-  const images = Array.isArray(post?.images)
-    ? post.images.filter((image) => image?.url)
-    : [];
+  const images = Array.isArray(post?.images) ? post.images.filter((image) => image?.url) : [];
   if (images.length) return images;
 
   const coverUrl = String(post?.cover_image_url || post?.coverImageUrl || '').trim();
@@ -2317,21 +2565,23 @@ const getPostImages = (post) => {
   // 必须经 getImageUrl 解析成打包 URL，否则 <img> 直接裂图；data:/http 原样直通。
   const resolvedCoverUrl = getImageUrl(coverUrl, { silent: true }) || coverUrl;
   const resolvedRawCoverUrl = getImageUrl(rawCoverUrl, { silent: true }) || rawCoverUrl;
-  return [{
-    id: `${String(post?.id || 'post').trim() || 'post'}-cover`,
-    url: getCloudinaryTransformedUrl(resolvedCoverUrl, FORUM_LIST_IMAGE_TRANSFORM),
-    originalUrl: resolvedRawCoverUrl,
-    detailUrl: getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_DETAIL_IMAGE_TRANSFORM),
-    srcset: [
-      `${getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_SM)} 360w`,
-      `${getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_MD)} 540w`,
-      `${getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM)} 720w`
-    ].join(', '),
-    lqipUrl: getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_LQIP_TRANSFORM),
-    width: Number(post?.cover_image_width || post?.coverImageWidth || 0),
-    height: Number(post?.cover_image_height || post?.coverImageHeight || 0),
-    sortOrder: 0
-  }];
+  return [
+    {
+      id: `${String(post?.id || 'post').trim() || 'post'}-cover`,
+      url: getCloudinaryTransformedUrl(resolvedCoverUrl, FORUM_LIST_IMAGE_TRANSFORM),
+      originalUrl: resolvedRawCoverUrl,
+      detailUrl: getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_DETAIL_IMAGE_TRANSFORM),
+      srcset: [
+        `${getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_SM)} 360w`,
+        `${getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM_MD)} 540w`,
+        `${getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM)} 720w`,
+      ].join(', '),
+      lqipUrl: getCloudinaryTransformedUrl(resolvedRawCoverUrl, FORUM_LIST_LQIP_TRANSFORM),
+      width: Number(post?.cover_image_width || post?.coverImageWidth || 0),
+      height: Number(post?.cover_image_height || post?.coverImageHeight || 0),
+      sortOrder: 0,
+    },
+  ];
 };
 
 const FORUM_IMAGE_LAZY_ROOT_MARGIN = '300px 0px';
@@ -2341,23 +2591,26 @@ let forumImageLazyObserver = null;
 const getForumImageLazyObserver = () => {
   if (forumImageLazyObserver) return forumImageLazyObserver;
   if (typeof IntersectionObserver === 'undefined') return null;
-  forumImageLazyObserver = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      const img = entry.target;
-      const src = img.dataset.lazySrc;
-      const srcset = img.dataset.lazySrcset;
-      if (src) {
-        img.src = src;
-        delete img.dataset.lazySrc;
+  forumImageLazyObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const img = entry.target;
+        const src = img.dataset.lazySrc;
+        const srcset = img.dataset.lazySrcset;
+        if (src) {
+          img.src = src;
+          delete img.dataset.lazySrc;
+        }
+        if (srcset) {
+          img.srcset = srcset;
+          delete img.dataset.lazySrcset;
+        }
+        forumImageLazyObserver.unobserve(img);
       }
-      if (srcset) {
-        img.srcset = srcset;
-        delete img.dataset.lazySrcset;
-      }
-      forumImageLazyObserver.unobserve(img);
-    }
-  }, { rootMargin: FORUM_IMAGE_LAZY_ROOT_MARGIN, threshold: FORUM_IMAGE_LAZY_THRESHOLD });
+    },
+    { rootMargin: FORUM_IMAGE_LAZY_ROOT_MARGIN, threshold: FORUM_IMAGE_LAZY_THRESHOLD },
+  );
   return forumImageLazyObserver;
 };
 
@@ -2380,7 +2633,7 @@ const prepareForumPostForDisplay = (post, index = 0) => {
   // eager 仅首帖首图，首屏外开销仍由 LQIP+lazy 承担。
   const allImages = getPostImages(preparedPost).map((image, imageIndex) => ({
     ...image,
-    eager: isEager && imageIndex === 0
+    eager: isEager && imageIndex === 0,
   }));
   const imageCount = Math.max(Number(preparedPost.image_count || 0), allImages.length);
 
@@ -2388,9 +2641,10 @@ const prepareForumPostForDisplay = (post, index = 0) => {
   // 由 ensureQuotedPostsForReposts 回源后在卡片引用框展示；标题先兜底避免"无标题"
   // （normalizePostListRecord 会把无【】的 content 拆出 title='无标题'，一并排除）
   const preparedTitle = String(preparedPost.title || '').trim();
-  preparedPost.displayTitle = preparedPost.post_kind === 'repost' && (!preparedTitle || preparedTitle === '无标题')
-    ? '转发动态'
-    : extractPostTitle(preparedPost);
+  preparedPost.displayTitle =
+    preparedPost.post_kind === 'repost' && (!preparedTitle || preparedTitle === '无标题')
+      ? '转发动态'
+      : extractPostTitle(preparedPost);
   preparedPost.displayBody = extractPostBody(preparedPost);
   preparedPost.isBodyOverflowLikely = isBodyPreviewOverflowLikely(preparedPost.displayBody);
   preparedPost.tag = normalizeForumTagValue(preparedPost.tag);
@@ -2407,17 +2661,27 @@ const prepareForumPostForDisplay = (post, index = 0) => {
   return preparedPost;
 };
 
-const prepareForumPosts = (posts = [], startIndex = 0) => (
-  Array.isArray(posts) ? posts
-    .filter((post) => {
-      const kind = post?.post_kind || (/^【新闻】/.test(String(post?.content || '')) ? 'news' : /^【活动】/.test(String(post?.content || '')) ? 'activity' : 'unknown');
-      // 「论坛」= 普通帖 + 用户转发（repost），与服务端 p_kind_filter 语义一致
-      return !selectedContentType.value || (selectedContentType.value === 'post'
-        ? kind === 'post' || kind === 'unknown' || kind === 'repost'
-        : kind === selectedContentType.value);
-    })
-    .map((post, index) => prepareForumPostForDisplay(post, startIndex + index)) : []
-);
+const prepareForumPosts = (posts = [], startIndex = 0) =>
+  Array.isArray(posts)
+    ? posts
+        .filter((post) => {
+          const kind =
+            post?.post_kind ||
+            (/^【新闻】/.test(String(post?.content || ''))
+              ? 'news'
+              : /^【活动】/.test(String(post?.content || ''))
+                ? 'activity'
+                : 'unknown');
+          // 「论坛」= 普通帖 + 用户转发（repost），与服务端 p_kind_filter 语义一致
+          return (
+            !selectedContentType.value ||
+            (selectedContentType.value === 'post'
+              ? kind === 'post' || kind === 'unknown' || kind === 'repost'
+              : kind === selectedContentType.value)
+          );
+        })
+        .map((post, index) => prepareForumPostForDisplay(post, startIndex + index))
+    : [];
 
 const hydrateOfficialPostKinds = async (posts = []) => {
   const ids = (Array.isArray(posts) ? posts : []).map((post) => post?.id).filter(Boolean);
@@ -2425,45 +2689,58 @@ const hydrateOfficialPostKinds = async (posts = []) => {
   const [postMeta, newsMeta, activityMeta] = await Promise.all([
     supabase.from('posts').select('id, post_kind, cover_image_url, title').in('id', ids),
     supabase.from('news').select('title, image'),
-    supabase.from('activities').select('title, image')
+    supabase.from('activities').select('title, image'),
   ]);
   const metadata = new Map((postMeta.data || []).map((row) => [row.id, row]));
-  const newsByTitle = new Map((newsMeta.data || []).map((row) => [String(row.title || '').trim(), row]));
-  const activityByTitle = new Map((activityMeta.data || []).map((row) => [String(row.title || '').trim(), row]));
+  const newsByTitle = new Map(
+    (newsMeta.data || []).map((row) => [String(row.title || '').trim(), row]),
+  );
+  const activityByTitle = new Map(
+    (activityMeta.data || []).map((row) => [String(row.title || '').trim(), row]),
+  );
   return posts.map((post) => ({
     ...post,
-    post_kind: metadata.get(post.id)?.post_kind || post.post_kind
-      || (/^【新闻】/.test(String(post.content || '')) ? 'news'
-        : /^【活动】/.test(String(post.content || '')) ? 'activity'
-          : newsByTitle.has(String(post.title || '').trim()) ? 'news'
-            : activityByTitle.has(String(post.title || '').trim()) ? 'activity' : 'unknown'),
-    cover_image_url: post.cover_image_url
-      || metadata.get(post.id)?.cover_image_url
-      || newsByTitle.get(String(post.title || '').trim())?.image
-      || activityByTitle.get(String(post.title || '').trim())?.image
-      || ''
+    post_kind:
+      metadata.get(post.id)?.post_kind ||
+      post.post_kind ||
+      (/^【新闻】/.test(String(post.content || ''))
+        ? 'news'
+        : /^【活动】/.test(String(post.content || ''))
+          ? 'activity'
+          : newsByTitle.has(String(post.title || '').trim())
+            ? 'news'
+            : activityByTitle.has(String(post.title || '').trim())
+              ? 'activity'
+              : 'unknown'),
+    cover_image_url:
+      post.cover_image_url ||
+      metadata.get(post.id)?.cover_image_url ||
+      newsByTitle.get(String(post.title || '').trim())?.image ||
+      activityByTitle.get(String(post.title || '').trim())?.image ||
+      '',
   }));
 };
 
-const getForumFeedSnapshotKey = () => buildForumFeedSnapshotKey({
-  userId: isLoggedIn.value ? userInfo.id : 'guest',
-  viewMode: viewMode.value,
-  sortMode: sortMode.value,
-  searchKeyword: searchKeyword.value,
-  tagFilter: selectedTagFilter.value,
-  contentType: selectedContentType.value,
-  followingOnly: showFollowingOnly.value
-});
+const getForumFeedSnapshotKey = () =>
+  buildForumFeedSnapshotKey({
+    userId: isLoggedIn.value ? userInfo.id : 'guest',
+    viewMode: viewMode.value,
+    sortMode: sortMode.value,
+    searchKeyword: searchKeyword.value,
+    tagFilter: selectedTagFilter.value,
+    contentType: selectedContentType.value,
+    followingOnly: showFollowingOnly.value,
+  });
 
 const persistForumFeedSnapshot = () => {
   if (feedMode.value !== 'posts' || forumLoadError.value) return;
   // 乐观帖不落快照，避免刷新后残留
-  const snapshotPosts = forumData.value.filter(p=> !p._optimistic);
+  const snapshotPosts = forumData.value.filter((p) => !p._optimistic);
   writeForumFeedSnapshot(getForumFeedSnapshotKey(), {
     posts: snapshotPosts,
     currentPage: currentPage.value,
     nextPageCursor: nextPageCursor.value,
-    hasMoreData: hasMoreData.value
+    hasMoreData: hasMoreData.value,
   });
 };
 
@@ -2504,9 +2781,12 @@ const handleStripLoadMore = (post) => {
 };
 
 const openForumImageViewer = (post, index = 0) => {
-  const baseImages = (Array.isArray(post?.allImages) ? post.allImages : []).filter((image) => image?.url);
+  const baseImages = (Array.isArray(post?.allImages) ? post.allImages : []).filter(
+    (image) => image?.url,
+  );
   if (!baseImages.length) return;
-  const clickedImage = baseImages[Math.min(Math.max(Number(index || 0), 0), baseImages.length - 1)] || null;
+  const clickedImage =
+    baseImages[Math.min(Math.max(Number(index || 0), 0), baseImages.length - 1)] || null;
   forumImageViewerImages.value = baseImages;
   forumImageViewerIndex.value = resolveForumViewerStartIndex(baseImages, clickedImage);
   isForumImageViewerOpen.value = true;
@@ -2547,8 +2827,9 @@ const closeForumImageViewer = () => {
 // forum/_shared.js 的 fetchQuotedPostsByIds（与个人空间帖子网格共用，真相源单一）。
 // 这里只负责把回源结果 patch 进 forumData（shallowRef 须整体替换元素）。
 const ensureQuotedPostsForReposts = async () => {
-  const reposts = forumData.value.filter((p) => p.post_kind === 'repost'
-    && p.repost_of_post_id && !p.quotedPost);
+  const reposts = forumData.value.filter(
+    (p) => p.post_kind === 'repost' && p.repost_of_post_id && !p.quotedPost,
+  );
   if (!reposts.length) return;
   const map = await fetchQuotedPostsByIds(reposts.map((p) => p.repost_of_post_id));
   if (!map.size) return;
@@ -2575,7 +2856,7 @@ const renderSearchExcerpt = (excerpt) => {
   const withMarks = escaped.replace(/\[\[([\s\S]*?)\]\]/g, '<mark>$1</mark>');
   return DOMPurify.sanitize(withMarks, {
     ALLOWED_TAGS: ['mark'],
-    ALLOWED_ATTR: []
+    ALLOWED_ATTR: [],
   });
 };
 
@@ -2610,18 +2891,18 @@ const checkinCalendarDays = computed(() => {
       label: ['一', '二', '三', '四', '五', '六', '日'][index],
       day: date.getDate(),
       isToday: date.getTime() === today.getTime(),
-      isSigned: index === signedIndex
+      isSigned: index === signedIndex,
     };
   });
 });
 
-const weeklyCheckinWeekDots = computed(() => (
+const weeklyCheckinWeekDots = computed(() =>
   checkinCalendarDays.value.map((day) => ({
     key: day.key,
     today: day.isToday,
-    signed: day.isSigned
-  }))
-));
+    signed: day.isSigned,
+  })),
+);
 
 const weeklyCheckinNextCheckin = computed(() => {
   const sourceDate = weeklyCheckinStatus.value.currentWeekStart
@@ -2636,7 +2917,7 @@ const weeklyCheckinNextCheckin = computed(() => {
   const days = Math.max(0, Math.round((nextMonday.getTime() - today.getTime()) / 86400000));
   return {
     dateText: `${nextMonday.getMonth() + 1}.${nextMonday.getDate()}`,
-    days
+    days,
   };
 });
 
@@ -2678,7 +2959,7 @@ const loadWeeklyCheckinStatus = async () => {
 
     weeklyCheckinStatus.value = {
       ...createDefaultWeeklyCheckinStatus(),
-      ...data
+      ...data,
     };
 
     const currentPoints = Number(data.currentPoints);
@@ -2713,7 +2994,7 @@ const handleWeeklyCheckin = async () => {
 
     weeklyCheckinStatus.value = {
       ...createDefaultWeeklyCheckinStatus(),
-      ...data
+      ...data,
     };
 
     const currentPoints = Number(data.currentPoints);
@@ -2727,14 +3008,14 @@ const handleWeeklyCheckin = async () => {
       emitProfileSync({
         userId: userInfo.id,
         username: userInfo.username,
-        reason: 'weekly_checkin_reward'
+        reason: 'weekly_checkin_reward',
       });
     } else {
       successMessage = `本周签到完成，当前本轮连续 ${getWeeklyCheckinCycleProgress(data)} / ${data.cycleSize || 4} 周，再连续 ${data.nextRewardIn} 周可得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
       emitProfileSync({
         userId: userInfo.id,
         username: userInfo.username,
-        reason: 'weekly_checkin'
+        reason: 'weekly_checkin',
       });
     }
 
@@ -2774,7 +3055,7 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
     if (showFollowingOnly.value && isLoggedIn.value && viewMode.value !== 'my') {
       const followRes = await getFollowing(currentUserId);
       if (!followRes.error && Array.isArray(followRes.data)) {
-        followingUserIds = followRes.data.map(f => f.id).filter(Boolean);
+        followingUserIds = followRes.data.map((f) => f.id).filter(Boolean);
       }
       if (!followingUserIds || !followingUserIds.length) {
         forumData.value = [];
@@ -2800,7 +3081,7 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
       // 旧版降级查询会使用 overfetch 判断 hasMore；RPC 路径会忽略该值避免翻页错位。
       limit: POSTS_PER_PAGE + 1,
       includeUnapprovedForAuthor: viewMode.value === 'my',
-      followingUserIds
+      followingUserIds,
     };
 
     if (viewMode.value === 'my' && isLoggedIn.value) {
@@ -2821,27 +3102,36 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
       const hasNextCursor = String(dataResult?.nextCursor || '').trim();
       const hasNextPage = hasNextCursor
         ? true
-        : (typeof dataResult.hasMore === 'boolean'
+        : typeof dataResult.hasMore === 'boolean'
           ? dataResult.hasMore
-          : safeRows.length >= POSTS_PER_PAGE);
+          : safeRows.length >= POSTS_PER_PAGE;
 
       if (isLoadMore) {
-        const existingIds = new Set(forumData.value.map(post => post.id));
-        const newPosts = safeRows.filter(post => !existingIds.has(post.id));
+        const existingIds = new Set(forumData.value.map((post) => post.id));
+        const newPosts = safeRows.filter((post) => !existingIds.has(post.id));
         forumData.value = [
           ...forumData.value,
-          ...prepareForumPosts(newPosts, forumData.value.length)
+          ...prepareForumPosts(newPosts, forumData.value.length),
         ];
         currentPage.value = pageToLoad;
         prefetchAuthorTiersFor(newPosts);
         void ensureQuotedPostsForReposts();
       } else {
         // 保留乐观卡（正在后台发送的帖子）在列表顶部，避免刷新将其冲掉
-        const optimisticPosts = forumData.value.filter(p=> p._optimistic);
+        const optimisticPosts = forumData.value.filter((p) => p._optimistic);
         // 若处于搜索/标签筛选，非 all 视图下暂时隐藏乐观卡
-        const shouldShowOptimistic = !searchKeyword.value.trim() && !selectedTagFilter.value && viewMode.value!=='my' && !showFollowingOnly.value;
+        const shouldShowOptimistic =
+          !searchKeyword.value.trim() &&
+          !selectedTagFilter.value &&
+          viewMode.value !== 'my' &&
+          !showFollowingOnly.value;
         const basePosts = prepareForumPosts(safeRows);
-        forumData.value = shouldShowOptimistic ? [...optimisticPosts, ...basePosts.filter(p=> !optimisticPosts.some(o=> o.id===p.id))] : basePosts;
+        forumData.value = shouldShowOptimistic
+          ? [
+              ...optimisticPosts,
+              ...basePosts.filter((p) => !optimisticPosts.some((o) => o.id === p.id)),
+            ]
+          : basePosts;
         currentPage.value = 1;
         prefetchAuthorTiersFor(safeRows);
         void ensureQuotedPostsForReposts();
@@ -2864,8 +3154,13 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
     }
   } catch (err) {
     // 取消语义兼容三种形态：DOMException(AbortError) / request-core 归一结果 / 旧文案
-    if (err?.name === 'AbortError' || err?.aborted || err?.code === 'ABORTED'
-      || String(err?.message || '') === '请求已被取消') return;
+    if (
+      err?.name === 'AbortError' ||
+      err?.aborted ||
+      err?.code === 'ABORTED' ||
+      String(err?.message || '') === '请求已被取消'
+    )
+      return;
     if (requestSeq !== forumFetchSeq) return;
     logger.error('forum', '加载论坛数据失败:', err);
     forumLoadError.value = String(err?.message || '论坛数据加载失败，请稍后重试');
@@ -2906,8 +3201,12 @@ const formatReportPeriod = (report) => {
 };
 
 const reportMetric = (key) => Number(forumWeeklyReport.value?.metrics?.[key] || 0);
-const openWeeklyReport = () => { if (forumWeeklyReport.value) isWeeklyReportOpen.value = true; };
-const closeWeeklyReport = () => { isWeeklyReportOpen.value = false; };
+const openWeeklyReport = () => {
+  if (forumWeeklyReport.value) isWeeklyReportOpen.value = true;
+};
+const closeWeeklyReport = () => {
+  isWeeklyReportOpen.value = false;
+};
 const openReportPost = (postId) => {
   closeWeeklyReport();
   if (postId) openPostDetail(postId);
@@ -2918,7 +3217,8 @@ const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value));
 const modalMascotSrc = computed(() => {
   if (!isHomeCatActive.value || !modalState.value.show) return '';
   if (modalState.value.type === 'success') return getHomeCatAsset('success');
-  if (modalState.value.type === 'error' || modalState.value.type === 'warning') return getHomeCatAsset('failed');
+  if (modalState.value.type === 'error' || modalState.value.type === 'warning')
+    return getHomeCatAsset('failed');
   return getHomeCatAsset('decor');
 });
 const confirmState = ref({
@@ -2927,7 +3227,7 @@ const confirmState = ref({
   message: '',
   confirmText: '确定',
   cancelText: '取消',
-  resolve: null
+  resolve: null,
 });
 const confirmMascotSrc = computed(() => {
   if (!isHomeCatActive.value || !confirmState.value.show) return '';
@@ -2952,7 +3252,7 @@ const showCheckinSuccessIsland = (message) => {
     message,
     icon: 'success',
     durationMs: 3600,
-    at: Date.now()
+    at: Date.now(),
   };
 
   if (showEmbeddedSuccessIsland(payload)) return true;
@@ -2967,23 +3267,24 @@ const closeConfirm = (confirmed = false) => {
     message: '',
     confirmText: '确定',
     cancelText: '取消',
-    resolve: null
+    resolve: null,
   };
   if (typeof resolver === 'function') {
     resolver(Boolean(confirmed));
   }
 };
 
-const requestConfirm = ({ title, message, confirmText = '确定', cancelText = '取消' }) => new Promise((resolve) => {
-  confirmState.value = {
-    show: true,
-    title,
-    message,
-    confirmText,
-    cancelText,
-    resolve
-  };
-});
+const requestConfirm = ({ title, message, confirmText = '确定', cancelText = '取消' }) =>
+  new Promise((resolve) => {
+    confirmState.value = {
+      show: true,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      resolve,
+    };
+  });
 
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
@@ -2992,14 +3293,16 @@ const goToProfile = (usernameVal) => {
 };
 
 const emitProfileSync = ({ userId, username, reason }) => {
-  window.dispatchEvent(new CustomEvent('boh_profile_sync', {
-    detail: {
-      userId: userId || null,
-      username: username || null,
-      reason: reason || 'forum_update',
-      at: Date.now()
-    }
-  }));
+  window.dispatchEvent(
+    new CustomEvent('boh_profile_sync', {
+      detail: {
+        userId: userId || null,
+        username: username || null,
+        reason: reason || 'forum_update',
+        at: Date.now(),
+      },
+    }),
+  );
 };
 
 const addUiMarker = (markerRef, key, durationMs, timerPrefix) => {
@@ -3012,12 +3315,15 @@ const addUiMarker = (markerRef, key, durationMs, timerPrefix) => {
     clearTimeout(uiAnimationTimers.get(timerKey));
   }
 
-  uiAnimationTimers.set(timerKey, setTimeout(() => {
-    const next = new Set(markerRef.value);
-    next.delete(safeKey);
-    markerRef.value = next;
-    uiAnimationTimers.delete(timerKey);
-  }, durationMs));
+  uiAnimationTimers.set(
+    timerKey,
+    setTimeout(() => {
+      const next = new Set(markerRef.value);
+      next.delete(safeKey);
+      markerRef.value = next;
+      uiAnimationTimers.delete(timerKey);
+    }, durationMs),
+  );
 };
 
 const hasUiMarker = (markerRef, key) => {
@@ -3025,7 +3331,8 @@ const hasUiMarker = (markerRef, key) => {
   return markerSet instanceof Set && markerSet.has(String(key || '').trim());
 };
 
-const getForumImageKey = (postId, imageUrl) => `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
+const getForumImageKey = (postId, imageUrl) =>
+  `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
 
 const markForumImageLoaded = (postId, imageUrl) => {
   const key = getForumImageKey(postId, imageUrl);
@@ -3033,7 +3340,8 @@ const markForumImageLoaded = (postId, imageUrl) => {
   loadedForumImageKeys.value = new Set([...loadedForumImageKeys.value, key]);
 };
 
-const isForumImageLoaded = (postId, imageUrl) => hasUiMarker(loadedForumImageKeys, getForumImageKey(postId, imageUrl));
+const isForumImageLoaded = (postId, imageUrl) =>
+  hasUiMarker(loadedForumImageKeys, getForumImageKey(postId, imageUrl));
 const isPostHighlighted = (postId) => hasUiMarker(highlightedPostIds, postId);
 const isPostLikePulsing = (postId) => hasUiMarker(likePulsePostIds, postId);
 const isPostShareCopied = (postId) => hasUiMarker(shareCopiedPostIds, postId);
@@ -3060,12 +3368,14 @@ const isLikelyNetworkError = (error) => {
   const details = String(error?.details || '').toLowerCase();
   const text = `${message} ${details}`;
 
-  return text.includes('timeout')
-    || text.includes('超时')
-    || text.includes('network')
-    || text.includes('failed to fetch')
-    || text.includes('load failed')
-    || text.includes('请求失败');
+  return (
+    text.includes('timeout') ||
+    text.includes('超时') ||
+    text.includes('network') ||
+    text.includes('failed to fetch') ||
+    text.includes('load failed') ||
+    text.includes('请求失败')
+  );
 };
 
 const verifyPostCreatedOnServer = async (authorId, postBody, postTitle) => {
@@ -3085,14 +3395,16 @@ const verifyPostCreatedOnServer = async (authorId, postBody, postTitle) => {
 };
 
 const shouldCleanupImagesAfterPostError = (error) => {
-  const code = String(error?.code || '').trim().toUpperCase();
+  const code = String(error?.code || '')
+    .trim()
+    .toUpperCase();
   return new Set([
     'EMPTY_POST_CONTENT',
     'LOCAL_KEYWORD_BLOCK',
     'SYNC_MODERATION_BLOCK',
     'NOT_AUTHENTICATED',
     'FORUM_IMAGE_LIMIT',
-    'FORUM_IMAGE_MIGRATION_REQUIRED'
+    'FORUM_IMAGE_MIGRATION_REQUIRED',
   ]).has(code);
 };
 
@@ -3121,7 +3433,8 @@ const handlePost = async () => {
     if (isPermanentMute || isTempMuteActive) {
       let muteMessage = '您已被禁言，无法发布帖子。';
       if (userInfo.muteReason) muteMessage += ` 原因：${userInfo.muteReason}`;
-      if (userInfo.mutedUntil) muteMessage += ` 解禁时间：${new Date(userInfo.mutedUntil).toLocaleDateString('zh-CN')}`;
+      if (userInfo.mutedUntil)
+        muteMessage += ` 解禁时间：${new Date(userInfo.mutedUntil).toLocaleDateString('zh-CN')}`;
       else muteMessage += '（永久禁言）';
       showModal('warning', '禁言提示', muteMessage);
       return;
@@ -3150,20 +3463,29 @@ const handlePost = async () => {
     file: img.file || null,
     localPreviewUrl: img.localPreviewUrl || img.url || '',
     uploadStatus: img.uploadStatus || (img.file ? 'staged' : 'approved'),
-    sortOrder: idx
+    sortOrder: idx,
   }));
   const submissionId = createSubmissionId();
   const submissionFingerprint = JSON.stringify([
-    snapshotTitle, snapshotBody,
-    snapshotImages.map(i=> [i?.publicId||i?.public_id||'', i?.file?.name||'', i?.file?.size||0])
+    snapshotTitle,
+    snapshotBody,
+    snapshotImages.map((i) => [
+      i?.publicId || i?.public_id || '',
+      i?.file?.name || '',
+      i?.file?.size || 0,
+    ]),
   ]);
   // 校验队列：避免重复指纹正在发送中
-  const dup = publishQueueStore.items.find(i=> i.fingerprint===submissionFingerprint && ['queued','uploading','publishing'].includes(i.state));
+  const dup = publishQueueStore.items.find(
+    (i) =>
+      i.fingerprint === submissionFingerprint &&
+      ['queued', 'uploading', 'publishing'].includes(i.state),
+  );
   if (dup) {
     showModal('warning', '正在发送中', '相同内容的帖子正在发送，请稍候');
     return;
   }
-  const queueId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+  const queueId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const rawAvatar = String(userInfo.avatarUrl || userInfo.avatar_url || '').trim();
   const queueItemPayload = {
     id: queueId,
@@ -3176,7 +3498,7 @@ const handlePost = async () => {
     authorUsername: userInfo.username,
     authorAvatarUrl: rawAvatar,
     submissionId,
-    fingerprint: submissionFingerprint
+    fingerprint: submissionFingerprint,
   };
   const queueItem = publishQueueStore.enqueue(queueItemPayload);
   // 插入乐观帖子到列表顶部（简化：不暴露压缩/检测阶段，只显示百分比）
@@ -3189,14 +3511,19 @@ const handlePost = async () => {
   postLocation.value = null;
   // 清理草稿但不清理已快照的图片（队列持有 file）
   postDraftRestoreSeq += 1;
-  if (postDraftSaveTimer) { clearTimeout(postDraftSaveTimer); postDraftSaveTimer=null; }
+  if (postDraftSaveTimer) {
+    clearTimeout(postDraftSaveTimer);
+    postDraftSaveTimer = null;
+  }
   writeLocalPostDraft(null);
   savedPostDraft.value = null;
   lastAutoSaveTime.value = null;
   writePostDraftVersions([]);
   void savePostDraftToDatabase(null);
   // 清空编辑器图片状态（不触发云端删除，因队列已接管）
-  prevDraftImages.forEach(img=> { /* 保留 localPreviewUrl 给队列，编辑器端移除 */ });
+  prevDraftImages.forEach((img) => {
+    /* 保留 localPreviewUrl 给队列，编辑器端移除 */
+  });
   postImages.value = [];
   postImageUploadStatus.value = '';
   // 关闭移动端编辑器（无二次确认，因已入队）
@@ -3221,7 +3548,11 @@ const replyContent = ref('');
 const isReplySubmitting = ref(false);
 
 const toggleReplyInput = (postId, parentId = null, username = null, quotedContent = '') => {
-  if (activeReplyTarget.value && activeReplyTarget.value.postId === postId && activeReplyTarget.value.parentId === parentId) {
+  if (
+    activeReplyTarget.value &&
+    activeReplyTarget.value.postId === postId &&
+    activeReplyTarget.value.parentId === parentId
+  ) {
     activeReplyTarget.value = null;
     replyContent.value = '';
   } else {
@@ -3250,7 +3581,7 @@ const loadPostReplyPreview = async (post) => {
   if (existingReplies.length > 0 || post.replies_preloaded) {
     post.replies = existingReplies;
     post.replies_has_more = Boolean(
-      post.replies_has_more || Number(post.comment_count || 0) > existingReplies.length
+      post.replies_has_more || Number(post.comment_count || 0) > existingReplies.length,
     );
     return true;
   }
@@ -3260,7 +3591,7 @@ const loadPostReplyPreview = async (post) => {
     topLevelOnly: true,
     page: 1,
     pageSize: LIST_REPLY_PREVIEW_COUNT,
-    order: 'desc'
+    order: 'desc',
   });
   // 失败（含主动取消）：不写 replies_preloaded，下次点开还能重试
   if (first?.ok === false && first?.error) return false;
@@ -3271,7 +3602,7 @@ const loadPostReplyPreview = async (post) => {
       topLevelOnly: true,
       page: 1,
       pageSize: LIST_REPLY_PREVIEW_COUNT,
-      order: 'desc'
+      order: 'desc',
     });
     const fallback = await getComments(post.id, currentUserId, fallbackOptions);
     if (fallback?.ok === false && fallback?.error) return false;
@@ -3354,10 +3685,15 @@ const scheduleIdleReplyPrefetch = () => {
     idleReplyPrefetchHandle = null;
     if (idleReplyPrefetchCancelled) return;
     const targets = visibleForumPosts.value
-      .filter((post) => post && post.id && !post._optimistic
-        && !post.replies_preloaded
-        && !(Array.isArray(post.replies) && post.replies.length)
-        && Number(post.comment_count || 0) > 0)
+      .filter(
+        (post) =>
+          post &&
+          post.id &&
+          !post._optimistic &&
+          !post.replies_preloaded &&
+          !(Array.isArray(post.replies) && post.replies.length) &&
+          Number(post.comment_count || 0) > 0,
+      )
       .slice(0, REPLY_PREFETCH_MAX_PER_PASS);
     if (!targets.length) return;
     // 串行：预取本身是低优先级任务，不与其他请求抢并发额度
@@ -3368,9 +3704,10 @@ const scheduleIdleReplyPrefetch = () => {
       }
     })();
   };
-  idleReplyPrefetchHandle = typeof requestIdleCallback === 'function'
-    ? requestIdleCallback(run, { timeout: 2500 })
-    : setTimeout(run, 1200);
+  idleReplyPrefetchHandle =
+    typeof requestIdleCallback === 'function'
+      ? requestIdleCallback(run, { timeout: 2500 })
+      : setTimeout(run, 1200);
 };
 
 const isLikeSubmitting = ref({});
@@ -3437,7 +3774,7 @@ const submitReply = async (post) => {
       safeUsername,
       commentStatus,
       parentId,
-      replyToUsername
+      replyToUsername,
     );
 
     if (error) throw error;
@@ -3446,20 +3783,18 @@ const submitReply = async (post) => {
     await loadPostReplyPreview(post);
     await refreshPostEngagementStats(post);
     expandedPostIds.value.add(post.id);
-    if (!showEmbeddedSuccessIsland({
-      title: '评论成功',
-      message: '你的回复已经发送啦',
-      icon: 'comment',
-      type: 'success',
-      catSticker: 'success',
-      catStickerMode: 'hero',
-      forceCatSticker: true
-    })) {
-      showModal(
-        'success',
-        '回复成功',
-        '你的声音已被听到'
-      );
+    if (
+      !showEmbeddedSuccessIsland({
+        title: '评论成功',
+        message: '你的回复已经发送啦',
+        icon: 'comment',
+        type: 'success',
+        catSticker: 'success',
+        catStickerMode: 'hero',
+        forceCatSticker: true,
+      })
+    ) {
+      showModal('success', '回复成功', '你的声音已被听到');
     }
 
     addExperience(supabase, userInfo.id, XP_REWARDS.REPLY);
@@ -3467,7 +3802,7 @@ const submitReply = async (post) => {
     emitProfileSync({
       userId: userInfo.id,
       username: userInfo.username,
-      reason: 'comment_created'
+      reason: 'comment_created',
     });
   } catch (error) {
     logger.error('forum', '回复失败', error);
@@ -3534,7 +3869,7 @@ const handleToggleLike = async (post) => {
       emitProfileSync({
         userId: post.author_id,
         username: post.author_username,
-        reason: action === 'liked' ? 'post_liked' : 'post_unliked'
+        reason: action === 'liked' ? 'post_liked' : 'post_unliked',
       });
     }
   } catch (error) {
@@ -3596,7 +3931,7 @@ const handleDeleteComment = async (comment, post) => {
   const confirmed = await requestConfirm({
     title: '删除评论',
     message: '这条评论删除后无法恢复，确定继续吗？',
-    confirmText: '删除'
+    confirmText: '删除',
   });
   if (!confirmed) return;
 
@@ -3609,7 +3944,7 @@ const handleDeleteComment = async (comment, post) => {
     emitProfileSync({
       userId: comment.author_id,
       username: comment.author_username,
-      reason: 'comment_deleted'
+      reason: 'comment_deleted',
     });
     await loadPostReplyPreview(post);
     await refreshPostEngagementStats(post);
@@ -3621,11 +3956,17 @@ const handleDeleteComment = async (comment, post) => {
 
 // 帖子分享：点击卡片分享按钮 → 顶部导航灵动岛弹出选择器（复制链接 / 站内转发）
 const buildPostShareTarget = (post) => ({
-  title: String(post?.displayTitle || post?.title || '').replace(/\s+/g, ' ').trim().slice(0, 80),
-  summary: String(post?.displayBody || post?.body || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+  title: String(post?.displayTitle || post?.title || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80),
+  summary: String(post?.displayBody || post?.body || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120),
   image: post?.allImages?.[0]?.url || post?.cover_image_url || '',
   path: `/forum/post/${post.id}`,
-  forward: post?.id ? { postId: post.id } : null
+  forward: post?.id ? { postId: post.id } : null,
 });
 
 let shareIslandHandle = null;
@@ -3646,7 +3987,7 @@ const sharePost = (post) => {
       // × / Esc / 成功自动关闭都走这里：必须真正清掉岛槽位，仅置空句柄岛不会消失
       shareIslandHandle?.close();
       shareIslandHandle = null;
-    }
+    },
   });
 };
 
@@ -3677,19 +4018,23 @@ const submitQuoteRepost = async () => {
 // ─── #标签筛选语法：搜索框内输入 #服务器 / #question 等，即解析为标签筛选 ───
 // 归一化单个 #记号 → 标签 value（支持英文 value 与中文标签名，大小写不敏感）
 const resolveTagTokenValue = (token = '') => {
-  const normalized = String(token || '').trim().toLowerCase().replace(/^#/, '');
+  const normalized = String(token || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^#/, '');
   if (!normalized) return '';
-  const option = FORUM_TAG_OPTIONS.find((tag) => (
-    tag.value === normalized || tag.label.slice(1).toLowerCase() === normalized
-  ));
+  const option = FORUM_TAG_OPTIONS.find(
+    (tag) => tag.value === normalized || tag.label.slice(1).toLowerCase() === normalized,
+  );
   return option ? option.value : '';
 };
 
 // 从输入中剔除全部 #记号（含裸 #），得到真正入库搜索的关键词
-const stripTagTokens = (raw = '') => String(raw || '')
-  .replace(/#[^\s#]*/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
+const stripTagTokens = (raw = '') =>
+  String(raw || '')
+    .replace(/#[^\s#]*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 // 从输入解析标签筛选：返回 null 表示输入不含 #记号（不干预现有筛选状态）；
 // 返回 '' 表示有记号但未匹配任何标签（视为清除）；否则返回标签 value
@@ -3705,13 +4050,110 @@ const deriveTagFilterFromInput = (raw = '') => {
   return '';
 };
 
+// ============================================
+// 搜索体验（2026-09-27）
+// ============================================
+/* 四件事：
+   1. 最小长度保护：中文输入「树洞」会先经过「树」这个中间态，旧实现每敲一个字
+      都打一次全表查询。这里把**单字符**的自动检索防抖拉长（多字符仍走
+      SEARCH_DEBOUNCE_MS）；显式提交（回车 / 搜索按钮）完全不受限 ——
+      用户确实想搜单字时依然可以。
+   2. 最近搜索：只在**显式提交**时记录（不记录输入中间态），localStorage 去重限量；
+      聚焦且输入为空时展开，点一下即回填检索。
+   3. 结果计数：搜索/筛选态下给出命中条数，避免「搜完不知道有几条」。
+   4. ⌘K / Ctrl+K 聚焦搜索框。 */
+const isSearchFocused = ref(false);
+const searchHistory = ref([]);
+
+const SEARCH_HISTORY_KEY = 'boh-forum-search-history';
+const SEARCH_HISTORY_MAX = 6;
+const SINGLE_CHAR_SEARCH_DELAY_MS = 900;
+
+const readSearchHistory = () => {
+  try {
+    const raw = window.localStorage.getItem(SEARCH_HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => typeof item === 'string' && item.trim())
+      .slice(0, SEARCH_HISTORY_MAX);
+  } catch {
+    // 隐私模式 / 存储被禁：历史退化为「本次会话有效」
+    return [];
+  }
+};
+
+const persistSearchHistory = () => {
+  try {
+    window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory.value));
+  } catch {
+    // 存不住就算了，不影响检索
+  }
+};
+
+const rememberSearchKeyword = (keyword) => {
+  const value = String(keyword || '').trim();
+  if (!value) return;
+  searchHistory.value = [value, ...searchHistory.value.filter((item) => item !== value)].slice(
+    0,
+    SEARCH_HISTORY_MAX,
+  );
+  persistSearchHistory();
+};
+
+const clearSearchHistory = () => {
+  searchHistory.value = [];
+  persistSearchHistory();
+};
+
+const showSearchHistory = computed(
+  () => isSearchFocused.value && !searchQuery.value.trim() && searchHistory.value.length > 0,
+);
+
+const onSearchFocus = () => {
+  isSearchFocused.value = true;
+};
+
+const onSearchBlur = () => {
+  isSearchFocused.value = false;
+};
+
+const applyHistoryKeyword = (keyword) => {
+  // 面板是否收起由 showSearchHistory 自己判断（回填后输入框有内容 → 自动收起），
+  // 不在这里手工置 isSearchFocused —— 聚焦态只能由 focus / blur 两个事件驱动。
+  searchQuery.value = keyword;
+  applySearchFromInput({ remember: true });
+};
+
+// 无结果时的「换个词试试」：取最近搜索里第一条与当前词不同的，避免建议等于现词
+const historySuggestion = computed(
+  () => searchHistory.value.find((item) => item !== searchKeyword.value.trim()) || '',
+);
+
+/* 结果计数：只在「有关键词 / 有筛选」时有意义。
+   RPC 只回 has_more、不回首总数，所以还有下一页时只能说「前 N 条」——
+   写成精确总数就是编的。 */
+const searchResultLabel = computed(() => {
+  const hasFilter = Boolean(
+    searchKeyword.value.trim() ||
+    selectedTagFilter.value ||
+    selectedContentType.value ||
+    showFollowingOnly.value,
+  );
+  if (!hasFilter || isLoading.value || forumData.value.length === 0) return '';
+  const count = forumData.value.length;
+  return hasMoreData.value ? `已显示前 ${count} 条，继续下拉可加载更多` : `共 ${count} 条结果`;
+});
+
 // 统一搜索入口（提交按钮 / 回车 / 输入防抖共用）：解析 #标签 + 剔除记号后入库检索
-const applySearchFromInput = () => {
+const applySearchFromInput = ({ remember = false } = {}) => {
   const rawInput = String(searchQuery.value || '');
   const derivedTag = deriveTagFilterFromInput(rawInput);
   const keyword = stripTagTokens(rawInput);
   const tagChanged = derivedTag !== null && derivedTag !== selectedTagFilter.value;
   if (tagChanged) selectedTagFilter.value = derivedTag;
+  // 记历史放在「是否与上次相同」判断之前：重复搜同一个词也算一次使用，该提到最前
+  if (remember) rememberSearchKeyword(keyword);
   if (keyword === searchKeyword.value && !tagChanged) return;
   searchKeyword.value = keyword;
   feedMode.value = 'posts';
@@ -3723,8 +4165,44 @@ const handleSearch = () => {
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = null;
   }
-  applySearchFromInput();
+  /* ⚠️ 不要在这里置 isSearchFocused = false：回车 / 点搜索按钮都不会让输入框失焦，
+     DOM 焦点还在框里，而内部状态被置 false 之后就再也收不到新的 focus 事件 ——
+     用户接着清空输入，最近搜索面板就永远不展开（本探针 D3 正是抓到这个）。
+     面板显示与否由 showSearchHistory 单点判断（空输入 + 聚焦），无需手工干预。 */
+  applySearchFromInput({ remember: true });
 };
+
+// 清除搜索词：关键词与输入框一起清，但**不碰标签筛选** —— 那是另一个意图
+const clearSearchInput = () => {
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = null;
+  }
+  if (searchQuery.value) searchQuery.value = '';
+  if (!searchKeyword.value) return;
+  searchKeyword.value = '';
+  feedMode.value = 'posts';
+  fetchForumData();
+};
+
+/* ⌘K / Ctrl+K 聚焦搜索框：列表滚了很久时不必再回顶部点输入框。
+   复用既有的 focusForumSearch（文件上半部）—— 它已经处理了 scrollIntoView + focus，
+   不另起一套 DOM 查询/聚焦实现。 */
+const handleSearchHotkey = (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+  if (String(event.key).toLowerCase() !== 'k') return;
+  event.preventDefault();
+  focusForumSearch();
+};
+
+onMounted(() => {
+  searchHistory.value = readSearchHistory();
+  window.addEventListener('keydown', handleSearchHotkey);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleSearchHotkey);
+});
 
 // 清除标签筛选（chip × / 「全部标签」）：同时清掉输入里的 #记号，避免下次输入又被解析回来
 const clearTagFilter = () => {
@@ -3765,21 +4243,23 @@ const askBohai = async () => {
       pageSize: 5,
       searchQuery: question,
       tagFilter: tagFromInput ?? selectedTagFilter.value ?? '',
-      sortMode: 'hottest'
+      sortMode: 'hottest',
     });
     const posts = (Array.isArray(relatedPosts) ? relatedPosts : []).slice(0, 5);
     const contextBlock = posts.length
-      ? posts.map((post, index) => {
-          const title = String(post.title || '').trim() || '（无标题）';
-          const excerpt = String(post.content || '')
-            .replace(/<[^>]+>/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .slice(0, 120);
-          const tagLabel = FORUM_TAG_MAP[post.tag]?.label || '';
-          const author = String(post.author_username || post.username || '').trim();
-          return `${index + 1}. ${title}${tagLabel ? `（${tagLabel}）` : ''}${author ? ` —— 作者：${author}` : ''}\n   ${excerpt || '（无正文摘要）'}`;
-        }).join('\n')
+      ? posts
+          .map((post, index) => {
+            const title = String(post.title || '').trim() || '（无标题）';
+            const excerpt = String(post.content || '')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 120);
+            const tagLabel = FORUM_TAG_MAP[post.tag]?.label || '';
+            const author = String(post.author_username || post.username || '').trim();
+            return `${index + 1}. ${title}${tagLabel ? `（${tagLabel}）` : ''}${author ? ` —— 作者：${author}` : ''}\n   ${excerpt || '（无正文摘要）'}`;
+          })
+          .join('\n')
       : '';
 
     const prompt = [
@@ -3791,13 +4271,22 @@ const askBohai = async () => {
       '',
       contextBlock
         ? '请基于以上论坛内容，用中文简洁回答用户的问题：相关内容充分就归纳作答并点出可参考的帖子标题；不够就如实说明，再补充你自己的知识。'
-        : '请用中文简洁回答用户的问题；如果问题适合社区讨论，可以建议用户发一个带 #提问 标签的帖子来获得更多帮助。'
+        : '请用中文简洁回答用户的问题；如果问题适合社区讨论，可以建议用户发一个带 #提问 标签的帖子来获得更多帮助。',
     ].join('\n');
 
     const opened = showIsland.ai({ prompt, mode: 'fast' });
-    aiSearchHint.value = opened
-      ? 'BOHAI 正在顶部 AI 岛为你解答（Fast 模型）。'
-      : 'AI 岛当前不可用，请稍后再试。';
+    if (opened) {
+      aiSearchHint.value = 'BOHAI 正在顶部 AI 岛为你解答（Fast 模型）。';
+    } else {
+      /* ⚠️ 走到这里几乎只有一个原因：**当前视图没有导航栏**，而 AI 岛的岛体就挂在导航栏里
+         —— 没有宿主容器，open() 只会置位 isOpen、永远不渲染。
+         属于这一类的是「导航栏被隐藏但路由 meta 没标记」的视图：
+         user-space 的我的/设置子视图、详情页、embed=desktop 等
+         （判据见 utils/global-navbar-visibility.js，已与 App.vue 同源）。
+         旧文案「AI 岛当前不可用，请稍后再试」把「必然」说成「偶发」，用户只能反复点。 */
+      aiSearchHint.value =
+        '当前视图隐藏了顶部导航栏，AI 岛打不开 —— 到首页或完整论坛页再问 BOHAI。';
+    }
   } catch (error) {
     logger.warn('forum', '问 BOHAI 失败:', error);
     aiSearchHint.value = 'BOHAI 检索论坛内容失败，请稍后再试。';
@@ -3811,11 +4300,18 @@ const askBohai = async () => {
 watch(searchQuery, () => {
   if (searchDebounceTimer) {
     clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = null;
   }
+  /* 单字符滞回：中文输入「树洞」会先经过「树」这个中间态。
+     给单字符一个更长的防抖窗口 —— 多数字会在窗口内补进来，于是只发一次请求；
+     真停在单字上（或从多字删到单字）也照样检索，只是慢一点。
+     这比「单字直接不检索」少了「删到剩一个字、列表却不更新」的违和感。 */
+  const pendingKeyword = stripTagTokens(String(searchQuery.value || '')).trim();
+  const delay = pendingKeyword.length === 1 ? SINGLE_CHAR_SEARCH_DELAY_MS : SEARCH_DEBOUNCE_MS;
   searchDebounceTimer = setTimeout(() => {
     searchDebounceTimer = null;
     applySearchFromInput();
-  }, SEARCH_DEBOUNCE_MS);
+  }, delay);
 });
 
 const openPostDetail = (postId) => {
@@ -3833,15 +4329,21 @@ const openPostDetail = (postId) => {
   router.push({
     name: 'PostDetail',
     params: { id: postId },
-    query
+    query,
   });
 };
 </script>
 
 <template>
-  <div ref="forumPageRef" class="forum-page" :class="{ 'embedded-mode': embedded }" :data-theme="currentTheme"
-    :data-ui-style="currentUiStyle" :data-anniversary-skin="isAnniversaryMcTheme ? 'active' : 'off'"
-    :style="anniversaryForumStyle">
+  <div
+    ref="forumPageRef"
+    class="forum-page"
+    :class="{ 'embedded-mode': embedded }"
+    :data-theme="currentTheme"
+    :data-ui-style="currentUiStyle"
+    :data-anniversary-skin="isAnniversaryMcTheme ? 'active' : 'off'"
+    :style="anniversaryForumStyle"
+  >
     <link rel="preconnect" :href="cdnDeliveryBase" crossorigin />
     <link rel="dns-prefetch" :href="cdnDeliveryBase" />
 
@@ -3849,68 +4351,156 @@ const openPostDetail = (postId) => {
       <!-- 头部区域 -->
       <header v-if="showHeader" class="forum-header fade-in-up">
         <div class="header-content">
-          <span class="header-tag">{{ isAnniversaryMcTheme ? 'BLOCK OF HOME · 2018—2026' : 'BOH COMMUNITY' }}</span>
+          <span class="header-tag">{{
+            isAnniversaryMcTheme ? 'BLOCK OF HOME · 2018—2026' : 'BOH COMMUNITY'
+          }}</span>
           <h1 class="header-title">{{ isAnniversaryMcTheme ? '八周年方块社区' : '社区论坛' }}</h1>
-          <p class="header-subtitle">{{ isAnniversaryMcTheme ? '挖掘旧回忆，继续建造我们的第九年。' : '分享你的创意，连接方块世界。' }}</p>
+          <p class="header-subtitle">
+            {{
+              isAnniversaryMcTheme
+                ? '挖掘旧回忆，继续建造我们的第九年。'
+                : '分享你的创意，连接方块世界。'
+            }}
+          </p>
         </div>
-        <div v-if="isAnniversaryMcTheme" class="anniversary-seal" aria-hidden="true"><strong>8</strong><span>周年限定<br>方块主题</span></div>
+        <div v-if="isAnniversaryMcTheme" class="anniversary-seal" aria-hidden="true">
+          <strong>8</strong><span>周年限定<br />方块主题</span>
+        </div>
       </header>
 
       <!-- 主要内容区 -->
       <main class="forum-main-grid">
-
         <!-- 搜索工具栏：桌面 / 横屏下跨栏独占一行（base.css 的 grid-template-areas 负责布置）。
              单列时它在 DOM 里仍排在列表之前 → 手机端视觉顺序不变 -->
-        <ForumToolbar v-model:searchQuery="searchQuery" :is-logged-in="isLoggedIn"
-          :has-signed-this-week="weeklyCheckinStatus.hasSignedThisWeek" :sort-mode="sortMode"
+        <ForumToolbar
+          v-model:searchQuery="searchQuery"
+          :is-logged-in="isLoggedIn"
+          :has-signed-this-week="weeklyCheckinStatus.hasSignedThisWeek"
+          :sort-mode="sortMode"
           :selected-tag-filter="selectedTagFilter"
-          :is-ai-search-loading="isAiSearchLoading" :ai-search-hint="aiSearchHint"
-          @search-submit="handleSearch" @ask-bohai="askBohai" @clear-tag-filter="clearTagFilter"
-          @open-weekly-checkin="openWeeklyCheckinCalendar" @set-sort-mode="setSortMode"
-          @set-tag-filter="setTagFilter" />
+          :is-ai-search-loading="isAiSearchLoading"
+          :ai-search-hint="aiSearchHint"
+          :search-history="searchHistory"
+          :show-search-history="showSearchHistory"
+          @search-submit="handleSearch"
+          @ask-bohai="askBohai"
+          @clear-tag-filter="clearTagFilter"
+          @clear-search="clearSearchInput"
+          @search-focus="onSearchFocus"
+          @search-blur="onSearchBlur"
+          @apply-history-keyword="applyHistoryKeyword"
+          @clear-search-history="clearSearchHistory"
+          @open-weekly-checkin="openWeeklyCheckinCalendar"
+          @set-sort-mode="setSortMode"
+          @set-tag-filter="setTagFilter"
+        />
 
         <!-- 左侧：发帖和列表 -->
         <div class="forum-left-column">
-          <PostComposer v-if="!isMobileComposerMode" v-model:new-post="newPost"
-            v-model:selected-post-tag="selectedPostTag" v-model:post-location="postLocation" :is-logged-in="isLoggedIn"
-            :user-info="userInfo" :post-images="postImages" :is-submitting="isSubmitting"
-            :is-uploading-post-image="isUploadingPostImage" :post-image-upload-status="postImageUploadStatus"
-            :post-cooldown-seconds="postCooldownSeconds" :weekly-checkin-status="weeklyCheckinStatus"
+          <PostComposer
+            v-if="!isMobileComposerMode"
+            v-model:new-post="newPost"
+            v-model:selected-post-tag="selectedPostTag"
+            v-model:post-location="postLocation"
+            :is-logged-in="isLoggedIn"
+            :user-info="userInfo"
+            :post-images="postImages"
+            :is-submitting="isSubmitting"
+            :is-uploading-post-image="isUploadingPostImage"
+            :post-image-upload-status="postImageUploadStatus"
+            :post-cooldown-seconds="postCooldownSeconds"
+            :weekly-checkin-status="weeklyCheckinStatus"
             :weekly-checkin-progress-text="weeklyCheckinProgressText"
             :weekly-checkin-week-dots="weeklyCheckinWeekDots"
-            :weekly-checkin-hint-text="weeklyCheckinHintText" :is-weekly-checkin-loading="isWeeklyCheckinLoading"
-            :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting" :forum-tag-options="FORUM_TAG_OPTIONS"
-            :max-post-images="FORUM_POST_IMAGE_MAX_COUNT" :mention-users="forumMentionUsers"
-            :is-home-cat-theme="isHomeCatActive" :show-post-image-source-menu="showPostImageSourceMenu"
-            :auto-save-draft-label="autoSaveDraftLabel" @submit="handlePost" @login="showLoginModal = true"
-            @toggle-image-source-menu="togglePostImageSourceMenu" @request-image-picker="openPostImagePicker"
-            @request-camera="openPostCamera" @image-selection="handlePostImageSelection" @remove-image="removePostImage"
-            @retry-image="retryPostImageUpload" @reorder-image="reorderPostImage" @clear-images="clearPostImages"
-            @weekly-checkin="handleWeeklyCheckin" @open-draft="openMobileDraftPanel"
-            @save-draft="saveMobileDraft" />
+            :weekly-checkin-hint-text="weeklyCheckinHintText"
+            :is-weekly-checkin-loading="isWeeklyCheckinLoading"
+            :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting"
+            :forum-tag-options="FORUM_TAG_OPTIONS"
+            :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
+            :mention-users="forumMentionUsers"
+            :is-home-cat-theme="isHomeCatActive"
+            :show-post-image-source-menu="showPostImageSourceMenu"
+            :auto-save-draft-label="autoSaveDraftLabel"
+            @submit="handlePost"
+            @login="showLoginModal = true"
+            @toggle-image-source-menu="togglePostImageSourceMenu"
+            @request-image-picker="openPostImagePicker"
+            @request-camera="openPostCamera"
+            @image-selection="handlePostImageSelection"
+            @remove-image="removePostImage"
+            @retry-image="retryPostImageUpload"
+            @reorder-image="reorderPostImage"
+            @clear-images="clearPostImages"
+            @weekly-checkin="handleWeeklyCheckin"
+            @open-draft="openMobileDraftPanel"
+            @save-draft="saveMobileDraft"
+          />
 
           <!-- 发布进度：已迁移到统一任务岛（useIsland 调度中心 showIsland.task），由发布队列 watcher 驱动 -->
 
           <!-- 帖子列表 -->
-          <section class="posts-feed fade-in-up" style="animation-delay: 0.2s;">
+          <section class="posts-feed fade-in-up" style="animation-delay: 0.2s">
             <div v-if="!externalFeed" class="feed-mode-tabs">
-              <button class="feed-mode-tab" :class="{ active: selectedContentType === '' }" @click="setContentType('')">全部</button>
-              <button class="feed-mode-tab" :class="{ active: selectedContentType === 'post' }" @click="setContentType('post')">论坛</button>
-              <button class="feed-mode-tab" :class="{ active: selectedContentType === 'news' }" @click="setContentType('news')">新闻</button>
-              <button class="feed-mode-tab" :class="{ active: selectedContentType === 'activity' }" @click="setContentType('activity')">活动</button>
+              <button
+                class="feed-mode-tab"
+                :class="{ active: selectedContentType === '' }"
+                @click="setContentType('')"
+              >
+                全部
+              </button>
+              <button
+                class="feed-mode-tab"
+                :class="{ active: selectedContentType === 'post' }"
+                @click="setContentType('post')"
+              >
+                论坛
+              </button>
+              <button
+                class="feed-mode-tab"
+                :class="{ active: selectedContentType === 'news' }"
+                @click="setContentType('news')"
+              >
+                新闻
+              </button>
+              <button
+                class="feed-mode-tab"
+                :class="{ active: selectedContentType === 'activity' }"
+                @click="setContentType('activity')"
+              >
+                活动
+              </button>
               <template v-if="isLoggedIn">
                 <span class="feed-mode-tab-divider" aria-hidden="true"></span>
-                <button class="feed-mode-tab" :class="{ active: showFollowingOnly }"
+                <button
+                  class="feed-mode-tab"
+                  :class="{ active: showFollowingOnly }"
                   :title="showFollowingOnly ? '返回全部内容' : '只看关注的人的动态'"
-                  @click="setFeedMode(showFollowingOnly ? 'latest' : 'following')">关注</button>
+                  @click="setFeedMode(showFollowingOnly ? 'latest' : 'following')"
+                >
+                  关注
+                </button>
               </template>
+            </div>
+
+            <!-- 最近搜索面板不在这里：它在 ForumToolbar 内部贴着搜索框展开
+                 （放信息流顶部会被手机底栏压住，且与输入框隔着一个发帖框）。 -->
+
+            <!-- 结果计数：搜索 / 筛选态才有意义（RPC 不回总数，有下一页时说「前 N 条」） -->
+            <div v-if="searchResultLabel" class="forum-search-count" aria-live="polite">
+              {{ searchResultLabel }}
             </div>
 
             <!-- 骨架屏加载状态 -->
             <div v-if="isLoading" class="skeleton-feed">
               <div v-for="n in 5" :key="n" class="skeleton-post-card">
-                <HomeCatMascot v-if="isHomeCatActive && n === 1" class="skeleton-thinking-cat" pool="state"
-                  seed="forum-skeleton-thinking" size="md" decorative />
+                <HomeCatMascot
+                  v-if="isHomeCatActive && n === 1"
+                  class="skeleton-thinking-cat"
+                  pool="state"
+                  seed="forum-skeleton-thinking"
+                  size="md"
+                  decorative
+                />
                 <div class="skeleton-header">
                   <div class="skeleton-avatar skeleton-item"></div>
                   <div class="skeleton-header-info">
@@ -3937,90 +4527,289 @@ const openPostDetail = (postId) => {
                 <HomeCatMascot v-if="isHomeCatActive" type="decor" size="lg" decorative />
                 <span class="empty-icon">🔍</span>
                 <p v-if="forumLoadError" class="forum-load-error">{{ forumLoadError }}</p>
-                <p v-else-if="searchKeyword.trim() || selectedTagFilter || selectedContentType">
-                  没有找到{{ selectedContentType ? `「${contentTypeLabel}」` : '' }}{{ selectedTagFilter ? `「${getForumTagLabel(selectedTagFilter)}」` : '' }}相关的内容，换个筛选条件试试
+                <!-- 有关键词却没结果：给两条出路（换说法问 BOHAI / 退回全部），
+                     而不是只丢一句「换个条件试试」让用户自己想办法 -->
+                <template v-else-if="searchKeyword.trim()">
+                  <p>没有找到「{{ searchKeyword }}」相关的内容</p>
+                  <div class="empty-state-actions">
+                    <button
+                      type="button"
+                      class="empty-action-btn is-primary"
+                      :disabled="isAiSearchLoading"
+                      @click="askBohai"
+                    >
+                      <Sparkles :size="15" :stroke-width="2" aria-hidden="true" />
+                      <span>问 BOHAI</span>
+                    </button>
+                    <button type="button" class="empty-action-btn" @click="clearSearchInput">
+                      清除搜索
+                    </button>
+                  </div>
+                  <button
+                    v-if="historySuggestion"
+                    type="button"
+                    class="empty-history-hint"
+                    @click="applyHistoryKeyword(historySuggestion)"
+                  >
+                    换个词试试「{{ historySuggestion }}」
+                  </button>
+                </template>
+                <p v-else-if="selectedTagFilter || selectedContentType">
+                  没有找到{{ selectedContentType ? `「${contentTypeLabel}」` : ''
+                  }}{{
+                    selectedTagFilter ? `「${getForumTagLabel(selectedTagFilter)}」` : ''
+                  }}相关的内容，换个筛选条件试试
                 </p>
                 <p v-else>这里空空如也，快来发布第一条动态吧！</p>
               </div>
 
-              <div v-if="virtualFeedTopSpacerHeight > 0" class="forum-virtual-spacer"
-                :style="{ height: `${virtualFeedTopSpacerHeight}px` }" aria-hidden="true"></div>
+              <div
+                v-if="virtualFeedTopSpacerHeight > 0"
+                class="forum-virtual-spacer"
+                :style="{ height: `${virtualFeedTopSpacerHeight}px` }"
+                aria-hidden="true"
+              ></div>
 
               <template v-for="item in feedWithAds" :key="item.key">
                 <AdSlot v-if="item.isAd" :ad="item.ad" />
-                <div v-else class="forum-virtual-post"
-                  :data-forum-virtual-index="getVisiblePostIndex(item.visIndex)">
-                  <article v-if="item.post._optimistic" class="post-card-v2 glass-panel optimistic-post-card" :class="{ 'is-failed': item.post._publishState==='failed', 'is-moderation': item.post._failType==='moderation' }" :data-forum-post-id="item.post.id" @click.stop>
-                    <div class="optimistic-progress-track"><i :style="{ width: Math.round(item.post._progress||0)+'%', background: item.post._failType==='moderation' ? '#f59e0b' : item.post._publishState==='failed' ? '#ff3b30' : item.post._publishState==='success' ? '#00b578' : '#1677ff' }"></i></div>
+                <div
+                  v-else
+                  class="forum-virtual-post"
+                  :data-forum-virtual-index="getVisiblePostIndex(item.visIndex)"
+                >
+                  <article
+                    v-if="item.post._optimistic"
+                    class="post-card-v2 glass-panel optimistic-post-card"
+                    :class="{
+                      'is-failed': item.post._publishState === 'failed',
+                      'is-moderation': item.post._failType === 'moderation',
+                    }"
+                    :data-forum-post-id="item.post.id"
+                    @click.stop
+                  >
+                    <div class="optimistic-progress-track">
+                      <i
+                        class="optimistic-progress-fill"
+                        :class="
+                          item.post._failType === 'moderation'
+                            ? 'is-moderation'
+                            : item.post._publishState === 'failed'
+                              ? 'is-failed'
+                              : item.post._publishState === 'success'
+                                ? 'is-success'
+                                : 'is-sending'
+                        "
+                        :style="{ width: Math.round(item.post._progress || 0) + '%' }"
+                      ></i>
+                    </div>
                     <div class="post-header-v2">
                       <div class="post-author-section">
                         <div class="post-author-avatar">
-                          <img v-if="getAvatarUrl(item.post.author_avatar_url || userInfo.avatarUrl, 'sm')" :src="getAvatarUrl(item.post.author_avatar_url || userInfo.avatarUrl, 'sm')" class="avatar-image" loading="eager" />
-                          <span v-else>{{ item.post.author_username ? item.post.author_username.charAt(0).toUpperCase() : 'U' }}</span>
+                          <img
+                            v-if="
+                              getAvatarUrl(item.post.author_avatar_url || userInfo.avatarUrl, 'sm')
+                            "
+                            :src="
+                              getAvatarUrl(item.post.author_avatar_url || userInfo.avatarUrl, 'sm')
+                            "
+                            class="avatar-image"
+                            loading="eager"
+                          />
+                          <span v-else>{{
+                            item.post.author_username
+                              ? item.post.author_username.charAt(0).toUpperCase()
+                              : 'U'
+                          }}</span>
                         </div>
                         <div class="post-author-info">
-                          <span class="post-author-v2">{{ '@'+ item.post.author_username }}</span>
+                          <span class="post-author-v2">{{ '@' + item.post.author_username }}</span>
                           <span class="post-date-v2">刚刚 · 仅你可见</span>
                         </div>
-                        <span class="optimistic-badge" :class="item.post._publishState==='failed' ? (item.post._failType==='moderation' ? 'moderation' : 'failed') : item.post._publishState==='success' ? 'success' : 'sending'">
-                          <template v-if="item.post._publishState==='failed' && item.post._failType==='moderation'">审核未通过</template>
-                          <template v-else-if="item.post._publishState==='failed'">发送失败</template>
-                          <template v-else-if="item.post._publishState==='success'">发送成功</template>
-                          <template v-else>发送中 · {{ Math.round(item.post._progress||0) }}%</template>
+                        <span
+                          class="optimistic-badge"
+                          :class="
+                            item.post._publishState === 'failed'
+                              ? item.post._failType === 'moderation'
+                                ? 'moderation'
+                                : 'failed'
+                              : item.post._publishState === 'success'
+                                ? 'success'
+                                : 'sending'
+                          "
+                        >
+                          <template
+                            v-if="
+                              item.post._publishState === 'failed' &&
+                              item.post._failType === 'moderation'
+                            "
+                            >审核未通过</template
+                          >
+                          <template v-else-if="item.post._publishState === 'failed'"
+                            >发送失败</template
+                          >
+                          <template v-else-if="item.post._publishState === 'success'"
+                            >发送成功</template
+                          >
+                          <template v-else
+                            >发送中 · {{ Math.round(item.post._progress || 0) }}%</template
+                          >
                         </span>
                       </div>
                     </div>
                     <div class="post-content-v2">
                       <h3 class="post-title-v2">{{ item.post.displayTitle }}</h3>
-                      <div v-if="item.post.tagLabel" class="post-card-tags"><span class="post-card-tag">{{ item.post.tagLabel }}</span></div>
-                      <div v-if="item.post.allImages && item.post.allImages.length" class="image-post-strip" :class="{ 'is-single': item.post.allImages.length === 1 }">
-                        <div v-for="(img, idx) in item.post.allImages" :key="img.id||img.url" class="image-post-thumb-shell is-loaded" :class="{ 'is-failed-mark': item.post._failedImageIndex===idx && item.post._publishState==='failed' && item.post._failType==='moderation' }">
-                          <img :src="img.url" :alt="`图片 ${idx+1}`" class="image-post-thumb is-loaded" style="opacity:.92" />
-                          <span v-if="item.post._failedImageIndex===idx && item.post._publishState==='failed' && item.post._failType==='moderation'" class="optimistic-fail-mark">审核未过</span>
+                      <div v-if="item.post.tagLabel" class="post-card-tags">
+                        <span class="post-card-tag">{{ item.post.tagLabel }}</span>
+                      </div>
+                      <div
+                        v-if="item.post.allImages && item.post.allImages.length"
+                        class="image-post-strip"
+                        :class="{ 'is-single': item.post.allImages.length === 1 }"
+                      >
+                        <div
+                          v-for="(img, idx) in item.post.allImages"
+                          :key="img.id || img.url"
+                          class="image-post-thumb-shell is-loaded"
+                          :class="{
+                            'is-failed-mark':
+                              item.post._failedImageIndex === idx &&
+                              item.post._publishState === 'failed' &&
+                              item.post._failType === 'moderation',
+                          }"
+                        >
+                          <img
+                            :src="img.url"
+                            :alt="`图片 ${idx + 1}`"
+                            class="image-post-thumb is-loaded"
+                            style="opacity: 0.92"
+                          />
+                          <span
+                            v-if="
+                              item.post._failedImageIndex === idx &&
+                              item.post._publishState === 'failed' &&
+                              item.post._failType === 'moderation'
+                            "
+                            class="optimistic-fail-mark"
+                            >审核未过</span
+                          >
                         </div>
                       </div>
                       <p class="post-text-v2">{{ item.post.displayBody }}</p>
-                      <div v-if="item.post._publishState==='failed'" :data-queue-failmsg="item.post._queueId" class="optimistic-fail-msg" :class="item.post._failType==='moderation' ? 'moderation' : 'network'">
-                        <template v-if="item.post._failMessage">{{ item.post._failMessage }}</template>
-                        <template v-else-if="item.post._failType==='moderation'">第 {{ (item.post._failedImageIndex||0)+1 }} 张图片未通过安全检测 · 可能含敏感内容，可移除该图后重试，其他内容不受影响。</template>
-                        <template v-else>网络异常，未能完成发送。请检查网络后重试，无需重新编辑。</template>
+                      <div
+                        v-if="item.post._publishState === 'failed'"
+                        :data-queue-failmsg="item.post._queueId"
+                        class="optimistic-fail-msg"
+                        :class="item.post._failType === 'moderation' ? 'moderation' : 'network'"
+                      >
+                        <template v-if="item.post._failMessage">{{
+                          item.post._failMessage
+                        }}</template>
+                        <template v-else-if="item.post._failType === 'moderation'"
+                          >第 {{ (item.post._failedImageIndex || 0) + 1 }} 张图片未通过安全检测 ·
+                          可能含敏感内容，可移除该图后重试，其他内容不受影响。</template
+                        >
+                        <template v-else
+                          >网络异常，未能完成发送。请检查网络后重试，无需重新编辑。</template
+                        >
                       </div>
                     </div>
                     <div class="optimistic-actions" @click.stop>
-                      <button v-if="item.post._publishState==='failed' && item.post._failType==='moderation'" class="optimistic-btn fix" @click="fixModerationPublish(item.post._queueId)">移除该图后重试</button>
-                      <button v-if="item.post._publishState==='failed'" class="optimistic-btn retry" @click="item.post._failType==='moderation' ? fixModerationPublish(item.post._queueId) : retryPublish(item.post._queueId)">{{ item.post._failType==='moderation' ? '移除该图' : '重试' }}</button>
-                      <button v-if="item.post._publishState==='failed'" class="optimistic-btn ghost" @click="editFailedPublish(item.post._queueId)">编辑</button>
-                      <button class="optimistic-btn ghost" @click="cancelPublish(item.post._queueId)">取消</button>
+                      <button
+                        v-if="
+                          item.post._publishState === 'failed' &&
+                          item.post._failType === 'moderation'
+                        "
+                        class="optimistic-btn fix"
+                        @click="fixModerationPublish(item.post._queueId)"
+                      >
+                        移除该图后重试
+                      </button>
+                      <button
+                        v-if="item.post._publishState === 'failed'"
+                        class="optimistic-btn retry"
+                        @click="
+                          item.post._failType === 'moderation'
+                            ? fixModerationPublish(item.post._queueId)
+                            : retryPublish(item.post._queueId)
+                        "
+                      >
+                        {{ item.post._failType === 'moderation' ? '移除该图' : '重试' }}
+                      </button>
+                      <button
+                        v-if="item.post._publishState === 'failed'"
+                        class="optimistic-btn ghost"
+                        @click="editFailedPublish(item.post._queueId)"
+                      >
+                        编辑
+                      </button>
+                      <button
+                        class="optimistic-btn ghost"
+                        @click="cancelPublish(item.post._queueId)"
+                      >
+                        取消
+                      </button>
                     </div>
                   </article>
-                  <PostCard v-else :post="item.post" :index="getVisiblePostIndex(item.visIndex)"
+                  <PostCard
+                    v-else
+                    :post="item.post"
+                    :index="getVisiblePostIndex(item.visIndex)"
                     :is-home-cat-active="isHomeCatActive"
                     :is-expanded="expandedPostIds.has(item.post.id)"
-                    :active-reply-target="activeReplyTarget && activeReplyTarget.postId === item.post.id ? activeReplyTarget : null"
-                    :reply-content="replyContent" :is-reply-submitting="isReplySubmitting"
-                    :reply-cooldown-seconds="replyCooldownSeconds" :reply-submit-label="replySubmitLabel"
-                    :is-like-submitting="!!isLikeSubmitting[item.post.id]" :is-liked-pulsing="isPostLikePulsing(item.post.id)"
+                    :active-reply-target="
+                      activeReplyTarget && activeReplyTarget.postId === item.post.id
+                        ? activeReplyTarget
+                        : null
+                    "
+                    :reply-content="replyContent"
+                    :is-reply-submitting="isReplySubmitting"
+                    :reply-cooldown-seconds="replyCooldownSeconds"
+                    :reply-submit-label="replySubmitLabel"
+                    :is-like-submitting="!!isLikeSubmitting[item.post.id]"
+                    :is-liked-pulsing="isPostLikePulsing(item.post.id)"
                     :is-replies-loading="!!item.post._repliesLoading"
-                    :is-share-copied="isPostShareCopied(item.post.id)" :is-highlighted="isPostHighlighted(item.post.id)"
-                    :is-reply-success="hasUiMarker(replySuccessPostIds, item.post.id)" :search-keyword="searchKeyword"
-                    :is-logged-in="isLoggedIn" :user-info="userInfo" :loaded-image-keys="loadedForumImageKeys"
-                    @click="openPostDetail" @go-to-profile="goToProfile" @toggle-like="handleToggleLike"
-                    @toggle-replies="toggleRepliesList" @toggle-reply-input="handlePostCardToggleReplyInput"
-                    @share="sharePost" @quote-repost="openQuoteRepost" @submit-reply="submitReply" @delete-comment="handleDeleteComment"
-                    @open-image-viewer="openForumImageViewer" @update:reply-content="replyContent = $event"
-                    @clear-reply-target="handlePostCardClearReplyTarget" @cancel-reply="handlePostCardCancelReply"
-                    @image-loaded="markForumImageLoaded" @lazy-image-observe="observeForumLazyImage"
+                    :is-share-copied="isPostShareCopied(item.post.id)"
+                    :is-highlighted="isPostHighlighted(item.post.id)"
+                    :is-reply-success="hasUiMarker(replySuccessPostIds, item.post.id)"
+                    :search-keyword="searchKeyword"
+                    :is-logged-in="isLoggedIn"
+                    :user-info="userInfo"
+                    :loaded-image-keys="loadedForumImageKeys"
+                    @click="openPostDetail"
+                    @go-to-profile="goToProfile"
+                    @toggle-like="handleToggleLike"
+                    @toggle-replies="toggleRepliesList"
+                    @toggle-reply-input="handlePostCardToggleReplyInput"
+                    @share="sharePost"
+                    @quote-repost="openQuoteRepost"
+                    @submit-reply="submitReply"
+                    @delete-comment="handleDeleteComment"
+                    @open-image-viewer="openForumImageViewer"
+                    @update:reply-content="replyContent = $event"
+                    @clear-reply-target="handlePostCardClearReplyTarget"
+                    @cancel-reply="handlePostCardCancelReply"
+                    @image-loaded="markForumImageLoaded"
+                    @lazy-image-observe="observeForumLazyImage"
                     @load-more-images="handleStripLoadMore"
-                    @more-replies="openPostDetail" />
+                    @more-replies="openPostDetail"
+                  />
                 </div>
               </template>
 
-              <div v-if="virtualFeedBottomSpacerHeight > 0" class="forum-virtual-spacer"
-                :style="{ height: `${virtualFeedBottomSpacerHeight}px` }" aria-hidden="true"></div>
+              <div
+                v-if="virtualFeedBottomSpacerHeight > 0"
+                class="forum-virtual-spacer"
+                :style="{ height: `${virtualFeedBottomSpacerHeight}px` }"
+                aria-hidden="true"
+              ></div>
             </div>
 
-            <div v-if="feedMode === 'posts' && hasMoreData" ref="loadMoreSentinelRef" class="forum-load-more-sentinel"
-              aria-hidden="true"></div>
+            <div
+              v-if="feedMode === 'posts' && hasMoreData"
+              ref="loadMoreSentinelRef"
+              class="forum-load-more-sentinel"
+              aria-hidden="true"
+            ></div>
 
             <!-- 加载更多提示 -->
             <div v-if="feedMode === 'posts' && isLoadingMore" class="loading-more">
@@ -4029,35 +4818,53 @@ const openPostDetail = (postId) => {
             </div>
 
             <!-- 没有更多数据提示 -->
-            <div v-else-if="feedMode === 'posts' && !hasMoreData && forumData.length > 0 && !isLoading"
-              class="no-more-data">
+            <div
+              v-else-if="feedMode === 'posts' && !hasMoreData && forumData.length > 0 && !isLoading"
+              class="no-more-data"
+            >
               <p>已经到底啦～</p>
             </div>
           </section>
         </div>
 
         <!-- 右侧：AI 论坛周报 -->
-        <aside class="forum-sidebar fade-in-up" style="animation-delay: 0.3s;">
-          <div class="weekly-report-card glass-panel fade-in-up" style="animation-delay: 0.35s;">
+        <aside class="forum-sidebar fade-in-up" style="animation-delay: 0.3s">
+          <div class="weekly-report-card glass-panel fade-in-up" style="animation-delay: 0.35s">
             <div class="weekly-report-card-head">
               <div>
                 <span class="weekly-report-kicker"><Newspaper :size="14" /> AI 周报</span>
                 <h4>本周论坛周报</h4>
               </div>
-              <span v-if="forumWeeklyReport" class="weekly-report-period">{{ formatReportPeriod(forumWeeklyReport) }}</span>
+              <span v-if="forumWeeklyReport" class="weekly-report-period">{{
+                formatReportPeriod(forumWeeklyReport)
+              }}</span>
             </div>
-            <div v-if="isWeeklyReportLoading" class="weekly-report-skeleton" aria-label="周报加载中">
+            <div
+              v-if="isWeeklyReportLoading"
+              class="weekly-report-skeleton"
+              aria-label="周报加载中"
+            >
               <span /><span /><span />
             </div>
             <template v-else-if="forumWeeklyReport">
               <p class="weekly-report-summary">{{ forumWeeklyReport.summary }}</p>
               <div class="weekly-report-metrics">
-                <span><strong>{{ reportMetric('post_count') }}</strong> 帖子</span>
-                <span><strong>{{ reportMetric('active_authors') }}</strong> 作者</span>
-                <span><strong>{{ reportMetric('comment_count') }}</strong> 讨论</span>
+                <span
+                  ><strong>{{ reportMetric('post_count') }}</strong> 帖子</span
+                >
+                <span
+                  ><strong>{{ reportMetric('active_authors') }}</strong> 作者</span
+                >
+                <span
+                  ><strong>{{ reportMetric('comment_count') }}</strong> 讨论</span
+                >
               </div>
               <div v-if="forumWeeklyReport.topics?.length" class="weekly-report-topics">
-                <span v-for="topic in forumWeeklyReport.topics.slice(0, 3)" :key="topic.name" class="weekly-report-topic">
+                <span
+                  v-for="topic in forumWeeklyReport.topics.slice(0, 3)"
+                  :key="topic.name"
+                  class="weekly-report-topic"
+                >
                   {{ topic.name }}
                 </span>
               </div>
@@ -4076,53 +4883,115 @@ const openPostDetail = (postId) => {
     </div>
 
     <Teleport to="body">
-      <button v-if="isForumComposerFabVisible" type="button" class="mobile-compose-fab"
-        :class="{ 'embedded-compose-fab': embedded }" aria-label="发布帖子" @click="openMobileComposer">
+      <button
+        v-if="isForumComposerFabVisible"
+        type="button"
+        class="mobile-compose-fab"
+        :class="{ 'embedded-compose-fab': embedded }"
+        aria-label="发布帖子"
+        @click="openMobileComposer"
+      >
         <span>+</span>
       </button>
     </Teleport>
 
     <Teleport to="body">
       <Transition name="weekly-report-modal">
-        <div v-if="isWeeklyReportOpen" class="weekly-report-overlay" @click.self="closeWeeklyReport">
-          <section class="weekly-report-modal" role="dialog" aria-modal="true" aria-labelledby="weekly-report-title">
+        <div
+          v-if="isWeeklyReportOpen"
+          class="weekly-report-overlay"
+          @click.self="closeWeeklyReport"
+        >
+          <section
+            class="weekly-report-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="weekly-report-title"
+          >
             <header class="weekly-report-modal-head">
               <div>
                 <span class="weekly-report-kicker"><Newspaper :size="15" /> AI 论坛周报</span>
                 <h2 id="weekly-report-title">本周论坛周报</h2>
                 <p>{{ formatReportPeriod(forumWeeklyReport) }}</p>
               </div>
-              <button type="button" class="weekly-report-close" aria-label="关闭周报" @click="closeWeeklyReport"><X :size="19" /></button>
+              <button
+                type="button"
+                class="weekly-report-close"
+                aria-label="关闭周报"
+                @click="closeWeeklyReport"
+              >
+                <X :size="19" />
+              </button>
             </header>
             <div v-if="forumWeeklyReport" class="weekly-report-modal-body">
               <section class="weekly-report-overview">
                 <h3>本周概览</h3>
                 <p>{{ forumWeeklyReport.summary }}</p>
                 <div class="weekly-report-metric-grid">
-                  <div><strong>{{ reportMetric('post_count') }}</strong><span>帖子</span></div>
-                  <div><strong>{{ reportMetric('active_authors') }}</strong><span>活跃作者</span></div>
-                  <div><strong>{{ reportMetric('comment_count') }}</strong><span>评论</span></div>
-                  <div><strong>{{ reportMetric('like_count') }}</strong><span>获赞</span></div>
+                  <div>
+                    <strong>{{ reportMetric('post_count') }}</strong
+                    ><span>帖子</span>
+                  </div>
+                  <div>
+                    <strong>{{ reportMetric('active_authors') }}</strong
+                    ><span>活跃作者</span>
+                  </div>
+                  <div>
+                    <strong>{{ reportMetric('comment_count') }}</strong
+                    ><span>评论</span>
+                  </div>
+                  <div>
+                    <strong>{{ reportMetric('like_count') }}</strong
+                    ><span>获赞</span>
+                  </div>
                 </div>
               </section>
               <section v-if="forumWeeklyReport.topics?.length" class="weekly-report-section">
                 <h3>主要讨论主题</h3>
-                <article v-for="topic in forumWeeklyReport.topics" :key="topic.name" class="weekly-report-topic-detail">
-                  <div class="weekly-report-topic-title"><strong>{{ topic.name }}</strong><span>{{ topic.post_count || 0 }} 帖</span></div>
+                <article
+                  v-for="topic in forumWeeklyReport.topics"
+                  :key="topic.name"
+                  class="weekly-report-topic-detail"
+                >
+                  <div class="weekly-report-topic-title">
+                    <strong>{{ topic.name }}</strong
+                    ><span>{{ topic.post_count || 0 }} 帖</span>
+                  </div>
                   <p>{{ topic.summary }}</p>
                 </article>
               </section>
-              <section v-if="forumWeeklyReport.featured_posts?.length" class="weekly-report-section">
+              <section
+                v-if="forumWeeklyReport.featured_posts?.length"
+                class="weekly-report-section"
+              >
                 <h3>帖子精选</h3>
-                <article v-for="post in forumWeeklyReport.featured_posts" :key="post.post_id || post.title" class="weekly-report-post-detail">
-                  <div class="weekly-report-post-title"><strong>{{ post.title }}</strong><button type="button" @click="openReportPost(post.post_id)">查看原帖 <ArrowUpRight :size="14" /></button></div>
+                <article
+                  v-for="post in forumWeeklyReport.featured_posts"
+                  :key="post.post_id || post.title"
+                  class="weekly-report-post-detail"
+                >
+                  <div class="weekly-report-post-title">
+                    <strong>{{ post.title }}</strong
+                    ><button type="button" @click="openReportPost(post.post_id)">
+                      查看原帖 <ArrowUpRight :size="14" />
+                    </button>
+                  </div>
                   <p>{{ post.summary }}</p>
-                  <span v-if="post.reason" class="weekly-report-post-reason">入选理由：{{ post.reason }}</span>
+                  <span v-if="post.reason" class="weekly-report-post-reason"
+                    >入选理由：{{ post.reason }}</span
+                  >
                 </article>
               </section>
-              <section v-if="forumWeeklyReport.open_questions?.length" class="weekly-report-section">
+              <section
+                v-if="forumWeeklyReport.open_questions?.length"
+                class="weekly-report-section"
+              >
                 <h3>值得继续讨论</h3>
-                <ul class="weekly-report-questions"><li v-for="question in forumWeeklyReport.open_questions" :key="question">{{ question }}</li></ul>
+                <ul class="weekly-report-questions">
+                  <li v-for="question in forumWeeklyReport.open_questions" :key="question">
+                    {{ question }}
+                  </li>
+                </ul>
               </section>
             </div>
           </section>
@@ -4134,49 +5003,99 @@ const openPostDetail = (postId) => {
       <Transition name="mobile-composer">
         <div v-if="isMobileComposerOpen" class="mobile-composer-overlay">
           <div class="mobile-composer-bar">
-            <button type="button" class="mobile-composer-back" aria-label="返回论坛" @click="closeMobileComposer">
+            <button
+              type="button"
+              class="mobile-composer-back"
+              aria-label="返回论坛"
+              @click="closeMobileComposer"
+            >
               取消
             </button>
             <button type="button" class="mobile-composer-draft-btn" @click="openMobileDraftPanel">
               草稿
             </button>
-            <button type="button" class="mobile-composer-submit" @click="handlePost"
-              :disabled="isSubmitting || isUploadingPostImage || postCooldownSeconds > 0">
-              <span class="mobile-composer-submit-label">{{ postCooldownSeconds > 0 ? `${postCooldownSeconds}s` : '发布' }}</span>
+            <button
+              type="button"
+              class="mobile-composer-submit"
+              @click="handlePost"
+              :disabled="isSubmitting || isUploadingPostImage || postCooldownSeconds > 0"
+            >
+              <span class="mobile-composer-submit-label">{{
+                postCooldownSeconds > 0 ? `${postCooldownSeconds}s` : '发布'
+              }}</span>
             </button>
           </div>
           <Transition name="mobile-draft-panel">
-            <div v-if="isMobileDraftPanelOpen" class="mobile-draft-panel-overlay" @click="closeMobileDraftPanel">
+            <div
+              v-if="isMobileDraftPanelOpen"
+              class="mobile-draft-panel-overlay"
+              @click="closeMobileDraftPanel"
+            >
               <section class="mobile-draft-panel" aria-label="发帖草稿" @click.stop>
                 <div class="mobile-draft-panel-header">
                   <div>
                     <h3>草稿</h3>
-                    <p>{{ savedPostDraft ? `${formatDraftSavedTime(savedPostDraft.savedAt)} 保存` : '当前没有保存的草稿' }}</p>
+                    <p>
+                      {{
+                        savedPostDraft
+                          ? `${formatDraftSavedTime(savedPostDraft.savedAt)} 保存`
+                          : '当前没有保存的草稿'
+                      }}
+                    </p>
                   </div>
-                  <button type="button" class="mobile-draft-close-btn" aria-label="关闭草稿面板"
-                    @click="closeMobileDraftPanel">×</button>
+                  <button
+                    type="button"
+                    class="mobile-draft-close-btn"
+                    aria-label="关闭草稿面板"
+                    @click="closeMobileDraftPanel"
+                  >
+                    ×
+                  </button>
                 </div>
                 <div class="mobile-draft-preview" :class="{ empty: !savedPostDraft }">
-                  <span v-if="savedPostDraft" class="mobile-draft-tag">{{ savedDraftTagLabel }}</span>
+                  <span v-if="savedPostDraft" class="mobile-draft-tag">{{
+                    savedDraftTagLabel
+                  }}</span>
                   <p>{{ draftPreviewText }}</p>
                 </div>
-                <div v-if="postDraftVersions.length" class="mobile-draft-version-list" aria-label="草稿历史版本">
-                  <button v-for="draft in postDraftVersions" :key="draft.savedAt" type="button"
-                    class="mobile-draft-version-item" @click="restorePostDraftVersion(draft)">
+                <div
+                  v-if="postDraftVersions.length"
+                  class="mobile-draft-version-list"
+                  aria-label="草稿历史版本"
+                >
+                  <button
+                    v-for="draft in postDraftVersions"
+                    :key="draft.savedAt"
+                    type="button"
+                    class="mobile-draft-version-item"
+                    @click="restorePostDraftVersion(draft)"
+                  >
                     <span>{{ formatDraftSavedTime(draft.savedAt) }}</span>
                     <strong>{{ draft.title || draft.content || '未命名草稿' }}</strong>
                   </button>
                 </div>
                 <div class="mobile-draft-actions">
-                  <button type="button" class="mobile-draft-action secondary" @click="saveMobileDraft">
+                  <button
+                    type="button"
+                    class="mobile-draft-action secondary"
+                    @click="saveMobileDraft"
+                  >
                     保存当前
                   </button>
-                  <button type="button" class="mobile-draft-action secondary" :disabled="!savedPostDraft"
-                    @click="clearMobileDraft">
+                  <button
+                    type="button"
+                    class="mobile-draft-action secondary"
+                    :disabled="!savedPostDraft"
+                    @click="clearMobileDraft"
+                  >
                     清空
                   </button>
-                  <button type="button" class="mobile-draft-action primary" :disabled="!savedPostDraft"
-                    @click="restoreMobileDraft">
+                  <button
+                    type="button"
+                    class="mobile-draft-action primary"
+                    :disabled="!savedPostDraft"
+                    @click="restoreMobileDraft"
+                  >
                     恢复
                   </button>
                 </div>
@@ -4184,55 +5103,107 @@ const openPostDetail = (postId) => {
             </div>
           </Transition>
           <div class="mobile-composer-scroll">
-            <PostComposer v-model:new-post="newPost" v-model:selected-post-tag="selectedPostTag"
-              v-model:post-location="postLocation" :is-logged-in="isLoggedIn" :user-info="userInfo"
-              :post-images="postImages" :is-submitting="isSubmitting" :is-uploading-post-image="isUploadingPostImage"
-              :post-image-upload-status="postImageUploadStatus" :post-cooldown-seconds="postCooldownSeconds"
-              :weekly-checkin-status="weeklyCheckinStatus" :weekly-checkin-progress-text="weeklyCheckinProgressText"
+            <PostComposer
+              v-model:new-post="newPost"
+              v-model:selected-post-tag="selectedPostTag"
+              v-model:post-location="postLocation"
+              :is-logged-in="isLoggedIn"
+              :user-info="userInfo"
+              :post-images="postImages"
+              :is-submitting="isSubmitting"
+              :is-uploading-post-image="isUploadingPostImage"
+              :post-image-upload-status="postImageUploadStatus"
+              :post-cooldown-seconds="postCooldownSeconds"
+              :weekly-checkin-status="weeklyCheckinStatus"
+              :weekly-checkin-progress-text="weeklyCheckinProgressText"
               :weekly-checkin-week-dots="weeklyCheckinWeekDots"
-              :weekly-checkin-hint-text="weeklyCheckinHintText" :is-weekly-checkin-loading="isWeeklyCheckinLoading"
-              :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting" :forum-tag-options="FORUM_TAG_OPTIONS"
-              :max-post-images="FORUM_POST_IMAGE_MAX_COUNT" :mention-users="forumMentionUsers"
-              :is-home-cat-theme="isHomeCatActive" :show-post-image-source-menu="showPostImageSourceMenu"
-              is-mobile-composer @submit="handlePost" @login="showLoginModal = true"
-              @toggle-image-source-menu="togglePostImageSourceMenu" @request-image-picker="openPostImagePicker"
-              @request-camera="openPostCamera" @image-selection="handlePostImageSelection"
-              @remove-image="removePostImage" @retry-image="retryPostImageUpload" @reorder-image="reorderPostImage"
-              @clear-images="clearPostImages" @weekly-checkin="handleWeeklyCheckin"
-              @open-draft="openMobileDraftPanel" @save-draft="saveMobileDraft" />
+              :weekly-checkin-hint-text="weeklyCheckinHintText"
+              :is-weekly-checkin-loading="isWeeklyCheckinLoading"
+              :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting"
+              :forum-tag-options="FORUM_TAG_OPTIONS"
+              :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
+              :mention-users="forumMentionUsers"
+              :is-home-cat-theme="isHomeCatActive"
+              :show-post-image-source-menu="showPostImageSourceMenu"
+              is-mobile-composer
+              @submit="handlePost"
+              @login="showLoginModal = true"
+              @toggle-image-source-menu="togglePostImageSourceMenu"
+              @request-image-picker="openPostImagePicker"
+              @request-camera="openPostCamera"
+              @image-selection="handlePostImageSelection"
+              @remove-image="removePostImage"
+              @retry-image="retryPostImageUpload"
+              @reorder-image="reorderPostImage"
+              @clear-images="clearPostImages"
+              @weekly-checkin="handleWeeklyCheckin"
+              @open-draft="openMobileDraftPanel"
+              @save-draft="saveMobileDraft"
+            />
           </div>
         </div>
       </Transition>
     </Teleport>
 
-    <WeeklyCheckinCalendar v-model:open="isWeeklyCheckinCalendarOpen" :status="weeklyCheckinStatus"
-      :calendar-days="checkinCalendarDays" :next-checkin="weeklyCheckinNextCheckin"
+    <WeeklyCheckinCalendar
+      v-model:open="isWeeklyCheckinCalendarOpen"
+      :status="weeklyCheckinStatus"
+      :calendar-days="checkinCalendarDays"
+      :next-checkin="weeklyCheckinNextCheckin"
       :loading="isWeeklyCheckinLoading"
-      :submitting="isWeeklyCheckinSubmitting" :card-points="weeklyCheckinCardPoints"
-      :card-username="userInfo.username || '未命名用户'" :card-skin="userInfo.pointsCardSkin || 'blank'"
-      :card-image-url="userInfo.pointsCardImageUrl || ''" @close="closeWeeklyCheckinCalendar"
-      @checkin="handleWeeklyCheckin" />
+      :submitting="isWeeklyCheckinSubmitting"
+      :card-points="weeklyCheckinCardPoints"
+      :card-username="userInfo.username || '未命名用户'"
+      :card-skin="userInfo.pointsCardSkin || 'blank'"
+      :card-image-url="userInfo.pointsCardImageUrl || ''"
+      @close="closeWeeklyCheckinCalendar"
+      @checkin="handleWeeklyCheckin"
+    />
 
     <Teleport to="body">
       <Transition name="mobile-draft-panel">
-        <div v-if="isMobileDraftPanelOpen && !isMobileComposerOpen"
-          class="mobile-draft-panel-overlay desktop-draft-panel-overlay" @click="closeMobileDraftPanel">
+        <div
+          v-if="isMobileDraftPanelOpen && !isMobileComposerOpen"
+          class="mobile-draft-panel-overlay desktop-draft-panel-overlay"
+          @click="closeMobileDraftPanel"
+        >
           <section class="mobile-draft-panel" aria-label="发帖草稿" @click.stop>
             <div class="mobile-draft-panel-header">
               <div>
                 <h3>草稿</h3>
-                <p>{{ savedPostDraft ? `${formatDraftSavedTime(savedPostDraft.savedAt)} 保存` : '当前没有保存的草稿' }}</p>
+                <p>
+                  {{
+                    savedPostDraft
+                      ? `${formatDraftSavedTime(savedPostDraft.savedAt)} 保存`
+                      : '当前没有保存的草稿'
+                  }}
+                </p>
               </div>
-              <button type="button" class="mobile-draft-close-btn" aria-label="关闭草稿面板"
-                @click="closeMobileDraftPanel">×</button>
+              <button
+                type="button"
+                class="mobile-draft-close-btn"
+                aria-label="关闭草稿面板"
+                @click="closeMobileDraftPanel"
+              >
+                ×
+              </button>
             </div>
             <div class="mobile-draft-preview" :class="{ empty: !savedPostDraft }">
               <span v-if="savedPostDraft" class="mobile-draft-tag">{{ savedDraftTagLabel }}</span>
               <p>{{ draftPreviewText }}</p>
             </div>
-            <div v-if="postDraftVersions.length" class="mobile-draft-version-list" aria-label="草稿历史版本">
-              <button v-for="draft in postDraftVersions" :key="draft.savedAt" type="button"
-                class="mobile-draft-version-item" @click="restorePostDraftVersion(draft)">
+            <div
+              v-if="postDraftVersions.length"
+              class="mobile-draft-version-list"
+              aria-label="草稿历史版本"
+            >
+              <button
+                v-for="draft in postDraftVersions"
+                :key="draft.savedAt"
+                type="button"
+                class="mobile-draft-version-item"
+                @click="restorePostDraftVersion(draft)"
+              >
                 <span>{{ formatDraftSavedTime(draft.savedAt) }}</span>
                 <strong>{{ draft.title || draft.content || '未命名草稿' }}</strong>
               </button>
@@ -4241,12 +5212,20 @@ const openPostDetail = (postId) => {
               <button type="button" class="mobile-draft-action secondary" @click="saveMobileDraft">
                 保存当前
               </button>
-              <button type="button" class="mobile-draft-action secondary" :disabled="!savedPostDraft"
-                @click="clearMobileDraft">
+              <button
+                type="button"
+                class="mobile-draft-action secondary"
+                :disabled="!savedPostDraft"
+                @click="clearMobileDraft"
+              >
                 清空
               </button>
-              <button type="button" class="mobile-draft-action primary" :disabled="!savedPostDraft"
-                @click="restoreMobileDraft">
+              <button
+                type="button"
+                class="mobile-draft-action primary"
+                :disabled="!savedPostDraft"
+                @click="restoreMobileDraft"
+              >
                 恢复
               </button>
             </div>
@@ -4255,15 +5234,34 @@ const openPostDetail = (postId) => {
       </Transition>
     </Teleport>
 
-    <ForumImageViewer v-model:open="isForumImageViewerOpen" :images="forumImageViewerImages"
-      :initial-index="forumImageViewerIndex" @close="closeForumImageViewer" />
+    <ForumImageViewer
+      v-model:open="isForumImageViewerOpen"
+      :images="forumImageViewerImages"
+      :initial-index="forumImageViewerIndex"
+      @close="closeForumImageViewer"
+    />
 
     <Teleport to="body">
       <Transition name="forum-confirm-fade">
-        <div v-if="confirmState.show" class="forum-confirm-overlay" @click.self="closeConfirm(false)">
-          <div class="forum-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
-            <img v-if="isHomeCatActive && confirmMascotSrc" class="forum-confirm-cat-img" :src="confirmMascotSrc" alt=""
-              draggable="false" loading="lazy" />
+        <div
+          v-if="confirmState.show"
+          class="forum-confirm-overlay"
+          @click.self="closeConfirm(false)"
+        >
+          <div
+            class="forum-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="confirmState.title"
+          >
+            <img
+              v-if="isHomeCatActive && confirmMascotSrc"
+              class="forum-confirm-cat-img"
+              :src="confirmMascotSrc"
+              alt=""
+              draggable="false"
+              loading="lazy"
+            />
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="forum-confirm-actions">
@@ -4280,18 +5278,44 @@ const openPostDetail = (postId) => {
     </Teleport>
 
     <!-- 弹窗 -->
-    <CommonAlertModal v-model:visible="modalState.show" :type="modalState.type" :title="modalState.title"
-      :message="modalState.message" :mascot-src="modalMascotSrc" mascot-alt="方块小窝提示小猫" />
+    <CommonAlertModal
+      v-model:visible="modalState.show"
+      :type="modalState.type"
+      :title="modalState.title"
+      :message="modalState.message"
+      :mascot-src="modalMascotSrc"
+      mascot-alt="方块小窝提示小猫"
+    />
 
     <Teleport to="body">
-      <div v-if="quoteRepostState.show" class="forum-confirm-overlay" @click.self="closeQuoteRepost">
+      <div
+        v-if="quoteRepostState.show"
+        class="forum-confirm-overlay"
+        @click.self="closeQuoteRepost"
+      >
         <section class="forum-confirm-modal" role="dialog" aria-modal="true" aria-label="引用转发">
           <h3>引用转发</h3>
-          <p class="quote-repost-source">{{ quoteRepostState.post?.displayTitle || quoteRepostState.post?.title }}</p>
-          <textarea v-model="quoteRepostState.commentary" maxlength="2000" rows="4" placeholder="添加你的想法..."></textarea>
+          <p class="quote-repost-source">
+            {{ quoteRepostState.post?.displayTitle || quoteRepostState.post?.title }}
+          </p>
+          <textarea
+            v-model="quoteRepostState.commentary"
+            maxlength="2000"
+            rows="4"
+            placeholder="添加你的想法..."
+          ></textarea>
           <div class="forum-confirm-actions">
-            <button type="button" class="forum-confirm-btn secondary" @click="closeQuoteRepost">取消</button>
-            <button type="button" class="forum-confirm-btn danger" :disabled="!quoteRepostState.commentary.trim()" @click="submitQuoteRepost">转发</button>
+            <button type="button" class="forum-confirm-btn secondary" @click="closeQuoteRepost">
+              取消
+            </button>
+            <button
+              type="button"
+              class="forum-confirm-btn danger"
+              :disabled="!quoteRepostState.commentary.trim()"
+              @click="submitQuoteRepost"
+            >
+              转发
+            </button>
           </div>
         </section>
       </div>
@@ -4311,23 +5335,131 @@ const openPostDetail = (postId) => {
 @import './styles/weekly-report.css';
 </style>
 <style scoped>
-.optimistic-post-card{ position:relative; overflow:hidden; border-color: rgba(22,119,255,.18); box-shadow: 0 8px 30px rgba(22,119,255,.10); }
-.optimistic-progress-track{ position:absolute; left:0; right:0; top:0; height:3px; background: rgba(0,0,0,.06); overflow:hidden; }
-.optimistic-progress-track i{ display:block; height:100%; width:0%; transition: width .35s cubic-bezier(.16,1,.3,1); border-radius:999px; }
-.optimistic-badge{ margin-left:auto; font-size:10px; font-weight:800; letter-spacing:.04em; padding:5px 8px; border-radius:999px; }
-.optimistic-badge.sending{ background:#e8f0ff; color:#1677ff }
-.optimistic-badge.failed{ background:#ffe8e6; color:#c0392b }
-.optimistic-badge.moderation{ background:#fff7ed; color:#b45309; border:1px solid rgba(180,83,9,.14) }
-.optimistic-badge.success{ background:#d8f4e9; color:#057857 }
-.optimistic-fail-msg{ margin-top:8px; padding:10px 12px; border-radius:14px; font-size:12px; font-weight:600; line-height:1.5 }
-.optimistic-fail-msg.moderation{ background:#fff7ed; color:#7c3b0a; border:1px solid rgba(180,83,9,.12) }
-.optimistic-fail-msg.network{ background:#fff1f0; color:#7f1d1d; border:1px solid rgba(255,59,48,.12) }
-.optimistic-actions{ display:flex; gap:8px; justify-content:flex-end; padding-top:4px }
-.optimistic-btn{ border:none; border-radius:999px; padding:7px 12px; font-size:11px; font-weight:800; cursor:pointer; transition:.2s }
-.optimistic-btn.fix{ background:#b45309; color:#fff }
-.optimistic-btn.retry{ background:#1d1d1f; color:#fff }
-.optimistic-btn.ghost{ background:#fff; border:1px solid rgba(0,0,0,.08); color:#1d1d1f }
-.optimistic-btn:active{ transform:scale(.97) }
-.optimistic-fail-mark{ position:absolute; top:6px; right:6px; background:#ff3b30; color:#fff; font-size:10px; font-weight:800; padding:3px 6px; border-radius:999px }
-.image-post-thumb-shell.is-failed-mark img{ outline:2px solid #ff3b30; outline-offset:2px; opacity:.55 !important; }
+/* 组件私有样式：仅 ForumMain 模板使用（乐观发帖卡片）。
+   前两个 style 块是多组件共享的 styles/*.css scoped @import（架构现状见 base.css 顶部说明）。 */
+.optimistic-post-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(22, 119, 255, 0.18);
+  box-shadow: 0 8px 30px rgba(22, 119, 255, 0.1);
+}
+.optimistic-progress-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+.optimistic-progress-track i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 999px;
+}
+/* 进度条状态色：语义 class 取代内联 style（暗色可经 forum-dark.css 覆盖） */
+.optimistic-progress-fill {
+  background: #1677ff;
+}
+.optimistic-progress-fill.is-moderation {
+  background: #f59e0b;
+}
+.optimistic-progress-fill.is-failed {
+  background: #ff3b30;
+}
+.optimistic-progress-fill.is-success {
+  background: #00b578;
+}
+.optimistic-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 5px 8px;
+  border-radius: 999px;
+}
+.optimistic-badge.sending {
+  background: #e8f0ff;
+  color: #1677ff;
+}
+.optimistic-badge.failed {
+  background: #ffe8e6;
+  color: #c0392b;
+}
+.optimistic-badge.moderation {
+  background: #fff7ed;
+  color: #b45309;
+  border: 1px solid rgba(180, 83, 9, 0.14);
+}
+.optimistic-badge.success {
+  background: #d8f4e9;
+  color: #057857;
+}
+.optimistic-fail-msg {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.optimistic-fail-msg.moderation {
+  background: #fff7ed;
+  color: #7c3b0a;
+  border: 1px solid rgba(180, 83, 9, 0.12);
+}
+.optimistic-fail-msg.network {
+  background: #fff1f0;
+  color: #7f1d1d;
+  border: 1px solid rgba(255, 59, 48, 0.12);
+}
+.optimistic-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+.optimistic-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.optimistic-btn.fix {
+  background: #b45309;
+  color: #fff;
+}
+.optimistic-btn.retry {
+  background: #1d1d1f;
+  color: #fff;
+}
+.optimistic-btn.ghost {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #1d1d1f;
+}
+.optimistic-btn:active {
+  transform: scale(0.97);
+}
+.optimistic-fail-mark {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 6px;
+  border-radius: 999px;
+}
+.image-post-thumb-shell.is-failed-mark img {
+  outline: 2px solid #ff3b30;
+  outline-offset: 2px;
+  opacity: 0.55 !important;
+}
 </style>

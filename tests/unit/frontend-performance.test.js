@@ -20,7 +20,12 @@ describe('frontend performance guardrails', () => {
   // 此用例转为守卫：既验证首屏标记仍在，也禁止重新引入行级虚拟化。
   // 注意：守卫必须先剥离注释，否则会匹配到"解释为什么不用它"的说明文字。
   it('marks the first home hero row as priority without row-level virtualization', () => {
-    expect(read('src/views/Home/index.vue')).toMatch(/:priority="heroIndex === 0"/);
+    // 2026-09-27 修正守卫目标：hero 海报流已从 Home/index.vue 搬到
+    // ./components/HomeHeroFlow.vue，守卫跟着搬 —— 否则断言读的是一个
+    // 早已不含 hero 循环的文件，永远为红（红着没人看＝没有护栏）。
+    expect(read('src/views/Home/components/HomeHeroFlow.vue')).toMatch(
+      /:priority="heroIndex === 0"/,
+    );
 
     const rowSource = stripCssComments(read('src/views/Home/components/HomeHeroRow.vue'));
     expect(rowSource).not.toContain('content-visibility');
@@ -28,8 +33,12 @@ describe('frontend performance guardrails', () => {
   });
 
   it('keeps document and PPT engines behind user actions', () => {
-    expect(read('src/views/Lab/composables/usePPTGenerator.js')).not.toMatch(/from ['"]\.\.\/engine\/ppt-renderer/);
-    expect(read('src/views/Lab/composables/useWordGenerator.js')).not.toMatch(/from ['"]\.\.\/engine\/word-builder/);
+    expect(read('src/views/Lab/composables/usePPTGenerator.js')).not.toMatch(
+      /from ['"]\.\.\/engine\/ppt-renderer/,
+    );
+    expect(read('src/views/Lab/composables/useWordGenerator.js')).not.toMatch(
+      /from ['"]\.\.\/engine\/word-builder/,
+    );
     expect(read('src/views/Lab/index.vue')).toMatch(/import\('\.\/engine\/docx-parser\.js'\)/);
   });
 

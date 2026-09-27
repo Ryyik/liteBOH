@@ -3,7 +3,9 @@
     <main class="pa-main">
       <header class="pa-header">
         <div class="pa-heading">
-          <span class="pa-kicker"><Camera :size="14" :stroke-width="2.2" aria-hidden="true" /> PHOTO ALBUMS</span>
+          <span class="pa-kicker"
+            ><Camera :size="14" :stroke-width="2.2" aria-hidden="true" /> PHOTO ALBUMS</span
+          >
           <h1>我的摄影集</h1>
           <p>上传照片，自动初排成页，亲手装帧一本可以翻阅、可以带走的影集。</p>
         </div>
@@ -19,9 +21,38 @@
         </div>
       </header>
 
-      <div v-if="quotaInfo" class="pa-quota-bar" aria-label="影集配额">
-        <span v-if="quotaInfo.limit === -1">影集数量不限</span>
-        <span v-else>{{ quotaInfo.used }} / {{ quotaInfo.limit }} 本影集</span>
+      <div
+        v-if="quotaInfo || exportQuotaInfo"
+        class="pa-quota-pill liquid-glass liquid-glass--pill"
+        aria-label="摄影集配额"
+      >
+        <template v-if="quotaInfo">
+          <span class="pa-quota-chip" :class="{ 'is-tight': isAlbumTight }">
+            <BookCopy :size="13" :stroke-width="2" aria-hidden="true" />
+            <span class="pa-quota-label">影集</span>
+            <span v-if="albumIsUnlimited" class="pa-quota-value">不限</span>
+            <span v-else class="pa-quota-value">{{ quotaInfo.used }} / {{ quotaInfo.limit }}</span>
+          </span>
+          <span v-if="exportQuotaInfo" class="pa-quota-divider" aria-hidden="true"></span>
+        </template>
+        <template v-if="exportQuotaInfo">
+          <span class="pa-quota-chip" :class="{ 'is-tight': isExportTight }">
+            <DownloadCloud :size="13" :stroke-width="2" aria-hidden="true" />
+            <span class="pa-quota-label">本月导出</span>
+            <span v-if="exportIsUnlimited" class="pa-quota-value">不限</span>
+            <span v-else class="pa-quota-value"
+              >{{ exportQuotaInfo.used }} / {{ exportQuotaInfo.limit }}</span
+            >
+          </span>
+        </template>
+        <RouterLink
+          v-if="showUpgradePrompt"
+          to="/user-space/subscriptions"
+          class="pa-quota-upgrade"
+        >
+          <Sparkles :size="12" :stroke-width="2.2" aria-hidden="true" />
+          升级
+        </RouterLink>
       </div>
 
       <section v-if="isLoading" class="pa-grid" aria-hidden="true">
@@ -41,7 +72,9 @@
       </section>
 
       <section v-else-if="!albums.length" class="pa-empty">
-        <span class="pa-empty-icon"><Camera :size="30" :stroke-width="1.6" aria-hidden="true" /></span>
+        <span class="pa-empty-icon"
+          ><Camera :size="30" :stroke-width="1.6" aria-hidden="true"
+        /></span>
         <h2>还没有影集</h2>
         <p>从一次旅行、一个季节或一段故事开始，装帧你的第一本影集。</p>
         <div class="pa-empty-actions">
@@ -52,31 +85,67 @@
 
       <section v-else class="pa-grid">
         <article v-for="album in albums" :key="album.id" class="pa-card">
-          <RouterLink :to="`/studio/albums/${album.id}`" class="pa-cover" :aria-label="`编辑 ${album.title}`">
-            <img v-if="album.coverUrl" :src="album.coverUrl" :alt="album.title" loading="lazy" decoding="async"
-              @error="onCoverError(album, $event)" />
-            <span v-else class="pa-cover-placeholder"><Camera :size="26" :stroke-width="1.6" aria-hidden="true" /></span>
+          <RouterLink
+            :to="`/studio/albums/${album.id}`"
+            class="pa-cover"
+            :aria-label="`编辑 ${album.title}`"
+          >
+            <img
+              v-if="album.coverUrl"
+              :src="album.coverUrl"
+              :alt="album.title"
+              loading="lazy"
+              decoding="async"
+              @error="onCoverError(album, $event)"
+            />
+            <span v-else class="pa-cover-placeholder"
+              ><Camera :size="26" :stroke-width="1.6" aria-hidden="true"
+            /></span>
             <span class="pa-status" :class="album.status">{{ statusLabel(album.status) }}</span>
-            <span v-if="album.sharedToCommunity" class="pa-shared-badge"><Share2 :size="12" :stroke-width="2.2" aria-hidden="true" /> 已分享</span>
+            <span v-if="album.sharedToCommunity" class="pa-shared-badge"
+              ><Share2 :size="12" :stroke-width="2.2" aria-hidden="true" /> 已分享</span
+            >
           </RouterLink>
           <div class="pa-card-body">
             <h2>{{ album.title }}</h2>
             <p v-if="album.subtitle" class="pa-subtitle">{{ album.subtitle }}</p>
             <div class="pa-meta">
-              <span><Images :size="13" :stroke-width="2" aria-hidden="true" /> {{ album.photoCount }} 张</span>
+              <span
+                ><Images :size="13" :stroke-width="2" aria-hidden="true" />
+                {{ album.photoCount }} 张</span
+              >
               <span>{{ formatTime(album.updatedAt) }}</span>
             </div>
             <div class="pa-actions">
               <button type="button" class="pa-action" @click="goEditor(album)">编辑</button>
-              <button type="button" class="pa-action" :disabled="album.photoCount === 0" @click="goReader(album)">阅读</button>
-              <button type="button" class="pa-action" :disabled="album.photoCount === 0" @click="downloadOffline(album)">
+              <button
+                type="button"
+                class="pa-action"
+                :disabled="album.photoCount === 0"
+                @click="goReader(album)"
+              >
+                阅读
+              </button>
+              <button
+                type="button"
+                class="pa-action"
+                :disabled="album.photoCount === 0"
+                @click="downloadOffline(album)"
+              >
                 {{ exportingId === album.id ? '导出中…' : '下载 HTML' }}
               </button>
-              <button type="button" class="pa-action" :class="{ danger: !album.sharedToCommunity }" :disabled="album.photoCount === 0"
-                @click="toggleShare(album)">
+              <button
+                type="button"
+                class="pa-action"
+                :class="{ danger: !album.sharedToCommunity }"
+                :disabled="album.photoCount === 0"
+                @click="toggleShare(album)"
+              >
                 {{ album.sharedToCommunity ? '取消分享' : '分享到社区' }}
               </button>
-              <button type="button" class="pa-action danger" @click="removeAlbum(album)">删除</button>
+              <button type="button" class="pa-action danger" @click="removeAlbum(album)">
+                删除
+              </button>
             </div>
           </div>
         </article>
@@ -86,34 +155,62 @@
     <!-- 新建影集弹窗 -->
     <Transition name="pa-modal">
       <div v-if="showCreateModal" class="pa-modal-overlay" @click.self="closeCreateModal">
-        <div class="pa-modal" role="dialog" aria-modal="true" aria-label="新建影集">
+        <div class="pa-modal liquid-glass" role="dialog" aria-modal="true" aria-label="新建影集">
           <header class="pa-modal-head">
             <h3>新建影集</h3>
-            <button type="button" class="pa-modal-close" aria-label="关闭" @click="closeCreateModal">
+            <button
+              type="button"
+              class="pa-modal-close"
+              aria-label="关闭"
+              @click="closeCreateModal"
+            >
               <X :size="18" :stroke-width="2.2" aria-hidden="true" />
             </button>
           </header>
           <div class="pa-modal-body">
             <label class="pa-field">
               <span>标题</span>
-              <input v-model="createForm.title" type="text" maxlength="80" placeholder="例如：山与海的夏天" />
+              <input
+                v-model="createForm.title"
+                type="text"
+                maxlength="80"
+                placeholder="例如：山与海的夏天"
+              />
             </label>
             <label class="pa-field">
               <span>副标题（可选）</span>
-              <input v-model="createForm.subtitle" type="text" maxlength="120" placeholder="一句话说明这本影集" />
+              <input
+                v-model="createForm.subtitle"
+                type="text"
+                maxlength="120"
+                placeholder="一句话说明这本影集"
+              />
             </label>
             <div class="pa-field">
               <span>封面（可选，可自由裁切）</span>
               <button type="button" class="pa-cover-pick" @click="pickCover">
                 <img v-if="createForm.coverUrl" :src="createForm.coverUrl" alt="封面预览" />
-                <span v-else><ImagePlus :size="18" :stroke-width="1.8" aria-hidden="true" /> 选择图片</span>
+                <span v-else
+                  ><ImagePlus :size="18" :stroke-width="1.8" aria-hidden="true" /> 选择图片</span
+                >
               </button>
-              <input ref="coverInputRef" type="file" accept="image/jpeg,image/png,image/webp" hidden @change="onCoverFileChange" />
+              <input
+                ref="coverInputRef"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                @change="onCoverFileChange"
+              />
             </div>
           </div>
           <footer class="pa-modal-foot">
             <button type="button" class="pa-secondary-btn" @click="closeCreateModal">取消</button>
-            <button type="button" class="pa-primary-btn" :disabled="createSubmitting" @click="submitCreate">
+            <button
+              type="button"
+              class="pa-primary-btn"
+              :disabled="createSubmitting"
+              @click="submitCreate"
+            >
               {{ createSubmitting ? '创建中…' : '创建并开始编辑' }}
             </button>
           </footer>
@@ -121,16 +218,36 @@
       </div>
     </Transition>
 
-    <AvatarCropModal v-model:visible="showCoverCrop" :image-src="coverCropSrc" title="裁切封面" shape="rectangle"
-      :aspect-ratio="null" hint="拖动选区自由调整构图" sub-hint="封面用于列表与社区入口卡" output-type="image/webp" :output-quality="0.9"
-      @confirm="onCoverCropConfirm" />
+    <AvatarCropModal
+      v-model:visible="showCoverCrop"
+      :image-src="coverCropSrc"
+      title="裁切封面"
+      shape="rectangle"
+      :aspect-ratio="null"
+      hint="拖动选区自由调整构图"
+      sub-hint="封面用于列表与社区入口卡"
+      output-type="image/webp"
+      :output-quality="0.9"
+      @confirm="onCoverCropConfirm"
+    />
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Camera, Images, ImagePlus, PlayCircle, Plus, Share2, X } from 'lucide-vue-next';
+import {
+  Camera,
+  Images,
+  ImagePlus,
+  PlayCircle,
+  Plus,
+  Share2,
+  X,
+  BookCopy,
+  DownloadCloud,
+  Sparkles,
+} from 'lucide-vue-next';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import { showIsland } from '@/composables/useIsland.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
@@ -139,12 +256,15 @@ import {
   deleteAlbum,
   listMyAlbums,
   logAlbumExport,
-  updateAlbum
+  updateAlbum,
 } from '@/utils/api/photo-albums-api.js';
 import { checkAlbumCountQuota, checkExportQuota } from '@/utils/photo-albums/quota.js';
 import { exportAlbumOffline } from '@/utils/photo-albums/offline-export.js';
 import { recheckAlbumForShare } from '@/utils/photo-albums/share-moderation.js';
-import { compressImageFileToUploadLimit, getImageCompressionPlan } from '@/utils/image-compression.js';
+import {
+  compressImageFileToUploadLimit,
+  getImageCompressionPlan,
+} from '@/utils/image-compression.js';
 import { uploadImageToCloudinary } from '@/utils/cloudinary-client.js';
 import { normalizeDbError } from '@/utils/request-core.js';
 
@@ -155,6 +275,7 @@ const albums = ref([]);
 const isLoading = ref(true);
 const loadError = ref('');
 const quotaInfo = ref(null);
+const exportQuotaInfo = ref(null);
 
 const creating = ref(false);
 const showCreateModal = ref(false);
@@ -168,6 +289,28 @@ const coverInputRef = ref(null);
 const coverUploading = ref(false);
 
 const exportingId = ref('');
+
+// ---------- 配额（影集数 + 月导出）单源 ----------
+const albumIsUnlimited = computed(() => quotaInfo.value?.limit === -1);
+const exportIsUnlimited = computed(() => exportQuotaInfo.value?.limit === -1);
+const UPGRADE_PROMPT_RATIO = 0.8;
+function ratioOf(used, limit) {
+  if (!limit || limit <= 0) return 0;
+  return Math.min(used / limit, 1);
+}
+const albumRatio = computed(() => ratioOf(quotaInfo.value?.used ?? 0, quotaInfo.value?.limit ?? 0));
+const exportRatio = computed(() =>
+  ratioOf(exportQuotaInfo.value?.used ?? 0, exportQuotaInfo.value?.limit ?? 0),
+);
+const isAlbumTight = computed(
+  () => !albumIsUnlimited.value && albumRatio.value >= UPGRADE_PROMPT_RATIO,
+);
+const isExportTight = computed(
+  () => !exportIsUnlimited.value && exportRatio.value >= UPGRADE_PROMPT_RATIO,
+);
+const showUpgradePrompt = computed(
+  () => isAlbumTight.value || isExportTight.value || (quotaInfo.value && !quotaInfo.value.allowed),
+);
 
 function statusLabel(status) {
   return status === 'published' ? '已发布' : '草稿';
@@ -187,6 +330,16 @@ function onCoverError(album, event) {
   album.coverUrl = '';
 }
 
+async function refreshQuotas() {
+  // 影集数 / 月导出两条并行，互不阻塞；任何一条失败都不影响另一条
+  const [albumRes, exportRes] = await Promise.allSettled([
+    checkAlbumCountQuota(),
+    checkExportQuota(),
+  ]);
+  if (albumRes.status === 'fulfilled') quotaInfo.value = albumRes.value;
+  if (exportRes.status === 'fulfilled') exportQuotaInfo.value = exportRes.value;
+}
+
 async function loadAlbums() {
   isLoading.value = true;
   loadError.value = '';
@@ -197,9 +350,7 @@ async function loadAlbums() {
     loadError.value = result.error || '读取影集失败';
   }
   isLoading.value = false;
-  checkAlbumCountQuota().then((quota) => {
-    quotaInfo.value = quota;
-  }).catch(() => {});
+  refreshQuotas().catch(() => {});
 }
 
 // ---------- 新建 ----------
@@ -209,7 +360,11 @@ async function openCreateModal() {
     const quota = await checkAlbumCountQuota();
     quotaInfo.value = quota;
     if (!quota.allowed) {
-      showIsland.notify({ type: 'warning', title: '影集数量已达上限', message: quota.hint || '升级订阅可获得更多影集' });
+      showIsland.notify({
+        type: 'warning',
+        title: '影集数量已达上限',
+        message: quota.hint || '升级订阅可获得更多影集',
+      });
       return;
     }
     createForm.value = { title: '', subtitle: '', coverUrl: '' };
@@ -231,14 +386,23 @@ async function submitCreate() {
     const result = await createAlbum({
       title: createForm.value.title,
       subtitle: createForm.value.subtitle,
-      coverUrl: createForm.value.coverUrl
+      coverUrl: createForm.value.coverUrl,
     });
     if (!result.ok) {
-      showIsland.notify({ type: 'error', title: '创建失败', message: result.error || '请稍后再试' });
+      showIsland.notify({
+        type: 'error',
+        title: '创建失败',
+        message: result.error || '请稍后再试',
+      });
       return;
     }
     showCreateModal.value = false;
-    showIsland.notify({ type: 'success', title: '影集已创建', message: '去上传照片，自动初排成页' });
+    showIsland.notify({
+      type: 'success',
+      title: '影集已创建',
+      message: '去上传照片，自动初排成页',
+    });
+    refreshQuotas().catch(() => {});
     router.push(`/studio/albums/${result.data.id}`);
   } finally {
     createSubmitting.value = false;
@@ -255,7 +419,11 @@ function onCoverFileChange(event) {
   event.target.value = '';
   if (!file) return;
   if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
-    showIsland.notify({ type: 'warning', title: '格式不支持', message: '封面仅支持 JPG / PNG / WebP' });
+    showIsland.notify({
+      type: 'warning',
+      title: '格式不支持',
+      message: '封面仅支持 JPG / PNG / WebP',
+    });
     return;
   }
   coverRawFile.value = file;
@@ -269,17 +437,19 @@ async function onCoverCropConfirm(blob) {
   coverUploading.value = true;
   try {
     const plan = await getImageCompressionPlan(blob);
-    const file = plan.shouldCompress
-      ? await compressImageFileToUploadLimit(blob, plan)
-      : blob;
+    const file = plan.shouldCompress ? await compressImageFileToUploadLimit(blob, plan) : blob;
     const uploaded = await uploadImageToCloudinary(file, {
       folder: 'photo-album',
-      pendingSource: 'photo-album'
+      pendingSource: 'photo-album',
     });
     createForm.value.coverUrl = uploaded?.secure_url || '';
     showIsland.notify({ type: 'success', title: '封面已就绪', message: '创建影集后可随时更换' });
   } catch (error) {
-    showIsland.notify({ type: 'error', title: '封面上传失败', message: normalizeDbError(error, '请稍后再试') });
+    showIsland.notify({
+      type: 'error',
+      title: '封面上传失败',
+      message: normalizeDbError(error, '请稍后再试'),
+    });
   } finally {
     coverUploading.value = false;
     if (coverCropSrc.value) {
@@ -306,7 +476,7 @@ async function toggleShare(album) {
       title: '取消分享',
       message: `「${album.title}」将从社区影集区下架，已拿到的链接也会失效。`,
       confirmText: '取消分享',
-      tone: 'warning'
+      tone: 'warning',
     });
     if (!ok) return;
     const result = await updateAlbum(album.id, { sharedToCommunity: false });
@@ -322,14 +492,14 @@ async function toggleShare(album) {
   const ok = await confirm({
     title: '分享到社区',
     message: '分享前会对全部照片做一次安全复审，通过后影集将出现在社区影集区，任何人可阅读。',
-    confirmText: '开始复审并分享'
+    confirmText: '开始复审并分享',
   });
   if (!ok) return;
 
   const task = showIsland.task({ title: '分享前复审', progress: 0 });
   try {
     const recheck = await recheckAlbumForShare(album.id, {
-      onProgress: (done, total) => task.progress(Math.round((done / Math.max(total, 1)) * 100))
+      onProgress: (done, total) => task.progress(Math.round((done / Math.max(total, 1)) * 100)),
     });
     if (!recheck.ok) {
       task.close();
@@ -360,7 +530,11 @@ async function downloadOffline(album) {
   try {
     const quota = await checkExportQuota();
     if (!quota.allowed) {
-      showIsland.notify({ type: 'warning', title: '本月导出次数已用完', message: quota.hint || '升级订阅可获得更多导出次数' });
+      showIsland.notify({
+        type: 'warning',
+        title: '本月导出次数已用完',
+        message: quota.hint || '升级订阅可获得更多导出次数',
+      });
       return;
     }
     const { getMyAlbum } = await import('@/utils/api/photo-albums-api.js');
@@ -372,7 +546,7 @@ async function downloadOffline(album) {
     const task = showIsland.task({ title: '正在打包离线影集', progress: 0 });
     try {
       const result = await exportAlbumOffline(bundle.data, {
-        onProgress: (done, total) => task.progress(Math.round((done / Math.max(total, 1)) * 100))
+        onProgress: (done, total) => task.progress(Math.round((done / Math.max(total, 1)) * 100)),
       });
       await logAlbumExport(album.id, result.kind);
       task.success({ title: '导出完成', message: `${result.fileName} 已保存，断网也能翻开` });
@@ -381,7 +555,11 @@ async function downloadOffline(album) {
       throw exportError;
     }
   } catch (error) {
-    showIsland.notify({ type: 'error', title: '导出失败', message: normalizeDbError(error, '请稍后再试') });
+    showIsland.notify({
+      type: 'error',
+      title: '导出失败',
+      message: normalizeDbError(error, '请稍后再试'),
+    });
   } finally {
     exportingId.value = '';
   }
@@ -393,13 +571,14 @@ async function removeAlbum(album) {
     title: '删除影集',
     message: `「${album.title}」及其全部照片、页面将被永久删除，无法恢复。`,
     confirmText: '永久删除',
-    tone: 'danger'
+    tone: 'danger',
   });
   if (!ok) return;
   const result = await deleteAlbum(album.id);
   if (result.ok) {
     albums.value = albums.value.filter((item) => item.id !== album.id);
     showIsland.notify({ type: 'success', title: '影集已删除' });
+    refreshQuotas().catch(() => {});
   } else {
     showIsland.notify({ type: 'error', title: '删除失败', message: result.error });
   }
@@ -472,7 +651,9 @@ onMounted(loadAlbums);
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .pa-demo-btn:hover {
@@ -493,16 +674,88 @@ onMounted(loadAlbums);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
 }
 
-.pa-create-btn:hover { transform: translateY(-1px); }
-.pa-create-btn:disabled { opacity: 0.6; cursor: default; }
+.pa-create-btn:hover {
+  transform: translateY(-1px);
+}
+.pa-create-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
-.pa-quota-bar {
-  margin-top: 12px;
+/* 液态玻璃配额条：影集数 + 月导出 + 升级提示 */
+.pa-quota-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 6px 6px 6px 14px;
   font-size: 12px;
-  color: var(--text-tertiary, #86868b);
+  font-weight: 500;
+  color: var(--liquid-text-primary, #1d1d1f);
+  /* liquid-glass--pill 已给 border-radius: 999px / inner shadow，沿用 */
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.pa-quota-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.pa-quota-chip.is-tight {
+  color: var(--accent-warning, #b45309);
+}
+
+.pa-quota-label {
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-weight: 500;
+}
+
+.pa-quota-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: var(--liquid-text-primary, #1d1d1f);
+}
+
+.pa-quota-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--liquid-border-hairline, rgba(15, 23, 42, 0.12));
+  align-self: center;
+}
+
+.pa-quota-upgrade {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand, #0a84ff) 14%, transparent);
+  color: var(--brand, #0a84ff);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.pa-quota-upgrade:hover {
+  background: color-mix(in srgb, var(--brand, #0a84ff) 22%, transparent);
+  transform: translateY(-1px);
+}
+
+[data-theme='dark'] .pa-quota-chip.is-tight {
+  color: #f59e0b;
 }
 
 .pa-grid {
@@ -519,7 +772,9 @@ onMounted(loadAlbums);
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .pa-card:hover {
@@ -563,8 +818,12 @@ onMounted(loadAlbums);
   backdrop-filter: blur(6px);
 }
 
-.pa-status.published { background: rgba(48, 209, 88, 0.85); }
-.pa-status.draft { background: rgba(142, 142, 147, 0.8); }
+.pa-status.published {
+  background: rgba(48, 209, 88, 0.85);
+}
+.pa-status.draft {
+  background: rgba(142, 142, 147, 0.8);
+}
 
 .pa-shared-badge {
   position: absolute;
@@ -639,12 +898,22 @@ onMounted(loadAlbums);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
-.pa-action:hover:not(:disabled) { background: var(--surface-secondary, #f2f2f7); }
-.pa-action.danger { color: var(--danger, #ff3b30); border-color: currentColor; }
-.pa-action:disabled { opacity: 0.45; cursor: default; }
+.pa-action:hover:not(:disabled) {
+  background: var(--surface-secondary, #f2f2f7);
+}
+.pa-action.danger {
+  color: var(--danger, #ff3b30);
+  border-color: currentColor;
+}
+.pa-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 
 .pa-empty {
   margin-top: 48px;
@@ -662,13 +931,21 @@ onMounted(loadAlbums);
   width: 64px;
   height: 64px;
   border-radius: 22px;
-  background: var(--surface-primary, #fff);
+  background: transparent;
   color: var(--text-tertiary, #86868b);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.08));
+  box-shadow: var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06));
 }
 
-.pa-empty h2 { margin: 4px 0 0; font-size: 20px; }
-.pa-empty p { margin: 0; font-size: 14px; color: var(--text-secondary, #515154); }
+.pa-empty h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+.pa-empty p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary, #515154);
+}
 
 .pa-empty-actions {
   margin-top: 6px;
@@ -708,8 +985,13 @@ onMounted(loadAlbums);
 }
 
 .pa-primary-btn:hover,
-.pa-secondary-btn:hover { opacity: 0.85; }
-.pa-primary-btn:disabled { opacity: 0.6; cursor: default; }
+.pa-secondary-btn:hover {
+  opacity: 0.85;
+}
+.pa-primary-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 
 /* 骨架 */
 .skeleton-block {
@@ -719,13 +1001,24 @@ onMounted(loadAlbums);
   border-radius: 8px;
 }
 
-.pa-card.skeleton .pa-cover { border-radius: 0; }
-.pa-card.skeleton .line { height: 14px; margin: 4px 0; }
-.pa-card.skeleton .line.short { width: 55%; }
+.pa-card.skeleton .pa-cover {
+  border-radius: 0;
+}
+.pa-card.skeleton .line {
+  height: 14px;
+  margin: 4px 0;
+}
+.pa-card.skeleton .line.short {
+  width: 55%;
+}
 
 @keyframes pa-shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 /* 弹窗 */
@@ -747,9 +1040,11 @@ onMounted(loadAlbums);
   max-height: 86vh;
   max-height: 86dvh;
   overflow: auto;
-  background: var(--surface-primary, #fff);
+  /* 接 .liquid-glass 后：背景透明交给 liquid bg，shadow 交给 liquid-shadow */
+  background: transparent;
   border-radius: 24px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.24);
+  box-shadow: none;
+  /* inner 滚动 + 圆角裁切交给外层 */
 }
 
 .pa-modal-head {
@@ -759,7 +1054,11 @@ onMounted(loadAlbums);
   padding: 18px 20px 0;
 }
 
-.pa-modal-head h3 { margin: 0; font-size: 18px; font-weight: 700; }
+.pa-modal-head h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
 
 .pa-modal-close {
   display: inline-flex;
@@ -778,7 +1077,11 @@ onMounted(loadAlbums);
   gap: 14px;
 }
 
-.pa-field { display: flex; flex-direction: column; gap: 6px; }
+.pa-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
 .pa-field > span {
   font-size: 12px;
@@ -796,7 +1099,9 @@ onMounted(loadAlbums);
   outline: none;
 }
 
-.pa-field input:focus { border-color: var(--brand, #0a84ff); }
+.pa-field input:focus {
+  border-color: var(--brand, #0a84ff);
+}
 
 .pa-cover-pick {
   display: flex;
@@ -813,9 +1118,19 @@ onMounted(loadAlbums);
   transition: border-color 0.15s ease;
 }
 
-.pa-cover-pick:hover { border-color: var(--brand, #0a84ff); }
-.pa-cover-pick img { width: 100%; height: 100%; object-fit: cover; }
-.pa-cover-pick span { display: inline-flex; align-items: center; gap: 6px; }
+.pa-cover-pick:hover {
+  border-color: var(--brand, #0a84ff);
+}
+.pa-cover-pick img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pa-cover-pick span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .pa-modal-foot {
   display: flex;
@@ -825,17 +1140,32 @@ onMounted(loadAlbums);
 }
 
 .pa-modal-enter-active,
-.pa-modal-leave-active { transition: opacity 0.2s ease; }
+.pa-modal-leave-active {
+  transition: opacity 0.2s ease;
+}
 .pa-modal-enter-active .pa-modal,
-.pa-modal-leave-active .pa-modal { transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+.pa-modal-leave-active .pa-modal {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
 .pa-modal-enter-from,
-.pa-modal-leave-to { opacity: 0; }
+.pa-modal-leave-to {
+  opacity: 0;
+}
 .pa-modal-enter-from .pa-modal,
-.pa-modal-leave-to .pa-modal { transform: translateY(16px) scale(0.97); }
+.pa-modal-leave-to .pa-modal {
+  transform: translateY(16px) scale(0.97);
+}
 
 @media (max-width: 640px) {
-  .pa-main { padding: 20px 14px 64px; }
-  .pa-header h1 { font-size: 24px; }
-  .pa-grid { grid-template-columns: 1fr; gap: 14px; }
+  .pa-main {
+    padding: 20px 14px 64px;
+  }
+  .pa-header h1 {
+    font-size: 24px;
+  }
+  .pa-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
 }
 </style>

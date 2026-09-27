@@ -1,0 +1,33 @@
+# 构建产物
+dist/
+dist-check/
+.build-verify/
+node_modules/
+coverage/
+
+# 二进制与位图资源
+*.png
+*.PNG
+*.jpg
+*.jpeg
+*.webp
+*.svg
+*.ico
+package-lock.json
+
+# 截图 / 导出产物（gitignore 之外的落盘目录）
+debug-screenshots/
+output/
+.uploads/
+dist-check/
+
+# 第三方设计素材套件（不是本项目代码，别动）
+Apple Style/
+Claude Style/
+Golden Time Style/
+Google Style/
+20250413最新数据库结构/
+
+# 文档先不进格式化范围：docs/ + plans/ 有近百个 md，全量重排会淹掉有意义的 diff。
+# 想开的话删掉下一行，跑一次 npm run format 即可。
+*.md

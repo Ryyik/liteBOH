@@ -411,11 +411,119 @@
     display: none;
   }
 
+  /* 全局搜索按钮同理：--nav-mini-width 是按「logo + 头像 + 汉堡」精算出来的
+     （188px / ≤480 档 168px，164px 时就已让头像与汉堡重叠），再塞一个 34px 圆按钮会直接撑爆。
+     mini 未展开态隐藏，展开成长条或横屏时照常显示；移动端仍可经展开态进入搜索。 */
+  :global(#unified-nav-container .nav-mini-caps:not(.nav-expanded) .nav-search-btn) {
+    display: none;
+  }
+
   /* 菜单卡：等胶囊宽度展开过半再落（slideDown keyframes 进场 + delay）。
      出场维持现状 display 切换即收（与宽度收缩同时开始，视觉连续）。 */
   :global(#unified-nav-container .nav-mini-caps .nav-menu-mobile.active) {
     animation-delay: 180ms;
   }
+}
+
+/* ============================================
+   沉浸阅读形态（route.meta.immersiveNav，阅读页等）
+   导航收成左上角迷你球：白条退场、surface 收成 52px 圆、
+   仅保留 logo；点球展开完整胶囊（nav-immersive-expanded 白条归位）。
+   独立于竖屏 mini 机制 —— 全形态（桌面横屏/竖屏手机）统一球化。
+   ============================================ */
+
+/* 沉浸态（球）：白条退场且不拦截页面点击；surface 自身恢复可点 */
+:global(#unified-nav-container.nav-immersive-on .unified-nav) {
+  background-color: transparent !important;
+  border-bottom-color: transparent !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface) {
+  pointer-events: auto;
+}
+
+/* 球几何：固定左上角，仅 logo 图标居中 */
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded)) {
+  position: fixed;
+  left: 14px;
+  top: 14px;
+  width: 52px;
+  height: 52px;
+  max-width: 52px;
+  min-width: 52px;
+  border-radius: 999px;
+  transform: none;
+  background-color: rgba(255, 255, 255, 0.86);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: width 300ms var(--ease-emphasized), height 300ms var(--ease-emphasized),
+    border-radius 300ms var(--ease-emphasized), transform 300ms var(--ease-emphasized);
+  cursor: pointer;
+}
+
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded):hover) {
+  transform: scale(1.06);
+}
+
+/* 球内：logo 图标居中，其余（菜单/用户区/汉堡/搜索/登录）全部退场
+   ⚠️ 每条规则独立 :global() 整段包裹 —— 多选择器共享 :global 前缀组会被管线丢弃（踩坑勿合并） */
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded) .nav-container) {
+  padding: 0;
+  justify-content: center;
+}
+
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded) .nav-logo) {
+  gap: 0;
+  /* 球面即 logo（RouterLink 直达首页）：指针事件穿透给 surface，
+     点球语义 = 展开导航而非跳首页；展开态 logo 恢复可点 */
+  pointer-events: none;
+}
+
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded) .nav-logo-text) {
+  display: none !important;
+}
+
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded) .nav-menu) {
+  display: none !important;
+}
+
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded) .nav-user) {
+  display: none !important;
+}
+
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded) .nav-hamburger) {
+  display: none !important;
+}
+
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded) .nav-search-btn) {
+  display: none !important;
+}
+
+:global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded) .nav-dev-island-btn) {
+  display: none !important;
+}
+
+/* 展开态：白条归位 + surface 回到流内居中胶囊（默认样式接管） */
+:global(#unified-nav-container.nav-immersive-on.nav-immersive-expanded .unified-nav) {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-bottom-color: rgba(240, 240, 240, 0.9) !important;
+  pointer-events: auto;
+}
+
+:global(#unified-nav-container.nav-immersive-on.nav-immersive-expanded .unified-nav-surface:not(.has-status-card):not(.has-task-card):not(.has-custom-card):not(.has-bohai-island)) {
+  position: static;
+  transform: translateY(10px);
+  background-color: rgba(255, 255, 255, 0.66);
+}
+
+/* 暗色主题球 */
+:global(#unified-nav-container[data-theme="dark"].nav-immersive-on .unified-nav-surface:not(.nav-expanded)) {
+  background-color: rgba(28, 28, 30, 0.86);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 @media (orientation: portrait) and (max-width: 480px) {
@@ -851,3 +959,4 @@
 #unified-nav-container[data-theme="dark"] .nav-search-input { color: #f5f5f7; }
 #unified-nav-container[data-theme="dark"] .nav-search-input::placeholder { color: #636366; }
 #unified-nav-container[data-theme="dark"] .nav-search-clear { background: rgba(255, 255, 255, 0.1); color: #a1a1a6; }
+

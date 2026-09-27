@@ -1,0 +1,31 @@
+/**
+ * ============================================
+ * 玻璃/旧版设计变量别名层（全局唯一引入点：main.js）
+ * ============================================
+ * ⚠️ 本文件只允许在 main.js 全局引入一次。
+ * 禁止放进任何 <style scoped> 里 @import —— scoped 编译会把 :root
+ * 变成 [data-v-xxx]:root，永远匹配不到 <html>，变量全体失效
+ * （2026-09-27 在 dist 产物中实锤过这个 bug）。
+ *
+ * 消费方：
+ *  - Forum styles/*.css（.forum-page 内部由 drawers-skeletons.css 按
+ *    data-ui-style / data-theme 容器覆盖，容器值优先于这里的 :root 兜底）
+ *  - UserSpace shell-community.css（var(--glass-border)）
+ *  - Lab/index.vue（var(--glass-filter)）
+ *
+ * 目标态：--glass-* / --apple-* 属兼容别名，长期应迁移到 --liquid-* 单源。
+ */
+:root {
+  --apple-bg: #f5f5f7;
+  --apple-text: #1d1d1f;
+  --apple-gray: #86868b;
+  --apple-blue: #0071e3;
+  /* 玻璃变量映射到 --liquid-* tokens，暗色由 forum-dark.css 派生覆盖 */
+  --glass-bg: var(--liquid-bg);
+  --glass-border: var(--liquid-border-hairline);
+  /* 液态玻璃滤镜两档：主档 28px / 轻档 18px，材质统一 saturate(180%) + brightness(1.02)
+     （与 tokens.css 的 --liquid-filter / --liquid-filter-sm 同公式，随 --liquid-blur
+      一起继承 reduced-transparency 降档） */
+  --glass-filter: blur(var(--liquid-blur, 28px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
+  --glass-filter-sm: blur(var(--liquid-blur-sm, 18px)) saturate(var(--liquid-saturate, 180%)) brightness(1.02);
+}

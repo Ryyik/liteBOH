@@ -9,9 +9,25 @@ import { supabase } from '../supabase-client.js';
 import { normalizeDbError } from '../request-core.js';
 import { logger } from '../logger.js';
 
-const ALBUM_COLUMNS = 'id, user_id, title, subtitle, cover_url, status, shared_to_community, photo_count, created_at, updated_at';
-const PHOTO_COLUMNS = 'id, album_id, user_id, cloudinary_url, public_id, width, height, ratio, caption, sort_order, moderation_status, moderation_score, moderation_source, created_at';
-const PAGE_COLUMNS = 'id, album_id, page_index, page_type, layout_id, chapter_title, note, photo_refs, created_at, updated_at';
+const ALBUM_COLUMNS =
+  'id, user_id, title, subtitle, cover_url, status, shared_to_community, photo_count, created_at, updated_at';
+const PHOTO_COLUMNS =
+  'id, album_id, user_id, cloudinary_url, public_id, width, height, ratio, caption, sort_order, moderation_status, moderation_score, moderation_source, created_at';
+const PAGE_COLUMNS =
+  'id, album_id, page_index, page_type, layout_id, chapter_title, note, photo_refs, created_at, updated_at';
+
+/** 当前登录用户 id（insert 时显式携带；表列 not null 且依赖 RLS 限定本人） */
+async function getDbUserId() {
+  const { data } = await supabase.auth.getUser();
+  const id = data?.user?.id;
+  if (!id) throw { message: '登录状态已失效，请重新登录后再试', code: 'NO_AUTH_USER' };
+  return id;
+}
+
+/** normalizeDbError 返回对象，通知等调用方需要字符串 */
+function errMsg(normalized, fallback = '操作失败') {
+  return normalized?.message || fallback;
+}
 
 function normalizeAlbum(row) {
   if (!row) return null;
@@ -25,7 +41,7 @@ function normalizeAlbum(row) {
     sharedToCommunity: row.shared_to_community === true,
     photoCount: Number(row.photo_count || 0),
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
   };
 }
 
@@ -45,7 +61,7 @@ function normalizePhoto(row, index) {
     moderationStatus: row.moderation_status || 'approved',
     moderationScore: Number(row.moderation_score || 0),
     moderationSource: row.moderation_source || 'auto',
-    createdAt: row.created_at
+    createdAt: row.created_at,
   };
 }
 
@@ -61,7 +77,7 @@ function normalizePage(row) {
     note: row.note || '',
     photoRefs: Array.isArray(row.photo_refs) ? row.photo_refs.map(String) : [],
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
   };
 }
 
@@ -69,7 +85,10 @@ export function normalizeAlbumBundle(albumRow, photoRows, pageRows) {
   return {
     album: normalizeAlbum(albumRow),
     photos: (photoRows || []).map(normalizePhoto).filter(Boolean),
-    pages: (pageRows || []).map(normalizePage).filter(Boolean).sort((a, b) => a.pageIndex - b.pageIndex)
+    pages: (pageRows || [])
+      .map(normalizePage)
+      .filter(Boolean)
+      .sort((a, b) => a.pageIndex - b.pageIndex),
   };
 }
 
@@ -95,10 +114,17 @@ export async function listMyAlbums() {
  */
 export async function createAlbum({ title, subtitle = '', coverUrl = '' } = {}) {
   try {
+    const userId = await getDbUserId();
     const payload = {
-      title: String(title || '').trim().slice(0, 80) || '未命名影集',
-      subtitle: String(subtitle || '').trim().slice(0, 120),
-      cover_url: String(coverUrl || '').trim()
+      user_id: userId,
+      title:
+        String(title || '')
+          .trim()
+          .slice(0, 80) || '未命名影集',
+      subtitle: String(subtitle || '')
+        .trim()
+        .slice(0, 120),
+      cover_url: String(coverUrl || '').trim(),
     };
     const { data, error } = await supabase
       .from('photo_albums')
@@ -109,7 +135,11 @@ export async function createAlbum({ title, subtitle = '', coverUrl = '' } = {}) 
     return { ok: true, data: normalizeAlbum(data), error: null };
   } catch (error) {
     logger.warn('photo-albums-api', '新建影集失败', error);
-    return { ok: false, data: null, error: normalizeDbError(error, '新建影集失败') };
+    return {
+      ok: false,
+      data: null,
+      error: errMsg(normalizeDbError(error, '新建影集失败'), '新建影集失败'),
+    };
   }
 }
 
@@ -167,11 +197,20 @@ export async function getPublicAlbum(albumId) {
 export async function updateAlbum(albumId, patch = {}) {
   try {
     const payload = {};
-    if (patch.title !== undefined) payload.title = String(patch.title || '').trim().slice(0, 80) || '未命名影集';
-    if (patch.subtitle !== undefined) payload.subtitle = String(patch.subtitle || '').trim().slice(0, 120);
+    if (patch.title !== undefined)
+      payload.title =
+        String(patch.title || '')
+          .trim()
+          .slice(0, 80) || '未命名影集';
+    if (patch.subtitle !== undefined)
+      payload.subtitle = String(patch.subtitle || '')
+        .trim()
+        .slice(0, 120);
     if (patch.coverUrl !== undefined) payload.cover_url = String(patch.coverUrl || '').trim();
-    if (patch.status !== undefined) payload.status = patch.status === 'published' ? 'published' : 'draft';
-    if (patch.sharedToCommunity !== undefined) payload.shared_to_community = patch.sharedToCommunity === true;
+    if (patch.status !== undefined)
+      payload.status = patch.status === 'published' ? 'published' : 'draft';
+    if (patch.sharedToCommunity !== undefined)
+      payload.shared_to_community = patch.sharedToCommunity === true;
     payload.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
@@ -193,10 +232,7 @@ export async function updateAlbum(albumId, patch = {}) {
  */
 export async function deleteAlbum(albumId) {
   try {
-    const { error } = await supabase
-      .from('photo_albums')
-      .delete()
-      .eq('id', albumId);
+    const { error } = await supabase.from('photo_albums').delete().eq('id', albumId);
     if (error) throw error;
     return { ok: true, error: null };
   } catch (error) {
@@ -225,19 +261,23 @@ async function syncPhotoCount(albumId) {
  */
 export async function addAlbumPhotos(albumId, photos = []) {
   try {
+    const userId = await getDbUserId();
     const rows = (photos || []).map((photo, index) => ({
       album_id: albumId,
+      user_id: userId,
       cloudinary_url: String(photo.url || '').trim(),
       public_id: String(photo.publicId || '').trim(),
       width: Number(photo.width || 0),
       height: Number(photo.height || 0),
       ratio: ['landscape', 'portrait', 'square'].includes(photo.ratio) ? photo.ratio : 'landscape',
       sort_order: index,
-      moderation_status: ['approved', 'rejected', 'pending', 'reviewing'].includes(photo.moderationStatus)
+      moderation_status: ['approved', 'rejected', 'pending', 'reviewing'].includes(
+        photo.moderationStatus,
+      )
         ? photo.moderationStatus
         : 'approved',
       moderation_score: Number(photo.moderationScore || 0),
-      moderation_source: String(photo.moderationSource || 'auto').slice(0, 20)
+      moderation_source: String(photo.moderationSource || 'auto').slice(0, 20),
     }));
     if (!rows.length) return { ok: true, data: [], error: null };
 
@@ -250,7 +290,11 @@ export async function addAlbumPhotos(albumId, photos = []) {
     return { ok: true, data: (data || []).map(normalizePhoto).filter(Boolean), error: null };
   } catch (error) {
     logger.warn('photo-albums-api', '添加照片失败', error);
-    return { ok: false, data: [], error: normalizeDbError(error, '添加照片失败') };
+    return {
+      ok: false,
+      data: [],
+      error: errMsg(normalizeDbError(error, '添加照片失败'), '添加照片失败'),
+    };
   }
 }
 
@@ -296,25 +340,24 @@ export async function updatePhotoCaption(photoId, caption) {
  */
 export async function saveAlbumPages(albumId, pages = []) {
   try {
-    const deleteResult = await supabase
-      .from('photo_album_pages')
-      .delete()
-      .eq('album_id', albumId);
+    // 归属经 album_id 关联（RLS 以 album.user_id 判定），无需显式 user_id
+    const deleteResult = await supabase.from('photo_album_pages').delete().eq('album_id', albumId);
     if (deleteResult.error) throw deleteResult.error;
 
     const rows = (pages || []).map((page, index) => ({
       album_id: albumId,
+      // pages 表无 user_id 列：归属经 album_id 关联（RLS 以 album.user_id 判定）
       page_index: index,
-      page_type: ['cover', 'chapter', 'content', 'end'].includes(page.pageType) ? page.pageType : 'content',
+      page_type: ['cover', 'chapter', 'content', 'end'].includes(page.pageType)
+        ? page.pageType
+        : 'content',
       layout_id: String(page.layoutId || 'full').slice(0, 32),
       chapter_title: String(page.chapterTitle || '').slice(0, 80),
       note: String(page.note || '').slice(0, 500),
-      photo_refs: Array.isArray(page.photoRefs) ? page.photoRefs.map(String) : []
+      photo_refs: Array.isArray(page.photoRefs) ? page.photoRefs.map(String) : [],
     }));
     if (rows.length) {
-      const insertResult = await supabase
-        .from('photo_album_pages')
-        .insert(rows);
+      const insertResult = await supabase.from('photo_album_pages').insert(rows);
       if (insertResult.error) throw insertResult.error;
     }
 
@@ -326,7 +369,10 @@ export async function saveAlbumPages(albumId, pages = []) {
     return { ok: true, error: null };
   } catch (error) {
     logger.warn('photo-albums-api', '保存页面流失败', error);
-    return { ok: false, error: normalizeDbError(error, '保存页面流失败') };
+    return {
+      ok: false,
+      error: errMsg(normalizeDbError(error, '保存页面流失败'), '保存页面流失败'),
+    };
   }
 }
 
@@ -347,7 +393,7 @@ export async function listCommunityAlbums({ limit = 24, offset = 0 } = {}) {
     const albums = (data || []).map((row) => ({
       ...normalizeAlbum(row),
       authorName: row?.profile?.username || '',
-      authorAvatar: row?.profile?.avatar_url || ''
+      authorAvatar: row?.profile?.avatar_url || '',
     }));
     return { ok: true, data: albums, error: null };
   } catch (error) {
@@ -361,14 +407,15 @@ export async function listCommunityAlbums({ limit = 24, offset = 0 } = {}) {
  */
 export async function logAlbumExport(albumId, kind = 'single') {
   try {
+    const userId = await getDbUserId();
     const { error } = await supabase
       .from('photo_album_exports')
-      .insert({ album_id: albumId, kind: kind === 'zip' ? 'zip' : 'single' });
+      .insert({ album_id: albumId, user_id: userId, kind: kind === 'zip' ? 'zip' : 'single' });
     if (error) throw error;
     return { ok: true, error: null };
   } catch (error) {
     logger.warn('photo-albums-api', '记录导出失败', error);
-    return { ok: false, error: normalizeDbError(error, '记录导出失败') };
+    return { ok: false, error: errMsg(normalizeDbError(error, '记录导出失败'), '记录导出失败') };
   }
 }
 

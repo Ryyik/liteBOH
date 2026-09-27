@@ -293,12 +293,18 @@
     left: calc(var(--userspace-rail-w, 88px) / 2);
   }
 
-  /* 开场画（一次性街景层）在时先不显左栏：它是 inset:0 的满屏封面，
-     左栏浮上去会压住左上角问候语。用的是 :has()——退场即自动出现，
-     不需要为它加任何 JS 状态；不支持 :has 的浏览器退化为「左栏浮在封面上」，
-     不影响功能。 */
-  body.page-home:has(.home-gate) .userspace-rail.liquid-glass {
-    display: none;
+  /* 开场画（一次性街景层）在场时左栏不显：它是 inset:0 的满屏封面，
+     左栏浮上去会压住左上角问候语。
+     2026-09-27 改：不再用 display:none —— display 不可动画，开场画退场后左栏是「瞬现」，
+     与整段跟手转场格格不入。改成让 opacity 直接吃首页的转场进度 --forum-p
+     （它定义在 .home 上，左栏作为其后代继承）：
+       · 开场画在场 → p=0 → 完全透明（等效于原 display:none，但可过渡）
+       · 跟手 / 卡片升起 → 与论坛层同步淡入
+       · 落定 → p=1 → 常态
+     因此也不再需要 :has() 判断，更没有「gate 卸载瞬间跳出来」的闪烁。
+     （非首页 shell 不带 .home，拿不到这个变量；本块也只在横屏首页命中。） */
+  body.page-home .userspace-rail.liquid-glass {
+    opacity: var(--forum-p, 1);
   }
 
   /* 暗色：主题挂在 html 上（theme-manager 是唯一写入点），

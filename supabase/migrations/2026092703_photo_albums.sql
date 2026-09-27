@@ -18,7 +18,7 @@ begin;
 -- ============================================================
 create table if not exists public.photo_albums (
   id                    uuid primary key default gen_random_uuid(),
-  user_id               uuid not null references public.profiles(id) on delete cascade,
+  user_id               uuid not null default auth.uid() references public.profiles(id) on delete cascade,
   title                 text not null default '未命名影集',
   subtitle              text not null default '',
   cover_url             text not null default '',
@@ -47,7 +47,7 @@ comment on table public.photo_albums is
 create table if not exists public.photo_album_photos (
   id                  uuid primary key default gen_random_uuid(),
   album_id            uuid not null references public.photo_albums(id) on delete cascade,
-  user_id             uuid not null references public.profiles(id) on delete cascade,
+  user_id             uuid not null default auth.uid() references public.profiles(id) on delete cascade,
   cloudinary_url      text not null,
   public_id           text not null default '',
   width               integer not null default 0,
@@ -96,7 +96,7 @@ comment on table public.photo_album_pages is
 -- ============================================================
 create table if not exists public.photo_album_exports (
   id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null references public.profiles(id) on delete cascade,
+  user_id    uuid not null default auth.uid() references public.profiles(id) on delete cascade,
   album_id   uuid not null references public.photo_albums(id) on delete cascade,
   kind       text not null default 'single' check (kind in ('single', 'zip')),
   created_at timestamptz not null default now()

@@ -1,13 +1,24 @@
 <template>
   <div class="forum-section-shell" :class="{ 'feed-switching': feedSwitchPulse }">
-    <SegmentTabs :sections="FORUM_SECTION_ITEMS" :model-value="section" aria-label="方块分区"
-      @update:model-value="selectSection" />
+    <SegmentTabs
+      :sections="FORUM_SECTION_ITEMS"
+      :model-value="section"
+      aria-label="方块分区"
+      @update:model-value="selectSection"
+    />
 
     <!-- 最新/关注/新闻/活动：ForumMain 承载（embedded），KeepAlive 保住滚动与已加载列表 -->
     <div v-show="isFeedSection" class="forum-section-feed">
       <KeepAlive>
-        <AsyncForum v-if="isFeedSection" ref="forumViewRef" :show-navbar="false" :show-header="false"
-          :embedded="true" :external-feed="externalFeed" @island-message="emit('island-message', $event)" />
+        <AsyncForum
+          v-if="isFeedSection"
+          ref="forumViewRef"
+          :show-navbar="false"
+          :show-header="false"
+          :embedded="true"
+          :external-feed="externalFeed"
+          @island-message="emit('island-message', $event)"
+        />
       </KeepAlive>
     </div>
 
@@ -17,17 +28,30 @@
     </div>
 
     <!-- 成员 / 印象：独立面板，切走即卸载（与改版前 UserSpace 行为一致） -->
-    <AsyncCommunity v-if="section === 'members'" @switch-tab="emit('switch-tab', $event)"
-      @open-follow-modal="(user, type) => emit('open-follow-modal', user, type)" />
+    <AsyncCommunity
+      v-if="section === 'members'"
+      @switch-tab="emit('switch-tab', $event)"
+      @open-follow-modal="(user, type) => emit('open-follow-modal', user, type)"
+    />
 
     <div v-else-if="section === 'impressions'" class="forum-section-impressions">
-      <ProfileImpressionsPanel :show-back="false" :is-impressions-loading="impressionsLoading"
-        :impressions="profileImpressions" :has-more="impressionsHasMore" :is-loading-more="isLoadingMoreImpressions"
-        @delete-impression="handleDeleteImpression" @load-more-impressions="loadMoreImpressions" />
+      <ProfileImpressionsPanel
+        :show-back="false"
+        :is-impressions-loading="impressionsLoading"
+        :impressions="profileImpressions"
+        :has-more="impressionsHasMore"
+        :is-loading-more="isLoadingMoreImpressions"
+        @delete-impression="handleDeleteImpression"
+        @load-more-impressions="loadMoreImpressions"
+      />
     </div>
 
-    <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title"
-      :message="alertState.message" />
+    <CommonAlertModal
+      v-model:visible="alertState.visible"
+      :type="alertState.type"
+      :title="alertState.title"
+      :message="alertState.message"
+    />
   </div>
 </template>
 
@@ -60,15 +84,21 @@ import {
   FORUM_SECTION_ITEMS,
   isForumFeedSection,
   resolveExternalFeed,
-  resolveForumSection
+  resolveForumSection,
 } from '@/config/forum-sections';
 
 const props = defineProps({
   /** 当前分区（v-model:section） */
-  section: { type: String, default: FORUM_DEFAULT_SECTION }
+  section: { type: String, default: FORUM_DEFAULT_SECTION },
 });
 
-const emit = defineEmits(['update:section', 'island-message', 'switch-tab', 'open-follow-modal', 'section-change']);
+const emit = defineEmits([
+  'update:section',
+  'island-message',
+  'switch-tab',
+  'open-follow-modal',
+  'section-change',
+]);
 
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
@@ -149,7 +179,7 @@ const fetchImpressions = async ({ force = false, loadMore = false } = {}) => {
       const { data, error } = await getUserImpressions(userId, {
         signal,
         page: nextPage,
-        pageSize: IMPRESSIONS_PAGE_SIZE
+        pageSize: IMPRESSIONS_PAGE_SIZE,
       });
       if (loadMoreToken !== impressionsFetchToken || signal.aborted) return;
       if (error) {
@@ -161,7 +191,8 @@ const fetchImpressions = async ({ force = false, loadMore = false } = {}) => {
       profileImpressions.value = [...profileImpressions.value, ...rows];
       impressionsHasMore.value = rows.length >= IMPRESSIONS_PAGE_SIZE;
     } catch (error) {
-      if (error.name !== 'AbortError') logger.warn('forum-section-shell', '加载更多印象异常:', error);
+      if (error.name !== 'AbortError')
+        logger.warn('forum-section-shell', '加载更多印象异常:', error);
     } finally {
       if (loadMoreToken === impressionsFetchToken) isLoadingMoreImpressions.value = false;
     }
@@ -198,7 +229,7 @@ const fetchImpressions = async ({ force = false, loadMore = false } = {}) => {
     const { data, error } = await getUserImpressions(userId, {
       signal,
       page: 1,
-      pageSize: IMPRESSIONS_PAGE_SIZE
+      pageSize: IMPRESSIONS_PAGE_SIZE,
     });
     if (fetchToken !== impressionsFetchToken || signal.aborted) return;
     if (error) {
@@ -255,12 +286,16 @@ const selectSection = (next) => {
   emit('update:section', target);
 };
 
-watch(section, (next) => {
-  if (next === 'official') officialVisited.value = true;
-  if (next === 'impressions') void fetchImpressions();
-  if (isForumFeedSection(next)) pulseFeed();
-  emit('section-change', next);
-}, { immediate: true });
+watch(
+  section,
+  (next) => {
+    if (next === 'official') officialVisited.value = true;
+    if (next === 'impressions') void fetchImpressions();
+    if (isForumFeedSection(next)) pulseFeed();
+    emit('section-change', next);
+  },
+  { immediate: true },
+);
 
 /** 供外层使用的嵌入论坛入口（ForumMain 通过 defineExpose 暴露这些方法） */
 const callForumView = (method) => {
@@ -280,7 +315,7 @@ defineExpose({
     const view = forumViewRef.value;
     if (!view || typeof view.closeComposer !== 'function') return Promise.resolve();
     return view.closeComposer();
-  }
+  },
 });
 
 onBeforeUnmount(() => {
@@ -309,9 +344,20 @@ onBeforeUnmount(() => {
 }
 
 @keyframes forumSectionFeedPulse {
-  from { opacity: 0.72; }
-  to { opacity: 1; }
+  from {
+    opacity: 0.72;
+  }
+  to {
+    opacity: 1;
+  }
 }
+
+/* 首页「进论坛」的落定编排（2026-09-27 改成进度驱动后已搬走）
+   原先这里是「落定之后播一段一次性动画」（页签 → 首帖带过冲的 spot → 第 2/3 张卡）。
+   问题：跟手阶段这些组件纹丝不动、松手之后才突然开始动，中间断了一拍 ——
+   用户的原话是「还是不够流畅」，症结就在这个断层，而不是时长不够。
+   现在它们统一由 Home/style.scoped.css 里那组「桌面 UI 的浮上来」按 --forum-p 全程驱动，
+   所以本文件不再需要任何首页专有动画（UserSpace 路径自然也不受影响）。 */
 
 @media (prefers-reduced-motion: reduce) {
   .forum-section-shell.feed-switching .forum-section-feed {

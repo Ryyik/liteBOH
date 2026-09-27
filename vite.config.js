@@ -1,12 +1,12 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { VitePWA } from 'vite-plugin-pwa'
-import { resolve } from 'path'
-import { execSync } from 'child_process'
-import { readFileSync } from 'fs'
-import { visualizer } from 'rollup-plugin-visualizer'
-import tailwindcss from '@tailwindcss/vite'
-import cssnano from 'cssnano'
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import { VitePWA } from 'vite-plugin-pwa';
+import { resolve } from 'path';
+import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
+import { visualizer } from 'rollup-plugin-visualizer';
+import tailwindcss from '@tailwindcss/vite';
+import cssnano from 'cssnano';
 
 // ============================================
 // 版本指纹生成插件
@@ -17,54 +17,58 @@ import cssnano from 'cssnano'
 // 运行时由 version-checker.js 独立拉取比对 buildId，绕过 SW 缓存死循环
 // ============================================
 function bohVersionPlugin() {
-  let versionInfo = null
+  let versionInfo = null;
 
   const buildVersionInfo = () => {
-    if (versionInfo) return versionInfo
+    if (versionInfo) return versionInfo;
     // 读取语义版本单一源（VERSION 文件）
-    const APP_VERSION = readFileSync(resolve(__dirname, 'VERSION'), 'utf8').trim() || '0.0.0'
-    let commitHash = 'unknown'
+    const APP_VERSION = readFileSync(resolve(__dirname, 'VERSION'), 'utf8').trim() || '0.0.0';
+    let commitHash = 'unknown';
     try {
-      commitHash = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
-    } catch { /* 非 git 环境降级 */ }
-    const timestamp = Date.now()
-    const buildTime = new Date(timestamp).toISOString()
+      commitHash = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim();
+    } catch {
+      /* 非 git 环境降级 */
+    }
+    const timestamp = Date.now();
+    const buildTime = new Date(timestamp).toISOString();
     // 构建指纹：commit + 时间戳，确保每次构建唯一（同版本重新部署也能触发更新）
-    const buildId = `${commitHash}-${timestamp}`
+    const buildId = `${commitHash}-${timestamp}`;
     versionInfo = {
       version: APP_VERSION,
       buildId,
       commitHash,
       timestamp,
       buildTime,
-    }
-    return versionInfo
-  }
+    };
+    return versionInfo;
+  };
 
   return {
     name: 'boh-version-plugin',
     apply: 'build',
     buildStart() {
-      buildVersionInfo()
+      buildVersionInfo();
     },
     transformIndexHtml(html) {
-      const info = buildVersionInfo()
+      const info = buildVersionInfo();
       // 在 </head> 前注入版本 meta：
       // - boh-version: 语义版本（用户可见展示）
       // - boh-build-id: 构建指纹（运行时比对基准）
       // - boh-build-time: 构建时间戳（调试参考）
-      const metaTags = `    <meta name="boh-version" content="${info.version}" />\n    <meta name="boh-build-id" content="${info.buildId}" />\n    <meta name="boh-build-time" content="${info.timestamp}" />\n  </head>`
-      return html.replace(/\s*<\/head>/i, `\n${metaTags}`)
+      const metaTags = `    <meta name="boh-version" content="${info.version}" />\n    <meta name="boh-build-id" content="${info.buildId}" />\n    <meta name="boh-build-time" content="${info.timestamp}" />\n  </head>`;
+      return html.replace(/\s*<\/head>/i, `\n${metaTags}`);
     },
     generateBundle() {
-      const info = buildVersionInfo()
+      const info = buildVersionInfo();
       this.emitFile({
         type: 'asset',
         fileName: 'version.json',
         source: JSON.stringify(info, null, 2),
-      })
+      });
     },
-  }
+  };
 }
 
 // ============================================
@@ -78,20 +82,20 @@ function bohVersionPlugin() {
 // 注意：若未来要启用 InceptionV3 / MobileNetV2Mid，需先移除此插件。
 // ============================================
 function nsfwjsTreeShakePlugin() {
-  const VIRTUAL_ID = '\0nsfwjs-unused-model-stub'
-  const UNUSED_MODEL_IMPORTS = /model_imports\/(inception_v3|mobilenet_v2_mid)\.js$/
+  const VIRTUAL_ID = '\0nsfwjs-unused-model-stub';
+  const UNUSED_MODEL_IMPORTS = /model_imports\/(inception_v3|mobilenet_v2_mid)\.js$/;
   return {
     name: 'nsfwjs-tree-shake',
     enforce: 'pre',
     resolveId(source) {
-      if (UNUSED_MODEL_IMPORTS.test(source)) return VIRTUAL_ID
-      return null
+      if (UNUSED_MODEL_IMPORTS.test(source)) return VIRTUAL_ID;
+      return null;
     },
     load(id) {
-      if (id !== VIRTUAL_ID) return null
-      return 'export const modelJson = () => Promise.resolve({});\nexport const weightBundles = [];\n'
+      if (id !== VIRTUAL_ID) return null;
+      return 'export const modelJson = () => Promise.resolve({});\nexport const weightBundles = [];\n';
     },
-  }
+  };
 }
 
 // ============================================
@@ -149,9 +153,13 @@ function bohShellCssScopePlugin() {
     // generateBundle 早于 vite-plugin-pwa 的 generateSW，故此处算出的清单一定就绪
     generateBundle(_options, bundle) {
       const chunks = Object.values(bundle).filter((item) => item.type === 'chunk');
-      const shellJs = new Set(chunks.filter((c) => c.isEntry).map((c) => c.fileName.split('/').pop()));
+      const shellJs = new Set(
+        chunks.filter((c) => c.isEntry).map((c) => c.fileName.split('/').pop()),
+      );
       for (const name of SHELL_CHUNKS) {
-        const hit = chunks.find((c) => new RegExp(`/${name}-[A-Za-z0-9_-]+\\.js$`).test(c.fileName));
+        const hit = chunks.find((c) =>
+          new RegExp(`/${name}-[A-Za-z0-9_-]+\\.js$`).test(c.fileName),
+        );
         if (hit) shellJs.add(hit.fileName.split('/').pop());
         else this.warn(`壳 chunk "${name}" 在产物里找不到 —— 请同步 SHELL_CHUNKS`);
       }
@@ -166,7 +174,9 @@ function bohShellCssScopePlugin() {
       // 同源，取并集可防止 viteMetadata 在某次升级后改形状导致清单静默变空。
       const html = bundle['index.html'];
       if (html && typeof html.source === 'string') {
-        for (const m of html.source.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="\.\/static\/css\/([^"]+)"/g)) {
+        for (const m of html.source.matchAll(
+          /<link[^>]*rel="stylesheet"[^>]*href="\.\/static\/css\/([^"]+)"/g,
+        )) {
           allow.add(m[1]);
         }
       }
@@ -174,7 +184,7 @@ function bohShellCssScopePlugin() {
       shellCssAllowScope.clear();
       for (const name of allow) shellCssAllowScope.add(name);
       console.log(
-        `[boh-shell-css-scope] 壳样式允许清单 ${shellCssAllowScope.size} 个：${[...shellCssAllowScope].join(', ') || '(空)'}`
+        `[boh-shell-css-scope] 壳样式允许清单 ${shellCssAllowScope.size} 个：${[...shellCssAllowScope].join(', ') || '(空)'}`,
       );
     },
   };
@@ -198,12 +208,16 @@ export default defineConfig({
     tailwindcss(),
     bohVersionPlugin(),
     // 构建产物可视化分析（生成 stats.html，仅 ANALYZE 环境变量开启时加载）
-    ...(process.env.ANALYZE ? [visualizer({
-      open: false,
-      gzipSize: true,
-      brotliSize: true,
-      filename: 'stats.html',
-    })] : []),
+    ...(process.env.ANALYZE
+      ? [
+          visualizer({
+            open: false,
+            gzipSize: true,
+            brotliSize: true,
+            filename: 'stats.html',
+          }),
+        ]
+      : []),
     // PWA Service Worker（静态资源预缓存 + 运行时缓存）
     VitePWA({
       // 确保使用 generateSW 策略自动生成 sw.js
@@ -247,7 +261,9 @@ export default defineConfig({
             // fail-safe：清单为空说明插件没跑或产物结构变了。此时宁可不收窄
             // （退回旧的全量行为），也不能让壳样式掉出预缓存。
             if (shellCssAllowScope.size === 0) {
-              console.warn('[boh-precache] 壳样式允许清单为空，已跳过 CSS 收窄（fail-safe，保留全部 CSS）');
+              console.warn(
+                '[boh-precache] 壳样式允许清单为空，已跳过 CSS 收窄（fail-safe，保留全部 CSS）',
+              );
               return { manifest: entries, warnings: ['壳样式允许清单为空，CSS 收窄已跳过'] };
             }
             const kept = [];
@@ -265,7 +281,7 @@ export default defineConfig({
             const keptCss = kept.filter((e) => /\.css$/.test(e.url)).length;
             console.log(
               `[boh-precache] CSS 收窄完成：保留 ${keptCss} 个，移出预缓存 ${dropped} 个（raw ${(droppedBytes / 1024).toFixed(0)}KB）` +
-                `→ 转由运行时 /static/css/ CacheFirst 兜底`
+                `→ 转由运行时 /static/css/ CacheFirst 兜底`,
             );
             return { manifest: kept, warnings: [] };
           },
@@ -315,6 +331,37 @@ export default defineConfig({
             options: {
               cacheName: 'supabase-storage-public',
               expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            /* 云图 LQIP 占位图（2026-09-27）：CacheFirst，几乎是永久本地资源。
+               它是每张帖子图自己的 32×24 模糊版（由 Cloudinary 按 publicId 实时生成），
+               单张几百字节 —— 但它恰恰是「主图到达之前」用户唯一看得见的东西，
+               弱网下它晚到几秒，用户看到的就是「一直转圈 + 空白」，判成图片加载失败。
+               这里让它一次之后就再也不走网络；配合 feed.css 的 3.2s 撤转圈兜底，
+               把「看起来坏了」这条路径彻底堵死。
+               ⚠️ 用 e_blur 特征匹配（不写死尺寸/质量），以后调 LQIP 参数不用动这里。 */
+            urlPattern: /\/image\/upload\/[^/]*e_blur:\d+[^/]*\//i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'cloudinary-lqip',
+              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            /* 云图正文图（列表缩略 / 详情原图）（2026-09-27）：StaleWhileRevalidate。
+               用 CacheFirst 的风险是「同 publicId 覆盖上传后长期显示旧图」，
+               所以这里取「先用缓存秒显、后台静默更新」的折中：
+               · 刷新页面 → 图立刻从本地出现，不再经历「空白 + 转圈」；
+               · 内容若变过，下一次请求就会把新图换进来，最终一致。 */
+            urlPattern: /\/image\/upload\//i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'cloudinary-media',
+              // 单张 720×540 webp 约 30~60KB，400 张 ≈ 20MB 上限
+              expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
@@ -414,9 +461,7 @@ export default defineConfig({
   // CSS 后处理：压缩（Tailwind v4 已内置 autoprefixer）
   css: {
     postcss: {
-      plugins: [
-        cssnano({ preset: 'default' }),
-      ],
+      plugins: [cssnano({ preset: 'default' })],
     },
   },
 
@@ -435,7 +480,7 @@ export default defineConfig({
       //   并弹整页报错遮罩（点击全被吃掉），那一次加载失败还会拖死 tfjs chunk（图片审核不可用）。
       // 指到空实现：解析不再进入 node-fetch 包，浏览器侧行为不变（详见 scripts/shims/node-fetch.browser.js）。
       'node-fetch': resolve(__dirname, 'scripts/shims/node-fetch.browser.js'),
-    }
+    },
   },
 
   // 构建配置
@@ -513,7 +558,8 @@ export default defineConfig({
           // canvas-confetti（庆祝动画，特定功能使用）
           if (id.includes('node_modules/canvas-confetti')) return 'confetti-vendor';
           // 图片压缩库（特定功能使用）
-          if (id.includes('node_modules/browser-image-compression')) return 'image-compression-vendor';
+          if (id.includes('node_modules/browser-image-compression'))
+            return 'image-compression-vendor';
           // 图片裁剪库（头像裁剪使用）
           if (id.includes('node_modules/vue-advanced-cropper')) return 'cropper-vendor';
 
@@ -531,7 +577,12 @@ export default defineConfig({
           // 已有的命名 chunk
           // ============================================
           if (id.includes('node_modules/pptxgenjs')) return 'ppt-vendor';
-          if (id.includes('node_modules/vue/') || id.includes('node_modules/vue-router/') || id.includes('node_modules/@vue/')) return 'vue-vendor';
+          if (
+            id.includes('node_modules/vue/') ||
+            id.includes('node_modules/vue-router/') ||
+            id.includes('node_modules/@vue/')
+          )
+            return 'vue-vendor';
           if (id.includes('node_modules/@supabase/supabase-js')) return 'supabase-vendor';
           if (id.includes('node_modules/lucide-vue-next')) return 'ui-icons';
           if (id.includes('node_modules/dompurify')) return 'ui-sanitize';
@@ -539,7 +590,6 @@ export default defineConfig({
           if (id.includes('src/components/Footer.vue')) return 'ui-components';
           if (id.includes('src/stores/auth.ts')) return 'auth-store';
           if (id.includes('src/data/products.js')) return 'content-datasets';
-
         },
       },
     },
@@ -577,9 +627,17 @@ export default defineConfig({
   // 依赖预构建优化
   optimizeDeps: {
     include: [
-      'vue', 'vue-router', 'pinia', 'pinia-plugin-persistedstate',
-      '@supabase/supabase-js', '@vueuse/core', '@vueuse/motion',
-      'marked', 'highlight.js', 'dompurify', 'lucide-vue-next',
+      'vue',
+      'vue-router',
+      'pinia',
+      'pinia-plugin-persistedstate',
+      '@supabase/supabase-js',
+      '@vueuse/core',
+      '@vueuse/motion',
+      'marked',
+      'highlight.js',
+      'dompurify',
+      'lucide-vue-next',
     ],
     // node-fetch 见上面 resolve.alias：只残留 tfjs 的 Node 分支（platform.node.importFetch 的惰性
     // require），浏览器永不执行；但预打包扫描会按 module 字段进它的 ESM 入口 lib/index.mjs，
@@ -608,5 +666,5 @@ export default defineConfig({
   // 预览服务器配置
   preview: {
     port: 4173,
-  }
-})
+  },
+});

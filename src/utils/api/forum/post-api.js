@@ -1,5 +1,10 @@
 import { supabase } from '../../supabase-client.js';
-import { executeRead, normalizeDbError, invalidateByTags, createAbortError } from '../../request-core.js';
+import {
+  executeRead,
+  normalizeDbError,
+  invalidateByTags,
+  createAbortError,
+} from '../../request-core.js';
 import { CACHE_TTL_LEVELS } from '../../cache-strategy.js';
 import { logger } from '../../logger.js';
 import { markCloudinaryUploadsClaimed } from '../../cloudinary-client.js';
@@ -7,7 +12,7 @@ import { deleteCloudinaryAssetsByPublicIds } from '../../cloudinary-client.js';
 import {
   runKeywordPrecheck,
   runAsyncRelaxedModeration,
-  runSyncStrictModeration
+  runSyncStrictModeration,
 } from '../../unified-content-moderation.js';
 import { cleanupOrphanedUploads } from '../../cloud-upload-guard.js';
 import {
@@ -28,16 +33,32 @@ import {
   normalizePostListRows,
   normalizePostRecord,
   splitPostContent,
-  toForumImageRpcPayload
+  toForumImageRpcPayload,
 } from '../forum-format.js';
-import {
-  getForumPostImages
-} from '../forum-images-api.js';
+import { getForumPostImages } from '../forum-images-api.js';
 import {
   isMissingRpcFunctionError,
   writeAsyncModerationLog,
-  ensureModerationNotification
+  ensureModerationNotification,
 } from './_shared.js';
+
+/* 降级路径（RPC 不可用 → 直连 posts 表）的搜索 or 表达式。
+   返回 null 表示没有可用关键词（调用方直接跳过）。
+   ⚠️ 与 status 过滤的关系：supabase-js 的 .or() 走 searchParams.append（追加，不是覆盖），
+   所以可以再挂一个 .or() —— PostgREST 对重复的 or= 参数按 AND 组合，
+   语义 = (status 合法) AND (标题或正文命中)。
+   （项目里 cursor 分页分支早已是这么用的：.or(statusFilter) 之后再 .or(cursor 条件)。）
+   ⚠️ 旧行为是降级路径**完全不传搜索词** —— 结果「搜了没反应、列表还是全部内容」。 */
+const buildFallbackSearchOr = (rawKeyword) => {
+  // PostgREST 的 ilike 模式里 * 是通配（等价 SQL 的 %），而 , ( ) 是语法分隔符 ——
+  // 用户输入恰好含这些字符会把过滤表达式弄坏，先剔除再拼。
+  const keyword = String(rawKeyword || '')
+    .replace(/[,()*%_\\]/g, '')
+    .trim();
+  if (!keyword) return null;
+  return `title.ilike.*${keyword}*,content.ilike.*${keyword}*`;
+};
+const FALLBACK_STATUS_FILTER = 'status.is.null,status.eq.approved';
 
 const ALLOWED_SORT_MODE = new Set(['latest', 'hottest']);
 const POST_ASYNC_MODERATION_TIMEOUT_MS = 45000;
@@ -46,9 +67,10 @@ const POST_REJECTED_NOTIFICATION_TYPE = 'post_rejected';
 function normalizePagination(pagination = {}) {
   const page = Math.max(1, Number(pagination.page || 1));
   const pageSize = Math.max(1, Number(pagination.pageSize || 10));
-  const offset = Math.max(0, Number(
-    pagination.offset !== undefined ? pagination.offset : (page - 1) * pageSize
-  ));
+  const offset = Math.max(
+    0,
+    Number(pagination.offset !== undefined ? pagination.offset : (page - 1) * pageSize),
+  );
   const limit = Math.max(1, Number(pagination.limit || pageSize));
   return { page, pageSize, offset, limit };
 }
@@ -115,7 +137,10 @@ function resolveFallbackUsernameFromAuthUser(user = null) {
 }
 
 async function resolveAuthoritativeForumActor(fallbackUserId = '', fallbackRole = '') {
-  const fallback = { userId: String(fallbackUserId || '').trim(), role: String(fallbackRole || '').trim() };
+  const fallback = {
+    userId: String(fallbackUserId || '').trim(),
+    role: String(fallbackRole || '').trim(),
+  };
   try {
     if (!supabase.auth?.getUser) return fallback;
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -126,7 +151,13 @@ async function resolveAuthoritativeForumActor(fallbackUserId = '', fallbackRole 
     const { data: profile, error: profileError } = await profileQuery.maybeSingle();
     // Keep compatibility with offline/unit mocks; production Supabase always
     // returns a profile row or an explicit error here.
-    if (profileError || profile === undefined || profile === null || !Object.prototype.hasOwnProperty.call(profile, 'role')) return fallback;
+    if (
+      profileError ||
+      profile === undefined ||
+      profile === null ||
+      !Object.prototype.hasOwnProperty.call(profile, 'role')
+    )
+      return fallback;
     return { userId, role: String(profile?.role || '').trim() };
   } catch (_error) {
     return fallback;
@@ -160,7 +191,7 @@ async function resolvePostAuthorIdentity(authorId, authorUsername) {
 
   return {
     authorId: safeAuthorId,
-    authorUsername: safeAuthorUsername
+    authorUsername: safeAuthorUsername,
   };
 }
 
@@ -173,16 +204,25 @@ async function schedulePostModeration(post = {}) {
   // The durable enqueue is a short authenticated DB call. It happens before
   // the caller can leave the page; only waking the worker is fire-and-forget.
   try {
-    const { data: jobId, error: enqueueError } = await supabase.rpc('enqueue_forum_post_moderation', {
-      p_post_id: postId
-    });
+    const { data: jobId, error: enqueueError } = await supabase.rpc(
+      'enqueue_forum_post_moderation',
+      {
+        p_post_id: postId,
+      },
+    );
     if (enqueueError) throw enqueueError;
 
-    void supabase.functions.invoke('forum-async-worker', {
-      body: { postId }
-    }).catch((error) => {
-      logger.warn('forum-api', '后台审核 worker 唤醒失败，等待 Cron 重试', { postId, jobId, error });
-    });
+    void supabase.functions
+      .invoke('forum-async-worker', {
+        body: { postId },
+      })
+      .catch((error) => {
+        logger.warn('forum-api', '后台审核 worker 唤醒失败，等待 Cron 重试', {
+          postId,
+          jobId,
+          error,
+        });
+      });
     logger.debug('forum-api', '帖子审核任务已入队', { postId, jobId });
     return;
   } catch (error) {
@@ -198,7 +238,7 @@ async function schedulePostModeration(post = {}) {
       const moderationInput = buildPostModerationInput(content);
       const moderationResult = await runAsyncRelaxedModeration(moderationInput, {
         scene: 'forum_post',
-        timeoutMs: POST_ASYNC_MODERATION_TIMEOUT_MS
+        timeoutMs: POST_ASYNC_MODERATION_TIMEOUT_MS,
       });
       await writeAsyncModerationLog(postId, 'post', moderationResult);
 
@@ -210,7 +250,7 @@ async function schedulePostModeration(post = {}) {
         .from('posts')
         .update({
           status: REJECTED_STATUS,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', postId)
         .eq('author_id', authorId)
@@ -221,7 +261,7 @@ async function schedulePostModeration(post = {}) {
           postId,
           authorId,
           attempt,
-          error: updateError
+          error: updateError,
         });
         return;
       }
@@ -229,21 +269,28 @@ async function schedulePostModeration(post = {}) {
       await ensureModerationNotification({
         recipientId: authorId,
         type: POST_REJECTED_NOTIFICATION_TYPE,
-        postId
+        postId,
       });
 
       invalidateByTags(['posts', 'profiles', 'notifications']);
       return;
     } catch (error) {
       const isLastAttempt = attempt === MAX_RETRIES;
-      logger.warn('forum-api', `异步发帖审查失败（第${attempt}次，${isLastAttempt ? '已耗尽重试次数' : '即将重试'}）`, {
-        postId,
-        authorId,
-        attempt,
-        error
-      });
+      logger.warn(
+        'forum-api',
+        `异步发帖审查失败（第${attempt}次，${isLastAttempt ? '已耗尽重试次数' : '即将重试'}）`,
+        {
+          postId,
+          authorId,
+          attempt,
+          error,
+        },
+      );
       if (isLastAttempt) {
-        logger.warn('forum-api', '异步发帖审查已耗尽所有重试次数，帖子保持当前状态', { postId, authorId });
+        logger.warn('forum-api', '异步发帖审查已耗尽所有重试次数，帖子保持当前状态', {
+          postId,
+          authorId,
+        });
         return;
       }
       const delayMs = BASE_DELAY_MS * Math.pow(2, attempt - 1);
@@ -254,14 +301,7 @@ async function schedulePostModeration(post = {}) {
 
 function formatPosts(rawPosts = [], currentUserId = null) {
   return rawPosts.map((post) => {
-    const {
-      comments,
-      likes,
-      likes_count,
-      author,
-      user_likes,
-      ...rest
-    } = post;
+    const { comments, likes, likes_count, author, user_likes, ...rest } = post;
 
     return {
       ...rest,
@@ -270,7 +310,9 @@ function formatPosts(rawPosts = [], currentUserId = null) {
       author_avatar_url: author?.avatar_url,
       author_avatar_frame_url: author?.avatar_frame_url || null,
       author_is_banned: Boolean(author?.is_banned),
-      isLiked: currentUserId ? Boolean(user_likes?.some((like) => like.user_id === currentUserId)) : false
+      isLiked: currentUserId
+        ? Boolean(user_likes?.some((like) => like.user_id === currentUserId))
+        : false,
     };
   });
 }
@@ -284,12 +326,14 @@ function normalizeRpcReplyPreview(replies = []) {
   return source.map((reply) => ({
     ...reply,
     author_avatar_url: reply?.author_avatar_url || reply?.author?.avatar_url || null,
-    author_is_banned: Boolean(reply?.author_is_banned ?? reply?.author?.is_banned)
+    author_is_banned: Boolean(reply?.author_is_banned ?? reply?.author?.is_banned),
   }));
 }
 
 function normalizeSortMode(sortMode, fallback = 'latest') {
-  const normalized = String(sortMode || '').trim().toLowerCase();
+  const normalized = String(sortMode || '')
+    .trim()
+    .toLowerCase();
   return ALLOWED_SORT_MODE.has(normalized) ? normalized : fallback;
 }
 
@@ -298,7 +342,7 @@ async function attachLikedFlags(posts = [], userId = null) {
   if (safePosts.every(hasRpcLikeState)) {
     return safePosts.map((post) => ({
       ...post,
-      isLiked: typeof post.isLiked === 'boolean' ? post.isLiked : Boolean(post.is_liked)
+      isLiked: typeof post.isLiked === 'boolean' ? post.isLiked : Boolean(post.is_liked),
     }));
   }
 
@@ -318,14 +362,18 @@ async function attachLikedFlags(posts = [], userId = null) {
     .in('post_id', postIds);
 
   if (error) {
-    logger.warn('forum-api', '批量查询点赞状态失败，降级为未点赞', { error, userId, postCount: postIds.length });
+    logger.warn('forum-api', '批量查询点赞状态失败，降级为未点赞', {
+      error,
+      userId,
+      postCount: postIds.length,
+    });
     return posts.map((post) => ({ ...post, isLiked: false }));
   }
 
   const likedPostIdSet = new Set((likeRows || []).map((row) => row.post_id));
   return posts.map((post) => ({
     ...post,
-    isLiked: likedPostIdSet.has(post.id)
+    isLiked: likedPostIdSet.has(post.id),
   }));
 }
 
@@ -334,9 +382,10 @@ function normalizeWeeklyCheckinPayload(payload = {}) {
   const safe = source || {};
   const streakTotal = Number(safe.streak_total ?? safe.current_streak ?? 0);
   const cycleSize = Math.max(1, Number(safe.cycle_size || 4));
-  const cycleProgress = Math.max(0, Number(
-    safe.cycle_progress ?? (streakTotal === 0 ? 0 : ((streakTotal - 1) % cycleSize) + 1)
-  ));
+  const cycleProgress = Math.max(
+    0,
+    Number(safe.cycle_progress ?? (streakTotal === 0 ? 0 : ((streakTotal - 1) % cycleSize) + 1)),
+  );
   const hasSignedThisWeek = Boolean(safe.has_signed_this_week);
 
   return {
@@ -348,13 +397,14 @@ function normalizeWeeklyCheckinPayload(payload = {}) {
     cycleProgress,
     cycleSize,
     rewardCompletedThisWeek: Boolean(
-      safe.reward_completed_this_week ?? (hasSignedThisWeek && streakTotal > 0 && cycleProgress === cycleSize)
+      safe.reward_completed_this_week ??
+      (hasSignedThisWeek && streakTotal > 0 && cycleProgress === cycleSize),
     ),
     pointsAwarded: Number(safe.points_awarded || 0),
     currentPoints: Number(safe.current_points || 0),
     nextRewardIn: Number(safe.next_reward_in || 4),
     currentWeekStart: safe.current_week_start || null,
-    message: String(safe.message || '')
+    message: String(safe.message || ''),
   };
 }
 
@@ -433,7 +483,7 @@ async function enrichWeeklyCheckinStatusFallback(status, userId = null) {
   const weekSet = new Set(
     data
       .map((item) => String(item?.week_start_date || '').trim())
-      .filter((dateStr) => isIsoDateString(dateStr))
+      .filter((dateStr) => isIsoDateString(dateStr)),
   );
 
   const computedStreak = computeStreakFromWeekSet(anchorWeek, weekSet);
@@ -448,14 +498,16 @@ async function enrichWeeklyCheckinStatusFallback(status, userId = null) {
     cycleProgress: calcCycleProgress(computedStreak),
     cycleSize: 4,
     rewardCompletedThisWeek: false,
-    nextRewardIn: calcNextRewardIn(computedStreak)
+    nextRewardIn: calcNextRewardIn(computedStreak),
   };
 }
 
 // 内容类型筛选规范化：'' 全部；'post' 论坛（含转发）；'news' / 'activity' 官方卡。
 // 返回 { kindFilter: RPC 参数值, kindValues: 直查路径的 post_kind IN 列表 }。
 export const normalizeForumKindFilter = (raw) => {
-  const kind = String(raw || '').trim().toLowerCase();
+  const kind = String(raw || '')
+    .trim()
+    .toLowerCase();
   if (kind === 'news') return { kindFilter: 'news', kindValues: ['news'] };
   if (kind === 'activity') return { kindFilter: 'activity', kindValues: ['activity'] };
   if (kind === 'post') return { kindFilter: 'post', kindValues: ['post', 'repost'] };
@@ -470,17 +522,22 @@ export async function getPosts(userId = null, pagination = {}) {
   const sortMode = normalizeSortMode(pagination.sortMode || pagination.sort || 'latest');
   const searchQuery = String(pagination.searchQuery || '').trim();
   const tagFilter = normalizeForumTag(pagination.tag || pagination.tagFilter || '');
-  const { kindFilter, kindValues } = normalizeForumKindFilter(pagination.kindFilter || pagination.contentType || '');
+  const { kindFilter, kindValues } = normalizeForumKindFilter(
+    pagination.kindFilter || pagination.contentType || '',
+  );
   const includeUnapprovedForAuthor = Boolean(pagination.includeUnapprovedForAuthor);
-  const cursorMode = String(pagination.cursorMode || '').trim().toLowerCase();
+  const cursorMode = String(pagination.cursorMode || '')
+    .trim()
+    .toLowerCase();
   const cursorToken = String(pagination.cursor || '').trim();
   const abortSignal = pagination.signal;
   const followingUserIds = pagination.followingUserIds;
   const parsedCursor = decodePostCursor(cursorToken);
-  const useCursorMode = (cursorMode === 'keyset' || Boolean(parsedCursor))
-    && sortMode === 'latest'
-    && !searchQuery
-    && !(Array.isArray(followingUserIds) && followingUserIds.length);
+  const useCursorMode =
+    (cursorMode === 'keyset' || Boolean(parsedCursor)) &&
+    sortMode === 'latest' &&
+    !searchQuery &&
+    !(Array.isArray(followingUserIds) && followingUserIds.length);
 
   return executeRead(
     'posts.getPosts',
@@ -497,16 +554,14 @@ export async function getPosts(userId = null, pagination = {}) {
       includeUnapprovedForAuthor,
       cursorMode,
       cursorToken,
-      followingUserIds: Array.isArray(followingUserIds) ? followingUserIds.sort().join(',') : null
+      followingUserIds: Array.isArray(followingUserIds) ? followingUserIds.sort().join(',') : null,
     },
     async () => {
       if (useCursorMode) {
         const statusFilter = 'status.is.null,status.eq.approved';
         let query;
         if (userId) {
-          query = supabase
-            .from('posts')
-            .select(`
+          query = supabase.from('posts').select(`
               *,
               comments:comments(count),
               likes_count:likes(count),
@@ -515,9 +570,7 @@ export async function getPosts(userId = null, pagination = {}) {
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
-          query = supabase
-            .from('posts')
-            .select(`
+          query = supabase.from('posts').select(`
               *,
               comments:comments(count),
               likes_count:likes(count),
@@ -535,9 +588,13 @@ export async function getPosts(userId = null, pagination = {}) {
         query = applyForumTagFilter(query, tagFilter);
         if (kindValues) query = query.in('post_kind', kindValues);
 
+        // 降级路径也要带搜索词（同上：追加的 .or 由 PostgREST 按 AND 组合）
+        const cursorSearchOr = buildFallbackSearchOr(searchQuery);
+        if (cursorSearchOr) query = query.or(cursorSearchOr);
+
         if (parsedCursor?.createdAt && parsedCursor?.id) {
           query = query.or(
-            `created_at.lt.${parsedCursor.createdAt},and(created_at.eq.${parsedCursor.createdAt},id.lt.${parsedCursor.id})`
+            `created_at.lt.${parsedCursor.createdAt},and(created_at.eq.${parsedCursor.createdAt},id.lt.${parsedCursor.id})`,
           );
         }
 
@@ -563,15 +620,14 @@ export async function getPosts(userId = null, pagination = {}) {
         p_include_author_non_approved: includeUnapprovedForAuthor,
         p_search_query: searchQuery || null,
         p_tag_filter: tagFilter || null,
-        p_following_user_ids: Array.isArray(followingUserIds) && followingUserIds.length
-          ? followingUserIds
-          : null,
-        p_kind_filter: kindFilter || null
+        p_following_user_ids:
+          Array.isArray(followingUserIds) && followingUserIds.length ? followingUserIds : null,
+        p_kind_filter: kindFilter || null,
       };
 
       let { data: rpcData, error: rpcError } = await withAbortSignal(
         supabase.rpc('list_forum_posts', rpcPayload),
-        abortSignal
+        abortSignal,
       );
       if (rpcError && isMissingRpcFunctionError(rpcError, 'list_forum_posts')) {
         // 旧签名 RPC（无 p_kind_filter / p_tag_filter）降级：去掉新参数重试，
@@ -581,17 +637,23 @@ export async function getPosts(userId = null, pagination = {}) {
         delete legacyPayload.p_kind_filter;
         const legacyResult = await withAbortSignal(
           supabase.rpc('list_forum_posts', legacyPayload),
-          abortSignal
+          abortSignal,
         );
         let legacyRows = Array.isArray(legacyResult.data) ? legacyResult.data : [];
         if (tagFilter && Array.isArray(legacyRows)) {
           legacyRows = legacyRows.filter((row) => matchesForumTagFilter(row?.tag, tagFilter));
         }
         if (kindValues && Array.isArray(legacyRows)) {
-          const kindOfRow = (row) => String(row?.post_kind || '').trim()
-            || (/^【新闻】/.test(String(row?.content || '')) ? 'news'
-              : /^【活动】/.test(String(row?.content || '')) ? 'activity' : 'post');
-          legacyRows = legacyRows.filter((row) => kindOfRow(row) && kindValues.includes(kindOfRow(row)));
+          const kindOfRow = (row) =>
+            String(row?.post_kind || '').trim() ||
+            (/^【新闻】/.test(String(row?.content || ''))
+              ? 'news'
+              : /^【活动】/.test(String(row?.content || ''))
+                ? 'activity'
+                : 'post');
+          legacyRows = legacyRows.filter(
+            (row) => kindOfRow(row) && kindValues.includes(kindOfRow(row)),
+          );
         }
         rpcData = legacyRows;
         rpcError = legacyResult.error;
@@ -606,9 +668,7 @@ export async function getPosts(userId = null, pagination = {}) {
         const statusFilter = 'status.is.null,status.eq.approved';
         let query;
         if (userId) {
-          query = supabase
-            .from('posts')
-            .select(`
+          query = supabase.from('posts').select(`
               *,
               comments:comments(count),
               likes_count:likes(count),
@@ -617,9 +677,7 @@ export async function getPosts(userId = null, pagination = {}) {
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
-          query = supabase
-            .from('posts')
-            .select(`
+          query = supabase.from('posts').select(`
               *,
               comments:comments(count),
               likes_count:likes(count),
@@ -628,7 +686,10 @@ export async function getPosts(userId = null, pagination = {}) {
             `);
         }
 
+        // 降级路径也要带上搜索词（旧行为：搜索被静默忽略 → 「搜了没反应」）
         query = query.or(statusFilter);
+        const fallbackSearchOr = buildFallbackSearchOr(searchQuery);
+        if (fallbackSearchOr) query = query.or(fallbackSearchOr);
         query = applyForumTagFilter(query, tagFilter);
         if (kindValues) query = query.in('post_kind', kindValues);
         if (Array.isArray(followingUserIds) && followingUserIds.length) {
@@ -636,10 +697,8 @@ export async function getPosts(userId = null, pagination = {}) {
         }
 
         const { data, error } = await withAbortSignal(
-          query
-            .order('created_at', { ascending: false })
-            .range(offset, offset + fallbackLimit - 1),
-          abortSignal
+          query.order('created_at', { ascending: false }).range(offset, offset + fallbackLimit - 1),
+          abortSignal,
         );
 
         if (error) return { data: [], error };
@@ -656,9 +715,8 @@ export async function getPosts(userId = null, pagination = {}) {
 
       const safeRows = Array.isArray(rpcData) ? rpcData : [];
       const withLikeState = await attachLikedFlags(safeRows, userId);
-      const normalizedRows = normalizePostListRows(withLikeState
-        .slice(0, normalizedPageSize)
-        .map((row) => ({
+      const normalizedRows = normalizePostListRows(
+        withLikeState.slice(0, normalizedPageSize).map((row) => ({
           ...row,
           comment_count: Number(row.comment_count || 0),
           like_count: Number(row.like_count || 0),
@@ -668,22 +726,32 @@ export async function getPosts(userId = null, pagination = {}) {
           replies_preloaded: Array.isArray(row.replies),
           search_excerpt: row.search_excerpt || null,
           hot_score: Number(row.hot_score || 0),
-          search_rank: Number(row.search_rank || 0)
-        })));
+          search_rank: Number(row.search_rank || 0),
+        })),
+      );
       const rpcHasMore = safeRows.find((row) => typeof row?.has_more === 'boolean')?.has_more;
-      const hasMore = typeof rpcHasMore === 'boolean' ? rpcHasMore : safeRows.length >= normalizedPageSize;
+      const hasMore =
+        typeof rpcHasMore === 'boolean' ? rpcHasMore : safeRows.length >= normalizedPageSize;
       const nextCursor = buildNextPostCursor(normalizedRows, hasMore);
       return { data: normalizedRows, error: null, hasMore, nextCursor };
     },
     // options.signal 交给 request-core：队列里未发出的请求可直接丢弃，
     // 重试前也会先判 signal.aborted（不拿已 abort 的 signal 再发一次）。
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1, signal: abortSignal }
+    {
+      ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
+      tags: ['posts'],
+      timeoutMs: 8000,
+      retry: 1,
+      signal: abortSignal,
+    },
   );
 }
 
 export async function getPostsCount(userId = null, { countMode = 'planned' } = {}) {
   const statusFilter = 'status.is.null,status.eq.approved';
-  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode) ? countMode : 'planned';
+  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode)
+    ? countMode
+    : 'planned';
 
   const { data, error, ok } = await executeRead(
     'posts.getPostsCount',
@@ -696,7 +764,7 @@ export async function getPostsCount(userId = null, { countMode = 'planned' } = {
       if (error) return { data: { count: 0 }, error };
       return { data: { count: count || 0 }, error: null };
     },
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 },
   );
 
   return { ok, count: data?.count || 0, data, error };
@@ -722,7 +790,7 @@ export async function getForumTagStats() {
       if (fallback.error) return { data: [], error: fallback.error };
 
       const counts = new Map();
-      for (const row of (fallback.data || [])) {
+      for (const row of fallback.data || []) {
         const tag = normalizeForumTag(row?.tag);
         if (!tag) continue;
         counts.set(tag, (counts.get(tag) || 0) + 1);
@@ -730,10 +798,10 @@ export async function getForumTagStats() {
 
       return {
         data: [...counts.entries()].map(([tag, count]) => ({ tag, post_count: count })),
-        error: null
+        error: null,
       };
     },
-    { ttlMs: CACHE_TTL_LEVELS.STATIC_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.STATIC_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 },
   );
 
   return { ok, data: Array.isArray(data) ? data : [], error: normalizeDbError(error) };
@@ -745,7 +813,7 @@ export async function getPostEngagementStats(postId) {
     return {
       ok: false,
       data: { commentCount: 0, likeCount: 0 },
-      error: normalizeDbError({ message: '缺少帖子 ID' })
+      error: normalizeDbError({ message: '缺少帖子 ID' }),
     };
   }
 
@@ -760,9 +828,9 @@ export async function getPostEngagementStats(postId) {
       ok: true,
       data: {
         commentCount: Number(counterRow.comment_count || 0),
-        likeCount: Number(counterRow.like_count || 0)
+        likeCount: Number(counterRow.like_count || 0),
       },
-      error: null
+      error: null,
     };
   }
 
@@ -772,10 +840,7 @@ export async function getPostEngagementStats(postId) {
       .select('id', { count: 'exact', head: true })
       .eq('post_id', safePostId)
       .or('status.is.null,status.eq.approved'),
-    supabase
-      .from('likes')
-      .select('id', { count: 'exact', head: true })
-      .eq('post_id', safePostId)
+    supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', safePostId),
   ]);
 
   const error = commentRes.error || likeRes.error;
@@ -783,13 +848,23 @@ export async function getPostEngagementStats(postId) {
     ok: !error,
     data: {
       commentCount: Number(commentRes.count || 0),
-      likeCount: Number(likeRes.count || 0)
+      likeCount: Number(likeRes.count || 0),
     },
-    error: normalizeDbError(error)
+    error: normalizeDbError(error),
   };
 }
 
-export async function createPostWithImages(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '', location = null, options = {}) {
+export async function createPostWithImages(
+  content,
+  authorId,
+  authorUsername,
+  status = 'approved',
+  title = '',
+  images = [],
+  tag = '',
+  location = null,
+  options = {},
+) {
   const safeImages = normalizeForumImages(images);
   const safeTag = normalizeForumTag(tag);
   if (safeImages.length > FORUM_IMAGE_MAX_COUNT) {
@@ -798,8 +873,8 @@ export async function createPostWithImages(content, authorId, authorUsername, st
       data: null,
       error: normalizeDbError({
         code: 'FORUM_IMAGE_LIMIT',
-        message: `每个帖子最多发布 ${FORUM_IMAGE_MAX_COUNT} 张图片`
-      })
+        message: `每个帖子最多发布 ${FORUM_IMAGE_MAX_COUNT} 张图片`,
+      }),
     };
   }
 
@@ -811,15 +886,13 @@ export async function createPostWithImages(content, authorId, authorUsername, st
       data: null,
       error: normalizeDbError({
         code: 'EMPTY_POST_CONTENT',
-        message: '请填写标题'
-      })
+        message: '请填写标题',
+      }),
     };
   }
 
-  const {
-    authorId: resolvedAuthorId,
-    authorUsername: resolvedAuthorUsername
-  } = await resolvePostAuthorIdentity(authorId, authorUsername);
+  const { authorId: resolvedAuthorId, authorUsername: resolvedAuthorUsername } =
+    await resolvePostAuthorIdentity(authorId, authorUsername);
 
   if (!resolvedAuthorId) {
     return {
@@ -827,8 +900,8 @@ export async function createPostWithImages(content, authorId, authorUsername, st
       data: null,
       error: normalizeDbError({
         code: 'NOT_AUTHENTICATED',
-        message: '登录状态已失效，请重新登录后再发帖'
-      })
+        message: '登录状态已失效，请重新登录后再发帖',
+      }),
     };
   }
 
@@ -841,8 +914,8 @@ export async function createPostWithImages(content, authorId, authorUsername, st
       data: null,
       error: normalizeDbError({
         code: 'LOCAL_KEYWORD_BLOCK',
-        message: keywordModerationResult.message || '命中高风险违禁词，已拒绝发布'
-      })
+        message: keywordModerationResult.message || '命中高风险违禁词，已拒绝发布',
+      }),
     };
   }
 
@@ -854,19 +927,27 @@ export async function createPostWithImages(content, authorId, authorUsername, st
     p_tag: safeTag || null,
     p_location_name: location?.name || null,
     p_location_lat: location?.lat ?? null,
-    p_location_lng: location?.lng ?? null
+    p_location_lng: location?.lng ?? null,
   };
   const submissionId = String(options?.submissionId || '').trim();
-  const rpcName = submissionId ? 'create_forum_post_with_images_idempotent' : 'create_forum_post_with_images';
-  const requestPayload = submissionId ? { ...rpcPayload, p_submission_id: submissionId } : rpcPayload;
+  const rpcName = submissionId
+    ? 'create_forum_post_with_images_idempotent'
+    : 'create_forum_post_with_images';
+  const requestPayload = submissionId
+    ? { ...rpcPayload, p_submission_id: submissionId }
+    : rpcPayload;
   let { data, error } = await supabase.rpc(rpcName, requestPayload);
   if (submissionId && error && isMissingRpcFunctionError(error, rpcName)) {
     // Deploy compatibility: existing installations still publish through the stable RPC.
     // 降级会失去幂等保护（网络超时重试可能重复发帖），必须留下可观测告警提醒尽快执行迁移
-    logger.warn('forum-api', '幂等发帖 RPC 未部署，已降级为普通 RPC（请尽快执行 2026081503 迁移）', {
-      rpcName,
-      submissionId
-    });
+    logger.warn(
+      'forum-api',
+      '幂等发帖 RPC 未部署，已降级为普通 RPC（请尽快执行 2026081503 迁移）',
+      {
+        rpcName,
+        submissionId,
+      },
+    );
     ({ data, error } = await supabase.rpc('create_forum_post_with_images', rpcPayload));
   }
   if (error && isMissingRpcFunctionError(error, 'create_forum_post_with_images')) {
@@ -886,8 +967,8 @@ export async function createPostWithImages(content, authorId, authorUsername, st
         data: null,
         error: normalizeDbError({
           code: 'FORUM_IMAGE_MIGRATION_REQUIRED',
-          message: '论坛图片发布功能的数据库迁移尚未部署，请先执行最新 Supabase migration 后再试'
-        })
+          message: '论坛图片发布功能的数据库迁移尚未部署，请先执行最新 Supabase migration 后再试',
+        }),
       };
     }
     return { ok: false, data: null, error: normalizeForumImagePostError(error) };
@@ -905,7 +986,7 @@ export async function createPostWithImages(content, authorId, authorUsername, st
       logger.warn('forum-api', '图片帖标签回写失败', {
         postId: insertedPostId,
         tag: safeTag,
-        error: tagUpdateError
+        error: tagUpdateError,
       });
     } else {
       insertedPost.tag = safeTag;
@@ -918,38 +999,61 @@ export async function createPostWithImages(content, authorId, authorUsername, st
     void schedulePostModeration({
       id: insertedPostId,
       author_id: resolvedAuthorId,
-      content: finalContent
-    }).catch((err) => logger.warn('forum-api', '帖子异步审核入队失败（后台重试由浏览器端兜底）', err));
+      content: finalContent,
+    }).catch((err) =>
+      logger.warn('forum-api', '帖子异步审核入队失败（后台重试由浏览器端兜底）', err),
+    );
   }
-  void markCloudinaryUploadsClaimed(safeImages).then((claimResult) => {
-    if (!claimResult.ok) {
-      logger.warn('forum-api', '论坛图片 pending 归属标记失败', claimResult.error);
-      const orphanPublicIds = cleanupOrphanedUploads(safeImages);
-      if (orphanPublicIds.length > 0) {
-        deleteCloudinaryAssetsByPublicIds(orphanPublicIds).then((cleanupResult) => {
-          if (!cleanupResult.ok) {
-            logger.warn('forum-api', '清理孤儿 Cloudinary 图片失败', cleanupResult.error);
-          }
-        });
+  void markCloudinaryUploadsClaimed(safeImages)
+    .then((claimResult) => {
+      if (!claimResult.ok) {
+        logger.warn('forum-api', '论坛图片 pending 归属标记失败', claimResult.error);
+        const orphanPublicIds = cleanupOrphanedUploads(safeImages);
+        if (orphanPublicIds.length > 0) {
+          deleteCloudinaryAssetsByPublicIds(orphanPublicIds).then((cleanupResult) => {
+            if (!cleanupResult.ok) {
+              logger.warn('forum-api', '清理孤儿 Cloudinary 图片失败', cleanupResult.error);
+            }
+          });
+        }
       }
-    }
-  }).catch((err) => logger.warn('forum-api', '论坛图片 pending 归属标记异常', err));
+    })
+    .catch((err) => logger.warn('forum-api', '论坛图片 pending 归属标记异常', err));
 
   return { ok: true, data: [insertedPost], error: null };
 }
 
-export async function createPost(content, authorId, authorUsername, status = 'approved', title = '', images = [], tag = '', location = null, options = {}) {
+export async function createPost(
+  content,
+  authorId,
+  authorUsername,
+  status = 'approved',
+  title = '',
+  images = [],
+  tag = '',
+  location = null,
+  options = {},
+) {
   if (Array.isArray(images) && images.length > 0) {
-    return createPostWithImages(content, authorId, authorUsername, status, title, images, tag, location, options);
+    return createPostWithImages(
+      content,
+      authorId,
+      authorUsername,
+      status,
+      title,
+      images,
+      tag,
+      location,
+      options,
+    );
   }
 
   const safeTitle = String(title || '').trim();
   const safeContent = String(content || '').trim();
   const safeTag = normalizeForumTag(tag);
   const normalizedStatus = normalizeContentStatus(status);
-  const finalContent = (safeTitle && !/^【.*?】/.test(safeContent))
-    ? `【${safeTitle}】\n${safeContent}`
-    : safeContent;
+  const finalContent =
+    safeTitle && !/^【.*?】/.test(safeContent) ? `【${safeTitle}】\n${safeContent}` : safeContent;
   const postParts = splitPostContent(finalContent, safeTitle, safeTitle ? safeContent : '');
 
   if (!finalContent) {
@@ -958,15 +1062,13 @@ export async function createPost(content, authorId, authorUsername, status = 'ap
       data: null,
       error: normalizeDbError({
         code: 'EMPTY_POST_CONTENT',
-        message: '帖子内容不能为空'
-      })
+        message: '帖子内容不能为空',
+      }),
     };
   }
 
-  const {
-    authorId: resolvedAuthorId,
-    authorUsername: resolvedAuthorUsername
-  } = await resolvePostAuthorIdentity(authorId, authorUsername);
+  const { authorId: resolvedAuthorId, authorUsername: resolvedAuthorUsername } =
+    await resolvePostAuthorIdentity(authorId, authorUsername);
 
   if (!resolvedAuthorId) {
     return {
@@ -974,8 +1076,8 @@ export async function createPost(content, authorId, authorUsername, status = 'ap
       data: null,
       error: normalizeDbError({
         code: 'NOT_AUTHENTICATED',
-        message: '登录状态已失效，请重新登录后再发帖'
-      })
+        message: '登录状态已失效，请重新登录后再发帖',
+      }),
     };
   }
 
@@ -988,8 +1090,8 @@ export async function createPost(content, authorId, authorUsername, status = 'ap
       data: null,
       error: normalizeDbError({
         code: 'LOCAL_KEYWORD_BLOCK',
-        message: keywordModerationResult.message || '命中高风险违禁词，已拒绝发布'
-      })
+        message: keywordModerationResult.message || '命中高风险违禁词，已拒绝发布',
+      }),
     };
   }
 
@@ -1003,14 +1105,18 @@ export async function createPost(content, authorId, authorUsername, status = 'ap
     ...(includeTag && safeTag ? { tag: safeTag } : {}),
     location_name: location?.name || null,
     location_lat: location?.lat ?? null,
-    location_lng: location?.lng ?? null
+    location_lng: location?.lng ?? null,
   });
 
   let { data, error } = await supabase
     .from('posts')
     .insert([buildInsertPayload(true)])
     .select();
-  if (error && safeTag && /tag.+column|column.+tag|schema cache/i.test(String(error.message || ''))) {
+  if (
+    error &&
+    safeTag &&
+    /tag.+column|column.+tag|schema cache/i.test(String(error.message || ''))
+  ) {
     const fallbackResult = await supabase
       .from('posts')
       .insert([buildInsertPayload(false)])
@@ -1023,7 +1129,9 @@ export async function createPost(content, authorId, authorUsername, status = 'ap
 
   if (!error && Array.isArray(data) && data[0]?.id) {
     const inserted = data[0];
-    const insertedStatus = String(inserted.status || '').trim().toLowerCase();
+    const insertedStatus = String(inserted.status || '')
+      .trim()
+      .toLowerCase();
     if (!ALLOWED_CONTENT_STATUS.has(insertedStatus)) {
       const { error: normalizeError } = await supabase
         .from('posts')
@@ -1036,7 +1144,7 @@ export async function createPost(content, authorId, authorUsername, status = 'ap
           postId: inserted.id,
           status: inserted.status,
           normalizeTo: normalizedStatus,
-          error: normalizeError
+          error: normalizeError,
         });
       } else {
         inserted.status = normalizedStatus;
@@ -1050,7 +1158,7 @@ export async function createPost(content, authorId, authorUsername, status = 'ap
       await schedulePostModeration({
         id: insertedPostId,
         author_id: resolvedAuthorId,
-        content: finalContent
+        content: finalContent,
       });
     }
   }
@@ -1065,8 +1173,8 @@ export async function getForumPostDraft(userId) {
       data: null,
       error: normalizeDbError({
         code: 'NOT_AUTHENTICATED',
-        message: '登录后才能读取云端草稿'
-      })
+        message: '登录后才能读取云端草稿',
+      }),
     };
   }
 
@@ -1095,8 +1203,8 @@ export async function upsertForumPostDraft(userId, draft = {}) {
       data: null,
       error: normalizeDbError({
         code: 'NOT_AUTHENTICATED',
-        message: '登录后才能保存云端草稿'
-      })
+        message: '登录后才能保存云端草稿',
+      }),
     };
   }
 
@@ -1106,13 +1214,16 @@ export async function upsertForumPostDraft(userId, draft = {}) {
 
   const { data, error } = await supabase
     .from('forum_post_drafts')
-    .upsert({
-      user_id: safeUserId,
-      title,
-      content,
-      tag,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' })
+    .upsert(
+      {
+        user_id: safeUserId,
+        title,
+        content,
+        tag,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    )
     .select('title, content, tag, updated_at')
     .single();
 
@@ -1131,15 +1242,12 @@ export async function deleteForumPostDraft(userId) {
       data: null,
       error: normalizeDbError({
         code: 'NOT_AUTHENTICATED',
-        message: '登录后才能删除云端草稿'
-      })
+        message: '登录后才能删除云端草稿',
+      }),
     };
   }
 
-  const { error } = await supabase
-    .from('forum_post_drafts')
-    .delete()
-    .eq('user_id', safeUserId);
+  const { error } = await supabase.from('forum_post_drafts').delete().eq('user_id', safeUserId);
 
   if (error) {
     return { ok: false, data: null, error: normalizeDbError(error) };
@@ -1155,12 +1263,8 @@ export async function deletePost(postId, userId, userRole) {
   }
 
   const [{ data: post, error: postError }, imageResult] = await Promise.all([
-    supabase
-      .from('posts')
-      .select('author_id')
-      .eq('id', safePostId)
-      .single(),
-    getForumPostImages(safePostId)
+    supabase.from('posts').select('author_id').eq('id', safePostId).single(),
+    getForumPostImages(safePostId),
   ]);
 
   if (postError) {
@@ -1174,7 +1278,9 @@ export async function deletePost(postId, userId, userRole) {
 
   const { error: deleteError } = await supabase.from('posts').delete().eq('id', safePostId);
   if (deleteError) {
-    const denied = deleteError.code === '42501' || /permission|policy|authorized/i.test(String(deleteError.message || ''));
+    const denied =
+      deleteError.code === '42501' ||
+      /permission|policy|authorized/i.test(String(deleteError.message || ''));
     return { ok: false, success: false, error: denied ? '没有权限删除此帖子' : '删除失败' };
   }
 
@@ -1186,7 +1292,7 @@ export async function deletePost(postId, userId, userRole) {
       if (!result.ok) {
         logger.warn('forum-api', '删除帖子后清理 Cloudinary 图片失败（不阻断）', {
           postId: safePostId,
-          error: result.error
+          error: result.error,
         });
       }
     });
@@ -1204,17 +1310,18 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
   const sortMode = normalizeSortMode(pagination.sortMode || pagination.sort || 'latest');
   const searchQuery = String(pagination.searchQuery || '').trim();
   const tagFilter = normalizeForumTag(pagination.tag || pagination.tagFilter || '');
-  const cursorMode = String(pagination.cursorMode || '').trim().toLowerCase();
+  const cursorMode = String(pagination.cursorMode || '')
+    .trim()
+    .toLowerCase();
   const cursorToken = String(pagination.cursor || '').trim();
   const abortSignal = pagination.signal;
   const parsedCursor = decodePostCursor(cursorToken);
-  const useCursorMode = (cursorMode === 'keyset' || Boolean(parsedCursor))
-    && sortMode === 'latest'
-    && !searchQuery;
+  const useCursorMode =
+    (cursorMode === 'keyset' || Boolean(parsedCursor)) && sortMode === 'latest' && !searchQuery;
   const includeUnapprovedForAuthor = Boolean(
     pagination.includeUnapprovedForAuthor !== undefined
       ? pagination.includeUnapprovedForAuthor
-      : (targetUserId && currentUserId && String(targetUserId) === String(currentUserId))
+      : targetUserId && currentUserId && String(targetUserId) === String(currentUserId),
   );
 
   return executeRead(
@@ -1231,15 +1338,13 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
       tagFilter,
       includeUnapprovedForAuthor,
       cursorMode,
-      cursorToken
+      cursorToken,
     },
     async () => {
       if (useCursorMode) {
         let query;
         if (currentUserId) {
-          query = supabase
-            .from('posts')
-            .select(`
+          query = supabase.from('posts').select(`
               *,
               comments:comments(count),
               likes_count:likes(count),
@@ -1248,9 +1353,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
-          query = supabase
-            .from('posts')
-            .select(`
+          query = supabase.from('posts').select(`
               *,
               comments:comments(count),
               likes_count:likes(count),
@@ -1265,7 +1368,9 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
           .order('id', { ascending: false })
           .limit(normalizedPageSize + 1);
 
-        if (!(includeUnapprovedForAuthor && String(targetUserId || '') === String(currentUserId || ''))) {
+        if (!(
+          includeUnapprovedForAuthor && String(targetUserId || '') === String(currentUserId || '')
+        )) {
           query = query.or('status.is.null,status.eq.approved');
         }
 
@@ -1273,7 +1378,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
 
         if (parsedCursor?.createdAt && parsedCursor?.id) {
           query = query.or(
-            `created_at.lt.${parsedCursor.createdAt},and(created_at.eq.${parsedCursor.createdAt},id.lt.${parsedCursor.id})`
+            `created_at.lt.${parsedCursor.createdAt},and(created_at.eq.${parsedCursor.createdAt},id.lt.${parsedCursor.id})`,
           );
         }
 
@@ -1298,23 +1403,24 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
         p_author_id: targetUserId,
         p_include_author_non_approved: includeUnapprovedForAuthor,
         p_search_query: searchQuery || null,
-        p_tag_filter: tagFilter || null
+        p_tag_filter: tagFilter || null,
       };
 
       let { data: rpcData, error: rpcError } = await withAbortSignal(
         supabase.rpc('list_forum_posts', rpcPayload),
-        abortSignal
+        abortSignal,
       );
       if (rpcError && isMissingRpcFunctionError(rpcError, 'list_forum_posts')) {
         const legacyPayload = { ...rpcPayload };
         delete legacyPayload.p_tag_filter;
         const legacyResult = await withAbortSignal(
           supabase.rpc('list_forum_posts', legacyPayload),
-          abortSignal
+          abortSignal,
         );
-        rpcData = tagFilter && Array.isArray(legacyResult.data)
-          ? legacyResult.data.filter((row) => matchesForumTagFilter(row?.tag, tagFilter))
-          : legacyResult.data;
+        rpcData =
+          tagFilter && Array.isArray(legacyResult.data)
+            ? legacyResult.data.filter((row) => matchesForumTagFilter(row?.tag, tagFilter))
+            : legacyResult.data;
         rpcError = legacyResult.error;
       }
       if (rpcError) {
@@ -1325,9 +1431,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
 
         let query;
         if (currentUserId) {
-          query = supabase
-            .from('posts')
-            .select(`
+          query = supabase.from('posts').select(`
               *,
               comments:comments(count),
               likes_count:likes(count),
@@ -1336,9 +1440,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
               forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
             `);
         } else {
-          query = supabase
-            .from('posts')
-            .select(`
+          query = supabase.from('posts').select(`
               *,
               comments:comments(count),
               likes_count:likes(count),
@@ -1347,9 +1449,14 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
             `);
         }
 
-        if (!(includeUnapprovedForAuthor && String(targetUserId || '') === String(currentUserId || ''))) {
-          query = query.or('status.is.null,status.eq.approved');
+        /* 降级路径也要带搜索词（.or 是追加语义，两个条件由 PostgREST 按 AND 组合） */
+        if (!(
+          includeUnapprovedForAuthor && String(targetUserId || '') === String(currentUserId || '')
+        )) {
+          query = query.or(FALLBACK_STATUS_FILTER);
         }
+        const fallbackSearchOr = buildFallbackSearchOr(searchQuery);
+        if (fallbackSearchOr) query = query.or(fallbackSearchOr);
         query = applyForumTagFilter(query, tagFilter);
 
         const { data, error } = await withAbortSignal(
@@ -1357,7 +1464,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
             .eq('author_id', targetUserId)
             .order('created_at', { ascending: false })
             .range(offset, offset + fallbackLimit - 1),
-          abortSignal
+          abortSignal,
         );
 
         if (error) return { data: [], error };
@@ -1374,9 +1481,8 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
 
       const safeRows = Array.isArray(rpcData) ? rpcData : [];
       const withLikeState = await attachLikedFlags(safeRows, currentUserId);
-      const normalizedRows = normalizePostListRows(withLikeState
-        .slice(0, normalizedPageSize)
-        .map((row) => ({
+      const normalizedRows = normalizePostListRows(
+        withLikeState.slice(0, normalizedPageSize).map((row) => ({
           ...row,
           comment_count: Number(row.comment_count || 0),
           like_count: Number(row.like_count || 0),
@@ -1386,15 +1492,23 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
           replies_preloaded: Array.isArray(row.replies),
           search_excerpt: row.search_excerpt || null,
           hot_score: Number(row.hot_score || 0),
-          search_rank: Number(row.search_rank || 0)
-        })));
+          search_rank: Number(row.search_rank || 0),
+        })),
+      );
       const rpcHasMore = safeRows.find((row) => typeof row?.has_more === 'boolean')?.has_more;
-      const hasMore = typeof rpcHasMore === 'boolean' ? rpcHasMore : safeRows.length >= normalizedPageSize;
+      const hasMore =
+        typeof rpcHasMore === 'boolean' ? rpcHasMore : safeRows.length >= normalizedPageSize;
       const nextCursor = buildNextPostCursor(normalizedRows, hasMore);
       return { data: normalizedRows, error: null, hasMore, nextCursor };
     },
     // 同 getPosts：signal 交给 request-core 管队列与重试的取消
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts', `posts:user:${targetUserId}`], timeoutMs: 8000, retry: 1, signal: abortSignal }
+    {
+      ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
+      tags: ['posts', `posts:user:${targetUserId}`],
+      timeoutMs: 8000,
+      retry: 1,
+      signal: abortSignal,
+    },
   );
 }
 
@@ -1428,7 +1542,7 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
     return {
       ok: false,
       success: false,
-      error: keywordModerationResult.message || '命中高风险违禁词，已拒绝保存'
+      error: keywordModerationResult.message || '命中高风险违禁词，已拒绝保存',
     };
   }
 
@@ -1441,23 +1555,26 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
     // Client-provided roles must never promote content. Admin moderation uses
     // a server-side RPC; ordinary edits preserve the current status.
     status: currentStatus,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
-  const { error: updateError } = await supabase
-    .from('posts')
-    .update(updateData)
-    .eq('id', postId);
+  const { error: updateError } = await supabase.from('posts').update(updateData).eq('id', postId);
 
   if (updateError) {
     logger.error('forum-api', '更新帖子失败', updateError);
-    const denied = updateError.code === '42501' || /permission|policy|authorized/i.test(String(updateError.message || ''));
-    return { ok: false, success: false, error: denied ? '没有权限编辑此帖子' : `更新失败: ${updateError.message}` };
+    const denied =
+      updateError.code === '42501' ||
+      /permission|policy|authorized/i.test(String(updateError.message || ''));
+    return {
+      ok: false,
+      success: false,
+      error: denied ? '没有权限编辑此帖子' : `更新失败: ${updateError.message}`,
+    };
   }
 
   await schedulePostModeration({
     id: postId,
     author_id: post.author_id,
-    content: safeContent
+    content: safeContent,
   });
 
   invalidateByTags(['posts', 'comments', 'notifications']);
@@ -1481,7 +1598,7 @@ export async function updateForumPostImages(postId, images = []) {
   try {
     const { data, error } = await supabase.rpc('update_forum_post_images', {
       p_post_id: safePostId,
-      p_images: safeImages
+      p_images: safeImages,
     });
 
     if (error) {
@@ -1494,8 +1611,8 @@ export async function updateForumPostImages(postId, images = []) {
           data: null,
           error: normalizeDbError({
             code: 'FORUM_IMAGE_MIGRATION_REQUIRED',
-            message: '帖子图片编辑的数据库迁移尚未部署，请先执行最新 Supabase migration 后再试'
-          })
+            message: '帖子图片编辑的数据库迁移尚未部署，请先执行最新 Supabase migration 后再试',
+          }),
         };
       }
       // 拆出业务错误码与用户可读文案（RPC 内以 "CODE:message" 抛出）
@@ -1507,8 +1624,8 @@ export async function updateForumPostImages(postId, images = []) {
           data: null,
           error: normalizeDbError({
             code,
-            message: message.slice(colonIndex + 1).trim() || message
-          })
+            message: message.slice(colonIndex + 1).trim() || message,
+          }),
         };
       }
       return { ok: false, data: null, error: normalizeDbError(error) };
@@ -1535,14 +1652,18 @@ export async function retryPostModeration(postId, userId) {
     .single();
 
   if (postError || !post) {
-    return { ok: false, resultStatus: null, error: normalizeDbError(postError || { message: '帖子不存在' }) };
+    return {
+      ok: false,
+      resultStatus: null,
+      error: normalizeDbError(postError || { message: '帖子不存在' }),
+    };
   }
 
   if (post.author_id !== userId) {
     return {
       ok: false,
       resultStatus: null,
-      error: normalizeDbError({ message: '没有权限重试该帖子', code: 'NO_PERMISSION' })
+      error: normalizeDbError({ message: '没有权限重试该帖子', code: 'NO_PERMISSION' }),
     };
   }
 
@@ -1554,7 +1675,7 @@ export async function retryPostModeration(postId, userId) {
     .from('posts')
     .update({
       status: nextStatus,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     })
     .eq('id', safePostId)
     .eq('author_id', userId);
@@ -1568,7 +1689,7 @@ export async function retryPostModeration(postId, userId) {
     ok: true,
     resultStatus: result.status === 'approved' ? 'approved' : 'rejected',
     data: { postId: safePostId, status: nextStatus },
-    error: null
+    error: null,
   };
 }
 
@@ -1599,8 +1720,8 @@ export async function getWeeklyCheckinStatus(userId = null) {
       ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: ['weekly-checkin', `weekly-checkin:user:${resolvedUserId || 'anonymous'}`, 'profiles'],
       timeoutMs: 8000,
-      retry: 0
-    }
+      retry: 0,
+    },
   );
 
   return { ok, data: data || normalizeWeeklyCheckinPayload(), error: normalizeDbError(error) };
@@ -1612,7 +1733,7 @@ export async function submitWeeklyCheckin() {
     return {
       ok: false,
       data: normalizeWeeklyCheckinPayload(),
-      error: normalizeDbError(error)
+      error: normalizeDbError(error),
     };
   }
 
@@ -1620,7 +1741,7 @@ export async function submitWeeklyCheckin() {
   return {
     ok: true,
     data: normalizeWeeklyCheckinPayload(data),
-    error: null
+    error: null,
   };
 }
 
@@ -1637,7 +1758,7 @@ export async function claimPostPublishReward(supabaseClient, postId) {
   }
   try {
     const { data, error } = await supabaseClient.rpc('grant_post_publish_reward', {
-      p_post_id: safePostId
+      p_post_id: safePostId,
     });
     if (error) {
       logger.warn('forum-api', '发帖奖励发放失败', { postId: safePostId, error });
@@ -1652,7 +1773,7 @@ export async function claimPostPublishReward(supabaseClient, postId) {
       skipped: Boolean(safe.skipped),
       reason: safe.reason || '',
       campaignTitle: safe.campaign_title || '',
-      message: safe.message || ''
+      message: safe.message || '',
     };
   } catch (err) {
     logger.error('forum-api', 'claimPostPublishReward 异常', err);
@@ -1676,7 +1797,7 @@ export async function getActivePostReward(supabaseClient) {
       id: data.id,
       title: data.title || '',
       pointsPerPost: Number(data.pointsPerPost || 0),
-      endAt: data.endAt || null
+      endAt: data.endAt || null,
     };
   } catch (err) {
     logger.error('forum-api', 'getActivePostReward 异常', err);

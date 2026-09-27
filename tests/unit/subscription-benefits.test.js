@@ -5,9 +5,12 @@ import {
   PLAN_CLOUD_IMAGE_LIMITS,
   PLAN_LAB_QUOTAS,
   PLAN_LOTTERY_PITY_THRESHOLDS,
+  PLAN_PHOTO_ALBUM_COUNTS,
+  PLAN_PHOTO_ALBUM_EXPORTS,
+  PLAN_PHOTO_ALBUM_PHOTOS,
   TIER_NICKNAME_COLORS,
   resolveCloudBenefitFromPlanCodes,
-  resolveCloudBenefitFromSubscriptions
+  resolveCloudBenefitFromSubscriptions,
 } from '../../src/utils/subscription-benefits.js';
 
 describe('subscription Cloud+ benefits', () => {
@@ -26,10 +29,13 @@ describe('subscription Cloud+ benefits', () => {
 
   it('ignores expired subscription records', () => {
     const nowTs = Date.parse('2026-05-21T00:00:00Z');
-    const benefit = resolveCloudBenefitFromSubscriptions([
-      { planCode: 'max', status: 'active', expiresAt: '2026-05-20T00:00:00Z' },
-      { planCode: 'pro', status: 'active', expiresAt: '2026-05-22T00:00:00Z' }
-    ], nowTs);
+    const benefit = resolveCloudBenefitFromSubscriptions(
+      [
+        { planCode: 'max', status: 'active', expiresAt: '2026-05-20T00:00:00Z' },
+        { planCode: 'pro', status: 'active', expiresAt: '2026-05-22T00:00:00Z' },
+      ],
+      nowTs,
+    );
 
     expect(benefit.cloudImageLimit).toBe(450);
   });
@@ -45,11 +51,20 @@ describe('plan benefit showcase single source (订阅页卡片与对比表共用
       expect(PLAN_CLOUD_IMAGE_LIMITS[code]).toBeGreaterThan(0);
       expect(Object.prototype.hasOwnProperty.call(TIER_NICKNAME_COLORS, code)).toBe(true);
       expect(Object.prototype.hasOwnProperty.call(PLAN_LOTTERY_PITY_THRESHOLDS, code)).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(PLAN_PHOTO_ALBUM_COUNTS, code)).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(PLAN_PHOTO_ALBUM_PHOTOS, code)).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(PLAN_PHOTO_ALBUM_EXPORTS, code)).toBe(true);
     });
   });
 
   it('keeps Cloud+ showcase limits identical to granted quotas', () => {
-    expect(PLAN_CLOUD_IMAGE_LIMITS).toEqual({ free: 150, plus: 300, pro: 450, max: 900, ultra: 1200 });
+    expect(PLAN_CLOUD_IMAGE_LIMITS).toEqual({
+      free: 150,
+      plus: 300,
+      pro: 450,
+      max: 900,
+      ultra: 1200,
+    });
   });
 
   it('keeps nickname showcase aligned with tier color classes', () => {
@@ -58,11 +73,41 @@ describe('plan benefit showcase single source (订阅页卡片与对比表共用
       plus: 'nickname-blue',
       pro: 'nickname-silver',
       max: 'nickname-gold',
-      ultra: 'nickname-rainbow'
+      ultra: 'nickname-rainbow',
     });
   });
 
   it('keeps lottery pity thresholds aligned with PityIslandCard copy (Plus 24 · Pro 18 · Max 12 · Ultra 8, 场)', () => {
-    expect(PLAN_LOTTERY_PITY_THRESHOLDS).toEqual({ free: null, plus: 24, pro: 18, max: 12, ultra: 8 });
+    expect(PLAN_LOTTERY_PITY_THRESHOLDS).toEqual({
+      free: null,
+      plus: 24,
+      pro: 18,
+      max: 12,
+      ultra: 8,
+    });
+  });
+
+  it('keeps photo album showcase aligned with quota.js enforcement maps (utils/photo-albums/quota.js 三张 MAP)', () => {
+    expect(PLAN_PHOTO_ALBUM_COUNTS).toEqual({
+      free: '1 本',
+      plus: '3 本',
+      pro: '5 本',
+      max: '10 本',
+      ultra: '不限',
+    });
+    expect(PLAN_PHOTO_ALBUM_PHOTOS).toEqual({
+      free: '12 张',
+      plus: '24 张',
+      pro: '40 张',
+      max: '60 张',
+      ultra: '不限',
+    });
+    expect(PLAN_PHOTO_ALBUM_EXPORTS).toEqual({
+      free: '2 次 / 月',
+      plus: '5 次 / 月',
+      pro: '10 次 / 月',
+      max: '20 次 / 月',
+      ultra: '不限',
+    });
   });
 });

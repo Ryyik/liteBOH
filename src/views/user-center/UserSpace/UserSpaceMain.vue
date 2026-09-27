@@ -1,31 +1,58 @@
 <template>
-  <div ref="pageRootRef" class="user-space-page" :class="{
-    'tab-transition-forward': tabTransitionDirection === 'forward',
-    'tab-transition-back': tabTransitionDirection === 'back',
-    'edge-swipe-active': isEdgeSwiping,
-    'community-tab-active': currentTab === 'community' && !isForumFeedSection(communitySection)
-  }" :data-theme="currentTheme">
-
+  <div
+    ref="pageRootRef"
+    class="user-space-page"
+    :class="{
+      'tab-transition-forward': tabTransitionDirection === 'forward',
+      'tab-transition-back': tabTransitionDirection === 'back',
+      'edge-swipe-active': isEdgeSwiping,
+      'community-tab-active': currentTab === 'community' && !isForumFeedSection(communitySection),
+    }"
+    :data-theme="currentTheme"
+  >
     <!-- 边缘滑动提示线 -->
     <transition name="edge-ind">
       <div v-if="edgeIndicatorVisible" class="edge-swipe-indicator"></div>
     </transition>
 
-    <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
-    <input type="file" ref="profileBackgroundInputRef" class="hidden-file-input" accept="image/*"
-      @change="handleProfileBackgroundFileChange">
-    <input type="file" ref="pointsCardInputRef" class="hidden-file-input" accept="image/jpeg,image/png,image/webp"
-      @change="handlePointsCardFileChange">
+    <input
+      type="file"
+      ref="avatarInputRef"
+      class="hidden-file-input"
+      accept="image/*"
+      @change="handleAvatarFileChange"
+    />
+    <input
+      type="file"
+      ref="profileBackgroundInputRef"
+      class="hidden-file-input"
+      accept="image/*"
+      @change="handleProfileBackgroundFileChange"
+    />
+    <input
+      type="file"
+      ref="pointsCardInputRef"
+      class="hidden-file-input"
+      accept="image/jpeg,image/png,image/webp"
+      @change="handlePointsCardFileChange"
+    />
 
     <!-- 方块（论坛）：官方 / 最新 / 关注 / 新闻 / 活动 / 成员 / 印象
          分区壳 ForumSectionShell 与首页 `/` 的下滑直达共用同一份（2026-09-23 单源）。
          默认落点仍是「最新」，「官方」只在切到它时才挂载英雄区渲染层。 -->
-    <div v-show="currentTab === 'community' || leavingTab === 'community'"
-      :ref="(el) => setTabPageRef('community', el)" class="tab-page community-shell"
-      :class="{ 'is-leaving': leavingTab === 'community' }">
-      <ForumSectionShell ref="communityShellRef" v-model:section="communitySection"
-        @island-message="showTopNavStatus" @switch-tab="handleCommunitySwitchTab"
-        @open-follow-modal="openUserFollowModal">
+    <div
+      v-show="currentTab === 'community' || leavingTab === 'community'"
+      :ref="(el) => setTabPageRef('community', el)"
+      class="tab-page community-shell"
+      :class="{ 'is-leaving': leavingTab === 'community' }"
+    >
+      <ForumSectionShell
+        ref="communityShellRef"
+        v-model:section="communitySection"
+        @island-message="showTopNavStatus"
+        @switch-tab="handleCommunitySwitchTab"
+        @open-follow-modal="openUserFollowModal"
+      >
         <template #official>
           <AsyncOfficialHeroStage />
         </template>
@@ -33,11 +60,21 @@
     </div>
 
     <!-- 内容：身份卡 + 帖子/shows/草稿（2026-09 IA） -->
-    <div v-show="currentTab === 'posts' || leavingTab === 'posts'"
-      :ref="(el) => setTabPageRef('posts', el)" class="tab-page content-shell"
-      :class="{ 'is-leaving': leavingTab === 'posts' }">
-      <SegmentTabs :sections="CONTENT_SECTION_ITEMS" v-model="contentSection" aria-label="内容分区" />
-      <div v-show="contentSection === 'home'" class="profile-tab profile-home-active content-home-host">
+    <div
+      v-show="currentTab === 'posts' || leavingTab === 'posts'"
+      :ref="(el) => setTabPageRef('posts', el)"
+      class="tab-page content-shell"
+      :class="{ 'is-leaving': leavingTab === 'posts' }"
+    >
+      <SegmentTabs
+        :sections="CONTENT_SECTION_ITEMS"
+        v-model="contentSection"
+        aria-label="内容分区"
+      />
+      <div
+        v-show="contentSection === 'home'"
+        class="profile-tab profile-home-active content-home-host"
+      >
         <div class="profile-page-content">
           <div v-if="!isLoggedIn" class="login-prompt">
             <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
@@ -45,24 +82,39 @@
             <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
             <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
           </div>
-          <ProfileHomePanel v-else key="content-home" :profile="userInfo"
-            :avatar-url="avatarUrl" :profile-background-url="profileBackgroundUrl"
-            :profile-cover-style="profileCoverStyle" :is-uploading-profile-background="isUploadingProfileBackground"
-            :stats="userStats" :is-stats-loading="dataState.stats.loading" :cloud-plus-usage-text="cloudPlusUsageText"
-            :heatmap="activityHeatmap" :is-heatmap-loading="dataState.heatmap.loading"
+          <ProfileHomePanel
+            v-else
+            key="content-home"
+            :profile="userInfo"
+            :avatar-url="avatarUrl"
+            :profile-background-url="profileBackgroundUrl"
+            :profile-cover-style="profileCoverStyle"
+            :is-uploading-profile-background="isUploadingProfileBackground"
+            :stats="userStats"
+            :is-stats-loading="dataState.stats.loading"
+            :cloud-plus-usage-text="cloudPlusUsageText"
+            :heatmap="activityHeatmap"
+            :is-heatmap-loading="dataState.heatmap.loading"
             :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
             :subscription-summary-text="subscriptionSummaryText"
             :is-content-loading="dataState.profile.loading"
-            :posts="profilePosts" :has-more-posts="hasMoreProfilePosts" :is-loading-more="isLoadingMoreProfilePosts"
-            @edit-profile="openEditProfileModal" @settings="openProfileSettings" @avatar-click="handleAvatarClick"
+            :posts="profilePosts"
+            :has-more-posts="hasMoreProfilePosts"
+            :is-loading-more="isLoadingMoreProfilePosts"
+            @edit-profile="openEditProfileModal"
+            @settings="openProfileSettings"
+            @avatar-click="handleAvatarClick"
             @background-click="handleProfileBackgroundClick"
-            @view-impressions="openProfileImpressions" @sponsor="openSponsorPage"
-            @data-management="openProfileDataManagement" @cloud-plus="openCloudPlusArea"
+            @view-impressions="openProfileImpressions"
+            @sponsor="openSponsorPage"
+            @data-management="openProfileDataManagement"
+            @cloud-plus="openCloudPlusArea"
             @assets="openAssetsHub"
             @photo-albums="openPhotoAlbums"
             @post-click="openProfilePost"
             @switch-tab="switchTab"
-            @load-more="loadMoreProfilePosts" />
+            @load-more="loadMoreProfilePosts"
+          />
         </div>
       </div>
       <div v-show="contentSection === 'cloud'" class="content-cloud-host">
@@ -76,64 +128,108 @@
          零重建、零取数）。直接改成裸 v-show 是错的 —— 那会让 AssetsHubPanel 在进入
          UserSpace 时就挂载并跑 onMounted 取数（fetchUserTier / products / 抽奖 / 订阅）。
          内层档位（AssetsHubPanel ↔ SponsorPanel）保持原有 <transition out-in> + v-if 不变。 -->
-    <div v-if="currentTab === 'assets' || leavingTab === 'assets' || mountedTabs.assets"
+    <div
+      v-if="currentTab === 'assets' || leavingTab === 'assets' || mountedTabs.assets"
       v-show="currentTab === 'assets' || leavingTab === 'assets'"
-      :ref="(el) => setTabPageRef('assets', el)" class="tab-page profile-tab assets-shell"
-      :class="{ 'is-leaving': leavingTab === 'assets' }">
+      :ref="(el) => setTabPageRef('assets', el)"
+      class="tab-page profile-tab assets-shell"
+      :class="{ 'is-leaving': leavingTab === 'assets' }"
+    >
       <div v-if="!isLoggedIn" class="login-prompt">
         <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
         <h3 class="login-prompt-title">登录以查看我的</h3>
         <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
         <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
       </div>
-      <div v-else class="profile-page-content" :class="{ 'assets-active': assetsSection === 'hub' }">
+      <div
+        v-else
+        class="profile-page-content"
+        :class="{ 'assets-active': assetsSection === 'hub' }"
+      >
         <transition name="profile-panel-fade" mode="out-in">
-          <AssetsHubPanel v-if="assetsSection === 'hub'" key="assets-hub"
+          <AssetsHubPanel
+            v-if="assetsSection === 'hub'"
+            key="assets-hub"
             :show-back="false"
             :initial-tab="assetsInitialTab"
-            :points-card-presets="pointsCardPresets" :is-points-card-presets-loading="isPointsCardPresetsLoading"
+            :points-card-presets="pointsCardPresets"
+            :is-points-card-presets-loading="isPointsCardPresetsLoading"
             :points-card-preset-capacity="pointsCardPresetQuota.capacity"
             :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
             :points-card-cats-unlocked="isPointsCardCatsUnlocked"
             :is-redeeming-points-card-cats="isRedeemingPointsCardCats"
-            @back="switchTab('posts')" @upload-points-card="handlePointsCardClick"
-            @set-points-card-skin="setPointsCardSkin" @select-points-card-preset="selectPointsCardPreset"
+            @back="switchTab('posts')"
+            @upload-points-card="handlePointsCardClick"
+            @set-points-card-skin="setPointsCardSkin"
+            @select-points-card-preset="selectPointsCardPreset"
             @delete-points-card-preset="deletePointsCardPreset"
-            @redeem-points-card-cats="redeemPointsCardCats" @load-points-card-data="loadPointsCardData"
-            @sponsor="openSponsorPage" />
-          <SponsorPanel v-else key="assets-sponsor"
-            :is-home-cat-active="isHomeCatActive" :sponsor-methods="sponsorMethods"
-            :sponsor-method="sponsorMethod" :sponsor-status-text="sponsorStatusText"
-            :sponsor-qr-visible="sponsorQrVisible" :sponsor-qr-load-failed="sponsorQrLoadFailed"
-            :sponsor-qr-loading="sponsorQrLoading" :sponsor-qr-image-url="sponsorQrImageUrl"
+            @redeem-points-card-cats="redeemPointsCardCats"
+            @load-points-card-data="loadPointsCardData"
+            @sponsor="openSponsorPage"
+          />
+          <SponsorPanel
+            v-else
+            key="assets-sponsor"
+            :is-home-cat-active="isHomeCatActive"
+            :sponsor-methods="sponsorMethods"
+            :sponsor-method="sponsorMethod"
+            :sponsor-status-text="sponsorStatusText"
+            :sponsor-qr-visible="sponsorQrVisible"
+            :sponsor-qr-load-failed="sponsorQrLoadFailed"
+            :sponsor-qr-loading="sponsorQrLoading"
+            :sponsor-qr-image-url="sponsorQrImageUrl"
             :sponsor-cat-burst-key="sponsorCatBurstKey"
-            @back="backToAssetsHub" @start-flow="startSponsorFlow"
-            @select-method="selectSponsorMethod" @show-qr="showSponsorQr"
-            @qr-load="handleSponsorQrLoad" @qr-error="handleSponsorQrError" />
+            @back="backToAssetsHub"
+            @start-flow="startSponsorFlow"
+            @select-method="selectSponsorMethod"
+            @show-qr="showSponsorQr"
+            @qr-load="handleSponsorQrLoad"
+            @qr-error="handleSponsorQrError"
+          />
         </transition>
       </div>
     </div>
 
     <!-- 消息：消息中心 + AI 助手（2026-09 IA） -->
-    <div v-show="currentTab === 'messages' || leavingTab === 'messages'"
-      :ref="(el) => setTabPageRef('messages', el)" class="tab-page messages-tab"
-      :class="{ 'is-leaving': leavingTab === 'messages' }">
-      <HomeCatMascot v-if="isHomeCatActive" class="messages-tab-cat" pool="background" seed="messages-tab" size="lg"
-        decorative />
+    <div
+      v-show="currentTab === 'messages' || leavingTab === 'messages'"
+      :ref="(el) => setTabPageRef('messages', el)"
+      class="tab-page messages-tab"
+      :class="{ 'is-leaving': leavingTab === 'messages' }"
+    >
+      <HomeCatMascot
+        v-if="isHomeCatActive"
+        class="messages-tab-cat"
+        pool="background"
+        seed="messages-tab"
+        size="lg"
+        decorative
+      />
       <!-- 消息 tab：岛避让由页级 --userspace-messages-top-inset（实测岛高）负责，这里只留呼吸 -->
-      <SegmentTabs :sections="MESSAGE_SECTION_ITEMS" v-model="messagesSection" aria-label="消息分区"
-        style="--segment-tabs-inset: 4px;" />
+      <SegmentTabs
+        :sections="MESSAGE_SECTION_ITEMS"
+        v-model="messagesSection"
+        aria-label="消息分区"
+        style="--segment-tabs-inset: 4px"
+      />
       <div v-show="messagesSection === 'inbox'" class="messages-host">
         <!-- KeepAlive 与上方社区论坛宿主同样处理：离开分区时不销毁消息中心，
              回来直接复用实例（实测「切回来」零数据请求、根节点不换新）。 -->
         <KeepAlive>
-          <AsyncMessages ref="messagesHostRef" v-if="currentTab === 'messages' || leavingTab === 'messages'" :minimal="true" />
+          <AsyncMessages
+            ref="messagesHostRef"
+            v-if="currentTab === 'messages' || leavingTab === 'messages'"
+            :minimal="true"
+          />
         </KeepAlive>
       </div>
       <div v-show="messagesSection === 'ai'" class="ai-host">
         <section class="ai-workspace" aria-label="BOH AI 聊天">
-          <AsyncBOHAI v-if="bohaiActivatedOnVisit && (currentTab === 'messages' || leavingTab === 'messages')"
-            :embedded="true" @island-message="showTopNavStatus" />
+          <AsyncBOHAI
+            v-if="bohaiActivatedOnVisit && (currentTab === 'messages' || leavingTab === 'messages')"
+            :embedded="true"
+            @island-message="showTopNavStatus"
+          />
         </section>
       </div>
     </div>
@@ -143,10 +239,13 @@
          内层档位（主页 / 编辑资料 / 数据导出 / 数据与隐私）**保持 v-if 不动** ——
          DataExportPanel 内有 pollTimer 轮询导出进度，常驻会变成后台轮询；
          由 v-if 在离开档位时卸载，轮询随之停止。 -->
-    <div v-if="currentTab === 'settings' || leavingTab === 'settings' || mountedTabs.settings"
+    <div
+      v-if="currentTab === 'settings' || leavingTab === 'settings' || mountedTabs.settings"
       v-show="currentTab === 'settings' || leavingTab === 'settings'"
-      :ref="(el) => setTabPageRef('settings', el)" class="tab-page profile-tab settings-shell"
-      :class="{ 'is-leaving': leavingTab === 'settings' }">
+      :ref="(el) => setTabPageRef('settings', el)"
+      class="tab-page profile-tab settings-shell"
+      :class="{ 'is-leaving': leavingTab === 'settings' }"
+    >
       <div v-if="!isLoggedIn" class="login-prompt">
         <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
         <h3 class="login-prompt-title">登录以查看我的</h3>
@@ -155,31 +254,53 @@
       </div>
       <div v-else class="profile-page-content">
         <transition name="profile-panel-fade" mode="out-in">
-          <ProfileSettingsPanel v-if="settingsSection === 'home'" key="settings-home" :show-back="false"
+          <ProfileSettingsPanel
+            v-if="settingsSection === 'home'"
+            key="settings-home"
+            :show-back="false"
             :user-email="userInfo?.email || ''"
-            :pushplus-status-text="pushplusStatusText" :cloud-plus-usage-text="cloudPlusUsageText"
-            :subscription-summary-text="subscriptionSummaryText" :data-privacy-status-text="dataPrivacyStatusText"
-            :theme-display-text="themeDisplayText" :is-home-cat-active="isHomeCatActive" :current-theme="currentTheme"
-            :hide-online-status="hideOnlineStatus" :hide-follow-data="hideFollowData"
-            @back="switchTab('posts')" @open-theme="openThemeModal"
+            :pushplus-status-text="pushplusStatusText"
+            :cloud-plus-usage-text="cloudPlusUsageText"
+            :subscription-summary-text="subscriptionSummaryText"
+            :data-privacy-status-text="dataPrivacyStatusText"
+            :theme-display-text="themeDisplayText"
+            :is-home-cat-active="isHomeCatActive"
+            :current-theme="currentTheme"
+            :hide-online-status="hideOnlineStatus"
+            :hide-follow-data="hideFollowData"
+            @back="switchTab('posts')"
+            @open-theme="openThemeModal"
             @open-cloud="openCloudPlusArea"
             @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
             @open-security="router.push('/user-space/account-security?from=userspace-settings')"
             @open-version-settings="router.push('/user-space/settings/version')"
-            @open-data="openProfileDataManagement" @open-data-management="openProfileDataManagement"
+            @open-data="openProfileDataManagement"
+            @open-data-management="openProfileDataManagement"
             @open-data-export="openProfileDataExport"
-            @logout="handleLogout" @toggle-hide-online="toggleHideOnlineStatus"
-            @toggle-hide-follow-data="toggleHideFollowData" />
+            @logout="handleLogout"
+            @toggle-hide-online="toggleHideOnlineStatus"
+            @toggle-hide-follow-data="toggleHideFollowData"
+          />
 
-          <EditProfilePanel v-else-if="settingsSection === 'edit-profile'" key="settings-edit" v-memo="[settingsSection]"
-            :avatar-url="avatarUrl" :username="editProfileForm.username"
-            :bio="editProfileForm.bio" :join-year="editProfileForm.joinYear"
-            :join-month="editProfileForm.joinMonth" :join-day="editProfileForm.joinDay"
-            :birth-month="editProfileForm.birthMonth" :birth-day="editProfileForm.birthDay"
-            :join-date-years="joinDateYears" :months="months"
-            :days-for-edit-join-date="daysForEditJoinDate" :days-for-edit-profile="daysForEditProfile"
+          <EditProfilePanel
+            v-else-if="settingsSection === 'edit-profile'"
+            key="settings-edit"
+            v-memo="[settingsSection]"
+            :avatar-url="avatarUrl"
+            :username="editProfileForm.username"
+            :bio="editProfileForm.bio"
+            :join-year="editProfileForm.joinYear"
+            :join-month="editProfileForm.joinMonth"
+            :join-day="editProfileForm.joinDay"
+            :birth-month="editProfileForm.birthMonth"
+            :birth-day="editProfileForm.birthDay"
+            :join-date-years="joinDateYears"
+            :months="months"
+            :days-for-edit-join-date="daysForEditJoinDate"
+            :days-for-edit-profile="daysForEditProfile"
             :is-submitting-profile-edit="isSubmittingProfileEdit"
-            @close="closeEditProfileModal" @avatar-click="handleAvatarClick"
+            @close="closeEditProfileModal"
+            @avatar-click="handleAvatarClick"
             @open-avatar-frames="openAvatarFrameModal"
             @save="submitEditProfile"
             @update-username="editProfileForm.username = $event"
@@ -188,14 +309,24 @@
             @update-join-month="editProfileForm.joinMonth = $event"
             @update-join-day="editProfileForm.joinDay = $event"
             @update-birth-month="editProfileForm.birthMonth = $event"
-            @update-birth-day="editProfileForm.birthDay = $event" />
+            @update-birth-day="editProfileForm.birthDay = $event"
+          />
 
-          <DataExportPanel v-else-if="settingsSection === 'data-export'" key="settings-data-export"
-            v-memo="[settingsSection]" @back="backToProfileSettings" />
+          <DataExportPanel
+            v-else-if="settingsSection === 'data-export'"
+            key="settings-data-export"
+            v-memo="[settingsSection]"
+            @back="backToProfileSettings"
+          />
 
-          <DataPrivacyPanel v-else key="settings-data-management" v-memo="[settingsSection, isAdmin]"
-            :is-admin="isAdmin" @back="backToProfileSettings"
-            @navigate="handleDataPrivacyNavigate" />
+          <DataPrivacyPanel
+            v-else
+            key="settings-data-management"
+            v-memo="[settingsSection, isAdmin]"
+            :is-admin="isAdmin"
+            @back="backToProfileSettings"
+            @navigate="handleDataPrivacyNavigate"
+          />
         </transition>
       </div>
     </div>
@@ -203,30 +334,63 @@
     <!-- 横屏左栏（电脑 + 平板横屏）：主导航与底栏共用同一份 navItems / 点击处理，
          便捷与工具区统一走 handleRailAction 分发到已有 handler。
          可见性由 side-rail.css 的媒体查询决定，竖屏 / 手机横屏下不渲染 -->
-    <UserSpaceSideRail :nav-items="navItems" :current-tab="currentTab"
-      :has-unread-messages="hasUnreadMessages" :unread-count="unreadCount"
-      :current-theme="currentTheme" :is-logged-in="isLoggedIn"
-      @preload-tab="preloadUserSpaceTab" @nav-click="handleBottomNavClick"
-      @action="handleRailAction" />
+    <UserSpaceSideRail
+      :nav-items="navItems"
+      :current-tab="currentTab"
+      :has-unread-messages="hasUnreadMessages"
+      :unread-count="unreadCount"
+      :current-theme="currentTheme"
+      :is-logged-in="isLoggedIn"
+      @preload-tab="preloadUserSpaceTab"
+      @nav-click="handleBottomNavClick"
+      @action="handleRailAction"
+    />
 
-    <UserSpaceBottomNav :visible="!(currentTab === 'settings' && settingsSection === 'edit-profile')"
-      :hidden="isBottomNavHidden" :ai-overlay-open="isAiOverlayOpen"
-      :nav-items="navItems" :current-tab="currentTab" :nav-indicator-style="bottomNavIndicatorStyle"
-      :has-unread-messages="hasUnreadMessages" :unread-count="unreadCount"
-      @preload-tab="preloadUserSpaceTab" @nav-click="handleBottomNavClick" />
+    <UserSpaceBottomNav
+      :visible="!(currentTab === 'settings' && settingsSection === 'edit-profile')"
+      :hidden="isBottomNavHidden"
+      :ai-overlay-open="isAiOverlayOpen"
+      :nav-items="navItems"
+      :current-tab="currentTab"
+      :nav-indicator-style="bottomNavIndicatorStyle"
+      :has-unread-messages="hasUnreadMessages"
+      :unread-count="unreadCount"
+      @preload-tab="preloadUserSpaceTab"
+      @nav-click="handleBottomNavClick"
+    />
 
-    <ThemeModal :open="showThemeModal" :current-theme-preference="currentThemePreference" @close="closeThemeModal"
-      @select="setThemePreference" />
+    <ThemeModal
+      :open="showThemeModal"
+      :current-theme-preference="currentThemePreference"
+      @close="closeThemeModal"
+      @select="setThemePreference"
+    />
 
-    <AvatarFramePickerModal :open="showAvatarFrameModal" :avatar-url="avatarUrl"
-      @close="closeAvatarFrameModal" />
+    <AvatarFramePickerModal
+      :open="showAvatarFrameModal"
+      :avatar-url="avatarUrl"
+      @close="closeAvatarFrameModal"
+    />
 
-    <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title"
-      :message="alertState.message" />
+    <CommonAlertModal
+      v-model:visible="alertState.visible"
+      :type="alertState.type"
+      :title="alertState.title"
+      :message="alertState.message"
+    />
 
-    <AvatarCropModal v-if="showCropModal" v-model:visible="showCropModal" :image-src="cropImageSrc" :loading="isProcessingCrop"
-      :title="cropModalTitle" :hint="cropModalHint" :sub-hint="cropModalSubHint" :aspect-ratio="cropModalAspectRatio"
-      :shape="cropModalShape" @confirm="handleCropConfirm" />
+    <AvatarCropModal
+      v-if="showCropModal"
+      v-model:visible="showCropModal"
+      :image-src="cropImageSrc"
+      :loading="isProcessingCrop"
+      :title="cropModalTitle"
+      :hint="cropModalHint"
+      :sub-hint="cropModalSubHint"
+      :aspect-ratio="cropModalAspectRatio"
+      :shape="cropModalShape"
+      @confirm="handleCropConfirm"
+    />
 
     <FollowListModal
       :show="followListModal.show"
@@ -243,7 +407,20 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onActivated, onMounted, onUnmounted, reactive, watch, shallowRef, shallowReactive, markRaw, defineAsyncComponent } from 'vue';
+import {
+  ref,
+  computed,
+  nextTick,
+  onActivated,
+  onMounted,
+  onUnmounted,
+  reactive,
+  watch,
+  shallowRef,
+  shallowReactive,
+  markRaw,
+  defineAsyncComponent,
+} from 'vue';
 /* 未登录占位图标（方块 / 我的 / 设置三个 tab 的 login-prompt 都用它）。
    2026-09-24 修：此前模板写了 <User> 但从未导入 —— Vue 解析失败退化为原生元素，
    图标渲染不出来，控制台刷「Failed to resolve component: User」。 */
@@ -264,10 +441,16 @@ import ForumSectionShell from './components/ForumSectionShell.vue';
 const ProfileHomePanel = defineAsyncComponent(() => import('./components/ProfileHomePanel.vue'));
 const AvatarCropModal = defineAsyncComponent(() => import('@/components/AvatarCropModal.vue'));
 // 官方分区舞台（英雄区 + 各周年弹窗）：只在切到「官方」时才请求，不进 UserSpace 主 chunk
-const AsyncOfficialHeroStage = defineAsyncComponent(() => import('@/views/Home/components/OfficialHeroStage.vue'));
-const ProfileSettingsPanel = defineAsyncComponent(() => import('./components/ProfileSettingsPanel.vue'));
+const AsyncOfficialHeroStage = defineAsyncComponent(
+  () => import('@/views/Home/components/OfficialHeroStage.vue'),
+);
+const ProfileSettingsPanel = defineAsyncComponent(
+  () => import('./components/ProfileSettingsPanel.vue'),
+);
 const EditProfilePanel = defineAsyncComponent(() => import('./components/EditProfilePanel.vue'));
-const AvatarFramePickerModal = defineAsyncComponent(() => import('./components/AvatarFramePickerModal.vue'));
+const AvatarFramePickerModal = defineAsyncComponent(
+  () => import('./components/AvatarFramePickerModal.vue'),
+);
 const SponsorPanel = defineAsyncComponent(() => import('./components/SponsorPanel.vue'));
 const DataPrivacyPanel = defineAsyncComponent(() => import('./components/DataPrivacyPanel.vue'));
 const DataExportPanel = defineAsyncComponent(() => import('./components/DataExportPanel.vue'));
@@ -279,7 +462,11 @@ import { isForumLandscape } from '@/utils/forum-viewport.js';
 import { openForumPost } from '@/composables/usePostDetailModal.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
 import { useScrollDirectionHide } from './composables/useScrollDirectionHide.js';
-import { USER_SPACE_VALID_TABS, useUserSpaceTabs, userSpaceNavItems } from './composables/useUserSpaceTabs.js';
+import {
+  USER_SPACE_VALID_TABS,
+  useUserSpaceTabs,
+  userSpaceNavItems,
+} from './composables/useUserSpaceTabs.js';
 import { useImageCompressionLoader } from './composables/useImageCompressionLoader.js';
 import {
   AsyncBOHAI,
@@ -294,11 +481,16 @@ import {
   preloadSettingsSubPanels,
   scheduleForumPreload,
   scheduleIdleTask,
-  setUserSpaceMountedForPreload
+  setUserSpaceMountedForPreload,
 } from './async-loaders.js';
 import { FORUM_DEFAULT_SECTION, isForumFeedSection, isForumSection } from '@/config/forum-sections';
 import { supabase } from '@/utils/supabase-client.js';
-import { getPostsByUsername, updateProfileAvatar, getFollowers, getFollowing } from '@/utils/api/profile-api.js';
+import {
+  getPostsByUsername,
+  updateProfileAvatar,
+  getFollowers,
+  getFollowing,
+} from '@/utils/api/profile-api.js';
 import FollowListModal from '@/components/FollowListModal.vue';
 import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
@@ -311,7 +503,7 @@ import {
   extractCloudinaryPublicIdFromUrl,
   getCloudinaryDisplayUrl,
   markCloudinaryUploadsClaimed,
-  uploadImageToCloudinary
+  uploadImageToCloudinary,
 } from '@/utils/cloudinary-client.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
@@ -319,7 +511,10 @@ import { syncAvatarFrameFromServer } from '@/composables/useAvatarFrame.js';
 import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
-import { DEFAULT_CLOUD_IMAGE_LIMIT, resolveCloudBenefitFromSubscriptions } from '@/utils/subscription-benefits.js';
+import {
+  DEFAULT_CLOUD_IMAGE_LIMIT,
+  resolveCloudBenefitFromSubscriptions,
+} from '@/utils/subscription-benefits.js';
 
 const { loadImageCompression } = useImageCompressionLoader();
 
@@ -356,7 +551,7 @@ const USERSPACE_CACHE_TTL = markRaw({
   profilePosts: 60 * 1000,
   // 热力图跨一年 371 天，服务端要扫 posts + comments 两张表；变化频率远低于
   // 计数类数据，独立放宽到 5 分钟，避免每次进「内容」tab 都重算一次全窗口聚合。
-  heatmap: 5 * 60 * 1000
+  heatmap: 5 * 60 * 1000,
 });
 const userSpaceMemoryCache = createMemoryTtlCache();
 const getUserSpaceCache = (key, ttlMs) => userSpaceMemoryCache.get(key, ttlMs);
@@ -368,7 +563,7 @@ const dataState = reactive({
   cloud: { loading: false, error: null },
   pushplus: { loading: false, error: null },
   profile: { loading: false, error: null },
-  heatmap: { loading: false, error: null }
+  heatmap: { loading: false, error: null },
 });
 
 // ✅ 性能优化：添加 AbortController 管理，支持请求取消
@@ -391,7 +586,7 @@ const lastFetchTime = reactive({
   cloudUsage: 0,
   pushplus: 0,
   profilePosts: 0,
-  heatmap: 0
+  heatmap: 0,
 });
 
 // ✅ 性能优化：使用 shallowRef 优化非关键大数据
@@ -402,16 +597,21 @@ const hideFollowData = computed(() => userInfo.value?.hideFollowData ?? false);
 // 方块（论坛）分区壳实例：内嵌论坛的滚动刷新与发布/搜索意图都经它转发
 const communityShellRef = ref(null);
 const tabPageRefs = new Map();
-const tabScrollPositions = reactive(Object.fromEntries(
-  USER_SPACE_VALID_TABS.map((tab) => [tab, 0])
-));
+const tabScrollPositions = reactive(
+  Object.fromEntries(USER_SPACE_VALID_TABS.map((tab) => [tab, 0])),
+);
 let clearLeavingTabTimer = null;
 let userSpacePageEl = null;
 
 let latestTabScrollRestoreToken = 0;
 
 const navItems = userSpaceNavItems;
-const { isOpen: isAiOverlayOpen, canOpen: isAiOverlayAllowed, open: openGlobalAi, close: closeGlobalAi } = useGlobalAiOverlay();
+const {
+  isOpen: isAiOverlayOpen,
+  canOpen: isAiOverlayAllowed,
+  open: openGlobalAi,
+  close: closeGlobalAi,
+} = useGlobalAiOverlay();
 // 与 UnifiedNavbar 的 has-bohai-island 同源判定：岛展开时容器实测高度会被面板撑大
 const isAiIslandOpen = computed(() => isAiOverlayOpen.value && isAiOverlayAllowed.value);
 
@@ -421,7 +621,7 @@ const { isSwiping: isEdgeSwiping, edgeIndicatorVisible } = useEdgeSwipeGesture({
   minSwipeDistance: 80,
   maxSwipeTime: 800,
   velocityThreshold: 0.5,
-  onTrigger: openGlobalAi
+  onTrigger: openGlobalAi,
 });
 
 const bottomNavIndicatorStyle = computed(() => navIndicatorStyle.value);
@@ -430,10 +630,12 @@ const validTabs = USER_SPACE_VALID_TABS;
 const LEGACY_TAB_MAP = { profile: 'posts', ai: 'messages', shows: 'posts' };
 const rawRequestedTab = String(route.query.tab || '');
 const legacyMappedTab = LEGACY_TAB_MAP[rawRequestedTab] || rawRequestedTab;
-const initialUserSpaceTab = validTabs.includes(legacyMappedTab)
-  ? legacyMappedTab
-  : 'community';
-if (initialUserSpaceTab === 'posts' || initialUserSpaceTab === 'assets' || initialUserSpaceTab === 'settings') {
+const initialUserSpaceTab = validTabs.includes(legacyMappedTab) ? legacyMappedTab : 'community';
+if (
+  initialUserSpaceTab === 'posts' ||
+  initialUserSpaceTab === 'assets' ||
+  initialUserSpaceTab === 'settings'
+) {
   void preloadProfileStyles();
 }
 // tab 内段控 section（2026-09 IA：原 profile 二级面板拆平到各 tab）
@@ -451,22 +653,26 @@ const SETTINGS_SECTIONS = ['home', 'edit-profile', 'data-management', 'data-expo
 const ASSETS_SECTIONS = ['hub', 'sponsor'];
 const CONTENT_SECTION_ITEMS = [
   { id: 'home', label: '空间' },
-  { id: 'cloud', label: 'Cloud+' }
+  { id: 'cloud', label: 'Cloud+' },
 ];
 const MESSAGE_SECTION_ITEMS = [
   { id: 'inbox', label: '消息' },
-  { id: 'ai', label: 'BOH AI' }
+  { id: 'ai', label: 'BOH AI' },
 ];
-const SECTION_DEFAULTS = { community: 'latest', posts: 'home', messages: 'inbox', assets: 'hub', settings: 'home' };
+const SECTION_DEFAULTS = {
+  community: 'latest',
+  posts: 'home',
+  messages: 'inbox',
+  assets: 'hub',
+  settings: 'home',
+};
 let pendingSectionTab = null;
 const tabTransitionDirection = ref('');
 const leavingTab = ref(null);
-const {
-  currentTab,
-  navIndicatorStyle,
-  ensureTabMounted,
-  mountedTabs
-} = useUserSpaceTabs(navItems, initialUserSpaceTab);
+const { currentTab, navIndicatorStyle, ensureTabMounted, mountedTabs } = useUserSpaceTabs(
+  navItems,
+  initialUserSpaceTab,
+);
 
 // ✅ 性能优化 P0-1：BOH AI 仅在用户真正切到 AI 分区后才挂载——进入消息 tab 默认
 // 不再预载 BOH AI 全依赖图（实测 69 个模块请求 + ~12MB 堆内存增量）。
@@ -476,12 +682,16 @@ const bohaiActivatedOnVisit = ref(false);
 watch(messagesSection, (section) => {
   if (section === 'ai' && currentTab.value === 'messages') bohaiActivatedOnVisit.value = true;
 });
-watch(currentTab, (tab, oldTab) => {
-  if (tab === 'messages' && oldTab !== 'messages') {
-    // 重新进入消息 tab：仅当分区本就是 ai 时延续挂载，否则回到「切到 AI 分区才挂载」
-    bohaiActivatedOnVisit.value = messagesSection.value === 'ai';
-  }
-}, { immediate: true });
+watch(
+  currentTab,
+  (tab, oldTab) => {
+    if (tab === 'messages' && oldTab !== 'messages') {
+      // 重新进入消息 tab：仅当分区本就是 ai 时延续挂载，否则回到「切到 AI 分区才挂载」
+      bohaiActivatedOnVisit.value = messagesSection.value === 'ai';
+    }
+  },
+  { immediate: true },
+);
 
 const getTabOrderIndex = (tabId) => {
   const index = navItems.findIndex((item) => item.id === tabId);
@@ -545,15 +755,15 @@ const sponsorMethods = [
     label: 'VX',
     desc: '微信赞赏码扫码',
     icon: 'VX',
-    disabled: false
+    disabled: false,
   },
   {
     id: 'alipay',
     label: '支付宝',
     desc: '暂不支持',
     icon: 'AL',
-    disabled: true
-  }
+    disabled: true,
+  },
 ];
 const sponsorStatusText = computed(() => (sponsorMethod.value === 'wechat' ? '可用' : '暂不支持'));
 
@@ -601,7 +811,7 @@ const SECTION_REFS = {
   posts: contentSection,
   messages: messagesSection,
   assets: assetsSection,
-  settings: settingsSection
+  settings: settingsSection,
 };
 
 /** 把某 tab 的当前分区按统一口径写进 query：等于默认值则删 view，否则写 view */
@@ -682,7 +892,7 @@ const userBirthday = computed(() => {
   if (userInfo.value.birthMonth && userInfo.value.birthDay) {
     return {
       month: userInfo.value.birthMonth,
-      day: userInfo.value.birthDay
+      day: userInfo.value.birthDay,
     };
   }
   return null;
@@ -698,8 +908,12 @@ const userProfileBio = computed(() => {
 
 const joinDate = computed(() => userInfo.value.joinDate || '');
 const isProfileBasicsComplete = computed(() => Boolean(joinDate.value && userBirthday.value));
-const profileBirthdayText = computed(() => userBirthday.value ? formatBirthdayLabel(userBirthday.value) : '未设置');
-const profileJoinDateText = computed(() => joinDate.value ? formatJoinDateLabel(joinDate.value) : '未设置');
+const profileBirthdayText = computed(() =>
+  userBirthday.value ? formatBirthdayLabel(userBirthday.value) : '未设置',
+);
+const profileJoinDateText = computed(() =>
+  joinDate.value ? formatJoinDateLabel(joinDate.value) : '未设置',
+);
 const avatarInputRef = ref(null);
 const profileBackgroundInputRef = ref(null);
 const pointsCardInputRef = ref(null);
@@ -716,21 +930,42 @@ const isPointsCardPresetsLoading = ref(false);
 const pointsCardPresetQuota = ref({ capacity: 3, currentCount: 0, tierCode: 'free', canAdd: true });
 const isPointsCardPresetQuotaLoading = ref(false);
 const BACKGROUND_CROP_ASPECT_RATIO = 3;
-const cropModalAspectRatio = computed(() => cropPurpose.value === 'profile-background'
-  ? BACKGROUND_CROP_ASPECT_RATIO
-  : (cropPurpose.value === 'points-card' ? null : 1));
-const cropModalShape = computed(() => ['profile-background', 'points-card'].includes(cropPurpose.value) ? 'rectangle' : 'circle');
-const cropModalTitle = computed(() => cropPurpose.value === 'profile-background'
-  ? '裁切背景'
-  : (cropPurpose.value === 'points-card' ? '裁切积分卡面' : '裁切头像'));
-const cropModalHint = computed(() => cropPurpose.value === 'profile-background'
-  ? '拖动图片来选择个人卡片背景的显示范围'
-  : (cropPurpose.value === 'points-card' ? '拖动图片，并按需调整裁切框的宽高和显示范围' : '拖动以调整位置，缩放以改变大小'));
-const cropModalSubHint = computed(() => cropPurpose.value === 'profile-background'
-  ? '裁切后的横幅会作为个人卡片背景'
-  : (cropPurpose.value === 'points-card' ? '积分卡会自动适配你的自定义卡面' : '裁切后的效果将作为您的新头像'));
+const cropModalAspectRatio = computed(() =>
+  cropPurpose.value === 'profile-background'
+    ? BACKGROUND_CROP_ASPECT_RATIO
+    : cropPurpose.value === 'points-card'
+      ? null
+      : 1,
+);
+const cropModalShape = computed(() =>
+  ['profile-background', 'points-card'].includes(cropPurpose.value) ? 'rectangle' : 'circle',
+);
+const cropModalTitle = computed(() =>
+  cropPurpose.value === 'profile-background'
+    ? '裁切背景'
+    : cropPurpose.value === 'points-card'
+      ? '裁切积分卡面'
+      : '裁切头像',
+);
+const cropModalHint = computed(() =>
+  cropPurpose.value === 'profile-background'
+    ? '拖动图片来选择个人卡片背景的显示范围'
+    : cropPurpose.value === 'points-card'
+      ? '拖动图片，并按需调整裁切框的宽高和显示范围'
+      : '拖动以调整位置，缩放以改变大小',
+);
+const cropModalSubHint = computed(() =>
+  cropPurpose.value === 'profile-background'
+    ? '裁切后的横幅会作为个人卡片背景'
+    : cropPurpose.value === 'points-card'
+      ? '积分卡会自动适配你的自定义卡面'
+      : '裁切后的效果将作为您的新头像',
+);
 
-const escapeCssUrl = (url = '') => String(url || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+const escapeCssUrl = (url = '') =>
+  String(url || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
 const profileCoverStyle = computed(() => {
   const displayUrl = getCloudinaryDisplayUrl(profileBackgroundUrl.value);
   if (!displayUrl) return {};
@@ -738,8 +973,8 @@ const profileCoverStyle = computed(() => {
   return {
     backgroundImage: [
       'linear-gradient(180deg, rgba(15, 23, 42, 0.24), rgba(15, 23, 42, 0.02))',
-      `url("${escapeCssUrl(displayUrl)}")`
-    ].join(', ')
+      `url("${escapeCssUrl(displayUrl)}")`,
+    ].join(', '),
   };
 });
 
@@ -749,7 +984,7 @@ const userStats = shallowReactive({
   points: 0,
   rank: 0,
   followers: 0,
-  following: 0
+  following: 0,
 });
 let latestUserStatsFetchToken = 0;
 let userStatsRetryTimerId = null;
@@ -780,13 +1015,15 @@ const normalizeProfileText = (value, fallback = '') => {
 const getProfilePostTitle = (post = {}) => normalizeProfileText(post.title, '无标题');
 const getProfilePostSummary = (post = {}) => {
   const body = normalizeProfileText(post.body || post.content, '');
-  return body.length > 46 ? `${body.slice(0, 46)}...` : (body || '暂无正文');
+  return body.length > 46 ? `${body.slice(0, 46)}...` : body || '暂无正文';
 };
 
 const getProfilePostCover = (post = {}) => {
   const images = Array.isArray(post.images) ? post.images : [];
   const firstImage = images[0] || null;
-  const imageCover = String(firstImage?.url || firstImage?.thumbUrl || firstImage?.originalUrl || '').trim();
+  const imageCover = String(
+    firstImage?.url || firstImage?.thumbUrl || firstImage?.originalUrl || '',
+  ).trim();
   if (imageCover) return imageCover;
   return String(post.cover_image_url || '').trim();
 };
@@ -810,7 +1047,11 @@ const openProfilePost = (postId) => {
     openForumPost({ router, postId: safePostId });
     return;
   }
-  router.push({ name: 'PostDetail', params: { id: safePostId }, query: { from: 'user-space', tab: 'posts' } });
+  router.push({
+    name: 'PostDetail',
+    params: { id: safePostId },
+    query: { from: 'user-space', tab: 'posts' },
+  });
 };
 
 // ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
@@ -826,7 +1067,7 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
 
   // ✅ 检查 lastFetchTime，避免频繁重复请求
   const now = Date.now();
-  if (!force && !reset && (now - lastFetchTime.profilePosts < 5000)) {
+  if (!force && !reset && now - lastFetchTime.profilePosts < 5000) {
     const cachedPosts = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.profilePosts);
     if (cachedPosts) {
       profilePosts.value = cachedPosts;
@@ -862,7 +1103,7 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
       page: pageToLoad,
       pageSize: PROFILE_POSTS_PAGE_SIZE,
       includeUnapprovedForAuthor: true,
-      signal: abortController.signal
+      signal: abortController.signal,
     });
     if (fetchToken !== latestProfileContentFetchToken || abortController.signal.aborted) return;
     if (result.error) {
@@ -875,8 +1116,8 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
     if (reset) {
       profilePosts.value = incoming;
     } else {
-      const seen = new Set(profilePosts.value.map(p => p.id));
-      const newPosts = incoming.filter(p => !seen.has(p.id));
+      const seen = new Set(profilePosts.value.map((p) => p.id));
+      const newPosts = incoming.filter((p) => !seen.has(p.id));
       profilePosts.value = [...profilePosts.value, ...newPosts];
     }
     hasMoreProfilePosts.value = incoming.length === PROFILE_POSTS_PAGE_SIZE;
@@ -884,7 +1125,6 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
     setUserSpaceCache(cacheKey, profilePosts.value);
     lastFetchTime.profilePosts = now;
     dataState.profile.error = null;
-
   } catch (error) {
     if (error.name === 'AbortError') return;
     logger.warn('user-space', '读取我的内容失败:', error);
@@ -921,7 +1161,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
   const now = Date.now();
 
   // ✅ 检查 lastFetchTime，避免频繁重复请求
-  if (!force && retryCount === 0 && (now - lastFetchTime.stats < 5000)) {
+  if (!force && retryCount === 0 && now - lastFetchTime.stats < 5000) {
     const cachedStats = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.stats);
     if (cachedStats) {
       userStats.posts = normalizeStatInt(cachedStats.posts, 0);
@@ -955,11 +1195,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
         .from('posts')
         .select('id', { count: 'exact', head: true })
         .or(`author_id.eq.${userId}${safeUsername ? `,author_username.eq.${safeUsername}` : ''}`),
-      supabase
-        .from('profiles')
-        .select('points')
-        .eq('id', userId)
-        .maybeSingle(),
+      supabase.from('profiles').select('points').eq('id', userId).maybeSingle(),
       supabase
         .from('user_follows')
         .select('id', { count: 'exact', head: true })
@@ -967,7 +1203,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
       supabase
         .from('user_follows')
         .select('id', { count: 'exact', head: true })
-        .eq('follower_id', userId)
+        .eq('follower_id', userId),
     ]);
 
     if (fetchToken !== latestUserStatsFetchToken || abortController.signal.aborted) return;
@@ -1016,7 +1252,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
       points: userStats.points,
       rank: userStats.rank,
       followers: userStats.followers,
-      following: userStats.following
+      following: userStats.following,
     });
     lastFetchTime.stats = now;
     dataState.stats.error = null;
@@ -1075,7 +1311,7 @@ const fetchActivityHeatmap = async ({ force = false } = {}) => {
   try {
     const { data, error } = await supabase.rpc('get_user_activity_heatmap', {
       p_user_id: userId,
-      p_days: HEATMAP_WINDOW_DAYS
+      p_days: HEATMAP_WINDOW_DAYS,
     });
     if (fetchToken !== latestHeatmapFetchToken) return;
     if (error) throw error;
@@ -1108,21 +1344,33 @@ const editProfileForm = reactive({
   joinMonth: '',
   joinDay: '',
   birthMonth: '',
-  birthDay: ''
+  birthDay: '',
 });
 const AVATAR_MAX_FILE_SIZE_BYTES = 12 * 1024 * 1024;
-const SUPPORTED_AVATAR_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']);
+const SUPPORTED_AVATAR_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
 const PROFILE_BACKGROUND_MAX_FILE_SIZE_BYTES = CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES;
 
 // 主题设置
 const showThemeModal = ref(false);
 // 头像框试戴弹层（编辑资料页入口；佩戴状态单源 useAvatarFrame）
 const showAvatarFrameModal = ref(false);
-const openAvatarFrameModal = () => { showAvatarFrameModal.value = true; };
-const closeAvatarFrameModal = () => { showAvatarFrameModal.value = false; };
+const openAvatarFrameModal = () => {
+  showAvatarFrameModal.value = true;
+};
+const closeAvatarFrameModal = () => {
+  showAvatarFrameModal.value = false;
+};
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
-const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value));
+const isHomeCatActive = computed(
+  () => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value),
+);
 const themeDisplayText = computed(() => {
   if (currentThemePreference.value === 'anniversary-mc') {
     return '八周年 MC 限定';
@@ -1135,12 +1383,14 @@ const themeDisplayText = computed(() => {
   }
   return currentTheme.value === 'dark' ? '深色模式' : '浅色模式';
 });
-const dataPrivacyStatusText = computed(() => isProfileBasicsComplete.value ? '资料已完善' : '待补充资料');
+const dataPrivacyStatusText = computed(() =>
+  isProfileBasicsComplete.value ? '资料已完善' : '待补充资料',
+);
 // ✅ 性能优化：使用 shallowReactive 优化 Pushplus 和 Cloud+ 状态
 const pushplusStatus = shallowReactive({
   loaded: false,
   hasToken: false,
-  enabled: false
+  enabled: false,
 });
 const pushplusStatusText = computed(() => {
   if (dataState.pushplus.loading) return '检查中';
@@ -1152,7 +1402,7 @@ const pushplusStatusText = computed(() => {
 const cloudPlusUsage = shallowReactive({
   loaded: false,
   used: 0,
-  limit: DEFAULT_CLOUD_IMAGE_LIMIT
+  limit: DEFAULT_CLOUD_IMAGE_LIMIT,
 });
 const cloudPlusUsageText = computed(() => {
   if (dataState.cloud.loading) return '读取中';
@@ -1177,7 +1427,7 @@ const applyUserSpaceSummary = (summary = {}) => {
   cloudPlusUsage.used = normalizeStatInt(summary.cloud_image_used, cloudPlusUsage.used);
   cloudPlusUsage.limit = Math.max(
     DEFAULT_CLOUD_IMAGE_LIMIT,
-    normalizeStatInt(summary.cloud_image_limit, cloudPlusUsage.limit)
+    normalizeStatInt(summary.cloud_image_limit, cloudPlusUsage.limit),
   );
   cloudPlusUsage.loaded = true;
   dataState.stats.loading = false;
@@ -1244,18 +1494,17 @@ const showTopNavStatus = (payload = {}) => {
   const actionTab = String(payload.actionTab || '').trim();
   return showIsland.notify({
     ...payload,
-    onAction: actionTab && validTabs.includes(actionTab)
-      ? () => switchTab(actionTab)
-      : undefined
+    onAction: actionTab && validTabs.includes(actionTab) ? () => switchTab(actionTab) : undefined,
   });
 };
 
-const isBottomNavForceVisible = computed(() => (
-  isAiOverlayOpen.value ||
-  (currentTab.value === 'settings' && settingsSection.value === 'edit-profile')
-));
+const isBottomNavForceVisible = computed(
+  () =>
+    isAiOverlayOpen.value ||
+    (currentTab.value === 'settings' && settingsSection.value === 'edit-profile'),
+);
 const { hidden: isBottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDirectionHide({
-  forceVisible: isBottomNavForceVisible
+  forceVisible: isBottomNavForceVisible,
 });
 
 const getGlobalNavOnboardingNoticeKey = () => {
@@ -1304,7 +1553,7 @@ const buildUnreadIslandMessage = (detail = {}) => {
     title: '有新通知',
     message: totalUnread > 0 ? `当前共有 ${totalUnread} 条未读` : '你有新的站内通知',
     icon: 'notification',
-    durationMs: 6200
+    durationMs: 6200,
   };
 };
 
@@ -1327,7 +1576,7 @@ const fetchPushplusStatus = async ({ force = false } = {}) => {
   const now = Date.now();
 
   // ✅ 检查 lastFetchTime，避免频繁重复请求
-  if (!force && (now - lastFetchTime.pushplus < 5000)) {
+  if (!force && now - lastFetchTime.pushplus < 5000) {
     const cachedStatus = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.pushplus);
     if (cachedStatus) {
       pushplusStatus.loaded = true;
@@ -1364,7 +1613,7 @@ const fetchPushplusStatus = async ({ force = false } = {}) => {
     pushplusStatus.enabled = Boolean(data?.enabled);
     setUserSpaceCache(cacheKey, {
       hasToken: pushplusStatus.hasToken,
-      enabled: pushplusStatus.enabled
+      enabled: pushplusStatus.enabled,
     });
     lastFetchTime.pushplus = now;
     dataState.pushplus.error = null;
@@ -1392,7 +1641,7 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
   const now = Date.now();
 
   // ✅ 检查 lastFetchTime，避免频繁重复请求
-  if (!force && (now - lastFetchTime.cloudUsage < 5000)) {
+  if (!force && now - lastFetchTime.cloudUsage < 5000) {
     const cachedUsage = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.cloudUsage);
     if (cachedUsage) {
       cloudPlusUsage.loaded = true;
@@ -1417,23 +1666,27 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
   try {
     const [subscriptionsResult, cloudEntriesResult] = await Promise.all([
       getMySubscriptions(userId, { includeExpired: true, signal: abortController.signal }),
-      listMyCloudEntries({ userId, limit: 500, signal: abortController.signal })
+      listMyCloudEntries({ userId, limit: 500, signal: abortController.signal }),
     ]);
 
     if (abortController.signal.aborted) return;
 
-    const subscriptions = subscriptionsResult.ok && Array.isArray(subscriptionsResult.data)
-      ? subscriptionsResult.data
-      : [];
+    const subscriptions =
+      subscriptionsResult.ok && Array.isArray(subscriptionsResult.data)
+        ? subscriptionsResult.data
+        : [];
     const benefit = resolveCloudBenefitFromSubscriptions(subscriptions);
     cloudPlusUsage.limit = Number(benefit.cloudImageLimit || DEFAULT_CLOUD_IMAGE_LIMIT);
 
     if (cloudEntriesResult.ok && Array.isArray(cloudEntriesResult.data)) {
-      cloudPlusUsage.used = cloudEntriesResult.data.reduce((sum, entry) => (
-        sum + (Array.isArray(entry?.contentBlocks)
-          ? entry.contentBlocks.filter((block) => block?.type === 'image').length
-          : 0)
-      ), 0);
+      cloudPlusUsage.used = cloudEntriesResult.data.reduce(
+        (sum, entry) =>
+          sum +
+          (Array.isArray(entry?.contentBlocks)
+            ? entry.contentBlocks.filter((block) => block?.type === 'image').length
+            : 0),
+        0,
+      );
     } else {
       cloudPlusUsage.used = 0;
     }
@@ -1441,7 +1694,7 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
     cloudPlusUsage.loaded = true;
     setUserSpaceCache(cacheKey, {
       used: cloudPlusUsage.used,
-      limit: cloudPlusUsage.limit
+      limit: cloudPlusUsage.limit,
     });
     lastFetchTime.cloudUsage = now;
     dataState.cloud.error = null;
@@ -1606,12 +1859,15 @@ const alertState = reactive({
   visible: false,
   type: 'success',
   title: '',
-  message: ''
+  message: '',
 });
 
 const months = Array.from({ length: 12 }, (_, i) => i + 1);
 const currentYear = new Date().getFullYear();
-const joinDateYears = Array.from({ length: Math.max(1, currentYear - 2014 + 1) }, (_, i) => currentYear - i);
+const joinDateYears = Array.from(
+  { length: Math.max(1, currentYear - 2014 + 1) },
+  (_, i) => currentYear - i,
+);
 
 const daysForEditProfile = computed(() => {
   const month = Number(editProfileForm.birthMonth || 0);
@@ -1643,7 +1899,7 @@ const splitDateValue = (dateValue) => {
   return {
     year: Number(match[1]),
     month: Number(match[2]),
-    day: Number(match[3])
+    day: Number(match[3]),
   };
 };
 
@@ -1748,12 +2004,12 @@ const submitEditProfile = async () => {
   const hasAnyJoinDatePart = hasAnyDatePart(
     editProfileForm.joinYear,
     editProfileForm.joinMonth,
-    editProfileForm.joinDay
+    editProfileForm.joinDay,
   );
   const hasCompleteJoinDate = hasCompleteDateParts(
     editProfileForm.joinYear,
     editProfileForm.joinMonth,
-    editProfileForm.joinDay
+    editProfileForm.joinDay,
   );
   if (hasAnyJoinDatePart && !hasCompleteJoinDate) {
     showAlert('warning', '提示', '请完整选择入群时间');
@@ -1767,7 +2023,10 @@ const submitEditProfile = async () => {
     return;
   }
   const hasAnyBirthdayPart = hasAnyDatePart(editProfileForm.birthMonth, editProfileForm.birthDay);
-  const hasCompleteBirthday = hasCompleteDateParts(editProfileForm.birthMonth, editProfileForm.birthDay);
+  const hasCompleteBirthday = hasCompleteDateParts(
+    editProfileForm.birthMonth,
+    editProfileForm.birthDay,
+  );
   if (hasAnyBirthdayPart && !hasCompleteBirthday) {
     showAlert('warning', '提示', '请完整选择生日月份和日期');
     return;
@@ -1777,10 +2036,12 @@ const submitEditProfile = async () => {
   try {
     const updates = {
       username: newUsername,
-      bio: String(editProfileForm.bio || '').trim().slice(0, 160),
+      bio: String(editProfileForm.bio || '')
+        .trim()
+        .slice(0, 160),
       join_date: nextJoinDate,
       birth_month: hasCompleteBirthday ? String(editProfileForm.birthMonth) : null,
-      birth_day: hasCompleteBirthday ? String(editProfileForm.birthDay) : null
+      birth_day: hasCompleteBirthday ? String(editProfileForm.birthDay) : null,
     };
     const result = await authStore.updateUserProfile(updates);
     if (!result.success) {
@@ -1793,7 +2054,7 @@ const submitEditProfile = async () => {
       type: 'success',
       actionLabel: '查看',
       actionTab: 'posts',
-      durationMs: 4200
+      durationMs: 4200,
     });
     closeEditProfileModal();
   } catch (error) {
@@ -1811,8 +2072,8 @@ const openCloudPlusArea = (view = 'content') => {
     path: '/user-space/note',
     query: {
       view: safeView,
-      from: returnOrigin
-    }
+      from: returnOrigin,
+    },
   });
 };
 
@@ -1835,7 +2096,7 @@ const followListModal = reactive({
   loading: false,
   loadingMore: false,
   hasMore: false,
-  page: 1
+  page: 1,
 });
 
 const openUserFollowModal = async (user, type) => {
@@ -1858,7 +2119,7 @@ const loadCommunityFollowListPage = async ({ reset = false } = {}) => {
     const pageToLoad = reset ? 1 : followListModal.page;
     const loadFn = followListModal.type === 'followers' ? getFollowers : getFollowing;
     const res = await loadFn(targetId, { page: pageToLoad, pageSize: 20 });
-    const incoming = res.error ? [] : (res.data || []);
+    const incoming = res.error ? [] : res.data || [];
     followListModal.users = reset ? incoming : [...followListModal.users, ...incoming];
     followListModal.hasMore = incoming.length === 20;
     followListModal.page = pageToLoad + 1;
@@ -1874,31 +2135,40 @@ const handleFollowListLoadMore = () => {
   loadCommunityFollowListPage();
 };
 
-
-
 const preloadUserSpaceTab = (tabId) => {
   const safeTab = String(tabId || '');
   if (!validTabs.includes(safeTab)) return;
   if (safeTab === 'community') {
     scheduleIdleTask('tab:community', () => void preloadForumComponent());
   } else if (safeTab === 'posts' && isLoggedIn.value) {
-    scheduleIdleTask('tab:posts', () => {
-      void preloadProfileStyles();
-      scheduleUserSpaceWarmup();
-    }, { timeout: 2400, fallbackDelay: 420 });
+    scheduleIdleTask(
+      'tab:posts',
+      () => {
+        void preloadProfileStyles();
+        scheduleUserSpaceWarmup();
+      },
+      { timeout: 2400, fallbackDelay: 420 },
+    );
   } else if (safeTab === 'messages' && isLoggedIn.value) {
     // ✅ 性能优化 P0-1：hover/idle 预载只拉消息中心；BOH AI 全依赖图（dev 实测 69 模块、
     // ~12MB 堆）改为用户切到 AI 分区时按需预载（setMessagesSection / messagesSection
     // watcher），从未打开 AI 的用户不再为其支付网络与内存成本。
     scheduleIdleTask('tab:messages', () => void preloadMessagesComponent());
   } else if (safeTab === 'assets' && isLoggedIn.value) {
-    scheduleIdleTask('tab:assets', () => void preloadProfileStyles(), { timeout: 2400, fallbackDelay: 420 });
+    scheduleIdleTask('tab:assets', () => void preloadProfileStyles(), {
+      timeout: 2400,
+      fallbackDelay: 420,
+    });
   } else if (safeTab === 'settings' && isLoggedIn.value) {
     // 设置额外预载内部档位的面板 chunk：首次换档实测 291~313ms，其中一部分是 chunk 往返
-    scheduleIdleTask('tab:settings', () => {
-      void preloadProfileStyles();
-      void preloadSettingsSubPanels();
-    }, { timeout: 2400, fallbackDelay: 420 });
+    scheduleIdleTask(
+      'tab:settings',
+      () => {
+        void preloadProfileStyles();
+        void preloadSettingsSubPanels();
+      },
+      { timeout: 2400, fallbackDelay: 420 },
+    );
   }
 };
 
@@ -1924,7 +2194,8 @@ const syncUserSpaceTabRoute = (tabId) => {
   const nextSection = String(nextQuery.section || '');
   const currentView = String(route.query.view || '');
   const nextView = String(nextQuery.view || '');
-  if (currentRouteTab === tabId && currentSection === nextSection && currentView === nextView) return;
+  if (currentRouteTab === tabId && currentSection === nextSection && currentView === nextView)
+    return;
 
   router.replace({ path: '/user-space', query: nextQuery });
 };
@@ -2050,7 +2321,7 @@ const handleRailAction = async (actionId) => {
 
 const toggleHideOnlineStatus = async () => {
   const { success } = await authStore.updateUserProfile({
-    hide_online_status: !userInfo.value.hideOnlineStatus
+    hide_online_status: !userInfo.value.hideOnlineStatus,
   });
   if (!success) {
     showTopNavStatus({ title: '更新失败，请重试', icon: 'warning' });
@@ -2059,7 +2330,7 @@ const toggleHideOnlineStatus = async () => {
 
 const toggleHideFollowData = async () => {
   const { success } = await authStore.updateUserProfile({
-    hide_follow_data: !userInfo.value.hideFollowData
+    hide_follow_data: !userInfo.value.hideFollowData,
   });
   if (!success) {
     showTopNavStatus({ title: '更新失败，请重试', icon: 'warning' });
@@ -2118,20 +2389,26 @@ const uploadProfileBackgroundFile = async (file) => {
     uploaded = await uploadImageToCloudinary(file);
     const result = await authStore.updateUserProfile({
       profile_background_url: uploaded.url,
-      profile_background_public_id: uploaded.publicId
+      profile_background_public_id: uploaded.publicId,
     });
 
     if (!result.success) {
       throw new Error(result.message || '保存背景失败');
     }
 
-    const oldPublicId = String(oldBackgroundPublicId || extractCloudinaryPublicIdFromUrl(oldBackgroundUrl)).trim();
+    const oldPublicId = String(
+      oldBackgroundPublicId || extractCloudinaryPublicIdFromUrl(oldBackgroundUrl),
+    ).trim();
     const newPublicId = String(uploaded.publicId || '').trim();
     if (oldPublicId && oldPublicId !== newPublicId) {
       const cleanupResult = await cleanupCloudinaryProfileBackground(oldPublicId, oldBackgroundUrl);
       if (!cleanupResult.ok) {
         logger.warn('user-space', '清理旧个人卡片背景失败:', cleanupResult.error);
-        showAlert('warning', '背景已更新', cleanupResult.error?.message || '旧背景图云端清理失败，请稍后重试');
+        showAlert(
+          'warning',
+          '背景已更新',
+          cleanupResult.error?.message || '旧背景图云端清理失败，请稍后重试',
+        );
         return true;
       }
     }
@@ -2143,13 +2420,16 @@ const uploadProfileBackgroundFile = async (file) => {
       type: 'success',
       actionLabel: '查看',
       actionTab: 'posts',
-      durationMs: 4200
+      durationMs: 4200,
     });
     return true;
   } catch (error) {
     logger.error('user-space', '个人卡片背景上传失败:', error);
     if (uploaded?.publicId) {
-      const cleanupResult = await cleanupCloudinaryProfileBackground(uploaded.publicId, uploaded.url);
+      const cleanupResult = await cleanupCloudinaryProfileBackground(
+        uploaded.publicId,
+        uploaded.url,
+      );
       if (!cleanupResult.ok) {
         logger.warn('user-space', '清理未保存的新背景失败:', cleanupResult.error);
       }
@@ -2164,7 +2444,13 @@ const uploadProfileBackgroundFile = async (file) => {
 const handlePointsCardClick = () => {
   if (isUploadingPointsCard.value) return;
   if (!isPointsCardPresetQuotaLoading.value && !pointsCardPresetQuota.value.canAdd) {
-    showTopNavStatus({ title: '卡面已达上限', message: `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`, icon: 'warning', type: 'warning', durationMs: 3600 });
+    showTopNavStatus({
+      title: '卡面已达上限',
+      message: `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`,
+      icon: 'warning',
+      type: 'warning',
+      durationMs: 3600,
+    });
     return;
   }
   pointsCardInputRef.value?.click();
@@ -2208,18 +2494,22 @@ const normalizePointsCardPreset = (preset = {}) => ({
   imageUrl: String(preset.image_url || preset.imageUrl || '').trim(),
   imagePublicId: String(preset.image_public_id || preset.imagePublicId || '').trim(),
   createdAt: String(preset.created_at || preset.createdAt || ''),
-  lastUsedAt: String(preset.last_used_at || preset.lastUsedAt || '')
+  lastUsedAt: String(preset.last_used_at || preset.lastUsedAt || ''),
 });
 
 const normalizePointsCardPresetQuota = (quota = {}) => ({
   capacity: Math.max(3, Number(quota.capacity || 3) || 3),
   currentCount: Math.max(0, Number(quota.current_count ?? quota.currentCount ?? 0) || 0),
-  tierCode: String(quota.tier_code || quota.tierCode || 'free').trim().toLowerCase() || 'free',
-  canAdd: Boolean(quota.can_add ?? quota.canAdd)
+  tierCode:
+    String(quota.tier_code || quota.tierCode || 'free')
+      .trim()
+      .toLowerCase() || 'free',
+  canAdd: Boolean(quota.can_add ?? quota.canAdd),
 });
 
 const loadPointsCardPresetQuota = async () => {
-  if (!userInfo.value?.id || isPointsCardPresetQuotaLoading.value) return pointsCardPresetQuota.value;
+  if (!userInfo.value?.id || isPointsCardPresetQuotaLoading.value)
+    return pointsCardPresetQuota.value;
   isPointsCardPresetQuotaLoading.value = true;
   try {
     const { data, error } = await supabase.rpc('get_points_card_preset_quota');
@@ -2286,36 +2576,58 @@ const uploadPointsCardFile = async (file) => {
   try {
     const quota = await loadPointsCardPresetQuota();
     if (!quota.canAdd) {
-      showTopNavStatus({ title: '卡面已达上限', message: `当前会员最多保存 ${quota.capacity} 张自定义卡面`, icon: 'warning', type: 'warning', durationMs: 3600 });
+      showTopNavStatus({
+        title: '卡面已达上限',
+        message: `当前会员最多保存 ${quota.capacity} 张自定义卡面`,
+        icon: 'warning',
+        type: 'warning',
+        durationMs: 3600,
+      });
       return false;
     }
 
-    uploaded = await uploadImageToCloudinary(file, { pendingSource: 'points-card', folder: 'boh-points-cards' });
+    uploaded = await uploadImageToCloudinary(file, {
+      pendingSource: 'points-card',
+      folder: 'boh-points-cards',
+    });
     const { data, error } = await supabase.rpc('create_points_card_preset', {
       p_image_url: uploaded.url,
-      p_image_public_id: uploaded.publicId || null
+      p_image_public_id: uploaded.publicId || null,
     });
     if (error) throw error;
     if (!data?.ok) {
       if (data?.message === 'PRESET_CAPACITY_REACHED') {
         await loadPointsCardPresetQuota();
       }
-      throw new Error(data?.message === 'PRESET_CAPACITY_REACHED'
-        ? `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`
-        : (data?.message || '保存卡面失败'));
+      throw new Error(
+        data?.message === 'PRESET_CAPACITY_REACHED'
+          ? `当前会员最多保存 ${pointsCardPresetQuota.value.capacity} 张自定义卡面`
+          : data?.message || '保存卡面失败',
+      );
     }
     createdPreset = normalizePointsCardPreset(data.preset || {});
 
-    const { data: useResult, error: useError } = await supabase.rpc('use_points_card_preset', { p_preset_id: createdPreset.id });
+    const { data: useResult, error: useError } = await supabase.rpc('use_points_card_preset', {
+      p_preset_id: createdPreset.id,
+    });
     if (useError) throw useError;
     if (!useResult?.ok) throw new Error(useResult?.message || '应用卡面失败');
 
     await markCloudinaryUploadsClaimed([uploaded.publicId]);
     await authStore.refreshCurrentUserProfile({ force: true });
 
-    pointsCardPresets.value = [createdPreset, ...pointsCardPresets.value.filter((preset) => preset.id !== createdPreset.id)];
+    pointsCardPresets.value = [
+      createdPreset,
+      ...pointsCardPresets.value.filter((preset) => preset.id !== createdPreset.id),
+    ];
     await loadPointsCardPresetQuota();
-    showTopNavStatus({ title: '卡面已添加', message: '已保存为自定义卡面预设', icon: 'success', type: 'success', durationMs: 3600 });
+    showTopNavStatus({
+      title: '卡面已添加',
+      message: '已保存为自定义卡面预设',
+      icon: 'success',
+      type: 'success',
+      durationMs: 3600,
+    });
     return true;
   } catch (error) {
     logger.error('user-space', '积分卡面上传失败:', error);
@@ -2340,7 +2652,13 @@ const selectPointsCardPreset = async (presetId) => {
   }
   await authStore.refreshCurrentUserProfile({ force: true });
   preset.lastUsedAt = new Date().toISOString();
-  showTopNavStatus({ title: '卡面已应用', message: '已切换到所选自定义卡面', icon: 'success', type: 'success', durationMs: 2800 });
+  showTopNavStatus({
+    title: '卡面已应用',
+    message: '已切换到所选自定义卡面',
+    icon: 'success',
+    type: 'success',
+    durationMs: 2800,
+  });
 };
 
 const setPointsCardSkin = async (skin) => {
@@ -2354,7 +2672,13 @@ const setPointsCardSkin = async (skin) => {
     showTopNavStatus({ title: '卡片皮肤更新失败，请重试', icon: 'warning' });
     return;
   }
-  showTopNavStatus({ title: '皮肤已应用', message: skin === 'cats' ? '小猫卡面已启用' : '已切换为空白卡', icon: 'success', type: 'success', durationMs: 2800 });
+  showTopNavStatus({
+    title: '皮肤已应用',
+    message: skin === 'cats' ? '小猫卡面已启用' : '已切换为空白卡',
+    icon: 'success',
+    type: 'success',
+    durationMs: 2800,
+  });
 };
 
 const redeemPointsCardCats = async () => {
@@ -2371,7 +2695,7 @@ const redeemPointsCardCats = async () => {
       message: `将扣除 3 积分（当前 ${Math.max(0, Number(userInfo.value.points) || 0)} 积分）。兑换后会永久同步到你的账户，是否确认兑换？`,
       tone: 'default',
       confirmText: '确认兑换',
-      cancelText: '暂不兑换'
+      cancelText: '暂不兑换',
     });
   } catch (error) {
     logger.warn('user-space', '积分卡兑换确认弹窗未打开:', error);
@@ -2386,7 +2710,13 @@ const redeemPointsCardCats = async () => {
     if (error) throw error;
     if (!data?.ok) {
       if (data?.message === 'INSUFFICIENT_POINTS') {
-        showTopNavStatus({ title: '积分不足', message: `兑换全员小猫还需 ${Math.max(0, Number(data.required_points || 3) - Number(data.current_points || 0))} 积分`, icon: 'warning', type: 'warning', durationMs: 3600 });
+        showTopNavStatus({
+          title: '积分不足',
+          message: `兑换全员小猫还需 ${Math.max(0, Number(data.required_points || 3) - Number(data.current_points || 0))} 积分`,
+          icon: 'warning',
+          type: 'warning',
+          durationMs: 3600,
+        });
         return;
       }
       throw new Error(data?.message || '兑换失败');
@@ -2400,7 +2730,7 @@ const redeemPointsCardCats = async () => {
       message: data.already_unlocked ? '全员小猫卡面已应用' : '已扣除 3 积分并同步到云端',
       icon: 'success',
       type: 'success',
-      durationMs: 3600
+      durationMs: 3600,
     });
   } catch (error) {
     logger.error('user-space', '兑换全员小猫卡面失败:', error);
@@ -2414,7 +2744,9 @@ const deletePointsCardPreset = async (presetId) => {
   const preset = pointsCardPresets.value.find((item) => item.id === String(presetId || ''));
   if (!preset) return;
 
-  const { data, error } = await supabase.rpc('delete_points_card_preset', { p_preset_id: preset.id });
+  const { data, error } = await supabase.rpc('delete_points_card_preset', {
+    p_preset_id: preset.id,
+  });
   if (error || !data?.ok) {
     logger.error('user-space', '删除积分卡面预设失败:', error || data?.message);
     showTopNavStatus({ title: '删除自定义卡面失败，请重试', icon: 'warning' });
@@ -2424,7 +2756,11 @@ const deletePointsCardPreset = async (presetId) => {
   pointsCardPresets.value = pointsCardPresets.value.filter((item) => item.id !== preset.id);
   await loadPointsCardPresetQuota();
 
-  const publicId = String(data?.image_public_id || preset.imagePublicId || extractCloudinaryPublicIdFromUrl(data?.image_url || preset.imageUrl)).trim();
+  const publicId = String(
+    data?.image_public_id ||
+      preset.imagePublicId ||
+      extractCloudinaryPublicIdFromUrl(data?.image_url || preset.imageUrl),
+  ).trim();
   const imageUrl = String(data?.image_url || preset.imageUrl || '').trim();
   // The database has recorded ownership before removing the preset, so a
   // transient cleanup failure cannot block the user's delete action.
@@ -2439,7 +2775,7 @@ const deletePointsCardPreset = async (presetId) => {
     message: data.was_current ? '已切换为空白卡' : '其余预设不受影响',
     icon: 'success',
     type: 'success',
-    durationMs: 2800
+    durationMs: 2800,
   });
 };
 
@@ -2448,11 +2784,16 @@ watch(
   ([, loggedIn]) => {
     if (!loggedIn) {
       pointsCardPresets.value = [];
-      pointsCardPresetQuota.value = { capacity: 3, currentCount: 0, tierCode: 'free', canAdd: true };
+      pointsCardPresetQuota.value = {
+        capacity: 3,
+        currentCount: 0,
+        tierCode: 'free',
+        canAdd: true,
+      };
       isPointsCardCatsUnlocked.value = false;
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 const handleAvatarClick = () => {
@@ -2499,7 +2840,7 @@ const handleCropConfirm = async (blob) => {
         maxSizeMB: 1.2,
         maxWidthOrHeight: 1800,
         useWebWorker: true,
-        fileType: 'image/webp'
+        fileType: 'image/webp',
       });
 
       const ok = await uploadProfileBackgroundFile(compressedFile);
@@ -2516,7 +2857,7 @@ const handleCropConfirm = async (blob) => {
         maxSizeMB: 1.2,
         maxWidthOrHeight: 1600,
         useWebWorker: true,
-        fileType: 'image/webp'
+        fileType: 'image/webp',
       });
       const ok = await uploadPointsCardFile(compressedFile);
       if (ok) showCropModal.value = false;
@@ -2537,9 +2878,12 @@ const handleCropConfirm = async (blob) => {
     showCropModal.value = false;
   } catch (error) {
     logger.error('user-space', '裁切处理失败:', error);
-    const targetLabel = cropPurpose.value === 'profile-background'
-      ? '背景'
-      : (cropPurpose.value === 'points-card' ? '积分卡面' : '头像');
+    const targetLabel =
+      cropPurpose.value === 'profile-background'
+        ? '背景'
+        : cropPurpose.value === 'points-card'
+          ? '积分卡面'
+          : '头像';
     showAlert('error', '处理失败', `${targetLabel}裁切出错，请重试`);
   } finally {
     isProcessingCrop.value = false;
@@ -2548,7 +2892,9 @@ const handleCropConfirm = async (blob) => {
 
 const uploadToSupabase = async (file) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       showAlert('error', '上传失败', '请先登录');
       return;
@@ -2559,18 +2905,16 @@ const uploadToSupabase = async (file) => {
     const timestamp = Date.now();
     const filePath = `${user.id}/avatar_${timestamp}.png`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file, {
-        contentType: 'image/png',
-        cacheControl: '3600'
-      });
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, {
+      contentType: 'image/png',
+      cacheControl: '3600',
+    });
 
     if (uploadError) throw uploadError;
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(filePath);
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from('avatars').getPublicUrl(filePath);
 
     const finalUrl = `${publicUrl}?t=${timestamp}`;
     await updateProfileAvatar(user.id, finalUrl);
@@ -2600,7 +2944,7 @@ const uploadToSupabase = async (file) => {
       type: 'success',
       actionLabel: '查看',
       actionTab: 'posts',
-      durationMs: 4200
+      durationMs: 4200,
     });
   } catch (error) {
     logger.error('user-space', '上传到 Supabase 失败:', error);
@@ -2613,7 +2957,7 @@ const initUserData = async () => {
     await authStore.updateLocalState({
       id: userInfo.value.id,
       email: userInfo.value.email,
-      user_metadata: { username: userInfo.value.username }
+      user_metadata: { username: userInfo.value.username },
     });
   }
 };
@@ -2643,18 +2987,21 @@ const runProfileCriticalFetches = ({ force = false } = {}) => {
 const scheduleUserSpaceWarmup = ({ force = false } = {}) => {
   if (!isLoggedIn.value || !userInfo.value.id || typeof window === 'undefined') return;
   clearUserSpaceWarmup();
-  userSpaceWarmupTimeoutId = window.setTimeout(() => {
-    userSpaceWarmupTimeoutId = null;
-    if (!isLoggedIn.value || !userInfo.value.id) return;
-    if (currentTab.value === 'posts') {
-      // ✅ 性能优化 P0-3：posts tab 数据统一收口到 runProfileCriticalFetches（带 5s
-      // 合并窗口）。hover 预载也会走到这里，定时器晚于关键拉取触发时若再直拉会
-      // 重复请求（实测聚合 RPC ×2 + 计数 HEAD 被后到者 abort）。
-      runProfileCriticalFetches();
-      return;
-    }
-    void fetchUserStats({ force });
-  }, currentTab.value === 'posts' ? 120 : 900);
+  userSpaceWarmupTimeoutId = window.setTimeout(
+    () => {
+      userSpaceWarmupTimeoutId = null;
+      if (!isLoggedIn.value || !userInfo.value.id) return;
+      if (currentTab.value === 'posts') {
+        // ✅ 性能优化 P0-3：posts tab 数据统一收口到 runProfileCriticalFetches（带 5s
+        // 合并窗口）。hover 预载也会走到这里，定时器晚于关键拉取触发时若再直拉会
+        // 重复请求（实测聚合 RPC ×2 + 计数 HEAD 被后到者 abort）。
+        runProfileCriticalFetches();
+        return;
+      }
+      void fetchUserStats({ force });
+    },
+    currentTab.value === 'posts' ? 120 : 900,
+  );
 };
 
 // ✅ 性能优化：合并分散的 watch 为单个 watch，减少 Vue 内部开销
@@ -2665,7 +3012,7 @@ watch(
     points: userInfo.value.points,
     birthMonth: editProfileForm.birthMonth,
     joinYear: editProfileForm.joinYear,
-    joinMonth: editProfileForm.joinMonth
+    joinMonth: editProfileForm.joinMonth,
   }),
   async (newVal, oldVal) => {
     const { userId, isReady, points, birthMonth, joinYear, joinMonth } = newVal;
@@ -2725,7 +3072,7 @@ watch(
       normalizeEditJoinDay();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 /* ---------- 导航岛实测高度 → --userspace-nav-h ----------
@@ -2743,7 +3090,13 @@ const syncUserspaceNavHeight = () => {
   if (!root) return;
   const island = document.getElementById('unified-nav-container');
   if (!island) return;
-  const h = Math.ceil(island.getBoundingClientRect().height);
+  /* ⚠️ 只上报「收起态」高度（钳制到 container 的 min-height）：岛展开——不管 AI 岛、
+     状态卡还是全局搜索面板——都是悬浮层，页面内容不应为它让位。
+     2026-09-27 用户实测：全局搜索一出结果，内容区被推下去 200px+。
+     （钳制后，下方 AI 岛的 railNavSync 冻结逻辑变成无害冗余，保留不动。） */
+  const measured = Math.ceil(island.getBoundingClientRect().height);
+  const restHeight = Number.parseFloat(getComputedStyle(island).minHeight) || 0;
+  const h = restHeight > 0 ? Math.min(measured, Math.ceil(restHeight)) : measured;
   if (h > 0) root.style.setProperty('--userspace-nav-h', `${h}px`);
   if (railNavSyncHeld) return;
   if (h > 0) root.style.setProperty('--userspace-rail-top-h', `${h}px`);
@@ -2765,7 +3118,7 @@ watch(
       syncUserspaceNavHeight();
     }, 600);
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 onMounted(() => {
@@ -2778,7 +3131,7 @@ onMounted(() => {
     navIslandResizeObserver.observe(islandEl);
   }
   setUserSpaceMountedForPreload(true);
-  document.body.classList.add("is-loaded");
+  document.body.classList.add('is-loaded');
   // 初始化主题
   const initialTheme = themeManager.getTheme();
   userSpacePageEl = document.querySelector('.user-space-page');
@@ -2823,49 +3176,57 @@ onMounted(() => {
   themeManager.addListener(handleThemeChange);
 });
 
-watch(() => route.query.tab, (newTab) => {
-  const mappedTab = LEGACY_TAB_MAP[newTab] || newTab;
-  const safeTab = validTabs.includes(mappedTab) ? mappedTab : 'community';
-  const nextTab = resolveAccessibleTab(safeTab, { promptLogin: true });
-  if (currentTab.value === nextTab) return;
-  updateTabTransitionDirection(nextTab);
-  ensureTabMounted(nextTab);
-  const previousTab = currentTab.value;
-  saveTabScrollPosition(previousTab);
-  if (clearLeavingTabTimer) {
-    clearTimeout(clearLeavingTabTimer);
-  }
-  leavingTab.value = previousTab;
-  currentTab.value = nextTab;
-  void restoreTabScrollPosition(nextTab);
-  clearLeavingTabTimer = setTimeout(() => {
-    if (leavingTab.value === previousTab) {
-      leavingTab.value = null;
+watch(
+  () => route.query.tab,
+  (newTab) => {
+    const mappedTab = LEGACY_TAB_MAP[newTab] || newTab;
+    const safeTab = validTabs.includes(mappedTab) ? mappedTab : 'community';
+    const nextTab = resolveAccessibleTab(safeTab, { promptLogin: true });
+    if (currentTab.value === nextTab) return;
+    updateTabTransitionDirection(nextTab);
+    ensureTabMounted(nextTab);
+    const previousTab = currentTab.value;
+    saveTabScrollPosition(previousTab);
+    if (clearLeavingTabTimer) {
+      clearTimeout(clearLeavingTabTimer);
     }
-    clearLeavingTabTimer = null;
-  }, 170);
-  resolveSectionFromRoute();
-  if (nextTab === 'community') {
-    scheduleForumPreload(currentTab.value);
-    void activateForumTab();
-  }
-  if (nextTab === 'posts') {
-    void preloadProfileStyles();
-    runProfileCriticalFetches();
-  }
-  if (nextTab === 'settings') {
-    void preloadSettingsSubPanels();
-    void openSettingsPanelFromRoute();
-  }
-}, { flush: 'sync' });
+    leavingTab.value = previousTab;
+    currentTab.value = nextTab;
+    void restoreTabScrollPosition(nextTab);
+    clearLeavingTabTimer = setTimeout(() => {
+      if (leavingTab.value === previousTab) {
+        leavingTab.value = null;
+      }
+      clearLeavingTabTimer = null;
+    }, 170);
+    resolveSectionFromRoute();
+    if (nextTab === 'community') {
+      scheduleForumPreload(currentTab.value);
+      void activateForumTab();
+    }
+    if (nextTab === 'posts') {
+      void preloadProfileStyles();
+      runProfileCriticalFetches();
+    }
+    if (nextTab === 'settings') {
+      void preloadSettingsSubPanels();
+      void openSettingsPanelFromRoute();
+    }
+  },
+  { flush: 'sync' },
+);
 
-watch(() => route.query.assistant, (mode) => {
-  if (mode === 'quick') {
-    openGlobalAi();
-  } else if (isAiOverlayOpen.value) {
-    closeGlobalAi();
-  }
-}, { immediate: true });
+watch(
+  () => route.query.assistant,
+  (mode) => {
+    if (mode === 'quick') {
+      openGlobalAi();
+    } else if (isAiOverlayOpen.value) {
+      closeGlobalAi();
+    }
+  },
+  { immediate: true },
+);
 
 watch(isAiOverlayOpen, (open) => {
   if (open || route.query.assistant !== 'quick') return;
@@ -2874,14 +3235,20 @@ watch(isAiOverlayOpen, (open) => {
   void router.replace({ path: '/user-space', query: nextQuery });
 });
 
-watch(() => route.query.view, () => {
-  resolveSectionFromRoute();
-  void openSettingsPanelFromRoute();
-});
+watch(
+  () => route.query.view,
+  () => {
+    resolveSectionFromRoute();
+    void openSettingsPanelFromRoute();
+  },
+);
 
-watch(() => route.query.setting, () => {
-  void openSettingsPanelFromRoute();
-});
+watch(
+  () => route.query.setting,
+  () => {
+    void openSettingsPanelFromRoute();
+  },
+);
 
 watch(currentTab, (newTab, oldTab) => {
   resetBottomNavAutoHide();
@@ -2991,19 +3358,25 @@ const presentSuggestIsland = () => {
       // × 掉或超时：记住当前未读批次，同批次本会话不再弹
       sessionStorage.setItem(SUGGEST_DISMISS_KEY, String(unreadCount.value));
       closeSuggestIsland();
-    }
+    },
   });
 };
 
 // 用户「来看消息」= 消息 tab 且停在收件箱分区；切走 tab / 切到 AI 分区即收
-const isMessagesInboxActive = computed(() => currentTab.value === 'messages' && messagesSection.value === 'inbox');
+const isMessagesInboxActive = computed(
+  () => currentTab.value === 'messages' && messagesSection.value === 'inbox',
+);
 // 直达 ?tab=messages 时 notificationStoreRef 是 setup 期的 null 快照（mount 逻辑只在不为 messages
 // 的 tab 刷未读数），unreadCount computed 会恒 0 —— 建议岛不弹、底部导航徽标也丢。先确保 store 就位。
 void ensureNotificationStore();
-watch(isMessagesInboxActive, (active) => {
-  if (active) presentSuggestIsland();
-  else closeSuggestIsland();
-}, { immediate: true });
+watch(
+  isMessagesInboxActive,
+  (active) => {
+    if (active) presentSuggestIsland();
+    else closeSuggestIsland();
+  },
+  { immediate: true },
+);
 
 // 未读数变化跟随刷新卡片文案；清零即收（覆盖列表内手动点已读的路径）。
 // 计数是异步到达的（直达 ?tab=messages 时 watch 首值可能仍是 0）：岛未展示且收件箱激活时补弹。
@@ -3042,19 +3415,20 @@ watch(unreadCount, (count) => {
   right: 0;
   bottom: 0;
   width: 2px;
-  background: linear-gradient(180deg,
-      rgba(16, 163, 127, 0.1) 0%,
-      rgba(16, 163, 127, 0.3) 20%,
-      rgba(16, 163, 127, 0.5) 50%,
-      rgba(16, 163, 127, 0.3) 80%,
-      rgba(16, 163, 127, 0.1) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(16, 163, 127, 0.1) 0%,
+    rgba(16, 163, 127, 0.3) 20%,
+    rgba(16, 163, 127, 0.5) 50%,
+    rgba(16, 163, 127, 0.3) 80%,
+    rgba(16, 163, 127, 0.1) 100%
+  );
   z-index: 2147481600;
   pointer-events: none;
   animation: edgeIndicatorPulse 1.2s ease-in-out infinite;
 }
 
 @keyframes edgeIndicatorPulse {
-
   0%,
   100% {
     opacity: 0.6;
@@ -3068,18 +3442,22 @@ watch(unreadCount, (count) => {
 }
 
 /* 暗色主题下的提示线 */
-.user-space-page[data-theme="dark"] .edge-swipe-indicator {
-  background: linear-gradient(180deg,
-      rgba(80, 200, 255, 0.1) 0%,
-      rgba(80, 200, 255, 0.3) 20%,
-      rgba(80, 200, 255, 0.5) 50%,
-      rgba(80, 200, 255, 0.3) 80%,
-      rgba(80, 200, 255, 0.1) 100%);
+.user-space-page[data-theme='dark'] .edge-swipe-indicator {
+  background: linear-gradient(
+    180deg,
+    rgba(80, 200, 255, 0.1) 0%,
+    rgba(80, 200, 255, 0.3) 20%,
+    rgba(80, 200, 255, 0.5) 50%,
+    rgba(80, 200, 255, 0.3) 80%,
+    rgba(80, 200, 255, 0.1) 100%
+  );
 }
 
 /* 边缘滑动提示线进出场（从右缘生长） */
 .edge-ind-enter-active {
-  transition: opacity 200ms ease-out, transform 240ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition:
+    opacity 200ms ease-out,
+    transform 240ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .edge-ind-leave-active {

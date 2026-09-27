@@ -1,0 +1,54 @@
+name: CI Quality Gate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+# 同一 ref 上的连续推送不必各自跑满 —— 后一次直接取代前一次。
+# 与 deploy.yml 反着来是对的：deploy 用 cancel-in-progress:false（部署跑到一半不能撤，
+# 否则正在发布的产物会被拉下来），而 CI 只做验证，旧版本的半成品没有任何价值。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    env:
+      # VITE_* 是前端构建期常量，跑不掉：缺了的话 build / type-check 拿到空串，
+      # check:first-paint 与依赖扫描的结果会失真。url 和 anon key 本身就是可公开的
+      # 前端配置，走 secrets 只是为了两个 workflow 共用一份、不重复粘贴。
+      VITE_CLOUDINARY_DELIVERY_BASE_URL: https://cdn.blockofhome.cn
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # 22，不是 20：vite 7 与 typescript 6 要求 node ^20.19 || >=22.12，
+          # 锁在 20 上会在 type-check / build 阶段踩 EBADENGINE。
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        # pool 与并发上限由 vitest.config.js 统一管（pool: forks / maxForks: 2），
+        # 这里不再重复传参 —— 传了就等于有第二份真源。
+        run: npm run test
+
+      - name: Build with all gates
+        # build:ci = 九道源码门禁 + type-check + vite build + 产物门禁(shell-precache) + 包体闸门。
+        # 门禁清单以 package.json 的 build:ci 为准，不要在这里另抄一份 ——
+        # 抄了就会出现「本地摆烂一遍、CI 摆烂另一遍」。
+        run: npm run build:ci

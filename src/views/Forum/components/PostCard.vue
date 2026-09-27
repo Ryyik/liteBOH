@@ -3,15 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { useTierMap } from '@/composables/useTierMap.js';
-import {
-  Check,
-  Heart,
-  ImageOff,
-  MapPin,
-  MessageCircle,
-  Reply,
-  Share2
-} from 'lucide-vue-next';
+import { Check, Heart, ImageOff, MapPin, MessageCircle, Reply, Share2 } from 'lucide-vue-next';
 import { getHomeCatAsset, getHomeCatTypeBySeed } from '@/utils/home-cat-theme.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { getAvatarUrl } from '@/utils/avatar.js';
@@ -39,7 +31,7 @@ const props = defineProps({
   searchKeyword: { type: String, default: '' },
   isLoggedIn: { type: Boolean, default: false },
   userInfo: { type: Object, default: () => ({}) },
-  loadedImageKeys: { type: Set, default: () => new Set() }
+  loadedImageKeys: { type: Set, default: () => new Set() },
 });
 
 const emit = defineEmits([
@@ -58,7 +50,7 @@ const emit = defineEmits([
   'image-loaded',
   'lazy-image-observe',
   'more-replies',
-  'load-more-images'
+  'load-more-images',
 ]);
 
 const formatDate = formatSmartTime;
@@ -67,17 +59,20 @@ const formatDate = formatSmartTime;
 const quotedTitle = computed(() => {
   const q = props.post?.quotedPost;
   if (!q) return '';
-  return String(q.title || '').trim()
-    || String(q.content || '').trim().match(/【(.*?)】/)?.[1]
-    || '';
+  return (
+    String(q.title || '').trim() ||
+    String(q.content || '')
+      .trim()
+      .match(/【(.*?)】/)?.[1] ||
+    ''
+  );
 });
 const quotedBody = computed(() => {
   const q = props.post?.quotedPost;
   if (!q) return '';
   // 只显示真正的正文：纯标题原帖（body 空、content 只有【标题】行）剥空后
   // 不回退标题——标题行已展示原帖标题，回退会造成同文重复
-  const raw = String(q.body || '').trim()
-    || String(q.content || '').trim();
+  const raw = String(q.body || '').trim() || String(q.content || '').trim();
   const stripped = raw.replace(/【.*?】\n?/, '').trim();
   if (!stripped) return '';
   return stripped.length > 120 ? `${stripped.slice(0, 120)}…` : stripped;
@@ -90,32 +85,33 @@ const isOfficialCard = computed(() => {
   if (p.post_kind === 'news' || p.post_kind === 'activity') return true;
   return !p.author_id && String(p.author_username || '').trim() === OFFICIAL_AUTHOR_NAME;
 });
-const authorAvatarSrc = computed(() => (
+const authorAvatarSrc = computed(() =>
   isOfficialCard.value
     ? getImageUrl('favicon.webp', { silent: true })
-    : getAvatarUrl(props.post?.author_avatar_url, 'sm')
-));
+    : getAvatarUrl(props.post?.author_avatar_url, 'sm'),
+);
 
 // 头像框：官方卡不渲染；作者=自己时走本地佩戴状态，他人走数据字段（Phase 2）
-const authorFrame = computed(() => (
+const authorFrame = computed(() =>
   isOfficialCard.value
     ? null
-    : resolveFrameForAuthor(props.post?.author_avatar_frame_url, props.post?.author_id)
-));
+    : resolveFrameForAuthor(props.post?.author_avatar_frame_url, props.post?.author_id),
+);
 const replyFrameMap = computed(() => {
   const map = new Map();
-  for (const reply of (props.post?.replies || [])) {
+  for (const reply of props.post?.replies || []) {
     map.set(reply.id, resolveFrameForAuthor(reply.author_avatar_frame_url, reply.author_id));
   }
   return map;
 });
 
-const escapeHtml = (value) => String(value || '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+const escapeHtml = (value) =>
+  String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const excerptCache = new Map();
 const renderSearchExcerpt = (excerpt) => {
@@ -150,8 +146,10 @@ const shouldShowMoreRepliesLink = (post) => {
   return Boolean(post?.replies_has_more || Number(post?.comment_count || 0) > previewCount);
 };
 
-const getForumImageKey = (postId, imageUrl) => `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
-const isForumImageLoaded = (postId, imageUrl) => props.loadedImageKeys.has(getForumImageKey(postId, imageUrl));
+const getForumImageKey = (postId, imageUrl) =>
+  `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
+const isForumImageLoaded = (postId, imageUrl) =>
+  props.loadedImageKeys.has(getForumImageKey(postId, imageUrl));
 
 // 记录加载失败的图片URL
 const failedImageUrls = ref(new Set());
@@ -225,7 +223,9 @@ const scrollToStripIndex = (strip, targetIndex) => {
 
 // 点击分段横条跳转到对应图；目标图尚未补全时先触发补全，完成后由 watch 接力滚动
 const goToStripIndex = (post, targetIndex, event) => {
-  const strip = event?.currentTarget?.closest?.('.image-post-strip-wrap')?.querySelector('.image-post-strip');
+  const strip = event?.currentTarget
+    ?.closest?.('.image-post-strip-wrap')
+    ?.querySelector('.image-post-strip');
   if (!strip) return;
   // 高亮锁定目标段，滚动结束（窗口到期）后恢复折算跟随
   lockStripIndex(targetIndex);
@@ -237,16 +237,23 @@ const goToStripIndex = (post, targetIndex, event) => {
   scrollToStripIndex(strip, targetIndex);
 };
 
-watch(() => props.post?.allImages?.length, () => {
-  const target = pendingStripScrollIndex.value;
-  if (target < 0) return;
-  pendingStripScrollIndex.value = -1;
-  lockStripIndex(target);
-  nextTick(() => {
-    const strip = props.post ? document.querySelector(`[data-forum-post-id="${CSS.escape(String(props.post.id))}"] .image-post-strip`) : null;
-    if (strip) scrollToStripIndex(strip, target);
-  });
-});
+watch(
+  () => props.post?.allImages?.length,
+  () => {
+    const target = pendingStripScrollIndex.value;
+    if (target < 0) return;
+    pendingStripScrollIndex.value = -1;
+    lockStripIndex(target);
+    nextTick(() => {
+      const strip = props.post
+        ? document.querySelector(
+            `[data-forum-post-id="${CSS.escape(String(props.post.id))}"] .image-post-strip`,
+          )
+        : null;
+      if (strip) scrollToStripIndex(strip, target);
+    });
+  },
+);
 
 const { fetchUserTier, fetchUserTiersBatch, getNicknameClass } = useUserTier();
 const authorTierClass = ref('');
@@ -254,45 +261,56 @@ const authorTierCode = ref('');
 
 const collectReplyAuthorIds = (replies) => {
   const ids = new Set();
-  (replies || []).forEach((r) => { if (r?.author_id) ids.add(r.author_id); });
+  (replies || []).forEach((r) => {
+    if (r?.author_id) ids.add(r.author_id);
+  });
   return [...ids];
 };
 
-watch(() => props.post?.author_id, async (id) => {
-  if (id) {
-    const tier = await fetchUserTier(id);
-    authorTierClass.value = getNicknameClass(id);
-    authorTierCode.value = tier;
-  } else {
-    authorTierClass.value = '';
-    authorTierCode.value = '';
-  }
-}, { immediate: true });
+watch(
+  () => props.post?.author_id,
+  async (id) => {
+    if (id) {
+      const tier = await fetchUserTier(id);
+      authorTierClass.value = getNicknameClass(id);
+      authorTierCode.value = tier;
+    } else {
+      authorTierClass.value = '';
+      authorTierCode.value = '';
+    }
+  },
+  { immediate: true },
+);
 
 const replyTierMap = useTierMap(
   () => collectReplyAuthorIds(props.post?.replies),
   getNicknameClass,
   fetchUserTier,
-  fetchUserTiersBatch
+  fetchUserTiersBatch,
 );
 
 // 引用框随原帖作者订阅层级显示卡色（与帖子卡片 tier 微色调同源）
 const quotedTierCode = ref('');
 const quotedNickClass = ref('');
-watch(() => props.post?.quotedPost?.author_id, async (id) => {
-  if (!id) {
-    quotedTierCode.value = '';
-    quotedNickClass.value = '';
-    return;
-  }
-  const tier = await fetchUserTier(id);
-  quotedTierCode.value = ['plus', 'pro', 'max', 'ultra'].includes(tier) ? tier : '';
-  quotedNickClass.value = getNicknameClass(id);
-}, { immediate: true });
+watch(
+  () => props.post?.quotedPost?.author_id,
+  async (id) => {
+    if (!id) {
+      quotedTierCode.value = '';
+      quotedNickClass.value = '';
+      return;
+    }
+    const tier = await fetchUserTier(id);
+    quotedTierCode.value = ['plus', 'pro', 'max', 'ultra'].includes(tier) ? tier : '';
+    quotedNickClass.value = getNicknameClass(id);
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
-  <article class="post-card-v2 glass-panel"
+  <article
+    class="post-card-v2 glass-panel"
     :data-forum-post-id="post.id"
     :class="{
       'image-post-card-v2': post.hasImages,
@@ -301,36 +319,61 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
       'tier-plus': authorTierCode === 'plus',
       'tier-pro': authorTierCode === 'pro',
       'tier-max': authorTierCode === 'max',
-      'tier-ultra': authorTierCode === 'ultra'
+      'tier-ultra': authorTierCode === 'ultra',
     }"
     :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
-    @click="emit('click', post.id)">
-    <figure v-if="isHomeCatActive" class="post-card-theme-cat"
-      :class="getPostCardCatVariant(index)" aria-hidden="true">
-      <img :src="getPostCardCatSrc(post, index)" alt="" draggable="false"  loading="lazy" />
+    @click="emit('click', post.id)"
+  >
+    <figure
+      v-if="isHomeCatActive"
+      class="post-card-theme-cat"
+      :class="getPostCardCatVariant(index)"
+      aria-hidden="true"
+    >
+      <img :src="getPostCardCatSrc(post, index)" alt="" draggable="false" loading="lazy" />
     </figure>
-    <figure v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
-      class="post-card-background-cat" aria-hidden="true">
-      <img :src="getPostBackgroundCatSrc(post, index)" alt="" draggable="false"  loading="lazy" />
+    <figure
+      v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
+      class="post-card-background-cat"
+      aria-hidden="true"
+    >
+      <img :src="getPostBackgroundCatSrc(post, index)" alt="" draggable="false" loading="lazy" />
     </figure>
     <div class="post-header-v2">
       <div class="post-author-section">
         <span class="boh-avatar-wrap">
           <div class="post-author-avatar" :class="{ 'is-official': isOfficialCard }">
-            <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像"
-              class="avatar-image"  loading="lazy" />
-            <span v-else>{{ post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
+            <img
+              v-if="authorAvatarSrc"
+              :src="authorAvatarSrc"
+              alt="作者头像"
+              class="avatar-image"
+              loading="lazy"
+            />
+            <span v-else>{{
+              post.author_username ? post.author_username.charAt(0).toUpperCase() : 'U'
             }}</span>
           </div>
-          <span v-if="authorFrame" class="boh-avatar-frame"
-            :style="{ '--boh-avatar-frame-url': `url(${authorFrame.url})`, '--boh-avatar-frame-scale': String(authorFrame.scale) }"
-            aria-hidden="true"></span>
+          <span
+            v-if="authorFrame"
+            class="boh-avatar-frame"
+            :style="{
+              '--boh-avatar-frame-url': `url(${authorFrame.url})`,
+              '--boh-avatar-frame-scale': String(authorFrame.scale),
+            }"
+            aria-hidden="true"
+          ></span>
         </span>
         <div class="post-author-info">
-          <span class="post-author-v2" :class="authorTierClass"
-            @click.stop="isOfficialCard ? undefined : emit('go-to-profile', post.author_username)">@{{
-            post.author_username }}</span>
-          <span v-if="post.author_is_banned" class="author-banned-pill" title="该账号已被封禁">已封禁</span>
+          <span
+            class="post-author-v2"
+            :class="authorTierClass"
+            @click.stop="isOfficialCard ? undefined : emit('go-to-profile', post.author_username)"
+            >@{{ post.author_username }}</span
+          >
+          <span v-if="post.author_is_banned" class="author-banned-pill" title="该账号已被封禁"
+            >已封禁</span
+          >
           <span class="post-date-v2">{{ formatDate(post.created_at) }}</span>
         </div>
       </div>
@@ -345,94 +388,133 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
       </h3>
       <div v-if="post.tagLabel || post.location_name" class="post-card-tags">
         <span v-if="post.tagLabel" class="post-card-tag">{{ post.tagLabel }}</span>
-        <span v-if="post.location_name" class="post-card-tag location-tag"><MapPin :size="12" :stroke-width="2.5" /> {{ post.location_name }}</span>
+        <span v-if="post.location_name" class="post-card-tag location-tag"
+          ><MapPin :size="12" :stroke-width="2.5" /> {{ post.location_name }}</span
+        >
       </div>
       <!-- wrap 不滚动：n/N 指示胶囊锚在可视区右上角，不会随内容滚走 -->
       <div v-if="post.hasImages" class="image-post-strip-wrap">
         <!-- 分段横条位置指示：随滑动高亮当前段，点击可跳转到对应图 -->
-        <div v-if="post.hasMultipleImages" class="image-strip-dots"
-          :aria-label="`图片位置指示，共 ${post.imageCount} 张`">
-          <button v-for="dotIndex in post.imageCount" :key="dotIndex" type="button"
-            class="image-strip-dot" :class="{ 'is-active': stripIndex === dotIndex - 1 }"
-            :aria-label="`查看第 ${dotIndex} 张图片`" :aria-current="stripIndex === dotIndex - 1"
-            @click.stop="goToStripIndex(post, dotIndex - 1, $event)"></button>
+        <div
+          v-if="post.hasMultipleImages"
+          class="image-strip-dots"
+          :aria-label="`图片位置指示，共 ${post.imageCount} 张`"
+        >
+          <button
+            v-for="dotIndex in post.imageCount"
+            :key="dotIndex"
+            type="button"
+            class="image-strip-dot"
+            :class="{ 'is-active': stripIndex === dotIndex - 1 }"
+            :aria-label="`查看第 ${dotIndex} 张图片`"
+            :aria-current="stripIndex === dotIndex - 1"
+            @click.stop="goToStripIndex(post, dotIndex - 1, $event)"
+          ></button>
         </div>
         <span v-if="post.hasMultipleImages" class="image-strip-indicator" aria-hidden="true">
           {{ stripIndex + 1 }} / {{ post.imageCount }}
         </span>
-        <div class="image-post-strip"
+        <div
+          class="image-post-strip"
           :class="{ 'is-single': post.allImages.length === 1 }"
-          :aria-label="post.hasMultipleImages ? `多图帖子，共 ${post.imageCount} 张图片，可横向翻动` : '图片帖子'"
-          @scroll.passive="onStripScroll(post, $event)">
-        <button v-for="(image, index) in post.allImages" :key="image.id || image.url"
-          type="button"
-          class="image-post-thumb-shell"
-          :class="{
-            'is-loaded': isForumImageLoaded(post.id, image.url),
-            'is-failed': isImageFailed(image.url)
-          }"
-          :aria-label="`查看${post.displayTitle}第 ${index + 1} 张大图`"
-          :disabled="isImageFailed(image.url)"
-          @click.stop="emit('open-image-viewer', post, index)"
+          :aria-label="
+            post.hasMultipleImages
+              ? `多图帖子，共 ${post.imageCount} 张图片，可横向翻动`
+              : '图片帖子'
+          "
+          @scroll.passive="onStripScroll(post, $event)"
         >
-          <!-- 图片加载失败时显示占位图标 -->
-          <div v-if="isImageFailed(image.url)" class="image-post-thumb-failed" aria-label="图片加载失败">
-            <ImageOff :size="28" :stroke-width="1.5" aria-hidden="true" />
-            <span class="image-post-thumb-failed-text">图片加载失败</span>
+          <button
+            v-for="(image, index) in post.allImages"
+            :key="image.id || image.url"
+            type="button"
+            class="image-post-thumb-shell"
+            :class="{
+              'is-loaded': isForumImageLoaded(post.id, image.url),
+              'is-failed': isImageFailed(image.url),
+            }"
+            :aria-label="`查看${post.displayTitle}第 ${index + 1} 张大图`"
+            :disabled="isImageFailed(image.url)"
+            @click.stop="emit('open-image-viewer', post, index)"
+          >
+            <!-- 图片加载失败时显示占位图标 -->
+            <div
+              v-if="isImageFailed(image.url)"
+              class="image-post-thumb-failed"
+              aria-label="图片加载失败"
+            >
+              <ImageOff :size="28" :stroke-width="1.5" aria-hidden="true" />
+              <span class="image-post-thumb-failed-text">图片加载失败</span>
+            </div>
+            <img
+              v-if="image.lqipUrl && !isImageFailed(image.url)"
+              :src="image.lqipUrl"
+              :alt="`${post.displayTitle} 图片 ${index + 1}`"
+              class="image-post-thumb-lqip"
+              aria-hidden="true"
+              decoding="async"
+              loading="lazy"
+            />
+            <img
+              v-if="image.eager && !isImageFailed(image.url)"
+              :src="image.url"
+              :srcset="image.srcset || undefined"
+              sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
+              :alt="`${post.displayTitle} 图片 ${index + 1}`"
+              loading="eager"
+              fetchpriority="high"
+              decoding="async"
+              class="image-post-thumb"
+              :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
+              :width="image.width || undefined"
+              :height="image.height || undefined"
+              @load="onImageLoad(post.id, image.url)"
+              @error="onImageError(post.id, image.url)"
+            />
+            <img
+              v-else-if="!isImageFailed(image.url)"
+              :data-lazy-src="image.url"
+              :data-lazy-srcset="image.srcset || ''"
+              sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
+              :alt="`${post.displayTitle} 图片 ${index + 1}`"
+              loading="lazy"
+              decoding="async"
+              class="image-post-thumb"
+              :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
+              :width="image.width || undefined"
+              :height="image.height || undefined"
+              :ref="(el) => onLazyImageRef(el)"
+              @load="onImageLoad(post.id, image.url)"
+              @error="onImageError(post.id, image.url)"
+            />
+          </button>
+          <!-- 末尾"+N 张"占位卡：列表数据尚未含全部图片时展示，滚近自动补全 -->
+          <div v-if="post.hiddenImageCount > 0" class="image-post-strip-more" aria-hidden="true">
+            <span class="image-post-strip-more-num">+{{ post.hiddenImageCount }}</span>
+            <span>张</span>
           </div>
-          <img
-            v-if="image.lqipUrl && !isImageFailed(image.url)"
-            :src="image.lqipUrl"
-            :alt="`${post.displayTitle} 图片 ${index + 1}`"
-            class="image-post-thumb-lqip"
-            aria-hidden="true"
-            decoding="async"  loading="lazy" />
-          <img
-            v-if="image.eager && !isImageFailed(image.url)"
-            :src="image.url"
-            :srcset="image.srcset || undefined"
-            sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
-            :alt="`${post.displayTitle} 图片 ${index + 1}`"
-            loading="eager"
-            fetchpriority="high"
-            decoding="async" class="image-post-thumb"
-            :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
-            :width="image.width || undefined"
-            :height="image.height || undefined"
-            @load="onImageLoad(post.id, image.url)"
-            @error="onImageError(post.id, image.url)" />
-          <img
-            v-else-if="!isImageFailed(image.url)"
-            :data-lazy-src="image.url"
-            :data-lazy-srcset="image.srcset || ''"
-            sizes="(max-width: 420px) 160px, (max-width: 768px) 300px, 360px"
-            :alt="`${post.displayTitle} 图片 ${index + 1}`"
-            loading="lazy"
-            decoding="async" class="image-post-thumb"
-            :class="{ 'is-loaded': isForumImageLoaded(post.id, image.url) }"
-            :width="image.width || undefined"
-            :height="image.height || undefined"
-            :ref="(el) => onLazyImageRef(el)"
-            @load="onImageLoad(post.id, image.url)"
-            @error="onImageError(post.id, image.url)" />
-        </button>
-        <!-- 末尾"+N 张"占位卡：列表数据尚未含全部图片时展示，滚近自动补全 -->
-        <div v-if="post.hiddenImageCount > 0" class="image-post-strip-more" aria-hidden="true">
-          <span class="image-post-strip-more-num">+{{ post.hiddenImageCount }}</span>
-          <span>张</span>
-        </div>
         </div>
       </div>
-      <p v-if="searchKeyword && post.search_excerpt" class="search-highlight-snippet"
-        v-html="renderSearchExcerpt(post.search_excerpt)">
+      <p
+        v-if="searchKeyword && post.search_excerpt"
+        class="search-highlight-snippet"
+        v-html="renderSearchExcerpt(post.search_excerpt)"
+      ></p>
+      <p class="post-text-v2" :class="{ 'is-overflowing': post.isBodyOverflowLikely }">
+        {{ post.displayBody }}
       </p>
-      <p class="post-text-v2" :class="{ 'is-overflowing': post.isBodyOverflowLikely }">{{ post.displayBody }}</p>
       <!-- 转发帖引用框：转发文字在上，原帖信息框在下，点击进原帖详情 -->
-      <button v-if="post.quotedPost" type="button" class="quoted-post-box"
+      <button
+        v-if="post.quotedPost"
+        type="button"
+        class="quoted-post-box"
         :class="[quotedTierCode ? `tier-${quotedTierCode}` : '']"
         aria-label="查看被转发的原帖"
-        @click.stop="emit('click', post.quotedPost.id)">
-        <span class="quoted-post-author" :class="quotedNickClass">@{{ post.quotedPost.author_username || '方块之家' }}</span>
+        @click.stop="emit('click', post.quotedPost.id)"
+      >
+        <span class="quoted-post-author" :class="quotedNickClass"
+          >@{{ post.quotedPost.author_username || '方块之家' }}</span
+        >
         <span v-if="quotedTitle" class="quoted-post-title">{{ quotedTitle }}</span>
         <span v-if="quotedBody" class="quoted-post-body">{{ quotedBody }}</span>
       </button>
@@ -441,33 +523,63 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
     <!-- 操作栏 -->
     <div class="post-actions-v2" @click.stop>
       <div class="actions-left-v2">
-        <button class="action-item-v2 like-btn-v2" @click="emit('toggle-like', post)"
-          :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikedPulsing }" :disabled="isLikeSubmitting">
-          <img v-if="isHomeCatActive && isLikedPulsing" class="like-pop-cat-img"
-            :src="getHomeCatAsset('like')" alt="" draggable="false"  loading="lazy" />
-          <Heart class="action-svg-v2" :size="17" :stroke-width="1.8"
-            :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
+        <button
+          class="action-item-v2 like-btn-v2"
+          @click="emit('toggle-like', post)"
+          :class="{ 'is-liked': post.isLiked, 'is-pulsing': isLikedPulsing }"
+          :disabled="isLikeSubmitting"
+        >
+          <img
+            v-if="isHomeCatActive && isLikedPulsing"
+            class="like-pop-cat-img"
+            :src="getHomeCatAsset('like')"
+            alt=""
+            draggable="false"
+            loading="lazy"
+          />
+          <Heart
+            class="action-svg-v2"
+            :size="17"
+            :stroke-width="1.8"
+            :fill="post.isLiked ? 'currentColor' : 'none'"
+            aria-hidden="true"
+          />
           <span class="action-count-v2">{{ post.like_count || 0 }}</span>
         </button>
 
-        <button class="action-item-v2 replies-btn-v2" @click="emit('toggle-replies', post)" aria-label="查看评论">
+        <button
+          class="action-item-v2 replies-btn-v2"
+          @click="emit('toggle-replies', post)"
+          aria-label="查看评论"
+        >
           <MessageCircle class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
           <span class="action-count-v2">{{ post.comment_count || 0 }}</span>
         </button>
       </div>
 
       <div class="actions-right-v2">
-        <button class="action-item-v2 icon-only-action-v2 reply-btn-v2" @click="emit('toggle-reply-input', post.id)"
-          aria-label="回复" title="回复">
+        <button
+          class="action-item-v2 icon-only-action-v2 reply-btn-v2"
+          @click="emit('toggle-reply-input', post.id)"
+          aria-label="回复"
+          title="回复"
+        >
           <Reply class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
         </button>
-        <button class="action-item-v2 icon-only-action-v2 share-btn-v2"
+        <button
+          class="action-item-v2 icon-only-action-v2 share-btn-v2"
           :class="{ 'is-copy-success': isShareCopied }"
           :aria-label="isShareCopied ? '链接已复制' : '分享'"
           :title="isShareCopied ? '已复制' : '分享'"
-          @click="emit('share', post)">
-          <Check v-if="isShareCopied" class="action-svg-v2" :size="17" :stroke-width="2"
-            aria-hidden="true" />
+          @click="emit('share', post)"
+        >
+          <Check
+            v-if="isShareCopied"
+            class="action-svg-v2"
+            :size="17"
+            :stroke-width="2"
+            aria-hidden="true"
+          />
           <Share2 v-else class="action-svg-v2" :size="17" :stroke-width="1.8" aria-hidden="true" />
         </button>
       </div>
@@ -475,23 +587,41 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
 
     <!-- 回复输入 (支持多级回复) -->
     <transition name="fade-slide">
-      <div v-if="activeReplyTarget && activeReplyTarget.postId === post.id" class="reply-input-section-v2"
-        @click.stop>
-        <img v-if="isHomeCatActive && isReplySuccess"
-          class="reply-success-pop-cat-img" :src="getHomeCatAsset('success')" alt="" draggable="false"  loading="lazy" />
+      <div
+        v-if="activeReplyTarget && activeReplyTarget.postId === post.id"
+        class="reply-input-section-v2"
+        @click.stop
+      >
+        <img
+          v-if="isHomeCatActive && isReplySuccess"
+          class="reply-success-pop-cat-img"
+          :src="getHomeCatAsset('success')"
+          alt=""
+          draggable="false"
+          loading="lazy"
+        />
         <div v-if="activeReplyTarget.username" class="reply-target-hint">
           正在回复 <span class="target-user">@{{ activeReplyTarget.username }}</span>
-          <button class="clear-target-btn"
-            @click="emit('clear-reply-target', post.id)">×</button>
+          <button class="clear-target-btn" @click="emit('clear-reply-target', post.id)">×</button>
         </div>
-        <textarea :value="replyContent"
+        <textarea
+          :value="replyContent"
           @input="emit('update:reply-content', $event.target.value)"
-          :placeholder="activeReplyTarget.username ? `回复 @${activeReplyTarget.username}...` : '写下你的回复...'"
-          class="reply-textarea-v2" rows="2"></textarea>
+          :placeholder="
+            activeReplyTarget.username
+              ? `回复 @${activeReplyTarget.username}...`
+              : '写下你的回复...'
+          "
+          class="reply-textarea-v2"
+          rows="2"
+        ></textarea>
         <div class="reply-actions-v2">
           <button class="cancel-reply-btn-v2" @click="emit('cancel-reply')">取消</button>
-          <button class="submit-reply-btn-v2" @click="emit('submit-reply', post)"
-            :disabled="isReplySubmitting || replyCooldownSeconds > 0">
+          <button
+            class="submit-reply-btn-v2"
+            @click="emit('submit-reply', post)"
+            :disabled="isReplySubmitting || replyCooldownSeconds > 0"
+          >
             {{ isReplySubmitting ? '发送中...' : replySubmitLabel }}
           </button>
         </div>
@@ -500,26 +630,50 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
 
     <!-- 回复列表 (优化多级显示) -->
     <transition name="expand-replies">
-      <div v-if="isExpanded && post.replies && post.replies.length > 0"
-        class="replies-list" @click.stop>
+      <div
+        v-if="isExpanded && post.replies && post.replies.length > 0"
+        class="replies-list"
+        @click.stop
+      >
         <div v-for="reply in post.replies" :key="reply.id" class="reply-item-v2">
           <div class="reply-header-v2">
             <span class="boh-avatar-wrap">
               <div class="reply-avatar">
-                <img v-if="reply.author_avatar_url" :src="getAvatarUrl(reply.author_avatar_url, 'xs')" alt="回复者头像"
-                  class="avatar-image"  loading="lazy" />
-                <span v-else>{{ reply.author_username ? reply.author_username.charAt(0).toUpperCase() : 'U'
+                <img
+                  v-if="reply.author_avatar_url"
+                  :src="getAvatarUrl(reply.author_avatar_url, 'xs')"
+                  alt="回复者头像"
+                  class="avatar-image"
+                  loading="lazy"
+                />
+                <span v-else>{{
+                  reply.author_username ? reply.author_username.charAt(0).toUpperCase() : 'U'
                 }}</span>
               </div>
-              <span v-if="replyFrameMap.get(reply.id)" class="boh-avatar-frame"
-                :style="{ '--boh-avatar-frame-url': `url(${replyFrameMap.get(reply.id).url})`, '--boh-avatar-frame-scale': String(replyFrameMap.get(reply.id).scale) }"
-                aria-hidden="true"></span>
+              <span
+                v-if="replyFrameMap.get(reply.id)"
+                class="boh-avatar-frame"
+                :style="{
+                  '--boh-avatar-frame-url': `url(${replyFrameMap.get(reply.id).url})`,
+                  '--boh-avatar-frame-scale': String(replyFrameMap.get(reply.id).scale),
+                }"
+                aria-hidden="true"
+              ></span>
             </span>
             <div class="reply-content-wrapper">
               <div class="reply-user-info">
-                <span class="reply-author-v2" :class="replyTierMap[reply.author_id] || ''" @click="emit('go-to-profile', reply.author_username)">{{
-                  reply.author_username }}</span>
-                <span v-if="reply.author_is_banned" class="author-banned-pill" title="该账号已被封禁">已封禁</span>
+                <span
+                  class="reply-author-v2"
+                  :class="replyTierMap[reply.author_id] || ''"
+                  @click="emit('go-to-profile', reply.author_username)"
+                  >{{ reply.author_username }}</span
+                >
+                <span
+                  v-if="reply.author_is_banned"
+                  class="author-banned-pill"
+                  title="该账号已被封禁"
+                  >已封禁</span
+                >
                 <span v-if="reply.reply_to_username" class="reply-to-tag">
                   回复 <span class="target-name">@{{ reply.reply_to_username }}</span>
                 </span>
@@ -527,22 +681,48 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
               <p class="reply-text-v2">{{ reply.content }}</p>
               <div class="reply-meta-v2">
                 <span class="reply-date-v2">{{ formatDate(reply.created_at) }}</span>
-                <button class="reply-action-btn"
-                  @click="emit('toggle-reply-input', post.id, reply.parent_id || reply.id, reply.author_username, reply.content)">回复</button>
-                <button v-if="isLoggedIn && (reply.author_id === userInfo.id || userInfo.role === 'admin')"
-                  class="delete-comment-btn-v2" @click="emit('delete-comment', reply, post)">×</button>
+                <button
+                  class="reply-action-btn"
+                  @click="
+                    emit(
+                      'toggle-reply-input',
+                      post.id,
+                      reply.parent_id || reply.id,
+                      reply.author_username,
+                      reply.content,
+                    )
+                  "
+                >
+                  回复
+                </button>
+                <button
+                  v-if="
+                    isLoggedIn && (reply.author_id === userInfo.id || userInfo.role === 'admin')
+                  "
+                  class="delete-comment-btn-v2"
+                  @click="emit('delete-comment', reply, post)"
+                >
+                  ×
+                </button>
               </div>
             </div>
           </div>
         </div>
-        <button v-if="shouldShowMoreRepliesLink(post)" class="more-replies-link-v2"
-          @click="emit('more-replies', post.id)">
+        <button
+          v-if="shouldShowMoreRepliesLink(post)"
+          class="more-replies-link-v2"
+          @click="emit('more-replies', post.id)"
+        >
           查看更多回复
         </button>
       </div>
       <!-- 骨架占位：先展开后加载期间的即时反馈（数据回来即被上面的真实列表替换） -->
-      <div v-else-if="isExpanded && isRepliesLoading"
-        class="replies-list replies-skeleton" @click.stop aria-hidden="true">
+      <div
+        v-else-if="isExpanded && isRepliesLoading"
+        class="replies-list replies-skeleton"
+        @click.stop
+        aria-hidden="true"
+      >
         <div v-for="n in 2" :key="n" class="reply-skeleton-item">
           <span class="reply-skeleton-avatar"></span>
           <span class="reply-skeleton-body">
@@ -674,7 +854,8 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
 }
 
 @keyframes replySkeletonPulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.55;
   }
   50% {
@@ -692,6 +873,7 @@ watch(() => props.post?.quotedPost?.author_id, async (id) => {
 </style>
 
 <style scoped>
+/* 共享样式层：styles/*.css 按组件各自 scoped @import（架构现状，说明见 base.css 顶部） */
 @import '../styles/base.css';
 @import '../styles/feed.css';
 @import '../styles/replies-responsive.css';

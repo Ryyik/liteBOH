@@ -1,7 +1,11 @@
 <template>
-  <div class="page-canvas" :class="{ 'drop-target': isDragOver }" @dragover.prevent="isDragOver = true"
-    @dragleave="isDragOver = false" @drop="onDrop">
-
+  <div
+    class="page-canvas"
+    :class="{ 'drop-target': isDragOver }"
+    @dragover.prevent="isDragOver = true"
+    @dragleave="isDragOver = false"
+    @drop="onDrop"
+  >
     <!-- 封面页 -->
     <div v-if="page?.pageType === 'cover'" class="canvas-cover">
       <div class="cover-frame">
@@ -29,20 +33,45 @@
     </div>
 
     <!-- 内容页（版式渲染） -->
-    <div v-else-if="page" class="canvas-grid"
-      :style="{ gridTemplateAreas: layout.gridAreas, gridTemplate: layout.gridTemplate, gap: gapValue }">
-      <figure v-for="(photoId, slotIndex) in page.photoRefs" :key="`${page}-${slotIndex}`" class="canvas-slot"
-        :style="{ gridArea: `p${slotIndex}` }">
-        <img v-if="photoById.get(String(photoId))" :src="photoById.get(String(photoId)).url"
-          :alt="photoById.get(String(photoId)).caption || '照片'" loading="lazy" decoding="async" />
+    <div
+      v-else-if="page"
+      class="canvas-grid"
+      :style="{
+        gridTemplateAreas: layout.gridAreas,
+        gridTemplateRows: layout.gridRows,
+        gridTemplateColumns: layout.gridColumns,
+        gap: gapValue,
+      }"
+    >
+      <figure
+        v-for="(photoId, slotIndex) in page.photoRefs"
+        :key="`${page}-${slotIndex}`"
+        class="canvas-slot"
+        :style="{ gridArea: `p${slotIndex}` }"
+      >
+        <img
+          v-if="photoById.get(String(photoId))"
+          :src="photoById.get(String(photoId)).url"
+          :alt="photoById.get(String(photoId)).caption || '照片'"
+          loading="lazy"
+          decoding="async"
+        />
         <div v-else class="slot-missing"><span>照片已移除</span></div>
-        <button type="button" class="slot-remove" :aria-label="`移除第 ${slotIndex + 1} 张`"
-          @click="$emit('remove-photo', slotIndex)">
+        <button
+          type="button"
+          class="slot-remove"
+          :aria-label="`移除第 ${slotIndex + 1} 张`"
+          @click="$emit('remove-photo', slotIndex)"
+        >
           <X :size="13" :stroke-width="2.4" aria-hidden="true" />
         </button>
       </figure>
 
-      <aside v-if="layout.textArea || layout.heroText" class="canvas-text" :style="{ gridArea: 't' }">
+      <aside
+        v-if="layout.textArea || layout.heroText"
+        class="canvas-text"
+        :style="{ gridArea: 't' }"
+      >
         <p v-if="page.note" class="text-note">{{ page.note }}</p>
         <template v-for="(photoId, slotIndex) in page.photoRefs" :key="`cap-${slotIndex}`">
           <p v-if="photoById.get(String(photoId))?.caption" class="text-caption">
@@ -53,8 +82,12 @@
       </aside>
 
       <!-- 空槽占位 -->
-      <div v-for="emptyIndex in emptySlotCount" :key="`empty-${emptyIndex}`" class="canvas-slot slot-empty"
-        :style="{ gridArea: `p${(page.photoRefs?.length || 0) + emptyIndex - 1}` }">
+      <div
+        v-for="emptyIndex in emptySlotCount"
+        :key="`empty-${emptyIndex}`"
+        class="canvas-slot slot-empty"
+        :style="{ gridArea: `p${(page.photoRefs?.length || 0) + emptyIndex - 1}` }"
+      >
         <span>空槽</span>
       </div>
     </div>
@@ -73,7 +106,7 @@ import { getLayout } from '@/utils/photo-albums/layouts.js';
 const props = defineProps({
   page: { type: Object, default: null },
   album: { type: Object, default: null },
-  photos: { type: Array, default: () => [] }
+  photos: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(['drop-photo', 'remove-photo']);
@@ -85,7 +118,9 @@ const layout = computed(() => getLayout(props.page?.layoutId));
 
 const gapValue = computed(() => (layout.value.gap === 'sm' ? '8px' : '14px'));
 
-const pageHasCaption = computed(() => (props.page?.photoRefs || []).some((id) => photoById.value.get(String(id))?.caption));
+const pageHasCaption = computed(() =>
+  (props.page?.photoRefs || []).some((id) => photoById.value.get(String(id))?.caption),
+);
 
 const emptySlotCount = computed(() => {
   if (props.page?.pageType !== 'content') return 0;
@@ -196,7 +231,9 @@ function onDrop(event) {
   color: var(--text-tertiary, #86868b);
   font-size: 13px;
 }
-.canvas-empty p { margin: 0; }
+.canvas-empty p {
+  margin: 0;
+}
 
 .canvas-grid {
   flex: 1;
@@ -209,14 +246,24 @@ function onDrop(event) {
   margin: 0;
   border-radius: 14px;
   overflow: hidden;
+  /* 与画布同底：照片原比例完整显示（编辑所见即阅读所得，不裁切） */
   background: var(--surface-secondary, #f2f2f7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   min-height: 0;
 }
 
 .canvas-slot img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
 }
 
 .slot-missing,
@@ -230,7 +277,11 @@ function onDrop(event) {
   border: 1.5px dashed var(--border-color, #d1d1d6);
   border-radius: 14px;
 }
-.slot-missing span { background: var(--surface-primary, #fff); padding: 2px 8px; border-radius: 8px; }
+.slot-missing span {
+  background: var(--surface-primary, #fff);
+  padding: 2px 8px;
+  border-radius: 8px;
+}
 
 .slot-remove {
   position: absolute;
@@ -247,7 +298,9 @@ function onDrop(event) {
   transition: opacity 0.15s ease;
 }
 
-.canvas-slot:hover .slot-remove { opacity: 1; }
+.canvas-slot:hover .slot-remove {
+  opacity: 1;
+}
 
 .canvas-text {
   display: flex;
@@ -291,7 +344,11 @@ function onDrop(event) {
     flex-direction: column;
     min-height: auto;
   }
-  .canvas-slot { aspect-ratio: 4 / 3; }
-  .canvas-slot[style*="grid-area:t"] { aspect-ratio: auto; }
+  .canvas-slot {
+    aspect-ratio: 4 / 3;
+  }
+  .canvas-slot[style*='grid-area:t'] {
+    aspect-ratio: auto;
+  }
 }
 </style>

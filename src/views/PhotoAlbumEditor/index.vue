@@ -6,8 +6,15 @@
         <button type="button" class="tb-icon-btn" aria-label="返回" @click="goBack">
           <ArrowLeft :size="17" :stroke-width="2.2" aria-hidden="true" />
         </button>
-        <input v-model="albumTitle" class="tb-title-input" type="text" maxlength="80" placeholder="未命名影集"
-          aria-label="影集标题" @change="onTitleChange" />
+        <input
+          v-model="albumTitle"
+          class="tb-title-input"
+          type="text"
+          maxlength="80"
+          placeholder="未命名影集"
+          aria-label="影集标题"
+          @change="onTitleChange"
+        />
       </div>
       <div class="toolbar-right">
         <span v-if="isDirty" class="tb-dirty-dot" title="有未保存的改动" aria-hidden="true"></span>
@@ -17,10 +24,21 @@
         <button type="button" class="tb-btn ghost" @click="goReader">
           <BookOpen :size="15" :stroke-width="2" aria-hidden="true" /> 预览
         </button>
-        <button type="button" class="tb-btn ghost" :disabled="photos.length === 0 || exporting" @click="onDownload">
-          <Download :size="15" :stroke-width="2" aria-hidden="true" /> {{ exporting ? '导出中…' : '下载 HTML' }}
+        <button
+          type="button"
+          class="tb-btn ghost"
+          :disabled="photos.length === 0 || exporting"
+          @click="onDownload"
+        >
+          <Download :size="15" :stroke-width="2" aria-hidden="true" />
+          {{ exporting ? '导出中…' : '下载 HTML' }}
         </button>
-        <button type="button" class="tb-btn ghost" :disabled="photos.length === 0 || sharing" @click="onShare">
+        <button
+          type="button"
+          class="tb-btn ghost"
+          :disabled="photos.length === 0 || sharing"
+          @click="onShare"
+        >
           <Share2 :size="15" :stroke-width="2" aria-hidden="true" />
           {{ album?.sharedToCommunity ? '已分享' : '分享' }}
         </button>
@@ -42,28 +60,66 @@
 
     <!-- 三栏工作区 -->
     <div v-else-if="album" class="editor-workspace">
-      <PhotoPoolPanel class="ws-pool" :photos="unusedPhotos" :uploading="isUploading"
-        :upload-progress="uploadProgress" @upload="onUpload" @remove="onRemovePhoto" @use="onUsePhoto"
-        @cancel-upload="cancelUpload" />
+      <PhotoPoolPanel
+        class="ws-pool"
+        :photos="unusedPhotos"
+        :uploading="isUploading"
+        :upload-progress="uploadProgress"
+        @upload="onUpload"
+        @remove="onRemovePhoto"
+        @use="onUsePhoto"
+        @cancel-upload="cancelUpload"
+      />
 
       <div class="ws-center">
-        <PageCanvas :page="currentPage" :album="album" :photos="photos" @drop-photo="onDropPhoto"
-          @remove-photo="onRemoveSlot" />
+        <PageCanvas
+          :page="currentPage"
+          :album="album"
+          :photos="photos"
+          @drop-photo="onDropPhoto"
+          @remove-photo="onRemoveSlot"
+        />
       </div>
 
-      <PageSettingsPanel class="ws-settings" :page="currentPage" :album="album" :photos="photos"
-        @set-layout="setPageLayout" @update-page="updateCurrentPage" @update-album="onUpdateAlbum"
-        @set-caption="onSetCaption" @cover-file="onCoverFile" />
+      <PageSettingsPanel
+        class="ws-settings"
+        :page="currentPage"
+        :album="album"
+        :photos="photos"
+        @set-layout="setPageLayout"
+        @update-page="updateCurrentPage"
+        @update-album="onUpdateAlbum"
+        @set-caption="onSetCaption"
+        @cover-file="onCoverFile"
+      />
     </div>
 
     <!-- 页面缩略图条 -->
-    <PageStrip v-if="!isLoading && !loadError" class="editor-strip" :pages="pages" :photos="photos"
-      :current-index="currentIndex" :album="album" @select="setCurrentIndex" @move="onMovePage" @add="addPageAfterCurrent"
-      @remove="onRemovePage" />
+    <PageStrip
+      v-if="!isLoading && !loadError"
+      class="editor-strip"
+      :pages="pages"
+      :photos="photos"
+      :current-index="currentIndex"
+      :album="album"
+      @select="setCurrentIndex"
+      @move="onMovePage"
+      @add="addPageAfterCurrent"
+      @remove="onRemovePage"
+    />
 
-    <AvatarCropModal v-model:visible="showCoverCrop" :image-src="coverCropSrc" title="裁切封面" shape="rectangle"
-      :aspect-ratio="null" hint="拖动选区自由调整构图" sub-hint="封面用于列表、阅读页与社区入口卡" output-type="image/webp"
-      :output-quality="0.9" @confirm="onCoverCropConfirm" />
+    <AvatarCropModal
+      v-model:visible="showCoverCrop"
+      :image-src="coverCropSrc"
+      title="裁切封面"
+      shape="rectangle"
+      :aspect-ratio="null"
+      hint="拖动选区自由调整构图"
+      sub-hint="封面用于列表、阅读页与社区入口卡"
+      output-type="image/webp"
+      :output-quality="0.9"
+      @confirm="onCoverCropConfirm"
+    />
   </div>
 </template>
 
@@ -76,6 +132,7 @@ import PhotoPoolPanel from './components/PhotoPoolPanel.vue';
 import PageCanvas from './components/PageCanvas.vue';
 import PageSettingsPanel from './components/PageSettingsPanel.vue';
 import PageStrip from './components/PageStrip.vue';
+import UploadResultIsland from '@/components/PhotoAlbums/UploadResultIsland.vue';
 import { useAlbumEditor } from './composables/useAlbumEditor.js';
 import { showIsland } from '@/composables/useIsland.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
@@ -91,12 +148,34 @@ const { confirm, confirmThree } = useConfirmDialog();
 
 const editor = useAlbumEditor();
 const {
-  album, photos, pages, currentIndex, currentPage,
-  isLoading, isSaving, isUploading, isDirty, loadError, unusedPhotos,
-  load, save, uploadPhotos, cancelUpload, removePhoto, setCaption,
-  setCurrentIndex, setPageLayout, updateCurrentPage, addPhotoToCurrentPage,
-  removePhotoFromPage, addPageAfterCurrent, removePage, movePage, autoArrange,
-  updateCover, markDirty
+  album,
+  photos,
+  pages,
+  currentIndex,
+  currentPage,
+  isLoading,
+  isSaving,
+  isUploading,
+  isDirty,
+  loadError,
+  unusedPhotos,
+  load,
+  save,
+  uploadPhotos,
+  cancelUpload,
+  removePhoto,
+  setCaption,
+  setCurrentIndex,
+  setPageLayout,
+  updateCurrentPage,
+  addPhotoToCurrentPage,
+  removePhotoFromPage,
+  addPageAfterCurrent,
+  removePage,
+  movePage,
+  autoArrange,
+  updateCover,
+  markDirty,
 } = editor;
 
 const albumTitle = ref('');
@@ -135,7 +214,7 @@ async function navigateAway(action) {
     message: '离开前要保存吗？',
     confirmText: '保存并离开',
     cancelText: '直接离开',
-    tertiaryText: '留在本页'
+    tertiaryText: '留在本页',
   });
   if (answer === 'tertiary') return;
   if (answer === 'confirm') {
@@ -172,30 +251,67 @@ function onUpdateAlbum(patch) {
 }
 
 // ---------- 上传 ----------
+let uploadResultHandle = null; // 自定义岛 handle，关闭用
+const UPLOAD_RESULT_TIMEOUT_MS = 8000; // 自动收起时限
+
+function closeUploadResult() {
+  if (uploadResultHandle) {
+    uploadResultHandle.close();
+    uploadResultHandle = null;
+  }
+}
+
 async function onUpload(files) {
   const tier = await fetchMyTier();
   const limit = photosQuotaFor(tier);
   if (limit !== -1 && photos.value.length >= limit) {
-    showIsland.notify({ type: 'warning', title: '单集照片数已达上限', message: `当前档位最多 ${limit} 张，升级可获得更多` });
+    showIsland.notify({
+      type: 'warning',
+      title: '单集照片数已达上限',
+      message: `当前档位最多 ${limit} 张，升级可获得更多`,
+    });
     return;
   }
+
+  // 上一轮还在就关掉，避免多轮叠加
+  closeUploadResult();
 
   try {
     const result = await uploadPhotos(files, {
       onProgress: (done, total, stage) => {
         uploadProgress.value = { done, total, stage };
       },
-      onPhotoRejected: ({ name, reason }) => {
-        showIsland.notify({ type: 'warning', title: '照片未通过检测', message: `${name}：${reason}` });
-      }
+      // onPhotoRejected 已被 useAlbumEditor 内部累计，UI 通知统一走 onUploadedSummary
+      onUploadedSummary: ({ total, added, rejected }) => {
+        if (total === 0) return;
+        // 全成功：精简一行通知，避免打扰
+        if (added > 0 && rejected.length === 0) {
+          showIsland.notify({
+            type: 'success',
+            title: `已上传 ${added} 张`,
+            message: '已自动初排进页面，可手动微调',
+          });
+          return;
+        }
+        // 有失败 / 全失败：渲染液态玻璃聚合岛，被拒明细可展开
+        uploadResultHandle = showIsland.custom(UploadResultIsland, {
+          total,
+          okCount: added,
+          rejected,
+          onClose: () => closeUploadResult(),
+        });
+        setTimeout(() => closeUploadResult(), UPLOAD_RESULT_TIMEOUT_MS);
+      },
     });
     if (!result.ok && result.error) {
       showIsland.notify({ type: 'error', title: '上传中断', message: result.error });
-    } else if (result.added > 0) {
-      showIsland.notify({ type: 'success', title: `已上传 ${result.added} 张`, message: '已自动初排进页面，可手动微调' });
     }
   } catch (error) {
-    showIsland.notify({ type: 'error', title: '上传失败', message: normalizeDbError(error, '请稍后再试') });
+    showIsland.notify({
+      type: 'error',
+      title: '上传失败',
+      message: normalizeDbError(error, '请稍后再试'),
+    });
   } finally {
     uploadProgress.value = { done: 0, total: 0, stage: '' };
   }
@@ -221,7 +337,7 @@ async function onRemovePhoto(photo) {
     title: '删除照片',
     message: '照片将从影集和所有页面中移除，Cloudinary 源文件保留但不再使用。',
     confirmText: '移除',
-    tone: 'danger'
+    tone: 'danger',
   });
   if (!ok) return;
   const result = await removePhoto(photo);
@@ -252,7 +368,7 @@ async function onRemovePage(index) {
     title: '删除页面',
     message: `确定删除第 ${index + 1} 页（${page?.pageType === 'chapter' ? '章节页' : page?.pageType === 'end' ? '尾页' : '内容页'}）？照片会退回照片池。`,
     confirmText: '删除',
-    tone: 'danger'
+    tone: 'danger',
   });
   if (!ok) return;
   const result = removePage(index);
@@ -263,20 +379,28 @@ async function onRemovePage(index) {
 
 async function onAutoArrange() {
   if (!photos.value.length) {
-    showIsland.notify({ type: 'warning', title: '还没有照片', message: '先上传几张照片再自动初排' });
+    showIsland.notify({
+      type: 'warning',
+      title: '还没有照片',
+      message: '先上传几张照片再自动初排',
+    });
     return;
   }
   const ok = await confirm({
     title: '重新自动初排',
     message: '将按拍摄/上传时间与横竖比重新生成全部内容页，现有手动排版会被覆盖（配文保留）。',
     confirmText: '重新初排',
-    tone: 'warning'
+    tone: 'warning',
   });
   if (!ok) return;
   autoArranging.value = true;
   try {
     autoArrange();
-    showIsland.notify({ type: 'success', title: '初排完成', message: '拖动页面条可换序，点版式可微调' });
+    showIsland.notify({
+      type: 'success',
+      title: '初排完成',
+      message: '拖动页面条可换序，点版式可微调',
+    });
   } finally {
     autoArranging.value = false;
   }
@@ -285,7 +409,11 @@ async function onAutoArrange() {
 // ---------- 封面 ----------
 function onCoverFile(file) {
   if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) {
-    showIsland.notify({ type: 'warning', title: '格式不支持', message: '封面仅支持 JPG / PNG / WebP' });
+    showIsland.notify({
+      type: 'warning',
+      title: '格式不支持',
+      message: '封面仅支持 JPG / PNG / WebP',
+    });
     return;
   }
   coverCropSrc.value = URL.createObjectURL(file);
@@ -305,7 +433,11 @@ async function onCoverCropConfirm(blob) {
     await updateCover(uploaded?.secure_url || '');
     showIsland.notify({ type: 'success', title: '封面已更新' });
   } catch (error) {
-    showIsland.notify({ type: 'error', title: '封面上传失败', message: normalizeDbError(error, '请稍后再试') });
+    showIsland.notify({
+      type: 'error',
+      title: '封面上传失败',
+      message: normalizeDbError(error, '请稍后再试'),
+    });
   } finally {
     if (coverCropSrc.value) {
       URL.revokeObjectURL(coverCropSrc.value);
@@ -324,7 +456,7 @@ async function onShare() {
   const ok = await confirm({
     title: '分享到社区',
     message: '分享前会对全部照片做一次安全复审，通过后影集将出现在社区影集区，任何人可阅读。',
-    confirmText: '开始复审并分享'
+    confirmText: '开始复审并分享',
   });
   if (!ok) return;
 
@@ -332,7 +464,7 @@ async function onShare() {
   const task = showIsland.task({ title: '分享前复审', progress: 0 });
   try {
     const recheck = await recheckAlbumForShare(albumId.value, {
-      onProgress: (done, total) => task.progress(Math.round((done / Math.max(total, 1)) * 100))
+      onProgress: (done, total) => task.progress(Math.round((done / Math.max(total, 1)) * 100)),
     });
     if (!recheck.ok) {
       task.close();
@@ -341,7 +473,10 @@ async function onShare() {
       }
       return;
     }
-    const result = await updateAlbum(albumId.value, { status: 'published', sharedToCommunity: true });
+    const result = await updateAlbum(albumId.value, {
+      status: 'published',
+      sharedToCommunity: true,
+    });
     if (result.ok) {
       album.value.sharedToCommunity = true;
       album.value.status = 'published';
@@ -364,18 +499,25 @@ async function onDownload() {
   try {
     const quota = await checkExportQuota();
     if (!quota.allowed) {
-      showIsland.notify({ type: 'warning', title: '本月导出次数已用完', message: quota.hint || '升级订阅可获得更多导出次数' });
+      showIsland.notify({
+        type: 'warning',
+        title: '本月导出次数已用完',
+        message: quota.hint || '升级订阅可获得更多导出次数',
+      });
       return;
     }
     const task = showIsland.task({ title: '正在打包离线影集', progress: 0 });
     try {
-      const result = await exportAlbumOffline({
-        album: album.value,
-        photos: photos.value,
-        pages: pages.value
-      }, {
-        onProgress: (done, total) => task.progress(Math.round((done / Math.max(total, 1)) * 100))
-      });
+      const result = await exportAlbumOffline(
+        {
+          album: album.value,
+          photos: photos.value,
+          pages: pages.value,
+        },
+        {
+          onProgress: (done, total) => task.progress(Math.round((done / Math.max(total, 1)) * 100)),
+        },
+      );
       await logAlbumExport(albumId.value, result.kind);
       task.success({ title: '导出完成', message: `${result.fileName} 已保存，断网也能翻开` });
     } catch (exportError) {
@@ -383,7 +525,11 @@ async function onDownload() {
       throw exportError;
     }
   } catch (error) {
-    showIsland.notify({ type: 'error', title: '导出失败', message: normalizeDbError(error, '请稍后再试') });
+    showIsland.notify({
+      type: 'error',
+      title: '导出失败',
+      message: normalizeDbError(error, '请稍后再试'),
+    });
   } finally {
     exporting.value = false;
   }
@@ -391,7 +537,8 @@ async function onDownload() {
 
 // ---------- 键盘翻页 ----------
 function onKeydown(event) {
-  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+  if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
+    return;
   if (event.key === 'ArrowLeft') setCurrentIndex(currentIndex.value - 1);
   if (event.key === 'ArrowRight') setCurrentIndex(currentIndex.value + 1);
   // Ctrl/Cmd + S 保存
@@ -438,7 +585,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 20px;
+  /* 左端让位给导航迷你球（fixed 14,14 / 52px），返回按钮顺延其后不被遮挡 */
+  padding: 12px 20px 12px calc(var(--immersive-orb, 52px) + 26px);
   background: color-mix(in srgb, var(--surface-primary, #fff) 88%, transparent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.06));
@@ -476,8 +624,13 @@ onBeforeUnmount(() => {
   outline: none;
 }
 
-.tb-title-input:hover { background: var(--surface-secondary, #f2f2f7); }
-.tb-title-input:focus { border-color: var(--brand, #0a84ff); background: var(--surface-primary, #fff); }
+.tb-title-input:hover {
+  background: var(--surface-secondary, #f2f2f7);
+}
+.tb-title-input:focus {
+  border-color: var(--brand, #0a84ff);
+  background: var(--surface-primary, #fff);
+}
 
 .toolbar-right {
   display: flex;
@@ -503,7 +656,9 @@ onBeforeUnmount(() => {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
 }
 
 .tb-btn.ghost {
@@ -512,7 +667,9 @@ onBeforeUnmount(() => {
   color: var(--text-primary, #1d1d1f);
 }
 
-.tb-btn.ghost:hover:not(:disabled) { background: var(--surface-secondary, #f2f2f7); }
+.tb-btn.ghost:hover:not(:disabled) {
+  background: var(--surface-secondary, #f2f2f7);
+}
 
 .tb-btn.primary {
   border: 0;
@@ -520,8 +677,13 @@ onBeforeUnmount(() => {
   color: #fff;
 }
 
-.tb-btn.primary:hover:not(:disabled) { opacity: 0.85; }
-.tb-btn:disabled { opacity: 0.5; cursor: default; }
+.tb-btn.primary:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.tb-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
 .editor-loading {
   flex: 1;
@@ -541,8 +703,12 @@ onBeforeUnmount(() => {
 }
 
 @keyframes editor-shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 .editor-error {
@@ -555,8 +721,15 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.editor-error h2 { margin: 0; font-size: 20px; }
-.editor-error p { margin: 0; font-size: 14px; color: var(--text-secondary, #515154); }
+.editor-error h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.editor-error p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary, #515154);
+}
 
 .editor-workspace {
   flex: 1;
@@ -601,7 +774,11 @@ onBeforeUnmount(() => {
   }
   .editor-toolbar {
     flex-wrap: wrap;
+    /* 手机：缩小左端让位（球 52px + 8px 间距），换行缓解按钮拥挤 */
+    padding-left: calc(var(--immersive-orb, 52px) + 8px);
   }
-  .tb-title-input { max-width: none; }
+  .tb-title-input {
+    max-width: none;
+  }
 }
 </style>

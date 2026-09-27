@@ -15,15 +15,24 @@ export const FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT = 4;
 export const FORUM_LIST_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_fill,w_720,h_540';
 export const FORUM_LIST_IMAGE_TRANSFORM_SM = 'f_auto,q_auto:good,c_fill,w_360,h_270';
 export const FORUM_LIST_IMAGE_TRANSFORM_MD = 'f_auto,q_auto:good,c_fill,w_540,h_405';
-export const FORUM_LIST_LQIP_TRANSFORM = 'f_auto,q_auto:low,c_fill,w_72,h_54,e_blur:1000';
+/* LQIP 占位图：尺寸与质量都压到极限（单张 300 字节级）。
+   它唯一的任务是「在主图到达之前先给出这张图的色调」，而且渲染时还要被 CSS blur(18px) 罩住 ——
+   所以 32×24 与 72×54 在观感上没有区别，但请求小一个量级、先到的概率高得多。
+   e_blur:1500 保证它在极小尺寸下仍是平滑色块而不是马赛克。
+   ⚠️ 2026-09-27：原 w_72,h_54 + q_auto:low 实测会在弱网下与主图抢带宽、迟迟不到，
+   用户看到的是「一直转圈 + 空白」＝以为图片加载失败（点进详情却是好的，因为详情走原图）。
+   同批还把「静默超时就撤转圈」的兜底加在了 feed.css 的 .image-post-thumb-shell::before 上。 */
+export const FORUM_LIST_LQIP_TRANSFORM = 'f_auto,q_1,c_fill,w_32,h_24,e_blur:1500';
 export const FORUM_DETAIL_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1600';
 export const FORUM_CLOUDINARY_FOLDER = String(
-  import.meta.env.VITE_CLOUDINARY_FORUM_FOLDER
-  || `${String(import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_FOLDER || 'boh-cloud-plus').replace(/\/+$/, '')}/forum`
+  import.meta.env.VITE_CLOUDINARY_FORUM_FOLDER ||
+    `${String(import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_FOLDER || 'boh-cloud-plus').replace(/\/+$/, '')}/forum`,
 ).trim();
 
 export function normalizeContentStatus(status, fallback = APPROVED_STATUS) {
-  const normalized = String(status || '').trim().toLowerCase();
+  const normalized = String(status || '')
+    .trim()
+    .toLowerCase();
   return ALLOWED_CONTENT_STATUS.has(normalized) ? normalized : fallback;
 }
 
@@ -33,21 +42,28 @@ export function shouldSyncModerateComment(content = '') {
   const lowerText = text.toLowerCase();
   const repeatedChars = /(.)\1{8,}/u.test(text);
   const repeatedSegments = /(.{2,12})\1{4,}/u.test(text);
-  const hasLink = /https?:\/\/|www\.|[a-z0-9-]+\.(com|cn|net|org|top|xyz|cc|io|me)(\/|\s|$)/iu.test(text);
-  const hasContactHook = /(加我|私聊|联系我|联系方式|vx|微信|qq|群号|代购|出售|购买|交易|带价|渠道)/iu.test(text);
+  const hasLink = /https?:\/\/|www\.|[a-z0-9-]+\.(com|cn|net|org|top|xyz|cc|io|me)(\/|\s|$)/iu.test(
+    text,
+  );
+  const hasContactHook =
+    /(加我|私聊|联系我|联系方式|vx|微信|qq|群号|代购|出售|购买|交易|带价|渠道)/iu.test(text);
   const hasRiskyAction = /(教程|配方|怎么做|怎么买|怎么卖|求购|接单|外挂|破解|刷号)/iu.test(text);
-  return text.length > 500
-    || hasLink
-    || repeatedChars
-    || repeatedSegments
-    || hasContactHook
-    || hasRiskyAction
-    || lowerText.includes('telegram')
-    || lowerText.includes('discord.gg');
+  return (
+    text.length > 500 ||
+    hasLink ||
+    repeatedChars ||
+    repeatedSegments ||
+    hasContactHook ||
+    hasRiskyAction ||
+    lowerText.includes('telegram') ||
+    lowerText.includes('discord.gg')
+  );
 }
 
 export function normalizeForumTag(tag = '') {
-  const normalized = String(tag || '').trim().toLowerCase();
+  const normalized = String(tag || '')
+    .trim()
+    .toLowerCase();
   return ALLOWED_FORUM_TAGS.has(normalized) ? normalized : '';
 }
 
@@ -64,7 +80,7 @@ export function normalizeForumDraftRecord(draft = {}) {
     title,
     content,
     tag: getEffectiveForumTag(draft.tag),
-    savedAt: new Date(draft.updated_at || draft.updatedAt || draft.savedAt || Date.now()).getTime()
+    savedAt: new Date(draft.updated_at || draft.updatedAt || draft.savedAt || Date.now()).getTime(),
   };
 }
 
@@ -107,7 +123,7 @@ export function splitPostContent(content, title = '', body = '') {
   if (explicitTitle || explicitBody) {
     return {
       title: explicitTitle || '无标题',
-      body: stripLegacyPostTitlePrefix(explicitBody, explicitTitle)
+      body: stripLegacyPostTitlePrefix(explicitBody, explicitTitle),
     };
   }
 
@@ -123,7 +139,10 @@ export function splitPostContent(content, title = '', body = '') {
 
   return {
     title: String(titleMatch[1] || '').trim() || '无标题',
-    body: stripLegacyPostTitlePrefix(String(titleMatch[2] || '').trim(), String(titleMatch[1] || '').trim())
+    body: stripLegacyPostTitlePrefix(
+      String(titleMatch[2] || '').trim(),
+      String(titleMatch[1] || '').trim(),
+    ),
   };
 }
 
@@ -155,16 +174,24 @@ export function normalizePostRecord(post = {}) {
   const parts = splitPostContent(post.content, post.title, post.body);
   const rawCoverUrl = resolveStoredCoverUrl(post.cover_image_url || post.coverImageUrl || '');
   const coverImageUrl = getCloudinaryTransformedUrl(rawCoverUrl, FORUM_DETAIL_IMAGE_TRANSFORM);
-  const normalizedImages = normalizeForumImages(post.images || post.forum_post_images || [], { variant: 'detail' });
-  const fallbackImages = normalizedImages.length || !coverImageUrl
-    ? normalizedImages
-    : normalizeForumImages([{
-      id: `${String(post.id || 'post').trim() || 'post'}-cover`,
-      url: rawCoverUrl || coverImageUrl,
-      width: Number(post.cover_image_width || post.coverImageWidth || 0),
-      height: Number(post.cover_image_height || post.coverImageHeight || 0),
-      sortOrder: 0
-    }], { variant: 'detail' });
+  const normalizedImages = normalizeForumImages(post.images || post.forum_post_images || [], {
+    variant: 'detail',
+  });
+  const fallbackImages =
+    normalizedImages.length || !coverImageUrl
+      ? normalizedImages
+      : normalizeForumImages(
+          [
+            {
+              id: `${String(post.id || 'post').trim() || 'post'}-cover`,
+              url: rawCoverUrl || coverImageUrl,
+              width: Number(post.cover_image_width || post.coverImageWidth || 0),
+              height: Number(post.cover_image_height || post.coverImageHeight || 0),
+              sortOrder: 0,
+            },
+          ],
+          { variant: 'detail' },
+        );
   return {
     ...post,
     title: parts.title,
@@ -175,34 +202,41 @@ export function normalizePostRecord(post = {}) {
     images: fallbackImages,
     location_name: String(post.location_name || '').trim() || undefined,
     location_lat: post.location_lat != null ? Number(post.location_lat) : undefined,
-    location_lng: post.location_lng != null ? Number(post.location_lng) : undefined
+    location_lng: post.location_lng != null ? Number(post.location_lng) : undefined,
   };
 }
 
 export function normalizePostListRecord(post = {}) {
   const parts = splitPostContent(post.content, post.title, post.body);
-  const explicitImages = normalizeForumImages(post.images || post.forum_post_images || [], { variant: 'list' });
+  const explicitImages = normalizeForumImages(post.images || post.forum_post_images || [], {
+    variant: 'list',
+  });
   const firstImage = explicitImages[0] || null;
   const rawCoverUrl = resolveStoredCoverUrl(
-    post.cover_image_url
-    || post.coverImageUrl
-    || firstImage?.originalUrl
-    || firstImage?.url
-    || ''
+    post.cover_image_url || post.coverImageUrl || firstImage?.originalUrl || firstImage?.url || '',
   );
   const coverImageUrl = getCloudinaryTransformedUrl(rawCoverUrl, FORUM_LIST_IMAGE_TRANSFORM);
   const previewImages = explicitImages.length
     ? explicitImages.slice(0, FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT)
     : coverImageUrl
-    ? normalizeForumImages([{
-      id: `${String(post.id || 'post').trim() || 'post'}-cover`,
-      url: rawCoverUrl || coverImageUrl,
-      publicId: firstImage?.publicId || '',
-      width: Number(post.cover_image_width || post.coverImageWidth || firstImage?.width || 0),
-      height: Number(post.cover_image_height || post.coverImageHeight || firstImage?.height || 0),
-      sortOrder: 0
-    }], { variant: 'list' })
-    : [];
+      ? normalizeForumImages(
+          [
+            {
+              id: `${String(post.id || 'post').trim() || 'post'}-cover`,
+              url: rawCoverUrl || coverImageUrl,
+              publicId: firstImage?.publicId || '',
+              width: Number(
+                post.cover_image_width || post.coverImageWidth || firstImage?.width || 0,
+              ),
+              height: Number(
+                post.cover_image_height || post.coverImageHeight || firstImage?.height || 0,
+              ),
+              sortOrder: 0,
+            },
+          ],
+          { variant: 'list' },
+        )
+      : [];
 
   return {
     ...post,
@@ -214,7 +248,7 @@ export function normalizePostListRecord(post = {}) {
     images: previewImages,
     location_name: String(post.location_name || '').trim() || undefined,
     location_lat: post.location_lat != null ? Number(post.location_lat) : undefined,
-    location_lng: post.location_lng != null ? Number(post.location_lng) : undefined
+    location_lng: post.location_lng != null ? Number(post.location_lng) : undefined,
   };
 }
 
@@ -225,11 +259,7 @@ export function normalizePostListRows(rows = []) {
 export function normalizeForumImage(image = {}, { variant = 'detail' } = {}) {
   if (!image || typeof image !== 'object') return null;
   const originalUrl = String(
-    image.originalUrl
-    || image.original_url
-    || image.secure_url
-    || image.url
-    || ''
+    image.originalUrl || image.original_url || image.secure_url || image.url || '',
   ).trim();
   if (!originalUrl) return null;
 
@@ -248,18 +278,21 @@ export function normalizeForumImage(image = {}, { variant = 'detail' } = {}) {
     deleteToken: String(image.deleteToken || image.delete_token || '').trim(),
     width: Number(image.width || 0),
     height: Number(image.height || 0),
-    format: String(image.format || '').trim().toLowerCase(),
-    moderationStatus: String(image.moderationStatus || image.moderation_status || 'approved').trim() || 'approved',
+    format: String(image.format || '')
+      .trim()
+      .toLowerCase(),
+    moderationStatus:
+      String(image.moderationStatus || image.moderation_status || 'approved').trim() || 'approved',
     moderationScore: Number(image.moderationScore ?? image.moderation_score ?? 0) || 0,
     moderationReason: String(image.moderationReason || image.moderation_reason || '').trim(),
-    sortOrder: Number(image.sortOrder ?? image.sort_order ?? 0) || 0
+    sortOrder: Number(image.sortOrder ?? image.sort_order ?? 0) || 0,
   };
 
   if (isList) {
     result.srcset = [
       `${getCloudinaryTransformedUrl(originalUrl, FORUM_LIST_IMAGE_TRANSFORM_SM)} 360w`,
       `${getCloudinaryTransformedUrl(originalUrl, FORUM_LIST_IMAGE_TRANSFORM_MD)} 540w`,
-      `${thumbUrl} 720w`
+      `${thumbUrl} 720w`,
     ].join(', ');
     result.lqipUrl = getCloudinaryTransformedUrl(originalUrl, FORUM_LIST_LQIP_TRANSFORM);
   }
@@ -286,7 +319,7 @@ export function toForumImageRpcPayload(images = []) {
     format: image.format,
     moderationStatus: image.moderationStatus || 'approved',
     moderationScore: image.moderationScore || 0,
-    moderationReason: image.moderationReason || ''
+    moderationReason: image.moderationReason || '',
   }));
 }
 
@@ -310,11 +343,12 @@ export function normalizeForumReportError(error) {
     POST_ALREADY_LIMITED: '该帖子已被处理',
     POST_ALREADY_REJECTED: '该帖子已被处理',
     REPORT_RATE_LIMITED: '举报过于频繁，请稍后再试',
-    ALREADY_REPORTED: '你已经举报过这篇帖子'
+    ALREADY_REPORTED: '你已经举报过这篇帖子',
   };
 
-  const reportCode = [code, message, String(normalized?.details || '').trim()]
-    .find((item) => Object.prototype.hasOwnProperty.call(messages, item));
+  const reportCode = [code, message, String(normalized?.details || '').trim()].find((item) =>
+    Object.prototype.hasOwnProperty.call(messages, item),
+  );
 
   if (reportCode) {
     return normalizeDbError({ code: reportCode, message: messages[reportCode] }, '举报提交失败');
@@ -331,11 +365,12 @@ export function normalizeForumImagePostError(error) {
     String(normalized?.details || '').trim(),
     String(error?.message || '').trim(),
     String(error?.code || '').trim(),
-    String(error?.details || '').trim()
+    String(error?.details || '').trim(),
   ].find((item) => /^CLOUD_|^INVALID_CLOUD_|^EMPTY_CLOUD_ENTRY$/.test(item));
 
   const messages = {
-    CLOUD_IMAGE_LIMIT_EXCEEDED: 'Cloud+ 图片额度已满：论坛图片和 Cloud+ 共享额度，请删除旧图片或升级方案',
+    CLOUD_IMAGE_LIMIT_EXCEEDED:
+      'Cloud+ 图片额度已满：论坛图片和 Cloud+ 共享额度，请删除旧图片或升级方案',
     CLOUD_IMAGE_RATE_LIMITED: '图片上传过于频繁，请稍后再试',
     CLOUD_ENTRY_RATE_LIMITED: '发布过于频繁，请稍后再试',
     DAILY_IMAGE_POST_LIMIT: '今天带图帖子发布额度已满，每天最多 5 条',
@@ -347,16 +382,19 @@ export function normalizeForumImagePostError(error) {
     CLOUD_BLOCKS_TOO_MANY: '同步到 Cloud+ 的内容过多，请减少图片或正文后再发布',
     CLOUD_TEXT_BLOCK_TOO_LONG: '正文过长，请缩短后再发布',
     CLOUD_TEXT_BLOCKS_TOO_MANY: '正文段落过多，请精简后再发布',
-    EMPTY_CLOUD_ENTRY: '同步到 Cloud+ 的内容为空，请重新编辑后再发布'
+    EMPTY_CLOUD_ENTRY: '同步到 Cloud+ 的内容为空，请重新编辑后再发布',
   };
 
   if (guardCode && messages[guardCode]) {
-    return normalizeDbError({
-      code: guardCode,
-      message: messages[guardCode],
-      details: normalized?.details || error?.details || null,
-      hint: normalized?.hint || error?.hint || null
-    }, '论坛图片发布失败');
+    return normalizeDbError(
+      {
+        code: guardCode,
+        message: messages[guardCode],
+        details: normalized?.details || error?.details || null,
+        hint: normalized?.hint || error?.hint || null,
+      },
+      '论坛图片发布失败',
+    );
   }
 
   return normalized;

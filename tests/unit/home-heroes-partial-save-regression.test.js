@@ -12,14 +12,14 @@ describe('home hero partial-save regression', () => {
     const source = read('src/stores/homeHeroes.ts');
     const saveHeroSource = source.slice(
       source.indexOf('const saveHero ='),
-      source.indexOf('// 发布英雄区')
+      source.indexOf('// 发布英雄区'),
     );
 
     // saveHero 已重构为 editableFields 循环 + showcase_config 非空守卫，
     // 部分保存语义不变：未传字段不得写入，showcase_config 禁止写 null。
     expect(saveHeroSource).toContain('if (payload[field] !== undefined) {');
     expect(saveHeroSource).toContain(
-      "updatePayload[field] = field === 'showcase_config' && payload[field] == null"
+      "updatePayload[field] = field === 'showcase_config' && payload[field] == null",
     );
     expect(saveHeroSource).not.toContain('image_config: payload.image_config || {}');
   });
@@ -32,9 +32,14 @@ describe('home hero partial-save regression', () => {
   });
 
   it('remounts moved hero rows so image nodes are not reused after sorting', () => {
-    const source = read('src/views/Home/index.vue');
+    // 2026-09-27 修正守卫目标：hero 海报流早已从 Home/index.vue 搬到
+    // ./components/HomeHeroFlow.vue（Home 只留开场层 + 论坛层 + 底栏 + 左栏），
+    // 但这里仍在读 index.vue → 断言永远找不到目标（红着没人看＝没有护栏）。
+    const source = read('src/views/Home/components/HomeHeroFlow.vue');
 
-    expect(source).toContain(":key=\"(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order\"");
+    expect(source).toContain(
+      ":key=\"(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order\"",
+    );
   });
 
   // 行级延迟渲染已整体移除（is-deferred 占位 + IntersectionObserver + 空闲预热）：
@@ -64,7 +69,7 @@ describe('home hero partial-save regression', () => {
     const source = stripCssComments(read('src/stores/homeHeroes.ts'));
     const publishSource = source.slice(
       source.indexOf('const publishHero ='),
-      source.indexOf('// 批量发布')
+      source.indexOf('// 批量发布'),
     );
 
     expect(publishSource).not.toBe('');

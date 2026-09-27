@@ -15,7 +15,7 @@ import {
   MoreHorizontal,
   Plus,
   RefreshCcw,
-  X
+  X,
 } from 'lucide-vue-next';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 
@@ -44,7 +44,7 @@ const props = defineProps({
   isHomeCatTheme: { type: Boolean, default: false },
   autoSaveDraftLabel: { type: String, default: '' },
   editMode: { type: Boolean, default: false },
-  existingImages: { type: Array, default: () => [] }
+  existingImages: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits([
@@ -64,7 +64,7 @@ const emit = defineEmits([
   'clear-images',
   'weekly-checkin',
   'open-draft',
-  'save-draft' // ✨ 新增：保存草稿事件
+  'save-draft', // ✨ 新增：保存草稿事件
 ]);
 
 const isEditMode = computed(() => Boolean(props.editMode));
@@ -91,8 +91,12 @@ const handleTitleInput = (event) => {
   updateTitle(value);
   autoResizeTitle();
 };
-const editorGreetingLabel = computed(() => (isEditMode.value ? '编辑帖子' : `你好，${props.userInfo.username || '朋友'}！`));
-const editorPromptLabel = computed(() => (isEditMode.value ? '修改你的分享，记得保存～' : '今天想和大家分享什么？'));
+const editorGreetingLabel = computed(() =>
+  isEditMode.value ? '编辑帖子' : `你好，${props.userInfo.username || '朋友'}！`,
+);
+const editorPromptLabel = computed(() =>
+  isEditMode.value ? '修改你的分享，记得保存～' : '今天想和大家分享什么？',
+);
 /* 竖屏发帖器头像行使用纯用户名 */
 const editorDisplayName = computed(() => props.userInfo.username || '朋友');
 const submitButtonLabel = computed(() => {
@@ -127,27 +131,31 @@ const showMentionMenu = ref(false);
 const mentionStartIndex = ref(-1);
 const previewImage = ref(null);
 
-const selectedTagLabel = computed(() => (
-  (props.forumTagOptions.find((tag) => tag.value === props.selectedPostTag)?.label || '')
-    .replace(/^#\s*/, '')
-));
-const hasPostContent = computed(() => Boolean(
-  String(props.newPost.title || '').trim() || String(props.newPost.content || '').trim()
-));
+const selectedTagLabel = computed(() =>
+  (props.forumTagOptions.find((tag) => tag.value === props.selectedPostTag)?.label || '').replace(
+    /^#\s*/,
+    '',
+  ),
+);
+const hasPostContent = computed(() =>
+  Boolean(String(props.newPost.title || '').trim() || String(props.newPost.content || '').trim()),
+);
 const isPostBusy = computed(() => props.isSubmitting || props.isUploadingPostImage);
 
 const titleCharCount = computed(() => String(props.newPost.title || '').length);
 const contentCharCount = computed(() => String(props.newPost.content || '').length);
-const composerCatSeed = computed(() => [
-  props.selectedPostTag,
-  isPostBusy.value ? 'uploading' : 'idle',
-  String(props.newPost.title || '').trim().length,
-  String(props.newPost.content || '').trim().length,
-  props.postImages.length
-].join(':'));
-const isComposerCatAwake = computed(() => (
-  String(props.newPost.content || '').trim().length >= 80 || props.postImages.length > 0
-));
+const composerCatSeed = computed(() =>
+  [
+    props.selectedPostTag,
+    isPostBusy.value ? 'uploading' : 'idle',
+    String(props.newPost.title || '').trim().length,
+    String(props.newPost.content || '').trim().length,
+    props.postImages.length,
+  ].join(':'),
+);
+const isComposerCatAwake = computed(
+  () => String(props.newPost.content || '').trim().length >= 80 || props.postImages.length > 0,
+);
 const normalizedMentionUsers = computed(() => {
   const seen = new Set();
   return props.mentionUsers
@@ -165,12 +173,14 @@ const mentionSuggestions = computed(() => {
     .filter((username) => !query || username.toLowerCase().includes(query))
     .slice(0, 6);
 });
-const currentPreviewImageUrl = computed(() => String(
-  previewImage.value?.detailUrl
-  || previewImage.value?.originalUrl
-  || previewImage.value?.url
-  || ''
-).trim());
+const currentPreviewImageUrl = computed(() =>
+  String(
+    previewImage.value?.detailUrl ||
+      previewImage.value?.originalUrl ||
+      previewImage.value?.url ||
+      '',
+  ).trim(),
+);
 const getImageStatusLabel = (image) => {
   if (image?.uploadStatusLabel) return image.uploadStatusLabel;
   if (image?.uploadStatus === 'failed') return '未通过';
@@ -181,14 +191,12 @@ const getImageStatusClass = (image) => {
   if (image?.uploadStatus && image.uploadStatus !== 'approved') return 'processing';
   return 'approved';
 };
-const shouldShowImageStatus = (image) => (
+const shouldShowImageStatus = (image) =>
   // 设计意图：上传/优化/检测过程不在图片上显示任何加载态（转圈），
   // 真实进度由灵动岛统一展示；仅失败态保留 badge + 重试入口
-  String(image?.uploadStatus || '') === 'failed'
-);
-const canReorderImage = (image) => (
-  !image?.uploadStatus || ['approved', 'staged'].includes(image.uploadStatus)
-);
+  String(image?.uploadStatus || '') === 'failed';
+const canReorderImage = (image) =>
+  !image?.uploadStatus || ['approved', 'staged'].includes(image.uploadStatus);
 
 const updateTitle = (value) => {
   emit('update:newPost', { ...props.newPost, title: value });
@@ -237,7 +245,12 @@ const insertMention = (username) => {
   const input = postContentInputRef.value;
   const cursor = Number(input?.selectionStart ?? content.length);
   const replacement = `@${safeUsername} `;
-  replaceContentRange(mentionStartIndex.value, cursor, replacement, mentionStartIndex.value + replacement.length);
+  replaceContentRange(
+    mentionStartIndex.value,
+    cursor,
+    replacement,
+    mentionStartIndex.value + replacement.length,
+  );
   showMentionMenu.value = false;
   mentionQuery.value = '';
   mentionStartIndex.value = -1;
@@ -349,8 +362,8 @@ async function throttledNominatimFetch(url) {
 
   const res = await fetch(url, {
     headers: {
-      'User-Agent': 'BOHLITE/2.5 (community forum; +https://github.com/bohlite)'
-    }
+      'User-Agent': 'BOHLITE/2.5 (community forum; +https://github.com/bohlite)',
+    },
   });
 
   const cloned = res.clone();
@@ -370,7 +383,7 @@ async function handleAddLocation() {
       navigator.geolocation.getCurrentPosition(resolve, reject, {
         enableHighAccuracy: false,
         timeout: 10000,
-        maximumAge: 60000
+        maximumAge: 60000,
       });
     });
     const { latitude, longitude } = pos.coords;
@@ -381,7 +394,7 @@ async function handleAddLocation() {
       districtName,
       precision: 'city',
       lat: latitude,
-      lng: longitude
+      lng: longitude,
     });
   } catch (e) {
     if (e.code === 1) {
@@ -401,7 +414,7 @@ async function handleAddLocation() {
 async function reverseGeocode(lat, lng) {
   try {
     const res = await throttledNominatimFetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=zh&zoom=13`
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=zh&zoom=13`,
     );
     if (!res.ok) {
       const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
@@ -414,12 +427,15 @@ async function reverseGeocode(lat, lng) {
     let cityName = addr.city || addr.town || null;
     if (!cityName && data.display_name) {
       const parts = data.display_name.split(', ').reverse();
-      cityName = parts.find(p => /市$/.test(p.trim()));
+      cityName = parts.find((p) => /市$/.test(p.trim()));
     }
-    if (!cityName) cityName = addr.county || addr.state || addr.country || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    if (!cityName)
+      cityName =
+        addr.county || addr.state || addr.country || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
     // Precise location (the finest granular detected)
-    const preciseName = addr.county || addr.district || addr.suburb || addr.neighbourhood || cityName;
+    const preciseName =
+      addr.county || addr.district || addr.suburb || addr.neighbourhood || cityName;
 
     return { cityName, districtName: preciseName };
   } catch {
@@ -444,23 +460,32 @@ function removeLocation() {
 function onLocationSearchInput() {
   clearTimeout(locationSearchTimer);
   const q = locationSearchQuery.value.trim();
-  if (!q) { locationSearchResults.value = []; return; }
-  if (q.length < 2) { locationSearchResults.value = []; return; }
+  if (!q) {
+    locationSearchResults.value = [];
+    return;
+  }
+  if (q.length < 2) {
+    locationSearchResults.value = [];
+    return;
+  }
   isSearchingLocation.value = true;
   locationSearchTimer = setTimeout(async () => {
     try {
       const res = await throttledNominatimFetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&accept-language=zh&limit=5`
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&accept-language=zh&limit=5`,
       );
-      if (!res.ok) { locationSearchResults.value = []; return; }
+      if (!res.ok) {
+        locationSearchResults.value = [];
+        return;
+      }
       const data = await res.json();
-      locationSearchResults.value = data.map(r => {
+      locationSearchResults.value = data.map((r) => {
         const parts = r.display_name.split(', ').reverse();
         return {
           name: r.display_name,
           lat: parseFloat(r.lat),
           lng: parseFloat(r.lon),
-          shortName: parts.slice(-3).join(', ')
+          shortName: parts.slice(-3).join(', '),
         };
       });
     } catch {
@@ -473,7 +498,7 @@ function onLocationSearchInput() {
 
 function selectSearchResult(result) {
   const parts = result.name.split(', ').reverse();
-  const cityName = parts.find(p => /市$/.test(p.trim())) || parts[0];
+  const cityName = parts.find((p) => /市$/.test(p.trim())) || parts[0];
   const preciseName = parts[0];
   emit('update:postLocation', {
     name: cityName?.trim() || result.name,
@@ -481,7 +506,7 @@ function selectSearchResult(result) {
     districtName: preciseName?.trim() || cityName?.trim() || result.name,
     precision: 'city',
     lat: result.lat,
-    lng: result.lng
+    lng: result.lng,
   });
   locationSearchQuery.value = '';
   locationSearchResults.value = [];
@@ -533,7 +558,7 @@ function updateMorePanelPosition() {
     // 窄屏幕：面板从底部弹出（上拉菜单效果）
     morePanelPosition.value = {
       top: Math.max(16, window.innerHeight - panelHeight - 16),
-      left: 12
+      left: 12,
     };
   } else {
     // 正常屏幕：面板在按钮上方弹出，右边缘对齐按钮右边缘
@@ -542,7 +567,7 @@ function updateMorePanelPosition() {
 
     morePanelPosition.value = {
       top: Math.max(16, Math.min(topPosition, window.innerHeight - panelHeight - gap)),
-      left: Math.max(16, Math.min(leftPosition, window.innerWidth - panelWidth - 16))
+      left: Math.max(16, Math.min(leftPosition, window.innerWidth - panelWidth - 16)),
     };
   }
 }
@@ -552,7 +577,9 @@ watch(showMoreMenu, async (newVal) => {
     await nextTick();
     updateMorePanelPosition();
     // 菜单打开时监听滚动和窗口变化以重新定位
-    menuPositionUpdateHandler = () => { updateMorePanelPosition(); };
+    menuPositionUpdateHandler = () => {
+      updateMorePanelPosition();
+    };
     window.addEventListener('scroll', menuPositionUpdateHandler, { passive: true });
     window.addEventListener('resize', menuPositionUpdateHandler, { passive: true });
   } else if (menuPositionUpdateHandler) {
@@ -573,12 +600,23 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="post-creation-section fade-in-up" :class="{ 'mobile-composer-section': isMobileComposer }">
+  <section
+    class="post-creation-section fade-in-up"
+    :class="{ 'mobile-composer-section': isMobileComposer }"
+  >
     <div v-if="isLoggedIn" class="editor-card glass-panel">
       <div class="editor-header">
         <div class="user-avatar">
-          <img v-if="userInfo.avatarUrl" :src="userInfo.avatarUrl" alt="用户头像" class="avatar-image"  loading="lazy" />
-          <span v-else>{{ userInfo.username ? userInfo.username.charAt(0).toUpperCase() : 'U' }}</span>
+          <img
+            v-if="userInfo.avatarUrl"
+            :src="userInfo.avatarUrl"
+            alt="用户头像"
+            class="avatar-image"
+            loading="lazy"
+          />
+          <span v-else>{{
+            userInfo.username ? userInfo.username.charAt(0).toUpperCase() : 'U'
+          }}</span>
         </div>
         <div class="user-info-text">
           <span class="user-greeting">
@@ -588,47 +626,80 @@ onUnmounted(() => {
           </span>
           <span class="editor-prompt">{{ editorPromptLabel }}</span>
         </div>
-        <button v-if="isEditMode" type="button" class="editor-close-btn" aria-label="关闭编辑" @click="emit('close')">
+        <button
+          v-if="isEditMode"
+          type="button"
+          class="editor-close-btn"
+          aria-label="关闭编辑"
+          @click="emit('close')"
+        >
           <X :size="20" :stroke-width="2.2" aria-hidden="true" />
         </button>
       </div>
-      <HomeCatMascot v-if="isHomeCatTheme" class="composer-theme-cat"
+      <HomeCatMascot
+        v-if="isHomeCatTheme"
+        class="composer-theme-cat"
         :class="{ 'is-awake': isComposerCatAwake }"
         :type="isPostBusy ? 'uploading' : 'decor'"
         :pool="isPostBusy ? '' : 'background'"
         :seed="composerCatSeed"
-        size="lg" decorative />
+        size="lg"
+        decorative
+      />
 
       <div class="input-group post-title-input-group">
-        <textarea :value="newPost.title" ref="postTitleInputRef" rows="1" :maxlength="TITLE_MAX_LENGTH"
+        <textarea
+          :value="newPost.title"
+          ref="postTitleInputRef"
+          rows="1"
+          :maxlength="TITLE_MAX_LENGTH"
           enterkeyhint="next"
-          :placeholder="isEditMode ? '修改标题' : (isMobileComposer ? '标题' : '起个响亮的标题...')"
+          :placeholder="isEditMode ? '修改标题' : isMobileComposer ? '标题' : '起个响亮的标题...'"
           class="post-title-input"
           @keydown="handleTitleKeydown"
-          @input="handleTitleInput"></textarea>
-        <span v-if="titleCharCount > 0" class="composer-title-count"
-          :class="{ 'is-near-limit': titleCharCount >= TITLE_MAX_LENGTH }">
+          @input="handleTitleInput"
+        ></textarea>
+        <span
+          v-if="titleCharCount > 0"
+          class="composer-title-count"
+          :class="{ 'is-near-limit': titleCharCount >= TITLE_MAX_LENGTH }"
+        >
           {{ titleCharCount }}/{{ TITLE_MAX_LENGTH }}
         </span>
       </div>
 
       <div class="input-group post-body-input-group">
         <div class="composer-body-shell">
-          <textarea v-if="!isPreviewMode" ref="postContentInputRef" :value="newPost.content"
+          <textarea
+            v-if="!isPreviewMode"
+            ref="postContentInputRef"
+            :value="newPost.content"
             :placeholder="isMobileComposer ? '有什么新鲜事？' : '正文内容...'"
-            class="post-content-input" rows="3" @input="handleContentInput"
-            @keyup="updateMentionState" @click="updateMentionState" @focus="updateMentionState"></textarea>
+            class="post-content-input"
+            rows="3"
+            @input="handleContentInput"
+            @keyup="updateMentionState"
+            @click="updateMentionState"
+            @focus="updateMentionState"
+          ></textarea>
           <div v-else class="composer-post-preview">
             <h3 v-if="newPost.title">{{ newPost.title }}</h3>
-            <p v-if="String(newPost.content || '').trim()" class="composer-preview-body">{{ newPost.content }}</p>
+            <p v-if="String(newPost.content || '').trim()" class="composer-preview-body">
+              {{ newPost.content }}
+            </p>
             <p v-else class="composer-preview-empty">正文还没有内容</p>
           </div>
           <div v-if="!isPreviewMode && contentCharCount > 0" class="composer-char-count">
             {{ contentCharCount }} 字
           </div>
           <div v-if="showMentionMenu && mentionSuggestions.length" class="composer-mention-menu">
-            <button v-for="username in mentionSuggestions" :key="username" type="button"
-              class="composer-mention-item" @click="insertMention(username)">
+            <button
+              v-for="username in mentionSuggestions"
+              :key="username"
+              type="button"
+              class="composer-mention-item"
+              @click="insertMention(username)"
+            >
               @{{ username }}
             </button>
           </div>
@@ -636,36 +707,66 @@ onUnmounted(() => {
       </div>
 
       <div class="post-tag-selector" role="radiogroup" aria-label="帖子标签">
-        <button v-for="tag in forumTagOptions" :key="tag.value" type="button"
-          class="post-tag-option" :class="{ active: selectedPostTag === tag.value }" @click="handleTagSelect(tag.value)">
+        <button
+          v-for="tag in forumTagOptions"
+          :key="tag.value"
+          type="button"
+          class="post-tag-option"
+          :class="{ active: selectedPostTag === tag.value }"
+          @click="handleTagSelect(tag.value)"
+        >
           {{ tag.label }}
         </button>
       </div>
 
-
-
-      <input ref="postImageInputRef" type="file" accept="image/png,image/jpeg,image/webp" multiple
-        class="post-image-input" @change="handleImageChange" />
-      <input ref="postCameraInputRef" type="file" accept="image/png,image/jpeg,image/webp" capture="environment"
-        class="post-image-input" @change="handleImageChange" />
+      <input
+        ref="postImageInputRef"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        multiple
+        class="post-image-input"
+        @change="handleImageChange"
+      />
+      <input
+        ref="postCameraInputRef"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        capture="environment"
+        class="post-image-input"
+        @change="handleImageChange"
+      />
 
       <div class="post-image-panel">
         <div class="post-image-preview-grid">
-          <div v-for="(image, index) in postImages" :key="image.publicId || image.uploadId || image.url" class="post-image-preview-item"
+          <div
+            v-for="(image, index) in postImages"
+            :key="image.publicId || image.uploadId || image.url"
+            class="post-image-preview-item"
             :class="{
               'is-dragging': draggedImageIndex === index,
               'is-drop-target': dragOverImageIndex === index,
-              'is-failed': image.uploadStatus === 'failed'
+              'is-failed': image.uploadStatus === 'failed',
             }"
             :draggable="canReorderImage(image)"
             @dragstart="handleImageDragStart(index, $event)"
             @dragenter.prevent="handleImageDragEnter(index)"
             @dragover.prevent
             @drop="handleImageDrop(index, $event)"
-            @dragend="handleImageDragEnd">
-            <button v-if="image.url" type="button" class="post-image-preview-open"
-              :aria-label="`预览第 ${index + 1} 张图片大图`" @click="openImagePreview(image)">
-              <img :src="image.url" :alt="`帖子图片 ${index + 1}`" loading="lazy" decoding="async" />
+            @dragend="handleImageDragEnd"
+          >
+            <button
+              v-if="image.url"
+              type="button"
+              class="post-image-preview-open"
+              :aria-label="`预览第 ${index + 1} 张图片大图`"
+              @click="openImagePreview(image)"
+            >
+              <img
+                :src="image.url"
+                :alt="`帖子图片 ${index + 1}`"
+                loading="lazy"
+                decoding="async"
+              />
             </button>
             <div v-else class="post-image-failed-placeholder">
               <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
@@ -674,30 +775,60 @@ onUnmounted(() => {
             <span class="post-image-drag-handle" aria-hidden="true">
               <GripVertical :size="15" :stroke-width="2" />
             </span>
-            <span v-if="shouldShowImageStatus(image)" class="post-image-status-badge" :class="getImageStatusClass(image)">
-              <span v-if="getImageStatusClass(image) === 'processing'" class="post-image-card-spinner" aria-hidden="true"></span>
+            <span
+              v-if="shouldShowImageStatus(image)"
+              class="post-image-status-badge"
+              :class="getImageStatusClass(image)"
+            >
+              <span
+                v-if="getImageStatusClass(image) === 'processing'"
+                class="post-image-card-spinner"
+                aria-hidden="true"
+              ></span>
               {{ getImageStatusLabel(image) }}
             </span>
-            <button v-if="image.uploadStatus === 'failed' && image.file" type="button" class="post-image-retry-btn"
-              :disabled="isPostBusy" @click="emit('retry-image', image, index)">
+            <button
+              v-if="image.uploadStatus === 'failed' && image.file"
+              type="button"
+              class="post-image-retry-btn"
+              :disabled="isPostBusy"
+              @click="emit('retry-image', image, index)"
+            >
               <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
               <span>重试</span>
             </button>
-            <div v-if="canReorderImage(image)" class="post-image-sort-actions" aria-label="调整图片顺序">
-              <button type="button" class="post-image-sort-btn" :disabled="isPostBusy || index === 0"
+            <div
+              v-if="canReorderImage(image)"
+              class="post-image-sort-actions"
+              aria-label="调整图片顺序"
+            >
+              <button
+                type="button"
+                class="post-image-sort-btn"
+                :disabled="isPostBusy || index === 0"
                 :aria-label="`将第 ${index + 1} 张图片前移`"
-                @click="requestImageReorder(index, index - 1)">
+                @click="requestImageReorder(index, index - 1)"
+              >
                 <ArrowLeft :size="15" :stroke-width="2.2" aria-hidden="true" />
               </button>
-              <button type="button" class="post-image-sort-btn"
+              <button
+                type="button"
+                class="post-image-sort-btn"
                 :disabled="isPostBusy || index === postImages.length - 1"
                 :aria-label="`将第 ${index + 1} 张图片后移`"
-                @click="requestImageReorder(index, index + 1)">
+                @click="requestImageReorder(index, index + 1)"
+              >
                 <ArrowRight :size="15" :stroke-width="2.2" aria-hidden="true" />
               </button>
             </div>
-            <button type="button" class="post-image-remove-btn" :disabled="isPostBusy"
-              @click="emit('remove-image', image, index)">×</button>
+            <button
+              type="button"
+              class="post-image-remove-btn"
+              :disabled="isPostBusy"
+              @click="emit('remove-image', image, index)"
+            >
+              ×
+            </button>
           </div>
 
           <!-- ✨ 新增：添加更多图片方框 -->
@@ -723,30 +854,48 @@ onUnmounted(() => {
             <div class="post-image-upload-progress-fill"></div>
           </div>
         </div>
-        <button v-if="postImages.length > 0" type="button" class="post-image-clear-btn"
-          :disabled="isPostBusy" @click="emit('clear-images', { cleanup: true })">
+        <button
+          v-if="postImages.length > 0"
+          type="button"
+          class="post-image-clear-btn"
+          :disabled="isPostBusy"
+          @click="emit('clear-images', { cleanup: true })"
+        >
           清空图片
         </button>
       </div>
 
       <div v-if="isMobileComposer" class="mobile-composer-chip-row">
-        <button type="button" class="mobile-composer-chip" :class="{ 'is-active': postLocation }" @click.stop="handleLocationClick">
+        <button
+          type="button"
+          class="mobile-composer-chip"
+          :class="{ 'is-active': postLocation }"
+          @click.stop="handleLocationClick"
+        >
           <MapPin :size="15" :stroke-width="1.8" aria-hidden="true" />
           <span>位置</span>
           <strong v-if="postLocation">{{ postLocation.name }}</strong>
         </button>
-        <button type="button" class="mobile-composer-chip" :class="{ 'is-active': Boolean(selectedTagLabel) }"
-          :aria-expanded="showMobileTagMenu" @click.stop="showMobileTagMenu = !showMobileTagMenu">
+        <button
+          type="button"
+          class="mobile-composer-chip"
+          :class="{ 'is-active': Boolean(selectedTagLabel) }"
+          :aria-expanded="showMobileTagMenu"
+          @click.stop="showMobileTagMenu = !showMobileTagMenu"
+        >
           <Hash :size="15" :stroke-width="1.8" aria-hidden="true" />
           <span>标签</span>
           <strong v-if="selectedTagLabel">#{{ selectedTagLabel }}</strong>
         </button>
         <!-- 图片 chip：只在「网格内 ＋添加图片 大卡片被隐藏」的电脑/平板横屏显示
              （条件见 composer.css 的 .mobile-composer-chip--image，与卡片互为镜像） -->
-        <button type="button" class="mobile-composer-chip mobile-composer-chip--image"
+        <button
+          type="button"
+          class="mobile-composer-chip mobile-composer-chip--image"
           :disabled="isPostBusy || postImages.length >= maxPostImages"
           :aria-label="`添加图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
-          @click.stop="handleImagePickerRequest">
+          @click.stop="handleImagePickerRequest"
+        >
           <ImageIcon :size="15" :stroke-width="1.8" aria-hidden="true" />
           <span>图片</span>
           <strong>{{ postImages.length }}/{{ maxPostImages }}</strong>
@@ -758,10 +907,22 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div v-if="isMobileComposer && showMobileTagMenu" class="mobile-composer-setting-menu" role="menu" aria-label="选择帖子标签">
-        <button v-for="tag in forumTagOptions" :key="tag.value" type="button" class="mobile-composer-setting-menu-item"
-          :class="{ active: selectedPostTag === tag.value }" role="menuitemradio"
-          :aria-checked="selectedPostTag === tag.value" @click="handleTagSelect(tag.value)">
+      <div
+        v-if="isMobileComposer && showMobileTagMenu"
+        class="mobile-composer-setting-menu"
+        role="menu"
+        aria-label="选择帖子标签"
+      >
+        <button
+          v-for="tag in forumTagOptions"
+          :key="tag.value"
+          type="button"
+          class="mobile-composer-setting-menu-item"
+          :class="{ active: selectedPostTag === tag.value }"
+          role="menuitemradio"
+          :aria-checked="selectedPostTag === tag.value"
+          @click="handleTagSelect(tag.value)"
+        >
           {{ tag.label }}
         </button>
       </div>
@@ -769,33 +930,58 @@ onUnmounted(() => {
       <div class="mobile-post-image-toolbar">
         <div class="mobile-post-tool-group" @click.stop>
           <div class="mobile-tag-tool-wrap">
-            <button type="button" class="mobile-post-tool-btn mobile-tag-tool-btn"
-              :class="{ active: showMobileTagMenu }" aria-label="选择帖子标签"
-              :aria-expanded="showMobileTagMenu" @click="showMobileTagMenu = !showMobileTagMenu">
+            <button
+              type="button"
+              class="mobile-post-tool-btn mobile-tag-tool-btn"
+              :class="{ active: showMobileTagMenu }"
+              aria-label="选择帖子标签"
+              :aria-expanded="showMobileTagMenu"
+              @click="showMobileTagMenu = !showMobileTagMenu"
+            >
               <Hash :size="23" :stroke-width="2" aria-hidden="true" />
             </button>
             <div v-if="showMobileTagMenu" class="mobile-tag-menu">
-              <button v-for="tag in forumTagOptions" :key="tag.value" type="button" class="mobile-tag-menu-item"
-                :class="{ active: selectedPostTag === tag.value }" @click="handleTagSelect(tag.value)">
+              <button
+                v-for="tag in forumTagOptions"
+                :key="tag.value"
+                type="button"
+                class="mobile-tag-menu-item"
+                :class="{ active: selectedPostTag === tag.value }"
+                @click="handleTagSelect(tag.value)"
+              >
                 {{ tag.label }}
               </button>
             </div>
           </div>
-          <button type="button" class="mobile-post-tool-btn mobile-preview-tool-btn" :class="{ active: isPreviewMode }"
-            :disabled="!hasPostContent" :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
-            @click="isPreviewMode = !isPreviewMode">
+          <button
+            type="button"
+            class="mobile-post-tool-btn mobile-preview-tool-btn"
+            :class="{ active: isPreviewMode }"
+            :disabled="!hasPostContent"
+            :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
+            @click="isPreviewMode = !isPreviewMode"
+          >
             <Eye :size="23" :stroke-width="2" aria-hidden="true" />
           </button>
-          <button type="button" class="mobile-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
+          <button
+            type="button"
+            class="mobile-post-tool-btn"
+            :class="{ 'is-full': postImages.length >= maxPostImages }"
             :disabled="isPostBusy || postImages.length >= maxPostImages"
             :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
-            @click="handleImagePickerRequest">
+            @click="handleImagePickerRequest"
+          >
             <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
           </button>
           <div class="mobile-more-tool-wrap" v-if="!isEditMode">
-            <button type="button" class="mobile-post-tool-btn mobile-more-tool-btn"
-              :class="{ active: showMoreMenu }" aria-label="更多选项"
-              :aria-expanded="showMoreMenu" @click="handleMoreButtonClick">
+            <button
+              type="button"
+              class="mobile-post-tool-btn mobile-more-tool-btn"
+              :class="{ active: showMoreMenu }"
+              aria-label="更多选项"
+              :aria-expanded="showMoreMenu"
+              @click="handleMoreButtonClick"
+            >
               <MoreHorizontal :size="23" :stroke-width="2" aria-hidden="true" />
             </button>
           </div>
@@ -805,80 +991,138 @@ onUnmounted(() => {
       <div v-if="postLocation" class="post-location-bar">
         <MapPin :size="14" :stroke-width="2" />
         <span class="post-location-text">{{ postLocation.name }}</span>
-        <button type="button" class="post-location-bar-remove" aria-label="移除位置" @click="removeLocation">×</button>
+        <button
+          type="button"
+          class="post-location-bar-remove"
+          aria-label="移除位置"
+          @click="removeLocation"
+        >
+          ×
+        </button>
       </div>
 
       <div class="editor-footer">
         <div v-if="autoSaveDraftLabel" class="auto-save-hint">{{ autoSaveDraftLabel }}</div>
         <div v-if="!isEditMode" class="editor-tools weekly-checkin-panel inline-checkin-panel">
-          <div v-if="isWeeklyCheckinLoading" class="weekly-checkin-status weekly-checkin-status-skeleton"
-            aria-label="正在加载周签到状态">
+          <div
+            v-if="isWeeklyCheckinLoading"
+            class="weekly-checkin-status weekly-checkin-status-skeleton"
+            aria-label="正在加载周签到状态"
+          >
             <span class="checkin-skeleton-title skeleton-item"></span>
             <span class="checkin-skeleton-line skeleton-item"></span>
           </div>
           <div v-else class="weekly-checkin-status">
             <span class="tool-hint">周签到：{{ weeklyCheckinProgressText }}</span>
             <div class="checkin-week-dots" aria-hidden="true">
-              <span v-for="dot in weeklyCheckinWeekDots" :key="dot.key" class="checkin-week-dot"
-                :class="{ today: dot.today, signed: dot.signed }"></span>
+              <span
+                v-for="dot in weeklyCheckinWeekDots"
+                :key="dot.key"
+                class="checkin-week-dot"
+                :class="{ today: dot.today, signed: dot.signed }"
+              ></span>
             </div>
             <span class="checkin-hint">{{ weeklyCheckinHintText }}</span>
           </div>
-          <button class="weekly-checkin-btn" :class="{ 'is-done': weeklyCheckinStatus.hasSignedThisWeek }"
+          <button
+            class="weekly-checkin-btn"
+            :class="{ 'is-done': weeklyCheckinStatus.hasSignedThisWeek }"
             @click="handleWeeklyCheckin"
-            :disabled="isWeeklyCheckinLoading || isWeeklyCheckinSubmitting || weeklyCheckinStatus.hasSignedThisWeek">
-            <span v-if="isWeeklyCheckinLoading" class="checkin-skeleton-button-label skeleton-item"></span>
+            :disabled="
+              isWeeklyCheckinLoading ||
+              isWeeklyCheckinSubmitting ||
+              weeklyCheckinStatus.hasSignedThisWeek
+            "
+          >
+            <span
+              v-if="isWeeklyCheckinLoading"
+              class="checkin-skeleton-button-label skeleton-item"
+            ></span>
             <span v-else-if="isWeeklyCheckinSubmitting">签到中...</span>
-            <span v-else>{{ weeklyCheckinStatus.hasSignedThisWeek ? '本周已签到' : '每周签到' }}</span>
+            <span v-else>{{
+              weeklyCheckinStatus.hasSignedThisWeek ? '本周已签到' : '每周签到'
+            }}</span>
           </button>
         </div>
         <div class="editor-submit-group">
           <div class="desktop-post-tools" @click.stop>
             <div class="desktop-tag-tool-wrap">
-              <button type="button" class="desktop-post-tool-btn desktop-tag-tool-btn"
-                :class="{ active: showMobileTagMenu }" aria-label="选择帖子标签"
-                :aria-expanded="showMobileTagMenu" @click="showMobileTagMenu = !showMobileTagMenu">
+              <button
+                type="button"
+                class="desktop-post-tool-btn desktop-tag-tool-btn"
+                :class="{ active: showMobileTagMenu }"
+                aria-label="选择帖子标签"
+                :aria-expanded="showMobileTagMenu"
+                @click="showMobileTagMenu = !showMobileTagMenu"
+              >
                 <Hash :size="22" :stroke-width="2" aria-hidden="true" />
                 <span>{{ selectedTagLabel }}</span>
               </button>
               <div v-if="showMobileTagMenu" class="desktop-tag-menu">
-                <button v-for="tag in forumTagOptions" :key="tag.value" type="button" class="desktop-tag-menu-item"
-                  :class="{ active: selectedPostTag === tag.value }" @click="handleTagSelect(tag.value)">
+                <button
+                  v-for="tag in forumTagOptions"
+                  :key="tag.value"
+                  type="button"
+                  class="desktop-tag-menu-item"
+                  :class="{ active: selectedPostTag === tag.value }"
+                  @click="handleTagSelect(tag.value)"
+                >
                   {{ tag.label }}
                 </button>
               </div>
             </div>
-            <button type="button" class="desktop-post-tool-btn desktop-preview-tool-btn" :class="{ active: isPreviewMode }"
-              :disabled="!hasPostContent" :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
-              @click="isPreviewMode = !isPreviewMode">
+            <button
+              type="button"
+              class="desktop-post-tool-btn desktop-preview-tool-btn"
+              :class="{ active: isPreviewMode }"
+              :disabled="!hasPostContent"
+              :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
+              @click="isPreviewMode = !isPreviewMode"
+            >
               <Eye :size="22" :stroke-width="2" aria-hidden="true" />
               <span>{{ isPreviewMode ? '编辑' : '预览' }}</span>
             </button>
-            <button type="button" class="desktop-post-tool-btn" :class="{ 'is-full': postImages.length >= maxPostImages }"
+            <button
+              type="button"
+              class="desktop-post-tool-btn"
+              :class="{ 'is-full': postImages.length >= maxPostImages }"
               :disabled="isPostBusy || postImages.length >= maxPostImages"
               :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
-              @click="handleImagePickerRequest">
+              @click="handleImagePickerRequest"
+            >
               <ImageIcon :size="23" :stroke-width="1.8" aria-hidden="true" />
               <span class="desktop-image-count">{{ postImages.length }}/{{ maxPostImages }}</span>
             </button>
             <!-- ✨ 横屏保存草稿按钮：形态收敛到 ui/GlassPillButton.vue -->
-            <GlassPillButton v-if="!isEditMode" class="desktop-save-draft-btn"
+            <GlassPillButton
+              v-if="!isEditMode"
+              class="desktop-save-draft-btn"
               :disabled="!hasPostContent || isPostBusy"
               :aria-label="`保存当前编辑内容为草稿`"
-              @click="emit('save-draft')">
+              @click="emit('save-draft')"
+            >
               <FileText :size="22" :stroke-width="2" aria-hidden="true" />
               <span>保存草稿</span>
             </GlassPillButton>
             <div v-if="!isEditMode" class="desktop-more-tool-wrap">
-              <button type="button" class="desktop-post-tool-btn desktop-more-tool-btn"
-                :class="{ active: showMoreMenu }" aria-label="更多选项"
-                :aria-expanded="showMoreMenu" @click="handleMoreButtonClick">
+              <button
+                type="button"
+                class="desktop-post-tool-btn desktop-more-tool-btn"
+                :class="{ active: showMoreMenu }"
+                aria-label="更多选项"
+                :aria-expanded="showMoreMenu"
+                @click="handleMoreButtonClick"
+              >
                 <MoreHorizontal :size="22" :stroke-width="2" aria-hidden="true" />
               </button>
             </div>
           </div>
-          <button class="post-btn" @click="handleSubmit"
-            :disabled="isPostBusy || postCooldownSeconds > 0" :aria-busy="isPostBusy">
+          <button
+            class="post-btn"
+            @click="handleSubmit"
+            :disabled="isPostBusy || postCooldownSeconds > 0"
+            :aria-busy="isPostBusy"
+          >
             <span class="post-btn-label">{{ submitButtonLabel }}</span>
             <div v-if="isSubmitting" class="mini-spinner white"></div>
           </button>
@@ -901,36 +1145,77 @@ onUnmounted(() => {
     <Teleport to="body">
       <transition name="slide-up-popover">
         <div v-if="showMoreMenu" class="more-overlay" @click="showMoreMenu = false">
-          <div class="more-panel" @click.stop ref="morePanelRef"
+          <div
+            class="more-panel"
+            @click.stop
+            ref="morePanelRef"
             :style="{
               top: morePanelPosition.top + 'px',
-              left: morePanelPosition.left + 'px'
-            }">
+              left: morePanelPosition.left + 'px',
+            }"
+          >
             <div class="more-panel-header">
               <span>更多选项</span>
-              <button type="button" class="more-close-btn" aria-label="关闭" @click="showMoreMenu = false">
+              <button
+                type="button"
+                class="more-close-btn"
+                aria-label="关闭"
+                @click="showMoreMenu = false"
+              >
                 <X :size="18" :stroke-width="2" aria-hidden="true" />
               </button>
             </div>
             <div class="more-menu-list">
-              <button type="button" class="more-menu-item" @click="handleDraftOpen(); showMoreMenu = false">
+              <button
+                type="button"
+                class="more-menu-item"
+                @click="
+                  handleDraftOpen();
+                  showMoreMenu = false;
+                "
+              >
                 <FileText :size="18" :stroke-width="2" aria-hidden="true" />
                 <span class="more-menu-label">草稿</span>
               </button>
-              <button type="button" class="more-menu-item"
-                @click="replaceContentRange(String(newPost.content || '').length, String(newPost.content || '').length, '@'); showMoreMenu = false">
+              <button
+                type="button"
+                class="more-menu-item"
+                @click="
+                  replaceContentRange(
+                    String(newPost.content || '').length,
+                    String(newPost.content || '').length,
+                    '@',
+                  );
+                  showMoreMenu = false;
+                "
+              >
                 <AtSign :size="18" :stroke-width="2" aria-hidden="true" />
                 <span class="more-menu-label">提及用户</span>
               </button>
-              <button type="button" class="more-menu-item"
-                :disabled="isLocating" @click="handleLocationClick(); showMoreMenu = false">
+              <button
+                type="button"
+                class="more-menu-item"
+                :disabled="isLocating"
+                @click="
+                  handleLocationClick();
+                  showMoreMenu = false;
+                "
+              >
                 <span v-if="isLocating" class="mini-spinner"></span>
                 <MapPin v-else :size="18" :stroke-width="2" aria-hidden="true" />
                 <span class="more-menu-label">{{ postLocation ? '更换位置' : '添加位置' }}</span>
               </button>
-              <button v-if="isMobileComposer" type="button" class="more-menu-item" :class="{ 'is-full': postImages.length >= maxPostImages }"
+              <button
+                v-if="isMobileComposer"
+                type="button"
+                class="more-menu-item"
+                :class="{ 'is-full': postImages.length >= maxPostImages }"
                 :disabled="isPostBusy || postImages.length >= maxPostImages"
-                @click="handleCameraRequest(); showMoreMenu = false">
+                @click="
+                  handleCameraRequest();
+                  showMoreMenu = false;
+                "
+              >
                 <Camera :size="18" :stroke-width="2" aria-hidden="true" />
                 <span class="more-menu-label">拍照</span>
               </button>
@@ -947,28 +1232,49 @@ onUnmounted(() => {
           <div class="location-panel" @click.stop>
             <div class="location-panel-header">
               <span>添加位置</span>
-              <button type="button" class="location-panel-close-btn" aria-label="关闭" @click="closeLocationMenu">
+              <button
+                type="button"
+                class="location-panel-close-btn"
+                aria-label="关闭"
+                @click="closeLocationMenu"
+              >
                 <X :size="18" :stroke-width="2" />
               </button>
             </div>
 
             <div class="location-search-wrap">
-              <input ref="locationSearchInputRef" v-model="locationSearchQuery" type="text" class="location-search-input"
-                placeholder="搜索城市或地点…" @input="onLocationSearchInput" />
+              <input
+                ref="locationSearchInputRef"
+                v-model="locationSearchQuery"
+                type="text"
+                class="location-search-input"
+                placeholder="搜索城市或地点…"
+                @input="onLocationSearchInput"
+              />
             </div>
 
             <div v-if="isSearchingLocation" class="location-panel-status">搜索中…</div>
 
             <div v-else-if="locationSearchResults.length" class="location-search-results">
-              <button v-for="result in locationSearchResults" :key="result.lat + result.lng"
-                type="button" class="location-result-item" @click="selectSearchResult(result)">
+              <button
+                v-for="result in locationSearchResults"
+                :key="result.lat + result.lng"
+                type="button"
+                class="location-result-item"
+                @click="selectSearchResult(result)"
+              >
                 <MapPin :size="16" :stroke-width="2" />
                 <span class="location-result-name">{{ result.shortName }}</span>
               </button>
             </div>
 
             <div v-else class="location-default-actions">
-              <button type="button" class="location-action-btn" :disabled="isLocating" @click="handleAddLocation">
+              <button
+                type="button"
+                class="location-action-btn"
+                :disabled="isLocating"
+                @click="handleAddLocation"
+              >
                 <span v-if="isLocating" class="mini-spinner"></span>
                 <span v-else>使用GPS定位</span>
               </button>
@@ -979,7 +1285,9 @@ onUnmounted(() => {
                 <MapPin :size="16" :stroke-width="2" />
                 <span>{{ postLocation.name }}</span>
               </div>
-              <button type="button" class="location-remove-btn" @click="removeLocation">移除</button>
+              <button type="button" class="location-remove-btn" @click="removeLocation">
+                移除
+              </button>
             </div>
 
             <div v-if="locationError" class="location-panel-error">{{ locationError }}</div>
@@ -992,14 +1300,25 @@ onUnmounted(() => {
       <transition name="fade">
         <div v-if="previewImage" class="composer-image-preview-overlay" @click="closeImagePreview">
           <section class="composer-image-preview-modal" aria-label="发布前图片预览" @click.stop>
-            <button type="button" class="composer-image-preview-close" aria-label="关闭图片预览"
-              @click="closeImagePreview">
+            <button
+              type="button"
+              class="composer-image-preview-close"
+              aria-label="关闭图片预览"
+              @click="closeImagePreview"
+            >
               <X :size="22" :stroke-width="2.2" aria-hidden="true" />
             </button>
-            <img :src="currentPreviewImageUrl" :alt="previewImage.name || '发布前图片预览'" decoding="async"  loading="lazy" />
+            <img
+              :src="currentPreviewImageUrl"
+              :alt="previewImage.name || '发布前图片预览'"
+              decoding="async"
+              loading="lazy"
+            />
             <div class="composer-image-preview-meta">
               <span>帖子图片</span>
-              <strong>{{ previewImage.format ? previewImage.format.toUpperCase() : 'IMAGE' }}</strong>
+              <strong>{{
+                previewImage.format ? previewImage.format.toUpperCase() : 'IMAGE'
+              }}</strong>
             </div>
           </section>
         </div>
@@ -1009,18 +1328,21 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* 共享样式层：styles/*.css 按组件各自 scoped @import（架构现状，说明见 base.css 顶部）。
+   本组件还被 PostDetail 页独立使用（脱离 ForumMain），因此这里的 @import 是功能性的，勿删。 */
 @import '../styles/composer.css';
 @import '../styles/replies-responsive.css';
 </style>
 
 <style scoped>
+/* 组件私有样式：仅 PostComposer 模板使用（与上一块共享层刻意分块） */
 /* 图片占位入口：液态玻璃 — 统一走 --liquid-* token，主色与全站一致（iOS 蓝） */
 .post-image-add-more-card {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
   border-radius: 20px;
-  background: var(--liquid-bg-subtle, rgba(255,255,255,0.58));
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
   color: var(--apple-blue, #0071e3);
@@ -1030,18 +1352,26 @@ onUnmounted(() => {
   justify-content: center;
   gap: 4px;
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   padding: 0;
   min-height: 0;
   box-sizing: border-box;
-  box-shadow: var(--liquid-highlight-subtle, inset 0 1px 0 rgba(255,255,255,0.55)), var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06));
+  box-shadow:
+    var(--liquid-highlight-subtle, inset 0 1px 0 rgba(255, 255, 255, 0.55)),
+    var(--liquid-shadow-sm, 0 8px 24px rgba(15, 23, 42, 0.06));
 }
 
 .post-image-add-more-card:hover:not(:disabled) {
   border-color: rgba(255, 255, 255, 0.85);
-  background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
+  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
   transform: translateY(-1px);
-  box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), 0 12px 28px rgba(15,23,42,0.09);
+  box-shadow:
+    var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86)),
+    0 12px 28px rgba(15, 23, 42, 0.09);
 }
 
 .post-image-add-more-card:active:not(:disabled) {
@@ -1096,11 +1426,13 @@ onUnmounted(() => {
   overflow-y: auto;
   padding: 22px;
   border-radius: 28px;
-  border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
-  background: var(--liquid-bg, rgba(255,255,255,0.72));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
   backdrop-filter: var(--liquid-filter);
   -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), var(--liquid-shadow, 0 20px 60px rgba(15,23,42,0.07));
+  box-shadow:
+    var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86)),
+    var(--liquid-shadow, 0 20px 60px rgba(15, 23, 42, 0.07));
   isolation: isolate;
   contain: paint;
 }
@@ -1343,7 +1675,10 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s, transform 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s,
+    transform 0.2s;
 }
 
 .editor-close-btn:hover {
@@ -1371,11 +1706,13 @@ onUnmounted(() => {
   z-index: 220101;
   padding: 14px;
   border-radius: 28px;
-  border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
-  background: var(--liquid-bg, rgba(255,255,255,0.72));
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
   backdrop-filter: var(--liquid-filter);
   -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), var(--liquid-shadow, 0 20px 60px rgba(15,23,42,0.07));
+  box-shadow:
+    var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86)),
+    var(--liquid-shadow, 0 20px 60px rgba(15, 23, 42, 0.07));
   width: 280px;
   overflow: hidden;
   contain: paint;
@@ -1427,7 +1764,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
 .more-close-btn:hover {
@@ -1454,7 +1793,9 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.04);
   color: #1d1d1f;
   cursor: pointer;
-  transition: background-color 0.2s, transform 0.2s;
+  transition:
+    background-color 0.2s,
+    transform 0.2s;
 }
 
 .more-menu-item:hover {
@@ -1482,7 +1823,9 @@ onUnmounted(() => {
 /* slide-up-popover 动画（从按钮上方弹出） */
 .slide-up-popover-enter-active,
 .slide-up-popover-leave-active {
-  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    opacity 0.2s ease,
+    transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .slide-up-popover-enter-from,
