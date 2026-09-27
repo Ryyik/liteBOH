@@ -1,5 +1,5 @@
 {
-  "total": 1319,
+  "total": 1330,
   "files": {
     "src/App.vue": 1,
     "src/components/AiEdgeTrigger.vue": 2,
@@ -10,7 +10,7 @@
     "src/components/UnifiedNavbar/BOHAIIsland.vue": 91,
     "src/components/UnifiedNavbar/GlobalNavStatusCard.vue": 3,
     "src/components/UnifiedNavbar/GlobalNavTaskCard.vue": 1,
-    "src/components/UnifiedNavbar/style.scoped.css": 42,
+    "src/components/UnifiedNavbar/style.scoped.css": 53,
     "src/components/WordCloud.vue": 3,
     "src/components/ai/AiQuotaSidePanel.vue": 45,
     "src/style.css": 6,
