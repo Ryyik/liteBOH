@@ -4,7 +4,7 @@
       <!-- 顶栏 -->
       <header v-if="bundle" class="ar-topbar">
         <div class="ar-topbar-left">
-          <RouterLink v-if="isOwner" to="/user-space/albums" class="ar-back">
+          <RouterLink v-if="isOwner || isDemo" to="/user-space/albums" class="ar-back">
             <ArrowLeft :size="16" :stroke-width="2.2" aria-hidden="true" />
             <span>我的影集</span>
           </RouterLink>
@@ -14,7 +14,7 @@
           </RouterLink>
         </div>
         <div class="ar-topbar-title">
-          <h1>{{ bundle.album.title }}</h1>
+          <h1>{{ bundle.album.title }}<span v-if="isDemo" class="ar-demo-badge">DEMO</span></h1>
           <span v-if="!isOwner && bundle.album.authorName">by {{ bundle.album.authorName }}</span>
         </div>
         <div class="ar-topbar-actions">
@@ -61,7 +61,7 @@
           <!-- 封面页 -->
           <div v-if="currentPage?.pageType === 'cover'" class="ar-sheet is-cover">
             <div class="ar-cover-frame">
-              <img v-if="bundle.album.coverUrl" :src="bundle.album.coverUrl" :alt="bundle.album.title" />
+              <img v-if="bundle.album.coverUrl" :src="bundle.album.coverUrl" :alt="bundle.album.title" @error="onImgError" />
               <div v-else class="ar-cover-empty"><Camera :size="30" :stroke-width="1.5" aria-hidden="true" /></div>
             </div>
             <h2 class="ar-cover-title">{{ bundle.album.title }}</h2>
@@ -88,7 +88,8 @@
               <figure v-for="(photoId, slotIndex) in currentPage.photoRefs" :key="`${currentPage.id}-${slotIndex}`"
                 class="ar-slot" :style="{ gridArea: `p${slotIndex}` }">
                 <img v-if="photoById.get(String(photoId))" :src="photoUrl(photoById.get(String(photoId)))"
-                  :alt="photoById.get(String(photoId)).caption || bundle.album.title" loading="lazy" decoding="async" />
+                  :alt="photoById.get(String(photoId)).caption || bundle.album.title" loading="lazy" decoding="async"
+                  @error="onImgError" />
                 <figcaption v-if="!layoutHasTextArea && photoById.get(String(photoId))?.caption" class="ar-slot-caption">
                   {{ photoById.get(String(photoId)).caption }}
                 </figcaption>
@@ -166,6 +167,7 @@ import {
 import { useAuthStore } from '@/stores/auth';
 import { getPublicAlbum } from '@/utils/api/photo-albums-api.js';
 import { getLayout } from '@/utils/photo-albums/layouts.js';
+import { buildDemoAlbumBundle } from '@/utils/photo-albums/demo-album.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -185,6 +187,8 @@ let touchStartY = 0;
 const isOwner = computed(() =>
   Boolean(authStore?.isLoggedIn && authStore?.userInfo?.id && bundle.value?.album?.userId === authStore.userInfo.id)
 );
+
+const isDemo = computed(() => String(route.params.id) === 'demo');
 
 const pages = computed(() => bundle.value?.pages || []);
 const totalPages = computed(() => pages.value.length);
@@ -243,6 +247,13 @@ const tocEntries = computed(() => {
 });
 
 async function loadAlbum() {
+  // 示例影集：纯前端静态数据，不查库、不占配额（列表页「查看 Demo」入口）
+  if (String(route.params.id) === 'demo') {
+    bundle.value = buildDemoAlbumBundle();
+    currentIndex.value = 0;
+    isLoading.value = false;
+    return;
+  }
   isLoading.value = true;
   loadError.value = '';
   const result = await getPublicAlbum(route.params.id);
@@ -278,6 +289,11 @@ function onTouchStart(event) {
   if (!touch) return;
   touchStartX = touch.clientX;
   touchStartY = touch.clientY;
+}
+
+/** 破图兜底：隐藏裂图露出槽位底色（demo 外链图与失效 Cloudinary 图通用） */
+function onImgError(event) {
+  if (event?.target) event.target.style.visibility = 'hidden';
 }
 
 function onTouchEnd(event) {
@@ -370,6 +386,19 @@ onBeforeUnmount(() => {
 .ar-topbar-title span {
   font-size: 12px;
   color: var(--text-tertiary, #86868b);
+}
+
+.ar-demo-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  vertical-align: 2px;
+  color: var(--brand, #0a84ff);
+  background: rgba(10, 132, 255, 0.12);
 }
 
 .ar-topbar-actions {

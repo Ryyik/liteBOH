@@ -7,10 +7,16 @@
           <h1>我的摄影集</h1>
           <p>上传照片，自动初排成页，亲手装帧一本可以翻阅、可以带走的影集。</p>
         </div>
-        <button type="button" class="pa-create-btn" :disabled="creating" @click="openCreateModal">
-          <Plus :size="16" :stroke-width="2.4" aria-hidden="true" />
-          {{ creating ? '创建中…' : '新建影集' }}
-        </button>
+        <div class="pa-header-actions">
+          <RouterLink to="/albums/demo" class="pa-demo-btn">
+            <PlayCircle :size="15" :stroke-width="2.2" aria-hidden="true" />
+            查看示例影集
+          </RouterLink>
+          <button type="button" class="pa-create-btn" :disabled="creating" @click="openCreateModal">
+            <Plus :size="16" :stroke-width="2.4" aria-hidden="true" />
+            {{ creating ? '创建中…' : '新建影集' }}
+          </button>
+        </div>
       </header>
 
       <div v-if="quotaInfo" class="pa-quota-bar" aria-label="影集配额">
@@ -38,7 +44,10 @@
         <span class="pa-empty-icon"><Camera :size="30" :stroke-width="1.6" aria-hidden="true" /></span>
         <h2>还没有影集</h2>
         <p>从一次旅行、一个季节或一段故事开始，装帧你的第一本影集。</p>
-        <button type="button" class="pa-primary-btn" @click="openCreateModal">新建影集</button>
+        <div class="pa-empty-actions">
+          <RouterLink to="/albums/demo" class="pa-secondary-btn">先看一本示例</RouterLink>
+          <button type="button" class="pa-primary-btn" @click="openCreateModal">新建影集</button>
+        </div>
       </section>
 
       <section v-else class="pa-grid">
@@ -121,7 +130,7 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { Camera, Images, ImagePlus, Plus, Share2, X } from 'lucide-vue-next';
+import { Camera, Images, ImagePlus, PlayCircle, Plus, Share2, X } from 'lucide-vue-next';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import { showIsland } from '@/composables/useIsland.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
@@ -443,6 +452,35 @@ onMounted(loadAlbums);
   color: var(--text-secondary, #515154);
 }
 
+.pa-header-actions,
+.pa-demo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pa-header-actions {
+  gap: 10px;
+}
+
+.pa-demo-btn {
+  padding: 10px 18px;
+  border: 1px solid var(--border-color, #d1d1d6);
+  border-radius: 999px;
+  background: var(--surface-primary, #fff);
+  color: var(--text-primary, #1d1d1f);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.pa-demo-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--brand, #0a84ff);
+  color: var(--brand, #0a84ff);
+}
+
 .pa-create-btn {
   display: inline-flex;
   align-items: center;
@@ -631,6 +669,21 @@ onMounted(loadAlbums);
 
 .pa-empty h2 { margin: 4px 0 0; font-size: 20px; }
 .pa-empty p { margin: 0; font-size: 14px; color: var(--text-secondary, #515154); }
+
+.pa-empty-actions {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pa-empty-actions .pa-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
 
 .pa-primary-btn,
 .pa-secondary-btn {
