@@ -16,7 +16,12 @@
     <DashboardNotice v-if="errorMessage" tone="error" dismissible @dismiss="errorMessage = ''">
       {{ errorMessage }}
     </DashboardNotice>
-    <DashboardNotice v-if="successMessage" tone="success" dismissible @dismiss="successMessage = ''">
+    <DashboardNotice
+      v-if="successMessage"
+      tone="success"
+      dismissible
+      @dismiss="successMessage = ''"
+    >
       {{ successMessage }}
     </DashboardNotice>
 
@@ -57,23 +62,48 @@
         <form class="g-lab-ai-form" @submit.prevent="handleSave(config)">
           <div class="g-field">
             <label>模型（从 BOH AI 现有模型选择）</label>
-            <select v-model="config.model_id" class="g-select is-mono" :disabled="isLoadingModels" required>
-              <option value="" disabled>{{ isLoadingModels ? '加载中...' : '请选择模型模式' }}</option>
+            <select
+              v-model="config.model_id"
+              class="g-select is-mono"
+              :disabled="isLoadingModels"
+              required
+            >
+              <option value="" disabled>
+                {{ isLoadingModels ? '加载中...' : '请选择模型模式' }}
+              </option>
               <option v-for="m in bohaiModels" :key="m.mode_id" :value="m.mode_id">
-                {{ m.display_name }} ({{ m.provider_label || m.provider }}){{ m.min_tier && m.min_tier !== 'free' ? ` · 需${m.min_tier}` : '' }} — {{ m.mode_id }}
+                {{ m.display_name }} ({{ m.provider_label || m.provider }}){{
+                  m.min_tier && m.min_tier !== 'free' ? ` · 需${m.min_tier}` : ''
+                }}
+                — {{ m.mode_id }}
               </option>
             </select>
           </div>
 
           <div class="g-field">
             <label>API Key 用途（仅论坛周报等服务端直连使用）</label>
-            <select v-model="config.api_key_purpose" class="g-select" :disabled="isLoadingApiKeys" required>
-              <option value="" disabled>{{ isLoadingApiKeys ? '加载中...' : '请选择 API Key' }}</option>
-              <option v-for="k in getFilteredApiKeys(config.model_id)" :key="k.purpose" :value="k.purpose">
+            <select
+              v-model="config.api_key_purpose"
+              class="g-select"
+              :disabled="isLoadingApiKeys"
+              required
+            >
+              <option value="" disabled>
+                {{ isLoadingApiKeys ? '加载中...' : '请选择 API Key' }}
+              </option>
+              <option
+                v-for="k in getFilteredApiKeys(config.model_id)"
+                :key="k.purpose"
+                :value="k.purpose"
+              >
                 {{ k.label || k.purpose }} ({{ k.provider }})
               </option>
             </select>
-            <span v-if="config.model_id && getFilteredApiKeys(config.model_id).length === 0" class="g-field-hint" style="color: var(--chart-6);">
+            <span
+              v-if="config.model_id && getFilteredApiKeys(config.model_id).length === 0"
+              class="g-field-hint"
+              style="color: var(--chart-6)"
+            >
               该模型平台暂无可用的 API Key；Lab 运行时由服务端自动匹配平台密钥，此项仅影响论坛周报。
             </span>
           </div>
@@ -81,23 +111,53 @@
           <div class="g-lab-ai-row">
             <div class="g-field">
               <label>Temperature</label>
-              <input v-model.number="config.temperature" type="number" step="0.01" min="0" max="1.2" class="g-input" required />
+              <input
+                v-model.number="config.temperature"
+                type="number"
+                step="0.01"
+                min="0"
+                max="1.2"
+                class="g-input"
+                required
+              />
             </div>
             <div class="g-field">
               <label>最大输出 Tokens</label>
-              <input v-model.number="config.max_tokens" type="number" min="256" max="8192" step="256" class="g-input" required />
+              <input
+                v-model.number="config.max_tokens"
+                type="number"
+                min="256"
+                max="8192"
+                step="256"
+                class="g-input"
+                required
+              />
             </div>
           </div>
 
           <div class="g-lab-ai-card-foot">
-            <button type="button" class="g-btn g-btn-secondary g-btn-sm" @click="handleToggleStatus(config)">
+            <button
+              type="button"
+              class="g-btn g-btn-secondary g-btn-sm"
+              @click="handleToggleStatus(config)"
+            >
               {{ config.is_active ? '停用' : '启用' }}
             </button>
-            <button v-if="config.feature_key === 'forum-weekly-report'" type="button" class="g-btn g-btn-secondary g-btn-sm" @click="handleGenerateReport(config)" :disabled="generatingId === config.id">
+            <button
+              v-if="config.feature_key === 'forum-weekly-report'"
+              type="button"
+              class="g-btn g-btn-secondary g-btn-sm"
+              @click="handleGenerateReport(config)"
+              :disabled="generatingId === config.id"
+            >
               <Newspaper :size="14" />
               <span>{{ generatingId === config.id ? '生成中...' : '立即生成' }}</span>
             </button>
-            <button type="submit" class="g-btn g-btn-primary g-btn-sm" :disabled="savingId === config.id">
+            <button
+              type="submit"
+              class="g-btn g-btn-primary g-btn-sm"
+              :disabled="savingId === config.id"
+            >
               <Save :size="14" />
               <span>{{ savingId === config.id ? '保存中...' : '保存' }}</span>
             </button>
@@ -110,7 +170,16 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { RefreshCw, Save, LoaderCircle, FileText, Presentation, Code2, FileEdit, Newspaper } from 'lucide-vue-next';
+import {
+  RefreshCw,
+  Save,
+  LoaderCircle,
+  FileText,
+  Presentation,
+  Code2,
+  FileEdit,
+  Newspaper,
+} from 'lucide-vue-next';
 import { supabase } from '@/utils/supabase-client.js';
 import { generateForumWeeklyReport } from '@/utils/api/forum-api.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
@@ -141,7 +210,9 @@ const clearSuccessTimer = () => {
 
 const scheduleSuccessClear = () => {
   clearSuccessTimer();
-  successTimer = setTimeout(() => { successMessage.value = ''; }, 3000);
+  successTimer = setTimeout(() => {
+    successMessage.value = '';
+  }, 3000);
 };
 
 const FEATURE_ICONS = {
@@ -149,7 +220,7 @@ const FEATURE_ICONS = {
   'ppt-generator': Presentation,
   'code-generator': Code2,
   'word-generator': FileEdit,
-  'forum-weekly-report': Newspaper
+  'forum-weekly-report': Newspaper,
 };
 
 const getFeatureIcon = (key) => FEATURE_ICONS[key] || FileText;
@@ -176,7 +247,7 @@ async function loadApiKeys() {
   try {
     const result = await listApiKeys();
     const allKeys = result?.data?.keys || result?.keys || [];
-    apiKeys.value = allKeys.filter(k => k.status === 'active');
+    apiKeys.value = allKeys.filter((k) => k.status === 'active');
   } catch (e) {
     apiKeys.value = [];
   } finally {
@@ -185,9 +256,9 @@ async function loadApiKeys() {
 }
 
 function getFilteredApiKeys(modeId) {
-  const model = bohaiModels.value.find(m => m.mode_id === modeId);
+  const model = bohaiModels.value.find((m) => m.mode_id === modeId);
   const provider = model?.provider || 'siliconflow';
-  return apiKeys.value.filter(k => k.provider === provider);
+  return apiKeys.value.filter((k) => k.provider === provider);
 }
 
 async function loadConfigs() {
@@ -222,7 +293,7 @@ async function handleSave(config) {
         model_id: config.model_id,
         temperature: config.temperature,
         max_tokens: config.max_tokens,
-        api_key_purpose: config.api_key_purpose || 'chat'
+        api_key_purpose: config.api_key_purpose || 'chat',
       })
       .eq('id', config.id);
 
@@ -244,7 +315,7 @@ async function handleToggleStatus(config) {
   const confirmed = await confirm({
     title: `${actionText}${config.feature_label}`,
     message: `确定要${actionText} ${config.feature_label} 吗？`,
-    tone: 'warning'
+    tone: 'warning',
   });
 
   if (!confirmed) return;
@@ -292,7 +363,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 @import '../styles/base.css';
-@import '../styles/google-components.css';
 @import '../styles/responsive.css';
 
 .g-lab-ai-config {

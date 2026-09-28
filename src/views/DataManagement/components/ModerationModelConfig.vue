@@ -20,10 +20,20 @@
     <DashboardNotice v-if="errorMessage" tone="error" dismissible @dismiss="errorMessage = ''">
       {{ errorMessage }}
     </DashboardNotice>
-    <DashboardNotice v-if="warningMessage" tone="warning" dismissible @dismiss="warningMessage = ''">
+    <DashboardNotice
+      v-if="warningMessage"
+      tone="warning"
+      dismissible
+      @dismiss="warningMessage = ''"
+    >
       {{ warningMessage }}
     </DashboardNotice>
-    <DashboardNotice v-if="successMessage" tone="success" dismissible @dismiss="successMessage = ''">
+    <DashboardNotice
+      v-if="successMessage"
+      tone="success"
+      dismissible
+      @dismiss="successMessage = ''"
+    >
       {{ successMessage }}
     </DashboardNotice>
 
@@ -38,16 +48,12 @@
           <ShieldCheck :size="20" class="g-moderation-shield" />
         </div>
         <p class="g-moderation-hint">
-          云端审核始终是第一层；仅当云端不可达（网络错误 / 超时 / 限流 / 未启用）时才回退本地模型兜底。
-          图片审核请选择具备视觉能力的模型（如 Gemini 系列）。
+          云端审核始终是第一层；仅当云端不可达（网络错误 / 超时 / 限流 /
+          未启用）时才回退本地模型兜底。 图片审核请选择具备视觉能力的模型（如 Gemini 系列）。
         </p>
 
         <form class="g-moderation-form" @submit.prevent="handleSave">
-          <section
-            v-for="blockDef in blockDefs"
-            :key="blockDef.kind"
-            class="g-moderation-block"
-          >
+          <section v-for="blockDef in blockDefs" :key="blockDef.kind" class="g-moderation-block">
             <header class="g-moderation-block-head">
               <strong>{{ blockDef.label }}</strong>
               <button
@@ -56,11 +62,15 @@
                 @click="blocks[blockDef.kind].enabled = !blocks[blockDef.kind].enabled"
               >
                 <span class="g-toggle-text">
-                  <span>{{ blocks[blockDef.kind].enabled ? '已启用（云端第一层）' : '已停用（仅本地兜底）' }}</span>
+                  <span>{{
+                    blocks[blockDef.kind].enabled ? '已启用（云端第一层）' : '已停用（仅本地兜底）'
+                  }}</span>
                   <small v-if="!blocks[blockDef.kind].enabled">{{ blockDef.offHint }}</small>
                   <small v-else>{{ blockDef.onHint }}</small>
                 </span>
-                <span :class="['g-switch', { 'is-on': blocks[blockDef.kind].enabled }]"><span /></span>
+                <span :class="['g-switch', { 'is-on': blocks[blockDef.kind].enabled }]"
+                  ><span
+                /></span>
               </button>
             </header>
 
@@ -72,7 +82,9 @@
                 :disabled="isLoadingFreemodels"
                 @change="applyModelDefaults(blockDef.kind)"
               >
-                <option value="" disabled>{{ isLoadingFreemodels ? '加载免费模型中...' : '请选择模型' }}</option>
+                <option value="" disabled>
+                  {{ isLoadingFreemodels ? '加载免费模型中...' : '请选择模型' }}
+                </option>
                 <option v-for="m in freemodels" :key="m.model_id" :value="m.model_id">
                   {{ m.name }} ({{ m.provider_label || m.provider }}) — {{ m.model_id }}
                 </option>
@@ -87,7 +99,9 @@
                   <option value="siliconflow">SiliconFlow</option>
                   <option value="zhipu">智谱 AI</option>
                 </select>
-                <span class="g-field-hint">custom 使用 API 密钥库里 custom/chat 的密钥（反代令牌）</span>
+                <span class="g-field-hint"
+                  >custom 使用 API 密钥库里 custom/chat 的密钥（反代令牌）</span
+                >
               </div>
               <div class="g-field">
                 <label>API 地址</label>
@@ -111,7 +125,13 @@
                 <Zap :size="14" />
                 <span>{{ blocks[blockDef.kind].testing ? '测试中...' : '连通性测试' }}</span>
               </button>
-              <span v-if="blocks[blockDef.kind].testResult" :class="['g-test-result', blocks[blockDef.kind].testResult.ok ? 'is-ok' : 'is-fail']">
+              <span
+                v-if="blocks[blockDef.kind].testResult"
+                :class="[
+                  'g-test-result',
+                  blocks[blockDef.kind].testResult.ok ? 'is-ok' : 'is-fail',
+                ]"
+              >
                 {{ blocks[blockDef.kind].testResult.text }}
               </span>
             </div>
@@ -148,7 +168,9 @@
           <div class="g-list-item">
             <span class="g-list-text">
               <span class="g-eyebrow">云端冷却状态</span>
-              <span v-if="cooldownState.coolingDown" class="g-badge is-warn"><span class="g-badge-dot" />冷却中：{{ cooldownState.reason || '未知原因' }}</span>
+              <span v-if="cooldownState.coolingDown" class="g-badge is-warn"
+                ><span class="g-badge-dot" />冷却中：{{ cooldownState.reason || '未知原因' }}</span
+              >
               <span v-else class="g-badge is-success"><span class="g-badge-dot" />正常</span>
             </span>
           </div>
@@ -156,8 +178,9 @@
             <span class="g-list-text">
               <span class="g-eyebrow">说明</span>
               <span class="g-field-hint">
-                配置保存至 bohai_model_configs 的 moderation-text / moderation-image 行（服务端裁决，前端不可篡改）。
-                行为 disabled 时审核调用收到「未配置」，自动走本地兜底。
+                配置保存至 bohai_model_configs 的 moderation-text / moderation-image
+                行（服务端裁决，前端不可篡改）。 行为 disabled
+                时审核调用收到「未配置」，自动走本地兜底。
               </span>
             </span>
           </div>
@@ -172,7 +195,10 @@ import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { Info, RefreshCw, Save, ShieldCheck, Zap } from 'lucide-vue-next';
 import { supabase } from '@/utils/supabase-client.js';
 import { callVaultSiliconChat, clearVaultModelCache } from '@/utils/api/api-key-runtime-api.js';
-import { testCloudImageModeration, getCloudModerationCooldownState } from '@/utils/image-moderation-pipeline.js';
+import {
+  testCloudImageModeration,
+  getCloudModerationCooldownState,
+} from '@/utils/image-moderation-pipeline.js';
 import { getRuntimeModerationConfig } from '@/utils/content-moderation.js';
 import DashboardHero from './shared/DashboardHero.vue';
 import DashboardNotice from './shared/DashboardNotice.vue';
@@ -180,7 +206,8 @@ import DashboardNotice from './shared/DashboardNotice.vue';
 const WORKER_CHAT_URL = 'https://boh-gemini-proxy.18768487974.workers.dev/v1/chat/completions';
 const TEXT_MODE_ID = 'moderation-text';
 const IMAGE_MODE_ID = 'moderation-image';
-const LEGACY_STORAGE_MIGRATION_HINT = '检测到旧版本的本地审核配置，已预填到「文本审核」块，请确认后保存以完成迁移。';
+const LEGACY_STORAGE_MIGRATION_HINT =
+  '检测到旧版本的本地审核配置，已预填到「文本审核」块，请确认后保存以完成迁移。';
 
 const isSaving = ref(false);
 const errorMessage = ref('');
@@ -200,15 +227,15 @@ const blockDefs = [
     label: '文本审核',
     modeId: TEXT_MODE_ID,
     onHint: '发帖/评论/资料等文字内容先经云端模型审核，云端不可达时降级为本地关键词检查。',
-    offHint: '停用后文字审核调用收到「未配置」，直接降级本地关键词检查（硬违规仍拦截）。'
+    offHint: '停用后文字审核调用收到「未配置」，直接降级本地关键词检查（硬违规仍拦截）。',
   },
   {
     kind: 'image',
     label: '图片审核',
     modeId: IMAGE_MODE_ID,
     onHint: '论坛图片/方块墙先经云端视觉模型审核，云端不可达时回退本地 nsfwjs 兜底（宽放行）。',
-    offHint: '停用后图片审核直接走本地 nsfwjs 兜底（误杀率较高，不推荐长期停用）。'
-  }
+    offHint: '停用后图片审核直接走本地 nsfwjs 兜底（误杀率较高，不推荐长期停用）。',
+  },
 ];
 
 function createBlockState() {
@@ -218,7 +245,7 @@ function createBlockState() {
     provider: 'custom',
     apiUrl: '',
     testing: false,
-    testResult: null
+    testResult: null,
   });
 }
 
@@ -251,7 +278,7 @@ function buildModeRow(kind) {
     max_tokens: 256,
     status: block.enabled ? 'active' : 'disabled',
     sort_order: isImage ? 901 : 900,
-    notes: '审核专用模式：由数据管理面板「审核模型配置」维护，请勿在 BOHAI 模式列表中启用给用户。'
+    notes: '审核专用模式：由数据管理面板「审核模型配置」维护，请勿在 BOHAI 模式列表中启用给用户。',
   };
 }
 
@@ -366,7 +393,9 @@ const handleSave = async () => {
       warningMessage.value = '配置已保存，但 vault 缓存清除失败：新配置最迟 5 分钟后生效。';
     }
 
-    const enabledKinds = blockDefs.filter((def) => blocks[def.kind].enabled).map((def) => def.label);
+    const enabledKinds = blockDefs
+      .filter((def) => blocks[def.kind].enabled)
+      .map((def) => def.label);
     successMessage.value = enabledKinds.length
       ? `已保存：${enabledKinds.join('、')}云端审核已启用`
       : '已保存：两块审核均为停用状态（审核走本地兜底）';
@@ -383,7 +412,9 @@ const handleSave = async () => {
   } finally {
     isSaving.value = false;
     if (successTimer) clearTimeout(successTimer);
-    successTimer = setTimeout(() => { successMessage.value = ''; }, 5000);
+    successTimer = setTimeout(() => {
+      successMessage.value = '';
+    }, 5000);
   }
 };
 
@@ -399,24 +430,37 @@ const runConnectionTest = async (kind) => {
         mode: TEXT_MODE_ID,
         payload: {
           messages: [
-            { role: 'system', content: '你是内容安全审查助手。严格只输出 JSON：{"status":"approved|rejected","confidence":0~1,"reason":"..."}' },
-            { role: 'user', content: '场景: connectivity-test\n内容: 今天天气不错，适合散步。' }
+            {
+              role: 'system',
+              content:
+                '你是内容安全审查助手。严格只输出 JSON：{"status":"approved|rejected","confidence":0~1,"reason":"..."}',
+            },
+            { role: 'user', content: '场景: connectivity-test\n内容: 今天天气不错，适合散步。' },
           ],
-          stream: false
+          stream: false,
         },
-        timeoutMs: 12000
+        timeoutMs: 12000,
       });
       const elapsedMs = Date.now() - startedAt;
       if (!result?.ok) {
-        block.testResult = { ok: false, text: `失败：${result?.error?.message || `HTTP ${result?.status || 0}`}` };
+        block.testResult = {
+          ok: false,
+          text: `失败：${result?.error?.message || `HTTP ${result?.status || 0}`}`,
+        };
       } else {
         const content = String(result?.data?.choices?.[0]?.message?.content || '').trim();
-        block.testResult = { ok: true, text: `通过（${elapsedMs}ms）：${content.slice(0, 60) || '（空响应）'}` };
+        block.testResult = {
+          ok: true,
+          text: `通过（${elapsedMs}ms）：${content.slice(0, 60) || '（空响应）'}`,
+        };
       }
     } else {
       const result = await testCloudImageModeration();
       block.testResult = result?.ok
-        ? { ok: true, text: `通过（${result.elapsedMs}ms）：${result.verdict?.status || 'approved'}` }
+        ? {
+            ok: true,
+            text: `通过（${result.elapsedMs}ms）：${result.verdict?.status || 'approved'}`,
+          }
         : { ok: false, text: `失败：${result?.message || '未知错误'}` };
     }
   } catch (err) {
@@ -438,7 +482,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 @import '../styles/base.css';
-@import '../styles/google-components.css';
 @import '../styles/responsive.css';
 
 .g-moderation-config {
@@ -454,9 +497,20 @@ onBeforeUnmount(() => {
   align-items: start;
 }
 
-.g-moderation-shield { color: var(--primary); }
-.g-moderation-hint { font-size: 0.8rem; color: var(--muted-foreground); margin: 0 0 calc(var(--spacing) * 2); }
-.g-moderation-hint-inline { font-style: normal; font-weight: 400; color: var(--muted-foreground); font-size: 0.78rem; }
+.g-moderation-shield {
+  color: var(--primary);
+}
+.g-moderation-hint {
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+  margin: 0 0 calc(var(--spacing) * 2);
+}
+.g-moderation-hint-inline {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+}
 
 .g-moderation-form {
   display: flex;
@@ -494,18 +548,29 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
-.g-test-result { font-size: 0.78rem; word-break: break-all; }
-.g-test-result.is-ok { color: #1a7f37; }
-.g-test-result.is-fail { color: #c0392b; }
+.g-test-result {
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+.g-test-result.is-ok {
+  color: #1a7f37;
+}
+.g-test-result.is-fail {
+  color: #c0392b;
+}
 
-.g-badge.is-warn { color: #92400e; }
+.g-badge.is-warn {
+  color: #92400e;
+}
 
 .g-moderation-info {
   display: flex;
   flex-direction: column;
   gap: 0;
 }
-.g-moderation-info .g-list-item { padding: calc(var(--spacing) * 3) 0; }
+.g-moderation-info .g-list-item {
+  padding: calc(var(--spacing) * 3) 0;
+}
 .g-moderation-info .g-list-item code {
   font-family: var(--font-mono);
   font-size: 0.8rem;
@@ -517,7 +582,11 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
-  .g-moderation-layout { grid-template-columns: 1fr; }
-  .g-moderation-inline-fields { grid-template-columns: 1fr; }
+  .g-moderation-layout {
+    grid-template-columns: 1fr;
+  }
+  .g-moderation-inline-fields {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

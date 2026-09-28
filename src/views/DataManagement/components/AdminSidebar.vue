@@ -24,7 +24,15 @@
         @input="onSearchInput"
         @keydown.esc="clearSearch"
       />
-      <button v-if="localSearchQuery" type="button" class="g-sidebar-search-clear" @click="clearSearch" aria-label="清除搜索">×</button>
+      <button
+        v-if="localSearchQuery"
+        type="button"
+        class="g-sidebar-search-clear"
+        @click="clearSearch"
+        aria-label="清除搜索"
+      >
+        ×
+      </button>
     </div>
 
     <div v-if="normalizedQuery" class="g-sidebar-search-status" role="status">
@@ -63,10 +71,20 @@
 
     <!-- Quick actions -->
     <div class="g-sidebar-quick">
-      <button type="button" class="g-icon-btn is-sm" title="新增记录" @click="$emit('create-record')">
+      <button
+        type="button"
+        class="g-icon-btn is-sm"
+        title="新增记录"
+        @click="$emit('create-record')"
+      >
         <Plus :size="14" />
       </button>
-      <button type="button" class="g-icon-btn is-sm" title="刷新数据" @click="$emit('refresh-data')">
+      <button
+        type="button"
+        class="g-icon-btn is-sm"
+        title="刷新数据"
+        @click="$emit('refresh-data')"
+      >
         <RefreshCw :size="14" />
       </button>
       <span class="g-sidebar-quick-label">快捷操作</span>
@@ -82,12 +100,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import {
-  Lock,
-  Plus,
-  RefreshCw,
-  Search as SearchIcon
-} from 'lucide-vue-next';
+import { Lock, Plus, RefreshCw, Search as SearchIcon } from 'lucide-vue-next';
 import { SIDEBAR_SECTION_LABELS } from '../config/rbac.js';
 
 const SECTION_ORDER = ['overview', 'data', 'system'];
@@ -101,7 +114,7 @@ const props = defineProps({
   /** 桌面端折叠为图标栏（移动端抽屉不受影响） */
   collapsed: { type: Boolean, default: false },
   searchQuery: { type: String, default: '' },
-  hasUnmoderated: { type: Boolean, default: false }
+  hasUnmoderated: { type: Boolean, default: false },
 });
 
 const emit = defineEmits([
@@ -109,14 +122,17 @@ const emit = defineEmits([
   'denied-click',
   'update:searchQuery',
   'create-record',
-  'refresh-data'
+  'refresh-data',
 ]);
 
 const localSearchQuery = ref(props.searchQuery || '');
 
-watch(() => props.searchQuery, (val) => {
-  if (val !== localSearchQuery.value) localSearchQuery.value = val || '';
-});
+watch(
+  () => props.searchQuery,
+  (val) => {
+    if (val !== localSearchQuery.value) localSearchQuery.value = val || '';
+  },
+);
 
 const deniedSet = computed(() => new Set(props.deniedIds || []));
 const normalizedQuery = computed(() => localSearchQuery.value.trim().toLowerCase());
@@ -136,8 +152,8 @@ const groupedModules = computed(() =>
   SECTION_ORDER.map((section) => ({
     section,
     label: SIDEBAR_SECTION_LABELS[section] || section,
-    items: filteredModules.value.filter((mod) => (mod.section || 'data') === section)
-  }))
+    items: filteredModules.value.filter((mod) => (mod.section || 'data') === section),
+  })),
 );
 
 const isModuleActive = (modId) => props.activeModule === modId;
@@ -166,8 +182,6 @@ const goHome = () => {
 </script>
 
 <style scoped>
-@import '../styles/google-components.css';
-
 /* Sidebar shell — 透明液态玻璃侧栏 */
 .g-sidebar {
   position: sticky;
@@ -254,8 +268,13 @@ const goHome = () => {
   transition: border-color 0.2s ease;
   flex: 0 0 auto;
 }
-.g-sidebar-search:focus-within { border-color: var(--primary); }
-.g-sidebar-search .g-search-icon { color: var(--muted-foreground); flex: 0 0 14px; }
+.g-sidebar-search:focus-within {
+  border-color: var(--primary);
+}
+.g-sidebar-search .g-search-icon {
+  color: var(--muted-foreground);
+  flex: 0 0 14px;
+}
 .g-sidebar-search-input {
   flex: 1;
   border: none;
@@ -266,7 +285,9 @@ const goHome = () => {
   font-size: 0.8rem;
   min-width: 0;
 }
-.g-sidebar-search-input::placeholder { color: var(--muted-foreground); }
+.g-sidebar-search-input::placeholder {
+  color: var(--muted-foreground);
+}
 .g-sidebar-search-clear {
   border: none;
   background: transparent;
@@ -301,8 +322,13 @@ const goHome = () => {
   overflow-y: auto;
   padding-right: 2px;
 }
-.g-sidebar-nav::-webkit-scrollbar { width: 3px; }
-.g-sidebar-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+.g-sidebar-nav::-webkit-scrollbar {
+  width: 3px;
+}
+.g-sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
 .g-sidebar-group {
   display: flex;
   flex-direction: column;
@@ -338,13 +364,21 @@ const goHome = () => {
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.16s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.16s ease;
   min-height: 36px;
   overflow: hidden;
   flex: 0 0 auto;
 }
-.g-nav-btn:hover { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); }
-.g-nav-btn:active { transform: scale(0.98); }
+.g-nav-btn:hover {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+}
+.g-nav-btn:active {
+  transform: scale(0.98);
+}
 .g-nav-btn.is-active {
   background: var(--sidebar-primary);
   color: var(--sidebar-primary-foreground);
@@ -367,8 +401,13 @@ const goHome = () => {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.g-nav-btn.is-denied:hover { background: transparent; color: var(--sidebar-foreground); }
-.g-nav-lock { flex: 0 0 12px; }
+.g-nav-btn.is-denied:hover {
+  background: transparent;
+  color: var(--sidebar-foreground);
+}
+.g-nav-lock {
+  flex: 0 0 12px;
+}
 
 /* Status dot (for moderation) */
 .g-nav-dot {
@@ -438,10 +477,21 @@ const goHome = () => {
 .g-sidebar.is-collapsed .g-sidebar-foot span:last-child {
   display: none;
 }
-.g-sidebar.is-collapsed .g-sidebar-brand { justify-content: center; padding-bottom: calc(var(--spacing) * 2); }
-.g-sidebar.is-collapsed .g-nav-btn { justify-content: center; padding-left: 0; padding-right: 0; }
-.g-sidebar.is-collapsed .g-sidebar-quick { justify-content: center; }
-.g-sidebar.is-collapsed .g-sidebar-foot { justify-content: center; }
+.g-sidebar.is-collapsed .g-sidebar-brand {
+  justify-content: center;
+  padding-bottom: calc(var(--spacing) * 2);
+}
+.g-sidebar.is-collapsed .g-nav-btn {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+.g-sidebar.is-collapsed .g-sidebar-quick {
+  justify-content: center;
+}
+.g-sidebar.is-collapsed .g-sidebar-foot {
+  justify-content: center;
+}
 
 /* 折叠态悬停浮层展开（桌面端）：悬停 150ms 后恢复全宽，无需点顶栏按钮 */
 @media (min-width: 769px) {
@@ -465,16 +515,33 @@ const goHome = () => {
     display: revert;
     transition-delay: 0.15s;
   }
-  .g-sidebar.is-collapsed:hover .g-sidebar-brand { justify-content: flex-start; }
-  .g-sidebar.is-collapsed:hover .g-nav-btn { justify-content: flex-start; padding-left: calc(var(--spacing) * 3); padding-right: calc(var(--spacing) * 3); }
-  .g-sidebar.is-collapsed:hover .g-sidebar-quick { justify-content: flex-start; }
-  .g-sidebar.is-collapsed:hover .g-sidebar-foot { justify-content: flex-start; }
+  .g-sidebar.is-collapsed:hover .g-sidebar-brand {
+    justify-content: flex-start;
+  }
+  .g-sidebar.is-collapsed:hover .g-nav-btn {
+    justify-content: flex-start;
+    padding-left: calc(var(--spacing) * 3);
+    padding-right: calc(var(--spacing) * 3);
+  }
+  .g-sidebar.is-collapsed:hover .g-sidebar-quick {
+    justify-content: flex-start;
+  }
+  .g-sidebar.is-collapsed:hover .g-sidebar-foot {
+    justify-content: flex-start;
+  }
 }
 
 /* Responsive */
 @media (max-width: 1024px) {
-  .g-sidebar { width: 220px; flex-basis: 220px; padding: calc(var(--spacing) * 3); }
-  .g-sidebar.is-collapsed { width: 64px; flex-basis: 64px; }
+  .g-sidebar {
+    width: 220px;
+    flex-basis: 220px;
+    padding: calc(var(--spacing) * 3);
+  }
+  .g-sidebar.is-collapsed {
+    width: 64px;
+    flex-basis: 64px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -490,7 +557,9 @@ const goHome = () => {
     padding-bottom: calc(var(--spacing) * 4 + env(safe-area-inset-bottom));
     overscroll-behavior: contain;
   }
-  .g-sidebar.open { transform: translateX(0); }
+  .g-sidebar.open {
+    transform: translateX(0);
+  }
   /* 移动端抽屉内始终展开，不沿用桌面折叠态 */
   .g-sidebar.is-collapsed {
     width: min(86vw, 302px);
@@ -507,6 +576,8 @@ const goHome = () => {
   .g-sidebar.is-collapsed .g-sidebar-foot span:last-child {
     display: revert;
   }
-  .g-sidebar.is-collapsed .g-nav-btn { justify-content: flex-start; }
+  .g-sidebar.is-collapsed .g-nav-btn {
+    justify-content: flex-start;
+  }
 }
 </style>

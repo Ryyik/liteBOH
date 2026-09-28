@@ -23,18 +23,32 @@
         <div class="g-api-key-banner-icon"><KeyRound :size="20" /></div>
         <div>
           <div class="g-eyebrow">BOH 模型当前在用</div>
-          <strong v-if="activeKeyInfo">{{ activeKeyInfo.label || `${activeKeyInfo.provider} ${activeKeyInfo.purpose}` }}</strong>
+          <strong v-if="activeKeyInfo">{{
+            activeKeyInfo.label || `${activeKeyInfo.provider} ${activeKeyInfo.purpose}`
+          }}</strong>
           <strong v-else>查询中...</strong>
           <div v-if="activeKeyInfo" class="g-api-key-banner-meta">
-            <code v-if="activeKeyInfo.maskedValue" class="g-api-key-banner-code">{{ activeKeyInfo.maskedValue }}</code>
-            <span v-if="activeKeyInfo.source === 'server_secret_fallback' || activeKeyInfo.readonly" class="g-badge is-warning">
+            <code v-if="activeKeyInfo.maskedValue" class="g-api-key-banner-code">{{
+              activeKeyInfo.maskedValue
+            }}</code>
+            <span
+              v-if="activeKeyInfo.source === 'server_secret_fallback' || activeKeyInfo.readonly"
+              class="g-badge is-warning"
+            >
               <span class="g-badge-dot" />Secrets 兜底
             </span>
           </div>
-          <span v-else-if="activeKeyError" class="g-api-key-banner-error">{{ activeKeyError }}</span>
+          <span v-else-if="activeKeyError" class="g-api-key-banner-error">{{
+            activeKeyError
+          }}</span>
         </div>
       </div>
-      <button type="button" class="g-btn g-btn-secondary g-btn-sm" @click="loadActiveKey" :disabled="isLoadingActiveKey">
+      <button
+        type="button"
+        class="g-btn g-btn-secondary g-btn-sm"
+        @click="loadActiveKey"
+        :disabled="isLoadingActiveKey"
+      >
         <RefreshCw :size="14" :class="{ 'g-spin': isLoadingActiveKey }" />
         重新查询
       </button>
@@ -76,7 +90,10 @@
           <article
             v-for="item in pagedApiKeys"
             :key="item.id"
-            :class="['g-api-key-row', { 'is-active': isActiveKey(item), 'is-readonly': item.readonly }]"
+            :class="[
+              'g-api-key-row',
+              { 'is-active': isActiveKey(item), 'is-readonly': item.readonly },
+            ]"
           >
             <div class="g-api-key-row-main">
               <div class="g-api-key-row-icon"><KeyRound :size="18" /></div>
@@ -108,7 +125,13 @@
               </div>
             </div>
             <div class="g-api-key-row-actions">
-              <button type="button" class="g-icon-btn is-sm" title="测试连接" @click="handleTest(item)" :disabled="workingId === item.id">
+              <button
+                type="button"
+                class="g-icon-btn is-sm"
+                title="测试连接"
+                @click="handleTest(item)"
+                :disabled="workingId === item.id"
+              >
                 <PlugZap :size="14" />
               </button>
               <button
@@ -121,7 +144,12 @@
               >
                 <Search :size="14" />
               </button>
-              <button type="button" class="g-icon-btn is-sm" title="替换密钥" @click="openEditForm(item)">
+              <button
+                type="button"
+                class="g-icon-btn is-sm"
+                title="替换密钥"
+                @click="openEditForm(item)"
+              >
                 <Pencil :size="14" />
               </button>
               <button
@@ -147,14 +175,24 @@
         </div>
         <footer v-if="apiKeys.length > keyPageSize" class="g-sheet-foot g-api-key-pagination">
           <span class="g-sheet-foot-text">
-            显示 {{ (keyPage - 1) * keyPageSize + 1 }} - {{ Math.min(keyPage * keyPageSize, apiKeys.length) }} 项 / 共 {{ apiKeys.length }} 项
+            显示 {{ (keyPage - 1) * keyPageSize + 1 }} -
+            {{ Math.min(keyPage * keyPageSize, apiKeys.length) }} 项 / 共 {{ apiKeys.length }} 项
           </span>
-          <DashboardPagination v-model="keyPage" :total="apiKeys.length" :page-size="keyPageSize" aria-label="API Key 列表分页" />
+          <DashboardPagination
+            v-model="keyPage"
+            :total="apiKeys.length"
+            :page-size="keyPageSize"
+            aria-label="API Key 列表分页"
+          />
         </footer>
       </article>
 
       <!-- Form panel -->
-      <aside ref="formPanelRef" class="g-card g-api-key-form" :class="{ highlighted: formHighlighted }">
+      <aside
+        ref="formPanelRef"
+        class="g-card g-api-key-form"
+        :class="{ highlighted: formHighlighted }"
+      >
         <div class="g-card-head">
           <div>
             <div class="g-eyebrow">表单</div>
@@ -167,7 +205,11 @@
           <div class="g-field">
             <label>服务商</label>
             <select v-model="form.provider" class="g-select" @change="syncPurposeWithProvider">
-              <option v-for="provider in providerOptions" :key="provider.value" :value="provider.value">
+              <option
+                v-for="provider in providerOptions"
+                :key="provider.value"
+                :value="provider.value"
+              >
                 {{ provider.label }}
               </option>
             </select>
@@ -176,7 +218,11 @@
           <div class="g-field">
             <label>用途</label>
             <select v-model="form.purpose" class="g-select">
-              <option v-for="purpose in filteredPurposeOptions" :key="purpose.value" :value="purpose.value">
+              <option
+                v-for="purpose in filteredPurposeOptions"
+                :key="purpose.value"
+                :value="purpose.value"
+              >
                 {{ purpose.label }}
               </option>
             </select>
@@ -184,23 +230,51 @@
 
           <div class="g-field">
             <label>显示名称</label>
-            <input v-model.trim="form.label" class="g-input" type="text" maxlength="80" placeholder="例如 SiliconFlow Chat" />
+            <input
+              v-model.trim="form.label"
+              class="g-input"
+              type="text"
+              maxlength="80"
+              placeholder="例如 SiliconFlow Chat"
+            />
           </div>
 
           <div class="g-field">
             <label>API Key</label>
-            <input ref="apiKeyInputRef" v-model.trim="form.value" class="g-input is-mono" type="password" autocomplete="new-password" placeholder="粘贴新的 API Key" />
+            <input
+              ref="apiKeyInputRef"
+              v-model.trim="form.value"
+              class="g-input is-mono"
+              type="password"
+              autocomplete="new-password"
+              placeholder="粘贴新的 API Key"
+            />
           </div>
 
           <div v-if="supportsChatTestConfig(form.provider)" class="g-field">
             <label>测试模型</label>
-            <input v-model.trim="form.model" class="g-input" type="text" :placeholder="getDefaultModelForProvider(form.provider)" />
+            <input
+              v-model.trim="form.model"
+              class="g-input"
+              type="text"
+              :placeholder="getDefaultModelForProvider(form.provider)"
+            />
           </div>
 
           <div v-if="supportsApiUrlConfig(form.provider)" class="g-field">
             <label>API URL</label>
-            <input v-model.trim="form.apiUrl" class="g-input" type="url" :placeholder="getDefaultApiUrlForProvider(form.provider) || '例如 https://your-relay.com/v1/chat/completions'" />
-            <span v-if="form.provider === 'custom'" class="g-field-hint">中转站的 chat completions 端点，模型发现时会自动推导出 /models 端点</span>
+            <input
+              v-model.trim="form.apiUrl"
+              class="g-input"
+              type="url"
+              :placeholder="
+                getDefaultApiUrlForProvider(form.provider) ||
+                '例如 https://your-relay.com/v1/chat/completions'
+              "
+            />
+            <span v-if="form.provider === 'custom'" class="g-field-hint"
+              >中转站的 chat completions 端点，模型发现时会自动推导出 /models 端点</span
+            >
           </div>
 
           <div class="g-field">
@@ -231,10 +305,18 @@
               <div class="g-eyebrow">模型自动发现</div>
               <strong>
                 {{ discovery.provider }}
-                <span v-if="discovery.apiBaseUrl" class="g-discovery-head-url">{{ discovery.apiBaseUrl }}</span>
+                <span v-if="discovery.apiBaseUrl" class="g-discovery-head-url">{{
+                  discovery.apiBaseUrl
+                }}</span>
               </strong>
             </div>
-            <button type="button" class="g-icon-btn is-sm" title="关闭" @click="closeDiscovery" :disabled="discovery.importing">
+            <button
+              type="button"
+              class="g-icon-btn is-sm"
+              title="关闭"
+              @click="closeDiscovery"
+              :disabled="discovery.importing"
+            >
               <X :size="16" />
             </button>
           </header>
@@ -281,7 +363,9 @@
               type="button"
               class="g-btn g-btn-secondary g-btn-sm"
               @click="handleRediscover"
-              :disabled="discovery.loading || discovery.importing || !discovery.editableModelsUrl.trim()"
+              :disabled="
+                discovery.loading || discovery.importing || !discovery.editableModelsUrl.trim()
+              "
             >
               <RefreshCw :size="14" :class="{ 'g-spin': discovery.loading }" />
               <span>{{ discovery.loading ? '发现中' : '重新发现' }}</span>
@@ -299,32 +383,50 @@
             <DashboardNotice tone="error" dismissible @dismiss="discovery.error = ''">
               {{ discovery.error }}
             </DashboardNotice>
-            <details v-if="discovery.modelsUrl || discovery.upstreamBodyPreview" class="g-discovery-diagnostics">
+            <details
+              v-if="discovery.modelsUrl || discovery.upstreamBodyPreview"
+              class="g-discovery-diagnostics"
+            >
               <summary>诊断信息</summary>
               <dl>
                 <div v-if="discovery.modelsUrl">
                   <dt>请求的 models URL</dt>
-                  <dd><code class="is-mono">{{ discovery.modelsUrl }}</code></dd>
+                  <dd>
+                    <code class="is-mono">{{ discovery.modelsUrl }}</code>
+                  </dd>
                 </div>
                 <div v-if="discovery.upstreamStatus">
                   <dt>上游 HTTP 状态码</dt>
-                  <dd><code class="is-mono">{{ discovery.upstreamStatus }}</code></dd>
+                  <dd>
+                    <code class="is-mono">{{ discovery.upstreamStatus }}</code>
+                  </dd>
                 </div>
                 <div v-if="discovery.upstreamBodyPreview">
                   <dt>上游响应预览（前 400 字符）</dt>
-                  <dd><pre class="g-discovery-pre">{{ discovery.upstreamBodyPreview }}</pre></dd>
+                  <dd>
+                    <pre class="g-discovery-pre">{{ discovery.upstreamBodyPreview }}</pre>
+                  </dd>
                 </div>
               </dl>
               <p class="g-discovery-hint">
-                常见原因：① 中转站不支持 <code>/v1/models</code> 接口（多数中转站只代理 chat/completions）；② api_url 配置的路径不规则，自动推导的 models URL 错误；③ API Key 无权限访问模型列表。
+                常见原因：① 中转站不支持 <code>/v1/models</code> 接口（多数中转站只代理
+                chat/completions）；② api_url 配置的路径不规则，自动推导的 models URL 错误；③ API
+                Key 无权限访问模型列表。
               </p>
             </details>
           </div>
 
           <!-- 导入结果 -->
-          <DashboardNotice v-else-if="discovery.importResult" tone="success" dismissible @dismiss="discovery.importResult = null">
+          <DashboardNotice
+            v-else-if="discovery.importResult"
+            tone="success"
+            dismissible
+            @dismiss="discovery.importResult = null"
+          >
             已添加 {{ discovery.importResult.added }} 个模型到免费模型库
-            <span v-if="discovery.importResult.skipped > 0">（跳过 {{ discovery.importResult.skipped }} 个已存在）</span>
+            <span v-if="discovery.importResult.skipped > 0"
+              >（跳过 {{ discovery.importResult.skipped }} 个已存在）</span
+            >
           </DashboardNotice>
 
           <!-- 空列表 -->
@@ -350,12 +452,18 @@
                 <code class="is-mono">{{ m.id }}</code>
                 <span v-if="m.owned_by" class="g-discovery-item-owner">· {{ m.owned_by }}</span>
               </div>
-              <small v-if="m.name && m.name !== m.id" class="g-discovery-item-name">{{ m.name }}</small>
+              <small v-if="m.name && m.name !== m.id" class="g-discovery-item-name">{{
+                m.name
+              }}</small>
             </label>
           </div>
-          <div v-if="filteredDiscoveredModels.length > discoveryPageSize" class="g-discovery-pagination">
+          <div
+            v-if="filteredDiscoveredModels.length > discoveryPageSize"
+            class="g-discovery-pagination"
+          >
             <span class="g-sheet-foot-text">
-              显示 {{ (discovery.page - 1) * discoveryPageSize + 1 }} - {{ Math.min(discovery.page * discoveryPageSize, filteredDiscoveredModels.length) }} 项
+              显示 {{ (discovery.page - 1) * discoveryPageSize + 1 }} -
+              {{ Math.min(discovery.page * discoveryPageSize, filteredDiscoveredModels.length) }} 项
             </span>
             <DashboardPagination
               v-model="discovery.page"
@@ -377,11 +485,17 @@
             <button
               type="button"
               class="g-btn g-btn-primary"
-              :disabled="discovery.loading || discovery.importing || discovery.selectedIds.size === 0"
+              :disabled="
+                discovery.loading || discovery.importing || discovery.selectedIds.size === 0
+              "
               @click="handleImportToFreemodels"
             >
               <ListPlus :size="15" />
-              <span>{{ discovery.importing ? '导入中...' : `添加 ${discovery.selectedIds.size} 个到免费模型库` }}</span>
+              <span>{{
+                discovery.importing
+                  ? '导入中...'
+                  : `添加 ${discovery.selectedIds.size} 个到免费模型库`
+              }}</span>
             </button>
           </footer>
         </div>
@@ -408,7 +522,7 @@ import {
   LoaderCircle,
   ListPlus,
   Trash2,
-  XCircle
+  XCircle,
 } from 'lucide-vue-next';
 import {
   listApiKeys,
@@ -416,7 +530,7 @@ import {
   updateApiKeyStatus,
   upsertApiKey,
   deleteApiKey,
-  discoverModels
+  discoverModels,
 } from '../../../utils/api/api-key-vault-api.js';
 import { supabase } from '../../../utils/supabase-client.js';
 import { resolveVaultActiveKey } from '../../../utils/api/api-key-runtime-api.js';
@@ -434,7 +548,7 @@ const providerOptions = [
   { value: 'tavily', label: 'Tavily' },
   { value: 'cloudinary', label: 'Cloudinary' },
   { value: 'turnstile', label: 'Turnstile' },
-  { value: 'custom', label: '自定义' }
+  { value: 'custom', label: '自定义' },
 ];
 
 const purposeOptions = [
@@ -448,35 +562,36 @@ const purposeOptions = [
   { provider: 'cloudinary', value: 'admin_api', label: '管理 API' },
   { provider: 'turnstile', value: 'secret', label: '服务端校验密钥' },
   { provider: 'custom', value: 'chat', label: '聊天模型' },
-  { provider: 'custom', value: 'default', label: '默认用途' }
+  { provider: 'custom', value: 'default', label: '默认用途' },
 ];
 
 const DEFAULT_PROVIDER_CONFIG = {
   siliconflow: {
     label: 'SiliconFlow Chat',
     model: 'Qwen/Qwen2.5-7B-Instruct',
-    apiUrl: 'https://api.siliconflow.cn/v1/chat/completions'
+    apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
   },
   openrouter: {
     label: 'OpenRouter Chat',
     model: 'openai/gpt-4o-mini',
-    apiUrl: 'https://openrouter.ai/api/v1/chat/completions'
+    apiUrl: 'https://openrouter.ai/api/v1/chat/completions',
   },
   zhipu: {
     label: '智谱 GLM Chat',
     model: 'glm-4.7-flash',
-    apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-  }
+    apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+  },
 };
 
-const supportsChatTestConfig = (provider) => provider === 'siliconflow' || provider === 'openrouter' || provider === 'zhipu';
+const supportsChatTestConfig = (provider) =>
+  provider === 'siliconflow' || provider === 'openrouter' || provider === 'zhipu';
 // custom provider 也需要 apiUrl（用于模型发现时推导 /v1/models 端点）
-const supportsApiUrlConfig = (provider) => supportsChatTestConfig(provider) || provider === 'custom';
+const supportsApiUrlConfig = (provider) =>
+  supportsChatTestConfig(provider) || provider === 'custom';
 const getDefaultModelForProvider = (provider) => DEFAULT_PROVIDER_CONFIG[provider]?.model || '';
 const getDefaultApiUrlForProvider = (provider) => DEFAULT_PROVIDER_CONFIG[provider]?.apiUrl || '';
-const getDefaultLabelForProvider = (provider, purpose = 'chat') => (
-  DEFAULT_PROVIDER_CONFIG[provider]?.label || `${provider} ${purpose}`
-);
+const getDefaultLabelForProvider = (provider, purpose = 'chat') =>
+  DEFAULT_PROVIDER_CONFIG[provider]?.label || `${provider} ${purpose}`;
 
 const apiKeys = ref([]);
 const keyPage = ref(1);
@@ -499,7 +614,7 @@ const form = reactive({
   value: '',
   status: 'active',
   model: 'Qwen/Qwen2.5-7B-Instruct',
-  apiUrl: 'https://api.siliconflow.cn/v1/chat/completions'
+  apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
 });
 
 const formPanelRef = ref(null);
@@ -508,7 +623,7 @@ const formHighlighted = ref(false);
 let formHighlightTimer = null;
 
 const filteredPurposeOptions = computed(() =>
-  purposeOptions.filter((p) => p.provider === form.provider)
+  purposeOptions.filter((p) => p.provider === form.provider),
 );
 
 const pagedApiKeys = computed(() => {
@@ -529,20 +644,27 @@ const summaryCards = computed(() => {
     .filter((item) => item.lastTestStatus)
     .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))[0];
   const lastTestValue = lastTest
-    ? (lastTest.lastTestStatus === 'success' ? '通过' : lastTest.lastTestStatus === 'failed' ? '失败' : '未测试')
+    ? lastTest.lastTestStatus === 'success'
+      ? '通过'
+      : lastTest.lastTestStatus === 'failed'
+        ? '失败'
+        : '未测试'
     : '未测试';
   return [
     { label: '密钥总数', value: total, icon: KeyRound },
     { label: '启用中', value: active, icon: CheckCircle2 },
     { label: '已停用', value: disabled, icon: XCircle },
-    { label: '最近一次测试', value: lastTestValue, icon: Sparkles }
+    { label: '最近一次测试', value: lastTestValue, icon: Sparkles },
   ];
 });
 
 const focusForm = () => {
   if (formHighlightTimer) clearTimeout(formHighlightTimer);
   formHighlighted.value = true;
-  formHighlightTimer = setTimeout(() => { formHighlighted.value = false; formHighlightTimer = null; }, 1600);
+  formHighlightTimer = setTimeout(() => {
+    formHighlighted.value = false;
+    formHighlightTimer = null;
+  }, 1600);
   nextTick(() => {
     apiKeyInputRef.value?.focus({ preventScroll: true });
     formPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -558,8 +680,12 @@ const isActiveKey = (item) => {
   const info = activeKeyInfo.value;
   if (!info) return false;
   if (info.id && item.id === info.id) return true;
-  if (info.source === 'server_secret_fallback' && item.readonly
-      && item.provider === info.provider && item.purpose === info.purpose) {
+  if (
+    info.source === 'server_secret_fallback' &&
+    item.readonly &&
+    item.provider === info.provider &&
+    item.purpose === info.purpose
+  ) {
     return true;
   }
   return false;
@@ -583,7 +709,10 @@ const formatDateTime = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '暂无时间';
   return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   }).format(date);
 };
 
@@ -623,7 +752,7 @@ const resetForm = () => {
     value: '',
     status: 'active',
     model: 'Qwen/Qwen2.5-7B-Instruct',
-    apiUrl: 'https://api.siliconflow.cn/v1/chat/completions'
+    apiUrl: 'https://api.siliconflow.cn/v1/chat/completions',
   });
 };
 
@@ -642,7 +771,7 @@ const openEditForm = (item) => {
     value: '',
     status: item.status,
     model: item.metadata?.model || getDefaultModelForProvider(item.provider),
-    apiUrl: item.metadata?.apiUrl || getDefaultApiUrlForProvider(item.provider)
+    apiUrl: item.metadata?.apiUrl || getDefaultApiUrlForProvider(item.provider),
   });
   setMessage('已载入配置，请粘贴新 Key 后保存。');
   focusForm();
@@ -656,7 +785,10 @@ const handleSubmit = async () => {
   isSubmitting.value = true;
   // 三类 provider 都需要 apiUrl：chat 测试用 + custom 用于模型发现推导
   const metadata = supportsApiUrlConfig(form.provider)
-    ? { ...(supportsChatTestConfig(form.provider) ? { model: form.model } : {}), apiUrl: form.apiUrl }
+    ? {
+        ...(supportsChatTestConfig(form.provider) ? { model: form.model } : {}),
+        apiUrl: form.apiUrl,
+      }
     : {};
   const result = await upsertApiKey({
     provider: form.provider,
@@ -664,7 +796,7 @@ const handleSubmit = async () => {
     label: form.label,
     value: form.value,
     status: form.status,
-    metadata
+    metadata,
   });
   isSubmitting.value = false;
   if (!result.ok) {
@@ -681,21 +813,28 @@ const handleTest = async (item) => {
   setMessage('');
   const result = await testApiKey(item.id, {
     provider: item.provider,
-    purpose: item.purpose
+    purpose: item.purpose,
   });
   workingId.value = '';
   if (!result.ok) {
     setMessage(result.error?.message || '测试失败', 'error');
     return;
   }
-  setMessage(result.data?.lastTestMessage || '测试完成。', result.data?.lastTestStatus === 'failed' ? 'error' : 'success');
+  setMessage(
+    result.data?.lastTestMessage || '测试完成。',
+    result.data?.lastTestStatus === 'failed' ? 'error' : 'success',
+  );
   await loadKeys();
 };
 
 // ============================================================
 // 模型自动发现：调用中转站 GET /v1/models 拉取可用模型列表
 // ============================================================
-const supportsDiscovery = (provider) => provider === 'siliconflow' || provider === 'openrouter' || provider === 'zhipu' || provider === 'custom';
+const supportsDiscovery = (provider) =>
+  provider === 'siliconflow' ||
+  provider === 'openrouter' ||
+  provider === 'zhipu' ||
+  provider === 'custom';
 
 const discovery = reactive({
   open: false,
@@ -715,16 +854,23 @@ const discovery = reactive({
   filter: '',
   page: 1,
   error: '',
-  importResult: null
+  importResult: null,
 });
 
 const filteredDiscoveredModels = computed(() => {
   const kw = discovery.filter.trim().toLowerCase();
   if (!kw) return discovery.models;
-  return discovery.models.filter((m) =>
-    String(m.id || '').toLowerCase().includes(kw)
-    || String(m.name || '').toLowerCase().includes(kw)
-    || String(m.owned_by || '').toLowerCase().includes(kw)
+  return discovery.models.filter(
+    (m) =>
+      String(m.id || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(m.name || '')
+        .toLowerCase()
+        .includes(kw) ||
+      String(m.owned_by || '')
+        .toLowerCase()
+        .includes(kw),
   );
 });
 
@@ -739,9 +885,12 @@ watch(filteredDiscoveredModels, (items) => {
   if (discovery.page > totalPages) discovery.page = totalPages;
 });
 
-watch(() => discovery.filter, () => {
-  discovery.page = 1;
-});
+watch(
+  () => discovery.filter,
+  () => {
+    discovery.page = 1;
+  },
+);
 
 const allFilteredSelected = computed(() => {
   const list = filteredDiscoveredModels.value;
@@ -798,7 +947,7 @@ const runDiscovery = async (modelsUrlOverride) => {
   const payload = {
     id: discovery.keyId,
     provider: discovery.provider,
-    purpose: discovery.purpose
+    purpose: discovery.purpose,
   };
   if (modelsUrlOverride) {
     payload.modelsUrl = modelsUrlOverride;
@@ -892,7 +1041,7 @@ const handleImportToFreemodels = async () => {
       siliconflow: 'SiliconFlow',
       openrouter: 'OpenRouter',
       zhipu: '智谱 AI',
-      custom: '自定义'
+      custom: '自定义',
     };
     const providerLabel = providerLabelMap[discovery.provider] || discovery.provider;
     const apiBaseUrl = discovery.apiBaseUrl || null;
@@ -906,7 +1055,10 @@ const handleImportToFreemodels = async () => {
       }
       maxSort += 1;
       // 名称优先用返回的 name，否则用 id 最后一段
-      const fallbackName = String(m.id || '').split('/').pop() || m.id;
+      const fallbackName =
+        String(m.id || '')
+          .split('/')
+          .pop() || m.id;
       toInsert.push({
         model_id: m.id,
         name: m.name || fallbackName,
@@ -916,20 +1068,18 @@ const handleImportToFreemodels = async () => {
         family_label: '通用',
         best_for: '多场景聊天',
         sort_order: maxSort,
-        is_active: true
+        is_active: true,
       });
     }
 
     if (toInsert.length > 0) {
-      const { error: insertError } = await supabase
-        .from('freemodels')
-        .insert(toInsert);
+      const { error: insertError } = await supabase.from('freemodels').insert(toInsert);
       if (insertError) throw insertError;
     }
 
     discovery.importResult = {
       added: toInsert.length,
-      skipped: skipped.length
+      skipped: skipped.length,
     };
 
     // 把已成功导入的从选中集合清掉
@@ -943,7 +1093,10 @@ const handleImportToFreemodels = async () => {
 
 const toggleStatus = async (item) => {
   if (item.readonly) {
-    setMessage('Secrets 兜底项不能在页面停用，请在 Supabase Secrets 中调整，或新增同用途密钥覆盖它。', 'error');
+    setMessage(
+      'Secrets 兜底项不能在页面停用，请在 Supabase Secrets 中调整，或新增同用途密钥覆盖它。',
+      'error',
+    );
     return;
   }
   const nextStatus = item.status === 'active' ? 'disabled' : 'active';
@@ -951,7 +1104,7 @@ const toggleStatus = async (item) => {
     title: nextStatus === 'active' ? '启用此密钥？' : '停用此密钥？',
     message: `${item.label || item.purpose} 将${nextStatus === 'active' ? '恢复使用' : '暂停使用'}。`,
     confirmText: nextStatus === 'active' ? '启用' : '停用',
-    tone: nextStatus === 'active' ? 'primary' : 'warning'
+    tone: nextStatus === 'active' ? 'primary' : 'warning',
   });
   if (!confirmed) return;
   workingId.value = item.id;
@@ -974,7 +1127,7 @@ const handleDelete = async (item) => {
     title: '删除此密钥？',
     message: `${item.label || item.purpose} 将被永久删除，此操作不可撤销。`,
     confirmText: '删除',
-    tone: 'danger'
+    tone: 'danger',
   });
   if (!confirmed) return;
   workingId.value = item.id;
@@ -1003,7 +1156,6 @@ onUnmounted(() => {
 
 <style scoped>
 @import '../styles/base.css';
-@import '../styles/google-components.css';
 @import '../styles/responsive.css';
 
 .g-api-key-console {
@@ -1040,7 +1192,9 @@ onUnmounted(() => {
   color: var(--primary);
   flex: 0 0 44px;
 }
-.g-api-key-banner strong { font-size: 1rem; }
+.g-api-key-banner strong {
+  font-size: 1rem;
+}
 .g-api-key-banner-meta {
   display: flex;
   align-items: center;
@@ -1056,7 +1210,12 @@ onUnmounted(() => {
   border-radius: 4px;
   color: var(--foreground);
 }
-.g-api-key-banner-error { color: var(--destructive); font-size: 0.85rem; margin-top: calc(var(--spacing) * 1); display: block; }
+.g-api-key-banner-error {
+  color: var(--destructive);
+  font-size: 0.85rem;
+  margin-top: calc(var(--spacing) * 1);
+  display: block;
+}
 
 /* Summary */
 .g-api-key-summary {
@@ -1098,7 +1257,9 @@ onUnmounted(() => {
   color: var(--muted-foreground);
   margin: 0;
 }
-.g-api-key-shield { color: var(--primary); }
+.g-api-key-shield {
+  color: var(--primary);
+}
 
 /* Key rows */
 .g-api-key-row {
@@ -1110,13 +1271,28 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--background);
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
-.g-api-key-row + .g-api-key-row { margin-top: calc(var(--spacing) * 2); }
-.g-api-key-row:hover { background: var(--muted); }
-.g-api-key-row.is-active { border-color: var(--primary); }
-.g-api-key-row.is-readonly { opacity: 0.92; }
-.g-api-key-row-main { display: flex; align-items: center; gap: calc(var(--spacing) * 3); min-width: 0; }
+.g-api-key-row + .g-api-key-row {
+  margin-top: calc(var(--spacing) * 2);
+}
+.g-api-key-row:hover {
+  background: var(--muted);
+}
+.g-api-key-row.is-active {
+  border-color: var(--primary);
+}
+.g-api-key-row.is-readonly {
+  opacity: 0.92;
+}
+.g-api-key-row-main {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  min-width: 0;
+}
 .g-api-key-row-icon {
   width: 36px;
   height: 36px;
@@ -1127,7 +1303,9 @@ onUnmounted(() => {
   color: var(--primary);
   flex: 0 0 36px;
 }
-.g-api-key-row-text { min-width: 0; }
+.g-api-key-row-text {
+  min-width: 0;
+}
 .g-api-key-row-title {
   display: flex;
   align-items: center;
@@ -1163,8 +1341,14 @@ onUnmounted(() => {
   color: var(--muted-foreground);
   min-width: 140px;
 }
-.g-api-key-row-test strong { color: var(--foreground); font-size: 0.85rem; display: block; }
-.g-api-key-row-test small { font-size: 0.7rem; }
+.g-api-key-row-test strong {
+  color: var(--foreground);
+  font-size: 0.85rem;
+  display: block;
+}
+.g-api-key-row-test small {
+  font-size: 0.7rem;
+}
 .g-api-key-row-dot {
   width: 8px;
   height: 8px;
@@ -1172,15 +1356,23 @@ onUnmounted(() => {
   background: var(--muted-foreground);
   flex: 0 0 8px;
 }
-.g-api-key-row-dot.success { background: var(--chart-5); }
-.g-api-key-row-dot.failed { background: var(--chart-2); }
-.g-api-key-row-dot.untested { background: var(--muted-foreground); }
+.g-api-key-row-dot.success {
+  background: var(--chart-5);
+}
+.g-api-key-row-dot.failed {
+  background: var(--chart-2);
+}
+.g-api-key-row-dot.untested {
+  background: var(--muted-foreground);
+}
 .g-api-key-row-actions {
   display: flex;
   align-items: center;
   gap: calc(var(--spacing) * 1);
 }
-.g-api-key-pagination { padding-inline: calc(var(--spacing) * 4); }
+.g-api-key-pagination {
+  padding-inline: calc(var(--spacing) * 4);
+}
 .g-discovery-pagination {
   display: flex;
   align-items: center;
@@ -1210,11 +1402,23 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1100px) {
-  .g-api-key-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .g-api-key-layout { grid-template-columns: 1fr; }
-  .g-api-key-row { grid-template-columns: 1fr auto; }
-  .g-api-key-row-test { grid-column: span 2; min-width: 0; }
-  .g-api-key-row-actions { grid-column: span 2; justify-content: flex-end; }
+  .g-api-key-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .g-api-key-layout {
+    grid-template-columns: 1fr;
+  }
+  .g-api-key-row {
+    grid-template-columns: 1fr auto;
+  }
+  .g-api-key-row-test {
+    grid-column: span 2;
+    min-width: 0;
+  }
+  .g-api-key-row-actions {
+    grid-column: span 2;
+    justify-content: flex-end;
+  }
 }
 
 /* ============================================================
@@ -1243,7 +1447,9 @@ onUnmounted(() => {
   -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid var(--liquid-border-hairline, #e5e7eb);
   border-radius: calc(var(--radius, 12px) + 4px);
-  box-shadow: var(--liquid-shadow, 0 24px 64px rgba(0, 0, 0, 0.18)), var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86));
+  box-shadow:
+    var(--liquid-shadow, 0 24px 64px rgba(0, 0, 0, 0.18)),
+    var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86));
   overflow: hidden;
 }
 .g-discovery-head {
@@ -1280,8 +1486,14 @@ onUnmounted(() => {
   padding: calc(var(--spacing) * 3) calc(var(--spacing) * 5);
   border-bottom: 1px solid var(--border, #e5e7eb);
 }
-.g-discovery-filter { flex: 1; min-width: 0; margin: 0; }
-.g-discovery-toolbar-meta { flex-shrink: 0; }
+.g-discovery-filter {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.g-discovery-toolbar-meta {
+  flex-shrink: 0;
+}
 .g-discovery-url-bar {
   display: flex;
   align-items: flex-end;
@@ -1290,7 +1502,11 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--border, #e5e7eb);
   background: var(--muted, #f9fafb);
 }
-.g-discovery-url-input { flex: 1; min-width: 0; margin: 0; }
+.g-discovery-url-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
 .g-discovery-url-input label {
   display: block;
   font-size: 0.72rem;
@@ -1322,9 +1538,13 @@ onUnmounted(() => {
   cursor: pointer;
   transition: background 0.15s ease;
 }
-.g-discovery-item:hover { background: var(--muted, #f3f4f6); }
-.g-discovery-item.is-selected { background: color-mix(in srgb, var(--primary, #3b82f6) 8%, transparent); }
-.g-discovery-item input[type="checkbox"] {
+.g-discovery-item:hover {
+  background: var(--muted, #f3f4f6);
+}
+.g-discovery-item.is-selected {
+  background: color-mix(in srgb, var(--primary, #3b82f6) 8%, transparent);
+}
+.g-discovery-item input[type='checkbox'] {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
@@ -1435,10 +1655,18 @@ onUnmounted(() => {
   border-radius: 3px;
 }
 @media (max-width: 640px) {
-  .g-discovery-overlay { padding: calc(var(--spacing) * 2); }
+  .g-discovery-overlay {
+    padding: calc(var(--spacing) * 2);
+  }
   .g-discovery-head,
   .g-discovery-toolbar,
-  .g-discovery-foot { padding-left: calc(var(--spacing) * 3); padding-right: calc(var(--spacing) * 3); }
-  .g-discovery-list { padding-left: calc(var(--spacing) * 3); padding-right: calc(var(--spacing) * 3); }
+  .g-discovery-foot {
+    padding-left: calc(var(--spacing) * 3);
+    padding-right: calc(var(--spacing) * 3);
+  }
+  .g-discovery-list {
+    padding-left: calc(var(--spacing) * 3);
+    padding-right: calc(var(--spacing) * 3);
+  }
 }
 </style>

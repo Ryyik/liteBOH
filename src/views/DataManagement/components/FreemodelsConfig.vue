@@ -28,11 +28,15 @@
       </div>
       <div class="g-mini-card">
         <span class="g-eyebrow">已启用</span>
-        <strong class="g-mini-value" :style="{ color: 'var(--chart-5)' }">{{ models.filter(m => m.is_active).length }}</strong>
+        <strong class="g-mini-value" :style="{ color: 'var(--chart-5)' }">{{
+          models.filter((m) => m.is_active).length
+        }}</strong>
       </div>
       <div class="g-mini-card">
         <span class="g-eyebrow">已停用</span>
-        <strong class="g-mini-value" :style="{ color: 'var(--muted-foreground)' }">{{ models.filter(m => !m.is_active).length }}</strong>
+        <strong class="g-mini-value" :style="{ color: 'var(--muted-foreground)' }">{{
+          models.filter((m) => !m.is_active).length
+        }}</strong>
       </div>
       <div class="g-mini-card">
         <span class="g-eyebrow">平台数</span>
@@ -66,9 +70,15 @@
         <LoaderCircle :size="20" class="g-spin" />
         加载模型列表...
       </div>
-      <div v-else-if="sortedModels.length === 0" class="g-empty">暂无模型配置，点击上方按钮添加。</div>
+      <div v-else-if="sortedModels.length === 0" class="g-empty">
+        暂无模型配置，点击上方按钮添加。
+      </div>
       <div v-else class="g-freemodels-grid">
-        <article v-for="model in pagedModels" :key="model.id" :class="['g-freemodel-card', { 'is-active': model.is_active }]">
+        <article
+          v-for="model in pagedModels"
+          :key="model.id"
+          :class="['g-freemodel-card', { 'is-active': model.is_active }]"
+        >
           <div class="g-freemodel-card-head">
             <div class="g-freemodel-card-titles">
               <strong class="g-freemodel-card-name">{{ model.name }}</strong>
@@ -81,7 +91,8 @@
           </div>
           <div class="g-freemodel-card-meta">
             <span class="g-badge is-primary">
-              <span class="g-badge-dot" /> {{ model.provider_label || getProviderLabel(model.provider) }}
+              <span class="g-badge-dot" />
+              {{ model.provider_label || getProviderLabel(model.provider) }}
             </span>
             <span class="g-badge is-secondary">
               {{ model.family_label }}
@@ -91,16 +102,36 @@
           <div class="g-freemodel-card-foot">
             <label class="g-freemodel-sort">
               <span class="g-eyebrow">排序</span>
-              <input v-model.number="model.sort_order" type="number" min="0" class="g-input g-freemodel-sort-input" @change="handleUpdateSort(model)" />
+              <input
+                v-model.number="model.sort_order"
+                type="number"
+                min="0"
+                class="g-input g-freemodel-sort-input"
+                @change="handleUpdateSort(model)"
+              />
             </label>
             <div class="g-freemodel-card-actions">
-              <button type="button" class="g-btn g-btn-secondary g-btn-sm" @click="handleToggleStatus(model)">
+              <button
+                type="button"
+                class="g-btn g-btn-secondary g-btn-sm"
+                @click="handleToggleStatus(model)"
+              >
                 {{ model.is_active ? '停用' : '启用' }}
               </button>
-              <button type="button" class="g-icon-btn is-sm" @click="handleEdit(model)" title="编辑">
+              <button
+                type="button"
+                class="g-icon-btn is-sm"
+                @click="handleEdit(model)"
+                title="编辑"
+              >
                 <Edit3 :size="14" />
               </button>
-              <button type="button" class="g-icon-btn is-sm is-danger" @click="handleDelete(model)" title="删除">
+              <button
+                type="button"
+                class="g-icon-btn is-sm is-danger"
+                @click="handleDelete(model)"
+                title="删除"
+              >
                 <Trash2 :size="14" />
               </button>
             </div>
@@ -109,9 +140,16 @@
       </div>
       <footer v-if="sortedModels.length > modelPageSize" class="g-sheet-foot">
         <span class="g-sheet-foot-text">
-          显示 {{ (modelPage - 1) * modelPageSize + 1 }} - {{ Math.min(modelPage * modelPageSize, sortedModels.length) }} 项 / 共 {{ sortedModels.length }} 项
+          显示 {{ (modelPage - 1) * modelPageSize + 1 }} -
+          {{ Math.min(modelPage * modelPageSize, sortedModels.length) }} 项 / 共
+          {{ sortedModels.length }} 项
         </span>
-        <DashboardPagination v-model="modelPage" :total="sortedModels.length" :page-size="modelPageSize" aria-label="免费模型库分页" />
+        <DashboardPagination
+          v-model="modelPage"
+          :total="sortedModels.length"
+          :page-size="modelPageSize"
+          aria-label="免费模型库分页"
+        />
       </footer>
     </article>
 
@@ -123,18 +161,36 @@
             <div class="g-eyebrow">表单</div>
             <strong>{{ isNewModel ? '添加模型' : '编辑模型' }}</strong>
           </div>
-          <button type="button" class="g-icon-btn is-sm is-ghost" @click="editingModel = null" title="关闭">
+          <button
+            type="button"
+            class="g-icon-btn is-sm is-ghost"
+            @click="editingModel = null"
+            title="关闭"
+          >
             <X :size="14" />
           </button>
         </header>
         <form class="g-dialog-form" @submit.prevent="handleSave">
           <div class="g-field">
             <label>模型 ID</label>
-            <input v-model="editingModel.model_id" class="g-input is-mono" type="text" required placeholder="例如：Qwen/Qwen3-8B" :disabled="!isNewModel" />
+            <input
+              v-model="editingModel.model_id"
+              class="g-input is-mono"
+              type="text"
+              required
+              placeholder="例如：Qwen/Qwen3-8B"
+              :disabled="!isNewModel"
+            />
           </div>
           <div class="g-field">
             <label>显示名称</label>
-            <input v-model="editingModel.name" class="g-input" type="text" required placeholder="例如：Qwen 3 8B" />
+            <input
+              v-model="editingModel.name"
+              class="g-input"
+              type="text"
+              required
+              placeholder="例如：Qwen 3 8B"
+            />
           </div>
           <div class="g-field">
             <label>API 平台</label>
@@ -147,19 +203,41 @@
           </div>
           <div class="g-field">
             <label>平台显示名</label>
-            <input v-model="editingModel.provider_label" class="g-input" type="text" placeholder="留空自动填充" />
+            <input
+              v-model="editingModel.provider_label"
+              class="g-input"
+              type="text"
+              placeholder="留空自动填充"
+            />
           </div>
           <div class="g-field">
             <label>类型</label>
-            <input v-model="editingModel.family_label" class="g-input" type="text" required placeholder="例如：通用" />
+            <input
+              v-model="editingModel.family_label"
+              class="g-input"
+              type="text"
+              required
+              placeholder="例如：通用"
+            />
           </div>
           <div class="g-field">
             <label>适用场景</label>
-            <input v-model="editingModel.best_for" class="g-input" type="text" required placeholder="例如：多场景聊天" />
+            <input
+              v-model="editingModel.best_for"
+              class="g-input"
+              type="text"
+              required
+              placeholder="例如：多场景聊天"
+            />
           </div>
           <div class="g-field">
             <label>自定义 API 地址</label>
-            <input v-model="editingModel.api_base_url" class="g-input is-mono" type="url" placeholder="留空使用平台默认地址" />
+            <input
+              v-model="editingModel.api_base_url"
+              class="g-input is-mono"
+              type="url"
+              placeholder="留空使用平台默认地址"
+            />
             <span class="g-field-hint">仅自定义平台需要填写，标准平台留空即可</span>
           </div>
           <div class="g-field">
@@ -167,22 +245,35 @@
             <input v-model.number="editingModel.sort_order" class="g-input" type="number" min="0" />
           </div>
           <div class="g-dialog-actions">
-            <button type="button" class="g-btn g-btn-ghost" @click="editingModel = null">取消</button>
-            <button type="submit" class="g-btn g-btn-primary">{{ isNewModel ? '添加' : '保存' }}</button>
+            <button type="button" class="g-btn g-btn-ghost" @click="editingModel = null">
+              取消
+            </button>
+            <button type="submit" class="g-btn g-btn-primary">
+              {{ isNewModel ? '添加' : '保存' }}
+            </button>
           </div>
         </form>
       </div>
     </div>
 
     <!-- 批量添加对话框 -->
-    <div v-if="showBatchAddDialog" class="g-dialog-overlay" @click.self="showBatchAddDialog = false">
+    <div
+      v-if="showBatchAddDialog"
+      class="g-dialog-overlay"
+      @click.self="showBatchAddDialog = false"
+    >
       <div class="g-dialog g-dialog-wide">
         <header class="g-dialog-head">
           <div>
             <div class="g-eyebrow">表单</div>
             <strong>批量添加模型</strong>
           </div>
-          <button type="button" class="g-icon-btn is-sm is-ghost" @click="showBatchAddDialog = false" title="关闭">
+          <button
+            type="button"
+            class="g-icon-btn is-sm is-ghost"
+            @click="showBatchAddDialog = false"
+            title="关闭"
+          >
             <X :size="14" />
           </button>
         </header>
@@ -197,7 +288,11 @@
             </select>
             <span class="g-field-hint">
               选中后会自动填充下方平台与 API 地址（来自该 Key 的配置）
-              <span v-if="selectedKeyMeta">｜当前 Key 的 API URL：<code class="is-mono">{{ selectedKeyMeta.apiUrl || '未配置' }}</code></span>
+              <span v-if="selectedKeyMeta"
+                >｜当前 Key 的 API URL：<code class="is-mono">{{
+                  selectedKeyMeta.apiUrl || '未配置'
+                }}</code></span
+              >
             </span>
           </div>
           <div class="g-field">
@@ -213,12 +308,19 @@
           </div>
           <div class="g-field">
             <label>模型 ID 列表（英文逗号或换行分割）</label>
-            <textarea v-model="batchModelIds" class="g-textarea" rows="8" required
-              placeholder="例如：Qwen/Qwen3-8B, deepseek-ai/DeepSeek-R1-0528-Qwen3-8B, THUDM/GLM-Z1-9B-0414" />
+            <textarea
+              v-model="batchModelIds"
+              class="g-textarea"
+              rows="8"
+              required
+              placeholder="例如：Qwen/Qwen3-8B, deepseek-ai/DeepSeek-R1-0528-Qwen3-8B, THUDM/GLM-Z1-9B-0414"
+            />
             <span class="g-field-hint">自动过滤重复和已存在的模型</span>
           </div>
           <div class="g-dialog-actions">
-            <button type="button" class="g-btn g-btn-ghost" @click="showBatchAddDialog = false">取消</button>
+            <button type="button" class="g-btn g-btn-ghost" @click="showBatchAddDialog = false">
+              取消
+            </button>
             <button type="submit" class="g-btn g-btn-primary" :disabled="isBatchAdding">
               {{ isBatchAdding ? '添加中...' : '批量添加' }}
             </button>
@@ -226,158 +328,163 @@
         </form>
       </div>
     </div>
-
   </section>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { Plus, RefreshCw, Edit3, Trash2, LoaderCircle, ListPlus, X, Filter } from 'lucide-vue-next'
-import { supabase } from '@/utils/supabase-client.js'
-import { useConfirmDialog } from '@/composables/useConfirmDialog.js'
-import { FREEMODEL_PROVIDER_OPTIONS } from '../config/fields.js'
-import { listApiKeys } from '../../../utils/api/api-key-vault-api.js'
+import { ref, computed, onMounted, watch } from 'vue';
+import { Plus, RefreshCw, Edit3, Trash2, LoaderCircle, ListPlus, X, Filter } from 'lucide-vue-next';
+import { supabase } from '@/utils/supabase-client.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { FREEMODEL_PROVIDER_OPTIONS } from '../config/fields.js';
+import { listApiKeys } from '../../../utils/api/api-key-vault-api.js';
 import DashboardHero from './shared/DashboardHero.vue';
 import DashboardNotice from './shared/DashboardNotice.vue';
 import DashboardPagination from './shared/DashboardPagination.vue';
 
-const { confirm } = useConfirmDialog()
+const { confirm } = useConfirmDialog();
 
-const models = ref([])
-const isLoading = ref(false)
-const error = ref('')
-const editingModel = ref(null)
-const isNewModel = ref(false)
-const showBatchAddDialog = ref(false)
-const batchModelIds = ref('')
-const isBatchAdding = ref(false)
-const batchProvider = ref('siliconflow')
-const filterProvider = ref('all')
-const modelPage = ref(1)
-const modelPageSize = 12
+const models = ref([]);
+const isLoading = ref(false);
+const error = ref('');
+const editingModel = ref(null);
+const isNewModel = ref(false);
+const showBatchAddDialog = ref(false);
+const batchModelIds = ref('');
+const isBatchAdding = ref(false);
+const batchProvider = ref('siliconflow');
+const filterProvider = ref('all');
+const modelPage = ref(1);
+const modelPageSize = 12;
 
 // 批量添加时可选择已存的 API Key，自动填充 provider / api_base_url
-const apiKeys = ref([])
-const batchKeyId = ref('')  // 选中的 API Key id
+const apiKeys = ref([]);
+const batchKeyId = ref(''); // 选中的 API Key id
 
 // 仅展示可用作模型来源的 Key（chat 类 + custom/openrouter/siliconflow/zhipu）
 const availableApiKeys = computed(() => {
   return apiKeys.value.filter((k) => {
-    if (k.status !== 'active') return false
-    return ['siliconflow', 'openrouter', 'zhipu', 'custom'].includes(k.provider)
-  })
-})
+    if (k.status !== 'active') return false;
+    return ['siliconflow', 'openrouter', 'zhipu', 'custom'].includes(k.provider);
+  });
+});
 
 // 当前选中的 Key 对应的元数据
 const selectedKeyMeta = computed(() => {
-  if (!batchKeyId.value) return null
-  const k = apiKeys.value.find((x) => x.id === batchKeyId.value)
-  if (!k) return null
+  if (!batchKeyId.value) return null;
+  const k = apiKeys.value.find((x) => x.id === batchKeyId.value);
+  if (!k) return null;
   return {
     id: k.id,
     provider: k.provider,
     purpose: k.purpose,
     label: k.label || `${k.provider} ${k.purpose}`,
-    apiUrl: k.metadata?.apiUrl || ''
-  }
-})
+    apiUrl: k.metadata?.apiUrl || '',
+  };
+});
 
 // 选中 Key 时自动同步 batchProvider（provider 下拉随之联动）
 const onKeySelectChange = () => {
-  const meta = selectedKeyMeta.value
+  const meta = selectedKeyMeta.value;
   if (meta) {
-    batchProvider.value = meta.provider
+    batchProvider.value = meta.provider;
   }
-}
+};
 
 const providerLabelMap = computed(() => {
-  const map = {}
-  FREEMODEL_PROVIDER_OPTIONS.forEach(opt => { map[opt.value] = opt.label })
-  return map
-})
+  const map = {};
+  FREEMODEL_PROVIDER_OPTIONS.forEach((opt) => {
+    map[opt.value] = opt.label;
+  });
+  return map;
+});
 
 const PROVIDER_DEFAULTS = {
   siliconflow: {
     label: 'SiliconFlow',
-    apiBaseUrl: 'https://api.siliconflow.cn/v1/chat/completions'
+    apiBaseUrl: 'https://api.siliconflow.cn/v1/chat/completions',
   },
   openrouter: {
     label: 'OpenRouter',
-    apiBaseUrl: 'https://openrouter.ai/api/v1/chat/completions'
+    apiBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
   },
   zhipu: {
     label: '智谱 AI',
-    apiBaseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+    apiBaseUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
   },
   custom: {
     label: '自定义',
-    apiBaseUrl: ''
-  }
-}
+    apiBaseUrl: '',
+  },
+};
 
 function getProviderLabel(provider) {
-  return PROVIDER_DEFAULTS[provider]?.label || providerLabelMap.value[provider] || provider || '未知'
+  return (
+    PROVIDER_DEFAULTS[provider]?.label || providerLabelMap.value[provider] || provider || '未知'
+  );
 }
 
 function getProviderApiBaseUrl(provider) {
-  return PROVIDER_DEFAULTS[provider]?.apiBaseUrl || ''
+  return PROVIDER_DEFAULTS[provider]?.apiBaseUrl || '';
 }
 
 const sortedModels = computed(() =>
   [...models.value]
-    .filter(m => filterProvider.value === 'all' || m.provider === filterProvider.value)
-    .sort((a, b) => a.sort_order - b.sort_order)
-)
+    .filter((m) => filterProvider.value === 'all' || m.provider === filterProvider.value)
+    .sort((a, b) => a.sort_order - b.sort_order),
+);
 
 const pagedModels = computed(() => {
-  const start = (modelPage.value - 1) * modelPageSize
-  return sortedModels.value.slice(start, start + modelPageSize)
-})
+  const start = (modelPage.value - 1) * modelPageSize;
+  return sortedModels.value.slice(start, start + modelPageSize);
+});
 
 watch(filterProvider, () => {
-  modelPage.value = 1
-})
+  modelPage.value = 1;
+});
 
 watch(sortedModels, (items) => {
-  const totalPages = Math.max(1, Math.ceil(items.length / modelPageSize))
-  if (modelPage.value > totalPages) modelPage.value = totalPages
-})
+  const totalPages = Math.max(1, Math.ceil(items.length / modelPageSize));
+  if (modelPage.value > totalPages) modelPage.value = totalPages;
+});
 
-const uniqueFamilyCount = computed(() => new Set(models.value.map(m => m.family_label).filter(Boolean)).size)
+const uniqueFamilyCount = computed(
+  () => new Set(models.value.map((m) => m.family_label).filter(Boolean)).size,
+);
 
 const providerStats = computed(() => {
-  const stats = {}
-  models.value.forEach(m => {
-    const p = m.provider || 'siliconflow'
-    if (!stats[p]) stats[p] = { total: 0, active: 0 }
-    stats[p].total++
-    if (m.is_active) stats[p].active++
-  })
-  return stats
-})
+  const stats = {};
+  models.value.forEach((m) => {
+    const p = m.provider || 'siliconflow';
+    if (!stats[p]) stats[p] = { total: 0, active: 0 };
+    stats[p].total++;
+    if (m.is_active) stats[p].active++;
+  });
+  return stats;
+});
 
 async function loadModels() {
-  isLoading.value = true
-  error.value = ''
+  isLoading.value = true;
+  error.value = '';
 
   try {
     const { data, error: fetchError } = await supabase
       .from('freemodels')
       .select('*')
-      .order('sort_order', { ascending: true })
+      .order('sort_order', { ascending: true });
 
-    if (fetchError) throw fetchError
+    if (fetchError) throw fetchError;
 
-    models.value = data || []
+    models.value = data || [];
   } catch (e) {
-    error.value = `加载失败: ${e.message}`
+    error.value = `加载失败: ${e.message}`;
   } finally {
-    isLoading.value = false
+    isLoading.value = false;
   }
 }
 
 function handleCreate() {
-  isNewModel.value = true
+  isNewModel.value = true;
   editingModel.value = {
     model_id: '',
     name: '',
@@ -387,108 +494,107 @@ function handleCreate() {
     best_for: '多场景聊天',
     api_base_url: '',
     sort_order: 0,
-    is_active: true
-  }
+    is_active: true,
+  };
 }
 
 function handleEdit(model) {
-  isNewModel.value = false
-  editingModel.value = { ...model }
+  isNewModel.value = false;
+  editingModel.value = { ...model };
 }
 
 function onProviderChange() {
-  if (!editingModel.value) return
+  if (!editingModel.value) return;
   if (!editingModel.value.provider_label) {
-    editingModel.value.provider_label = getProviderLabel(editingModel.value.provider)
+    editingModel.value.provider_label = getProviderLabel(editingModel.value.provider);
   }
   if (!editingModel.value.api_base_url) {
-    editingModel.value.api_base_url = getProviderApiBaseUrl(editingModel.value.provider)
+    editingModel.value.api_base_url = getProviderApiBaseUrl(editingModel.value.provider);
   }
 }
 
 async function handleSave() {
-  if (!editingModel.value) return
+  if (!editingModel.value) return;
 
   try {
     if (isNewModel.value) {
-      const { error: insertError } = await supabase
-        .from('freemodels')
-        .insert([editingModel.value])
+      const { error: insertError } = await supabase.from('freemodels').insert([editingModel.value]);
 
-      if (insertError) throw insertError
+      if (insertError) throw insertError;
 
       await confirm({
         title: '添加成功',
         message: `模型 ${editingModel.value.name} 已添加`,
-        tone: 'success'
-      })
+        tone: 'success',
+      });
     } else {
       const { error: updateError } = await supabase
         .from('freemodels')
         .update({
           name: editingModel.value.name,
           provider: editingModel.value.provider,
-          provider_label: editingModel.value.provider_label || getProviderLabel(editingModel.value.provider),
+          provider_label:
+            editingModel.value.provider_label || getProviderLabel(editingModel.value.provider),
           family_label: editingModel.value.family_label,
           best_for: editingModel.value.best_for,
           api_base_url: editingModel.value.api_base_url || null,
-          sort_order: editingModel.value.sort_order
+          sort_order: editingModel.value.sort_order,
         })
-        .eq('id', editingModel.value.id)
+        .eq('id', editingModel.value.id);
 
-      if (updateError) throw updateError
+      if (updateError) throw updateError;
 
       await confirm({
         title: '更新成功',
         message: `模型 ${editingModel.value.name} 已更新`,
-        tone: 'success'
-      })
+        tone: 'success',
+      });
     }
 
-    editingModel.value = null
-    await loadModels()
+    editingModel.value = null;
+    await loadModels();
   } catch (e) {
     await confirm({
       title: '操作失败',
       message: e.message,
-      tone: 'danger'
-    })
+      tone: 'danger',
+    });
   }
 }
 
 async function handleToggleStatus(model) {
-  const newStatus = !model.is_active
-  const actionText = newStatus ? '启用' : '禁用'
+  const newStatus = !model.is_active;
+  const actionText = newStatus ? '启用' : '禁用';
 
   const confirmed = await confirm({
     title: `${actionText}模型`,
     message: `确定要${actionText}模型 ${model.name} 吗？`,
-    tone: 'warning'
-  })
+    tone: 'warning',
+  });
 
-  if (!confirmed) return
+  if (!confirmed) return;
 
   try {
     const { error: updateError } = await supabase
       .from('freemodels')
       .update({ is_active: newStatus })
-      .eq('id', model.id)
+      .eq('id', model.id);
 
-    if (updateError) throw updateError
+    if (updateError) throw updateError;
 
-    model.is_active = newStatus
+    model.is_active = newStatus;
 
     await confirm({
       title: '操作成功',
       message: `模型 ${model.name} 已${actionText}`,
-      tone: 'success'
-    })
+      tone: 'success',
+    });
   } catch (e) {
     await confirm({
       title: '操作失败',
       message: e.message,
-      tone: 'danger'
-    })
+      tone: 'danger',
+    });
   }
 }
 
@@ -497,12 +603,12 @@ async function handleUpdateSort(model) {
     const { error: updateError } = await supabase
       .from('freemodels')
       .update({ sort_order: model.sort_order })
-      .eq('id', model.id)
+      .eq('id', model.id);
 
-    if (updateError) throw updateError
+    if (updateError) throw updateError;
   } catch (e) {
-    error.value = `排序更新失败: ${e.message}`
-    await loadModels() // Reload to reset
+    error.value = `排序更新失败: ${e.message}`;
+    await loadModels(); // Reload to reset
   }
 }
 
@@ -510,77 +616,74 @@ async function handleDelete(model) {
   const confirmed = await confirm({
     title: '删除模型',
     message: `确定要删除模型 ${model.name} 吗？此操作不可撤销。`,
-    tone: 'warning'
-  })
+    tone: 'warning',
+  });
 
-  if (!confirmed) return
+  if (!confirmed) return;
 
   try {
-    const { error: deleteError } = await supabase
-      .from('freemodels')
-      .delete()
-      .eq('id', model.id)
+    const { error: deleteError } = await supabase.from('freemodels').delete().eq('id', model.id);
 
-    if (deleteError) throw deleteError
+    if (deleteError) throw deleteError;
 
     await confirm({
       title: '删除成功',
       message: `模型 ${model.name} 已删除`,
-      tone: 'success'
-    })
+      tone: 'success',
+    });
 
-    await loadModels()
+    await loadModels();
   } catch (e) {
     await confirm({
       title: '删除失败',
       message: e.message,
-      tone: 'danger'
-    })
+      tone: 'danger',
+    });
   }
 }
 
 async function handleBatchAdd() {
-  if (!batchModelIds.value.trim()) return
+  if (!batchModelIds.value.trim()) return;
 
-  isBatchAdding.value = true
+  isBatchAdding.value = true;
 
   try {
     // 解析模型ID列表（支持逗号分割和换行分割）
     const ids = batchModelIds.value
       .split(/[,\n]/)
-      .map(id => id.trim())
-      .filter(id => id.length > 0)
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
 
     // 去重
-    const uniqueIds = [...new Set(ids)]
+    const uniqueIds = [...new Set(ids)];
 
     // 过滤已存在的模型
-    const existingModelIds = new Set(models.value.map(m => m.model_id))
-    const newIds = uniqueIds.filter(id => !existingModelIds.has(id))
+    const existingModelIds = new Set(models.value.map((m) => m.model_id));
+    const newIds = uniqueIds.filter((id) => !existingModelIds.has(id));
 
     if (newIds.length === 0) {
       await confirm({
         title: '提示',
         message: '所有模型ID都已存在，无需添加',
-        tone: 'info'
-      })
-      showBatchAddDialog.value = false
-      batchModelIds.value = ''
-      return
+        tone: 'info',
+      });
+      showBatchAddDialog.value = false;
+      batchModelIds.value = '';
+      return;
     }
 
     // 获取当前最大排序值
-    const maxSortOrder = models.value.reduce((max, m) => Math.max(max, m.sort_order || 0), 0)
+    const maxSortOrder = models.value.reduce((max, m) => Math.max(max, m.sort_order || 0), 0);
 
     // 优先使用所选 API Key 的 api_base_url；否则回退到 provider 默认值
-    const keyMeta = selectedKeyMeta.value
-    const effectiveProvider = keyMeta ? keyMeta.provider : batchProvider.value
+    const keyMeta = selectedKeyMeta.value;
+    const effectiveProvider = keyMeta ? keyMeta.provider : batchProvider.value;
     const effectiveProviderLabel = keyMeta
-      ? (keyMeta.label || getProviderLabel(effectiveProvider))
-      : getProviderLabel(effectiveProvider)
+      ? keyMeta.label || getProviderLabel(effectiveProvider)
+      : getProviderLabel(effectiveProvider);
     const effectiveApiBaseUrl = keyMeta
-      ? (keyMeta.apiUrl || getProviderApiBaseUrl(effectiveProvider) || null)
-      : (getProviderApiBaseUrl(effectiveProvider) || null)
+      ? keyMeta.apiUrl || getProviderApiBaseUrl(effectiveProvider) || null
+      : getProviderApiBaseUrl(effectiveProvider) || null;
 
     // 批量插入模型（使用模型ID作为默认名称）
     const insertData = newIds.map((id, index) => ({
@@ -592,52 +695,49 @@ async function handleBatchAdd() {
       family_label: '通用',
       best_for: '多场景聊天',
       sort_order: maxSortOrder + index + 1,
-      is_active: true
-    }))
+      is_active: true,
+    }));
 
-    const { error: insertError } = await supabase
-      .from('freemodels')
-      .insert(insertData)
+    const { error: insertError } = await supabase.from('freemodels').insert(insertData);
 
-    if (insertError) throw insertError
+    if (insertError) throw insertError;
 
     await confirm({
       title: '批量添加成功',
       message: `成功添加 ${newIds.length} 个模型`,
-      tone: 'success'
-    })
+      tone: 'success',
+    });
 
-    showBatchAddDialog.value = false
-    batchModelIds.value = ''
-    batchKeyId.value = ''
-    await loadModels()
+    showBatchAddDialog.value = false;
+    batchModelIds.value = '';
+    batchKeyId.value = '';
+    await loadModels();
   } catch (e) {
     await confirm({
       title: '批量添加失败',
       message: e.message,
-      tone: 'danger'
-    })
+      tone: 'danger',
+    });
   } finally {
-    isBatchAdding.value = false
+    isBatchAdding.value = false;
   }
 }
 
 async function loadApiKeys() {
-  const result = await listApiKeys()
+  const result = await listApiKeys();
   if (result.ok) {
-    apiKeys.value = Array.isArray(result.data) ? result.data : []
+    apiKeys.value = Array.isArray(result.data) ? result.data : [];
   }
 }
 
 onMounted(() => {
-  loadModels()
-  loadApiKeys()
-})
+  loadModels();
+  loadApiKeys();
+});
 </script>
 
 <style scoped>
 @import '../styles/base.css';
-@import '../styles/google-components.css';
 @import '../styles/responsive.css';
 
 .g-freemodels-config {
@@ -666,18 +766,31 @@ onMounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--background);
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
-.g-freemodel-card:hover { background: var(--muted); border-color: var(--ring); }
-.g-freemodel-card.is-active { border-color: color-mix(in srgb, var(--chart-5) 30%, var(--border)); }
+.g-freemodel-card:hover {
+  background: var(--muted);
+  border-color: var(--ring);
+}
+.g-freemodel-card.is-active {
+  border-color: color-mix(in srgb, var(--chart-5) 30%, var(--border));
+}
 
 .g-freemodels-filter {
   display: flex;
   align-items: center;
   gap: calc(var(--spacing) * 1.5);
 }
-.g-freemodels-filter-icon { color: var(--muted-foreground); }
-.g-select.is-sm { height: 32px; font-size: 0.82rem; padding: 0 28px 0 10px; }
+.g-freemodels-filter-icon {
+  color: var(--muted-foreground);
+}
+.g-select.is-sm {
+  height: 32px;
+  font-size: 0.82rem;
+  padding: 0 28px 0 10px;
+}
 .g-badge.is-secondary {
   background: color-mix(in srgb, var(--chart-3) 12%, transparent);
   color: var(--chart-3);
@@ -689,7 +802,10 @@ onMounted(() => {
   align-items: flex-start;
   gap: calc(var(--spacing) * 2);
 }
-.g-freemodel-card-titles { min-width: 0; flex: 1; }
+.g-freemodel-card-titles {
+  min-width: 0;
+  flex: 1;
+}
 .g-freemodel-card-name {
   display: block;
   font-size: 0.95rem;
@@ -760,7 +876,9 @@ onMounted(() => {
   max-height: 90vh;
   overflow-y: auto;
 }
-.g-dialog.g-dialog-wide { width: min(640px, 100%); }
+.g-dialog.g-dialog-wide {
+  width: min(640px, 100%);
+}
 .g-dialog-head {
   display: flex;
   justify-content: space-between;
@@ -801,6 +919,8 @@ onMounted(() => {
 }
 
 @media (max-width: 1100px) {
-  .g-freemodels-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .g-freemodels-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>
