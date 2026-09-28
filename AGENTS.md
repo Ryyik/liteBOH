@@ -27,7 +27,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 
 ## 2. 改动 → 必跑门禁（不许跳过）
 
-`npm run verify` 是一条命令兜底（lint + type-check + test + 7 道 check，不需要构建）。
+`npm run verify` 是一条命令兜底（lint + type-check + test + 8 道 check，不需要构建）。
 只改 CSS 或小改动用 `npm run verify:fast`；发布前用 `npm run verify:full`（含构建与产物门禁）。
 
 > ⚠️ **判绿之前先确认门禁真的有牙**。这个仓库出过两次「检查在跑、但永远绿」：
@@ -52,6 +52,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | `vite.config.js` 依赖别名 / optimizeDeps | `node scripts/probes/probe-vite-dep-scan.mjs`（6） |
 | 权限策略 / 归档 SQL | `npm run security:anon-check`（棘轮，红了说明新增了 anon EXECUTE） |
 | 暗色主题样式（新增裸色值） | 已在 verify 链内跑 `check:dark-tokens:strict`（棘轮，总量上升即红）。确需新增 token：写进 `src/styles/themes/dark-mode.css` 的 token 块再引用；只有「存量搬迁/新页面早期形态」才允许 `npm run check:dark-tokens:update` 登记，并在 commit message 里说明理由 |
+| **在 `src/views`、`src/components`、`src/composables` 里写 `supabase.from/rpc/functions.invoke`** | 已在 verify 链内跑 `check:layering`（棘轮，基线 169 处 / 37 文件，**新文件违规即红**）。改法：复用 `src/utils/api/*` 已有封装，没有就在那儿新增一个模块收口。会话内省请用 `authStore` 而不是 `supabase.auth.getUser()`。清单：`npm run check:layering:list` |
 | SW 预缓存改动上线前（**专项，没进自动化链**） | `npm run check:sw-upgrade`（对比 `dist` 与 `dist-check` 两份产物，CI 上没有 `dist-check` 所以只能在本地跑）；`npm run check:route-css-runtime` 还要先手工起 `npx vite preview --outDir dist-check --port 4180 --strictPort`，它是独立起服务的浏览器验收 |
 | RPC / 触发器静默失败 | 审计表取 code → `DO` 块分步复现 → 修完把 `sqlstate` 落进审计 message |
 
@@ -79,7 +80,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 - `.home` 的 `--gate-p` / `--forum-p` 是首页入场进度的唯一真源，时长唯一真源是 `GATE_TIMINGS`，CSS 里不许写字面时长。
 - `--kb-inset` 真源在 `useKeyboardInset.js`；`.bohai-page` 的高度有三处真源，改一处要同步三处。
 - 毛玻璃变量 `--liquid-*` 只有一个出口 `tokens.css`，子组件不许压父级变量。暗色模式真源是 `theme-manager.js`。首屏底色纯白有三处必须同步（看 `check:first-paint` 的报错定位）。
-- 不要用 `!important` 抢特异性（棘轮门禁 `check:important-budget`），暗色裸色值同理（`check:dark-tokens:strict`）。两个门禁都**只允许下降**，被卡住时先想别的办法，不要用 `--update` 抬基线（`check:important-budget` / `check:dark-tokens:update` / `security:anon-check:update` 都是同一个出口，抬基线必须在 commit message 里交代为什么）。
+- 不要用 `!important` 抢特异性（棘轮门禁 `check:important-budget`），暗色裸色值同理（`check:dark-tokens:strict`），UI 层直连数据层出口同理（`check:layering`）。这些门禁都**只允许下降**，被卡住时先想别的办法，不要用 `--update` 抬基线（`check:important-budget` / `check:dark-tokens:update` / `check:layering:update` / `security:anon-check:update` 都是同一个出口，抬基线必须在 commit message 里交代为什么）。
 
 ### Supabase / 数据库（project ref `nplnlefdwfgtyimfkyih`）
 

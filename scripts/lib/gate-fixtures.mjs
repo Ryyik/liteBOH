@@ -114,6 +114,16 @@ export const FIXTURES = [
       ),
   },
   {
+    gate: 'check:layering',
+    why: 'UI/视图层直连数据层出口（from/rpc/functions.invoke）会让「表结构改名」要改 N 处；新代码必须走 utils/api 或 stores',
+    prepare: () =>
+      appendTo(
+        'src/composables/useNews.js',
+        "export const __gatesProbe = () => supabase.from('gates_probe').select();",
+        '在 UI 层新增 1 处 supabase.from()',
+      ),
+  },
+  {
     gate: 'check:first-paint',
     why: '首屏骨架色值必须与 token 同步，否则会白屏闪烁或主题错色',
     prepare: () =>
