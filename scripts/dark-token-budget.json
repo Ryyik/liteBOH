@@ -1,5 +1,5 @@
 {
-  "total": 2790,
+  "total": 2902,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 247,
     "src/styles/themes/forum-dark.css": 187,
@@ -10,10 +10,11 @@
     "src/views/user-center/Messages/style.scoped.css": 106,
     "src/views/Newsroom/style.scoped.css": 103,
     "src/views/user-center/UserSpace/styles/shell-community.css": 103,
-    "src/components/UnifiedNavbar/style.scoped.css": 69,
+    "src/components/UnifiedNavbar/style.scoped.css": 71,
     "src/views/Lab/components/LabQuotaIsland.vue": 65,
-    "src/styles/themes/dark-mode.css": 57,
+    "src/styles/themes/dark-mode.css": 58,
     "src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue": 55,
+    "src/components/UnifiedNavbar/GlobalSearchIsland.vue": 50,
     "src/views/DataManagement/styles/base.css": 50,
     "src/views/user-center/UserSpace/components/AvatarFrameGrid.vue": 48,
     "src/components/SubscriptionPlans.vue": 47,
@@ -37,6 +38,7 @@
     "src/views/BOHAI/BOHAI/styles/messages.css": 25,
     "src/styles/common/tokens.css": 24,
     "src/views/Forum/styles/weekly-report.css": 23,
+    "src/components/SubscriptionNavIsland.vue": 22,
     "src/views/Download/index.vue": 22,
     "src/components/UnifiedNavbar/GlobalNavStatusCard.vue": 21,
     "src/views/SmartOverview/styles/overview.css": 21,
@@ -49,12 +51,14 @@
     "src/views/SmartOverview/styles/news-modal.css": 16,
     "src/components/AddressManager.vue": 14,
     "src/components/UnifiedNavbar/GlobalNavTaskCard.vue": 14,
+    "src/components/AccountBindPrompt/index.vue": 12,
     "src/views/BOHAI/BOHAI/components/BohaiSidebar.vue": 12,
     "src/views/Shop/style.scoped.css": 12,
     "src/views/Shows/style.scoped.css": 12,
     "src/views/user-center/AccountSecurity/index.vue": 12,
     "src/views/activities/ActivitiesList.vue": 11,
     "src/components/PushplusSettings/index.vue": 10,
+    "src/views/Forum/components/ForumToolbar.vue": 10,
     "src/views/Forum/styles/feed.css": 10,
     "src/views/Shop/ShopAccountPanel.vue": 10,
     "src/views/Home/components/BirthdayHero.vue": 9,
@@ -62,6 +66,7 @@
     "src/views/ResetPassword/index.vue": 9,
     "src/components/CreatorShowsPanel/style.scoped.css": 8,
     "src/components/UnifiedNavbar/NotificationSuggestIsland.vue": 8,
+    "src/views/BOHApp/style.scoped.css": 8,
     "src/views/Home/components/Beta6IslandCard.vue": 8,
     "src/views/activities/components/ActivityCard.vue": 8,
     "src/views/user-center/UserSpace/components/ProfileHomePanel.vue": 8,
@@ -69,6 +74,7 @@
     "src/components/UserCenterBackButton.vue": 6,
     "src/views/Home/components/HomeArchiveSection.vue": 6,
     "src/views/user-center/UserSpace/components/EditProfilePanel.vue": 6,
+    "src/views/user-center/UserSpace/styles/landscape-rail.css": 6,
     "src/components/UserCenterPageHeader.vue": 5,
     "src/views/activities/components/ActivityMonthRail.vue": 5,
     "src/views/user-center/UserSpace/UserSpaceMain.vue": 5,
@@ -89,7 +95,8 @@
     "src/styles/common/glass-ui.css": 1,
     "src/styles/common/liquid-glass.css": 1,
     "src/views/AIPlaza/index.vue": 1,
-    "src/views/DataManagement/components/EditDrawer.vue": 1
+    "src/views/DataManagement/components/EditDrawer.vue": 1,
+    "src/views/PhotoAlbums/index.vue": 1
   },
-  "updatedAt": "2026-09-18"
+  "updatedAt": "2026-09-28"
 }

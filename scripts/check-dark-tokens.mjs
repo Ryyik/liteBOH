@@ -59,13 +59,17 @@ const globToRe = (glob) =>
         .replace(/\*\*/g, '\u0000')
         .replace(/\*/g, '[^/]*')
         .replace(/\u0000/g, '.*') +
-      '$'
+      '$',
   );
 
-const { darkLiterals, darkFiles, literalPerFile, importantTotal } = scanDarkTokens({ tracked: !ALL });
+const { darkLiterals, darkFiles, literalPerFile, importantTotal } = scanDarkTokens({
+  tracked: !ALL,
+});
 
 if (ALL) {
-  console.log(`[check:dark-tokens] 审计模式（含未跟踪文件）：${darkLiterals} 字面量 / ${darkFiles.length} 文件 / ${importantTotal} important`);
+  console.log(
+    `[check:dark-tokens] 审计模式（含未跟踪文件）：${darkLiterals} 字面量 / ${darkFiles.length} 文件 / ${importantTotal} important`,
+  );
   process.exit(0);
 }
 
@@ -76,7 +80,9 @@ if (UPDATE || !existsSync(BUDGET_FILE)) {
     updatedAt: new Date().toISOString().slice(0, 10),
   };
   writeFileSync(BUDGET_FILE, JSON.stringify(next, null, 2) + '\n');
-  console.log(`✅ 基线已${UPDATE ? '更新' : '建立'}：${darkLiterals} 个暗色字面量（${Object.keys(next.perFile).length} 个文件）`);
+  console.log(
+    `✅ 基线已${UPDATE ? '更新' : '建立'}：${darkLiterals} 个暗色字面量（${Object.keys(next.perFile).length} 个文件）`,
+  );
   process.exit(0);
 }
 
@@ -86,7 +92,9 @@ const budget = JSON.parse(readFileSync(BUDGET_FILE, 'utf-8'));
 // strict 名单里的 glob 表示"这块已经清扫到 0 个裸色"；再出现即 exit 1，
 // 且**不受观察模式影响** —— 已清扫区域本来就不该有新裸色，假红概率极低，
 // 所以这部分可以有牙齿、可以进部署链。名单为空 → 本门禁永不阻断构建。
-const scopes = existsSync(SCOPES_FILE) ? JSON.parse(readFileSync(SCOPES_FILE, 'utf-8')) : { strict: [] };
+const scopes = existsSync(SCOPES_FILE)
+  ? JSON.parse(readFileSync(SCOPES_FILE, 'utf-8'))
+  : { strict: [] };
 const strictRegs = (scopes.strict || []).map((g) => ({ glob: g, re: globToRe(g) }));
 const scopeHits = [...literalPerFile.entries()]
   .filter(([file, n]) => n > 0 && strictRegs.some((s) => s.re.test(file)))
@@ -95,11 +103,16 @@ const scopeHits = [...literalPerFile.entries()]
 if (scopeHits.length) {
   console.error('❌ 已清扫完毕的暗色区域里又出现了裸色字面量（这些区域基线为 0）：');
   scopeHits.forEach(([file, n]) => {
-    const hit = strictRegs.filter((s) => s.re.test(file)).map((s) => s.glob).join(', ');
+    const hit = strictRegs
+      .filter((s) => s.re.test(file))
+      .map((s) => s.glob)
+      .join(', ');
     console.error(`   ${file}: ${n} 处   ← 命中严格名单 ${hit}`);
   });
   console.error('\n  这些文件已经 token 化过，出现裸色通常是复制了旧写法。改回 var() 即可；');
-  console.error(`  若确实要放宽该区域，编辑 ${SCOPES_FILE.replace(ROOT + '/', '')} 把它移出 strict。`);
+  console.error(
+    `  若确实要放宽该区域，编辑 ${SCOPES_FILE.replace(ROOT + '/', '')} 把它移出 strict。`,
+  );
   process.exit(1);
 }
 
@@ -116,18 +129,28 @@ const totalUp = darkLiterals > budget.total;
 if (totalUp) {
   const tag = STRICT ? '❌' : '⚠️ ';
   const tail = STRICT ? '' : '  [观察模式：不影响本次构建]';
-  console.error(`${tag} 暗色裸色总量上升：${budget.total} → ${darkLiterals}（+${darkLiterals - budget.total}）${tail}`);
+  console.error(
+    `${tag} 暗色裸色总量上升：${budget.total} → ${darkLiterals}（+${darkLiterals - budget.total}）${tail}`,
+  );
   if (growth.length) {
     console.error('   本次增长的文件（若只是文件间搬移，总量不会上升）：');
     growth.forEach(([file, n]) => {
       const base = budget.perFile[file] ?? 0;
-      console.error(`     ${newFiles.some(([f]) => f === file) ? '[新文件] ' : ''}${file}: ${base} → ${n} (+${n - base})`);
+      console.error(
+        `     ${newFiles.some(([f]) => f === file) ? '[新文件] ' : ''}${file}: ${base} → ${n} (+${n - base})`,
+      );
     });
   }
   console.error('\n可选做法：');
-  console.error('  · 优先把裸值换成同文件/同页面已有的 var()（多数文件里 token 早已定义好，只是没被消费）；');
-  console.error('  · 确实需要新增 token 时，加在 src/styles/themes/dark-mode.css 的 token 块，然后引用它；');
-  console.error('  · 确属有意为之（迁移中途的过渡态、新页面早期形态）：node scripts/check-dark-tokens.mjs --update 登记基线。');
+  console.error(
+    '  · 优先把裸值换成同文件/同页面已有的 var()（多数文件里 token 早已定义好，只是没被消费）；',
+  );
+  console.error(
+    '  · 确实需要新增 token 时，加在 src/styles/themes/dark-mode.css 的 token 块，然后引用它；',
+  );
+  console.error(
+    '  · 确属有意为之（迁移中途的过渡态、新页面早期形态）：node scripts/check-dark-tokens.mjs --update 登记基线。',
+  );
   console.error('  详情见 docs/dark-mode-audit-report-2026-09-18.md');
   if (STRICT) process.exit(1);
   process.exit(0);
@@ -136,13 +159,21 @@ if (totalUp) {
 const saved = budget.total - darkLiterals;
 console.log(
   `✅ 暗色裸色预算通过${STRICT ? '（严格模式）' : '（观察模式，不阻断构建）'}：当前 ${darkLiterals} / 基线 ${budget.total}（${darkFiles.length} 个文件）` +
-    (saved > 0 ? `（已削减 ${saved}，记得 --update 下调基线）` : '')
+    (saved > 0 ? `（已削减 ${saved}，记得 --update 下调基线）` : ''),
 );
 console.log(
-  `   分区棘轮名单：${strictRegs.length ? `${strictRegs.length} 条严格区域（任一出现裸色即失败）` : '空 —— 本门禁当前不会阻断任何构建'}`
+  `   分区棘轮名单：${
+    strictRegs.length
+      ? `${strictRegs.length} 条严格区域（任一出现裸色即失败）`
+      : STRICT
+        ? '空（无按文件白名单，但不影响总量棘轮 —— 总量上升即失败）'
+        : '空 —— 本门禁当前不会阻断任何构建'
+  }`,
 );
 if (growth.length) {
   console.log('   提示：以下文件增长但总量未增（文件间搬移，不判红）：');
   growth.forEach(([file, n]) => console.log(`     ${file}: ${budget.perFile[file] ?? 0} → ${n}`));
 }
-console.log(`   参考值：暗色块内 !important ${importantTotal} 处 —— 由 check:important-budget 负责棘轮，此处只观测`);
+console.log(
+  `   参考值：暗色块内 !important ${importantTotal} 处 —— 由 check:important-budget 负责棘轮，此处只观测`,
+);
