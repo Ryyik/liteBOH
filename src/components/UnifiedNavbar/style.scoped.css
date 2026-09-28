@@ -318,7 +318,17 @@
 
   /* Beta 6：常驻悬浮导航使用独立紧凑菜单。 */
   :global(#unified-nav-container .nav-menu-mobile) {
-    top: 66px;
+    /* ⚠️ 这里**不能**写死数字，而且 `top` 的坐标系也不是视口 —— 两件事都踩过。
+       1. `.unified-nav-surface` 有 transform: translateY(8px)，于是**菜单的包含块是这座岛
+          （padding box，高 48px = 50 − 上下 1px 边框），不是视口**（实测它的 offsetParent
+          就是 .unified-nav-surface）。把 top 当视口坐标写，会**重复计入一次 translateY**。
+       2. 于是「紧贴岛底边」在**包含块坐标系**里就是 `100%`（= 岛的内容高度），
+          视觉结果 = 岛底边（8 + 50 = 58px）再往上 1px（岛的下边框），天然无缝。
+       原先写死 `top: 66px`：实测菜单视觉上沿 8 + 1 + 66 = 75px，而岛底边 58px ⇒
+       **中间那条 17px 的空隙**（用户截图报的就是它）。66 是「按视口坐标、岛上一次改版前
+       的高度」算出来的旧值，岛高从 58 收到 50 后就再没人跟着改。
+       回归护栏：scripts/probes/probe-nav-mobile-menu.mjs（B 组断言空隙 ≤ 1px）。 */
+    top: 100%;
     left: 8px;
     right: 8px;
     width: auto;

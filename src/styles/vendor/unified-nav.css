@@ -646,10 +646,18 @@
   position: fixed;
   /* 与导航栏**实际几何**同步，不要写死数字。
      悬浮岛的视觉底边 = translateY(10px) + var(--global-nav-rest-height)，
-     当前为 10 + 58 = 68px。这里原先写死 64px（更早版本的高度），比岛底边高 4px：
+     横屏档当前为 10 + 58 = 68px。这里原先写死 64px（更早版本的高度），比岛底边高 4px：
      菜单顶边会被悬浮岛盖住，岛的下投影正好落在菜单上沿 —— 看起来就是导航栏与
      二级菜单之间那条异常空隙。改回推导式后，岛高再变（如展开态/横屏）这里会自动跟随。
-     --global-nav-rest-height 定义在 .unified-nav-surface 上，本元素是其子孙，可继承。 */
+     --global-nav-rest-height 定义在 .unified-nav-surface 上，本元素是其子孙，可继承。
+
+     ⚠️ 2026-09-28 实测修正两点认知（别再照这条推导去改竖屏）：
+     ① **竖屏（orientation: portrait 且 ≤768px）这条规则根本不生效** ——
+        style.scoped.css 的 `:global(#unified-nav-container .nav-menu-mobile){ top: … }`
+        特异性更高（1,1,0 > 0,2,0），用户报的那条空隙在竖屏，所以改这里等于没改。
+        竖屏的正确写法是 `top: 100%`，理由与实测见 style.scoped.css 同名块。
+     ② 竖屏外的窄横屏（如 707×354）实测接缝为 1px，属正常；本档 `10 + 58 = 68` 与
+        岛底边一致，这里不必动。 */
   top: calc(10px + var(--global-nav-rest-height, 58px));
   left: 0;
   width: 100%;

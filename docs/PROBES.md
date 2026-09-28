@@ -17,6 +17,7 @@
 | 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 48 |
+| 竖屏二级菜单与悬浮岛的接缝 | `probe-nav-mobile-menu.mjs` | 18 |
 | 头像框发放 | `probe-avatar-frame-grant.mjs` | 23 |
 | 头像框控制台 | `probe-avatar-frame-console.mjs` | 44 |
 | vite 依赖预构建 | `probe-vite-dep-scan.mjs` | 6 |
@@ -82,6 +83,7 @@
 | `probe-login-island-retract.mjs` | — | 探针：灵动岛登录的「回收」（收起）动画必须逐帧插值，不能单帧闪掉 |
 | `probe-login-island-width.mjs` | — | 登录岛宽度探针（只读，不改源码） 用途：横屏（orientation: landscape 且 min-width 769px）点击导航「登录」后， |
 | `probe-nav-mini-bar.mjs` | — | 探针：竖屏导航 Mini Bar 形态（plans/009-portrait-nav-mini-bar.md） |
+| `probe-nav-mobile-menu.mjs` | — | 探针：竖屏二级菜单与常驻悬浮岛的「接缝几何」护栏（菜单上沿与岛底边齐平 / 展开时岛无下投影）。含 `position: fixed` 遇 transform 祖先时包含块变化的实测记录 |
 | `probe-nav-mini-width.mjs` | — | 量 mini 胶囊的「固有内容宽」→ 反推合适的 --nav-mini-width（内容 + 两侧各 ~8px 余量） |
 | `probe-nav-optical-center.mjs` | — | 探针：竖屏 mini 胶囊的「视觉居中」回归护栏 |
 | `probe-notification-suggest-island-extra.mjs` | — | 探针：消息中心智能建议岛补充回归 —— 暗色主题 + 移动端视口 |
