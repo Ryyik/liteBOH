@@ -106,6 +106,10 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 ## 5. 工具链（已装好的，直接用）
 
 - **格式**：Prettier（`.prettierrc`：printWidth 100 / 单引号 / 尾逗号 all）。全仓 `npm run format`，只检查 `npm run format:check`。`.prettierignore` 刻意排除了 `*.md` 和四个第三方 Style 目录 —— 近百个 md 全量重排会把有意义的 diff 淹掉。
+- **CSS 审计**（只读，不删除）：`npm run audit:css`（约 10s）。两个子报告：
+  - `audit:css:duplication` —— 共享 partial 被多处 scoped `@import` 的重复体量。口径：**体积 × (被 .vue 导入次数 − 1)**。⚠️ 别去数产物里的选择器，各 partial 前缀不同极易漏（曾把 443KB 漏成 24KB）；也别按 basename 匹配（全仓一堆同名 `style.scoped.css`，会得出「被 17 个文件导入」这种假结果）。
+  - `audit:css:orphans` —— 孤儿类名。分三桶：**确定孤儿** / **疑似孤儿**（只被别的 CSS 引用）/ **待确认过渡类**（形如 `*-enter-active` 但没找到 `<transition name="…">`，可能是动态 `:name`，别直接删）。已规避四类假阳性：scoped 定义方=使用方、声明值被误当选择器、动态拼名、Vue 运行时过渡类。
+  - ⚠️ 它**只报告**。删 CSS 必须配视觉回归，这个工具不提供那个能力。
 - **棘轮总账**：`npm run check:ratchets`（已挂在 `verify` 末尾）。把 4 个棘轮的「当前 / 基线 / 余量」汇成一张表，让「债务在减少还是增加」一眼可见。
   - 它**不复制计数逻辑** —— 只调各棘轮的 `--json` 机读出口拿数（自己再数一遍就成了第二份真源，迟早和真正的门禁给出不同的数）。
   - 它**只报数、不判定、永远 exit 0**；判定是各棘轮自己的职责，否则「总账」会变成第 5 个门禁，出问题时反而分不清是谁红的。
