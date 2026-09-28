@@ -1522,11 +1522,11 @@ const loadLotteryPityStatus = async () => {
   try {
     const { data } = await getMyLotteryPityStatus();
     if (data) pityStatus.value = data;
-  } catch {
-    /* 请求失败时静默：保底进度是辅助信息，拿不到就不显示，不阻断面板。
-       ⚠️ 但这属于**静默失败** —— 若以后有人排查「保底数字不见了」，
-       这里是盲点。本文件已引入 logger，建议后续在此补 logger.warn（未做，
-       因为那会改变运行时行为，不在本轮「空 catch 显性化」的范围内）。 */
+  } catch (error) {
+    /* 请求失败时不阻断面板：保底进度是辅助信息，拿不到就不显示。
+       2026-09-28 补 logger.warn：这条原本是**静默失败**（排查「保底数字不见了」时的盲点）。
+       同文件 1416 行处同一类失败早就在记日志了，这里不记属于自相矛盾。 */
+    logger.warn('assets-hub', '加载抽奖保底进度失败（面板不显示保底数字）:', error);
   }
 };
 const getLotteryStatusLabel = (s) =>

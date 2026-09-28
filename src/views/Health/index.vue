@@ -149,6 +149,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useHealthStore, localDateISO } from '@/stores/health';
 import { supabase } from '@/utils/supabase-client';
+import { logger } from '@/utils/logger.js';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 import { useConfirmDialog } from '@/composables/useConfirmDialog';
 import './health.css';
@@ -206,11 +207,12 @@ onMounted(async () => {
   try {
     const { data } = await supabase.auth.getSession();
     isLoggedIn.value = Boolean(data?.session?.user?.id);
-  } catch {
+  } catch (error) {
     /* 读会话失败时保留 isLoggedIn 初值（false）：健康数据页未登录也能用，
        最坏情况是把已登录用户当成未登录、少同步一次云端数据。
-       ⚠️ 静默失败：若排查「登录了却读不到云端健康数据」，这里是盲点。
-       本文件未引入 logger，补日志需新增 import，故留作后续。 */
+       2026-09-28 补 logger.warn：这条原本是**静默失败**，排查「登录了却读不到云端健康
+       数据」时是盲点。补日志只在已有 catch 里加一条，不改控制流、不改返回值。 */
+    logger.warn('health', '读取会话失败（按未登录处理，可能少同步一次云端数据）:', error);
   }
   // hydrate 现在返回可等待的 Promise：等待本地+云端数据全部就绪后再判断
   // 首次使用，防止新设备上用 onboarding 默认值覆盖云端真实档案
