@@ -16,8 +16,16 @@
  *      那种「样本没生效、门禁自然绿」的假阳性比没有自检更糟；
  *   3. 优先选**破坏面最小**的落点：能新建临时文件就别改已有文件，能改注释外的
  *      末行就别动文件中部。
+ *
+ * ⚠️ 第四条（2026-09-28 补，代价是一条 fixture 静默失效半天）：**落点名字要一眼看出是样本。**
+ *    `SIGKILL` / 沙箱半跑会绕过所有信号与 exit 兜底，把样本文件留在工作区。此时：
+ *   ① 若落点用的是真实名字（如 `src/views/Home.vue`），残留**看起来就是一个正常文件**，
+ *      却让 `check:views` 在工作区里长期变红，没人能一眼看出源头；
+ *   ② `createFile` 的存在性守卫会让该 fixture **永久失效**（每次自检都报「注入失败」）。
+ *    所以：落点一律用 `__gates_probe*` 这类不可能被真实文件占用的名字，且 `createFile`
+ *    对「内容与本样本逐字节相同」的残留**收编自愈**（见 createFile 注释）。
  */
-import { readFileSync, writeFileSync, rmSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, rmdirSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /**
@@ -35,12 +43,45 @@ const editFile = (file, mutate, label) => {
   return () => writeFileSync(file, original);
 };
 
-/** 新建临时文件，返回删除函数。文件已存在则拒绝（避免覆盖真实文件）。 */
+/** 新建临时文件，返回删除函数。 */
 const createFile = (file, content) => {
-  if (existsSync(file)) throw new Error(`落点已存在，拒绝覆盖：${file}`);
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, content);
+  if (existsSync(file)) {
+    // 落点已存在：内容与本样本**逐字节相同** ⇒ 是上次被硬杀（SIGKILL / 沙箱半跑，
+    // 信号与 exit 兜底都不会执行）留下的残留 → 收编它、还原时删掉。
+    // 内容不同 ⇒ 是真实文件，拒绝覆盖。
+    //
+    // 为什么必须自愈而不是一律拒绝：一味拒绝会让这条 fixture **永久失效** ——
+    // 每次自检都报「注入失败」，而残留还会让对应门禁在工作区里长期变红却看不出源头。
+    // 2026-09-28 `check:views` 的 `src/views/Home.vue` 就是这么失效的。
+    const current = readFileSync(file);
+    const expected = Buffer.isBuffer(content) ? content : Buffer.from(content);
+    if (!current.equals(expected)) {
+      throw new Error(`落点已存在且内容与本样本不同，拒绝覆盖：${file}`);
+    }
+    process.stdout.write(`↺ 收编上次残留(${file})  `);
+  } else {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, content);
+  }
   return () => rmSync(file, { force: true });
+};
+
+/**
+ * 新建临时目录，返回删除函数。
+ * 与 createFile 不同：这里**不借用**。落点必须是 `__gates_probe*` 这类不可能被真实内容
+ * 占用的名字，所以无论本次是不是我们建的，还原时都要删 —— 否则一次硬杀残留会让它永久
+ * 留在工作区（空目录 git 根本看不见，`git status` 干净也发现不了）。
+ * 删除用**非递归** rmdirSync：目录为空才删得掉；万一里面真有东西就告警留着，不递归删。
+ */
+const createDir = (dir) => {
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  return () => {
+    try {
+      rmdirSync(dir);
+    } catch (err) {
+      console.warn(`   ⚠️ 临时目录未删除（非空？请人工确认）：${dir}（${err.code}）`);
+    }
+  };
 };
 
 /** 在文件末尾追加（比改中部安全） */
@@ -57,11 +98,20 @@ export const FIXTURES = [
   {
     gate: 'check:views',
     why: 'src/views 下 .vue 与同名目录并存会让路由解析歧义',
-    prepare: () =>
-      createFile(
-        'src/views/Home.vue',
-        '<!-- gates-self-test 临时样本：与 src/views/Home/ 目录制造同名冲突 -->\n',
-      ),
+    // 落点用 `__gates_probe` 一对（.vue 文件 + 同名空目录），**不**借用真实目录：
+    // ① 不依赖仓库既有布局（原来借用 `src/views/Home/`，一旦仓库改名就静默失效）；
+    // ② 真实文件永远不会占用这个名字 → 被硬杀留下的残留一眼可辨（见文件头第 4 条）。
+    prepare: () => {
+      const removeFile = createFile(
+        'src/views/__gates_probe.vue',
+        '<!-- gates-self-test 临时样本：与同名目录制造冲突（用完即删） -->\n',
+      );
+      const removeDir = createDir('src/views/__gates_probe');
+      return () => {
+        removeFile();
+        removeDir();
+      };
+    },
   },
   {
     gate: 'check:structure',
