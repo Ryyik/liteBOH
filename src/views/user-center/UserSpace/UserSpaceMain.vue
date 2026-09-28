@@ -431,6 +431,7 @@ import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { uploadAvatarFile, removeAvatarByUrl } from '@/utils/api/avatar-storage.js';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import { useDebounce } from '@/composables/useDebounceThrottle';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
@@ -2894,38 +2895,13 @@ const uploadToSupabase = async (file) => {
 
     const oldAvatarUrl = avatarUrl.value;
 
-    const timestamp = Date.now();
-    const filePath = `${user.id}/avatar_${timestamp}.png`;
-
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, {
-      contentType: 'image/png',
-      cacheControl: '3600',
-    });
-
-    if (uploadError) throw uploadError;
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from('avatars').getPublicUrl(filePath);
-
-    const finalUrl = `${publicUrl}?t=${timestamp}`;
+    // 上传新头像（路径 / 破缓存参数 / bucket 约定见 utils/api/avatar-storage.js）
+    const { url: finalUrl, filePath } = await uploadAvatarFile(file, user.id);
     await updateProfileAvatar(user.id, finalUrl);
 
-    if (oldAvatarUrl) {
-      try {
-        const urlObj = new URL(oldAvatarUrl);
-        const pathParts = urlObj.pathname.split('/');
-        const avatarsIndex = pathParts.indexOf('avatars');
-        if (avatarsIndex !== -1) {
-          const oldFilePath = pathParts.slice(avatarsIndex + 1).join('/');
-          if (oldFilePath && oldFilePath !== filePath) {
-            await supabase.storage.from('avatars').remove([oldFilePath]);
-          }
-        }
-      } catch (e) {
-        logger.warn('user-space', '清理旧头像失败 (非致命错误):', e);
-      }
-    }
+    // 清理旧头像文件（非致命：失败只告警，不影响本次更新）
+    const cleanupError = await removeAvatarByUrl(oldAvatarUrl, { exclude: filePath });
+    if (cleanupError) logger.warn('user-space', '清理旧头像失败 (非致命错误):', cleanupError);
 
     await authStore.updateUserProfile({ avatar_url: finalUrl });
 

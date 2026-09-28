@@ -3,49 +3,130 @@
     <!-- 横屏左栏（电脑 + 平板横屏）：与我的空间共用同一组件与 navItems 单源，
          当前页无对应 tab → current-tab="others" 指示器隐藏；竖屏 / 手机横屏由
          side-rail.css 的媒体查询隐藏，不渲染任何可见内容 -->
-    <UserSpaceSideRail :nav-items="userSpaceNavItems" current-tab="others"
-      :has-unread-messages="railUnreadCount > 0" :unread-count="railUnreadCount"
-      :current-theme="currentTheme" :is-logged-in="isLoggedIn"
-      @nav-click="handleRailNavClick" @action="handleRailAction" />
+    <UserSpaceSideRail
+      :nav-items="userSpaceNavItems"
+      current-tab="others"
+      :has-unread-messages="railUnreadCount > 0"
+      :unread-count="railUnreadCount"
+      :current-theme="currentTheme"
+      :is-logged-in="isLoggedIn"
+      @nav-click="handleRailNavClick"
+      @action="handleRailAction"
+    />
     <UserCenterPageHeader title="" @back="goBack" />
-    <input type="file" ref="avatarInputRef" class="hidden-file-input" accept="image/*" @change="handleAvatarFileChange">
+    <input
+      type="file"
+      ref="avatarInputRef"
+      class="hidden-file-input"
+      accept="image/*"
+      @change="handleAvatarFileChange"
+    />
 
     <div v-if="loading" class="profile-skeleton-wrap" aria-hidden="true">
-      <section class="profile-hero-panel" style="border-radius: 20px; overflow: hidden;">
-        <div class="profile-cover-band" style="height: 148px; background: linear-gradient(90deg, #eef2f7 25%, #e6ebf2 50%, #eef2f7 75%); background-size: 200% 100%;"></div>
-        <div class="profile-hero-body" style="padding: 0 24px 18px; margin-top: -44px;">
+      <section class="profile-hero-panel" style="border-radius: 20px; overflow: hidden">
+        <div
+          class="profile-cover-band"
+          style="
+            height: 148px;
+            background: linear-gradient(90deg, #eef2f7 25%, #e6ebf2 50%, #eef2f7 75%);
+            background-size: 200% 100%;
+          "
+        ></div>
+        <div class="profile-hero-body" style="padding: 0 24px 18px; margin-top: -44px">
           <div class="profile-hero-avatar">
-            <div class="apple-avatar skeleton-item" style="width: 96px; height: 96px; border-radius: 50%;"></div>
+            <div
+              class="apple-avatar skeleton-item"
+              style="width: 96px; height: 96px; border-radius: 50%"
+            ></div>
           </div>
-          <div class="profile-hero-copy" style="padding-top: 48px; gap: 10px;">
-            <div class="skeleton-title skeleton-item" style="width: 140px; height: 22px; border-radius: 8px;"></div>
-            <div class="skeleton-line medium skeleton-item" style="width: 110px; height: 14px; border-radius: 999px;"></div>
-            <div class="skeleton-line long skeleton-item" style="width: 240px; height: 14px; border-radius: 999px;"></div>
-            <div class="skeleton-line short skeleton-item" style="width: 88px; height: 32px; border-radius: 999px; margin-top: 6px;"></div>
+          <div class="profile-hero-copy" style="padding-top: 48px; gap: 10px">
+            <div
+              class="skeleton-title skeleton-item"
+              style="width: 140px; height: 22px; border-radius: 8px"
+            ></div>
+            <div
+              class="skeleton-line medium skeleton-item"
+              style="width: 110px; height: 14px; border-radius: 999px"
+            ></div>
+            <div
+              class="skeleton-line long skeleton-item"
+              style="width: 240px; height: 14px; border-radius: 999px"
+            ></div>
+            <div
+              class="skeleton-line short skeleton-item"
+              style="width: 88px; height: 32px; border-radius: 999px; margin-top: 6px"
+            ></div>
           </div>
         </div>
-        <div style="margin: 0 24px 18px; padding-top: 16px; border-top: 1px solid rgba(15,23,42,0.06); display: flex; gap: 12px; justify-content: center;">
-          <span class="skeleton-item" style="width: 64px; height: 14px; border-radius: 999px;"></span>
-          <span class="skeleton-item" style="width: 64px; height: 14px; border-radius: 999px;"></span>
-          <span class="skeleton-item" style="width: 64px; height: 14px; border-radius: 999px;"></span>
+        <div
+          style="
+            margin: 0 24px 18px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(15, 23, 42, 0.06);
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+          "
+        >
+          <span
+            class="skeleton-item"
+            style="width: 64px; height: 14px; border-radius: 999px"
+          ></span>
+          <span
+            class="skeleton-item"
+            style="width: 64px; height: 14px; border-radius: 999px"
+          ></span>
+          <span
+            class="skeleton-item"
+            style="width: 64px; height: 14px; border-radius: 999px"
+          ></span>
         </div>
       </section>
-      <section class="profile-points-card-section" aria-hidden="true" style="opacity:0.7;">
+      <section class="profile-points-card-section" aria-hidden="true" style="opacity: 0.7">
         <div class="profile-points-card-head">
-          <span class="skeleton-item" style="width: 88px; height: 14px; border-radius: 999px;"></span>
-          <span class="skeleton-item" style="width: 72px; height: 28px; border-radius: 999px;"></span>
+          <span
+            class="skeleton-item"
+            style="width: 88px; height: 14px; border-radius: 999px"
+          ></span>
+          <span
+            class="skeleton-item"
+            style="width: 72px; height: 28px; border-radius: 999px"
+          ></span>
         </div>
         <div class="profile-points-card-wrap">
-          <div class="points-card skeleton-item" style="width:100%; max-width:420px; aspect-ratio:8/5; border-radius:18px;"></div>
+          <div
+            class="points-card skeleton-item"
+            style="width: 100%; max-width: 420px; aspect-ratio: 8/5; border-radius: 18px"
+          ></div>
         </div>
       </section>
-      <div class="profile-tabs" style="opacity: 0.6; pointer-events: none;">
-        <span class="tab-item" style="background: var(--surface);"><span class="skeleton-item" style="width: 40px; height: 12px; border-radius: 999px;"></span></span>
-        <span class="tab-item" style="background: var(--surface);"><span class="skeleton-item" style="width: 40px; height: 12px; border-radius: 999px;"></span></span>
-        <span class="tab-item" style="background: var(--surface);"><span class="skeleton-item" style="width: 40px; height: 12px; border-radius: 999px;"></span></span>
+      <div class="profile-tabs" style="opacity: 0.6; pointer-events: none">
+        <span class="tab-item" style="background: var(--surface)"
+          ><span
+            class="skeleton-item"
+            style="width: 40px; height: 12px; border-radius: 999px"
+          ></span
+        ></span>
+        <span class="tab-item" style="background: var(--surface)"
+          ><span
+            class="skeleton-item"
+            style="width: 40px; height: 12px; border-radius: 999px"
+          ></span
+        ></span>
+        <span class="tab-item" style="background: var(--surface)"
+          ><span
+            class="skeleton-item"
+            style="width: 40px; height: 12px; border-radius: 999px"
+          ></span
+        ></span>
       </div>
       <div class="profile-post-grid">
-        <div v-for="item in 6" :key="`profile-page-loading-${item}`" class="profile-post-card skeleton-item" style="height: 220px; border-radius: 16px;"></div>
+        <div
+          v-for="item in 6"
+          :key="`profile-page-loading-${item}`"
+          class="profile-post-card skeleton-item"
+          style="height: 220px; border-radius: 16px"
+        ></div>
       </div>
     </div>
 
@@ -56,68 +137,205 @@
 
     <div v-else class="profile-home-shell">
       <section class="profile-hero-panel">
-        <div class="profile-cover-band" :class="{ 'has-background-image': Boolean(profileBannerStyle?.backgroundImage) }" :style="profileBannerStyle">
+        <div
+          class="profile-cover-band"
+          :class="{ 'has-background-image': Boolean(profileBannerStyle?.backgroundImage) }"
+          :style="profileBannerStyle"
+        >
           <span class="profile-cover-glass" aria-hidden="true"></span>
         </div>
 
         <div class="profile-hero-body">
           <span class="boh-avatar-wrap">
-            <div class="apple-avatar-wrapper profile-hero-avatar" :class="{ clickable: isOwnProfile }" @click="isOwnProfile && handleAvatarClick()">
+            <div
+              class="apple-avatar-wrapper profile-hero-avatar"
+              :class="{ clickable: isOwnProfile }"
+              @click="isOwnProfile && handleAvatarClick()"
+            >
               <div v-if="profile.avatar_url" class="apple-avatar has-avatar">
-                <img :src="profile.avatar_url" alt="头像" class="avatar-img" loading="lazy">
+                <img :src="profile.avatar_url" alt="头像" class="avatar-img" loading="lazy" />
               </div>
-              <div v-else class="apple-avatar">{{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}</div>
+              <div v-else class="apple-avatar">
+                {{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}
+              </div>
               <div v-if="isOwnProfile && isUploadingAvatar" class="avatar-upload-spinner">
                 <div class="spinner-ring animate-upload-spin"></div>
               </div>
               <div v-if="isOwnProfile && showUploadSuccess" class="avatar-success-overlay">
-                <svg class="success-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                <svg
+                  class="success-icon"
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M20 6L9 17l-5-5"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
                 </svg>
               </div>
               <div v-if="isOwnProfile" class="avatar-edit-overlay">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                  />
                   <circle cx="12" cy="13" r="4" />
                 </svg>
               </div>
-            <span v-if="!isOwnProfile && profile.last_active_at && !profile.hide_online_status && !profile.hideOnlineStatus" class="avatar-online-indicator" :class="{ online: isUserOnline(profile) }" :title="formatOnlineStatusTooltip(profile)" aria-hidden="true"></span>
-          </div>
-            <span v-if="ownFrame" class="boh-avatar-frame"
-              :style="{ '--boh-avatar-frame-url': `url(${ownFrame.url})`, '--boh-avatar-frame-scale': String(ownFrame.scale) }"
-              aria-hidden="true"></span>
+              <span
+                v-if="
+                  !isOwnProfile &&
+                  profile.last_active_at &&
+                  !profile.hide_online_status &&
+                  !profile.hideOnlineStatus
+                "
+                class="avatar-online-indicator"
+                :class="{ online: isUserOnline(profile) }"
+                :title="formatOnlineStatusTooltip(profile)"
+                aria-hidden="true"
+              ></span>
+            </div>
+            <span
+              v-if="ownFrame"
+              class="boh-avatar-frame"
+              :style="{
+                '--boh-avatar-frame-url': `url(${ownFrame.url})`,
+                '--boh-avatar-frame-scale': String(ownFrame.scale),
+              }"
+              aria-hidden="true"
+            ></span>
           </span>
 
           <div class="profile-hero-copy">
             <div class="name-row profile-hero-name-row">
               <h1 class="profile-name" :class="nicknameClass">{{ profile.username }}</h1>
-              <span v-if="tierCode && tierCode !== 'free'" class="tier-badge" :class="`tier-${tierCode}`">{{ tierDisplayName }}</span>
-              <span class="level-badge" :title="`等级 ${levelInfo.level}`">Lv.{{ levelInfo.level }}</span>
+              <span
+                v-if="tierCode && tierCode !== 'free'"
+                class="tier-badge"
+                :class="`tier-${tierCode}`"
+                >{{ tierDisplayName }}</span
+              >
+              <span class="level-badge" :title="`等级 ${levelInfo.level}`"
+                >Lv.{{ levelInfo.level }}</span
+              >
             </div>
             <div class="profile-meta-row">
               <span class="profile-handle">@{{ profile.username }}</span>
-              <template v-if="!isOwnProfile && profile.last_active_at && !profile.hide_online_status && !profile.hideOnlineStatus">
-                <span class="profile-online-dot" :class="{ online: isUserOnline(profile) }" aria-hidden="true"></span>
-                <span class="profile-online-text" :class="{ online: isUserOnline(profile) }">{{ formatUserOnlineStatus(profile) }}</span>
+              <template
+                v-if="
+                  !isOwnProfile &&
+                  profile.last_active_at &&
+                  !profile.hide_online_status &&
+                  !profile.hideOnlineStatus
+                "
+              >
+                <span
+                  class="profile-online-dot"
+                  :class="{ online: isUserOnline(profile) }"
+                  aria-hidden="true"
+                ></span>
+                <span class="profile-online-text" :class="{ online: isUserOnline(profile) }">{{
+                  formatUserOnlineStatus(profile)
+                }}</span>
               </template>
             </div>
 
             <div class="profile-bio-wrap">
-              <p ref="bioRef" class="profile-bio" :class="{ clamped: !bioExpanded, expanded: bioExpanded }">{{ profile.bio || (isOwnProfile ? '点击编辑资料，向大家介绍一下自己吧。' : '还没有介绍。') }}</p>
-              <button v-if="bioHasOverflow" type="button" class="profile-bio-toggle" @click="toggleBio">{{ bioExpanded ? '收起' : '全文' }}</button>
+              <p
+                ref="bioRef"
+                class="profile-bio"
+                :class="{ clamped: !bioExpanded, expanded: bioExpanded }"
+              >
+                {{
+                  profile.bio ||
+                  (isOwnProfile ? '点击编辑资料，向大家介绍一下自己吧。' : '还没有介绍。')
+                }}
+              </p>
+              <button
+                v-if="bioHasOverflow"
+                type="button"
+                class="profile-bio-toggle"
+                @click="toggleBio"
+              >
+                {{ bioExpanded ? '收起' : '全文' }}
+              </button>
             </div>
 
             <div class="profile-hero-actions">
-              <button v-if="isOwnProfile" class="profile-edit-btn profile-edit-btn--primary" @click="openEditModal">编辑资料</button>
+              <button
+                v-if="isOwnProfile"
+                class="profile-edit-btn profile-edit-btn--primary"
+                @click="openEditModal"
+              >
+                编辑资料
+              </button>
               <template v-else-if="isLoggedIn">
-                <button class="profile-follow-btn" :class="{ 'is-following': followState.isFollowing, 'is-toggling': followState.toggling }" :disabled="followState.toggling" @click="handleToggleFollow">
-                  <svg v-if="!followState.isFollowing" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11v2"/><path d="M17 11v2"/></svg>
-                  <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
-                  {{ followState.toggling ? '处理中...' : (followState.isFollowing ? '已关注' : '关注') }}
+                <button
+                  class="profile-follow-btn"
+                  :class="{
+                    'is-following': followState.isFollowing,
+                    'is-toggling': followState.toggling,
+                  }"
+                  :disabled="followState.toggling"
+                  @click="handleToggleFollow"
+                >
+                  <svg
+                    v-if="!followState.isFollowing"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M20 8v6" />
+                    <path d="M23 11v2" />
+                    <path d="M17 11v2" />
+                  </svg>
+                  <svg
+                    v-else
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                  {{
+                    followState.toggling ? '处理中...' : followState.isFollowing ? '已关注' : '关注'
+                  }}
                 </button>
                 <button class="profile-message-btn" @click="openImpressionModal">发印象</button>
               </template>
-              <button v-else class="profile-follow-btn profile-follow-btn--ghost" @click="authStore.showLoginModal = true">关注</button>
+              <button
+                v-else
+                class="profile-follow-btn profile-follow-btn--ghost"
+                @click="authStore.showLoginModal = true"
+              >
+                关注
+              </button>
             </div>
           </div>
         </div>
@@ -145,164 +363,370 @@
         </div>
       </section>
 
-      <ActivityHeatmap :payload="activityHeatmap" :loading="isHeatmapLoading" :is-owner="isOwnProfile" />
+      <ActivityHeatmap
+        :payload="activityHeatmap"
+        :loading="isHeatmapLoading"
+        :is-owner="isOwnProfile"
+      />
 
       <!-- 横屏（≥1024）时积分卡与用户信息并排一行；窄屏 display:contents 布局隐形，节奏不变 -->
       <div class="profile-info-row">
-        <section class="profile-points-card-section" :class="{ 'is-own': isOwnProfile }" aria-label="方块积分卡">
-        <div class="profile-points-card-head">
-          <span class="profile-points-card-kicker">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-            方块积分卡
-            <span v-if="tierDisplayName" class="tier-badge" :class="`tier-${tierCode}`" style="margin-left: 4px; height: 18px; font-size: 9px; padding: 0 7px;">{{ tierDisplayName }}</span>
-          </span>
-          <button v-if="isOwnProfile" type="button" class="profile-points-card-action" @click="handlePointsCardClick">
-            设置卡面
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
-          </button>
-          <span v-else class="profile-points-card-hint" style="text-align:right; margin:0;">{{ pointsCardPoints.toLocaleString('zh-CN') }} 积分</span>
-        </div>
-        <div class="profile-points-card-wrap">
-          <PointsCard
-            :points="pointsCardPoints"
-            :username="profile.username || '未命名用户'"
-            :tier-label="tierDisplayName || 'BOH'"
-            :skin="pointsCardSkin"
-            :image-url="pointsCardImageUrl"
-            :interactive="isOwnProfile"
-            @click="handlePointsCardClick"
-          />
-        </div>
-        <p v-if="isOwnProfile" class="profile-points-card-hint">点击卡面去设置空白/小猫或自定义卡面</p>
-        <p v-else class="profile-points-card-hint">做任务、发帖与签到可获得积分</p>
-      </section>
+        <section
+          class="profile-points-card-section"
+          :class="{ 'is-own': isOwnProfile }"
+          aria-label="方块积分卡"
+        >
+          <div class="profile-points-card-head">
+            <span class="profile-points-card-kicker">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+              </svg>
+              方块积分卡
+              <span
+                v-if="tierDisplayName"
+                class="tier-badge"
+                :class="`tier-${tierCode}`"
+                style="margin-left: 4px; height: 18px; font-size: 9px; padding: 0 7px"
+                >{{ tierDisplayName }}</span
+              >
+            </span>
+            <button
+              v-if="isOwnProfile"
+              type="button"
+              class="profile-points-card-action"
+              @click="handlePointsCardClick"
+            >
+              设置卡面
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+            <span v-else class="profile-points-card-hint" style="text-align: right; margin: 0"
+              >{{ pointsCardPoints.toLocaleString('zh-CN') }} 积分</span
+            >
+          </div>
+          <div class="profile-points-card-wrap">
+            <PointsCard
+              :points="pointsCardPoints"
+              :username="profile.username || '未命名用户'"
+              :tier-label="tierDisplayName || 'BOH'"
+              :skin="pointsCardSkin"
+              :image-url="pointsCardImageUrl"
+              :interactive="isOwnProfile"
+              @click="handlePointsCardClick"
+            />
+          </div>
+          <p v-if="isOwnProfile" class="profile-points-card-hint">
+            点击卡面去设置空白/小猫或自定义卡面
+          </p>
+          <p v-else class="profile-points-card-hint">做任务、发帖与签到可获得积分</p>
+        </section>
 
-      <section class="profile-service-panel" aria-label="用户信息">        <button v-for="binding in creatorBindings" :key="binding.key" type="button" class="profile-service-row" @click="openCreatorBindingHomepage(binding)">
-          <span class="profile-service-icon bg-purple">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 3h7v7"></path>
-              <path d="M10 14L21 3"></path>
-              <path d="M21 14v7h-7"></path>
-              <path d="M3 10L14 21"></path>
-            </svg>
-          </span>
-          <span class="profile-service-body">
-            <strong>{{ binding.label }}{{ isOwnProfile && binding.visibility === 'private' ? '（私密）' : '' }}主页</strong>
-            <small>{{ binding.id }}</small>
-          </span>
-          <span class="profile-action-chevron">›</span>
-        </button>
-        <button type="button" class="profile-service-row" @click="setActiveTab('posts')">
-          <span class="profile-service-icon bg-blue">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-          </span>
-          <span class="profile-service-body">
-            <strong>{{ formatDate(profile.join_date) }} 加入</strong>
-            <small>加入社区的时间</small>
-          </span>
-          <span class="profile-action-chevron">›</span>
-        </button>
-        <button v-if="profile.join_date" type="button" class="profile-service-row" @click="setActiveTab('posts')">
-          <span class="profile-service-icon bg-teal">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-              <line x1="12" y1="22.08" x2="12" y2="12" />
-            </svg>
-          </span>
-          <span class="profile-service-body">
-            <strong>方块年龄 {{ calculateBlockAge(profile.join_date) }} 天</strong>
-            <small>在方块世界中度过的日子</small>
-          </span>
-          <span class="profile-action-chevron">›</span>
-        </button>
-        <div v-if="profile.birth_month && profile.birth_day" class="profile-service-row is-static">
-          <span class="profile-service-icon bg-pink">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
-              <path d="M4 16h16" />
-              <path d="M12 11V7" />
-              <path d="M12 7c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" />
-            </svg>
-          </span>
-          <span class="profile-service-body">
-            <strong>{{ profile.birth_month }}月{{ profile.birth_day }}日 生日</strong>
-            <small>每年都会收到祝福</small>
-          </span>
-        </div>
-      </section>
+        <section class="profile-service-panel" aria-label="用户信息">
+          <button
+            v-for="binding in creatorBindings"
+            :key="binding.key"
+            type="button"
+            class="profile-service-row"
+            @click="openCreatorBindingHomepage(binding)"
+          >
+            <span class="profile-service-icon bg-purple">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M14 3h7v7"></path>
+                <path d="M10 14L21 3"></path>
+                <path d="M21 14v7h-7"></path>
+                <path d="M3 10L14 21"></path>
+              </svg>
+            </span>
+            <span class="profile-service-body">
+              <strong
+                >{{ binding.label
+                }}{{
+                  isOwnProfile && binding.visibility === 'private' ? '（私密）' : ''
+                }}主页</strong
+              >
+              <small>{{ binding.id }}</small>
+            </span>
+            <span class="profile-action-chevron">›</span>
+          </button>
+          <button type="button" class="profile-service-row" @click="setActiveTab('posts')">
+            <span class="profile-service-icon bg-blue">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </span>
+            <span class="profile-service-body">
+              <strong>{{ formatDate(profile.join_date) }} 加入</strong>
+              <small>加入社区的时间</small>
+            </span>
+            <span class="profile-action-chevron">›</span>
+          </button>
+          <button
+            v-if="profile.join_date"
+            type="button"
+            class="profile-service-row"
+            @click="setActiveTab('posts')"
+          >
+            <span class="profile-service-icon bg-teal">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                />
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                <line x1="12" y1="22.08" x2="12" y2="12" />
+              </svg>
+            </span>
+            <span class="profile-service-body">
+              <strong>方块年龄 {{ calculateBlockAge(profile.join_date) }} 天</strong>
+              <small>在方块世界中度过的日子</small>
+            </span>
+            <span class="profile-action-chevron">›</span>
+          </button>
+          <div
+            v-if="profile.birth_month && profile.birth_day"
+            class="profile-service-row is-static"
+          >
+            <span class="profile-service-icon bg-pink">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
+                <path d="M4 16h16" />
+                <path d="M12 11V7" />
+                <path d="M12 7c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" />
+              </svg>
+            </span>
+            <span class="profile-service-body">
+              <strong>{{ profile.birth_month }}月{{ profile.birth_day }}日 生日</strong>
+              <small>每年都会收到祝福</small>
+            </span>
+          </div>
+        </section>
       </div>
 
       <div class="profile-tabs" role="tablist" aria-label="内容分类">
-        <button class="tab-item" :class="{ active: activeTab === 'posts' }" role="tab" :aria-selected="activeTab === 'posts'" @click="setActiveTab('posts')">
-          帖子 <span v-if="totalPostCount>0" class="tab-count">{{ totalPostCount }}</span> <div class="tab-indicator"></div>
+        <button
+          class="tab-item"
+          :class="{ active: activeTab === 'posts' }"
+          role="tab"
+          :aria-selected="activeTab === 'posts'"
+          @click="setActiveTab('posts')"
+        >
+          帖子 <span v-if="totalPostCount > 0" class="tab-count">{{ totalPostCount }}</span>
+          <div class="tab-indicator"></div>
         </button>
-        <button class="tab-item" :class="{ active: activeTab === 'replies' }" role="tab" :aria-selected="activeTab === 'replies'" @click="setActiveTab('replies')">
-          回复 <span v-if="comments.length>0" class="tab-count">{{ comments.length }}</span> <div class="tab-indicator"></div>
+        <button
+          class="tab-item"
+          :class="{ active: activeTab === 'replies' }"
+          role="tab"
+          :aria-selected="activeTab === 'replies'"
+          @click="setActiveTab('replies')"
+        >
+          回复 <span v-if="comments.length > 0" class="tab-count">{{ comments.length }}</span>
+          <div class="tab-indicator"></div>
         </button>
-        <button class="tab-item" :class="{ active: activeTab === 'impressions' }" role="tab" :aria-selected="activeTab === 'impressions'" @click="setActiveTab('impressions')">
-          印象 <span v-if="impressions.length>0" class="tab-count">{{ impressions.length }}</span> <div class="tab-indicator"></div>
+        <button
+          class="tab-item"
+          :class="{ active: activeTab === 'impressions' }"
+          role="tab"
+          :aria-selected="activeTab === 'impressions'"
+          @click="setActiveTab('impressions')"
+        >
+          印象 <span v-if="impressions.length > 0" class="tab-count">{{ impressions.length }}</span>
+          <div class="tab-indicator"></div>
         </button>
       </div>
 
       <div class="tab-content-list">
         <div v-if="activeTab === 'posts'" class="posts-list">
-          <section v-if="showcasePosts.length > 0 || (isOwnProfile && posts.length > 0)" class="profile-showcase-section">
+          <section
+            v-if="showcasePosts.length > 0 || (isOwnProfile && posts.length > 0)"
+            class="profile-showcase-section"
+          >
             <div class="showcase-header">
               <h3>代表作置顶</h3>
               <span>{{ showcasePosts.length }}/3</span>
             </div>
-            <p v-if="showcasePosts.length === 0" class="showcase-empty-tip">你还没有设置置顶帖子，点击帖子右上角的"置顶"即可展示代表作。</p>
+            <p v-if="showcasePosts.length === 0" class="showcase-empty-tip">
+              你还没有设置置顶帖子，点击帖子右上角的"置顶"即可展示代表作。
+            </p>
             <div v-else class="showcase-list">
-              <article v-for="post in showcasePosts" :key="`showcase-${post.id}`" class="showcase-item" @click="navigateToPost(post.id)">
+              <article
+                v-for="post in showcasePosts"
+                :key="`showcase-${post.id}`"
+                class="showcase-item"
+                @click="navigateToPost(post.id)"
+              >
                 <div class="showcase-item-header">
                   <h4>{{ post.title || '无标题' }}</h4>
-                  <button v-if="isOwnProfile" class="showcase-unpin-btn" @click.stop="toggleShowcasePost(post)">取消置顶</button>
+                  <button
+                    v-if="isOwnProfile"
+                    class="showcase-unpin-btn"
+                    @click.stop="toggleShowcasePost(post)"
+                  >
+                    取消置顶
+                  </button>
                 </div>
                 <p>{{ post.content }}</p>
               </article>
             </div>
           </section>
 
-          <div v-if="isTabLoading.posts && posts.length === 0" class="profile-post-grid" aria-hidden="true">
-            <div v-for="item in 4" :key="`posts-loading-${item}`" class="profile-post-card" style="padding:0; overflow:hidden;">
-              <div class="profile-skeleton-block" style="height:160px; background:#eef2f7;"></div>
-              <div style="padding:14px 16px 16px; display:flex; flex-direction:column; gap:10px;">
-                <div class="profile-skeleton-block" style="height:16px; width:70%; border-radius:999px;"></div>
-                <div class="profile-skeleton-block" style="height:12px; width:90%; border-radius:999px;"></div>
-                <div class="profile-skeleton-block" style="height:12px; width:60%; border-radius:999px;"></div>
+          <div
+            v-if="isTabLoading.posts && posts.length === 0"
+            class="profile-post-grid"
+            aria-hidden="true"
+          >
+            <div
+              v-for="item in 4"
+              :key="`posts-loading-${item}`"
+              class="profile-post-card"
+              style="padding: 0; overflow: hidden"
+            >
+              <div class="profile-skeleton-block" style="height: 160px; background: #eef2f7"></div>
+              <div
+                style="padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px"
+              >
+                <div
+                  class="profile-skeleton-block"
+                  style="height: 16px; width: 70%; border-radius: 999px"
+                ></div>
+                <div
+                  class="profile-skeleton-block"
+                  style="height: 12px; width: 90%; border-radius: 999px"
+                ></div>
+                <div
+                  class="profile-skeleton-block"
+                  style="height: 12px; width: 60%; border-radius: 999px"
+                ></div>
               </div>
             </div>
           </div>
           <div v-else-if="posts.length === 0" class="empty-list-state">
             <h3>暂无发布过的帖子</h3>
             <p>发布的帖子会出现在这里。</p>
-            <button v-if="isOwnProfile" class="empty-action-btn" @click="showPostModal = true">立即发帖</button>
-            <button v-else class="empty-action-btn" @click="router.push('/user-space?tab=community')">去方块社区看看</button>
+            <button v-if="isOwnProfile" class="empty-action-btn" @click="showPostModal = true">
+              立即发帖
+            </button>
+            <button
+              v-else
+              class="empty-action-btn"
+              @click="router.push('/user-space?tab=community')"
+            >
+              去方块社区看看
+            </button>
           </div>
           <div v-else class="profile-post-grid">
-            <article v-for="(post, index) in posts" :key="post.id" class="profile-post-card"
-              :class="{ 'text-only': !post.images?.length, 'image-post-card-v2': post.images?.length }"
+            <article
+              v-for="(post, index) in posts"
+              :key="post.id"
+              class="profile-post-card"
+              :class="{
+                'text-only': !post.images?.length,
+                'image-post-card-v2': post.images?.length,
+              }"
               :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
-              @click="navigateToPost(post.id)">
+              @click="navigateToPost(post.id)"
+            >
               <div v-if="isOwnProfile" class="profile-post-pin-action">
-                <button class="pin-post-btn" @click.stop="toggleShowcasePost(post)" :disabled="!isShowcasedPost(post.id) && showcasePosts.length >= 3">
+                <button
+                  class="pin-post-btn"
+                  @click.stop="toggleShowcasePost(post)"
+                  :disabled="!isShowcasedPost(post.id) && showcasePosts.length >= 3"
+                >
                   {{ isShowcasedPost(post.id) ? '已置顶' : '置顶' }}
                 </button>
               </div>
-              <figure v-if="isHomeCatActive" class="post-card-theme-cat" :class="getPostCardCatVariant(index)" aria-hidden="true">
-                <img :src="getPostCardCatSrc(post, index)" alt="" draggable="false" loading="lazy" />
+              <figure
+                v-if="isHomeCatActive"
+                class="post-card-theme-cat"
+                :class="getPostCardCatVariant(index)"
+                aria-hidden="true"
+              >
+                <img
+                  :src="getPostCardCatSrc(post, index)"
+                  alt=""
+                  draggable="false"
+                  loading="lazy"
+                />
               </figure>
-              <figure v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)" class="post-card-background-cat" aria-hidden="true">
-                <img :src="getPostBackgroundCatSrc(post, index)" alt="" draggable="false" loading="lazy" />
+              <figure
+                v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
+                class="post-card-background-cat"
+                aria-hidden="true"
+              >
+                <img
+                  :src="getPostBackgroundCatSrc(post, index)"
+                  alt=""
+                  draggable="false"
+                  loading="lazy"
+                />
               </figure>
               <div class="profile-post-cover" v-if="getProfilePostCover(post)">
-                <img :src="getProfilePostCover(post)" :alt="post.title || '帖子封面'" loading="lazy" decoding="async" />
+                <img
+                  :src="getProfilePostCover(post)"
+                  :alt="post.title || '帖子封面'"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
               <div class="profile-post-copy">
                 <h3>{{ post.title || '无标题' }}</h3>
@@ -323,8 +747,16 @@
         </div>
 
         <div v-if="activeTab === 'replies'" class="profile-replies-list">
-          <div v-if="isTabLoading.replies && comments.length === 0" class="profile-feed-skeleton" aria-hidden="true">
-            <div v-for="item in 3" :key="`replies-loading-${item}`" class="profile-feed-skeleton-item">
+          <div
+            v-if="isTabLoading.replies && comments.length === 0"
+            class="profile-feed-skeleton"
+            aria-hidden="true"
+          >
+            <div
+              v-for="item in 3"
+              :key="`replies-loading-${item}`"
+              class="profile-feed-skeleton-item"
+            >
               <div class="profile-skeleton-block profile-feed-avatar"></div>
               <div class="profile-feed-skeleton-body">
                 <div class="profile-skeleton-block profile-feed-line name"></div>
@@ -337,41 +769,74 @@
           <div v-else-if="comments.length === 0" class="empty-list-state">
             <h3>暂无回复</h3>
             <p>对他人的回复会出现在这里。</p>
-            <button class="empty-action-btn" @click="router.push('/user-space?tab=community')">去方块社区互动</button>
+            <button class="empty-action-btn" @click="router.push('/user-space?tab=community')">
+              去方块社区互动
+            </button>
           </div>
           <div v-else class="replies-list">
             <article v-for="comment in comments" :key="comment.id" class="feed-item reply-item">
               <div class="item-avatar">
                 <div class="avatar-mini">
-                  <img v-if="comment.author?.avatar_url" :src="comment.author.avatar_url" alt="avatar" class="avatar-mini-img" loading="lazy" decoding="async" />
-                  <span v-else>{{ comment.author?.username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+                  <img
+                    v-if="comment.author?.avatar_url"
+                    :src="comment.author.avatar_url"
+                    alt="avatar"
+                    class="avatar-mini-img"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span v-else>{{
+                    comment.author?.username?.charAt(0)?.toUpperCase?.() || 'U'
+                  }}</span>
                 </div>
               </div>
               <div class="item-main">
                 <div class="item-header">
-                  <span class="item-author" :class="commentTierMap[comment.author_id]">{{ comment.author?.username || '用户' }}</span>
-                  <span class="item-handle">@{{ comment.author?.username || '未知' }} · {{ formatTime(comment.created_at) }}</span>
+                  <span class="item-author" :class="commentTierMap[comment.author_id]">{{
+                    comment.author?.username || '用户'
+                  }}</span>
+                  <span class="item-handle"
+                    >@{{ comment.author?.username || '未知' }} ·
+                    {{ formatTime(comment.created_at) }}</span
+                  >
                 </div>
                 <div class="replying-to" v-if="comment.post">
-                  回复 <span class="mention">@{{ comment.post?.author_username || '未知用户' }}</span>
+                  回复
+                  <span class="mention">@{{ comment.post?.author_username || '未知用户' }}</span>
                 </div>
                 <div class="item-text">{{ comment.content }}</div>
-                <div class="quoted-post" v-if="comment.post" @click="navigateToPost(comment.post_id)">
+                <div
+                  class="quoted-post"
+                  v-if="comment.post"
+                  @click="navigateToPost(comment.post_id)"
+                >
                   <p class="quoted-text">{{ comment.post.content?.substring(0, 100) }}...</p>
                 </div>
               </div>
             </article>
           </div>
           <div v-if="comments.length > 0 && hasMoreComments" class="list-load-more-wrap">
-            <button class="load-more-btn" :disabled="isTabLoading.replies" @click="loadMoreComments">
+            <button
+              class="load-more-btn"
+              :disabled="isTabLoading.replies"
+              @click="loadMoreComments"
+            >
               {{ isTabLoading.replies ? '加载中...' : '加载更多回复' }}
             </button>
           </div>
         </div>
 
         <div v-if="activeTab === 'impressions'" class="impressions-list-tab">
-          <div v-if="isTabLoading.impressions && impressions.length === 0" class="profile-feed-skeleton" aria-hidden="true">
-            <div v-for="item in 3" :key="`impression-loading-${item}`" class="profile-feed-skeleton-item">
+          <div
+            v-if="isTabLoading.impressions && impressions.length === 0"
+            class="profile-feed-skeleton"
+            aria-hidden="true"
+          >
+            <div
+              v-for="item in 3"
+              :key="`impression-loading-${item}`"
+              class="profile-feed-skeleton-item"
+            >
               <div class="profile-skeleton-block profile-feed-line name"></div>
               <div class="profile-skeleton-block profile-feed-line text"></div>
               <div class="profile-skeleton-block profile-feed-line short"></div>
@@ -385,42 +850,78 @@
             <WordCloud :words="wordCloudData" :height="200" />
           </div>
           <div v-if="!isOwnProfile && isLoggedIn" class="add-impression-section">
-            <textarea v-model="newImpressionContent" placeholder="写下你对 TA 的印象..." rows="3" maxlength="100"></textarea>
+            <textarea
+              v-model="newImpressionContent"
+              placeholder="写下你对 TA 的印象..."
+              rows="3"
+              maxlength="100"
+            ></textarea>
             <div class="add-imp-actions">
               <span class="char-hint">{{ newImpressionContent.length }}/100</span>
-              <button class="submit-imp-btn" :disabled="!newImpressionContent.trim() || submittingImpression" @click="handleSubmitImpression">
+              <button
+                class="submit-imp-btn"
+                :disabled="!newImpressionContent.trim() || submittingImpression"
+                @click="handleSubmitImpression"
+              >
                 {{ submittingImpression ? '发布中...' : '发布印象' }}
               </button>
             </div>
           </div>
-          <div v-if="!isTabLoading.impressions && impressions.length === 0" class="empty-list-state">
-            <EmptyState variant="inbox" title="暂无他人印象" :description="`关于 ${profile.username} 的印象会出现在这里。`" />
+          <div
+            v-if="!isTabLoading.impressions && impressions.length === 0"
+            class="empty-list-state"
+          >
+            <EmptyState
+              variant="inbox"
+              title="暂无他人印象"
+              :description="`关于 ${profile.username} 的印象会出现在这里。`"
+            />
           </div>
           <div v-if="impressions.length > 0" class="impressions-wall-profile">
-            <div v-for="(imp, index) in impressions" :key="imp.id" class="impression-card-profile"
-              :style="{ '--stagger-delay': `${Math.min(index, 8) * 55}ms` }">
+            <div
+              v-for="(imp, index) in impressions"
+              :key="imp.id"
+              class="impression-card-profile"
+              :style="{ '--stagger-delay': `${Math.min(index, 8) * 55}ms` }"
+            >
               <span class="imp-quote-mark" aria-hidden="true">"</span>
               <p class="imp-text">{{ imp.content }}</p>
               <div class="imp-footer">
                 <span class="imp-author-chip" @click="goToProfileRoute(imp.author?.username)">
                   <span class="imp-avatar" aria-hidden="true">
-                    <img v-if="getAvatarUrl(imp.author?.avatar_url, 'sm')" :src="getAvatarUrl(imp.author?.avatar_url, 'sm')"
-                      :alt="`${imp.author?.username || '匿名'} 的头像`" loading="lazy" decoding="async" />
+                    <img
+                      v-if="getAvatarUrl(imp.author?.avatar_url, 'sm')"
+                      :src="getAvatarUrl(imp.author?.avatar_url, 'sm')"
+                      :alt="`${imp.author?.username || '匿名'} 的头像`"
+                      loading="lazy"
+                      decoding="async"
+                    />
                     <i v-else>{{ (imp.author?.username || '匿').charAt(0).toUpperCase() }}</i>
                   </span>
                   <span class="imp-author-meta">
-                    <span class="imp-author" :class="impressionTierMap[imp.author_id]">@{{ imp.author?.username || '匿名' }}</span>
+                    <span class="imp-author" :class="impressionTierMap[imp.author_id]"
+                      >@{{ imp.author?.username || '匿名' }}</span
+                    >
                     <span class="imp-date">{{ formatTime(imp.created_at) }}</span>
                   </span>
                 </span>
-                <button v-if="canDeleteImpression(imp)" class="delete-imp-btn" aria-label="删除这条印象" @click="handleDeleteImpression(imp)">
+                <button
+                  v-if="canDeleteImpression(imp)"
+                  class="delete-imp-btn"
+                  aria-label="删除这条印象"
+                  @click="handleDeleteImpression(imp)"
+                >
                   <Trash2 :size="14" :stroke-width="2" />
                 </button>
               </div>
             </div>
           </div>
           <div v-if="impressions.length > 0 && hasMoreImpressions" class="list-load-more-wrap">
-            <button class="load-more-btn" :disabled="isTabLoading.impressions" @click="loadMoreImpressions">
+            <button
+              class="load-more-btn"
+              :disabled="isTabLoading.impressions"
+              @click="loadMoreImpressions"
+            >
               {{ isTabLoading.impressions ? '加载中...' : '加载更多印象' }}
             </button>
           </div>
@@ -438,13 +939,38 @@
       @show-alert="(type, title, message) => showAlert(type, title, message)"
     />
 
-    <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title" :message="alertState.message" />
+    <CommonAlertModal
+      v-model:visible="alertState.visible"
+      :type="alertState.type"
+      :title="alertState.title"
+      :message="alertState.message"
+    />
 
-    <AvatarCropModal v-model:visible="showCropModal" :image-src="cropImageSrc" :loading="isProcessingCrop" @confirm="handleCropConfirm" />
+    <AvatarCropModal
+      v-model:visible="showCropModal"
+      :image-src="cropImageSrc"
+      :loading="isProcessingCrop"
+      @confirm="handleCropConfirm"
+    />
 
-    <PostCreateModal :show="showPostModal" :submitting="isSubmittingPost" @close="showPostModal = false" @submit="handleCreatePost" />
+    <PostCreateModal
+      :show="showPostModal"
+      :submitting="isSubmittingPost"
+      @close="showPostModal = false"
+      @submit="handleCreatePost"
+    />
 
-    <FollowListModal :show="followModal.show" :title="followModal.type === 'followers' ? '粉丝' : '关注'" :users="followModal.users" :loading="followModal.loading" :loading-more="followModal.loadingMore" :has-more="followModal.hasMore" :empty-text="followModal.type === 'followers' ? '暂无粉丝' : '暂未关注任何人'" @close="followModal.show = false" @load-more="handleFollowListLoadMore" />
+    <FollowListModal
+      :show="followModal.show"
+      :title="followModal.type === 'followers' ? '粉丝' : '关注'"
+      :users="followModal.users"
+      :loading="followModal.loading"
+      :loading-more="followModal.loadingMore"
+      :has-more="followModal.hasMore"
+      :empty-text="followModal.type === 'followers' ? '暂无粉丝' : '暂未关注任何人'"
+      @close="followModal.show = false"
+      @load-more="handleFollowListLoadMore"
+    />
   </div>
 </template>
 
@@ -478,6 +1004,7 @@ import PostCreateModal from './components/PostCreateModal.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
 import ActivityHeatmap from '@/views/user-center/UserSpace/components/ActivityHeatmap.vue';
 import { supabase } from '@/utils/supabase-client.js';
+import { uploadAvatarFile, removeAvatarByUrl } from '@/utils/api/avatar-storage.js';
 import {
   getProfileByUsername,
   getPostsByUsername,
@@ -492,10 +1019,10 @@ import {
   isFollowing,
   getFollowCounts,
   getFollowers,
-  getFollowing
+  getFollowing,
 } from '@/utils/api/profile-api.js';
 import { createPost, toggleLike } from '@/utils/api/forum-api.js';
-import { getCloudinaryDisplayUrl } from '@/utils/cloudinary-client.js'
+import { getCloudinaryDisplayUrl } from '@/utils/cloudinary-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme, getHomeCatAsset, getHomeCatTypeBySeed } from '@/utils/home-cat-theme.js';
 import { formatSmartTime } from '@/utils/time.js';
@@ -507,7 +1034,7 @@ import {
   buildCreatorPlatformJumpUrl,
   CREATOR_PLATFORM_KEYS,
   creatorPlatformsMeta,
-  normalizeCreatorPlatformIds
+  normalizeCreatorPlatformIds,
 } from './creatorPlatforms.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import FollowListModal from '@/components/FollowListModal.vue';
@@ -540,7 +1067,9 @@ const normalizeCreatorPlatformVisibility = (raw, availableKeys = CREATOR_PLATFOR
   const keySet = new Set(availableKeys);
   for (const key of CREATOR_PLATFORM_KEYS) {
     if (!keySet.has(key)) continue;
-    const value = String(raw[key] || '').trim().toLowerCase();
+    const value = String(raw[key] || '')
+      .trim()
+      .toLowerCase();
     normalized[key] = CREATOR_VISIBILITY_VALUES.has(value) ? value : 'public';
   }
   return normalized;
@@ -599,7 +1128,7 @@ const ownProfileSnapshot = ref({
   creator_platform_order: [],
   showcase_post_ids: [],
   profile_background_url: '',
-  id: ''
+  id: '',
 });
 const profileFetchVersion = ref(0);
 const PROFILE_PAGE_SIZE = 15;
@@ -617,12 +1146,12 @@ const activeTab = ref('posts');
 const isTabLoading = reactive({
   posts: false,
   replies: false,
-  impressions: false
+  impressions: false,
 });
 const tabLoaded = reactive({
   posts: false,
   replies: false,
-  impressions: false
+  impressions: false,
 });
 /** 活跃热力图原始 payload（RPC 返回值）；未就绪时保持 null，组件内部退化成空态 */
 const activityHeatmap = ref(null);
@@ -643,23 +1172,29 @@ const profile = computed(() => {
 });
 
 // 主页大头像佩戴框：自己走本地佩戴状态（即换即见）；他人走 profiles.avatar_frame_url 数据反查
-const ownFrame = computed(() => (
+const ownFrame = computed(() =>
   isOwnProfile.value
     ? resolveFrameForAuthor('', userInfo.value?.id)
-    : resolveFrameForAuthor(profile.value?.avatar_frame_url, profile.value?.id)
-));
+    : resolveFrameForAuthor(profile.value?.avatar_frame_url, profile.value?.id),
+);
 
 const { fetchUserTier, fetchUserTiersBatch, getNicknameClass, getUserTierCode } = useUserTier();
 const nicknameClass = ref('');
 const tierCode = ref('');
 const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
-const pointsCardPoints = computed(() => isOwnProfile.value ? Number(userInfo.value.points || 0) : Number(profile.value?.points || 0));
+const pointsCardPoints = computed(() =>
+  isOwnProfile.value ? Number(userInfo.value.points || 0) : Number(profile.value?.points || 0),
+);
 const pointsCardSkin = computed(() => {
-  const raw = isOwnProfile.value ? userInfo.value.pointsCardSkin : (profile.value?.points_card_skin || profile.value?.pointsCardSkin);
+  const raw = isOwnProfile.value
+    ? userInfo.value.pointsCardSkin
+    : profile.value?.points_card_skin || profile.value?.pointsCardSkin;
   return ['blank', 'cats', 'custom'].includes(String(raw)) ? String(raw) : 'blank';
 });
 const pointsCardImageUrl = computed(() => {
-  const raw = isOwnProfile.value ? userInfo.value.pointsCardImageUrl : (profile.value?.points_card_image_url || profile.value?.pointsCardImageUrl);
+  const raw = isOwnProfile.value
+    ? userInfo.value.pointsCardImageUrl
+    : profile.value?.points_card_image_url || profile.value?.pointsCardImageUrl;
   return String(raw || '').trim();
 });
 const handlePointsCardClick = () => {
@@ -667,37 +1202,45 @@ const handlePointsCardClick = () => {
     router.push('/user-space?tab=assets');
   }
 };
-watch(() => profile.value?.id, async (id) => {
-  if (id) {
-    await fetchUserTier(id);
-    nicknameClass.value = getNicknameClass(id);
-    tierCode.value = getUserTierCode(id);
-  } else {
-    nicknameClass.value = '';
-    tierCode.value = '';
-  }
-}, { immediate: true });
+watch(
+  () => profile.value?.id,
+  async (id) => {
+    if (id) {
+      await fetchUserTier(id);
+      nicknameClass.value = getNicknameClass(id);
+      tierCode.value = getUserTierCode(id);
+    } else {
+      nicknameClass.value = '';
+      tierCode.value = '';
+    }
+  },
+  { immediate: true },
+);
 
 const commentTierMap = useTierMap(
   () => {
     const ids = new Set();
-    (comments.value || []).forEach((c) => { if (c?.author_id) ids.add(c.author_id); });
+    (comments.value || []).forEach((c) => {
+      if (c?.author_id) ids.add(c.author_id);
+    });
     return [...ids];
   },
   getNicknameClass,
   fetchUserTier,
-  fetchUserTiersBatch
+  fetchUserTiersBatch,
 );
 
 const impressionTierMap = useTierMap(
   () => {
     const ids = new Set();
-    (impressions.value || []).forEach((imp) => { if (imp?.author_id) ids.add(imp.author_id); });
+    (impressions.value || []).forEach((imp) => {
+      if (imp?.author_id) ids.add(imp.author_id);
+    });
     return [...ids];
   },
   getNicknameClass,
   fetchUserTier,
-  fetchUserTiersBatch
+  fetchUserTiersBatch,
 );
 
 const profileBannerStyle = computed(() => {
@@ -708,7 +1251,7 @@ const profileBannerStyle = computed(() => {
   return {
     backgroundImage: `url("${displayUrl.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}")`,
     backgroundSize: 'cover',
-    backgroundPosition: 'center'
+    backgroundPosition: 'center',
   };
 });
 
@@ -716,21 +1259,23 @@ const creatorBindings = computed(() => {
   const normalized = normalizeCreatorPlatformIds(profile.value?.creator_platform_ids);
   const normalizedVisibility = normalizeCreatorPlatformVisibility(
     profile.value?.creator_platform_visibility,
-    Object.keys(normalized)
+    Object.keys(normalized),
   );
   const normalizedOrder = normalizeCreatorPlatformOrder(
     profile.value?.creator_platform_order,
-    Object.keys(normalized)
+    Object.keys(normalized),
   );
 
-  const ordered = normalizedOrder.map((key) => creatorPlatformsMeta.find((platform) => platform.key === key)).filter(Boolean);
+  const ordered = normalizedOrder
+    .map((key) => creatorPlatformsMeta.find((platform) => platform.key === key))
+    .filter(Boolean);
   return creatorPlatformsMeta
     .filter((platform) => normalized[platform.key])
     .map((platform) => ({
       key: platform.key,
       label: platform.label,
       id: normalized[platform.key],
-      visibility: normalizedVisibility[platform.key] || 'public'
+      visibility: normalizedVisibility[platform.key] || 'public',
     }))
     .sort((a, b) => {
       const indexA = ordered.findIndex((item) => item.key === a.key);
@@ -743,17 +1288,131 @@ const creatorBindings = computed(() => {
 const formatTime = formatSmartTime;
 
 const stopWords = new Set([
-  '的', '了', '是', '在', '我', '有', '和', '就', '不', '人', '都', '一', '一个',
-  '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好',
-  '自己', '这', '那', '他', '她', '它', '们', '这个', '那个', '什么', '怎么',
-  '为什么', '哪', '哪里', '哪个', '如何', '但', '但是', '而', '而且', '或', '或者',
-  '因为', '所以', '如果', '虽然', '可以', '可能', '应该', '能', '能够', '还',
-  '还是', '只', '只是', '只有', '就是', '不是', '没', '真的', '非常', '太',
-  '更', '最', '比较', '相当', '特别', '十分', '有点', '一些', '一点', '很多',
-  '许多', '这样', '那样', '怎样', '多么', '多少', '几', '第', '让', '把', '被',
-  '给', '向', '从', '对', '与', '及', '等', '等等', '之', '其', '此', '彼',
-  '啊', '呢', '吧', '吗', '呀', '哦', '嗯', '哈', '呵', '嘿', '哎', '唉',
-  '哇', '噢', '咦', '嘘', '哼', '嘛', '罢', '啦', '嘞', '喽', '咯', '咧'
+  '的',
+  '了',
+  '是',
+  '在',
+  '我',
+  '有',
+  '和',
+  '就',
+  '不',
+  '人',
+  '都',
+  '一',
+  '一个',
+  '上',
+  '也',
+  '很',
+  '到',
+  '说',
+  '要',
+  '去',
+  '你',
+  '会',
+  '着',
+  '没有',
+  '看',
+  '好',
+  '自己',
+  '这',
+  '那',
+  '他',
+  '她',
+  '它',
+  '们',
+  '这个',
+  '那个',
+  '什么',
+  '怎么',
+  '为什么',
+  '哪',
+  '哪里',
+  '哪个',
+  '如何',
+  '但',
+  '但是',
+  '而',
+  '而且',
+  '或',
+  '或者',
+  '因为',
+  '所以',
+  '如果',
+  '虽然',
+  '可以',
+  '可能',
+  '应该',
+  '能',
+  '能够',
+  '还',
+  '还是',
+  '只',
+  '只是',
+  '只有',
+  '就是',
+  '不是',
+  '没',
+  '真的',
+  '非常',
+  '太',
+  '更',
+  '最',
+  '比较',
+  '相当',
+  '特别',
+  '十分',
+  '有点',
+  '一些',
+  '一点',
+  '很多',
+  '许多',
+  '这样',
+  '那样',
+  '怎样',
+  '多么',
+  '多少',
+  '几',
+  '第',
+  '让',
+  '把',
+  '被',
+  '给',
+  '向',
+  '从',
+  '对',
+  '与',
+  '及',
+  '等',
+  '等等',
+  '之',
+  '其',
+  '此',
+  '彼',
+  '啊',
+  '呢',
+  '吧',
+  '吗',
+  '呀',
+  '哦',
+  '嗯',
+  '哈',
+  '呵',
+  '嘿',
+  '哎',
+  '唉',
+  '哇',
+  '噢',
+  '咦',
+  '嘘',
+  '哼',
+  '嘛',
+  '罢',
+  '啦',
+  '嘞',
+  '喽',
+  '咯',
+  '咧',
 ]);
 
 const segmentText = (text) => {
@@ -812,7 +1471,7 @@ const wordCloudData = computed(() => {
 
   const sortedWords = Array.from(wordCount.entries())
     .map(([text, count]) => ({ text, count }))
-    .filter(item => item.count >= 1 && item.text.length >= 2)
+    .filter((item) => item.count >= 1 && item.text.length >= 2)
     .sort((a, b) => b.count - a.count);
 
   const filtered = [];
@@ -857,7 +1516,7 @@ const getProfilePostCover = (post = {}) => {
 
 const getProfilePostSummary = (post = {}) => {
   const body = normalizeProfileText(post.content || post.body, '');
-  return body.length > 88 ? `${body.slice(0, 88)}...` : (body || '暂无正文');
+  return body.length > 88 ? `${body.slice(0, 88)}...` : body || '暂无正文';
 };
 
 const formatProfilePostDate = (post = {}) => {
@@ -874,7 +1533,9 @@ const formatProfilePostDate = (post = {}) => {
 // 等级信息计算
 const levelInfo = computed(() => getLevelInfo(profile.value.experience || 0));
 
-const normalizedShowcaseIds = computed(() => normalizeShowcasePostIds(profile.value?.showcase_post_ids));
+const normalizedShowcaseIds = computed(() =>
+  normalizeShowcasePostIds(profile.value?.showcase_post_ids),
+);
 const showcasePostsById = computed(() => {
   const map = new Map();
   for (const post of showcasePostsFetched.value) {
@@ -887,9 +1548,8 @@ const showcasePostsById = computed(() => {
   }
   return map;
 });
-const showcasePostsOrdered = computed(() => normalizedShowcaseIds.value
-  .map((id) => showcasePostsById.value.get(id))
-  .filter(Boolean)
+const showcasePostsOrdered = computed(() =>
+  normalizedShowcaseIds.value.map((id) => showcasePostsById.value.get(id)).filter(Boolean),
 );
 const showcasePosts = computed(() => showcasePostsOrdered.value);
 
@@ -923,14 +1583,16 @@ const alertState = reactive({
   visible: false,
   type: 'success',
   title: '',
-  message: ''
+  message: '',
 });
 
 const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
 
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
-const isHomeCatActive = computed(() => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value));
+const isHomeCatActive = computed(
+  () => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value),
+);
 
 const getPostCardCatType = (index, post) => {
   if (post?.isLiked || Number(post?.like_count || 0) >= 8) return 'like';
@@ -1002,7 +1664,7 @@ const followState = reactive({
   followersCount: 0,
   followingCount: 0,
   toggling: false,
-  loaded: false
+  loaded: false,
 });
 
 const loadFollowState = async (profileUserId) => {
@@ -1060,7 +1722,7 @@ const followModal = reactive({
   loading: false,
   loadingMore: false,
   hasMore: false,
-  page: 1
+  page: 1,
 });
 
 const isLikeSubmitting = reactive({});
@@ -1101,7 +1763,9 @@ const handleToggleLike = async (post) => {
     notify('点赞失败，请检查网络连接', 'error');
   } finally {
     clearTimeout(likeSubmitTimers[post.id]);
-    likeSubmitTimers[post.id] = setTimeout(() => { isLikeSubmitting[post.id] = false; }, 300);
+    likeSubmitTimers[post.id] = setTimeout(() => {
+      isLikeSubmitting[post.id] = false;
+    }, 300);
   }
 };
 
@@ -1112,7 +1776,9 @@ const handleSharePost = async (post) => {
     await navigator.clipboard.writeText(url);
     isShareCopied.value = true;
     clearTimeout(shareCopyTimer);
-    shareCopyTimer = setTimeout(() => { isShareCopied.value = false; }, 2000);
+    shareCopyTimer = setTimeout(() => {
+      isShareCopied.value = false;
+    }, 2000);
   } catch {
     notify('复制失败，请手动复制链接', 'warning');
   }
@@ -1141,7 +1807,7 @@ const loadFollowListPage = async ({ reset = false } = {}) => {
     const pageToLoad = reset ? 1 : followModal.page;
     const loadFn = followModal.type === 'followers' ? getFollowers : getFollowing;
     const res = await loadFn(profileId, { page: pageToLoad, pageSize: 20 });
-    const incoming = res.error ? [] : (res.data || []);
+    const incoming = res.error ? [] : res.data || [];
     if (reset) {
       followModal.users = incoming;
     } else {
@@ -1176,11 +1842,11 @@ const syncOwnProfileSnapshot = () => {
     creator_platform_ids: normalizeCreatorPlatformIds(userInfo.value.creatorPlatformIds),
     creator_platform_visibility: normalizeCreatorPlatformVisibility(
       userInfo.value.creatorPlatformVisibility,
-      Object.keys(normalizeCreatorPlatformIds(userInfo.value.creatorPlatformIds))
+      Object.keys(normalizeCreatorPlatformIds(userInfo.value.creatorPlatformIds)),
     ),
     creator_platform_order: normalizeCreatorPlatformOrder(
       userInfo.value.creatorPlatformOrder,
-      Object.keys(normalizeCreatorPlatformIds(userInfo.value.creatorPlatformIds))
+      Object.keys(normalizeCreatorPlatformIds(userInfo.value.creatorPlatformIds)),
     ),
     showcase_post_ids: normalizeShowcasePostIds(userInfo.value.showcasePostIds),
     profile_background_url: userInfo.value.profileBackgroundUrl || '',
@@ -1188,7 +1854,7 @@ const syncOwnProfileSnapshot = () => {
     points_card_skin: userInfo.value.pointsCardSkin || 'blank',
     points_card_image_url: userInfo.value.pointsCardImageUrl || '',
     points_card_image_public_id: userInfo.value.pointsCardImagePublicId || '',
-    id: userInfo.value.id
+    id: userInfo.value.id,
   };
 };
 
@@ -1212,10 +1878,10 @@ watch(
     userInfo.value.profileBackgroundUrl,
     userInfo.value.pointsCardSkin,
     userInfo.value.pointsCardImageUrl,
-    userInfo.value.pointsCardImagePublicId
+    userInfo.value.pointsCardImagePublicId,
   ],
   syncOwnProfileSnapshot,
-  { immediate: true }
+  { immediate: true },
 );
 
 const mergeUniqueById = (baseList, appendList) => {
@@ -1274,10 +1940,10 @@ const loadActivityHeatmap = async (targetUserId, fetchVersion = profileFetchVers
   activityHeatmap.value = null;
   try {
     const { data, error } = await supabase.rpc('get_user_activity_heatmap', {
-      p_user_id: safeUserId
+      p_user_id: safeUserId,
     });
     if (fetchVersion !== profileFetchVersion.value) return;
-    activityHeatmap.value = error ? null : (data || null);
+    activityHeatmap.value = error ? null : data || null;
   } catch (err) {
     if (fetchVersion === profileFetchVersion.value) {
       activityHeatmap.value = null;
@@ -1295,7 +1961,7 @@ const resolveProfileQueryContext = () => {
   const resolvedUserId = String(profile.value?.id || fetchedProfile.value?.id || '').trim();
   return {
     username: safeUsername,
-    userId: resolvedUserId || null
+    userId: resolvedUserId || null,
   };
 };
 
@@ -1310,7 +1976,10 @@ const refreshProfileSummary = async (username, fetchVersion = profileFetchVersio
   return null;
 };
 
-const loadShowcasePostsForProfile = async (profileData, fetchVersion = profileFetchVersion.value) => {
+const loadShowcasePostsForProfile = async (
+  profileData,
+  fetchVersion = profileFetchVersion.value,
+) => {
   const showcaseIds = normalizeShowcasePostIds(profileData?.showcase_post_ids);
   if (!showcaseIds.length) {
     showcasePostsFetched.value = [];
@@ -1319,7 +1988,7 @@ const loadShowcasePostsForProfile = async (profileData, fetchVersion = profileFe
 
   try {
     const postsRes = await getPostsByIds(showcaseIds, {
-      includeUnapprovedForAuthor: isOwnProfile.value
+      includeUnapprovedForAuthor: isOwnProfile.value,
     });
     if (fetchVersion !== profileFetchVersion.value) return;
     if (!postsRes?.error && Array.isArray(postsRes.data)) {
@@ -1346,10 +2015,10 @@ const loadPostsPage = async ({ reset = false, fetchVersion = profileFetchVersion
     const postsRes = await getPostsByUsername(username, userId, {
       page: pageToLoad,
       pageSize: PROFILE_PAGE_SIZE,
-      includeUnapprovedForAuthor: isOwnProfile.value
+      includeUnapprovedForAuthor: isOwnProfile.value,
     });
     if (fetchVersion !== profileFetchVersion.value) return;
-    const incoming = postsRes.error ? [] : (postsRes.data || []);
+    const incoming = postsRes.error ? [] : postsRes.data || [];
     posts.value = reset ? incoming : mergeUniqueById(posts.value, incoming);
     hasMorePosts.value = incoming.length === PROFILE_PAGE_SIZE;
     postsPage.value = pageToLoad + 1;
@@ -1364,9 +2033,7 @@ const loadPostsPage = async ({ reset = false, fetchVersion = profileFetchVersion
 
 const fetchTotalPostCount = async (username, userId) => {
   try {
-    let query = supabase
-      .from('posts')
-      .select('id', { count: 'exact', head: true });
+    let query = supabase.from('posts').select('id', { count: 'exact', head: true });
 
     if (userId && username) {
       query = query.or(`author_id.eq.${userId},author_username.eq.${username}`);
@@ -1389,7 +2056,10 @@ const fetchTotalPostCount = async (username, userId) => {
   }
 };
 
-const loadCommentsPage = async ({ reset = false, fetchVersion = profileFetchVersion.value } = {}) => {
+const loadCommentsPage = async ({
+  reset = false,
+  fetchVersion = profileFetchVersion.value,
+} = {}) => {
   if (isTabLoading.replies) return;
   if (!reset && !hasMoreComments.value) return;
 
@@ -1401,10 +2071,10 @@ const loadCommentsPage = async ({ reset = false, fetchVersion = profileFetchVers
   try {
     const cRes = await getCommentsByUsername(username, userId, {
       page: pageToLoad,
-      pageSize: PROFILE_PAGE_SIZE
+      pageSize: PROFILE_PAGE_SIZE,
     });
     if (fetchVersion !== profileFetchVersion.value) return;
-    const incoming = cRes.error ? [] : (cRes.data || []);
+    const incoming = cRes.error ? [] : cRes.data || [];
     comments.value = reset ? incoming : mergeUniqueById(comments.value, incoming);
     hasMoreComments.value = incoming.length === PROFILE_PAGE_SIZE;
     commentsPage.value = pageToLoad + 1;
@@ -1417,7 +2087,10 @@ const loadCommentsPage = async ({ reset = false, fetchVersion = profileFetchVers
   }
 };
 
-const loadImpressionsPage = async ({ reset = false, fetchVersion = profileFetchVersion.value } = {}) => {
+const loadImpressionsPage = async ({
+  reset = false,
+  fetchVersion = profileFetchVersion.value,
+} = {}) => {
   const { userId } = resolveProfileQueryContext();
   if (!userId) return;
   if (isTabLoading.impressions) return;
@@ -1428,10 +2101,10 @@ const loadImpressionsPage = async ({ reset = false, fetchVersion = profileFetchV
   try {
     const impRes = await getUserImpressions(userId, {
       page: pageToLoad,
-      pageSize: PROFILE_PAGE_SIZE
+      pageSize: PROFILE_PAGE_SIZE,
     });
     if (fetchVersion !== profileFetchVersion.value) return;
-    const incoming = impRes.error ? [] : (impRes.data || []);
+    const incoming = impRes.error ? [] : impRes.data || [];
     impressions.value = reset ? incoming : mergeUniqueById(impressions.value, incoming);
     hasMoreImpressions.value = incoming.length === PROFILE_PAGE_SIZE;
     impressionsPage.value = pageToLoad + 1;
@@ -1444,7 +2117,10 @@ const loadImpressionsPage = async ({ reset = false, fetchVersion = profileFetchV
   }
 };
 
-const ensureActiveTabData = async ({ reset = false, fetchVersion = profileFetchVersion.value } = {}) => {
+const ensureActiveTabData = async ({
+  reset = false,
+  fetchVersion = profileFetchVersion.value,
+} = {}) => {
   if (activeTab.value === 'posts') {
     if (reset || !tabLoaded.posts) await loadPostsPage({ reset: true, fetchVersion });
     return;
@@ -1486,7 +2162,7 @@ const fetchProfileData = async (username) => {
         ensureActiveTabData({ reset: true, fetchVersion }),
         loadFollowState(profileData.id),
         fetchTotalPostCount(safeUsername, profileData.id),
-        loadActivityHeatmap(profileData.id, fetchVersion)
+        loadActivityHeatmap(profileData.id, fetchVersion),
       ]);
     } catch (err) {
       if (fetchVersion !== profileFetchVersion.value) return;
@@ -1557,7 +2233,11 @@ const toggleShowcasePost = async (post) => {
   }
 
   await loadShowcasePostsForProfile({ showcase_post_ids: next }, profileFetchVersion.value);
-  showAlert('success', exists ? '已取消置顶' : '已置顶', exists ? '帖子已从代表作移除' : '帖子已加入代表作');
+  showAlert(
+    'success',
+    exists ? '已取消置顶' : '已置顶',
+    exists ? '帖子已从代表作移除' : '帖子已加入代表作',
+  );
 };
 
 const handleProfileSync = (event) => {
@@ -1585,17 +2265,14 @@ const handleProfileSync = (event) => {
       await Promise.all([
         loadShowcasePostsForProfile(refreshed || profile.value),
         loadPostsPage({ reset: true }),
-        fetchTotalPostCount(ctx.username, ctx.userId)
+        fetchTotalPostCount(ctx.username, ctx.userId),
       ]);
     })();
     return;
   }
 
   if (reason.startsWith('comment_')) {
-    void Promise.all([
-      refreshProfileSummary(currentUsername),
-      loadCommentsPage({ reset: true })
-    ]);
+    void Promise.all([refreshProfileSummary(currentUsername), loadCommentsPage({ reset: true })]);
     return;
   }
 
@@ -1628,14 +2305,12 @@ const navigateToPost = (postId) => {
   }
   const sourceUsername = String(profile.value?.username || route.params.username || '').trim();
   const origin = route.query.from || '';
-  const query = sourceUsername
-    ? { from: 'profile', username: sourceUsername, origin }
-    : undefined;
+  const query = sourceUsername ? { from: 'profile', username: sourceUsername, origin } : undefined;
 
   router.push({
     name: 'PostDetail',
     params: { id: safePostId },
-    query
+    query,
   });
 };
 
@@ -1747,7 +2422,7 @@ const handleCropConfirm = async (blob) => {
     isUploadingAvatar.value = true;
     await uploadToSupabase(compressedFile);
     showCropModal.value = false;
-    
+
     // 显示上传成功动画
     showUploadSuccess.value = true;
     setTimeout(() => {
@@ -1764,56 +2439,23 @@ const handleCropConfirm = async (blob) => {
 
 const uploadToSupabase = async (file) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       showAlert('error', '上传失败', '请先登录');
       return;
     }
 
-    // 1. 获取当前头像文件名以便删除
     const oldAvatarUrl = profile.value.avatar_url;
 
-    const timestamp = Date.now();
-    const filePath = `${user.id}/avatar_${timestamp}.png`;
-
-    // 2. 上传新头像
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file, {
-        contentType: 'image/png',
-        cacheControl: '3600'
-      });
-
-    if (uploadError) throw uploadError;
-
-    // 3. 获取新头像 URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('avatars')
-      .getPublicUrl(filePath);
-
-    // 添加时间戳查询参数以彻底解决浏览器缓存问题
-    const finalUrl = `${publicUrl}?t=${timestamp}`;
+    // 上传新头像（路径 / 破缓存参数 / bucket 约定见 utils/api/avatar-storage.js）
+    const { url: finalUrl, filePath } = await uploadAvatarFile(file, user.id);
     await updateProfileAvatar(user.id, finalUrl);
 
-    // 4. 清理旧头像文件 (如果有)
-    if (oldAvatarUrl) {
-      try {
-        // 从 URL 中提取路径。URL 格式通常为 .../storage/v1/object/public/avatars/USER_ID/avatar_TS.png?t=...
-        // 我们需要 avatars 之后的路径：USER_ID/avatar_TS.png
-        const urlObj = new URL(oldAvatarUrl);
-        const pathParts = urlObj.pathname.split('/');
-        const avatarsIndex = pathParts.indexOf('avatars');
-        if (avatarsIndex !== -1) {
-          const oldFilePath = pathParts.slice(avatarsIndex + 1).join('/');
-          // 只有当旧文件路径与新文件路径不同时才删除
-          if (oldFilePath && oldFilePath !== filePath) {
-            await supabase.storage.from('avatars').remove([oldFilePath]);
-          }
-        }
-      } catch (e) {
-        console.warn('清理旧头像失败 (非致命错误):', e);
-      }
-    }
+    // 清理旧头像文件（非致命：失败只告警，不影响本次更新）
+    const cleanupError = await removeAvatarByUrl(oldAvatarUrl, { exclude: filePath });
+    if (cleanupError) console.warn('清理旧头像失败 (非致命错误):', cleanupError);
 
     await updateUserProfile({ avatar_url: finalUrl });
 
@@ -1830,11 +2472,7 @@ const handleSubmitImpression = async () => {
   submittingImpression.value = true;
   try {
     const content = newImpressionContent.value.trim();
-    const { data, error } = await addUserImpression(
-      userInfo.value.id,
-      profile.value.id,
-      content
-    );
+    const { data, error } = await addUserImpression(userInfo.value.id, profile.value.id, content);
 
     if (!error) {
       const created = Array.isArray(data) ? data[0] : data;
@@ -1846,10 +2484,13 @@ const handleSubmitImpression = async () => {
         target_id: profile.value.id,
         author: {
           username: userInfo.value.username,
-          avatar_url: userInfo.value.avatarUrl || ''
-        }
+          avatar_url: userInfo.value.avatarUrl || '',
+        },
       };
-      impressions.value = mergeUniqueById([optimisticImpression], impressions.value).slice(0, PROFILE_PAGE_SIZE);
+      impressions.value = mergeUniqueById([optimisticImpression], impressions.value).slice(
+        0,
+        PROFILE_PAGE_SIZE,
+      );
       tabLoaded.impressions = true;
       newImpressionContent.value = '';
       showAlert('success', '发布成功', '您的印象已墙上');
@@ -1869,12 +2510,15 @@ const canDeleteImpression = (impression) => {
 };
 
 const handleDeleteImpression = async (impression) => {
-  if (!await dialog.confirm({
-    title: '删除印象',
-    message: '确定要删除这条印象吗？',
-    tone: 'danger',
-    confirmText: '删除'
-  })) return;
+  if (
+    !(await dialog.confirm({
+      title: '删除印象',
+      message: '确定要删除这条印象吗？',
+      tone: 'danger',
+      confirmText: '删除',
+    }))
+  )
+    return;
 
   try {
     const { error } = await deleteUserImpression(impression.id, userInfo.value.id);
@@ -1900,7 +2544,7 @@ const handleCreatePost = async (safeTitle, safeContent) => {
       userInfo.value.id,
       userInfo.value.username,
       'approved',
-      safeTitle
+      safeTitle,
     );
 
     if (!error) {
@@ -1913,7 +2557,7 @@ const handleCreatePost = async (safeTitle, safeContent) => {
         author_id: userInfo.value.id,
         author_username: userInfo.value.username,
         comment_count: 0,
-        like_count: 0
+        like_count: 0,
       };
       posts.value = mergeUniqueById([optimisticPost], posts.value);
       totalPostCount.value += 1;
@@ -1938,28 +2582,38 @@ watch(activeTab, () => {
 });
 
 // 监听路由参数变化，处理不同用户的空间切换
-watch(() => route.params.username, (newUsername) => {
-  if (newUsername) {
-    activeTab.value = 'posts';
-    fetchProfileData(newUsername);
-  }
-});
+watch(
+  () => route.params.username,
+  (newUsername) => {
+    if (newUsername) {
+      activeTab.value = 'posts';
+      fetchProfileData(newUsername);
+    }
+  },
+);
 
 // 监听登录状态变化，动态刷新页面内容
-watch(() => isLoggedIn.value, () => {
-  if (route.params.username) {
-    fetchProfileData(route.params.username);
-  }
-});
+watch(
+  () => isLoggedIn.value,
+  () => {
+    if (route.params.username) {
+      fetchProfileData(route.params.username);
+    }
+  },
+);
 
 // 监听 profile 加载后检查 bio 溢出
-watch(() => profile.value?.bio, () => {
-  nextTick(() => {
-    if (bioRef.value) {
-      bioHasOverflow.value = bioRef.value.scrollHeight > bioRef.value.clientHeight;
-    }
-  });
-}, { flush: 'post' });
+watch(
+  () => profile.value?.bio,
+  () => {
+    nextTick(() => {
+      if (bioRef.value) {
+        bioHasOverflow.value = bioRef.value.scrollHeight > bioRef.value.clientHeight;
+      }
+    });
+  },
+  { flush: 'post' },
+);
 
 onMounted(() => {
   window.addEventListener('boh_profile_sync', handleProfileSync);
@@ -1970,7 +2624,9 @@ onMounted(() => {
   // 横屏左栏消息角标：App.vue 登录后会把 store 装进单例，这里兜底补拉一次
   if (!railNotificationStore.value && isLoggedIn.value) {
     loadNotificationStore()
-      .then((store) => { railNotificationStore.value = store; })
+      .then((store) => {
+        railNotificationStore.value = store;
+      })
       .catch(() => {});
   }
 });
