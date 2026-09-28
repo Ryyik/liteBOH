@@ -9,4 +9,37 @@
 # 换来的是钩子不随 clone 分发，新环境手动装一次。
 #
 # 临时绕过：git commit --no-verify（请在 commit message 里写清理由）
+#
+# ── 关于「验证的树 ≠ 提交的树」────────────────────────────────────────
+# 这个钩子会**改写文件**，所以「你刚跑过 verify 的那份代码」和「实际提交的代码」
+# 可能不是同一份。2026-09-27 就因此挂过一次 CI：prettier 重排 UserSpaceMain，
+# 让三个格式敏感的源码正则断言失配 —— 本地全绿，CI 红。
+#
+# 为什么不改成 `prettier --check`（只检查不修改）：实测本仓库有 **513 个文件**
+# 不符合 prettier，而 `npm run format` 是**全仓** `prettier --write .`。
+# 只检查的话，碰任一未格式化文件都会提交失败，而唯一的修复命令会重排半个仓库 ——
+# 那种钩子会被 `--no-verify` 习惯性绕过，比不改更糟。
+#
+# 所以这里取中间路线：**照旧自动格式化，但把「它改了什么」显式打出来**。
+# 把不可见的副作用变成可见的信号，代价是零摩擦。
+
+before_tree=$(git write-tree 2>/dev/null || echo '')
+
 npx --no-install lint-staged
+lint_status=$?
+if [ "$lint_status" -ne 0 ]; then
+  exit "$lint_status"
+fi
+
+after_tree=$(git write-tree 2>/dev/null || echo '')
+
+if [ -n "$before_tree" ] && [ -n "$after_tree" ] && [ "$before_tree" != "$after_tree" ]; then
+  echo ''
+  echo '⚠️  钩子改写了本次提交的文件（prettier / eslint --fix），已一并暂存：'
+  git diff-tree -r --name-only "$before_tree" "$after_tree" 2>/dev/null | sed 's/^/     /'
+  echo ''
+  echo '    含义：你刚才验证过的代码 ≠ 即将提交的代码。'
+  echo '    若这次改动跑过 npm run verify，请对提交后的树再跑一次；'
+  echo '    否则「本地绿、CI 红」就是这么来的（见 AGENTS.md §5）。'
+  echo ''
+fi

@@ -52,3 +52,37 @@ jobs:
         # 门禁清单以 package.json 的 build:ci 为准，不要在这里另抄一份 ——
         # 抄了就会出现「本地摆烂一遍、CI 摆烂另一遍」。
         run: npm run build:ci
+
+  # 门禁自检：证明每道门禁**真的会红**。
+  #
+  # 为什么单独成 job，而不是并进 quality：
+  #   它会**临时改写工作区文件**（注入违规样本 → 跑门禁 → 撤销）。放在干净检出上跑最安全 ——
+  #   万一中途崩了也只污染这一个 job，不会让质量门禁的结论变得可疑。
+  #   同理它也**不该**进 package.json 的 verify/build:ci 主链（那是给本地开发用的）。
+  #
+  # 背景：本仓库出过两次「检查在跑、但永远绿」——
+  #   · check-project-structure 只过滤 .js，而路由全是 .ts → 53 条一条没查，却输出 clean；
+  #   · check:dark-tokens 跑在观察档（总量上升只打 ⚠️，exit 0）→ 永不阻断任何构建。
+  #   两者都表现为「CI 全绿」。假绿是静默的，靠人盯是盯不住的，只能靠机器周期性自证。
+  #
+  # 不需要 VITE_* 环境变量：自检覆盖的七道门禁都是纯源码扫描，不碰 Supabase。
+  gate-self-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Gate self-test
+        # 样本在 scripts/lib/gate-fixtures.mjs。某条门禁若「注入违规后仍然 exit 0」，
+        # 本步会失败并点名它是假绿嫌疑。
+        run: npm run check:gates-self-test

@@ -107,7 +107,9 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 - **格式**：Prettier（`.prettierrc`：printWidth 100 / 单引号 / 尾逗号 all）。全仓 `npm run format`，只检查 `npm run format:check`。`.prettierignore` 刻意排除了 `*.md` 和四个第三方 Style 目录 —— 近百个 md 全量重排会把有意义的 diff 淹掉。
 - **门禁自检**：`npm run check:gates-self-test`（约 45s）。给每道门禁注入一个已知违规样本 → 断言它 `exit` 非 0 → 撤销；样本在 `scripts/lib/gate-fixtures.mjs`。**改了门禁就跑它**，否则你无法区分「门禁通过」和「门禁是假绿」。⚠️ 它会临时改写工作区文件（有兜底还原），**不要塞进 verify/build:ci 主链**，要进 CI 请单开 job。
 - **提交门禁**：`.git/hooks/pre-commit` 跑 lint-staged，只处理本次暂存的文件（prettier + eslint --fix），规则见 `.lintstagedrc.json`。需要跳过时用 `git commit --no-verify`。
-  - ⚠️ **钩子会改文件，所以「你验证的树」可能不是「提交的树」**。改完代码先 `npm run format` 再跑 verify；判绿一律以提交后的树为准（9-27 那次 CI 三连挂就是这么来的：prettier 重排让三个格式敏感的源码正则断言失配，本地全绿）。另：钩子跑 lint-staged 时会输出 `could not find any staged files` 且 `git commit` 返回非 0，**但提交其实成功了——判断成功看 `git log`，别信退出码**。
+  - ⚠️ **钩子会改文件，所以「你验证的树」可能不是「提交的树」**。改完代码先 `npm run format` 再跑 verify；判绿一律以提交后的树为准（9-27 那次 CI 三连挂就是这么来的：prettier 重排让三个格式敏感的源码正则断言失配，本地全绿）。钩子现在会在改写文件后**把被改的文件名打出来**并提示重跑 verify —— 看到那段输出就说明你验证的树已经变了。
+  - 为什么钩子不做成 `prettier --check`（只检查不修改）：实测有 **513 个文件**不符合 prettier，而 `npm run format` 是**全仓** `prettier --write .`。只检查的话碰任一未格式化文件都提交失败，而唯一修复命令会重排半个仓库 —— 那种钩子会被 `--no-verify` 习惯性绕过，比不改更糟。**自动格式化 + 显式报告改了什么**是这里性价比最高的形态。
+  - 另：钩子跑 lint-staged 时会输出 `could not find any staged files` 且 `git commit` 返回非 0，**但提交其实成功了——判断成功看 `git log`，别信退出码**。
   - 钩子放在 `.git/hooks/` 下，不随 clone 分发。新环境手动装一次：
     `cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
   - 没用 husky 是刻意的：husky 会接管 `core.hooksPath`，而现有 `.git/hooks/post-commit` 是 Qoder 的 tracker，接管后它会静默失效。
