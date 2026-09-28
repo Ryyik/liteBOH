@@ -141,6 +141,10 @@ export const FIXTURES = [
  */
 export const UNTESTABLE = [
   {
+    gate: 'check:ratchets',
+    why: '信息性汇总（棘轮总账），永远 exit 0、不做判定 —— 没有「违规」可造',
+  },
+  {
     gate: 'security:anon-check',
     why: '需要 Supabase Management API token 读 pg_catalog，离线无法造违规',
   },

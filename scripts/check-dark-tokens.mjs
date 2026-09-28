@@ -88,6 +88,20 @@ if (UPDATE || !existsSync(BUDGET_FILE)) {
 
 const budget = JSON.parse(readFileSync(BUDGET_FILE, 'utf-8'));
 
+// 机读出口：供 check-ratchet-summary.mjs 汇总「棘轮总账」。只报数、不判定。
+if (process.argv.includes('--json')) {
+  console.log(
+    JSON.stringify({
+      ratchet: 'dark-tokens',
+      label: '暗色裸色值',
+      current: darkLiterals,
+      baseline: budget.total,
+      unit: '处',
+    }),
+  );
+  process.exit(0);
+}
+
 // ── 分区棘轮（牙齿只长在已经干净的地方）─────────────────────────────
 // strict 名单里的 glob 表示"这块已经清扫到 0 个裸色"；再出现即 exit 1，
 // 且**不受观察模式影响** —— 已清扫区域本来就不该有新裸色，假红概率极低，

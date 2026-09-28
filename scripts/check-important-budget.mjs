@@ -20,9 +20,7 @@ const BUDGET_FILE = join(ROOT, 'scripts', 'important-budget.json');
 const UPDATE = process.argv.includes('--update');
 
 // 白名单：暗色主题机制层（刻意用 !important 压过页面 scoped 样式）
-const WHITELIST = [
-  'src/styles/themes/',
-];
+const WHITELIST = ['src/styles/themes/'];
 
 /**
  * 计数前必须剥掉注释。
@@ -36,10 +34,12 @@ const stripComments = (text) =>
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/^[ \t]*\/\/.*$/gm, '');
 
-const files = execSync(
-  'git ls-files "src/*.vue" "src/*.css" "src/**/*.vue" "src/**/*.css"',
-  { cwd: ROOT, encoding: 'utf-8' }
-).split('\n').filter(Boolean);
+const files = execSync('git ls-files "src/*.vue" "src/*.css" "src/**/*.vue" "src/**/*.css"', {
+  cwd: ROOT,
+  encoding: 'utf-8',
+})
+  .split('\n')
+  .filter(Boolean);
 
 const counts = {};
 let total = 0;
@@ -58,26 +58,45 @@ for (const rel of files) {
 
 if (UPDATE || !existsSync(BUDGET_FILE)) {
   writeFileSync(BUDGET_FILE, JSON.stringify({ total, files: counts }, null, 2) + '\n');
-  console.log(`✅ 基线已${UPDATE ? '更新' : '建立'}：${total} 处 !important（${Object.keys(counts).length} 个文件）`);
+  console.log(
+    `✅ 基线已${UPDATE ? '更新' : '建立'}：${total} 处 !important（${Object.keys(counts).length} 个文件）`,
+  );
   process.exit(0);
 }
 
 const budget = JSON.parse(readFileSync(BUDGET_FILE, 'utf-8'));
+
+// 机读出口：供 check-ratchet-summary.mjs 汇总「棘轮总账」。
+// 只报数、不判定、不改退出码语义 —— 汇总器不该复制一遍计数逻辑（那就是第二份真源）。
+if (process.argv.includes('--json')) {
+  console.log(
+    JSON.stringify({
+      ratchet: 'important-budget',
+      label: '!important 总量',
+      current: total,
+      baseline: budget.total,
+      unit: '处',
+    }),
+  );
+  process.exit(0);
+}
 const violations = [];
-let budgetTotal = budget.total;
 
 for (const [file, n] of Object.entries(counts)) {
   const base = budget.files[file] || 0;
   if (n > base) violations.push(`  ${file}: ${n} > 基线 ${base} (+${n - base})`);
-  budgetTotal += Math.max(0, base - n); // 已削减的文件按现值放行
 }
 
 if (violations.length) {
   console.error(`❌ !important 超出棘轮基线（不得新增，见 plans/007 视觉焕新约定）：`);
   console.error(violations.join('\n'));
-  console.error(`\n存量削减请编辑后运行 node scripts/check-important-budget.mjs --update 下调基线。`);
+  console.error(
+    `\n存量削减请编辑后运行 node scripts/check-important-budget.mjs --update 下调基线。`,
+  );
   process.exit(1);
 }
 
 const saved = budget.total - total;
-console.log(`✅ !important 预算通过：当前 ${total} / 基线 ${budget.total}${saved > 0 ? `（已削减 ${saved}，记得 --update 下调基线）` : ''}`);
+console.log(
+  `✅ !important 预算通过：当前 ${total} / 基线 ${budget.total}${saved > 0 ? `（已削减 ${saved}，记得 --update 下调基线）` : ''}`,
+);

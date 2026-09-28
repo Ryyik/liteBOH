@@ -99,6 +99,20 @@ if (UPDATE || !existsSync(BASELINE_FILE)) {
 
 const baseline = JSON.parse(readFileSync(BASELINE_FILE, 'utf-8'));
 
+// 机读出口：供 check-ratchet-summary.mjs 汇总「棘轮总账」。只报数、不判定。
+if (process.argv.includes('--json')) {
+  console.log(
+    JSON.stringify({
+      ratchet: 'layering',
+      label: 'UI 层直连数据层出口',
+      current: total,
+      baseline: baseline.total,
+      unit: '处',
+    }),
+  );
+  process.exit(0);
+}
+
 const newFiles = Object.entries(counts).filter(([f]) => !(f in baseline.files));
 const totalUp = total > baseline.total;
 

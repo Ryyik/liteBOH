@@ -27,7 +27,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 
 ## 2. 改动 → 必跑门禁（不许跳过）
 
-`npm run verify` 是一条命令兜底（lint + type-check + test + 8 道 check，不需要构建）。
+`npm run verify` 是一条命令兜底（lint + type-check + test + 8 道 check，末尾附**棘轮总账**，不需要构建）。
 只改 CSS 或小改动用 `npm run verify:fast`；发布前用 `npm run verify:full`（含构建与产物门禁）。
 
 > ⚠️ **判绿之前先确认门禁真的有牙**。这个仓库出过两次「检查在跑、但永远绿」：
@@ -106,6 +106,10 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 ## 5. 工具链（已装好的，直接用）
 
 - **格式**：Prettier（`.prettierrc`：printWidth 100 / 单引号 / 尾逗号 all）。全仓 `npm run format`，只检查 `npm run format:check`。`.prettierignore` 刻意排除了 `*.md` 和四个第三方 Style 目录 —— 近百个 md 全量重排会把有意义的 diff 淹掉。
+- **棘轮总账**：`npm run check:ratchets`（已挂在 `verify` 末尾）。把 4 个棘轮的「当前 / 基线 / 余量」汇成一张表，让「债务在减少还是增加」一眼可见。
+  - 它**不复制计数逻辑** —— 只调各棘轮的 `--json` 机读出口拿数（自己再数一遍就成了第二份真源，迟早和真正的门禁给出不同的数）。
+  - 它**只报数、不判定、永远 exit 0**；判定是各棘轮自己的职责，否则「总账」会变成第 5 个门禁，出问题时反而分不清是谁红的。
+  - `anon-execute` 需 Management API token，离线只显示基线并标注原因 —— 不留一个看起来像 0 的假数字。
 - **门禁自检**：`npm run check:gates-self-test`（约 45s）。给每道门禁注入一个已知违规样本 → 断言它 `exit` 非 0 → 撤销；样本在 `scripts/lib/gate-fixtures.mjs`。**改了门禁就跑它**，否则你无法区分「门禁通过」和「门禁是假绿」。⚠️ 它会临时改写工作区文件（有兜底还原），**不要塞进 verify/build:ci 主链**，要进 CI 请单开 job。
 - **提交门禁**：`.git/hooks/pre-commit` 跑 lint-staged，只处理本次暂存的文件（prettier + eslint --fix），规则见 `.lintstagedrc.json`。需要跳过时用 `git commit --no-verify`。
   - ⚠️ **钩子会改文件，所以「你验证的树」可能不是「提交的树」**。改完代码先 `npm run format` 再跑 verify；判绿一律以提交后的树为准（9-27 那次 CI 三连挂就是这么来的：prettier 重排让三个格式敏感的源码正则断言失配，本地全绿）。钩子现在会在改写文件后**把被改的文件名打出来**并提示重跑 verify —— 看到那段输出就说明你验证的树已经变了。
