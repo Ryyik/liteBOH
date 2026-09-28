@@ -43,7 +43,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | 首页 / 底栏 / 左栏 / 论坛入口布局 | `node scripts/probes/probe-home-forum-rail.mjs`（21 断言）、`node scripts/probes/probe-rail-landing.mjs`（45） |
 | 首页首屏拉动 / 落定动效 | `node scripts/probes/probe-home-gate-pull.mjs`（50） |
 | 导航栏可见性 / 灵动岛 / 全局搜索 | 先改唯一真源 `utils/global-navbar-visibility.js` 的 `isGlobalNavbarVisible(route)`；再 `node scripts/probes/probe-global-search.mjs`（58） |
-| 竖屏二级菜单 / 悬浮岛接缝（`.nav-menu-mobile` 的 `top`、岛的下投影） | `node scripts/probes/probe-nav-mobile-menu.mjs`（18）。⚠️ 菜单的包含块是那座**有 transform 的岛**、不是视口 —— 见该探针文件头的实测记录 |
+| 竖屏导航菜单：接缝、以及菜单内部的一级/二级/三级几何（`.nav-menu-mobile` 的 `top`、`.nav-mobile-submenu-container`、岛的下投影） | `node scripts/probes/probe-nav-mobile-menu.mjs`（33）。⚠️ 两个坑：① 菜单的包含块是那座**有 transform 的岛**、不是视口；② `visibility: hidden` **不释放高度**（点开二级菜单后的 272px 内部空洞就是这个）。见该探针文件头的实测记录 |
 | 论坛搜索 / 列表 RPC | `node scripts/probes/probe-forum-search.mjs`（27） |
 | 订阅权益 / 摄影集配额 | `node scripts/probes/probe-subscription-benefits.mjs`（48） |
 | 头像框发放 | `node scripts/probes/probe-avatar-frame-grant.mjs`（23） |

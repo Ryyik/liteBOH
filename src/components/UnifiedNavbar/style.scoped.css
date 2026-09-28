@@ -369,6 +369,34 @@
     background-color: transparent !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+    /* 收起态**不占位**。vendor 只给了 visibility: hidden —— 它不释放高度，
+       而这里又把容器改成了「在流内」，于是收起时它仍在一级菜单下方占约 68px
+       （实测一级态卡片底 410.95，最后一项底 329.95 ⇒ 内部多出 81px 空白）。
+       用 height: 0 + overflow: hidden 而不是 display: none：元素仍参与渲染，
+       展开时 opacity/transform 的进场动效才能照常播（display 切换会吃掉 transition）。 */
+    height: 0;
+    padding-top: 0;
+    overflow: hidden;
+  }
+
+  :global(#unified-nav-container .nav-mobile-submenu-container.active) {
+    height: auto;
+    padding-top: 8px;
+    overflow-y: auto;
+  }
+
+  /* ⚠️ 与上面那条**成对**：竖屏把子菜单容器改成「在流内、追加显示」（好处是卡片随子菜单
+     长高，不再被一级菜单的高度框住），但 vendor 里一级菜单的隐藏用的是
+     `visibility: hidden` —— **它不释放高度**。两条一叠加，子菜单就被排到一级菜单下方：
+       实测（390×844，点「社区」）：一级菜单仍占 261.95px（top 68 → 329.95），
+       子菜单容器 top 被推到 329.95 ⇒ 菜单内部顶部一条 262px 空白（用户报的「大空隙」），
+       返回条/标题一起被推下去（「顶部、菜单内部」那个问题），
+       且子菜单底部 838.67 超出卡片底 805 ⇒ 最后一个子项被裁掉。
+     这里把隐藏态的一级菜单移出布局流（display: none）即可，实测三项同时消失。
+     注意**不能**去改 vendor 的 `.nav-mobile-main-menu.hidden`：横屏档子菜单容器仍是
+     absolute 覆盖式（top:0;bottom:0 靠主菜单撑高），把主菜单移出流会让那一档塌成 0 高。 */
+  :global(#unified-nav-container .nav-menu-mobile .nav-mobile-main-menu.hidden) {
+    display: none;
   }
 
   :global(#unified-nav-container[data-theme='dark'] .nav-menu-mobile) {
