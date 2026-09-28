@@ -55,6 +55,12 @@ export default [
           ],
         },
       ],
+      // 空 catch 必须写明理由。
+      // ESLint 的 no-empty 认为「块内有注释就不算空」，所以打开它 = 强制每处空 catch
+      // 都留下「为什么可以吞」的说明 —— 这正是「显性化」想要的效果，而且是**机器强制**的，
+      // 不依赖后来者自觉（写在文档里的约定会被忘记，能被 CI 拦下的不会）。
+      // 注意 allowEmptyCatch 必须显式设 false：默认 true 会放行空 catch。
+      'no-empty': ['error', { allowEmptyCatch: false }],
       'vue/multi-word-component-names': 'off',
     },
   },
@@ -80,6 +86,9 @@ export default [
         },
       ],
       'no-unused-vars': 'off',
+      // .ts 走的是本块，**不会**继承上面 js/vue 块里的规则 —— 漏配会让 .ts 里的
+      // 空 catch 悄悄逃过「必须写明理由」的约束（实测漏掉了 stores/products.ts 等 5 处）。
+      'no-empty': ['error', { allowEmptyCatch: false }],
     },
   },
   {
@@ -93,6 +102,18 @@ export default [
         insecureSkipTLSVerify: 'readonly',
       },
     },
+  },
+  {
+    // 浏览器探针（Playwright）：**明确豁免 no-empty**。
+    // 理由：探针里 24 处空 catch 全是刻意的 best-effort（试写 localStorage、试开
+    // PerformanceObserver、试点一个可能不存在的菜单），而且失败模式是「随后的断言红」，
+    // 不是「静默 bug」—— 不构成假绿。把它们逐一注释只会变成噪声，并让人习惯性忽略
+    // 这条规则，那才是规则腐烂的开始。
+    // 这里选择**显式豁免并写明理由**，而不是假装它们不存在。
+    // 注意：`scripts/` 下其余文件（尤其是 check-*.mjs 门禁）**不豁免** ——
+    // 门禁里吞错会直接变成假绿，那正是本仓库最该防的东西。
+    files: ['scripts/probes/**/*.mjs'],
+    rules: { 'no-empty': 'off' },
   },
   // 必须压在最后：关掉所有与 Prettier 冲突的格式化类规则，
   // 否则 eslint --fix 和 prettier --write 会互相拉锯，diff 里一半是噪音。

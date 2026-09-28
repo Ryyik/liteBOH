@@ -987,7 +987,9 @@ const runPublishQueue = async () => {
           if (img.localPreviewUrl) {
             try {
               URL.revokeObjectURL(img.localPreviewUrl);
-            } catch {}
+            } catch {
+              /* 同下：纯清理动作，失败无需处理。 */
+            }
           }
         });
         // 替换乐观卡为真实卡
@@ -1120,7 +1122,9 @@ const cancelPublish = async (queueId) => {
   if (controller) {
     try {
       controller.abort();
-    } catch {}
+    } catch {
+      /* abort() 在已结束的 signal 上可能抛；此处只是尽力取消，失败不影响后续清理。 */
+    }
     publishAbortControllers.delete(queueId);
   }
   const item = publishQueueStore.items.find((i) => i.id === queueId);
@@ -1141,14 +1145,18 @@ const cancelPublish = async (queueId) => {
         if (img.localPreviewUrl)
           try {
             URL.revokeObjectURL(img.localPreviewUrl);
-          } catch {}
+          } catch {
+            /* revokeObjectURL 对已释放/非法 URL 抛错，纯属清理动作，失败无需处理。 */
+          }
       });
     } else {
       (item.images || []).forEach((img) => {
         if (img.localPreviewUrl)
           try {
             URL.revokeObjectURL(img.localPreviewUrl);
-          } catch {}
+          } catch {
+            /* revokeObjectURL 对已释放/非法 URL 抛错，纯属清理动作，失败无需处理。 */
+          }
       });
     }
   }
@@ -1171,7 +1179,9 @@ const fixModerationPublish = async (queueId) => {
     if (failedImg?.localPreviewUrl)
       try {
         URL.revokeObjectURL(failedImg.localPreviewUrl);
-      } catch {}
+      } catch {
+        /* 同上：释放预览图 URL 是清理动作，失败无需处理。 */
+      }
     // 若已上传到云端但未落库，需删除
     if (failedImg?.publicId || failedImg?.deleteToken)
       void cleanupUploadedForumImage(failedImg, { silent: true });
@@ -1213,7 +1223,9 @@ const editFailedPublish = (queueId) => {
   if (controller) {
     try {
       controller.abort();
-    } catch {}
+    } catch {
+      /* abort() 在已结束的 signal 上可能抛；此处只是尽力取消，失败不影响后续清理。 */
+    }
     publishAbortControllers.delete(queueId);
   }
   newPost.value.title = String(item.title || '');

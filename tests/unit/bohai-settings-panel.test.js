@@ -9,7 +9,7 @@ import {
   safeErrorDetail,
   isAbortError,
   CHAT_ERROR_MESSAGES,
-  getAbortMessage
+  getAbortMessage,
 } from '../../src/views/BOHAI/utils/chatErrorMessages.js';
 
 describe('chatErrorMessages 工具函数', () => {
@@ -130,7 +130,9 @@ describe('chatErrorMessages 工具函数', () => {
     });
 
     it('prioritizes timedOut over isDegenerate', () => {
-      expect(getAbortMessage('xxx', { timedOut: true, isDegenerate: true })).toBe('生成超时已自动停止，请重试。');
+      expect(getAbortMessage('xxx', { timedOut: true, isDegenerate: true })).toBe(
+        '生成超时已自动停止，请重试。',
+      );
     });
 
     it('uses default options when not provided', () => {
@@ -143,7 +145,10 @@ describe('chatErrorMessages 工具函数', () => {
 // 测试 BohaiSettingsPanel 组件结构
 // ============================================================
 const projectRoot = resolve(import.meta.dirname, '../..');
-const settingsPanelPath = resolve(projectRoot, 'src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue');
+const settingsPanelPath = resolve(
+  projectRoot,
+  'src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue',
+);
 
 function readComponent() {
   return readFileSync(settingsPanelPath, 'utf-8');
@@ -169,7 +174,7 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
       'isSharedMemoryEnabled',
       'isTreeholeMemoryToggling',
       'memoryStatusText',
-      'resolvedTheme'
+      'resolvedTheme',
     ];
     for (const prop of requiredProps) {
       expect(content).toContain(prop);
@@ -187,7 +192,7 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
       'toggleSharedMemory',
       'clearCurrentChat',
       'exportChatData',
-      'clearAllChatData'
+      'clearAllChatData',
     ];
     for (const emit of requiredEmits) {
       expect(content).toContain(emit);
@@ -255,7 +260,7 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
       ':is-shared-memory-enabled',
       ':is-treehole-memory-toggling',
       ':memory-status-text',
-      ':resolved-theme'
+      ':resolved-theme',
     ];
     for (const binding of requiredBindings) {
       expect(content).toContain(binding);
@@ -272,7 +277,7 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
       '@toggle-shared-memory',
       '@clear-current-chat',
       '@export-chat-data',
-      '@clear-all-chat-data'
+      '@clear-all-chat-data',
     ];
     for (const event of requiredEvents) {
       expect(content).toContain(event);
@@ -310,7 +315,10 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
 // ============================================================
 const chatEnginePath = resolve(projectRoot, 'src/views/BOHAI/composables/useChatEngine.js');
 const modelConfigPath = resolve(projectRoot, 'src/views/BOHAI/composables/useModelConfig.js');
-const conversationManagerPath = resolve(projectRoot, 'src/views/BOHAI/composables/useConversationManager.js');
+const conversationManagerPath = resolve(
+  projectRoot,
+  'src/views/BOHAI/composables/useConversationManager.js',
+);
 
 function readChatEngine() {
   return readFileSync(chatEnginePath, 'utf-8');
@@ -319,7 +327,9 @@ function readChatEngine() {
 describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
   it('导入了 chatErrorMessages 工具函数', () => {
     const content = readChatEngine();
-    expect(content).toContain("import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage, safeErrorDetail } from '../utils/chatErrorMessages.js'");
+    expect(content).toContain(
+      "import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage, safeErrorDetail } from '../utils/chatErrorMessages.js'",
+    );
   });
 
   it('使用 isAbortError 替代了 error?.name 直接比较', () => {
@@ -347,15 +357,24 @@ describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
 
   it('新对话不会覆盖用户保存的默认响应模式和社区知识设置', () => {
     const content = readChatEngine();
-    const startNewChatBlock = content.match(/const startNewChat = \(\) => \{[\s\S]*?\n  \};/)?.[0] || '';
+    const startNewChatBlock =
+      content.match(/const startNewChat = \(\) => \{[\s\S]*?\n  \};/)?.[0] || '';
     expect(startNewChatBlock).not.toContain('currentModeId.value = BOH_DEFAULT_MODE_ID');
     expect(startNewChatBlock).not.toContain('isSharedMemoryEnabled.value = false');
   });
 
   it('记忆设置使用布尔值持久化', () => {
-    const content = readFileSync(modelConfigPath, 'utf-8');
-    expect(content).toContain("localStorage.setItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY, isTreeholeMemoryEnabled.value ? '1' : '0')");
-    expect(content).toContain("localStorage.setItem(SHARED_MEMORY_SETTING_KEY, isSharedMemoryEnabled.value ? '1' : '0')");
+    // 断言前先压掉所有空白：prettier 会把超长行拆成多行（本文件所在模块 2026-09-28 就被
+    // 拆过，CI 直接红 —— 与 9-27 那次同一类问题）。**源码格式敏感的断言必须空白宽容。**
+    // 另：只断言到「调用 + 两个实参」，**不含右括号** —— prettier 会在最后一个实参后补
+    // 尾逗号，把右括号写进断言同样会假红。
+    const flat = readFileSync(modelConfigPath, 'utf-8').replace(/\s+/g, '');
+    expect(flat).toContain(
+      "localStorage.setItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY,isTreeholeMemoryEnabled.value?'1':'0'",
+    );
+    expect(flat).toContain(
+      "localStorage.setItem(SHARED_MEMORY_SETTING_KEY,isSharedMemoryEnabled.value?'1':'0'",
+    );
   });
 
   it('会话管理提供当前与全部清理接口', () => {

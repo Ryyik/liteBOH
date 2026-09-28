@@ -1,18 +1,32 @@
 <template>
   <div class="profile-subpage-shell">
-    <UserCenterPageHeader title="方块积分" back-label="返回我的" max-width="1200px" :show-back="showBack" @back="$emit('back')" />
+    <UserCenterPageHeader
+      title="方块积分"
+      back-label="返回我的"
+      max-width="1200px"
+      :show-back="showBack"
+      @back="$emit('back')"
+    />
 
     <div class="profile-subpage-body">
       <nav class="ah-hub-card">
         <div class="ah-top-row">
           <div class="ah-user-left">
-            <FramedAvatar :src="avatarUrl" :initial="displayInitial" :size="52" alt="头像"
-              :frame-url="avatarFrame.url" :ring="avatarFrame.url ? '' : avatarFrame.ring"
-              :frame-scale="avatarFrame.scale || 0" />
+            <FramedAvatar
+              :src="avatarUrl"
+              :initial="displayInitial"
+              :size="52"
+              alt="头像"
+              :frame-url="avatarFrame.url"
+              :ring="avatarFrame.url ? '' : avatarFrame.ring"
+              :frame-scale="avatarFrame.scale || 0"
+            />
             <div class="ah-user-info">
               <div class="ah-name-row">
                 <span class="ah-username">{{ displayName }}</span>
-                <span v-if="tierCode" class="tier-badge" :class="`tier-${tierCode}`">{{ tierDisplayName }}</span>
+                <span v-if="tierCode" class="tier-badge" :class="`tier-${tierCode}`">{{
+                  tierDisplayName
+                }}</span>
               </div>
               <span class="ah-uid">UID · {{ uidShort }}</span>
             </div>
@@ -29,411 +43,826 @@
           </div>
         </div>
 
-        <SegmentTabs class="ah-segment-tabs" :sections="hubSections" v-model="activeTabModel"
-          aria-label="资产中心分区" />
+        <SegmentTabs
+          class="ah-segment-tabs"
+          :sections="hubSections"
+          v-model="activeTabModel"
+          aria-label="资产中心分区"
+        />
       </nav>
 
       <Transition name="ah-panel" mode="out-in">
-      <section v-if="activeTab === 'overview'" key="overview" class="ah-section ah-overview">
-        <header class="ah-overview-heading">
-          <div>
-            <span>智能概览</span>
-            <h2>{{ overviewTitle }}</h2>
-            <p>{{ overviewSubtitle }}</p>
-          </div>
-          <span v-if="overviewLoading" class="ah-overview-updating">正在更新</span>
-          <button v-else-if="overviewHasErrors" type="button" class="ah-overview-retry" @click="retryOverviewIssues">
-            部分动态未更新
-          </button>
-        </header>
-
-        <div v-if="overviewLoading" class="ah-overview-skeleton" aria-hidden="true">
-          <div class="ah-skeleton ah-skeleton-focus">
-            <div class="ah-skeleton-icon"></div>
-            <div class="ah-skeleton-lines">
-              <div class="ah-skeleton-line w-24"></div>
-              <div class="ah-skeleton-line w-60"></div>
-              <div class="ah-skeleton-line w-80"></div>
+        <section v-if="activeTab === 'overview'" key="overview" class="ah-section ah-overview">
+          <header class="ah-overview-heading">
+            <div>
+              <span>智能概览</span>
+              <h2>{{ overviewTitle }}</h2>
+              <p>{{ overviewSubtitle }}</p>
             </div>
-          </div>
-          <div class="ah-skeleton ah-skeleton-points-card is-centered"></div>
-          <div class="ah-skeleton ah-skeleton-timeline"></div>
-        </div>
-        <template v-else>
-        <button
-          type="button"
-          class="ah-smart-focus"
-          :class="`tone-${primaryInsight.tone}`"
-          @click="handleSmartAction(primaryInsight.action)"
-        >
-          <span class="ah-smart-focus-icon"><component :is="primaryInsight.icon" :size="22" :stroke-width="1.8" aria-hidden="true" /></span>
-          <span class="ah-smart-focus-copy">
-            <span>{{ primaryInsight.kicker }}</span>
-            <strong>{{ primaryInsight.title }}</strong>
-            <small>{{ primaryInsight.detail }}</small>
-          </span>
-          <span class="ah-smart-focus-action">
-            {{ primaryInsight.actionLabel }}
-            <ChevronRight :size="17" :stroke-width="2" aria-hidden="true" />
-          </span>
-        </button>
+            <span v-if="overviewLoading" class="ah-overview-updating">正在更新</span>
+            <button
+              v-else-if="overviewHasErrors"
+              type="button"
+              class="ah-overview-retry"
+              @click="retryOverviewIssues"
+            >
+              部分动态未更新
+            </button>
+          </header>
 
-        <div class="ah-overview-points-wrap">
-          <PointsCard
-            class="ah-overview-points-card"
-            :points="userPoints"
-            :username="displayName"
-            :tier-label="tierDisplayName || 'BOH'"
-            :skin="userInfo?.pointsCardSkin"
-            :image-url="userInfo?.pointsCardImageUrl"
-            interactive
-            :show-sponsor-action="false"
-            @click="activateTab('decor')"
-          />
-        </div>
-
-        <div class="ah-smart-columns ah-single-timeline">
-          <section class="ah-smart-section" aria-label="最近动态">
-            <div class="ah-smart-section-head">
-              <div>
-                <span>最近动态</span>
-                <strong>刚刚发生</strong>
+          <div v-if="overviewLoading" class="ah-overview-skeleton" aria-hidden="true">
+            <div class="ah-skeleton ah-skeleton-focus">
+              <div class="ah-skeleton-icon"></div>
+              <div class="ah-skeleton-lines">
+                <div class="ah-skeleton-line w-24"></div>
+                <div class="ah-skeleton-line w-60"></div>
+                <div class="ah-skeleton-line w-80"></div>
               </div>
-              <button type="button" aria-label="查看积分明细" title="查看积分明细" @click="activateTab('points')">
+            </div>
+            <div class="ah-skeleton ah-skeleton-points-card is-centered"></div>
+            <div class="ah-skeleton ah-skeleton-timeline"></div>
+          </div>
+          <template v-else>
+            <button
+              type="button"
+              class="ah-smart-focus"
+              :class="`tone-${primaryInsight.tone}`"
+              @click="handleSmartAction(primaryInsight.action)"
+            >
+              <span class="ah-smart-focus-icon"
+                ><component
+                  :is="primaryInsight.icon"
+                  :size="22"
+                  :stroke-width="1.8"
+                  aria-hidden="true"
+              /></span>
+              <span class="ah-smart-focus-copy">
+                <span>{{ primaryInsight.kicker }}</span>
+                <strong>{{ primaryInsight.title }}</strong>
+                <small>{{ primaryInsight.detail }}</small>
+              </span>
+              <span class="ah-smart-focus-action">
+                {{ primaryInsight.actionLabel }}
                 <ChevronRight :size="17" :stroke-width="2" aria-hidden="true" />
-              </button>
-            </div>
-            <div v-if="recentActivities.length" class="ah-smart-timeline">
-              <button
-                v-for="item in recentActivities"
-                :key="item.id"
-                type="button"
-                class="ah-smart-activity"
-                @click="handleSmartAction(item.action)"
-              >
-                <span class="ah-smart-activity-time">{{ item.timeLabel }}</span>
-                <span class="ah-smart-activity-marker" :class="`tone-${item.tone}`"></span>
-                <span class="ah-smart-activity-copy">
-                  <strong>{{ item.title }}</strong>
-                  <small>{{ item.detail }}</small>
-                </span>
-                <ChevronRight :size="15" :stroke-width="2" aria-hidden="true" />
-              </button>
-            </div>
-            <div v-else class="ah-smart-quiet">暂时没有新的账户动态</div>
-          </section>
+              </span>
+            </button>
 
-          <section class="ah-smart-section" aria-label="接下来">
-            <div class="ah-smart-section-head">
-              <div>
-                <span>接下来</span>
-                <strong>{{ upcomingItems.length ? '值得留意' : '无需处理' }}</strong>
-              </div>
+            <div class="ah-overview-points-wrap">
+              <PointsCard
+                class="ah-overview-points-card"
+                :points="userPoints"
+                :username="displayName"
+                :tier-label="tierDisplayName || 'BOH'"
+                :skin="userInfo?.pointsCardSkin"
+                :image-url="userInfo?.pointsCardImageUrl"
+                interactive
+                :show-sponsor-action="false"
+                @click="activateTab('decor')"
+              />
             </div>
-            <div v-if="upcomingItems.length" class="ah-smart-next-list">
+
+            <div class="ah-smart-columns ah-single-timeline">
+              <section class="ah-smart-section" aria-label="最近动态">
+                <div class="ah-smart-section-head">
+                  <div>
+                    <span>最近动态</span>
+                    <strong>刚刚发生</strong>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="查看积分明细"
+                    title="查看积分明细"
+                    @click="activateTab('points')"
+                  >
+                    <ChevronRight :size="17" :stroke-width="2" aria-hidden="true" />
+                  </button>
+                </div>
+                <div v-if="recentActivities.length" class="ah-smart-timeline">
+                  <button
+                    v-for="item in recentActivities"
+                    :key="item.id"
+                    type="button"
+                    class="ah-smart-activity"
+                    @click="handleSmartAction(item.action)"
+                  >
+                    <span class="ah-smart-activity-time">{{ item.timeLabel }}</span>
+                    <span class="ah-smart-activity-marker" :class="`tone-${item.tone}`"></span>
+                    <span class="ah-smart-activity-copy">
+                      <strong>{{ item.title }}</strong>
+                      <small>{{ item.detail }}</small>
+                    </span>
+                    <ChevronRight :size="15" :stroke-width="2" aria-hidden="true" />
+                  </button>
+                </div>
+                <div v-else class="ah-smart-quiet">暂时没有新的账户动态</div>
+              </section>
+
+              <section class="ah-smart-section" aria-label="接下来">
+                <div class="ah-smart-section-head">
+                  <div>
+                    <span>接下来</span>
+                    <strong>{{ upcomingItems.length ? '值得留意' : '无需处理' }}</strong>
+                  </div>
+                </div>
+                <div v-if="upcomingItems.length" class="ah-smart-next-list">
+                  <button
+                    v-for="item in upcomingItems"
+                    :key="item.id"
+                    type="button"
+                    class="ah-smart-next"
+                    :class="`tone-${item.tone}`"
+                    @click="handleSmartAction(item.action)"
+                  >
+                    <span class="ah-smart-next-icon"
+                      ><component :is="item.icon" :size="18" :stroke-width="1.8" aria-hidden="true"
+                    /></span>
+                    <span class="ah-smart-next-copy">
+                      <strong>{{ item.title }}</strong>
+                      <span>{{ item.detail }}</span>
+                    </span>
+                    <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
+                  </button>
+                </div>
+                <div v-else class="ah-smart-ready">
+                  <Check :size="18" :stroke-width="2.3" aria-hidden="true" />
+                  <div><strong>账户一切就绪</strong><span>没有即将到期或需要补充的信息</span></div>
+                </div>
+              </section>
+            </div>
+          </template>
+        </section>
+
+        <section
+          v-else-if="activeTab === 'points'"
+          key="points"
+          class="ah-section ah-points-section"
+        >
+          <template v-if="pointsView === 'actions'">
+            <header class="ah-points-heading">
+              <span>方块积分</span>
+              <h2>管理你的积分</h2>
+              <p>充值补充积分，或查看每一笔积分变动。</p>
+            </header>
+            <div class="ah-points-action-grid">
               <button
-                v-for="item in upcomingItems"
-                :key="item.id"
                 type="button"
-                class="ah-smart-next"
-                :class="`tone-${item.tone}`"
-                @click="handleSmartAction(item.action)"
+                class="ah-points-action-card is-recharge"
+                @click="isRechargeOpen = true"
               >
-                <span class="ah-smart-next-icon"><component :is="item.icon" :size="18" :stroke-width="1.8" aria-hidden="true" /></span>
-                <span class="ah-smart-next-copy">
-                  <strong>{{ item.title }}</strong>
-                  <span>{{ item.detail }}</span>
-                </span>
+                <span class="ah-points-action-icon"
+                  ><Coins :size="23" :stroke-width="1.8" aria-hidden="true"
+                /></span>
+                <span class="ah-points-action-copy"
+                  ><strong>充值积分</strong><small>扫码联系管理员充值</small></span
+                >
+                <ChevronRight :size="19" :stroke-width="2" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                class="ah-points-action-card is-detail"
+                @click="openPointsDetail"
+              >
+                <span class="ah-points-action-icon"
+                  ><ScrollText :size="23" :stroke-width="1.8" aria-hidden="true"
+                /></span>
+                <span class="ah-points-action-copy"
+                  ><strong>积分获取明细</strong><small>查看签到、发放与兑换记录</small></span
+                >
+                <ChevronRight :size="19" :stroke-width="2" aria-hidden="true" />
+              </button>
+            </div>
+          </template>
+
+          <template v-else>
+            <header class="ah-points-detail-heading">
+              <button
+                type="button"
+                class="ah-points-back"
+                aria-label="返回积分管理"
+                @click="pointsView = 'actions'"
+              >
+                <ChevronRight :size="18" :stroke-width="2" aria-hidden="true" />
+              </button>
+              <div>
+                <span>积分记录</span>
+                <h2>积分获取明细</h2>
+              </div>
+              <div class="ah-points-total">
+                <span>当前积分</span><strong>{{ pointsDisplay }}</strong>
+              </div>
+            </header>
+            <div class="ah-points-filter" role="tablist" aria-label="积分明细时间筛选">
+              <button
+                v-for="filter in pointsDetailFilters"
+                :key="filter.id"
+                type="button"
+                role="tab"
+                :aria-selected="pointsDetailFilter === filter.id"
+                :class="{ active: pointsDetailFilter === filter.id }"
+                @click="pointsDetailFilter = filter.id"
+              >
+                {{ filter.label }}
+              </button>
+            </div>
+            <div v-if="ledgerLoading" class="ah-order-skeleton">
+              <div v-for="n in 4" :key="n" class="ah-skeleton-block" />
+            </div>
+            <div v-else-if="ledgerError" class="ah-empty-state">
+              <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
+              <h3>积分明细暂时无法加载</h3>
+              <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="retryLedger">
+                重试
+              </button>
+            </div>
+            <div v-else-if="ledger.length === 0" class="ah-empty-state">
+              <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
+              <h3>暂无积分明细</h3>
+              <p>周签到、管理员发放与商城订单都会记录在这里</p>
+            </div>
+            <div v-else-if="filteredLedger.length === 0" class="ah-empty-state">
+              <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
+              <h3>这个时间段暂无记录</h3>
+              <p>试试选择更长的时间范围</p>
+            </div>
+            <div v-else class="ah-ledger">
+              <section v-for="group in ledgerGroups" :key="group.label" class="ah-ledger-group">
+                <h2>{{ group.label }}</h2>
+                <div class="ah-ledger-list">
+                  <article v-for="item in group.items" :key="item.key" class="ah-ledger-item">
+                    <div class="ah-ledger-icon" :class="`tone-${item.tone}`">
+                      <component :is="item.icon" :size="17" :stroke-width="1.8" />
+                    </div>
+                    <div class="ah-ledger-main">
+                      <span class="ah-ledger-title">{{ item.title }}</span
+                      ><span v-if="item.remark" class="ah-ledger-remark">{{ item.remark }}</span>
+                    </div>
+                    <div class="ah-ledger-right">
+                      <span
+                        class="ah-ledger-amount"
+                        :class="{ negative: item.amount < 0, zero: item.amount === 0 }"
+                        >{{ item.amount >= 0 ? '+' : '' }}{{ item.amount }}</span
+                      ><span class="ah-ledger-date">{{ formatDate(item.time) }}</span>
+                    </div>
+                  </article>
+                </div>
+              </section>
+            </div>
+          </template>
+
+          <Transition name="ah-qr-modal"
+            ><div v-if="isRechargeOpen" class="ah-qr-overlay" @click.self="isRechargeOpen = false">
+              <section
+                class="ah-qr-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="recharge-points-title"
+              >
+                <button
+                  type="button"
+                  class="ah-qr-close"
+                  aria-label="关闭充值积分"
+                  @click="isRechargeOpen = false"
+                >
+                  <X :size="17" :stroke-width="2" aria-hidden="true" /></button
+                ><span class="ah-qr-kicker">充值积分</span>
+                <h2 id="recharge-points-title">扫码联系管理员</h2>
+                <p>请使用微信扫描收款码，备注你的 UID，管理员确认后将为你充值积分。</p>
+                <div class="ah-qr-frame">
+                  <img :src="sponsorQrImage" alt="积分充值收款二维码" class="ah-recharge-qr" />
+                </div>
+                <span class="ah-qr-uid">UID · {{ uidShort }}</span>
+              </section>
+            </div></Transition
+          >
+        </section>
+
+        <section v-else-if="activeTab === 'subscription'" key="subscription" class="ah-section">
+          <div v-if="subscriptionLoading" class="ah-order-skeleton">
+            <div class="ah-skeleton-block" />
+          </div>
+          <template v-else>
+            <article class="ah-membership-card" :class="{ 'is-free': !activeSubscription }">
+              <div class="ah-membership-card-top">
+                <span>当前会员</span>
+                <span class="ah-membership-status">{{
+                  activeSubscription ? '生效中' : '免费版'
+                }}</span>
+              </div>
+              <h2>{{ subscriptionDisplayName }}</h2>
+              <p>{{ subscriptionExpiryText }}</p>
+              <div class="ah-membership-meta">
+                <span>Cloud+ {{ cloudImageLimit }} 张</span>
+                <span>{{
+                  activeSubscription?.billingCycle === 'yearly'
+                    ? '年度订阅'
+                    : activeSubscription
+                      ? '月度订阅'
+                      : '基础额度'
+                }}</span>
+                <span v-if="annualGiftLabel">{{ annualGiftLabel }}</span>
+              </div>
+              <section
+                class="ah-pity-progress"
+                :class="{ 'is-due': pityStatus?.isDue, 'is-unavailable': !pityStatus?.eligible }"
+                aria-label="抽奖保底进度"
+              >
+                <div class="ah-pity-progress-head">
+                  <span>抽奖保底进度</span><strong>{{ pityProgressLabel }}</strong>
+                </div>
+                <div
+                  v-if="pityStatus?.eligible"
+                  class="ah-pity-progress-track"
+                  role="progressbar"
+                  aria-label="连续未中奖进度"
+                  :aria-valuenow="pityStatus.consecutiveLosses"
+                  :aria-valuemin="0"
+                  :aria-valuemax="pityStatus.threshold"
+                >
+                  <div
+                    class="ah-pity-progress-fill"
+                    :style="{ width: `${pityProgressPercent}%` }"
+                  ></div>
+                </div>
+                <p>{{ pityProgressDescription }}</p>
+              </section>
+              <button
+                type="button"
+                class="ah-shop-btn"
+                @click="showPlanComparison = !showPlanComparison"
+              >
+                {{
+                  showPlanComparison ? '收起方案' : activeSubscription ? '更改方案' : '选择会员方案'
+                }}
                 <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
               </button>
-            </div>
-            <div v-else class="ah-smart-ready">
-              <Check :size="18" :stroke-width="2.3" aria-hidden="true" />
-              <div><strong>账户一切就绪</strong><span>没有即将到期或需要补充的信息</span></div>
-            </div>
-          </section>
-        </div>
-        </template>
-      </section>
-
-      <section v-else-if="activeTab === 'points'" key="points" class="ah-section ah-points-section">
-        <template v-if="pointsView === 'actions'">
-          <header class="ah-points-heading">
-            <span>方块积分</span>
-            <h2>管理你的积分</h2>
-            <p>充值补充积分，或查看每一笔积分变动。</p>
-          </header>
-          <div class="ah-points-action-grid">
-            <button type="button" class="ah-points-action-card is-recharge" @click="isRechargeOpen = true">
-              <span class="ah-points-action-icon"><Coins :size="23" :stroke-width="1.8" aria-hidden="true" /></span>
-              <span class="ah-points-action-copy"><strong>充值积分</strong><small>扫码联系管理员充值</small></span>
-              <ChevronRight :size="19" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <button type="button" class="ah-points-action-card is-detail" @click="openPointsDetail">
-              <span class="ah-points-action-icon"><ScrollText :size="23" :stroke-width="1.8" aria-hidden="true" /></span>
-              <span class="ah-points-action-copy"><strong>积分获取明细</strong><small>查看签到、发放与兑换记录</small></span>
-              <ChevronRight :size="19" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </div>
-        </template>
-
-        <template v-else>
-          <header class="ah-points-detail-heading">
-            <button type="button" class="ah-points-back" aria-label="返回积分管理" @click="pointsView = 'actions'"><ChevronRight :size="18" :stroke-width="2" aria-hidden="true" /></button>
-            <div><span>积分记录</span><h2>积分获取明细</h2></div>
-            <div class="ah-points-total"><span>当前积分</span><strong>{{ pointsDisplay }}</strong></div>
-          </header>
-          <div class="ah-points-filter" role="tablist" aria-label="积分明细时间筛选">
-            <button v-for="filter in pointsDetailFilters" :key="filter.id" type="button" role="tab" :aria-selected="pointsDetailFilter === filter.id" :class="{ active: pointsDetailFilter === filter.id }" @click="pointsDetailFilter = filter.id">{{ filter.label }}</button>
-          </div>
-          <div v-if="ledgerLoading" class="ah-order-skeleton"><div v-for="n in 4" :key="n" class="ah-skeleton-block" /></div>
-          <div v-else-if="ledgerError" class="ah-empty-state"><div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div><h3>积分明细暂时无法加载</h3><button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="retryLedger">重试</button></div>
-          <div v-else-if="ledger.length === 0" class="ah-empty-state"><div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div><h3>暂无积分明细</h3><p>周签到、管理员发放与商城订单都会记录在这里</p></div>
-          <div v-else-if="filteredLedger.length === 0" class="ah-empty-state"><div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div><h3>这个时间段暂无记录</h3><p>试试选择更长的时间范围</p></div>
-          <div v-else class="ah-ledger">
-            <section v-for="group in ledgerGroups" :key="group.label" class="ah-ledger-group"><h2>{{ group.label }}</h2><div class="ah-ledger-list"><article v-for="item in group.items" :key="item.key" class="ah-ledger-item"><div class="ah-ledger-icon" :class="`tone-${item.tone}`"><component :is="item.icon" :size="17" :stroke-width="1.8" /></div><div class="ah-ledger-main"><span class="ah-ledger-title">{{ item.title }}</span><span v-if="item.remark" class="ah-ledger-remark">{{ item.remark }}</span></div><div class="ah-ledger-right"><span class="ah-ledger-amount" :class="{ negative: item.amount < 0, zero: item.amount === 0 }">{{ item.amount >= 0 ? '+' : '' }}{{ item.amount }}</span><span class="ah-ledger-date">{{ formatDate(item.time) }}</span></div></article></div></section>
-          </div>
-        </template>
-
-        <Transition name="ah-qr-modal"><div v-if="isRechargeOpen" class="ah-qr-overlay" @click.self="isRechargeOpen = false"><section class="ah-qr-modal" role="dialog" aria-modal="true" aria-labelledby="recharge-points-title"><button type="button" class="ah-qr-close" aria-label="关闭充值积分" @click="isRechargeOpen = false"><X :size="17" :stroke-width="2" aria-hidden="true" /></button><span class="ah-qr-kicker">充值积分</span><h2 id="recharge-points-title">扫码联系管理员</h2><p>请使用微信扫描收款码，备注你的 UID，管理员确认后将为你充值积分。</p><div class="ah-qr-frame"><img :src="sponsorQrImage" alt="积分充值收款二维码" class="ah-recharge-qr" /></div><span class="ah-qr-uid">UID · {{ uidShort }}</span></section></div></Transition>
-      </section>
-
-      <section v-else-if="activeTab === 'subscription'" key="subscription" class="ah-section">
-        <div v-if="subscriptionLoading" class="ah-order-skeleton"><div class="ah-skeleton-block" /></div>
-        <template v-else>
-          <article class="ah-membership-card" :class="{ 'is-free': !activeSubscription }">
-            <div class="ah-membership-card-top">
-              <span>当前会员</span>
-              <span class="ah-membership-status">{{ activeSubscription ? '生效中' : '免费版' }}</span>
-            </div>
-            <h2>{{ subscriptionDisplayName }}</h2>
-            <p>{{ subscriptionExpiryText }}</p>
-            <div class="ah-membership-meta">
-              <span>Cloud+ {{ cloudImageLimit }} 张</span>
-              <span>{{ activeSubscription?.billingCycle === 'yearly' ? '年度订阅' : activeSubscription ? '月度订阅' : '基础额度' }}</span>
-              <span v-if="annualGiftLabel">{{ annualGiftLabel }}</span>
-            </div>
-            <section class="ah-pity-progress" :class="{ 'is-due': pityStatus?.isDue, 'is-unavailable': !pityStatus?.eligible }" aria-label="抽奖保底进度">
-              <div class="ah-pity-progress-head"><span>抽奖保底进度</span><strong>{{ pityProgressLabel }}</strong></div>
-              <div v-if="pityStatus?.eligible" class="ah-pity-progress-track" role="progressbar" aria-label="连续未中奖进度" :aria-valuenow="pityStatus.consecutiveLosses" :aria-valuemin="0" :aria-valuemax="pityStatus.threshold">
-                <div class="ah-pity-progress-fill" :style="{ width: `${pityProgressPercent}%` }"></div>
-              </div>
-              <p>{{ pityProgressDescription }}</p>
-            </section>
-            <button type="button" class="ah-shop-btn" @click="showPlanComparison = !showPlanComparison">
-              {{ showPlanComparison ? '收起方案' : activeSubscription ? '更改方案' : '选择会员方案' }}
-              <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </article>
-          <SubscriptionPlans v-if="showPlanComparison" />
-        </template>
-      </section>
-
-      <section v-else-if="activeTab === 'fulfillment'" key="fulfillment" class="ah-section ah-fulfillment-section">
-        <header class="ah-fulfillment-heading">
-          <div><span>服务</span><h2>订单</h2><p>礼物履约、商城兑换记录与收货地址都在这里。</p></div>
-          <button type="button" class="ah-icon-command" title="刷新礼物与订单" aria-label="刷新礼物与订单" @click="refreshFulfillment">
-            <RefreshCw :size="17" :stroke-width="2" aria-hidden="true" />
-          </button>
-        </header>
-
-        <article v-if="currentGift" class="ah-gift-card ah-current-gift-card">
-          <header class="ah-gift-header"><span class="ah-gift-eyebrow"><Gift :size="14" :stroke-width="2" aria-hidden="true" />进行中的礼物</span><span class="ah-gift-header-date">更新于 {{ giftStatusDate }}</span></header>
-          <div class="ah-gift-overview">
-            <div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }"><img v-if="currentGift.gift_image" :src="currentGift.gift_image" :alt="currentGift.gift_content" loading="lazy" /><Gift v-else :size="30" :stroke-width="1.6" aria-hidden="true" /></div>
-            <div class="ah-gift-headinfo"><div class="ah-gift-headtop"><h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3><span class="ah-gift-badge" :class="currentGift.gift_status">{{ getGiftStatusLabel(currentGift.gift_status) }}</span></div><div class="ah-gift-headsub"><span v-if="currentGift.gift_price" class="ah-gift-amount">RMB {{ currentGift.gift_price }}</span><span v-if="currentGift.gift_no" class="ah-gift-history-no">{{ currentGift.gift_no }}</span></div></div>
-          </div>
-          <div class="ah-gift-status-panel" :class="currentGift.gift_status"><div class="ah-gift-status-icon"><PackageCheck :size="19" :stroke-width="1.8" aria-hidden="true" /></div><div class="ah-gift-status-copy"><strong>{{ giftStatusHeadline }}</strong><p>{{ giftStatusDesc }}</p></div></div>
-        </article>
-
-        <section class="ah-fulfillment-records" aria-label="礼物与订单记录">
-          <header class="ah-fulfillment-records-head">
-            <div><span>记录</span><h3>礼物与订单记录</h3></div>
-            <div class="ah-record-filter" role="tablist" aria-label="记录筛选">
-              <button v-for="filter in fulfillmentFilters" :key="filter.id" type="button" role="tab" :aria-selected="recordFilter === filter.id" :class="{ active: recordFilter === filter.id }" @click="recordFilter = filter.id">{{ filter.label }}</button>
-            </div>
-          </header>
-          <div v-if="giftsLoading && ordersLoading" class="ah-order-skeleton"><div v-for="n in 3" :key="n" class="ah-skeleton-block" /></div>
-          <div v-else-if="visibleFulfillmentRecords.length" class="ah-fulfillment-record-list">
-            <article v-for="record in visibleFulfillmentRecords" :key="record.id" class="ah-fulfillment-record">
-              <span class="ah-fulfillment-record-icon" :class="record.type"><Gift v-if="record.type === 'gift'" :size="17" :stroke-width="1.8" aria-hidden="true" /><Package v-else :size="17" :stroke-width="1.8" aria-hidden="true" /></span>
-              <div class="ah-fulfillment-record-copy"><strong>{{ record.title }}</strong><span>{{ record.detail }}</span></div>
-              <div class="ah-fulfillment-record-side"><span>{{ formatDateShort(record.time) }}</span><span v-if="record.type === 'gift'" class="ah-gift-badge is-flat" :class="record.status">{{ getGiftStatusLabel(record.status) }}</span><span v-else class="ah-fulfillment-record-points">-{{ record.points }} 积分</span></div>
             </article>
-          </div>
-          <div v-else class="ah-empty-state"><div class="ah-empty-icon"><Package :size="26" :stroke-width="1.5" /></div><h3>{{ recordFilter === 'gifts' ? '还没有历史礼物' : recordFilter === 'orders' ? '还没有商城订单' : '还没有礼物或订单记录' }}</h3><p v-if="recordFilter !== 'gifts'">商城兑换与已归档礼物会出现在这里。</p></div>
-          <p v-if="giftsError || ordersError" class="ah-fulfillment-partial-error">部分记录暂时无法更新，刷新后重试。</p>
+            <SubscriptionPlans v-if="showPlanComparison" />
+          </template>
         </section>
 
-        <section class="ah-fulfillment-address" aria-label="收货地址">
-          <div class="ah-fulfillment-address-head">
-            <span>收货地址</span>
-            <h3>管理你的收货地址</h3>
-            <p>礼物与实物兑换寄送时使用，建议至少保留一个有效地址。</p>
-          </div>
-          <AddressManager variant="glass" :show-header="false" />
-        </section>
-      </section>
+        <section
+          v-else-if="activeTab === 'fulfillment'"
+          key="fulfillment"
+          class="ah-section ah-fulfillment-section"
+        >
+          <header class="ah-fulfillment-heading">
+            <div>
+              <span>服务</span>
+              <h2>订单</h2>
+              <p>礼物履约、商城兑换记录与收货地址都在这里。</p>
+            </div>
+            <button
+              type="button"
+              class="ah-icon-command"
+              title="刷新礼物与订单"
+              aria-label="刷新礼物与订单"
+              @click="refreshFulfillment"
+            >
+              <RefreshCw :size="17" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </header>
 
-      <!-- 旧「订单 / 礼物 / 地址」独立 tab 已并入 fulfillment（2026-09 tab 合并），深链经 normalizeInitialTab 映射 -->
-
-      <section v-else-if="activeTab === 'lottery'" key="lottery" class="ah-section ah-lottery-section">
-        <div class="ah-lottery-hero">
-          <div class="ah-lottery-hero-icon"><Ticket :size="22" :stroke-width="1.8" aria-hidden="true" /></div>
-          <div>
-            <span>社区抽奖</span>
-            <h2>参与抽奖，赢取方块好礼</h2>
-            <p>免费报名，中奖可获奖品与积分回馈。订阅会员可累计保底进度。</p>
-          </div>
-          <button type="button" class="ah-lottery-hero-action" @click="router.push('/lotteries').catch(()=>{})">查看全部</button>
-        </div>
-        <div v-if="pityStatus" class="ah-lottery-pity-inline" :class="{ 'is-due': pityStatus.isDue, 'is-unavailable': !pityStatus.eligible }">
-          <div class="ah-lottery-pity-head"><span>保底进度</span><strong>{{ pityProgressLabel }}</strong></div>
-          <div v-if="pityStatus.eligible" class="ah-lottery-pity-track"><div class="ah-lottery-pity-fill" :style="{ width: `${pityProgressPercent}%` }"></div></div>
-          <p>{{ pityProgressDescription }}</p>
-        </div>
-        <div v-if="lotteryLoading" class="ah-lottery-skeleton">
-          <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-lottery"></div>
-        </div>
-        <div v-else-if="lotteryError" class="ah-empty-state">
-          <div class="ah-empty-icon"><Ticket :size="26" :stroke-width="1.5" /></div>
-          <h3>抽奖加载失败</h3>
-          <p>{{ lotteryError }}</p>
-          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="loadLotteries(true)">重试</button>
-        </div>
-        <div v-else-if="!lotteries.length" class="ah-empty-state">
-          <div class="ah-empty-icon"><Ticket :size="26" :stroke-width="1.5" /></div>
-          <h3>暂无进行中的抽奖</h3>
-          <p>社区抽奖会不定期开启，请稍后再来或查看历史</p>
-          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="router.push('/lotteries').catch(()=>{})">去抽奖页看看</button>
-        </div>
-        <div v-else class="ah-lottery-grid">
-          <article v-for="item in lotteries" :key="item.id" class="ah-lottery-card" :class="`status-${item.status}`">
-            <div v-if="item.cover_image_url" class="ah-lottery-cover"><img :src="item.cover_image_url" :alt="item.title" loading="lazy" /></div>
-            <div v-else class="ah-lottery-cover is-empty"><Ticket :size="28" :stroke-width="1.6" /></div>
-            <div class="ah-lottery-body">
-              <div class="ah-lottery-top"><span class="ah-lottery-status" :class="item.status">{{ getLotteryStatusLabel(item.status) }}</span><span v-if="item.current_user_entry_id" class="ah-lottery-joined">已报名</span><span v-if="item.pity_mode==='eligible'" class="ah-lottery-pity-badge">保底</span></div>
-              <h3 :title="item.title">{{ item.title || '未命名抽奖' }}</h3>
-              <p class="ah-lottery-prize" :title="item.prize_title">奖品：{{ item.prize_title || '—' }}</p>
-              <div class="ah-lottery-meta"><span>{{ item.entry_count || 0 }}人已报名</span><span>开奖 {{ formatLotteryDrawAt(item.draw_at) }}</span></div>
-              <div class="ah-lottery-actions">
-                <button v-if="item.status==='open' && !item.current_user_entry_id" type="button" class="ah-shop-btn ah-lottery-join" :disabled="joiningLotteryId===item.id" @click="handleJoinLottery(item)">{{ joiningLotteryId===item.id ? '报名中' : '立即报名' }}</button>
-                <button v-else-if="item.current_user_entry_id" type="button" class="ah-shop-btn ah-lottery-joined-btn" disabled>已报名 #{{ item.current_user_entry_number || '-' }}</button>
-                <button v-else type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="router.push('/lotteries').catch(()=>{})">查看详情</button>
-                <button type="button" class="ah-lottery-link" @click="router.push(`/lotteries?lottery=${encodeURIComponent(item.id)}`).catch(()=>{})">详情</button>
+          <article v-if="currentGift" class="ah-gift-card ah-current-gift-card">
+            <header class="ah-gift-header">
+              <span class="ah-gift-eyebrow"
+                ><Gift :size="14" :stroke-width="2" aria-hidden="true" />进行中的礼物</span
+              ><span class="ah-gift-header-date">更新于 {{ giftStatusDate }}</span>
+            </header>
+            <div class="ah-gift-overview">
+              <div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }">
+                <img
+                  v-if="currentGift.gift_image"
+                  :src="currentGift.gift_image"
+                  :alt="currentGift.gift_content"
+                  loading="lazy"
+                /><Gift v-else :size="30" :stroke-width="1.6" aria-hidden="true" />
+              </div>
+              <div class="ah-gift-headinfo">
+                <div class="ah-gift-headtop">
+                  <h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3>
+                  <span class="ah-gift-badge" :class="currentGift.gift_status">{{
+                    getGiftStatusLabel(currentGift.gift_status)
+                  }}</span>
+                </div>
+                <div class="ah-gift-headsub">
+                  <span v-if="currentGift.gift_price" class="ah-gift-amount"
+                    >RMB {{ currentGift.gift_price }}</span
+                  ><span v-if="currentGift.gift_no" class="ah-gift-history-no">{{
+                    currentGift.gift_no
+                  }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="ah-gift-status-panel" :class="currentGift.gift_status">
+              <div class="ah-gift-status-icon">
+                <PackageCheck :size="19" :stroke-width="1.8" aria-hidden="true" />
+              </div>
+              <div class="ah-gift-status-copy">
+                <strong>{{ giftStatusHeadline }}</strong>
+                <p>{{ giftStatusDesc }}</p>
               </div>
             </div>
           </article>
-        </div>
-        <div class="ah-lottery-foot">
-          <p>抽奖免费参与，保底仅对会员计入。祝你好运。</p>
-          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="router.push('/lotteries').catch(()=>{})">前往抽奖页</button>
-        </div>
-      </section>
 
-      <section v-else-if="activeTab === 'sponsor'" key="sponsor" class="ah-section ah-sponsor-section">
-        <div class="ah-sponsor-hero">
-          <div class="ah-sponsor-hero-icon"><Heart :size="22" :stroke-width="1.8" aria-hidden="true" /></div>
-          <div>
-            <span>支持社区</span>
-            <h2>赞助方块之家</h2>
-            <p>你的每一份支持，都让社区的方块更温暖。赞助款将用于服务器与活动奖品。</p>
-          </div>
-        </div>
-        <div class="ah-sponsor-grid">
-          <article class="ah-sponsor-card">
-            <h3><span class="ah-sponsor-badge">推荐</span> 微信赞赏</h3>
-            <p>扫码赞赏，金额随心。赞助后可在积分卡展示赞助标识。</p>
-            <div class="ah-sponsor-qr-wrap">
-              <img :src="sponsorQrImage" alt="微信赞赏码" loading="lazy" />
+          <section class="ah-fulfillment-records" aria-label="礼物与订单记录">
+            <header class="ah-fulfillment-records-head">
+              <div>
+                <span>记录</span>
+                <h3>礼物与订单记录</h3>
+              </div>
+              <div class="ah-record-filter" role="tablist" aria-label="记录筛选">
+                <button
+                  v-for="filter in fulfillmentFilters"
+                  :key="filter.id"
+                  type="button"
+                  role="tab"
+                  :aria-selected="recordFilter === filter.id"
+                  :class="{ active: recordFilter === filter.id }"
+                  @click="recordFilter = filter.id"
+                >
+                  {{ filter.label }}
+                </button>
+              </div>
+            </header>
+            <div v-if="giftsLoading && ordersLoading" class="ah-order-skeleton">
+              <div v-for="n in 3" :key="n" class="ah-skeleton-block" />
             </div>
-            <small>长按保存 · 微信扫码</small>
-          </article>
-          <article class="ah-sponsor-card is-muted">
-            <h3>支付宝</h3>
-            <p>暂未开通，敬请期待。</p>
-            <div class="ah-sponsor-qr-wrap is-placeholder">
-              <span>—</span>
-            </div>
-            <small>后续开放</small>
-          </article>
-        </div>
-        <div class="ah-sponsor-foot">
-          <p>赞助属自愿行为，不与抽奖保底、积分权益挂钩。感谢每一位支持者。</p>
-          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="activateTab('overview')">返回概览</button>
-        </div>
-      </section>
-
-      <section v-else-if="activeTab === 'decor'" key="decor" class="ah-section ah-decor">
-        <header class="ah-overview-heading">
-          <div>
-            <span>个性化</span>
-            <h2>装扮</h2>
-            <p>选择你的头像框，佩戴后全站头像同步展示。更多装扮类型陆续上线。</p>
-          </div>
-        </header>
-        <AvatarFrameGrid :avatar-url="avatarUrl" :tier-code="tierCode" @unlock="activateTab('subscription')" />
-
-        <div class="ah-decor-subhead">
-          <h3>积分卡面</h3>
-          <p>选择空白卡、全员小猫主题，或上传自己的卡面。</p>
-        </div>
-        <div class="ah-cards-panel">
-          <PointsCard :points="userPoints" :username="displayName" :tier-label="tierDisplayName || 'BOH'"
-            :skin="userInfo?.pointsCardSkin" :image-url="userInfo?.pointsCardImageUrl" show-sponsor-action
-            @sponsor="$emit('sponsor')" />
-          <div class="ah-skin-grid" aria-label="积分卡皮肤">
-            <button type="button" class="ah-skin-option" :class="{ active: userInfo?.pointsCardSkin === 'blank' }" @click="$emit('set-points-card-skin', 'blank')">
-              <span class="ah-skin-preview is-blank"><Coins :size="18" :stroke-width="1.8" /></span><strong>空白卡</strong><small>默认样式</small>
-            </button>
-            <button type="button" class="ah-skin-option is-cats-skin" :class="{ active: pointsCardCatsUnlocked && userInfo?.pointsCardSkin === 'cats' }" :disabled="isRedeemingPointsCardCats" @click="handleCatsSkinClick">
-              <span class="ah-skin-preview is-cats"><img v-for="cat in catSkinPreviewAssets" :key="cat.id" :src="cat.src" alt=""></span><strong>全员小猫</strong><small>{{ isRedeemingPointsCardCats ? '兑换中' : (pointsCardCatsUnlocked ? '已兑换' : '3 积分兑换') }}</small>
-            </button>
-            <button type="button" class="ah-skin-option" :disabled="isPointsCardPresetQuotaLoading || !canAddPointsCardPreset" @click="$emit('upload-points-card')">
-              <span class="ah-skin-preview is-custom"><ImagePlus :size="18" :stroke-width="1.8" /></span><strong>添加卡面</strong><small>上传并裁切</small>
-            </button>
-          </div>
-
-          <section class="ah-card-presets" aria-label="自定义卡面预设">
-            <div class="ah-card-presets-heading">
-              <span>自定义预设</span>
-              <small v-if="!isPointsCardPresetsLoading">{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} 张</small>
-            </div>
-            <div v-if="isPointsCardPresetsLoading" class="ah-card-preset-grid" aria-hidden="true">
-              <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-preset"></div>
-            </div>
-            <div v-else-if="pointsCardPresets.length" class="ah-card-preset-grid">
+            <div v-else-if="visibleFulfillmentRecords.length" class="ah-fulfillment-record-list">
               <article
-                v-for="preset in pointsCardPresets"
-                :key="preset.id"
-                class="ah-card-preset"
-                :class="{ active: userInfo?.pointsCardSkin === 'custom' && userInfo?.pointsCardImageUrl === preset.imageUrl }"
+                v-for="record in visibleFulfillmentRecords"
+                :key="record.id"
+                class="ah-fulfillment-record"
               >
-                <button
-                  type="button"
-                  class="ah-card-preset-select"
-                  :aria-label="'使用自定义卡面预设'"
-                  @click="$emit('select-points-card-preset', preset.id)"
-                >
-                  <img :src="preset.imageUrl" alt="自定义卡面预设" loading="lazy">
-                  <span>自定义卡面</span>
-                </button>
-                <button
-                  type="button"
-                  class="ah-card-preset-delete"
-                  aria-label="删除此自定义卡面预设"
-                  title="删除此预设"
-                  @click="$emit('delete-points-card-preset', preset.id)"
-                >
-                  <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
-                </button>
+                <span class="ah-fulfillment-record-icon" :class="record.type"
+                  ><Gift
+                    v-if="record.type === 'gift'"
+                    :size="17"
+                    :stroke-width="1.8"
+                    aria-hidden="true" /><Package
+                    v-else
+                    :size="17"
+                    :stroke-width="1.8"
+                    aria-hidden="true"
+                /></span>
+                <div class="ah-fulfillment-record-copy">
+                  <strong>{{ record.title }}</strong
+                  ><span>{{ record.detail }}</span>
+                </div>
+                <div class="ah-fulfillment-record-side">
+                  <span>{{ formatDateShort(record.time) }}</span
+                  ><span
+                    v-if="record.type === 'gift'"
+                    class="ah-gift-badge is-flat"
+                    :class="record.status"
+                    >{{ getGiftStatusLabel(record.status) }}</span
+                  ><span v-else class="ah-fulfillment-record-points"
+                    >-{{ record.points }} 积分</span
+                  >
+                </div>
               </article>
             </div>
-            <div v-else class="ah-card-presets-empty">暂无自定义预设</div>
-            <p v-if="!isPointsCardPresetsLoading" class="ah-card-presets-retention">未启用的卡面超过 90 天会自动清理</p>
+            <div v-else class="ah-empty-state">
+              <div class="ah-empty-icon"><Package :size="26" :stroke-width="1.5" /></div>
+              <h3>
+                {{
+                  recordFilter === 'gifts'
+                    ? '还没有历史礼物'
+                    : recordFilter === 'orders'
+                      ? '还没有商城订单'
+                      : '还没有礼物或订单记录'
+                }}
+              </h3>
+              <p v-if="recordFilter !== 'gifts'">商城兑换与已归档礼物会出现在这里。</p>
+            </div>
+            <p v-if="giftsError || ordersError" class="ah-fulfillment-partial-error">
+              部分记录暂时无法更新，刷新后重试。
+            </p>
           </section>
-        </div>
-      </section>
+
+          <section class="ah-fulfillment-address" aria-label="收货地址">
+            <div class="ah-fulfillment-address-head">
+              <span>收货地址</span>
+              <h3>管理你的收货地址</h3>
+              <p>礼物与实物兑换寄送时使用，建议至少保留一个有效地址。</p>
+            </div>
+            <AddressManager variant="glass" :show-header="false" />
+          </section>
+        </section>
+
+        <!-- 旧「订单 / 礼物 / 地址」独立 tab 已并入 fulfillment（2026-09 tab 合并），深链经 normalizeInitialTab 映射 -->
+
+        <section
+          v-else-if="activeTab === 'lottery'"
+          key="lottery"
+          class="ah-section ah-lottery-section"
+        >
+          <div class="ah-lottery-hero">
+            <div class="ah-lottery-hero-icon">
+              <Ticket :size="22" :stroke-width="1.8" aria-hidden="true" />
+            </div>
+            <div>
+              <span>社区抽奖</span>
+              <h2>参与抽奖，赢取方块好礼</h2>
+              <p>免费报名，中奖可获奖品与积分回馈。订阅会员可累计保底进度。</p>
+            </div>
+            <button
+              type="button"
+              class="ah-lottery-hero-action"
+              @click="router.push('/lotteries').catch(() => {})"
+            >
+              查看全部
+            </button>
+          </div>
+          <div
+            v-if="pityStatus"
+            class="ah-lottery-pity-inline"
+            :class="{ 'is-due': pityStatus.isDue, 'is-unavailable': !pityStatus.eligible }"
+          >
+            <div class="ah-lottery-pity-head">
+              <span>保底进度</span><strong>{{ pityProgressLabel }}</strong>
+            </div>
+            <div v-if="pityStatus.eligible" class="ah-lottery-pity-track">
+              <div class="ah-lottery-pity-fill" :style="{ width: `${pityProgressPercent}%` }"></div>
+            </div>
+            <p>{{ pityProgressDescription }}</p>
+          </div>
+          <div v-if="lotteryLoading" class="ah-lottery-skeleton">
+            <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-lottery"></div>
+          </div>
+          <div v-else-if="lotteryError" class="ah-empty-state">
+            <div class="ah-empty-icon"><Ticket :size="26" :stroke-width="1.5" /></div>
+            <h3>抽奖加载失败</h3>
+            <p>{{ lotteryError }}</p>
+            <button
+              type="button"
+              class="ah-shop-btn ah-shop-btn-ghost"
+              @click="loadLotteries(true)"
+            >
+              重试
+            </button>
+          </div>
+          <div v-else-if="!lotteries.length" class="ah-empty-state">
+            <div class="ah-empty-icon"><Ticket :size="26" :stroke-width="1.5" /></div>
+            <h3>暂无进行中的抽奖</h3>
+            <p>社区抽奖会不定期开启，请稍后再来或查看历史</p>
+            <button
+              type="button"
+              class="ah-shop-btn ah-shop-btn-ghost"
+              @click="router.push('/lotteries').catch(() => {})"
+            >
+              去抽奖页看看
+            </button>
+          </div>
+          <div v-else class="ah-lottery-grid">
+            <article
+              v-for="item in lotteries"
+              :key="item.id"
+              class="ah-lottery-card"
+              :class="`status-${item.status}`"
+            >
+              <div v-if="item.cover_image_url" class="ah-lottery-cover">
+                <img :src="item.cover_image_url" :alt="item.title" loading="lazy" />
+              </div>
+              <div v-else class="ah-lottery-cover is-empty">
+                <Ticket :size="28" :stroke-width="1.6" />
+              </div>
+              <div class="ah-lottery-body">
+                <div class="ah-lottery-top">
+                  <span class="ah-lottery-status" :class="item.status">{{
+                    getLotteryStatusLabel(item.status)
+                  }}</span
+                  ><span v-if="item.current_user_entry_id" class="ah-lottery-joined">已报名</span
+                  ><span v-if="item.pity_mode === 'eligible'" class="ah-lottery-pity-badge"
+                    >保底</span
+                  >
+                </div>
+                <h3 :title="item.title">{{ item.title || '未命名抽奖' }}</h3>
+                <p class="ah-lottery-prize" :title="item.prize_title">
+                  奖品：{{ item.prize_title || '—' }}
+                </p>
+                <div class="ah-lottery-meta">
+                  <span>{{ item.entry_count || 0 }}人已报名</span
+                  ><span>开奖 {{ formatLotteryDrawAt(item.draw_at) }}</span>
+                </div>
+                <div class="ah-lottery-actions">
+                  <button
+                    v-if="item.status === 'open' && !item.current_user_entry_id"
+                    type="button"
+                    class="ah-shop-btn ah-lottery-join"
+                    :disabled="joiningLotteryId === item.id"
+                    @click="handleJoinLottery(item)"
+                  >
+                    {{ joiningLotteryId === item.id ? '报名中' : '立即报名' }}
+                  </button>
+                  <button
+                    v-else-if="item.current_user_entry_id"
+                    type="button"
+                    class="ah-shop-btn ah-lottery-joined-btn"
+                    disabled
+                  >
+                    已报名 #{{ item.current_user_entry_number || '-' }}
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    class="ah-shop-btn ah-shop-btn-ghost"
+                    @click="router.push('/lotteries').catch(() => {})"
+                  >
+                    查看详情
+                  </button>
+                  <button
+                    type="button"
+                    class="ah-lottery-link"
+                    @click="
+                      router
+                        .push(`/lotteries?lottery=${encodeURIComponent(item.id)}`)
+                        .catch(() => {})
+                    "
+                  >
+                    详情
+                  </button>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div class="ah-lottery-foot">
+            <p>抽奖免费参与，保底仅对会员计入。祝你好运。</p>
+            <button
+              type="button"
+              class="ah-shop-btn ah-shop-btn-ghost"
+              @click="router.push('/lotteries').catch(() => {})"
+            >
+              前往抽奖页
+            </button>
+          </div>
+        </section>
+
+        <section
+          v-else-if="activeTab === 'sponsor'"
+          key="sponsor"
+          class="ah-section ah-sponsor-section"
+        >
+          <div class="ah-sponsor-hero">
+            <div class="ah-sponsor-hero-icon">
+              <Heart :size="22" :stroke-width="1.8" aria-hidden="true" />
+            </div>
+            <div>
+              <span>支持社区</span>
+              <h2>赞助方块之家</h2>
+              <p>你的每一份支持，都让社区的方块更温暖。赞助款将用于服务器与活动奖品。</p>
+            </div>
+          </div>
+          <div class="ah-sponsor-grid">
+            <article class="ah-sponsor-card">
+              <h3><span class="ah-sponsor-badge">推荐</span> 微信赞赏</h3>
+              <p>扫码赞赏，金额随心。赞助后可在积分卡展示赞助标识。</p>
+              <div class="ah-sponsor-qr-wrap">
+                <img :src="sponsorQrImage" alt="微信赞赏码" loading="lazy" />
+              </div>
+              <small>长按保存 · 微信扫码</small>
+            </article>
+            <article class="ah-sponsor-card is-muted">
+              <h3>支付宝</h3>
+              <p>暂未开通，敬请期待。</p>
+              <div class="ah-sponsor-qr-wrap is-placeholder">
+                <span>—</span>
+              </div>
+              <small>后续开放</small>
+            </article>
+          </div>
+          <div class="ah-sponsor-foot">
+            <p>赞助属自愿行为，不与抽奖保底、积分权益挂钩。感谢每一位支持者。</p>
+            <button
+              type="button"
+              class="ah-shop-btn ah-shop-btn-ghost"
+              @click="activateTab('overview')"
+            >
+              返回概览
+            </button>
+          </div>
+        </section>
+
+        <section v-else-if="activeTab === 'decor'" key="decor" class="ah-section ah-decor">
+          <header class="ah-overview-heading">
+            <div>
+              <span>个性化</span>
+              <h2>装扮</h2>
+              <p>选择你的头像框，佩戴后全站头像同步展示。更多装扮类型陆续上线。</p>
+            </div>
+          </header>
+          <AvatarFrameGrid
+            :avatar-url="avatarUrl"
+            :tier-code="tierCode"
+            @unlock="activateTab('subscription')"
+          />
+
+          <div class="ah-decor-subhead">
+            <h3>积分卡面</h3>
+            <p>选择空白卡、全员小猫主题，或上传自己的卡面。</p>
+          </div>
+          <div class="ah-cards-panel">
+            <PointsCard
+              :points="userPoints"
+              :username="displayName"
+              :tier-label="tierDisplayName || 'BOH'"
+              :skin="userInfo?.pointsCardSkin"
+              :image-url="userInfo?.pointsCardImageUrl"
+              show-sponsor-action
+              @sponsor="$emit('sponsor')"
+            />
+            <div class="ah-skin-grid" aria-label="积分卡皮肤">
+              <button
+                type="button"
+                class="ah-skin-option"
+                :class="{ active: userInfo?.pointsCardSkin === 'blank' }"
+                @click="$emit('set-points-card-skin', 'blank')"
+              >
+                <span class="ah-skin-preview is-blank"
+                  ><Coins :size="18" :stroke-width="1.8" /></span
+                ><strong>空白卡</strong><small>默认样式</small>
+              </button>
+              <button
+                type="button"
+                class="ah-skin-option is-cats-skin"
+                :class="{ active: pointsCardCatsUnlocked && userInfo?.pointsCardSkin === 'cats' }"
+                :disabled="isRedeemingPointsCardCats"
+                @click="handleCatsSkinClick"
+              >
+                <span class="ah-skin-preview is-cats"
+                  ><img
+                    v-for="cat in catSkinPreviewAssets"
+                    :key="cat.id"
+                    :src="cat.src"
+                    alt="" /></span
+                ><strong>全员小猫</strong
+                ><small>{{
+                  isRedeemingPointsCardCats
+                    ? '兑换中'
+                    : pointsCardCatsUnlocked
+                      ? '已兑换'
+                      : '3 积分兑换'
+                }}</small>
+              </button>
+              <button
+                type="button"
+                class="ah-skin-option"
+                :disabled="isPointsCardPresetQuotaLoading || !canAddPointsCardPreset"
+                @click="$emit('upload-points-card')"
+              >
+                <span class="ah-skin-preview is-custom"
+                  ><ImagePlus :size="18" :stroke-width="1.8" /></span
+                ><strong>添加卡面</strong><small>上传并裁切</small>
+              </button>
+            </div>
+
+            <section class="ah-card-presets" aria-label="自定义卡面预设">
+              <div class="ah-card-presets-heading">
+                <span>自定义预设</span>
+                <small v-if="!isPointsCardPresetsLoading"
+                  >{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} 张</small
+                >
+              </div>
+              <div v-if="isPointsCardPresetsLoading" class="ah-card-preset-grid" aria-hidden="true">
+                <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-preset"></div>
+              </div>
+              <div v-else-if="pointsCardPresets.length" class="ah-card-preset-grid">
+                <article
+                  v-for="preset in pointsCardPresets"
+                  :key="preset.id"
+                  class="ah-card-preset"
+                  :class="{
+                    active:
+                      userInfo?.pointsCardSkin === 'custom' &&
+                      userInfo?.pointsCardImageUrl === preset.imageUrl,
+                  }"
+                >
+                  <button
+                    type="button"
+                    class="ah-card-preset-select"
+                    :aria-label="'使用自定义卡面预设'"
+                    @click="$emit('select-points-card-preset', preset.id)"
+                  >
+                    <img :src="preset.imageUrl" alt="自定义卡面预设" loading="lazy" />
+                    <span>自定义卡面</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="ah-card-preset-delete"
+                    aria-label="删除此自定义卡面预设"
+                    title="删除此预设"
+                    @click="$emit('delete-points-card-preset', preset.id)"
+                  >
+                    <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
+                  </button>
+                </article>
+              </div>
+              <div v-else class="ah-card-presets-empty">暂无自定义预设</div>
+              <p v-if="!isPointsCardPresetsLoading" class="ah-card-presets-retention">
+                未启用的卡面超过 90 天会自动清理
+              </p>
+            </section>
+          </div>
+        </section>
       </Transition>
     </div>
   </div>
@@ -444,7 +873,27 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
-  CalendarCheck, Check, ChevronRight, Coins, Copy, Crown, Gift, Heart, ImagePlus, LayoutDashboard, MapPin, Package, PackageCheck, RefreshCw, ScrollText, Send, ShoppingBag, Ticket, Trash2, Trophy, X
+  CalendarCheck,
+  Check,
+  ChevronRight,
+  Coins,
+  Copy,
+  Crown,
+  Gift,
+  Heart,
+  ImagePlus,
+  LayoutDashboard,
+  MapPin,
+  Package,
+  PackageCheck,
+  RefreshCw,
+  ScrollText,
+  Send,
+  ShoppingBag,
+  Ticket,
+  Trash2,
+  Trophy,
+  X,
 } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
@@ -467,7 +916,16 @@ import FramedAvatar from './FramedAvatar.vue';
 import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
 
-const emit = defineEmits(['back', 'upload-points-card', 'set-points-card-skin', 'select-points-card-preset', 'delete-points-card-preset', 'redeem-points-card-cats', 'sponsor', 'load-points-card-data']);
+const emit = defineEmits([
+  'back',
+  'upload-points-card',
+  'set-points-card-skin',
+  'select-points-card-preset',
+  'delete-points-card-preset',
+  'redeem-points-card-cats',
+  'sponsor',
+  'load-points-card-data',
+]);
 
 const props = defineProps({
   showBack: { type: Boolean, default: true },
@@ -477,7 +935,7 @@ const props = defineProps({
   pointsCardPresetCapacity: { type: Number, default: 3 },
   isPointsCardPresetQuotaLoading: { type: Boolean, default: false },
   pointsCardCatsUnlocked: { type: Boolean, default: false },
-  isRedeemingPointsCardCats: { type: Boolean, default: false }
+  isRedeemingPointsCardCats: { type: Boolean, default: false },
 });
 
 const router = useRouter();
@@ -489,7 +947,11 @@ const { productsData } = storeToRefs(productsStore);
 const { fetchUserTier, getUserTierCode } = useUserTier();
 const tierCode = ref('');
 const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
-const canAddPointsCardPreset = computed(() => Number(props.pointsCardPresets.length) < Math.max(3, Number(props.pointsCardPresetCapacity) || 3));
+const canAddPointsCardPreset = computed(
+  () =>
+    Number(props.pointsCardPresets.length) <
+    Math.max(3, Number(props.pointsCardPresetCapacity) || 3),
+);
 const catSkinPreviewAssets = Object.entries(HOME_CAT_ASSETS).map(([id, src]) => ({ id, src }));
 const handleCatsSkinClick = () => {
   if (props.isRedeemingPointsCardCats) return;
@@ -500,7 +962,15 @@ const handleCatsSkinClick = () => {
   emit('redeem-points-card-cats');
 };
 
-const betaTabIds = new Set(['overview', 'decor', 'points', 'subscription', 'fulfillment', 'lottery', 'sponsor']);
+const betaTabIds = new Set([
+  'overview',
+  'decor',
+  'points',
+  'subscription',
+  'fulfillment',
+  'lottery',
+  'sponsor',
+]);
 const normalizeInitialTab = () => {
   let tab = String(props.initialTab || '');
   // 旧 tab 入口兼容映射：orders/gifts/addresses → fulfillment；cards → decor（2026-09 tab 合并）
@@ -517,13 +987,13 @@ const tabGroups = computed(() => [
   { id: 'subscription', label: '订阅', icon: Crown },
   { id: 'fulfillment', label: '订单', icon: Package },
   { id: 'lottery', label: '抽奖', icon: Ticket },
-  { id: 'sponsor', label: '赞助', icon: Heart }
+  { id: 'sponsor', label: '赞助', icon: Heart },
 ]);
 const hubSections = computed(() => tabGroups.value.map(({ id, label }) => ({ id, label })));
 
 const activeTabModel = computed({
   get: () => activeTab.value,
-  set: (tabId) => activateTab(tabId)
+  set: (tabId) => activateTab(tabId),
 });
 
 const avatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').trim());
@@ -548,7 +1018,7 @@ const pointsDetailFilter = ref('week');
 const pointsDetailFilters = [
   { id: 'week', label: '一周' },
   { id: 'month', label: '一个月' },
-  { id: 'all', label: '更久' }
+  { id: 'all', label: '更久' },
 ];
 const subscriptionLoading = ref(true);
 const activeSubscription = ref(null);
@@ -562,10 +1032,17 @@ const addressCount = ref(0);
 
 const userPoints = computed(() => Number(userInfo.value?.points) || 0);
 const pointsDisplay = computed(() => userPoints.value.toLocaleString());
-const cloudImageLimit = computed(() => ({ free: 150, plus: 300, pro: 450, max: 900, ultra: 1200 }[tierCode.value] || 150));
+const cloudImageLimit = computed(
+  () => ({ free: 150, plus: 300, pro: 450, max: 900, ultra: 1200 })[tierCode.value] || 150,
+);
 const subscriptionDisplayName = computed(() => {
   const subscription = activeSubscription.value;
-  return subscription?.planName || PLAN_DISPLAY_NAMES[subscription?.planCode] || tierDisplayName.value || 'Free';
+  return (
+    subscription?.planName ||
+    PLAN_DISPLAY_NAMES[subscription?.planCode] ||
+    tierDisplayName.value ||
+    'Free'
+  );
 });
 const subscriptionExpiryDays = computed(() => {
   const expiresAt = Date.parse(activeSubscription.value?.expiresAt || '');
@@ -576,13 +1053,19 @@ const subscriptionExpiryText = computed(() => {
   if (!activeSubscription.value?.expiresAt) return '当前为基础账户，可随时选择会员方案';
   const expiresAt = new Date(activeSubscription.value.expiresAt);
   if (Number.isNaN(expiresAt.getTime())) return '会员状态已生效';
-  if (subscriptionExpiryDays.value <= 30) return `还有 ${subscriptionExpiryDays.value} 天到期，请及时续订`;
+  if (subscriptionExpiryDays.value <= 30)
+    return `还有 ${subscriptionExpiryDays.value} 天到期，请及时续订`;
   return `有效期至 ${expiresAt.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}`;
 });
-const annualGiftLabel = computed(() => String(annualGiftSubscription.value?.metadata?.yearly_gift?.label || '').trim());
+const annualGiftLabel = computed(() =>
+  String(annualGiftSubscription.value?.metadata?.yearly_gift?.label || '').trim(),
+);
 const pityProgressPercent = computed(() => {
   if (!pityStatus.value?.eligible || pityStatus.value.threshold <= 0) return 0;
-  return Math.min(100, Math.round((pityStatus.value.consecutiveLosses / pityStatus.value.threshold) * 100));
+  return Math.min(
+    100,
+    Math.round((pityStatus.value.consecutiveLosses / pityStatus.value.threshold) * 100),
+  );
 });
 const pityProgressLabel = computed(() => {
   if (!pityStatus.value?.eligible) return '订阅 Plus 后开启';
@@ -591,35 +1074,53 @@ const pityProgressLabel = computed(() => {
 });
 const pityProgressDescription = computed(() => {
   if (!pityStatus.value?.eligible) return 'Free 账户可参与抽奖，但不累计会员保底进度。';
-  if (pityStatus.value.isDue) return '已达到保底条件；下一次参与“计入失败，并兑现保底礼”的活动即可获得保底礼。';
+  if (pityStatus.value.isDue)
+    return '已达到保底条件；下一次参与“计入失败，并兑现保底礼”的活动即可获得保底礼。';
   return `连续参与计入活动但未获奖 ${pityStatus.value.consecutiveLosses} 场，还差 ${pityStatus.value.remainingLosses} 场进入保底。`;
 });
 
-const availableProducts = computed(() => Array.isArray(productsData.value) ? productsData.value : []);
-const redeemableProducts = computed(() => availableProducts.value
-  .filter((product) => product.is_active !== false
-    && product.is_purchasable !== false
-    && product.payment_mode !== 'rmb_only'
-    && Number(product.points_cost) > 0
-    && Number(product.stock) !== 0
-    && Number(product.points_cost) <= userPoints.value)
-  .sort((a, b) => Number(a.points_cost) - Number(b.points_cost)));
+const availableProducts = computed(() =>
+  Array.isArray(productsData.value) ? productsData.value : [],
+);
+const redeemableProducts = computed(() =>
+  availableProducts.value
+    .filter(
+      (product) =>
+        product.is_active !== false &&
+        product.is_purchasable !== false &&
+        product.payment_mode !== 'rmb_only' &&
+        Number(product.points_cost) > 0 &&
+        Number(product.stock) !== 0 &&
+        Number(product.points_cost) <= userPoints.value,
+    )
+    .sort((a, b) => Number(a.points_cost) - Number(b.points_cost)),
+);
 
-const nextRewardProduct = computed(() => availableProducts.value
-  .filter((product) => product.is_active !== false
-    && product.is_purchasable !== false
-    && product.payment_mode !== 'rmb_only'
-    && Number(product.points_cost) > userPoints.value
-    && Number(product.stock) !== 0)
-  .sort((a, b) => Number(a.points_cost) - Number(b.points_cost))[0] || null);
+const nextRewardProduct = computed(
+  () =>
+    availableProducts.value
+      .filter(
+        (product) =>
+          product.is_active !== false &&
+          product.is_purchasable !== false &&
+          product.payment_mode !== 'rmb_only' &&
+          Number(product.points_cost) > userPoints.value &&
+          Number(product.stock) !== 0,
+      )
+      .sort((a, b) => Number(a.points_cost) - Number(b.points_cost))[0] || null,
+);
 
-const recentPointsNet = computed(() => ledger.value
-  .filter((item) => isWithinDays(item.time, 30))
-  .reduce((sum, item) => sum + (Number(item.amount) || 0), 0));
+const recentPointsNet = computed(() =>
+  ledger.value
+    .filter((item) => isWithinDays(item.time, 30))
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0),
+);
 
 const pointsContextText = computed(() => {
-  if (recentPointsNet.value !== 0) return `近 30 天净变化 ${recentPointsNet.value > 0 ? '+' : ''}${recentPointsNet.value}`;
-  if (redeemableProducts.value.length > 0) return `当前可兑换 ${redeemableProducts.value.length} 件商品`;
+  if (recentPointsNet.value !== 0)
+    return `近 30 天净变化 ${recentPointsNet.value > 0 ? '+' : ''}${recentPointsNet.value}`;
+  if (redeemableProducts.value.length > 0)
+    return `当前可兑换 ${redeemableProducts.value.length} 件商品`;
   if (nextRewardProduct.value) {
     const gap = Number(nextRewardProduct.value.points_cost) - userPoints.value;
     return `距离 ${nextRewardProduct.value.title} 还差 ${gap} 积分`;
@@ -628,13 +1129,18 @@ const pointsContextText = computed(() => {
 });
 
 const filteredLedger = computed(() => {
-  const days = pointsDetailFilter.value === 'week' ? 7 : pointsDetailFilter.value === 'month' ? 30 : null;
+  const days =
+    pointsDetailFilter.value === 'week' ? 7 : pointsDetailFilter.value === 'month' ? 30 : null;
   if (!days) return ledger.value;
   return ledger.value.filter((item) => isWithinDays(item.time, days));
 });
 
 const ledgerGroups = computed(() => {
-  const buckets = new Map([['今天', []], ['近 7 天', []], ['更早', []]]);
+  const buckets = new Map([
+    ['今天', []],
+    ['近 7 天', []],
+    ['更早', []],
+  ]);
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const weekStart = todayStart - 6 * 86400000;
@@ -677,15 +1183,27 @@ const isWithinDays = (dateValue, days) => {
 };
 
 const isMissingColumnError = (error, columnName) => {
-  const code = String(error?.code || '').trim().toUpperCase();
-  const detail = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
-  const column = String(columnName || '').trim().toLowerCase();
-  return code === '42703' || code === 'PGRST204' || (column && detail.includes(column) && detail.includes('column'));
+  const code = String(error?.code || '')
+    .trim()
+    .toUpperCase();
+  const detail =
+    `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
+  const column = String(columnName || '')
+    .trim()
+    .toLowerCase();
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    (column && detail.includes(column) && detail.includes('column'))
+  );
 };
 
 const loadOrders = async () => {
   if (ordersLoading.value || ordersLoaded.value) return;
-  if (!userInfo.value?.id) { ordersLoaded.value = true; return; }
+  if (!userInfo.value?.id) {
+    ordersLoaded.value = true;
+    return;
+  }
   ordersLoading.value = true;
   ordersError.value = '';
   try {
@@ -696,10 +1214,14 @@ const loadOrders = async () => {
       .order('created_at', { ascending: false })
       .limit(50);
     if (error) throw error;
-    orders.value = Array.isArray(data) ? data.map(o => ({
-      ...o,
-      item_count: Array.isArray(o.items) ? o.items.reduce((s, i) => s + (Number(i?.quantity) || 0), 0) : 0,
-    })) : [];
+    orders.value = Array.isArray(data)
+      ? data.map((o) => ({
+          ...o,
+          item_count: Array.isArray(o.items)
+            ? o.items.reduce((s, i) => s + (Number(i?.quantity) || 0), 0)
+            : 0,
+        }))
+      : [];
     ordersLoaded.value = true;
   } catch (error) {
     ordersError.value = '加载失败';
@@ -738,7 +1260,10 @@ const resolveCheckinAmount = (signedAt, weekStartDate, weekSet) => {
 const loadLedger = async () => {
   if (ledgerLoading.value || ledgerLoaded.value) return;
   const userId = userInfo.value?.id;
-  if (!userId) { ledgerLoaded.value = true; return; }
+  if (!userId) {
+    ledgerLoaded.value = true;
+    return;
+  }
   ledgerLoading.value = true;
   ledgerError.value = '';
 
@@ -746,25 +1271,28 @@ const loadLedger = async () => {
     const results = [];
 
     const ledgerRequests = [
-      supabase.from('forum_weekly_checkins')
+      supabase
+        .from('forum_weekly_checkins')
         .select('id, week_start_date, signed_at')
         .eq('user_id', userId)
         .order('signed_at', { ascending: false })
         .limit(50),
-      supabase.from('points_transactions')
+      supabase
+        .from('points_transactions')
         .select('id, amount, balance_after, reason, remark, created_at')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(50)
+        .limit(50),
     ];
     // 概览已读取订单时直接复用，避免首次进入资产中心重复请求同一张表。
     if (!ordersLoaded.value) {
       ledgerRequests.push(
-        supabase.from('shop_points_orders')
+        supabase
+          .from('shop_points_orders')
           .select('id, order_no, total_points, created_at')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
-          .limit(50)
+          .limit(50),
       );
     }
     const settled = await Promise.allSettled(ledgerRequests);
@@ -773,52 +1301,64 @@ const loadLedger = async () => {
       ? { status: 'fulfilled', value: { data: orders.value, error: null } }
       : settled[2];
 
-    if (checkinRes.status === 'fulfilled' && !checkinRes.value.error && Array.isArray(checkinRes.value.data)) {
-    const weekSet = new Set(checkinRes.value.data.map((r) => String(r.week_start_date)));
-    checkinRes.value.data.forEach((row) => {
-      const amount = resolveCheckinAmount(row.signed_at, row.week_start_date, weekSet);
-      results.push({
-        key: `checkin-${row.id}`,
-        icon: CalendarCheck,
-        tone: amount > 0 ? 'green' : 'gray',
-        title: '周签到',
-        remark: `第 ${formatWeekLabel(row.week_start_date)} 周`,
-        amount,
-        time: row.signed_at
-      });
-    });
-  }
-
-    if (adminRes.status === 'fulfilled' && !adminRes.value.error && Array.isArray(adminRes.value.data)) {
-    adminRes.value.data
-      .filter((row) => ['admin_grant', 'points_card_cats'].includes(row.reason))
-      .forEach((row) => {
-        const isCatsRedemption = row.reason === 'points_card_cats';
+    if (
+      checkinRes.status === 'fulfilled' &&
+      !checkinRes.value.error &&
+      Array.isArray(checkinRes.value.data)
+    ) {
+      const weekSet = new Set(checkinRes.value.data.map((r) => String(r.week_start_date)));
+      checkinRes.value.data.forEach((row) => {
+        const amount = resolveCheckinAmount(row.signed_at, row.week_start_date, weekSet);
         results.push({
-          key: `${isCatsRedemption ? 'cats-card' : 'grant'}-${row.id}`,
-          icon: isCatsRedemption ? Coins : Send,
-          tone: isCatsRedemption ? 'orange' : 'blue',
-          title: isCatsRedemption ? '兑换全员小猫卡面' : '管理员发放',
-          remark: String(row.remark || '').trim() || (isCatsRedemption ? '小猫卡面' : '积分发放'),
-          amount: Number(row.amount) || 0,
-          time: row.created_at
+          key: `checkin-${row.id}`,
+          icon: CalendarCheck,
+          tone: amount > 0 ? 'green' : 'gray',
+          title: '周签到',
+          remark: `第 ${formatWeekLabel(row.week_start_date)} 周`,
+          amount,
+          time: row.signed_at,
         });
       });
-  }
+    }
 
-    if (orderRes.status === 'fulfilled' && !orderRes.value.error && Array.isArray(orderRes.value.data)) {
-    orderRes.value.data.forEach((row) => {
-      results.push({
-        key: `order-${row.id}`,
-        icon: ShoppingBag,
-        tone: 'orange',
-        title: '商城订单',
-        remark: String(row.order_no || '').slice(0, 18),
-        amount: -(Number(row.total_points) || 0),
-        time: row.created_at
+    if (
+      adminRes.status === 'fulfilled' &&
+      !adminRes.value.error &&
+      Array.isArray(adminRes.value.data)
+    ) {
+      adminRes.value.data
+        .filter((row) => ['admin_grant', 'points_card_cats'].includes(row.reason))
+        .forEach((row) => {
+          const isCatsRedemption = row.reason === 'points_card_cats';
+          results.push({
+            key: `${isCatsRedemption ? 'cats-card' : 'grant'}-${row.id}`,
+            icon: isCatsRedemption ? Coins : Send,
+            tone: isCatsRedemption ? 'orange' : 'blue',
+            title: isCatsRedemption ? '兑换全员小猫卡面' : '管理员发放',
+            remark: String(row.remark || '').trim() || (isCatsRedemption ? '小猫卡面' : '积分发放'),
+            amount: Number(row.amount) || 0,
+            time: row.created_at,
+          });
+        });
+    }
+
+    if (
+      orderRes.status === 'fulfilled' &&
+      !orderRes.value.error &&
+      Array.isArray(orderRes.value.data)
+    ) {
+      orderRes.value.data.forEach((row) => {
+        results.push({
+          key: `order-${row.id}`,
+          icon: ShoppingBag,
+          tone: 'orange',
+          title: '商城订单',
+          remark: String(row.order_no || '').slice(0, 18),
+          amount: -(Number(row.total_points) || 0),
+          time: row.created_at,
+        });
       });
-    });
-  }
+    }
 
     results.sort((a, b) => new Date(b.time) - new Date(a.time));
     ledger.value = results;
@@ -841,7 +1381,9 @@ const formatWeekLabel = (weekStart) => {
   return `${pad(date)}–${pad(end)}`;
 };
 
-const goToShop = () => { router.push('/shop'); };
+const goToShop = () => {
+  router.push('/shop');
+};
 
 const loadTier = async () => {
   const id = userInfo.value?.id;
@@ -863,11 +1405,12 @@ const loadSubscription = async () => {
   try {
     const [result, pityResult] = await Promise.all([
       getMySubscriptions(userId, { includeExpired: false }),
-      getMyLotteryPityStatus()
+      getMyLotteryPityStatus(),
     ]);
     const activeItems = result.ok && Array.isArray(result.data) ? result.data : [];
     activeSubscription.value = activeItems[0] || null;
-    annualGiftSubscription.value = activeItems.find((item) => String(item?.metadata?.yearly_gift?.label || '').trim()) || null;
+    annualGiftSubscription.value =
+      activeItems.find((item) => String(item?.metadata?.yearly_gift?.label || '').trim()) || null;
     pityStatus.value = pityResult.ok ? pityResult.data : null;
   } catch (error) {
     logger.warn('assets-hub', '加载会员状态失败:', error);
@@ -899,26 +1442,46 @@ const lotteryLoaded = ref(false);
 const lotteryError = ref('');
 const lotteries = ref([]);
 const joiningLotteryId = ref('');
-const _originShowToast = (msg, type='info') => {
-  try { window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: msg, type } })); } catch {}
+const _originShowToast = (msg, type = 'info') => {
+  try {
+    window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: msg, type } }));
+  } catch {
+    /* dispatchEvent 在事件对象构造失败等极端情况下会抛。提示只是锦上添花，失败静默。 */
+  }
   logger.info('lottery-tab', `${type}: ${msg}`);
 };
-const showToast = (msg, type='info') => {
+const showToast = (msg, type = 'info') => {
   const text = String(msg || '');
   const iconMap = { success: 'success', error: 'warning', info: 'notification' };
   const icon = iconMap[type] || 'notification';
   let title = text;
   let message = '';
-  if (text === '已报名，无需重复') { title = '已报名'; message = '该抽奖已报名无需重复'; }
-  else if (text === '报名成功') { title = '报名成功'; message = '已获得本期抽奖资格'; }
-  else if (text === '报名失败' || text.includes('报名失败')) { title = '报名失败'; message = text.replace(/^报名失败[:：]?\s*/, '') || '请稍后重试'; }
-  else if (text.length > 24) { title = text.slice(0, 24); message = text.slice(24); }
+  if (text === '已报名，无需重复') {
+    title = '已报名';
+    message = '该抽奖已报名无需重复';
+  } else if (text === '报名成功') {
+    title = '报名成功';
+    message = '已获得本期抽奖资格';
+  } else if (text === '报名失败' || text.includes('报名失败')) {
+    title = '报名失败';
+    message = text.replace(/^报名失败[:：]?\s*/, '') || '请稍后重试';
+  } else if (text.length > 24) {
+    title = text.slice(0, 24);
+    message = text.slice(24);
+  }
   let ok = false;
-  try { ok = showIsland.notify({ title, message, icon, durationMs: icon === 'warning' ? 3600 : 3200 }); } catch { ok = false; }
+  try {
+    ok = showIsland.notify({ title, message, icon, durationMs: icon === 'warning' ? 3600 : 3200 });
+  } catch {
+    ok = false;
+  }
   if (ok) return;
-  return _originShowToast(msg ? `${title} ${message}`.trim() : title, type) || _originShowToast(text, type);
+  return (
+    _originShowToast(msg ? `${title} ${message}`.trim() : title, type) ||
+    _originShowToast(text, type)
+  );
 };
-const loadLotteries = async (force=false) => {
+const loadLotteries = async (force = false) => {
   if (lotteryLoading.value) return;
   if (lotteryLoaded.value && !force) return;
   lotteryLoading.value = true;
@@ -959,14 +1522,20 @@ const loadLotteryPityStatus = async () => {
   try {
     const { data } = await getMyLotteryPityStatus();
     if (data) pityStatus.value = data;
-  } catch {}
+  } catch {
+    /* 请求失败时静默：保底进度是辅助信息，拿不到就不显示，不阻断面板。
+       ⚠️ 但这属于**静默失败** —— 若以后有人排查「保底数字不见了」，
+       这里是盲点。本文件已引入 logger，建议后续在此补 logger.warn（未做，
+       因为那会改变运行时行为，不在本轮「空 catch 显性化」的范围内）。 */
+  }
 };
-const getLotteryStatusLabel = (s) => ({ open:'报名中', drawn:'已开奖', closed:'已结束' }[String(s||'')] || String(s||''));
+const getLotteryStatusLabel = (s) =>
+  ({ open: '报名中', drawn: '已开奖', closed: '已结束' })[String(s || '')] || String(s || '');
 const formatLotteryDrawAt = (v) => {
   if (!v) return '待定';
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return '待定';
-  return `${d.getMonth()+1}月${d.getDate()}日 ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
 // ─── 礼物数据 ───
@@ -979,37 +1548,44 @@ const recordFilter = ref('all');
 const fulfillmentFilters = [
   { id: 'all', label: '全部' },
   { id: 'gifts', label: '礼物' },
-  { id: 'orders', label: '订单' }
+  { id: 'orders', label: '订单' },
 ];
 
-const fulfillmentRecords = computed(() => [
-  ...historyGifts.value.map((gift) => ({
-    id: `gift-${gift.id}`,
-    type: 'gift',
-    title: gift.gift_content || '未命名礼物',
-    detail: gift.gift_no || '礼物记录',
-    status: gift.gift_status,
-    time: gift.completed_at || gift.updated_at || gift.created_at
-  })),
-  ...orders.value.map((order) => ({
-    id: `order-${order.id}`,
-    type: 'order',
-    title: `商城订单 · ${order.item_count} 件商品`,
-    detail: order.order_no || '订单记录',
-    points: Number(order.total_points) || 0,
-    time: order.created_at
-  }))
-].filter((record) => Number.isFinite(Date.parse(record.time || '')))
-  .sort((a, b) => Date.parse(b.time) - Date.parse(a.time)));
+const fulfillmentRecords = computed(() =>
+  [
+    ...historyGifts.value.map((gift) => ({
+      id: `gift-${gift.id}`,
+      type: 'gift',
+      title: gift.gift_content || '未命名礼物',
+      detail: gift.gift_no || '礼物记录',
+      status: gift.gift_status,
+      time: gift.completed_at || gift.updated_at || gift.created_at,
+    })),
+    ...orders.value.map((order) => ({
+      id: `order-${order.id}`,
+      type: 'order',
+      title: `商城订单 · ${order.item_count} 件商品`,
+      detail: order.order_no || '订单记录',
+      points: Number(order.total_points) || 0,
+      time: order.created_at,
+    })),
+  ]
+    .filter((record) => Number.isFinite(Date.parse(record.time || '')))
+    .sort((a, b) => Date.parse(b.time) - Date.parse(a.time)),
+);
 
-const visibleFulfillmentRecords = computed(() => (
+const visibleFulfillmentRecords = computed(() =>
   recordFilter.value === 'all'
     ? fulfillmentRecords.value
-    : fulfillmentRecords.value.filter((record) => record.type === recordFilter.value.slice(0, -1))
-));
+    : fulfillmentRecords.value.filter((record) => record.type === recordFilter.value.slice(0, -1)),
+);
 
-const recentOrder = computed(() => orders.value.find((order) => isWithinDays(order.created_at, 30)) || null);
-const overviewHasErrors = computed(() => Boolean(giftsError.value || ordersError.value || ledgerError.value));
+const recentOrder = computed(
+  () => orders.value.find((order) => isWithinDays(order.created_at, 30)) || null,
+);
+const overviewHasErrors = computed(() =>
+  Boolean(giftsError.value || ordersError.value || ledgerError.value),
+);
 
 const formatRelativeDay = (dateValue) => {
   const timestamp = Date.parse(dateValue || '');
@@ -1051,7 +1627,7 @@ const overviewCandidates = computed(() => {
       actionLabel: '添加地址',
       activityIds: [`gift-${gift.id}`],
       time: giftTime,
-      showAsUpcoming: false
+      showAsUpcoming: false,
     });
   } else if (gift?.gift_status === 'shipped') {
     candidates.push({
@@ -1066,7 +1642,7 @@ const overviewCandidates = computed(() => {
       actionLabel: '查看礼物',
       activityIds: [`gift-${gift.id}`],
       time: giftTime,
-      showAsUpcoming: false
+      showAsUpcoming: false,
     });
   } else if (gift) {
     candidates.push({
@@ -1081,7 +1657,7 @@ const overviewCandidates = computed(() => {
       actionLabel: '查看详情',
       activityIds: [`gift-${gift.id}`],
       time: giftTime,
-      showAsUpcoming: false
+      showAsUpcoming: false,
     });
   }
 
@@ -1099,7 +1675,7 @@ const overviewCandidates = computed(() => {
       actionLabel: '管理会员',
       activityIds: [],
       time: activeSubscription.value?.expiresAt || '',
-      showAsUpcoming: true
+      showAsUpcoming: true,
     });
   }
 
@@ -1116,7 +1692,7 @@ const overviewCandidates = computed(() => {
       actionLabel: '查看订单',
       activityIds: [`order-${recentOrder.value.id}`],
       time: recentOrder.value.created_at,
-      showAsUpcoming: false
+      showAsUpcoming: false,
     });
   }
 
@@ -1133,7 +1709,7 @@ const overviewCandidates = computed(() => {
       actionLabel: '去兑换',
       activityIds: [],
       time: '',
-      showAsUpcoming: false
+      showAsUpcoming: false,
     });
   }
 
@@ -1153,7 +1729,7 @@ const overviewCandidates = computed(() => {
         actionLabel: '去抽奖',
         activityIds: [],
         time: pityStatus.value.updatedAt || '',
-        showAsUpcoming: true
+        showAsUpcoming: true,
       });
     } else if (remaining > 0 && remaining <= 3) {
       candidates.push({
@@ -1168,7 +1744,7 @@ const overviewCandidates = computed(() => {
         actionLabel: '查看抽奖',
         activityIds: [],
         time: pityStatus.value.updatedAt || '',
-        showAsUpcoming: true
+        showAsUpcoming: true,
       });
     }
   }
@@ -1186,7 +1762,7 @@ const overviewCandidates = computed(() => {
       actionLabel: '去抽奖',
       activityIds: [],
       time: '',
-      showAsUpcoming: true
+      showAsUpcoming: true,
     });
   }
 
@@ -1203,37 +1779,52 @@ const overviewCandidates = computed(() => {
       actionLabel: '查看明细',
       activityIds: [],
       time: '',
-      showAsUpcoming: true
+      showAsUpcoming: true,
     });
   }
 
-  return candidates.sort((a, b) => (
-    b.priority - a.priority || getOverviewTimestamp(b.time) - getOverviewTimestamp(a.time)
-  ));
+  return candidates.sort(
+    (a, b) =>
+      b.priority - a.priority || getOverviewTimestamp(b.time) - getOverviewTimestamp(a.time),
+  );
 });
 
 const primaryInsight = computed(() => {
   if (overviewLoading.value) {
-    return { id: 'loading', tone: 'neutral', icon: LayoutDashboard, kicker: '正在更新', title: '整理你的账户动态', detail: '正在同步礼物、订单、积分和会员状态。', action: 'overview', actionLabel: '请稍候', activityIds: [], priority: 0 };
+    return {
+      id: 'loading',
+      tone: 'neutral',
+      icon: LayoutDashboard,
+      kicker: '正在更新',
+      title: '整理你的账户动态',
+      detail: '正在同步礼物、订单、积分和会员状态。',
+      action: 'overview',
+      actionLabel: '请稍候',
+      activityIds: [],
+      priority: 0,
+    };
   }
-  return overviewCandidates.value[0] || {
-    id: 'all-clear',
-    tone: 'neutral',
-    icon: Check,
-    kicker: '账户状态',
-    title: '账户一切就绪',
-    detail: pointsContextText.value,
-    action: 'points',
-    actionLabel: '查看明细',
-    activityIds: [],
-    priority: 0
-  };
+  return (
+    overviewCandidates.value[0] || {
+      id: 'all-clear',
+      tone: 'neutral',
+      icon: Check,
+      kicker: '账户状态',
+      title: '账户一切就绪',
+      detail: pointsContextText.value,
+      action: 'points',
+      actionLabel: '查看明细',
+      activityIds: [],
+      priority: 0,
+    }
+  );
 });
 
 const overviewTitle = computed(() => {
   if (overviewLoading.value) return '正在整理账户动态';
   if (primaryInsight.value.priority >= 80) return '优先处理这件事';
-  if (primaryInsight.value.id.startsWith('gift-') || primaryInsight.value.id.startsWith('order-')) return '最近有新的账户动态';
+  if (primaryInsight.value.id.startsWith('gift-') || primaryInsight.value.id.startsWith('order-'))
+    return '最近有新的账户动态';
   if (primaryInsight.value.id === 'redeemable-products') return '你的积分现在可以使用';
   return '账户状态良好';
 });
@@ -1247,19 +1838,41 @@ const recentActivities = computed(() => {
   const focusActivityIds = new Set(primaryInsight.value.activityIds || []);
   const activities = [];
   if (currentGift.value) {
-    activities.push({ id: `gift-${currentGift.value.id}`, time: currentGift.value.updated_at || currentGift.value.created_at, tone: currentGift.value.gift_status === 'shipped' ? 'orange' : 'blue', title: getGiftStatusLabel(currentGift.value.gift_status), detail: currentGift.value.gift_content || '当前礼物状态已更新', action: 'gifts' });
+    activities.push({
+      id: `gift-${currentGift.value.id}`,
+      time: currentGift.value.updated_at || currentGift.value.created_at,
+      tone: currentGift.value.gift_status === 'shipped' ? 'orange' : 'blue',
+      title: getGiftStatusLabel(currentGift.value.gift_status),
+      detail: currentGift.value.gift_content || '当前礼物状态已更新',
+      action: 'gifts',
+    });
   }
-  fulfillmentRecords.value.slice(0, 3).forEach((record) => activities.push({
-    id: record.id,
-    time: record.time,
-    tone: record.type === 'gift' ? (record.status === 'shipped' ? 'orange' : 'blue') : 'blue',
-    title: record.type === 'gift' ? getGiftStatusLabel(record.status) : '商城订单',
-    detail: record.type === 'gift'
-      ? (record.title || '礼物状态已更新')
-      : `${record.title.replace('商城订单 · ', '')} · -${record.points} 积分`,
-    action: record.type === 'gift' ? 'gifts' : 'orders'
-  }));
-  ledger.value.filter((item) => !String(item.key).startsWith('order-')).slice(0, 3).forEach((item) => activities.push({ id: item.key, time: item.time, tone: item.tone, title: item.title, detail: `${item.remark || '积分变动'}${item.amount ? ` · ${item.amount > 0 ? '+' : ''}${item.amount}` : ''}`, action: 'points' }));
+  fulfillmentRecords.value.slice(0, 3).forEach((record) =>
+    activities.push({
+      id: record.id,
+      time: record.time,
+      tone: record.type === 'gift' ? (record.status === 'shipped' ? 'orange' : 'blue') : 'blue',
+      title: record.type === 'gift' ? getGiftStatusLabel(record.status) : '商城订单',
+      detail:
+        record.type === 'gift'
+          ? record.title || '礼物状态已更新'
+          : `${record.title.replace('商城订单 · ', '')} · -${record.points} 积分`,
+      action: record.type === 'gift' ? 'gifts' : 'orders',
+    }),
+  );
+  ledger.value
+    .filter((item) => !String(item.key).startsWith('order-'))
+    .slice(0, 3)
+    .forEach((item) =>
+      activities.push({
+        id: item.key,
+        time: item.time,
+        tone: item.tone,
+        title: item.title,
+        detail: `${item.remark || '积分变动'}${item.amount ? ` · ${item.amount > 0 ? '+' : ''}${item.amount}` : ''}`,
+        action: 'points',
+      }),
+    );
   const seenIds = new Set();
   return activities
     .filter((item) => !focusActivityIds.has(item.id))
@@ -1289,19 +1902,32 @@ const upcomingItems = computed(() => {
       icon: item.icon,
       title: item.title,
       detail: item.detail,
-      action: item.action
+      action: item.action,
     }));
   if (!secondaryItems.length && !redeemableProducts.value.length && nextRewardProduct.value) {
     const gap = Number(nextRewardProduct.value.points_cost) - userPoints.value;
-    secondaryItems.push({ id: 'next-reward', tone: 'blue', icon: Coins, title: `再获得 ${gap} 积分`, detail: `即可兑换 ${nextRewardProduct.value.title}`, action: 'points' });
+    secondaryItems.push({
+      id: 'next-reward',
+      tone: 'blue',
+      icon: Coins,
+      title: `再获得 ${gap} 积分`,
+      detail: `即可兑换 ${nextRewardProduct.value.title}`,
+      action: 'points',
+    });
   }
   return secondaryItems.slice(0, 2);
 });
 
 const handleSmartAction = (action) => {
-  if (action === 'shop') { goToShop(); return; }
-  if (action === 'lottery') { router.push('/lotteries').catch(()=>{}); return; }
-  activateTab(['orders', 'gifts'].includes(action) ? 'fulfillment' : (action || 'overview'));
+  if (action === 'shop') {
+    goToShop();
+    return;
+  }
+  if (action === 'lottery') {
+    router.push('/lotteries').catch(() => {});
+    return;
+  }
+  activateTab(['orders', 'gifts'].includes(action) ? 'fulfillment' : action || 'overview');
 };
 
 const retryOverviewIssues = () => {
@@ -1313,16 +1939,24 @@ const retryOverviewIssues = () => {
 };
 
 const getGiftStatusLabel = (s) => {
-  const map = { preparing: '备货中', processing: '正在处理', shipped: '已发货', completed: '已完成' };
+  const map = {
+    preparing: '备货中',
+    processing: '正在处理',
+    shipped: '已发货',
+    completed: '已完成',
+  };
   return map[s] || s;
 };
 
 const giftStatusTitle = computed(() => {
   if (!currentGift.value) return '待命中的礼物';
   const status = currentGift.value.gift_status;
-  const dateSource = status === 'completed'
-    ? (currentGift.value.completed_at || currentGift.value.updated_at || currentGift.value.created_at)
-    : (currentGift.value.updated_at || currentGift.value.created_at);
+  const dateSource =
+    status === 'completed'
+      ? currentGift.value.completed_at ||
+        currentGift.value.updated_at ||
+        currentGift.value.created_at
+      : currentGift.value.updated_at || currentGift.value.created_at;
   const date = formatDateShort(dateSource);
   if (status === 'preparing') return `备货中 ${date}`;
   if (status === 'processing') return `正在处理 ${date}`;
@@ -1334,9 +1968,12 @@ const giftStatusTitle = computed(() => {
 const giftStatusDate = computed(() => {
   if (!currentGift.value) return '';
   const status = currentGift.value.gift_status;
-  const dateSource = status === 'completed'
-    ? (currentGift.value.completed_at || currentGift.value.updated_at || currentGift.value.created_at)
-    : (currentGift.value.updated_at || currentGift.value.created_at);
+  const dateSource =
+    status === 'completed'
+      ? currentGift.value.completed_at ||
+        currentGift.value.updated_at ||
+        currentGift.value.created_at
+      : currentGift.value.updated_at || currentGift.value.created_at;
   return formatDateShort(dateSource);
 });
 
@@ -1345,7 +1982,7 @@ const giftStatusHeadline = computed(() => {
     preparing: '礼物已进入备货',
     processing: '礼物正在处理中',
     shipped: '礼物已经寄出',
-    completed: '礼物已送达'
+    completed: '礼物已送达',
   };
   return map[currentGift.value?.gift_status] || '礼物状态已更新';
 });
@@ -1370,14 +2007,19 @@ const formatDateShort = (dateStr) => {
 const loadGifts = async () => {
   if (giftsLoading.value || giftsLoaded.value) return;
   const uid = userInfo.value?.id;
-  if (!uid) { giftsLoaded.value = true; return; }
+  if (!uid) {
+    giftsLoaded.value = true;
+    return;
+  }
   giftsLoading.value = true;
   giftsError.value = '';
   try {
     const [initialGiftsRes, addressesRes] = await Promise.all([
       supabase
         .from('user_gifts')
-        .select('id, user_id, gift_no, gift_content, gift_price, gift_image, gift_status, is_active, address_id, completed_at, created_at, updated_at')
+        .select(
+          'id, user_id, gift_no, gift_content, gift_price, gift_image, gift_status, is_active, address_id, completed_at, created_at, updated_at',
+        )
         .eq('user_id', uid)
         .order('created_at', { ascending: false }),
       supabase
@@ -1385,13 +2027,15 @@ const loadGifts = async () => {
         .select('id, user_id, recipient, phone, region, detail, is_default, created_at')
         .eq('user_id', uid)
         .order('is_default', { ascending: false })
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false }),
     ]);
     let giftsRes = initialGiftsRes;
     if (isMissingColumnError(giftsRes.error, 'address_id')) {
       giftsRes = await supabase
         .from('user_gifts')
-        .select('id, user_id, gift_no, gift_content, gift_price, gift_image, gift_status, is_active, completed_at, created_at, updated_at')
+        .select(
+          'id, user_id, gift_no, gift_content, gift_price, gift_image, gift_status, is_active, completed_at, created_at, updated_at',
+        )
         .eq('user_id', uid)
         .order('created_at', { ascending: false });
     }
@@ -1424,7 +2068,7 @@ const loadGifts = async () => {
         shipping_recipient: addr?.recipient || '',
         shipping_phone: addr?.phone || '',
         shipping_address: (region + (addr?.detail || '')).trim(),
-        address_count: (addressByUser.get(g.user_id) || []).length
+        address_count: (addressByUser.get(g.user_id) || []).length,
       };
     });
 
@@ -1437,7 +2081,9 @@ const loadGifts = async () => {
     currentGift.value = active || null;
     // 历史礼物：已完成或非激活
     const currentId = currentGift.value?.id;
-    historyGifts.value = normalizedGifts.filter((g) => g.id !== currentId && (!g.is_active || g.gift_status === 'completed'));
+    historyGifts.value = normalizedGifts.filter(
+      (g) => g.id !== currentId && (!g.is_active || g.gift_status === 'completed'),
+    );
     giftsLoaded.value = true;
   } catch (err) {
     logger.warn('assets-hub', '加载礼物数据失败:', err);
@@ -1470,7 +2116,7 @@ const loadOverview = async () => {
       loadSubscription(),
       loadOrders(),
       loadGifts(),
-      productsStore.fetchProducts()
+      productsStore.fetchProducts(),
     ]);
   } finally {
     overviewLoading.value = false;
@@ -1548,7 +2194,7 @@ onMounted(() => {
   background: rgba(142, 142, 147, 0.1);
   color: #8e8e93;
 }
-.user-space-page[data-theme="dark"] .ah-name-row .tier-badge.tier-free {
+.user-space-page[data-theme='dark'] .ah-name-row .tier-badge.tier-free {
   background: rgba(255, 255, 255, 0.1);
   color: #a1a1aa;
 }
@@ -1691,48 +2337,144 @@ onMounted(() => {
   line-height: 1.55;
 }
 
-.user-space-page[data-theme="dark"] .ah-decor-subhead {
+.user-space-page[data-theme='dark'] .ah-decor-subhead {
   border-top-color: rgba(255, 255, 255, 0.1);
 }
 
-.user-space-page[data-theme="dark"] .ah-decor-subhead h3,
-.user-space-page[data-theme="dark"] .ah-fulfillment-address-head h3 {
+.user-space-page[data-theme='dark'] .ah-decor-subhead h3,
+.user-space-page[data-theme='dark'] .ah-fulfillment-address-head h3 {
   color: #f5f5f7;
 }
 
-.user-space-page[data-theme="dark"] .ah-decor-subhead p,
-.user-space-page[data-theme="dark"] .ah-fulfillment-address-head p {
+.user-space-page[data-theme='dark'] .ah-decor-subhead p,
+.user-space-page[data-theme='dark'] .ah-fulfillment-address-head p {
   color: #a1a1a6;
 }
 
-.user-space-page[data-theme="dark"] .ah-fulfillment-address-head span {
+.user-space-page[data-theme='dark'] .ah-fulfillment-address-head span {
   color: #4d958a;
 }
 
 /* ─── Section 通用 + 骨架 ─── */
-.ah-section { transform-origin: 50% 0; min-height: 240px; }
-.ah-panel-enter-active { transition: opacity 260ms cubic-bezier(0.32,0.72,0,1), transform 320ms cubic-bezier(0.32,0.72,0,1), filter 220ms ease; }
-.ah-panel-leave-active { transition: opacity 140ms ease, transform 180ms ease, filter 140ms ease; }
-.ah-panel-enter-from { opacity: 0; transform: translateY(10px) scale(0.985); filter: blur(4px); }
-.ah-panel-leave-to { opacity: 0; transform: translateY(-6px) scale(0.990); filter: blur(2px); }
+.ah-section {
+  transform-origin: 50% 0;
+  min-height: 240px;
+}
+.ah-panel-enter-active {
+  transition:
+    opacity 260ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    filter 220ms ease;
+}
+.ah-panel-leave-active {
+  transition:
+    opacity 140ms ease,
+    transform 180ms ease,
+    filter 140ms ease;
+}
+.ah-panel-enter-from {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  filter: blur(4px);
+}
+.ah-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.99);
+  filter: blur(2px);
+}
 
-.ah-overview-skeleton { display: grid; gap: 16px; }
-.ah-skeleton { background: linear-gradient(90deg, rgba(15,23,42,0.06) 25%, rgba(15,23,42,0.03) 50%, rgba(15,23,42,0.06) 75%); background-size: 200% 100%; animation: ah-shimmer 1.2s infinite linear; border-radius: 14px; }
-.ah-skeleton-focus { display: flex; gap: 12px; align-items: center; padding: 16px; min-height: 112px; border: 0.5px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.52); backdrop-filter: var(--liquid-filter-sm); }
-.ah-skeleton-focus .ah-skeleton-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; }
-.ah-skeleton-lines { flex: 1; display: grid; gap: 8px; }
-.ah-skeleton-line { height: 12px; border-radius: 6px; }
-.ah-skeleton-line.w-24 { width: 24%; } .ah-skeleton-line.w-60 { width: 60%; } .ah-skeleton-line.w-80 { width: 80%; }
-.ah-skeleton-points-card { height: 168px; border-radius: 18px; }
-.ah-skeleton-card-sm { height: 128px; border-radius: 16px; }
-.ah-skeleton-column { height: 220px; border-radius: 16px; }
-.ah-skeleton-preset { height: 132px; border-radius: 14px; }
-@keyframes ah-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-.user-space-page[data-theme="dark"] .ah-skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.08) 75%); background-size: 200% 100%; }
+.ah-overview-skeleton {
+  display: grid;
+  gap: 16px;
+}
+.ah-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0.06) 25%,
+    rgba(15, 23, 42, 0.03) 50%,
+    rgba(15, 23, 42, 0.06) 75%
+  );
+  background-size: 200% 100%;
+  animation: ah-shimmer 1.2s infinite linear;
+  border-radius: 14px;
+}
+.ah-skeleton-focus {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 16px;
+  min-height: 112px;
+  border: 0.5px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.52);
+  backdrop-filter: var(--liquid-filter-sm);
+}
+.ah-skeleton-focus .ah-skeleton-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.ah-skeleton-lines {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+.ah-skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+}
+.ah-skeleton-line.w-24 {
+  width: 24%;
+}
+.ah-skeleton-line.w-60 {
+  width: 60%;
+}
+.ah-skeleton-line.w-80 {
+  width: 80%;
+}
+.ah-skeleton-points-card {
+  height: 168px;
+  border-radius: 18px;
+}
+.ah-skeleton-card-sm {
+  height: 128px;
+  border-radius: 16px;
+}
+.ah-skeleton-column {
+  height: 220px;
+  border-radius: 16px;
+}
+.ah-skeleton-preset {
+  height: 132px;
+  border-radius: 14px;
+}
+@keyframes ah-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+.user-space-page[data-theme='dark'] .ah-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 25%,
+    rgba(255, 255, 255, 0.04) 50%,
+    rgba(255, 255, 255, 0.08) 75%
+  );
+  background-size: 200% 100%;
+}
 
 @keyframes ah-materialize {
-  from { opacity: 0; transform: translateY(6px) scale(0.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ─── 账户导航与概览 ─── */
@@ -1743,19 +2485,74 @@ onMounted(() => {
   backdrop-filter: var(--liquid-filter);
   -webkit-backdrop-filter: var(--liquid-filter);
   border-color: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 22px 52px rgba(15, 23, 42, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 22px 52px rgba(15, 23, 42, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
-.ah-overview { display: flex; flex-direction: column; gap: 14px; }
-.ah-overview-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 4px 2px 0; }
-.ah-overview-heading > div { min-width: 0; }
-.ah-overview-heading span:first-child { color: #6e6e73; font-size: 12px; font-weight: 650; }
-.ah-overview-heading h2 { margin: 3px 0 0; color: #1d1d1f; font-size: 22px; font-weight: 750; line-height: 1.15; }
-.ah-overview-heading p { max-width: 620px; margin: 5px 0 0; color: #747b86; font-size: 12px; line-height: 1.5; }
-.ah-overview-updating { flex: 0 0 auto; color: #6e6e73; font-size: 11px; font-weight: 600; }
-.ah-overview-retry { flex: 0 0 auto; padding: 7px 11px; border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 13px; background: rgba(255, 255, 255, 0.48); color: #64748b; cursor: pointer; font-size: 11px; font-weight: 650; box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06); transition: background-color 150ms ease, color 150ms ease, transform 150ms ease; }
-.ah-overview-retry:hover { background: rgba(0, 113, 227, 0.1); color: #0071e3; }
-.ah-overview-retry:active { transform: scale(0.97); }
+.ah-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ah-overview-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 2px 0;
+}
+.ah-overview-heading > div {
+  min-width: 0;
+}
+.ah-overview-heading span:first-child {
+  color: #6e6e73;
+  font-size: 12px;
+  font-weight: 650;
+}
+.ah-overview-heading h2 {
+  margin: 3px 0 0;
+  color: #1d1d1f;
+  font-size: 22px;
+  font-weight: 750;
+  line-height: 1.15;
+}
+.ah-overview-heading p {
+  max-width: 620px;
+  margin: 5px 0 0;
+  color: #747b86;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.ah-overview-updating {
+  flex: 0 0 auto;
+  color: #6e6e73;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ah-overview-retry {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.48);
+  color: #64748b;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+.ah-overview-retry:hover {
+  background: rgba(0, 113, 227, 0.1);
+  color: #0071e3;
+}
+.ah-overview-retry:active {
+  transform: scale(0.97);
+}
 
 .ah-smart-focus {
   display: grid;
@@ -1776,49 +2573,173 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.56);
   backdrop-filter: var(--liquid-filter-lg);
   -webkit-backdrop-filter: var(--liquid-filter-lg);
-  box-shadow: 0 22px 46px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 22px 46px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
   color: #1d1d1f;
   cursor: pointer;
   text-align: left;
-  transition: transform 190ms var(--ah-ease), box-shadow 190ms ease, background-color 190ms ease;
+  transition:
+    transform 190ms var(--ah-ease),
+    box-shadow 190ms ease,
+    background-color 190ms ease;
 }
-.ah-smart-focus-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 17px; background: rgba(0, 113, 227, 0.11); color: #0071e3; }
-.ah-smart-focus-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
-.ah-smart-focus-copy > span { color: #64748b; font-size: 11px; font-weight: 700; }
-.ah-smart-focus-copy strong { color: #1d1d1f; font-size: 18px; font-weight: 780; line-height: 1.25; }
-.ah-smart-focus-copy small { color: #6e6e73; font-size: 12px; line-height: 1.5; }
-.ah-smart-focus-action { display: inline-flex; align-items: center; gap: 3px; color: #0071e3; font-size: 12px; font-weight: 720; white-space: nowrap; }
+.ah-smart-focus-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 17px;
+  background: rgba(0, 113, 227, 0.11);
+  color: #0071e3;
+}
+.ah-smart-focus-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.ah-smart-focus-copy > span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ah-smart-focus-copy strong {
+  color: #1d1d1f;
+  font-size: 18px;
+  font-weight: 780;
+  line-height: 1.25;
+}
+.ah-smart-focus-copy small {
+  color: #6e6e73;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.ah-smart-focus-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #0071e3;
+  font-size: 12px;
+  font-weight: 720;
+  white-space: nowrap;
+}
 .ah-smart-focus-icon,
-.ah-smart-focus-action svg { transition: transform 180ms var(--ah-ease); }
-.ah-smart-focus.tone-orange { border-color: rgba(253, 186, 116, 0.52); background: rgba(255, 247, 237, 0.62); }
-.ah-smart-focus.tone-orange .ah-smart-focus-icon { background: rgba(217, 119, 6, 0.12); color: #b45309; }
-.ah-smart-focus.tone-red { border-color: rgba(253, 164, 175, 0.55); background: rgba(255, 241, 242, 0.62); }
-.ah-smart-focus.tone-red .ah-smart-focus-icon { background: rgba(225, 29, 72, 0.1); color: #e11d48; }
-.ah-smart-focus.tone-green { border-color: rgba(134, 239, 172, 0.52); background: rgba(240, 253, 244, 0.62); }
-.ah-smart-focus.tone-green .ah-smart-focus-icon { background: rgba(34, 197, 94, 0.11); color: #16a34a; }
-.ah-smart-focus.tone-blue { border-color: rgba(191, 219, 254, 0.62); background: rgba(239, 246, 255, 0.64); }
-.ah-smart-focus.tone-blue .ah-smart-focus-icon { background: rgba(0, 113, 227, 0.11); color: #0071e3; }
-.ah-smart-focus.tone-gold { border-color: rgba(251, 191, 36, 0.5); background: rgba(255, 251, 235, 0.66); }
-.ah-smart-focus.tone-gold .ah-smart-focus-icon { background: rgba(180, 83, 9, 0.12); color: #b7791f; }
-.ah-smart-focus.tone-neutral { border-color: rgba(226, 232, 240, 0.9); background: rgba(248, 250, 252, 0.62); }
-.ah-smart-focus.tone-neutral .ah-smart-focus-icon { background: rgba(100, 116, 139, 0.12); color: #475569; }
-.ah-smart-focus:active { transform: scale(0.99); }
-.ah-smart-focus:disabled { cursor: default; opacity: 0.78; }
-.ah-overview { display: flex; flex-direction: column; gap: 24px; max-width: 760px; width: 100%; margin: 0 auto; }
-.ah-overview-points-wrap { display: flex; justify-content: center; margin: 0 auto; width: 100%; max-width: 360px; }
-.ah-overview-points-wrap .ah-overview-points-card { width: 100%; }
-.ah-overview-insights { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
-.ah-overview-points-card { min-width: 0; align-self: start; }
-.ah-smart-columns.ah-single-timeline { grid-template-columns: 1fr; gap: 16px; }
-.ah-skeleton-points-card.is-centered { max-width: 360px; margin: 0 auto; }
-.ah-skeleton-timeline { height: 180px; border-radius: 16px; }
+.ah-smart-focus-action svg {
+  transition: transform 180ms var(--ah-ease);
+}
+.ah-smart-focus.tone-orange {
+  border-color: rgba(253, 186, 116, 0.52);
+  background: rgba(255, 247, 237, 0.62);
+}
+.ah-smart-focus.tone-orange .ah-smart-focus-icon {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+.ah-smart-focus.tone-red {
+  border-color: rgba(253, 164, 175, 0.55);
+  background: rgba(255, 241, 242, 0.62);
+}
+.ah-smart-focus.tone-red .ah-smart-focus-icon {
+  background: rgba(225, 29, 72, 0.1);
+  color: #e11d48;
+}
+.ah-smart-focus.tone-green {
+  border-color: rgba(134, 239, 172, 0.52);
+  background: rgba(240, 253, 244, 0.62);
+}
+.ah-smart-focus.tone-green .ah-smart-focus-icon {
+  background: rgba(34, 197, 94, 0.11);
+  color: #16a34a;
+}
+.ah-smart-focus.tone-blue {
+  border-color: rgba(191, 219, 254, 0.62);
+  background: rgba(239, 246, 255, 0.64);
+}
+.ah-smart-focus.tone-blue .ah-smart-focus-icon {
+  background: rgba(0, 113, 227, 0.11);
+  color: #0071e3;
+}
+.ah-smart-focus.tone-gold {
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(255, 251, 235, 0.66);
+}
+.ah-smart-focus.tone-gold .ah-smart-focus-icon {
+  background: rgba(180, 83, 9, 0.12);
+  color: #b7791f;
+}
+.ah-smart-focus.tone-neutral {
+  border-color: rgba(226, 232, 240, 0.9);
+  background: rgba(248, 250, 252, 0.62);
+}
+.ah-smart-focus.tone-neutral .ah-smart-focus-icon {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
+.ah-smart-focus:active {
+  transform: scale(0.99);
+}
+.ah-smart-focus:disabled {
+  cursor: default;
+  opacity: 0.78;
+}
+.ah-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+}
+.ah-overview-points-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 360px;
+}
+.ah-overview-points-wrap .ah-overview-points-card {
+  width: 100%;
+}
+.ah-overview-insights {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.ah-overview-points-card {
+  min-width: 0;
+  align-self: start;
+}
+.ah-smart-columns.ah-single-timeline {
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+.ah-skeleton-points-card.is-centered {
+  max-width: 360px;
+  margin: 0 auto;
+}
+.ah-skeleton-timeline {
+  height: 180px;
+  border-radius: 16px;
+}
 @media (orientation: landscape) and (min-width: 768px) {
   /* 大屏放宽：与抽奖/赞助的 landscape 860 档同节奏 */
-  .ah-overview { max-width: 860px; }
-  .ah-overview-points-wrap { justify-content: flex-start; margin: 0; max-width: 400px; }
-  .ah-skeleton-points-card.is-centered { margin: 0; }
+  .ah-overview {
+    max-width: 860px;
+  }
+  .ah-overview-points-wrap {
+    justify-content: flex-start;
+    margin: 0;
+    max-width: 400px;
+  }
+  .ah-skeleton-points-card.is-centered {
+    margin: 0;
+  }
   /* 桌面端：最近动态 / 接下来 并排，消掉整页单列的空旷感 */
-  .ah-smart-columns.ah-single-timeline { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .ah-smart-columns.ah-single-timeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
 }
 .ah-overview-primary,
 .ah-overview-membership,
@@ -1830,88 +2751,487 @@ onMounted(() => {
   -webkit-backdrop-filter: var(--liquid-filter-sm);
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
 }
-.ah-overview-primary { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; min-height: 164px; align-items: start; gap: 14px; padding: 20px; overflow: hidden; background: rgba(236, 246, 255, 0.72); border-color: rgba(191, 219, 254, 0.8); transition: transform 190ms var(--ah-ease), box-shadow 190ms ease, background-color 190ms ease; }
-.ah-overview-card-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 14px; flex: 0 0 auto; }
-.ah-overview-card-icon.is-blue { background: rgba(0, 113, 227, 0.12); color: #0071e3; }
-.ah-overview-card-icon.is-gold { background: rgba(217, 119, 6, 0.12); color: #b45309; }
-.ah-overview-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.ah-overview-kicker { color: #3567a9; font-size: 12px; font-weight: 700; }
-.ah-overview-copy strong { color: #123b70; font-size: 34px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-.ah-overview-copy > span:last-child { color: #4b6b91; font-size: 12px; line-height: 1.45; }
-.ah-overview-link { align-self: end; display: inline-flex; width: fit-content; align-items: center; gap: 2px; padding: 7px 0; border: 0; background: transparent; color: #0071e3; cursor: pointer; font-size: 12px; font-weight: 700; transition: color 150ms ease, transform 150ms ease; }
-.ah-overview-link svg { transition: transform 170ms var(--ah-ease); }
-.ah-overview-link:active { transform: scale(0.97); }
-.ah-overview-membership { display: flex; min-height: 164px; align-items: center; gap: 12px; padding: 20px; transition: transform 190ms var(--ah-ease), box-shadow 190ms ease, background-color 190ms ease; }
-.ah-overview-membership > div:nth-child(2) { min-width: 0; flex: 1; }
-.ah-overview-membership span { color: #78808d; font-size: 11px; font-weight: 650; }
-.ah-overview-membership strong { display: block; margin-top: 3px; color: #1d1d1f; font-size: 18px; font-weight: 750; }
-.ah-overview-membership p { margin: 4px 0 0; overflow: hidden; color: #6e6e73; font-size: 12px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
-.ah-overview-membership.is-expiring { background: rgba(255, 247, 237, 0.74); border-color: rgba(253, 186, 116, 0.55); }
-.ah-icon-command { display: grid; width: 36px; height: 36px; place-items: center; padding: 0; border: 1px solid rgba(255, 255, 255, 0.76); border-radius: 14px; background: rgba(255, 255, 255, 0.58); color: #1d1d1f; cursor: pointer; box-shadow: 0 7px 18px rgba(15, 23, 42, 0.08); transition: transform 150ms var(--ah-ease), background-color 150ms ease, border-color 150ms ease; }
-.ah-icon-command svg { transition: transform 170ms var(--ah-ease); }
-.ah-icon-command:active { transform: scale(0.95); }
-.ah-smart-columns { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr); gap: 12px; }
-.ah-smart-section { min-width: 0; padding: 18px; border: 1px solid rgba(255, 255, 255, 0.72); border-radius: 22px; background: rgba(255, 255, 255, 0.46); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); box-shadow: 0 16px 34px rgba(15, 23, 42, 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.84); }
-.ah-smart-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.ah-smart-section-head > div { display: flex; flex-direction: column; gap: 2px; }
-.ah-smart-section-head span { color: #7b8491; font-size: 10px; font-weight: 700; }
-.ah-smart-section-head strong { color: #1d1d1f; font-size: 14px; font-weight: 760; }
-.ah-smart-section-head button { display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: 11px; background: rgba(255, 255, 255, 0.54); color: #64748b; cursor: pointer; transition: transform 150ms var(--ah-ease), background-color 150ms ease; }
+.ah-overview-primary {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 164px;
+  align-items: start;
+  gap: 14px;
+  padding: 20px;
+  overflow: hidden;
+  background: rgba(236, 246, 255, 0.72);
+  border-color: rgba(191, 219, 254, 0.8);
+  transition:
+    transform 190ms var(--ah-ease),
+    box-shadow 190ms ease,
+    background-color 190ms ease;
+}
+.ah-overview-card-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 14px;
+  flex: 0 0 auto;
+}
+.ah-overview-card-icon.is-blue {
+  background: rgba(0, 113, 227, 0.12);
+  color: #0071e3;
+}
+.ah-overview-card-icon.is-gold {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+.ah-overview-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.ah-overview-kicker {
+  color: #3567a9;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ah-overview-copy strong {
+  color: #123b70;
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ah-overview-copy > span:last-child {
+  color: #4b6b91;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.ah-overview-link {
+  align-self: end;
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: #0071e3;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  transition:
+    color 150ms ease,
+    transform 150ms ease;
+}
+.ah-overview-link svg {
+  transition: transform 170ms var(--ah-ease);
+}
+.ah-overview-link:active {
+  transform: scale(0.97);
+}
+.ah-overview-membership {
+  display: flex;
+  min-height: 164px;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  transition:
+    transform 190ms var(--ah-ease),
+    box-shadow 190ms ease,
+    background-color 190ms ease;
+}
+.ah-overview-membership > div:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+.ah-overview-membership span {
+  color: #78808d;
+  font-size: 11px;
+  font-weight: 650;
+}
+.ah-overview-membership strong {
+  display: block;
+  margin-top: 3px;
+  color: #1d1d1f;
+  font-size: 18px;
+  font-weight: 750;
+}
+.ah-overview-membership p {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: #6e6e73;
+  font-size: 12px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-overview-membership.is-expiring {
+  background: rgba(255, 247, 237, 0.74);
+  border-color: rgba(253, 186, 116, 0.55);
+}
+.ah-icon-command {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  color: #1d1d1f;
+  cursor: pointer;
+  box-shadow: 0 7px 18px rgba(15, 23, 42, 0.08);
+  transition:
+    transform 150ms var(--ah-ease),
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+.ah-icon-command svg {
+  transition: transform 170ms var(--ah-ease);
+}
+.ah-icon-command:active {
+  transform: scale(0.95);
+}
+.ah-smart-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+  gap: 12px;
+}
+.ah-smart-section {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.46);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  box-shadow:
+    0 16px 34px rgba(15, 23, 42, 0.075),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+.ah-smart-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ah-smart-section-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ah-smart-section-head span {
+  color: #7b8491;
+  font-size: 10px;
+  font-weight: 700;
+}
+.ah-smart-section-head strong {
+  color: #1d1d1f;
+  font-size: 14px;
+  font-weight: 760;
+}
+.ah-smart-section-head button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.54);
+  color: #64748b;
+  cursor: pointer;
+  transition:
+    transform 150ms var(--ah-ease),
+    background-color 150ms ease;
+}
 .ah-smart-timeline,
-.ah-smart-next-list { display: flex; flex-direction: column; }
-.ah-smart-activity { display: grid; grid-template-columns: 52px 10px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-width: 0; padding: 9px 0; border: 0; border-top: 1px solid rgba(15, 23, 42, 0.07); background: transparent; color: #1d1d1f; cursor: pointer; text-align: left; }
-.ah-smart-activity:first-child { border-top: 0; }
-.ah-smart-activity-time { color: #8a919c; font-size: 10px; font-weight: 650; }
-.ah-smart-activity-marker { width: 7px; height: 7px; border-radius: 50%; background: #0071e3; box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.09); }
-.ah-smart-activity-marker.tone-orange { background: #d97706; box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.09); }
-.ah-smart-activity-marker.tone-green { background: #16a34a; box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.09); }
-.ah-smart-activity-marker.tone-gray { background: #8e8e93; box-shadow: 0 0 0 4px rgba(142, 142, 147, 0.09); }
-.ah-smart-activity-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.ah-smart-activity-copy strong { overflow: hidden; color: #1d1d1f; font-size: 12px; font-weight: 720; text-overflow: ellipsis; white-space: nowrap; }
-.ah-smart-activity-copy small { overflow: hidden; color: #737b87; font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
-.ah-smart-activity > svg { color: #a0a6af; transition: transform 170ms var(--ah-ease); }
-.ah-smart-next { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 0; border: 0; border-top: 1px solid rgba(15, 23, 42, 0.07); background: transparent; color: #1d1d1f; cursor: pointer; text-align: left; }
-.ah-smart-next:first-child { border-top: 0; }
-.ah-smart-next-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 12px; background: rgba(0, 113, 227, 0.1); color: #0071e3; transition: transform 170ms var(--ah-ease); }
-.ah-smart-next.tone-orange .ah-smart-next-icon { background: rgba(217, 119, 6, 0.11); color: #b45309; }
-.ah-smart-next.tone-red .ah-smart-next-icon { background: rgba(225, 29, 72, 0.09); color: #e11d48; }
-.ah-smart-next.tone-green .ah-smart-next-icon { background: rgba(22, 163, 74, 0.1); color: #16a34a; }
-.ah-smart-next-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.ah-smart-next-copy strong { color: #1d1d1f; font-size: 12px; font-weight: 720; }
-.ah-smart-next-copy span { overflow: hidden; color: #737b87; font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
-.ah-smart-next > svg { color: #a0a6af; transition: transform 170ms var(--ah-ease); }
-.ah-smart-ready { display: flex; align-items: center; gap: 11px; min-height: 72px; color: #16a34a; }
-.ah-smart-ready > svg { flex: 0 0 auto; }
-.ah-smart-ready > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.ah-smart-ready strong { color: #1d1d1f; font-size: 12px; font-weight: 730; }
+.ah-smart-next-list {
+  display: flex;
+  flex-direction: column;
+}
+.ah-smart-activity {
+  display: grid;
+  grid-template-columns: 52px 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 9px 0;
+  border: 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.07);
+  background: transparent;
+  color: #1d1d1f;
+  cursor: pointer;
+  text-align: left;
+}
+.ah-smart-activity:first-child {
+  border-top: 0;
+}
+.ah-smart-activity-time {
+  color: #8a919c;
+  font-size: 10px;
+  font-weight: 650;
+}
+.ah-smart-activity-marker {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0071e3;
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.09);
+}
+.ah-smart-activity-marker.tone-orange {
+  background: #d97706;
+  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.09);
+}
+.ah-smart-activity-marker.tone-green {
+  background: #16a34a;
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.09);
+}
+.ah-smart-activity-marker.tone-gray {
+  background: #8e8e93;
+  box-shadow: 0 0 0 4px rgba(142, 142, 147, 0.09);
+}
+.ah-smart-activity-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.ah-smart-activity-copy strong {
+  overflow: hidden;
+  color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-smart-activity-copy small {
+  overflow: hidden;
+  color: #737b87;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-smart-activity > svg {
+  color: #a0a6af;
+  transition: transform 170ms var(--ah-ease);
+}
+.ah-smart-next {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border: 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.07);
+  background: transparent;
+  color: #1d1d1f;
+  cursor: pointer;
+  text-align: left;
+}
+.ah-smart-next:first-child {
+  border-top: 0;
+}
+.ah-smart-next-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(0, 113, 227, 0.1);
+  color: #0071e3;
+  transition: transform 170ms var(--ah-ease);
+}
+.ah-smart-next.tone-orange .ah-smart-next-icon {
+  background: rgba(217, 119, 6, 0.11);
+  color: #b45309;
+}
+.ah-smart-next.tone-red .ah-smart-next-icon {
+  background: rgba(225, 29, 72, 0.09);
+  color: #e11d48;
+}
+.ah-smart-next.tone-green .ah-smart-next-icon {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+}
+.ah-smart-next-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.ah-smart-next-copy strong {
+  color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 720;
+}
+.ah-smart-next-copy span {
+  overflow: hidden;
+  color: #737b87;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-smart-next > svg {
+  color: #a0a6af;
+  transition: transform 170ms var(--ah-ease);
+}
+.ah-smart-ready {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 72px;
+  color: #16a34a;
+}
+.ah-smart-ready > svg {
+  flex: 0 0 auto;
+}
+.ah-smart-ready > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.ah-smart-ready strong {
+  color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 730;
+}
 .ah-smart-ready span,
-.ah-smart-quiet { color: #7b8491; font-size: 10.5px; line-height: 1.45; }
-.ah-smart-quiet { min-height: 72px; display: grid; place-items: center; text-align: center; }
+.ah-smart-quiet {
+  color: #7b8491;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+.ah-smart-quiet {
+  min-height: 72px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
 
-.ah-membership-card { display: flex; flex-direction: column; gap: 12px; padding: 22px; }
-.ah-membership-card-top { display: flex; align-items: center; justify-content: space-between; color: #78808d; font-size: 12px; font-weight: 700; }
-.ah-membership-status { padding: 3px 8px; border-radius: 999px; background: #ecfdf3; color: #15803d; font-size: 11px; }
-.ah-membership-card.is-free .ah-membership-status { background: #f3f4f6; color: #6b7280; }
-.ah-membership-card h2 { margin: 0; color: #1d1d1f; font-size: 26px; font-weight: 800; }
-.ah-membership-card p { margin: -5px 0 0; color: #6e6e73; font-size: 13px; }
-.ah-membership-meta { display: flex; gap: 8px; flex-wrap: wrap; }
-.ah-membership-meta span { padding: 6px 10px; border-radius: 11px; background: rgba(243, 244, 246, 0.72); color: #4b5563; font-size: 11px; font-weight: 650; }
-.ah-pity-progress { display: grid; gap: 8px; padding-top: 2px; }
-.ah-pity-progress-head { display: flex; justify-content: space-between; gap: 12px; color: #4b5563; font-size: 12px; font-weight: 700; }
-.ah-pity-progress-head strong { color: #1d1d1f; font-weight: 800; }
-.ah-pity-progress-track { height: 6px; overflow: hidden; background: #e5e7eb; border-radius: 3px; }
-.ah-pity-progress-fill { height: 100%; min-width: 0; background: #17803d; transition: width 240ms ease; }
-.ah-pity-progress p { margin: 0; color: #6e6e73; font-size: 12px; line-height: 1.55; }
-.ah-pity-progress.is-due .ah-pity-progress-fill { background: #b7791f; }
-.ah-pity-progress.is-due .ah-pity-progress-head strong { color: #9a6700; }
-.ah-pity-progress.is-unavailable .ah-pity-progress-head strong { color: #6b7280; }
+.ah-membership-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+}
+.ah-membership-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #78808d;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ah-membership-status {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #ecfdf3;
+  color: #15803d;
+  font-size: 11px;
+}
+.ah-membership-card.is-free .ah-membership-status {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.ah-membership-card h2 {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: 26px;
+  font-weight: 800;
+}
+.ah-membership-card p {
+  margin: -5px 0 0;
+  color: #6e6e73;
+  font-size: 13px;
+}
+.ah-membership-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ah-membership-meta span {
+  padding: 6px 10px;
+  border-radius: 11px;
+  background: rgba(243, 244, 246, 0.72);
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 650;
+}
+.ah-pity-progress {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+.ah-pity-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ah-pity-progress-head strong {
+  color: #1d1d1f;
+  font-weight: 800;
+}
+.ah-pity-progress-track {
+  height: 6px;
+  overflow: hidden;
+  background: #e5e7eb;
+  border-radius: 3px;
+}
+.ah-pity-progress-fill {
+  height: 100%;
+  min-width: 0;
+  background: #17803d;
+  transition: width 240ms ease;
+}
+.ah-pity-progress p {
+  margin: 0;
+  color: #6e6e73;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.ah-pity-progress.is-due .ah-pity-progress-fill {
+  background: #b7791f;
+}
+.ah-pity-progress.is-due .ah-pity-progress-head strong {
+  color: #9a6700;
+}
+.ah-pity-progress.is-unavailable .ah-pity-progress-head strong {
+  color: #6b7280;
+}
 
 /* ─── 记录列表 ─── */
-.ah-ledger { gap: 20px; }
-.ah-ledger-group h2 { margin: 0 0 5px; color: #6b7280; font-size: 12px; font-weight: 750; }
-.ah-ledger-list { gap: 0; border-top: 1px solid rgba(15, 23, 42, 0.1); }
-.ah-ledger-item { padding: 13px 4px; border: 0; border-radius: 0; border-bottom: 1px solid rgba(15, 23, 42, 0.1); background: transparent; box-shadow: none; }
-.ah-ledger-item:hover { transform: none; background: rgba(15, 23, 42, 0.025); box-shadow: none; }
+.ah-ledger {
+  gap: 20px;
+}
+.ah-ledger-group h2 {
+  margin: 0 0 5px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 750;
+}
+.ah-ledger-list {
+  gap: 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
+}
+.ah-ledger-item {
+  padding: 13px 4px;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  background: transparent;
+  box-shadow: none;
+}
+.ah-ledger-item:hover {
+  transform: none;
+  background: rgba(15, 23, 42, 0.025);
+  box-shadow: none;
+}
 
 /* ─── 积分明细流水 · 列表化 去卡片化 ─── */
 .ah-ledger {
@@ -1919,7 +3239,9 @@ onMounted(() => {
   flex-direction: column;
   gap: 0;
 }
-.ah-ledger-group { gap: 0; }
+.ah-ledger-group {
+  gap: 0;
+}
 .ah-ledger-item {
   display: flex;
   align-items: center;
@@ -1945,10 +3267,22 @@ onMounted(() => {
   flex-shrink: 0;
   transition: transform 180ms var(--ah-ease);
 }
-.ah-ledger-icon.tone-green { color: #34c759; background: rgba(52, 199, 89, 0.12); }
-.ah-ledger-icon.tone-blue { color: #0071e3; background: rgba(0, 113, 227, 0.12); }
-.ah-ledger-icon.tone-orange { color: #ff9500; background: rgba(255, 149, 0, 0.14); }
-.ah-ledger-icon.tone-gray { color: #8e8e93; background: rgba(142, 142, 147, 0.12); }
+.ah-ledger-icon.tone-green {
+  color: #34c759;
+  background: rgba(52, 199, 89, 0.12);
+}
+.ah-ledger-icon.tone-blue {
+  color: #0071e3;
+  background: rgba(0, 113, 227, 0.12);
+}
+.ah-ledger-icon.tone-orange {
+  color: #ff9500;
+  background: rgba(255, 149, 0, 0.14);
+}
+.ah-ledger-icon.tone-gray {
+  color: #8e8e93;
+  background: rgba(142, 142, 147, 0.12);
+}
 .ah-ledger-main {
   display: flex;
   flex-direction: column;
@@ -1956,7 +3290,11 @@ onMounted(() => {
   min-width: 0;
   flex: 1;
 }
-.ah-ledger-title { font-size: 14px; font-weight: 700; color: #1d1d1f; }
+.ah-ledger-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1d1d1f;
+}
 .ah-ledger-remark {
   font-size: 12px;
   color: #8e8e93;
@@ -1971,10 +3309,23 @@ onMounted(() => {
   gap: 2px;
   flex-shrink: 0;
 }
-.ah-ledger-amount { font-size: 16px; font-weight: 800; color: #34c759; letter-spacing: -0.01em; }
-.ah-ledger-amount.negative { color: #ff3b30; }
-.ah-ledger-amount.zero { color: #8e8e93; font-weight: 600; }
-.ah-ledger-date { font-size: 11px; color: #8e8e93; }
+.ah-ledger-amount {
+  font-size: 16px;
+  font-weight: 800;
+  color: #34c759;
+  letter-spacing: -0.01em;
+}
+.ah-ledger-amount.negative {
+  color: #ff3b30;
+}
+.ah-ledger-amount.zero {
+  color: #8e8e93;
+  font-weight: 600;
+}
+.ah-ledger-date {
+  font-size: 11px;
+  color: #8e8e93;
+}
 
 /* ─── 空状态 · 毛玻璃 ─── */
 .ah-empty-state {
@@ -1989,7 +3340,9 @@ onMounted(() => {
   backdrop-filter: var(--liquid-filter);
   -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid rgba(255, 255, 255, 0.74);
-  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 20px 44px rgba(15, 23, 42, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 .ah-empty-icon {
   width: 56px;
@@ -2003,12 +3356,28 @@ onMounted(() => {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
   margin-bottom: 4px;
 }
-.ah-empty-state h3 { margin: 2px 0 0; font-size: 16px; font-weight: 800; color: #1d1d1f; }
-.ah-empty-state p { margin: 0; font-size: 13px; color: #8e8e93; }
+.ah-empty-state h3 {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1d1d1f;
+}
+.ah-empty-state p {
+  margin: 0;
+  font-size: 13px;
+  color: #8e8e93;
+}
 
 /* ─── 商城 ─── */
-.ah-shop-preview { display: flex; flex-direction: column; gap: 14px; }
-.ah-shop-stats { display: flex; gap: 12px; }
+.ah-shop-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ah-shop-stats {
+  display: flex;
+  gap: 12px;
+}
 .ah-shop-stat {
   flex: 1;
   display: flex;
@@ -2021,10 +3390,21 @@ onMounted(() => {
   backdrop-filter: var(--liquid-filter);
   -webkit-backdrop-filter: var(--liquid-filter);
   border: 1px solid rgba(255, 255, 255, 0.72);
-  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  box-shadow:
+    0 16px 34px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
-.ah-shop-stat-value { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: #1d1d1f; }
-.ah-shop-stat-label { font-size: 11px; font-weight: 600; color: #8e8e93; }
+.ah-shop-stat-value {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #1d1d1f;
+}
+.ah-shop-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8e8e93;
+}
 .ah-shop-btn {
   display: flex;
   align-items: center;
@@ -2044,8 +3424,13 @@ onMounted(() => {
     box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
     transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.ah-shop-btn svg { transition: transform 180ms var(--ah-ease); }
-.ah-shop-btn:active { transform: scale(0.97); transition-duration: 100ms; }
+.ah-shop-btn svg {
+  transition: transform 180ms var(--ah-ease);
+}
+.ah-shop-btn:active {
+  transform: scale(0.97);
+  transition-duration: 100ms;
+}
 .ah-shop-btn-ghost {
   margin-top: 8px;
   padding: 0 28px;
@@ -2057,7 +3442,11 @@ onMounted(() => {
 }
 
 /* ─── 订单 ─── */
-.ah-order-skeleton { display: flex; flex-direction: column; gap: 10px; }
+.ah-order-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .ah-skeleton-block {
   height: 68px;
   border-radius: 18px;
@@ -2068,7 +3457,11 @@ onMounted(() => {
      （对照：真正移动的骨架渐变见 .ah-skeleton 的 ah-shimmer … linear） */
   animation: ah-skel 900ms ease-in-out infinite alternate;
 }
-@keyframes ah-skel { to { opacity: 0.52; } }
+@keyframes ah-skel {
+  to {
+    opacity: 0.52;
+  }
+}
 
 /* ─── 礼物 ─── */
 .ah-gift-card {
@@ -2078,12 +3471,21 @@ onMounted(() => {
   backdrop-filter: var(--liquid-filter-lg);
   -webkit-backdrop-filter: var(--liquid-filter-lg);
   border: 1px solid rgba(255, 255, 255, 0.78);
-  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 24px 52px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   overflow: hidden;
-  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 180ms ease;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms ease;
 }
 @media (hover: hover) and (pointer: fine) {
-  .ah-gift-card:hover { transform: translateY(-3px); box-shadow: 0 30px 60px rgba(15, 23, 42, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.94); }
+  .ah-gift-card:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 30px 60px rgba(15, 23, 42, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
 }
 .ah-gift-header {
   display: flex;
@@ -2100,7 +3502,12 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 700;
 }
-.ah-gift-header-date { color: #8e8e93; font-size: 11px; font-weight: 550; white-space: nowrap; }
+.ah-gift-header-date {
+  color: #8e8e93;
+  font-size: 11px;
+  font-weight: 550;
+  white-space: nowrap;
+}
 .ah-gift-overview {
   display: flex;
   gap: 14px;
@@ -2121,13 +3528,32 @@ onMounted(() => {
   box-shadow: inset 0 0 0 1px rgba(184, 126, 0, 0.12);
   transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-.ah-gift-thumb.has-image { background: rgba(15, 23, 42, 0.04); }
-.ah-gift-thumb img { width: 100%; height: 100%; object-fit: cover; }
-@media (hover: hover) and (pointer: fine) {
-  .ah-gift-card:hover .ah-gift-thumb.has-image { transform: scale(1.02); }
+.ah-gift-thumb.has-image {
+  background: rgba(15, 23, 42, 0.04);
 }
-.ah-gift-headinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
-.ah-gift-headtop { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ah-gift-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ah-gift-card:hover .ah-gift-thumb.has-image {
+    transform: scale(1.02);
+  }
+}
+.ah-gift-headinfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.ah-gift-headtop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
 .ah-gift-headinfo h3 {
   margin: 0;
   font-size: 18px;
@@ -2160,14 +3586,40 @@ onMounted(() => {
   border-radius: 50%;
   background: currentColor;
 }
-.ah-gift-badge.preparing { background: rgba(142, 142, 147, 0.12); color: #8e8e93; }
-.ah-gift-badge.processing { background: rgba(0, 113, 227, 0.1); color: #0071e3; }
-.ah-gift-badge.shipped { background: #fff4df; color: #b45309; }
-.ah-gift-badge.completed { background: rgba(52, 199, 89, 0.12); color: #34c759; }
-.ah-gift-badge.is-flat { font-size: 10.5px; padding: 3px 8px; }
-.ah-gift-badge.is-flat .ah-gift-badge-dot { display: none; }
-.ah-gift-headsub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.ah-gift-amount { font-size: 13px; font-weight: 750; color: #b45309; }
+.ah-gift-badge.preparing {
+  background: rgba(142, 142, 147, 0.12);
+  color: #8e8e93;
+}
+.ah-gift-badge.processing {
+  background: rgba(0, 113, 227, 0.1);
+  color: #0071e3;
+}
+.ah-gift-badge.shipped {
+  background: #fff4df;
+  color: #b45309;
+}
+.ah-gift-badge.completed {
+  background: rgba(52, 199, 89, 0.12);
+  color: #34c759;
+}
+.ah-gift-badge.is-flat {
+  font-size: 10.5px;
+  padding: 3px 8px;
+}
+.ah-gift-badge.is-flat .ah-gift-badge-dot {
+  display: none;
+}
+.ah-gift-headsub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ah-gift-amount {
+  font-size: 13px;
+  font-weight: 750;
+  color: #b45309;
+}
 
 .ah-gift-status-panel {
   display: flex;
@@ -2180,7 +3632,9 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.42);
   backdrop-filter: var(--liquid-filter);
   -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 8px 20px rgba(15, 23, 42, 0.045);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 8px 20px rgba(15, 23, 42, 0.045);
 }
 .ah-gift-status-icon {
   display: grid;
@@ -2193,253 +3647,625 @@ onMounted(() => {
   color: #0071e3;
   animation: ah-materialize 240ms var(--ah-ease) 70ms both;
 }
-.ah-gift-status-copy { min-width: 0; padding-top: 1px; }
-.ah-gift-status-copy strong { display: block; color: #1d1d1f; font-size: 13px; font-weight: 750; line-height: 1.35; }
-.ah-gift-status-copy p { margin: 3px 0 0; color: #6e6e73; font-size: 12px; font-weight: 500; line-height: 1.5; }
-.ah-gift-status-panel.preparing { border-color: rgba(142, 142, 147, 0.14); background: rgba(255, 255, 255, 0.38); }
-.ah-gift-status-panel.preparing .ah-gift-status-icon { background: rgba(142, 142, 147, 0.12); color: #6e6e73; }
-.ah-gift-status-panel.shipped { border-color: rgba(217, 119, 6, 0.16); background: rgba(255, 247, 237, 0.5); }
-.ah-gift-status-panel.shipped .ah-gift-status-icon { background: rgba(255, 149, 0, 0.13); color: #b45309; }
-.ah-gift-status-panel.completed { border-color: rgba(52, 199, 89, 0.16); background: rgba(240, 253, 244, 0.5); }
-.ah-gift-status-panel.completed .ah-gift-status-icon { background: rgba(52, 199, 89, 0.13); color: #248a3d; }
+.ah-gift-status-copy {
+  min-width: 0;
+  padding-top: 1px;
+}
+.ah-gift-status-copy strong {
+  display: block;
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+.ah-gift-status-copy p {
+  margin: 3px 0 0;
+  color: #6e6e73;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.ah-gift-status-panel.preparing {
+  border-color: rgba(142, 142, 147, 0.14);
+  background: rgba(255, 255, 255, 0.38);
+}
+.ah-gift-status-panel.preparing .ah-gift-status-icon {
+  background: rgba(142, 142, 147, 0.12);
+  color: #6e6e73;
+}
+.ah-gift-status-panel.shipped {
+  border-color: rgba(217, 119, 6, 0.16);
+  background: rgba(255, 247, 237, 0.5);
+}
+.ah-gift-status-panel.shipped .ah-gift-status-icon {
+  background: rgba(255, 149, 0, 0.13);
+  color: #b45309;
+}
+.ah-gift-status-panel.completed {
+  border-color: rgba(52, 199, 89, 0.16);
+  background: rgba(240, 253, 244, 0.5);
+}
+.ah-gift-status-panel.completed .ah-gift-status-icon {
+  background: rgba(52, 199, 89, 0.13);
+  color: #248a3d;
+}
 
 /* 快递/礼物单号（fulfillment 记录复用） */
 .ah-gift-history-no {
   font-size: 10.5px;
   color: #8e8e93;
-  font-family: ui-monospace, "SF Mono", monospace;
+  font-family: ui-monospace, 'SF Mono', monospace;
   letter-spacing: 0.02em;
 }
 
-.ah-ledger-item:nth-child(2) { animation-delay: 25ms; }
-.ah-ledger-item:nth-child(3) { animation-delay: 50ms; }
-.ah-ledger-item:nth-child(4) { animation-delay: 75ms; }
-.ah-ledger-item:nth-child(5) { animation-delay: 100ms; }
+.ah-ledger-item:nth-child(2) {
+  animation-delay: 25ms;
+}
+.ah-ledger-item:nth-child(3) {
+  animation-delay: 50ms;
+}
+.ah-ledger-item:nth-child(4) {
+  animation-delay: 75ms;
+}
+.ah-ledger-item:nth-child(5) {
+  animation-delay: 100ms;
+}
 
 @media (hover: hover) and (pointer: fine) {
-  .ah-points-block:hover .ah-points-icon-wrap { transform: rotate(-5deg) scale(1.06); }
+  .ah-points-block:hover .ah-points-icon-wrap {
+    transform: rotate(-5deg) scale(1.06);
+  }
   .ah-overview-primary:hover,
-  .ah-overview-membership:hover { transform: translateY(-3px); box-shadow: 0 26px 48px rgba(15, 23, 42, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.92); }
-  .ah-overview-link:hover { color: #005bb8; }
-  .ah-icon-command:hover { background: rgba(255, 255, 255, 0.95); border-color: rgba(15, 23, 42, 0.18); }
+  .ah-overview-membership:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 26px 48px rgba(15, 23, 42, 0.13),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  }
+  .ah-overview-link:hover {
+    color: #005bb8;
+  }
+  .ah-icon-command:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(15, 23, 42, 0.18);
+  }
   .ah-overview-link:hover svg,
   .ah-icon-command:hover svg,
-  .ah-shop-btn:hover svg { transform: translateX(3px); }
-  .ah-smart-focus:hover { transform: translateY(-3px); box-shadow: 0 28px 54px rgba(15, 23, 42, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.94); }
+  .ah-shop-btn:hover svg {
+    transform: translateX(3px);
+  }
+  .ah-smart-focus:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 28px 54px rgba(15, 23, 42, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  }
   .ah-smart-focus:hover .ah-smart-focus-icon,
-  .ah-smart-next:hover .ah-smart-next-icon { transform: scale(1.06); }
+  .ah-smart-next:hover .ah-smart-next-icon {
+    transform: scale(1.06);
+  }
   .ah-smart-focus:hover .ah-smart-focus-action svg,
   .ah-smart-activity:hover > svg,
   .ah-smart-next:hover > svg,
-  .ah-smart-section-head button:hover svg { transform: translateX(3px); }
+  .ah-smart-section-head button:hover svg {
+    transform: translateX(3px);
+  }
   .ah-smart-activity:hover,
-  .ah-smart-next:hover { background: rgba(255, 255, 255, 0.34); }
-  .ah-smart-section-head button:hover { background: rgba(255, 255, 255, 0.82); }
-  .ah-ledger-item:hover .ah-ledger-icon { transform: scale(1.06); }
-  .ah-ledger-item:hover { transform: translateY(-3px); box-shadow: 0 22px 40px rgba(15, 23, 42, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.9); }
-  .ah-shop-btn:hover { background: #000; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
-  .ah-shop-btn-ghost:hover { background: rgba(0, 113, 227, 0.2); color: #0071e3; }
+  .ah-smart-next:hover {
+    background: rgba(255, 255, 255, 0.34);
+  }
+  .ah-smart-section-head button:hover {
+    background: rgba(255, 255, 255, 0.82);
+  }
+  .ah-ledger-item:hover .ah-ledger-icon {
+    transform: scale(1.06);
+  }
+  .ah-ledger-item:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 22px 40px rgba(15, 23, 42, 0.11),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+  .ah-shop-btn:hover {
+    background: #000;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  }
+  .ah-shop-btn-ghost:hover {
+    background: rgba(0, 113, 227, 0.2);
+    color: #0071e3;
+  }
 }
 
 /* ─── 深色模式 ─── */
-.user-space-page[data-theme="dark"] .ah-hub-card {
+.user-space-page[data-theme='dark'] .ah-hub-card {
   background: rgba(24, 26, 32, 0.62);
   border-color: rgba(255, 255, 255, 0.13);
-  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 24px 54px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
-.user-space-page[data-theme="dark"] .ah-points-block {
+.user-space-page[data-theme='dark'] .ah-points-block {
   background: rgba(41, 151, 255, 0.1);
   border-color: rgba(41, 151, 255, 0.16);
 }
-.user-space-page[data-theme="dark"] .ah-username,
-.user-space-page[data-theme="dark"] .ah-points-value,
-.user-space-page[data-theme="dark"] .ah-ledger-title {
+.user-space-page[data-theme='dark'] .ah-username,
+.user-space-page[data-theme='dark'] .ah-points-value,
+.user-space-page[data-theme='dark'] .ah-ledger-title {
   color: #f5f7fa;
 }
-.user-space-page[data-theme="dark"] .ah-uid,
-.user-space-page[data-theme="dark"] .ah-points-label {
+.user-space-page[data-theme='dark'] .ah-uid,
+.user-space-page[data-theme='dark'] .ah-points-label {
   color: #8b8e96;
 }
-.user-space-page[data-theme="dark"] .ah-empty-state,
-.user-space-page[data-theme="dark"] .ah-shop-stat,
-.user-space-page[data-theme="dark"] .ah-ledger-item,
-.user-space-page[data-theme="dark"] .ah-gift-card,
-.user-space-page[data-theme="dark"] .ah-skeleton-block {
+.user-space-page[data-theme='dark'] .ah-empty-state,
+.user-space-page[data-theme='dark'] .ah-shop-stat,
+.user-space-page[data-theme='dark'] .ah-ledger-item,
+.user-space-page[data-theme='dark'] .ah-gift-card,
+.user-space-page[data-theme='dark'] .ah-skeleton-block {
   background: rgba(24, 26, 32, 0.55);
   border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-.user-space-page[data-theme="dark"] .ah-empty-state h3,
-.user-space-page[data-theme="dark"] .ah-shop-stat-value,
-.user-space-page[data-theme="dark"] .ah-gift-headinfo h3,
-.user-space-page[data-theme="dark"] .ah-gift-status-copy strong {
+.user-space-page[data-theme='dark'] .ah-empty-state h3,
+.user-space-page[data-theme='dark'] .ah-shop-stat-value,
+.user-space-page[data-theme='dark'] .ah-gift-headinfo h3,
+.user-space-page[data-theme='dark'] .ah-gift-status-copy strong {
   color: #f5f7fa;
 }
-.user-space-page[data-theme="dark"] .ah-empty-state p,
-.user-space-page[data-theme="dark"] .ah-shop-stat-label,
-.user-space-page[data-theme="dark"] .ah-ledger-remark,
-.user-space-page[data-theme="dark"] .ah-ledger-date,
-.user-space-page[data-theme="dark"] .ah-gift-header-date,
-.user-space-page[data-theme="dark"] .ah-gift-history-no,
-.user-space-page[data-theme="dark"] .ah-gift-status-copy p,
-.user-space-page[data-theme="dark"] .ah-gift-eyebrow {
+.user-space-page[data-theme='dark'] .ah-empty-state p,
+.user-space-page[data-theme='dark'] .ah-shop-stat-label,
+.user-space-page[data-theme='dark'] .ah-ledger-remark,
+.user-space-page[data-theme='dark'] .ah-ledger-date,
+.user-space-page[data-theme='dark'] .ah-gift-header-date,
+.user-space-page[data-theme='dark'] .ah-gift-history-no,
+.user-space-page[data-theme='dark'] .ah-gift-status-copy p,
+.user-space-page[data-theme='dark'] .ah-gift-eyebrow {
   color: #8b8e96;
 }
-.user-space-page[data-theme="dark"] .ah-gift-thumb:not(.has-image) {
+.user-space-page[data-theme='dark'] .ah-gift-thumb:not(.has-image) {
   background: rgba(217, 119, 6, 0.16);
   color: #ffb340;
 }
-.user-space-page[data-theme="dark"] .ah-gift-header {
+.user-space-page[data-theme='dark'] .ah-gift-header {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
-.user-space-page[data-theme="dark"] .ah-gift-status-panel { background: rgba(255, 255, 255, 0.045); border-color: rgba(255, 255, 255, 0.08); }
-.user-space-page[data-theme="dark"] .ah-empty-icon {
+.user-space-page[data-theme='dark'] .ah-gift-status-panel {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.user-space-page[data-theme='dark'] .ah-empty-icon {
   background: rgba(255, 255, 255, 0.06);
 }
-.user-space-page[data-theme="dark"] .ah-shop-btn-ghost {
+.user-space-page[data-theme='dark'] .ah-shop-btn-ghost {
   background: rgba(41, 151, 255, 0.18);
   color: #2997ff;
 }
-.user-space-page[data-theme="dark"] .ah-shop-btn-ghost:hover {
+.user-space-page[data-theme='dark'] .ah-shop-btn-ghost:hover {
   background: rgba(41, 151, 255, 0.26);
 }
-.user-space-page[data-theme="dark"] .ah-overview-membership span,
-.user-space-page[data-theme="dark"] .ah-overview-membership p,
-.user-space-page[data-theme="dark"] .ah-membership-card-top,
-.user-space-page[data-theme="dark"] .ah-membership-card p,
-.user-space-page[data-theme="dark"] .ah-ledger-group h2 {
+.user-space-page[data-theme='dark'] .ah-overview-membership span,
+.user-space-page[data-theme='dark'] .ah-overview-membership p,
+.user-space-page[data-theme='dark'] .ah-membership-card-top,
+.user-space-page[data-theme='dark'] .ah-membership-card p,
+.user-space-page[data-theme='dark'] .ah-ledger-group h2 {
   color: #a7acb5;
 }
-.user-space-page[data-theme="dark"] .ah-ledger-list,
-.user-space-page[data-theme="dark"] .ah-ledger-item {
+.user-space-page[data-theme='dark'] .ah-ledger-list,
+.user-space-page[data-theme='dark'] .ah-ledger-item {
   border-color: rgba(255, 255, 255, 0.12);
 }
-.user-space-page[data-theme="dark"] .ah-overview-primary {
+.user-space-page[data-theme='dark'] .ah-overview-primary {
   background: rgba(0, 113, 227, 0.17);
   border-color: rgba(96, 165, 250, 0.26);
 }
-.user-space-page[data-theme="dark"] .ah-overview-copy strong { color: #e7f1ff; }
-.user-space-page[data-theme="dark"] .ah-overview-copy > span:last-child,
-.user-space-page[data-theme="dark"] .ah-overview-kicker { color: #a9cbff; }
-.user-space-page[data-theme="dark"] .ah-overview-membership,
-.user-space-page[data-theme="dark"] .ah-membership-card {
+.user-space-page[data-theme='dark'] .ah-overview-copy strong {
+  color: #e7f1ff;
+}
+.user-space-page[data-theme='dark'] .ah-overview-copy > span:last-child,
+.user-space-page[data-theme='dark'] .ah-overview-kicker {
+  color: #a9cbff;
+}
+.user-space-page[data-theme='dark'] .ah-overview-membership,
+.user-space-page[data-theme='dark'] .ah-membership-card {
   background: rgba(24, 26, 32, 0.72);
   border-color: rgba(255, 255, 255, 0.12);
 }
-.user-space-page[data-theme="dark"] .ah-overview-heading h2 { color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-overview-heading span:first-child,
-.user-space-page[data-theme="dark"] .ah-overview-updating { color: #a7acb5; }
-.user-space-page[data-theme="dark"] .ah-overview-retry { background: rgba(255, 255, 255, 0.07); color: #a7acb5; }
-.user-space-page[data-theme="dark"] .ah-overview-membership.is-expiring { background: rgba(180, 83, 9, 0.17); border-color: rgba(251, 146, 60, 0.3); }
-.user-space-page[data-theme="dark"] .ah-overview-membership strong,
-.user-space-page[data-theme="dark"] .ah-membership-card h2 { color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-smart-focus,
-.user-space-page[data-theme="dark"] .ah-smart-section { background: rgba(24, 26, 32, 0.58); border-color: rgba(255, 255, 255, 0.12); box-shadow: 0 20px 44px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
-.user-space-page[data-theme="dark"] .ah-smart-focus.tone-orange { background: rgba(180, 83, 9, 0.17); border-color: rgba(251, 146, 60, 0.28); }
-.user-space-page[data-theme="dark"] .ah-smart-focus.tone-red { background: rgba(190, 24, 93, 0.15); border-color: rgba(251, 113, 133, 0.28); }
-.user-space-page[data-theme="dark"] .ah-smart-focus.tone-green { background: rgba(22, 101, 52, 0.17); border-color: rgba(74, 222, 128, 0.25); }
-.user-space-page[data-theme="dark"] .ah-smart-focus-copy strong,
-.user-space-page[data-theme="dark"] .ah-smart-section-head strong,
-.user-space-page[data-theme="dark"] .ah-smart-activity-copy strong,
-.user-space-page[data-theme="dark"] .ah-smart-next-copy strong,
-.user-space-page[data-theme="dark"] .ah-smart-ready strong { color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-smart-focus-copy > span,
-.user-space-page[data-theme="dark"] .ah-smart-focus-copy small,
-.user-space-page[data-theme="dark"] .ah-smart-section-head span,
-.user-space-page[data-theme="dark"] .ah-smart-activity-time,
-.user-space-page[data-theme="dark"] .ah-smart-activity-copy small,
-.user-space-page[data-theme="dark"] .ah-smart-next-copy span,
-.user-space-page[data-theme="dark"] .ah-smart-ready span,
-.user-space-page[data-theme="dark"] .ah-smart-quiet { color: #a7acb5; }
-.user-space-page[data-theme="dark"] .ah-smart-activity,
-.user-space-page[data-theme="dark"] .ah-smart-next { border-top-color: rgba(255, 255, 255, 0.09); }
-.user-space-page[data-theme="dark"] .ah-smart-section-head button { background: rgba(255, 255, 255, 0.07); color: #a7acb5; }
-.user-space-page[data-theme="dark"] .ah-smart-activity:hover,
-.user-space-page[data-theme="dark"] .ah-smart-next:hover,
-.user-space-page[data-theme="dark"] .ah-smart-section-head button:hover { background: rgba(255, 255, 255, 0.08); }
-.user-space-page[data-theme="dark"] .ah-icon-command { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-ledger-item:hover { background: rgba(255, 255, 255, 0.06); }
-.user-space-page[data-theme="dark"] .ah-ledger-item { background: rgba(24, 26, 32, 0.5); border-color: rgba(255, 255, 255, 0.11); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.07); }
-.user-space-page[data-theme="dark"] .ah-membership-meta span { background: rgba(255, 255, 255, 0.08); color: #c5cad2; }
-.user-space-page[data-theme="dark"] .ah-pity-progress-head { color: #c5cad2; }
-.user-space-page[data-theme="dark"] .ah-pity-progress-head strong { color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-pity-progress-track { background: rgba(255, 255, 255, 0.12); }
-.user-space-page[data-theme="dark"] .ah-pity-progress p { color: #aeb6c2; }
-.user-space-page[data-theme="dark"] .ah-sponsor-hero { background: linear-gradient(135deg, rgba(45,28,32,0.72), rgba(28,30,36,0.68)); border-color: rgba(255,255,255,0.10); box-shadow: 0 16px 36px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.07); }
-.user-space-page[data-theme="dark"] .ah-sponsor-hero h2 { color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-sponsor-hero p { color: #a1a1aa; }
-.user-space-page[data-theme="dark"] .ah-sponsor-hero span { color: #fb7185; }
-.user-space-page[data-theme="dark"] .ah-sponsor-hero-icon { background: linear-gradient(135deg, rgba(225,29,72,0.18), rgba(225,29,72,0.28)); color: #fb7185; border-color: rgba(251,113,133,0.18); box-shadow: 0 8px 20px rgba(0,0,0,0.28); }
-.user-space-page[data-theme="dark"] .ah-sponsor-card { background: rgba(28,30,36,0.62); border-color: rgba(255,255,255,0.09); box-shadow: 0 12px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06); }
-.user-space-page[data-theme="dark"] .ah-sponsor-card h3 { color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-sponsor-card p { color: #a1a1aa; }
-.user-space-page[data-theme="dark"] .ah-sponsor-card small { color: #8b8e96; }
-.user-space-page[data-theme="dark"] .ah-sponsor-qr-wrap { background: #ffffff; border-color: rgba(255,255,255,0.08); }
-.user-space-page[data-theme="dark"] .ah-sponsor-qr-wrap.is-placeholder { background: rgba(255,255,255,0.04); color: #6b7280; border-color: rgba(255,255,255,0.10); }
-.user-space-page[data-theme="dark"] .ah-sponsor-foot p { color: #8b8e96; }
-.user-space-page[data-theme="dark"] .ah-lottery-hero { background: linear-gradient(135deg, rgba(30,38,64,0.72), rgba(28,30,36,0.68)); border-color: rgba(255,255,255,0.10); box-shadow: 0 16px 36px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.07); }
-.user-space-page[data-theme="dark"] .ah-lottery-hero h2 { color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-lottery-hero p { color: #a1a1aa; }
-.user-space-page[data-theme="dark"] .ah-lottery-hero span { color: #2997ff; }
-.user-space-page[data-theme="dark"] .ah-lottery-hero-icon { background: linear-gradient(135deg, rgba(37,99,235,0.18), rgba(37,99,235,0.28)); color: #2997ff; border-color: rgba(147,197,253,0.18); }
-.user-space-page[data-theme="dark"] .ah-lottery-pity-inline { background: rgba(28,30,36,0.58); border-color: rgba(255,255,255,0.10); }
-.user-space-page[data-theme="dark"] .ah-lottery-pity-inline p { color: #a1a1aa; }
-.user-space-page[data-theme="dark"] .ah-lottery-pity-head { color: #a1a1aa; }
-.user-space-page[data-theme="dark"] .ah-lottery-pity-head strong { color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-lottery-card { background: rgba(28,30,36,0.62); border-color: rgba(255,255,255,0.09); }
-.user-space-page[data-theme="dark"] .ah-lottery-body h3 { color: #f5f7fa; }
-.user-space-page[data-theme="dark"] .ah-lottery-prize { color: #2997ff; }
-.user-space-page[data-theme="dark"] .ah-lottery-meta { color: #8b8e96; }
-.user-space-page[data-theme="dark"] .ah-lottery-foot p { color: #8b8e96; }
+.user-space-page[data-theme='dark'] .ah-overview-heading h2 {
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-overview-heading span:first-child,
+.user-space-page[data-theme='dark'] .ah-overview-updating {
+  color: #a7acb5;
+}
+.user-space-page[data-theme='dark'] .ah-overview-retry {
+  background: rgba(255, 255, 255, 0.07);
+  color: #a7acb5;
+}
+.user-space-page[data-theme='dark'] .ah-overview-membership.is-expiring {
+  background: rgba(180, 83, 9, 0.17);
+  border-color: rgba(251, 146, 60, 0.3);
+}
+.user-space-page[data-theme='dark'] .ah-overview-membership strong,
+.user-space-page[data-theme='dark'] .ah-membership-card h2 {
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-smart-focus,
+.user-space-page[data-theme='dark'] .ah-smart-section {
+  background: rgba(24, 26, 32, 0.58);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 20px 44px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.user-space-page[data-theme='dark'] .ah-smart-focus.tone-orange {
+  background: rgba(180, 83, 9, 0.17);
+  border-color: rgba(251, 146, 60, 0.28);
+}
+.user-space-page[data-theme='dark'] .ah-smart-focus.tone-red {
+  background: rgba(190, 24, 93, 0.15);
+  border-color: rgba(251, 113, 133, 0.28);
+}
+.user-space-page[data-theme='dark'] .ah-smart-focus.tone-green {
+  background: rgba(22, 101, 52, 0.17);
+  border-color: rgba(74, 222, 128, 0.25);
+}
+.user-space-page[data-theme='dark'] .ah-smart-focus-copy strong,
+.user-space-page[data-theme='dark'] .ah-smart-section-head strong,
+.user-space-page[data-theme='dark'] .ah-smart-activity-copy strong,
+.user-space-page[data-theme='dark'] .ah-smart-next-copy strong,
+.user-space-page[data-theme='dark'] .ah-smart-ready strong {
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-smart-focus-copy > span,
+.user-space-page[data-theme='dark'] .ah-smart-focus-copy small,
+.user-space-page[data-theme='dark'] .ah-smart-section-head span,
+.user-space-page[data-theme='dark'] .ah-smart-activity-time,
+.user-space-page[data-theme='dark'] .ah-smart-activity-copy small,
+.user-space-page[data-theme='dark'] .ah-smart-next-copy span,
+.user-space-page[data-theme='dark'] .ah-smart-ready span,
+.user-space-page[data-theme='dark'] .ah-smart-quiet {
+  color: #a7acb5;
+}
+.user-space-page[data-theme='dark'] .ah-smart-activity,
+.user-space-page[data-theme='dark'] .ah-smart-next {
+  border-top-color: rgba(255, 255, 255, 0.09);
+}
+.user-space-page[data-theme='dark'] .ah-smart-section-head button {
+  background: rgba(255, 255, 255, 0.07);
+  color: #a7acb5;
+}
+.user-space-page[data-theme='dark'] .ah-smart-activity:hover,
+.user-space-page[data-theme='dark'] .ah-smart-next:hover,
+.user-space-page[data-theme='dark'] .ah-smart-section-head button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.user-space-page[data-theme='dark'] .ah-icon-command {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-ledger-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.user-space-page[data-theme='dark'] .ah-ledger-item {
+  background: rgba(24, 26, 32, 0.5);
+  border-color: rgba(255, 255, 255, 0.11);
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.user-space-page[data-theme='dark'] .ah-membership-meta span {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c5cad2;
+}
+.user-space-page[data-theme='dark'] .ah-pity-progress-head {
+  color: #c5cad2;
+}
+.user-space-page[data-theme='dark'] .ah-pity-progress-head strong {
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-pity-progress-track {
+  background: rgba(255, 255, 255, 0.12);
+}
+.user-space-page[data-theme='dark'] .ah-pity-progress p {
+  color: #aeb6c2;
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-hero {
+  background: linear-gradient(135deg, rgba(45, 28, 32, 0.72), rgba(28, 30, 36, 0.68));
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-hero h2 {
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-hero p {
+  color: #a1a1aa;
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-hero span {
+  color: #fb7185;
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-hero-icon {
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.18), rgba(225, 29, 72, 0.28));
+  color: #fb7185;
+  border-color: rgba(251, 113, 133, 0.18);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-card {
+  background: rgba(28, 30, 36, 0.62);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-card h3 {
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-card p {
+  color: #a1a1aa;
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-card small {
+  color: #8b8e96;
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-qr-wrap {
+  background: #ffffff;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-qr-wrap.is-placeholder {
+  background: rgba(255, 255, 255, 0.04);
+  color: #6b7280;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.user-space-page[data-theme='dark'] .ah-sponsor-foot p {
+  color: #8b8e96;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-hero {
+  background: linear-gradient(135deg, rgba(30, 38, 64, 0.72), rgba(28, 30, 36, 0.68));
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.user-space-page[data-theme='dark'] .ah-lottery-hero h2 {
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-hero p {
+  color: #a1a1aa;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-hero span {
+  color: #2997ff;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-hero-icon {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(37, 99, 235, 0.28));
+  color: #2997ff;
+  border-color: rgba(147, 197, 253, 0.18);
+}
+.user-space-page[data-theme='dark'] .ah-lottery-pity-inline {
+  background: rgba(28, 30, 36, 0.58);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.user-space-page[data-theme='dark'] .ah-lottery-pity-inline p {
+  color: #a1a1aa;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-pity-head {
+  color: #a1a1aa;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-pity-head strong {
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-card {
+  background: rgba(28, 30, 36, 0.62);
+  border-color: rgba(255, 255, 255, 0.09);
+}
+.user-space-page[data-theme='dark'] .ah-lottery-body h3 {
+  color: #f5f7fa;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-prize {
+  color: #2997ff;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-meta {
+  color: #8b8e96;
+}
+.user-space-page[data-theme='dark'] .ah-lottery-foot p {
+  color: #8b8e96;
+}
 
 /* ─── 响应式 ─── */
 @media (max-width: 767px) {
-  .ah-hub-card { max-width: none; border-radius: 20px; padding: 14px 14px 10px; box-shadow: 0 6px 18px rgba(15,23,42,0.07); }
-  .ah-top-row { gap: 8px; padding-bottom: 12px; }
-  .ah-user-left { gap: 10px; }
-  .ah-username { font-size: 17px; letter-spacing: -0.02em; }
-  .ah-name-row { gap: 5px; }
-  .ah-points-block { gap: 8px; padding: 6px 10px; border-radius: 999px; }
-  .ah-points-icon-wrap { width: 26px; height: 26px; }
-  .ah-points-label { display: none; }
-  .ah-points-value { font-size: 18px; font-variant-numeric: tabular-nums; }
-  .ah-overview { display: grid; gap: 16px; }
-  .ah-overview-heading { align-items: flex-start; gap: 8px; }
-  .ah-overview-heading h2 { font-size: 20px; line-height: 1.2; }
-  .ah-overview-heading p { font-size: 13px; line-height: 1.5; }
-  .ah-overview-summary.has-points-card { grid-template-columns: 1fr; gap: 16px; }
-  .ah-overview-points-card { order: -1; }
+  .ah-hub-card {
+    max-width: none;
+    border-radius: 20px;
+    padding: 14px 14px 10px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
+  }
+  .ah-top-row {
+    gap: 8px;
+    padding-bottom: 12px;
+  }
+  .ah-user-left {
+    gap: 10px;
+  }
+  .ah-username {
+    font-size: 17px;
+    letter-spacing: -0.02em;
+  }
+  .ah-name-row {
+    gap: 5px;
+  }
+  .ah-points-block {
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+  }
+  .ah-points-icon-wrap {
+    width: 26px;
+    height: 26px;
+  }
+  .ah-points-label {
+    display: none;
+  }
+  .ah-points-value {
+    font-size: 18px;
+    font-variant-numeric: tabular-nums;
+  }
+  .ah-overview {
+    display: grid;
+    gap: 16px;
+  }
+  .ah-overview-heading {
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .ah-overview-heading h2 {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+  .ah-overview-heading p {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .ah-overview-summary.has-points-card {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .ah-overview-points-card {
+    order: -1;
+  }
   .ah-overview-insights,
-  .ah-overview-summary.has-points-card .ah-overview-insights { grid-template-columns: 1fr; gap: 12px; }
-  .ah-smart-focus { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; min-height: 0; gap: 12px; padding: 14px 14px; border-radius: 16px; align-items: center; }
-  .ah-smart-focus-icon { width: 44px; height: 44px; border-radius: 12px; }
-  .ah-smart-focus-copy { gap: 2px; }
-  .ah-smart-focus-copy strong { font-size: 15.5px; line-height: 1.3; }
-  .ah-smart-focus-copy small { font-size: 12px; line-height: 1.4; }
-  .ah-smart-focus-action { grid-column: 3; justify-self: end; align-self: center; font-size: 12.5px; }
-  .ah-smart-columns { grid-template-columns: 1fr; gap: 16px; }
-  .ah-smart-section { padding: 14px; border-radius: 16px; border: 0.5px solid rgba(255,255,255,0.62); background: rgba(255,255,255,0.56); backdrop-filter: var(--liquid-filter-sm); box-shadow: 0 6px 16px rgba(15,23,42,0.06); }
-  .ah-smart-section-head { margin-bottom: 10px; }
-  .ah-overview-primary { min-height: 128px; padding: 16px; border-radius: 16px; }
-  .ah-overview-copy strong { font-size: 28px; letter-spacing: -0.02em; }
-  .ah-overview-copy > span:last-child { font-size: 12px; }
-  .ah-overview-membership { padding: 14px 14px; min-height: 128px; border-radius: 16px; }
-  .ah-membership-card { padding: 16px; border-radius: 16px; }
-  .ah-ledger-item { padding: 10px 2px; gap: 10px; border-radius: 0; border: 0; border-bottom: 0.5px solid rgba(15,23,42,0.07); background: transparent; backdrop-filter: none; box-shadow: none; }
-  .ah-ledger-item:hover { background: rgba(15,23,42,0.02); transform: none; }
-  .ah-ledger-icon { width: 32px; height: 32px; }
-  .ah-ledger-title { font-size: 13.5px; }
-  .ah-ledger-remark { font-size: 11.5px; }
-  .ah-ledger-amount { font-size: 14.5px; }
-  .ah-empty-state { padding: 36px 18px; }
-  .ah-shop-stat { padding: 18px 12px; }
-  .ah-gift-header { padding: 11px 14px; }
-  .ah-gift-overview { padding: 16px 14px; gap: 12px; }
-  .ah-gift-card { border-radius: 22px; }
-  .ah-gift-thumb { width: 56px; height: 56px; border-radius: 15px; }
-  .ah-gift-headinfo h3 { font-size: 15px; }
-  .ah-gift-badge { font-size: 10px; padding: 3px 8px; }
-  .ah-gift-status-panel { margin: 0 14px 12px; padding: 12px; }
+  .ah-overview-summary.has-points-card .ah-overview-insights {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .ah-smart-focus {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    min-height: 0;
+    gap: 12px;
+    padding: 14px 14px;
+    border-radius: 16px;
+    align-items: center;
+  }
+  .ah-smart-focus-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  .ah-smart-focus-copy {
+    gap: 2px;
+  }
+  .ah-smart-focus-copy strong {
+    font-size: 15.5px;
+    line-height: 1.3;
+  }
+  .ah-smart-focus-copy small {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .ah-smart-focus-action {
+    grid-column: 3;
+    justify-self: end;
+    align-self: center;
+    font-size: 12.5px;
+  }
+  .ah-smart-columns {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .ah-smart-section {
+    padding: 14px;
+    border-radius: 16px;
+    border: 0.5px solid rgba(255, 255, 255, 0.62);
+    background: rgba(255, 255, 255, 0.56);
+    backdrop-filter: var(--liquid-filter-sm);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
+  }
+  .ah-smart-section-head {
+    margin-bottom: 10px;
+  }
+  .ah-overview-primary {
+    min-height: 128px;
+    padding: 16px;
+    border-radius: 16px;
+  }
+  .ah-overview-copy strong {
+    font-size: 28px;
+    letter-spacing: -0.02em;
+  }
+  .ah-overview-copy > span:last-child {
+    font-size: 12px;
+  }
+  .ah-overview-membership {
+    padding: 14px 14px;
+    min-height: 128px;
+    border-radius: 16px;
+  }
+  .ah-membership-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+  .ah-ledger-item {
+    padding: 10px 2px;
+    gap: 10px;
+    border-radius: 0;
+    border: 0;
+    border-bottom: 0.5px solid rgba(15, 23, 42, 0.07);
+    background: transparent;
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+  .ah-ledger-item:hover {
+    background: rgba(15, 23, 42, 0.02);
+    transform: none;
+  }
+  .ah-ledger-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .ah-ledger-title {
+    font-size: 13.5px;
+  }
+  .ah-ledger-remark {
+    font-size: 11.5px;
+  }
+  .ah-ledger-amount {
+    font-size: 14.5px;
+  }
+  .ah-empty-state {
+    padding: 36px 18px;
+  }
+  .ah-shop-stat {
+    padding: 18px 12px;
+  }
+  .ah-gift-header {
+    padding: 11px 14px;
+  }
+  .ah-gift-overview {
+    padding: 16px 14px;
+    gap: 12px;
+  }
+  .ah-gift-card {
+    border-radius: 22px;
+  }
+  .ah-gift-thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: 15px;
+  }
+  .ah-gift-headinfo h3 {
+    font-size: 15px;
+  }
+  .ah-gift-badge {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+  .ah-gift-status-panel {
+    margin: 0 14px 12px;
+    padding: 12px;
+  }
 }
 
 /* ─── 竖屏端（≤767 portrait）─── */
@@ -2447,150 +4273,876 @@ onMounted(() => {
   /* 文字 tab 横向滚动已由 .ah-segment-tabs 基础样式承担 */
 }
 
-.ah-sponsor-section { display: grid; gap: 18px; max-width: 700px; width: 100%; margin: 0 auto; align-self: center; justify-items: stretch; animation: ah-materialize 260ms var(--ah-ease) both; }
-  .ah-sponsor-hero { position: relative; display: flex; gap: 16px; align-items: center; padding: 22px 20px; border: 0.5px solid rgba(255,255,255,0.78); border-radius: 20px; background: linear-gradient(135deg, rgba(255,241,242,0.92) 0%, rgba(255,255,255,0.74) 100%); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); box-shadow: 0 16px 36px rgba(225,29,72,0.07), 0 6px 16px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.96); overflow: hidden; }
-  .ah-sponsor-hero::before { content:""; position: absolute; inset: 0; background: radial-gradient(520px 200px at 18% 0%, rgba(225,29,72,0.07), transparent 68%), radial-gradient(360px 180px at 92% 100%, rgba(244,114,182,0.07), transparent 70%); pointer-events: none; }
-  .ah-sponsor-hero-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, #ffffff 0%, #ffe4e6 100%); color: #e11d48; flex-shrink: 0; box-shadow: 0 8px 20px rgba(225,29,72,0.16), inset 0 1px 0 rgba(255,255,255,1); border: 0.5px solid rgba(225,29,72,0.14); position: relative; z-index: 1; }
-  .ah-sponsor-hero > div { position: relative; z-index: 1; min-width: 0; }
-  .ah-sponsor-hero h2 { margin: 3px 0 4px; font-size: 19px; font-weight: 850; color: #1d1d1f; letter-spacing: -0.025em; line-height: 1.2; }
-  .ah-sponsor-hero p { margin: 0; font-size: 13px; color: #6e6e73; line-height: 1.65; font-weight: 500; }
-  .ah-sponsor-hero span { font-size: 11px; font-weight: 750; color: #e11d48; letter-spacing: 0.06em; text-transform: uppercase; }
-  .ah-sponsor-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
-  .ah-sponsor-card { position: relative; padding: 18px 16px 16px; border: 0.5px solid rgba(255,255,255,0.74); border-radius: 18px; background: rgba(255,255,255,0.68); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); box-shadow: 0 10px 28px rgba(15,23,42,0.07), inset 0 1px 0 rgba(255,255,255,0.92); transition: transform 180ms var(--ah-ease), box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease; overflow: hidden; }
-  .ah-sponsor-card::before { content:""; position: absolute; inset: 0; border-radius: 18px; background: radial-gradient(340px 140px at 50% 0%, rgba(255,255,255,0.58), transparent 72%); pointer-events: none; }
-  @media (hover: hover) and (pointer: fine) {
-    .ah-sponsor-card:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.98); border-color: rgba(255,255,255,0.86); }
-    .ah-sponsor-card.is-muted:hover { transform: none; box-shadow: 0 10px 28px rgba(15,23,42,0.07); }
+.ah-sponsor-section {
+  display: grid;
+  gap: 18px;
+  max-width: 700px;
+  width: 100%;
+  margin: 0 auto;
+  align-self: center;
+  justify-items: stretch;
+  animation: ah-materialize 260ms var(--ah-ease) both;
+}
+.ah-sponsor-hero {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 22px 20px;
+  border: 0.5px solid rgba(255, 255, 255, 0.78);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(255, 241, 242, 0.92) 0%, rgba(255, 255, 255, 0.74) 100%);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  box-shadow:
+    0 16px 36px rgba(225, 29, 72, 0.07),
+    0 6px 16px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  overflow: hidden;
+}
+.ah-sponsor-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(520px 200px at 18% 0%, rgba(225, 29, 72, 0.07), transparent 68%),
+    radial-gradient(360px 180px at 92% 100%, rgba(244, 114, 182, 0.07), transparent 70%);
+  pointer-events: none;
+}
+.ah-sponsor-hero-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #ffffff 0%, #ffe4e6 100%);
+  color: #e11d48;
+  flex-shrink: 0;
+  box-shadow:
+    0 8px 20px rgba(225, 29, 72, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border: 0.5px solid rgba(225, 29, 72, 0.14);
+  position: relative;
+  z-index: 1;
+}
+.ah-sponsor-hero > div {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+.ah-sponsor-hero h2 {
+  margin: 3px 0 4px;
+  font-size: 19px;
+  font-weight: 850;
+  color: #1d1d1f;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+.ah-sponsor-hero p {
+  margin: 0;
+  font-size: 13px;
+  color: #6e6e73;
+  line-height: 1.65;
+  font-weight: 500;
+}
+.ah-sponsor-hero span {
+  font-size: 11px;
+  font-weight: 750;
+  color: #e11d48;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ah-sponsor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.ah-sponsor-card {
+  position: relative;
+  padding: 18px 16px 16px;
+  border: 0.5px solid rgba(255, 255, 255, 0.74);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  transition:
+    transform 180ms var(--ah-ease),
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease;
+  overflow: hidden;
+}
+.ah-sponsor-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: radial-gradient(340px 140px at 50% 0%, rgba(255, 255, 255, 0.58), transparent 72%);
+  pointer-events: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ah-sponsor-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 16px 36px rgba(15, 23, 42, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.98);
+    border-color: rgba(255, 255, 255, 0.86);
   }
-  .ah-sponsor-card.is-muted { opacity: 0.72; }
-  .ah-sponsor-card h3 { position: relative; z-index: 1; margin: 0; font-size: 14.5px; font-weight: 800; color: #1d1d1f; display: flex; align-items: center; gap: 8px; letter-spacing: -0.01em; }
-  .ah-sponsor-badge { position: relative; z-index: 1; display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); color: #fff; font-size: 11px; font-weight: 750; letter-spacing: 0.02em; box-shadow: 0 4px 12px rgba(225,29,72,0.28); }
-  .ah-sponsor-card p { position: relative; z-index: 1; margin: 9px 0 0; font-size: 12.5px; color: #6e6e73; line-height: 1.65; }
-  .ah-sponsor-qr-wrap { position: relative; z-index: 1; margin: 16px 0 12px; display: grid; place-items: center; padding: 0; background: transparent; border: none; border-radius: 14px; overflow: hidden; box-shadow: none; transition: transform 180ms var(--ah-ease); }
-  @media (hover: hover) and (pointer: fine) {
-    .ah-sponsor-card:hover .ah-sponsor-qr-wrap { transform: scale(1.02); }
+  .ah-sponsor-card.is-muted:hover {
+    transform: none;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
   }
-  .ah-sponsor-qr-wrap img { width: 100%; max-width: 280px; height: auto; object-fit: contain; display: block; border-radius: 14px; box-shadow: 0 8px 24px rgba(15,23,42,0.08); }
-  .ah-sponsor-qr-wrap.is-placeholder { height: auto; min-height: 240px; aspect-ratio: 1 / 1; padding: 0; background: linear-gradient(180deg, rgba(15,23,42,0.03), rgba(15,23,42,0.02)); color: #a1a1aa; font-size: 28px; font-weight: 500; border: 1px dashed rgba(15,23,42,0.10); border-radius: 14px; box-shadow: none; }
-  .ah-sponsor-card small { position: relative; z-index: 1; display: block; text-align: center; font-size: 11px; color: #8e8e93; font-weight: 600; letter-spacing: 0.01em; }
-  .ah-sponsor-foot { display: grid; gap: 14px; padding: 10px 4px 4px; justify-items: center; text-align: center; }
-  .ah-sponsor-foot p { margin: 0; font-size: 12px; color: #8e8e93; line-height: 1.65; max-width: 520px; }
-  .ah-sponsor-foot .ah-shop-btn { justify-self: center; min-width: 136px; height: 38px; border-radius: 999px; font-size: 13px; font-weight: 750; box-shadow: 0 6px 16px rgba(15,23,42,0.08); }
-   @media (max-width: 560px) { .ah-sponsor-section { gap: 14px; } .ah-sponsor-hero { padding: 18px 16px; gap: 12px; border-radius: 18px; } .ah-sponsor-hero-icon { width: 42px; height: 42px; border-radius: 12px; } .ah-sponsor-grid { grid-template-columns: 1fr; gap: 12px; } .ah-sponsor-card { padding: 16px; border-radius: 16px; } .ah-sponsor-qr-wrap { padding: 0; } .ah-sponsor-qr-wrap img { width: 100%; max-width: 260px; height: auto; } .ah-sponsor-qr-wrap.is-placeholder { min-height: 220px; height: auto; } }
+}
+.ah-sponsor-card.is-muted {
+  opacity: 0.72;
+}
+.ah-sponsor-card h3 {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #1d1d1f;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.01em;
+}
+.ah-sponsor-badge {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.28);
+}
+.ah-sponsor-card p {
+  position: relative;
+  z-index: 1;
+  margin: 9px 0 0;
+  font-size: 12.5px;
+  color: #6e6e73;
+  line-height: 1.65;
+}
+.ah-sponsor-qr-wrap {
+  position: relative;
+  z-index: 1;
+  margin: 16px 0 12px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: none;
+  transition: transform 180ms var(--ah-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ah-sponsor-card:hover .ah-sponsor-qr-wrap {
+    transform: scale(1.02);
+  }
+}
+.ah-sponsor-qr-wrap img {
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+.ah-sponsor-qr-wrap.is-placeholder {
+  height: auto;
+  min-height: 240px;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.03), rgba(15, 23, 42, 0.02));
+  color: #a1a1aa;
+  font-size: 28px;
+  font-weight: 500;
+  border: 1px dashed rgba(15, 23, 42, 0.1);
+  border-radius: 14px;
+  box-shadow: none;
+}
+.ah-sponsor-card small {
+  position: relative;
+  z-index: 1;
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: #8e8e93;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.ah-sponsor-foot {
+  display: grid;
+  gap: 14px;
+  padding: 10px 4px 4px;
+  justify-items: center;
+  text-align: center;
+}
+.ah-sponsor-foot p {
+  margin: 0;
+  font-size: 12px;
+  color: #8e8e93;
+  line-height: 1.65;
+  max-width: 520px;
+}
+.ah-sponsor-foot .ah-shop-btn {
+  justify-self: center;
+  min-width: 136px;
+  height: 38px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 750;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+@media (max-width: 560px) {
+  .ah-sponsor-section {
+    gap: 14px;
+  }
+  .ah-sponsor-hero {
+    padding: 18px 16px;
+    gap: 12px;
+    border-radius: 18px;
+  }
+  .ah-sponsor-hero-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+  .ah-sponsor-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .ah-sponsor-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+  .ah-sponsor-qr-wrap {
+    padding: 0;
+  }
+  .ah-sponsor-qr-wrap img {
+    width: 100%;
+    max-width: 260px;
+    height: auto;
+  }
+  .ah-sponsor-qr-wrap.is-placeholder {
+    min-height: 220px;
+    height: auto;
+  }
+}
 
 /* ─── 抽奖 独立分页（居中） ─── */
-.ah-lottery-section { display: grid; gap: 18px; max-width: 700px; width: 100%; margin: 0 auto; align-self: center; animation: ah-materialize 260ms var(--ah-ease) both; }
-.ah-lottery-hero { position: relative; display: flex; gap: 16px; align-items: center; padding: 22px 20px; border: 0.5px solid rgba(255,255,255,0.78); border-radius: 20px; background: linear-gradient(135deg, rgba(239,246,255,0.92), rgba(255,255,255,0.74)); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); box-shadow: 0 16px 36px rgba(37,99,235,0.07), 0 6px 16px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.96); overflow: hidden; }
-.ah-lottery-hero::before { content:""; position: absolute; inset: 0; background: radial-gradient(520px 200px at 18% 0%, rgba(37,99,235,0.07), transparent 68%), radial-gradient(360px 180px at 92% 100%, rgba(14,165,233,0.06), transparent 70%); pointer-events: none; }
-.ah-lottery-hero-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: linear-gradient(135deg, #ffffff 0%, #dbeafe 100%); color: #0071e3; flex-shrink: 0; box-shadow: 0 8px 20px rgba(37,99,235,0.16), inset 0 1px 0 rgba(255,255,255,1); border: 0.5px solid rgba(37,99,235,0.14); position: relative; z-index: 1; }
-.ah-lottery-hero > div { position: relative; z-index: 1; min-width: 0; flex: 1; }
-.ah-lottery-hero h2 { margin: 3px 0 4px; font-size: 19px; font-weight: 850; color: #1d1d1f; letter-spacing: -0.025em; line-height: 1.2; }
-.ah-lottery-hero p { margin: 0; font-size: 13px; color: #6e6e73; line-height: 1.65; font-weight: 500; }
-.ah-lottery-hero span { font-size: 11px; font-weight: 750; color: #0071e3; letter-spacing: 0.06em; text-transform: uppercase; }
-.ah-lottery-hero-action { position: relative; z-index: 1; flex-shrink: 0; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 0.5px solid rgba(37,99,235,0.18); background: rgba(255,255,255,0.82); color: #0071e3; font-size: 12px; font-weight: 750; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.10); transition: transform 150ms var(--ah-ease), background 150ms ease; }
-@media (hover: hover) and (pointer: fine) {
-  .ah-lottery-hero-action:hover { background: #fff; transform: translateY(-1px); }
+.ah-lottery-section {
+  display: grid;
+  gap: 18px;
+  max-width: 700px;
+  width: 100%;
+  margin: 0 auto;
+  align-self: center;
+  animation: ah-materialize 260ms var(--ah-ease) both;
 }
-.ah-lottery-hero-action:active { transform: scale(0.98); }
-.ah-lottery-pity-inline { display: grid; gap: 8px; padding: 14px 16px; border-radius: 16px; border: 0.5px solid rgba(255,255,255,0.72); background: rgba(255,255,255,0.58); backdrop-filter: var(--liquid-filter-sm); box-shadow: 0 8px 20px rgba(15,23,42,0.06); }
-.ah-lottery-pity-head { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 700; color: #4b5563; } .ah-lottery-pity-head strong { color: #1d1d1f; font-weight: 800; } .ah-lottery-pity-track { height: 6px; overflow: hidden; background: #e5e7eb; border-radius: 999px; } .ah-lottery-pity-fill { height: 100%; background: #0071e3; transition: width 240ms ease; } .ah-lottery-pity-inline.is-due .ah-lottery-pity-fill { background: #b7791f; } .ah-lottery-pity-inline.is-due .ah-lottery-pity-head strong { color: #9a6700; } .ah-lottery-pity-inline.is-unavailable .ah-lottery-pity-head strong { color: #6b7280; } .ah-lottery-pity-inline p { margin: 0; font-size: 12px; color: #6e6e73; line-height: 1.5; }
-.ah-lottery-skeleton { display: grid; gap: 12px; } .ah-skeleton-lottery { height: 132px; border-radius: 16px; }
-.ah-lottery-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
-.ah-lottery-card { position: relative; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px; border: 0.5px solid rgba(255,255,255,0.74); background: rgba(255,255,255,0.68); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); box-shadow: 0 10px 28px rgba(15,23,42,0.07), inset 0 1px 0 rgba(255,255,255,0.92); transition: transform 180ms var(--ah-ease), box-shadow 180ms ease; }
-@media (hover: hover) and (pointer: fine) {
-  .ah-lottery-card:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(15,23,42,0.10); }
+.ah-lottery-hero {
+  position: relative;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 22px 20px;
+  border: 0.5px solid rgba(255, 255, 255, 0.78);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.74));
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  box-shadow:
+    0 16px 36px rgba(37, 99, 235, 0.07),
+    0 6px 16px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  overflow: hidden;
 }
-.ah-lottery-cover { height: 132px; background: linear-gradient(135deg, #dbeafe, #f3e8ff); display: grid; place-items: center; color: #0071e3; overflow: hidden; } .ah-lottery-cover img { width: 100%; height: 100%; object-fit: cover; display: block; } .ah-lottery-cover.is-empty { background: linear-gradient(135deg, #e0f2fe, #f5f3ff); }
-.ah-lottery-body { display: grid; gap: 8px; padding: 14px 14px 12px; flex: 1; }
-.ah-lottery-top { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; } .ah-lottery-status { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 750; background: rgba(37,99,235,0.12); color: #0071e3; } .ah-lottery-status.drawn { background: rgba(52,199,89,0.12); color: #15803d; } .ah-lottery-status.closed { background: rgba(142,142,147,0.12); color: #6b7280; } .ah-lottery-joined { display: inline-flex; height: 20px; padding: 0 8px; border-radius: 999px; background: #dcfce7; color: #15803d; font-size: 11px; font-weight: 700; } .ah-lottery-pity-badge { display: inline-flex; height: 20px; padding: 0 7px; border-radius: 999px; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-size: 11px; font-weight: 750; box-shadow: 0 3px 8px rgba(217,119,6,0.24); }
-.ah-lottery-body h3 { margin: 0; font-size: 15px; font-weight: 800; color: #1d1d1f; letter-spacing: -0.01em; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ah-lottery-prize { margin: 0; font-size: 12.5px; color: #0071e3; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ah-lottery-meta { display: flex; gap: 10px; font-size: 11px; color: #8e8e93; font-weight: 600; }
-.ah-lottery-actions { display: flex; gap: 8px; align-items: center; margin-top: 2px; } .ah-lottery-join { flex: 1; min-height: 36px; font-size: 13px; } .ah-lottery-joined-btn { flex: 1; min-height: 36px; background: rgba(22,163,74,0.10) !important; color: #15803d !important; box-shadow: none !important; cursor: default; } .ah-lottery-link { min-height: 36px; padding: 0 12px; border: none; background: transparent; color: #6b7280; font-size: 12px; font-weight: 700; cursor: pointer; } .ah-lottery-link:hover { color: #1d1d1f; }
-.ah-lottery-foot { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 8px 4px 0; } .ah-lottery-foot p { margin: 0; font-size: 12px; color: #8e8e93; }
-@media (max-width: 560px) { .ah-lottery-section { gap: 14px; } .ah-lottery-hero { padding: 18px 16px; gap: 12px; border-radius: 18px; flex-wrap: wrap; } .ah-lottery-hero-icon { width: 42px; height: 42px; border-radius: 12px; } .ah-lottery-hero-action { width: 100%; justify-content: center; } .ah-lottery-grid { grid-template-columns: 1fr; } .ah-lottery-cover { height: 148px; } }
+.ah-lottery-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(520px 200px at 18% 0%, rgba(37, 99, 235, 0.07), transparent 68%),
+    radial-gradient(360px 180px at 92% 100%, rgba(14, 165, 233, 0.06), transparent 70%);
+  pointer-events: none;
+}
+.ah-lottery-hero-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #ffffff 0%, #dbeafe 100%);
+  color: #0071e3;
+  flex-shrink: 0;
+  box-shadow:
+    0 8px 20px rgba(37, 99, 235, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+  border: 0.5px solid rgba(37, 99, 235, 0.14);
+  position: relative;
+  z-index: 1;
+}
+.ah-lottery-hero > div {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  flex: 1;
+}
+.ah-lottery-hero h2 {
+  margin: 3px 0 4px;
+  font-size: 19px;
+  font-weight: 850;
+  color: #1d1d1f;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+.ah-lottery-hero p {
+  margin: 0;
+  font-size: 13px;
+  color: #6e6e73;
+  line-height: 1.65;
+  font-weight: 500;
+}
+.ah-lottery-hero span {
+  font-size: 11px;
+  font-weight: 750;
+  color: #0071e3;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.ah-lottery-hero-action {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 0.5px solid rgba(37, 99, 235, 0.18);
+  background: rgba(255, 255, 255, 0.82);
+  color: #0071e3;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+  transition:
+    transform 150ms var(--ah-ease),
+    background 150ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ah-lottery-hero-action:hover {
+    background: #fff;
+    transform: translateY(-1px);
+  }
+}
+.ah-lottery-hero-action:active {
+  transform: scale(0.98);
+}
+.ah-lottery-pity-inline {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 0.5px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: var(--liquid-filter-sm);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+.ah-lottery-pity-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4b5563;
+}
+.ah-lottery-pity-head strong {
+  color: #1d1d1f;
+  font-weight: 800;
+}
+.ah-lottery-pity-track {
+  height: 6px;
+  overflow: hidden;
+  background: #e5e7eb;
+  border-radius: 999px;
+}
+.ah-lottery-pity-fill {
+  height: 100%;
+  background: #0071e3;
+  transition: width 240ms ease;
+}
+.ah-lottery-pity-inline.is-due .ah-lottery-pity-fill {
+  background: #b7791f;
+}
+.ah-lottery-pity-inline.is-due .ah-lottery-pity-head strong {
+  color: #9a6700;
+}
+.ah-lottery-pity-inline.is-unavailable .ah-lottery-pity-head strong {
+  color: #6b7280;
+}
+.ah-lottery-pity-inline p {
+  margin: 0;
+  font-size: 12px;
+  color: #6e6e73;
+  line-height: 1.5;
+}
+.ah-lottery-skeleton {
+  display: grid;
+  gap: 12px;
+}
+.ah-skeleton-lottery {
+  height: 132px;
+  border-radius: 16px;
+}
+.ah-lottery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.ah-lottery-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 0.5px solid rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  transition:
+    transform 180ms var(--ah-ease),
+    box-shadow 180ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ah-lottery-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.1);
+  }
+}
+.ah-lottery-cover {
+  height: 132px;
+  background: linear-gradient(135deg, #dbeafe, #f3e8ff);
+  display: grid;
+  place-items: center;
+  color: #0071e3;
+  overflow: hidden;
+}
+.ah-lottery-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ah-lottery-cover.is-empty {
+  background: linear-gradient(135deg, #e0f2fe, #f5f3ff);
+}
+.ah-lottery-body {
+  display: grid;
+  gap: 8px;
+  padding: 14px 14px 12px;
+  flex: 1;
+}
+.ah-lottery-top {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ah-lottery-status {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 750;
+  background: rgba(37, 99, 235, 0.12);
+  color: #0071e3;
+}
+.ah-lottery-status.drawn {
+  background: rgba(52, 199, 89, 0.12);
+  color: #15803d;
+}
+.ah-lottery-status.closed {
+  background: rgba(142, 142, 147, 0.12);
+  color: #6b7280;
+}
+.ah-lottery-joined {
+  display: inline-flex;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ah-lottery-pity-badge {
+  display: inline-flex;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 750;
+  box-shadow: 0 3px 8px rgba(217, 119, 6, 0.24);
+}
+.ah-lottery-body h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #1d1d1f;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-lottery-prize {
+  margin: 0;
+  font-size: 12.5px;
+  color: #0071e3;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-lottery-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: #8e8e93;
+  font-weight: 600;
+}
+.ah-lottery-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 2px;
+}
+.ah-lottery-join {
+  flex: 1;
+  min-height: 36px;
+  font-size: 13px;
+}
+.ah-lottery-joined-btn {
+  flex: 1;
+  min-height: 36px;
+  background: rgba(22, 163, 74, 0.1) !important;
+  color: #15803d !important;
+  box-shadow: none !important;
+  cursor: default;
+}
+.ah-lottery-link {
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ah-lottery-link:hover {
+  color: #1d1d1f;
+}
+.ah-lottery-foot {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+  padding: 8px 4px 0;
+}
+.ah-lottery-foot p {
+  margin: 0;
+  font-size: 12px;
+  color: #8e8e93;
+}
+@media (max-width: 560px) {
+  .ah-lottery-section {
+    gap: 14px;
+  }
+  .ah-lottery-hero {
+    padding: 18px 16px;
+    gap: 12px;
+    border-radius: 18px;
+    flex-wrap: wrap;
+  }
+  .ah-lottery-hero-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+  .ah-lottery-hero-action {
+    width: 100%;
+    justify-content: center;
+  }
+  .ah-lottery-grid {
+    grid-template-columns: 1fr;
+  }
+  .ah-lottery-cover {
+    height: 148px;
+  }
+}
 
 /* 已结束/已开奖卡片降权：视觉让位给进行中的抽奖 */
 .ah-lottery-card.status-closed,
 .ah-lottery-card.status-drawn,
-.ah-lottery-card.status-ended { opacity: 0.74; }
+.ah-lottery-card.status-ended {
+  opacity: 0.74;
+}
 .ah-lottery-card.status-closed .ah-lottery-cover img,
 .ah-lottery-card.status-drawn .ah-lottery-cover img,
-.ah-lottery-card.status-ended .ah-lottery-cover img { filter: saturate(0.78) brightness(0.96); }
+.ah-lottery-card.status-ended .ah-lottery-cover img {
+  filter: saturate(0.78) brightness(0.96);
+}
 .ah-lottery-card.status-closed:hover,
 .ah-lottery-card.status-drawn:hover,
-.ah-lottery-card.status-ended:hover { opacity: 0.9; }
+.ah-lottery-card.status-ended:hover {
+  opacity: 0.9;
+}
 
 /* ─── 赞助 竖屏精细化 ─── */
 @media (orientation: portrait) and (max-width: 560px) {
-  .ah-sponsor-section { gap: 16px; padding-bottom: env(safe-area-inset-bottom, 0); }
-  .ah-sponsor-hero { flex-direction: column; align-items: center; text-align: center; padding: 20px 16px; gap: 10px; }
-  .ah-sponsor-hero > div { text-align: center; }
-  .ah-sponsor-hero p { text-align: center; }
-  .ah-sponsor-card { text-align: center; }
-  .ah-sponsor-card h3 { justify-content: center; }
-  .ah-sponsor-card p { text-align: center; }
-  .ah-sponsor-qr-wrap img { max-width: 280px; }
-  .ah-lottery-section { gap: 16px; padding-bottom: env(safe-area-inset-bottom, 0); }
-  .ah-lottery-hero { flex-direction: column; align-items: center; text-align: center; padding: 20px 16px; gap: 10px; }
-  .ah-lottery-hero > div { text-align: center; }
-  .ah-lottery-hero p { text-align: center; }
-  .ah-lottery-hero-action { width: 100%; }
-  .ah-lottery-grid { grid-template-columns: 1fr; }
+  .ah-sponsor-section {
+    gap: 16px;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .ah-sponsor-hero {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px 16px;
+    gap: 10px;
+  }
+  .ah-sponsor-hero > div {
+    text-align: center;
+  }
+  .ah-sponsor-hero p {
+    text-align: center;
+  }
+  .ah-sponsor-card {
+    text-align: center;
+  }
+  .ah-sponsor-card h3 {
+    justify-content: center;
+  }
+  .ah-sponsor-card p {
+    text-align: center;
+  }
+  .ah-sponsor-qr-wrap img {
+    max-width: 280px;
+  }
+  .ah-lottery-section {
+    gap: 16px;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .ah-lottery-hero {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px 16px;
+    gap: 10px;
+  }
+  .ah-lottery-hero > div {
+    text-align: center;
+  }
+  .ah-lottery-hero p {
+    text-align: center;
+  }
+  .ah-lottery-hero-action {
+    width: 100%;
+  }
+  .ah-lottery-grid {
+    grid-template-columns: 1fr;
+  }
 }
 @media (orientation: portrait) and (min-width: 561px) and (max-width: 768px) {
-  .ah-sponsor-section { max-width: 640px; }
-  .ah-sponsor-grid { grid-template-columns: 1fr; }
-  .ah-lottery-section { max-width: 640px; }
-  .ah-lottery-grid { grid-template-columns: 1fr; }
+  .ah-sponsor-section {
+    max-width: 640px;
+  }
+  .ah-sponsor-grid {
+    grid-template-columns: 1fr;
+  }
+  .ah-lottery-section {
+    max-width: 640px;
+  }
+  .ah-lottery-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ─── 赞助 横屏精细化 ─── */
 @media (orientation: landscape) and (max-height: 600px) {
-  .ah-sponsor-section { max-width: 860px; gap: 12px; }
-  .ah-sponsor-hero { padding: 14px 16px; gap: 12px; border-radius: 16px; }
-  .ah-sponsor-hero-icon { width: 36px; height: 36px; border-radius: 10px; }
-  .ah-sponsor-hero h2 { font-size: 16px; }
-  .ah-sponsor-hero p { font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .ah-sponsor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .ah-sponsor-card { padding: 14px; }
-  .ah-sponsor-qr-wrap { margin: 8px 0 8px; }
-  .ah-sponsor-qr-wrap img { max-width: min(220px, 38vh); }
-  .ah-sponsor-qr-wrap.is-placeholder { min-height: min(220px, 38vh); }
-  .ah-sponsor-foot { gap: 8px; padding: 6px 0 0; }
-  .ah-sponsor-foot p { font-size: 11px; }
-  .ah-lottery-section { max-width: 860px; gap: 12px; }
-  .ah-lottery-hero { padding: 14px 16px; gap: 12px; border-radius: 16px; }
-  .ah-lottery-hero-icon { width: 36px; height: 36px; border-radius: 10px; }
-  .ah-lottery-hero h2 { font-size: 16px; }
-  .ah-lottery-hero p { font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .ah-lottery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .ah-lottery-card { border-radius: 16px; }
-  .ah-lottery-cover { height: 110px; }
-  .ah-lottery-foot { gap: 8px; padding: 6px 0 0; }
+  .ah-sponsor-section {
+    max-width: 860px;
+    gap: 12px;
+  }
+  .ah-sponsor-hero {
+    padding: 14px 16px;
+    gap: 12px;
+    border-radius: 16px;
+  }
+  .ah-sponsor-hero-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+  .ah-sponsor-hero h2 {
+    font-size: 16px;
+  }
+  .ah-sponsor-hero p {
+    font-size: 12px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .ah-sponsor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .ah-sponsor-card {
+    padding: 14px;
+  }
+  .ah-sponsor-qr-wrap {
+    margin: 8px 0 8px;
+  }
+  .ah-sponsor-qr-wrap img {
+    max-width: min(220px, 38vh);
+  }
+  .ah-sponsor-qr-wrap.is-placeholder {
+    min-height: min(220px, 38vh);
+  }
+  .ah-sponsor-foot {
+    gap: 8px;
+    padding: 6px 0 0;
+  }
+  .ah-sponsor-foot p {
+    font-size: 11px;
+  }
+  .ah-lottery-section {
+    max-width: 860px;
+    gap: 12px;
+  }
+  .ah-lottery-hero {
+    padding: 14px 16px;
+    gap: 12px;
+    border-radius: 16px;
+  }
+  .ah-lottery-hero-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+  .ah-lottery-hero h2 {
+    font-size: 16px;
+  }
+  .ah-lottery-hero p {
+    font-size: 12px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .ah-lottery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .ah-lottery-card {
+    border-radius: 16px;
+  }
+  .ah-lottery-cover {
+    height: 110px;
+  }
+  .ah-lottery-foot {
+    gap: 8px;
+    padding: 6px 0 0;
+  }
 }
 @media (orientation: landscape) and (max-height: 500px) {
-  .ah-sponsor-hero p { display: none; }
-  .ah-sponsor-card p { display: none; }
-  .ah-sponsor-card small { display: none; }
-  .ah-sponsor-qr-wrap { margin: 6px 0 4px; }
-  .ah-lottery-hero p { display: none; }
-  .ah-lottery-prize { display: none; }
-  .ah-lottery-meta { display: none; }
+  .ah-sponsor-hero p {
+    display: none;
+  }
+  .ah-sponsor-card p {
+    display: none;
+  }
+  .ah-sponsor-card small {
+    display: none;
+  }
+  .ah-sponsor-qr-wrap {
+    margin: 6px 0 4px;
+  }
+  .ah-lottery-hero p {
+    display: none;
+  }
+  .ah-lottery-prize {
+    display: none;
+  }
+  .ah-lottery-meta {
+    display: none;
+  }
 }
 
 @media (max-height: 560px) and (orientation: landscape) {
-  .ah-hub-card { padding: 13px 16px 10px; }
-  .ah-top-row { padding-bottom: 10px; }
-  .ah-overview { gap: 10px; }
-  .ah-overview-heading { padding-top: 0; }
-  .ah-overview-heading h2 { font-size: 19px; }
-  .ah-overview-summary.has-points-card { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); }
-  .ah-overview-insights { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ah-overview-summary.has-points-card .ah-overview-insights { grid-template-columns: 1fr; }
+  .ah-hub-card {
+    padding: 13px 16px 10px;
+  }
+  .ah-top-row {
+    padding-bottom: 10px;
+  }
+  .ah-overview {
+    gap: 10px;
+  }
+  .ah-overview-heading {
+    padding-top: 0;
+  }
+  .ah-overview-heading h2 {
+    font-size: 19px;
+  }
+  .ah-overview-summary.has-points-card {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+  .ah-overview-insights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ah-overview-summary.has-points-card .ah-overview-insights {
+    grid-template-columns: 1fr;
+  }
   .ah-overview-primary,
-  .ah-overview-membership { min-height: 118px; padding: 14px; }
-  .ah-smart-focus { min-height: 92px; padding: 14px; }
-  .ah-smart-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ah-smart-section { padding: 14px; }
+  .ah-overview-membership {
+    min-height: 118px;
+    padding: 14px;
+  }
+  .ah-smart-focus {
+    min-height: 92px;
+    padding: 14px;
+  }
+  .ah-smart-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ah-smart-section {
+    padding: 14px;
+  }
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -2608,59 +5160,750 @@ onMounted(() => {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  .user-space-page[data-theme="dark"] .ah-hub-card,
-  .user-space-page[data-theme="dark"] .ah-smart-focus,
-  .user-space-page[data-theme="dark"] .ah-smart-section,
-  .user-space-page[data-theme="dark"] .ah-overview-membership,
-  .user-space-page[data-theme="dark"] .ah-membership-card,
-  .user-space-page[data-theme="dark"] .ah-empty-state,
-  .user-space-page[data-theme="dark"] .ah-ledger-item,
-  .user-space-page[data-theme="dark"] .ah-gift-card,
-  .user-space-page[data-theme="dark"] .ah-gift-status-panel { background: #1c1e24; }
+  .user-space-page[data-theme='dark'] .ah-hub-card,
+  .user-space-page[data-theme='dark'] .ah-smart-focus,
+  .user-space-page[data-theme='dark'] .ah-smart-section,
+  .user-space-page[data-theme='dark'] .ah-overview-membership,
+  .user-space-page[data-theme='dark'] .ah-membership-card,
+  .user-space-page[data-theme='dark'] .ah-empty-state,
+  .user-space-page[data-theme='dark'] .ah-ledger-item,
+  .user-space-page[data-theme='dark'] .ah-gift-card,
+  .user-space-page[data-theme='dark'] .ah-gift-status-panel {
+    background: #1c1e24;
+  }
 }
 
-.ah-points-section { display: grid; gap: 18px; max-width: 760px; width: 100%; margin: 0 auto; }
-.ah-points-heading { padding: 4px 2px 0; }
-.ah-points-heading > span, .ah-points-detail-heading span { color: #6e6e73; font-size: 12px; font-weight: 700; }
-.ah-points-heading h2, .ah-points-detail-heading h2 { margin: 4px 0 6px; color: #1d1d1f; font-size: 22px; font-weight: 780; }
-.ah-points-heading p { margin: 0; color: #747b86; font-size: 13px; }
-.ah-points-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.ah-points-action-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 13px; min-height: 132px; padding: 20px; border: 1px solid rgba(255,255,255,.78); border-radius: 22px; color: #1d1d1f; text-align: left; cursor: pointer; box-shadow: 0 18px 38px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.88); transition: transform 180ms var(--ah-ease), box-shadow 180ms ease; }
-@media (hover: hover) and (pointer: fine) {
-  .ah-points-action-card:hover { transform: translateY(-2px); box-shadow: 0 24px 46px rgba(15,23,42,.12), inset 0 1px 0 rgba(255,255,255,.92); }
+.ah-points-section {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
 }
-.ah-points-action-card:active { transform: scale(.985); }
-.ah-points-action-card.is-recharge { background: rgba(239,246,255,.72); border-color: rgba(191,219,254,.82); }
-.ah-points-action-card.is-detail { background: rgba(240,253,244,.68); border-color: rgba(187,247,208,.82); }
-.ah-points-action-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 16px; background: rgba(37,99,235,.12); color: #0071e3; }
-.is-detail .ah-points-action-icon { background: rgba(22,163,74,.12); color: #16a34a; }
-.ah-points-action-copy { display: grid; gap: 5px; min-width: 0; }
-.ah-points-action-copy strong { font-size: 16px; font-weight: 780; }
-.ah-points-action-copy small { color: #68727b; font-size: 12px; line-height: 1.4; }
-.ah-points-action-card > svg { color: #7b8491; transition: transform 170ms var(--ah-ease); }
-.ah-points-detail-heading { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
-.ah-points-back { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 0; border-radius: 12px; background: rgba(255,255,255,.6); color: #64748b; cursor: pointer; transform: rotate(180deg); }
-.ah-points-total { display: grid; justify-items: end; gap: 2px; }.ah-points-total span { font-size: 11px; font-weight: 650; }.ah-points-total strong { color: #1d1d1f; font-size: 25px; line-height: 1; }
-.ah-points-filter { display: inline-flex; width: fit-content; gap: 2px; padding: 3px; border-radius: 11px; background: rgba(15,23,42,.07); }
-.ah-points-filter button { min-width: 56px; height: 32px; padding: 0 11px; border: 0; border-radius: 8px; background: transparent; color: #68727b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }.ah-points-filter button.active { background: rgba(255,255,255,.92); color: #1d1d1f; box-shadow: 0 1px 5px rgba(15,23,42,.12); }
-.ah-qr-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(225,232,242,.14); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); }
-.ah-qr-modal { position: relative; display: grid; justify-items: center; width: min(100%, 348px); padding: 30px 28px 25px; border: 1px solid rgba(255,255,255,.72); border-radius: 30px; background: rgba(255,255,255,.66); backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); box-shadow: 0 24px 65px rgba(31,41,55,.13), 0 2px 8px rgba(31,41,55,.04), inset 0 1px 0 rgba(255,255,255,.9); text-align: center; }
-.ah-qr-close { position: absolute; top: 13px; right: 14px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.42); color: #64748b; cursor: pointer; transition: transform 150ms var(--ah-ease), background-color 150ms ease; }.ah-qr-close:hover { background: rgba(255,255,255,.75); }.ah-qr-close:active { transform: scale(.92); }.ah-qr-kicker { color: #0071e3; font-size: 12px; font-weight: 750; }.ah-qr-modal h2 { margin: 5px 0 7px; color: #1d1d1f; font-size: 21px; }.ah-qr-modal p { max-width: 270px; margin: 0; color: #68727b; font-size: 12px; line-height: 1.55; }.ah-qr-frame { display: grid; place-items: center; margin: 18px 0 12px; padding: 10px; border-radius: 20px; background: rgba(255,255,255,.78); box-shadow: 0 12px 28px rgba(31,41,55,.08), inset 0 1px 0 rgba(255,255,255,.92); }.ah-recharge-qr { display: block; width: 204px; height: 204px; border-radius: 12px; background: #fff; }.ah-qr-uid { color: #8e8e93; font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .05em; }
-.ah-qr-modal-enter-active, .ah-qr-modal-leave-active { transition: opacity 240ms ease; }.ah-qr-modal-enter-active .ah-qr-modal, .ah-qr-modal-leave-active .ah-qr-modal { transition: transform 300ms var(--ah-ease), opacity 220ms ease; }.ah-qr-modal-enter-from, .ah-qr-modal-leave-to { opacity: 0; }.ah-qr-modal-enter-from .ah-qr-modal, .ah-qr-modal-leave-to .ah-qr-modal { opacity: 0; transform: translateY(10px) scale(.97); }
-.user-space-page[data-theme="dark"] .ah-points-heading h2, .user-space-page[data-theme="dark"] .ah-points-detail-heading h2, .user-space-page[data-theme="dark"] .ah-points-total strong, .user-space-page[data-theme="dark"] .ah-points-action-card, .user-space-page[data-theme="dark"] .ah-qr-modal h2 { color: #f4f7f8; }
-.user-space-page[data-theme="dark"] .ah-points-action-card.is-recharge { background: rgba(30,58,95,.56); }.user-space-page[data-theme="dark"] .ah-points-action-card.is-detail { background: rgba(22,75,55,.5); }.user-space-page[data-theme="dark"] .ah-points-filter button.active, .user-space-page[data-theme="dark"] .ah-points-back { background: rgba(255,255,255,.14); color: #f4f7f8; }.user-space-page[data-theme="dark"] .ah-qr-modal { background: rgba(28,30,36,.95); }
-@media (max-width: 560px) { .ah-points-action-grid { grid-template-columns: 1fr; }.ah-points-action-card { min-height: 104px; padding: 16px; }.ah-points-detail-heading h2 { font-size: 19px; }.ah-points-total strong { font-size: 21px; } }
-.ah-fulfillment-heading span { color: #377f76; font-size: 12px; font-weight: 760; }
-.ah-fulfillment-heading h2 { margin: 5px 0 6px; color: #1d1d1f; font-size: 22px; letter-spacing: 0; }
-.ah-fulfillment-heading p { margin: 0; color: #68727b; font-size: 13px; line-height: 1.6; }
-.ah-skin-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.ah-skin-option { min-height: 126px; padding: 12px; border: 1px solid rgba(23, 45, 59, .12); border-radius: 14px; background: rgba(255,255,255,.58); color: #1d1d1f; text-align: left; cursor: pointer; }.ah-skin-option:disabled { cursor: default; opacity: .72; }
-.ah-skin-option.active { border-color: #2f887a; box-shadow: 0 0 0 2px rgba(47,136,122,.16); }.ah-skin-option.is-cats-skin.active { border-color: #d77f96; box-shadow: 0 0 0 2px rgba(215,127,150,.18); }.ah-skin-option strong, .ah-skin-option small { display: block; }.ah-skin-option strong { margin-top: 11px; font-size: 13px; }.ah-skin-option small { margin-top: 3px; color: #75808a; font-size: 11px; }
-.ah-skin-preview { display: flex; align-items: center; justify-content: center; width: 100%; height: 45px; border-radius: 9px; overflow: hidden; }.ah-skin-preview.is-blank { background: #eaf0f1; color: #315b68; }.ah-skin-preview.is-cats { position: relative; background: #fff; }.ah-skin-preview.is-cats img { width: 28px; height: 28px; flex: 0 0 28px; object-fit: contain; margin-left: -13px; filter: drop-shadow(0 2px 2px rgba(113,65,77,.12)); }.ah-skin-preview.is-cats img:first-child { margin-left: 0; }.ah-skin-preview.is-custom { background: #e8ebf2; color: #526179; }
-.ah-card-presets { display: grid; gap: 10px; }.ah-card-presets-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #3d4852; font-size: 13px; font-weight: 760; }.ah-card-presets-heading small { color: #7a858e; font-size: 11px; font-weight: 650; }.ah-card-presets-loading, .ah-card-presets-empty { min-height: 76px; display: grid; place-items: center; border: 1px dashed rgba(23, 45, 59, .18); border-radius: 14px; color: #7a858e; font-size: 12px; }.ah-card-preset-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }.ah-card-preset { position: relative; min-width: 0; padding: 4px; border: 1px solid rgba(23, 45, 59, .13); border-radius: 14px; background: rgba(255,255,255,.58); }.ah-card-preset.active { border-color: #2f887a; box-shadow: 0 0 0 2px rgba(47,136,122,.16); }.ah-card-preset-select { display: grid; width: 100%; gap: 7px; padding: 0; border: 0; background: transparent; color: #26323b; cursor: pointer; text-align: left; font: inherit; font-size: 11px; font-weight: 700; }.ah-card-preset-select img { display: block; width: 100%; aspect-ratio: 8 / 5; border-radius: 10px; object-fit: cover; background: #e8ebf2; }.ah-card-preset-select > span { padding: 0 4px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.ah-card-preset-delete { position: absolute; top: 10px; right: 10px; display: grid; width: 28px; height: 28px; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.78); border-radius: 10px; background: rgba(255,255,255,.84); color: #a24444; cursor: pointer; box-shadow: 0 5px 12px rgba(25,37,49,.14); }.ah-card-preset-delete:hover { background: #fff; }.ah-card-presets-retention { margin: 0; color: #7a858e; font-size: 11px; line-height: 1.5; }
-.ah-fulfillment-section { display: grid; gap: 15px; max-width: 720px; width: 100%; margin: 0 auto; }.ah-current-gift-card { margin: 0; }.ah-fulfillment-records { padding: 16px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fulfillment-records-head { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 12px; }.ah-fulfillment-records-head > div:first-child > span { color: #377f76; font-size: 12px; font-weight: 760; }.ah-fulfillment-records-head h3 { margin: 4px 0 0; color: #1d1d1f; font-size: 16px; font-weight: 760; }.ah-record-filter { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: rgba(18, 38, 50, .07); }.ah-record-filter button { min-width: 42px; min-height: 30px; padding: 0 9px; border: 0; border-radius: 8px; background: transparent; color: #68727b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }.ah-record-filter button.active { background: rgba(255,255,255,.9); box-shadow: 0 1px 5px rgba(15, 23, 42, .12); color: #1d1d1f; }.ah-fulfillment-record-list { display: grid; }.ah-fulfillment-record { display: flex; align-items: center; gap: 11px; min-width: 0; padding: 12px 0; }.ah-fulfillment-record + .ah-fulfillment-record { border-top: 1px solid rgba(18, 38, 50, .08); }.ah-fulfillment-record-icon { display: grid; width: 34px; height: 34px; place-items: center; flex: 0 0 auto; border-radius: 12px; }.ah-fulfillment-record-icon.gift { background: rgba(183, 102, 126, .12); color: #ad526f; }.ah-fulfillment-record-icon.order { background: rgba(35, 121, 108, .12); color: #23796c; }.ah-fulfillment-record-copy { display: grid; min-width: 0; gap: 3px; flex: 1; }.ah-fulfillment-record-copy strong { overflow: hidden; color: #1d1d1f; font-size: 13px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }.ah-fulfillment-record-copy span, .ah-fulfillment-record-side > span:first-child { overflow: hidden; color: #78808d; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.ah-fulfillment-record-side { display: grid; justify-items: end; gap: 4px; min-width: 68px; }.ah-fulfillment-record-points { color: #b45309; font-size: 11px; font-weight: 750; white-space: nowrap; }.ah-fulfillment-partial-error { margin: 12px 0 0; color: #b45309; font-size: 12px; }.ah-fusion-block { padding: 15px; border: 1px solid rgba(18, 38, 50, .1); border-radius: 18px; background: rgba(255,255,255,.58); }.ah-fusion-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #1d1d1f; font-weight: 760; }.ah-fusion-block-head > span { display: inline-flex; align-items: center; gap: 7px; }.ah-fusion-block-head button, .ah-inline-empty button { border: 0; background: transparent; color: #23796c; font: inherit; font-size: 12px; cursor: pointer; }.ah-inline-empty { padding: 16px 4px; color: #74808a; font-size: 13px; }
-.user-space-page[data-theme="dark"] .ah-fulfillment-heading h2, .user-space-page[data-theme="dark"] .ah-fulfillment-records-head h3, .user-space-page[data-theme="dark"] .ah-fulfillment-record-copy strong, .user-space-page[data-theme="dark"] .ah-skin-option, .user-space-page[data-theme="dark"] .ah-card-presets-heading, .user-space-page[data-theme="dark"] .ah-card-preset-select, .user-space-page[data-theme="dark"] .ah-fusion-block-head { color: #f4f7f8; }.ah-skin-option, .ah-card-preset, .ah-fusion-block { background: rgba(255,255,255,.58); }.user-space-page[data-theme="dark"] .ah-skin-option, .user-space-page[data-theme="dark"] .ah-card-preset, .user-space-page[data-theme="dark"] .ah-fusion-block, .user-space-page[data-theme="dark"] .ah-fulfillment-records { background: rgba(28,30,36,.72); border-color: rgba(255,255,255,.1); }.user-space-page[data-theme="dark"] .ah-record-filter { background: rgba(255,255,255,.1); }.user-space-page[data-theme="dark"] .ah-record-filter button { color: #a7acb5; }.user-space-page[data-theme="dark"] .ah-record-filter button.active { background: rgba(255,255,255,.14); color: #f4f7f8; box-shadow: none; }.user-space-page[data-theme="dark"] .ah-fulfillment-record + .ah-fulfillment-record { border-top-color: rgba(255,255,255,.09); }.user-space-page[data-theme="dark"] .ah-card-presets-loading, .user-space-page[data-theme="dark"] .ah-card-presets-empty { border-color: rgba(255,255,255,.18); color: #a7acb5; }.user-space-page[data-theme="dark"] .ah-card-preset-delete { border-color: rgba(255,255,255,.18); background: rgba(28,30,36,.9); color: #ff9ca9; }
-@media (max-width: 560px) { .ah-skin-grid { grid-template-columns: 1fr; }.ah-skin-option { min-height: 82px; display: grid; grid-template-columns: 70px 1fr; align-content: center; column-gap: 12px; }.ah-skin-option strong, .ah-skin-option small { grid-column: 2; }.ah-skin-option strong { margin-top: 0; }.ah-skin-preview { grid-row: 1 / span 2; height: 50px; }.ah-card-preset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ah-points-heading {
+  padding: 4px 2px 0;
+}
+.ah-points-heading > span,
+.ah-points-detail-heading span {
+  color: #6e6e73;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ah-points-heading h2,
+.ah-points-detail-heading h2 {
+  margin: 4px 0 6px;
+  color: #1d1d1f;
+  font-size: 22px;
+  font-weight: 780;
+}
+.ah-points-heading p {
+  margin: 0;
+  color: #747b86;
+  font-size: 13px;
+}
+.ah-points-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.ah-points-action-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  min-height: 132px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 22px;
+  color: #1d1d1f;
+  text-align: left;
+  cursor: pointer;
+  box-shadow:
+    0 18px 38px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  transition:
+    transform 180ms var(--ah-ease),
+    box-shadow 180ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ah-points-action-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 24px 46px rgba(15, 23, 42, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  }
+}
+.ah-points-action-card:active {
+  transform: scale(0.985);
+}
+.ah-points-action-card.is-recharge {
+  background: rgba(239, 246, 255, 0.72);
+  border-color: rgba(191, 219, 254, 0.82);
+}
+.ah-points-action-card.is-detail {
+  background: rgba(240, 253, 244, 0.68);
+  border-color: rgba(187, 247, 208, 0.82);
+}
+.ah-points-action-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 16px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #0071e3;
+}
+.is-detail .ah-points-action-icon {
+  background: rgba(22, 163, 74, 0.12);
+  color: #16a34a;
+}
+.ah-points-action-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.ah-points-action-copy strong {
+  font-size: 16px;
+  font-weight: 780;
+}
+.ah-points-action-copy small {
+  color: #68727b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.ah-points-action-card > svg {
+  color: #7b8491;
+  transition: transform 170ms var(--ah-ease);
+}
+.ah-points-detail-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.ah-points-back {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  color: #64748b;
+  cursor: pointer;
+  transform: rotate(180deg);
+}
+.ah-points-total {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.ah-points-total span {
+  font-size: 11px;
+  font-weight: 650;
+}
+.ah-points-total strong {
+  color: #1d1d1f;
+  font-size: 25px;
+  line-height: 1;
+}
+.ah-points-filter {
+  display: inline-flex;
+  width: fit-content;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.07);
+}
+.ah-points-filter button {
+  min-width: 56px;
+  height: 32px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #68727b;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ah-points-filter button.active {
+  background: rgba(255, 255, 255, 0.92);
+  color: #1d1d1f;
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.12);
+}
+.ah-qr-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(225, 232, 242, 0.14);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+}
+.ah-qr-modal {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  width: min(100%, 348px);
+  padding: 30px 28px 25px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.66);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  box-shadow:
+    0 24px 65px rgba(31, 41, 55, 0.13),
+    0 2px 8px rgba(31, 41, 55, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  text-align: center;
+}
+.ah-qr-close {
+  position: absolute;
+  top: 13px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.42);
+  color: #64748b;
+  cursor: pointer;
+  transition:
+    transform 150ms var(--ah-ease),
+    background-color 150ms ease;
+}
+.ah-qr-close:hover {
+  background: rgba(255, 255, 255, 0.75);
+}
+.ah-qr-close:active {
+  transform: scale(0.92);
+}
+.ah-qr-kicker {
+  color: #0071e3;
+  font-size: 12px;
+  font-weight: 750;
+}
+.ah-qr-modal h2 {
+  margin: 5px 0 7px;
+  color: #1d1d1f;
+  font-size: 21px;
+}
+.ah-qr-modal p {
+  max-width: 270px;
+  margin: 0;
+  color: #68727b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.ah-qr-frame {
+  display: grid;
+  place-items: center;
+  margin: 18px 0 12px;
+  padding: 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 12px 28px rgba(31, 41, 55, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+.ah-recharge-qr {
+  display: block;
+  width: 204px;
+  height: 204px;
+  border-radius: 12px;
+  background: #fff;
+}
+.ah-qr-uid {
+  color: #8e8e93;
+  font:
+    600 11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  letter-spacing: 0.05em;
+}
+.ah-qr-modal-enter-active,
+.ah-qr-modal-leave-active {
+  transition: opacity 240ms ease;
+}
+.ah-qr-modal-enter-active .ah-qr-modal,
+.ah-qr-modal-leave-active .ah-qr-modal {
+  transition:
+    transform 300ms var(--ah-ease),
+    opacity 220ms ease;
+}
+.ah-qr-modal-enter-from,
+.ah-qr-modal-leave-to {
+  opacity: 0;
+}
+.ah-qr-modal-enter-from .ah-qr-modal,
+.ah-qr-modal-leave-to .ah-qr-modal {
+  opacity: 0;
+  transform: translateY(10px) scale(0.97);
+}
+.user-space-page[data-theme='dark'] .ah-points-heading h2,
+.user-space-page[data-theme='dark'] .ah-points-detail-heading h2,
+.user-space-page[data-theme='dark'] .ah-points-total strong,
+.user-space-page[data-theme='dark'] .ah-points-action-card,
+.user-space-page[data-theme='dark'] .ah-qr-modal h2 {
+  color: #f4f7f8;
+}
+.user-space-page[data-theme='dark'] .ah-points-action-card.is-recharge {
+  background: rgba(30, 58, 95, 0.56);
+}
+.user-space-page[data-theme='dark'] .ah-points-action-card.is-detail {
+  background: rgba(22, 75, 55, 0.5);
+}
+.user-space-page[data-theme='dark'] .ah-points-filter button.active,
+.user-space-page[data-theme='dark'] .ah-points-back {
+  background: rgba(255, 255, 255, 0.14);
+  color: #f4f7f8;
+}
+.user-space-page[data-theme='dark'] .ah-qr-modal {
+  background: rgba(28, 30, 36, 0.95);
+}
+@media (max-width: 560px) {
+  .ah-points-action-grid {
+    grid-template-columns: 1fr;
+  }
+  .ah-points-action-card {
+    min-height: 104px;
+    padding: 16px;
+  }
+  .ah-points-detail-heading h2 {
+    font-size: 19px;
+  }
+  .ah-points-total strong {
+    font-size: 21px;
+  }
+}
+.ah-fulfillment-heading span {
+  color: #377f76;
+  font-size: 12px;
+  font-weight: 760;
+}
+.ah-fulfillment-heading h2 {
+  margin: 5px 0 6px;
+  color: #1d1d1f;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+.ah-fulfillment-heading p {
+  margin: 0;
+  color: #68727b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.ah-skin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.ah-skin-option {
+  min-height: 126px;
+  padding: 12px;
+  border: 1px solid rgba(23, 45, 59, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+  color: #1d1d1f;
+  text-align: left;
+  cursor: pointer;
+}
+.ah-skin-option:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+.ah-skin-option.active {
+  border-color: #2f887a;
+  box-shadow: 0 0 0 2px rgba(47, 136, 122, 0.16);
+}
+.ah-skin-option.is-cats-skin.active {
+  border-color: #d77f96;
+  box-shadow: 0 0 0 2px rgba(215, 127, 150, 0.18);
+}
+.ah-skin-option strong,
+.ah-skin-option small {
+  display: block;
+}
+.ah-skin-option strong {
+  margin-top: 11px;
+  font-size: 13px;
+}
+.ah-skin-option small {
+  margin-top: 3px;
+  color: #75808a;
+  font-size: 11px;
+}
+.ah-skin-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 45px;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.ah-skin-preview.is-blank {
+  background: #eaf0f1;
+  color: #315b68;
+}
+.ah-skin-preview.is-cats {
+  position: relative;
+  background: #fff;
+}
+.ah-skin-preview.is-cats img {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  object-fit: contain;
+  margin-left: -13px;
+  filter: drop-shadow(0 2px 2px rgba(113, 65, 77, 0.12));
+}
+.ah-skin-preview.is-cats img:first-child {
+  margin-left: 0;
+}
+.ah-skin-preview.is-custom {
+  background: #e8ebf2;
+  color: #526179;
+}
+.ah-card-presets {
+  display: grid;
+  gap: 10px;
+}
+.ah-card-presets-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #3d4852;
+  font-size: 13px;
+  font-weight: 760;
+}
+.ah-card-presets-heading small {
+  color: #7a858e;
+  font-size: 11px;
+  font-weight: 650;
+}
+.ah-card-presets-loading,
+.ah-card-presets-empty {
+  min-height: 76px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(23, 45, 59, 0.18);
+  border-radius: 14px;
+  color: #7a858e;
+  font-size: 12px;
+}
+.ah-card-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.ah-card-preset {
+  position: relative;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid rgba(23, 45, 59, 0.13);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+}
+.ah-card-preset.active {
+  border-color: #2f887a;
+  box-shadow: 0 0 0 2px rgba(47, 136, 122, 0.16);
+}
+.ah-card-preset-select {
+  display: grid;
+  width: 100%;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #26323b;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ah-card-preset-select img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #e8ebf2;
+}
+.ah-card-preset-select > span {
+  padding: 0 4px 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-card-preset-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.84);
+  color: #a24444;
+  cursor: pointer;
+  box-shadow: 0 5px 12px rgba(25, 37, 49, 0.14);
+}
+.ah-card-preset-delete:hover {
+  background: #fff;
+}
+.ah-card-presets-retention {
+  margin: 0;
+  color: #7a858e;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.ah-fulfillment-section {
+  display: grid;
+  gap: 15px;
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
+}
+.ah-current-gift-card {
+  margin: 0;
+}
+.ah-fulfillment-records {
+  padding: 16px;
+  border: 1px solid rgba(18, 38, 50, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.58);
+}
+.ah-fulfillment-records-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.ah-fulfillment-records-head > div:first-child > span {
+  color: #377f76;
+  font-size: 12px;
+  font-weight: 760;
+}
+.ah-fulfillment-records-head h3 {
+  margin: 4px 0 0;
+  color: #1d1d1f;
+  font-size: 16px;
+  font-weight: 760;
+}
+.ah-record-filter {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(18, 38, 50, 0.07);
+}
+.ah-record-filter button {
+  min-width: 42px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #68727b;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ah-record-filter button.active {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.12);
+  color: #1d1d1f;
+}
+.ah-fulfillment-record-list {
+  display: grid;
+}
+.ah-fulfillment-record {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 12px 0;
+}
+.ah-fulfillment-record + .ah-fulfillment-record {
+  border-top: 1px solid rgba(18, 38, 50, 0.08);
+}
+.ah-fulfillment-record-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 12px;
+}
+.ah-fulfillment-record-icon.gift {
+  background: rgba(183, 102, 126, 0.12);
+  color: #ad526f;
+}
+.ah-fulfillment-record-icon.order {
+  background: rgba(35, 121, 108, 0.12);
+  color: #23796c;
+}
+.ah-fulfillment-record-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  flex: 1;
+}
+.ah-fulfillment-record-copy strong {
+  overflow: hidden;
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-fulfillment-record-copy span,
+.ah-fulfillment-record-side > span:first-child {
+  overflow: hidden;
+  color: #78808d;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-fulfillment-record-side {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  min-width: 68px;
+}
+.ah-fulfillment-record-points {
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.ah-fulfillment-partial-error {
+  margin: 12px 0 0;
+  color: #b45309;
+  font-size: 12px;
+}
+.ah-fusion-block {
+  padding: 15px;
+  border: 1px solid rgba(18, 38, 50, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.58);
+}
+.ah-fusion-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #1d1d1f;
+  font-weight: 760;
+}
+.ah-fusion-block-head > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.ah-fusion-block-head button,
+.ah-inline-empty button {
+  border: 0;
+  background: transparent;
+  color: #23796c;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ah-inline-empty {
+  padding: 16px 4px;
+  color: #74808a;
+  font-size: 13px;
+}
+.user-space-page[data-theme='dark'] .ah-fulfillment-heading h2,
+.user-space-page[data-theme='dark'] .ah-fulfillment-records-head h3,
+.user-space-page[data-theme='dark'] .ah-fulfillment-record-copy strong,
+.user-space-page[data-theme='dark'] .ah-skin-option,
+.user-space-page[data-theme='dark'] .ah-card-presets-heading,
+.user-space-page[data-theme='dark'] .ah-card-preset-select,
+.user-space-page[data-theme='dark'] .ah-fusion-block-head {
+  color: #f4f7f8;
+}
+.ah-skin-option,
+.ah-card-preset,
+.ah-fusion-block {
+  background: rgba(255, 255, 255, 0.58);
+}
+.user-space-page[data-theme='dark'] .ah-skin-option,
+.user-space-page[data-theme='dark'] .ah-card-preset,
+.user-space-page[data-theme='dark'] .ah-fusion-block,
+.user-space-page[data-theme='dark'] .ah-fulfillment-records {
+  background: rgba(28, 30, 36, 0.72);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.user-space-page[data-theme='dark'] .ah-record-filter {
+  background: rgba(255, 255, 255, 0.1);
+}
+.user-space-page[data-theme='dark'] .ah-record-filter button {
+  color: #a7acb5;
+}
+.user-space-page[data-theme='dark'] .ah-record-filter button.active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #f4f7f8;
+  box-shadow: none;
+}
+.user-space-page[data-theme='dark'] .ah-fulfillment-record + .ah-fulfillment-record {
+  border-top-color: rgba(255, 255, 255, 0.09);
+}
+.user-space-page[data-theme='dark'] .ah-card-presets-loading,
+.user-space-page[data-theme='dark'] .ah-card-presets-empty {
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #a7acb5;
+}
+.user-space-page[data-theme='dark'] .ah-card-preset-delete {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(28, 30, 36, 0.9);
+  color: #ff9ca9;
+}
+@media (max-width: 560px) {
+  .ah-skin-grid {
+    grid-template-columns: 1fr;
+  }
+  .ah-skin-option {
+    min-height: 82px;
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    align-content: center;
+    column-gap: 12px;
+  }
+  .ah-skin-option strong,
+  .ah-skin-option small {
+    grid-column: 2;
+  }
+  .ah-skin-option strong {
+    margin-top: 0;
+  }
+  .ah-skin-preview {
+    grid-row: 1 / span 2;
+    height: 50px;
+  }
+  .ah-card-preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ah-panel-enter-active,
@@ -2689,7 +5932,10 @@ onMounted(() => {
   .ah-icon-command,
   .ah-ledger-item {
     animation: none !important;
-    transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease !important;
+    transition:
+      opacity 150ms ease,
+      color 150ms ease,
+      background-color 150ms ease !important;
     transform: none !important;
   }
 

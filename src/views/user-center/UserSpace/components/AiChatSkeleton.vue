@@ -67,7 +67,10 @@ onMounted(() => {
     if (saved === 'system' && typeof window !== 'undefined') {
       isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
-  } catch {}
+  } catch {
+    /* 隐私模式读不到 localStorage。骨架屏只是首屏占位，取不到就按浅色渲染，
+       真实主题由 theme-manager 随后接管，不存在「渲染错主题」的风险。 */
+  }
 });
 </script>
 
@@ -160,16 +163,36 @@ onMounted(() => {
   border-radius: 4px;
 }
 
-.ai-skeleton-line.w-30 { width: 30%; }
-.ai-skeleton-line.w-40 { width: 40%; }
-.ai-skeleton-line.w-45 { width: 45%; }
-.ai-skeleton-line.w-50 { width: 50%; }
-.ai-skeleton-line.w-60 { width: 60%; }
-.ai-skeleton-line.w-65 { width: 65%; }
-.ai-skeleton-line.w-70 { width: 70%; }
-.ai-skeleton-line.w-80 { width: 80%; }
-.ai-skeleton-line.w-85 { width: 85%; }
-.ai-skeleton-line.w-90 { width: 90%; }
+.ai-skeleton-line.w-30 {
+  width: 30%;
+}
+.ai-skeleton-line.w-40 {
+  width: 40%;
+}
+.ai-skeleton-line.w-45 {
+  width: 45%;
+}
+.ai-skeleton-line.w-50 {
+  width: 50%;
+}
+.ai-skeleton-line.w-60 {
+  width: 60%;
+}
+.ai-skeleton-line.w-65 {
+  width: 65%;
+}
+.ai-skeleton-line.w-70 {
+  width: 70%;
+}
+.ai-skeleton-line.w-80 {
+  width: 80%;
+}
+.ai-skeleton-line.w-85 {
+  width: 85%;
+}
+.ai-skeleton-line.w-90 {
+  width: 90%;
+}
 
 .ai-skeleton-input {
   display: flex;
@@ -199,8 +222,12 @@ onMounted(() => {
 }
 
 @keyframes ai-shimmer-anim {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .ai-skeleton.is-dark {

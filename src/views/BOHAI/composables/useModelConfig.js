@@ -14,7 +14,7 @@ import {
   MODE_SETTING_KEY,
   THINKING_SPEED_SETTING_KEY,
   THINKING_SPEED_OPTIONS,
-  BOH_DEFAULT_THINKING_SPEED_ID
+  BOH_DEFAULT_THINKING_SPEED_ID,
 } from './chat-engine-config.js';
 
 export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
@@ -51,13 +51,28 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     try {
       const saved = localStorage.getItem(MODE_SETTING_KEY);
       if (saved && getChatModes().some((m) => m.id === saved)) return saved;
-    } catch {}
+    } catch {
+      /* 隐私模式下 localStorage 读取会抛。读不到就用默认模式，不是错误。 */
+    }
     return BOH_DEFAULT_MODE_ID;
   };
   const currentModeId = ref(resolveInitialModeId());
-  const currentMode = computed(() => getChatModes().find((m) => m.id === currentModeId.value) || getChatModes()[0] || { id: BOH_DEFAULT_MODE_ID, name: 'Fast', tagline: '极速响应', description: '轻量模型，秒回', model: 'fast' });
+  const currentMode = computed(
+    () =>
+      getChatModes().find((m) => m.id === currentModeId.value) ||
+      getChatModes()[0] || {
+        id: BOH_DEFAULT_MODE_ID,
+        name: 'Fast',
+        tagline: '极速响应',
+        description: '轻量模型，秒回',
+        model: 'fast',
+      },
+  );
   const currentModelId = computed(() => currentMode.value.model);
-  const currentModel = computed(() => getAvailableModels().find((m) => m.id === currentModelId.value) || getAvailableModels()[0]);
+  const currentModel = computed(
+    () =>
+      getAvailableModels().find((m) => m.id === currentModelId.value) || getAvailableModels()[0],
+  );
 
   // 本轮 Auto 路由到的具体模式：在 sendMessage 中赋值，UI 可读。
   // 当用户手动点击 chip 重置或新会话时清空。
@@ -78,7 +93,10 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   const isMemoryCaptureEnabled = ref(false);
 
   const isTreeholeMemoryEnabled = ref(
-    readBooleanSetting(TREEHOLE_MEMORY_SYNC_SETTING_KEY, readBooleanSetting(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY, false))
+    readBooleanSetting(
+      TREEHOLE_MEMORY_SYNC_SETTING_KEY,
+      readBooleanSetting(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY, false),
+    ),
   );
 
   const isTreeholeMemoryToggling = ref(false);
@@ -99,29 +117,39 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   };
 
   const currentResponseStyleId = ref(
-    normalizeResponseStyleId(typeof window === 'undefined' ? 'default' : localStorage.getItem(RESPONSE_STYLE_SETTING_KEY))
+    normalizeResponseStyleId(
+      typeof window === 'undefined' ? 'default' : localStorage.getItem(RESPONSE_STYLE_SETTING_KEY),
+    ),
   );
 
-  const currentResponseStyle = computed(() => (
-    RESPONSE_STYLE_OPTIONS.find((item) => item.id === currentResponseStyleId.value)
-    || RESPONSE_STYLE_OPTIONS[0]
-  ));
+  const currentResponseStyle = computed(
+    () =>
+      RESPONSE_STYLE_OPTIONS.find((item) => item.id === currentResponseStyleId.value) ||
+      RESPONSE_STYLE_OPTIONS[0],
+  );
 
   // ─── Thinking speed state ──────────────────────────────────────────────────────
 
   const normalizeThinkingSpeedId = (speedId) => {
     const safeId = String(speedId || '').trim();
-    return THINKING_SPEED_OPTIONS.some((item) => item.id === safeId) ? safeId : BOH_DEFAULT_THINKING_SPEED_ID;
+    return THINKING_SPEED_OPTIONS.some((item) => item.id === safeId)
+      ? safeId
+      : BOH_DEFAULT_THINKING_SPEED_ID;
   };
 
   const currentThinkingSpeedId = ref(
-    normalizeThinkingSpeedId(typeof window === 'undefined' ? BOH_DEFAULT_THINKING_SPEED_ID : localStorage.getItem(THINKING_SPEED_SETTING_KEY))
+    normalizeThinkingSpeedId(
+      typeof window === 'undefined'
+        ? BOH_DEFAULT_THINKING_SPEED_ID
+        : localStorage.getItem(THINKING_SPEED_SETTING_KEY),
+    ),
   );
 
-  const currentThinkingSpeed = computed(() => (
-    THINKING_SPEED_OPTIONS.find((item) => item.id === currentThinkingSpeedId.value)
-    || THINKING_SPEED_OPTIONS[1]
-  ));
+  const currentThinkingSpeed = computed(
+    () =>
+      THINKING_SPEED_OPTIONS.find((item) => item.id === currentThinkingSpeedId.value) ||
+      THINKING_SPEED_OPTIONS[1],
+  );
 
   const persistThinkingSpeedSetting = () => {
     if (typeof window === 'undefined') return;
@@ -145,26 +173,28 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   // 扫描 localStorage 中所有 per-user key（boh_ai_cloud_reference_consent_v1:<userId>），
   // 若任一为 'granted' 则初始即为 'granted'，避免页面加载后短暂为 'unknown' 触发重复弹窗。
   // refreshCloudReferenceConsent 会在 userInfo 就绪后精确修正为当前用户的值。
-  const cloudReferenceConsent = ref((() => {
-    if (typeof window === 'undefined') return 'unknown';
-    try {
-      // 1. 扫描 per-user key（当前实现唯一持久化方式）
-      const prefix = `${CLOUD_REFERENCE_CONSENT_KEY}:`;
-      for (let i = 0; i < localStorage.length; i += 1) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(prefix)) {
-          const v = localStorage.getItem(k);
-          if (v === 'granted') return 'granted';
-          if (v === 'denied') return 'denied';
+  const cloudReferenceConsent = ref(
+    (() => {
+      if (typeof window === 'undefined') return 'unknown';
+      try {
+        // 1. 扫描 per-user key（当前实现唯一持久化方式）
+        const prefix = `${CLOUD_REFERENCE_CONSENT_KEY}:`;
+        for (let i = 0; i < localStorage.length; i += 1) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(prefix)) {
+            const v = localStorage.getItem(k);
+            if (v === 'granted') return 'granted';
+            if (v === 'denied') return 'denied';
+          }
         }
+        // 2. 兜底：legacy 全局 key（兼容旧版本，首次升级场景）
+        const saved = localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY);
+        return saved === 'granted' || saved === 'denied' ? saved : 'unknown';
+      } catch {
+        return 'unknown';
       }
-      // 2. 兜底：legacy 全局 key（兼容旧版本，首次升级场景）
-      const saved = localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY);
-      return saved === 'granted' || saved === 'denied' ? saved : 'unknown';
-    } catch {
-      return 'unknown';
-    }
-  })());
+    })(),
+  );
 
   // 会话级"联网搜索未配置"提示去重：避免每轮都刷一条。
   const webSearchDisabledNoticeShownFor = new Set();
@@ -178,13 +208,12 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   const getModelForModeId = (modeId, _context = {}) => {
     const modes = getChatModes();
     const models = getAvailableModels();
-    const mode = modes.find((item) => item.id === modeId)
-      || modes.find((item) => item.id === BOH_DEFAULT_MODE_ID)
-      || modes[0];
+    const mode =
+      modes.find((item) => item.id === modeId) ||
+      modes.find((item) => item.id === BOH_DEFAULT_MODE_ID) ||
+      modes[0];
     const targetModelId = mode?.model;
-    return models.find((item) => item.id === targetModelId)
-      || currentModel.value
-      || models[0];
+    return models.find((item) => item.id === targetModelId) || currentModel.value || models[0];
   };
 
   const persistPlanModeSetting = () => {
@@ -229,7 +258,10 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const persistTreeholeMemorySetting = () => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY, isTreeholeMemoryEnabled.value ? '1' : '0');
+    localStorage.setItem(
+      TREEHOLE_MEMORY_SYNC_SETTING_KEY,
+      isTreeholeMemoryEnabled.value ? '1' : '0',
+    );
     localStorage.removeItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY);
   };
 
@@ -296,6 +328,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     persistTreeholeMemorySetting,
     persistQuickNoteSetting,
     persistSharedMemorySetting,
-    persistKnowledgeBaseSetting
+    persistKnowledgeBaseSetting,
   };
 }

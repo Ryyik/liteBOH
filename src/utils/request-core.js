@@ -8,20 +8,20 @@ const MAX_CACHE_ENTRIES = 200;
 // 缓存命中率统计
 const cacheStats = {
   hits: 0,
-  misses: 0
+  misses: 0,
 };
 
 // 请求超时分级配置
 export const TIMEOUT_LEVELS = {
-  CRITICAL: 5000,  // 关键API: 5秒
-  NORMAL: 8000     // 普通API: 8秒
+  CRITICAL: 5000, // 关键API: 5秒
+  NORMAL: 8000, // 普通API: 8秒
 };
 
 // 请求优先级配置
 const PRIORITY_LEVELS = {
   HIGH: 1,
   NORMAL: 5,
-  LOW: 10
+  LOW: 10,
 };
 
 // 请求队列管理器
@@ -34,7 +34,7 @@ class RequestQueue {
       totalRequests: 0,
       queuedRequests: 0,
       completedRequests: 0,
-      cancelledRequests: 0
+      cancelledRequests: 0,
     };
   }
 
@@ -46,7 +46,7 @@ class RequestQueue {
         signal,
         resolve,
         reject,
-        id: Date.now() + Math.random()
+        id: Date.now() + Math.random(),
       };
 
       // 检查是否已被取消
@@ -75,7 +75,7 @@ class RequestQueue {
       // 监听取消事件
       if (signal) {
         signal.addEventListener('abort', () => {
-          const idx = this.queue.findIndex(item => item.id === queueItem.id);
+          const idx = this.queue.findIndex((item) => item.id === queueItem.id);
           if (idx !== -1) {
             this.queue.splice(idx, 1);
             this.stats.cancelledRequests++;
@@ -123,12 +123,12 @@ class RequestQueue {
       ...this.stats,
       queueLength: this.queue.length,
       activeCount: this.activeCount,
-      maxConcurrent: this.maxConcurrent
+      maxConcurrent: this.maxConcurrent,
     };
   }
 
   clear() {
-    this.queue.forEach(item => {
+    this.queue.forEach((item) => {
       item.reject(new Error('队列已清空'));
     });
     this.queue = [];
@@ -185,11 +185,13 @@ export function isAbortError(error) {
   if (error.code === 20) return true; // DOMException.ABORT_ERR
   if (typeof error.hint === 'string' && /Request was aborted/i.test(error.hint)) return true;
   const message = String(error.message || '');
-  return /请求已被取消/.test(message)
-    || /^AbortError\b/.test(message)
-    || /operation was aborted/i.test(message)
-    || /signal is aborted/i.test(message)
-    || /aborted without reason/i.test(message);
+  return (
+    /请求已被取消/.test(message) ||
+    /^AbortError\b/.test(message) ||
+    /operation was aborted/i.test(message) ||
+    /signal is aborted/i.test(message) ||
+    /aborted without reason/i.test(message)
+  );
 }
 
 // 取消结果的统一形状：ok:false 但 aborted:true，调用方据此静默跳过
@@ -203,9 +205,9 @@ export function abortedResult(data = null) {
       name: 'AbortError',
       aborted: true,
       details: null,
-      hint: null
+      hint: null,
     },
-    aborted: true
+    aborted: true,
   };
 }
 
@@ -219,7 +221,7 @@ export function normalizeDbError(error, fallbackMessage = '请求失败') {
       name: 'AbortError',
       aborted: true,
       details: null,
-      hint: null
+      hint: null,
     };
   }
   if (typeof error === 'string') {
@@ -228,15 +230,16 @@ export function normalizeDbError(error, fallbackMessage = '请求失败') {
   const rawMessage = String(error.message || fallbackMessage);
   // RLS 拦截封禁/禁言用户时的友好提示
   const errorCode = String(error.code || '').toUpperCase();
-  const isRlsViolation = errorCode === '42501'
-    || /row-level security policy/i.test(rawMessage)
-    || /new row violates row-level security/i.test(rawMessage);
+  const isRlsViolation =
+    errorCode === '42501' ||
+    /row-level security policy/i.test(rawMessage) ||
+    /new row violates row-level security/i.test(rawMessage);
   if (isRlsViolation) {
     return {
       message: '您的账号已被封禁或禁言，无法执行此操作。',
       code: 'USER_BANNED_OR_MUTED',
       details: null,
-      hint: null
+      hint: null,
     };
   }
   if (rawMessage.startsWith('FORUM_RATE_LIMIT:')) {
@@ -245,7 +248,7 @@ export function normalizeDbError(error, fallbackMessage = '请求失败') {
       message: messageParts.join(':') || '发布太频繁了，请稍后再试',
       code: 'FORUM_RATE_LIMIT',
       details: ruleCode || null,
-      hint: error.hint || null
+      hint: error.hint || null,
     };
   }
   if (rawMessage.startsWith('FORUM_IMAGE:')) {
@@ -254,7 +257,7 @@ export function normalizeDbError(error, fallbackMessage = '请求失败') {
       message: messageParts.join(':') || '图片发布失败，请稍后再试',
       code: 'FORUM_IMAGE',
       details: ruleCode || null,
-      hint: error.hint || null
+      hint: error.hint || null,
     };
   }
   if (rawMessage.startsWith('FORUM_LIKE:')) {
@@ -263,22 +266,23 @@ export function normalizeDbError(error, fallbackMessage = '请求失败') {
       message: messageParts.join(':') || '点赞操作失败，请稍后再试',
       code: 'FORUM_LIKE',
       details: ruleCode || null,
-      hint: error.hint || null
+      hint: error.hint || null,
     };
   }
   return {
     message: rawMessage,
     code: error.code || 'UNKNOWN',
     details: error.details || null,
-    hint: error.hint || null
+    hint: error.hint || null,
   };
 }
 
-export function okResult(data = null, extras = {}) {
-  return { ok: true, data, error: null, ...extras };
-}
-
-export function failResult(error, data = null, extras = {}) {
+/**
+ * 内部用：把错误归一成统一结果形状。
+ * 刻意**不导出** —— 全仓无外部消费者，导出它只会让「自己拼结果对象」多一个入口，
+ * 绕过 executeRead/executeWrite 的超时、重试与缓存。需要读数据请用 executeRead。
+ */
+function failResult(error, data = null, extras = {}) {
   return { ok: false, data, error: normalizeDbError(error), ...extras };
 }
 
@@ -294,7 +298,7 @@ function setCache(key, payload, ttlMs, tags = []) {
   requestCache.set(key, {
     expireAt: Date.now() + ttlMs,
     payload,
-    tags: new Set(tags)
+    tags: new Set(tags),
   });
 }
 
@@ -352,7 +356,7 @@ async function runWithRetry(task, options = {}) {
     baseDelayMs = 300,
     maxDelayMs = 10000,
     jitter = true,
-    signal = null
+    signal = null,
   } = options;
 
   let attempt = 0;
@@ -426,7 +430,7 @@ export function invalidateByTags(tags = []) {
   for (const [key, entry] of requestCache.entries()) {
     const entryTags = Array.from(entry.tags || []);
     const matched = patterns.some((pattern) =>
-      entryTags.some((tag) => tag === pattern || tag.startsWith(`${pattern}:`))
+      entryTags.some((tag) => tag === pattern || tag.startsWith(`${pattern}:`)),
     );
     if (matched) {
       requestCache.delete(key);
@@ -447,13 +451,13 @@ export function getRequestQueueStats() {
 // 获取缓存统计信息
 export function getCacheStats() {
   const total = cacheStats.hits + cacheStats.misses;
-  const hitRate = total > 0 ? (cacheStats.hits / total * 100).toFixed(2) : '0.00';
+  const hitRate = total > 0 ? ((cacheStats.hits / total) * 100).toFixed(2) : '0.00';
   return {
     ...cacheStats,
     total,
     hitRate: `${hitRate}%`,
     cacheSize: requestCache.size,
-    maxCacheSize: MAX_CACHE_ENTRIES
+    maxCacheSize: MAX_CACHE_ENTRIES,
   };
 }
 
@@ -462,23 +466,22 @@ export async function executeRead(scope, params, fetcher, options = {}) {
     ttlMs = 0,
     tags = [],
     timeoutMs = TIMEOUT_LEVELS.NORMAL,
-    timeoutLevel = null,  // 可选：'CRITICAL' 或 'NORMAL'
+    timeoutLevel = null, // 可选：'CRITICAL' 或 'NORMAL'
     retry = 1,
     retryDelayMs = 300,
-    baseDelayMs = 300,    // 指数退避基础延迟
-    maxDelayMs = 10000,   // 指数退避最大延迟
+    baseDelayMs = 300, // 指数退避基础延迟
+    maxDelayMs = 10000, // 指数退避最大延迟
     priority = PRIORITY_LEVELS.NORMAL,
-    signal = null         // AbortController signal
+    signal = null, // AbortController signal
   } = options;
 
   // 使用超时级别覆盖具体超时值
-  const effectiveTimeoutMs = timeoutLevel && TIMEOUT_LEVELS[timeoutLevel]
-    ? TIMEOUT_LEVELS[timeoutLevel]
-    : timeoutMs;
+  const effectiveTimeoutMs =
+    timeoutLevel && TIMEOUT_LEVELS[timeoutLevel] ? TIMEOUT_LEVELS[timeoutLevel] : timeoutMs;
 
   if (ttlMs > 0) {
     const validTTLs = Object.values(CACHE_TTL_LEVELS);
-    const isValid = validTTLs.some(valid => valid === ttlMs);
+    const isValid = validTTLs.some((valid) => valid === ttlMs);
     if (!isValid) {
       logger.warn('request-core', `TTL ${ttlMs}ms 不符合统一缓存策略 (scope: ${scope})`);
     }
@@ -495,30 +498,29 @@ export async function executeRead(scope, params, fetcher, options = {}) {
   const task = (async () => {
     try {
       const raw = await requestQueue.enqueue(
-        () => runWithRetry(
-          () => withTimeout(fetcher(signal), effectiveTimeoutMs, signal),
-          {
+        () =>
+          runWithRetry(() => withTimeout(fetcher(signal), effectiveTimeoutMs, signal), {
             retry,
             baseDelayMs: retryDelayMs || baseDelayMs,
             maxDelayMs,
-            signal
-          }
-        ),
+            signal,
+          }),
         priority,
-        signal
+        signal,
       );
 
-      const extras = raw && typeof raw === 'object'
-        ? Object.fromEntries(
-            Object.entries(raw).filter(([key]) => key !== 'data' && key !== 'error')
-          )
-        : {};
+      const extras =
+        raw && typeof raw === 'object'
+          ? Object.fromEntries(
+              Object.entries(raw).filter(([key]) => key !== 'data' && key !== 'error'),
+            )
+          : {};
 
       const response = {
         ok: !raw?.error,
         data: raw?.data ?? null,
         error: normalizeDbError(raw?.error),
-        ...extras
+        ...extras,
       };
 
       // postgrest 把 abort 转义成普通 error 对象返回（不抛异常），
@@ -556,5 +558,5 @@ export async function executeRead(scope, params, fetcher, options = {}) {
 export const __cacheDebug = {
   size: () => requestCache.size,
   stats: getCacheStats,
-  queueStats: getRequestQueueStats
+  queueStats: getRequestQueueStats,
 };
