@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+// 源码守卫断言的格式宽容归一（读源码 + toContain 的断言必须过它，见 helpers/source.js）
+import { flattenSource, squeezeSource } from '../helpers/source.js';
 
 const read = (path) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
@@ -10,18 +12,19 @@ const stripCssComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
 describe('home hero partial-save regression', () => {
   it('does not clear image configuration during a sort-only update', () => {
     const source = read('src/stores/homeHeroes.ts');
-    const saveHeroSource = source.slice(
-      source.indexOf('const saveHero ='),
-      source.indexOf('// 发布英雄区'),
+    // 归一后再断言：prettier 会把 `updatePayload[field] =` 后的表达式断到下一行
+    // （2026-09-28 全量格式化后本用例假红）。两边都要过同一个归一函数。
+    const saveHeroSource = squeezeSource(
+      source.slice(source.indexOf('const saveHero ='), source.indexOf('// 发布英雄区')),
     );
 
     // saveHero 已重构为 editableFields 循环 + showcase_config 非空守卫，
     // 部分保存语义不变：未传字段不得写入，showcase_config 禁止写 null。
-    expect(saveHeroSource).toContain('if (payload[field] !== undefined) {');
+    expect(saveHeroSource).toContain(squeezeSource('if (payload[field] !== undefined) {'));
     expect(saveHeroSource).toContain(
-      "updatePayload[field] = field === 'showcase_config' && payload[field] == null",
+      squeezeSource("updatePayload[field] = field === 'showcase_config' && payload[field] == null"),
     );
-    expect(saveHeroSource).not.toContain('image_config: payload.image_config || {}');
+    expect(saveHeroSource).not.toContain(squeezeSource('image_config: payload.image_config || {}'));
   });
 
   it('keeps cached editor drafts aligned with a successful reorder', () => {
@@ -37,8 +40,14 @@ describe('home hero partial-save regression', () => {
     // 但这里仍在读 index.vue → 断言永远找不到目标（红着没人看＝没有护栏）。
     const source = read('src/views/Home/components/HomeHeroFlow.vue');
 
-    expect(source).toContain(
-      ":key=\"(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order\"",
+    // ⚠️ 这处必须用 flattenSource：prettier 会把这个长属性拆成
+    //     `:key="\n  (hero.template…) + ':' + hero.sort_order\n"`
+    // 断点紧跟在 `="` 之后，压成单空格后会留下 `:key=" (hero…"` 这个多出来的空格，
+    // squeezeSource 还原不掉（反证见 tests/unit/source-helper.test.js）。
+    expect(flattenSource(source)).toContain(
+      flattenSource(
+        ":key=\"(hero.template === 'builtin' ? 'builtin:' + hero.builtin_key : hero.id) + ':' + hero.sort_order\"",
+      ),
     );
   });
 

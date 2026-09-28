@@ -173,7 +173,7 @@ describe('GlobalErrorBoundary styling contract', () => {
       '--radius',
       '--radius-sm',
       '--radius-md',
-      '--font-sans'
+      '--font-sans',
     ];
     for (const name of scopedOnly) {
       expect(vars).not.toContain(name);
@@ -186,8 +186,10 @@ describe('GlobalErrorBoundary styling contract', () => {
   });
 
   it('targets the project theme attribute rather than a host class', () => {
-    // 全站暗色由 html[data-theme="dark"] 驱动；写死 .dark 或某个宿主 class 会失真
-    expect(boundaryStyle).toContain('html[data-theme="dark"]');
+    // 全站暗色由 html[data-theme="dark"] 驱动；写死 .dark 或某个宿主 class 会失真。
+    // ⚠️ 引号风格不进判据：`.prettierrc` 的 `singleQuote: true` 也作用于 CSS，
+    // prettier 会把 `"dark"` 改成 `'dark'`（2026-09-28 实测），逐字断言会假红。
+    expect(boundaryStyle).toMatch(/html\[data-theme=['"]dark['"]\]/);
     expect(boundaryStyle).not.toMatch(/\n\s*\.dark[\s{]/);
   });
 

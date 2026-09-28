@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+// 源码守卫断言的格式宽容归一（读源码 + toContain 的断言必须过它，见 helpers/source.js）
+import { flattenSource, squeezeSource } from '../helpers/source.js';
 
 // ============================================================
 // 测试 chatErrorMessages 工具函数
@@ -326,9 +328,13 @@ function readChatEngine() {
 
 describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
   it('导入了 chatErrorMessages 工具函数', () => {
-    const content = readChatEngine();
+    // 源码守卫断言必须格式宽容：prettier 会把 import 展开成多行并补尾逗号，
+    // 逐字断言会因此假红（本文件 2026-09-28 被咬过一次）。两边都要过同一个归一函数。
+    const content = squeezeSource(readChatEngine());
     expect(content).toContain(
-      "import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage, safeErrorDetail } from '../utils/chatErrorMessages.js'",
+      squeezeSource(
+        "import { isAbortError, CHAT_ERROR_MESSAGES, getAbortMessage, safeErrorDetail } from '../utils/chatErrorMessages.js'",
+      ),
     );
   });
 
@@ -364,16 +370,20 @@ describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
   });
 
   it('记忆设置使用布尔值持久化', () => {
-    // 断言前先压掉所有空白：prettier 会把超长行拆成多行（本文件所在模块 2026-09-28 就被
+    // 断言前先压掉空白：prettier 会把超长行拆成多行（本文件所在模块 2026-09-28 就被
     // 拆过，CI 直接红 —— 与 9-27 那次同一类问题）。**源码格式敏感的断言必须空白宽容。**
-    // 另：只断言到「调用 + 两个实参」，**不含右括号** —— prettier 会在最后一个实参后补
-    // 尾逗号，把右括号写进断言同样会假红。
-    const flat = readFileSync(modelConfigPath, 'utf-8').replace(/\s+/g, '');
+    // 归一走 helpers/source.js 的共享实现（此前这里内联过一份 `replace(/\s+/g,'')`，
+    // 两份归一 = 两份真源，已收敛）。
+    const flat = flattenSource(readFileSync(modelConfigPath, 'utf-8'));
     expect(flat).toContain(
-      "localStorage.setItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY,isTreeholeMemoryEnabled.value?'1':'0'",
+      flattenSource(
+        "localStorage.setItem(TREEHOLE_MEMORY_SYNC_SETTING_KEY,isTreeholeMemoryEnabled.value?'1':'0'",
+      ),
     );
     expect(flat).toContain(
-      "localStorage.setItem(SHARED_MEMORY_SETTING_KEY,isSharedMemoryEnabled.value?'1':'0'",
+      flattenSource(
+        "localStorage.setItem(SHARED_MEMORY_SETTING_KEY,isSharedMemoryEnabled.value?'1':'0'",
+      ),
     );
   });
 

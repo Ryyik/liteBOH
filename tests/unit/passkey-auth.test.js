@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+// 源码守卫断言的格式宽容归一：本文件原先自己内联了一份空白归一（叫 strip），
+// 2026-09-28 收敛到共享实现 —— prettier 会拆行/补尾逗号，两份归一会给出两个答案。
+// 详见 tests/helpers/source.js。
+import { squeezeSource } from '../helpers/source.js';
 
 // ============================================================
 // 通行密钥（Passkey / WebAuthn）接入守卫
@@ -64,33 +68,41 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const SRC = join(__dirname, '../../src');
-const strip = (code) => code.replace(/\s+/g, ' ');
 const read = (relative) => readFile(join(SRC, relative), 'utf-8');
 
 const makeWindow = (isUVPAA) => {
-  const impl = isUVPAA === null
-    ? undefined
-    : (isUVPAA ? vi.fn().mockResolvedValue(true) : vi.fn().mockResolvedValue(false));
+  const impl =
+    isUVPAA === null
+      ? undefined
+      : isUVPAA
+        ? vi.fn().mockResolvedValue(true)
+        : vi.fn().mockResolvedValue(false);
   const win = {};
   if (isUVPAA !== 'missing-api') {
-    win.PublicKeyCredential = impl === undefined
-      ? {}
-      : { isUserVerifyingPlatformAuthenticatorAvailable: impl };
+    win.PublicKeyCredential =
+      impl === undefined ? {} : { isUserVerifyingPlatformAuthenticatorAvailable: impl };
   }
   return win;
 };
 
 describe('passkey 错误文案映射（用户可读，含首次使用引导）', () => {
   it('登录：NotAllowedError → 引导先用密码登录并到设置面板添加（不暴露技术细节）', () => {
-    const message = toPasskeyLoginMessage({ name: 'NotAllowedError', message: 'The operation either timed out or was not allowed.' });
+    const message = toPasskeyLoginMessage({
+      name: 'NotAllowedError',
+      message: 'The operation either timed out or was not allowed.',
+    });
     expect(message).toContain('密码登录');
     expect(message).toContain('账户安全');
     expect(message).toContain('通行密钥');
   });
 
   it('登录：SecurityError / NotSupportedError → 指出环境问题并回落密码登录', () => {
-    expect(toPasskeyLoginMessage({ name: 'SecurityError', message: 'rp.id mismatch' })).toContain('密码登录');
-    expect(toPasskeyLoginMessage({ name: 'NotSupportedError', message: 'not supported' })).toContain('密码登录');
+    expect(toPasskeyLoginMessage({ name: 'SecurityError', message: 'rp.id mismatch' })).toContain(
+      '密码登录',
+    );
+    expect(
+      toPasskeyLoginMessage({ name: 'NotSupportedError', message: 'not supported' }),
+    ).toContain('密码登录');
   });
 
   it('登录：unknown 错误 → 保留原始 message；空错误 → 兜底文案', () => {
@@ -99,8 +111,12 @@ describe('passkey 错误文案映射（用户可读，含首次使用引导）',
   });
 
   it('注册：InvalidStateError → 「已注册过」；NotAllowedError → 「已取消」', () => {
-    expect(toPasskeyRegisterMessage({ name: 'InvalidStateError', message: 'credential already exists' })).toContain('已经注册过');
-    expect(toPasskeyRegisterMessage({ name: 'NotAllowedError', message: 'not allowed' })).toContain('取消');
+    expect(
+      toPasskeyRegisterMessage({ name: 'InvalidStateError', message: 'credential already exists' }),
+    ).toContain('已经注册过');
+    expect(toPasskeyRegisterMessage({ name: 'NotAllowedError', message: 'not allowed' })).toContain(
+      '取消',
+    );
     expect(toPasskeyRegisterMessage({ message: '' })).toContain('失败');
   });
 });
@@ -167,7 +183,8 @@ describe('isPasskeySupported 能力检测', () => {
     vi.resetModules();
     const mod = await import('../../src/utils/api/auth-api.js');
     globalThis.window = makeWindow(true);
-    const impl = globalThis.window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable;
+    const impl =
+      globalThis.window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable;
     await expect(mod.isPasskeySupported()).resolves.toBe(true);
     await expect(mod.isPasskeySupported()).resolves.toBe(true);
     expect(impl).toHaveBeenCalledTimes(1);
@@ -176,22 +193,32 @@ describe('isPasskeySupported 能力检测', () => {
 
 describe('passkey 接入源码守卫', () => {
   it('supabase 客户端开启 experimental.passkey 开关', async () => {
-    const code = strip(await read('utils/supabase-client.js'));
-    expect(code).toContain('experimental: { passkey: true }');
+    // 两边都过归一：prettier 会给 `passkey: true` 补尾逗号，源码那一侧归一出的是
+    // `passkey: true}}`（闭括号前空白也归掉了），期望串不归就会差那个空格。
+    const code = squeezeSource(await read('utils/supabase-client.js'));
+    expect(code).toContain(squeezeSource('experimental: { passkey: true }'));
   });
 
   it('auth store：loginWithPasskey 与 login 共用 checkBanAfterSignIn（封禁缝隙的客户端半堵）', async () => {
-    const code = strip(await read('stores/auth.ts'));
+    const code = squeezeSource(await read('stores/auth.ts'));
     expect(code).toContain('const loginWithPasskey = async ()');
     expect(code).toContain('const checkBanAfterSignIn = async ()');
     // 两处登录都必须走同一封禁检查
-    const loginBody = code.slice(code.indexOf('const login = async'), code.indexOf('const loginWithPasskey'));
+    const loginBody = code.slice(
+      code.indexOf('const login = async'),
+      code.indexOf('const loginWithPasskey'),
+    );
     expect(loginBody).toContain('checkBanAfterSignIn()');
     expect(code.slice(code.indexOf('const loginWithPasskey'))).toContain('checkBanAfterSignIn()');
     // passkey 会话采纳与密码登录同构：先 updateLocalState 再 ban 检查
-    const passkeyBody = code.slice(code.indexOf('const loginWithPasskey'), code.indexOf('const loginWithPasskey') + 1200);
+    const passkeyBody = code.slice(
+      code.indexOf('const loginWithPasskey'),
+      code.indexOf('const loginWithPasskey') + 1200,
+    );
     expect(passkeyBody).toContain('updateLocalState');
-    expect(passkeyBody.indexOf('updateLocalState')).toBeLessThan(passkeyBody.indexOf('checkBanAfterSignIn'));
+    expect(passkeyBody.indexOf('updateLocalState')).toBeLessThan(
+      passkeyBody.indexOf('checkBanAfterSignIn'),
+    );
     // 错误文案必须来自 toPasskeyLoginMessage（首次使用引导不许被替换成裸 message）
     expect(passkeyBody).toContain('toPasskeyLoginMessage(error)');
   });
@@ -199,7 +226,14 @@ describe('passkey 接入源码守卫', () => {
   it('auth-api / utils/auth.js / auth.d.ts 三处导出一致', async () => {
     const api = await read('utils/api/auth-api.js');
     const barrel = await read('utils/auth.js');
-    for (const name of ['isPasskeySupported', 'signInWithPasskey', 'registerPasskey', 'listPasskeys', 'deletePasskey', 'toPasskeyLoginMessage']) {
+    for (const name of [
+      'isPasskeySupported',
+      'signInWithPasskey',
+      'registerPasskey',
+      'listPasskeys',
+      'deletePasskey',
+      'toPasskeyLoginMessage',
+    ]) {
       expect(api).toMatch(new RegExp(`export (?:async )?function ${name}|export const ${name} =`));
       expect(barrel).toContain(name);
     }
@@ -211,7 +245,10 @@ describe('passkey 接入源码守卫', () => {
   });
 
   it('登录页：两套布局各有能力门控的通行密钥按钮，且不是 submit 类型', async () => {
-    const code = await read('views/Login/index.vue');
+    // 归一后再断言：prettier 会把 `v-if` / `type` / `class` 三个属性拆到三行，
+    // 于是 `type="button" class="boh-passkey-btn"` 的**相邻性**在原文里消失
+    // （2026-09-28 实测假红）。压掉空白后相邻性恢复。
+    const code = squeezeSource(await read('views/Login/index.vue'));
     expect((code.match(/v-if="passkeySupported"/g) || []).length).toBe(2);
     expect((code.match(/class="boh-passkey-btn"/g) || []).length).toBe(2);
     expect((code.match(/type="button" class="boh-passkey-btn"/g) || []).length).toBe(2);
@@ -221,12 +258,12 @@ describe('passkey 接入源码守卫', () => {
   });
 
   it('设置面板：菜单行与注册/删除均为能力门控 + 两次点击删除确认', async () => {
-    const code = strip(await read('views/user-center/AccountSecurity/index.vue'));
+    const code = squeezeSource(await read('views/user-center/AccountSecurity/index.vue'));
     expect(code).toContain('v-if="passkeySupported" type="button" class="gs-row"');
     expect(code).toContain('openPasskeyPanel');
     expect(code).toContain('registerPasskey()');
     expect(code).toContain('toPasskeyRegisterMessage(error)');
-    expect(code).toContain("pendingDeletePasskeyId.value !== item.id");
+    expect(code).toContain('pendingDeletePasskeyId.value !== item.id');
     expect(code).toContain('refreshPasskeyList()');
   });
 });
