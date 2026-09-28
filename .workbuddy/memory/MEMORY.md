@@ -4,6 +4,8 @@
 - vite 默认只绑 IPv6；localhost 探针需双栈：`vite --port 5173 --host ::`；构建 `vite build --outDir dist-check`（勿动 dist；沙箱拦清目录先手动 rm）。vitest 加 `--pool=forks`；npx 被 SIGTERM→`./node_modules/.bin/<tool>`。
 - playwright：chrome channel+`--proxy-server=direct:// --proxy-bypass-list=*`；同 path 单 route（逆序→catch-all 先注册）；mock Supabase 必回 Content-Range；伪造登录注 pinia。
 - 归因：工作区常有未提交工作，**别裸 stash HEAD 当基线**；探针多次漂移=抖动非回归；改完必反证。
+- BSD grep 不支持 BRE `\|` 交替与 `\b`（静默 0 命中）→交替用 `grep -E`、边界用朴素子串。pre-commit（lint-staged+prettier）首次触碰未格式化文件会全文件 churn，混入 refactor commit 属预期一次性。
+- 通知 store 加载单源 `stores/notification-loader.ts`（含共享 ref + ensureNotificationStore，六个宿主绑定）；Tailwind 已移除（2026-09-28），preflight 补偿在 style.css `@layer base`，`--color-*/--radius-*` 24 变量唯一定义源在同文件 `:root`。
 
 ## CSS
 - ⚠️ `:root` 严禁进 scoped @import（→`[data-v-x]:root` 全死，已修）；全局变量唯一入口 `styles/common/glass-aliases.css`（main.js 引）；CSS 批处理必须原位替换保空白。
