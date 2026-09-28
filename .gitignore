@@ -41,6 +41,9 @@ src/config/users.config.js
 # 探针/诊断产物（截图与 JSON 扫描结果，均为可再生的运行时输出）
 debug-screenshots/
 output/
+# Playwright / vitest 运行产物（截图、trace、报告，均可再生）
+test-results/
+playwright-test-results/
 
 # Environment and secrets
 .env

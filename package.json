@@ -54,7 +54,7 @@
     "security:headers:dry": "node scripts/cloudflare-security-headers.mjs --dry-run",
     "security:anon-check": "node scripts/check-anon-execute.mjs",
     "security:anon-check:update": "node scripts/check-anon-execute.mjs --update",
-    "build:ci": "npm run check:views && npm run check:structure && npm run check:auth-validation && npm run type-check && npm run check:liquid-glass && npm run check:important-budget && npm run check:dark-tokens && npm run check:first-paint && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh",
+    "build:ci": "npm run check:views && npm run check:structure && npm run check:auth-validation && npm run security:anon-check && npm run type-check && npm run check:liquid-glass && npm run check:important-budget && npm run check:dark-tokens && npm run check:first-paint && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh",
     "security:setup": "node scripts/cloudflare-setup.mjs",
     "security:setup:no-secret": "node scripts/cloudflare-setup.mjs --no-secret"
   },
@@ -84,7 +84,6 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "@tailwindcss/vite": "^4.3.1",
     "@types/node": "^25.5.0",
     "@typescript-eslint/eslint-plugin": "^8.61.0",
     "@typescript-eslint/parser": "^8.61.0",
@@ -99,7 +98,6 @@
     "prettier": "^3.9.9",
     "rollup-plugin-visualizer": "^7.0.1",
     "sharp": "^0.35.1",
-    "tailwindcss": "^4.3.1",
     "terser": "^5.44.1",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.61.0",

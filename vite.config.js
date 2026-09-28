@@ -5,7 +5,6 @@ import { resolve } from 'path';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { visualizer } from 'rollup-plugin-visualizer';
-import tailwindcss from '@tailwindcss/vite';
 import cssnano from 'cssnano';
 
 // ============================================
@@ -205,7 +204,6 @@ export default defineConfig({
         },
       },
     }),
-    tailwindcss(),
     bohVersionPlugin(),
     // 构建产物可视化分析（生成 stats.html，仅 ANALYZE 环境变量开启时加载）
     ...(process.env.ANALYZE
