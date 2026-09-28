@@ -41,7 +41,7 @@ import { getAvatarUrl } from '@/utils/avatar.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
-import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
+import { ensureNotificationStore } from '@/stores/notification-loader';
 import {
   isForumLandscape,
   isForumPortraitComposer,
@@ -147,7 +147,6 @@ const route = useRoute();
 const authStore = useAuthStore();
 const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 const { userInfo } = authStore;
-const notificationStoreRef = ref(getNotificationStoreSync());
 const currentUiStyle = ref('glass');
 const currentTheme = ref(themeManager.getTheme());
 const isAnniversaryMcTheme = computed(() => currentTheme.value === 'anniversary-mc');
@@ -167,14 +166,6 @@ const readActiveForumTheme = () => {
     if (isHomeCatTheme(theme)) return theme;
   }
   return themeManager.getTheme();
-};
-
-const ensureNotificationStore = async () => {
-  if (notificationStoreRef.value) {
-    return notificationStoreRef.value;
-  }
-  notificationStoreRef.value = await loadNotificationStore();
-  return notificationStoreRef.value;
 };
 
 const setUnreadCount = async (count) => {

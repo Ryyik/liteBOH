@@ -508,7 +508,7 @@ import {
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
 import { syncAvatarFrameFromServer } from '@/composables/useAvatarFrame.js';
-import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
+import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import {
@@ -523,17 +523,9 @@ const route = useRoute();
 const dialog = useConfirmDialog();
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, userInfo, showLoginModal } = storeToRefs(authStore);
-const notificationStoreRef = ref(getNotificationStoreSync());
+const notificationStoreRef = getNotificationStoreRef();
 const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
 const hasUnreadMessages = computed(() => unreadCount.value > 0);
-const ensureNotificationStore = async () => {
-  if (notificationStoreRef.value) {
-    return notificationStoreRef.value;
-  }
-  notificationStoreRef.value = await loadNotificationStore();
-  return notificationStoreRef.value;
-};
-
 const refreshUnreadCount = async () => {
   const notificationStore = await ensureNotificationStore();
   await notificationStore.refreshUnreadCount();

@@ -442,7 +442,7 @@ import { getImageUrl } from '../../utils/asset-helper.js';
 import { useAuthStore } from '@/stores/auth';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { storeToRefs } from 'pinia';
-import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
+import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { Bot, Search } from 'lucide-vue-next';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { themeManager } from '@/utils/theme-manager.js';
@@ -487,7 +487,7 @@ registerIslandAiOpener(({ prompt, mode } = {}) => {
 });
 // DEV-TEST：仅开发环境显示灵动岛测试按钮（与模板中 DEV-TEST 块一起删除）
 const isDevMode = import.meta.env.DEV;
-const notificationStoreRef = ref(getNotificationStoreSync());
+const notificationStoreRef = getNotificationStoreRef();
 const { alert, confirm } = useConfirmDialog();
 const { checkForUpdate, applyUpdate, isChecking } = useVersionCheck();
 const router = useRouter();
@@ -727,13 +727,6 @@ watch(
 
 let resizeRafId = null;
 
-const ensureNotificationStore = async () => {
-  if (notificationStoreRef.value) {
-    return notificationStoreRef.value;
-  }
-  notificationStoreRef.value = await loadNotificationStore();
-  return notificationStoreRef.value;
-};
 const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
 
 // ============================================

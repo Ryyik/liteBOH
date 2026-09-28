@@ -128,7 +128,7 @@ import { useHomeHeroesStore } from '@/stores/homeHeroes';
 import { useAuthStore } from '@/stores/auth';
 import { FORUM_DEFAULT_SECTION, resolveForumSection } from '@/config/forum-sections';
 import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
-import { getNotificationStoreSync, loadNotificationStore } from '@/stores/notification-loader';
+import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { showIsland } from '@/composables/useIsland.js';
 import { themeManager } from '@/utils/theme-manager.js';
 
@@ -272,15 +272,9 @@ const handleBottomNavClick = (itemId) => {
 };
 
 // 未读徽标：与 UserSpace 底栏同一 store，两处数字必然一致
-const notificationStoreRef = ref(getNotificationStoreSync());
+const notificationStoreRef = getNotificationStoreRef();
 const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
 const hasUnreadMessages = computed(() => unreadCount.value > 0);
-const ensureNotificationStore = async () => {
-  if (notificationStoreRef.value) return notificationStoreRef.value;
-  notificationStoreRef.value = await loadNotificationStore();
-  return notificationStoreRef.value;
-};
-
 // ============================================
 // 横屏左栏的动作分发（与 UserSpaceMain.handleRailAction 同一套语义，
 // 只是落在首页自己的既有入口上；主导航那五席走 handleBottomNavClick）

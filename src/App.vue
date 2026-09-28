@@ -7,7 +7,7 @@ import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import GlobalErrorBoundary from '@/components/GlobalErrorBoundary.vue';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
-import { loadNotificationStore, getNotificationStoreSync } from '@/stores/notification-loader';
+import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { logger } from '@/utils/logger.js';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 const AiEdgeTrigger = defineAsyncComponent(() => import('@/components/AiEdgeTrigger.vue'));
@@ -122,7 +122,7 @@ const handleBoundaryRecover = () => {
 };
 const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
-const notificationStoreRef = ref(getNotificationStoreSync());
+const notificationStoreRef = getNotificationStoreRef();
 const LoginView = defineAsyncComponent(() => import('./views/Login/index.vue'));
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
 
@@ -137,14 +137,6 @@ const toastTitle = computed(() => notificationStoreRef.value?.toastTitle || '');
 const toastDesc = computed(() => notificationStoreRef.value?.toastDesc || '');
 const toastIcon = computed(() => notificationStoreRef.value?.toastIcon || '🔔');
 let activeListenerUserId = '';
-
-const ensureNotificationStore = async () => {
-  if (notificationStoreRef.value) {
-    return notificationStoreRef.value;
-  }
-  notificationStoreRef.value = await loadNotificationStore();
-  return notificationStoreRef.value;
-};
 
 const hideToast = () => {
   notificationStoreRef.value?.hideToast();

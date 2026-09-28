@@ -1,5 +1,5 @@
 {
-  "total": 155,
+  "total": 154,
   "names": [
     "activity_platform_touch_updated_at",
     "apply_yearly_membership_gift",
@@ -90,7 +90,6 @@
     "join_community_lottery",
     "join_home_lottery",
     "list_forum_comment_thread",
-    "list_forum_posts",
     "list_my_avatar_frame_unlocks",
     "list_public_bohai_modes",
     "lottery_pity_threshold",
