@@ -11,7 +11,8 @@
   left: 0;
   width: 100%;
   z-index: 9999;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* 导航栏主体 - Figma风格极简设计 */
@@ -21,10 +22,11 @@
   -webkit-backdrop-filter: none;
   border-bottom: 1px solid #f0f0f0;
   box-shadow: none;
-  transition: transform 500ms var(--ease-emphasized),
-              opacity 500ms var(--ease-emphasized),
-              border-radius 500ms var(--ease-emphasized),
-              box-shadow 500ms var(--ease-emphasized);
+  transition:
+    transform 500ms var(--ease-emphasized),
+    opacity 500ms var(--ease-emphasized),
+    border-radius 500ms var(--ease-emphasized),
+    box-shadow 500ms var(--ease-emphasized);
   height: 72px;
   display: flex;
   align-items: center;
@@ -190,9 +192,10 @@
   transform: translateY(-12px) scaleY(0.96);
   transform-origin: top center;
   /* 收起态：快速退出，无回弹 */
-  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              visibility 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* 展开态：回弹缓动 */
@@ -200,13 +203,14 @@
   opacity: 1;
   visibility: visible;
   transform: translateY(0) scaleY(1);
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              visibility 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.4s var(--ease-emphasized);
+  transition:
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.4s var(--ease-emphasized);
 }
 
 .unified-nav .nav-submenu::before {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -222,8 +226,9 @@
   list-style: none;
   opacity: 0;
   transform: translateY(-10px);
-  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.35s var(--ease-emphasized);
+  transition:
+    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.35s var(--ease-emphasized);
 }
 
 .unified-nav .nav-submenu.active li {
@@ -231,11 +236,21 @@
   transform: translateY(0);
 }
 
-.unified-nav .nav-submenu.active li:nth-child(1) { transition-delay: 0.05s; }
-.unified-nav .nav-submenu.active li:nth-child(2) { transition-delay: 0.1s; }
-.unified-nav .nav-submenu.active li:nth-child(3) { transition-delay: 0.15s; }
-.unified-nav .nav-submenu.active li:nth-child(4) { transition-delay: 0.2s; }
-.unified-nav .nav-submenu.active li:nth-child(5) { transition-delay: 0.25s; }
+.unified-nav .nav-submenu.active li:nth-child(1) {
+  transition-delay: 0.05s;
+}
+.unified-nav .nav-submenu.active li:nth-child(2) {
+  transition-delay: 0.1s;
+}
+.unified-nav .nav-submenu.active li:nth-child(3) {
+  transition-delay: 0.15s;
+}
+.unified-nav .nav-submenu.active li:nth-child(4) {
+  transition-delay: 0.2s;
+}
+.unified-nav .nav-submenu.active li:nth-child(5) {
+  transition-delay: 0.25s;
+}
 
 .unified-nav .nav-submenu a {
   display: inline-block;
@@ -247,10 +262,11 @@
   border-radius: 6px;
   white-space: nowrap;
   letter-spacing: 0.02em;
-  transition: background-color 0.2s ease,
-              color 0.2s ease,
-              transform 0.2s var(--ease-emphasized),
-              letter-spacing 0.3s var(--ease-emphasized);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s var(--ease-emphasized),
+    letter-spacing 0.3s var(--ease-emphasized);
 }
 
 .unified-nav .nav-submenu.active a {
@@ -331,16 +347,18 @@
 
 /* 进入：从右侧滑入 + 轻微缩放 + 模糊→清晰（回弹缓动） */
 .nav-drill-enter-active {
-  transition: opacity 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.42s var(--ease-emphasized),
-              filter 0.32s ease;
+  transition:
+    opacity 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.42s var(--ease-emphasized),
+    filter 0.32s ease;
 }
 
 /* 离开：向左侧滑出 + 快速退出 */
 .nav-drill-leave-active {
-  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              filter 0.2s ease;
+  transition:
+    opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    filter 0.2s ease;
 }
 
 .nav-drill-enter-from {
@@ -360,12 +378,24 @@
   animation: navDrillItemIn 0.42s var(--ease-emphasized) backwards;
 }
 
-.nav-drill-enter-active .nav-submenu-pane > li:nth-child(1) { animation-delay: 0.07s; }
-.nav-drill-enter-active .nav-submenu-pane > li:nth-child(2) { animation-delay: 0.12s; }
-.nav-drill-enter-active .nav-submenu-pane > li:nth-child(3) { animation-delay: 0.17s; }
-.nav-drill-enter-active .nav-submenu-pane > li:nth-child(4) { animation-delay: 0.22s; }
-.nav-drill-enter-active .nav-submenu-pane > li:nth-child(5) { animation-delay: 0.27s; }
-.nav-drill-enter-active .nav-submenu-pane > li:nth-child(6) { animation-delay: 0.32s; }
+.nav-drill-enter-active .nav-submenu-pane > li:nth-child(1) {
+  animation-delay: 0.07s;
+}
+.nav-drill-enter-active .nav-submenu-pane > li:nth-child(2) {
+  animation-delay: 0.12s;
+}
+.nav-drill-enter-active .nav-submenu-pane > li:nth-child(3) {
+  animation-delay: 0.17s;
+}
+.nav-drill-enter-active .nav-submenu-pane > li:nth-child(4) {
+  animation-delay: 0.22s;
+}
+.nav-drill-enter-active .nav-submenu-pane > li:nth-child(5) {
+  animation-delay: 0.27s;
+}
+.nav-drill-enter-active .nav-submenu-pane > li:nth-child(6) {
+  animation-delay: 0.32s;
+}
 
 @keyframes navDrillItemIn {
   from {
@@ -482,7 +512,7 @@
 .unified-nav .nav-login-btn {
   padding: 6px 14px;
   background: transparent; /* 透明 */
-  color: #000000;          /* 纯黑 */
+  color: #000000; /* 纯黑 */
   border: 1px solid #000000;
   border-radius: 20px;
   font-size: 13px;
@@ -502,8 +532,6 @@
   height: 28px;
   line-height: 1;
 }
-
-
 
 /* 下拉菜单 */
 .unified-nav .nav-dropdown {
@@ -549,16 +577,9 @@
     border-color 0.2s var(--ease-out);
 }
 
-
-
 .unified-nav .nav-dropdown-divider {
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 0, 0, 0.08),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.08), transparent);
   margin: 6px 0;
 }
 
@@ -571,12 +592,7 @@
 
 .unified-nav .nav-dropdown-divider {
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(0, 0, 0, 0.1),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.1), transparent);
   margin: 10px 0;
 }
 
@@ -596,10 +612,8 @@
     background-color 0.3s var(--ease-out),
     box-shadow 0.3s var(--ease-out);
   background-color: transparent; /* 透明 */
-  border: 1px solid #000000;     /* 极简黑色边框 */
+  border: 1px solid #000000; /* 极简黑色边框 */
 }
-
-
 
 .unified-nav .nav-hamburger span {
   display: block;
@@ -630,11 +644,17 @@
 .unified-nav .nav-menu-mobile {
   display: none;
   position: fixed;
-  top: 64px;
+  /* 与导航栏**实际几何**同步，不要写死数字。
+     悬浮岛的视觉底边 = translateY(10px) + var(--global-nav-rest-height)，
+     当前为 10 + 58 = 68px。这里原先写死 64px（更早版本的高度），比岛底边高 4px：
+     菜单顶边会被悬浮岛盖住，岛的下投影正好落在菜单上沿 —— 看起来就是导航栏与
+     二级菜单之间那条异常空隙。改回推导式后，岛高再变（如展开态/横屏）这里会自动跟随。
+     --global-nav-rest-height 定义在 .unified-nav-surface 上，本元素是其子孙，可继承。 */
+  top: calc(10px + var(--global-nav-rest-height, 58px));
   left: 0;
   width: 100%;
-  height: calc(100dvh - 64px);
-  max-height: calc(100dvh - 64px);
+  height: calc(100dvh - 10px - var(--global-nav-rest-height, 58px));
+  max-height: calc(100dvh - 10px - var(--global-nav-rest-height, 58px));
   background-color: rgba(255, 255, 255, 0.85) !important;
   backdrop-filter: var(--liquid-filter) !important;
   -webkit-backdrop-filter: var(--liquid-filter) !important;
@@ -689,8 +709,9 @@
   cursor: pointer;
   opacity: 0;
   transform: translateX(-12px);
-  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.35s var(--ease-emphasized);
+  transition:
+    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.35s var(--ease-emphasized);
 }
 
 .unified-nav .nav-menu-mobile.active .nav-mobile-link {
@@ -698,13 +719,27 @@
   transform: translateX(0);
 }
 
-.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(1) { transition-delay: 0.05s; }
-.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(2) { transition-delay: 0.1s; }
-.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(3) { transition-delay: 0.15s; }
-.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(4) { transition-delay: 0.2s; }
-.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(5) { transition-delay: 0.25s; }
-.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(6) { transition-delay: 0.3s; }
-.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(7) { transition-delay: 0.35s; }
+.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(1) {
+  transition-delay: 0.05s;
+}
+.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(2) {
+  transition-delay: 0.1s;
+}
+.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(3) {
+  transition-delay: 0.15s;
+}
+.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(4) {
+  transition-delay: 0.2s;
+}
+.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(5) {
+  transition-delay: 0.25s;
+}
+.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(6) {
+  transition-delay: 0.3s;
+}
+.unified-nav .nav-menu-mobile.active .nav-mobile-link:nth-child(7) {
+  transition-delay: 0.35s;
+}
 
 .unified-nav .nav-mobile-link.active {
   color: #000000;
@@ -741,8 +776,9 @@
   margin-bottom: 4px;
   opacity: 0;
   transform: translateX(-12px);
-  transition: opacity 0.4s var(--ease-emphasized),
-              transform 0.4s var(--ease-emphasized);
+  transition:
+    opacity 0.4s var(--ease-emphasized),
+    transform 0.4s var(--ease-emphasized);
 }
 
 .unified-nav .nav-mobile-submenu-container.active .nav-mobile-back {
@@ -761,9 +797,10 @@
   opacity: 1;
   visibility: visible;
   transform: translateX(0);
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              visibility 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .unified-nav .nav-mobile-main-menu.hidden {
@@ -785,11 +822,12 @@
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
   /* 收起态：快速退出 */
-  transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              visibility 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              filter 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-              backdrop-filter 0.2s ease;
+  transition:
+    opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    filter 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    backdrop-filter 0.2s ease;
   position: absolute;
   top: 0;
   left: 0;
@@ -813,11 +851,12 @@
   backdrop-filter: var(--liquid-filter);
   -webkit-backdrop-filter: var(--liquid-filter);
   /* 展开态：回弹缓动 */
-  transition: opacity 0.4s var(--ease-emphasized),
-              visibility 0.4s var(--ease-emphasized),
-              transform 0.4s var(--ease-emphasized),
-              filter 0.4s var(--ease-emphasized),
-              backdrop-filter 0.4s ease;
+  transition:
+    opacity 0.4s var(--ease-emphasized),
+    visibility 0.4s var(--ease-emphasized),
+    transform 0.4s var(--ease-emphasized),
+    filter 0.4s var(--ease-emphasized),
+    backdrop-filter 0.4s ease;
 }
 
 /* 移动端二级菜单区域 */
@@ -836,8 +875,9 @@
   line-height: 1.2;
   opacity: 0;
   transform: translateX(-8px);
-  transition: opacity 0.4s var(--ease-emphasized),
-              transform 0.4s var(--ease-emphasized);
+  transition:
+    opacity 0.4s var(--ease-emphasized),
+    transform 0.4s var(--ease-emphasized);
   transition-delay: 0.05s;
 }
 
@@ -855,9 +895,10 @@
   visibility: hidden;
   transform: translateY(-12px) scaleY(0.96);
   transform-origin: top center;
-  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              visibility 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-              transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    visibility 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .unified-nav .nav-mobile-submenu.active {
@@ -881,10 +922,11 @@
   opacity: 0;
   transform: translateY(-6px);
   letter-spacing: 0.05em;
-  transition: opacity 0.35s var(--ease-emphasized),
-              transform 0.35s var(--ease-emphasized),
-              letter-spacing 0.4s var(--ease-emphasized),
-              background-color 0.2s ease;
+  transition:
+    opacity 0.35s var(--ease-emphasized),
+    transform 0.35s var(--ease-emphasized),
+    letter-spacing 0.4s var(--ease-emphasized),
+    background-color 0.2s ease;
 }
 
 .unified-nav .nav-mobile-submenu.active a {
@@ -893,11 +935,21 @@
   letter-spacing: -0.01em;
 }
 
-.unified-nav .nav-mobile-submenu.active a:nth-child(1) { transition-delay: 0.08s; }
-.unified-nav .nav-mobile-submenu.active a:nth-child(2) { transition-delay: 0.13s; }
-.unified-nav .nav-mobile-submenu.active a:nth-child(3) { transition-delay: 0.18s; }
-.unified-nav .nav-mobile-submenu.active a:nth-child(4) { transition-delay: 0.23s; }
-.unified-nav .nav-mobile-submenu.active a:nth-child(5) { transition-delay: 0.28s; }
+.unified-nav .nav-mobile-submenu.active a:nth-child(1) {
+  transition-delay: 0.08s;
+}
+.unified-nav .nav-mobile-submenu.active a:nth-child(2) {
+  transition-delay: 0.13s;
+}
+.unified-nav .nav-mobile-submenu.active a:nth-child(3) {
+  transition-delay: 0.18s;
+}
+.unified-nav .nav-mobile-submenu.active a:nth-child(4) {
+  transition-delay: 0.23s;
+}
+.unified-nav .nav-mobile-submenu.active a:nth-child(5) {
+  transition-delay: 0.28s;
+}
 
 .unified-nav .nav-mobile-submenu a.active {
   color: #000000;
@@ -938,7 +990,9 @@
   color: #999999;
   cursor: pointer;
   border-radius: 8px;
-  transition: color 0.2s ease, background-color 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .unified-nav .nav-mobile-group-back:hover {
@@ -1274,8 +1328,6 @@
     color 0.2s var(--ease-out);
 }
 
-
-
 .unified-nav .nav-form-group {
   margin-bottom: 16px;
 }
@@ -1324,8 +1376,6 @@
   margin-top: 8px;
 }
 
-
-
 .unified-nav .nav-form-btn:active {
   transform: scale(0.98);
 }
@@ -1341,8 +1391,6 @@
   color: #0071e3;
   text-decoration: none;
 }
-
-
 
 /* 页面加载动画 */
 .unified-nav {
@@ -1377,8 +1425,6 @@
   .unified-nav .nav-username {
     color: #000 !important;
   }
-
-  
 
   .unified-nav .nav-hamburger span {
     background-color: #f5f5f7;
@@ -1466,8 +1512,6 @@ body.page-shop-user .unified-nav .nav-username {
   color: #000 !important;
 }
 
-
-
 /* 确保汉堡菜单图标在所有页面正确显示为黑色 */
 body.page-home .unified-nav .nav-hamburger span,
 body.page-homenew .unified-nav .nav-hamburger span,
@@ -1497,7 +1541,6 @@ body.page-shop-user .unified-nav .nav-dropdown {
 }
 
 /* 确保下拉菜单在鼠标悬停或点击时正确显示 */
-
 
 /* 确保.show-dropdown类样式在所有情况下都能正确应用 */
 .unified-nav .nav-user-info.show-dropdown .nav-dropdown {
@@ -1539,7 +1582,7 @@ body.page-shop-user .unified-nav .nav-dropdown {
     color 0.3s var(--ease-out) !important,
     box-shadow 0.3s var(--ease-out) !important;
   background-color: transparent !important;
-  border: 1px solid #000000 !important;     /* 极简黑色边框 */
+  border: 1px solid #000000 !important; /* 极简黑色边框 */
   max-width: 200px !important;
   height: 32px !important;
   overflow: visible !important;
@@ -1563,8 +1606,6 @@ body.page-shop-user .unified-nav .nav-dropdown {
   text-align: left !important;
   cursor: pointer !important;
 }
-
-
 
 body.page-home .unified-nav .nav-dropdown-item,
 body.page-homenew .unified-nav .nav-dropdown-item,
@@ -1829,7 +1870,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
 }
 
 .nav-login-container::before {
-  content: "";
+  content: '';
   position: absolute;
   top: -10px;
   left: -10px;
@@ -1840,7 +1881,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
 }
 
 .nav-login-container::after {
-  content: "";
+  content: '';
   position: absolute;
   bottom: -10px;
   right: -10px;
@@ -1871,8 +1912,6 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
     color 0.2s var(--ease-out);
 }
 
-
-
 .nav-login-logo {
   text-align: center;
   margin-bottom: 30px;
@@ -1889,7 +1928,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   width: 60px;
   height: 60px;
   margin: 0 auto;
-  background-image: url("@/assets/images/favicon.webp");
+  background-image: url('@/assets/images/favicon.webp');
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -1955,8 +1994,6 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
     border-color 0.3s var(--ease-out);
 }
 
-
-
 .nav-error-message {
   color: rgba(255, 85, 85, 0.9);
   font-size: 13px;
@@ -1996,8 +2033,6 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
-
-
 .nav-login-btn:disabled {
   background: rgba(255, 255, 255, 0.3);
   cursor: not-allowed;
@@ -2019,8 +2054,6 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
     color 0.3s var(--ease-out),
     opacity 0.3s var(--ease-out);
 }
-
-
 
 /* 响应式适配 */
 @media (max-width: 576px) {
