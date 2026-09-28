@@ -7,6 +7,11 @@
 - BSD grep 不支持 BRE `\|` 交替与 `\b`（静默 0 命中）→交替用 `grep -E`、边界用朴素子串。pre-commit（lint-staged+prettier）首次触碰未格式化文件会全文件 churn，混入 refactor commit 属预期一次性。
 - 通知 store 加载单源 `stores/notification-loader.ts`（含共享 ref + ensureNotificationStore，六个宿主绑定）；Tailwind 已移除（2026-09-28），preflight 补偿在 style.css `@layer base`，`--color-*/--radius-*` 24 变量唯一定义源在同文件 `:root`。
 
+## 测试 / 守卫断言（2026-09-28 起）
+- 「读源码 + `toContain`」守卫**必须过 `tests/helpers/source.js` 的归一**，且**两边过同一个**：`squeezeSource`（空白压单空格+去尾逗号+去闭括号前空白）/ `flattenSource`（再去全部空白，用于开括号后、`="` 后的断行）。契约在 `tests/unit/source-helper.test.js`（12 条，含反证，别删）。
+- prettier 影响逐字断言**四类**：换行缩进 / 补尾逗号 / **引号风格（`singleQuote` 亦作用于 CSS）** / **补分号**。前两类交归一，后两类写宽容正则（`/html\[data-theme=['"]dark['"]/`；边界 `\(\)[\s\S]*?\n\s*\}`）。
+- 找脆弱断言的实证法：`prettier --write <目录>` → 跑单测 → 红的必然是格式敏感断言 → 修 → `git checkout` 还原源码。**还原前先自证可丢**：`git archive HEAD <目录> .prettierrc .prettierignore` 解到 tmp 再跑 prettier，与工作区 `diff -rq` 应为空（只差 `.DS_Store`）。
+
 ## CSS
 - ⚠️ `:root` 严禁进 scoped @import（→`[data-v-x]:root` 全死，已修）；全局变量唯一入口 `styles/common/glass-aliases.css`（main.js 引）；CSS 批处理必须原位替换保空白。
 - 论坛共享 css 多组件 scoped @import 是承重墙（PostDetail 独用 PostComposer）；全局单点引入被 175 撞名类否决，见 docs/forum-css-dedup-audit.md。
