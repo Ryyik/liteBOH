@@ -25,6 +25,7 @@
     "check:dark-tokens": "node scripts/check-dark-tokens.mjs",
     "check:dark-tokens:strict": "node scripts/check-dark-tokens.mjs --strict",
     "check:dark-tokens:update": "node scripts/check-dark-tokens.mjs --update",
+    "check:gates-self-test": "node scripts/check-gates-self-test.mjs",
     "check:first-paint": "node scripts/check-first-paint.mjs",
     "check:shell-precache": "node scripts/check-shell-precache.mjs",
     "check:route-css-runtime": "node scripts/check-route-css-runtime-cache.mjs",

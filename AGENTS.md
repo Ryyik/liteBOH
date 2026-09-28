@@ -32,7 +32,9 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 
 > ⚠️ **判绿之前先确认门禁真的有牙**。这个仓库出过两次「检查在跑、但永远绿」：
 > `check-project-structure` 曾只过滤 `.js`（路由全是 `.ts`，53 条一条没查）；`check:dark-tokens` 曾跑在观察模式（总量上升只打 ⚠️ 不 exit 1）。
-> 两者都表现为「CI 全绿」。**新增或修改门禁时，必须用一个已知违规样本证明它会红（退出码非 0），再把样本撤掉。**
+> 两者都表现为「CI 全绿」。**改门禁或加门禁之后，跑 `npm run check:gates-self-test` 自证。**
+> 它会给每条门禁注入一个已知违规样本、断言退出码非 0、再撤销；样本写在 `scripts/lib/gate-fixtures.mjs`。
+> 没有 fixture 的门禁会在输出里被列成「未覆盖」——那是**明账**，不是可以忽略的噪声。
 
 | 你改了什么 | 除了 verify，还要跑 |
 | --- | --- |
@@ -103,7 +105,9 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 ## 5. 工具链（已装好的，直接用）
 
 - **格式**：Prettier（`.prettierrc`：printWidth 100 / 单引号 / 尾逗号 all）。全仓 `npm run format`，只检查 `npm run format:check`。`.prettierignore` 刻意排除了 `*.md` 和四个第三方 Style 目录 —— 近百个 md 全量重排会把有意义的 diff 淹掉。
+- **门禁自检**：`npm run check:gates-self-test`（约 45s）。给每道门禁注入一个已知违规样本 → 断言它 `exit` 非 0 → 撤销；样本在 `scripts/lib/gate-fixtures.mjs`。**改了门禁就跑它**，否则你无法区分「门禁通过」和「门禁是假绿」。⚠️ 它会临时改写工作区文件（有兜底还原），**不要塞进 verify/build:ci 主链**，要进 CI 请单开 job。
 - **提交门禁**：`.git/hooks/pre-commit` 跑 lint-staged，只处理本次暂存的文件（prettier + eslint --fix），规则见 `.lintstagedrc.json`。需要跳过时用 `git commit --no-verify`。
+  - ⚠️ **钩子会改文件，所以「你验证的树」可能不是「提交的树」**。改完代码先 `npm run format` 再跑 verify；判绿一律以提交后的树为准（9-27 那次 CI 三连挂就是这么来的：prettier 重排让三个格式敏感的源码正则断言失配，本地全绿）。另：钩子跑 lint-staged 时会输出 `could not find any staged files` 且 `git commit` 返回非 0，**但提交其实成功了——判断成功看 `git log`，别信退出码**。
   - 钩子放在 `.git/hooks/` 下，不随 clone 分发。新环境手动装一次：
     `cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
   - 没用 husky 是刻意的：husky 会接管 `core.hooksPath`，而现有 `.git/hooks/post-commit` 是 Qoder 的 tracker，接管后它会静默失效。
