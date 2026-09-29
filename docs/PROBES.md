@@ -16,10 +16,14 @@
 | 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
 | 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
+| 活动页封面图 / 活动页报名区与月份轨道 | `probe-activities-images.mjs` / `probe-campaign-ui.mjs` | 7 / 35 |
+| 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 48 |
-| 竖屏导航菜单的接缝与内部几何（一级/二级/三级） | `probe-nav-mobile-menu.mjs` | 33 |
+| 竖屏导航菜单的接缝与内部几何（一级/二级/三级 + 窄横屏档） | `probe-nav-mobile-menu.mjs` | 48 |
 | 头像框发放 | `probe-avatar-frame-grant.mjs` | 23 |
 | 头像框控制台 | `probe-avatar-frame-console.mjs` | 44 |
+| 加载性能基线（线上冷首访 CWV / 资源账本 / DB RTT；只读打线上，**不进 verify**） | `probe-perf-baseline.mjs` | 4 |
+| AI 积分计费配置与对账（线上只读；配置真值 / 14 日用量分布 / ai_usage 流水对账；**不进 verify**） | `probe-ai-billing-config.mjs`（`npm run ai:config`，支持 `--json`） | 视配置 |
 | vite 依赖预构建 | `probe-vite-dep-scan.mjs` | 6 |
 | AI 面板 | `probe-ai-panels.mjs` | — |
 | 路由切换 | `probe-route-switch.mjs` | — |
@@ -83,7 +87,7 @@
 | `probe-login-island-retract.mjs` | — | 探针：灵动岛登录的「回收」（收起）动画必须逐帧插值，不能单帧闪掉 |
 | `probe-login-island-width.mjs` | — | 登录岛宽度探针（只读，不改源码） 用途：横屏（orientation: landscape 且 min-width 769px）点击导航「登录」后， |
 | `probe-nav-mini-bar.mjs` | — | 探针：竖屏导航 Mini Bar 形态（plans/009-portrait-nav-mini-bar.md） |
-| `probe-nav-mobile-menu.mjs` | — | 探针：竖屏导航菜单的几何护栏（33 断言）。① 接缝：菜单上沿与岛底边齐平、展开时岛无下投影；② **菜单内部**：一级态收起态子菜单不占位、二级态面板从顶部开始、返回条在顶部、最后一项不被裁。含两条实测记录：`position: fixed` 遇 transform 祖先时包含块变化；`visibility: hidden` 不释放高度 |
+| `probe-nav-mobile-menu.mjs` | — | 探针：竖屏导航菜单的几何护栏（**48 断言** = 竖屏 3 个宽度档 × 14 + 窄横屏 707×354 × 6）。① 接缝：菜单上沿与岛底边齐平、展开时岛无下投影；② **菜单内部**：一级态收起态子菜单不占位（底余量落在 **[0, 24]**）、二级态面板从顶部开始、返回条在顶部、最后一项不被裁；③ **三级（分组）态**（2026-09-29 补，此前只有 `groupBackTop` 被量出来却没有任何断言、文档却宣称覆盖「一级/二级/三级」）：分组返回条真的出现、三级内容与二级**同基**（同一个容器内的偏移差 ≤1px）、最后一项不被裁；④ 窄横屏档只断接缝/投影/横向 —— 那一档走 vendor 的 `top: calc(10px + var(--global-nav-rest-height, 58px))`，与竖屏不是同一套几何（竖屏修正全在 `@media (orientation: portrait) and (max-width: 768px)` 内）。**实测记录四条**：`position: fixed` 遇 transform 祖先时包含块变化；`visibility: hidden` 不释放高度；**「父级 vs 它自己的第一个子元素」这类差值对 margin 折叠完全不敏感**（M 的第一版就是「分组返回条 vs 分组面板顶」，注入 `margin-top: 60px` 后父子一起下移、差值恒 0，断言当场失效）→ 必须换成「同一容器内、二级态 vs 三级态」的跨态对比（改后同一次注入 → 差 36px，M 红）；本探针**全程不滚动**，所以 `.scrolled` 那一类回归它抓不到 —— 由 `tests/unit/unified-nav-scrolled-guard.test.js` 在源码层锁死 |
 | `probe-nav-mini-width.mjs` | — | 量 mini 胶囊的「固有内容宽」→ 反推合适的 --nav-mini-width（内容 + 两侧各 ~8px 余量） |
 | `probe-nav-optical-center.mjs` | — | 探针：竖屏 mini 胶囊的「视觉居中」回归护栏 |
 | `probe-notification-suggest-island-extra.mjs` | — | 探针：消息中心智能建议岛补充回归 —— 暗色主题 + 移动端视口 |
@@ -113,6 +117,15 @@
 | `probe-official-publish.mjs` | — | ===== Newsroom ===== |
 | `probe-post-detail-fix.mjs` | — | probe-post-detail-fix.mjs — 论坛帖子详情两问题复现探针 |
 | `probe-post-detail-verify.mjs` | — | probe-post-detail-verify.mjs — 修复后验证 P1: 活动/新闻帖详情显示封面图（@/assets 引用 + Cloudinary cover 两种） |
+
+### 活动 / 方块墙 / 内容运营（4）
+
+| 文件 | npm script | 说明 |
+| --- | --- | --- |
+| `probe-activities-images.mjs` | — | **活动页封面图可用性（7 断言，2026-09-29 新增）**：逐张 `.activity-card__img` 断言「无 `@/` 别名残留 / `naturalWidth > 0` / 无一张仍指向 `res.cloudinary.com` / 无卡卡在未完成加载」。基线实测 **4 passed / 3 failed**（id=16 八周年、id=17 剧本杀两张裂图，`net::ERR_CONNECTION_RESET`），修复后 7/7。**用途**：`activities.image` 混存 `@/assets/...` 别名与 Cloudinary 绝对地址，只调 `getImageUrl` 会让后者裂图 —— 这条守卫就是钉住这个混合形态的。需先 `npx vite --port 5178 --strictPort`，可用 `PROBE_BASE` 覆盖 |
+| `probe-activities-wall.mjs` | — | 活动&方块墙（/activities-wall）截图 + 打印。**无任何断言**，属「看起来有测试」的空壳（AGENTS.md 第 6 节已记为待补） |
+| `probe-campaign-ui.mjs` | — | 活动页探针 v3（35 断言，mock + 真库双路）：报名卡/阶段徽章/报名反馈、月份轨道分组与精度角标、窄屏横滑、管理员投稿双路径（报名活动 vs 往期活动的字段差异与 payload 形状）。⚠️ 场景 B 原断言「真库 campaigns 恒为 0 行 → 空态必然命中」已于 2026-09-29 作废（真库有进行中活动），改为「主卡或空态恰好命中一种」 |
+| `probe-campaign-draft-rls.py` | — | 只读校验 `activity_campaigns` 的 draft 行是否对 anon 可读（plans/008 §2.3 记的安全缺口） |
 
 ### AI / BOHAI / 心理访谈（4）
 
@@ -146,11 +159,12 @@
 | `probe-userspace-switch.mjs` | `npm run probe:userspace-switch` | probe-userspace-switch.mjs — UserSpace 分区切换流畅度实测 |
 | `repro-join-wizard-demo.mjs` | — | 反证：把每处修复改回缺陷版本，确认对应断言真的变红。 |
 
-### 订阅 / 抽奖 / 积分 / 台账（6）
+### 订阅 / 抽奖 / 积分 / 台账（7）
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
 | `probe-campaign-draft-rls.py` | — | （无头部说明） |
+| `probe-points-card-image.mjs` | — | 方块积分卡「自定义卡面」裂图探针（7 断言，真 CDN 端到端，非 mock）：DB 的 `points_card_image_url` 存 Cloudinary 直链（大陆实测 http 000），渲染必须经 `resolveDbPointsCardImage` 改写。覆盖概览/装扮两个宿主的 PointsCard；预设缩略图需真实会话（无则 SKIP） |
 | `probe-campaign-ui.mjs` | — | 活动页面探针 v3（2026-09-17 活动页重构：顶部报名卡 + 按月份分组横向轨道） |
 | `probe-dm-lottery-entries-jump.mjs` | — | 探针：数据管理面板「名单」按钮 → 抽奖报名记录跳转 + 翻页 |
 | `probe-ledger-shop-checkin.mjs` | — | 探针：2026090905 商城/签到流水改造的远程契约验证（anon 视角） |
@@ -181,6 +195,7 @@
 | `probe-core-pages-errors.mjs` | — | 核心路径运行时错误扫描：逐页访问并收集 pageerror / console.error， |
 | `probe-final-check.mjs` | — | 1. 页面顶部：侧栏不应遮 Hero（top 应等于其自然位置） |
 | `probe-first-paint-real.mjs` | — | 首屏测量受 Service Worker 安装态影响很大（第一次裸跑、第二次已被 SW 接管， |
+| `probe-perf-baseline.mjs` | — | 加载性能基线（2026-09-29，源自 docs/2026-09-29-加载速度与提速全面评测报告.md 附录 A）：线上冷首访 CWV + 资源账本 + 入口闭包 BFS + 游客态 DB RTT/头像字节。只读打线上，**不进 verify/build:ci 主链**；改图片管线 / 预缓存 / 请求收敛后重跑对比，`--json` 落盘前后对照 |
 | `probe-four-issues.mjs` | — | 探针：四个问题修复后的验收（每个断言都对应本次修复的一条不变式） |
 | `probe-release-p0-fixes.mjs` | — | probe-release-p0-fixes.mjs 验证 release 报告批次 0 的两处修复，逐条对应报告里的「验收」条款： |
 | `probe-top.mjs` | — | （无头部说明） |

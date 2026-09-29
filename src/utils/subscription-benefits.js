@@ -35,6 +35,51 @@ export const PLAN_AI_TOKENS = {
   ultra: '1000 万',
 };
 
+/* AI 积分消费倍率（超出额度后按量计费的折扣）。展示口径：
+   真实值以 ai_quota_config.points_multiplier 为准（数据管理面板「AI 额度与计费」可调），
+   改动需与面板当前值核对；口径同 PLAN_LOTTERY_PITY_THRESHOLDS（展示单源 vs DB 真值）。 */
+export const PLAN_AI_POINT_MULTIPLIERS = {
+  free: 1,
+  plus: 0.95,
+  pro: 0.9,
+  max: 0.85,
+  ultra: 0.8,
+};
+
+/* Coding 附加包（Token Plan 包）展示口径：加成与 ai-key-vault CODING_PLAN_BONUSES 对齐，
+   积分价格以 subscription_plan_prices 服务端取价为准（面板可改），此处仅展示。
+   free 档没有每日额度，包的每日加成即其全部「日额度」。 */
+export const CODING_PACKS = [
+  {
+    code: 'coding-lite',
+    name: 'Coding Lite',
+    tokenBonus: '+50 万 Token / 天',
+    webSearchBonus: '+10 次 / 天',
+    monthlyPrice: 10,
+  },
+  {
+    code: 'coding-plus',
+    name: 'Coding Plus',
+    tokenBonus: '+150 万 Token / 天',
+    webSearchBonus: '+30 次 / 天',
+    monthlyPrice: 34,
+  },
+  {
+    code: 'coding-pro',
+    name: 'Coding Pro',
+    tokenBonus: '+300 万 Token / 天',
+    webSearchBonus: '+60 次 / 天',
+    monthlyPrice: 68,
+  },
+  {
+    code: 'coding-ultra',
+    name: 'Coding Ultra',
+    tokenBonus: '+600 万 Token / 天',
+    webSearchBonus: '+120 次 / 天',
+    monthlyPrice: 135,
+  },
+];
+
 export const PLAN_LAB_QUOTAS = {
   free: '10 次 / 月',
   plus: '15 次 / 月',

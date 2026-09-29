@@ -719,9 +719,18 @@
                       <span class="mode-option-meta">
                         <span
                           class="mode-option-multiplier"
-                          :title="`该模式消耗倍率为 ${formatQuotaMultiplier(mode.quotaMultiplier)}x`"
+                          :class="{ 'is-free': isFreeMode(mode) }"
+                          :title="
+                            isFreeMode(mode)
+                              ? '该模式为免费模型，不消耗额度与积分'
+                              : `该模式消耗倍率为 ${formatQuotaMultiplier(mode.quotaMultiplier)}x`
+                          "
                         >
-                          {{ formatQuotaMultiplier(mode.quotaMultiplier) }}x
+                          {{
+                            isFreeMode(mode)
+                              ? '免费'
+                              : `${formatQuotaMultiplier(mode.quotaMultiplier)}x`
+                          }}
                         </span>
                         <Check
                           v-if="currentModeId === mode.id"
@@ -2091,6 +2100,9 @@ const formatQuotaMultiplier = (value) => {
   if (!Number.isFinite(num) || num <= 0) return '1';
   return String(parseFloat(num.toFixed(2)));
 };
+
+// 免费模型（quota_multiplier = 0）：不扣额度不扣积分，菜单里挂「免费」角标
+const isFreeMode = (mode) => Number(mode?.quotaMultiplier) === 0;
 
 const formatActionAudit = (audit) => {
   if (!audit) return '';

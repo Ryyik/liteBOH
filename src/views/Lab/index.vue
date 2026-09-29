@@ -2062,17 +2062,27 @@ async function sendGeneralChat(content, signal) {
     }
     // 处理配额超限错误（429）和其他 API 错误
     const isQuotaError = e.status === 429 && e.quota;
+    const isPointsShortage = e.code === 'INSUFFICIENT_POINTS';
+    const isBurnCap = e.code === 'POINTS_BURN_CAP';
     messages.value.splice(msgIdx, 1);
     messages.value.push({
       id: genId(),
       role: 'assistant',
-      content: isQuotaError
-        ? '今日 BOH AI Token 额度已用完，明天 0:00 重置。'
-        : `抱歉，出错了：${e.message}`,
+      content: isPointsShortage
+        ? '积分不足：AI 对话将消耗积分，请先签到或领取积分后再试。'
+        : isBurnCap
+          ? '今日 AI 积分消耗已达上限，明天 0:00 重置。'
+          : isQuotaError
+            ? '今日 BOH AI Token 额度已用完，明天 0:00 重置。'
+            : `抱歉，出错了：${e.message}`,
       time: nowTime(),
     });
-    if (isQuotaError) {
-      failGenTask('次数已达上限', getUpgradeHint(), 'warning');
+    if (isQuotaError || isPointsShortage || isBurnCap) {
+      failGenTask(
+        isPointsShortage || isBurnCap ? '积分不足' : '次数已达上限',
+        getUpgradeHint(),
+        'warning',
+      );
     } else {
       failGenTask('生成失败', e.message);
     }

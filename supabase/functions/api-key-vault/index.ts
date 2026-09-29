@@ -28,7 +28,15 @@ const DEBUG = Deno.env.get('VAULT_DEBUG') === 'true';
 
 const TEXT_ENCODER = new TextEncoder();
 const TEXT_DECODER = new TextDecoder();
-const PROVIDER_OPTIONS = new Set(['siliconflow', 'zhipu', 'openrouter', 'tavily', 'cloudinary', 'turnstile', 'custom']);
+const PROVIDER_OPTIONS = new Set([
+  'siliconflow',
+  'zhipu',
+  'openrouter',
+  'tavily',
+  'cloudinary',
+  'turnstile',
+  'custom',
+]);
 const STATUS_OPTIONS = new Set(['active', 'disabled']);
 
 const sanitizeMessage = (msg: string, maxLen = 240) => {
@@ -119,7 +127,11 @@ const getCryptoKey = async () => {
 const encryptSecret = async (value: string) => {
   const key = await getCryptoKey();
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, TEXT_ENCODER.encode(value));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    TEXT_ENCODER.encode(value),
+  );
   return `${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(encrypted))}`;
 };
 
@@ -179,7 +191,12 @@ const requireAdmin = async (request: Request, client: ReturnType<typeof createSe
   const { data: authData, error: authError } = await client.auth.getUser(token);
   const userId = String(authData?.user?.id || '').trim();
   if (authError || !userId) {
-    return { ok: false as const, status: 401, code: 'INVALID_SESSION', message: '登录状态已失效。' };
+    return {
+      ok: false as const,
+      status: 401,
+      code: 'INVALID_SESSION',
+      message: '登录状态已失效。',
+    };
   }
 
   const { data: profile, error: profileError } = await client
@@ -189,7 +206,12 @@ const requireAdmin = async (request: Request, client: ReturnType<typeof createSe
     .maybeSingle();
 
   if (profileError || String(profile?.role || '').trim() !== 'admin') {
-    return { ok: false as const, status: 403, code: 'FORBIDDEN', message: '仅管理员可管理 API Key。' };
+    return {
+      ok: false as const,
+      status: 403,
+      code: 'FORBIDDEN',
+      message: '仅管理员可管理 API Key。',
+    };
   }
 
   return { ok: true as const, userId };
@@ -205,7 +227,12 @@ const requireUser = async (request: Request, client: ReturnType<typeof createSer
   const { data: authData, error: authError } = await client.auth.getUser(token);
   const userId = String(authData?.user?.id || '').trim();
   if (authError || !userId) {
-    return { ok: false as const, status: 401, code: 'INVALID_SESSION', message: '登录状态已失效。' };
+    return {
+      ok: false as const,
+      status: 401,
+      code: 'INVALID_SESSION',
+      message: '登录状态已失效。',
+    };
   }
 
   return { ok: true as const, userId };
@@ -222,7 +249,10 @@ const getClientIp = (request: Request) => {
   if (realIp) return realIp;
   const xff = request.headers.get('x-forwarded-for');
   if (xff) {
-    const parts = xff.split(',').map((s) => s.trim()).filter(Boolean);
+    const parts = xff
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (parts.length) return parts[parts.length - 1];
   }
   return 'unknown';
@@ -265,7 +295,7 @@ const buildKeyInfo = (row: VaultRow) => ({
   label: row.label || `${row.provider} ${row.purpose}`,
   maskedValue: row.masked_value || '',
   source: row.source || (row.id ? 'vault' : 'server_secret_fallback'),
-  readonly: Boolean(row.readonly)
+  readonly: Boolean(row.readonly),
 });
 
 const writeAuditLog = async (
@@ -275,17 +305,20 @@ const writeAuditLog = async (
   row: Partial<VaultRow> = {},
   metadata: Record<string, unknown> = {},
 ) => {
-  await client.from('api_key_vault_audit_logs').insert([{
-    vault_id: row.id || null,
-    actor_id: actorId,
-    action,
-    provider: row.provider || '',
-    purpose: row.purpose || '',
-    metadata,
-  }]);
+  await client.from('api_key_vault_audit_logs').insert([
+    {
+      vault_id: row.id || null,
+      actor_id: actorId,
+      action,
+      provider: row.provider || '',
+      purpose: row.purpose || '',
+      metadata,
+    },
+  ]);
 };
 
-const selectColumns = 'id, provider, purpose, label, encrypted_value, masked_value, status, metadata, last_test_status, last_test_message, last_tested_at, updated_at, created_at';
+const selectColumns =
+  'id, provider, purpose, label, encrypted_value, masked_value, status, metadata, last_test_status, last_test_message, last_tested_at, updated_at, created_at';
 
 const listKeys = async (client: ReturnType<typeof createServiceClient>) => {
   const { data, error } = await client
@@ -300,7 +333,9 @@ const listKeys = async (client: ReturnType<typeof createServiceClient>) => {
   const now = new Date().toISOString();
   const fallbackRows: VaultRow[] = [];
   const siliconFallback = String(Deno.env.get('SILICON_CLOUD_API_KEY') || '').trim();
-  const zhipuFallback = String(Deno.env.get('ZHIPU_API_KEY') || Deno.env.get('BIGMODEL_API_KEY') || '').trim();
+  const zhipuFallback = String(
+    Deno.env.get('ZHIPU_API_KEY') || Deno.env.get('BIGMODEL_API_KEY') || '',
+  ).trim();
   const openrouterFallback = String(Deno.env.get('OPENROUTER_API_KEY') || '').trim();
   const moderationFallback = String(Deno.env.get('MODERATION_API_KEY') || '').trim();
   const tavilyFallback = String(Deno.env.get('TAVILY_API_KEY') || '').trim();
@@ -401,10 +436,7 @@ const listKeys = async (client: ReturnType<typeof createServiceClient>) => {
     });
   }
 
-  return [
-    ...rows,
-    ...fallbackRows.map((row) => sanitizeRow(row)),
-  ];
+  return [...rows, ...fallbackRows.map((row) => sanitizeRow(row))];
 };
 
 const upsertKey = async (
@@ -420,7 +452,8 @@ const upsertKey = async (
   const metadata = toMetadata(body.metadata);
 
   if (!PROVIDER_OPTIONS.has(provider)) throw new Error('Provider 无效。');
-  if (!purpose || !/^[a-z0-9_-]{2,60}$/.test(purpose)) throw new Error('Purpose 只能包含小写字母、数字、下划线和短横线。');
+  if (!purpose || !/^[a-z0-9_-]{2,60}$/.test(purpose))
+    throw new Error('Purpose 只能包含小写字母、数字、下划线和短横线。');
   if (!value || value.length < 6) throw new Error('请输入有效的 API Key。');
   if (!STATUS_OPTIONS.has(status)) throw new Error('状态无效。');
 
@@ -444,7 +477,10 @@ const upsertKey = async (
     .maybeSingle();
 
   if (error) throw error;
-  await writeAuditLog(client, actorId, 'upsert', data as VaultRow, { label: payload.label, status });
+  await writeAuditLog(client, actorId, 'upsert', data as VaultRow, {
+    label: payload.label,
+    status,
+  });
   return sanitizeRow(data as VaultRow);
 };
 
@@ -497,7 +533,10 @@ const deleteKey = async (
   return { id };
 };
 
-const resolveRow = async (client: ReturnType<typeof createServiceClient>, body: Record<string, unknown>) => {
+const resolveRow = async (
+  client: ReturnType<typeof createServiceClient>,
+  body: Record<string, unknown>,
+) => {
   const id = toText(body.id, 80);
   let query = client.from('api_key_vault').select(selectColumns).limit(1);
 
@@ -517,7 +556,10 @@ const resolveRow = async (client: ReturnType<typeof createServiceClient>, body: 
 
 const testSiliconFlow = async (apiKey: string, metadata: Record<string, unknown>) => {
   // 安全修复 C-3：校验 apiUrl 防止 SSRF（admin 配置的 metadata.apiUrl 仍需校验）
-  const apiUrl = validateRuntimeApiUrl(toText(metadata.apiUrl, 240), 'https://api.siliconflow.cn/v1/chat/completions');
+  const apiUrl = validateRuntimeApiUrl(
+    toText(metadata.apiUrl, 240),
+    'https://api.siliconflow.cn/v1/chat/completions',
+  );
   const model = toText(metadata.model, 120) || 'Qwen/Qwen2.5-7B-Instruct';
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -536,14 +578,19 @@ const testSiliconFlow = async (apiKey: string, metadata: Record<string, unknown>
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(String(payload?.error?.message || payload?.message || `HTTP ${response.status}`));
+    throw new Error(
+      String(payload?.error?.message || payload?.message || `HTTP ${response.status}`),
+    );
   }
   return 'SiliconFlow 连接正常。';
 };
 
 const testZhipu = async (apiKey: string, metadata: Record<string, unknown>) => {
   // 安全修复 C-3：校验 apiUrl 防止 SSRF
-  const apiUrl = validateRuntimeApiUrl(toText(metadata.apiUrl, 240), 'https://open.bigmodel.cn/api/paas/v4/chat/completions');
+  const apiUrl = validateRuntimeApiUrl(
+    toText(metadata.apiUrl, 240),
+    'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+  );
   const model = toText(metadata.model, 120) || 'glm-4.7-flash';
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -562,13 +609,18 @@ const testZhipu = async (apiKey: string, metadata: Record<string, unknown>) => {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(String(payload?.error?.message || payload?.message || `HTTP ${response.status}`));
+    throw new Error(
+      String(payload?.error?.message || payload?.message || `HTTP ${response.status}`),
+    );
   }
   return '智谱 AI 连接正常。';
 };
 
 const testOpenRouter = async (apiKey: string, metadata: Record<string, unknown>) => {
-  const apiUrl = validateRuntimeApiUrl(toText(metadata.apiUrl, 240), 'https://openrouter.ai/api/v1/chat/completions');
+  const apiUrl = validateRuntimeApiUrl(
+    toText(metadata.apiUrl, 240),
+    'https://openrouter.ai/api/v1/chat/completions',
+  );
   const model = toText(metadata.model, 120) || 'openai/gpt-4o-mini';
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -587,7 +639,9 @@ const testOpenRouter = async (apiKey: string, metadata: Record<string, unknown>)
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(String(payload?.error?.message || payload?.message || `HTTP ${response.status}`));
+    throw new Error(
+      String(payload?.error?.message || payload?.message || `HTTP ${response.status}`),
+    );
   }
   return 'OpenRouter 连接正常。';
 };
@@ -658,7 +712,14 @@ type DiscoveredModel = {
 
 type DiscoveryResult = {
   ok: boolean;
-  status: 'success' | 'fetch_failed' | 'parse_failed' | 'not_configured' | 'invalid_key' | 'unsupported_provider' | 'disabled_key';
+  status:
+    | 'success'
+    | 'fetch_failed'
+    | 'parse_failed'
+    | 'not_configured'
+    | 'invalid_key'
+    | 'unsupported_provider'
+    | 'disabled_key';
   message: string;
   upstreamStatus?: number;
   upstreamBodyPreview?: string;
@@ -675,7 +736,17 @@ const discoverProviderModels = async (
   provider: string,
   metadata: Record<string, unknown>,
   overrideModelsUrl?: string,
-): Promise<{ ok: true; models: DiscoveredModel[]; modelsUrl: string } | { ok: false; status: DiscoveryResult['status']; message: string; upstreamStatus?: number; upstreamBodyPreview?: string; modelsUrl: string }> => {
+): Promise<
+  | { ok: true; models: DiscoveredModel[]; modelsUrl: string }
+  | {
+      ok: false;
+      status: DiscoveryResult['status'];
+      message: string;
+      upstreamStatus?: number;
+      upstreamBodyPreview?: string;
+      modelsUrl: string;
+    }
+> => {
   // 优先使用前端传入的 overrideModelsUrl（仍做 SSRF 校验），否则走自动推导
   let modelsUrl = '';
   if (overrideModelsUrl) {
@@ -725,8 +796,11 @@ const discoverProviderModels = async (
     try {
       const payload = JSON.parse(rawText);
       upstreamMessage = String(payload?.error?.message || payload?.message || payload?.error || '');
-    } catch { /* 非 JSON 响应，直接走 HTTP 状态码 */ }
-    const status: DiscoveryResult['status'] = response.status === 401 || response.status === 403 ? 'invalid_key' : 'fetch_failed';
+    } catch {
+      /* 非 JSON 响应，直接走 HTTP 状态码 */
+    }
+    const status: DiscoveryResult['status'] =
+      response.status === 401 || response.status === 403 ? 'invalid_key' : 'fetch_failed';
     return {
       ok: false,
       status,
@@ -754,7 +828,11 @@ const discoverProviderModels = async (
   }
   // OpenAI 兼容格式：{ data: [{ id, object, owned_by }, ...] }
   // 部分中转站可能直接返回数组：[{ id, ... }]
-  const rawList = Array.isArray(payload) ? payload : Array.isArray((payload as { data?: unknown })?.data) ? (payload as { data: unknown[] }).data : [];
+  const rawList = Array.isArray(payload)
+    ? payload
+    : Array.isArray((payload as { data?: unknown })?.data)
+      ? (payload as { data: unknown[] }).data
+      : [];
   const models: DiscoveredModel[] = [];
   for (const item of rawList) {
     if (!item || typeof item !== 'object') continue;
@@ -762,8 +840,17 @@ const discoverProviderModels = async (
     if (!id) continue;
     models.push({
       id,
-      name: toText((item as { name?: unknown; id?: unknown }).name || (item as { id?: unknown }).id, 200) || undefined,
-      owned_by: toText((item as { owned_by?: unknown; owner?: unknown }).owned_by || (item as { owner?: unknown }).owner, 120) || undefined,
+      name:
+        toText(
+          (item as { name?: unknown; id?: unknown }).name || (item as { id?: unknown }).id,
+          200,
+        ) || undefined,
+      owned_by:
+        toText(
+          (item as { owned_by?: unknown; owner?: unknown }).owned_by ||
+            (item as { owner?: unknown }).owner,
+          120,
+        ) || undefined,
     });
   }
   // 去重（按 id）
@@ -782,11 +869,13 @@ const discoverModels = async (
   body: Record<string, unknown>,
 ): Promise<DiscoveryResult> => {
   const row = String(body.id || '').startsWith('fallback:')
-    ? (await resolveActiveSecret(
-      client,
-      toText(body.provider, 40).toLowerCase(),
-      toText(body.purpose, 60).toLowerCase(),
-    )).row
+    ? (
+        await resolveActiveSecret(
+          client,
+          toText(body.provider, 40).toLowerCase(),
+          toText(body.purpose, 60).toLowerCase(),
+        )
+      ).row
     : await resolveRow(client, body);
 
   const apiBaseUrl = toText(row.metadata?.apiUrl, 240) || DEFAULT_MODELS_URL[row.provider] || '';
@@ -866,7 +955,13 @@ const resolveActiveSecret = async (
   provider: string,
   purpose: string,
 ) => {
-  if (DEBUG) console.log('[vault] resolveActiveSecret called, provider:', provider?.slice(0, 2) + '***', 'purpose:', purpose?.slice(0, 2) + '***');
+  if (DEBUG)
+    console.log(
+      '[vault] resolveActiveSecret called, provider:',
+      provider?.slice(0, 2) + '***',
+      'purpose:',
+      purpose?.slice(0, 2) + '***',
+    );
   const attemptResolve = async (p: string) => {
     const row = await resolveRow(client, { provider, purpose: p });
     if (row.status !== 'active') throw new Error(`${provider}/${p} API Key 已停用。`);
@@ -893,14 +988,16 @@ const resolveActiveSecret = async (
     if (provider === 'tavily') {
       fallbackKey = String(Deno.env.get('TAVILY_API_KEY') || '').trim();
     } else if (provider === 'zhipu') {
-      fallbackKey = String(Deno.env.get('ZHIPU_API_KEY') || Deno.env.get('BIGMODEL_API_KEY') || '').trim();
+      fallbackKey = String(
+        Deno.env.get('ZHIPU_API_KEY') || Deno.env.get('BIGMODEL_API_KEY') || '',
+      ).trim();
     } else if (provider === 'openrouter') {
       fallbackKey = String(Deno.env.get('OPENROUTER_API_KEY') || '').trim();
     } else {
       fallbackKey = String(
-        (purpose === 'moderation' ? Deno.env.get('MODERATION_API_KEY') : '')
-          || Deno.env.get('SILICON_CLOUD_API_KEY')
-          || '',
+        (purpose === 'moderation' ? Deno.env.get('MODERATION_API_KEY') : '') ||
+          Deno.env.get('SILICON_CLOUD_API_KEY') ||
+          '',
       ).trim();
     }
     if (DEBUG) console.log('[vault] fallback key found:', fallbackKey ? 'yes' : 'no');
@@ -967,7 +1064,9 @@ const runtimeChatCompletion = async (
     return {
       ok: false,
       status: response.status,
-      message: String(data?.error?.message || data?.message || `${provider} 请求失败：${response.status}`),
+      message: String(
+        data?.error?.message || data?.message || `${provider} 请求失败：${response.status}`,
+      ),
       data,
       keyInfo: buildKeyInfo(row),
     };
@@ -989,7 +1088,7 @@ const runtimeChatCompletionStream = async (
   const streamHeaders = {
     ...buildCorsHeaders(origin),
     'Content-Type': 'text/event-stream; charset=utf-8',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   };
 
@@ -1004,12 +1103,14 @@ const runtimeChatCompletionStream = async (
   const apiUrl = validateRuntimeApiUrl(policy.apiUrl, defaultApiUrl);
   const payload = {
     ...buildRuntimePayload(body, policy, true),
-    ...(provider === 'zhipu' ? {} : {
-      stream_options: {
-        ...toMetadata(toMetadata(body.payload).stream_options),
-        include_usage: true,
-      },
-    }),
+    ...(provider === 'zhipu'
+      ? {}
+      : {
+          stream_options: {
+            ...toMetadata(toMetadata(body.payload).stream_options),
+            include_usage: true,
+          },
+        }),
   };
 
   const response = await fetch(apiUrl, {
@@ -1054,7 +1155,7 @@ const runtimeChatCompletionStream = async (
   const inspectUsageLines = (chunkText: string, flush = false) => {
     usageBuffer += chunkText;
     const lines = usageBuffer.split(/\r?\n/);
-    usageBuffer = flush ? '' : (lines.pop() || '');
+    usageBuffer = flush ? '' : lines.pop() || '';
     for (const line of lines) {
       if (!line.startsWith('data:')) continue;
       const payloadText = line.slice(5).trim();
@@ -1107,17 +1208,25 @@ const runtimeChatCompletionStream = async (
           });
           controller.error(err);
         } finally {
-          try { reader.releaseLock(); } catch (_e) { /* ignore */ }
+          try {
+            reader.releaseLock();
+          } catch (_e) {
+            /* ignore */
+          }
         }
       };
       pump();
     },
     async cancel(reason) {
-      try { await response.body?.cancel?.(reason); } catch (_e) { /* ignore */ }
+      try {
+        await response.body?.cancel?.(reason);
+      } catch (_e) {
+        /* ignore */
+      }
       await settleUsage('cancelled').catch((error) => {
         console.error('[vault] cancelled token settlement failed:', error);
       });
-    }
+    },
   });
 
   return new Response(proxiedStream, {
@@ -1226,11 +1335,13 @@ const testKey = async (
   body: Record<string, unknown>,
 ) => {
   const row = String(body.id || '').startsWith('fallback:')
-    ? (await resolveActiveSecret(
-      client,
-      toText(body.provider, 40).toLowerCase(),
-      toText(body.purpose, 60).toLowerCase(),
-    )).row
+    ? (
+        await resolveActiveSecret(
+          client,
+          toText(body.provider, 40).toLowerCase(),
+          toText(body.purpose, 60).toLowerCase(),
+        )
+      ).row
     : await resolveRow(client, body);
   const now = new Date().toISOString();
   let status = 'success';
@@ -1281,7 +1392,10 @@ const testKey = async (
     .maybeSingle();
 
   if (error) throw error;
-  await writeAuditLog(client, actorId, 'test', data as VaultRow, { status, message: message.slice(0, 120) });
+  await writeAuditLog(client, actorId, 'test', data as VaultRow, {
+    status,
+    message: message.slice(0, 120),
+  });
   return sanitizeRow(data as VaultRow);
 };
 
@@ -1290,8 +1404,19 @@ const testKey = async (
 // ============================================================
 
 const QUOTA_CACHE_TTL_MS = 60_000;
-type QuotaPolicy = { tokenLimit: number; webSearchLimit: number };
+type QuotaPolicy = { tokenLimit: number; webSearchLimit: number; pointsMultiplier: number };
 const QUOTA_CONFIG_CACHE = new Map<string, { policy: QuotaPolicy; fetchedAt: number }>();
+
+// AI 积分计费全局开关与汇率（ai_pricing_config 单行，管理面板可改）。
+// 读取失败按「未启用」处理（fail-closed：行为退回纯日额度，不扣积分）。
+const PRICING_CACHE_TTL_MS = 60_000;
+type PricingConfig = { enabled: boolean; rateTokensPerPoint: number; dailyBurnCap: number };
+let PRICING_CONFIG_CACHE: { value: PricingConfig; fetchedAt: number } | null = null;
+const PRICING_CONFIG_DEFAULT: PricingConfig = {
+  enabled: false,
+  rateTokensPerPoint: 1_000_000,
+  dailyBurnCap: 20,
+};
 
 // 5 分钟内存缓存：减少 runtime-chat 热路径上的 DB 往返。
 // - USER_TIER_CACHE: user_subscriptions 行级数据，按 user_id 索引
@@ -1326,6 +1451,10 @@ type TokenQuota = {
   userId: string | null;
   ipAddress: string | null;
   reservationId?: string;
+  // 积分兜底路径：本请求超出免费额度、改由积分计费
+  billedViaPoints?: boolean;
+  pointsReserved?: number;
+  pointsError?: string;
 };
 
 type RuntimeModelPolicy = {
@@ -1375,7 +1504,9 @@ const SUBSCRIPTION_PLAN_ALIASES: Record<string, string> = {
 };
 
 const normalizeSubscriptionPlanCode = (planCode: unknown): string => {
-  const normalized = String(planCode || '').trim().toLowerCase();
+  const normalized = String(planCode || '')
+    .trim()
+    .toLowerCase();
   return SUBSCRIPTION_PLAN_ALIASES[normalized] || normalized;
 };
 
@@ -1409,17 +1540,10 @@ const getCodingPlanRank = (plans: Set<string>): number => {
   return rank;
 };
 
-const TIER_MAX_OUTPUT_TOKENS: Record<string, number> = {
-  free: 1200,
-  plus: 1800,
-  pro: 2400,
-  max: 4096,
-  ultra: 4096,
-};
-
 // Model mode IDs are billing classes, independent from the user's subscription tier.
 // Keep these integer multipliers aligned with get_ai_mode_token_multiplier() in the
 // database migration so reservations and final settlements charge the same amount.
+// 0 = 免费模型：usage 照常记账但 billed_tokens 为 0。
 const MODE_TOKEN_MULTIPLIERS: Record<string, number> = {
   pro: 2,
   max: 3,
@@ -1427,18 +1551,18 @@ const MODE_TOKEN_MULTIPLIERS: Record<string, number> = {
 };
 
 const normalizeModeId = (mode: unknown): string => toText(mode, 80).toLowerCase();
-const getModeTokenMultiplier = (mode: unknown): number => (
-  MODE_TOKEN_MULTIPLIERS[normalizeModeId(mode)] || 1
-);
+const getModeTokenMultiplier = (mode: unknown): number =>
+  MODE_TOKEN_MULTIPLIERS[normalizeModeId(mode)] || 1;
 const normalizeQuotaMultiplier = (value: unknown, mode: unknown): number => {
   const parsed = Number(value);
-  if (Number.isFinite(parsed) && parsed >= 0.1 && parsed <= 100) return parsed;
+  if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) return parsed;
   return getModeTokenMultiplier(mode);
 };
-const getBilledTokenCountForMultiplier = (tokens: number, multiplier: unknown): number => Math.min(
-  2_147_483_647,
-  Math.max(0, Math.ceil(Number(tokens || 0) * normalizeQuotaMultiplier(multiplier, ''))),
-);
+const getBilledTokenCountForMultiplier = (tokens: number, multiplier: unknown): number =>
+  Math.min(
+    2_147_483_647,
+    Math.max(0, Math.ceil(Number(tokens || 0) * normalizeQuotaMultiplier(multiplier, ''))),
+  );
 
 function getBeijingTodayStartUTC(): string {
   const now = new Date();
@@ -1510,9 +1634,8 @@ async function resolveUserTier(
 
 const normalizeTier = (tier: string) => (TIER_RANK[tier] === undefined ? 'free' : tier);
 
-const tierAllows = (tier: string, requiredTier: string) => (
-  (TIER_RANK[normalizeTier(tier)] || 0) >= (TIER_RANK[normalizeTier(requiredTier)] || 0)
-);
+const tierAllows = (tier: string, requiredTier: string) =>
+  (TIER_RANK[normalizeTier(tier)] || 0) >= (TIER_RANK[normalizeTier(requiredTier)] || 0);
 
 const runtimeAccessError = (message: string, status = 403, code = 'RUNTIME_ACCESS_DENIED') => {
   const error = new Error(message) as Error & { status?: number; code?: string };
@@ -1541,7 +1664,9 @@ async function resolveRuntimeModelPolicy(
   } else {
     const { data: dbData, error } = await client
       .from('bohai_model_configs')
-      .select('mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier')
+      .select(
+        'mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier',
+      )
       .ilike('mode_id', mode)
       .eq('status', 'active')
       .maybeSingle();
@@ -1558,7 +1683,9 @@ async function resolveRuntimeModelPolicy(
   const codingRank = CODING_PLAN_RANK[minTier];
   if (codingRank !== undefined) {
     if (getCodingPlanRank(await resolveUserPlans(client, userId)) < codingRank) {
-      throw runtimeAccessError('当前订阅暂不支持此 Coding 模式，请订阅对应的 Coding 附加包后重试。');
+      throw runtimeAccessError(
+        '当前订阅暂不支持此 Coding 模式，请订阅对应的 Coding 附加包后重试。',
+      );
     }
   } else {
     const requiredTier = normalizeTier(minTier);
@@ -1576,10 +1703,7 @@ async function resolveRuntimeModelPolicy(
     provider,
     modelId: toText(data.model_id, 120),
     apiUrl: toText(data.api_url, 240),
-    maxTokens: Math.min(
-      clampInt(data.max_tokens, 1200, 1, 4096),
-      TIER_MAX_OUTPUT_TOKENS[normalizeTier(tier)] || TIER_MAX_OUTPUT_TOKENS.free,
-    ),
+    maxTokens: clampInt(data.max_tokens, 1200, 1, 4096),
     temperature: Number(data.temperature ?? 0.2),
     topP: Number(data.top_p ?? 0.75),
     frequencyPenalty: Number(data.frequency_penalty ?? 0.06),
@@ -1587,7 +1711,11 @@ async function resolveRuntimeModelPolicy(
   };
 }
 
-const buildRuntimePayload = (body: Record<string, unknown>, policy: RuntimeModelPolicy, stream: boolean) => {
+const buildRuntimePayload = (
+  body: Record<string, unknown>,
+  policy: RuntimeModelPolicy,
+  stream: boolean,
+) => {
   const rawPayload = toMetadata(body.payload);
   return {
     ...rawPayload,
@@ -1610,11 +1738,18 @@ async function getQuotaPolicy(
   }
   const { data, error } = await client
     .from('ai_quota_config')
-    .select('daily_token_limit, web_search_daily_limit')
+    .select('daily_token_limit, web_search_daily_limit, points_multiplier')
     .eq('tier', tier)
     .maybeSingle();
   let tokenLimit = Number(data?.daily_token_limit ?? 0);
-  let webSearchLimit = Number(data?.web_search_daily_limit ?? WEB_SEARCH_DAILY_LIMIT_FALLBACKS[tier] ?? 0);
+  let webSearchLimit = Number(
+    data?.web_search_daily_limit ?? WEB_SEARCH_DAILY_LIMIT_FALLBACKS[tier] ?? 0,
+  );
+  const pointsMultiplierRaw = Number(data?.points_multiplier ?? 1);
+  let pointsMultiplier =
+    Number.isFinite(pointsMultiplierRaw) && pointsMultiplierRaw >= 0.1 && pointsMultiplierRaw <= 2
+      ? pointsMultiplierRaw
+      : 1;
   if (error) {
     // Deployment-order fallback while the migration and function roll out.
     const legacy = await client
@@ -1625,10 +1760,44 @@ async function getQuotaPolicy(
     const legacyLimit = Number(legacy.data?.daily_limit ?? 0);
     tokenLimit = legacyLimit === -1 ? -1 : Math.max(0, legacyLimit * 10000);
     webSearchLimit = WEB_SEARCH_DAILY_LIMIT_FALLBACKS[tier] ?? 0;
+    pointsMultiplier = 1;
   }
-  const policy = { tokenLimit, webSearchLimit };
+  const policy = { tokenLimit, webSearchLimit, pointsMultiplier };
   QUOTA_CONFIG_CACHE.set(tier, { policy, fetchedAt: Date.now() });
   return policy;
+}
+
+async function getPricingConfig(
+  client: ReturnType<typeof createServiceClient>,
+): Promise<PricingConfig> {
+  if (PRICING_CONFIG_CACHE && Date.now() - PRICING_CONFIG_CACHE.fetchedAt < PRICING_CACHE_TTL_MS) {
+    return PRICING_CONFIG_CACHE.value;
+  }
+  let value = PRICING_CONFIG_DEFAULT;
+  try {
+    const { data, error } = await client
+      .from('ai_pricing_config')
+      .select('enabled, rate_tokens_per_point, daily_points_burn_cap')
+      .eq('id', 1)
+      .maybeSingle();
+    if (!error && data) {
+      const rate = Number(data.rate_tokens_per_point);
+      const cap = Number(data.daily_points_burn_cap);
+      value = {
+        enabled: Boolean(data.enabled),
+        rateTokensPerPoint:
+          Number.isFinite(rate) && rate >= 10000 ? rate : PRICING_CONFIG_DEFAULT.rateTokensPerPoint,
+        dailyBurnCap:
+          Number.isFinite(cap) && (cap >= 1 || cap === -1)
+            ? cap
+            : PRICING_CONFIG_DEFAULT.dailyBurnCap,
+      };
+    }
+  } catch (_error) {
+    value = PRICING_CONFIG_DEFAULT;
+  }
+  PRICING_CONFIG_CACHE = { value, fetchedAt: Date.now() };
+  return value;
 }
 
 async function countTodayWebSearchUsage(
@@ -1661,15 +1830,13 @@ async function countTodayTokenUsage(
 
   // Migration-order fallback. Old rows have no token value and therefore do
   // not consume the new allowance during the transition day.
-  let query = client
-    .from('ai_quota_log')
-    .select('billed_tokens')
-    .gte('created_at', todayStart);
+  let query = client.from('ai_quota_log').select('billed_tokens').gte('created_at', todayStart);
   if (userId) query = query.eq('user_id', userId);
   else if (ipAddress) query = query.eq('ip_address', ipAddress);
   const fallback = await query;
   return (fallback.data || []).reduce(
-    (sum: number, row: Record<string, unknown>) => sum + Math.max(0, Number(row.billed_tokens || 0)),
+    (sum: number, row: Record<string, unknown>) =>
+      sum + Math.max(0, Number(row.billed_tokens || 0)),
     0,
   );
 }
@@ -1712,22 +1879,29 @@ const normalizeTokenUsage = (
   body: Record<string, unknown>,
   completionText = '',
 ): TokenUsage => {
-  const promptTokens = Math.max(0, clampInt(
-    rawUsage?.prompt_tokens ?? rawUsage?.input_tokens,
-    estimatePromptTokens(body),
+  const promptTokens = Math.max(
     0,
-    10_000_000,
-  ));
-  const completionTokens = Math.max(0, clampInt(
-    rawUsage?.completion_tokens ?? rawUsage?.output_tokens,
-    estimateTextTokens(completionText),
+    clampInt(
+      rawUsage?.prompt_tokens ?? rawUsage?.input_tokens,
+      estimatePromptTokens(body),
+      0,
+      10_000_000,
+    ),
+  );
+  const completionTokens = Math.max(
     0,
-    10_000_000,
-  ));
+    clampInt(
+      rawUsage?.completion_tokens ?? rawUsage?.output_tokens,
+      estimateTextTokens(completionText),
+      0,
+      10_000_000,
+    ),
+  );
   const suppliedTotal = Number(rawUsage?.total_tokens);
-  const totalTokens = Number.isFinite(suppliedTotal) && suppliedTotal >= 0
-    ? Math.trunc(suppliedTotal)
-    : promptTokens + completionTokens;
+  const totalTokens =
+    Number.isFinite(suppliedTotal) && suppliedTotal >= 0
+      ? Math.trunc(suppliedTotal)
+      : promptTokens + completionTokens;
   return {
     promptTokens,
     completionTokens,
@@ -1746,6 +1920,18 @@ async function logTokenUsage(
 ): Promise<void> {
   if (quota.reservationId) {
     const payload = (body.payload || {}) as Record<string, unknown>;
+    // 积分结算必须先于 settle_ai_token_quota：后者会把预约置为 settled，
+    // 而 settle_ai_points 只认 pending。积分结算只记实结值、不改 status。
+    if (quota.billedViaPoints) {
+      const { error: pointsError } = await client.rpc('settle_ai_points', {
+        p_reservation_id: quota.reservationId,
+        p_total_tokens: usage.totalTokens,
+        p_multiplier: quotaMultiplier,
+        p_model: String(payload.model || ''),
+        p_mode: String(body.mode || ''),
+      });
+      if (pointsError) throw pointsError;
+    }
     const { error } = await client.rpc('settle_ai_token_quota', {
       p_reservation_id: quota.reservationId,
       p_prompt_tokens: usage.promptTokens,
@@ -1759,18 +1945,20 @@ async function logTokenUsage(
     return;
   }
   const payload = (body.payload || {}) as Record<string, unknown>;
-  await client.from('ai_quota_log').insert([{
-    user_id: quota.userId,
-    ip_address: quota.ipAddress,
-    model: String(payload.model || ''),
-    mode: String(body.mode || ''),
-    prompt_tokens: usage.promptTokens,
-    completion_tokens: usage.completionTokens,
-    total_tokens: usage.totalTokens,
-    billed_tokens: getBilledTokenCountForMultiplier(usage.totalTokens, quotaMultiplier),
-    status: usage.estimated ? `${status}_estimated` : status,
-    created_at: new Date().toISOString(),
-  }]);
+  await client.from('ai_quota_log').insert([
+    {
+      user_id: quota.userId,
+      ip_address: quota.ipAddress,
+      model: String(payload.model || ''),
+      mode: String(body.mode || ''),
+      prompt_tokens: usage.promptTokens,
+      completion_tokens: usage.completionTokens,
+      total_tokens: usage.totalTokens,
+      billed_tokens: getBilledTokenCountForMultiplier(usage.totalTokens, quotaMultiplier),
+      status: usage.estimated ? `${status}_estimated` : status,
+      created_at: new Date().toISOString(),
+    },
+  ]);
 }
 
 async function releaseTokenReservation(
@@ -1806,12 +1994,64 @@ async function reserveTokenQuota(
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : null;
   if (!row?.allowed) {
-    return { ...quota, allowed: false, remainingTokens: Math.max(0, Number(row?.remaining_tokens || 0)) };
+    return {
+      ...quota,
+      allowed: false,
+      remainingTokens: Math.max(0, Number(row?.remaining_tokens || 0)),
+    };
   }
   return {
     ...quota,
     reservationId,
     remainingTokens: Math.max(0, Number(row.remaining_tokens || 0)),
+  };
+}
+
+async function reservePointsForQuota(
+  client: ReturnType<typeof createServiceClient>,
+  quota: TokenQuota,
+  body: Record<string, unknown>,
+  maxOutputTokens: number,
+  quotaMultiplier: number,
+  pointsMultiplier: number,
+  pricing: PricingConfig,
+): Promise<TokenQuota> {
+  // 积分兜底只对已登录的非游客生效；未启用时保持原 429 行为
+  if (!pricing.enabled || !quota.userId || quota.tier === 'guest') return quota;
+  const estimatedBilled = getBilledTokenCountForMultiplier(
+    Math.max(1, estimatePromptTokens(body) + Math.max(1, maxOutputTokens)),
+    quotaMultiplier,
+  );
+  if (estimatedBilled <= 0) {
+    // 免费模型（倍率 0）：不占额度不扣积分，直接放行
+    return { ...quota, allowed: true };
+  }
+  const reservationId = crypto.randomUUID();
+  const { data, error } = await client.rpc('reserve_ai_points', {
+    p_reservation_id: reservationId,
+    p_user_id: quota.userId,
+    p_ip_address: quota.ipAddress,
+    p_estimated_billed: estimatedBilled,
+    p_multiplier: pointsMultiplier,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row?.allowed) {
+    return {
+      ...quota,
+      allowed: false,
+      pointsError: String(row?.reason || 'POINTS_RESERVE_FAILED'),
+    };
+  }
+  if (Number(row.points_estimate) <= 0) {
+    return { ...quota, allowed: true };
+  }
+  return {
+    ...quota,
+    allowed: true,
+    reservationId,
+    billedViaPoints: true,
+    pointsReserved: Number(row.points_estimate) || 0,
   };
 }
 
@@ -1861,10 +2101,7 @@ async function checkTokenQuota(
   };
 }
 
-async function handleQuotaStatus(
-  client: ReturnType<typeof createServiceClient>,
-  request: Request,
-) {
+async function handleQuotaStatus(client: ReturnType<typeof createServiceClient>, request: Request) {
   const token = getBearerToken(request);
   let userId: string | null = null;
   let ipAddress: string | null = null;
@@ -1879,6 +2116,7 @@ async function handleQuotaStatus(
 
   const tier = await resolveUserTier(client, userId);
   const policy = await getQuotaPolicy(client, tier);
+  const pricing = await getPricingConfig(client);
   let tokenLimit = policy.tokenLimit;
   let webSearchLimit = policy.webSearchLimit;
   if (userId) {
@@ -1889,7 +2127,31 @@ async function handleQuotaStatus(
   const usedTokens = tokenLimit === -1 ? 0 : await countTodayTokenUsage(client, userId, ipAddress);
   const remainingTokens = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - usedTokens);
   const webSearchUsed = webSearchLimit === -1 ? 0 : await countTodayWebSearchUsage(client, userId);
-  const webSearchRemaining = webSearchLimit === -1 ? -1 : Math.max(0, webSearchLimit - webSearchUsed);
+  const webSearchRemaining =
+    webSearchLimit === -1 ? -1 : Math.max(0, webSearchLimit - webSearchUsed);
+
+  // 积分计费信息：free 档在积分开启后进入「纯积分模式」；会员档展示兜底余额
+  const pointsMode = Boolean(userId && pricing.enabled && tier === 'free');
+  let pointsBalance: number | undefined;
+  let pointsUsedToday: number | undefined;
+  if (userId && pricing.enabled) {
+    const { data: profile } = await client
+      .from('profiles')
+      .select('points')
+      .eq('id', userId)
+      .maybeSingle();
+    pointsBalance = Math.max(0, Number(profile?.points ?? 0));
+    const { data: burnRows } = await client
+      .from('points_transactions')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('reason', 'ai_usage')
+      .lt('amount', 0)
+      .gte('created_at', getBeijingTodayStartUTC());
+    pointsUsedToday = Math.abs(
+      (burnRows || []).reduce((sum, row) => sum + Number(row.amount || 0), 0),
+    );
+  }
 
   return {
     unit: 'tokens',
@@ -1903,19 +2165,32 @@ async function handleQuotaStatus(
     webSearchLimit,
     webSearchRemaining,
     resetAt: tokenLimit === -1 ? '' : getTomorrowBeijingStartUTC(),
+    pricing: {
+      enabled: pricing.enabled,
+      rateTokensPerPoint: pricing.rateTokensPerPoint,
+      dailyBurnCap: pricing.dailyBurnCap,
+    },
+    pointsMode,
+    pointsMultiplier: policy.pointsMultiplier,
+    pointsBalance,
+    pointsUsedToday,
   };
 }
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
   if (DEBUG) console.log('[vault] request started, method:', request.method);
-  
+
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: buildCorsHeaders(origin) });
   }
   if (request.method !== 'POST') {
     console.log('[vault] method not allowed');
-    return jsonResponse({ ok: false, code: 'METHOD_NOT_ALLOWED', message: '仅支持 POST 请求。' }, 405, origin);
+    return jsonResponse(
+      { ok: false, code: 'METHOD_NOT_ALLOWED', message: '仅支持 POST 请求。' },
+      405,
+      origin,
+    );
   }
 
   try {
@@ -1930,17 +2205,90 @@ Deno.serve(async (request) => {
       const rateKey = `ai_chat_rt:${identity.userId || `guest:${identity.ipAddress}`}`;
       const rate = await checkRateLimitDb(rateKey, 10, 60_000);
       if (!rate.ok) {
-        return jsonResponse({ ok: false, status: 429, code: 'RATE_LIMITED', message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。` }, 429, origin);
+        return jsonResponse(
+          {
+            ok: false,
+            status: 429,
+            code: 'RATE_LIMITED',
+            message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。`,
+          },
+          429,
+          origin,
+        );
       }
       const tier = identity.tier;
-      const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier, identity.userId);
+      const policy = await resolveRuntimeModelPolicy(
+        client,
+        toText(body.mode, 80),
+        tier,
+        identity.userId,
+      );
       console.log('[vault] user auth ok, checking token quota');
       // P1-5: 复用 identity 避免重复 auth.getUser 往返
-      let quota = await checkTokenQuota(client, request, { userId: identity.userId, ipAddress: identity.ipAddress, tier });
-      quota = await reserveTokenQuota(client, quota, body, policy.maxTokens, policy.quotaMultiplier);
+      let quota = await checkTokenQuota(client, request, {
+        userId: identity.userId,
+        ipAddress: identity.ipAddress,
+        tier,
+      });
+      quota = await reserveTokenQuota(
+        client,
+        quota,
+        body,
+        policy.maxTokens,
+        policy.quotaMultiplier,
+      );
+      if (!quota.allowed) {
+        // 免费额度不足 → 积分兜底（仅已登录非游客，且 ai_pricing_config.enabled）
+        const pricing = await getPricingConfig(client);
+        const tierPolicy = await getQuotaPolicy(client, tier);
+        quota = await reservePointsForQuota(
+          client,
+          quota,
+          body,
+          policy.maxTokens,
+          policy.quotaMultiplier,
+          tierPolicy.pointsMultiplier,
+          pricing,
+        );
+      }
       if (!quota.allowed) {
         console.log('[vault] quota exceeded');
-        return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 BOH AI Token 额度已用完，明天 0:00 重置' }, 429, origin);
+        if (quota.pointsError === 'INSUFFICIENT_POINTS') {
+          return jsonResponse(
+            {
+              ok: false,
+              status: 429,
+              code: 'INSUFFICIENT_POINTS',
+              data: { quota },
+              message: '积分不足：AI 对话将消耗积分，请先签到或领取积分后再使用。',
+            },
+            429,
+            origin,
+          );
+        }
+        if (quota.pointsError === 'DAILY_BURN_CAP') {
+          return jsonResponse(
+            {
+              ok: false,
+              status: 429,
+              code: 'POINTS_BURN_CAP',
+              data: { quota },
+              message: '今日 AI 积分消耗已达上限，明天 0:00 重置。',
+            },
+            429,
+            origin,
+          );
+        }
+        return jsonResponse(
+          {
+            ok: false,
+            status: 429,
+            data: { quota },
+            message: '今日 BOH AI Token 额度已用完，明天 0:00 重置',
+          },
+          429,
+          origin,
+        );
       }
       console.log('[vault] calling runtimeChatCompletion');
       let result;
@@ -1971,7 +2319,11 @@ Deno.serve(async (request) => {
         await releaseTokenReservation(client, quota).catch(() => undefined);
         throw error;
       }
-      console.log('[vault] runtimeChatCompletion result:', result.ok ? 'ok' : 'failed', result.message || '');
+      console.log(
+        '[vault] runtimeChatCompletion result:',
+        result.ok ? 'ok' : 'failed',
+        result.message || '',
+      );
       return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
     if (action === 'runtime-chat-stream') {
@@ -1980,16 +2332,89 @@ Deno.serve(async (request) => {
       const rateKey = `ai_chat_rt:${identity.userId || `guest:${identity.ipAddress}`}`;
       const rate = await checkRateLimitDb(rateKey, 10, 60_000);
       if (!rate.ok) {
-        return jsonResponse({ ok: false, status: 429, code: 'RATE_LIMITED', message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。` }, 429, origin);
+        return jsonResponse(
+          {
+            ok: false,
+            status: 429,
+            code: 'RATE_LIMITED',
+            message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。`,
+          },
+          429,
+          origin,
+        );
       }
       const tier = identity.tier;
-      const policy = await resolveRuntimeModelPolicy(client, toText(body.mode, 80), tier, identity.userId);
+      const policy = await resolveRuntimeModelPolicy(
+        client,
+        toText(body.mode, 80),
+        tier,
+        identity.userId,
+      );
       // P1-5: 复用 identity 避免重复 auth.getUser 往返
-      let quota = await checkTokenQuota(client, request, { userId: identity.userId, ipAddress: identity.ipAddress, tier });
-      quota = await reserveTokenQuota(client, quota, body, policy.maxTokens, policy.quotaMultiplier);
+      let quota = await checkTokenQuota(client, request, {
+        userId: identity.userId,
+        ipAddress: identity.ipAddress,
+        tier,
+      });
+      quota = await reserveTokenQuota(
+        client,
+        quota,
+        body,
+        policy.maxTokens,
+        policy.quotaMultiplier,
+      );
+      if (!quota.allowed) {
+        // 免费额度不足 → 积分兜底（仅已登录非游客，且 ai_pricing_config.enabled）
+        const pricing = await getPricingConfig(client);
+        const tierPolicy = await getQuotaPolicy(client, tier);
+        quota = await reservePointsForQuota(
+          client,
+          quota,
+          body,
+          policy.maxTokens,
+          policy.quotaMultiplier,
+          tierPolicy.pointsMultiplier,
+          pricing,
+        );
+      }
       if (!quota.allowed) {
         console.log('[vault] quota exceeded');
-        return jsonResponse({ ok: false, status: 429, data: { quota }, message: '今日 BOH AI Token 额度已用完，明天 0:00 重置' }, 429, origin);
+        if (quota.pointsError === 'INSUFFICIENT_POINTS') {
+          return jsonResponse(
+            {
+              ok: false,
+              status: 429,
+              code: 'INSUFFICIENT_POINTS',
+              data: { quota },
+              message: '积分不足：AI 对话将消耗积分，请先签到或领取积分后再使用。',
+            },
+            429,
+            origin,
+          );
+        }
+        if (quota.pointsError === 'DAILY_BURN_CAP') {
+          return jsonResponse(
+            {
+              ok: false,
+              status: 429,
+              code: 'POINTS_BURN_CAP',
+              data: { quota },
+              message: '今日 AI 积分消耗已达上限，明天 0:00 重置。',
+            },
+            429,
+            origin,
+          );
+        }
+        return jsonResponse(
+          {
+            ok: false,
+            status: 429,
+            data: { quota },
+            message: '今日 BOH AI Token 额度已用完，明天 0:00 重置',
+          },
+          429,
+          origin,
+        );
       }
       console.log('[vault] calling runtimeChatCompletionStream');
       try {
@@ -2008,12 +2433,24 @@ Deno.serve(async (request) => {
     if (action === 'runtime-search') {
       const user = await requireUser(request, client);
       if (!user.ok) {
-        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+        return jsonResponse(
+          { ok: false, code: user.code, message: user.message },
+          user.status,
+          origin,
+        );
       }
       const tier = await resolveUserTier(client, user.userId);
       const searchRate = await checkRateLimitDb(`ai_web_rt:${user.userId}`, 6, 60_000);
       if (!searchRate.ok) {
-        return jsonResponse({ ok: false, code: 'SEARCH_RATE_LIMITED', message: `联网搜索过于频繁，请 ${searchRate.retryAfter} 秒后再试。` }, 429, origin);
+        return jsonResponse(
+          {
+            ok: false,
+            code: 'SEARCH_RATE_LIMITED',
+            message: `联网搜索过于频繁，请 ${searchRate.retryAfter} 秒后再试。`,
+          },
+          429,
+          origin,
+        );
       }
       let dailyLimit = (await getQuotaPolicy(client, tier)).webSearchLimit;
       if (dailyLimit !== -1) {
@@ -2021,22 +2458,37 @@ Deno.serve(async (request) => {
         dailyLimit += bonuses.webSearchBonus;
       }
       if (dailyLimit === 0) {
-        return jsonResponse({ ok: false, code: 'SEARCH_DAILY_LIMIT', message: '当前订阅暂不支持联网搜索。' }, 429, origin);
+        return jsonResponse(
+          { ok: false, code: 'SEARCH_DAILY_LIMIT', message: '当前订阅暂不支持联网搜索。' },
+          429,
+          origin,
+        );
       }
       if (dailyLimit === -1) {
         const result = await runtimeTavilySearch(client, body);
         return jsonResponse(result, result.ok ? 200 : 502, origin);
       }
-      const { data: reservation, error: reservationError } = await client.rpc('reserve_ai_web_search', {
-        p_user_id: user.userId,
-        p_tier: tier,
-        p_daily_limit: dailyLimit,
-        p_since: getBeijingTodayStartUTC(),
-      });
+      const { data: reservation, error: reservationError } = await client.rpc(
+        'reserve_ai_web_search',
+        {
+          p_user_id: user.userId,
+          p_tier: tier,
+          p_daily_limit: dailyLimit,
+          p_since: getBeijingTodayStartUTC(),
+        },
+      );
       if (reservationError) throw reservationError;
       const searchReservation = Array.isArray(reservation) ? reservation[0] : null;
       if (!searchReservation?.allowed) {
-        return jsonResponse({ ok: false, code: 'SEARCH_DAILY_LIMIT', message: '今日联网搜索额度已用完，明天 0:00 重置。' }, 429, origin);
+        return jsonResponse(
+          {
+            ok: false,
+            code: 'SEARCH_DAILY_LIMIT',
+            message: '今日联网搜索额度已用完，明天 0:00 重置。',
+          },
+          429,
+          origin,
+        );
       }
       try {
         const result = await runtimeTavilySearch(client, body);
@@ -2060,7 +2512,11 @@ Deno.serve(async (request) => {
     if (action === 'runtime-free-search') {
       const user = await requireUser(request, client);
       if (!user.ok) {
-        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+        return jsonResponse(
+          { ok: false, code: user.code, message: user.message },
+          user.status,
+          origin,
+        );
       }
       const result = await runtimeFreeSearch(body);
       return jsonResponse(result, result.ok ? 200 : 502, origin);
@@ -2068,7 +2524,11 @@ Deno.serve(async (request) => {
     if (action === 'runtime-resolve') {
       const user = await requireUser(request, client);
       if (!user.ok) {
-        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+        return jsonResponse(
+          { ok: false, code: user.code, message: user.message },
+          user.status,
+          origin,
+        );
       }
       const result = await runtimeResolveActiveKey(client, body);
       return jsonResponse(result, result.ok ? 200 : 502, origin);
@@ -2082,15 +2542,25 @@ Deno.serve(async (request) => {
       if (targetUserId) {
         const admin = await requireAdmin(request, client);
         if (!admin.ok) {
-          return jsonResponse({ ok: false, code: admin.code, message: admin.message }, admin.status, origin);
+          return jsonResponse(
+            { ok: false, code: admin.code, message: admin.message },
+            admin.status,
+            origin,
+          );
         }
         const cleared = USER_TIER_CACHE.delete(targetUserId);
-        console.log(`[vault] user tier cache cleared for target ${targetUserId} by admin ${admin.userId}, wasCached=${cleared}`);
+        console.log(
+          `[vault] user tier cache cleared for target ${targetUserId} by admin ${admin.userId}, wasCached=${cleared}`,
+        );
         return jsonResponse({ ok: true, data: { cleared } }, 200, origin);
       }
       const user = await requireUser(request, client);
       if (!user.ok) {
-        return jsonResponse({ ok: false, code: user.code, message: user.message }, user.status, origin);
+        return jsonResponse(
+          { ok: false, code: user.code, message: user.message },
+          user.status,
+          origin,
+        );
       }
       const cleared = USER_TIER_CACHE.delete(user.userId);
       console.log(`[vault] user tier cache cleared for ${user.userId}, wasCached=${cleared}`);
@@ -2099,31 +2569,57 @@ Deno.serve(async (request) => {
 
     const admin = await requireAdmin(request, client);
     if (!admin.ok) {
-      return jsonResponse({ ok: false, code: admin.code, message: admin.message }, admin.status, origin);
+      return jsonResponse(
+        { ok: false, code: admin.code, message: admin.message },
+        admin.status,
+        origin,
+      );
     }
 
-    // 清除模型配置内存缓存：管理员在数据面板修改模型配置后调用，使新配置立即生效
+    // 清除内存缓存：管理员在数据面板修改模型/额度/计费配置后调用，使新配置立即生效
     if (action === 'clear-model-cache') {
-      const before = MODEL_CONFIG_CACHE.size;
+      const beforeModel = MODEL_CONFIG_CACHE.size;
+      const beforeQuota = QUOTA_CONFIG_CACHE.size;
+      const pricingBefore = PRICING_CONFIG_CACHE?.value;
       MODEL_CONFIG_CACHE.clear();
-      console.log(`[vault] model config cache cleared by admin, removed ${before} entries`);
-      return jsonResponse({ ok: true, data: { cleared: before } }, 200, origin);
+      QUOTA_CONFIG_CACHE.clear();
+      PRICING_CONFIG_CACHE = null;
+      console.log(
+        `[vault] caches cleared by admin, model=${beforeModel} quota=${beforeQuota} pricing=${pricingBefore ? 'cleared' : 'not-loaded'}`,
+      );
+      return jsonResponse({ ok: true, data: { cleared: beforeModel + beforeQuota } }, 200, origin);
     }
 
     if (action === 'list') {
       return jsonResponse({ ok: true, data: await listKeys(client) }, 200, origin);
     }
     if (action === 'upsert') {
-      return jsonResponse({ ok: true, data: await upsertKey(client, admin.userId, body) }, 200, origin);
+      return jsonResponse(
+        { ok: true, data: await upsertKey(client, admin.userId, body) },
+        200,
+        origin,
+      );
     }
     if (action === 'status') {
-      return jsonResponse({ ok: true, data: await updateStatus(client, admin.userId, body) }, 200, origin);
+      return jsonResponse(
+        { ok: true, data: await updateStatus(client, admin.userId, body) },
+        200,
+        origin,
+      );
     }
     if (action === 'delete') {
-      return jsonResponse({ ok: true, data: await deleteKey(client, admin.userId, body) }, 200, origin);
+      return jsonResponse(
+        { ok: true, data: await deleteKey(client, admin.userId, body) },
+        200,
+        origin,
+      );
     }
     if (action === 'test') {
-      return jsonResponse({ ok: true, data: await testKey(client, admin.userId, body) }, 200, origin);
+      return jsonResponse(
+        { ok: true, data: await testKey(client, admin.userId, body) },
+        200,
+        origin,
+      );
     }
     if (action === 'discover-models') {
       return jsonResponse({ ok: true, data: await discoverModels(client, body) }, 200, origin);
@@ -2132,7 +2628,10 @@ Deno.serve(async (request) => {
     return jsonResponse({ ok: false, code: 'UNKNOWN_ACTION', message: '未知操作。' }, 400, origin);
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : 'API Key 管理服务异常。';
-    const status = Math.min(599, Math.max(400, Number((error as { status?: number })?.status || 500)));
+    const status = Math.min(
+      599,
+      Math.max(400, Number((error as { status?: number })?.status || 500)),
+    );
     const code = toText((error as { code?: string })?.code, 80) || 'API_KEY_VAULT_ERROR';
     return jsonResponse(
       {

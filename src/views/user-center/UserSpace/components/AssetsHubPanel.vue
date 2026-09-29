@@ -842,7 +842,7 @@
                     :aria-label="'使用自定义卡面预设'"
                     @click="$emit('select-points-card-preset', preset.id)"
                   >
-                    <img :src="preset.imageUrl" alt="自定义卡面预设" loading="lazy" />
+                    <img :src="pointsCardPresetThumb(preset)" alt="自定义卡面预设" loading="lazy" />
                     <span>自定义卡面</span>
                   </button>
                   <button
@@ -889,6 +889,7 @@ import {
   ScrollText,
   Send,
   ShoppingBag,
+  Sparkles,
   Ticket,
   Trash2,
   Trophy,
@@ -914,6 +915,7 @@ import AvatarFrameGrid from './AvatarFrameGrid.vue';
 import FramedAvatar from './FramedAvatar.vue';
 import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
+import { resolveDbCardImage } from '@/utils/db-image-url.js';
 
 const emit = defineEmits([
   'back',
@@ -952,6 +954,11 @@ const canAddPointsCardPreset = computed(
     Math.max(3, Number(props.pointsCardPresetCapacity) || 3),
 );
 const catSkinPreviewAssets = Object.entries(HOME_CAT_ASSETS).map(([id, src]) => ({ id, src }));
+
+// 预设缩略图同样来自数据库（points_card_presets.image_url，Cloudinary 直链，大陆不可达），
+// 只在渲染 src 时改写。⚠️ `:class` 的 active 判断必须继续比**原始**值
+// （userInfo.pointsCardImageUrl === preset.imageUrl），两边若一个改写一个不改写会导致选中态丢失。
+const pointsCardPresetThumb = (preset) => resolveDbCardImage(preset?.imageUrl);
 const handleCatsSkinClick = () => {
   if (props.isRedeemingPointsCardCats) return;
   if (props.pointsCardCatsUnlocked) {
@@ -1326,15 +1333,22 @@ const loadLedger = async () => {
       Array.isArray(adminRes.value.data)
     ) {
       adminRes.value.data
-        .filter((row) => ['admin_grant', 'points_card_cats'].includes(row.reason))
+        .filter((row) => ['admin_grant', 'points_card_cats', 'ai_usage'].includes(row.reason))
         .forEach((row) => {
           const isCatsRedemption = row.reason === 'points_card_cats';
+          const isAiUsage = row.reason === 'ai_usage';
           results.push({
-            key: `${isCatsRedemption ? 'cats-card' : 'grant'}-${row.id}`,
-            icon: isCatsRedemption ? Coins : Send,
-            tone: isCatsRedemption ? 'orange' : 'blue',
-            title: isCatsRedemption ? '兑换全员小猫卡面' : '管理员发放',
-            remark: String(row.remark || '').trim() || (isCatsRedemption ? '小猫卡面' : '积分发放'),
+            key: `${isAiUsage ? 'ai-usage' : isCatsRedemption ? 'cats-card' : 'grant'}-${row.id}`,
+            icon: isAiUsage ? Sparkles : isCatsRedemption ? Coins : Send,
+            tone: isAiUsage ? 'gray' : isCatsRedemption ? 'orange' : 'blue',
+            title: isAiUsage
+              ? 'BOHAI 服务计费'
+              : isCatsRedemption
+                ? '兑换全员小猫卡面'
+                : '管理员发放',
+            remark:
+              String(row.remark || '').trim() ||
+              (isAiUsage ? 'AI 对话消耗' : isCatsRedemption ? '小猫卡面' : '积分发放'),
             amount: Number(row.amount) || 0,
             time: row.created_at,
           });

@@ -221,6 +221,40 @@
       </div>
     </section>
 
+    <!-- Coding 附加包（Token Plan 包）：与主订阅共存，积分购买 -->
+    <section class="packs" aria-labelledby="packs-title">
+      <p class="kicker center reveal">Token Plan</p>
+      <h2 id="packs-title" class="section-title center reveal">Coding 附加包</h2>
+      <p class="section-sub center reveal">
+        在任意方案上叠加每日 AI 额度与联网搜索次数，按积分购买，与主订阅同时生效。
+      </p>
+      <div class="pack-grid">
+        <article v-for="pack in codingPacks" :key="pack.code" class="liquid-glass pack-card reveal">
+          <h3>{{ pack.name }}</h3>
+          <p class="pack-bonus">{{ pack.tokenBonus }}</p>
+          <p class="pack-web">联网搜索 {{ pack.webSearchBonus }}</p>
+          <div class="pack-price">
+            <strong>{{ pack.monthlyPrice }}</strong>
+            <span>积分 / 月</span>
+          </div>
+          <button
+            class="subscribe pack-buy"
+            :class="{ active: activePackCodes.includes(pack.code) }"
+            :disabled="isSubmitting || submittingPack === pack.code"
+            @click="handleBuyPack(pack)"
+          >
+            {{
+              submittingPack === pack.code
+                ? '开通中…'
+                : activePackCodes.includes(pack.code)
+                  ? '已开通 · 再购顺延'
+                  : '积分购买'
+            }}
+          </button>
+        </article>
+      </div>
+    </section>
+
     <!-- 对比表 -->
     <section class="comparison" aria-labelledby="comparison-title">
       <p class="kicker center reveal">对比</p>
@@ -468,15 +502,19 @@ import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import {
   getMySubscriptions,
+  subscribeCodingPackWithPoints,
   subscribeWithPoints,
   startSubscriptionTrial,
 } from '@/utils/api/subscription-api.js';
 import { clearUserTierCache } from '@/utils/api/api-key-runtime-api.js';
 import { showIsland } from '@/composables/useIsland.js';
+import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import SubscriptionNavIsland from '@/components/SubscriptionNavIsland.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
 import { logger } from '@/utils/logger.js';
 import {
+  CODING_PACKS,
+  PLAN_AI_POINT_MULTIPLIERS,
   PLAN_AI_TOKENS,
   PLAN_CLOUD_IMAGE_LIMITS,
   PLAN_LAB_QUOTAS,
@@ -485,6 +523,7 @@ import {
   PLAN_PHOTO_ALBUM_EXPORTS,
   PLAN_PHOTO_ALBUM_PHOTOS,
   TIER_NICKNAME_COLORS,
+  normalizeSubscriptionPlanCode,
 } from '@/utils/subscription-benefits.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 
@@ -562,10 +601,20 @@ const pityThresholdText = (code) => {
   const threshold = PLAN_LOTTERY_PITY_THRESHOLDS[code];
   return threshold ? `连续 ${threshold} 场未中奖可兑保底礼` : '可参与抽奖（不计保底）';
 };
+const aiPointsText = (code) => {
+  const multiplier = PLAN_AI_POINT_MULTIPLIERS[code];
+  if (!multiplier || multiplier >= 1) return 'AI 按积分计费（注册送体验积分）';
+  return `AI 积分消费 ${Math.round(multiplier * 100) / 100} 折`;
+};
 const buildCardFeatures = (code) => {
   const nickname = nicknameText(code);
+  const multiplier = PLAN_AI_POINT_MULTIPLIERS[code];
   return [
-    `BOH AI ${PLAN_AI_TOKENS[code]} Token / 天`,
+    ...(multiplier && multiplier < 1 && PLAN_AI_TOKENS[code]
+      ? [
+          `BOH AI ${PLAN_AI_TOKENS[code]} Token / 天 · 积分 ${Math.round(multiplier * 100) / 100} 折`,
+        ]
+      : ['AI 对话按积分计费 · 注册送体验积分']),
     `Cloud+ ${PLAN_CLOUD_IMAGE_LIMITS[code]} 张`,
     `实验室 PPT / Word ${PLAN_LAB_QUOTAS[code]}`,
     `摄影集 ${PLAN_PHOTO_ALBUM_COUNTS[code]} · 单集 ${PLAN_PHOTO_ALBUM_PHOTOS[code]}`,
@@ -689,6 +738,7 @@ const billingTabs = [
    客服优先级 / 年度徽章仅此处出现，保留明确标注：无差别档写「普通」，不写空白。 */
 const comparisonRows = [
   buildBenefitRow('BOH AI Token / 天', (code) => PLAN_AI_TOKENS[code]),
+  buildBenefitRow('AI 积分消费', (code) => aiPointsText(code)),
   buildBenefitRow('Cloud+ 存储空间', (code) => `${PLAN_CLOUD_IMAGE_LIMITS[code]} 张`),
   buildBenefitRow('实验室 PPT / Word', (code) => PLAN_LAB_QUOTAS[code]),
   buildBenefitRow('摄影集数量', (code) => PLAN_PHOTO_ALBUM_COUNTS[code]),
@@ -988,6 +1038,62 @@ const closeAllModals = () => {
   showModal.value = false;
   showConfirmModal.value = false;
   confirmPlan.value = null;
+};
+
+/* ===== Coding 附加包（Token Plan 包）=====
+   与主订阅共存：价格服务端取价（subscription_plan_prices，面板可改），
+   展示价 CODING_PACKS.monthlyPrice 仅作卡片文案，实际扣费以 RPC 返回为准。 */
+const codingPacks = CODING_PACKS;
+const submittingPack = ref('');
+const activePackCodes = computed(() =>
+  Object.values(activeSubscriptions.value)
+    .map((s) => normalizeSubscriptionPlanCode(s?.planCode || ''))
+    .filter((code) => code.startsWith('coding-')),
+);
+const handleBuyPack = async (pack) => {
+  if (isSubmitting.value || submittingPack.value) return;
+  if (!authStore.isLoggedIn || !userInfo.value?.id) {
+    authStore.showLoginModal = true;
+    return;
+  }
+  const { confirm } = useConfirmDialog();
+  const accepted = await confirm({
+    title: `购买 ${pack.name}？`,
+    message: `将扣除 ${pack.monthlyPrice} 积分开通一个月（服务端按现价计费）。与当前订阅同时生效，同档有效期内购买将顺延续费。`,
+    confirmText: '确认购买',
+    cancelText: '再想想',
+  });
+  if (!accepted) return;
+  submittingPack.value = pack.code;
+  try {
+    const result = await subscribeCodingPackWithPoints({
+      planCode: pack.code,
+      billingCycle: BILLING_MONTHLY,
+      metadata: { source: 'user-center/subscription', kind: 'coding_pack' },
+    });
+    if (!result.ok) {
+      const code = result.error?.code || result.data?.message;
+      const fallback =
+        code === 'INSUFFICIENT_POINTS' ? '积分不足，请先签到或兑换积分' : '请稍后重试';
+      notify('购买失败', result.error?.message || result.data?.message || fallback, 'warning');
+      return;
+    }
+    const points = Number(result.data?.currentPoints ?? currentPoints.value);
+    currentPoints.value = points;
+    authStore.$patch({ userInfo: { ...authStore.userInfo, points } });
+    await loadMySubscriptions();
+    clearUserTierCache().catch(() => undefined);
+    notify(
+      result.data?.action === 'renew' ? `${pack.name} 已顺延续费` : `${pack.name} 已开通`,
+      result.data?.action === 'renew' ? '生效期与原有效期无缝衔接' : '每日加成即刻生效',
+      'success',
+    );
+  } catch (error) {
+    logger.error('subscription', '附加包购买失败:', error);
+    notify('购买失败', '请稍后重试', 'warning');
+  } finally {
+    submittingPack.value = '';
+  }
 };
 
 /* ===== 吸顶条融入灵动导航栏 =====
@@ -2821,6 +2927,69 @@ a:focus-visible {
   .num-prev-leave-active,
   .faq-answer {
     transition: none !important;
+  }
+}
+</style>
+
+<style scoped>
+/* ===== Coding 附加包（Token Plan 包）===== */
+.packs {
+  margin: 34px auto 0;
+  max-width: 1140px;
+  padding: 0 20px;
+}
+.pack-grid {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.pack-card {
+  display: grid;
+  gap: 8px;
+  padding: 20px 18px;
+  border-radius: 16px;
+}
+.pack-card h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+.pack-bonus {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+.pack-web {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.pack-price {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 2px;
+}
+.pack-price strong {
+  font-size: 24px;
+  font-weight: 750;
+}
+.pack-price span {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.pack-buy {
+  margin-top: 8px;
+}
+@media (max-width: 960px) {
+  .pack-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .pack-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

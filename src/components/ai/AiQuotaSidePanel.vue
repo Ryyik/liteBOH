@@ -1,13 +1,41 @@
 <template>
   <Teleport to="body" :disabled="embedded">
     <Transition name="quota-slide">
-      <div v-if="visible" class="quota-backdrop" :class="{ 'is-embedded': embedded }" role="presentation"
-        @click.self="$emit('close')" @keydown.escape="$emit('close')">
-        <aside class="quota-drawer" @click.stop role="dialog" aria-modal="true" aria-label="AI 使用情况">
+      <div
+        v-if="visible"
+        class="quota-backdrop"
+        :class="{ 'is-embedded': embedded }"
+        role="presentation"
+        @click.self="$emit('close')"
+        @keydown.escape="$emit('close')"
+      >
+        <aside
+          class="quota-drawer"
+          @click.stop
+          role="dialog"
+          aria-modal="true"
+          aria-label="AI 使用情况"
+        >
           <header class="quota-header">
-            <div><h2 tabindex="-1">使用情况</h2><p>今日额度 · 北京时间 0:00 重置</p></div>
-            <button type="button" class="quota-close-btn" title="关闭 (Esc)" @click="$emit('close')" aria-label="关闭">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <div>
+              <h2 tabindex="-1">使用情况</h2>
+              <p>今日额度 · 北京时间 0:00 重置</p>
+            </div>
+            <button
+              type="button"
+              class="quota-close-btn"
+              title="关闭 (Esc)"
+              @click="$emit('close')"
+              aria-label="关闭"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <path v-if="embedded" d="M15 18l-6-6 6-6" />
                 <path v-else d="M18 6L6 18M6 6l12 12" />
               </svg>
@@ -18,45 +46,135 @@
             <div v-if="loading" class="quota-loading">加载中...</div>
 
             <template v-else-if="quota">
-              <div class="usage-plan-row"><div><span>当前方案</span><strong>{{ tierLabel }}</strong></div><span class="usage-plan-chip">{{ tokenLimit === -1 ? '不限量' : '每日额度' }}</span></div>
+              <div class="usage-plan-row">
+                <div>
+                  <span>当前方案</span><strong>{{ tierLabel }}</strong>
+                </div>
+                <span class="usage-plan-chip">{{
+                  pointsMode ? '积分计费' : tokenLimit === -1 ? '不限量' : '每日额度'
+                }}</span>
+              </div>
 
-              <section class="usage-section" aria-labelledby="token-usage-title">
+              <section v-if="pointsMode" class="usage-section" aria-labelledby="points-usage-title">
                 <div class="usage-section-head">
-                  <div><strong id="token-usage-title">Token</strong><span>对话、思考与工具调用</span></div>
+                  <div>
+                    <strong id="points-usage-title">积分</strong
+                    ><span>AI 对话按量消耗积分，不过期</span>
+                  </div>
+                  <b>{{ formatTokenCount(pointsBalance) }} 分</b>
+                </div>
+                <div class="usage-values">
+                  <span>今日已耗 {{ formatTokenCount(pointsUsedToday) }} 积分</span
+                  ><span>余额 {{ formatTokenCount(pointsBalance) }} 积分</span>
+                </div>
+                <div class="usage-remaining">
+                  1 积分 = {{ formatTokenCount(rateTokensPerPoint) }} Tokens × 档位倍率
+                  {{ pointsMultiplierLabel }}
+                </div>
+              </section>
+              <section v-else class="usage-section" aria-labelledby="token-usage-title">
+                <div class="usage-section-head">
+                  <div>
+                    <strong id="token-usage-title">Token</strong><span>对话、思考与工具调用</span>
+                  </div>
                   <b>{{ tokenLimit === -1 ? '不限' : `${barPercentLabel}%` }}</b>
                 </div>
-                <div class="quota-meter-track" role="progressbar" aria-label="今日 Token 使用比例"
-                  :aria-valuemin="0" :aria-valuemax="100" :aria-valuenow="tokenLimit === -1 ? undefined : Number(barPercent.toFixed(2))">
-                  <div class="quota-meter-fill" :class="{ 'has-usage': usedTokens > 0, unlimited: tokenLimit === -1, warn: barPercent >= 80, danger: barPercent >= 95 }"
-                    :style="{ width: tokenLimit === -1 ? '100%' : barPercent + '%' }" />
+                <div
+                  class="quota-meter-track"
+                  role="progressbar"
+                  aria-label="今日 Token 使用比例"
+                  :aria-valuemin="0"
+                  :aria-valuemax="100"
+                  :aria-valuenow="tokenLimit === -1 ? undefined : Number(barPercent.toFixed(2))"
+                >
+                  <div
+                    class="quota-meter-fill"
+                    :class="{
+                      'has-usage': usedTokens > 0,
+                      unlimited: tokenLimit === -1,
+                      warn: barPercent >= 80,
+                      danger: barPercent >= 95,
+                    }"
+                    :style="{ width: tokenLimit === -1 ? '100%' : barPercent + '%' }"
+                  />
                 </div>
-                <div class="usage-values"><span>已用 {{ formatTokenCount(usedTokens) }}</span><span>{{ tokenLimit === -1 ? '无限额度' : `共 ${formatTokenCount(tokenLimit)}` }}</span></div>
-                <div class="usage-remaining">{{ tokenLimit === -1 ? '当前方案不限制 Token 用量' : `还可使用 ${formatTokenCount(remainingTokens)} Tokens` }}</div>
+                <div class="usage-values">
+                  <span>已用 {{ formatTokenCount(usedTokens) }}</span
+                  ><span>{{
+                    tokenLimit === -1 ? '无限额度' : `共 ${formatTokenCount(tokenLimit)}`
+                  }}</span>
+                </div>
+                <div class="usage-remaining">
+                  {{
+                    tokenLimit === -1
+                      ? '当前方案不限制 Token 用量'
+                      : `还可使用 ${formatTokenCount(remainingTokens)} Tokens`
+                  }}
+                </div>
               </section>
 
               <section class="usage-section" aria-labelledby="web-usage-title">
                 <div class="usage-section-head">
-                  <div><strong id="web-usage-title">Web Searching</strong><span>联网搜索次数</span></div>
+                  <div>
+                    <strong id="web-usage-title">Web Searching</strong><span>联网搜索次数</span>
+                  </div>
                   <b>{{ webSearchLimit === -1 ? '不限' : `${webPercentLabel}%` }}</b>
                 </div>
-                <div class="quota-meter-track" role="progressbar" aria-label="今日联网搜索使用比例"
-                  :aria-valuemin="0" :aria-valuemax="100" :aria-valuenow="webSearchLimit === -1 ? undefined : Number(webPercent.toFixed(2))">
-                  <div class="quota-meter-fill web" :class="{ 'has-usage': webSearchUsed > 0, unlimited: webSearchLimit === -1, warn: webPercent >= 80, danger: webPercent >= 95 }"
-                    :style="{ width: webSearchLimit === -1 ? '100%' : webPercent + '%' }" />
+                <div
+                  class="quota-meter-track"
+                  role="progressbar"
+                  aria-label="今日联网搜索使用比例"
+                  :aria-valuemin="0"
+                  :aria-valuemax="100"
+                  :aria-valuenow="webSearchLimit === -1 ? undefined : Number(webPercent.toFixed(2))"
+                >
+                  <div
+                    class="quota-meter-fill web"
+                    :class="{
+                      'has-usage': webSearchUsed > 0,
+                      unlimited: webSearchLimit === -1,
+                      warn: webPercent >= 80,
+                      danger: webPercent >= 95,
+                    }"
+                    :style="{ width: webSearchLimit === -1 ? '100%' : webPercent + '%' }"
+                  />
                 </div>
-                <div class="usage-values"><span>已用 {{ formatTokenCount(webSearchUsed) }} 次</span><span>{{ webSearchLimit === -1 ? '无限次数' : `共 ${formatTokenCount(webSearchLimit)} 次` }}</span></div>
-                <div class="usage-remaining">{{ webSearchLimit === -1 ? '当前方案不限制联网搜索' : `今天还可搜索 ${formatTokenCount(webSearchRemaining)} 次` }}</div>
+                <div class="usage-values">
+                  <span>已用 {{ formatTokenCount(webSearchUsed) }} 次</span
+                  ><span>{{
+                    webSearchLimit === -1 ? '无限次数' : `共 ${formatTokenCount(webSearchLimit)} 次`
+                  }}</span>
+                </div>
+                <div class="usage-remaining">
+                  {{
+                    webSearchLimit === -1
+                      ? '当前方案不限制联网搜索'
+                      : `今天还可搜索 ${formatTokenCount(webSearchRemaining)} 次`
+                  }}
+                </div>
               </section>
 
-              <p class="usage-note">高倍率模型会更快消耗 Token 额度；失败的 Web Searching 不计入次数。</p>
+              <p class="usage-note">
+                高倍率模型会更快消耗 Token 额度；失败的 Web Searching 不计入次数。
+              </p>
             </template>
           </div>
 
           <footer class="quota-footer">
-            <button v-if="!authStore.isLoggedIn" type="button" class="quota-action-btn primary" @click="handleLogin">
+            <button
+              v-if="!authStore.isLoggedIn"
+              type="button"
+              class="quota-action-btn primary"
+              @click="handleLogin"
+            >
               登录享受更高额度
             </button>
-            <button v-else-if="quota && quota.tier === 'free'" type="button" class="quota-action-btn primary" @click="handleUpgrade">
+            <button
+              v-else-if="quota && quota.tier === 'free'"
+              type="button"
+              class="quota-action-btn primary"
+              @click="handleUpgrade"
+            >
               升级订阅解锁更多
             </button>
             <div v-else-if="quota" class="quota-tier-note">
@@ -80,7 +198,7 @@ import { useAuthStore } from '@/stores/auth';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
-  embedded: { type: Boolean, default: false }
+  embedded: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close']);
@@ -97,17 +215,23 @@ const TIER_LABELS = {
   plus: 'Plus',
   pro: 'Pro',
   max: 'Max',
-  ultra: 'Ultra'
+  ultra: 'Ultra',
 };
 
 const tierLabel = computed(() => TIER_LABELS[quota.value?.tier] || quota.value?.tier || '');
-const usedTokens = computed(() => Math.max(0, Number(quota.value?.usedTokens ?? quota.value?.used ?? 0)));
+const usedTokens = computed(() =>
+  Math.max(0, Number(quota.value?.usedTokens ?? quota.value?.used ?? 0)),
+);
 const tokenLimit = computed(() => Number(quota.value?.tokenLimit ?? quota.value?.limit ?? 0));
-const remainingTokens = computed(() => tokenLimit.value === -1
-  ? -1
-  : Math.max(0, Number(quota.value?.remainingTokens ?? (tokenLimit.value - usedTokens.value))));
-const formatTokenCount = (value) => new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 })
-  .format(Math.max(0, Number(value || 0)));
+const remainingTokens = computed(() =>
+  tokenLimit.value === -1
+    ? -1
+    : Math.max(0, Number(quota.value?.remainingTokens ?? tokenLimit.value - usedTokens.value)),
+);
+const formatTokenCount = (value) =>
+  new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(
+    Math.max(0, Number(value || 0)),
+  );
 const formatQuotaPercent = (value) => {
   if (value <= 0) return '0';
   if (value < 1) return value.toFixed(2);
@@ -121,16 +245,40 @@ const barPercent = computed(() => {
 const barPercentLabel = computed(() => formatQuotaPercent(barPercent.value));
 const webSearchUsed = computed(() => Math.max(0, Number(quota.value?.webSearchUsed ?? 0)));
 const webSearchLimit = computed(() => Number(quota.value?.webSearchLimit ?? 0));
-const webSearchRemaining = computed(() => webSearchLimit.value === -1 ? -1 : Math.max(0, Number(quota.value?.webSearchRemaining ?? (webSearchLimit.value - webSearchUsed.value))));
-const webPercent = computed(() => webSearchLimit.value > 0 ? Math.min(100, Math.max(0, (webSearchUsed.value / webSearchLimit.value) * 100)) : 0);
+const webSearchRemaining = computed(() =>
+  webSearchLimit.value === -1
+    ? -1
+    : Math.max(
+        0,
+        Number(quota.value?.webSearchRemaining ?? webSearchLimit.value - webSearchUsed.value),
+      ),
+);
+const webPercent = computed(() =>
+  webSearchLimit.value > 0
+    ? Math.min(100, Math.max(0, (webSearchUsed.value / webSearchLimit.value) * 100))
+    : 0,
+);
 const webPercentLabel = computed(() => formatQuotaPercent(webPercent.value));
+// 积分计费（quota-status 在 ai_pricing_config.enabled 且 free 档时下发 pointsMode）
+const pointsMode = computed(() => quota.value?.pointsMode === true);
+const pointsBalance = computed(() => Math.max(0, Number(quota.value?.pointsBalance ?? 0)));
+const pointsUsedToday = computed(() => Math.max(0, Number(quota.value?.pointsUsedToday ?? 0)));
+const pointsMultiplier = computed(() => Number(quota.value?.pointsMultiplier ?? 1));
+const pointsMultiplierLabel = computed(() =>
+  String(Math.round(pointsMultiplier.value * 100) / 100),
+);
+const rateTokensPerPoint = computed(() =>
+  Math.max(0, Number(quota.value?.pricing?.rateTokensPerPoint ?? 0)),
+);
 
 const fetchQuota = async () => {
   loading.value = true;
   try {
     const [quotaRes, subsRes] = await Promise.all([
       getAiQuotaStatus(),
-      authStore.userInfo?.id ? getMySubscriptions(authStore.userInfo.id, { includeExpired: false }) : Promise.resolve({ ok: false, data: [] })
+      authStore.userInfo?.id
+        ? getMySubscriptions(authStore.userInfo.id, { includeExpired: false })
+        : Promise.resolve({ ok: false, data: [] }),
     ]);
     if (quotaRes.ok && quotaRes.data) {
       quota.value = quotaRes.data;
@@ -146,9 +294,12 @@ const fetchQuota = async () => {
   }
 };
 
-watch(() => props.visible, (v) => {
-  if (v) fetchQuota();
-});
+watch(
+  () => props.visible,
+  (v) => {
+    if (v) fetchQuota();
+  },
+);
 
 const handleLogin = () => {
   authStore.showLoginModal = true;
@@ -171,7 +322,7 @@ const handleUpgrade = () => {
   align-items: stretch !important;
   justify-content: flex-end !important;
   padding: 12px !important;
-    background: rgba(61, 57, 41, 0.22) !important;
+  background: rgba(61, 57, 41, 0.22) !important;
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
   isolation: isolate;
@@ -225,7 +376,11 @@ const handleUpgrade = () => {
   font-weight: 700;
   color: #3d3929;
 }
-.quota-header p { margin: 3px 0 0; color: #737373; font-size: 11px; }
+.quota-header p {
+  margin: 3px 0 0;
+  color: #737373;
+  font-size: 11px;
+}
 
 .quota-close-btn {
   background: transparent;
@@ -246,11 +401,17 @@ const handleUpgrade = () => {
 
 .quota-close-btn,
 .quota-action-btn {
-  transition: transform 140ms ease, background-color 160ms ease, color 160ms ease, box-shadow 180ms ease;
+  transition:
+    transform 140ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 180ms ease;
 }
 
 .quota-close-btn:active,
-.quota-action-btn:active { transform: scale(0.96); }
+.quota-action-btn:active {
+  transform: scale(0.96);
+}
 
 /* 主体内容 */
 .quota-body {
@@ -266,22 +427,80 @@ const handleUpgrade = () => {
 }
 
 .usage-plan-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 14px 2px 18px; border-bottom: 1px solid #e5e5e5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 2px 18px;
+  border-bottom: 1px solid #e5e5e5;
 }
-.usage-plan-row > div { display: grid; gap: 3px; }
-.usage-plan-row span { color: #737373; font-size: 12px; }
-.usage-plan-row strong { color: #171717; font-size: 16px; }
-.usage-plan-chip { padding: 5px 9px; border-radius: 999px; background: #f2f2f2; color: #525252 !important; font-weight: 600; }
-.usage-section { padding: 20px 2px; border-bottom: 1px solid #e5e5e5; }
-.usage-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 13px; }
-.usage-section-head > div { display: grid; gap: 3px; }
-.usage-section-head strong { color: #171717; font-size: 14px; }
-.usage-section-head span { color: #737373; font-size: 11px; }
-.usage-section-head b { color: #171717; font-size: 14px; font-variant-numeric: tabular-nums; }
-.usage-values { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: #737373; font-size: 11px; }
-.usage-remaining { margin-top: 12px; color: #404040; font-size: 12px; font-weight: 550; }
-.usage-note { margin: 16px 2px 0; color: #737373; font-size: 11px; line-height: 1.5; }
+.usage-plan-row > div {
+  display: grid;
+  gap: 3px;
+}
+.usage-plan-row span {
+  color: #737373;
+  font-size: 12px;
+}
+.usage-plan-row strong {
+  color: #171717;
+  font-size: 16px;
+}
+.usage-plan-chip {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f2f2f2;
+  color: #525252 !important;
+  font-weight: 600;
+}
+.usage-section {
+  padding: 20px 2px;
+  border-bottom: 1px solid #e5e5e5;
+}
+.usage-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 13px;
+}
+.usage-section-head > div {
+  display: grid;
+  gap: 3px;
+}
+.usage-section-head strong {
+  color: #171717;
+  font-size: 14px;
+}
+.usage-section-head span {
+  color: #737373;
+  font-size: 11px;
+}
+.usage-section-head b {
+  color: #171717;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.usage-values {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: #737373;
+  font-size: 11px;
+}
+.usage-remaining {
+  margin-top: 12px;
+  color: #404040;
+  font-size: 12px;
+  font-weight: 550;
+}
+.usage-note {
+  margin: 16px 2px 0;
+  color: #737373;
+  font-size: 11px;
+  line-height: 1.5;
+}
 
 /* 卡片样式 - 与设置面板一致 */
 .quota-card {
@@ -299,15 +518,23 @@ const handleUpgrade = () => {
   animation: quota-card-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.quota-card:nth-child(2) { animation-delay: 55ms; }
-.quota-card:nth-child(3) { animation-delay: 100ms; }
+.quota-card:nth-child(2) {
+  animation-delay: 55ms;
+}
+.quota-card:nth-child(3) {
+  animation-delay: 100ms;
+}
 
 .quota-meter-fill {
   animation: quota-meter-enter 520ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
   transform-origin: left center;
 }
-.quota-meter-fill.web { background: #6b7280; }
-.quota-meter-fill.unlimited { background: repeating-linear-gradient(90deg, #525252 0 10px, #a3a3a3 10px 18px); }
+.quota-meter-fill.web {
+  background: #6b7280;
+}
+.quota-meter-fill.unlimited {
+  background: repeating-linear-gradient(90deg, #525252 0 10px, #a3a3a3 10px 18px);
+}
 
 .quota-backdrop.is-embedded.quota-slide-enter-active,
 .quota-backdrop.is-embedded.quota-slide-leave-active {
@@ -316,7 +543,9 @@ const handleUpgrade = () => {
 
 .quota-backdrop.is-embedded.quota-slide-enter-active .quota-drawer,
 .quota-backdrop.is-embedded.quota-slide-leave-active .quota-drawer {
-  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms ease !important;
+  transition:
+    transform 300ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 220ms ease !important;
 }
 
 .quota-backdrop.is-embedded.quota-slide-enter-from .quota-drawer {
@@ -330,13 +559,23 @@ const handleUpgrade = () => {
 }
 
 @keyframes quota-card-enter {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes quota-meter-enter {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -396,12 +635,12 @@ const handleUpgrade = () => {
   justify-content: center;
   border-radius: 8px;
   background: rgba(201, 100, 66, 0.12);
-  color: #C96442;
+  color: #c96442;
 }
 
 .quota-icon.bg-blue {
   background: rgba(201, 100, 66, 0.12);
-  color: #C96442;
+  color: #c96442;
 }
 
 .quota-icon.bg-green {
@@ -459,7 +698,7 @@ const handleUpgrade = () => {
 
 .quota-meter-fill {
   height: 100%;
-  background: #C96442;
+  background: #c96442;
   border-radius: 999px;
   transition: width 0.5s ease;
 }
@@ -529,7 +768,7 @@ const handleUpgrade = () => {
 }
 
 .quota-action-btn.primary {
-  background: #C96442;
+  background: #c96442;
   color: #fff;
 }
 
@@ -582,102 +821,115 @@ const handleUpgrade = () => {
 }
 
 /* 深色模式 */
-[data-boh-theme="dark"] .quota-drawer {
+[data-boh-theme='dark'] .quota-drawer {
   background: rgba(28, 28, 30, 0.98);
   border-color: rgba(255, 255, 255, 0.1);
   color: #f8fafc;
 }
 
-[data-boh-theme="dark"] .quota-header {
+[data-boh-theme='dark'] .quota-header {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-[data-boh-theme="dark"] .quota-header h2 {
+[data-boh-theme='dark'] .quota-header h2 {
   color: #f8fafc;
 }
-[data-boh-theme="dark"] .quota-header p,
-[data-boh-theme="dark"] .usage-plan-row span,
-[data-boh-theme="dark"] .usage-section-head span,
-[data-boh-theme="dark"] .usage-values,
-[data-boh-theme="dark"] .usage-note { color: #a3a3a3; }
-[data-boh-theme="dark"] .usage-plan-row,
-[data-boh-theme="dark"] .usage-section { border-color: rgba(255,255,255,.1); }
-[data-boh-theme="dark"] .usage-plan-row strong,
-[data-boh-theme="dark"] .usage-section-head strong,
-[data-boh-theme="dark"] .usage-section-head b,
-[data-boh-theme="dark"] .usage-remaining { color: #f5f5f5; }
-[data-boh-theme="dark"] .usage-plan-chip { background: #303030; color: #d4d4d4 !important; }
+[data-boh-theme='dark'] .quota-header p,
+[data-boh-theme='dark'] .usage-plan-row span,
+[data-boh-theme='dark'] .usage-section-head span,
+[data-boh-theme='dark'] .usage-values,
+[data-boh-theme='dark'] .usage-note {
+  color: #a3a3a3;
+}
+[data-boh-theme='dark'] .usage-plan-row,
+[data-boh-theme='dark'] .usage-section {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-boh-theme='dark'] .usage-plan-row strong,
+[data-boh-theme='dark'] .usage-section-head strong,
+[data-boh-theme='dark'] .usage-section-head b,
+[data-boh-theme='dark'] .usage-remaining {
+  color: #f5f5f5;
+}
+[data-boh-theme='dark'] .usage-plan-chip {
+  background: #303030;
+  color: #d4d4d4 !important;
+}
 
-[data-boh-theme="dark"] .quota-close-btn {
+[data-boh-theme='dark'] .quota-close-btn {
   color: #9ca3af;
 }
 
-[data-boh-theme="dark"] .quota-close-btn:hover {
+[data-boh-theme='dark'] .quota-close-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #f8fafc;
 }
 
-[data-boh-theme="dark"] .quota-card {
+[data-boh-theme='dark'] .quota-card {
   background: rgba(40, 40, 42, 0.6);
 }
 
-[data-boh-theme="dark"] .quota-group-title {
+[data-boh-theme='dark'] .quota-group-title {
   color: #9ca3af;
 }
 
-[data-boh-theme="dark"] .quota-tier-section,
-[data-boh-theme="dark"] .quota-unlimited-row,
-[data-boh-theme="dark"] .quota-meter-row {
+[data-boh-theme='dark'] .quota-tier-section,
+[data-boh-theme='dark'] .quota-unlimited-row,
+[data-boh-theme='dark'] .quota-meter-row {
   background: rgba(40, 40, 42, 0.6);
 }
 
-[data-boh-theme="dark"] .quota-label {
+[data-boh-theme='dark'] .quota-label {
   color: #f8fafc;
 }
 
-[data-boh-theme="dark"] .quota-desc {
+[data-boh-theme='dark'] .quota-desc {
   color: #9ca3af;
 }
 
-[data-boh-theme="dark"] .quota-icon {
+[data-boh-theme='dark'] .quota-icon {
   background: rgba(255, 255, 255, 0.08);
 }
 
-[data-boh-theme="dark"] .quota-icon.bg-blue {
+[data-boh-theme='dark'] .quota-icon.bg-blue {
   background: rgba(201, 100, 66, 0.15);
 }
 
-[data-boh-theme="dark"] .quota-icon.bg-green {
+[data-boh-theme='dark'] .quota-icon.bg-green {
   background: rgba(120, 140, 93, 0.15);
 }
 
-[data-boh-theme="dark"] .quota-meter-track {
+[data-boh-theme='dark'] .quota-meter-track {
   background: rgba(255, 255, 255, 0.1);
 }
 
-[data-boh-theme="dark"] .quota-meter-details {
+[data-boh-theme='dark'] .quota-meter-details {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
-[data-boh-theme="dark"] .quota-meter-info strong,
-[data-boh-theme="dark"] .quota-meter-detail-row strong {
+[data-boh-theme='dark'] .quota-meter-info strong,
+[data-boh-theme='dark'] .quota-meter-detail-row strong {
   color: #f8fafc;
 }
 
-[data-boh-theme="dark"] .quota-meter-info small,
-[data-boh-theme="dark"] .quota-meter-detail-row span {
+[data-boh-theme='dark'] .quota-meter-info small,
+[data-boh-theme='dark'] .quota-meter-detail-row span {
   color: #9ca3af;
 }
 
-[data-boh-theme="dark"] .quota-meter-percent { color: #f5f5f5; }
-[data-boh-theme="dark"] .quota-meter-values { color: #a3a3a3; }
+[data-boh-theme='dark'] .quota-meter-percent {
+  color: #f5f5f5;
+}
+[data-boh-theme='dark'] .quota-meter-values {
+  color: #a3a3a3;
+}
 
-[data-boh-theme="dark"] .quota-footer {
+[data-boh-theme='dark'] .quota-footer {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-[data-boh-theme="dark"] .quota-tier-note strong,
-[data-boh-theme="dark"] .quota-tier-note span {
+[data-boh-theme='dark'] .quota-tier-note strong,
+[data-boh-theme='dark'] .quota-tier-note span {
   color: #9ca3af;
 }
 
@@ -686,7 +938,7 @@ const handleUpgrade = () => {
   .quota-backdrop {
     padding: 0 !important;
   }
-  
+
   .quota-drawer {
     width: 100vw !important;
     height: 100dvh !important;
