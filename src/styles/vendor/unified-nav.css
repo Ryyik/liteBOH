@@ -1012,63 +1012,6 @@
   font-size: 18px;
 }
 
-/* 滚动效果 - 滚动时导航栏变为悬浮圆角毛玻璃条 */
-#unified-nav-container.scrolled {
-  transform: translateY(20px);
-  left: 12px;
-  right: 12px;
-  width: 860px;
-  max-width: calc(100% - 24px);
-  margin: 0 auto;
-  padding: 0;
-}
-
-.unified-nav.scrolled {
-  height: 58px;
-  border-radius: 100px;
-  border-bottom: none;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-  animation: none;
-}
-
-.unified-nav.scrolled .nav-container {
-  padding: 0 24px;
-  justify-content: center;
-  gap: 32px;
-}
-
-/* 悬浮状态下移动端菜单跟随下移（子菜单容器用 absolute 自动跟随，无需重复设置） */
-#unified-nav-container.scrolled .nav-menu-mobile {
-  top: 70px;
-  height: calc(100dvh - 70px);
-  max-height: calc(100dvh - 70px);
-}
-
-/* 悬浮状态下二级下拉菜单变成圆角矩形 - 实心白色 */
-.unified-nav.scrolled .nav-submenu {
-  position: fixed;
-  top: 78px;
-  left: 12px;
-  right: 12px;
-  width: 860px;
-  max-width: calc(100% - 24px);
-  margin: 0 auto;
-  border-radius: 16px;
-  border: 1px solid #f0f0f0;
-  border-bottom: 1px solid #f0f0f0;
-  background-color: #ffffff !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-  padding: 32px 32px;
-  transform: translateY(-8px) scale(0.92);
-  transform-origin: top center;
-}
-
-.unified-nav.scrolled .nav-submenu.active {
-  transform: translateY(0) scale(1);
-}
-
 /* 响应式设计 */
 
 /* 平板设备 (768px - 1024px) */
@@ -1691,111 +1634,11 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   }
 }
 
-/* 竖屏模式下悬浮导航栏优化 - 避免遮挡地址栏 */
-@media (orientation: portrait) {
-  #unified-nav-container.scrolled {
-    transform: translateY(14px);
-    left: 8px;
-    right: 8px;
-    width: auto;
-    max-width: calc(100% - 16px);
-  }
-
-  .unified-nav.scrolled {
-    height: 50px;
-    border-radius: 100px;
-    animation: none;
-  }
-
-  .unified-nav.scrolled .nav-container {
-    padding: 0 14px;
-    gap: 16px;
-  }
-
-  /* 竖屏圆条态：子菜单改为毛玻璃卡片，大小符合选项长度 */
-  .unified-nav.scrolled .nav-submenu {
-    position: absolute;
-    top: calc(100% + 10px);
-    left: 50%;
-    right: auto;
-    width: max-content;
-    max-width: calc(100vw - 32px);
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    background-color: rgba(255, 255, 255, 0.78) !important;
-    backdrop-filter: var(--liquid-filter) !important;
-    -webkit-backdrop-filter: var(--liquid-filter) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-    padding: 6px 6px;
-    transform: translateX(-50%) translateY(-12px);
-  }
-
-  .unified-nav.scrolled .nav-submenu.active {
-    transform: translateX(-50%) translateY(0);
-  }
-
-  /* 竖屏圆条态：压缩菜单项间距 */
-  .unified-nav.scrolled .nav-submenu li {
-    transform: translateY(-4px);
-  }
-
-  .unified-nav.scrolled .nav-submenu a {
-    display: block;
-    padding: 8px 16px;
-    font-size: 14px;
-    border-radius: 8px;
-  }
-
-  /* 竖屏圆条态：汉堡菜单改为浮动毛玻璃卡片，大小自适应内容 */
-  #unified-nav-container.scrolled .nav-menu-mobile {
-    top: 64px;
-    left: 8px;
-    right: 8px;
-    width: auto;
-    max-width: calc(100% - 16px);
-    height: auto;
-    max-height: calc(100dvh - 84px);
-    border-radius: 20px;
-    background-color: rgba(255, 255, 255, 0.78) !important;
-    backdrop-filter: var(--liquid-filter) !important;
-    -webkit-backdrop-filter: var(--liquid-filter) !important;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
-    overflow: hidden;
-  }
-
-  #unified-nav-container.scrolled .nav-menu-mobile .nav-menu-mobile-content {
-    height: auto;
-    max-height: calc(100dvh - 104px);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-  }
-
-  /* 竖屏圆条态：二级菜单容器改为 relative 撑开父高度，避免被卡片 overflow 截断 */
-  #unified-nav-container.scrolled .nav-mobile-submenu-container {
-    position: relative;
-    top: auto;
-    left: auto;
-    right: auto;
-    bottom: auto;
-    background-color: transparent !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    padding: 8px 0 0;
-  }
-}
-
 /* 不支持 dvh 的浏览器降级方案（子菜单容器用 absolute 自动跟随，无需重复） */
 @supports not (height: 100dvh) {
   .unified-nav .nav-menu-mobile {
     height: calc(var(--real-vh, 1vh) * 100 - 64px);
     max-height: calc(var(--real-vh, 1vh) * 100 - 64px);
-  }
-
-  #unified-nav-container.scrolled .nav-menu-mobile {
-    height: calc(var(--real-vh, 1vh) * 100 - 70px);
-    max-height: calc(var(--real-vh, 1vh) * 100 - 70px);
   }
 
   @media (max-width: 768px) {

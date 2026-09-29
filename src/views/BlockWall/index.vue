@@ -354,7 +354,7 @@ import {
   uploadBlockWallImage,
 } from '@/utils/api/block-wall-api.js';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { isDialogBusy, useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 // embedded：作为「活动&方块墙」组合页的子面板嵌入时使用——
 // 隐藏返回按钮，吸顶位置由父页面通过 --aw-nav-offset 下发
@@ -776,12 +776,20 @@ const startMovingSelected = () => {
 const deleteSelected = async () => {
   const item = selectedItem.value;
   if (!item) return;
-  const accepted = await confirm({
-    title: '从墙上取下',
-    message: '确定把这张作品从墙上取下来吗？',
-    confirmText: '取下',
-    tone: 'danger',
-  });
+  // 弹窗互斥：上一个弹窗还开着时 confirm() 会 reject（判据见 useConfirmDialog 的单一真源）。
+  // 预期内的拒绝 → 当作用户取消返回；其它异常原样冒泡。
+  let accepted = false;
+  try {
+    accepted = await confirm({
+      title: '从墙上取下',
+      message: '确定把这张作品从墙上取下来吗？',
+      confirmText: '取下',
+      tone: 'danger',
+    });
+  } catch (error) {
+    if (!isDialogBusy(error)) throw error;
+    return;
+  }
   if (!accepted) return;
   const result = await removeBlockWallItem(item);
   if (result.ok) {

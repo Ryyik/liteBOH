@@ -72,3 +72,35 @@ export const squeezeSource = (text) =>
  * 复用 `squeezeSource` 而不是另写一遍正则 —— 尾逗号规则只该有一个定义处。
  */
 export const flattenSource = (text) => squeezeSource(text).replace(/\s+/g, '');
+
+/**
+ * ── 2026-09-29 新增：断言「某个弃用写法不再出现」时，先把注释剥掉 ──────────────
+ *
+ * 动机：这类守卫天然要在**全文**上做否定断言，而注释里会**合法地**复述那个弃用写法
+ * （例：ProfileMain 的新注释写了 `ref(getNotificationStoreSync())` 来解释为什么删掉它）。
+ * 直接在原文上断言 → 假红。
+ *
+ * ⚠️ **不要**对 .vue 全文跑 `/\*[\s\S]*?\*\//g` —— 实测（2026-09-29）：
+ *   `src/views/Profile/ProfileMain.vue` 的模板里有 `accept="image/*"`，其中的
+ *   开注释符（斜杠+星号）会与**远处**的闭注释符（星号+斜杠）配对，一次删掉 42,458 字节
+ *   （84,605 → 42,147），把中间的真实代码（含 import 行）一起吃掉
+ *   → 否定断言**静默变松（假绿）**。
+ *   实测 7 个通知宿主里 6 个都含裸的开注释符（index.vue 25 处 / ForumMain 19 处 …）。
+ * （本注释自身也不写字面的开闭注释符连写：那会把这段说明提前截断。）
+ * 正解是两段式：先 `scriptSection()` 只取 `<script>` 区，再 `stripComments()`。
+ */
+export const scriptSection = (vueSource) => {
+  const text = String(vueSource);
+  const blocks = [...text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  // 非 .vue（纯 .js / .ts）：没有 script 标签，原样返回
+  return blocks.length ? blocks.join('\n') : text;
+};
+
+/**
+ * 剥掉 JS 注释。**必须**先用 `scriptSection()` 把 .vue 的模板区排掉（原因见上）。
+ * `(^|[^:])` 那个前瞻是为了别把 `https://` / `vite://` 里的双斜杠当成注释起点。
+ */
+export const stripComments = (code) =>
+  String(code)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');

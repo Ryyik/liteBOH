@@ -14,7 +14,10 @@ import { supabase } from '@/utils/supabase-client.js';
 import { useAuthStore } from '@/stores/auth';
 import { logger } from '@/utils/logger.js';
 import { freeUntilMs, resolveFrameTier } from '@/utils/avatar-frame-campaign.js';
-import { listPublishedAvatarFrames, listMyAvatarFrameUnlocks } from '@/utils/api/avatar-frames-api.js';
+import {
+  listPublishedAvatarFrames,
+  listMyAvatarFrameUnlocks,
+} from '@/utils/api/avatar-frames-api.js';
 
 export const AVATAR_FRAME_STORAGE_KEY = 'boh-avatar-frame-id';
 
@@ -29,14 +32,70 @@ export { resolveFrameTier };
  *  freeUntil: 'YYYY-MM-DD' = 含当日全天限时免费，次日 00:00 起回落到 tier（判定见 avatar-frame-campaign.js）。 */
 export const AVATAR_FRAMES = [
   { id: 'none', name: '无框', tier: 'free', ring: '', url: '', desc: '不佩戴任何头像框' },
-  { id: 'orange-cat', name: '橙猫手绘', tier: 'free', ring: '#e8734a', url: '/avatars/frames/orange-cat-frame.png', desc: '手绘小猫环绕 · 全员可戴' },
-  { id: 'blue-dog', name: '蓝狗手绘', tier: 'free', ring: '#4aa8e8', url: '/avatars/frames/blue-dog-frame.png', desc: '手绘小狗环绕 · 全员可戴' },
-  { id: 'white-cat', name: '白绒猫', tier: 'free', ring: '#f0e8e0', url: '/avatars/frames/white-cat-frame.png', scale: 1.4, desc: '白色毛绒厚环 · 深色主题尤其出彩' },
-  { id: 'hamster', name: '仓鼠瓜子', tier: 'free', ring: '#c9a06a', url: '/avatars/frames/hamster-frame.png?v=3', scale: 1.61, desc: '手绘仓鼠白盘嗑瓜子 · 全员可戴' },
-  { id: 'cow', name: '奶牛抱抱', tier: 'free', ring: '#cfcfd6', url: '/avatars/frames/cow-frame.png', scale: 1.6, desc: '手绘奶牛趴圈环抱 · 深色主题尤其出彩' },
+  {
+    id: 'orange-cat',
+    name: '橙猫手绘',
+    tier: 'free',
+    ring: '#e8734a',
+    url: '/avatars/frames/orange-cat-frame.png',
+    desc: '手绘小猫环绕 · 全员可戴',
+  },
+  {
+    id: 'blue-dog',
+    name: '蓝狗手绘',
+    tier: 'free',
+    ring: '#4aa8e8',
+    url: '/avatars/frames/blue-dog-frame.png',
+    desc: '手绘小狗环绕 · 全员可戴',
+  },
+  {
+    id: 'white-cat',
+    name: '白绒猫',
+    tier: 'free',
+    ring: '#f0e8e0',
+    url: '/avatars/frames/white-cat-frame.png',
+    scale: 1.4,
+    desc: '白色毛绒厚环 · 深色主题尤其出彩',
+  },
+  {
+    id: 'hamster',
+    name: '仓鼠瓜子',
+    tier: 'free',
+    ring: '#c9a06a',
+    url: '/avatars/frames/hamster-frame.png?v=3',
+    scale: 1.61,
+    desc: '手绘仓鼠白盘嗑瓜子 · 全员可戴',
+  },
+  {
+    id: 'cow',
+    name: '奶牛抱抱',
+    tier: 'free',
+    ring: '#cfcfd6',
+    url: '/avatars/frames/cow-frame.png',
+    scale: 1.6,
+    desc: '手绘奶牛趴圈环抱 · 深色主题尤其出彩',
+  },
   // ── Ultra 专属（首发 7 天限时免费，到期自动转 Ultra）──
-  { id: 'elf-flower', name: '菊花梨', tier: 'ultra', freeUntil: '2026-09-25', ring: '#e8734a', url: '/avatars/frames/elf-flower-frame.png', scale: 2.08, desc: '暖橙花瓣环绕 · 果子坐镇花芯' },
-  { id: 'elf-grass', name: '奇丽草', tier: 'ultra', freeUntil: '2026-09-25', ring: '#7fb069', url: '/avatars/frames/elf-grass-frame.png', scale: 2.08, desc: '青绿草环 · 蝴蝶伴飞' }
+  {
+    id: 'elf-flower',
+    name: '菊花梨',
+    tier: 'ultra',
+    freeUntil: '2026-09-25',
+    ring: '#e8734a',
+    url: '/avatars/frames/elf-flower-frame.png',
+    scale: 2.08,
+    desc: '暖橙花瓣环绕 · 果子坐镇花芯',
+  },
+  {
+    id: 'elf-grass',
+    name: '奇丽草',
+    tier: 'ultra',
+    freeUntil: '2026-09-25',
+    ring: '#7fb069',
+    url: '/avatars/frames/elf-grass-frame.png',
+    scale: 2.08,
+    desc: '青绿草环 · 蝴蝶伴飞',
+  },
   // ── 档位框候选（素材待定，取消注释即上架）──
   // { id: 'plus-ragdoll', name: '布偶蓝铃', tier: 'plus', ring: '#0071e3', url: '', desc: 'Plus 档专属 · 蓝色项圈小铃铛' },
   // { id: 'pro-silver', name: '银渐层', tier: 'pro', ring: '#9aa3b2', url: '', desc: 'Pro 档专属 · 银灰围脖猫爪' },
@@ -61,10 +120,13 @@ function scheduleFreeUntilRefresh() {
   if (!upcoming.length) return;
   const delay = Math.min(...upcoming) - Date.now() + 500;
   if (delay <= 0) return;
-  setTimeout(() => {
-    nowMs.value = Date.now();
-    scheduleFreeUntilRefresh();
-  }, Math.min(delay, 2147480000));
+  setTimeout(
+    () => {
+      nowMs.value = Date.now();
+      scheduleFreeUntilRefresh();
+    },
+    Math.min(delay, 2147480000),
+  );
 }
 if (typeof window !== 'undefined') scheduleFreeUntilRefresh();
 
@@ -76,8 +138,8 @@ if (typeof window !== 'undefined') scheduleFreeUntilRefresh();
  *   - 内置里 DB 没有的（尚未入库的兜底框）排到末尾
  */
 const remoteFrames = ref([]);
-const listState = ref('idle');            // idle | loading | ready | failed
-const purchasedIds = ref(new Set());       // 服务端「积分解锁」集合（永久）
+const listState = ref('idle'); // idle | loading | ready | failed
+const purchasedIds = ref(new Set()); // 服务端「积分解锁」集合（永久）
 
 /** 合并后的清单（同步读，供 getFrameById / 渲染反查） */
 export function allAvatarFrames() {
@@ -88,7 +150,7 @@ export function allAvatarFrames() {
   return [
     ...builtinOnly.filter((f) => f.id === 'none'),
     ...remote,
-    ...builtinOnly.filter((f) => f.id !== 'none')
+    ...builtinOnly.filter((f) => f.id !== 'none'),
   ];
 }
 
@@ -113,6 +175,13 @@ export async function loadAvatarFrameData({ force = false } = {}) {
 
 /** 刷新「我的积分解锁」（购买成功后调用；未登录静默跳过） */
 export async function refreshMyAvatarFrameUnlocks() {
+  // 未登录跳过：anon 调 list_my_avatar_frame_unlocks 恒返回 []（2026-09-29 线上实测），
+  // 白付一个 RTT；此处注释历来写「未登录静默跳过」，本次让行为与注释对齐。
+  // 同时清空本地集合，保证登出后不残留上一个账号的解锁态。
+  if (!useAuthStore().isLoggedIn) {
+    purchasedIds.value = new Set();
+    return { ok: true, data: [] };
+  }
   try {
     const res = await listMyAvatarFrameUnlocks();
     if (res?.ok) purchasedIds.value = new Set(res.data);
@@ -138,10 +207,13 @@ export function getFrameById(id) {
 export function ownedIdsForTier(tierCode, now = Date.now(), purchased = purchasedIds.value) {
   const tier = TIER_RANK[tierCode] >= 0 ? tierCode : 'free';
   return allAvatarFrames()
-    .filter((f) => f.id === 'none'
-      || f.limited
-      || purchased.has(f.id)
-      || TIER_RANK[tier] >= TIER_RANK[resolveFrameTier(f, now)])
+    .filter(
+      (f) =>
+        f.id === 'none' ||
+        f.limited ||
+        purchased.has(f.id) ||
+        TIER_RANK[tier] >= TIER_RANK[resolveFrameTier(f, now)],
+    )
     .map((f) => f.id);
 }
 
@@ -166,7 +238,9 @@ export function useAvatarFrame(tierCodeRef = ref('free')) {
   const frames = computed(() => allAvatarFrames());
 
   // 依赖 nowMs（限免到期）与 purchasedIds（购买成功）自动重算持有列表
-  const ownedIds = computed(() => ownedIdsForTier(tierCodeRef.value, nowMs.value, purchasedIds.value));
+  const ownedIds = computed(() =>
+    ownedIdsForTier(tierCodeRef.value, nowMs.value, purchasedIds.value),
+  );
 
   /** 佩戴合法性校验后的当前框（不持有 → 回落无框）。Phase 2 的到期回收走同一出口 */
   const effectiveFrame = computed(() => {
@@ -183,7 +257,9 @@ export function useAvatarFrame(tierCodeRef = ref('free')) {
     equippedId.value = frame.id;
     try {
       localStorage.setItem(AVATAR_FRAME_STORAGE_KEY, frame.id);
-    } catch { /* 隐私模式等场景静默 */ }
+    } catch {
+      /* 隐私模式等场景静默 */
+    }
     void persistFrameToServer(frame);
     return true;
   }
@@ -201,18 +277,20 @@ export function useAvatarFrame(tierCodeRef = ref('free')) {
     tierOf,
     ownedIds,
     equip,
-    getFrameById
+    getFrameById,
   };
 }
 
 /** 佩戴框上库（profiles.avatar_frame_url）；未登录静默跳过。失败仅记日志，不回滚本地（下次登录同步会纠正） */
 async function persistFrameToServer(frame) {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
     const { error } = await supabase
       .from('profiles')
-      .update({ avatar_frame_url: frame.id === 'none' ? '' : (frame.url || '') })
+      .update({ avatar_frame_url: frame.id === 'none' ? '' : frame.url || '' })
       .eq('id', user.id);
     if (error) logger.warn('avatar-frame', '佩戴框上库失败:', error);
   } catch (err) {
@@ -223,7 +301,9 @@ async function persistFrameToServer(frame) {
 /** 登录后同步：库为准补本地，本地有而库空则上库（多设备一致性）。返回是否生效 */
 export async function syncAvatarFrameFromServer() {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return false;
     const { data, error } = await supabase
       .from('profiles')
@@ -233,11 +313,17 @@ export async function syncAvatarFrameFromServer() {
     if (error) throw error;
     const serverUrl = String(data?.avatar_frame_url || '').trim();
     if (serverUrl) {
-      const frame = allAvatarFrames().find((f) => stripUrlQuery(f.url) === stripUrlQuery(serverUrl));
+      const frame = allAvatarFrames().find(
+        (f) => stripUrlQuery(f.url) === stripUrlQuery(serverUrl),
+      );
       const serverId = frame?.id || 'none';
       if (serverId !== equippedId.value) {
         equippedId.value = serverId;
-        try { localStorage.setItem(AVATAR_FRAME_STORAGE_KEY, serverId); } catch { /* 静默 */ }
+        try {
+          localStorage.setItem(AVATAR_FRAME_STORAGE_KEY, serverId);
+        } catch {
+          /* 静默 */
+        }
       }
       return true;
     }
@@ -266,8 +352,8 @@ export function resolveFrameForAuthor(frameUrl, authorId) {
     const frame = getFrameById(equippedId.value);
     return frame.url ? { url: frame.url, scale: frame.scale || 1.24 } : null;
   }
-    const url = String(frameUrl || '').trim();
-    if (!url) return null;
-    const known = allAvatarFrames().find((f) => stripUrlQuery(f.url) === stripUrlQuery(url));
-    return { url, scale: known?.scale || 1.24 };
+  const url = String(frameUrl || '').trim();
+  if (!url) return null;
+  const known = allAvatarFrames().find((f) => stripUrlQuery(f.url) === stripUrlQuery(url));
+  return { url, scale: known?.scale || 1.24 };
 }

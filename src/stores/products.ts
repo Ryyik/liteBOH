@@ -116,32 +116,6 @@ const writeProductsCache = (data: Record<string, unknown>[]): void => {
   }
 };
 
-/**
- * 合并远端数据与本地兜底商品（按 id 去重，id 相同时远端优先）
- * 确保：1) 新上架的本地商品（如吉祥物公仔）即使未入库也可见
- *      2) 本地兜底商品在 DB 分类不匹配时也能显示，避免产品页空白
- */
-const mergeWithFallback = (
-  remoteItems: Record<string, unknown>[],
-  fallbackItems: Record<string, unknown>[],
-): Record<string, unknown>[] => {
-  const seen = new Set<number>();
-  const result: Record<string, unknown>[] = [];
-  for (const item of remoteItems) {
-    const id = Number(item.id);
-    if (!Number.isNaN(id)) seen.add(id);
-    result.push(item);
-  }
-  for (const item of fallbackItems) {
-    const id = Number(item.id);
-    if (!Number.isNaN(id) && !seen.has(id)) {
-      result.push(item);
-      seen.add(id);
-    }
-  }
-  return result;
-};
-
 export const useProductsStore = defineStore('products', () => {
   const productsData = ref<Product[]>([]);
   const isFetchingProducts = ref(false);
@@ -173,12 +147,12 @@ export const useProductsStore = defineStore('products', () => {
     isFetchingProducts.value = true;
 
     try {
-      // 注意：不再用 .eq('is_active', true) 在 DB 层过滤。
-      // 原因：mergeWithFallback 会按 id 合并 fallback 商品，若 DB 过滤掉 is_active=false 的商品，
-      // fallback 中同 id 的商品（默认 is_active=undefined → 归一化为 true）会被"复活"，
-      // 导致管理员无法通过 DB 设置 is_active=false 下架 fallback 列表中的商品（如吉祥物公仔 id=501）。
-      // 改为：DB 拉取全部商品，mergeWithFallback 时 DB 优先（is_active=false 的商品保留 DB 状态），
-      // 合并后在 normalizeProduct 之后统一按 is_active 过滤展示。
+      // 注意：不在 DB 层用 .eq('is_active', true) 过滤，改为拉全量、在 normalizeProduct 之后
+      // 统一按 is_active 过滤（见下方 latestProducts 那行）。
+      // ⚠️ 2026-09-29 更正：原注释把这条决定的**理由**挂在 `mergeWithFallback` 上（声称「按 id 合并
+      // fallback 商品会让 DB 里已下架的商品被复活」）。但那个函数自 4.9.0 起就不再被调用，已同日删除；
+      // 现在的取数规则是「DB 有数据就完全信任 DB，只有 DB 为空才走静态兜底」——见下方 sourceData 那行。
+      // 过滤位置保持不变（这是**当前**行为），只是不再引用一个已不存在的合并步骤当理由。
       const { data, error } = await supabase
         .from('products')
         .select('*')

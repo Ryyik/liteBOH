@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { flattenSource, squeezeSource } from '../helpers/source.js';
+import { flattenSource, scriptSection, squeezeSource, stripComments } from '../helpers/source.js';
 
 // 这两个函数是所有「读源码 + toContain」守卫的地基：它们错了，受影响的断言会**静默变松**
 // 或**集体假红**（2026-09-28 就发生过：正则写成 `,(\s*[)\]}]?)`，把所有逗号都删了，
@@ -112,5 +112,54 @@ describe('flattenSource：在 squeezeSource 基础上移除全部空白', () => 
   it('幂等：再归一次不变', () => {
     const once = flattenSource('a\n b({ c: 1, })');
     expect(flattenSource(once)).toBe(once);
+  });
+});
+
+describe('scriptSection + stripComments：断言「弃用写法不再出现」前先剥注释（2026-09-29 加）', () => {
+  // 素材取自真实文件：ProfileMain.vue 的模板里有 `accept="image/*"`，脚本里还要断言
+  // `ref(getNotificationStoreSync())` 不再出现（而它会被**注释**合法复述）。
+  const trapSample = `<template>
+  <input class="hidden-file-input" accept="image/*" @change="onPick" />
+</template>
+<script setup>
+const railNotificationStore = getNotificationStoreRef();
+/* 全文剥注释时，这里的块注释结尾就是被错配的终点 */
+</script>`;
+
+  const commentSample = `<script setup>
+// 旧写法：ref(getNotificationStoreSync()) —— 已删，改共享 ref
+/* 另一处 ref(getNotificationStoreSync()) */
+const railNotificationStore = getNotificationStoreRef();
+</script>`;
+
+  it('scriptSection 只取 <script> 区：模板里的 accept="image/*" 不进来', () => {
+    const script = scriptSection(trapSample);
+    expect(script).not.toContain('accept="image/*"');
+    expect(script).toContain('getNotificationStoreRef');
+  });
+
+  it('反证：对 .vue 全文直接剥注释会把真实代码一起吃掉（否定断言因此假绿）', () => {
+    // 这正是 2026-09-29 实测到的坑：`image/*` 的 `/*` 与块注释的 `*/` 跨区配对，
+    // ProfileMain.vue 一次被删掉 42,458 字节，import 行消失 → 守卫静默变松。
+    const naive = trapSample.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(naive).not.toContain('getNotificationStoreRef');
+    // 两段式写法才能保住真实代码：
+    expect(stripComments(scriptSection(trapSample))).toContain('getNotificationStoreRef');
+  });
+
+  it('stripComments 抹掉注释里复述的弃用写法，保留代码里的当前写法', () => {
+    const code = stripComments(scriptSection(commentSample));
+    expect(code).not.toContain('getNotificationStoreSync');
+    expect(code).toContain('getNotificationStoreRef');
+  });
+
+  it('非 .vue（纯 js/ts）原样返回，不会被当成没有脚本', () => {
+    expect(scriptSection('const a = 1;')).toBe('const a = 1;');
+  });
+
+  it('不把 https:// 里的双斜杠当注释起点', () => {
+    const code = stripComments("const endpoint = 'https://example.com/a'; const b = 2;");
+    expect(code).toContain("'https://example.com/a'");
+    expect(code).toContain('const b = 2;');
   });
 });

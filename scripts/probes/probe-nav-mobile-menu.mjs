@@ -29,26 +29,34 @@ import { chromium } from 'playwright';
 //     （**不能**去改 vendor 的 .nav-mobile-main-menu.hidden：横屏档子菜单容器仍是 absolute
 //      覆盖式、靠主菜单撑高，把主菜单移出流会让那一档塌成 0 高。）
 //
-// 断言（三个宽度档各跑一遍）：
+// 断言（竖屏三个宽度档各跑一遍，另加一个窄横屏档）：
 //   A 汉堡可见、点击后菜单打开（.nav-menu-mobile.active）
 //   B **菜单上沿与岛底边齐平**：|menuTop − islandBottom| ≤ 1
 //   C 菜单不被岛盖住：menuTop ≥ islandBottom − 1（允许 1px 边框重叠）
 //   D 菜单打开时岛无下投影（否则阴影横跨接缝，视觉上又是一条灰缝）
 //   E 菜单关闭时岛**有**投影（防止 D 被写成永久 none）
 //   F 菜单横向不出视口
-//   G 一级态：**收起态的子菜单容器不占位**（≤1px），卡片底部余量 ≤24px
+//   G 一级态：**收起态的子菜单容器不占位**（≤1px），卡片底部余量落在 [0, 24]
 //   H 二级态：面板从菜单内容区**顶部**开始（内部空洞 ≤12px），一级菜单占位 = 0
 //   I 二级态：返回条贴在面板顶部
 //   J 二级态：最后一个可见项**不被卡片裁掉**，且卡片不超出视口
 //   K 点「返回」能回到一级菜单，且几何与刚进入菜单时一致（防「隐藏」被写成永久）
+//   L 三级态：点开分组项后「分组返回条」真的出现（先扫一级项，找到含分组项的那一支）
+//   M 三级态：三级内容从**分组面板顶部**开始（空洞 ≤1px）—— 若有隐藏兄弟仍占位就会撑大
+//   N 三级态：最后一个可见项不被卡片裁掉
+//   A–F 另在**窄横屏档**（707×354）各跑一遍：那一档走 vendor 的
+//     `top: calc(10px + var(--global-nav-rest-height, 58px))`，与竖屏不是同一套几何
 //
 // 反证（改完必须自己先跑一遍，确认它真的会红）：
 //   · 把竖屏档的 `top: 100%` 改回 `top: 66px` → B 必红（Δ=17）
 //   · 删掉 `#unified-nav-container.mobile-menu-open .unified-nav-surface` 的
 //     `box-shadow: none` → D 必红
-//   · 删掉本轮那两条（主菜单 `display:none` / 容器 `height:0`）→ G/H/J 必红。
+//   · 删掉 2026-09-28 那两条（主菜单 `display:none` / 容器 `height:0`）→ G/H/J 必红。
 //     实测（`git checkout` 回退后跑）：24/33，G 子菜单容器高 67.9、卡片底余量 81；
 //     H 一级菜单占位 261.95、顶部空洞 271.95；J 卡片底余量 −9.67。
+//   · 2026-09-29 新增 L/M/N 与窄横屏档时的反证，见 docs/PROBES.md 的实测记录：
+//     给 `.nav-mobile-submenu.active` 临时插一个 60px 的占位块 → M 必红（deepVoid 60）；
+//     把竖屏档卡片 `max-height` 压到内容之下 → G 必红（bottomSlack 转负）。
 // =====================================================================
 const BASE = process.env.BASE || 'http://[::1]:5173';
 const WIDTHS = (process.env.WIDTHS || '360,390,430').split(',').map(Number);
@@ -136,12 +144,56 @@ const MEASURE_INNER = () => {
     mainH: box(main)?.h ?? 0,
     subWrapTop: sw?.top ?? null,
     subWrapH: sw?.h ?? 0,
+    // 二级面板块在容器内的偏移（三级态要拿它当基准做对比，见 M）
+    submenuTop: box(q('.nav-mobile-submenu.active'))?.top ?? null,
     backTop: box(back)?.top ?? null,
     groupBackTop: box(q('.nav-mobile-group-back'))?.top ?? null,
     // 一级态：收起态的子菜单**不得占位**；二级/三级态：面板必须从内容区顶部开始
     //（修前实测 273px —— 就是用户报的「点开二级菜单后的大空隙」）
     innerTopVoid: sw && cc ? +(sw.top - cc.top).toFixed(2) : null,
     // 最后一项底边到卡片底边的余量（负数 = 被裁掉，修前实测 −9.67）
+    bottomSlack: cb && last ? +(cb.bottom - box(last).bottom).toFixed(2) : null,
+    overflowsViewport: cb ? cb.bottom > window.innerHeight : null,
+  };
+};
+
+// 三级（分组）态几何：分组返回条 / 它所在的分组面板 / 卡片 / 最后一项。
+// 2026-09-29 补。此前这一段只有 groupBackTop 被**量出来却从没被断言**，
+// 于是「三级」只活在文件标题与 docs/PROBES.md 里（文档声称覆盖一级/二级/三级，
+// 实现里一条断言都没有）。
+const MEASURE_DEEP = () => {
+  const q = (s) => document.querySelector(s);
+  const box = (el) => {
+    if (!el) return null;
+    const b = el.getBoundingClientRect();
+    return { top: +b.top.toFixed(2), bottom: +b.bottom.toFixed(2), h: +b.height.toFixed(2) };
+  };
+  const gb = q('.nav-mobile-group-back');
+  // 三级面板块：只有当前活跃的那一支带 .active，其余 section 是 display:none
+  const active = q('.nav-mobile-submenu.active');
+  const card = q('.nav-menu-mobile');
+  const items = [
+    ...document.querySelectorAll(
+      '.nav-menu-mobile a, .nav-mobile-group-entry, .nav-mobile-group-back',
+    ),
+  ].filter((el) => el.offsetParent !== null && el.getBoundingClientRect().height > 0);
+  const last = items[items.length - 1];
+  const gbb = box(gb);
+  const ab = box(active);
+  const cb = box(card);
+  return {
+    groupBackTop: gbb ? gbb.top : null,
+    activeTop: ab ? ab.top : null,
+    subWrapTop: box(q('.nav-mobile-submenu-container'))?.top ?? null,
+    // 分组返回条必须贴在**它所在分组面板的顶部**：若收起的分组列表仍以
+    // `visibility: hidden` 占位（本仓库 2026-09-28 咬过一模一样的坑），这个差值会被撑大。
+    deepVoid: gbb && ab ? +(gbb.top - ab.top).toFixed(2) : null,
+    groupBackVisible: !!(
+      gb &&
+      gb.offsetParent !== null &&
+      getComputedStyle(gb).visibility !== 'hidden' &&
+      (gbb?.h ?? 0) > 0
+    ),
     bottomSlack: cb && last ? +(cb.bottom - box(last).bottom).toFixed(2) : null,
     overflowsViewport: cb ? cb.bottom > window.innerHeight : null,
   };
@@ -218,7 +270,7 @@ for (const width of WIDTHS) {
   const lv1 = await page.evaluate(MEASURE_INNER);
   check(
     `G ${tag} 一级态：收起态子菜单不占位`,
-    lv1.subWrapH <= 1 && lv1.bottomSlack !== null && lv1.bottomSlack <= 24,
+    lv1.subWrapH <= 1 && lv1.bottomSlack !== null && lv1.bottomSlack >= 0 && lv1.bottomSlack <= 24,
     `子菜单容器高=${lv1.subWrapH} 卡片底余量=${lv1.bottomSlack}px（修前 67.9 / 81）`,
   );
 
@@ -241,10 +293,19 @@ for (const width of WIDTHS) {
     await page.waitForTimeout(600);
   }
 
+  // 二级态「面板块在容器内的偏移」，作为三级态的同基准参考（见 M）。
+  // 反证教训：M 最初写成「分组返回条 vs 它自己的父级面板顶」，结果给返回条加 margin-top:60px
+  // 时父级跟着一起下移（margin 折叠）→ 差值恒为 0，**断言完全不敏感**。
+  // 换成「同一个容器内的偏移，二级 vs 三级」才抓得住这类空洞。
+  let lv2Inset = null;
   if (!openedLabel) {
     check(`H–K ${tag} 二级菜单`, false, '没有找到任何带子项的一级菜单，无法验证');
   } else {
     const lv2 = await page.evaluate(MEASURE_INNER);
+    lv2Inset =
+      lv2.submenuTop !== null && lv2.subWrapTop !== null
+        ? +(lv2.submenuTop - lv2.subWrapTop).toFixed(2)
+        : null;
 
     // H：面板必须从内容区**顶部**开始（修前被隐藏的一级菜单顶到 273px 处）
     check(
@@ -277,6 +338,123 @@ for (const width of WIDTHS) {
       `一级菜单可见=${back.mainVisible} 高=${back.mainH} 卡片高=${back.cardH}（一级态 ${lv1.cardH}）`,
     );
   }
+
+  // ── L–N：三级（分组）档 ────────────────────────────────────────────
+  // 「可见分组项」只在部分一级项下出现（2026-09-29 实测：探索 3 个 / 服务 2 个 /
+  // 社区 0 个）→ 必须重新扫一遍一级项，找到真正含分组的那一支再进去。
+  // 这一段补的是：三级此前**只有测量、没有任何断言**。
+  let deepLabel = null;
+  for (let i = 0; openedLabel && i < parentCount; i++) {
+    const label = (await parents.nth(i).innerText()).trim();
+    await parents.nth(i).click();
+    await page.waitForTimeout(900);
+    if ((await page.locator('.nav-mobile-group-entry:visible').count()) > 0) {
+      deepLabel = label;
+      break;
+    }
+    await page.locator('.nav-mobile-back').click();
+    await page.waitForTimeout(600);
+  }
+
+  if (!deepLabel) {
+    check(`L ${tag} 三级菜单`, false, '没有找到任何含「可见分组项」的一级菜单，无法验证三级');
+  } else {
+    await page.locator('.nav-mobile-group-entry:visible').first().click();
+    await page.waitForTimeout(900);
+    const lv3 = await page.evaluate(MEASURE_DEEP);
+    const lv3Inset =
+      lv3.groupBackTop !== null && lv3.subWrapTop !== null
+        ? +(lv3.groupBackTop - lv3.subWrapTop).toFixed(2)
+        : null;
+
+    check(
+      `L ${tag} 三级态：分组返回条已出现`,
+      lv3.groupBackVisible && lv3.groupBackTop !== null,
+      `「${deepLabel}」分组返回条可见=${lv3.groupBackVisible} top=${lv3.groupBackTop}`,
+    );
+    check(
+      `M ${tag} 三级态：三级内容与二级同基（不引入额外空洞）`,
+      lv2Inset !== null && lv3Inset !== null && Math.abs(lv3Inset - lv2Inset) <= 1,
+      `容器内偏移：二级 ${lv2Inset} → 三级 ${lv3Inset}px（差 ${
+        lv2Inset !== null && lv3Inset !== null ? (lv3Inset - lv2Inset).toFixed(2) : 'n/a'
+      }；分组面板内空洞 ${lv3.deepVoid}）`,
+    );
+    check(
+      `N ${tag} 三级态：最后一项未被卡片裁掉`,
+      lv3.bottomSlack !== null && lv3.bottomSlack >= 0 && lv3.overflowsViewport === false,
+      `卡片底余量=${lv3.bottomSlack}px 超视口=${lv3.overflowsViewport}`,
+    );
+  }
+
+  await ctx.close();
+}
+
+// ── 窄横屏档（orientation: landscape 且宽度 ≤768）──────────────────────
+// style.scoped.css 的全部竖屏修正（`top: 100%`、子菜单容器 `height: 0`、
+// 主菜单 `display: none`）都包在 `@media (orientation: portrait) and (max-width: 768px)`
+// 里（style.scoped.css:296 起），所以窄横屏走的是**另一套几何**：菜单定位仍由 vendor 的
+// `top: calc(10px + var(--global-nav-rest-height, 58px))` 决定，子菜单容器仍是 absolute
+// 覆盖式（靠主菜单撑高，故竖屏那条 display:none 不能套用到这一档）。
+// 此前这一档**零断言**，只有 unified-nav.css 注释里一句手验（707×354 实测接缝 1px）。
+// 这里只断言与档位无关的三类不变量：接缝 / 投影 / 横向不出视口。
+const LANDSCAPE = [{ tag: '707x354 窄横屏', width: 707, height: 354 }];
+
+for (const lc of LANDSCAPE) {
+  const ctx = await browser.newContext({
+    viewport: { width: lc.width, height: lc.height },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+  });
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+  await injectAuth(page);
+  await page.waitForTimeout(600);
+
+  const burger = page.locator('#nav-hamburger');
+  if (!(await burger.isVisible())) {
+    check(`A ${lc.tag} 汉堡可见`, false, '该档不在移动端形态，断言无意义');
+    await ctx.close();
+    continue;
+  }
+
+  const closed = await page.evaluate(MEASURE);
+  await burger.click();
+  await page.waitForTimeout(1200);
+  const open = await page.evaluate(MEASURE);
+
+  check(
+    `A ${lc.tag} 菜单已展开`,
+    open.menuActive && open.menuVisible,
+    `.active=${open.menuActive} 高度>0=${open.menuVisible}`,
+  );
+  check(
+    `B ${lc.tag} 菜单上沿与岛底边齐平`,
+    open.menuTop !== null &&
+      open.islandBottom !== null &&
+      Math.abs(open.menuTop - open.islandBottom) <= 1,
+    `菜单 ${open.menuTop} / 岛底 ${open.islandBottom} / 空隙 ${(open.menuTop - open.islandBottom).toFixed(2)}px`,
+  );
+  check(
+    `C ${lc.tag} 菜单未被岛盖住`,
+    open.menuTop !== null && open.islandBottom !== null && open.menuTop >= open.islandBottom - 1,
+    `Δ=${(open.menuTop - open.islandBottom).toFixed(2)}px`,
+  );
+  check(
+    `D ${lc.tag} 展开时岛无下投影`,
+    open.surfaceBoxShadow === 'none',
+    `box-shadow=${open.surfaceBoxShadow}`,
+  );
+  check(
+    `E ${lc.tag} 收起时岛有投影（D 不是永久 none）`,
+    closed.surfaceBoxShadow !== 'none',
+    `box-shadow=${closed.surfaceBoxShadow}`,
+  );
+  check(
+    `F ${lc.tag} 菜单横向不出视口`,
+    open.menuLeft >= -0.5 && open.menuRight <= open.vw + 0.5,
+    `left=${open.menuLeft} right=${open.menuRight} vw=${open.vw}`,
+  );
 
   await ctx.close();
 }

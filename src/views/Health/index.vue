@@ -216,7 +216,17 @@ onMounted(async () => {
   }
   // hydrate 现在返回可等待的 Promise：等待本地+云端数据全部就绪后再判断
   // 首次使用，防止新设备上用 onboarding 默认值覆盖云端真实档案
-  await healthStore.hydrate().catch(() => {});
+  await healthStore.hydrate().catch((error) => {
+    /* 2026-09-29 补：这条原本也是**静默失败** —— 05958f21 只补了上面 getSession 那条 catch，
+       「云端档案同步本体」仍被吞。症状同型：用户看到「登录了但云端健康数据没同步」，
+       排查时没有任何线索（正是本文档上面那条注释自己批评过的盲点）。
+       只加日志，不改控制流：仍然不抛，页面照旧按「首次使用」的默认值继续渲染。 */
+    logger.warn(
+      'health',
+      '健康档案 hydrate 失败（本地/云端同步未完成，可能按首用默认值渲染）:',
+      error,
+    );
+  });
   if (
     !healthStore.onboardingDone &&
     !healthStore.profile.heightCm &&

@@ -1,8 +1,18 @@
 <template>
-  <div class="shared-memory-page" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
-
+  <div
+    class="shared-memory-page"
+    :style="{
+      '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px',
+      paddingTop: isFromUserSpace ? '0px' : '72px',
+    }"
+  >
     <div class="shared-memory-shell">
-      <UserCenterPageHeader v-if="isFromUserSpace" title="公共记忆管理" max-width="1200px" @back="goBack" />
+      <UserCenterPageHeader
+        v-if="isFromUserSpace"
+        title="公共记忆管理"
+        max-width="1200px"
+        @back="goBack"
+      />
 
       <div class="page-description">
         <p>这里可以手动归档或删除你沉淀的 AI 公共记忆</p>
@@ -51,8 +61,12 @@
           <article v-for="item in sharedMemories" :key="item.id" class="memory-card">
             <header class="memory-meta">
               <div class="meta-left">
-                <span class="meta-status" :class="item.status">{{ item.status === 'archived' ? '已归档' : '生效中' }}</span>
-                <span class="meta-source">{{ item.source === 'manual' ? '手动' : '自动沉淀' }}</span>
+                <span class="meta-status" :class="item.status">{{
+                  item.status === 'archived' ? '已归档' : '生效中'
+                }}</span>
+                <span class="meta-source">{{
+                  item.source === 'manual' ? '手动' : '自动沉淀'
+                }}</span>
                 <span class="meta-confidence">置信度 {{ formatConfidence(item.confidence) }}</span>
               </div>
               <span class="meta-time">{{ formatDateTime(item.updatedAt || item.createdAt) }}</span>
@@ -62,10 +76,18 @@
 
             <div v-if="item.mood || (item.tags && item.tags.length)" class="memory-tags">
               <span v-if="item.mood" class="tag mood-tag">{{ item.mood }}</span>
-              <span v-for="(tag, tagIndex) in (item.tags || [])" :key="`${item.id}-${tagIndex}`" class="tag">{{ tag }}</span>
+              <span
+                v-for="(tag, tagIndex) in item.tags || []"
+                :key="`${item.id}-${tagIndex}`"
+                class="tag"
+                >{{ tag }}</span
+              >
             </div>
 
-            <p v-if="Array.isArray(item.evidence) && item.evidence.length > 0" class="evidence-hint">
+            <p
+              v-if="Array.isArray(item.evidence) && item.evidence.length > 0"
+              class="evidence-hint"
+            >
               证据片段 {{ item.evidence.length }} 条
             </p>
 
@@ -125,11 +147,11 @@ import {
   getMySharedAIMemories,
   updateSharedAIMemory,
   updateSharedAIMemoryStatus,
-  deleteSharedAIMemory
+  deleteSharedAIMemory,
 } from '@/utils/api/treehole-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 // 编辑/删除经全局确认弹窗（宿主为 App.vue 的 AdminConfirmModal），替换原生 prompt / confirm
-import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { isDialogBusy, useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -151,18 +173,18 @@ const sharedMemories = ref([]);
 const state = reactive({
   isLoading: false,
   error: null,
-  lastFetchTime: 0 // 用于智能刷新
+  lastFetchTime: 0, // 用于智能刷新
 });
 
 const filterStatus = ref('all');
 const runningAction = reactive({
   id: '',
-  type: ''
+  type: '',
 });
 const pager = reactive({
   page: 1,
   pageSize: 20,
-  total: 0
+  total: 0,
 });
 
 // AbortController 管理
@@ -171,13 +193,13 @@ let abortController = null;
 const statusOptions = [
   { label: '生效中', value: 'active' },
   { label: '已归档', value: 'archived' },
-  { label: '全部', value: 'all' }
+  { label: '全部', value: 'all' },
 ];
 
 const notice = reactive({
   visible: false,
   type: 'info',
-  text: ''
+  text: '',
 });
 let noticeTimer = null;
 
@@ -194,10 +216,10 @@ const scheduleRefresh = () => {
   }, 3000);
 };
 
-// useConfirmDialog 带互斥保护：弹窗已被占用时直接 reject（'Dialog is already open'）。
+// useConfirmDialog 带互斥保护：弹窗已被占用时直接 reject。判据 `isDialogBusy` 由
+// `@/composables/useConfirmDialog.js` 提供（2026-09-29 起为**单一真源**，本文件不再自写一份）。
 // 只把这一类「预期内」的拒绝归一化为「用户取消」；其它异常（例如 dialog 未定义、
 // 组件内部抛错）必须原样冒泡，否则会被静默吞掉 —— 表现为「点了没反应」且监控收不到。
-const isDialogBusy = (err) => /already open/i.test(String(err?.message || err || ''));
 
 const safePrompt = async (options) => {
   try {
@@ -265,7 +287,7 @@ const fetchSharedMemories = async ({ append = false, force = false } = {}) => {
 
   // 智能刷新：5秒内不重复刷新（除非强制刷新）
   const now = Date.now();
-  if (!force && !append && state.lastFetchTime > 0 && (now - state.lastFetchTime) < 5000) {
+  if (!force && !append && state.lastFetchTime > 0 && now - state.lastFetchTime < 5000) {
     return;
   }
 
@@ -282,7 +304,7 @@ const fetchSharedMemories = async ({ append = false, force = false } = {}) => {
     userId: String(userInfo.value.id || ''),
     page: pager.page,
     pageSize: pager.pageSize,
-    status: filterStatus.value
+    status: filterStatus.value,
   });
 
   state.isLoading = false;
@@ -335,7 +357,11 @@ const updateStatus = async (item, nextStatus, successText) => {
   // 2. 发起更新请求。接口「抛异常」而非返回 ok:false 时，同样要复位按钮态并回滚乐观值。
   let result;
   try {
-    result = await updateSharedAIMemoryStatus(String(userInfo.value.id || ''), String(item.id), nextStatus);
+    result = await updateSharedAIMemoryStatus(
+      String(userInfo.value.id || ''),
+      String(item.id),
+      nextStatus,
+    );
   } catch (err) {
     result = { ok: false, error: err };
   } finally {
@@ -370,7 +396,7 @@ const editMemory = async (item) => {
     title: '编辑公共记忆',
     message: '请输入公共记忆内容（1-1200字）',
     placeholder: '1-1200 字',
-    defaultValue: original
+    defaultValue: original,
   });
   if (input === null) return;
 
@@ -400,7 +426,7 @@ const editMemory = async (item) => {
   let result;
   try {
     result = await updateSharedAIMemory(String(userInfo.value.id || ''), String(item.id), {
-      content: nextContent
+      content: nextContent,
     });
   } catch (err) {
     result = { ok: false, error: err };
@@ -427,13 +453,13 @@ const removeMemory = async (item) => {
     title: '删除公共记忆',
     message: '确认删除这条公共记忆吗？删除后不可恢复。',
     tone: 'danger',
-    confirmText: '删除'
+    confirmText: '删除',
   });
   if (!confirmed) return;
 
   // 1. 本地立即删除（优化用户体验）
   const previousMemories = [...sharedMemories.value];
-  sharedMemories.value = sharedMemories.value.filter(memory => memory.id !== item.id);
+  sharedMemories.value = sharedMemories.value.filter((memory) => memory.id !== item.id);
 
   // 调整页码
   if (sharedMemories.value.length === 0 && pager.page > 1) {
@@ -467,11 +493,14 @@ const removeMemory = async (item) => {
   scheduleRefresh();
 };
 
-watch(() => userInfo.value?.id || '', async (nextId, prevId) => {
-  if (nextId === prevId) return;
-  pager.page = 1;
-  await fetchSharedMemories({ append: false, force: true });
-});
+watch(
+  () => userInfo.value?.id || '',
+  async (nextId, prevId) => {
+    if (nextId === prevId) return;
+    pager.page = 1;
+    await fetchSharedMemories({ append: false, force: true });
+  },
+);
 
 onMounted(() => {
   void fetchSharedMemories({ append: false, force: true });

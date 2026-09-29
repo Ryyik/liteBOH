@@ -13,18 +13,23 @@ const SENSITIVE_KEYS = [
   'boh-admin-column-settings-v1',
   'boh-admin-change-log-v1',
   'boh-admin-user-picker-cache-v1',
-  'supabase.auth.token'
+  'supabase.auth.token',
 ];
 
 export const clearSensitiveLocalStorage = () => {
   if (typeof window === 'undefined' || !window.localStorage) return;
   try {
     SENSITIVE_KEYS.forEach((key) => {
-      try { window.localStorage.removeItem(key); } catch (_e) { /* 忽略单 key 失败 */ }
+      try {
+        window.localStorage.removeItem(key);
+      } catch (_e) {
+        /* 忽略单 key 失败 */
+      }
     });
   } catch (err) {
     // 单点失败不影响登出
-    // eslint-disable-next-line no-console
+    // （2026-09-29：删掉这里多余的 `eslint-disable-next-line no-console` ——
+    //   本仓的 eslint 已不再把 console.warn 当问题，那条禁用指令本身成了警告。）
     console.warn('[safe-storage] 清理 localStorage 失败', err);
   }
 };

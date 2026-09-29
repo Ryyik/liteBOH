@@ -5,20 +5,21 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '../..');
 const source = readFileSync(
   resolve(root, 'src/views/user-center/SharedMemoryManagement.vue'),
-  'utf8'
+  'utf8',
 );
 
 // 去掉 safePrompt / safeConfirm 两个封装体，剩下的部分不允许再出现裸 dialog 调用
-const outsideSafeWrappers = source.replace(
-  /const safe(Prompt|Confirm) = async[\s\S]*?\n\};/g,
-  ''
-);
+const outsideSafeWrappers = source.replace(/const safe(Prompt|Confirm) = async[\s\S]*?\n\};/g, '');
 
 describe('SharedMemoryManagement global dialog wiring', () => {
   it('instantiates the global confirm dialog that edit/remove depend on', () => {
     // 回归点：这两个函数曾经调用 dialog.prompt / dialog.confirm，但全文件既没有导入
     // 也没有实例化 → 点击后同步抛 ReferenceError，UI 完全无反应（release 报告 N1）。
-    expect(source).toContain("import { useConfirmDialog } from '@/composables/useConfirmDialog.js';");
+    // 2026-09-29：互斥判据 isDialogBusy 也从同一模块导入，所以这里改成宽容正则 ——
+    // 别再写死「只有 useConfirmDialog 一个具名导入」，否则一加导出就假红。
+    expect(source).toMatch(
+      /import \{[^}]*\buseConfirmDialog\b[^}]*\} from '@\/composables\/useConfirmDialog\.js';/,
+    );
     expect(source).toMatch(/const dialog = useConfirmDialog\(\);/);
   });
 
@@ -47,7 +48,13 @@ describe('SharedMemoryManagement dialog mutex handling', () => {
   it('only swallows the mutex rejection and lets programming errors bubble', () => {
     // 反证教训：若写成无差别的 `catch { return null; }`，dialog 未定义之类的编程错误
     // 也会被吞掉 —— 用户依旧「点了没反应」，且错误不进监控。必须区分错误类型。
-    expect(source).toMatch(/const isDialogBusy = \(err\) => \/already open\/i\.test/);
+    // 2026-09-29：判据本体已收敛到 useConfirmDialog.js 的单一真源 `isDialogBusy`
+    //   （连同拒绝文案 DIALOG_BUSY_MESSAGE），本文件改为「必须从真源导入、且不得再自写一份」，
+    //   否则判据会漂成两份 —— 一份改了另一份不改，互斥行为就悄悄分叉。
+    expect(source).toMatch(
+      /import \{[^}]*\bisDialogBusy\b[^}]*\} from '@\/composables\/useConfirmDialog\.js';/,
+    );
+    expect(source).not.toMatch(/const isDialogBusy = /);
     expect(source).toMatch(/if \(isDialogBusy\(err\)\) return null;/);
     expect(source).toMatch(/if \(isDialogBusy\(err\)\) return false;/);
     expect(source.match(/throw err;/g) || []).toHaveLength(2);
@@ -70,14 +77,14 @@ describe('SharedMemoryManagement optimistic rollback', () => {
     // 三处写操作（改状态 / 改内容 / 删除）都必须把 await 包进 try/catch，
     // 把 reject 归一化成 { ok: false }，否则乐观值不回滚、按钮也不复位。
     const normalised = source.match(
-      /catch \(err\) \{\s*\n\s*result = \{ ok: false, error: err \};/g
+      /catch \(err\) \{\s*\n\s*result = \{ ok: false, error: err \};/g,
     );
     expect(normalised).toHaveLength(3);
   });
 
   it('resets the running-action flags in a finally block so buttons re-enable', () => {
     const resets = source.match(
-      /finally \{\s*\n\s*runningAction\.id = '';\s*\n\s*runningAction\.type = '';/g
+      /finally \{\s*\n\s*runningAction\.id = '';\s*\n\s*runningAction\.type = '';/g,
     );
     expect(resets).toHaveLength(3);
   });

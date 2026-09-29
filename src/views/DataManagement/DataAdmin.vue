@@ -1687,7 +1687,6 @@ import {
   TAB_SORT_COLUMNS,
   isMissingLotteryObservabilitySchemaError,
 } from './query-config.js';
-import DOMPurify from '@/utils/dompurify.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import {
   createFieldValidator,

@@ -9,7 +9,7 @@ import {
   loadJourneyCopyDraft,
   saveJourneyCopyDraft,
 } from './copy-editor-store.js';
-import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { isDialogBusy, useConfirmDialog } from '@/composables/useConfirmDialog.js';
 
 const router = useRouter();
 const { confirm } = useConfirmDialog();
@@ -73,12 +73,21 @@ function resetEntry(entry) {
 }
 
 async function resetAll() {
-  const accepted = await confirm({
-    title: '清除全部草稿',
-    message: '清除全部文案草稿并恢复默认内容？',
-    confirmText: '清除',
-    tone: 'danger',
-  });
+  // 弹窗互斥：上一个弹窗还开着时 confirm() 会 reject（判据见 useConfirmDialog 的单一真源）。
+  // 那属于**预期内**的拒绝 → 归一化成「用户取消」直接返回；其它异常原样冒泡，
+  // 否则真出错时会被静默吞成「点了没反应」。
+  let accepted = false;
+  try {
+    accepted = await confirm({
+      title: '清除全部草稿',
+      message: '清除全部文案草稿并恢复默认内容？',
+      confirmText: '清除',
+      tone: 'danger',
+    });
+  } catch (error) {
+    if (!isDialogBusy(error)) throw error;
+    return;
+  }
   if (!accepted) return;
   clearJourneyCopyDraft();
   draft.value = {};
