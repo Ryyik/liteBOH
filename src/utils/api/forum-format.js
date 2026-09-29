@@ -1,6 +1,6 @@
 import { getCloudinaryTransformedUrl } from '../cloudinary-client.js';
 import { normalizeDbError } from '../request-core.js';
-import { getImageUrl } from '../asset-helper.js';
+import { resolveDbImageUrl } from '../db-image-url.js';
 
 export const APPROVED_STATUS = 'approved';
 export const REJECTED_STATUS = 'rejected';
@@ -163,11 +163,13 @@ export function stripLegacyPostTitlePrefix(body = '', title = '') {
  * 官方卡（新闻/活动镜像）的 cover_image_url 老数据存的是 `@/assets/images/xxx.webp`
  * （部分为 .png，同目录有同名 webp 兜底），不解析直接进 <img> 会裂图；
  * data:/http(s)/blob:/根路径等合法 URL 由 getImageUrl 原样直通。
+ *
+ * 实现已收敛到 `@/utils/db-image-url.js`（DB 图片地址解析的单一真源）。
+ * 注意本函数**只做本地解析、不做 Cloudinary 改写**——调用方随后自行套 transform
+ * （见下方 normalizePostRecord / normalizePostListRecord），保持既有语义不变。
  */
 export function resolveStoredCoverUrl(rawUrl = '') {
-  const safe = String(rawUrl || '').trim();
-  if (!safe) return '';
-  return getImageUrl(safe, { silent: true }) || safe;
+  return resolveDbImageUrl(rawUrl);
 }
 
 export function normalizePostRecord(post = {}) {

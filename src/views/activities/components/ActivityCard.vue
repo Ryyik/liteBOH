@@ -9,36 +9,58 @@
  *
  * 纯展示组件：不请求数据、不自己开详情岛（岛槽位由宿主统一管理）。
  */
-import { computed } from "vue";
-import { getImageUrl } from "@/utils/asset-helper.js";
-import { parseActivityDate } from "@/utils/activity-date.js";
+import { computed, ref, watch } from 'vue';
+import { resolveDbCardImage } from '@/utils/db-image-url.js';
+import { parseActivityDate } from '@/utils/activity-date.js';
 
 const props = defineProps({
-  activity: { type: Object, required: true }
+  activity: { type: Object, required: true },
 });
 
-defineEmits(["open"]);
+defineEmits(['open']);
 
-const imageUrl = computed(() => getImageUrl(props.activity?.image));
+// activities.image 混存 `@/assets/...` 别名与 Cloudinary 绝对地址两种形态。
+// 必须走 resolveDbCardImage（= getImageUrl + CDN 改写）：只调 getImageUrl 时
+// Cloudinary 那几条会指向大陆不可达的 res.cloudinary.com 而裂图。详见 utils/db-image-url.js。
+const imageUrl = computed(() => resolveDbCardImage(props.activity?.image));
+
+// 兜底：任何原因导致图仍加载失败（链接失效 / 域名被拦），撤掉 <img> 露出底色的中性块，
+// 不留浏览器默认的裂图图标 + alt 文字。换活动时重置，避免复用同一张卡时被上一次的失败粘住。
+const imageFailed = ref(false);
+watch(
+  () => props.activity?.image,
+  () => {
+    imageFailed.value = false;
+  },
+);
+
 const dateInfo = computed(() => parseActivityDate(props.activity?.date));
-const rawDate = computed(() => String(props.activity?.date ?? "").trim());
+const rawDate = computed(() => String(props.activity?.date ?? '').trim());
 </script>
 
 <template>
   <article class="activity-card liquid-glass" @click="$emit('open', activity)">
     <div class="activity-card__image">
       <img
+        v-if="imageUrl && !imageFailed"
         :src="imageUrl"
         :alt="activity.title"
         class="activity-card__img"
         width="400"
         height="280"
         loading="lazy"
+        decoding="async"
+        @error="imageFailed = true"
       />
-      <div class="activity-card__date" :data-precision="dateInfo.valid ? dateInfo.precision : 'unknown'">
+      <div
+        class="activity-card__date"
+        :data-precision="dateInfo.valid ? dateInfo.precision : 'unknown'"
+      >
         <span v-if="dateInfo.valid" class="activity-card__date-year">{{ dateInfo.year }}</span>
-        <span v-if="dateInfo.valid" class="activity-card__date-short">{{ dateInfo.shortLabel }}</span>
-        <span v-else class="activity-card__date-short">{{ rawDate || "未排期" }}</span>
+        <span v-if="dateInfo.valid" class="activity-card__date-short">{{
+          dateInfo.shortLabel
+        }}</span>
+        <span v-else class="activity-card__date-short">{{ rawDate || '未排期' }}</span>
       </div>
     </div>
 
@@ -58,7 +80,9 @@ const rawDate = computed(() => String(props.activity?.date ?? "").trim());
   border-radius: 24px;
   cursor: pointer;
   box-shadow: 0 2px 18px rgba(0, 0, 0, 0.04);
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .activity-card:hover {
@@ -158,29 +182,29 @@ const rawDate = computed(() => String(props.activity?.date ?? "").trim());
   }
 }
 
-html[data-theme="dark"] .activity-card {
+html[data-theme='dark'] .activity-card {
   background: #161a22;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 
-html[data-theme="dark"] .activity-card__image {
+html[data-theme='dark'] .activity-card__image {
   background-color: #1a1e26;
 }
 
-html[data-theme="dark"] .activity-card__date {
+html[data-theme='dark'] .activity-card__date {
   background: rgba(28, 28, 30, 0.92);
   color: #f5f5f7;
 }
 
-html[data-theme="dark"] .activity-card__date-year {
+html[data-theme='dark'] .activity-card__date-year {
   color: #98989d;
 }
 
-html[data-theme="dark"] .activity-card__title {
+html[data-theme='dark'] .activity-card__title {
   color: #f5f5f7;
 }
 
-html[data-theme="dark"] .activity-card__desc {
+html[data-theme='dark'] .activity-card__desc {
   color: #a1a1a6;
 }
 </style>

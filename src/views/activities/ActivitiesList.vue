@@ -7,8 +7,25 @@
         <h1 class="page-title-text">活动列表</h1>
         <p class="page-subtitle-text">报名中的活动在最上方，往期活动按月份回看</p>
       </div>
-      <button v-if="isAdmin" type="button" class="activity-admin-publish-btn" @click="showPublishModal = true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <button
+        v-if="isAdmin"
+        type="button"
+        class="activity-admin-publish-btn"
+        @click="showPublishModal = true"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
         <span>投稿活动</span>
       </button>
     </header>
@@ -68,27 +85,37 @@
 </template>
 
 <script setup>
-import { computed, inject, onBeforeUnmount, onMounted, ref } from "vue";
-import { storeToRefs } from "pinia";
-import { getImageUrl } from "@/utils/asset-helper.js";
-import { formatActivityDate } from "@/utils/activity-date.js";
-import { groupedActivities, undatedActivities, initActivities, loading as activitiesLoading } from "@/composables/useActivities";
-import { useCampaigns } from "@/composables/useCampaigns.js";
-import { useAuthStore } from "@/stores/auth";
-import AdminContentPublishModal from "@/components/AdminContentPublishModal.vue";
-import EmptyState from "@/components/ui/EmptyState.vue";
-import ContentDetailIsland from "@/components/UnifiedNavbar/ContentDetailIsland.vue";
-import { showIsland } from "@/composables/useIsland.js";
-import ActivitySignupSection from "./components/ActivitySignupSection.vue";
-import ActivityMonthRail from "./components/ActivityMonthRail.vue";
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue';
+import { storeToRefs } from 'pinia';
+import { resolveDbDetailImage } from '@/utils/db-image-url.js';
+import { formatActivityDate } from '@/utils/activity-date.js';
+import {
+  groupedActivities,
+  undatedActivities,
+  initActivities,
+  loading as activitiesLoading,
+} from '@/composables/useActivities';
+import { useCampaigns } from '@/composables/useCampaigns.js';
+import { useAuthStore } from '@/stores/auth';
+import AdminContentPublishModal from '@/components/AdminContentPublishModal.vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
+import ContentDetailIsland from '@/components/UnifiedNavbar/ContentDetailIsland.vue';
+import { showIsland } from '@/composables/useIsland.js';
+import ActivitySignupSection from './components/ActivitySignupSection.vue';
+import ActivityMonthRail from './components/ActivityMonthRail.vue';
 
 const authStore = useAuthStore();
 const { isAdmin } = storeToRefs(authStore);
 const showPublishModal = ref(false);
-const remountWallIsland = inject("remountWallIsland", null);
+const remountWallIsland = inject('remountWallIsland', null);
 
 // ===== 报名区（activity_campaigns）=====
-const { campaigns, loading: campaignLoading, loadOngoingCampaigns, signupCampaign } = useCampaigns();
+const {
+  campaigns,
+  loading: campaignLoading,
+  loadOngoingCampaigns,
+  signupCampaign,
+} = useCampaigns();
 
 // ===== 历史活动（activities，按月分组）=====
 const groups = computed(() => groupedActivities.value);
@@ -101,12 +128,13 @@ const openDetail = (activity) => {
   if (!activity) return;
   detailIsland?.close();
   detailIsland = showIsland.custom(ContentDetailIsland, {
-    type: "activity",
-    title: String(activity.title || ""),
+    type: 'activity',
+    title: String(activity.title || ''),
     // 详情卡走 formatActivityDate：缺「日」的记录显示「2025年10月」而不是原始 '2025/10'
     meta: formatActivityDate(activity.date),
-    image: getImageUrl(activity.image),
-    paragraphs: String(activity.description || "")
+    // 详情卡图与卡片图同源解析（Cloudinary 绝对地址需改写到自建 CDN，见 utils/db-image-url.js）
+    image: resolveDbDetailImage(activity.image),
+    paragraphs: String(activity.description || '')
       .split(/\n+/)
       .map((s) => s.trim())
       .filter(Boolean),
@@ -116,7 +144,7 @@ const openDetail = (activity) => {
       detailIsland = null;
       // 详情卡占用了活动墙常驻岛的槽位，关闭后让宿主重挂载
       remountWallIsland?.();
-    }
+    },
   });
 };
 
@@ -135,18 +163,18 @@ const onPublished = (payload) => {
 // 实测导航真实高度写回页面根节点 --nav-h，页头 padding-top 用它做吸顶避让（Newsroom 先例）。
 let navResizeObserver = null;
 const syncNavHeight = () => {
-  const nav = document.getElementById("unified-nav-container");
-  const page = document.querySelector(".activities-list-page");
+  const nav = document.getElementById('unified-nav-container');
+  const page = document.querySelector('.activities-list-page');
   if (!nav || !page) return;
   const h = nav.getBoundingClientRect().height;
-  if (h > 0) page.style.setProperty("--nav-h", `${Math.ceil(h)}px`);
+  if (h > 0) page.style.setProperty('--nav-h', `${Math.ceil(h)}px`);
 };
 
 onMounted(async () => {
-  document.body.classList.add("is-loaded");
+  document.body.classList.add('is-loaded');
   syncNavHeight();
-  const nav = document.getElementById("unified-nav-container");
-  if (nav && typeof ResizeObserver !== "undefined") {
+  const nav = document.getElementById('unified-nav-container');
+  if (nav && typeof ResizeObserver !== 'undefined') {
     navResizeObserver = new ResizeObserver(syncNavHeight);
     navResizeObserver.observe(nav);
   }
@@ -175,7 +203,9 @@ onBeforeUnmount(() => {
   gap: 24px;
   text-align: left;
 }
-.activities-header-copy { min-width: 0; }
+.activities-header-copy {
+  min-width: 0;
+}
 .page-kicker {
   margin: 0 0 12px;
   color: #667085;
@@ -202,20 +232,25 @@ onBeforeUnmount(() => {
   font-weight: 750;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 113, 227, 0.12);
-  transition: background-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
 }
 .activity-admin-publish-btn:hover {
   color: #ffffff;
   background: #0071e3;
   transform: translateY(-1px);
 }
-.activity-admin-publish-btn:active { transform: scale(0.97); }
-html[data-theme="dark"] .activity-admin-publish-btn {
+.activity-admin-publish-btn:active {
+  transform: scale(0.97);
+}
+html[data-theme='dark'] .activity-admin-publish-btn {
   color: #6cb2ff;
   background: rgba(28, 28, 30, 0.7);
   border-color: rgba(10, 132, 255, 0.45);
 }
-html[data-theme="dark"] .activity-admin-publish-btn:hover {
+html[data-theme='dark'] .activity-admin-publish-btn:hover {
   color: #ffffff;
   background: #0a84ff;
 }
@@ -225,7 +260,15 @@ html[data-theme="dark"] .activity-admin-publish-btn:hover {
   --nav-h: var(--bohai-standalone-nav-height, 64px);
   width: 100%;
   background: #ffffff;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
   min-height: 100vh;
   color: #1d1d1f;
 }
@@ -258,7 +301,9 @@ html[data-theme="dark"] .activity-admin-publish-btn:hover {
 }
 
 /* ---- 加载骨架 ---- */
-.activities-skeleton__group { margin-bottom: 34px; }
+.activities-skeleton__group {
+  margin-bottom: 34px;
+}
 
 .activities-skeleton__head {
   width: 108px;
@@ -298,13 +343,21 @@ html[data-theme="dark"] .activity-admin-publish-btn:hover {
 }
 
 /* ---- 暗色主题 ---- */
-html[data-theme="dark"] .activities-list-page {
+html[data-theme='dark'] .activities-list-page {
   background: #0d0f14;
   color: #f5f5f7;
 }
-html[data-theme="dark"] .page-kicker { color: #8d99a8; }
-html[data-theme="dark"] .page-title-text { color: #f5f5f7; }
-html[data-theme="dark"] .page-subtitle-text { color: #a1a1a6; }
-html[data-theme="dark"] .activities-skeleton__head,
-html[data-theme="dark"] .activities-skeleton__card { background: #1a1e26; }
+html[data-theme='dark'] .page-kicker {
+  color: #8d99a8;
+}
+html[data-theme='dark'] .page-title-text {
+  color: #f5f5f7;
+}
+html[data-theme='dark'] .page-subtitle-text {
+  color: #a1a1a6;
+}
+html[data-theme='dark'] .activities-skeleton__head,
+html[data-theme='dark'] .activities-skeleton__card {
+  background: #1a1e26;
+}
 </style>
