@@ -29,10 +29,14 @@ const surgery = [
 const bannerRule = (title, cls) =>
   new RegExp(
     '[ \\t]*\\/\\*[ \\t]*\\*{10,}[ \\t]*\\r?\\n' +
-    '\\*[ \\t]*' + title + '[ \\t]*\\r?\\n' +
-    '\\*{10,}\\*[ \\t]*\\/[ \\t]*\\r?\\n' +
-    '\\.' + cls + '\\s*\\{[^{}]*\\}[ \\t]*\\r?\\n?',
-    'g'
+      '\\*[ \\t]*' +
+      title +
+      '[ \\t]*\\r?\\n' +
+      '\\*{10,}\\*[ \\t]*\\/[ \\t]*\\r?\\n' +
+      '\\.' +
+      cls +
+      '\\s*\\{[^{}]*\\}[ \\t]*\\r?\\n?',
+    'g',
   );
 const pureRemovals = [
   ['Box Shadow', 'box-shadownone'],
@@ -48,15 +52,21 @@ for (const f of files) {
   const isCRLF = /\r\n/.test(t);
   const before = t;
   // surgery[0] 的替换串按文件自身 EOL 生成，避免混入裸 LF
-  t = t.replace(surgery[0][0], isCRLF ? '.btn:hover,\r\n.btn:focus {' : '.btn:hover,\n.btn:focus {');
+  t = t.replace(
+    surgery[0][0],
+    isCRLF ? '.btn:hover,\r\n.btn:focus {' : '.btn:hover,\n.btn:focus {',
+  );
   t = t.replace(surgery[1][0], surgery[1][1]);
   t = t.replace(surgery[2][0], surgery[2][1]);
   // 修复此前运行留下的裸 LF 行尾（仅 buttons.css 一处）
   if (isCRLF) t = t.replace('.btn:hover,\n.btn:focus {', '.btn:hover,\r\n.btn:focus {');
   for (const [title, cls] of pureRemovals) {
-    t = t.replace(bannerRule(title, cls), () => { totalRemoved++; return ''; });
+    t = t.replace(bannerRule(title, cls), () => {
+      totalRemoved++;
+      return '';
+    });
   }
-  t = t.replace(/(?:\r?\n){3,}/g, (m) => (isCRLF ? '\r\n\r\n' : '\n\n'));
+  t = t.replace(/(?:\r?\n){3,}/g, (_m) => (isCRLF ? '\r\n\r\n' : '\n\n'));
   if (t !== before) {
     fs.writeFileSync(f, t);
     console.log('edited:', f);

@@ -7,7 +7,7 @@ import {
   runKeywordPrecheck,
   runAsyncRelaxedModeration,
   writeModerationAuditLog,
-  isMissingDbColumnError
+  isMissingDbColumnError,
 } from '../../unified-content-moderation.js';
 import {
   toTrimmedText,
@@ -25,7 +25,6 @@ import {
   tokenizeSharedMemoryQuery,
   scoreSharedMemoryByQuery,
   buildSharedMemoryModerationInput,
-  isMissingSharedMemoryTableError
 } from '../treehole-helpers.js';
 
 const TREEHOLE_SHARED_MEMORY_COLUMNS = `
@@ -58,30 +57,33 @@ const TREEHOLE_SHARED_MEMORY_COLUMNS_WITH_MODERATION = `
 `;
 
 export const invalidateSharedMemoryCache = (userId = '') => {
-  invalidateByTags([
-    TREEHOLE_SHARED_MEMORY_CACHE_TAG,
-    buildSharedMemoryOwnerTag(userId)
-  ].filter(Boolean));
+  invalidateByTags(
+    [TREEHOLE_SHARED_MEMORY_CACHE_TAG, buildSharedMemoryOwnerTag(userId)].filter(Boolean),
+  );
 };
 
 const isMissingSharedMemoryModerationColumnError = (error) => {
-  return isMissingDbColumnError(error, 'moderation_status')
-    || isMissingDbColumnError(error, 'moderation_reason');
+  return (
+    isMissingDbColumnError(error, 'moderation_status') ||
+    isMissingDbColumnError(error, 'moderation_reason')
+  );
 };
 
 const isMissingSharedMemorySearchFunctionError = (error) => {
-  const code = String(error?.code || '').trim().toUpperCase();
+  const code = String(error?.code || '')
+    .trim()
+    .toUpperCase();
   const message = String(error?.message || '').toLowerCase();
-  return code === 'PGRST202'
-    || code === '42883'
-    || message.includes('search_boh_ai_shared_memories');
+  return (
+    code === 'PGRST202' || code === '42883' || message.includes('search_boh_ai_shared_memories')
+  );
 };
 
 async function insertSharedMemoryWithModerationCompatibility(basePayload = {}) {
   const enhancedPayload = {
     ...basePayload,
     moderation_status: UNIFIED_APPROVED_STATUS,
-    moderation_reason: null
+    moderation_reason: null,
   };
 
   let result = await supabase
@@ -105,21 +107,19 @@ async function applySharedMemoryModerationDecision(sharedMemoryId, moderationRes
   const safeId = toTrimmedText(sharedMemoryId, 64);
   if (!safeId) return;
 
-  const normalizedStatus = moderationResult?.status === UNIFIED_REJECTED_STATUS
-    ? UNIFIED_REJECTED_STATUS
-    : UNIFIED_APPROVED_STATUS;
+  const normalizedStatus =
+    moderationResult?.status === UNIFIED_REJECTED_STATUS
+      ? UNIFIED_REJECTED_STATUS
+      : UNIFIED_APPROVED_STATUS;
   const reason = toTrimmedText(
-    moderationResult?.reason ||
-    moderationResult?.message ||
-    moderationResult?.reasonCode ||
-    '',
-    240
+    moderationResult?.reason || moderationResult?.message || moderationResult?.reasonCode || '',
+    240,
   );
 
   const patch = {
     moderation_status: normalizedStatus,
-    moderation_reason: normalizedStatus === UNIFIED_APPROVED_STATUS ? null : (reason || null),
-    updated_at: new Date().toISOString()
+    moderation_reason: normalizedStatus === UNIFIED_APPROVED_STATUS ? null : reason || null,
+    updated_at: new Date().toISOString(),
   };
 
   if (normalizedStatus === UNIFIED_REJECTED_STATUS) {
@@ -127,30 +127,27 @@ async function applySharedMemoryModerationDecision(sharedMemoryId, moderationRes
     patch.status = 'archived';
   }
 
-  let result = await supabase
-    .from('boh_ai_shared_memories')
-    .update(patch)
-    .eq('id', safeId);
+  let result = await supabase.from('boh_ai_shared_memories').update(patch).eq('id', safeId);
 
   if (!result.error) return;
   if (!isMissingSharedMemoryModerationColumnError(result.error)) return;
 
   const fallbackPatch = {
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
   if (normalizedStatus === UNIFIED_REJECTED_STATUS) {
     fallbackPatch.status = 'archived';
   }
 
-  await supabase
-    .from('boh_ai_shared_memories')
-    .update(fallbackPatch)
-    .eq('id', safeId);
+  await supabase.from('boh_ai_shared_memories').update(fallbackPatch).eq('id', safeId);
 }
 
 async function scheduleSharedMemoryModeration(sharedMemoryRow = {}) {
   const sharedMemoryId = toTrimmedText(sharedMemoryRow?.id, 64);
-  const ownerUserId = toTrimmedText(sharedMemoryRow?.owner_user_id || sharedMemoryRow?.ownerUserId, 64);
+  const ownerUserId = toTrimmedText(
+    sharedMemoryRow?.owner_user_id || sharedMemoryRow?.ownerUserId,
+    64,
+  );
   const content = toTrimmedText(sharedMemoryRow?.content, 1200);
   if (!sharedMemoryId || !ownerUserId || !content) return;
 
@@ -158,14 +155,14 @@ async function scheduleSharedMemoryModeration(sharedMemoryRow = {}) {
     const moderationInput = buildSharedMemoryModerationInput(content);
     const moderationResult = await runAsyncRelaxedModeration(moderationInput, {
       scene: 'boh_shared_memory',
-      timeoutMs: SHARED_MEMORY_ASYNC_MODERATION_TIMEOUT_MS
+      timeoutMs: SHARED_MEMORY_ASYNC_MODERATION_TIMEOUT_MS,
     });
 
     await writeModerationAuditLog({
       targetId: sharedMemoryId,
       targetType: 'shared_memory',
       result: moderationResult,
-      moderatorId: null
+      moderatorId: null,
     });
 
     if (moderationResult.status !== UNIFIED_REJECTED_STATUS) return;
@@ -177,7 +174,9 @@ async function scheduleSharedMemoryModeration(sharedMemoryRow = {}) {
   }
 }
 
-export async function getSharedAIMemoriesForAI({ limit = TREEHOLE_SHARED_MEMORY_FETCH_LIMIT } = {}) {
+export async function getSharedAIMemoriesForAI({
+  limit = TREEHOLE_SHARED_MEMORY_FETCH_LIMIT,
+} = {}) {
   const safeLimit = Number.isFinite(limit)
     ? Math.max(1, Math.min(TREEHOLE_SHARED_MEMORY_FETCH_LIMIT, Math.trunc(limit)))
     : TREEHOLE_SHARED_MEMORY_FETCH_LIMIT;
@@ -204,16 +203,18 @@ export async function getSharedAIMemoriesForAI({ limit = TREEHOLE_SHARED_MEMORY_
       }
 
       return {
-        data: Array.isArray(result.data) ? result.data.map(normalizeSharedMemoryRow).filter(Boolean) : [],
-        error: result.error || null
+        data: Array.isArray(result.data)
+          ? result.data.map(normalizeSharedMemoryRow).filter(Boolean)
+          : [],
+        error: result.error || null,
       };
     },
     {
       ttlMs: CACHE_TTL_LEVELS.USER_DATA,
       tags: [TREEHOLE_SHARED_MEMORY_CACHE_TAG],
       timeoutMs: 9000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
@@ -231,19 +232,19 @@ export async function searchSharedAIMemoriesForAI({ query = '', limit = 12 } = {
         const latestResult = await getSharedAIMemoriesForAI({ limit: safeLimit });
         return {
           data: Array.isArray(latestResult?.data) ? latestResult.data : [],
-          error: latestResult?.error || null
+          error: latestResult?.error || null,
         };
       }
 
       const { data, error } = await supabase.rpc('search_boh_ai_shared_memories', {
         p_query: safeQuery,
-        p_limit: safeLimit
+        p_limit: safeLimit,
       });
 
       if (!error) {
         return {
           data: Array.isArray(data) ? data.map(normalizeSharedMemoryRow).filter(Boolean) : [],
-          error: null
+          error: null,
         };
       }
 
@@ -254,13 +255,13 @@ export async function searchSharedAIMemoriesForAI({ query = '', limit = 12 } = {
       // 兼容旧环境：RPC 未部署时回退到本地打分筛选。
       const fallbackLimit = Math.min(
         TREEHOLE_SHARED_MEMORY_FETCH_LIMIT,
-        Math.max(80, safeLimit * 8)
+        Math.max(80, safeLimit * 8),
       );
       const fallbackResult = await getSharedAIMemoriesForAI({ limit: fallbackLimit });
       if (!fallbackResult.ok) {
         return {
           data: [],
-          error: fallbackResult.error
+          error: fallbackResult.error,
         };
       }
 
@@ -269,7 +270,7 @@ export async function searchSharedAIMemoriesForAI({ query = '', limit = 12 } = {
       const ranked = source
         .map((row) => ({
           row,
-          score: scoreSharedMemoryByQuery(row, safeQuery, tokens)
+          score: scoreSharedMemoryByQuery(row, safeQuery, tokens),
         }))
         .filter((item) => item.score > 0)
         .sort((a, b) => {
@@ -281,15 +282,15 @@ export async function searchSharedAIMemoriesForAI({ query = '', limit = 12 } = {
       const selected = (ranked.length > 0 ? ranked : source).slice(0, safeLimit);
       return {
         data: selected,
-        error: null
+        error: null,
       };
     },
     {
       ttlMs: CACHE_TTL_LEVELS.AI_DATA,
       tags: [TREEHOLE_SHARED_MEMORY_CACHE_TAG],
       timeoutMs: 9000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
@@ -304,10 +305,18 @@ export async function createSharedAIMemory(userId, payload = {}) {
   const status = payload.status === 'archived' ? 'archived' : 'active';
 
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
   if (!content) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '公共记忆内容不能为空', code: 'EMPTY_SHARED_MEMORY' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '公共记忆内容不能为空', code: 'EMPTY_SHARED_MEMORY' }),
+    };
   }
 
   const moderationInput = buildSharedMemoryModerationInput(content);
@@ -318,8 +327,8 @@ export async function createSharedAIMemory(userId, payload = {}) {
       data: null,
       error: normalizeDbError({
         message: keywordCheckResult.message || '命中高风险违禁词，已拒绝写入公共记忆',
-        code: 'LOCAL_KEYWORD_BLOCK'
-      })
+        code: 'LOCAL_KEYWORD_BLOCK',
+      }),
     };
   }
 
@@ -331,7 +340,7 @@ export async function createSharedAIMemory(userId, payload = {}) {
     confidence,
     evidence,
     source,
-    status
+    status,
   };
   const { data, error } = await insertSharedMemoryWithModerationCompatibility(basePayload);
 
@@ -342,26 +351,31 @@ export async function createSharedAIMemory(userId, payload = {}) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '公共记忆不存在或无权限', code: 'SHARED_MEMORY_NOT_FOUND' })
+      error: normalizeDbError({
+        message: '公共记忆不存在或无权限',
+        code: 'SHARED_MEMORY_NOT_FOUND',
+      }),
     };
   }
 
   const insertedSharedMemoryId = toTrimmedText(data?.id, 64);
   invalidateSharedMemoryCache(safeUserId);
   if (status === 'active') {
-    void supabase.functions.invoke('boh-ai-retrieval', {
-      body: {
-        action: 'sync',
-        sourceTypes: ['shared_memory'],
-        syncLimit: 8
-      }
-    }).catch(() => { });
+    void supabase.functions
+      .invoke('boh-ai-retrieval', {
+        body: {
+          action: 'sync',
+          sourceTypes: ['shared_memory'],
+          syncLimit: 8,
+        },
+      })
+      .catch(() => {});
   }
   if (insertedSharedMemoryId) {
     void scheduleSharedMemoryModeration({
       id: insertedSharedMemoryId,
       owner_user_id: safeUserId,
-      content
+      content,
     });
   }
   return { ok: true, data: normalizeSharedMemoryRow(data), error: null };
@@ -373,19 +387,27 @@ export async function getMySharedAIMemories({
   pageSize = 20,
   status = 'all',
   cursor = '',
-  countMode = 'planned'
+  countMode = 'planned',
 } = {}) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const safePage = Number.isFinite(page) ? Math.max(1, Math.trunc(page)) : 1;
-  const safePageSize = Number.isFinite(pageSize) ? Math.min(100, Math.max(1, Math.trunc(pageSize))) : 20;
+  const safePageSize = Number.isFinite(pageSize)
+    ? Math.min(100, Math.max(1, Math.trunc(pageSize)))
+    : 20;
   const safeStatus = status === 'active' || status === 'archived' ? status : 'all';
   const safeCursorToken = toTrimmedText(cursor, 500);
   const safeCursor = decodeCursorToken(safeCursorToken, 'updatedAt');
-  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode) ? countMode : 'planned';
+  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode)
+    ? countMode
+    : 'planned';
   const from = (safePage - 1) * safePageSize;
   const to = from + safePageSize - 1;
   const useCursorMode = Boolean(safeCursor);
@@ -398,7 +420,7 @@ export async function getMySharedAIMemories({
       pageSize: safePageSize,
       status: safeStatus,
       cursor: safeCursorToken,
-      countMode: safeCountMode
+      countMode: safeCountMode,
     },
     async () => {
       if (useCursorMode) {
@@ -429,11 +451,11 @@ export async function getMySharedAIMemories({
             total: 0,
             page: safePage,
             pageSize: safePageSize,
-            nextCursor
+            nextCursor,
           },
           error,
           hasMore,
-          nextCursor
+          nextCursor,
         };
       }
 
@@ -455,17 +477,17 @@ export async function getMySharedAIMemories({
           total: Number(count || 0),
           page: safePage,
           pageSize: safePageSize,
-          nextCursor: ''
+          nextCursor: '',
         },
-        error
+        error,
       };
     },
     {
       ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: [TREEHOLE_SHARED_MEMORY_CACHE_TAG, buildSharedMemoryOwnerTag(safeUserId)],
       timeoutMs: 9000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
@@ -474,10 +496,18 @@ export async function updateSharedAIMemory(userId, sharedMemoryId, updates = {})
   const safeSharedMemoryId = toTrimmedText(sharedMemoryId, 64);
 
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
   if (!safeSharedMemoryId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '公共记忆 ID 无效', code: 'INVALID_SHARED_MEMORY_ID' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '公共记忆 ID 无效', code: 'INVALID_SHARED_MEMORY_ID' }),
+    };
   }
 
   const patch = {};
@@ -491,15 +521,27 @@ export async function updateSharedAIMemory(userId, sharedMemoryId, updates = {})
     patch.tags = normalizeTags(updates.tags);
   }
   if (typeof updates.status !== 'undefined') {
-    const safeStatus = updates.status === 'archived' ? 'archived' : (updates.status === 'active' ? 'active' : '');
+    const safeStatus =
+      updates.status === 'archived' ? 'archived' : updates.status === 'active' ? 'active' : '';
     if (!safeStatus) {
-      return { ok: false, data: null, error: normalizeDbError({ message: '公共记忆状态无效', code: 'INVALID_SHARED_MEMORY_STATUS' }) };
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({
+          message: '公共记忆状态无效',
+          code: 'INVALID_SHARED_MEMORY_STATUS',
+        }),
+      };
     }
     patch.status = safeStatus;
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, 'content') && !patch.content) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '公共记忆内容不能为空', code: 'EMPTY_SHARED_MEMORY' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '公共记忆内容不能为空', code: 'EMPTY_SHARED_MEMORY' }),
+    };
   }
   if (Object.keys(patch).length === 0) {
     return { ok: true, data: null, error: null };
@@ -520,7 +562,10 @@ export async function updateSharedAIMemory(userId, sharedMemoryId, updates = {})
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '公共记忆不存在或无权限', code: 'SHARED_MEMORY_NOT_FOUND' })
+      error: normalizeDbError({
+        message: '公共记忆不存在或无权限',
+        code: 'SHARED_MEMORY_NOT_FOUND',
+      }),
     };
   }
 
@@ -537,10 +582,18 @@ export async function deleteSharedAIMemory(userId, sharedMemoryId) {
   const safeSharedMemoryId = toTrimmedText(sharedMemoryId, 64);
 
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
   if (!safeSharedMemoryId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '公共记忆 ID 无效', code: 'INVALID_SHARED_MEMORY_ID' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '公共记忆 ID 无效', code: 'INVALID_SHARED_MEMORY_ID' }),
+    };
   }
 
   const { error, count } = await supabase
@@ -556,7 +609,10 @@ export async function deleteSharedAIMemory(userId, sharedMemoryId) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '公共记忆不存在或无权限', code: 'SHARED_MEMORY_NOT_FOUND' })
+      error: normalizeDbError({
+        message: '公共记忆不存在或无权限',
+        code: 'SHARED_MEMORY_NOT_FOUND',
+      }),
     };
   }
 

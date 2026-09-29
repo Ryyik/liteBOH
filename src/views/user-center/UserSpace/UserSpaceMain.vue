@@ -433,7 +433,6 @@ import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { uploadAvatarFile, removeAvatarByUrl } from '@/utils/api/avatar-storage.js';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
-import { useDebounce } from '@/composables/useDebounceThrottle';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 import UserSpaceSideRail from './components/UserSpaceSideRail.vue';
 import SegmentTabs from './components/SegmentTabs.vue';
@@ -1540,7 +1539,7 @@ const maybeShowGlobalNavOnboardingNotice = async () => {
   markGlobalNavOnboardingNoticeSeen();
 };
 
-const buildUnreadIslandMessage = (detail = {}) => {
+const buildUnreadIslandMessage = (_detail = {}) => {
   const totalUnread = Number(unreadCount.value) || 0;
   return {
     title: '有新通知',

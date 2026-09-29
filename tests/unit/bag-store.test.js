@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { useBagStore } from '../../src/stores/bag.ts';
 
@@ -17,7 +17,7 @@ describe('bag store', () => {
       const result = store.addToBag(
         { id: 1, points_cost: 100, name: '测试商品' },
         'spec-a',
-        '规格A'
+        '规格A',
       );
       expect(result.ok).toBe(true);
       expect(store.shoppingBag).toHaveLength(1);
@@ -40,7 +40,7 @@ describe('bag store', () => {
       const result = store.addToBag(
         { id: 1, points_cost: 100, is_purchasable: false },
         'spec-a',
-        '规格A'
+        '规格A',
       );
       expect(result.ok).toBe(false);
       expect(result.reason).toBe('PRODUCT_NOT_EXCHANGEABLE');
@@ -129,7 +129,13 @@ describe('bag store', () => {
   describe('loadShoppingBag', () => {
     it('loads from localStorage with valid data', () => {
       const validBag = JSON.stringify([
-        { id: 1, points_cost: 100, quantity: 1, selectedSpec: 'spec-a', selectedSpecLabel: '规格A' }
+        {
+          id: 1,
+          points_cost: 100,
+          quantity: 1,
+          selectedSpec: 'spec-a',
+          selectedSpecLabel: '规格A',
+        },
       ]);
       localStorage.setItem('boh_shopping_bag', validBag);
 
@@ -142,7 +148,7 @@ describe('bag store', () => {
     it('filters out items with zero points_cost', () => {
       const mixedBag = JSON.stringify([
         { id: 1, points_cost: 100, quantity: 1 },
-        { id: 2, points_cost: 0, quantity: 1 }
+        { id: 2, points_cost: 0, quantity: 1 },
       ]);
       localStorage.setItem('boh_shopping_bag', mixedBag);
 
@@ -155,7 +161,7 @@ describe('bag store', () => {
     it('filters out products explicitly marked unavailable for purchase', () => {
       const mixedBag = JSON.stringify([
         { id: 1, points_cost: 100, quantity: 1, is_purchasable: true },
-        { id: 2, points_cost: 100, quantity: 1, is_purchasable: false }
+        { id: 2, points_cost: 100, quantity: 1, is_purchasable: false },
       ]);
       localStorage.setItem('boh_shopping_bag', mixedBag);
 

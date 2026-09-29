@@ -1604,27 +1604,20 @@ import {
   Activity,
   Check,
   Copy,
-  Cpu,
   Database,
   Download,
   FileText,
   Filter,
-  Gauge,
-  Home,
   Image,
   KeyRound,
   MessageSquare,
-  Network,
   Pencil,
   Plus,
   RefreshCw,
   Search,
-  Settings,
   ShieldCheck,
   Server,
-  Sparkles,
   Trash2,
-  Users,
   X,
 } from 'lucide-vue-next';
 import AdminHeader from './components/AdminHeader.vue';
@@ -1664,7 +1657,6 @@ import {
 import { logger } from '@/utils/logger.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import {
-  ADMIN_PAGE_META,
   NEWS_CATEGORY_VALUES,
   PRODUCT_CATEGORY_OPTIONS,
   SUBSCRIPTION_PLAN_NAMES,
@@ -1675,7 +1667,6 @@ import {
   invalidateProductsCache,
   tabs,
 } from './config.js';
-import { tabModules } from './config/tabs.js';
 import {
   canViewModule,
   filterTabActionsByRole,
@@ -1685,7 +1676,6 @@ import {
 } from './config/rbac.js';
 import { BOHAI_MODEL_PROVIDER_OPTIONS } from './config/fields.js';
 import {
-  ADMIN_SECTION_DEFAULT_TABS,
   DATA_CONSOLE_SECTIONS,
   DATE_FILTER_FIELDS,
   LOTTERY_LEGACY_SELECT_COLUMNS,
@@ -1705,26 +1695,17 @@ import {
   createNewsPayloadValidator,
   getNextNumericId,
   splitForumContent,
-  normalizeNewsContent,
-  validateDateString,
   // P1 修复: 从 validation.js 导入 stripHtml/escapeHtml/hasHtmlTag，删除重复定义
   stripHtml,
-  escapeHtml,
-  hasHtmlTag,
-  UUID_REGEX,
-  EMAIL_REGEX,
 } from './composables/useDataAdminValidation.js';
 import {
   createPersisters,
-  hydrateAdminPreferences,
   readLocalJson,
   writeLocalJson,
   ADMIN_STORAGE_KEYS as STORAGE_KEYS,
 } from './composables/useDataAdminPersistence.js';
 import {
   applySearchAndSort as applySearchAndSortUtil,
-  buildSearchFilters as buildSearchFiltersUtil,
-  getSearchablePreviewFields as getSearchablePreviewFieldsUtil,
   sanitizeSearchTerm,
 } from './composables/useDataAdminFilters.js';
 import { createChangeLogCenter } from './composables/useDataAdminChangeLog.js';
@@ -1741,11 +1722,9 @@ import {
   getTags,
   createHighlightHelpers,
   getJsonPreview,
-  downloadBlob,
   createRelatedJumpHelpers,
   createAnomalyHelpers,
   toDateInputValue,
-  toISOStringFromInput,
   normalizeQuickEditValue,
 } from './composables/useDataAdminHelpers.js';
 import { createExportCenter } from './composables/useDataAdminExport.js';
@@ -1828,7 +1807,7 @@ const density = ref(
   (() => {
     try {
       return localStorage.getItem('dm-density') || 'compact';
-    } catch (e) {
+    } catch {
       return 'compact';
     }
   })(),
@@ -1837,7 +1816,7 @@ const setDensity = (mode) => {
   density.value = mode;
   try {
     localStorage.setItem('dm-density', mode);
-  } catch (e) {
+  } catch {
     /* ignore */
   }
 };
@@ -1850,7 +1829,7 @@ const isSidebarCollapsed = ref(
   (() => {
     try {
       return localStorage.getItem('dm-sidebar-collapsed') === '1';
-    } catch (e) {
+    } catch {
       return false;
     }
   })(),
@@ -1858,7 +1837,7 @@ const isSidebarCollapsed = ref(
 watch(isSidebarCollapsed, (collapsed) => {
   try {
     localStorage.setItem('dm-sidebar-collapsed', collapsed ? '1' : '0');
-  } catch (e) {
+  } catch {
     /* ignore */
   }
 });
@@ -1990,7 +1969,7 @@ const loadViewMode = () => {
   try {
     const stored = localStorage.getItem(viewModeStorageKey());
     if (stored && availableViewModes.value.includes(stored)) return stored;
-  } catch (e) {
+  } catch {
     /* ignore */
   }
   return defaultViewMode.value;
@@ -2000,7 +1979,7 @@ const setViewMode = (mode) => {
   viewMode.value = mode;
   try {
     localStorage.setItem(viewModeStorageKey(), mode);
-  } catch (e) {
+  } catch {
     /* ignore */
   }
 };
@@ -4938,7 +4917,7 @@ const closeRowMenu = () => {
   if (rowMenuCleanup) {
     try {
       rowMenuCleanup();
-    } catch (e) {
+    } catch {
       /* ignore */
     }
     rowMenuCleanup = null;
@@ -4991,7 +4970,7 @@ const moderateAndAdvance = async (item, kind) => {
   try {
     if (kind === 'approve') await approveModerationItem(item);
     else await rejectModerationItem(item);
-  } catch (e) {
+  } catch {
     return;
   } // 取消/失败时工厂已提示，不推进
   // 确认状态确已变更（排除原因弹窗取消等静默返回）
@@ -5159,7 +5138,7 @@ const refreshCurrentViewAfterMutation = async () => {
     await nextTick();
     try {
       scroller.scrollTop = savedTop;
-    } catch (e) {
+    } catch {
       /* ignore */
     }
   }

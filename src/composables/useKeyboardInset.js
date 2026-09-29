@@ -66,7 +66,7 @@ const flush = () => {
   subscribers.forEach((fn) => {
     try {
       fn(value);
-    } catch (error) {
+    } catch {
       // 单个订阅者异常不影响其他订阅者
     }
   });

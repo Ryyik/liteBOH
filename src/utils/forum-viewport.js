@@ -31,7 +31,7 @@ const getNarrowDetailMql = () => {
       narrowDetailListeners.forEach((fn) => {
         try {
           fn(matches);
-        } catch (error) {
+        } catch {
           // 单个监听器异常不影响其他监听器
         }
       });
@@ -56,8 +56,7 @@ export function onNarrowDetailChange(fn) {
   return () => narrowDetailListeners.delete(fn);
 }
 
-export const FORUM_PORTRAIT_COMPOSER_QUERY =
-  '(max-width: 1024px) and (orientation: portrait)';
+export const FORUM_PORTRAIT_COMPOSER_QUERY = '(max-width: 1024px) and (orientation: portrait)';
 
 /** 按 query 复用的 mql 注册表（懒建，共享 change 监听） */
 const queryRegistry = new Map();
@@ -75,7 +74,7 @@ const getQueryEntry = (query) => {
       listeners.forEach((fn) => {
         try {
           fn(matches);
-        } catch (error) {
+        } catch {
           // 单个监听器异常不影响其他监听器
         }
       });

@@ -314,7 +314,7 @@ for (const f of globalStyleDirs) {
   }
 }
 const dupClasses = [...classDefs.entries()]
-  .filter(([n, s]) => s.size >= 3)
+  .filter(([_n, s]) => s.size >= 3)
   .map(([n, s]) => ({ name: n, files: [...s] }))
   .sort((a, b) => b.files.length - a.files.length);
 

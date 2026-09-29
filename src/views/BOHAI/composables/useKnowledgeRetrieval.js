@@ -1,13 +1,12 @@
 import {
-  isLikelyFactualQuestion,
   extractCitationIdsFromText,
-  resolveKnowledgeRoutingPlanCore
+  resolveKnowledgeRoutingPlanCore,
 } from '@/utils/ai-chat-grounding.js';
 import {
   BOHAI_CONNECTOR_IDS,
   createBohAIConnector,
   runBohAIReadConnectors,
-  summarizeBohAIConnectorResults
+  summarizeBohAIConnectorResults,
 } from '@/utils/bohai-connectors.js';
 import { createBohAIRetrievalTrace } from '@/utils/bohai-observability.js';
 import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
@@ -32,12 +31,10 @@ import {
   TREEHOLE_MEMORY_CACHE_TTL_MS,
   TREEHOLE_MEMORY_LIMIT,
   USER_PRIVATE_CONTEXT_CACHE_TTL_MS,
-  USER_PRIVATE_CONTEXT_MAX_ITEM_CHARS,
-  USER_PRIVATE_CONTEXT_MAX_ITEMS,
   USER_PRIVATE_GIFTS_FETCH_LIMIT,
   USER_PRIVATE_POSTS_FETCH_LIMIT,
   ROUTING_FORUM_REALTIME_PATTERN,
-  ROUTING_HISTORY_FACT_PATTERN
+  ROUTING_HISTORY_FACT_PATTERN,
 } from './chat-engine-config.js';
 import {
   getAIMemory,
@@ -54,7 +51,7 @@ import {
   getPostTitleAndBody,
   formatPromptDate,
   isOperationQuestion,
-  shouldUseSiteGuide
+  shouldUseSiteGuide,
 } from './bohai-engine-helpers.js';
 import {
   resolveUserPrivateRetrievalPlan,
@@ -63,14 +60,14 @@ import {
   getUserGiftPrivateContext,
   getUserBirthdayPrivateContext,
   getUserPushplusPrivateContext,
-  getUserSubscriptionPrivateContext
+  getUserSubscriptionPrivateContext,
 } from './useUserPrivateRetrieval.js';
 import {
   isCommunityQuestion,
   shouldUseMemoryContext,
   shouldUseSharedMemoryContext,
   shouldUseHealthContext,
-  shouldUseTreeholeContext as _shouldUseTreeholeContext
+  shouldUseTreeholeContext as _shouldUseTreeholeContext,
 } from './useIntentDetection.js';
 import {
   rankForumPostsByQuery,
@@ -85,10 +82,9 @@ import {
   buildForumNarrativeSummaryPrompt,
   removeForumSummaryLinks,
   getForumSummarySourceText,
-  FORUM_SUMMARY_POLARITY_RULES,
   detectForumSummaryPolarityConflicts,
   buildForumSearchQueries,
-  mergeForumPosts
+  mergeForumPosts,
 } from './useForumSummary.js';
 
 /**
@@ -142,7 +138,7 @@ export function useKnowledgeRetrieval(deps) {
     searchSharedAIMemoriesForAI,
     searchBohAIKnowledgeForAI,
     getMyCloudEntriesForAI,
-    supabase
+    supabase,
   } = deps;
 
   // ============================================================
@@ -157,12 +153,10 @@ export function useKnowledgeRetrieval(deps) {
     return `【${title}】\n${body}`;
   };
 
-  const getVectorKnowledgeChunks = async (queryText, {
-    sourceTypes = ['shared_memory'],
-    limit = 8,
-    syncLimit = 40,
-    minSimilarity = 0.18
-  } = {}) => {
+  const getVectorKnowledgeChunks = async (
+    queryText,
+    { sourceTypes = ['shared_memory'], limit = 8, syncLimit = 40, minSimilarity = 0.18 } = {},
+  ) => {
     const safeQuery = normalizePromptLine(queryText, 220);
     if (!safeQuery) return [];
 
@@ -173,11 +167,15 @@ export function useKnowledgeRetrieval(deps) {
         limit,
         syncLimit,
         minSimilarity,
-        ensureIndexed: true
+        ensureIndexed: true,
       });
 
       if (!result.ok) {
-        logger.warn('boh-ai', '向量检索失败，回退关键词检索', result.error?.message || result.error);
+        logger.warn(
+          'boh-ai',
+          '向量检索失败，回退关键词检索',
+          result.error?.message || result.error,
+        );
         return [];
       }
 
@@ -189,37 +187,47 @@ export function useKnowledgeRetrieval(deps) {
     }
   };
 
-  const buildVectorKnowledgeContext = (title, chunks, {
-    citationPrefix = 'V',
-    maxItems = 8,
-    maxContentChars = 320
-  } = {}) => {
+  const buildVectorKnowledgeContext = (
+    title,
+    chunks,
+    { citationPrefix = 'V', maxItems = 8, maxContentChars = 320 } = {},
+  ) => {
     const source = Array.isArray(chunks) ? chunks.slice(0, maxItems) : [];
     if (source.length === 0) return '';
 
-    const body = source.map((chunk, index) => {
-      const metadata = chunk?.metadata && typeof chunk.metadata === 'object' ? chunk.metadata : {};
-      const content = normalizePromptLine(chunk?.content, maxContentChars);
-      const chunkTitle = normalizePromptLine(chunk?.title, 80);
-      const time = normalizePromptLine(metadata.updatedAt || metadata.entryDate || chunk?.updated_at, 40) || '未知';
-      const mood = normalizePromptLine(metadata.mood, 24);
-      const tags = Array.isArray(metadata.tags) && metadata.tags.length > 0
-        ? metadata.tags.map((tag) => normalizePromptLine(tag, 20)).filter(Boolean).join('、')
-        : '';
-      const similarity = Number(chunk?.similarity);
-      const retrievalMethod = normalizePromptLine(
-        metadata.retrievalMethod || chunk?.retrievalMethod,
-        20
-      );
-      const scoreText = Number.isFinite(similarity) && similarity > 0
-        ? `\n相关度: ${Math.round(similarity * 100)}%`
-        : '';
-      const methodText = retrievalMethod ? `\n检索: ${retrievalMethod}` : '';
-      const titleText = chunkTitle ? `\n标题: ${chunkTitle}` : '';
-      const moodText = mood ? `\n心情: ${mood}` : '';
-      const tagsText = tags ? `\n标签: ${tags}` : '';
-      return `[${citationPrefix}${index + 1}] 时间: ${time}${titleText}${moodText}${tagsText}${scoreText}${methodText}\n内容: ${content || '（空）'}`;
-    }).join('\n\n');
+    const body = source
+      .map((chunk, index) => {
+        const metadata =
+          chunk?.metadata && typeof chunk.metadata === 'object' ? chunk.metadata : {};
+        const content = normalizePromptLine(chunk?.content, maxContentChars);
+        const chunkTitle = normalizePromptLine(chunk?.title, 80);
+        const time =
+          normalizePromptLine(metadata.updatedAt || metadata.entryDate || chunk?.updated_at, 40) ||
+          '未知';
+        const mood = normalizePromptLine(metadata.mood, 24);
+        const tags =
+          Array.isArray(metadata.tags) && metadata.tags.length > 0
+            ? metadata.tags
+                .map((tag) => normalizePromptLine(tag, 20))
+                .filter(Boolean)
+                .join('、')
+            : '';
+        const similarity = Number(chunk?.similarity);
+        const retrievalMethod = normalizePromptLine(
+          metadata.retrievalMethod || chunk?.retrievalMethod,
+          20,
+        );
+        const scoreText =
+          Number.isFinite(similarity) && similarity > 0
+            ? `\n相关度: ${Math.round(similarity * 100)}%`
+            : '';
+        const methodText = retrievalMethod ? `\n检索: ${retrievalMethod}` : '';
+        const titleText = chunkTitle ? `\n标题: ${chunkTitle}` : '';
+        const moodText = mood ? `\n心情: ${mood}` : '';
+        const tagsText = tags ? `\n标签: ${tags}` : '';
+        return `[${citationPrefix}${index + 1}] 时间: ${time}${titleText}${moodText}${tagsText}${scoreText}${methodText}\n内容: ${content || '（空）'}`;
+      })
+      .join('\n\n');
 
     return `【${title}】\n${body}`;
   };
@@ -233,7 +241,7 @@ export function useKnowledgeRetrieval(deps) {
       sourceTypes: ['core_memory', 'knowledge_base'],
       limit: Math.max(MEMORY_MAX_CHUNKS, 8),
       syncLimit: 60,
-      minSimilarity: 0.1
+      minSimilarity: 0.1,
     });
     const keywordPromise = getAIMemory();
 
@@ -244,7 +252,7 @@ export function useKnowledgeRetrieval(deps) {
       return buildVectorKnowledgeContext('官方事实与导入知识库语义检索结果', vectorChunksResolved, {
         citationPrefix: 'K',
         maxItems: MEMORY_MAX_CHUNKS,
-        maxContentChars: 520
+        maxContentChars: 520,
       });
     }
 
@@ -262,8 +270,9 @@ export function useKnowledgeRetrieval(deps) {
 
   const getSharedMemoriesCached = async () => {
     const now = Date.now();
-    const shouldUseCache = (now - sharedMemoryCache.fetchedAt) < SHARED_MEMORY_CACHE_TTL_MS
-      && Array.isArray(sharedMemoryCache.items);
+    const shouldUseCache =
+      now - sharedMemoryCache.fetchedAt < SHARED_MEMORY_CACHE_TTL_MS &&
+      Array.isArray(sharedMemoryCache.items);
 
     if (shouldUseCache) {
       return sharedMemoryCache.items;
@@ -292,7 +301,11 @@ export function useKnowledgeRetrieval(deps) {
     return _sharedMemoryPending;
   };
 
-  const selectSharedMemoriesByQuery = (memories, queryText, maxItems = SHARED_MEMORY_CONTEXT_MAX_ITEMS) => {
+  const selectSharedMemoriesByQuery = (
+    memories,
+    queryText,
+    maxItems = SHARED_MEMORY_CONTEXT_MAX_ITEMS,
+  ) => {
     const source = Array.isArray(memories) ? memories : [];
     if (source.length === 0) return [];
 
@@ -304,7 +317,7 @@ export function useKnowledgeRetrieval(deps) {
       const merged = `${content}\n${mood}\n${tags}`;
       return {
         item,
-        score: scoreChunk(merged, keywords)
+        score: scoreChunk(merged, keywords),
       };
     });
 
@@ -318,7 +331,10 @@ export function useKnowledgeRetrieval(deps) {
     return [];
   };
 
-  const getSharedMemoriesByQuery = async (queryText = '', { limit = SHARED_MEMORY_SEARCH_FETCH_LIMIT } = {}) => {
+  const getSharedMemoriesByQuery = async (
+    queryText = '',
+    { limit = SHARED_MEMORY_SEARCH_FETCH_LIMIT } = {},
+  ) => {
     const safeLimit = Number.isFinite(limit)
       ? Math.max(1, Math.min(60, Math.trunc(limit)))
       : SHARED_MEMORY_SEARCH_FETCH_LIMIT;
@@ -326,7 +342,11 @@ export function useKnowledgeRetrieval(deps) {
     const cacheKey = normalizeText(safeQuery) || '__empty_query__';
     const now = Date.now();
     const cached = sharedMemorySearchCache.get(cacheKey);
-    if (cached && (now - cached.fetchedAt) < SHARED_MEMORY_CACHE_TTL_MS && Array.isArray(cached.items)) {
+    if (
+      cached &&
+      now - cached.fetchedAt < SHARED_MEMORY_CACHE_TTL_MS &&
+      Array.isArray(cached.items)
+    ) {
       // LRU bump: delete and re-set to move to end
       sharedMemorySearchCache.delete(cacheKey);
       sharedMemorySearchCache.set(cacheKey, cached);
@@ -337,7 +357,7 @@ export function useKnowledgeRetrieval(deps) {
       if (safeQuery) {
         const searchResult = await searchSharedAIMemoriesForAI({
           query: safeQuery,
-          limit: safeLimit
+          limit: safeLimit,
         });
         if (searchResult.ok && Array.isArray(searchResult.data)) {
           if (sharedMemorySearchCache.size >= SHARED_MEMORY_SEARCH_CACHE_MAX) {
@@ -346,12 +366,16 @@ export function useKnowledgeRetrieval(deps) {
           }
           sharedMemorySearchCache.set(cacheKey, {
             fetchedAt: now,
-            items: searchResult.data
+            items: searchResult.data,
           });
           return searchResult.data;
         }
         if (!searchResult.ok) {
-          logger.warn('boh-ai', '共享记忆搜索 RPC 失败，回退本地筛选', searchResult.error?.message || searchResult.error);
+          logger.warn(
+            'boh-ai',
+            '共享记忆搜索 RPC 失败，回退本地筛选',
+            searchResult.error?.message || searchResult.error,
+          );
         }
       }
 
@@ -365,7 +389,7 @@ export function useKnowledgeRetrieval(deps) {
       }
       sharedMemorySearchCache.set(cacheKey, {
         fetchedAt: now,
-        items: fallbackItems
+        items: fallbackItems,
       });
       return fallbackItems;
     } catch (error) {
@@ -379,9 +403,11 @@ export function useKnowledgeRetrieval(deps) {
       sourceTypes: ['shared_memory'],
       limit: SHARED_MEMORY_CONTEXT_MAX_ITEMS,
       syncLimit: SHARED_MEMORY_SEARCH_FETCH_LIMIT,
-      minSimilarity: 0.12
+      minSimilarity: 0.12,
     });
-    const keywordPromise = getSharedMemoriesByQuery(queryText, { limit: SHARED_MEMORY_SEARCH_FETCH_LIMIT });
+    const keywordPromise = getSharedMemoriesByQuery(queryText, {
+      limit: SHARED_MEMORY_SEARCH_FETCH_LIMIT,
+    });
 
     const [vectorChunks, keywordResult] = await Promise.allSettled([vectorPromise, keywordPromise]);
     const vectorChunksResolved = vectorChunks.status === 'fulfilled' ? vectorChunks.value : [];
@@ -391,9 +417,9 @@ export function useKnowledgeRetrieval(deps) {
         context: buildVectorKnowledgeContext('AI公共记忆库语义检索结果', vectorChunksResolved, {
           citationPrefix: 'S',
           maxItems: SHARED_MEMORY_CONTEXT_MAX_ITEMS,
-          maxContentChars: SHARED_MEMORY_CONTEXT_MAX_ITEM_CHARS
+          maxContentChars: SHARED_MEMORY_CONTEXT_MAX_ITEM_CHARS,
         }),
-        total: vectorChunksResolved.length
+        total: vectorChunksResolved.length,
       };
     }
 
@@ -402,24 +428,34 @@ export function useKnowledgeRetrieval(deps) {
       return { context: '', total: 0 };
     }
 
-    const selected = selectSharedMemoriesByQuery(memories, queryText, SHARED_MEMORY_CONTEXT_MAX_ITEMS);
+    const selected = selectSharedMemoriesByQuery(
+      memories,
+      queryText,
+      SHARED_MEMORY_CONTEXT_MAX_ITEMS,
+    );
     if (selected.length === 0) {
       return { context: '', total: 0 };
     }
 
-    const body = selected.map((item, index) => {
-      const content = normalizePromptLine(item?.content, SHARED_MEMORY_CONTEXT_MAX_ITEM_CHARS);
-      const mood = normalizePromptLine(item?.mood, 24) || '未标注';
-      const tags = Array.isArray(item?.tags) && item.tags.length > 0
-        ? item.tags.map((tag) => normalizePromptLine(tag, 20)).filter(Boolean).join('、')
-        : '无';
-      const time = normalizePromptLine(item?.updatedAt || item?.createdAt, 40) || '未知';
-      return `[S${index + 1}] 时间: ${time}\n心情: ${mood}\n标签: ${tags}\n内容: ${content || '（空）'}`;
-    }).join('\n\n');
+    const body = selected
+      .map((item, index) => {
+        const content = normalizePromptLine(item?.content, SHARED_MEMORY_CONTEXT_MAX_ITEM_CHARS);
+        const mood = normalizePromptLine(item?.mood, 24) || '未标注';
+        const tags =
+          Array.isArray(item?.tags) && item.tags.length > 0
+            ? item.tags
+                .map((tag) => normalizePromptLine(tag, 20))
+                .filter(Boolean)
+                .join('、')
+            : '无';
+        const time = normalizePromptLine(item?.updatedAt || item?.createdAt, 40) || '未知';
+        return `[S${index + 1}] 时间: ${time}\n心情: ${mood}\n标签: ${tags}\n内容: ${content || '（空）'}`;
+      })
+      .join('\n\n');
 
     return {
       context: `【AI公共记忆库检索结果】\n${body}`,
-      total: selected.length
+      total: selected.length,
     };
   };
 
@@ -436,11 +472,12 @@ export function useKnowledgeRetrieval(deps) {
   // 树洞 / BOH Cloud+
   // ============================================================
 
-  const shouldUseTreeholeContext = (text) => _shouldUseTreeholeContext(text, {
-    isTreeholeMemoryEnabled: isTreeholeMemoryEnabled.value,
-    isLoggedIn: isLoggedIn.value,
-    userInfo: userInfo.value
-  });
+  const shouldUseTreeholeContext = (text) =>
+    _shouldUseTreeholeContext(text, {
+      isTreeholeMemoryEnabled: isTreeholeMemoryEnabled.value,
+      isLoggedIn: isLoggedIn.value,
+      userInfo: userInfo.value,
+    });
 
   let _treeholeMemoryPending = null;
 
@@ -454,9 +491,10 @@ export function useKnowledgeRetrieval(deps) {
     }
 
     const now = Date.now();
-    const shouldUseCache = treeholeMemoryCache.userId === userId
-      && (now - treeholeMemoryCache.fetchedAt) < TREEHOLE_MEMORY_CACHE_TTL_MS
-      && Array.isArray(treeholeMemoryCache.items);
+    const shouldUseCache =
+      treeholeMemoryCache.userId === userId &&
+      now - treeholeMemoryCache.fetchedAt < TREEHOLE_MEMORY_CACHE_TTL_MS &&
+      Array.isArray(treeholeMemoryCache.items);
 
     if (shouldUseCache) {
       return treeholeMemoryCache.items;
@@ -468,7 +506,11 @@ export function useKnowledgeRetrieval(deps) {
       try {
         const result = await getMyCloudEntriesForAI(userId, { limit: TREEHOLE_MEMORY_LIMIT });
         if (!result.ok) {
-          logger.warn('boh-ai', '读取 BOH Cloud+ 上下文失败', result.error?.message || result.error);
+          logger.warn(
+            'boh-ai',
+            '读取 BOH Cloud+ 上下文失败',
+            result.error?.message || result.error,
+          );
           treeholeMemoryCache.userId = userId;
           treeholeMemoryCache.fetchedAt = Date.now();
           treeholeMemoryCache.items = [];
@@ -512,7 +554,7 @@ export function useKnowledgeRetrieval(deps) {
         return {
           item,
           index,
-          score: scoreChunk(`${title}\n${content}\n${mood}\n${tags}`, keywords)
+          score: scoreChunk(`${title}\n${content}\n${mood}\n${tags}`, keywords),
         };
       })
       .filter((entry) => entry.score > 0)
@@ -527,7 +569,7 @@ export function useKnowledgeRetrieval(deps) {
     const vectorPromise = getVectorKnowledgeChunks(queryText, {
       sourceTypes: ['cloud_entry'],
       limit: Math.min(12, TREEHOLE_CONTEXT_MAX_ITEMS),
-      syncLimit: Math.min(80, TREEHOLE_MEMORY_LIMIT)
+      syncLimit: Math.min(80, TREEHOLE_MEMORY_LIMIT),
     });
     const keywordPromise = getTreeholeMemoriesCached();
 
@@ -539,9 +581,9 @@ export function useKnowledgeRetrieval(deps) {
         context: buildVectorKnowledgeContext('用户 BOH Cloud+ 语义检索结果', vectorChunksResolved, {
           citationPrefix: 'T',
           maxItems: Math.min(12, TREEHOLE_CONTEXT_MAX_ITEMS),
-          maxContentChars: TREEHOLE_CONTEXT_MAX_ITEM_CHARS
+          maxContentChars: TREEHOLE_CONTEXT_MAX_ITEM_CHARS,
         }),
-        total: vectorChunksResolved.length
+        total: vectorChunksResolved.length,
       };
     }
 
@@ -555,19 +597,25 @@ export function useKnowledgeRetrieval(deps) {
       return { context: '', total: memories.length };
     }
 
-    const body = selected.map((item, index) => {
-      const content = normalizePromptLine(item?.content, TREEHOLE_CONTEXT_MAX_ITEM_CHARS);
-      const mood = normalizePromptLine(item?.mood, 24) || '未标注';
-      const tags = Array.isArray(item?.tags) && item.tags.length > 0
-        ? item.tags.map((tag) => normalizePromptLine(tag, 20)).filter(Boolean).join('、')
-        : '无';
-      const time = normalizePromptLine(item?.updatedAt || item?.createdAt, 40) || '未知';
-      return `[T${index + 1}] 时间: ${time}\n心情: ${mood}\n标签: ${tags}\n内容: ${content || '（空）'}`;
-    }).join('\n\n');
+    const body = selected
+      .map((item, index) => {
+        const content = normalizePromptLine(item?.content, TREEHOLE_CONTEXT_MAX_ITEM_CHARS);
+        const mood = normalizePromptLine(item?.mood, 24) || '未标注';
+        const tags =
+          Array.isArray(item?.tags) && item.tags.length > 0
+            ? item.tags
+                .map((tag) => normalizePromptLine(tag, 20))
+                .filter(Boolean)
+                .join('、')
+            : '无';
+        const time = normalizePromptLine(item?.updatedAt || item?.createdAt, 40) || '未知';
+        return `[T${index + 1}] 时间: ${time}\n心情: ${mood}\n标签: ${tags}\n内容: ${content || '（空）'}`;
+      })
+      .join('\n\n');
 
     return {
       context: `【用户 BOH Cloud+ 全部内容】\n${body}`,
-      total: memories.length
+      total: memories.length,
     };
   };
 
@@ -586,14 +634,16 @@ export function useKnowledgeRetrieval(deps) {
 
       if (candidateQueries.length > 0) {
         const searchResults = await Promise.allSettled(
-          candidateQueries.map((searchQuery) => getPosts(null, {
-            page: 1,
-            pageSize: 8,
-            limit: 8,
-            sortMode,
-            searchQuery,
-            tagFilter
-          }))
+          candidateQueries.map((searchQuery) =>
+            getPosts(null, {
+              page: 1,
+              pageSize: 8,
+              limit: 8,
+              sortMode,
+              searchQuery,
+              tagFilter,
+            }),
+          ),
         );
         for (const result of searchResults) {
           if (result.status === 'fulfilled' && result.value?.data) {
@@ -608,7 +658,7 @@ export function useKnowledgeRetrieval(deps) {
           pageSize: latestSummaryMode ? FORUM_MAX_POSTS : 10,
           limit: latestSummaryMode ? FORUM_MAX_POSTS : 10,
           sortMode,
-          tagFilter
+          tagFilter,
         });
         mergeForumPosts(mergedPosts, fallbackPosts);
       }
@@ -618,31 +668,35 @@ export function useKnowledgeRetrieval(deps) {
 
       const recentPosts = filterRecentForumPosts(posts);
       const recentSource = recentPosts.length > 0 ? recentPosts : posts;
-      const rankedPosts = sortMode === 'latest'
-        ? sortForumPostsByCreatedAtDesc(recentSource)
-        : rankForumPostsByQuery(recentSource, queryText);
+      const rankedPosts =
+        sortMode === 'latest'
+          ? sortForumPostsByCreatedAtDesc(recentSource)
+          : rankForumPostsByQuery(recentSource, queryText);
       const selectedPosts = rankedPosts.slice(0, FORUM_MAX_POSTS);
-      const forumContext = selectedPosts.map((post, index) => {
-        const parsed = getPostTitleAndBody(post);
-        const title = parsed.title || '无标题';
-        const author = normalizePromptLine(post?.author_username, 40) || '未知作者';
-        const authorIdLabel = author === '未知作者' ? '未知作者' : `@${author.replace(/^@+/, '')}`;
-        const preview = String(parsed.body || '').slice(0, FORUM_MAX_CHARS_PER_POST);
-        const likes = Number(post?.like_count || post?.likes_count || 0);
-        const comments = Number(post?.comment_count || 0);
-        const tag = normalizePromptLine(post?.tagLabel || post?.tag, 24) || '未标注';
-        const time = formatPromptDate(post?.created_at, '未知');
-        const postId = String(post?.id || '').trim();
-        const url = postId ? `#/forum/post/${postId}` : '#/forum';
-        const excerpt = normalizePromptLine(post?.search_excerpt, FORUM_MAX_CHARS_PER_POST);
-        return [
-          `[F${index + 1}] 【论坛帖子】${title}`,
-          `发帖ID：${authorIdLabel} ｜ 标签：${tag} ｜ 时间：${time}`,
-          `查看：${url}`,
-          `内容：${excerpt || preview}${!excerpt && parsed.body.length > FORUM_MAX_CHARS_PER_POST ? '...' : ''}`,
-          `互动：点赞 ${likes}，评论 ${comments}`
-        ].join('\n');
-      }).join('\n\n');
+      const forumContext = selectedPosts
+        .map((post, index) => {
+          const parsed = getPostTitleAndBody(post);
+          const title = parsed.title || '无标题';
+          const author = normalizePromptLine(post?.author_username, 40) || '未知作者';
+          const authorIdLabel =
+            author === '未知作者' ? '未知作者' : `@${author.replace(/^@+/, '')}`;
+          const preview = String(parsed.body || '').slice(0, FORUM_MAX_CHARS_PER_POST);
+          const likes = Number(post?.like_count || post?.likes_count || 0);
+          const comments = Number(post?.comment_count || 0);
+          const tag = normalizePromptLine(post?.tagLabel || post?.tag, 24) || '未标注';
+          const time = formatPromptDate(post?.created_at, '未知');
+          const postId = String(post?.id || '').trim();
+          const url = postId ? `#/forum/post/${postId}` : '#/forum';
+          const excerpt = normalizePromptLine(post?.search_excerpt, FORUM_MAX_CHARS_PER_POST);
+          return [
+            `[F${index + 1}] 【论坛帖子】${title}`,
+            `发帖ID：${authorIdLabel} ｜ 标签：${tag} ｜ 时间：${time}`,
+            `查看：${url}`,
+            `内容：${excerpt || preview}${!excerpt && parsed.body.length > FORUM_MAX_CHARS_PER_POST ? '...' : ''}`,
+            `互动：点赞 ${likes}，评论 ${comments}`,
+          ].join('\n');
+        })
+        .join('\n\n');
 
       return {
         context: `【社区帖子检索结果】\n检索词：${candidateQueries.join(' / ') || '最新社区帖子'}\n范围：近 30 日优先${recentPosts.length > 0 ? '' : '（近 30 日无结果，回退到最近可用帖子）'}\n排序：${sortMode === 'hottest' ? '近期热门优先' : '最新优先'}${tagFilter ? `\n标签过滤：${tagFilter}` : ''}${latestSummaryMode || sortMode === 'latest' ? `\n输出约束：必须严格按 [F1] 到 [F${selectedPosts.length}] 的顺序总结；[F1] 是当前检索到的最新发布帖子，后续依次按发布时间从新到旧排列。不要按热度、重要性或相关性重排。` : ''}\n\n${forumContext}`,
@@ -657,8 +711,8 @@ export function useKnowledgeRetrieval(deps) {
           latestSummaryMode,
           recentOnly: recentPosts.length > 0,
           recentWindowDays: 30,
-          posts: selectedPosts
-        }
+          posts: selectedPosts,
+        },
       };
     } catch (error) {
       logger.error('boh-ai', '获取论坛数据失败', error);
@@ -678,22 +732,19 @@ export function useKnowledgeRetrieval(deps) {
     }
 
     const now = Date.now();
-    const shouldUseCache = userPrivateContextCache.userId === userId
-      && (now - userPrivateContextCache.fetchedAt) < USER_PRIVATE_CONTEXT_CACHE_TTL_MS
-      && userPrivateContextCache.snapshot;
+    const shouldUseCache =
+      userPrivateContextCache.userId === userId &&
+      now - userPrivateContextCache.fetchedAt < USER_PRIVATE_CONTEXT_CACHE_TTL_MS &&
+      userPrivateContextCache.snapshot;
     if (shouldUseCache) {
       return userPrivateContextCache.snapshot;
     }
 
-    const [
-      profileResult,
-      postResult,
-      giftResult,
-      subscriptionResult
-    ] = await Promise.allSettled([
+    const [profileResult, postResult, giftResult, subscriptionResult] = await Promise.allSettled([
       supabase
         .from('profiles')
-        .select(`
+        .select(
+          `
           id,
           username,
           role,
@@ -703,13 +754,19 @@ export function useKnowledgeRetrieval(deps) {
           birth_day,
           pushplus_enabled,
           gift_status
-        `)
+        `,
+        )
         .eq('id', userId)
         .maybeSingle(),
-      getUserPosts(userId, userId, { page: 1, pageSize: USER_PRIVATE_POSTS_FETCH_LIMIT, limit: USER_PRIVATE_POSTS_FETCH_LIMIT }),
+      getUserPosts(userId, userId, {
+        page: 1,
+        pageSize: USER_PRIVATE_POSTS_FETCH_LIMIT,
+        limit: USER_PRIVATE_POSTS_FETCH_LIMIT,
+      }),
       supabase
         .from('user_gifts')
-        .select(`
+        .select(
+          `
           id,
           user_id,
           gift_no,
@@ -720,16 +777,21 @@ export function useKnowledgeRetrieval(deps) {
           completed_at,
           created_at,
           updated_at
-        `)
+        `,
+        )
         .eq('user_id', userId)
         .order('updated_at', { ascending: false })
         .limit(USER_PRIVATE_GIFTS_FETCH_LIMIT),
-      getMySubscriptions(userId, { includeExpired: true })
+      getMySubscriptions(userId, { includeExpired: true }),
     ]);
 
     const profileValue = profileResult.status === 'fulfilled' ? profileResult.value : null;
     if (profileValue?.error && !isMissingRelationError(profileValue.error, 'profiles')) {
-      logger.warn('boh-ai', '读取当前用户档案失败', profileValue.error?.message || profileValue.error);
+      logger.warn(
+        'boh-ai',
+        '读取当前用户档案失败',
+        profileValue.error?.message || profileValue.error,
+      );
     }
 
     const postValue = postResult.status === 'fulfilled' ? postResult.value : null;
@@ -742,9 +804,17 @@ export function useKnowledgeRetrieval(deps) {
       logger.warn('boh-ai', '读取当前用户礼物失败', giftValue.error?.message || giftValue.error);
     }
 
-    const subscriptionValue = subscriptionResult.status === 'fulfilled' ? subscriptionResult.value : null;
-    if (subscriptionValue?.error && !isMissingRelationError(subscriptionValue.error, 'user_subscriptions')) {
-      logger.warn('boh-ai', '读取当前用户订阅失败', subscriptionValue.error?.message || subscriptionValue.error);
+    const subscriptionValue =
+      subscriptionResult.status === 'fulfilled' ? subscriptionResult.value : null;
+    if (
+      subscriptionValue?.error &&
+      !isMissingRelationError(subscriptionValue.error, 'user_subscriptions')
+    ) {
+      logger.warn(
+        'boh-ai',
+        '读取当前用户订阅失败',
+        subscriptionValue.error?.message || subscriptionValue.error,
+      );
     }
 
     const mergedProfile = {
@@ -760,7 +830,7 @@ export function useKnowledgeRetrieval(deps) {
       gift_content: '',
       gift_no: '',
       gift_price: 0,
-      ...(profileValue?.data || {})
+      ...(profileValue?.data || {}),
     };
     mergedProfile.points = Number(mergedProfile.points || 0);
     mergedProfile.gift_price = Number(mergedProfile.gift_price || 0);
@@ -771,7 +841,7 @@ export function useKnowledgeRetrieval(deps) {
       profile: mergedProfile,
       posts: Array.isArray(postValue?.data) ? postValue.data : [],
       gifts: Array.isArray(giftValue?.data) ? giftValue.data : [],
-      subscriptions: Array.isArray(subscriptionValue?.data) ? subscriptionValue.data : []
+      subscriptions: Array.isArray(subscriptionValue?.data) ? subscriptionValue.data : [],
     };
 
     userPrivateContextCache.userId = userId;
@@ -785,14 +855,15 @@ export function useKnowledgeRetrieval(deps) {
     if (!plan.shouldUse) {
       return {
         context: '',
-        labels: []
+        labels: [],
       };
     }
 
     if (!isLoggedIn.value || !userInfo.value?.id) {
       return {
-        context: '【用户私域证据 [U1]】\n未检测到登录用户。若需要查询"我的帖子/礼物/生日会/Pushplus/订阅积分"，请先登录账号。',
-        labels: ['登录状态(未登录)']
+        context:
+          '【用户私域证据 [U1]】\n未检测到登录用户。若需要查询"我的帖子/礼物/生日会/Pushplus/订阅积分"，请先登录账号。',
+        labels: ['登录状态(未登录)'],
       };
     }
 
@@ -800,7 +871,7 @@ export function useKnowledgeRetrieval(deps) {
     if (!snapshot) {
       return {
         context: '',
-        labels: []
+        labels: [],
       };
     }
 
@@ -861,7 +932,7 @@ export function useKnowledgeRetrieval(deps) {
 
     return {
       context: wrappedBlocks.join('\n\n'),
-      labels
+      labels,
     };
   };
 
@@ -886,7 +957,7 @@ export function useKnowledgeRetrieval(deps) {
       // forum 仅由用户手动开关控制，不再自动判定
       forum: false,
       userPrivate: userPrivatePlan.shouldUse,
-      health: shouldUseHealthContext(normalized)
+      health: shouldUseHealthContext(normalized),
     };
 
     return resolveKnowledgeRoutingPlanCore({
@@ -895,7 +966,7 @@ export function useKnowledgeRetrieval(deps) {
       community,
       forumRealtime,
       communityHistory,
-      hasSharedMemoryTrigger
+      hasSharedMemoryTrigger,
     });
   };
 
@@ -911,25 +982,29 @@ export function useKnowledgeRetrieval(deps) {
     return labels;
   };
 
-  const buildVisibleRetrievalActionNote = (retrievalPlan = {}, {
-    treeholeTotal = 0,
-    sharedMemoryTotal = 0,
-    userPrivateLabels = []
-  } = {}) => {
+  const buildVisibleRetrievalActionNote = (
+    retrievalPlan = {},
+    { treeholeTotal = 0, sharedMemoryTotal = 0, userPrivateLabels = [] } = {},
+  ) => {
     const parts = [];
     if (retrievalPlan.treehole) {
-      parts.push(treeholeTotal > 0 ? `看了你的 BOH Cloud+ ${treeholeTotal} 条内容` : '看了你的 BOH Cloud+');
+      parts.push(
+        treeholeTotal > 0 ? `看了你的 BOH Cloud+ ${treeholeTotal} 条内容` : '看了你的 BOH Cloud+',
+      );
     }
     if (retrievalPlan.memory) parts.push('查看了 BOH 历史背景与导入知识库');
     if (retrievalPlan.sharedMemory) {
-      parts.push(sharedMemoryTotal > 0 ? `查看了公共记忆库 ${sharedMemoryTotal} 条内容` : '查看了公共记忆库');
+      parts.push(
+        sharedMemoryTotal > 0 ? `查看了公共记忆库 ${sharedMemoryTotal} 条内容` : '查看了公共记忆库',
+      );
     }
     if (retrievalPlan.forum) parts.push('浏览了社区帖子');
     if (retrievalPlan.siteGuide) parts.push('查看了站点操作手册');
     if (retrievalPlan.userPrivate) {
-      const labelText = Array.isArray(userPrivateLabels) && userPrivateLabels.length > 0
-        ? userPrivateLabels.slice(0, 2).join('、')
-        : '当前账号资料';
+      const labelText =
+        Array.isArray(userPrivateLabels) && userPrivateLabels.length > 0
+          ? userPrivateLabels.slice(0, 2).join('、')
+          : '当前账号资料';
       parts.push(`查看了${labelText}`);
     }
     if (retrievalPlan.health) parts.push('查看了你的 BOH Health 数据');
@@ -950,11 +1025,10 @@ export function useKnowledgeRetrieval(deps) {
       evidencePrefix: 'T',
       requiresLogin: true,
       read: getTreeholeContext,
-      describeAction: (result) => (
+      describeAction: (result) =>
         Number(result?.total || 0) > 0
           ? `看了你的 BOH Cloud+ ${Number(result.total)} 条内容`
-          : '看了你的 BOH Cloud+'
-      )
+          : '看了你的 BOH Cloud+',
     }),
     createBohAIConnector({
       id: BOHAI_CONNECTOR_IDS.sharedMemory,
@@ -963,11 +1037,10 @@ export function useKnowledgeRetrieval(deps) {
       source: 'AI 公共记忆库',
       evidencePrefix: 'S',
       read: getSharedMemoryContext,
-      describeAction: (result) => (
+      describeAction: (result) =>
         Number(result?.total || 0) > 0
           ? `查看了公共记忆库 ${Number(result.total)} 条内容`
-          : '查看了公共记忆库'
-      )
+          : '查看了公共记忆库',
     }),
     createBohAIConnector({
       id: BOHAI_CONNECTOR_IDS.knowledge,
@@ -976,7 +1049,7 @@ export function useKnowledgeRetrieval(deps) {
       source: 'BOH 历史背景与导入知识库',
       evidencePrefix: 'K',
       read: getMemoryContext,
-      describeAction: () => '查看了 BOH 历史背景与导入知识库'
+      describeAction: () => '查看了 BOH 历史背景与导入知识库',
     }),
     createBohAIConnector({
       id: BOHAI_CONNECTOR_IDS.siteGuide,
@@ -985,7 +1058,7 @@ export function useKnowledgeRetrieval(deps) {
       source: '站点操作与路径知识库',
       evidencePrefix: 'G',
       read: (queryText) => getSiteGuideContext(queryText),
-      describeAction: () => '查看了站点操作手册'
+      describeAction: () => '查看了站点操作手册',
     }),
     createBohAIConnector({
       id: BOHAI_CONNECTOR_IDS.forum,
@@ -997,7 +1070,7 @@ export function useKnowledgeRetrieval(deps) {
       describeAction: (result) => {
         const total = Number(result?.total || 0);
         return total > 0 ? `检索了社区帖子 ${total} 条` : '检索了社区帖子';
-      }
+      },
     }),
     createBohAIConnector({
       id: BOHAI_CONNECTOR_IDS.userPrivate,
@@ -1011,7 +1084,7 @@ export function useKnowledgeRetrieval(deps) {
         const labels = Array.isArray(result?.labels) ? result.labels : [];
         const labelText = labels.length > 0 ? labels.slice(0, 2).join('、') : '当前账号资料';
         return `查看了${labelText}`;
-      }
+      },
     }),
     createBohAIConnector({
       id: BOHAI_CONNECTOR_IDS.health,
@@ -1025,8 +1098,8 @@ export function useKnowledgeRetrieval(deps) {
       describeAction: (result) => {
         const total = Number(result?.total || 0);
         return total > 0 ? `查看了你的 BOH Health 数据 ${total} 组` : '查看了你的 BOH Health 数据';
-      }
-    })
+      },
+    }),
   ];
 
   // ============================================================
@@ -1063,23 +1136,29 @@ export function useKnowledgeRetrieval(deps) {
       connectors: createReadConnectors(),
       plan: retrievalPlan,
       queryText,
-      logger
+      logger,
     });
     const connectorSummary = summarizeBohAIConnectorResults(connectorResults);
-    const rankedContextBlocks = rankEvidenceContextBlocks(connectorResults, queryText).map((item) => item.context);
+    const rankedContextBlocks = rankEvidenceContextBlocks(connectorResults, queryText).map(
+      (item) => item.context,
+    );
 
-    const contextText = compressKnowledgeContextBlocks(rankedContextBlocks.length > 0 ? rankedContextBlocks : connectorSummary.contextBlocks, {
-      maxChars: KNOWLEDGE_CONTEXT_MAX_CHARS,
-      maxPerBlock: KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS
-    });
-    const evidenceRefs = connectorSummary.evidenceRefs.length > 0
-      ? connectorSummary.evidenceRefs
-      : extractCitationIdsFromText(contextText);
+    const contextText = compressKnowledgeContextBlocks(
+      rankedContextBlocks.length > 0 ? rankedContextBlocks : connectorSummary.contextBlocks,
+      {
+        maxChars: KNOWLEDGE_CONTEXT_MAX_CHARS,
+        maxPerBlock: KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS,
+      },
+    );
+    const evidenceRefs =
+      connectorSummary.evidenceRefs.length > 0
+        ? connectorSummary.evidenceRefs
+        : extractCitationIdsFromText(contextText);
     const retrievalTrace = createBohAIRetrievalTrace({
       queryText,
       retrievalPlan,
       routingReasons,
-      connectorResults
+      connectorResults,
     });
 
     return {
@@ -1091,7 +1170,7 @@ export function useKnowledgeRetrieval(deps) {
       sharedMemoryTotal: Number(connectorSummary.totalsById[BOHAI_CONNECTOR_IDS.sharedMemory] || 0),
       userPrivateLabels: connectorSummary.labelsById[BOHAI_CONNECTOR_IDS.userPrivate] || [],
       evidenceRefs,
-      contextText
+      contextText,
     };
   };
 
@@ -1133,6 +1212,6 @@ export function useKnowledgeRetrieval(deps) {
     getForumSummarySourceText,
     detectForumSummaryPolarityConflicts,
     buildForumSearchQueries,
-    mergeForumPosts
+    mergeForumPosts,
   };
 }

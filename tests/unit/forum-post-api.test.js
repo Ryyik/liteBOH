@@ -63,12 +63,19 @@ async function schedulePostModerationWithRetry(post = {}) {
       testMocks.fromMock.mockReturnValue({ update: testMocks.updateMock });
       testMocks.updateMock.mockResolvedValue({ error: null });
 
-      await testMocks.ensureModerationNotification({ recipientId: authorId, type: 'post_rejected', postId });
+      await testMocks.ensureModerationNotification({
+        recipientId: authorId,
+        type: 'post_rejected',
+        postId,
+      });
       testMocks.invalidateByTags(['posts', 'profiles', 'notifications']);
       return;
-    } catch (error) {
+    } catch {
       if (attempt === MAX_RETRIES) {
-        testMocks.warn('forum-api', '异步发帖审查已耗尽所有重试次数，帖子保持当前状态', { postId, authorId });
+        testMocks.warn('forum-api', '异步发帖审查已耗尽所有重试次数，帖子保持当前状态', {
+          postId,
+          authorId,
+        });
         return;
       }
       const delayMs = BASE_DELAY_MS * Math.pow(2, attempt - 1);
@@ -123,13 +130,13 @@ describe('BUG-11: schedulePostModeration retry mechanism', { timeout: 15000 }, (
         id: 'post-3',
         author_id: 'author-3',
         content: 'test content',
-      })
+      }),
     ).resolves.toBeUndefined();
 
     expect(testMocks.warn).toHaveBeenCalledWith(
       'forum-api',
       '异步发帖审查已耗尽所有重试次数，帖子保持当前状态',
-      expect.objectContaining({ postId: 'post-3', authorId: 'author-3' })
+      expect.objectContaining({ postId: 'post-3', authorId: 'author-3' }),
     );
   });
 

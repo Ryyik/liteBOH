@@ -1,5 +1,4 @@
 import {
-  Database,
   Gauge,
   Settings,
   Users,
@@ -12,7 +11,7 @@ import {
   MessageCircle,
   Megaphone,
   Activity,
-  Palette
+  Palette,
 } from 'lucide-vue-next';
 
 export const tabs = [
@@ -67,7 +66,7 @@ export const tabs = [
   { id: 'userFollows', label: '关注关系', icon: '👥', module: 'logs' },
   { id: 'userImpressions', label: '访客记录', icon: '👁️', module: 'logs' },
   { id: 'lotterySchedulerLogs', label: '抽奖调度', icon: '⚙️', module: 'logs' },
-  { id: 'userDataExportJobs', label: '用户数据导出', icon: '📤', module: 'logs' }
+  { id: 'userDataExportJobs', label: '用户数据导出', icon: '📤', module: 'logs' },
 ];
 
 export const tabModules = [
@@ -77,7 +76,7 @@ export const tabModules = [
     icon: Gauge,
     section: 'overview',
     defaultTab: null,
-    description: '站点运行总览'
+    description: '站点运行总览',
   },
   {
     id: 'users',
@@ -85,8 +84,16 @@ export const tabModules = [
     icon: Users,
     section: 'data',
     defaultTab: 'users',
-    tabIds: ['users', 'points', 'points-grant', 'pointsTransactions', 'subscriptions', 'subscriptions-grant', 'anniversaryClaims'],
-    description: '账号、积分、订阅和领取记录'
+    tabIds: [
+      'users',
+      'points',
+      'points-grant',
+      'pointsTransactions',
+      'subscriptions',
+      'subscriptions-grant',
+      'anniversaryClaims',
+    ],
+    description: '账号、积分、订阅和领取记录',
   },
   {
     id: 'gifts',
@@ -95,7 +102,7 @@ export const tabModules = [
     section: 'data',
     defaultTab: 'gifts',
     tabIds: ['gifts', 'addresses'],
-    description: '管理用户礼物、地址和快递信息'
+    description: '管理用户礼物、地址和快递信息',
   },
   {
     id: 'shop',
@@ -105,7 +112,7 @@ export const tabModules = [
     defaultTab: 'shopOrders',
     tabIds: ['shopOrders', 'products'],
     subPages: ['shop-console'],
-    description: '商品、订单和商城装修'
+    description: '商品、订单和商城装修',
   },
   {
     id: 'community',
@@ -113,8 +120,16 @@ export const tabModules = [
     icon: MessageCircle,
     section: 'data',
     defaultTab: 'forum',
-    tabIds: ['forum', 'ads', 'forumWeeklyCheckins', 'forumPostImages', 'forumPostReports', 'blockWallItems', 'photoAlbums'],
-    description: '论坛、签到、图片审核、举报、方块墙和摄影集'
+    tabIds: [
+      'forum',
+      'ads',
+      'forumWeeklyCheckins',
+      'forumPostImages',
+      'forumPostReports',
+      'blockWallItems',
+      'photoAlbums',
+    ],
+    description: '论坛、签到、图片审核、举报、方块墙和摄影集',
   },
   {
     id: 'operations',
@@ -122,8 +137,20 @@ export const tabModules = [
     icon: Megaphone,
     section: 'data',
     defaultTab: 'news',
-    tabIds: ['news', 'activities', 'postReward', 'coreMemories', 'bohCreatorShows', 'birthdayEvents', 'birthdayWishes', 'campaigns', 'campaignEntries', 'campaignRewards', 'posterRequests'],
-    description: '新闻、活动、官方事实、创作者和生日运营'
+    tabIds: [
+      'news',
+      'activities',
+      'postReward',
+      'coreMemories',
+      'bohCreatorShows',
+      'birthdayEvents',
+      'birthdayWishes',
+      'campaigns',
+      'campaignEntries',
+      'campaignRewards',
+      'posterRequests',
+    ],
+    description: '新闻、活动、官方事实、创作者和生日运营',
   },
   {
     id: 'shop-console',
@@ -131,7 +158,7 @@ export const tabModules = [
     icon: Store,
     section: 'data',
     type: 'page',
-    description: '可视化编辑商城商品与展示'
+    description: '可视化编辑商城商品与展示',
   },
   {
     id: 'hero-console',
@@ -139,7 +166,7 @@ export const tabModules = [
     icon: Layout,
     section: 'data',
     type: 'page',
-    description: '可视化编辑首页英雄区，支持模板/预览/裁切/发布'
+    description: '可视化编辑首页英雄区，支持模板/预览/裁切/发布',
   },
   {
     id: 'avatar-console',
@@ -147,7 +174,7 @@ export const tabModules = [
     icon: Palette,
     section: 'data',
     type: 'page',
-    description: '上传 PNG、摆位并设定归属档位 / 限免 / 积分价后发布'
+    description: '上传 PNG、摆位并设定归属档位 / 限免 / 积分价后发布',
   },
   {
     id: 'moderation',
@@ -156,7 +183,7 @@ export const tabModules = [
     section: 'data',
     defaultTab: 'reportedPosts',
     tabIds: ['reportedPosts', 'reviewPosts', 'reviewComments', 'moderationLogs', 'notifications'],
-    description: '举报、内容复核、审核日志和通知管理'
+    description: '举报、内容复核、审核日志和通知管理',
   },
   {
     id: 'lottery',
@@ -164,8 +191,14 @@ export const tabModules = [
     icon: Gift,
     section: 'data',
     defaultTab: 'lotteries',
-    tabIds: ['lotteries', 'lotteryFulfillments', 'lotteryEntries', 'lotteryAuditLogs', 'pity-grant'],
-    description: '抽奖配置、履约与通知、报名明细、运行审计和保底中心'
+    tabIds: [
+      'lotteries',
+      'lotteryFulfillments',
+      'lotteryEntries',
+      'lotteryAuditLogs',
+      'pity-grant',
+    ],
+    description: '抽奖配置、履约与通知、报名明细、运行审计和保底中心',
   },
   {
     id: 'ai-config',
@@ -173,8 +206,15 @@ export const tabModules = [
     icon: Sparkles,
     section: 'data',
     defaultTab: 'api-keys',
-    tabIds: ['api-keys', 'freemodels', 'bohaiModels', 'ai-quota', 'moderation-model', 'lab-ai-model'],
-    description: 'API Key、免费模型库与各场景模型配置'
+    tabIds: [
+      'api-keys',
+      'freemodels',
+      'bohaiModels',
+      'ai-quota',
+      'moderation-model',
+      'lab-ai-model',
+    ],
+    description: 'API Key、免费模型库与各场景模型配置',
   },
   {
     id: 'logs',
@@ -182,8 +222,16 @@ export const tabModules = [
     icon: Activity,
     section: 'data',
     defaultTab: 'aiWebSearchLog',
-    tabIds: ['aiWebSearchLog', 'apiKeyAuditLogs', 'labUsageRecords', 'userFollows', 'userImpressions', 'lotterySchedulerLogs', 'userDataExportJobs'],
-    description: 'AI搜索、Key审计、实验室、关注、访客与抽奖调度日志'
+    tabIds: [
+      'aiWebSearchLog',
+      'apiKeyAuditLogs',
+      'labUsageRecords',
+      'userFollows',
+      'userImpressions',
+      'lotterySchedulerLogs',
+      'userDataExportJobs',
+    ],
+    description: 'AI搜索、Key审计、实验室、关注、访客与抽奖调度日志',
   },
   {
     id: 'system',
@@ -193,10 +241,10 @@ export const tabModules = [
     defaultTab: null,
     subNav: [
       { id: 'media', label: '媒体资源' },
-      { id: 'settings', label: '网站设置' }
+      { id: 'settings', label: '网站设置' },
     ],
-    description: '媒体资源与站点设置'
-  }
+    description: '媒体资源与站点设置',
+  },
 ];
 
 export const TABS_ACTIONS = {
@@ -253,7 +301,7 @@ export const TABS_ACTIONS = {
   labUsageRecords: ['view'],
   userFollows: ['view'],
   userImpressions: ['view'],
-  userDataExportJobs: ['view']
+  userDataExportJobs: ['view'],
 };
 
 export const TABS_KEEP_ID_ON_INSERT = new Set(['news', 'activities', 'products']);
@@ -263,84 +311,84 @@ export const ADMIN_PAGE_META = {
     eyebrow: 'Overview',
     title: '站点运行概览',
     description: '查看核心数据规模、异常诊断和最近活动。',
-    icon: Gauge
+    icon: Gauge,
   },
   users: {
     eyebrow: 'Users',
     title: '用户管理',
     description: '管理用户账号、积分、订阅和礼物履约。',
-    icon: Users
+    icon: Users,
   },
   gifts: {
     eyebrow: 'Gifts',
     title: '礼物管理',
     description: '管理用户礼物、进度和快递信息。',
-    icon: Gift
+    icon: Gift,
   },
   content: {
     eyebrow: 'Content',
     title: '内容管理',
     description: '管理论坛帖子、新闻、活动、商品和官方知识。',
-    icon: FileText
+    icon: FileText,
   },
   community: {
     eyebrow: 'Community',
     title: '社区管理',
     description: '管理论坛帖子、签到、图片审核、举报和方块墙。',
-    icon: MessageCircle
+    icon: MessageCircle,
   },
   operations: {
     eyebrow: 'Operations',
     title: '运营管理',
     description: '管理新闻、活动、官方事实、创作者展示、生日运营和海报申请。',
-    icon: Megaphone
+    icon: Megaphone,
   },
   shop: {
     eyebrow: 'Shop',
     title: '商城管理',
     description: '管理商品、订单处理和商城装修。',
-    icon: Store
+    icon: Store,
   },
   logs: {
     eyebrow: 'Logs',
     title: '日志监控',
     description: '查看 AI 搜索、Key 审计、实验室用量、关注关系和访客记录。',
-    icon: Activity
+    icon: Activity,
   },
   'shop-console': {
     eyebrow: 'Shop Console',
     title: '商城装修',
     description: '可视化编辑商城商品与展示，保存后立即生效。',
-    icon: Store
+    icon: Store,
   },
   'hero-console': {
     eyebrow: 'Hero Console',
     title: '首页装修',
     description: '可视化编辑首页英雄区，支持模板选择、实时预览、图片裁切、草稿/发布分离。',
-    icon: Layout
+    icon: Layout,
   },
   moderation: {
     eyebrow: 'Moderation',
     title: '内容审核',
     description: '处理举报、复核已拒绝的帖子和评论。',
-    icon: Flag
+    icon: Flag,
   },
   lottery: {
     eyebrow: 'Lottery',
     title: '抽奖管理',
     description: '抽奖管理、履约与通知、报名明细、运行审计与保底中心。',
-    icon: Gift
+    icon: Gift,
   },
   'ai-config': {
     eyebrow: 'AI Config',
     title: 'AI 配置',
     description: '以免费模型库为基础，统一管理 API Key、BOHAI 模型、审核模型与实验室模型。',
-    icon: Sparkles
+    icon: Sparkles,
   },
   system: {
     eyebrow: 'System',
     title: '系统设置',
     description: '媒体资源管理和网站配置。',
-    icon: Settings
-  }
+    icon: Settings,
+  },
 };

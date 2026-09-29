@@ -1,32 +1,78 @@
 <template>
   <!-- 编辑/新增抽屉 -->
   <Transition name="drawer">
-    <div v-if="show" class="drawer-overlay" role="dialog" aria-modal="true" :aria-labelledby="titleId"
-      @click.self="$emit('close')" @keydown.esc.stop="$emit('close')" @keydown.tab="trapFocus" tabindex="-1" ref="overlayRef">
+    <div
+      v-if="show"
+      class="drawer-overlay"
+      role="dialog"
+      aria-modal="true"
+      :aria-labelledby="titleId"
+      @click.self="$emit('close')"
+      @keydown.esc.stop="$emit('close')"
+      @keydown.tab="trapFocus"
+      tabindex="-1"
+      ref="overlayRef"
+    >
       <div class="drawer" @keydown.esc.stop="$emit('close')">
         <div class="drawer-header">
           <div class="drawer-title-group">
             <h3 :id="titleId">{{ isEditing ? '编辑数据' : '新增数据' }}</h3>
             <p>{{ currentTabLabel }}</p>
           </div>
-          <button class="drawer-close" type="button" aria-label="关闭编辑抽屉" @click="$emit('close')">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              aria-hidden="true">
+          <button
+            class="drawer-close"
+            type="button"
+            aria-label="关闭编辑抽屉"
+            @click="$emit('close')"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </button>
           <div v-if="isEditing" class="drawer-record-nav">
-            <button type="button" class="record-nav-btn" @click="$emit('prev-record')" title="上一条"
-              :disabled="!hasPrevRecord">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button
+              type="button"
+              class="record-nav-btn"
+              @click="$emit('prev-record')"
+              title="上一条"
+              :disabled="!hasPrevRecord"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
             </button>
             <span class="record-nav-label">{{ recordNavLabel }}</span>
-            <button type="button" class="record-nav-btn" @click="$emit('next-record')" title="下一条"
-              :disabled="!hasNextRecord">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button
+              type="button"
+              class="record-nav-btn"
+              @click="$emit('next-record')"
+              title="下一条"
+              :disabled="!hasNextRecord"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </button>
@@ -37,19 +83,32 @@
             <div v-if="isNewsTab" class="news-assist-panel">
               <div class="assist-title">新闻录入助手</div>
               <div class="assist-actions">
-                <button type="button" class="btn btn-secondary" :disabled="isEditing"
-                  @click="$emit('regenerateNewsId')">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  :disabled="isEditing"
+                  @click="$emit('regenerateNewsId')"
+                >
                   自动生成 ID
                 </button>
-                <button type="button" class="btn btn-secondary" @click="$emit('injectNewsTemplate', true)">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  @click="$emit('injectNewsTemplate', true)"
+                >
                   生成写作提纲
                 </button>
-                <button type="button" class="btn btn-secondary" @click="$emit('generateExcerpt', true)">
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  @click="$emit('generateExcerpt', true)"
+                >
                   根据正文生成摘要
                 </button>
               </div>
               <p class="assist-hint">
-                新增新闻时会自动填充 ID、日期和基础提纲，正文按普通文章写即可，保存时会自动排版成新闻详情。
+                新增新闻时会自动填充
+                ID、日期和基础提纲，正文按普通文章写即可，保存时会自动排版成新闻详情。
               </p>
             </div>
 
@@ -60,27 +119,34 @@
                   自动生成 ID
                 </button>
               </div>
-              <p class="assist-hint">
-                当前模块新增时会自动分配数值 ID，你也可以点击按钮重新生成。
-              </p>
+              <p class="assist-hint">当前模块新增时会自动分配数值 ID，你也可以点击按钮重新生成。</p>
             </div>
 
             <div v-if="addressBundleText" class="gift-address-copy-box">
               <div class="gift-address-copy-header">
                 <span>收件信息整段（便于复制）</span>
-                <button type="button" class="btn btn-secondary address-copy-btn" @click="$emit('copyAddressBundle')">
+                <button
+                  type="button"
+                  class="btn btn-secondary address-copy-btn"
+                  @click="$emit('copyAddressBundle')"
+                >
                   复制整段
                 </button>
               </div>
-              <textarea class="form-textarea code-font address-copy-textarea" :value="addressBundleText" rows="4"
-                readonly></textarea>
+              <textarea
+                class="form-textarea code-font address-copy-textarea"
+                :value="addressBundleText"
+                rows="4"
+                readonly
+              ></textarea>
             </div>
 
             <!-- 地址管理：AI 识别地址助手 -->
             <div v-if="currentTab === 'addresses'" class="news-assist-panel">
               <div class="assist-title">AI 识别地址</div>
               <p class="assist-hint">
-                粘贴一段完整的收货信息（如聊天记录、电商订单地址），AI 会自动识别并填入收件人、电话、地区和详细地址。
+                粘贴一段完整的收货信息（如聊天记录、电商订单地址），AI
+                会自动识别并填入收件人、电话、地区和详细地址。
               </p>
               <textarea
                 :value="addressAiText"
@@ -115,9 +181,15 @@
             <div v-if="currentTab === 'bohaiModels'" class="bohai-key-assist-panel">
               <div class="assist-title">从 API Key 预填（可选）</div>
               <div class="bohai-key-assist-body">
-                <select v-model="bohaiSelectedKeyId" class="form-select bohai-key-select"
-                  @change="onBohaiKeySelectChange" :disabled="bohaiKeysLoading">
-                  <option value="">{{ bohaiKeysLoading ? '加载 API Key 列表中...' : '不使用 API Key，手动填' }}</option>
+                <select
+                  v-model="bohaiSelectedKeyId"
+                  class="form-select bohai-key-select"
+                  @change="onBohaiKeySelectChange"
+                  :disabled="bohaiKeysLoading"
+                >
+                  <option value="">
+                    {{ bohaiKeysLoading ? '加载 API Key 列表中...' : '不使用 API Key，手动填' }}
+                  </option>
                   <option v-for="k in bohaiAvailableKeys" :key="k.id" :value="k.id">
                     {{ k.label || `${k.provider} ${k.purpose}` }} · {{ k.provider }}
                   </option>
@@ -126,13 +198,12 @@
                   已选「{{ bohaiSelectedKeyMeta.label }}」｜API URL：
                   <code class="code-font">{{ bohaiSelectedKeyMeta.apiUrl || '未配置' }}</code>
                   <template v-if="!bohaiSelectedKeyMeta.apiUrl">
-                    <br/>
+                    <br />
                     <strong class="is-warn">该 Key 未配置 API URL，接口地址需手动填写。</strong>
-                    可前往「API Key 管理」编辑该 Key 并补填 API URL（中转站的 chat completions 端点）。
+                    可前往「API Key 管理」编辑该 Key 并补填 API URL（中转站的 chat completions
+                    端点）。
                   </template>
-                  <template v-else>
-                    <br/>下方 provider / API URL 已自动填充。
-                  </template>
+                  <template v-else> <br />下方 provider / API URL 已自动填充。 </template>
                 </p>
                 <p v-else class="bohai-key-hint is-muted">
                   选中后会自动填充下方「供应商标识」与「接口地址」，并联动 provider_label。
@@ -142,7 +213,9 @@
 
             <!-- 分组工具条：计数 + 全部展开/收起（偏好按 tab 记忆） -->
             <div v-if="fieldGroups.length > 1" class="field-groups-toolbar">
-              <span class="field-groups-count">{{ expandedGroupCount }}/{{ fieldGroups.length }} 组展开</span>
+              <span class="field-groups-count"
+                >{{ expandedGroupCount }}/{{ fieldGroups.length }} 组展开</span
+              >
               <div class="field-groups-actions">
                 <button type="button" @click="expandAllGroups">全部展开</button>
                 <button type="button" @click="collapseAllGroups">全部收起</button>
@@ -150,29 +223,68 @@
             </div>
 
             <!-- 可折叠分组（accordion）-->
-            <div v-for="group in fieldGroups" :key="group.key" class="field-group"
-              :class="{ collapsed: isGroupCollapsed(group.key) }">
-              <button v-if="fieldGroups.length > 1" type="button" class="field-group-header"
-                @click="toggleGroup(group.key)">
+            <div
+              v-for="group in fieldGroups"
+              :key="group.key"
+              class="field-group"
+              :class="{ collapsed: isGroupCollapsed(group.key) }"
+            >
+              <button
+                v-if="fieldGroups.length > 1"
+                type="button"
+                class="field-group-header"
+                @click="toggleGroup(group.key)"
+              >
                 <span class="field-group-title">
                   {{ group.label }}
-                  <span v-if="group.fields.length" class="field-group-count">{{ group.fields.length }}</span>
+                  <span v-if="group.fields.length" class="field-group-count">{{
+                    group.fields.length
+                  }}</span>
                 </span>
-                <svg class="field-group-toggle" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2">
+                <svg
+                  class="field-group-toggle"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
               </button>
               <div class="field-group-body">
                 <template v-for="field in group.fields" :key="field.key">
-                  <div v-if="isFieldVisible(field)" class="form-group" :data-field-key="field.key" :class="[`field-${field.type}`, { 'full-width': isFullWidthField(field), 'field-flash': flashFieldKey === field.key }]">
+                  <div
+                    v-if="isFieldVisible(field)"
+                    class="form-group"
+                    :data-field-key="field.key"
+                    :class="[
+                      `field-${field.type}`,
+                      {
+                        'full-width': isFullWidthField(field),
+                        'field-flash': flashFieldKey === field.key,
+                      },
+                    ]"
+                  >
                     <label class="form-label" :for="`f-${currentTab}-${field.key}`">
                       <span>{{ field.label }}</span>
                       <span v-if="field.required" class="required">*</span>
-                      <button v-if="isEditing && editingItem[field.key]" type="button" class="field-copy-btn"
-                        @click="copyFieldValue(field.key)" title="复制值">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                          stroke-width="2">
+                      <button
+                        v-if="isEditing && editingItem[field.key]"
+                        type="button"
+                        class="field-copy-btn"
+                        @click="copyFieldValue(field.key)"
+                        title="复制值"
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
                           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                         </svg>
@@ -183,7 +295,9 @@
                     <div v-if="field.type === 'user-picker'" class="user-picker-field">
                       <div v-if="selectedGiftUser" class="selected-user-card">
                         <div class="selected-user-main">
-                          <div class="selected-user-name">{{ selectedGiftUser.username || '未命名用户' }}</div>
+                          <div class="selected-user-name">
+                            {{ selectedGiftUser.username || '未命名用户' }}
+                          </div>
                           <div class="selected-user-id">{{ selectedGiftUser.id }}</div>
                         </div>
                         <div class="selected-user-meta">
@@ -191,16 +305,22 @@
                           <span>{{ selectedGiftUser.shipping_phone || '无联系电话' }}</span>
                         </div>
                       </div>
-                      <div v-else class="selected-user-empty">
-                        尚未选择用户，请点击下方按钮选择
-                      </div>
+                      <div v-else class="selected-user-empty">尚未选择用户，请点击下方按钮选择</div>
                       <div class="user-picker-actions">
-                        <button type="button" class="btn btn-secondary" :disabled="isFieldDisabled(field)"
-                          @click="$emit('openUserPicker')">
+                        <button
+                          type="button"
+                          class="btn btn-secondary"
+                          :disabled="isFieldDisabled(field)"
+                          @click="$emit('openUserPicker')"
+                        >
                           选择用户
                         </button>
-                        <button v-if="editingItem.user_id && !isFieldDisabled(field)" type="button"
-                          class="btn btn-secondary" @click="$emit('clearGiftUser')">
+                        <button
+                          v-if="editingItem.user_id && !isFieldDisabled(field)"
+                          type="button"
+                          class="btn btn-secondary"
+                          @click="$emit('clearGiftUser')"
+                        >
                           清空
                         </button>
                       </div>
@@ -216,14 +336,25 @@
                           placeholder="搜索商城商品名称…"
                           @input="$emit('update:productPickerKeyword', $event.target.value)"
                         />
-                        <button type="button" class="btn btn-secondary product-picker-toggle-btn"
+                        <button
+                          type="button"
+                          class="btn btn-secondary product-picker-toggle-btn"
                           :disabled="productPickerLoading"
-                          @click="$emit('toggleProductPicker')">
-                          {{ productPickerLoading ? '加载中…' : (showProductPicker ? '收起' : '从商城选') }}
+                          @click="$emit('toggleProductPicker')"
+                        >
+                          {{
+                            productPickerLoading
+                              ? '加载中…'
+                              : showProductPicker
+                                ? '收起'
+                                : '从商城选'
+                          }}
                         </button>
                       </div>
                       <div v-if="showProductPicker" class="product-picker-dropdown">
-                        <div v-if="productPickerLoading" class="product-picker-loading">正在加载商品…</div>
+                        <div v-if="productPickerLoading" class="product-picker-loading">
+                          正在加载商品…
+                        </div>
                         <button
                           v-for="product in filteredProducts"
                           v-else
@@ -232,12 +363,25 @@
                           class="product-picker-item"
                           @click="$emit('selectProduct', product)"
                         >
-                          <img v-if="product.image" :src="getImageUrl(product.image, { silent: true })" :alt="product.title" class="product-picker-item-img" loading="lazy" />
+                          <img
+                            v-if="product.image"
+                            :src="getImageUrl(product.image, { silent: true })"
+                            :alt="product.title"
+                            class="product-picker-item-img"
+                            loading="lazy"
+                          />
                           <span v-else class="product-picker-item-placeholder">🎁</span>
-                          <span class="product-picker-item-name">{{ product.title || '未命名商品' }}</span>
-                          <span class="product-picker-item-price">{{ product.points_cost }} 积分</span>
+                          <span class="product-picker-item-name">{{
+                            product.title || '未命名商品'
+                          }}</span>
+                          <span class="product-picker-item-price"
+                            >{{ product.points_cost }} 积分</span
+                          >
                         </button>
-                        <div v-if="!productPickerLoading && filteredProducts.length === 0" class="product-picker-empty">
+                        <div
+                          v-if="!productPickerLoading && filteredProducts.length === 0"
+                          class="product-picker-empty"
+                        >
                           未找到匹配的商品
                         </div>
                       </div>
@@ -247,108 +391,209 @@
                         class="form-input product-picker-manual"
                         :placeholder="field.placeholder || '可直接手动填写礼物名称'"
                         :disabled="isFieldDisabled(field)"
-                        @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
+                        @input="
+                          setField(field.key, $event.target.value);
+                          $emit('clearFieldError', field.key);
+                        "
                       />
                       <p v-if="field.hint" class="field-hint">{{ field.hint }}</p>
                     </div>
 
                     <!-- 文本输入 -->
-                    <input v-else-if="field.type === 'text'" :id="`f-${currentTab}-${field.key}`"
-                      :value="editingItem[field.key]" type="text"
+                    <input
+                      v-else-if="field.type === 'text'"
+                      :id="`f-${currentTab}-${field.key}`"
+                      :value="editingItem[field.key]"
+                      type="text"
                       :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]"
-                      :placeholder="field.placeholder" :disabled="isFieldDisabled(field)" :required="field.required"
+                      :placeholder="field.placeholder"
+                      :disabled="isFieldDisabled(field)"
+                      :required="field.required"
                       :maxlength="field.maxLength"
-                      @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
-                      @blur="$emit('validateField', field.key)" />
+                      @input="
+                        setField(field.key, $event.target.value);
+                        $emit('clearFieldError', field.key);
+                      "
+                      @blur="$emit('validateField', field.key)"
+                    />
 
                     <!-- 邮箱输入 -->
-                    <input v-else-if="field.type === 'email'" :id="`f-${currentTab}-${field.key}`"
-                      :value="editingItem[field.key]" type="email"
+                    <input
+                      v-else-if="field.type === 'email'"
+                      :id="`f-${currentTab}-${field.key}`"
+                      :value="editingItem[field.key]"
+                      type="email"
                       :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]"
-                      :placeholder="field.placeholder" :disabled="isFieldDisabled(field)" :required="field.required"
+                      :placeholder="field.placeholder"
+                      :disabled="isFieldDisabled(field)"
+                      :required="field.required"
                       :maxlength="field.maxLength"
-                      @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
-                      @blur="$emit('validateField', field.key)" />
+                      @input="
+                        setField(field.key, $event.target.value);
+                        $emit('clearFieldError', field.key);
+                      "
+                      @blur="$emit('validateField', field.key)"
+                    />
 
                     <!-- 数字输入 -->
-                    <input v-else-if="field.type === 'number'" :id="`f-${currentTab}-${field.key}`"
-                      :value="editingItem[field.key]" type="number"
+                    <input
+                      v-else-if="field.type === 'number'"
+                      :id="`f-${currentTab}-${field.key}`"
+                      :value="editingItem[field.key]"
+                      type="number"
                       :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]"
-                      :placeholder="field.placeholder" :disabled="isFieldDisabled(field)" :required="field.required"
-                      :min="field.min" :max="field.max" :step="field.step || 1"
-                      @input="setField(field.key, parseFloat($event.target.value) || 0); $emit('clearFieldError', field.key)"
-                      @blur="$emit('validateField', field.key)" />
+                      :placeholder="field.placeholder"
+                      :disabled="isFieldDisabled(field)"
+                      :required="field.required"
+                      :min="field.min"
+                      :max="field.max"
+                      :step="field.step || 1"
+                      @input="
+                        setField(field.key, parseFloat($event.target.value) || 0);
+                        $emit('clearFieldError', field.key);
+                      "
+                      @blur="$emit('validateField', field.key)"
+                    />
 
                     <!-- 日期输入 -->
-                    <input v-else-if="field.type === 'date'" :id="`f-${currentTab}-${field.key}`"
-                      :value="editingItem[field.key]" type="date"
+                    <input
+                      v-else-if="field.type === 'date'"
+                      :id="`f-${currentTab}-${field.key}`"
+                      :value="editingItem[field.key]"
+                      type="date"
                       :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]"
-                      :disabled="isFieldDisabled(field)" :required="field.required"
-                      @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
-                      @blur="$emit('validateField', field.key)" />
+                      :disabled="isFieldDisabled(field)"
+                      :required="field.required"
+                      @input="
+                        setField(field.key, $event.target.value);
+                        $emit('clearFieldError', field.key);
+                      "
+                      @blur="$emit('validateField', field.key)"
+                    />
 
                     <!-- 活动日期：年月（type=month）+ 可选「日」 -->
                     <div v-else-if="field.type === 'activity-date'" class="activity-date-field">
-                      <input :id="`f-${currentTab}-${field.key}`"
-                        :value="activityDateParts(field.key).month" type="month"
+                      <input
+                        :id="`f-${currentTab}-${field.key}`"
+                        :value="activityDateParts(field.key).month"
+                        type="month"
                         class="form-input"
                         :class="{ 'input-invalid': fieldErrors[field.key] }"
-                        :disabled="isFieldDisabled(field)" :required="field.required"
-                        @input="setActivityDate(field.key, 'month', $event.target.value); $emit('clearFieldError', field.key)"
-                        @blur="$emit('validateField', field.key)" />
-                      <input :value="activityDateParts(field.key).day" type="number" min="1" max="31"
+                        :disabled="isFieldDisabled(field)"
+                        :required="field.required"
+                        @input="
+                          setActivityDate(field.key, 'month', $event.target.value);
+                          $emit('clearFieldError', field.key);
+                        "
+                        @blur="$emit('validateField', field.key)"
+                      />
+                      <input
+                        :value="activityDateParts(field.key).day"
+                        type="number"
+                        min="1"
+                        max="31"
                         class="form-input activity-date-field__day"
                         :disabled="isFieldDisabled(field)"
                         placeholder="日"
                         aria-label="日（可留空）"
-                        @input="setActivityDate(field.key, 'day', $event.target.value)" />
-                      <p class="activity-date-field__hint">「日」留空表示只精确到月，前台不会显示成 1 日。</p>
+                        @input="setActivityDate(field.key, 'day', $event.target.value)"
+                      />
+                      <p class="activity-date-field__hint">
+                        「日」留空表示只精确到月，前台不会显示成 1 日。
+                      </p>
                     </div>
 
                     <!-- 日期时间输入 -->
-                    <input v-else-if="field.type === 'datetime'" :id="`f-${currentTab}-${field.key}`"
-                      :value="editingItem[field.key]" type="datetime-local"
+                    <input
+                      v-else-if="field.type === 'datetime'"
+                      :id="`f-${currentTab}-${field.key}`"
+                      :value="editingItem[field.key]"
+                      type="datetime-local"
                       :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]"
-                      :disabled="isFieldDisabled(field)" :required="field.required"
-                      @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
-                      @blur="$emit('validateField', field.key)" />
+                      :disabled="isFieldDisabled(field)"
+                      :required="field.required"
+                      @input="
+                        setField(field.key, $event.target.value);
+                        $emit('clearFieldError', field.key);
+                      "
+                      @blur="$emit('validateField', field.key)"
+                    />
 
                     <!-- 文本域 -->
-                    <textarea v-else-if="field.type === 'textarea'" :id="`f-${currentTab}-${field.key}`"
+                    <textarea
+                      v-else-if="field.type === 'textarea'"
+                      :id="`f-${currentTab}-${field.key}`"
                       :value="editingItem[field.key]"
                       :class="['form-textarea', { 'input-invalid': fieldErrors[field.key] }]"
-                      :placeholder="field.placeholder" :disabled="isFieldDisabled(field)" :required="field.required"
-                      :rows="field.rows || 6" :maxlength="field.maxLength"
-                      @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
-                      @blur="$emit('validateField', field.key)"></textarea>
+                      :placeholder="field.placeholder"
+                      :disabled="isFieldDisabled(field)"
+                      :required="field.required"
+                      :rows="field.rows || 6"
+                      :maxlength="field.maxLength"
+                      @input="
+                        setField(field.key, $event.target.value);
+                        $emit('clearFieldError', field.key);
+                      "
+                      @blur="$emit('validateField', field.key)"
+                    ></textarea>
 
                     <!-- 选择器 -->
-                    <select v-else-if="field.type === 'select'" :id="`f-${currentTab}-${field.key}`"
+                    <select
+                      v-else-if="field.type === 'select'"
+                      :id="`f-${currentTab}-${field.key}`"
                       :value="editingItem[field.key]"
                       :class="['form-select', { 'input-invalid': fieldErrors[field.key] }]"
-                      :disabled="isFieldDisabled(field)" :required="field.required"
-                      @change="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
-                      @blur="$emit('validateField', field.key)">
-                      <option value="" disabled v-if="field.optionsSource">{{ isFieldOptionsLoading(field) ? '加载中...' : '请选择' }}</option>
-                      <option v-for="opt in getFieldOptions(field)" :key="opt.value" :value="opt.value">
+                      :disabled="isFieldDisabled(field)"
+                      :required="field.required"
+                      @change="
+                        setField(field.key, $event.target.value);
+                        $emit('clearFieldError', field.key);
+                      "
+                      @blur="$emit('validateField', field.key)"
+                    >
+                      <option value="" disabled v-if="field.optionsSource">
+                        {{ isFieldOptionsLoading(field) ? '加载中...' : '请选择' }}
+                      </option>
+                      <option
+                        v-for="opt in getFieldOptions(field)"
+                        :key="opt.value"
+                        :value="opt.value"
+                      >
                         {{ opt.label }}
                       </option>
                     </select>
 
                     <!-- 地址选择器（gifts 专用：从用户地址簿选择收货地址） -->
                     <div v-else-if="field.type === 'address-picker'" class="address-picker-wrapper">
-                      <select :id="`f-${currentTab}-${field.key}`"
+                      <select
+                        :id="`f-${currentTab}-${field.key}`"
                         :value="editingItem[field.key] || ''"
                         class="form-select"
                         :disabled="!editingItem.user_id || giftAddressOptions.length === 0"
                         @change="$emit('selectGiftAddress', $event.target.value)"
                       >
-                        <option value="">{{ giftAddressOptions.length === 0 ? (editingItem.user_id ? '该用户暂无地址' : '请先选择用户') : '使用默认地址' }}</option>
-                        <option v-for="opt in giftAddressOptions" :key="opt.value" :value="opt.value">
+                        <option value="">
+                          {{
+                            giftAddressOptions.length === 0
+                              ? editingItem.user_id
+                                ? '该用户暂无地址'
+                                : '请先选择用户'
+                              : '使用默认地址'
+                          }}
+                        </option>
+                        <option
+                          v-for="opt in giftAddressOptions"
+                          :key="opt.value"
+                          :value="opt.value"
+                        >
                           {{ opt.label }}
                         </option>
                       </select>
-                      <p v-if="giftAddressOptions.length > 1" class="assist-hint" style="margin-top: 4px;">
+                      <p
+                        v-if="giftAddressOptions.length > 1"
+                        class="assist-hint"
+                        style="margin-top: 4px"
+                      >
                         该用户共有 {{ giftAddressOptions.length }} 个地址，可选择其中一个
                       </p>
                     </div>
@@ -364,81 +609,159 @@
                       @drop.prevent="onImageDrop(field, $event)"
                     >
                       <div class="image-preview" v-if="editingItem[field.key]">
-                        <img :src="getImageUrl(editingItem[field.key])" alt="Preview" loading="lazy" />
-                        <button type="button" class="remove-image"
-                          @click="$emit('clearImageField', field.key)">×</button>
+                        <img
+                          :src="getImageUrl(editingItem[field.key])"
+                          alt="Preview"
+                          loading="lazy"
+                        />
+                        <button
+                          type="button"
+                          class="remove-image"
+                          @click="$emit('clearImageField', field.key)"
+                        >
+                          ×
+                        </button>
                       </div>
                       <div v-else class="image-placeholder">
                         <span>🖼️</span>
                         <p>上传、粘贴或拖拽图片到此处</p>
                       </div>
                       <div class="image-source-actions">
-                        <label class="cloud-upload-btn"
-                          :class="{ disabled: isImageUploadPending(field.key) || isFieldDisabled(field) }">
-                          <input type="file" class="image-file-input" accept="image/png,image/jpeg,image/webp,image/gif"
+                        <label
+                          class="cloud-upload-btn"
+                          :class="{
+                            disabled: isImageUploadPending(field.key) || isFieldDisabled(field),
+                          }"
+                        >
+                          <input
+                            type="file"
+                            class="image-file-input"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
                             :disabled="isImageUploadPending(field.key) || isFieldDisabled(field)"
-                            @change="$emit('imageUpload', $event, field)" />
+                            @change="$emit('imageUpload', $event, field)"
+                          />
                           <span v-if="isImageUploadPending(field.key)" class="btn-spinner"></span>
-                          <span>{{ isImageUploadPending(field.key) ? '上传中...' : '上传到 Cloud' }}</span>
+                          <span>{{
+                            isImageUploadPending(field.key) ? '上传中...' : '上传到 Cloud'
+                          }}</span>
                         </label>
-                        <button v-if="editingItem[field.key]" type="button" class="image-link-btn"
-                          @click="$emit('copyImageValue', field.key)">
+                        <button
+                          v-if="editingItem[field.key]"
+                          type="button"
+                          class="image-link-btn"
+                          @click="$emit('copyImageValue', field.key)"
+                        >
                           复制链接
                         </button>
                       </div>
-                      <input :value="editingItem[field.key]" type="text"
+                      <input
+                        :value="editingItem[field.key]"
+                        type="text"
                         :class="['form-input', { 'input-invalid': fieldErrors[field.key] }]"
                         :placeholder="field.placeholder || 'https://... 或 @/assets/images/...'"
                         :disabled="isFieldDisabled(field)"
-                        @input="setField(field.key, $event.target.value); $emit('clearFieldError', field.key)"
-                        @blur="$emit('validateField', field.key)" />
+                        @input="
+                          setField(field.key, $event.target.value);
+                          $emit('clearFieldError', field.key);
+                        "
+                        @blur="$emit('validateField', field.key)"
+                      />
                     </div>
 
                     <!-- 标签输入 -->
                     <div v-else-if="field.type === 'tags'" class="tags-input">
                       <div class="tags-list">
-                        <span v-for="(tag, idx) in (editingItem[field.key] || [])" :key="idx" class="tag-item">
+                        <span
+                          v-for="(tag, idx) in editingItem[field.key] || []"
+                          :key="idx"
+                          class="tag-item"
+                        >
                           {{ tag }}
-                          <button type="button" @click="$emit('removeTag', field.key, idx)">×</button>
+                          <button type="button" @click="$emit('removeTag', field.key, idx)">
+                            ×
+                          </button>
                         </span>
                       </div>
-                      <input type="text" class="form-input" placeholder="输入标签后按回车"
-                        @keydown.enter.prevent="$emit('addTag', $event, field.key)" />
+                      <input
+                        type="text"
+                        class="form-input"
+                        placeholder="输入标签后按回车"
+                        @keydown.enter.prevent="$emit('addTag', $event, field.key)"
+                      />
                     </div>
 
                     <!-- 规格输入 (商品专用) -->
                     <div v-else-if="field.type === 'specifications'" class="specs-input">
-                      <div v-for="(spec, idx) in (editingItem[field.key] || [])" :key="idx" class="spec-item">
-                        <input :value="spec.label" @input="setSpecField(field.key, idx, 'label', $event.target.value)"
-                          type="text" class="form-input" placeholder="规格名称" />
-                        <input :value="spec.value" @input="setSpecField(field.key, idx, 'value', $event.target.value)"
-                          type="text" class="form-input" placeholder="规格值" />
-                        <button type="button" class="btn-icon" @click="$emit('removeSpec', field.key, idx)">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
+                      <div
+                        v-for="(spec, idx) in editingItem[field.key] || []"
+                        :key="idx"
+                        class="spec-item"
+                      >
+                        <input
+                          :value="spec.label"
+                          @input="setSpecField(field.key, idx, 'label', $event.target.value)"
+                          type="text"
+                          class="form-input"
+                          placeholder="规格名称"
+                        />
+                        <input
+                          :value="spec.value"
+                          @input="setSpecField(field.key, idx, 'value', $event.target.value)"
+                          type="text"
+                          class="form-input"
+                          placeholder="规格值"
+                        />
+                        <button
+                          type="button"
+                          class="btn-icon"
+                          @click="$emit('removeSpec', field.key, idx)"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
                             <line x1="18" y1="6" x2="6" y2="18"></line>
                             <line x1="6" y1="6" x2="18" y2="18"></line>
                           </svg>
                         </button>
                       </div>
-                      <button type="button" class="btn-add-spec" @click="$emit('addSpec', field.key)">
+                      <button
+                        type="button"
+                        class="btn-add-spec"
+                        @click="$emit('addSpec', field.key)"
+                      >
                         + 添加规格
                       </button>
                     </div>
 
                     <!-- JSON 输入 -->
                     <div v-else-if="field.type === 'json'" class="json-input">
-                      <textarea :value="jsonBuffers[field.key]" @input="setJsonBuffer(field.key, $event.target.value)"
-                        class="form-textarea code-font" rows="10" placeholder="请输入有效的 JSON"></textarea>
+                      <textarea
+                        :value="jsonBuffers[field.key]"
+                        @input="setJsonBuffer(field.key, $event.target.value)"
+                        class="form-textarea code-font"
+                        rows="10"
+                        placeholder="请输入有效的 JSON"
+                      ></textarea>
                     </div>
 
-                    <span v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</span>
+                    <span v-if="fieldErrors[field.key]" class="field-error">{{
+                      fieldErrors[field.key]
+                    }}</span>
                     <span v-else-if="field.hint" class="input-hint">{{ field.hint }}</span>
                   </div>
                 </template>
               </div>
               <div v-if="isEditing" class="field-group-save-row">
-                <button type="button" class="btn btn-secondary btn-sm" @click="$emit('saveGroup', group.key)">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  @click="$emit('saveGroup', group.key)"
+                >
                   保存「{{ group.label }}」
                 </button>
               </div>
@@ -446,9 +769,7 @@
           </form>
         </div>
         <div class="drawer-footer">
-          <span class="drawer-footer-hint">
-            <kbd>Esc</kbd> 关闭
-          </span>
+          <span class="drawer-footer-hint"> <kbd>Esc</kbd> 关闭 </span>
           <div class="drawer-footer-actions">
             <button class="btn btn-secondary" @click="$emit('close')">取消</button>
             <button
@@ -458,7 +779,9 @@
               :disabled="isSaving || !hasNextRecord"
               title="保存当前并打开下一条（连续审核/录入）"
               @click="$emit('save-and-next')"
-            >保存并下一条</button>
+            >
+              保存并下一条
+            </button>
             <button
               v-else
               class="btn btn-secondary"
@@ -466,7 +789,9 @@
               :disabled="isSaving"
               title="保存后继续新建下一条"
               @click="$emit('save-and-create')"
-            >保存并新建</button>
+            >
+              保存并新建
+            </button>
             <button class="btn btn-primary" @click="$emit('save')" :disabled="isSaving">
               {{ isSaving ? '保存中...' : '保存' }}
             </button>
@@ -478,34 +803,62 @@
 
   <!-- 用户选择弹窗（礼物新增） -->
   <Transition name="picker">
-    <div v-if="showUserPicker" class="user-picker-modal-overlay" @click.self="$emit('closeUserPicker')"
-      @keydown.esc="$emit('closeUserPicker')">
+    <div
+      v-if="showUserPicker"
+      class="user-picker-modal-overlay"
+      @click.self="$emit('closeUserPicker')"
+      @keydown.esc="$emit('closeUserPicker')"
+    >
       <div class="user-picker-modal">
         <div class="user-picker-header">
           <h3>选择用户</h3>
           <button class="drawer-close" @click="$emit('closeUserPicker')">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
           </button>
         </div>
         <div class="user-picker-search">
-          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2">
+          <svg
+            class="search-icon"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input :value="userPickerKeyword" @input="$emit('update:userPickerKeyword', ($event.target).value)"
-            type="text" placeholder="搜索用户名 / 邮箱 / 用户ID" />
+          <input
+            :value="userPickerKeyword"
+            @input="$emit('update:userPickerKeyword', $event.target.value)"
+            type="text"
+            placeholder="搜索用户名 / 邮箱 / 用户ID"
+          />
         </div>
         <div class="user-picker-list">
           <div v-if="userPickerLoading" class="user-picker-loading">
             <span class="btn-spinner"></span>
             <span>加载中...</span>
           </div>
-          <button v-for="user in filteredGiftUsers" :key="user.id" v-else type="button" class="user-picker-item"
-            @click="$emit('selectGiftUser', user)">
+          <button
+            v-for="user in filteredGiftUsers"
+            :key="user.id"
+            v-else
+            type="button"
+            class="user-picker-item"
+            @click="$emit('selectGiftUser', user)"
+          >
             <div class="user-picker-item-main">
               <span class="user-picker-name">{{ user.username || '未命名用户' }}</span>
               <span class="user-picker-id">{{ user.id }}</span>
@@ -515,14 +868,16 @@
               <span>{{ user.shipping_recipient || '无收件人' }}</span>
             </div>
           </button>
-          <div v-if="!userPickerLoading && filteredGiftUsers.length === 0" class="user-picker-empty">
+          <div
+            v-if="!userPickerLoading && filteredGiftUsers.length === 0"
+            class="user-picker-empty"
+          >
             没有匹配的用户
           </div>
         </div>
       </div>
     </div>
   </Transition>
-
 </template>
 
 <script setup>
@@ -545,9 +900,9 @@ const ASYNC_OPTIONS_LOADERS = {
     if (error) throw error;
     return (data || []).map((m) => ({
       value: m.model_id,
-      label: `${m.name} (${m.model_id})${m.is_active ? '' : ' [已停用]'}`
+      label: `${m.name} (${m.model_id})${m.is_active ? '' : ' [已停用]'}`,
     }));
-  }
+  },
 };
 
 const loadAsyncOptions = async (source, force = false) => {
@@ -600,7 +955,7 @@ const bohaiSelectedKeyMeta = computed(() => {
     provider: k.provider,
     purpose: k.purpose,
     label: k.label || `${k.provider} ${k.purpose}`,
-    apiUrl: k.metadata?.apiUrl || ''
+    apiUrl: k.metadata?.apiUrl || '',
   };
 });
 
@@ -642,7 +997,7 @@ const FULL_WIDTH_TYPES = new Set([
   'specifications',
   'image',
   'user-picker',
-  'product-picker'
+  'product-picker',
 ]);
 
 const isFullWidthField = (field) => FULL_WIDTH_TYPES.has(field?.type) || field?.fullWidth;
@@ -657,60 +1012,60 @@ const GROUP_RULES = {
   users: [
     { key: 'basic', label: '基础信息' },
     { key: 'stats', label: '数据' },
-    { key: 'profile', label: '个人资料' }
+    { key: 'profile', label: '个人资料' },
   ],
   points: [
     { key: 'basic', label: '基础信息' },
-    { key: 'stats', label: '积分数据' }
+    { key: 'stats', label: '积分数据' },
   ],
   subscriptions: [
     { key: 'user', label: '订阅用户' },
     { key: 'plan', label: '订阅方案' },
     { key: 'time', label: '时间与状态' },
-    { key: 'extra', label: '附加信息' }
+    { key: 'extra', label: '附加信息' },
   ],
   gifts: [
     { key: 'user', label: '收件信息' },
     { key: 'detail', label: '礼物详情' },
-    { key: 'time', label: '时间与状态' }
+    { key: 'time', label: '时间与状态' },
   ],
   forum: [
     { key: 'content', label: '帖子内容' },
-    { key: 'meta', label: '作者与状态' }
+    { key: 'meta', label: '作者与状态' },
   ],
   coreMemories: [
     { key: 'basic', label: '事实信息' },
     { key: 'source', label: '来源与分类' },
-    { key: 'content', label: '事实内容' }
+    { key: 'content', label: '事实内容' },
   ],
   bohaiModels: [
     { key: 'basic', label: '基础信息' },
     { key: 'provider', label: '模型供应' },
     { key: 'params', label: '模型参数' },
-    { key: 'extra', label: '其他' }
+    { key: 'extra', label: '其他' },
   ],
   lotteries: [
     { key: 'basic', label: '抽奖信息' },
     { key: 'prize', label: '奖品描述' },
     { key: 'rule', label: '开奖规则' },
-    { key: 'draw', label: '开奖结果' }
+    { key: 'draw', label: '开奖结果' },
   ],
   news: [
     { key: 'basic', label: '基础信息' },
     { key: 'content', label: '新闻内容' },
-    { key: 'media', label: '封面' }
+    { key: 'media', label: '封面' },
   ],
   activities: [
     { key: 'basic', label: '活动信息' },
-    { key: 'media', label: '活动图' }
+    { key: 'media', label: '活动图' },
   ],
   products: [
     { key: 'basic', label: '商品信息' },
     { key: 'detail', label: '商品描述' },
     { key: 'pricing', label: '定价与库存' },
     { key: 'specs', label: '规格选项' },
-    { key: 'media', label: '商品图片' }
-  ]
+    { key: 'media', label: '商品图片' },
+  ],
 };
 
 // 自动推断字段所属分组(未显式标注时)
@@ -719,7 +1074,18 @@ const inferFieldGroup = (currentTab, field) => {
   // 默认回退规则
   if (['date', 'datetime'].includes(field.type)) return 'time';
   if (['number'].includes(field.type)) return 'stats';
-  if (['textarea', 'json', 'image', 'tags', 'specifications', 'user-picker', 'product-picker'].includes(field.type)) return 'content';
+  if (
+    [
+      'textarea',
+      'json',
+      'image',
+      'tags',
+      'specifications',
+      'user-picker',
+      'product-picker',
+    ].includes(field.type)
+  )
+    return 'content';
   if (['select', 'email'].includes(field.type)) return 'basic';
   return 'basic';
 };
@@ -729,11 +1095,13 @@ const ensureGroups = (currentTab, fields) => {
   const rules = GROUP_RULES[currentTab] || null;
   // 没有规则时: 全部放进一个 default 组
   if (!rules) {
-    return [{
-      key: 'default',
-      label: '',
-      fields: [...fields]
-    }];
+    return [
+      {
+        key: 'default',
+        label: '',
+        fields: [...fields],
+      },
+    ];
   }
   const groupMap = new Map();
   rules.forEach((rule) => {
@@ -757,7 +1125,7 @@ let fieldGroups = null;
 const focusFirstInteractive = () => {
   if (!overlayRef.value) return;
   const target = overlayRef.value.querySelector(
-    'input, select, textarea, button, [tabindex]:not([tabindex="-1"])'
+    'input, select, textarea, button, [tabindex]:not([tabindex="-1"])',
   );
   if (target && typeof target.focus === 'function') {
     target.focus();
@@ -785,12 +1153,12 @@ const lockBodyScroll = (lock) => {
         top: body.style.top,
         left: body.style.left,
         right: body.style.right,
-        width: body.style.width
+        width: body.style.width,
       },
       documentElement: {
         overflow: documentElement.style.overflow,
-        overscrollBehavior: documentElement.style.overscrollBehavior
-      }
+        overscrollBehavior: documentElement.style.overscrollBehavior,
+      },
     };
 
     document.body.style.overflow = 'hidden';
@@ -905,14 +1273,18 @@ const flashFieldKey = ref('');
 const readGroupMemory = () => {
   try {
     return JSON.parse(localStorage.getItem(DRAWER_GROUP_MEMORY_KEY) || '{}') || {};
-  } catch (e) { return {}; }
+  } catch {
+    return {};
+  }
 };
 const persistGroupMemory = (tab) => {
   try {
     const all = readGroupMemory();
     all[tab || props.currentTab] = [...collapsedGroups.value];
     localStorage.setItem(DRAWER_GROUP_MEMORY_KEY, JSON.stringify(all));
-  } catch (e) { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 };
 
 const isGroupCollapsed = (key) => collapsedGroups.value.has(key);
@@ -929,7 +1301,7 @@ const toggleGroup = (key) => {
 };
 
 const expandedGroupCount = computed(
-  () => (fieldGroups.value || []).filter((g) => !isGroupCollapsed(g.key)).length
+  () => (fieldGroups.value || []).filter((g) => !isGroupCollapsed(g.key)).length,
 );
 
 const expandAllGroups = () => {
@@ -954,9 +1326,12 @@ const revealField = (fieldKey) => {
     if (!root || typeof document === 'undefined') return;
     let el = null;
     try {
-      el = root.querySelector(`[data-field-key="${CSS.escape(fieldKey)}"]`)
-        || root.querySelector(`#f-${props.currentTab}-${fieldKey}`);
-    } catch (e) { el = null; }
+      el =
+        root.querySelector(`[data-field-key="${CSS.escape(fieldKey)}"]`) ||
+        root.querySelector(`#f-${props.currentTab}-${fieldKey}`);
+    } catch {
+      el = null;
+    }
     if (el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
@@ -971,71 +1346,84 @@ const revealField = (fieldKey) => {
 
 defineExpose({ revealField, expandAllGroups, collapseAllGroups });
 
-watch(() => props.currentTab, () => {
-  // 切换 tab 时：有记忆用记忆，无记忆仅展开第一组
-  const groups = fieldGroups.value;
-  if (groups.length > 1) {
-    const remembered = readGroupMemory()[props.currentTab];
-    collapsedGroups.value = new Set(
-      Array.isArray(remembered)
-        ? remembered.filter((k) => groups.some((g) => g.key === k))
-        : groups.slice(1).map(g => g.key)
-    );
-  } else {
-    collapsedGroups.value = new Set();
-  }
-}, { immediate: true });
+watch(
+  () => props.currentTab,
+  () => {
+    // 切换 tab 时：有记忆用记忆，无记忆仅展开第一组
+    const groups = fieldGroups.value;
+    if (groups.length > 1) {
+      const remembered = readGroupMemory()[props.currentTab];
+      collapsedGroups.value = new Set(
+        Array.isArray(remembered)
+          ? remembered.filter((k) => groups.some((g) => g.key === k))
+          : groups.slice(1).map((g) => g.key),
+      );
+    } else {
+      collapsedGroups.value = new Set();
+    }
+  },
+  { immediate: true },
+);
 
 // 当字段列表变化时，预加载异步选项（如免费模型列表）
-watch(() => props.currentFields, (fields) => {
-  if (!fields) return;
-  const sources = new Set();
-  fields.forEach((f) => {
-    if (f.optionsSource) sources.add(f.optionsSource);
-  });
-  sources.forEach((source) => loadAsyncOptions(source));
-}, { immediate: true });
-
-watch(() => props.show, async (visible) => {
-  if (visible) {
-    // 抽屉打开时，强制重新加载异步选项，确保拿到最新数据
-    const fields = props.currentFields || [];
+watch(
+  () => props.currentFields,
+  (fields) => {
+    if (!fields) return;
     const sources = new Set();
     fields.forEach((f) => {
       if (f.optionsSource) sources.add(f.optionsSource);
     });
-    sources.forEach((source) => loadAsyncOptions(source, true));
+    sources.forEach((source) => loadAsyncOptions(source));
+  },
+  { immediate: true },
+);
 
-    // BOHAI 模型配置：抽屉打开时加载 API Key 列表
-    if (props.currentTab === 'bohaiModels') {
-      loadBohaiApiKeys(true);
-    }
+watch(
+  () => props.show,
+  async (visible) => {
+    if (visible) {
+      // 抽屉打开时，强制重新加载异步选项，确保拿到最新数据
+      const fields = props.currentFields || [];
+      const sources = new Set();
+      fields.forEach((f) => {
+        if (f.optionsSource) sources.add(f.optionsSource);
+      });
+      sources.forEach((source) => loadAsyncOptions(source, true));
 
-    if (typeof document !== 'undefined') {
-      lastFocusedElement = document.activeElement;
+      // BOHAI 模型配置：抽屉打开时加载 API Key 列表
+      if (props.currentTab === 'bohaiModels') {
+        loadBohaiApiKeys(true);
+      }
+
+      if (typeof document !== 'undefined') {
+        lastFocusedElement = document.activeElement;
+      }
+      lockBodyScroll(true);
+      await nextTick();
+      focusFirstInteractive();
+    } else {
+      lockBodyScroll(false);
+      if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+      }
+      lastFocusedElement = null;
+      // 关闭抽屉时清空 BOHAI Key 选择，避免下次打开残留
+      clearBohaiKeySelect();
     }
-    lockBodyScroll(true);
-    await nextTick();
-    focusFirstInteractive();
-  } else {
-    lockBodyScroll(false);
-    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-      lastFocusedElement.focus();
-    }
-    lastFocusedElement = null;
-    // 关闭抽屉时清空 BOHAI Key 选择，避免下次打开残留
-    clearBohaiKeySelect();
-  }
-});
+  },
+);
 
 // 焦点陷阱：Tab 循环保持在抽屉内
 const trapFocus = (e) => {
   if (!props.show || e.key !== 'Tab') return;
   const overlay = overlayRef.value;
   if (!overlay) return;
-  const focusables = [...overlay.querySelectorAll(
-    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  )].filter((el) => !el.disabled && el.offsetParent !== null);
+  const focusables = [
+    ...overlay.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ),
+  ].filter((el) => !el.disabled && el.offsetParent !== null);
   if (!focusables.length) return;
   const first = focusables[0];
   const last = focusables[focusables.length - 1];
@@ -1060,7 +1448,7 @@ const activityDateParts = (fieldKey) => {
   if (!parsed.valid) return { month: '', day: '' };
   return {
     month: `${parsed.year}-${String(parsed.month).padStart(2, '0')}`,
-    day: parsed.hasDay ? String(parsed.day) : ''
+    day: parsed.hasDay ? String(parsed.day) : '',
   };
 };
 
@@ -1090,7 +1478,8 @@ function setSpecField(fieldKey, index, prop, value) {
   emit('updateSpecField', fieldKey, index, prop, value);
 }
 
-const copyFieldValue = (fieldKey) => {  const val = props.editingItem?.[fieldKey];
+const copyFieldValue = (fieldKey) => {
+  const val = props.editingItem?.[fieldKey];
   if (val == null) return;
   if (!navigator.clipboard) return;
   navigator.clipboard.writeText(String(val)).catch(() => {});
@@ -1113,7 +1502,9 @@ const onImagePaste = (field, e) => {
     emitImageFile(field, file);
   }
 };
-const onImageDragEnter = (field) => { dragImageFieldKey.value = field.key; };
+const onImageDragEnter = (field) => {
+  dragImageFieldKey.value = field.key;
+};
 const onImageDragLeave = (field) => {
   if (dragImageFieldKey.value === field.key) dragImageFieldKey.value = '';
 };
@@ -1154,7 +1545,7 @@ const onImageDrop = (field, e) => {
   color: #8e8e93;
 }
 
-html[data-theme="dark"] .activity-date-field__hint {
+html[data-theme='dark'] .activity-date-field__hint {
   color: #98989d;
 }
 

@@ -12,20 +12,15 @@ if (typeof window === 'undefined') {
     dispatchEvent: vi.fn(),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
-    innerWidth: 1024
+    innerWidth: 1024,
   };
 }
 
 import {
   mockNotifications,
   mockApiResponse,
-  mockRealtimePayload,
   mockErrorScenarios,
   MockRealtimeChannel,
-  mockSupabase,
-  testScenarios,
-  generateRandomNotification,
-  validateNotificationStructure
 } from '../mock/notifications-mock-data.js';
 
 // Mock 依赖
@@ -34,10 +29,10 @@ const nm = vi.hoisted(() => {
   const mockSupabaseLocal = {
     channel: vi.fn(() => ({
       on: vi.fn(() => ({
-        subscribe: vi.fn()
+        subscribe: vi.fn(),
       })),
-      subscribe: vi.fn()
-    }))
+      subscribe: vi.fn(),
+    })),
   };
   return {
     getUserNotifications: vi.fn(),
@@ -84,8 +79,7 @@ import { useNotificationStore } from '@/stores/notifications';
 import {
   getNotificationStoreSync,
   loadNotificationStore,
-  getNotificationStoreError,
-  clearNotificationStoreError
+  clearNotificationStoreError,
 } from '@/stores/notification-loader';
 
 describe('消息中心修复验证测试', () => {
@@ -129,7 +123,10 @@ describe('消息中心修复验证测试', () => {
       await store.stopNotificationListener();
 
       // 验证 window.removeEventListener 被调用
-      expect(window.removeEventListener).toHaveBeenCalledWith('boh_unread_refresh', expect.any(Function));
+      expect(window.removeEventListener).toHaveBeenCalledWith(
+        'boh_unread_refresh',
+        expect.any(Function),
+      );
     });
   });
 
@@ -325,7 +322,7 @@ describe('消息中心修复验证测试', () => {
     it('批量归档 API 应该成功', async () => {
       nm.archiveAllNotifications.mockResolvedValue({
         ok: true,
-        error: null
+        error: null,
       });
 
       const result = await nm.archiveAllNotifications('user-001', ['like', 'comment']);
@@ -369,5 +366,5 @@ export async function runTests() {
 export const testConfig = {
   timeout: 10000,
   retries: 3,
-  verbose: true
+  verbose: true,
 };

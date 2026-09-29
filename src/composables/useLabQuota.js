@@ -8,12 +8,12 @@ const DEVICE_ID_KEY = 'boh_lab_device_id';
 
 // 各 tier 的月度限额（-1 表示不限）
 const TIER_QUOTA_MAP = {
-  anonymous: 3,   // 未登录用户
+  anonymous: 3, // 未登录用户
   free: 10,
   plus: 15,
   pro: 20,
   max: 30,
-  ultra: -1  // 不限次数
+  ultra: -1, // 不限次数
 };
 
 /**
@@ -47,7 +47,7 @@ export function useLabQuota() {
   const userTier = ref('free');
 
   // 实际使用的 tier（未登录用 anonymous，登录用实际 tier）
-  const effectiveTier = computed(() => isLoggedIn.value ? userTier.value : 'anonymous');
+  const effectiveTier = computed(() => (isLoggedIn.value ? userTier.value : 'anonymous'));
 
   // 月度限额
   const monthlyQuota = computed(() => TIER_QUOTA_MAP[effectiveTier.value] || TIER_QUOTA_MAP.free);
@@ -117,12 +117,12 @@ export function useLabQuota() {
       const deviceId = isLoggedIn.value ? null : getOrCreateDeviceId();
       const { data, error } = await supabase.rpc('get_lab_usage_count', {
         p_user_id: isLoggedIn.value ? userId.value : null,
-        p_device_id: deviceId
+        p_device_id: deviceId,
       });
 
       if (error) throw error;
       usageCount.value = Number(data) || 0;
-    } catch (e) {
+    } catch {
       // 静默处理：未登录态或网络中断时不应噪音化，兜底为 0 次
       lastError.value = null;
       usageCount.value = 0;
@@ -156,7 +156,7 @@ export function useLabQuota() {
       const { error } = await supabase.rpc('record_lab_usage', {
         p_user_id: isLoggedIn.value ? userId.value : null,
         p_device_id: deviceId,
-        p_flow_type: flowType
+        p_flow_type: flowType,
       });
 
       if (error) throw error;
@@ -196,7 +196,7 @@ export function useLabQuota() {
       const { error } = await supabase.rpc('record_lab_usage', {
         p_user_id: isLoggedIn.value ? userId.value : null,
         p_device_id: deviceId,
-        p_flow_type: flowType
+        p_flow_type: flowType,
       });
 
       if (error) throw error;
@@ -229,7 +229,7 @@ export function useLabQuota() {
       const { error } = await supabase.rpc('refund_lab_usage', {
         p_user_id: isLoggedIn.value ? userId.value : null,
         p_device_id: deviceId,
-        p_flow_type: flowType
+        p_flow_type: flowType,
       });
 
       if (error) {
@@ -276,7 +276,7 @@ export function useLabQuota() {
       free: 'plus',
       plus: 'pro',
       pro: 'max',
-      max: 'ultra'
+      max: 'ultra',
     };
     const nextTier = nextTierMap[effectiveTier.value];
     if (!nextTier) return '';
@@ -309,7 +309,7 @@ export function useLabQuota() {
     refundQuota,
     refreshUsageCount,
     getQuotaHint,
-    getUpgradeHint
+    getUpgradeHint,
   };
 }
 

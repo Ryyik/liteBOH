@@ -2,12 +2,9 @@ import { nextTick } from 'vue';
 import {
   detectBohAIResourceSearchIntent,
   getResourceTypeLabel,
-  searchMinecraftResourcesForBohAI
+  searchMinecraftResourcesForBohAI,
 } from '@/utils/api/resource-search-api.js';
-import {
-  normalizePromptLine,
-  truncateText
-} from './bohai-engine-helpers.js';
+import { normalizePromptLine, truncateText } from './bohai-engine-helpers.js';
 import { logger } from '@/utils/logger.js';
 import { safeErrorDetail, isAbortError, CHAT_ERROR_MESSAGES } from '../utils/chatErrorMessages.js';
 import {
@@ -15,7 +12,7 @@ import {
   RESOURCE_RECOMMENDATION_PATTERN,
   WEAK_RESOURCE_QUERY_PATTERN,
   KNOWN_RESOURCE_NAME_ALIASES,
-  stripResourceQueryNoise as stripResourceQueryNoiseShared
+  stripResourceQueryNoise as stripResourceQueryNoiseShared,
 } from '../agents/core/agent-patterns.js';
 
 export function useResourceSearch({
@@ -25,7 +22,7 @@ export function useResourceSearch({
   callModelInternal,
   activeGenerationSessionIndex,
   startThinkingTimer,
-  stopThinkingTimer,
+  _stopThinkingTimer,
   setThinkingStatus,
   cleanupGenerationState,
   appendUserMessageWithTitle,
@@ -33,18 +30,22 @@ export function useResourceSearch({
   mergeAssistantMessageMeta,
   currentSessionIndex,
   abortController,
-  runtimeAvailableModels
+  runtimeAvailableModels,
 }) {
   const buildResourceSearchReply = (searchPayload = {}) => {
     const results = Array.isArray(searchPayload.results) ? searchPayload.results : [];
     const typeLabel = searchPayload.typeLabel || getResourceTypeLabel(searchPayload.type);
-    const keywordText = Array.isArray(searchPayload.displayKeywords) && searchPayload.displayKeywords.length > 0
-      ? searchPayload.displayKeywords.slice(0, 5).join('、')
-      : (searchPayload.query || (searchPayload.isGenericRecommendation ? `热门${typeLabel === '全部' ? '资源' : typeLabel}` : '这个关键词'));
+    const keywordText =
+      Array.isArray(searchPayload.displayKeywords) && searchPayload.displayKeywords.length > 0
+        ? searchPayload.displayKeywords.slice(0, 5).join('、')
+        : searchPayload.query ||
+          (searchPayload.isGenericRecommendation
+            ? `热门${typeLabel === '全部' ? '资源' : typeLabel}`
+            : '这个关键词');
     const filters = [
       typeLabel && searchPayload.type !== 'all' ? typeLabel : '',
       searchPayload.loader ? searchPayload.loader : '',
-      searchPayload.version ? searchPayload.version : ''
+      searchPayload.version ? searchPayload.version : '',
     ].filter(Boolean);
     const filterText = filters.length > 0 ? `（${filters.join(' / ')}）` : '';
     const searchIntro = searchPayload.isGenericRecommendation
@@ -60,39 +61,48 @@ export function useResourceSearch({
       searchIntro,
       `在资源库里找到了 ${results.length} 个相关资源。`,
       '',
-      '下面已经展示前几条结果，也可以点击"查看资源列表"打开完整面板。'
+      '下面已经展示前几条结果，也可以点击"查看资源列表"打开完整面板。',
     ].join('\n');
   };
 
-  const stripResourceQueryNoise = (value = '') => stripResourceQueryNoiseShared(normalizePromptLine, value);
+  const stripResourceQueryNoise = (value = '') =>
+    stripResourceQueryNoiseShared(normalizePromptLine, value);
 
   const isWeakResourceQuery = (value = '') => {
     const raw = normalizePromptLine(value, 80).toLowerCase();
     if (!raw) return true;
     const stripped = stripResourceQueryNoise(raw);
-    return !stripped || WEAK_RESOURCE_QUERY_PATTERN.test(raw) || WEAK_RESOURCE_QUERY_PATTERN.test(stripped);
+    return (
+      !stripped ||
+      WEAK_RESOURCE_QUERY_PATTERN.test(raw) ||
+      WEAK_RESOURCE_QUERY_PATTERN.test(stripped)
+    );
   };
 
   const normalizeResourceSearchQueries = (queries = []) => {
     const source = Array.isArray(queries) ? queries : [queries];
-    return [...new Set(
-      source
-        .map((item) => normalizePromptLine(item, 80).toLowerCase())
-        .map((item) => stripResourceQueryNoise(item))
-        .filter(Boolean)
-        .filter((item) => !isWeakResourceQuery(item))
-        .filter((item) => item.length >= 2)
-    )].slice(0, 5);
+    return [
+      ...new Set(
+        source
+          .map((item) => normalizePromptLine(item, 80).toLowerCase())
+          .map((item) => stripResourceQueryNoise(item))
+          .filter(Boolean)
+          .filter((item) => !isWeakResourceQuery(item))
+          .filter((item) => item.length >= 2),
+      ),
+    ].slice(0, 5);
   };
 
   const normalizeResourceDisplayKeywords = (keywords = []) => {
     const source = Array.isArray(keywords) ? keywords : [keywords];
-    return [...new Set(
-      source
-        .map((item) => normalizePromptLine(item, 40))
-        .filter(Boolean)
-        .filter((item) => /^热门/.test(item) || !isWeakResourceQuery(item))
-    )].slice(0, 5);
+    return [
+      ...new Set(
+        source
+          .map((item) => normalizePromptLine(item, 40))
+          .filter(Boolean)
+          .filter((item) => /^热门/.test(item) || !isWeakResourceQuery(item)),
+      ),
+    ].slice(0, 5);
   };
 
   const getKnownResourceNameQueries = (userText = '') => {
@@ -110,7 +120,8 @@ export function useResourceSearch({
     if (knownResourceQueries.length > 0) return knownResourceQueries;
     const terms = [];
     const add = (...items) => terms.push(...items);
-    if (/宝可梦|神奇宝贝|精灵宝可梦|口袋妖怪|pokemon|pixelmon|cobblemon/i.test(source)) add('cobblemon', 'pixelmon', 'pokemon');
+    if (/宝可梦|神奇宝贝|精灵宝可梦|口袋妖怪|pokemon|pixelmon|cobblemon/i.test(source))
+      add('cobblemon', 'pixelmon', 'pokemon');
     if (/家具|家居|沙发|椅子|桌子|柜子/i.test(source)) add('furniture', 'decoration');
     if (/优化|性能|帧数|卡顿|流畅|低配|轻量/i.test(source)) add('performance', 'optimization');
     if (/小地图|地图导航|导航/i.test(source)) add('minimap', 'map');
@@ -140,31 +151,30 @@ export function useResourceSearch({
   };
 
   const finalizeResourceSearchPlan = (userText = '', intent = {}, plan = {}) => {
-    const safeIntentType = ['all', 'mod', 'modpack', 'resourcepack', 'shader'].includes(intent.type) ? intent.type : 'all';
-    const safePlanType = ['all', 'mod', 'modpack', 'resourcepack', 'shader'].includes(plan.type) ? plan.type : 'all';
+    const safeIntentType = ['all', 'mod', 'modpack', 'resourcepack', 'shader'].includes(intent.type)
+      ? intent.type
+      : 'all';
+    const safePlanType = ['all', 'mod', 'modpack', 'resourcepack', 'shader'].includes(plan.type)
+      ? plan.type
+      : 'all';
     const type = safeIntentType !== 'all' ? safeIntentType : safePlanType;
     const topicQueries = getResourceTopicQueryOverride(userText);
     const planQueries = normalizeResourceSearchQueries(plan.searchQueries);
-    const genericRecommendation = topicQueries.length === 0
-      && !plan.inheritedResourceTopic
-      && (
-        isGenericResourceRecommendation(userText, { ...intent, type })
-        || (planQueries.length === 0 && Boolean(plan.isGenericRecommendation))
-      );
-    const searchQueries = topicQueries.length > 0
-      ? topicQueries
-      : (genericRecommendation ? [] : planQueries);
-    const displayKeywords = topicQueries.length > 0
-      ? topicQueries
-      : (
-        genericRecommendation
+    const genericRecommendation =
+      topicQueries.length === 0 &&
+      !plan.inheritedResourceTopic &&
+      (isGenericResourceRecommendation(userText, { ...intent, type }) ||
+        (planQueries.length === 0 && Boolean(plan.isGenericRecommendation)));
+    const searchQueries =
+      topicQueries.length > 0 ? topicQueries : genericRecommendation ? [] : planQueries;
+    const displayKeywords =
+      topicQueries.length > 0
+        ? topicQueries
+        : genericRecommendation
           ? getGenericResourceDisplayKeywords(type)
-          : (
-            normalizeResourceDisplayKeywords(plan.displayKeywords).length > 0
-              ? normalizeResourceDisplayKeywords(plan.displayKeywords)
-              : searchQueries
-          )
-      );
+          : normalizeResourceDisplayKeywords(plan.displayKeywords).length > 0
+            ? normalizeResourceDisplayKeywords(plan.displayKeywords)
+            : searchQueries;
 
     return {
       ...plan,
@@ -173,32 +183,40 @@ export function useResourceSearch({
       version: normalizePromptLine(plan.version, 24) || normalizePromptLine(intent.version, 24),
       searchQueries,
       displayKeywords,
-      sort: genericRecommendation ? 'downloads' : (plan.sort === 'downloads' ? 'downloads' : 'relevance'),
+      sort: genericRecommendation
+        ? 'downloads'
+        : plan.sort === 'downloads'
+          ? 'downloads'
+          : 'relevance',
       isGenericRecommendation: genericRecommendation,
       reason: genericRecommendation
         ? '按资源类型进行热门推荐。'
-        : (plan.reason || '已根据资源类型和中文需求提取关键词。')
+        : plan.reason || '已根据资源类型和中文需求提取关键词。',
     };
   };
 
   const createFallbackResourceSearchPlan = (userText = '', intent = {}) => {
-    const fallbackQuery = normalizePromptLine(intent.query, 120) || normalizePromptLine(userText, 120);
+    const fallbackQuery =
+      normalizePromptLine(intent.query, 120) || normalizePromptLine(userText, 120);
     const topicQueries = getResourceTopicQueryOverride(userText);
-    const fallbackQueries = normalizeResourceSearchQueries([
-      ...topicQueries,
-      fallbackQuery
-    ]);
-    const isGenericRecommendation = fallbackQueries.length === 0 && isGenericResourceRecommendation(userText, intent);
+    const fallbackQueries = normalizeResourceSearchQueries([...topicQueries, fallbackQuery]);
+    const isGenericRecommendation =
+      fallbackQueries.length === 0 && isGenericResourceRecommendation(userText, intent);
     return {
       type: intent.type || 'all',
       loader: intent.loader || '',
       version: intent.version || '',
       searchQueries: fallbackQueries,
-      displayKeywords: fallbackQueries.length > 0 ? fallbackQueries : getGenericResourceDisplayKeywords(intent.type || 'all'),
-      reason: isGenericRecommendation ? '按资源类型进行热门推荐。' : '已根据资源类型和中文需求提取关键词。',
+      displayKeywords:
+        fallbackQueries.length > 0
+          ? fallbackQueries
+          : getGenericResourceDisplayKeywords(intent.type || 'all'),
+      reason: isGenericRecommendation
+        ? '按资源类型进行热门推荐。'
+        : '已根据资源类型和中文需求提取关键词。',
       sort: isGenericRecommendation ? 'downloads' : 'relevance',
       isGenericRecommendation,
-      usedModel: false
+      usedModel: false,
     };
   };
 
@@ -209,12 +227,16 @@ export function useResourceSearch({
   const getLastResourceSearchPayload = (sessionIndex, beforeMessageIndex = Infinity) => {
     const session = getSessionByIndex(sessionIndex);
     const messages = Array.isArray(session?.messages) ? session.messages : [];
-    const maxIndex = Math.min(messages.length - 1, Number.isFinite(beforeMessageIndex) ? beforeMessageIndex - 1 : messages.length - 1);
+    const maxIndex = Math.min(
+      messages.length - 1,
+      Number.isFinite(beforeMessageIndex) ? beforeMessageIndex - 1 : messages.length - 1,
+    );
     for (let index = maxIndex; index >= 0; index -= 1) {
       const message = messages[index];
-      const payload = message?.role === 'assistant' && message?.meta?.kind === 'resource_search_results'
-        ? message.meta.resourceSearch
-        : null;
+      const payload =
+        message?.role === 'assistant' && message?.meta?.kind === 'resource_search_results'
+          ? message.meta.resourceSearch
+          : null;
       if (payload && typeof payload === 'object') return payload;
     }
     return null;
@@ -222,21 +244,26 @@ export function useResourceSearch({
 
   const shouldInheritPreviousResourceTopic = (userText = '', plan = {}) => {
     if (!RESOURCE_FOLLOW_UP_PATTERN.test(String(userText || ''))) return false;
-    return normalizeResourceSearchQueries(plan.searchQueries).length === 0
-      || Boolean(plan.isGenericRecommendation);
+    return (
+      normalizeResourceSearchQueries(plan.searchQueries).length === 0 ||
+      Boolean(plan.isGenericRecommendation)
+    );
   };
 
-  const resolveResourceSearchPlanWithModel = async (userText, intent, requestSignal = undefined) => {
+  const resolveResourceSearchPlanWithModel = async (
+    userText,
+    intent,
+    requestSignal = undefined,
+  ) => {
     const fallback = createFallbackResourceSearchPlan(userText, intent);
-    const plannerModel = getModelForModeId('fast')
-      || runtimeAvailableModels.value[0];
+    const plannerModel = getModelForModeId('fast') || runtimeAvailableModels.value[0];
     if (!plannerModel?.id) return fallback;
 
     const PLANNER_TIMEOUT_MS = 8000;
     const combinedSignal = requestSignal
-      ? (typeof AbortSignal.any === 'function'
-          ? AbortSignal.any([requestSignal, AbortSignal.timeout(PLANNER_TIMEOUT_MS)])
-          : requestSignal)
+      ? typeof AbortSignal.any === 'function'
+        ? AbortSignal.any([requestSignal, AbortSignal.timeout(PLANNER_TIMEOUT_MS)])
+        : requestSignal
       : AbortSignal.timeout(PLANNER_TIMEOUT_MS);
 
     try {
@@ -273,43 +300,62 @@ export function useResourceSearch({
             type: intent.type,
             loader: intent.loader,
             version: intent.version,
-            query: intent.query
+            query: intent.query,
           })}`,
-          `用户消息：${truncateText(userText, 500)}`
+          `用户消息：${truncateText(userText, 500)}`,
         ].join('\n'),
         '<role>你是 BOH AI 的 Minecraft 资源搜索规划器。</role>\n<thinking>先判断用户真正想找什么，再把它改写成资源库检索词。</thinking>\n<output_format>只返回严格 JSON</output_format>',
         [],
         combinedSignal,
         0,
-        { max_tokens: 520, temperature: 0.05, top_p: 0.45, frequency_penalty: 0.02 }
+        { max_tokens: 520, temperature: 0.05, top_p: 0.45, frequency_penalty: 0.02 },
       );
       let parsed = {};
-      try { parsed = JSON.parse(String(raw || '').trim()); } catch (_) { /* 解析失败使用空对象兜底 */ }
-      const safeType = ['all', 'mod', 'modpack', 'resourcepack', 'shader'].includes(parsed?.type) ? parsed.type : fallback.type;
+      try {
+        parsed = JSON.parse(String(raw || '').trim());
+      } catch (_) {
+        /* 解析失败使用空对象兜底 */
+      }
+      const safeType = ['all', 'mod', 'modpack', 'resourcepack', 'shader'].includes(parsed?.type)
+        ? parsed.type
+        : fallback.type;
       const parsedSearchQueries = normalizeResourceSearchQueries(parsed?.searchQueries);
-      const searchQueries = parsedSearchQueries.length > 0 ? parsedSearchQueries : fallback.searchQueries;
-      const displayOverride = normalizeResourceDisplayKeywords(getResourceDisplayKeywordOverride(userText));
-      const isGenericRecommendation = searchQueries.length === 0 && (
-        Boolean(fallback.isGenericRecommendation)
-        || normalizeResourceDisplayKeywords(parsed?.displayKeywords).some((item) => /^热门/.test(item))
+      const searchQueries =
+        parsedSearchQueries.length > 0 ? parsedSearchQueries : fallback.searchQueries;
+      const displayOverride = normalizeResourceDisplayKeywords(
+        getResourceDisplayKeywordOverride(userText),
       );
+      const isGenericRecommendation =
+        searchQueries.length === 0 &&
+        (Boolean(fallback.isGenericRecommendation) ||
+          normalizeResourceDisplayKeywords(parsed?.displayKeywords).some((item) =>
+            /^热门/.test(item),
+          ));
       const parsedDisplayKeywords = normalizeResourceDisplayKeywords(parsed?.displayKeywords);
       return {
         type: safeType || fallback.type,
         loader: normalizePromptLine(parsed?.loader, 24) || fallback.loader,
         version: normalizePromptLine(parsed?.version, 24) || fallback.version,
         searchQueries,
-        displayKeywords: displayOverride.length > 0
-          ? displayOverride
-          : parsedDisplayKeywords.length > 0
-            ? parsedDisplayKeywords
-            : (searchQueries.length > 0 ? searchQueries : getGenericResourceDisplayKeywords(safeType || fallback.type)),
+        displayKeywords:
+          displayOverride.length > 0
+            ? displayOverride
+            : parsedDisplayKeywords.length > 0
+              ? parsedDisplayKeywords
+              : searchQueries.length > 0
+                ? searchQueries
+                : getGenericResourceDisplayKeywords(safeType || fallback.type),
         reason: normalizePromptLine(parsed?.reason, 80) || fallback.reason,
-        targetKind: ['exact_resource', 'category', 'generic_recommendation'].includes(parsed?.targetKind) ? parsed.targetKind : '',
+        targetKind: ['exact_resource', 'category', 'generic_recommendation'].includes(
+          parsed?.targetKind,
+        )
+          ? parsed.targetKind
+          : '',
         normalizedTarget: normalizePromptLine(parsed?.normalizedTarget, 80),
-        sort: parsed?.sort === 'downloads' || fallback.sort === 'downloads' ? 'downloads' : 'relevance',
+        sort:
+          parsed?.sort === 'downloads' || fallback.sort === 'downloads' ? 'downloads' : 'relevance',
         isGenericRecommendation,
-        usedModel: true
+        usedModel: true,
       };
     } catch (error) {
       if (isAbortError(error) && requestSignal?.aborted) throw error;
@@ -336,7 +382,7 @@ export function useResourceSearch({
         version: plan.version || '',
         limit: 8,
         sort: sortMode,
-        signal: requestSignal
+        signal: requestSignal,
       });
       searchedQueries.push(query);
       totalHits += Number(result.totalHits || 0);
@@ -362,7 +408,7 @@ export function useResourceSearch({
       totalHits,
       results,
       sort: sortMode,
-      isGenericRecommendation: queries.length === 0 || Boolean(plan.isGenericRecommendation)
+      isGenericRecommendation: queries.length === 0 || Boolean(plan.isGenericRecommendation),
     };
   };
 
@@ -380,7 +426,7 @@ export function useResourceSearch({
           query: '',
           type: previousResourceSearch.type || 'all',
           loader: previousResourceSearch.loader || '',
-          version: previousResourceSearch.version || ''
+          version: previousResourceSearch.version || '',
         };
       }
     }
@@ -398,7 +444,7 @@ export function useResourceSearch({
     abortController.value = requestController;
     session.messages.push({
       role: 'assistant',
-      content: ''
+      content: '',
     });
     const messageIndex = session.messages.length - 1;
     setThinkingStatus('意图理解中...');
@@ -409,13 +455,16 @@ export function useResourceSearch({
       let plan = finalizeResourceSearchPlan(
         userText,
         intent,
-        await resolveResourceSearchPlanWithModel(userText, intent, requestController.signal)
+        await resolveResourceSearchPlanWithModel(userText, intent, requestController.signal),
       );
       const previousResourceSearch = getLastResourceSearchPayload(sessionIndex, messageIndex);
       if (previousResourceSearch && shouldInheritPreviousResourceTopic(userText, plan)) {
-        const previousQueries = normalizeResourceSearchQueries(previousResourceSearch.displayKeywords).length > 0
-          ? normalizeResourceSearchQueries(previousResourceSearch.displayKeywords)
-          : normalizeResourceSearchQueries(previousResourceSearch.queries || previousResourceSearch.query);
+        const previousQueries =
+          normalizeResourceSearchQueries(previousResourceSearch.displayKeywords).length > 0
+            ? normalizeResourceSearchQueries(previousResourceSearch.displayKeywords)
+            : normalizeResourceSearchQueries(
+                previousResourceSearch.queries || previousResourceSearch.query,
+              );
         if (previousQueries.length > 0) {
           plan.searchQueries = previousQueries;
           plan.displayKeywords = previousQueries;
@@ -426,41 +475,66 @@ export function useResourceSearch({
         }
       }
       plan = finalizeResourceSearchPlan(userText, intent, plan);
-      const plannedKeywords = normalizeResourceDisplayKeywords(plan.displayKeywords).join('、') || normalizeResourceSearchQueries(plan.searchQueries).join('、');
-      setThinkingStatus(plan.isGenericRecommendation
-        ? `正在搜索热门${getResourceTypeLabel(plan.type || intent.type || 'all')}...`
-        : `正在搜索资源：${plannedKeywords || intent.query || userText}`);
+      const plannedKeywords =
+        normalizeResourceDisplayKeywords(plan.displayKeywords).join('、') ||
+        normalizeResourceSearchQueries(plan.searchQueries).join('、');
+      setThinkingStatus(
+        plan.isGenericRecommendation
+          ? `正在搜索热门${getResourceTypeLabel(plan.type || intent.type || 'all')}...`
+          : `正在搜索资源：${plannedKeywords || intent.query || userText}`,
+      );
 
       const searchPayload = await searchResourcesByPlan(plan, requestController.signal);
       const payload = {
         ...searchPayload,
         rawQuery: userText,
-        displayKeywords: normalizeResourceDisplayKeywords(plan.displayKeywords).length > 0
-          ? normalizeResourceDisplayKeywords(plan.displayKeywords)
-          : (searchPayload.isGenericRecommendation ? getGenericResourceDisplayKeywords(plan.type || 'all') : normalizeResourceSearchQueries(plan.searchQueries)),
+        displayKeywords:
+          normalizeResourceDisplayKeywords(plan.displayKeywords).length > 0
+            ? normalizeResourceDisplayKeywords(plan.displayKeywords)
+            : searchPayload.isGenericRecommendation
+              ? getGenericResourceDisplayKeywords(plan.type || 'all')
+              : normalizeResourceSearchQueries(plan.searchQueries),
         plannerReason: plan.reason || '',
         usedModelPlanner: Boolean(plan.usedModel),
-        isGenericRecommendation: Boolean(searchPayload.isGenericRecommendation || plan.isGenericRecommendation),
-        requestedAt: Date.now()
+        isGenericRecommendation: Boolean(
+          searchPayload.isGenericRecommendation || plan.isGenericRecommendation,
+        ),
+        requestedAt: Date.now(),
       };
       if (payload.results.length === 0 && intent.query && !payload.queries.includes(intent.query)) {
-        const fallbackPayload = await searchResourcesByPlan({
-          ...plan,
-          searchQueries: [intent.query]
-        }, requestController.signal);
+        const fallbackPayload = await searchResourcesByPlan(
+          {
+            ...plan,
+            searchQueries: [intent.query],
+          },
+          requestController.signal,
+        );
         payload.results = fallbackPayload.results;
         payload.totalHits += Number(fallbackPayload.totalHits || 0);
-        payload.searchedQueries = [...new Set([...(payload.searchedQueries || []), ...(fallbackPayload.searchedQueries || [])])];
+        payload.searchedQueries = [
+          ...new Set([
+            ...(payload.searchedQueries || []),
+            ...(fallbackPayload.searchedQueries || []),
+          ]),
+        ];
       }
       if (payload.results.length === 0 && payload.isGenericRecommendation) {
-        const popularPayload = await searchResourcesByPlan({
-          ...plan,
-          searchQueries: [],
-          sort: 'downloads'
-        }, requestController.signal);
+        const popularPayload = await searchResourcesByPlan(
+          {
+            ...plan,
+            searchQueries: [],
+            sort: 'downloads',
+          },
+          requestController.signal,
+        );
         payload.results = popularPayload.results;
         payload.totalHits += Number(popularPayload.totalHits || 0);
-        payload.searchedQueries = [...new Set([...(payload.searchedQueries || []), ...(popularPayload.searchedQueries || [])])];
+        payload.searchedQueries = [
+          ...new Set([
+            ...(payload.searchedQueries || []),
+            ...(popularPayload.searchedQueries || []),
+          ]),
+        ];
       }
       payload.query = payload.searchedQueries?.[0] || payload.query;
       payload.queries = payload.searchedQueries || payload.queries;
@@ -471,7 +545,7 @@ export function useResourceSearch({
       targetSession.messages[messageIndex].content = buildResourceSearchReply(payload);
       mergeAssistantMessageMeta(sessionIndex, messageIndex, {
         kind: 'resource_search_results',
-        resourceSearch: payload
+        resourceSearch: payload,
       });
       nextTick(scrollToBottom);
       return true;
@@ -498,8 +572,8 @@ export function useResourceSearch({
             version: intent.version,
             totalHits: 0,
             results: [],
-            errorMessage: safeErrorDetail(error)
-          }
+            errorMessage: safeErrorDetail(error),
+          },
         });
       }
       return true;
@@ -525,6 +599,6 @@ export function useResourceSearch({
     shouldInheritPreviousResourceTopic,
     resolveResourceSearchPlanWithModel,
     searchResourcesByPlan,
-    handleResourceSearchRequest
+    handleResourceSearchRequest,
   };
 }

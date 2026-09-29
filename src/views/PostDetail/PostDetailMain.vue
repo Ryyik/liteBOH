@@ -26,19 +26,26 @@ import {
   getPostEngagementStats,
   getForumPostImages,
   updatePost,
-  updateForumPostImages
+  updateForumPostImages,
 } from '../../utils/api/forum-api.js';
 import { uploadForumImage } from '../../utils/api/forum-images-api.js';
 import DOMPurify from '@/utils/dompurify.js';
 import { NEWS_SANITIZE_OPTIONS } from '../Newsroom/news-shared.js';
 import { FORUM_POST_IMAGE_MAX_COUNT, FORUM_TAG_OPTIONS } from '../Forum/forum-config.js';
-import { normalizeForumTag, normalizeForumImage, resolveStoredCoverUrl } from '../../utils/api/forum-format.js';
+import {
+  normalizeForumTag,
+  normalizeForumImage,
+  resolveStoredCoverUrl,
+} from '../../utils/api/forum-format.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { formatSmartTime } from '../../utils/time.js';
 import { logger } from '@/utils/logger.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { getForumReturnKeyFromQuery, isSafePostDetailHistoryReturn } from '@/utils/forum-return-state.js';
+import {
+  getForumReturnKeyFromQuery,
+  isSafePostDetailHistoryReturn,
+} from '@/utils/forum-return-state.js';
 import { clearForumFeedSnapshots } from '@/utils/forum-feed-cache.js';
 import { isForumPortraitComposer, onForumPortraitComposerChange } from '@/utils/forum-viewport.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
@@ -57,7 +64,7 @@ const { userInfo } = authStore;
 // 弹窗模式（横屏）：宿主 PostDetailModal 传入帖子 id；整页模式仍取路由参数。
 const props = defineProps({
   postIdOverride: { type: [String, Number], default: '' },
-  modalMode: { type: Boolean, default: false }
+  modalMode: { type: Boolean, default: false },
 });
 const emit = defineEmits(['close', 'open-post']);
 
@@ -79,16 +86,16 @@ const isOfficialCard = computed(() => {
   if (p.post_kind === 'news' || p.post_kind === 'activity') return true;
   return !p.author_id && String(p.author_username || '').trim() === OFFICIAL_AUTHOR_NAME;
 });
-const authorAvatarSrc = computed(() => (
+const authorAvatarSrc = computed(() =>
   isOfficialCard.value && !post.value?.author_avatar_url
     ? getImageUrl('favicon.webp', { silent: true })
-    : post.value?.author_avatar_url || ''
-));
-const authorFrame = computed(() => (
+    : post.value?.author_avatar_url || '',
+);
+const authorFrame = computed(() =>
   isOfficialCard.value
     ? null
-    : resolveFrameForAuthor(post.value?.author_avatar_frame_url, post.value?.author_id)
-));
+    : resolveFrameForAuthor(post.value?.author_avatar_frame_url, post.value?.author_id),
+);
 const isLoading = ref(true);
 const isReplySubmitting = ref(false);
 const isLikeSubmitting = ref(false);
@@ -139,14 +146,14 @@ let releaseEditPortraitWatch = null;
 const isReportModalOpen = ref(false);
 const reportForm = ref({
   reason: 'other',
-  detail: ''
+  detail: '',
 });
 const reportReasons = [
   { value: 'spam', label: '垃圾广告', description: '重复刷屏、广告推广或无关内容' },
   { value: 'harass', label: '骚扰攻击', description: '辱骂、人身攻击、恶意挑衅' },
   { value: 'porn', label: '不适内容', description: '色情、血腥或其他不宜展示内容' },
   { value: 'false', label: '虚假误导', description: '造谣、误导或冒充他人' },
-  { value: 'other', label: '其他问题', description: '无法归类，但需要管理员查看' }
+  { value: 'other', label: '其他问题', description: '无法归类，但需要管理员查看' },
 ];
 
 const topComments = ref([]);
@@ -159,16 +166,20 @@ const highlightedCommentId = ref('');
 const { fetchUserTier, getNicknameClass } = useUserTier();
 const authorTierClass = ref('');
 const authorTierCode = ref('');
-watch(() => post.value?.author_id, async (id) => {
-  if (id) {
-    const tier = await fetchUserTier(id);
-    authorTierClass.value = getNicknameClass(id);
-    authorTierCode.value = tier;
-  } else {
-    authorTierClass.value = '';
-    authorTierCode.value = '';
-  }
-}, { immediate: true });
+watch(
+  () => post.value?.author_id,
+  async (id) => {
+    if (id) {
+      const tier = await fetchUserTier(id);
+      authorTierClass.value = getNicknameClass(id);
+      authorTierCode.value = tier;
+    } else {
+      authorTierClass.value = '';
+      authorTierCode.value = '';
+    }
+  },
+  { immediate: true },
+);
 const commentSortMode = ref('desc');
 
 const TOP_LEVEL_PAGE_SIZE = 20;
@@ -183,7 +194,8 @@ const confirmMascotSrc = computed(() => {
 const modalMascotSrc = computed(() => {
   if (!isHomeCatActive.value || !modalState.value.show) return '';
   if (modalState.value.type === 'success') return getHomeCatAsset('success');
-  if (modalState.value.type === 'error' || modalState.value.type === 'warning') return getHomeCatAsset('failed');
+  if (modalState.value.type === 'error' || modalState.value.type === 'warning')
+    return getHomeCatAsset('failed');
   return getHomeCatAsset('decor');
 });
 
@@ -230,25 +242,28 @@ const displayContent = computed(() => {
   if (!isContentLong.value || isExpanded.value) return bodyText;
   return bodyText.substring(0, CONTENT_LIMIT) + '...';
 });
-const postTitle = computed(() => (
+const postTitle = computed(() =>
   post.value?.post_kind === 'repost' && !String(post.value?.title || '').trim()
     ? '转发动态'
-    : extractPostTitle(post.value)
-));
+    : extractPostTitle(post.value),
+);
 // 被转发的原帖摘录（引用框用）
 const quotedTitle = computed(() => {
   const q = quotedPost.value;
   if (!q) return '';
-  return String(q.title || '').trim()
-    || String(q.content || '').trim().match(/【(.*?)】/)?.[1]
-    || '';
+  return (
+    String(q.title || '').trim() ||
+    String(q.content || '')
+      .trim()
+      .match(/【(.*?)】/)?.[1] ||
+    ''
+  );
 });
 const quotedBody = computed(() => {
   const q = quotedPost.value;
   if (!q) return '';
   // 只显示真正的正文：纯标题原帖剥空后不回退标题（标题行已展示，避免同文重复）
-  const raw = String(q.body || '').trim()
-    || String(q.content || '').trim();
+  const raw = String(q.body || '').trim() || String(q.content || '').trim();
   const stripped = raw.replace(/【.*?】\n?/, '').trim();
   if (!stripped) return '';
   return stripped.length > 160 ? `${stripped.slice(0, 160)}…` : stripped;
@@ -266,36 +281,48 @@ const goToQuotedPost = () => {
 // 引用框随原帖作者订阅层级显示卡色
 const quotedTierCode = ref('');
 const quotedNickClass = ref('');
-watch(() => quotedPost.value?.author_id, async (id) => {
-  if (!id) {
-    quotedTierCode.value = '';
-    quotedNickClass.value = '';
-    return;
-  }
-  const tier = await fetchUserTier(id);
-  quotedTierCode.value = ['plus', 'pro', 'max', 'ultra'].includes(tier) ? tier : '';
-  quotedNickClass.value = getNicknameClass(id);
-}, { immediate: true });
-const canManagePost = computed(() => Boolean(
-  isLoggedIn.value
-  && post.value
-  && (String(post.value.author_id || '') === String(userInfo.id || '') || userInfo.role === 'admin')
-));
-const canReportPost = computed(() => Boolean(
-  post.value
-  && (!isLoggedIn.value || String(post.value.author_id || '') !== String(userInfo.id || ''))
-));
-const shouldShowPostMenu = computed(() => Boolean(post.value && (canManagePost.value || canReportPost.value)));
-const detailImages = computed(() => (Array.isArray(post.value?.images)
-  ? post.value.images.filter((image) => image?.url)
-  : []));
+watch(
+  () => quotedPost.value?.author_id,
+  async (id) => {
+    if (!id) {
+      quotedTierCode.value = '';
+      quotedNickClass.value = '';
+      return;
+    }
+    const tier = await fetchUserTier(id);
+    quotedTierCode.value = ['plus', 'pro', 'max', 'ultra'].includes(tier) ? tier : '';
+    quotedNickClass.value = getNicknameClass(id);
+  },
+  { immediate: true },
+);
+const canManagePost = computed(() =>
+  Boolean(
+    isLoggedIn.value &&
+    post.value &&
+    (String(post.value.author_id || '') === String(userInfo.id || '') || userInfo.role === 'admin'),
+  ),
+);
+const canReportPost = computed(() =>
+  Boolean(
+    post.value &&
+    (!isLoggedIn.value || String(post.value.author_id || '') !== String(userInfo.id || '')),
+  ),
+);
+const shouldShowPostMenu = computed(() =>
+  Boolean(post.value && (canManagePost.value || canReportPost.value)),
+);
+const detailImages = computed(() =>
+  Array.isArray(post.value?.images) ? post.value.images.filter((image) => image?.url) : [],
+);
 const currentDetailImage = computed(() => detailImages.value[detailImageIndex.value] || null);
-const detailImageKey = computed(() => String(
-  currentDetailImage.value?.url
-  || currentDetailImage.value?.detailUrl
-  || currentDetailImage.value?.originalUrl
-  || ''
-).trim());
+const detailImageKey = computed(() =>
+  String(
+    currentDetailImage.value?.url ||
+      currentDetailImage.value?.detailUrl ||
+      currentDetailImage.value?.originalUrl ||
+      '',
+  ).trim(),
+);
 const hasMultipleDetailImages = computed(() => detailImages.value.length > 1);
 
 const toggleExpand = () => {
@@ -370,7 +397,8 @@ const markDetailImageLoaded = (key = detailImageKey.value) => {
   loadedDetailImageKeys.value = new Set([...loadedDetailImageKeys.value, safeKey]);
 };
 
-const isDetailImageLoaded = (key = detailImageKey.value) => loadedDetailImageKeys.value.has(String(key || '').trim());
+const isDetailImageLoaded = (key = detailImageKey.value) =>
+  loadedDetailImageKeys.value.has(String(key || '').trim());
 
 // ✨ 新增：图片加载失败处理函数
 const markDetailImageFailed = (key = detailImageKey.value) => {
@@ -380,7 +408,8 @@ const markDetailImageFailed = (key = detailImageKey.value) => {
   logger.warn('post-detail', '图片加载失败:', { key: safeKey });
 };
 
-const isDetailImageFailed = (key = detailImageKey.value) => failedDetailImageKeys.value.has(String(key || '').trim());
+const isDetailImageFailed = (key = detailImageKey.value) =>
+  failedDetailImageKeys.value.has(String(key || '').trim());
 
 const closePostMenu = () => {
   isPostMenuOpen.value = false;
@@ -399,7 +428,7 @@ const modalState = ref({
   show: false,
   type: 'success',
   title: '',
-  message: ''
+  message: '',
 });
 const confirmState = ref({
   show: false,
@@ -407,7 +436,7 @@ const confirmState = ref({
   message: '',
   confirmText: '确定',
   cancelText: '取消',
-  resolve: null
+  resolve: null,
 });
 
 const showModal = (type, title, message) => {
@@ -422,23 +451,24 @@ const closeConfirm = (confirmed = false) => {
     message: '',
     confirmText: '确定',
     cancelText: '取消',
-    resolve: null
+    resolve: null,
   };
   if (typeof resolver === 'function') {
     resolver(Boolean(confirmed));
   }
 };
 
-const requestConfirm = ({ title, message, confirmText = '确定', cancelText = '取消' }) => new Promise((resolve) => {
-  confirmState.value = {
-    show: true,
-    title,
-    message,
-    confirmText,
-    cancelText,
-    resolve
-  };
-});
+const requestConfirm = ({ title, message, confirmText = '确定', cancelText = '取消' }) =>
+  new Promise((resolve) => {
+    confirmState.value = {
+      show: true,
+      title,
+      message,
+      confirmText,
+      cancelText,
+      resolve,
+    };
+  });
 
 const goToProfile = (usernameVal) => {
   const safeUsername = String(usernameVal || '').trim();
@@ -455,13 +485,15 @@ const goToProfile = (usernameVal) => {
 // 否则「无正文图但有封面字段」的帖会出现空白媒体列（用户视角的无图帖应单栏全宽）
 const hasMedia = computed(() => detailImages.value.some((image) => !image?.isCoverFallback));
 
-const canFollowAuthor = computed(() => Boolean(
-  (props.modalMode || isNarrowDetail.value)
-  && isLoggedIn.value
-  && !isOfficialCard.value
-  && post.value?.author_id
-  && String(post.value.author_id) !== String(userInfo.id || '')
-));
+const canFollowAuthor = computed(() =>
+  Boolean(
+    (props.modalMode || isNarrowDetail.value) &&
+    isLoggedIn.value &&
+    !isOfficialCard.value &&
+    post.value?.author_id &&
+    String(post.value.author_id) !== String(userInfo.id || ''),
+  ),
+);
 
 const refreshFollowState = async () => {
   if (!canFollowAuthor.value) {
@@ -498,9 +530,12 @@ const handleFollowToggle = async () => {
   }
 };
 
-watch(() => ({ modal: props.modalMode, author: post.value?.author_id }), () => {
-  void refreshFollowState();
-});
+watch(
+  () => ({ modal: props.modalMode, author: post.value?.author_id }),
+  () => {
+    void refreshFollowState();
+  },
+);
 
 // 底部操作栏作为回复输入唯一入口：聚焦即视为主帖回复（弹窗与整页共用）
 const focusModalReply = () => {
@@ -539,29 +574,30 @@ const onModalReplyEnter = (event) => {
 };
 
 const emitProfileSync = ({ userId, username, reason }) => {
-  window.dispatchEvent(new CustomEvent('boh_profile_sync', {
-    detail: {
-      userId: userId || null,
-      username: username || null,
-      reason: reason || 'forum_update',
-      at: Date.now()
-    }
-  }));
+  window.dispatchEvent(
+    new CustomEvent('boh_profile_sync', {
+      detail: {
+        userId: userId || null,
+        username: username || null,
+        reason: reason || 'forum_update',
+        at: Date.now(),
+      },
+    }),
+  );
 };
 
 const formatDate = formatSmartTime;
 
 const getCurrentUserId = () => (isLoggedIn.value ? userInfo.id : null);
 
-
-
-const getCooldownSeconds = (until) => Math.max(0, Math.ceil((Number(until || 0) - cooldownNow.value) / 1000));
+const getCooldownSeconds = (until) =>
+  Math.max(0, Math.ceil((Number(until || 0) - cooldownNow.value) / 1000));
 
 const replyCooldownSeconds = computed(() => getCooldownSeconds(replyCooldownUntil.value));
 
-const replySubmitLabel = computed(() => (
-  replyCooldownSeconds.value > 0 ? `${replyCooldownSeconds.value}s 后发布` : '发布'
-));
+const replySubmitLabel = computed(() =>
+  replyCooldownSeconds.value > 0 ? `${replyCooldownSeconds.value}s 后发布` : '发布',
+);
 
 const ensureCooldownTimer = () => {
   if (cooldownTimer) return;
@@ -597,9 +633,11 @@ const resetCommentState = () => {
 
 const dispatchPostUpdated = () => {
   if (!post.value?.id) return;
-  window.dispatchEvent(new CustomEvent('boh:forum-post-updated', {
-    detail: { postId: post.value.id, post: post.value }
-  }));
+  window.dispatchEvent(
+    new CustomEvent('boh:forum-post-updated', {
+      detail: { postId: post.value.id, post: post.value },
+    }),
+  );
 };
 
 const refreshPostStats = async () => {
@@ -614,11 +652,12 @@ const refreshPostStats = async () => {
 };
 
 // ─── 评论点赞（comment_likes + toggle_forum_comment_like） ───
-const markItemsLikeState = (items, likedIds) => (items || []).map((item) => (
-  toIdKey(item.id) && likedIds.has(toIdKey(item.id)) && !item.isLiked
-    ? { ...item, isLiked: true }
-    : item
-));
+const markItemsLikeState = (items, likedIds) =>
+  (items || []).map((item) =>
+    toIdKey(item.id) && likedIds.has(toIdKey(item.id)) && !item.isLiked
+      ? { ...item, isLiked: true }
+      : item,
+  );
 
 const hydrateCommentLikeState = async () => {
   if (!isLoggedIn.value || !getCurrentUserId()) return;
@@ -641,12 +680,15 @@ const handleToggleCommentLike = async ({ comment, parentId } = {}) => {
   }
   if (!comment?.id || comment.isLikeSubmitting) return;
 
-  const applyLikePatch = (item) => (toIdKey(item.id) === toIdKey(comment.id)
-    ? { ...item, ...comment._likePatch }
-    : item);
+  const applyLikePatch = (item) =>
+    toIdKey(item.id) === toIdKey(comment.id) ? { ...item, ...comment._likePatch } : item;
 
   // 乐观更新（本地翻转），失败回滚
-  const optimistic = { isLiked: !comment.isLiked, like_count: Math.max(0, Number(comment.like_count || 0) + (comment.isLiked ? -1 : 1)), isLikeSubmitting: true };
+  const optimistic = {
+    isLiked: !comment.isLiked,
+    like_count: Math.max(0, Number(comment.like_count || 0) + (comment.isLiked ? -1 : 1)),
+    isLikeSubmitting: true,
+  };
   comment._likePatch = optimistic;
   topComments.value = topComments.value.map(applyLikePatch);
   if (parentId) {
@@ -657,8 +699,16 @@ const handleToggleCommentLike = async ({ comment, parentId } = {}) => {
   try {
     const result = await toggleCommentLike(comment.id, getCurrentUserId());
     const finalPatch = result?.ok
-      ? { isLiked: Boolean(result.data?.isLiked), like_count: Number(result.data?.likeCount ?? optimistic.like_count), isLikeSubmitting: false }
-      : { isLiked: comment.isLiked, like_count: Number(comment.like_count || 0), isLikeSubmitting: false };
+      ? {
+          isLiked: Boolean(result.data?.isLiked),
+          like_count: Number(result.data?.likeCount ?? optimistic.like_count),
+          isLikeSubmitting: false,
+        }
+      : {
+          isLiked: comment.isLiked,
+          like_count: Number(comment.like_count || 0),
+          isLikeSubmitting: false,
+        };
     comment._likePatch = finalPatch;
     topComments.value = topComments.value.map(applyLikePatch);
     if (parentId) {
@@ -670,7 +720,11 @@ const handleToggleCommentLike = async ({ comment, parentId } = {}) => {
     }
   } catch (error) {
     logger.error('post-detail', '评论点赞失败:', error);
-    comment._likePatch = { isLiked: comment.isLiked, like_count: Number(comment.like_count || 0), isLikeSubmitting: false };
+    comment._likePatch = {
+      isLiked: comment.isLiked,
+      like_count: Number(comment.like_count || 0),
+      isLikeSubmitting: false,
+    };
     topComments.value = topComments.value.map(applyLikePatch);
     if (parentId) {
       const state = getChildReplyState(parentId);
@@ -695,7 +749,7 @@ const loadTopComments = async ({ reset = false } = {}) => {
       topLevelOnly: true,
       page: pageToLoad,
       pageSize: TOP_LEVEL_PAGE_SIZE,
-      order: commentSortMode.value
+      order: commentSortMode.value,
     });
 
     const incoming = Array.isArray(result?.data) ? result.data : [];
@@ -724,15 +778,17 @@ const toIdKey = (value) => String(value || '').trim();
 
 const getChildReplyState = (parentId) => {
   const key = String(parentId || '');
-  return childRepliesMap.value[key] || {
-    items: [],
-    totalCount: 0,
-    fullLoaded: false,
-    page: 1,
-    hasMore: false,
-    isLoading: false,
-    expanded: false
-  };
+  return (
+    childRepliesMap.value[key] || {
+      items: [],
+      totalCount: 0,
+      fullLoaded: false,
+      page: 1,
+      hasMore: false,
+      isLoading: false,
+      expanded: false,
+    }
+  );
 };
 
 const patchChildReplyState = (parentId, patch) => {
@@ -742,8 +798,8 @@ const patchChildReplyState = (parentId, patch) => {
     ...childRepliesMap.value,
     [key]: {
       ...current,
-      ...patch
-    }
+      ...patch,
+    },
   };
 };
 
@@ -761,8 +817,8 @@ const loadChildReplyPreview = async (parentId) => {
       getCurrentUserId(),
       {
         page: 1,
-        pageSize: 1
-      }
+        pageSize: 1,
+      },
     );
 
     if (error) throw error;
@@ -775,7 +831,7 @@ const loadChildReplyPreview = async (parentId) => {
       hasMore: Boolean(hasMore),
       page: 1,
       isLoading: false,
-      expanded: false
+      expanded: false,
     });
   } catch (error) {
     logger.error('post-detail', '加载楼中楼预览失败:', error);
@@ -819,7 +875,7 @@ const preloadChildReplyPreviews = async (comments = []) => {
             hasMore: Boolean(preview.has_more),
             page: 1,
             isLoading: false,
-            expanded: false
+            expanded: false,
           });
         } else {
           patchChildReplyState(rootId, {
@@ -829,7 +885,7 @@ const preloadChildReplyPreviews = async (comments = []) => {
             hasMore: false,
             page: 1,
             isLoading: false,
-            expanded: false
+            expanded: false,
           });
         }
       }
@@ -843,7 +899,7 @@ const preloadChildReplyPreviews = async (comments = []) => {
   await Promise.allSettled(
     safeComments
       .filter((comment) => comment?.id)
-      .map((comment) => loadChildReplyPreview(comment.id))
+      .map((comment) => loadChildReplyPreview(comment.id)),
   );
 };
 
@@ -862,18 +918,18 @@ const loadChildReplies = async (parentId, { reset = false, expand = false } = {}
       getCurrentUserId(),
       {
         page: reset ? 1 : state.page,
-        pageSize: CHILD_REPLY_PAGE_SIZE
-      }
+        pageSize: CHILD_REPLY_PAGE_SIZE,
+      },
     );
 
     if (error) throw error;
 
     const incoming = Array.isArray(data) ? data : [];
-    const existingItems = reset ? [] : (state.items || []);
+    const existingItems = reset ? [] : state.items || [];
     const existingIds = new Set(existingItems.map((item) => String(item.id)));
     const threadReplies = [
       ...existingItems,
-      ...incoming.filter((item) => !existingIds.has(String(item.id)))
+      ...incoming.filter((item) => !existingIds.has(String(item.id))),
     ];
 
     patchChildReplyState(rootId, {
@@ -883,7 +939,7 @@ const loadChildReplies = async (parentId, { reset = false, expand = false } = {}
       hasMore: Boolean(hasMore),
       page: (reset ? 1 : state.page) + 1,
       isLoading: false,
-      expanded: Boolean(expand || state.expanded) && threadReplies.length > 0
+      expanded: Boolean(expand || state.expanded) && threadReplies.length > 0,
     });
     void hydrateCommentLikeState();
   } catch (error) {
@@ -915,7 +971,7 @@ const toggleChildReplies = async (parentComment) => {
   const nextState = getChildReplyState(parentComment.id);
   patchChildReplyState(parentComment.id, {
     expanded: Number(nextState.totalCount || 0) > 1,
-    totalCount: Number(nextState.totalCount || 0)
+    totalCount: Number(nextState.totalCount || 0),
   });
 };
 
@@ -979,13 +1035,20 @@ const resolveRootCommentId = async (comment) => {
   if (commentId && postId) {
     try {
       const result = await getCommentAncestors(commentId, postId);
-      if (!result?.error && !result?.fallback && Array.isArray(result?.data) && result.data.length > 0) {
+      if (
+        !result?.error &&
+        !result?.fallback &&
+        Array.isArray(result?.data) &&
+        result.data.length > 0
+      ) {
         const ancestors = result.data;
         for (const ancestor of ancestors) {
           const depth = Number(ancestor?.depth ?? 0);
           if (depth === 0) continue;
 
-          const status = String(ancestor?.status || 'approved').trim().toLowerCase();
+          const status = String(ancestor?.status || 'approved')
+            .trim()
+            .toLowerCase();
           if (status !== 'approved') {
             return String(ancestor?.id || '').trim();
           }
@@ -1020,7 +1083,9 @@ const resolveRootCommentId = async (comment) => {
       .eq('post_id', post.value.id)
       .single();
 
-    const parentStatus = String(parentComment?.status || 'approved').trim().toLowerCase();
+    const parentStatus = String(parentComment?.status || 'approved')
+      .trim()
+      .toLowerCase();
     if (error || !parentComment || parentStatus !== 'approved') {
       return parentId;
     }
@@ -1047,7 +1112,9 @@ const handleCommentDeepLink = async () => {
     .eq('post_id', post.value.id)
     .single();
 
-  const targetStatus = String(targetComment?.status || 'approved').trim().toLowerCase();
+  const targetStatus = String(targetComment?.status || 'approved')
+    .trim()
+    .toLowerCase();
   if (error || !targetComment || targetStatus !== 'approved') {
     return;
   }
@@ -1074,15 +1141,20 @@ const handleCommentDeepLink = async () => {
 // 官方卡（新闻/活动镜像）的图只存在 posts.cover_image_url（forum_post_images 表无行），
 // 且老数据封面是 `@/assets/...` Vite 资源引用，须经 resolveStoredCoverUrl 解析（与列表页同链路）
 const buildCoverFallbackImage = (postData) => {
-  const rawCoverUrl = resolveStoredCoverUrl(postData?.cover_image_url || postData?.coverImageUrl || '');
+  const rawCoverUrl = resolveStoredCoverUrl(
+    postData?.cover_image_url || postData?.coverImageUrl || '',
+  );
   if (!rawCoverUrl) return null;
-  const fallbackImage = normalizeForumImage({
-    id: `${String(postData?.id || 'post').trim()}-cover-fallback`,
-    url: rawCoverUrl,
-    width: Number(postData?.cover_image_width || postData?.coverImageWidth || 0),
-    height: Number(postData?.cover_image_height || postData?.coverImageHeight || 0),
-    sortOrder: 0
-  }, { variant: 'detail' });
+  const fallbackImage = normalizeForumImage(
+    {
+      id: `${String(postData?.id || 'post').trim()}-cover-fallback`,
+      url: rawCoverUrl,
+      width: Number(postData?.cover_image_width || postData?.coverImageWidth || 0),
+      height: Number(postData?.cover_image_height || postData?.coverImageHeight || 0),
+      sortOrder: 0,
+    },
+    { variant: 'detail' },
+  );
   // 标记 fallback 来源：hasMedia（弹窗媒体列）只认正文图，cover 不撑起媒体列
   return fallbackImage ? { ...fallbackImage, isCoverFallback: true } : null;
 };
@@ -1093,7 +1165,7 @@ const buildCoverFallbackImage = (postData) => {
 // 与 Forum 的 hydrateOfficialPostKinds 同口径）。
 const OFFICIAL_SOURCE_SELECTS = {
   news: 'id, title, content, image',
-  activity: 'id, title, description, image'
+  activity: 'id, title, description, image',
 };
 
 const fetchOfficialSourceRow = async (sourceType, sourceId, title) => {
@@ -1106,7 +1178,12 @@ const fetchOfficialSourceRow = async (sourceType, sourceId, title) => {
   }
   const safeTitle = String(title || '').trim();
   if (safeTitle && safeTitle !== '无标题') {
-    const { data } = await supabase.from(table).select(select).eq('title', safeTitle).limit(1).maybeSingle();
+    const { data } = await supabase
+      .from(table)
+      .select(select)
+      .eq('title', safeTitle)
+      .limit(1)
+      .maybeSingle();
     if (data) return data;
   }
   return null;
@@ -1114,16 +1191,25 @@ const fetchOfficialSourceRow = async (sourceType, sourceId, title) => {
 
 const hydrateOfficialSourceContent = async (requestSeq, postRow) => {
   try {
-    const sourceType = String(postRow?.source_type || '').trim().toLowerCase()
-      || String(postRow?.post_kind || '').trim().toLowerCase();
+    const sourceType =
+      String(postRow?.source_type || '')
+        .trim()
+        .toLowerCase() ||
+      String(postRow?.post_kind || '')
+        .trim()
+        .toLowerCase();
     if (sourceType !== 'news' && sourceType !== 'activity') return;
-    const row = await fetchOfficialSourceRow(sourceType, postRow?.source_id, extractPostTitle(postRow));
+    const row = await fetchOfficialSourceRow(
+      sourceType,
+      postRow?.source_id,
+      extractPostTitle(postRow),
+    );
     if (requestSeq !== detailFetchSeq || !row) return;
     if (sourceType === 'news') {
       officialContent.value = {
         type: 'news',
         html: DOMPurify.sanitize(String(row.content || ''), NEWS_SANITIZE_OPTIONS),
-        paragraphs: []
+        paragraphs: [],
       };
     } else {
       officialContent.value = {
@@ -1132,22 +1218,30 @@ const hydrateOfficialSourceContent = async (requestSeq, postRow) => {
         paragraphs: String(row.description || '')
           .split(/\r?\n+/)
           .map((part) => part.trim())
-          .filter(Boolean)
+          .filter(Boolean),
       };
     }
 
     // 官方卡封面回源：镜像帖缺 cover_image_url（或解析失败）时详情页图区为空，
     // 用原表 image 补上（老数据是 @/assets 引用，须先解析成打包 URL）
     const currentPost = post.value;
-    if (currentPost && requestSeq === detailFetchSeq
-      && !(Array.isArray(currentPost.images) && currentPost.images.length)) {
+    if (
+      currentPost &&
+      requestSeq === detailFetchSeq &&
+      !(Array.isArray(currentPost.images) && currentPost.images.length)
+    ) {
       const rawCover = resolveStoredCoverUrl(row.image || '');
       if (rawCover) {
-        currentPost.images = [normalizeForumImage({
-          id: `${String(currentPost.id || 'post').trim()}-official-cover`,
-          url: rawCover,
-          sortOrder: 0
-        }, { variant: 'detail' })];
+        currentPost.images = [
+          normalizeForumImage(
+            {
+              id: `${String(currentPost.id || 'post').trim()}-official-cover`,
+              url: rawCover,
+              sortOrder: 0,
+            },
+            { variant: 'detail' },
+          ),
+        ];
         detailImageIndex.value = 0;
       }
     }
@@ -1168,10 +1262,12 @@ const fetchPostDetail = async () => {
 
     let query = supabase
       .from('posts')
-      .select(`
+      .select(
+        `
         *,
         author:author_id(avatar_url, avatar_frame_url)
-      `)
+      `,
+      )
       .eq('id', postId.value);
 
     if (!isAdmin) {
@@ -1189,7 +1285,7 @@ const fetchPostDetail = async () => {
     if (data) {
       const [isLiked, imagesRes] = await Promise.all([
         currentUserId ? checkIfLiked(data.id, currentUserId) : Promise.resolve(false),
-        getForumPostImages(data.id)
+        getForumPostImages(data.id),
       ]);
 
       if (requestSeq !== detailFetchSeq) return;
@@ -1206,7 +1302,7 @@ const fetchPostDetail = async () => {
         like_count: Number(data.like_count || 0),
         author_avatar_url: data.author?.avatar_url,
         author_avatar_frame_url: data.author?.avatar_frame_url || null,
-        images: coverFallback ? [coverFallback] : fetchedImages
+        images: coverFallback ? [coverFallback] : fetchedImages,
       };
       detailImageIndex.value = 0;
       isLoading.value = false;
@@ -1323,15 +1419,14 @@ const resetDetailViewState = () => {
 };
 
 // 激活帖子 id：整页模式跟路由参数，弹窗模式跟宿主传入的 override。
-const activePostIdSource = computed(() => (props.modalMode ? props.postIdOverride : route.params.id));
-
-watch(
-  activePostIdSource,
-  () => {
-    resetDetailViewState();
-    fetchPostDetail();
-  }
+const activePostIdSource = computed(() =>
+  props.modalMode ? props.postIdOverride : route.params.id,
 );
+
+watch(activePostIdSource, () => {
+  resetDetailViewState();
+  fetchPostDetail();
+});
 
 watch(
   () => detailImages.value.length,
@@ -1339,7 +1434,7 @@ watch(
     if (detailImageIndex.value >= total) {
       detailImageIndex.value = Math.max(0, total - 1);
     }
-  }
+  },
 );
 
 watch(
@@ -1348,7 +1443,7 @@ watch(
     if (props.modalMode) return;
     if (!post.value?.id || isLoading.value) return;
     await handleCommentDeepLink();
-  }
+  },
 );
 
 const handleToggleLike = async () => {
@@ -1384,7 +1479,7 @@ const handleToggleLike = async () => {
     emitProfileSync({
       userId: post.value.author_id,
       username: post.value.author_username,
-      reason: action === 'liked' ? 'post_liked' : 'post_unliked'
+      reason: action === 'liked' ? 'post_liked' : 'post_unliked',
     });
   } catch (error) {
     logger.error('post-detail', '点赞异常:', error);
@@ -1395,7 +1490,7 @@ const handleToggleLike = async () => {
   }
 };
 
-const toggleReplyInput = (targetId = null, username = null, quotedContent = '') => {
+const toggleReplyInput = (targetId = null, username = null, _quotedContent = '') => {
   if (!isLoggedIn.value) {
     showLoginModal.value = true;
     return;
@@ -1488,7 +1583,7 @@ const submitReply = async () => {
       userInfo.username,
       commentStatus,
       parentId,
-      replyToUsername
+      replyToUsername,
     );
 
     if (error) throw error;
@@ -1511,7 +1606,7 @@ const submitReply = async () => {
     emitProfileSync({
       userId: userInfo.id,
       username: userInfo.username,
-      reason: 'comment_created'
+      reason: 'comment_created',
     });
   } catch (error) {
     logger.error('post-detail', '回复失败:', error);
@@ -1529,7 +1624,7 @@ const handleDeletePost = async () => {
   const confirmed = await requestConfirm({
     title: '删除帖子',
     message: '帖子和评论将一并删除，且无法恢复，确定继续吗？',
-    confirmText: '删除'
+    confirmText: '删除',
   });
   if (!confirmed) return;
 
@@ -1543,12 +1638,14 @@ const handleDeletePost = async () => {
     emitProfileSync({
       userId: post.value.author_id,
       username: post.value.author_username,
-      reason: 'post_deleted'
+      reason: 'post_deleted',
     });
     clearForumFeedSnapshots();
-    window.dispatchEvent(new CustomEvent('boh:forum-post-deleted', {
-      detail: { postId: post.value.id }
-    }));
+    window.dispatchEvent(
+      new CustomEvent('boh:forum-post-deleted', {
+        detail: { postId: post.value.id },
+      }),
+    );
     goBack();
   } catch (error) {
     logger.error('post-detail', '删除失败:', error);
@@ -1593,7 +1690,11 @@ const submitReportPost = async () => {
 
     if (result.data?.limited) {
       isReportModalOpen.value = false;
-      showModal('success', '举报已提交', result.data?.message || '该帖子已因多人举报暂时设为仅作者可见');
+      showModal(
+        'success',
+        '举报已提交',
+        result.data?.message || '该帖子已因多人举报暂时设为仅作者可见',
+      );
       // goBack 在弹窗模式下等价于关闭弹窗
       goBack();
       return;
@@ -1620,7 +1721,7 @@ const startEditPost = () => {
     ...image,
     isExisting: true,
     uploadStatus: 'approved',
-    sortOrder: image.sortOrder
+    sortOrder: image.sortOrder,
   }));
   editRemovedExistingIds.value = new Set();
   editImageUploadStatus.value = '';
@@ -1657,7 +1758,7 @@ const cancelEditPost = async () => {
       title: '放弃修改',
       message: '当前修改尚未保存，确定放弃吗？',
       confirmText: '放弃修改',
-      cancelText: '继续编辑'
+      cancelText: '继续编辑',
     });
     if (!confirmed) return;
   }
@@ -1682,7 +1783,11 @@ const enqueueEditImageUpload = async (file) => {
   const uploadId = `edit-upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   let localPreviewUrl = '';
   if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
-    try { localPreviewUrl = URL.createObjectURL(file); } catch { /* ignore */ }
+    try {
+      localPreviewUrl = URL.createObjectURL(file);
+    } catch {
+      /* ignore */
+    }
   }
   const pending = {
     id: uploadId,
@@ -1693,7 +1798,7 @@ const enqueueEditImageUpload = async (file) => {
     localPreviewUrl,
     uploadStatus: 'uploading',
     uploadStatusLabel: '上传中',
-    sortOrder: editPostImages.value.length
+    sortOrder: editPostImages.value.length,
   };
   editPostImages.value = [...editPostImages.value, pending];
   isEditUploadingPostImage.value = true;
@@ -1709,14 +1814,14 @@ const enqueueEditImageUpload = async (file) => {
         uploadId,
         uploadStatus: 'approved',
         uploadStatusLabel: '',
-        sortOrder: index
+        sortOrder: index,
       };
     } else {
       next[index] = {
         ...pending,
         uploadStatus: 'failed',
         uploadStatusLabel: '未通过',
-        uploadError: result.error?.message || '图片上传失败'
+        uploadError: result.error?.message || '图片上传失败',
       };
     }
     editPostImages.value = next;
@@ -1732,7 +1837,11 @@ const handleEditRemoveImage = (image, index) => {
     editRemovedExistingIds.value = new Set([...editRemovedExistingIds.value, String(image.id)]);
   }
   if (image?.localPreviewUrl && typeof URL !== 'undefined') {
-    try { URL.revokeObjectURL(image.localPreviewUrl); } catch { /* ignore */ }
+    try {
+      URL.revokeObjectURL(image.localPreviewUrl);
+    } catch {
+      /* ignore */
+    }
   }
   editPostImages.value = editPostImages.value
     .filter((_, itemIndex) => itemIndex !== index)
@@ -1781,7 +1890,13 @@ const submitEditPost = async () => {
 
   isEditSubmitting.value = true;
   try {
-    const { success, error } = await updatePost(post.value.id, body, userInfo.id, userInfo.role, title);
+    const { success, error } = await updatePost(
+      post.value.id,
+      body,
+      userInfo.id,
+      userInfo.role,
+      title,
+    );
     if (!success) {
       showModal('error', '保存失败', error || '请稍后重试');
       return;
@@ -1800,7 +1915,7 @@ const submitEditPost = async () => {
         format: image?.format || '',
         moderationStatus: 'approved',
         moderationScore: image?.moderationScore || 0,
-        moderationReason: image?.moderationReason || ''
+        moderationReason: image?.moderationReason || '',
       };
     });
     const imgResult = await updateForumPostImages(post.value.id, imagesPayload);
@@ -1824,12 +1939,16 @@ const submitEditPost = async () => {
     emitProfileSync({
       userId: post.value.author_id,
       username: post.value.author_username,
-      reason: 'post_updated'
+      reason: 'post_updated',
     });
     clearForumFeedSnapshots();
     dispatchPostUpdated();
     resetEditState();
-    showModal('success', '保存成功', imgResult.ok ? '帖子已更新' : '帖子已更新，但图片同步失败，请稍后重试');
+    showModal(
+      'success',
+      '保存成功',
+      imgResult.ok ? '帖子已更新' : '帖子已更新，但图片同步失败，请稍后重试',
+    );
     await fetchPostDetail();
   } catch (error) {
     logger.error('post-detail', '编辑帖子失败', error);
@@ -1850,8 +1969,8 @@ const createForumHomeLocation = (query = {}) => ({
   path: '/user-space',
   query: {
     tab: 'community',
-    ...query
-  }
+    ...query,
+  },
 });
 
 const goBack = () => {
@@ -1861,8 +1980,12 @@ const goBack = () => {
     return;
   }
   const source = getQueryString(route.query.from);
-  const returnKey = getForumReturnKeyFromQuery(route.query, source === 'forum' ? 'forum' : 'user-space');
-  const historyBack = typeof window !== 'undefined' ? getQueryString(window.history.state?.back) : '';
+  const returnKey = getForumReturnKeyFromQuery(
+    route.query,
+    source === 'forum' ? 'forum' : 'user-space',
+  );
+  const historyBack =
+    typeof window !== 'undefined' ? getQueryString(window.history.state?.back) : '';
 
   if (isSafePostDetailHistoryReturn(historyBack, source)) {
     router.back();
@@ -1870,19 +1993,23 @@ const goBack = () => {
   }
 
   if (source === 'user-space') {
-    router.replace(createForumHomeLocation({
-      tab: getQueryString(route.query.tab) || 'posts',
-      restore: '1',
-      returnKey
-    }));
+    router.replace(
+      createForumHomeLocation({
+        tab: getQueryString(route.query.tab) || 'posts',
+        restore: '1',
+        returnKey,
+      }),
+    );
     return;
   }
 
   if (source === 'forum') {
-    router.replace(createForumHomeLocation({
-      restore: '1',
-      returnKey
-    }));
+    router.replace(
+      createForumHomeLocation({
+        restore: '1',
+        returnKey,
+      }),
+    );
     return;
   }
 
@@ -1903,23 +2030,26 @@ const goBack = () => {
 
 const sharePost = async () => {
   // 弹窗模式：pushState 已把地址栏同步为详情 URL，但仍显式构造，保证分享语义稳定
-  const shareUrl = props.modalMode && post.value?.id
-    ? `${window.location.origin}${window.location.pathname}#/forum/post/${post.value.id}`
-    : window.location.href;
+  const shareUrl =
+    props.modalMode && post.value?.id
+      ? `${window.location.origin}${window.location.pathname}#/forum/post/${post.value.id}`
+      : window.location.href;
   const shareContent = `【${post.value.author_username}的帖子】${shareUrl}`;
   try {
     await navigator.clipboard.writeText(shareContent);
     showShareCopiedState();
     // 此路由没有公共顶部导航栏；保留事件供嵌入式宿主承接。
-    window.dispatchEvent(new CustomEvent('boh_global_nav_status', {
-      detail: {
-        title: '分享链接已复制到剪贴板',
-        icon: 'success',
-        catSticker: 'success',
-        actionLabel: '知道了',
-        at: Date.now()
-      }
-    }));
+    window.dispatchEvent(
+      new CustomEvent('boh_global_nav_status', {
+        detail: {
+          title: '分享链接已复制到剪贴板',
+          icon: 'success',
+          catSticker: 'success',
+          actionLabel: '知道了',
+          at: Date.now(),
+        },
+      }),
+    );
   } catch (error) {
     logger.error('post-detail', '复制分享链接失败:', error);
     showModal('error', '复制失败', '当前环境不支持自动复制，请手动复制地址栏链接');
@@ -1931,7 +2061,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
   const confirmed = await requestConfirm({
     title: '删除评论',
     message: '这条评论删除后无法恢复，确定继续吗？',
-    confirmText: '删除'
+    confirmText: '删除',
   });
   if (!confirmed) return;
 
@@ -1945,7 +2075,7 @@ const handleDeleteComment = async (comment, parentId = null) => {
     emitProfileSync({
       userId: comment.author_id,
       username: comment.author_username,
-      reason: 'comment_deleted'
+      reason: 'comment_deleted',
     });
 
     if (parentId) {
@@ -1961,7 +2091,9 @@ const handleDeleteComment = async (comment, parentId = null) => {
 };
 
 const handleChangeCommentSortMode = async (mode) => {
-  const normalizedMode = String(mode || '').trim().toLowerCase();
+  const normalizedMode = String(mode || '')
+    .trim()
+    .toLowerCase();
   if (normalizedMode !== 'asc' && normalizedMode !== 'desc') return;
   if (commentSortMode.value === normalizedMode) return;
   commentSortMode.value = normalizedMode;
@@ -1970,37 +2102,75 @@ const handleChangeCommentSortMode = async (mode) => {
 </script>
 
 <template>
-  <div ref="detailPageRoot" class="post-detail-page" :class="{ 'post-detail-page--modal': modalMode }" :data-theme="currentTheme"
-    :data-anniversary-skin="isAnniversaryMcTheme ? 'active' : 'off'">
+  <div
+    ref="detailPageRoot"
+    class="post-detail-page"
+    :class="{ 'post-detail-page--modal': modalMode }"
+    :data-theme="currentTheme"
+    :data-anniversary-skin="isAnniversaryMcTheme ? 'active' : 'off'"
+  >
     <!-- 整页页头：宽屏用通用页头；窄屏（竖屏 Threads 式）用作者身份条 -->
-    <UserCenterPageHeader v-if="!modalMode && !isNarrowDetail" title="帖子详情" max-width="1400px" @back="goBack" />
+    <UserCenterPageHeader
+      v-if="!modalMode && !isNarrowDetail"
+      title="帖子详情"
+      max-width="1400px"
+      @back="goBack"
+    />
     <div v-else-if="!modalMode" class="pd-author-bar">
       <button type="button" class="pd-author-bar-back" aria-label="返回" @click="goBack">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round" />
+          <path
+            d="M15 5l-7 7 7 7"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </button>
       <template v-if="post">
-        <div class="pd-author-bar-identity" @click="isOfficialCard ? undefined : goToProfile(post.author_username)">
+        <div
+          class="pd-author-bar-identity"
+          @click="isOfficialCard ? undefined : goToProfile(post.author_username)"
+        >
           <span class="boh-avatar-wrap pd-author-bar-avatar">
             <div class="author-avatar" :class="{ 'is-official': isOfficialCard }">
-              <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像" class="avatar-image" loading="lazy" />
+              <img
+                v-if="authorAvatarSrc"
+                :src="authorAvatarSrc"
+                alt="作者头像"
+                class="avatar-image"
+                loading="lazy"
+              />
               <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
             </div>
-            <span v-if="authorFrame" class="boh-avatar-frame"
-              :style="{ '--boh-avatar-frame-url': `url(${authorFrame.url})`, '--boh-avatar-frame-scale': String(authorFrame.scale) }"
-              aria-hidden="true"></span>
+            <span
+              v-if="authorFrame"
+              class="boh-avatar-frame"
+              :style="{
+                '--boh-avatar-frame-url': `url(${authorFrame.url})`,
+                '--boh-avatar-frame-scale': String(authorFrame.scale),
+              }"
+              aria-hidden="true"
+            ></span>
           </span>
           <span class="pd-author-bar-text">
-            <span class="pd-author-bar-name" :class="authorTierClass">{{ post.author_username }}</span>
+            <span class="pd-author-bar-name" :class="authorTierClass">{{
+              post.author_username
+            }}</span>
             <!-- 窄屏内容区作者行被精简（.author-meta 隐藏），发帖时间只能在这里露头 -->
             <span class="pd-author-bar-time">{{ formatDate(post.created_at) }}</span>
           </span>
         </div>
-        <button v-if="canFollowAuthor" type="button" class="pd-author-bar-follow"
-          :class="{ 'is-following': isFollowingAuthor }" :disabled="isFollowSubmitting"
-          @click="handleFollowToggle">
+        <button
+          v-if="canFollowAuthor"
+          type="button"
+          class="pd-author-bar-follow"
+          :class="{ 'is-following': isFollowingAuthor }"
+          :disabled="isFollowSubmitting"
+          @click="handleFollowToggle"
+        >
           {{ isFollowingAuthor ? '已关注' : '关注' }}
         </button>
       </template>
@@ -2008,11 +2178,17 @@ const handleChangeCommentSortMode = async (mode) => {
     </div>
 
     <div class="detail-container">
-      <main class="detail-content fade-in-up" style="animation-delay: 0.1s;">
+      <main class="detail-content fade-in-up" style="animation-delay: 0.1s">
         <div v-if="isLoading" class="post-detail-skeleton" aria-hidden="true">
           <div class="post-skeleton-main glass-panel">
-            <HomeCatMascot v-if="isHomeCatActive" class="detail-skeleton-thinking-cat" pool="state"
-              seed="detail-skeleton-thinking" size="md" decorative />
+            <HomeCatMascot
+              v-if="isHomeCatActive"
+              class="detail-skeleton-thinking-cat"
+              pool="state"
+              seed="detail-skeleton-thinking"
+              size="md"
+              decorative
+            />
             <div class="post-skeleton-header">
               <div class="detail-skeleton-block skeleton-avatar"></div>
               <div class="post-skeleton-author">
@@ -2032,7 +2208,11 @@ const handleChangeCommentSortMode = async (mode) => {
           </div>
           <div class="comments-skeleton-side glass-panel">
             <div class="detail-skeleton-block comments-skeleton-heading"></div>
-            <div v-for="item in 4" :key="`detail-comment-skeleton-${item}`" class="comment-skeleton-row">
+            <div
+              v-for="item in 4"
+              :key="`detail-comment-skeleton-${item}`"
+              class="comment-skeleton-row"
+            >
               <div class="detail-skeleton-block skeleton-avatar small"></div>
               <div class="comment-skeleton-body">
                 <div class="detail-skeleton-block skeleton-line name"></div>
@@ -2047,84 +2227,178 @@ const handleChangeCommentSortMode = async (mode) => {
           <div class="empty-icon">🏜️</div>
           <h3>帖子已失效</h3>
           <p>抱歉，该帖子可能已被作者删除或链接有误。</p>
-          <button @click="goBack" class="home-btn">{{ modalMode ? '关闭' : '返回方块社区' }}</button>
+          <button @click="goBack" class="home-btn">
+            {{ modalMode ? '关闭' : '返回方块社区' }}
+          </button>
         </div>
 
-        <div v-else-if="modalMode" class="pd-modal-body" :class="{ 'pd-modal-body--has-media': hasMedia }">
+        <div
+          v-else-if="modalMode"
+          class="pd-modal-body"
+          :class="{ 'pd-modal-body--has-media': hasMedia }"
+        >
           <div v-if="hasMedia" class="pd-modal-media">
             <div class="pd-media-stage-wrap">
               <transition name="detail-image-fade" mode="out-in">
-                <button :key="detailImageKey" type="button" class="pd-media-stage"
-                  :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey), 'is-failed': isDetailImageFailed(detailImageKey) }"
+                <button
+                  :key="detailImageKey"
+                  type="button"
+                  class="pd-media-stage"
+                  :class="{
+                    'is-loaded': isDetailImageLoaded(detailImageKey),
+                    'is-failed': isDetailImageFailed(detailImageKey),
+                  }"
                   :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
-                  @click="openDetailImageViewer(detailImageIndex)">
-                  <div v-if="isDetailImageFailed(detailImageKey)" class="post-detail-image-failed-placeholder">
+                  @click="openDetailImageViewer(detailImageIndex)"
+                >
+                  <div
+                    v-if="isDetailImageFailed(detailImageKey)"
+                    class="post-detail-image-failed-placeholder"
+                  >
                     <ImageIcon :size="48" :stroke-width="1.5" aria-hidden="true" />
                     <span class="failed-text">图片加载失败</span>
                   </div>
-                  <img v-else :src="currentDetailImage.url" :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
-                    loading="eager" decoding="async" fetchpriority="high" class="pd-media-img"
+                  <img
+                    v-else
+                    :src="currentDetailImage.url"
+                    :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
+                    loading="eager"
+                    decoding="async"
+                    fetchpriority="high"
+                    class="pd-media-img"
                     :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
-                    :width="currentDetailImage.width || undefined" :height="currentDetailImage.height || undefined"
-                    @load="markDetailImageLoaded(detailImageKey)" @error="markDetailImageFailed(detailImageKey)" />
+                    :width="currentDetailImage.width || undefined"
+                    :height="currentDetailImage.height || undefined"
+                    @load="markDetailImageLoaded(detailImageKey)"
+                    @error="markDetailImageFailed(detailImageKey)"
+                  />
                 </button>
               </transition>
-              <button v-if="hasMultipleDetailImages" type="button" class="pd-media-nav prev" aria-label="上一张图片"
-                @click.stop="showPrevDetailImage">‹</button>
-              <button v-if="hasMultipleDetailImages" type="button" class="pd-media-nav next" aria-label="下一张图片"
-                @click.stop="showNextDetailImage">›</button>
-              <div v-if="hasMultipleDetailImages" class="pd-media-dots"
-                :aria-label="`共 ${detailImages.length} 张图片，当前第 ${detailImageIndex + 1} 张`">
-                <button v-for="(image, index) in detailImages" :key="image.id || image.url || index" type="button"
-                  class="pd-media-dot" :class="{ active: index === detailImageIndex }"
-                  :aria-label="`查看第 ${index + 1} 张图片`" @click.stop="goToDetailImage(index)"></button>
+              <button
+                v-if="hasMultipleDetailImages"
+                type="button"
+                class="pd-media-nav prev"
+                aria-label="上一张图片"
+                @click.stop="showPrevDetailImage"
+              >
+                ‹
+              </button>
+              <button
+                v-if="hasMultipleDetailImages"
+                type="button"
+                class="pd-media-nav next"
+                aria-label="下一张图片"
+                @click.stop="showNextDetailImage"
+              >
+                ›
+              </button>
+              <div
+                v-if="hasMultipleDetailImages"
+                class="pd-media-dots"
+                :aria-label="`共 ${detailImages.length} 张图片，当前第 ${detailImageIndex + 1} 张`"
+              >
+                <button
+                  v-for="(image, index) in detailImages"
+                  :key="image.id || image.url || index"
+                  type="button"
+                  class="pd-media-dot"
+                  :class="{ active: index === detailImageIndex }"
+                  :aria-label="`查看第 ${index + 1} 张图片`"
+                  @click.stop="goToDetailImage(index)"
+                ></button>
               </div>
             </div>
           </div>
 
           <div class="pd-modal-info">
             <div class="pd-author-row">
-              <div class="author-section" @click="isOfficialCard ? undefined : goToProfile(post.author_username)">
+              <div
+                class="author-section"
+                @click="isOfficialCard ? undefined : goToProfile(post.author_username)"
+              >
                 <span class="boh-avatar-wrap">
                   <div class="author-avatar" :class="{ 'is-official': isOfficialCard }">
-                    <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像" class="avatar-image"
-                      loading="lazy" />
-                    <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+                    <img
+                      v-if="authorAvatarSrc"
+                      :src="authorAvatarSrc"
+                      alt="作者头像"
+                      class="avatar-image"
+                      loading="lazy"
+                    />
+                    <span v-else>{{
+                      post.author_username?.charAt(0)?.toUpperCase?.() || 'U'
+                    }}</span>
                   </div>
-                  <span v-if="authorFrame" class="boh-avatar-frame"
-                    :style="{ '--boh-avatar-frame-url': `url(${authorFrame.url})`, '--boh-avatar-frame-scale': String(authorFrame.scale) }"
-                    aria-hidden="true"></span>
+                  <span
+                    v-if="authorFrame"
+                    class="boh-avatar-frame"
+                    :style="{
+                      '--boh-avatar-frame-url': `url(${authorFrame.url})`,
+                      '--boh-avatar-frame-scale': String(authorFrame.scale),
+                    }"
+                    aria-hidden="true"
+                  ></span>
                 </span>
                 <div class="author-meta">
-                  <span class="author-name" :class="authorTierClass">@{{ post.author_username }}</span>
+                  <span class="author-name" :class="authorTierClass"
+                    >@{{ post.author_username }}</span
+                  >
                   <span class="post-time">{{ formatDate(post.created_at) }}</span>
-                  <span v-if="post.location_name" class="post-location-tag">📍 {{ post.location_name }}</span>
+                  <span v-if="post.location_name" class="post-location-tag"
+                    >📍 {{ post.location_name }}</span
+                  >
                 </div>
               </div>
-              <button v-if="canFollowAuthor" type="button" class="pd-follow-btn"
-                :class="{ 'is-following': isFollowingAuthor }" :disabled="isFollowSubmitting"
-                @click.stop="handleFollowToggle">
+              <button
+                v-if="canFollowAuthor"
+                type="button"
+                class="pd-follow-btn"
+                :class="{ 'is-following': isFollowingAuthor }"
+                :disabled="isFollowSubmitting"
+                @click.stop="handleFollowToggle"
+              >
                 {{ isFollowingAuthor ? '已关注' : '关注' }}
               </button>
               <div v-if="shouldShowPostMenu" class="post-menu-wrap" @click.stop>
-                <button type="button" class="post-menu-trigger" :class="{ active: isPostMenuOpen }" aria-label="帖子操作"
-                  :aria-expanded="isPostMenuOpen ? 'true' : 'false'" @click="togglePostMenu">
+                <button
+                  type="button"
+                  class="post-menu-trigger"
+                  :class="{ active: isPostMenuOpen }"
+                  aria-label="帖子操作"
+                  :aria-expanded="isPostMenuOpen ? 'true' : 'false'"
+                  @click="togglePostMenu"
+                >
                   <span></span>
                   <span></span>
                   <span></span>
                 </button>
                 <transition name="post-menu">
                   <div v-if="isPostMenuOpen" class="post-menu-panel">
-                    <button v-if="canManagePost" type="button" class="post-menu-item" @click="startEditPost">
+                    <button
+                      v-if="canManagePost"
+                      type="button"
+                      class="post-menu-item"
+                      @click="startEditPost"
+                    >
                       <span class="post-menu-icon">✎</span>
                       <span>编辑</span>
                     </button>
-                    <button v-if="canManagePost" type="button" class="post-menu-item danger" @click="handleDeletePost">
+                    <button
+                      v-if="canManagePost"
+                      type="button"
+                      class="post-menu-item danger"
+                      @click="handleDeletePost"
+                    >
                       <span class="post-menu-icon">×</span>
                       <span>删除</span>
                     </button>
-                    <button v-if="canReportPost" type="button" class="post-menu-item warning"
-                      :disabled="isReportSubmitting" @click="handleReportPost">
+                    <button
+                      v-if="canReportPost"
+                      type="button"
+                      class="post-menu-item warning"
+                      :disabled="isReportSubmitting"
+                      @click="handleReportPost"
+                    >
                       <span class="post-menu-icon">!</span>
                       <span>{{ isReportSubmitting ? '提交中' : '举报' }}</span>
                     </button>
@@ -2136,18 +2410,30 @@ const handleChangeCommentSortMode = async (mode) => {
             <div class="pd-info-scroll">
               <h2 class="pd-title">
                 {{ postTitle }}
-                <span v-if="post.status === 'limited'" class="post-status-pill limited">仅自己可见</span>
+                <span v-if="post.status === 'limited'" class="post-status-pill limited"
+                  >仅自己可见</span
+                >
               </h2>
 
               <div class="content-wrapper">
-                <div v-if="officialContent.type === 'news' && officialContent.html"
-                  class="official-rich-content" aria-label="新闻完整内容">
+                <div
+                  v-if="officialContent.type === 'news' && officialContent.html"
+                  class="official-rich-content"
+                  aria-label="新闻完整内容"
+                >
                   <!-- eslint-disable-next-line vue/no-v-html -->
                   <div v-html="officialContent.html"></div>
                 </div>
-                <div v-else-if="officialContent.type === 'activity' && officialContent.paragraphs.length"
-                  class="official-paragraph-content" aria-label="活动完整介绍">
-                  <p v-for="(para, paraIndex) in officialContent.paragraphs" :key="paraIndex">{{ para }}</p>
+                <div
+                  v-else-if="
+                    officialContent.type === 'activity' && officialContent.paragraphs.length
+                  "
+                  class="official-paragraph-content"
+                  aria-label="活动完整介绍"
+                >
+                  <p v-for="(para, paraIndex) in officialContent.paragraphs" :key="paraIndex">
+                    {{ para }}
+                  </p>
                 </div>
                 <template v-else>
                   <p class="content-text">{{ displayContent }}</p>
@@ -2157,62 +2443,142 @@ const handleChangeCommentSortMode = async (mode) => {
                 </template>
               </div>
 
-              <button v-if="quotedPost" type="button" class="quoted-post-box"
-                :class="[quotedTierCode ? `tier-${quotedTierCode}` : '']" aria-label="查看被转发的原帖"
-                @click="goToQuotedPost">
-                <span class="quoted-post-author" :class="quotedNickClass">@{{ quotedPost.author_username || '方块之家' }}</span>
+              <button
+                v-if="quotedPost"
+                type="button"
+                class="quoted-post-box"
+                :class="[quotedTierCode ? `tier-${quotedTierCode}` : '']"
+                aria-label="查看被转发的原帖"
+                @click="goToQuotedPost"
+              >
+                <span class="quoted-post-author" :class="quotedNickClass"
+                  >@{{ quotedPost.author_username || '方块之家' }}</span
+                >
                 <span v-if="quotedTitle" class="quoted-post-title">{{ quotedTitle }}</span>
                 <span v-if="quotedBody" class="quoted-post-body">{{ quotedBody }}</span>
               </button>
 
               <div class="pd-comments-head">共 {{ post.comment_count }} 条评论</div>
-              <CommentThread class="pd-comment-thread" :hide-composer="true" :comments="topComments"
-                :is-loading="isTopCommentsLoading" :has-more="hasMoreTopComments"
-                :is-logged-in="isLoggedIn" :current-user-id="userInfo.id" :current-user-role="userInfo.role"
-                :post-author-id="post.author_id" :post-comment-count="post.comment_count"
-                :is-home-cat-active="isHomeCatActive" :is-reply-success-popping="isReplySuccessPopping"
-                :active-reply-id="activeReplyId" :reply-to-user="replyToUser" :active-reply-quote="activeReplyQuote"
-                :reply-content="replyContent" :is-reply-submitting="isReplySubmitting"
-                :reply-cooldown-seconds="replyCooldownSeconds" :reply-submit-label="replySubmitLabel"
-                :child-replies-map="childRepliesMap" :highlighted-comment-id="highlightedCommentId"
+              <CommentThread
+                class="pd-comment-thread"
+                :hide-composer="true"
+                :comments="topComments"
+                :is-loading="isTopCommentsLoading"
+                :has-more="hasMoreTopComments"
+                :is-logged-in="isLoggedIn"
+                :current-user-id="userInfo.id"
+                :current-user-role="userInfo.role"
+                :post-author-id="post.author_id"
+                :post-comment-count="post.comment_count"
+                :is-home-cat-active="isHomeCatActive"
+                :is-reply-success-popping="isReplySuccessPopping"
+                :active-reply-id="activeReplyId"
+                :reply-to-user="replyToUser"
+                :active-reply-quote="activeReplyQuote"
+                :reply-content="replyContent"
+                :is-reply-submitting="isReplySubmitting"
+                :reply-cooldown-seconds="replyCooldownSeconds"
+                :reply-submit-label="replySubmitLabel"
+                :child-replies-map="childRepliesMap"
+                :highlighted-comment-id="highlightedCommentId"
                 :comment-sort-mode="commentSortMode"
-                @reply="({ targetId, username, content }) => toggleReplyInput(targetId, username, content)"
+                @reply="
+                  ({ targetId, username, content }) => toggleReplyInput(targetId, username, content)
+                "
                 @submit-reply="submitReply"
-                @cancel-reply="activeReplyId = null; replyToUser = null; activeReplyQuote = ''; replyContent = ''"
-                @update:reply-content="replyContent = $event" @load-more-comments="loadTopComments({ reset: false })"
+                @cancel-reply="
+                  activeReplyId = null;
+                  replyToUser = null;
+                  activeReplyQuote = '';
+                  replyContent = '';
+                "
+                @update:reply-content="replyContent = $event"
+                @load-more-comments="loadTopComments({ reset: false })"
                 @toggle-child-replies="toggleChildReplies"
                 @load-child-replies="({ parentId, options }) => loadChildReplies(parentId, options)"
                 @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
-                @go-to-profile="goToProfile" @change-sort-mode="handleChangeCommentSortMode"
-                @toggle-comment-like="handleToggleCommentLike" />
+                @go-to-profile="goToProfile"
+                @change-sort-mode="handleChangeCommentSortMode"
+                @toggle-comment-like="handleToggleCommentLike"
+              />
             </div>
 
             <div class="pd-actionbar">
-              <input v-if="isLoggedIn" ref="modalReplyField" v-model="replyContent" type="text" class="pd-reply-input"
-                :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'" maxlength="2000"
+              <input
+                v-if="isLoggedIn"
+                ref="modalReplyField"
+                v-model="replyContent"
+                type="text"
+                class="pd-reply-input"
+                :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'"
+                maxlength="2000"
                 enterkeyhint="send"
-                @focus="focusModalReply" @keydown.enter="onModalReplyEnter" />
-              <button v-else type="button" class="pd-reply-input pd-reply-input--guest" @click="showLoginModal = true">
+                @focus="focusModalReply"
+                @keydown.enter="onModalReplyEnter"
+              />
+              <button
+                v-else
+                type="button"
+                class="pd-reply-input pd-reply-input--guest"
+                @click="showLoginModal = true"
+              >
                 说点什么...
               </button>
-              <button type="button" class="pd-reply-send" v-if="isLoggedIn"
+              <button
+                type="button"
+                class="pd-reply-send"
+                v-if="isLoggedIn"
                 :disabled="isReplySubmitting || replyCooldownSeconds > 0 || !replyContent.trim()"
-                @click="submitReply">{{ isReplySubmitting ? '发送中' : '发送' }}</button>
+                @click="submitReply"
+              >
+                {{ isReplySubmitting ? '发送中' : '发送' }}
+              </button>
               <div class="pd-action-group">
-                <button class="pd-action-btn" :class="{ 'is-liked': post.isLiked }" :disabled="isLikeSubmitting"
-                  :aria-label="post.isLiked ? '取消点赞' : '点赞'" @click="handleToggleLike">
-                  <Heart class="action-svg" :size="20" :stroke-width="1.8"
-                    :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
+                <button
+                  class="pd-action-btn"
+                  :class="{ 'is-liked': post.isLiked }"
+                  :disabled="isLikeSubmitting"
+                  :aria-label="post.isLiked ? '取消点赞' : '点赞'"
+                  @click="handleToggleLike"
+                >
+                  <Heart
+                    class="action-svg"
+                    :size="20"
+                    :stroke-width="1.8"
+                    :fill="post.isLiked ? 'currentColor' : 'none'"
+                    aria-hidden="true"
+                  />
                   <span class="pd-action-count">{{ post.like_count }}</span>
                 </button>
                 <button class="pd-action-btn" aria-label="写评论" @click="handleModalCommentClick">
-                  <MessageCircle class="action-svg" :size="20" :stroke-width="1.8" aria-hidden="true" />
+                  <MessageCircle
+                    class="action-svg"
+                    :size="20"
+                    :stroke-width="1.8"
+                    aria-hidden="true"
+                  />
                   <span class="pd-action-count">{{ post.comment_count }}</span>
                 </button>
-                <button class="pd-action-btn" :class="{ 'is-copy-success': isShareCopied }" aria-label="分享"
-                  @click="sharePost">
-                  <Check v-if="isShareCopied" class="action-svg" :size="20" :stroke-width="2" aria-hidden="true" />
-                  <Share2 v-else class="action-svg" :size="20" :stroke-width="1.8" aria-hidden="true" />
+                <button
+                  class="pd-action-btn"
+                  :class="{ 'is-copy-success': isShareCopied }"
+                  aria-label="分享"
+                  @click="sharePost"
+                >
+                  <Check
+                    v-if="isShareCopied"
+                    class="action-svg"
+                    :size="20"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
+                  <Share2
+                    v-else
+                    class="action-svg"
+                    :size="20"
+                    :stroke-width="1.8"
+                    aria-hidden="true"
+                  />
                   <span class="pd-action-count">{{ isShareCopied ? '已复制' : '分享' }}</span>
                 </button>
               </div>
@@ -2222,96 +2588,187 @@ const handleChangeCommentSortMode = async (mode) => {
 
         <div v-else class="post-x-layout">
           <div class="x-main-column">
-            <article class="x-post-card glass-panel" :class="{
-              'tier-plus': authorTierCode === 'plus',
-              'tier-pro': authorTierCode === 'pro',
-              'tier-max': authorTierCode === 'max',
-              'tier-ultra': authorTierCode === 'ultra'
-            }">
+            <article
+              class="x-post-card glass-panel"
+              :class="{
+                'tier-plus': authorTierCode === 'plus',
+                'tier-pro': authorTierCode === 'pro',
+                'tier-max': authorTierCode === 'max',
+                'tier-ultra': authorTierCode === 'ultra',
+              }"
+            >
               <!-- 媒体前置（图片在上文字在下）：整页模式 carousel 提为卡片直接子级，
                    竖屏断点 order:-1 置顶贴边，横屏断点 order:3 保持「作者→正文→图片」原状 -->
               <div v-if="detailImages.length" class="post-detail-image-carousel x-post-card-media">
                 <div class="post-detail-image-stage">
                   <transition name="detail-image-fade" mode="out-in">
-                    <button :key="detailImageKey" type="button" class="post-detail-image-link"
-                      :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey), 'is-failed': isDetailImageFailed(detailImageKey) }"
+                    <button
+                      :key="detailImageKey"
+                      type="button"
+                      class="post-detail-image-link"
+                      :class="{
+                        'is-loaded': isDetailImageLoaded(detailImageKey),
+                        'is-failed': isDetailImageFailed(detailImageKey),
+                      }"
                       :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
-                      @click="openDetailImageViewer(detailImageIndex)">
+                      @click="openDetailImageViewer(detailImageIndex)"
+                    >
                       <!-- ✨ 新增：图片加载失败时显示占位符 -->
-                      <div v-if="isDetailImageFailed(detailImageKey)" class="post-detail-image-failed-placeholder">
+                      <div
+                        v-if="isDetailImageFailed(detailImageKey)"
+                        class="post-detail-image-failed-placeholder"
+                      >
                         <ImageIcon :size="48" :stroke-width="1.5" aria-hidden="true" />
                         <span class="failed-text">图片加载失败</span>
                       </div>
                       <!-- 正常图片渲染 -->
-                      <img v-else :src="currentDetailImage.url" :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
-                        loading="eager" decoding="async" fetchpriority="high" class="post-detail-image"
+                      <img
+                        v-else
+                        :src="currentDetailImage.url"
+                        :alt="`${postTitle} 图片 ${detailImageIndex + 1}`"
+                        loading="eager"
+                        decoding="async"
+                        fetchpriority="high"
+                        class="post-detail-image"
                         :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
                         :width="currentDetailImage.width || undefined"
-                        :height="currentDetailImage.height || undefined" @load="markDetailImageLoaded(detailImageKey)"
-                        @error="markDetailImageFailed(detailImageKey)" />
+                        :height="currentDetailImage.height || undefined"
+                        @load="markDetailImageLoaded(detailImageKey)"
+                        @error="markDetailImageFailed(detailImageKey)"
+                      />
                       <span
-                        v-if="currentDetailImage.width && currentDetailImage.height && !isDetailImageFailed(detailImageKey)"
-                        class="post-detail-image-meta">
+                        v-if="
+                          currentDetailImage.width &&
+                          currentDetailImage.height &&
+                          !isDetailImageFailed(detailImageKey)
+                        "
+                        class="post-detail-image-meta"
+                      >
                         {{ currentDetailImage.width }} × {{ currentDetailImage.height }}
                       </span>
                     </button>
                   </transition>
-                  <button v-if="hasMultipleDetailImages" type="button" class="post-detail-image-nav prev"
-                    aria-label="上一张图片" @click.stop="showPrevDetailImage">
+                  <button
+                    v-if="hasMultipleDetailImages"
+                    type="button"
+                    class="post-detail-image-nav prev"
+                    aria-label="上一张图片"
+                    @click.stop="showPrevDetailImage"
+                  >
                     ‹
                   </button>
-                  <button v-if="hasMultipleDetailImages" type="button" class="post-detail-image-nav next"
-                    aria-label="下一张图片" @click.stop="showNextDetailImage">
+                  <button
+                    v-if="hasMultipleDetailImages"
+                    type="button"
+                    class="post-detail-image-nav next"
+                    aria-label="下一张图片"
+                    @click.stop="showNextDetailImage"
+                  >
                     ›
                   </button>
                 </div>
-                <div v-if="hasMultipleDetailImages" class="post-detail-image-dots"
-                  :aria-label="`共 ${detailImages.length} 张图片，当前第 ${detailImageIndex + 1} 张`">
-                  <button v-for="(image, index) in detailImages" :key="image.id || image.url || index" type="button"
-                    class="post-detail-image-dot" :class="{ active: index === detailImageIndex }"
-                    :aria-label="`查看第 ${index + 1} 张图片`" @click.stop="goToDetailImage(index)"></button>
+                <div
+                  v-if="hasMultipleDetailImages"
+                  class="post-detail-image-dots"
+                  :aria-label="`共 ${detailImages.length} 张图片，当前第 ${detailImageIndex + 1} 张`"
+                >
+                  <button
+                    v-for="(image, index) in detailImages"
+                    :key="image.id || image.url || index"
+                    type="button"
+                    class="post-detail-image-dot"
+                    :class="{ active: index === detailImageIndex }"
+                    :aria-label="`查看第 ${index + 1} 张图片`"
+                    @click.stop="goToDetailImage(index)"
+                  ></button>
                 </div>
               </div>
-              <HomeCatMascot v-if="isHomeCatActive" class="detail-post-decor-cat" pool="card"
-                :seed="`${post.id}:detail`" size="md" decorative />
+              <HomeCatMascot
+                v-if="isHomeCatActive"
+                class="detail-post-decor-cat"
+                pool="card"
+                :seed="`${post.id}:detail`"
+                size="md"
+                decorative
+              />
               <div class="post-header">
-                <div class="author-section" @click="isOfficialCard ? undefined : goToProfile(post.author_username)">
+                <div
+                  class="author-section"
+                  @click="isOfficialCard ? undefined : goToProfile(post.author_username)"
+                >
                   <span class="boh-avatar-wrap">
                     <div class="author-avatar" :class="{ 'is-official': isOfficialCard }">
-                      <img v-if="authorAvatarSrc" :src="authorAvatarSrc" alt="作者头像" class="avatar-image"
-                        loading="lazy" />
-                      <span v-else>{{ post.author_username?.charAt(0)?.toUpperCase?.() || 'U' }}</span>
+                      <img
+                        v-if="authorAvatarSrc"
+                        :src="authorAvatarSrc"
+                        alt="作者头像"
+                        class="avatar-image"
+                        loading="lazy"
+                      />
+                      <span v-else>{{
+                        post.author_username?.charAt(0)?.toUpperCase?.() || 'U'
+                      }}</span>
                     </div>
-                    <span v-if="authorFrame" class="boh-avatar-frame"
-                      :style="{ '--boh-avatar-frame-url': `url(${authorFrame.url})`, '--boh-avatar-frame-scale': String(authorFrame.scale) }"
-                      aria-hidden="true"></span>
+                    <span
+                      v-if="authorFrame"
+                      class="boh-avatar-frame"
+                      :style="{
+                        '--boh-avatar-frame-url': `url(${authorFrame.url})`,
+                        '--boh-avatar-frame-scale': String(authorFrame.scale),
+                      }"
+                      aria-hidden="true"
+                    ></span>
                   </span>
                   <div class="author-meta">
-                    <span class="author-name" :class="authorTierClass">@{{ post.author_username }}</span>
+                    <span class="author-name" :class="authorTierClass"
+                      >@{{ post.author_username }}</span
+                    >
                     <span class="post-time">{{ formatDate(post.created_at) }}</span>
-                    <span v-if="post.location_name" class="post-location-tag">📍 {{ post.location_name }}</span>
+                    <span v-if="post.location_name" class="post-location-tag"
+                      >📍 {{ post.location_name }}</span
+                    >
                   </div>
                 </div>
                 <div v-if="shouldShowPostMenu" class="post-menu-wrap" @click.stop>
-                  <button type="button" class="post-menu-trigger" :class="{ active: isPostMenuOpen }" aria-label="帖子操作"
-                    :aria-expanded="isPostMenuOpen ? 'true' : 'false'" @click="togglePostMenu">
+                  <button
+                    type="button"
+                    class="post-menu-trigger"
+                    :class="{ active: isPostMenuOpen }"
+                    aria-label="帖子操作"
+                    :aria-expanded="isPostMenuOpen ? 'true' : 'false'"
+                    @click="togglePostMenu"
+                  >
                     <span></span>
                     <span></span>
                     <span></span>
                   </button>
                   <transition name="post-menu">
                     <div v-if="isPostMenuOpen" class="post-menu-panel">
-                      <button v-if="canManagePost" type="button" class="post-menu-item" @click="startEditPost">
+                      <button
+                        v-if="canManagePost"
+                        type="button"
+                        class="post-menu-item"
+                        @click="startEditPost"
+                      >
                         <span class="post-menu-icon">✎</span>
                         <span>编辑</span>
                       </button>
-                      <button v-if="canManagePost" type="button" class="post-menu-item danger"
-                        @click="handleDeletePost">
+                      <button
+                        v-if="canManagePost"
+                        type="button"
+                        class="post-menu-item danger"
+                        @click="handleDeletePost"
+                      >
                         <span class="post-menu-icon">×</span>
                         <span>删除</span>
                       </button>
-                      <button v-if="canReportPost" type="button" class="post-menu-item warning"
-                        :disabled="isReportSubmitting" @click="handleReportPost">
+                      <button
+                        v-if="canReportPost"
+                        type="button"
+                        class="post-menu-item warning"
+                        :disabled="isReportSubmitting"
+                        @click="handleReportPost"
+                      >
                         <span class="post-menu-icon">!</span>
                         <span>{{ isReportSubmitting ? '提交中' : '举报' }}</span>
                       </button>
@@ -2323,19 +2780,31 @@ const handleChangeCommentSortMode = async (mode) => {
               <div class="post-body">
                 <h2 class="post-detail-title">
                   {{ postTitle }}
-                  <span v-if="post.status === 'limited'" class="post-status-pill limited">仅自己可见</span>
+                  <span v-if="post.status === 'limited'" class="post-status-pill limited"
+                    >仅自己可见</span
+                  >
                 </h2>
                 <div class="content-wrapper">
                   <!-- 官方镜像卡（新闻/活动）：回源后渲染完整原文（新闻=富文本 / 活动=段落）；
                        回源前与失败时降级为普通摘要展示 -->
-                  <div v-if="officialContent.type === 'news' && officialContent.html"
-                    class="official-rich-content" aria-label="新闻完整内容">
+                  <div
+                    v-if="officialContent.type === 'news' && officialContent.html"
+                    class="official-rich-content"
+                    aria-label="新闻完整内容"
+                  >
                     <!-- eslint-disable-next-line vue/no-v-html -->
                     <div v-html="officialContent.html"></div>
                   </div>
-                  <div v-else-if="officialContent.type === 'activity' && officialContent.paragraphs.length"
-                    class="official-paragraph-content" aria-label="活动完整介绍">
-                    <p v-for="(para, paraIndex) in officialContent.paragraphs" :key="paraIndex">{{ para }}</p>
+                  <div
+                    v-else-if="
+                      officialContent.type === 'activity' && officialContent.paragraphs.length
+                    "
+                    class="official-paragraph-content"
+                    aria-label="活动完整介绍"
+                  >
+                    <p v-for="(para, paraIndex) in officialContent.paragraphs" :key="paraIndex">
+                      {{ para }}
+                    </p>
                   </div>
                   <template v-else>
                     <p class="content-text">{{ displayContent }}</p>
@@ -2345,10 +2814,17 @@ const handleChangeCommentSortMode = async (mode) => {
                   </template>
                 </div>
                 <!-- 转发帖引用框：点击进入被转发的原帖 -->
-                <button v-if="quotedPost" type="button" class="quoted-post-box"
-                  :class="[quotedTierCode ? `tier-${quotedTierCode}` : '']" aria-label="查看被转发的原帖"
-                  @click="goToQuotedPost">
-                  <span class="quoted-post-author" :class="quotedNickClass">@{{ quotedPost.author_username || '方块之家' }}</span>
+                <button
+                  v-if="quotedPost"
+                  type="button"
+                  class="quoted-post-box"
+                  :class="[quotedTierCode ? `tier-${quotedTierCode}` : '']"
+                  aria-label="查看被转发的原帖"
+                  @click="goToQuotedPost"
+                >
+                  <span class="quoted-post-author" :class="quotedNickClass"
+                    >@{{ quotedPost.author_username || '方块之家' }}</span
+                  >
                   <span v-if="quotedTitle" class="quoted-post-title">{{ quotedTitle }}</span>
                   <span v-if="quotedBody" class="quoted-post-body">{{ quotedBody }}</span>
                 </button>
@@ -2357,26 +2833,50 @@ const handleChangeCommentSortMode = async (mode) => {
           </div>
 
           <div class="x-side-column">
-            <div class="pd-comments-head pd-comments-head--page">共 {{ post.comment_count }} 条评论</div>
-            <CommentThread :hide-composer="true" :comments="topComments" :is-loading="isTopCommentsLoading"
+            <div class="pd-comments-head pd-comments-head--page">
+              共 {{ post.comment_count }} 条评论
+            </div>
+            <CommentThread
+              :hide-composer="true"
+              :comments="topComments"
+              :is-loading="isTopCommentsLoading"
               :has-more="hasMoreTopComments"
-              :is-logged-in="isLoggedIn" :current-user-id="userInfo.id" :current-user-role="userInfo.role"
-              :post-author-id="post.author_id" :post-comment-count="post.comment_count"
-              :is-home-cat-active="isHomeCatActive" :is-reply-success-popping="isReplySuccessPopping"
-              :active-reply-id="activeReplyId" :reply-to-user="replyToUser" :active-reply-quote="activeReplyQuote"
-              :reply-content="replyContent" :is-reply-submitting="isReplySubmitting"
-              :reply-cooldown-seconds="replyCooldownSeconds" :reply-submit-label="replySubmitLabel"
-              :child-replies-map="childRepliesMap" :highlighted-comment-id="highlightedCommentId"
+              :is-logged-in="isLoggedIn"
+              :current-user-id="userInfo.id"
+              :current-user-role="userInfo.role"
+              :post-author-id="post.author_id"
+              :post-comment-count="post.comment_count"
+              :is-home-cat-active="isHomeCatActive"
+              :is-reply-success-popping="isReplySuccessPopping"
+              :active-reply-id="activeReplyId"
+              :reply-to-user="replyToUser"
+              :active-reply-quote="activeReplyQuote"
+              :reply-content="replyContent"
+              :is-reply-submitting="isReplySubmitting"
+              :reply-cooldown-seconds="replyCooldownSeconds"
+              :reply-submit-label="replySubmitLabel"
+              :child-replies-map="childRepliesMap"
+              :highlighted-comment-id="highlightedCommentId"
               :comment-sort-mode="commentSortMode"
-              @reply="({ targetId, username, content }) => toggleReplyInput(targetId, username, content)"
+              @reply="
+                ({ targetId, username, content }) => toggleReplyInput(targetId, username, content)
+              "
               @submit-reply="submitReply"
-              @cancel-reply="activeReplyId = null; replyToUser = null; activeReplyQuote = ''; replyContent = ''"
-              @update:reply-content="replyContent = $event" @load-more-comments="loadTopComments({ reset: false })"
+              @cancel-reply="
+                activeReplyId = null;
+                replyToUser = null;
+                activeReplyQuote = '';
+                replyContent = '';
+              "
+              @update:reply-content="replyContent = $event"
+              @load-more-comments="loadTopComments({ reset: false })"
               @toggle-child-replies="toggleChildReplies"
               @load-child-replies="({ parentId, options }) => loadChildReplies(parentId, options)"
-                @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
-                @go-to-profile="goToProfile" @change-sort-mode="handleChangeCommentSortMode"
-                @toggle-comment-like="handleToggleCommentLike" />
+              @delete-comment="({ comment, parentId }) => handleDeleteComment(comment, parentId)"
+              @go-to-profile="goToProfile"
+              @change-sort-mode="handleChangeCommentSortMode"
+              @toggle-comment-like="handleToggleCommentLike"
+            />
           </div>
         </div>
       </main>
@@ -2384,30 +2884,69 @@ const handleChangeCommentSortMode = async (mode) => {
 
     <!-- 整页模式底部固定操作栏（Threads/小红书式）：输入 + 点赞/评论/分享，卡内动作栏已移除 -->
     <div v-if="!modalMode && post" class="pd-actionbar pd-actionbar--page">
-      <input v-if="isLoggedIn" ref="modalReplyField" v-model="replyContent" type="text" class="pd-reply-input"
-        :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'" maxlength="2000"
+      <input
+        v-if="isLoggedIn"
+        ref="modalReplyField"
+        v-model="replyContent"
+        type="text"
+        class="pd-reply-input"
+        :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'"
+        maxlength="2000"
         enterkeyhint="send"
-        @focus="focusModalReply" @keydown.enter="onModalReplyEnter" />
-      <button v-else type="button" class="pd-reply-input pd-reply-input--guest" @click="showLoginModal = true">
+        @focus="focusModalReply"
+        @keydown.enter="onModalReplyEnter"
+      />
+      <button
+        v-else
+        type="button"
+        class="pd-reply-input pd-reply-input--guest"
+        @click="showLoginModal = true"
+      >
         说点什么...
       </button>
-      <button type="button" class="pd-reply-send" v-if="isLoggedIn"
+      <button
+        type="button"
+        class="pd-reply-send"
+        v-if="isLoggedIn"
         :disabled="isReplySubmitting || replyCooldownSeconds > 0 || !replyContent.trim()"
-        @click="submitReply">{{ isReplySubmitting ? '发送中' : '发送' }}</button>
+        @click="submitReply"
+      >
+        {{ isReplySubmitting ? '发送中' : '发送' }}
+      </button>
       <div class="pd-action-group">
-        <button class="pd-action-btn" :class="{ 'is-liked': post.isLiked }" :disabled="isLikeSubmitting"
-          :aria-label="post.isLiked ? '取消点赞' : '点赞'" @click="handleToggleLike">
-          <Heart class="action-svg" :size="20" :stroke-width="1.8"
-            :fill="post.isLiked ? 'currentColor' : 'none'" aria-hidden="true" />
+        <button
+          class="pd-action-btn"
+          :class="{ 'is-liked': post.isLiked }"
+          :disabled="isLikeSubmitting"
+          :aria-label="post.isLiked ? '取消点赞' : '点赞'"
+          @click="handleToggleLike"
+        >
+          <Heart
+            class="action-svg"
+            :size="20"
+            :stroke-width="1.8"
+            :fill="post.isLiked ? 'currentColor' : 'none'"
+            aria-hidden="true"
+          />
           <span class="pd-action-count">{{ post.like_count }}</span>
         </button>
         <button class="pd-action-btn" aria-label="写评论" @click="handleModalCommentClick">
           <MessageCircle class="action-svg" :size="20" :stroke-width="1.8" aria-hidden="true" />
           <span class="pd-action-count">{{ post.comment_count }}</span>
         </button>
-        <button class="pd-action-btn" :class="{ 'is-copy-success': isShareCopied }" aria-label="分享"
-          @click="sharePost">
-          <Check v-if="isShareCopied" class="action-svg" :size="20" :stroke-width="2" aria-hidden="true" />
+        <button
+          class="pd-action-btn"
+          :class="{ 'is-copy-success': isShareCopied }"
+          aria-label="分享"
+          @click="sharePost"
+        >
+          <Check
+            v-if="isShareCopied"
+            class="action-svg"
+            :size="20"
+            :stroke-width="2"
+            aria-hidden="true"
+          />
           <Share2 v-else class="action-svg" :size="20" :stroke-width="1.8" aria-hidden="true" />
           <span class="pd-action-count">{{ isShareCopied ? '已复制' : '分享' }}</span>
         </button>
@@ -2416,14 +2955,33 @@ const handleChangeCommentSortMode = async (mode) => {
 
     <Teleport to="body">
       <Transition name="detail-confirm-fade">
-        <div v-if="confirmState.show" class="detail-confirm-overlay" @click.self="closeConfirm(false)">
-          <div class="detail-confirm-modal" role="dialog" aria-modal="true" :aria-label="confirmState.title">
-            <img v-if="confirmMascotSrc" class="detail-confirm-cat-img" :src="confirmMascotSrc" alt="" draggable="false"
-              loading="lazy" />
+        <div
+          v-if="confirmState.show"
+          class="detail-confirm-overlay"
+          @click.self="closeConfirm(false)"
+        >
+          <div
+            class="detail-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="confirmState.title"
+          >
+            <img
+              v-if="confirmMascotSrc"
+              class="detail-confirm-cat-img"
+              :src="confirmMascotSrc"
+              alt=""
+              draggable="false"
+              loading="lazy"
+            />
             <h3>{{ confirmState.title }}</h3>
             <p>{{ confirmState.message }}</p>
             <div class="detail-confirm-actions">
-              <button type="button" class="detail-confirm-btn secondary" @click="closeConfirm(false)">
+              <button
+                type="button"
+                class="detail-confirm-btn secondary"
+                @click="closeConfirm(false)"
+              >
                 {{ confirmState.cancelText }}
               </button>
               <button type="button" class="detail-confirm-btn danger" @click="closeConfirm(true)">
@@ -2435,35 +2993,67 @@ const handleChangeCommentSortMode = async (mode) => {
       </Transition>
     </Teleport>
 
-    <CommonAlertModal v-model:visible="modalState.show" :type="modalState.type" :title="modalState.title"
-      :message="modalState.message" :mascot-src="modalMascotSrc" mascot-alt="方块小窝提示小猫" />
+    <CommonAlertModal
+      v-model:visible="modalState.show"
+      :type="modalState.type"
+      :title="modalState.title"
+      :message="modalState.message"
+      :mascot-src="modalMascotSrc"
+      mascot-alt="方块小窝提示小猫"
+    />
 
     <!-- 编辑帖子：竖屏全屏毛玻璃 / 横屏居中弹窗，复用发帖 UI -->
     <Teleport to="body">
       <Transition name="edit-composer-fade">
-        <div v-if="isEditingPost" class="post-edit-overlay" :class="{ 'is-portrait': isEditPortrait }"
-          @click.self="cancelEditPost">
+        <div
+          v-if="isEditingPost"
+          class="post-edit-overlay"
+          :class="{ 'is-portrait': isEditPortrait }"
+          @click.self="cancelEditPost"
+        >
           <div class="post-edit-shell" :class="{ 'is-portrait': isEditPortrait }">
             <!-- 竖屏顶栏：移动端布局下 PostComposer 内部 footer 会被 CSS 隐藏，发布按钮由这里承担 -->
             <header v-if="isEditPortrait" class="post-edit-bar">
-              <button type="button" class="post-edit-bar-back" :disabled="isEditSubmitting"
-                @click="cancelEditPost">取消</button>
+              <button
+                type="button"
+                class="post-edit-bar-back"
+                :disabled="isEditSubmitting"
+                @click="cancelEditPost"
+              >
+                取消
+              </button>
               <span class="post-edit-bar-title">编辑帖子</span>
-              <button type="button" class="post-edit-bar-submit" :disabled="isEditSubmitting || isEditUploadingPostImage"
-                @click="submitEditPost">
+              <button
+                type="button"
+                class="post-edit-bar-submit"
+                :disabled="isEditSubmitting || isEditUploadingPostImage"
+                @click="submitEditPost"
+              >
                 {{ isEditSubmitting ? '保存中…' : '保存' }}
               </button>
             </header>
             <div class="post-edit-scroll" :class="{ 'is-portrait': isEditPortrait }">
-              <PostComposer edit-mode :user-info="userInfo" :is-logged-in="isLoggedIn"
-                v-model:new-post="editNewPost" v-model:selected-post-tag="editSelectedPostTag"
-                :post-images="editPostImages" :is-submitting="isEditSubmitting"
-                :is-uploading-post-image="isEditUploadingPostImage" :post-image-upload-status="editImageUploadStatus"
-                :forum-tag-options="FORUM_TAG_OPTIONS" :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
-                :is-home-cat-theme="isHomeCatActive" :is-mobile-composer="isEditPortrait"
-                @submit="submitEditPost" @close="cancelEditPost"
-                @image-selection="handleEditImageSelection" @remove-image="handleEditRemoveImage"
-                @reorder-image="handleEditReorderImage" @clear-images="handleEditClearImages" />
+              <PostComposer
+                edit-mode
+                :user-info="userInfo"
+                :is-logged-in="isLoggedIn"
+                v-model:new-post="editNewPost"
+                v-model:selected-post-tag="editSelectedPostTag"
+                :post-images="editPostImages"
+                :is-submitting="isEditSubmitting"
+                :is-uploading-post-image="isEditUploadingPostImage"
+                :post-image-upload-status="editImageUploadStatus"
+                :forum-tag-options="FORUM_TAG_OPTIONS"
+                :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
+                :is-home-cat-theme="isHomeCatActive"
+                :is-mobile-composer="isEditPortrait"
+                @submit="submitEditPost"
+                @close="cancelEditPost"
+                @image-selection="handleEditImageSelection"
+                @remove-image="handleEditRemoveImage"
+                @reorder-image="handleEditReorderImage"
+                @clear-images="handleEditClearImages"
+              />
             </div>
           </div>
         </div>
@@ -2472,19 +3062,34 @@ const handleChangeCommentSortMode = async (mode) => {
 
     <!-- 举报模态框 -->
     <div v-if="isReportModalOpen" class="modal-overlay" @click.self="closeReportModal">
-      <div class="report-modal glass-panel" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
+      <div
+        class="report-modal glass-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="report-modal-title"
+      >
         <div class="modal-header report-modal-header">
           <div>
             <h3 id="report-modal-title">举报帖子</h3>
-            <p class="report-modal-subtitle">选择最接近的问题类型，管理员会结合帖子内容一起查看。</p>
+            <p class="report-modal-subtitle">
+              选择最接近的问题类型，管理员会结合帖子内容一起查看。
+            </p>
           </div>
-          <button class="close-btn" :disabled="isReportSubmitting" @click="closeReportModal">×</button>
+          <button class="close-btn" :disabled="isReportSubmitting" @click="closeReportModal">
+            ×
+          </button>
         </div>
 
         <div class="report-reason-grid">
-          <button v-for="reason in reportReasons" :key="reason.value" type="button" class="report-reason-option"
-            :class="{ selected: reportForm.reason === reason.value }" :disabled="isReportSubmitting"
-            @click="reportForm.reason = reason.value">
+          <button
+            v-for="reason in reportReasons"
+            :key="reason.value"
+            type="button"
+            class="report-reason-option"
+            :class="{ selected: reportForm.reason === reason.value }"
+            :disabled="isReportSubmitting"
+            @click="reportForm.reason = reason.value"
+          >
             <span class="report-reason-label">{{ reason.label }}</span>
             <span class="report-reason-description">{{ reason.description }}</span>
           </button>
@@ -2492,24 +3097,44 @@ const handleChangeCommentSortMode = async (mode) => {
 
         <label class="report-detail-field">
           <span>补充说明</span>
-          <textarea v-model="reportForm.detail" class="report-detail-textarea" rows="4" maxlength="500"
-            placeholder="可以补充具体问题、相关上下文或希望管理员注意的地方（选填）" :disabled="isReportSubmitting"></textarea>
+          <textarea
+            v-model="reportForm.detail"
+            class="report-detail-textarea"
+            rows="4"
+            maxlength="500"
+            placeholder="可以补充具体问题、相关上下文或希望管理员注意的地方（选填）"
+            :disabled="isReportSubmitting"
+          ></textarea>
           <small>{{ reportForm.detail.length }}/500</small>
         </label>
 
         <div class="modal-footer report-modal-footer">
-          <button class="cancel-btn" :disabled="isReportSubmitting" @click="closeReportModal">取消</button>
-          <button class="submit-btn report-submit-btn" :disabled="isReportSubmitting" @click="submitReportPost">
+          <button class="cancel-btn" :disabled="isReportSubmitting" @click="closeReportModal">
+            取消
+          </button>
+          <button
+            class="submit-btn report-submit-btn"
+            :disabled="isReportSubmitting"
+            @click="submitReportPost"
+          >
             {{ isReportSubmitting ? '提交中...' : '提交举报' }}
           </button>
         </div>
       </div>
     </div>
 
-    <ImageViewer :visible="isDetailImageViewerOpen" :images="detailImages" :current-index="detailImageIndex"
-      :post-title="postTitle" :current-image="currentDetailImage" :image-key="detailImageKey"
-      @close="closeDetailImageViewer" @navigate-prev="showPrevDetailImage" @navigate-next="showNextDetailImage"
-      @go-to-index="goToDetailImage" />
+    <ImageViewer
+      :visible="isDetailImageViewerOpen"
+      :images="detailImages"
+      :current-index="detailImageIndex"
+      :post-title="postTitle"
+      :current-image="currentDetailImage"
+      :image-key="detailImageKey"
+      @close="closeDetailImageViewer"
+      @navigate-prev="showPrevDetailImage"
+      @navigate-next="showNextDetailImage"
+      @go-to-index="goToDetailImage"
+    />
   </div>
 </template>
 
@@ -2632,7 +3257,10 @@ const handleChangeCommentSortMode = async (mode) => {
   font-weight: 800;
   padding: 0 18px;
   cursor: pointer;
-  transition: transform 0.2s, opacity 0.2s, background-color 0.2s;
+  transition:
+    transform 0.2s,
+    opacity 0.2s,
+    background-color 0.2s;
 }
 
 .post-edit-bar-submit:active:not(:disabled) {

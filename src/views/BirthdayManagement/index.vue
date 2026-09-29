@@ -50,7 +50,12 @@
 
           <label class="field">
             <span>首页引语</span>
-            <textarea v-model="form.heroQuote" rows="3" placeholder="输入展示在 Hero 区域的引语" class="input" />
+            <textarea
+              v-model="form.heroQuote"
+              rows="3"
+              placeholder="输入展示在 Hero 区域的引语"
+              class="input"
+            />
           </label>
 
           <label class="field">
@@ -70,9 +75,7 @@
             <button class="primary-btn" @click="saveEvent" :disabled="isSaving">
               {{ isSaving ? '保存中...' : '保存设置' }}
             </button>
-            <button class="ghost-btn" @click="createNewEvent" :disabled="isSaving">
-              新建活动
-            </button>
+            <button class="ghost-btn" @click="createNewEvent" :disabled="isSaving">新建活动</button>
           </div>
         </div>
       </section>
@@ -90,10 +93,17 @@
           </div>
         </div>
 
-        <div v-if="filteredWishes.length === 0" class="empty-state">{{ isLoading ? '加载中...' : '暂无祝福数据' }}</div>
+        <div v-if="filteredWishes.length === 0" class="empty-state">
+          {{ isLoading ? '加载中...' : '暂无祝福数据' }}
+        </div>
 
         <div v-else class="wish-table">
-          <article v-for="wish in filteredWishes" :key="wish.id" class="wish-row" :class="wish.status">
+          <article
+            v-for="wish in filteredWishes"
+            :key="wish.id"
+            class="wish-row"
+            :class="wish.status"
+          >
             <div class="wish-author">
               <div class="wish-avatar">{{ wish.author_name.slice(0, 1).toUpperCase() }}</div>
               <div>
@@ -108,7 +118,11 @@
                 <button class="btn-sm reject" @click="rejectWish(wish.id)">拒绝</button>
               </template>
               <template v-if="wish.status === 'approved'">
-                <button class="btn-sm" :class="{ featured: wish.is_featured }" @click="toggleFeatured(wish.id)">
+                <button
+                  class="btn-sm"
+                  :class="{ featured: wish.is_featured }"
+                  @click="toggleFeatured(wish.id)"
+                >
                   {{ wish.is_featured ? '已精选' : '设为精选' }}
                 </button>
                 <button class="btn-sm reject" @click="rejectWish(wish.id)">撤回</button>
@@ -133,7 +147,12 @@
           </label>
           <label class="field">
             <span>蜡烛区域描述</span>
-            <textarea v-model="pageCopy.candleDesc" rows="2" placeholder="点击蜡烛，许个愿吧" class="input" />
+            <textarea
+              v-model="pageCopy.candleDesc"
+              rows="2"
+              placeholder="点击蜡烛，许个愿吧"
+              class="input"
+            />
           </label>
           <label class="field">
             <span>留言区域标题</span>
@@ -141,7 +160,12 @@
           </label>
           <label class="field">
             <span>留言区域描述</span>
-            <textarea v-model="pageCopy.messagesDesc" rows="2" placeholder="写下你的祝福" class="input" />
+            <textarea
+              v-model="pageCopy.messagesDesc"
+              rows="2"
+              placeholder="写下你的祝福"
+              class="input"
+            />
           </label>
           <label class="field">
             <span>记忆区域标题</span>
@@ -168,100 +192,104 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
-import { supabase } from "@/utils/supabase-client.js";
-import { logger } from "@/utils/logger.js";
-import { useAuthStore } from "@/stores/auth";
+import { computed, onMounted, reactive, ref } from 'vue';
+import { supabase } from '@/utils/supabase-client.js';
+import { logger } from '@/utils/logger.js';
+import { useAuthStore } from '@/stores/auth';
 
 const authStore = useAuthStore();
 
 const tabs = [
-  { key: "event", label: "活动设置" },
-  { key: "wishes", label: "祝福管理" },
-  { key: "copy", label: "文案编辑" }
+  { key: 'event', label: '活动设置' },
+  { key: 'wishes', label: '祝福管理' },
+  { key: 'copy', label: '文案编辑' },
 ];
 
-const activeTab = ref("event");
+const activeTab = ref('event');
 const isLoading = ref(false);
 const isSaving = ref(false);
-const errorMessage = ref("");
-const successMessage = ref("");
+const errorMessage = ref('');
+const successMessage = ref('');
 const eventId = ref(null);
 const wishes = ref([]);
-const wishFilter = ref("all");
+const wishFilter = ref('all');
 
 const form = reactive({
-  targetUserId: "",
-  title: "生日快乐",
-  subtitle: "",
-  heroQuote: "",
-  celebrationDate: "",
-  isActive: false
+  targetUserId: '',
+  title: '生日快乐',
+  subtitle: '',
+  heroQuote: '',
+  celebrationDate: '',
+  isActive: false,
 });
 
 const pageCopy = reactive({
-  candleTitle: "Make A Wish",
-  candleDesc: "点击蜡烛，许个愿吧",
-  messagesTitle: "祝福留言",
-  messagesDesc: "写下你的生日祝福",
-  memoriesTitle: "回忆相册",
-  giftTitle: "生日礼品卡",
-  giftCode: "BOH-2026-BIRTHDAY"
+  candleTitle: 'Make A Wish',
+  candleDesc: '点击蜡烛，许个愿吧',
+  messagesTitle: '祝福留言',
+  messagesDesc: '写下你的生日祝福',
+  memoriesTitle: '回忆相册',
+  giftTitle: '生日礼品卡',
+  giftCode: 'BOH-2026-BIRTHDAY',
 });
 
 const filteredWishes = computed(() => {
-  if (wishFilter.value === "all") return wishes.value;
+  if (wishFilter.value === 'all') return wishes.value;
   return wishes.value.filter((w) => w.status === wishFilter.value);
 });
 
 const formatDate = (iso) => {
-  if (!iso) return "--";
+  if (!iso) return '--';
   try {
-    return new Date(iso).toLocaleString("zh-CN", { hour12: false });
+    return new Date(iso).toLocaleString('zh-CN', { hour12: false });
   } catch {
-    return "--";
+    return '--';
   }
 };
 
 const showSuccess = (msg) => {
   successMessage.value = msg;
-  setTimeout(() => { successMessage.value = ""; }, 3000);
+  setTimeout(() => {
+    successMessage.value = '';
+  }, 3000);
 };
 
 const showError = (msg) => {
   errorMessage.value = msg;
-  setTimeout(() => { errorMessage.value = ""; }, 5000);
+  setTimeout(() => {
+    errorMessage.value = '';
+  }, 5000);
 };
 
 const loadEvent = async () => {
   try {
     const { data, error } = await supabase
-      .from("birthday_events")
-      .select("*")
-      .order("created_at", { ascending: false })
+      .from('birthday_events')
+      .select('*')
+      .order('created_at', { ascending: false })
       .limit(1)
       .single();
-    if (error && error.code !== "PGRST116") throw error;
+    if (error && error.code !== 'PGRST116') throw error;
     if (data) {
       eventId.value = data.id;
-      form.targetUserId = data.target_user_id || "";
-      form.title = data.title || "生日快乐";
-      form.subtitle = data.subtitle || "";
-      form.heroQuote = data.hero_quote || "";
-      form.celebrationDate = data.celebration_date || "";
+      form.targetUserId = data.target_user_id || '';
+      form.title = data.title || '生日快乐';
+      form.subtitle = data.subtitle || '';
+      form.heroQuote = data.hero_quote || '';
+      form.celebrationDate = data.celebration_date || '';
       form.isActive = data.is_active || false;
 
       const copy = data.page_copy || {};
-      pageCopy.candleTitle = copy.candleTitle || "Make A Wish";
-      pageCopy.candleDesc = copy.candleDesc || "点击蜡烛，许个愿吧";
-      pageCopy.messagesTitle = copy.messagesTitle || "祝福留言";
-      pageCopy.messagesDesc = copy.messagesDesc || "写下你的生日祝福";
-      pageCopy.memoriesTitle = copy.memoriesTitle || "回忆相册";
-      pageCopy.giftTitle = copy.giftTitle || "生日礼品卡";
-      pageCopy.giftCode = copy.giftCode || "BOH-2026-BIRTHDAY";
+      pageCopy.candleTitle = copy.candleTitle || 'Make A Wish';
+      pageCopy.candleDesc = copy.candleDesc || '点击蜡烛，许个愿吧';
+      pageCopy.messagesTitle = copy.messagesTitle || '祝福留言';
+      pageCopy.messagesDesc = copy.messagesDesc || '写下你的生日祝福';
+      pageCopy.memoriesTitle = copy.memoriesTitle || '回忆相册';
+      pageCopy.giftTitle = copy.giftTitle || '生日礼品卡';
+      pageCopy.giftCode = copy.giftCode || 'BOH-2026-BIRTHDAY';
     }
   } catch (err) {
-    logger.error("birthday-admin", "加载活动失败", err);
+    logger.error('birthday-admin', '加载活动失败', err);
   }
 };
 
@@ -269,24 +297,24 @@ const loadWishes = async () => {
   if (!eventId.value) return;
   try {
     const { data, error } = await supabase
-      .from("birthday_wishes")
-      .select("*")
-      .eq("event_id", eventId.value)
-      .order("created_at", { ascending: false });
+      .from('birthday_wishes')
+      .select('*')
+      .eq('event_id', eventId.value)
+      .order('created_at', { ascending: false });
     if (error) throw error;
     wishes.value = data || [];
   } catch (err) {
-    logger.error("birthday-admin", "加载祝福失败", err);
+    logger.error('birthday-admin', '加载祝福失败', err);
   }
 };
 
 const loadAll = async () => {
   if (!authStore.isAdmin) {
-    showError("仅管理员可访问");
+    showError('仅管理员可访问');
     return;
   }
   isLoading.value = true;
-  errorMessage.value = "";
+  errorMessage.value = '';
   await loadEvent();
   await loadWishes();
   isLoading.value = false;
@@ -295,7 +323,7 @@ const loadAll = async () => {
 const saveEvent = async () => {
   if (!authStore.isAdmin) return;
   isSaving.value = true;
-  errorMessage.value = "";
+  errorMessage.value = '';
   try {
     const payload = {
       target_user_id: form.targetUserId,
@@ -304,28 +332,28 @@ const saveEvent = async () => {
       hero_quote: form.heroQuote,
       celebration_date: form.celebrationDate,
       is_active: form.isActive,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     };
 
     if (eventId.value) {
       const { error } = await supabase
-        .from("birthday_events")
+        .from('birthday_events')
         .update(payload)
-        .eq("id", eventId.value);
+        .eq('id', eventId.value);
       if (error) throw error;
     } else {
       const { data, error } = await supabase
-        .from("birthday_events")
+        .from('birthday_events')
         .insert({ ...payload, page_copy: {} })
         .select()
         .single();
       if (error) throw error;
       eventId.value = data.id;
     }
-    showSuccess("活动设置已保存");
+    showSuccess('活动设置已保存');
   } catch (err) {
-    showError("保存失败: " + (err.message || "未知错误"));
-    logger.error("birthday-admin", "保存活动失败", err);
+    showError('保存失败: ' + (err.message || '未知错误'));
+    logger.error('birthday-admin', '保存活动失败', err);
   } finally {
     isSaving.value = false;
   }
@@ -333,37 +361,37 @@ const saveEvent = async () => {
 
 const createNewEvent = async () => {
   eventId.value = null;
-  form.targetUserId = "";
-  form.title = "生日快乐";
-  form.subtitle = "";
-  form.heroQuote = "";
-  form.celebrationDate = "";
+  form.targetUserId = '';
+  form.title = '生日快乐';
+  form.subtitle = '';
+  form.heroQuote = '';
+  form.celebrationDate = '';
   form.isActive = false;
   wishes.value = [];
-  showSuccess("已清空，可创建新活动");
+  showSuccess('已清空，可创建新活动');
 };
 
 const approveWish = async (id) => {
-  await updateWishStatus(id, "approved");
+  await updateWishStatus(id, 'approved');
 };
 
 const rejectWish = async (id) => {
-  await updateWishStatus(id, "rejected");
+  await updateWishStatus(id, 'rejected');
 };
 
 const updateWishStatus = async (id, status) => {
   isSaving.value = true;
   try {
     const { error } = await supabase
-      .from("birthday_wishes")
+      .from('birthday_wishes')
       .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", id);
+      .eq('id', id);
     if (error) throw error;
     const wish = wishes.value.find((w) => w.id === id);
     if (wish) wish.status = status;
-    showSuccess("状态已更新");
+    showSuccess('状态已更新');
   } catch (err) {
-    showError("操作失败: " + (err.message || "未知错误"));
+    showError('操作失败: ' + (err.message || '未知错误'));
   } finally {
     isSaving.value = false;
   }
@@ -376,32 +404,29 @@ const toggleFeatured = async (id) => {
     if (!wish) return;
     const newVal = !wish.is_featured;
     const { error } = await supabase
-      .from("birthday_wishes")
+      .from('birthday_wishes')
       .update({ is_featured: newVal })
-      .eq("id", id);
+      .eq('id', id);
     if (error) throw error;
     wish.is_featured = newVal;
-    showSuccess(newVal ? "已设为精选" : "已取消精选");
-  } catch (err) {
-    showError("操作失败");
+    showSuccess(newVal ? '已设为精选' : '已取消精选');
+  } catch {
+    showError('操作失败');
   } finally {
     isSaving.value = false;
   }
 };
 
 const deleteWish = async (id) => {
-  if (!confirm("确定删除这条祝福？")) return;
+  if (!confirm('确定删除这条祝福？')) return;
   isSaving.value = true;
   try {
-    const { error } = await supabase
-      .from("birthday_wishes")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from('birthday_wishes').delete().eq('id', id);
     if (error) throw error;
     wishes.value = wishes.value.filter((w) => w.id !== id);
-    showSuccess("已删除");
-  } catch (err) {
-    showError("删除失败");
+    showSuccess('已删除');
+  } catch {
+    showError('删除失败');
   } finally {
     isSaving.value = false;
   }
@@ -409,22 +434,22 @@ const deleteWish = async (id) => {
 
 const savePageCopy = async () => {
   if (!eventId.value) {
-    showError("请先保存活动设置");
+    showError('请先保存活动设置');
     return;
   }
   isSaving.value = true;
   try {
     const { error } = await supabase
-      .from("birthday_events")
+      .from('birthday_events')
       .update({
         page_copy: { ...pageCopy },
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
-      .eq("id", eventId.value);
+      .eq('id', eventId.value);
     if (error) throw error;
-    showSuccess("文案已保存");
+    showSuccess('文案已保存');
   } catch (err) {
-    showError("保存失败: " + (err.message || "未知错误"));
+    showError('保存失败: ' + (err.message || '未知错误'));
   } finally {
     isSaving.value = false;
   }
@@ -438,7 +463,11 @@ onMounted(loadAll);
   min-height: 100vh;
   background: #f5f5f7;
   color: #1d1d1f;
-  font-family: "SF Pro Text", system-ui, -apple-system, sans-serif;
+  font-family:
+    'SF Pro Text',
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
 .shell {
@@ -482,7 +511,7 @@ onMounted(loadAll);
 .ghost-btn {
   min-height: 38px;
   padding: 0 18px;
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
   background: #fff;
   font-size: 14px;
@@ -526,7 +555,7 @@ onMounted(loadAll);
   margin-bottom: 28px;
   padding: 4px;
   border-radius: 12px;
-  background: rgba(0,0,0,0.04);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .tab-btn {
@@ -545,7 +574,7 @@ onMounted(loadAll);
 .tab-btn.active {
   color: #1d1d1f;
   background: #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 .tab-content {
@@ -556,8 +585,8 @@ onMounted(loadAll);
   background: #fff;
   border-radius: 16px;
   padding: 28px;
-  border: 1px solid rgba(0,0,0,0.06);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
 .form-card h3 {
@@ -598,7 +627,7 @@ onMounted(loadAll);
 .input {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 10px;
   font-size: 14px;
   font-family: inherit;
@@ -647,7 +676,7 @@ textarea.input {
 }
 
 .slider::before {
-  content: "";
+  content: '';
   position: absolute;
   top: 3px;
   left: 3px;
@@ -655,7 +684,7 @@ textarea.input {
   height: 20px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   transition: transform 0.2s ease;
 }
 
@@ -730,7 +759,7 @@ textarea.input {
   padding: 16px 18px;
   border-radius: 14px;
   background: #fff;
-  border: 1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-left: 4px solid transparent;
 }
 
@@ -791,7 +820,7 @@ textarea.input {
 
 .btn-sm {
   padding: 5px 12px;
-  border: 1px solid rgba(0,0,0,0.08);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
   background: #fff;
   font-size: 12px;
@@ -828,13 +857,25 @@ textarea.input {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 640px) {
-  .shell { padding: 24px 16px 60px; }
-  .page-header h1 { font-size: 28px; }
-  .form-card { padding: 20px; }
+  .shell {
+    padding: 24px 16px 60px;
+  }
+  .page-header h1 {
+    font-size: 28px;
+  }
+  .form-card {
+    padding: 20px;
+  }
 }
 </style>

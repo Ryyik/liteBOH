@@ -5,7 +5,6 @@ import { callVaultSiliconChat } from '../api-key-runtime-api.js';
 import {
   toTrimmedText,
   normalizeTags,
-  normalizeMemoryRow,
   normalizeSpaceRow,
   normalizeMemoryCandidateRow,
   normalizeEvidence,
@@ -21,8 +20,6 @@ import {
   hasTreeholeRequiredSections,
   TREEHOLE_CACHE_TAG,
   TREEHOLE_CANDIDATE_CACHE_TAG,
-  TREEHOLE_SHARED_MEMORY_CACHE_TAG,
-  TREEHOLE_MEMORY_FETCH_PAGE_SIZE,
   TREEHOLE_MEMORY_SUMMARY_MAX_CHARS,
   TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES,
   TREEHOLE_AUTO_MEMORY_MIN_CONFIDENCE,
@@ -31,12 +28,21 @@ import {
   TREEHOLE_REQUIRED_SECTIONS,
   isMissingCandidatesTableError,
   isMissingSharedMemoryTableError,
-  clampNumber
+  clampNumber,
 } from '../treehole-helpers.js';
-import { invalidateTreeholeCache, getMyTreeholeMemoriesForAI, createTreeholeMemory } from './cloud-entry-api.js';
-import { invalidateSharedMemoryCache, getSharedAIMemoriesForAI, createSharedAIMemory } from './memory-api.js';
+import {
+  invalidateTreeholeCache,
+  getMyTreeholeMemoriesForAI,
+  createTreeholeMemory,
+} from './cloud-entry-api.js';
+import {
+  invalidateSharedMemoryCache,
+  getSharedAIMemoriesForAI,
+  createSharedAIMemory,
+} from './memory-api.js';
 
-const SILICON_CLOUD_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
+const SILICON_CLOUD_URL =
+  import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 const TREEHOLE_SPACE_COLUMNS = 'user_id, title, description, created_at, updated_at';
 const TREEHOLE_CANDIDATE_COLUMNS = `
   id,
@@ -56,10 +62,12 @@ const TREEHOLE_CANDIDATE_COLUMNS = `
 `;
 
 const invalidateTreeholeCandidateCache = (userId) => {
-  invalidateByTags([
-    TREEHOLE_CANDIDATE_CACHE_TAG,
-    userId ? `${TREEHOLE_CANDIDATE_CACHE_TAG}:user:${userId}` : ''
-  ].filter(Boolean));
+  invalidateByTags(
+    [
+      TREEHOLE_CANDIDATE_CACHE_TAG,
+      userId ? `${TREEHOLE_CANDIDATE_CACHE_TAG}:user:${userId}` : '',
+    ].filter(Boolean),
+  );
 };
 
 const requestTreeholeCompletion = async ({
@@ -68,7 +76,7 @@ const requestTreeholeCompletion = async ({
   temperature = 0.4,
   maxTokens = 900,
   timeoutMs = 28000,
-  signal = null
+  signal = null,
 } = {}) => {
   const safeTimeout = Number.isFinite(timeoutMs)
     ? Math.max(5000, Math.min(120000, Math.trunc(timeoutMs)))
@@ -103,7 +111,9 @@ const requestTreeholeCompletion = async ({
       abortedByTimeout = true;
       fallbackController.abort();
     }, safeTimeout);
-    const onExternalAbort = () => { fallbackController.abort(); };
+    const onExternalAbort = () => {
+      fallbackController.abort();
+    };
     signal.addEventListener('abort', onExternalAbort, { once: true });
     timeoutCleanup = () => {
       clearTimeout(fallbackTimer);
@@ -113,19 +123,19 @@ const requestTreeholeCompletion = async ({
 
   try {
     const payload = {
-        model,
-        stream: false,
-        temperature,
-        max_tokens: maxTokens,
-        messages
-      };
+      model,
+      stream: false,
+      temperature,
+      max_tokens: maxTokens,
+      messages,
+    };
 
     const vaultResult = await callVaultSiliconChat({
       purpose: 'chat',
       payload,
       apiUrl: SILICON_CLOUD_URL,
       timeoutMs: safeTimeout,
-      signal: combinedSignal
+      signal: combinedSignal,
     });
     if (!vaultResult.ok) {
       return {
@@ -133,8 +143,8 @@ const requestTreeholeCompletion = async ({
         data: null,
         error: normalizeDbError({
           message: vaultResult.error?.message || 'AI Key 代理请求失败',
-          code: vaultResult.error?.code || 'AI_PROXY_REQUEST_FAILED'
-        })
+          code: vaultResult.error?.code || 'AI_PROXY_REQUEST_FAILED',
+        }),
       };
     }
     const result = vaultResult.data || {};
@@ -143,7 +153,7 @@ const requestTreeholeCompletion = async ({
       return {
         ok: false,
         data: null,
-        error: normalizeDbError({ message: 'AI 返回内容不可解析', code: 'AI_INVALID_REPLY' })
+        error: normalizeDbError({ message: 'AI 返回内容不可解析', code: 'AI_INVALID_REPLY' }),
       };
     }
 
@@ -152,7 +162,7 @@ const requestTreeholeCompletion = async ({
       return {
         ok: false,
         data: null,
-        error: normalizeDbError({ message: 'AI 未返回有效内容', code: 'AI_EMPTY_REPLY' })
+        error: normalizeDbError({ message: 'AI 未返回有效内容', code: 'AI_EMPTY_REPLY' }),
       };
     }
 
@@ -161,9 +171,9 @@ const requestTreeholeCompletion = async ({
       data: {
         reply,
         model: result?.model || model,
-        usage: result?.usage || null
+        usage: result?.usage || null,
       },
-      error: null
+      error: null,
     };
   } catch (error) {
     const errorName = error?.name || '';
@@ -173,13 +183,13 @@ const requestTreeholeCompletion = async ({
         return {
           ok: false,
           data: null,
-          error: normalizeDbError({ message: 'AI 请求超时，请稍后重试。', code: 'AI_TIMEOUT' })
+          error: normalizeDbError({ message: 'AI 请求超时，请稍后重试。', code: 'AI_TIMEOUT' }),
         };
       }
       return {
         ok: false,
         data: null,
-        error: normalizeDbError({ message: 'AI 请求已取消。', code: 'AI_ABORTED' })
+        error: normalizeDbError({ message: 'AI 请求已取消。', code: 'AI_ABORTED' }),
       };
     }
     return { ok: false, data: null, error: normalizeDbError(error) };
@@ -198,9 +208,9 @@ const buildStrictTreeholeMemoryContext = async (memories = [], { signal = null }
       ok: true,
       data: {
         context: '当前没有可用记忆。',
-        coverage: { memoryCount: 0, chunkCount: 0, mode: 'empty' }
+        coverage: { memoryCount: 0, chunkCount: 0, mode: 'empty' },
       },
-      error: null
+      error: null,
     };
   }
 
@@ -209,9 +219,9 @@ const buildStrictTreeholeMemoryContext = async (memories = [], { signal = null }
       ok: true,
       data: {
         context: chunks[0].text,
-        coverage: { memoryCount, chunkCount: 1, mode: 'full-context' }
+        coverage: { memoryCount, chunkCount: 1, mode: 'full-context' },
       },
-      error: null
+      error: null,
     };
   }
 
@@ -226,13 +236,14 @@ const buildStrictTreeholeMemoryContext = async (memories = [], { signal = null }
       messages: [
         {
           role: 'system',
-          content: '你是 BOH 树洞记忆阅读器。你必须严格逐条阅读输入中的每一条记忆片段，禁止编造不存在的信息。所有结论都必须附带记忆编号，引用格式固定为 [记忆#数字] 或 [记忆#数字,记忆#数字]。'
+          content:
+            '你是 BOH 树洞记忆阅读器。你必须严格逐条阅读输入中的每一条记忆片段，禁止编造不存在的信息。所有结论都必须附带记忆编号，引用格式固定为 [记忆#数字] 或 [记忆#数字,记忆#数字]。',
         },
         {
           role: 'user',
-          content: `这是第 ${i + 1}/${chunks.length} 组记忆片段，共覆盖约 ${chunk.memoryCount} 条记忆。请严格按以下模板输出（不要省略标题）：\n\n已阅读完成：第 ${i + 1} 组\n本组事实要点：\n- [记忆#x] ...\n本组情绪与高频主题：\n- [记忆#x] ...\n本组时间线线索：\n- [记忆#x] 先/后 ...\n潜在冲突或待澄清点：\n- [记忆#x] ...\n\n要求：\n1) 每条要点至少带一个 [记忆#] 引用。\n2) 若某一节没有明确信息，请写"暂无明确信息"，不要编造。\n3) 只基于本组片段，不要引用组外内容。\n\n记忆片段如下：\n\n${chunk.text}`
-        }
-      ]
+          content: `这是第 ${i + 1}/${chunks.length} 组记忆片段，共覆盖约 ${chunk.memoryCount} 条记忆。请严格按以下模板输出（不要省略标题）：\n\n已阅读完成：第 ${i + 1} 组\n本组事实要点：\n- [记忆#x] ...\n本组情绪与高频主题：\n- [记忆#x] ...\n本组时间线线索：\n- [记忆#x] 先/后 ...\n潜在冲突或待澄清点：\n- [记忆#x] ...\n\n要求：\n1) 每条要点至少带一个 [记忆#] 引用。\n2) 若某一节没有明确信息，请写"暂无明确信息"，不要编造。\n3) 只基于本组片段，不要引用组外内容。\n\n记忆片段如下：\n\n${chunk.text}`,
+        },
+      ],
     });
 
     if (!summaryResult.ok) {
@@ -246,16 +257,20 @@ const buildStrictTreeholeMemoryContext = async (memories = [], { signal = null }
     ok: true,
     data: {
       context: `以下内容为系统按顺序逐组阅读"全部树洞记忆片段"后的摘要。每条摘要都应包含记忆编号引用，你必须仅基于这些依据作答：\n\n${chunkSummaries.join('\n\n')}`,
-      coverage: { memoryCount, chunkCount: chunks.length, mode: 'chunk-summary' }
+      coverage: { memoryCount, chunkCount: chunks.length, mode: 'chunk-summary' },
     },
-    error: null
+    error: null,
   };
 };
 
 const ensureTreeholeSpaceEnabledForUser = async (userId) => {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const existing = await getMyTreeholeSpace(safeUserId);
@@ -266,7 +281,10 @@ const ensureTreeholeSpaceEnabledForUser = async (userId) => {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '你尚未开启树洞，请先前往个人中心创建树洞。', code: 'TREEHOLE_SPACE_REQUIRED' })
+      error: normalizeDbError({
+        message: '你尚未开启树洞，请先前往个人中心创建树洞。',
+        code: 'TREEHOLE_SPACE_REQUIRED',
+      }),
     };
   }
 
@@ -276,7 +294,11 @@ const ensureTreeholeSpaceEnabledForUser = async (userId) => {
 const loadRecentCandidateContentsForDedup = async (userId, { limit = 120 } = {}) => {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: [], error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: [],
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const safeLimit = Number.isFinite(limit) ? Math.min(200, Math.max(1, Math.trunc(limit))) : 120;
@@ -300,10 +322,18 @@ const insertTreeholeMemoryCandidate = async (userId, payload = {}) => {
   const safeUserId = toTrimmedText(userId, 64);
   const content = toTrimmedText(payload.content, 1200);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
   if (!content) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '候选内容不能为空', code: 'EMPTY_CANDIDATE' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '候选内容不能为空', code: 'EMPTY_CANDIDATE' }),
+    };
   }
 
   const row = {
@@ -317,7 +347,7 @@ const insertTreeholeMemoryCandidate = async (userId, payload = {}) => {
     session_id: toTrimmedText(payload.sessionId, 120),
     reason: toTrimmedText(payload.reason, 240),
     model: toTrimmedText(payload.model, 120),
-    memory_id: toTrimmedText(payload.memoryId, 64) || null
+    memory_id: toTrimmedText(payload.memoryId, 64) || null,
   };
 
   const { data, error } = await supabase
@@ -337,7 +367,11 @@ const insertTreeholeMemoryCandidate = async (userId, payload = {}) => {
 export async function getMyTreeholeSpace(userId) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const result = await executeRead(
@@ -351,7 +385,12 @@ export async function getMyTreeholeSpace(userId) {
         .maybeSingle();
       return { data: normalizeSpaceRow(data), error };
     },
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`], timeoutMs: 8000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
+      tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
   );
 
   return result;
@@ -360,7 +399,11 @@ export async function getMyTreeholeSpace(userId) {
 export async function createMyTreeholeSpace(userId, { title = '', description = '' } = {}) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const safeTitle = toTrimmedText(title, 60) || '我的 BOH 树洞';
@@ -368,11 +411,13 @@ export async function createMyTreeholeSpace(userId, { title = '', description = 
 
   const { data, error } = await supabase
     .from('boh_treehole_spaces')
-    .insert([{
-      user_id: safeUserId,
-      title: safeTitle,
-      description: safeDescription
-    }])
+    .insert([
+      {
+        user_id: safeUserId,
+        title: safeTitle,
+        description: safeDescription,
+      },
+    ])
     .select()
     .maybeSingle();
 
@@ -393,7 +438,11 @@ export async function createMyTreeholeSpace(userId, { title = '', description = 
 export async function updateMyTreeholeSpace(userId, { title, description } = {}) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const updates = {};
@@ -418,7 +467,10 @@ export async function updateMyTreeholeSpace(userId, { title, description } = {})
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '树洞空间不存在或无权限', code: 'TREEHOLE_SPACE_NOT_FOUND' })
+      error: normalizeDbError({
+        message: '树洞空间不存在或无权限',
+        code: 'TREEHOLE_SPACE_NOT_FOUND',
+      }),
     };
   }
 
@@ -429,7 +481,11 @@ export async function updateMyTreeholeSpace(userId, { title, description } = {})
 export async function deleteMyTreeholeSpace(userId) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const { error, count } = await supabase
@@ -444,7 +500,10 @@ export async function deleteMyTreeholeSpace(userId) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '树洞空间不存在或无权限', code: 'TREEHOLE_SPACE_NOT_FOUND' })
+      error: normalizeDbError({
+        message: '树洞空间不存在或无权限',
+        code: 'TREEHOLE_SPACE_NOT_FOUND',
+      }),
     };
   }
 
@@ -455,7 +514,7 @@ export async function deleteMyTreeholeSpace(userId) {
 export async function extractMemoryCandidatesFromDialogue({
   messages = [],
   maxCandidates = TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES,
-  model = ''
+  model = '',
 } = {}) {
   const context = buildDialogueContextForMemoryCapture(messages);
   if (context.userTurns.length === 0 || !context.turnText) {
@@ -464,9 +523,9 @@ export async function extractMemoryCandidatesFromDialogue({
       data: {
         candidates: [],
         turnCount: context.turns.length,
-        userTurnCount: context.userTurns.length
+        userTurnCount: context.userTurns.length,
       },
-      error: null
+      error: null,
     };
   }
 
@@ -531,9 +590,9 @@ export async function extractMemoryCandidatesFromDialogue({
       { role: 'system', content: instruction },
       {
         role: 'user',
-        content: `以下是最近对话（含用户与助手），请仅基于用户消息抽取记忆候选：\n\n${context.turnText}`
-      }
-    ]
+        content: `以下是最近对话（含用户与助手），请仅基于用户消息抽取记忆候选：\n\n${context.turnText}`,
+      },
+    ],
   });
 
   if (!result.ok) {
@@ -543,7 +602,9 @@ export async function extractMemoryCandidatesFromDialogue({
   const parsed = parseJsonDataFromText(result.data?.reply);
   const rawCandidates = Array.isArray(parsed?.candidates)
     ? parsed.candidates
-    : (Array.isArray(parsed) ? parsed : []);
+    : Array.isArray(parsed)
+      ? parsed
+      : [];
 
   const candidates = rawCandidates
     .slice(0, safeMaxCandidates)
@@ -556,9 +617,9 @@ export async function extractMemoryCandidatesFromDialogue({
       candidates,
       turnCount: context.turns.length,
       userTurnCount: context.userTurns.length,
-      model: result.data?.model || model
+      model: result.data?.model || model,
     },
-    error: null
+    error: null,
   };
 }
 
@@ -570,11 +631,15 @@ export async function captureTreeholeMemoriesFromDialogue({
   minConfidence = TREEHOLE_AUTO_MEMORY_MIN_CONFIDENCE,
   autoSaveConfidence = TREEHOLE_AUTO_MEMORY_AUTOSAVE_CONFIDENCE,
   writeToTreehole = false,
-  writeToShared = true
+  writeToShared = true,
 } = {}) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const safeMessages = Array.isArray(messages) ? messages : [];
@@ -589,9 +654,9 @@ export async function captureTreeholeMemoriesFromDialogue({
         pendingCount: 0,
         rejectedCount: 0,
         duplicateCount: 0,
-        items: []
+        items: [],
       },
-      error: null
+      error: null,
     };
   }
 
@@ -606,9 +671,9 @@ export async function captureTreeholeMemoriesFromDialogue({
         pendingCount: 0,
         rejectedCount: 0,
         duplicateCount: 0,
-        items: []
+        items: [],
       },
-      error: null
+      error: null,
     };
   }
 
@@ -621,7 +686,7 @@ export async function captureTreeholeMemoriesFromDialogue({
 
   const extractionResult = await extractMemoryCandidatesFromDialogue({
     messages: safeMessages,
-    maxCandidates
+    maxCandidates,
   });
   if (!extractionResult.ok) {
     return extractionResult;
@@ -643,9 +708,9 @@ export async function captureTreeholeMemoriesFromDialogue({
         rejectedCount: 0,
         duplicateCount: 0,
         items: [],
-        model: extractionResult.data?.model || ''
+        model: extractionResult.data?.model || '',
       },
-      error: null
+      error: null,
     };
   }
 
@@ -683,13 +748,16 @@ export async function captureTreeholeMemoriesFromDialogue({
   } else if (isMissingCandidatesTableError(existingCandidateResult.error)) {
     candidateTableAvailable = false;
   } else {
-    console.warn('读取候选记忆失败，将降级为仅基于正式记忆去重:', existingCandidateResult.error?.message || existingCandidateResult.error);
+    console.warn(
+      '读取候选记忆失败，将降级为仅基于正式记忆去重:',
+      existingCandidateResult.error?.message || existingCandidateResult.error,
+    );
   }
 
   const existingContents = [
     ...existingTreeholeContents,
     ...existingSharedContents,
-    ...candidateRows.map((item) => item.content)
+    ...candidateRows.map((item) => item.content),
   ];
 
   const stats = {
@@ -701,7 +769,7 @@ export async function captureTreeholeMemoriesFromDialogue({
     rejectedCount: 0,
     duplicateCount: 0,
     items: [],
-    model: extractionResult.data?.model || ''
+    model: extractionResult.data?.model || '',
   };
 
   const safeSessionId = toTrimmedText(sessionId, 120);
@@ -710,7 +778,7 @@ export async function captureTreeholeMemoriesFromDialogue({
     autoSaveConfidence,
     0,
     1,
-    TREEHOLE_AUTO_MEMORY_AUTOSAVE_CONFIDENCE
+    TREEHOLE_AUTO_MEMORY_AUTOSAVE_CONFIDENCE,
   );
   const saveCandidateToTreehole = async (candidate) => {
     return createTreeholeMemory(safeUserId, {
@@ -719,10 +787,10 @@ export async function captureTreeholeMemoriesFromDialogue({
       tags: normalizeTags([
         ...(candidate.tags || []),
         'AI提取',
-        writeToShared ? '公共记忆同步' : '私密树洞'
+        writeToShared ? '公共记忆同步' : '私密树洞',
       ]).slice(0, 10),
       source: 'ai',
-      isStarred: false
+      isStarred: false,
     });
   };
   const saveCandidateToShared = async (candidate) => {
@@ -733,7 +801,7 @@ export async function captureTreeholeMemoriesFromDialogue({
       confidence: candidate.confidence,
       evidence: candidate.evidence,
       source: 'capture',
-      status: 'active'
+      status: 'active',
     });
   };
 
@@ -743,7 +811,7 @@ export async function captureTreeholeMemoriesFromDialogue({
       stats.items.push({
         content: candidate.content,
         status: 'duplicate',
-        confidence: candidate.confidence
+        confidence: candidate.confidence,
       });
       continue;
     }
@@ -763,10 +831,7 @@ export async function captureTreeholeMemoriesFromDialogue({
         stats.sharedSavedCount += 1;
       } else if (isMissingSharedMemoryTableError(sharedSaveResult.error)) {
         sharedTableAvailable = false;
-        reason = toTrimmedText(
-          `${reason ? `${reason}；` : ''}公共记忆库未初始化`,
-          200
-        );
+        reason = toTrimmedText(`${reason ? `${reason}；` : ''}公共记忆库未初始化`, 200);
         if (candidateTableAvailable) {
           status = 'pending';
           stats.pendingCount += 1;
@@ -778,30 +843,27 @@ export async function captureTreeholeMemoriesFromDialogue({
         status = 'pending';
         reason = toTrimmedText(
           `${reason ? `${reason}；` : ''}公共记忆写入失败：${sharedSaveResult.error?.message || '未知错误'}`,
-          200
+          200,
         );
         stats.pendingCount += 1;
       } else {
         status = 'rejected';
         reason = toTrimmedText(
           `${reason ? `${reason}；` : ''}公共记忆写入失败且无法进入待确认`,
-          200
+          200,
         );
         stats.rejectedCount += 1;
       }
     } else if (shouldAttemptSharedSave && !sharedTableAvailable) {
       if (candidateTableAvailable) {
         status = 'pending';
-        reason = toTrimmedText(
-          `${reason ? `${reason}；` : ''}公共记忆库未初始化`,
-          200
-        );
+        reason = toTrimmedText(`${reason ? `${reason}；` : ''}公共记忆库未初始化`, 200);
         stats.pendingCount += 1;
       } else {
         status = 'rejected';
         reason = toTrimmedText(
           `${reason ? `${reason}；` : ''}公共记忆库未初始化且无候选缓冲表`,
-          200
+          200,
         );
         stats.rejectedCount += 1;
       }
@@ -813,7 +875,8 @@ export async function captureTreeholeMemoriesFromDialogue({
       stats.rejectedCount += 1;
     }
 
-    const shouldSyncToTreehole = writeToTreehole && status !== 'rejected' && candidate.confidence >= safeAutoSaveConfidence;
+    const shouldSyncToTreehole =
+      writeToTreehole && status !== 'rejected' && candidate.confidence >= safeAutoSaveConfidence;
     if (shouldSyncToTreehole) {
       const treeholeSaveResult = await saveCandidateToTreehole(candidate);
       if (treeholeSaveResult.ok) {
@@ -822,7 +885,7 @@ export async function captureTreeholeMemoriesFromDialogue({
       } else {
         reason = toTrimmedText(
           `${reason ? `${reason}；` : ''}同步树洞失败：${treeholeSaveResult.error?.message || '未知错误'}`,
-          200
+          200,
         );
       }
     }
@@ -839,7 +902,7 @@ export async function captureTreeholeMemoriesFromDialogue({
         sessionId: safeSessionId,
         reason,
         memoryId,
-        model: stats.model
+        model: stats.model,
       });
 
       if (insertResult.ok) {
@@ -861,7 +924,7 @@ export async function captureTreeholeMemoriesFromDialogue({
       confidence: candidate.confidence,
       status,
       memoryId,
-      sharedMemoryId
+      sharedMemoryId,
     });
   }
 
@@ -876,10 +939,7 @@ export async function captureTreeholeMemoriesFromDialogue({
   return { ok: true, data: stats, error: null };
 }
 
-export async function extractTreeholeMemoryHighlights({
-  content = '',
-  mood = ''
-} = {}) {
+export async function extractTreeholeMemoryHighlights({ content = '', mood = '' } = {}) {
   const rawContent = toTrimmedText(content, 12000);
   const moodHint = toTrimmedText(mood, 24);
 
@@ -887,7 +947,7 @@ export async function extractTreeholeMemoryHighlights({
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '记忆内容不能为空', code: 'EMPTY_MEMORY' })
+      error: normalizeDbError({ message: '记忆内容不能为空', code: 'EMPTY_MEMORY' }),
     };
   }
 
@@ -928,9 +988,9 @@ export async function extractTreeholeMemoryHighlights({
       { role: 'system', content: instruction },
       {
         role: 'user',
-        content: `用户原始记忆：\n${rawContent}\n\n用户手动心情（可为空）：${moodHint || '未提供'}`
-      }
-    ]
+        content: `用户原始记忆：\n${rawContent}\n\n用户手动心情（可为空）：${moodHint || '未提供'}`,
+      },
+    ],
   });
 
   if (!result.ok) {
@@ -938,7 +998,9 @@ export async function extractTreeholeMemoryHighlights({
   }
 
   const parsed = parseJsonObjectFromText(result.data?.reply);
-  const summary = toTrimmedText(parsed?.summary, TREEHOLE_MEMORY_SUMMARY_MAX_CHARS) || toTrimmedText(rawContent, TREEHOLE_MEMORY_SUMMARY_MAX_CHARS);
+  const summary =
+    toTrimmedText(parsed?.summary, TREEHOLE_MEMORY_SUMMARY_MAX_CHARS) ||
+    toTrimmedText(rawContent, TREEHOLE_MEMORY_SUMMARY_MAX_CHARS);
   const normalizedMood = toTrimmedText(parsed?.mood, 24);
   const tags = normalizeTags(Array.isArray(parsed?.tags) ? parsed.tags : []).slice(0, 6);
 
@@ -948,9 +1010,9 @@ export async function extractTreeholeMemoryHighlights({
       summary,
       mood: normalizedMood,
       tags,
-      model: result.data?.model || ''
+      model: result.data?.model || '',
     },
-    error: null
+    error: null,
   };
 }
 
@@ -958,11 +1020,15 @@ export async function askTreeholeQwen({
   question = '',
   memories = [],
   history = [],
-  signal = null
+  signal = null,
 } = {}) {
   const safeQuestion = toTrimmedText(question, 1000);
   if (!safeQuestion) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请输入问题', code: 'EMPTY_QUESTION' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请输入问题', code: 'EMPTY_QUESTION' }),
+    };
   }
 
   const strictContextResult = await buildStrictTreeholeMemoryContext(memories, { signal });
@@ -972,10 +1038,15 @@ export async function askTreeholeQwen({
 
   const memoryContext = strictContextResult.data.context;
   const historyMessages = normalizeHistoryMessages(history);
-  const coverage = strictContextResult.data.coverage || { memoryCount: 0, chunkCount: 0, mode: 'empty' };
-  const memoryReadHint = coverage.mode === 'chunk-summary'
-    ? `系统已分 ${coverage.chunkCount} 组逐组阅读，共覆盖 ${coverage.memoryCount} 条记忆。`
-    : `系统已直接阅读全部上下文，共覆盖 ${coverage.memoryCount} 条记忆。`;
+  const coverage = strictContextResult.data.coverage || {
+    memoryCount: 0,
+    chunkCount: 0,
+    mode: 'empty',
+  };
+  const memoryReadHint =
+    coverage.mode === 'chunk-summary'
+      ? `系统已分 ${coverage.chunkCount} 组逐组阅读，共覆盖 ${coverage.memoryCount} 条记忆。`
+      : `系统已直接阅读全部上下文，共覆盖 ${coverage.memoryCount} 条记忆。`;
 
   const messages = [
     {
@@ -1006,17 +1077,17 @@ export async function askTreeholeQwen({
 【不确定项】
 
 "依据"段必须使用项目符号，每条都带 [记忆#] 引用。
-</output_format>`
+</output_format>`,
     },
     {
       role: 'system',
-      content: `以下是用户记忆上下文（严格阅读模式）：\n${memoryReadHint}\n\n${memoryContext}\n\n请仅使用以上记忆上下文作为事实来源。`
+      content: `以下是用户记忆上下文（严格阅读模式）：\n${memoryReadHint}\n\n${memoryContext}\n\n请仅使用以上记忆上下文作为事实来源。`,
     },
     ...historyMessages,
     {
       role: 'user',
-      content: safeQuestion
-    }
+      content: safeQuestion,
+    },
   ];
 
   const result = await requestTreeholeCompletion({
@@ -1024,7 +1095,7 @@ export async function askTreeholeQwen({
     model: '',
     temperature: 0.4,
     maxTokens: 1100,
-    signal
+    signal,
   });
 
   if (!result.ok) {
@@ -1039,8 +1110,7 @@ export async function askTreeholeQwen({
   const firstCitationCount = extractMemoryCitationTokens(finalReply).length;
   const firstSectionComplete = hasTreeholeRequiredSections(finalReply);
   const shouldRepair =
-    coverage.memoryCount > 0 &&
-    (firstCitationCount === 0 || !firstSectionComplete);
+    coverage.memoryCount > 0 && (firstCitationCount === 0 || !firstSectionComplete);
 
   if (shouldRepair) {
     const repairResult = await requestTreeholeCompletion({
@@ -1053,13 +1123,13 @@ export async function askTreeholeQwen({
 1) 必须保留四段标题：${TREEHOLE_REQUIRED_SECTIONS.join(' / ')}。
 2) "依据（记忆编号）"段每一条都要带 [记忆#数字] 引用。
 3) 不得新增记忆中不存在的事实；若证据不足，请在【不确定项】写明"未在记忆中找到明确依据"。
-4) 只输出重写后的最终答案，不要解释规则。`
-        }
+4) 只输出重写后的最终答案，不要解释规则。`,
+        },
       ],
       model: '',
       temperature: 0.2,
       maxTokens: 1200,
-      signal
+      signal,
     });
 
     if (repairResult.ok) {
@@ -1083,9 +1153,9 @@ export async function askTreeholeQwen({
       validation: {
         repaired,
         citationCount: finalCitationCount,
-        sectionComplete: finalSectionComplete
-      }
+        sectionComplete: finalSectionComplete,
+      },
     },
-    error: null
+    error: null,
   };
 }

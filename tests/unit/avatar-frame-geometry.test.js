@@ -12,7 +12,7 @@ import {
   suggestScale,
   reviewFrame,
   hasRealAlpha,
-  resolveWhiteBackground
+  resolveWhiteBackground,
 } from '../../src/views/AvatarConsole/frame-geometry.js';
 
 /**
@@ -28,7 +28,10 @@ function makeImageData(w, h, painter) {
     for (let x = 0; x < w; x++) {
       const [r, g, b, a] = painter(x, y);
       const p = (y * w + x) * 4;
-      data[p] = r; data[p + 1] = g; data[p + 2] = b; data[p + 3] = a;
+      data[p] = r;
+      data[p + 1] = g;
+      data[p + 2] = b;
+      data[p + 3] = a;
     }
   }
   return { data, width: w, height: h };
@@ -110,7 +113,15 @@ describe('layerTransform · 素材层变换（测不出内孔也必须看得见�
   it('孔心偏移落到 left/top 上（拖动摆位真的会动，offset 是画布像素不带 k）', () => {
     const hole = { hx: 1024, hy: 1024, r: 353 };
     const base = layerTransform({ hole, imgW: 2048, imgH: 2048, zoom: 1, stage: STAGE });
-    const moved = layerTransform({ hole, imgW: 2048, imgH: 2048, zoom: 1, offsetX: 100, offsetY: -60, stage: STAGE });
+    const moved = layerTransform({
+      hole,
+      imgW: 2048,
+      imgH: 2048,
+      zoom: 1,
+      offsetX: 100,
+      offsetY: -60,
+      stage: STAGE,
+    });
     expect(moved.left).toBeCloseTo(base.left - 100 * toStage, 6);
     expect(moved.top).toBeCloseTo(base.top + 60 * toStage, 6);
   });
@@ -118,11 +129,19 @@ describe('layerTransform · 素材层变换（测不出内孔也必须看得见�
 
 describe('anchorPoint · 预览与烘焙共用的对齐锚点', () => {
   it('有内孔时锚点 = 孔心', () => {
-    expect(anchorPoint({ hx: 1024, hy: 980, r: 353 }, 2048, 2048)).toEqual({ x: 1024, y: 980, hasHole: true });
+    expect(anchorPoint({ hx: 1024, hy: 980, r: 353 }, 2048, 2048)).toEqual({
+      x: 1024,
+      y: 980,
+      hasHole: true,
+    });
   });
 
   it('测不出内孔（r=0 / 缺失）时回退图片自身中心', () => {
-    expect(anchorPoint({ hx: 0, hy: 0, r: 0 }, 1400, 1400)).toEqual({ x: 700, y: 700, hasHole: false });
+    expect(anchorPoint({ hx: 0, hy: 0, r: 0 }, 1400, 1400)).toEqual({
+      x: 700,
+      y: 700,
+      hasHole: false,
+    });
     expect(anchorPoint(undefined, 1600, 800)).toEqual({ x: 800, y: 400, hasHole: false });
   });
 
@@ -132,7 +151,8 @@ describe('anchorPoint · 预览与烘焙共用的对齐锚点', () => {
   });
 });
 
-describe('sizeState / sizeStates · 每档各有自己的容器', () => {  const byPx = (states, px) => states.find((s) => s.px === px);
+describe('sizeState / sizeStates · 每档各有自己的容器', () => {
+  const byPx = (states, px) => states.find((s) => s.px === px);
 
   it('scale 2.90 时最紧档是 52px 卡片并判溢出', () => {
     const { worst } = sizeStates(2.9);
@@ -146,7 +166,7 @@ describe('sizeState / sizeStates · 每档各有自己的容器', () => {  const
     const s96 = byPx(all, 96);
     expect(s96.container).toBe(260);
     expect(s96.frameLayerPx).toBeCloseTo(278.4, 1);
-    expect(s96.cls).toBe('bad');   // 278.4 > 260 确实超 hero 容器
+    expect(s96.cls).toBe('bad'); // 278.4 > 260 确实超 hero 容器
   });
 
   it('scale 2.038（一键适配目标）四档全部装得下', () => {
@@ -156,13 +176,21 @@ describe('sizeState / sizeStates · 每档各有自己的容器', () => {  const
   });
 
   it('余量落在 WARN_MARGIN 内转黄条', () => {
-    const scale = (116 - 3) / 52;   // 52px 档只剩 3px 余量
-    const s = sizeState(SIZE_PRESETS.find((p) => p.px === 52), scale);
+    const scale = (116 - 3) / 52; // 52px 档只剩 3px 余量
+    const s = sizeState(
+      SIZE_PRESETS.find((p) => p.px === 52),
+      scale,
+    );
     expect(s.cls).toBe('warn');
   });
 
   it('内置档位表与既有 UI 场景一致（36/42/52 卡片、96 hero）', () => {
-    expect(SIZE_PRESETS.map((p) => [p.px, p.container])).toEqual([[36, 116], [42, 116], [52, 116], [96, 260]]);
+    expect(SIZE_PRESETS.map((p) => [p.px, p.container])).toEqual([
+      [36, 116],
+      [42, 116],
+      [52, 116],
+      [96, 260],
+    ]);
   });
 });
 
@@ -229,12 +257,14 @@ describe('hasRealAlpha · 按像素事实判定，不看扩展名', () => {
   });
 
   it('存在成片透明区判为有透明层', () => {
-    const img = makeImageData(20, 20, (x, y) => (x < 10 ? [255, 0, 0, 255] : [0, 0, 0, 0]));
+    const img = makeImageData(20, 20, (x, _y) => (x < 10 ? [255, 0, 0, 255] : [0, 0, 0, 0]));
     expect(hasRealAlpha(img)).toBe(true);
   });
 
   it('只有零星几个半透明像素不足以判为有透明层（<2% 阈值）', () => {
-    const img = makeImageData(100, 100, (x, y) => (x === 0 && y === 0 ? [0, 0, 0, 200] : [255, 255, 255, 255]));
+    const img = makeImageData(100, 100, (x, y) =>
+      x === 0 && y === 0 ? [0, 0, 0, 200] : [255, 255, 255, 255],
+    );
     expect(hasRealAlpha(img)).toBe(false);
   });
 });
@@ -244,11 +274,11 @@ describe('resolveWhiteBackground · 只清「连通到外部或孔心」的白',
   const W = 12;
   const img = makeImageData(W, W, (x, y) => {
     const inBlock = x >= 1 && x <= 10 && y >= 1 && y <= 10;
-    if (!inBlock) return [255, 255, 255, 255];              // 外部白底
+    if (!inBlock) return [255, 255, 255, 255]; // 外部白底
     const inHole = x >= 4 && x <= 7 && y >= 4 && y <= 7;
-    if (inHole) return [255, 255, 255, 255];                 // 孔洞白（连通画布中心）
-    if (x === 2 && y === 2) return [255, 255, 255, 255];     // 主体内部孤立白点（高光）
-    return [180, 90, 40, 255];                               // 主体
+    if (inHole) return [255, 255, 255, 255]; // 孔洞白（连通画布中心）
+    if (x === 2 && y === 2) return [255, 255, 255, 255]; // 主体内部孤立白点（高光）
+    return [180, 90, 40, 255]; // 主体
   });
 
   const { data, width } = resolveWhiteBackground(img, 244);

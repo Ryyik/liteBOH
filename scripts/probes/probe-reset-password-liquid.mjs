@@ -15,7 +15,9 @@ for (const theme of ['light', 'dark']) {
   // 测暗色必须 addInitScript 设 boh-theme（css 懒加载，themeManager 启动时读 localStorage）
   if (theme === 'dark') {
     await ctx.addInitScript(() => {
-      try { localStorage.setItem('boh-theme', 'dark'); } catch (e) {}
+      try {
+        localStorage.setItem('boh-theme', 'dark');
+      } catch {}
     });
   }
   const page = await ctx.newPage();

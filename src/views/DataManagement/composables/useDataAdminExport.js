@@ -2,7 +2,6 @@ import { ref } from 'vue';
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
 import { dataConfig, tabs } from '../config.js';
-import { TAB_SELECT_COLUMNS } from '../query-config.js';
 import { downloadBlob } from './useDataAdminHelpers.js';
 
 export const createExportCenter = ({
@@ -13,7 +12,7 @@ export const createExportCenter = ({
   showToast,
   assertAdminAction,
   buildActionErrorMessage,
-  addChangeLogEntry
+  addChangeLogEntry,
 }) => {
   const isExportingBackup = ref(false);
   const isBackupExporting = ref(false);
@@ -27,15 +26,19 @@ export const createExportCenter = ({
     const columns = visibleCurrentColumnsRef.value;
 
     const csvContent = [
-      columns.map(col => col.label).join(','),
-      ...data.map(item => columns.map(col => {
-        let val = item[col.key];
-        if (typeof val === 'object') val = JSON.stringify(val);
-        let cellValue = String(val ?? '');
-        // CSV 注入防护: 以 = + - @ 开头的值前缀单引号
-        if (/^[=+\-@]/.test(cellValue)) cellValue = "'" + cellValue;
-        return `"${cellValue.replace(/"/g, '""')}"`;
-      }).join(','))
+      columns.map((col) => col.label).join(','),
+      ...data.map((item) =>
+        columns
+          .map((col) => {
+            let val = item[col.key];
+            if (typeof val === 'object') val = JSON.stringify(val);
+            let cellValue = String(val ?? '');
+            // CSV 注入防护: 以 = + - @ 开头的值前缀单引号
+            if (/^[=+\-@]/.test(cellValue)) cellValue = "'" + cellValue;
+            return `"${cellValue.replace(/"/g, '""')}"`;
+          })
+          .join(','),
+      ),
     ].join('\n');
 
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -53,7 +56,7 @@ export const createExportCenter = ({
         table,
         sourceTabId: tab.id,
         sourceLabel: tab.label || tab.id,
-        module: tab.module || 'data'
+        module: tab.module || 'data',
       });
     });
     return Array.from(targets.values());
@@ -87,7 +90,7 @@ export const createExportCenter = ({
       ...target,
       total: total ?? rows.length,
       exported: rows.length,
-      rows
+      rows,
     };
   };
 
@@ -129,7 +132,7 @@ export const createExportCenter = ({
           groupId: result.groupId,
           groupLabel: result.groupLabel,
           total: result.total,
-          exported: result.exported
+          exported: result.exported,
         });
         done++;
       }
@@ -142,13 +145,15 @@ export const createExportCenter = ({
           id: userInfoRef.value?.id || '',
           username: userInfoRef.value?.username || '',
           email: userInfoRef.value?.email || '',
-          role: userInfoRef.value?.role || ''
+          role: userInfoRef.value?.role || '',
         },
         summary,
-        tables: tablesPayload
+        tables: tablesPayload,
       };
 
-      const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json;charset=utf-8;' });
+      const blob = new Blob([JSON.stringify(backupPayload, null, 2)], {
+        type: 'application/json;charset=utf-8;',
+      });
       const timestamp = exportedAt.replace(/[:.]/g, '-');
       downloadBlob(blob, `boh-data-backup_${timestamp}.json`);
       showToast(`备份导出成功，共 ${summary.length} 张表`, 'success');
@@ -156,17 +161,19 @@ export const createExportCenter = ({
       addChangeLogEntry('backup_export', null, {
         tables: summary.map((s) => s.table),
         totalRows: summary.reduce((acc, s) => acc + (s.exported || 0), 0),
-        note: '备份含 PII,请妥善保管'
+        note: '备份含 PII,请妥善保管',
       });
       try {
-        await supabase.from('admin_audit_log').insert([{
-          actor_id: userInfoRef.value?.id || null,
-          action: 'backup_export',
-          metadata: {
-            tables: summary.map((s) => s.table),
-            total_rows: summary.reduce((acc, s) => acc + (s.exported || 0), 0)
-          }
-        }]);
+        await supabase.from('admin_audit_log').insert([
+          {
+            actor_id: userInfoRef.value?.id || null,
+            action: 'backup_export',
+            metadata: {
+              tables: summary.map((s) => s.table),
+              total_rows: summary.reduce((acc, s) => acc + (s.exported || 0), 0),
+            },
+          },
+        ]);
       } catch (auditErr) {
         logger.warn('data-admin', '备份审计写入失败(忽略):', auditErr);
       }
@@ -192,6 +199,6 @@ export const createExportCenter = ({
     cancelBackupExport,
     exportData,
     exportBackupData,
-    abortBackupExport
+    abortBackupExport,
   };
 };

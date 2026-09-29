@@ -3,43 +3,119 @@
     <div class="preview-toolbar">
       <div class="preview-toolbar-left">
         <button class="toolbar-btn" title="刷新预览" @click="refreshPreview">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <polyline points="1 4 1 10 7 10" />
             <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
           </svg>
           <span>刷新</span>
         </button>
         <button class="toolbar-btn" title="在新窗口打开" @click="openInNewTab">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
             <polyline points="15 3 21 3 21 9" />
             <line x1="10" y1="14" x2="21" y2="3" />
           </svg>
           <span>新窗口</span>
         </button>
-        <button v-if="errors.length > 0" class="toolbar-btn toolbar-btn--warn" title="查看错误" @click="showErrorPanel = !showErrorPanel">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        <button
+          v-if="errors.length > 0"
+          class="toolbar-btn toolbar-btn--warn"
+          title="查看错误"
+          @click="showErrorPanel = !showErrorPanel"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <span>{{ errors.length }}</span>
         </button>
       </div>
       <div class="preview-toolbar-right">
-        <button class="toolbar-btn" :class="{ active: previewMode === 'desktop' }" title="桌面视图" @click="previewMode = 'desktop'">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <button
+          class="toolbar-btn"
+          :class="{ active: previewMode === 'desktop' }"
+          title="桌面视图"
+          @click="previewMode = 'desktop'"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <rect x="2" y="3" width="20" height="14" rx="2" />
             <line x1="8" y1="21" x2="16" y2="21" />
             <line x1="12" y1="17" x2="12" y2="21" />
           </svg>
         </button>
-        <button class="toolbar-btn" :class="{ active: previewMode === 'tablet' }" title="平板视图" @click="previewMode = 'tablet'">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="4" y="2" width="16" height="20" rx="2"/>
-            <line x1="12" y1="18" x2="12.01" y2="18"/>
+        <button
+          class="toolbar-btn"
+          :class="{ active: previewMode === 'tablet' }"
+          title="平板视图"
+          @click="previewMode = 'tablet'"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="4" y="2" width="16" height="20" rx="2" />
+            <line x1="12" y1="18" x2="12.01" y2="18" />
           </svg>
         </button>
-        <button class="toolbar-btn" :class="{ active: previewMode === 'mobile' }" title="移动端视图" @click="previewMode = 'mobile'">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <button
+          class="toolbar-btn"
+          :class="{ active: previewMode === 'mobile' }"
+          title="移动端视图"
+          @click="previewMode = 'mobile'"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <rect x="5" y="2" width="14" height="20" rx="2" />
             <line x1="12" y1="18" x2="12.01" y2="18" />
           </svg>
@@ -64,11 +140,26 @@
           <div class="error-panel-header">
             <span>控制台错误 ({{ errors.length }})</span>
             <button class="error-panel-close" @click="showErrorPanel = false">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
           <div class="error-panel-body">
-            <div v-for="(err, i) in errors" :key="i" class="error-item" :class="`error-level--${err.level || 'error'}`">
+            <div
+              v-for="(err, i) in errors"
+              :key="i"
+              class="error-item"
+              :class="`error-level--${err.level || 'error'}`"
+            >
               <span class="error-level">{{ err.level === 'warn' ? 'WARN' : 'ERROR' }}</span>
               <span class="error-msg">{{ err.message }}</span>
             </div>
@@ -80,78 +171,82 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
-import { buildPreviewUrl, revokePreviewUrl } from '../engine/html-renderer.js'
+import { ref, watch } from 'vue';
+import { buildPreviewUrl, revokePreviewUrl } from '../engine/html-renderer.js';
 
 const props = defineProps({
   codeData: { type: Object, default: null },
-})
+});
 
-const emit = defineEmits(['error'])
+const emit = defineEmits(['error']);
 
-const previewMode = ref('desktop')
-const previewUrl = ref('')
-const iframeRef = ref(null)
-const errors = ref([])
-const showErrorPanel = ref(false)
+const previewMode = ref('desktop');
+const previewUrl = ref('');
+const iframeRef = ref(null);
+const errors = ref([]);
+const showErrorPanel = ref(false);
 
-watch(() => props.codeData, (val) => {
-  revokePreviewUrl(previewUrl.value)
-  errors.value = []
-  showErrorPanel.value = false
-  if (val?.html) {
-    previewUrl.value = buildPreviewUrl(val)
-  } else {
-    previewUrl.value = ''
-  }
-}, { immediate: true })
+watch(
+  () => props.codeData,
+  (val) => {
+    revokePreviewUrl(previewUrl.value);
+    errors.value = [];
+    showErrorPanel.value = false;
+    if (val?.html) {
+      previewUrl.value = buildPreviewUrl(val);
+    } else {
+      previewUrl.value = '';
+    }
+  },
+  { immediate: true },
+);
 
 function refreshPreview() {
   if (iframeRef.value) {
-    errors.value = []
-    showErrorPanel.value = false
-    iframeRef.value.src = iframeRef.value.src
+    errors.value = [];
+    showErrorPanel.value = false;
+    iframeRef.value.src = iframeRef.value.src;
   }
 }
 
 function openInNewTab() {
   if (previewUrl.value) {
-    window.open(previewUrl.value, '_blank')
+    window.open(previewUrl.value, '_blank');
   }
 }
 
 function onIframeLoad() {
   try {
-    const iframe = iframeRef.value
-    if (!iframe?.contentWindow) return
-    const win = iframe.contentWindow
+    const iframe = iframeRef.value;
+    if (!iframe?.contentWindow) return;
+    const win = iframe.contentWindow;
 
-    const originalError = win.console.error
-    const originalWarn = win.console.warn
-    const captured = []
+    const originalError = win.console.error;
+    const originalWarn = win.console.warn;
+    const captured = [];
 
-    win.console.error = function(...args) {
-      captured.push({ level: 'error', message: args.map(a => String(a)).join(' ') })
-      originalError.apply(win.console, args)
-    }
-    win.console.warn = function(...args) {
-      captured.push({ level: 'warn', message: args.map(a => String(a)).join(' ') })
-      originalWarn.apply(win.console, args)
-    }
+    win.console.error = function (...args) {
+      captured.push({ level: 'error', message: args.map((a) => String(a)).join(' ') });
+      originalError.apply(win.console, args);
+    };
+    win.console.warn = function (...args) {
+      captured.push({ level: 'warn', message: args.map((a) => String(a)).join(' ') });
+      originalWarn.apply(win.console, args);
+    };
 
     win.addEventListener('error', (e) => {
-      captured.push({ level: 'error', message: e.message || 'Script error' })
-    })
+      captured.push({ level: 'error', message: e.message || 'Script error' });
+    });
 
     // 延迟捕获，确保页面加载完成
     setTimeout(() => {
-      errors.value = captured
+      errors.value = captured;
       if (captured.length > 0) {
-        showErrorPanel.value = true
-        emit('error', captured)
+        showErrorPanel.value = true;
+        emit('error', captured);
       }
-    }, 1000)
-  } catch (e) {
+    }, 1000);
+  } catch {
     // 跨域 iframe 可能无法访问 console
   }
 }
@@ -265,7 +360,7 @@ function onIframeLoad() {
   right: 0;
   max-height: 160px;
   background: rgba(30, 30, 30, 0.95);
-  border-top: 1px solid rgba(255,255,255,0.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -275,22 +370,25 @@ function onIframeLoad() {
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
   font-size: 11px;
   font-family: var(--font-sans);
-  color: rgba(255,255,255,0.7);
+  color: rgba(255, 255, 255, 0.7);
   font-weight: 600;
 }
 .error-panel-close {
   background: transparent;
   border: none;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.5);
   cursor: pointer;
   padding: 2px;
   border-radius: 4px;
   display: flex;
 }
-.error-panel-close:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.error-panel-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
 .error-panel-body {
   flex: 1;
   overflow-y: auto;
@@ -309,12 +407,22 @@ function onIframeLoad() {
   font-weight: 700;
   width: 44px;
 }
-.error-level--error .error-level { color: #ff6b6b; }
-.error-level--warn .error-level { color: #ffd93d; }
+.error-level--error .error-level {
+  color: #ff6b6b;
+}
+.error-level--warn .error-level {
+  color: #ffd93d;
+}
 .error-msg {
-  color: rgba(255,255,255,0.8);
+  color: rgba(255, 255, 255, 0.8);
   word-break: break-all;
 }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 </style>

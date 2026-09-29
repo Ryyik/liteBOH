@@ -248,7 +248,7 @@ async function loadApiKeys() {
     const result = await listApiKeys();
     const allKeys = result?.data?.keys || result?.keys || [];
     apiKeys.value = allKeys.filter((k) => k.status === 'active');
-  } catch (e) {
+  } catch {
     apiKeys.value = [];
   } finally {
     isLoadingApiKeys.value = false;

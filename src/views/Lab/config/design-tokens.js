@@ -29,17 +29,17 @@ export const BASE_TOKENS = {
   },
   // 字号阶梯（半磅，与 OOXML 一致；pt × 2）
   type: {
-    display: 96,   // 48pt
-    h1: 72,        // 36pt
-    h2: 56,        // 28pt
-    h3: 44,        // 22pt
-    h4: 36,        // 18pt
-    title: 32,     // 16pt
-    subtitle: 28,  // 14pt
-    body: 24,      // 12pt
-    bodyLg: 26,    // 13pt
-    caption: 20,   // 10pt
-    small: 18,     // 9pt
+    display: 96, // 48pt
+    h1: 72, // 36pt
+    h2: 56, // 28pt
+    h3: 44, // 22pt
+    h4: 36, // 18pt
+    title: 32, // 16pt
+    subtitle: 28, // 14pt
+    body: 24, // 12pt
+    bodyLg: 26, // 13pt
+    caption: 20, // 10pt
+    small: 18, // 9pt
   },
   // 阴影（PPT 用 transparency 百分比表达）
   shadow: {
@@ -48,45 +48,45 @@ export const BASE_TOKENS = {
     md: 'md',
     lg: 'lg',
   },
-}
+};
 
 // ===== 字体栈（中文优先 + 英文兜底） =====
 export const FONT_STACKS = {
   // 无衬线（标题/正文）
   sans: {
     ascii: 'Arial',
-    eastAsia: 'Microsoft YaHei',  // 微软雅黑
+    eastAsia: 'Microsoft YaHei', // 微软雅黑
     ppt: 'Microsoft YaHei',
   },
   sansModern: {
     ascii: 'Helvetica Neue',
-    eastAsia: 'PingFang SC',      // 苹方
+    eastAsia: 'PingFang SC', // 苹方
     ppt: 'PingFang SC',
   },
   // 衬线（学术/正文）
   serif: {
     ascii: 'Times New Roman',
-    eastAsia: 'SimSun',           // 宋体
+    eastAsia: 'SimSun', // 宋体
     ppt: 'SimSun',
   },
   serifElegant: {
     ascii: 'Georgia',
-    eastAsia: 'KaiTi',            // 楷体
+    eastAsia: 'KaiTi', // 楷体
     ppt: 'KaiTi',
   },
   // 等宽（科技/代码）
   mono: {
     ascii: 'Consolas',
-    eastAsia: 'SimHei',           // 黑体兜底
+    eastAsia: 'SimHei', // 黑体兜底
     ppt: 'Consolas',
   },
   // 黑体（标题强）
   heiti: {
     ascii: 'Arial Black',
-    eastAsia: 'SimHei',           // 黑体
+    eastAsia: 'SimHei', // 黑体
     ppt: 'SimHei',
   },
-}
+};
 
 // ===== 样式集预设（每套 = 一组完整 token） =====
 // 这是 AI 和渲染层之间的"设计系统"抽象
@@ -98,7 +98,7 @@ export const STYLE_PRESETS = [
     tags: ['汇报', '年报', '通用'],
     tokens: {
       color: {
-        primary: '1e40af',        // 深蓝
+        primary: '1e40af', // 深蓝
         primaryFg: 'ffffff',
         secondary: '3b82f6',
         accent: '60a5fa',
@@ -174,7 +174,7 @@ export const STYLE_PRESETS = [
     tags: ['设计', '品牌', '提案'],
     tokens: {
       color: {
-        primary: '0f766e',        // 墨绿
+        primary: '0f766e', // 墨绿
         primaryFg: 'ffffff',
         secondary: '14b8a6',
         accent: '5eead4',
@@ -250,10 +250,10 @@ export const STYLE_PRESETS = [
     tags: ['文化', '传统', '人文'],
     tokens: {
       color: {
-        primary: '9f1239',        // 朱红
+        primary: '9f1239', // 朱红
         primaryFg: 'ffffff',
         secondary: 'b91c1c',
-        accent: 'd4a574',         // 鎏金
+        accent: 'd4a574', // 鎏金
         neutral: {
           50: 'fafaf9',
           100: 'f5f5f4',
@@ -330,10 +330,10 @@ export const STYLE_PRESETS = [
     tags: ['路演', '融资', 'BP'],
     tokens: {
       color: {
-        primary: '4f46e5',        // 靛蓝
+        primary: '4f46e5', // 靛蓝
         primaryFg: 'ffffff',
-        secondary: '7c3aed',      // 紫
-        accent: 'f59e0b',         // 琥珀撞色
+        secondary: '7c3aed', // 紫
+        accent: 'f59e0b', // 琥珀撞色
         neutral: {
           50: 'f5f5ff',
           100: 'eef2ff',
@@ -368,10 +368,10 @@ export const STYLE_PRESETS = [
     tags: ['财务', '数据', '分析'],
     tokens: {
       color: {
-        primary: '065f46',        // 深墨绿
+        primary: '065f46', // 深墨绿
         primaryFg: 'ffffff',
         secondary: '047857',
-        accent: 'b45309',         // 鎏金
+        accent: 'b45309', // 鎏金
         neutral: {
           50: 'f8fafc',
           100: 'f1f5f9',
@@ -399,30 +399,54 @@ export const STYLE_PRESETS = [
       },
     },
   },
-]
+];
 
-export const DEFAULT_PRESET_ID = 'boh'
+export const DEFAULT_PRESET_ID = 'boh';
 
 export function getPresetById(id) {
-  return STYLE_PRESETS.find(p => p.id === id) || STYLE_PRESETS.find(p => p.id === DEFAULT_PRESET_ID)
+  return (
+    STYLE_PRESETS.find((p) => p.id === id) || STYLE_PRESETS.find((p) => p.id === DEFAULT_PRESET_ID)
+  );
 }
 
 // ===== 排版样式映射（token 名 → 具体属性） =====
 // AI 输出 "style": "heading-1" 时，渲染层查这张表
 export const TYPOGRAPHY_SCALE = {
-  'display':      { size: BASE_TOKENS.type.display,    bold: true,  line: 320, before: 240, after: 120 },
-  'heading-1':    { size: BASE_TOKENS.type.h1,         bold: true,  line: 320, before: 240, after: 120 },
-  'heading-2':    { size: BASE_TOKENS.type.h2,         bold: true,  line: 320, before: 200, after: 100 },
-  'heading-3':    { size: BASE_TOKENS.type.h3,         bold: true,  line: 300, before: 160, after: 80 },
-  'heading-4':    { size: BASE_TOKENS.type.h4,         bold: true,  line: 280, before: 120, after: 60 },
-  'title':        { size: BASE_TOKENS.type.title,      bold: true,  line: 280, before: 100, after: 60 },
-  'subtitle':     { size: BASE_TOKENS.type.subtitle,   bold: false, line: 280, before: 60,  after: 80 },
-  'body':         { size: BASE_TOKENS.type.body,       bold: false, line: 320, before: 0,   after: 80, firstLine: 480 },
-  'body-large':   { size: BASE_TOKENS.type.bodyLg,     bold: false, line: 320, before: 0,   after: 80, firstLine: 480 },
-  'caption':      { size: BASE_TOKENS.type.caption,    bold: false, line: 260, before: 0,   after: 40 },
-  'quote':        { size: BASE_TOKENS.type.body,       bold: false, italic: true, line: 320, before: 80, after: 80, indentLeft: 480 },
-  'code':         { size: BASE_TOKENS.type.caption,    bold: false, font: FONT_STACKS.mono, shading: 'f4f4f5' },
-}
+  display: { size: BASE_TOKENS.type.display, bold: true, line: 320, before: 240, after: 120 },
+  'heading-1': { size: BASE_TOKENS.type.h1, bold: true, line: 320, before: 240, after: 120 },
+  'heading-2': { size: BASE_TOKENS.type.h2, bold: true, line: 320, before: 200, after: 100 },
+  'heading-3': { size: BASE_TOKENS.type.h3, bold: true, line: 300, before: 160, after: 80 },
+  'heading-4': { size: BASE_TOKENS.type.h4, bold: true, line: 280, before: 120, after: 60 },
+  title: { size: BASE_TOKENS.type.title, bold: true, line: 280, before: 100, after: 60 },
+  subtitle: { size: BASE_TOKENS.type.subtitle, bold: false, line: 280, before: 60, after: 80 },
+  body: {
+    size: BASE_TOKENS.type.body,
+    bold: false,
+    line: 320,
+    before: 0,
+    after: 80,
+    firstLine: 480,
+  },
+  'body-large': {
+    size: BASE_TOKENS.type.bodyLg,
+    bold: false,
+    line: 320,
+    before: 0,
+    after: 80,
+    firstLine: 480,
+  },
+  caption: { size: BASE_TOKENS.type.caption, bold: false, line: 260, before: 0, after: 40 },
+  quote: {
+    size: BASE_TOKENS.type.body,
+    bold: false,
+    italic: true,
+    line: 320,
+    before: 80,
+    after: 80,
+    indentLeft: 480,
+  },
+  code: { size: BASE_TOKENS.type.caption, bold: false, font: FONT_STACKS.mono, shading: 'f4f4f5' },
+};
 
 /**
  * 解析样式引用，返回完整属性
@@ -430,11 +454,11 @@ export const TYPOGRAPHY_SCALE = {
  * @param {object} presetTokens - 样式集 tokens
  * @returns {object} 合并后的属性
  */
-export function resolveStyle(styleRef, presetTokens) {
-  if (!styleRef) return {}
-  if (typeof styleRef === 'object') return styleRef
-  const base = TYPOGRAPHY_SCALE[styleRef] || TYPOGRAPHY_SCALE['body']
-  return { ...base }
+export function resolveStyle(styleRef, _presetTokens) {
+  if (!styleRef) return {};
+  if (typeof styleRef === 'object') return styleRef;
+  const base = TYPOGRAPHY_SCALE[styleRef] || TYPOGRAPHY_SCALE['body'];
+  return { ...base };
 }
 
 /**
@@ -443,5 +467,5 @@ export function resolveStyle(styleRef, presetTokens) {
  * @param {object} presetTokens - 样式集 tokens
  */
 export function getFontStack(role, presetTokens) {
-  return presetTokens?.font?.[role] || FONT_STACKS.sans
+  return presetTokens?.font?.[role] || FONT_STACKS.sans;
 }

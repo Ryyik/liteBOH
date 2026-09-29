@@ -877,7 +877,6 @@ import {
   Check,
   ChevronRight,
   Coins,
-  Copy,
   Crown,
   Gift,
   Heart,

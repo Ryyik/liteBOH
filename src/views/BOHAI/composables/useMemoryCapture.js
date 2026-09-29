@@ -1,22 +1,14 @@
 import { computed, watch } from 'vue';
 import { createMyTreeholeSpace } from '@/utils/api/treehole-api.js';
-import {
-  normalizeActionDecisionText
-} from '@/utils/bohai-action-draft-intent.js';
-import {
-  BOHAI_ACTION_IDS
-} from '@/utils/bohai-connectors.js';
-import {
-  CLOUD_REFERENCE_CONSENT_KEY,
-  QUICK_NOTE_TITLE_MAX_CHARS
-} from './chat-engine-config.js';
+import { normalizeActionDecisionText } from '@/utils/bohai-action-draft-intent.js';
+import { BOHAI_ACTION_IDS } from '@/utils/bohai-connectors.js';
+import { CLOUD_REFERENCE_CONSENT_KEY, QUICK_NOTE_TITLE_MAX_CHARS } from './chat-engine-config.js';
 import {
   isTreeholeCreateConfirm,
   isTreeholeCreateReject,
-  isSharedMemorySaveConfirm,
   isSharedMemorySaveReject,
   resolveMemorySaveDestinationFromText,
-  formatMemorySavePrompt
+  formatMemorySavePrompt,
 } from './useIntentDetection.js';
 
 const dispatchGlobalNavStatus = (payload = {}) => {
@@ -79,7 +71,7 @@ export function useMemoryCapture(deps) {
 
     // Composer state
     inputMessage,
-    textareaRef
+    textareaRef,
   } = deps;
 
   // ── 树洞创建确认请求 ──────────────────────────────────────────
@@ -92,9 +84,9 @@ export function useMemoryCapture(deps) {
 
     const sessionIndex = currentSessionIndex.value;
     if (
-      pendingTreeholeCreation.awaitingConfirmation
-      && pendingTreeholeCreation.userId === userId
-      && pendingTreeholeCreation.sessionIndex === sessionIndex
+      pendingTreeholeCreation.awaitingConfirmation &&
+      pendingTreeholeCreation.userId === userId &&
+      pendingTreeholeCreation.sessionIndex === sessionIndex
     ) {
       setMemoryCaptureStatusMessage('请在对话中回复"是"或"否"，确认是否由我代你创建树洞。');
       return;
@@ -107,7 +99,7 @@ export function useMemoryCapture(deps) {
       sessionIndex,
       'assistant',
       '你还没有创建树洞。要我现在帮你创建并开启树洞记忆吗？\n请回复"是"确认，回复"否"取消。',
-      { kind: 'treehole_create_confirm' }
+      { kind: 'treehole_create_confirm' },
     );
     setMemoryCaptureStatusMessage('请在对话中回复"是"确认创建树洞，回复"否"取消。');
   };
@@ -149,10 +141,18 @@ export function useMemoryCapture(deps) {
     }
 
     const pendingUserId = String(pendingTreeholeCreation.userId || '').trim();
-    if (!pendingUserId || !isLoggedIn.value || String(userInfo.value?.id || '').trim() !== pendingUserId) {
+    if (
+      !pendingUserId ||
+      !isLoggedIn.value ||
+      String(userInfo.value?.id || '').trim() !== pendingUserId
+    ) {
       resetPendingTreeholeCreation();
       setMemoryCaptureStatusMessage('登录状态已变化，请重新开启树洞记忆。');
-      appendSessionMessage(sessionIndex, 'assistant', '登录状态发生变化，请重新点击"树洞记忆"后再试。');
+      appendSessionMessage(
+        sessionIndex,
+        'assistant',
+        '登录状态发生变化，请重新点击"树洞记忆"后再试。',
+      );
       return true;
     }
 
@@ -175,7 +175,7 @@ export function useMemoryCapture(deps) {
       'assistant',
       createResult.alreadyExists
         ? '已检测到你的树洞，已帮你开启树洞记忆（私密）。'
-        : '已帮你创建树洞，并开启树洞记忆（私密）。'
+        : '已帮你创建树洞，并开启树洞记忆（私密）。',
     );
     return true;
   };
@@ -221,7 +221,7 @@ export function useMemoryCapture(deps) {
     setMemoryCaptureStatusMessage(
       isMemoryCaptureEnabled.value
         ? '公共记忆已开启：将写入 BOH AI 公共记忆库。'
-        : '公共记忆已关闭：本轮不会写入 BOH AI 公共记忆库。'
+        : '公共记忆已关闭：本轮不会写入 BOH AI 公共记忆库。',
     );
   };
 
@@ -241,9 +241,7 @@ export function useMemoryCapture(deps) {
       resetPendingQuickNote();
     }
     setMemoryCaptureStatusMessage(
-      isQuickNoteEnabled.value
-        ? '随手记已开启：AI 回答后可选择记录到 Cloud+。'
-        : '随手记已关闭。'
+      isQuickNoteEnabled.value ? '随手记已开启：AI 回答后可选择记录到 Cloud+。' : '随手记已关闭。',
     );
     dispatchGlobalNavStatus({
       title: isQuickNoteEnabled.value ? '随手记已开启' : '随手记已关闭',
@@ -251,7 +249,7 @@ export function useMemoryCapture(deps) {
       icon: 'ai',
       type: 'notification',
       actionLabel: '知道了',
-      durationMs: 3600
+      durationMs: 3600,
     });
   };
 
@@ -291,7 +289,9 @@ export function useMemoryCapture(deps) {
     }
 
     const content = extractQuickNoteContent(pendingQuickNote.content);
-    const title = normalizePromptLine(pendingQuickNote.title, QUICK_NOTE_TITLE_MAX_CHARS) || buildQuickNoteTitle(content);
+    const title =
+      normalizePromptLine(pendingQuickNote.title, QUICK_NOTE_TITLE_MAX_CHARS) ||
+      buildQuickNoteTitle(content);
     if (!content) {
       pendingQuickNote.error = '摘录内容不能为空。';
       return false;
@@ -319,7 +319,7 @@ export function useMemoryCapture(deps) {
       type: 'success',
       actionLabel: '查看',
       actionTab: 'profile',
-      durationMs: 5200
+      durationMs: 5200,
     });
     appendSessionMessage(sessionIndex, 'assistant', '已记录到 BOH Cloud+。');
     return true;
@@ -342,9 +342,9 @@ export function useMemoryCapture(deps) {
 
     const sessionIndex = currentSessionIndex.value;
     if (
-      pendingCloudReferenceConsent.awaitingConfirmation
-      && pendingCloudReferenceConsent.userId === userId
-      && pendingCloudReferenceConsent.sessionIndex === sessionIndex
+      pendingCloudReferenceConsent.awaitingConfirmation &&
+      pendingCloudReferenceConsent.userId === userId &&
+      pendingCloudReferenceConsent.sessionIndex === sessionIndex
     ) {
       setMemoryCaptureStatusMessage('请先选择是否同意 BOH AI 读取你的 Cloud+ 全部内容。');
       return;
@@ -357,7 +357,7 @@ export function useMemoryCapture(deps) {
       sessionIndex,
       'assistant',
       '请问是否同意 BOH AI 在回答时查看你的 Cloud+ 全部内容？这只会用于当前账号的私有参考，不会公开给其他人。',
-      { kind: 'cloud_reference_consent' }
+      { kind: 'cloud_reference_consent' },
     );
     setMemoryCaptureStatusMessage('请先确认是否同意 Cloud+ 全量参考。');
   };
@@ -374,13 +374,23 @@ export function useMemoryCapture(deps) {
     resetPendingCloudReferenceConsent();
 
     if (allowed) {
-      setMemoryCaptureStatusMessage('Cloud+ 参考已开启：AI 将可查看你的全部 Cloud+ 内容作为私有参考。');
-      appendSessionMessage(sessionIndex, 'assistant', '已收到你的同意。Cloud+ 参考已开启，后续回答可以结合你的全部 Cloud+ 内容。');
+      setMemoryCaptureStatusMessage(
+        'Cloud+ 参考已开启：AI 将可查看你的全部 Cloud+ 内容作为私有参考。',
+      );
+      appendSessionMessage(
+        sessionIndex,
+        'assistant',
+        '已收到你的同意。Cloud+ 参考已开启，后续回答可以结合你的全部 Cloud+ 内容。',
+      );
       return;
     }
 
     setMemoryCaptureStatusMessage('已拒绝 Cloud+ 参考，本次不会读取你的 Cloud+ 内容。');
-    appendSessionMessage(sessionIndex, 'assistant', '已收到你的选择。Cloud+ 参考保持关闭，后续不会读取你的 Cloud+ 内容。');
+    appendSessionMessage(
+      sessionIndex,
+      'assistant',
+      '已收到你的选择。Cloud+ 参考保持关闭，后续不会读取你的 Cloud+ 内容。',
+    );
   };
 
   const approveCloudReferenceConsent = () => {
@@ -419,8 +429,34 @@ export function useMemoryCapture(deps) {
     inputMessage.value = '';
     if (textareaRef.value) textareaRef.value.style.height = 'auto';
 
-    const allowList = new Set(['是', '是的', '好', '好的', '可以', '行', '确认', '确定', '同意', '允许', 'ok', 'yes', 'y']);
-    const denyList = new Set(['否', '不用', '不需要', '取消', '算了', '暂不', '不要', '拒绝', '不同意', 'no', 'n']);
+    const allowList = new Set([
+      '是',
+      '是的',
+      '好',
+      '好的',
+      '可以',
+      '行',
+      '确认',
+      '确定',
+      '同意',
+      '允许',
+      'ok',
+      'yes',
+      'y',
+    ]);
+    const denyList = new Set([
+      '否',
+      '不用',
+      '不需要',
+      '取消',
+      '算了',
+      '暂不',
+      '不要',
+      '拒绝',
+      '不同意',
+      'no',
+      'n',
+    ]);
 
     if (denyList.has(normalized)) {
       applyCloudReferenceConsent(false);
@@ -432,13 +468,21 @@ export function useMemoryCapture(deps) {
       return true;
     }
 
-    appendSessionMessage(sessionIndex, 'assistant', '请点击"同意"或"拒绝"，也可以直接回复"同意"或"拒绝"。');
+    appendSessionMessage(
+      sessionIndex,
+      'assistant',
+      '请点击"同意"或"拒绝"，也可以直接回复"同意"或"拒绝"。',
+    );
     setMemoryCaptureStatusMessage('等待你的选择：同意或拒绝 Cloud+ 参考。');
     return true;
   };
 
   // ── 共享记忆保存确认 ──────────────────────────────────────────
-  const requestSharedMemorySaveConfirmation = ({ content, sessionIndex, destination = 'ask' } = {}) => {
+  const requestSharedMemorySaveConfirmation = ({
+    content,
+    sessionIndex,
+    destination = 'ask',
+  } = {}) => {
     const safeContent = normalizePromptLine(content, 320);
     if (!safeContent) return false;
 
@@ -448,7 +492,7 @@ export function useMemoryCapture(deps) {
         sessionIndex,
         'assistant',
         '保存到 BOH Cloud+ 或公共记忆库需要先登录；我这次先不保存。',
-        { kind: 'shared_memory_login_required' }
+        { kind: 'shared_memory_login_required' },
       );
       return true;
     }
@@ -457,12 +501,16 @@ export function useMemoryCapture(deps) {
     pendingSharedMemoryCapture.userId = userId;
     pendingSharedMemoryCapture.sessionIndex = sessionIndex;
     pendingSharedMemoryCapture.content = safeContent;
-    pendingSharedMemoryCapture.destination = ['cloud', 'shared', 'both', 'ask'].includes(destination) ? destination : 'ask';
+    pendingSharedMemoryCapture.destination = ['cloud', 'shared', 'both', 'ask'].includes(
+      destination,
+    )
+      ? destination
+      : 'ask';
     appendSessionMessage(
       sessionIndex,
       'assistant',
       formatMemorySavePrompt(safeContent, pendingSharedMemoryCapture.destination),
-      { kind: 'shared_memory_capture_confirm' }
+      { kind: 'shared_memory_capture_confirm' },
     );
     return true;
   };
@@ -471,10 +519,16 @@ export function useMemoryCapture(deps) {
     const safeUserId = String(userId || '').trim();
     const safeContent = normalizePromptLine(content, 320);
     if (!safeUserId || safeUserId !== String(userInfo.value?.id || '').trim()) {
-      appendSessionMessage(sessionIndex, 'assistant', '登录状态已变化，本次保存已取消，请重新发送后再试。');
+      appendSessionMessage(
+        sessionIndex,
+        'assistant',
+        '登录状态已变化，本次保存已取消，请重新发送后再试。',
+      );
       return;
     }
-    const targetDestination = ['cloud', 'shared', 'both'].includes(destination) ? destination : 'shared';
+    const targetDestination = ['cloud', 'shared', 'both'].includes(destination)
+      ? destination
+      : 'shared';
     const shouldSaveCloud = targetDestination === 'cloud' || targetDestination === 'both';
     const shouldSaveShared = targetDestination === 'shared' || targetDestination === 'both';
     const savedTargets = [];
@@ -483,7 +537,7 @@ export function useMemoryCapture(deps) {
     if (shouldSaveCloud) {
       const cloudResult = await runRegisteredAction(BOHAI_ACTION_IDS.saveCloud, {
         title: buildQuickNoteTitle(safeContent),
-        content: safeContent
+        content: safeContent,
       });
       if (cloudResult.ok) {
         savedTargets.push('BOH Cloud+');
@@ -494,7 +548,7 @@ export function useMemoryCapture(deps) {
 
     if (shouldSaveShared) {
       const saveResult = await runRegisteredAction(BOHAI_ACTION_IDS.saveSharedMemory, {
-        content: safeContent
+        content: safeContent,
       });
       if (saveResult.ok) {
         savedTargets.push('BOH AI 公共记忆库');
@@ -515,7 +569,11 @@ export function useMemoryCapture(deps) {
       return true;
     }
 
-    appendSessionMessage(sessionIndex, 'assistant', errors.length > 0 ? errors.join('\n') : '保存失败，请稍后重试。');
+    appendSessionMessage(
+      sessionIndex,
+      'assistant',
+      errors.length > 0 ? errors.join('\n') : '保存失败，请稍后重试。',
+    );
     return true;
   };
 
@@ -546,22 +604,42 @@ export function useMemoryCapture(deps) {
       return true;
     }
 
-    let destination = resolveMemorySaveDestinationFromText(safeText, pendingSharedMemoryCapture.destination);
+    let destination = resolveMemorySaveDestinationFromText(
+      safeText,
+      pendingSharedMemoryCapture.destination,
+    );
     if (destination === 'ask') {
-      appendSessionMessage(sessionIndex, 'assistant', '请回复"Cloud+"、"公共记忆"、"两者都保存"，或回复"不保存"。');
+      appendSessionMessage(
+        sessionIndex,
+        'assistant',
+        '请回复"Cloud+"、"公共记忆"、"两者都保存"，或回复"不保存"。',
+      );
       return true;
     }
 
     if (!['cloud', 'shared', 'both'].includes(destination)) {
-      appendSessionMessage(sessionIndex, 'assistant', '请回复"Cloud+"、"公共记忆"、"两者都保存"，或回复"不保存"。');
+      appendSessionMessage(
+        sessionIndex,
+        'assistant',
+        '请回复"Cloud+"、"公共记忆"、"两者都保存"，或回复"不保存"。',
+      );
       return true;
     }
 
     const pendingUserId = String(pendingSharedMemoryCapture.userId || '').trim();
     const content = normalizePromptLine(pendingSharedMemoryCapture.content, 320);
-    if (!pendingUserId || !content || !isLoggedIn.value || String(userInfo.value?.id || '').trim() !== pendingUserId) {
+    if (
+      !pendingUserId ||
+      !content ||
+      !isLoggedIn.value ||
+      String(userInfo.value?.id || '').trim() !== pendingUserId
+    ) {
       resetPendingSharedMemoryCapture();
-      appendSessionMessage(sessionIndex, 'assistant', '登录状态发生变化，这条记忆暂时没有写入。请重新发送后再确认。');
+      appendSessionMessage(
+        sessionIndex,
+        'assistant',
+        '登录状态发生变化，这条记忆暂时没有写入。请重新发送后再确认。',
+      );
       return true;
     }
 
@@ -570,7 +648,7 @@ export function useMemoryCapture(deps) {
       userId: pendingUserId,
       content,
       destination,
-      sessionIndex
+      sessionIndex,
     });
     return true;
   };
@@ -589,7 +667,7 @@ export function useMemoryCapture(deps) {
         icon: 'ai',
         type: 'notification',
         actionLabel: '知道了',
-        durationMs: 3600
+        durationMs: 3600,
       });
       return;
     }
@@ -609,14 +687,16 @@ export function useMemoryCapture(deps) {
       isTreeholeMemoryEnabled.value = true;
       persistTreeholeMemorySetting();
       resetPendingTreeholeCreation();
-      setMemoryCaptureStatusMessage('Cloud+ 参考已开启：AI 将可查看你的全部 Cloud+ 内容作为私有参考。');
+      setMemoryCaptureStatusMessage(
+        'Cloud+ 参考已开启：AI 将可查看你的全部 Cloud+ 内容作为私有参考。',
+      );
       dispatchGlobalNavStatus({
         title: 'Cloud+ 参考已开启',
         message: 'AI 可参考你的 Cloud+ 私有内容',
         icon: 'ai',
         type: 'notification',
         actionLabel: '知道了',
-        durationMs: 4200
+        durationMs: 4200,
       });
     } finally {
       isTreeholeMemoryToggling.value = false;
@@ -629,14 +709,16 @@ export function useMemoryCapture(deps) {
     const status = String(statusText || '').trim();
     if (!base || !status) return false;
 
-    const normalizeForCompare = (text) => String(text || '')
-      .replace(/[：:；;，,。.\s]/g, '')
-      .replace(/默认|同步/g, '')
-      .trim();
+    const normalizeForCompare = (text) =>
+      String(text || '')
+        .replace(/[：:；;，,。.\s]/g, '')
+        .replace(/默认|同步/g, '')
+        .trim();
     const normalizedBase = normalizeForCompare(base);
     const normalizedStatus = normalizeForCompare(status);
     if (!normalizedBase || !normalizedStatus) return false;
-    if (normalizedBase.includes(normalizedStatus) || normalizedStatus.includes(normalizedBase)) return true;
+    if (normalizedBase.includes(normalizedStatus) || normalizedStatus.includes(normalizedBase))
+      return true;
 
     const stateEchoRules = [
       /^公共记忆已开启/u,
@@ -644,7 +726,7 @@ export function useMemoryCapture(deps) {
       /^Cloud\+ 参考已开启/u,
       /^Cloud\+ 参考已关闭/u,
       /^随手记已开启/u,
-      /^随手记已关闭/u
+      /^随手记已关闭/u,
     ];
     if (!stateEchoRules.some((rule) => rule.test(status))) return false;
 
@@ -659,15 +741,11 @@ export function useMemoryCapture(deps) {
     const base = (() => {
       if (!isLoggedIn.value) return '登录后可开启公共记忆、Cloud+ 参考与随手记。';
       const parts = [
-        isMemoryCaptureEnabled.value
-          ? '公共记忆已开启：写入 BOH AI 公共记忆库'
-          : '公共记忆已关闭',
+        isMemoryCaptureEnabled.value ? '公共记忆已开启：写入 BOH AI 公共记忆库' : '公共记忆已关闭',
         isTreeholeMemoryEnabled.value
           ? 'Cloud+ 参考已开启：回答可参考你的全部 Cloud+ 内容'
           : 'Cloud+ 参考已关闭',
-        isQuickNoteEnabled.value
-          ? '随手记已开启'
-          : '随手记已关闭'
+        isQuickNoteEnabled.value ? '随手记已开启' : '随手记已关闭',
       ];
       return `${parts.join('；')}。`;
     })();
@@ -688,7 +766,7 @@ export function useMemoryCapture(deps) {
           refreshCloudReferenceConsent();
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
   }
 
@@ -712,6 +790,6 @@ export function useMemoryCapture(deps) {
     persistCloudReferenceConsent,
     shouldSuppressMemoryStatusEcho,
     memoryCaptureTip,
-    _requestTreeholeCreationConfirmation
+    _requestTreeholeCreationConfirmation,
   };
 }

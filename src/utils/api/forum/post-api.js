@@ -28,7 +28,6 @@ import {
   normalizeForumDraftRecord,
   normalizeForumImagePostError,
   normalizeForumImages,
-  normalizeForumReportError,
   normalizeForumTag,
   normalizePostListRows,
   normalizePostRecord,

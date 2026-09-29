@@ -20,10 +20,14 @@ import {
   MAX_PROMPT_EXTRA_CHARS,
   MAX_SEARCH_RESULT_CONTENT_CHARS,
   MAX_USER_INPUT_CHARS,
-  PSYCH_INTERVIEW_GENERATION_PROFILE
+  PSYCH_INTERVIEW_GENERATION_PROFILE,
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
-import { EVIDENCE_SOURCE_WEIGHTS, RANKING_SCORE_WEIGHTS, KEYWORD_CACHE_MAX_SIZE } from '@/utils/bohai-constants.js';
+import {
+  EVIDENCE_SOURCE_WEIGHTS,
+  RANKING_SCORE_WEIGHTS,
+  KEYWORD_CACHE_MAX_SIZE,
+} from '@/utils/bohai-constants.js';
 import { searchVaultFree } from '@/utils/api/api-key-runtime-api.js';
 
 let aiMemoryCache = '';
@@ -76,7 +80,10 @@ export async function getAIMemory({ forceReload = false } = {}) {
   return aiMemoryLoader;
 }
 
-export const normalizeText = (text) => String(text || '').toLowerCase().trim();
+export const normalizeText = (text) =>
+  String(text || '')
+    .toLowerCase()
+    .trim();
 
 export const splitKnowledgeChunks = (rawText) => {
   return String(rawText || '')
@@ -104,7 +111,21 @@ export const extractQueryKeywords = (text) => {
   }
 
   const tokens = normalized.match(/[a-z0-9_/-]{2,}|[\u4e00-\u9fa5]{2,}/g) || [];
-  const stopwords = new Set(['这个', '那个', '什么', '怎么', '如何', '请问', '一下', '以及', '然后', '可以', '一个', '我们', '你们']);
+  const stopwords = new Set([
+    '这个',
+    '那个',
+    '什么',
+    '怎么',
+    '如何',
+    '请问',
+    '一下',
+    '以及',
+    '然后',
+    '可以',
+    '一个',
+    '我们',
+    '你们',
+  ]);
   const expanded = new Set();
 
   tokens.forEach((token) => {
@@ -175,7 +196,12 @@ export const scoreChunk = (chunk, keywords) => {
   }, 0);
 };
 
-export const selectRelevantChunks = (rawText, query, maxChunks = KNOWLEDGE_MAX_CHUNKS, { fallback = 'none' } = {}) => {
+export const selectRelevantChunks = (
+  rawText,
+  query,
+  maxChunks = KNOWLEDGE_MAX_CHUNKS,
+  { fallback = 'none' } = {},
+) => {
   const chunks = splitKnowledgeChunks(rawText);
   if (chunks.length === 0) return [];
   const keywords = extractQueryKeywords(query);
@@ -194,7 +220,9 @@ export const selectRelevantChunks = (rawText, query, maxChunks = KNOWLEDGE_MAX_C
 };
 
 export const trimKnowledgeChunk = (text, maxLength = 320) => {
-  const normalized = String(text || '').replace(/\s+/g, ' ').trim();
+  const normalized = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (normalized.length <= maxLength) return normalized;
   return `${normalized.slice(0, maxLength)}...`;
 };
@@ -206,10 +234,11 @@ export const truncateText = (text, maxChars) => {
   return `${normalized.slice(0, Math.max(0, maxChars - 3))}...`;
 };
 
-export const normalizeMemoryCompareText = (text) => String(text || '')
-  .toLowerCase()
-  .replace(/[^\u4e00-\u9fa5a-z0-9]+/g, '')
-  .trim();
+export const normalizeMemoryCompareText = (text) =>
+  String(text || '')
+    .toLowerCase()
+    .replace(/[^\u4e00-\u9fa5a-z0-9]+/g, '')
+    .trim();
 
 export const isLikelyMemoryDuplicate = (candidate, existingItems = []) => {
   const normalizedCandidate = normalizeMemoryCompareText(candidate);
@@ -219,9 +248,11 @@ export const isLikelyMemoryDuplicate = (candidate, existingItems = []) => {
     const content = typeof item === 'string' ? item : item?.content;
     const normalized = normalizeMemoryCompareText(content);
     if (!normalized) return false;
-    return normalized === normalizedCandidate
-      || normalized.includes(normalizedCandidate)
-      || normalizedCandidate.includes(normalized);
+    return (
+      normalized === normalizedCandidate ||
+      normalized.includes(normalizedCandidate) ||
+      normalizedCandidate.includes(normalized)
+    );
   });
 };
 
@@ -240,7 +271,7 @@ export const extractExplicitMemoryContent = (text) => {
     /^(?:请|麻烦|帮我)?(?:记住|记下来|保存到记忆(?:库)?|加入记忆(?:库)?|存到记忆(?:库)?)[：:，,\s]*(.+)$/u,
     /^(?:我要|我想|请)?(?:上传|添加|保存|沉淀)(?:一条)?记忆[：:，,\s]*(.+)$/u,
     /^(?:记忆沉淀|记忆)[：:，,\s]*(.+)$/u,
-    /^(?:请|麻烦|帮我)?把(.+?)(?:记住|记下来|保存到记忆(?:库)?|加入记忆(?:库)?|存到记忆(?:库)?)(?:吧|一下)?$/u
+    /^(?:请|麻烦|帮我)?把(.+?)(?:记住|记下来|保存到记忆(?:库)?|加入记忆(?:库)?|存到记忆(?:库)?)(?:吧|一下)?$/u,
   ];
 
   for (const pattern of patterns) {
@@ -264,11 +295,14 @@ export const appendPromptSection = (base, section, maxChars = MAX_FINAL_PROMPT_C
 };
 
 export const normalizePromptLine = (text, maxChars = MAX_HISTORY_MESSAGE_CHARS) => {
-  const normalized = String(text ?? '').replace(/\s+/g, ' ').trim();
+  const normalized = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
   return truncateText(normalized, maxChars);
 };
 
-const ELLIPTICAL_ELABORATION_PATTERN = /^(?:(?:请|麻烦)\s*)?(?:介绍(?:一?下)?|简单介绍(?:一?下)?|详细介绍(?:一?下)?|讲讲|讲一?下|说说|说一?下|展开讲讲|展开说说)(?:呢|吧|可以吗)?[？?。！!]*$/i;
+const ELLIPTICAL_ELABORATION_PATTERN =
+  /^(?:(?:请|麻烦)\s*)?(?:介绍(?:一?下)?|简单介绍(?:一?下)?|详细介绍(?:一?下)?|讲讲|讲一?下|说说|说一?下|展开讲讲|展开说说)(?:呢|吧|可以吗)?[？?。！!]*$/i;
 
 export const isEllipticalElaborationFollowUp = (text = '') => {
   const normalized = normalizePromptLine(text, 80);
@@ -279,25 +313,31 @@ export const isContextDependentFollowUp = (text = '') => {
   const normalized = normalizePromptLine(text, 200);
   if (!normalized) return false;
   // 显式追问词：代词/时间副词/延续动词/编号引用
-  const explicitFollowUpPattern = /(这个|那个|上面|刚才|刚刚|前面|继续|展开|详细|多说|那|它|其|然后呢|还有呢|刚才提到|你说的|上一条|前面提到|接着|接下来|进一步|深入|细说)/i;
+  const explicitFollowUpPattern =
+    /(这个|那个|上面|刚才|刚刚|前面|继续|展开|详细|多说|那|它|其|然后呢|还有呢|刚才提到|你说的|上一条|前面提到|接着|接下来|进一步|深入|细说)/i;
   // 编号引用追问：[W1]、F1、第2点、第二条等
-  const referenceFollowUpPattern = /\[?[wfd]\d+\]?|第[一二三四五六七八九十\d]+\s*[条点步个]|上面\s*第\s*\d+\s*点/i;
-  const shortAttributeQuestionPattern = /^(?:这个|那个|它|那)?(?:作用|用途|原理|好处|区别|怎么做|怎么练|有什么用|为什么|是什么|怎么办|咋办)(?:是?什么|呢|吗|呀|啊)?$/i;
+  const referenceFollowUpPattern =
+    /\[?[wfd]\d+\]?|第[一二三四五六七八九十\d]+\s*[条点步个]|上面\s*第\s*\d+\s*点/i;
+  const shortAttributeQuestionPattern =
+    /^(?:这个|那个|它|那)?(?:作用|用途|原理|好处|区别|怎么做|怎么练|有什么用|为什么|是什么|怎么办|咋办)(?:是?什么|呢|吗|呀|啊)?$/i;
   // 用户常用短句修正上一轮问题的时间范围。缺少主题时必须携带上一轮话题去检索，
   // 否则搜索引擎会把“最近呢，就这几天”当成词义问题。
-  const temporalScopeFollowUpPattern = /^(?:(?:那|不(?:是)?|我是说|我的意思是)\s*[，,]?\s*)?(?:(?:最近|近期)(?:(?:几|两|三|一)天|一周|一个月)?(?:内|呢|的)?|(?:就\s*)?(?:这|近|过去)(?:几|两|三|一)天(?:内|呢)?)(?:\s*[，,]?\s*(?:就\s*)?(?:这|近|过去)(?:几|两|三|一)天(?:内|呢)?)?[？?。！!]*$/i;
-  return (explicitFollowUpPattern.test(normalized)
-    || referenceFollowUpPattern.test(normalized)
-    || shortAttributeQuestionPattern.test(normalized)
-    || temporalScopeFollowUpPattern.test(normalized)
-    || isEllipticalElaborationFollowUp(normalized))
-    && normalized.length <= 120;
+  const temporalScopeFollowUpPattern =
+    /^(?:(?:那|不(?:是)?|我是说|我的意思是)\s*[，,]?\s*)?(?:(?:最近|近期)(?:(?:几|两|三|一)天|一周|一个月)?(?:内|呢|的)?|(?:就\s*)?(?:这|近|过去)(?:几|两|三|一)天(?:内|呢)?)(?:\s*[，,]?\s*(?:就\s*)?(?:这|近|过去)(?:几|两|三|一)天(?:内|呢)?)?[？?。！!]*$/i;
+  return (
+    (explicitFollowUpPattern.test(normalized) ||
+      referenceFollowUpPattern.test(normalized) ||
+      shortAttributeQuestionPattern.test(normalized) ||
+      temporalScopeFollowUpPattern.test(normalized) ||
+      isEllipticalElaborationFollowUp(normalized)) &&
+    normalized.length <= 120
+  );
 };
 
 export const buildContextualFollowUpQuery = (
   userText = '',
   historyMessages = [],
-  { maxChars = 900 } = {}
+  { maxChars = 900 } = {},
 ) => {
   const current = normalizePromptLine(userText, MAX_HISTORY_MESSAGE_CHARS);
   if (!current || !isContextDependentFollowUp(current)) return current;
@@ -323,7 +363,7 @@ export const buildContextualFollowUpQuery = (
 export const buildContextualWebSearchQuery = (
   userText = '',
   historyMessages = [],
-  { maxChars = 600 } = {}
+  { maxChars = 600 } = {},
 ) => {
   const current = normalizePromptLine(userText, MAX_HISTORY_MESSAGE_CHARS);
   if (!current || !isContextDependentFollowUp(current)) return current;
@@ -356,7 +396,11 @@ export const buildContextualWebSearchQuery = (
 
 export const buildHistoryMessagesWithinBudget = (
   messages,
-  { maxChars = MAX_HISTORY_CONTEXT_CHARS, maxMessages = MAX_CONTEXT_MESSAGES, maxPerMessage = MAX_HISTORY_MESSAGE_CHARS } = {}
+  {
+    maxChars = MAX_HISTORY_CONTEXT_CHARS,
+    maxMessages = MAX_CONTEXT_MESSAGES,
+    maxPerMessage = MAX_HISTORY_MESSAGE_CHARS,
+  } = {},
 ) => {
   const source = Array.isArray(messages) ? messages : [];
   const selected = [];
@@ -391,7 +435,7 @@ export const getStorableDialogueMessages = (messages = []) => {
     .filter((item) => item?.role === 'assistant' || item?.role === 'user')
     .map((item) => ({
       role: item.role === 'assistant' ? 'assistant' : 'user',
-      content: normalizePromptLine(item?.content, MAX_HISTORY_MESSAGE_CHARS)
+      content: normalizePromptLine(item?.content, MAX_HISTORY_MESSAGE_CHARS),
     }))
     .filter((item) => item.content);
 };
@@ -415,27 +459,34 @@ export const buildConversationSummaryFingerprint = (messages = []) => {
 
 export const buildHistoryMessagesWithCachedSummary = (
   session = {},
-  { maxChars = MAX_HISTORY_CONTEXT_CHARS, maxMessages = MAX_CONTEXT_MESSAGES, maxPerMessage = MAX_HISTORY_MESSAGE_CHARS } = {}
+  {
+    maxChars = MAX_HISTORY_CONTEXT_CHARS,
+    maxMessages = MAX_CONTEXT_MESSAGES,
+    maxPerMessage = MAX_HISTORY_MESSAGE_CHARS,
+  } = {},
 ) => {
   const allMessages = getStorableDialogueMessages(session?.messages);
   const cachedSummary = getCachedSummaryIfUsable({
     ...(session || {}),
-    messages: allMessages
+    messages: allMessages,
   });
   // 摘要可用前必须保留完整预算内历史。旧实现无条件只取最近 8 条，导致第 9 条开始
   // 早期消息可能在摘要尚未生成时就从模型上下文消失。
-  const coveredMessageCount = Math.max(0, Math.trunc(Number(session?.contextSummary?.coveredMessageCount) || 0));
+  const coveredMessageCount = Math.max(
+    0,
+    Math.trunc(Number(session?.contextSummary?.coveredMessageCount) || 0),
+  );
   const historySource = cachedSummary
-    ? allMessages.slice(coveredMessageCount > 0
-      ? coveredMessageCount
-      : -CONVERSATION_SUMMARY_RECENT_MESSAGES)
+    ? allMessages.slice(
+        coveredMessageCount > 0 ? coveredMessageCount : -CONVERSATION_SUMMARY_RECENT_MESSAGES,
+      )
     : allMessages;
 
   // 只返回历史消息，摘要由 useChatEngine 并入主 system prompt 的 context 段落。
   return buildHistoryMessagesWithinBudget(historySource, {
     maxChars,
     maxMessages,
-    maxPerMessage
+    maxPerMessage,
   });
 };
 
@@ -449,7 +500,9 @@ export const getCachedSummaryIfUsable = (session = {}) => {
   const allMessages = getStorableDialogueMessages(session?.messages);
   const sourceMessageCount = Math.max(0, Math.trunc(Number(summary.sourceMessageCount) || 0));
   if (sourceMessageCount > 0 && sourceMessageCount <= allMessages.length) {
-    const sourceFingerprint = buildConversationSummaryFingerprint(allMessages.slice(0, sourceMessageCount));
+    const sourceFingerprint = buildConversationSummaryFingerprint(
+      allMessages.slice(0, sourceMessageCount),
+    );
     return summary.fingerprint === sourceFingerprint ? content : '';
   }
 
@@ -468,13 +521,17 @@ export const rankEvidenceContextBlocks = (results = [], queryText = '') => {
       const connectorId = String(result?.connectorId || result?.connector?.id || '').trim();
       const context = String(result.context || '').trim();
       const lexicalScore = scoreChunk(context, keywords);
-      const confidenceScore = Math.round(Number(result.confidence || 0) * RANKING_SCORE_WEIGHTS.confidenceMultiplier);
-      const sourceScore = EVIDENCE_SOURCE_WEIGHTS[connectorId] || RANKING_SCORE_WEIGHTS.defaultSourceScore;
+      const confidenceScore = Math.round(
+        Number(result.confidence || 0) * RANKING_SCORE_WEIGHTS.confidenceMultiplier,
+      );
+      const sourceScore =
+        EVIDENCE_SOURCE_WEIGHTS[connectorId] || RANKING_SCORE_WEIGHTS.defaultSourceScore;
       return {
         context,
         result,
         index,
-        score: (lexicalScore * RANKING_SCORE_WEIGHTS.lexicalMultiplier) + sourceScore + confidenceScore
+        score:
+          lexicalScore * RANKING_SCORE_WEIGHTS.lexicalMultiplier + sourceScore + confidenceScore,
       };
     })
     .sort((a, b) => b.score - a.score || a.index - b.index);
@@ -488,14 +545,18 @@ export const buildSharedEvidenceContext = ({
   searchContext = '',
   maxChars = MAX_PROMPT_EXTRA_CHARS,
   evidenceUrls = [],
-  searchUrls = []
+  searchUrls = [],
 } = {}) => {
   const evidence = String(evidenceContext || '').trim();
   const search = String(searchContext || '').trim();
 
   // 去重：如果搜索内容 URL 和知识检索 URL 重叠，搜索内容截断
-  const evidenceUrlSet = new Set((Array.isArray(evidenceUrls) ? evidenceUrls : []).map((u) => String(u).trim()).filter(Boolean));
-  const searchUrlSet = new Set((Array.isArray(searchUrls) ? searchUrls : []).map((u) => String(u).trim()).filter(Boolean));
+  const evidenceUrlSet = new Set(
+    (Array.isArray(evidenceUrls) ? evidenceUrls : []).map((u) => String(u).trim()).filter(Boolean),
+  );
+  const searchUrlSet = new Set(
+    (Array.isArray(searchUrls) ? searchUrls : []).map((u) => String(u).trim()).filter(Boolean),
+  );
   const overlapUrls = new Set([...evidenceUrlSet].filter((u) => searchUrlSet.has(u)));
 
   let dedupedSearch = search;
@@ -517,7 +578,7 @@ export const buildSharedEvidenceContext = ({
 
   return {
     evidenceContext: truncateText(evidence, evidenceBudget),
-    searchContext: actualSearch
+    searchContext: actualSearch,
   };
 };
 
@@ -554,18 +615,13 @@ export const buildStructuredUserPrompt = ({
   responseRules = '',
   communityRules = '',
   evidenceRules = '',
-  operationRules = ''
+  operationRules = '',
 } = {}) => {
-  const sections = [
-    `<task>\n${truncateText(userText, MAX_USER_INPUT_CHARS)}\n</task>`
-  ];
+  const sections = [`<task>\n${truncateText(userText, MAX_USER_INPUT_CHARS)}\n</task>`];
 
-  const ruleSections = [
-    responseRules,
-    communityRules,
-    evidenceRules,
-    operationRules
-  ].map((item) => String(item || '').trim()).filter(Boolean);
+  const ruleSections = [responseRules, communityRules, evidenceRules, operationRules]
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
 
   if (ruleSections.length > 0) {
     sections.push(`<response_rules>\n${ruleSections.join('\n\n')}\n</response_rules>`);
@@ -574,10 +630,7 @@ export const buildStructuredUserPrompt = ({
   return truncateText(sections.join('\n\n'), MAX_FINAL_PROMPT_CHARS);
 };
 
-export const buildSystemEvidenceContext = ({
-  evidenceContext = '',
-  searchContext = ''
-} = {}) => {
+export const buildSystemEvidenceContext = ({ evidenceContext = '', searchContext = '' } = {}) => {
   const evidence = String(evidenceContext || '').trim();
   const search = String(searchContext || '').trim();
   const parts = [];
@@ -632,7 +685,7 @@ export const getPostTitleAndBody = (post = {}) => {
   if (explicitTitle || explicitBody) {
     return {
       title: explicitTitle || '无标题',
-      body: explicitBody || normalizePromptLine(post?.content, 900)
+      body: explicitBody || normalizePromptLine(post?.content, 900),
     };
   }
   return parsePostTitleAndBody(post?.content);
@@ -685,28 +738,33 @@ export const getBirthdayCountdown = (monthText, dayText) => {
     nextBirthday = new Date(year + 1, parsed.month - 1, parsed.day, 0, 0, 0, 0);
   }
 
-  const diffMs = nextBirthday.getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+  const diffMs =
+    nextBirthday.getTime() -
+    new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
   const days = Math.max(0, Math.round(diffMs / 86400000));
   return {
     month: parsed.month,
     day: parsed.day,
     nextDate: formatPromptDate(nextBirthday, '未知'),
-    daysUntil: days
+    daysUntil: days,
   };
 };
 
 export const formatBillingCycleLabel = (cycle) => {
-  const normalized = String(cycle || '').toLowerCase().trim();
+  const normalized = String(cycle || '')
+    .toLowerCase()
+    .trim();
   if (normalized === 'yearly') return '年付';
   if (normalized === 'monthly') return '月付';
   return '未知';
 };
 
-export const escapePromptXmlAttr = (text) => String(text || '')
-  .replace(/&/g, '&amp;')
-  .replace(/"/g, '&quot;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;');
+export const escapePromptXmlAttr = (text) =>
+  String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 
 export const buildSearchResultsContext = (results = [], aiAnswer = '') => {
   if (!Array.isArray(results) || results.length === 0) {
@@ -717,7 +775,8 @@ export const buildSearchResultsContext = (results = [], aiAnswer = '') => {
     return '';
   }
 
-  const SEARCH_SUFFIX_TEMPLATE = '\n\n以下是实时搜索结果，请根据这些信息回答用户，如果搜索结果不相关，请忽略：\n<search_results>\n\n</search_results>\n\n请在回答时，在引用搜索结果的地方标注编号，如 [W1], [W2]。并在回答结束时列出参考来源。\n\n';
+  const SEARCH_SUFFIX_TEMPLATE =
+    '\n\n以下是实时搜索结果，请根据这些信息回答用户，如果搜索结果不相关，请忽略：\n<search_results>\n\n</search_results>\n\n请在回答时，在引用搜索结果的地方标注编号，如 [W1], [W2]。并在回答结束时列出参考来源。\n\n';
   const effectiveMax = Math.max(0, MAX_PROMPT_EXTRA_CHARS - SEARCH_SUFFIX_TEMPLATE.length);
 
   let body = '';
@@ -731,7 +790,9 @@ export const buildSearchResultsContext = (results = [], aiAnswer = '') => {
     const ref = `W${i + 1}`;
     const title = escapePromptXmlAttr(normalizePromptLine(item?.title, 120));
     const url = escapePromptXmlAttr(normalizePromptLine(item?.url, 240));
-    const content = escapePromptXmlAttr(normalizePromptLine(item?.content, MAX_SEARCH_RESULT_CONTENT_CHARS));
+    const content = escapePromptXmlAttr(
+      normalizePromptLine(item?.content, MAX_SEARCH_RESULT_CONTENT_CHARS),
+    );
     const line = `<result index="${i + 1}" ref="${ref}" title="${title}" url="${url}">${content}</result>\n`;
     if (body.length + line.length > effectiveMax) break;
     body += line;
@@ -745,7 +806,11 @@ export const buildSearchResultsContext = (results = [], aiAnswer = '') => {
 export const getWebSearchFreshnessDays = (queryText = '') => {
   const normalized = normalizePromptLine(queryText, 800);
   if (!normalized) return null;
-  if (/(今天|今日|刚刚|刚才|这几天|近几天|过去几天|过去[一二两三四五六七八九十\d]+天)/i.test(normalized)) {
+  if (
+    /(今天|今日|刚刚|刚才|这几天|近几天|过去几天|过去[一二两三四五六七八九十\d]+天)/i.test(
+      normalized,
+    )
+  ) {
     return 7;
   }
   if (/(最近|近期|最新|本周|这周|本月|这个月|新发布|刚发布|新闻|动态|近况)/i.test(normalized)) {
@@ -762,17 +827,17 @@ export const searchWebForPrompt = async (queryText, requestSignal = undefined) =
 
   const freshnessDays = getWebSearchFreshnessDays(queryText);
   const payload = {
-      query: queryText,
-      search_depth: 'advanced',
-      include_answer: true,
-      max_results: 5,
-      ...(freshnessDays ? { days: freshnessDays } : {})
-    };
+    query: queryText,
+    search_depth: 'advanced',
+    include_answer: true,
+    max_results: 5,
+    ...(freshnessDays ? { days: freshnessDays } : {}),
+  };
 
   const vaultResult = await searchVaultFree({
     payload,
     timeoutMs: WEB_SEARCH_TIMEOUT_MS,
-    signal: requestSignal
+    signal: requestSignal,
   });
   if (!vaultResult.ok) {
     const message = String(vaultResult.error?.message || '联网搜索暂时不可用');
@@ -785,7 +850,7 @@ export const searchWebForPrompt = async (queryText, requestSignal = undefined) =
       count: 0,
       context: '',
       message,
-      error: vaultResult.error
+      error: vaultResult.error,
     };
   }
   const searchData = vaultResult.data || {};
@@ -798,15 +863,31 @@ export const searchWebForPrompt = async (queryText, requestSignal = undefined) =
     count: results.length,
     context: buildSearchResultsContext(results, aiAnswer),
     results,
-    aiAnswer
+    aiAnswer,
   };
 };
 
 export const isOperationQuestion = (text) => {
   const normalized = normalizeText(text);
   const operationKeywords = [
-    '如何', '怎么', '步骤', '入口', '路径', '路由', '在哪', '在哪里', '使用', '操作', '教程', '指引',
-    '写印象', '发帖', '发布', '查看', '进入', '打开'
+    '如何',
+    '怎么',
+    '步骤',
+    '入口',
+    '路径',
+    '路由',
+    '在哪',
+    '在哪里',
+    '使用',
+    '操作',
+    '教程',
+    '指引',
+    '写印象',
+    '发帖',
+    '发布',
+    '查看',
+    '进入',
+    '打开',
   ];
   return operationKeywords.some((keyword) => normalized.includes(keyword));
 };
@@ -815,9 +896,10 @@ export const shouldUseSiteGuide = (text) => {
   return isOperationQuestion(text);
 };
 
-export const normalizeActionInput = (text) => String(text || '')
-  .replace(/\r/g, '')
-  .trim();
+export const normalizeActionInput = (text) =>
+  String(text || '')
+    .replace(/\r/g, '')
+    .trim();
 
 export const stripLeadingActionPhrase = (text) => {
   let output = String(text || '').trim();
@@ -839,7 +921,11 @@ export const extractSingleLineField = (text, labels = []) => {
   return normalizePromptLine(matched?.[1] || '', 220);
 };
 
-export const extractMultilineField = (text, labels = [], maxChars = ACTION_DRAFT_CONTENT_MAX_CHARS) => {
+export const extractMultilineField = (
+  text,
+  labels = [],
+  maxChars = ACTION_DRAFT_CONTENT_MAX_CHARS,
+) => {
   const safeText = String(text || '');
   const joined = labels
     .map((label) => String(label || '').trim())
@@ -852,13 +938,16 @@ export const extractMultilineField = (text, labels = [], maxChars = ACTION_DRAFT
   return normalizePromptLine(matched?.[1] || '', maxChars);
 };
 
-export const trimLeadingDraftDelimiters = (text) => String(text || '').replace(/^[，,。；;、\s]+/g, '').trim();
+export const trimLeadingDraftDelimiters = (text) =>
+  String(text || '')
+    .replace(/^[，,。；;、\s]+/g, '')
+    .trim();
 
 export const extractFieldUntilNextLabel = (
   text,
   labels = [],
   nextLabels = [],
-  maxChars = ACTION_DRAFT_CONTENT_MAX_CHARS
+  maxChars = ACTION_DRAFT_CONTENT_MAX_CHARS,
 ) => {
   const safeText = String(text || '');
   const joined = labels
@@ -882,23 +971,31 @@ export const extractFieldUntilNextLabel = (
 export const cleanPostDraftIdeaText = (text) => {
   let ideaText = stripLeadingActionPhrase(text);
   ideaText = ideaText.replace(new RegExp(ACTION_POST_TRIGGER_PATTERN.source, 'ig'), ' ');
-  ideaText = ideaText.replace(/(?:标题|title)\s*[：:][^\n]+/ig, ' ');
-  ideaText = ideaText.replace(/(?:内容|正文|body|想法)(?:是)?\s*[：:]/ig, ' ');
-  ideaText = ideaText.replace(/^(?:请你|请帮我|帮我|替我|代我|我想|我要|帮忙|麻烦你?)\s*/ig, ' ');
-  ideaText = ideaText.replace(/^(?:起草|生成|写|整理)\s*(?:一条|一篇|一个)?\s*(?:论坛|社区|帖子|发布文案|标题和正文)\s*/ig, ' ');
+  ideaText = ideaText.replace(/(?:标题|title)\s*[：:][^\n]+/gi, ' ');
+  ideaText = ideaText.replace(/(?:内容|正文|body|想法)(?:是)?\s*[：:]/gi, ' ');
+  ideaText = ideaText.replace(/^(?:请你|请帮我|帮我|替我|代我|我想|我要|帮忙|麻烦你?)\s*/gi, ' ');
+  ideaText = ideaText.replace(
+    /^(?:起草|生成|写|整理)\s*(?:一条|一篇|一个)?\s*(?:论坛|社区|帖子|发布文案|标题和正文)\s*/gi,
+    ' ',
+  );
   return normalizePromptLine(trimLeadingDraftDelimiters(ideaText), ACTION_DRAFT_CONTENT_MAX_CHARS);
 };
 
-export const stripPostDraftTitleNoise = (text) => normalizePromptLine(text, ACTION_DRAFT_TITLE_MAX_CHARS)
-  .replace(/^(?:AI草稿|草稿|标题|帖子|论坛|社区)\s*[：:：-]?\s*/i, '')
-  .replace(/^(?:关于|有关)\s*/, '')
-  .replace(/^(?:我最近|最近|我发现|我想|想问问大家|想和大家聊聊|请教一下)\s*/i, '')
-  .replace(/(?:想问问大家|大家怎么看|有没有人遇到|有没有遇到过|欢迎大家).*/i, '')
-  .trim();
+export const stripPostDraftTitleNoise = (text) =>
+  normalizePromptLine(text, ACTION_DRAFT_TITLE_MAX_CHARS)
+    .replace(/^(?:AI草稿|草稿|标题|帖子|论坛|社区)\s*[：:：-]?\s*/i, '')
+    .replace(/^(?:关于|有关)\s*/, '')
+    .replace(/^(?:我最近|最近|我发现|我想|想问问大家|想和大家聊聊|请教一下)\s*/i, '')
+    .replace(/(?:想问问大家|大家怎么看|有没有人遇到|有没有遇到过|欢迎大家).*/i, '')
+    .trim();
 
 export const buildLocalPostDraftTitle = (text) => {
   const safeText = normalizePromptLine(text, ACTION_DRAFT_CONTENT_MAX_CHARS);
-  const firstSentence = safeText.split(/[。！？!?；;\n]/).map((item) => item.trim()).find(Boolean) || safeText;
+  const firstSentence =
+    safeText
+      .split(/[。！？!?；;\n]/)
+      .map((item) => item.trim())
+      .find(Boolean) || safeText;
   const cleaned = stripPostDraftTitleNoise(firstSentence)
     .replace(/^(?:这个|这件事|这个情况)\s*/, '')
     .replace(/[，,、：:]\s*$/g, '')
@@ -916,51 +1013,67 @@ export const buildLocalPostDraftContent = (text) => {
   const ideaText = cleanPostDraftIdeaText(text);
   if (!ideaText) return '';
 
-  const hasQuestionTone = /(吗|么|怎么办|怎么|如何|为什么|原因|有没有|是否|可不可以|行不行|建议|办法|解决)/.test(ideaText);
+  const hasQuestionTone =
+    /(吗|么|怎么办|怎么|如何|为什么|原因|有没有|是否|可不可以|行不行|建议|办法|解决)/.test(
+      ideaText,
+    );
   const endMark = /[。！？!?]$/.test(ideaText) ? '' : '。';
   const lead = hasQuestionTone ? '我想和大家请教一下：' : '我想和大家分享一个想法：';
   const tail = hasQuestionTone
     ? '如果你也遇到过类似情况，欢迎分享一下原因、处理办法或经验。'
     : '也想听听大家怎么看，欢迎补充不同的经验或建议。';
 
-  return normalizePromptLine(`${lead}${ideaText}${endMark}\n\n${tail}`, ACTION_DRAFT_CONTENT_MAX_CHARS);
+  return normalizePromptLine(
+    `${lead}${ideaText}${endMark}\n\n${tail}`,
+    ACTION_DRAFT_CONTENT_MAX_CHARS,
+  );
 };
 
 export const isWeakPostDraftTitle = (title, rawText, content) => {
   const normalizedTitle = normalizePromptLine(title, ACTION_DRAFT_TITLE_MAX_CHARS);
   if (!normalizedTitle) return true;
-  if (/^(?:AI草稿|草稿|帮我|请帮我|请你|我要|我想|生成|起草|写|整理|发帖)/i.test(normalizedTitle)) return true;
+  if (/^(?:AI草稿|草稿|帮我|请帮我|请你|我要|我想|生成|起草|写|整理|发帖)/i.test(normalizedTitle))
+    return true;
 
   const compactTitle = normalizedTitle.replace(/\s+/g, '');
-  const compactRaw = normalizePromptLine(rawText, ACTION_DRAFT_CONTENT_MAX_CHARS).replace(/\s+/g, '');
-  const compactContent = normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS).replace(/\s+/g, '');
+  const compactRaw = normalizePromptLine(rawText, ACTION_DRAFT_CONTENT_MAX_CHARS).replace(
+    /\s+/g,
+    '',
+  );
+  const compactContent = normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS).replace(
+    /\s+/g,
+    '',
+  );
   if (compactRaw && compactTitle === compactRaw) return true;
-  if (compactContent && compactTitle.length > 18 && compactContent.startsWith(compactTitle)) return true;
+  if (compactContent && compactTitle.length > 18 && compactContent.startsWith(compactTitle))
+    return true;
   return false;
 };
-
 
 export const buildPostDraftFromText = (text) => {
   const safeText = normalizeActionInput(text);
   const normalized = stripLeadingActionPhrase(safeText);
-  const explicitTitle = extractFieldUntilNextLabel(
-    normalized,
-    ['标题', 'title'],
-    ['内容', '正文', 'body'],
-    ACTION_DRAFT_TITLE_MAX_CHARS
-  ) || extractSingleLineField(normalized, ['标题', 'title']);
-  let content = extractFieldUntilNextLabel(
-    normalized,
-    ['内容', '正文', 'body'],
-    [],
-    ACTION_DRAFT_CONTENT_MAX_CHARS
-  ) || extractMultilineField(normalized, ['内容', '正文', 'body'], ACTION_DRAFT_CONTENT_MAX_CHARS);
+  const explicitTitle =
+    extractFieldUntilNextLabel(
+      normalized,
+      ['标题', 'title'],
+      ['内容', '正文', 'body'],
+      ACTION_DRAFT_TITLE_MAX_CHARS,
+    ) || extractSingleLineField(normalized, ['标题', 'title']);
+  let content =
+    extractFieldUntilNextLabel(
+      normalized,
+      ['内容', '正文', 'body'],
+      [],
+      ACTION_DRAFT_CONTENT_MAX_CHARS,
+    ) ||
+    extractMultilineField(normalized, ['内容', '正文', 'body'], ACTION_DRAFT_CONTENT_MAX_CHARS);
 
   if (!content) {
     let fallback = normalized;
     fallback = fallback.replace(new RegExp(ACTION_POST_TRIGGER_PATTERN.source, 'ig'), ' ');
-    fallback = fallback.replace(/(?:标题|title)\s*[：:][^\n]+/ig, '');
-    fallback = fallback.replace(/(?:内容|正文|body|想法)(?:是)?\s*[：:]/ig, '');
+    fallback = fallback.replace(/(?:标题|title)\s*[：:][^\n]+/gi, '');
+    fallback = fallback.replace(/(?:内容|正文|body|想法)(?:是)?\s*[：:]/gi, '');
     content = buildLocalPostDraftContent(trimLeadingDraftDelimiters(fallback));
   }
 
@@ -973,7 +1086,7 @@ export const buildPostDraftFromText = (text) => {
 
   return {
     title,
-    content: normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS)
+    content: normalizePromptLine(content, ACTION_DRAFT_CONTENT_MAX_CHARS),
   };
 };
 
@@ -984,8 +1097,10 @@ export const buildPostDraftFromText = (text) => {
  * are intentionally excluded from noise removal per P1-B-6 fix.
  * Only directive/action verbs are stripped.
  */
-export const POST_DRAFT_IDEA_NOISE_PATTERN = /(帮我|替我|代我|请帮我|请你|我想|我要|想要|麻烦|先|直接|自动|起草|生成|写|整理|发布|发出去|标题|正文|内容|文案|草稿|一下|一条|一篇|一个|论坛|社区|帖子|发帖|发布文案|编辑后|可直接)/g;
-export const POST_DRAFT_PLACEHOLDER_PATTERN = /(请在这里填写帖子正文|先起草标题和正文|起草标题和正文|标题和正文|发帖内容|发布文案)/;
+export const POST_DRAFT_IDEA_NOISE_PATTERN =
+  /(帮我|替我|代我|请帮我|请你|我想|我要|想要|麻烦|先|直接|自动|起草|生成|写|整理|发布|发出去|标题|正文|内容|文案|草稿|一下|一条|一篇|一个|论坛|社区|帖子|发帖|发布文案|编辑后|可直接)/g;
+export const POST_DRAFT_PLACEHOLDER_PATTERN =
+  /(请在这里填写帖子正文|先起草标题和正文|起草标题和正文|标题和正文|发帖内容|发布文案)/;
 
 export const hasPostDraftUserIdea = (rawText, draft = {}) => {
   const raw = normalizePromptLine(rawText, ACTION_DRAFT_CONTENT_MAX_CHARS);
@@ -993,13 +1108,18 @@ export const hasPostDraftUserIdea = (rawText, draft = {}) => {
   const fallbackContent = normalizePromptLine(draft.content, ACTION_DRAFT_CONTENT_MAX_CHARS);
   if (!fallbackContent || POST_DRAFT_PLACEHOLDER_PATTERN.test(fallbackContent)) return false;
 
-  const explicitBody = extractFieldUntilNextLabel(raw, ['内容', '正文', 'body', '想法'], [], ACTION_DRAFT_CONTENT_MAX_CHARS);
+  const explicitBody = extractFieldUntilNextLabel(
+    raw,
+    ['内容', '正文', 'body', '想法'],
+    [],
+    ACTION_DRAFT_CONTENT_MAX_CHARS,
+  );
   if (explicitBody && explicitBody.replace(/\s+/g, '').length >= 4) return true;
 
   let ideaText = raw;
   ideaText = ideaText.replace(new RegExp(ACTION_POST_TRIGGER_PATTERN.source, 'ig'), ' ');
-  ideaText = ideaText.replace(/(?:标题|title)\s*[：:][^\n]+/ig, ' ');
-  ideaText = ideaText.replace(/(?:内容|正文|body|想法)\s*[：:]/ig, ' ');
+  ideaText = ideaText.replace(/(?:标题|title)\s*[：:][^\n]+/gi, ' ');
+  ideaText = ideaText.replace(/(?:内容|正文|body|想法)\s*[：:]/gi, ' ');
   ideaText = ideaText.replace(POST_DRAFT_IDEA_NOISE_PATTERN, ' ');
   ideaText = normalizePromptLine(ideaText, ACTION_DRAFT_CONTENT_MAX_CHARS).replace(/\s+/g, '');
   return ideaText.length >= 4;
@@ -1008,23 +1128,32 @@ export const hasPostDraftUserIdea = (rawText, draft = {}) => {
 export const buildPageDraftFromText = (text) => {
   const safeText = normalizeActionInput(text);
   const normalized = stripLeadingActionPhrase(safeText);
-  const pageTypeMatched = normalized.match(/(首页|主页|落地页|活动页|公告页|展示页|介绍页|个人介绍|作品集|登录页|注册页|关于页|联系我们|产品页|宣传页|推广页|营销页)/);
+  const pageTypeMatched = normalized.match(
+    /(首页|主页|落地页|活动页|公告页|展示页|介绍页|个人介绍|作品集|登录页|注册页|关于页|联系我们|产品页|宣传页|推广页|营销页)/,
+  );
   const pageType = pageTypeMatched?.[1] || '展示页';
-  const description = extractMultilineField(normalized, ['描述', '要求', '需求', '说明'], 420)
-    || normalized
-        .replace(/(创建网页|创建页面|生成网页|生成页面|做个网页|做个页面|做个主页|做个落地页|搭建网页|搭建页面|设计网页|设计页面|建个网页|建个页面|制作网页|制作页面|网页设计|页面设计)/ig, '')
-        .replace(/(首页|主页|落地页|活动页|公告页|展示页|介绍页|个人介绍|作品集|登录页|注册页|关于页|联系我们|产品页|宣传页|推广页|营销页)/g, '')
-        .replace(/(帮我|替我|代我|请帮我|请你|我想|我要|想要|需要|帮忙)/ig, '')
-        .trim();
+  const description =
+    extractMultilineField(normalized, ['描述', '要求', '需求', '说明'], 420) ||
+    normalized
+      .replace(
+        /(创建网页|创建页面|生成网页|生成页面|做个网页|做个页面|做个主页|做个落地页|搭建网页|搭建页面|设计网页|设计页面|建个网页|建个页面|制作网页|制作页面|网页设计|页面设计)/gi,
+        '',
+      )
+      .replace(
+        /(首页|主页|落地页|活动页|公告页|展示页|介绍页|个人介绍|作品集|登录页|注册页|关于页|联系我们|产品页|宣传页|推广页|营销页)/g,
+        '',
+      )
+      .replace(/(帮我|替我|代我|请帮我|请你|我想|我要|想要|需要|帮忙)/gi, '')
+      .trim();
   return {
     pageType,
-    description: normalizePromptLine(description || '一个简洁美观的展示页面', 420)
+    description: normalizePromptLine(description || '一个简洁美观的展示页面', 420),
   };
 };
 
 export const compressKnowledgeContextBlocks = (
   blocks = [],
-  { maxChars = KNOWLEDGE_CONTEXT_MAX_CHARS, maxPerBlock = KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS } = {}
+  { maxChars = KNOWLEDGE_CONTEXT_MAX_CHARS, maxPerBlock = KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS } = {},
 ) => {
   const source = Array.isArray(blocks) ? blocks : [];
   const normalizedBlocks = source
@@ -1055,12 +1184,15 @@ const _generationProfileCache = new Map();
 const _GEN_PROFILE_CACHE_MAX = 32;
 const _GEN_PROFILE_CACHE_TTL_MS = 60_000;
 
-export const getGenerationProfile = (modeId, { factualQuestion = false, operationQuestion = false, psychInterview = false } = {}) => {
+export const getGenerationProfile = (
+  modeId,
+  { factualQuestion = false, operationQuestion = false, psychInterview = false } = {},
+) => {
   // ⚠️ psychInterview 必须进 cacheKey：缓存按 key 命中，漏掉它会让访谈态拿到非访谈态的 profile
   // （或反过来），而且这种错配是静默的 —— 表现只是"有时候像问卷腔"。
   const cacheKey = `${modeId}|${factualQuestion}|${operationQuestion}|${psychInterview}`;
   const cached = _generationProfileCache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp) < _GEN_PROFILE_CACHE_TTL_MS) return cached.value;
+  if (cached && Date.now() - cached.timestamp < _GEN_PROFILE_CACHE_TTL_MS) return cached.value;
   if (cached) _generationProfileCache.delete(cacheKey);
 
   const fallback = { temperature: 0.24, top_p: 0.76, frequency_penalty: 0.08, max_tokens: 1800 };
@@ -1091,7 +1223,7 @@ export const getGenerationProfile = (modeId, { factualQuestion = false, operatio
 export const INTERNAL_PROGRESS_LINE_PATTERNS = [
   /^\s*>\s*\*\*(?:正在搜索|找到\s*\d+\s*个结果|未找到相关结果|自动检索中|知识路由|已完成内部检索|未检索到匹配内部资料)\*\*.*$/u,
   /^\s*>\s*(?:⚠️|✅|❌|⚙️)\s*\*\*.*\*\*.*$/u,
-  /^\s*>\s*\d+\.\s*\[[^\]]+\]\((?:https?:\/\/|www\.)[^)]+\)\s*$/u
+  /^\s*>\s*\d+\.\s*\[[^\]]+\]\((?:https?:\/\/|www\.)[^)]+\)\s*$/u,
 ];
 
 // 模型幻觉输出的工具调用标签（项目未注册任何 LLM 工具，这类文本需统一清洗）。
@@ -1100,7 +1232,7 @@ const TOOL_HALLUCINATION_PATTERNS = [
   /<tool_call>[\s\S]*?<\/tool_call>\s*/gi,
   /<function_call>[\s\S]*?<\/function_call>\s*/gi,
   /<tool\s+name=["'][^"']+["'][^<]*?\/\s*>\s*/gi,
-  /<tool\s+name=["'][^"']+["'][\s\S]*?<\/tool>\s*/gi
+  /<tool\s+name=["'][^"']+["'][\s\S]*?<\/tool>\s*/gi,
 ];
 
 export const cleanAssistantVisibleReply = (text) => {
@@ -1109,7 +1241,7 @@ export const cleanAssistantVisibleReply = (text) => {
 
   const sanitized = TOOL_HALLUCINATION_PATTERNS.reduce(
     (acc, pattern) => acc.replace(pattern, ''),
-    raw
+    raw,
   );
 
   const filteredLines = sanitized
@@ -1159,7 +1291,8 @@ const PUNCT_REPEAT_CHAR_CLASS = '[!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;
 // 字符级正则源串：用于 match 中提取标点（不含 [ ] { }，与原始实现保持一致）。
 const PUNCT_DENSITY_CHAR_CLASS = '[!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;\`\'"]';
 
-const buildPunctRepeatRegex = (repeatCount) => new RegExp(`(${PUNCT_REPEAT_CHAR_CLASS})\\1{${repeatCount},}`, 'u');
+const buildPunctRepeatRegex = (repeatCount) =>
+  new RegExp(`(${PUNCT_REPEAT_CHAR_CLASS})\\1{${repeatCount},}`, 'u');
 const buildPunctDensityRegex = () => new RegExp(PUNCT_DENSITY_CHAR_CLASS, 'gu');
 
 export const isDegenerateAssistantReply = (text) => {
@@ -1183,7 +1316,9 @@ export const isDegenerateStreamOutput = (text) => {
   if (hasEscapedLineBreakFlood(normalized)) return true;
 
   const compact = normalizeCompactText(normalized.slice(-DEGENERATE_STREAM_WINDOW_CHARS));
-  const tailPunctuationRun = compact.match(new RegExp(`(?:${PUNCT_DENSITY_CHAR_CLASS}){18,}$`, 'u'));
+  const tailPunctuationRun = compact.match(
+    new RegExp(`(?:${PUNCT_DENSITY_CHAR_CLASS}){18,}$`, 'u'),
+  );
   if (tailPunctuationRun && tailPunctuationRun[0].length / Math.max(1, compact.length) >= 0.08) {
     return true;
   }
@@ -1208,7 +1343,7 @@ export const CONTEXT_CATEGORIES = {
   EVIDENCE: 'evidence',
   RULES: 'rules',
   USER_INPUT: 'userInput',
-  STRUCTURED_MEMORY: 'structuredMemory'
+  STRUCTURED_MEMORY: 'structuredMemory',
 };
 
 export const CONTEXT_BUDGET_DEFAULTS = {
@@ -1217,7 +1352,7 @@ export const CONTEXT_BUDGET_DEFAULTS = {
   evidence: { max: 5000, priority: 3 },
   rules: { max: 2000, priority: 1 },
   userInput: { max: 3000, priority: 0 },
-  structuredMemory: { max: 800, priority: 1 }
+  structuredMemory: { max: 800, priority: 1 },
 };
 
 export const createContextBudgetTracker = (budgets = {}) => {
@@ -1247,17 +1382,25 @@ export const createContextBudgetTracker = (budgets = {}) => {
         used: val,
         max: budget.max,
         percent: budget.max > 0 ? Math.min(100, (val / budget.max) * 100) : 0,
-        priority: budget.priority
+        priority: budget.priority,
       };
     }
 
     return {
-      total: { used: totalUsed, max: totalBudget, percent: totalBudget > 0 ? Math.min(100, (totalUsed / totalBudget) * 100) : 0 },
+      total: {
+        used: totalUsed,
+        max: totalBudget,
+        percent: totalBudget > 0 ? Math.min(100, (totalUsed / totalBudget) * 100) : 0,
+      },
       byCategory,
-      level: totalBudget > 0 && (totalUsed / totalBudget) >= 0.95 ? 'full'
-        : totalBudget > 0 && (totalUsed / totalBudget) >= 0.80 ? 'high'
-        : totalBudget > 0 && (totalUsed / totalBudget) >= 0.55 ? 'mid'
-        : 'low'
+      level:
+        totalBudget > 0 && totalUsed / totalBudget >= 0.95
+          ? 'full'
+          : totalBudget > 0 && totalUsed / totalBudget >= 0.8
+            ? 'high'
+            : totalBudget > 0 && totalUsed / totalBudget >= 0.55
+              ? 'mid'
+              : 'low',
     };
   };
 
@@ -1302,7 +1445,7 @@ export const STRUCTURED_MEMORY_TYPES = {
   DECISION: 'decision',
   GOAL: 'goal',
   RELATIONSHIP: 'relationship',
-  EVENT: 'event'
+  EVENT: 'event',
 };
 
 export const extractStructuredMemories = (messages = []) => {
@@ -1316,19 +1459,41 @@ export const extractStructuredMemories = (messages = []) => {
     .slice(-6000);
 
   const patterns = [
-    { type: STRUCTURED_MEMORY_TYPES.PREFERENCE, re: /(?:我|用户)(?:喜欢|不喜欢|偏爱|更愿意)\s*(.+?)[。，；;]/g },
-    { type: STRUCTURED_MEMORY_TYPES.PERSONAL_INFO, re: /(?:我|用户)(?:是|叫|在|来自|今年)\s*(.+?)[。，；;]/g },
-    { type: STRUCTURED_MEMORY_TYPES.DECISION, re: /(?:我|用户)(?:决定|选择|打算|想|要)\s*(.+?)[。，；;]/g },
-    { type: STRUCTURED_MEMORY_TYPES.GOAL, re: /(?:我|用户)(?:的目标|的目标是|希望|想要|需要|梦想)\s*(.+?)[。，；;]/g },
-    { type: STRUCTURED_MEMORY_TYPES.EVENT, re: /(?:我|用户)(?:最近|刚刚|之前|昨天|上周|今天)\s*(.+?)[。，；;]/g }
+    {
+      type: STRUCTURED_MEMORY_TYPES.PREFERENCE,
+      re: /(?:我|用户)(?:喜欢|不喜欢|偏爱|更愿意)\s*(.+?)[。，；;]/g,
+    },
+    {
+      type: STRUCTURED_MEMORY_TYPES.PERSONAL_INFO,
+      re: /(?:我|用户)(?:是|叫|在|来自|今年)\s*(.+?)[。，；;]/g,
+    },
+    {
+      type: STRUCTURED_MEMORY_TYPES.DECISION,
+      re: /(?:我|用户)(?:决定|选择|打算|想|要)\s*(.+?)[。，；;]/g,
+    },
+    {
+      type: STRUCTURED_MEMORY_TYPES.GOAL,
+      re: /(?:我|用户)(?:的目标|的目标是|希望|想要|需要|梦想)\s*(.+?)[。，；;]/g,
+    },
+    {
+      type: STRUCTURED_MEMORY_TYPES.EVENT,
+      re: /(?:我|用户)(?:最近|刚刚|之前|昨天|上周|今天)\s*(.+?)[。，；;]/g,
+    },
   ];
 
   for (const { type, re } of patterns) {
     let match;
     while ((match = re.exec(text)) !== null) {
       const value = match[1].trim().slice(0, 100);
-      if (value.length >= 4 && !memories.some((m) => m.value.includes(value) || value.includes(m.value))) {
-        memories.push({ type, value, confidence: type === STRUCTURED_MEMORY_TYPES.PERSONAL_INFO ? 0.7 : 0.5 });
+      if (
+        value.length >= 4 &&
+        !memories.some((m) => m.value.includes(value) || value.includes(m.value))
+      ) {
+        memories.push({
+          type,
+          value,
+          confidence: type === STRUCTURED_MEMORY_TYPES.PERSONAL_INFO ? 0.7 : 0.5,
+        });
         if (memories.length >= 12) break;
       }
     }
@@ -1340,13 +1505,21 @@ export const extractStructuredMemories = (messages = []) => {
 
 export const buildStructuredMemoryBlock = (memories = []) => {
   if (!memories.length) return '';
-  const xml = memories.map((m) =>
-    `  <fact type="${m.type}" confidence="${m.confidence.toFixed(1)}">${escapeXml(m.value)}</fact>`
-  ).join('\n');
+  const xml = memories
+    .map(
+      (m) =>
+        `  <fact type="${m.type}" confidence="${m.confidence.toFixed(1)}">${escapeXml(m.value)}</fact>`,
+    )
+    .join('\n');
   return `<structured_memory>\n${xml}\n</structured_memory>`;
 };
 
-const escapeXml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const escapeXml = (s) =>
+  String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
 // ============================================================
 // 优化 3: 分层上下文压缩
@@ -1377,7 +1550,8 @@ export const compactMessages = (messages, maxTokens) => {
   const kept = [];
   let used = estimateMessagesTokens(system);
   for (let i = nonSystem.length - 1; i >= 0; i--) {
-    const estimated = TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(String(nonSystem[i].content || ''));
+    const estimated =
+      TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(String(nonSystem[i].content || ''));
     if (used + estimated > maxTokens) break;
     kept.unshift(nonSystem[i]);
     used += estimated;
@@ -1392,25 +1566,25 @@ export const compactMessages = (messages, maxTokens) => {
 // 与用户问题分离，不占用 MAX_USER_INPUT_CHARS 预算。
 // ============================================================
 
-export const MAX_PAGE_CONTEXT_CHARS = 4000
+export const MAX_PAGE_CONTEXT_CHARS = 4000;
 
 export const buildPageContextBlock = (pageContext = null) => {
-  if (!pageContext) return ''
-  const { title = '', url = '', selection = '', content = '', description = '' } = pageContext
-  if (!title && !url && !selection && !content) return ''
+  if (!pageContext) return '';
+  const { title = '', url = '', selection = '', content = '', description = '' } = pageContext;
+  if (!title && !url && !selection && !content) return '';
 
-  const sections = []
-  if (title) sections.push(`页面标题：${title}`)
-  if (url) sections.push(`页面地址：${url}`)
-  if (description) sections.push(`页面描述：${description}`)
-  if (selection) sections.push(`选中的内容：\n${selection}`)
+  const sections = [];
+  if (title) sections.push(`页面标题：${title}`);
+  if (url) sections.push(`页面地址：${url}`);
+  if (description) sections.push(`页面描述：${description}`);
+  if (selection) sections.push(`选中的内容：\n${selection}`);
   if (content) {
-    const trimmed = content.slice(0, MAX_PAGE_CONTEXT_CHARS)
-    sections.push(`页面正文：\n${trimmed}`)
+    const trimmed = content.slice(0, MAX_PAGE_CONTEXT_CHARS);
+    sections.push(`页面正文：\n${trimmed}`);
   }
 
-  return `<page_context>\n${sections.join('\n')}\n</page_context>`
-}
+  return `<page_context>\n${sections.join('\n')}\n</page_context>`;
+};
 
 // ============================================================
 // 优化 4: 子代理上下文构建
@@ -1423,10 +1597,10 @@ export const AGENT_CONTEXT_BUDGETS = {
   memory: { historyMax: 400 },
   ops: { historyMax: 800 },
   synthesizer: { historyMax: 1200 },
-  'chat-engine': { historyMax: 12000 }
+  'chat-engine': { historyMax: 12000 },
 };
 
-export const buildAgentContext = (history = [], agentName = '', query = '') => {
+export const buildAgentContext = (history = [], agentName = '', _query = '') => {
   const budget = AGENT_CONTEXT_BUDGETS[agentName] || AGENT_CONTEXT_BUDGETS['chat-engine'];
   const safeHistory = Array.isArray(history) ? history : [];
 
@@ -1437,7 +1611,7 @@ export const buildAgentContext = (history = [], agentName = '', query = '') => {
   const recent = buildHistoryMessagesWithinBudget(safeHistory, {
     maxChars: budget.historyMax,
     maxMessages: agentName === 'chat-engine' ? 30 : 8,
-    maxPerMessage: agentName === 'chat-engine' ? 2000 : 800
+    maxPerMessage: agentName === 'chat-engine' ? 2000 : 800,
   });
 
   return { context: '', history: recent };

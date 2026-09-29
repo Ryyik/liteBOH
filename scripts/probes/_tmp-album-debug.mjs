@@ -1,5 +1,5 @@
 /* 临时调试：检查书页内 grid/slot 的实际计算高度 */
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const { chromium } = await import('playwright');
@@ -9,7 +9,7 @@ const exe =
     'chrome-mac/Chromium.app/Contents/MacOS/Chromium',
     'chrome-headless-shell-mac-arm64/chrome-headless-shell',
   ]
-    .map((p) =>
+    .map((_p) =>
       join(
         cacheDir,
         '..',

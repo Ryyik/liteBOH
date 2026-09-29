@@ -6,12 +6,8 @@ import {
   getPostTitleAndBody,
   formatPromptDateTime,
   normalizeText,
-  containsAnyKeyword
 } from './bohai-engine-helpers.js';
-import {
-  FORUM_MAX_POSTS,
-  FORUM_MAX_CHARS_PER_POST
-} from './chat-engine-config.js';
+import { FORUM_MAX_POSTS } from './chat-engine-config.js';
 
 export const rankForumPostsByQuery = (posts, queryText) => {
   const keywords = extractQueryKeywords(queryText);
@@ -23,14 +19,17 @@ export const rankForumPostsByQuery = (posts, queryText) => {
         parsed.body,
         post?.author_username,
         post?.tagLabel,
-        post?.tag
+        post?.tag,
       ].join('\n');
       return {
         post,
-        score: scoreChunk(merged, keywords) + Number(post?.search_rank || 0) * 10
+        score: scoreChunk(merged, keywords) + Number(post?.search_rank || 0) * 10,
       };
     })
-    .sort((a, b) => b.score - a.score || new Date(b.post?.created_at || 0) - new Date(a.post?.created_at || 0))
+    .sort(
+      (a, b) =>
+        b.score - a.score || new Date(b.post?.created_at || 0) - new Date(a.post?.created_at || 0),
+    )
     .map((item) => item.post);
 };
 
@@ -52,14 +51,23 @@ export const getForumSortModeFromQuery = (queryText = '') => {
 export const isLatestForumSummaryQuery = (queryText = '') => {
   const normalized = normalizeText(queryText);
   const forumIntent = /(论坛|帖子|社区|社群|方块之家|boh)/.test(normalized);
-  const summaryIntent = /(总结|复盘|回顾|梳理|概括|整理|看看|近况|动态|发生了什么|大家在聊)/.test(normalized);
-  const latestIntent = /(最新|最近|近期|近况|今天|当前|刚刚|发布|往下|前\s*5|五条|5\s*条)/.test(normalized);
-  return forumIntent && summaryIntent && (latestIntent || /(总结|整理|概括).{0,8}(论坛|帖子|社区|社群)/.test(normalized));
+  const summaryIntent = /(总结|复盘|回顾|梳理|概括|整理|看看|近况|动态|发生了什么|大家在聊)/.test(
+    normalized,
+  );
+  const latestIntent = /(最新|最近|近期|近况|今天|当前|刚刚|发布|往下|前\s*5|五条|5\s*条)/.test(
+    normalized,
+  );
+  return (
+    forumIntent &&
+    summaryIntent &&
+    (latestIntent || /(总结|整理|概括).{0,8}(论坛|帖子|社区|社群)/.test(normalized))
+  );
 };
 
 export const sortForumPostsByCreatedAtDesc = (posts = []) => {
   return [...(Array.isArray(posts) ? posts : [])].sort((a, b) => {
-    const timeDiff = new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime();
+    const timeDiff =
+      new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime();
     if (timeDiff !== 0) return timeDiff;
     return String(b?.id || '').localeCompare(String(a?.id || ''));
   });
@@ -70,7 +78,11 @@ export const filterRecentForumPosts = (posts = [], { now = Date.now(), windowDay
   const cutoff = safeNow - Math.max(1, Number(windowDays) || 30) * 24 * 60 * 60 * 1000;
   return (Array.isArray(posts) ? posts : []).filter((post) => {
     const timestamp = new Date(post?.created_at || 0).getTime();
-    return Number.isFinite(timestamp) && timestamp >= cutoff && timestamp <= safeNow + 24 * 60 * 60 * 1000;
+    return (
+      Number.isFinite(timestamp) &&
+      timestamp >= cutoff &&
+      timestamp <= safeNow + 24 * 60 * 60 * 1000
+    );
   });
 };
 
@@ -95,7 +107,8 @@ export const buildForumPostNaturalSummary = ({ title = '', body = '' } = {}) => 
   const source = `${safeTitle} ${content}`;
   const hasQuestionTone = /[?？]|请问|求助|怎么|如何|为什么|有没有|能不能|可以吗/.test(source);
   const hasReminderTone = /(提醒|注意|千万|不要|别|小心|避开|记得)/.test(source);
-  const hasShareTone = /(分享|记录|今天|刚刚|发现|看到|觉得|感觉|喜欢|萌|可爱|喵|哈哈|hhh|！|!)/i.test(source);
+  const hasShareTone =
+    /(分享|记录|今天|刚刚|发现|看到|觉得|感觉|喜欢|萌|可爱|喵|哈哈|hhh|！|!)/i.test(source);
   const hasEventTone = /(活动|报名|更新|公告|上线|发布|安排|通知|时间|规则)/.test(source);
 
   const cleanedContent = content
@@ -127,7 +140,9 @@ export const buildExtractiveForumSummaryAnswer = (posts = []) => {
     return '未检索到论坛帖子，无法生成最新 5 条总结。';
   }
 
-  const lines = [`我按发布时间从新到旧看了最新 ${source.length} 条论坛帖子。下面是基于标题、正文和互动数据整理出的自然概括，不补充帖子里没有写到的背景。`];
+  const lines = [
+    `我按发布时间从新到旧看了最新 ${source.length} 条论坛帖子。下面是基于标题、正文和互动数据整理出的自然概括，不补充帖子里没有写到的背景。`,
+  ];
 
   source.forEach((post, index) => {
     const parsed = getPostTitleAndBody(post);
@@ -141,17 +156,18 @@ export const buildExtractiveForumSummaryAnswer = (posts = []) => {
     const summary = buildForumPostNaturalSummary({ title, body });
     const likes = Number(post?.like_count || post?.likes_count || 0);
     const comments = Number(post?.comment_count || 0);
-    const interaction = likes > 0 || comments > 0
-      ? `目前有 ${likes} 个赞、${comments} 条评论`
-      : '目前还没有明显互动';
+    const interaction =
+      likes > 0 || comments > 0 ? `目前有 ${likes} 个赞、${comments} 条评论` : '目前还没有明显互动';
 
-    lines.push([
-      '',
-      `${index + 1}. ${authorIdLabel} 在 ${time} 发布了《${title}》。`,
-      `${summary}`,
-      `${interaction}。`,
-      `链接：${url}`
-    ].join('\n'));
+    lines.push(
+      [
+        '',
+        `${index + 1}. ${authorIdLabel} 在 ${time} 发布了《${title}》。`,
+        `${summary}`,
+        `${interaction}。`,
+        `链接：${url}`,
+      ].join('\n'),
+    );
   });
 
   return lines.join('\n');
@@ -159,25 +175,27 @@ export const buildExtractiveForumSummaryAnswer = (posts = []) => {
 
 export const buildForumNarrativeSummaryPrompt = (posts = []) => {
   const source = Array.isArray(posts) ? posts.slice(0, FORUM_MAX_POSTS) : [];
-  const body = source.map((post, index) => {
-    const parsed = getPostTitleAndBody(post);
-    const title = normalizePromptLine(parsed.title || '无标题', 90);
-    const author = normalizePromptLine(post?.author_username, 40) || '未知作者';
-    const time = formatPromptDateTime(post?.created_at, '未知');
-    const tag = normalizePromptLine(post?.tagLabel || post?.tag, 24) || '未标注';
-    const likes = Number(post?.like_count || post?.likes_count || 0);
-    const comments = Number(post?.comment_count || 0);
-    const content = normalizeForumSummaryText(parsed.body || post?.content || '', 700);
-    return [
-      `P${index + 1}`,
-      `标题：${title}`,
-      `作者：${author}`,
-      `发布时间：${time}`,
-      `标签：${tag}`,
-      `互动：${likes}赞，${comments}评论`,
-      `正文：${content}`
-    ].join('\n');
-  }).join('\n\n');
+  const body = source
+    .map((post, index) => {
+      const parsed = getPostTitleAndBody(post);
+      const title = normalizePromptLine(parsed.title || '无标题', 90);
+      const author = normalizePromptLine(post?.author_username, 40) || '未知作者';
+      const time = formatPromptDateTime(post?.created_at, '未知');
+      const tag = normalizePromptLine(post?.tagLabel || post?.tag, 24) || '未标注';
+      const likes = Number(post?.like_count || post?.likes_count || 0);
+      const comments = Number(post?.comment_count || 0);
+      const content = normalizeForumSummaryText(parsed.body || post?.content || '', 700);
+      return [
+        `P${index + 1}`,
+        `标题：${title}`,
+        `作者：${author}`,
+        `发布时间：${time}`,
+        `标签：${tag}`,
+        `互动：${likes}赞，${comments}评论`,
+        `正文：${content}`,
+      ].join('\n');
+    })
+    .join('\n\n');
 
   return `<role>
 你是 BOH 社区动态整理助手。
@@ -210,12 +228,13 @@ ${body || '无'}
 </instructions>`;
 };
 
-export const removeForumSummaryLinks = (text = '') => String(text || '')
-  .replace(/#\/forum\/post\/[a-z0-9-]+/gi, '')
-  .replace(/\[[FP]\d+\]/g, '')
-  .replace(/查看(?:帖子)?[：:]\s*/g, '')
-  .replace(/\s+/g, ' ')
-  .trim();
+export const removeForumSummaryLinks = (text = '') =>
+  String(text || '')
+    .replace(/#\/forum\/post\/[a-z0-9-]+/gi, '')
+    .replace(/\[[FP]\d+\]/g, '')
+    .replace(/查看(?:帖子)?[：:]\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 export const getForumSummarySourceText = (posts = []) => {
   return (Array.isArray(posts) ? posts : [])
@@ -230,14 +249,23 @@ export const getForumSummarySourceText = (posts = []) => {
 };
 
 export const FORUM_SUMMARY_POLARITY_RULES = [
-  { source: ['太小', '偏小', '小了', '很小', '太迷你'], forbidden: ['太大', '偏大', '大了', '很大', '过大'] },
-  { source: ['太大', '偏大', '大了', '很大', '过大'], forbidden: ['太小', '偏小', '小了', '很小', '太迷你'] },
+  {
+    source: ['太小', '偏小', '小了', '很小', '太迷你'],
+    forbidden: ['太大', '偏大', '大了', '很大', '过大'],
+  },
+  {
+    source: ['太大', '偏大', '大了', '很大', '过大'],
+    forbidden: ['太小', '偏小', '小了', '很小', '太迷你'],
+  },
   { source: ['太少', '偏少', '少了', '不够多'], forbidden: ['太多', '偏多', '多了', '过多'] },
   { source: ['太多', '偏多', '多了', '过多'], forbidden: ['太少', '偏少', '少了', '不够多'] },
   { source: ['不喜欢', '不太喜欢', '没那么喜欢', '讨厌'], forbidden: ['喜欢', '很喜欢', '挺喜欢'] },
-  { source: ['不要', '别 ', '别去', '别拿', '千万不要'], forbidden: ['要去', '要拿', '应该去', '应该拿'] },
+  {
+    source: ['不要', '别 ', '别去', '别拿', '千万不要'],
+    forbidden: ['要去', '要拿', '应该去', '应该拿'],
+  },
   { source: ['不能', '不可以', '无法'], forbidden: ['能 ', '可以', '能够'] },
-  { source: ['还没', '没有', '未完成'], forbidden: ['已经', '完成了', '已完成'] }
+  { source: ['还没', '没有', '未完成'], forbidden: ['已经', '完成了', '已完成'] },
 ];
 
 export const detectForumSummaryPolarityConflicts = (sourceText = '', summaryText = '') => {
@@ -252,25 +280,43 @@ export const detectForumSummaryPolarityConflicts = (sourceText = '', summaryText
     if (sourceHasForbidden) return [];
     const forbiddenHits = rule.forbidden.filter((term) => summary.includes(term));
     if (forbiddenHits.length === 0) return [];
-    return [`原文出现「${sourceHits.join(' / ')}」，总结却出现相反表达「${forbiddenHits.join(' / ')}」`];
+    return [
+      `原文出现「${sourceHits.join(' / ')}」，总结却出现相反表达「${forbiddenHits.join(' / ')}」`,
+    ];
   });
 };
 
 export const buildForumSearchQueries = (queryText = '') => {
   const raw = normalizePromptLine(queryText, 120);
   const keywords = extractQueryKeywords(raw)
-    .filter((keyword) => ![
-      '论坛', '帖子', '发帖', '搜索', '检索', '查看', '社区', '动态', '最近', '最新',
-      '今天', '近期', '本周', '本月', '有没有', '哪些', '什么', '大家', '有人'
-    ].includes(keyword))
+    .filter(
+      (keyword) =>
+        ![
+          '论坛',
+          '帖子',
+          '发帖',
+          '搜索',
+          '检索',
+          '查看',
+          '社区',
+          '动态',
+          '最近',
+          '最新',
+          '今天',
+          '近期',
+          '本周',
+          '本月',
+          '有没有',
+          '哪些',
+          '什么',
+          '大家',
+          '有人',
+        ].includes(keyword),
+    )
     .filter((keyword) => keyword.length >= 2)
     .sort((a, b) => b.length - a.length);
 
-  const candidates = [
-    raw,
-    keywords.slice(0, 3).join(' '),
-    ...keywords.slice(0, 4)
-  ]
+  const candidates = [raw, keywords.slice(0, 3).join(' '), ...keywords.slice(0, 4)]
     .map((item) => normalizePromptLine(item, 80))
     .filter(Boolean);
 
