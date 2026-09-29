@@ -1,31 +1,33 @@
 import { AGENT_AGENT_ROLES } from '../core/agent-events.js';
 import { logger } from '@/utils/logger.js';
+import { TASK_GENERATION_PRESETS } from '../../generation-params.js';
 
 const safeString = (value, max = 1500) => (value == null ? '' : String(value)).slice(0, max);
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 
-const normalizeEvidence = (items) => safeArray(items).map((item, index) => ({
-  text: safeString(item?.text || item?.summary || item?.content || '', 800),
-  source: safeString(item?.source || 'SiteGuide', 40),
-  ref: safeString(item?.ref || `O${index + 1}`, 24),
-  confidence: Number.isFinite(Number(item?.confidence)) ? Number(item.confidence) : 0.5
-})).filter((item) => item.text);
+const normalizeEvidence = (items) =>
+  safeArray(items)
+    .map((item, index) => ({
+      text: safeString(item?.text || item?.summary || item?.content || '', 800),
+      source: safeString(item?.source || 'SiteGuide', 40),
+      ref: safeString(item?.ref || `O${index + 1}`, 24),
+      confidence: Number.isFinite(Number(item?.confidence)) ? Number(item.confidence) : 0.5,
+    }))
+    .filter((item) => item.text);
 
 const inferDraftType = (query = '', description = '') => {
   const text = `${query} ${description}`;
-  if (/(发帖|发个帖|发(?:一条|一篇|个)?.{0,8}帖子|论坛发布|起草.{0,12}(论坛|社区|帖子))/i.test(text)) return 'post';
+  if (
+    /(发帖|发个帖|发(?:一条|一篇|个)?.{0,8}帖子|论坛发布|起草.{0,12}(论坛|社区|帖子))/i.test(text)
+  )
+    return 'post';
   if (/(网页|页面|html|创作|生成.{0,4}页面)/i.test(text)) return 'page';
   return 'none';
 };
 
 export const createOpsAgent = (options = {}) => {
-  const {
-    invokeSiteGuide,
-    invokeDraft,
-    defaultModel,
-    modelClient
-  } = options;
+  const { invokeSiteGuide, invokeDraft, defaultModel, modelClient } = options;
 
   return {
     name: 'ops',
@@ -68,19 +70,19 @@ export const createOpsAgent = (options = {}) => {
         if (draftType === 'none') return null;
         if (modelClient?.call) {
           try {
-            const sysPrompt = draftType === 'post'
-              ? '<role>你是 BOH AI 的发帖起草助手。</role>\n<constraints>\n- 基于用户问题输出 JSON：{ title, content }\n- 内容控制在 280 字内\n- 禁止编造用户没有提供的事实\n</constraints>'
-              : '<role>你是 BOH AI 的网页生成助手。</role>\n<constraints>\n- 基于用户问题输出 JSON：{ html }\n- 使用 BOH Creator Studio 风格（Inter 字体、#1459d9 主色、#f7f8fb 背景）\n- 生成独立可运行 HTML\n</constraints>';
+            const sysPrompt =
+              draftType === 'post'
+                ? '<role>你是 BOH AI 的发帖起草助手。</role>\n<constraints>\n- 基于用户问题输出 JSON：{ title, content }\n- 内容控制在 280 字内\n- 禁止编造用户没有提供的事实\n</constraints>'
+                : '<role>你是 BOH AI 的网页生成助手。</role>\n<constraints>\n- 基于用户问题输出 JSON：{ html }\n- 使用 BOH Creator Studio 风格（Inter 字体、#1459d9 主色、#f7f8fb 背景）\n- 生成独立可运行 HTML\n</constraints>';
             const userPrompt = `用户问题：${query}\n任务描述：${description}\n请输出 JSON。`;
             const { content } = await modelClient.call({
               model: defaultModel,
               messages: [
                 { role: 'system', content: sysPrompt },
-                { role: 'user', content: userPrompt }
+                { role: 'user', content: userPrompt },
               ],
-              temperature: 0.2,
-              maxTokens: 1200,
-              signal
+              ...TASK_GENERATION_PRESETS.opsDraft,
+              signal,
             });
             const parsed = modelClient.extractJson ? modelClient.extractJson(content) : null;
             if (parsed) {
@@ -109,12 +111,16 @@ export const createOpsAgent = (options = {}) => {
 
       if (siteGuideRes) {
         if (siteGuideRes?.evidence) evidence.push(...normalizeEvidence(siteGuideRes.evidence));
-        if (siteGuideRes?.sources) sources.push(...siteGuideRes.sources.map((s) => ({
-          id: s.id || 'site-guide',
-          label: s.label || '操作手册',
-          source: s.source || 'SiteGuide'
-        })));
-        if (siteGuideRes?.context) summaryParts.push(`[操作手册] ${safeString(siteGuideRes.context, 1500)}`);
+        if (siteGuideRes?.sources)
+          sources.push(
+            ...siteGuideRes.sources.map((s) => ({
+              id: s.id || 'site-guide',
+              label: s.label || '操作手册',
+              source: s.source || 'SiteGuide',
+            })),
+          );
+        if (siteGuideRes?.context)
+          summaryParts.push(`[操作手册] ${safeString(siteGuideRes.context, 1500)}`);
       }
 
       if (draftRes) draft = draftRes;
@@ -123,15 +129,15 @@ export const createOpsAgent = (options = {}) => {
         ok: evidence.length > 0 || Boolean(draft),
         output: {
           summary: summaryParts.join('\n').slice(0, 1500),
-          draftType
+          draftType,
         },
         evidence,
         sources,
         draftKey: draft ? `ops-${draftType}` : null,
         draft,
-        notes: notes.length ? notes : (draft ? ['已生成草稿待用户确认'] : ['无可用操作方案']),
-        tokens: 600
+        notes: notes.length ? notes : draft ? ['已生成草稿待用户确认'] : ['无可用操作方案'],
+        tokens: 600,
       };
-    }
+    },
   };
 };

@@ -7,6 +7,7 @@ import { AGENT_EVENT_TYPES } from '../agents/core/agent-events.js';
 import { AGENT_CLUSTER_MODE } from '../agents/core/agent-cluster-config.js';
 import { buildHistoryMessagesWithinBudget, buildAgentContext } from './bohai-engine-helpers.js';
 import { MAX_HISTORY_CONTEXT_CHARS, MAX_HISTORY_MESSAGE_CHARS } from './chat-engine-config.js';
+import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 
 const summarizeHistoryInline = (history = []) => {
   if (!Array.isArray(history) || history.length === 0) return '';
@@ -35,15 +36,18 @@ const CHAT_ENGINE_SYSTEM_PROMPT = `<role>
 const buildChatEngineMessages = ({ query, history, agentName = 'chat-engine' }) => {
   const safeHistory = Array.isArray(history) ? history : [];
   const { history: recent } = buildAgentContext(safeHistory, agentName, query);
-  const historyBlock = recent.length > 0 ? recent : buildHistoryMessagesWithinBudget(safeHistory, {
-    maxChars: agentName === 'chat-engine' ? MAX_HISTORY_CONTEXT_CHARS : 2000,
-    maxMessages: agentName === 'chat-engine' ? 12 : 6,
-    maxPerMessage: MAX_HISTORY_MESSAGE_CHARS
-  });
+  const historyBlock =
+    recent.length > 0
+      ? recent
+      : buildHistoryMessagesWithinBudget(safeHistory, {
+          maxChars: agentName === 'chat-engine' ? MAX_HISTORY_CONTEXT_CHARS : 2000,
+          maxMessages: agentName === 'chat-engine' ? 12 : 6,
+          maxPerMessage: MAX_HISTORY_MESSAGE_CHARS,
+        });
   return [
     { role: 'system', content: CHAT_ENGINE_SYSTEM_PROMPT },
     ...historyBlock,
-    { role: 'user', content: String(query || '').trim() }
+    { role: 'user', content: String(query || '').trim() },
   ];
 };
 
@@ -51,15 +55,20 @@ const buildChatEngineMessages = ({ query, history, agentName = 'chat-engine' }) 
 const fallbackInvokeChatEngine = async ({ query, history, model, signal, onStream }) => {
   const messages = buildChatEngineMessages({ query, history });
   if (!model) {
-    return { ok: false, status: 'failed', answer: '', error: { message: '未配置对话模型' }, notes: ['未配置对话模型'] };
+    return {
+      ok: false,
+      status: 'failed',
+      answer: '',
+      error: { message: '未配置对话模型' },
+      notes: ['未配置对话模型'],
+    };
   }
   try {
     const { content } = await callBohAIModel({
       model,
       messages,
-      temperature: 0.22,
-      maxTokens: 1400,
-      signal
+      ...TASK_GENERATION_PRESETS.clusterChatFallback,
+      signal,
     });
     if (typeof onStream === 'function' && content) {
       onStream(content);
@@ -70,7 +79,7 @@ const fallbackInvokeChatEngine = async ({ query, history, model, signal, onStrea
       mode: 'agent-cluster',
       sources: [],
       notes: ['对话 Agent 走简化 LLM 调用'],
-      tokens: Math.max(400, Math.round((content || '').length / 1.5))
+      tokens: Math.max(400, Math.round((content || '').length / 1.5)),
     };
   } catch (error) {
     if (isAbortError(error)) {
@@ -82,15 +91,33 @@ const fallbackInvokeChatEngine = async ({ query, history, model, signal, onStrea
       status: 'failed',
       answer: '',
       error: { message: error?.message || String(error) },
-      notes: [`对话 Agent 失败：${error?.message || String(error)}`]
+      notes: [`对话 Agent 失败：${error?.message || String(error)}`],
     };
   }
 };
 
 let cachedCluster = null;
 
+// 每次调用可能携带的数据源。缓存实例时数据源闭包会固定在创建那一轮，
+// 所以只要带了任一数据源就必须重建实例，否则缓存会把旧数据源带到新问题上。
+const DATA_SOURCE_OPTION_KEYS = [
+  'invokeRetriever',
+  'ragKnowledge',
+  'siteGuide',
+  'forumPosts',
+  'invokeCloud',
+  'invokeSharedMemory',
+  'invokeUserPrivate',
+];
+
+const hasCustomDataSources = (options) =>
+  DATA_SOURCE_OPTION_KEYS.some((key) => typeof options[key] === 'function');
+
+const asOptionalFn = (value) => (typeof value === 'function' ? value : undefined);
+
 const getCluster = (options = {}) => {
-  if (cachedCluster && !options.invokeChatEngine) return cachedCluster;
+  if (cachedCluster && !options.invokeChatEngine && !hasCustomDataSources(options))
+    return cachedCluster;
   // 优先使用 caller 提供的 invokeChatEngine（如主 ChatEngine 的真实调用链），
   // 这样 chat-engine Agent 与主 ChatEngine 走完全一致的 system prompt / 工具 / 上下文压缩。
   const invokeChatEngine = options.invokeChatEngine || fallbackInvokeChatEngine;
@@ -99,9 +126,17 @@ const getCluster = (options = {}) => {
     enableRetriever: options.enableRetriever !== false,
     enableMemory: options.enableMemory !== false,
     enableOps: options.enableOps !== false,
-    webSearch: typeof options.webSearch === 'function' ? options.webSearch : undefined
+    webSearch: asOptionalFn(options.webSearch),
+    invokeRetriever: asOptionalFn(options.invokeRetriever),
+    ragKnowledge: asOptionalFn(options.ragKnowledge),
+    siteGuide: asOptionalFn(options.siteGuide),
+    forumPosts: asOptionalFn(options.forumPosts),
+    invokeCloud: asOptionalFn(options.invokeCloud),
+    invokeSharedMemory: asOptionalFn(options.invokeSharedMemory),
+    invokeUserPrivate: asOptionalFn(options.invokeUserPrivate),
+    requireUserForMemory: options.requireUserForMemory !== false,
   });
-  if (!options.invokeChatEngine) {
+  if (!options.invokeChatEngine && !hasCustomDataSources(options)) {
     cachedCluster = instance;
   }
   return instance;
@@ -122,7 +157,7 @@ const createInitialState = () => ({
   clusterMode: null,
   note: '',
   usage: { total: 0 },
-  tokenEstimate: 0
+  tokenEstimate: 0,
 });
 
 const applyEventToState = (state, event) => {
@@ -143,8 +178,8 @@ const applyEventToState = (state, event) => {
           status: 'running',
           startedAt: event.createdAt || Date.now(),
           role: event.payload?.role,
-          label: event.payload?.label || event.payload?.agent
-        }
+          label: event.payload?.label || event.payload?.agent,
+        },
       };
       break;
     case AGENT_EVENT_TYPES.AGENT_END: {
@@ -157,8 +192,8 @@ const applyEventToState = (state, event) => {
           status: event.payload?.status || 'ok',
           ms: event.payload?.ms || 0,
           endedAt: event.createdAt || Date.now(),
-          errorMessage: event.payload?.errorMessage
-        }
+          errorMessage: event.payload?.errorMessage,
+        },
       };
       break;
     }
@@ -168,7 +203,7 @@ const applyEventToState = (state, event) => {
         const previous = state.agents[agent] || {};
         state.agents = {
           ...state.agents,
-          [agent]: { ...previous, lastDelta: event.payload?.delta || '' }
+          [agent]: { ...previous, lastDelta: event.payload?.delta || '' },
         };
       }
       break;
@@ -232,9 +267,27 @@ export const runAgentClusterBranch = async ({
   onStream,
   state,
   invokeChatEngine,
-  webSearch
+  webSearch,
+  invokeRetriever,
+  ragKnowledge,
+  siteGuide,
+  forumPosts,
+  invokeCloud,
+  invokeSharedMemory,
+  invokeUserPrivate,
+  userId,
 } = {}) => {
-  const cluster = getCluster({ invokeChatEngine, webSearch });
+  const cluster = getCluster({
+    invokeChatEngine,
+    webSearch,
+    invokeRetriever,
+    ragKnowledge,
+    siteGuide,
+    forumPosts,
+    invokeCloud,
+    invokeSharedMemory,
+    invokeUserPrivate,
+  });
   const result = await cluster.run({
     query: userText,
     history: history || [],
@@ -242,6 +295,7 @@ export const runAgentClusterBranch = async ({
     // 只有在没有时才回退到"基于 history 的极简内联摘要"。
     historySummary: historySummary || (history ? summarizeHistoryInline(history) : ''),
     clusterMode,
+    userId,
     signal,
     onEvent: (event) => {
       if (state) applyEventToState(state, event);
@@ -252,7 +306,7 @@ export const runAgentClusterBranch = async ({
         state.answer = text;
       }
       if (typeof onStream === 'function') onStream(text);
-    }
+    },
   });
   return result;
 };

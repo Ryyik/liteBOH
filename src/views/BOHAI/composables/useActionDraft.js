@@ -1,42 +1,34 @@
 import { nextTick } from 'vue';
 import { isAbortError } from '../utils/chatErrorMessages.js';
+import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { createPost } from '@/utils/api/forum-api.js';
 import { createMyCloudEntry } from '@/utils/api/boh-cloud-api.js';
 import { createSharedAIMemory } from '@/utils/api/treehole-api.js';
-import {
-  BOHAI_ACTION_IDS,
-  createBohAIAction,
-  runBohAIAction
-} from '@/utils/bohai-connectors.js';
-import {
-  appendBohAIActionAudit,
-  createBohAIActionAuditEntry
-} from '@/utils/bohai-action-audit.js';
+import { BOHAI_ACTION_IDS, createBohAIAction, runBohAIAction } from '@/utils/bohai-connectors.js';
+import { appendBohAIActionAudit, createBohAIActionAuditEntry } from '@/utils/bohai-action-audit.js';
 import {
   formatPageDraftPreview as buildPageDraftPreview,
-  formatPostDraftPreview as buildPostDraftPreview
+  formatPostDraftPreview as buildPostDraftPreview,
 } from './action-draft-formatters.js';
-import {
-  updatePostDraftFromText
-} from './action-draft-updaters.js';
+import { updatePostDraftFromText } from './action-draft-updaters.js';
 import {
   normalizePromptLine,
   isLikelyMemoryDuplicate,
   truncateText,
-  buildPageDraftFromText
+  buildPageDraftFromText,
 } from './bohai-engine-helpers.js';
 import {
   isActionDraftCancelIntent,
   isPostDraftConfirmIntent,
   isPostDraftRequest,
-  isCreatePageRequest
+  isCreatePageRequest,
 } from '@/utils/bohai-action-draft-intent.js';
 import {
   ACTION_DRAFT_CONTENT_MAX_CHARS,
   ACTION_DRAFT_TITLE_MAX_CHARS,
   BASE_SYSTEM_PROMPT,
   PAGE_CREATION_PROMPT_APPENDIX,
-  QUICK_NOTE_TITLE_MAX_CHARS
+  QUICK_NOTE_TITLE_MAX_CHARS,
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
 
@@ -105,7 +97,7 @@ export function useActionDraft(deps) {
     callModelInternal,
     extractQuickNoteContent,
     buildQuickNoteTitle,
-    getSharedMemoriesCached
+    getSharedMemoriesCached,
   } = deps;
 
   // ------------------------------------------------------------------
@@ -134,7 +126,7 @@ export function useActionDraft(deps) {
   const getActionAuthContext = () => ({
     isLoggedIn: Boolean(isLoggedIn.value),
     userId: String(userInfo.value?.id || '').trim(),
-    username: normalizePromptLine(userInfo.value?.username, 40)
+    username: normalizePromptLine(userInfo.value?.username, 40),
   });
 
   // ------------------------------------------------------------------
@@ -164,7 +156,7 @@ export function useActionDraft(deps) {
           auth.userId,
           auth.username,
           'approved',
-          normalizePromptLine(title, ACTION_DRAFT_TITLE_MAX_CHARS)
+          normalizePromptLine(title, ACTION_DRAFT_TITLE_MAX_CHARS),
         );
         if (!result.ok || result.error) {
           return { ok: false, error: result.error || { message: '请稍后重试。' } };
@@ -173,12 +165,10 @@ export function useActionDraft(deps) {
         const createdPostId = String(createdRow?.id || '');
         return {
           ok: true,
-          message: createdPostId
-            ? `帖子已发布成功（ID: ${createdPostId}）。`
-            : '帖子已发布成功。',
-          data: { id: createdPostId }
+          message: createdPostId ? `帖子已发布成功（ID: ${createdPostId}）。` : '帖子已发布成功。',
+          data: { id: createdPostId },
         };
-      }
+      },
     }),
     [BOHAI_ACTION_IDS.saveCloud]: createBohAIAction({
       id: BOHAI_ACTION_IDS.saveCloud,
@@ -194,11 +184,13 @@ export function useActionDraft(deps) {
         const safeContent = normalizePromptLine(content, 320);
         const cloudResult = await createMyCloudEntry(auth.userId, {
           entryDate: getLocalDateKey(),
-          title: normalizePromptLine(title, QUICK_NOTE_TITLE_MAX_CHARS) || buildQuickNoteTitle(safeContent),
+          title:
+            normalizePromptLine(title, QUICK_NOTE_TITLE_MAX_CHARS) ||
+            buildQuickNoteTitle(safeContent),
           contentText: safeContent,
           contentBlocks: [{ type: 'text', text: safeContent }],
           mood: '',
-          source: 'ai'
+          source: 'ai',
         });
         if (!cloudResult.ok) {
           return { ok: false, error: cloudResult.error || { message: '保存失败' } };
@@ -207,7 +199,7 @@ export function useActionDraft(deps) {
         treeholeMemoryCache.fetchedAt = 0;
         treeholeMemoryCache.items = [];
         return { ok: true, message: '已记录到 BOH Cloud+。', data: cloudResult.data };
-      }
+      },
     }),
     [BOHAI_ACTION_IDS.quickNote]: createBohAIAction({
       id: BOHAI_ACTION_IDS.quickNote,
@@ -223,11 +215,13 @@ export function useActionDraft(deps) {
         const safeContent = extractQuickNoteContent(content);
         const cloudResult = await createMyCloudEntry(auth.userId, {
           entryDate: getLocalDateKey(),
-          title: normalizePromptLine(title, QUICK_NOTE_TITLE_MAX_CHARS) || buildQuickNoteTitle(safeContent),
+          title:
+            normalizePromptLine(title, QUICK_NOTE_TITLE_MAX_CHARS) ||
+            buildQuickNoteTitle(safeContent),
           contentText: safeContent,
           contentBlocks: [{ type: 'text', text: safeContent }],
           mood: '',
-          source: 'ai'
+          source: 'ai',
         });
         if (!cloudResult.ok) {
           return { ok: false, error: cloudResult.error || { message: '记录失败，请稍后重试。' } };
@@ -236,7 +230,7 @@ export function useActionDraft(deps) {
         treeholeMemoryCache.fetchedAt = 0;
         treeholeMemoryCache.items = [];
         return { ok: true, message: '已记录到 BOH Cloud+。', data: cloudResult.data };
-      }
+      },
     }),
     [BOHAI_ACTION_IDS.saveSharedMemory]: createBohAIAction({
       id: BOHAI_ACTION_IDS.saveSharedMemory,
@@ -252,7 +246,11 @@ export function useActionDraft(deps) {
         const safeContent = normalizePromptLine(content, 320);
         const existingShared = await getSharedMemoriesCached();
         if (isLikelyMemoryDuplicate(safeContent, existingShared)) {
-          return { ok: false, error: { message: '公共记忆库已有相近内容，已跳过重复写入。' }, metadata: { duplicate: true } };
+          return {
+            ok: false,
+            error: { message: '公共记忆库已有相近内容，已跳过重复写入。' },
+            metadata: { duplicate: true },
+          };
         }
         const saveResult = await createSharedAIMemory(auth.userId, {
           content: safeContent,
@@ -261,7 +259,7 @@ export function useActionDraft(deps) {
           confidence: 0.9,
           evidence: [{ messageId: 'auto_confirmed', quote: truncateText(safeContent, 240) }],
           source: 'auto_confirmed',
-          status: 'active'
+          status: 'active',
         });
         if (!saveResult.ok) {
           return { ok: false, error: saveResult.error || { message: '写入失败' } };
@@ -270,8 +268,8 @@ export function useActionDraft(deps) {
         sharedMemoryCache.items = [];
         resetSharedMemorySearchCache();
         return { ok: true, message: '已写入 BOH AI 公共记忆库。', data: saveResult.data };
-      }
-    })
+      },
+    }),
   });
 
   // ------------------------------------------------------------------
@@ -284,19 +282,19 @@ export function useActionDraft(deps) {
       action: registry[actionId],
       payload,
       auth,
-      logger
+      logger,
     });
     const audit = createBohAIActionAuditEntry({ result, payload, auth });
     actionAuditLog.value = appendBohAIActionAudit({
       audits: actionAuditLog.value,
-      entry: audit
+      entry: audit,
     });
     return {
       ...result,
       metadata: {
         ...(result.metadata && typeof result.metadata === 'object' ? result.metadata : {}),
-        audit
-      }
+        audit,
+      },
     };
   };
 
@@ -305,26 +303,32 @@ export function useActionDraft(deps) {
   // ------------------------------------------------------------------
   const submitPostDraft = async (sessionIndex) => {
     const title = normalizePromptLine(pendingActionDraft.postTitle, ACTION_DRAFT_TITLE_MAX_CHARS);
-    const content = normalizePromptLine(pendingActionDraft.postContent, ACTION_DRAFT_CONTENT_MAX_CHARS);
+    const content = normalizePromptLine(
+      pendingActionDraft.postContent,
+      ACTION_DRAFT_CONTENT_MAX_CHARS,
+    );
     const result = await runRegisteredAction(BOHAI_ACTION_IDS.createPost, { title, content });
     if (!result.ok) {
-      appendSessionMessage(sessionIndex, 'assistant', result.errorMessage || '发布失败：请稍后重试。');
+      appendSessionMessage(
+        sessionIndex,
+        'assistant',
+        result.errorMessage || '发布失败：请稍后重试。',
+      );
       if (result.metadata?.reason === 'login_required') {
         resetPendingActionDraft();
         return;
       }
-      appendSessionMessage(sessionIndex, 'assistant', formatPostDraftPreview(), { kind: 'action_draft_preview' });
+      appendSessionMessage(sessionIndex, 'assistant', formatPostDraftPreview(), {
+        kind: 'action_draft_preview',
+      });
       return;
     }
 
     resetPendingActionDraft();
-    appendSessionMessage(
-      sessionIndex,
-      'assistant',
-      result.message || '帖子已发布成功。',
-      { kind: 'action_committed', actionAudit: result.metadata?.audit || null }
-    );
-
+    appendSessionMessage(sessionIndex, 'assistant', result.message || '帖子已发布成功。', {
+      kind: 'action_committed',
+      actionAudit: result.metadata?.audit || null,
+    });
   };
 
   // ------------------------------------------------------------------
@@ -371,7 +375,7 @@ export function useActionDraft(deps) {
         const draftMessageIndex = targetSession.messages.length;
         targetSession.messages.push({
           role: 'assistant',
-          content: '正在整理发帖草稿...'
+          content: '正在整理发帖草稿...',
         });
         await nextTick();
         scrollToBottom();
@@ -393,7 +397,9 @@ export function useActionDraft(deps) {
           const draft = await generatePostDraftFromUserIdea(safeText, draftController.signal);
           if (draft.needsIdea) {
             pendingActionDraft.awaitingIdea = true;
-            updateDraftMessage('我还需要一点具体想法，比如想吐槽什么、分享什么、问大家什么。你可以直接发一句原始想法，我会只按你的内容整理成标题和正文，不联网搜索。');
+            updateDraftMessage(
+              '我还需要一点具体想法，比如想吐槽什么、分享什么、问大家什么。你可以直接发一句原始想法，我会只按你的内容整理成标题和正文，不联网搜索。',
+            );
             return true;
           }
 
@@ -403,7 +409,9 @@ export function useActionDraft(deps) {
           updateDraftMessage(formatPostDraftPreview(), { kind: 'action_draft_preview' });
         } catch (error) {
           resetPendingActionDraft();
-          updateDraftMessage(isAbortError(error) ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。');
+          updateDraftMessage(
+            isAbortError(error) ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。',
+          );
         } finally {
           const latestSession = getSessionByIndex(currentSession);
           if (latestSession) {
@@ -429,9 +437,15 @@ export function useActionDraft(deps) {
 
       const changed = updatePostDraftByUserInput(safeText);
       if (changed) {
-        appendSessionMessage(currentSession, 'assistant', formatPostDraftPreview(), { kind: 'action_draft_preview' });
+        appendSessionMessage(currentSession, 'assistant', formatPostDraftPreview(), {
+          kind: 'action_draft_preview',
+        });
       } else {
-        appendSessionMessage(currentSession, 'assistant', '我没识别到可更新字段。你可以直接发来新的标题或正文。');
+        appendSessionMessage(
+          currentSession,
+          'assistant',
+          '我没识别到可更新字段。你可以直接发来新的标题或正文。',
+        );
       }
       return true;
     }
@@ -454,14 +468,23 @@ export function useActionDraft(deps) {
       abortController.value = draftController;
 
       try {
-        const generatedHtml = await generatePageHtmlFromUserIdea({
-          pageType: pendingActionDraft.pageType,
-          description: pendingActionDraft.pageDescription
-        }, draftController.signal);
+        const generatedHtml = await generatePageHtmlFromUserIdea(
+          {
+            pageType: pendingActionDraft.pageType,
+            description: pendingActionDraft.pageDescription,
+          },
+          draftController.signal,
+        );
         pendingActionDraft.pageHtml = generatedHtml;
-        appendSessionMessage(currentSession, 'assistant', formatPageDraftPreview(), { kind: 'action_draft_preview' });
+        appendSessionMessage(currentSession, 'assistant', formatPageDraftPreview(), {
+          kind: 'action_draft_preview',
+        });
       } catch (error) {
-        appendSessionMessage(currentSession, 'assistant', isAbortError(error) ? '已停止生成网页。' : '网页修改失败，请稍后再试。');
+        appendSessionMessage(
+          currentSession,
+          'assistant',
+          isAbortError(error) ? '已停止生成网页。' : '网页修改失败，请稍后再试。',
+        );
       } finally {
         if (targetSession) {
           targetSession.isLoading = false;
@@ -502,14 +525,22 @@ export function useActionDraft(deps) {
     resetComposerInput();
 
     if (wantsMailDraft) {
-      appendSessionMessage(sessionIndex, 'assistant', wantsPostDraft
-        ? '私信功能已下架，我不能再起草或发送私信。你可以继续让我帮你整理论坛发帖草稿。'
-        : '私信功能已下架，BOH AI 不再支持起草、发送或读取私信。');
+      appendSessionMessage(
+        sessionIndex,
+        'assistant',
+        wantsPostDraft
+          ? '私信功能已下架，我不能再起草或发送私信。你可以继续让我帮你整理论坛发帖草稿。'
+          : '私信功能已下架，BOH AI 不再支持起草、发送或读取私信。',
+      );
       return true;
     }
 
     if (!isLoggedIn.value || !userInfo.value?.id) {
-      appendSessionMessage(sessionIndex, 'assistant', '请先登录，登录后我就可以帮你起草并发布论坛帖子。');
+      appendSessionMessage(
+        sessionIndex,
+        'assistant',
+        '请先登录，登录后我就可以帮你起草并发布论坛帖子。',
+      );
       return true;
     }
 
@@ -531,7 +562,7 @@ export function useActionDraft(deps) {
       const draftMessageIndex = targetSession.messages.length;
       targetSession.messages.push({
         role: 'assistant',
-        content: '正在整理发帖草稿...'
+        content: '正在整理发帖草稿...',
       });
       await nextTick();
       scrollToBottom();
@@ -553,7 +584,9 @@ export function useActionDraft(deps) {
         const draft = await generatePostDraftFromUserIdea(safeText, draftController.signal);
         if (draft.needsIdea) {
           pendingActionDraft.awaitingIdea = true;
-          updateDraftMessage('可以，先把你想发布到论坛的想法发给我；我会自动整理成标题和正文，然后弹出可编辑的发帖草稿框。');
+          updateDraftMessage(
+            '可以，先把你想发布到论坛的想法发给我；我会自动整理成标题和正文，然后弹出可编辑的发帖草稿框。',
+          );
           return true;
         }
 
@@ -563,7 +596,9 @@ export function useActionDraft(deps) {
         updateDraftMessage(formatPostDraftPreview(), { kind: 'action_draft_preview' });
       } catch (error) {
         resetPendingActionDraft();
-        updateDraftMessage(isAbortError(error) ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。');
+        updateDraftMessage(
+          isAbortError(error) ? '已停止整理发帖草稿。' : '发帖草稿生成失败，请稍后再试。',
+        );
       } finally {
         const latestSession = getSessionByIndex(sessionIndex);
         if (latestSession) {
@@ -626,7 +661,7 @@ export function useActionDraft(deps) {
     const draftMessageIndex = targetSession.messages.length;
     targetSession.messages.push({
       role: 'assistant',
-      content: '正在生成网页代码...'
+      content: '正在生成网页代码...',
     });
     await nextTick();
     scrollToBottom();
@@ -675,19 +710,18 @@ export function useActionDraft(deps) {
   const generatePageHtmlFromUserIdea = async (pageDraft, requestSignal = undefined) => {
     try {
       const htmlResponse = await callAIToGenerate({
-        systemPrompt: [
-          BASE_SYSTEM_PROMPT,
-          PAGE_CREATION_PROMPT_APPENDIX
-        ].filter(Boolean).join('\n'),
+        systemPrompt: [BASE_SYSTEM_PROMPT, PAGE_CREATION_PROMPT_APPENDIX]
+          .filter(Boolean)
+          .join('\n'),
         userInput: [
           `请帮我生成一个${pageDraft.pageType}的网页HTML代码。`,
           `要求：${pageDraft.description}`,
           '',
           '请直接输出完整可用的 HTML 片段（含内联 CSS），不包含 <html>/<head>/<body> 标签。',
-          '使用 BOH Creator Studio 兼容的样式风格。'
+          '使用 BOH Creator Studio 兼容的样式风格。',
         ].join('\n'),
         modeId: 'pro',
-        signal: requestSignal
+        signal: requestSignal,
       });
       const code = extractHtmlBlock(htmlResponse);
       return code || htmlResponse;
@@ -706,28 +740,31 @@ export function useActionDraft(deps) {
     const response = await callAIToGenerate({
       systemPrompt: [
         BASE_SYSTEM_PROMPT,
-        '<role>你是 BOH 方块社区的发帖草稿助手。</role>\n<constraints>\n- 只根据用户给出的想法整理论坛帖子\n- 绝对不能编造用户没有提供的事实\n</constraints>\n<output_format>\n标题: ...\n正文: ...（可换行，不要 Markdown 代码块）\n</output_format>'
+        '<role>你是 BOH 方块社区的发帖草稿助手。</role>\n<constraints>\n- 只根据用户给出的想法整理论坛帖子\n- 绝对不能编造用户没有提供的事实\n</constraints>\n<output_format>\n标题: ...\n正文: ...（可换行，不要 Markdown 代码块）\n</output_format>',
       ].join('\n'),
       userInput: [
         '请把下面的原始想法整理成一个社区帖子草稿。',
         `原始想法：${safeIdea}`,
         '',
-        `标题不超过 ${ACTION_DRAFT_TITLE_MAX_CHARS} 字，正文不超过 ${ACTION_DRAFT_CONTENT_MAX_CHARS} 字。`
+        `标题不超过 ${ACTION_DRAFT_TITLE_MAX_CHARS} 字，正文不超过 ${ACTION_DRAFT_CONTENT_MAX_CHARS} 字。`,
       ].join('\n'),
       modeId: 'pro',
-      signal: requestSignal
+      signal: requestSignal,
     });
 
     const text = String(response || '').trim();
     const titleMatch = text.match(/标题[:：]\s*([^\n]+)/);
     const contentMatch = text.match(/正文[:：]\s*([\s\S]*)/);
     const title = normalizePromptLine(titleMatch?.[1] || safeIdea, ACTION_DRAFT_TITLE_MAX_CHARS);
-    const content = normalizePromptLine(contentMatch?.[1] || text || safeIdea, ACTION_DRAFT_CONTENT_MAX_CHARS);
+    const content = normalizePromptLine(
+      contentMatch?.[1] || text || safeIdea,
+      ACTION_DRAFT_CONTENT_MAX_CHARS,
+    );
 
     return {
       needsIdea: !content,
       title,
-      content
+      content,
     };
   };
 
@@ -741,10 +778,16 @@ export function useActionDraft(deps) {
     return text.trim();
   };
 
-  const callAIToGenerate = async ({ systemPrompt, userInput, modeId = 'pro', signal = undefined }) => {
+  const callAIToGenerate = async ({
+    systemPrompt,
+    userInput,
+    modeId = 'pro',
+    signal = undefined,
+  }) => {
     const profile = getGenerationProfile(modeId);
     // 使用当前模式的模型而非 profile.defaultModel（该字段不存在于 GENERATION_PROFILE_BY_MODE 中）
-    const genModel = getModelForModeId(modeId) || currentModel.value || runtimeAvailableModels.value[0];
+    const genModel =
+      getModelForModeId(modeId) || currentModel.value || runtimeAvailableModels.value[0];
     if (!genModel?.id) throw new Error('No available model for generation');
     try {
       const response = await callModelInternal(
@@ -755,11 +798,14 @@ export function useActionDraft(deps) {
         signal,
         0,
         {
-          temperature: profile.temperature ?? 0.22,
-          top_p: profile.top_p ?? 0.75,
-          frequency_penalty: profile.frequency_penalty ?? 0.08,
-          max_tokens: 2048
-        }
+          temperature:
+            profile.temperature ?? TASK_GENERATION_PRESETS.actionDraftFallback.temperature,
+          top_p: profile.top_p ?? TASK_GENERATION_PRESETS.actionDraftFallback.top_p,
+          frequency_penalty:
+            profile.frequency_penalty ??
+            TASK_GENERATION_PRESETS.actionDraftFallback.frequency_penalty,
+          max_tokens: TASK_GENERATION_PRESETS.actionDraftFallback.max_tokens,
+        },
       );
       return response;
     } catch (error) {
@@ -782,6 +828,6 @@ export function useActionDraft(deps) {
     tryStartPageCreationFromUserInput,
     generatePageHtmlFromUserIdea,
     extractHtmlBlock,
-    callAIToGenerate
+    callAIToGenerate,
   };
 }

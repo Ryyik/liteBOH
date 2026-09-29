@@ -94,6 +94,8 @@ import { useGenerationPipeline } from './useGenerationPipeline.js';
 import { useModelConfig } from './useModelConfig.js';
 import { useMessageManager } from './useMessageManager.js';
 import { useKnowledgeRetrieval } from './useKnowledgeRetrieval.js';
+import { useAgentClusterSources } from './useAgentClusterSources.js';
+import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import {
   CONVERSATION_SUMMARY_RECENT_MESSAGES,
   CONVERSATION_SUMMARY_MIN_MESSAGES,
@@ -466,6 +468,14 @@ export function useChatEngine() {
     searchBohAIKnowledgeForAI,
     getMyCloudEntriesForAI,
     supabase,
+  });
+
+  // Agent 集群数据源：RetrieverAgent / MemoryAgent 的检索与记忆能力依赖这里传入的
+  // connector；开关口径（个人记忆/社区知识）与主链路 useKnowledgeRetrieval 保持一致。
+  const clusterSources = useAgentClusterSources({
+    isTreeholeMemoryEnabled,
+    isSharedMemoryEnabled,
+    getUserId: () => userInfo.value?.id || '',
   });
   // --------------------------------------------------------------
 
@@ -995,8 +1005,7 @@ export function useChatEngine() {
         [],
         summarySignal,
         0,
-        // max_tokens 从 1100 提到 1400，容纳结构化输出（facts 300 + progress 400 + 标签开销）
-        { max_tokens: 1400, temperature: 0.08, top_p: 0.55, frequency_penalty: 0.05 },
+        TASK_GENERATION_PRESETS.structuredProgress,
       );
 
       const latestSession = getSessionByIndex(sessionIndex);
@@ -1157,7 +1166,7 @@ export function useChatEngine() {
               Array.isArray(history) ? history : [],
               signal,
               0,
-              { max_tokens: 1800, temperature: 0.22, top_p: 0.75 },
+              TASK_GENERATION_PRESETS.clusterChatMain,
             );
             const answerText = String(content || '').trim();
             if (typeof onStream === 'function' && answerText) {
@@ -1193,6 +1202,10 @@ export function useChatEngine() {
           invokeChatEngine: clusterInvokeChatEngine,
           onEvent: applyAgentClusterEvent,
           webSearch: isSearching.value ? searchWebForPrompt : undefined,
+          invokeRetriever: clusterSources.invokeRetriever,
+          invokeSharedMemory: clusterSources.invokeSharedMemory,
+          invokeCloud: clusterSources.invokeCloud,
+          userId: userInfo.value?.id || '',
           onStream: (text) => {
             const target = getSessionByIndex(sessionIndex);
             const message = target?.messages?.[clusterMessageIndex];
@@ -1336,7 +1349,7 @@ export function useChatEngine() {
             resolverHistory,
             preflightController.signal,
             0,
-            { max_tokens: 256, temperature: 0, top_p: 0.3, frequency_penalty: 0 },
+            TASK_GENERATION_PRESETS.titleExtract,
           );
           autonomousContextualQuery = normalizePromptLine(
             filterThinkingContent(rewrittenQuery)
@@ -2078,8 +2091,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
             0,
             {
               ...generationProfile,
-              temperature: 0.03,
-              top_p: 0.42,
+              ...TASK_GENERATION_PRESETS.forumNarrative,
               max_tokens: Math.min(Number(generationProfile.max_tokens || 1200), 900),
             },
           );
@@ -2103,8 +2115,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
               0,
               {
                 ...generationProfile,
-                temperature: 0,
-                top_p: 0.35,
+                ...TASK_GENERATION_PRESETS.forumRepair,
                 max_tokens: Math.min(Number(generationProfile.max_tokens || 1200), 900),
               },
             );

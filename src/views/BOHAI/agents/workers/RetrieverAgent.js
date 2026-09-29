@@ -1,16 +1,20 @@
 import { AGENT_AGENT_ROLES } from '../core/agent-events.js';
 import { logger } from '@/utils/logger.js';
+import { TASK_GENERATION_PRESETS } from '../../generation-params.js';
 
 const safeString = (value, max = 1200) => (value == null ? '' : String(value)).slice(0, max);
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 
-const normalizeEvidence = (items, fallbackSource) => safeArray(items).map((item, index) => ({
-  text: safeString(item?.text || item?.summary || item?.content || item?.snippet || ''),
-  source: safeString(item?.source || item?.connector || fallbackSource, 40) || fallbackSource,
-  ref: safeString(item?.ref || item?.evidenceRef || `R${index + 1}`, 24),
-  confidence: Number.isFinite(Number(item?.confidence)) ? Number(item.confidence) : 0.6
-})).filter((item) => item.text);
+const normalizeEvidence = (items, fallbackSource) =>
+  safeArray(items)
+    .map((item, index) => ({
+      text: safeString(item?.text || item?.summary || item?.content || item?.snippet || ''),
+      source: safeString(item?.source || item?.connector || fallbackSource, 40) || fallbackSource,
+      ref: safeString(item?.ref || item?.evidenceRef || `R${index + 1}`, 24),
+      confidence: Number.isFinite(Number(item?.confidence)) ? Number(item.confidence) : 0.6,
+    }))
+    .filter((item) => item.text);
 
 export const createRetrieverAgent = (options = {}) => {
   const {
@@ -20,7 +24,7 @@ export const createRetrieverAgent = (options = {}) => {
     siteGuide,
     forumPosts,
     webSearch,
-    defaultModel
+    defaultModel,
   } = options;
 
   return {
@@ -54,7 +58,7 @@ export const createRetrieverAgent = (options = {}) => {
             evidence: cached.evidence,
             sources: cached.sources,
             notes: [...(cached.notes || []), 'LRU 命中'],
-            tokens: cached.tokens || 0
+            tokens: cached.tokens || 0,
           };
         }
       }
@@ -64,7 +68,7 @@ export const createRetrieverAgent = (options = {}) => {
         evidence: [],
         notes: [],
         sources: [],
-        contextBlocks: []
+        contextBlocks: [],
       };
 
       // 把每个数据源封装成同构的 connector，统一通过 Promise.allSettled 并行拉取
@@ -73,31 +77,47 @@ export const createRetrieverAgent = (options = {}) => {
         connectors.push({
           label: 'RAG 总入口',
           sourceName: 'RAG',
-          run: async () => invokeRetrieval({ query, hints, bus })
+          run: async () => invokeRetrieval({ query, hints, bus }),
         });
       } else {
-        if (typeof ragKnowledge === 'function') connectors.push({ label: '知识库', sourceName: 'RAG-Knowledge', run: () => ragKnowledge({ query, hints, bus }) });
-        if (typeof siteGuide === 'function') connectors.push({ label: '操作手册', sourceName: 'RAG-SiteGuide', run: () => siteGuide({ query, hints, bus }) });
-        if (typeof forumPosts === 'function') connectors.push({ label: '论坛', sourceName: 'Forum', run: () => forumPosts({ query, hints, bus }) });
-        if (typeof webSearch === 'function') connectors.push({
-          label: '联网',
-          sourceName: 'Web',
-          // B11 fix: searchWebForPrompt 期望 (queryText, signal) 而非对象，
-          // 且返回 { results, context } 而非 { evidence, context }。
-          // 此处做适配桥接。
-          run: async () => {
-            const raw = await webSearch(query, signal);
-            const results = Array.isArray(raw?.results) ? raw.results : [];
-            return {
-              evidence: results.map((r) => ({
-                text: safeString(r?.content || r?.snippet || '', 600),
-                source: safeString(r?.url || 'Web', 40),
-                link: safeString(r?.url || '', 240)
-              })),
-              context: raw?.context || ''
-            };
-          }
-        });
+        if (typeof ragKnowledge === 'function')
+          connectors.push({
+            label: '知识库',
+            sourceName: 'RAG-Knowledge',
+            run: () => ragKnowledge({ query, hints, bus }),
+          });
+        if (typeof siteGuide === 'function')
+          connectors.push({
+            label: '操作手册',
+            sourceName: 'RAG-SiteGuide',
+            run: () => siteGuide({ query, hints, bus }),
+          });
+        if (typeof forumPosts === 'function')
+          connectors.push({
+            label: '论坛',
+            sourceName: 'Forum',
+            run: () => forumPosts({ query, hints, bus }),
+          });
+        if (typeof webSearch === 'function')
+          connectors.push({
+            label: '联网',
+            sourceName: 'Web',
+            // B11 fix: searchWebForPrompt 期望 (queryText, signal) 而非对象，
+            // 且返回 { results, context } 而非 { evidence, context }。
+            // 此处做适配桥接。
+            run: async () => {
+              const raw = await webSearch(query, signal);
+              const results = Array.isArray(raw?.results) ? raw.results : [];
+              return {
+                evidence: results.map((r) => ({
+                  text: safeString(r?.content || r?.snippet || '', 600),
+                  source: safeString(r?.url || 'Web', 40),
+                  link: safeString(r?.url || '', 240),
+                })),
+                context: raw?.context || '',
+              };
+            },
+          });
       }
 
       const settled = await Promise.allSettled(connectors.map((c) => c.run()));
@@ -124,8 +144,15 @@ export const createRetrieverAgent = (options = {}) => {
       });
 
       result.summary = result.contextBlocks.length
-        ? result.contextBlocks.map((c) => `[${c.source}] ${c.text}`).join('\n').slice(0, 1500)
-        : result.evidence.slice(0, 5).map((e) => e.text).join(' / ').slice(0, 1500);
+        ? result.contextBlocks
+            .map((c) => `[${c.source}] ${c.text}`)
+            .join('\n')
+            .slice(0, 1500)
+        : result.evidence
+            .slice(0, 5)
+            .map((e) => e.text)
+            .join(' / ')
+            .slice(0, 1500);
 
       if (modelClient?.call && result.evidence.length) {
         try {
@@ -134,16 +161,16 @@ export const createRetrieverAgent = (options = {}) => {
             messages: [
               {
                 role: 'system',
-                content: '<role>你是 BOH AI 集群的 Retriever Agent。</role>\n<constraints>\n- 基于证据提炼简短摘要\n- 绝对不能编造\n</constraints>'
+                content:
+                  '<role>你是 BOH AI 集群的 Retriever Agent。</role>\n<constraints>\n- 基于证据提炼简短摘要\n- 绝对不能编造\n</constraints>',
               },
               {
                 role: 'user',
-                content: `用户问题：${query}\n\n证据：\n${result.evidence.map((e, i) => `${i + 1}. ${e.text}`).join('\n')}\n\n请输出 80~200 字摘要。`
-              }
+                content: `用户问题：${query}\n\n证据：\n${result.evidence.map((e, i) => `${i + 1}. ${e.text}`).join('\n')}\n\n请输出 80~200 字摘要。`,
+              },
             ],
-            temperature: 0.18,
-            maxTokens: 500,
-            signal
+            ...TASK_GENERATION_PRESETS.evidenceSummary,
+            signal,
           });
           if (content) result.summary = safeString(content, 1500);
         } catch (error) {
@@ -153,7 +180,7 @@ export const createRetrieverAgent = (options = {}) => {
 
       const finalOutput = {
         summary: result.summary,
-        evidenceCount: result.evidence.length
+        evidenceCount: result.evidence.length,
       };
       const finalTokens = Math.max(300, result.evidence.length * 80);
       const finalNotes = result.notes.length ? result.notes : ['无可用证据'];
@@ -163,7 +190,7 @@ export const createRetrieverAgent = (options = {}) => {
           evidence: result.evidence,
           sources: result.sources,
           notes: finalNotes,
-          tokens: finalTokens
+          tokens: finalTokens,
         });
       }
 
@@ -173,8 +200,8 @@ export const createRetrieverAgent = (options = {}) => {
         evidence: result.evidence,
         sources: result.sources,
         notes: finalNotes,
-        tokens: finalTokens
+        tokens: finalTokens,
       };
-    }
+    },
   };
 };

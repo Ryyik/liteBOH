@@ -22,6 +22,7 @@ import {
   MAX_USER_INPUT_CHARS,
   PSYCH_INTERVIEW_GENERATION_PROFILE,
 } from './chat-engine-config.js';
+import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { logger } from '@/utils/logger.js';
 import {
   EVIDENCE_SOURCE_WEIGHTS,
@@ -1195,7 +1196,7 @@ export const getGenerationProfile = (
   if (cached && Date.now() - cached.timestamp < _GEN_PROFILE_CACHE_TTL_MS) return cached.value;
   if (cached) _generationProfileCache.delete(cacheKey);
 
-  const fallback = { temperature: 0.24, top_p: 0.76, frequency_penalty: 0.08, max_tokens: 1800 };
+  const fallback = TASK_GENERATION_PRESETS.engineParamFallback;
   const base = GENERATION_PROFILE_BY_MODE[modeId] || fallback;
   const profile = { ...base };
   if (factualQuestion || operationQuestion) {

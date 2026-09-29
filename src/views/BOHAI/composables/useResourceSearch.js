@@ -5,6 +5,7 @@ import {
   searchMinecraftResourcesForBohAI,
 } from '@/utils/api/resource-search-api.js';
 import { normalizePromptLine, truncateText } from './bohai-engine-helpers.js';
+import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { logger } from '@/utils/logger.js';
 import { safeErrorDetail, isAbortError, CHAT_ERROR_MESSAGES } from '../utils/chatErrorMessages.js';
 import {
@@ -308,7 +309,7 @@ export function useResourceSearch({
         [],
         combinedSignal,
         0,
-        { max_tokens: 520, temperature: 0.05, top_p: 0.45, frequency_penalty: 0.02 },
+        TASK_GENERATION_PRESETS.resourceDigest,
       );
       let parsed = {};
       try {

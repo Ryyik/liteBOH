@@ -1,11 +1,12 @@
 import { callBohAIModel, extractBohAIJsonObject } from '@/utils/bohai-model-client.js';
 import { logger } from '@/utils/logger.js';
 import { AGENT_AGENT_ROLES, AGENT_AGENT_STATUS, createAgentEvent } from './agent-events.js';
+import { TASK_GENERATION_PRESETS } from '../../generation-params.js';
 import {
   SYNTHESIZER_SYSTEM_PROMPT,
   SYNTH_FINAL_MARKER,
   buildSynthesizerUserPrompt,
-  splitSynthesizerStream
+  splitSynthesizerStream,
 } from '../prompts/synthesizer-prompt.js';
 const MAX_SYNTH_TOKENS = 1600;
 const TYPEWRITER_INTERVAL_MS = 18; // 每 18ms 推一帧到 onStream，模拟"打字机"流式
@@ -23,10 +24,10 @@ const fallbackAnswer = ({ bus, reason, totalFailure }) => {
     return {
       answer: totalFailure
         ? `${reason || '所有 Agent 都未产出结果'}\n\n建议：换个问法、关闭部分 Agent 或稍后重试。`
-        : (reason || '当前没有可用的 Agent 产出。'),
+        : reason || '当前没有可用的 Agent 产出。',
       sources: [],
       degraded: true,
-      totalFailure: Boolean(totalFailure)
+      totalFailure: Boolean(totalFailure),
     };
   }
   const chunks = [];
@@ -38,26 +39,45 @@ const fallbackAnswer = ({ bus, reason, totalFailure }) => {
       return;
     }
     // 状态为 FAILED / SKIPPED / CANCELLED 的不拼进 visible
-    if (output.status && [AGENT_AGENT_STATUS.FAILED, AGENT_AGENT_STATUS.SKIPPED, AGENT_AGENT_STATUS.CANCELLED].includes(output.status)) {
+    if (
+      output.status &&
+      [
+        AGENT_AGENT_STATUS.FAILED,
+        AGENT_AGENT_STATUS.SKIPPED,
+        AGENT_AGENT_STATUS.CANCELLED,
+      ].includes(output.status)
+    ) {
       failedNames.push(agent);
       return;
     }
-    const summary = typeof output.output === 'string'
-      ? output.output
-      : (output.output?.summary || output.output?.answer || '');
+    const summary =
+      typeof output.output === 'string'
+        ? output.output
+        : output.output?.summary || output.output?.answer || '';
     if (summary) chunks.push(`【${agent}】\n${String(summary).slice(0, 600)}`);
     if (output.sources && output.sources.length) {
-      output.sources.forEach((s) => sources.push({ id: s.id || `${agent}-${index}`, label: s.label || agent, source: s.source || '' }));
+      output.sources.forEach((s) =>
+        sources.push({
+          id: s.id || `${agent}-${index}`,
+          label: s.label || agent,
+          source: s.source || '',
+        }),
+      );
     }
   });
-  const failHint = totalFailure && failedNames.length
-    ? `\n\n（参与 Agent 均失败：${failedNames.join('、')}）`
-    : (failedNames.length ? `\n\n（部分 Agent 失败，已跳过：${failedNames.join('、')}）` : '');
+  const failHint =
+    totalFailure && failedNames.length
+      ? `\n\n（参与 Agent 均失败：${failedNames.join('、')}）`
+      : failedNames.length
+        ? `\n\n（部分 Agent 失败，已跳过：${failedNames.join('、')}）`
+        : '';
   return {
-    answer: chunks.length ? `${chunks.join('\n\n')}\n\n（合成器异常，已退化为多 Agent 直出）${failHint}` : (reason || '合成器异常') + failHint,
+    answer: chunks.length
+      ? `${chunks.join('\n\n')}\n\n（合成器异常，已退化为多 Agent 直出）${failHint}`
+      : (reason || '合成器异常') + failHint,
     sources,
     degraded: true,
-    totalFailure: Boolean(totalFailure)
+    totalFailure: Boolean(totalFailure),
   };
 };
 
@@ -83,11 +103,7 @@ const streamTypewriter = async (text, onStream) => {
   }
 };
 
-export const createSynthesizer = ({
-  defaultModel,
-  historySummaryFn,
-  modelClient
-} = {}) => {
+export const createSynthesizer = ({ defaultModel, historySummaryFn, modelClient } = {}) => {
   const client = modelClient || { call: callBohAIModel, extractJson: extractBohAIJsonObject };
   const modelId = defaultModel;
 
@@ -100,20 +116,29 @@ export const createSynthesizer = ({
       output: output?.output,
       evidence: output?.evidence,
       notes: output?.notes,
-      sources: output?.sources
+      sources: output?.sources,
     }));
 
     if (!agentOutputs.length) {
-      return { answer: '当前没有可用的 Agent 产出。', sources: [], degraded: true, totalFailure: true };
+      return {
+        answer: '当前没有可用的 Agent 产出。',
+        sources: [],
+        degraded: true,
+        totalFailure: true,
+      };
     }
 
     // 统计失败/成功的 Agent 数量，用来决定是否降级为"全部失败"
     const totalCount = agentOutputs.length;
-    const failedCount = agentOutputs.filter((entry) => entry.status && [
-      AGENT_AGENT_STATUS.FAILED,
-      AGENT_AGENT_STATUS.SKIPPED,
-      AGENT_AGENT_STATUS.CANCELLED
-    ].includes(entry.status)).length;
+    const failedCount = agentOutputs.filter(
+      (entry) =>
+        entry.status &&
+        [
+          AGENT_AGENT_STATUS.FAILED,
+          AGENT_AGENT_STATUS.SKIPPED,
+          AGENT_AGENT_STATUS.CANCELLED,
+        ].includes(entry.status),
+    ).length;
     const totalFailure = failedCount >= totalCount;
 
     const userPrompt = buildSynthesizerUserPrompt({
@@ -121,7 +146,7 @@ export const createSynthesizer = ({
       historySummary: historySummary || (historySummaryFn ? historySummaryFn({ bus }) : ''),
       agentOutputs,
       evidence: snapshot.evidence,
-      sources
+      sources,
     });
 
     let finalAnswer = '';
@@ -134,21 +159,26 @@ export const createSynthesizer = ({
         model: modelId,
         messages: [
           { role: 'system', content: SYNTHESIZER_SYSTEM_PROMPT },
-          { role: 'user', content: `${userPrompt}\n\n请输出最终回复，结尾用一行单独的 ${SYNTH_FINAL_MARKER} 标记。` }
+          {
+            role: 'user',
+            content: `${userPrompt}\n\n请输出最终回复，结尾用一行单独的 ${SYNTH_FINAL_MARKER} 标记。`,
+          },
         ],
-        temperature: 0.2,
-        maxTokens: MAX_SYNTH_TOKENS
+        temperature: TASK_GENERATION_PRESETS.synthesis.temperature,
+        maxTokens: MAX_SYNTH_TOKENS,
       });
       const split = splitSynthesizerStream(content);
       finalAnswer = (split.visible || content || '').trim();
       internal = split.internal;
       hadMarker = split.hadMarker;
     } catch (error) {
-      logger.warn('bohai-cluster', 'Synthesizer 模型调用失败，回退到 Agent 直出', { error: String(error?.message || error) });
+      logger.warn('bohai-cluster', 'Synthesizer 模型调用失败，回退到 Agent 直出', {
+        error: String(error?.message || error),
+      });
       const fallback = fallbackAnswer({
         bus,
         reason: `合成器调用失败：${String(error?.message || error).slice(0, 80)}`,
-        totalFailure
+        totalFailure,
       });
       finalAnswer = fallback.answer;
       degraded = true;
@@ -158,7 +188,7 @@ export const createSynthesizer = ({
       const fallback = fallbackAnswer({
         bus,
         reason: hadMarker ? '合成器空输出' : '合成器未返回有效答案',
-        totalFailure
+        totalFailure,
       });
       finalAnswer = fallback.answer;
       degraded = true;
@@ -166,7 +196,11 @@ export const createSynthesizer = ({
 
     // 打字机式流式：先一次性 onStream('') 重置可能存在的 UI 残留，再逐步推
     if (typeof onStream === 'function' && finalAnswer) {
-      try { onStream(''); } catch (_err) { /* ignore */ }
+      try {
+        onStream('');
+      } catch (_err) {
+        /* ignore */
+      }
       await streamTypewriter(finalAnswer, onStream);
     }
 
@@ -176,7 +210,7 @@ export const createSynthesizer = ({
       internal,
       degraded,
       totalFailure: totalFailure && degraded,
-      hadMarker
+      hadMarker,
     };
   };
 
@@ -201,7 +235,7 @@ export const createSynthesizerAgent = (options = {}) => {
         bus,
         historySummary: context?.historySummary,
         sources,
-        onStream: context?.onStream
+        onStream: context?.onStream,
       });
       if (result.degraded) {
         context?.bus?.setSharedContext?.('synthesizer.degraded', true);
@@ -212,17 +246,27 @@ export const createSynthesizerAgent = (options = {}) => {
       context?.bus?.setSharedContext?.('synthesizer.answer', result.answer);
       return {
         ok: true,
-        output: { answer: result.answer, degraded: result.degraded, totalFailure: result.totalFailure, sources: result.sources },
+        output: {
+          answer: result.answer,
+          degraded: result.degraded,
+          totalFailure: result.totalFailure,
+          sources: result.sources,
+        },
         sources: result.sources || [],
-        notes: result.degraded ? (result.totalFailure ? ['合成器全部失败，已聚合错误'] : ['合成器已降级为 Agent 直出']) : [],
-        tokens: 900
+        notes: result.degraded
+          ? result.totalFailure
+            ? ['合成器全部失败，已聚合错误']
+            : ['合成器已降级为 Agent 直出']
+          : [],
+        tokens: 900,
       };
-    }
+    },
   };
 };
 
-export const buildFinalEvent = ({ answer, sources, degraded }) => createAgentEvent('final', {
-  answer: String(answer || ''),
-  sources: Array.isArray(sources) ? sources : [],
-  degraded: Boolean(degraded)
-});
+export const buildFinalEvent = ({ answer, sources, degraded }) =>
+  createAgentEvent('final', {
+    answer: String(answer || ''),
+    sources: Array.isArray(sources) ? sources : [],
+    degraded: Boolean(degraded),
+  });

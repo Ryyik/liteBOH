@@ -1,24 +1,18 @@
 import {
   callBohAIModel,
   extractBohAIJsonObject,
-  ORCHESTRATOR_TIMEOUT_MS
+  ORCHESTRATOR_TIMEOUT_MS,
 } from '@/utils/bohai-model-client.js';
 import { logger } from '@/utils/logger.js';
 import { isAbortError } from '../../utils/chatErrorMessages.js';
-import {
-  AGENT_AGENT_ROLES,
-  createAgentEvent,
-  createEmptyAgentRunTrace
-} from './agent-events.js';
+import { TASK_GENERATION_PRESETS } from '../../generation-params.js';
+import { AGENT_AGENT_ROLES, createAgentEvent, createEmptyAgentRunTrace } from './agent-events.js';
 import {
   buildOrchestratorUserPrompt,
   parseOrchestratorPlan,
-  buildFallbackPlan
+  buildFallbackPlan,
 } from '../prompts/orchestrator-prompt.js';
-import {
-  AGENT_CLUSTER_PLAN_STRATEGY,
-  isFanoutTrigger
-} from './agent-cluster-config.js';
+import { AGENT_CLUSTER_PLAN_STRATEGY, isFanoutTrigger } from './agent-cluster-config.js';
 
 const buildSnapshot = (registry) => {
   if (!registry || typeof registry.list !== 'function') return [];
@@ -27,7 +21,7 @@ const buildSnapshot = (registry) => {
     role: agent.role,
     tag: agent.tag,
     label: agent.label,
-    category: agent.category
+    category: agent.category,
   }));
 };
 
@@ -38,7 +32,7 @@ const safeListAvailable = (registry) => {
     role: agent.role,
     tag: agent.tag,
     label: agent.label,
-    hasWebSearch: agent.hasWebSearch
+    hasWebSearch: agent.hasWebSearch,
   }));
 };
 
@@ -46,7 +40,7 @@ export const createOrchestrator = ({
   registry,
   defaultModel,
   historySummaryFn,
-  modelClient
+  modelClient,
 } = {}) => {
   if (!registry) {
     throw new Error('Orchestrator: registry 必填');
@@ -59,7 +53,7 @@ export const createOrchestrator = ({
     clusterMode = 'auto',
     historySummary,
     context = {},
-    signal
+    signal,
   } = {}) => {
     const safeQuery = String(query || '').trim();
     const available = safeListAvailable(registry);
@@ -69,22 +63,27 @@ export const createOrchestrator = ({
       historySummary: historySummary || (historySummaryFn ? historySummaryFn(context) : ''),
       availableAgents: available,
       clusterMode,
-      isFanoutHint: fanoutHint
+      isFanoutHint: fanoutHint,
     });
 
     let parsed = null;
     let rawError = null;
-    const callOrchestrator = (model, maxTokens, customSignal) => client.call({
-      model,
-      messages: [
-        { role: 'system', content: '<role>你是 BOH AI 集群的编排者。</role>\n<constraints>\n- 把用户请求拆解成子任务\n- 不输出 JSON 之外的文字\n</constraints>' },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.12,
-      maxTokens,
-      timeoutMs: ORCHESTRATOR_TIMEOUT_MS,
-      signal: customSignal || signal
-    });
+    const callOrchestrator = (model, maxTokens, customSignal) =>
+      client.call({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content:
+              '<role>你是 BOH AI 集群的编排者。</role>\n<constraints>\n- 把用户请求拆解成子任务\n- 不输出 JSON 之外的文字\n</constraints>',
+          },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: TASK_GENERATION_PRESETS.planner.temperature,
+        maxTokens,
+        timeoutMs: ORCHESTRATOR_TIMEOUT_MS,
+        signal: customSignal || signal,
+      });
 
     // C4 fix: 先主后兜底（非并发），节省 token。
     // 主模型在 90%+ 情况下正常返回，无需每次都消耗兜底模型的 token。
@@ -102,7 +101,9 @@ export const createOrchestrator = ({
       if (isAbortError(error)) {
         logger.warn('bohai-cluster', 'Orchestrator 被用户取消');
       } else {
-        logger.warn('bohai-cluster', 'Orchestrator 模型失败，使用规则兜底计划', { error: String(error?.message || error) });
+        logger.warn('bohai-cluster', 'Orchestrator 模型失败，使用规则兜底计划', {
+          error: String(error?.message || error),
+        });
       }
     }
 
@@ -110,15 +111,19 @@ export const createOrchestrator = ({
       const fallback = buildFallbackPlan({
         query: safeQuery,
         availableAgents: available,
-        preferFanout: clusterMode === 'multi' || (clusterMode === 'auto' && fanoutHint)
+        preferFanout: clusterMode === 'multi' || (clusterMode === 'auto' && fanoutHint),
       });
       return {
         strategy: fallback.strategy,
-        reason: fallback.reason + (rawError ? `（LLM 调用失败：${String(rawError?.message || rawError).slice(0, 60)}）` : ''),
+        reason:
+          fallback.reason +
+          (rawError
+            ? `（LLM 调用失败：${String(rawError?.message || rawError).slice(0, 60)}）`
+            : ''),
         tasks: fallback.tasks,
         degraded: Boolean(rawError),
         usedFallback: true,
-        fanoutHint
+        fanoutHint,
       };
     }
 
@@ -127,7 +132,7 @@ export const createOrchestrator = ({
       const fallback = buildFallbackPlan({
         query: safeQuery,
         availableAgents: available,
-        preferFanout: clusterMode === 'multi' || (clusterMode === 'auto' && fanoutHint)
+        preferFanout: clusterMode === 'multi' || (clusterMode === 'auto' && fanoutHint),
       });
       return {
         strategy: fallback.strategy,
@@ -135,7 +140,7 @@ export const createOrchestrator = ({
         tasks: fallback.tasks,
         degraded: true,
         usedFallback: true,
-        fanoutHint
+        fanoutHint,
       };
     }
 
@@ -145,14 +150,14 @@ export const createOrchestrator = ({
       tasks: filteredTasks,
       degraded: false,
       usedFallback: false,
-      fanoutHint
+      fanoutHint,
     };
   };
 
   return {
     plan,
     snapshot: () => buildSnapshot(registry),
-    resolveFanout: (text) => isFanoutTrigger(text)
+    resolveFanout: (text) => isFanoutTrigger(text),
   };
 };
 
@@ -179,11 +184,11 @@ export const createOrchestratorAgent = (registry, options = {}) => {
         notes: [
           result.reason || '',
           result.usedFallback ? '使用兜底计划' : '',
-          result.degraded ? '编排降级' : ''
+          result.degraded ? '编排降级' : '',
         ].filter(Boolean),
-        tokens: 600
+        tokens: 600,
       };
-    }
+    },
   };
 };
 

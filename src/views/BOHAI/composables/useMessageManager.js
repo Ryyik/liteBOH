@@ -3,8 +3,9 @@ import {
   QUICK_NOTE_CONTENT_MAX_CHARS,
   QUICK_NOTE_TITLE_MAX_CHARS,
   ACTION_DRAFT_CONTENT_MAX_CHARS,
-  ACTION_DRAFT_TITLE_MAX_CHARS
+  ACTION_DRAFT_TITLE_MAX_CHARS,
 } from './chat-engine-config.js';
+import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { normalizePromptLine as _normalizePromptLine } from './bohai-engine-helpers.js';
 
 /**
@@ -52,11 +53,10 @@ export function useMessageManager({
   // 从 useConversationManager 注入的 pending 状态
   pendingQuickNote,
   pendingActionDraft,
-  resetPendingActionDraft
+  resetPendingActionDraft,
 } = {}) {
-  const normalize = typeof normalizePromptLineFn === 'function'
-    ? normalizePromptLineFn
-    : _normalizePromptLine;
+  const normalize =
+    typeof normalizePromptLineFn === 'function' ? normalizePromptLineFn : _normalizePromptLine;
 
   // --------------------------------------------------------------
   // 输入状态
@@ -103,11 +103,7 @@ export function useMessageManager({
    */
   const normalizeActionNotes = (notes = []) => {
     const source = Array.isArray(notes) ? notes : [notes];
-    return [...new Set(
-      source
-        .map((item) => normalize(item, 120))
-        .filter(Boolean)
-    )].slice(0, 4);
+    return [...new Set(source.map((item) => normalize(item, 120)).filter(Boolean))].slice(0, 4);
   };
 
   /**
@@ -124,7 +120,7 @@ export function useMessageManager({
     if (!metaPatch || typeof metaPatch !== 'object') return false;
     targetMessage.meta = {
       ...(targetMessage.meta && typeof targetMessage.meta === 'object' ? targetMessage.meta : {}),
-      ...metaPatch
+      ...metaPatch,
     };
     return true;
   };
@@ -196,10 +192,11 @@ export function useMessageManager({
    * @returns {string}
    */
   const buildQuickNoteTitle = (content) => {
-    const firstLine = String(content || '')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find(Boolean) || '';
+    const firstLine =
+      String(content || '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find(Boolean) || '';
     const normalized = normalize(firstLine.replace(/^#+\s*/, ''), QUICK_NOTE_TITLE_MAX_CHARS);
     return normalized || 'BOH AI 随手记';
   };
@@ -225,19 +222,19 @@ export function useMessageManager({
           '请为下面这段用户原文生成一个适合 Cloud+ 随手记的短标题。',
           '要求：只输出标题本身，不要引号，不要解释，中文优先，最多 18 个汉字或 36 个英文字符。',
           '',
-          `用户原文：${noteContent}`
+          `用户原文：${noteContent}`,
         ].join('\n'),
         '<role>你是 BOH AI 的随手记标题生成器。</role>\n<constraints>\n- 只输出简短标题\n- 不要引号，不要解释\n- 中文优先，最多 18 个汉字或 36 个英文字符\n</constraints>',
         [],
         requestSignal,
         0,
-        { max_tokens: 80, temperature: 0.2, top_p: 0.8, frequency_penalty: 0.1 }
+        TASK_GENERATION_PRESETS.quickTitle,
       );
       const cleanTitle = normalize(
         String(rawTitle || '')
           .replace(/^["'“”‘’「『]+|["'“”‘’」』]+$/g, '')
           .replace(/^(标题|Title)\s*[:：]\s*/i, ''),
-        QUICK_NOTE_TITLE_MAX_CHARS
+        QUICK_NOTE_TITLE_MAX_CHARS,
       );
       return cleanTitle || fallbackTitle;
     } catch (error) {
@@ -261,7 +258,7 @@ export function useMessageManager({
     rawText,
     sessionIndex,
     requestSignal = undefined,
-    modelId = ''
+    modelId = '',
   } = {}) => {
     if (!isQuickNoteEnabled?.value) return false;
     const userId = String(userInfo?.value?.id || '').trim();
@@ -287,7 +284,7 @@ export function useMessageManager({
       sessionIndex,
       'assistant',
       `要把这条内容记录到 Cloud+ 吗？\n\n${title}\n${content}`,
-      { kind: 'quick_note_confirm' }
+      { kind: 'quick_note_confirm' },
     );
 
     generateQuickNoteTitle(content, requestSignal, modelId)
@@ -295,7 +292,8 @@ export function useMessageManager({
         const nextTitle = normalize(generatedTitle, QUICK_NOTE_TITLE_MAX_CHARS);
         if (!nextTitle || nextTitle === title) return;
         if (!pendingQuickNote.visible || pendingQuickNote.busy) return;
-        if (pendingQuickNote.userId !== userId || pendingQuickNote.sessionIndex !== sessionIndex) return;
+        if (pendingQuickNote.userId !== userId || pendingQuickNote.sessionIndex !== sessionIndex)
+          return;
         pendingQuickNote.title = nextTitle;
         const sessionToUpdate = getSessionByIndex(sessionIndex);
         const confirmMessage = sessionToUpdate?.messages?.[pendingQuickNote.messageIndex];
@@ -385,6 +383,6 @@ export function useMessageManager({
     queueQuickNoteConfirmation,
     cancelPendingActionDraftFromUI,
     confirmPendingActionDraftFromUI,
-    updatePendingPostDraftFromUI
+    updatePendingPostDraftFromUI,
   };
 }

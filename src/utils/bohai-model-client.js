@@ -1,8 +1,10 @@
 import { CONNECTOR_TIMEOUT_MS } from './bohai-constants.js';
 import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
 
-const BOHAI_CHAT_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
-const ZHIPU_CHAT_API_URL = import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+const BOHAI_CHAT_API_URL =
+  import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
+const ZHIPU_CHAT_API_URL =
+  import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 
 let _bohaiDefaultModelId = null;
 const getBohaiDefaultModelId = () => {
@@ -30,14 +32,17 @@ export const getBohAIModelStatus = () => ({
   hasConfig: Boolean(BOHAI_CHAT_API_URL),
   url: BOHAI_CHAT_API_URL,
   defaultModelId: getBohaiDefaultModelId(),
-  usesVaultFallback: true
+  usesVaultFallback: true,
 });
 
 export const extractBohAIJsonObject = (text = '') => {
   const raw = String(text || '').trim();
   if (!raw) return null;
 
-  const withoutThinking = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim();
+  const withoutThinking = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+    .trim();
   const fenced = withoutThinking.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced?.[1] || withoutThinking;
   const start = candidate.indexOf('{');
@@ -55,12 +60,18 @@ export const callBohAIModel = async ({
   model = getBohaiDefaultModelId(),
   messages = [],
   temperature = 0.18,
-  maxTokens = 512,
+  maxTokens = 1800,
   signal,
   timeoutMs = MODEL_HARD_TIMEOUT_MS,
-  cacheControl
+  cacheControl,
 } = {}) => {
-  const provider = model.startsWith('glm-') ? 'zhipu' : 'siliconflow';
+  // 智谱官方模型 id 可能以大写返回（如 GLM-4-Flash），必须大小写不敏感地判 provider，
+  // 否则会把智谱模型路由到 siliconflow 通道直接 404。
+  const provider = String(model || '')
+    .toLowerCase()
+    .startsWith('glm-')
+    ? 'zhipu'
+    : 'siliconflow';
   const apiUrl = provider === 'zhipu' ? ZHIPU_CHAT_API_URL : BOHAI_CHAT_API_URL;
 
   let lastError = null;
@@ -76,7 +87,7 @@ export const callBohAIModel = async ({
         messages,
         stream: false,
         temperature,
-        max_tokens: maxTokens
+        max_tokens: maxTokens,
       };
       if (cacheControl?.enabled && typeof cacheControl.config === 'object') {
         Object.assign(apiPayload, cacheControl.config);
@@ -87,7 +98,7 @@ export const callBohAIModel = async ({
         apiUrl,
         timeoutMs,
         signal,
-        payload: apiPayload
+        payload: apiPayload,
       });
       if (!vaultResult.ok) {
         // B2 fix: 保留 HTTP status 到 error 上，让 isRetryableStatus 能识别 429/5xx
@@ -101,7 +112,7 @@ export const callBohAIModel = async ({
 
       return {
         payload,
-        content: payload?.choices?.[0]?.message?.content || ''
+        content: payload?.choices?.[0]?.message?.content || '',
       };
     } catch (error) {
       // B7 fix: AbortError 来自用户取消，不应重试。直接抛出，避免 2.4s 无意义延迟。
@@ -115,7 +126,9 @@ export const callBohAIModel = async ({
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
-        throw new Error(`BOHAI 模型请求超时，已重试 ${MODEL_RETRY_MAX} 次仍失败。请检查网络或稍后再试。`);
+        throw new Error(
+          `BOHAI 模型请求超时，已重试 ${MODEL_RETRY_MAX} 次仍失败。请检查网络或稍后再试。`,
+        );
       }
       // 配额超限不重试，直接抛出
       if (error.status === 429 && error.quota) {
