@@ -183,6 +183,16 @@ export const FIXTURES = [
         '--boh-page-bg 改成与骨架不一致的值',
       ),
   },
+  {
+    gate: 'check:bohai-params',
+    why: 'BOH AI 生成参数只许在真源表里出现（generation-params.js / chat-engine-config.js），内联字面量会让调参改一处漏一处',
+    prepare: () =>
+      appendTo(
+        'src/views/BOHAI/composables/useMessageManager.js',
+        'export const __gatesProbeParams = { temperature: 0.9, max_tokens: 99 };',
+        '内联生成参数字面量 temperature: 0.9 / max_tokens: 99',
+      ),
+  },
 ];
 
 /**
@@ -199,6 +209,10 @@ export const UNTESTABLE = [
     why: '需要 Supabase Management API token 读 pg_catalog，离线无法造违规',
   },
   { gate: 'check:shell-precache', why: '读 dist/ 产物，需先构建' },
+  {
+    gate: 'compress-images',
+    why: '构建转换步骤而非门禁：没有「违规」可注入，sharp 抛错会自然非零退出；幂等性由「连跑两次第二次全跳过、产物字节不变」自证（2026-09-29 实测）',
+  },
   { gate: 'check:bundle-size', why: '读 dist/ 产物，需先构建' },
   { gate: 'check:route-css-runtime', why: '要起 preview 服务 + 浏览器，属手工专项' },
   { gate: 'check:sw-upgrade', why: '要 dist 与 dist-check 双产物对比，属手工专项' },

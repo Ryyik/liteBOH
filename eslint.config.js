@@ -11,6 +11,8 @@ export default [
       '.build-verify/**', // 构建校验产物（minified），不参与 lint
       'node_modules/**',
       'coverage/**',
+      'output/**', // 产物/临时输出目录（.gitignore:48 已忽略、未被 git 跟踪），与 dist 同性质。
+      //            不排除它 → `eslint .` 会扫进去，凭空多出 2 条幽灵警告（output/preview-html-v2.part.ts）。
     ],
   },
   ...vue.configs['flat/base'],

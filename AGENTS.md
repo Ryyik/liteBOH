@@ -36,6 +36,15 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 > 它会给每条门禁注入一个已知违规样本、断言退出码非 0、再撤销；样本写在 `scripts/lib/gate-fixtures.mjs`。
 > 没有 fixture 的门禁会在输出里被列成「未覆盖」——那是**明账**，不是可以忽略的噪声。
 
+> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings 189`，这是一道**警告棘轮**
+> （`ci.yml:43` 与 `deploy.yml:45` 都跑 `npm run lint`，所以 CI 和发布链上都有牙）。
+> 存量是 **189 条 unused-vars**（js 185 + ts 4；`src/` 146、`scripts/probes` 31、`tests/` 8、`supabase/functions` 4）——
+> **新增一条死代码当场 exit 1**，实测反证：往 `src/` 放一个 `const unusedX = 1` → `found too many warnings (maximum: 189)`。
+> 三条纪律：① **清理后请把 189 改小**（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
+> （与 `check:important-budget` 等棘轮同规矩）；③ 计数口径用 `eslint . -f json` 聚合，**别 grep 文本数**（会串）。
+> 之所以是「棘轮」而不是「把规则翻成 error」：191 条直接翻红只会逼人把变量改名 `_x` 保住绿，死代码变成「有名字的僵尸」，
+> 还可能引出 `--no-verify` 绕过。**计数归零之后才翻 error。**
+
 | 你改了什么 | 除了 verify，还要跑 |
 | --- | --- |
 | `.github/workflows/**`、部署链路 | `npm run build:ci` |
@@ -45,18 +54,22 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | 导航栏可见性 / 灵动岛 / 全局搜索 | 先改唯一真源 `utils/global-navbar-visibility.js` 的 `isGlobalNavbarVisible(route)`；再 `node scripts/probes/probe-global-search.mjs`（58） |
 | 竖屏导航菜单：接缝、以及菜单内部的一级/二级/三级几何（`.nav-menu-mobile` 的 `top`、`.nav-mobile-submenu-container`、岛的下投影） | `node scripts/probes/probe-nav-mobile-menu.mjs`（48，含一个窄横屏档）。⚠️ 三个坑：① 菜单的包含块是那座**有 transform 的岛**、不是视口；② `visibility: hidden` **不释放高度**（点开二级菜单后的 272px 内部空洞就是这个）；③ 探针**全程不滚动**，所以 `.scrolled` 那一类回归它抓不到 —— 那条由 `tests/unit/unified-nav-scrolled-guard.test.js` 在源码层锁死（2026-09-29 起 vendor 里三组休眠 `.scrolled` 规则已删）。见该探针文件头的实测记录 |
 | 论坛搜索 / 列表 RPC | `node scripts/probes/probe-forum-search.mjs`（27） |
+| **活动页封面图 / 报名区 / 月份轨道** | `node scripts/probes/probe-activities-images.mjs`（7）、`node scripts/probes/probe-campaign-ui.mjs`（35）。⚠️ 数据库图片列混存 `@/assets/...` 别名与 Cloudinary 绝对地址两种形态，**渲染必须走 `utils/db-image-url.js`**；只调 `getImageUrl` 时 Cloudinary 那几条会指向大陆不可达的 `res.cloudinary.com` 而裂图（2026-09-29 活动页 id=16/17 即此成因） |
+| **方块积分卡自定义卡面**（`profiles.points_card_image_url` / `points_card_presets.image_url`） | `node scripts/probes/probe-points-card-image.mjs`（7，只读打本地 dev）。同一个裂图成因的第二个落点：卡面走 `PointsCard.vue` 内部收口 → `resolveDbPointsCardImage`（`c_limit,w_1280`，**不是 c_fill**：卡面是整幅画，服务端预裁会砍主体），预设缩略图走 `AssetsHubPanel.pointsCardPresetThumb`。⚠️ 预设 `:class` 的 active 判断必须继续比**原始** url，一边改写一边不改写会丢选中态 |
 | 订阅权益 / 摄影集配额 | `node scripts/probes/probe-subscription-benefits.mjs`（48） |
 | 头像框发放 | `node scripts/probes/probe-avatar-frame-grant.mjs`（23） |
 | 头像框控制台（新素材 / 变换） | `node scripts/probes/probe-avatar-frame-console.mjs`（44） |
 | **周签到 / 积分余额线上真值**（报障「签到能一直签」「余额不显示」先跑这个） | `node scripts/probes/probe-weekly-checkin-points.mjs`（5 项断言，只读）。判据是「唯一索引在不在 / 有没有同用户同周多行 / 本周签到行数 == 本周签到流水数 / 部署版函数是不是幂等版 / 签到者积分有无空值」。⚠️ 时间边界必须 `(date 'X'::timestamp at time zone 'Asia/Shanghai')`，直接比 `timestamptz` 会退化成 UTC 午夜、漏掉周一凌晨签到的行，得到假的「行数 != 流水数」 |
 | **anon EXECUTE 收尾：哪些函数可以安全撤权** | `node scripts/probes/probe-anon-revoke-safety.mjs`（只读）。两条硬规则：① **被任何 RLS 策略引用 → 不可撤**（策略按查询者角色求值，撤 anon 会让游客查询直接 42501；实测 `current_user_is_admin` 被 113 条策略引用）；② 匿名态有前端调用点 → 需人工确认。⚠️ **撤权不等于加防线**：函数体内部只信 `auth.uid()`，`authenticated` 同样能调它 —— 无论撤不撤 anon，「内部守卫」都是唯一那道防线，故边际收益有限；落库前先跑「撤销 → 全站游客路径冒烟」 |
 | AI 面板 / BOHAI | `npm run probe:ai-panels` |
+| **BOH AI 生成参数**（改 temperature / max_tokens / top_p 等调参，或新增 LLM 调用点） | 已在 verify 链内跑 `check:bohai-params`（严格门禁，禁止在真源表之外内联字面量）。真源两张表：`src/views/BOHAI/generation-params.js`（按任务语义）与 `chat-engine-config.js` 的 `GENERATION_PROFILE_BY_MODE`（按对话模式）。改真源表的值属于**行为变更**：跑 `npm run probe:ai-panels` 并人眼复核对话质量 |
 | 数据管理面板列定义 | `npm run audit:dm-columns` |
 | `vite.config.js` 依赖别名 / optimizeDeps | `node scripts/probes/probe-vite-dep-scan.mjs`（6） |
 | 权限策略 / 归档 SQL | `npm run security:anon-check`（棘轮，红了说明新增了 anon EXECUTE） |
 | 暗色主题样式（新增裸色值） | 已在 verify 链内跑 `check:dark-tokens:strict`（棘轮，总量上升即红）。确需新增 token：写进 `src/styles/themes/dark-mode.css` 的 token 块再引用；只有「存量搬迁/新页面早期形态」才允许 `npm run check:dark-tokens:update` 登记，并在 commit message 里说明理由 |
 | **在 `src/views`、`src/components`、`src/composables` 里写 `supabase.from/rpc/functions.invoke`** | 已在 verify 链内跑 `check:layering`（棘轮，基线 169 处 / 37 文件，**新文件违规即红**）。改法：复用 `src/utils/api/*` 已有封装，没有就在那儿新增一个模块收口。会话内省请用 `authStore` 而不是 `supabase.auth.getUser()`。清单：`npm run check:layering:list` |
 | SW 预缓存改动上线前（**专项，没进自动化链**） | `npm run check:sw-upgrade`（对比 `dist` 与 `dist-check` 两份产物，CI 上没有 `dist-check` 所以只能在本地跑）；`npm run check:route-css-runtime` 还要先手工起 `npx vite preview --outDir dist-check --port 4180 --strictPort`，它是独立起服务的浏览器验收 |
+| **首屏 / 加载性能**（改图片管线、SW 预缓存、首屏请求收敛之后） | `node scripts/probes/probe-perf-baseline.mjs`（4 断言；只读打线上冷首访 + 产物闭包 + DB RTT，**不进 verify 主链**；`--json` 落盘做前后对照。基线与口径源自 `docs/2026-09-29-加载速度与提速全面评测报告.md`） |
 | RPC / 触发器静默失败 | 审计表取 code → `DO` 块分步复现 → 修完把 `sqlstate` 落进审计 message |
 
 其余探针见 `docs/PROBES.md`。
@@ -75,6 +88,10 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 - 用户状态一律从 `authStore` 取，用 `storeToRefs()` 解构，不在组件里复制一份。更新走 `authStore.updateUserProfile()`，登出走 `resetState()`。
 - 禁止从 `utils/auth` 聚合入口 import（有 lint 规则拦），改从 `utils/api/*` 或 `utils/supabase-client.js` 按需引，避免公共 chunk 膨胀。
 - 图片资源必须走 `getImageUrl()`（`utils/asset-helper.js`），写死路径打包后 404。
+  **但来自数据库的图片列要再往前一步**：`activities.image` / `news.image` / `posts.cover_image_url` 等混存
+  `@/assets/...` 别名与 `https://res.cloudinary.com/...` 绝对地址两种形态，后者在大陆不可达
+  （实测直连 000，走 `cdn.blockofhome.cn` 200），只调 `getImageUrl` 会裂图。
+  渲染 DB 图片统一用 `utils/db-image-url.js` 的 `resolveDbCardImage` / `resolveDbDetailImage`。
 
 ### CSS / 动效
 

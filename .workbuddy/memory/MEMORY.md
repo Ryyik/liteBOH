@@ -1,48 +1,43 @@
-# BOHLITE 硬规则（细节见日期日志与 docs/plans）
+# BOHLITE 硬规则速查
+> 2026-09-29 精简；全文（含推演与实测过程）归档在同目录 `MEMORY-full-2026-09-29.md`。
 
-## 环境 / 探针
-- vite 默认只绑 IPv6；localhost 探针需双栈：`vite --port 5173 --host ::`；构建 `vite build --outDir dist-check`（勿动 dist；沙箱拦清目录先手动 rm）。vitest 加 `--pool=forks`；npx 被 SIGTERM→`./node_modules/.bin/<tool>`。
-- playwright：chrome channel+`--proxy-server=direct:// --proxy-bypass-list=*`；同 path 单 route（逆序→catch-all 先注册）；mock Supabase 必回 Content-Range；伪造登录注 pinia。
-- 归因：工作区常有未提交工作，**别裸 stash HEAD 当基线**；探针多次漂移=抖动非回归；改完必反证。
-- BSD grep 不支持 BRE `\|` 交替与 `\b`（静默 0 命中）→交替用 `grep -E`、边界用朴素子串。pre-commit（lint-staged+prettier）首次触碰未格式化文件会全文件 churn，混入 refactor commit 属预期一次性。
-- 通知 store 加载单源 `stores/notification-loader.ts`（含共享 ref + ensureNotificationStore，六个宿主绑定）；Tailwind 已移除（2026-09-28），preflight 补偿在 style.css `@layer base`，`--color-*/--radius-*` 24 变量唯一定义源在同文件 `:root`。
+## 环境
+vite 只绑 IPv6 → `--host ::`；构建 `--outDir dist-check`（勿动 dist）；vitest `--pool=forks`；npx 被 SIGTERM → `./node_modules/.bin/<tool>`。
+playwright：chrome channel + `--proxy-server=direct:// --proxy-bypass-list=*`；伪造登录注 pinia；mock Supabase 必回 Content-Range。
+⚠️ BSD grep 的 `\|` `\b` `\s` 全不支持（静默 0 命中）→ 用 `grep -E` / `[[:space:]]`，或直接用 Grep 工具。
+⚠️ 并行会话同工作区：文件 last-write-wins；棘轮跨会话共享（他人新增警告也让你红）→ 用 `eslint . -f json` 做 (文件,行,规则) set diff 归因；**提交只给明确路径，永不 `git add -A`**。
+改完必反证；探针偶发漂移=抖动非回归。
 
-## 测试 / 守卫断言（2026-09-28 起）
-- 「读源码 + `toContain`」守卫**必须过 `tests/helpers/source.js` 的归一**，且**两边过同一个**：`squeezeSource`（空白压单空格+去尾逗号+去闭括号前空白）/ `flattenSource`（再去全部空白，用于开括号后、`="` 后的断行）。契约在 `tests/unit/source-helper.test.js`（12 条，含反证，别删）。
-- prettier 影响逐字断言**四类**：换行缩进 / 补尾逗号 / **引号风格（`singleQuote` 亦作用于 CSS）** / **补分号**。前两类交归一，后两类写宽容正则（`/html\[data-theme=['"]dark['"]/`；边界 `\(\)[\s\S]*?\n\s*\}`）。
-- 找脆弱断言的实证法：`prettier --write <目录>` → 跑单测 → 红的必然是格式敏感断言 → 修 → `git checkout` 还原源码。**还原前先自证可丢**：`git archive HEAD <目录> .prettierrc .prettierignore` 解到 tmp 再跑 prettier，与工作区 `diff -rq` 应为空（只差 `.DS_Store`）。
+## 门禁 / 测试
+`npm run verify`（lint + type-check + test + 8 check + 棘轮总账）。
+⚠️ verify 绿 ≠ 干净：`lint` 带 `--max-warnings 189` 棘轮 → **报绿必须同时报警告条数**，口径用 `eslint . -f json` 聚合。unused-vars 是 `'warn'`，计数归零前别翻 error；`fix-unused-vars.mjs` 不治局部变量。
+新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则被 `check:gates-self-test` 列「未覆盖」；棘轮 baseline 只许下调。
+源码守卫必须过 `tests/helpers/source.js` 归一且**两边同一个**（`squeezeSource`/`flattenSource`）；否定断言先 `scriptSection()`+`stripComments()`（对 .vue 全文剥注释会吃掉真实代码）；注释里别写「星号+斜杠」连写。prettier 对逐字断言的影响：换行/尾逗号交归一，**引号风格（含 CSS）/补分号**要写宽容正则。
+
+## DB 图片地址（裂图重灾区）
+DB 图片列混存 `@/assets/...` 别名与 `res.cloudinary.com` 绝对地址，后者大陆不可达（curl 000；`cdn.blockofhome.cn` 200）。
+**统一走 `utils/db-image-url.js`**：`resolveDbCardImage` / `resolveDbDetailImage` / `resolveDbPointsCardImage` / `resolveDbImageUrl`；顺序固定「先 getImageUrl 再改写」。**只调 `getImageUrl` 就是裂图**。
+已修：活动页、积分卡面（PointsCard 内收口）、自定义预设缩略图。**未修**：`CommunityLotteries/index.vue`、`Shop/index.vue`；头像框 9 处 `url(${frame.url})` 直绑（其中 3 个素材是 cloudinary 直链，实测加载失败）。
+积分卡面用 `c_limit` 不 `c_fill`（卡面是整幅画，服务端预裁砍主体）；预设 `:class` 的 active 判断仍比**原始** url。
+护栏：`probe-activities-images`(7)、`probe-points-card-image`(7)、`tests/unit/db-image-url.test.js`、`points-card-image-source.test.js`。
 
 ## CSS
-- ⚠️ `:root` 严禁进 scoped @import（→`[data-v-x]:root` 全死，已修）；全局变量唯一入口 `styles/common/glass-aliases.css`（main.js 引）；CSS 批处理必须原位替换保空白。
-- 论坛共享 css 多组件 scoped @import 是承重墙（PostDetail 独用 PostComposer）；全局单点引入被 175 撞名类否决，见 docs/forum-css-dedup-audit.md。
-- `animation-fill-mode:both`→该属性不可过渡；动效单源 tokens.css；scoped=+1 特异性；`:global(#id[attr]) .cls` 不产出规则→暗色前缀写 ID 选择器；玻璃单源 tokens.css；暗色真源 theme-manager.js；锁滚动禁新增 !important（棘轮）；sticky 页挂 `html.<页>-scroll body{overflow:visible!important}`。
+`:root` 禁进 scoped @import（`[data-v-x]:root` 全死）；全局变量唯一入口 `styles/common/glass-aliases.css`；论坛共享 css 的 scoped @import 是承重墙。
+`animation-fill-mode:both` → 该属性不可过渡；动效/玻璃单源 `tokens.css`；暗色真源 `theme-manager.js`；scoped 特异性 +1；`:global(#id[attr]) .cls` 不产出规则。
 
-## 网络 / Supabase（ref nplnlefdwfgtyimfkyih）
-- github.com 被 SNI 阻断→push 走 SSH(ssh.github.com:443)；迁移走 Management API+手写 schema_migrations（YYYYMMDDNN_snake.sql，尾 notify pgrst）；凭据在钥匙串（剥 `go-keyring-base64:` 再 b64 解）。
-- 撤 EXECUTE 必须 `from anon,authenticated,public`；撤权优先于 drop；用户函数只撤权不加 auth.role() 门；新表 grant anon+authenticated（漏→42501）；撤权前五查 pg_depend/全库函数定义/EF/调用点/RLS；RPC 静默失败=when others 吞错→审计表取 code。
+## 路由 / 交互
+`key=route.path`（禁 fullPath/name）；实时搜索不写 URL；`<script setup>` 运行时 API 必须显式 import；ForumMain watch immediate 禁同步调下方 const（TDZ）。
+`useConfirmDialog` 互斥**会 reject**（判据单源 `isDialogBusy`）；调用点须把预期拒绝归化成「取消」，别删那条 reject（`PWAUpdateToast` 靠它）。焦点遮罩 z-index:12000 → 弹窗一开底下按钮点不到。
 
-## 路由 / 页面
-- App.vue 非 keepAlive key=**route.path**（禁 fullPath/name）；实时搜索不写 URL；论坛入口=首页 /；底栏单源 bottom-nav.ts；七席单源 forum-sections.ts；横屏详情走弹窗。
-- ⚠️ `<script setup>` 运行时 API 必须显式 import（macro 才免）；ForumMain 的 watch immediate 禁同步调下方 const（TDZ）→`Promise.resolve().then(...)`；slug 发布后不可变。
+## 导航 / 首页 / 论坛 / 头像框
+可见性单源 `isGlobalNavbarVisible(route)`；岛优先级 AI>任务>通知；`.scrolled` 整套已废（守卫 `unified-nav-scrolled-guard`）。
+首页入场真源 `.home --gate-p`、时长真源 GATE_TIMINGS；护栏 `probe-home-gate-pull`(50)。竖屏菜单 `probe-nav-mobile-menu`(48)；几何断言别用「父级 vs 首个子元素」差值（margin 折叠会恒 0）。
+论坛搜索 `list_forum_posts` 单实现 9 参数，禁新增签名（PG 42725）；必须登录；中文走 RPC ILIKE。
+头像框：归属 `is_avatar_frame_owned_by`、发放 `grant_avatar_frame`；新增 tier 必须同步 `avatar_frame_tier_rank`。
 
-## 论坛搜索（已收敛）
-- `list_forum_posts` 单实现 9 参数+两 wrapper，**禁新增签名**（PG 42725）；搜索必须登录；中文真源=RPC ILIKE 兜底（转义 %/_）；相关度恒优先；高亮 forum_search_excerpt()；降级必须带搜索词（buildFallbackSearchOr×3）；`.or()` 是追加；改搜索跑 probe-forum-search。
+## Supabase / 网络
+ref `nplnlefdwfgtyimfkyih`。github.com 被 SNI 阻断 → SSH(`ssh.github.com:443`) 或 Git Data API；迁移走 Management API + 手写 `schema_migrations`；凭据在钥匙串（剥 `go-keyring-base64:`）。
+撤 EXECUTE 用 `from anon,authenticated,public`；撤权优先于 drop；新表 grant anon+authenticated；撤权前五查；RPC 静默失败=审计表取 code。
 
-## 导航栏 / 灵动岛
-- 可见性唯一真源 `isGlobalNavbarVisible(route)`：v-if 控宿主的能力都必须调它（护栏单测 8 条）；全局搜索源注册表 site-search-sources.ts；高亮 `[[..]]`→splitMarks；快捷键 `/`（⌘K 被 AI 岛占）。
-- 岛 API useIsland notify/task/ai/custom；优先级 AI>任务>通知；两高度分槽不可混用；点击目标派发中途会换下树→先判 `!target.isConnected`；修饰键判据用 event.code；视觉动效看不见必须定格截图；视觉需求先出原型。
-
-## 首页首屏入场
-- 真源 `.home` inline `--gate-p`+派生 `--forum-p`；时长唯一真源 GATE_TIMINGS（CSS 禁写时长）；跟手 `{passive:false}`+preventDefault；RATIO=1.2 与 COMMIT=0.08 成对调；虚化=静态 blur 副本；落定 `.home-forum-settled{transform:none}`；wheel/touch 绑 .home-gate 不绑 window。护栏 probe-home-gate-pull(50)。
-
-## 帖子图片 / 头像框
-- 帖图两半治：is-loaded 前 opacity:0+imageLoadingGiveUp 3.2s 纯 CSS；LQIP 参数单源 utils/api/forum-format.js；LQIP→CacheFirst、正文→StaleWhileRevalidate；cloudinary_pending_uploads 是台账非队列。
-- 头像框：归属唯一出口 is_avatar_frame_owned_by；发放唯一入口 grant_avatar_frame（幂等）；⚠️ 新增 tier 必须同步 avatar_frame_tier_rank（else -1→全员解锁）；未测出内孔禁存草稿。
-
-## 注册 / Push / AI
-- GoTrue：gmail 剥 +tag；密码≥8 唯一真源 auth-validation.js（门禁 check:auth-validation）；Push：push_outbox→pg_net→EF push-send→push-sw.js（经典脚本）；VAPID 用 jsr:@negrel/webpush；SUBJECT mailto:；绝不自动 unsubscribe。
-- AI：唯一生效 bohai_model_configs.api_url；只解析 choices[0]；限流 10/分/用户；改 AI 页跑 probe-ai-panels；降级必须档位感知；treehole 表已废（→boh_note_entries）。
-
-## 性能 / PWA / CI / 订阅
-- CI 仅 deploy 秒挂=Pages 撞车→`gh run rerun --failed`；SW 预缓存两半一对；node-fetch 必须留在 vite alias（护栏 probe-vite-dep-scan(6)）；.bohai-page 高度三处真源同步。
-- 订阅权益单源 subscription-benefits.js；摄影集配额单源 photo-albums/quota.js（超限阻断不降级；展示层勿 import quota.js）；AI 访谈 expertState 唯一写入点 BOHAIMain.vue:1898（路径 B 不建属产品决策）。
+## 其它单源
+`subscription-benefits.js`；`photo-albums/quota.js`；AI 唯一生效 `bohai_model_configs.api_url`、只解析 `choices[0]`；密码 ≥8 `auth-validation.js`；通知 store `stores/notification-loader.ts`（七宿主）。

@@ -36,6 +36,8 @@
 - ✅ **FCP/LCP优秀**: 所有页面首次内容绘制时间 < 200ms，远超行业标准（< 1.8秒）
 - ⚠️ **首页加载时间长**: 29.04秒是首次全量下载时间，后续访问会显著改善
 - ⚠️ **LCP异常**: 活动列表和AI广场的LCP显示异常值（73792ms），需排查
+
+> **2026-09-29 实测更正**（`docs/2026-09-29-加载速度与提速全面评测报告.md` §11）：本节「首页 29.04s / LCP 73792ms / 362 请求 / 48MB 内存」**无判据，不可引用**。同路由同口径实测（390×844 冷首访）：`/` LCP 3188ms、104 资源、1280KB 传输。判据：`node scripts/probes/probe-perf-baseline.mjs`。
 - ✅ **Hash路由优势**: 除首页外，页面切换时间接近0秒
 - ✅ **内存稳定**: 15秒监控期间无内存增长，无泄漏迹象
 
@@ -45,7 +47,7 @@
 
 | 组件名称 | 文件大小 | Computed数量 | Watcher数量 | Ref/Reactive数量 | 评级 |
 |---------|---------|------------|-----------|----------------|------|
-| **ForumMain.vue** | 3387行 | 30+ | 20+ | 50+ | ⭐⭐ 巨型组件 |
+| **ForumMain.vue** | 3387行（2026-09-29 更正：现 **5402 行**，`wc -l`） | 30+ | 20+ | 50+ | ⭐⭐ 巨型组件 |
 | **BOHAIMain.vue** | 1612行 | 20+ | 15+ | 40+ | ⭐⭐ 巨型组件 |
 | **Messages/index.vue** | 856行 | 15+ | 10+ | 30+ | ⭐⭐⭐ 中型组件 |
 | **PostCard.vue** | 580行 | 8+ | 5+ | 15+ | ⭐⭐⭐⭐ 正常 |
@@ -211,6 +213,8 @@
    - Supabase API: Network-First（8秒超时）
    - CDN图片: Stale-While-Revalidate
    - Google Fonts: Cache-First（离线可用）
+
+   > **2026-09-29 实测更正**：该三层策略**已回退** —— 现在 `vite.config.js` 的 6 条 runtimeCaching 里没有任何 REST/auth 规则（唯一含 supabase 的是公开存储对象）。判据：`grep -A2 "urlPattern" vite.config.js | grep -c supabase`（=1，且为 storage 对象）。
 
 ---
 

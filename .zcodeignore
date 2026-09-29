@@ -1,0 +1,117 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+# 探针对比用的第二份构建产物（probe-boot-perf.mjs 依赖，见 probe 脚本注释）
+dist-check
+dist-ssr
+*.local
+*.css.map
+
+# 素材/文件的临时备份产物（曾误入库：mascot-new-*.webp.prevbak / .bak2）
+*.bak
+*.bak[0-9]
+*.prevbak
+*.orig
+*.old
+*.tmp
+*~
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 用户配置文件（包含敏感信息）
+src/config/users.config.js
+
+# AI 工作区记忆的**工具默认落点**。项目真源是 .workbuddy/memory/（AGENTS.md §1 指向它，
+# 已被跟踪）。两个目录并存会让「同一件事记两处、只更新一处」，故此处只隔离、不入库。
+# 2026-09-28：其中唯一的 2026-09-24.md 已合并进 .workbuddy/memory/2026-09-24.md。
+.workbuddy-ai/
+
+# 探针/诊断产物（截图与 JSON 扫描结果，均为可再生的运行时输出）
+debug-screenshots/
+output/
+# Playwright / vitest 运行产物（截图、trace、报告，均可再生）
+test-results/
+playwright-test-results/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+# Supabase Edge Function 本地配置（含 ALTCHA_HMAC_KEY 等真实密钥，绝不可入库）
+supabase/.env
+supabase/functions/.env
+*.pem
+*.key
+*.p12
+*.pfx
+auth.json
+secrets*.json
+
+# Android / TWA 打包（android-twa/ 只保留 twa-manifest.json 这一份真相源，
+# 其余 Android 工程与签名文件都由 CI 的 bubblewrap update 现场生成，不入库）
+android-twa/*
+!android-twa/twa-manifest.json
+*.keystore
+*.jks
+*.apk
+*.aab
+
+# Build reports
+stats.html
+
+# Supabase CLI 临时文件
+supabase/.temp/
+
+# 构建验证产物（构建站点快照，不应入库）
+.build-verify*/
+
+# Python 构建缓存
+__pycache__/
+*.pyc
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+site-packages/
+venv/
+coverage/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）
