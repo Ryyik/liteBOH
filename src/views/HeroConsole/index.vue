@@ -7,21 +7,39 @@
         </button>
         <div>
           <h1>首页英雄区装修</h1>
-          <p>{{ heroes.length }} 个英雄区<span v-if="dirtyCount"> · {{ dirtyCount }} 项未保存</span></p>
+          <p>
+            {{ heroes.length }} 个英雄区<span v-if="dirtyCount"> · {{ dirtyCount }} 项未保存</span>
+          </p>
         </div>
       </div>
 
       <div class="toolbar-actions">
-        <button type="button" class="icon-button" title="刷新" :disabled="isLoading" @click="loadHeroes()">
+        <button
+          type="button"
+          class="icon-button"
+          title="刷新"
+          :disabled="isLoading"
+          @click="loadHeroes()"
+        >
           <RefreshCw :size="18" :class="{ spinning: isLoading }" aria-hidden="true" />
         </button>
         <button type="button" class="secondary-button" @click="startNewHero">
           <Plus :size="17" aria-hidden="true" /> 新建英雄区
         </button>
-        <button type="button" class="secondary-button" :disabled="isSaving || !selectedHero" @click="saveCurrent">
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="isSaving || !selectedHero"
+          @click="saveCurrent"
+        >
           <Save :size="17" aria-hidden="true" /> 保存草稿
         </button>
-        <button type="button" class="primary-button" :disabled="isSaving || !selectedHero" @click="publishCurrent">
+        <button
+          type="button"
+          class="primary-button"
+          :disabled="isSaving || !selectedHero"
+          @click="publishCurrent"
+        >
           <Upload :size="17" aria-hidden="true" /> {{ isSaving ? '处理中' : '发布' }}
         </button>
       </div>
@@ -38,19 +56,28 @@
               :aria-selected="listView === 'all'"
               :class="{ active: listView === 'all' }"
               @click="setListView('all')"
-            >全部英雄区</button>
+            >
+              全部英雄区
+            </button>
             <button
               type="button"
               role="tab"
               :aria-selected="listView === 'official'"
               :class="{ active: listView === 'official' }"
               @click="setListView('official')"
-            >官方 tab</button>
+            >
+              官方 tab
+            </button>
           </div>
           <template v-if="listView === 'all'">
             <label class="search-field">
               <Search :size="17" aria-hidden="true" />
-              <input v-model.trim="searchQuery" type="search" placeholder="搜索英雄区" aria-label="搜索英雄区" />
+              <input
+                v-model.trim="searchQuery"
+                type="search"
+                placeholder="搜索英雄区"
+                aria-label="搜索英雄区"
+              />
             </label>
             <div class="filter-row">
               <select v-model="statusFilter" aria-label="按状态筛选">
@@ -68,7 +95,9 @@
         </div>
 
         <div class="hero-list">
-          <p v-if="listView === 'official'" class="official-list-hint">按 sort_order 展示官方 tab 实际排布，拖拽可调整位次</p>
+          <p v-if="listView === 'official'" class="official-list-hint">
+            按 sort_order 展示官方 tab 实际排布，拖拽可调整位次
+          </p>
 
           <!-- 官方 tab 视图用 div 承载行：button 在 Safari 上拖拽起点不稳定 -->
           <div
@@ -78,7 +107,7 @@
             :class="{
               selected: selectedId === hero.id,
               'is-drag-over': listView === 'official' && officialDragOverIndex === index,
-              'is-dragging': listView === 'official' && officialDragIndex === index
+              'is-dragging': listView === 'official' && officialDragIndex === index,
             }"
             role="button"
             tabindex="0"
@@ -100,16 +129,24 @@
               <strong>{{ hero.label || hero.title || '未命名' }}</strong>
               <small>{{ templateLabel(hero.template) }} · {{ hero.variant }}</small>
             </span>
-            <span v-if="officialRankMap.has(hero.id)" class="row-rank" :title="`官方 tab 位次 ${officialRankMap.get(hero.id)}`">
+            <span
+              v-if="officialRankMap.has(hero.id)"
+              class="row-rank"
+              :title="`官方 tab 位次 ${officialRankMap.get(hero.id)}`"
+            >
               官方位次 {{ officialRankMap.get(hero.id) }}
             </span>
-            <span class="row-status" :class="heroStatus(hero).tone">{{ heroStatus(hero).label }}</span>
+            <span class="row-status" :class="heroStatus(hero).tone">{{
+              heroStatus(hero).label
+            }}</span>
             <span v-if="isDirty(hero.id)" class="dirty-dot" title="未保存"></span>
           </div>
 
           <div v-if="!displayHeroes.length" class="empty-list">
             <LayoutIcon :size="26" aria-hidden="true" />
-            <span>{{ listView === 'official' ? '官方 tab 暂无已发布英雄区' : '没有匹配的英雄区' }}</span>
+            <span>{{
+              listView === 'official' ? '官方 tab 暂无已发布英雄区' : '没有匹配的英雄区'
+            }}</span>
           </div>
         </div>
       </aside>
@@ -129,16 +166,25 @@
                 :aria-selected="previewMode === 'single'"
                 :class="{ active: previewMode === 'single' }"
                 @click="previewMode = 'single'"
-              >单条预览</button>
+              >
+                单条预览
+              </button>
               <button
                 type="button"
                 role="tab"
                 :aria-selected="previewMode === 'stack'"
                 :class="{ active: previewMode === 'stack' }"
                 @click="previewMode = 'stack'"
-              >官方 tab 堆叠</button>
+              >
+                官方 tab 堆叠
+              </button>
             </div>
-            <button type="button" class="text-button" @click="moveHero(-1)" :disabled="!canMove(-1)">
+            <button
+              type="button"
+              class="text-button"
+              @click="moveHero(-1)"
+              :disabled="!canMove(-1)"
+            >
               <ArrowUp :size="14" /> 上移
             </button>
             <button type="button" class="text-button" @click="moveHero(1)" :disabled="!canMove(1)">
@@ -163,7 +209,12 @@
               @click="selectHero(hero)"
             >
               <span class="stack-thumb" :class="`thumb-${hero.template}`">
-                <img v-if="getThumbUrl(hero)" :src="getThumbUrl(hero)" :alt="hero.label || hero.title" loading="lazy" />
+                <img
+                  v-if="getThumbUrl(hero)"
+                  :src="getThumbUrl(hero)"
+                  :alt="hero.label || hero.title"
+                  loading="lazy"
+                />
                 <LayoutIcon v-else :size="16" aria-hidden="true" />
               </span>
               <span class="stack-copy">
@@ -182,7 +233,7 @@
               class="preview-canvas-shell"
               :style="{
                 width: `${previewCanvas.width * previewScale}px`,
-                height: `${previewCanvas.height * previewScale}px`
+                height: `${previewCanvas.height * previewScale}px`,
               }"
             >
               <div
@@ -190,19 +241,31 @@
                 :style="{
                   width: `${previewCanvas.width}px`,
                   height: `${previewCanvas.height}px`,
-                transform: `scale(${previewScale})`
-              }"
+                  transform: `scale(${previewScale})`,
+                }"
               >
                 <!-- 首屏街景：构图与 StreetSceneHero 一致（上 22% 问候 / 下 18% 提示 / 浅 scrim） -->
-                <div v-if="isStreetScene" class="street-scene-preview" :class="{ 'is-landscape': streetSceneOrientation === 'landscape' }">
-                  <img class="street-scene-preview-img" :src="streetScenePreviewSrc"
-                    :alt="draftHero.aria_label || draftHero.title || '首屏街景预览'" />
+                <div
+                  v-if="isStreetScene"
+                  class="street-scene-preview"
+                  :class="{ 'is-landscape': streetSceneOrientation === 'landscape' }"
+                >
+                  <img
+                    class="street-scene-preview-img"
+                    :src="streetScenePreviewSrc"
+                    :alt="draftHero.aria_label || draftHero.title || '首屏街景预览'"
+                  />
                   <div class="street-scene-preview-scrim" aria-hidden="true"></div>
                   <div class="street-scene-preview-content">
                     <p class="street-scene-preview-greeting">{{ previewGreeting }}</p>
-                    <p class="street-scene-preview-hint"><span>{{ previewHint }}</span><span class="street-scene-preview-arrow">↓</span></p>
+                    <p class="street-scene-preview-hint">
+                      <span>{{ previewHint }}</span
+                      ><span class="street-scene-preview-arrow">↓</span>
+                    </p>
                   </div>
-                  <span v-if="!streetSceneHasImage" class="street-scene-preview-fallback">未上传本方向构图，首页回落品牌图</span>
+                  <span v-if="!streetSceneHasImage" class="street-scene-preview-fallback"
+                    >未上传本方向构图，首页回落品牌图</span
+                  >
                 </div>
                 <div v-else-if="!isBuiltin" class="preview-canvas-content">
                   <DynamicHomeHero
@@ -223,12 +286,36 @@
           </div>
 
           <div v-if="isStreetScene" class="preview-device-switch">
-            <button type="button" :class="['device-btn', { active: streetSceneOrientation === 'portrait' }]" @click="setStreetSceneOrientation('portrait')">竖屏 1170 × 2532</button>
-            <button type="button" :class="['device-btn', { active: streetSceneOrientation === 'landscape' }]" @click="setStreetSceneOrientation('landscape')">横屏 2560 × 1440</button>
+            <button
+              type="button"
+              :class="['device-btn', { active: streetSceneOrientation === 'portrait' }]"
+              @click="setStreetSceneOrientation('portrait')"
+            >
+              竖屏 1170 × 2532
+            </button>
+            <button
+              type="button"
+              :class="['device-btn', { active: streetSceneOrientation === 'landscape' }]"
+              @click="setStreetSceneOrientation('landscape')"
+            >
+              横屏 2560 × 1440
+            </button>
           </div>
           <div v-else class="preview-device-switch">
-            <button type="button" :class="['device-btn', { active: previewDevice === 'desktop' }]" @click="setPreviewDevice('desktop')">桌面 1440 × 900</button>
-            <button type="button" :class="['device-btn', { active: previewDevice === 'mobile' }]" @click="setPreviewDevice('mobile')">竖屏 390 × 844</button>
+            <button
+              type="button"
+              :class="['device-btn', { active: previewDevice === 'desktop' }]"
+              @click="setPreviewDevice('desktop')"
+            >
+              桌面 1440 × 900
+            </button>
+            <button
+              type="button"
+              :class="['device-btn', { active: previewDevice === 'mobile' }]"
+              @click="setPreviewDevice('mobile')"
+            >
+              竖屏 390 × 844
+            </button>
           </div>
         </template>
       </section>
@@ -240,15 +327,27 @@
             <span class="eyebrow">英雄区配置</span>
             <h2>{{ selectedHero.title || '新英雄区' }}</h2>
           </div>
-          <button type="button" class="danger-icon-button" title="删除英雄区" :disabled="isSaving" @click="deleteCurrent">
+          <button
+            type="button"
+            class="danger-icon-button"
+            title="删除英雄区"
+            :disabled="isSaving"
+            @click="deleteCurrent"
+          >
             <Trash2 :size="18" aria-hidden="true" />
           </button>
         </div>
 
         <div class="status-settings">
           <label class="toggle-row">
-            <span><strong>归档到历史区</strong><small>归档后从首屏移入 Footer 历史回顾</small></span>
-            <input v-model="draftHero.is_archived" type="checkbox" @change="markDirty(selectedHero.id)" />
+            <span
+              ><strong>归档到历史区</strong><small>归档后从首屏移入 Footer 历史回顾</small></span
+            >
+            <input
+              v-model="draftHero.is_archived"
+              type="checkbox"
+              @change="markDirty(selectedHero.id)"
+            />
             <i aria-hidden="true"></i>
           </label>
         </div>
@@ -256,7 +355,9 @@
         <!-- 内置组件只读提示 -->
         <div v-if="isBuiltin" class="builtin-readonly-hint">
           <Info :size="16" aria-hidden="true" />
-          <p>这是内置英雄区，内容由代码组件自带，无法编辑文字/图片/按钮。你可以调整排序顺序或归档到历史区。</p>
+          <p>
+            这是内置英雄区，内容由代码组件自带，无法编辑文字/图片/按钮。你可以调整排序顺序或归档到历史区。
+          </p>
         </div>
 
         <div class="form-grid" v-if="!isBuiltin">
@@ -281,39 +382,86 @@
 
           <label class="field field-wide">
             <span>内部标签（管理面板显示用）</span>
-            <input v-model="draftHero.label" type="text" placeholder="如：2026秋款吉祥物" @input="markDirty(selectedHero.id)" />
+            <input
+              v-model="draftHero.label"
+              type="text"
+              placeholder="如：2026秋款吉祥物"
+              @input="markDirty(selectedHero.id)"
+            />
           </label>
 
           <label class="field field-wide">
             <span>无障碍标签（aria-label）</span>
-            <input v-model="draftHero.aria_label" type="text" placeholder="如：全新吉祥物上线" @input="markDirty(selectedHero.id)" />
+            <input
+              v-model="draftHero.aria_label"
+              type="text"
+              placeholder="如：全新吉祥物上线"
+              @input="markDirty(selectedHero.id)"
+            />
           </label>
 
-          <label class="field field-wide" v-if="draftHero.template === 'overlay' || draftHero.template === 'showcase'">
+          <label
+            class="field field-wide"
+            v-if="draftHero.template === 'overlay' || draftHero.template === 'showcase'"
+          >
             <span>眉题（Eyebrow）</span>
-            <input v-model="draftHero.eyebrow" type="text" placeholder="如：遇见系列" @input="markDirty(selectedHero.id)" />
+            <input
+              v-model="draftHero.eyebrow"
+              type="text"
+              placeholder="如：遇见系列"
+              @input="markDirty(selectedHero.id)"
+            />
           </label>
 
           <label class="field field-wide">
             <span>主标题（支持 &lt;br&gt;）</span>
-            <textarea v-model="draftHero.title" rows="2" placeholder="如：Halo,&lt;br&gt;新朋友来啦" @input="markDirty(selectedHero.id)"></textarea>
+            <textarea
+              v-model="draftHero.title"
+              rows="2"
+              placeholder="如：Halo,&lt;br&gt;新朋友来啦"
+              @input="markDirty(selectedHero.id)"
+            ></textarea>
           </label>
 
           <label class="field field-wide">
             <span>副标题</span>
-            <textarea v-model="draftHero.subtitle" rows="2" placeholder="如：2026秋款全新上线" @input="markDirty(selectedHero.id)"></textarea>
+            <textarea
+              v-model="draftHero.subtitle"
+              rows="2"
+              placeholder="如：2026秋款全新上线"
+              @input="markDirty(selectedHero.id)"
+            ></textarea>
           </label>
         </div>
 
-        <div class="spec-section content-layout-section" v-if="!isBuiltin && !isStreetScene && draftHero.template !== 'split'">
+        <div
+          class="spec-section content-layout-section"
+          v-if="!isBuiltin && !isStreetScene && draftHero.template !== 'split'"
+        >
           <div class="spec-heading"><span>标题文字位置</span></div>
           <div class="layout-device-tabs" role="tablist" aria-label="标题文字位置设备设置">
-            <button type="button" :class="{ active: layoutDevice === 'desktop' }" @click="setPreviewDevice('desktop')">标题 · 桌面端</button>
-            <button type="button" :class="{ active: layoutDevice === 'mobile' }" @click="setPreviewDevice('mobile')">标题 · 竖屏端</button>
+            <button
+              type="button"
+              :class="{ active: layoutDevice === 'desktop' }"
+              @click="setPreviewDevice('desktop')"
+            >
+              标题 · 桌面端
+            </button>
+            <button
+              type="button"
+              :class="{ active: layoutDevice === 'mobile' }"
+              @click="setPreviewDevice('mobile')"
+            >
+              标题 · 竖屏端
+            </button>
           </div>
           <label v-if="layoutDevice === 'mobile'" class="inherit-layout-row">
-            <input :checked="isMobileLayoutInherited" type="checkbox" @change="toggleMobileLayoutInheritance($event.target.checked)" />
-          <span>继承桌面端文字位置</span>
+            <input
+              :checked="isMobileLayoutInherited"
+              type="checkbox"
+              @change="toggleMobileLayoutInheritance($event.target.checked)"
+            />
+            <span>继承桌面端文字位置</span>
           </label>
           <div class="position-layout-grid" role="group" aria-label="标题文字位置">
             <button
@@ -321,16 +469,25 @@
               :key="`${position.align}-${position.valign}`"
               type="button"
               class="position-cell"
-              :class="{ active: contentLayout.align === position.align && contentLayout.valign === position.valign }"
+              :class="{
+                active:
+                  contentLayout.align === position.align &&
+                  contentLayout.valign === position.valign,
+              }"
               :title="position.label"
               :aria-label="position.label"
               @click="setContentPosition(position.align, position.valign)"
-            ><span></span></button>
+            >
+              <span></span>
+            </button>
           </div>
           <div class="layout-control-row">
             <label class="field">
               <span>标题内部对齐</span>
-              <select :value="contentLayout.text_align" @change="setContentTextAlign($event.target.value)">
+              <select
+                :value="contentLayout.text_align"
+                @change="setContentTextAlign($event.target.value)"
+              >
                 <option value="left">左对齐</option>
                 <option value="center">居中</option>
                 <option value="right">右对齐</option>
@@ -338,17 +495,38 @@
             </label>
             <label class="field width-control">
               <span>最大宽度 {{ contentLayout.max_width }} px</span>
-              <input type="range" min="320" max="1200" step="20" :value="contentLayout.max_width" @input="setContentMaxWidth($event.target.value)" />
+              <input
+                type="range"
+                min="320"
+                max="1200"
+                step="20"
+                :value="contentLayout.max_width"
+                @input="setContentMaxWidth($event.target.value)"
+              />
             </label>
           </div>
           <div class="layout-offset-row">
             <label class="field">
               <span>水平偏移</span>
-              <input type="number" min="-720" max="720" step="1" :value="contentLayout.offset_x" @input="setContentOffset('x', $event.target.value)" />
+              <input
+                type="number"
+                min="-720"
+                max="720"
+                step="1"
+                :value="contentLayout.offset_x"
+                @input="setContentOffset('x', $event.target.value)"
+              />
             </label>
             <label class="field">
               <span>垂直偏移</span>
-              <input type="number" min="-480" max="480" step="1" :value="contentLayout.offset_y" @input="setContentOffset('y', $event.target.value)" />
+              <input
+                type="number"
+                min="-480"
+                max="480"
+                step="1"
+                :value="contentLayout.offset_y"
+                @input="setContentOffset('y', $event.target.value)"
+              />
             </label>
           </div>
         </div>
@@ -365,14 +543,33 @@
         </div>
 
         <!-- 图片配置区：根据模板显示不同字段 -->
-        <div class="image-section" v-if="!isBuiltin && !isStreetScene && draftHero.template !== 'split' && draftHero.template !== 'showcase'">
+        <div
+          class="image-section"
+          v-if="
+            !isBuiltin &&
+            !isStreetScene &&
+            draftHero.template !== 'split' &&
+            draftHero.template !== 'showcase'
+          "
+        >
           <div class="spec-heading">
             <span>图片配置</span>
             <div class="spec-heading-actions">
-              <button type="button" class="text-button" @click="openDirectUpload(draftHero.template === 'responsive' ? 'landscape' : 'main')" :disabled="isUploading">
+              <button
+                type="button"
+                class="text-button"
+                @click="
+                  openDirectUpload(draftHero.template === 'responsive' ? 'landscape' : 'main')
+                "
+                :disabled="isUploading"
+              >
                 <Upload :size="14" /> {{ uploadButtonLabel('上传图片') }}
               </button>
-              <button type="button" class="text-button" @click="openCropper(draftHero.template === 'responsive' ? 'landscape' : 'main')">
+              <button
+                type="button"
+                class="text-button"
+                @click="openCropper(draftHero.template === 'responsive' ? 'landscape' : 'main')"
+              >
                 <Crop :size="14" /> 裁切图片
               </button>
             </div>
@@ -382,40 +579,115 @@
           <template v-if="draftHero.template === 'standard' || draftHero.template === 'overlay'">
             <details open class="image-config-group">
               <summary>桌面端</summary>
-            <label class="url-field">
-              <span>图片链接</span>
-              <input v-model="draftHero.image_config.src" type="url" placeholder="https://" @input="markDirty(selectedHero.id)" />
-            </label>
-            <div class="image-position-editor">
-              <span>图片定位</span>
-              <div class="position-layout-grid compact" role="group" aria-label="桌面端图片定位">
-                <button v-for="position in layoutPositions" :key="`desktop-${position.align}-${position.valign}`" type="button" class="position-cell" :class="{ active: imagePositionMatches('desktop', position) }" :title="position.label" :aria-label="position.label" @click="setImagePosition('desktop', position.align, position.valign)"><span></span></button>
+              <label class="url-field">
+                <span>图片链接</span>
+                <input
+                  v-model="draftHero.image_config.src"
+                  type="url"
+                  placeholder="https://"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
+              <div class="image-position-editor">
+                <span>图片定位</span>
+                <div class="position-layout-grid compact" role="group" aria-label="桌面端图片定位">
+                  <button
+                    v-for="position in layoutPositions"
+                    :key="`desktop-${position.align}-${position.valign}`"
+                    type="button"
+                    class="position-cell"
+                    :class="{ active: imagePositionMatches('desktop', position) }"
+                    :title="position.label"
+                    :aria-label="position.label"
+                    @click="setImagePosition('desktop', position.align, position.valign)"
+                  >
+                    <span></span>
+                  </button>
+                </div>
+                <input
+                  :value="draftHero.image_config.position || ''"
+                  type="text"
+                  placeholder="高级：center 54%"
+                  @input="setImagePositionValue('desktop', $event.target.value)"
+                />
               </div>
-              <input :value="draftHero.image_config.position || ''" type="text" placeholder="高级：center 54%" @input="setImagePositionValue('desktop', $event.target.value)" />
-            </div>
-            <label class="field">
-              <span>图片 Alt 文本</span>
-              <input v-model="draftHero.image_config.alt" type="text" placeholder="如：吉祥物玩偶" @input="markDirty(selectedHero.id)" />
-            </label>
+              <label class="field">
+                <span>图片 Alt 文本</span>
+                <input
+                  v-model="draftHero.image_config.alt"
+                  type="text"
+                  placeholder="如：吉祥物玩偶"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
             </details>
             <details class="image-config-group">
               <summary>竖屏端（留空继承桌面端）</summary>
               <div class="spec-heading-actions image-group-actions">
-                <button type="button" class="text-button" @click="openDirectUpload('mobile')" :disabled="isUploading"><Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}</button>
-                <button type="button" class="text-button" @click="openCropper('mobile')"><Crop :size="14" /> 裁切</button>
+                <button
+                  type="button"
+                  class="text-button"
+                  @click="openDirectUpload('mobile')"
+                  :disabled="isUploading"
+                >
+                  <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
+                </button>
+                <button type="button" class="text-button" @click="openCropper('mobile')">
+                  <Crop :size="14" /> 裁切
+                </button>
               </div>
-              <label class="url-field"><span>独立图片链接</span><input v-model="draftHero.image_config.mobile_src" type="url" placeholder="留空继承桌面端" @input="markDirty(selectedHero.id)" /></label>
+              <label class="url-field"
+                ><span>独立图片链接</span
+                ><input
+                  v-model="draftHero.image_config.mobile_src"
+                  type="url"
+                  placeholder="留空继承桌面端"
+                  @input="markDirty(selectedHero.id)"
+              /></label>
               <div class="image-position-editor">
                 <span>图片定位</span>
                 <div class="position-layout-grid compact" role="group" aria-label="竖屏端图片定位">
-                  <button v-for="position in layoutPositions" :key="`mobile-${position.align}-${position.valign}`" type="button" class="position-cell" :class="{ active: imagePositionMatches('mobile', position) }" :title="position.label" :aria-label="position.label" @click="setImagePosition('mobile', position.align, position.valign)"><span></span></button>
+                  <button
+                    v-for="position in layoutPositions"
+                    :key="`mobile-${position.align}-${position.valign}`"
+                    type="button"
+                    class="position-cell"
+                    :class="{ active: imagePositionMatches('mobile', position) }"
+                    :title="position.label"
+                    :aria-label="position.label"
+                    @click="setImagePosition('mobile', position.align, position.valign)"
+                  >
+                    <span></span>
+                  </button>
                 </div>
-                <input :value="draftHero.image_config.mobile_position || ''" type="text" placeholder="高级：center 54%" @input="setImagePositionValue('mobile', $event.target.value)" />
+                <input
+                  :value="draftHero.image_config.mobile_position || ''"
+                  type="text"
+                  placeholder="高级：center 54%"
+                  @input="setImagePositionValue('mobile', $event.target.value)"
+                />
               </div>
-              <label class="field"><span>填充模式</span><select v-model="draftHero.image_config.mobile_object_fit" @change="markDirty(selectedHero.id)"><option value="">继承默认</option><option value="cover">cover（铺满）</option><option value="contain">contain（完整显示）</option></select></label>
+              <label class="field"
+                ><span>填充模式</span
+                ><select
+                  v-model="draftHero.image_config.mobile_object_fit"
+                  @change="markDirty(selectedHero.id)"
+                >
+                  <option value="">继承默认</option>
+                  <option value="cover">cover（铺满）</option>
+                  <option value="contain">contain（完整显示）</option>
+                </select></label
+              >
               <label v-if="draftHero.template === 'overlay'" class="field">
                 <span>取景缩放 {{ Math.round(mobileImageScale * 100) }}%</span>
-                <input type="range" min="1" max="2.2" step="0.02" :value="mobileImageScale" @input="setMobileImageScale($event.target.value)" />
+                <input
+                  type="range"
+                  min="1"
+                  max="2.2"
+                  step="0.02"
+                  :value="mobileImageScale"
+                  @input="setMobileImageScale($event.target.value)"
+                />
               </label>
             </details>
           </template>
@@ -424,32 +696,72 @@
           <template v-if="draftHero.template === 'responsive'">
             <details open class="image-config-group">
               <summary>横屏端</summary>
-            <label class="url-field">
-              <span>横屏图片链接（landscape）</span>
-              <input v-model="draftHero.image_config.landscapeSrc" type="url" placeholder="https://" @input="markDirty(selectedHero.id)" />
-            </label>
+              <label class="url-field">
+                <span>横屏图片链接（landscape）</span>
+                <input
+                  v-model="draftHero.image_config.landscapeSrc"
+                  type="url"
+                  placeholder="https://"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
             </details>
             <details class="image-config-group">
               <summary>竖屏端</summary>
               <div class="spec-heading-actions image-group-actions">
-                <button type="button" class="text-button" @click="openDirectUpload('portrait')" :disabled="isUploading"><Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}</button>
-                <button type="button" class="text-button" @click="openCropper('portrait')"><Crop :size="14" /> 裁切</button>
+                <button
+                  type="button"
+                  class="text-button"
+                  @click="openDirectUpload('portrait')"
+                  :disabled="isUploading"
+                >
+                  <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
+                </button>
+                <button type="button" class="text-button" @click="openCropper('portrait')">
+                  <Crop :size="14" /> 裁切
+                </button>
               </div>
-            <label class="url-field">
-              <span>竖屏图片链接（portrait）</span>
-              <input v-model="draftHero.image_config.portraitSrc" type="url" placeholder="https://" @input="markDirty(selectedHero.id)" />
-            </label>
-            <div class="image-position-editor">
-              <span>竖屏图片定位</span>
-              <div class="position-layout-grid compact" role="group" aria-label="竖屏图片定位">
-                <button v-for="position in layoutPositions" :key="`portrait-${position.align}-${position.valign}`" type="button" class="position-cell" :class="{ active: imagePositionMatches('portrait', position) }" :title="position.label" :aria-label="position.label" @click="setImagePosition('portrait', position.align, position.valign)"><span></span></button>
+              <label class="url-field">
+                <span>竖屏图片链接（portrait）</span>
+                <input
+                  v-model="draftHero.image_config.portraitSrc"
+                  type="url"
+                  placeholder="https://"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
+              <div class="image-position-editor">
+                <span>竖屏图片定位</span>
+                <div class="position-layout-grid compact" role="group" aria-label="竖屏图片定位">
+                  <button
+                    v-for="position in layoutPositions"
+                    :key="`portrait-${position.align}-${position.valign}`"
+                    type="button"
+                    class="position-cell"
+                    :class="{ active: imagePositionMatches('portrait', position) }"
+                    :title="position.label"
+                    :aria-label="position.label"
+                    @click="setImagePosition('portrait', position.align, position.valign)"
+                  >
+                    <span></span>
+                  </button>
+                </div>
+                <input
+                  :value="draftHero.image_config.portrait_position || ''"
+                  type="text"
+                  placeholder="高级：center 54%"
+                  @input="setImagePositionValue('portrait', $event.target.value)"
+                />
               </div>
-              <input :value="draftHero.image_config.portrait_position || ''" type="text" placeholder="高级：center 54%" @input="setImagePositionValue('portrait', $event.target.value)" />
-            </div>
             </details>
             <label class="field">
               <span>图片 Alt 文本</span>
-              <input v-model="draftHero.image_config.alt" type="text" placeholder="如：吉祥物玩偶" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="draftHero.image_config.alt"
+                type="text"
+                placeholder="如：吉祥物玩偶"
+                @input="markDirty(selectedHero.id)"
+              />
             </label>
           </template>
         </div>
@@ -462,25 +774,45 @@
           <details open class="image-config-group">
             <summary>竖屏构图（image_portrait）</summary>
             <div class="spec-heading-actions image-group-actions">
-              <button type="button" class="text-button" @click="openDirectUpload('street-portrait')" :disabled="isUploading">
+              <button
+                type="button"
+                class="text-button"
+                @click="openDirectUpload('street-portrait')"
+                :disabled="isUploading"
+              >
                 <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
               </button>
             </div>
             <label class="url-field">
               <span>图片链接（1170 × 2532 · WebP ≤350KB）</span>
-              <input v-model="draftHero.image_portrait" type="url" placeholder="留空则回落品牌图" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="draftHero.image_portrait"
+                type="url"
+                placeholder="留空则回落品牌图"
+                @input="markDirty(selectedHero.id)"
+              />
             </label>
           </details>
           <details class="image-config-group">
             <summary>横屏构图（image_landscape）</summary>
             <div class="spec-heading-actions image-group-actions">
-              <button type="button" class="text-button" @click="openDirectUpload('street-landscape')" :disabled="isUploading">
+              <button
+                type="button"
+                class="text-button"
+                @click="openDirectUpload('street-landscape')"
+                :disabled="isUploading"
+              >
                 <Upload :size="14" /> {{ uploadButtonLabel('上传横屏图') }}
               </button>
             </div>
             <label class="url-field">
               <span>图片链接（2560 × 1440 · WebP ≤350KB）</span>
-              <input v-model="draftHero.image_landscape" type="url" placeholder="留空则回落品牌图" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="draftHero.image_landscape"
+                type="url"
+                placeholder="留空则回落品牌图"
+                @input="markDirty(selectedHero.id)"
+              />
             </label>
           </details>
 
@@ -489,13 +821,23 @@
             <summary>首屏文案（问候语 / 底部提示）</summary>
             <label class="url-field">
               <span>问候语（{greeting} 会按访问时段替换 · 留空回落默认）</span>
-              <input v-model="draftHero.greeting_text" type="text" maxlength="60"
-                placeholder="{greeting}，欢迎回到方块街" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="draftHero.greeting_text"
+                type="text"
+                maxlength="60"
+                placeholder="{greeting}，欢迎回到方块街"
+                @input="markDirty(selectedHero.id)"
+              />
             </label>
             <label class="url-field">
               <span>底部提示文案（留空回落「往下逛逛」，↓ 箭头固定）</span>
-              <input v-model="draftHero.hint_text" type="text" maxlength="20"
-                placeholder="往下逛逛" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="draftHero.hint_text"
+                type="text"
+                maxlength="20"
+                placeholder="往下逛逛"
+                @input="markDirty(selectedHero.id)"
+              />
             </label>
             <p class="quick-fill-hint">
               填 <code>{'{greeting}'}</code> 会按访问时段变成「早上好 / 中午好 / 下午好 / 晚上好」；
@@ -514,15 +856,29 @@
           <div class="spec-heading">
             <span>分栏子卡片（左右两张）</span>
           </div>
-          <div class="split-card-editor" v-for="(card, idx) in splitCardsDraft" :key="`split-${idx}`">
+          <div
+            class="split-card-editor"
+            v-for="(card, idx) in splitCardsDraft"
+            :key="`split-${idx}`"
+          >
             <h4 class="split-card-title">卡片 {{ idx + 1 }}</h4>
             <label class="field">
               <span>标题</span>
-              <input v-model="card.title" type="text" placeholder="如：BOH X 小猫主题" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="card.title"
+                type="text"
+                placeholder="如：BOH X 小猫主题"
+                @input="markDirty(selectedHero.id)"
+              />
             </label>
             <label class="field">
               <span>副标题</span>
-              <input v-model="card.subtitle" type="text" placeholder="如：快来体验萌萌小猫" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="card.subtitle"
+                type="text"
+                placeholder="如：快来体验萌萌小猫"
+                @input="markDirty(selectedHero.id)"
+              />
             </label>
             <label class="field">
               <span>配色</span>
@@ -533,66 +889,115 @@
             </label>
             <label class="url-field">
               <span>图片链接</span>
-              <input v-model="card.image_config.src" type="url" placeholder="https://" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="card.image_config.src"
+                type="url"
+                placeholder="https://"
+                @input="markDirty(selectedHero.id)"
+              />
             </label>
             <div class="image-position-editor">
               <span>文字位置</span>
-              <div class="position-layout-grid compact" role="group" :aria-label="`卡片 ${idx + 1} 文字位置`">
-                <button v-for="position in layoutPositions" :key="`card-${idx}-${position.align}-${position.valign}`" type="button" class="position-cell" :class="{ active: getCardContentLayout(card).align === position.align && getCardContentLayout(card).valign === position.valign }" :title="position.label" :aria-label="position.label" @click="setCardContentPosition(card, position.align, position.valign)"><span></span></button>
+              <div
+                class="position-layout-grid compact"
+                role="group"
+                :aria-label="`卡片 ${idx + 1} 文字位置`"
+              >
+                <button
+                  v-for="position in layoutPositions"
+                  :key="`card-${idx}-${position.align}-${position.valign}`"
+                  type="button"
+                  class="position-cell"
+                  :class="{
+                    active:
+                      getCardContentLayout(card).align === position.align &&
+                      getCardContentLayout(card).valign === position.valign,
+                  }"
+                  :title="position.label"
+                  :aria-label="position.label"
+                  @click="setCardContentPosition(card, position.align, position.valign)"
+                >
+                  <span></span>
+                </button>
               </div>
             </div>
             <label class="field">
               <span>文字对齐</span>
-              <select :value="getCardContentLayout(card).text_align" @change="setCardTextAlign(card, $event.target.value)">
+              <select
+                :value="getCardContentLayout(card).text_align"
+                @change="setCardTextAlign(card, $event.target.value)"
+              >
                 <option value="left">左对齐</option>
                 <option value="center">居中</option>
                 <option value="right">右对齐</option>
               </select>
             </label>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
-              <button type="button" class="text-button" @click="openDirectUpload('split', idx)" :disabled="isUploading">
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px">
+              <button
+                type="button"
+                class="text-button"
+                @click="openDirectUpload('split', idx)"
+                :disabled="isUploading"
+              >
                 <Upload :size="14" /> {{ uploadButtonLabel(`上传卡片 ${idx + 1}`) }}
               </button>
               <button type="button" class="text-button" @click="openCropper('split', idx)">
                 <Crop :size="14" /> 裁切卡片 {{ idx + 1 }} 图片
               </button>
-              </div>
             </div>
           </div>
+        </div>
 
-          <div class="compression-settings" role="group" aria-label="图片压缩设置">
-            <label class="compression-toggle">
-              <input v-model="autoCompressImages" type="checkbox" />
-              <span>上传时自动压缩</span>
-            </label>
-            <label v-if="autoCompressImages" class="compression-quality">
-              <span>压缩质量 {{ compressionQuality }}%</span>
-              <input v-model.number="compressionQuality" type="range" min="40" max="100" step="1" />
-            </label>
-            <small>仅当文件超过 10MB 时自动压缩；10MB 以内保持原图质量。</small>
-          </div>
+        <div class="compression-settings" role="group" aria-label="图片压缩设置">
+          <label class="compression-toggle">
+            <input v-model="autoCompressImages" type="checkbox" />
+            <span>上传时自动压缩</span>
+          </label>
+          <label v-if="autoCompressImages" class="compression-quality">
+            <span>压缩质量 {{ compressionQuality }}%</span>
+            <input v-model.number="compressionQuality" type="range" min="40" max="100" step="1" />
+          </label>
+          <small>仅当文件超过 10MB 时自动压缩；10MB 以内保持原图质量。</small>
+        </div>
 
         <!-- showcase 模板：设定集书页配置 -->
-        <div class="image-section" v-if="!isBuiltin && draftHero.template === 'showcase' && draftHero.showcase_config">
+        <div
+          class="image-section"
+          v-if="!isBuiltin && draftHero.template === 'showcase' && draftHero.showcase_config"
+        >
           <div class="spec-heading">
             <span>设定集配置</span>
           </div>
 
           <label class="field">
             <span>发布徽标文案</span>
-            <input v-model="draftHero.showcase_config.badge_text" type="text" placeholder="如：晚秋发布（留空则不显示徽标）" @input="markDirty(selectedHero.id)" />
+            <input
+              v-model="draftHero.showcase_config.badge_text"
+              type="text"
+              placeholder="如：晚秋发布（留空则不显示徽标）"
+              @input="markDirty(selectedHero.id)"
+            />
           </label>
 
           <label class="toggle-row showcase-toggle">
             <span><strong>飘落像素落叶</strong><small>晚秋氛围粒子，关闭后为静态舞台</small></span>
-            <input type="checkbox" :checked="draftHero.showcase_config.particles !== false" @change="setShowcaseParticles($event.target.checked)" />
+            <input
+              type="checkbox"
+              :checked="draftHero.showcase_config.particles !== false"
+              @change="setShowcaseParticles($event.target.checked)"
+            />
             <i aria-hidden="true"></i>
           </label>
 
           <div class="spec-heading showcase-subheading">
             <span>书封</span>
             <div class="spec-heading-actions">
-              <button type="button" class="text-button" @click="openDirectUpload('cover')" :disabled="isUploading">
+              <button
+                type="button"
+                class="text-button"
+                @click="openDirectUpload('cover')"
+                :disabled="isUploading"
+              >
                 <Upload :size="14" /> {{ uploadButtonLabel('上传书封') }}
               </button>
               <button type="button" class="text-button" @click="openCropper('cover')">
@@ -602,17 +1007,31 @@
           </div>
           <label class="url-field">
             <span>书封图片链接</span>
-            <input v-model="draftHero.showcase_config.cover_src" type="url" placeholder="留空使用默认渐变封面" @input="markDirty(selectedHero.id)" />
+            <input
+              v-model="draftHero.showcase_config.cover_src"
+              type="url"
+              placeholder="留空使用默认渐变封面"
+              @input="markDirty(selectedHero.id)"
+            />
           </label>
           <label class="field">
             <span>书封 Alt 文本</span>
-            <input v-model="draftHero.showcase_config.cover_alt" type="text" placeholder="如：方块之家设定集封面" @input="markDirty(selectedHero.id)" />
+            <input
+              v-model="draftHero.showcase_config.cover_alt"
+              type="text"
+              placeholder="如：方块之家设定集封面"
+              @input="markDirty(selectedHero.id)"
+            />
           </label>
 
           <div class="spec-heading showcase-subheading">
             <span>环绕人物（{{ draftHero.showcase_config.characters.length }}/8）</span>
             <div class="spec-heading-actions">
-              <button type="button" class="text-button" @click="showcasePickerOpen = !showcasePickerOpen">
+              <button
+                type="button"
+                class="text-button"
+                @click="showcasePickerOpen = !showcasePickerOpen"
+              >
                 <Plus :size="14" /> {{ showcasePickerOpen ? '收起皮肤库' : '从皮肤库选择' }}
               </button>
             </div>
@@ -643,14 +1062,31 @@
             :key="`showcase-char-${char.key || char.src || idx}`"
           >
             <div class="showcase-char-head">
-              <img v-if="showcaseCharacterThumb(char)" :src="showcaseCharacterThumb(char)" :alt="char.name || '人物立绘'" class="showcase-char-thumb" />
+              <img
+                v-if="showcaseCharacterThumb(char)"
+                :src="showcaseCharacterThumb(char)"
+                :alt="char.name || '人物立绘'"
+                class="showcase-char-thumb"
+              />
               <strong>{{ char.name || getSkinLibraryItem(char.key)?.name || '自定义人物' }}</strong>
-              <span class="showcase-char-meta">{{ char.key ? '皮肤库' : '自定义' }} · 景深 {{ char.depth }}</span>
+              <span class="showcase-char-meta"
+                >{{ char.key ? '皮肤库' : '自定义' }} · 景深 {{ char.depth }}</span
+              >
               <span class="showcase-char-actions">
-                <button type="button" class="text-button" @click="openDirectUpload('character', idx)" :disabled="isUploading">
+                <button
+                  type="button"
+                  class="text-button"
+                  @click="openDirectUpload('character', idx)"
+                  :disabled="isUploading"
+                >
                   <Upload :size="13" /> {{ uploadButtonLabel('替换立绘') }}
                 </button>
-                <button type="button" class="spec-remove" title="移除人物" @click="removeShowcaseCharacter(idx)">
+                <button
+                  type="button"
+                  class="spec-remove"
+                  title="移除人物"
+                  @click="removeShowcaseCharacter(idx)"
+                >
                   <X :size="14" />
                 </button>
               </span>
@@ -673,20 +1109,38 @@
               </label>
               <label class="field showcase-char-scale">
                 <span>缩放 {{ Number(char.scale || 1).toFixed(2) }}x</span>
-                <input type="range" min="0.6" max="1.4" step="0.05" v-model.number="char.scale" @input="markDirty(selectedHero.id)" />
+                <input
+                  type="range"
+                  min="0.6"
+                  max="1.4"
+                  step="0.05"
+                  v-model.number="char.scale"
+                  @input="markDirty(selectedHero.id)"
+                />
               </label>
               <label class="toggle-row showcase-toggle compact">
                 <span><strong>移动端隐藏</strong></span>
-                <input type="checkbox" v-model="char.mobile_hidden" @change="markDirty(selectedHero.id)" />
+                <input
+                  type="checkbox"
+                  v-model="char.mobile_hidden"
+                  @change="markDirty(selectedHero.id)"
+                />
                 <i aria-hidden="true"></i>
               </label>
             </div>
             <label class="url-field">
               <span>自定义立绘 URL（优先于皮肤库）</span>
-              <input v-model="char.src" type="url" placeholder="留空使用皮肤库立绘" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="char.src"
+                type="url"
+                placeholder="留空使用皮肤库立绘"
+                @input="markDirty(selectedHero.id)"
+              />
             </label>
           </div>
-          <p v-if="!draftHero.showcase_config.characters.length" class="spec-empty">还没有环绕人物，点击「从皮肤库选择」添加</p>
+          <p v-if="!draftHero.showcase_config.characters.length" class="spec-empty">
+            还没有环绕人物，点击「从皮肤库选择」添加
+          </p>
         </div>
 
         <!-- 按钮配置 -->
@@ -699,20 +1153,40 @@
           </div>
           <div class="link-list">
             <div class="link-row" v-for="(link, idx) in draftLinks" :key="`link-${idx}`">
-              <input v-model="link.text" type="text" placeholder="按钮文字" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="link.text"
+                type="text"
+                placeholder="按钮文字"
+                @input="markDirty(selectedHero.id)"
+              />
               <select v-model="link.type" @change="markDirty(selectedHero.id)">
                 <option value="primary">主按钮</option>
                 <option value="secondary">次按钮</option>
               </select>
-              <input v-model="link.to" type="text" placeholder="内部路由 /shop" @input="markDirty(selectedHero.id)" />
-              <input v-model="link.href" type="text" placeholder="外部链接 https://" @input="markDirty(selectedHero.id)" />
+              <input
+                v-model="link.to"
+                type="text"
+                placeholder="内部路由 /shop"
+                @input="markDirty(selectedHero.id)"
+              />
+              <input
+                v-model="link.href"
+                type="text"
+                placeholder="外部链接 https://"
+                @input="markDirty(selectedHero.id)"
+              />
               <select v-model="link.onClick" @change="markDirty(selectedHero.id)">
                 <option value="">无弹窗</option>
                 <option value="modal:fuzhou">福州弹窗</option>
                 <option value="modal:cloud-plus">Cloud+弹窗</option>
                 <option value="modal:anniversary-letter">周年信件弹窗</option>
               </select>
-              <button type="button" class="text-button link-lottery-btn" title="关联抽奖活动" @click="openLotteryPicker({ type: 'link', linkIndex: idx })">
+              <button
+                type="button"
+                class="text-button link-lottery-btn"
+                title="关联抽奖活动"
+                @click="openLotteryPicker({ type: 'link', linkIndex: idx })"
+              >
                 <Gift :size="14" /> 抽奖
               </button>
               <button type="button" class="spec-remove" @click="removeLink(idx)">
@@ -724,7 +1198,9 @@
         </div>
 
         <div class="editor-footer">
-          <span v-if="selectedHero.status === 'published'">已于 {{ formatDate(selectedHero.published_at) }} 发布</span>
+          <span v-if="selectedHero.status === 'published'"
+            >已于 {{ formatDate(selectedHero.published_at) }} 发布</span
+          >
           <span v-else>当前为草稿状态，发布后在首页显示</span>
           <div class="footer-actions">
             <button type="button" class="text-button" @click="showRevisions = !showRevisions">
@@ -776,7 +1252,11 @@
     <!-- 抽奖活动选择弹窗 -->
     <Teleport to="body">
       <Transition name="fade">
-        <div v-if="lotteryPickerVisible" class="lottery-picker-overlay" @click.self="lotteryPickerVisible = false">
+        <div
+          v-if="lotteryPickerVisible"
+          class="lottery-picker-overlay"
+          @click.self="lotteryPickerVisible = false"
+        >
           <div class="lottery-picker-modal glass-container-heavy">
             <header class="lottery-picker-header">
               <h3>选择抽奖活动</h3>
@@ -786,11 +1266,17 @@
             </header>
             <div class="lottery-picker-search">
               <Search :size="16" />
-              <input v-model.trim="lotteryPickerKeyword" type="search" placeholder="搜索抽奖标题或奖品" />
+              <input
+                v-model.trim="lotteryPickerKeyword"
+                type="search"
+                placeholder="搜索抽奖标题或奖品"
+              />
             </div>
             <div class="lottery-picker-list">
               <div v-if="lotteryPickerLoading" class="lottery-picker-loading">加载中...</div>
-              <div v-else-if="!filteredLotteries.length" class="lottery-picker-empty">没有匹配的抽奖活动</div>
+              <div v-else-if="!filteredLotteries.length" class="lottery-picker-empty">
+                没有匹配的抽奖活动
+              </div>
               <button
                 v-for="lottery in filteredLotteries"
                 :key="lottery.id"
@@ -799,15 +1285,24 @@
                 @click="selectLottery(lottery)"
               >
                 <span class="lottery-picker-thumb">
-                  <img v-if="lottery.cover_image_url" :src="lottery.cover_image_url" :alt="lottery.title" loading="lazy" />
+                  <img
+                    v-if="lottery.cover_image_url"
+                    :src="lottery.cover_image_url"
+                    :alt="lottery.title"
+                    loading="lazy"
+                  />
                   <span v-else class="lottery-picker-thumb-placeholder">🎲</span>
                 </span>
                 <span class="lottery-picker-info">
                   <strong>{{ lottery.title || '未命名抽奖' }}</strong>
                   <small>奖品：{{ lottery.prize_title || '未设置' }}</small>
                   <small v-if="lottery.status === 'open'" class="lottery-status open">报名中</small>
-                  <small v-else-if="lottery.status === 'drawn'" class="lottery-status drawn">已开奖</small>
-                  <small v-else-if="lottery.status === 'closed'" class="lottery-status closed">已关闭</small>
+                  <small v-else-if="lottery.status === 'drawn'" class="lottery-status drawn"
+                    >已开奖</small
+                  >
+                  <small v-else-if="lottery.status === 'closed'" class="lottery-status closed"
+                    >已关闭</small
+                  >
                   <small v-else class="lottery-status draft">草稿</small>
                 </span>
               </button>
@@ -825,8 +1320,21 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
-  ChevronLeft, Crop, Layout as LayoutIcon, Plus, Info,
-  RefreshCw, Save, Search, Trash2, Upload, X, ArrowUp, ArrowDown, History, Gift
+  ChevronLeft,
+  Crop,
+  Layout as LayoutIcon,
+  Plus,
+  Info,
+  RefreshCw,
+  Save,
+  Search,
+  Trash2,
+  Upload,
+  X,
+  ArrowUp,
+  ArrowDown,
+  History,
+  Gift,
 } from 'lucide-vue-next';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import DynamicHomeHero from '@/views/Home/components/DynamicHomeHero.vue';
@@ -836,11 +1344,15 @@ import { SKIN_LIBRARY, resolveSkinAsset, getSkinLibraryItem } from '@/data/skinL
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useAuthStore } from '@/stores/auth';
 import { useHomeHeroesStore } from '@/stores/homeHeroes';
-import { uploadImageToCloudinary, isCloudinaryNoteUploadConfigured, getCloudinaryDisplayUrl } from '@/utils/cloudinary-client.js';
+import {
+  uploadImageToCloudinary,
+  isCloudinaryNoteUploadConfigured,
+  getCloudinaryDisplayUrl,
+} from '@/utils/cloudinary-client.js';
 import {
   compressImageFileToUploadLimit,
   formatImageFileSize,
-  getImageCompressionPlan
+  getImageCompressionPlan,
 } from '@/utils/image-compression.js';
 import { CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES } from '@/utils/cloud-upload-guard.js';
 import { supabase } from '@/utils/supabase-client.js';
@@ -912,7 +1424,9 @@ const savedCompressionSettings = (() => {
   }
 })();
 const autoCompressImages = ref(savedCompressionSettings.autoCompress !== false);
-const compressionQuality = ref(Math.min(100, Math.max(40, Number(savedCompressionSettings.quality) || 82)));
+const compressionQuality = ref(
+  Math.min(100, Math.max(40, Number(savedCompressionSettings.quality) || 82)),
+);
 let tempCounter = 0;
 
 // 抽奖活动选择器
@@ -929,21 +1443,22 @@ let toastTimer = null;
 let previewResizeObserver = null;
 
 // 模板标签
-const templateLabel = (t) => ({
-  standard: '标准卡片',
-  overlay: '全幅叠加',
-  split: '分栏并排',
-  responsive: '横竖屏',
-  showcase: '设定集书页',
-  'street-scene': '首屏街景',
-  builtin: '内置组件'
-})[t] || t;
+const templateLabel = (t) =>
+  ({
+    standard: '标准卡片',
+    overlay: '全幅叠加',
+    split: '分栏并排',
+    responsive: '横竖屏',
+    showcase: '设定集书页',
+    'street-scene': '首屏街景',
+    builtin: '内置组件',
+  })[t] || t;
 
 // ===== 设定集（showcase）模板 =====
 const showcasePickerOpen = ref(false);
 const skinLibraryGroups = [
   { key: 'classic', label: '经典立绘', items: SKIN_LIBRARY.filter((i) => i.group === 'classic') },
-  { key: 'train', label: '列车系列', items: SKIN_LIBRARY.filter((i) => i.group === 'train') }
+  { key: 'train', label: '列车系列', items: SKIN_LIBRARY.filter((i) => i.group === 'train') },
 ];
 
 // 新建时的推荐阵容：三层景深、左右交替
@@ -953,7 +1468,7 @@ const DEFAULT_SHOWCASE_CHARACTERS = Object.freeze([
   { key: 'ryyik_style', name: 'ryyik', side: 'left', depth: 2, scale: 1, mobile_hidden: false },
   { key: 'baicheng_style', name: '白城', side: 'right', depth: 2, scale: 1, mobile_hidden: false },
   { key: 'thoik_style', name: 'thoik', side: 'left', depth: 3, scale: 1, mobile_hidden: true },
-  { key: 'xiaoniu_style', name: '小牛', side: 'right', depth: 3, scale: 1, mobile_hidden: true }
+  { key: 'xiaoniu_style', name: '小牛', side: 'right', depth: 3, scale: 1, mobile_hidden: true },
 ]);
 
 const createDefaultShowcaseConfig = () => ({
@@ -961,7 +1476,7 @@ const createDefaultShowcaseConfig = () => ({
   particles: true,
   cover_src: '',
   cover_alt: '',
-  characters: DEFAULT_SHOWCASE_CHARACTERS.map((c) => ({ ...c }))
+  characters: DEFAULT_SHOWCASE_CHARACTERS.map((c) => ({ ...c })),
 });
 
 function ensureShowcaseConfig() {
@@ -998,7 +1513,7 @@ function addShowcaseCharacter(item) {
     side: leftCount <= rightCount ? 'left' : 'right',
     depth: 2,
     scale: 1,
-    mobile_hidden: false
+    mobile_hidden: false,
   });
   markDirty(selectedId.value);
   showToast(`已添加 ${item.name}`);
@@ -1015,17 +1530,36 @@ const showcaseCharacterThumb = (char) => resolveSkinAsset(char.key, char.src || 
 
 // 状态
 const dirtyCount = computed(() => dirtyIds.size);
-const selectedHero = computed(() => selectedId.value === null ? null : heroes.value.find(h => h.id === selectedId.value) || drafts[selectedId.value] || null);
-const draftHero = computed(() => selectedId.value === null ? null : drafts[selectedId.value] || null);
+const selectedHero = computed(() =>
+  selectedId.value === null
+    ? null
+    : heroes.value.find((h) => h.id === selectedId.value) || drafts[selectedId.value] || null,
+);
+const draftHero = computed(() =>
+  selectedId.value === null ? null : drafts[selectedId.value] || null,
+);
 const draftLinks = computed(() => draftHero.value?.links || []);
 const splitCardsDraft = computed(() => draftHero.value?.split_cards || []);
 const isBuiltin = computed(() => draftHero.value?.template === 'builtin');
 const isStreetScene = computed(() => draftHero.value?.template === 'street-scene');
-const defaultContentLayout = Object.freeze({ align: 'center', valign: 'bottom', text_align: 'center', max_width: 980, offset_x: 0, offset_y: 0 });
+const defaultContentLayout = Object.freeze({
+  align: 'center',
+  valign: 'bottom',
+  text_align: 'center',
+  max_width: 980,
+  offset_x: 0,
+  offset_y: 0,
+});
 const layoutPositions = Object.freeze([
-  { align: 'left', valign: 'top', label: '左上' }, { align: 'center', valign: 'top', label: '上方居中' }, { align: 'right', valign: 'top', label: '右上' },
-  { align: 'left', valign: 'center', label: '左侧居中' }, { align: 'center', valign: 'center', label: '正中' }, { align: 'right', valign: 'center', label: '右侧居中' },
-  { align: 'left', valign: 'bottom', label: '左下' }, { align: 'center', valign: 'bottom', label: '下方居中' }, { align: 'right', valign: 'bottom', label: '右下' }
+  { align: 'left', valign: 'top', label: '左上' },
+  { align: 'center', valign: 'top', label: '上方居中' },
+  { align: 'right', valign: 'top', label: '右上' },
+  { align: 'left', valign: 'center', label: '左侧居中' },
+  { align: 'center', valign: 'center', label: '正中' },
+  { align: 'right', valign: 'center', label: '右侧居中' },
+  { align: 'left', valign: 'bottom', label: '左下' },
+  { align: 'center', valign: 'bottom', label: '下方居中' },
+  { align: 'right', valign: 'bottom', label: '右下' },
 ]);
 const previewCanvas = computed(() => {
   // 首屏街景用真实构图比例：竖 1170×2532（≈390×844）、横 2560×1440（16:9）
@@ -1041,7 +1575,7 @@ const previewCanvas = computed(() => {
 const contentLayout = computed(() => {
   const raw = draftHero.value?.content_layout;
   const desktop = raw?.desktop || raw || {};
-  const mobile = layoutDevice.value === 'mobile' ? (raw?.mobile || {}) : {};
+  const mobile = layoutDevice.value === 'mobile' ? raw?.mobile || {} : {};
   return { ...defaultContentLayout, ...desktop, ...mobile };
 });
 const isMobileLayoutInherited = computed(() => !draftHero.value?.content_layout?.mobile);
@@ -1051,9 +1585,10 @@ const filteredHeroes = computed(() => {
   return heroes.value.filter((h) => {
     const matchesQuery = !q || `${h.label || ''} ${h.title}`.toLowerCase().includes(q);
     const matchesStatus = statusFilter.value === 'all' || h.status === statusFilter.value;
-    const matchesArchive = archiveFilter.value === 'all'
-      || (archiveFilter.value === 'archived' && h.is_archived)
-      || (archiveFilter.value === 'active' && !h.is_archived);
+    const matchesArchive =
+      archiveFilter.value === 'all' ||
+      (archiveFilter.value === 'archived' && h.is_archived) ||
+      (archiveFilter.value === 'active' && !h.is_archived);
     return matchesQuery && matchesStatus && matchesArchive;
   });
 });
@@ -1061,11 +1596,15 @@ const filteredHeroes = computed(() => {
 // 官方 tab = 首页「官方」分区的真实集合（已发布 + 未归档），按 sort_order 升序
 // （allHeroes 由 fetchAllForAdmin 按 sort_order 取回，顺序即首页顺序）
 const officialOrder = computed(() =>
-  heroes.value.filter((h) => h.status === 'published' && !h.is_archived)
+  heroes.value.filter((h) => h.status === 'published' && !h.is_archived),
 );
 // 行内「官方位次」标记：id -> 1 起算的位次
-const officialRankMap = computed(() => new Map(officialOrder.value.map((hero, index) => [hero.id, index + 1])));
-const displayHeroes = computed(() => (listView.value === 'official' ? officialOrder.value : filteredHeroes.value));
+const officialRankMap = computed(
+  () => new Map(officialOrder.value.map((hero, index) => [hero.id, index + 1])),
+);
+const displayHeroes = computed(() =>
+  listView.value === 'official' ? officialOrder.value : filteredHeroes.value,
+);
 
 const heroStatus = (hero) => {
   if (hero.is_archived) return { label: '已归档', tone: 'muted' };
@@ -1076,14 +1615,21 @@ const heroStatus = (hero) => {
 const getThumbUrl = (hero) => {
   // 统一走 getCloudinaryDisplayUrl：res.cloudinary.com 原始地址会被转成 cdn.blockofhome.cn
   // （与首页展示一致）；本地皮肤资产等非 Cloudinary URL 原样返回。
-  if (hero.template === 'street-scene') return getCloudinaryDisplayUrl(hero.image_landscape || hero.image_portrait || '');
-  if (hero.template === 'responsive') return getCloudinaryDisplayUrl(hero.image_config.landscapeSrc || hero.image_config.portraitSrc || '');
-  if (hero.template === 'split') return getCloudinaryDisplayUrl(hero.split_cards?.[0]?.image_config?.src || '');
+  if (hero.template === 'street-scene')
+    return getCloudinaryDisplayUrl(hero.image_landscape || hero.image_portrait || '');
+  if (hero.template === 'responsive')
+    return getCloudinaryDisplayUrl(
+      hero.image_config.landscapeSrc || hero.image_config.portraitSrc || '',
+    );
+  if (hero.template === 'split')
+    return getCloudinaryDisplayUrl(hero.split_cards?.[0]?.image_config?.src || '');
   if (hero.template === 'showcase') {
     const firstChar = hero.showcase_config?.characters?.[0];
-    return getCloudinaryDisplayUrl(hero.showcase_config?.cover_src
-      || (firstChar ? resolveSkinAsset(firstChar.key, firstChar.src || '') : '')
-      || '');
+    return getCloudinaryDisplayUrl(
+      hero.showcase_config?.cover_src ||
+        (firstChar ? resolveSkinAsset(firstChar.key, firstChar.src || '') : '') ||
+        '',
+    );
   }
   return getCloudinaryDisplayUrl(hero.image_config.src || '');
 };
@@ -1107,7 +1653,7 @@ function updateContentLayout(mutator) {
   if (!root || !draftHero.value) return;
   const desktop = { ...defaultContentLayout, ...(root.desktop || {}) };
   let mobile = root.mobile ? { ...desktop, ...root.mobile } : null;
-  const target = layoutDevice.value === 'mobile' ? (mobile || { ...desktop }) : desktop;
+  const target = layoutDevice.value === 'mobile' ? mobile || { ...desktop } : desktop;
   mutator(target);
   if (layoutDevice.value === 'mobile') mobile = target;
   draftHero.value.content_layout = { desktop, mobile };
@@ -1140,7 +1686,10 @@ function setContentOffset(axis, value) {
   setPreviewDevice(layoutDevice.value);
   const limit = axis === 'x' ? 720 : 480;
   updateContentLayout((layout) => {
-    layout[axis === 'x' ? 'offset_x' : 'offset_y'] = Math.max(-limit, Math.min(limit, Number(value) || 0));
+    layout[axis === 'x' ? 'offset_x' : 'offset_y'] = Math.max(
+      -limit,
+      Math.min(limit, Number(value) || 0),
+    );
   });
 }
 
@@ -1150,13 +1699,17 @@ function toggleMobileLayoutInheritance(inherit) {
   const desktop = { ...defaultContentLayout, ...(root.desktop || {}) };
   draftHero.value.content_layout = {
     desktop,
-    mobile: inherit ? null : { ...desktop, ...(root.mobile || {}) }
+    mobile: inherit ? null : { ...desktop, ...(root.mobile || {}) },
   };
   markDirty(selectedId.value);
 }
 
 function imagePositionKey(target) {
-  return target === 'mobile' ? 'mobile_position' : target === 'portrait' ? 'portrait_position' : 'position';
+  return target === 'mobile'
+    ? 'mobile_position'
+    : target === 'portrait'
+      ? 'portrait_position'
+      : 'position';
 }
 
 function positionValue(align, valign) {
@@ -1177,14 +1730,18 @@ const mobileImageScale = computed(() => {
 });
 
 function ensureMobileImageScale() {
-  if (!draftHero.value || Number.isFinite(Number(draftHero.value.image_config.mobile_scale))) return;
+  if (!draftHero.value || Number.isFinite(Number(draftHero.value.image_config.mobile_scale)))
+    return;
   draftHero.value.image_config.mobile_scale = DEFAULT_MOBILE_IMAGE_SCALE;
 }
 
 function setMobileImageScale(value) {
   if (!draftHero.value) return;
   setPreviewDevice('mobile');
-  draftHero.value.image_config.mobile_scale = Math.max(1, Math.min(2.2, Number(value) || DEFAULT_MOBILE_IMAGE_SCALE));
+  draftHero.value.image_config.mobile_scale = Math.max(
+    1,
+    Math.min(2.2, Number(value) || DEFAULT_MOBILE_IMAGE_SCALE),
+  );
   markDirty(selectedId.value);
 }
 
@@ -1206,9 +1763,14 @@ function setImagePositionValue(target, value) {
 
 function updatePreviewImagePosition({ x, y, portrait }) {
   if (!draftHero.value) return;
-  const target = draftHero.value.template === 'responsive'
-    ? (portrait ? 'portrait' : 'desktop')
-    : (portrait ? 'mobile' : 'desktop');
+  const target =
+    draftHero.value.template === 'responsive'
+      ? portrait
+        ? 'portrait'
+        : 'desktop'
+      : portrait
+        ? 'mobile'
+        : 'desktop';
   setImagePositionValue(target, `${x}% ${y}%`);
 }
 
@@ -1241,18 +1803,23 @@ function setStreetSceneOrientation(orientation) {
 }
 
 const streetSceneHasImage = computed(() => {
-  const raw = streetSceneOrientation.value === 'portrait'
-    ? draftHero.value?.image_portrait
-    : draftHero.value?.image_landscape;
+  const raw =
+    streetSceneOrientation.value === 'portrait'
+      ? draftHero.value?.image_portrait
+      : draftHero.value?.image_landscape;
   return Boolean(String(raw || '').trim());
 });
 
 // 与 StreetSceneHero 的降级链一致：本方向构图图 → 品牌图
-const streetScenePreviewSrc = computed(() => (streetSceneHasImage.value
-  ? getCloudinaryDisplayUrl(streetSceneOrientation.value === 'portrait'
-    ? draftHero.value.image_portrait
-    : draftHero.value.image_landscape)
-  : brandHeroFallback));
+const streetScenePreviewSrc = computed(() =>
+  streetSceneHasImage.value
+    ? getCloudinaryDisplayUrl(
+        streetSceneOrientation.value === 'portrait'
+          ? draftHero.value.image_portrait
+          : draftHero.value.image_landscape,
+      )
+    : brandHeroFallback,
+);
 
 // 首屏文案预览：与线上 StreetSceneHero 共用 utils/street-scene-copy.js，保证装修台所见即线上所得
 const previewGreeting = computed(() => resolveGreetingText(draftHero.value?.greeting_text));
@@ -1264,10 +1831,15 @@ const STREET_SCENE_CONFLICT_MESSAGE = '已有一条已发布的首屏街景，�
 
 function findStreetSceneConflict({ id, isArchived, willBePublished }) {
   if (!willBePublished || isArchived) return null;
-  return heroes.value.find((hero) => hero.id !== id
-    && hero.template === 'street-scene'
-    && hero.status === 'published'
-    && !hero.is_archived) || null;
+  return (
+    heroes.value.find(
+      (hero) =>
+        hero.id !== id &&
+        hero.template === 'street-scene' &&
+        hero.status === 'published' &&
+        !hero.is_archived,
+    ) || null
+  );
 }
 
 // 把 DB 抛出的唯一约束冲突翻译成人话，避免原生 Postgres 报错直出
@@ -1369,40 +1941,48 @@ const cropAspectRatio = computed(() => {
 function showToast(message) {
   toast.value = { show: true, message };
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toast.value.show = false; }, 3000);
+  toastTimer = setTimeout(() => {
+    toast.value.show = false;
+  }, 3000);
 }
 
-const cloneContentLayout = (layout) => layout ? {
-  ...layout,
-  desktop: layout.desktop ? { ...layout.desktop } : undefined,
-  mobile: layout.mobile ? { ...layout.mobile } : null
-} : null;
+const cloneContentLayout = (layout) =>
+  layout
+    ? {
+        ...layout,
+        desktop: layout.desktop ? { ...layout.desktop } : undefined,
+        mobile: layout.mobile ? { ...layout.mobile } : null,
+      }
+    : null;
 
-const cloneShowcaseConfig = (config) => config ? {
-  ...config,
-  characters: (config.characters || []).map((c) => ({ ...c }))
-} : null;
+const cloneShowcaseConfig = (config) =>
+  config
+    ? {
+        ...config,
+        characters: (config.characters || []).map((c) => ({ ...c })),
+      }
+    : null;
 
 const cloneHero = (hero) => ({
   ...hero,
   image_config: { ...hero.image_config },
   content_layout: cloneContentLayout(hero.content_layout),
-  links: (hero.links || []).map(l => ({ ...l })),
+  links: (hero.links || []).map((l) => ({ ...l })),
   showcase_config: cloneShowcaseConfig(hero.showcase_config),
-  split_cards: (hero.split_cards || []).map(c => ({
+  split_cards: (hero.split_cards || []).map((c) => ({
     ...c,
     image_config: { ...c.image_config },
     content_layout: cloneContentLayout(c.content_layout),
-    links: (c.links || []).map(l => ({ ...l }))
-  }))
+    links: (c.links || []).map((l) => ({ ...l })),
+  })),
 });
 
 // ===== 抽奖活动选择器 =====
 const filteredLotteries = computed(() => {
   const q = lotteryPickerKeyword.value.toLowerCase().trim();
   if (!q) return lotteryPickerList.value;
-  return lotteryPickerList.value.filter(l =>
-    `${l.title || ''} ${l.prize_title || ''}`.toLowerCase().includes(q)
+  return lotteryPickerList.value.filter((l) =>
+    `${l.title || ''} ${l.prize_title || ''}`.toLowerCase().includes(q),
   );
 });
 
@@ -1415,7 +1995,9 @@ async function openLotteryPicker(target = { type: 'fill' }) {
   try {
     const { data, error } = await supabase
       .from('lotteries')
-      .select('id, title, prize_title, prize_description, cover_image_url, status, entry_deadline_at, draw_at')
+      .select(
+        'id, title, prize_title, prize_description, cover_image_url, status, entry_deadline_at, draw_at',
+      )
       .order('created_at', { ascending: false })
       .limit(50);
     if (error) throw error;
@@ -1452,7 +2034,9 @@ function selectLottery(lottery) {
   if (lottery.prize_title) draftHero.value.subtitle = lottery.prize_title;
   if (lottery.cover_image_url) draftHero.value.image_config.src = lottery.cover_image_url;
   if (lottery.prize_title) draftHero.value.image_config.alt = lottery.prize_title;
-  const existing = draftHero.value.links.findIndex(l => l.to && l.to.startsWith('/lotteries?lottery='));
+  const existing = draftHero.value.links.findIndex(
+    (l) => l.to && l.to.startsWith('/lotteries?lottery='),
+  );
   if (existing >= 0) {
     draftHero.value.links[existing].to = lotteryLink;
     draftHero.value.links[existing].text = '参与抽奖';
@@ -1462,7 +2046,7 @@ function selectLottery(lottery) {
       type: 'primary',
       to: lotteryLink,
       href: '',
-      onClick: ''
+      onClick: '',
     });
   }
   markDirty(selectedId.value);
@@ -1498,14 +2082,28 @@ function startNewHero() {
     links: [],
     showcase_config: createDefaultShowcaseConfig(),
     split_cards: [
-      { title: '卡片一', subtitle: '', variant: 'light', image_config: { src: '', alt: '' }, content_layout: { ...defaultContentLayout }, links: [] },
-      { title: '卡片二', subtitle: '', variant: 'light', image_config: { src: '', alt: '' }, content_layout: { ...defaultContentLayout }, links: [] }
+      {
+        title: '卡片一',
+        subtitle: '',
+        variant: 'light',
+        image_config: { src: '', alt: '' },
+        content_layout: { ...defaultContentLayout },
+        links: [],
+      },
+      {
+        title: '卡片二',
+        subtitle: '',
+        variant: 'light',
+        image_config: { src: '', alt: '' },
+        content_layout: { ...defaultContentLayout },
+        links: [],
+      },
     ],
     label: '',
     aria_label: '',
     status: 'draft',
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
   drafts[tempId] = newHero;
   selectedId.value = tempId;
@@ -1527,7 +2125,7 @@ function removeLink(idx) {
 function canMove(direction) {
   if (!selectedHero.value) return false;
   const list = filteredHeroes.value;
-  const idx = list.findIndex(h => h.id === selectedId.value);
+  const idx = list.findIndex((h) => h.id === selectedId.value);
   if (idx < 0) return false;
   return direction < 0 ? idx > 0 : idx < list.length - 1;
 }
@@ -1535,14 +2133,17 @@ function canMove(direction) {
 async function moveHero(direction) {
   if (!canMove(direction)) return;
   const list = filteredHeroes.value;
-  const idx = list.findIndex(h => h.id === selectedId.value);
+  const idx = list.findIndex((h) => h.id === selectedId.value);
   const targetIdx = idx + direction;
   // 过滤条件只影响可操作邻居，持久化时仍按完整列表重排，避免把被过滤的区块挤到错误位置。
   const orderedIds = heroes.value.map((hero) => hero.id);
   const currentIndex = orderedIds.indexOf(list[idx].id);
   const targetIndex = orderedIds.indexOf(list[targetIdx].id);
   if (currentIndex < 0 || targetIndex < 0) return;
-  [orderedIds[currentIndex], orderedIds[targetIndex]] = [orderedIds[targetIndex], orderedIds[currentIndex]];
+  [orderedIds[currentIndex], orderedIds[targetIndex]] = [
+    orderedIds[targetIndex],
+    orderedIds[currentIndex],
+  ];
   const ok = await homeHeroesStore.reorderHeroes(orderedIds);
   if (!ok) {
     showToast('调整顺序失败');
@@ -1565,11 +2166,13 @@ async function saveCurrent() {
     return;
   }
   // 单例预检：保存不改 status，只有「当前已发布」的行才会占用首屏街景槽位
-  if (findStreetSceneConflict({
-    id: selectedId.value,
-    isArchived: draft.is_archived,
-    willBePublished: selectedHero.value.status === 'published'
-  })) {
+  if (
+    findStreetSceneConflict({
+      id: selectedId.value,
+      isArchived: draft.is_archived,
+      willBePublished: selectedHero.value.status === 'published',
+    })
+  ) {
     showToast(STREET_SCENE_CONFLICT_MESSAGE);
     return;
   }
@@ -1587,15 +2190,15 @@ async function saveCurrent() {
     links: draft.links,
     split_cards: draft.template === 'split' ? draft.split_cards : null,
     // 数据库字段为 NOT NULL；非 showcase 模板保存为空对象而不是 null。
-    showcase_config: draft.template === 'showcase' ? (draft.showcase_config || {}) : {},
+    showcase_config: draft.template === 'showcase' ? draft.showcase_config || {} : {},
     // street-scene 双构图字段；切走该模板时清空，避免残留孤儿图
-    image_portrait: draft.template === 'street-scene' ? (draft.image_portrait || null) : null,
-    image_landscape: draft.template === 'street-scene' ? (draft.image_landscape || null) : null,
+    image_portrait: draft.template === 'street-scene' ? draft.image_portrait || null : null,
+    image_landscape: draft.template === 'street-scene' ? draft.image_landscape || null : null,
     // 首屏文案：仅 street-scene 模板使用；切走该模板时清空，避免残留到别的模板上
-    greeting_text: draft.template === 'street-scene' ? (draft.greeting_text || null) : null,
-    hint_text: draft.template === 'street-scene' ? (draft.hint_text || null) : null,
+    greeting_text: draft.template === 'street-scene' ? draft.greeting_text || null : null,
+    hint_text: draft.template === 'street-scene' ? draft.hint_text || null : null,
     label: draft.label || null,
-    aria_label: draft.aria_label || null
+    aria_label: draft.aria_label || null,
   };
   const isTemp = String(selectedId.value).startsWith('temp-');
   let ok = false;
@@ -1619,11 +2222,13 @@ async function saveCurrent() {
 async function publishCurrent() {
   if (!draftHero.value || !selectedHero.value) return;
   // 单例预检：发布后该行即占用首屏街景槽位（DB partial unique index 是最终防线）
-  if (findStreetSceneConflict({
-    id: selectedId.value,
-    isArchived: draftHero.value.is_archived,
-    willBePublished: true
-  })) {
+  if (
+    findStreetSceneConflict({
+      id: selectedId.value,
+      isArchived: draftHero.value.is_archived,
+      willBePublished: true,
+    })
+  ) {
     showToast(STREET_SCENE_CONFLICT_MESSAGE);
     return;
   }
@@ -1641,9 +2246,13 @@ async function publishCurrent() {
   const ok = await homeHeroesStore.publishHero(selectedId.value, authStore.userInfo?.id);
   // 归档中的英雄区发布后进入 Footer 历史回顾区，不会上首页 —— 提示要与实际结果一致
   const isArchived = Boolean(selectedHero.value?.is_archived);
-  showToast(ok
-    ? (isArchived ? '已发布到历史回顾区（归档中，不上首页）' : '已发布，首页即将生效')
-    : describeWriteFailure('发布失败'));
+  showToast(
+    ok
+      ? isArchived
+        ? '已发布到历史回顾区（归档中，不上首页）'
+        : '已发布，首页即将生效'
+      : describeWriteFailure('发布失败'),
+  );
 }
 
 async function deleteCurrent() {
@@ -1652,7 +2261,7 @@ async function deleteCurrent() {
     title: '删除英雄区',
     message: `确定删除「${selectedHero.value.label || selectedHero.value.title}」吗？此操作不可恢复。`,
     confirmText: '删除',
-    tone: 'danger'
+    tone: 'danger',
   });
   if (!confirmed) return;
   const isTemp = String(selectedId.value).startsWith('temp-');
@@ -1700,10 +2309,13 @@ function openCropper(type, splitIndex = -1) {
 
 function persistCompressionSettings() {
   try {
-    localStorage.setItem(HERO_COMPRESSION_SETTINGS_KEY, JSON.stringify({
-      autoCompress: autoCompressImages.value,
-      quality: compressionQuality.value
-    }));
+    localStorage.setItem(
+      HERO_COMPRESSION_SETTINGS_KEY,
+      JSON.stringify({
+        autoCompress: autoCompressImages.value,
+        quality: compressionQuality.value,
+      }),
+    );
   } catch {
     // 本地存储不可用时仍保持当前页面设置。
   }
@@ -1719,11 +2331,17 @@ async function prepareHeroImage(file) {
       changed: false,
       status: autoCompressImages.value ? 'empty' : 'disabled',
       originalSize,
-      compressedSize: originalSize
+      compressedSize: originalSize,
     };
   }
   if (originalSize <= CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES) {
-    return { file, changed: false, status: 'not-needed', originalSize, compressedSize: originalSize };
+    return {
+      file,
+      changed: false,
+      status: 'not-needed',
+      originalSize,
+      compressedSize: originalSize,
+    };
   }
 
   try {
@@ -1732,25 +2350,50 @@ async function prepareHeroImage(file) {
       optimizeForUpload: true,
       optimizedTargetSizeMB: 9.6,
       optimizedMaxDimension: 2048,
-      targetSizeMB: 9.6
+      targetSizeMB: 9.6,
     });
     if (!plan.canCompress || !plan.shouldCompress) {
-      return { file, changed: false, status: 'not-needed', originalSize, compressedSize: originalSize };
+      return {
+        file,
+        changed: false,
+        status: 'not-needed',
+        originalSize,
+        compressedSize: originalSize,
+      };
     }
 
     const compressedFile = await compressImageFileToUploadLimit(file, plan, {
       initialQuality: compressionQuality.value / 100,
       targetSizeMB: plan.targetSizeMB,
-      maxIteration: 8
+      maxIteration: 8,
     });
     const compressedSize = Number(compressedFile?.size || 0);
     if (!compressedSize || compressedSize >= originalSize) {
-      return { file, changed: false, status: 'not-smaller', originalSize, compressedSize: originalSize };
+      return {
+        file,
+        changed: false,
+        status: 'not-smaller',
+        originalSize,
+        compressedSize: originalSize,
+      };
     }
-    return { file: compressedFile, changed: true, status: 'compressed', originalSize, compressedSize };
+    return {
+      file: compressedFile,
+      changed: true,
+      status: 'compressed',
+      originalSize,
+      compressedSize,
+    };
   } catch (error) {
     logger.warn('hero-console', '图片自动压缩失败，将尝试上传原图', error);
-    return { file, changed: false, status: 'failed', originalSize, compressedSize: originalSize, compressionError: true };
+    return {
+      file,
+      changed: false,
+      status: 'failed',
+      originalSize,
+      compressedSize: originalSize,
+      compressionError: true,
+    };
   }
 }
 
@@ -1788,7 +2431,7 @@ async function openDirectUpload(type, index = -1) {
         pendingSource: 'hero-console',
         // 装修台素材上传即投产，直接认领，避免永久停留在未归属状态
         claimPendingUpload: true,
-        onProgress: handleUploadProgress
+        onProgress: handleUploadProgress,
       });
       if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
       if (type === 'split') {
@@ -1841,7 +2484,7 @@ async function handleCropConfirm(blob) {
       pendingSource: 'hero-console',
       // 装修台素材上传即投产，直接认领，避免永久停留在未归属状态
       claimPendingUpload: true,
-      onProgress: handleUploadProgress
+      onProgress: handleUploadProgress,
     });
     if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
     const url = uploaded.url;
@@ -1897,15 +2540,22 @@ watch([selectedId, showRevisions], async ([id, show]) => {
 });
 
 // 旧数据切换到 showcase 模板时补齐默认配置
-watch(() => draftHero.value?.template, (tpl) => {
-  if (tpl === 'showcase' && draftHero.value) ensureShowcaseConfig();
-});
+watch(
+  () => draftHero.value?.template,
+  (tpl) => {
+    if (tpl === 'showcase' && draftHero.value) ensureShowcaseConfig();
+  },
+);
 
-watch([draftHero, previewDevice], () => {
-  requestAnimationFrame(() => {
-    updatePreviewScale();
-  });
-}, { deep: true });
+watch(
+  [draftHero, previewDevice],
+  () => {
+    requestAnimationFrame(() => {
+      updatePreviewScale();
+    });
+  },
+  { deep: true },
+);
 
 watch(previewStage, (element) => {
   previewResizeObserver?.disconnect();
@@ -1918,7 +2568,7 @@ async function rollbackTo(revisionId) {
   const confirmed = await dialog.confirm({
     title: '回滚到历史版本',
     message: '回滚后会覆盖当前草稿配置，但不影响已发布版本。需要重新发布才能生效。',
-    confirmText: '回滚'
+    confirmText: '回滚',
   });
   if (!confirmed) return;
   const ok = await homeHeroesStore.rollbackHero(selectedId.value, revisionId);
@@ -1965,864 +2615,5 @@ onBeforeUnmount(() => {
 
 <style scoped src="../ShopConsole/style.css"></style>
 <style scoped>
-/* HeroConsole 特有样式：补充 ShopConsole 未覆盖的部分 */
-.hero-console {
-  /* 复用 shop-console 的所有变量和基础样式 */
-  --blue: #007aff;
-  --text: #1d1d1f;
-  --secondary: #6e6e73;
-  --line: rgba(60, 60, 67, 0.12);
-  --fill: rgba(118, 118, 128, 0.1);
-  min-height: 100vh;
-  padding: 84px 18px 24px;
-  color: var(--text);
-  background: #f2f2f7;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
-}
-
-.compression-settings {
-  display: grid;
-  grid-template-columns: auto minmax(180px, 1fr);
-  align-items: center;
-  gap: 8px 16px;
-  margin: 12px 0 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--fill) 62%, transparent);
-}
-
-.compression-settings small {
-  grid-column: 1 / -1;
-  color: var(--secondary);
-  font-size: 12px;
-}
-
-.compression-toggle,
-.compression-quality {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--text);
-  font-size: 13px;
-}
-
-.compression-quality {
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.compression-quality input[type='range'] {
-  min-width: 120px;
-  accent-color: var(--blue);
-}
-
-@media (max-width: 720px) {
-  .compression-settings {
-    grid-template-columns: 1fr;
-  }
-
-  .compression-quality {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-}
-
-.hero-console button, .hero-console input, .hero-console select, .hero-console textarea {
-  font: inherit;
-}
-.hero-console button { letter-spacing: 0; }
-
-/* 内置英雄区只读提示 */
-.builtin-readonly-hint {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 12px 14px;
-  margin: 8px 0 4px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--blue, #007aff) 8%, transparent);
-  color: var(--secondary, #6e6e73);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.builtin-readonly-hint svg {
-  flex-shrink: 0;
-  margin-top: 1px;
-  color: var(--blue, #007aff);
-}
-
-.builtin-readonly-hint p {
-  margin: 0;
-}
-
-/* 内置组件预览占位 */
-.builtin-preview-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 48px 20px;
-  color: var(--secondary, #6e6e73);
-  text-align: center;
-}
-
-.builtin-preview-placeholder svg {
-  color: var(--line, rgba(60, 60, 67, 0.12));
-}
-
-.builtin-preview-placeholder p {
-  margin: 4px 0 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text, #1d1d1f);
-}
-
-.builtin-preview-placeholder small {
-  font-size: 12px;
-}
-
-/* 英雄区列表行（与 product-row 一致，但缩略图比例不同） */
-.hero-row {
-  position: relative;
-  width: 100%;
-  min-height: 62px;
-  padding: 7px 8px;
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 9px;
-  border: 0;
-  border-radius: 11px;
-  color: var(--text);
-  text-align: left;
-  background: transparent;
-  cursor: pointer;
-  user-select: none;
-}
-.hero-row:hover { background: rgba(118, 118, 128, 0.07); }
-.hero-row.selected { background: rgba(0, 122, 255, 0.11); }
-.hero-row:focus-visible { outline: 2px solid rgba(0, 122, 255, 0.6); outline-offset: 2px; }
-.hero-row.is-dragging { opacity: 0.5; }
-.hero-row.is-drag-over { box-shadow: inset 0 2px 0 var(--blue, #007aff); }
-.row-rank {
-  padding: 3px 6px;
-  border-radius: 6px;
-  color: #006aff;
-  background: rgba(0, 122, 255, 0.1);
-  font-size: 10px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.row-thumb {
-  width: 48px;
-  aspect-ratio: 4 / 3;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 8px;
-  color: #a1a1a6;
-  background: rgba(118, 118, 128, 0.09);
-}
-.row-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.thumb-overlay { aspect-ratio: 16 / 9; }
-.thumb-responsive { aspect-ratio: 1; }
-
-/* 列表视图 / 预览模式切换（分段控件） */
-.list-view-tabs {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 2px;
-  padding: 2px;
-  margin-bottom: 10px;
-  border-radius: 10px;
-  background: var(--fill);
-}
-.list-view-tabs.compact { margin-bottom: 0; }
-.list-view-tabs button {
-  min-height: 30px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 8px;
-  color: var(--secondary);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.list-view-tabs button.active {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.official-list-hint {
-  margin: 10px 14px 6px;
-  color: var(--secondary);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-/* 预览区 */
-.preview-workspace {
-  padding: 18px;
-}
-.preview-toolbar {
-  display: flex;
-  gap: 4px;
-}
-.preview-stage {
-  width: 100%;
-  height: min(66vh, 640px);
-  min-height: 380px;
-  border-radius: 14px;
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-  background: #e9e9ee;
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.preview-stage.device-mobile { background: #d7d7dc; }
-.preview-canvas-shell {
-  position: relative;
-  flex: 0 0 auto;
-  overflow: hidden;
-  transition: width 260ms cubic-bezier(0.16, 1, 0.3, 1), height 260ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.preview-canvas {
-  position: absolute;
-  inset: 0 auto auto 0;
-  overflow: hidden;
-  transform-origin: top left;
-  background: #fff;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
-  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1), width 260ms cubic-bezier(0.16, 1, 0.3, 1), height 260ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.preview-canvas-content {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: #fff;
-  container-type: size;
-}
-.preview-device-switch {
-  display: flex;
-  gap: 6px;
-  margin-top: 12px;
-  justify-content: center;
-}
-.device-btn {
-  padding: 6px 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-.device-btn.active {
-  background: var(--fill);
-  color: var(--text);
-  font-weight: 600;
-}
-
-/* 官方 tab 堆叠预览：卡片相互叠压，DOM 顺序即首页顺序（后者压前者） */
-.official-stack-preview { min-height: 320px; }
-.official-stack-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.official-stack-head small { color: var(--secondary); font-size: 11px; }
-.official-stack-deck {
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 8px;
-}
-.official-stack-card {
-  position: relative;
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 58px;
-  padding: 9px 12px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  color: var(--text);
-  text-align: left;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 -10px 22px rgba(0, 0, 0, 0.09);
-  cursor: pointer;
-  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.official-stack-card + .official-stack-card { margin-top: -26px; }
-.official-stack-card.selected { border-color: rgba(0, 122, 255, 0.55); }
-.official-stack-card:hover,
-.official-stack-card:focus-visible {
-  z-index: 99;
-  transform: translateX(10px);
-}
-.stack-thumb {
-  width: 44px;
-  aspect-ratio: 4 / 3;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 8px;
-  color: #a1a1a6;
-  background: rgba(118, 118, 128, 0.09);
-}
-.stack-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.stack-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.stack-copy strong {
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.stack-copy small { color: var(--secondary); font-size: 11px; }
-.stack-rank {
-  color: var(--secondary);
-  font-size: 12px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-
-/* 首屏街景预览：构图 / scrim / 问候 / 呼吸提示与 StreetSceneHero 一致。
-   尺寸单位用 cq*（容器=画布），否则 vw/svh 会按浏览器窗口算而失真。 */
-.street-scene-preview {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  container-type: size;
-  background: #f3ece2;
-  font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif;
-}
-.street-scene-preview-img {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-.street-scene-preview-scrim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to bottom,
-      rgba(0, 0, 0, 0.25) 0%,
-      rgba(0, 0, 0, 0.125) 12%,
-      rgba(0, 0, 0, 0) 22%),
-    linear-gradient(to top,
-      rgba(0, 0, 0, 0.25) 0%,
-      rgba(0, 0, 0, 0.125) 10%,
-      rgba(0, 0, 0, 0) 18%);
-}
-.street-scene-preview-content {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: max(84px, 12cqh) clamp(20px, 5cqw, 56px) clamp(28px, 6cqh, 64px);
-  pointer-events: none;
-}
-.street-scene-preview-greeting {
-  align-self: flex-start;
-  max-width: min(100%, 22ch);
-  margin: 0;
-  color: #fff;
-  font-size: clamp(28px, 4.4cqw, 34px);
-  font-weight: 600;
-  line-height: 1.32;
-  letter-spacing: 0.02em;
-  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-.street-scene-preview-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
-}
-.street-scene-preview-arrow {
-  display: inline-block;
-  animation: streetScenePreviewBreath 2s ease-in-out infinite;
-}
-@keyframes streetScenePreviewBreath {
-  0%, 100% { transform: translateY(0); opacity: 0.75; }
-  50% { transform: translateY(5px); opacity: 1; }
-}
-.street-scene-preview-fallback {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.42);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-/* 编辑面板：图片配置区 */
-.image-section {
-  margin-top: 18px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
-/* 按钮配置列表 */
-.link-list {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.link-row {
-  display: grid;
-  grid-template-columns: 1fr 80px 1.2fr 1.2fr 110px 64px 30px;
-  gap: 6px;
-  align-items: center;
-}
-.link-row input, .link-row select {
-  min-width: 0;
-  height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.68);
-  font-size: 12px;
-}
-.link-row input:focus, .link-row select:focus {
-  border-color: rgba(0, 122, 255, 0.6);
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
-  outline: 0;
-}
-
-/* 抽奖快捷按钮 */
-.link-lottery-btn {
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid rgba(0, 122, 255, 0.35);
-  border-radius: 8px;
-  background: rgba(0, 122, 255, 0.08);
-  color: #006aff;
-  font-size: 12px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-  white-space: nowrap;
-}
-.link-lottery-btn:hover {
-  background: rgba(0, 122, 255, 0.16);
-  border-color: rgba(0, 122, 255, 0.6);
-}
-
-/* 文字与图片定位 */
-.content-layout-section,
-.image-config-group {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.layout-device-tabs {
-  display: inline-flex;
-  width: fit-content;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-.layout-device-tabs button {
-  min-width: 72px;
-  padding: 6px 10px;
-  border: 0;
-  border-right: 1px solid var(--line);
-  color: var(--secondary);
-  background: transparent;
-  font-size: 12px;
-  cursor: pointer;
-}
-.layout-device-tabs button:last-child { border-right: 0; }
-.layout-device-tabs button.active { color: var(--text); background: var(--fill); font-weight: 650; }
-.inherit-layout-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  color: var(--secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
-.inherit-layout-row input { accent-color: var(--blue); }
-.position-layout-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 36px);
-  width: fit-content;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  overflow: hidden;
-}
-.position-cell {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  background: rgba(118, 118, 128, 0.04);
-  cursor: pointer;
-}
-.position-cell:nth-child(3n) { border-right: 0; }
-.position-cell:nth-child(n + 7) { border-bottom: 0; }
-.position-cell span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #8e8e93;
-}
-.position-cell:hover { background: rgba(0, 122, 255, 0.1); }
-.position-cell.active { background: rgba(0, 122, 255, 0.16); }
-.position-cell.active span { background: var(--blue); }
-.position-layout-grid.compact { grid-template-columns: repeat(3, 30px); }
-.position-layout-grid.compact .position-cell { width: 30px; height: 30px; }
-.layout-control-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
-}
-.layout-offset-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.width-control input[type="range"] { width: 100%; accent-color: var(--blue); }
-.image-config-group {
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(118, 118, 128, 0.035);
-}
-.image-config-group summary {
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 650;
-  cursor: pointer;
-}
-.image-config-group[open] summary { margin-bottom: 4px; }
-.image-group-actions { margin-top: 2px; }
-.image-position-editor {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 8px 12px;
-  color: var(--secondary);
-  font-size: 12px;
-}
-.image-position-editor > input {
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.7);
-}
-
-/* 分栏子卡片编辑 */
-.split-card-editor {
-  padding: 14px;
-  margin-top: 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.52);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.split-card-title {
-  margin: 0 0 4px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-/* 历史版本面板 */
-.revisions-panel {
-  margin-top: 16px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.52);
-}
-.revisions-panel h4 {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 700;
-}
-.revisions-loading, .revisions-empty {
-  color: var(--secondary);
-  font-size: 12px;
-}
-.revisions-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.revision-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(118, 118, 128, 0.06);
-}
-.revision-time {
-  font-size: 12px;
-  color: var(--text);
-}
-
-/* 编辑器底部 */
-.editor-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-.editor-footer > span {
-  color: var(--secondary);
-  font-size: 11px;
-}
-
-/* 响应式 */
-@media (max-width: 1120px) {
-  .hero-console .console-layout {
-    grid-template-columns: minmax(230px, 0.72fr) minmax(0, 1.35fr);
-  }
-  .preview-workspace { grid-column: 2; }
-  .editor-panel { grid-column: 2; }
-  .hero-sidebar { grid-row: 1 / span 2; }
-}
-
-@media (max-width: 740px) {
-  .hero-console { padding: 74px 10px 18px; }
-  .link-row {
-    grid-template-columns: 1fr 1fr;
-  }
-  .link-row .link-lottery-btn,
-  .link-row .spec-remove {
-    grid-column: span 1;
-  }
-}
-
-/* ===== 快捷填充 ===== */
-.quick-fill-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.lottery-fill-btn {
-  justify-content: flex-start;
-  width: fit-content;
-}
-
-.quick-fill-hint {
-  font-size: 12px;
-  color: var(--dm-muted, #7f8d9f);
-  margin: 0;
-}
-
-/* ===== 抽奖选择弹窗 ===== */
-.lottery-picker-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(14, 17, 21, 0.45);
-  z-index: 11060;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.lottery-picker-modal {
-  width: 100%;
-  max-width: 520px;
-  max-height: 80vh;
-  max-height: 80dvh;
-  border-radius: 20px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-}
-
-.lottery-picker-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.lottery-picker-header h3 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 700;
-  color: #1d1d1f;
-}
-
-.lottery-picker-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  color: #86868b;
-}
-
-.lottery-picker-search input {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 14px;
-  color: inherit;
-}
-
-.lottery-picker-list {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 8px;
-}
-
-.lottery-picker-loading,
-.lottery-picker-empty {
-  text-align: center;
-  padding: 40px 20px;
-  color: #86868b;
-  font-size: 14px;
-}
-
-.lottery-picker-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: none;
-  border-radius: 12px;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s;
-}
-
-.lottery-picker-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.lottery-picker-thumb {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  overflow: hidden;
-  flex-shrink: 0;
-  background: #f5f5f7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.lottery-picker-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.lottery-picker-thumb-placeholder {
-  font-size: 22px;
-}
-
-.lottery-picker-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.lottery-picker-info strong {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1d1d1f;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lottery-picker-info small {
-  font-size: 12px;
-  color: #86868b;
-}
-
-.lottery-status {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  width: fit-content;
-}
-
-.lottery-status.open { background: rgba(66, 133, 244, 0.12); color: #4285f4; }
-.lottery-status.drawn { background: rgba(52, 168, 83, 0.12); color: #34a853; }
-.lottery-status.closed { background: rgba(142, 142, 147, 0.15); color: #8e8e93; }
-.lottery-status.draft { background: rgba(251, 188, 5, 0.15); color: #fbbc05; }
-
-@media (prefers-color-scheme: dark) {
-  .lottery-picker-modal { background: #1d1d1f; }
-  .lottery-picker-header h3 { color: #eff1f4; }
-  .lottery-picker-header { border-bottom-color: rgba(255, 255, 255, 0.08); }
-  .lottery-picker-search { border-bottom-color: rgba(255, 255, 255, 0.08); }
-  .lottery-picker-item:hover { background: rgba(255, 255, 255, 0.06); }
-  .lottery-picker-info strong { color: #eff1f4; }
-  .lottery-picker-info small { color: #949494; }
-  .lottery-picker-thumb { background: #2c2c2e; }
-}
+@import './style.scoped.css';
 </style>
