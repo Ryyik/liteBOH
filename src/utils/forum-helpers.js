@@ -52,7 +52,9 @@ export function escapeHtml(unsafe) {
  * @returns {string} 安全的用户名字符串
  */
 export function resolveReplyUsername(userInfo) {
-  return String(userInfo?.username || '').trim() || `user_${String(userInfo?.id || '').slice(0, 8)}`;
+  return (
+    String(userInfo?.username || '').trim() || `user_${String(userInfo?.id || '').slice(0, 8)}`
+  );
 }
 
 /**
@@ -128,6 +130,24 @@ export function getLikeErrorToast(error) {
   const message = error?.message || error?.error || '点赞未生效，请稍后重试';
   return {
     title: '操作失败',
-    message
+    message,
   };
+}
+
+/**
+ * 帖子图片的「已加载」标记键。
+ *
+ * ⚠️ **这是一个跨文件契约，不要就地再写一份。**
+ * `ForumMain.vue` 用它**写入**标记（`markForumImageLoaded` 把 key 加进 Set），
+ * `PostCard.vue` 用它**查询**标记（`isForumImageLoaded` 判断图片是否已加载）。
+ * 两边必须产出完全相同的字符串 —— 一旦其中一份被改动，图片已加载态会**静默失效**
+ * （没有报错、没有测试会红，只是图片重新闪一次）。
+ * 2026-09-29 之前这两个文件各有一份逐字相同的实现，已收敛到这里。
+ *
+ * @param {string|number} postId - 帖子 id
+ * @param {string} imageUrl - 图片 URL
+ * @returns {string} `${postId}:${imageUrl}`（两侧均已 trim）
+ */
+export function getForumImageKey(postId, imageUrl) {
+  return `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
 }

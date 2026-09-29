@@ -91,6 +91,7 @@ import {
   shouldFallbackReplyPreview,
   buildFallbackReplyPreviewOptions,
   getLikeErrorToast,
+  getForumImageKey,
 } from '@/utils/forum-helpers.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
@@ -3303,9 +3304,6 @@ const hasUiMarker = (markerRef, key) => {
   const markerSet = markerRef?.value || markerRef;
   return markerSet instanceof Set && markerSet.has(String(key || '').trim());
 };
-
-const getForumImageKey = (postId, imageUrl) =>
-  `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
 
 const markForumImageLoaded = (postId, imageUrl) => {
   const key = getForumImageKey(postId, imageUrl);

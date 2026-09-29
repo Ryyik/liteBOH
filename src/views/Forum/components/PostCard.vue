@@ -8,6 +8,9 @@ import { getHomeCatAsset, getHomeCatTypeBySeed } from '@/utils/home-cat-theme.js
 import { formatSmartTime } from '@/utils/time.js';
 import { getAvatarUrl } from '@/utils/avatar.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
+// getForumImageKey 与 ForumMain 的「写入标记」侧共用同一实现 —— 两边漂移会让
+// 图片已加载态静默失效，故收敛到 forum-helpers.js（见该函数注释）。
+import { getForumImageKey } from '@/utils/forum-helpers.js';
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -146,8 +149,6 @@ const shouldShowMoreRepliesLink = (post) => {
   return Boolean(post?.replies_has_more || Number(post?.comment_count || 0) > previewCount);
 };
 
-const getForumImageKey = (postId, imageUrl) =>
-  `${String(postId || '').trim()}:${String(imageUrl || '').trim()}`;
 const isForumImageLoaded = (postId, imageUrl) =>
   props.loadedImageKeys.has(getForumImageKey(postId, imageUrl));
 

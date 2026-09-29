@@ -65,7 +65,8 @@
     "security:anon-check:update": "node scripts/check-anon-execute.mjs --update",
     "build:ci": "npm run check:views && npm run check:structure && npm run check:auth-validation && npm run security:anon-check && npm run type-check && npm run check:liquid-glass && npm run check:important-budget && npm run check:layering && npm run check:dark-tokens:strict && npm run check:first-paint && vite build && npm run check:shell-precache && bash scripts/check-bundle-size.sh",
     "security:setup": "node scripts/cloudflare-setup.mjs",
-    "security:setup:no-secret": "node scripts/cloudflare-setup.mjs --no-secret"
+    "security:setup:no-secret": "node scripts/cloudflare-setup.mjs --no-secret",
+    "audit:coupling": "node scripts/audit-coupling.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
@@ -97,6 +98,7 @@
     "@typescript-eslint/eslint-plugin": "^8.61.0",
     "@typescript-eslint/parser": "^8.61.0",
     "@vitejs/plugin-vue": "^6.0.7",
+    "acorn": "^8.16.0",
     "cssnano": "^8.0.2",
     "esbuild": "^0.25.2",
     "eslint": "^9.39.1",
