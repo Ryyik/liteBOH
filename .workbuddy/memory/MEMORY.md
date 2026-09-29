@@ -8,9 +8,15 @@ playwright：chrome channel + `--proxy-server=direct:// --proxy-bypass-list=*`�
 ⚠️ 并行会话同工作区：文件 last-write-wins；棘轮跨会话共享（他人新增警告也让你红）→ 用 `eslint . -f json` 做 (文件,行,规则) set diff 归因；**提交只给明确路径，永不 `git add -A`**。
 改完必反证；探针偶发漂移=抖动非回归。
 
+## 提交
+pre-commit hook 在 `.git/hooks/pre-commit`（**不在 husky、不随 clone 分发**；新环境 `cp scripts/git-hooks/pre-commit .git/hooks/ && chmod +x`），跑 lint-staged = prettier --write + eslint --fix。
+🔴 **lint-staged 会把无关的未暂存文件卷进本次提交**（stash/restore 副作用）→ **每次 commit 后必须核对 `git show --stat HEAD`**；误入的修法：`git reset --soft HEAD~1` → `git restore --staged <侵入文件>` → 重新 commit。
+⚠️ 钩子会重排文件 → **提交后要对「提交后的树」再跑一次 verify**（验证过的 ≠ 提交的）；别把钩子改成 `prettier --check`（本仓 513 文件不合 prettier）。「改门禁」与「提交门禁脚本」必须同一 commit（`38dec8c1` 曾漏掉 check 脚本 → HEAD 本身跑 verify 就红）。
+判「还有并行写入者」：`find … -newermt '-3 minutes' -type f`，**连续看两次**才算。
+
 ## 门禁 / 测试
 `npm run verify`（lint + type-check + test + 8 check + 棘轮总账）。
-⚠️ verify 绿 ≠ 干净：`lint` 带 `--max-warnings 189` 棘轮 → **报绿必须同时报警告条数**，口径用 `eslint . -f json` 聚合。unused-vars 是 `'warn'`，计数归零前别翻 error；`fix-unused-vars.mjs` 不治局部变量。
+⚠️ verify 绿 ≠ 干净：`lint` 带 `--max-warnings 189` 棘轮 → **报绿必须同时报警告条数**，口径用 `eslint . -f json` 聚合。unused-vars 是 `'warn'`，计数归零前别翻 error；`fix-unused-vars.mjs` 已删（2026-09-29，零引用且带 `X as ,` latent 洞），手法见 `docs/重构验证协议.md` §五。
 新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则被 `check:gates-self-test` 列「未覆盖」；棘轮 baseline 只许下调。
 源码守卫必须过 `tests/helpers/source.js` 归一且**两边同一个**（`squeezeSource`/`flattenSource`）；否定断言先 `scriptSection()`+`stripComments()`（对 .vue 全文剥注释会吃掉真实代码）；注释里别写「星号+斜杠」连写。prettier 对逐字断言的影响：换行/尾逗号交归一，**引号风格（含 CSS）/补分号**要写宽容正则。
 
