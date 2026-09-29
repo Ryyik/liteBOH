@@ -116,6 +116,7 @@ import {
   SEARCH_DEBOUNCE_MS,
   WEEKLY_CHECKIN_REWARD_POINTS,
 } from './forum-config.js';
+import { applyPoints, readPoints } from './forum-points.js';
 import { getBohAIModelStatus } from '@/utils/bohai-model-client.js';
 
 import { useForumImageModerationPreload } from './composables/useForumImageModerationPreload.js';
@@ -484,8 +485,10 @@ const getWeeklyCheckinCycleProgress = (status) => {
   return normalizedStreak === 0 ? 0 : ((normalizedStreak - 1) % cycleSize) + 1;
 };
 const weeklyCheckinCardPoints = computed(() => {
-  const statusPoints = Number(weeklyCheckinStatus.value.currentPoints);
-  return Number.isFinite(statusPoints) ? statusPoints : Number(userInfo.points) || 0;
+  // 注意不能写 Number(status.currentPoints)：Number(null) === 0，
+  // 会把「状态里没有余额」当成余额 0，卡片就显示 0 而不是回落到 userInfo。
+  const statusPoints = readPoints(weeklyCheckinStatus.value.currentPoints);
+  return statusPoints !== null ? statusPoints : Number(userInfo.points) || 0;
 });
 
 const newPost = ref({ title: '', content: '' });
@@ -983,8 +986,8 @@ const runPublishQueue = async () => {
           claimPostPublishReward(supabase, String(realPost.id))
             .then((reward) => {
               if (reward && reward.ok && Number(reward.awarded) > 0) {
-                if (Number.isFinite(Number(reward.currentPoints)))
-                  userInfo.points = Number(reward.currentPoints);
+                // 同签到：只有后端真回了余额才写回，缺字段时不能拿 0 覆盖界面余额
+                applyPoints(userInfo, reward.currentPoints);
                 const tip = reward.campaignTitle ? `「${reward.campaignTitle}」` : '';
                 // 奖励用瞬时岛（队列成功岛 900ms 后已收起，不冲突）
                 showPublishIsland({
@@ -2901,6 +2904,9 @@ const openWeeklyCheckinCalendar = () => {
     return;
   }
   isWeeklyCheckinCalendarOpen.value = true;
+  // 打开即重取：若上次状态加载失败（网络/超时），本地会停留在「未签到」，
+  // 用户点下去只会撞到后端的 ALREADY_SIGNED_THIS_WEEK。这里用后端真值自愈。
+  void loadWeeklyCheckinStatus();
 };
 
 const closeWeeklyCheckinCalendar = () => {
@@ -2918,15 +2924,19 @@ const weeklyCheckinHintText = computed(() => {
 });
 
 const loadWeeklyCheckinStatus = async () => {
-  if (!isLoggedIn.value || !userInfo.id) {
+  if (!isLoggedIn.value) {
     weeklyCheckinStatus.value = createDefaultWeeklyCheckinStatus();
     return;
   }
+  // 已登录但 id 尚未就绪：保持现状，等 userInfo.id 的 watcher 再拉。
+  // 这里若重置成默认值，会把「后端已确认本周已签」的本地状态抹掉 → 按钮重新可点。
+  if (!userInfo.id) return;
 
   isWeeklyCheckinLoading.value = true;
   try {
     const { ok, data, error } = await getWeeklyCheckinStatus(userInfo.id);
     if (!ok || error || !data) {
+      // 拉取失败就保持现状，绝不用默认值覆盖 —— 覆盖等于「假装没签过」
       logger.error('forum', '加载周签到状态失败:', error);
       return;
     }
@@ -2936,10 +2946,8 @@ const loadWeeklyCheckinStatus = async () => {
       ...data,
     };
 
-    const currentPoints = Number(data.currentPoints);
-    if (Number.isFinite(currentPoints)) {
-      userInfo.points = currentPoints;
-    }
+    // 只有后端真的回了余额才写回；缺字段时写 0 会把界面余额清零（2026-09-29 事故）
+    applyPoints(userInfo, data.currentPoints);
   } catch (error) {
     logger.error('forum', '加载周签到状态异常:', error);
   } finally {
@@ -2961,8 +2969,19 @@ const handleWeeklyCheckin = async () => {
 
   isWeeklyCheckinSubmitting.value = true;
   try {
-    const { ok, data, error } = await submitWeeklyCheckin();
+    const { ok, data, error, alreadySigned } = await submitWeeklyCheckin();
     if (!ok || error || !data) {
+      // 「本周已签」不是失败，是后端明确告知该行已存在。
+      // 用它把本地状态钉成已签到 —— 否则按钮会一直可点，用户每点一次都「签到成功」
+      // 却拿不到积分（2026-09-29 线上事故：签到可以一直签到 + 余额被清零）。
+      if (alreadySigned || data?.alreadySigned) {
+        weeklyCheckinStatus.value = { ...weeklyCheckinStatus.value, hasSignedThisWeek: true };
+        closeWeeklyCheckinCalendar();
+        // 尽力把余额同步回真值；这一步失败也不影响上面「已签到」的判定
+        void loadWeeklyCheckinStatus();
+        showModal('warning', '本周已签到', '每周仅可签到一次，请下周再来');
+        return;
+      }
       throw error || new Error('签到失败，请稍后重试');
     }
 
@@ -2971,10 +2990,7 @@ const handleWeeklyCheckin = async () => {
       ...data,
     };
 
-    const currentPoints = Number(data.currentPoints);
-    if (Number.isFinite(currentPoints)) {
-      userInfo.points = currentPoints;
-    }
+    applyPoints(userInfo, data.currentPoints);
 
     let successMessage;
     if (Number(data.pointsAwarded || 0) > 0) {

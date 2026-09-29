@@ -376,6 +376,17 @@ async function attachLikedFlags(posts = [], userId = null) {
   }));
 }
 
+/**
+ * 上游字段 → number | null（缺失/非法一律 null，**不是 0**）。
+ * 存在的理由：Number(null) === 0、Number('') === 0，而 Number(undefined) === NaN。
+ * 「后端没给余额」与「余额确实是 0」必须能区分 —— 混为一谈会把界面余额清成 0（2026-09-29 事故）。
+ */
+function toNullableNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function normalizeWeeklyCheckinPayload(payload = {}) {
   const source = Array.isArray(payload) ? payload[0] : payload;
   const safe = source || {};
@@ -400,7 +411,7 @@ function normalizeWeeklyCheckinPayload(payload = {}) {
       (hasSignedThisWeek && streakTotal > 0 && cycleProgress === cycleSize),
     ),
     pointsAwarded: Number(safe.points_awarded || 0),
-    currentPoints: Number(safe.current_points || 0),
+    currentPoints: toNullableNumber(safe.current_points),
     nextRewardIn: Number(safe.next_reward_in || 4),
     currentWeekStart: safe.current_week_start || null,
     message: String(safe.message || ''),
@@ -1723,7 +1734,21 @@ export async function getWeeklyCheckinStatus(userId = null) {
     },
   );
 
-  return { ok, data: data || normalizeWeeklyCheckinPayload(), error: normalizeDbError(error) };
+  const normalized = data || normalizeWeeklyCheckinPayload();
+  // RPC 传输成功 ≠ 业务成功：get_weekly_checkin_status 在未登录时返回
+  // {ok:false, message:'NOT_AUTHENTICATED'}（HTTP 200、无 error）。若不把它反映到 ok，
+  // 调用方的「失败就早退」守卫会失效，转而拿一份全默认值去覆盖本地状态 —— 余额因此被清零。
+  const businessOk = normalized.ok !== false;
+
+  return {
+    ok: Boolean(ok) && businessOk,
+    data: normalized,
+    error: error
+      ? normalizeDbError(error)
+      : businessOk
+        ? null
+        : new Error(normalized.message || 'CHECKIN_STATUS_UNAVAILABLE'),
+  };
 }
 
 export async function submitWeeklyCheckin() {
@@ -1731,17 +1756,29 @@ export async function submitWeeklyCheckin() {
   if (error) {
     return {
       ok: false,
+      alreadySigned: false,
       data: normalizeWeeklyCheckinPayload(),
       error: normalizeDbError(error),
     };
   }
 
+  const normalized = normalizeWeeklyCheckinPayload(data);
+
+  // 传输成功 ≠ 签到成功：后端在「本周已签到」「未登录」时返回
+  // {ok:false, message:'ALREADY_SIGNED_THIS_WEEK'|'NOT_AUTHENTICATED'}（HTTP 200、无 error）。
+  // 旧实现只判 transport error，会把它当成功返回 —— 调用方于是弹「签到成功」，
+  // 而 hasSignedThisWeek 仍是 false → 按钮永远可点（表现为「可以一直签到」）。
+  if (!normalized.ok) {
+    return {
+      ok: false,
+      alreadySigned: normalized.alreadySigned,
+      data: normalized,
+      error: new Error(normalized.message || 'CHECKIN_REJECTED'),
+    };
+  }
+
   invalidateByTags(['weekly-checkin', 'profiles']);
-  return {
-    ok: true,
-    data: normalizeWeeklyCheckinPayload(data),
-    error: null,
-  };
+  return { ok: true, alreadySigned: false, data: normalized, error: null };
 }
 
 /**
@@ -1767,7 +1804,9 @@ export async function claimPostPublishReward(supabaseClient, postId) {
     return {
       ok: Boolean(safe.ok),
       awarded: Number(safe.awarded || 0),
-      currentPoints: Number(safe.current_points || 0),
+      // 同 normalizeWeeklyCheckinPayload：缺字段时给 null，不要用 0 冒充真实余额。
+      // 注意不能写成 Number.isFinite(Number(x))：Number(null) === 0 会让「缺失」蒙混过关。
+      currentPoints: toNullableNumber(safe.current_points),
       alreadyClaimed: Boolean(safe.already_claimed),
       skipped: Boolean(safe.skipped),
       reason: safe.reason || '',
