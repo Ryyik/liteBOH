@@ -1024,7 +1024,13 @@ import {
 import { createPost, toggleLike } from '@/utils/api/forum-api.js';
 import { getCloudinaryDisplayUrl } from '@/utils/cloudinary-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
-import { isHomeCatTheme, getHomeCatAsset, getHomeCatTypeBySeed } from '@/utils/home-cat-theme.js';
+import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
+import {
+  getPostBackgroundCatSrc,
+  getPostCardCatSrc,
+  getPostCardCatVariant,
+  shouldShowPostBackgroundCat,
+} from '@/utils/home-cat-post.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { getLevelInfo } from '@/utils/xp.js';
 import { notify } from '@/utils/notify.js';
@@ -1593,24 +1599,6 @@ const currentThemePreference = ref(themeManager.getPreference?.() || currentThem
 const isHomeCatActive = computed(
   () => isHomeCatTheme(currentTheme.value) || isHomeCatTheme(currentThemePreference.value),
 );
-
-const getPostCardCatType = (index, post) => {
-  if (post?.isLiked || Number(post?.like_count || 0) >= 8) return 'like';
-  return ['decorAlt', 'decor', 'theme', 'cardExtra', 'mobileGap'][Number(index) % 5];
-};
-const getPostCardCatVariant = (index) => `cat-variant-${Number(index) % 4}`;
-const getPostCardCatSeed = (post, index, suffix = 'card') => `${post?.id || index}:${suffix}`;
-const getPostCardCatSrc = (post, index) => getHomeCatAsset(getPostCardCatType(index, post));
-const getPostBackgroundCatSrc = (post, index) => {
-  const type = getHomeCatTypeBySeed(getPostCardCatSeed(post, index, 'bg'), 'background');
-  return getHomeCatAsset(type);
-};
-const shouldShowPostBackgroundCat = (post, index) => {
-  const raw = String(post?.id || index || '');
-  let sum = 0;
-  for (let i = 0; i < raw.length; i += 1) sum += raw.charCodeAt(i);
-  return sum % 3 === 1;
-};
 
 const onThemeChanged = (event) => {
   currentTheme.value = event.detail.theme;

@@ -18,7 +18,6 @@ export {
   FORUM_LIST_LQIP_TRANSFORM,
   FORUM_DETAIL_IMAGE_TRANSFORM,
 } from '@/utils/api/forum-format.js';
-export const AUTO_SAVE_DRAFT_INTERVAL_MS = 30000;
 export const FORUM_TAG_OPTIONS = [
   { value: 'server', label: '#服务器' },
   { value: 'activity', label: '#活动' },

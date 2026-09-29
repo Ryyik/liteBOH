@@ -43,7 +43,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | 首页 / 底栏 / 左栏 / 论坛入口布局 | `node scripts/probes/probe-home-forum-rail.mjs`（21 断言）、`node scripts/probes/probe-rail-landing.mjs`（45） |
 | 首页首屏拉动 / 落定动效 | `node scripts/probes/probe-home-gate-pull.mjs`（50） |
 | 导航栏可见性 / 灵动岛 / 全局搜索 | 先改唯一真源 `utils/global-navbar-visibility.js` 的 `isGlobalNavbarVisible(route)`；再 `node scripts/probes/probe-global-search.mjs`（58） |
-| 竖屏导航菜单：接缝、以及菜单内部的一级/二级/三级几何（`.nav-menu-mobile` 的 `top`、`.nav-mobile-submenu-container`、岛的下投影） | `node scripts/probes/probe-nav-mobile-menu.mjs`（33）。⚠️ 两个坑：① 菜单的包含块是那座**有 transform 的岛**、不是视口；② `visibility: hidden` **不释放高度**（点开二级菜单后的 272px 内部空洞就是这个）。见该探针文件头的实测记录 |
+| 竖屏导航菜单：接缝、以及菜单内部的一级/二级/三级几何（`.nav-menu-mobile` 的 `top`、`.nav-mobile-submenu-container`、岛的下投影） | `node scripts/probes/probe-nav-mobile-menu.mjs`（48，含一个窄横屏档）。⚠️ 三个坑：① 菜单的包含块是那座**有 transform 的岛**、不是视口；② `visibility: hidden` **不释放高度**（点开二级菜单后的 272px 内部空洞就是这个）；③ 探针**全程不滚动**，所以 `.scrolled` 那一类回归它抓不到 —— 那条由 `tests/unit/unified-nav-scrolled-guard.test.js` 在源码层锁死（2026-09-29 起 vendor 里三组休眠 `.scrolled` 规则已删）。见该探针文件头的实测记录 |
 | 论坛搜索 / 列表 RPC | `node scripts/probes/probe-forum-search.mjs`（27） |
 | 订阅权益 / 摄影集配额 | `node scripts/probes/probe-subscription-benefits.mjs`（48） |
 | 头像框发放 | `node scripts/probes/probe-avatar-frame-grant.mjs`（23） |
@@ -93,6 +93,14 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 - 撤权前必须查五处：`pg_depend`、函数定义全库扫、Edge Function、前端调用点、RLS。
 - `exception when others` 会吞掉真实错误，是「线上静默失败数周」的头号成因。新写 plpgsql 必须把 `sqlstate` 落进审计表 message。
 - `cloudinary_pending_uploads` 是台账不是队列，不要当队列消费。
+
+### 报告 / 方案文档（量化结论必须带判据）
+
+- **报告、方案、审查类文档里的每一条量化结论，必须写成「结论 / 判据 / 实测日期」三件套**，判据必须是**能重跑的命令**（`node …` / `grep …` / `npm run …`），不是散文。模板见 `docs/报告模板.md`。
+- 为什么这条是硬规则：**没有判据的数字无法被证伪，而无法证伪的结论会带着权威感被下游照做。** 本仓库已经因此吃过三次：报告写 `formatDate` 26 处重复（实测 15 处 / 8 种不同语义，合并即改视觉）、写 `Skin/transparent` 是 1:1 重复省 1.5M（实测两套字节全不同，照做会掉功能）、写 CSS 孤儿 311 个（实测 1404 个）。
+- **判据一变，旧结论自动作废**，不许继续被引用；发现实测与上游结论不符时，**以实测为准并当场更正上游文档**（不是只在聊天里说一句）。
+- 量化结论必须能区分「实测」与「估计/外推」，后者要显式标注。
+- **执行者：无机器门禁 —— 评审时打回。** 这条刻意不做成脚本：判断「哪个数字是结论、它的判据该是什么」无法机器化，硬做出来的门禁只会满屏假阳性，然后被习惯性绕过。按设计文档原则 1，这里**明确标注为评审规则，而不是假装有一条门禁**。
 
 ### 全局搜索
 
