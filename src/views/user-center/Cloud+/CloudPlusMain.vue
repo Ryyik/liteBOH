@@ -1,6 +1,11 @@
 <template>
   <div class="cloud-page" :class="{ embedded: isDesktopEmbed, 'with-topbar': !isDesktopEmbed }">
-    <UserCenterPageHeader v-if="!isDesktopEmbed" title="BOH Cloud+" max-width="1200px" @back="goBack" />
+    <UserCenterPageHeader
+      v-if="!isDesktopEmbed"
+      title="BOH Cloud+"
+      max-width="1200px"
+      @back="goBack"
+    />
 
     <div class="cloud-shell">
       <main class="cloud-main">
@@ -12,8 +17,13 @@
               <p>{{ cloudPageHero.subtitle }}</p>
             </div>
           </div>
-          <button v-if="cloudTab === 'content'" class="refresh-btn" type="button" :disabled="isLoading"
-            @click="loadEntries">
+          <button
+            v-if="cloudTab === 'content'"
+            class="refresh-btn"
+            type="button"
+            :disabled="isLoading"
+            @click="loadEntries"
+          >
             <span v-if="showRefreshIndicator" class="refresh-btn-dot" aria-hidden="true"></span>
             <span>{{ showRefreshIndicator ? '同步中' : '刷新内容' }}</span>
           </button>
@@ -46,26 +56,44 @@
                     <span>/ {{ currentCloudImageLimit }}</span>
                   </div>
                   <div class="quota-action-row">
-                    <div class="quota-meter" role="progressbar" :aria-valuenow="totalStoredImages" :aria-valuemin="0"
-                      :aria-valuemax="currentCloudImageLimit">
+                    <div
+                      class="quota-meter"
+                      role="progressbar"
+                      :aria-valuenow="totalStoredImages"
+                      :aria-valuemin="0"
+                      :aria-valuemax="currentCloudImageLimit"
+                    >
                       <div class="quota-meter-fill" :style="{ width: `${quotaPercent}%` }"></div>
                     </div>
-                    <button type="button" class="quota-upgrade-btn" @click="openSubscriptionsFromCloudSettings">
+                    <button
+                      type="button"
+                      class="quota-upgrade-btn"
+                      @click="openSubscriptionsFromCloudSettings"
+                    >
                       升级限额
                     </button>
                   </div>
                   <p class="quota-caption">{{ remainingImageQuota }} 张可用</p>
                 </div>
-                <p class="quota-hint">Cloud+ 图片限额按账号计算，私密内容和共享访问使用同一额度。</p>
+                <p class="quota-hint">
+                  Cloud+ 图片限额按账号计算，私密内容和共享访问使用同一额度。
+                </p>
               </div>
             </div>
           </section>
 
           <section v-else-if="cloudTab === 'share'" class="cloud-share-page">
             <div class="cloud-share-grid">
-              <div class="sidebar-card share-card" :aria-busy="isLoadingMyShareChannel ? 'true' : undefined">
+              <div
+                class="sidebar-card share-card"
+                :aria-busy="isLoadingMyShareChannel ? 'true' : undefined"
+              >
                 <div class="card-label">频道状态</div>
-                <div v-if="isLoadingMyShareChannel" class="share-status-skeleton" aria-hidden="true">
+                <div
+                  v-if="isLoadingMyShareChannel"
+                  class="share-status-skeleton"
+                  aria-hidden="true"
+                >
                   <div class="skeleton-block share-skeleton-copy"></div>
                   <div class="skeleton-block share-skeleton-copy short"></div>
                   <div class="skeleton-block share-skeleton-button"></div>
@@ -74,23 +102,47 @@
                   <p class="share-card-copy">
                     系统提供 1 个私密令牌频道。只有拿到访问令牌的人可以查看你的 Cloud+ 内容。
                   </p>
-                  <p class="share-token-hint">私密频道不会出现在社区列表，仅持有访问令牌的人可以查看。</p>
-                  <button type="button" class="primary-btn share-action-btn"
+                  <p class="share-token-hint">
+                    私密频道不会出现在社区列表，仅持有访问令牌的人可以查看。
+                  </p>
+                  <button
+                    type="button"
+                    class="primary-btn share-action-btn"
                     :class="{ 'is-active-share': myShareChannel?.isActive }"
-                    :disabled="isSavingShareChannel || isLoadingMyShareChannel" @click="toggleMyShareChannel">
-                    {{ isSavingShareChannel ? '处理中...' : (myShareChannel?.isActive ? `关闭${activeShareChannelLabel}` :
-                      `开启${activeShareChannelLabel}`) }}
+                    :disabled="isSavingShareChannel || isLoadingMyShareChannel"
+                    @click="toggleMyShareChannel"
+                  >
+                    {{
+                      isSavingShareChannel
+                        ? '处理中...'
+                        : myShareChannel?.isActive
+                          ? `关闭${activeShareChannelLabel}`
+                          : `开启${activeShareChannelLabel}`
+                    }}
                   </button>
                   <div class="share-description-control">
                     <div class="share-token-label">令牌备注</div>
-                    <textarea v-model="shareDescriptionDraft" class="share-description-input" maxlength="160" rows="3"
-                      placeholder="给这枚令牌写一句备注。" :disabled="isSavingShareChannel"
-                      @blur="saveShareDescription"></textarea>
+                    <textarea
+                      v-model="shareDescriptionDraft"
+                      class="share-description-input"
+                      maxlength="160"
+                      rows="3"
+                      placeholder="给这枚令牌写一句备注。"
+                      :disabled="isSavingShareChannel"
+                      @blur="saveShareDescription"
+                    ></textarea>
                     <div class="share-description-footer">
                       <span>{{ shareDescriptionDraft.length }}/160</span>
-                      <button type="button" class="secondary-btn share-description-save-btn"
-                        :disabled="isSavingShareChannel || shareDescriptionDraft.trim() === (myShareChannel?.description || '').trim()"
-                        @click="saveShareDescription">
+                      <button
+                        type="button"
+                        class="secondary-btn share-description-save-btn"
+                        :disabled="
+                          isSavingShareChannel ||
+                          shareDescriptionDraft.trim() ===
+                            (myShareChannel?.description || '').trim()
+                        "
+                        @click="saveShareDescription"
+                      >
                         保存描述
                       </button>
                     </div>
@@ -98,23 +150,43 @@
                   <div v-if="myShareChannel?.shareToken" class="share-token-shell">
                     <div class="share-token-label">访问令牌</div>
                     <div class="share-token-row">
-                      <input :value="myShareChannel.shareToken" type="text" class="share-token-input" readonly>
-                      <button type="button" class="secondary-btn share-copy-btn" @click="copyMyShareToken">复制</button>
+                      <input
+                        :value="myShareChannel.shareToken"
+                        type="text"
+                        class="share-token-input"
+                        readonly
+                      />
+                      <button
+                        type="button"
+                        class="secondary-btn share-copy-btn"
+                        @click="copyMyShareToken"
+                      >
+                        复制
+                      </button>
                     </div>
-                    <p class="share-token-hint">
-                      私密频道默认不公开，只有拿到令牌的人可以访问。
-                    </p>
+                    <p class="share-token-hint">私密频道默认不公开，只有拿到令牌的人可以访问。</p>
                     <div class="share-token-actions">
-                      <button type="button" class="secondary-btn share-inline-btn" :disabled="isSavingShareChannel"
-                        @click="regenerateMyShareChannel">
+                      <button
+                        type="button"
+                        class="secondary-btn share-inline-btn"
+                        :disabled="isSavingShareChannel"
+                        @click="regenerateMyShareChannel"
+                      >
                         撤销并生成新令牌
                       </button>
                     </div>
                     <div class="share-viewers-panel">
                       <div class="share-token-label">令牌访问记录</div>
-                      <div v-if="isLoadingShareViewers" class="share-viewers-skeleton" aria-hidden="true">
-                        <div v-for="item in 3" :key="`settings-share-viewer-loading-${item}`"
-                          class="share-viewer-row skeleton">
+                      <div
+                        v-if="isLoadingShareViewers"
+                        class="share-viewers-skeleton"
+                        aria-hidden="true"
+                      >
+                        <div
+                          v-for="item in 3"
+                          :key="`settings-share-viewer-loading-${item}`"
+                          class="share-viewer-row skeleton"
+                        >
                           <div class="skeleton-block share-viewer-avatar"></div>
                           <div class="share-viewer-main">
                             <div class="skeleton-block share-viewer-name-skeleton"></div>
@@ -122,20 +194,34 @@
                           </div>
                         </div>
                       </div>
-                      <p v-else-if="shareViewersError" class="share-error-text">{{ shareViewersError }}</p>
+                      <p v-else-if="shareViewersError" class="share-error-text">
+                        {{ shareViewersError }}
+                      </p>
                       <p v-else-if="shareViewers.length === 0" class="share-token-hint">
                         暂时还没有已登录用户通过令牌访问过你的私密频道。
                       </p>
                       <div v-else class="share-viewer-list">
-                        <div v-for="viewer in shareViewers" :key="viewer.viewerUserId" class="share-viewer-row">
-                          <img v-if="viewer.viewerAvatarUrl" :src="viewer.viewerAvatarUrl"
-                            :alt="viewer.viewerUsername || '访客头像'" class="share-viewer-avatar" loading="lazy">
+                        <div
+                          v-for="viewer in shareViewers"
+                          :key="viewer.viewerUserId"
+                          class="share-viewer-row"
+                        >
+                          <img
+                            v-if="viewer.viewerAvatarUrl"
+                            :src="viewer.viewerAvatarUrl"
+                            :alt="viewer.viewerUsername || '访客头像'"
+                            class="share-viewer-avatar"
+                            loading="lazy"
+                          />
                           <span v-else class="share-viewer-avatar placeholder">
                             {{ (viewer.viewerUsername || 'U').slice(0, 1).toUpperCase() }}
                           </span>
                           <div class="share-viewer-main">
                             <strong>{{ viewer.viewerUsername || '未知用户' }}</strong>
-                            <span>{{ formatViewerTime(viewer.lastViewedAt) }} · {{ viewer.viewCount }} 次查看</span>
+                            <span
+                              >{{ formatViewerTime(viewer.lastViewedAt) }} ·
+                              {{ viewer.viewCount }} 次查看</span
+                            >
                           </div>
                         </div>
                       </div>
@@ -149,14 +235,28 @@
                 <p class="share-card-copy">
                   输入别人分享给你的私密访问令牌，打开 TA 的 Cloud+ 频道。
                 </p>
-                <input v-model.trim="sharedTokenInput" type="text" class="share-token-input editable"
-                  placeholder="输入访问令牌" @keydown.enter.prevent="openSharedChannel">
+                <input
+                  v-model.trim="sharedTokenInput"
+                  type="text"
+                  class="share-token-input editable"
+                  placeholder="输入访问令牌"
+                  @keydown.enter.prevent="openSharedChannel"
+                />
                 <div class="share-token-actions">
-                  <button type="button" class="primary-btn share-action-btn"
-                    :disabled="isLoadingSharedChannel || !normalizedSharedTokenInput" @click="openSharedChannel">
+                  <button
+                    type="button"
+                    class="primary-btn share-action-btn"
+                    :disabled="isLoadingSharedChannel || !normalizedSharedTokenInput"
+                    @click="openSharedChannel"
+                  >
                     {{ isLoadingSharedChannel ? '加载中...' : '查看共享 Cloud+' }}
                   </button>
-                  <button v-if="sharedChannel" type="button" class="ghost-link" @click="exitSharedChannel">
+                  <button
+                    v-if="sharedChannel"
+                    type="button"
+                    class="ghost-link"
+                    @click="exitSharedChannel"
+                  >
                     退出共享
                   </button>
                 </div>
@@ -164,8 +264,11 @@
               </div>
             </div>
 
-            <section v-if="isLoadingSharedChannel" class="gallery-section shared-channel-section shared-channel-loading"
-              aria-busy="true">
+            <section
+              v-if="isLoadingSharedChannel"
+              class="gallery-section shared-channel-section shared-channel-loading"
+              aria-busy="true"
+            >
               <div class="section-heading">
                 <div>
                   <span class="section-kicker">Shared Channel</span>
@@ -173,7 +276,11 @@
                 </div>
               </div>
               <div class="gallery-grid shared-skeleton-grid" aria-hidden="true">
-                <article v-for="item in 4" :key="`settings-shared-loading-${item}`" class="cloud-card skeleton-card">
+                <article
+                  v-for="item in 4"
+                  :key="`settings-shared-loading-${item}`"
+                  class="cloud-card skeleton-card"
+                >
                   <div class="skeleton-block shared-skeleton-visual"></div>
                   <div class="card-body shared-card-skeleton-body">
                     <div class="skeleton-block skeleton-date"></div>
@@ -193,22 +300,32 @@
                 </div>
                 <div class="section-heading-actions">
                   <p>{{ sharedEntries.length }} 条内容</p>
-                  <button type="button" class="secondary-btn shared-collapse-btn" @click="toggleSharedContentCollapse">
+                  <button
+                    type="button"
+                    class="secondary-btn shared-collapse-btn"
+                    @click="toggleSharedContentCollapse"
+                  >
                     {{ isSharedContentCollapsed ? '展开内容' : '折叠内容' }}
                   </button>
                 </div>
               </div>
 
               <div class="gallery-inline-feedback shared-channel-banner">
-                <span>访问令牌已验证成功。你正在查看 {{ sharedChannelTitle }} 的 Cloud+ 内容。</span>
-                <button type="button" class="ghost-link feedback-action" @click="exitSharedChannel">退出共享</button>
+                <span
+                  >访问令牌已验证成功。你正在查看 {{ sharedChannelTitle }} 的 Cloud+ 内容。</span
+                >
+                <button type="button" class="ghost-link feedback-action" @click="exitSharedChannel">
+                  退出共享
+                </button>
               </div>
 
               <div v-if="isSharedContentCollapsed" class="empty-state shared-collapsed-state">
                 <ChevronDown class="empty-icon" :size="36" :stroke-width="1.7" aria-hidden="true" />
                 <h4>共享内容已折叠</h4>
                 <p>展开后可继续查看全部条目。</p>
-                <button type="button" class="primary-btn" @click="toggleSharedContentCollapse">展开共享内容</button>
+                <button type="button" class="primary-btn" @click="toggleSharedContentCollapse">
+                  展开共享内容
+                </button>
               </div>
 
               <div v-else-if="sharedEntries.length === 0" class="empty-state filter-empty-state">
@@ -218,22 +335,38 @@
               </div>
 
               <TransitionGroup v-else name="list-transition" tag="div" class="gallery-grid" appear>
-                <article v-for="(entry, index) in sharedEntries" :key="`settings-shared-${entry.id}`" class="cloud-card"
+                <article
+                  v-for="(entry, index) in sharedEntries"
+                  :key="`settings-shared-${entry.id}`"
+                  class="cloud-card"
                   :class="[`type-${entry.entryType}`, { featured: entry.coverImageUrl }]"
-                  :style="{ '--item-index': index }" @click="openEntry(entry, 'shared')">
+                  :style="{ '--item-index': index }"
+                  @click="openEntry(entry, 'shared')"
+                >
                   <div v-if="entry.coverImageUrl" class="card-visual">
-                    <img :src="getCloudImageDisplayUrl(entry.coverImageUrl)" :alt="entry.title || 'Cloud cover'"
-                      class="card-cover cloud-loading-image" loading="eager" decoding="async"
-                      referrerpolicy="no-referrer" @load="handleCloudImageLoaded" @error="retryCloudImageLoad">
+                    <img
+                      :src="getCloudImageDisplayUrl(entry.coverImageUrl)"
+                      :alt="entry.title || 'Cloud cover'"
+                      class="card-cover cloud-loading-image"
+                      loading="eager"
+                      decoding="async"
+                      referrerpolicy="no-referrer"
+                      @load="handleCloudImageLoaded"
+                      @error="retryCloudImageLoad"
+                    />
                     <div class="card-overlay">
                       <span class="entry-badge">{{ entryTypeLabel(entry.entryType) }}</span>
                     </div>
                   </div>
 
                   <div class="card-body">
-                    <div class="card-date">{{ formatEntryDate(entry.entryDate, entry.updatedAt) }}</div>
+                    <div class="card-date">
+                      {{ formatEntryDate(entry.entryDate, entry.updatedAt) }}
+                    </div>
                     <h4 class="card-title">{{ entry.title || defaultTitle(entry) }}</h4>
-                    <p class="card-text">{{ entry.previewText || '这条内容里暂时没有文字预览。' }}</p>
+                    <p class="card-text">
+                      {{ entry.previewText || '这条内容里暂时没有文字预览。' }}
+                    </p>
                     <div class="card-footer">
                       <span class="card-meta">{{ blockSummary(entry) }}</span>
                       <button type="button" class="ghost-link">打开</button>
@@ -251,10 +384,54 @@
                 <h3>{{ cloudModeBanner.title }}</h3>
                 <p>{{ cloudModeBanner.subtitle }}</p>
               </div>
-              <button v-if="cloudModeBanner.action" type="button" class="secondary-btn cloud-mode-action"
-                @click="cloudModeBanner.action">
+              <button
+                v-if="cloudModeBanner.action"
+                type="button"
+                class="secondary-btn cloud-mode-action"
+                @click="cloudModeBanner.action"
+              >
                 {{ cloudModeBanner.actionText }}
               </button>
+            </section>
+
+            <CloudStorageBar
+              :accounting="cloudAccounting"
+              :loading="isLoading"
+              @jump-private="scrollAlbumToTop"
+              @manage-public="goWorksGrid"
+            />
+
+            <section
+              v-if="publicEntries.length"
+              class="public-notes-card"
+              aria-label="公开笔记账目"
+            >
+              <div class="public-notes-head">
+                <div>
+                  <span class="section-kicker">Public · Works Grid</span>
+                  <h3>公开笔记</h3>
+                  <p>
+                    {{ publicEntries.length }} 条已在作品格展示，占用
+                    {{ cloudAccounting.publicImages }} 张图片额度。这里只看账目，管理去作品格。
+                  </p>
+                </div>
+                <button type="button" class="secondary-btn" @click="goWorksGrid">
+                  去作品格管理
+                </button>
+              </div>
+              <ul class="public-notes-list">
+                <li v-for="entry in publicEntries" :key="`public-${entry.id}`">
+                  <button type="button" class="public-note-row" @click="openEntry(entry)">
+                    <span class="public-note-title">{{
+                      entry.title || cloudEntryDefaultTitle(entry)
+                    }}</span>
+                    <span class="public-note-meta"
+                      >{{ formatEntryDate(entry.entryDate, entry.updatedAt) }} ·
+                      {{ countCloudEntryImages(entry) }} 张图</span
+                    >
+                  </button>
+                </li>
+              </ul>
             </section>
 
             <section class="composer-card">
@@ -282,47 +459,102 @@
                       <span>{{ todayDisplay }}</span>
                     </div>
                     <div class="editor-page-status">
-                      {{ draftMood ? `${selectedMoodMeta?.icon || ''} ${draftMood}` : '未标注情绪' }}
+                      {{
+                        draftMood ? `${selectedMoodMeta?.icon || ''} ${draftMood}` : '未标注情绪'
+                      }}
                     </div>
                   </div>
 
-                  <input v-model.trim="draftTitle" type="text" class="title-input" maxlength="120" placeholder="标题">
+                  <input
+                    v-model.trim="draftTitle"
+                    type="text"
+                    class="title-input"
+                    maxlength="120"
+                    placeholder="标题"
+                  />
 
                   <div class="editor-divider"></div>
 
-                  <textarea v-model="draftText" class="text-input" rows="8" placeholder="记录今天的心情..."
-                    @keydown.meta.enter.prevent="publishEntry" @keydown.ctrl.enter.prevent="publishEntry" />
+                  <textarea
+                    v-model="draftText"
+                    class="text-input"
+                    rows="8"
+                    placeholder="记录今天的心情..."
+                    @keydown.meta.enter.prevent="publishEntry"
+                    @keydown.ctrl.enter.prevent="publishEntry"
+                  />
                 </div>
 
                 <div class="composer-toolbar">
                   <div class="mood-row">
-                    <button type="button" class="mood-pill clear" :class="{ active: !draftMood }"
-                      @click="draftMood = ''">
+                    <button
+                      type="button"
+                      class="mood-pill clear"
+                      :class="{ active: !draftMood }"
+                      @click="draftMood = ''"
+                    >
                       不标注
                     </button>
-                    <button v-for="mood in moodChoices" :key="mood.value" type="button" class="mood-pill"
-                      :class="{ active: draftMood === mood.value }" @click="draftMood = mood.value">
+                    <button
+                      v-for="mood in moodChoices"
+                      :key="mood.value"
+                      type="button"
+                      class="mood-pill"
+                      :class="{ active: draftMood === mood.value }"
+                      @click="draftMood = mood.value"
+                    >
                       <span>{{ mood.icon }}</span>
                       <span>{{ mood.value }}</span>
                     </button>
                   </div>
 
                   <div class="toolbar-actions">
-                    <input ref="imageInputRef" type="file" class="hidden-file-input"
-                      accept="image/png,image/jpeg,image/webp,image/gif" multiple @change="handleImageSelection">
-                    <button type="button" class="secondary-btn" :disabled="cloudState.upload.uploading" @click="openImagePicker">
+                    <input
+                      ref="imageInputRef"
+                      type="file"
+                      class="hidden-file-input"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      multiple
+                      @change="handleImageSelection"
+                    />
+                    <button
+                      type="button"
+                      class="secondary-btn"
+                      :disabled="cloudState.upload.uploading"
+                      @click="openImagePicker"
+                    >
                       <span v-if="cloudState.upload.uploading" class="btn-spinner"></span>
-                      {{ cloudState.upload.uploading ? `上传中 ${cloudState.upload.progress}%` : '添加图片' }}
+                      {{
+                        cloudState.upload.uploading
+                          ? `上传中 ${cloudState.upload.progress}%`
+                          : '添加图片'
+                      }}
                     </button>
-                    <button v-if="cloudState.upload.uploading" type="button" class="ghost-link upload-cancel-btn" @click="cancelUpload">
+                    <button
+                      v-if="cloudState.upload.uploading"
+                      type="button"
+                      class="ghost-link upload-cancel-btn"
+                      @click="cancelUpload"
+                    >
                       取消上传
                     </button>
-                    <button v-if="cloudState.upload.failedImages.length" type="button" class="secondary-btn retry-btn" @click="retryFailedUploads">
+                    <button
+                      v-if="cloudState.upload.failedImages.length"
+                      type="button"
+                      class="secondary-btn retry-btn"
+                      @click="retryFailedUploads"
+                    >
                       重试上传 ({{ cloudState.upload.failedImages.length }})
                     </button>
-                    <button type="button" class="primary-btn"
-                      :disabled="cloudState.publish.publishing || (!draftText.trim() && uploadedImages.length === 0)"
-                      @click="publishEntry">
+                    <button
+                      type="button"
+                      class="primary-btn"
+                      :disabled="
+                        cloudState.publish.publishing ||
+                        (!draftText.trim() && uploadedImages.length === 0)
+                      "
+                      @click="publishEntry"
+                    >
                       {{ cloudState.publish.publishing ? '发布中...' : publishButtonLabel }}
                     </button>
                   </div>
@@ -330,7 +562,10 @@
                   <!-- 上传进度条 -->
                   <div v-if="cloudState.upload.uploading" class="upload-progress-bar">
                     <div class="upload-progress-track">
-                      <div class="upload-progress-fill" :style="{ width: `${cloudState.upload.progress}%` }"></div>
+                      <div
+                        class="upload-progress-fill"
+                        :style="{ width: `${cloudState.upload.progress}%` }"
+                      ></div>
                     </div>
                     <p class="upload-progress-text">
                       正在上传 {{ cloudState.upload.currentFile || '图片' }}...
@@ -338,26 +573,47 @@
                   </div>
 
                   <!-- 上传失败的图片提示 -->
-                  <div v-if="cloudState.upload.failedImages.length && !cloudState.upload.uploading" class="upload-failed-notice">
+                  <div
+                    v-if="cloudState.upload.failedImages.length && !cloudState.upload.uploading"
+                    class="upload-failed-notice"
+                  >
                     <p>以下图片上传失败：</p>
                     <ul>
-                      <li v-for="failed in cloudState.upload.failedImages" :key="failed.name">{{ failed.name }} - {{ failed.error }}</li>
+                      <li v-for="failed in cloudState.upload.failedImages" :key="failed.name">
+                        {{ failed.name }} - {{ failed.error }}
+                      </li>
                     </ul>
-                    <button type="button" class="secondary-btn" @click="retryFailedUploads">重新上传</button>
+                    <button type="button" class="secondary-btn" @click="retryFailedUploads">
+                      重新上传
+                    </button>
                   </div>
                 </div>
               </div>
 
               <div v-if="uploadedImages.length" class="upload-strip">
                 <div v-for="image in uploadedImages" :key="image.url" class="upload-card">
-                  <img :src="getCloudImageDisplayUrl(image.url)" :alt="image.alt || '上传图片'" class="upload-thumb"
-                    loading="lazy">
-                  <button type="button" class="remove-image-btn" @click="removeDraftImage(image.url)">×</button>
+                  <img
+                    :src="getCloudImageDisplayUrl(image.url)"
+                    :alt="image.alt || '上传图片'"
+                    class="upload-thumb"
+                    loading="lazy"
+                  />
+                  <button
+                    type="button"
+                    class="remove-image-btn"
+                    @click="removeDraftImage(image.url)"
+                  >
+                    ×
+                  </button>
                 </div>
               </div>
 
               <p class="composer-hint">
-                {{ draftMood ? `当前心情：${selectedMoodMeta?.icon || ''}${draftMood}` : '可以只写文字，也可以只上传图片。' }}
+                {{
+                  draftMood
+                    ? `当前心情：${selectedMoodMeta?.icon || ''}${draftMood}`
+                    : '可以只写文字，也可以只上传图片。'
+                }}
                 <span class="composer-hint-sep">/</span>
                 Cmd/Ctrl + Enter 可直接发布
               </p>
@@ -370,7 +626,7 @@
                 <div class="stats-row">
                   <div class="stat-box">
                     <span class="stat-value">{{ activeGalleryEntries.length }}</span>
-                    <span class="stat-name">总条目</span>
+                    <span class="stat-name">私密条目</span>
                   </div>
                   <div class="stat-box">
                     <span class="stat-value">{{ imageCount }}</span>
@@ -386,8 +642,14 @@
                   </div>
                 </div>
                 <div class="filter-row">
-                  <button v-for="option in filterOptions" :key="option.value" type="button" class="filter-chip"
-                    :class="{ active: currentFilter === option.value }" @click="currentFilter = option.value">
+                  <button
+                    v-for="option in filterOptions"
+                    :key="option.value"
+                    type="button"
+                    class="filter-chip"
+                    :class="{ active: currentFilter === option.value }"
+                    @click="currentFilter = option.value"
+                  >
                     {{ option.label }}
                     <span class="chip-count">{{ getFilterCount(option.value) }}</span>
                   </button>
@@ -405,38 +667,62 @@
               <div class="gallery-toolbar">
                 <label class="search-field" for="cloud-search">
                   <Search class="search-icon" :size="17" :stroke-width="1.8" aria-hidden="true" />
-                  <input id="cloud-search" v-model.trim="searchQuery" type="search" placeholder="搜索标题、文字、心情或日期">
+                  <input
+                    id="cloud-search"
+                    v-model.trim="searchQuery"
+                    type="search"
+                    placeholder="搜索标题、文字、心情或日期"
+                  />
                 </label>
 
                 <div class="date-range">
                   <label class="date-field">
                     <span>开始</span>
-                    <input v-model="dateFrom" type="date">
+                    <input v-model="dateFrom" type="date" />
                   </label>
                   <label class="date-field">
                     <span>结束</span>
-                    <input v-model="dateTo" type="date">
+                    <input v-model="dateTo" type="date" />
                   </label>
                 </div>
 
-                <button v-if="hasActiveFilters" type="button" class="toolbar-reset-btn" @click="resetGalleryFilters">
+                <button
+                  v-if="hasActiveFilters"
+                  type="button"
+                  class="toolbar-reset-btn"
+                  @click="resetGalleryFilters"
+                >
                   清除筛选
                 </button>
               </div>
 
-              <div v-if="entriesLoadError && entries.length > 0" class="gallery-inline-feedback warning">
+              <div
+                v-if="entriesLoadError && entries.length > 0"
+                class="gallery-inline-feedback warning"
+              >
                 <span>{{ entriesLoadError }}</span>
-                <button type="button" class="ghost-link feedback-action" @click="loadEntries">重新加载</button>
+                <button type="button" class="ghost-link feedback-action" @click="loadEntries">
+                  重新加载
+                </button>
               </div>
 
-              <div v-else-if="isShowingCachedEntries && entries.length > 0" class="gallery-inline-feedback">
+              <div
+                v-else-if="isShowingCachedEntries && entries.length > 0"
+                class="gallery-inline-feedback"
+              >
                 <span>正在显示最近一次成功同步的 Cloud+ 内容，后台会继续尝试刷新。</span>
-                <button type="button" class="ghost-link feedback-action" @click="loadEntries">立即刷新</button>
+                <button type="button" class="ghost-link feedback-action" @click="loadEntries">
+                  立即刷新
+                </button>
               </div>
 
               <div v-if="isInitialLoading" class="gallery-grid skeleton-grid" aria-hidden="true">
-                <article v-for="item in skeletonCards" :key="item.id" class="cloud-card skeleton-card"
-                  :class="item.variant">
+                <article
+                  v-for="item in skeletonCards"
+                  :key="item.id"
+                  class="cloud-card skeleton-card"
+                  :class="item.variant"
+                >
                   <div class="skeleton-block skeleton-visual"></div>
                   <div class="card-body skeleton-body">
                     <div class="skeleton-block skeleton-date"></div>
@@ -454,7 +740,10 @@
                 <p>{{ entriesLoadError }}</p>
                 <button type="button" class="primary-btn" @click="loadEntries">重新加载</button>
               </div>
-              <div v-else-if="filteredEntries.length === 0 && activeGalleryEntries.length === 0" class="empty-state">
+              <div
+                v-else-if="filteredEntries.length === 0 && activeGalleryEntries.length === 0"
+                class="empty-state"
+              >
                 <Cloud class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
                 <h4>这里还空着</h4>
                 <p>发布第一条内容后，它会像相册卡片一样出现在这里。</p>
@@ -463,24 +752,42 @@
                 <Search class="empty-icon" :size="38" :stroke-width="1.7" aria-hidden="true" />
                 <h4>没有匹配到结果</h4>
                 <p>试试更换关键词、放宽日期范围，或者清除当前筛选。</p>
-                <button type="button" class="secondary-btn" @click="resetGalleryFilters">清除筛选</button>
+                <button type="button" class="secondary-btn" @click="resetGalleryFilters">
+                  清除筛选
+                </button>
               </div>
 
               <div v-else class="album-month-list">
-                <section v-for="group in groupedVisibleEntries" :key="group.key" class="album-month-group">
+                <section
+                  v-for="group in groupedVisibleEntries"
+                  :key="group.key"
+                  class="album-month-group"
+                >
                   <div class="album-month-heading">
                     <h4>{{ group.label }}</h4>
                     <span>{{ group.entries.length }} 条</span>
                   </div>
 
                   <TransitionGroup name="list-transition" tag="div" class="gallery-grid" appear>
-                    <article v-for="(entry, index) in group.entries" :key="entry.id" class="cloud-card"
+                    <article
+                      v-for="(entry, index) in group.entries"
+                      :key="entry.id"
+                      class="cloud-card"
                       :class="[`type-${entry.entryType}`, { featured: entry.coverImageUrl }]"
-                      :style="{ '--item-index': index }" @click="openEntry(entry)">
+                      :style="{ '--item-index': index }"
+                      @click="openEntry(entry)"
+                    >
                       <div v-if="entry.coverImageUrl" class="card-visual">
-                        <img :src="getCloudImageDisplayUrl(entry.coverImageUrl)" :alt="entry.title || 'Cloud cover'"
-                          class="card-cover cloud-loading-image" loading="eager" decoding="async"
-                          referrerpolicy="no-referrer" @load="handleCloudImageLoaded" @error="retryCloudImageLoad">
+                        <img
+                          :src="getCloudImageDisplayUrl(entry.coverImageUrl)"
+                          :alt="entry.title || 'Cloud cover'"
+                          class="card-cover cloud-loading-image"
+                          loading="eager"
+                          decoding="async"
+                          referrerpolicy="no-referrer"
+                          @load="handleCloudImageLoaded"
+                          @error="retryCloudImageLoad"
+                        />
                         <div class="card-overlay">
                           <span class="entry-badge">{{ entryTypeLabel(entry.entryType) }}</span>
                           <span v-if="entry.mood" class="mood-badge">
@@ -490,13 +797,18 @@
                       </div>
 
                       <div class="card-body">
-                        <div class="card-date">{{ formatEntryDate(entry.entryDate, entry.updatedAt) }}</div>
+                        <div class="card-date">
+                          {{ formatEntryDate(entry.entryDate, entry.updatedAt) }}
+                        </div>
                         <h4 class="card-title">{{ entry.title || defaultTitle(entry) }}</h4>
-                        <p class="card-text">{{ entry.previewText || '这条内容里暂时没有文字预览。' }}</p>
+                        <p class="card-text">
+                          {{ entry.previewText || '这条内容里暂时没有文字预览。' }}
+                        </p>
                         <div class="card-footer">
                           <span class="card-meta">
-                            <span v-if="entry.mood" class="card-mood">{{ resolveMoodMeta(entry.mood)?.icon || '•' }} {{
-                              entry.mood }}</span>
+                            <span v-if="entry.mood" class="card-mood"
+                              >{{ resolveMoodMeta(entry.mood)?.icon || '•' }} {{ entry.mood }}</span
+                            >
                             <span>{{ blockSummary(entry) }}</span>
                           </span>
                           <button type="button" class="ghost-link">打开</button>
@@ -507,12 +819,20 @@
                 </section>
 
                 <div class="album-flow-actions">
-                  <button v-if="canLoadMoreEntries" type="button" class="secondary-btn album-load-more-btn"
-                    @click="loadMoreGalleryEntries">
+                  <button
+                    v-if="canLoadMoreEntries"
+                    type="button"
+                    class="secondary-btn album-load-more-btn"
+                    @click="loadMoreGalleryEntries"
+                  >
                     加载更多
                   </button>
-                  <button v-if="visibleFilteredEntries.length > GALLERY_INITIAL_LIMIT" type="button"
-                    class="ghost-link album-top-btn" @click="scrollAlbumToTop">
+                  <button
+                    v-if="visibleFilteredEntries.length > GALLERY_INITIAL_LIMIT"
+                    type="button"
+                    class="ghost-link album-top-btn"
+                    @click="scrollAlbumToTop"
+                  >
                     回到顶部
                   </button>
                 </div>
@@ -524,8 +844,14 @@
     </div>
 
     <nav class="cloud-bottom-nav" aria-label="Cloud+ 页面导航">
-      <button v-for="item in cloudBottomNavItems" :key="item.id" type="button" class="cloud-bottom-nav-item"
-        :class="{ active: cloudTab === item.id }" @click="switchCloudTab(item.id)">
+      <button
+        v-for="item in cloudBottomNavItems"
+        :key="item.id"
+        type="button"
+        class="cloud-bottom-nav-item"
+        :class="{ active: cloudTab === item.id }"
+        @click="switchCloudTab(item.id)"
+      >
         {{ item.label }}
       </button>
     </nav>
@@ -535,7 +861,7 @@
         <button type="button" class="detail-close" @click="closeEntry">×</button>
         <div class="detail-head">
           <div>
-            <span class="section-kicker">{{ selectedEntrySource === 'shared' ? 'BOH Cloud Channel Entry' : 'BOH Cloud+ Entry' }}</span>
+            <span class="section-kicker">{{ selectedEntryKicker }}</span>
             <h3>{{ selectedEntry.title || defaultTitle(selectedEntry) }}</h3>
             <p>{{ formatEntryDate(selectedEntry.entryDate, selectedEntry.updatedAt) }}</p>
           </div>
@@ -543,18 +869,53 @@
             <span v-if="selectedEntry.mood" class="detail-mood">
               {{ resolveMoodMeta(selectedEntry.mood)?.icon || '•' }} {{ selectedEntry.mood }}
             </span>
-            <button v-if="selectedEntrySource === 'mine'" type="button" class="danger-btn"
-              @click="removeEntry(selectedEntry)">删除</button>
+            <template v-if="selectedEntrySource === 'mine'">
+              <button
+                v-if="!isSelectedEntryPublic"
+                type="button"
+                class="secondary-btn detail-public-btn"
+                :disabled="cloudState.publish.publishing"
+                @click="makeEntryPublic(selectedEntry)"
+              >
+                {{ cloudState.publish.publishing ? '处理中...' : '设为公开' }}
+              </button>
+              <button
+                v-else
+                type="button"
+                class="secondary-btn detail-public-btn"
+                @click="goWorksGrid"
+              >
+                去作品格管理
+              </button>
+              <button
+                v-if="!isSelectedEntryPublic"
+                type="button"
+                class="danger-btn"
+                @click="removeEntry(selectedEntry)"
+              >
+                删除
+              </button>
+            </template>
           </div>
         </div>
 
         <div class="detail-content">
-          <template v-for="(block, index) in selectedEntry.contentBlocks" :key="`${selectedEntry.id}-${index}`">
+          <template
+            v-for="(block, index) in selectedEntry.contentBlocks"
+            :key="`${selectedEntry.id}-${index}`"
+          >
             <p v-if="block.type === 'text'" class="detail-text">{{ block.text }}</p>
             <figure v-else class="detail-image-wrap">
-              <img :src="getCloudImageDisplayUrl(block.url)" :alt="block.alt || 'BOH Cloud 图片'"
-                class="detail-image cloud-loading-image" decoding="async" referrerpolicy="no-referrer"
-                @load="handleCloudImageLoaded" @error="retryCloudImageLoad" loading="lazy">
+              <img
+                :src="getCloudImageDisplayUrl(block.url)"
+                :alt="block.alt || 'BOH Cloud 图片'"
+                class="detail-image cloud-loading-image"
+                decoding="async"
+                referrerpolicy="no-referrer"
+                @load="handleCloudImageLoaded"
+                @error="retryCloudImageLoad"
+                loading="lazy"
+              />
               <figcaption v-if="block.alt">{{ block.alt }}</figcaption>
             </figure>
           </template>
@@ -571,6 +932,7 @@ import { storeToRefs } from 'pinia';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { ChevronDown, Cloud, Search } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
+import CloudStorageBar from './CloudStorageBar.vue';
 import { useAuthStore } from '@/stores/auth';
 import { moodChoices, getMoodMeta } from './config.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
@@ -581,17 +943,16 @@ import {
   supportsCloudinaryClientDeleteToken,
   deleteCloudinaryAssetsByPublicIds,
   extractCloudinaryPublicIdFromUrl,
-  getCloudinaryDisplayUrl
+  getCloudinaryDisplayUrl,
 } from '@/utils/cloudinary-client.js';
 import {
   CLOUD_UPLOAD_BURST_LIMIT,
   CLOUD_UPLOAD_BURST_WINDOW_MS,
   validateImageFileBasics,
-  registerCloudUploadBurst
+  registerCloudUploadBurst,
 } from '@/utils/cloud-upload-guard.js';
 import {
   createMyCloudEntry,
-  deleteMyCloudEntry,
   disableMyCloudShareChannel,
   getMyCloudShareChannel,
   getMyCloudShareViewers,
@@ -599,16 +960,27 @@ import {
   listMyCloudEntries,
   normalizeCloudShareToken,
   revokeMyCloudShareToken,
+  setMyCloudEntryVisibility,
   setMyCloudShareDescription,
-  upsertMyCloudShareChannel
+  upsertMyCloudShareChannel,
 } from '@/utils/api/boh-cloud-api.js';
-import { serializeCloudTextAndImages } from '@/utils/boh-cloud-content.js';
-import { DEFAULT_CLOUD_IMAGE_LIMIT, resolveCloudBenefitFromSubscriptions } from '@/utils/subscription-benefits.js';
+import { serializeCloudTextAndImages, cloudEntryDefaultTitle } from '@/utils/boh-cloud-content.js';
+import {
+  computeCloudStorageAccounting,
+  countCloudEntryImages,
+  isPublicCloudEntry,
+  normalizeCloudVisibility,
+} from '@/utils/cloud-storage-accounting.js';
+import { deleteCloudEntryWithAssets } from '@/utils/cloud-entry-maintenance.js';
+import {
+  DEFAULT_CLOUD_IMAGE_LIMIT,
+  resolveCloudBenefitFromSubscriptions,
+} from '@/utils/subscription-benefits.js';
 import { logger } from '@/utils/logger.js';
 import {
   createCloudSettingsSubscriptionLocation,
   createUserSpaceProfileReturnLocation,
-  resolveSettingsBackLocation
+  resolveSettingsBackLocation,
 } from '@/utils/user-space-navigation.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { showIsland } from '@/composables/useIsland.js';
@@ -621,11 +993,13 @@ const dialog = useConfirmDialog();
 const props = defineProps({
   embedded: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 });
 
-const isDesktopEmbed = computed(() => props.embedded || String(route.query.embed || '') === 'desktop');
+const isDesktopEmbed = computed(
+  () => props.embedded || String(route.query.embed || '') === 'desktop',
+);
 const imageInputRef = ref(null);
 const albumSectionRef = ref(null);
 const entries = ref([]);
@@ -656,7 +1030,7 @@ const cloudState = reactive({
     hasLoaded: false,
     isShowingCached: false,
     activeUserId: '',
-    lastFetchTime: null
+    lastFetchTime: null,
   },
   share: {
     loading: false,
@@ -667,18 +1041,18 @@ const cloudState = reactive({
     saving: false,
     loadingShared: false,
     sharedError: null,
-    abortController: null // 用于取消共享频道请求
+    abortController: null, // 用于取消共享频道请求
   },
   upload: {
     uploading: false,
     progress: 0,
     currentFile: null,
     failedImages: [],
-    abortController: null // 用于取消图片上传
+    abortController: null, // 用于取消图片上传
   },
   publish: {
-    publishing: false
-  }
+    publishing: false,
+  },
 });
 
 // 保留原有的 ref 变量用于向后兼容（模板中使用）
@@ -690,23 +1064,23 @@ const isLoadingSharedChannel = computed(() => cloudState.share.loadingShared);
 const hasLoadedEntries = computed(() => cloudState.content.hasLoaded);
 const entriesLoadError = computed({
   get: () => cloudState.content.error || '',
-  set: (val) => cloudState.content.error = val
+  set: (val) => (cloudState.content.error = val),
 });
 const isShowingCachedEntries = computed({
   get: () => cloudState.content.isShowingCached,
-  set: (val) => cloudState.content.isShowingCached = val
+  set: (val) => (cloudState.content.isShowingCached = val),
 });
 const sharedChannelError = computed({
   get: () => cloudState.share.sharedError || '',
-  set: (val) => cloudState.share.sharedError = val
+  set: (val) => (cloudState.share.sharedError = val),
 });
 const shareViewersError = computed({
   get: () => cloudState.share.viewersError || '',
-  set: (val) => cloudState.share.viewersError = val
+  set: (val) => (cloudState.share.viewersError = val),
 });
 const activeEntriesUserId = computed({
   get: () => cloudState.content.activeUserId,
-  set: (val) => cloudState.content.activeUserId = val
+  set: (val) => (cloudState.content.activeUserId = val),
 });
 const isPublishing = computed(() => cloudState.publish.publishing);
 const isUploadingImages = computed(() => cloudState.upload.uploading);
@@ -723,8 +1097,8 @@ const SHARED_TOKEN_STORAGE_KEY = 'boh_cloud:last_shared_token';
 const visibleEntryLimit = ref(GALLERY_INITIAL_LIMIT);
 
 // 防抖优化 - 分享描述保存（500ms）
-const { debouncedFn: debouncedSaveShareDescription, cancel: cancelSaveShareDescription } = useDebounce(
-  async (description) => {
+const { debouncedFn: debouncedSaveShareDescription, cancel: cancelSaveShareDescription } =
+  useDebounce(async (description) => {
     if (!isLoggedIn.value || !userInfo.value?.id) {
       showNotice('请先登录后再设置频道描述');
       authStore.showLoginModal = true;
@@ -739,9 +1113,9 @@ const { debouncedFn: debouncedSaveShareDescription, cancel: cancelSaveShareDescr
       const result = myShareChannel.value?.shareToken
         ? await setMyCloudShareDescription(nextDescription)
         : await upsertMyCloudShareChannel({
-          regenerate: false,
-          description: nextDescription
-        });
+            regenerate: false,
+            description: nextDescription,
+          });
       if (!result.ok) {
         showNotice(result.error?.message || '频道描述保存失败');
         return;
@@ -752,27 +1126,24 @@ const { debouncedFn: debouncedSaveShareDescription, cancel: cancelSaveShareDescr
     } finally {
       cloudState.share.saving = false;
     }
-  },
-  500
-);
+  }, 500);
 
 // 防抖优化 - 搜索输入（300ms）
-const { debouncedFn: debouncedSearch, cancel: cancelSearch } = useDebounce(
-  (query) => {
-    searchQuery.value = query;
-  },
-  300
-);
+const { debouncedFn: debouncedSearch, cancel: cancelSearch } = useDebounce((query) => {
+  searchQuery.value = query;
+}, 300);
 
 const filterOptions = [
   { value: 'all', label: '全部' },
   { value: 'image', label: '图片' },
   { value: 'mixed', label: '图文' },
-  { value: 'text', label: '文字' }
+  { value: 'text', label: '文字' },
 ];
 
 const selectedMoodMeta = computed(() => getMoodMeta(draftMood.value));
-const currentFilterLabel = computed(() => filterOptions.find((item) => item.value === currentFilter.value)?.label || '全部');
+const currentFilterLabel = computed(
+  () => filterOptions.find((item) => item.value === currentFilter.value)?.label || '全部',
+);
 const todayDisplay = computed(() => formatDisplayDate(new Date()));
 const cloudTab = computed(() => {
   const view = String(route.query.view || route.query.mode || '').trim();
@@ -785,27 +1156,27 @@ const publishButtonLabel = computed(() => '发布到 Cloud+');
 const cloudBottomNavItems = [
   { id: 'content', label: '内容' },
   { id: 'share', label: '分享' },
-  { id: 'settings', label: '设置' }
+  { id: 'settings', label: '设置' },
 ];
 const cloudPageHero = computed(() => {
   if (cloudTab.value === 'share') {
     return {
       eyebrow: 'Share',
       title: '分享',
-      subtitle: '管理私密令牌频道，或用访问令牌查看别人分享的 Cloud+。'
+      subtitle: '管理私密令牌频道，或用访问令牌查看别人分享的 Cloud+。',
     };
   }
   if (cloudTab.value === 'settings') {
     return {
       eyebrow: 'Settings',
       title: 'Cloud+ 设置',
-      subtitle: '管理 Cloud+ 图片使用限额。'
+      subtitle: '管理 Cloud+ 图片使用限额。',
     };
   }
   return {
-    eyebrow: 'Content',
+    eyebrow: 'Private Space',
     title: '内容',
-    subtitle: '展示和发布你的私密 Cloud+ 内容。'
+    subtitle: '私密空间 · 全部存储。这里陈列私密笔记；公开笔记在作品格展示，占用同一份额度。',
   };
 });
 const goBack = () => {
@@ -814,9 +1185,15 @@ const goBack = () => {
 const openSubscriptionsFromCloudSettings = () => {
   router.push(createCloudSettingsSubscriptionLocation());
 };
-const hasActiveFilters = computed(() => Boolean(searchQuery.value || dateFrom.value || dateTo.value));
-const currentCloudBenefit = computed(() => resolveCloudBenefitFromSubscriptions(subscriptions.value));
-const currentCloudImageLimit = computed(() => Number(currentCloudBenefit.value.cloudImageLimit || DEFAULT_CLOUD_IMAGE_LIMIT));
+const hasActiveFilters = computed(() =>
+  Boolean(searchQuery.value || dateFrom.value || dateTo.value),
+);
+const currentCloudBenefit = computed(() =>
+  resolveCloudBenefitFromSubscriptions(subscriptions.value),
+);
+const currentCloudImageLimit = computed(() =>
+  Number(currentCloudBenefit.value.cloudImageLimit || DEFAULT_CLOUD_IMAGE_LIMIT),
+);
 const normalizedSharedTokenInput = computed(() => normalizeCloudShareToken(sharedTokenInput.value));
 const sharedChannelTitle = computed(() => {
   const nickname = String(sharedChannel.value?.ownerNickname || '').trim();
@@ -825,14 +1202,39 @@ const sharedChannelTitle = computed(() => {
 });
 const activeShareChannelLabel = computed(() => '私密令牌频道');
 const cloudModeBanner = computed(() => null);
-const isInitialLoading = computed(() => isLoading.value && !hasLoadedEntries.value && entries.value.length === 0);
-const hasEntriesLoadFailure = computed(() => Boolean(entriesLoadError.value) && !isLoading.value && entries.value.length === 0);
+const isInitialLoading = computed(
+  () => isLoading.value && !hasLoadedEntries.value && entries.value.length === 0,
+);
+const hasEntriesLoadFailure = computed(
+  () => Boolean(entriesLoadError.value) && !isLoading.value && entries.value.length === 0,
+);
 const showRefreshIndicator = computed(() => isLoading.value && !isInitialLoading.value);
-const skeletonCards = computed(() => Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => ({
-  id: `cloud-skeleton-${index}`,
-  variant: index % 3 === 0 ? 'skeleton-card-featured' : index % 3 === 1 ? 'skeleton-card-text' : 'skeleton-card-mixed'
-})));
-const activeGalleryEntries = computed(() => entries.value);
+// 主列表只陈列私密内容；公开笔记是账目（只读分组），两者都计入存储记账。
+const privateEntries = computed(() => entries.value.filter((entry) => !isPublicCloudEntry(entry)));
+const publicEntries = computed(() => entries.value.filter((entry) => isPublicCloudEntry(entry)));
+const cloudAccounting = computed(() =>
+  computeCloudStorageAccounting({
+    entries: entries.value,
+    limit: currentCloudImageLimit.value,
+  }),
+);
+const activeGalleryEntries = computed(() => privateEntries.value);
+const isSelectedEntryPublic = computed(() => isPublicCloudEntry(selectedEntry.value));
+const selectedEntryKicker = computed(() => {
+  if (selectedEntrySource.value === 'shared') return 'BOH Cloud Channel Entry';
+  return isSelectedEntryPublic.value ? 'BOH Cloud+ · 已公开 · 作品格' : 'BOH Cloud+ Entry';
+});
+const skeletonCards = computed(() =>
+  Array.from({ length: SKELETON_CARD_COUNT }, (_, index) => ({
+    id: `cloud-skeleton-${index}`,
+    variant:
+      index % 3 === 0
+        ? 'skeleton-card-featured'
+        : index % 3 === 1
+          ? 'skeleton-card-text'
+          : 'skeleton-card-mixed',
+  })),
+);
 
 const filteredEntries = computed(() => {
   const normalizedQuery = searchQuery.value.trim().toLowerCase();
@@ -869,10 +1271,10 @@ const filteredEntries = computed(() => {
       entry.updatedAt,
       ...(Array.isArray(entry.contentBlocks)
         ? entry.contentBlocks.map((block) => {
-          if (block?.type === 'text') return block.text;
-          return [block?.alt, block?.url].filter(Boolean).join(' ');
-        })
-        : [])
+            if (block?.type === 'text') return block.text;
+            return [block?.alt, block?.url].filter(Boolean).join(' ');
+          })
+        : []),
     ]
       .filter(Boolean)
       .join(' ')
@@ -881,8 +1283,12 @@ const filteredEntries = computed(() => {
     return searchableText.includes(normalizedQuery);
   });
 });
-const visibleFilteredEntries = computed(() => filteredEntries.value.slice(0, visibleEntryLimit.value));
-const canLoadMoreEntries = computed(() => visibleFilteredEntries.value.length < filteredEntries.value.length);
+const visibleFilteredEntries = computed(() =>
+  filteredEntries.value.slice(0, visibleEntryLimit.value),
+);
+const canLoadMoreEntries = computed(
+  () => visibleFilteredEntries.value.length < filteredEntries.value.length,
+);
 const groupedVisibleEntries = computed(() => {
   const groups = [];
   const groupMap = new Map();
@@ -893,7 +1299,7 @@ const groupedVisibleEntries = computed(() => {
       const group = {
         key,
         label: formatMonthGroupLabel(key),
-        entries: []
+        entries: [],
       };
       groupMap.set(key, group);
       groups.push(group);
@@ -904,14 +1310,17 @@ const groupedVisibleEntries = computed(() => {
   return groups;
 });
 
-const imageCount = computed(() => activeGalleryEntries.value.filter((entry) => entry.entryType === 'image').length);
-const mixedCount = computed(() => activeGalleryEntries.value.filter((entry) => entry.entryType === 'mixed').length);
-const totalStoredImages = computed(() => entries.value.reduce(
-  (sum, entry) => sum + entry.contentBlocks.filter((block) => block.type === 'image').length,
-  0
-));
+const imageCount = computed(
+  () => activeGalleryEntries.value.filter((entry) => entry.entryType === 'image').length,
+);
+const mixedCount = computed(
+  () => activeGalleryEntries.value.filter((entry) => entry.entryType === 'mixed').length,
+);
+const totalStoredImages = computed(() => cloudAccounting.value.usedImages);
 const draftImageCount = computed(() => uploadedImages.value.length);
-const remainingImageQuota = computed(() => Math.max(0, currentCloudImageLimit.value - totalStoredImages.value));
+const remainingImageQuota = computed(() =>
+  Math.max(0, currentCloudImageLimit.value - totalStoredImages.value),
+);
 const quotaPercent = computed(() => {
   if (currentCloudImageLimit.value <= 0) return 0;
   return Math.min(100, Math.round((totalStoredImages.value / currentCloudImageLimit.value) * 100));
@@ -919,7 +1328,9 @@ const quotaPercent = computed(() => {
 const currentMonthCount = computed(() => {
   const now = new Date();
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return activeGalleryEntries.value.filter((entry) => String(entry.entryDate || '').startsWith(monthKey)).length;
+  return activeGalleryEntries.value.filter((entry) =>
+    String(entry.entryDate || '').startsWith(monthKey),
+  ).length;
 });
 
 function resolveMoodMeta(value) {
@@ -962,7 +1373,7 @@ function resolveEntryDateKey(entry) {
   return [
     parsed.getFullYear(),
     String(parsed.getMonth() + 1).padStart(2, '0'),
-    String(parsed.getDate()).padStart(2, '0')
+    String(parsed.getDate()).padStart(2, '0'),
   ].join('-');
 }
 
@@ -999,7 +1410,7 @@ function formatEntryDate(entryDate, updatedAt = '') {
   const updatedDateKey = [
     updatedParsed.getFullYear(),
     String(updatedParsed.getMonth() + 1).padStart(2, '0'),
-    String(updatedParsed.getDate()).padStart(2, '0')
+    String(updatedParsed.getDate()).padStart(2, '0'),
   ].join('-');
 
   if (updatedDateKey === String(entryDate || '').trim()) {
@@ -1016,8 +1427,10 @@ function formatViewerTime(value) {
   const now = new Date();
   const diffMs = now.getTime() - parsed.getTime();
   if (diffMs >= 0 && diffMs < 60 * 1000) return '刚刚查看';
-  if (diffMs >= 0 && diffMs < 60 * 60 * 1000) return `${Math.max(1, Math.floor(diffMs / 60000))} 分钟前`;
-  if (diffMs >= 0 && diffMs < 24 * 60 * 60 * 1000) return `${Math.max(1, Math.floor(diffMs / 3600000))} 小时前`;
+  if (diffMs >= 0 && diffMs < 60 * 60 * 1000)
+    return `${Math.max(1, Math.floor(diffMs / 60000))} 分钟前`;
+  if (diffMs >= 0 && diffMs < 24 * 60 * 60 * 1000)
+    return `${Math.max(1, Math.floor(diffMs / 3600000))} 小时前`;
   return `${formatDisplayDate(parsed)} 查看`;
 }
 
@@ -1028,9 +1441,7 @@ function entryTypeLabel(type) {
 }
 
 function defaultTitle(entry) {
-  if (entry.entryType === 'image') return '一组新的照片';
-  if (entry.entryType === 'mixed') return '图文记忆片段';
-  return '新的文字记录';
+  return cloudEntryDefaultTitle(entry);
 }
 
 function blockSummary(entry) {
@@ -1050,7 +1461,7 @@ function resetGalleryFilters() {
 function loadMoreGalleryEntries() {
   visibleEntryLimit.value = Math.min(
     filteredEntries.value.length,
-    visibleEntryLimit.value + GALLERY_LOAD_MORE_STEP
+    visibleEntryLimit.value + GALLERY_LOAD_MORE_STEP,
   );
 }
 
@@ -1085,10 +1496,10 @@ function persistStoredSharedToken(token) {
 function derivePreviewFromBlocks(blocks = [], contentText = '') {
   const textFromBlocks = Array.isArray(blocks)
     ? blocks
-      .filter((block) => block?.type === 'text')
-      .map((block) => String(block?.text || '').trim())
-      .filter(Boolean)
-      .join(' ')
+        .filter((block) => block?.type === 'text')
+        .map((block) => String(block?.text || '').trim())
+        .filter(Boolean)
+        .join(' ')
     : '';
   const merged = String(textFromBlocks || contentText || '').trim();
   return merged.length > 180 ? `${merged.slice(0, 180)}...` : merged;
@@ -1101,7 +1512,7 @@ function normalizeCachedImageBlock(block) {
     type: 'image',
     url,
     alt: String(block?.alt || '').trim(),
-    publicId: String(block?.publicId || '').trim()
+    publicId: String(block?.publicId || '').trim(),
   };
 }
 
@@ -1110,7 +1521,7 @@ function normalizeCachedTextBlock(block) {
   if (!text) return null;
   return {
     type: 'text',
-    text
+    text,
   };
 }
 
@@ -1124,18 +1535,16 @@ function normalizeCachedEntry(entry) {
 
   const contentBlocks = Array.isArray(entry.contentBlocks)
     ? entry.contentBlocks
-      .map((block) => {
-        if (block?.type === 'image') return normalizeCachedImageBlock(block);
-        if (block?.type === 'text') return normalizeCachedTextBlock(block);
-        return null;
-      })
-      .filter(Boolean)
+        .map((block) => {
+          if (block?.type === 'image') return normalizeCachedImageBlock(block);
+          if (block?.type === 'text') return normalizeCachedTextBlock(block);
+          return null;
+        })
+        .filter(Boolean)
     : [];
 
   const coverImageUrl = String(
-    entry.coverImageUrl
-    || contentBlocks.find((block) => block.type === 'image')?.url
-    || ''
+    entry.coverImageUrl || contentBlocks.find((block) => block.type === 'image')?.url || '',
   ).trim();
 
   return {
@@ -1147,15 +1556,17 @@ function normalizeCachedEntry(entry) {
     entryType: ['text', 'image', 'mixed'].includes(String(entry.entryType || '').trim())
       ? String(entry.entryType).trim()
       : 'text',
-    visibility: 'private',
+    visibility: normalizeCloudVisibility(entry.visibility),
     contentText: String(entry.contentText || '').trim(),
     contentBlocks,
     coverImageUrl,
-    previewText: String(entry.previewText || derivePreviewFromBlocks(contentBlocks, entry.contentText || '')).trim(),
+    previewText: String(
+      entry.previewText || derivePreviewFromBlocks(contentBlocks, entry.contentText || ''),
+    ).trim(),
     mood: String(entry.mood || '').trim(),
     source: String(entry.source || 'manual').trim() || 'manual',
     createdAt: String(entry.createdAt || '').trim(),
-    updatedAt: String(entry.updatedAt || '').trim()
+    updatedAt: String(entry.updatedAt || '').trim(),
   };
 }
 
@@ -1200,7 +1611,7 @@ function persistCachedEntries(userId, items) {
     const cacheData = {
       entries: limitedItems,
       lastFetchTime: Date.now(),
-      version: CLOUD_ENTRIES_CACHE_VERSION
+      version: CLOUD_ENTRIES_CACHE_VERSION,
     };
     window.localStorage.setItem(cacheKey, JSON.stringify(cacheData));
   } catch (error) {
@@ -1228,13 +1639,15 @@ function refreshSharePanelState() {
 }
 
 function switchCloudTab(tabId) {
-  const safeTab = ['content', 'share', 'settings'].includes(String(tabId)) ? String(tabId) : 'content';
+  const safeTab = ['content', 'share', 'settings'].includes(String(tabId))
+    ? String(tabId)
+    : 'content';
   router.replace({
     path: route.path,
     query: {
       ...route.query,
-      view: safeTab
-    }
+      view: safeTab,
+    },
   });
 }
 
@@ -1352,9 +1765,9 @@ async function saveShareDescription() {
     const result = myShareChannel.value?.shareToken
       ? await setMyCloudShareDescription(nextDescription)
       : await upsertMyCloudShareChannel({
-        regenerate: false,
-        description: nextDescription
-      });
+          regenerate: false,
+          description: nextDescription,
+        });
     if (!result.ok) {
       showNotice(result.error?.message || '频道描述保存失败');
       return;
@@ -1372,7 +1785,10 @@ async function regenerateMyShareChannel() {
     showNotice('请先登录后再生成令牌');
     return;
   }
-  if (myShareChannel.value?.shareToken && !confirm('撤销后，旧令牌会立刻失效，并生成一枚新令牌。确定继续吗？')) {
+  if (
+    myShareChannel.value?.shareToken &&
+    !confirm('撤销后，旧令牌会立刻失效，并生成一枚新令牌。确定继续吗？')
+  ) {
     return;
   }
 
@@ -1403,12 +1819,14 @@ async function deactivateMyShareChannel() {
     showNotice('请先登录后再关闭共享');
     return;
   }
-  if (!await dialog.confirm({
-    title: '关闭共享',
-    message: '关闭共享后，当前令牌将暂时失效。确定关闭吗？',
-    tone: 'warning',
-    confirmText: '关闭'
-  })) {
+  if (
+    !(await dialog.confirm({
+      title: '关闭共享',
+      message: '关闭共享后，当前令牌将暂时失效。确定关闭吗？',
+      tone: 'warning',
+      confirmText: '关闭',
+    }))
+  ) {
     return;
   }
 
@@ -1540,21 +1958,30 @@ function showCloudIsland(title, message = '', icon = 'success', durationMs = 320
 function showNoticeWithIsland(message, opts = {}) {
   const title = String(opts.title || message || '提示').trim() || '提示';
   const msg = String(opts.message ?? (opts.title ? message : '')).trim();
-  const icon = opts.icon || (/失败|错误|不足|超过|无效|请先|超过|受限|频繁/.test(String(message)) ? 'warning' : 'success');
+  const icon =
+    opts.icon ||
+    (/失败|错误|不足|超过|无效|请先|超过|受限|频繁/.test(String(message)) ? 'warning' : 'success');
   const durationMs = opts.durationMs || (icon === 'warning' ? 3600 : 3000);
   const ok = showCloudIsland(title, msg, icon, durationMs);
   if (!ok) _originShowNotice(message);
   return ok;
 }
 let _cloudNoticeTimer = null;
-showNotice = function(message) {
+showNotice = function (message) {
   const text = String(message || '');
-  const isError = /失败|错误|不足|超过|无效|超过|不能为空|不能超过|未变化|请先|受限|频繁|无法识别|已满|取消/.test(text);
+  const isError =
+    /失败|错误|不足|超过|无效|超过|不能为空|不能超过|未变化|请先|受限|频繁|无法识别|已满|取消/.test(
+      text,
+    );
   const icon = isError ? (/已取消|已退出/.test(text) ? 'success' : 'warning') : 'success';
   const title = text.length > 24 ? text.slice(0, 24) : text;
   const msg = text.length > 24 ? text.slice(24) : '';
   let ok = false;
-  try { ok = showIsland.notify({ title, message: msg, icon, durationMs: isError ? 3600 : 3000 }); } catch { ok = false; }
+  try {
+    ok = showIsland.notify({ title, message: msg, icon, durationMs: isError ? 3600 : 3000 });
+  } catch {
+    ok = false;
+  }
   if (ok) {
     noticeText.value = '';
     window.clearTimeout(_cloudNoticeTimer);
@@ -1566,7 +1993,9 @@ showNotice = function(message) {
   window.clearTimeout(_cloudNoticeTimer);
   window.clearTimeout(_originShowNotice.timer);
   window.clearTimeout(showNotice.timer);
-  const timer = window.setTimeout(() => { if (noticeText.value === text) noticeText.value = ''; }, 2600);
+  const timer = window.setTimeout(() => {
+    if (noticeText.value === text) noticeText.value = '';
+  }, 2600);
   _cloudNoticeTimer = timer;
   _originShowNotice.timer = timer;
   showNotice.timer = timer;
@@ -1628,7 +2057,7 @@ async function cleanupDraftUploads({ silent = true, keepalive = false } = {}) {
   if (!images.length) return;
 
   await Promise.allSettled(
-    images.map((image) => deleteDraftAssetFromCloudinary(image, { silent, keepalive }))
+    images.map((image) => deleteDraftAssetFromCloudinary(image, { silent, keepalive })),
   );
 }
 
@@ -1657,17 +2086,22 @@ async function loadEntries() {
   try {
     const result = await listMyCloudEntries({
       userId,
-      limit: 500
+      limit: 500,
     });
 
     if (!result.ok) {
       const errorMessage = result.error?.message || '读取 Cloud+ 失败，请检查网络后重试';
-      cloudState.content.error = hadEntriesBeforeLoad || cachedEntries.length
-        ? `${errorMessage}，当前为你保留最近一次成功加载的内容。`
-        : errorMessage;
+      cloudState.content.error =
+        hadEntriesBeforeLoad || cachedEntries.length
+          ? `${errorMessage}，当前为你保留最近一次成功加载的内容。`
+          : errorMessage;
       cloudState.content.isShowingCached = entries.value.length > 0;
       cloudState.content.activeUserId = userId;
-      showNotice(hadEntriesBeforeLoad || cachedEntries.length ? '网络波动，已保留最近一次成功加载的内容' : errorMessage);
+      showNotice(
+        hadEntriesBeforeLoad || cachedEntries.length
+          ? '网络波动，已保留最近一次成功加载的内容'
+          : errorMessage,
+      );
       cloudState.content.hasLoaded = true;
       return;
     }
@@ -1680,6 +2114,7 @@ async function loadEntries() {
     cloudState.content.hasLoaded = true;
     cloudState.content.activeUserId = userId;
     cloudState.content.lastFetchTime = Date.now();
+    tryOpenEntryFromQuery();
   } finally {
     cloudState.content.loading = false;
   }
@@ -1691,7 +2126,9 @@ async function loadSubscriptions() {
     return;
   }
 
-  const result = await getMySubscriptions(String(userInfo.value.id).trim(), { includeExpired: true });
+  const result = await getMySubscriptions(String(userInfo.value.id).trim(), {
+    includeExpired: true,
+  });
   if (!result.ok) {
     subscriptions.value = [];
     logger.error('cloud-plus', '读取 Cloud+ 订阅权益失败:', result.error);
@@ -1745,7 +2182,10 @@ async function handleImageSelection(event) {
     return;
   }
 
-  const remainingAfterDraft = Math.max(0, currentCloudImageLimit.value - totalStoredImages.value - draftImageCount.value);
+  const remainingAfterDraft = Math.max(
+    0,
+    currentCloudImageLimit.value - totalStoredImages.value - draftImageCount.value,
+  );
   if (files.length > remainingAfterDraft) {
     showNotice(`图片额度不足：当前最多还能添加 ${remainingAfterDraft} 张图片`);
     if (input) input.value = '';
@@ -1754,7 +2194,7 @@ async function handleImageSelection(event) {
 
   const burst = registerCloudUploadBurst(uploadAttemptTimestamps, files.length, {
     windowMs: CLOUD_UPLOAD_BURST_WINDOW_MS,
-    limit: CLOUD_UPLOAD_BURST_LIMIT
+    limit: CLOUD_UPLOAD_BURST_LIMIT,
   });
   uploadAttemptTimestamps = burst.timestamps;
   if (!burst.ok) {
@@ -1789,7 +2229,7 @@ async function handleImageSelection(event) {
       try {
         // 传入 signal：用户点取消时真正中止在途 HTTP 上传，而不是只重置 UI 状态让请求继续跑到超时
         const uploaded = await uploadImageToCloudinary(file, {
-          signal: uploadController.signal
+          signal: uploadController.signal,
         });
         uploadedImages.value.push({
           url: uploaded.url,
@@ -1797,7 +2237,7 @@ async function handleImageSelection(event) {
           deleteToken: uploaded.deleteToken,
           alt: uploaded.originalFilename || file.name,
           width: uploaded.width,
-          height: uploaded.height
+          height: uploaded.height,
         });
         uploadedCount++;
         cloudState.upload.progress = Math.round((uploadedCount / totalFiles) * 100);
@@ -1811,7 +2251,7 @@ async function handleImageSelection(event) {
         cloudState.upload.failedImages.push({
           file,
           error: uploadError?.message || '上传失败',
-          name: file.name
+          name: file.name,
         });
         logger.error('cloud-plus', `上传图片 ${file.name} 失败:`, uploadError);
       }
@@ -1825,8 +2265,13 @@ async function handleImageSelection(event) {
       showNotice(`${cloudState.upload.failedImages.length} 张图片上传失败，可以重新尝试上传`);
     }
 
-    if (files.length && uploadedImages.value.some((image) => !supportsCloudinaryClientDeleteToken(image))) {
-      showNotice('图片已上传，但当前 Cloudinary preset 未开启 delete token；取消上传时将无法自动清理云端图片');
+    if (
+      files.length &&
+      uploadedImages.value.some((image) => !supportsCloudinaryClientDeleteToken(image))
+    ) {
+      showNotice(
+        '图片已上传，但当前 Cloudinary preset 未开启 delete token；取消上传时将无法自动清理云端图片',
+      );
     }
   } catch (error) {
     if (error.name === 'AbortError') {
@@ -1849,7 +2294,7 @@ async function handleImageSelection(event) {
 
 // 重试上传失败的图片
 async function retryFailedUploads() {
-  const failedFiles = cloudState.upload.failedImages.map(item => item.file);
+  const failedFiles = cloudState.upload.failedImages.map((item) => item.file);
   if (!failedFiles.length) return;
 
   // 重置失败列表
@@ -1857,13 +2302,13 @@ async function retryFailedUploads() {
 
   // 创建新的 input 元素来触发上传
   const dataTransfer = new DataTransfer();
-  failedFiles.forEach(file => dataTransfer.items.add(file));
+  failedFiles.forEach((file) => dataTransfer.items.add(file));
 
   const mockEvent = {
     target: {
       files: dataTransfer.files,
-      value: ''
-    }
+      value: '',
+    },
   };
 
   await handleImageSelection(mockEvent);
@@ -1903,7 +2348,7 @@ async function publishEntry() {
   try {
     const blocks = serializeCloudTextAndImages({
       text: draftText.value,
-      images: uploadedImages.value
+      images: uploadedImages.value,
     });
 
     const result = await createMyCloudEntry(userId, {
@@ -1913,7 +2358,7 @@ async function publishEntry() {
       contentText: draftText.value,
       contentBlocks: blocks,
       mood: draftMood.value,
-      source: 'manual'
+      source: 'manual',
     });
 
     if (!result.ok) {
@@ -1945,6 +2390,62 @@ async function publishEntry() {
 function openEntry(entry, source = 'mine') {
   selectedEntry.value = entry;
   selectedEntrySource.value = source === 'shared' ? 'shared' : 'mine';
+}
+
+function goWorksGrid() {
+  closeEntry();
+  router.push({
+    path: '/user-space',
+    query: {
+      tab: 'posts',
+      from: 'cloud-plus',
+    },
+  });
+}
+
+/** 私密笔记 → 公开（Cloud+ 侧的发布路径 = 状态切换；公开后的管理在作品格做）。 */
+async function makeEntryPublic(entry) {
+  const userId = String(userInfo.value?.id || '').trim();
+  if (!isLoggedIn.value || !userId || !entry?.id) return;
+
+  if (
+    !(await dialog.confirm({
+      title: '设为公开',
+      message:
+        '公开后会出现在你的作品格，任何人可见；图片仍占用 Cloud+ 额度。之后可在作品格改回私密或删除。',
+      confirmText: '设为公开',
+    }))
+  )
+    return;
+
+  cloudState.publish.publishing = true;
+  try {
+    const result = await setMyCloudEntryVisibility(userId, entry.id, 'public');
+    if (!result.ok) {
+      showNotice(result.error?.message || '设为公开失败');
+      return;
+    }
+
+    const published = result.data || { ...entry, visibility: 'public' };
+    entries.value = entries.value.map((item) => (item.id === published.id ? published : item));
+    persistCachedEntries(userId, entries.value);
+    if (selectedEntry.value?.id === published.id) {
+      selectedEntry.value = published;
+    }
+    showNotice('已公开，可在作品格查看');
+  } finally {
+    cloudState.publish.publishing = false;
+  }
+}
+
+/** 作品格「打开」跳转回来时按 entry 参数展开对应笔记详情。 */
+function tryOpenEntryFromQuery() {
+  const entryId = String(route.query.entry || '').trim();
+  if (!entryId) return;
+  const target = entries.value.find((item) => item.id === entryId);
+  if (!target) return;
+  openEntry(target);
+  router.replace({ query: { ...route.query, entry: undefined } });
 }
 
 function closeEntry() {
@@ -2002,16 +2503,20 @@ function retryCloudImageLoad(event) {
   const originalSrc = image.dataset.originalSrc || image.src;
   image.dataset.originalSrc = originalSrc;
 
-  window.setTimeout(() => {
-    try {
-      const nextSrc = retryCount >= 1 ? buildCloudinaryDisplayFallbackUrl(originalSrc) : originalSrc;
-      const retryUrl = new URL(nextSrc);
-      retryUrl.searchParams.set('_boh_retry', `${Date.now()}-${retryCount + 1}`);
-      image.src = retryUrl.toString();
-    } catch (_error) {
-      image.src = originalSrc;
-    }
-  }, 600 * (retryCount + 1));
+  window.setTimeout(
+    () => {
+      try {
+        const nextSrc =
+          retryCount >= 1 ? buildCloudinaryDisplayFallbackUrl(originalSrc) : originalSrc;
+        const retryUrl = new URL(nextSrc);
+        retryUrl.searchParams.set('_boh_retry', `${Date.now()}-${retryCount + 1}`);
+        image.src = retryUrl.toString();
+      } catch (_error) {
+        image.src = originalSrc;
+      }
+    },
+    600 * (retryCount + 1),
+  );
 }
 
 async function removeEntry(entry) {
@@ -2022,41 +2527,22 @@ async function removeEntry(entry) {
     showNotice('这条内容来自论坛同步，不能在 Cloud+ 里单独删除，请到论坛删除原帖');
     return;
   }
-
-  if (!await dialog.confirm({
-    title: '删除内容',
-    message: '确定删除这条内容吗？',
-    tone: 'danger',
-    confirmText: '删除'
-  })) return;
-
-  const guardResult = await deleteMyCloudEntry(userId, entry?.id, {
-    legacyNoteDate: entry?.legacyNoteDate || entry?.entryDate || '',
-    validateOnly: true
-  });
-  if (!guardResult.ok) {
-    showNotice(guardResult.error?.message || '删除失败');
+  if (isPublicCloudEntry(entry)) {
+    showNotice('公开笔记在作品格管理，请去作品格删除');
     return;
   }
 
-  const publicIds = Array.from(new Set(
-    (Array.isArray(entry?.contentBlocks) ? entry.contentBlocks : [])
-      .filter((block) => block?.type === 'image')
-      .map((block) => String(block?.publicId || extractCloudinaryPublicIdFromUrl(block?.url)).trim())
-      .filter(Boolean)
-  ));
+  if (
+    !(await dialog.confirm({
+      title: '删除内容',
+      message: '确定删除这条内容吗？',
+      tone: 'danger',
+      confirmText: '删除',
+    }))
+  )
+    return;
 
-  if (publicIds.length) {
-    const cloudinaryResult = await deleteCloudinaryAssetsByPublicIds(publicIds);
-    if (!cloudinaryResult.ok) {
-      showNotice(cloudinaryResult.error?.message || '云端图片删除失败，请稍后重试');
-      return;
-    }
-  }
-
-  const result = await deleteMyCloudEntry(userId, entry?.id, {
-    legacyNoteDate: entry?.legacyNoteDate || entry?.entryDate || ''
-  });
+  const result = await deleteCloudEntryWithAssets(userId, entry);
   if (!result.ok) {
     showNotice(result.error?.message || '删除失败');
     return;
@@ -2077,37 +2563,44 @@ async function removeEntry(entry) {
   void loadEntries();
 }
 
-watch(() => [isLoggedIn.value, userInfo.value?.id], () => {
-  const userId = String(userInfo.value?.id || '').trim();
-  if (!isLoggedIn.value || !userId) {
-    entries.value = [];
-    subscriptions.value = [];
-    myShareChannel.value = null;
-    shareViewers.value = [];
-    cloudState.content.hasLoaded = false;
-    cloudState.content.error = null;
-    cloudState.content.isShowingCached = false;
-    cloudState.content.activeUserId = '';
-    cloudState.content.lastFetchTime = null;
-    cloudState.share.tokenState = 'idle';
-    cloudState.share.error = null;
-    return;
-  }
-  if (cloudState.content.activeUserId && cloudState.content.activeUserId !== userId) {
-    entries.value = [];
-    cloudState.content.hasLoaded = false;
-    cloudState.content.error = null;
-    cloudState.content.isShowingCached = false;
-    cloudState.content.lastFetchTime = null;
-  }
-  void loadEntries();
-  void loadSubscriptions();
-  void loadMyShareChannel();
-}, { immediate: true });
+watch(
+  () => [isLoggedIn.value, userInfo.value?.id],
+  () => {
+    const userId = String(userInfo.value?.id || '').trim();
+    if (!isLoggedIn.value || !userId) {
+      entries.value = [];
+      subscriptions.value = [];
+      myShareChannel.value = null;
+      shareViewers.value = [];
+      cloudState.content.hasLoaded = false;
+      cloudState.content.error = null;
+      cloudState.content.isShowingCached = false;
+      cloudState.content.activeUserId = '';
+      cloudState.content.lastFetchTime = null;
+      cloudState.share.tokenState = 'idle';
+      cloudState.share.error = null;
+      return;
+    }
+    if (cloudState.content.activeUserId && cloudState.content.activeUserId !== userId) {
+      entries.value = [];
+      cloudState.content.hasLoaded = false;
+      cloudState.content.error = null;
+      cloudState.content.isShowingCached = false;
+      cloudState.content.lastFetchTime = null;
+    }
+    void loadEntries();
+    void loadSubscriptions();
+    void loadMyShareChannel();
+  },
+  { immediate: true },
+);
 
-watch(() => [cloudTab.value, currentFilter.value, searchQuery.value, dateFrom.value, dateTo.value], () => {
-  visibleEntryLimit.value = GALLERY_INITIAL_LIMIT;
-});
+watch(
+  () => [cloudTab.value, currentFilter.value, searchQuery.value, dateFrom.value, dateTo.value],
+  () => {
+    visibleEntryLimit.value = GALLERY_INITIAL_LIMIT;
+  },
+);
 
 watch(normalizedSharedTokenInput, (token) => {
   if (token.length >= 12) {
@@ -2143,10 +2636,13 @@ onUnmounted(() => {
   }
 });
 
-watch(cloudTab, () => {
-  applyCloudPlusRouteView();
-}, { immediate: true });
-
+watch(
+  cloudTab,
+  () => {
+    applyCloudPlusRouteView();
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>

@@ -175,7 +175,9 @@
   gap: 12px;
   text-align: left;
   cursor: pointer;
-  transition: background-color 0.16s ease, transform 160ms var(--ease-out);
+  transition:
+    background-color 0.16s ease,
+    transform 160ms var(--ease-out);
 }
 
 .profile-action-row:hover {
@@ -187,7 +189,7 @@
 }
 
 .profile-action-row:not(:last-child)::after {
-  content: "";
+  content: '';
   position: absolute;
   right: 16px;
   bottom: 0;
@@ -246,15 +248,15 @@
   line-height: 1;
   font-weight: 300;
   flex: 0 0 auto;
-  transition: transform 160ms var(--ease-out), color 160ms ease;
+  transition:
+    transform 160ms var(--ease-out),
+    color 160ms ease;
 }
 
 .profile-action-row:hover .profile-action-chevron {
   transform: translateX(3px);
   color: var(--text-primary);
 }
-
-
 
 .profile-content-panel {
   overflow: hidden;
@@ -290,7 +292,7 @@
 }
 
 .profile-content-tab.active::after {
-  content: "";
+  content: '';
   position: absolute;
   left: 50%;
   bottom: 0;
@@ -340,15 +342,34 @@
 }
 
 .profile-reply-item:last-child,
-.profile-draft-item:last-child { border-bottom: 0; }
+.profile-draft-item:last-child {
+  border-bottom: 0;
+}
 .profile-reply-item:hover,
-.profile-draft-item:hover { background: rgba(15, 23, 42, 0.035); }
-.profile-reply-target { color: #667085; font-size: 12px; font-weight: 700; }
+.profile-draft-item:hover {
+  background: rgba(15, 23, 42, 0.035);
+}
+.profile-reply-target {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
 .profile-reply-item strong,
-.profile-draft-item strong { font-size: 14px; line-height: 1.5; }
+.profile-draft-item strong {
+  font-size: 14px;
+  line-height: 1.5;
+}
 .profile-reply-item small,
-.profile-draft-item small { color: var(--text-secondary); font-size: 11px; }
-.profile-draft-item p { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.profile-draft-item small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.profile-draft-item p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .profile-draft-badge {
   padding: 3px 7px;
   border-radius: 6px;
@@ -412,9 +433,7 @@
   align-items: center;
   gap: 16px;
   padding: 22px;
-  background:
-    linear-gradient(180deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0)),
-    #ffffff;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0)), #ffffff;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
 }
 
@@ -593,7 +612,6 @@
   width: 100%;
   min-width: 0;
 }
-
 
 .profile-post-copy p {
   margin: 6px 0 0;
@@ -782,73 +800,78 @@
    .profile-subpage-shell 的动画在 :875、.profile-post-card 在 :1292，
    写在上面这个前置块里会被它们按源序反超而静默失效。 */
 
-.user-space-page[data-theme="dark"] .stat-dot {
+.user-space-page[data-theme='dark'] .stat-dot {
   color: rgba(248, 250, 252, 0.32);
 }
 
-.user-space-page[data-theme="dark"] .profile-settings-btn {
+.user-space-page[data-theme='dark'] .profile-settings-btn {
   background: rgba(24, 24, 27, 0.82);
   color: #f8fafc;
 }
 
-.user-space-page[data-theme="dark"] .profile-content-tabs {
+.user-space-page[data-theme='dark'] .profile-content-tabs {
   background: rgba(24, 24, 27, 0.9);
 }
 
-.user-space-page[data-theme="dark"] .profile-forum-skeleton-card {
+.user-space-page[data-theme='dark'] .profile-forum-skeleton-card {
   background: rgba(24, 24, 27, 0.92);
   border-color: rgba(255, 255, 255, 0.06);
 }
 
-.user-space-page[data-theme="dark"] .profile-forum-skeleton-item {
-  background: linear-gradient(90deg, rgba(55, 55, 60, 0.92) 25%, rgba(70, 70, 75, 0.92) 50%, rgba(55, 55, 60, 0.92) 75%);
+.user-space-page[data-theme='dark'] .profile-forum-skeleton-item {
+  background: linear-gradient(
+    90deg,
+    rgba(55, 55, 60, 0.92) 25%,
+    rgba(70, 70, 75, 0.92) 50%,
+    rgba(55, 55, 60, 0.92) 75%
+  );
 }
 
-.user-space-page[data-theme="dark"] .profile-post-cover.empty {
+.user-space-page[data-theme='dark'] .profile-post-cover.empty {
   background: linear-gradient(135deg, rgba(49, 46, 129, 0.45), rgba(24, 24, 27, 0.92));
 }
 
-.user-space-page[data-theme="dark"] .edit-profile-textarea {
+.user-space-page[data-theme='dark'] .edit-profile-textarea {
   background: rgba(24, 24, 27, 0.92);
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-.user-space-page[data-theme="dark"] .profile-edit-page-card,
-.user-space-page[data-theme="dark"] .profile-edit-page-hero {
+.user-space-page[data-theme='dark'] .profile-edit-page-card,
+.user-space-page[data-theme='dark'] .profile-edit-page-hero {
   background: rgba(24, 24, 27, 0.92);
 }
 
-.user-space-page[data-theme="dark"] .profile-edit-page-hero {
+.user-space-page[data-theme='dark'] .profile-edit-page-hero {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-.user-space-page[data-theme="dark"] .profile-edit-page-actions {
+.user-space-page[data-theme='dark'] .profile-edit-page-actions {
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(24, 24, 27, 0.78);
 }
 
-.user-space-page[data-theme="dark"] .profile-edit-cancel-btn {
+.user-space-page[data-theme='dark'] .profile-edit-cancel-btn {
   background: rgba(255, 255, 255, 0.08);
   color: #f8fafc;
 }
 
-.user-space-page[data-theme="dark"] .profile-edit-save-btn {
+.user-space-page[data-theme='dark'] .profile-edit-save-btn {
   background: #f8fafc;
   color: #111827;
 }
 
-.user-space-page[data-theme="dark"] .profile-edit-avatar-badge {
+.user-space-page[data-theme='dark'] .profile-edit-avatar-badge {
   border-color: rgba(24, 24, 27, 0.92);
   background: #f8fafc;
   color: #111827;
 }
 
-.user-space-page[data-theme="dark"] .profile-edit-avatar-action {
+.user-space-page[data-theme='dark'] .profile-edit-avatar-action {
   background: rgba(255, 255, 255, 0.08);
   color: #f8fafc;
 }
 
-.user-space-page[data-theme="dark"] .profile-date-select {
+.user-space-page[data-theme='dark'] .profile-date-select {
   border-color: rgba(255, 255, 255, 0.1);
   background-color: rgba(24, 24, 27, 0.92);
   background-image:
@@ -912,7 +935,9 @@
 
 .profile-panel-fade-enter-active,
 .profile-panel-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 
 .profile-panel-fade-enter-from,
@@ -928,7 +953,9 @@
   overflow: hidden;
   margin-bottom: 0;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.18s ease, transform 0.18s ease;
+  transition:
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -937,7 +964,6 @@
     transform: translateY(-1px);
   }
 }
-
 
 .messages-tab {
   position: relative;
@@ -1002,7 +1028,9 @@
   border-radius: 50%;
   border: 4px solid var(--surface);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
-  transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out);
+  transition:
+    transform 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out);
 }
 
 .profile-hero-avatar:hover .apple-avatar {
@@ -1024,7 +1052,9 @@
 
 .avatar-online-indicator.online {
   background: #10b981;
-  box-shadow: 0 0 0 2px rgba(16,185,129,0.18), 0 2px 8px rgba(16,185,129,0.3);
+  box-shadow:
+    0 0 0 2px rgba(16, 185, 129, 0.18),
+    0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
 .profile-meta-row {
@@ -1050,7 +1080,7 @@
 
 .profile-online-dot.online {
   background: #10b981;
-  box-shadow: 0 0 0 4px rgba(16,185,129,0.12);
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
 }
 
 .profile-online-text {
@@ -1092,27 +1122,27 @@
   background: #1d1d1f;
   color: #fff;
   border-color: #1d1d1f;
-  box-shadow: 0 8px 20px rgba(15,23,42,0.12);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
 }
 
 @media (hover: hover) and (pointer: fine) {
   .profile-follow-btn:hover {
     background: #000;
     transform: translateY(-1px);
-    box-shadow: 0 12px 28px rgba(15,23,42,0.16);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
   }
 }
 
 .profile-follow-btn.is-following {
   background: #fff;
   color: #0f172a;
-  border-color: rgba(15,23,42,0.12);
-  box-shadow: 0 4px 12px rgba(15,23,42,0.06);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
 .profile-follow-btn.is-following:hover {
-  background: rgba(255,59,48,0.06);
-  border-color: rgba(255,59,48,0.22);
+  background: rgba(255, 59, 48, 0.06);
+  border-color: rgba(255, 59, 48, 0.22);
   color: #dc2626;
 }
 
@@ -1125,19 +1155,19 @@
 .profile-follow-btn--ghost {
   background: #fff;
   color: #0f172a;
-  border-color: rgba(15,23,42,0.12);
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 .profile-message-btn {
   background: #fff;
   color: #0f172a;
-  border-color: rgba(15,23,42,0.12);
-  box-shadow: 0 4px 12px rgba(15,23,42,0.06);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
 .profile-message-btn:hover {
   background: #f8fafc;
-  border-color: rgba(15,23,42,0.18);
+  border-color: rgba(15, 23, 42, 0.18);
 }
 
 .profile-hero-stats {
@@ -1279,19 +1309,28 @@
   border-radius: 16px;
   background: #ffffff;
   cursor: pointer;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
   animation: profile-post-card-in 340ms var(--ease-out) both;
   animation-delay: var(--post-appear-delay, 0ms);
 }
 
 @keyframes profile-post-card-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.99); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .profile-post-card:hover {
   border-color: rgba(15, 23, 42, 0.12);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.10);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
   transform: translateY(-2px);
 }
 
@@ -1394,7 +1433,7 @@
   cursor: not-allowed;
 }
 
-[data-theme="dark"] .profile-post-cover.empty {
+[data-theme='dark'] .profile-post-cover.empty {
   background: linear-gradient(135deg, rgba(49, 46, 129, 0.45), rgba(24, 24, 27, 0.92));
 }
 
@@ -1448,11 +1487,13 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  transition: background 0.16s ease, transform 0.16s ease;
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .profile-points-card-action:hover {
-  background: rgba(15, 23, 42, 0.10);
+  background: rgba(15, 23, 42, 0.1);
   transform: translateY(-1px);
 }
 
@@ -1491,23 +1532,23 @@
   }
 }
 
-.user-space-page[data-theme="dark"] .profile-points-card-section {
+.user-space-page[data-theme='dark'] .profile-points-card-section {
   background: rgba(24, 24, 27, 0.92);
   border-color: rgba(255, 255, 255, 0.08);
 }
 
-.user-space-page[data-theme="dark"] .profile-points-card-action {
+.user-space-page[data-theme='dark'] .profile-points-card-action {
   background: rgba(255, 255, 255, 0.08);
   color: #f8fafc;
 }
 
-.profile-page[data-theme="dark"] .profile-points-card-section {
+.profile-page[data-theme='dark'] .profile-points-card-section {
   background: rgba(24, 26, 32, 0.96);
   border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
 }
 
-.profile-page[data-theme="dark"] .profile-points-card-action {
+.profile-page[data-theme='dark'] .profile-points-card-action {
   background: rgba(255, 255, 255, 0.08);
   color: #f5f5f7;
 }
@@ -1539,4 +1580,98 @@
   .profile-follow-btn:hover {
     transform: none;
   }
+}
+
+/* ============ 公开笔记卡（作品格里的 Cloud+ 笔记，2026-09-29） ============
+   两个宿主（UserSpaceMain 的 ProfileHomePanel / ProfileMain）共享本文件，
+   所以放在这里而不是各自 scoped —— 文字封面渐变是主题无关的固定色，白字保证对比度；
+   hash 取主题号在 utils/cloud-note-cover.js。 */
+.profile-note-text-cover {
+  aspect-ratio: 4 / 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 14px;
+}
+
+.profile-note-text-cover strong {
+  color: #ffffff;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 800;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.profile-note-cover-kicker {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.note-cover-theme-0 .profile-note-text-cover {
+  background: linear-gradient(150deg, #3b82f6, #1d4ed8);
+}
+.note-cover-theme-1 .profile-note-text-cover {
+  background: linear-gradient(150deg, #14b8a6, #0f766e);
+}
+.note-cover-theme-2 .profile-note-text-cover {
+  background: linear-gradient(150deg, #f59e0b, #b45309);
+}
+.note-cover-theme-3 .profile-note-text-cover {
+  background: linear-gradient(150deg, #8b5cf6, #5b21b6);
+}
+.note-cover-theme-4 .profile-note-text-cover {
+  background: linear-gradient(150deg, #ec4899, #9d174d);
+}
+.note-cover-theme-5 .profile-note-text-cover {
+  background: linear-gradient(150deg, #64748b, #1e293b);
+}
+
+.profile-note-public-badge {
+  color: #0f766e;
+  background: rgba(20, 184, 166, 0.12);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+
+/* 管理动作只在「我」页作品格出现（ProfileMain 只读展示） */
+.profile-note-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.profile-note-action-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: var(--surface, #f8fafc);
+  color: var(--text-secondary, #475569);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.profile-note-action-btn:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.profile-note-action-btn.danger {
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.25);
+}
+
+.profile-note-action-btn.danger:hover {
+  background: rgba(185, 28, 28, 0.06);
 }

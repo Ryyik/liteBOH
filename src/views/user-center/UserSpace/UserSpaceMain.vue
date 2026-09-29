@@ -99,6 +99,7 @@
             :subscription-summary-text="subscriptionSummaryText"
             :is-content-loading="dataState.profile.loading"
             :posts="profilePosts"
+            :public-notes="publicCloudNotes"
             :has-more-posts="hasMoreProfilePosts"
             :is-loading-more="isLoadingMoreProfilePosts"
             @edit-profile="openEditProfileModal"
@@ -114,6 +115,9 @@
             @post-click="openProfilePost"
             @switch-tab="switchTab"
             @load-more="loadMoreProfilePosts"
+            @note-open="openProfileCloudNote"
+            @note-set-private="setProfileCloudNotePrivate"
+            @note-delete="deleteProfileCloudNote"
           />
         </div>
       </div>
@@ -496,7 +500,9 @@ import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import { getMyUserSpaceSummary } from '@/utils/api/user-space-api.js';
 import { logger } from '@/utils/logger.js';
-import { listMyCloudEntries } from '@/utils/api/boh-cloud-api.js';
+import { listMyCloudEntries, setMyCloudEntryVisibility } from '@/utils/api/boh-cloud-api.js';
+import { deleteCloudEntryWithAssets } from '@/utils/cloud-entry-maintenance.js';
+import { isPublicCloudEntry } from '@/utils/cloud-storage-accounting.js';
 import {
   CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES,
   deleteCloudinaryAssetsByPublicIds,
@@ -1396,6 +1402,12 @@ const cloudPlusUsage = shallowReactive({
   used: 0,
   limit: DEFAULT_CLOUD_IMAGE_LIMIT,
 });
+// 自己的全部 Cloud+ 条目（含公开笔记）：公开笔记进作品格展示，图片仍占 Cloud+ 配额。
+// fetchCloudPlusUsage 的回退路径与 fetchCloudEntriesForWorks 都喂这份数据。
+const myCloudEntries = shallowRef([]);
+const publicCloudNotes = computed(() =>
+  myCloudEntries.value.filter((entry) => isPublicCloudEntry(entry)),
+);
 const cloudPlusUsageText = computed(() => {
   if (dataState.cloud.loading) return '读取中';
   if (!cloudPlusUsage.loaded) return '未检查';
@@ -1671,6 +1683,7 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
     cloudPlusUsage.limit = Number(benefit.cloudImageLimit || DEFAULT_CLOUD_IMAGE_LIMIT);
 
     if (cloudEntriesResult.ok && Array.isArray(cloudEntriesResult.data)) {
+      myCloudEntries.value = cloudEntriesResult.data;
       cloudPlusUsage.used = cloudEntriesResult.data.reduce(
         (sum, entry) =>
           sum +
@@ -1699,6 +1712,49 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
     dataState.cloud.error = error;
   } finally {
     dataState.cloud.loading = false;
+  }
+};
+
+/**
+ * 拉自己的 Cloud+ 条目喂「作品格」的公开笔记。
+ * 聚合摘要 RPC 只给 used/limit 数值、不给条目，作品格必须另拉一次列表；
+ * 两条路径都写 myCloudEntries，公开笔记与用量口径同源。
+ */
+const fetchCloudEntriesForWorks = async ({ force = false } = {}) => {
+  const userId = String(userInfo.value.id || '').trim();
+  if (!isLoggedIn.value || !userId) {
+    myCloudEntries.value = [];
+    return;
+  }
+  if (!force && myCloudEntries.value.length > 0) return;
+
+  const result = await listMyCloudEntries({ userId, limit: 500 });
+  if (result.ok && Array.isArray(result.data)) {
+    myCloudEntries.value = result.data;
+    cloudPlusUsage.used = result.data.reduce(
+      (sum, entry) =>
+        sum +
+        (Array.isArray(entry?.contentBlocks)
+          ? entry.contentBlocks.filter((block) => block?.type === 'image').length
+          : 0),
+      0,
+    );
+    cloudPlusUsage.loaded = true;
+  } else if (result.error) {
+    logger.warn('user-space', '读取 Cloud+ 条目（作品格）失败:', result.error);
+  }
+};
+
+/** 作品格管理动作后刷新：条目列表 + 用量缓存一起重取（用量缓存按 key 覆写）。 */
+const refreshCloudEntriesForWorks = async () => {
+  const userId = String(userInfo.value.id || '').trim();
+  await fetchCloudEntriesForWorks({ force: true });
+  if (userId) {
+    setUserSpaceCache(`cloud-usage:${userId}`, {
+      used: cloudPlusUsage.used,
+      limit: cloudPlusUsage.limit,
+    });
+    lastFetchTime.cloudUsage = Date.now();
   }
 };
 
@@ -2057,7 +2113,7 @@ const submitEditProfile = async () => {
   }
 };
 
-const openCloudPlusArea = (view = 'content') => {
+const openCloudPlusArea = (view = 'content', extraQuery = {}) => {
   const safeView = ['content', 'settings'].includes(String(view)) ? String(view) : 'content';
   const returnOrigin = currentTab.value === 'settings' ? 'userspace-settings' : 'userspace';
   router.push({
@@ -2065,8 +2121,68 @@ const openCloudPlusArea = (view = 'content') => {
     query: {
       view: safeView,
       from: returnOrigin,
+      ...extraQuery,
     },
   });
+};
+
+// —— 作品格里的公开笔记（Cloud+ entries）：管理唯一落点（2026-09-29 拍板） ——
+const openProfileCloudNote = (entry) => {
+  if (!entry?.id) return;
+  openCloudPlusArea('content', { entry: String(entry.id) });
+};
+
+const setProfileCloudNotePrivate = async (entry) => {
+  const userId = String(userInfo.value.id || '').trim();
+  if (!isLoggedIn.value || !userId || !entry?.id) return;
+  try {
+    const result = await setMyCloudEntryVisibility(userId, entry.id, 'private');
+    if (!result.ok) {
+      showAlert('error', '设为私密失败', result.error?.message || '请稍后重试');
+      return;
+    }
+    showTopNavStatus({
+      title: '已设为私密',
+      message: '这条笔记已从作品格收回，仅你自己可见',
+      icon: 'success',
+      type: 'success',
+    });
+    await refreshCloudEntriesForWorks();
+  } catch (error) {
+    logger.error('user-space', '公开笔记设为私密失败:', error);
+  }
+};
+
+const deleteProfileCloudNote = async (entry) => {
+  const userId = String(userInfo.value.id || '').trim();
+  if (!isLoggedIn.value || !userId || !entry?.id) return;
+
+  if (
+    !(await dialog.confirm({
+      title: '删除公开笔记',
+      message: '删除后会同时清理笔记里的云端图片，并释放对应 Cloud+ 额度。确定删除吗？',
+      tone: 'danger',
+      confirmText: '删除',
+    }))
+  )
+    return;
+
+  try {
+    const result = await deleteCloudEntryWithAssets(userId, entry);
+    if (!result.ok) {
+      showAlert('error', '删除失败', result.error?.message || '请稍后重试');
+      return;
+    }
+    showTopNavStatus({
+      title: '笔记已删除',
+      message: '公开笔记与其图片已清理',
+      icon: 'success',
+      type: 'success',
+    });
+    await refreshCloudEntriesForWorks();
+  } catch (error) {
+    logger.error('user-space', '公开笔记删除失败:', error);
+  }
 };
 
 const getTodayDate = () => {
@@ -2947,6 +3063,7 @@ const runProfileCriticalFetches = ({ force = false } = {}) => {
   profileCriticalFetchesAt = now;
   void fetchUserStats({ force });
   void fetchCloudPlusUsage({ force });
+  void fetchCloudEntriesForWorks({ force });
   void fetchProfileContent({ force, reset: force });
   void fetchActivityHeatmap({ force });
 };

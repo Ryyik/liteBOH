@@ -660,9 +660,9 @@
               </div>
             </div>
           </div>
-          <div v-else-if="posts.length === 0" class="empty-list-state">
+          <div v-else-if="profileWorkItems.length === 0" class="empty-list-state">
             <h3>暂无发布过的帖子</h3>
-            <p>发布的帖子会出现在这里。</p>
+            <p>发布的帖子和公开的 Cloud+ 笔记会出现在这里。</p>
             <button v-if="isOwnProfile" class="empty-action-btn" @click="showPostModal = true">
               立即发帖
             </button>
@@ -675,69 +675,104 @@
             </button>
           </div>
           <div v-else class="profile-post-grid">
-            <article
-              v-for="(post, index) in posts"
-              :key="post.id"
-              class="profile-post-card"
-              :class="{
-                'text-only': !post.images?.length,
-                'image-post-card-v2': post.images?.length,
-              }"
-              :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
-              @click="navigateToPost(post.id)"
-            >
-              <div v-if="isOwnProfile" class="profile-post-pin-action">
-                <button
-                  class="pin-post-btn"
-                  @click.stop="toggleShowcasePost(post)"
-                  :disabled="!isShowcasedPost(post.id) && showcasePosts.length >= 3"
-                >
-                  {{ isShowcasedPost(post.id) ? '已置顶' : '置顶' }}
-                </button>
-              </div>
-              <figure
-                v-if="isHomeCatActive"
-                class="post-card-theme-cat"
-                :class="getPostCardCatVariant(index)"
-                aria-hidden="true"
+            <template v-for="(item, index) in profileWorkItems" :key="item.key">
+              <article
+                v-if="item.kind === 'note'"
+                class="profile-post-card profile-note-card"
+                :class="[
+                  `note-cover-theme-${item.card.coverTheme}`,
+                  {
+                    'text-only': !item.card.coverImageUrl,
+                    'image-post-card-v2': item.card.coverImageUrl,
+                  },
+                ]"
+                :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
               >
-                <img
-                  :src="getPostCardCatSrc(post, index)"
-                  alt=""
-                  draggable="false"
-                  loading="lazy"
-                />
-              </figure>
-              <figure
-                v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
-                class="post-card-background-cat"
-                aria-hidden="true"
-              >
-                <img
-                  :src="getPostBackgroundCatSrc(post, index)"
-                  alt=""
-                  draggable="false"
-                  loading="lazy"
-                />
-              </figure>
-              <div class="profile-post-cover" v-if="getProfilePostCover(post)">
-                <img
-                  :src="getProfilePostCover(post)"
-                  :alt="post.title || '帖子封面'"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </div>
-              <div class="profile-post-copy">
-                <h3>{{ post.title || '无标题' }}</h3>
-                <p>{{ getProfilePostSummary(post) }}</p>
-                <div class="profile-post-meta">
-                  <span>{{ formatProfilePostDate(post) }}</span>
-                  <span>{{ post.like_count || 0 }}赞</span>
-                  <span>{{ post.comment_count || 0 }}评</span>
+                <div class="profile-post-cover" v-if="item.card.coverImageUrl">
+                  <img
+                    :src="resolveDbCardImage(item.card.coverImageUrl)"
+                    :alt="noteDisplayTitle(item.card)"
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
-              </div>
-            </article>
+                <div v-else class="profile-note-text-cover" aria-hidden="true">
+                  <span class="profile-note-cover-kicker">Cloud+ 笔记</span>
+                  <strong>{{ noteDisplayTitle(item.card) }}</strong>
+                </div>
+                <div class="profile-post-copy">
+                  <h3>{{ noteDisplayTitle(item.card) }}</h3>
+                  <p>{{ item.card.summary || '暂无文字预览' }}</p>
+                  <div class="profile-post-meta">
+                    <span>{{ formatProfilePostDate({ created_at: item.card.dateValue }) }}</span>
+                    <span v-if="item.card.imageCount">{{ item.card.imageCount }} 图</span>
+                    <span class="profile-note-public-badge">公开笔记</span>
+                  </div>
+                </div>
+              </article>
+              <article
+                v-else
+                class="profile-post-card"
+                :class="{
+                  'text-only': !post.images?.length,
+                  'image-post-card-v2': post.images?.length,
+                }"
+                :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
+                @click="navigateToPost(post.id)"
+              >
+                <div v-if="isOwnProfile" class="profile-post-pin-action">
+                  <button
+                    class="pin-post-btn"
+                    @click.stop="toggleShowcasePost(post)"
+                    :disabled="!isShowcasedPost(post.id) && showcasePosts.length >= 3"
+                  >
+                    {{ isShowcasedPost(post.id) ? '已置顶' : '置顶' }}
+                  </button>
+                </div>
+                <figure
+                  v-if="isHomeCatActive"
+                  class="post-card-theme-cat"
+                  :class="getPostCardCatVariant(index)"
+                  aria-hidden="true"
+                >
+                  <img
+                    :src="getPostCardCatSrc(post, index)"
+                    alt=""
+                    draggable="false"
+                    loading="lazy"
+                  />
+                </figure>
+                <figure
+                  v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
+                  class="post-card-background-cat"
+                  aria-hidden="true"
+                >
+                  <img
+                    :src="getPostBackgroundCatSrc(post, index)"
+                    alt=""
+                    draggable="false"
+                    loading="lazy"
+                  />
+                </figure>
+                <div class="profile-post-cover" v-if="getProfilePostCover(post)">
+                  <img
+                    :src="getProfilePostCover(post)"
+                    :alt="post.title || '帖子封面'"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+                <div class="profile-post-copy">
+                  <h3>{{ post.title || '无标题' }}</h3>
+                  <p>{{ getProfilePostSummary(post) }}</p>
+                  <div class="profile-post-meta">
+                    <span>{{ formatProfilePostDate(post) }}</span>
+                    <span>{{ post.like_count || 0 }}赞</span>
+                    <span>{{ post.comment_count || 0 }}评</span>
+                  </div>
+                </div>
+              </article>
+            </template>
           </div>
           <div v-if="posts.length > 0 && hasMorePosts" class="list-load-more-wrap">
             <button class="load-more-btn" :disabled="isTabLoading.posts" @click="loadMorePosts">
@@ -987,7 +1022,7 @@ import { useTierMap } from '@/composables/useTierMap.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpaceSideRail.vue';
 import { userSpaceNavItems } from '@/views/user-center/UserSpace/composables/useUserSpaceTabs.js';
-import { getNotificationStoreSync, loadNotificationStore } from '@/stores/notification-loader';
+import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 
 const authStore = useAuthStore();
 const { isLoggedIn, userInfo } = storeToRefs(authStore);
@@ -1023,6 +1058,10 @@ import {
 } from '@/utils/api/profile-api.js';
 import { createPost, toggleLike } from '@/utils/api/forum-api.js';
 import { getCloudinaryDisplayUrl } from '@/utils/cloudinary-client.js';
+import { listUserPublicCloudEntries } from '@/utils/api/boh-cloud-api.js';
+import { buildCloudNoteWorkCard } from '@/utils/cloud-note-cover.js';
+import { cloudEntryDefaultTitle } from '@/utils/boh-cloud-content.js';
+import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import {
@@ -1609,7 +1648,7 @@ const onThemeChanged = (event) => {
    复用 UserSpaceSideRail + landscape-rail.css 的同一套横屏档。
    当前页不属于五个 tab → current-tab 传 'others'，指示器自动隐藏（无高亮）。
    可见性仍由 side-rail.css 的媒体查询决定，竖屏 / 手机横屏零副作用。 */
-const railNotificationStore = ref(getNotificationStoreSync());
+const railNotificationStore = getNotificationStoreRef();
 const railUnreadCount = computed(() => railNotificationStore.value?.unreadCount || 0);
 
 const handleRailNavClick = (itemId) => {
@@ -1906,8 +1945,51 @@ const resetProfileCollections = () => {
   showcasePostsFetched.value = [];
   activityHeatmap.value = null;
   isHeatmapLoading.value = false;
+  publicCloudNotes.value = [];
   resetPagingState();
 };
+
+/**
+ * 公开笔记（Cloud+ entries, visibility='public'）：进主页作品流，访客可读。
+ * 依赖 2026092901 迁移的公开读 RLS；未部署时访客查询被拒 → 按空列表降级。
+ * 这里只做展示（管理唯一落点在「我」页作品格），所以不接管理动作。
+ */
+const publicCloudNotes = ref([]);
+
+const loadPublicCloudNotes = async (targetUserId, fetchVersion = profileFetchVersion.value) => {
+  const safeUserId = String(targetUserId || '').trim();
+  if (!safeUserId) {
+    if (fetchVersion === profileFetchVersion.value) publicCloudNotes.value = [];
+    return;
+  }
+
+  const result = await listUserPublicCloudEntries(safeUserId, { limit: 120 });
+  if (fetchVersion !== profileFetchVersion.value) return;
+  publicCloudNotes.value = result.ok && Array.isArray(result.data) ? result.data : [];
+};
+
+const noteDisplayTitle = (card = {}) =>
+  String(card.title || '').trim() || cloudEntryDefaultTitle(card.entry);
+
+// 主页作品流 = 帖子 + 公开笔记，按时间混排（公开内容唯一出口：作品格）
+const profileWorkItems = computed(() => {
+  const postItems = (posts.value || []).map((post) => ({
+    key: `post-${post.id}`,
+    kind: 'post',
+    date: String(post.created_at || post.published_at || post.updated_at || ''),
+    post,
+  }));
+  const noteItems = (publicCloudNotes.value || [])
+    .map((entry) => buildCloudNoteWorkCard(entry))
+    .filter(Boolean)
+    .map((card) => ({
+      key: `note-${card.id}`,
+      kind: 'note',
+      date: card.dateValue,
+      card,
+    }));
+  return [...postItems, ...noteItems].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+});
 
 /**
  * 活跃热力图：他人主页同样展示，因为是公开 participates 数据。
@@ -2148,6 +2230,7 @@ const fetchProfileData = async (username) => {
       await Promise.all([
         loadShowcasePostsForProfile(profileData, fetchVersion),
         ensureActiveTabData({ reset: true, fetchVersion }),
+        loadPublicCloudNotes(profileData.id, fetchVersion),
         loadFollowState(profileData.id),
         fetchTotalPostCount(safeUsername, profileData.id),
         loadActivityHeatmap(profileData.id, fetchVersion),
@@ -2609,14 +2692,12 @@ onMounted(() => {
   if (route.params.username) {
     fetchProfileData(route.params.username);
   }
-  // 横屏左栏消息角标：App.vue 登录后会把 store 装进单例，这里兜底补拉一次
-  if (!railNotificationStore.value && isLoggedIn.value) {
-    loadNotificationStore()
-      .then((store) => {
-        railNotificationStore.value = store;
-      })
-      .catch(() => {});
-  }
+  // 横屏左栏消息角标：用 notification-loader 的**共享 ref**（2026-09-29 收敛）。
+  // 此前这里是本仓库第 7 份局部副本：`ref(getNotificationStoreSync())` + 自己一份兜底 load。
+  // 局部 ref 只在 setup 期取一次快照，于是「登出态挂载 → 之后登录且不重挂」这条路径上
+  // 它永远是 null，横屏左栏消息角标恒空，而其它宿主预载的实例也照不进来。
+  // 现在只负责「确保装载」：任一宿主加载成功，本页 computed 立刻可见。
+  void ensureNotificationStore();
 });
 
 onUnmounted(() => {

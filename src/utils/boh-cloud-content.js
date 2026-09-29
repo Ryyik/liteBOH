@@ -22,7 +22,7 @@ export function parseLegacyMarkdownBlocks(content = '') {
       blocks.push({
         type: 'image',
         url: String(url || '').trim(),
-        alt: limitText(alt, 120)
+        alt: limitText(alt, 120),
       });
     }
 
@@ -46,7 +46,9 @@ export function normalizeCloudBlocks(blocks = [], fallbackText = '') {
   const source = Array.isArray(blocks) ? blocks : [];
   const normalized = source
     .map((block) => {
-      const type = String(block?.type || '').trim().toLowerCase();
+      const type = String(block?.type || '')
+        .trim()
+        .toLowerCase();
       if (IMAGE_BLOCK_TYPES.has(type)) {
         const url = String(block?.url || block?.src || '').trim();
         if (!url) return null;
@@ -56,7 +58,7 @@ export function normalizeCloudBlocks(blocks = [], fallbackText = '') {
           publicId: limitText(block?.publicId || block?.public_id, 255),
           alt: limitText(block?.alt, 120),
           width: Number(block?.width || 0) || null,
-          height: Number(block?.height || 0) || null
+          height: Number(block?.height || 0) || null,
         };
       }
 
@@ -64,7 +66,7 @@ export function normalizeCloudBlocks(blocks = [], fallbackText = '') {
       if (!text) return null;
       return {
         type: 'text',
-        text
+        text,
       };
     })
     .filter(Boolean);
@@ -89,7 +91,9 @@ export function flattenCloudBlocksToText(blocks = [], fallbackText = '') {
 export function deriveCloudEntryType(blocks = [], fallbackText = '') {
   const normalized = normalizeCloudBlocks(blocks, fallbackText);
   const hasImage = normalized.some((block) => block.type === 'image');
-  const hasText = normalized.some((block) => block.type === 'text' && String(block.text || '').trim());
+  const hasText = normalized.some(
+    (block) => block.type === 'text' && String(block.text || '').trim(),
+  );
 
   if (hasImage && hasText) return 'mixed';
   if (hasImage) return 'image';
@@ -108,10 +112,13 @@ export function buildCloudPreview(blocks = [], fallbackText = '', maxLen = 120) 
   return plainText.length > maxLen ? `${plainText.slice(0, maxLen)}...` : plainText;
 }
 
-export function serializeCloudTextAndImages({
-  text = '',
-  images = []
-} = {}) {
+export function cloudEntryDefaultTitle(entry = {}) {
+  if (entry.entryType === 'image') return '一组新的照片';
+  if (entry.entryType === 'mixed') return '图文记忆片段';
+  return '新的文字记录';
+}
+
+export function serializeCloudTextAndImages({ text = '', images = [] } = {}) {
   const normalizedText = limitText(text, 40000);
   const normalizedImages = Array.isArray(images) ? images : [];
   const blocks = [];
@@ -129,7 +136,7 @@ export function serializeCloudTextAndImages({
       publicId: limitText(image?.publicId || image?.public_id, 255),
       alt: limitText(image?.alt, 120),
       width: Number(image?.width || 0) || null,
-      height: Number(image?.height || 0) || null
+      height: Number(image?.height || 0) || null,
     });
   });
 

@@ -1,107 +1,206 @@
 <template>
   <div key="profile-home" class="profile-home-shell">
     <section class="profile-hero-panel">
-      <button type="button" class="profile-cover-band"
-        :class="{ 'has-background-image': Boolean(profileBackgroundUrl), 'is-uploading': isUploadingProfileBackground }"
-        :style="profileCoverStyle" :disabled="isUploadingProfileBackground"
-        :aria-label="isUploadingProfileBackground ? '正在上传个人卡片背景' : '更换个人卡片背景'" title="更换背景"
-        @click="$emit('background-click')">
+      <button
+        type="button"
+        class="profile-cover-band"
+        :class="{
+          'has-background-image': Boolean(profileBackgroundUrl),
+          'is-uploading': isUploadingProfileBackground,
+        }"
+        :style="profileCoverStyle"
+        :disabled="isUploadingProfileBackground"
+        :aria-label="isUploadingProfileBackground ? '正在上传个人卡片背景' : '更换个人卡片背景'"
+        title="更换背景"
+        @click="$emit('background-click')"
+      >
         <span class="profile-cover-glass" aria-hidden="true"></span>
         <span class="profile-cover-action" aria-hidden="true">
           {{ isUploadingProfileBackground ? '上传中' : '更换背景' }}
         </span>
       </button>
-      <button type="button" class="profile-settings-btn" @click="$emit('settings')" aria-label="设置"
-        title="设置">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-          stroke-linejoin="round">
+      <button
+        type="button"
+        class="profile-settings-btn"
+        @click="$emit('settings')"
+        aria-label="设置"
+        title="设置"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <circle cx="12" cy="12" r="3"></circle>
           <path
-            d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 20.53 7l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.4.6.7 1 .6h.6a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z">
-          </path>
+            d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 20.53 7l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.4.6.7 1 .6h.6a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z"
+          ></path>
         </svg>
       </button>
 
       <div class="profile-identity-stack">
-      <div class="profile-hero-body">
-        <span class="boh-avatar-wrap">
-          <div class="apple-avatar-wrapper profile-hero-avatar clickable" @click="$emit('avatar-click')">
-            <div v-if="avatarUrl" class="apple-avatar has-avatar">
-              <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy">
+        <div class="profile-hero-body">
+          <span class="boh-avatar-wrap">
+            <div
+              class="apple-avatar-wrapper profile-hero-avatar clickable"
+              @click="$emit('avatar-click')"
+            >
+              <div v-if="avatarUrl" class="apple-avatar has-avatar">
+                <img :src="avatarUrl" alt="头像" class="avatar-img" loading="lazy" />
+              </div>
+              <div v-else class="apple-avatar">{{ displayInitial }}</div>
+              <div class="avatar-edit-overlay">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                  />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+              </div>
             </div>
-            <div v-else class="apple-avatar">{{ displayInitial }}</div>
-            <div class="avatar-edit-overlay">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
-              </svg>
-            </div>
-          </div>
-          <span v-if="heroFrame?.url" class="boh-avatar-frame"
-            :style="{ '--boh-avatar-frame-url': `url(${heroFrame.url})`, '--boh-avatar-frame-scale': String(heroFrame.scale || 1.24) }"
-            aria-hidden="true"></span>
-        </span>
+            <span
+              v-if="heroFrame?.url"
+              class="boh-avatar-frame"
+              :style="{
+                '--boh-avatar-frame-url': `url(${heroFrame.url})`,
+                '--boh-avatar-frame-scale': String(heroFrame.scale || 1.24),
+              }"
+              aria-hidden="true"
+            ></span>
+          </span>
 
-        <div class="profile-hero-copy">
-          <div class="name-row profile-hero-name-row">
-            <h1 class="profile-name" :class="nicknameClass">{{ displayName }}</h1>
-            <span v-if="isAdmin" class="admin-badge">ADMIN</span>
-            <span v-if="tierCode && tierCode !== 'free'" class="tier-badge" :class="`tier-${tierCode}`">{{ tierDisplayName }}</span>
-          </div>
-          <p class="profile-handle">@{{ displayName || 'user' }}</p>
-          <div class="profile-bio-wrap">
-            <p ref="bioRef" class="profile-bio" :class="{ clamped: !bioExpanded, expanded: bioExpanded }">{{ profileBio }}</p>
-            <button v-if="bioHasOverflow" type="button" class="profile-bio-toggle" @click="toggleBio">
-              {{ bioExpanded ? '收起' : '全文' }}
+          <div class="profile-hero-copy">
+            <div class="name-row profile-hero-name-row">
+              <h1 class="profile-name" :class="nicknameClass">{{ displayName }}</h1>
+              <span v-if="isAdmin" class="admin-badge">ADMIN</span>
+              <span
+                v-if="tierCode && tierCode !== 'free'"
+                class="tier-badge"
+                :class="`tier-${tierCode}`"
+                >{{ tierDisplayName }}</span
+              >
+            </div>
+            <p class="profile-handle">@{{ displayName || 'user' }}</p>
+            <div class="profile-bio-wrap">
+              <p
+                ref="bioRef"
+                class="profile-bio"
+                :class="{ clamped: !bioExpanded, expanded: bioExpanded }"
+              >
+                {{ profileBio }}
+              </p>
+              <button
+                v-if="bioHasOverflow"
+                type="button"
+                class="profile-bio-toggle"
+                @click="toggleBio"
+              >
+                {{ bioExpanded ? '收起' : '全文' }}
+              </button>
+            </div>
+            <button type="button" class="profile-edit-btn" @click="$emit('edit-profile')">
+              编辑资料
             </button>
           </div>
-          <button type="button" class="profile-edit-btn" @click="$emit('edit-profile')">
-            编辑资料
-          </button>
         </div>
-      </div>
 
-      <div class="profile-stats profile-hero-stats profile-stats-compact" :class="{ 'is-loading': isStatsLoading }">
-        <template v-if="isStatsLoading">
-          <span class="stat-skeleton stat-skeleton-line"></span>
-        </template>
-        <template v-else>
-          <button type="button" class="stat-chip" @click="$emit('switch-tab', 'posts')">
-            <span class="stat-chip-num">{{ stats.posts || 0 }}</span>
-            <span class="stat-chip-label">发帖</span>
-          </button>
-          <span class="stat-dot" aria-hidden="true">·</span>
-          <span class="stat-chip stat-chip-static">
-            <span class="stat-chip-num">{{ formatPoints(stats.points) || '0' }}</span>
-            <span class="stat-chip-label">积分</span>
-          </span>
-          <span class="stat-dot" aria-hidden="true">·</span>
-          <button type="button" class="stat-chip clickable-follow-stat" @click="openFollowList('followers')">
-            <span class="stat-chip-num">{{ stats.followers || 0 }}</span>
-            <span class="stat-chip-label">粉丝</span>
-          </button>
-          <span class="stat-dot" aria-hidden="true">·</span>
-          <button type="button" class="stat-chip clickable-follow-stat" @click="openFollowList('following')">
-            <span class="stat-chip-num">{{ stats.following || 0 }}</span>
-            <span class="stat-chip-label">关注</span>
-          </button>
-        </template>
-      </div>
+        <div
+          class="profile-stats profile-hero-stats profile-stats-compact"
+          :class="{ 'is-loading': isStatsLoading }"
+        >
+          <template v-if="isStatsLoading">
+            <span class="stat-skeleton stat-skeleton-line"></span>
+          </template>
+          <template v-else>
+            <button type="button" class="stat-chip" @click="$emit('switch-tab', 'posts')">
+              <span class="stat-chip-num">{{ stats.posts || 0 }}</span>
+              <span class="stat-chip-label">发帖</span>
+            </button>
+            <span class="stat-dot" aria-hidden="true">·</span>
+            <span class="stat-chip stat-chip-static">
+              <span class="stat-chip-num">{{ formatPoints(stats.points) || '0' }}</span>
+              <span class="stat-chip-label">积分</span>
+            </span>
+            <span class="stat-dot" aria-hidden="true">·</span>
+            <button
+              type="button"
+              class="stat-chip clickable-follow-stat"
+              @click="openFollowList('followers')"
+            >
+              <span class="stat-chip-num">{{ stats.followers || 0 }}</span>
+              <span class="stat-chip-label">粉丝</span>
+            </button>
+            <span class="stat-dot" aria-hidden="true">·</span>
+            <button
+              type="button"
+              class="stat-chip clickable-follow-stat"
+              @click="openFollowList('following')"
+            >
+              <span class="stat-chip-num">{{ stats.following || 0 }}</span>
+              <span class="stat-chip-label">关注</span>
+            </button>
+          </template>
+        </div>
       </div>
     </section>
 
-    <ActivityHeatmap :payload="heatmap" :loading="isHeatmapLoading" @switch-tab="$emit('switch-tab', $event)" />
+    <ActivityHeatmap
+      :payload="heatmap"
+      :loading="isHeatmapLoading"
+      @switch-tab="$emit('switch-tab', $event)"
+    />
 
     <section class="profile-points-card-section is-own" aria-label="方块积分卡">
       <div class="profile-points-card-head">
         <span class="profile-points-card-kicker">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <line x1="2" y1="10" x2="22" y2="10" />
+          </svg>
           方块积分卡
-          <span v-if="tierDisplayName" class="tier-badge" :class="`tier-${tierCode}`" style="margin-left: 4px; height: 18px; font-size: 9px; padding: 0 7px;">{{ tierDisplayName }}</span>
+          <span
+            v-if="tierDisplayName"
+            class="tier-badge"
+            :class="`tier-${tierCode}`"
+            style="margin-left: 4px; height: 18px; font-size: 9px; padding: 0 7px"
+            >{{ tierDisplayName }}</span
+          >
         </span>
         <button type="button" class="profile-points-card-action" @click="handlePointsCardClick">
           设置卡面
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 18l6-6-6-6" />
+          </svg>
         </button>
       </div>
       <div class="profile-points-card-wrap">
@@ -125,8 +224,14 @@
 
       <button type="button" class="profile-service-row" @click="$emit('cloud-plus', 'content')">
         <span class="profile-service-icon bg-teal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
             <path d="M8 9h8"></path>
           </svg>
@@ -141,8 +246,14 @@
 
       <button type="button" class="profile-service-row" @click="$emit('assets')">
         <span class="profile-service-icon bg-yellow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path>
             <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path>
             <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
@@ -150,16 +261,26 @@
         </span>
         <span class="profile-service-body">
           <strong>方块积分</strong>
-          <small class="profile-service-hint">{{ formatPoints(stats.points) || '0' }} 积分 · {{ subscriptionSummaryText }}</small>
+          <small class="profile-service-hint"
+            >{{ formatPoints(stats.points) || '0' }} 积分 · {{ subscriptionSummaryText }}</small
+          >
         </span>
         <span class="profile-action-chevron">›</span>
       </button>
 
       <button type="button" class="profile-service-row" @click="$emit('photo-albums')">
         <span class="profile-service-icon bg-pink">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round">
-            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
+            ></path>
             <circle cx="12" cy="13" r="3"></circle>
           </svg>
         </span>
@@ -173,18 +294,35 @@
 
     <section class="profile-content-panel">
       <div class="profile-content-tabs" role="tablist" aria-label="我的内容">
-        <button v-for="tab in contentTabs" :key="tab.id" type="button" role="tab" class="profile-content-tab"
-          :class="{ active: activeContentTab === tab.id }" :aria-selected="activeContentTab === tab.id"
+        <button
+          v-for="tab in contentTabs"
+          :key="tab.id"
+          type="button"
+          role="tab"
+          class="profile-content-tab"
+          :class="{ active: activeContentTab === tab.id }"
+          :aria-selected="activeContentTab === tab.id"
           :aria-busy="tab.loading ? 'true' : 'false'"
-          @click="activeContentTab = tab.id">
+          @click="activeContentTab = tab.id"
+        >
           {{ tab.label }}
-          <span v-if="tab.loading" class="profile-content-count is-loading" aria-hidden="true"><span class="profile-content-count-skeleton"></span></span>
+          <span v-if="tab.loading" class="profile-content-count is-loading" aria-hidden="true"
+            ><span class="profile-content-count-skeleton"></span
+          ></span>
           <span v-else class="profile-content-count">{{ tab.count ?? 0 }}</span>
         </button>
       </div>
 
-      <div v-if="activeContentTab === 'posts' && isContentLoading" class="profile-forum-skeleton-feed" aria-hidden="true">
-        <div v-for="item in 3" :key="`my-post-skeleton-${item}`" class="profile-forum-skeleton-card">
+      <div
+        v-if="activeContentTab === 'posts' && isContentLoading"
+        class="profile-forum-skeleton-feed"
+        aria-hidden="true"
+      >
+        <div
+          v-for="item in 3"
+          :key="`my-post-skeleton-${item}`"
+          class="profile-forum-skeleton-card"
+        >
           <div class="profile-forum-skeleton-header">
             <div class="profile-forum-skeleton-avatar profile-forum-skeleton-item"></div>
             <div class="profile-forum-skeleton-headlines">
@@ -205,44 +343,116 @@
           </div>
         </div>
       </div>
-      <div v-else-if="activeContentTab === 'posts' && posts.length" class="profile-post-grid">
-        <article v-for="post in posts" :key="post.id" class="profile-post-card"
-          :class="{ 'text-only': !getProfilePostCover(post) }" @click="$emit('post-click', post.id)">
-          <div v-if="getProfilePostCover(post)" class="profile-post-cover">
-            <img v-if="getProfilePostCover(post)" :src="getProfilePostCover(post)"
-              :alt="getProfilePostTitle(post)" loading="lazy" decoding="async">
-          </div>
-          <div class="profile-post-copy">
-            <h3>{{ getProfilePostTitle(post) }}</h3>
-            <p>{{ getProfilePostSummary(post) }}</p>
-            <div class="profile-post-meta">
-              <span>{{ formatProfilePostDate(post) }}</span>
-              <span>{{ post.like_count || 0 }}赞</span>
-              <span>{{ post.comment_count || 0 }}评</span>
+      <div v-else-if="activeContentTab === 'posts' && workItems.length" class="profile-post-grid">
+        <template v-for="item in workItems" :key="item.key">
+          <article
+            v-if="item.kind === 'post'"
+            class="profile-post-card"
+            :class="{ 'text-only': !getProfilePostCover(item.post) }"
+            @click="$emit('post-click', item.post.id)"
+          >
+            <div v-if="getProfilePostCover(item.post)" class="profile-post-cover">
+              <img
+                v-if="getProfilePostCover(item.post)"
+                :src="getProfilePostCover(item.post)"
+                :alt="getProfilePostTitle(item.post)"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
-          </div>
-        </article>
+            <div class="profile-post-copy">
+              <h3>{{ getProfilePostTitle(item.post) }}</h3>
+              <p>{{ getProfilePostSummary(item.post) }}</p>
+              <div class="profile-post-meta">
+                <span>{{ formatProfilePostDate(item.post) }}</span>
+                <span>{{ item.post.like_count || 0 }}赞</span>
+                <span>{{ item.post.comment_count || 0 }}评</span>
+              </div>
+            </div>
+          </article>
+
+          <article
+            v-else
+            class="profile-post-card profile-note-card"
+            :class="[
+              `note-cover-theme-${item.card.coverTheme}`,
+              { 'text-only': !item.card.coverImageUrl },
+            ]"
+            @click="$emit('note-open', item.card.entry)"
+          >
+            <div v-if="item.card.coverImageUrl" class="profile-post-cover">
+              <img
+                :src="resolveDbCardImage(item.card.coverImageUrl)"
+                :alt="noteDisplayTitle(item.card)"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div v-else class="profile-note-text-cover" aria-hidden="true">
+              <span class="profile-note-cover-kicker">Cloud+ 笔记</span>
+              <strong>{{ noteDisplayTitle(item.card) }}</strong>
+            </div>
+            <div class="profile-post-copy">
+              <h3>{{ noteDisplayTitle(item.card) }}</h3>
+              <p>{{ item.card.summary || '暂无文字预览' }}</p>
+              <div class="profile-post-meta">
+                <span>{{ formatProfilePostDate({ created_at: item.card.dateValue }) }}</span>
+                <span v-if="item.card.imageCount">{{ item.card.imageCount }} 图</span>
+                <span class="profile-note-public-badge">公开</span>
+              </div>
+              <div class="profile-note-actions">
+                <button
+                  type="button"
+                  class="profile-note-action-btn"
+                  @click.stop="$emit('note-set-private', item.card.entry)"
+                >
+                  设为私密
+                </button>
+                <button
+                  type="button"
+                  class="profile-note-action-btn danger"
+                  @click.stop="$emit('note-delete', item.card.entry)"
+                >
+                  删除
+                </button>
+              </div>
+            </div>
+          </article>
+        </template>
         <div v-if="hasMorePosts" class="profile-load-more-wrap">
-          <button class="profile-load-more-btn" :disabled="isLoadingMore" @click.stop="$emit('load-more')">
+          <button
+            class="profile-load-more-btn"
+            :disabled="isLoadingMore"
+            @click.stop="$emit('load-more')"
+          >
             {{ isLoadingMore ? '加载中...' : '加载更多帖子' }}
           </button>
         </div>
       </div>
       <div v-else-if="activeContentTab === 'posts'" class="profile-content-empty">
-        <h3>还没有发帖</h3>
-        <p>发布后的内容会直接出现在这里。</p>
+        <h3>还没有作品</h3>
+        <p>发布的帖子和公开的 Cloud+ 笔记都会出现在这里。</p>
         <button type="button" @click="$emit('switch-tab', 'posts')">去发帖</button>
       </div>
 
-      <div v-else-if="activeContentTab === 'replies' && repliesLoading" class="profile-forum-skeleton-feed" aria-hidden="true">
+      <div
+        v-else-if="activeContentTab === 'replies' && repliesLoading"
+        class="profile-forum-skeleton-feed"
+        aria-hidden="true"
+      >
         <div v-for="item in 3" :key="`reply-skeleton-${item}`" class="profile-forum-skeleton-card">
           <div class="profile-forum-skeleton-line long profile-forum-skeleton-item"></div>
           <div class="profile-forum-skeleton-line medium profile-forum-skeleton-item"></div>
         </div>
       </div>
       <div v-else-if="activeContentTab === 'replies' && replies.length" class="profile-reply-list">
-        <button v-for="reply in replies" :key="reply.id" type="button" class="profile-reply-item"
-          @click="$emit('post-click', reply.post_id)">
+        <button
+          v-for="reply in replies"
+          :key="reply.id"
+          type="button"
+          class="profile-reply-item"
+          @click="$emit('post-click', reply.post_id)"
+        >
           <span class="profile-reply-target">回复了《{{ getReplyPostTitle(reply) }}》</span>
           <strong>{{ getReplySummary(reply) }}</strong>
           <small>{{ formatProfilePostDate(reply) }}</small>
@@ -254,15 +464,24 @@
         <button type="button" @click="$emit('switch-tab', 'posts')">去看看帖子</button>
       </div>
 
-      <div v-else-if="activeContentTab === 'drafts' && !draftsLoaded" class="profile-forum-skeleton-feed" aria-hidden="true">
+      <div
+        v-else-if="activeContentTab === 'drafts' && !draftsLoaded"
+        class="profile-forum-skeleton-feed"
+        aria-hidden="true"
+      >
         <div v-for="item in 2" :key="`draft-skeleton-${item}`" class="profile-forum-skeleton-card">
           <div class="profile-forum-skeleton-line long profile-forum-skeleton-item"></div>
           <div class="profile-forum-skeleton-line medium profile-forum-skeleton-item"></div>
         </div>
       </div>
       <div v-else-if="activeContentTab === 'drafts' && drafts.length" class="profile-draft-list">
-        <button v-for="draft in drafts" :key="draft.savedAt" type="button" class="profile-draft-item"
-          @click="$emit('switch-tab', 'posts')">
+        <button
+          v-for="draft in drafts"
+          :key="draft.savedAt"
+          type="button"
+          class="profile-draft-item"
+          @click="$emit('switch-tab', 'posts')"
+        >
           <span class="profile-draft-badge">草稿</span>
           <strong>{{ draft.title || '未命名帖子' }}</strong>
           <p>{{ getDraftSummary(draft) }}</p>
@@ -297,9 +516,17 @@ import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
 import PointsCard from './PointsCard.vue';
 import ActivityHeatmap from './ActivityHeatmap.vue';
-import { getCommentsByUsername, getFollowers, getFollowing, unfollowUser } from '@/utils/api/profile-api.js';
+import {
+  getCommentsByUsername,
+  getFollowers,
+  getFollowing,
+  unfollowUser,
+} from '@/utils/api/profile-api.js';
 import { fetchQuotedPostsByIds } from '@/utils/api/forum-api.js';
 import { resolveStoredCoverUrl } from '@/utils/api/forum-format.js';
+import { buildCloudNoteWorkCard } from '@/utils/cloud-note-cover.js';
+import { cloudEntryDefaultTitle } from '@/utils/boh-cloud-content.js';
+import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
@@ -311,7 +538,7 @@ const followModal = reactive({
   loading: false,
   loadingMore: false,
   hasMore: false,
-  currentPage: 1
+  currentPage: 1,
 });
 const FOLLOW_PAGE_SIZE = 20;
 const activeContentTab = ref('posts');
@@ -322,18 +549,24 @@ const drafts = ref([]);
 const draftsLoaded = ref(false);
 const contentTabs = computed(() => {
   const hasValidStatsCount = Number.isFinite(props.stats?.posts);
-  const postsLoading = hasValidStatsCount ? props.isStatsLoading : (props.isStatsLoading || props.isContentLoading);
+  const postsLoading = hasValidStatsCount
+    ? props.isStatsLoading
+    : props.isStatsLoading || props.isContentLoading;
   const postsCount = postsLoading
     ? null
-    : (hasValidStatsCount ? props.stats.posts : props.posts.length);
+    : hasValidStatsCount
+      ? props.stats.posts
+      : props.posts.length;
+  // 作品格 = 帖子 + 公开笔记（2026-09-29 拍板：公开笔记计入作品格，占用 Cloud+ 配额）
+  const worksCount = postsLoading ? null : (postsCount ?? 0) + publicNotesCount.value;
   const repliesLoadingState = repliesLoading.value || (!repliesLoaded.value && !!profileId.value);
   const repliesCount = repliesLoadingState ? null : replies.value.length;
   const draftsLoadingState = !draftsLoaded.value;
   const draftsCount = draftsLoadingState ? null : drafts.value.length;
   return [
-    { id: 'posts', label: '帖子', count: postsCount, loading: postsLoading },
+    { id: 'posts', label: '作品', count: worksCount, loading: postsLoading },
     { id: 'replies', label: '回复', count: repliesCount, loading: repliesLoadingState },
-    { id: 'drafts', label: '草稿', count: draftsCount, loading: draftsLoadingState }
+    { id: 'drafts', label: '草稿', count: draftsCount, loading: draftsLoadingState },
   ];
 });
 
@@ -357,8 +590,8 @@ const loadFollowListPage = async (type, page) => {
     if (page === 1) {
       followModal.users = res.data;
     } else {
-      const existingIds = new Set(followModal.users.map(u => u.id));
-      const newItems = res.data.filter(u => !existingIds.has(u.id));
+      const existingIds = new Set(followModal.users.map((u) => u.id));
+      const newItems = res.data.filter((u) => !existingIds.has(u.id));
       followModal.users = [...followModal.users, ...newItems];
     }
     followModal.hasMore = res.data.length >= FOLLOW_PAGE_SIZE;
@@ -383,7 +616,7 @@ const handleUnfollow = async (user) => {
   user._unfollowing = true;
   const res = await unfollowUser(props.profile.id, user.id);
   if (!res.error) {
-    followModal.users = followModal.users.filter(u => u.id !== user.id);
+    followModal.users = followModal.users.filter((u) => u.id !== user.id);
   }
   user._unfollowing = false;
 };
@@ -391,71 +624,103 @@ const handleUnfollow = async (user) => {
 const props = defineProps({
   profile: {
     type: Object,
-    default: () => ({})
+    default: () => ({}),
   },
   avatarUrl: {
     type: String,
-    default: ''
+    default: '',
   },
   profileBackgroundUrl: {
     type: String,
-    default: ''
+    default: '',
   },
   profileCoverStyle: {
     type: Object,
-    default: () => ({})
+    default: () => ({}),
   },
   isUploadingProfileBackground: {
     type: Boolean,
-    default: false
+    default: false,
   },
   stats: {
     type: Object,
-    default: () => ({ posts: 0, points: 0, rank: 0 })
+    default: () => ({ posts: 0, points: 0, rank: 0 }),
   },
   isStatsLoading: {
     type: Boolean,
-    default: false
+    default: false,
   },
   /** 活跃热力图：get_user_activity_heatmap RPC 的原始返回值，未就绪传 null */
   heatmap: {
     type: Object,
-    default: null
+    default: null,
   },
   /** 热力图首次加载中（骨架态） */
   isHeatmapLoading: {
     type: Boolean,
-    default: false
+    default: false,
   },
   cloudPlusUsageText: {
     type: String,
-    default: ''
+    default: '',
   },
   cloudPlusUsageMeterStyle: {
     type: Object,
-    default: () => ({})
+    default: () => ({}),
   },
   subscriptionSummaryText: {
     type: String,
-    default: ''
+    default: '',
   },
   isContentLoading: {
     type: Boolean,
-    default: false
+    default: false,
   },
   posts: {
     type: Array,
-    default: () => []
+    default: () => [],
+  },
+  /** 公开笔记（Cloud+ entries, visibility='public'）：计入作品格，管理动作由父层承接 */
+  publicNotes: {
+    type: Array,
+    default: () => [],
   },
   hasMorePosts: {
     type: Boolean,
-    default: false
+    default: false,
   },
   isLoadingMore: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 });
+
+const publicNotesCount = computed(() =>
+  Array.isArray(props.publicNotes) ? props.publicNotes.length : 0,
+);
+
+// 作品格合并流：帖子 + 公开笔记按时间混排（笔记折成统一卡片视图模型）
+const workItems = computed(() => {
+  const postItems = (Array.isArray(props.posts) ? props.posts : []).map((post) => ({
+    key: `post-${post.id}`,
+    kind: 'post',
+    date: String(post.created_at || post.published_at || post.updated_at || ''),
+    post,
+  }));
+  const noteItems = (Array.isArray(props.publicNotes) ? props.publicNotes : [])
+    .map((entry) => buildCloudNoteWorkCard(entry))
+    .filter(Boolean)
+    .map((card) => ({
+      key: `note-${card.id}`,
+      kind: 'note',
+      date: card.dateValue,
+      card,
+    }));
+  return [...postItems, ...noteItems].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+});
+
+const noteDisplayTitle = (card = {}) =>
+  String(card.title || '').trim() || cloudEntryDefaultTitle(card.entry);
 
 const emit = defineEmits([
   'edit-profile',
@@ -469,7 +734,10 @@ const emit = defineEmits([
   'photo-albums',
   'post-click',
   'switch-tab',
-  'load-more'
+  'load-more',
+  'note-open',
+  'note-set-private',
+  'note-delete',
 ]);
 
 const displayName = computed(() => props.profile.username || '未登录');
@@ -481,13 +749,17 @@ const tierCode = ref('');
 const tierDisplayName = computed(() => PLAN_DISPLAY_NAMES[tierCode.value] || '');
 // 主页大头像佩戴框：自己=本地佩戴状态（即换即见），tier 跟昵称徽章同源
 const { effectiveFrame: heroFrame } = useAvatarFrame(tierCode);
-watch(profileId, async (id) => {
-  if (id) {
-    await fetchUserTier(id);
-    nicknameClass.value = getNicknameClass(id);
-    tierCode.value = getUserTierCode(id);
-  }
-}, { immediate: true });
+watch(
+  profileId,
+  async (id) => {
+    if (id) {
+      await fetchUserTier(id);
+      nicknameClass.value = getNicknameClass(id);
+      tierCode.value = getUserTierCode(id);
+    }
+  },
+  { immediate: true },
+);
 const displayInitial = computed(() => (props.profile.username || 'U').charAt(0).toUpperCase());
 const isAdmin = computed(() => props.profile.role === 'admin');
 
@@ -496,16 +768,16 @@ const pointsCardSkin = computed(() => {
   const raw = props.profile.pointsCardSkin ?? props.profile.points_card_skin ?? 'blank';
   return ['blank', 'cats', 'custom'].includes(String(raw)) ? String(raw) : 'blank';
 });
-const pointsCardImageUrl = computed(() => String(props.profile.pointsCardImageUrl ?? props.profile.points_card_image_url ?? '').trim());
+const pointsCardImageUrl = computed(() =>
+  String(props.profile.pointsCardImageUrl ?? props.profile.points_card_image_url ?? '').trim(),
+);
 const handlePointsCardClick = () => {
   emit('assets', 'cards');
 };
 
 const profileBio = computed(() => {
   const bio = String(props.profile.bio || '').trim();
-  return bio
-    ? bio
-    : '这个人很认真地搭着自己的方块。';
+  return bio ? bio : '这个人很认真地搭着自己的方块。';
 });
 
 const bioRef = ref(null);
@@ -563,18 +835,23 @@ const normalizeProfileText = (value, fallback = '') => {
 // 转发帖只存转发留言，标题/封面/摘录取自被引用的原帖（批量回源 + 缓存在 _shared.js）
 const quotedPostsMap = ref({});
 
-watch(() => props.posts?.length, async () => {
-  const posts = Array.isArray(props.posts) ? props.posts : [];
-  const ids = posts
-    .filter((p) => p?.post_kind === 'repost' && p?.repost_of_post_id)
-    .map((p) => String(p.repost_of_post_id));
-  if (!ids.length) return;
-  const map = await fetchQuotedPostsByIds(ids);
-  if (!map.size) return;
-  quotedPostsMap.value = { ...quotedPostsMap.value, ...Object.fromEntries(map) };
-}, { immediate: true });
+watch(
+  () => props.posts?.length,
+  async () => {
+    const posts = Array.isArray(props.posts) ? props.posts : [];
+    const ids = posts
+      .filter((p) => p?.post_kind === 'repost' && p?.repost_of_post_id)
+      .map((p) => String(p.repost_of_post_id));
+    if (!ids.length) return;
+    const map = await fetchQuotedPostsByIds(ids);
+    if (!map.size) return;
+    quotedPostsMap.value = { ...quotedPostsMap.value, ...Object.fromEntries(map) };
+  },
+  { immediate: true },
+);
 
-const getQuotedPost = (post = {}) => quotedPostsMap.value[String(post?.repost_of_post_id || '')] || null;
+const getQuotedPost = (post = {}) =>
+  quotedPostsMap.value[String(post?.repost_of_post_id || '')] || null;
 
 const getProfilePostTitle = (post = {}) => {
   // 注意：无条件先读 quoted（依赖收集），否则回源完成后引用了 quoted 的分支
@@ -597,8 +874,8 @@ const getProfilePostSummary = (post = {}) => {
     const quoted = getQuotedPost(post);
     const rawQuoted = normalizeProfileText(quoted?.body || quoted?.content, '');
     const stripped = rawQuoted.replace(/【.*?】\n?/, '').trim();
-    const quotedTitle = normalizeProfileText(quoted?.title, '')
-      || (rawQuoted.match(/【(.*?)】/)?.[1] ?? '');
+    const quotedTitle =
+      normalizeProfileText(quoted?.title, '') || (rawQuoted.match(/【(.*?)】/)?.[1] ?? '');
     const quotedBody = stripped || quotedTitle;
     const author = normalizeProfileText(quoted?.author_username, '');
     if (quotedBody) return clip(`${author ? `@${author}：` : ''}${quotedBody}`);
@@ -612,7 +889,9 @@ const getProfilePostSummary = (post = {}) => {
 const getProfilePostCover = (post = {}) => {
   const images = Array.isArray(post.images) ? post.images : [];
   const firstImage = images[0] || null;
-  const imageCover = String(firstImage?.url || firstImage?.thumbUrl || firstImage?.originalUrl || '').trim();
+  const imageCover = String(
+    firstImage?.url || firstImage?.thumbUrl || firstImage?.originalUrl || '',
+  ).trim();
   if (imageCover) return imageCover;
   const ownCover = String(post.cover_image_url || '').trim();
   if (ownCover) return ownCover;
@@ -651,7 +930,7 @@ const loadReplies = async () => {
   if (!username && !userId) return;
   repliesLoading.value = true;
   const result = await getCommentsByUsername(username, userId, { page: 1, pageSize: 20 });
-  replies.value = result.error ? [] : (result.data || []);
+  replies.value = result.error ? [] : result.data || [];
   repliesLoaded.value = true;
   repliesLoading.value = false;
 };
@@ -662,10 +941,13 @@ const readDrafts = () => {
   const collected = [];
   keys.forEach((key) => {
     try {
-      const parsed = JSON.parse(localStorage.getItem(key) || (key.endsWith('_versions') ? '[]' : 'null'));
-      const rows = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+      const parsed = JSON.parse(
+        localStorage.getItem(key) || (key.endsWith('_versions') ? '[]' : 'null'),
+      );
+      const rows = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
       rows.forEach((draft) => {
-        if (!draft || (!String(draft.title || '').trim() && !String(draft.content || '').trim())) return;
+        if (!draft || (!String(draft.title || '').trim() && !String(draft.content || '').trim()))
+          return;
         collected.push({ ...draft, savedAt: Number(draft.savedAt || Date.now()) });
       });
     } catch {
@@ -673,7 +955,9 @@ const readDrafts = () => {
     }
   });
   const unique = new Map();
-  collected.sort((a, b) => b.savedAt - a.savedAt).forEach((draft) => unique.set(draft.savedAt, draft));
+  collected
+    .sort((a, b) => b.savedAt - a.savedAt)
+    .forEach((draft) => unique.set(draft.savedAt, draft));
   drafts.value = [...unique.values()].slice(0, 10);
   draftsLoaded.value = true;
 };
@@ -682,13 +966,17 @@ const handleDraftStorage = (event) => {
   if (String(event.key || '').startsWith('boh_forum_post_draft_')) readDrafts();
 };
 
-watch(profileId, () => {
-  replies.value = [];
-  repliesLoaded.value = false;
-  repliesLoading.value = false;
-  if (profileId.value) void loadReplies();
-  readDrafts();
-}, { immediate: true });
+watch(
+  profileId,
+  () => {
+    replies.value = [];
+    repliesLoaded.value = false;
+    repliesLoading.value = false;
+    if (profileId.value) void loadReplies();
+    readDrafts();
+  },
+  { immediate: true },
+);
 
 watch(activeContentTab, (tab) => {
   if (tab === 'replies' && !repliesLoading.value && !repliesLoaded.value) {
@@ -798,10 +1086,14 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   font-weight: 700;
   opacity: 0;
   transform: translateY(4px);
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  box-shadow:
+    0 8px 22px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62);
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
   pointer-events: none;
 }
 
@@ -833,7 +1125,9 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
-  transition: transform 0.16s ease, background-color 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    background-color 0.16s ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -867,7 +1161,9 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   border-radius: 50%;
   border: 4px solid var(--surface);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.2);
-  transition: transform 180ms var(--ease-out), box-shadow 180ms var(--ease-out);
+  transition:
+    transform 180ms var(--ease-out),
+    box-shadow 180ms var(--ease-out);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -971,7 +1267,10 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
-  transition: transform 160ms var(--ease-out), box-shadow 180ms var(--ease-out), background-color 180ms ease;
+  transition:
+    transform 160ms var(--ease-out),
+    box-shadow 180ms var(--ease-out),
+    background-color 180ms ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -998,7 +1297,6 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   box-shadow: var(--shadow-sm);
   animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) 60ms both;
 }
-
 
 .profile-service-row {
   width: 100%;
@@ -1109,7 +1407,9 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   line-height: 1;
   font-weight: 300;
   flex: 0 0 auto;
-  transition: transform 160ms var(--ease-out), color 160ms ease;
+  transition:
+    transform 160ms var(--ease-out),
+    color 160ms ease;
 }
 
 .profile-content-panel {
@@ -1201,13 +1501,21 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   background: #ffffff;
   cursor: pointer;
   transform: none;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
   animation: profile-post-card-in 260ms ease-out both;
 }
 
 @keyframes profile-post-card-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .profile-post-card:hover {
@@ -1323,21 +1631,21 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   cursor: pointer;
 }
 
-.user-space-page[data-theme="dark"] .profile-settings-btn {
+.user-space-page[data-theme='dark'] .profile-settings-btn {
   background: rgba(24, 24, 27, 0.82);
   color: #f8fafc;
 }
 
-.user-space-page[data-theme="dark"] .profile-post-cover.empty {
+.user-space-page[data-theme='dark'] .profile-post-cover.empty {
   background: linear-gradient(135deg, rgba(49, 46, 129, 0.45), rgba(24, 24, 27, 0.92));
 }
 
 /* 最终响应式覆盖：避免竖屏图片重新回到高纵向比例 */
 @media (max-width: 767px) and (orientation: portrait) {
   .profile-post-cover,
-  .profile-post-card:nth-child(3n+1) .profile-post-cover,
-  .profile-post-card:nth-child(4n+2) .profile-post-cover,
-  .profile-post-card:nth-child(5n+3) .profile-post-cover {
+  .profile-post-card:nth-child(3n + 1) .profile-post-cover,
+  .profile-post-card:nth-child(4n + 2) .profile-post-cover,
+  .profile-post-card:nth-child(5n + 3) .profile-post-cover {
     aspect-ratio: 3 / 2;
     min-height: 0;
     max-height: 240px;
@@ -1352,9 +1660,9 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   }
 
   .profile-post-cover,
-  .profile-post-card:nth-child(3n+1) .profile-post-cover,
-  .profile-post-card:nth-child(4n+2) .profile-post-cover,
-  .profile-post-card:nth-child(5n+3) .profile-post-cover {
+  .profile-post-card:nth-child(3n + 1) .profile-post-cover,
+  .profile-post-card:nth-child(4n + 2) .profile-post-cover,
+  .profile-post-card:nth-child(5n + 3) .profile-post-cover {
     aspect-ratio: 3 / 2;
     min-height: 0;
   }
@@ -1406,20 +1714,30 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 }
 
 .profile-content-count-skeleton::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0));
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.65),
+    rgba(255, 255, 255, 0)
+  );
   animation: userspace-stat-shimmer 1.15s linear infinite;
 }
 
-.user-space-page[data-theme="dark"] .profile-content-count-skeleton {
+.user-space-page[data-theme='dark'] .profile-content-count-skeleton {
   background: rgba(71, 85, 105, 0.5);
 }
 
-.user-space-page[data-theme="dark"] .profile-content-count-skeleton::after {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+.user-space-page[data-theme='dark'] .profile-content-count-skeleton::after {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0)
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1439,5 +1757,4 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
     animation: none;
   }
 }
-
 </style>
