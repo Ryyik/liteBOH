@@ -1,6 +1,6 @@
 {
-  "total": 169,
-  "updatedAt": "2026-09-28",
+  "total": 168,
+  "updatedAt": "2026-09-29",
   "files": {
     "src/views/DataManagement/DataAdmin.vue": 26,
     "src/views/DataManagement/composables/useDataAdminMutations.js": 20,
@@ -16,10 +16,10 @@
     "src/composables/useLabQuota.js": 4,
     "src/views/Birthday/index.vue": 4,
     "src/views/DataManagement/components/LabAiModelConfig.vue": 4,
-    "src/views/Forum/ForumMain.vue": 4,
     "src/views/ShopConsole/index.vue": 4,
     "src/views/DataManagement/components/ApiKeyConsole.vue": 3,
     "src/views/DataManagement/components/ModerationModelConfig.vue": 3,
+    "src/views/Forum/ForumMain.vue": 3,
     "src/components/AdminContentPublishModal.vue": 2,
     "src/composables/useAvatarFrame.js": 2,
     "src/composables/useUserTier.js": 2,

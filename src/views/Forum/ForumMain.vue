@@ -12,18 +12,7 @@ import {
   triggerRef,
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import {
-  Check,
-  Heart,
-  MessageCircle,
-  Reply,
-  Share2,
-  ArrowUpRight,
-  BookOpen,
-  Newspaper,
-  Sparkles,
-  X,
-} from 'lucide-vue-next';
+import { ArrowUpRight, BookOpen, Newspaper, Sparkles, X } from 'lucide-vue-next';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
@@ -96,7 +85,6 @@ import {
 } from '@/utils/forum-feed-cache.js';
 import {
   buildReplyDraft,
-  escapeHtml,
   resolveReplyUsername,
   calculateOptimisticLikeCount,
   restoreImageAtPosition,
@@ -106,10 +94,9 @@ import {
 } from '@/utils/forum-helpers.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
-import { getHomeCatAsset, getHomeCatTypeBySeed, isHomeCatTheme } from '@/utils/home-cat-theme.js';
+import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import anniversaryForumImage from '@/assets/images/blockschool.webp';
 import { addExperience, XP_REWARDS } from '../../utils/xp.js';
-import DOMPurify from '@/utils/dompurify.js';
 import { logger } from '@/utils/logger.js';
 import { getFollowing } from '@/utils/api/profile-api.js';
 import {
@@ -127,7 +114,6 @@ import {
   POSTS_PER_PAGE,
   SEARCH_DEBOUNCE_MS,
   WEEKLY_CHECKIN_REWARD_POINTS,
-  AUTO_SAVE_DRAFT_INTERVAL_MS,
 } from './forum-config.js';
 import { getBohAIModelStatus } from '@/utils/bohai-model-client.js';
 
@@ -166,11 +152,6 @@ const readActiveForumTheme = () => {
     if (isHomeCatTheme(theme)) return theme;
   }
   return themeManager.getTheme();
-};
-
-const setUnreadCount = async (count) => {
-  const notificationStore = await ensureNotificationStore();
-  notificationStore.setUnreadCount(count);
 };
 
 const refreshUnreadCount = async () => {
@@ -258,7 +239,6 @@ const getForumScrollContainer = () => {
 };
 const {
   activeForumWindowIndex,
-  shouldVirtualizeForumFeed,
   visibleForumPosts,
   virtualFeedTopSpacerHeight,
   virtualFeedBottomSpacerHeight,
@@ -1040,7 +1020,6 @@ const runPublishQueue = async () => {
         applyRateLimitCooldown(error, 'post');
         const failType = error?.failType || getQueueItemErrorType(error);
         const isMod = failType === 'moderation';
-        const code = String(error?.code || '').toUpperCase();
         // 若为不可重试的本地校验类，直接清理图片但保留卡片供用户编辑
         const shouldCleanup = shouldCleanupImagesAfterPostError(error);
         if (shouldCleanup && !isMod) {
@@ -2854,15 +2833,6 @@ const ensureQuotedPostsForReposts = async () => {
   }
 };
 
-const renderSearchExcerpt = (excerpt) => {
-  const escaped = escapeHtml(excerpt);
-  const withMarks = escaped.replace(/\[\[([\s\S]*?)\]\]/g, '<mark>$1</mark>');
-  return DOMPurify.sanitize(withMarks, {
-    ALLOWED_TAGS: ['mark'],
-    ALLOWED_ATTR: [],
-  });
-};
-
 const weeklyCheckinProgressText = computed(() => {
   const points = WEEKLY_CHECKIN_REWARD_POINTS;
   return weeklyCheckinStatus.value.hasSignedThisWeek
@@ -3343,28 +3313,9 @@ const markForumImageLoaded = (postId, imageUrl) => {
   loadedForumImageKeys.value = new Set([...loadedForumImageKeys.value, key]);
 };
 
-const isForumImageLoaded = (postId, imageUrl) =>
-  hasUiMarker(loadedForumImageKeys, getForumImageKey(postId, imageUrl));
 const isPostHighlighted = (postId) => hasUiMarker(highlightedPostIds, postId);
 const isPostLikePulsing = (postId) => hasUiMarker(likePulsePostIds, postId);
 const isPostShareCopied = (postId) => hasUiMarker(shareCopiedPostIds, postId);
-const getPostCardCatType = (index, post) => {
-  if (post?.isLiked || Number(post?.like_count || 0) >= 8) return 'like';
-  return ['decorAlt', 'decor', 'theme', 'cardExtra', 'mobileGap'][Number(index) % 5];
-};
-const getPostCardCatVariant = (index) => `cat-variant-${Number(index) % 4}`;
-const getPostCardCatSeed = (post, index, suffix = 'card') => `${post?.id || index}:${suffix}`;
-const getPostCardCatSrc = (post, index) => getHomeCatAsset(getPostCardCatType(index, post));
-const getPostBackgroundCatSrc = (post, index) => {
-  const type = getHomeCatTypeBySeed(getPostCardCatSeed(post, index, 'bg'), 'background');
-  return getHomeCatAsset(type);
-};
-const shouldShowPostBackgroundCat = (post, index) => {
-  const raw = String(post?.id || index || '');
-  let sum = 0;
-  for (let i = 0; i < raw.length; i += 1) sum += raw.charCodeAt(i);
-  return sum % 3 === 1;
-};
 
 const isLikelyNetworkError = (error) => {
   const message = String(error?.message || '').toLowerCase();
@@ -3379,22 +3330,6 @@ const isLikelyNetworkError = (error) => {
     text.includes('load failed') ||
     text.includes('请求失败')
   );
-};
-
-const verifyPostCreatedOnServer = async (authorId, postBody, postTitle) => {
-  if (!authorId) return false;
-  try {
-    const { data, error } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('author_id', authorId)
-      .order('created_at', { ascending: false })
-      .limit(5);
-    if (error || !Array.isArray(data) || data.length === 0) return false;
-    return true;
-  } catch {
-    return false;
-  }
 };
 
 const shouldCleanupImagesAfterPostError = (error) => {
@@ -3507,7 +3442,6 @@ const handlePost = async () => {
   // 插入乐观帖子到列表顶部（简化：不暴露压缩/检测阶段，只显示百分比）
   insertOptimisticPost(queueItem);
   // 立即清空编辑器并退出（即发即走）
-  const prevDraftImages = [...postImages.value];
   newPost.value.title = '';
   newPost.value.content = '';
   selectedPostTag.value = 'daily';
@@ -3523,10 +3457,7 @@ const handlePost = async () => {
   lastAutoSaveTime.value = null;
   writePostDraftVersions([]);
   void savePostDraftToDatabase(null);
-  // 清空编辑器图片状态（不触发云端删除，因队列已接管）
-  prevDraftImages.forEach((img) => {
-    /* 保留 localPreviewUrl 给队列，编辑器端移除 */
-  });
+  // 清空编辑器图片状态（不触发云端删除，因队列已接管；localPreviewUrl 留给队列）
   postImages.value = [];
   postImageUploadStatus.value = '';
   // 关闭移动端编辑器（无二次确认，因已入队）
@@ -3656,11 +3587,6 @@ const toggleRepliesList = async (post) => {
     post._repliesLoading = false;
     triggerRef(forumData);
   }
-};
-
-const shouldShowMoreRepliesLink = (post) => {
-  const previewCount = Array.isArray(post?.replies) ? post.replies.length : 0;
-  return Boolean(post?.replies_has_more || Number(post?.comment_count || 0) > previewCount);
 };
 
 // ============================================
@@ -3883,12 +3809,6 @@ const handleToggleLike = async (post) => {
   } finally {
     isLikeSubmitting.value[post.id] = false;
   }
-};
-
-const _toggleViewMode = () => {
-  feedMode.value = 'posts';
-  viewMode.value = viewMode.value === 'all' ? 'my' : 'all';
-  fetchForumData();
 };
 
 const setSortMode = (mode) => {
