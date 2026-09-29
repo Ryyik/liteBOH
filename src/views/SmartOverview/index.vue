@@ -44,7 +44,12 @@
 
       <!-- 空状态（当前页全部被点过后若还有更多，提供继续加载入口而不是"全部看完"） -->
       <div v-else-if="visibleItems.length === 0 && hasMore" class="overview-status-card">
-        <CheckCircle2 class="overview-status-icon" :size="36" :stroke-width="1.6" aria-hidden="true" />
+        <CheckCircle2
+          class="overview-status-icon"
+          :size="36"
+          :stroke-width="1.6"
+          aria-hidden="true"
+        />
         <h2 class="overview-status-title">当前内容都看过了</h2>
         <p class="overview-status-text">后面还有内容，继续加载看看</p>
         <div class="overview-status-actions">
@@ -56,12 +61,19 @@
 
       <!-- 空状态 -->
       <div v-else-if="visibleItems.length === 0 && !hasMore" class="overview-status-card">
-        <CheckCircle2 class="overview-status-icon" :size="36" :stroke-width="1.6" aria-hidden="true" />
+        <CheckCircle2
+          class="overview-status-icon"
+          :size="36"
+          :stroke-width="1.6"
+          aria-hidden="true"
+        />
         <h2 class="overview-status-title">{{ emptyTitle }}</h2>
         <p class="overview-status-text">{{ emptyText }}</p>
         <div class="overview-status-actions">
           <router-link class="overview-btn" to="/user-space?tab=community">去论坛看看</router-link>
-          <router-link class="overview-btn overview-btn-secondary" to="/newsroom">前往新闻中心</router-link>
+          <router-link class="overview-btn overview-btn-secondary" to="/newsroom"
+            >前往新闻中心</router-link
+          >
         </div>
         <p class="overview-status-note">首次登录时会展示最近 7 天的公开内容</p>
       </div>
@@ -70,7 +82,12 @@
       <template v-else>
         <!-- 已有内容时的追加/刷新失败提示：不再静默吞掉翻页失败 -->
         <div v-if="loadError" class="overview-status-card" role="alert">
-          <CloudOff class="overview-status-icon" :size="22" :stroke-width="1.6" aria-hidden="true" />
+          <CloudOff
+            class="overview-status-icon"
+            :size="22"
+            :stroke-width="1.6"
+            aria-hidden="true"
+          />
           <p class="overview-status-text">{{ loadError }}</p>
           <div class="overview-status-actions">
             <button class="overview-btn overview-btn-secondary" type="button" @click="refresh">
@@ -132,6 +149,7 @@ const authStore = useAuthStore();
 const {
   visibleItems,
   anchorTime,
+  windowAnchorTime,
   anchorSource,
   isFirstLogin,
   hasMore,
@@ -142,7 +160,7 @@ const {
   load,
   refresh,
   loadMore,
-  dismissItem
+  dismissItem,
 } = useOfflineOverview();
 
 const username = computed(() => String(authStore.userInfo?.username || '').trim() || '方块居民');
@@ -156,7 +174,7 @@ const formatAnchorTime = (iso) => {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false
+    hour12: false,
   });
 };
 
@@ -181,20 +199,29 @@ const welcomeSubtitle = computed(() => {
 
 const rangeText = computed(() => {
   if (isFirstLogin.value || !anchorTime.value) return '';
-  const formatted = formatAnchorTime(anchorTime.value);
-  if (!formatted) return '';
-  if (anchorSource.value === 'clamped') {
-    return `内容范围：${formatted} 之后发布（最长回溯 90 天）`;
+  // anchorTime 是未钳制的真实「上次在线」；窗口被钳制拉宽时（同日回访钳到当日零点 /
+  // 长离线最长回溯 90 天），窗口起点和上次在线是两个时间，必须分开说 ——
+  // 此前把窗口起点直接当上次在线展示，同日回访会显示成「今天 00:00」（2026-09-29 修复）。
+  const lastOnline = formatAnchorTime(anchorTime.value);
+  if (!lastOnline) return '';
+  if (anchorSource.value !== 'clamped' || !windowAnchorTime.value) {
+    return `内容范围：${lastOnline} 之后发布`;
   }
-  return `内容范围：${formatted} 之后发布`;
+  const windowStart = formatAnchorTime(windowAnchorTime.value);
+  if (!windowStart) return `上次在线：${lastOnline}`;
+  const windowMs = Date.now() - new Date(windowAnchorTime.value).getTime();
+  const suffix = windowMs > 89 * 86400000 ? '（最长回溯 90 天）' : '';
+  return `上次在线：${lastOnline} · 内容范围：${windowStart} 之后发布${suffix}`;
 });
 
 const emptyTitle = computed(() =>
-  isFirstLogin.value ? '暂时还没有公开内容' : '离线期间没有新的帖子或新闻'
+  isFirstLogin.value ? '暂时还没有公开内容' : '离线期间没有新的帖子或新闻',
 );
 
 const emptyText = computed(() =>
-  isFirstLogin.value ? '社区刚刚起步，去论坛逛逛认识大家吧' : '你已经看到当前所有更新，去别处转转吧'
+  isFirstLogin.value
+    ? '社区刚刚起步，去论坛逛逛认识大家吧'
+    : '你已经看到当前所有更新，去别处转转吧',
 );
 
 const handleOpenItem = (item) => {

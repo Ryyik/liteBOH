@@ -6,7 +6,12 @@ import { logger } from '@/utils/logger.js';
 // 模块级单例（同 useNews 惯例）：同一 SPA 会话内跨组件挂载保留状态，
 // 使「点击过的卡片返回概览后不再展示」在会话内持续生效。
 const items = ref([]);
+// anchorTime = 未钳制的真实「上次在线」快照（authStore.offlineAnchorAt），供展示。
+// windowAnchorTime = 服务端实际使用的窗口起点（查询锚点钳制后的回显），供「内容范围」展示。
+// 两者必须分开：同日回访时窗口会被钳到当日零点（否则窗口塌成几分钟、页面像没新内容），
+// 但把窗口起点当「上次在线」展示就是错的（2026-09-29 展示与窗口解耦）。
 const anchorTime = ref(null);
+const windowAnchorTime = ref(null);
 const anchorSource = ref('');
 const isFirstLogin = ref(false);
 const totalCount = ref(0);
@@ -46,7 +51,7 @@ export function useOfflineOverview() {
   const authStore = useAuthStore();
 
   const visibleItems = computed(() =>
-    items.value.filter((item) => !dismissedKeys.value.has(`${item.type}:${item.id}`))
+    items.value.filter((item) => !dismissedKeys.value.has(`${item.type}:${item.id}`)),
   );
 
   const offlineMs = computed(() => {
@@ -62,6 +67,7 @@ export function useOfflineOverview() {
     items.value = [];
     dismissedKeys.value = new Set();
     anchorTime.value = null;
+    windowAnchorTime.value = null;
     anchorSource.value = '';
     isFirstLogin.value = false;
     totalCount.value = 0;
@@ -69,7 +75,11 @@ export function useOfflineOverview() {
   };
 
   const load = async ({ offset = 0, append = false } = {}) => {
-    if (loadedUserId.value && authStore.userInfo?.id && loadedUserId.value !== authStore.userInfo.id) {
+    if (
+      loadedUserId.value &&
+      authStore.userInfo?.id &&
+      loadedUserId.value !== authStore.userInfo.id
+    ) {
       resetForUserChange();
     }
     isLoading.value = !append;
@@ -89,14 +99,17 @@ export function useOfflineOverview() {
       const result = await fetchOfflineOverview({
         anchor: resolveQueryAnchor(authStore.offlineAnchorAt),
         limit: OVERVIEW_DEFAULT_LIMIT,
-        offset
+        offset,
       });
 
       // 时序守卫：refresh 与 loadMore 并发时，慢的旧响应不得覆盖新结果
       if (seq !== requestSeq) return;
 
       loadedUserId.value = authStore.userInfo.id || '';
-      anchorTime.value = result.anchor;
+      // 展示与窗口解耦：查询传钳制锚点（resolveQueryAnchor），展示用未钳制的真实快照。
+      // offlineAnchorAt 缺失时才回落服务端回显（理论上登录态下不会缺）。
+      windowAnchorTime.value = result.anchor;
+      anchorTime.value = authStore.offlineAnchorAt || result.anchor;
       anchorSource.value = result.anchorSource;
       isFirstLogin.value = result.isFirstLogin;
       totalCount.value = result.total;
@@ -137,6 +150,7 @@ export function useOfflineOverview() {
     items,
     visibleItems,
     anchorTime,
+    windowAnchorTime,
     anchorSource,
     isFirstLogin,
     totalCount,
@@ -148,6 +162,6 @@ export function useOfflineOverview() {
     load,
     refresh,
     loadMore,
-    dismissItem
+    dismissItem,
   };
 }
