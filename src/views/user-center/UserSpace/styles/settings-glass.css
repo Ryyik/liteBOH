@@ -36,21 +36,25 @@
   color: var(--liquid-text-tertiary, #8b9098);
 }
 
-/* ---------- 单一液态玻璃连续面板 ---------- */
+/* ---------- iOS 式分组卡片（2026-09-30 重构） ----------
+   原「单一连续面板」把 7 个分组塞进一张大玻璃卡，组间只隔一条发丝线，
+   与 iOS「分离卡片 + 组间留白」的骨架差得最远。现拆成四层职责：
+     .glass-settings  透明 flex 容器（只管组间节奏）
+     .gs-group        标题 + 卡片的包装（自身无视觉）
+     .gs-group-title  移到卡片**外**上方（iOS grouped list 规范）
+     .gs-rows         真正的卡片本体（底色 / 描边 / 圆角 / 裁切）
+   模板无需改动 —— 5 个设置类页面共用同一套 .gs-group > .gs-rows 结构。 */
 .glass-settings {
   position: relative;
   z-index: 1;
-  background: var(--liquid-bg);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  border: 1px solid var(--liquid-border);
-  border-radius: var(--liquid-radius-lg);
-  box-shadow: var(--liquid-shadow), var(--liquid-highlight);
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
 }
 
+/* 组间不再靠发丝线，改由卡片边界 + 留白分隔 */
 .gs-group + .gs-group {
-  border-top: 1px solid var(--liquid-border-hairline);
+  border-top: 0;
 }
 
 .gs-group-title {
@@ -58,23 +62,38 @@
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.01em;
-  padding: 18px 18px 6px;
+  padding: 0 4px 7px;
 }
 
 .gs-rows {
+  /* 行几何单一真源：断点只改变量，不再各自覆写 .gs-row 的 padding/gap */
+  --gs-row-pad-x: 18px;
+  --gs-row-gap: 13px;
+  --gs-icon-size: 30px;
+  /* 发丝线内缩量 = 左内边距 + 图标宽 + 图标与文字间距
+     （iOS 的分隔线从文字起始处开始，不穿过图标下方） */
+  --gs-row-inset: calc(var(--gs-row-pad-x) + var(--gs-icon-size) + var(--gs-row-gap));
+
   display: flex;
   flex-direction: column;
-  padding-bottom: 6px;
+  background: var(--liquid-bg-strong);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  border: 1px solid var(--liquid-border);
+  border-radius: var(--liquid-radius-md);
+  box-shadow: var(--liquid-shadow-sm);
+  overflow: hidden;
 }
 
 /* ---------- 行 ---------- */
 .gs-row {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: var(--gs-row-gap, 13px);
   width: 100%;
   min-height: 44px;
-  padding: 12px 18px;
+  padding: 12px var(--gs-row-pad-x, 18px);
   border: 0;
   background: transparent;
   font-family: inherit;
@@ -95,8 +114,21 @@
   background: rgba(15, 23, 42, 0.06);
 }
 
+/* 行分隔线：内缩到文字起始处。
+   不能用 border —— border 会铺满整行、从图标下方穿过（与 iOS 不符）。 */
 .gs-row + .gs-row {
-  border-top: 1px solid var(--liquid-border-hairline);
+  border-top: 0;
+}
+
+.gs-row + .gs-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: var(--gs-row-inset, 61px);
+  right: 0;
+  height: 1px;
+  background: var(--liquid-border-hairline);
+  pointer-events: none;
 }
 
 /* 静态行（纯展示，不可点） */
@@ -112,9 +144,9 @@
 /* ---------- 图标 ---------- */
 .gs-icon {
   flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
+  width: var(--gs-icon-size, 30px);
+  height: var(--gs-icon-size, 30px);
+  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -184,7 +216,7 @@
 }
 
 .gs-value {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--liquid-text-secondary, #6e6e73);
   max-width: min(240px, 44vw);
   overflow: hidden;
@@ -568,12 +600,12 @@
   }
 
   .gs-group-title {
-    padding: 16px 14px 6px;
+    padding: 0 4px 7px;
   }
 
-  .gs-row {
-    padding: 11px 14px;
-    gap: 11px;
+  .gs-rows {
+    --gs-row-pad-x: 14px;
+    --gs-row-gap: 11px;
   }
 
   .gs-value {
@@ -600,24 +632,22 @@
   }
 
   .gs-group-title {
-    padding: 10px 16px 4px;
+    padding: 0 4px 5px;
     font-size: 12px;
   }
 
+  .glass-settings {
+    gap: 18px;
+  }
+
   .gs-rows {
-    padding-bottom: 4px;
+    --gs-row-pad-x: 16px;
+    --gs-row-gap: 10px;
+    --gs-icon-size: 26px;
   }
 
   .gs-row {
     min-height: 40px;
-    padding: 7px 16px;
-    gap: 10px;
-  }
-
-  .gs-icon {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
   }
 
   .gs-label {
