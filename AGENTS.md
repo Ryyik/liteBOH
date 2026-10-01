@@ -36,11 +36,11 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 > 它会给每条门禁注入一个已知违规样本、断言退出码非 0、再撤销；样本写在 `scripts/lib/gate-fixtures.mjs`。
 > 没有 fixture 的门禁会在输出里被列成「未覆盖」——那是**明账**，不是可以忽略的噪声。
 
-> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings 189`，这是一道**警告棘轮**
+> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings 187`，这是一道**警告棘轮**
 > （`ci.yml:43` 与 `deploy.yml:45` 都跑 `npm run lint`，所以 CI 和发布链上都有牙）。
-> 存量是 **189 条 unused-vars**（js 185 + ts 4；`src/` 146、`scripts/probes` 31、`tests/` 8、`supabase/functions` 4）——
-> **新增一条死代码当场 exit 1**，实测反证：往 `src/` 放一个 `const unusedX = 1` → `found too many warnings (maximum: 189)`。
-> 三条纪律：① **清理后请把 189 改小**（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
+> 存量是 **187 条 unused-vars**（js 183 + ts 4；口径 `eslint . -f json`，2026-10-01 复核）——
+> **新增一条死代码当场 exit 1**，实测反证：往 `src/` 放一个 `const unusedX = 1` → `found too many warnings (maximum: 187)`。
+> 三条纪律：① **清理后请把 187 改小**（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
 > （与 `check:important-budget` 等棘轮同规矩）；③ 计数口径用 `eslint . -f json` 聚合，**别 grep 文本数**（会串）。
 > 之所以是「棘轮」而不是「把规则翻成 error」：191 条直接翻红只会逼人把变量改名 `_x` 保住绿，死代码变成「有名字的僵尸」，
 > 还可能引出 `--no-verify` 绕过。**计数归零之后才翻 error。**
@@ -54,6 +54,8 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | 导航栏可见性 / 灵动岛 / 全局搜索 | 先改唯一真源 `utils/global-navbar-visibility.js` 的 `isGlobalNavbarVisible(route)`；再 `node scripts/probes/probe-global-search.mjs`（58） |
 | 竖屏导航菜单：接缝、以及菜单内部的一级/二级/三级几何（`.nav-menu-mobile` 的 `top`、`.nav-mobile-submenu-container`、岛的下投影） | `node scripts/probes/probe-nav-mobile-menu.mjs`（48，含一个窄横屏档）。⚠️ 三个坑：① 菜单的包含块是那座**有 transform 的岛**、不是视口；② `visibility: hidden` **不释放高度**（点开二级菜单后的 272px 内部空洞就是这个）；③ 探针**全程不滚动**，所以 `.scrolled` 那一类回归它抓不到 —— 那条由 `tests/unit/unified-nav-scrolled-guard.test.js` 在源码层锁死（2026-09-29 起 vendor 里三组休眠 `.scrolled` 规则已删）。见该探针文件头的实测记录 |
 | 论坛搜索 / 列表 RPC | `node scripts/probes/probe-forum-search.mjs`（27） |
+| **智能概览（灵动岛 / `/overview` 页）**：自动触发时机、同日去重、「你离开了 N 天」口径 | `node scripts/probes/probe-overview-island-guards.mjs`（35，场景 A–H）。⚠️ 触发点 2026-09-30 定稿为**唯一一处**：首页首屏解锁落定（`views/Home/index.vue` 的 `watch([gateSettled, isLoggedIn])`）——**不**在登录/进站弹，点「我的方块」也不触发，别再往别处加调用。由此带来探针两条硬约束：① 每个场景是新 browser context ⇒ `boh-home-gate-passed` 必没落盘 ⇒ 开场画必播、`gateSettled` 初始 false ⇒ 要测弹岛必须显式调 `unlockHomeGate(page)`（走键盘路径一次按键 commitGate，别去伪造带构建指纹的 localStorage key），**不要**再点 `#nav-user-info`；② 「加载岛是否出现过」的 MutationObserver 必须在解锁之前装好（拦截响应是瞬时的，岛只闪几毫秒），`/overview` 页断言要压掉触发（预置 `boh_overview_island:<uid>` 会话标记）以免摘要请求抢写 `captured.body`。另三条口径真源：① 跨设备同日去重吃服务端 `profiles.overview_checked_day`，读它前必须 `await refreshOverviewMarks()`（否则首检读到 null 就重复弹）；② 离线天数按**真实锚点** `authStore.offlineAnchorAt` 算（同 `/overview` 页口径），**不要**用推送窗口游标日 —— 窗口按设计恒 < 今天，用它算出来永远 ≥ 1 天，「今天有 N 条新内容」那一支会变成死代码；③ 新账号锚点是合成的「now-7d」，靠 `authStore.isFirstLoginSession` 区分，别当真实离线天数展示 |
+| **评论 / 回复输入框「多字扩展」**（竖屏不随内容长高） | `node scripts/probes/probe-reply-autogrow.mjs`（6，竖屏 390×844）。真源是 `src/composables/useAutoGrowTextarea.js`（**不要再加第 5 份自研增高**，存量 4 份见 `plans/021` §1.3）。⚠️ 四条已实测的坑：① **上限只声明在 CSS 的 `max-height`**，JS 读 `getComputedStyle` 取用，不在 JS 写第二份像素值；② `height='auto'` 之后**必须无条件写回**，写「next 相等就 return」会把元素永久留在 `auto`（表现为内容超上限后掉回 `rows` 固有高度）；③ 内容源传 getter 时不能包成 `() => unref(value)` —— `unref` 只解 ref、**不调用函数**，watcher 永不触发（切换回复对象不会收缩，这条靠断言 E 才抓得到）；④ 详情页的 `.reply-textarea-x` 是**死 UI**（两处 `<CommentThread>` 都硬编码 `:hide-composer="true"`，真正的评论输入是单行 `input.pd-reply-input`），探针场景 B 就是这条的绊线 —— 别照 `plans/021` §5.1 的旧清单去"修"它 |
 | **活动页封面图 / 报名区 / 月份轨道** | `node scripts/probes/probe-activities-images.mjs`（7）、`node scripts/probes/probe-campaign-ui.mjs`（35）。⚠️ 数据库图片列混存 `@/assets/...` 别名与 Cloudinary 绝对地址两种形态，**渲染必须走 `utils/db-image-url.js`**；只调 `getImageUrl` 时 Cloudinary 那几条会指向大陆不可达的 `res.cloudinary.com` 而裂图（2026-09-29 活动页 id=16/17 即此成因） |
 | **方块积分卡自定义卡面**（`profiles.points_card_image_url` / `points_card_presets.image_url`） | `node scripts/probes/probe-points-card-image.mjs`（7，只读打本地 dev）。同一个裂图成因的第二个落点：卡面走 `PointsCard.vue` 内部收口 → `resolveDbPointsCardImage`（`c_limit,w_1280`，**不是 c_fill**：卡面是整幅画，服务端预裁会砍主体），预设缩略图走 `AssetsHubPanel.pointsCardPresetThumb`。⚠️ 预设 `:class` 的 active 判断必须继续比**原始** url，一边改写一边不改写会丢选中态 |
 | 订阅权益 / 摄影集配额 | `node scripts/probes/probe-subscription-benefits.mjs`（48） |
@@ -62,6 +64,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | **周签到 / 积分余额线上真值**（报障「签到能一直签」「余额不显示」先跑这个） | `node scripts/probes/probe-weekly-checkin-points.mjs`（5 项断言，只读）。判据是「唯一索引在不在 / 有没有同用户同周多行 / 本周签到行数 == 本周签到流水数 / 部署版函数是不是幂等版 / 签到者积分有无空值」。⚠️ 时间边界必须 `(date 'X'::timestamp at time zone 'Asia/Shanghai')`，直接比 `timestamptz` 会退化成 UTC 午夜、漏掉周一凌晨签到的行，得到假的「行数 != 流水数」 |
 | **anon EXECUTE 收尾：哪些函数可以安全撤权** | `node scripts/probes/probe-anon-revoke-safety.mjs`（只读）。两条硬规则：① **被任何 RLS 策略引用 → 不可撤**（策略按查询者角色求值，撤 anon 会让游客查询直接 42501；实测 `current_user_is_admin` 被 113 条策略引用）；② 匿名态有前端调用点 → 需人工确认。⚠️ **撤权不等于加防线**：函数体内部只信 `auth.uid()`，`authenticated` 同样能调它 —— 无论撤不撤 anon，「内部守卫」都是唯一那道防线，故边际收益有限；落库前先跑「撤销 → 全站游客路径冒烟」 |
 | AI 面板 / BOHAI | `npm run probe:ai-panels` |
+| **BOH AI 输入区 composer**（底行胶囊 / 三行面板 / 左右二级菜单 / 高级工具组；`views/BOHAI/BOHAI/BOHAIMain.vue` + `styles/{adaptive-layout,messages,motion-system}.css`） | `node scripts/probes/probe-bohai-composer.mjs`（14，含独立页 + AI 岛两形态）。⚠️ 四条已实测的坑：① `currentThinkingSpeed` 必须**和 `currentThinkingSpeedId` 一起**从 `useChatEngine()` 解构 —— 只解构后者时模板三处（胶囊强度段 / 推理强度行 / trigger title）会静默走空值兜底（永远是「中」），状态其实切换成功却永不回显，Vue 只发 warning 不抛错（2026-10-01 由 A5/A9 抓到）；② 二级菜单必须挂在 `.composer-panel` 内部且面板 `overflow: visible`，否则子菜单被裁或挡住「推理强度」行的点击；③ 探针里切换选项要用**页面内 `element.click()`**，Playwright 坐标点击在 248px 窄浮层边缘会落到遮罩上、被 `handleClickOutside` 关掉面板，看起来「面板收起了」其实 `setThinkingSpeed` 没跑；④ 断言零 pageerror 之外还要断言**零「模板引用未定义绑定」的 Vue warning**（`is not defined on instance` / `accessed during render`），这是本轮唯一能抓住漏解构的信号 |
 | **BOH AI 生成参数**（改 temperature / max_tokens / top_p 等调参，或新增 LLM 调用点） | 已在 verify 链内跑 `check:bohai-params`（严格门禁，禁止在真源表之外内联字面量）。真源两张表：`src/views/BOHAI/generation-params.js`（按任务语义）与 `chat-engine-config.js` 的 `GENERATION_PROFILE_BY_MODE`（按对话模式）。改真源表的值属于**行为变更**：跑 `npm run probe:ai-panels` 并人眼复核对话质量 |
 | 数据管理面板列定义 | `npm run audit:dm-columns` |
 | `vite.config.js` 依赖别名 / optimizeDeps | `node scripts/probes/probe-vite-dep-scan.mjs`（6） |

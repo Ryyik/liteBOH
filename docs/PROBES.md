@@ -16,6 +16,8 @@
 | 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
 | 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
+| 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 6 |
+| **BOH AI 输入区**（底行胶囊 / 三行面板 / 左右二级菜单 / 高级工具组）—— 独立页 + AI 岛两形态 | `probe-bohai-composer.mjs` | 14 |
 | 活动页封面图 / 活动页报名区与月份轨道 | `probe-activities-images.mjs` / `probe-campaign-ui.mjs` | 7 / 35 |
 | 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 48 |
@@ -30,11 +32,12 @@
 
 ## 分组清单
 
-### CI 常驻 / 高价值守卫（15）
+### CI 常驻 / 高价值守卫（16）
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
 | `probe-ai-panels.mjs` | `npm run probe:ai-panels` | probe-ai-panels.mjs — AI 页（/ai-chat）面板可用性探针 |
+| `probe-bohai-composer.mjs` | — | 探针：BOH AI 输入区（composer）新面板 —— 胶囊 / 三行面板 / 左右二级菜单 / 高级工具组；独立页 + AI 岛两形态。⚠️ 含反证说明：撤 `selectThinkingSpeed` 的 `closeComposerPanel` → A5 红；撤 `currentThinkingSpeed` 解构 → A5/A9/B5 红 |
 | `probe-avatar-frame-console-demo.mjs` | — | 探针：头像框控制台方案 demo（avatar-frame-console-demo.html） |
 | `probe-avatar-frame-console.mjs` | — | 探针：头像框控制台（管理端）/admin/avatar-console + 用户侧积分解锁 |
 | `probe-avatar-frame-grant.mjs` | — | 探针：头像框「按人发放」 |
@@ -68,7 +71,7 @@
 | `probe-heatmap-tiers.mjs` | — | 热力图探针：动态四分位分档 + 月份/星期/中文日期标注（真实数据，需 dev server） |
 | `probe-liquid-token-dark.mjs` | — | 液态玻璃 token 统一后：暗色实测（读计算值，不靠肉眼） |
 | `probe-nav-dark.mjs` | — | 探针：暗色模式下导航栏 logo/链接文字颜色（vendor 无暗色规则的修复验证） |
-| `probe-settings-glass.mjs` | — | 探针：设置子页液态玻璃统一验证 |
+| `probe-settings-glass.mjs` | — | 探针：设置子页液态玻璃统一验证。2026-09-30 起带 12 条断言（骨架 5 + 搜索 7，失败 exit 1）：iOS 式分组卡片骨架（容器 gap / 卡片圆角 / 组间留白 / 标题在卡片外 / 分隔线内缩越过图标）+ 设置搜索（命中、跨子页命中、空态、清除、输入框未被顶部固定导航遮挡的 elementFromPoint 命中测试） |
 
 ### 首页 / 入场闸门 / 导航栏 / 灵动岛（21）
 
@@ -117,6 +120,7 @@
 | `probe-official-publish.mjs` | — | ===== Newsroom ===== |
 | `probe-post-detail-fix.mjs` | — | probe-post-detail-fix.mjs — 论坛帖子详情两问题复现探针 |
 | `probe-post-detail-verify.mjs` | — | probe-post-detail-verify.mjs — 修复后验证 P1: 活动/新闻帖详情显示封面图（@/assets 引用 + Cloudinary cover 两种） |
+| `probe-reply-autogrow.mjs` | — | **评论/回复输入框「多字扩展」（6 断言，2026-09-30 新增）**：竖屏 390×844，场景 A 打在用户空间内嵌论坛的卡片内联回复框（`PostCard` 的 `.reply-textarea-v2`）：A 空内容高度 = `rows` 撑出的高度且无内部滚动 / B 逐行加内容高度单调不减且未到上限时 `scrollHeight ≤ clientHeight + 1` / C 超上限后停在上限并框内滚动 / D 清空后回落 / E 父组件改写内容（同卡切嵌套回复，`replyContent` 被 `buildReplyDraft` 换成 `@user `）后必须回落。**E 是 `:value` 受控写法下唯一会命中 `watch(value)` 的真实路径**，只绑 `@input` 的实现不会收缩；前 6 张卡都没回复时记 SKIP 不记红。另有 F「键盘遮挡」仅测量上报（`plans/021` §8：先测再改）。场景 B 是一条**绊线**：断言详情页评论输入仍是单行 `input.pd-reply-input`、内嵌 `.reply-textarea-x` 不渲染 —— 2026-09-30 实测详情页两处 `<CommentThread>` 都硬编码 `:hide-composer="true"`，所以那个内嵌多行评论框是**死 UI**；一旦有人把它放出来，这条会变红，逼其接上 `useAutoGrowTextarea` 并补 A–D 断言。**反证已做**：`git checkout -- src/views/Forum/components/PostCard.vue` 撤掉接线后 B/C/E 必红（高度恒为 85）。需先起本地 dev（默认 `http://[::1]:5173`，可用 `BASE` 覆盖） |
 
 ### 活动 / 方块墙 / 内容运营（4）
 
