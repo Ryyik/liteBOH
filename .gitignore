@@ -86,3 +86,6 @@ supabase/.temp/
 # Python 构建缓存
 __pycache__/
 *.pyc
+
+# WorkBuddy 定时任务的运行时记忆（每台机器各一份，不是项目真源）
+.workbuddy/memory/automations/
