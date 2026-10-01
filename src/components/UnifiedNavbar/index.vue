@@ -470,7 +470,9 @@ import {
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
-const { maybeShowOverviewIsland, forceShowOverviewIsland } = useOverviewIsland();
+// 导航栏侧只用 DEV 手动触发按钮；自动触发点已迁到「进入论坛（首屏解锁落定）」——
+// 见 views/Home/index.vue 的 watch([gateSettled, isLoggedIn])。
+const { forceShowOverviewIsland } = useOverviewIsland();
 // BOHAI 灵动岛：岛组件内部已订阅 isExpanded，navbar 仅读取用于 surface 类名联动
 // （原 useBohaiIsland 薄包装已内联，状态统一来自 useGlobalAiOverlay 单例）
 const {
@@ -761,11 +763,9 @@ const handleMyBlockClick = (event) => {
     window.dispatchEvent(new CustomEvent('boh_forum_refresh_request'));
     // 滚动到顶部：首页是文档流滚动（论坛不再是嵌套滚动容器）
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    return;
   }
-  // 进入我的方块时触发智能概览灵动岛（天粒度「当日已读」游标去重：当天上线过不再自动推送，
-  // 仅当上次在线日的次日起有新内容才弹，详见 useOverviewIsland.js）
-  maybeShowOverviewIsland({ currentPath: route.path });
+  // ⚠️ 这里刻意**不**触发智能概览：2026-09-30 起它的唯一触发点是「进入论坛（首屏解锁落定）」，
+  // 见 views/Home/index.vue。导航栏侧只留 DEV 手动触发按钮（forceShowOverviewIsland）。
 };
 
 // 使用 store 中的状态

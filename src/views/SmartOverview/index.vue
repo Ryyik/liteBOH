@@ -150,7 +150,6 @@ const {
   visibleItems,
   anchorTime,
   windowAnchorTime,
-  anchorSource,
   isFirstLogin,
   hasMore,
   offlineDays,
@@ -204,13 +203,18 @@ const rangeText = computed(() => {
   // 此前把窗口起点直接当上次在线展示，同日回访会显示成「今天 00:00」（2026-09-29 修复）。
   const lastOnline = formatAnchorTime(anchorTime.value);
   if (!lastOnline) return '';
-  if (anchorSource.value !== 'clamped' || !windowAnchorTime.value) {
-    return `内容范围：${lastOnline} 之后发布`;
-  }
+  if (!windowAnchorTime.value) return `内容范围：${lastOnline} 之后发布`;
+  // 判据用**时间戳比较**（窗口起点早于真实上次在线 = 窗口被拉宽），不能用服务端 anchor_source：
+  // 客户端 resolveQueryAnchor 的同日钳制回显仍是 'param'，判 `!== 'clamped'` 恒成立，
+  // 于是页面会写一个比实际窗口更晚的起点（今早 8:00）而实际从今日零点取数（2026-09-30 修）。
+  const anchorMs = new Date(anchorTime.value).getTime();
+  const windowMs = new Date(windowAnchorTime.value).getTime();
+  const clamped =
+    Number.isFinite(anchorMs) && Number.isFinite(windowMs) && windowMs < anchorMs - 1000;
+  if (!clamped) return `内容范围：${lastOnline} 之后发布`;
   const windowStart = formatAnchorTime(windowAnchorTime.value);
   if (!windowStart) return `上次在线：${lastOnline}`;
-  const windowMs = Date.now() - new Date(windowAnchorTime.value).getTime();
-  const suffix = windowMs > 89 * 86400000 ? '（最长回溯 90 天）' : '';
+  const suffix = Date.now() - windowMs > 89 * 86400000 ? '（最长回溯 90 天）' : '';
   return `上次在线：${lastOnline} · 内容范围：${windowStart} 之后发布${suffix}`;
 });
 

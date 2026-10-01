@@ -12,14 +12,27 @@
  *     （两个 key 分工：在线日只决定窗口，检查日才做同日去重）。
  *  E. P1-b：/overview 页查询锚点下钳到不晚于「今日零点」（同一天刷新后不再窗口塌成
  *     几分钟而显示空态），超过一天的真实离线锚点原样保留。
- *  F. 回归：刷新（pagehide）之后再点「我的方块」仍必须弹岛 —— 不能因为「今天上过线」
+ *  F. 回归：刷新（pagehide）之后再触发仍必须弹岛 —— 不能因为「今天上过线」
  *     把当天窗口掐掉。
  *  G. 跨设备（服务端 profiles.last_online_day / overview_checked_day）：
  *     G1 本机无记录且会话锚点为空时，窗口仍应取自服务端「上次在线日」（离开 5 天）；
  *     G2 服务端记录「今天已检查」时，换设备后同一天不重复推送。
+ *  H. 20260930 修的三处：
+ *     H1 触发点 —— 智能概览的**唯一**自动触发点是「进入论坛」＝首页首屏解锁落定
+ *        （`views/Home/index.vue` 的 `watch([gateSettled, isLoggedIn])`）。只解锁首屏、不点任何东西
+ *        就必须弹岛；点「我的方块」自本轮起**不再**触发。
+ *     H2 离线天数按**真实上次在线时间差**算（与 /overview 页同口径）—— 10 小时前还在线
+ *        必须说「今天有 N 条新内容」，而不是窗口游标算出来的「你离开了 1 天」。
+ *
+ * ⚠️ 触发点迁到首屏解锁后，**探针必须显式解锁开场画**才能测到弹岛：
+ *  每个场景都是新 browser context，`boh-home-gate-passed` 一定没落盘 → 开场画必播 →
+ *  `gateSettled` 初始为 false。所以 A/B/C/F/G/H 都改成调 `unlockHomeGate(page)`（走键盘路径
+ *  一次按键 commitGate），**不再点 `#nav-user-info`**。同时「加载岛是否出现过」的记录器
+ *  必须在解锁之前装好（拦截响应是瞬时的，加载岛只闪几毫秒）。E 场景要显式压掉触发
+ *  （预置会话标记），避免它的摘要请求抢先落到 `captured.body` 上。
  *
  * 说明：探针不含真实会话，灵动岛场景下 RPC 必然失败（auth.uid() 为空 → 服务端 raise），
- * 因此 A/B/C/F 只断言「守卫是否放行」与「游标是否被污染」；E/G 用路由拦截伪造 RPC 响应后
+ * 因此 A/B/C/F 只断言「守卫是否放行」与「游标是否被污染」；E/G/H 用路由拦截伪造 RPC 响应后
  * 断言请求体与卡片文案。
  *
  * 前置：dev server（默认 http://localhost:5173，可用 BASE_URL 覆盖；也可打到 preview 4173）。
@@ -61,7 +74,9 @@ const waitAuthStable = async (page, { quietMs = 1500, timeoutMs = 25000 } = {}) 
   let lastChangeAt = Date.now();
   while (Date.now() - started < timeoutMs) {
     const snap = await page.evaluate(() => {
-      const auth = document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia?.state?.value?.auth;
+      const auth =
+        document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia?.state?.value
+          ?.auth;
       return auth ? `${auth.isInitialized}|${auth.isLoggedIn}|${auth.userInfo?.id || ''}` : 'none';
     });
     if (snap !== lastKey) {
@@ -82,23 +97,36 @@ const openApp = async (browser, { onPage } = {}) => {
   page.on('pageerror', (e) => pageErrors.push(String(e?.message || e)));
   if (onPage) await onPage(page);
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded', timeout: 45000 });
-  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+    timeout: 30000,
+  });
   await waitAuthStable(page);
   return { page, pageErrors };
 };
 
 /** 注入伪造登录态 + 预置锚点，并清干净该账号的游标与会话标记（复现「本机首次启用游标」）。
- *  注入后回读校验：被启动期异步链清掉时重试（最多 3 次） */
-const injectFakeLogin = async (page, anchorIso) => {
+ *  注入后回读校验：被启动期异步链清掉时重试（最多 3 次）。
+ *
+ *  @param dispatchPageHide 在**同一个同步块**里落一次 pagehide（F 场景）：必须同步，
+ *    否则解锁首屏后的检查会先跑完，「今天已离开过」这条路径就测不到了。
+ *  @param suppressAutoTrigger 预置「本会话已展示」标记压掉触发（E 场景）：
+ *    /overview 页的断言要独占 captured.body，不能被自动触发的摘要请求抢先写入。
+ *    （触发点迁到首屏解锁后，E 本来不解锁、也就不会触发；这里保留为第二道保险。） */
+const injectFakeLogin = async (
+  page,
+  anchorIso,
+  { dispatchPageHide = false, suppressAutoTrigger = false } = {},
+) => {
   const readAuth = () =>
     page.evaluate(() => {
-      const auth = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia.state.value.auth;
+      const auth =
+        document.querySelector('#app').__vue_app__.config.globalProperties.$pinia.state.value.auth;
       return { isLoggedIn: auth.isLoggedIn === true, id: String(auth.userInfo.id || '') };
     });
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await page.evaluate(
-      ({ uid, anchorIso: anchor }) => {
+      ({ uid, anchorIso: anchor, pageHide, suppressAuto }) => {
         const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
         const auth = pinia.state.value.auth;
         auth.isLoggedIn = true;
@@ -106,6 +134,8 @@ const injectFakeLogin = async (page, anchorIso) => {
         Object.assign(auth.userInfo, { id: uid, username: '探针账号', role: 'user', points: 0 });
         auth.offlineAnchorAt = anchor;
         auth.overviewMarks = null; // 服务端标记由场景自行取回，先清干净，避免跨场景串味
+        // 真·首登标记同样清掉，避免上一个场景把它留给本场景
+        auth.isFirstLoginSession = false;
         // /overview 页的 useOfflineOverview.load() 会主动 await initLoginState()：
         // 无真实会话时它会重新走一遍同步链路并把伪造登录清成登出态 → 这里把该 action 置空
         // （store 实例经 pinia._s 取，setup store 的 action 不在 state 上）
@@ -113,9 +143,12 @@ const injectFakeLogin = async (page, anchorIso) => {
         if (store) store.initLoginState = async () => {};
         localStorage.removeItem(`boh_overview_last_online_day:${uid}`);
         localStorage.removeItem(`boh_overview_checked_day:${uid}`);
-        sessionStorage.removeItem(`boh_overview_island:${uid}`);
+        const sessionKey = `boh_overview_island:${uid}`;
+        if (suppressAuto) sessionStorage.setItem(sessionKey, '1');
+        else sessionStorage.removeItem(sessionKey);
+        if (pageHide) window.dispatchEvent(new Event('pagehide'));
       },
-      { uid: FAKE_UID, anchorIso }
+      { uid: FAKE_UID, anchorIso, pageHide: dispatchPageHide, suppressAuto: suppressAutoTrigger },
     );
     await page.waitForTimeout(250);
     const state = await readAuth();
@@ -147,13 +180,28 @@ const installIslandRecorder = (page) =>
 const readIslandRecorder = (page) =>
   page.evaluate(() => window.__islandSeen || { appeared: false, visible: false });
 
+/** 首屏解锁（＝进入论坛）：智能概览 2026-09-30 起的**唯一**自动触发点，见 views/Home/index.vue
+ *  的 `watch([gateSettled, isLoggedIn])`。
+ *  每个场景都是新 browser context → `boh-home-gate-passed` 一定没落盘 → 开场画必播，
+ *  所以这里必须显式走一遍解锁。走键盘路径（useGatePull.handleGateKeydown：一次按键即 commitGate），
+ *  比伪造 localStorage 稳：生产构建的 key 带构建指纹，探针不该知道它。
+ *  ⚠️ 落定要等补间跑完（正常 pullMs = 1900ms），gateSettled 才置 true。 */
+const unlockHomeGate = async (page) => {
+  await page.evaluate(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+  });
+  // pullMs（1900）+ 余量；reduce 分支只 360ms，多等不会更糟
+  await page.waitForTimeout(2600);
+};
+
 /** 等通知岛卡出现**目标文案**（导航栏始终有一个常驻占位卡，不能只等 .global-nav-status-card） */
 const waitForCardText = async (page, expected, timeout = 8000) => {
   try {
     await page.waitForFunction(
-      (text) => (document.querySelector('.global-nav-status-card')?.textContent || '').includes(text),
+      (text) =>
+        (document.querySelector('.global-nav-status-card')?.textContent || '').includes(text),
       expected,
-      { timeout }
+      { timeout },
     );
   } catch {
     // 断言统一处理
@@ -161,19 +209,16 @@ const waitForCardText = async (page, expected, timeout = 8000) => {
   return (await page.textContent('.global-nav-status-card').catch(() => '')) || '';
 };
 
-/** A/B/C/F：点「我的方块」触发自动检查 → 看加载岛与游标 */
+/** A/B/C/F：进入论坛触发自动检查 → 看加载岛与游标。
+ *  ⚠️ 记录器必须在「解锁 + 注入登录态」之前装好：RPC 被本地拦截时加载岛只闪几毫秒。 */
 const runIslandScenario = async (browser, { name, anchorIso, prePagehide = false }) => {
   const { page, pageErrors } = await openApp(browser);
 
   try {
-    await injectFakeLogin(page, anchorIso);
-    // F：先模拟一次「今天离开过」（刷新/关标签），再点击 —— 当天窗口不能被掐掉
-    if (prePagehide) {
-      await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
-      await page.waitForTimeout(200);
-    }
     await installIslandRecorder(page);
-    await page.click('#nav-user-info', { timeout: 8000 });
+    // F：pagehide 必须与注入同步落盘（注入后立刻 dispatch），否则解锁后的检查会先跑完
+    await injectFakeLogin(page, anchorIso, { dispatchPageHide: prePagehide });
+    await unlockHomeGate(page);
 
     // 等伪造登录下的 RPC 失败返回（岛应由宿主静默收掉）
     await page.waitForTimeout(2000);
@@ -181,14 +226,26 @@ const runIslandScenario = async (browser, { name, anchorIso, prePagehide = false
     const marks = await page.evaluate(
       ({ onlineKey, checkedKey }) => ({
         online: localStorage.getItem(onlineKey),
-        checked: localStorage.getItem(checkedKey)
+        checked: localStorage.getItem(checkedKey),
       }),
-      { onlineKey: DAY_MARKER_KEY, checkedKey: CHECKED_DAY_KEY }
+      { onlineKey: DAY_MARKER_KEY, checkedKey: CHECKED_DAY_KEY },
     );
 
-    check(`${name} · 加载岛弹出`, island.appeared && island.visible, `出现过=${island.appeared} 可见=${island.visible}`);
-    check(`${name} · 失败分支未写检查日游标（防污染）`, marks.checked === null, marks.checked === null ? '' : `残留=${marks.checked}`);
-    check(`${name} · 无未捕获页面错误`, pageErrors.length === 0, pageErrors.join(' | ').slice(0, 160));
+    check(
+      `${name} · 加载岛弹出`,
+      island.appeared && island.visible,
+      `出现过=${island.appeared} 可见=${island.visible}`,
+    );
+    check(
+      `${name} · 失败分支未写检查日游标（防污染）`,
+      marks.checked === null,
+      marks.checked === null ? '' : `残留=${marks.checked}`,
+    );
+    check(
+      `${name} · 无未捕获页面错误`,
+      pageErrors.length === 0,
+      pageErrors.join(' | ').slice(0, 160),
+    );
   } finally {
     await page.close();
   }
@@ -206,14 +263,26 @@ const runPagehideScenario = async (browser) => {
     const marks = await page.evaluate(
       ({ onlineKey, checkedKey }) => ({
         online: localStorage.getItem(onlineKey),
-        checked: localStorage.getItem(checkedKey)
+        checked: localStorage.getItem(checkedKey),
       }),
-      { onlineKey: DAY_MARKER_KEY, checkedKey: CHECKED_DAY_KEY }
+      { onlineKey: DAY_MARKER_KEY, checkedKey: CHECKED_DAY_KEY },
     );
 
-    check(`${name} · 在线日=当天`, marks.online === todayKey(), `游标=${marks.online} 期望=${todayKey()}`);
-    check(`${name} · 不写检查日（保留当天推送机会）`, marks.checked === null, marks.checked === null ? '' : `残留=${marks.checked}`);
-    check(`${name} · 无未捕获页面错误`, pageErrors.length === 0, pageErrors.join(' | ').slice(0, 160));
+    check(
+      `${name} · 在线日=当天`,
+      marks.online === todayKey(),
+      `游标=${marks.online} 期望=${todayKey()}`,
+    );
+    check(
+      `${name} · 不写检查日（保留当天推送机会）`,
+      marks.checked === null,
+      marks.checked === null ? '' : `残留=${marks.checked}`,
+    );
+    check(
+      `${name} · 无未捕获页面错误`,
+      pageErrors.length === 0,
+      pageErrors.join(' | ').slice(0, 160),
+    );
   } finally {
     await page.close();
   }
@@ -222,7 +291,10 @@ const runPagehideScenario = async (browser) => {
 /** G：跨设备天粒度标记（服务端 mark_overview_state）——
  *  窗口吃服务端「上次在线日」（本机无任何记录、会话锚点为空也能拿到真实离线窗口），
  *  同日去重吃服务端「当日已检查」（换设备后同一天不再重复推送）。 */
-const runCrossDeviceScenario = async (browser, { name, previousOnlineDay = null, checkedDay = null, expectWindowDay = null, expectCard = '' }) => {
+const runCrossDeviceScenario = async (
+  browser,
+  { name, previousOnlineDay = null, checkedDay = null, expectWindowDay = null, expectCard = '' },
+) => {
   const captured = { markCalls: 0, summaryCalls: 0, summaryAnchor: null };
   const { page, pageErrors } = await openApp(browser, {
     onPage: (p) => {
@@ -232,7 +304,11 @@ const runCrossDeviceScenario = async (browser, { name, previousOnlineDay = null,
           status: 200,
           contentType: 'application/json',
           // 真实 RPC 的语义：返回写入前的旧值（跨设备上次在线日 / 当日已检查），并写今天
-          body: JSON.stringify({ today: todayKey(), previous_online_day: previousOnlineDay, checked_day: checkedDay })
+          body: JSON.stringify({
+            today: todayKey(),
+            previous_online_day: previousOnlineDay,
+            checked_day: checkedDay,
+          }),
         });
       });
       p.route('**/rest/v1/rpc/get_offline_overview', async (route) => {
@@ -258,24 +334,27 @@ const runCrossDeviceScenario = async (browser, { name, previousOnlineDay = null,
                 author: '探针账号',
                 published_at: new Date().toISOString(),
                 image: '',
-                category: 'daily'
-              }
-            ]
-          })
+                category: 'daily',
+              },
+            ],
+          }),
         });
       });
-    }
+    },
   });
 
   try {
+    // 记录器先装：解锁首屏后触发检查，加载岛只闪几毫秒
+    await installIslandRecorder(page);
     // 锚点为空：本机与心跳锚点都提供不了窗口，只能靠服务端标记
     await injectFakeLogin(page, null);
     await page.evaluate(async () => {
-      const store = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('auth');
+      const store = document
+        .querySelector('#app')
+        .__vue_app__.config.globalProperties.$pinia._s.get('auth');
       await store.refreshOverviewMarks();
     });
-    await installIslandRecorder(page);
-    await page.click('#nav-user-info', { timeout: 8000 });
+    await unlockHomeGate(page);
 
     let cardText = '';
     if (expectCard) {
@@ -289,13 +368,120 @@ const runCrossDeviceScenario = async (browser, { name, previousOnlineDay = null,
 
     check(`${name} · 服务端标记已取回`, captured.markCalls >= 1, `调用 ${captured.markCalls} 次`);
     if (expectCard) {
-      check(`${name} · 加载岛弹出`, islandAppeared && island.visible, `出现过=${island.appeared} 可见=${island.visible}`);
-      check(`${name} · 窗口用服务端上次在线日`, captured.summaryAnchor === expectWindowDay, `实际=${captured.summaryAnchor} 期望=${expectWindowDay}`);
-      check(`${name} · 卡片文案`, cardText.includes(expectCard), cardText.replace(/\s+/g, ' ').slice(0, 70));
+      check(
+        `${name} · 加载岛弹出`,
+        islandAppeared && island.visible,
+        `出现过=${island.appeared} 可见=${island.visible}`,
+      );
+      check(
+        `${name} · 窗口用服务端上次在线日`,
+        captured.summaryAnchor === expectWindowDay,
+        `实际=${captured.summaryAnchor} 期望=${expectWindowDay}`,
+      );
+      check(
+        `${name} · 卡片文案`,
+        cardText.includes(expectCard),
+        cardText.replace(/\s+/g, ' ').slice(0, 70),
+      );
     } else {
-      check(`${name} · 同日去重：不弹岛、不发摘要请求`, !islandAppeared && captured.summaryCalls === 0, `岛=${islandAppeared} 摘要请求=${captured.summaryCalls}`);
+      check(
+        `${name} · 同日去重：不弹岛、不发摘要请求`,
+        !islandAppeared && captured.summaryCalls === 0,
+        `岛=${islandAppeared} 摘要请求=${captured.summaryCalls}`,
+      );
     }
-    check(`${name} · 无未捕获页面错误`, pageErrors.length === 0, pageErrors.join(' | ').slice(0, 160));
+    check(
+      `${name} · 无未捕获页面错误`,
+      pageErrors.length === 0,
+      pageErrors.join(' | ').slice(0, 160),
+    );
+  } finally {
+    await page.close();
+  }
+};
+
+/** H：20260930 新增行为 —— 触发点 =「进入论坛（首屏解锁落定）」，不是点「我的方块」、也不是登录即弹。
+ *  - H1 断言**触发时机**：只解锁首屏、不点任何东西，就必须自动弹岛（旧实现这里什么都不发生）。
+ *  - H2 断言**离线天数口径**：expectCard 由真实锚点（auth.offlineAnchorAt）决定，而不是推送窗口游标日。
+ *    两条断言刻意选成互不敏感：H1 的期望值（离开 3 天）在旧口径下也成立，所以口径回退只红 H2；
+ *    触发点回退则两条都红。 */
+const runForumEntryScenario = async (
+  browser,
+  { name, anchorIso, previousOnlineDay = null, checkedDay = null, expectCard = '' },
+) => {
+  const captured = { summaryCalls: 0 };
+  const { page, pageErrors } = await openApp(browser, {
+    onPage: (p) => {
+      p.route('**/rest/v1/rpc/mark_overview_state', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            today: todayKey(),
+            previous_online_day: previousOnlineDay,
+            checked_day: checkedDay,
+          }),
+        });
+      });
+      p.route('**/rest/v1/rpc/get_offline_overview', async (route) => {
+        captured.summaryCalls += 1;
+        const body = JSON.parse(route.request().postData() || '{}');
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            anchor: body?.p_anchor ?? null,
+            anchor_source: 'param',
+            is_first_login: false,
+            server_time: new Date().toISOString(),
+            total: 2,
+            has_more: false,
+            items: [
+              {
+                type: 'post',
+                id: 'probe-auto-trigger-1',
+                title: '自动触发窗口里的帖子',
+                excerpt: '探针数据',
+                author: '探针账号',
+                published_at: new Date().toISOString(),
+                image: '',
+                category: 'daily',
+              },
+            ],
+          }),
+        });
+      });
+    },
+  });
+
+  try {
+    await installIslandRecorder(page);
+    await injectFakeLogin(page, anchorIso);
+    // 唯一触发点：解锁首屏（= 进入论坛）。刻意不点「我的方块」—— 它自 2026-09-30 起不再触发。
+    await unlockHomeGate(page);
+    const cardText = await waitForCardText(page, expectCard);
+    const island = await readIslandRecorder(page);
+
+    check(
+      `${name} · 首屏解锁即自动弹岛`,
+      island.appeared && island.visible,
+      `出现过=${island.appeared} 可见=${island.visible}`,
+    );
+    check(
+      `${name} · 发起了摘要请求`,
+      captured.summaryCalls >= 1,
+      `请求 ${captured.summaryCalls} 次`,
+    );
+    check(
+      `${name} · 卡片文案`,
+      cardText.includes(expectCard),
+      cardText.replace(/\s+/g, ' ').slice(0, 70),
+    );
+    check(
+      `${name} · 无未捕获页面错误`,
+      pageErrors.length === 0,
+      pageErrors.join(' | ').slice(0, 160),
+    );
   } finally {
     await page.close();
   }
@@ -322,14 +508,16 @@ const runAnchorScenario = async (browser, { name, anchorIso, expect }) => {
             server_time: new Date().toISOString(),
             total: 0,
             has_more: false,
-            items: []
-          })
+            items: [],
+          }),
         });
-      })
+      }),
   });
 
   try {
-    await injectFakeLogin(page, anchorIso);
+    // 压掉自动触发：本场景断言的是 /overview 页自己发出的请求体，
+    // 自动触发的摘要请求会抢先把 captured.body 覆盖掉
+    await injectFakeLogin(page, anchorIso, { suppressAutoTrigger: true });
     await page.evaluate(() => {
       location.hash = '#/overview';
     });
@@ -341,15 +529,19 @@ const runAnchorScenario = async (browser, { name, anchorIso, expect }) => {
       return {
         hash: location.hash,
         loggedIn: app.config.globalProperties.$pinia.state.value.auth.isLoggedIn === true,
-        mounted: Boolean(document.querySelector('.smart-overview-page'))
+        mounted: Boolean(document.querySelector('.smart-overview-page')),
       };
     });
     check(
       `${name} · p_anchor 正确`,
       captured.body?.p_anchor === expect,
-      `实际=${captured.body?.p_anchor} 期望=${expect} | 请求体=${captured.body ? '有' : '无'} | 现场=${JSON.stringify(diag)}`
+      `实际=${captured.body?.p_anchor} 期望=${expect} | 请求体=${captured.body ? '有' : '无'} | 现场=${JSON.stringify(diag)}`,
     );
-    check(`${name} · 无未捕获页面错误`, pageErrors.length === 0, pageErrors.join(' | ').slice(0, 160));
+    check(
+      `${name} · 无未捕获页面错误`,
+      pageErrors.length === 0,
+      pageErrors.join(' | ').slice(0, 160),
+    );
   } finally {
     await page.close();
   }
@@ -360,7 +552,10 @@ const main = async () => {
   try {
     browser = await launchBrowser();
   } catch (err) {
-    console.error('无法启动 Chromium（需本机 Chrome 或 npx playwright install chromium）:', err.message);
+    console.error(
+      '无法启动 Chromium（需本机 Chrome 或 npx playwright install chromium）:',
+      err.message,
+    );
     process.exit(2);
   }
 
@@ -370,7 +565,10 @@ const main = async () => {
 
   try {
     // A：今天登录过又刷新过的会话 —— 锚点被顶成今天（修复前的必现故障场景）
-    await runIslandScenario(browser, { name: 'A 锚点=今天(刷新后会话)', anchorIso: new Date().toISOString() });
+    await runIslandScenario(browser, {
+      name: 'A 锚点=今天(刷新后会话)',
+      anchorIso: new Date().toISOString(),
+    });
     // B：登录竞态 —— SIGNED_IN 里资料请求未回，锚点仍为空
     await runIslandScenario(browser, { name: 'B 锚点=null(登录竞态)', anchorIso: null });
     // C：回归 —— 锚点仍是真实离线时间，真实离线窗口不受影响
@@ -381,7 +579,7 @@ const main = async () => {
     await runIslandScenario(browser, {
       name: 'F 先离开过再点击',
       anchorIso: new Date().toISOString(),
-      prePagehide: true
+      prePagehide: true,
     });
 
     // G：跨设备 —— 服务端标记提供窗口 / 同日去重
@@ -401,24 +599,41 @@ const main = async () => {
       previousOnlineDay: fiveDaysAgoKey,
       checkedDay: null,
       expectWindowDay: fiveDaysAgoFrontier,
-      expectCard: '你离开了 5 天'
+      expectCard: '你离开了 5 天',
     });
     // G2：服务端记录「今天已检查」→ 换设备后同一天不重复推送
     await runCrossDeviceScenario(browser, {
       name: 'G2 跨设备同日去重',
       previousOnlineDay: fiveDaysAgoKey,
-      checkedDay: todayKey()
+      checkedDay: todayKey(),
     });
     // E1/E2：/overview 页锚点钳制（今天 → 今日零点；60 天前 → 原样）
     await runAnchorScenario(browser, {
       name: 'E1 页锚点=今天 → 钳到今日零点',
       anchorIso: new Date().toISOString(),
-      expect: todayMidnight.toISOString()
+      expect: todayMidnight.toISOString(),
     });
     await runAnchorScenario(browser, {
       name: 'E2 页锚点=60天前 → 原样保留',
       anchorIso: sixtyDaysAgo,
-      expect: sixtyDaysAgo
+      expect: sixtyDaysAgo,
+    });
+
+    // H：20260930 —— 触发点 = 进入论坛（首屏解锁落定）+ 离线天数按真实锚点
+    const threeDaysAgo = new Date(Date.now() - 3 * 86400000);
+    const threeDaysAgoKey = `${threeDaysAgo.getFullYear()}-${String(threeDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(threeDaysAgo.getDate()).padStart(2, '0')}`;
+    await runForumEntryScenario(browser, {
+      name: 'H1 首屏解锁即自动弹岛（不点我的方块）',
+      anchorIso: threeDaysAgo.toISOString(),
+      previousOnlineDay: threeDaysAgoKey,
+      expectCard: '你离开了 3 天',
+    });
+    // 10 小时前还在线：窗口游标日会算出「你离开了 1 天」，真实锚点口径必须说「今天有 2 条新内容」。
+    // H1 的期望值在旧口径下也成立，所以这条是「口径」的独立绊线。
+    await runForumEntryScenario(browser, {
+      name: 'H2 离线天数按真实锚点（10 小时前在线）',
+      anchorIso: new Date(Date.now() - 10 * 3600000).toISOString(),
+      expectCard: '今天有 2 条新内容',
     });
   } finally {
     await browser.close();

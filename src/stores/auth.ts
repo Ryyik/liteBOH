@@ -179,6 +179,11 @@ export const useAuthStore = defineStore(
     // 会话级离线概览锚点：在首次刷新 last_active_at 前快照，避免离线期间内容被排除。
     // 不持久化（persist paths 只含 isLoggedIn/userInfo），每次会话重新捕获。
     const offlineAnchorAt = ref<string | null>(null);
+    // 真·首次登录（DB profiles.last_active_at 为空，注册触发器不写该列）：
+    // 此时离线锚点是「now - 7 天」的**合成值**，只用于撑开推送窗口，
+    // 不能当作真实离线时间展示（否则新账号会看到「你离开了 7 天」）。
+    // 智能概览据此改说欢迎文案，见 useOverviewIsland.js。
+    const isFirstLoginSession = ref(false);
     // 跨设备天粒度标记（服务端 profiles.last_online_day / overview_checked_day，Asia/Shanghai 自然日）：
     // 每次会话经 mark_overview_state 拉取；不持久化。
     // 会话内「上次在线日」以首次取回的值为准——心跳/可见性刷新拿到的已是「今天」，
@@ -240,6 +245,12 @@ export const useAuthStore = defineStore(
     let browserLifecycleBound = false;
     let browserLifecycleHandlers: Record<string, any> | null = null;
     let lastActiveWriteAt = 0;
+    // 天粒度标记的并发去重（见 refreshOverviewMarks）：只对「读旧值 + 写今天」这一类调用生效
+    let overviewMarksInFlight: Promise<{
+      today: string;
+      previousOnlineDay: string;
+      checkedDay: string;
+    } | null> | null = null;
     const profileCacheMeta = reactive<ProfileCacheMeta>({
       userId: '',
       fetchedAt: 0,
@@ -953,9 +964,9 @@ export const useAuthStore = defineStore(
      * - 会话启动/在线心跳：p_checked=false，取回「上次在线日」；
      * - 概览检查成功后：p_checked=true，额外把「当日已检查」推进到今天（跨设备同日去重）。
      */
-    const refreshOverviewMarks = async ({ markChecked = false } = {}): Promise<
-      typeof overviewMarks.value
-    > => {
+    const runRefreshOverviewMarks = async (
+      markChecked: boolean,
+    ): Promise<typeof overviewMarks.value> => {
       if (!isLoggedIn.value || !userInfo.id) return null;
       try {
         const { supabase } = await loadAuthApi();
@@ -981,6 +992,24 @@ export const useAuthStore = defineStore(
       }
     };
 
+    const refreshOverviewMarks = ({ markChecked = false } = {}): Promise<
+      typeof overviewMarks.value
+    > => {
+      // 「读旧值 + 写今天」这类调用（markChecked=false）彼此完全等价，并发时复用同一往返：
+      // 启动期 updateOnlineStatus 与灵动岛的首次检查会同时来要它（2026-09-30 起灵动岛改为
+      // 登录/进站自动触发，撞车成为常态），各发一次既多一个 RPC，又让灵动岛白白多等一个往返。
+      // markChecked=true 有副作用（把当日已检查推进到今天），必须各自真实执行，不并入去重。
+      if (markChecked) return runRefreshOverviewMarks(true);
+      if (overviewMarksInFlight) return overviewMarksInFlight;
+      const run = runRefreshOverviewMarks(false);
+      overviewMarksInFlight = run;
+      const clear = () => {
+        if (overviewMarksInFlight === run) overviewMarksInFlight = null;
+      };
+      void run.then(clear, clear);
+      return run;
+    };
+
     const updateOnlineStatus = async () => {
       try {
         // 两阶段锚点：首次刷新前捕获 DB 中保存的旧活跃时间（syncAuthState 已写入 userInfo），
@@ -994,6 +1023,8 @@ export const useAuthStore = defineStore(
             // 永远不可达、概览恒为空。这里在写库前主动放一个 7 天锚点，
             // 让首次登录能看到最近 7 天的内容。
             offlineAnchorAt.value = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            // 标记该锚点是合成值：窗口照用，但展示层不得把它当成「真实离开 7 天」
+            isFirstLoginSession.value = true;
           }
         }
         const { supabase } = await loadAuthApi();
@@ -1078,7 +1109,9 @@ export const useAuthStore = defineStore(
     const resetState = async (): Promise<void> => {
       isLoggedIn.value = false;
       offlineAnchorAt.value = null;
+      isFirstLoginSession.value = false;
       overviewMarks.value = null;
+      overviewMarksInFlight = null;
       clearSessionHeartbeat();
       clearBrowserLifecycleSync();
       authStateSubscription?.unsubscribe?.();
@@ -1256,6 +1289,7 @@ export const useAuthStore = defineStore(
       logout,
       initLoginState,
       offlineAnchorAt,
+      isFirstLoginSession,
       overviewMarks,
       refreshOverviewMarks,
       refreshCurrentUserProfile,

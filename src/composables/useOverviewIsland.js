@@ -3,7 +3,14 @@ import { useAuthStore } from '@/stores/auth';
 import { showIsland } from '@/composables/useIsland.js';
 import { fetchOfflineOverviewSummary } from '@/utils/api/overview-api.js';
 import OverviewIslandLoading from '@/components/UnifiedNavbar/OverviewIslandLoading.vue';
-import { getDayFrontierIso, getLocalDayKey, readLastCheckedDay, readLastOnlineDay, writeLastCheckedDay, writeLastOnlineDay } from '@/utils/overview-day-marker.js';
+import {
+  getDayFrontierIso,
+  getLocalDayKey,
+  readLastCheckedDay,
+  readLastOnlineDay,
+  writeLastCheckedDay,
+  writeLastOnlineDay,
+} from '@/utils/overview-day-marker.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { logger } from '@/utils/logger.js';
 import { getOverviewCardImage } from '@/views/SmartOverview/utils/image.js';
@@ -43,24 +50,28 @@ const buildStatusPayload = ({ total, offlineDays, isFirstLogin, username }) => {
   if (isFirstLogin) {
     return {
       title: `欢迎来到方块之家，${username}`,
-      message: `为你准备了最近 ${total} 条社区内容，点击查看智能概览`
+      message: `为你准备了最近 ${total} 条社区内容，点击查看智能概览`,
     };
   }
   if (offlineDays >= 1) {
     return {
       title: `欢迎回来，你离开了 ${offlineDays} 天`,
-      message: `离开期间新增 ${total} 条帖子和新闻，点击查看智能概览`
+      message: `离开期间新增 ${total} 条帖子和新闻，点击查看智能概览`,
     };
   }
   return {
     title: `欢迎回来，${username}`,
-    message: `今天有 ${total} 条新内容，点击查看智能概览`
+    message: `今天有 ${total} 条新内容，点击查看智能概览`,
   };
 };
 
 /**
- * 智能概览灵动岛：登录用户点击「我的方块」进入用户空间时，
- * 通过导航栏全局状态卡（GlobalNavStatusCard）展示离线概览摘要。
+ * 智能概览灵动岛：**唯一自动触发点 =「进入论坛」＝首页首屏解锁落定**
+ * （`views/Home/index.vue` 的 `watch([gateSettled, isLoggedIn])`），通过导航栏全局状态卡
+ * （GlobalNavStatusCard）展示离线概览摘要。导航栏侧只留 DEV 手动触发按钮。
+ * ⚠️ 2026-09-30 两度改口径：先是从「点我的方块才检查」改成「登录/进站即弹」，随后按用户意见
+ * 定在「进论坛即弹」——弹点要跟「开始看内容」绑定，而不是跟「打开站点」绑定（后者像登录欢迎弹窗）。
+ * 因此点「我的方块」不再触发，触发点只有一处，别再往别处加调用。
  *
  * 自动推送采用天粒度游标（本机 localStorage + 服务端跨设备标记，见 overview-day-marker.js 与
  * profiles.last_online_day / overview_checked_day）：
@@ -68,8 +79,10 @@ const buildStatusPayload = ({ total, offlineDays, isFirstLogin, username }) => {
  *   「服务端上次在线日」（跨设备，会话启动时由 mark_overview_state 取回）、「会话锚点日」（心跳快照兜底）；
  *   当天活跃一律不取——今天在线 ≠ 当天稍后发布的内容已读，窗口要留给当天首次检查；
  * - 同日去重看「当日已检查」：本机 key 或服务端标记任一为今天即短路（换设备后同一天不再重复推送）；
+ *   服务端标记必须先 await 取回再判，否则换设备首检会读到 null 而重复弹（2026-09-30 修）；
  * - 次日仅当存在上次在线日的次日零点之后新发布的内容才推送，无新一天内容不弹；
- * - 推送窗口与离线天数均按日历日计算，避免把上次在线日当晚的新帖当作「错过内容」重复推送。
+ * - **展示口径与窗口解耦**：离线天数按真实上次在线时间差算（同 /overview 页），不用窗口游标日；
+ *   真·首次登录（无 DB 活跃记录，锚点为合成 now-7d）改说欢迎文案，不显示离线天数（2026-09-30 修）。
  * - 全都不可用（首次启用且无服务端记录）时退回会话锚点日，锚点已退化成今天（今天登录过又刷新过的
  *   新会话）或锚点缺失（登录竞态）则按「昨天」起算，保证每天首次检查必有窗口。静默退出分支不写
  *   任何游标——否则一次什么都没做的检查会把当天钉死，后续触发连加载岛都不会出现。
@@ -105,45 +118,52 @@ export function useOverviewIsland() {
   };
 
   const showIslandFromSummary = (summary, { lastOnlineDay = '' } = {}) => {
-    const anchorMs = summary.anchor ? new Date(summary.anchor).getTime() : 0;
-    let offlineDays = Number.isFinite(anchorMs)
-      ? Math.max(0, Math.floor((Date.now() - anchorMs) / 86400000))
-      : 0;
-    // 天粒度游标下按「上次在线日 → 现在」的日历差展示（如 26 号上线、今天 29 号 = 离开 3 天），
-    // 比锚点时间戳差值更贴近用户对「离开了几天」的直觉
-    if (lastOnlineDay) {
-      const lastDayMs = new Date(`${lastOnlineDay}T00:00:00`).getTime();
-      if (Number.isFinite(lastDayMs)) {
-        offlineDays = Math.max(0, Math.floor((Date.now() - lastDayMs) / 86400000));
+    // 展示口径（2026-09-30 修）：离线天数按**真实上次在线时间差**算（与 /overview 页
+    // useOfflineOverview 的 offlineMs 同口径），不再拿推送窗口游标换算 —— 窗口游标按设计
+    // 恒 < 今天（见下方候选过滤），用它会算出 ≥1 天，使「今天有 N 条新内容」那一支永远不可达
+    // （昨晚 23:00 还在线、今早 9:00 进来也会显示「你离开了 1 天」）。
+    // 锚点不可用（登录竞态）时才回落到窗口游标日按日历差算。
+    // 真·首次登录（无 DB 活跃记录，锚点是合成的 now-7d）不得当离线时间展示，改走欢迎文案。
+    const isFirstLogin = Boolean(summary.isFirstLogin || authStore.isFirstLoginSession);
+    let offlineDays = 0;
+    if (!isFirstLogin) {
+      const anchorMs = authStore.offlineAnchorAt
+        ? new Date(authStore.offlineAnchorAt).getTime()
+        : NaN;
+      if (Number.isFinite(anchorMs)) {
+        offlineDays = Math.max(0, Math.floor((Date.now() - anchorMs) / 86400000));
+      } else if (lastOnlineDay) {
+        const lastDayMs = new Date(`${lastOnlineDay}T00:00:00`).getTime();
+        if (Number.isFinite(lastDayMs)) {
+          offlineDays = Math.max(0, Math.floor((Date.now() - lastDayMs) / 86400000));
+        }
       }
     }
     const username = String(authStore.userInfo?.username || '').trim() || '方块居民';
-    const previews = (Array.isArray(summary.items) ? summary.items : [])
-      .slice(0, 3)
-      .map((it) => ({
-        type: it.type,
-        title: it.title,
-        excerpt: String(it.excerpt || '').trim(),
-        time: formatSmartTime(it.publishedAt),
-        image: getOverviewCardImage(
-          it.image || it.cover_image_url || it.coverImageUrl || it.images?.[0]?.url || ''
-        )
-      }));
+    const previews = (Array.isArray(summary.items) ? summary.items : []).slice(0, 3).map((it) => ({
+      type: it.type,
+      title: it.title,
+      excerpt: String(it.excerpt || '').trim(),
+      time: formatSmartTime(it.publishedAt),
+      image: getOverviewCardImage(
+        it.image || it.cover_image_url || it.coverImageUrl || it.images?.[0]?.url || '',
+      ),
+    }));
 
     markShownThisSession();
     showIsland.notify({
       ...buildStatusPayload({
         total: summary.total,
         offlineDays,
-        isFirstLogin: summary.isFirstLogin,
-        username
+        isFirstLogin,
+        username,
       }),
       icon: 'ai',
       previews,
       durationMs: 6000,
       onAction: () => {
         router.push('/overview');
-      }
+      },
     });
   };
 
@@ -164,13 +184,23 @@ export function useOverviewIsland() {
       const checkedUserId = authStore.userInfo?.id || userId;
       if (!checkedUserId) return;
 
+      // 跨设备同日去重吃的是服务端标记（profiles.overview_checked_day），而它是
+      // initLoginState 里 fire-and-forget 取的（auth.ts: updateOnlineStatus → void refreshOverviewMarks），
+      // initLoginState 并不等它。这里补一次 await，否则首次检查会读到 null → serverCheckedDay=''
+      // → 换设备（手机 PWA / 另一个浏览器，localStorage 不共享）后同一天重复弹岛（2026-09-30 修）。
+      if (!authStore.overviewMarks) await authStore.refreshOverviewMarks();
+
       // —— 天粒度守卫与推送窗口（本机两 key + 服务端跨设备标记，见 overview-day-marker.js）——
       const todayKey = getLocalDayKey();
 
       // 1) 同日去重：本机或服务端任一记录「今天已检查」→ 直接短路（换设备后同一天不再重复推送）
       const serverCheckedDay = authStore.overviewMarks?.checkedDay || '';
       const lastCheckedDay = readLastCheckedDay(checkedUserId);
-      if ((lastCheckedDay && lastCheckedDay >= todayKey) || (serverCheckedDay && serverCheckedDay >= todayKey)) return;
+      if (
+        (lastCheckedDay && lastCheckedDay >= todayKey) ||
+        (serverCheckedDay && serverCheckedDay >= todayKey)
+      )
+        return;
 
       // 2) 窗口起点 = 各来源里「不晚于昨天」的最新一天，取最新（最接近今天）的那个：
       //    - 本机在线日：会话结束（pagehide）/上次检查落盘；
@@ -183,14 +213,15 @@ export function useOverviewIsland() {
         : '';
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const lastOnlineDay = [
-        readLastOnlineDay(checkedUserId),
-        authStore.overviewMarks?.previousOnlineDay || '',
-        anchorDay
-      ]
-        .filter((day) => day && day < todayKey)
-        .sort()
-        .pop() || getLocalDayKey(yesterday);
+      const lastOnlineDay =
+        [
+          readLastOnlineDay(checkedUserId),
+          authStore.overviewMarks?.previousOnlineDay || '',
+          anchorDay,
+        ]
+          .filter((day) => day && day < todayKey)
+          .sort()
+          .pop() || getLocalDayKey(yesterday);
 
       // 推送游标 = 窗口起点（上次在线日）的次日零点；脏数据则本次不推（正常路径下不会走到）
       const pushFrontier = getDayFrontierIso(lastOnlineDay);
@@ -238,7 +269,7 @@ export function useOverviewIsland() {
           title: '（测试）未登录',
           message: '智能概览灵动岛需要登录后使用',
           icon: 'warning',
-          durationMs: 6000
+          durationMs: 6000,
         });
         return;
       }
@@ -256,7 +287,7 @@ export function useOverviewIsland() {
         authStore.overviewMarks = {
           today: getLocalDayKey(),
           previousOnlineDay: simulatedDay,
-          checkedDay: simulatedDay
+          checkedDay: simulatedDay,
         };
       }
 
@@ -277,7 +308,7 @@ export function useOverviewIsland() {
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
-            hour12: false
+            hour12: false,
           })
         : '未知';
       showIsland.notify({
@@ -287,7 +318,7 @@ export function useOverviewIsland() {
         durationMs: 6000,
         onAction: () => {
           router.push('/overview');
-        }
+        },
       });
     } catch (error) {
       closeLoadingIsland();
@@ -296,7 +327,7 @@ export function useOverviewIsland() {
         title: '（测试）灵动岛检查失败',
         message: error?.message || '未知错误，详见控制台日志',
         icon: 'warning',
-        durationMs: 6000
+        durationMs: 6000,
       });
     }
   };

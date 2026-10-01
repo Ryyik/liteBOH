@@ -174,16 +174,27 @@
   transform: translateY(calc((1 - var(--forum-p, 1)) * 52px));
 }
 
-/* 落定后的「对焦」：只改 opacity / filter，绝不碰 transform ——
+/* 落定后的「对焦」：只改 opacity，绝不碰 transform ——
    否则 keyframes 里的 transform 会盖掉上面由 --forum-p 派生的位移，卡片会瞬跳。
-   filter 在这里只跑一次（不在跟手路径上），代价可接受。 */
+
+   ⚠️ 2026-09-30：**移除这里的 filter: blur()**（原为 from blur(5px) → to blur(0)）。
+   两个原因，与用户报障「横屏划掉开场画后：先划不动一会 → 解锁后才出现模糊 → 才逐渐正常」逐条对上：
+     ① **视觉是反的**：跟手全程论坛层都是清晰的 —— 模糊由 StreetSceneHero 那张「静态模糊副本」
+        负责，它属于**浮层**（.home-gate）而不是**桌面**（.home-forum-stage）。落定瞬间才给
+        已经清晰的桌面加上 blur(5px) 再化开，用户看到的是「解锁之后突然糊一下」，不是「对焦」。
+        用户原话：「我是已经解锁完了才出现的模糊」。
+     ② **它违反本文件自己的性能原则**（见上方 .home-gate 那段注释）：对整块论坛层逐帧改
+        filter 半径会让大面积图层每帧重新栅格化。而落定瞬间**正好就是解锁瞬间**
+        （useGatePull.js 的 tween 回调里 forumEntering=true 与 unlockDocumentScroll() 相邻），
+        于是表现为「已经解锁了，但一时滑不动」——即用户感知的那段卡顿。
+   仅保留 opacity 收敛：它走合成器路径，不触发重栅格化。 */
 .home-forum-entering .home-forum-stage {
   animation: homeForumFocus var(--home-focus-duration) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
 @keyframes homeForumFocus {
-  from { opacity: 0.9; filter: blur(5px); }
-  to { opacity: 1; filter: blur(0); }
+  from { opacity: 0.9; }
+  to { opacity: 1; }
 }
 
 /* 底栏槽位：display:contents 让固定定位的底栏照常相对视口定位；

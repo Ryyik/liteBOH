@@ -111,7 +111,7 @@
    - 开场画不是可滚动的第一屏，而是「过了就不再回来」的入场。整段入场是一条 0~1 的进度。
    - 论坛本体与 UserSpace 的「方块」分区共用 ForumSectionShell（单源），
      分区七席、30s 轮询、分区过渡动画全部原样。
-   - 底栏五席来自 @/config/bottom-nav，进度过半时从下方浮入，随后由滚动方向驱动显隐。 */
+   - 底栏四席来自 @/config/bottom-nav，进度过半时从下方浮入，随后由滚动方向驱动显隐。 */
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
@@ -130,6 +130,7 @@ import { FORUM_DEFAULT_SECTION, resolveForumSection } from '@/config/forum-secti
 import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
 import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { showIsland } from '@/composables/useIsland.js';
+import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
 import { themeManager } from '@/utils/theme-manager.js';
 
 // 官方英雄区舞台（hero 流 + 四类周年弹窗）：独立 chunk，只在切到「官方」分区时才请求
@@ -170,6 +171,29 @@ const {
   mounted: mountGatePull,
   unmounted: unmountGatePull,
 } = useGatePull();
+
+// ============================================
+// 智能概览灵动岛：唯一自动触发点 =「进入论坛」（首屏解锁落定）
+// ============================================
+/* 2026-09-30 口径：从「登录 / 进站即弹」改为「进论坛即弹」——用户希望弹点跟「开始看内容」
+   这个动作绑定，而不是跟「打开站点」绑定（后者像一条登录欢迎弹窗，随时会打断人）。
+   gateSettled 是首屏解锁的落定信号，两条路径都覆盖：
+     · 首次访问 / 超过 24h 重播：跟手揭开浮层落定后（约 1.9s）为 true；
+     · 24h 内回访（gateAlreadyPassed）：开场画本来就不播、论坛即首屏 → setup 时就是 true。
+   登录态由 auth 异步解析，与 gateSettled 谁后到位都可能，所以两者任一变化都要再判一次
+   （immediate 覆盖「已登录 + 首屏已解锁」的冷启动）。
+   重复由 useOverviewIsland 内部三道守卫兜住（会话标记 + 「当日已检查」天粒度游标 + 5min 冷却），
+   所以这里只管「到点就调一次」，不需要自己记状态。 */
+const { maybeShowOverviewIsland } = useOverviewIsland();
+
+watch(
+  [gateSettled, isLoggedIn],
+  ([settled, loggedIn]) => {
+    if (!settled || !loggedIn) return;
+    maybeShowOverviewIsland({ currentPath: route.path });
+  },
+  { immediate: true },
+);
 
 // ============================================
 // 论坛分区：URL 的 view 是唯一真源（/?view=official 深链直达）
@@ -238,7 +262,7 @@ watch(
 );
 
 // ============================================
-// 底栏（五席）：进入论坛后滑入，此后随滚动方向隐藏 / 显现
+// 底栏（四席）：进入论坛后滑入，此后随滚动方向隐藏 / 显现
 // ============================================
 const { hidden: bottomNavHidden } = useScrollDirectionHide({
   // 底栏还没就位（开场画阶段 / 浮现延迟窗口内）不需要方向联动
@@ -277,7 +301,7 @@ const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0)
 const hasUnreadMessages = computed(() => unreadCount.value > 0);
 // ============================================
 // 横屏左栏的动作分发（与 UserSpaceMain.handleRailAction 同一套语义，
-// 只是落在首页自己的既有入口上；主导航那五席走 handleBottomNavClick）
+// 只是落在首页自己的既有入口上；主导航那四席走 handleBottomNavClick）
 // ============================================
 // 主题：真源 = themeManager（与 UserSpace 同口径，只保留左栏「更多」菜单需要的两项状态）
 const showThemeModal = ref(false);
