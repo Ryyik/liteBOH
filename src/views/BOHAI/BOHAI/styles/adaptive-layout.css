@@ -697,12 +697,12 @@
 .bohai-page[data-ui-style='flat'] .input-box,
 .bohai-page.embedded-mode .input-box {
   position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   min-height: 54px;
-  padding: 7px 9px;
+  padding: 8px 10px 6px;
   border: 1px solid var(--bohai-line-strong);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.86);
@@ -716,12 +716,6 @@
 .bohai-page[data-ui-style='flat'] .input-box:focus-within {
   border-color: rgba(17, 17, 17, 0.2);
   box-shadow: 0 12px 34px rgba(17, 17, 17, 0.07);
-}
-
-.bohai-page .input-left {
-  position: relative;
-  z-index: 2;
-  align-self: center;
 }
 
 .bohai-page .composer-main {
@@ -954,14 +948,70 @@
   color: var(--bohai-faint);
 }
 
-.bohai-page .input-right {
-  position: relative;
-  z-index: 3;
-  display: inline-flex;
+/* ─── 输入框底行：左下角联网开关 / 右侧面板入口 + 发送 ───────────────── */
+.bohai-page .composer-bar {
+  display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 8px;
   min-width: 0;
+}
+
+.bohai-page .composer-bar-left,
+.bohai-page .composer-bar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bohai-page .composer-bar-right {
+  position: relative;
+  z-index: 3;
+  justify-content: flex-end;
+}
+
+/* 联网开关：单键 toggle，开启态由自身承担（不再另起 chip 行） */
+.bohai-page .composer-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--bohai-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--bohai-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.bohai-page .composer-tool-btn:hover {
+  border-color: var(--bohai-line-strong);
+  color: var(--bohai-text);
+}
+
+.bohai-page .composer-tool-btn.active {
+  border-color: var(--bohai-text);
+  background: var(--bohai-text);
+  color: var(--bohai-bg);
+}
+
+/* 上下文环在底行内不再吃 message-actions 的动画与 margin */
+.bohai-page .composer-context-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+  animation: none;
+  margin-left: 0;
 }
 
 .bohai-page .input-actions {
@@ -969,7 +1019,6 @@
   align-items: center;
 }
 
-.bohai-page .features-btn,
 .bohai-page .send-btn,
 .bohai-page .stop-btn {
   width: 34px;
@@ -986,11 +1035,6 @@
   box-shadow: none;
 }
 
-.bohai-page .features-btn:hover,
-.bohai-page .features-btn.active {
-  background: rgba(17, 17, 17, 0.06);
-}
-
 .bohai-page .send-btn:disabled {
   border-color: transparent;
   background: rgba(17, 17, 17, 0.12);
@@ -1004,64 +1048,268 @@
   color: #ffffff;
 }
 
-.bohai-page .features-menu,
-.bohai-page .composer-mode-menu {
+/* ─── 输入框右侧展开面板：模式 / 思考强度 / 工具 ────────────────────── */
+.bohai-page .composer-panel-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bohai-page .composer-panel-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--bohai-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--bohai-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.bohai-page .composer-panel-trigger:hover,
+.bohai-page .composer-panel-trigger.open {
+  border-color: var(--bohai-line-strong);
+  background: rgba(17, 17, 17, 0.05);
+  color: var(--bohai-text);
+}
+
+.bohai-page .composer-panel-trigger-label {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bohai-page .composer-panel-trigger-effort {
+  color: var(--bohai-muted-soft);
+  font-weight: 400;
+}
+
+/* 中文模式名 + 单字强度会被读成一句话（「质量 低」），加个分隔点断开 */
+.bohai-page .composer-panel-trigger-effort::before {
+  content: '·';
+  margin-right: 4px;
+}
+
+.bohai-page .composer-panel {
   position: absolute;
+  right: 0;
   bottom: calc(100% + 10px);
   z-index: 90;
+  width: min(248px, calc(100vw - 28px));
+  padding: 6px;
   border: 1px solid var(--bohai-line);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 44px rgba(17, 17, 17, 0.12);
+  backdrop-filter: var(--bohai-blur);
+  -webkit-backdrop-filter: var(--bohai-blur);
+  /* ⚠️ 必须是 visible：二级菜单从面板左右两侧弹出，滚动容器会把它们裁掉。
+     三行结构本身很矮不需要滚动；「高级」展开区自己带 max-height。 */
+  overflow: visible;
+}
+
+/* 主面板的一行：左键名 / 右当前值 / 右箭头 */
+.bohai-page .composer-panel-row {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--bohai-text);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.bohai-page .composer-panel-row:hover {
+  background: rgba(17, 17, 17, 0.055);
+}
+
+/* 「正在改这一行」的高亮：比 hover 重一点，和二级菜单的出现对应 */
+.bohai-page .composer-panel-row.active {
+  background: rgba(17, 17, 17, 0.07);
+}
+
+.bohai-page .composer-panel-row-key {
+  font-weight: 400;
+}
+
+.bohai-page .composer-panel-row-value {
+  margin-left: auto;
+  color: var(--bohai-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bohai-page .composer-panel-row-chev {
+  flex: 0 0 auto;
+  color: var(--bohai-muted-soft);
+}
+
+.bohai-page .composer-panel-row.is-adv {
+  min-height: 38px;
+  color: var(--bohai-muted);
+}
+
+.bohai-page .composer-panel-row.is-adv:hover {
+  color: var(--bohai-text);
+}
+
+.bohai-page .composer-panel-row.is-adv .composer-panel-row-chev {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.bohai-page .composer-panel-row.is-adv.open .composer-panel-row-chev {
+  transform: rotate(180deg);
+}
+
+.bohai-page .composer-panel-sep {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--bohai-line);
+}
+
+.bohai-page .composer-panel-adv {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* 二级菜单：贴着主面板左 / 右边缘弹出，不压住面板本身 */
+.bohai-page .composer-submenu {
+  position: absolute;
+  bottom: 0;
+  width: 200px;
+  max-height: min(52dvh, 380px);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--bohai-line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 18px 44px rgba(17, 17, 17, 0.12);
   backdrop-filter: var(--bohai-blur);
   -webkit-backdrop-filter: var(--bohai-blur);
 }
 
-.bohai-page .features-menu {
-  left: 0 !important;
-  bottom: calc(100% + 8px) !important;
-  width: auto !important;
-  min-width: 220px !important;
-  max-width: min(260px, calc(100vw - 28px)) !important;
-  padding: 6px !important;
-  overflow: visible !important;
-  border-radius: 16px !important;
-  box-shadow: 0 10px 28px rgba(17, 17, 17, 0.08) !important;
+.bohai-page .composer-submenu.is-left {
+  right: calc(100% + 10px);
 }
 
-.bohai-page .feature-menu-handle,
-.bohai-page .feature-menu-title {
-  display: none !important;
+.bohai-page .composer-submenu.is-right {
+  left: calc(100% + 10px);
 }
 
-.bohai-page .feature-action-list {
-  display: grid !important;
-  gap: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
+.bohai-page .composer-submenu-title {
+  padding: 8px 11px 6px;
+  color: var(--bohai-muted-soft);
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.bohai-page .feature-action-row {
-  min-height: 50px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: 8px !important;
-  width: 100% !important;
-  padding: 0 9px !important;
-  border: 0 !important;
-  border-radius: 12px !important;
-  background: transparent !important;
-  color: #111111 !important;
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  line-height: 1.2 !important;
-  white-space: nowrap !important;
-  box-shadow: none !important;
+.bohai-page .composer-submenu-item {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--bohai-text);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.16s ease;
 }
 
-.bohai-page .feature-action-row:hover {
-  background: rgba(17, 17, 17, 0.055) !important;
+.bohai-page .composer-submenu-item:hover {
+  background: rgba(17, 17, 17, 0.055);
+}
+
+.bohai-page .composer-submenu-item.active {
+  background: rgba(17, 17, 17, 0.07);
+}
+
+.bohai-page .composer-submenu-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 消耗倍率角标占掉 auto 边距，勾改为紧跟其后 */
+.bohai-page .composer-submenu-item-rate {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--bohai-muted-soft);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 免费模型（quota_multiplier = 0）角标：绿色胶囊，与倍率数字区分。
+   颜色走既有 token --boh-brand-green（dark-mode.css 双主题定义），不新增裸色值。
+   2026-10-01 自已废弃的 `.mode-option-multiplier.is-free` 迁移至此 —— 模板里
+   `:class="{ 'is-free': isFreeMode(mode) }"` 一直在渲染，但改写面板时规则留在了旧类名上，
+   「免费」二字于是退回普通灰字、胶囊底色丢失。 */
+.bohai-page .composer-submenu-item-rate.is-free {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--boh-brand-green) 12%, transparent);
+  color: var(--boh-brand-green);
+}
+
+.bohai-page .composer-submenu-check {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--bohai-text);
+}
+
+.bohai-page .composer-submenu-item-rate + .composer-submenu-check {
+  margin-left: 10px;
+}
+
+.bohai-page .composer-panel-loading {
+  padding: 2px 9px 6px;
+}
+
+.bohai-page .composer-panel-tool {
+  width: 100%;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--bohai-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.bohai-page .composer-panel-tool:hover {
+  background: rgba(17, 17, 17, 0.055);
+}
+
+.bohai-page .composer-panel-tool.active {
+  background: rgba(17, 17, 17, 0.07);
 }
 
 .bohai-page .feature-action-icon {
@@ -1109,122 +1357,7 @@
   background: #111111 !important;
 }
 
-.bohai-page .composer-mode-picker {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.bohai-page .composer-mode-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-width: 0;
-  height: 42px;
-  min-width: 88px;
-  padding: 0 13px;
-  border: 1px solid transparent;
-  border-radius: 19px;
-  background: rgba(17, 17, 17, 0.055);
-  color: var(--bohai-text);
-  font-size: 15px;
-  font-weight: 760;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.bohai-page .composer-mode-button:hover,
-.bohai-page .composer-mode-button.open {
-  border-color: transparent;
-  background: rgba(17, 17, 17, 0.085);
-}
-
-.bohai-page .composer-mode-menu {
-  right: 0;
-  width: min(340px, calc(100vw - 28px));
-  padding: 14px 8px;
-}
-
-/* 极简单行模式选项：名称居左，倍率 + 选中勾居右（参考 GLM 极简风格） */
-.bohai-page .composer-mode-option {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 8px 12px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--bohai-text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.bohai-page .composer-mode-option:hover,
-.bohai-page .composer-mode-option.active {
-  border-color: transparent;
-  background: rgba(17, 17, 17, 0.045);
-}
-
-.bohai-page .mode-option-main {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 0;
-}
-
-.bohai-page .mode-option-main strong {
-  font-size: 14.5px;
-  font-weight: 640;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.bohai-page .mode-option-main small {
-  display: none;
-}
-
-.bohai-page .mode-option-meta {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.bohai-page .mode-option-multiplier {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.01em;
-  color: var(--bohai-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-/* 免费模型（quota_multiplier = 0）角标：绿色胶囊，与倍率数字区分。
-   颜色走既有 token --boh-brand-green（dark-mode.css 双主题定义），不新增裸色值。 */
-.bohai-page .mode-option-multiplier.is-free {
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--boh-brand-green) 12%, transparent);
-  color: var(--boh-brand-green);
-}
-
-.bohai-page .mode-option-check {
-  flex: none;
-  color: #0f9f7a;
-}
-
 /* 模式菜单加载态：骨架占位 + 提示文案（颜色走 --bohai-* token，暗色主题自动适配） */
-.bohai-page .composer-mode-menu-loading {
-  display: grid;
-  gap: 2px;
-}
 
 .bohai-page .mode-skeleton-row {
   display: flex;
@@ -1430,62 +1563,11 @@
     font-size: 11.5px;
   }
 
-  .bohai-page .features-btn,
   .bohai-page .send-btn,
   .bohai-page .stop-btn {
     width: 32px;
     height: 32px;
     flex-basis: 32px;
-  }
-
-  .bohai-page .input-right {
-    gap: 4px;
-  }
-
-  .bohai-page .composer-mode-button {
-    height: 34px;
-    min-width: 66px;
-    max-width: 78px;
-    padding: 0 8px;
-    font-size: 12px;
-    border-radius: 16px;
-  }
-
-  .bohai-page .composer-mode-button span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .bohai-page .features-menu,
-  .bohai-page .composer-mode-menu {
-    position: fixed;
-    right: 10px;
-    left: 10px;
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-    width: auto;
-    max-width: none;
-  }
-
-  .bohai-page .features-menu {
-    right: auto;
-    left: 10px !important;
-    width: auto !important;
-    min-width: 148px !important;
-    max-width: calc(100vw - 20px) !important;
-  }
-
-  .bohai-page .composer-mode-option {
-    min-height: 44px;
-  }
-
-  .bohai-page .mode-option-main strong {
-    font-size: 15.5px;
-  }
-
-  .bohai-page .mode-option-desc {
-    font-size: 14px;
   }
 
   .bohai-page .thinking {
@@ -1539,14 +1621,11 @@
     height: 24px;
   }
 
-  .bohai-page .features-btn,
   .bohai-page .send-btn,
-  .bohai-page .stop-btn,
-  .bohai-page .composer-mode-button {
+  .bohai-page .stop-btn {
     height: 32px;
   }
 
-  .bohai-page .features-btn,
   .bohai-page .send-btn,
   .bohai-page .stop-btn {
     width: 32px;

@@ -71,7 +71,6 @@
 .bohai-page[data-ui-style="flat"] .sidebar-overlay,
 .bohai-page[data-ui-style="flat"] .empty-suggestion-card,
 .bohai-page[data-ui-style="flat"] .input-box,
-.bohai-page[data-ui-style="flat"] .features-menu,
 .bohai-page[data-ui-style="flat"] .message.user .message-content,
 .bohai-page[data-ui-style="flat"] .action-draft-card,
 .bohai-page[data-ui-style="flat"] .consent-card,
@@ -150,7 +149,6 @@
 .delete-btn,
 .delete-message-btn,
 .message-action-btn,
-.features-btn,
 .mic-btn,
 .send-btn,
 .stop-btn {
@@ -623,13 +621,6 @@
     color: #202123;
 }
 
-.header-mode-picker {
-    position: relative;
-    z-index: 140;
-    min-width: 0;
-    justify-self: center;
-}
-
 .header-content {
     position: relative;
     min-width: 0;
@@ -704,108 +695,6 @@
 
 .header-content.open svg {
     transform: rotate(180deg);
-}
-
-.header-mode-menu {
-    position: absolute;
-    top: calc(100% + 10px);
-    left: 50%;
-    z-index: 160;
-    width: min(360px, calc(100vw - 28px));
-    max-height: min(430px, calc(100dvh - 160px));
-    padding: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.72);
-    border-radius: 18px;
-    background:
-        linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(244, 250, 248, 0.58)),
-        rgba(255, 255, 255, 0.64);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.94),
-        0 24px 62px rgba(15, 23, 42, 0.18),
-        0 0 0 1px rgba(255, 255, 255, 0.2);
-    backdrop-filter: var(--liquid-filter);
-    -webkit-backdrop-filter: var(--liquid-filter);
-    transform: translateX(-50%);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-}
-
-.header-mode-option {
-    width: 100%;
-    min-height: 66px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 7px;
-    padding: 13px 14px;
-    margin: 3px 0;
-    border: 1px solid rgba(255, 255, 255, 0.28);
-    border-radius: 13px;
-    background: rgba(255, 255, 255, 0.26);
-    color: #1f2937;
-    text-align: left;
-    cursor: pointer;
-    transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
-    outline: none;
-    position: relative;
-}
-
-.header-mode-option:hover {
-    background: rgba(255, 255, 255, 0.58);
-    border-color: rgba(15, 159, 122, 0.28);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
-    transform: translateY(-1px);
-}
-
-.header-mode-option:active {
-    background: rgba(255, 255, 255, 0.7);
-    border-color: rgba(15, 159, 122, 0.38);
-    transform: translateY(0);
-}
-
-.header-mode-option.active {
-    background:
-        linear-gradient(135deg, rgba(15, 159, 122, 0.16), rgba(255, 255, 255, 0.72)),
-        rgba(255, 255, 255, 0.68);
-    border-color: rgba(15, 159, 122, 0.42);
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.92),
-        0 8px 22px rgba(15, 159, 122, 0.12);
-}
-
-.mode-option-main {
-    width: 100%;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-}
-
-.mode-option-main strong {
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.2;
-    color: #111827;
-}
-
-.mode-option-main small {
-    font-size: 13px;
-    font-weight: 500;
-    line-height: 1.2;
-    color: #4b665d;
-    padding: 2px 8px;
-    background: rgba(255, 255, 255, 0.58);
-    border: 1px solid rgba(255, 255, 255, 0.46);
-    border-radius: 8px;
-}
-
-.mode-option-desc {
-    width: 100%;
-    font-size: 13px;
-    line-height: 1.4;
-    color: #6b7280;
-    font-weight: 400;
 }
 
 /* Auto 模式下显示的"已路由到 X 模式"小标签 */

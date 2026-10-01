@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOH AI 输入区改版 · 上下文额度合环 + 模式/推理强度选择器</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root, [data-theme="light"] {
+    --page: #eef1f5;
+    --page-grad: radial-gradient(1100px 520px at 12% -6%, #ffffff 0%, rgba(255,255,255,0) 62%),
+                 radial-gradient(900px 480px at 92% 4%, #e4ecf8 0%, rgba(228,236,248,0) 58%);
+    --card: #ffffff;
+    --card-2: #f6f8fb;
+    --panel: rgba(255,255,255,.86);
+    --panel-solid: #ffffff;
+    --pop: rgba(255,255,255,.96);
+    --row-hover: rgba(20,89,217,.07);
+    --row-active: rgba(20,89,217,.14);
+    --border: rgba(15,23,42,.09);
+    --border-soft: rgba(15,23,42,.055);
+    --text: #14181f;
+    --text-2: #69707a;
+    --text-3: #9aa1aa;
+    --accent: #1459d9;
+    --accent-soft: rgba(20,89,217,.10);
+    --green: #0f9f7a;
+    --green-soft: rgba(15,159,122,.12);
+    --amber: #d98206;
+    --red: #dc2626;
+    --track: rgba(15,23,42,.13);
+    --shadow-card: 0 1px 2px rgba(15,23,42,.04), 0 14px 36px rgba(15,23,42,.06);
+    --shadow-pop: 0 20px 48px rgba(15,23,42,.16), 0 2px 8px rgba(15,23,42,.07), inset 0 1px 0 #fff;
+    --shadow-bar: 0 10px 30px rgba(15,23,42,.10), inset 0 1px 0 rgba(255,255,255,.92);
+    --seg-bg: rgba(120,128,140,.14);
+  }
+
+  [data-theme="dark"] {
+    --page: #0c0c0e;
+    --page-grad: radial-gradient(1100px 520px at 12% -6%, #1c1c20 0%, rgba(28,28,32,0) 62%),
+                 radial-gradient(900px 480px at 92% 4%, #16161c 0%, rgba(22,22,28,0) 58%);
+    --card: #1b1b1e;
+    --card-2: #212125;
+    --panel: rgba(38,38,41,.90);
+    --panel-solid: #2a2a2e;
+    --pop: rgba(44,44,47,.97);
+    --row-hover: rgba(255,255,255,.075);
+    --row-active: rgba(255,255,255,.11);
+    --border: rgba(255,255,255,.10);
+    --border-soft: rgba(255,255,255,.06);
+    --text: #f4f4f6;
+    --text-2: #a3a3a9;
+    --text-3: #7c7c83;
+    --accent: #6b9bff;
+    --accent-soft: rgba(107,155,255,.15);
+    --green: #35c79c;
+    --green-soft: rgba(53,199,156,.15);
+    --amber: #f0a340;
+    --red: #ff6b6b;
+    --track: rgba(255,255,255,.18);
+    --shadow-card: 0 1px 2px rgba(0,0,0,.35), 0 18px 40px rgba(0,0,0,.32);
+    --shadow-pop: 0 24px 56px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.06);
+    --shadow-bar: 0 12px 34px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.05);
+    --seg-bg: rgba(255,255,255,.10);
+  }
+
+  html, body {
+    background: var(--page);
+    background-image: var(--page-grad);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-size: 14px;
+    transition: background-color .25s ease, color .25s ease;
+  }
+
+  /* ───────────────── header ───────────────── */
+  .topbar {
+    position: sticky; top: 0; z-index: 60;
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: color-mix(in srgb, var(--page) 82%, transparent);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .topbar-in { max-width: 1140px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; gap: 16px; }
+  .topbar h1 { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+  .topbar h1 span { color: var(--text-3); font-weight: 400; margin-left: 8px; font-size: 13px; }
+  .topbar .spacer { flex: 1; }
+  .seg { display: inline-flex; background: var(--seg-bg); border-radius: 9px; padding: 3px; }
+  .seg button {
+    border: 0; background: transparent; padding: 6px 14px; border-radius: 7px;
+    font-size: 12px; font-weight: 500; color: var(--text-2); cursor: pointer;
+    font-family: inherit; transition: all .16s ease;
+  }
+  .seg button.on { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.14); }
+
+  main { max-width: 1140px; margin: 0 auto; padding: 34px 28px 90px; }
+
+  .sec { margin-top: 46px; }
+  .sec:first-child { margin-top: 0; }
+  .sec-head { margin-bottom: 18px; }
+  .sec-head h2 { font-size: 17px; font-weight: 600; letter-spacing: -.015em; display: flex; align-items: center; gap: 9px; }
+  .sec-head h2 .num {
+    width: 22px; height: 22px; border-radius: 7px; background: var(--accent-soft); color: var(--accent);
+    font-size: 12px; display: grid; place-items: center; font-weight: 600; flex-shrink: 0;
+  }
+  .sec-head p { margin-top: 7px; font-size: 13px; line-height: 1.75; color: var(--text-2); max-width: 780px; }
+  .sec-head p b { color: var(--text); font-weight: 500; }
+  .sec-head code {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11.5px;
+    background: var(--accent-soft); color: var(--accent); padding: 1.5px 6px; border-radius: 5px;
+  }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border-soft); border-radius: 18px;
+    box-shadow: var(--shadow-card); padding: 26px;
+  }
+  .card + .card { margin-top: 16px; }
+  .card-label {
+    font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--text-3); margin-bottom: 16px;
+  }
+
+  /* ───────────────── 输入栏实景 ───────────────── */
+  .stage {
+    border-radius: 22px; padding: 356px 32px 48px; position: relative;
+    background: var(--card-2); border: 1px solid var(--border-soft); overflow: visible;
+  }
+  .stage-tip {
+    position: absolute; top: 30px; left: 0; right: 0; text-align: center;
+    font-size: 12.5px; color: var(--text-3);
+  }
+  .stage-tip b { color: var(--text-2); font-weight: 600; }
+
+  /* 上方淡化对话流，模拟真实位置（输入框贴底、浮层向上展开） */
+  .fake-thread {
+    position: absolute; top: 62px; left: 34px; right: 34px;
+    display: flex; flex-direction: column; gap: 11px; pointer-events: none;
+  }
+  .bubble {
+    max-width: 58%; padding: 11px 15px; border-radius: 16px;
+    font-size: 13px; line-height: 1.65; color: var(--text-3);
+    background: var(--card); border: 1px solid var(--border-soft);
+  }
+  .bubble.me {
+    align-self: flex-end; background: var(--accent-soft);
+    border-color: transparent; color: color-mix(in srgb, var(--accent) 78%, var(--text-3));
+  }
+  .stage-bg {
+    position: absolute; inset: 0; border-radius: 22px; overflow: hidden;
+    background: linear-gradient(160deg, var(--card-2), transparent 70%);
+  }
+
+  .composer {
+    position: relative; width: 100%; max-width: 700px; margin: 0 auto;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 24px;
+    box-shadow: var(--shadow-bar);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    padding: 14px 14px 10px;
+  }
+  .composer-input {
+    padding: 4px 8px 16px; font-size: 15px; line-height: 1.55; color: var(--text);
+  }
+  .composer-input .ph { color: var(--text-3); }
+  .composer-input .caret {
+    display: inline-block; width: 1.5px; height: 17px; background: var(--accent);
+    vertical-align: -3px; margin-left: 1px; animation: blink 1.1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .composer-bar { display: flex; align-items: center; gap: 8px; }
+  .composer-bar .grow { flex: 1; }
+
+  .tool-btn {
+    display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px;
+    border: 0; border-radius: 15px; background: transparent; color: var(--text-2);
+    font-size: 13px; font-family: inherit; cursor: pointer; transition: background .16s, color .16s;
+  }
+  .tool-btn:hover { background: var(--row-hover); color: var(--text); }
+  .tool-btn svg { width: 15px; height: 15px; }
+
+  /* ───────────────── 合环 orb ───────────────── */
+  .orb-wrap { position: relative; }
+
+  .orb {
+    position: relative; width: 38px; height: 38px; border-radius: 50%;
+    background: var(--panel-solid); border: 1px solid var(--border);
+    display: grid; place-items: center; cursor: pointer; padding: 0;
+    transition: transform .18s cubic-bezier(.4,0,.2,1), box-shadow .18s, border-color .18s;
+  }
+  .orb:hover { transform: scale(1.07); box-shadow: 0 6px 16px rgba(15,23,42,.14); }
+  .orb.open { border-color: color-mix(in srgb, var(--accent) 42%, transparent); }
+  .orb svg { width: 100%; height: 100%; display: block; }
+
+  .send-btn {
+    width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; border: 0;
+    background: var(--accent); color: #fff; display: grid; place-items: center;
+    cursor: pointer; transition: background .16s, transform .16s;
+  }
+  .send-btn:hover { background: color-mix(in srgb, var(--accent) 86%, #000); transform: scale(1.05); }
+  .send-btn svg { width: 16px; height: 16px; }
+
+  /* 压缩中：暂时顶掉圆钮的位置 */
+  .compress-hint {
+    display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px;
+    border-radius: 15px; background: var(--accent-soft); color: var(--accent);
+    font-size: 12.5px; font-weight: 500; white-space: nowrap;
+  }
+  .compress-hint .spin { width: 13px; height: 13px; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .orb-track { fill: none; stroke: var(--track); stroke-width: 2.2; }
+  .orb-fill {
+    fill: none; stroke-width: 2.2; stroke-linecap: round;
+    transition: stroke-dasharray .55s cubic-bezier(.4,0,.2,1), stroke .3s;
+  }
+  .orb-fill.ctx { stroke: var(--accent); }
+  .orb-fill.quota { stroke: var(--green); }
+  .orb.warn .orb-fill.ctx { stroke: var(--amber); }
+  .orb.danger .orb-fill.ctx { stroke: var(--red); }
+  .orb.q-warn .orb-fill.quota { stroke: var(--amber); }
+  .orb.q-danger .orb-fill.quota { stroke: var(--red); }
+
+  /* hover 提示 */
+  .orb-tip {
+    position: absolute; bottom: calc(100% + 9px); left: 50%; transform: translateX(-50%) translateY(3px);
+    background: var(--pop); color: var(--text); border: 1px solid var(--border);
+    box-shadow: var(--shadow-pop); border-radius: 9px; padding: 7px 11px;
+    font-size: 11.5px; white-space: nowrap; pointer-events: none;
+    opacity: 0; transition: opacity .16s, transform .16s; z-index: 40;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .orb-wrap:hover .orb-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
+  /* 浮层展开时不再显示悬停小提示，避免两个气泡叠在一起 */
+  .orb.open + .orb-tip { opacity: 0; }
+  .orb-tip i { display: inline-flex; align-items: center; gap: 5px; font-style: normal; color: var(--text-2); }
+  .orb-tip i b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .orb-tip .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .orb-tip .dot.ctx { background: var(--accent); }
+  .orb-tip .dot.quota { background: var(--green); }
+
+  /* ───────────────── 用量浮层 ───────────────── */
+  .usage-pop {
+    position: absolute; bottom: calc(100% + 12px); right: 0;
+    width: 322px; background: var(--pop); border: 1px solid var(--border);
+    border-radius: 18px; box-shadow: var(--shadow-pop); padding: 16px 17px 14px;
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    opacity: 0; transform: translateY(8px) scale(.975); pointer-events: none;
+    transform-origin: bottom right; z-index: 50;
+    transition: opacity .18s ease, transform .18s cubic-bezier(.34,1.4,.64,1);
+  }
+  .usage-pop.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+
+  .up-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+  .up-head .t { font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
+  .up-head .more {
+    border: 0; background: transparent; color: var(--accent); font-size: 12px;
+    font-family: inherit; cursor: pointer; padding: 3px 6px; border-radius: 6px;
+  }
+  .up-head .more:hover { background: var(--accent-soft); }
+
+  .up-row { display: flex; align-items: center; gap: 13px; }
+  .up-ring { position: relative; width: 46px; height: 46px; flex-shrink: 0; }
+  .up-ring svg { width: 100%; height: 100%; display: block; }
+  .up-ring .val {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  }
+  .up-info { flex: 1; min-width: 0; }
+  .up-info .lbl {
+    font-size: 12.5px; color: var(--text-2); display: flex; align-items: center; gap: 7px;
+  }
+  .up-info .num {
+    font-size: 15px; font-weight: 600; letter-spacing: -.02em; margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .up-info .num em { font-style: normal; font-size: 11.5px; font-weight: 400; color: var(--text-3); }
+
+  .tag {
+    font-size: 10px; font-weight: 500; padding: 1.5px 6px; border-radius: 5px;
+    background: var(--green-soft); color: var(--green); letter-spacing: 0;
+  }
+  .tag.blue { background: var(--accent-soft); color: var(--accent); }
+  .tag.amber { background: rgba(217,130,6,.14); color: var(--amber); }
+  .tag.red { background: rgba(220,38,38,.12); color: var(--red); }
+
+  .up-bar {
+    height: 5px; border-radius: 3px; background: var(--track);
+    overflow: hidden; margin: 11px 0 7px;
+  }
+  .up-bar i {
+    display: block; height: 100%; border-radius: 3px; background: var(--accent);
+    transition: width .55s cubic-bezier(.4,0,.2,1);
+  }
+  .up-bar.q i { background: var(--green); }
+  .up-bar.warn i { background: var(--amber); }
+  .up-bar.danger i { background: var(--red); }
+
+  .up-foot { font-size: 11.5px; color: var(--text-3); line-height: 1.55; }
+  .up-foot b { color: var(--text-2); font-weight: 500; }
+
+  .up-sep { height: 1px; background: var(--border-soft); margin: 16px 0 15px; }
+
+  .up-actions { display: flex; gap: 8px; margin-top: 15px; }
+  .up-btn {
+    flex: 1; height: 32px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--card); color: var(--text); font-size: 12.5px; font-weight: 500;
+    font-family: inherit; cursor: pointer; transition: background .16s, border-color .16s;
+  }
+  .up-btn:hover { background: var(--row-hover); }
+  .up-btn.primary { background: var(--accent); border-color: transparent; color: #fff; }
+  .up-btn.primary:hover { background: color-mix(in srgb, var(--accent) 86%, #000); }
+
+  /* ───────────────── 模式胶囊 + 面板 ───────────────── */
+  .picker { position: relative; }
+  .picker-trigger {
+    display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px;
+    border: 1px solid var(--border); border-radius: 15px; background: var(--panel-solid);
+    color: var(--text); font-size: 13px; font-weight: 500; font-family: inherit;
+    cursor: pointer; transition: background .16s, border-color .16s;
+    font-variant-numeric: tabular-nums;
+  }
+  .picker-trigger:hover { background: var(--row-hover); }
+  .picker-trigger.open { border-color: color-mix(in srgb, var(--accent) 42%, transparent); background: var(--accent-soft); }
+  .picker-trigger .eff { color: var(--text-2); font-weight: 400; }
+  /* 中文模式名 + 单字强度会被读成一句话（「质量 低」），加个分隔点断开 */
+  .picker-trigger .eff::before { content: "·"; margin-right: 5px; color: var(--text-3); }
+
+  .picker-panel {
+    position: absolute; bottom: calc(100% + 10px); right: 0;
+    width: 248px; background: var(--pop); border: 1px solid var(--border);
+    border-radius: 16px; box-shadow: var(--shadow-pop); padding: 6px;
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    opacity: 0; transform: translateY(8px) scale(.975); pointer-events: none;
+    transform-origin: bottom right; z-index: 52;
+    transition: opacity .18s ease, transform .18s cubic-bezier(.34,1.4,.64,1);
+  }
+  .picker-panel.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+
+  .mp-row {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    height: 42px; padding: 0 11px; border: 0; border-radius: 10px;
+    background: transparent; color: var(--text); font-size: 13.5px; font-family: inherit;
+    cursor: pointer; transition: background .14s; text-align: left;
+  }
+  .mp-row:hover { background: var(--row-hover); }
+  .mp-row.active { background: var(--row-active); }
+  .mp-row .k { font-weight: 400; }
+  .mp-row .v {
+    margin-left: auto; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums;
+  }
+  .mp-row .chev { width: 15px; height: 15px; color: var(--text-3); flex-shrink: 0; }
+  .mp-row .chev.up { transition: transform .2s; }
+  .mp-row.open .chev.up { transform: rotate(180deg); }
+  .mp-sep { height: 1px; background: var(--border-soft); margin: 5px 8px; }
+  .mp-row.adv { color: var(--text-2); height: 38px; }
+  .mp-row.adv:hover { color: var(--text); }
+
+  .mp-adv-body {
+    overflow: hidden; max-height: 0; transition: max-height .26s cubic-bezier(.4,0,.2,1), opacity .2s;
+    opacity: 0;
+  }
+  .mp-adv-body.show { max-height: 190px; opacity: 1; }
+  .mp-adv-body .inner { padding: 2px 4px 6px; }
+  .mp-sw {
+    display: flex; align-items: center; gap: 10px; padding: 8px 8px;
+    border-radius: 9px; font-size: 12.5px; color: var(--text-2); cursor: pointer;
+  }
+  .mp-sw:hover { background: var(--row-hover); }
+  .mp-sw .sw {
+    margin-left: auto; width: 32px; height: 19px; border-radius: 10px;
+    background: var(--track); position: relative; transition: background .2s; flex-shrink: 0;
+  }
+  .mp-sw .sw::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 15px; height: 15px;
+    border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    transition: transform .2s cubic-bezier(.4,0,.2,1);
+  }
+  .mp-sw.on .sw { background: var(--green); }
+  .mp-sw.on .sw::after { transform: translateX(13px); }
+  .mp-sw .sub { font-size: 10.5px; color: var(--text-3); }
+
+  /* 二级菜单 */
+  .submenu {
+    position: absolute; bottom: calc(100% + 10px);
+    width: 200px; background: var(--pop); border: 1px solid var(--border);
+    border-radius: 16px; box-shadow: var(--shadow-pop); padding: 6px;
+    backdrop-filter: blur(30px) saturate(180%);
+    -webkit-backdrop-filter: blur(30px) saturate(180%);
+    opacity: 0; transform: translateY(8px) scale(.975); pointer-events: none;
+    z-index: 54; transition: opacity .18s ease, transform .18s cubic-bezier(.34,1.4,.64,1);
+  }
+  .submenu.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  /* 二级菜单挂在「主面板」上而不是触发器上：贴着面板左/右边缘弹出，不压住面板本身 */
+  .submenu.left { right: calc(100% + 10px); bottom: 0; transform-origin: bottom right; }
+  .submenu.right { left: calc(100% + 10px); bottom: 0; transform-origin: bottom left; }
+  .submenu .sub-title {
+    font-size: 12px; color: var(--text-3); padding: 8px 11px 6px; font-weight: 500;
+  }
+  .submenu.left .sub-title { display: none; }
+
+  .sub-item {
+    width: 100%; display: flex; align-items: center; gap: 10px;
+    height: 44px; padding: 0 12px; border: 0; border-radius: 10px;
+    background: transparent; color: var(--text); font-size: 13.5px; font-family: inherit;
+    cursor: pointer; transition: background .14s; text-align: left;
+  }
+  .sub-item:hover { background: var(--row-hover); }
+  .sub-item.on { background: var(--row-active); }
+  .sub-item .ck { width: 16px; height: 16px; margin-left: auto; flex-shrink: 0; color: var(--text); }
+  .sub-item .ck.blank { visibility: hidden; }
+  /* 模式项的消耗倍率角标：占掉 auto 边距，勾改为紧跟其后 */
+  .sub-item .rate {
+    margin-left: auto; font-size: 11px; color: var(--text-3);
+    font-variant-numeric: tabular-nums; flex-shrink: 0;
+  }
+  .sub-item .rate + .ck { margin-left: 10px; }
+  .sub-item .stack { min-width: 0; }
+  .sub-item .stack .n { font-size: 13.5px; }
+  .sub-item .stack .s { font-size: 11px; color: var(--text-3); margin-top: 2px; line-height: 1.35; }
+  .sub-item.tall { height: auto; padding: 9px 11px; }
+
+  /* ───────────────── 静态拆解展示 ───────────────── */
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+
+  .demo-cell {
+    background: var(--card-2); border: 1px solid var(--border-soft); border-radius: 16px;
+    padding: 22px; display: flex; flex-direction: column; align-items: center; gap: 18px;
+    min-height: 210px; justify-content: flex-end; position: relative;
+  }
+  .demo-cell .cap {
+    position: absolute; top: 13px; left: 15px; font-size: 11px; color: var(--text-3);
+    font-weight: 500; letter-spacing: .02em;
+  }
+  .demo-cell .note {
+    font-size: 11.5px; color: var(--text-3); text-align: center; line-height: 1.6;
+  }
+  .demo-cell .note b { color: var(--text-2); font-weight: 500; }
+  .demo-cell.tall { min-height: 420px; justify-content: flex-end; }
+
+  /* 静态展开的浮层/面板：去掉绝对定位，让它自然撑开 */
+  .demo-cell .usage-pop, .demo-cell .picker-panel, .demo-cell .submenu {
+    position: relative; inset: auto; bottom: auto; right: auto; left: auto;
+    opacity: 1; transform: none; pointer-events: auto;
+  }
+  .demo-cell .picker-panel { width: 100%; max-width: 262px; }
+  .demo-cell .usage-pop { width: 100%; max-width: 330px; }
+  .demo-cell .submenu { width: 100%; max-width: 208px; }
+
+  /* ───────────────── 组合实景 ───────────────── */
+  .combo-stage {
+    position: relative; border-radius: 20px; background: var(--card-2);
+    border: 1px solid var(--border-soft); padding: 34px 28px 30px; min-height: 560px;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .combo-hint {
+    position: absolute; top: 16px; left: 0; right: 0; text-align: center;
+    font-size: 12px; color: var(--text-3);
+  }
+
+  /* 环的构成 · 放大示意 */
+  .orb-legend { display: flex; align-items: center; gap: 44px; padding: 6px 4px 2px; flex-wrap: wrap; }
+  .orb.big { width: 116px; height: 116px; cursor: default; }
+  .orb.big:hover { transform: none; box-shadow: none; }
+  .legend { flex: 1; min-width: 270px; }
+  .legend-row { display: flex; align-items: flex-start; gap: 11px; padding: 9px 0; }
+  .legend-row .lg-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .lg-dot.ctx { background: var(--accent); }
+  .lg-dot.quota { background: var(--green); }
+  .legend-row b { display: block; font-size: 13.5px; font-weight: 600; }
+  .legend-row span { font-size: 12.5px; color: var(--text-3); }
+  .legend-note {
+    margin-top: 10px; font-size: 12.5px; line-height: 1.75; color: var(--text-2);
+    border-top: 1px solid var(--border-soft); padding-top: 12px;
+  }
+
+  /* ───────────────── 映射表 ───────────────── */
+  .map-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .map-table th {
+    text-align: left; padding: 10px 12px; color: var(--text-3); font-weight: 600;
+    font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .map-table td {
+    padding: 12px; border-bottom: 1px solid var(--border-soft); vertical-align: top;
+    color: var(--text-2); line-height: 1.65;
+  }
+  .map-table tr:last-child td { border-bottom: 0; }
+  .map-table td:first-child { color: var(--text); font-weight: 500; }
+  .map-table code {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px;
+    background: var(--accent-soft); color: var(--accent); padding: 1.5px 5px; border-radius: 4px;
+  }
+
+  .callout {
+    display: flex; gap: 11px; padding: 13px 15px; border-radius: 12px;
+    background: rgba(217,130,6,.09); border: 1px solid rgba(217,130,6,.20);
+    font-size: 12.5px; line-height: 1.7; color: var(--text-2); margin-top: 16px;
+  }
+  .callout svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--amber); margin-top: 1px; }
+  .callout b { color: var(--text); font-weight: 600; }
+
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500;
+    padding: 5px 11px; border-radius: 20px; background: var(--accent-soft); color: var(--accent);
+  }
+  .chip.green { background: var(--green-soft); color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <h1>BOH AI 输入区改版<span>上下文额度合环 · 模式 / 推理强度选择器</span></h1>
+    <div class="spacer"></div>
+    <div class="seg" id="themeSeg">
+      <button data-theme-val="light" class="on">浅色</button>
+      <button data-theme-val="dark">深色</button>
+    </div>
+  </div>
+</div>
+
+<main>
+
+  <!-- ══════════ 实景 ══════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2><span class="num">1</span>实景 · 现在点一下试试</h2>
+      <p>左下的<b>双环圆钮</b>和右侧的<b>模式胶囊</b>都是活的。点圆钮看用量明细，点胶囊换模式和推理强度。</p>
+    </div>
+
+    <div class="stage">
+      <div class="stage-bg"></div>
+      <div class="stage-tip">下方输入栏是真实可点的：<b>点圈看用量 · 点胶囊换模式</b></div>
+      <div class="fake-thread">
+        <div class="bubble me">帮我把这周的行程整理成一页纸</div>
+        <div class="bubble">好的，已按周一到周五拆成 11 项，上午 / 下午分开列出。</div>
+        <div class="bubble me">备注一栏写上要带的材料</div>
+        <div class="bubble">已加上备注列：周三评审会带原型图，周五外出带充电宝。</div>
+      </div>
+      <div class="composer">
+        <div class="composer-input"><span class="ph">有问题，尽管问</span><span class="caret"></span></div>
+        <div class="composer-bar">
+          <button class="tool-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18"/></svg>
+            联网
+          </button>
+          <div class="grow"></div>
+
+          <!-- ── 合环 ── -->
+          <div class="orb-wrap" data-orb-wrap>
+            <button class="orb" data-orb data-ctx="61" data-quota="38" aria-label="上下文与今日额度">
+              <svg viewBox="0 0 24 24">
+                <circle class="orb-track" cx="12" cy="12" r="9.6"/>
+                <circle class="orb-track" cx="12" cy="12" r="5.9"/>
+                <circle class="orb-fill ctx" cx="12" cy="12" r="9.6"
+                        stroke-dasharray="36.79 60.32" transform="rotate(-90 12 12)"/>
+                <circle class="orb-fill quota" cx="12" cy="12" r="5.9"
+                        stroke-dasharray="14.09 37.07" transform="rotate(-90 12 12)"/>
+              </svg>
+            </button>
+            <div class="orb-tip">
+              <i><span class="dot ctx"></span>上下文 <b>61%</b></i>
+              <i><span class="dot quota"></span>今日额度 <b>38%</b></i>
+            </div>
+
+            <!-- 用量浮层 -->
+            <div class="usage-pop" data-pop="orb">
+              <div class="up-head">
+                <span class="t">使用情况</span>
+                <button class="more">完整用量 ›</button>
+              </div>
+
+              <div class="up-row">
+                <div class="up-ring">
+                  <svg viewBox="0 0 24 24">
+                    <circle class="orb-track" cx="12" cy="12" r="9.6" stroke-width="2.6"/>
+                    <circle class="orb-fill ctx" cx="12" cy="12" r="9.6" stroke-width="2.6"
+                            stroke-dasharray="36.79 60.32" transform="rotate(-90 12 12)"/>
+                  </svg>
+                  <span class="val">61%</span>
+                </div>
+                <div class="up-info">
+                  <div class="lbl">对话上下文 <span class="tag blue">健康</span></div>
+                  <div class="num">1.22M <em>/ 2.00M 字符</em></div>
+                </div>
+              </div>
+              <div class="up-bar"><i style="width:61%"></i></div>
+              <div class="up-foot">距自动整理还剩 <b>39%</b> · 已含 <b>12</b> 轮历史对话</div>
+
+              <div class="up-sep"></div>
+
+              <div class="up-row">
+                <div class="up-ring">
+                  <svg viewBox="0 0 24 24">
+                    <circle class="orb-track" cx="12" cy="12" r="9.6" stroke-width="2.6"/>
+                    <circle class="orb-fill quota" cx="12" cy="12" r="9.6" stroke-width="2.6"
+                            stroke-dasharray="14.09 37.07" transform="rotate(-90 12 12)"/>
+                  </svg>
+                  <span class="val">38%</span>
+                </div>
+                <div class="up-info">
+                  <div class="lbl">今日额度 <span class="tag">2x 倍率</span></div>
+                  <div class="num">38.2万 <em>/ 100万 Token</em></div>
+                </div>
+              </div>
+              <div class="up-bar q"><i style="width:38%"></i></div>
+              <div class="up-foot">还可使用 <b>61.8万</b> Token · 每日 <b>00:00</b> 重置</div>
+
+              <div class="up-actions">
+                <button class="up-btn primary">整理上下文</button>
+                <button class="up-btn">用量详情</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── 模式胶囊 ── -->
+          <div class="picker" data-picker>
+            <button class="picker-trigger" data-trigger>
+              极速 <span class="eff">中</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+
+            <div class="picker-panel" data-panel>
+              <button class="mp-row" data-sub="mode">
+                <span class="k">模式</span>
+                <span class="v" data-val="mode">极速</span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <button class="mp-row" data-sub="effort">
+                <span class="k">推理强度</span>
+                <span class="v" data-val="effort">中</span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <div class="mp-sep"></div>
+              <button class="mp-row adv" data-adv>
+                <span class="k">高级</span>
+                <svg class="chev up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+              </button>
+              <div class="mp-adv-body" data-adv-body>
+                <div class="inner">
+                  <div class="mp-sw on"><span>知识库引用</span><span class="sw"></span></div>
+                  <div class="mp-sw on"><span>记忆库</span><span class="sw"></span></div>
+                  <div class="mp-sw"><span>计划模式</span><span class="sw"></span></div>
+                </div>
+              </div>
+            <!-- 模式二级菜单（左） -->
+            <div class="submenu left" data-submenu="mode">
+              <button class="sub-item on" data-mode="极速"><span class="n">极速</span><span class="rate">免费</span>
+                <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+              <button class="sub-item" data-mode="质量"><span class="n">质量</span><span class="rate">1x</span>
+                <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+              <button class="sub-item" data-mode="计划"><span class="n">计划</span><span class="rate">2x</span>
+                <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+              <button class="sub-item" data-mode="多模态"><span class="n">多模态</span><span class="rate">1x</span>
+                <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+              <button class="sub-item" data-mode="工作"><span class="n">工作</span><span class="rate">2x</span>
+                <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+            </div>
+
+            <!-- 推理强度二级菜单（右） -->
+            <div class="submenu right" data-submenu="effort">
+              <div class="sub-title">推理强度</div>
+              <button class="sub-item" data-effort="低"><span class="n">低</span>
+                <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+              <button class="sub-item on" data-effort="中"><span class="n">中</span>
+                <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+              <button class="sub-item" data-effort="高"><span class="n">高</span>
+                <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+            </div>
+            </div>
+          </div>
+
+          <!-- ── 发送 ── -->
+          <button class="send-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 合环拆解 ══════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2><span class="num">2</span>上下文 + 今日额度 · 一个圈</h2>
+      <p>一个圆钮同时承载两条进度：<b>外环 = 对话上下文</b>，<b>内环 = 今日额度</b>。数字不占地方，鼠标悬停出小提示，点击展开明细。</p>
+    </div>
+
+    <div class="card">
+      <div class="card-label">四态 · 颜色随压力升级</div>
+      <div class="grid-3">
+        <div class="demo-cell">
+          <span class="cap">轻松 · 上下文 32% / 额度 12%</span>
+          <div class="orb-wrap">
+            <button class="orb" style="transform:none">
+              <svg viewBox="0 0 24 24">
+                <circle class="orb-track" cx="12" cy="12" r="9.6"/>
+                <circle class="orb-track" cx="12" cy="12" r="5.9"/>
+                <circle class="orb-fill ctx" cx="12" cy="12" r="9.6" stroke-dasharray="19.30 60.32" transform="rotate(-90 12 12)"/>
+                <circle class="orb-fill quota" cx="12" cy="12" r="5.9" stroke-dasharray="4.45 37.07" transform="rotate(-90 12 12)"/>
+              </svg>
+            </button>
+          </div>
+          <div class="note">两条环都短，<b>一眼可读</b></div>
+        </div>
+
+        <div class="demo-cell">
+          <span class="cap">偏紧 · 上下文 61% / 额度 68%</span>
+          <div class="orb-wrap">
+            <button class="orb q-warn" style="transform:none">
+              <svg viewBox="0 0 24 24">
+                <circle class="orb-track" cx="12" cy="12" r="9.6"/>
+                <circle class="orb-track" cx="12" cy="12" r="5.9"/>
+                <circle class="orb-fill ctx" cx="12" cy="12" r="9.6" stroke-dasharray="36.79 60.32" transform="rotate(-90 12 12)"/>
+                <circle class="orb-fill quota" cx="12" cy="12" r="5.9" stroke-dasharray="25.21 37.07" transform="rotate(-90 12 12)"/>
+              </svg>
+            </button>
+          </div>
+          <div class="note">额度转<b>琥珀</b>，提醒开始省着用</div>
+        </div>
+
+        <div class="demo-cell">
+          <span class="cap">告急 · 上下文 92% / 额度 94%</span>
+          <div class="orb-wrap">
+            <button class="orb warn q-danger" style="transform:none">
+              <svg viewBox="0 0 24 24">
+                <circle class="orb-track" cx="12" cy="12" r="9.6"/>
+                <circle class="orb-track" cx="12" cy="12" r="5.9"/>
+                <circle class="orb-fill ctx" cx="12" cy="12" r="9.6" stroke-dasharray="55.49 60.32" transform="rotate(-90 12 12)"/>
+                <circle class="orb-fill quota" cx="12" cy="12" r="5.9" stroke-dasharray="34.85 37.07" transform="rotate(-90 12 12)"/>
+              </svg>
+            </button>
+          </div>
+          <div class="note">双环转<b>红</b>，环口几乎闭合</div>
+        </div>
+
+        <div class="demo-cell">
+          <span class="cap">整理中 · 圆钮暂时让位</span>
+          <div class="compress-hint">
+            <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 11-6.2-8.6"/></svg>
+            <span>正在压缩上下文</span>
+          </div>
+          <div class="note">压缩完恢复圆钮，并提示<b>上下文已压缩</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">环的构成 · 放大示意</div>
+      <div class="orb-legend">
+        <div class="orb big" style="transform:none">
+          <svg viewBox="0 0 24 24">
+            <circle class="orb-track" cx="12" cy="12" r="9.6"/>
+            <circle class="orb-track" cx="12" cy="12" r="5.9"/>
+            <circle class="orb-fill ctx" cx="12" cy="12" r="9.6" stroke-dasharray="36.79 60.32" transform="rotate(-90 12 12)"/>
+            <circle class="orb-fill quota" cx="12" cy="12" r="5.9" stroke-dasharray="14.09 37.07" transform="rotate(-90 12 12)"/>
+          </svg>
+        </div>
+        <div class="legend">
+          <div class="legend-row">
+            <span class="lg-dot ctx"></span>
+            <div>
+              <b>外环 · 对话上下文</b>
+              <span>61% · 1.22M / 2.00M 字符</span>
+            </div>
+          </div>
+          <div class="legend-row">
+            <span class="lg-dot quota"></span>
+            <div>
+              <b>内环 · 今日额度</b>
+              <span>38% · 38.2万 / 100万 Token</span>
+            </div>
+          </div>
+          <p class="legend-note">
+            两条环同向、同起点（12 点方向），靠颜色分工而不是靠位置区分：上下文用主色系，额度用绿色系。
+            各自到 55% 换琥珀、85% 换红，压力感直接落在环上，不需要读数字。
+            实际尺寸 38px，上面是放大示意。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">点击展开 · 明细浮层（两种额度压力）</div>
+      <div class="grid-2">
+        <div class="demo-cell tall">
+          <span class="cap">额度充足</span>
+          <div class="usage-pop">
+            <div class="up-head">
+              <span class="t">使用情况</span>
+              <button class="more">完整用量 ›</button>
+            </div>
+            <div class="up-row">
+              <div class="up-ring">
+                <svg viewBox="0 0 24 24">
+                  <circle class="orb-track" cx="12" cy="12" r="9.6" stroke-width="2.6"/>
+                  <circle class="orb-fill ctx" cx="12" cy="12" r="9.6" stroke-width="2.6" stroke-dasharray="36.79 60.32" transform="rotate(-90 12 12)"/>
+                </svg>
+                <span class="val">61%</span>
+              </div>
+              <div class="up-info">
+                <div class="lbl">对话上下文 <span class="tag blue">健康</span></div>
+                <div class="num">1.22M <em>/ 2.00M 字符</em></div>
+              </div>
+            </div>
+            <div class="up-bar"><i style="width:61%"></i></div>
+            <div class="up-foot">距自动整理还剩 <b>39%</b> · 已含 <b>12</b> 轮历史对话</div>
+            <div class="up-sep"></div>
+            <div class="up-row">
+              <div class="up-ring">
+                <svg viewBox="0 0 24 24">
+                  <circle class="orb-track" cx="12" cy="12" r="9.6" stroke-width="2.6"/>
+                  <circle class="orb-fill quota" cx="12" cy="12" r="9.6" stroke-width="2.6" stroke-dasharray="14.09 37.07" transform="rotate(-90 12 12)"/>
+                </svg>
+                <span class="val">38%</span>
+              </div>
+              <div class="up-info">
+                <div class="lbl">今日额度 <span class="tag">2x 倍率</span></div>
+                <div class="num">38.2万 <em>/ 100万 Token</em></div>
+              </div>
+            </div>
+            <div class="up-bar q"><i style="width:38%"></i></div>
+            <div class="up-foot">还可使用 <b>61.8万</b> Token · 每日 <b>00:00</b> 重置</div>
+            <div class="up-actions">
+              <button class="up-btn primary">整理上下文</button>
+              <button class="up-btn">用量详情</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-cell tall">
+          <span class="cap">上下文吃紧 · 额度告急</span>
+          <div class="usage-pop">
+            <div class="up-head">
+              <span class="t">使用情况</span>
+              <button class="more">完整用量 ›</button>
+            </div>
+            <div class="up-row">
+              <div class="up-ring">
+                <svg viewBox="0 0 24 24">
+                  <circle class="orb-track" cx="12" cy="12" r="9.6" stroke-width="2.6"/>
+                  <circle class="orb-fill ctx" cx="12" cy="12" r="9.6" stroke-width="2.6" stroke-dasharray="55.49 60.32" transform="rotate(-90 12 12)" style="stroke:var(--amber)"/>
+                </svg>
+                <span class="val">92%</span>
+              </div>
+              <div class="up-info">
+                <div class="lbl">对话上下文 <span class="tag amber">即将整理</span></div>
+                <div class="num">1.84M <em>/ 2.00M 字符</em></div>
+              </div>
+            </div>
+            <div class="up-bar warn"><i style="width:92%"></i></div>
+            <div class="up-foot">下次发送时会先<b>自动整理早期对话</b></div>
+            <div class="up-sep"></div>
+            <div class="up-row">
+              <div class="up-ring">
+                <svg viewBox="0 0 24 24">
+                  <circle class="orb-track" cx="12" cy="12" r="9.6" stroke-width="2.6"/>
+                  <circle class="orb-fill quota" cx="12" cy="12" r="9.6" stroke-width="2.6" stroke-dasharray="34.85 37.07" transform="rotate(-90 12 12)" style="stroke:var(--red)"/>
+                </svg>
+                <span class="val">94%</span>
+              </div>
+              <div class="up-info">
+                <div class="lbl">今日额度 <span class="tag red">即将用尽</span></div>
+                <div class="num">94.0万 <em>/ 100万 Token</em></div>
+              </div>
+            </div>
+            <div class="up-bar danger"><i style="width:94%"></i></div>
+            <div class="up-foot">仅剩 <b>6.0万</b> Token · 可升级会员或用积分抵扣</div>
+            <div class="up-actions">
+              <button class="up-btn primary">整理上下文</button>
+              <button class="up-btn">积分抵扣</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 模式选择器 ══════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2><span class="num">3</span>模式 + 推理强度 · 两段式选择器</h2>
+      <p>面板第一行仍是<b>模式</b>（沿用现有 <code>chat_modes</code>，不引入独立的模型选择器），第二行是<b>推理强度</b>。两者各自收进二级菜单，胶囊上直接读出当前组合 <code>极速 · 中</code>。</p>
+    </div>
+
+    <div class="card">
+      <div class="card-label">触发胶囊 · 三种组合</div>
+      <div class="grid-3">
+        <div class="demo-cell" style="min-height:150px">
+          <span class="cap">默认组合</span>
+          <button class="picker-trigger" style="pointer-events:none">极速 <span class="eff">中</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="note">打开面板时描边转<b>主色</b></div>
+        </div>
+        <div class="demo-cell" style="min-height:150px">
+          <span class="cap">轻量组合</span>
+          <button class="picker-trigger" style="pointer-events:none">质量 <span class="eff">低</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="note">闲聊、查询类对话</div>
+        </div>
+        <div class="demo-cell" style="min-height:150px">
+          <span class="cap">深度组合</span>
+          <button class="picker-trigger open" style="pointer-events:none">计划 <span class="eff">高</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="note">长文、复杂推理</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">主面板 · 三行结构</div>
+      <div class="grid-3">
+        <div class="demo-cell tall">
+          <span class="cap">① 收起态</span>
+          <div class="picker-panel">
+            <button class="mp-row">
+              <span class="k">模式</span><span class="v">极速</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button class="mp-row">
+              <span class="k">推理强度</span><span class="v">中</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <div class="mp-sep"></div>
+            <button class="mp-row adv">
+              <span class="k">高级</span>
+              <svg class="chev up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+            </button>
+          </div>
+          <div class="note">两行主选项 + 一条分隔 + <b>高级</b>折叠</div>
+        </div>
+
+        <div class="demo-cell tall">
+          <span class="cap">② 悬停 / 打开子级</span>
+          <div class="picker-panel">
+            <button class="mp-row active">
+              <span class="k">模式</span><span class="v">极速</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button class="mp-row">
+              <span class="k">推理强度</span><span class="v">中</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <div class="mp-sep"></div>
+            <button class="mp-row adv">
+              <span class="k">高级</span>
+              <svg class="chev up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+            </button>
+          </div>
+          <div class="note">当前正在改的那一行<b>底色高亮</b></div>
+        </div>
+
+        <div class="demo-cell tall">
+          <span class="cap">③ 高级展开</span>
+          <div class="picker-panel">
+            <button class="mp-row">
+              <span class="k">模式</span><span class="v">极速</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button class="mp-row">
+              <span class="k">推理强度</span><span class="v">中</span>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <div class="mp-sep"></div>
+            <button class="mp-row adv open">
+              <span class="k">高级</span>
+              <svg class="chev up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="M18 15l-6-6-6 6"/></svg>
+            </button>
+            <div class="mp-adv-body show">
+              <div class="inner">
+                <div class="mp-sw on"><span>知识库引用</span><span class="sw"></span></div>
+                <div class="mp-sw on"><span>记忆库</span><span class="sw"></span></div>
+                <div class="mp-sw"><span>计划模式</span><span class="sw"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="note">箭头翻转，<b>展开常用开关</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">二级菜单 · 模式（向左弹出）与 推理强度（向右弹出）</div>
+      <div class="grid-2">
+        <div class="demo-cell tall">
+          <span class="cap">模式列表</span>
+          <div class="submenu left" style="position:relative;right:auto;bottom:auto">
+            <button class="sub-item on"><span class="n">极速</span><span class="rate">免费</span>
+              <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+            <button class="sub-item"><span class="n">质量</span><span class="rate">1x</span>
+              <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+            <button class="sub-item"><span class="n">计划</span><span class="rate">2x</span>
+              <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+            <button class="sub-item"><span class="n">多模态</span><span class="rate">1x</span>
+              <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+            <button class="sub-item"><span class="n">工作</span><span class="rate">2x</span>
+              <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+          </div>
+          <div class="note">模式名 + <b>消耗倍率</b>，当前项打勾</div>
+        </div>
+
+        <div class="demo-cell tall">
+          <span class="cap">推理强度列表</span>
+          <div class="submenu right" style="position:relative;left:auto;bottom:auto">
+            <div class="sub-title">推理强度</div>
+            <button class="sub-item"><span class="n">低</span>
+              <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+            <button class="sub-item on"><span class="n">中</span>
+              <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+            <button class="sub-item"><span class="n">高</span>
+              <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+          </div>
+          <div class="note">三档与现有真源<b>一一对应</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">组合实景 · 面板与二级菜单同时出现</div>
+      <div class="combo-stage">
+        <div class="combo-hint">点「模式」看左侧菜单，点「推理强度」看右侧菜单</div>
+        <div class="composer" style="max-width:640px">
+          <div class="composer-input">帮我把这周的行程整理成一页纸</div>
+          <div class="composer-bar">
+            <button class="tool-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18"/></svg>
+              联网
+            </button>
+            <div class="grow"></div>
+            <div class="orb-wrap" data-orb-wrap>
+              <button class="orb" data-orb>
+                <svg viewBox="0 0 24 24">
+                  <circle class="orb-track" cx="12" cy="12" r="9.6"/>
+                  <circle class="orb-track" cx="12" cy="12" r="5.9"/>
+                  <circle class="orb-fill ctx" cx="12" cy="12" r="9.6" stroke-dasharray="36.79 60.32" transform="rotate(-90 12 12)"/>
+                  <circle class="orb-fill quota" cx="12" cy="12" r="5.9" stroke-dasharray="14.09 37.07" transform="rotate(-90 12 12)"/>
+                </svg>
+              </button>
+              <div class="orb-tip">
+                <i><span class="dot ctx"></span>上下文 <b>61%</b></i>
+                <i><span class="dot quota"></span>今日额度 <b>38%</b></i>
+              </div>
+              <div class="usage-pop" data-pop="orb">
+                <div class="up-head">
+                  <span class="t">使用情况</span>
+                  <button class="more">完整用量 ›</button>
+                </div>
+                <div class="up-row">
+                  <div class="up-ring">
+                    <svg viewBox="0 0 24 24">
+                      <circle class="orb-track" cx="12" cy="12" r="9.6" stroke-width="2.6"/>
+                      <circle class="orb-fill ctx" cx="12" cy="12" r="9.6" stroke-width="2.6" stroke-dasharray="36.79 60.32" transform="rotate(-90 12 12)"/>
+                    </svg>
+                    <span class="val">61%</span>
+                  </div>
+                  <div class="up-info">
+                    <div class="lbl">对话上下文 <span class="tag blue">健康</span></div>
+                    <div class="num">1.22M <em>/ 2.00M 字符</em></div>
+                  </div>
+                </div>
+                <div class="up-bar"><i style="width:61%"></i></div>
+                <div class="up-foot">距自动整理还剩 <b>39%</b> · 已含 <b>12</b> 轮历史对话</div>
+                <div class="up-sep"></div>
+                <div class="up-row">
+                  <div class="up-ring">
+                    <svg viewBox="0 0 24 24">
+                      <circle class="orb-track" cx="12" cy="12" r="9.6" stroke-width="2.6"/>
+                      <circle class="orb-fill quota" cx="12" cy="12" r="9.6" stroke-width="2.6" stroke-dasharray="14.09 37.07" transform="rotate(-90 12 12)"/>
+                    </svg>
+                    <span class="val">38%</span>
+                  </div>
+                  <div class="up-info">
+                    <div class="lbl">今日额度 <span class="tag">2x 倍率</span></div>
+                    <div class="num">38.2万 <em>/ 100万 Token</em></div>
+                  </div>
+                </div>
+                <div class="up-bar q"><i style="width:38%"></i></div>
+                <div class="up-foot">还可使用 <b>61.8万</b> Token · 每日 <b>00:00</b> 重置</div>
+                <div class="up-actions">
+                  <button class="up-btn primary">整理上下文</button>
+                  <button class="up-btn">用量详情</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="picker" data-picker>
+              <button class="picker-trigger" data-trigger>
+                极速 <span class="eff">中</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="picker-panel" data-panel>
+                <button class="mp-row" data-sub="mode">
+                  <span class="k">模式</span><span class="v" data-val="mode">极速</span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+                <button class="mp-row" data-sub="effort">
+                  <span class="k">推理强度</span><span class="v" data-val="effort">中</span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+                <div class="mp-sep"></div>
+                <button class="mp-row adv" data-adv>
+                  <span class="k">高级</span>
+                  <svg class="chev up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+                </button>
+                <div class="mp-adv-body" data-adv-body>
+                  <div class="inner">
+                    <div class="mp-sw on"><span>知识库引用</span><span class="sw"></span></div>
+                    <div class="mp-sw on"><span>记忆库</span><span class="sw"></span></div>
+                    <div class="mp-sw"><span>计划模式</span><span class="sw"></span></div>
+                  </div>
+                </div>
+              <div class="submenu left" data-submenu="mode">
+                <button class="sub-item on" data-mode="极速"><span class="n">极速</span><span class="rate">免费</span>
+                  <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+                <button class="sub-item" data-mode="质量"><span class="n">质量</span><span class="rate">1x</span>
+                  <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+                <button class="sub-item" data-mode="计划"><span class="n">计划</span><span class="rate">2x</span>
+                  <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+                <button class="sub-item" data-mode="多模态"><span class="n">多模态</span><span class="rate">1x</span>
+                  <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+                <button class="sub-item" data-mode="工作"><span class="n">工作</span><span class="rate">2x</span>
+                  <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+              </div>
+              <div class="submenu right" data-submenu="effort">
+                <div class="sub-title">推理强度</div>
+                <button class="sub-item" data-effort="低"><span class="n">低</span>
+                  <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+                <button class="sub-item on" data-effort="中"><span class="n">中</span>
+                  <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+                <button class="sub-item" data-effort="高"><span class="n">高</span>
+                  <svg class="ck blank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+              </div>
+              </div>
+            </div>
+
+            <button class="send-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 落地映射 ══════════ -->
+  <section class="sec">
+    <div class="sec-head">
+      <h2><span class="num">4</span>落地映射 · 对现有代码的改动面</h2>
+      <p>这版设计是<b>在 plans/023 已落地的 <code>.composer-panel</code> 上做形态调整</b>，不改「模式决定模型」的口径。下面是对 <code>BOHAIMain.vue</code> 与相关真源的具体影响，供确认后再动代码。</p>
+    </div>
+
+    <div class="card">
+      <table class="map-table">
+        <thead>
+          <tr><th style="width:150px">设计元素</th><th style="width:280px">现有实现</th><th>改动</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>双环圆钮</td>
+            <td><code>.context-ring-wrap</code>（单环）+ <code>.context-tokens</code>（旁边一个独立的今日 token 标签）</td>
+            <td>合并为一个 <code>.usage-orb</code>：外环 <code>contextBudgetUsage.historyPercent</code>，内环今日额度百分比。删除独立的 token 标签。</td>
+          </tr>
+          <tr>
+            <td>用量浮层</td>
+            <td>点 token 标签 → <code>openQuotaPanel()</code> 打开侧栏 <code>AiQuotaSidePanel</code></td>
+            <td>改为就地浮层，两个数字同屏可对比。侧栏保留，作为浮层里「用量详情」的入口。</td>
+          </tr>
+          <tr>
+            <td>分档配色</td>
+            <td><code>ringColorClass</code>（已按 level 分档）</td>
+            <td>口径沿用，扩展到两条环各自分档：&lt;55% 主色 / 55–85% 琥珀 / &gt;85% 红。</td>
+          </tr>
+          <tr>
+            <td>模式胶囊</td>
+            <td><code>.composer-panel-trigger</code>（SlidersHorizontal 图标 + 模式名 + 下箭头）</td>
+            <td>去掉左侧图标，改为 <code>模式名 + 强度</code> 两段文字（<code>极速 中</code>），强度用灰色弱化，更短更轻。</td>
+          </tr>
+          <tr>
+            <td>主面板</td>
+            <td><code>.composer-panel</code>：第 1 组「模式」平铺列表 + 第 2 组「思考强度」平铺列表</td>
+            <td>两组各压成一行：<b>模式 ›</b> / <b>推理强度 ›</b>，加一条分隔和 <b>高级 ⌃</b>。面板从两组高列表变成三行。</td>
+          </tr>
+          <tr>
+            <td>二级菜单</td>
+            <td>无（两组都是就地平铺单选）</td>
+            <td>新增左右两个 <code>.submenu</code>。模式列表向左、推理强度向右弹出，避免遮挡输入框。选中态沿用现有 <code>.active</code> + 勾。</td>
+          </tr>
+          <tr>
+            <td>模式项信息</td>
+            <td>模式列表项带 <code>tagline</code> 副标题 + 倍率 / 免费角标</td>
+            <td>副标题收进二级菜单项，列表只留 <b>模式名 + 倍率角标 + 勾</b>，贴近参考图的纯净列表。</td>
+          </tr>
+          <tr>
+            <td>高级开关</td>
+            <td>plans/023 已把 4 个工具开关放进面板第 3 组</td>
+            <td>收进「高级」折叠区，面板默认只露三行。开关本身不动。</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+        <div>
+          <b>好消息：这一版和 plans/023 不冲突了。</b>023 §口径① 已经定案「模型选择就是模式选择，不新增独立模型选择器」，
+          所以本稿把参考图里的「模型」行<b>换成「模式」行</b> —— 维度没变，只是形态从「两组平铺列表」改成「两行 + 二级菜单」。
+          落地时只在已落地的 <code>.composer-panel</code> 上做结构调整。<br>
+          <b>推理强度已定为三档</b>（低 / 中 / 高），与现有真源 <code>THINKING_SPEED_OPTIONS</code>
+          （<code>chat-engine-config.js:252</code>）一一对应（低 = low、中 = medium、高 = high），<b>不需要动数据层</b>。
+          参考图的第四档「极高」本次不采纳 —— 它要新增一份 <code>deltas</code>（temperature / topP / maxTokensScale）
+          并确认「更快消耗额度」的口径，留到以后再说。
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+(function () {
+  // ── 主题切换 ──
+  var seg = document.getElementById('themeSeg');
+  seg.addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-theme-val]');
+    if (!btn) return;
+    document.documentElement.setAttribute('data-theme', btn.dataset.themeVal);
+    Array.prototype.forEach.call(seg.querySelectorAll('button'), function (b) {
+      b.classList.toggle('on', b === btn);
+    });
+  });
+
+  // ── 点击空白关闭 ──
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-picker]')) {
+      document.querySelectorAll('[data-panel].show').forEach(function (p) { p.classList.remove('show'); });
+      document.querySelectorAll('.submenu.show').forEach(function (s) { s.classList.remove('show'); });
+      document.querySelectorAll('.mp-row.active').forEach(function (r) { r.classList.remove('active'); });
+    }
+    if (!e.target.closest('[data-orb-wrap]')) {
+      document.querySelectorAll('[data-pop="orb"].show').forEach(function (p) { p.classList.remove('show'); });
+      document.querySelectorAll('.orb.open').forEach(function (o) { o.classList.remove('open'); });
+    }
+  });
+
+  // ── 合环：点击展开用量浮层 ──
+  document.querySelectorAll('[data-orb-wrap]').forEach(function (wrap) {
+    var orb = wrap.querySelector('.orb[data-orb]');
+    var pop = wrap.querySelector('[data-pop="orb"]');
+    if (!orb || !pop) return;
+    orb.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var on = pop.classList.toggle('show');
+      orb.classList.toggle('open', on);
+      if (on) {
+        // 关掉另一侧的浮层，避免重叠
+        document.querySelectorAll('[data-pop="orb"].show').forEach(function (p) {
+          if (p !== pop) { p.classList.remove('show'); }
+        });
+      }
+    });
+    pop.addEventListener('click', function (e) { e.stopPropagation(); });
+  });
+
+  // ── 模式选择器 ──
+  document.querySelectorAll('[data-picker]').forEach(function (picker) {
+    var trigger = picker.querySelector('[data-trigger]');
+    var panel = picker.querySelector('[data-panel]');
+    if (!trigger || !panel) return;
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var on = panel.classList.toggle('show');
+      trigger.classList.toggle('open', on);
+      if (!on) closeSubs();
+    });
+
+    function closeSubs() {
+      picker.querySelectorAll('.submenu.show').forEach(function (s) { s.classList.remove('show'); });
+      picker.querySelectorAll('.mp-row.active').forEach(function (r) { r.classList.remove('active'); });
+    }
+
+    // 主面板行 → 打开对应二级菜单
+    picker.querySelectorAll('[data-sub]').forEach(function (row) {
+      row.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var key = row.dataset.sub;
+        var target = picker.querySelector('.submenu[data-submenu="' + key + '"]');
+        if (!target) return;
+        var willShow = !target.classList.contains('show');
+        closeSubs();
+        if (willShow) {
+          target.classList.add('show');
+          row.classList.add('active');
+        }
+      });
+    });
+
+    // 模式选择
+    picker.querySelectorAll('[data-mode]').forEach(function (item) {
+      item.addEventListener('click', function (e) {
+        e.stopPropagation();
+        picker.querySelectorAll('[data-mode]').forEach(function (x) {
+          x.classList.toggle('on', x === item);
+          var ck = x.querySelector('.ck');
+          if (ck) ck.classList.toggle('blank', x !== item);
+        });
+        var slot = picker.querySelector('[data-val="mode"]');
+        if (slot) slot.textContent = item.dataset.mode;
+        syncTrigger(picker);
+        picker.querySelectorAll('.submenu.show').forEach(function (s) { s.classList.remove('show'); });
+        picker.querySelectorAll('.mp-row.active').forEach(function (r) { r.classList.remove('active'); });
+      });
+    });
+
+    // 推理强度选择
+    picker.querySelectorAll('[data-effort]').forEach(function (item) {
+      item.addEventListener('click', function (e) {
+        e.stopPropagation();
+        picker.querySelectorAll('[data-effort]').forEach(function (x) {
+          x.classList.toggle('on', x === item);
+          var ck = x.querySelector('.ck');
+          if (ck) ck.classList.toggle('blank', x !== item);
+        });
+        var slot = picker.querySelector('[data-val="effort"]');
+        if (slot) slot.textContent = item.dataset.effort;
+        syncTrigger(picker);
+        picker.querySelectorAll('.submenu.show').forEach(function (s) { s.classList.remove('show'); });
+        picker.querySelectorAll('.mp-row.active').forEach(function (r) { r.classList.remove('active'); });
+      });
+    });
+
+    // 高级展开
+    var adv = picker.querySelector('[data-adv]');
+    var advBody = picker.querySelector('[data-adv-body]');
+    if (adv && advBody) {
+      adv.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var on = advBody.classList.toggle('show');
+        adv.classList.toggle('open', on);
+        var chev = adv.querySelector('.chev.up');
+        if (chev) chev.style.transform = on ? 'rotate(180deg)' : '';
+      });
+    }
+
+    // 高级里的开关
+    picker.querySelectorAll('.mp-sw').forEach(function (sw) {
+      sw.addEventListener('click', function (e) {
+        e.stopPropagation();
+        sw.classList.toggle('on');
+      });
+    });
+
+    panel.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    function syncTrigger(p) {
+      var t = p.querySelector('[data-trigger]');
+      if (!t) return;
+      var m = p.querySelector('[data-mode].on');
+      var ef = p.querySelector('[data-effort].on');
+      var modelName = m ? m.dataset.mode : '极速';
+      var effortName = ef ? ef.dataset.effort : '中';
+      t.innerHTML = modelName + ' <span class="eff">' + effortName + '</span>' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M6 9l6 6 6-6"/></svg>';
+    }
+  });
+})();
+</script>
+</body>
+</html>

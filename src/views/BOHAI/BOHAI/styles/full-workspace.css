@@ -12,86 +12,10 @@
   transition: margin-left 300ms cubic-bezier(0.16, 1, 0.3, 1), width 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.bohai-page.standalone-mode .sidebar-open-btn {
-  display: none !important;
-}
-
-.full-ai-toolbar {
-  position: relative;
-  z-index: 80;
-  min-height: 58px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 9px 16px;
-  border-bottom: 1px solid #e8e8e8;
-  background: rgba(255, 255, 255, 0.96);
-}
-
-.full-ai-toolbar-left,
-.full-ai-toolbar-actions {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.full-ai-toolbar-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.full-ai-toolbar-copy strong,
-.full-ai-toolbar-copy span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.full-ai-toolbar-copy strong {
-  color: var(--bohai-text);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.full-ai-toolbar-copy span {
-  color: var(--bohai-muted);
-  font-size: 11px;
-}
-
-.full-ai-toolbar-btn,
-.full-ai-new-chat-btn {
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.full-ai-toolbar-btn {
-  width: 36px;
-  flex: 0 0 36px;
-  padding: 0;
-  background: transparent;
-  color: #525252;
-}
-
-.full-ai-new-chat-btn {
-  padding: 0 12px;
-  background: #171717;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.full-ai-toolbar-btn:hover { background: #f2f2f2; border-color: #e5e5e5; color: #171717; }
-.full-ai-new-chat-btn:hover { background: #303030; }
+/* ⚠️ 2026-09-30（plans/023 步骤 ③）：此处原有两条规则被删除，它们是同一个洞的两半 ——
+   `.bohai-page.standalone-mode .sidebar-open-btn { display: none !important }` 把独立页的
+   侧栏展开按钮藏掉，而顶栏那个 PanelLeft 按钮是**唯一**的替代入口。顶栏删除后若不一起删，
+   用户收起侧栏就再也打不开。现在 show-open-button 已放开给独立页（BOHAIMain 模板）。 */
 
 .full-ai-suggestions {
   width: min(100%, 620px);
@@ -147,16 +71,13 @@
   background: #212121;
 }
 
-.bohai-page[data-theme="dark"] .input-box,
-.bohai-page[data-theme="dark"] .features-menu,
-.bohai-page[data-theme="dark"] .composer-mode-menu {
+.bohai-page[data-theme="dark"] .input-box {
   background: #2b2b2b !important;
   border-color: #424242 !important;
   color: #f5f5f5 !important;
 }
 
 .bohai-page[data-density="compact"] .message-wrapper { padding-top: 5px; padding-bottom: 5px; }
-.bohai-page[data-density="compact"] .full-ai-toolbar { min-height: 50px; padding-block: 6px; }
 .bohai-page[data-density="compact"] .input-area { padding-top: 5px; padding-bottom: 7px; }
 
 .bohai-page[data-font-scale="small"] .message-content,
@@ -166,22 +87,9 @@
 .bohai-page[data-font-scale="large"] textarea,
 .bohai-page[data-font-scale="large"] .empty-subtitle { font-size: 16px !important; }
 
-[data-boh-theme="dark"] .full-ai-toolbar {
-  border-bottom-color: #383838;
-  background: rgba(33, 33, 33, 0.97);
-}
-
-[data-boh-theme="dark"] .full-ai-toolbar-btn { color: #d4d4d4; }
-[data-boh-theme="dark"] .full-ai-toolbar-btn:hover { border-color: #424242; background: #303030; color: #fff; }
-[data-boh-theme="dark"] .full-ai-new-chat-btn { background: #f5f5f5; color: #171717; }
 [data-boh-theme="dark"] .full-ai-suggestions button { border-color: #424242; background: #2b2b2b; color: #e5e5e5; }
 
 @media (max-width: 767px) {
-  .full-ai-toolbar { min-height: 54px; padding: 7px 9px; }
-  .full-ai-toolbar-actions { gap: 2px; }
-  .full-ai-new-chat-btn { width: 36px; padding: 0; }
-  .full-ai-new-chat-btn span { display: none; }
-  .full-ai-toolbar-copy strong { max-width: 46vw; }
   .full-ai-suggestions { grid-template-columns: minmax(0, 1fr); width: min(100%, 360px); gap: 6px; margin-top: 14px; }
   .full-ai-suggestions button { min-height: 38px; }
 }

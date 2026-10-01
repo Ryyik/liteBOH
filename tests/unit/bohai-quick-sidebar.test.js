@@ -43,8 +43,13 @@ describe('BOH AI standalone workspace', () => {
       ),
     );
     expect(sidebar).toContain('v-if="!isOpen && showOpenButton"');
-    expect(main).toContain(':show-open-button="!isStandalone && !props.overlayMode"');
+    // 2026-09-30（plans/023 步骤 ③）：独立页顶栏已删除，而它原本是独立页**唯一**的侧栏展开入口
+    // （侧栏自己的 sidebar-open-btn 在独立页被 showOpenButton=false + 一条 display:none 双重藏掉）。
+    // 所以 show-open-button 必须对独立页放开，只在 overlay 模式关闭，否则收起侧栏后再也打不开。
+    expect(main).toContain(':show-open-button="!props.overlayMode"');
     expect(main).toContain(':embedded="props.overlayMode || isStandalone"');
+    // 顶栏必须真的删干净：只要它回来，「唯一入口」就变成两处并存，上面那条契约就失去意义。
+    expect(main).not.toContain('full-ai-toolbar');
   });
 });
 
@@ -117,7 +122,11 @@ describe('BOH AI motion system', () => {
     expect(main).toContain("label: '个人 Cloud+'");
     expect(main).toContain("command.action === 'cloud'");
     expect(main).toContain('<strong>个人 Cloud+</strong>');
-    expect(main).toContain('isSearching || isForumSearchEnabled || isTreeholeMemoryEnabled');
+    // 2026-09-30（plans/023）：顶部 composer-chip 开关行已删除，四个开关的入口
+    // 统一搬进输入框右侧展开面板的「工具」组。原断言锁的是那行 chips 的 v-if 条件，
+    // 条件随行一起消失 → 改锁新落点：面板工具行 + Cloud+ 的切换接线。
+    expect(main).toContain('composer-panel-tool');
+    expect(main).toContain('@click.stop="handleTreeholeMemoryToggle"');
   });
 });
 

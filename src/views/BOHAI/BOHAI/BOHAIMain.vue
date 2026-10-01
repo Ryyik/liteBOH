@@ -24,7 +24,7 @@
         :embedded="props.embedded"
         :overlay-mode="props.overlayMode"
         :standalone="isStandalone"
-        :show-open-button="!isStandalone && !props.overlayMode"
+        :show-open-button="!props.overlayMode"
         :reduce-motion="!globalAiPreferences.animationsEnabled"
         :theme="resolvedAiTheme"
         :is-component-visible="isComponentVisible"
@@ -38,37 +38,12 @@
       />
 
       <main class="main-content">
-        <header v-if="isStandalone" class="full-ai-toolbar">
-          <div class="full-ai-toolbar-left">
-            <button
-              type="button"
-              class="full-ai-toolbar-btn"
-              :title="isSidebarOpen ? '收起历史记录' : '展开历史记录'"
-              :aria-label="isSidebarOpen ? '收起历史记录' : '展开历史记录'"
-              @click="toggleSidebar"
-            >
-              <PanelLeft :size="19" />
-            </button>
-            <div class="full-ai-toolbar-copy">
-              <strong>{{ currentSessionTitle }}</strong>
-              <span>BOH AI · {{ currentMode.name }}</span>
-            </div>
-          </div>
-          <div class="full-ai-toolbar-actions">
-            <button type="button" class="full-ai-new-chat-btn" @click="startNewChat">
-              <Plus :size="17" /><span>新对话</span>
-            </button>
-            <button
-              type="button"
-              class="full-ai-toolbar-btn"
-              title="设置"
-              aria-label="打开设置"
-              @click="openSettings"
-            >
-              <Settings2 :size="18" />
-            </button>
-          </div>
-        </header>
+        <!-- 2026-09-30（plans/023 步骤 ③）：独立页顶栏已删除，三个职责全部由左栏承载 ——
+             会话名 = 侧栏会话列表的高亮项；新对话 = 侧栏 start-new-chat；设置 = 侧栏
+             .sidebar-settings-btn（title="设置"，probe-ai-panels 靠这个 title 命中）。
+             ⚠️ 顶栏原本还是独立页**唯一**的侧栏展开入口（侧栏 sidebar-open-btn 的
+             showOpenButton 在独立页传的是 false）—— 删它必须同时把 show-open-button
+             放开给独立页，否则用户收起侧栏后再也打不开。 -->
         <div
           ref="chatContainer"
           class="chat-container custom-scrollbar"
@@ -370,62 +345,6 @@
                 >
                   <MoreHorizontal size="16" />
                 </button>
-                <div v-if="idx === lastAssistantMessageIndex" class="message-context-budget">
-                  <div v-if="isCompressingContext" class="context-compressing-hint">
-                    <LoaderCircle size="12" class="compressing-spinner" />
-                    <span>正在压缩上下文</span>
-                  </div>
-                  <div
-                    v-else
-                    :class="['context-ring-wrap', ringColorClass]"
-                    :title="contextBudgetTitle"
-                  >
-                    <svg class="context-ring" viewBox="0 0 20 20">
-                      <circle
-                        class="ring-track"
-                        cx="10"
-                        cy="10"
-                        r="8"
-                        fill="none"
-                        stroke-width="2.5"
-                      />
-                      <circle
-                        class="ring-fill"
-                        cx="10"
-                        cy="10"
-                        r="8"
-                        fill="none"
-                        stroke-width="2.5"
-                        :stroke-dasharray="`${ringProgress} ${ringCircumference}`"
-                        transform="rotate(-90 10 10)"
-                      />
-                    </svg>
-                    <span class="ring-percent">{{ contextBudgetLabel }}</span>
-                    <span
-                      v-if="todayTokenUsage"
-                      class="context-tokens"
-                      :title="todayTokenTitle"
-                      @click="openQuotaPanel"
-                    >
-                      {{ todayTokenLabel }}
-                    </span>
-                  </div>
-                  <div v-if="showCompressSuccess" class="compress-success-hint">
-                    <CheckCircle2 size="12" />
-                    <span>上下文已压缩</span>
-                  </div>
-                  <button
-                    v-else-if="!isCompressingContext && canCompressContext"
-                    class="compress-now-btn"
-                    type="button"
-                    :disabled="isCompressingContext"
-                    @click="handleManualCompress"
-                    title="立即压缩历史对话，整理早期内容为摘要"
-                  >
-                    <Archive size="12" />
-                    <span>整理上下文</span>
-                  </button>
-                </div>
               </div>
               <div v-if="isMessageDetailsOpen(idx)" class="message-meta-panel">
                 <div v-if="getMessageRetrievalTrace(msg)" class="message-meta-section">
@@ -501,51 +420,6 @@
               没有匹配的命令
             </div>
           </div>
-          <div
-            v-if="
-              isSearching ||
-              isForumSearchEnabled ||
-              isTreeholeMemoryEnabled ||
-              isHealthAnalysisEnabled
-            "
-            class="composer-chips"
-          >
-            <button v-if="isSearching" type="button" class="composer-chip" @click="toggleSearch">
-              <Globe size="14" />
-              <span>联网搜索</span>
-              <X size="13" />
-            </button>
-            <button
-              v-if="isForumSearchEnabled"
-              type="button"
-              class="composer-chip"
-              @click="toggleForumSearch"
-            >
-              <Search size="14" />
-              <span>社区搜索</span>
-              <X size="13" />
-            </button>
-            <button
-              v-if="isTreeholeMemoryEnabled"
-              type="button"
-              class="composer-chip"
-              @click="handleTreeholeMemoryToggle"
-            >
-              <Cloud size="14" />
-              <span>个人 Cloud+</span>
-              <X size="13" />
-            </button>
-            <button
-              v-if="isHealthAnalysisEnabled"
-              type="button"
-              class="composer-chip"
-              @click="toggleHealthAnalysis"
-            >
-              <HeartPulse size="14" />
-              <span>健康分析</span>
-              <X size="13" />
-            </button>
-          </div>
           <div v-if="attachedContext" class="composer-chips context-chip-row">
             <div class="composer-chip context-chip" @click="clearAttachedContext">
               <FileText size="14" />
@@ -582,74 +456,6 @@
             </div>
           </div>
           <div class="input-box">
-            <div class="input-left">
-              <button
-                @click="toggleFeaturesMenu"
-                class="features-btn"
-                :class="{ active: showFeaturesMenu }"
-              >
-                <Plus size="18" />
-              </button>
-              <div v-if="showFeaturesMenu" class="features-menu">
-                <div class="feature-menu-title">工具</div>
-                <div class="feature-action-list">
-                  <button type="button" class="feature-action-row" @click="toggleSearch">
-                    <span class="feature-action-icon">
-                      <Globe size="16" />
-                    </span>
-                    <span class="feature-action-copy">
-                      <strong>联网搜索</strong>
-                      <small>获取最新网络信息</small>
-                    </span>
-                    <span v-if="isSearching" class="feature-action-check"></span>
-                  </button>
-                  <button type="button" class="feature-action-row" @click="toggleForumSearch">
-                    <span class="feature-action-icon">
-                      <Search size="16" />
-                    </span>
-                    <span class="feature-action-copy">
-                      <strong>社区搜索</strong>
-                      <small>查找 BOH 社区内容</small>
-                    </span>
-                    <span v-if="isForumSearchEnabled" class="feature-action-check"></span>
-                  </button>
-                  <button
-                    type="button"
-                    class="feature-action-row"
-                    @click="handleTreeholeMemoryToggle"
-                  >
-                    <span class="feature-action-icon">
-                      <Cloud size="16" />
-                    </span>
-                    <span class="feature-action-copy">
-                      <strong>个人 Cloud+</strong>
-                      <small>参考你的 Cloud+ 私有内容</small>
-                    </span>
-                    <span v-if="isTreeholeMemoryEnabled" class="feature-action-check"></span>
-                  </button>
-                  <button type="button" class="feature-action-row" @click="toggleHealthAnalysis">
-                    <span class="feature-action-icon">
-                      <HeartPulse size="16" />
-                    </span>
-                    <span class="feature-action-copy">
-                      <strong>健康分析</strong>
-                      <small>参考你本机的 BOH Health 数据</small>
-                    </span>
-                    <span v-if="isHealthAnalysisEnabled" class="feature-action-check"></span>
-                  </button>
-                  <button type="button" class="feature-action-row" @click="startPsychAnalysis">
-                    <span class="feature-action-icon">
-                      <Brain size="16" />
-                    </span>
-                    <span class="feature-action-copy">
-                      <strong>心理分析</strong>
-                      <small>切换心理专家，由 AI 逐个提问陪你梳理</small>
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
             <div class="composer-main">
               <textarea
                 ref="textareaRef"
@@ -663,101 +469,372 @@
               ></textarea>
             </div>
 
-            <div class="input-right">
-              <div class="composer-mode-picker" @click.stop>
+            <div class="composer-bar">
+              <div class="composer-bar-left">
                 <button
                   type="button"
-                  class="composer-mode-button"
-                  :class="{ open: modeMenuOpen, loading: chatModesLoading }"
-                  :title="currentMode.description || currentMode.tagline"
-                  :aria-expanded="modeMenuOpen"
-                  aria-haspopup="menu"
-                  @click.stop="toggleModeMenu"
+                  class="composer-tool-btn"
+                  :class="{ active: isSearching }"
+                  :aria-pressed="isSearching"
+                  :title="isSearching ? '联网搜索已开启，点击关闭' : '开启联网搜索'"
+                  @click="toggleSearch"
                 >
-                  <span>{{ currentMode.name }}</span>
-                  <ChevronDown size="15" aria-hidden="true" />
+                  <Globe size="15" aria-hidden="true" />
+                  <span class="composer-tool-btn-label">联网</span>
                 </button>
-                <div
-                  v-show="modeMenuOpen"
-                  class="composer-mode-menu"
-                  role="menu"
-                  aria-label="选择 BOH AI 模式"
-                  @click.stop
-                >
-                  <div
-                    v-if="chatModesLoading"
-                    class="composer-mode-menu-loading"
-                    aria-live="polite"
-                  >
-                    <div v-for="i in 3" :key="`mode-skeleton-row-${i}`" class="mode-skeleton-row">
-                      <span
-                        class="mode-skeleton-line"
-                        :class="{ short: i === 3 }"
-                        aria-hidden="true"
-                      ></span>
-                      <span class="mode-skeleton-tail" aria-hidden="true"></span>
-                    </div>
-                    <p class="mode-menu-loading-hint">模式加载中…</p>
+              </div>
+
+              <div class="composer-bar-right">
+                <div v-if="messages.length > 0" class="composer-context-slot">
+                  <div v-if="isCompressingContext" class="context-compressing-hint">
+                    <LoaderCircle size="12" class="compressing-spinner" />
+                    <span>正在压缩上下文</span>
                   </div>
-                  <div v-else-if="filteredChatModes.length === 0" class="mode-menu-empty">
-                    暂无可用模式
-                  </div>
-                  <button
-                    v-for="(mode, index) in filteredChatModes"
-                    :key="mode.id"
-                    type="button"
-                    class="composer-mode-option"
-                    :class="{ active: currentModeId === mode.id }"
-                    role="menuitemradio"
-                    :aria-checked="currentModeId === mode.id"
-                    :data-mode-id="mode.id"
-                    :data-mode-index="index"
-                    @click.stop="selectMode(mode.id)"
-                  >
-                    <span class="mode-option-main">
-                      <strong>{{ mode.name }}</strong>
-                      <span class="mode-option-meta">
-                        <span
-                          class="mode-option-multiplier"
-                          :class="{ 'is-free': isFreeMode(mode) }"
-                          :title="
-                            isFreeMode(mode)
-                              ? '该模式为免费模型，不消耗额度与积分'
-                              : `该模式消耗倍率为 ${formatQuotaMultiplier(mode.quotaMultiplier)}x`
-                          "
+                  <div v-else class="usage-orb-wrap">
+                    <!-- 上下文 + 今日额度合成一个双环：外环 = 上下文（灰度层级沿用原口径），
+                         内环 = 今日额度（accent 绿 → 琥珀 → 红）。同一个 38px 圆里位置不足以
+                         区分两条环，所以靠颜色分工；数字收进点击后展开的浮层。 -->
+                    <button
+                      type="button"
+                      class="usage-orb"
+                      :class="[ringColorClass, quotaLevelClass, { open: usagePopOpen }]"
+                      :title="usageOrbTitle"
+                      :aria-expanded="usagePopOpen"
+                      aria-haspopup="dialog"
+                      aria-label="使用情况"
+                      @click.stop="toggleUsagePop"
+                    >
+                      <svg class="usage-orb-svg" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle class="orb-track" cx="12" cy="12" r="9.6" />
+                        <circle class="orb-track" cx="12" cy="12" r="5.9" />
+                        <circle
+                          class="orb-fill orb-ctx"
+                          cx="12"
+                          cy="12"
+                          r="9.6"
+                          :stroke-dasharray="`${orbContextDash} ${ORB_CTX_CIRC}`"
+                          transform="rotate(-90 12 12)"
+                        />
+                        <circle
+                          class="orb-fill orb-quota"
+                          cx="12"
+                          cy="12"
+                          r="5.9"
+                          :stroke-dasharray="`${orbQuotaDash} ${ORB_QUOTA_CIRC}`"
+                          transform="rotate(-90 12 12)"
+                        />
+                      </svg>
+                    </button>
+
+                    <div
+                      v-show="usagePopOpen"
+                      class="usage-pop"
+                      role="dialog"
+                      aria-label="使用情况"
+                      @click.stop
+                    >
+                      <div class="usage-pop-head">
+                        <span class="usage-pop-title">使用情况</span>
+                        <button type="button" class="usage-pop-more" @click.stop="openQuotaPanel">
+                          完整用量 ›
+                        </button>
+                      </div>
+
+                      <div class="usage-row">
+                        <span class="usage-dot is-ctx" aria-hidden="true"></span>
+                        <span class="usage-row-label">对话上下文</span>
+                        <span class="usage-row-value">{{ contextBudgetPercentText }}</span>
+                      </div>
+                      <div class="usage-meter">
+                        <i :style="{ width: contextBudgetPercentText }"></i>
+                      </div>
+                      <p class="usage-foot">
+                        本轮约 {{ contextBudgetUsage?.windowUsed || 0 }} /
+                        {{ contextBudgetUsage?.windowMax || 0 }} 字符 · 已含
+                        {{ contextBudgetUsage?.includedMessageCount || 0 }} 轮历史{{
+                          contextBudgetUsage?.hasSummary ? ' · 更早内容已存入摘要' : ''
+                        }}
+                      </p>
+
+                      <template v-if="todayTokenUsage">
+                        <div class="usage-row is-second">
+                          <span class="usage-dot is-quota" aria-hidden="true"></span>
+                          <span class="usage-row-label">今日额度</span>
+                          <span class="usage-row-value">{{ quotaPercentText }}</span>
+                        </div>
+                        <div class="usage-meter is-quota" :class="quotaLevelClass">
+                          <i :style="{ width: quotaPercentText }"></i>
+                        </div>
+                        <p class="usage-foot" :title="todayTokenTitle">
+                          {{ todayTokenDetailText }}
+                        </p>
+                      </template>
+
+                      <div class="usage-pop-actions">
+                        <button
+                          v-if="canCompressContext"
+                          type="button"
+                          class="usage-pop-btn is-primary"
+                          :disabled="isCompressingContext"
+                          @click.stop="handleManualCompress"
+                          title="立即压缩历史对话，整理早期内容为摘要"
                         >
-                          {{
-                            isFreeMode(mode)
-                              ? '免费'
-                              : `${formatQuotaMultiplier(mode.quotaMultiplier)}x`
-                          }}
+                          <Archive size="12" />
+                          <span>整理上下文</span>
+                        </button>
+                        <button type="button" class="usage-pop-btn" @click.stop="openQuotaPanel">
+                          用量详情
+                        </button>
+                      </div>
+                    </div>
+
+                    <div v-if="showCompressSuccess" class="compress-success-hint">
+                      <CheckCircle2 size="12" />
+                      <span>上下文已压缩</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="composer-panel-picker" @click.stop>
+                  <!-- 胶囊 = 模式名 + 强度：两者是同一层的两个维度，直接读出来比只显示模式名信息量大 -->
+                  <button
+                    type="button"
+                    class="composer-panel-trigger"
+                    :class="{ open: composerPanelOpen }"
+                    :title="`${currentMode.name} · 推理强度 ${currentThinkingSpeed?.name || '中'}`"
+                    :aria-expanded="composerPanelOpen"
+                    aria-haspopup="dialog"
+                    @click.stop="toggleComposerPanel"
+                  >
+                    <span class="composer-panel-trigger-label">{{ currentMode.name }}</span>
+                    <span class="composer-panel-trigger-effort">{{
+                      currentThinkingSpeed?.name || '中'
+                    }}</span>
+                    <ChevronDown size="14" aria-hidden="true" />
+                  </button>
+
+                  <div
+                    v-show="composerPanelOpen"
+                    class="composer-panel"
+                    role="dialog"
+                    aria-label="模式与推理强度"
+                    @click.stop
+                  >
+                    <button
+                      type="button"
+                      class="composer-panel-row"
+                      :class="{ active: composerSubOpen === 'mode' }"
+                      :aria-expanded="composerSubOpen === 'mode'"
+                      aria-haspopup="menu"
+                      @click.stop="toggleComposerSub('mode')"
+                    >
+                      <span class="composer-panel-row-key">模式</span>
+                      <span class="composer-panel-row-value">{{ currentMode.name }}</span>
+                      <ChevronRight size="15" class="composer-panel-row-chev" aria-hidden="true" />
+                    </button>
+
+                    <button
+                      type="button"
+                      class="composer-panel-row"
+                      :class="{ active: composerSubOpen === 'effort' }"
+                      :aria-expanded="composerSubOpen === 'effort'"
+                      aria-haspopup="menu"
+                      @click.stop="toggleComposerSub('effort')"
+                    >
+                      <span class="composer-panel-row-key">推理强度</span>
+                      <span class="composer-panel-row-value">{{
+                        currentThinkingSpeed?.name || '中'
+                      }}</span>
+                      <ChevronRight size="15" class="composer-panel-row-chev" aria-hidden="true" />
+                    </button>
+
+                    <div class="composer-panel-sep" aria-hidden="true"></div>
+
+                    <button
+                      type="button"
+                      class="composer-panel-row is-adv"
+                      :class="{ open: composerAdvOpen }"
+                      :aria-expanded="composerAdvOpen"
+                      @click.stop="composerAdvOpen = !composerAdvOpen"
+                    >
+                      <span class="composer-panel-row-key">高级</span>
+                      <ChevronUp size="15" class="composer-panel-row-chev" aria-hidden="true" />
+                    </button>
+
+                    <div v-show="composerAdvOpen" class="composer-panel-adv">
+                      <button
+                        type="button"
+                        class="composer-panel-tool"
+                        :class="{ active: isForumSearchEnabled }"
+                        :aria-pressed="isForumSearchEnabled"
+                        @click.stop="toggleForumSearch"
+                      >
+                        <span class="feature-action-icon"><Search size="16" /></span>
+                        <span class="feature-action-copy">
+                          <strong>社区搜索</strong>
+                          <small>查找 BOH 社区内容</small>
                         </span>
+                        <span v-if="isForumSearchEnabled" class="feature-action-check"></span>
+                      </button>
+                      <button
+                        type="button"
+                        class="composer-panel-tool"
+                        :class="{ active: isTreeholeMemoryEnabled }"
+                        :aria-pressed="isTreeholeMemoryEnabled"
+                        @click.stop="handleTreeholeMemoryToggle"
+                      >
+                        <span class="feature-action-icon"><Cloud size="16" /></span>
+                        <span class="feature-action-copy">
+                          <strong>个人 Cloud+</strong>
+                          <small>参考你的 Cloud+ 私有内容</small>
+                        </span>
+                        <span v-if="isTreeholeMemoryEnabled" class="feature-action-check"></span>
+                      </button>
+                      <button
+                        type="button"
+                        class="composer-panel-tool"
+                        :class="{ active: isHealthAnalysisEnabled }"
+                        :aria-pressed="isHealthAnalysisEnabled"
+                        @click.stop="toggleHealthAnalysis"
+                      >
+                        <span class="feature-action-icon"><HeartPulse size="16" /></span>
+                        <span class="feature-action-copy">
+                          <strong>健康分析</strong>
+                          <small>参考你本机的 BOH Health 数据</small>
+                        </span>
+                        <span v-if="isHealthAnalysisEnabled" class="feature-action-check"></span>
+                      </button>
+                      <button
+                        type="button"
+                        class="composer-panel-tool"
+                        @click.stop="startPsychAnalysis"
+                      >
+                        <span class="feature-action-icon"><Brain size="16" /></span>
+                        <span class="feature-action-copy">
+                          <strong>心理分析</strong>
+                          <small>切换心理专家，由 AI 逐个提问陪你梳理</small>
+                        </span>
+                      </button>
+                    </div>
+
+                    <!-- 模式二级菜单：向左弹出，贴着主面板左缘 -->
+                    <div
+                      v-show="composerSubOpen === 'mode'"
+                      class="composer-submenu is-left"
+                      role="menu"
+                      aria-label="模式"
+                    >
+                      <div
+                        v-if="chatModesLoading"
+                        class="composer-panel-loading"
+                        aria-live="polite"
+                      >
+                        <div v-for="i in 3" :key="`panel-skeleton-${i}`" class="mode-skeleton-row">
+                          <span
+                            class="mode-skeleton-line"
+                            :class="{ short: i === 3 }"
+                            aria-hidden="true"
+                          ></span>
+                          <span class="mode-skeleton-tail" aria-hidden="true"></span>
+                        </div>
+                        <p class="mode-menu-loading-hint">模式加载中…</p>
+                      </div>
+                      <div v-else-if="filteredChatModes.length === 0" class="mode-menu-empty">
+                        暂无可用模式
+                      </div>
+                      <template v-else>
+                        <button
+                          v-for="(mode, index) in filteredChatModes"
+                          :key="mode.id"
+                          type="button"
+                          class="composer-submenu-item"
+                          :class="{ active: currentModeId === mode.id }"
+                          role="menuitemradio"
+                          :aria-checked="currentModeId === mode.id"
+                          :data-mode-id="mode.id"
+                          :data-mode-index="index"
+                          :title="mode.tagline || mode.description || ''"
+                          @click.stop="selectMode(mode.id)"
+                        >
+                          <span class="composer-submenu-item-name">{{ mode.name }}</span>
+                          <span
+                            class="composer-submenu-item-rate"
+                            :class="{ 'is-free': isFreeMode(mode) }"
+                          >
+                            {{
+                              isFreeMode(mode)
+                                ? '免费'
+                                : `${formatQuotaMultiplier(mode.quotaMultiplier)}x`
+                            }}
+                          </span>
+                          <Check
+                            v-if="currentModeId === mode.id"
+                            class="composer-submenu-check"
+                            :size="15"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      </template>
+                      <div class="mode-menu-footer">
+                        <a href="#/ai-intro" class="mode-menu-intro-link" @click.stop
+                          >了解所有模式 ›</a
+                        >
+                      </div>
+                    </div>
+
+                    <!-- 推理强度二级菜单：向右弹出 -->
+                    <div
+                      v-show="composerSubOpen === 'effort'"
+                      class="composer-submenu is-right"
+                      role="menu"
+                      aria-label="推理强度"
+                    >
+                      <div class="composer-submenu-title">推理强度</div>
+                      <button
+                        v-for="option in thinkingSpeedOptions"
+                        :key="option.id"
+                        type="button"
+                        class="composer-submenu-item"
+                        :class="{ active: currentThinkingSpeedId === option.id }"
+                        role="menuitemradio"
+                        :aria-checked="currentThinkingSpeedId === option.id"
+                        :data-thinking-speed-id="option.id"
+                        :title="option.description || ''"
+                        @click.stop="selectThinkingSpeed(option.id)"
+                      >
+                        <span class="composer-submenu-item-name">{{ option.name }}</span>
                         <Check
-                          v-if="currentModeId === mode.id"
-                          class="mode-option-check"
+                          v-if="currentThinkingSpeedId === option.id"
+                          class="composer-submenu-check"
                           :size="15"
                           aria-hidden="true"
                         />
-                      </span>
-                    </span>
-                  </button>
-                  <div class="mode-menu-footer">
-                    <a href="#/ai-intro" class="mode-menu-intro-link" @click.stop>了解所有模式 ›</a>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div class="input-actions">
-                <button v-if="isLoading" @click="stopGeneration" class="stop-btn">
-                  <Square size="18" />
-                </button>
-                <button
-                  v-else
-                  @click="sendMessage"
-                  :disabled="!inputMessage.trim() || isCompressingContext"
-                  class="send-btn"
-                >
-                  <ArrowUp size="18" />
-                </button>
+
+                <div class="input-actions">
+                  <button
+                    v-if="isLoading"
+                    @click="stopGeneration"
+                    class="stop-btn"
+                    title="停止生成"
+                    aria-label="停止生成"
+                  >
+                    <Square size="18" />
+                  </button>
+                  <button
+                    v-else
+                    @click="sendMessage"
+                    :disabled="!inputMessage.trim() || isCompressingContext"
+                    class="send-btn"
+                    title="发送"
+                    aria-label="发送"
+                  >
+                    <ArrowUp size="18" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -829,7 +906,6 @@
 import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import {
-  Plus,
   Trash2,
   Square,
   Globe,
@@ -837,6 +913,8 @@ import {
   Search,
   X,
   ChevronDown,
+  ChevronRight,
+  ChevronUp,
   Copy,
   ThumbsUp,
   ThumbsDown,
@@ -846,8 +924,6 @@ import {
   CheckCircle2,
   LoaderCircle,
   Circle,
-  PanelLeft,
-  Settings2,
   AlertCircle,
   RotateCcw,
   Archive,
@@ -912,7 +988,6 @@ let visibilityObserver = null;
 const bohaiPageRoot = ref(null);
 let visibilityResizeObserver = null;
 let visibilityFallbackIntervalId = null;
-const showFeaturesMenu = ref(false);
 const currentUiStyle = ref(themeManager.getUiStyle?.() || 'glass');
 const currentSiteTheme = ref(themeManager.isDark?.() ? 'dark' : 'light');
 const resolvedAiTheme = computed(() => {
@@ -926,7 +1001,11 @@ const route = useRoute();
 const visibleMessageLimit = ref(80);
 const expandedMessageDetails = ref(new Set());
 const messageFeedbackByIndex = ref({});
-const modeMenuOpen = ref(false);
+const composerPanelOpen = ref(false);
+// 面板内的两级子菜单：'mode' | 'effort' | ''（同时只开一个）
+const composerSubOpen = ref('');
+// 「高级」折叠区（4 个工具开关）
+const composerAdvOpen = ref(false);
 const settingsOpen = ref(false);
 const isQuotaPanelOpen = ref(false);
 const todayTokenUsage = ref(null);
@@ -1119,6 +1198,11 @@ const {
   setResponseStyle,
   responseStyleOptions,
   currentThinkingSpeedId,
+  // ⚠️ 必须一起解构：模板三处（胶囊强度段 / 推理强度行 / trigger title）都读
+  // `currentThinkingSpeed?.name || '中'`。漏掉它会静默退化成「永远是 中」——
+  // 状态其实切换成功（子菜单 active 会跟着动、localStorage 也落盘），只是不回显。
+  // 2026-10-01 由 probe-bohai-composer.mjs 的 A5 抓到。
+  currentThinkingSpeed,
   thinkingSpeedOptions,
   setThinkingSpeed,
   persistModeSetting,
@@ -1136,10 +1220,6 @@ watch(isThinking, (thinking, wasThinking) => {
     quotaRefreshTimer = setTimeout(fetchTodayQuota, 1500);
   }
 });
-
-const currentSessionTitle = computed(
-  () => chatSessions[currentSessionIndex.value]?.title || '新对话',
-);
 
 const startNewChat = () => {
   startNewChatEngine();
@@ -1162,7 +1242,6 @@ const memorySettingsStatus = computed(() => {
 });
 
 const handleTreeholeMemoryToggle = async () => {
-  closeFeaturesMenu();
   await toggleTreeholeMemory();
   if (pendingCloudReferenceConsent.awaitingConfirmation) {
     settingsOpen.value = false;
@@ -1263,8 +1342,7 @@ const closeOverlayPanels = () => {
   isSidebarOpen.value = false;
   settingsOpen.value = false;
   isQuotaPanelOpen.value = false;
-  showFeaturesMenu.value = false;
-  modeMenuOpen.value = false;
+  composerPanelOpen.value = false;
   if (chatSessions[currentSessionIndex.value]?.temporary) {
     deleteSession(currentSessionIndex.value);
   }
@@ -1274,8 +1352,7 @@ const resetQuickNavigation = () => {
   isSidebarOpen.value = false;
   settingsOpen.value = false;
   isQuotaPanelOpen.value = false;
-  showFeaturesMenu.value = false;
-  modeMenuOpen.value = false;
+  composerPanelOpen.value = false;
 };
 
 watch(
@@ -1345,10 +1422,6 @@ const contextBudgetPercentText = computed(() => {
   return `${Math.floor(Math.max(0, Math.min(100, pct)))}%`;
 });
 
-const contextBudgetLabel = computed(() => {
-  return `上下文 ${contextBudgetPercentText.value}`;
-});
-
 // 顶层模式（4 个）：Fast / Pro / Plan / Agent。
 // - Fast: 极速响应（默认）
 // - Pro:  质量
@@ -1375,11 +1448,6 @@ const formatTodayToken = (value) =>
   new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(
     Math.max(0, Number(value || 0)),
   );
-
-const todayTokenLabel = computed(() => {
-  if (!todayTokenUsage.value) return '';
-  return `今日 ${formatTodayToken(todayTokenUsage.value.used)}`;
-});
 
 const todayTokenTitle = computed(() => {
   if (!todayTokenUsage.value) return '';
@@ -1411,13 +1479,68 @@ const contextWarningText = computed(() => {
     : '上下文接近 100%，到达后会自动整理早期对话';
 });
 
-const RING_RADIUS = 8;
-const ringCircumference = 2 * Math.PI * RING_RADIUS;
+// ─── 用量圆钮：上下文 + 今日额度合成一个双环 ──────────────────────────────
+// 外环 = 上下文（沿用原灰度层级 level-low/mid/high/full），内环 = 今日额度
+// （accent 绿 → 琥珀 → 红）。两条环必须靠颜色分工：38px 的圆里位置差不足以区分它们。
+const ORB_CTX_RADIUS = 9.6;
+const ORB_QUOTA_RADIUS = 5.9;
+const ORB_CTX_CIRC = 2 * Math.PI * ORB_CTX_RADIUS;
+const ORB_QUOTA_CIRC = 2 * Math.PI * ORB_QUOTA_RADIUS;
 
-const ringProgress = computed(() => {
+const orbContextDash = computed(() => {
   const percent = Math.max(0, Math.min(100, contextBudgetUsage.value?.historyPercent || 0));
-  return (percent / 100) * ringCircumference;
+  return (percent / 100) * ORB_CTX_CIRC;
 });
+
+// 今日额度百分比。limit === -1 表示不限量 ⇒ 不画环（保持 0，画满会误导成"用光了"）。
+const quotaPercent = computed(() => {
+  const usage = todayTokenUsage.value;
+  if (!usage) return 0;
+  const limit = Number(usage.limit);
+  if (!Number.isFinite(limit) || limit <= 0) return 0;
+  return Math.max(0, Math.min(100, (Number(usage.used || 0) / limit) * 100));
+});
+
+const quotaPercentText = computed(() => `${Math.floor(quotaPercent.value)}%`);
+
+const orbQuotaDash = computed(() => (quotaPercent.value / 100) * ORB_QUOTA_CIRC);
+
+// 额度压力分档：< 85% 正常 / 85–94% 琥珀 / >= 95% 红
+const quotaLevelClass = computed(() => {
+  if (!todayTokenUsage.value) return '';
+  const pct = quotaPercent.value;
+  if (pct >= 95) return 'quota-danger';
+  if (pct >= 85) return 'quota-warn';
+  return '';
+});
+
+const todayTokenDetailText = computed(() => {
+  const usage = todayTokenUsage.value;
+  if (!usage) return '';
+  const used = Number(usage.used || 0);
+  const limit = Number(usage.limit);
+  if (limit === -1) return `今日已用 ${formatTodayToken(used)} Tokens · 当前方案不限量`;
+  const remain = Math.max(0, limit - used);
+  return `已用 ${formatTodayToken(used)} / ${formatTodayToken(limit)} · 还可使用 ${formatTodayToken(remain)}`;
+});
+
+const usageOrbTitle = computed(() => {
+  const parts = [contextBudgetTitle.value];
+  if (todayTokenUsage.value) parts.push(`今日额度 ${quotaPercentText.value}`);
+  return parts.join(' · ');
+});
+
+// 用量浮层开合。与模式面板互斥：两个浮层都贴在底行同一侧，同时开必然重叠。
+const usagePopOpen = ref(false);
+const toggleUsagePop = () => {
+  const next = !usagePopOpen.value;
+  if (next && composerPanelOpen.value) {
+    composerPanelOpen.value = false;
+    composerSubOpen.value = '';
+    composerAdvOpen.value = false;
+  }
+  usagePopOpen.value = next;
+};
 
 const ringColorClass = computed(() => {
   const level = contextBudgetUsage.value?.level || 'low';
@@ -2063,34 +2186,24 @@ const getMessageActionAudit = (msg) => {
   return msg?.meta?.actionAudit || null;
 };
 
-let closeFeaturesMenuTimer = null;
-let closeModeMenuTimer = null;
+let closeComposerPanelTimer = null;
 
-const closeFeaturesMenu = () => {
-  const menu = document.querySelector('.features-menu');
-  if (menu) {
-    menu.classList.add('exiting');
-    if (closeFeaturesMenuTimer) clearTimeout(closeFeaturesMenuTimer);
-    closeFeaturesMenuTimer = setTimeout(() => {
-      closeFeaturesMenuTimer = null;
-      showFeaturesMenu.value = false;
-    }, 160);
-  } else {
-    showFeaturesMenu.value = false;
-  }
-};
-
-const closeModeMenu = () => {
-  const menu = document.querySelector('.composer-mode-menu');
-  if (menu) {
-    menu.classList.add('exiting');
-    if (closeModeMenuTimer) clearTimeout(closeModeMenuTimer);
-    closeModeMenuTimer = setTimeout(() => {
-      closeModeMenuTimer = null;
-      modeMenuOpen.value = false;
+const closeComposerPanel = () => {
+  const panel = document.querySelector('.composer-panel');
+  const finish = () => {
+    composerPanelOpen.value = false;
+    composerSubOpen.value = '';
+    composerAdvOpen.value = false;
+  };
+  if (panel) {
+    panel.classList.add('exiting');
+    if (closeComposerPanelTimer) clearTimeout(closeComposerPanelTimer);
+    closeComposerPanelTimer = setTimeout(() => {
+      closeComposerPanelTimer = null;
+      finish();
     }, 140);
   } else {
-    modeMenuOpen.value = false;
+    finish();
   }
 };
 
@@ -2275,15 +2388,27 @@ const settleInitialScrollPosition = async () => {
   });
 };
 
-const toggleFeaturesMenu = () => {
-  showFeaturesMenu.value = !showFeaturesMenu.value;
+const toggleComposerPanel = () => {
+  const next = !composerPanelOpen.value;
+  // 与用量浮层互斥：两个浮层都贴在底行同一侧，同时开必然重叠
+  if (next && usagePopOpen.value) usagePopOpen.value = false;
+  composerPanelOpen.value = next;
+  if (!next) {
+    composerSubOpen.value = '';
+    composerAdvOpen.value = false;
+  }
 };
 
-const toggleModeMenu = () => {
-  modeMenuOpen.value = !modeMenuOpen.value;
-  if (modeMenuOpen.value) {
-    closeFeaturesMenu();
-  }
+// 二级菜单：再点同一行收起，点另一行直接切过去
+const toggleComposerSub = (key) => {
+  composerSubOpen.value = composerSubOpen.value === key ? '' : key;
+};
+
+// 选完强度与 selectMode 行为一致：整个面板收起。
+// 2026-10-01 用户拍板统一 —— 原先只收二级菜单，主面板留着，与选模式的表现不对称。
+const selectThinkingSpeed = (id) => {
+  setThinkingSpeed(id);
+  closeComposerPanel();
 };
 
 const selectMode = (modeId) => {
@@ -2294,7 +2419,7 @@ const selectMode = (modeId) => {
 
   currentModeId.value = modeId;
   persistModeSetting();
-  closeModeMenu();
+  closeComposerPanel();
   const multiplierHint =
     mode.quotaMultiplier > 1
       ? `消耗倍率 ${mode.quotaMultiplier}x，会使用更多 Token`
@@ -2325,32 +2450,28 @@ const toggleSearch = () => {
   if (isSearching.value) {
     isCommandMode.value = false;
   }
-  closeFeaturesMenu();
 };
 
 const toggleForumSearch = () => {
   isForumSearchEnabled.value = !isForumSearchEnabled.value;
-  closeFeaturesMenu();
 };
 
 // 健康分析：开启后本轮回答会带上用户本机的 BOH Health 数据（localStorage，无需登录）
 const toggleHealthAnalysis = () => {
   isHealthAnalysisEnabled.value = !isHealthAnalysisEnabled.value;
-  closeFeaturesMenu();
 };
 
 /**
- * 心理分析：加号 → 工具菜单里的一键入口。
+ * 心理分析：输入框右侧展开面板 → 工具组里的一键入口。
  *
  * 做三件事：
  * 1. 切到「心理专家」角色 —— 访谈协议、不给选项、认识论分层都挂在这个角色的提示附录里
  *    （见 src/views/BOHAI/expert-roles/psychologist.js），不切角色就不会访谈。
  * 2. 空会话时填入一句启动语，交给现有 sendMessage 链路发出去 —— 于是 AI 直接主动开口提问。
  *    已有内容的会话只切角色、不代发，避免重复点击叠出多条「开始」。
- * 3. 不新增任何 UI：入口复用加号菜单既有的 feature-action-row，输出复用消息渲染。
+ * 3. 不新增任何 UI：入口复用展开面板工具组的行样式，输出复用消息渲染。
  */
 const startPsychAnalysis = () => {
-  closeFeaturesMenu();
   if (currentResponseStyleId.value !== 'psychologist') {
     setResponseStyle('psychologist');
   }
@@ -2563,18 +2684,18 @@ const syncThemeAttribute = () => {
 };
 
 const handleClickOutside = (e) => {
-  // 关闭 features 菜单
-  if (showFeaturesMenu.value && !e.target.closest('.input-left')) {
-    closeFeaturesMenu();
-  }
+  // 关闭输入框右侧展开面板（模式 / 推理强度 / 高级工具）
+  if (composerPanelOpen.value) {
+    const isClickInPicker = e.target.closest('.composer-panel-picker');
+    const isClickInPanel = e.target.closest('.composer-panel');
 
-  if (modeMenuOpen.value) {
-    const isClickInPicker = e.target.closest('.composer-mode-picker');
-    const isClickInMenu = e.target.closest('.composer-mode-menu');
-
-    if (!isClickInPicker && !isClickInMenu) {
-      closeModeMenu();
+    if (!isClickInPicker && !isClickInPanel) {
+      closeComposerPanel();
     }
+  }
+  // 关闭用量浮层
+  if (usagePopOpen.value && !e.target.closest('.usage-orb-wrap')) {
+    usagePopOpen.value = false;
   }
 };
 
@@ -2691,13 +2812,9 @@ onUnmounted(() => {
     clearTimeout(uiNoticeTimer);
     uiNoticeTimer = null;
   }
-  if (closeFeaturesMenuTimer) {
-    clearTimeout(closeFeaturesMenuTimer);
-    closeFeaturesMenuTimer = null;
-  }
-  if (closeModeMenuTimer) {
-    clearTimeout(closeModeMenuTimer);
-    closeModeMenuTimer = null;
+  if (closeComposerPanelTimer) {
+    clearTimeout(closeComposerPanelTimer);
+    closeComposerPanelTimer = null;
   }
   if (deepWatchScrollRafId) {
     cancelAnimationFrame(deepWatchScrollRafId);
@@ -2743,12 +2860,8 @@ watch(
 );
 
 const handleEscapeLayer = () => {
-  if (showFeaturesMenu.value) {
-    showFeaturesMenu.value = false;
-    return true;
-  }
-  if (modeMenuOpen.value) {
-    closeModeMenu();
+  if (composerPanelOpen.value) {
+    closeComposerPanel();
     return true;
   }
   if (isQuotaPanelOpen.value) {

@@ -67,131 +67,132 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { LoaderCircle, Maximize2, Plus, Sparkles, X } from 'lucide-vue-next'
-import { defineAsyncComponent } from 'vue'
-import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { LoaderCircle, Maximize2, Plus, Sparkles, X } from 'lucide-vue-next';
+import { defineAsyncComponent } from 'vue';
+import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 
-const BOHAIMain = defineAsyncComponent(() => import('@/views/BOHAI/BOHAI/BOHAIMain.vue'))
+const BOHAIMain = defineAsyncComponent(() => import('@/views/BOHAI/BOHAI/BOHAIMain.vue'));
 
-const route = useRoute()
-const router = useRouter()
+const route = useRoute();
+const router = useRouter();
 // 岛状态与开关逻辑（原 useBohaiIsland 薄包装，已内联）：
 // 完全复用 useGlobalAiOverlay 单例的 isOpen / open / close，零侵入
-const { isOpen, canOpen, close, consumePendingPrompt, consumePendingMode, pendingPrompt } = useGlobalAiOverlay()
+const { isOpen, canOpen, close, consumePendingPrompt, consumePendingMode, pendingPrompt } =
+  useGlobalAiOverlay();
 
 // 岛"展开"的判定：overlay 打开 + 路由允许（避开 /ai-chat 避免双实例）
-const isExpanded = computed(() => isOpen.value && canOpen.value)
+const isExpanded = computed(() => isOpen.value && canOpen.value);
 
 // 路由进入 /ai-chat 时强制关闭岛（避免 BOHAIChat 同时挂在岛和全屏）
 watch(
   () => route.name,
   (name) => {
-    if (name === 'AiChat' && isOpen.value) close()
+    if (name === 'AiChat' && isOpen.value) close();
   },
-  { immediate: true }
-)
+  { immediate: true },
+);
 
 // 岛内触发关闭（如用户按 ESC、点 X）
-const collapse = () => close()
+const collapse = () => close();
 
 // 岛内触发全屏跳转（右上角 ↗ 按钮）
 const openFullscreen = async () => {
-  close()
-  await router.push('/ai-chat')
-}
+  close();
+  await router.push('/ai-chat');
+};
 
 const theme = computed(() => {
-  if (typeof document === 'undefined') return 'light'
-  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
-})
+  if (typeof document === 'undefined') return 'light';
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+});
 
-const bohaiMainRef = ref(null)
-const isThinking = ref(false)
-const isEmpty = ref(true)
+const bohaiMainRef = ref(null);
+const isThinking = ref(false);
+const isEmpty = ref(true);
 
 // 等待 BOHAIMain 异步组件加载并完成初始化（有界等待，避免死循环）
 const waitForChatApi = async (timeoutMs = 5000) => {
-  const start = Date.now()
+  const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    if (typeof bohaiMainRef.value?.appendAndSend === 'function') return true
-    await nextTick()
-    await new Promise((r) => setTimeout(r, 50))
+    if (typeof bohaiMainRef.value?.appendAndSend === 'function') return true;
+    await nextTick();
+    await new Promise((r) => setTimeout(r, 50));
   }
-  return Boolean(bohaiMainRef.value?.appendToComposer)
-}
+  return Boolean(bohaiMainRef.value?.appendToComposer);
+};
 
 // 消费外部传入的种子 prompt（健康页「用 BOH AI 分析」、论坛「问BOHAI」等场景）。
 // 此前消费逻辑只存在于已无人挂载的 GlobalAiGlassOverlay 中，种子 prompt 永远丢失。
 // 种子可携带期望模型模式（mode）：发送前静默切换，不弹模式通知。
 const tryConsumeSeedPrompt = async () => {
-  const prompt = consumePendingPrompt()
-  const mode = consumePendingMode()
-  if (!prompt) return
+  const prompt = consumePendingPrompt();
+  const mode = consumePendingMode();
+  if (!prompt) return;
   const applySeedMode = () => {
     if (mode && typeof bohaiMainRef.value?.applySeedMode === 'function') {
-      bohaiMainRef.value.applySeedMode(mode)
+      bohaiMainRef.value.applySeedMode(mode);
     }
-  }
-  const ready = await waitForChatApi()
+  };
+  const ready = await waitForChatApi();
   if (ready && typeof bohaiMainRef.value?.appendAndSend === 'function') {
-    applySeedMode()
-    bohaiMainRef.value.appendAndSend(prompt)
+    applySeedMode();
+    bohaiMainRef.value.appendAndSend(prompt);
   } else {
     // 降级：至少把内容填进输入框，用户可以手动点发送
-    applySeedMode()
-    bohaiMainRef.value?.appendToComposer?.(prompt)
+    applySeedMode();
+    bohaiMainRef.value?.appendToComposer?.(prompt);
   }
-}
+};
 
 // 监听展开：聚焦输入框 + 消费滞留的种子 prompt
 watch(isExpanded, async (val) => {
-  if (!val) return
-  await nextTick()
+  if (!val) return;
+  await nextTick();
   // 等 BOHAIMain 异步加载完成
   requestAnimationFrame(() => {
-    bohaiMainRef.value?.focusComposer?.()
-  })
-  tryConsumeSeedPrompt()
-})
+    bohaiMainRef.value?.focusComposer?.();
+  });
+  tryConsumeSeedPrompt();
+});
 
 // 岛已展开时又收到新的 open({prompt})（isExpanded 不会变化），同样立即消费，
 // 防止 prompt 滞留到下一次无关的打开
 watch(pendingPrompt, (val) => {
-  if (val && isExpanded.value) tryConsumeSeedPrompt()
-})
+  if (val && isExpanded.value) tryConsumeSeedPrompt();
+});
 
 // ESC 关闭：优先交给 BOHAIMain 处理分层 ESC（功能菜单/设置/侧栏），全关后再收岛
 const handleKeydown = (e) => {
-  if (e.key !== 'Escape') return
-  const handled = bohaiMainRef.value?.handleEscapeLayer?.()
-  if (!handled) collapse()
-}
+  if (e.key !== 'Escape') return;
+  const handled = bohaiMainRef.value?.handleEscapeLayer?.();
+  if (!handled) collapse();
+};
 watch(isExpanded, (val) => {
-  if (val) document.addEventListener('keydown', handleKeydown)
-  else document.removeEventListener('keydown', handleKeydown)
-})
-onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
+  if (val) document.addEventListener('keydown', handleKeydown);
+  else document.removeEventListener('keydown', handleKeydown);
+});
+onUnmounted(() => document.removeEventListener('keydown', handleKeydown));
 
 function onIslandMessage(payload) {
   // 预留：BOHAIMain 主动发的岛消息
   if (payload?.type === 'thinking') {
-    isThinking.value = payload.value
+    isThinking.value = payload.value;
   }
   if (payload?.type === 'empty') {
-    isEmpty.value = payload.value
+    isEmpty.value = payload.value;
   }
 }
 
 function onOverlayState(state) {
   // overlayMode 下 BOHAIMain 会 emit 状态变化
-  if (state?.thinking !== undefined) isThinking.value = state.thinking
-  if (state?.empty !== undefined) isEmpty.value = state.empty
+  if (state?.thinking !== undefined) isThinking.value = state.thinking;
+  if (state?.empty !== undefined) isEmpty.value = state.empty;
 }
 
 function onNewChat() {
-  bohaiMainRef.value?.startNewChat?.()
+  bohaiMainRef.value?.startNewChat?.();
 }
 </script>
 
@@ -251,7 +252,9 @@ function onNewChat() {
   --bohai-island-top: var(--global-nav-rest-height, 72px);
   --bohai-island-bottom-gap: 12px;
   --bohai-island-height: min(50vh, 520px);
-  height: calc(var(--bohai-island-top) + var(--bohai-island-height) + var(--bohai-island-bottom-gap)) !important;
+  height: calc(
+    var(--bohai-island-top) + var(--bohai-island-height) + var(--bohai-island-bottom-gap)
+  ) !important;
   border-radius: 30px !important;
   background-color: rgba(255, 255, 255, 0.56);
   box-shadow:
@@ -286,7 +289,7 @@ function onNewChat() {
   border: 1px solid rgba(255, 255, 255, 0.46);
   border-radius: 24px;
   color: #1e2938;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.30));
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.3));
   box-shadow:
     0 14px 32px rgba(29, 41, 56, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.72),
@@ -333,7 +336,9 @@ function onNewChat() {
 }
 
 @keyframes bohaiIslandSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 :global(.bohai-island-header-text) {
@@ -369,7 +374,10 @@ function onNewChat() {
   background: rgba(255, 255, 255, 0.34);
   color: #465569;
   cursor: pointer;
-  transition: transform 140ms ease, background-color 160ms ease, color 160ms ease;
+  transition:
+    transform 140ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
@@ -536,43 +544,11 @@ function onNewChat() {
 }
 
 /* ============================================
-   模式选择菜单：岛内高度有限，压缩为紧凑面板并限高滚动，
-   避免被岛的 overflow: hidden 裁切
+   模式菜单页脚：岛内高度有限，正文收窄；
+   面板/二级菜单本身沿用 BOHAIMain 的尺寸（2026-10-01 清掉 5 条指向
+   已废弃类名 .composer-mode-menu / .composer-mode-option / .mode-option-*
+   的 :global() 覆盖；岛内是否被 overflow:hidden 裁切由三形态验收确认）
    ============================================ */
-:global(.bohai-island .bohai-island-chat .composer-mode-menu) {
-  position: absolute !important;
-  right: 0 !important;
-  left: auto !important;
-  bottom: calc(100% + 8px) !important;
-  width: min(300px, calc(100vw - 130px)) !important;
-  max-width: none !important;
-  max-height: min(320px, calc(var(--bohai-island-height, 520px) - 120px)) !important;
-  overflow-y: auto !important;
-  overscroll-behavior: contain;
-  padding: 8px 6px !important;
-  border-radius: 16px !important;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16) !important;
-}
-
-:global(.bohai-island .bohai-island-chat .composer-mode-option) {
-  min-height: 34px !important;
-  padding: 5px 10px !important;
-  border-radius: 9px !important;
-}
-
-:global(.bohai-island .bohai-island-chat .mode-option-main strong) {
-  font-size: 13px !important;
-}
-
-:global(.bohai-island .bohai-island-chat .mode-option-multiplier) {
-  font-size: 11.5px !important;
-}
-
-:global(.bohai-island .bohai-island-chat .mode-option-check) {
-  width: 13px !important;
-  height: 13px !important;
-}
-
 :global(.bohai-island .bohai-island-chat .mode-menu-footer) {
   padding: 5px 6px 2px !important;
   margin-top: 3px !important;
@@ -586,7 +562,7 @@ function onNewChat() {
 /* ============================================
    暗色模式
    ============================================ */
-:global(#unified-nav-container[data-theme="dark"] .bohai-island ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island) {
   color: #f8fafc;
   border-color: rgba(255, 255, 255, 0.12);
   background: linear-gradient(135deg, rgba(35, 39, 49, 0.78), rgba(22, 25, 33, 0.58));
@@ -595,68 +571,70 @@ function onNewChat() {
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-header ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-header) {
   border-bottom-color: rgba(255, 255, 255, 0.08);
   color: rgba(226, 232, 240, 0.86);
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-header-text strong ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-header-text strong) {
   color: #f8fafc;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-header-icon ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-header-icon) {
   background: linear-gradient(135deg, rgba(109, 56, 200, 0.32), rgba(79, 70, 229, 0.22));
   color: #c4b5fd;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-icon-btn ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-icon-btn) {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.1);
   color: rgba(226, 232, 240, 0.85);
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-icon-btn:hover ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-icon-btn:hover) {
   background: rgba(255, 255, 255, 0.12);
   color: #f8fafc;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .message.user ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .message.user) {
   color: #f8fafc;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .message.assistant ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .message.assistant) {
   color: rgba(226, 232, 240, 0.86);
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .message-role ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .message-role) {
   color: #c4b5fd !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-wrapper ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-wrapper) {
   border-top-color: rgba(255, 255, 255, 0.06) !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-input-wrapper ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-input-wrapper) {
   background: rgba(255, 255, 255, 0.06) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-textarea ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-textarea) {
   color: #f8fafc !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-textarea::placeholder ){
+:global(
+  #unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-textarea::placeholder
+) {
   color: rgba(148, 163, 184, 0.7) !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-send-btn ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-send-btn) {
   background: linear-gradient(135deg, rgba(5, 120, 87, 0.4), rgba(5, 120, 87, 0.28)) !important;
   color: #6ee7b7 !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-:global(#unified-nav-container[data-theme="dark"] .bohai-island-chat .composer-send-btn:hover ){
+:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-send-btn:hover) {
   background: linear-gradient(135deg, rgba(5, 120, 87, 0.55), rgba(5, 120, 87, 0.4)) !important;
 }
 

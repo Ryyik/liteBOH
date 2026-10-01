@@ -1751,13 +1751,6 @@
     box-shadow: var(--bohai-glass-shadow);
 }
 
-.input-left {
-    position: relative;
-    display: flex;
-    align-items: center;
-}
-
-.features-btn,
 .mic-btn {
     width: 36px;
     height: 36px;
@@ -1773,30 +1766,9 @@
     transition: background-color 0.16s ease, color 0.16s ease;
 }
 
-.features-btn:hover,
 .mic-btn:hover {
     background: rgba(255, 255, 255, 0.9);
     color: #202123;
-}
-
-.features-btn.active {
-    background: #202123;
-    color: #ffffff;
-}
-
-.features-menu {
-    position: absolute;
-    left: 0;
-    bottom: calc(100% + 12px);
-    z-index: 20;
-    min-width: 226px;
-    overflow: hidden;
-    border: 1px solid var(--bohai-liquid-border);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.88);
-    box-shadow: var(--bohai-glass-shadow);
-    backdrop-filter: var(--liquid-filter-lg);
-    -webkit-backdrop-filter: var(--liquid-filter-lg);
 }
 
 /* ─── 上下文预算圆环 ───────────────────────────────────────────────── */
@@ -1826,92 +1798,214 @@
     to { transform: rotate(360deg); }
 }
 
-.context-ring-wrap {
+/* ─── 用量圆钮：外环 = 上下文，内环 = 今日额度 ──────────────────────── */
+/* 同一个 38px 圆里位置差不足以区分两条环，所以靠颜色分工：上下文沿用旧的
+   灰度层级，额度是输入栏里唯一带颜色的元素。数字收进点击后的浮层。 */
+.usage-orb-wrap {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    cursor: default;
 }
 
-.context-ring {
-    width: 16px;
-    height: 16px;
-    transform: rotate(-90deg);
-}
-
-.ring-track {
-    stroke: rgba(0, 0, 0, 0.08);
-}
-
-.ring-fill {
-    stroke: #a1a1aa;
-    transition: stroke-dasharray 180ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-/* 灰度层级：越满越深 */
-.context-ring-wrap.level-mid .ring-fill { stroke: #71717a; }
-.context-ring-wrap.level-high .ring-fill { stroke: #3f3f46; }
-.context-ring-wrap.level-full .ring-fill { stroke: #09090b; }
-
-.ring-percent {
-    font-size: 12px;
-    font-weight: 600;
-    color: #71717a;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-}
-
-.context-tokens {
-    font-size: 11px;
-    font-weight: 500;
-    color: #a1a1aa;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
+.usage-orb {
+    position: relative;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.7);
     cursor: pointer;
-    user-select: none;
-    transition: color 150ms ease;
+    transition: border-color 160ms ease, background-color 160ms ease;
 }
 
-.context-tokens::before {
-    content: '·';
-    margin: 0 6px;
-    opacity: 0.6;
+.usage-orb:hover {
+    border-color: rgba(0, 0, 0, 0.18);
+    background: rgba(255, 255, 255, 0.92);
 }
 
-.context-tokens:hover {
-    color: #3f3f46;
+.usage-orb.open {
+    border-color: rgba(0, 0, 0, 0.24);
+    background: rgba(255, 255, 255, 0.96);
 }
 
-.compress-now-btn {
+.usage-orb-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.orb-track {
+    fill: none;
+    stroke: rgba(0, 0, 0, 0.09);
+    stroke-width: 2.2;
+}
+
+.orb-fill {
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    transition: stroke-dasharray 400ms cubic-bezier(0.23, 1, 0.32, 1), stroke 200ms ease;
+}
+
+/* 外环 = 上下文：沿用原来的灰度层级（越满越深），语义与旧环完全一致 */
+.orb-fill.orb-ctx { stroke: #a1a1aa; }
+.usage-orb.level-mid .orb-fill.orb-ctx { stroke: #71717a; }
+.usage-orb.level-high .orb-fill.orb-ctx { stroke: #3f3f46; }
+.usage-orb.level-full .orb-fill.orb-ctx { stroke: #09090b; }
+
+/* 内环 = 今日额度 */
+.orb-fill.orb-quota { stroke: var(--bohai-accent); }
+.usage-orb.quota-warn .orb-fill.orb-quota { stroke: #d97706; }
+.usage-orb.quota-danger .orb-fill.orb-quota { stroke: #dc2626; }
+
+/* ─── 用量浮层 ─────────────────────────────────────────────────────── */
+.usage-pop {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    z-index: 90;
+    width: min(322px, calc(100vw - 28px));
+    padding: 14px 15px 13px;
+    border: 1px solid var(--bohai-line);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 18px 44px rgba(17, 17, 17, 0.12);
+    backdrop-filter: var(--bohai-blur);
+    -webkit-backdrop-filter: var(--bohai-blur);
+}
+
+.usage-pop-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.usage-pop-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--bohai-text);
+}
+
+.usage-pop-more {
+    border: 0;
+    background: transparent;
+    padding: 2px 4px;
+    color: var(--bohai-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: color 160ms ease;
+}
+
+.usage-pop-more:hover {
+    color: var(--bohai-text);
+}
+
+.usage-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+}
+
+.usage-row.is-second {
+    margin-top: 13px;
+}
+
+.usage-dot {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 999px;
+}
+
+.usage-dot.is-ctx { background: #a1a1aa; }
+.usage-dot.is-quota { background: var(--bohai-accent); }
+
+.usage-row-label {
+    color: var(--bohai-muted);
+}
+
+.usage-row-value {
+    margin-left: auto;
+    color: var(--bohai-text);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.usage-meter {
+    height: 5px;
+    margin-top: 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.usage-meter > i {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: #a1a1aa;
+    transition: width 400ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.usage-meter.is-quota > i { background: var(--bohai-accent); }
+.usage-meter.is-quota.quota-warn > i { background: #d97706; }
+.usage-meter.is-quota.quota-danger > i { background: #dc2626; }
+
+.usage-foot {
+    margin-top: 6px;
+    color: var(--bohai-muted-soft);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.usage-pop-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.usage-pop-btn {
+    flex: 1;
+    height: 30px;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin-left: 8px;
-    padding: 3px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    color: #71717a;
+    justify-content: center;
+    gap: 5px;
+    padding: 0;
+    border: 1px solid var(--bohai-line);
+    border-radius: 9px;
     background: transparent;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 6px;
+    color: var(--bohai-text);
+    font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
-    transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease, transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
-    line-height: 1;
+    transition: background-color 160ms ease, border-color 160ms ease;
 }
 
-.compress-now-btn:hover:not(:disabled) {
-    color: #18181b;
-    border-color: rgba(0, 0, 0, 0.2);
-    background: rgba(0, 0, 0, 0.03);
+.usage-pop-btn:hover:not(:disabled) {
+    background: rgba(17, 17, 17, 0.05);
 }
 
-.compress-now-btn:active:not(:disabled) {
-    transform: scale(0.97);
-}
-
-.compress-now-btn:disabled {
+.usage-pop-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.usage-pop-btn.is-primary {
+    border-color: #111111;
+    background: #111111;
+    color: #ffffff;
+}
+
+.usage-pop-btn.is-primary:hover:not(:disabled) {
+    background: #2a2a2a;
 }
 
 .compress-success-hint {
@@ -1936,24 +2030,40 @@
 }
 
 /* 深色模式 */
-[data-boh-theme="dark"] .ring-track { stroke: rgba(255, 255, 255, 0.12); }
-[data-boh-theme="dark"] .ring-percent { color: #a1a1aa; }
-[data-boh-theme="dark"] .context-tokens { color: #52525b; }
-[data-boh-theme="dark"] .context-tokens:hover { color: #d4d4d8; }
 [data-boh-theme="dark"] .context-compressing-hint { color: #a1a1aa; }
-[data-boh-theme="dark"] .ring-fill { stroke: #a1a1aa; }
-[data-boh-theme="dark"] .context-ring-wrap.level-mid .ring-fill { stroke: #d4d4d8; }
-[data-boh-theme="dark"] .context-ring-wrap.level-high .ring-fill { stroke: #e4e4e7; }
-[data-boh-theme="dark"] .context-ring-wrap.level-full .ring-fill { stroke: #ffffff; }
-[data-boh-theme="dark"] .compress-now-btn {
-    color: #a1a1aa;
-    border-color: rgba(255, 255, 255, 0.12);
+
+/* 圆钮与浮层整体走 token，避免在这里堆裸色值（暗色裸色棘轮） */
+[data-boh-theme="dark"] .usage-orb {
+    border-color: var(--bohai-border);
+    background: var(--bohai-surface);
 }
-[data-boh-theme="dark"] .compress-now-btn:hover:not(:disabled) {
-    color: #fafafa;
-    border-color: rgba(255, 255, 255, 0.24);
-    background: rgba(255, 255, 255, 0.06);
+[data-boh-theme="dark"] .usage-orb:hover,
+[data-boh-theme="dark"] .usage-orb.open {
+    background: var(--bohai-surface-hover);
 }
+
+[data-boh-theme="dark"] .orb-track { stroke: var(--bohai-border); }
+/* 上下文灰度层级在暗色下反向：越满越亮 */
+[data-boh-theme="dark"] .orb-fill.orb-ctx { stroke: #a1a1aa; }
+[data-boh-theme="dark"] .usage-orb.level-mid .orb-fill.orb-ctx { stroke: #d4d4d8; }
+[data-boh-theme="dark"] .usage-orb.level-high .orb-fill.orb-ctx { stroke: #e4e4e7; }
+[data-boh-theme="dark"] .usage-orb.level-full .orb-fill.orb-ctx { stroke: #ffffff; }
+
+[data-boh-theme="dark"] .usage-pop { background: var(--bohai-panel-strong); }
+[data-boh-theme="dark"] .usage-meter { background: var(--bohai-border); }
+[data-boh-theme="dark"] .usage-meter > i { background: #a1a1aa; }
+[data-boh-theme="dark"] .usage-pop-btn:hover:not(:disabled) {
+    background: var(--bohai-surface-hover);
+}
+[data-boh-theme="dark"] .usage-pop-btn.is-primary {
+    border-color: var(--bohai-text);
+    background: var(--bohai-text);
+    color: var(--bohai-bg);
+}
+[data-boh-theme="dark"] .usage-pop-btn.is-primary:hover:not(:disabled) {
+    background: var(--bohai-text);
+}
+
 [data-boh-theme="dark"] .compress-success-hint {
     color: #4ade80;
     background: rgba(74, 222, 128, 0.1);
