@@ -1,8 +1,8 @@
 import { computed, reactive, ref } from 'vue';
-import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
+import { BOTTOM_NAV_ITEMS, resolveBottomNavIdForUserSpaceTab } from '@/config/bottom-nav';
 
-// 2026-09-23 恢复五席：社区（现名「方块」）回到 UserSpace —— 论坛（官方 + 最新/关注/
-// 新闻/活动/成员/印象）重新由本页承载，首页 `/` 是它的下滑直达入口（同一套分区壳，单源复用）。
+// 2026-09-30 底栏收敛为四席（内容 / 消息 / AI / 我）：assets 与 settings 已下沉进「我」页，
+// 不再是底栏项，但仍保留为合法 tab 值（URL 深链与内部跳转仍在用）。
 export const USER_SPACE_VALID_TABS = ['community', 'posts', 'assets', 'messages', 'settings'];
 
 /* 用户空间主导航单源：底部胶囊（UserSpaceBottomNav）与横屏左栏（UserSpaceSideRail）
@@ -19,21 +19,26 @@ export const useUserSpaceTabs = (navItems, initialTab = 'community') => {
     posts: safeInitialTab === 'posts',
     assets: safeInitialTab === 'assets',
     messages: safeInitialTab === 'messages',
-    settings: safeInitialTab === 'settings'
+    settings: safeInitialTab === 'settings',
   });
   if (Object.prototype.hasOwnProperty.call(mountedTabs, safeInitialTab)) {
     mountedTabs[safeInitialTab] = true;
   }
 
-  const activeNavIndex = computed(() => Math.max(
-    0,
-    navItems.findIndex((item) => item.id === currentTab.value)
-  ));
+  // 高亮索引必须走映射：assets / settings 不在 navItems 里，直接 findIndex 会得 -1，
+  // 经 Math.max(0,…) 变成「高亮第一席（内容）」—— 那是错的，应落到「我」。
+  const activeNavIndex = computed(() => {
+    const mappedId = resolveBottomNavIdForUserSpaceTab(currentTab.value) || currentTab.value;
+    return Math.max(
+      0,
+      navItems.findIndex((item) => item.id === mappedId),
+    );
+  });
 
   const navIndicatorStyle = computed(() => ({
     '--active-nav-index': activeNavIndex.value,
     '--active-nav-center': `${((activeNavIndex.value + 0.5) / navItems.length) * 100}%`,
-    '--nav-count': navItems.length
+    '--nav-count': navItems.length,
   }));
 
   const ensureTabMounted = (tabId) => {
@@ -47,6 +52,6 @@ export const useUserSpaceTabs = (navItems, initialTab = 'community') => {
     navIndicatorStyle,
     mountedTabs,
     activeNavIndex,
-    ensureTabMounted
+    ensureTabMounted,
   };
 };

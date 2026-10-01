@@ -1,182 +1,189 @@
-import type { RouteRecordRaw } from 'vue-router'
+import type { RouteRecordRaw } from 'vue-router';
 
-const userSpaceMeta = { requiresLogin: true }
+const userSpaceMeta = { requiresLogin: true };
 
 // Vue Router 4 的 redirect 函数类型较为严格，使用实用类型转换来处理动态重定向
-const redirectWithQuery = (path: string, extraQuery: Record<string, string> = {}): any =>
+const redirectWithQuery =
+  (path: string, extraQuery: Record<string, string> = {}): any =>
   (to: any) => ({
     path,
     query: { ...to.query, ...extraQuery },
-  })
+  });
 
-const redirectToUserSpaceTab = (tab: string): any =>
+const redirectToUserSpaceTab =
+  (tab: string): any =>
   (to: any) => ({
     path: '/user-space',
     query: { ...to.query, tab },
-  })
+  });
+
+// 2026-09-30 起「标签与印象」独立页已收掉（孤儿页，全站零 UI 入口，见 plans/022 §5），
+// 印象的落点改为论坛「印象」分区；保留 redirect 兜底旧深链，不做 404。
+const redirectToUserSpaceImpressions: any = (to: any) => ({
+  path: '/user-space',
+  query: { ...to.query, tab: 'community', view: 'impressions' },
+});
 
 const redirectToUserSpaceMessages: any = (to: any) => ({
   path: '/user-space',
   query: { ...to.query, tab: 'messages', section: 'notifications' },
-})
+});
 
 export const userSpaceRoutes: RouteRecordRaw[] = [
   {
-    path: "/mailbox",
+    path: '/mailbox',
     redirect: redirectToUserSpaceMessages,
   },
   {
-    path: "/user-center/points",
-    redirect: redirectWithQuery("/user-space?tab=assets"),
+    path: '/user-center/points',
+    redirect: redirectWithQuery('/user-space?tab=assets'),
   },
   {
-    path: "/user-center",
-    redirect: redirectWithQuery("/user-space?tab=posts"),
+    path: '/user-center',
+    redirect: redirectWithQuery('/user-space?tab=posts'),
   },
   {
-    path: "/user-center-v2",
-    redirect: redirectWithQuery("/user-space?tab=posts"),
+    path: '/user-center-v2',
+    redirect: redirectWithQuery('/user-space?tab=posts'),
   },
   {
-    path: "/user-center/info",
-    redirect: redirectWithQuery("/user-space?tab=posts"),
+    path: '/user-center/info',
+    redirect: redirectWithQuery('/user-space?tab=posts'),
   },
   {
-    path: "/user-center/subscriptions",
-    redirect: redirectWithQuery("/user-space?tab=assets"),
+    path: '/user-center/subscriptions',
+    redirect: redirectWithQuery('/user-space?tab=assets'),
   },
   {
-    path: "/user-center/address",
-    redirect: redirectWithQuery("/user-space?tab=assets"),
+    path: '/user-center/address',
+    redirect: redirectWithQuery('/user-space?tab=assets'),
   },
   {
-    path: "/user-center/messages",
+    path: '/user-center/messages',
     redirect: redirectToUserSpaceMessages,
   },
   {
-    path: "/user-center/partners",
-    redirect: redirectWithQuery("/user-space/partners"),
+    path: '/user-center/partners',
+    redirect: redirectWithQuery('/user-space/partners'),
   },
   {
-    path: "/user-center/tags-impressions",
-    redirect: redirectWithQuery("/user-space/tags-impressions"),
+    path: '/user-center/tags-impressions',
+    redirect: redirectToUserSpaceImpressions,
   },
   {
-    path: "/user-center/pushplus-settings",
-    redirect: redirectWithQuery("/user-space/pushplus-settings"),
+    path: '/user-center/pushplus-settings',
+    redirect: redirectWithQuery('/user-space/pushplus-settings'),
   },
   {
-    path: "/user-center/pushplus",
-    redirect: redirectWithQuery("/user-space/pushplus-settings"),
+    path: '/user-center/pushplus',
+    redirect: redirectWithQuery('/user-space/pushplus-settings'),
   },
   {
-    path: "/user-center/shared-memories",
-    redirect: redirectWithQuery("/user-space/shared-memories"),
+    path: '/user-center/shared-memories',
+    redirect: redirectWithQuery('/user-space/shared-memories'),
   },
   {
-    path: "/user-space/subscriptions",
-    name: "Subscriptions",
-    component: () => import("../../views/user-center/Subscription/index.vue"),
+    path: '/user-space/subscriptions',
+    name: 'Subscriptions',
+    component: () => import('../../views/user-center/Subscription/index.vue'),
     // 订阅方案对访客可见；点击试用/订阅时由 SubscriptionPlans 打开登录灵动岛。
     meta: {},
   },
   {
-    path: "/user-space/gifts",
-    name: "Gifts",
-    component: () => import("../../views/user-center/Address/index.vue"),
+    path: '/user-space/gifts',
+    name: 'Gifts',
+    component: () => import('../../views/user-center/Address/index.vue'),
     meta: { ...userSpaceMeta },
   },
   {
-    path: "/user-space/messages",
+    path: '/user-space/messages',
     redirect: redirectToUserSpaceMessages,
   },
   {
-    path: "/user-space/partners",
-    name: "Partners",
-    component: () => import("../../views/user-center/Partners.vue"),
+    path: '/user-space/partners',
+    name: 'Partners',
+    component: () => import('../../views/user-center/Partners.vue'),
     // keepAlive：这是「分页浏览社区成员」的目录页，缓存可保住当前页码与已加载列表，
     // 返回时零重建零取数。目录内容更新频率低，短暂缓存不构成功能变化。
     meta: { ...userSpaceMeta, keepAlive: true },
   },
   {
-    path: "/user-space",
-    name: "UserSpace",
-    component: () => import("../../views/user-center/UserSpace/index.vue"),
+    path: '/user-space',
+    name: 'UserSpace',
+    component: () => import('../../views/user-center/UserSpace/index.vue'),
     meta: { keepAlive: true },
   },
   {
-    path: "/user-space/profile",
-    redirect: redirectToUserSpaceTab("posts"),
+    path: '/user-space/profile',
+    redirect: redirectToUserSpaceTab('posts'),
   },
   {
-    path: "/user-space/posts",
+    path: '/user-space/posts',
     // 2026-09 IA：旧 tab=posts 语义是「论坛」，论坛现居社区 tab
-    redirect: redirectToUserSpaceTab("community"),
+    redirect: redirectToUserSpaceTab('community'),
   },
   {
-    path: "/user-space/community",
+    path: '/user-space/community',
     // 旧 tab=community 语义是「关注/粉丝」，现随身份卡居内容 tab
-    redirect: redirectToUserSpaceTab("posts"),
+    redirect: redirectToUserSpaceTab('posts'),
   },
   {
-    path: "/user-space/ai",
+    path: '/user-space/ai',
     // AI 并入消息 tab
-    redirect: redirectToUserSpaceTab("messages"),
+    redirect: redirectToUserSpaceTab('messages'),
   },
   {
-    path: "/user-space/assets",
-    redirect: redirectToUserSpaceTab("assets"),
+    path: '/user-space/assets',
+    redirect: redirectToUserSpaceTab('assets'),
   },
   {
-    path: "/user-space/settings",
-    redirect: redirectToUserSpaceTab("settings"),
+    path: '/user-space/settings',
+    redirect: redirectToUserSpaceTab('settings'),
   },
   {
     // 摄影集：我的影集列表（创建/编辑/阅读/导出/分享入口）
-    path: "/user-space/albums",
-    name: "PhotoAlbums",
-    component: () => import("../../views/PhotoAlbums/index.vue"),
+    path: '/user-space/albums',
+    name: 'PhotoAlbums',
+    component: () => import('../../views/PhotoAlbums/index.vue'),
     meta: { ...userSpaceMeta },
   },
   {
-    path: "/user-space/account-security",
-    name: "AccountSecurity",
-    component: () => import("../../views/user-center/AccountSecurity/index.vue"),
+    path: '/user-space/account-security',
+    name: 'AccountSecurity',
+    component: () => import('../../views/user-center/AccountSecurity/index.vue'),
     meta: { ...userSpaceMeta },
   },
   {
-    path: "/user-space/note",
-    name: "BOHCloudPlus",
-    component: () => import("../../views/user-center/Cloud+/index.vue"),
+    path: '/user-space/note',
+    name: 'BOHCloudPlus',
+    component: () => import('../../views/user-center/Cloud+/index.vue'),
     meta: { ...userSpaceMeta },
   },
   {
-    path: "/user-space/shared-memories",
-    name: "SharedMemoryManagement",
-    component: () => import("../../views/user-center/SharedMemoryManagement.vue"),
+    path: '/user-space/shared-memories',
+    name: 'SharedMemoryManagement',
+    component: () => import('../../views/user-center/SharedMemoryManagement.vue'),
     meta: { ...userSpaceMeta },
   },
   {
-    path: "/user-space/tags-impressions",
-    name: "TagsImpressions",
-    component: () => import("../../views/user-center/TagsImpressions.vue"),
+    path: '/user-space/tags-impressions',
+    redirect: redirectToUserSpaceImpressions,
+  },
+  {
+    path: '/user-space/pushplus-settings',
+    name: 'PushplusSettings',
+    component: () => import('../../views/user-center/PushplusSettingsPage.vue'),
     meta: { ...userSpaceMeta },
   },
   {
-    path: "/user-space/pushplus-settings",
-    name: "PushplusSettings",
-    component: () => import("../../views/user-center/PushplusSettingsPage.vue"),
-    meta: { ...userSpaceMeta },
-  },
-  {
-    path: "/user-space/settings/version",
-    name: "VersionSettings",
-    component: () => import("../../views/user-center/BetaPreview/BetaPreviewMain.vue"),
+    path: '/user-space/settings/version',
+    name: 'VersionSettings',
+    component: () => import('../../views/user-center/BetaPreview/BetaPreviewMain.vue'),
     // keepAlive：版本/预览信息与当前构建绑定，在一次会话内不会变，缓存无新鲜度代价。
     meta: { ...userSpaceMeta, hideNavbar: true, hideFooter: true, keepAlive: true },
   },
   {
-    path: "/user-space/settings/beta-preview",
-    redirect: "/user-space/settings/version",
+    path: '/user-space/settings/beta-preview',
+    redirect: '/user-space/settings/version',
   },
-]
+];

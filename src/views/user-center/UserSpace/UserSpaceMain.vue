@@ -209,14 +209,10 @@
         size="lg"
         decorative
       />
-      <!-- 消息 tab：岛避让由页级 --userspace-messages-top-inset（实测岛高）负责，这里只留呼吸 -->
-      <SegmentTabs
-        :sections="MESSAGE_SECTION_ITEMS"
-        v-model="messagesSection"
-        aria-label="消息分区"
-        style="--segment-tabs-inset: 4px"
-      />
-      <div v-show="messagesSection === 'inbox'" class="messages-host">
+      <!-- 消息 tab：岛避让由页级 --userspace-messages-top-inset（实测岛高）负责，这里只留呼吸。
+           2026-09-30（plans/022）：AI 段已移出消息 tab —— 底栏 AI 席直通全屏 /ai-chat，
+           消息 tab 只剩通知收件箱，故段控与 ai-host 一并移除。 -->
+      <div class="messages-host">
         <!-- KeepAlive 与上方社区论坛宿主同样处理：离开分区时不销毁消息中心，
              回来直接复用实例（实测「切回来」零数据请求、根节点不换新）。 -->
         <KeepAlive>
@@ -226,15 +222,6 @@
             :minimal="true"
           />
         </KeepAlive>
-      </div>
-      <div v-show="messagesSection === 'ai'" class="ai-host">
-        <section class="ai-workspace" aria-label="BOH AI 聊天">
-          <AsyncBOHAI
-            v-if="bohaiActivatedOnVisit && (currentTab === 'messages' || leavingTab === 'messages')"
-            :embedded="true"
-            @island-message="showTopNavStatus"
-          />
-        </section>
       </div>
     </div>
 
@@ -340,7 +327,7 @@
          可见性由 side-rail.css 的媒体查询决定，竖屏 / 手机横屏下不渲染 -->
     <UserSpaceSideRail
       :nav-items="navItems"
-      :current-tab="currentTab"
+      :current-tab="activeBottomNavId"
       :has-unread-messages="hasUnreadMessages"
       :unread-count="unreadCount"
       :current-theme="currentTheme"
@@ -355,7 +342,7 @@
       :hidden="isBottomNavHidden"
       :ai-overlay-open="isAiOverlayOpen"
       :nav-items="navItems"
-      :current-tab="currentTab"
+      :current-tab="activeBottomNavId"
       :nav-indicator-style="bottomNavIndicatorStyle"
       :has-unread-messages="hasUnreadMessages"
       :unread-count="unreadCount"
@@ -471,14 +458,14 @@ import {
   useUserSpaceTabs,
   userSpaceNavItems,
 } from './composables/useUserSpaceTabs.js';
+// 2026-09-30 底栏收为四席后，assets / settings 不再是底栏项 —— 高亮要经映射落到「我」
+import { resolveBottomNavIdForUserSpaceTab } from '@/config/bottom-nav';
 import { useImageCompressionLoader } from './composables/useImageCompressionLoader.js';
 import {
-  AsyncBOHAI,
   AsyncCloudPlus,
   AsyncMessages,
   clearIdlePreloadTasks,
   clearScheduledForumPreload,
-  preloadBOHAIComponent,
   preloadForumComponent,
   preloadMessagesComponent,
   preloadProfileStyles,
@@ -604,6 +591,10 @@ let userSpacePageEl = null;
 let latestTabScrollRestoreToken = 0;
 
 const navItems = userSpaceNavItems;
+// 底栏高亮口径：assets / settings 已下沉进「我」页，两者都高亮「我」（见 @/config/bottom-nav 映射表）
+const activeBottomNavId = computed(
+  () => resolveBottomNavIdForUserSpaceTab(currentTab.value) || currentTab.value,
+);
 const {
   isOpen: isAiOverlayOpen,
   canOpen: isAiOverlayAllowed,
@@ -646,16 +637,12 @@ const messagesSection = ref('inbox');
 const settingsSection = ref('home');
 const assetsSection = ref('hub');
 const CONTENT_SECTIONS = ['home', 'cloud'];
-const MESSAGES_SECTIONS = ['inbox', 'ai'];
+const MESSAGES_SECTIONS = ['inbox'];
 const SETTINGS_SECTIONS = ['home', 'edit-profile', 'data-management', 'data-export'];
 const ASSETS_SECTIONS = ['hub', 'sponsor'];
 const CONTENT_SECTION_ITEMS = [
   { id: 'home', label: '空间' },
   { id: 'cloud', label: 'Cloud+' },
-];
-const MESSAGE_SECTION_ITEMS = [
-  { id: 'inbox', label: '消息' },
-  { id: 'ai', label: 'BOH AI' },
 ];
 const SECTION_DEFAULTS = {
   community: 'latest',
@@ -670,25 +657,6 @@ const leavingTab = ref(null);
 const { currentTab, navIndicatorStyle, ensureTabMounted, mountedTabs } = useUserSpaceTabs(
   navItems,
   initialUserSpaceTab,
-);
-
-// ✅ 性能优化 P0-1：BOH AI 仅在用户真正切到 AI 分区后才挂载——进入消息 tab 默认
-// 不再预载 BOH AI 全依赖图（实测 69 个模块请求 + ~12MB 堆内存增量）。
-// 同一次消息 tab 访问内切回 inbox 不卸载（保留既有体验）；离开消息 tab 后
-// 由模板 v-if 的 (currentTab || leavingTab) 条件照常卸载。
-const bohaiActivatedOnVisit = ref(false);
-watch(messagesSection, (section) => {
-  if (section === 'ai' && currentTab.value === 'messages') bohaiActivatedOnVisit.value = true;
-});
-watch(
-  currentTab,
-  (tab, oldTab) => {
-    if (tab === 'messages' && oldTab !== 'messages') {
-      // 重新进入消息 tab：仅当分区本就是 ai 时延续挂载，否则回到「切到 AI 分区才挂载」
-      bohaiActivatedOnVisit.value = messagesSection.value === 'ai';
-    }
-  },
-  { immediate: true },
 );
 
 const getTabOrderIndex = (tabId) => {
@@ -857,12 +825,6 @@ const setContentSection = (section) => {
   setSectionRoute('posts', section);
 };
 
-const setMessagesSection = (section) => {
-  messagesSection.value = section;
-  if (section === 'ai') void preloadBOHAIComponent();
-  setSectionRoute('messages', section);
-};
-
 const handleCommunitySwitchTab = (tabId) => {
   // shows 段已并入内容页签重构（空间/Cloud+），节目中心落点回「我的 · 空间」
   if (tabId === 'shows') {
@@ -874,10 +836,6 @@ const handleCommunitySwitchTab = (tabId) => {
 
 // ---- 分区段控的切换动效与取数都在 ForumSectionShell 内（2026-09-23 单源） ----
 // 抖音式文字页签（SegmentTabs）：v-model 绑当前档，切换动效 = 指示条滑动 + 内容 fade-up
-
-watch(messagesSection, (id) => {
-  if (id === 'ai') void preloadBOHAIComponent();
-});
 
 // keepAlive 二次进入：无 view 参数时方块（论坛）回到默认落点「最新」
 onActivated(() => {
@@ -2258,9 +2216,10 @@ const preloadUserSpaceTab = (tabId) => {
       { timeout: 2400, fallbackDelay: 420 },
     );
   } else if (safeTab === 'messages' && isLoggedIn.value) {
-    // ✅ 性能优化 P0-1：hover/idle 预载只拉消息中心；BOH AI 全依赖图（dev 实测 69 模块、
-    // ~12MB 堆）改为用户切到 AI 分区时按需预载（setMessagesSection / messagesSection
-    // watcher），从未打开 AI 的用户不再为其支付网络与内存成本。
+    // ✅ 性能优化 P0-1：hover/idle 预载只拉消息中心。
+    // 2026-09-30（plans/022）：BOH AI 已移出消息 tab（底栏 AI 席直通全屏 /ai-chat），
+    // 其全依赖图（dev 实测 69 模块、~12MB 堆）由 /ai-chat 路由自己按需加载，
+    // 不再需要消息 tab 内的按需预载闩锁。
     scheduleIdleTask('tab:messages', () => void preloadMessagesComponent());
   } else if (safeTab === 'assets' && isLoggedIn.value) {
     scheduleIdleTask('tab:assets', () => void preloadProfileStyles(), {
@@ -2310,6 +2269,13 @@ const syncUserSpaceTabRoute = (tabId) => {
 
 const handleBottomNavClick = (tabId) => {
   closeGlobalAi();
+  // 「AI」席是跨模块全屏落点（/ai-chat），不是 UserSpace 的 tab ——
+  // 走 switchTab 会被 resolveAccessibleTab 拦成 no-op，必须直接跳路由。
+  const item = navItems.find((entry) => entry.id === tabId);
+  if (item?.fullPage) {
+    void dismissComposerSession().then(() => router.push(item.route));
+    return;
+  }
   void dismissComposerSession().then(() => switchTab(tabId));
 };
 

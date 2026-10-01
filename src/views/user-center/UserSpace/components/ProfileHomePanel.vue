@@ -26,19 +26,7 @@
         aria-label="设置"
         title="设置"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="12" cy="12" r="3"></circle>
-          <path
-            d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 20.53 7l-.06.06A1.7 1.7 0 0 0 19.4 9c.2.4.6.7 1 .6h.6a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z"
-          ></path>
-        </svg>
+        设置
       </button>
 
       <div class="profile-identity-stack">
@@ -1114,12 +1102,16 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   top: 16px;
   right: 16px;
   z-index: 2;
-  width: 40px;
-  height: 40px;
+  min-height: 32px;
+  padding: 0 14px;
   border: 0;
-  border-radius: 50%;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.84);
   color: #111827;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1135,11 +1127,6 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
     transform: translateY(-1px);
     background: #ffffff;
   }
-}
-
-.profile-settings-btn svg {
-  width: 19px;
-  height: 19px;
 }
 
 .profile-hero-body {

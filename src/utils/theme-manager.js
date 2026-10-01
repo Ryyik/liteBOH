@@ -98,17 +98,16 @@ class ThemeManager {
       '.address-page',
       '.subscription-page',
       '.partners-container',
-      '.tags-impressions-page',
       '.pushplus-settings-page',
       '.shared-memory-page',
       '#unified-nav-container',
       '.bohai-page',
-      '.x-notifications-container'
+      '.x-notifications-container',
     ];
 
-    containers.forEach(selector => {
+    containers.forEach((selector) => {
       const elements = document.querySelectorAll(selector);
-      elements.forEach(el => {
+      elements.forEach((el) => {
         if (el) {
           el.setAttribute('data-theme', theme);
           el.setAttribute('data-ui-style', this.uiStyle);
@@ -124,7 +123,9 @@ class ThemeManager {
 
     // 触发自定义事件，通知所有页面组件
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme, uiStyle: this.uiStyle } }));
+      window.dispatchEvent(
+        new CustomEvent('theme-changed', { detail: { theme, uiStyle: this.uiStyle } }),
+      );
     }
 
     // 按需加载深色主题 CSS（首次切换时动态加载，不阻塞首屏）
@@ -238,7 +239,7 @@ class ThemeManager {
    * @param {string} theme - 当前主题
    */
   notifyListeners(theme, preference = this.preference, uiStyle = this.uiStyle) {
-    this.listeners.forEach(callback => {
+    this.listeners.forEach((callback) => {
       try {
         callback(theme, preference, uiStyle);
       } catch (e) {
@@ -258,7 +259,11 @@ class ThemeManager {
         'content',
         theme === 'dark'
           ? '#0a0a0f'
-          : (theme === 'home-cat' ? '#fffdf8' : (theme === 'anniversary-mc' ? '#79a947' : '#ffffff'))
+          : theme === 'home-cat'
+            ? '#fffdf8'
+            : theme === 'anniversary-mc'
+              ? '#79a947'
+              : '#ffffff',
       );
     }
   }

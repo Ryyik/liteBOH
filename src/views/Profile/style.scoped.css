@@ -782,30 +782,6 @@
   padding: 16px;
 }
 
-.word-cloud-section {
-  padding: 20px 40px;
-  margin-bottom: 16px;
-}
-
-.word-cloud-header {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.word-cloud-title {
-  font-size: 18px;
-  font-weight: 800;
-  color: #0f1419;
-  margin: 0;
-}
-
-.word-cloud-subtitle {
-  font-size: 13px;
-  color: #536471;
-}
-
 /* 印象墙增强 */
 .add-impression-section {
   padding: 24px 40px;
@@ -892,19 +868,6 @@
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 24px;
   padding: 24px 40px;
-}
-
-.impression-card-profile {
-  background: #f7f9f9;
-  border-radius: 16px;
-  padding: 16px;
-  border: 1px solid #eff3f4;
-  transition: transform 0.2s;
-}
-
-.impression-card-profile:hover {
-  transform: translateY(-2px);
-  background: #f0f2f2;
 }
 
 .imp-text {
@@ -1919,18 +1882,6 @@
   .add-impression-section {
     padding: 16px 20px;
   }
-
-  .word-cloud-section {
-    padding: 16px 20px;
-  }
-
-  .word-cloud-title {
-    font-size: 16px;
-  }
-
-  .word-cloud-subtitle {
-    font-size: 12px;
-  }
 }
 
 @media (orientation: landscape) and (max-width: 1024px) {
@@ -2012,10 +1963,6 @@
   .imp-text {
     font-size: 14px;
     line-height: 1.6;
-  }
-
-  .word-cloud-section {
-    padding: 12px 16px;
   }
 }
 
@@ -2735,7 +2682,6 @@
   padding: 0;
 }
 
-.word-cloud-section,
 .add-impression-section {
   padding: 18px 20px;
 }
@@ -3320,20 +3266,7 @@
   background: rgba(37,99,235,0.02);
 }
 
-/* 印象墙：2列网格、词云与输入区更融合 */
-.word-cloud-section {
-  padding: 20px;
-  margin: 0 0 16px;
-  border: 1px solid rgba(15,23,42,0.06);
-  border-radius: 16px;
-  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
-}
-
-.word-cloud-title {
-  font-size: 15px;
-  letter-spacing: -0.01em;
-}
-
+/* 印象墙：2列网格，输入区更融合 */
 .add-impression-section {
   padding: 16px;
   background: var(--surface-soft);
@@ -3388,24 +3321,6 @@
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 14px;
   padding: 0;
-}
-
-.impression-card-profile {
-  background: var(--surface-soft);
-  border: 1px solid rgba(15,23,42,0.06);
-  border-radius: 16px;
-  padding: 16px;
-  transition: all 0.16s var(--ease-out);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.impression-card-profile:hover {
-  background: #fff;
-  border-color: rgba(15,23,42,0.08);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(15,23,42,0.08);
 }
 
 .imp-text {
@@ -3519,7 +3434,6 @@
 .profile-page[data-theme="dark"] .profile-tabs,
 .profile-page[data-theme="dark"] .tab-content-list,
 .profile-page[data-theme="dark"] .profile-showcase-section,
-.profile-page[data-theme="dark"] .word-cloud-section,
 .profile-page[data-theme="dark"] .add-impression-section {
   background: rgba(24,26,32,0.96) !important;
   border-color: rgba(255,255,255,0.08) !important;
@@ -3648,7 +3562,6 @@
     padding: 14px;
   }
 
-  .word-cloud-section,
   .add-impression-section {
     padding: 14px;
     border-radius: 14px;

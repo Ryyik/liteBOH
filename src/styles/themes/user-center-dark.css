@@ -25,7 +25,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) {
@@ -41,7 +40,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.x-header-title, .page-title, .section-title, .list-title, .card-title) {
@@ -53,7 +51,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle) {
@@ -68,7 +65,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle):hover:not(:disabled) {
@@ -82,7 +78,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -127,7 +122,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -156,7 +150,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -199,7 +192,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -224,7 +216,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -246,7 +237,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -269,7 +259,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear) {
@@ -283,7 +272,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear):hover:not(:disabled) {
@@ -312,7 +300,7 @@
   border-color: rgba(255, 140, 140, 0.26) !important;
 }
 
-[data-theme="dark"] :is(.address-page, .partners-container, .tags-impressions-page, .shared-memory-page) :is(
+[data-theme="dark"] :is(.address-page, .partners-container, .shared-memory-page) :is(
   .user-item,
   .partner-row,
   .impression-item,
@@ -323,7 +311,7 @@
   border-color: var(--uc-dark-border) !important;
 }
 
-[data-theme="dark"] :is(.address-page, .partners-container, .tags-impressions-page, .shared-memory-page) :is(
+[data-theme="dark"] :is(.address-page, .partners-container, .shared-memory-page) :is(
   .user-item,
   .partner-row,
   .impression-item,
@@ -339,11 +327,6 @@
 }
 
 [data-theme="dark"] .shared-memory-page .meta-status.archived,
-[data-theme="dark"] .tags-impressions-page .count-badge {
-  background: rgba(255, 255, 255, 0.06) !important;
-  color: var(--uc-dark-text-soft) !important;
-  border-color: var(--uc-dark-border) !important;
-}
 
 [data-theme="dark"] .pushplus-settings-page .card-header {
   background: linear-gradient(135deg, #13233a 0%, #18304d 100%) !important;
@@ -368,7 +351,6 @@
   .address-page,
   .subscription-page,
   .partners-container,
-  .tags-impressions-page,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.loading-state, .empty-state, .login-card) {

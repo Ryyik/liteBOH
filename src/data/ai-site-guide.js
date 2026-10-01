@@ -12,7 +12,6 @@ export const SITE_OPERATION_MEMORY = `
 - 论坛: /forum
 - 消息中心: /user-center/messages（当前仅保留通知、点赞、评论、印象与系统消息）
 - 社区伙伴: /user-center/partners
-- 标签与印象: /user-center/tags-impressions
 - 礼物与地址: /user-center/address
 - 订阅与积分: /user-center/points
 - Pushplus 推送设置: /user-center/pushplus-settings
@@ -35,7 +34,7 @@ export const SITE_OPERATION_MEMORY = `
 
 3) 如何查看我收到的印象
    - 路径 A: /profile/:username -> “印象”标签
-   - 路径 B: /user-center/tags-impressions
+   - 路径 B: /user-space?tab=community&view=impressions（我的空间 → 方块 → 印象）
    - 路径 C: /user-center/messages -> “印象”标签
 
 4) 如何进入 BOH AI
