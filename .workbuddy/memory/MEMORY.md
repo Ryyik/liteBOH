@@ -3,6 +3,8 @@
 
 ## 环境
 vite 只绑 IPv6 → `--host ::`；构建 `--outDir dist-check`（勿动 dist）；vitest `--pool=forks`；npx 被 SIGTERM → `./node_modules/.bin/<tool>`。
+⚠️ safe-delete 守卫对 `--outDir dist-check` **同样生效**（目标目录里 >50 个文件就拦，`npm run build` 和 `vite build --outDir` 都拦）→ 先 `mv dist-check /tmp/xxx` 让位再 build；`mv` 不算删、不会被拦。
+⚠️ 后台起 dev/preview 服务必须用托管后台任务；`nohup … &` / `& disown` 起的进程会在那次工具调用结束时被杀，症状是「curl 刚 200，下一次探针就 ERR_CONNECTION_REFUSED」。
 playwright：chrome channel + `--proxy-server=direct:// --proxy-bypass-list=*`；伪造登录注 pinia；mock Supabase 必回 Content-Range。
 ⚠️ BSD grep 的 `\|` `\b` `\s` 全不支持（静默 0 命中）→ 用 `grep -E` / `[[:space:]]`，或直接用 Grep 工具。
 ⚠️ macOS 无 `timeout` 命令 → 限时用 `ssh -o ConnectTimeout=N`、`GIT_SSH_COMMAND="ssh -o ConnectTimeout=15"`。
@@ -18,7 +20,9 @@ pre-commit hook 在 `.git/hooks/pre-commit`（**不在 husky、不随 clone 分�
 
 ## 门禁 / 测试
 `npm run verify`（lint + type-check + test + 8 check + 棘轮总账）。
-⚠️ verify 绿 ≠ 干净：`lint` 带 `--max-warnings 189` 棘轮 → **报绿必须同时报警告条数**，口径用 `eslint . -f json` 聚合。unused-vars 是 `'warn'`，计数归零前别翻 error；`fix-unused-vars.mjs` 已删（2026-09-29，零引用且带 `X as ,` latent 洞），手法见 `docs/重构验证协议.md` §五。
+⚠️ verify 绿 ≠ 干净：`lint` 带 `--max-warnings 187` 棘轮（2026-10-01 自 189 下调）→ **报绿必须同时报警告条数**，口径用 `eslint . -f json` 聚合。unused-vars 是 `'warn'`，计数归零前别翻 error；`fix-unused-vars.mjs` 已删（2026-09-29，零引用且带 `X as ,` latent 洞），手法见 `docs/重构验证协议.md` §五。
+⚠️ 提交前先手动跑一遍钩子同款（`prettier --write` + `eslint --fix --no-warn-ignored`，只给改动文件），否则「验证过的树 ≠ 提交的树」；提交后仍要核对 `git show --stat HEAD`（lint-staged 的 stash/restore 会卷进无关未暂存文件），并对**提交后的树**再跑一次 verify。
+⚠️ 探针切「窄浮层」（<300px 面板/菜单）里的选项，要用页面内 `element.click()`；Playwright 坐标点击会落到遮罩上被 `handleClickOutside` 关掉面板 —— 看起来「面板收起了」，其实业务 handler 根本没跑，反证会假绿。
 新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则被 `check:gates-self-test` 列「未覆盖」；棘轮 baseline 只许下调。
 源码守卫必须过 `tests/helpers/source.js` 归一且**两边同一个**（`squeezeSource`/`flattenSource`）；否定断言先 `scriptSection()`+`stripComments()`（对 .vue 全文剥注释会吃掉真实代码）；注释里别写「星号+斜杠」连写。prettier 对逐字断言的影响：换行/尾逗号交归一，**引号风格（含 CSS）/补分号**要写宽容正则。
 
