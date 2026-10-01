@@ -19,6 +19,23 @@
   outline: none;
   resize: none;
   margin-bottom: 12px;
+  /* 多字扩展（2026-09-30）：高度由 composables/useAutoGrowTextarea.js 按内容写入。
+     这里只声明**上限** —— 上限是断点相关的，留在 CSS 才是单一真源（JS 读 computed style 取用，
+     不在 JS 里写第二份像素值）。高度只在「换行那一刻」变化，不是每键都变，
+     所以 180ms 过渡不会让框在打字时滞后。
+     reduce-motion 不需要在这里再写一条：animations.css 的全局 `*` 规则已把
+     transition-duration 压到 100ms（单源，别再抄一份）。 */
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transition: height var(--duration-fast, 180ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+/* 竖屏：键盘约占 300px，输入框 + 操作行不应吃掉半个屏 */
+@media (max-width: 768px) {
+  .reply-textarea-v2 {
+    max-height: min(168px, 30dvh);
+  }
 }
 
 .reply-actions-v2 {

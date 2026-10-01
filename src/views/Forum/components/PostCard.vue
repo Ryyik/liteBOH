@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { useTierMap } from '@/composables/useTierMap.js';
+import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 import { Check, Heart, ImageOff, MapPin, MessageCircle, Reply, Share2 } from 'lucide-vue-next';
 import { getHomeCatAsset } from '@/utils/home-cat-theme.js';
 import {
@@ -63,6 +64,13 @@ const emit = defineEmits([
 ]);
 
 const formatDate = formatSmartTime;
+
+// 回复框「多字扩展」：高度随内容长高、到上限后框内滚（真源见 composables/useAutoGrowTextarea.js）。
+// ⚠️ 必须传 value：本组件的输入框是 `:value` + `@input` 受控写法，父组件会**主动改写**
+// replyContent（切换回复对象 / 发送成功清空 / 取消），只绑 @input 的实现在这些路径上不会收缩。
+const { textareaRef: replyTextareaRef } = useAutoGrowTextarea({
+  value: () => props.replyContent,
+});
 
 // 转发帖引用框：原帖标题/摘录（原帖数据由 ForumMain ensureQuotedPostsForReposts 回源注入）
 const quotedTitle = computed(() => {
@@ -594,6 +602,7 @@ watch(
           <button class="clear-target-btn" @click="emit('clear-reply-target', post.id)">×</button>
         </div>
         <textarea
+          ref="replyTextareaRef"
           :value="replyContent"
           @input="emit('update:reply-content', $event.target.value)"
           :placeholder="
@@ -603,6 +612,9 @@ watch(
           "
           class="reply-textarea-v2"
           rows="2"
+          enterkeyhint="send"
+          autocapitalize="off"
+          autocorrect="off"
         ></textarea>
         <div class="reply-actions-v2">
           <button class="cancel-reply-btn-v2" @click="emit('cancel-reply')">取消</button>
