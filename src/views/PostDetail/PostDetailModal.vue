@@ -11,18 +11,53 @@
  */
 import { defineAsyncComponent, h } from 'vue';
 import { usePostDetailModal } from '@/composables/usePostDetailModal.js';
+import { recoverDynamicImportFailure } from '@/utils/vite-preload-recovery.js';
+import { forceCleanAndReload } from '@/utils/version-checker.js';
 
 // runtime-only 构建不支持 template 选项，加载占位用 h() 渲染函数
-const PdModalLoading = () => h('div', { class: 'pd-modal-loading', 'aria-hidden': 'true' }, [
-  h('span', { class: 'pd-modal-loading-dot' }),
-  h('span', { class: 'pd-modal-loading-dot' }),
-  h('span', { class: 'pd-modal-loading-dot' })
-]);
+const PdModalLoading = () =>
+  h('div', { class: 'pd-modal-loading', 'aria-hidden': 'true' }, [
+    h('span', { class: 'pd-modal-loading-dot' }),
+    h('span', { class: 'pd-modal-loading-dot' }),
+    h('span', { class: 'pd-modal-loading-dot' }),
+  ]);
+
+// 加载失败态：弹窗壳在、内容为空的「空白弹窗」事故（2026-10-02）——
+// 部署窗口期旧入口 import 旧 hash chunk 404，若无 errorComponent 则渲染为空。
+const PdModalError = {
+  name: 'PdModalError',
+  setup() {
+    return () =>
+      h('div', { class: 'pd-modal-error' }, [
+        h('p', { class: 'pd-modal-error-text' }, '详情内容加载失败'),
+        h(
+          'button',
+          {
+            class: 'pd-modal-error-retry',
+            type: 'button',
+            onClick: () => void forceCleanAndReload(),
+          },
+          '刷新页面',
+        ),
+      ]);
+  },
+};
 
 const PostDetailMain = defineAsyncComponent({
   loader: () => import('./PostDetailMain.vue'),
   delay: 200,
-  loadingComponent: PdModalLoading
+  loadingComponent: PdModalLoading,
+  errorComponent: PdModalError,
+  // 前 2 次失败自动重试（瞬时网络抖动 / dev server 重启大多能恢复）；
+  // 重试耗尽 → 错误态兜底 + 生产环境发起 SW 感知的强刷（30s 冷却）。
+  onError(error, retry, fail, attempts) {
+    if (attempts <= 2) {
+      setTimeout(() => retry(), attempts * 300);
+      return;
+    }
+    fail(error);
+    recoverDynamicImportFailure();
+  },
 });
 
 const { isOpen, postId, close, open } = usePostDetailModal();
@@ -35,15 +70,31 @@ const handleOpenPost = (id) => open(id, { replace: true });
   <Teleport to="body">
     <Transition name="pd-modal">
       <div v-if="isOpen" class="pd-modal-overlay" @click="handleClose()">
-        <div class="pd-modal-panel" role="dialog" aria-modal="true" aria-label="帖子详情" @click.stop>
+        <div
+          class="pd-modal-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-label="帖子详情"
+          @click.stop
+        >
           <button class="pd-modal-close" type="button" aria-label="关闭" @click="handleClose()">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" />
+              <path
+                d="M6 6l12 12M18 6L6 18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
             </svg>
           </button>
           <div class="pd-modal-scroll">
-            <PostDetailMain :post-id-override="postId" modal-mode @close="handleClose" @open-post="handleOpenPost" />
+            <PostDetailMain
+              :post-id-override="postId"
+              modal-mode
+              @close="handleClose"
+              @open-post="handleOpenPost"
+            />
           </div>
         </div>
       </div>
@@ -97,7 +148,9 @@ const handleOpenPost = (id) => open(id, { replace: true });
   cursor: pointer;
   backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
   -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
-  transition: background var(--duration-fast, 180ms) ease, color var(--duration-fast, 180ms) ease,
+  transition:
+    background var(--duration-fast, 180ms) ease,
+    color var(--duration-fast, 180ms) ease,
     transform var(--duration-fast, 180ms) ease;
 }
 
@@ -128,6 +181,38 @@ const handleOpenPost = (id) => open(id, { replace: true });
   justify-content: center;
   gap: 8px;
   height: 200px;
+}
+
+.pd-modal-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  height: 240px;
+  padding: 24px;
+}
+
+.pd-modal-error-text {
+  margin: 0;
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-size: 14px;
+}
+
+.pd-modal-error-retry {
+  padding: 8px 22px;
+  border: none;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: var(--liquid-text-primary, #1d1d1f);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--duration-fast, 180ms) ease;
+}
+
+.pd-modal-error-retry:hover {
+  opacity: 0.88;
 }
 
 .pd-modal-loading-dot {

@@ -16,6 +16,7 @@
 | 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
 | 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
+| **帖子详情弹窗 chunk 加载失败兜底**（部署窗口期旧入口 import 旧 chunk 404：错误态出现、不再无声空白、DEV 不强刷、正常路径内容完整渲染） | `probe-pd-modal-chunk-fail.mjs` | 12 |
 | 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 10 |
 | **Cloud+ 图库竖屏顶栏 + 设置页玻璃**（工具行不折字/不溢出、页头不吸顶、底栏玻璃、卡片玻璃材质） | `probe-cloud-portrait.mjs` | 27 |
 | **Cloud+ 相册形态**（iOS 图库式密铺：去月份分组、多图铺开、捏合切列、宽屏铺满） | `probe-cloud-album.mjs` | 22 |
