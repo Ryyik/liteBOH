@@ -67,7 +67,7 @@ ref `nplnlefdwfgtyimfkyih`。github.com 被 SNI 阻断 → SSH(`ssh.github.com:4
 「设为公开」入口**已取消**（详情无该按钮，makeEntryPublic 已删）；对外可见只有 token 令牌分享 / 转为帖子。
 相册显示**全部备份**（不再按可见性过滤）；底账（source='forum'）禁止单独删/公开（FORUM_SYNCED_CLOUD_ENTRY_LOCKED）。
 发帖成功 → `backupPostImagesToCloud`（best-effort，void 前缀，无图帖不备份）创建底账并带 `source_post_id`；
-删帖删备份 = **DB cascade**（迁移 2026100202，本机未执行 —— createMyCloudEntry 对列缺失自动降级，迁移后关联自动生效）。
+删帖删备份 = **DB cascade**（迁移 2026100202 **已执行**：Management API + 事务内手写 schema_migrations 台账；列缺失降级逻辑保留作新环境兜底）。
 转为帖子 = sessionStorage `boh-cloud-convert-draft` 一次性预填 + ForumMain `convertPrefillApplied` 抑制草稿恢复（防旧草稿覆盖预填）。
 守卫：`cloud-album-order.test.js`（10 条）。
 

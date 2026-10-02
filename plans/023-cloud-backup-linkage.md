@@ -51,9 +51,10 @@
 
 ## 实施记录（2026-10-02）
 
-- 迁移文件：`supabase/migrations/2026100202_cloud_source_post_id.sql`（**尚未在远程执行** —— 本机无 DDL 通道）。
-  执行前代码完全可用：`createMyCloudEntry` 在列缺失（42703/PGRST204）时自动降级为不带关联插入，
-  只是「删帖级联删备份」要等迁移执行后才对新条目生效。
+- 迁移文件：`supabase/migrations/2026100202_cloud_source_post_id.sql` —— **已于 2026-10-02 13:12 经 Management API 在远程执行**。
+  核验：列 source_post_id（uuid nullable）+ FK `boh_cloud_entries_source_post_id_fkey`（confdeltype=c 级联）
+  + 索引 `boh_cloud_entries_source_post_id_idx` + 台账 supabase_migrations.schema_migrations(2026100202) 全部就位；
+  anon/authenticated 列权限与既有口径一致（anon 只读、authenticated 读写）。
 - Phase 2：`ForumMain.vue` 发帖成功分支（拿到 `realPost` 后）`void backupPostImagesToCloud(...)`，
   无图帖直接返回；`createMyCloudEntry` 加 `sourcePostId`。
 - Phase 3：删帖侧 = cascade（零代码）；删备份侧 = 既有 `FORUM_SYNCED_CLOUD_ENTRY_LOCKED` 保护（引导去论坛删原帖）。
