@@ -567,19 +567,29 @@
   z-index: 100000;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   width: 100vw;
   /* 键盘抬升（2026-09-24）：iOS 的 100dvh 不随软键盘收缩，叠加 overflow:hidden 后
      底部 chips 行（位置/标签/图片/草稿）会被键盘永久盖住。
      --kb-inset 由 composables/useKeyboardInset.js 在应用启动时写到 documentElement
      （键盘弹起 = innerHeight - visualViewport.height - offsetTop，阈值 120px 滤掉地址栏噪声），
-     全站 CSS 直接消费，Teleport 到 body 同样沿 html 继承拿到。 */
-  height: calc(100dvh - var(--kb-inset, 0px));
+     全站 CSS 直接消费，Teleport 到 body 同样沿 html 继承拿到。
+
+     ⚠️ 抬升必须靠 **内边距**，不能靠减高度（2026-10-01 修）：原先写的是
+     `height: calc(100dvh - var(--kb-inset))`，一旦 --kb-inset 被量出一个偏大的值
+     （真机键盘高度、或键盘形态与 dvh 口径不一致时），遮罩就只剩半屏 ——
+     下半屏直接露出底下的论坛页面，用户报障「输入的时候发帖遮罩消失了一半」。
+     实测复现：--kb-inset=380px → 遮罩 464px（= 844 - 380），下面全是首页街景。
+     改成「高度恒为 100dvh + padding-bottom 吃掉键盘高度」后：
+     同一个 --kb-inset 下内容区仍是 464px（行为等价），但遮罩本体始终铺满，
+     底下永远不会露出来；键盘不在时 padding 为 0，与改动前完全一致。 */
+  height: 100dvh;
   overflow: hidden;
   /* 纯白底：无渐变、无色斑；液态玻璃质感由圆角玻璃面板（顶栏/设置组/图片卡）提供 */
   background: #ffffff;
   color: var(--liquid-text-primary, #0f1419);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Helvetica Neue", sans-serif;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kb-inset, 0px));
   transform: translateZ(0);
 }
 

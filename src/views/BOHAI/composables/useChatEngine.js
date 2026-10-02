@@ -88,6 +88,7 @@ import {
   SHOW_INTERNAL_PROGRESS_NOTES,
   THINKING_SPEED_DELTAS_BY_ID,
   BOH_DEFAULT_MODE_ID,
+  ROUTING_FORUM_REALTIME_PATTERN,
 } from './chat-engine-config.js';
 import { useConversationManager, updateLastActualExtraChars } from './useConversationManager.js';
 import { useGenerationPipeline } from './useGenerationPipeline.js';
@@ -96,6 +97,7 @@ import { useMessageManager } from './useMessageManager.js';
 import { useKnowledgeRetrieval } from './useKnowledgeRetrieval.js';
 import { useAgentClusterSources } from './useAgentClusterSources.js';
 import { TASK_GENERATION_PRESETS } from '../generation-params.js';
+import { NO_FABRICATION_RULE } from '../shared-rules.js';
 import {
   CONVERSATION_SUMMARY_RECENT_MESSAGES,
   CONVERSATION_SUMMARY_MIN_MESSAGES,
@@ -312,7 +314,6 @@ export function useChatEngine() {
     currentMode,
     currentModelId,
     currentModel,
-    lastRoutedMode,
     isCommandMode,
     isSearching,
     isForumSearchEnabled,
@@ -686,8 +687,6 @@ export function useChatEngine() {
     isHealthAnalysisEnabled.value = false;
     isHealthAnalysisDismissed.value = false;
     isKnowledgeBaseEnabled.value = false;
-    // Auto 路由相关状态重置
-    lastRoutedMode.value = '';
   };
 
   const stopGeneration = () => {
@@ -1072,6 +1071,31 @@ export function useChatEngine() {
   const sendMessage = async () => {
     if (!inputMessage.value.trim() || isLoading.value || abortController.value) return;
 
+    // ── 阶段耗时埋点（plans/024 §4 ①）────────────────────────────────────────
+    // 在此之前，仓库没有任何 AI 耗时数据（`bohai-observability.js` 只记录「读了哪些源」），
+    // 「慢在哪一步」只能靠猜。这里记录 6 个检查点，写进 assistant 消息的 meta.bohaiTiming。
+    //
+    // 读法：`JSON.parse(localStorage.getItem('boh_chat_sessions'))` → 找 assistant 消息的
+    // `meta.bohaiTiming`。各字段都是从「用户按下发送」起的累计毫秒数：
+    //   configReadyMs   模型配置就绪（冷加载时最长 8s）
+    //   contextReadyMs  历史/追问消解就绪（纯本地，应接近 0）
+    //   retrievalDoneMs 站内检索 + 联网搜索 全部 await 完成
+    //   requestSentMs   主生成请求发出
+    //   firstTokenMs    首个可见 token（这才是用户感知的「响应速度」）
+    //   doneMs          生成结束
+    // 判读：`firstTokenMs - requestSentMs` 大 → 上游/Edge Function 慢；
+    //       `requestSentMs - configReadyMs` 大 → 检索链慢；`firstTokenMs` 与
+    //       `doneMs` 差距大 → 输出太长（max_tokens）。
+    const timingNow = () =>
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+    const timingStartAt = timingNow();
+    const timing = {};
+    const markTiming = (key) => {
+      timing[key] = Math.round(timingNow() - timingStartAt);
+    };
+
     // 模型配置尚未加载完成时先等待（最多 8s），避免 runtimeAvailableModels 为空导致后面取 generationModel.url 抛 TypeError
     if (runtimeAvailableModels.value.length === 0) {
       if (chatModesLoading.value) {
@@ -1090,6 +1114,7 @@ export function useChatEngine() {
         return;
       }
     }
+    markTiming('configReadyMs');
 
     const rateLimitResult = checkRateLimit();
     if (rateLimitResult.blocked) return;
@@ -1284,6 +1309,12 @@ export function useChatEngine() {
     await nextTick();
     scrollToBottom();
 
+    // 埋点落盘：meta 由 bohai-chat-session-store 的 `...message` 展开原样保留，
+    // 不需要登记白名单（与 expertState 的显式白名单不同）。
+    const flushTiming = () => {
+      mergeAssistantMessageMeta(sessionIndex, messageIndex, { bohaiTiming: { ...timing } });
+    };
+
     const removePreflightLoader = () => {
       const targetSession = getSessionByIndex(sessionIndex);
       const maybeLoader = targetSession?.messages?.[messageIndex];
@@ -1318,69 +1349,34 @@ export function useChatEngine() {
       },
     );
     const enableSearch = isSearching.value;
-    let autonomousContextualQuery = '';
 
-    // 无论是否联网，都先让模型自主消解短消息中的省略指代。解析后的完整意图统一用于
-    // 回答路由、资料检索和最终提示；固定规则仅在解析失败时兜底。
-    if (userText.length <= 160 && historyMessagesForCurrentTurn.length >= 2) {
-      const resolverModel = currentModel.value || runtimeAvailableModels.value[0];
-      if (resolverModel?.id) {
-        try {
-          setThinkingStatus('正在结合最近对话理解你的追问...');
-          const resolverHistory = historyMessagesForCurrentTurn
-            .filter((item) => item?.role === 'user' || item?.role === 'assistant')
-            .slice(-6)
-            .map((item) => ({
-              role: item.role,
-              content: truncateText(String(item?.content || '').trim(), 1200),
-            }))
-            .filter((item) => item.content);
-          const rewrittenQuery = await callModelInternal(
-            resolverModel.id,
-            userText,
-            `<role>你是 BOH AI 的上下文理解器。</role>
-<task>结合最近对话，把当前用户消息改写成一条含义完整、脱离聊天记录也能正确理解的问题或指令。</task>
-<constraints>
-- 自主判断省略的对象、代词和时间范围；不要只解释当前短语的字面意思。
-- 上一轮助手提到的实体可以用于定位对象，但不得把助手未经证实的说法当成已确认事实。
-- 如果当前消息本身已经完整，原样输出。
-- 只输出改写后的问题或指令，不要回答，不要加“查询：”等前缀。
-</constraints>`,
-            resolverHistory,
-            preflightController.signal,
-            0,
-            TASK_GENERATION_PRESETS.titleExtract,
-          );
-          autonomousContextualQuery = normalizePromptLine(
-            filterThinkingContent(rewrittenQuery)
-              .replace(/^(?:独立查询|搜索查询|查询|改写)\s*[:：]\s*/i, '')
-              .replace(/^["'“”]|["'“”]$/g, ''),
-            600,
-          );
-        } catch (resolverError) {
-          if (isAbortError(resolverError)) {
-            removePreflightLoader();
-            finishPreflightOnly();
-            return;
-          }
-          logger.warn(
-            'boh-ai',
-            'Contextual query rewrite failed, using local fallback',
-            resolverError,
-          );
-        }
-      }
-    }
-
-    const contextualQuery = autonomousContextualQuery || localContextualQuery;
+    // 追问消解（2026-10-02 改：本地优先，不再调模型）
+    // ─────────────────────────────────────────────────────────────
+    // 旧实现：`userText.length <= 160 && 历史 >= 2 条` 时无条件发一次非流式 LLM 调用，
+    // 用当前模式对应的模型（plan 模式 = 推理模型）跑 max_tokens=256。
+    // 它排在知识检索与联网搜索**之前**，且那两个 Promise 是在它 await 之后才构造的，
+    // 所以整条链无法并行 —— 首 token 前要多付一个完整往返。
+    // 更糟的是它常常白跑：推理模型的 thinking 会吃光 256 token，输出被截断后
+    // filterThinkingContent 得到空串，静默回落到本地规则。
+    //
+    // 现在直接走本地 `buildContextualFollowUpQuery`：它的门槛是
+    // `isContextDependentFollowUp`（真的省略了指代才展开），比「≤160 字」更准；
+    // 而且它本来就是旧实现失败时的兜底路径 —— 这里只是把兜底提升为主路径。
+    //
+    // ⚠️ 若日后发现追问理解质量回退，正确的修法是「收窄门槛 + 换最便宜的模型 + 加超时」，
+    // **不要**恢复这个无条件调用。依据见 plans/024 §P0-2。
+    const contextualQuery = localContextualQuery;
     const shouldUseContextualQuery = contextualQuery && contextualQuery !== userText;
     const routingQueryText = shouldUseContextualQuery ? contextualQuery : userText;
-    const webSearchQueryText =
-      autonomousContextualQuery ||
-      buildContextualWebSearchQuery(userText, historyMessagesForCurrentTurn, {
+    const webSearchQueryText = buildContextualWebSearchQuery(
+      userText,
+      historyMessagesForCurrentTurn,
+      {
         maxChars: MAX_USER_INPUT_CHARS,
-      });
+      },
+    );
     refreshCloudReferenceConsent();
+    markTiming('contextReadyMs');
 
     // 4 模式不再做"自动路由"，但 capability 决策（联网/Cloud+ 引用/保存/指令）仍统一由
     // resolveAutoModeDecisionLocally 提供，本地纯函数判定，不再调 LLM 二次校验。
@@ -1804,8 +1800,6 @@ export function useChatEngine() {
       if (isPlanModeEnabled.value && activeModeId !== 'agent-cluster') {
         activeModeId = 'plan';
       }
-      // 暴露给 UI：本轮路由到的具体模式（含 plan 模式提升 / 追问沿用）
-      lastRoutedMode.value = activeModeId;
       // 在消息 meta 中记录 routedMode：供后续追问场景做"沿用上一轮模式"判断
       mergeAssistantMessageMeta(sessionIndex, messageIndex, { routedMode: activeModeId });
       const isPlanMode = activeModeId === 'plan';
@@ -1819,7 +1813,7 @@ export function useChatEngine() {
       const responseRules = `<constraints>
 - 涉及社区事实时，优先依据检索内容回答。
 - 涉及用户个人复盘时，优先结合 BOH Cloud+ 私有内容给出总结和建议。
-- 追问时保持对话连贯，不要重复已说过的内容，直接推进。
+- 追问时承接上一轮的结论直接推进，不要从头重新解释背景。
 - 对于通用知识问题（非方块之家站内内容），直接给出最佳回答，不确定的部分标注不确定即可；不要建议用户去论坛搜索、不要提供搜索步骤，也不要问"你是想了解 X 还是想在论坛查帖子"。
 ${
   hasForumEvidence
@@ -1865,10 +1859,27 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         (evidenceRules.length || 0) +
         (operationRules.length || 0);
       updateLastActualExtraChars(actualExtraChars);
+      markTiming('retrievalDoneMs');
+
+      // ── 跨轮证据复用 + 时效护栏（2026-10-02 新增，plans/024 §P1-1）────────────
+      // 复用的动机：追问「[F1] 是谁」时，当前轮检索不到东西，但上一轮的资料就在手边。
+      //
+      // ⚠️ 但原实现是**无条件**复用，且不带任何时间标记 —— 于是「论坛最近有什么新帖」
+      // 这类**明确要最新**的提问，第二轮可能拿到第一轮的旧帖，模型还会言之凿凿地
+      // 当成最新内容回答。这是「AI 胡说」类投诉最主要的来源。
+      //
+      // 护栏分两档：
+      //   1. 本轮提问命中时效词（最新/最近/今天…）→ **禁止复用**，改为注入说明，
+      //      让模型据实告知「本轮没有检索到新资料」，而不是拿旧的冒充新的。
+      //   2. 其余情况允许复用，但在证据块前加一行「来自上一轮」的前缀。
+      const isRealtimeQuery = ROUTING_FORUM_REALTIME_PATTERN.test(String(routingQueryText || ''));
+      const STALE_EVIDENCE_PREFIX =
+        '（以下资料来自上一轮检索，可能已过时；若与用户本轮问的时效性内容冲突，请以「未获取到最新资料」作答）';
+      let reusedFromPreviousTurn = false;
 
       // 对话连贯性修复：当前轮未搜索时，复用上一轮 assistant 消息的搜索结果
       // 解决"追问时 AI 不知道上一轮 [W1][W2] 的实际内容"导致的不连贯问题
-      if (!webEvidenceContext && historyMessagesForCurrentTurn.length >= 2) {
+      if (!webEvidenceContext && !isRealtimeQuery && historyMessagesForCurrentTurn.length >= 2) {
         for (let i = historyMessagesForCurrentTurn.length - 1; i >= 0; i -= 1) {
           const prevMsg = historyMessagesForCurrentTurn[i];
           if (prevMsg?.role !== 'assistant') continue;
@@ -1888,12 +1899,17 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           // 标记为复用上下文，供后续逻辑识别
           searchResultCount = restoredResults.length;
           webSearchVerified = true;
+          reusedFromPreviousTurn = true;
           break;
         }
       }
       // 内部证据跨轮恢复：当前轮未检索到内部证据时，复用上一轮的 evidenceContext
       // 解决"追问 [F1] 是谁时模型不知道 [F1] 内容"的割裂问题
-      if (!internalEvidenceContext && historyMessagesForCurrentTurn.length >= 2) {
+      if (
+        !internalEvidenceContext &&
+        !isRealtimeQuery &&
+        historyMessagesForCurrentTurn.length >= 2
+      ) {
         for (let i = historyMessagesForCurrentTurn.length - 1; i >= 0; i -= 1) {
           const prevMsg = historyMessagesForCurrentTurn[i];
           if (prevMsg?.role !== 'assistant') continue;
@@ -1904,8 +1920,22 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           if (Array.isArray(prevRefs) && prevRefs.length > 0) {
             groundingEvidenceRefs = prevRefs.slice(0, 32);
           }
+          reusedFromPreviousTurn = true;
           break;
         }
+      }
+      if (reusedFromPreviousTurn) {
+        if (internalEvidenceContext) {
+          internalEvidenceContext = `${STALE_EVIDENCE_PREFIX}\n${internalEvidenceContext}`;
+        }
+        if (webEvidenceContext) {
+          webEvidenceContext = `${STALE_EVIDENCE_PREFIX}\n${webEvidenceContext}`;
+        }
+      }
+      // 命中时效词但没有本轮证据：显式告知「本轮没检索到新的」，避免模型拿旧料充数
+      if (isRealtimeQuery && !internalEvidenceContext && !webEvidenceContext) {
+        internalEvidenceContext = `<stale_evidence_note>\n用户问的是有时效性的内容（最新/最近/今天等），但本轮没有检索到新资料，也没有可复用的上一轮结果。请直接说明「本轮没有检索到最新资料」，不要凭记忆或旧印象作答。\n</stale_evidence_note>`;
+        groundingEvidenceRefs = [];
       }
 
       // 搜索状态兜底：用户开启了联网搜索但当前轮搜索失败/无结果，且没有上一轮结果可复用时，
@@ -2109,7 +2139,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
             const repairedNarrative = await callModelInternal(
               generationModel.id,
               `${forumNarrativePrompt}\n\n【上次总结存在的准确性问题】\n${polarityConflicts.map((item) => `- ${item}`).join('\n')}\n\n【上次总结】\n${narrativeAnswer}\n\n请重写总结，必须修正上述问题，尤其不能把“大/小、多少、喜欢/不喜欢、要/不要”等语义方向写反。`,
-              `${systemPromptContent}\n<constraints>\n- 你正在修正论坛总结\n- 绝对不能编造\n- 绝对不能输出链接或列表\n- 必须严格基于资料，优先准确，其次自然\n</constraints>`,
+              `${systemPromptContent}\n<constraints>\n- 你正在修正论坛总结\n${NO_FABRICATION_RULE}\n- 绝对不能输出链接或列表\n- 必须严格基于资料，优先准确，其次自然\n</constraints>`,
               [],
               requestController.signal,
               0,
@@ -2278,6 +2308,8 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       const stopThinkingWhenAnswerVisible = () => {
         if (hasReceivedVisibleAnswer) return;
         hasReceivedVisibleAnswer = true;
+        // 首个可见 token —— 这才是用户感知的「响应速度」
+        markTiming('firstTokenMs');
         clearThinkingStatus();
         const targetSession = getSessionByIndex(sessionIndex);
         if (targetSession) {
@@ -2285,6 +2317,7 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         }
       };
 
+      markTiming('requestSentMs');
       const response = await callVaultSiliconChatStream({
         provider: generationModel.providerKey || 'siliconflow',
         purpose: 'chat',
@@ -2652,6 +2685,9 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       isStreamingGeneration.value = false;
       cleanupGenerationState(sessionIndex, requestController);
       scheduleSaveSessions();
+      // 埋点收尾：无论成功 / 中止 / 报错都落盘，否则失败路径的耗时永远量不到
+      markTiming('doneMs');
+      flushTiming();
     }
   };
 
@@ -2717,8 +2753,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     compressContextManually: (sessionIndex) =>
       ensureContextCompression(sessionIndex ?? currentSessionIndex.value, { force: true }),
     onScrollToBottom,
-    // Auto 路由相关：让 UI 能看到本轮路由结果
-    lastRoutedMode,
     startNewChat,
     clearCurrentSession,
     clearAllSessions,

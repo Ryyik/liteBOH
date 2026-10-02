@@ -27,30 +27,14 @@
       <slot name="official" />
     </div>
 
-    <!-- 成员 / 印象：独立面板，切走即卸载（与改版前 UserSpace 行为一致） -->
+    <!-- 成员：独立面板，切走即卸载（与改版前 UserSpace 行为一致）
+         ⚠️ 印象席已于 2026-10-01 移出论坛（plans/022 §4.5）——
+         它现在是「我」页的第三个分段，见 components/ProfileImpressionsSection.vue。
+         不要在这里把它加回来：那会让「印象」重新变成两个入口、两份数据层。 -->
     <AsyncCommunity
       v-if="section === 'members'"
       @switch-tab="emit('switch-tab', $event)"
       @open-follow-modal="(user, type) => emit('open-follow-modal', user, type)"
-    />
-
-    <div v-else-if="section === 'impressions'" class="forum-section-impressions">
-      <ProfileImpressionsPanel
-        :show-back="false"
-        :is-impressions-loading="impressionsLoading"
-        :impressions="profileImpressions"
-        :has-more="impressionsHasMore"
-        :is-loading-more="isLoadingMoreImpressions"
-        @delete-impression="handleDeleteImpression"
-        @load-more-impressions="loadMoreImpressions"
-      />
-    </div>
-
-    <CommonAlertModal
-      v-model:visible="alertState.visible"
-      :type="alertState.type"
-      :title="alertState.title"
-      :message="alertState.message"
     />
   </div>
 </template>
@@ -66,19 +50,13 @@
      · 最新/关注/新闻/活动 → AsyncForum（ForumMain，embedded，30s 轮询原样）
      · 官方              → #official 插槽（页面注入惰性加载的英雄区舞台）
      · 成员              → AsyncCommunity（CommunityTab）
-     · 印象              → ProfileImpressionsPanel（数据层随本组件自持缓存/取消）
+     · 印象              → **已移出**（2026-10-01），现为「我」页第三分段，
+                           见 components/ProfileImpressionsSection.vue
 
    过渡动画复用既有的 userspace-tab-in/out 体系（由外层页面提供类名）。 */
-import { computed, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue';
-import { storeToRefs } from 'pinia';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import SegmentTabs from './SegmentTabs.vue';
-import ProfileImpressionsPanel from './ProfileImpressionsPanel.vue';
-import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import { AsyncCommunity, AsyncForum } from '../async-loaders.js';
-import { createMemoryTtlCache } from '../composables/useMemoryTtlCache.js';
-import { deleteUserImpression, getUserImpressions } from '@/utils/api/profile-api.js';
-import { useAuthStore } from '@/stores/auth';
-import { logger } from '@/utils/logger.js';
 import {
   FORUM_DEFAULT_SECTION,
   FORUM_SECTION_ITEMS,
@@ -100,9 +78,6 @@ const emit = defineEmits([
   'section-change',
 ]);
 
-const authStore = useAuthStore();
-const { isLoggedIn, userInfo } = storeToRefs(authStore);
-
 const section = computed(() => resolveForumSection(props.section));
 const isFeedSection = computed(() => isForumFeedSection(section.value));
 const externalFeed = computed(() => resolveExternalFeed(section.value));
@@ -123,162 +98,7 @@ const pulseFeed = () => {
 };
 
 // ============================================
-// 印象面板数据层（自持缓存 / 取消 / 分页）
-// ============================================
-const IMPRESSIONS_PAGE_SIZE = 30;
-const USERSPACE_CACHE_TTL_IMPRESSIONS = 60 * 1000;
-
-const impressionsCache = createMemoryTtlCache();
-const profileImpressions = shallowRef([]);
-const impressionsLoading = ref(false);
-const impressionsHasMore = ref(false);
-const isLoadingMoreImpressions = ref(false);
-const impressionsPage = ref(1);
-let lastImpressionsFetchAt = 0;
-let impressionsFetchToken = 0;
-let impressionsAbortController = null;
-
-const alertState = reactive({ visible: false, type: 'info', title: '', message: '' });
-const showAlert = (type, title, message) => {
-  alertState.type = type;
-  alertState.title = title;
-  alertState.message = message;
-  alertState.visible = true;
-};
-
-const impressionsCacheKey = (userId) => `profile-impressions:${userId}`;
-
-const abortImpressions = () => {
-  if (impressionsAbortController) {
-    impressionsAbortController.abort();
-    impressionsAbortController = null;
-  }
-};
-
-const fetchImpressions = async ({ force = false, loadMore = false } = {}) => {
-  const userId = String(userInfo.value?.id || '').trim();
-  if (!isLoggedIn.value || !userId) {
-    profileImpressions.value = [];
-    impressionsHasMore.value = false;
-    return;
-  }
-
-  const cacheKey = impressionsCacheKey(userId);
-  const now = Date.now();
-
-  // 「加载更多」：追加下一页，不读缓存、不受节流限制
-  if (loadMore) {
-    if (isLoadingMoreImpressions.value || !impressionsHasMore.value) return;
-    const loadMoreToken = ++impressionsFetchToken;
-    abortImpressions();
-    impressionsAbortController = new AbortController();
-    const { signal } = impressionsAbortController;
-    isLoadingMoreImpressions.value = true;
-    try {
-      const nextPage = impressionsPage.value + 1;
-      const { data, error } = await getUserImpressions(userId, {
-        signal,
-        page: nextPage,
-        pageSize: IMPRESSIONS_PAGE_SIZE,
-      });
-      if (loadMoreToken !== impressionsFetchToken || signal.aborted) return;
-      if (error) {
-        logger.warn('forum-section-shell', '加载更多印象失败:', error);
-        return;
-      }
-      const rows = data || [];
-      impressionsPage.value = nextPage;
-      profileImpressions.value = [...profileImpressions.value, ...rows];
-      impressionsHasMore.value = rows.length >= IMPRESSIONS_PAGE_SIZE;
-    } catch (error) {
-      if (error.name !== 'AbortError')
-        logger.warn('forum-section-shell', '加载更多印象异常:', error);
-    } finally {
-      if (loadMoreToken === impressionsFetchToken) isLoadingMoreImpressions.value = false;
-    }
-    return;
-  }
-
-  // 5s 内重复进入不重复取数：先吃内存缓存（与改版前 lastFetchTime 节流同口径）
-  if (!force && now - lastImpressionsFetchAt < 5000) {
-    const cached = impressionsCache.get(cacheKey, USERSPACE_CACHE_TTL_IMPRESSIONS);
-    if (cached) {
-      profileImpressions.value = cached;
-      impressionsHasMore.value = cached.length >= IMPRESSIONS_PAGE_SIZE;
-      impressionsLoading.value = false;
-      return;
-    }
-  }
-
-  if (!force) {
-    const cached = impressionsCache.get(cacheKey, USERSPACE_CACHE_TTL_IMPRESSIONS);
-    if (cached) {
-      profileImpressions.value = cached;
-      impressionsHasMore.value = cached.length >= IMPRESSIONS_PAGE_SIZE;
-      impressionsLoading.value = false;
-      return;
-    }
-  }
-
-  const fetchToken = ++impressionsFetchToken;
-  abortImpressions();
-  impressionsAbortController = new AbortController();
-  const { signal } = impressionsAbortController;
-  impressionsLoading.value = true;
-  try {
-    const { data, error } = await getUserImpressions(userId, {
-      signal,
-      page: 1,
-      pageSize: IMPRESSIONS_PAGE_SIZE,
-    });
-    if (fetchToken !== impressionsFetchToken || signal.aborted) return;
-    if (error) {
-      logger.warn('forum-section-shell', '读取我的印象失败:', error);
-      profileImpressions.value = [];
-      return;
-    }
-    const rows = data || [];
-    profileImpressions.value = rows;
-    impressionsPage.value = 1;
-    impressionsHasMore.value = rows.length >= IMPRESSIONS_PAGE_SIZE;
-    impressionsCache.set(cacheKey, rows);
-    lastImpressionsFetchAt = now;
-  } catch (error) {
-    if (error.name === 'AbortError') return;
-    logger.warn('forum-section-shell', '读取我的印象异常:', error);
-    profileImpressions.value = [];
-  } finally {
-    if (fetchToken === impressionsFetchToken) impressionsLoading.value = false;
-  }
-};
-
-const loadMoreImpressions = () => {
-  void fetchImpressions({ loadMore: true });
-};
-
-const handleDeleteImpression = async (impressionId) => {
-  const userId = String(userInfo.value?.id || '').trim();
-  if (!userId) {
-    showAlert('error', '删除失败', '当前登录状态异常，请刷新后重试');
-    return;
-  }
-  try {
-    const { error } = await deleteUserImpression(impressionId, userId);
-    if (error) {
-      showAlert('error', '删除失败', error.message || '请稍后重试');
-      return;
-    }
-    profileImpressions.value = profileImpressions.value.filter((imp) => imp.id !== impressionId);
-    impressionsCache.set(impressionsCacheKey(userId), profileImpressions.value);
-    showAlert('success', '删除成功', '该印象已被移除');
-  } catch (error) {
-    logger.warn('forum-section-shell', '删除我的印象异常:', error);
-    showAlert('error', '删除失败', '网络错误');
-  }
-};
-
-// ============================================
-// 分区副作用（必须放在数据层之后：immediate 会立即求值）
+// 分区副作用
 // ============================================
 const selectSection = (next) => {
   const target = resolveForumSection(next);
@@ -290,7 +110,6 @@ watch(
   section,
   (next) => {
     if (next === 'official') officialVisited.value = true;
-    if (next === 'impressions') void fetchImpressions();
     if (isForumFeedSection(next)) pulseFeed();
     emit('section-change', next);
   },
@@ -307,7 +126,6 @@ const callForumView = (method) => {
 
 defineExpose({
   refreshEmbeddedScroll: () => forumViewRef.value?.refreshEmbeddedScroll?.(),
-  reloadImpressions: (options) => fetchImpressions(options),
   openComposer: () => callForumView('openComposer'),
   focusSearch: () => callForumView('focusSearch'),
   // closeComposer 是异步的（有改动内容时要先弹「保存草稿」确认），故单独转发
@@ -323,7 +141,6 @@ onBeforeUnmount(() => {
     clearTimeout(feedPulseTimer);
     feedPulseTimer = null;
   }
-  abortImpressions();
 });
 </script>
 
@@ -333,8 +150,7 @@ onBeforeUnmount(() => {
 }
 
 .forum-section-feed,
-.forum-section-official,
-.forum-section-impressions {
+.forum-section-official {
   width: 100%;
 }
 

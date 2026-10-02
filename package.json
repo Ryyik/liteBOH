@@ -15,7 +15,7 @@
     "build:full": "npm run build",
     "compress-images": "node scripts/compress-images.mjs",
     "preview": "vite preview",
-    "lint": "eslint . --max-warnings 187",
+    "lint": "eslint . --max-warnings 183",
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json",
     "check:views": "node scripts/check-view-collisions.mjs",
     "check:structure": "node scripts/check-project-structure.mjs",

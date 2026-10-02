@@ -18,9 +18,10 @@
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
 | **帖子详情弹窗 chunk 加载失败兜底**（部署窗口期旧入口 import 旧 chunk 404：错误态出现、不再无声空白、DEV 不强刷、正常路径内容完整渲染） | `probe-pd-modal-chunk-fail.mjs` | 12 |
 | 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 10 |
+| **移动端发帖选图反馈口径**（选图→发布保持安静、4s 卡顿观察器一次性提示、blob 首帧 / 无 lazy、徽章仅 failed；入口在首页 `/#/`，`/#/forum` 已被 IA 改版重定向） | `probe-composer-image-stall.mjs` | 6 |
 | **Cloud+ 图库竖屏顶栏 + 设置页玻璃**（工具行不折字/不溢出、页头不吸顶、底栏玻璃、卡片玻璃材质） | `probe-cloud-portrait.mjs` | 27 |
 | **Cloud+ 相册形态**（iOS 图库式密铺：去月份分组、多图铺开、捏合切列、宽屏铺满） | `probe-cloud-album.mjs` | 22 |
-| **BOH AI 输入区**（底行胶囊 / 三行面板 / 左右二级菜单 / 高级工具组）—— 独立页 + AI 岛两形态 | `probe-bohai-composer.mjs` | 14 |
+| **BOH AI 输入区**（底行胶囊 / 三行面板 / 左右二级菜单 / 高级工具组 / 用量圆钮单环+hover 浮层）—— 独立页 + AI 岛两形态 | `probe-bohai-composer.mjs` | 18 |
 | 活动页封面图 / 活动页报名区与月份轨道 | `probe-activities-images.mjs` / `probe-campaign-ui.mjs` | 7 / 35 |
 | 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 49 |
@@ -40,7 +41,7 @@
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
 | `probe-ai-panels.mjs` | `npm run probe:ai-panels` | probe-ai-panels.mjs — AI 页（/ai-chat）面板可用性探针 |
-| `probe-bohai-composer.mjs` | — | 探针：BOH AI 输入区（composer）新面板 —— 胶囊 / 三行面板 / 左右二级菜单 / 高级工具组；独立页 + AI 岛两形态。⚠️ 含反证说明：撤 `selectThinkingSpeed` 的 `closeComposerPanel` → A5 红；撤 `currentThinkingSpeed` 解构 → A5/A9/B5 红 |
+| `probe-bohai-composer.mjs` | — | 探针：BOH AI 输入区（composer）新面板 —— 胶囊 / 三行面板 / 左右二级菜单 / 高级工具组；独立页 + AI 岛两形态。⚠️ 含反证说明：撤 `selectThinkingSpeed` 的 `closeComposerPanel` → A5 红；撤 `currentThinkingSpeed` 解构 → A5/A9/B5 红；把内环 `<circle class="orb-quota">` 加回 SVG → A10 红（2026-10-02 实测）。A10-A13 锁用量圆钮单环 + hover 浮层（需先发一条消息，模型与 quota-status 被 mock，额度 88% 故意踩 warn 档） |
 | `probe-avatar-frame-console-demo.mjs` | — | 探针：头像框控制台方案 demo（avatar-frame-console-demo.html） |
 | `probe-avatar-frame-console.mjs` | — | 探针：头像框控制台（管理端）/admin/avatar-console + 用户侧积分解锁 |
 | `probe-avatar-frame-grant.mjs` | — | 探针：头像框「按人发放」 |
@@ -116,7 +117,8 @@
 | `probe-forum-ux-fixes.mjs` | — | 探针：论坛交互感知修复（5 项）+ 竖屏导航修复 |
 | `probe-forum-viewport.mjs` | — | 探针：论坛横竖屏单源判据 + 993/992 → 1024/1023 裂缝带修复 |
 | `probe-lab-composer-pill.mjs` | — | 探针：输入框参数列表框回归（思考五档列表框 / 样式集 8 套列表框 / 双向同步 / 外点关闭） |
-| `probe-mobile-composer.mjs` | — | 竖屏发帖器 UI 修复验证探针 |
+| `probe-mobile-composer.mjs` | — | 竖屏发帖器 UI 修复验证探针。⚠️ 2026-10-02 起**入口已过时**：`/#/forum` 被 IA 改版重定向到 `#/user-space?tab=posts`，需走首页 `/#/` 的 FAB（见 `probe-composer-image-stall.mjs` 的做法） |
+| `probe-composer-image-stall.mjs` | — | 移动端发帖「选图反馈口径」探针（2026-10-02）。锁：A1 blob 首帧 ≤1500ms、A2 网格 img 无 `loading=lazy`（P1）、A3 3s 内底部状态行安静、A5 徽章仅 failed（产品口径：不给常驻反馈）、A4 4s 卡顿观察器一次性提示。⚠️ 反证：加回 `loading="lazy"` → A2 红；`IMAGE_STALL_HINT_DELAY_MS` 调大 → A4 红（均实测）。⚠️ mock 手法：api-key-vault 断流要**延迟 6s 再 abort**——秒败会让图过早 failed settle，A4 永不触发（踩过）。⚠️ A4 与「全部快速 settle」互斥，大图（2000² 噪声 PNG）+ 云端延迟断流是稳定性前提 |
 | `probe-news-detail-route.mjs` | — | 探针：S4 新闻独立详情路由（/news/:id） |
 | `probe-official-avatar.mjs` | — | （无头部说明） |
 | `probe-official-card-images.mjs` | — | （无头部说明） |

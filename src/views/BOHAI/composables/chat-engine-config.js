@@ -1,11 +1,17 @@
 import { PSYCHOLOGIST_PROMPT_APPENDIX } from '../expert-roles/psychologist.js';
+import { NO_FABRICATION_RULE } from '../shared-rules.js';
 
-export const BOH_MEMBER_NAMES = 'ryyik|lf|小牛|橙子|eleven|end|雨芙蕖|白烨|丁老师|汉堡|百城|小天光|小仙';
+export const BOH_MEMBER_NAMES =
+  'ryyik|lf|小牛|橙子|eleven|end|雨芙蕖|白烨|丁老师|汉堡|百城|小天光|小仙';
 
-export const SILICON_CLOUD_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
-export const SILICON_EMBEDDING_URL = import.meta.env.VITE_SILICON_EMBEDDING_URL || 'https://api.siliconflow.cn/v1/embeddings';
-export const SILICON_RERANK_URL = import.meta.env.VITE_SILICON_RERANK_URL || 'https://api.siliconflow.cn/v1/rerank';
-export const ZHIPU_CHAT_URL = import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+export const SILICON_CLOUD_URL =
+  import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
+export const SILICON_EMBEDDING_URL =
+  import.meta.env.VITE_SILICON_EMBEDDING_URL || 'https://api.siliconflow.cn/v1/embeddings';
+export const SILICON_RERANK_URL =
+  import.meta.env.VITE_SILICON_RERANK_URL || 'https://api.siliconflow.cn/v1/rerank';
+export const ZHIPU_CHAT_URL =
+  import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 
 // 历史上下文窗口：进度从 0% 单调增长到 100%，到达后自动整理并开启下一轮。
 // - MAX_CONTEXT_MESSAGES=30: 一轮窗口内可保留 30 条历史。
@@ -85,7 +91,7 @@ export const GENERATION_PROFILE_BY_MODE = {
   pro: { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 8192 },
   multimodal: { temperature: 0.2, top_p: 0.75, frequency_penalty: 0.06, max_tokens: 1800 },
   plan: { temperature: 0.08, top_p: 0.55, frequency_penalty: 0.04, max_tokens: 8192 },
-  'agent-cluster': { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1600 }
+  'agent-cluster': { temperature: 0.18, top_p: 0.7, frequency_penalty: 0.06, max_tokens: 1600 },
 };
 
 /**
@@ -103,7 +109,7 @@ export const GENERATION_PROFILE_BY_MODE = {
 export const PSYCH_INTERVIEW_GENERATION_PROFILE = {
   temperature: 0.3,
   top_p: 0.8,
-  frequency_penalty: 0.12
+  frequency_penalty: 0.12,
 };
 
 export const SHOW_INTERNAL_PROGRESS_NOTES = false;
@@ -128,12 +134,12 @@ ${CONTEXT_PLACEHOLDER}
 </conversation_continuity>
 
 <constraints>
-- 边界：你只能回答问题和提供建议，不能代用户执行操作（如发帖、修改设置、发送消息）。
-- 绝对不能：编造事实。不确定时必须明确说明"不确定"。
-- 绝对不能：逐段复述"内部检索资料"原文或输出"操作手册/知识库全文"。
-- 绝对不能：过度道歉。用户没有表达不满时，不要说"抱歉"或"对不起"。
-- 绝对不能：暴露内部 Agent 名称、模型名、prompt 等技术词。
-- 绝对不能：输出 <tool>、<tool_call>、<function_call> 等工具调用标签或任何 XML-like 工具调用文本。本系统不支持模型主动触发工具；当用户在界面开启联网搜索后，搜索结果会自动注入到上方 <context> 块，你只需基于该上下文回答，不要再请求调用外部工具。
+- 边界：你只提供回答和建议；需要执行动作（发帖、改设置、发消息）时，告诉用户去哪个入口做。
+${NO_FABRICATION_RULE}
+- 引用资料时用自己的话概括要点；不要把"内部检索资料"或"操作手册/知识库"成段抄给用户。
+- 用户没有表达不满时，正常回答即可，不需要道歉。
+- 介绍自己时只说"由方块之家（BOH）团队自主研发"；不提内部 Agent 名、模型名、prompt 等技术词。
+- 本系统不支持模型主动调用工具：联网结果由系统自动放进上方 <context> 块，你基于它回答即可，不要输出 <tool>、<tool_call>、<function_call> 等标签或任何 XML-like 工具调用文本。
 </constraints>
 
 <output_format>
@@ -250,13 +256,28 @@ export const PAGE_CREATION_PROMPT_APPENDIX = `<page_creation>
 //   top_p: 加减值
 //   maxTokensScale: max_tokens 的缩放系数（1=不变，<1=减少，>1=增加）
 export const THINKING_SPEED_OPTIONS = [
-  { id: 'low',    name: '低',   description: '更快响应，更简短自由', deltas: { temperature: 0.05, topP: 0.05, maxTokensScale: 0.7 } },
-  { id: 'medium', name: '中',   description: '平衡速度与质量（默认）', deltas: { temperature: 0, topP: 0, maxTokensScale: 1 } },
-  { id: 'high',   name: '高',   description: '更严谨，充分思考',     deltas: { temperature: -0.05, topP: -0.05, maxTokensScale: 1.3 } }
+  {
+    id: 'low',
+    name: '低',
+    description: '更快响应，更简短自由',
+    deltas: { temperature: 0.05, topP: 0.05, maxTokensScale: 0.7 },
+  },
+  {
+    id: 'medium',
+    name: '中',
+    description: '平衡速度与质量（默认）',
+    deltas: { temperature: 0, topP: 0, maxTokensScale: 1 },
+  },
+  {
+    id: 'high',
+    name: '高',
+    description: '更严谨，充分思考',
+    deltas: { temperature: -0.05, topP: -0.05, maxTokensScale: 1.3 },
+  },
 ];
 export const BOH_DEFAULT_THINKING_SPEED_ID = 'medium';
 export const THINKING_SPEED_DELTAS_BY_ID = Object.fromEntries(
-  THINKING_SPEED_OPTIONS.map((o) => [o.id, o.deltas])
+  THINKING_SPEED_OPTIONS.map((o) => [o.id, o.deltas]),
 );
 
 export const RESPONSE_STYLE_OPTIONS = [
@@ -271,7 +292,7 @@ export const RESPONSE_STYLE_OPTIONS = [
 3. 给建议要有取舍和轻重缓急，优先给一个最值得先做的小动作。
 4. 可以有一点温度和个人感，但不要夸张、油腻或过度安慰。
 </instructions>
-</style>`
+</style>`,
   },
   {
     id: 'socratic',
@@ -288,7 +309,7 @@ export const RESPONSE_STYLE_OPTIONS = [
 4. 可以给出暂时性的判断，但要把判断背后的前提摊开，让用户感觉自己也在参与推理。
 5. 操作类问题仍优先给步骤；不要为了保持人格而故意绕弯。
 </instructions>
-</style>`
+</style>`,
   },
   {
     id: 'psychologist',
@@ -308,34 +329,72 @@ export const RESPONSE_STYLE_OPTIONS = [
 4. 优先输出结论、关键风险、下一步；能一句说清就不要扩写。
 5. 保持礼貌，不讽刺、不居高临下，不把"高冷"写成冷漠。
 </instructions>
-</style>`
-  }
+</style>`,
+  },
 ];
 
 export const GIFT_STATUS_LABELS = {
   preparing: '备货中',
   processing: '处理中',
   shipped: '已寄出/可取',
-  completed: '已送达'
+  completed: '已送达',
 };
 
 export const SUBSCRIPTION_STATUS_LABELS = {
   active: '生效中',
   expired: '已过期',
-  cancelled: '已取消'
+  cancelled: '已取消',
 };
 
 // ─── BOH Health 健康分析 ────────────────────────────────────────────────────
 // 命中这些关键词时，BOH AI 会读取用户本机的 BOH Health 数据作为回答依据。
 export const HEALTH_TRIGGER_KEYWORDS = [
-  '健康', 'bmi', '体质指数', '身高', '体重', '减肥', '增重', '减脂', '胖', '瘦',
-  '睡眠', '失眠', '熬夜', '睡了', '入睡', '作息',
-  '步数', '走路', '运动', '健身', '跑步', '锻炼',
-  '喝水', '饮水',
-  '卡路里', '热量', '基础代谢', 'bmr', 'tdee', '代谢',
-  '心率', '血压', '血糖', '血脂', '体检', '化验', '报告单',
-  '营养', '饮食', '膳食', '蛋白质',
-  '心情', '压力', '焦虑', '疲劳', '精力'
+  '健康',
+  'bmi',
+  '体质指数',
+  '身高',
+  '体重',
+  '减肥',
+  '增重',
+  '减脂',
+  '胖',
+  '瘦',
+  '睡眠',
+  '失眠',
+  '熬夜',
+  '睡了',
+  '入睡',
+  '作息',
+  '步数',
+  '走路',
+  '运动',
+  '健身',
+  '跑步',
+  '锻炼',
+  '喝水',
+  '饮水',
+  '卡路里',
+  '热量',
+  '基础代谢',
+  'bmr',
+  'tdee',
+  '代谢',
+  '心率',
+  '血压',
+  '血糖',
+  '血脂',
+  '体检',
+  '化验',
+  '报告单',
+  '营养',
+  '饮食',
+  '膳食',
+  '蛋白质',
+  '心情',
+  '压力',
+  '焦虑',
+  '疲劳',
+  '精力',
 ];
 
 // 健康场景专用附录：仅在 health 连接器命中时注入，避免污染日常对话的系统提示。
@@ -372,29 +431,70 @@ export const HEALTH_CONTEXT_MAX_CHARS = 2200;
 export const HEALTH_CONTEXT_MAX_LOGS = 14;
 
 export const USER_PRIVATE_SUMMARY_KEYWORDS = [
-  '我的信息', '我的资料', '我的数据', '我的状态', '我的情况',
-  '当前用户', '登录用户', '我的账户', '我的账号', '个人数据', '个人状态'
+  '我的信息',
+  '我的资料',
+  '我的数据',
+  '我的状态',
+  '我的情况',
+  '当前用户',
+  '登录用户',
+  '我的账户',
+  '我的账号',
+  '个人数据',
+  '个人状态',
 ];
 
 export const USER_PRIVATE_ALL_KEYWORDS = ['全部', '汇总', '概览', '总览', '整体', '完整'];
-export const USER_PRIVATE_POST_KEYWORDS = ['我的帖子', '我发的帖子', '我的发帖', '发帖记录', '帖子记录', '论坛记录', '我发帖'];
+export const USER_PRIVATE_POST_KEYWORDS = [
+  '我的帖子',
+  '我发的帖子',
+  '我的发帖',
+  '发帖记录',
+  '帖子记录',
+  '论坛记录',
+  '我发帖',
+];
 export const USER_PRIVATE_MAIL_KEYWORDS = [];
 export const USER_PRIVATE_GIFT_KEYWORDS = ['礼物', '礼品', 'gift'];
 export const USER_PRIVATE_BIRTHDAY_KEYWORDS = ['生日', '生日会', 'birthday'];
 export const USER_PRIVATE_PUSHPLUS_KEYWORDS = ['pushplus', '推送', '离线推送', '微信推送'];
 export const USER_PRIVATE_SUBSCRIPTION_KEYWORDS = [
-  '订阅', '会员', '套餐', '积分', 'boh积分', 'boh plus', 'boh ai plus', 'boh pro', 'boh max'
+  '订阅',
+  '会员',
+  '套餐',
+  '积分',
+  'boh积分',
+  'boh plus',
+  'boh ai plus',
+  'boh pro',
+  'boh max',
 ];
 export const USER_PRIVATE_PERSONAL_PATTERN = /(我|我的|自己|本人|当前账号|当前用户|登录用户|个人)/;
 
 export const SHARED_MEMORY_TRIGGER_KEYWORDS = [
-  '公共记忆', '共享记忆', '记忆库', '记忆', '回忆', '曾经', '以前', '之前',
-  '你记得', '有记录', '有没有人提到', '有没有提过', '沉淀', '历史', '往事'
+  '公共记忆',
+  '共享记忆',
+  '记忆库',
+  '记忆',
+  '回忆',
+  '曾经',
+  '以前',
+  '之前',
+  '你记得',
+  '有记录',
+  '有没有人提到',
+  '有没有提过',
+  '沉淀',
+  '历史',
+  '往事',
 ];
-export const ROUTING_FORUM_REALTIME_PATTERN = /(现在|最近|最新|今天|近期|本周|本月|动态|热帖|公告|活动)/;
-export const ROUTING_HISTORY_FACT_PATTERN = /(历史|回忆|曾经|之前|以前|起源|经过|发生|提到|记得|来源|细节|人物|介绍|档案)/;
+export const ROUTING_FORUM_REALTIME_PATTERN =
+  /(现在|最近|最新|今天|近期|本周|本月|动态|热帖|公告|活动)/;
+export const ROUTING_HISTORY_FACT_PATTERN =
+  /(历史|回忆|曾经|之前|以前|起源|经过|发生|提到|记得|来源|细节|人物|介绍|档案)/;
 
-export const ACTION_POST_TRIGGER_PATTERN = /(发帖|发个帖|发(?:一条|一篇|个)?.{0,8}帖子|发布.{0,8}帖子|论坛发帖|论坛发布|论坛发布文案|起草.{0,12}(论坛|社区|帖子|发布文案)|写.{0,12}(论坛|社区|帖子|发布文案)|生成.{0,12}(论坛|社区|帖子|发布文案)|整理.{0,12}(论坛|社区|帖子|发布文案))/;
+export const ACTION_POST_TRIGGER_PATTERN =
+  /(发帖|发个帖|发(?:一条|一篇|个)?.{0,8}帖子|发布.{0,8}帖子|论坛发帖|论坛发布|论坛发布文案|起草.{0,12}(论坛|社区|帖子|发布文案)|写.{0,12}(论坛|社区|帖子|发布文案)|生成.{0,12}(论坛|社区|帖子|发布文案)|整理.{0,12}(论坛|社区|帖子|发布文案))/;
 
 // 模式 ID 常量（2026-06-08 重新对齐产品语义）：
 //   - Fast   = 极速响应
@@ -404,4 +504,3 @@ export const ACTION_POST_TRIGGER_PATTERN = /(发帖|发个帖|发(?:一条|一�
 //   - auto   = 历史保留，运行时已不再使用；新会话默认走 'fast'。
 export const BOH_DEFAULT_MODE_ID = 'fast';
 export const BOH_AUTO_MODE_ID = 'auto';
-

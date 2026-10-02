@@ -189,11 +189,8 @@ const forumWeeklyReport = ref(null);
 const isWeeklyReportLoading = ref(false);
 const isWeeklyReportOpen = ref(false);
 const forumPageRef = ref(null);
-const {
-  clearForumImageModerationPreloadTask,
-  scheduleForumImageModerationPreload,
-  getForumImageModerationPreloadPromise,
-} = useForumImageModerationPreload(preloadForumImageModeration);
+const { clearForumImageModerationPreloadTask, scheduleForumImageModerationPreload } =
+  useForumImageModerationPreload(preloadForumImageModeration);
 
 // 批量预取帖子作者的订阅等级：把原先 PostCard 挂载时各自发起的单发
 // get_user_subscription_tier RPC 合并为一次 get_user_subscription_tiers 批量请求。
@@ -1768,36 +1765,42 @@ const updatePendingPostImage = (uploadId, patch = {}) => {
   return next;
 };
 
-// P0-③：模型预热提示（一次性、非阻塞）。schedule 时刻即创建 promise（idle 回调最晚 2s
-// 才真正开始跑），800ms 到点时预热仍未 settle → 写一次性提示；settle 后若文案没被
-// 更具体的进度（优化中/检测中/上传中）覆盖，则清掉。云端审核可达时本地模型只是兜底件，
-// 该提示只解释「首次选图后的短暂安静期」，不承诺任何审核行为。
-const MODERATION_PREPARE_HINT = '正在准备图片处理组件，首次选图稍慢…';
-let moderationPreloadHintTimer = null;
-let moderationPreloadHintShown = false;
-const clearModerationPreloadHintTimer = () => {
-  if (moderationPreloadHintTimer) {
-    clearTimeout(moderationPreloadHintTimer);
-    moderationPreloadHintTimer = null;
+// 产品口径（2026-10-02 拍板）：选图→发布之间保持安静，不给常驻过程反馈（状态徽章/进度
+// 文案均不做）；只有「卡顿」才给一次性提示 —— 选图后 4s，本批图就绪（approved/failed）
+// 的不足一半时，视为管线卡住（云端审核不可达 / 网络差 / 模型首次初始化），写一次底部提示，
+// 编辑器内全部图 settle 后自动清除。发布路径会等待剩余图（processPublishImagesForQueue），
+// 文案承诺的「发布时自动等待」属实。
+const IMAGE_STALL_HINT = '图片正在后台处理，可先编辑文字，发布时会自动等待';
+const IMAGE_STALL_HINT_DELAY_MS = 4000;
+let imageStallTimer = null;
+const clearImageStallWatch = () => {
+  if (imageStallTimer) {
+    clearTimeout(imageStallTimer);
+    imageStallTimer = null;
   }
 };
-const scheduleModerationPreloadHint = () => {
-  if (moderationPreloadHintShown) return;
-  clearModerationPreloadHintTimer();
-  moderationPreloadHintTimer = setTimeout(() => {
-    moderationPreloadHintTimer = null;
-    const pendingPreload = getForumImageModerationPreloadPromise();
-    if (!pendingPreload || moderationPreloadHintShown) return;
-    moderationPreloadHintShown = true;
-    if (!postImageUploadStatus.value) {
-      postImageUploadStatus.value = MODERATION_PREPARE_HINT;
-    }
-    pendingPreload.then(() => {
-      if (postImageUploadStatus.value === MODERATION_PREPARE_HINT) {
-        postImageUploadStatus.value = '';
-      }
-    });
-  }, 800);
+const maybeSettleStallHint = () => {
+  if (postImageUploadStatus.value !== IMAGE_STALL_HINT) return;
+  const hasPending = postImages.value.some(
+    (x) => !['approved', 'failed'].includes(String(x?.uploadStatus || '')),
+  );
+  if (!hasPending) postImageUploadStatus.value = '';
+};
+const scheduleImageStallWatch = (batchImages) => {
+  clearImageStallWatch();
+  let hintShownThisBatch = false;
+  imageStallTimer = setTimeout(() => {
+    imageStallTimer = null;
+    if (hintShownThisBatch || !batchImages.length) return;
+    const total = batchImages.length;
+    const settledCount = batchImages.filter((img) => {
+      const cur = postImages.value.find((x) => x.uploadId === img.uploadId);
+      return cur && ['approved', 'failed'].includes(String(cur.uploadStatus || ''));
+    }).length;
+    if (settledCount * 2 >= total) return;
+    hintShownThisBatch = true;
+    postImageUploadStatus.value = IMAGE_STALL_HINT;
+  }, IMAGE_STALL_HINT_DELAY_MS);
 };
 
 const handlePostImageSelection = async (payload) => {
@@ -1853,10 +1856,10 @@ const handlePostImageSelection = async (payload) => {
   await nextTick();
   // 模型预载与压缩并行（幂等），避免第一张图检测时阻塞等待 NSFW 模型 CDN 下载
   scheduleForumImageModerationPreload({ immediate: true });
-  scheduleModerationPreloadHint();
   // D2：预热推迟 300ms 启动，躲开相册关闭动画与主线程峰值；批次内过滤已移除的图
   if (draftPipelineDebounceTimer) clearTimeout(draftPipelineDebounceTimer);
   const batchImages = pendingImages;
+  scheduleImageStallWatch(batchImages);
   draftPipelineDebounceTimer = setTimeout(() => {
     draftPipelineDebounceTimer = null;
     batchImages.forEach((img, idx) => {
@@ -1962,11 +1965,11 @@ const scheduleDraftImagePipeline = (img, index, total) => {
       if (entry.cancelled)
         throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
       entry.state = 'preparing';
-      // P0（2026-10-02 报障修复）：不再 quiet。此前预热阶段不向编辑器写「优化中/待审核」等
-      // 中间状态（设计意图：图片上不显示加载态），但灵动岛只在发布中出现 ⇒ 选图到发布之间
-      // 全程零反馈。现在压缩段由 prepareForumImageForUpload 写「优化中/压缩中」状态与底部文案。
+      // quiet（产品口径 2026-10-02 拍板）：预热阶段不向编辑器写「优化中/压缩中」中间状态，
+      // 选图→发布之间保持安静；慢/卡场景由 scheduleImageStallWatch 给一次性底部提示。
       const prepared = await prepareForumImageForUpload(file, index, total, uploadId, {
         signal: entry.signal,
+        quiet: true,
         onProgress: (p) => {
           entry.progress = Math.min(0.35, Math.max(0, Number(p || 0) / 100) * 0.35);
         },
@@ -1983,13 +1986,6 @@ const scheduleDraftImagePipeline = (img, index, total) => {
     if (entry.cancelled) throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
     try {
       entry.file = await compressionPromise;
-      // P0：检测段提示。检测挂在全局串行链上（防移动端 GPU 并发崩溃），前面有图时本张要排队，
-      // 先给「检测中」反馈再进入等待。
-      updatePendingPostImage(uploadId, {
-        uploadStatus: 'moderating',
-        uploadStatusLabel: '安全检测中',
-      });
-      postImageUploadStatus.value = `正在检测第 ${index + 1}/${total} 张图片…`;
       entry.moderation = await moderateForumImage(entry.file);
       if (entry.moderation?.status !== 'approved') {
         const err = new Error(entry.moderation?.reason || '图片未通过安全检测');
@@ -2006,6 +2002,7 @@ const scheduleDraftImagePipeline = (img, index, total) => {
           uploadStatusLabel: '处理失败',
           uploadError: error?.message || '图片处理失败',
         });
+        maybeSettleStallHint();
       }
       throw error;
     }
@@ -2015,24 +2012,10 @@ const scheduleDraftImagePipeline = (img, index, total) => {
   // 阶段二：上传进入全局并发队列（仅网络层并发），不占串行链，不阻塞下一张的压缩/检测
   entry.promise = preparePromise.then(async () => {
     if (entry.cancelled) return entry;
-    // P0：上传段提示 + 百分比徽章。onProgress 高频回调按 10% 步进节流写入，
-    // 避免每次都 copy 整个 postImages 数组触发网格重渲染。
-    updatePendingPostImage(uploadId, {
-      uploadStatus: 'uploading',
-      uploadStatusLabel: '上传中',
-      uploadProgress: 0,
-    });
-    postImageUploadStatus.value = `正在上传第 ${index + 1}/${total} 张图片…`;
-    let lastReportedUploadProgress = 0;
     const uploadPromise = uploadApprovedForumImageQueued(entry.file, entry.moderation, {
       signal: entry.signal,
       onProgress: (p) => {
-        const normalized = Math.min(1, Math.max(0, Number(p || 0) / 100));
-        entry.progress = 0.5 + normalized * 0.5;
-        if (normalized - lastReportedUploadProgress >= 0.1 || normalized >= 1) {
-          lastReportedUploadProgress = normalized;
-          updatePendingPostImage(uploadId, { uploadProgress: normalized });
-        }
+        entry.progress = 0.5 + Math.min(1, Math.max(0, Number(p || 0) / 100)) * 0.5;
       },
     });
     entry.uploadPromise = uploadPromise;
@@ -2048,12 +2031,19 @@ const scheduleDraftImagePipeline = (img, index, total) => {
       }
       entry.state = 'done';
       entry.data = result.data;
+      // P1（不闪白）：url 保留 blob 本地预览，远端地址写 uploadedUrl。此前上传完成会把
+      // url 从 blob 覆盖成 Cloudinary 远端地址 ⇒ 移动网络下这张已显示的图要重新下载，
+      // 表现为闪白/回退。远端 url 在发布快照处归一（handlePost 的 snapshotImages：
+      // url = uploadedUrl || url），乐观卡与灵动岛缩略图仍优先 localPreviewUrl，均不受影响。
+      const { url: uploadedUrl, ...uploadedRest } = result.data;
       updatePendingPostImage(uploadId, {
-        ...result.data,
+        ...uploadedRest,
+        uploadedUrl,
         uploadStatus: 'approved',
         uploadStatusLabel: '已就绪',
         file: entry.file,
       });
+      maybeSettleStallHint();
     } catch (error) {
       if (!entry.cancelled) {
         entry.state = 'failed';
@@ -2063,6 +2053,7 @@ const scheduleDraftImagePipeline = (img, index, total) => {
           uploadStatusLabel: '上传失败',
           uploadError: error?.message || '图片上传失败',
         });
+        maybeSettleStallHint();
       }
     }
     return entry;
@@ -2156,6 +2147,9 @@ const removePostImage = async (image, index) => {
   revokePostImagePreview(image);
   const nextImages = postImages.value.filter((_, itemIndex) => itemIndex !== index);
   postImages.value = normalizePostImageSortState(nextImages);
+  // 移除图片后批次构成已变：停掉卡顿观察器，不再对剩余图做本批提示（剩余图仍会正常管线）
+  clearImageStallWatch();
+  if (postImageUploadStatus.value === IMAGE_STALL_HINT) postImageUploadStatus.value = '';
   // 正在上传中的预热让其自然完成并登记 pending（云端兜底清理），不再走云端删除避免竞态
   if (pipeline?.cleanupPending) return;
   await cleanupUploadedForumImage(image, { silent: false });
@@ -2212,6 +2206,7 @@ const clearPostImages = ({ cleanup = false, silent = true } = {}) => {
   images.forEach(revokePostImagePreview);
   postImages.value = [];
   postImageUploadStatus.value = '';
+  clearImageStallWatch();
   if (cleanup && images.length) {
     // 正在上传中的预热让其自然完成并登记 pending（云端兜底清理），不再走云端删除避免竞态
     void Promise.allSettled(
@@ -2499,6 +2494,7 @@ onUnmounted(() => {
   anniversaryObserver = null;
   themeManager.removeListener(handleThemeChange);
   clearForumImageModerationPreloadTask();
+  clearImageStallWatch();
   // ✨ 移除：clearAutoSaveDraftTimer()调用（函数已不存在）
   // clearAutoSaveDraftTimer();
   forumFetchAbortController?.abort?.();
@@ -3549,6 +3545,10 @@ const handlePost = async () => {
     // 保留 File 与本地预览，队列将接管上传
     file: img.file || null,
     localPreviewUrl: img.localPreviewUrl || img.url || '',
+    // P1（不闪白）配套：预热管线完成后 url 仍是 blob（远端在 uploadedUrl），快照在此归一，
+    // 否则 allApproved 分支会把 blob: 地址直接交给 createPost 落库。
+    // 未上传完成的图 uploadedUrl 为空 → 保持原 url（blob），由队列 replaceUploadedImage 覆盖为远端。
+    url: img.uploadedUrl || img.url || '',
     uploadStatus: img.uploadStatus || (img.file ? 'staged' : 'approved'),
     sortOrder: idx,
   }));

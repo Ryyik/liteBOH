@@ -54,6 +54,7 @@ import { buildReplyDraft } from '@/utils/forum-helpers.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { isFollowing, followUser, unfollowUser } from '../../utils/api/profile-api.js';
 import { isNarrowDetailViewport, onNarrowDetailChange } from '@/utils/forum-viewport.js';
+import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -118,7 +119,12 @@ const detailImageIndex = ref(0);
 // 弹窗模式（小红书式布局）：作者关注态 + 底部操作栏输入框引用
 const isFollowingAuthor = ref(false);
 const isFollowSubmitting = ref(false);
-const modalReplyField = ref(null);
+// 底部评论输入框（弹窗形态与整页 fixed 底栏共用同一个 ref：两者互斥，同时只有一个在 DOM 里）。
+// 2026-10-01：由单行 `<input>` 改为自动增高 `<textarea>` —— 详情页是全站唯一还能写多行
+// 评论的地方，单行框会把换行吃掉。高度真源 = CSS 的 max-height，见 modal-layout.css。
+const { textareaRef: modalReplyField, resetHeight: resetReplyFieldHeight } = useAutoGrowTextarea({
+  value: replyContent,
+});
 const detailPageRoot = ref(null);
 // 窄屏（≤1024）：竖屏 Threads 式排版（身份条/媒体贴边/底栏横排）
 const isNarrowDetail = ref(isNarrowDetailViewport());
@@ -566,11 +572,21 @@ const handleModalCommentClick = () => {
   focusModalReply();
 };
 
-// 底栏输入框回车提交（IME 组合中的回车不触发）
+// 底栏输入框回车提交（IME 组合中的回车不触发；Shift+Enter 换行）
+// 输入框 2026-10-01 起是多行 textarea，所以「Enter = 发送」这条约定必须由这里兜住：
+// 不拦的话浏览器默认行为是在框内插一个换行，用户以为发出去了其实没发。
 const onModalReplyEnter = (event) => {
   if (event?.isComposing) return;
+  if (event?.shiftKey) return;
   event?.preventDefault?.();
   submitReply();
+};
+
+// 输入完成自动收回：内容已被清空（发送成功 / 取消回复）时把高度还原成单行。
+// 有内容时不收 —— 把用户刚写完的多行文字藏起来是坏行为。
+const handleReplyFieldBlur = () => {
+  if (String(replyContent.value || '').trim()) return;
+  resetReplyFieldHeight();
 };
 
 const emitProfileSync = ({ userId, username, reason }) => {
@@ -2504,18 +2520,20 @@ const handleChangeCommentSortMode = async (mode) => {
             </div>
 
             <div class="pd-actionbar">
-              <input
+              <textarea
                 v-if="isLoggedIn"
                 ref="modalReplyField"
                 v-model="replyContent"
-                type="text"
+                rows="1"
                 class="pd-reply-input"
-                :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'"
+                :placeholder="replyToUser ? `回复 @${replyToUser}` : '说点什么'"
                 maxlength="2000"
                 enterkeyhint="send"
+                autocapitalize="off"
                 @focus="focusModalReply"
                 @keydown.enter="onModalReplyEnter"
-              />
+                @blur="handleReplyFieldBlur"
+              ></textarea>
               <button
                 v-else
                 type="button"
@@ -2884,18 +2902,20 @@ const handleChangeCommentSortMode = async (mode) => {
 
     <!-- 整页模式底部固定操作栏（Threads/小红书式）：输入 + 点赞/评论/分享，卡内动作栏已移除 -->
     <div v-if="!modalMode && post" class="pd-actionbar pd-actionbar--page">
-      <input
+      <textarea
         v-if="isLoggedIn"
         ref="modalReplyField"
         v-model="replyContent"
-        type="text"
+        rows="1"
         class="pd-reply-input"
-        :placeholder="replyToUser ? `回复 @${replyToUser}...` : '说点什么...'"
+        :placeholder="replyToUser ? `回复 @${replyToUser}` : '说点什么'"
         maxlength="2000"
         enterkeyhint="send"
+        autocapitalize="off"
         @focus="focusModalReply"
         @keydown.enter="onModalReplyEnter"
-      />
+        @blur="handleReplyFieldBlur"
+      ></textarea>
       <button
         v-else
         type="button"

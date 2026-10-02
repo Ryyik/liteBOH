@@ -1,160 +1,215 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  EMPTY_AUTO_DECISION,
+  LRUCache,
+  ROUTING_PATTERNS,
+  buildTextFingerprint,
+  clearRouteDecisionCache,
+  isLikelyCloudReferenceRequest,
   isLikelyCodeOrCommandRequest,
-  isLikelyBohInternalFactualRequest,
   isLikelyCommunityMemoryShare,
   isLikelyDailySummaryRequest,
-  isLikelyPlanModeRequest,
-  isLikelyMinecraftCommandRequest,
   isLikelyPersonalSupportRequest,
-  isLikelyWebSearchRequest,
-  resolveBOHAIAutoModeDecision
+  resolveBOHAIAutoModeDecision,
 } from '../../src/views/BOHAI/engine/bohai-auto-router.js';
 
-describe('bohai auto router: mode routing', () => {
-  it('routes code and command requests to pro mode', () => {
-    const decision = resolveBOHAIAutoModeDecision('帮我写一段 Vue 组件代码，并解释这个 bug', {
-      isAutoMode: true
-    });
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-10-02 收口：本文件原先覆盖 23 类意图正则与 19 个决策字段。
+// auto 模式 2026-06-08 移除后，其中 9 类正则的产物没有任何消费方，
+// 相关断言连同代码一并删除（依据见 plans/024 §1.4）。
+//
+// 下面保留的是「追到了真实消费方」的部分。**改动前请先确认消费方链还在。**
+// ─────────────────────────────────────────────────────────────────────────────
 
-    expect(isLikelyCodeOrCommandRequest('生成 /give @p diamond_sword 的 MC 指令')).toBe(true);
-    expect(isLikelyMinecraftCommandRequest('生成 /give @p diamond_sword 的 MC 指令')).toBe(true);
-    expect(decision.modeId).toBe('pro');
-    expect(decision.codeOrCommand).toBe(true);
-    expect(decision.actionNotes).toContain('切换到专业模式处理代码或指令。');
+const LIVE_DECISION_KEYS = [
+  'shouldSaveCloud',
+  'shouldSaveSharedMemory',
+  'shouldAskMemoryDestination',
+  'saveDestination',
+  'shouldReferenceCloud',
+];
+
+describe('bohai auto router: 决策字段收敛', () => {
+  beforeEach(() => {
+    clearRouteDecisionCache();
   });
 
-  it('routes daily summary requests to pro mode and asks for Cloud+ when needed', () => {
-    const decision = resolveBOHAIAutoModeDecision('总结一下我的最近日常', {
-      isAutoMode: true,
-      isLoggedIn: true,
-      cloudReferenceEnabled: false
-    });
-
-    expect(isLikelyDailySummaryRequest('帮我复盘我的近期生活状态')).toBe(true);
-    // 新设计: 日常总结路由到 pro(由 Pro 内部判 Qwen/DeepSeek)
-    expect(decision.modeId).toBe('pro');
-    expect(decision.forceCloudReference).toBe(true);
-    expect(decision.actionNotes).toContain('需要先确认是否允许参考你的 BOH Cloud+。');
+  it('决策对象只含 5 个有消费方的字段', () => {
+    const decision = resolveBOHAIAutoModeDecision('记一下今天的想法', { isAutoMode: true });
+    expect(Object.keys(decision).sort()).toEqual([...LIVE_DECISION_KEYS].sort());
   });
 
-  it('routes complex design questions to pro mode', () => {
-    const decision = resolveBOHAIAutoModeDecision('根据我的思路设计方案并给出优化建议，要考虑产品体验和技术落地', {
-      isAutoMode: true
-    });
-
-    // 新设计: 复杂问题直接路由到 pro
-    expect(decision.modeId).toBe('pro');
-    expect(decision.complexQuestion).toBe(true);
+  it('EMPTY_AUTO_DECISION 是冻结的，且形状与实时决策一致', () => {
+    expect(Object.isFrozen(EMPTY_AUTO_DECISION)).toBe(true);
+    expect(Object.keys(EMPTY_AUTO_DECISION).sort()).toEqual([...LIVE_DECISION_KEYS].sort());
+    const empty = resolveBOHAIAutoModeDecision('', { isAutoMode: true });
+    expect(empty).toBe(EMPTY_AUTO_DECISION);
   });
 
-  it('detects Plan-mode requests but does NOT let AUTO route to plan', () => {
-    const decision = resolveBOHAIAutoModeDecision('帮我制定一个三阶段推进计划，并持续跟进风险和下一步行动', {
-      isAutoMode: true
-    });
-
-    // isLikelyPlanModeRequest 仍能识别规划意图(供其他模块使用)
-    expect(isLikelyPlanModeRequest('这个项目请一步步推进，先计划再执行')).toBe(true);
-    // 新设计: AUTO 严格不越权切到 plan,规划意图下放到 Pro(由 Pro 内部决定是否升级到 DeepSeek)
-    expect(decision.modeId).toBe('pro');
-    expect(decision.planMode).toBe(true);
-    // 旧的 "切换到 Plan 模式分步推进。" 文案不再适用,改用 "已识别为规划型问题" 之类提示
-    expect(decision.actionNotes).toContain('检测到规划意图；如需完整 Plan 模式请从顶部下拉框选择。');
-  });
-
-  it('routes BOH internal factual questions to pro mode', () => {
-    const decision = resolveBOHAIAutoModeDecision('BOH Cloud+ 是什么，入口在哪里？', {
-      isAutoMode: true
-    });
-
-    expect(isLikelyBohInternalFactualRequest('方块之家最近有什么公告')).toBe(true);
-    // 新设计: 内部资料查询路由到 pro
-    expect(decision.modeId).toBe('pro');
-    expect(decision.bohInternalFactual).toBe(true);
-  });
-
-  it('detects cloud save and shared save intents', () => {
-    const cloudDecision = resolveBOHAIAutoModeDecision('帮我把这段话保存到 Cloud+ 里，记一下今天的想法', {
-      isAutoMode: true
-    });
-    const sharedDecision = resolveBOHAIAutoModeDecision('把这条活动记录写入公共记忆库', {
-      isAutoMode: true
-    });
-
-    expect(cloudDecision.shouldSaveCloud).toBe(true);
-    expect(cloudDecision.saveDestination).toBe('cloud');
-    expect(sharedDecision.shouldSaveSharedMemory).toBe(true);
-    expect(sharedDecision.saveDestination).toBe('shared');
-    expect(sharedDecision.shouldAskMemoryDestination).toBe(false);
-  });
-
-  it('lets Auto decide when web search is needed', () => {
-    const latestDecision = resolveBOHAIAutoModeDecision('OpenAI 最新发布的模型是什么？请联网查一下官网', {
-      isAutoMode: true
-    });
-    const internalDecision = resolveBOHAIAutoModeDecision('方块之家最近论坛公告是什么？', {
-      isAutoMode: true
-    });
-    const healthDecision = resolveBOHAIAutoModeDecision('肌酸不训练的时候要喝吗', {
-      isAutoMode: true
-    });
-    const personalHealthDecision = resolveBOHAIAutoModeDecision('我不训练的时候要不要喝肌酸', {
-      isAutoMode: true
-    });
-    const generalDecision = resolveBOHAIAutoModeDecision('为什么天空是蓝的', {
-      isAutoMode: true
-    });
-
-    expect(isLikelyWebSearchRequest('今天上海天气怎么样')).toBe(true);
-    expect(isLikelyWebSearchRequest('肌酸不训练的时候要喝吗')).toBe(true);
-    expect(isLikelyWebSearchRequest('我不训练的时候要不要喝肌酸')).toBe(true);
-    expect(latestDecision.shouldSearchWeb).toBe(true);
-    expect(healthDecision.shouldSearchWeb).toBe(true);
-    expect(personalHealthDecision.shouldSearchWeb).toBe(true);
-    expect(generalDecision.shouldSearchWeb).toBe(true);
-    expect(latestDecision.actionNotes).toContain('准备联网搜索最新资料。');
-    expect(internalDecision.shouldSearchWeb).toBe(false);
-  });
-
-  it('treats everyday personal distress as support instead of web health research', () => {
-    const decision = resolveBOHAIAutoModeDecision('感觉睡不好咋办', {
-      isAutoMode: true
-    });
-
-    expect(isLikelyPersonalSupportRequest('感觉睡不好咋办')).toBe(true);
-    expect(isLikelyWebSearchRequest('感觉睡不好咋办')).toBe(false);
-    expect(decision.shouldSearchWeb).toBe(false);
-    expect(decision.modeId).toBe('fast');
+  it('ROUTING_PATTERNS 只保留有消费方的 14 类', () => {
+    expect(Object.keys(ROUTING_PATTERNS).sort()).toEqual([
+      'bothSave',
+      'cloudReference',
+      'cloudSave',
+      'codeOrCommand',
+      'community',
+      'dailySummary',
+      'forumPost',
+      'internalSource',
+      'memoryQuery',
+      'memoryShare',
+      'personalSupport',
+      'professionalHealth',
+      'question',
+      'sharedSave',
+    ]);
   });
 });
 
-describe('bohai auto router: memory capture prompt', () => {
-  it('asks before writing community memory for shared community facts', () => {
-    const text = '今天 LF 和 Eleven 在方块之家群里一起玩哈比快车谋杀案，还提到要下周继续组织活动。';
-    const decision = resolveBOHAIAutoModeDecision(text, {
-      isAutoMode: true
-    });
-
-    expect(isLikelyCommunityMemoryShare(text)).toBe(true);
-    expect(decision.shouldAskSharedMemory).toBe(true);
-    expect(decision.actionNotes).toContain('识别到社群记忆，准备询问是否写入公共记忆库。');
+describe('bohai auto router: 保留项反证（5 个存活字段 × 典型语句）', () => {
+  // 这组断言的用途是「防止收口误伤」：任何一次删正则/改判定，
+  // 只要动到下面 5 个字段的行为，这里必须变红。
+  // 期望值来自收口前的实测快照（plans/024 §P0-1 的反证基准）。
+  beforeEach(() => {
+    clearRouteDecisionCache();
   });
 
-  it('does not treat community questions as memory sharing', () => {
+  const cases = [
+    ['普通闲聊', '你好呀', { saveDestination: 'none', shouldReferenceCloud: false }],
+    ['普通事实问题', 'BOH 有多少成员？', { saveDestination: 'none', shouldReferenceCloud: false }],
+    ['保存到 Cloud+', '记一下我今天心情不错', { shouldSaveCloud: true, saveDestination: 'cloud' }],
+    [
+      '明确存 Cloud+',
+      '把这条存到我的 Cloud+ 随手记里',
+      { shouldSaveCloud: true, saveDestination: 'cloud', shouldReferenceCloud: true },
+    ],
+    [
+      '保存到公共记忆',
+      '这条写入公共记忆库',
+      { shouldSaveSharedMemory: true, saveDestination: 'shared' },
+    ],
+    [
+      '两边都存',
+      '两个都保存，cloud+ 和公共记忆一起',
+      { shouldSaveCloud: true, shouldSaveSharedMemory: true, saveDestination: 'both' },
+    ],
+    [
+      'Cloud+ 引用',
+      '根据我的 Cloud+ 最近记录总结一下我最近的日常',
+      { saveDestination: 'none', shouldReferenceCloud: true },
+    ],
+    ['论坛发帖不当作保存', '帮我起草一个论坛发帖文案', { saveDestination: 'none' }],
+    [
+      '社区记忆分享（含「一起」→ both）',
+      '今天和 ryyik 一起玩了 Minecraft，记一下这件事',
+      { shouldSaveCloud: true, shouldSaveSharedMemory: true, saveDestination: 'both' },
+    ],
+    [
+      '社区事实查询',
+      'BOH 论坛最近有什么公告？',
+      { saveDestination: 'none', shouldReferenceCloud: false },
+    ],
+    ['健康问题', '我最近睡眠不好，怎么办', { saveDestination: 'none' }],
+    ['个人支持', '最近压力大，有点撑不住了', { saveDestination: 'none' }],
+    [
+      '社区记忆分享-无明确保存 → 问去向',
+      '今天和小牛一起玩了 MC，聊了很久',
+      { shouldAskMemoryDestination: true, saveDestination: 'ask' },
+    ],
+    [
+      '社区记忆分享-询问去向',
+      '刚刚和 eleven 一起打了内战，这件事值得记下来',
+      { shouldAskMemoryDestination: true, saveDestination: 'ask' },
+    ],
+  ];
+
+  it.each(cases)('%s', (_label, text, expected) => {
+    const decision = resolveBOHAIAutoModeDecision(text, {
+      isAutoMode: false,
+      cloudReferenceEnabled: true,
+      isLoggedIn: true,
+    });
+    expect(decision).toMatchObject(expected);
+  });
+
+  it('缓存键只看文本：同一句话不会因登录态不同而各缓存一份', () => {
+    const loggedOut = resolveBOHAIAutoModeDecision('根据我的 Cloud+ 总结最近日常', {
+      isAutoMode: true,
+      cloudReferenceEnabled: false,
+      isLoggedIn: false,
+    });
+    const loggedIn = resolveBOHAIAutoModeDecision('根据我的 Cloud+ 总结最近日常', {
+      isAutoMode: true,
+      cloudReferenceEnabled: true,
+      isLoggedIn: true,
+    });
+    expect(loggedIn).toBe(loggedOut);
+  });
+});
+
+describe('bohai auto router: 存活判定函数', () => {
+  it('isLikelyCodeOrCommandRequest 识别代码/命令', () => {
+    expect(isLikelyCodeOrCommandRequest('帮我写一段 Vue 组件代码，并解释这个 bug')).toBe(true);
+    expect(isLikelyCodeOrCommandRequest('生成 /give @p diamond_sword 的 MC 指令')).toBe(true);
+    expect(isLikelyCodeOrCommandRequest('今天天气不错')).toBe(false);
+  });
+
+  it('isLikelyDailySummaryRequest 识别日常总结', () => {
+    expect(isLikelyDailySummaryRequest('帮我复盘我的近期生活状态')).toBe(true);
+    expect(isLikelyDailySummaryRequest('你好')).toBe(false);
+  });
+
+  it('isLikelyCloudReferenceRequest 覆盖总结 / 引用 / 内部源+人称三条支路', () => {
+    expect(isLikelyCloudReferenceRequest('总结一下我的最近日常')).toBe(true);
+    expect(isLikelyCloudReferenceRequest('参考我的 Cloud+ 记录看看')).toBe(true);
+    expect(isLikelyCloudReferenceRequest('我的 Cloud+ 里有什么')).toBe(true);
+    expect(isLikelyCloudReferenceRequest('Cloud+ 是什么')).toBe(false);
+  });
+
+  it('isLikelyPersonalSupportRequest 排除专业健康问题', () => {
+    expect(isLikelyPersonalSupportRequest('感觉睡不好咋办')).toBe(true);
+    // 专业健康类（命中 professionalHealth）不应被判为「个人支持」
+    expect(isLikelyPersonalSupportRequest('抑郁症的诊断标准是什么')).toBe(false);
+  });
+
+  it('isLikelyCommunityMemoryShare 不把社区问题当记忆分享', () => {
     expect(isLikelyCommunityMemoryShare('方块之家成立背景是什么？')).toBe(false);
+    expect(isLikelyCommunityMemoryShare('总结一下论坛最近发生的事')).toBe(false);
+    expect(
+      isLikelyCommunityMemoryShare(
+        '今天 LF 和 Eleven 在方块之家群里一起玩哈比快车谋杀案，还提到要下周继续组织活动。',
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('bohai auto-router: LRU cache', () => {
+  it('evicts the least recently used entry when over capacity', () => {
+    const cache = new LRUCache(2);
+    cache.set('a', 1);
+    cache.set('b', 2);
+    expect(cache.get('a')).toBe(1); // 读 a，b 变最旧
+    cache.set('c', 3); // 容量满，淘汰 b
+    expect(cache.has('b')).toBe(false);
+    expect(cache.has('a')).toBe(true);
+    expect(cache.has('c')).toBe(true);
   });
 
-  it('does not ask to save when the user asks for recent forum summaries', () => {
-    const text = '总结一下论坛最近发生的事';
-    const decision = resolveBOHAIAutoModeDecision(text, {
-      isAutoMode: true
-    });
+  it('returns undefined for missing keys and size reflects capacity', () => {
+    const cache = new LRUCache(3);
+    expect(cache.get('x')).toBeUndefined();
+    cache.set('x', 'y');
+    expect(cache.size).toBe(1);
+    cache.clear();
+    expect(cache.size).toBe(0);
+  });
 
-    expect(isLikelyCommunityMemoryShare(text)).toBe(false);
-    expect(decision.communityMemoryShare).toBe(false);
-    expect(decision.shouldSaveCloud).toBe(false);
-    expect(decision.shouldSaveSharedMemory).toBe(false);
-    expect(decision.shouldAskMemoryDestination).toBe(false);
-    expect(decision.saveDestination).toBe('none');
+  it('buildTextFingerprint distinguishes by content + length', () => {
+    const a = buildTextFingerprint('hello');
+    const b = buildTextFingerprint('hello');
+    const c = buildTextFingerprint('hello world');
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(buildTextFingerprint('')).toBe('0:0');
   });
 });

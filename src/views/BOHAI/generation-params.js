@@ -14,8 +14,10 @@ export const TASK_GENERATION_PRESETS = {
   structuredProgress: { max_tokens: 1400, temperature: 0.08, top_p: 0.55, frequency_penalty: 0.05 },
   // agent-cluster 主对话 Agent（走主 ChatEngine 真实调用链）
   clusterChatMain: { max_tokens: 1800, temperature: 0.22, top_p: 0.75 },
-  // 意图/查询改写等确定性短输出
-  titleExtract: { max_tokens: 256, temperature: 0, top_p: 0.3, frequency_penalty: 0 },
+  // ⚠️ 已删除 `titleExtract`（2026-10-02）：它唯一的消费方是 useChatEngine 里那次
+  // 「追问改写」LLM 调用，该调用已按 plans/024 §P0-2 移除（它排在检索之前、
+  // 用推理模型跑 256 token，产出常被截断后静默丢弃）。需要新的短输出任务时，
+  // 重新在此声明，不要在调用点内联字面量（check:bohai-params 会红）。
   // 论坛总结叙事（低温防编造；max_tokens 由 generationProfile 派生钳制，不在此表）
   forumNarrative: { temperature: 0.03, top_p: 0.42 },
   // 论坛总结极性冲突修复（全确定性）

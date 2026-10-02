@@ -1112,6 +1112,10 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.01em;
+  /* 文字胶囊：宽度由 padding 撑开，绝不允许「设/置」竖排换行。
+     任何断点若再写死 width，本条 nowrap 会把它变成溢出而不是换行 —— 那是更好的故障形态。 */
+  white-space: nowrap;
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;

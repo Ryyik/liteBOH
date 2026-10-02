@@ -12,6 +12,13 @@ import fs from 'node:fs';
 //
 //   反证：把 comparisonRows 换回手写旧数据（缺昵称/保底/摄影集行）→ B 组必红；
 //         把 buildCardFeatures 改回手工数组（Pro 顺序漂移）→ A 组必红。
+//
+// ⚠️ 2026-10-02 修了两处**既存假红**（此前基线是 40 pass / 8 fail，不是绿的 ——
+//    一个带已知红的探针等于没有守卫）：
+//    · A2 的期望值漏了卡片上的「· 积分 N 折」后缀（卡片是逐字渲染整串）；
+//    · C 组的 `digits()` 把折数的 0.95 也拼进了 AI 额度（`400.95` vs `40`）。
+//    两处都用「换回 HEAD 版跑」反证过：HEAD 同样 40/8，与当天的额度调整无关。
+//    同时新增 B10 锁住 AI 额度行的五个值（Free = 「—」，它没有 token 额度）。
 // =====================================================================
 const BASE = 'http://[::1]:5173';
 const OUT = 'debug-screenshots/subscription-benefits';
@@ -91,9 +98,14 @@ async function readTable(page) {
     JSON.stringify(cards.map((c) => c.name)) === JSON.stringify(['Plus', 'Pro', 'Max', 'Ultra']),
     cards.map((c) => c.name).join('/'),
   );
+  // ⚠️ AI 行的期望值必须带「· 积分 N 折」后缀 —— 卡片模板是逐字渲染
+  //    `buildCardFeatures` 生成的整串（`BOH AI {额度} Token / 天 · 积分 {折} 折`），
+  //    只写前半段会让 A2 恒红。2026-10-02 修：此前这 4 条一直是失败的（既存缺陷，
+  //    与当天的额度调整无关；换回 HEAD 版同样 40 pass / 8 fail）。
+  //    折数来自 PLAN_AI_POINT_MULTIPLIERS：0.95 / 0.9 / 0.85 / 0.8。
   const expectCards = {
     Plus: [
-      'BOH AI 80 万 Token / 天',
+      'BOH AI 40 万 Token / 天 · 积分 0.95 折',
       'Cloud+ 300 张',
       '实验室 PPT / Word 15 次 / 月',
       '摄影集 3 本 · 单集 24 张',
@@ -101,7 +113,7 @@ async function readTable(page) {
       '连续 24 场未中奖可兑保底礼',
     ],
     Pro: [
-      'BOH AI 200 万 Token / 天',
+      'BOH AI 100 万 Token / 天 · 积分 0.9 折',
       'Cloud+ 450 张',
       '实验室 PPT / Word 20 次 / 月',
       '摄影集 5 本 · 单集 40 张',
@@ -109,7 +121,7 @@ async function readTable(page) {
       '连续 18 场未中奖可兑保底礼',
     ],
     Max: [
-      'BOH AI 500 万 Token / 天',
+      'BOH AI 250 万 Token / 天 · 积分 0.85 折',
       'Cloud+ 900 张',
       '实验室 PPT / Word 30 次 / 月',
       '摄影集 10 本 · 单集 60 张',
@@ -117,7 +129,7 @@ async function readTable(page) {
       '连续 12 场未中奖可兑保底礼',
     ],
     Ultra: [
-      'BOH AI 1000 万 Token / 天',
+      'BOH AI 500 万 Token / 天 · 积分 0.8 折',
       'Cloud+ 1200 张',
       '实验室 PPT / Word 不限次数',
       '摄影集 不限 · 单集 不限',
@@ -189,6 +201,15 @@ async function readTable(page) {
       JSON.stringify(['2 次 / 月', '5 次 / 月', '10 次 / 月', '20 次 / 月', '不限']),
     (rowMap['每月离线导出'] || []).join('/'),
   );
+  // 2026-10-02 新增：锁住 AI 额度行的五个值（Free 无 token 额度 = 「—」）。
+  // 这一行是 subscription-benefits.js 里 PLAN_AI_TOKENS 的直接投影；
+  // 改档位额度（ai_quota_config.daily_token_limit）时必须同批改它，此断言负责抓漏改。
+  check(
+    'B10 BOH AI Token / 天 行：—/40 万/100 万/250 万/500 万',
+    JSON.stringify(rowMap['BOH AI Token / 天']) ===
+      JSON.stringify(['—', '40 万', '100 万', '250 万', '500 万']),
+    (rowMap['BOH AI Token / 天'] || []).join('/'),
+  );
 
   // C. 卡片 vs 表格数值一致性（P1 验收核心）
   const colIdx = { Plus: 1, Pro: 2, Max: 3, Ultra: 4 };
@@ -197,7 +218,11 @@ async function readTable(page) {
     const pick = (re) => card.features.find((f) => re.test(f)) || '';
     const cell = (label) => (rowMap[label] || [])[col] || '';
     const pairs = [
-      ['AI 额度', digits(pick(/^BOH AI/)), digits(cell('BOH AI Token / 天'))],
+      // ⚠️ AI 行必须先切掉 ` · ` 之后的部分再取数字：卡片文案是
+      //    `BOH AI 40 万 Token / 天 · 积分 0.95 折`，`digits()` 会把折数的 0.95 也拼进来
+      //    （得到 `400.95`），而表格单元格只有 `40 万`。2026-10-02 修 —— 此前这 4 条
+      //    一直是失败的（既存缺陷，与当天的额度调整无关）。
+      ['AI 额度', digits(pick(/^BOH AI/).split(' · ')[0]), digits(cell('BOH AI Token / 天'))],
       ['Cloud+', digits(pick(/^Cloud\+/)), digits(cell('Cloud+ 存储空间'))],
       ['实验室', pick(/^实验室/).replace(/^实验室 PPT \/ Word /, ''), cell('实验室 PPT / Word')],
       [

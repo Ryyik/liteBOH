@@ -10,26 +10,26 @@
  *   · views/Home/index.vue（首页 `/` 下滑直达时把 view 写回 URL）
  */
 
-export type ForumSectionId =
-  | 'official'
-  | 'latest'
-  | 'following'
-  | 'news'
-  | 'activity'
-  | 'members'
-  | 'impressions'
+export type ForumSectionId = 'official' | 'latest' | 'following' | 'news' | 'activity' | 'members';
 
 /** ForumMain 能承载的四个分区（其余走独立面板） */
-export type ForumExternalFeed = 'latest' | 'following' | 'news' | 'activity'
+export type ForumExternalFeed = 'latest' | 'following' | 'news' | 'activity';
 
 export interface ForumSectionItem {
-  id: ForumSectionId
-  label: string
+  id: ForumSectionId;
+  label: string;
 }
 
 /**
- * 七席。**官方居首是用户指定**，但默认落点仍是「最新」——
- * 两者是独立的：要改默认落点只改 FORUM_DEFAULT_SECTION。
+ * 六席（2026-10-01 由七席收掉「印象」）。**官方居首是用户指定**，
+ * 但默认落点仍是「最新」—— 两者是独立的：要改默认落点只改 FORUM_DEFAULT_SECTION。
+ *
+ * 「印象」已移出论坛成为「我」页的第三个分段（plans/022 §4.5），原因有两条：
+ *   ① 「我看我收到的印象」与「别人看我主页的印象」是同一份数据的私人/公开两侧，
+ *      论坛分区是给别人的内容面，自己收的印象不该混在里面；
+ *   ② 它天然是「管理自己的资产」，与「资产」分段同类。
+ * 旧深链 `?view=impressions` 会被 resolveForumSection 优雅回落成「最新」，
+ * 不做 404 —— 见下。
  */
 export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
   { id: 'official', label: '官方' },
@@ -38,27 +38,26 @@ export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
   { id: 'news', label: '新闻' },
   { id: 'activity', label: '活动' },
   { id: 'members', label: '成员' },
-  { id: 'impressions', label: '印象' }
-]
+];
 
-export const FORUM_SECTION_IDS: ForumSectionId[] = FORUM_SECTION_ITEMS.map((item) => item.id)
+export const FORUM_SECTION_IDS: ForumSectionId[] = FORUM_SECTION_ITEMS.map((item) => item.id);
 
 /** 默认分区：官方仅排序居首，默认落点仍为最新 */
-export const FORUM_DEFAULT_SECTION: ForumSectionId = 'latest'
+export const FORUM_DEFAULT_SECTION: ForumSectionId = 'latest';
 
 /** 由 ForumMain（AsyncForum）承载的分区 */
-export const FORUM_FEED_SECTIONS: ForumExternalFeed[] = ['latest', 'following', 'news', 'activity']
+export const FORUM_FEED_SECTIONS: ForumExternalFeed[] = ['latest', 'following', 'news', 'activity'];
 
 export const isForumSection = (value: unknown): value is ForumSectionId =>
-  FORUM_SECTION_IDS.includes(String(value) as ForumSectionId)
+  FORUM_SECTION_IDS.includes(String(value) as ForumSectionId);
 
 export const isForumFeedSection = (value: unknown): value is ForumExternalFeed =>
-  FORUM_FEED_SECTIONS.includes(String(value) as ForumExternalFeed)
+  FORUM_FEED_SECTIONS.includes(String(value) as ForumExternalFeed);
 
 /** 非法/缺失的 view 一律回落默认分区（URL 深链与路由 watch 共用同一口径） */
 export const resolveForumSection = (value: unknown): ForumSectionId =>
-  (isForumSection(value) ? (String(value) as ForumSectionId) : FORUM_DEFAULT_SECTION)
+  isForumSection(value) ? (String(value) as ForumSectionId) : FORUM_DEFAULT_SECTION;
 
 /** 分区 → ForumMain 的 externalFeed；非 feed 分区回落 latest（ForumMain 不接受空值） */
 export const resolveExternalFeed = (value: unknown): ForumExternalFeed =>
-  (isForumFeedSection(value) ? (String(value) as ForumExternalFeed) : 'latest')
+  isForumFeedSection(value) ? (String(value) as ForumExternalFeed) : 'latest';

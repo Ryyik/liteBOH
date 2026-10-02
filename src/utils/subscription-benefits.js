@@ -18,7 +18,14 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
 
 /* ===== 档位权益展示单源 =====
    订阅页卡片与对比表共用：改一处两处同步（展示格式化在 SubscriptionPlans.vue）。
-   - PLAN_AI_TOKENS：BOH AI 每日 Token 额度
+   - PLAN_AI_TOKENS：BOH AI 每日 Token 额度。**真实值以 ai_quota_config.daily_token_limit 为准**
+     （数据管理面板「AI 额度与计费」可调），此处是**展示副本** —— 调完额度必须回来改这里，
+     否则页面会宣传一个系统不认的数字。
+     ⚠️ 2026-10-02：档位额度 ÷2（plus 80万→40万 / pro 200万→100万 / max 500万→250万 /
+     ultra 1000万→500万），此处已同步；`free` 从「20 万」改成「—」——
+     **free 的 daily_token_limit 一直是 0**（无 token 额度，纯走积分兜底），
+     那个「20 万」从上线起就没对应过任何东西，属既存展示错误。
+     对齐口径：与 ai_pricing_config.rate_tokens_per_point 一起决定「1 积分能买多少」。
    - PLAN_LAB_QUOTAS：实验室 PPT / Word 产出次数
    - PLAN_PHOTO_ALBUM_*：摄影集权益展示口径（2026-09-27 上线）。数值必须与
      utils/photo-albums/quota.js 的三张 enforcement MAP 对齐：
@@ -28,11 +35,11 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
      按「连续未中奖场次」累计、中奖清零、达标后兑保底礼；Free 不计保底（null）。
      真实阈值以数据库 RPC 为准，此处为展示口径，改动需与 PityIslandCard 阈值文案同步核对。 */
 export const PLAN_AI_TOKENS = {
-  free: '20 万',
-  plus: '80 万',
-  pro: '200 万',
-  max: '500 万',
-  ultra: '1000 万',
+  free: '—',
+  plus: '40 万',
+  pro: '100 万',
+  max: '250 万',
+  ultra: '500 万',
 };
 
 /* AI 积分消费倍率（超出额度后按量计费的折扣）。展示口径：
@@ -48,33 +55,39 @@ export const PLAN_AI_POINT_MULTIPLIERS = {
 
 /* Coding 附加包（Token Plan 包）展示口径：加成与 ai-key-vault CODING_PLAN_BONUSES 对齐，
    积分价格以 subscription_plan_prices 服务端取价为准（面板可改），此处仅展示。
-   free 档没有每日额度，包的每日加成即其全部「日额度」。 */
+   free 档没有每日额度，包的每日加成即其全部「日额度」。
+   ⚠️ 2026-10-02：tokenBonus 随档位额度一起 ÷2（+50/150/300/600 万 → +25/75/150/300 万），
+   目的是**保持包相对基础额度的占比不变**（coding-lite 对 pro：250k/1M = 25%，与改动前 500k/2M 一致）。
+   改这里**必须同时改** Edge Function 的 CODING_PLAN_BONUSES 并重新部署 ——
+   只改展示会出现「页面说 +25 万、实际加 +50 万」，比不改更糟。
+   注意：倍率同时降了 10 倍，所以包的实际可用量（actual tokens）仍然比改动前多约 5 倍 ——
+   这是「降额度 + 提可用量」的连带效果，不是 bug。 */
 export const CODING_PACKS = [
   {
     code: 'coding-lite',
     name: 'Coding Lite',
-    tokenBonus: '+50 万 Token / 天',
+    tokenBonus: '+25 万 Token / 天',
     webSearchBonus: '+10 次 / 天',
     monthlyPrice: 10,
   },
   {
     code: 'coding-plus',
     name: 'Coding Plus',
-    tokenBonus: '+150 万 Token / 天',
+    tokenBonus: '+75 万 Token / 天',
     webSearchBonus: '+30 次 / 天',
     monthlyPrice: 34,
   },
   {
     code: 'coding-pro',
     name: 'Coding Pro',
-    tokenBonus: '+300 万 Token / 天',
+    tokenBonus: '+150 万 Token / 天',
     webSearchBonus: '+60 次 / 天',
     monthlyPrice: 68,
   },
   {
     code: 'coding-ultra',
     name: 'Coding Ultra',
-    tokenBonus: '+600 万 Token / 天',
+    tokenBonus: '+300 万 Token / 天',
     webSearchBonus: '+120 次 / 天',
     monthlyPrice: 135,
   },

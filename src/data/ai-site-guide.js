@@ -34,7 +34,7 @@ export const SITE_OPERATION_MEMORY = `
 
 3) 如何查看我收到的印象
    - 路径 A: /profile/:username -> “印象”标签
-   - 路径 B: /user-space?tab=community&view=impressions（我的空间 → 方块 → 印象）
+   - 路径 B: /user-space?tab=posts&view=impressions（我的空间 → “我”页 → 印象分段）
    - 路径 C: /user-center/messages -> “印象”标签
 
 4) 如何进入 BOH AI

@@ -685,7 +685,12 @@
   grid-row: 4;
   align-self: start;
   width: min(calc(100% - 32px), var(--bohai-composer));
-  padding: 0;
+  /* ⚠️ 原先是 `padding: 0` —— 竖屏首屏（无消息）时 composer 胶囊会贴死屏幕底边：
+     圆角被切、并且有 Home Indicator / 浏览器底部工具栏的机型上底行（联网 / 强度 / 发送）
+     直接被盖住，用户报障「AI 竖屏各种 UI 显示不完全」。非空态那条规则给的是
+     `18px + 安全区`，空态必须给同样（或更多）的下呼吸，否则两态高度一致但观感不一致。
+     左右维持 0：水平留白由上面的 width 负责，别在这里再叠一层。 */
+  padding: 0 0 calc(18px + env(safe-area-inset-bottom, 0px));
 }
 
 .bohai-page .input-area::before {

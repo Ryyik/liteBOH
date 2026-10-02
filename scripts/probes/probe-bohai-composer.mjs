@@ -23,6 +23,12 @@
  *   A6 选完模式 → 面板收起 + 胶囊文案跟着换
  *   A7 「高级」区四个工具都在（社区搜索 / 个人 Cloud+ / 健康分析 / 心理分析）
  *   A8 零 pageerror
+ *   A9 零「模板引用未定义绑定」的 Vue 警告
+ *   A10 用量圆钮单环（1 轨 1 进度，2026-10-02 双环改单环，内环已删）+ 额度 88% 时挂 quota-warn
+ *   A11 hover 圆钮 → 用量浮层打开（mouseenter 挂在 .usage-orb-wrap 上）
+ *   A12 浮层同时含「对话上下文」「今日额度」两行
+ *   A13 移开鼠标 → 浮层 180ms 延迟收起
+ *   （A10-A13 依赖发送一条消息触发 orb 渲染；模型与 quota-status 均被 mock）
  *   B1 ⌘K（真实快捷键，走 App.vue 的 handleGlobalAiKeydown）→ AI 岛展开
  *   B2 岛内渲染出 composer 胶囊
  *   B3 岛内打开面板后，面板与二级菜单都完整落在视口内（没被岛的 overflow:hidden 裁掉）
@@ -284,6 +290,97 @@ const newPage = async (ctx, bucket) => {
     errors.vueWarn.slice(0, 2).join(' | '),
   );
   console.log(`      （console.error ${errors.console.length} 条，探针噪声，不计红）`);
+
+  // ── A10-A13 用量圆钮（usage-orb）─────────────────────────────────────
+  // 2026-10-02 起圆钮从「双环」改「单环 = 上下文」，额度收进 hover / 点击浮层。
+  // orb 只在 messages.length > 0 后渲染，所以先发一条消息；模型调用与 quota-status
+  // 一并 mock（伪造登录没有真 token，线上调用必然 401，等它超时太慢）。
+  // 额度 mock 成 88000/100000 = 88%：顺带让 quota-warn（≥85%）真实在场。
+  await page.route('**/functions/v1/api-key-vault**', async (route) => {
+    let body = {};
+    try {
+      body = route.request().postDataJSON() || {};
+    } catch {
+      body = {};
+    }
+    if (body?.action === 'quota-status') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          data: { usedTokens: 88000, tokenLimit: 100000, webSearchUsed: 3, webSearchLimit: 10 },
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: false, message: '探针环境不调用真实模型' }),
+    });
+  });
+  await page.fill('.input-textarea', '探针：验证用量圆钮');
+  await page.locator('.send-btn').click();
+  await page.waitForSelector('.usage-orb', { timeout: 15000 });
+  // 发送后 1.5s 有一次 fetchTodayQuota（quotaRefreshTimer），等它吃到 mock 值
+  await page.waitForTimeout(2200);
+
+  // A10 单环：SVG 只有 1 轨 + 1 进度，旧内环（orb-quota）已删；额度吃紧 → quota-warn 在场
+  const orbShape = await page.evaluate(() => {
+    const svg = document.querySelector('.usage-orb-svg');
+    const circles = svg ? [...svg.querySelectorAll('circle')] : [];
+    const orb = document.querySelector('.usage-orb');
+    return {
+      total: circles.length,
+      tracks: circles.filter((c) => c.classList.contains('orb-track')).length,
+      fills: circles.filter((c) => c.classList.contains('orb-fill')).length,
+      quotaLeft: circles.filter((c) => c.classList.contains('orb-quota')).length,
+      warnClass: orb?.classList.contains('quota-warn') || false,
+    };
+  });
+  check(
+    'A10 用量圆钮单环（1 轨 1 进度、内环已删）且额度 88% 时挂 quota-warn',
+    orbShape.total === 2 &&
+      orbShape.tracks === 1 &&
+      orbShape.fills === 1 &&
+      orbShape.quotaLeft === 0 &&
+      orbShape.warnClass,
+    JSON.stringify(orbShape),
+  );
+
+  // A11 hover 打开浮层（mouseenter 挂在 .usage-orb-wrap 上，按钮与浮层共用容器）
+  await page.hover('.usage-orb');
+  await page.waitForTimeout(320);
+  const hoverOpen = await page.evaluate(() => {
+    const pop = document.querySelector('.usage-pop');
+    return !!pop && getComputedStyle(pop).display !== 'none';
+  });
+  check('A11 hover 圆钮 → 用量浮层打开', hoverOpen, `open=${hoverOpen}`);
+
+  // A12 浮层同时含「对话上下文」「今日额度」两行
+  const popRows = await page.evaluate(() => {
+    const pop = document.querySelector('.usage-pop');
+    if (!pop) return null;
+    return [...pop.querySelectorAll('.usage-row-label')].map((el) => el.textContent.trim());
+  });
+  check(
+    'A12 浮层含上下文与额度两行详情',
+    Array.isArray(popRows) && popRows.includes('对话上下文') && popRows.includes('今日额度'),
+    (popRows || []).join(' / '),
+  );
+
+  // A13 移开鼠标 → 180ms 延迟后浮层自动收起
+  await page.mouse.move(400, 300);
+  await page.waitForTimeout(560);
+  const hoverClosed = await page.evaluate(() => {
+    const pop = document.querySelector('.usage-pop');
+    return !pop || getComputedStyle(pop).display === 'none';
+  });
+  check('A13 移开鼠标 → 浮层延迟收起', hoverClosed, `closed=${hoverClosed}`);
+
+  await page.unroute('**/functions/v1/api-key-vault**');
+  await page.screenshot({ path: `${OUT}/bohai-usage-orb-single.png` });
   await ctx.close();
 }
 

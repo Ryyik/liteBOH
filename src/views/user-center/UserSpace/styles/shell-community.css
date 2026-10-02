@@ -2786,11 +2786,7 @@
   padding-top: 10px;
 }
 
-/* 内容 tab 的 Cloud+ 宿主（组件自带 embedded 布局） */
-.content-cloud-host {
-  display: contents;
-}
-
+/* 消息宿主（组件自带 embedded 布局） */
 .messages-host {
   display: contents;
 }
@@ -2847,9 +2843,12 @@
   }
 }
 
+/* 「我」页各分段的淡入上浮（2026-10-01：Cloud+ 分段被「资产 / 印象」取代，
+   分段宿主类名随之改名；旧的分段宿主选择器已随本次重构消失） */
 .page-content.community-list-content,
 .content-home-host,
-.content-cloud-host .cloud-page,
+.content-assets-host,
+.content-impressions-host,
 .ai-host {
   animation: seg-content-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -2872,7 +2871,8 @@
 @media (prefers-reduced-motion: reduce) {
   .page-content.community-list-content,
   .content-home-host,
-  .content-cloud-host .cloud-page,
+  .content-assets-host,
+  .content-impressions-host,
   .ai-host,
   .community-shell.feed-switching .forum-page.embedded-mode .forum-container {
     animation: none;

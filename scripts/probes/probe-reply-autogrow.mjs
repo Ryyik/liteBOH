@@ -5,7 +5,7 @@ import fs from 'node:fs';
 // 探针：评论 / 回复输入框「多字扩展」（plans/021-评论输入框多字扩展.md）
 //
 //   场景 A：竖屏手机 390×844，用户空间内嵌论坛的卡片内联回复框（PostCard，主症）
-//   场景 B：竖屏手机 390×844，帖子详情页的评论输入形态 —— 一条**绊线**（见该段注释），不跑 A–D
+//   场景 B：竖屏手机 390×844，帖子详情页底部评论输入框（2026-10-01 起也是自动增高 textarea）
 //   真实登录注入 + 真实数据（不做 RPC mock）。
 //
 //   断言（场景 A 各跑一遍）：
@@ -84,12 +84,16 @@ const waitForInPage = async (
 
 // ---------- 按选择器生成页面内读数 / 写入 ----------
 // 读数写成字符串（page.evaluate 传字符串即当作表达式求值），写入用函数 + 参数。
+// offsetHeight = 含边框的渲染高度，**上限比较必须用它**：
+// CSS 的 max-height 约束的是 border-box，而 clientHeight 把边框扣掉了
+// （详情页评论框有 1px 边框，写 132 时 clientHeight 只有 130，用 clientHeight 比上限会恒差 1~2px）。
 const readBox = (selector) => `(() => {
   const el = document.querySelector(${JSON.stringify(selector)});
   if (!el) return null;
   const cs = getComputedStyle(el);
   return {
     clientHeight: el.clientHeight,
+    offsetHeight: el.offsetHeight,
     scrollHeight: el.scrollHeight,
     maxHeight: parseFloat(cs.maxHeight),
     overflowY: cs.overflowY,
@@ -110,7 +114,14 @@ const setBoxValue = ({ selector, text }) => {
 const lines = (n) => Array.from({ length: n }, (_, i) => `第${i + 1}行内容`).join('\n');
 
 /** 对任意一个 textarea 跑 A–D 四条：返回是否全绿 + 关键读数 */
-const runGrowthChecks = async (page, { selector, label }) => {
+/**
+ * @param {object} opts
+ * @param {number} [opts.minBelowCap=2] 期望「未到上限」的采样数下限。
+ *   详情页评论框只有 ~107px 宽，一行中文会折成两个视觉行，第 2 个采样点就顶上上限了
+ *   （只有 1 个未到上限的采样），所以那一处传 1。断言的真实不变量是
+ *   「存在一段区间：高度随内容增长且无内部滚动」，采样计数只是它的强度。
+ */
+const runGrowthChecks = async (page, { selector, label, minBelowCap = 2 }) => {
   const read = readBox(selector);
   const set = (text) => page.evaluate(setBoxValue, { selector, text });
 
@@ -135,7 +146,7 @@ const runGrowthChecks = async (page, { selector, label }) => {
     await set(lines(n));
     await sleep(SETTLE);
     const box = await page.evaluate(read);
-    samples.push({ n, h: box.clientHeight, sh: box.scrollHeight });
+    samples.push({ n, h: box.offsetHeight, sh: box.scrollHeight });
   }
   const monotonic = samples.every((s, i) => i === 0 || s.h >= samples[i - 1].h);
   const grew = samples[samples.length - 1].h > H0;
@@ -143,8 +154,8 @@ const runGrowthChecks = async (page, { selector, label }) => {
   const noInnerScroll = belowCap.every((s) => s.sh - s.h <= 1);
   check(
     `${label} · B 内容变多高度单调不减且未到上限时无内部滚动`,
-    monotonic && grew && noInnerScroll && belowCap.length >= 2,
-    `samples=${samples.map((s) => `${s.n}行:${s.h}`).join(' ')} 未到上限采样=${belowCap.length}`,
+    monotonic && grew && noInnerScroll && belowCap.length >= minBelowCap,
+    `samples=${samples.map((s) => `${s.n}行:${s.h}`).join(' ')} 未到上限采样=${belowCap.length}（下限 ${minBelowCap}）`,
   );
 
   await set(lines(30));
@@ -152,10 +163,10 @@ const runGrowthChecks = async (page, { selector, label }) => {
   const capped = await page.evaluate(read);
   check(
     `${label} · C 超上限后高度停在上限并框内滚动`,
-    Math.abs(capped.clientHeight - MAX) <= 1 &&
+    Math.abs(capped.offsetHeight - MAX) <= 1 &&
       capped.scrollHeight > capped.clientHeight + 40 &&
       capped.overflowY === 'auto',
-    `clientHeight=${capped.clientHeight} maxHeight=${MAX} scrollHeight=${capped.scrollHeight} overflowY=${capped.overflowY}`,
+    `offsetHeight=${capped.offsetHeight} maxHeight=${MAX} scrollHeight=${capped.scrollHeight} overflowY=${capped.overflowY}`,
   );
 
   await set('');
@@ -304,13 +315,15 @@ try {
     await ctx.close();
   }
 
-  // ================= 场景 B：帖子详情页的评论输入形态（绊线，不是 A–D 复跑） =================
-  // 2026-09-30 实测结论：详情页两处 `<CommentThread>` 都硬编码了 `:hide-composer="true"`，
-  // 所以 CommentThread 自己的内嵌评论框（`.reply-textarea-x`）**根本不渲染**；
-  // 详情页真正的评论输入是底部操作栏的单行 `<input class="pd-reply-input" type="text">`，
-  // 不存在「多字扩展」问题（单行框本来就不该长高）。
-  // 这里不跑 A–D（跑了只会 SKIP），改成一条**绊线**：一旦有人把内嵌评论框放出来，
-  // 本条立刻变红，逼他把 `useAutoGrowTextarea` 接上并补断言 —— 而不是让一个休眠的输入框悄悄上线。
+  // ================= 场景 B：帖子详情页底部评论输入框（2026-10-01 起是多行自动增高） =================
+  // 形态沿革（别再按旧结论改回去）：
+  //   · 2026-09-30：详情页两处 `<CommentThread>` 都硬编码 `:hide-composer="true"`，内嵌的
+  //     `.reply-textarea-x` 根本不渲染；底部是单行 `<input class="pd-reply-input" type="text">`，
+  //     单行框没有多字扩展问题 —— 当时这里只放了一条「仍是单行 input」的绊线。
+  //   · 2026-10-01：产品口径改成「输入时自动扩充、输入完成自动收回」，底部输入框已由
+  //     `<input>` 换成自动增高 `<textarea>`（接线 `useAutoGrowTextarea`）。绊线因此按它当初
+  //     自己写下的处置办法**改回 A–D 断言** —— 换形态的当天就必须有牙，不能只是把红改绿。
+  // 仍然保留对内嵌 `.reply-textarea-x` 的检查：它若被放出来，本条应立刻变红。
   {
     const { ctx, page } = await newPage(browser);
     await openCommunity(page);
@@ -333,23 +346,32 @@ try {
     report.info.detailRoute = entered?.hash || null;
 
     if (!entered?.done) {
-      skip('详情页评论输入形态绊线', `没能进入详情路由（hash=${entered?.hash ?? 'n/a'}）`);
+      skip('详情页评论输入框', `没能进入详情路由（hash=${entered?.hash ?? 'n/a'}）`);
     } else {
       await page.waitForSelector('.pd-reply-input', { timeout: 15000 });
+      await sleep(SETTLE);
       const shape = await page.evaluate(() => {
         const input = document.querySelector('.pd-reply-input');
         return {
           tag: input?.tagName || null,
-          type: input?.getAttribute('type') || null,
+          rows: input?.getAttribute('rows') || null,
           inlineComposer: document.querySelectorAll('.reply-textarea-x').length,
         };
       });
       report.info.detailInputShape = shape;
       check(
-        '详情页评论输入仍是单行 input（内嵌多行评论框未启用）',
-        shape.tag === 'INPUT' && shape.inlineComposer === 0,
-        `底部输入=${shape.tag}/${shape.type} 内嵌 .reply-textarea-x=${shape.inlineComposer} —— 若此项变红，说明内嵌多行评论框被放出来了：请给它接 useAutoGrowTextarea，并把本场景改回 A–D 断言`,
+        '详情页评论输入是多行 textarea（rows=1）且内嵌评论框仍未启用',
+        shape.tag === 'TEXTAREA' && Number(shape.rows) === 1 && shape.inlineComposer === 0,
+        `底部输入=${shape.tag}/rows=${shape.rows} 内嵌 .reply-textarea-x=${shape.inlineComposer}`,
       );
+
+      await runGrowthChecks(page, {
+        selector: '.pd-reply-input',
+        label: '详情页评论框',
+        // 窄框（~107px）：中文一行折两行，第 2 个采样点即触顶，未到上限的采样只剩 1 个
+        minBelowCap: 1,
+      });
+      await page.screenshot({ path: `${OUT}/probe-reply-autogrow-detail.png` });
     }
 
     await ctx.close();

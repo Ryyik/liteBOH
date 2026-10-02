@@ -1798,9 +1798,9 @@
     to { transform: rotate(360deg); }
 }
 
-/* ─── 用量圆钮：外环 = 上下文，内环 = 今日额度 ──────────────────────── */
-/* 同一个 38px 圆里位置差不足以区分两条环，所以靠颜色分工：上下文沿用旧的
-   灰度层级，额度是输入栏里唯一带颜色的元素。数字收进点击后的浮层。 */
+/* ─── 用量圆钮：单环 = 对话上下文 ───────────────────────────────────── */
+/* 38px 的圆里双环位置差不足以区分，2026-10-02 起改单环：环沿用上下文灰度层级，
+   额度吃紧时由 quota-warn / quota-danger 接管环色；数字收进 hover / 点击浮层。 */
 .usage-orb-wrap {
     position: relative;
     display: inline-flex;
@@ -1852,16 +1852,15 @@
     transition: stroke-dasharray 400ms cubic-bezier(0.23, 1, 0.32, 1), stroke 200ms ease;
 }
 
-/* 外环 = 上下文：沿用原来的灰度层级（越满越深），语义与旧环完全一致 */
-.orb-fill.orb-ctx { stroke: #a1a1aa; }
+/* 环 = 上下文：沿用原来的灰度层级（越满越深），语义与旧外环完全一致 */
+.usage-orb .orb-fill.orb-ctx { stroke: #a1a1aa; }
 .usage-orb.level-mid .orb-fill.orb-ctx { stroke: #71717a; }
 .usage-orb.level-high .orb-fill.orb-ctx { stroke: #3f3f46; }
 .usage-orb.level-full .orb-fill.orb-ctx { stroke: #09090b; }
 
-/* 内环 = 今日额度 */
-.orb-fill.orb-quota { stroke: var(--bohai-accent); }
-.usage-orb.quota-warn .orb-fill.orb-quota { stroke: #d97706; }
-.usage-orb.quota-danger .orb-fill.orb-quota { stroke: #dc2626; }
+/* 额度吃紧时接管环色（与 level 同特异性、源序在后即生效） */
+.usage-orb.quota-warn .orb-fill.orb-ctx { stroke: #d97706; }
+.usage-orb.quota-danger .orb-fill.orb-ctx { stroke: #dc2626; }
 
 /* ─── 用量浮层 ─────────────────────────────────────────────────────── */
 .usage-pop {
@@ -2048,10 +2047,15 @@
 [data-boh-theme="dark"] .usage-orb.level-mid .orb-fill.orb-ctx { stroke: #d4d4d8; }
 [data-boh-theme="dark"] .usage-orb.level-high .orb-fill.orb-ctx { stroke: #e4e4e7; }
 [data-boh-theme="dark"] .usage-orb.level-full .orb-fill.orb-ctx { stroke: #ffffff; }
+/* 额度吃紧接管环色（暗色用亮一档的琥珀/红，暗底可读）：
+   与上方 level 系列同特异性、源序在后即生效。
+   danger 复用全局语义红（暗 #ff5252 / BOHAI 独立暗色回退 :root #ff3b30），
+   不再加暗段裸色 —— dark-tokens 棘轮 2026-10-02 起在 2865 持平。 */
+[data-boh-theme="dark"] .usage-orb.quota-warn .orb-fill.orb-ctx { stroke: #f59e0b; }
+[data-boh-theme="dark"] .usage-orb.quota-danger .orb-fill.orb-ctx { stroke: var(--boh-brand-red); }
 
 [data-boh-theme="dark"] .usage-pop { background: var(--bohai-panel-strong); }
 [data-boh-theme="dark"] .usage-meter { background: var(--bohai-border); }
-[data-boh-theme="dark"] .usage-meter > i { background: #a1a1aa; }
 [data-boh-theme="dark"] .usage-pop-btn:hover:not(:disabled) {
     background: var(--bohai-surface-hover);
 }

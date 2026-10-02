@@ -63,15 +63,17 @@ export const preloadBOHAIComponent = () => {
 const settingsSubPanelLoaders = [
   () => import('./components/EditProfilePanel.vue'),
   () => import('./components/DataExportPanel.vue'),
-  () => import('./components/DataPrivacyPanel.vue')
+  () => import('./components/DataPrivacyPanel.vue'),
 ];
 let settingsSubPanelsPromise = null;
 export const preloadSettingsSubPanels = () => {
   if (!settingsSubPanelsPromise) {
-    settingsSubPanelsPromise = Promise.all(settingsSubPanelLoaders.map((load) => load())).catch(() => {
-      settingsSubPanelsPromise = null;
-      return null;
-    });
+    settingsSubPanelsPromise = Promise.all(settingsSubPanelLoaders.map((load) => load())).catch(
+      () => {
+        settingsSubPanelsPromise = null;
+        return null;
+      },
+    );
   }
   return settingsSubPanelsPromise;
 };
@@ -81,7 +83,7 @@ export const preloadProfileStyles = () => {
     profileStylesPromise = Promise.all([
       import('./styles/profile-base.css'),
       import('./styles/profile-panels.css'),
-      import('./styles/responsive-integrations.css')
+      import('./styles/responsive-integrations.css'),
     ]).catch((error) => {
       profileStylesPromise = null;
       throw error;
@@ -187,7 +189,7 @@ export const AsyncForum = defineAsyncComponent({
       return;
     }
     fail(error);
-  }
+  },
 });
 
 export const AsyncShows = defineAsyncComponent(showsComponentLoader);
@@ -196,11 +198,12 @@ export const AsyncMessages = defineAsyncComponent(messagesComponentLoader);
 const AsyncBOHAIError = {
   name: 'AsyncBOHAIError',
   setup() {
-    return () => h('div', { class: 'ai-load-fallback' }, [
-      h('h3', 'BOH AI 加载失败'),
-      h('p', '请刷新页面后重试，或稍后再打开 AI。')
-    ]);
-  }
+    return () =>
+      h('div', { class: 'ai-load-fallback' }, [
+        h('h3', 'BOH AI 加载失败'),
+        h('p', '请刷新页面后重试，或稍后再打开 AI。'),
+      ]);
+  },
 };
 
 export const AsyncBOHAI = defineAsyncComponent({
@@ -208,7 +211,5 @@ export const AsyncBOHAI = defineAsyncComponent({
   loadingComponent: AiChatSkeleton,
   errorComponent: AsyncBOHAIError,
   delay: 120,
-  timeout: 15000
+  timeout: 15000,
 });
-
-export const AsyncCloudPlus = defineAsyncComponent(() => import('@/views/user-center/Cloud+/CloudPlusMain.vue'));

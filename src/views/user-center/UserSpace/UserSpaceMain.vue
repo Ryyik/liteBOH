@@ -59,7 +59,10 @@
       </ForumSectionShell>
     </div>
 
-    <!-- 内容：身份卡 + 帖子/shows/草稿（2026-09 IA） -->
+    <!-- 我页：身份卡 + 三段（空间 / 资产 / 印象）（2026-10-01 plans/022 §4.2 收口）
+         段控真源 = CONTENT_SECTION_ITEMS；「资产」与「印象」原先分别是底栏席位与论坛第 7 席，
+         现在都下沉到这里 —— 用户报障「资产 tab 没有出现」的成因就是上一次只撤了底栏席位、
+         没把下面这段补上（半成品中间态）。 -->
     <div
       v-show="currentTab === 'posts' || leavingTab === 'posts'"
       :ref="(el) => setTabPageRef('posts', el)"
@@ -69,7 +72,7 @@
       <SegmentTabs
         :sections="CONTENT_SECTION_ITEMS"
         v-model="contentSection"
-        aria-label="内容分区"
+        aria-label="我页分段"
       />
       <div
         v-show="contentSection === 'home'"
@@ -121,76 +124,90 @@
           />
         </div>
       </div>
-      <div v-show="contentSection === 'cloud'" class="content-cloud-host">
-        <AsyncCloudPlus v-if="contentSection === 'cloud'" :embedded="true" />
-      </div>
-    </div>
 
-    <!-- 资产：AssetsHubPanel 原样 + 赞助（2026-09 IA）
-         「首次访问后保持挂载」由 useUserSpaceTabs 的 mountedTabs 闩锁提供，与其余三个分区
-         的 v-show 语义对齐：没访问过就不挂载（不为它提前付费），访问过一次就复用（切回
-         零重建、零取数）。直接改成裸 v-show 是错的 —— 那会让 AssetsHubPanel 在进入
-         UserSpace 时就挂载并跑 onMounted 取数（fetchUserTier / products / 抽奖 / 订阅）。
-         内层档位（AssetsHubPanel ↔ SponsorPanel）保持原有 <transition out-in> + v-if 不变。 -->
-    <div
-      v-if="currentTab === 'assets' || leavingTab === 'assets' || mountedTabs.assets"
-      v-show="currentTab === 'assets' || leavingTab === 'assets'"
-      :ref="(el) => setTabPageRef('assets', el)"
-      class="tab-page profile-tab assets-shell"
-      :class="{ 'is-leaving': leavingTab === 'assets' }"
-    >
-      <div v-if="!isLoggedIn" class="login-prompt">
-        <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
-        <h3 class="login-prompt-title">登录以查看我的</h3>
-        <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
-        <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
-      </div>
+      <!-- 资产分段：AssetsHubPanel 原样 + 赞助
+           「首次访问后保持挂载」由本段的 assetsSegmentVisited 闩锁提供，与其余分段的 v-show
+           语义对齐：没访问过就不挂载（不为它提前付费），访问过一次就复用（切回零重建、零取数）。
+           直接改成裸 v-show 是错的 —— 那会让 AssetsHubPanel 在进入 UserSpace 时就挂载并跑
+           onMounted 取数（fetchUserTier / products / 抽奖 / 订阅）。
+           内层档位（AssetsHubPanel ↔ SponsorPanel）保持原有 <transition out-in> + v-if 不变。 -->
       <div
-        v-else
-        class="profile-page-content"
-        :class="{ 'assets-active': assetsSection === 'hub' }"
+        v-if="assetsSegmentVisited"
+        v-show="contentSection === 'assets'"
+        class="profile-tab assets-shell content-assets-host"
       >
-        <transition name="profile-panel-fade" mode="out-in">
-          <AssetsHubPanel
-            v-if="assetsSection === 'hub'"
-            key="assets-hub"
-            :show-back="false"
-            :initial-tab="assetsInitialTab"
-            :points-card-presets="pointsCardPresets"
-            :is-points-card-presets-loading="isPointsCardPresetsLoading"
-            :points-card-preset-capacity="pointsCardPresetQuota.capacity"
-            :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
-            :points-card-cats-unlocked="isPointsCardCatsUnlocked"
-            :is-redeeming-points-card-cats="isRedeemingPointsCardCats"
-            @back="switchTab('posts')"
-            @upload-points-card="handlePointsCardClick"
-            @set-points-card-skin="setPointsCardSkin"
-            @select-points-card-preset="selectPointsCardPreset"
-            @delete-points-card-preset="deletePointsCardPreset"
-            @redeem-points-card-cats="redeemPointsCardCats"
-            @load-points-card-data="loadPointsCardData"
-            @sponsor="openSponsorPage"
-          />
-          <SponsorPanel
-            v-else
-            key="assets-sponsor"
-            :is-home-cat-active="isHomeCatActive"
-            :sponsor-methods="sponsorMethods"
-            :sponsor-method="sponsorMethod"
-            :sponsor-status-text="sponsorStatusText"
-            :sponsor-qr-visible="sponsorQrVisible"
-            :sponsor-qr-load-failed="sponsorQrLoadFailed"
-            :sponsor-qr-loading="sponsorQrLoading"
-            :sponsor-qr-image-url="sponsorQrImageUrl"
-            :sponsor-cat-burst-key="sponsorCatBurstKey"
-            @back="backToAssetsHub"
-            @start-flow="startSponsorFlow"
-            @select-method="selectSponsorMethod"
-            @show-qr="showSponsorQr"
-            @qr-load="handleSponsorQrLoad"
-            @qr-error="handleSponsorQrError"
-          />
-        </transition>
+        <div v-if="!isLoggedIn" class="login-prompt">
+          <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
+          <h3 class="login-prompt-title">登录以查看我的</h3>
+          <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
+          <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
+        </div>
+        <div
+          v-else
+          class="profile-page-content"
+          :class="{ 'assets-active': assetsSection === 'hub' }"
+        >
+          <transition name="profile-panel-fade" mode="out-in">
+            <AssetsHubPanel
+              v-if="assetsSection === 'hub'"
+              key="assets-hub"
+              :show-back="false"
+              :initial-tab="assetsInitialTab"
+              :points-card-presets="pointsCardPresets"
+              :is-points-card-presets-loading="isPointsCardPresetsLoading"
+              :points-card-preset-capacity="pointsCardPresetQuota.capacity"
+              :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
+              :points-card-cats-unlocked="isPointsCardCatsUnlocked"
+              :is-redeeming-points-card-cats="isRedeemingPointsCardCats"
+              @back="switchTab('posts')"
+              @upload-points-card="handlePointsCardClick"
+              @set-points-card-skin="setPointsCardSkin"
+              @select-points-card-preset="selectPointsCardPreset"
+              @delete-points-card-preset="deletePointsCardPreset"
+              @redeem-points-card-cats="redeemPointsCardCats"
+              @load-points-card-data="loadPointsCardData"
+              @sponsor="openSponsorPage"
+            />
+            <SponsorPanel
+              v-else
+              key="assets-sponsor"
+              :is-home-cat-active="isHomeCatActive"
+              :sponsor-methods="sponsorMethods"
+              :sponsor-method="sponsorMethod"
+              :sponsor-status-text="sponsorStatusText"
+              :sponsor-qr-visible="sponsorQrVisible"
+              :sponsor-qr-load-failed="sponsorQrLoadFailed"
+              :sponsor-qr-loading="sponsorQrLoading"
+              :sponsor-qr-image-url="sponsorQrImageUrl"
+              :sponsor-cat-burst-key="sponsorCatBurstKey"
+              @back="backToAssetsHub"
+              @start-flow="startSponsorFlow"
+              @select-method="selectSponsorMethod"
+              @show-qr="showSponsorQr"
+              @qr-load="handleSponsorQrLoad"
+              @qr-error="handleSponsorQrError"
+            />
+          </transition>
+        </div>
+      </div>
+
+      <!-- 印象分段：原论坛第 7 席，2026-10-01 搬到这里（plans/022 §4.5）。
+           取数与删除的单源都在 composables/useProfileImpressions.js，
+           本文件只负责「什么时候挂载」—— 同样是首次访问后闩锁。 -->
+      <div
+        v-if="impressionsSegmentVisited"
+        v-show="contentSection === 'impressions'"
+        class="profile-tab content-impressions-host"
+      >
+        <div v-if="!isLoggedIn" class="login-prompt">
+          <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
+          <h3 class="login-prompt-title">登录以查看我的</h3>
+          <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
+          <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
+        </div>
+        <div v-else class="profile-page-content">
+          <ProfileImpressionsSection />
+        </div>
       </div>
     </div>
 
@@ -248,7 +265,7 @@
           <ProfileSettingsPanel
             v-if="settingsSection === 'home'"
             key="settings-home"
-            :show-back="false"
+            :show-back="true"
             :user-email="userInfo?.email || ''"
             :pushplus-status-text="pushplusStatusText"
             :cloud-plus-usage-text="cloudPlusUsageText"
@@ -446,6 +463,10 @@ const SponsorPanel = defineAsyncComponent(() => import('./components/SponsorPane
 const DataPrivacyPanel = defineAsyncComponent(() => import('./components/DataPrivacyPanel.vue'));
 const DataExportPanel = defineAsyncComponent(() => import('./components/DataExportPanel.vue'));
 const AssetsHubPanel = defineAsyncComponent(() => import('./components/AssetsHubPanel.vue'));
+// 「我」页第三分段（印象）：数据层单源在 composables/useProfileImpressions.js
+const ProfileImpressionsSection = defineAsyncComponent(
+  () => import('./components/ProfileImpressionsSection.vue'),
+);
 import ThemeModal from './components/ThemeModal.vue';
 import NotificationSuggestIsland from '@/components/UnifiedNavbar/NotificationSuggestIsland.vue';
 import { showIsland, islandTaskView } from '@/composables/useIsland.js';
@@ -462,7 +483,6 @@ import {
 import { resolveBottomNavIdForUserSpaceTab } from '@/config/bottom-nav';
 import { useImageCompressionLoader } from './composables/useImageCompressionLoader.js';
 import {
-  AsyncCloudPlus,
   AsyncMessages,
   clearIdlePreloadTasks,
   clearScheduledForumPreload,
@@ -615,11 +635,28 @@ const { isSwiping: isEdgeSwiping, edgeIndicatorVisible } = useEdgeSwipeGesture({
 
 const bottomNavIndicatorStyle = computed(() => navIndicatorStyle.value);
 const validTabs = USER_SPACE_VALID_TABS;
-// 2026-09 IA：旧 tab 语义映射（profile=我的→内容、ai→消息、shows→内容）
-const LEGACY_TAB_MAP = { profile: 'posts', ai: 'messages', shows: 'posts' };
+// 旧 tab 语义映射（profile=我的→内容、ai→消息、shows→内容）
+// 2026-10-01：`assets` 也并进来 —— 它已从「独立 tab」降为「我」页的「资产」分段，
+// 底栏席位早在本轮之前就撤了。落点由 `?view=assets` 表达（见 resolveSectionFromRoute）。
+const LEGACY_TAB_MAP = { profile: 'posts', ai: 'messages', shows: 'posts', assets: 'posts' };
+
+/**
+ * 旧 tab 值 → 现行 tab 值。**三个入口必须走同一份**：
+ *   ① `initialUserSpaceTab`（首帧） ② `onMounted` 的 URL 同步 ③ `watch(route.query.tab)`
+ *
+ * ⚠️ 2026-10-01 修的 bug：原先 ② 直接用**未映射**的 `route.query.tab`，
+ * 于是 `?tab=assets` 会把 currentTab 设成 `assets` —— 而 `assets` 已从「独立 tab」
+ * 降为「我」页的分段，没有任何 tab-page 认领它，结果**整页白屏**（实测三块 tab-page
+ * 全是 display:none）。只要某个旧 tab 值失去自己的页面，这处不一致就会露出来，
+ * 所以在入口收敛比在三处各补一次映射更稳。
+ */
+const resolveRequestedUserSpaceTab = (rawTab) => {
+  const raw = String(rawTab || '');
+  const mapped = LEGACY_TAB_MAP[raw] || raw;
+  return validTabs.includes(mapped) ? mapped : 'community';
+};
 const rawRequestedTab = String(route.query.tab || '');
-const legacyMappedTab = LEGACY_TAB_MAP[rawRequestedTab] || rawRequestedTab;
-const initialUserSpaceTab = validTabs.includes(legacyMappedTab) ? legacyMappedTab : 'community';
+const initialUserSpaceTab = resolveRequestedUserSpaceTab(rawRequestedTab);
 if (
   initialUserSpaceTab === 'posts' ||
   initialUserSpaceTab === 'assets' ||
@@ -629,28 +666,31 @@ if (
 }
 // tab 内段控 section（2026-09 IA：原 profile 二级面板拆平到各 tab）
 const pageRootRef = ref(null);
-// 方块（论坛）分区：七席（官方/最新/关注/新闻/活动/成员/印象）单源在
+// 方块（论坛）分区：六席（官方/最新/关注/新闻/活动/成员）单源在
 // @/config/forum-sections，默认落点仍是「最新」；分区壳本体见 ForumSectionShell.vue
 const communitySection = ref(FORUM_DEFAULT_SECTION);
 const contentSection = ref('home');
 const messagesSection = ref('inbox');
 const settingsSection = ref('home');
 const assetsSection = ref('hub');
-const CONTENT_SECTIONS = ['home', 'cloud'];
+// 「我」页三段：空间 / 资产 / 印象（2026-10-01 收口）
+const CONTENT_SECTIONS = ['home', 'assets', 'impressions'];
 const MESSAGES_SECTIONS = ['inbox'];
 const SETTINGS_SECTIONS = ['home', 'edit-profile', 'data-management', 'data-export'];
-const ASSETS_SECTIONS = ['hub', 'sponsor'];
 const CONTENT_SECTION_ITEMS = [
   { id: 'home', label: '空间' },
-  { id: 'cloud', label: 'Cloud+' },
+  { id: 'assets', label: '资产' },
+  { id: 'impressions', label: '印象' },
 ];
 const SECTION_DEFAULTS = {
   community: 'latest',
   posts: 'home',
   messages: 'inbox',
-  assets: 'hub',
   settings: 'home',
 };
+// 分段惰性挂载闩锁：没访问过的分段不挂载（不为它提前付费），访问过就复用（切回零重建）
+const assetsSegmentVisited = ref(false);
+const impressionsSegmentVisited = ref(false);
 let pendingSectionTab = null;
 const tabTransitionDirection = ref('');
 const leavingTab = ref(null);
@@ -742,11 +782,12 @@ const resolveSectionFromRoute = () => {
   if (currentTab.value === 'community') {
     if (isForumSection(requestedView)) communitySection.value = requestedView;
   } else if (currentTab.value === 'posts') {
-    if (CONTENT_SECTIONS.includes(requestedView)) contentSection.value = requestedView;
+    // 旧深链 `?tab=assets`（资产曾是底栏席位）：没有显式 view 时落到「资产」分段，
+    // 而不是默认的「空间」—— 否则老链接会把用户送到错误的分段。
+    if (!requestedView && rawRequestedTab === 'assets') contentSection.value = 'assets';
+    else if (CONTENT_SECTIONS.includes(requestedView)) contentSection.value = requestedView;
   } else if (currentTab.value === 'messages') {
     if (MESSAGES_SECTIONS.includes(requestedView)) messagesSection.value = requestedView;
-  } else if (currentTab.value === 'assets') {
-    if (ASSETS_SECTIONS.includes(requestedView)) assetsSection.value = requestedView;
   } else if (currentTab.value === 'settings') {
     if (SETTINGS_SECTIONS.includes(requestedView)) {
       settingsSection.value = requestedView;
@@ -771,12 +812,14 @@ const openSettingsPanelFromRoute = async () => {
   openThemeModal();
 };
 
-/** tab → 分区内存单源：URL 的 view 一律由这里推导，别再各写一套 */
+/** tab → 分区内存单源：URL 的 view 一律由这里推导，别再各写一套。
+    ⚠️ `assets` 不是 tab 了（是「我」页的分段），别再往这张表里加 —— 它的内层档位
+    hub/sponsor 是纯内存态（`assetsSection`），不进 URL：`view` 这个参数已经被
+    「分段」占用，两者共用一个 query 名必然打架。 */
 const SECTION_REFS = {
   community: communitySection,
   posts: contentSection,
   messages: messagesSection,
-  assets: assetsSection,
   settings: settingsSection,
 };
 
@@ -804,7 +847,6 @@ const jumpWithSection = (tabId, section) => {
   if (tabId === 'community') communitySection.value = section;
   else if (tabId === 'posts') contentSection.value = section;
   else if (tabId === 'messages') messagesSection.value = section;
-  else if (tabId === 'assets') assetsSection.value = section;
   else if (tabId === 'settings') settingsSection.value = section;
   pendingSectionTab = tabId;
   if (currentTab.value !== tabId) {
@@ -814,16 +856,12 @@ const jumpWithSection = (tabId, section) => {
   }
 };
 
-const setCommunitySection = (section) => {
-  communitySection.value = section;
-  // 印象分区的取数已随分区壳迁到 ForumSectionShell（自持缓存 / 取消 / 分页）
-  setSectionRoute('community', section);
-};
-
-const setContentSection = (section) => {
-  contentSection.value = section;
-  setSectionRoute('posts', section);
-};
+/** 「我」页分段的惰性挂载闩锁 + URL 回写（分段值必须进 URL，否则刷新即丢失） */
+watch(contentSection, (next) => {
+  if (next === 'assets') assetsSegmentVisited.value = true;
+  else if (next === 'impressions') impressionsSegmentVisited.value = true;
+  if (currentTab.value === 'posts') setSectionRoute('posts', next);
+});
 
 const handleCommunitySwitchTab = (tabId) => {
   // shows 段已并入内容页签重构（空间/Cloud+），节目中心落点回「我的 · 空间」
@@ -1765,7 +1803,10 @@ const openSponsorPage = () => {
   sponsorQrLoadFailed.value = false;
   sponsorQrLoading.value = false;
   sponsorCatBurstKey.value += 1;
-  jumpWithSection('assets', 'sponsor');
+  // 赞助是「资产」分段的内层档位：先落到资产段，再切内层（内层不进 URL）
+  assetsSegmentVisited.value = true;
+  assetsSection.value = 'sponsor';
+  jumpWithSection('posts', 'assets');
 };
 
 const openPhotoAlbums = () => {
@@ -1778,13 +1819,14 @@ const openAssetsHub = (initialTab = '') => {
   // 旧积分页 orders/gifts 入口统一落到 fulfillment（旧 4.9.1 tab 集已随回退通道移除）
   if (['orders', 'gifts'].includes(nextTab)) nextTab = 'fulfillment';
   assetsInitialTab.value = betaTabs.includes(nextTab) ? nextTab : '';
-  jumpWithSection('assets', 'hub');
+  assetsSegmentVisited.value = true;
+  assetsSection.value = 'hub';
+  jumpWithSection('posts', 'assets');
 };
 
 const backToAssetsHub = () => {
   assetsSection.value = 'hub';
   assetsInitialTab.value = '';
-  setSectionRoute('assets', 'hub');
 };
 
 const openProfileDataManagement = () => {
@@ -1811,8 +1853,8 @@ const backToProfileSettings = () => {
 };
 
 const openProfileImpressions = () => {
-  // 取数由 ForumSectionShell 在切到「印象」分区时自行触发（单源）
-  jumpWithSection('community', 'impressions');
+  // 取数由 ProfileImpressionsSection 在挂载时自行触发（单源：composables/useProfileImpressions.js）
+  jumpWithSection('posts', 'impressions');
 };
 
 const selectSponsorMethod = (methodId) => {
@@ -2291,7 +2333,8 @@ const switchTab = (tabId) => {
     communitySection.value = SECTION_DEFAULTS.community;
     contentSection.value = SECTION_DEFAULTS.posts;
     messagesSection.value = SECTION_DEFAULTS.messages;
-    assetsSection.value = SECTION_DEFAULTS.assets;
+    // 资产的内层档位（hub / sponsor）是纯内存态，回默认值即可，没有 SECTION_DEFAULTS 条目
+    assetsSection.value = 'hub';
     settingsSection.value = SECTION_DEFAULTS.settings;
   }
   pendingSectionTab = null;
@@ -3191,7 +3234,11 @@ onMounted(() => {
   currentTheme.value = initialTheme;
   currentThemePreference.value = themeManager.getPreference?.() || initialTheme;
   if (route.query.tab && validTabs.includes(route.query.tab)) {
-    currentTab.value = resolveAccessibleTab(route.query.tab, { promptLogin: true });
+    // 必须过 resolveRequestedUserSpaceTab：这里曾经直接用 route.query.tab，
+    // 旧值（如 assets）一旦不再拥有自己的 tab-page 就会白屏，见该函数注释。
+    currentTab.value = resolveAccessibleTab(resolveRequestedUserSpaceTab(route.query.tab), {
+      promptLogin: true,
+    });
   }
   resolveSectionFromRoute();
   void openSettingsPanelFromRoute();
@@ -3229,9 +3276,9 @@ onMounted(() => {
 watch(
   () => route.query.tab,
   (newTab) => {
-    const mappedTab = LEGACY_TAB_MAP[newTab] || newTab;
-    const safeTab = validTabs.includes(mappedTab) ? mappedTab : 'community';
-    const nextTab = resolveAccessibleTab(safeTab, { promptLogin: true });
+    const nextTab = resolveAccessibleTab(resolveRequestedUserSpaceTab(newTab), {
+      promptLogin: true,
+    });
     if (currentTab.value === nextTab) return;
     updateTabTransitionDirection(nextTab);
     ensureTabMounted(nextTab);

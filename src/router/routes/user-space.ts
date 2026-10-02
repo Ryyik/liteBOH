@@ -17,11 +17,13 @@ const redirectToUserSpaceTab =
     query: { ...to.query, tab },
   });
 
-// 2026-09-30 起「标签与印象」独立页已收掉（孤儿页，全站零 UI 入口，见 plans/022 §5），
-// 印象的落点改为论坛「印象」分区；保留 redirect 兜底旧深链，不做 404。
+// 2026-09-30 起「标签与印象」独立页已收掉（孤儿页，全站零 UI 入口，见 plans/022 §5）。
+// 印象的落点：2026-10-01 起是「我」页的第三个分段 `?tab=posts&view=impressions`
+// （原先临时指向论坛「印象」分区；该分区已随 plans/022 §4.5 移除，不要再指回去）。
+// 保留 redirect 兜底旧深链，不做 404。
 const redirectToUserSpaceImpressions: any = (to: any) => ({
   path: '/user-space',
-  query: { ...to.query, tab: 'community', view: 'impressions' },
+  query: { ...to.query, tab: 'posts', view: 'impressions' },
 });
 
 const redirectToUserSpaceMessages: any = (to: any) => ({

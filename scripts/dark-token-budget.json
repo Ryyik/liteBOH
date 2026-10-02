@@ -1,5 +1,5 @@
 {
-  "total": 2869,
+  "total": 2865,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 231,
     "src/styles/themes/forum-dark.css": 187,
@@ -75,7 +75,6 @@
     "src/views/Home/components/HomeArchiveSection.vue": 6,
     "src/views/user-center/UserSpace/components/EditProfilePanel.vue": 6,
     "src/views/user-center/UserSpace/styles/landscape-rail.css": 6,
-    "src/components/UserCenterPageHeader.vue": 5,
     "src/views/activities/components/ActivityMonthRail.vue": 5,
     "src/views/user-center/UserSpace/UserSpaceMain.vue": 5,
     "src/components/UnifiedNavbar/OverviewIslandLoading.vue": 4,
@@ -91,6 +90,7 @@
     "src/components/GlobalErrorBoundary.vue": 2,
     "src/views/ActivitiesWall/WallIslandCard.vue": 2,
     "src/views/Shop/ShopAccountPage.vue": 2,
+    "src/components/UserCenterPageHeader.vue": 1,
     "src/styles/common/avatar-frame.css": 1,
     "src/styles/common/glass-ui.css": 1,
     "src/styles/common/liquid-glass.css": 1,

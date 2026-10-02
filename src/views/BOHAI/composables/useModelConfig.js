@@ -74,10 +74,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
       getAvailableModels().find((m) => m.id === currentModelId.value) || getAvailableModels()[0],
   );
 
-  // 本轮 Auto 路由到的具体模式：在 sendMessage 中赋值，UI 可读。
-  // 当用户手动点击 chip 重置或新会话时清空。
-  const lastRoutedMode = ref('');
-
   // ─── Feature toggle refs ───────────────────────────────────────────────────────
 
   const isCommandMode = ref(false);
@@ -286,7 +282,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     currentMode,
     currentModelId,
     currentModel,
-    lastRoutedMode,
 
     // Feature toggles
     isCommandMode,

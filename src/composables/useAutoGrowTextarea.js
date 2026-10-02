@@ -14,6 +14,9 @@
  *    空内容时 `scrollHeight` 天然等于 `rows` 撑出的高度，所以不需要另算最小高度 ——
  *    这也是本实现不解析 `line-height` 的原因（`line-height: normal` 解析出来是 NaN，
  *    再叠一层兜底常量只会引入误差）。
+ *    ⚠️ 但「空内容 scrollHeight = rows 固有高度」有一个前提：**框足够宽、placeholder 不折行**。
+ *    窄框（如详情页底栏输入框，宽仅 ~107px）里折行后的占位文字会被算进 scrollHeight，
+ *    空态直接变成两行高。测量时临时摘掉 placeholder 才能保住这个前提，见 `measureNow`。
  * 2. 高度是**内容驱动**的，父组件改写 value 时同样要重算。论坛回复框用的是
  *    `:value` + `@input` 受控写法，切换回复对象 / 发送成功清空 / 取消都由父组件改写内容 ——
  *    只绑 `@input` 的实现在这些路径上不会收缩（`ForumMain.vue` 的 `toggleReplyInput`）。
@@ -116,6 +119,14 @@ export function useAutoGrowTextarea(options = {}) {
     if (!el || el.isConnected === false) return;
 
     const metrics = readMetrics(el);
+    // ⚠️ 空内容时**必须把 placeholder 临时摘掉再量**（2026-10-01 实测）：
+    // 浏览器会把【折行后的占位文字】也算进 scrollHeight。窄输入框里 "说点什么..." 折成两行，
+    // 空态就被撑到两行高（详情页底栏实测 clientHeight 64px vs 应有的 40px），
+    // 而 placeholder 是提示不是内容，不该参与高度计算。
+    // 摘掉-量完-立刻写回，中间不 await，不会闪；只在 value 为空且确有 placeholder 时做。
+    const savedPlaceholder = el.value ? null : el.placeholder;
+    if (savedPlaceholder) el.placeholder = '';
+
     el.style.height = 'auto';
     const scrollHeight = el.scrollHeight;
     const next = resolveAutoGrowHeight({ scrollHeight, ...metrics });
@@ -126,6 +137,8 @@ export function useAutoGrowTextarea(options = {}) {
     // n=5 顶到上限 168，n=6 因 next 与上次同为 168 而提前返回，高度掉回 85）。
     // 写回同一个像素值不会触发重排，跳过它省不下什么，却会引入这条极隐蔽的路径。
     el.style.height = `${next}px`;
+
+    if (savedPlaceholder) el.placeholder = savedPlaceholder;
   };
 
   const schedule = () => {

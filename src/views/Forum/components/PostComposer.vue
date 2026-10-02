@@ -183,7 +183,12 @@ const currentPreviewImageUrl = computed(() =>
 );
 const getImageStatusLabel = (image) => {
   if (image?.uploadStatusLabel) return image.uploadStatusLabel;
-  if (image?.uploadStatus === 'failed') return '未通过';
+  const status = String(image?.uploadStatus || '');
+  if (status === 'failed') return '未通过';
+  if (status === 'staged' || status === 'queued') return '排队中';
+  if (status === 'optimizing') return '优化中';
+  if (status === 'moderating') return '安全检测中';
+  if (status === 'uploading') return '上传中';
   return '已检测';
 };
 const getImageStatusClass = (image) => {
@@ -192,8 +197,10 @@ const getImageStatusClass = (image) => {
   return 'approved';
 };
 const shouldShowImageStatus = (image) =>
-  // 设计意图：上传/优化/检测过程不在图片上显示任何加载态（转圈），
-  // 真实进度由灵动岛统一展示；仅失败态保留 badge + 重试入口
+  // 产品口径（2026-10-02 拍板）：选图→发布之间保持安静，不给常驻过程反馈；仅失败态显示
+  // badge + 重试入口。慢/卡的场景由 ForumMain 的卡顿观察器写一次性底部状态行提示
+  // （.post-image-upload-status），不走图片徽章。
+  // （旧注释「进度由灵动岛展示」不实——灵动岛只在发布中出现，已删。）
   String(image?.uploadStatus || '') === 'failed';
 const canReorderImage = (image) =>
   !image?.uploadStatus || ['approved', 'staged'].includes(image.uploadStatus);
@@ -761,12 +768,7 @@ onUnmounted(() => {
               :aria-label="`预览第 ${index + 1} 张图片大图`"
               @click="openImagePreview(image)"
             >
-              <img
-                :src="image.url"
-                :alt="`帖子图片 ${index + 1}`"
-                loading="lazy"
-                decoding="async"
-              />
+              <img :src="image.url" :alt="`帖子图片 ${index + 1}`" decoding="async" />
             </button>
             <div v-else class="post-image-failed-placeholder">
               <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />

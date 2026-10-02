@@ -1306,6 +1306,91 @@ const runtimeFreeSearch = async (body: Record<string, unknown>) => {
   return { ok: true, status: response.status, data };
 };
 
+// 计量搜索公共 core：限流 → 档位限额（含 Coding 附加包加成）→ reserve → 执行搜索 → settle。
+// runtime-search（Tavily 付费 key）与 runtime-free-search（免费搜索代理）共用同一套计量，
+// 差异只在执行器。⚠️ 2026-10-02 之前 free-search 分支从不写 ai_web_search_log，
+// 额度面板「联网搜索次数」恒 0（UI 承诺限额但实现从不计量）——本函数即该断链的修复。
+const runMeteredWebSearch = async ({
+  client,
+  userId,
+  body,
+  executor,
+  origin,
+}: {
+  client: ReturnType<typeof createServiceClient>;
+  userId: string;
+  body: Record<string, unknown>;
+  executor: (b: Record<string, unknown>) => Promise<{ ok: boolean }>;
+  origin: string | null;
+}): Promise<Response> => {
+  const tier = await resolveUserTier(client, userId);
+  const searchRate = await checkRateLimitDb(`ai_web_rt:${userId}`, 6, 60_000);
+  if (!searchRate.ok) {
+    return jsonResponse(
+      {
+        ok: false,
+        code: 'SEARCH_RATE_LIMITED',
+        message: `联网搜索过于频繁，请 ${searchRate.retryAfter} 秒后再试。`,
+      },
+      429,
+      origin,
+    );
+  }
+  let dailyLimit = (await getQuotaPolicy(client, tier)).webSearchLimit;
+  if (dailyLimit !== -1) {
+    const bonuses = sumCodingBonuses(await resolveUserPlans(client, userId));
+    dailyLimit += bonuses.webSearchBonus;
+  }
+  if (dailyLimit === 0) {
+    return jsonResponse(
+      { ok: false, code: 'SEARCH_DAILY_LIMIT', message: '当前订阅暂不支持联网搜索。' },
+      429,
+      origin,
+    );
+  }
+  if (dailyLimit === -1) {
+    const result = await executor(body);
+    return jsonResponse(result, result.ok ? 200 : 502, origin);
+  }
+  const { data: reservation, error: reservationError } = await client.rpc('reserve_ai_web_search', {
+    p_user_id: userId,
+    p_tier: tier,
+    p_daily_limit: dailyLimit,
+    p_since: getBeijingTodayStartUTC(),
+  });
+  if (reservationError) throw reservationError;
+  const searchReservation = Array.isArray(reservation) ? reservation[0] : null;
+  if (!searchReservation?.allowed) {
+    return jsonResponse(
+      {
+        ok: false,
+        code: 'SEARCH_DAILY_LIMIT',
+        message: '今日联网搜索额度已用完，明天 0:00 重置。',
+      },
+      429,
+      origin,
+    );
+  }
+  try {
+    const result = await executor(body);
+    await client.rpc('settle_ai_web_search', {
+      p_request_id: searchReservation.request_id,
+      p_status: result.ok ? 'success' : 'failed',
+    });
+    return jsonResponse(result, result.ok ? 200 : 502, origin);
+  } catch (error) {
+    try {
+      await client.rpc('settle_ai_web_search', {
+        p_request_id: searchReservation.request_id,
+        p_status: 'failed',
+      });
+    } catch (_settleError) {
+      // The stale pending row expires automatically on the next reservation.
+    }
+    throw error;
+  }
+};
+
 const runtimeResolveActiveKey = async (
   client: ReturnType<typeof createServiceClient>,
   body: Record<string, unknown>,
@@ -1487,12 +1572,16 @@ const WEB_SEARCH_DAILY_LIMIT_FALLBACKS: Record<string, number> = {
   ultra: 240,
 };
 
-// BOH AI Coding 附加包额度加成：与订阅页 CODING_PLANS 文案一致，按 active 订阅叠加。
+// BOH AI Coding 附加包额度加成：与订阅页 CODING_PACKS 文案一致，按 active 订阅叠加。
+// ⚠️ 2026-10-02：随档位额度（ai_quota_config.daily_token_limit）一起 ÷2，
+//    保持包相对基础额度的占比不变（coding-lite 对 pro：250k/1M = 25%，与改动前 500k/2M 一致）。
+//    改这里**必须同时改** src/utils/subscription-benefits.js 的 CODING_PACKS 展示值，
+//    否则会出现「页面说 +25 万、实际加 +50 万」。
 const CODING_PLAN_BONUSES: Record<string, { tokenBonus: number; webSearchBonus: number }> = {
-  'coding-lite': { tokenBonus: 500_000, webSearchBonus: 10 },
-  'coding-plus': { tokenBonus: 1_500_000, webSearchBonus: 30 },
-  'coding-pro': { tokenBonus: 3_000_000, webSearchBonus: 60 },
-  'coding-ultra': { tokenBonus: 6_000_000, webSearchBonus: 120 },
+  'coding-lite': { tokenBonus: 250_000, webSearchBonus: 10 },
+  'coding-plus': { tokenBonus: 750_000, webSearchBonus: 30 },
+  'coding-pro': { tokenBonus: 1_500_000, webSearchBonus: 60 },
+  'coding-ultra': { tokenBonus: 3_000_000, webSearchBonus: 120 },
 };
 
 const SUBSCRIPTION_PLAN_ALIASES: Record<string, string> = {
@@ -2203,7 +2292,17 @@ Deno.serve(async (request) => {
       const identity = await resolveRuntimeIdentity(request, client);
       // M-6 修复：服务端短期速率限制（每用户每分钟 10 次），防止客户端限流被绕过
       const rateKey = `ai_chat_rt:${identity.userId || `guest:${identity.ipAddress}`}`;
-      const rate = await checkRateLimitDb(rateKey, 10, 60_000);
+      // 与 runtime-chat-stream 同一处理：限流与额度并行，policy 保持在限流之后。
+      // 详见 runtime-chat-stream 分支的注释（plans/024 §P1-3）。
+      // P1-5: 复用 identity 避免重复 auth.getUser 往返
+      const [rate, initialQuota] = await Promise.all([
+        checkRateLimitDb(rateKey, 10, 60_000),
+        checkTokenQuota(client, request, {
+          userId: identity.userId,
+          ipAddress: identity.ipAddress,
+          tier: identity.tier,
+        }),
+      ]);
       if (!rate.ok) {
         return jsonResponse(
           {
@@ -2223,13 +2322,8 @@ Deno.serve(async (request) => {
         tier,
         identity.userId,
       );
-      console.log('[vault] user auth ok, checking token quota');
-      // P1-5: 复用 identity 避免重复 auth.getUser 往返
-      let quota = await checkTokenQuota(client, request, {
-        userId: identity.userId,
-        ipAddress: identity.ipAddress,
-        tier,
-      });
+      console.log('[vault] user auth ok, reserving token quota');
+      let quota = initialQuota;
       quota = await reserveTokenQuota(
         client,
         quota,
@@ -2330,7 +2424,22 @@ Deno.serve(async (request) => {
       const identity = await resolveRuntimeIdentity(request, client);
       // M-6 修复：服务端短期速率限制（每用户每分钟 10 次）
       const rateKey = `ai_chat_rt:${identity.userId || `guest:${identity.ipAddress}`}`;
-      const rate = await checkRateLimitDb(rateKey, 10, 60_000);
+      // 首 token 延迟优化（plans/024 §P1-3）：限流与额度查询互不依赖（都只吃 identity），
+      // 并行发出，把两次串行 DB 往返压成一次。
+      //
+      // ⚠️ resolveRuntimeModelPolicy **必须留在限流之后**：它会抛错（模式不可用 / 订阅不足），
+      // 若并进这一批，被限流的用户会先拿到「模式不可用」而不是 429 —— 等于削弱限流反馈。
+      // ⚠️ checkTokenQuota 是纯读（真正的预留在后面的 reserveTokenQuota），
+      // 所以被限流的请求多算一次额度没有副作用，只是浪费一次读。
+      // P1-5: 复用 identity 避免重复 auth.getUser 往返
+      const [rate, initialQuota] = await Promise.all([
+        checkRateLimitDb(rateKey, 10, 60_000),
+        checkTokenQuota(client, request, {
+          userId: identity.userId,
+          ipAddress: identity.ipAddress,
+          tier: identity.tier,
+        }),
+      ]);
       if (!rate.ok) {
         return jsonResponse(
           {
@@ -2350,12 +2459,7 @@ Deno.serve(async (request) => {
         tier,
         identity.userId,
       );
-      // P1-5: 复用 identity 避免重复 auth.getUser 往返
-      let quota = await checkTokenQuota(client, request, {
-        userId: identity.userId,
-        ipAddress: identity.ipAddress,
-        tier,
-      });
+      let quota = initialQuota;
       quota = await reserveTokenQuota(
         client,
         quota,
@@ -2439,75 +2543,13 @@ Deno.serve(async (request) => {
           origin,
         );
       }
-      const tier = await resolveUserTier(client, user.userId);
-      const searchRate = await checkRateLimitDb(`ai_web_rt:${user.userId}`, 6, 60_000);
-      if (!searchRate.ok) {
-        return jsonResponse(
-          {
-            ok: false,
-            code: 'SEARCH_RATE_LIMITED',
-            message: `联网搜索过于频繁，请 ${searchRate.retryAfter} 秒后再试。`,
-          },
-          429,
-          origin,
-        );
-      }
-      let dailyLimit = (await getQuotaPolicy(client, tier)).webSearchLimit;
-      if (dailyLimit !== -1) {
-        const bonuses = sumCodingBonuses(await resolveUserPlans(client, user.userId));
-        dailyLimit += bonuses.webSearchBonus;
-      }
-      if (dailyLimit === 0) {
-        return jsonResponse(
-          { ok: false, code: 'SEARCH_DAILY_LIMIT', message: '当前订阅暂不支持联网搜索。' },
-          429,
-          origin,
-        );
-      }
-      if (dailyLimit === -1) {
-        const result = await runtimeTavilySearch(client, body);
-        return jsonResponse(result, result.ok ? 200 : 502, origin);
-      }
-      const { data: reservation, error: reservationError } = await client.rpc(
-        'reserve_ai_web_search',
-        {
-          p_user_id: user.userId,
-          p_tier: tier,
-          p_daily_limit: dailyLimit,
-          p_since: getBeijingTodayStartUTC(),
-        },
-      );
-      if (reservationError) throw reservationError;
-      const searchReservation = Array.isArray(reservation) ? reservation[0] : null;
-      if (!searchReservation?.allowed) {
-        return jsonResponse(
-          {
-            ok: false,
-            code: 'SEARCH_DAILY_LIMIT',
-            message: '今日联网搜索额度已用完，明天 0:00 重置。',
-          },
-          429,
-          origin,
-        );
-      }
-      try {
-        const result = await runtimeTavilySearch(client, body);
-        await client.rpc('settle_ai_web_search', {
-          p_request_id: searchReservation.request_id,
-          p_status: result.ok ? 'success' : 'failed',
-        });
-        return jsonResponse(result, result.ok ? 200 : 502, origin);
-      } catch (error) {
-        try {
-          await client.rpc('settle_ai_web_search', {
-            p_request_id: searchReservation.request_id,
-            p_status: 'failed',
-          });
-        } catch (_settleError) {
-          // The stale pending row expires automatically on the next reservation.
-        }
-        throw error;
-      }
+      return await runMeteredWebSearch({
+        client,
+        userId: user.userId,
+        body,
+        executor: (b) => runtimeTavilySearch(client, b),
+        origin,
+      });
     }
     if (action === 'runtime-free-search') {
       const user = await requireUser(request, client);
@@ -2518,8 +2560,13 @@ Deno.serve(async (request) => {
           origin,
         );
       }
-      const result = await runtimeFreeSearch(body);
-      return jsonResponse(result, result.ok ? 200 : 502, origin);
+      return await runMeteredWebSearch({
+        client,
+        userId: user.userId,
+        body,
+        executor: (b) => runtimeFreeSearch(b),
+        origin,
+      });
     }
     if (action === 'runtime-resolve') {
       const user = await requireUser(request, client);

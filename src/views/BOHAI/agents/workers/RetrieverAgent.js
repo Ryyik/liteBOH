@@ -1,6 +1,7 @@
 import { AGENT_AGENT_ROLES } from '../core/agent-events.js';
 import { logger } from '@/utils/logger.js';
 import { TASK_GENERATION_PRESETS } from '../../generation-params.js';
+import { NO_FABRICATION_RULE } from '../../shared-rules.js';
 
 const safeString = (value, max = 1200) => (value == null ? '' : String(value)).slice(0, max);
 
@@ -161,8 +162,7 @@ export const createRetrieverAgent = (options = {}) => {
             messages: [
               {
                 role: 'system',
-                content:
-                  '<role>你是 BOH AI 集群的 Retriever Agent。</role>\n<constraints>\n- 基于证据提炼简短摘要\n- 绝对不能编造\n</constraints>',
+                content: `<role>你是 BOH AI 集群的 Retriever Agent。</role>\n<constraints>\n- 基于证据提炼简短摘要\n${NO_FABRICATION_RULE}\n</constraints>`,
               },
               {
                 role: 'user',

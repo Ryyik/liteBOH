@@ -5,10 +5,10 @@ import { resolve } from 'path';
 /**
  * 验证所有异步懒加载入口 wrapper 是否正确透传 $attrs。
  */
- 
- const projectRoot = resolve(import.meta.dirname, '../..');
- 
- const entries = [
+
+const projectRoot = resolve(import.meta.dirname, '../..');
+
+const entries = [
   {
     name: 'UserSpace',
     path: 'src/views/user-center/UserSpace/index.vue',
@@ -137,10 +137,16 @@ describe('async wrapper attrs pass-through', () => {
       expect(asyncLoaders).not.toMatch(/import\(['"]@\/views\/BOHAI\/BOHAI\/index\.vue['"]\)/);
     });
 
-    it('async-loaders.js loads CloudPlusMain.vue directly (no double-wrap)', () => {
+    it('Cloud+ 只经路由进入，UserSpace 侧不再有第二份异步包装', () => {
+      // 2026-10-01（plans/022 §4.5）：Cloud+ 从「我」页分段撤下、收进设置里的单独入口
+      // （点进独立页面），于是 async-loaders.js 里的 AsyncCloudPlus 成了零消费者死导出，已删。
+      // 本守卫从原先的「包装必须直连 leaf」改成「不再存在第二份包装」：
+      // 两份加载路径会让组件实例与预载时机分叉；而没人消费时它就是一坨死代码。
+      // leaf 仍由路由侧的 Cloud+/index.vue 提供（那里是路由级 Suspense 壳，属正当包装）。
       const asyncLoaders = readEntryFile('src/views/user-center/UserSpace/async-loaders.js');
-      expect(asyncLoaders).toMatch(/import\(['"]@\/views\/user-center\/Cloud\+\/CloudPlusMain\.vue['"]\)/);
-      expect(asyncLoaders).not.toMatch(/import\(['"]@\/views\/user-center\/Cloud\+\/index\.vue['"]\)/);
+      expect(asyncLoaders).not.toMatch(/CloudPlusMain/);
+      const routes = readEntryFile('src/router/routes/user-space.ts');
+      expect(routes).toMatch(/Cloud\+\/index\.vue/);
     });
   });
 });

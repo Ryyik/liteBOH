@@ -47,23 +47,35 @@ describe('UserSpaceMain 把 mountedTabs 闩锁接到模板上', () => {
     );
   });
 
-  it('latches assets/settings with v-if + v-show instead of bare v-if', () => {
+  it('latches the settings tab with v-if + v-show instead of bare v-if', () => {
     // 只改成裸 v-show 是错的：元素从 UserSpace 首帧就渲染，
-    // AssetsHubPanel 会在用户从未访问资产时就被挂载并取数（提前付费）。
+    // 该 tab 的子面板会在用户从未访问时就被挂载并取数（提前付费）。
     // 闩锁 = 没访问过不挂载，访问过一次就复用。
-    for (const tab of ['assets', 'settings']) {
-      expect(mainSource).toMatch(
-        new RegExp(
-          `v-if="currentTab === '${tab}' \\|\\| leavingTab === '${tab}' \\|\\| mountedTabs\\.${tab}"`,
-        ),
-      );
-      expect(mainSource).toMatch(
-        new RegExp(`v-show="currentTab === '${tab}' \\|\\| leavingTab === '${tab}'"`),
-      );
+    const tab = 'settings';
+    expect(mainSource).toMatch(
+      new RegExp(
+        `v-if="currentTab === '${tab}' \\|\\| leavingTab === '${tab}' \\|\\| mountedTabs\\.${tab}"`,
+      ),
+    );
+    expect(mainSource).toMatch(
+      new RegExp(`v-show="currentTab === '${tab}' \\|\\| leavingTab === '${tab}'"`),
+    );
+  });
+
+  it('latches the 资产 / 印象 分段 with a「访问过」闩锁 instead of bare v-show', () => {
+    // 2026-10-01（plans/022 §4.2）：assets 从「独立 tab」降为「我」页的分段，
+    // 所以它不再出现在上面的 tab 闩锁里，但**闩锁语义必须保留** ——
+    // 分段若是裸 v-show，AssetsHubPanel 会在进入 UserSpace 时就挂载并跑 onMounted 取数
+    // （fetchUserTier / products / 抽奖 / 订阅），正是当初给 tab 加闩锁要防的那件事。
+    for (const seg of ['assets', 'impressions']) {
+      expect(mainSource).toMatch(new RegExp(`v-if="${seg}SegmentVisited"`));
+      expect(mainSource).toMatch(new RegExp(`v-show="contentSection === '${seg}'"`));
+      // 反向：分段绝不能退回「按 currentTab 判定的独立 tab-page」
+      expect(mainSource).not.toMatch(new RegExp(`v-if="currentTab === '${seg}'`));
     }
   });
 
-  it('keeps the other three sections on plain v-show', () => {
+  it('keeps the other sections on plain v-show', () => {
     // community / posts / messages 本来就是常驻 + v-show；被加上闩锁条件也不会更差，
     // 但如果反过来被改成 v-if，就会退回「离开即销毁」。方向性守卫。
     for (const tab of ['community', 'posts', 'messages']) {

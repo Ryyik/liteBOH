@@ -490,15 +490,18 @@
                     <LoaderCircle size="12" class="compressing-spinner" />
                     <span>正在压缩上下文</span>
                   </div>
-                  <div v-else class="usage-orb-wrap">
-                    <!-- 上下文 + 今日额度合成一个双环：外环 = 上下文（灰度层级沿用原口径），
-                         内环 = 今日额度（accent 绿 → 琥珀 → 红）。同一个 38px 圆里位置不足以
-                         区分两条环，所以靠颜色分工；数字收进点击后展开的浮层。 -->
+                  <div
+                    v-else
+                    class="usage-orb-wrap"
+                    @mouseenter="openUsagePopOnHover"
+                    @mouseleave="scheduleCloseUsagePop"
+                  >
+                    <!-- 单环 = 对话上下文（灰度层级沿用原口径；额度吃紧时琥珀/红接管环色）。
+                         上下文与额度的数字都收进 hover / 点击后展开的浮层。 -->
                     <button
                       type="button"
                       class="usage-orb"
                       :class="[ringColorClass, quotaLevelClass, { open: usagePopOpen }]"
-                      :title="usageOrbTitle"
                       :aria-expanded="usagePopOpen"
                       aria-haspopup="dialog"
                       aria-label="使用情况"
@@ -506,21 +509,12 @@
                     >
                       <svg class="usage-orb-svg" viewBox="0 0 24 24" aria-hidden="true">
                         <circle class="orb-track" cx="12" cy="12" r="9.6" />
-                        <circle class="orb-track" cx="12" cy="12" r="5.9" />
                         <circle
                           class="orb-fill orb-ctx"
                           cx="12"
                           cy="12"
                           r="9.6"
                           :stroke-dasharray="`${orbContextDash} ${ORB_CTX_CIRC}`"
-                          transform="rotate(-90 12 12)"
-                        />
-                        <circle
-                          class="orb-fill orb-quota"
-                          cx="12"
-                          cy="12"
-                          r="5.9"
-                          :stroke-dasharray="`${orbQuotaDash} ${ORB_QUOTA_CIRC}`"
                           transform="rotate(-90 12 12)"
                         />
                       </svg>
@@ -1429,21 +1423,6 @@ const contextBudgetPercentText = computed(() => {
 // - Agent: 工作
 // AUTO 模式已于 2026-06-08 移除，不再有"自动路由到哪个子模式"的 chip 概念。
 
-const contextBudgetTitle = computed(() => {
-  const usage = contextBudgetUsage.value || {
-    windowUsed: 0,
-    windowMax: 0,
-    includedMessageCount: 0,
-    totalMessageCount: 0,
-    hasSummary: false,
-  };
-  const summaryHint = usage.hasSummary ? '，更早内容已保存在摘要中' : '';
-  if (isCompressingContext.value) {
-    return `上下文已到 100%，正在整理早期对话${summaryHint}`;
-  }
-  return `距下次自动整理：${contextBudgetPercentText.value} · 本轮约 ${usage.windowUsed} / ${usage.windowMax} 字符${summaryHint}`;
-});
-
 const formatTodayToken = (value) =>
   new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(
     Math.max(0, Number(value || 0)),
@@ -1479,20 +1458,19 @@ const contextWarningText = computed(() => {
     : '上下文接近 100%，到达后会自动整理早期对话';
 });
 
-// ─── 用量圆钮：上下文 + 今日额度合成一个双环 ──────────────────────────────
-// 外环 = 上下文（沿用原灰度层级 level-low/mid/high/full），内环 = 今日额度
-// （accent 绿 → 琥珀 → 红）。两条环必须靠颜色分工：38px 的圆里位置差不足以区分它们。
+// ─── 用量圆钮：单环 = 对话上下文，额度收进浮层 ────────────────────────────
+// 38px 的圆里双环位置差不足以区分，2026-10-02 起改单环：环沿用上下文灰度层级
+// （level-low/mid/high/full），额度吃紧（≥85% 琥珀 / ≥95% 红）时接管环色；
+// 上下文与额度的数字都在 hover / 点击后展开的浮层里。
 const ORB_CTX_RADIUS = 9.6;
-const ORB_QUOTA_RADIUS = 5.9;
 const ORB_CTX_CIRC = 2 * Math.PI * ORB_CTX_RADIUS;
-const ORB_QUOTA_CIRC = 2 * Math.PI * ORB_QUOTA_RADIUS;
 
 const orbContextDash = computed(() => {
   const percent = Math.max(0, Math.min(100, contextBudgetUsage.value?.historyPercent || 0));
   return (percent / 100) * ORB_CTX_CIRC;
 });
 
-// 今日额度百分比。limit === -1 表示不限量 ⇒ 不画环（保持 0，画满会误导成"用光了"）。
+// 今日额度百分比（浮层用）。limit === -1 表示不限量 ⇒ 显示 0%。
 const quotaPercent = computed(() => {
   const usage = todayTokenUsage.value;
   if (!usage) return 0;
@@ -1502,8 +1480,6 @@ const quotaPercent = computed(() => {
 });
 
 const quotaPercentText = computed(() => `${Math.floor(quotaPercent.value)}%`);
-
-const orbQuotaDash = computed(() => (quotaPercent.value / 100) * ORB_QUOTA_CIRC);
 
 // 额度压力分档：< 85% 正常 / 85–94% 琥珀 / >= 95% 红
 const quotaLevelClass = computed(() => {
@@ -1524,22 +1500,45 @@ const todayTokenDetailText = computed(() => {
   return `已用 ${formatTodayToken(used)} / ${formatTodayToken(limit)} · 还可使用 ${formatTodayToken(remain)}`;
 });
 
-const usageOrbTitle = computed(() => {
-  const parts = [contextBudgetTitle.value];
-  if (todayTokenUsage.value) parts.push(`今日额度 ${quotaPercentText.value}`);
-  return parts.join(' · ');
-});
-
-// 用量浮层开合。与模式面板互斥：两个浮层都贴在底行同一侧，同时开必然重叠。
+// 浮层开合（hover 或点击均可）。与模式面板互斥：两个浮层都贴在底行同一侧，
+// 同时开必然重叠。hover 事件挂在 .usage-orb-wrap（按钮 + 浮层共用容器）上，
+// 鼠标从按钮移进浮层要跨 10px 空隙，挂在按钮上会误触发 mouseleave。
 const usagePopOpen = ref(false);
-const toggleUsagePop = () => {
-  const next = !usagePopOpen.value;
+let usagePopCloseTimer = null;
+
+const setUsagePopOpen = (next) => {
   if (next && composerPanelOpen.value) {
     composerPanelOpen.value = false;
     composerSubOpen.value = '';
     composerAdvOpen.value = false;
   }
   usagePopOpen.value = next;
+};
+
+const clearUsagePopCloseTimer = () => {
+  if (usagePopCloseTimer) {
+    clearTimeout(usagePopCloseTimer);
+    usagePopCloseTimer = null;
+  }
+};
+
+const toggleUsagePop = () => {
+  clearUsagePopCloseTimer();
+  setUsagePopOpen(!usagePopOpen.value);
+};
+
+const openUsagePopOnHover = () => {
+  clearUsagePopCloseTimer();
+  setUsagePopOpen(true);
+};
+
+// 离开后延迟关闭：给「抖出边界又抖回来」留余量，也让用户有时间把鼠标挪进浮层
+const scheduleCloseUsagePop = () => {
+  clearUsagePopCloseTimer();
+  usagePopCloseTimer = setTimeout(() => {
+    usagePopCloseTimer = null;
+    setUsagePopOpen(false);
+  }, 180);
 };
 
 const ringColorClass = computed(() => {

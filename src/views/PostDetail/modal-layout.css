@@ -303,6 +303,9 @@
   right: 0;
   bottom: var(--pd-dock-inset, 0px);
   z-index: 2147481200;
+  /* 输入框会自动增高到 132px：把发送/点赞组按底边对齐，多行时它们跟随最后一行，
+     不会悬浮在框高一半的位置 */
+  align-items: flex-end;
   padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
   background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
   border-top: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
@@ -310,16 +313,31 @@
   -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
 }
 
+/* 评论输入框：自动增高 textarea（2026-10-01 由单行 input 改）
+   高度契约（勿在 JS 里写第二份像素值）：
+     · 最小高度 = min-height（单行 40px）
+     · 上限     = max-height  ← useAutoGrowTextarea 读 getComputedStyle 取用
+     · 超上限后在框内滚动（overflow-y: auto），光标不会掉出可视区
+   注意 src/style.css 在 max-width:768px 下把 textarea 字号强制成 16px !important，
+   所以竖屏和平面（13px）的实际单行高度差 2px，属预期。 */
 .pd-reply-input {
   flex: 1;
   min-width: 0;
-  height: 40px;
-  padding: 0 16px;
+  min-height: 40px;
+  max-height: 132px;
+  box-sizing: border-box;
+  padding: 8px 16px;
   border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
-  border-radius: var(--liquid-radius-pill, 999px);
+  border-radius: 20px;
   background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
   color: var(--liquid-text-primary, #1d1d1f);
+  font-family: inherit;
   font-size: 13px;
+  line-height: 1.5;
+  display: block;
+  resize: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   outline: none;
   transition: border-color var(--duration-fast, 180ms) ease, background var(--duration-fast, 180ms) ease;
 }
@@ -337,6 +355,10 @@
   cursor: pointer;
   text-align: left;
   font-family: inherit;
+  /* 访客态是 <button>，同类的 .pd-reply-input 已改成多行 textarea 的盒模型，
+     这里把文字重新拉回垂直居中 */
+  display: flex;
+  align-items: center;
 }
 
 .pd-reply-send {

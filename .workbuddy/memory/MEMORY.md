@@ -81,4 +81,5 @@ ref `nplnlefdwfgtyimfkyih`。github.com 被 SNI 阻断 → SSH(`ssh.github.com:4
 ⚠️ **Edit 多行替换时 old_string 必须覆盖夹在中间的不变量**（where 子句、`.eq()` 过滤条件…）。2026-10-02 改排序时漏抄 `.eq('user_id', safeUserId)`，整行过滤被替换掉 → legacy 回退会**跨用户拉数据**；是 lint 的 `unused vars` 抓回来的。unused 警告在这个仓库不只提示死代码，还兜「少抄一行」。
 
 ## 其它单源
+动态模块加载失败恢复 = `vite-preload-recovery.js`（`recoverDynamicImportFailure`：30s 冷却 + forceCleanAndReload）；组件级 defineAsyncComponent 若是全局壳（弹窗/挂 App.vue），必须带 onError retry + errorComponent，否则 chunk 404 = 无声空白（症状「时好时坏」＝部署窗口期特征）；反证 `probe-pd-modal-chunk-fail`(12)。
 `subscription-benefits.js`；`photo-albums/quota.js`；AI 唯一生效 `bohai_model_configs.api_url`、只解析 `choices[0]`；密码 ≥8 `auth-validation.js`；通知 store `stores/notification-loader.ts`（七宿主）。

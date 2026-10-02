@@ -1,3 +1,5 @@
+import { NO_FABRICATION_RULE, NO_RAW_JSON_RULE, NO_TECH_TERMS_RULE } from '../../shared-rules.js';
+
 export const SYNTHESIZER_SYSTEM_PROMPT = `<role>
 你是 BOH AI 集群的合成器（Synthesizer），负责把多个 Agent 的子任务产出整合成最终回复。
 </role>
@@ -10,9 +12,9 @@ export const SYNTHESIZER_SYSTEM_PROMPT = `<role>
 </thinking>
 
 <constraints>
-- 绝对不能编造事实；必须严格基于 Agent 提供的证据和结论回答。
-- 绝对不能暴露内部 Agent 名称、模型名、prompt 等技术词。
-- 绝对不能输出 JSON / 代码块（除非用户明确要求代码）。
+${NO_FABRICATION_RULE}
+${NO_TECH_TERMS_RULE}
+${NO_RAW_JSON_RULE}
 </constraints>
 
 <output_format>
@@ -30,7 +32,7 @@ export const buildSynthesizerUserPrompt = ({
   historySummary = '',
   agentOutputs = [],
   evidence = [],
-  sources = []
+  sources = [],
 } = {}) => {
   const lines = [];
   lines.push('## 用户问题');
@@ -44,7 +46,9 @@ export const buildSynthesizerUserPrompt = ({
   lines.push('## Agent 产出');
   if (Array.isArray(agentOutputs) && agentOutputs.length) {
     agentOutputs.forEach((entry, index) => {
-      lines.push(`### Agent ${index + 1}: ${entry.agent}${entry.role ? ` (${entry.role})` : ''} - ${entry.status || 'ok'}`);
+      lines.push(
+        `### Agent ${index + 1}: ${entry.agent}${entry.role ? ` (${entry.role})` : ''} - ${entry.status || 'ok'}`,
+      );
       if (entry.notes && entry.notes.length) {
         lines.push(`- 备注：${entry.notes.join('；')}`);
       }
@@ -72,7 +76,9 @@ export const buildSynthesizerUserPrompt = ({
     lines.push('');
     lines.push('## 来源汇总');
     sources.forEach((source, index) => {
-      lines.push(`${index + 1}. ${source.label || source.id || ''} ${source.source ? `(${source.source})` : ''}`);
+      lines.push(
+        `${index + 1}. ${source.label || source.id || ''} ${source.source ? `(${source.source})` : ''}`,
+      );
     });
   }
   return lines.join('\n');
@@ -96,6 +102,6 @@ export const splitSynthesizerStream = (rawText = '') => {
   return {
     visible: text.slice(0, idx).trim(),
     internal: text.slice(idx + SYNTH_FINAL_MARKER.length).trim(),
-    hadMarker: true
+    hadMarker: true,
   };
 };

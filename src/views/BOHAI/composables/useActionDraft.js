@@ -1,6 +1,7 @@
 import { nextTick } from 'vue';
 import { isAbortError } from '../utils/chatErrorMessages.js';
 import { TASK_GENERATION_PRESETS } from '../generation-params.js';
+import { NO_FABRICATION_RULE } from '../shared-rules.js';
 import { createPost } from '@/utils/api/forum-api.js';
 import { createMyCloudEntry } from '@/utils/api/boh-cloud-api.js';
 import { createSharedAIMemory } from '@/utils/api/treehole-api.js';
@@ -740,7 +741,7 @@ export function useActionDraft(deps) {
     const response = await callAIToGenerate({
       systemPrompt: [
         BASE_SYSTEM_PROMPT,
-        '<role>你是 BOH 方块社区的发帖草稿助手。</role>\n<constraints>\n- 只根据用户给出的想法整理论坛帖子\n- 绝对不能编造用户没有提供的事实\n</constraints>\n<output_format>\n标题: ...\n正文: ...（可换行，不要 Markdown 代码块）\n</output_format>',
+        `<role>你是 BOH 方块社区的发帖草稿助手。</role>\n<constraints>\n- 只根据用户给出的想法整理论坛帖子\n${NO_FABRICATION_RULE}\n</constraints>\n<output_format>\n标题: ...\n正文: ...（可换行，不要 Markdown 代码块）\n</output_format>`,
       ].join('\n'),
       userInput: [
         '请把下面的原始想法整理成一个社区帖子草稿。',

@@ -21,7 +21,7 @@ const props = defineProps({
   /** 基于北京时间（记忆/摘要口径）时传给 tooltip 的补充说明 */
   timezoneLabel: { type: String, default: 'Asia/Shanghai' },
   /** 是否本人视角。访客视角隐藏「去发帖」入口 —— 他人的空间没有可跳的发帖 tab */
-  isOwner: { type: Boolean, default: true }
+  isOwner: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['switch-tab']);
@@ -30,10 +30,13 @@ const CELL_SIZE = 12;
 const CELL_GAP = 3;
 const MAX_WEEKS = 53;
 
-const toKey = (date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+const toKey = (date) =>
+  `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 
 const parseKey = (key) => {
-  const [year, month, day] = String(key || '').split('-').map(Number);
+  const [year, month, day] = String(key || '')
+    .split('-')
+    .map(Number);
   if (!year || !month || !day) return null;
   return new Date(Date.UTC(year, month - 1, day));
 };
@@ -77,7 +80,7 @@ const days = computed(() => {
       comments: hit.comments,
       total,
       level: levelOf(total),
-      dayOfWeek: cursor.getUTCDay()
+      dayOfWeek: cursor.getUTCDay(),
     });
     cursor.setUTCDate(cursor.getUTCDate() + 1);
     safety += 1;
@@ -133,41 +136,54 @@ const metrics = computed(() => {
     { label: '发帖', value: Number(source.total_posts) || 0 },
     { label: '回复', value: Number(source.total_comments) || 0 },
     { label: '活跃天数', value: Number(source.active_days) || 0 },
-    { label: '最长连续', value: `${Number(source.max_streak) || 0} 天` }
+    { label: '最长连续', value: `${Number(source.max_streak) || 0} 天` },
   ];
 });
 
 const hasData = computed(() => days.value.length > 0 && totalCount.value > 0);
 
 /** 空态文案按视角分流：本人给行动出口，访客只做陈述 */
-const emptyState = computed(() => (props.isOwner
-  ? {
-      title: '还没有留下足迹',
-      description: '发个帖子或者回复一句，这里就会亮起第一块格子。',
-      actionText: '去发帖'
-    }
-  : {
-      title: 'TA 还没有留下足迹',
-      description: 'TA 还没有发帖或回复，等 TA 的第一块格子亮起。',
-      actionText: ''
-    }));
+const emptyState = computed(() =>
+  props.isOwner
+    ? {
+        title: '还没有留下足迹',
+        description: '发个帖子或者回复一句，这里就会亮起第一块格子。',
+        actionText: '去发帖',
+      }
+    : {
+        title: 'TA 还没有留下足迹',
+        description: 'TA 还没有发帖或回复，等 TA 的第一块格子亮起。',
+        actionText: '',
+      },
+);
 
 const scrollRef = ref(null);
 const canvasRef = ref(null);
 const hovered = ref(null);
 
-const scrollToLatest = () => {
+/**
+ * 默认停在**最右端**（= 今天，GitHub 同款：打开就想看最近的活跃，而不是一年前的空白）。
+ *
+ * 时间轴口径不变：左 = 最早，右 = 今天（由 `weeks` 的铺法决定，不要在此处翻转）。
+ * 只改「初始滚动位置」—— 2026-10-02 产品口径定稿（2026-10-01 曾改为停最左，
+ * 用起来每次都要手动横滑到最右才能看到今天，故回退）。改默认位置时
+ * **不要**顺手反转数据顺序，否则月标签、格子 title 与 `heatmap-hint` 三处口径会互相打架。
+ *
+ * 之所以显式赋值而不是「什么都不做」：数据是异步到达的（`watch(hasData)`），
+ * 组件可能先以空态挂载、用户已手动横滑过，数据到达后必须把它拉回最右端。
+ */
+const scrollToEnd = () => {
   const el = scrollRef.value;
   if (!el) return;
   el.scrollLeft = el.scrollWidth;
 };
 
 onMounted(() => {
-  if (hasData.value) nextTick(scrollToLatest);
+  if (hasData.value) nextTick(scrollToEnd);
 });
 
 watch(hasData, (value) => {
-  if (value) nextTick(scrollToLatest);
+  if (value) nextTick(scrollToEnd);
 });
 
 const handleCellEnter = (cell, event) => {
@@ -180,7 +196,7 @@ const handleCellEnter = (cell, event) => {
   hovered.value = {
     ...cell,
     left: rect.left - hostRect.left + rect.width / 2,
-    top: rect.top - hostRect.top
+    top: rect.top - hostRect.top,
   };
 };
 
@@ -205,8 +221,17 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
   <section class="profile-activity-heatmap" aria-label="活跃轨迹">
     <div class="heatmap-head">
       <span class="heatmap-kicker">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
-          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.9"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
           <rect x="3" y="4" width="18" height="17" rx="3" />
           <path d="M8 2v4M16 2v4M3 10h18" />
         </svg>
@@ -231,24 +256,44 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
       <div ref="scrollRef" class="heatmap-scroll">
         <div ref="canvasRef" class="heatmap-canvas">
           <div class="heatmap-months" aria-hidden="true">
-            <span v-for="label in monthLabels" :key="`month-${label.text}-${label.span}`" class="heatmap-month"
-              :style="{ width: `${label.span * (CELL_SIZE + CELL_GAP)}px` }">{{ label.text }}</span>
+            <span
+              v-for="label in monthLabels"
+              :key="`month-${label.text}-${label.span}`"
+              class="heatmap-month"
+              :style="{ width: `${label.span * (CELL_SIZE + CELL_GAP)}px` }"
+              >{{ label.text }}</span
+            >
           </div>
           <div class="heatmap-body">
             <div class="heatmap-dows" aria-hidden="true">
-              <span v-for="label in ['', '一', '', '三', '', '五', '']" :key="`dow-${label || 'x'}`">{{ label }}</span>
+              <span
+                v-for="label in ['', '一', '', '三', '', '五', '']"
+                :key="`dow-${label || 'x'}`"
+                >{{ label }}</span
+              >
             </div>
             <div class="heatmap-grid" @mouseleave="handleGridLeave">
               <template v-for="(week, weekIndex) in weeks" :key="`week-${weekIndex}`">
-                <span v-for="(cell, dayIndex) in week" :key="cell ? cell.key : `pad-${weekIndex}-${dayIndex}`"
+                <span
+                  v-for="(cell, dayIndex) in week"
+                  :key="cell ? cell.key : `pad-${weekIndex}-${dayIndex}`"
                   class="heatmap-cell"
-                  :class="[cell ? `is-level-${cell.level}` : 'is-pad', { 'is-active': cell?.total > 0 }]"
-                  :title="cell ? cellTitle(cell) : ''" @mouseenter="handleCellEnter(cell, $event)"></span>
+                  :class="[
+                    cell ? `is-level-${cell.level}` : 'is-pad',
+                    { 'is-active': cell?.total > 0 },
+                  ]"
+                  :title="cell ? cellTitle(cell) : ''"
+                  @mouseenter="handleCellEnter(cell, $event)"
+                ></span>
               </template>
             </div>
           </div>
 
-          <div v-if="hovered" class="heatmap-tip" :style="{ left: `${hovered.left}px`, top: `${hovered.top}px` }">
+          <div
+            v-if="hovered"
+            class="heatmap-tip"
+            :style="{ left: `${hovered.left}px`, top: `${hovered.top}px` }"
+          >
             {{ tipText }}
           </div>
         </div>
@@ -264,12 +309,19 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
           <i class="heatmap-swatch is-level-4"></i>
           多
         </span>
-        <span class="heatmap-hint">横滑查看更早 · 按 {{ timezoneLabel }} 计日</span>
+        <span class="heatmap-hint">向左横滑查看更早 · 按 {{ timezoneLabel }} 计日</span>
       </div>
     </template>
 
-    <EmptyState v-else compact variant="spark" :title="emptyState.title" :description="emptyState.description"
-      :action-text="emptyState.actionText" @action="emit('switch-tab', 'posts')" />
+    <EmptyState
+      v-else
+      compact
+      variant="spark"
+      :title="emptyState.title"
+      :description="emptyState.description"
+      :action-text="emptyState.actionText"
+      @action="emit('switch-tab', 'posts')"
+    />
   </section>
 </template>
 
@@ -342,7 +394,12 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
 .heatmap-loading-bar {
   height: 84px;
   border-radius: 10px;
-  background: linear-gradient(90deg, rgba(15, 23, 42, 0.06) 25%, rgba(15, 23, 42, 0.11) 50%, rgba(15, 23, 42, 0.06) 75%);
+  background: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0.06) 25%,
+    rgba(15, 23, 42, 0.11) 50%,
+    rgba(15, 23, 42, 0.06) 75%
+  );
   background-size: 200% 100%;
   animation: heatmap-shimmer 1.4s linear infinite;
 }
@@ -353,8 +410,12 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
 }
 
 @keyframes heatmap-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* ---------- 指标条 ---------- */
@@ -467,10 +528,18 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
   pointer-events: none;
 }
 
-.heatmap-cell.is-level-1 { background: var(--boh-heat-1); }
-.heatmap-cell.is-level-2 { background: var(--boh-heat-2); }
-.heatmap-cell.is-level-3 { background: var(--boh-heat-3); }
-.heatmap-cell.is-level-4 { background: var(--boh-heat-4); }
+.heatmap-cell.is-level-1 {
+  background: var(--boh-heat-1);
+}
+.heatmap-cell.is-level-2 {
+  background: var(--boh-heat-2);
+}
+.heatmap-cell.is-level-3 {
+  background: var(--boh-heat-3);
+}
+.heatmap-cell.is-level-4 {
+  background: var(--boh-heat-4);
+}
 
 .heatmap-cell.is-active:hover {
   outline-color: rgba(15, 23, 42, 0.32);
@@ -516,11 +585,21 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
   border-radius: 2px;
 }
 
-.heatmap-swatch.is-level-0 { background: var(--boh-heat-0); }
-.heatmap-swatch.is-level-1 { background: var(--boh-heat-1); }
-.heatmap-swatch.is-level-2 { background: var(--boh-heat-2); }
-.heatmap-swatch.is-level-3 { background: var(--boh-heat-3); }
-.heatmap-swatch.is-level-4 { background: var(--boh-heat-4); }
+.heatmap-swatch.is-level-0 {
+  background: var(--boh-heat-0);
+}
+.heatmap-swatch.is-level-1 {
+  background: var(--boh-heat-1);
+}
+.heatmap-swatch.is-level-2 {
+  background: var(--boh-heat-2);
+}
+.heatmap-swatch.is-level-3 {
+  background: var(--boh-heat-3);
+}
+.heatmap-swatch.is-level-4 {
+  background: var(--boh-heat-4);
+}
 
 .heatmap-hint {
   font-weight: 650;
@@ -529,12 +608,17 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
 /* 暗色覆写挂在 html[data-theme] 上而非某个宿主：本组件同时在「我的空间」(.user-space-page)
    与「他人主页」(.profile-page) 使用，两者都有自己的 data-theme，写成全局单一源才不会漏一侧。
    ← range 内的祖先选择器不带 scope 属性，不会触发「scoped 跨组件匹配不到」的坑。 */
-html[data-theme="dark"] .heatmap-loading-bar {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.06) 25%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.06) 75%);
+html[data-theme='dark'] .heatmap-loading-bar {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 25%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.06) 75%
+  );
   background-size: 200% 100%;
 }
 
-html[data-theme="dark"] .heatmap-cell.is-active:hover {
+html[data-theme='dark'] .heatmap-cell.is-active:hover {
   outline-color: rgba(255, 255, 255, 0.4);
 }
 

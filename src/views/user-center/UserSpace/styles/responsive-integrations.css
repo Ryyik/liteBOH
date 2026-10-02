@@ -900,8 +900,14 @@
   .profile-settings-btn {
     top: 12px;
     right: 12px;
-    width: 36px;
-    height: 36px;
+    /* ⚠️ 这里原先写死 width/height: 36px —— 那是齿轮图标时代的尺寸，
+       换成文字「设置」后 36px 宽减去 28px 内边距只剩 8px 内容宽，
+       两个字被迫竖排换行（用户报障「设置的文字换行了」）。
+       文字胶囊的宽度必须由 padding 撑开，高度用 min-height。 */
+    width: auto;
+    height: auto;
+    min-height: 30px;
+    padding: 0 12px;
   }
 
   .profile-hero-body {

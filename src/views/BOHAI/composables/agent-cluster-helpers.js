@@ -8,6 +8,7 @@ import { AGENT_CLUSTER_MODE } from '../agents/core/agent-cluster-config.js';
 import { buildHistoryMessagesWithinBudget, buildAgentContext } from './bohai-engine-helpers.js';
 import { MAX_HISTORY_CONTEXT_CHARS, MAX_HISTORY_MESSAGE_CHARS } from './chat-engine-config.js';
 import { TASK_GENERATION_PRESETS } from '../generation-params.js';
+import { NO_FABRICATION_RULE, NO_RAW_JSON_RULE } from '../shared-rules.js';
 
 const summarizeHistoryInline = (history = []) => {
   if (!Array.isArray(history) || history.length === 0) return '';
@@ -24,8 +25,8 @@ const CHAT_ENGINE_SYSTEM_PROMPT = `<role>
 </role>
 
 <constraints>
-- 绝对不能编造事实；必须基于已知上下文与证据回答。
-- 绝对不能输出 JSON 包装或代码块（除非用户明确要求）。
+${NO_FABRICATION_RULE}
+${NO_RAW_JSON_RULE}
 </constraints>
 
 <instructions>

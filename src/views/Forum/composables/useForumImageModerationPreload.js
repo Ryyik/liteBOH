@@ -6,7 +6,8 @@ export const useForumImageModerationPreload = (preloadForumImageModeration) => {
   // 基础网络守卫：省流量模式与极慢网络一律不预载
   const hasUsableConnection = () => {
     if (typeof window === 'undefined') return false;
-    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const connection =
+      navigator.connection || navigator.mozConnection || navigator.webkitConnection;
     const effectiveType = String(connection?.effectiveType || '').toLowerCase();
     if (connection?.saveData) return false;
     if (effectiveType === 'slow-2g' || effectiveType === '2g') return false;
@@ -18,8 +19,15 @@ export const useForumImageModerationPreload = (preloadForumImageModeration) => {
     if (!hasUsableConnection()) return false;
     const deviceMemory = Number(navigator.deviceMemory || 0);
     const isCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches === true;
-    const shortScreenSide = Math.min(Number(window.screen?.width || 0), Number(window.screen?.height || 0));
-    if ((deviceMemory > 0 && deviceMemory <= 4) || isCoarsePointer || (shortScreenSide > 0 && shortScreenSide <= 900)) {
+    const shortScreenSide = Math.min(
+      Number(window.screen?.width || 0),
+      Number(window.screen?.height || 0),
+    );
+    if (
+      (deviceMemory > 0 && deviceMemory <= 4) ||
+      isCoarsePointer ||
+      (shortScreenSide > 0 && shortScreenSide <= 900)
+    ) {
       return false;
     }
     return true;
@@ -49,18 +57,23 @@ export const useForumImageModerationPreload = (preloadForumImageModeration) => {
       void preloadForumImageModeration();
     };
 
-    preloadTimer = setTimeout(() => {
-      preloadTimer = null;
-      if (typeof window.requestIdleCallback === 'function') {
-        preloadIdleId = window.requestIdleCallback(runPreload, { timeout: immediate ? 2000 : 12000 });
-        return;
-      }
-      runPreload();
-    }, immediate ? 0 : 2500);
+    preloadTimer = setTimeout(
+      () => {
+        preloadTimer = null;
+        if (typeof window.requestIdleCallback === 'function') {
+          preloadIdleId = window.requestIdleCallback(runPreload, {
+            timeout: immediate ? 2000 : 12000,
+          });
+          return;
+        }
+        runPreload();
+      },
+      immediate ? 0 : 2500,
+    );
   };
 
   return {
     clearForumImageModerationPreloadTask: clearPreloadTask,
-    scheduleForumImageModerationPreload: schedulePreload
+    scheduleForumImageModerationPreload: schedulePreload,
   };
 };
