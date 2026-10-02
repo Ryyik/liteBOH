@@ -23,6 +23,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | 按需 | `docs/PROBES.md` | 需要跑浏览器探针自证时 |
 | 按需 | `docs/规范体系设计-2026-09-28.md` | 想知道「规则怎么才算生效」「为什么有些门禁是棘轮」「AI 交付必须提供哪些证据」 |
 | 按需 | `plans/NNN-*.md` | 动效、左栏、搜索等已有既定方案的领域 |
+| **接手 / 续做** | **`docs/未完成任务清单.md`** | 想知道「现在有哪些半成品、下一步该做什么」（**活文档，不按日期分文件，有新进展直接改它**） |
 | 回溯 | `.workbuddy/memory/MEMORY.md` 与同名目录下的日期日志 | 想知道某条规则为什么这么定 |
 
 ## 2. 改动 → 必跑门禁（不许跳过）
@@ -36,11 +37,11 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 > 它会给每条门禁注入一个已知违规样本、断言退出码非 0、再撤销；样本写在 `scripts/lib/gate-fixtures.mjs`。
 > 没有 fixture 的门禁会在输出里被列成「未覆盖」——那是**明账**，不是可以忽略的噪声。
 
-> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings 187`，这是一道**警告棘轮**
+> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings 183`，这是一道**警告棘轮**
 > （`ci.yml:43` 与 `deploy.yml:45` 都跑 `npm run lint`，所以 CI 和发布链上都有牙）。
-> 存量是 **187 条 unused-vars**（js 183 + ts 4；口径 `eslint . -f json`，2026-10-01 复核）——
-> **新增一条死代码当场 exit 1**，实测反证：往 `src/` 放一个 `const unusedX = 1` → `found too many warnings (maximum: 187)`。
-> 三条纪律：① **清理后请把 187 改小**（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
+> 存量是 **183 条 unused-vars**（js 179 + ts 4；口径 `eslint . -f json`，2026-10-01 三次复核）——
+> **新增一条死代码当场 exit 1**，实测反证：往 `src/` 放一个 `const unusedX = 1` → `found too many warnings (maximum: 183)`。
+> 三条纪律：① **清理后请把 183 改小**（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
 > （与 `check:important-budget` 等棘轮同规矩）；③ 计数口径用 `eslint . -f json` 聚合，**别 grep 文本数**（会串）。
 > 之所以是「棘轮」而不是「把规则翻成 error」：191 条直接翻红只会逼人把变量改名 `_x` 保住绿，死代码变成「有名字的僵尸」，
 > 还可能引出 `--no-verify` 绕过。**计数归零之后才翻 error。**
@@ -55,10 +56,12 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | 竖屏导航菜单：接缝、以及菜单内部的一级/二级/三级几何（`.nav-menu-mobile` 的 `top`、`.nav-mobile-submenu-container`、岛的下投影） | `node scripts/probes/probe-nav-mobile-menu.mjs`（48，含一个窄横屏档）。⚠️ 三个坑：① 菜单的包含块是那座**有 transform 的岛**、不是视口；② `visibility: hidden` **不释放高度**（点开二级菜单后的 272px 内部空洞就是这个）；③ 探针**全程不滚动**，所以 `.scrolled` 那一类回归它抓不到 —— 那条由 `tests/unit/unified-nav-scrolled-guard.test.js` 在源码层锁死（2026-09-29 起 vendor 里三组休眠 `.scrolled` 规则已删）。见该探针文件头的实测记录 |
 | 论坛搜索 / 列表 RPC | `node scripts/probes/probe-forum-search.mjs`（27） |
 | **智能概览（灵动岛 / `/overview` 页）**：自动触发时机、同日去重、「你离开了 N 天」口径 | `node scripts/probes/probe-overview-island-guards.mjs`（35，场景 A–H）。⚠️ 触发点 2026-09-30 定稿为**唯一一处**：首页首屏解锁落定（`views/Home/index.vue` 的 `watch([gateSettled, isLoggedIn])`）——**不**在登录/进站弹，点「我的方块」也不触发，别再往别处加调用。由此带来探针两条硬约束：① 每个场景是新 browser context ⇒ `boh-home-gate-passed` 必没落盘 ⇒ 开场画必播、`gateSettled` 初始 false ⇒ 要测弹岛必须显式调 `unlockHomeGate(page)`（走键盘路径一次按键 commitGate，别去伪造带构建指纹的 localStorage key），**不要**再点 `#nav-user-info`；② 「加载岛是否出现过」的 MutationObserver 必须在解锁之前装好（拦截响应是瞬时的，岛只闪几毫秒），`/overview` 页断言要压掉触发（预置 `boh_overview_island:<uid>` 会话标记）以免摘要请求抢写 `captured.body`。另三条口径真源：① 跨设备同日去重吃服务端 `profiles.overview_checked_day`，读它前必须 `await refreshOverviewMarks()`（否则首检读到 null 就重复弹）；② 离线天数按**真实锚点** `authStore.offlineAnchorAt` 算（同 `/overview` 页口径），**不要**用推送窗口游标日 —— 窗口按设计恒 < 今天，用它算出来永远 ≥ 1 天，「今天有 N 条新内容」那一支会变成死代码；③ 新账号锚点是合成的「now-7d」，靠 `authStore.isFirstLoginSession` 区分，别当真实离线天数展示 |
-| **评论 / 回复输入框「多字扩展」**（竖屏不随内容长高） | `node scripts/probes/probe-reply-autogrow.mjs`（6，竖屏 390×844）。真源是 `src/composables/useAutoGrowTextarea.js`（**不要再加第 5 份自研增高**，存量 4 份见 `plans/021` §1.3）。⚠️ 四条已实测的坑：① **上限只声明在 CSS 的 `max-height`**，JS 读 `getComputedStyle` 取用，不在 JS 写第二份像素值；② `height='auto'` 之后**必须无条件写回**，写「next 相等就 return」会把元素永久留在 `auto`（表现为内容超上限后掉回 `rows` 固有高度）；③ 内容源传 getter 时不能包成 `() => unref(value)` —— `unref` 只解 ref、**不调用函数**，watcher 永不触发（切换回复对象不会收缩，这条靠断言 E 才抓得到）；④ 详情页的 `.reply-textarea-x` 是**死 UI**（两处 `<CommentThread>` 都硬编码 `:hide-composer="true"`，真正的评论输入是单行 `input.pd-reply-input`），探针场景 B 就是这条的绊线 —— 别照 `plans/021` §5.1 的旧清单去"修"它 |
+| **评论 / 回复输入框「多字扩展」**（竖屏不随内容长高） | `node scripts/probes/probe-reply-autogrow.mjs`（10，竖屏 390×844；场景 A = 论坛卡片回复框，场景 B = 详情页底部评论框）。真源是 `src/composables/useAutoGrowTextarea.js`（**不要再加第 5 份自研增高**，存量 4 份见 `plans/021` §1.3）。⚠️ 四条已实测的坑：① **上限只声明在 CSS 的 `max-height`**，JS 读 `getComputedStyle` 取用，不在 JS 写第二份像素值；② `height='auto'` 之后**必须无条件写回**，写「next 相等就 return」会把元素永久留在 `auto`（表现为内容超上限后掉回 `rows` 固有高度）；③ 内容源传 getter 时不能包成 `() => unref(value)` —— `unref` 只解 ref、**不调用函数**，watcher 永不触发（切换回复对象不会收缩，这条靠断言 E 才抓得到）；④ 详情页的 `.reply-textarea-x` 仍是**死 UI**（两处 `<CommentThread>` 都硬编码 `:hide-composer="true"`），别照 `plans/021` §5.1 的旧清单去"修"它 —— 但**详情页底部**那个 `input.pd-reply-input` 已于 2026-10-01 换成自动增高 `<textarea>`（同一 composable），场景 B 随之改回 A–D；⑤ 空内容时**必须临时摘掉 `placeholder` 再量** —— 浏览器会把折行后的占位文字算进 `scrollHeight`，窄框里 "说点什么" 折两行会把空态撑成两行高（详情页实测 64px vs 40px）；⑥ 上限比较用 `offsetHeight`（`max-height` 约束 border-box，`clientHeight` 扣边框会恒差 1~2px） |
 | **活动页封面图 / 报名区 / 月份轨道** | `node scripts/probes/probe-activities-images.mjs`（7）、`node scripts/probes/probe-campaign-ui.mjs`（35）。⚠️ 数据库图片列混存 `@/assets/...` 别名与 Cloudinary 绝对地址两种形态，**渲染必须走 `utils/db-image-url.js`**；只调 `getImageUrl` 时 Cloudinary 那几条会指向大陆不可达的 `res.cloudinary.com` 而裂图（2026-09-29 活动页 id=16/17 即此成因） |
 | **方块积分卡自定义卡面**（`profiles.points_card_image_url` / `points_card_presets.image_url`） | `node scripts/probes/probe-points-card-image.mjs`（7，只读打本地 dev）。同一个裂图成因的第二个落点：卡面走 `PointsCard.vue` 内部收口 → `resolveDbPointsCardImage`（`c_limit,w_1280`，**不是 c_fill**：卡面是整幅画，服务端预裁会砍主体），预设缩略图走 `AssetsHubPanel.pointsCardPresetThumb`。⚠️ 预设 `:class` 的 active 判断必须继续比**原始** url，一边改写一边不改写会丢选中态 |
-| 订阅权益 / 摄影集配额 | `node scripts/probes/probe-subscription-benefits.mjs`（48） |
+| 订阅权益 / 摄影集配额 | `node scripts/probes/probe-subscription-benefits.mjs`（49） |
+| **Cloud+ 相册（图库）形态**：去日期分组、多图贴铺开、捏合切列、宽屏铺满 | `node scripts/probes/probe-cloud-album.mjs`（22，两档视口，需 mock 数据）。⚠️ 五条已实测的坑：① **多图贴要一张图一格** —— `albumTiles` 用 `flatMap` 摊平，key 必须带下标（`${entry.id}::${index}`），只写 `entry.id` 会让同一条目的多个格子撞 key、Vue 复用节点串图；② **排序在 API 层按 `entry_date` 降序**（不是 `updated_at`）—— 用 `updated_at` 的症状是「编辑旧内容会跳到最前」，看起来就是日期顺序错乱；`nullsFirst: false` 必写（PG 在 DESC 时默认 NULLS FIRST，会把没填日期的条目全顶到最上）；**别在视图层再 sort**，查询带 `limit(240)`，客户端只能对已截断的一页排，会真排错；③ **列数由 `--album-columns` 变量驱动、由 JS 算**（`resolvedAlbumColumns` = 用户选择 ?? 视口自动），别退回 CSS 的 `auto-fill` —— 那样横屏（Mac 触控板 ctrl+wheel）就捏不动；④ 捏合是**阶梯**不是连续映射：每跨过阈值就重置基线，一次张手可连切 5→4→3；`touchmove` 必须非 passive 才能 preventDefault，宿主还要 `touch-action: pan-y`（放行单指滚动、其余交给 JS）；⑤ 图库页宽屏用 `.cloud-shell.is-gallery` 解除 980px 上限铺满（设置页/分享页仍窄栏居中），列数测量用 **ResizeObserver** 而非只监听 `window.resize` —— 切分页时窗口不 resize 但容器宽度会变 |
+| **Cloud+ 图库 / 设置 / 分享三页（竖屏）** | `node scripts/probes/probe-cloud-portrait.mjs`（27，三档竖屏：顶栏工具行几何 + 设置页卡片玻璃材质）。⚠️ 五条已实测的坑：① 工具行一行塞不下「搜索/筛选/刷新/新建」，`flex-wrap: nowrap` 硬压会同时造成「搜索框被压到 30px（placeholder 与输入全不可见）」「筛选/刷新 折字竖排」「新建因继承 `.primary-btn { width: 100% }` 又自带 `flex-shrink: 0` 而 right=518、超出视口 128px 被裁」；② 那条 `width: 100%` 在 `@media (max-width: 640px)`（**不是** ≤900），且与 `.toolbar-actions` 两列网格共用，工具行里必须局部还原成 `width: auto`；③ 玻璃必须挂全局 `.liquid-glass` **基础类**，加 `--subtle/--strong/--inset` 变体在 ≤768px 会被 liquid-glass.css 强制成 `backdrop-filter: none` + 近实白；④ scoped 选择器特异性**高于**全局类 —— 任何 `.sidebar-card { background: … }`（≤900 与 ≤640 各有一条）都会把玻璃盖回实色，必须 `:not(.liquid-glass)` 让位，否则症状是「backdrop-filter 生效了但卡片还是 #f5f5f7」；⑤ Cloud+ 整页目前零暗色适配（`.cloud-page` 硬编码亮色 token，连带顶栏标题在暗色下白字不可见），故玻璃在暗色下主动退回实色底，别指望它跟 `--liquid-*` 切暗 |
 | 头像框发放 | `node scripts/probes/probe-avatar-frame-grant.mjs`（23） |
 | 头像框控制台（新素材 / 变换） | `node scripts/probes/probe-avatar-frame-console.mjs`（44） |
 | **周签到 / 积分余额线上真值**（报障「签到能一直签」「余额不显示」先跑这个） | `node scripts/probes/probe-weekly-checkin-points.mjs`（5 项断言，只读）。判据是「唯一索引在不在 / 有没有同用户同周多行 / 本周签到行数 == 本周签到流水数 / 部署版函数是不是幂等版 / 签到者积分有无空值」。⚠️ 时间边界必须 `(date 'X'::timestamp at time zone 'Asia/Shanghai')`，直接比 `timestamptz` 会退化成 UTC 午夜、漏掉周一凌晨签到的行，得到假的「行数 != 流水数」 |

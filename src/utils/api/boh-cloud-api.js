@@ -238,6 +238,9 @@ async function listLegacyNotesAsCloud({ safeUserId, safeStart, safeEnd, safeLimi
     .from('boh_note_entries')
     .select(LEGACY_NOTE_COLUMNS)
     .eq('user_id', safeUserId)
+    // 与 listMyCloudEntries 同口径：先按**内容日期**降序（老表叫 note_date），
+    // 再按 updated_at 兜同级稳定。理由见 listMyCloudEntries 里的注释。
+    .order('note_date', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false })
     .limit(safeLimit);
 
@@ -279,6 +282,13 @@ export async function listMyCloudEntries({
         .from('boh_cloud_entries')
         .select(CLOUD_COLUMNS)
         .eq('user_id', safeUserId)
+        // 相册顺序 = **内容日期降序**（最新日期在最上），不是 updated_at。
+        // 用 updated_at 排的症状：编辑一条旧内容会让它跳到最前面，用户看到的就是
+        // 「日期/顺序不对」（2026-10-02 报障）。必须在服务端排 —— 查询带 limit(240)，
+        // 客户端再排只能对已截断的那一页排，会真的排错。
+        // nullsFirst:false 必需：PostgreSQL 在 DESC 时默认 NULLS FIRST，会把没填日期的
+        // 条目全顶到最上面；再挂一级 updated_at，让同一天内的顺序稳定不乱跳。
+        .order('entry_date', { ascending: false, nullsFirst: false })
         .order('updated_at', { ascending: false })
         .limit(safeLimit);
 
@@ -314,6 +324,8 @@ export async function createMyCloudEntry(userId, payload = {}) {
   const coverImageUrl = pickCloudCoverImage(contentBlocks, payload.coverImageUrl);
   const mood = cloudMood(payload.mood);
   const source = cloudSource(payload.source);
+  // plans/023 Phase 2：论坛帖子的自动备份要记录来源帖（删帖时数据库级联删除备份）
+  const sourcePostId = toValidUUID(payload.sourcePostId);
 
   if (!safeUserId) {
     return {
@@ -343,24 +355,39 @@ export async function createMyCloudEntry(userId, payload = {}) {
     };
   }
 
-  const { data, error } = await supabase
+  const baseRow = {
+    user_id: safeUserId,
+    entry_date: entryDate,
+    title,
+    entry_type: entryType,
+    visibility,
+    content_text: contentText,
+    content_blocks: contentBlocks,
+    cover_image_url: coverImageUrl,
+    mood,
+    source,
+    source_post_id: sourcePostId || null,
+  };
+
+  let { data, error } = await supabase
     .from('boh_cloud_entries')
-    .insert([
-      {
-        user_id: safeUserId,
-        entry_date: entryDate,
-        title,
-        entry_type: entryType,
-        visibility,
-        content_text: contentText,
-        content_blocks: contentBlocks,
-        cover_image_url: coverImageUrl,
-        mood,
-        source,
-      },
-    ])
+    .insert([baseRow])
     .select(CLOUD_COLUMNS)
     .maybeSingle();
+
+  if (
+    error &&
+    /42703|PGRST204|source_post_id/i.test(String(error.code || '') + String(error.message || ''))
+  ) {
+    // plans/023：source_post_id 列尚未迁移（2026100202 未执行）时降级 ——
+    // 备份本身必须能落库，关联字段等迁移执行后对新条目自动生效。
+    const { source_post_id: _droppedSourcePostId, ...fallbackRow } = baseRow;
+    ({ data, error } = await supabase
+      .from('boh_cloud_entries')
+      .insert([fallbackRow])
+      .select(CLOUD_COLUMNS)
+      .maybeSingle());
+  }
 
   if (error) {
     if (isMissingCloudTableError(error)) {

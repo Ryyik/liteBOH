@@ -7,9 +7,96 @@
       @back="goBack"
     />
 
-    <div class="cloud-shell">
+    <!-- is-gallery：图库页在宽屏要铺满（iPad 图库的网格是全宽的，
+         980px 居中会让两侧各空一大块）；设置页 / 分享页仍是窄栏居中，保持文字可读性。 -->
+    <div class="cloud-shell" :class="{ 'is-gallery': cloudTab === 'content' }">
       <main class="cloud-main">
-        <header class="cloud-header">
+        <header v-if="cloudTab === 'content'" class="cloud-header gallery-header">
+          <div class="gallery-title-block">
+            <h2>图库</h2>
+            <p class="gallery-subtitle">
+              私密空间 · 图片 {{ cloudAccounting.usedImages }} / {{ currentCloudImageLimit }}
+            </p>
+          </div>
+          <div class="gallery-header-actions">
+            <label class="search-field gallery-search-field" for="cloud-search">
+              <Search class="search-icon" :size="16" :stroke-width="1.8" aria-hidden="true" />
+              <input
+                id="cloud-search"
+                v-model.trim="searchQuery"
+                type="search"
+                placeholder="搜索"
+              />
+            </label>
+
+            <div class="filter-popover-shell">
+              <button
+                type="button"
+                class="refresh-btn filter-trigger"
+                :class="{ 'is-filtering': hasGalleryFilters }"
+                @click="toggleFilterPanel"
+              >
+                筛选
+                <span v-if="activeFilterCount" class="toolbar-pill-badge">{{
+                  activeFilterCount
+                }}</span>
+              </button>
+              <div
+                v-if="isFilterPanelOpen"
+                class="filter-popover-backdrop"
+                aria-hidden="true"
+                @click="toggleFilterPanel"
+              ></div>
+              <div
+                v-if="isFilterPanelOpen"
+                class="filter-popover"
+                role="dialog"
+                aria-label="筛选条件"
+              >
+                <div class="filter-popover-row">
+                  <button
+                    v-for="option in filterOptions"
+                    :key="option.value"
+                    type="button"
+                    class="filter-chip"
+                    :class="{ active: currentFilter === option.value }"
+                    @click="currentFilter = option.value"
+                  >
+                    {{ option.label }}
+                    <span class="chip-count">{{ getFilterCount(option.value) }}</span>
+                  </button>
+                </div>
+                <div class="date-range filter-popover-dates">
+                  <label class="date-field">
+                    <span>开始</span>
+                    <input v-model="dateFrom" type="date" />
+                  </label>
+                  <label class="date-field">
+                    <span>结束</span>
+                    <input v-model="dateTo" type="date" />
+                  </label>
+                </div>
+                <button
+                  v-if="hasGalleryFilters"
+                  type="button"
+                  class="toolbar-reset-btn"
+                  @click="resetGalleryFilters"
+                >
+                  清除全部筛选
+                </button>
+              </div>
+            </div>
+
+            <button type="button" class="refresh-btn" :disabled="isLoading" @click="loadEntries">
+              <span v-if="showRefreshIndicator" class="refresh-btn-dot" aria-hidden="true"></span>
+              <span>{{ showRefreshIndicator ? '同步中' : '刷新' }}</span>
+            </button>
+
+            <button type="button" class="primary-btn" @click="openComposer">＋ 新建</button>
+          </div>
+        </header>
+
+        <header v-else class="cloud-header">
           <div>
             <div class="hero-copy">
               <span class="hero-eyebrow">{{ cloudPageHero.eyebrow }}</span>
@@ -17,16 +104,6 @@
               <p>{{ cloudPageHero.subtitle }}</p>
             </div>
           </div>
-          <button
-            v-if="cloudTab === 'content'"
-            class="refresh-btn"
-            type="button"
-            :disabled="isLoading"
-            @click="loadEntries"
-          >
-            <span v-if="showRefreshIndicator" class="refresh-btn-dot" aria-hidden="true"></span>
-            <span>{{ showRefreshIndicator ? '同步中' : '刷新内容' }}</span>
-          </button>
         </header>
 
         <div v-if="!isLoggedIn" class="login-state">
@@ -48,7 +125,11 @@
 
           <section v-if="cloudTab === 'settings'" class="cloud-settings-page">
             <div class="cloud-settings-grid">
-              <div class="sidebar-card quota-card">
+              <!-- 液态玻璃：材质单源 = styles/common/liquid-glass.css 的 .liquid-glass。
+                   ⚠️ 这里**只加基础类**，不要加 --subtle/--strong/--inset 变体：
+                   那些变体在 ≤768px 会被 liquid-glass.css 强制成 backdrop-filter:none + 近实白
+                   （「移动端只保留外层玻璃」的性能策略），竖屏下就完全没有玻璃感了。 -->
+              <div class="sidebar-card quota-card liquid-glass">
                 <div class="card-label">图片使用限额</div>
                 <div class="quota-minimal">
                   <div class="quota-meta">
@@ -75,17 +156,23 @@
                   </div>
                   <p class="quota-caption">{{ remainingImageQuota }} 张可用</p>
                 </div>
-                <p class="quota-hint">
-                  Cloud+ 图片限额按账号计算，私密内容和共享访问使用同一额度。
-                </p>
+                <!-- 2026-10-01 极简排版：原 quota-hint「限额按账号计算，私密内容和共享访问使用同一额度」
+                     与紧随其后的 CloudStorageBar 说明是同一件事，删掉这条、只留存储条那一条。 -->
               </div>
             </div>
+
+            <CloudStorageBar
+              :accounting="cloudAccounting"
+              :loading="isLoading"
+              @jump-private="scrollAlbumToTop"
+              @manage-public="goWorksGrid"
+            />
           </section>
 
           <section v-else-if="cloudTab === 'share'" class="cloud-share-page">
             <div class="cloud-share-grid">
               <div
-                class="sidebar-card share-card"
+                class="sidebar-card share-card liquid-glass"
                 :aria-busy="isLoadingMyShareChannel ? 'true' : undefined"
               >
                 <div class="card-label">频道状态</div>
@@ -99,11 +186,11 @@
                   <div class="skeleton-block share-skeleton-button"></div>
                 </div>
                 <template v-else>
+                  <!-- 2026-10-01 极简排版：原来这里连着三条同义说明
+                       （「只有拿到令牌的人可以查看」/「仅持有令牌的人可以查看」/「只有拿到令牌的人可以访问」），
+                       合并为一句，把「不公开 + 需令牌」两点讲完就停。 -->
                   <p class="share-card-copy">
-                    系统提供 1 个私密令牌频道。只有拿到访问令牌的人可以查看你的 Cloud+ 内容。
-                  </p>
-                  <p class="share-token-hint">
-                    私密频道不会出现在社区列表，仅持有访问令牌的人可以查看。
+                    系统提供 1 个私密令牌频道。它不会出现在社区列表，只有持有令牌的人可以查看。
                   </p>
                   <button
                     type="button"
@@ -164,7 +251,6 @@
                         复制
                       </button>
                     </div>
-                    <p class="share-token-hint">私密频道默认不公开，只有拿到令牌的人可以访问。</p>
                     <div class="share-token-actions">
                       <button
                         type="button"
@@ -230,7 +316,7 @@
                 </template>
               </div>
 
-              <div class="sidebar-card access-card">
+              <div class="sidebar-card access-card liquid-glass">
                 <div class="card-label">访问别人的频道</div>
                 <p class="share-card-copy">
                   输入别人分享给你的私密访问令牌，打开 TA 的 Cloud+ 频道。
@@ -394,308 +480,241 @@
               </button>
             </section>
 
-            <CloudStorageBar
-              :accounting="cloudAccounting"
-              :loading="isLoading"
-              @jump-private="scrollAlbumToTop"
-              @manage-public="goWorksGrid"
-            />
+            <div class="storage-strip" role="status" aria-label="Cloud+ 存储用量">
+              <div class="storage-strip-track" aria-hidden="true">
+                <div class="storage-strip-fill" :style="{ width: `${quotaPercent}%` }"></div>
+              </div>
+              <span class="storage-strip-meta">
+                已用 {{ cloudAccounting.usedImages }} / {{ cloudAccounting.limit }} 张 · 私密
+                {{ cloudAccounting.privateEntries }} · 公开 {{ cloudAccounting.publicEntries }} ·
+                剩余 {{ cloudAccounting.remainingImages }} 张
+                <span v-if="cloudAccounting.overflow" class="storage-strip-overflow">已超限</span>
+              </span>
+            </div>
 
-            <section
+            <button
               v-if="publicEntries.length"
-              class="public-notes-card"
-              aria-label="公开笔记账目"
+              type="button"
+              class="public-notes-pill"
+              @click="goWorksGrid"
             >
-              <div class="public-notes-head">
-                <div>
-                  <span class="section-kicker">Public · Works Grid</span>
-                  <h3>公开笔记</h3>
-                  <p>
-                    {{ publicEntries.length }} 条已在作品格展示，占用
-                    {{ cloudAccounting.publicImages }} 张图片额度。这里只看账目，管理去作品格。
-                  </p>
-                </div>
-                <button type="button" class="secondary-btn" @click="goWorksGrid">
-                  去作品格管理
+              <span class="public-notes-pill-text">
+                {{ publicEntries.length }} 条公开笔记在作品格展示 · 占
+                {{ cloudAccounting.publicImages }} 张图片额度
+              </span>
+              <span class="public-notes-pill-action">去管理 ›</span>
+            </button>
+
+            <div v-if="isComposerOpen" class="composer-overlay" @click.self="closeComposer">
+              <section class="composer-card composer-panel">
+                <button
+                  type="button"
+                  class="detail-close composer-close"
+                  aria-label="关闭新建面板"
+                  @click="closeComposer"
+                >
+                  ×
                 </button>
-              </div>
-              <ul class="public-notes-list">
-                <li v-for="entry in publicEntries" :key="`public-${entry.id}`">
-                  <button type="button" class="public-note-row" @click="openEntry(entry)">
-                    <span class="public-note-title">{{
-                      entry.title || cloudEntryDefaultTitle(entry)
-                    }}</span>
-                    <span class="public-note-meta"
-                      >{{ formatEntryDate(entry.entryDate, entry.updatedAt) }} ·
-                      {{ countCloudEntryImages(entry) }} 张图</span
-                    >
-                  </button>
-                </li>
-              </ul>
-            </section>
-
-            <section class="composer-card">
-              <div class="composer-topline">
-                <div>
-                  <span class="section-kicker">Create Entry</span>
-                  <h3>{{ composerTitle }}</h3>
-                  <p class="composer-intro">{{ composerIntro }}</p>
-                </div>
-                <div class="composer-meta">{{ todayDisplay }}</div>
-              </div>
-
-              <div class="editor-shell">
-                <div class="editor-ribbon">
-                  <span class="editor-chip strong">Cloud+ Draft</span>
-                  <span class="editor-chip">Memo Layout</span>
-                  <span class="editor-chip">{{ uploadedImages.length }} 张图片</span>
-                  <span class="editor-chip">{{ draftText.trim().length }} 字符</span>
+                <div class="composer-topline">
+                  <div>
+                    <span class="section-kicker">Create Entry</span>
+                    <h3>{{ composerTitle }}</h3>
+                    <p class="composer-intro">{{ composerIntro }}</p>
+                  </div>
+                  <div class="composer-meta">{{ todayDisplay }}</div>
                 </div>
 
-                <div class="editor-page">
-                  <div class="editor-page-head">
-                    <div class="editor-page-meta">
-                      <span>Personal Memo</span>
-                      <span>{{ todayDisplay }}</span>
-                    </div>
-                    <div class="editor-page-status">
-                      {{
-                        draftMood ? `${selectedMoodMeta?.icon || ''} ${draftMood}` : '未标注情绪'
-                      }}
-                    </div>
+                <div class="editor-shell">
+                  <div class="editor-ribbon">
+                    <span class="editor-chip strong">Cloud+ Draft</span>
+                    <span class="editor-chip">Memo Layout</span>
+                    <span class="editor-chip">{{ uploadedImages.length }} 张图片</span>
+                    <span class="editor-chip">{{ draftText.trim().length }} 字符</span>
                   </div>
 
-                  <input
-                    v-model.trim="draftTitle"
-                    type="text"
-                    class="title-input"
-                    maxlength="120"
-                    placeholder="标题"
-                  />
+                  <div class="editor-page">
+                    <div class="editor-page-head">
+                      <div class="editor-page-meta">
+                        <span>Personal Memo</span>
+                        <span>{{ todayDisplay }}</span>
+                      </div>
+                      <div class="editor-page-status">
+                        {{
+                          draftMood ? `${selectedMoodMeta?.icon || ''} ${draftMood}` : '未标注情绪'
+                        }}
+                      </div>
+                    </div>
 
-                  <div class="editor-divider"></div>
-
-                  <textarea
-                    v-model="draftText"
-                    class="text-input"
-                    rows="8"
-                    placeholder="记录今天的心情..."
-                    @keydown.meta.enter.prevent="publishEntry"
-                    @keydown.ctrl.enter.prevent="publishEntry"
-                  />
-                </div>
-
-                <div class="composer-toolbar">
-                  <div class="mood-row">
-                    <button
-                      type="button"
-                      class="mood-pill clear"
-                      :class="{ active: !draftMood }"
-                      @click="draftMood = ''"
-                    >
-                      不标注
-                    </button>
-                    <button
-                      v-for="mood in moodChoices"
-                      :key="mood.value"
-                      type="button"
-                      class="mood-pill"
-                      :class="{ active: draftMood === mood.value }"
-                      @click="draftMood = mood.value"
-                    >
-                      <span>{{ mood.icon }}</span>
-                      <span>{{ mood.value }}</span>
-                    </button>
-                  </div>
-
-                  <div class="toolbar-actions">
                     <input
-                      ref="imageInputRef"
-                      type="file"
-                      class="hidden-file-input"
-                      accept="image/png,image/jpeg,image/webp,image/gif"
-                      multiple
-                      @change="handleImageSelection"
+                      v-model.trim="draftTitle"
+                      type="text"
+                      class="title-input"
+                      maxlength="120"
+                      placeholder="标题"
+                    />
+
+                    <div class="editor-divider"></div>
+
+                    <textarea
+                      v-model="draftText"
+                      class="text-input"
+                      rows="8"
+                      placeholder="记录今天的心情..."
+                      @keydown.meta.enter.prevent="publishEntry"
+                      @keydown.ctrl.enter.prevent="publishEntry"
+                    />
+                  </div>
+
+                  <div class="composer-toolbar">
+                    <div class="mood-row">
+                      <button
+                        type="button"
+                        class="mood-pill clear"
+                        :class="{ active: !draftMood }"
+                        @click="draftMood = ''"
+                      >
+                        不标注
+                      </button>
+                      <button
+                        v-for="mood in moodChoices"
+                        :key="mood.value"
+                        type="button"
+                        class="mood-pill"
+                        :class="{ active: draftMood === mood.value }"
+                        @click="draftMood = mood.value"
+                      >
+                        <span>{{ mood.icon }}</span>
+                        <span>{{ mood.value }}</span>
+                      </button>
+                    </div>
+
+                    <div class="toolbar-actions">
+                      <input
+                        ref="imageInputRef"
+                        type="file"
+                        class="hidden-file-input"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        multiple
+                        @change="handleImageSelection"
+                      />
+                      <button
+                        type="button"
+                        class="secondary-btn"
+                        :disabled="cloudState.upload.uploading"
+                        @click="openImagePicker"
+                      >
+                        <span v-if="cloudState.upload.uploading" class="btn-spinner"></span>
+                        {{
+                          cloudState.upload.uploading
+                            ? `上传中 ${cloudState.upload.progress}%`
+                            : '添加图片'
+                        }}
+                      </button>
+                      <button
+                        v-if="cloudState.upload.uploading"
+                        type="button"
+                        class="ghost-link upload-cancel-btn"
+                        @click="cancelUpload"
+                      >
+                        取消上传
+                      </button>
+                      <button
+                        v-if="cloudState.upload.failedImages.length"
+                        type="button"
+                        class="secondary-btn retry-btn"
+                        @click="retryFailedUploads"
+                      >
+                        重试上传 ({{ cloudState.upload.failedImages.length }})
+                      </button>
+                      <button
+                        type="button"
+                        class="primary-btn"
+                        :disabled="
+                          cloudState.publish.publishing ||
+                          (!draftText.trim() && uploadedImages.length === 0)
+                        "
+                        @click="publishEntry"
+                      >
+                        {{ cloudState.publish.publishing ? '发布中...' : publishButtonLabel }}
+                      </button>
+                    </div>
+
+                    <!-- 上传进度条 -->
+                    <div v-if="cloudState.upload.uploading" class="upload-progress-bar">
+                      <div class="upload-progress-track">
+                        <div
+                          class="upload-progress-fill"
+                          :style="{ width: `${cloudState.upload.progress}%` }"
+                        ></div>
+                      </div>
+                      <p class="upload-progress-text">
+                        正在上传 {{ cloudState.upload.currentFile || '图片' }}...
+                      </p>
+                    </div>
+
+                    <!-- 上传失败的图片提示 -->
+                    <div
+                      v-if="cloudState.upload.failedImages.length && !cloudState.upload.uploading"
+                      class="upload-failed-notice"
+                    >
+                      <p>以下图片上传失败：</p>
+                      <ul>
+                        <li v-for="failed in cloudState.upload.failedImages" :key="failed.name">
+                          {{ failed.name }} - {{ failed.error }}
+                        </li>
+                      </ul>
+                      <button type="button" class="secondary-btn" @click="retryFailedUploads">
+                        重新上传
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="uploadedImages.length" class="upload-strip">
+                  <div v-for="image in uploadedImages" :key="image.url" class="upload-card">
+                    <img
+                      :src="getCloudImageDisplayUrl(image.url)"
+                      :alt="image.alt || '上传图片'"
+                      class="upload-thumb"
+                      loading="lazy"
                     />
                     <button
                       type="button"
-                      class="secondary-btn"
-                      :disabled="cloudState.upload.uploading"
-                      @click="openImagePicker"
+                      class="remove-image-btn"
+                      @click="removeDraftImage(image.url)"
                     >
-                      <span v-if="cloudState.upload.uploading" class="btn-spinner"></span>
-                      {{
-                        cloudState.upload.uploading
-                          ? `上传中 ${cloudState.upload.progress}%`
-                          : '添加图片'
-                      }}
-                    </button>
-                    <button
-                      v-if="cloudState.upload.uploading"
-                      type="button"
-                      class="ghost-link upload-cancel-btn"
-                      @click="cancelUpload"
-                    >
-                      取消上传
-                    </button>
-                    <button
-                      v-if="cloudState.upload.failedImages.length"
-                      type="button"
-                      class="secondary-btn retry-btn"
-                      @click="retryFailedUploads"
-                    >
-                      重试上传 ({{ cloudState.upload.failedImages.length }})
-                    </button>
-                    <button
-                      type="button"
-                      class="primary-btn"
-                      :disabled="
-                        cloudState.publish.publishing ||
-                        (!draftText.trim() && uploadedImages.length === 0)
-                      "
-                      @click="publishEntry"
-                    >
-                      {{ cloudState.publish.publishing ? '发布中...' : publishButtonLabel }}
-                    </button>
-                  </div>
-
-                  <!-- 上传进度条 -->
-                  <div v-if="cloudState.upload.uploading" class="upload-progress-bar">
-                    <div class="upload-progress-track">
-                      <div
-                        class="upload-progress-fill"
-                        :style="{ width: `${cloudState.upload.progress}%` }"
-                      ></div>
-                    </div>
-                    <p class="upload-progress-text">
-                      正在上传 {{ cloudState.upload.currentFile || '图片' }}...
-                    </p>
-                  </div>
-
-                  <!-- 上传失败的图片提示 -->
-                  <div
-                    v-if="cloudState.upload.failedImages.length && !cloudState.upload.uploading"
-                    class="upload-failed-notice"
-                  >
-                    <p>以下图片上传失败：</p>
-                    <ul>
-                      <li v-for="failed in cloudState.upload.failedImages" :key="failed.name">
-                        {{ failed.name }} - {{ failed.error }}
-                      </li>
-                    </ul>
-                    <button type="button" class="secondary-btn" @click="retryFailedUploads">
-                      重新上传
+                      ×
                     </button>
                   </div>
                 </div>
-              </div>
 
-              <div v-if="uploadedImages.length" class="upload-strip">
-                <div v-for="image in uploadedImages" :key="image.url" class="upload-card">
-                  <img
-                    :src="getCloudImageDisplayUrl(image.url)"
-                    :alt="image.alt || '上传图片'"
-                    class="upload-thumb"
-                    loading="lazy"
-                  />
-                  <button
-                    type="button"
-                    class="remove-image-btn"
-                    @click="removeDraftImage(image.url)"
-                  >
-                    ×
-                  </button>
-                </div>
-              </div>
-
-              <p class="composer-hint">
-                {{
-                  draftMood
-                    ? `当前心情：${selectedMoodMeta?.icon || ''}${draftMood}`
-                    : '可以只写文字，也可以只上传图片。'
-                }}
-                <span class="composer-hint-sep">/</span>
-                Cmd/Ctrl + Enter 可直接发布
-              </p>
-            </section>
+                <p class="composer-hint">
+                  {{
+                    draftMood
+                      ? `当前心情：${selectedMoodMeta?.icon || ''}${draftMood}`
+                      : '可以只写文字，也可以只上传图片。'
+                  }}
+                  <span class="composer-hint-sep">/</span>
+                  Cmd/Ctrl + Enter 可直接发布
+                </p>
+              </section>
+            </div>
 
             <div v-if="noticeText" class="notice-bar">{{ noticeText }}</div>
 
-            <section ref="albumSectionRef" class="gallery-section album-gallery-section">
-              <div class="gallery-stats-bar">
-                <div class="stats-row">
-                  <div class="stat-box">
-                    <span class="stat-value">{{ activeGalleryEntries.length }}</span>
-                    <span class="stat-name">私密条目</span>
-                  </div>
-                  <div class="stat-box">
-                    <span class="stat-value">{{ imageCount }}</span>
-                    <span class="stat-name">纯图片</span>
-                  </div>
-                  <div class="stat-box">
-                    <span class="stat-value">{{ mixedCount }}</span>
-                    <span class="stat-name">图文</span>
-                  </div>
-                  <div class="stat-box">
-                    <span class="stat-value">{{ currentMonthCount }}</span>
-                    <span class="stat-name">本月</span>
-                  </div>
-                </div>
-                <div class="filter-row">
-                  <button
-                    v-for="option in filterOptions"
-                    :key="option.value"
-                    type="button"
-                    class="filter-chip"
-                    :class="{ active: currentFilter === option.value }"
-                    @click="currentFilter = option.value"
-                  >
-                    {{ option.label }}
-                    <span class="chip-count">{{ getFilterCount(option.value) }}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="section-heading">
-                <div>
-                  <span class="section-kicker">Your Album</span>
-                  <h3>{{ currentFilterLabel }}</h3>
-                </div>
-                <p>{{ visibleFilteredEntries.length }} / {{ filteredEntries.length }} 条内容</p>
-              </div>
-
-              <div class="gallery-toolbar">
-                <label class="search-field" for="cloud-search">
-                  <Search class="search-icon" :size="17" :stroke-width="1.8" aria-hidden="true" />
-                  <input
-                    id="cloud-search"
-                    v-model.trim="searchQuery"
-                    type="search"
-                    placeholder="搜索标题、文字、心情或日期"
-                  />
-                </label>
-
-                <div class="date-range">
-                  <label class="date-field">
-                    <span>开始</span>
-                    <input v-model="dateFrom" type="date" />
-                  </label>
-                  <label class="date-field">
-                    <span>结束</span>
-                    <input v-model="dateTo" type="date" />
-                  </label>
-                </div>
-
-                <button
-                  v-if="hasActiveFilters"
-                  type="button"
-                  class="toolbar-reset-btn"
-                  @click="resetGalleryFilters"
-                >
-                  清除筛选
-                </button>
-              </div>
-
+            <!-- 手势宿主：捏合改列数（仿 iOS 图库），列数经 CSS 变量下发给网格。
+                 touchmove 必须是**非 passive** 才能在两指时 preventDefault 掉浏览器缩放
+                 （Vue 的 @touchmove 默认就是非 passive；别加 .passive 修饰符）。
+                 wheel 分支服务 Mac 触控板：浏览器把「双指捏合」报成 ctrlKey=true 的 wheel。 -->
+            <section
+              ref="albumSectionRef"
+              class="gallery-section album-gallery-section"
+              :style="{ '--album-columns': resolvedAlbumColumns }"
+              @touchstart.passive="onAlbumTouchStart"
+              @touchend.passive="onAlbumPinchEnd"
+              @touchcancel.passive="onAlbumPinchEnd"
+              @wheel="onAlbumWheel"
+            >
               <div
                 v-if="entriesLoadError && entries.length > 0"
                 class="gallery-inline-feedback warning"
@@ -757,66 +776,57 @@
                 </button>
               </div>
 
-              <div v-else class="album-month-list">
-                <section
-                  v-for="group in groupedVisibleEntries"
-                  :key="group.key"
-                  class="album-month-group"
-                >
-                  <div class="album-month-heading">
-                    <h4>{{ group.label }}</h4>
-                    <span>{{ group.entries.length }} 条</span>
-                  </div>
-
-                  <TransitionGroup name="list-transition" tag="div" class="gallery-grid" appear>
-                    <article
-                      v-for="(entry, index) in group.entries"
-                      :key="entry.id"
-                      class="cloud-card"
-                      :class="[`type-${entry.entryType}`, { featured: entry.coverImageUrl }]"
-                      :style="{ '--item-index': index }"
-                      @click="openEntry(entry)"
-                    >
-                      <div v-if="entry.coverImageUrl" class="card-visual">
-                        <img
-                          :src="getCloudImageDisplayUrl(entry.coverImageUrl)"
-                          :alt="entry.title || 'Cloud cover'"
-                          class="card-cover cloud-loading-image"
-                          loading="eager"
-                          decoding="async"
-                          referrerpolicy="no-referrer"
-                          @load="handleCloudImageLoaded"
-                          @error="retryCloudImageLoad"
-                        />
-                        <div class="card-overlay">
-                          <span class="entry-badge">{{ entryTypeLabel(entry.entryType) }}</span>
-                          <span v-if="entry.mood" class="mood-badge">
-                            {{ resolveMoodMeta(entry.mood)?.icon || '•' }} {{ entry.mood }}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div class="card-body">
-                        <div class="card-date">
-                          {{ formatEntryDate(entry.entryDate, entry.updatedAt) }}
-                        </div>
-                        <h4 class="card-title">{{ entry.title || defaultTitle(entry) }}</h4>
-                        <p class="card-text">
-                          {{ entry.previewText || '这条内容里暂时没有文字预览。' }}
-                        </p>
-                        <div class="card-footer">
-                          <span class="card-meta">
-                            <span v-if="entry.mood" class="card-mood"
-                              >{{ resolveMoodMeta(entry.mood)?.icon || '•' }} {{ entry.mood }}</span
-                            >
-                            <span>{{ blockSummary(entry) }}</span>
-                          </span>
-                          <button type="button" class="ghost-link">打开</button>
-                        </div>
-                      </div>
-                    </article>
-                  </TransitionGroup>
-                </section>
+              <div v-else class="album-flow">
+                <!-- 2026-10-02 去掉月份分组：改回 iOS 图库那种「一整片图直接密铺」。
+                     原实现是「一个月一个 <section> + 一条标题行（『2026年9月 · N 条』）+ 一个独立网格」，
+                     在密集网格里这些横条会把相册切成一段段、每段还各起一列，正是 iOS 图库没有的东西。
+                     现在只有一个网格、一条列表，日期只在点开详情后出现。 -->
+                <!-- 2026-10-02 性能修复（报障：滑动不流畅、内容一直闪烁）：
+                     ① TransitionGroup 对 26+ 个格子做 FLIP move 动画（transform 0.4s），
+                        滚动中任何更新都会让整片格子重新布局测量；
+                     ② `--item-index` 逐格错峰淡入，30 格 × 0.04s = 首屏连续闪烁 1.2s。
+                     iOS 图库的格子也是直接出现 —— 这里改回普通 div，不做逐格动画。 -->
+                <div class="gallery-grid album-tile-grid">
+                  <article
+                    v-for="tile in albumTiles"
+                    :key="tile.key"
+                    class="gallery-tile"
+                    :class="`tile-${tile.entry.entryType}`"
+                    @click="openEntry(tile.entry)"
+                  >
+                    <template v-if="tile.imageUrl">
+                      <img
+                        :src="getCloudImageDisplayUrl(tile.imageUrl)"
+                        :alt="tile.entry.title || 'Cloud cover'"
+                        class="tile-cover cloud-loading-image"
+                        loading="lazy"
+                        decoding="async"
+                        referrerpolicy="no-referrer"
+                        @load="handleCloudImageLoaded"
+                        @error="retryCloudImageLoad"
+                      />
+                      <!-- 多图贴的每张图都各占一格了（2026-10-02），「N 图」角标失去意义；
+                           心情角标只在同一条内容的第一格出现，避免同一心情刷满一片格子。 -->
+                      <span
+                        v-if="tile.entry.mood && tile.isFirstOfEntry"
+                        class="mood-badge tile-mood-badge"
+                      >
+                        {{ resolveMoodMeta(tile.entry.mood)?.icon || '•' }}
+                      </span>
+                    </template>
+                    <div v-else class="tile-paper">
+                      <h5 class="tile-paper-title">
+                        {{ tile.entry.title || defaultTitle(tile.entry) }}
+                      </h5>
+                      <p class="tile-paper-text">
+                        {{ tile.entry.previewText || '这条内容没有文字预览。' }}
+                      </p>
+                      <span class="tile-paper-date">{{
+                        formatEntryDate(tile.entry.entryDate, tile.entry.updatedAt)
+                      }}</span>
+                    </div>
+                  </article>
+                </div>
 
                 <div class="album-flow-actions">
                   <button
@@ -843,6 +853,16 @@
       </main>
     </div>
 
+    <button
+      v-if="cloudTab === 'content' && isLoggedIn && !isComposerOpen && !selectedEntry"
+      type="button"
+      class="gallery-fab"
+      aria-label="新建 Cloud+ 内容"
+      @click="openComposer"
+    >
+      ＋
+    </button>
+
     <nav class="cloud-bottom-nav" aria-label="Cloud+ 页面导航">
       <button
         v-for="item in cloudBottomNavItems"
@@ -863,36 +883,43 @@
           <div>
             <span class="section-kicker">{{ selectedEntryKicker }}</span>
             <h3>{{ selectedEntry.title || defaultTitle(selectedEntry) }}</h3>
-            <p>{{ formatEntryDate(selectedEntry.entryDate, selectedEntry.updatedAt) }}</p>
+            <p>
+              {{ formatEntryDate(selectedEntry.entryDate, selectedEntry.updatedAt) }}
+              <!-- 可见性必须明示：报障「已经是公开的帖子为什么还有设为公开按钮」——
+                   状态藏在按钮里用户看不见，放在日期旁边一眼可查。 -->
+              <span class="detail-visibility" :class="{ 'is-public': isSelectedEntryPublic }">{{
+                isSelectedEntryPublic ? '已公开' : '私密'
+              }}</span>
+            </p>
           </div>
           <div class="detail-actions">
             <span v-if="selectedEntry.mood" class="detail-mood">
               {{ resolveMoodMeta(selectedEntry.mood)?.icon || '•' }} {{ selectedEntry.mood }}
             </span>
             <template v-if="selectedEntrySource === 'mine'">
+              <!-- 2026-10-02 产品口径：Cloud+ = 作品照片的**私密备份库**，「设为公开」入口取消。
+                   对外可见走两条路：token 令牌分享（已有）/ 转为帖子（plans/023 待做）。
+                   存量已公开条目不迁移：仍计入作品格，由「去作品格管理」出口维护；
+                   私密条目只给「删除」（备份库里的增删是用户自己的事）。 -->
               <button
-                v-if="!isSelectedEntryPublic"
-                type="button"
-                class="secondary-btn detail-public-btn"
-                :disabled="cloudState.publish.publishing"
-                @click="makeEntryPublic(selectedEntry)"
-              >
-                {{ cloudState.publish.publishing ? '处理中...' : '设为公开' }}
-              </button>
-              <button
-                v-else
+                v-if="isSelectedEntryPublic"
                 type="button"
                 class="secondary-btn detail-public-btn"
                 @click="goWorksGrid"
               >
                 去作品格管理
               </button>
+              <!-- Phase 4（plans/023）：对外可见的第二条路 —— 把备份转为帖子。
+                   图片直接复用 Cloudinary url（不二次上传），经论坛草稿通道预填发帖器。 -->
               <button
-                v-if="!isSelectedEntryPublic"
+                v-if="collectEntryImageUrls(selectedEntry).length"
                 type="button"
-                class="danger-btn"
-                @click="removeEntry(selectedEntry)"
+                class="secondary-btn detail-public-btn"
+                @click="convertEntryToPost(selectedEntry)"
               >
+                转为帖子
+              </button>
+              <button type="button" class="danger-btn" @click="removeEntry(selectedEntry)">
                 删除
               </button>
             </template>
@@ -916,7 +943,8 @@
                 @error="retryCloudImageLoad"
                 loading="lazy"
               />
-              <figcaption v-if="block.alt">{{ block.alt }}</figcaption>
+              <!-- alt 是上传时的系统默认值（如「论坛图片」），展示出来只是一条灰杠；语义保留在 DOM 属性里 -->
+              <figcaption v-if="block.alt" class="sr-only">{{ block.alt }}</figcaption>
             </figure>
           </template>
         </div>
@@ -960,14 +988,12 @@ import {
   listMyCloudEntries,
   normalizeCloudShareToken,
   revokeMyCloudShareToken,
-  setMyCloudEntryVisibility,
   setMyCloudShareDescription,
   upsertMyCloudShareChannel,
 } from '@/utils/api/boh-cloud-api.js';
 import { serializeCloudTextAndImages, cloudEntryDefaultTitle } from '@/utils/boh-cloud-content.js';
 import {
   computeCloudStorageAccounting,
-  countCloudEntryImages,
   isPublicCloudEntry,
   normalizeCloudVisibility,
 } from '@/utils/cloud-storage-accounting.js';
@@ -1085,6 +1111,8 @@ const activeEntriesUserId = computed({
 const isPublishing = computed(() => cloudState.publish.publishing);
 const isUploadingImages = computed(() => cloudState.upload.uploading);
 const currentFilter = ref('all');
+const isComposerOpen = ref(false);
+const isFilterPanelOpen = ref(false);
 const cloudinaryCleanupLocks = new Set();
 let uploadAttemptTimestamps = [];
 const CLOUD_BATCH_LIMIT = 9;
@@ -1128,11 +1156,6 @@ const { debouncedFn: debouncedSaveShareDescription, cancel: cancelSaveShareDescr
     }
   }, 500);
 
-// 防抖优化 - 搜索输入（300ms）
-const { debouncedFn: debouncedSearch, cancel: cancelSearch } = useDebounce((query) => {
-  searchQuery.value = query;
-}, 300);
-
 const filterOptions = [
   { value: 'all', label: '全部' },
   { value: 'image', label: '图片' },
@@ -1141,9 +1164,6 @@ const filterOptions = [
 ];
 
 const selectedMoodMeta = computed(() => getMoodMeta(draftMood.value));
-const currentFilterLabel = computed(
-  () => filterOptions.find((item) => item.value === currentFilter.value)?.label || '全部',
-);
 const todayDisplay = computed(() => formatDisplayDate(new Date()));
 const cloudTab = computed(() => {
   const view = String(route.query.view || route.query.mode || '').trim();
@@ -1188,6 +1208,13 @@ const openSubscriptionsFromCloudSettings = () => {
 const hasActiveFilters = computed(() =>
   Boolean(searchQuery.value || dateFrom.value || dateTo.value),
 );
+const hasGalleryFilters = computed(() => currentFilter.value !== 'all' || hasActiveFilters.value);
+const activeFilterCount = computed(
+  () =>
+    (currentFilter.value !== 'all' ? 1 : 0) +
+    (normalizeDateInput(dateFrom.value) ? 1 : 0) +
+    (normalizeDateInput(dateTo.value) ? 1 : 0),
+);
 const currentCloudBenefit = computed(() =>
   resolveCloudBenefitFromSubscriptions(subscriptions.value),
 );
@@ -1210,7 +1237,6 @@ const hasEntriesLoadFailure = computed(
 );
 const showRefreshIndicator = computed(() => isLoading.value && !isInitialLoading.value);
 // 主列表只陈列私密内容；公开笔记是账目（只读分组），两者都计入存储记账。
-const privateEntries = computed(() => entries.value.filter((entry) => !isPublicCloudEntry(entry)));
 const publicEntries = computed(() => entries.value.filter((entry) => isPublicCloudEntry(entry)));
 const cloudAccounting = computed(() =>
   computeCloudStorageAccounting({
@@ -1218,7 +1244,17 @@ const cloudAccounting = computed(() =>
     limit: currentCloudImageLimit.value,
   }),
 );
-const activeGalleryEntries = computed(() => privateEntries.value);
+/**
+ * 相册条目顺序：**降序 —— 最新的在最上面**（2026-10-02 与产品确认过两次，
+ * 中途试过升序又改回降序，别再翻）。
+ * 顺序来自 API 的 `.order('entry_date', { ascending: false, nullsFirst: false })`（内容日期），
+ * 视图层不重排：一旦在这里加 sort，就会和「加载更多」的分页游标各排各的，出现重复/漏项。
+ *
+ * 2026-10-02 产品口径：相册显示**全部备份**（含存量已公开条目，详情里有「已公开」徽章与
+ * 「去作品格管理」出口）—— Cloud+ 定位从「私密 + 手动公开」收敛为「私密备份库」，
+ * 不再按可见性把一半备份藏起来；「设为公开」入口已随口径取消。
+ */
+const activeGalleryEntries = computed(() => entries.value);
 const isSelectedEntryPublic = computed(() => isPublicCloudEntry(selectedEntry.value));
 const selectedEntryKicker = computed(() => {
   if (selectedEntrySource.value === 'shared') return 'BOH Cloud Channel Entry';
@@ -1289,33 +1325,191 @@ const visibleFilteredEntries = computed(() =>
 const canLoadMoreEntries = computed(
   () => visibleFilteredEntries.value.length < filteredEntries.value.length,
 );
-const groupedVisibleEntries = computed(() => {
-  const groups = [];
-  const groupMap = new Map();
 
-  visibleFilteredEntries.value.forEach((entry) => {
-    const key = resolveEntryMonthKey(entry);
-    if (!groupMap.has(key)) {
-      const group = {
-        key,
-        label: formatMonthGroupLabel(key),
-        entries: [],
-      };
-      groupMap.set(key, group);
-      groups.push(group);
+/**
+ * 相册格子单源（2026-10-02）：把「一条内容」摊平成「一张图一个格子」。
+ * 为什么格子 ≠ 条目：多图贴要每张图都直接铺出来，堆成「一张封面 + N 图角标」是卡片语汇，
+ * 不是相册语汇。所以这里 flatMap：
+ *   · 有图的条目 → 每张图各一个 tile（key 必须带下标，否则同一条目的多格会撞 key）
+ *   · 纯文字条目 → 1 个 tile，走 .tile-paper
+ * 点任一格都是 openEntry(该条目)：详情里能看到这条内容的全貌。
+ */
+const albumTiles = computed(() =>
+  visibleFilteredEntries.value.flatMap((entry) => {
+    const images = collectEntryImageUrls(entry);
+    if (!images.length) {
+      return [{ key: `${entry.id}::paper`, entry, imageUrl: '', isFirstOfEntry: true }];
     }
-    groupMap.get(key).entries.push(entry);
-  });
+    return images.map((imageUrl, index) => ({
+      key: `${entry.id}::${index}`,
+      entry,
+      imageUrl,
+      isFirstOfEntry: index === 0,
+    }));
+  }),
+);
 
-  return groups;
+/** 取一条内容的全部图片地址（口径与 utils/cloud-storage-accounting 的图片计数一致：contentBlocks 里 type==='image'） */
+function collectEntryImageUrls(entry) {
+  const blocks = Array.isArray(entry?.contentBlocks) ? entry.contentBlocks : [];
+  const urls = blocks
+    .filter((block) => block?.type === 'image')
+    .map((block) => String(block?.url || '').trim())
+    .filter(Boolean);
+  if (urls.length) return urls;
+  const cover = String(entry?.coverImageUrl || '').trim();
+  return cover ? [cover] : [];
+}
+
+/* ---- 相册列数：捏合切换（仿 iOS 图库）----
+   分两层值：
+     · albumColumnCount —— 用户显式选择（捏合后落盘），null = 还没手动调过
+     · autoAlbumColumns —— 按当前宽度算出的自然列数
+   再合成 resolvedAlbumColumns 下发 CSS 变量。之所以由 JS 算而不是交给 CSS 的
+   `auto-fill`：auto-fill 没法被手势覆盖，横屏（Mac 触控板捏合）就无从调节。
+   窄屏固定对齐 iOS 的 5 列（不按宽度算：320 宽的老机型上 iOS 也是 5 列）；
+   宽屏按「格宽 ~130px」推列数。
+   只走整数档、不做连续缩放：格子可读性只在整数列下成立，整数档才能落盘复用。 */
+const ALBUM_COLUMNS_STORAGE_KEY = 'boh-cloud-album-columns';
+const ALBUM_NARROW_VIEWPORT = 700;
+const ALBUM_NARROW_COLUMNS = 5;
+const ALBUM_WIDE_TILE_TARGET = 130;
+const ALBUM_COLUMN_MIN = 3;
+const ALBUM_COLUMN_MAX = 12;
+const albumColumnCount = ref(null);
+const autoAlbumColumns = ref(ALBUM_NARROW_COLUMNS);
+const resolvedAlbumColumns = computed(() => albumColumnCount.value ?? autoAlbumColumns.value);
+
+try {
+  const savedColumns = Number(localStorage.getItem(ALBUM_COLUMNS_STORAGE_KEY));
+  if (Number.isFinite(savedColumns) && savedColumns >= ALBUM_COLUMN_MIN) {
+    albumColumnCount.value = Math.min(savedColumns, ALBUM_COLUMN_MAX);
+  }
+} catch {
+  // 隐私模式 / 无 storage 时读不到；列数只是观感偏好，回落自动列数即可
+}
+
+let lastAlbumSectionWidth = 0;
+
+function measureAutoAlbumColumns() {
+  const width = albumSectionRef.value?.clientWidth || window.innerWidth || 0;
+  if (!width) return;
+  // ResizeObserver 观察的是整个 section：图片陆续加载会让**高度**不断变化，
+  // 但列数只跟**宽度**有关。不做这个早退的话，首屏每加载一张图就强制同步布局一次
+  // （回调查 clientWidth 会 flush），30 张图 = 30 次布局抖动，滚动时就是肉眼可见的顿挫。
+  if (width === lastAlbumSectionWidth) return;
+  lastAlbumSectionWidth = width;
+  autoAlbumColumns.value =
+    width <= ALBUM_NARROW_VIEWPORT
+      ? ALBUM_NARROW_COLUMNS
+      : Math.max(
+          ALBUM_COLUMN_MIN,
+          Math.min(ALBUM_COLUMN_MAX, Math.round(width / ALBUM_WIDE_TILE_TARGET)),
+        );
+}
+
+function setAlbumColumns(next) {
+  const clamped = Math.min(
+    Math.max(Math.round(Number(next) || resolvedAlbumColumns.value), ALBUM_COLUMN_MIN),
+    ALBUM_COLUMN_MAX,
+  );
+  if (clamped === resolvedAlbumColumns.value) return;
+  albumColumnCount.value = clamped;
+  try {
+    localStorage.setItem(ALBUM_COLUMNS_STORAGE_KEY, String(clamped));
+  } catch {
+    // 写不进不影响本次会话的切换效果
+  }
+}
+
+// 捏合状态：故意用普通对象（不需要响应式，避免每帧触发渲染）
+const albumPinch = { active: false, startDistance: 0, startColumns: ALBUM_NARROW_COLUMNS };
+
+// 用 ResizeObserver 而不是只监听 window.resize：图库页宽屏是「铺满」的（.is-gallery 解除 980
+// 上限），从设置页切回内容页时容器宽度会变，而 window 不 resize —— 只监听 window 会留下
+// 错误的列数。回调只在值真变时赋值，不会形成「改列数 → 触发布局 → 再触发」的环。
+let albumResizeObserver = null;
+
+onMounted(() => {
+  measureAutoAlbumColumns();
+  window.addEventListener('resize', measureAutoAlbumColumns);
+  if (typeof ResizeObserver !== 'undefined' && albumSectionRef.value) {
+    albumResizeObserver = new ResizeObserver(measureAutoAlbumColumns);
+    albumResizeObserver.observe(albumSectionRef.value);
+  }
+});
+onUnmounted(() => {
+  window.removeEventListener('resize', measureAutoAlbumColumns);
+  albumResizeObserver?.disconnect();
+  albumResizeObserver = null;
 });
 
-const imageCount = computed(
-  () => activeGalleryEntries.value.filter((entry) => entry.entryType === 'image').length,
-);
-const mixedCount = computed(
-  () => activeGalleryEntries.value.filter((entry) => entry.entryType === 'mixed').length,
-);
+function readTouchDistance(touches) {
+  const [a, b] = touches;
+  if (!a || !b) return 0;
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+// 只有「两指期间」才需要非 passive 的 touchmove（拦默认缩放）。常挂在元素上的话，
+// 浏览器每一帧都要等 JS 判断完才敢滚动 —— 单指滑动的流畅度会被整体拖慢，
+// 这正是报障「滑动不流畅」的一半原因。所以 touchmove 用完即拆。
+let albumPinchMoveBound = false;
+
+function bindAlbumPinchMove() {
+  if (albumPinchMoveBound || !albumSectionRef.value) return;
+  albumPinchMoveBound = true;
+  albumSectionRef.value.addEventListener('touchmove', onAlbumTouchMove, { passive: false });
+}
+
+function unbindAlbumPinchMove() {
+  if (!albumPinchMoveBound) return;
+  albumPinchMoveBound = false;
+  albumSectionRef.value?.removeEventListener('touchmove', onAlbumTouchMove);
+}
+
+function onAlbumTouchStart(event) {
+  if (event.touches?.length !== 2) {
+    albumPinch.active = false;
+    unbindAlbumPinchMove();
+    return;
+  }
+  albumPinch.active = true;
+  albumPinch.startDistance = readTouchDistance(event.touches);
+  albumPinch.startColumns = resolvedAlbumColumns.value;
+  bindAlbumPinchMove();
+}
+
+function onAlbumTouchMove(event) {
+  if (!albumPinch.active || event.touches?.length !== 2) return;
+  // 两指必须拦掉默认行为，否则浏览器会拿去做页面缩放
+  event.preventDefault?.();
+  const distance = readTouchDistance(event.touches);
+  if (!albumPinch.startDistance || !distance) return;
+  const scale = distance / albumPinch.startDistance;
+  // 阶梯式而非连续映射：每跨过一档就重置基线，一次张手可以连切 5→4→3
+  if (scale >= 1.25) {
+    setAlbumColumns(resolvedAlbumColumns.value - 1);
+    albumPinch.startDistance = distance;
+    albumPinch.startColumns = resolvedAlbumColumns.value;
+  } else if (scale <= 0.8) {
+    setAlbumColumns(resolvedAlbumColumns.value + 1);
+    albumPinch.startDistance = distance;
+    albumPinch.startColumns = resolvedAlbumColumns.value;
+  }
+}
+
+function onAlbumPinchEnd() {
+  albumPinch.active = false;
+  unbindAlbumPinchMove();
+}
+
+/** Mac 触控板：浏览器把「双指捏合」上报成 ctrlKey=true 的 wheel */
+function onAlbumWheel(event) {
+  if (!event.ctrlKey) return;
+  event.preventDefault?.();
+  if (event.deltaY < 0) setAlbumColumns(resolvedAlbumColumns.value - 1);
+  else if (event.deltaY > 0) setAlbumColumns(resolvedAlbumColumns.value + 1);
+}
 const totalStoredImages = computed(() => cloudAccounting.value.usedImages);
 const draftImageCount = computed(() => uploadedImages.value.length);
 const remainingImageQuota = computed(() =>
@@ -1324,13 +1518,6 @@ const remainingImageQuota = computed(() =>
 const quotaPercent = computed(() => {
   if (currentCloudImageLimit.value <= 0) return 0;
   return Math.min(100, Math.round((totalStoredImages.value / currentCloudImageLimit.value) * 100));
-});
-const currentMonthCount = computed(() => {
-  const now = new Date();
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return activeGalleryEntries.value.filter((entry) =>
-    String(entry.entryDate || '').startsWith(monthKey),
-  ).length;
 });
 
 function resolveMoodMeta(value) {
@@ -1375,22 +1562,6 @@ function resolveEntryDateKey(entry) {
     String(parsed.getMonth() + 1).padStart(2, '0'),
     String(parsed.getDate()).padStart(2, '0'),
   ].join('-');
-}
-
-function resolveEntryMonthKey(entry) {
-  const dateKey = resolveEntryDateKey(entry);
-  return dateKey ? dateKey.slice(0, 7) : 'unknown';
-}
-
-function formatMonthGroupLabel(monthKey) {
-  const safeKey = String(monthKey || '').trim();
-  if (!/^\d{4}-\d{2}$/.test(safeKey)) return '未标注日期';
-
-  const [year, month] = safeKey.split('-');
-  const now = new Date();
-  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  if (safeKey === currentKey) return '本月';
-  return `${year}.${month}`;
 }
 
 function formatEntryDate(entryDate, updatedAt = '') {
@@ -1456,6 +1627,19 @@ function resetGalleryFilters() {
   searchQuery.value = '';
   dateFrom.value = '';
   dateTo.value = '';
+  currentFilter.value = 'all';
+}
+
+function openComposer() {
+  isComposerOpen.value = true;
+}
+
+function closeComposer() {
+  isComposerOpen.value = false;
+}
+
+function toggleFilterPanel() {
+  isFilterPanelOpen.value = !isFilterPanelOpen.value;
 }
 
 function loadMoreGalleryEntries() {
@@ -2381,6 +2565,7 @@ async function publishEntry() {
       cloudState.content.lastFetchTime = Date.now();
     }
     showNotice('已发布到 BOH Cloud+');
+    isComposerOpen.value = false;
     void loadEntries();
   } finally {
     cloudState.publish.publishing = false;
@@ -2390,6 +2575,36 @@ async function publishEntry() {
 function openEntry(entry, source = 'mine') {
   selectedEntry.value = entry;
   selectedEntrySource.value = source === 'shared' ? 'shared' : 'mine';
+}
+
+/**
+ * Phase 4（plans/023）：把备份**转为帖子** —— 对外可见的第二条路（第一条是 token 令牌分享）。
+ * 图片直接复用 Cloudinary url（不二次上传），经论坛云端草稿通道预填发帖器；
+ * ForumMain 挂载时读取同 key 的一次性预填（boh-cloud-convert-draft），并抑制旧草稿恢复，
+ * 避免「刚选好的图被旧草稿覆盖」。
+ */
+function convertEntryToPost(entry) {
+  const images = collectEntryImageUrls(entry);
+  if (!images.length) {
+    showNotice('这条备份没有图片，无法转为帖子');
+    return;
+  }
+  try {
+    sessionStorage.setItem(
+      'boh-cloud-convert-draft',
+      JSON.stringify({
+        title: String(entry?.title || '').slice(0, 120),
+        content: String(entry?.contentText || '').slice(0, 2000),
+        images,
+      }),
+    );
+  } catch (error) {
+    logger.warn('cloud', '转为帖子：预填暂存失败', error);
+    showNotice('转为帖子失败，请重试');
+    return;
+  }
+  closeEntry();
+  router.push({ path: '/user-space', query: { tab: 'community', from: 'cloud-plus-convert' } });
 }
 
 function goWorksGrid() {
@@ -2404,41 +2619,6 @@ function goWorksGrid() {
 }
 
 /** 私密笔记 → 公开（Cloud+ 侧的发布路径 = 状态切换；公开后的管理在作品格做）。 */
-async function makeEntryPublic(entry) {
-  const userId = String(userInfo.value?.id || '').trim();
-  if (!isLoggedIn.value || !userId || !entry?.id) return;
-
-  if (
-    !(await dialog.confirm({
-      title: '设为公开',
-      message:
-        '公开后会出现在你的作品格，任何人可见；图片仍占用 Cloud+ 额度。之后可在作品格改回私密或删除。',
-      confirmText: '设为公开',
-    }))
-  )
-    return;
-
-  cloudState.publish.publishing = true;
-  try {
-    const result = await setMyCloudEntryVisibility(userId, entry.id, 'public');
-    if (!result.ok) {
-      showNotice(result.error?.message || '设为公开失败');
-      return;
-    }
-
-    const published = result.data || { ...entry, visibility: 'public' };
-    entries.value = entries.value.map((item) => (item.id === published.id ? published : item));
-    persistCachedEntries(userId, entries.value);
-    if (selectedEntry.value?.id === published.id) {
-      selectedEntry.value = published;
-    }
-    showNotice('已公开，可在作品格查看');
-  } finally {
-    cloudState.publish.publishing = false;
-  }
-}
-
-/** 作品格「打开」跳转回来时按 entry 参数展开对应笔记详情。 */
 function tryOpenEntryFromQuery() {
   const entryId = String(route.query.entry || '').trim();
   if (!entryId) return;
@@ -2608,6 +2788,11 @@ watch(normalizedSharedTokenInput, (token) => {
   } else if (!String(sharedTokenInput.value || '').trim()) {
     persistStoredSharedToken('');
   }
+});
+
+watch(isComposerOpen, (open) => {
+  if (typeof window === 'undefined') return;
+  window.document.body.style.overflow = open ? 'hidden' : '';
 });
 
 const handlePageHide = () => {

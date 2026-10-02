@@ -1,5 +1,5 @@
 <template>
-  <section class="storage-bar-card" aria-busy="loading ? 'true' : undefined">
+  <section class="storage-bar-card liquid-glass" aria-busy="loading ? 'true' : undefined">
     <div class="storage-bar-head">
       <div class="storage-bar-title">
         <span class="card-label">存储用量</span>
@@ -50,7 +50,7 @@
       </span>
     </div>
 
-    <p class="storage-bar-hint">公开笔记在作品格展示，图片与私密内容共用同一 Cloud+ 额度。</p>
+    <p class="storage-bar-hint">限额按账号计算，私密与公开内容共用同一额度。</p>
   </section>
 </template>
 
@@ -77,14 +77,24 @@ defineEmits(['jump-private', 'manage-public']);
 </script>
 
 <style scoped>
+/* 材质（背景/边框/圆角/阴影/backdrop-filter）**全部交给 .liquid-glass**，
+   本组件只保留排版。原来那层「蓝→白」渐变实底 + 自绘边框会盖掉玻璃，
+   与设置页另两张卡也不是同一种材质（2026-10-01 统一为液态玻璃）。 */
 .storage-bar-card {
-  border: 1px solid var(--apple-border-light);
-  background: linear-gradient(180deg, rgba(0, 113, 227, 0.04) 0%, rgba(255, 255, 255, 0.92) 100%);
-  border-radius: var(--radius-lg);
-  padding: 16px 18px 14px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* 暗色兼容：Cloud+ 整页没有暗色适配（父级 .cloud-page 硬编码亮色 token），
+   所以这里不能让玻璃跟着主题切暗 —— 见 style.scoped.css 里同款注释。 */
+[data-theme='dark'] .storage-bar-card.liquid-glass {
+  background: var(--apple-bg-secondary);
+  border: 1px solid var(--apple-border-light);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
 }
 
 .storage-bar-head {

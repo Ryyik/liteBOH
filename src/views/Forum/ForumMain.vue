@@ -99,6 +99,7 @@ import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import anniversaryForumImage from '@/assets/images/blockschool.webp';
 import { addExperience, XP_REWARDS } from '../../utils/xp.js';
 import { logger } from '@/utils/logger.js';
+import { createMyCloudEntry } from '@/utils/api/boh-cloud-api.js';
 import { getFollowing } from '@/utils/api/profile-api.js';
 import {
   FORUM_DETAIL_IMAGE_TRANSFORM,
@@ -188,8 +189,11 @@ const forumWeeklyReport = ref(null);
 const isWeeklyReportLoading = ref(false);
 const isWeeklyReportOpen = ref(false);
 const forumPageRef = ref(null);
-const { clearForumImageModerationPreloadTask, scheduleForumImageModerationPreload } =
-  useForumImageModerationPreload(preloadForumImageModeration);
+const {
+  clearForumImageModerationPreloadTask,
+  scheduleForumImageModerationPreload,
+  getForumImageModerationPreloadPromise,
+} = useForumImageModerationPreload(preloadForumImageModeration);
 
 // 批量预取帖子作者的订阅等级：把原先 PostCard 挂载时各自发起的单发
 // get_user_subscription_tier RPC 合并为一次 get_user_subscription_tiers 批量请求。
@@ -756,6 +760,69 @@ const getQueueItemErrorType = (error) => {
   if (isLikelyNetworkError(error)) return 'network';
   return 'network';
 };
+/**
+ * Phase 2（plans/023）：发帖成功后把图片**自动备份**为 Cloud+ 底账（source='forum'）。
+ * best-effort：失败只记日志，绝不影响发帖结果；无图帖不备份（底账按约定只存图）。
+ * 关联字段 source_post_id 让删帖时由数据库级联删除备份（2026100202 迁移）；
+ * 备份本身在 Cloud+ 里禁止单独删除/公开（FORUM_SYNCED_CLOUD_ENTRY_LOCKED）。
+ */
+// Phase 4（plans/023）：Cloud+「转为帖子」的一次性预填（读后即删，抑制本次会话的草稿恢复）
+const convertPrefillApplied = ref(false);
+
+onMounted(() => {
+  try {
+    const raw = sessionStorage.getItem('boh-cloud-convert-draft');
+    if (!raw) return;
+    sessionStorage.removeItem('boh-cloud-convert-draft');
+    const draft = JSON.parse(raw);
+    if (!draft || typeof draft !== 'object') return;
+    const urls = (Array.isArray(draft.images) ? draft.images : [])
+      .map((url) => String(url || '').trim())
+      .filter(Boolean);
+    newPost.value = {
+      title: String(draft.title || '').slice(0, 120),
+      content: String(draft.content || ''),
+    };
+    postImages.value = urls.map((url, i) => ({
+      uploadId: `cloud-convert-${Date.now()}-${i}`,
+      url,
+      publicId: '',
+      uploadStatus: 'approved',
+      sortOrder: i,
+      file: null,
+      localPreviewUrl: url,
+    }));
+    convertPrefillApplied.value = true;
+    logger.info('forum', '已从 Cloud+ 预填发帖内容（转为帖子）');
+  } catch (error) {
+    logger.warn('forum', 'Cloud+ 转为帖子预填失败:', error);
+  }
+});
+
+async function backupPostImagesToCloud(realPost, images, queueItem) {
+  try {
+    const urls = (Array.isArray(images) ? images : [])
+      .map((img) => String(img?.url || '').trim())
+      .filter(Boolean);
+    const userId = String(queueItem?.authorId || '').trim();
+    if (!urls.length || !userId) return;
+    const result = await createMyCloudEntry(userId, {
+      title: String(realPost?.title || '').slice(0, 120),
+      entryDate: new Date().toISOString().slice(0, 10),
+      visibility: 'private',
+      source: 'forum',
+      contentBlocks: urls.map((url) => ({ type: 'image', url, alt: '' })),
+      coverImageUrl: urls[0],
+      sourcePostId: String(realPost?.id || ''),
+    });
+    if (!result.ok) {
+      logger.warn('forum', '发帖图片自动备份 Cloud+ 失败:', result.error);
+    }
+  } catch (error) {
+    logger.warn('forum', '发帖图片自动备份 Cloud+ 异常:', error);
+  }
+}
+
 const processPublishImagesForQueue = async (queueItem, signal) => {
   // 全部已就绪（预热已完成）：直接返回
   const allApproved =
@@ -978,6 +1045,8 @@ const runPublishQueue = async () => {
         });
         // 替换乐观卡为真实卡
         replaceOptimisticWithReal(next.id, realPost);
+        // Phase 2（plans/023）：图片自动备份到 Cloud+ 底账（best-effort，不阻塞发帖）
+        void backupPostImagesToCloud(realPost, finalImages, next);
         // 经验与奖励
         void addExperience(supabase, next.authorId, XP_REWARDS.POST).catch((err) =>
           logger.error('forum', '经验值增加失败:', err),
@@ -1327,6 +1396,13 @@ const schedulePostDraftDatabaseSync = (draft) => {
 };
 
 const restorePostDraft = async () => {
+  // Phase 4（plans/023）：Cloud+「转为帖子」预填期间跳过恢复 —— 否则旧草稿会把
+  // 用户刚选好的图覆盖掉。预填是一次性的（读后即删），抑制只作用于当前会话。
+  try {
+    if (convertPrefillApplied.value) return;
+  } catch {
+    /* ignore */
+  }
   const restoreSeq = ++postDraftRestoreSeq;
   const localDraft = readPostDraft();
   const localClearedAt = readDraftClearedAt();
@@ -1692,6 +1768,38 @@ const updatePendingPostImage = (uploadId, patch = {}) => {
   return next;
 };
 
+// P0-③：模型预热提示（一次性、非阻塞）。schedule 时刻即创建 promise（idle 回调最晚 2s
+// 才真正开始跑），800ms 到点时预热仍未 settle → 写一次性提示；settle 后若文案没被
+// 更具体的进度（优化中/检测中/上传中）覆盖，则清掉。云端审核可达时本地模型只是兜底件，
+// 该提示只解释「首次选图后的短暂安静期」，不承诺任何审核行为。
+const MODERATION_PREPARE_HINT = '正在准备图片处理组件，首次选图稍慢…';
+let moderationPreloadHintTimer = null;
+let moderationPreloadHintShown = false;
+const clearModerationPreloadHintTimer = () => {
+  if (moderationPreloadHintTimer) {
+    clearTimeout(moderationPreloadHintTimer);
+    moderationPreloadHintTimer = null;
+  }
+};
+const scheduleModerationPreloadHint = () => {
+  if (moderationPreloadHintShown) return;
+  clearModerationPreloadHintTimer();
+  moderationPreloadHintTimer = setTimeout(() => {
+    moderationPreloadHintTimer = null;
+    const pendingPreload = getForumImageModerationPreloadPromise();
+    if (!pendingPreload || moderationPreloadHintShown) return;
+    moderationPreloadHintShown = true;
+    if (!postImageUploadStatus.value) {
+      postImageUploadStatus.value = MODERATION_PREPARE_HINT;
+    }
+    pendingPreload.then(() => {
+      if (postImageUploadStatus.value === MODERATION_PREPARE_HINT) {
+        postImageUploadStatus.value = '';
+      }
+    });
+  }, 800);
+};
+
 const handlePostImageSelection = async (payload) => {
   const files = Array.from(
     payload?.files || payload?.event?.target?.files || payload?.target?.files || [],
@@ -1739,8 +1847,13 @@ const handlePostImageSelection = async (payload) => {
 
   // 选图后立刻后台预热「压缩 → 检测(串行) → 上传(并发)」，点发布时多半已就绪
   postImageUploadStatus.value = '';
+  // P1（首帧）：先把一帧让给缩略图渲染，再启动模型预载/压缩 —— 此前 tfjs+nsfwjs 的动态
+  // import 与 WebGL 初始化在选图同一拍抢占主线程，缩略图的 DOM patch 与首帧绘制被排到后面
+  // （症状即「卡一下才出图」）。
+  await nextTick();
   // 模型预载与压缩并行（幂等），避免第一张图检测时阻塞等待 NSFW 模型 CDN 下载
   scheduleForumImageModerationPreload({ immediate: true });
+  scheduleModerationPreloadHint();
   // D2：预热推迟 300ms 启动，躲开相册关闭动画与主线程峰值；批次内过滤已移除的图
   if (draftPipelineDebounceTimer) clearTimeout(draftPipelineDebounceTimer);
   const batchImages = pendingImages;
@@ -1849,10 +1962,11 @@ const scheduleDraftImagePipeline = (img, index, total) => {
       if (entry.cancelled)
         throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
       entry.state = 'preparing';
-      // quiet: 预热阶段不向编辑器写「优化中/待审核」等中间状态（设计意图：图片上不显示加载态）
+      // P0（2026-10-02 报障修复）：不再 quiet。此前预热阶段不向编辑器写「优化中/待审核」等
+      // 中间状态（设计意图：图片上不显示加载态），但灵动岛只在发布中出现 ⇒ 选图到发布之间
+      // 全程零反馈。现在压缩段由 prepareForumImageForUpload 写「优化中/压缩中」状态与底部文案。
       const prepared = await prepareForumImageForUpload(file, index, total, uploadId, {
         signal: entry.signal,
-        quiet: true,
         onProgress: (p) => {
           entry.progress = Math.min(0.35, Math.max(0, Number(p || 0) / 100) * 0.35);
         },
@@ -1869,6 +1983,13 @@ const scheduleDraftImagePipeline = (img, index, total) => {
     if (entry.cancelled) throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
     try {
       entry.file = await compressionPromise;
+      // P0：检测段提示。检测挂在全局串行链上（防移动端 GPU 并发崩溃），前面有图时本张要排队，
+      // 先给「检测中」反馈再进入等待。
+      updatePendingPostImage(uploadId, {
+        uploadStatus: 'moderating',
+        uploadStatusLabel: '安全检测中',
+      });
+      postImageUploadStatus.value = `正在检测第 ${index + 1}/${total} 张图片…`;
       entry.moderation = await moderateForumImage(entry.file);
       if (entry.moderation?.status !== 'approved') {
         const err = new Error(entry.moderation?.reason || '图片未通过安全检测');
@@ -1894,10 +2015,24 @@ const scheduleDraftImagePipeline = (img, index, total) => {
   // 阶段二：上传进入全局并发队列（仅网络层并发），不占串行链，不阻塞下一张的压缩/检测
   entry.promise = preparePromise.then(async () => {
     if (entry.cancelled) return entry;
+    // P0：上传段提示 + 百分比徽章。onProgress 高频回调按 10% 步进节流写入，
+    // 避免每次都 copy 整个 postImages 数组触发网格重渲染。
+    updatePendingPostImage(uploadId, {
+      uploadStatus: 'uploading',
+      uploadStatusLabel: '上传中',
+      uploadProgress: 0,
+    });
+    postImageUploadStatus.value = `正在上传第 ${index + 1}/${total} 张图片…`;
+    let lastReportedUploadProgress = 0;
     const uploadPromise = uploadApprovedForumImageQueued(entry.file, entry.moderation, {
       signal: entry.signal,
       onProgress: (p) => {
-        entry.progress = 0.5 + Math.min(1, Math.max(0, Number(p || 0) / 100)) * 0.5;
+        const normalized = Math.min(1, Math.max(0, Number(p || 0) / 100));
+        entry.progress = 0.5 + normalized * 0.5;
+        if (normalized - lastReportedUploadProgress >= 0.1 || normalized >= 1) {
+          lastReportedUploadProgress = normalized;
+          updatePendingPostImage(uploadId, { uploadProgress: normalized });
+        }
       },
     });
     entry.uploadPromise = uploadPromise;

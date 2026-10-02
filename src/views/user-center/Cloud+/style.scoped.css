@@ -44,6 +44,36 @@
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
   color: var(--apple-text);
   letter-spacing: -0.01em;
+
+  /* ---- 液态玻璃底衬（2026-10-01）----
+     玻璃是「折射背后内容」的材质：白玻璃叠在纯白底上就等于白，肉眼只剩一圈阴影 ——
+     卡片边界反而比原来的浅灰实色卡（#f5f5f7）更弱，实测确认过。
+     所以在页面背景铺一层极淡的冷色环境光，玻璃卡浮在上面才有材质。
+     强度刻意压到 9% / 5%（观感仍是「近白页面」，不是变蓝）。
+     色值走 color-mix + 既有 token，**不新增裸色值**（check:dark-tokens 棘轮）。
+     `isolation: isolate` 是必需的：不给层叠上下文的话，负 z-index 的伪元素会掉到
+     body 背景之下，光晕整层不可见。 */
+  position: relative;
+  isolation: isolate;
+}
+
+.cloud-page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      140% 62% at 50% -8%,
+      color-mix(in srgb, var(--apple-blue) 11%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      80% 40% at 96% 28%,
+      color-mix(in srgb, var(--apple-blue) 6%, transparent),
+      transparent 72%
+    );
 }
 
 .cloud-page.with-topbar {
@@ -95,6 +125,16 @@
 
 .cloud-page.with-topbar .cloud-shell {
   padding-top: 24px;
+}
+
+/* 图库页在宽屏铺满（2026-10-02 对齐 iPad 图库）：网格是全宽的，
+   980px 居中会让两侧各空一大块。设置页 / 分享页继续窄栏居中，保证文字行宽可读。
+   横向留白收到 24px —— iPad 图库的网格几乎贴边。 */
+@media (min-width: 1024px) {
+  .cloud-shell.is-gallery {
+    max-width: none;
+    padding-inline: 24px;
+  }
 }
 
 .cloud-page.embedded .cloud-shell {
@@ -166,6 +206,35 @@
 
 .sidebar-card:last-of-type {
   border-bottom: none;
+}
+
+/* ---- 液态玻璃卡（2026-10-01：Cloud+ 设置页 / 分享页）----
+   材质（background / border / border-radius / box-shadow / backdrop-filter）**全部**
+   来自全局类 `.liquid-glass`（src/styles/common/liquid-glass.css，main.js 全局引入）。
+   这里**绝不能**再写 background —— scoped 编译出的 `.sidebar-card[data-v-x]` 特异性高于
+   全局 `.liquid-glass`，写了就会把玻璃盖成实色浅灰（这正是改版前的样子）。
+   另外要撤掉基础 `.sidebar-card` 的「线段分隔」形态（`padding: 0 0 20px` + border-bottom）：
+   玻璃卡自带边框，底下再挂一条横线会悬空。 */
+.sidebar-card.liquid-glass {
+  padding: 18px;
+  border-bottom: none;
+  margin: 0;
+}
+
+/* ---- 暗色下的兼容（2026-10-01）----
+   ⚠️ 前提（已实测）：Cloud+ **整页没有任何暗色适配** —— `.cloud-page` 把 --apple-* 全套
+   硬编码成亮色，本文件里 `[data-theme="dark"]` 出现 0 次。所以暗色主题下这一页本来就是
+   「亮页面」（连带一个既有缺陷：顶栏标题被 UserCenterPageHeader 的暗色规则改成白字，
+   落在白底上不可见）。
+   因此玻璃卡在暗色下**不能**跟着 --liquid-* 切到暗色值 —— 那会变成「亮页面里嵌一张深灰卡」，
+   比不做玻璃更糟（实测截图确认）。这里让它在暗色下退回页面自己的实色底，与其余部分一致。
+   正解是给 Cloud+ 补一整套暗色 token（含顶栏），属独立一轮的范围。 */
+[data-theme='dark'] .sidebar-card.liquid-glass {
+  background: var(--apple-bg-secondary);
+  border: 1px solid var(--apple-border-light);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
 }
 
 .card-label {
@@ -1554,60 +1623,6 @@
   gap: 20px;
 }
 
-/* Gallery stats bar - integrated */
-.gallery-stats-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-  background: var(--apple-bg-secondary);
-  border-radius: var(--radius-lg);
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
-.stat-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 4px;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--apple-text);
-  line-height: 1;
-}
-
-.stat-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--apple-text-secondary);
-}
-
-.filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-/* Hide scrollbar for filter row */
-.filter-row::-webkit-scrollbar {
-  display: none;
-}
-
-.filter-row {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
 .filter-chip {
   display: inline-flex;
   align-items: center;
@@ -1668,14 +1683,6 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--apple-text-secondary);
-}
-
-/* Gallery toolbar - clean */
-.gallery-toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
 }
 
 .search-field,
@@ -1818,41 +1825,19 @@
 
 .album-gallery-section {
   width: 100%;
+  /* 相册要自己处理双指捏合（切列数），所以这里只放行纵向平移 ——
+     其余手势（含 pinch-zoom）由 JS 的 touchmove 接管。 */
+  touch-action: pan-y;
 }
 
-.album-month-list,
-.album-month-group {
+/* 相册流容器（2026-10-02 去掉月份分组后，只剩「一个网格 + 底部动作行」）。
+   原先是 `.album-month-list` / `.album-month-group` / `.album-month-heading` 三层，
+   每个月一个 section、各带一条 18px 标题行和独立网格 —— 那是「卡片流」语汇。
+   iOS 图库是一整片连续密铺，没有段标题。 */
+.album-flow {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-}
-
-.album-month-list {
-  gap: 28px;
-}
-
-.album-month-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 2px;
-}
-
-.album-month-heading h4 {
-  margin: 0;
-  font-size: 18px;
-  line-height: 1.25;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--apple-text);
-}
-
-.album-month-heading span {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--apple-text-secondary);
+  gap: 16px;
 }
 
 .album-gallery-section .gallery-grid {
@@ -2262,7 +2247,9 @@
   background: var(--apple-bg);
   z-index: 11000;
   animation: fadeIn 0.2s ease;
-  padding-top: 72px;
+  /* 原来这里 padding-top: 72px + 弹窗 height: calc(100% - 72px)，顶部永久留一条 72px 的
+     空白带（滚动时它不跟着走）—— 就是报障的「向下滑动顶部有异常白条」。弹窗是全屏面板，
+     顶部不应留带；关闭按钮自己负责避让安全区。 */
 }
 
 @keyframes fadeIn {
@@ -2276,9 +2263,9 @@
 
 .detail-modal {
   width: 100%;
-  height: calc(100% - 72px);
+  height: 100%;
   max-width: 100%;
-  max-height: calc(100% - 72px);
+  max-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 40px 20px;
@@ -2316,9 +2303,12 @@
 }
 
 .detail-close {
-  position: absolute;
-  top: 16px;
-  right: 20px;
+  /* fixed（相对视口）而不是 absolute（相对弹窗内容）：弹窗是滚动容器，
+     absolute 会跟着内容滚走 —— 报障「关闭按钮没有固定在屏幕右上角」。 */
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: 14px;
+  z-index: 5;
   width: 36px;
   height: 36px;
   border-radius: var(--radius-full);
@@ -2352,6 +2342,14 @@
   margin-right: auto;
 }
 
+@media (max-width: 640px) {
+  .detail-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+}
+
 .detail-head h3 {
   margin: 8px 0 6px;
   font-size: 24px;
@@ -2371,6 +2369,45 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  /* 放不下时整行换行，而不是把按钮压窄 —— 「删除」两个字曾被压成竖排的「删/除」 */
+  flex-wrap: wrap;
+}
+
+.detail-actions > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.detail-visibility {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+  background: var(--apple-bg-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--apple-text-secondary);
+  vertical-align: 1px;
+}
+
+.detail-visibility.is-public {
+  background: var(--apple-bg);
+  border: 1px solid var(--apple-border);
+  color: var(--apple-blue);
+}
+
+/* 供「语义要保留、视觉不展示」的元素用（详情图片的 figcaption 等） */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .detail-mood {
@@ -2423,15 +2460,6 @@
   object-fit: contain;
 }
 
-.detail-image-wrap figcaption {
-  position: relative;
-  z-index: 1;
-  padding: 12px 16px;
-  font-size: 12px;
-  color: var(--apple-text-secondary);
-  font-weight: 500;
-}
-
 @keyframes cloudImageLoading {
   0% {
     background-position:
@@ -2468,19 +2496,11 @@
     gap: 28px;
   }
 
-  .gallery-toolbar {
-    grid-template-columns: 1fr;
-  }
-
   .date-range {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .gallery-grid {
-    columns: 2 260px;
-  }
-
-  .album-gallery-section .gallery-grid {
     columns: 2 260px;
   }
 
@@ -2602,7 +2622,10 @@
     display: none;
   }
 
-  .sidebar-card {
+  /* ⚠️ 这里必须排除 `.liquid-glass`：scoped 编译出的 `.sidebar-card[data-v-x]` 特异性(0,2,0)
+     高于全局 `.liquid-glass`(0,1,0)，不排除的话这层实色浅灰会把玻璃背景盖掉
+     —— 表现是「backdrop-filter 生效了但卡片还是 #f5f5f7」（2026-10-01 实测踩到）。 */
+  .sidebar-card:not(.liquid-glass) {
     padding: 16px;
     background: var(--apple-bg-secondary);
     border-radius: var(--radius-lg);
@@ -2724,7 +2747,9 @@
   }
 
   .cloud-shell {
-    padding: 18px 16px calc(112px + env(safe-area-inset-bottom, 0px));
+    /* 横向留白单源：相册网格要靠它做「通栏」（负 margin 抵消），两处必须同值 */
+    --cloud-gutter: 16px;
+    padding: 18px var(--cloud-gutter) calc(112px + env(safe-area-inset-bottom, 0px));
     gap: 20px;
   }
 
@@ -2773,10 +2798,11 @@
     gap: 14px;
   }
 
+  /* 圆角交给 `.liquid-glass`（--liquid-radius-lg = 28px），三张卡与存储条统一；
+     这里写 border-radius 会把玻璃卡的圆角改小、与存储条不一致。 */
   .cloud-settings-page .sidebar-card,
   .cloud-share-page .sidebar-card {
-    padding: 16px;
-    border-radius: var(--radius-lg);
+    padding: 18px;
   }
 
   .cloud-share-page .share-card-copy,
@@ -2811,7 +2837,9 @@
     display: none;
   }
 
-  .sidebar-card {
+  /* 只服务**未挂玻璃**的侧栏卡；挂了的（Cloud+ 设置/分享页）走上面 `.sidebar-card.liquid-glass`
+     + 全局 `.liquid-glass`，这里必须排除，否则这个实色底会盖掉玻璃。 */
+  .sidebar-card:not(.liquid-glass) {
     padding: 14px 16px;
     background: var(--apple-bg-secondary);
     border-radius: var(--radius-lg);
@@ -2976,12 +3004,6 @@
   }
 
   /* Gallery - mobile optimized */
-  .gallery-toolbar {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
   .search-field,
   .date-field {
     min-height: 44px;
@@ -2998,18 +3020,6 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-  }
-
-  .album-month-list {
-    gap: 24px;
-  }
-
-  .album-month-group {
-    gap: 12px;
-  }
-
-  .album-month-heading h4 {
-    font-size: 17px;
   }
 
   .album-gallery-section .gallery-grid {
@@ -3051,50 +3061,17 @@
     gap: 6px;
   }
 
-  /* Gallery stats bar - mobile */
-  .gallery-stats-bar {
-    padding: 16px;
-    gap: 12px;
-  }
-
-  .stats-row {
-    gap: 8px;
-  }
-
-  .stat-box {
-    padding: 10px 4px;
-  }
-
-  .stat-value {
-    font-size: 18px;
-  }
-
-  .stat-name {
-    font-size: 10px;
-  }
-
-  .filter-row {
-    gap: 6px;
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
-
   .filter-chip {
     padding: 6px 12px;
     font-size: 12px;
     flex-shrink: 0;
   }
 
-  /* Detail modal - mobile full screen */
-  .detail-overlay {
-    background: var(--apple-bg);
-    padding-top: 64px;
-  }
-
+  /* Detail modal - mobile full screen（2026-10-02：这里原来又把 overlay 撑回 64px 顶带、
+     把 close 改回 absolute —— 顶层的全屏/fixed 修复被它整个吃掉，报障的「顶部白条 +
+     关闭按钮随内容滚走」在竖屏上就是这么复活的。现在移动端只保留排版差异。） */
   .detail-modal {
-    height: calc(100% - 64px);
-    max-height: calc(100% - 64px);
-    padding: 48px 16px 32px;
+    padding: 56px 16px 32px;
   }
 
   .detail-modal::-webkit-scrollbar {
@@ -3102,14 +3079,6 @@
   }
 
   .detail-close {
-    position: absolute;
-    top: 12px;
-    right: 16px;
-    width: 36px;
-    height: 36px;
-    background: var(--apple-bg-secondary);
-    border-radius: var(--radius-full);
-    z-index: 10;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
@@ -3119,6 +3088,14 @@
     gap: 12px;
     margin-bottom: 20px;
     max-width: 100%;
+  }
+
+  @media (max-width: 640px) {
+    .detail-head {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 14px;
+    }
   }
 
   .detail-head h3 {
@@ -3223,85 +3200,539 @@
   background: rgba(255, 149, 0, 0.2);
 }
 
-/* ============ 存储记账：公开笔记只读分组（2026-09-29） ============ */
-/* CloudStorageBar 组件自带 scoped 样式；这里只放主页面里的公开账目分组。 */
-.public-notes-card {
-  border: 1px solid var(--apple-border-light);
-  border-radius: var(--radius-lg);
+/* ============ 存储记账：完整存储条在设置 tab（CloudStorageBar 组件自带样式）；
+   内容页只剩一行细条 .storage-strip，见文件末尾「相册改版」段 ============ */
+
+.detail-public-btn {
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Cloud+ 相册化改版（2026-10-01）
+   原则：内容即界面。工具栏收纳搜索/筛选/新建；存储条降为一行；
+   网格为紧凑方块（图片直铺 / 文字纸片 / N 图角标）；月份标题吸顶；
+   发布器收进「＋新建」浮层 + FAB。
+   颜色一律引用本页既有 --apple-* token，不新增裸色值（暗色棘轮）。
+   ============================================================ */
+
+/* ---- 顶栏：大标题 + 工具行 ---- */
+.gallery-header {
+  align-items: center;
+}
+
+.gallery-title-block h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--apple-text);
+}
+
+.gallery-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--apple-text-secondary);
+}
+
+.gallery-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gallery-search-field {
+  width: 168px;
+}
+
+.filter-trigger {
+  position: relative;
+}
+
+.filter-trigger.is-filtering {
   background: var(--apple-bg);
-  padding: 16px 18px;
+  border: 1px solid var(--apple-blue);
+  color: var(--apple-blue);
+}
+
+.toolbar-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--apple-blue);
+  color: var(--apple-bg);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* ---- 筛选 popover ---- */
+.filter-popover-shell {
+  position: relative;
+}
+
+.filter-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: transparent;
+  border: none;
+}
+
+.filter-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 61;
+  width: 292px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background: var(--apple-bg);
+  border: 1px solid var(--apple-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
 }
 
-.public-notes-head {
+.filter-popover-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-popover-dates {
+  width: 100%;
+}
+
+/* ---- 存储一行细条 ---- */
+.storage-strip {
+  display: flex;
+  align-items: center;
   gap: 12px;
 }
 
-.public-notes-head h3 {
-  margin: 2px 0 4px;
-  font-size: 16px;
+.storage-strip-track {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--apple-bg-secondary);
+  border: 1px solid var(--apple-border-light);
+  overflow: hidden;
+}
+
+.storage-strip-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--apple-blue);
+  transition: width 420ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.storage-strip-meta {
+  flex: none;
+  font-size: 12px;
+  color: var(--apple-text-secondary);
+}
+
+.storage-strip-overflow {
+  margin-left: 6px;
   font-weight: 600;
   color: var(--apple-text);
 }
 
-.public-notes-head p {
-  margin: 0;
-  font-size: 12px;
-  color: var(--apple-text-tertiary);
-}
-
-.public-notes-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.public-note-row {
+/* ---- 公开笔记单行胶囊 ---- */
+.public-notes-pill {
   appearance: none;
   -webkit-appearance: none;
-  width: 100%;
-  border: 0;
-  background: none;
-  text-align: left;
-  padding: 10px 2px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid var(--apple-border-light);
-  cursor: pointer;
-}
-
-.public-notes-list li:last-child .public-note-row {
-  border-bottom: 0;
-}
-
-.public-note-row:hover {
+  padding: 9px 14px;
+  border: 1px solid var(--apple-border-light);
+  border-radius: var(--radius-full);
   background: var(--apple-bg-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--apple-text-secondary);
+  cursor: pointer;
+  transition: background 0.2s ease;
 }
 
-.public-note-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--apple-text);
+.public-notes-pill:hover {
+  background: var(--apple-bg-tertiary);
+}
+
+.public-notes-pill-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.public-note-meta {
+.public-notes-pill-action {
   flex: none;
+  font-weight: 600;
+  color: var(--apple-blue);
+}
+
+/* ---- 紧凑方块网格 ---- */
+.album-gallery-section .album-tile-grid {
+  display: grid;
+  /* 密铺（2026-10-02 对齐 iOS 图库）：列宽下限收到 120px —— iPhone 上固定 5 列、
+     更宽的屏自动加列；缝隙压到 2px，手机档再收到 1px（见 ≤640）。 */
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 2px;
+  columns: auto;
+  column-gap: normal;
+}
+
+/* 真机相册式格子：**直角 + 正方形 + cover 裁切**（2026-10-01）。
+   圆角是「卡片」语汇，相册是「画面」，这里必须是 0；桌面同样为 0，
+   否则同一套网格在断点两侧会换语汇。 */
+.gallery-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 0;
+  overflow: hidden;
+  background: var(--apple-bg-secondary);
+  cursor: pointer;
+}
+
+.tile-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gallery-tile:hover .tile-cover {
+  transform: scale(1.045);
+}
+
+.tile-mood-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 8px;
   font-size: 12px;
+}
+
+.tile-paper {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  /* 不含图片的条目没有「画面」可铺，用浅底 + 直角表示「一格文字」。
+     ⚠️ 不能留 border：2px 无缝网格里相邻两格各带 1px 描边会叠成 2px 深线，
+     和照片格的白缝不是同一种分隔；靠底色区分才不会打架。 */
+  background: var(--apple-bg-secondary);
+  border: 0;
+  border-radius: 0;
+}
+
+.tile-paper-title {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--apple-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tile-paper-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--apple-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tile-paper-date {
+  margin-top: auto;
+  font-size: 11px;
   color: var(--apple-text-tertiary);
 }
 
-.detail-public-btn {
-  white-space: nowrap;
+/* 骨架屏对齐新网格 */
+.album-gallery-section .skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 2px;
+}
+
+/* 骨架屏必须和真网格同形：都是一格方块。否则首帧是「圆角卡 + 日期/标题/正文行」，
+   数据到达后突变成直角方格，闪一下很难看（原骨架是旧卡片网格遗留）。 */
+.album-gallery-section .skeleton-grid .skeleton-card {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.album-gallery-section .skeleton-grid .skeleton-card .skeleton-visual {
+  position: absolute;
+  inset: 0;
+  height: auto;
+  border-radius: 0;
+}
+
+.album-gallery-section .skeleton-grid .skeleton-card .skeleton-body {
+  display: none;
+}
+
+.album-gallery-section .skeleton-grid .cloud-card:nth-child(n) {
+  margin: 0;
+}
+
+/* ---- 发布浮层 ---- */
+.composer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 11200;
+  background: var(--apple-bg);
+  animation: fadeIn 0.2s ease;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px;
+  overflow-y: auto;
+}
+
+.composer-panel {
+  position: relative;
+  width: min(680px, 100%);
+  max-height: none;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.composer-panel .composer-topline {
+  padding-right: 48px;
+}
+
+/* ---- FAB ---- */
+.gallery-fab {
+  position: fixed;
+  right: 22px;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 9100;
+  width: 52px;
+  height: 52px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--apple-blue);
+  color: var(--apple-bg);
+  font-size: 24px;
+  line-height: 1;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.gallery-fab:hover {
+  background: var(--apple-blue-hover);
+  transform: scale(1.04);
+}
+
+.gallery-fab:active {
+  transform: scale(0.96);
+}
+
+/* ---- 响应式 ---- */
+@media (max-width: 900px) {
+  .gallery-title-block h2 {
+    font-size: 24px;
+  }
+
+  .album-gallery-section .album-tile-grid {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 1px;
+  }
+}
+
+/* 竖屏/窄屏：3 列、2px 间距的相册网格密度 */
+@media (max-width: 640px) {
+  .gallery-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* ---- 工具行折成两行（2026-10-01）----
+     一行塞不下「搜索 + 筛选 + 刷新 + 新建」四个元素，原写法用 `flex-wrap: nowrap` 硬压，
+     在 390×844 实测出三条连锁后果：
+       ① 搜索框被压到 **30px**（内部 input 宽 0）→ placeholder 与已输入内容全不可见，搜索名存实亡；
+       ② 「筛选 / 刷新」两个 .refresh-btn 没有 white-space，被压到 45px 后文字折成三行
+          —— 就是报障截图里的竖排「筛/选」「刷/新」；
+       ③ 「新建」继承本档（≤640）里的 `.primary-btn { width: 100% }`（见本文件 :2895，那条 100%
+          本是给 `.toolbar-actions` 两列网格里的「分享/保存」用的），又自带 `flex-shrink: 0`，
+          于是宽 = 容器宽且不肯收缩，实测 right=518（视口 390）**超出 128px 被祖先裁掉**
+          —— 报障截图里右半边不见了的蓝按钮即此。
+     改法：搜索框独占第一行；三个按钮在第二行平分。全部 white-space: nowrap 兜底。 */
+  .gallery-header-actions {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .gallery-search-field {
+    flex: 1 0 100%;
+    width: auto;
+    min-width: 0;
+  }
+
+  .gallery-header-actions > .filter-popover-shell,
+  .gallery-header-actions > .refresh-btn,
+  .gallery-header-actions > .primary-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    /* 抵消本档（≤640）`.primary-btn { width: 100% }`；那条 100% 是给「分享/保存」这类
+       撑满两列网格的按钮用的，工具行里必须还原成按内容排 */
+    width: auto;
+    padding-inline: 12px;
+    white-space: nowrap;
+  }
+
+  /* .filter-popover-shell 只是定位壳，真正可见的是里面的 .filter-trigger，
+     不撑满时按钮会贴在壳左边、与相邻按钮的间距看起来忽大忽小 */
+  .gallery-header-actions > .filter-popover-shell > .filter-trigger {
+    width: 100%;
+    white-space: nowrap;
+  }
+
+  .gallery-title-block h2 {
+    font-size: 26px;
+  }
+
+  .storage-strip {
+    flex-wrap: wrap;
+  }
+
+  .filter-popover {
+    position: fixed;
+    top: auto;
+    left: 16px;
+    right: 16px;
+    width: auto;
+  }
+
+  /* ---- iOS 图库式密铺：固定 5 列 · 通栏 · 1px 白缝（2026-10-02）----
+     为什么是 5 列：参考 iPhone 图库的月视图密度（390px 宽下每格 ~78px）。
+     为什么缝是 1px 而不是 0：iOS 本身就是「背景色薄缝」，给 0 只能靠 1px 描边模拟分隔，
+     深色主题下描边会显脏、且末行残缺时露底色块。 */
+  .album-gallery-section .album-tile-grid {
+    /* 列数由捏合手势下发的 --album-columns 驱动（3/4/5，默认 5）。
+       兜底值必须与 JS 的 DEFAULT_ALBUM_COLUMNS 一致，否则首帧会闪一下列数。 */
+    grid-template-columns: repeat(var(--album-columns, 5), minmax(0, 1fr));
+    gap: 1px;
+    /* 通栏：抵消 .cloud-shell 的横向内边距，让首尾两列贴到屏幕边 */
+    margin-inline: calc(-1 * var(--cloud-gutter, 16px));
+  }
+
+  .album-gallery-section .skeleton-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1px;
+    margin-inline: calc(-1 * var(--cloud-gutter, 16px));
+  }
+
+  /* 78px 的格子里放不下正文与日期（它们的完整形态在详情页）。
+     iOS 图库的格子也只有画面，文字一律不进格子。 */
+  .album-gallery-section .album-tile-grid .tile-paper {
+    padding: 6px;
+    gap: 2px;
+  }
+
+  .album-gallery-section .album-tile-grid .tile-paper-title {
+    font-size: 10px;
+    line-height: 1.25;
+    -webkit-line-clamp: 5;
+  }
+
+  .album-gallery-section .album-tile-grid .tile-paper-text,
+  .album-gallery-section .album-tile-grid .tile-paper-date {
+    display: none;
+  }
+
+  /* 心情角标跟着格子缩小，否则会占掉半个格子。
+     「N 图」角标已随「多图贴每张各占一格」移除（2026-10-02）—— 都铺出来了，角标是冗余信息。 */
+  .album-gallery-section .album-tile-grid .tile-mood-badge {
+    top: 4px;
+    right: 4px;
+    padding: 2px 5px;
+    font-size: 9px;
+  }
+
+  .album-gallery-section .album-tile-grid .tile-paper-title {
+    font-size: 12px;
+  }
+
+  .album-gallery-section .album-tile-grid .tile-paper-text {
+    font-size: 11px;
+    -webkit-line-clamp: 2;
+  }
+
+  .album-gallery-section .album-tile-grid .tile-count-badge,
+  .album-gallery-section .album-tile-grid .tile-mood-badge {
+    left: 4px;
+    right: auto;
+    top: auto;
+    bottom: 4px;
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .album-gallery-section .album-tile-grid .tile-mood-badge {
+    left: auto;
+    right: 4px;
+    bottom: 4px;
+    top: auto;
+  }
+
+  .gallery-fab {
+    right: 16px;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .composer-overlay {
+    padding: 16px 12px;
+    align-items: stretch;
+  }
+
+  .composer-panel {
+    width: 100%;
+  }
+
+  .composer-panel .composer-topline {
+    padding-right: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-tile,
+  .tile-cover,
+  .gallery-fab,
+  .composer-panel {
+    transition-duration: 100ms;
+    animation-duration: 0.001ms;
+    animation-iteration-count: 1;
+  }
 }

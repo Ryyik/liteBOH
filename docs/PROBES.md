@@ -16,11 +16,13 @@
 | 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
 | 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
-| 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 6 |
+| 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 10 |
+| **Cloud+ 图库竖屏顶栏 + 设置页玻璃**（工具行不折字/不溢出、页头不吸顶、底栏玻璃、卡片玻璃材质） | `probe-cloud-portrait.mjs` | 27 |
+| **Cloud+ 相册形态**（iOS 图库式密铺：去月份分组、多图铺开、捏合切列、宽屏铺满） | `probe-cloud-album.mjs` | 22 |
 | **BOH AI 输入区**（底行胶囊 / 三行面板 / 左右二级菜单 / 高级工具组）—— 独立页 + AI 岛两形态 | `probe-bohai-composer.mjs` | 14 |
 | 活动页封面图 / 活动页报名区与月份轨道 | `probe-activities-images.mjs` / `probe-campaign-ui.mjs` | 7 / 35 |
 | 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
-| 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 48 |
+| 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 49 |
 | 竖屏导航菜单的接缝与内部几何（一级/二级/三级 + 窄横屏档） | `probe-nav-mobile-menu.mjs` | 48 |
 | 头像框发放 | `probe-avatar-frame-grant.mjs` | 23 |
 | 头像框控制台 | `probe-avatar-frame-console.mjs` | 44 |
@@ -120,7 +122,7 @@
 | `probe-official-publish.mjs` | — | ===== Newsroom ===== |
 | `probe-post-detail-fix.mjs` | — | probe-post-detail-fix.mjs — 论坛帖子详情两问题复现探针 |
 | `probe-post-detail-verify.mjs` | — | probe-post-detail-verify.mjs — 修复后验证 P1: 活动/新闻帖详情显示封面图（@/assets 引用 + Cloudinary cover 两种） |
-| `probe-reply-autogrow.mjs` | — | **评论/回复输入框「多字扩展」（6 断言，2026-09-30 新增）**：竖屏 390×844，场景 A 打在用户空间内嵌论坛的卡片内联回复框（`PostCard` 的 `.reply-textarea-v2`）：A 空内容高度 = `rows` 撑出的高度且无内部滚动 / B 逐行加内容高度单调不减且未到上限时 `scrollHeight ≤ clientHeight + 1` / C 超上限后停在上限并框内滚动 / D 清空后回落 / E 父组件改写内容（同卡切嵌套回复，`replyContent` 被 `buildReplyDraft` 换成 `@user `）后必须回落。**E 是 `:value` 受控写法下唯一会命中 `watch(value)` 的真实路径**，只绑 `@input` 的实现不会收缩；前 6 张卡都没回复时记 SKIP 不记红。另有 F「键盘遮挡」仅测量上报（`plans/021` §8：先测再改）。场景 B 是一条**绊线**：断言详情页评论输入仍是单行 `input.pd-reply-input`、内嵌 `.reply-textarea-x` 不渲染 —— 2026-09-30 实测详情页两处 `<CommentThread>` 都硬编码 `:hide-composer="true"`，所以那个内嵌多行评论框是**死 UI**；一旦有人把它放出来，这条会变红，逼其接上 `useAutoGrowTextarea` 并补 A–D 断言。**反证已做**：`git checkout -- src/views/Forum/components/PostCard.vue` 撤掉接线后 B/C/E 必红（高度恒为 85）。需先起本地 dev（默认 `http://[::1]:5173`，可用 `BASE` 覆盖） |
+| `probe-reply-autogrow.mjs` | — | **评论/回复输入框「多字扩展」（10 断言，2026-09-30 新增 / 2026-10-01 场景 B 改回 A–D）**：竖屏 390×844，场景 A 打在用户空间内嵌论坛的卡片内联回复框（`PostCard` 的 `.reply-textarea-v2`）：A 空内容高度 = `rows` 撑出的高度且无内部滚动 / B 逐行加内容高度单调不减且未到上限时 `scrollHeight ≤ clientHeight + 1` / C 超上限后停在上限并框内滚动 / D 清空后回落 / E 父组件改写内容（同卡切嵌套回复，`replyContent` 被 `buildReplyDraft` 换成 `@user `）后必须回落。**E 是 `:value` 受控写法下唯一会命中 `watch(value)` 的真实路径**，只绑 `@input` 的实现不会收缩；前 6 张卡都没回复时记 SKIP 不记红。另有 F「键盘遮挡」仅测量上报（`plans/021` §8：先测再改）。场景 B（**2026-10-01 起已从绊线改回 A–D 断言**）：详情页底部评论输入已由单行 `input.pd-reply-input` 换成自动增高 `<textarea rows="1">`（产品口径「输入时自动扩充、输入完成自动收回」），所以它现在跑「形态 + A–D」共 5 条；`rows` 与内嵌 `.reply-textarea-x` 不渲染两条保留。⚠️ 两条口径坑：① 上限比较必须用 `offsetHeight` —— CSS `max-height` 约束 border-box，`clientHeight` 扣掉 1px 边框后会恒差 1~2px；② 该框只有 ~107px 宽，一行中文折两行，第 2 个采样点就触顶，故该场景 `minBelowCap: 1`（不变量是「存在一段无内部滚动的增长区间」，采样计数只是强度）。**反证已做**：`git checkout`/本地替换撤掉详情页接线后 B/C 红（高度恒为 42，即报障原状）；`git checkout -- src/views/Forum/components/PostCard.vue` 撤掉卡片接线后 B/C/E 红（高度恒为 85）。需先起本地 dev（默认 `http://[::1]:5173`，可用 `BASE` 覆盖） |
 
 ### 活动 / 方块墙 / 内容运营（4）
 
@@ -140,11 +142,13 @@
 | `probe-psych-dialog-quality.mjs` | — | 心理访谈 · 对话质量评估探针 做法：探针扮演一个来访者，按「剧本」逐轮回答，每轮抓下 AI 的提问并自动判分。 |
 | `probe-psych-interview-wiring.mjs` | — | 心理访谈接线验证探针 验证「点加号 → 心理分析」之后，真正发给模型的 payload 是否符合设计： |
 
-### 用户空间 / 资料 / 登录注册（18）
+### 用户空间 / 资料 / 登录注册（20）
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
 | `probe-account-bind-prompt.mjs` | — | probe-account-bind-prompt.mjs —— 账户绑定引导弹窗（AccountBindPrompt）的可视化探针 |
+| `probe-cloud-portrait.mjs` | — | **Cloud+ 竖屏顶栏 + 设置页玻璃（27 断言，2026-10-01 新增）**：三档竖屏（390×844 / 375×667 / 320×568）走真实入口（用户空间设置 → Cloud+ → 底栏「内容」）后逐档断言 —— A 工具行 `flex-wrap: wrap`；B 搜索框 ≥150px 且内部 input ≥80px（报障原状 30px/0px，placeholder 与已输入内容全不可见）；C「筛选」「刷新」单行不折字（折行时 h≈69）；D「＋新建」不越出视口右缘（报障原状 right=518 > 390，右半边被祖先 overflow 裁掉）；E 无横向滚动；F 页头不吸顶；G 底栏液态玻璃未丢；H 零页面错误；I 设置页卡片为液态玻璃（`backdrop-filter` 真在 **且** 背景是半透明白 —— 只看 blur 会被 scoped 的实色底骗过去，改版前正是「blur 生效了但底色仍 #f5f5f7」）。⚠️ 三条取舍：① 必须走真实入口，直接 `goto('/user-space/note')` 会被路由守卫拦回首页（注入登录太晚）；② Cloud+ 整页无暗色适配，玻璃在暗色下主动退回页面实色底，故探针只测亮色档；③ 相册网格断言需 mock 带图条目（探测账号 0 条内容），未纳入本探针。**反证已做**：把 ≤640 块修复整段还原成 `flex-wrap: nowrap` + 搜索框 `flex: 1`，三档 B/C/D 全红（搜索框 30px、筛选 h=69、新建 right=518/503/448） |
+| `probe-cloud-album.mjs` | — | **Cloud+ 相册「iOS 图库式密铺」（22 断言，2026-10-02 新增）**：两档视口（390×844 / 1280×900），用 `page.route` 拦 `boh_cloud_entries` 回 23 条 （20 单图 + 一条 3 图 + 一条 2 图 + 一条纯文字），**期望渲染 26 格** —— 这一个数字同时证明「多图贴摊平成 N 格」与「纯文字条目仍占 1 格纸片」。断言：去月份分组（`.album-month-heading` 必须为 0）/ 格子正方形 / 直角 0 圆角 / 无「N 图」角标 / 图片全加载 / 无横向滚动；竖屏另测固定 5 列 + 通栏贴边 + 1px 缝；横屏测自动多列（>5）；并模拟两指 TouchEvent 锁「捏合 5→4→3→4」与 localStorage 落盘。⚠️ 四条实测坑：① 必须 mock —— 探测账号 Cloud+ 是 0 条内容，空态不渲染网格；② 图片用 `data:image/svg+xml` 带序号，绕开外网与 `utils/db-image-url.js` 的云图改写；③ 探针开头要 `localStorage.removeItem('boh-cloud-album-columns')` —— 列数会落盘，不清起点会让「5 列」断言读到上一轮的 4 列而假红；④ 列数读的是 `--album-columns` 变量，不是 `grid-template-columns` 字面量（列数已由 JS 算，CSS 只消费变量）。**反证已做**：把 `albumTiles` 的 `flatMap` 换回「一条目一格」→ tiles 26→23、两档「多图贴铺开」当场变红 |
 | `probe-impressions-ui.mjs` | — | 探针：我的印象面板液态玻璃重设计 |
 | `probe-join-audit.mjs` | — | 探针：注册页（/#/join）现状取证 —— 截图 + 关键计算样式实测 |
 | `probe-join-mobile-metrics.mjs` | — | 探针：注册页移动端横向溢出 / 触控目标 / 对比度实测（为改版方案提供数据依据） |
