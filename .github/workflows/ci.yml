@@ -39,6 +39,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Dependency audit (ratchet)
+        # 2026-10-04 新增：依赖漏洞**棘轮**（scripts/check-npm-audit.mjs）。
+        # 为什么不用 `npm audit --audit-level=high` 直接卡阈值：当前还剩 3 个 high 需要
+        # `npm audit fix --force`（破坏性升级）才能修，卡阈值会**永远红** ——
+        # 红久了就没人看了，比没有门禁更糟。所以沿用本仓棘轮套路：存量锁死、只许降不许升。
+        # 基线在 scripts/npm-audit-baseline.json；降完依赖跑 `npm run security:audit:update` 下调。
+        run: npm run security:audit
+
       - name: Lint
         run: npm run lint
 

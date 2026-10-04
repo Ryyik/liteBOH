@@ -1,0 +1,58 @@
+name: CodeQL
+
+# 2026-10-04 新增。在此之前本仓**零 SAST** —— 820 个源文件、有 innerHTML / DOMPurify 使用面，
+# 全靠人工 review 兜。
+#
+# 为什么现在才加得动：本仓是 **public** 仓库 ⇒ CodeQL **免费**（私有库需要 GitHub Advanced
+# Security，付费）。这一点是加这条 workflow 的前提，别在仓库转私有后忘了它会失效。
+#
+# 为什么用 `security-extended` 而不是默认 queries：
+#   默认档只跑高置信度安全查询；extended 多跑一批（注入、原型污染、不安全正则、
+#   不完整的字符串转义等），对本仓「手写 URL 拼接 + 大量 v-html / innerHTML 渲染」的形态更对症。
+#   代价是误报会多一些 —— 若跑一轮后误报噪音太大，把 queries 退回 `default` 即可，
+#   不要直接关掉整个 workflow（那会退回零 SAST）。
+#
+# ⚠️ 只读扫描，不碰任何构建产物，也不写仓库文件；结果进 GitHub 的 Security → Code scanning。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 每周一 03:00 UTC。**这条不能省**：CodeQL 的查询包会随新披露的漏洞模式更新，
+    # 定时跑才能把「新规则 × 存量代码」的新问题扫出来，而不是只在改代码时才扫。
+    - cron: '0 3 * * 1'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # 只扫 JS/TS。本仓还有 supabase/functions（Deno/TS，属于同一语言族，会被覆盖）
+        # 与少量 Python 探针（scripts/probes/*.py）—— 后者单独加 'python' 也可以，
+        # 但那些是一次性探针，不是产品代码，暂不纳入。
+        language: ['javascript-typescript']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      # 本仓是「前端 + 构建产物」形态，CodeQL 的 autobuild 对 Vite 项目没什么可做的，
+      # 直接走无构建分析（源码级数据流）即可，不做 build 步骤。
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'

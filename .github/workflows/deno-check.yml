@@ -1,0 +1,69 @@
+name: Edge Functions Type Check
+
+# 2026-10-04 新增，补的是本仓**已经记录在案**的一个缺口（见 memory / AGENTS.md）：
+#
+#   「沙箱里没有 deno ⇒ 改 Edge Function 只能人工 review + 部署后冒烟。」
+#
+# 本地装不了 deno（本环境没有 deno，也没有 install_binary），但 **CI 能装**。
+# 于是把「EF 的类型检查」从「靠人眼」变成「CI 里真跑一遍 deno check」。
+#
+# ⚠️ 首版是**观察档**（step 上带 continue-on-error: true），原因说清楚：
+#   我**无法在本地预先验证** `deno check` 能否全绿 ——
+#   EF 里有需要联网解析的外部 import（`https://deno.land/std@…`、`jsr:@negrel/webpush@…`、
+#   `npm:@supabase/supabase-js@…`、`npm:altcha-lib@…`、`npm:jszip@…`）。
+#   按本仓纪律「不写没验证过的门禁」：先让它跑一轮观察，
+#   **跑绿之后把 continue-on-error 删掉改成阻断**，再登记进 AGENTS.md 的门禁表。
+#   若它一上来就报一堆既有类型错，那本身就是有价值的产出（说明 EF 里躺着类型债），
+#   应该逐条修或加 baseline，而不是把 step 删掉。
+
+on:
+  pull_request:
+    paths:
+      # 只在真的动了 EF 或其共享代码时跑，避免每个前端 PR 都白等一次 deno 下载
+      - 'supabase/functions/**'
+      - '.github/workflows/deno-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deno-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: deno check (Edge Functions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          # 与 Supabase Edge Runtime 的 Deno 大版本对齐；EF 里用的是 npm:/jsr: 说明符，
+          # 需要 Deno 2.x 的解析能力。
+          deno-version: v2.x
+
+      # ⚠️ 刻意不加 `--no-remote`：外部 import 必须联网解析，这是本检查能成立的前提。
+      # 逐文件跑而不是一次全传：单个 EF 报错不会掩盖其它 EF 的结果。
+      - name: deno check each Edge Function
+        continue-on-error: true # 观察档：跑绿一轮后删除此行改为阻断（见文件头注释）
+        run: |
+          set -o pipefail
+          fail=0
+          for f in supabase/functions/*/index.ts; do
+            echo "::group::deno check $f"
+            if ! deno check "$f"; then
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::warning title=deno check::有 Edge Function 未通过类型检查（当前为观察档，不阻断）"
+          fi
+          exit 0

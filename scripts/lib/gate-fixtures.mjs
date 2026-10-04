@@ -223,6 +223,35 @@ export const FIXTURES = [
       };
     },
   },
+  {
+    gate: 'security:audit',
+    why: '依赖漏洞新增（如 dompurify 的 XSS、image-size 的 DoS）不会让任何既有门禁变红 —— `npm install` 只打提示不报错，CI 一路绿；实测 2026-10-04 首跑就有 15 个漏洞',
+    // 与 check:db-lint 同套路：正常路径要联网跑 `npm audit`，离线造不出违规；
+    // 但脚本支持 `--from-json` / 环境变量 `BOH_NPM_AUDIT_REPORT` 回放报告，
+    // 于是用一份**含 critical 的合成报告**证明「有新增时确实 exit 1」。
+    // ⚠️ 若上游改了环境变量名，本条会以「❌ 没红（exit 0）」**大声失败**，不会静默失效。
+    prepare: () => {
+      const report = JSON.stringify({
+        metadata: {
+          vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 1, total: 1 },
+        },
+        vulnerabilities: {
+          __gates_probe_pkg: {
+            name: '__gates_probe_pkg',
+            severity: 'critical',
+            isDirect: true,
+            via: ['合成样本'],
+          },
+        },
+      });
+      const removeFile = createFile('scripts/__gates_probe_npm_audit.json', report);
+      process.env.BOH_NPM_AUDIT_REPORT = 'scripts/__gates_probe_npm_audit.json';
+      return () => {
+        delete process.env.BOH_NPM_AUDIT_REPORT;
+        removeFile();
+      };
+    },
+  },
 ];
 
 /**
