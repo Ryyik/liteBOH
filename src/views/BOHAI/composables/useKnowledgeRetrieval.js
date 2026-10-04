@@ -12,6 +12,7 @@ import { createBohAIRetrievalTrace } from '@/utils/bohai-observability.js';
 import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
 import { logger } from '@/utils/logger.js';
 import { getHealthContext } from './useHealthRetrieval.js';
+import { getActivitiesContext } from './useSiteActivitiesRetrieval.js';
 import {
   FORUM_MAX_CHARS_PER_POST,
   FORUM_MAX_POSTS,
@@ -67,6 +68,7 @@ import {
   shouldUseMemoryContext,
   shouldUseSharedMemoryContext,
   shouldUseHealthContext,
+  shouldUseSiteActivities,
   shouldUseTreeholeContext as _shouldUseTreeholeContext,
 } from './useIntentDetection.js';
 import {
@@ -958,6 +960,8 @@ export function useKnowledgeRetrieval(deps) {
       forum: false,
       userPrivate: userPrivatePlan.shouldUse,
       health: shouldUseHealthContext(normalized),
+      // 2026-10-04：站内活动 / 抽奖 / 演出（公开数据）
+      activities: shouldUseSiteActivities(normalized),
     };
 
     return resolveKnowledgeRoutingPlanCore({
@@ -979,6 +983,7 @@ export function useKnowledgeRetrieval(deps) {
     if (plan.treehole) labels.push('BOH Cloud+');
     if (plan.userPrivate) labels.push('当前账号资料');
     if (plan.health) labels.push('BOH Health 数据');
+    if (plan.activities) labels.push('站内活动与抽奖');
     return labels;
   };
 
@@ -1008,6 +1013,7 @@ export function useKnowledgeRetrieval(deps) {
       parts.push(`查看了${labelText}`);
     }
     if (retrievalPlan.health) parts.push('查看了你的 BOH Health 数据');
+    if (retrievalPlan.activities) parts.push('查看了站内活动与抽奖');
     if (parts.length === 0) return '';
     return `${parts.join('，')}。`;
   };
@@ -1098,6 +1104,21 @@ export function useKnowledgeRetrieval(deps) {
       describeAction: (result) => {
         const total = Number(result?.total || 0);
         return total > 0 ? `查看了你的 BOH Health 数据 ${total} 组` : '查看了你的 BOH Health 数据';
+      },
+    }),
+    // 2026-10-04 新增：站内活动 / 抽奖 / 演出。三者都是公开数据（不要求登录），
+    // 由 `shouldUseSiteActivities` 的关键词命中驱动（planKey = activities）。
+    createBohAIConnector({
+      id: BOHAI_CONNECTOR_IDS.siteActivities,
+      planKey: 'activities',
+      label: '站内活动与抽奖',
+      source: '站内活动 / 抽奖 / 创作者演出',
+      evidencePrefix: 'A',
+      requiresLogin: false,
+      read: () => getActivitiesContext(),
+      describeAction: (result) => {
+        const labels = Array.isArray(result?.labels) ? result.labels : [];
+        return labels.length > 0 ? `查看了${labels.join('、')}` : '查看了站内活动';
       },
     }),
   ];

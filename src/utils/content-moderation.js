@@ -1,12 +1,12 @@
+import { SILICON_CLOUD_CHAT_URL } from './bohai-constants.js';
 import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
 import {
   isCloudModerationCoolingDown,
   markCloudModerationSuccess,
-  markCloudModerationUnreachable
+  markCloudModerationUnreachable,
 } from './image-moderation-pipeline.js';
 
 const DEFAULT_SCENE = 'default';
-const MODERATION_API_URL = import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 // 文字审核专用模式：vault 端按 bohai_model_configs 的 moderation-text 行裁决模型/上游。
 // 此前不传 mode 会落到 fast 行（payload.model 被覆盖、apiUrl 被忽略），后台配置从未生效。
 const MODERATION_TEXT_MODE = 'moderation-text';
@@ -35,12 +35,15 @@ export function setRuntimeModerationConfig(config) {
       localStorage.removeItem(RUNTIME_MODERATION_CONFIG_KEY);
       return true;
     }
-    localStorage.setItem(RUNTIME_MODERATION_CONFIG_KEY, JSON.stringify({
-      modelId: config.modelId || '',
-      apiUrl: config.apiUrl || '',
-      provider: config.provider || '',
-      enabled: config.enabled !== false
-    }));
+    localStorage.setItem(
+      RUNTIME_MODERATION_CONFIG_KEY,
+      JSON.stringify({
+        modelId: config.modelId || '',
+        apiUrl: config.apiUrl || '',
+        provider: config.provider || '',
+        enabled: config.enabled !== false,
+      }),
+    );
     return true;
   } catch {
     return false;
@@ -60,20 +63,22 @@ export function getActiveModerationApiUrl() {
   if (runtime && runtime.enabled !== false && runtime.apiUrl) {
     return runtime.apiUrl;
   }
-  return MODERATION_API_URL;
+  return SILICON_CLOUD_CHAT_URL;
 }
 const REMOTE_CONTENT_MODERATION_SETTING = String(
-  import.meta.env.VITE_ENABLE_REMOTE_CONTENT_MODERATION ?? 'true'
-).trim().toLowerCase();
-const REMOTE_CONTENT_MODERATION_ENABLED = String(
-  REMOTE_CONTENT_MODERATION_SETTING || 'true'
-).trim().toLowerCase() !== 'false';
+  import.meta.env.VITE_ENABLE_REMOTE_CONTENT_MODERATION ?? 'true',
+)
+  .trim()
+  .toLowerCase();
+const REMOTE_CONTENT_MODERATION_ENABLED =
+  String(REMOTE_CONTENT_MODERATION_SETTING || 'true')
+    .trim()
+    .toLowerCase() !== 'false';
 const IS_TEST_ENV = Boolean(
   (typeof process !== 'undefined' && (process.env.VITEST || process.env.NODE_ENV === 'test')) ||
-  import.meta.env.MODE === 'test'
+  import.meta.env.MODE === 'test',
 );
 
-export const MODERATION_MODEL_ID = getActiveModerationModelId();
 export const MODERATION_STATUS_APPROVED = 'approved';
 export const MODERATION_STATUS_REJECTED = 'rejected';
 
@@ -83,8 +88,14 @@ const STRONG_REJECT_CONFIDENCE = 0.995;
 
 const PASS_RESULT = { status: MODERATION_STATUS_APPROVED, message: '通过' };
 const REJECT_RESULT = { status: MODERATION_STATUS_REJECTED, message: '包含严重违规内容，已拒绝' };
-const LOCAL_REJECT_RESULT = { status: MODERATION_STATUS_REJECTED, message: '命中高风险违禁词，已拒绝' };
-const SERVICE_REJECT_RESULT = { status: MODERATION_STATUS_REJECTED, message: '审核服务暂不可用，请稍后重试' };
+const LOCAL_REJECT_RESULT = {
+  status: MODERATION_STATUS_REJECTED,
+  message: '命中高风险违禁词，已拒绝',
+};
+const SERVICE_REJECT_RESULT = {
+  status: MODERATION_STATUS_REJECTED,
+  message: '审核服务暂不可用，请稍后重试',
+};
 
 const HARD_BLOCK_PATTERNS = [
   /枪支买卖/u,
@@ -97,7 +108,7 @@ const HARD_BLOCK_PATTERNS = [
   /未成年(人)?色(情|图|片|视频)/u,
   /贩卖毒品/u,
   /出售毒品/u,
-  /购买毒品/u
+  /购买毒品/u,
 ];
 
 const SEVERE_REASON_MARKERS = [
@@ -117,7 +128,7 @@ const SEVERE_REASON_MARKERS = [
   'sexual_minor',
   'child',
   'weapon',
-  'drug'
+  'drug',
 ];
 
 const BENIGN_CONTEXT_MARKERS = [
@@ -135,7 +146,7 @@ const BENIGN_CONTEXT_MARKERS = [
   '反对',
   '防范',
   '案例分析',
-  '讨论'
+  '讨论',
 ];
 
 const MALICIOUS_INTENT_MARKERS = [
@@ -151,7 +162,7 @@ const MALICIOUS_INTENT_MARKERS = [
   '出售',
   '贩卖',
   '求购',
-  '带价'
+  '带价',
 ];
 
 const moderationSystemPrompt = [
@@ -163,7 +174,7 @@ const moderationSystemPrompt = [
   '</constraints>',
   '<output_format>',
   '严格只输出 JSON：{"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}',
-  '</output_format>'
+  '</output_format>',
 ].join('\n');
 
 const moderationReviewPrompt = [
@@ -174,7 +185,7 @@ const moderationReviewPrompt = [
   '</constraints>',
   '<output_format>',
   '严格只输出 JSON：{"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}',
-  '</output_format>'
+  '</output_format>',
 ].join('\n');
 
 function clamp01(value) {
@@ -208,10 +219,17 @@ function hasSevereReasonSignal(reasonCode = '', reason = '') {
 }
 
 export function normalizeModerationStatus(status, fallback = MODERATION_STATUS_APPROVED) {
-  const normalized = String(status || '').trim().toLowerCase();
+  const normalized = String(status || '')
+    .trim()
+    .toLowerCase();
   if (!normalized) return fallback;
 
-  if (normalized === MODERATION_STATUS_APPROVED || normalized === 'pass' || normalized === 'allow' || normalized === 'ok') {
+  if (
+    normalized === MODERATION_STATUS_APPROVED ||
+    normalized === 'pass' ||
+    normalized === 'allow' ||
+    normalized === 'ok'
+  ) {
     return MODERATION_STATUS_APPROVED;
   }
 
@@ -239,7 +257,9 @@ export function isModerationRejected(status) {
 }
 
 export function isLegacyModerationUnderReview(status) {
-  const normalized = String(status || '').trim().toLowerCase();
+  const normalized = String(status || '')
+    .trim()
+    .toLowerCase();
   return LEGACY_UNDER_REVIEW_STATUS_SET.has(normalized);
 }
 
@@ -263,7 +283,7 @@ function buildLocalModerationResult(content, scene = DEFAULT_SCENE) {
       reason: PASS_RESULT.message,
       source: 'local',
       scene,
-      model: currentModelId
+      model: currentModelId,
     };
   }
 
@@ -277,7 +297,7 @@ function buildLocalModerationResult(content, scene = DEFAULT_SCENE) {
       reason: String(localResult.message || LOCAL_REJECT_RESULT.message),
       source: 'local',
       scene,
-      model: currentModelId
+      model: currentModelId,
     };
   }
 
@@ -288,7 +308,7 @@ function buildLocalModerationResult(content, scene = DEFAULT_SCENE) {
     reason: PASS_RESULT.message,
     source: 'local',
     scene,
-    model: currentModelId
+    model: currentModelId,
   };
 }
 
@@ -328,13 +348,15 @@ function resolveParsedDecision(parsed) {
 }
 
 function resolveParsedConfidence(parsed, normalizedStatus) {
-  const rawConfidence = parsed?.confidence ?? parsed?.score ?? parsed?.probability ?? parsed?.risk_score;
+  const rawConfidence =
+    parsed?.confidence ?? parsed?.score ?? parsed?.probability ?? parsed?.risk_score;
   if (rawConfidence !== undefined && rawConfidence !== null && rawConfidence !== '') {
     return clamp01(rawConfidence);
   }
 
-  const hasBooleanDecision = ['is_safe', 'safe', 'allowed', 'pass']
-    .some((field) => typeof parsed?.[field] === 'boolean');
+  const hasBooleanDecision = ['is_safe', 'safe', 'allowed', 'pass'].some(
+    (field) => typeof parsed?.[field] === 'boolean',
+  );
 
   if (hasBooleanDecision) {
     return normalizedStatus === MODERATION_STATUS_REJECTED ? 0.72 : 1;
@@ -343,11 +365,10 @@ function resolveParsedConfidence(parsed, normalizedStatus) {
   return normalizedStatus === MODERATION_STATUS_REJECTED ? 1 : 0;
 }
 
-function parseAIModerationResult(rawText, {
-  minRejectConfidence = REJECT_DECISION_MIN_CONFIDENCE,
-  failClosed = true,
-  content = ''
-} = {}) {
+function parseAIModerationResult(
+  rawText,
+  { minRejectConfidence = REJECT_DECISION_MIN_CONFIDENCE, failClosed = true, content = '' } = {},
+) {
   const parsed = extractJsonObject(rawText);
   if (!parsed || typeof parsed !== 'object') {
     if (failClosed) {
@@ -358,10 +379,17 @@ function parseAIModerationResult(rawText, {
       : { ...PASS_RESULT, source: 'fallback_parse' };
   }
 
-  const normalizedStatus = normalizeModerationStatus(resolveParsedDecision(parsed), MODERATION_STATUS_APPROVED);
+  const normalizedStatus = normalizeModerationStatus(
+    resolveParsedDecision(parsed),
+    MODERATION_STATUS_APPROVED,
+  );
   const confidence = resolveParsedConfidence(parsed, normalizedStatus);
-  const reasonCode = String(parsed.reason_code || parsed.code || '').trim().slice(0, 48);
-  const reason = String(parsed.reason || parsed.message || parsed.detail || '').trim().slice(0, 120);
+  const reasonCode = String(parsed.reason_code || parsed.code || '')
+    .trim()
+    .slice(0, 48);
+  const reason = String(parsed.reason || parsed.message || parsed.detail || '')
+    .trim()
+    .slice(0, 120);
 
   if (normalizedStatus === MODERATION_STATUS_REJECTED && confidence >= minRejectConfidence) {
     const severeReason = hasSevereReasonSignal(reasonCode, reason);
@@ -375,7 +403,7 @@ function parseAIModerationResult(rawText, {
         reasonCode: reasonCode || 'AI_BORDERLINE_ALLOW',
         reason: reason || PASS_RESULT.message,
         message: PASS_RESULT.message,
-        source: 'ai_borderline_allow'
+        source: 'ai_borderline_allow',
       };
     }
 
@@ -385,7 +413,7 @@ function parseAIModerationResult(rawText, {
       reasonCode: reasonCode || 'AI_HIGH_RISK',
       reason: reason || REJECT_RESULT.message,
       message: reason || REJECT_RESULT.message,
-      source: 'ai'
+      source: 'ai',
     };
   }
 
@@ -395,15 +423,20 @@ function parseAIModerationResult(rawText, {
     reasonCode: reasonCode || 'AI_ALLOW',
     reason: reason || PASS_RESULT.message,
     message: PASS_RESULT.message,
-    source: 'ai'
+    source: 'ai',
   };
 }
 
-async function callAIModeration(content, scene, timeoutMs, {
-  failClosed = true,
-  systemPrompt = moderationSystemPrompt,
-  maxTokens = MODERATION_MAX_TOKENS
-} = {}) {
+async function callAIModeration(
+  content,
+  scene,
+  timeoutMs,
+  {
+    failClosed = true,
+    systemPrompt = moderationSystemPrompt,
+    maxTokens = MODERATION_MAX_TOKENS,
+  } = {},
+) {
   if (IS_TEST_ENV) {
     return { ...PASS_RESULT, source: 'test_env_bypass' };
   }
@@ -418,11 +451,11 @@ async function callAIModeration(content, scene, timeoutMs, {
       model: currentModelId,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `场景: ${scene}\n内容: ${content}` }
+        { role: 'user', content: `场景: ${scene}\n内容: ${content}` },
       ],
       stream: false,
       temperature: 0,
-      max_tokens: maxTokens
+      max_tokens: maxTokens,
     };
 
     const vaultResult = await callVaultSiliconChat({
@@ -431,7 +464,7 @@ async function callAIModeration(content, scene, timeoutMs, {
       payload,
       apiUrl: currentApiUrl,
       timeoutMs,
-      signal: controller.signal
+      signal: controller.signal,
     });
     if (!vaultResult.ok) {
       return failClosed
@@ -474,9 +507,7 @@ async function callAIModerationWithRetry(content, scene, timeoutMs, options = {}
 // 云端不可达的 source 集合：vault 层失败（未配置模式/限流/上游故障/超时/解析失败）。
 // 这些场景与图片审核共享同一个云端出口，冷却状态也共享（image-moderation-pipeline.js）。
 function isCloudUnreachableSource(source = '') {
-  return source === 'no_api_key'
-    || source === 'fallback_parse'
-    || source === 'fallback_error';
+  return source === 'no_api_key' || source === 'fallback_parse' || source === 'fallback_error';
 }
 
 // 云端不可达时的降级结果：硬违规已在 quickLocalCheck 拦截，走到这里说明关键词检查
@@ -497,7 +528,7 @@ function buildDegradedLocalResult(content, scene, currentModelId, { markReason =
     source: 'degraded_local',
     scene,
     model: currentModelId,
-    degraded: true
+    degraded: true,
   };
 }
 
@@ -522,12 +553,14 @@ async function runModeration(content, scene, timeoutMs, options = {}) {
     return buildDegradedLocalResult(content, scene, currentModelId);
   }
 
-  const firstPassResult = await callAIModerationWithRetry(content, scene, timeoutMs, { failClosed });
+  const firstPassResult = await callAIModerationWithRetry(content, scene, timeoutMs, {
+    failClosed,
+  });
 
   // 云端不可达：降级为本地关键词结果（不 fail-closed 拒绝发帖），标记冷却
   if (isCloudUnreachableSource(firstPassResult.source)) {
     return buildDegradedLocalResult(content, scene, currentModelId, {
-      markReason: `text:${firstPassResult.source}`
+      markReason: `text:${firstPassResult.source}`,
     });
   }
 
@@ -535,34 +568,40 @@ async function runModeration(content, scene, timeoutMs, options = {}) {
   markCloudModerationSuccess();
   let finalResult = firstPassResult;
 
-  const needsSecondPass = firstPassResult.status === MODERATION_STATUS_REJECTED
-    && firstPassResult.source === 'ai'
-    && clamp01(firstPassResult.confidence) < STRONG_REJECT_CONFIDENCE;
+  const needsSecondPass =
+    firstPassResult.status === MODERATION_STATUS_REJECTED &&
+    firstPassResult.source === 'ai' &&
+    clamp01(firstPassResult.confidence) < STRONG_REJECT_CONFIDENCE;
 
   if (needsSecondPass) {
     const secondPassResult = await callAIModerationWithRetry(content, scene, timeoutMs, {
       failClosed: true,
       systemPrompt: moderationReviewPrompt,
-      maxTokens: MODERATION_REVIEW_MAX_TOKENS
+      maxTokens: MODERATION_REVIEW_MAX_TOKENS,
     });
 
     if (secondPassResult.status !== MODERATION_STATUS_REJECTED) {
       finalResult = {
         ...secondPassResult,
-        source: 'ai_second_pass_allow'
+        source: 'ai_second_pass_allow',
       };
     }
   }
 
   return {
     status: normalizeModerationStatus(finalResult.status, MODERATION_STATUS_APPROVED),
-    message: String(finalResult.message || (finalResult.status === MODERATION_STATUS_REJECTED ? REJECT_RESULT.message : PASS_RESULT.message)),
+    message: String(
+      finalResult.message ||
+        (finalResult.status === MODERATION_STATUS_REJECTED
+          ? REJECT_RESULT.message
+          : PASS_RESULT.message),
+    ),
     confidence: clamp01(finalResult.confidence),
     reasonCode: String(finalResult.reasonCode || ''),
     reason: String(finalResult.reason || ''),
     source: finalResult.source || 'ai',
     scene,
-    model: getActiveModerationModelId()
+    model: getActiveModerationModelId(),
   };
 }
 
@@ -591,5 +630,5 @@ export const __moderationTestUtils = {
   parseAIModerationResult,
   resolveParsedConfidence,
   resolveParsedDecision,
-  quickLocalCheck
+  quickLocalCheck,
 };

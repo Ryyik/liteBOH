@@ -14,7 +14,6 @@
 
 export const DEFAULT_GREETING_TEMPLATE = '{greeting}，欢迎回到方块街';
 export const DEFAULT_HINT_TEXT = '往下逛逛';
-export const GREETING_PLACEHOLDER = '{greeting}';
 
 const GREETING_PLACEHOLDER_RE = /\{greeting\}/g;
 

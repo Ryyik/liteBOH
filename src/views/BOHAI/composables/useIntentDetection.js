@@ -9,10 +9,16 @@ import {
   normalizeText,
   isOperationQuestion,
   containsAnyKeyword,
-  normalizePromptLine
+  normalizePromptLine,
 } from './bohai-engine-helpers.js';
 import { normalizeActionDecisionText } from '@/utils/bohai-action-draft-intent.js';
-import { SHARED_MEMORY_TRIGGER_KEYWORDS, BOH_MEMBER_NAMES, HEALTH_TRIGGER_KEYWORDS } from './chat-engine-config.js';
+// normalizeActionDecisionText 仍被 isTreeholeCreateConfirm / isSharedMemorySaveConfirm 使用
+import {
+  SHARED_MEMORY_TRIGGER_KEYWORDS,
+  BOH_MEMBER_NAMES,
+  HEALTH_TRIGGER_KEYWORDS,
+  SITE_ACTIVITY_TRIGGER_KEYWORDS,
+} from './chat-engine-config.js';
 
 // ─── 社群意图 ────────────────────────────────────────────────────────────────
 
@@ -21,16 +27,26 @@ export const isCommunityQuestion = (text) => {
   if (!text || typeof text !== 'string') {
     return false;
   }
-  
+
   const memberNames = BOH_MEMBER_NAMES.split('|');
   // 高频通用词（boh/mc/lol/服务器/联机/活动/成员）已移除，避免普通问题被误判为社区问题
   const communityKeywords = [
-    '方块之家', '社区', ...memberNames,
-    '论坛', '帖子', '公告', '周年庆', '内战',
-    'hypixel', '我的世界', 'minecraft', '英雄联盟', '王者荣耀'
+    '方块之家',
+    '社区',
+    ...memberNames,
+    '论坛',
+    '帖子',
+    '公告',
+    '周年庆',
+    '内战',
+    'hypixel',
+    '我的世界',
+    'minecraft',
+    '英雄联盟',
+    '王者荣耀',
   ];
   const normalized = normalizeText(text);
-  return communityKeywords.some(keyword => normalized.includes(keyword));
+  return communityKeywords.some((keyword) => normalized.includes(keyword));
 };
 
 export const isCommunityCreativeRequest = (text) => {
@@ -38,10 +54,12 @@ export const isCommunityCreativeRequest = (text) => {
   if (!text || typeof text !== 'string') {
     return false;
   }
-  
+
   const normalized = normalizeText(text);
   if (!normalized) return false;
-  return /(写|生成|创作|改写|润色|设计|起草|文案|口号|标题|祝福|海报|宣传语|故事|诗|歌词|设定|梗图)/.test(normalized);
+  return /(写|生成|创作|改写|润色|设计|起草|文案|口号|标题|祝福|海报|宣传语|故事|诗|歌词|设定|梗图)/.test(
+    normalized,
+  );
 };
 
 // ─── 记忆上下文路由 ──────────────────────────────────────────────────────────
@@ -51,7 +69,7 @@ export const shouldUseMemoryContext = (text) => {
   if (!text || typeof text !== 'string') {
     return false;
   }
-  
+
   if (isOperationQuestion(text)) return false;
   return isCommunityQuestion(text);
 };
@@ -61,7 +79,7 @@ export const shouldUseSharedMemoryContext = (text) => {
   if (!text || typeof text !== 'string') {
     return false;
   }
-  
+
   const normalized = normalizeText(text);
   if (!normalized) return false;
   if (isOperationQuestion(normalized)) return false;
@@ -101,6 +119,22 @@ export const isHealthQuestion = (text) => {
  */
 export const shouldUseHealthContext = (text) => isHealthQuestion(text);
 
+// ─── 站内活动 / 抽奖 / 演出意图（2026-10-04）─────────────────────────────────
+
+/**
+ * shouldUseSiteActivities — 命中活动类关键词即读取站内活动 / 抽奖 / 演出。
+ * 数据是公开的（不要求登录）；站点操作类问题（「活动页面在哪里」）走 siteGuide，
+ * 不读活动数据 —— 与 resolveKnowledgeRoutingPlanCore 的 operation 分支口径一致。
+ * @param {string} text
+ */
+export const shouldUseSiteActivities = (text) => {
+  if (!text || typeof text !== 'string') return false;
+  const normalized = normalizeText(text);
+  if (!normalized) return false;
+  if (isOperationQuestion(normalized)) return false;
+  return containsAnyKeyword(normalized, SITE_ACTIVITY_TRIGGER_KEYWORDS);
+};
+
 // ─── 树洞意图 ────────────────────────────────────────────────────────────────
 
 export const isTreeholeReflectionQuestion = (text) => {
@@ -108,20 +142,36 @@ export const isTreeholeReflectionQuestion = (text) => {
   if (!text || typeof text !== 'string') {
     return false;
   }
-  
+
   const normalized = normalizeText(text);
   if (!normalized) return false;
   if (isOperationQuestion(normalized)) return false;
 
   const explicitKeywords = [
-    'note', '日记', '笔记', '记录', '记忆', '复盘', '回顾', '总结我', '我的情况', '我的状态',
-    '我的情绪', '我的习惯', '我最近', '我一直', '我总是', '给我建议', '我的计划'
+    'note',
+    '日记',
+    '笔记',
+    '记录',
+    '记忆',
+    '复盘',
+    '回顾',
+    '总结我',
+    '我的情况',
+    '我的状态',
+    '我的情绪',
+    '我的习惯',
+    '我最近',
+    '我一直',
+    '我总是',
+    '给我建议',
+    '我的计划',
   ];
   if (explicitKeywords.some((keyword) => normalized.includes(keyword))) {
     return true;
   }
 
-  const reflectivePattern = /(我|我的|自己).*(最近|一直|总是|复盘|回顾|习惯|情绪|状态|变化|记录|记忆|总结|日记|笔记)/;
+  const reflectivePattern =
+    /(我|我的|自己).*(最近|一直|总是|复盘|回顾|习惯|情绪|状态|变化|记录|记忆|总结|日记|笔记)/;
   return reflectivePattern.test(normalized);
 };
 
@@ -138,7 +188,7 @@ export const shouldUseTreeholeContext = (text, state) => {
   if (!state || typeof state !== 'object') {
     return false;
   }
-  
+
   if (!state.isTreeholeMemoryEnabled) return false;
   if (!state.isLoggedIn || !state.userInfo?.id) return false;
   return isTreeholeReflectionQuestion(text);
@@ -150,8 +200,22 @@ export const isTreeholeCreateConfirm = (text) => {
   const normalized = normalizeActionDecisionText(text);
   if (!normalized) return false;
   const allowList = new Set([
-    '是', '是的', '好', '好的', '可以', '行', '确认', '同意', '需要',
-    '创建', '创建树洞', '帮我创建', '帮我创建树洞', 'ok', 'yes', 'y'
+    '是',
+    '是的',
+    '好',
+    '好的',
+    '可以',
+    '行',
+    '确认',
+    '同意',
+    '需要',
+    '创建',
+    '创建树洞',
+    '帮我创建',
+    '帮我创建树洞',
+    'ok',
+    'yes',
+    'y',
   ]);
   return allowList.has(normalized);
 };
@@ -159,9 +223,7 @@ export const isTreeholeCreateConfirm = (text) => {
 export const isTreeholeCreateReject = (text) => {
   const normalized = normalizeActionDecisionText(text);
   if (!normalized) return false;
-  const denyList = new Set([
-    '否', '不用', '不需要', '取消', '算了', '暂不', '不要', 'no', 'n'
-  ]);
+  const denyList = new Set(['否', '不用', '不需要', '取消', '算了', '暂不', '不要', 'no', 'n']);
   return denyList.has(normalized);
 };
 
@@ -170,37 +232,50 @@ export const isTreeholeCreateReject = (text) => {
 export const isSharedMemorySaveConfirm = (text) => {
   const normalized = normalizeActionDecisionText(text);
   if (!normalized) return false;
-  return new Set(['是', '是的', '好', '好的', '可以', '行', '确认', '确定', '同意', '写入', '保存', '记录', '加入记忆库', 'ok', 'yes', 'y']).has(normalized);
+  return new Set([
+    '是',
+    '是的',
+    '好',
+    '好的',
+    '可以',
+    '行',
+    '确认',
+    '确定',
+    '同意',
+    '写入',
+    '保存',
+    '记录',
+    '加入记忆库',
+    'ok',
+    'yes',
+    'y',
+  ]).has(normalized);
 };
 
 export const isSharedMemorySaveReject = (text) => {
   const normalized = normalizeActionDecisionText(text);
   if (!normalized) return false;
-  return new Set(['否', '不用', '不需要', '取消', '算了', '暂不', '不要', '不写入', '不保存', '不记录', 'no', 'n']).has(normalized);
+  return new Set([
+    '否',
+    '不用',
+    '不需要',
+    '取消',
+    '算了',
+    '暂不',
+    '不要',
+    '不写入',
+    '不保存',
+    '不记录',
+    'no',
+    'n',
+  ]).has(normalized);
 };
 
-export const resolveMemorySaveDestinationFromText = (text, fallback = 'ask') => {
-  const normalized = normalizeActionDecisionText(text);
-  if (!normalized) return fallback;
-  if (/(两者|两个都|都存|都保存|都写入|同时|一起|cloud\+和公共|公共记忆和cloud)/i.test(normalized)) return 'both';
-  if (/(cloud\+|cloud|随手记|日记|私有|私人|个人记录)/i.test(normalized)) return 'cloud';
-  if (/(公共记忆|公共|共享记忆|社群记忆|记忆库)/i.test(normalized)) return 'shared';
-  if (isSharedMemorySaveConfirm(text) && ['cloud', 'shared', 'both'].includes(fallback)) return fallback;
-  return fallback;
-};
-
-export const formatMemorySavePrompt = (content, destination = 'ask') => {
+// 2026-10-04：保存目的地不再需要用户选择 —— Cloud+ 写入与「两处同存」已下线，
+// 只剩「写入 BOH AI 公共记忆库」一条路径，所以提示语与解析函数都收窄成单一形态。
+export const formatMemorySavePrompt = (content) => {
   const safeContent = normalizePromptLine(content, 320);
-  if (destination === 'cloud') {
-    return `要把这条内容记录到 BOH Cloud+ 吗？\n\n${safeContent}\n\n回复"确认"保存，回复"取消"跳过。`;
-  }
-  if (destination === 'shared') {
-    return `要把这条内容写入 BOH AI 公共记忆库吗？\n\n${safeContent}\n\n回复"确认"写入，回复"取消"跳过。`;
-  }
-  if (destination === 'both') {
-    return `要把这条内容同时保存到 BOH Cloud+ 和 BOH AI 公共记忆库吗？\n\n${safeContent}\n\n回复"确认"保存到两处，回复"取消"跳过。`;
-  }
-  return `这条内容要保存到哪里？\n\n${safeContent}\n\n可以回复 Cloud+、公共记忆、两者都保存，或"不保存"。`;
+  return `要把这条内容写入 BOH AI 公共记忆库吗？\n\n${safeContent}\n\n回复"确认"写入，回复"取消"跳过。`;
 };
 
 // ─── 思考主题摘要 ────────────────────────────────────────────────────────────

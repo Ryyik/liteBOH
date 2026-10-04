@@ -737,9 +737,6 @@ const historyLotteries = computed(() =>
 );
 const primaryActiveLottery = computed(() => activeLotteries.value[0] || null);
 const secondaryActiveLotteries = computed(() => activeLotteries.value.slice(1));
-const totalEntryCount = computed(() =>
-  lotteries.value.reduce((total, lottery) => total + Number(lottery.entry_count || 0), 0),
-);
 
 const visibleHistoryLotteries = computed(() => {
   const filtered = historyLotteries.value.filter(

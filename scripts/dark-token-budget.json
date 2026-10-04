@@ -1,5 +1,5 @@
 {
-  "total": 2865,
+  "total": 2854,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 231,
     "src/styles/themes/forum-dark.css": 187,
@@ -10,10 +10,10 @@
     "src/views/user-center/Messages/style.scoped.css": 106,
     "src/views/Newsroom/style.scoped.css": 103,
     "src/views/user-center/UserSpace/styles/shell-community.css": 103,
+    "src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue": 73,
     "src/components/UnifiedNavbar/style.scoped.css": 71,
     "src/views/Lab/components/LabQuotaIsland.vue": 65,
     "src/styles/themes/dark-mode.css": 58,
-    "src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue": 55,
     "src/components/UnifiedNavbar/GlobalSearchIsland.vue": 50,
     "src/views/DataManagement/styles/base.css": 50,
     "src/views/user-center/UserSpace/components/AvatarFrameGrid.vue": 48,
@@ -28,7 +28,6 @@
     "src/components/AdminContentPublishModal.vue": 34,
     "src/components/UnifiedNavbar/BOHAIIsland.vue": 32,
     "src/views/AlertStyleEditor/style.scoped.css": 32,
-    "src/components/ai/AiQuotaSidePanel.vue": 29,
     "src/views/user-center/UserSpace/styles/settings-glass.css": 29,
     "src/views/Health/health.css": 28,
     "src/views/user-center/UserSpace/components/bottom-nav.css": 27,
@@ -98,5 +97,5 @@
     "src/views/DataManagement/components/EditDrawer.vue": 1,
     "src/views/PhotoAlbums/index.vue": 1
   },
-  "updatedAt": "2026-10-01"
+  "updatedAt": "2026-10-03"
 }

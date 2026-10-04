@@ -29,7 +29,10 @@ import {
   isMissingCandidatesTableError,
   isMissingSharedMemoryTableError,
   clampNumber,
+  TREEHOLE_SPACE_COLUMNS,
+  TREEHOLE_CANDIDATE_COLUMNS,
 } from '../treehole-helpers.js';
+import { SILICON_CLOUD_CHAT_URL } from '../../bohai-constants.js';
 import {
   invalidateTreeholeCache,
   getMyTreeholeMemoriesForAI,
@@ -40,26 +43,6 @@ import {
   getSharedAIMemoriesForAI,
   createSharedAIMemory,
 } from './memory-api.js';
-
-const SILICON_CLOUD_URL =
-  import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
-const TREEHOLE_SPACE_COLUMNS = 'user_id, title, description, created_at, updated_at';
-const TREEHOLE_CANDIDATE_COLUMNS = `
-  id,
-  user_id,
-  content,
-  mood,
-  tags,
-  confidence,
-  evidence,
-  status,
-  session_id,
-  reason,
-  model,
-  memory_id,
-  created_at,
-  updated_at
-`;
 
 const invalidateTreeholeCandidateCache = (userId) => {
   invalidateByTags(
@@ -133,7 +116,7 @@ const requestTreeholeCompletion = async ({
     const vaultResult = await callVaultSiliconChat({
       purpose: 'chat',
       payload,
-      apiUrl: SILICON_CLOUD_URL,
+      apiUrl: SILICON_CLOUD_CHAT_URL,
       timeoutMs: safeTimeout,
       signal: combinedSignal,
     });

@@ -7,7 +7,7 @@ import {
 } from '../../src/views/BOHAI/composables/useForumSummary.js';
 // 源码守卫断言必须格式宽容：prettier 会把长行拆行、给末项补尾逗号，
 // 逐字断言会因此假红（本文件 2026-09-28 就被咬过一次）。详见 helpers/source.js。
-import { squeezeSource, flattenSource } from '../helpers/source.js';
+import { squeezeSource, flattenSource, scriptSection, stripComments } from '../helpers/source.js';
 
 const sidebarPath = resolve(
   import.meta.dirname,
@@ -23,7 +23,12 @@ const memoryCapturePath = resolve(
   '../../src/views/BOHAI/composables/useMemoryCapture.js',
 );
 const cloudApiPath = resolve(import.meta.dirname, '../../src/utils/api/boh-cloud-api.js');
-const quotaPanelPath = resolve(import.meta.dirname, '../../src/components/ai/AiQuotaSidePanel.vue');
+// 2026-10-03（plans/023 步骤 ④）：AiQuotaSidePanel.vue 已退役，用量信息整体搬进
+// BohaiSettingsPanel 的「用量」卡 —— 断言随之改读设置面板（否则 readFileSync 直接抛错）。
+const quotaPanelPath = resolve(
+  import.meta.dirname,
+  '../../src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue',
+);
 
 describe('BOH AI quick sidebar visibility', () => {
   it('unmounts the overlay sidebar when its model is closed', () => {
@@ -100,7 +105,6 @@ describe('BOH AI motion system', () => {
     expect(main).toContain('class="plan-todo-card task-panel"');
     expect(main).toContain('role="progressbar"');
     expect(main).toContain('taskPanelStatus');
-    expect(main).toContain('等待确认');
     expect(main).toContain('已停止');
     expect(main).toContain('@click="stopTaskPanel"');
     expect(main).toContain('@click="retryTaskPanel"');
@@ -140,14 +144,23 @@ describe('BOH AI Cloud+ retrieval safety', () => {
 });
 
 describe('BOH AI quota visualization', () => {
-  it('shows percentage and concrete token values in the quota panel', () => {
+  it('shows percentage and concrete token values in the settings usage card', () => {
     const quotaPanel = squeezeSource(readFileSync(quotaPanelPath, 'utf8'));
-    expect(quotaPanel).toContain('usage-section');
-    expect(quotaPanel).toContain('`${barPercentLabel}%`');
-    expect(quotaPanel).toContain("'has-usage': usedTokens > 0");
+    expect(quotaPanel).toContain('ai-settings-usage-section');
+    expect(quotaPanel).toContain('`${quotaPercentLabel}%`');
+    expect(quotaPanel).toContain("'has-usage': quotaPercent > 0");
     expect(quotaPanel).toContain('Web Searching');
     expect(quotaPanel).toContain('webSearchRemaining');
-    expect(quotaPanel).not.toContain('Math.round((usedTokens.value / tokenLimit.value) * 100)');
+    expect(quotaPanel).not.toContain('Math.round((quotaUsed.value / quotaLimit.value) * 100)');
+  });
+
+  // 退役的额度侧板必须真的删干净：只要接线回来，就说明用量出现了第二个入口。
+  // 否定断言必须先排掉模板区、再剥注释 —— 两处新注释都「合法复述」了被删的写法
+  // （模板里一句说明、script 里一句），直接在原文上断言会假红。见 helpers/source.js 文件头。
+  it('retired AiQuotaSidePanel is gone from the workspace', () => {
+    const main = stripComments(scriptSection(readFileSync(mainPath, 'utf8')));
+    expect(main).not.toContain('AiQuotaSidePanel');
+    expect(main).not.toContain('isQuotaPanelOpen');
   });
 
   it('subscribes to thinking state only after the chat engine is initialized', () => {
@@ -156,16 +169,17 @@ describe('BOH AI quota visualization', () => {
   });
 });
 
-describe('BOH AI Cloud+ consent', () => {
-  it('persists consent per account and refreshes it before routing', () => {
-    const memoryCapture = squeezeSource(readFileSync(memoryCapturePath, 'utf8'));
-    const engine = squeezeSource(readFileSync(enginePath, 'utf8'));
-    expect(memoryCapture).toContain('`${CLOUD_REFERENCE_CONSENT_KEY}:${safeUserId}`');
-    expect(memoryCapture).toContain('refreshCloudReferenceConsent()');
-    expect(engine).toContain('refreshCloudReferenceConsent();');
-    expect(engine).toContain("cloudReferenceConsent.value === 'denied'");
-    expect(engine).toContain('你此前已关闭 Cloud+ 隐私授权');
-    expect(engine).toContain('handlePendingCloudReferenceConsentReply(userText)');
+// 2026-10-04：读 Cloud+ 的「首次授权」闸门整条移除（用户口径：不再需要主动授权，直接可读）。
+// 断言随之反转 —— 锁住「闸门不许回来」，同时确认是否读取只由个人记忆开关决定。
+describe('BOH AI Cloud+ 读取（授权闸门已移除）', () => {
+  it('不再有首次授权环节，是否读取只由个人记忆开关决定', () => {
+    const memoryCapture = stripComments(scriptSection(readFileSync(memoryCapturePath, 'utf8')));
+    const engine = stripComments(scriptSection(readFileSync(enginePath, 'utf8')));
+    expect(memoryCapture).not.toContain('CLOUD_REFERENCE_CONSENT_KEY');
+    expect(memoryCapture).not.toContain('refreshCloudReferenceConsent');
+    expect(engine).not.toContain('cloudReferenceConsent');
+    expect(engine).not.toContain('你此前已关闭 Cloud+ 隐私授权');
+    expect(engine).toContain('cloudReferenceEnabled: Boolean(isTreeholeMemoryEnabled.value)');
     expect(engine).toContain('handlePendingTreeholeCreationReply(userText)');
   });
 });

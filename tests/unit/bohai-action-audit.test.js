@@ -42,16 +42,18 @@ describe('bohai-action-audit: createBohAIActionAuditEntry', () => {
     expect(entry.payload.contentPreview).toBe('测试内容');
   });
 
-  it('creates entry for saveCloud action', () => {
+  // 2026-10-04：saveCloud 动作已删除，改用仍存活的 saveSharedMemory 覆盖同一条
+  // 「带标题/正文的写入动作 → 审计摘要」分支。
+  it('creates entry for saveSharedMemory action', () => {
     const entry = createBohAIActionAuditEntry({
-      result: { actionId: 'saveCloud', label: '保存云', source: 'boh', ok: true },
-      payload: { content: '云内容', title: '云标题' },
+      result: { actionId: 'saveSharedMemory', label: '写入公共记忆', source: 'boh', ok: true },
+      payload: { content: '记忆内容', title: '记忆标题' },
       auth: { userId: 'u1', username: 'testuser' },
     });
 
-    expect(entry.actionId).toBe('saveCloud');
-    expect(entry.payload.contentPreview).toBe('云内容');
-    expect(entry.payload.title).toBe('云标题');
+    expect(entry.actionId).toBe('saveSharedMemory');
+    expect(entry.payload.contentPreview).toBe('记忆内容');
+    expect(entry.payload.title).toBe('记忆标题');
   });
 
   it('creates entry for unknown actionId with JSON preview', () => {

@@ -27,21 +27,25 @@ if (!fs.existsSync(schemaFile)) {
 }
 const { schema, objects } = JSON.parse(fs.readFileSync(schemaFile, 'utf8'));
 
-const relkinds = new Map((objects || []).map((o) => [o.table_name, o.relkind]));
 const colsOf = (t) => new Set((schema[t] || []).map((c) => c.column));
 const tableExists = (t) => Boolean(schema[t]);
 
 const qc = await import(path.join(ROOT, 'src/views/DataManagement/query-config.js'));
 
 // ---- 抽 tab -> 物理表名 ----
-const tablesSrc = fs.readFileSync(path.join(ROOT, 'src/views/DataManagement/config/tables.js'), 'utf8');
+const tablesSrc = fs.readFileSync(
+  path.join(ROOT, 'src/views/DataManagement/config/tables.js'),
+  'utf8',
+);
 const TAB_TO_TABLE = {};
-for (const m of tablesSrc.matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_]*):\s*\{\s*\n\s*table:\s*'([^']+)'/gm)) {
+for (const m of tablesSrc.matchAll(
+  /^ {2}([A-Za-z_][A-Za-z0-9_]*):\s*\{\s*\n\s*table:\s*'([^']+)'/gm,
+)) {
   TAB_TO_TABLE[m[1]] = m[2];
 }
 
 // ---- 收集问题 ----
-const problems = [];   // { level, tab, table, column, where }
+const problems = []; // { level, tab, table, column, where }
 const notFoundTabs = new Set();
 
 const add = (level, tab, table, column, where) =>
@@ -50,11 +54,15 @@ const add = (level, tab, table, column, where) =>
 /** 解析 PostgREST select 串：逗号分隔，支持 `alias:fk_col(inner)` */
 function parseSelect(sel) {
   const out = [];
-  let depth = 0, buf = '';
+  let depth = 0,
+    buf = '';
   for (const ch of String(sel)) {
     if (ch === '(') depth++;
     if (ch === ')') depth--;
-    if (ch === ',' && depth === 0) { out.push(buf); buf = ''; } else buf += ch;
+    if (ch === ',' && depth === 0) {
+      out.push(buf);
+      buf = '';
+    } else buf += ch;
   }
   if (buf.trim()) out.push(buf);
   return out.map((s) => s.trim()).filter(Boolean);
@@ -107,7 +115,10 @@ for (const [tab, table] of Object.entries(TAB_TO_TABLE)) {
   // 4) 默认排序（secondary 是同形状对象）
   const ds = qc.TAB_DEFAULT_SORT?.[tab];
   if (ds) {
-    const entries = [['column', ds.column], ['secondary', ds.secondary?.column]];
+    const entries = [
+      ['column', ds.column],
+      ['secondary', ds.secondary?.column],
+    ];
     for (const [key, col] of entries) {
       if (col && !known.has(col)) add('P0', tab, table, col, `TAB_DEFAULT_SORT.${key}`);
     }
@@ -116,9 +127,12 @@ for (const [tab, table] of Object.entries(TAB_TO_TABLE)) {
   // 5) 可排序白名单（值是 Set / Array / Object 三种形态都出现过）
   const sortCols = qc.TAB_SORT_COLUMNS?.[tab];
   if (sortCols) {
-    const keys = sortCols instanceof Set
-      ? [...sortCols]
-      : Array.isArray(sortCols) ? sortCols : Object.keys(sortCols);
+    const keys =
+      sortCols instanceof Set
+        ? [...sortCols]
+        : Array.isArray(sortCols)
+          ? sortCols
+          : Object.keys(sortCols);
     for (const k of keys) {
       if (typeof k === 'string' && k && !known.has(k)) add('P1', tab, table, k, 'TAB_SORT_COLUMNS');
     }
@@ -152,11 +166,23 @@ const fieldProblems = [];
 for (const [tab, fields] of Object.entries(TAB_WRITABLE_FIELDS || {})) {
   const table = TAB_TO_TABLE[tab];
   if (!table) {
-    fieldProblems.push({ level: 'P0', tab, table: '(无表映射)', column: '-', where: '写入白名单没有对应实体' });
+    fieldProblems.push({
+      level: 'P0',
+      tab,
+      table: '(无表映射)',
+      column: '-',
+      where: '写入白名单没有对应实体',
+    });
     continue;
   }
   if (!tableExists(table)) {
-    fieldProblems.push({ level: 'P0', tab, table, column: '(整表)', where: '写入白名单指向的表不存在' });
+    fieldProblems.push({
+      level: 'P0',
+      tab,
+      table,
+      column: '(整表)',
+      where: '写入白名单指向的表不存在',
+    });
     continue;
   }
   const known = colsOf(table);
@@ -172,7 +198,7 @@ const displayInfo = [];
 {
   const blockRe = /^ {2}([A-Za-z_][A-Za-z0-9_]*):\s*\{\s*\n([\s\S]*?)^ {2}\},$/gm;
   const writableSet = new Map(
-    Object.entries(TAB_WRITABLE_FIELDS || {}).map(([t, arr]) => [t, new Set(arr)])
+    Object.entries(TAB_WRITABLE_FIELDS || {}).map(([t, arr]) => [t, new Set(arr)]),
   );
   for (const bm of tablesSrc.matchAll(blockRe)) {
     const tab = bm[1];
@@ -201,8 +227,12 @@ console.log('='.repeat(78));
 console.log('数据管理面板 · 列引用静态查错');
 console.log('='.repeat(78));
 console.log(`schema 快照: ${path.relative(ROOT, schemaFile)}`);
-console.log(`远端表/视图: ${Object.keys(schema).length}   列总数: ${Object.values(schema).reduce((a, b) => a + b.length, 0)}`);
-console.log(`前端 tab: ${Object.keys(TAB_TO_TABLE).length}   select 配置: ${Object.keys(qc.TAB_SELECT_COLUMNS || {}).length}`);
+console.log(
+  `远端表/视图: ${Object.keys(schema).length}   列总数: ${Object.values(schema).reduce((a, b) => a + b.length, 0)}`,
+);
+console.log(
+  `前端 tab: ${Object.keys(TAB_TO_TABLE).length}   select 配置: ${Object.keys(qc.TAB_SELECT_COLUMNS || {}).length}`,
+);
 console.log(`P0（点击即 400）: ${P0.length}    P1（排序触发才 400）: ${P1.length}`);
 
 const grouped = new Map();
@@ -254,7 +284,9 @@ if (fieldP0.length) {
 
 if (displayInfo.length) {
   console.log('\n' + '─'.repeat(78));
-  console.log(`展示列里 DB 不存在的 key：${displayInfo.length} 处（多为代码派生的展示字段，需人工确认，勿直接改）`);
+  console.log(
+    `展示列里 DB 不存在的 key：${displayInfo.length} 处（多为代码派生的展示字段，需人工确认，勿直接改）`,
+  );
   const byTab = new Map();
   for (const p of displayInfo) {
     if (!byTab.has(p.tab)) byTab.set(p.tab, []);
@@ -268,16 +300,20 @@ if (displayInfo.length) {
 fs.mkdirSync(path.join(ROOT, 'output'), { recursive: true });
 fs.writeFileSync(
   path.join(ROOT, 'output/datamanagement-column-audit.json'),
-  JSON.stringify({
-    generatedAt: new Date().toISOString(),
-    schemaFile,
-    problems,
-    fieldProblems,
-    displayInfo,
-    orphanSelect,
-    orphanStatus,
-    orphanDate
-  }, null, 2)
+  JSON.stringify(
+    {
+      generatedAt: new Date().toISOString(),
+      schemaFile,
+      problems,
+      fieldProblems,
+      displayInfo,
+      orphanSelect,
+      orphanStatus,
+      orphanDate,
+    },
+    null,
+    2,
+  ),
 );
 console.log('\n明细已写入 output/datamanagement-column-audit.json');
 process.exit(P0.length || fieldP0.length ? 1 : 0);

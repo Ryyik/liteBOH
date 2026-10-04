@@ -21,20 +21,16 @@ import {
 // 下面保留的是「追到了真实消费方」的部分。**改动前请先确认消费方链还在。**
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LIVE_DECISION_KEYS = [
-  'shouldSaveCloud',
-  'shouldSaveSharedMemory',
-  'shouldAskMemoryDestination',
-  'saveDestination',
-  'shouldReferenceCloud',
-];
+// 2026-10-04：Cloud+ 写入（cloudSave）与「两处同存」（bothSave）下线 ⇒
+// 保存相关字段只剩 shouldSaveSharedMemory / saveDestination 两种取值（shared / none）。
+const LIVE_DECISION_KEYS = ['shouldSaveSharedMemory', 'saveDestination', 'shouldReferenceCloud'];
 
 describe('bohai auto router: 决策字段收敛', () => {
   beforeEach(() => {
     clearRouteDecisionCache();
   });
 
-  it('决策对象只含 5 个有消费方的字段', () => {
+  it('决策对象只含 3 个有消费方的字段', () => {
     const decision = resolveBOHAIAutoModeDecision('记一下今天的想法', { isAutoMode: true });
     expect(Object.keys(decision).sort()).toEqual([...LIVE_DECISION_KEYS].sort());
   });
@@ -77,21 +73,15 @@ describe('bohai auto router: 保留项反证（5 个存活字段 × 典型语句
   const cases = [
     ['普通闲聊', '你好呀', { saveDestination: 'none', shouldReferenceCloud: false }],
     ['普通事实问题', 'BOH 有多少成员？', { saveDestination: 'none', shouldReferenceCloud: false }],
-    ['保存到 Cloud+', '记一下我今天心情不错', { shouldSaveCloud: true, saveDestination: 'cloud' }],
-    [
-      '明确存 Cloud+',
-      '把这条存到我的 Cloud+ 随手记里',
-      { shouldSaveCloud: true, saveDestination: 'cloud', shouldReferenceCloud: true },
-    ],
     [
       '保存到公共记忆',
       '这条写入公共记忆库',
       { shouldSaveSharedMemory: true, saveDestination: 'shared' },
     ],
     [
-      '两边都存',
-      '两个都保存，cloud+ 和公共记忆一起',
-      { shouldSaveCloud: true, shouldSaveSharedMemory: true, saveDestination: 'both' },
+      '提到 Cloud+ 也不再产生 cloud 目的地（写入已下线）',
+      '把这条存到我的 Cloud+ 随手记里',
+      { saveDestination: 'none', shouldReferenceCloud: true },
     ],
     [
       'Cloud+ 引用',
@@ -100,11 +90,6 @@ describe('bohai auto router: 保留项反证（5 个存活字段 × 典型语句
     ],
     ['论坛发帖不当作保存', '帮我起草一个论坛发帖文案', { saveDestination: 'none' }],
     [
-      '社区记忆分享（含「一起」→ both）',
-      '今天和 ryyik 一起玩了 Minecraft，记一下这件事',
-      { shouldSaveCloud: true, shouldSaveSharedMemory: true, saveDestination: 'both' },
-    ],
-    [
       '社区事实查询',
       'BOH 论坛最近有什么公告？',
       { saveDestination: 'none', shouldReferenceCloud: false },
@@ -112,14 +97,9 @@ describe('bohai auto router: 保留项反证（5 个存活字段 × 典型语句
     ['健康问题', '我最近睡眠不好，怎么办', { saveDestination: 'none' }],
     ['个人支持', '最近压力大，有点撑不住了', { saveDestination: 'none' }],
     [
-      '社区记忆分享-无明确保存 → 问去向',
+      '社区记忆分享不再追问去向（只剩公共记忆一条写入路径）',
       '今天和小牛一起玩了 MC，聊了很久',
-      { shouldAskMemoryDestination: true, saveDestination: 'ask' },
-    ],
-    [
-      '社区记忆分享-询问去向',
-      '刚刚和 eleven 一起打了内战，这件事值得记下来',
-      { shouldAskMemoryDestination: true, saveDestination: 'ask' },
+      { saveDestination: 'none' },
     ],
   ];
 

@@ -9,19 +9,17 @@ export {
   getMySharedAIMemories,
   updateSharedAIMemory,
   updateSharedAIMemoryStatus,
-  deleteSharedAIMemory
+  deleteSharedAIMemory,
 } from './treehole/memory-api.js';
 
 // 私人记忆/日记 CRUD
 export {
   getMyTreeholeMemories,
-  getMyTreeholeMemoriesByRange,
-  getMyTreeholeMemoryDensity,
   getMyTreeholeMemoriesForAI,
   getMyTreeholeStats,
   createTreeholeMemory,
   updateTreeholeMemory,
-  deleteTreeholeMemory
+  deleteTreeholeMemory,
 } from './treehole/cloud-entry-api.js';
 
 // 树洞空间管理 + AI 功能
@@ -32,11 +30,7 @@ export {
   deleteMyTreeholeSpace,
   extractMemoryCandidatesFromDialogue,
   captureTreeholeMemoriesFromDialogue,
-  extractTreeholeMemoryHighlights,
-  askTreeholeQwen
 } from './treehole/treehole-space-api.js';
 
 // 知识库/向量检索
-export {
-  searchBohAIKnowledgeForAI
-} from './treehole/knowledge-search-api.js';
+export { searchBohAIKnowledgeForAI } from './treehole/knowledge-search-api.js';

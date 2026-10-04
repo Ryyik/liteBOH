@@ -33,5 +33,3 @@ export const clearSensitiveLocalStorage = () => {
     console.warn('[safe-storage] 清理 localStorage 失败', err);
   }
 };
-
-export const SENSITIVE_LOCAL_STORAGE_KEYS = SENSITIVE_KEYS;

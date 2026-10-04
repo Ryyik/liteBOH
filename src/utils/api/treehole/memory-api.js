@@ -25,36 +25,9 @@ import {
   tokenizeSharedMemoryQuery,
   scoreSharedMemoryByQuery,
   buildSharedMemoryModerationInput,
+  TREEHOLE_SHARED_MEMORY_COLUMNS,
+  TREEHOLE_SHARED_MEMORY_COLUMNS_WITH_MODERATION,
 } from '../treehole-helpers.js';
-
-const TREEHOLE_SHARED_MEMORY_COLUMNS = `
-  id,
-  owner_user_id,
-  content,
-  mood,
-  tags,
-  confidence,
-  evidence,
-  source,
-  status,
-  created_at,
-  updated_at
-`;
-const TREEHOLE_SHARED_MEMORY_COLUMNS_WITH_MODERATION = `
-  id,
-  owner_user_id,
-  content,
-  mood,
-  tags,
-  confidence,
-  evidence,
-  source,
-  status,
-  moderation_status,
-  moderation_reason,
-  created_at,
-  updated_at
-`;
 
 export const invalidateSharedMemoryCache = (userId = '') => {
   invalidateByTags(

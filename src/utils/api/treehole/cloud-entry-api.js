@@ -11,16 +11,14 @@ import {
   buildNextUpdatedAtCursor,
   normalizeDateRangeBoundary,
   toTimestamp,
-  toDateKey
+  toDateKey,
+  TREEHOLE_MEMORY_COLUMNS,
 } from '../treehole-helpers.js';
 
-const TREEHOLE_MEMORY_COLUMNS = 'id, user_id, content, mood, tags, is_starred, source, created_at, updated_at';
-
 export const invalidateTreeholeCache = (userId) => {
-  invalidateByTags([
-    TREEHOLE_CACHE_TAG,
-    userId ? `${TREEHOLE_CACHE_TAG}:user:${userId}` : ''
-  ].filter(Boolean));
+  invalidateByTags(
+    [TREEHOLE_CACHE_TAG, userId ? `${TREEHOLE_CACHE_TAG}:user:${userId}` : ''].filter(Boolean),
+  );
 };
 
 export async function getMyTreeholeMemories({
@@ -30,20 +28,28 @@ export async function getMyTreeholeMemories({
   search = '',
   starredOnly = false,
   cursor = '',
-  countMode = 'planned'
+  countMode = 'planned',
 } = {}) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const safePage = Number.isFinite(page) ? Math.max(1, Math.trunc(page)) : 1;
-  const safePageSize = Number.isFinite(pageSize) ? Math.min(100, Math.max(1, Math.trunc(pageSize))) : 20;
+  const safePageSize = Number.isFinite(pageSize)
+    ? Math.min(100, Math.max(1, Math.trunc(pageSize)))
+    : 20;
   const safeSearch = toTrimmedText(search, 80);
   const safeStarredOnly = Boolean(starredOnly);
   const safeCursorToken = toTrimmedText(cursor, 500);
   const safeCursor = decodeCursorToken(safeCursorToken, 'updatedAt');
-  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode) ? countMode : 'planned';
+  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode)
+    ? countMode
+    : 'planned';
   const from = (safePage - 1) * safePageSize;
   const to = from + safePageSize - 1;
   const useCursorMode = Boolean(safeCursor);
@@ -57,7 +63,7 @@ export async function getMyTreeholeMemories({
       search: safeSearch,
       starredOnly: safeStarredOnly,
       cursor: safeCursorToken,
-      countMode: safeCountMode
+      countMode: safeCountMode,
     },
     async () => {
       if (useCursorMode) {
@@ -91,11 +97,11 @@ export async function getMyTreeholeMemories({
             total: 0,
             page: safePage,
             pageSize: safePageSize,
-            nextCursor
+            nextCursor,
           },
           error,
           hasMore,
-          nextCursor
+          nextCursor,
         };
       }
 
@@ -120,17 +126,17 @@ export async function getMyTreeholeMemories({
           total: Number(count || 0),
           page: safePage,
           pageSize: safePageSize,
-          nextCursor: ''
+          nextCursor: '',
         },
-        error
+        error,
       };
     },
     {
       ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`],
       timeoutMs: 9000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
@@ -143,26 +149,38 @@ export async function getMyTreeholeMemoriesByRange({
   search = '',
   starredOnly = false,
   cursor = '',
-  countMode = 'planned'
+  countMode = 'planned',
 } = {}) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const safeStartAt = normalizeDateRangeBoundary(startAt);
   const safeEndAt = normalizeDateRangeBoundary(endAt);
   if (!safeStartAt || !safeEndAt || toTimestamp(safeStartAt) > toTimestamp(safeEndAt)) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '时间范围无效', code: 'INVALID_DATE_RANGE' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '时间范围无效', code: 'INVALID_DATE_RANGE' }),
+    };
   }
 
   const safePage = Number.isFinite(page) ? Math.max(1, Math.trunc(page)) : 1;
-  const safePageSize = Number.isFinite(pageSize) ? Math.min(100, Math.max(1, Math.trunc(pageSize))) : 20;
+  const safePageSize = Number.isFinite(pageSize)
+    ? Math.min(100, Math.max(1, Math.trunc(pageSize)))
+    : 20;
   const safeSearch = toTrimmedText(search, 80);
   const safeStarredOnly = Boolean(starredOnly);
   const safeCursorToken = toTrimmedText(cursor, 500);
   const safeCursor = decodeCursorToken(safeCursorToken, 'updatedAt');
-  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode) ? countMode : 'planned';
+  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode)
+    ? countMode
+    : 'planned';
   const from = (safePage - 1) * safePageSize;
   const to = from + safePageSize - 1;
   const useCursorMode = Boolean(safeCursor);
@@ -178,7 +196,7 @@ export async function getMyTreeholeMemoriesByRange({
       search: safeSearch,
       starredOnly: safeStarredOnly,
       cursor: safeCursorToken,
-      countMode: safeCountMode
+      countMode: safeCountMode,
     },
     async () => {
       if (useCursorMode) {
@@ -216,11 +234,11 @@ export async function getMyTreeholeMemoriesByRange({
             pageSize: safePageSize,
             startAt: safeStartAt,
             endAt: safeEndAt,
-            nextCursor
+            nextCursor,
           },
           error,
           hasMore,
-          nextCursor
+          nextCursor,
         };
       }
 
@@ -249,34 +267,38 @@ export async function getMyTreeholeMemoriesByRange({
           pageSize: safePageSize,
           startAt: safeStartAt,
           endAt: safeEndAt,
-          nextCursor: ''
+          nextCursor: '',
         },
-        error
+        error,
       };
     },
     {
       ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`],
       timeoutMs: 9000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
-export async function getMyTreeholeMemoryDensity({
-  userId,
-  startAt = '',
-  endAt = ''
-} = {}) {
+export async function getMyTreeholeMemoryDensity({ userId, startAt = '', endAt = '' } = {}) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const safeStartAt = normalizeDateRangeBoundary(startAt);
   const safeEndAt = normalizeDateRangeBoundary(endAt);
   if (!safeStartAt || !safeEndAt || toTimestamp(safeStartAt) > toTimestamp(safeEndAt)) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '时间范围无效', code: 'INVALID_DATE_RANGE' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '时间范围无效', code: 'INVALID_DATE_RANGE' }),
+    };
   }
 
   return executeRead(
@@ -319,28 +341,37 @@ export async function getMyTreeholeMemoryDensity({
           total,
           counts,
           startAt: safeStartAt,
-          endAt: safeEndAt
+          endAt: safeEndAt,
         },
-        error: null
+        error: null,
       };
     },
     {
       ttlMs: CACHE_TTL_LEVELS.REALTIME,
       tags: [TREEHOLE_CACHE_TAG, `${TREEHOLE_CACHE_TAG}:user:${safeUserId}`],
       timeoutMs: 9000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
-export async function getMyTreeholeMemoriesForAI(userId, { limit = 0, pageSize = TREEHOLE_MEMORY_FETCH_PAGE_SIZE } = {}) {
+export async function getMyTreeholeMemoriesForAI(
+  userId,
+  { limit = 0, pageSize = TREEHOLE_MEMORY_FETCH_PAGE_SIZE } = {},
+) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: [], error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: [],
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : 0;
-  const safePageSize = Number.isFinite(pageSize) ? Math.min(500, Math.max(20, Math.trunc(pageSize))) : TREEHOLE_MEMORY_FETCH_PAGE_SIZE;
+  const safePageSize = Number.isFinite(pageSize)
+    ? Math.min(500, Math.max(20, Math.trunc(pageSize)))
+    : TREEHOLE_MEMORY_FETCH_PAGE_SIZE;
 
   const rows = [];
   let offset = 0;
@@ -383,14 +414,18 @@ export async function getMyTreeholeMemoriesForAI(userId, { limit = 0, pageSize =
   return {
     ok: true,
     data: rows.map(normalizeMemoryRow),
-    error: null
+    error: null,
   };
 }
 
 export async function getMyTreeholeStats(userId) {
   const safeUserId = toTrimmedText(userId, 64);
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
 
   const [totalResult, starredResult] = await Promise.all([
@@ -402,7 +437,7 @@ export async function getMyTreeholeStats(userId) {
       .from('boh_treehole_memories')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', safeUserId)
-      .eq('is_starred', true)
+      .eq('is_starred', true),
   ]);
 
   if (totalResult.error) {
@@ -416,9 +451,9 @@ export async function getMyTreeholeStats(userId) {
     ok: true,
     data: {
       totalMemories: Number(totalResult.count || 0),
-      starredMemories: Number(starredResult.count || 0)
+      starredMemories: Number(starredResult.count || 0),
     },
-    error: null
+    error: null,
   };
 }
 
@@ -431,22 +466,32 @@ export async function createTreeholeMemory(userId, payload = {}) {
   const tags = normalizeTags(payload.tags);
 
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
   if (!content) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '记忆内容不能为空', code: 'EMPTY_MEMORY' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '记忆内容不能为空', code: 'EMPTY_MEMORY' }),
+    };
   }
 
   const { data, error } = await supabase
     .from('boh_treehole_memories')
-    .insert([{
-      user_id: safeUserId,
-      content,
-      mood,
-      tags,
-      is_starred: isStarred,
-      source
-    }])
+    .insert([
+      {
+        user_id: safeUserId,
+        content,
+        mood,
+        tags,
+        is_starred: isStarred,
+        source,
+      },
+    ])
     .select()
     .maybeSingle();
 
@@ -455,7 +500,7 @@ export async function createTreeholeMemory(userId, payload = {}) {
       return {
         ok: false,
         data: null,
-        error: normalizeDbError({ message: '请先创建记忆空间', code: 'TREEHOLE_SPACE_REQUIRED' })
+        error: normalizeDbError({ message: '请先创建记忆空间', code: 'TREEHOLE_SPACE_REQUIRED' }),
       };
     }
     return { ok: false, data: null, error: normalizeDbError(error) };
@@ -470,10 +515,18 @@ export async function updateTreeholeMemory(userId, memoryId, updates = {}) {
   const safeMemoryId = toTrimmedText(memoryId, 64);
 
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
   if (!safeMemoryId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '记忆 ID 无效', code: 'INVALID_MEMORY_ID' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '记忆 ID 无效', code: 'INVALID_MEMORY_ID' }),
+    };
   }
 
   const patch = {};
@@ -491,7 +544,11 @@ export async function updateTreeholeMemory(userId, memoryId, updates = {}) {
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, 'content') && !patch.content) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '记忆内容不能为空', code: 'EMPTY_MEMORY' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '记忆内容不能为空', code: 'EMPTY_MEMORY' }),
+    };
   }
   if (Object.keys(patch).length === 0) {
     return { ok: true, data: null, error: null };
@@ -512,7 +569,7 @@ export async function updateTreeholeMemory(userId, memoryId, updates = {}) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '记忆不存在或无权限', code: 'TREEHOLE_MEMORY_NOT_FOUND' })
+      error: normalizeDbError({ message: '记忆不存在或无权限', code: 'TREEHOLE_MEMORY_NOT_FOUND' }),
     };
   }
 
@@ -525,10 +582,18 @@ export async function deleteTreeholeMemory(userId, memoryId) {
   const safeMemoryId = toTrimmedText(memoryId, 64);
 
   if (!safeUserId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+    };
   }
   if (!safeMemoryId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '记忆 ID 无效', code: 'INVALID_MEMORY_ID' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '记忆 ID 无效', code: 'INVALID_MEMORY_ID' }),
+    };
   }
 
   const { error, count } = await supabase
@@ -544,7 +609,7 @@ export async function deleteTreeholeMemory(userId, memoryId) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '记忆不存在或无权限', code: 'TREEHOLE_MEMORY_NOT_FOUND' })
+      error: normalizeDbError({ message: '记忆不存在或无权限', code: 'TREEHOLE_MEMORY_NOT_FOUND' }),
     };
   }
 

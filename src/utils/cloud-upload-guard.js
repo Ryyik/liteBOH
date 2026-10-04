@@ -2,7 +2,7 @@ export const CLOUD_UPLOAD_ALLOWED_MIME_TYPES = new Set([
   'image/png',
   'image/jpeg',
   'image/webp',
-  'image/gif'
+  'image/gif',
 ]);
 
 export const CLOUD_UPLOAD_ALLOWED_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
@@ -12,20 +12,56 @@ export const CLOUD_UPLOAD_MAX_PIXELS = 25 * 1000 * 1000;
 export const CLOUD_UPLOAD_BURST_WINDOW_MS = 60 * 1000;
 export const CLOUD_UPLOAD_BURST_LIMIT = 18;
 
+/**
+ * 多图上传的并发上限 —— **唯一定义处**。
+ *
+ * 两条链路共用同一个数字，改这里两处一起变：
+ *   - 论坛发帖：`utils/api/forum-images-api.js` 的上传队列（仅网络层并发）
+ *   - 影集编辑器：`views/PhotoAlbumEditor/composables/useAlbumEditor.js` 的
+ *     「压缩 → 上传」并发池（每路含一次 Web Worker 压缩 + 一次上传）
+ * 依据：单图上传约 3~6s，3 路可把多图批次压到 ≈ max(串行阶段, 单图耗时)。
+ * 别再在别处内联这个 3（单一真源）。
+ */
+export const CLOUD_UPLOAD_MAX_CONCURRENCY = 3;
+
+/** 低配机降档：`hardwareConcurrency <= 4`（多数中低端安卓 + 全部 iOS）时用 2 路 */
+export const CLOUD_UPLOAD_MAX_CONCURRENCY_LOW_END = 2;
+
+/**
+ * 按设备能力解析并发上限。
+ * `navigator.deviceMemory` 在 iOS Safari 上不存在，所以只认 `hardwareConcurrency`；
+ * 取不到时按默认档处理（保守方向是**不降档**，因为降档会拖慢主流桌面/旗舰机）。
+ */
+export function resolveCloudUploadConcurrency() {
+  const cores = typeof navigator === 'undefined' ? 0 : Number(navigator.hardwareConcurrency || 0);
+  if (cores > 0 && cores <= 4) return CLOUD_UPLOAD_MAX_CONCURRENCY_LOW_END;
+  return CLOUD_UPLOAD_MAX_CONCURRENCY;
+}
+
 function normalizeMimeType(value = '') {
-  const mimeType = String(value || '').trim().toLowerCase();
+  const mimeType = String(value || '')
+    .trim()
+    .toLowerCase();
   return mimeType === 'image/jpg' ? 'image/jpeg' : mimeType;
 }
 
 function getFileExtension(name = '') {
-  const match = String(name || '').trim().toLowerCase().match(/\.([a-z0-9]+)$/);
+  const match = String(name || '')
+    .trim()
+    .toLowerCase()
+    .match(/\.([a-z0-9]+)$/);
   return match ? match[1] : '';
 }
 
 function assertImageDimensions({ width = 0, height = 0 } = {}) {
   const safeWidth = Number(width || 0);
   const safeHeight = Number(height || 0);
-  if (!Number.isFinite(safeWidth) || !Number.isFinite(safeHeight) || safeWidth <= 0 || safeHeight <= 0) {
+  if (
+    !Number.isFinite(safeWidth) ||
+    !Number.isFinite(safeHeight) ||
+    safeWidth <= 0 ||
+    safeHeight <= 0
+  ) {
     throw new Error('图片尺寸无效，请换一张图片');
   }
   if (safeWidth > CLOUD_UPLOAD_MAX_DIMENSION || safeHeight > CLOUD_UPLOAD_MAX_DIMENSION) {
@@ -47,12 +83,7 @@ export function detectImageMimeFromSignature(bytes = []) {
   const header = Array.from(bytes || []);
   if (header.length < 4) return '';
 
-  if (
-    header[0] === 0x89
-    && header[1] === 0x50
-    && header[2] === 0x4e
-    && header[3] === 0x47
-  ) {
+  if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47) {
     return 'image/png';
   }
 
@@ -60,24 +91,19 @@ export function detectImageMimeFromSignature(bytes = []) {
     return 'image/jpeg';
   }
 
-  if (
-    header[0] === 0x47
-    && header[1] === 0x49
-    && header[2] === 0x46
-    && header[3] === 0x38
-  ) {
+  if (header[0] === 0x47 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x38) {
     return 'image/gif';
   }
 
   if (
-    header[0] === 0x52
-    && header[1] === 0x49
-    && header[2] === 0x46
-    && header[3] === 0x46
-    && header[8] === 0x57
-    && header[9] === 0x45
-    && header[10] === 0x42
-    && header[11] === 0x50
+    header[0] === 0x52 &&
+    header[1] === 0x49 &&
+    header[2] === 0x46 &&
+    header[3] === 0x46 &&
+    header[8] === 0x57 &&
+    header[9] === 0x45 &&
+    header[10] === 0x42 &&
+    header[11] === 0x50
   ) {
     return 'image/webp';
   }
@@ -112,10 +138,10 @@ export function validateImageFileBasics(file) {
 
 export async function readBrowserImageDimensions(file, timeoutMs = 15000) {
   if (
-    typeof Image === 'undefined'
-    || typeof URL === 'undefined'
-    || typeof URL.createObjectURL !== 'function'
-    || typeof URL.revokeObjectURL !== 'function'
+    typeof Image === 'undefined' ||
+    typeof URL === 'undefined' ||
+    typeof URL.createObjectURL !== 'function' ||
+    typeof URL.revokeObjectURL !== 'function'
   ) {
     return null;
   }
@@ -133,10 +159,12 @@ export async function readBrowserImageDimensions(file, timeoutMs = 15000) {
         fn(value);
       };
       timer = setTimeout(() => settle(reject)(new Error('图片加载超时')), timeoutMs);
-      image.onload = settle(() => resolve({
-        width: Number(image.naturalWidth || image.width || 0),
-        height: Number(image.naturalHeight || image.height || 0)
-      }));
+      image.onload = settle(() =>
+        resolve({
+          width: Number(image.naturalWidth || image.width || 0),
+          height: Number(image.naturalHeight || image.height || 0),
+        }),
+      );
       image.onerror = settle(() => reject(new Error('图片无法解析，请换一张图片')));
       image.src = objectUrl;
     });
@@ -169,7 +197,9 @@ export function validateCloudinaryUploadResult(data = {}, options = {}) {
   const secureUrl = String(data.secure_url || data.url || '').trim();
   const publicId = String(data.public_id || data.publicId || '').trim();
   const cloudName = String(options.cloudName || '').trim();
-  const folder = String(options.folder || '').trim().replace(/^\/+|\/+$/g, '');
+  const folder = String(options.folder || '')
+    .trim()
+    .replace(/^\/+|\/+$/g, '');
 
   if (!secureUrl) {
     throw new Error('Cloudinary 未返回有效图片地址');
@@ -226,13 +256,13 @@ export function registerCloudUploadBurst(timestamps = [], count = 1, options = {
     return {
       ok: false,
       timestamps: recent,
-      retryAfterSeconds
+      retryAfterSeconds,
     };
   }
 
   return {
     ok: true,
     timestamps: recent.concat(Array.from({ length: safeCount }, () => nowTs)),
-    retryAfterSeconds: 0
+    retryAfterSeconds: 0,
   };
 }

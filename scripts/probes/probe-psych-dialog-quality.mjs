@@ -82,8 +82,6 @@ const SCRIPT = [
 // AI 的提问去评分，整份报告全是假的（第一版就踩了这个：8/10「问题」里有 7 个是假的）。
 const ERROR_PATTERNS = /(服务暂时繁忙|额度已用完|请稍后重试|请求失败|网络异常|服务异常|响应超时)/;
 
-const normalize = (text) => String(text || '').replace(/\s+/g, '');
-
 const evaluate = (reply, { prevReply, prevUserText, expectHook, isReport }) => {
   // 判据直接用产品里的 guards（复述 / 重复上一问 / 选项 / 一轮多问 / 术语 / 建议），不另维护一套
   const issues = [...detectViolations(reply, { prevReply, prevUserText }).map((item) => item.type)];

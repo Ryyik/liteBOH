@@ -10,7 +10,7 @@
     <!-- is-gallery：图库页在宽屏要铺满（iPad 图库的网格是全宽的，
          980px 居中会让两侧各空一大块）；设置页 / 分享页仍是窄栏居中，保持文字可读性。 -->
     <div class="cloud-shell" :class="{ 'is-gallery': cloudTab === 'content' }">
-      <main class="cloud-main">
+      <main class="cloud-main" :class="{ 'is-view-entering': isViewEntering }">
         <header v-if="cloudTab === 'content'" class="cloud-header gallery-header">
           <div class="gallery-title-block">
             <h2>图库</h2>
@@ -427,7 +427,7 @@
                   class="cloud-card"
                   :class="[`type-${entry.entryType}`, { featured: entry.coverImageUrl }]"
                   :style="{ '--item-index': index }"
-                  @click="openEntry(entry, 'shared')"
+                  @click="openEntry(entry, 'shared', $event)"
                 >
                   <div v-if="entry.coverImageUrl" class="card-visual">
                     <img
@@ -786,13 +786,16 @@
                         滚动中任何更新都会让整片格子重新布局测量；
                      ② `--item-index` 逐格错峰淡入，30 格 × 0.04s = 首屏连续闪烁 1.2s。
                      iOS 图库的格子也是直接出现 —— 这里改回普通 div，不做逐格动画。 -->
-                <div class="gallery-grid album-tile-grid">
+                <div
+                  class="gallery-grid album-tile-grid"
+                  :class="{ 'is-settling': isAlbumSettling }"
+                >
                   <article
                     v-for="tile in albumTiles"
                     :key="tile.key"
                     class="gallery-tile"
                     :class="`tile-${tile.entry.entryType}`"
-                    @click="openEntry(tile.entry)"
+                    @click="openEntry(tile.entry, 'mine', $event)"
                   >
                     <template v-if="tile.imageUrl">
                       <img
@@ -876,80 +879,92 @@
       </button>
     </nav>
 
-    <div v-if="selectedEntry" class="detail-overlay" @click.self="closeEntry">
-      <div class="detail-modal">
-        <button type="button" class="detail-close" @click="closeEntry">×</button>
-        <div class="detail-head">
-          <div>
-            <span class="section-kicker">{{ selectedEntryKicker }}</span>
-            <h3>{{ selectedEntry.title || defaultTitle(selectedEntry) }}</h3>
-            <p>
-              {{ formatEntryDate(selectedEntry.entryDate, selectedEntry.updatedAt) }}
-              <!-- 可见性必须明示：报障「已经是公开的帖子为什么还有设为公开按钮」——
+    <!-- 2026-10-03 动效：详情是**放大展开 / 缩回**的进出场（Transition 挂 .detail-overlay），
+         transform-origin 由 openEntry 写入的 --detail-origin-x/y 决定 = 点中的那一格中心。
+         进出场规则见 style.scoped.css 的 .cloud-detail-* 段。 -->
+    <Transition name="cloud-detail">
+      <div
+        v-if="selectedEntry"
+        class="detail-overlay"
+        :style="{ '--detail-origin-x': detailOrigin.x, '--detail-origin-y': detailOrigin.y }"
+        @click.self="closeEntry"
+      >
+        <div class="detail-modal">
+          <button type="button" class="detail-close" @click="closeEntry">×</button>
+          <div class="detail-head">
+            <div>
+              <span class="section-kicker">{{ selectedEntryKicker }}</span>
+              <h3>{{ selectedEntry.title || defaultTitle(selectedEntry) }}</h3>
+              <p>
+                {{ formatEntryDate(selectedEntry.entryDate, selectedEntry.updatedAt) }}
+                <!-- 可见性必须明示：报障「已经是公开的帖子为什么还有设为公开按钮」——
                    状态藏在按钮里用户看不见，放在日期旁边一眼可查。 -->
-              <span class="detail-visibility" :class="{ 'is-public': isSelectedEntryPublic }">{{
-                isSelectedEntryPublic ? '已公开' : '私密'
-              }}</span>
-            </p>
-          </div>
-          <div class="detail-actions">
-            <span v-if="selectedEntry.mood" class="detail-mood">
-              {{ resolveMoodMeta(selectedEntry.mood)?.icon || '•' }} {{ selectedEntry.mood }}
-            </span>
-            <template v-if="selectedEntrySource === 'mine'">
-              <!-- 2026-10-02 产品口径：Cloud+ = 作品照片的**私密备份库**，「设为公开」入口取消。
+                <span class="detail-visibility" :class="{ 'is-public': isSelectedEntryPublic }">{{
+                  isSelectedEntryPublic ? '已公开' : '私密'
+                }}</span>
+              </p>
+            </div>
+            <div class="detail-actions">
+              <span v-if="selectedEntry.mood" class="detail-mood">
+                {{ resolveMoodMeta(selectedEntry.mood)?.icon || '•' }} {{ selectedEntry.mood }}
+              </span>
+              <template v-if="selectedEntrySource === 'mine'">
+                <!-- 2026-10-02 产品口径：Cloud+ = 作品照片的**私密备份库**，「设为公开」入口取消。
                    对外可见走两条路：token 令牌分享（已有）/ 转为帖子（plans/023 待做）。
                    存量已公开条目不迁移：仍计入作品格，由「去作品格管理」出口维护；
                    私密条目只给「删除」（备份库里的增删是用户自己的事）。 -->
-              <button
-                v-if="isSelectedEntryPublic"
-                type="button"
-                class="secondary-btn detail-public-btn"
-                @click="goWorksGrid"
-              >
-                去作品格管理
-              </button>
-              <!-- Phase 4（plans/023）：对外可见的第二条路 —— 把备份转为帖子。
-                   图片直接复用 Cloudinary url（不二次上传），经论坛草稿通道预填发帖器。 -->
-              <button
-                v-if="collectEntryImageUrls(selectedEntry).length"
-                type="button"
-                class="secondary-btn detail-public-btn"
-                @click="convertEntryToPost(selectedEntry)"
-              >
-                转为帖子
-              </button>
-              <button type="button" class="danger-btn" @click="removeEntry(selectedEntry)">
-                删除
-              </button>
+                <button
+                  v-if="isSelectedEntryPublic"
+                  type="button"
+                  class="secondary-btn detail-public-btn"
+                  @click="goWorksGrid"
+                >
+                  去作品格管理
+                </button>
+                <!-- Phase 4（plans/023）：对外可见的第二条路 —— 把备份转为帖子。
+                   图片直接复用 Cloudinary url（不二次上传），经论坛草稿通道预填发帖器。
+                   2026-10-03：论坛同步来的条目（source==='forum'）本身就是帖子，不再出现此入口，
+                   判据收口在 canConvertSelectedEntryToPost（见 script 里的说明）。 -->
+                <button
+                  v-if="canConvertSelectedEntryToPost"
+                  type="button"
+                  class="secondary-btn detail-public-btn"
+                  @click="convertEntryToPost(selectedEntry)"
+                >
+                  转为帖子
+                </button>
+                <button type="button" class="danger-btn" @click="removeEntry(selectedEntry)">
+                  删除
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <div class="detail-content">
+            <template
+              v-for="(block, index) in selectedEntry.contentBlocks"
+              :key="`${selectedEntry.id}-${index}`"
+            >
+              <p v-if="block.type === 'text'" class="detail-text">{{ block.text }}</p>
+              <figure v-else class="detail-image-wrap">
+                <img
+                  :src="getCloudImageDisplayUrl(block.url)"
+                  :alt="block.alt || 'BOH Cloud 图片'"
+                  class="detail-image cloud-loading-image"
+                  decoding="async"
+                  referrerpolicy="no-referrer"
+                  @load="handleCloudImageLoaded"
+                  @error="retryCloudImageLoad"
+                  loading="lazy"
+                />
+                <!-- alt 是上传时的系统默认值（如「论坛图片」），展示出来只是一条灰杠；语义保留在 DOM 属性里 -->
+                <figcaption v-if="block.alt" class="sr-only">{{ block.alt }}</figcaption>
+              </figure>
             </template>
           </div>
         </div>
-
-        <div class="detail-content">
-          <template
-            v-for="(block, index) in selectedEntry.contentBlocks"
-            :key="`${selectedEntry.id}-${index}`"
-          >
-            <p v-if="block.type === 'text'" class="detail-text">{{ block.text }}</p>
-            <figure v-else class="detail-image-wrap">
-              <img
-                :src="getCloudImageDisplayUrl(block.url)"
-                :alt="block.alt || 'BOH Cloud 图片'"
-                class="detail-image cloud-loading-image"
-                decoding="async"
-                referrerpolicy="no-referrer"
-                @load="handleCloudImageLoaded"
-                @error="retryCloudImageLoad"
-                loading="lazy"
-              />
-              <!-- alt 是上传时的系统默认值（如「论坛图片」），展示出来只是一条灰杠；语义保留在 DOM 属性里 -->
-              <figcaption v-if="block.alt" class="sr-only">{{ block.alt }}</figcaption>
-            </figure>
-          </template>
-        </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
@@ -978,6 +993,7 @@ import {
   CLOUD_UPLOAD_BURST_WINDOW_MS,
   validateImageFileBasics,
   registerCloudUploadBurst,
+  resolveCloudUploadConcurrency,
 } from '@/utils/cloud-upload-guard.js';
 import {
   createMyCloudEntry,
@@ -1104,10 +1120,6 @@ const shareViewersError = computed({
   get: () => cloudState.share.viewersError || '',
   set: (val) => (cloudState.share.viewersError = val),
 });
-const activeEntriesUserId = computed({
-  get: () => cloudState.content.activeUserId,
-  set: (val) => (cloudState.content.activeUserId = val),
-});
 const isPublishing = computed(() => cloudState.publish.publishing);
 const isUploadingImages = computed(() => cloudState.upload.uploading);
 const currentFilter = ref('all');
@@ -1169,6 +1181,27 @@ const cloudTab = computed(() => {
   const view = String(route.query.view || route.query.mode || '').trim();
   if (['settings', 'share'].includes(view)) return view;
   return 'content';
+});
+
+/* 2026-10-03 动效：内容 / 分享 / 设置三档切换时，右区整体走一次「淡入 + 轻微上浮」。
+   为什么用 JS 开关类而不是给每档挂 mount 动画：
+     · 内容档是 `<template v-else>`，根节点是**条件渲染**的（cloudModeBanner 可能不存在），
+       没有稳定的单元素可挂，三档也就没法共用同一条规则；
+     · 统一挂 .cloud-main 上，三档切换观感一致，且只有**一个**元素参与动画。
+   只动 opacity + translateY，不动布局几何（探索针读 rect 不受影响）。
+   ⚠️ 与切列回弹同理：必须 false → 下一帧 true，否则同一帧内的类名增删会被合并、动画不重播。 */
+const isViewEntering = ref(false);
+let viewEnterTimer = null;
+
+watch(cloudTab, () => {
+  isViewEntering.value = false;
+  requestAnimationFrame(() => {
+    isViewEntering.value = true;
+  });
+  clearTimeout(viewEnterTimer);
+  viewEnterTimer = setTimeout(() => {
+    isViewEntering.value = false;
+  }, 320);
 });
 const composerTitle = computed(() => '发布新内容');
 const composerIntro = computed(() => '像写一页备忘录一样记录今天，让文字和图片自然排版。');
@@ -1256,6 +1289,23 @@ const cloudAccounting = computed(() =>
  */
 const activeGalleryEntries = computed(() => entries.value);
 const isSelectedEntryPublic = computed(() => isPublicCloudEntry(selectedEntry.value));
+/**
+ * 「转为帖子」入口的显示条件（2026-10-03 报障：已经是帖子了还显示「转为帖子」）。
+ *
+ * 判据 = **来源不是论坛同步**。`source === 'forum'` 的条目是发帖成功时自动落库的备份
+ * （`ForumMain` 的 `createMyCloudEntry({ source: 'forum', sourcePostId })`），
+ * 它本身就已经对应一篇论坛帖 —— 再点一次「转为帖子」只会拿同一批图再发一遍，
+ * 产出重复内容。其余来源（manual / ai / migrated）才是「还没对外发过的备份」，保留入口。
+ *
+ * ⚠️ 别改用 visibility 判断：论坛同步条目是 `private`（被 API 锁死禁止设为公开），
+ * 用 `isSelectedEntryPublic` 过滤等于一条都挡不住。
+ */
+const canConvertSelectedEntryToPost = computed(
+  () =>
+    selectedEntrySource.value === 'mine' &&
+    String(selectedEntry.value?.source || '').trim() !== 'forum' &&
+    collectEntryImageUrls(selectedEntry.value).length > 0,
+);
 const selectedEntryKicker = computed(() => {
   if (selectedEntrySource.value === 'shared') return 'BOH Cloud Channel Entry';
   return isSelectedEntryPublic.value ? 'BOH Cloud+ · 已公开 · 作品格' : 'BOH Cloud+ Entry';
@@ -1379,6 +1429,32 @@ const ALBUM_COLUMN_MAX = 12;
 const albumColumnCount = ref(null);
 const autoAlbumColumns = ref(ALBUM_NARROW_COLUMNS);
 const resolvedAlbumColumns = computed(() => albumColumnCount.value ?? autoAlbumColumns.value);
+
+/* 2026-10-03 动效：捏合切列时给网格一个「落定」回弹。
+   grid-template-columns 本身在多数浏览器里不可过渡（改列数是一步 reflow），
+   所以不做「连续缩放」的假象，而是在列数真的变了之后给整片网格一次 280ms 的
+   scale/opacity 收束 —— 手感上就是「张手 → 格子收拢到位」，且只有**一个**元素在动，
+   不会重蹈 2026-10-02「26 格逐个 FLIP 导致滑动卡顿/闪烁」的覆辙。
+   注意：不能直接绑 :class 常驻，否则动画只在首次渲染播一次 —— 必须先落回 false
+   再在下一帧置 true（同一帧内 false→true 会被 Vue 合并掉）。 */
+const isAlbumSettling = ref(false);
+let albumSettleTimer = null;
+
+watch(resolvedAlbumColumns, () => {
+  isAlbumSettling.value = false;
+  requestAnimationFrame(() => {
+    isAlbumSettling.value = true;
+  });
+  clearTimeout(albumSettleTimer);
+  albumSettleTimer = setTimeout(() => {
+    isAlbumSettling.value = false;
+  }, 300);
+});
+
+onUnmounted(() => {
+  clearTimeout(albumSettleTimer);
+  clearTimeout(viewEnterTimer);
+});
 
 try {
   const savedColumns = Number(localStorage.getItem(ALBUM_COLUMNS_STORAGE_KEY));
@@ -2398,47 +2474,90 @@ async function handleImageSelection(event) {
   cloudState.upload.uploading = true;
   cloudState.upload.progress = 0;
   const totalFiles = files.length;
-  let uploadedCount = 0;
+  let settledCount = 0;
+  let aborted = false;
+  // 按下标落位：并发下「完成顺序」≠「选图顺序」，直接 push 会让相册里的照片顺序乱掉
+  const uploadedByIndex = new Array(totalFiles).fill(null);
+  const failedByIndex = new Array(totalFiles).fill(null);
+
+  // 并发池：与论坛发帖 / 影集上传同一个上限真源（cloud-upload-guard.js）。
+  // 改造前是 `for (const file of files)` 纯串行，9 张图 = 9 次串行上传。
+  const concurrency = resolveCloudUploadConcurrency();
+  const queue = [];
+  let activeCount = 0;
+  let drainResolve = null;
+  const drained = new Promise((resolve) => {
+    drainResolve = resolve;
+  });
+
+  const pump = () => {
+    while (activeCount < concurrency && queue.length) {
+      const runJob = queue.shift();
+      activeCount += 1;
+      runJob()
+        .catch(() => {})
+        .finally(() => {
+          activeCount -= 1;
+          settledCount += 1;
+          cloudState.upload.progress = Math.round((settledCount / totalFiles) * 100);
+          if (queue.length || activeCount) pump();
+          else drainResolve();
+        });
+    }
+  };
 
   try {
-    for (const file of files) {
-      cloudState.upload.currentFile = file.name;
-
-      // 检查是否被取消
-      if (uploadController.signal.aborted) {
-        showNotice('上传已取消');
-        break;
-      }
-
-      try {
-        // 传入 signal：用户点取消时真正中止在途 HTTP 上传，而不是只重置 UI 状态让请求继续跑到超时
-        const uploaded = await uploadImageToCloudinary(file, {
-          signal: uploadController.signal,
-        });
-        uploadedImages.value.push({
-          url: uploaded.url,
-          publicId: uploaded.publicId,
-          deleteToken: uploaded.deleteToken,
-          alt: uploaded.originalFilename || file.name,
-          width: uploaded.width,
-          height: uploaded.height,
-        });
-        uploadedCount++;
-        cloudState.upload.progress = Math.round((uploadedCount / totalFiles) * 100);
-      } catch (uploadError) {
-        // 用户主动取消：中止剩余文件，不计入失败列表
-        if (uploadError?.name === 'AbortError' || uploadController.signal.aborted) {
-          showNotice('上传已取消');
-          break;
+    files.forEach((file, index) => {
+      queue.push(async () => {
+        // 检查是否被取消
+        if (uploadController.signal.aborted) {
+          aborted = true;
+          return;
         }
-        // 记录失败的图片，提供重试选项
-        cloudState.upload.failedImages.push({
-          file,
-          error: uploadError?.message || '上传失败',
-          name: file.name,
-        });
-        logger.error('cloud-plus', `上传图片 ${file.name} 失败:`, uploadError);
-      }
+        cloudState.upload.currentFile = file.name;
+
+        try {
+          // 传入 signal：用户点取消时真正中止在途 HTTP 上传，而不是只重置 UI 状态让请求继续跑到超时
+          const uploaded = await uploadImageToCloudinary(file, {
+            signal: uploadController.signal,
+          });
+          uploadedByIndex[index] = {
+            url: uploaded.url,
+            publicId: uploaded.publicId,
+            deleteToken: uploaded.deleteToken,
+            alt: uploaded.originalFilename || file.name,
+            width: uploaded.width,
+            height: uploaded.height,
+          };
+        } catch (uploadError) {
+          // 用户主动取消：中止剩余文件，不计入失败列表
+          if (uploadError?.name === 'AbortError' || uploadController.signal.aborted) {
+            aborted = true;
+            return;
+          }
+          // 记录失败的图片，提供重试选项
+          failedByIndex[index] = {
+            file,
+            error: uploadError?.message || '上传失败',
+            name: file.name,
+          };
+          logger.error('cloud-plus', `上传图片 ${file.name} 失败:`, uploadError);
+        }
+      });
+    });
+
+    pump();
+    if (queue.length || activeCount) await drained;
+
+    // 队列跑完后按选图顺序落位（并发完成顺序不可依赖）
+    const uploaded = uploadedByIndex.filter(Boolean);
+    const failed = failedByIndex.filter(Boolean);
+    if (uploaded.length) uploadedImages.value.push(...uploaded);
+    cloudState.upload.failedImages = failed;
+    const uploadedCount = uploaded.length;
+
+    if (aborted) {
+      showNotice('上传已取消');
     }
 
     if (uploadedCount > 0) {
@@ -2572,7 +2691,25 @@ async function publishEntry() {
   }
 }
 
-function openEntry(entry, source = 'mine') {
+/**
+ * 打开条目详情。
+ *
+ * 2026-10-03 动效：把「点中的那一格的中心」记进 --detail-origin-x/y，
+ * 详情弹窗的进出场 transform-origin 就用它 —— 视觉上是「从这一格放大展开」，
+ * 关闭时缩回同一处（而不是从屏幕正中凭空长出）。
+ * 没有事件（深链 / 程序化打开）时回落 50% 50%，即居中展开。
+ */
+const detailOrigin = reactive({ x: '50%', y: '50%' });
+
+function openEntry(entry, source = 'mine', originEvent = null) {
+  const rect = originEvent?.currentTarget?.getBoundingClientRect?.();
+  if (rect && rect.width > 0 && rect.height > 0) {
+    detailOrigin.x = `${Math.round(rect.left + rect.width / 2)}px`;
+    detailOrigin.y = `${Math.round(rect.top + rect.height / 2)}px`;
+  } else {
+    detailOrigin.x = '50%';
+    detailOrigin.y = '50%';
+  }
   selectedEntry.value = entry;
   selectedEntrySource.value = source === 'shared' ? 'shared' : 'mine';
 }
@@ -2584,6 +2721,12 @@ function openEntry(entry, source = 'mine') {
  * 避免「刚选好的图被旧草稿覆盖」。
  */
 function convertEntryToPost(entry) {
+  // 兜底：入口已按 canConvertSelectedEntryToPost 隐藏，这里再挡一次，
+  // 避免以后有人从别处（快捷键/深层链接）调进来时把一篇帖子再发一遍。
+  if (String(entry?.source || '').trim() === 'forum') {
+    showNotice('这条内容来自论坛同步，本身已经是一篇帖子');
+    return;
+  }
   const images = collectEntryImageUrls(entry);
   if (!images.length) {
     showNotice('这条备份没有图片，无法转为帖子');

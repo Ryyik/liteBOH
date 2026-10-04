@@ -6,7 +6,7 @@ export const moodChoices = [
   { value: '难过', icon: '🌙', hint: '有些低落，允许自己温柔记录' },
   { value: '愤怒', icon: '🔥', hint: '情绪有张力，先安全地表达出来' },
   { value: '疲惫', icon: '🫧', hint: '有点累了，简单记一点也很好' },
-  { value: '期待', icon: '🌱', hint: '心里有盼头，想留住这份等待' }
+  { value: '期待', icon: '🌱', hint: '心里有盼头，想留住这份等待' },
 ];
 
 export const moodOptions = moodChoices.map((item) => item.value);
@@ -23,7 +23,5 @@ export const monthLabels = Array.from({ length: 12 }, (_, i) => `${i + 1}月`);
 export const quickPrompts = [
   '总结我最近 7 天的主要想法和情绪变化',
   '我最近反复提到的核心问题是什么',
-  '请把我的思路整理成 3 条可执行行动'
+  '请把我的思路整理成 3 条可执行行动',
 ];
-
-export const WEEKLY_REPORT_CACHE_PREFIX = 'boh_treehole_weekly_report';

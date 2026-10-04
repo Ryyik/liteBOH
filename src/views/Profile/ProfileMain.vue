@@ -710,23 +710,31 @@
                   </div>
                 </div>
               </article>
+              <!-- ⚠️ 这一支的别名必须是 item.post。
+                   profileWorkItems 的元素形如 { key, kind: 'post'|'note', date, post?, card? }：
+                   kind==='note' 走上一支（item.card），kind==='post' 走这里（item.post）。
+                   2026-10-03 之前这一支写的是裸 post 前缀（模板里根本没有 post 这个绑定，
+                   唯一叫 post 的 v-for 在「代表作置顶」那段），编译成 _ctx.post 后是 undefined，
+                   渲染时先求值 :class 里的 post 图片长度就抛
+                   "undefined is not an object (evaluating 'e.post.images')"，
+                   表现为打开他人主页整页报错（/profile/:username → ProfileMain）。 -->
               <article
                 v-else
                 class="profile-post-card"
                 :class="{
-                  'text-only': !post.images?.length,
-                  'image-post-card-v2': post.images?.length,
+                  'text-only': !item.post.images?.length,
+                  'image-post-card-v2': item.post.images?.length,
                 }"
                 :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
-                @click="navigateToPost(post.id)"
+                @click="navigateToPost(item.post.id)"
               >
                 <div v-if="isOwnProfile" class="profile-post-pin-action">
                   <button
                     class="pin-post-btn"
-                    @click.stop="toggleShowcasePost(post)"
-                    :disabled="!isShowcasedPost(post.id) && showcasePosts.length >= 3"
+                    @click.stop="toggleShowcasePost(item.post)"
+                    :disabled="!isShowcasedPost(item.post.id) && showcasePosts.length >= 3"
                   >
-                    {{ isShowcasedPost(post.id) ? '已置顶' : '置顶' }}
+                    {{ isShowcasedPost(item.post.id) ? '已置顶' : '置顶' }}
                   </button>
                 </div>
                 <figure
@@ -736,39 +744,39 @@
                   aria-hidden="true"
                 >
                   <img
-                    :src="getPostCardCatSrc(post, index)"
+                    :src="getPostCardCatSrc(item.post, index)"
                     alt=""
                     draggable="false"
                     loading="lazy"
                   />
                 </figure>
                 <figure
-                  v-if="isHomeCatActive && shouldShowPostBackgroundCat(post, index)"
+                  v-if="isHomeCatActive && shouldShowPostBackgroundCat(item.post, index)"
                   class="post-card-background-cat"
                   aria-hidden="true"
                 >
                   <img
-                    :src="getPostBackgroundCatSrc(post, index)"
+                    :src="getPostBackgroundCatSrc(item.post, index)"
                     alt=""
                     draggable="false"
                     loading="lazy"
                   />
                 </figure>
-                <div class="profile-post-cover" v-if="getProfilePostCover(post)">
+                <div class="profile-post-cover" v-if="getProfilePostCover(item.post)">
                   <img
-                    :src="getProfilePostCover(post)"
-                    :alt="post.title || '帖子封面'"
+                    :src="getProfilePostCover(item.post)"
+                    :alt="item.post.title || '帖子封面'"
                     loading="lazy"
                     decoding="async"
                   />
                 </div>
                 <div class="profile-post-copy">
-                  <h3>{{ post.title || '无标题' }}</h3>
-                  <p>{{ getProfilePostSummary(post) }}</p>
+                  <h3>{{ item.post.title || '无标题' }}</h3>
+                  <p>{{ getProfilePostSummary(item.post) }}</p>
                   <div class="profile-post-meta">
-                    <span>{{ formatProfilePostDate(post) }}</span>
-                    <span>{{ post.like_count || 0 }}赞</span>
-                    <span>{{ post.comment_count || 0 }}评</span>
+                    <span>{{ formatProfilePostDate(item.post) }}</span>
+                    <span>{{ item.post.like_count || 0 }}赞</span>
+                    <span>{{ item.post.comment_count || 0 }}评</span>
                   </div>
                 </div>
               </article>
@@ -1048,7 +1056,7 @@ import {
   getFollowers,
   getFollowing,
 } from '@/utils/api/profile-api.js';
-import { createPost, toggleLike } from '@/utils/api/forum-api.js';
+import { createPost } from '@/utils/api/forum-api.js';
 import { getCloudinaryDisplayUrl } from '@/utils/cloudinary-client.js';
 import { listUserPublicCloudEntries } from '@/utils/api/boh-cloud-api.js';
 import { buildCloudNoteWorkCard } from '@/utils/cloud-note-cover.js';
@@ -1064,7 +1072,6 @@ import {
 } from '@/utils/home-cat-post.js';
 import { formatSmartTime } from '@/utils/time.js';
 import { getLevelInfo } from '@/utils/xp.js';
-import { notify } from '@/utils/notify.js';
 import { useUserOnlineStatus } from '@/views/user-center/UserSpace/composables/useUserOnlineStatus.js';
 import imageCompression from 'browser-image-compression';
 import {
@@ -1409,8 +1416,6 @@ const alertState = reactive({
   message: '',
 });
 
-const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? false);
-
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
 const isHomeCatActive = computed(
@@ -1530,64 +1535,9 @@ const followModal = reactive({
   page: 1,
 });
 
-const isLikeSubmitting = reactive({});
-const likePulsePostIds = ref(new Set());
-const isShareCopied = ref(false);
 let shareCopyTimer = null;
 let likePulseTimers = {};
 let likeSubmitTimers = {};
-
-const isLikePulsing = (postId) => likePulsePostIds.value.has(postId);
-
-const handleToggleLike = async (post) => {
-  if (!isLoggedIn.value) return;
-  if (!post?.id) return;
-  if (isLikeSubmitting[post.id]) return;
-  isLikeSubmitting[post.id] = true;
-  try {
-    const { action, error } = await toggleLike(post.id, userInfo.value.id);
-    if (error) {
-      notify('点赞失败，请稍后重试', 'error');
-      return;
-    }
-    if (action === 'liked') {
-      post.like_count = (post.like_count || 0) + 1;
-      post.isLiked = true;
-    } else if (action === 'unliked') {
-      post.like_count = Math.max(0, (post.like_count || 0) - 1);
-      post.isLiked = false;
-    }
-    likePulsePostIds.value = new Set([...likePulsePostIds.value, post.id]);
-    clearTimeout(likePulseTimers[post.id]);
-    likePulseTimers[post.id] = setTimeout(() => {
-      const next = new Set(likePulsePostIds.value);
-      next.delete(post.id);
-      likePulsePostIds.value = next;
-    }, 1900);
-  } catch {
-    notify('点赞失败，请检查网络连接', 'error');
-  } finally {
-    clearTimeout(likeSubmitTimers[post.id]);
-    likeSubmitTimers[post.id] = setTimeout(() => {
-      isLikeSubmitting[post.id] = false;
-    }, 300);
-  }
-};
-
-const handleSharePost = async (post) => {
-  if (!post?.id) return;
-  const url = `${window.location.origin}/forum/post/${post.id}`;
-  try {
-    await navigator.clipboard.writeText(url);
-    isShareCopied.value = true;
-    clearTimeout(shareCopyTimer);
-    shareCopyTimer = setTimeout(() => {
-      isShareCopied.value = false;
-    }, 2000);
-  } catch {
-    notify('复制失败，请手动复制链接', 'warning');
-  }
-};
 
 const openFollowModal = async (type) => {
   const profileId = profile.value?.id;

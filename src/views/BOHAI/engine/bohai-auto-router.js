@@ -210,9 +210,7 @@ export const isLikelyCommunityMemoryShare = (text) => {
 
 // 冻结的"中性空决策"
 export const EMPTY_AUTO_DECISION = Object.freeze({
-  shouldSaveCloud: false,
   shouldSaveSharedMemory: false,
-  shouldAskMemoryDestination: false,
   saveDestination: 'none',
   shouldReferenceCloud: false,
 });
@@ -241,29 +239,17 @@ export const resolveBOHAIAutoModeDecision = (text, _options = {}) => {
   if (cached) return cached;
 
   const shouldReferenceCloud = isLikelyCloudReferenceRequest(safeText);
-  const communityMemoryShare = isLikelyCommunityMemoryShare(safeText);
   const forumPostAction = ROUTING_PATTERNS.forumPost.pattern.test(safeText);
-  const wantsCloudSave = !forumPostAction && ROUTING_PATTERNS.cloudSave.pattern.test(safeText);
-  const wantsSharedSave = ROUTING_PATTERNS.sharedSave.pattern.test(safeText);
-  const wantsBothSave =
-    ROUTING_PATTERNS.bothSave.pattern.test(safeText) && (wantsCloudSave || wantsSharedSave);
-  const shouldAskMemoryDestination = communityMemoryShare && !wantsCloudSave && !wantsSharedSave;
-
-  let saveDestination = 'none';
-  if (wantsBothSave) {
-    saveDestination = 'both';
-  } else if (wantsCloudSave) {
-    saveDestination = 'cloud';
-  } else if (wantsSharedSave) {
-    saveDestination = 'shared';
-  } else if (shouldAskMemoryDestination) {
-    saveDestination = 'ask';
-  }
+  // 2026-10-04：Cloud+ 写入（cloudSave）与「两处同存」（bothSave）已下线 ⇒ 目的地只剩
+  // shared / none 两种；「问用户存哪里」（shouldAskMemoryDestination）也随之取消。
+  // ⚠️ `isLikelyCommunityMemoryShare` 的调用已移除，但**函数与它的 4 类正则先保留** ——
+  // 删它们要连带改单测，且 `community/question/memoryQuery/memoryShare` 属于 024 标注的
+  // 「间接存活」正则，误删代价高。要清理请单独一次提交 + 反证。
+  const wantsSharedSave = !forumPostAction && ROUTING_PATTERNS.sharedSave.pattern.test(safeText);
+  const saveDestination = wantsSharedSave ? 'shared' : 'none';
 
   const decision = {
-    shouldSaveCloud: saveDestination === 'cloud' || saveDestination === 'both',
-    shouldSaveSharedMemory: saveDestination === 'shared' || saveDestination === 'both',
-    shouldAskMemoryDestination,
+    shouldSaveSharedMemory: saveDestination === 'shared',
     saveDestination,
     shouldReferenceCloud,
   };

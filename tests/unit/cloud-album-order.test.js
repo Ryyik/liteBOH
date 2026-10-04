@@ -92,6 +92,26 @@ describe('Cloud+ 相册排序与形态（2026-10-02 定稿，防回退）', () =
     expect(forum).toContain('backupPostImagesToCloud');
   });
 
+  it('已是论坛帖的备份不再显示「转为帖子」（2026-10-03 报障）', () => {
+    // source==='forum' 的条目是**发帖成功时自动落库的备份**（ForumMain 的
+    // createMyCloudEntry({ source:'forum', sourcePostId })），它本身就已经是一篇论坛帖。
+    // 旧判据只看「有没有图」，于是这些条目在详情页也会出现「转为帖子」，
+    // 点一下等于拿同一批图再发一遍 —— 用户看到的就是「已经是公开帖子了还给转帖入口」。
+    //
+    // ⚠️ 判据**不能**改用 visibility：论坛同步条目是 private（API 层锁死禁止设为公开），
+    // 用 isSelectedEntryPublic 过滤一条都挡不住。
+    const script = viewCode();
+    expect(script).toContain('canConvertSelectedEntryToPost');
+    expect(script).toMatch(/source[\s\S]{0,60}forum/);
+    // 处理函数自身也要有兜底（入口隐藏挡不住从别处调进来）
+    expect(script).toMatch(/function convertEntryToPost\(entry\)[\s\S]{0,300}forum/);
+
+    const view = read('src/views/user-center/Cloud+/CloudPlusMain.vue');
+    expect(view).toContain('v-if="canConvertSelectedEntryToPost"');
+    // 不得回到「有图就显示」的裸条件
+    expect(view).not.toContain('v-if="collectEntryImageUrls(selectedEntry).length"');
+  });
+
   it('Phase 2：发帖成功后自动备份（best-effort，无图帖不备份）', () => {
     const forum = forumCode();
     expect(forum).toContain('createMyCloudEntry(userId, {');
@@ -106,5 +126,76 @@ describe('Cloud+ 相册排序与形态（2026-10-02 定稿，防回退）', () =
     expect(read('src/views/user-center/Cloud+/style.scoped.css')).toMatch(
       /grid-template-columns: repeat\(var\(--album-columns/,
     );
+  });
+});
+
+/**
+ * Cloud+ 动效（2026-10-03）：放大 / 缩小 / 切换。
+ *
+ * 为什么要有源码层守卫：三条动效里两条靠「瞬时类名 + keyframes」，浏览器探针
+ * （scripts/probes 里的临时冒烟）能验，但探针**不进 CI**（`npm run verify` 不跑探针）。
+ * 这里锁住「接线」这一层 —— 类名、Transition 名、关键帧名、origin 变量名，
+ * 任何一处被改掉或删掉，这里先红，而不是等用户发现「点了没反应」。
+ * 反向对照实测：把 openEntry 的 rect 分支改成恒 false（退回居中展开）→
+ * 探针的「展开原点 = 点中格子的中心」与「transform-origin 用了该原点」两条当场 FAIL。
+ */
+describe('Cloud+ 动效接线（2026-10-03，防「静默失效」）', () => {
+  const css = () => read('src/views/user-center/Cloud+/style.scoped.css');
+  const view = () => read('src/views/user-center/Cloud+/CloudPlusMain.vue');
+
+  it('图库格子：hover 放大 / 按压缩小', () => {
+    const sheet = css();
+    // hover 必须限定在真有指针的设备上：触屏没有 hover，点过会一直保持放大态
+    expect(sheet).toMatch(/@media \(hover: hover\) and \(pointer: fine\)/);
+    expect(sheet).toMatch(/\.gallery-tile:hover\s*\{[\s\S]{0,160}transform: scale\(1\.0/);
+    expect(sheet).toMatch(/\.gallery-tile:active\s*\{[\s\S]{0,120}transform: scale\(0\.9/);
+  });
+
+  it('详情：从点中的格子放大展开、关闭缩回', () => {
+    const script = viewCode();
+    // origin 必须来自被点元素的 rect（写死 50% 就是「从屏幕正中凭空长出」）
+    expect(script).toContain('detailOrigin');
+    expect(script).toMatch(/getBoundingClientRect/);
+    expect(view()).toMatch(/<Transition name="cloud-detail">/);
+    expect(view()).toMatch(/'--detail-origin-x': detailOrigin\.x/);
+
+    const sheet = css();
+    expect(sheet).toMatch(
+      /\.detail-overlay\.cloud-detail-enter-active \.detail-modal[\s\S]{0,200}transform-origin: var\(--detail-origin-x/,
+    );
+    expect(sheet).toContain('cloudDetailZoomIn');
+    expect(sheet).toContain('cloudDetailZoomOut');
+    // 基类上不许再写死进场动画：写死了就只有进场没有退场（v-if 卸载时类还没生效）
+    expect(sheet).not.toMatch(/\.detail-modal\s*\{[\s\S]{0,300}animation: slideUp/);
+  });
+
+  it('切换：三档视图过渡 + 捏合切列落定', () => {
+    expect(view()).toMatch(/:class="\{ 'is-view-entering': isViewEntering \}"/);
+    expect(view()).toMatch(/:class="\{ 'is-settling': isAlbumSettling \}"/);
+    expect(viewCode()).toMatch(/watch\(cloudTab,[\s\S]{0,200}isViewEntering\.value = true/);
+    expect(viewCode()).toMatch(
+      /watch\(resolvedAlbumColumns,[\s\S]{0,200}isAlbumSettling\.value = true/,
+    );
+
+    const sheet = css();
+    expect(sheet).toContain('.cloud-main.is-view-entering');
+    expect(sheet).toContain('cloudViewEnter');
+    expect(sheet).toContain('.album-tile-grid.is-settling');
+    expect(sheet).toContain('cloudAlbumSettle');
+  });
+
+  it('新动画全部接 prefers-reduced-motion 兜底', () => {
+    const sheet = css();
+    const reduceBlocks =
+      sheet.match(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\n\}/g) || [];
+    const joined = reduceBlocks.join('\n');
+    // 兜底块里写的是「承载动画的选择器」（不是 keyframes 名）—— 逐个点名
+    for (const selector of [
+      '.detail-overlay.cloud-detail-enter-active',
+      '.cloud-main.is-view-entering',
+      '.album-tile-grid.is-settling',
+    ]) {
+      expect(joined, `${selector} 缺少 reduced-motion 兜底`).toContain(selector);
+    }
   });
 });

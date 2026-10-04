@@ -155,6 +155,3 @@ export const AI_MEMORY = `
 - 当记忆库中出现时间或细节不一致的情况时，请坦诚说明存在不同说法，不要擅自编造统一版本。
 - 在不改变任何既定事实立场的前提下，可以基于现有资料进行适度润色和总结，但**绝对不能无中生有**。
 `;
-
-
-export { COMMAND_MODE_INSTRUCTION } from './minecraft-commands.js';

@@ -3,7 +3,6 @@ import { isAbortError } from '../utils/chatErrorMessages.js';
 import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { NO_FABRICATION_RULE } from '../shared-rules.js';
 import { createPost } from '@/utils/api/forum-api.js';
-import { createMyCloudEntry } from '@/utils/api/boh-cloud-api.js';
 import { createSharedAIMemory } from '@/utils/api/treehole-api.js';
 import { BOHAI_ACTION_IDS, createBohAIAction, runBohAIAction } from '@/utils/bohai-connectors.js';
 import { appendBohAIActionAudit, createBohAIActionAuditEntry } from '@/utils/bohai-action-audit.js';
@@ -29,7 +28,6 @@ import {
   ACTION_DRAFT_TITLE_MAX_CHARS,
   BASE_SYSTEM_PROMPT,
   PAGE_CREATION_PROMPT_APPENDIX,
-  QUICK_NOTE_TITLE_MAX_CHARS,
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
 
@@ -42,7 +40,6 @@ import { logger } from '@/utils/logger.js';
  * @param {Ref<number>}  deps.currentSessionIndex
  * @param {Object}       deps.pendingActionDraft       — 响应式 reactive 对象
  * @param {Ref<Array>}   deps.actionAuditLog
- * @param {Object}       deps.treeholeMemoryCache
  * @param {Object}       deps.sharedMemoryCache
  * @param {Function}     deps.resetSharedMemorySearchCache
  * @param {Function}     deps.appendSessionMessage
@@ -64,8 +61,6 @@ import { logger } from '@/utils/logger.js';
  * @param {Ref<Object>}  deps.currentModel
  * @param {Ref<Array>}   deps.runtimeAvailableModels
  * @param {Function}     deps.callModelInternal
- * @param {Function}     deps.extractQuickNoteContent
- * @param {Function}     deps.buildQuickNoteTitle
  * @param {Function}     deps.getSharedMemoriesCached
  */
 export function useActionDraft(deps) {
@@ -74,7 +69,6 @@ export function useActionDraft(deps) {
     currentSessionIndex,
     pendingActionDraft,
     actionAuditLog,
-    treeholeMemoryCache,
     sharedMemoryCache,
     resetSharedMemorySearchCache,
     appendSessionMessage,
@@ -96,22 +90,8 @@ export function useActionDraft(deps) {
     currentModel,
     runtimeAvailableModels,
     callModelInternal,
-    extractQuickNoteContent,
-    buildQuickNoteTitle,
     getSharedMemoriesCached,
   } = deps;
-
-  // ------------------------------------------------------------------
-  // 工具函数
-  // ------------------------------------------------------------------
-  const getLocalDateKey = (value = new Date()) => {
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   // ------------------------------------------------------------------
   // 草稿预览函数
@@ -169,68 +149,6 @@ export function useActionDraft(deps) {
           message: createdPostId ? `帖子已发布成功（ID: ${createdPostId}）。` : '帖子已发布成功。',
           data: { id: createdPostId },
         };
-      },
-    }),
-    [BOHAI_ACTION_IDS.saveCloud]: createBohAIAction({
-      id: BOHAI_ACTION_IDS.saveCloud,
-      label: '保存到 BOH Cloud+',
-      source: 'BOH Cloud+',
-      validate: ({ content = '' } = {}) => {
-        if (!normalizePromptLine(content, 320)) {
-          return { ok: false, error: { message: '保存内容不能为空。' } };
-        }
-        return { ok: true };
-      },
-      execute: async ({ content = '', title = '' } = {}, { auth } = {}) => {
-        const safeContent = normalizePromptLine(content, 320);
-        const cloudResult = await createMyCloudEntry(auth.userId, {
-          entryDate: getLocalDateKey(),
-          title:
-            normalizePromptLine(title, QUICK_NOTE_TITLE_MAX_CHARS) ||
-            buildQuickNoteTitle(safeContent),
-          contentText: safeContent,
-          contentBlocks: [{ type: 'text', text: safeContent }],
-          mood: '',
-          source: 'ai',
-        });
-        if (!cloudResult.ok) {
-          return { ok: false, error: cloudResult.error || { message: '保存失败' } };
-        }
-        treeholeMemoryCache.userId = '';
-        treeholeMemoryCache.fetchedAt = 0;
-        treeholeMemoryCache.items = [];
-        return { ok: true, message: '已记录到 BOH Cloud+。', data: cloudResult.data };
-      },
-    }),
-    [BOHAI_ACTION_IDS.quickNote]: createBohAIAction({
-      id: BOHAI_ACTION_IDS.quickNote,
-      label: '保存随手记到 BOH Cloud+',
-      source: 'BOH Cloud+',
-      validate: ({ content = '' } = {}) => {
-        if (!extractQuickNoteContent(content)) {
-          return { ok: false, error: { message: '摘录内容不能为空。' } };
-        }
-        return { ok: true };
-      },
-      execute: async ({ content = '', title = '' } = {}, { auth } = {}) => {
-        const safeContent = extractQuickNoteContent(content);
-        const cloudResult = await createMyCloudEntry(auth.userId, {
-          entryDate: getLocalDateKey(),
-          title:
-            normalizePromptLine(title, QUICK_NOTE_TITLE_MAX_CHARS) ||
-            buildQuickNoteTitle(safeContent),
-          contentText: safeContent,
-          contentBlocks: [{ type: 'text', text: safeContent }],
-          mood: '',
-          source: 'ai',
-        });
-        if (!cloudResult.ok) {
-          return { ok: false, error: cloudResult.error || { message: '记录失败，请稍后重试。' } };
-        }
-        treeholeMemoryCache.userId = '';
-        treeholeMemoryCache.fetchedAt = 0;
-        treeholeMemoryCache.items = [];
-        return { ok: true, message: '已记录到 BOH Cloud+。', data: cloudResult.data };
       },
     }),
     [BOHAI_ACTION_IDS.saveSharedMemory]: createBohAIAction({
@@ -816,7 +734,6 @@ export function useActionDraft(deps) {
   };
 
   return {
-    getLocalDateKey,
     formatPostDraftPreview,
     formatPageDraftPreview,
     updatePostDraftByUserInput,

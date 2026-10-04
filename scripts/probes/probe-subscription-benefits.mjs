@@ -36,7 +36,6 @@ const check = (name, cond, detail) => {
   }
 };
 const digits = (s) => (String(s).match(/[\d.]+/g) || []).join('');
-const squash = (s) => String(s).replace(/\s+/g, ' ').trim();
 
 const browser = await chromium.launch({
   channel: 'chrome',

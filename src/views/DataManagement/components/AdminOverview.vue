@@ -407,13 +407,6 @@ const supabaseLoading = computed(
 const supabaseDbSize = computed(() =>
   formatBytes(supabaseData.value.database_size || supabaseData.value.databaseSize || 0),
 );
-const supabaseDbLimit = computed(() =>
-  formatBytes(
-    supabaseData.value.database_size_limit ||
-      supabaseData.value.databaseSizeLimit ||
-      500 * 1024 * 1024,
-  ),
-);
 const supabaseDbPercent = computed(() => {
   const percent =
     supabaseData.value.database_percent ||

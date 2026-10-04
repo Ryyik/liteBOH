@@ -507,6 +507,7 @@ import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import { getMyUserSpaceSummary } from '@/utils/api/user-space-api.js';
 import { logger } from '@/utils/logger.js';
+import { createKeyedAbortController } from '@/utils/request-core.js';
 import { listMyCloudEntries, setMyCloudEntryVisibility } from '@/utils/api/boh-cloud-api.js';
 import { deleteCloudEntryWithAssets } from '@/utils/cloud-entry-maintenance.js';
 import { isPublicCloudEntry } from '@/utils/cloud-storage-accounting.js';
@@ -544,7 +545,6 @@ const refreshUnreadCount = async () => {
   await notificationStore.refreshUnreadCount();
 };
 
-const username = computed(() => userInfo.value.username);
 const assetsInitialTab = ref('');
 const TAB_LEAVE_CLEAR_DELAY_MS = 340;
 let userSpaceWarmupTimeoutId = null;
@@ -572,14 +572,8 @@ const dataState = reactive({
 });
 
 // ✅ 性能优化：添加 AbortController 管理，支持请求取消
+// 实现已收敛到 @/utils/request-core.js 的 createKeyedAbortController（单一真源）。
 const abortControllers = new Map();
-const createAbortController = (key) => {
-  const existing = abortControllers.get(key);
-  if (existing) existing.abort();
-  const controller = new AbortController();
-  abortControllers.set(key, controller);
-  return controller;
-};
 const cleanupAbortControllers = () => {
   abortControllers.forEach((controller) => controller.abort());
   abortControllers.clear();
@@ -895,19 +889,9 @@ const userBirthday = computed(() => {
 const avatarUrl = computed(() => userInfo.value.avatarUrl || '');
 const profileBackgroundUrl = computed(() => userInfo.value.profileBackgroundUrl || '');
 const profileBackgroundPublicId = computed(() => userInfo.value.profileBackgroundPublicId || '');
-const userProfileBio = computed(() => {
-  const bio = String(userInfo.value.bio || '').trim();
-  return bio || '这个人很认真地搭着自己的方块。';
-});
 
 const joinDate = computed(() => userInfo.value.joinDate || '');
 const isProfileBasicsComplete = computed(() => Boolean(joinDate.value && userBirthday.value));
-const profileBirthdayText = computed(() =>
-  userBirthday.value ? formatBirthdayLabel(userBirthday.value) : '未设置',
-);
-const profileJoinDateText = computed(() =>
-  joinDate.value ? formatJoinDateLabel(joinDate.value) : '未设置',
-);
 const avatarInputRef = ref(null);
 const profileBackgroundInputRef = ref(null);
 const pointsCardInputRef = ref(null);
@@ -1001,38 +985,6 @@ const resetUserStats = () => {
   userStats.rank = 0;
 };
 
-const normalizeProfileText = (value, fallback = '') => {
-  const safeValue = String(value || '').trim();
-  return safeValue || fallback;
-};
-
-const getProfilePostTitle = (post = {}) => normalizeProfileText(post.title, '无标题');
-const getProfilePostSummary = (post = {}) => {
-  const body = normalizeProfileText(post.body || post.content, '');
-  return body.length > 46 ? `${body.slice(0, 46)}...` : body || '暂无正文';
-};
-
-const getProfilePostCover = (post = {}) => {
-  const images = Array.isArray(post.images) ? post.images : [];
-  const firstImage = images[0] || null;
-  const imageCover = String(
-    firstImage?.url || firstImage?.thumbUrl || firstImage?.originalUrl || '',
-  ).trim();
-  if (imageCover) return imageCover;
-  return String(post.cover_image_url || '').trim();
-};
-
-const formatProfilePostDate = (post = {}) => {
-  const rawDate = post.created_at || post.createdAt || post.published_at || post.updated_at || '';
-  if (!rawDate) return '刚刚';
-  const date = new Date(rawDate);
-  if (Number.isNaN(date.getTime())) return String(rawDate).slice(0, 10);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}.${month}.${day}`;
-};
-
 const openProfilePost = (postId) => {
   const safePostId = String(postId || '').trim();
   if (!safePostId) return;
@@ -1085,7 +1037,7 @@ const fetchProfileContent = async ({ force = false, reset = false } = {}) => {
   }
 
   const fetchToken = ++latestProfileContentFetchToken;
-  const abortController = createAbortController('profile-posts');
+  const abortController = createKeyedAbortController(abortControllers, 'profile-posts');
   const shouldShowGlobalLoading = reset || profilePosts.value.length === 0;
   if (shouldShowGlobalLoading) {
     dataState.profile.loading = true;
@@ -1178,7 +1130,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
   }
 
   const fetchToken = ++latestUserStatsFetchToken;
-  const abortController = createAbortController('user-stats');
+  const abortController = createKeyedAbortController(abortControllers, 'user-stats');
   dataState.stats.loading = true;
   const fallbackPoints = normalizeStatInt(userInfo.value.points, userStats.points);
   userStats.points = fallbackPoints;
@@ -1276,7 +1228,7 @@ const fetchUserStats = async ({ retryCount = 0, force = false } = {}) => {
  * PostgREST 表达不了「按自然日分组」的聚合，前端拉全量 posts/comments 自己 group by
  * 则要付出全表扫描 + 全量传输的代价。RPC 按 Asia/Shanghai 分桶，一次往返即可。
  *
- * 注意这里没有用 createAbortController：supabase-js 的 rpc() 不透传 signal，
+ * 注意这里没有用 createKeyedAbortController：supabase-js 的 rpc() 不透传 signal，
  * 所以并发竞争一律靠 fetchToken 判定（与 fetchUserStats 同构）。
  */
 const HEATMAP_WINDOW_DAYS = 371; // 53 周 + 当天，与 GitHub 口径一致
@@ -1596,7 +1548,7 @@ const fetchPushplusStatus = async ({ force = false } = {}) => {
     }
   }
 
-  const abortController = createAbortController('pushplus-status');
+  const abortController = createKeyedAbortController(abortControllers, 'pushplus-status');
   dataState.pushplus.loading = true;
   try {
     const { data, error } = await getPushplusSettings(userId, { signal: abortController.signal });
@@ -1661,7 +1613,7 @@ const fetchCloudPlusUsage = async ({ force = false } = {}) => {
     }
   }
 
-  const abortController = createAbortController('cloud-usage');
+  const abortController = createKeyedAbortController(abortControllers, 'cloud-usage');
   dataState.cloud.loading = true;
   try {
     const [subscriptionsResult, cloudEntriesResult] = await Promise.all([
@@ -1989,21 +1941,6 @@ const formatBirthday = (b) => {
   const m = String(b.month).padStart(2, '0');
   const d = String(b.day).padStart(2, '0');
   return `${m}/${d}`;
-};
-
-const formatBirthdayLabel = (b) => {
-  if (!b) return '';
-  const month = Number(b.month);
-  const day = Number(b.day);
-  if (!Number.isFinite(month) || !Number.isFinite(day)) return formatBirthday(b);
-  return `${month}月${day}日`;
-};
-
-const formatJoinDateLabel = (dateStr) => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return dateStr;
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 };
 
 const prepareEditProfileForm = () => {
@@ -2364,12 +2301,6 @@ const switchTab = (tabId) => {
     void preloadForumComponent();
     void activateForumTab();
   }
-};
-
-const goToProfile = (usernameVal) => {
-  const safeUsername = String(usernameVal || '').trim();
-  if (!safeUsername) return;
-  router.push(`/profile/${encodeURIComponent(safeUsername)}?from=community`);
 };
 
 const handleLogout = () => {

@@ -23,7 +23,9 @@ export const decodeCursorToken = (token = '', timestampField = 'updatedAt') => {
 
   try {
     const parsed = JSON.parse(atob(safeToken));
-    const updatedAt = String(parsed?.[timestampField] || parsed?.updatedAt || parsed?.updated_at || '').trim();
+    const updatedAt = String(
+      parsed?.[timestampField] || parsed?.updatedAt || parsed?.updated_at || '',
+    ).trim();
     const id = String(parsed?.id || '').trim();
     if (!updatedAt || !id) return null;
     return { updatedAt, id };
@@ -162,7 +164,7 @@ export const normalizeSpaceRow = (row) => {
     title: row.title || '我的 BOH 树洞',
     description: row.description || '',
     createdAt: row.created_at || '',
-    updatedAt: row.updated_at || ''
+    updatedAt: row.updated_at || '',
   };
 };
 
@@ -177,7 +179,7 @@ export const normalizeMemoryRow = (row) => {
     isStarred: Boolean(row.is_starred),
     source: row.source === 'ai' ? 'ai' : 'manual',
     createdAt: row.created_at || '',
-    updatedAt: row.updated_at || ''
+    updatedAt: row.updated_at || '',
   };
 };
 
@@ -212,7 +214,7 @@ export const normalizeMemoryCandidateRow = (row) => {
     model: row.model || '',
     memoryId: row.memory_id || '',
     createdAt: row.created_at || '',
-    updatedAt: row.updated_at || ''
+    updatedAt: row.updated_at || '',
   };
 };
 
@@ -231,7 +233,7 @@ export const normalizeSharedMemoryRow = (row) => {
     moderationStatus: row.moderation_status || '',
     moderationReason: row.moderation_reason || '',
     createdAt: row.created_at || '',
-    updatedAt: row.updated_at || ''
+    updatedAt: row.updated_at || '',
   };
 };
 
@@ -347,7 +349,10 @@ export const isLikelyDuplicateText = (incomingText, existingTexts = []) => {
   return false;
 };
 
-export const normalizeQuoteLine = (text) => String(text || '').replace(/\s+/g, ' ').trim();
+export const normalizeQuoteLine = (text) =>
+  String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 export const quoteExistsInSource = (sourceText, quoteText) => {
   const source = String(sourceText || '');
@@ -373,10 +378,12 @@ export const normalizeMemoriesForPrompt = (memories = []) => {
       mood: toTrimmedText(item?.mood, 24),
       tags: normalizeTags(item?.tags || []),
       createdAt: toTrimmedText(item?.createdAt, 40),
-      updatedAt: toTrimmedText(item?.updatedAt, 40)
+      updatedAt: toTrimmedText(item?.updatedAt, 40),
     }))
     .filter((item) => item.content)
-    .sort((a, b) => toTimestamp(a.updatedAt || a.createdAt) - toTimestamp(b.updatedAt || b.createdAt));
+    .sort(
+      (a, b) => toTimestamp(a.updatedAt || a.createdAt) - toTimestamp(b.updatedAt || b.createdAt),
+    );
 };
 
 export const buildTreeholeMemorySegments = (memories = [], maxSegmentChars = 1800) => {
@@ -399,14 +406,14 @@ export const buildTreeholeMemorySegments = (memories = [], maxSegmentChars = 180
         timestamp,
         mood: item.mood || '未标注',
         tags: tagsText || '无',
-        content: contentPart || '（空）'
+        content: contentPart || '（空）',
       });
     });
   });
 
   return {
     memoryCount: normalized.length,
-    segments
+    segments,
   };
 };
 
@@ -421,10 +428,7 @@ ${segment.content}`;
 
 export const buildTreeholeMemoryChunks = (
   memories = [],
-  {
-    maxChunkChars = 22000,
-    maxSegmentChars = 1800
-  } = {}
+  { maxChunkChars = 22000, maxSegmentChars = 1800 } = {},
 ) => {
   const { memoryCount, segments } = buildTreeholeMemorySegments(memories, maxSegmentChars);
   if (segments.length === 0) {
@@ -439,12 +443,12 @@ export const buildTreeholeMemoryChunks = (
   segments.forEach((segment) => {
     const line = formatTreeholeMemorySegment(segment);
     const estimatedLen = line.length + 2;
-    const shouldFlush = currentLines.length > 0 && (currentLen + estimatedLen > maxChunkChars);
+    const shouldFlush = currentLines.length > 0 && currentLen + estimatedLen > maxChunkChars;
 
     if (shouldFlush) {
       chunks.push({
         text: currentLines.join('\n\n'),
-        memoryCount: currentMemoryIds.size
+        memoryCount: currentMemoryIds.size,
       });
       currentLines = [];
       currentLen = 0;
@@ -459,7 +463,7 @@ export const buildTreeholeMemoryChunks = (
   if (currentLines.length > 0) {
     chunks.push({
       text: currentLines.join('\n\n'),
-      memoryCount: currentMemoryIds.size
+      memoryCount: currentMemoryIds.size,
     });
   }
 
@@ -476,7 +480,7 @@ export const normalizeHistoryMessages = (history = []) => {
     .slice(-10)
     .map((item) => ({
       role: item?.role === 'assistant' ? 'assistant' : 'user',
-      content: toTrimmedText(item?.content, 800)
+      content: toTrimmedText(item?.content, 800),
     }))
     .filter((item) => item.content);
 };
@@ -486,7 +490,7 @@ export const buildDialogueContextForMemoryCapture = (messages = []) => {
   const selected = source
     .map((item) => ({
       role: item?.role === 'assistant' ? 'assistant' : 'user',
-      content: toTrimmedText(item?.content, 900)
+      content: toTrimmedText(item?.content, 900),
     }))
     .filter((item) => item.content)
     .slice(-12);
@@ -504,15 +508,13 @@ export const buildDialogueContextForMemoryCapture = (messages = []) => {
 
   const userTurns = turns.filter((item) => item.role === 'user');
   const userTurnMap = new Map(userTurns.map((item) => [item.id, item]));
-  const turnText = turns
-    .map((turn) => `[${turn.id}][${turn.role}] ${turn.content}`)
-    .join('\n');
+  const turnText = turns.map((turn) => `[${turn.id}][${turn.role}] ${turn.content}`).join('\n');
 
   return {
     turns,
     userTurns,
     userTurnMap,
-    turnText
+    turnText,
   };
 };
 
@@ -551,10 +553,14 @@ export const normalizeCandidateEvidence = (evidence, userTurns = [], userTurnMap
   return output;
 };
 
-export const normalizeExtractedCandidate = (candidate = {}, userTurns = [], userTurnMap = new Map()) => {
+export const normalizeExtractedCandidate = (
+  candidate = {},
+  userTurns = [],
+  userTurnMap = new Map(),
+) => {
   const content = toTrimmedText(
     candidate?.content || candidate?.memory || candidate?.summary || candidate?.fact,
-    320
+    320,
   );
   if (!content) return null;
 
@@ -573,7 +579,12 @@ export const normalizeExtractedCandidate = (candidate = {}, userTurns = [], user
 // 记忆复盘相关
 // ================================================================
 
-export const TREEHOLE_REQUIRED_SECTIONS = ['【结论】', '【依据（记忆编号）】', '【行动建议】', '【不确定项】'];
+export const TREEHOLE_REQUIRED_SECTIONS = [
+  '【结论】',
+  '【依据（记忆编号）】',
+  '【行动建议】',
+  '【不确定项】',
+];
 
 export const extractMemoryCitationTokens = (text) => {
   const safeText = String(text || '');
@@ -654,26 +665,18 @@ export const buildSharedMemoryModerationInput = (content = '') => {
 // ================================================================
 
 export const TREEHOLE_MEMORY_FETCH_PAGE_SIZE = 200;
-export const TREEHOLE_MAX_HISTORY_MESSAGES = 10;
-export const TREEHOLE_MAX_HISTORY_CONTENT_CHARS = 800;
-export const TREEHOLE_MEMORY_SEGMENT_CHARS = 1800;
-export const TREEHOLE_MEMORY_CHUNK_CHARS = 22000;
 export const TREEHOLE_DIRECT_CONTEXT_CHARS = 52000;
 export const TREEHOLE_MEMORY_SUMMARY_MAX_CHARS = 260;
-export const TREEHOLE_AUTO_MEMORY_MAX_MESSAGES = 12;
-export const TREEHOLE_AUTO_MEMORY_MAX_MESSAGE_CHARS = 900;
 export const TREEHOLE_AUTO_MEMORY_MAX_CANDIDATES = 4;
 export const TREEHOLE_AUTO_MEMORY_MIN_CONFIDENCE = 0.66;
 export const TREEHOLE_AUTO_MEMORY_AUTOSAVE_CONFIDENCE = 0.9;
-export const TREEHOLE_AUTO_MEMORY_CONTENT_MAX_CHARS = 320;
-export const TREEHOLE_AUTO_MEMORY_REASON_MAX_CHARS = 200;
 export const TREEHOLE_AUTO_MEMORY_MAX_EVIDENCE = 8;
-export const TREEHOLE_AUTO_MEMORY_DEDUP_SIMILARITY = 0.86;
 export const TREEHOLE_SHARED_MEMORY_FETCH_LIMIT = 300;
 export const TREEHOLE_SHARED_MEMORY_SEARCH_LIMIT = 60;
 export const SHARED_MEMORY_ASYNC_MODERATION_TIMEOUT_MS = 45000;
 export const TREEHOLE_SPACE_COLUMNS = 'user_id, title, description, created_at, updated_at';
-export const TREEHOLE_MEMORY_COLUMNS = 'id, user_id, content, mood, tags, is_starred, source, created_at, updated_at';
+export const TREEHOLE_MEMORY_COLUMNS =
+  'id, user_id, content, mood, tags, is_starred, source, created_at, updated_at';
 export const TREEHOLE_SHARED_MEMORY_COLUMNS = `
   id,
   owner_user_id,

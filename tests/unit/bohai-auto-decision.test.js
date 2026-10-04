@@ -13,12 +13,8 @@ import { clearRouteDecisionCache } from '../../src/views/BOHAI/engine/bohai-auto
 // 依据见 plans/024-bohai-rules-and-latency-slimming.md §1.4。
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SAVE_KEYS = [
-  'shouldSaveCloud',
-  'shouldSaveSharedMemory',
-  'shouldAskMemoryDestination',
-  'saveDestination',
-];
+// 2026-10-04：Cloud+ 写入与「两处同存」下线 ⇒ 保存字段只剩这两个。
+const SAVE_KEYS = ['shouldSaveSharedMemory', 'saveDestination'];
 
 describe('bohai-auto-decision: 纯判定函数', () => {
   it('hasExplicitAutoSaveIntent 只在显式表达保存时返回 true', () => {
@@ -47,9 +43,9 @@ describe('bohai-auto-decision: resolveAutoModeDecisionLocally 裁剪', () => {
   });
 
   it('普通保存请求不被裁剪', () => {
-    const result = resolveAutoModeDecisionLocally('把这条存到我的 Cloud+ 随手记里');
-    expect(result.shouldSaveCloud).toBe(true);
-    expect(result.saveDestination).toBe('cloud');
+    const result = resolveAutoModeDecisionLocally('这条写入公共记忆库');
+    expect(result.shouldSaveSharedMemory).toBe(true);
+    expect(result.saveDestination).toBe('shared');
   });
 
   it('发帖草稿请求一律裁掉保存意图', () => {
@@ -65,7 +61,7 @@ describe('bohai-auto-decision: resolveAutoModeDecisionLocally 裁剪', () => {
   it('查询/总结请求在没有显式保存意图时裁掉保存意图', () => {
     const result = resolveAutoModeDecisionLocally('总结一下论坛最近发生的事');
     expect(result.saveDestination).toBe('none');
-    expect(result.shouldSaveCloud).toBe(false);
+    expect(result.shouldSaveSharedMemory).toBe(false);
   });
 
   it('查询/总结请求若同时显式表达了保存意图，则保留', () => {
@@ -82,13 +78,13 @@ describe('bohai-auto-decision: resolveAutoModeDecisionLocally 裁剪', () => {
     expect(result.shouldReferenceCloud).toBe(true);
   });
 
-  it('返回 5 个字段的浅拷贝，不污染缓存对象', () => {
-    const first = resolveAutoModeDecisionLocally('把这条存到我的 Cloud+ 随手记里', {
+  it('返回 3 个字段的浅拷贝，不污染缓存对象', () => {
+    const first = resolveAutoModeDecisionLocally('这条写入公共记忆库', {
       helpers: { isPostDraftRequest: () => true },
     });
-    const second = resolveAutoModeDecisionLocally('把这条存到我的 Cloud+ 随手记里');
+    const second = resolveAutoModeDecisionLocally('这条写入公共记忆库');
     expect(first.saveDestination).toBe('none');
     // 若裁剪写回了缓存对象，第二次会拿到被改过的 none
-    expect(second.saveDestination).toBe('cloud');
+    expect(second.saveDestination).toBe('shared');
   });
 });

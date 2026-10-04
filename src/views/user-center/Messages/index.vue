@@ -992,7 +992,6 @@ import {
   getArchivedNotifications,
   archiveNotification,
   unarchiveNotification,
-  archiveAllNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   filterSelfActionNotifications,
@@ -1092,14 +1091,10 @@ const abortControllers = reactive({
   moreArchived: null,
 });
 
-const createAbortController = (key) => {
-  if (abortControllers[key]) {
-    abortControllers[key].abort();
-  }
-  abortControllers[key] = new AbortController();
-  return abortControllers[key];
-};
-
+// ⚠️ 2026-10-04 删除：这里原有一个 createAbortController(key)，但**全文件从未调用过**
+// ⇒ 上面的 abortControllers 永远是空的、abortAllRequests 实际是空操作（请求取消未接线）。
+// 若要把取消真正接上，请直接用 @/utils/request-core.js 的 createKeyedAbortController，
+// 不要再写一份本地实现。
 const abortAllRequests = () => {
   Object.keys(abortControllers).forEach((key) => {
     if (abortControllers[key]) {
@@ -1170,7 +1165,6 @@ const shouldUseVirtualScroll = computed(() => {
   return filteredMessages.value.length > VIRTUAL_SCROLL_THRESHOLD;
 });
 
-const virtualListRef = ref(null);
 const virtualListMessages = ref([]);
 
 const {
@@ -2242,41 +2236,6 @@ const setupArchivedLoadMoreObserver = () => {
     { rootMargin: '200px' },
   );
   archivedLoadMoreObserver.observe(archivedLoadMoreSentinelRef.value);
-};
-
-const archiveCurrentTabMessages = async () => {
-  if (!currentUserId.value) return;
-  let targetType = null;
-  if (currentTab.value === 'all') {
-    targetType = null;
-  } else if (currentTab.value === 'system') {
-    targetType = [
-      'system',
-      'gift',
-      LOTTERY_WIN_NOTIFICATION_TYPE,
-      POST_REJECTED_NOTIFICATION_TYPE,
-      POST_REPORT_LIMITED_NOTIFICATION_TYPE,
-      COMMENT_REJECTED_NOTIFICATION_TYPE,
-      SUBSCRIPTION_NOTIFICATION_TYPE,
-    ];
-  } else {
-    targetType = [currentTab.value];
-  }
-  try {
-    const result = await archiveAllNotifications(currentUserId.value, targetType);
-    if (result?.error) throw result.error;
-    messages.value = messages.value.filter((m) => {
-      if (targetType) {
-        return !targetType.includes(m.type);
-      }
-      return false;
-    });
-    await triggerUnreadRefresh();
-    showFeedback('当前分类已全部归档', 'success');
-  } catch (error) {
-    logger.error('messages', '批量归档失败', error);
-    showFeedback(error?.message || '批量归档失败，请稍后重试', 'error');
-  }
 };
 
 const archiveSelectedMessages = async () => {

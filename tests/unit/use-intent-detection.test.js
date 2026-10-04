@@ -10,7 +10,6 @@ import {
   isTreeholeCreateReject,
   isSharedMemorySaveConfirm,
   isSharedMemorySaveReject,
-  resolveMemorySaveDestinationFromText,
   formatMemorySavePrompt,
   summarizeThinkingSubject,
 } from '@/views/BOHAI/composables/useIntentDetection.js';
@@ -720,163 +719,33 @@ describe('useIntentDetection: isSharedMemorySaveReject', () => {
   });
 });
 
-// ─── resolveMemorySaveDestinationFromText ────────────────────────────────────
-
-describe('useIntentDetection: resolveMemorySaveDestinationFromText', () => {
-  it('returns "both" when text contains "两者都"', () => {
-    expect(resolveMemorySaveDestinationFromText('两者都保存')).toBe('both');
-  });
-
-  it('returns "both" when text contains "两个都"', () => {
-    expect(resolveMemorySaveDestinationFromText('两个都保存')).toBe('both');
-  });
-
-  it('returns "both" when text contains "都存"', () => {
-    expect(resolveMemorySaveDestinationFromText('都存起来')).toBe('both');
-  });
-
-  it('returns "both" when text contains "都保存"', () => {
-    expect(resolveMemorySaveDestinationFromText('都保存')).toBe('both');
-  });
-
-  it('returns "both" when text contains "同时"', () => {
-    expect(resolveMemorySaveDestinationFromText('同时保存到两处')).toBe('both');
-  });
-
-  it('returns "both" when text contains "一起"', () => {
-    expect(resolveMemorySaveDestinationFromText('一起保存')).toBe('both');
-  });
-
-  it('returns "cloud" when text contains "cloud"', () => {
-    expect(resolveMemorySaveDestinationFromText('cloud')).toBe('cloud');
-  });
-
-  it('returns "cloud" when text contains "随手记"', () => {
-    expect(resolveMemorySaveDestinationFromText('随手记')).toBe('cloud');
-  });
-
-  it('returns "cloud" when text contains "日记"', () => {
-    expect(resolveMemorySaveDestinationFromText('保存到日记')).toBe('cloud');
-  });
-
-  it('returns "cloud" when text contains "私有"', () => {
-    expect(resolveMemorySaveDestinationFromText('私有记录')).toBe('cloud');
-  });
-
-  it('returns "cloud" when text contains "私人"', () => {
-    expect(resolveMemorySaveDestinationFromText('私人记录')).toBe('cloud');
-  });
-
-  it('returns "cloud" when text contains "个人记录"', () => {
-    expect(resolveMemorySaveDestinationFromText('个人记录')).toBe('cloud');
-  });
-
-  it('returns "shared" when text contains "公共记忆"', () => {
-    expect(resolveMemorySaveDestinationFromText('公共记忆')).toBe('shared');
-  });
-
-  it('returns "shared" when text contains "共享记忆"', () => {
-    expect(resolveMemorySaveDestinationFromText('共享记忆')).toBe('shared');
-  });
-
-  it('returns "shared" when text contains "社群记忆"', () => {
-    expect(resolveMemorySaveDestinationFromText('社群记忆')).toBe('shared');
-  });
-
-  it('returns "shared" when text contains "记忆库"', () => {
-    expect(resolveMemorySaveDestinationFromText('记忆库')).toBe('shared');
-  });
-
-  it('returns fallback when text is a confirm but fallback is valid destination', () => {
-    expect(resolveMemorySaveDestinationFromText('确认', 'cloud')).toBe('cloud');
-    expect(resolveMemorySaveDestinationFromText('好的', 'shared')).toBe('shared');
-    expect(resolveMemorySaveDestinationFromText('好', 'both')).toBe('both');
-  });
-
-  it('returns fallback when text is a confirm but fallback is "ask"', () => {
-    // 'ask' is not in ['cloud', 'shared', 'both'], so the confirm check won't override
-    expect(resolveMemorySaveDestinationFromText('确认', 'ask')).toBe('ask');
-  });
-
-  it('returns fallback for unrecognized text', () => {
-    expect(resolveMemorySaveDestinationFromText('今天天气不错', 'cloud')).toBe('cloud');
-    expect(resolveMemorySaveDestinationFromText('随便', 'shared')).toBe('shared');
-  });
-
-  it('returns default fallback "ask" when no fallback provided', () => {
-    expect(resolveMemorySaveDestinationFromText('今天天气不错')).toBe('ask');
-  });
-
-  it('returns fallback for empty string', () => {
-    expect(resolveMemorySaveDestinationFromText('', 'cloud')).toBe('cloud');
-  });
-
-  it('returns fallback for null input', () => {
-    expect(resolveMemorySaveDestinationFromText(null, 'shared')).toBe('shared');
-  });
-
-  it('returns fallback for undefined input', () => {
-    expect(resolveMemorySaveDestinationFromText(undefined, 'cloud')).toBe('cloud');
-  });
-});
-
 // ─── formatMemorySavePrompt ──────────────────────────────────────────────────
+// 2026-10-04：`resolveMemorySaveDestinationFromText` 已随「目的地选择」一起删除
+// （Cloud+ 写入与「两处同存」下线，只剩公共记忆一条写入路径），相关断言一并移除。
 
 describe('useIntentDetection: formatMemorySavePrompt', () => {
-  it('formats prompt for "cloud" destination', () => {
-    const result = formatMemorySavePrompt('测试内容', 'cloud');
-    expect(result).toContain('BOH Cloud+');
-    expect(result).toContain('测试内容');
-    expect(result).toContain('确认"保存');
-    expect(result).toContain('取消"跳过');
-  });
-
-  it('formats prompt for "shared" destination', () => {
-    const result = formatMemorySavePrompt('测试内容', 'shared');
+  it('固定提示写入公共记忆库（不再有目的地选择）', () => {
+    const result = formatMemorySavePrompt('测试内容');
     expect(result).toContain('BOH AI 公共记忆库');
     expect(result).toContain('测试内容');
     expect(result).toContain('确认"写入');
     expect(result).toContain('取消"跳过');
-  });
-
-  it('formats prompt for "both" destination', () => {
-    const result = formatMemorySavePrompt('测试内容', 'both');
-    expect(result).toContain('BOH Cloud+');
-    expect(result).toContain('BOH AI 公共记忆库');
-    expect(result).toContain('测试内容');
-    expect(result).toContain('确认"保存到两处');
-  });
-
-  it('formats prompt for "ask" destination (default)', () => {
-    const result = formatMemorySavePrompt('测试内容', 'ask');
-    expect(result).toContain('保存到哪里');
-    expect(result).toContain('测试内容');
-    expect(result).toContain('Cloud+');
-    expect(result).toContain('公共记忆');
-  });
-
-  it('formats prompt for default destination when not specified', () => {
-    const result = formatMemorySavePrompt('测试内容');
-    // Default is 'ask'
-    expect(result).toContain('保存到哪里');
+    // 目的地选择已下线：提示语里不该再出现 Cloud+ / 两处
+    expect(result).not.toContain('BOH Cloud+');
+    expect(result).not.toContain('保存到哪里');
   });
 
   it('truncates long content via normalizePromptLine', () => {
-    const longContent = 'x'.repeat(500);
-    const result = formatMemorySavePrompt(longContent, 'cloud');
-    // Should be truncated to <= 320 chars
+    const result = formatMemorySavePrompt('x'.repeat(500));
     expect(result.length).toBeLessThanOrEqual(500);
   });
 
   it('handles empty content', () => {
-    const result = formatMemorySavePrompt('', 'cloud');
-    // Still formats the prompt structure even with empty content
-    expect(result).toContain('BOH Cloud+');
+    expect(formatMemorySavePrompt('')).toContain('BOH AI 公共记忆库');
   });
 
   it('handles null content', () => {
-    const result = formatMemorySavePrompt(null, 'shared');
-    expect(result).toContain('BOH AI 公共记忆库');
+    expect(formatMemorySavePrompt(null)).toContain('BOH AI 公共记忆库');
   });
 });
 
@@ -897,7 +766,6 @@ describe('useIntentDetection: summarizeThinkingSubject', () => {
 
   it('returns exactly 28 characters for exactly 28-character input', () => {
     // normalizePromptLine(text, 28) truncates to 28. If length >= 28, slice(0,25) + '...'
-    const text = '一二三四五六七八九十一二三四五六七八九十';
     // This is 20 Chinese chars = 20 chars, < 28, so returns as-is
     const shortText = '这是一个测试主题';
     expect(summarizeThinkingSubject(shortText)).toBe(shortText);

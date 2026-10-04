@@ -794,11 +794,8 @@ import TemplatePanel from './components/TemplatePanel.vue';
 import HistoryTimeline from './components/HistoryTimeline.vue';
 
 import CodePreview from './components/CodePreview.vue';
-import ErrorBoundary from './components/ErrorBoundary.vue';
-import DiffViewer from './components/DiffViewer.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import GuardrailDialog from './components/GuardrailDialog.vue';
-import ThinkingBudgetSlider from './components/ThinkingBudgetSlider.vue';
 import { getAllTemplates, saveTemplate } from './engine/template-store.js';
 import { useDocumentAI } from './composables/useDocumentAI.js';
 import { usePPTGenerator } from './composables/usePPTGenerator.js';
@@ -813,9 +810,8 @@ import {
   listActiveBohaiModelConfigs,
   buildBohaiRuntimeModels,
 } from '@/utils/api/bohai-model-config-api.js';
-const CHAT_API_URL =
-  import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 import { useLabQuota } from '@/composables/useLabQuota.js';
+import { SILICON_CLOUD_CHAT_URL } from '@/utils/bohai-constants.js';
 import { BASE_SYSTEM_PROMPT } from '@/prompts/index.js';
 import { STYLE_PRESETS, DEFAULT_PRESET_ID, getPresetById } from './config/design-tokens.js';
 import { showIsland } from '@/composables/useIsland.js';
@@ -853,11 +849,8 @@ const { canUndo, canRedo, takeSnapshot, undo, redo, getStatus: getUndoStatus } =
 const treeState = useConversationTree();
 const treeNodes = treeState.nodes;
 const activeTreeNodeId = treeState.activeNodeId;
-const currentBranch = treeState.currentBranch;
 const branches = treeState.branches;
-const treeCreateRoot = treeState.createRoot;
 const treeAddNode = treeState.addNode;
-const treeFork = treeState.fork;
 const treeNavigateTo = treeState.navigateTo;
 const treeGetMessages = treeState.getMessages;
 
@@ -905,10 +898,6 @@ const rightPanelTabs = [
 const sessions = ref([]);
 const currentSessionIndex = ref(0);
 const thinkingBudgetValue = ref(0.55); // 0-1，五档映射见岛卡（默认对齐「中」档位值，pill 循环切档体验顺滑）
-const labModelConfig = reactive({
-  temperature: 0.5,
-  maxTokens: 4096,
-});
 const text = ref('');
 const messages = ref([]);
 let _idSeq = 0;
@@ -1500,7 +1489,6 @@ const drawerSection = reactive({
 });
 
 // PPT 模板（向后兼容，实际用 selectedPresetId）
-const pptTemplateId = ref(DEFAULT_PRESET_ID);
 
 const currentPresetName = computed(() => getPresetById(selectedPresetId.value).name);
 
@@ -1968,7 +1956,7 @@ async function sendGeneralChat(content, signal) {
       : {
           provider: 'siliconflow',
           purpose: 'chat',
-          apiUrl: CHAT_API_URL,
+          apiUrl: SILICON_CLOUD_CHAT_URL,
           payload: {
             model: import.meta.env.VITE_BOHAI_DEFAULT_MODEL || '',
             messages: [{ role: 'system', content: BASE_SYSTEM_PROMPT }, ...history],

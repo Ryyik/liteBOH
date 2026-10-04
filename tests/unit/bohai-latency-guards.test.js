@@ -131,19 +131,22 @@ describe('plans/024 · P0-1：废弃的 auto 路由链不得回来', () => {
     }
   });
 
-  it('决策对象只剩 5 个有消费方的字段', () => {
+  it('决策对象只剩 3 个有消费方的字段', () => {
     const code = readCode(AUTO_ROUTER);
-    for (const key of [
-      'shouldSaveCloud',
-      'shouldSaveSharedMemory',
-      'shouldAskMemoryDestination',
-      'saveDestination',
-      'shouldReferenceCloud',
-    ]) {
+    for (const key of ['shouldSaveSharedMemory', 'saveDestination', 'shouldReferenceCloud']) {
       expect(code).toContain(key);
     }
-    // 已废弃字段：这几个名字只在注释里合法出现，剥注释后不该有
-    for (const dead of ['modeId', 'forceCloudReference', 'shouldAskSharedMemory', 'actionNotes']) {
+    // 已废弃字段：这几个名字只在注释里合法出现，剥注释后不该有。
+    // 2026-10-04 追加 shouldSaveCloud / shouldAskMemoryDestination —— Cloud+ 写入与
+    // 「两处同存」下线后它们不该回来（对应「只剩公共记忆一条写入路径」的契约）。
+    for (const dead of [
+      'shouldSaveCloud',
+      'shouldAskMemoryDestination',
+      'modeId',
+      'forceCloudReference',
+      'shouldAskSharedMemory',
+      'actionNotes',
+    ]) {
       expect(code).not.toContain(dead);
     }
   });

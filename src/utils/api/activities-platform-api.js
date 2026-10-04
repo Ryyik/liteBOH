@@ -6,8 +6,6 @@
  */
 import { supabase } from '@/utils/supabase-client.js';
 
-export const CAMPAIGN_STAGES = ['draft', 'signup', 'submission', 'judging', 'result', 'fulfilled'];
-
 const normalizeCampaign = (row) => ({
   id: row?.id || '',
   slug: row?.slug || '',
@@ -19,19 +17,24 @@ const normalizeCampaign = (row) => ({
   startAt: row?.start_at || null,
   endAt: row?.end_at || null,
   config: row?.config || {},
-  createdAt: row?.created_at || null
+  createdAt: row?.created_at || null,
 });
 
 /**
  * 活动列表（公开）。
  *
- * ⚠️ 草稿隔离靠的是这里的 API 层过滤，**不是 RLS**：
- * 2026090802 迁移里 activity_campaigns_select 是 `using (true)`，
- * anon 也可以直查 /rest/v1/activity_campaigns 拿到 stage='draft' 的行。
- * 若要让数据库兜底，需另发迁移把 policy 收紧成
- * `using (stage <> 'draft' or public.current_user_is_admin())`。
+ * 草稿隔离是**双层**的（2026-10-04 更正：这段注释此前说「不是 RLS」，已过时）：
+ *   ① 数据库层：2026092704 迁移把 `activity_campaigns_select` 从 `using (true)` 收紧为
+ *      `using (stage <> 'draft' or public.current_user_is_admin())`。
+ *      实测（anon key 直查 `/rest/v1/activity_campaigns?stage=eq.draft`）返回 `[]`。
+ *   ② API 层：本函数的 `includeDrafts=false` 默认值仍会加 `.neq('stage','draft')`。
+ * 两层都保留 —— 数据库兜底，API 层保证语义显式。
  */
-export async function listActivityCampaigns({ stage = '', includeDrafts = false, limit = 50 } = {}) {
+export async function listActivityCampaigns({
+  stage = '',
+  includeDrafts = false,
+  limit = 50,
+} = {}) {
   try {
     let query = supabase
       .from('activity_campaigns')

@@ -448,10 +448,6 @@ watch(sortedModels, (items) => {
   if (modelPage.value > totalPages) modelPage.value = totalPages;
 });
 
-const uniqueFamilyCount = computed(
-  () => new Set(models.value.map((m) => m.family_label).filter(Boolean)).size,
-);
-
 const providerStats = computed(() => {
   const stats = {};
   models.value.forEach((m) => {

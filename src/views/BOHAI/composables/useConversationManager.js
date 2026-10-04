@@ -7,17 +7,17 @@ import {
   MAX_HISTORY_CONTEXT_CHARS,
   MAX_HISTORY_MESSAGE_CHARS,
   MAX_FINAL_PROMPT_CHARS,
-  MAX_PROMPT_EXTRA_CHARS
+  MAX_PROMPT_EXTRA_CHARS,
 } from './chat-engine-config.js';
 import {
   loadBohAIChatSessionsFromStorage,
   saveBohAIChatSessionsToStorage,
   clearBohAIChatSessionsStorage,
-  createBohAIChatSessionSanitizer
+  createBohAIChatSessionSanitizer,
 } from '@/utils/bohai-chat-session-store.js';
 import {
   loadBohAIActionAuditsFromStorage,
-  clearBohAIActionAuditsStorage
+  clearBohAIActionAuditsStorage,
 } from '@/utils/bohai-action-audit.js';
 import {
   buildHistoryMessagesWithCachedSummary,
@@ -26,7 +26,7 @@ import {
   isEmptyAssistantPlaceholder,
   normalizePromptLine,
   ESTIMATED_SYSTEM_PROMPT_CHARS,
-  CONVERSATION_SUMMARY_MAX_CHARS
+  CONVERSATION_SUMMARY_MAX_CHARS,
 } from './bohai-engine-helpers.js';
 import { logger } from '@/utils/logger.js';
 
@@ -37,7 +37,9 @@ const _extraCharsEmaAlpha = 0.4;
 
 export const updateLastActualExtraChars = (chars) => {
   if (typeof chars === 'number' && chars > 0) {
-    _lastActualExtraChars.value = Math.round(_lastActualExtraChars.value * (1 - _extraCharsEmaAlpha) + chars * _extraCharsEmaAlpha);
+    _lastActualExtraChars.value = Math.round(
+      _lastActualExtraChars.value * (1 - _extraCharsEmaAlpha) + chars * _extraCharsEmaAlpha,
+    );
   }
 };
 
@@ -52,9 +54,7 @@ export const updateLastActualExtraChars = (chars) => {
 //   scrollToBottom  — 用于切换会话后滚动到底部
 // ============================================================
 
-export function useConversationManager({
-  scrollToBottom: scrollToBottomOption
-} = {}) {
+export function useConversationManager({ scrollToBottom: scrollToBottomOption } = {}) {
   // scrollToBottom 可能是一个函数或 getter（当 composable 创建时 scrollToBottom 尚未定义时使用）
   const resolveScrollToBottom = () => {
     if (typeof scrollToBottomOption === 'function') return scrollToBottomOption();
@@ -64,7 +64,7 @@ export function useConversationManager({
   // State
   // ============================================================
   const chatSessions = reactive([
-    { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false }
+    { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false },
   ]);
   const currentSessionIndex = ref(0);
   const activeGenerationSessionIndex = ref(null);
@@ -72,11 +72,11 @@ export function useConversationManager({
   const treeholeMemoryCache = reactive({
     userId: '',
     fetchedAt: 0,
-    items: []
+    items: [],
   });
   const sharedMemoryCache = reactive({
     fetchedAt: 0,
-    items: []
+    items: [],
   });
   const sharedMemorySearchCache = new Map();
 
@@ -85,29 +85,13 @@ export function useConversationManager({
   const pendingTreeholeCreation = reactive({
     awaitingConfirmation: false,
     userId: '',
-    sessionIndex: -1
-  });
-  const pendingCloudReferenceConsent = reactive({
-    awaitingConfirmation: false,
-    userId: '',
-    sessionIndex: -1
+    sessionIndex: -1,
   });
   const pendingSharedMemoryCapture = reactive({
     awaitingConfirmation: false,
     userId: '',
     sessionIndex: -1,
     content: '',
-    destination: 'ask'
-  });
-  const pendingQuickNote = reactive({
-    visible: false,
-    busy: false,
-    userId: '',
-    sessionIndex: -1,
-    messageIndex: -1,
-    title: '',
-    content: '',
-    error: ''
   });
   const pendingActionDraft = reactive({
     active: false,
@@ -123,12 +107,12 @@ export function useConversationManager({
     mailReceiverId: '',
     mailReceiverName: '',
     mailSubject: '',
-    mailContent: ''
+    mailContent: '',
   });
   const userPrivateContextCache = reactive({
     userId: '',
     fetchedAt: 0,
-    snapshot: null
+    snapshot: null,
   });
 
   const isCompressingContext = ref(false);
@@ -161,29 +145,11 @@ export function useConversationManager({
     pendingTreeholeCreation.sessionIndex = -1;
   };
 
-  const resetPendingCloudReferenceConsent = () => {
-    pendingCloudReferenceConsent.awaitingConfirmation = false;
-    pendingCloudReferenceConsent.userId = '';
-    pendingCloudReferenceConsent.sessionIndex = -1;
-  };
-
   const resetPendingSharedMemoryCapture = () => {
     pendingSharedMemoryCapture.awaitingConfirmation = false;
     pendingSharedMemoryCapture.userId = '';
     pendingSharedMemoryCapture.sessionIndex = -1;
     pendingSharedMemoryCapture.content = '';
-    pendingSharedMemoryCapture.destination = 'ask';
-  };
-
-  const resetPendingQuickNote = () => {
-    pendingQuickNote.visible = false;
-    pendingQuickNote.busy = false;
-    pendingQuickNote.userId = '';
-    pendingQuickNote.sessionIndex = -1;
-    pendingQuickNote.messageIndex = -1;
-    pendingQuickNote.title = '';
-    pendingQuickNote.content = '';
-    pendingQuickNote.error = '';
   };
 
   const resetPendingActionDraft = () => {
@@ -209,7 +175,7 @@ export function useConversationManager({
   const sanitizeChatSessionForStorage = createBohAIChatSessionSanitizer({
     normalizeText: (value) => normalizePromptLine(value, CONVERSATION_SUMMARY_MAX_CHARS),
     maxSummaryChars: CONVERSATION_SUMMARY_MAX_CHARS,
-    isEmptyAssistantPlaceholder
+    isEmptyAssistantPlaceholder,
   });
 
   // ============================================================
@@ -219,19 +185,23 @@ export function useConversationManager({
     const source = Array.isArray(session?.messages) ? session.messages : [];
     // 根据 pendingCount 排除正在输入/生成的占位消息
     // pendingCount=0 时不能 slice(0, -0)，JS 会把 -0 转成 0 导致 slice(0,0) 永远返回空数组
-    const historySource = source.length > pendingCount
-      ? pendingCount > 0
-        ? source.slice(0, -pendingCount)
-        : source.slice()
-      : [];
-    const recentBuilt = buildHistoryMessagesWithCachedSummary({
-      ...(session || {}),
-      messages: historySource
-    }, {
-      maxChars: MAX_HISTORY_CONTEXT_CHARS,
-      maxMessages: MAX_CONTEXT_MESSAGES,
-      maxPerMessage: MAX_HISTORY_MESSAGE_CHARS
-    });
+    const historySource =
+      source.length > pendingCount
+        ? pendingCount > 0
+          ? source.slice(0, -pendingCount)
+          : source.slice()
+        : [];
+    const recentBuilt = buildHistoryMessagesWithCachedSummary(
+      {
+        ...(session || {}),
+        messages: historySource,
+      },
+      {
+        maxChars: MAX_HISTORY_CONTEXT_CHARS,
+        maxMessages: MAX_CONTEXT_MESSAGES,
+        maxPerMessage: MAX_HISTORY_MESSAGE_CHARS,
+      },
+    );
 
     let historyChars = 0;
     recentBuilt.forEach((item) => {
@@ -240,25 +210,29 @@ export function useConversationManager({
 
     const summaryText = getCachedSummaryIfUsable({
       ...(session || {}),
-      messages: historySource
+      messages: historySource,
     });
     const summaryChars = String(summaryText || '').length;
     const dialogueHistory = getStorableDialogueMessages(historySource);
     const sourceMessageCount = summaryText
       ? Math.max(0, Math.trunc(Number(session?.contextSummary?.sourceMessageCount) || 0))
       : 0;
-    const cycleMessages = sourceMessageCount > 0 && sourceMessageCount <= dialogueHistory.length
-      ? dialogueHistory.slice(sourceMessageCount)
-      : dialogueHistory;
+    const cycleMessages =
+      sourceMessageCount > 0 && sourceMessageCount <= dialogueHistory.length
+        ? dialogueHistory.slice(sourceMessageCount)
+        : dialogueHistory;
     const cycleUsedChars = cycleMessages.reduce(
       (total, item) => total + String(item?.content || '').length + 20,
-      0
+      0,
     );
     const retainedHistoryChars = summaryText
-      ? Math.max(0, Math.min(
-        MAX_HISTORY_CONTEXT_CHARS - 2000,
-        Math.trunc(Number(session?.contextSummary?.retainedHistoryChars) || 0)
-      ))
+      ? Math.max(
+          0,
+          Math.min(
+            MAX_HISTORY_CONTEXT_CHARS - 2000,
+            Math.trunc(Number(session?.contextSummary?.retainedHistoryChars) || 0),
+          ),
+        )
       : 0;
     const cycleMaxChars = Math.max(2000, MAX_HISTORY_CONTEXT_CHARS - retainedHistoryChars);
     const compressionPercent = Math.max(0, Math.min(100, (cycleUsedChars / cycleMaxChars) * 100));
@@ -267,10 +241,15 @@ export function useConversationManager({
     // 用总预算来反映真实占用，而不是只看历史消息占比
     const estimatedExtraChars = Math.min(
       MAX_PROMPT_EXTRA_CHARS,
-      Math.max(_lastActualExtraChars.value, 2000)
+      Math.max(_lastActualExtraChars.value, 2000),
     );
-    const totalUsedChars = ESTIMATED_SYSTEM_PROMPT_CHARS + summaryChars + historyChars + estimatedExtraChars;
-    const totalBudget = ESTIMATED_SYSTEM_PROMPT_CHARS + CONVERSATION_SUMMARY_MAX_CHARS + MAX_HISTORY_CONTEXT_CHARS + MAX_FINAL_PROMPT_CHARS;
+    const totalUsedChars =
+      ESTIMATED_SYSTEM_PROMPT_CHARS + summaryChars + historyChars + estimatedExtraChars;
+    const totalBudget =
+      ESTIMATED_SYSTEM_PROMPT_CHARS +
+      CONVERSATION_SUMMARY_MAX_CHARS +
+      MAX_HISTORY_CONTEXT_CHARS +
+      MAX_FINAL_PROMPT_CHARS;
 
     const rawPercent = totalBudget > 0 ? (totalUsedChars / totalBudget) * 100 : 0;
     const percent = Math.max(0, Math.min(100, rawPercent));
@@ -291,11 +270,20 @@ export function useConversationManager({
       totalMessageCount,
       hasSummary,
       summaryChars,
-      level: compressionPercent >= 100 ? 'full' : compressionPercent >= 80 ? 'high' : compressionPercent >= 55 ? 'mid' : 'low'
+      level:
+        compressionPercent >= 100
+          ? 'full'
+          : compressionPercent >= 80
+            ? 'high'
+            : compressionPercent >= 55
+              ? 'mid'
+              : 'low',
     };
   };
 
-  const contextBudgetUsage = computed(() => computeContextBudgetUsage(chatSessions[currentSessionIndex.value], { pendingCount: 0 }));
+  const contextBudgetUsage = computed(() =>
+    computeContextBudgetUsage(chatSessions[currentSessionIndex.value], { pendingCount: 0 }),
+  );
 
   // ============================================================
   // Save / Load sessions from local storage
@@ -303,7 +291,7 @@ export function useConversationManager({
   const loadSessions = () => {
     const migratedSessions = loadBohAIChatSessionsFromStorage({
       sanitizeSession: sanitizeChatSessionForStorage,
-      onError: (error) => logger.error('boh-ai', 'Failed to load chat sessions', error)
+      onError: (error) => logger.error('boh-ai', 'Failed to load chat sessions', error),
     });
     if (migratedSessions.length > 0) {
       chatSessions.splice(0, chatSessions.length, ...migratedSessions);
@@ -313,7 +301,7 @@ export function useConversationManager({
   const saveSessions = () => {
     saveBohAIChatSessionsToStorage({
       sessions: chatSessions,
-      sanitizeSession: sanitizeChatSessionForStorage
+      sanitizeSession: sanitizeChatSessionForStorage,
     });
   };
 
@@ -326,7 +314,11 @@ export function useConversationManager({
       clearTimeout(saveIdleTimer);
       saveIdleTimer = null;
     }
-    if (typeof window !== 'undefined' && saveIdleCallbackId !== null && 'cancelIdleCallback' in window) {
+    if (
+      typeof window !== 'undefined' &&
+      saveIdleCallbackId !== null &&
+      'cancelIdleCallback' in window
+    ) {
       window.cancelIdleCallback(saveIdleCallbackId);
       saveIdleCallbackId = null;
     }
@@ -340,11 +332,14 @@ export function useConversationManager({
       if (thisCallId !== saveCallCounter) return; // Superseded by newer call
 
       if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-        saveIdleCallbackId = window.requestIdleCallback(() => {
-          if (thisCallId !== saveCallCounter) return;
-          saveIdleCallbackId = null;
-          saveSessions();
-        }, { timeout: SESSION_SAVE_IDLE_TIMEOUT_MS });
+        saveIdleCallbackId = window.requestIdleCallback(
+          () => {
+            if (thisCallId !== saveCallCounter) return;
+            saveIdleCallbackId = null;
+            saveSessions();
+          },
+          { timeout: SESSION_SAVE_IDLE_TIMEOUT_MS },
+        );
         return;
       }
 
@@ -369,7 +364,13 @@ export function useConversationManager({
     clearBohAIChatSessionsStorage();
     clearBohAIActionAuditsStorage();
     actionAuditLog.value = [];
-    chatSessions.splice(0, chatSessions.length, { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false });
+    chatSessions.splice(0, chatSessions.length, {
+      title: '新对话',
+      messages: [],
+      timestamp: Date.now(),
+      isLoading: false,
+      isThinking: false,
+    });
     currentSessionIndex.value = 0;
     activeGenerationSessionIndex.value = null;
     isCompressingContext.value = false;
@@ -383,9 +384,7 @@ export function useConversationManager({
     resetSharedMemorySearchCache();
     resetUserPrivateContextCache();
     resetPendingTreeholeCreation();
-    resetPendingCloudReferenceConsent();
     resetPendingSharedMemoryCapture();
-    resetPendingQuickNote();
     resetPendingActionDraft();
   };
 
@@ -404,7 +403,7 @@ export function useConversationManager({
       messages: [],
       timestamp: Date.now(),
       isLoading: false,
-      isThinking: false
+      isThinking: false,
     });
     currentSessionIndex.value = 0;
   };
@@ -419,7 +418,7 @@ export function useConversationManager({
       messages: [],
       timestamp: Date.now(),
       isLoading: false,
-      isThinking: false
+      isThinking: false,
     };
     scheduleSaveSessions();
     return true;
@@ -433,7 +432,7 @@ export function useConversationManager({
       messages: [],
       timestamp: Date.now(),
       isLoading: false,
-      isThinking: false
+      isThinking: false,
     });
     currentSessionIndex.value = 0;
     activeGenerationSessionIndex.value = null;
@@ -448,7 +447,13 @@ export function useConversationManager({
     }
 
     if (chatSessions.length === 1) {
-      chatSessions[0] = { title: '新对话', messages: [], timestamp: Date.now(), isLoading: false, isThinking: false };
+      chatSessions[0] = {
+        title: '新对话',
+        messages: [],
+        timestamp: Date.now(),
+        isLoading: false,
+        isThinking: false,
+      };
       return;
     }
     chatSessions.splice(index, 1);
@@ -505,7 +510,7 @@ export function useConversationManager({
       mailContent: pendingActionDraft.mailContent,
       pageType: pendingActionDraft.pageType,
       pageDescription: pendingActionDraft.pageDescription,
-      pageHtml: pendingActionDraft.pageHtml
+      pageHtml: pendingActionDraft.pageHtml,
     };
   });
 
@@ -525,27 +530,42 @@ export function useConversationManager({
   // ============================================================
   return {
     // State
-    chatSessions, currentSessionIndex, activeGenerationSessionIndex,
-    treeholeMemoryCache, sharedMemoryCache, sharedMemorySearchCache,
+    chatSessions,
+    currentSessionIndex,
+    activeGenerationSessionIndex,
+    treeholeMemoryCache,
+    sharedMemoryCache,
+    sharedMemorySearchCache,
     actionAuditLog,
-    pendingTreeholeCreation, pendingCloudReferenceConsent,
-    pendingSharedMemoryCapture, pendingQuickNote, pendingActionDraft,
+    pendingTreeholeCreation,
+    pendingSharedMemoryCapture,
+    pendingActionDraft,
     userPrivateContextCache,
-    isCompressingContext, compressingSessionIndex,
+    isCompressingContext,
+    compressingSessionIndex,
     contextBudgetUsage,
     memoryCaptureStatusMessage,
     activeActionDraft,
     // Functions
     isEmptyAssistantPlaceholder,
-    resetUserPrivateContextCache, resetSharedMemorySearchCache,
-    resetPendingTreeholeCreation, resetPendingCloudReferenceConsent,
-    resetPendingSharedMemoryCapture, resetPendingQuickNote, resetPendingActionDraft,
+    resetUserPrivateContextCache,
+    resetSharedMemorySearchCache,
+    resetPendingTreeholeCreation,
+    resetPendingSharedMemoryCapture,
+    resetPendingActionDraft,
     sanitizeChatSessionForStorage,
     computeContextBudgetUsage,
-    loadSessions, saveSessions, scheduleSaveSessions, clearSaveTimers,
+    loadSessions,
+    saveSessions,
+    scheduleSaveSessions,
+    clearSaveTimers,
     clearCache,
     getSessionByIndex,
-    startNewChat, clearCurrentSession, clearAllSessions, deleteSession, switchSession,
-    setMemoryCaptureStatusMessage
+    startNewChat,
+    clearCurrentSession,
+    clearAllSessions,
+    deleteSession,
+    switchSession,
+    setMemoryCaptureStatusMessage,
   };
 }

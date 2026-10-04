@@ -15,6 +15,21 @@
     :data-density="globalAiPreferences.density"
     :data-font-scale="globalAiPreferences.fontScale"
   >
+    <!-- 横屏左栏（电脑 + 平板横屏）：与 UserSpace / 首页 / 他人空间共用同一组件与 navItems 单源，
+         current-tab 传 'ai' —— 进 AI 后左栏仍高亮「AI」席，跨页跳转不丢上下文。
+         竖屏 / 手机横屏由 side-rail.css 的媒体查询隐藏，不渲染任何可见内容。 -->
+    <UserSpaceSideRail
+      v-if="isStandalone"
+      :nav-items="userSpaceNavItems"
+      current-tab="ai"
+      :has-unread-messages="railUnreadCount > 0"
+      :unread-count="railUnreadCount"
+      :current-theme="currentSiteTheme"
+      :is-logged-in="isLoggedIn"
+      @nav-click="handleRailNavClick"
+      @action="handleRailAction"
+    />
+
     <div class="bohai-container">
       <BohaiSidebar
         v-model="isSidebarOpen"
@@ -529,7 +544,11 @@
                     >
                       <div class="usage-pop-head">
                         <span class="usage-pop-title">使用情况</span>
-                        <button type="button" class="usage-pop-more" @click.stop="openQuotaPanel">
+                        <button
+                          type="button"
+                          class="usage-pop-more"
+                          @click.stop="openUsageInSettings"
+                        >
                           完整用量 ›
                         </button>
                       </div>
@@ -576,7 +595,11 @@
                           <Archive size="12" />
                           <span>整理上下文</span>
                         </button>
-                        <button type="button" class="usage-pop-btn" @click.stop="openQuotaPanel">
+                        <button
+                          type="button"
+                          class="usage-pop-btn"
+                          @click.stop="openUsageInSettings"
+                        >
                           用量详情
                         </button>
                       </div>
@@ -851,16 +874,18 @@
           </div>
         </footer>
 
+        <!-- 2026-10-03（plans/023 步骤 ④）：AiQuotaSidePanel 已退役 —— 用量信息整体
+             搬进设置面板的「用量」卡；上下文环浮层的两个入口改为打开设置面板并滚到那张卡
+             （:focus-section），不再多一层抽屉。 -->
         <BohaiSettingsPanel
           v-model="settingsOpen"
           :embedded="props.overlayMode || isStandalone"
+          :focus-section="settingsFocusSection"
           :current-mode="currentMode"
           :current-mode-id="currentModeId"
           :chat-modes="chatModes"
           :current-response-style-id="currentResponseStyleId"
           :response-style-options="responseStyleOptions"
-          :current-thinking-speed-id="currentThinkingSpeedId"
-          :thinking-speed-options="thinkingSpeedOptions"
           :is-treehole-memory-enabled="isTreeholeMemoryEnabled"
           :is-shared-memory-enabled="isSharedMemoryEnabled"
           :is-treehole-memory-toggling="isTreeholeMemoryToggling"
@@ -868,19 +893,11 @@
           :resolved-theme="resolvedAiTheme"
           @select-mode="selectMode"
           @select-response-style="setResponseStyle"
-          @select-thinking-speed="setThinkingSpeed"
           @toggle-treehole-memory="handleTreeholeMemoryToggle"
           @toggle-shared-memory="handleSharedMemoryToggle"
           @clear-current-chat="clearCurrentChat"
           @export-chat-data="exportChatData"
           @clear-all-chat-data="clearAllChatData"
-          @open-quota-panel="openQuotaPanel"
-        />
-
-        <AiQuotaSidePanel
-          :visible="isQuotaPanelOpen"
-          :embedded="props.overlayMode || isStandalone"
-          @close="closeQuotaPanel"
         />
       </main>
     </div>
@@ -898,7 +915,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   Trash2,
   Square,
@@ -932,12 +949,19 @@ import { storeToRefs } from 'pinia';
 import BohaiSidebar from './components/BohaiSidebar.vue';
 import BohaiSettingsPanel from './components/BohaiSettingsPanel.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
-import AiQuotaSidePanel from '@/components/ai/AiQuotaSidePanel.vue';
 import { marked } from 'marked';
 import { logger } from '@/utils/logger.js';
 import { getAiQuotaStatus } from '@/utils/api/api-key-runtime-api.js';
 import DOMPurify from '@/utils/dompurify.js';
 import { themeManager } from '@/utils/theme-manager.js';
+/* 横屏左栏（2026-10-03）：AI 是全屏落点（/ai-chat），原来是「一进 AI 左栏就消失」——
+   同一个横屏电脑上，从「我」页点 AI 席过去，导航栏整条没了，只剩一个返回键。
+   这里复用 UserSpace 的同一份左栏组件与同一份 navItems 单源（和首页 / 他人空间同构），
+   可见性仍由 side-rail.css 的媒体查询决定（竖屏 / 手机横屏零副作用），
+   定位与内容让位见 UserSpace/styles/landscape-rail.css 的 body.page-aichat 段。 */
+import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpaceSideRail.vue';
+import { userSpaceNavItems } from '@/views/user-center/UserSpace/composables/useUserSpaceTabs.js';
+import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { useGlobalAiPreferences } from '@/composables/useGlobalAiPreferences.js';
 import { formatBohAIRetrievalTraceSummary } from '@/utils/bohai-observability.js';
 import hljs from 'highlight.js/lib/core';
@@ -953,7 +977,8 @@ import 'highlight.js/styles/github.css';
 
 // 获取用户信息
 const authStore = useAuthStore();
-const { userInfo } = storeToRefs(authStore);
+const { userInfo, isLoggedIn } = storeToRefs(authStore);
+const router = useRouter();
 
 const props = defineProps({
   embedded: {
@@ -971,6 +996,49 @@ const props = defineProps({
 const emit = defineEmits(['island-message', 'overlay-state']);
 const { preferences: globalAiPreferences } = useGlobalAiPreferences();
 const isStandalone = computed(() => !props.embedded && !props.overlayMode);
+
+/* ---------- 横屏左栏（2026-10-03） ----------
+   只在 standalone（= /ai-chat 整页）挂载：embedded / overlayMode 下宿主自己已经有左栏
+   （UserSpace 的 tab-page 内嵌实例、BOH AI 灵动岛浮层），再挂一份就是两条左栏。
+   竖屏与手机横屏不渲染任何可见内容 —— 可见性由 side-rail.css 的媒体查询兜住。 */
+const railNotificationStore = getNotificationStoreRef();
+const railUnreadCount = computed(() => railNotificationStore.value?.unreadCount || 0);
+
+const handleRailNavClick = (itemId) => {
+  const item = userSpaceNavItems.find((entry) => entry.id === itemId);
+  if (!item) return;
+  // 左栏里的「AI」席指向当前页：跳同路由只会白跑一次导航（并可能清掉 query 里的模式）
+  if (router.resolve(item.route).name === 'AiChat') return;
+  router.push(item.route);
+};
+
+const handleRailAction = (actionId) => {
+  switch (actionId) {
+    case 'compose':
+    case 'search':
+      // 发布 / 搜索的宿主是论坛（挂在首页）→ 带意图跳到首页论坛区，与 UserSpace / 他人空间同口径
+      router.push({ path: '/', query: { view: 'latest', [actionId]: '1' } });
+      break;
+    case 'theme':
+      // themeManager 内部派发 theme-changed，本组件的 handleThemeChange 已监听并同步 ref
+      themeManager.toggle();
+      break;
+    case 'home':
+      router.push('/');
+      break;
+    case 'logout':
+      authStore.logout();
+      router.push('/');
+      break;
+    default:
+      break;
+  }
+};
+
+onMounted(() => {
+  // 未读徽标的数据源：懒加载通知 store（与 ProfileMain 同一手法），失败不阻断页面
+  void ensureNotificationStore();
+});
 
 const isSidebarOpen = ref(
   isStandalone.value && typeof window !== 'undefined' && window.innerWidth >= 1024,
@@ -1001,7 +1069,8 @@ const composerSubOpen = ref('');
 // 「高级」折叠区（4 个工具开关）
 const composerAdvOpen = ref(false);
 const settingsOpen = ref(false);
-const isQuotaPanelOpen = ref(false);
+// '' | 'usage'：设置面板打开时是否直接滚到「用量」卡（上下文环浮层的入口用）
+const settingsFocusSection = ref('');
 const todayTokenUsage = ref(null);
 const taskPanelExpanded = ref(true);
 const taskLifecycleOverride = ref('');
@@ -1044,17 +1113,16 @@ const activeInlineQuestion = ref(null);
 
 const openSettings = () => {
   if (!isStandalone.value || window.innerWidth < 1024) isSidebarOpen.value = false;
+  settingsFocusSection.value = '';
   settingsOpen.value = true;
 };
 
-const openQuotaPanel = () => {
-  settingsOpen.value = false;
-  isQuotaPanelOpen.value = true;
-};
-
-const closeQuotaPanel = () => {
-  isQuotaPanelOpen.value = false;
-  if (props.overlayMode || isStandalone.value) settingsOpen.value = true;
+// 上下文环浮层的「完整用量 / 用量详情」：不再开第二层抽屉（AiQuotaSidePanel 已退役），
+// 改为打开设置面板并定位到用量卡。
+const openUsageInSettings = () => {
+  if (!isStandalone.value || window.innerWidth < 1024) isSidebarOpen.value = false;
+  settingsFocusSection.value = 'usage';
+  settingsOpen.value = true;
 };
 
 let quotaRefreshTimer = null;
@@ -1203,7 +1271,6 @@ const {
   persistSharedMemorySetting,
   toggleTreeholeMemory,
   isTreeholeMemoryToggling,
-  pendingCloudReferenceConsent,
   memoryCaptureTip,
 } = useChatEngine();
 
@@ -1231,23 +1298,12 @@ const startTemporaryChat = () => {
 
 const memorySettingsStatus = computed(() => {
   const liveStatus = String(memoryCaptureTip.value || '');
-  if (/请先登录|请先确认|登录后可|是否同意/.test(liveStatus)) return liveStatus;
+  if (/请先登录|登录后可/.test(liveStatus)) return liveStatus;
   return `个人记忆${isTreeholeMemoryEnabled.value ? '已开启' : '已关闭'}；社区知识${isSharedMemoryEnabled.value ? '已开启' : '已关闭'}。`;
 });
 
 const handleTreeholeMemoryToggle = async () => {
   await toggleTreeholeMemory();
-  if (pendingCloudReferenceConsent.awaitingConfirmation) {
-    settingsOpen.value = false;
-    emitIslandMessage({
-      title: '需要隐私确认',
-      message: '请在当前对话中确认是否允许 BOH AI 参考你的 Cloud+ 内容',
-      icon: 'ai',
-      type: 'notification',
-      actionLabel: '知道了',
-      durationMs: 4200,
-    });
-  }
 };
 
 const handleSharedMemoryToggle = () => {
@@ -1321,9 +1377,8 @@ const useQuickSuggestion = (suggestion) => {
 };
 
 const toggleSidebar = () => {
-  if (settingsOpen.value || isQuotaPanelOpen.value) {
+  if (settingsOpen.value) {
     settingsOpen.value = false;
-    isQuotaPanelOpen.value = false;
   }
   isSidebarOpen.value = !isSidebarOpen.value;
 };
@@ -1335,7 +1390,6 @@ const syncStandaloneViewport = () => {
 const closeOverlayPanels = () => {
   isSidebarOpen.value = false;
   settingsOpen.value = false;
-  isQuotaPanelOpen.value = false;
   composerPanelOpen.value = false;
   if (chatSessions[currentSessionIndex.value]?.temporary) {
     deleteSession(currentSessionIndex.value);
@@ -1345,7 +1399,6 @@ const closeOverlayPanels = () => {
 const resetQuickNavigation = () => {
   isSidebarOpen.value = false;
   settingsOpen.value = false;
-  isQuotaPanelOpen.value = false;
   composerPanelOpen.value = false;
 };
 
@@ -2029,7 +2082,6 @@ const planTodoSummary = computed(() => {
 });
 
 const taskPanelStatus = computed(() => {
-  if (pendingCloudReferenceConsent.value) return { id: 'waiting', label: '等待确认' };
   if (taskLifecycleOverride.value === 'cancelled') return { id: 'cancelled', label: '已停止' };
   if (isLoading.value || agentClusterState?.isRunning) return { id: 'running', label: '执行中' };
 
@@ -2841,7 +2893,6 @@ watch(
   [
     isSidebarOpen,
     settingsOpen,
-    isQuotaPanelOpen,
     currentSessionIndex,
     () => chatSessions[currentSessionIndex.value]?.title,
     () => chatSessions[currentSessionIndex.value]?.temporary,
@@ -2850,7 +2901,7 @@ watch(
     if (!props.overlayMode) return;
     emit('overlay-state', {
       sidebarOpen: isSidebarOpen.value,
-      settingsOpen: settingsOpen.value || isQuotaPanelOpen.value,
+      settingsOpen: settingsOpen.value,
       title: chatSessions[currentSessionIndex.value]?.title || 'BOH AI',
       temporary: Boolean(chatSessions[currentSessionIndex.value]?.temporary),
     });
@@ -2861,10 +2912,6 @@ watch(
 const handleEscapeLayer = () => {
   if (composerPanelOpen.value) {
     closeComposerPanel();
-    return true;
-  }
-  if (isQuotaPanelOpen.value) {
-    closeQuotaPanel();
     return true;
   }
   if (settingsOpen.value) {
@@ -3125,3 +3172,8 @@ watch(
   }
 }
 </style>
+
+<!-- 横屏左栏页面级规则（body.page-aichat 段）：必须非 scoped —— body 前缀的选择器
+     会被 scoped 属性选择器作废。与 UserSpaceMain / ProfileMain / Home 引入同一份文件，
+     断点与栏宽档位只在那一个文件里定义。 -->
+<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>

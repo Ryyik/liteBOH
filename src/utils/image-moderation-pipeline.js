@@ -16,12 +16,25 @@ import { logger } from './logger.js';
 import {
   createImageElementForModeration,
   createModerationSurfaceForModeration,
-  moderateForumImageFile
+  moderateForumImageFile,
 } from './forum-image-moderation.js';
 
 const MODERATION_IMAGE_MODE = 'moderation-image';
-const CLOUD_TIMEOUT_MS = 8000;
+// 单图云端审核超时。2026-10-04 从 8000 收到 2500：多图批次里「云端不可达」的代价
+// 是 **逐张** 累加的（超时 + 重试延迟 + 再超时），8s 时最坏单张 16.25s、10 张 ~160s。
+// 2.5s 覆盖了正常 224px 单图的响应窗口（实测级 0.8~2.5s）；超时后走本地 nsfwjs 兜底，
+// 而兜底本身是**从宽**判定（只有 ≥0.75 才拦），所以宁可早退也不拖着整批。
+const CLOUD_TIMEOUT_MS = 2500;
+// 批量云端审核超时：与单图**解耦**。此前写的是 `CLOUD_TIMEOUT_MS + 4000`，
+// 一旦下调单图超时就会把批量也一起压到 6.5s —— 而 `share-moderation.js` 是把
+// **整集照片（最多 60 张）**一次丢进批量入口的，6.5s 必然全超时 → 整组回落本地。
+// 所以批量给一个独立、显式的大值；调用方（影集上传）自己分块控制单次张数。
+const CLOUD_BATCH_TIMEOUT_MS = 12000;
 const CLOUD_RETRY_DELAY_MS = 250;
+// 「每项解码一张全分辨率原图」的并发上限 —— 云端编码与本地兜底共用。
+// 此前两处都是 `Promise.all` 全量并发：分享前复审最多 60 张，等于同时解码 60 张原图，
+// 移动端必然 OOM/卡死。收敛成 2 路：多花一点时间换峰值内存。
+const DECODE_CONCURRENCY = 2;
 
 // 冷却时长：不可达（网络/超时/上游故障/限流）60s；配额耗尽 300s。
 // 冷却期内直接走本地兜底，避免多图上传每张都等满超时。
@@ -41,11 +54,13 @@ export function markCloudModerationUnreachable(cooldownMs, reason = '') {
   if (until > cloudCooldownUntil) {
     cloudCooldownUntil = until;
     cloudCooldownReason = String(reason || '').slice(0, 80);
+    // 只有真的把冷却**延长**了才记日志：同一次失败会先由 attemptCloudVerdict 标记、
+    // 再由调用方的 handleUnreachable 收口，这里不设条件就会打两条一模一样的 warn。
+    logger.warn('image-moderation-pipeline', '云端审核不可达，进入冷却', {
+      reason: cloudCooldownReason,
+      cooldownUntil: new Date(cloudCooldownUntil).toISOString(),
+    });
   }
-  logger.warn('image-moderation-pipeline', '云端审核不可达，进入冷却', {
-    reason: cloudCooldownReason,
-    cooldownUntil: new Date(cloudCooldownUntil).toISOString()
-  });
 }
 
 export function markCloudModerationSuccess() {
@@ -57,14 +72,16 @@ export function getCloudModerationCooldownState() {
   return {
     coolingDown: isCloudModerationCoolingDown(),
     cooldownUntil: cloudCooldownUntil || null,
-    reason: cloudCooldownReason
+    reason: cloudCooldownReason,
   };
 }
 
 // 调试开关：localStorage.boh_moderation_force_layer = 'cloud' | 'local'（探针/排错用）
 function getForcedLayer() {
   try {
-    return String(localStorage.getItem('boh_moderation_force_layer') || '').trim().toLowerCase();
+    return String(localStorage.getItem('boh_moderation_force_layer') || '')
+      .trim()
+      .toLowerCase();
   } catch {
     return '';
   }
@@ -79,7 +96,7 @@ const IMAGE_MODERATION_SYSTEM_PROMPT = [
   '</constraints>',
   '<output_format>',
   '严格只输出 JSON：{"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}',
-  '</output_format>'
+  '</output_format>',
 ].join('\n');
 
 const IMAGE_MODERATION_BATCH_PROMPT = [
@@ -92,7 +109,7 @@ const IMAGE_MODERATION_BATCH_PROMPT = [
   '<output_format>',
   '严格只输出 JSON：{"results":[{"index":0,"status":"approved|rejected","confidence":0~1,"reason_code":"...","reason":"..."}, ...]}',
   'results 必须覆盖每一张图片，index 从 0 开始按图片出现顺序编号。',
-  '</output_format>'
+  '</output_format>',
 ].join('\n');
 
 // File → 224px jpeg dataURL（复用本地检测的解码/降采样，体积约 15-30KB）
@@ -102,11 +119,46 @@ export async function encodeImageForCloudModeration(file) {
     const surface = createModerationSurfaceForModeration(image);
     return surface.toDataURL('image/jpeg', 0.7);
   } finally {
-    try { image.src = ''; } catch { /* ignore */ }
+    try {
+      image.src = '';
+    } catch {
+      /* ignore */
+    }
     if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
       URL.revokeObjectURL(objectUrl);
     }
   }
+}
+
+/**
+ * 有界并发 map：结果按入参下标落位 ⇒ 保持「返回顺序 == 入参顺序」契约。
+ *
+ * 用在**两处每项都要解码一张全分辨率原图**的地方（云端编码 / 本地兜底）。
+ * 两者此前都是 `Promise.all` 全量并发 —— 影集分享前复审最多 60 张，等于同时解码
+ * 60 张原图，移动端必然 OOM/卡死。收敛成 `DECODE_CONCURRENCY` 路。
+ *
+ * 任一项抛错：记下第一个错误并让其余 worker 尽快收工，最后统一抛出
+ * —— 与旧的 `Promise.all` 语义一致（一项失败即整批失败）。
+ */
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let firstError = null;
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < items.length && !firstError) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = await mapper(items[index], index);
+      } catch (error) {
+        if (!firstError) firstError = error;
+        return;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+  if (firstError) throw firstError;
+  return results;
 }
 
 function extractJsonBlock(text) {
@@ -127,14 +179,31 @@ function extractJsonBlock(text) {
 
 function normalizeVerdict(parsed) {
   if (!parsed || typeof parsed !== 'object') return null;
-  const rawStatus = String(parsed.status || parsed.decision || parsed.result || '').trim().toLowerCase();
+  const rawStatus = String(parsed.status || parsed.decision || parsed.result || '')
+    .trim()
+    .toLowerCase();
   if (!rawStatus) return null;
-  const rejected = rawStatus === 'rejected' || rawStatus === 'reject' || rawStatus === 'block' || rawStatus === 'blocked';
+  const rejected =
+    rawStatus === 'rejected' ||
+    rawStatus === 'reject' ||
+    rawStatus === 'block' ||
+    rawStatus === 'blocked';
   return {
     status: rejected ? 'rejected' : 'approved',
-    confidence: Math.max(0, Math.min(1, Number(parsed.confidence ?? parsed.score ?? parsed.probability ?? (rejected ? 0.9 : 0.1)))),
-    reason: String(parsed.reason || parsed.message || '').trim().slice(0, 120) || (rejected ? '云端审核判定图片包含不适宜内容' : '云端审核通过'),
-    reasonCode: String(parsed.reason_code || parsed.reasonCode || '').trim().slice(0, 48)
+    confidence: Math.max(
+      0,
+      Math.min(
+        1,
+        Number(parsed.confidence ?? parsed.score ?? parsed.probability ?? (rejected ? 0.9 : 0.1)),
+      ),
+    ),
+    reason:
+      String(parsed.reason || parsed.message || '')
+        .trim()
+        .slice(0, 120) || (rejected ? '云端审核判定图片包含不适宜内容' : '云端审核通过'),
+    reasonCode: String(parsed.reason_code || parsed.reasonCode || '')
+      .trim()
+      .slice(0, 48),
   };
 }
 
@@ -155,7 +224,7 @@ function parseCloudResponse(data, { batchCount = 0 } = {}) {
         status: 'rejected',
         confidence: 0.99,
         reason: '云端安全策略拦截了该图片',
-        reasonCode: 'CLOUD_SAFETY_BLOCK'
+        reasonCode: 'CLOUD_SAFETY_BLOCK',
       };
     }
     return null;
@@ -173,7 +242,9 @@ function parseCloudResponse(data, { batchCount = 0 } = {}) {
 // 把 callVaultSiliconChat 的失败归类为不可达类型。
 // 返回 { kind, cooldownMs }；kind='unconfigured' 表示云端未启用（不冷却，直接本地）。
 function classifyCloudFailure(failure = {}) {
-  const code = String(failure?.code || '').trim().toUpperCase();
+  const code = String(failure?.code || '')
+    .trim()
+    .toUpperCase();
   const status = Number(failure?.status || 0);
   const message = String(failure?.message || '');
 
@@ -188,7 +259,10 @@ function classifyCloudFailure(failure = {}) {
   }
   if (status === 429) {
     const isQuota = message.includes('额度') || message.toLowerCase().includes('quota');
-    return { kind: isQuota ? 'quota' : 'rate_limited', cooldownMs: isQuota ? COOLDOWN_QUOTA_MS : COOLDOWN_UNREACHABLE_MS };
+    return {
+      kind: isQuota ? 'quota' : 'rate_limited',
+      cooldownMs: isQuota ? COOLDOWN_QUOTA_MS : COOLDOWN_UNREACHABLE_MS,
+    };
   }
   if (status === 502 || status === 503 || status === 504) {
     return { kind: 'upstream', cooldownMs: COOLDOWN_UNREACHABLE_MS };
@@ -199,22 +273,26 @@ function classifyCloudFailure(failure = {}) {
 async function callCloudImageModeration(dataUrls, { timeoutMs = CLOUD_TIMEOUT_MS, signal } = {}) {
   const urls = Array.isArray(dataUrls) ? dataUrls : [dataUrls];
   const count = urls.length;
-  const textPrompt = count > 1
-    ? `请按顺序审核以下 ${count} 张图片，输出覆盖全部图片的 JSON 结果。`
-    : '请审核这张图片是否适合在社区公开发布。';
+  const textPrompt =
+    count > 1
+      ? `请按顺序审核以下 ${count} 张图片，输出覆盖全部图片的 JSON 结果。`
+      : '请审核这张图片是否适合在社区公开发布。';
 
   const payload = {
     messages: [
-      { role: 'system', content: count > 1 ? IMAGE_MODERATION_BATCH_PROMPT : IMAGE_MODERATION_SYSTEM_PROMPT },
+      {
+        role: 'system',
+        content: count > 1 ? IMAGE_MODERATION_BATCH_PROMPT : IMAGE_MODERATION_SYSTEM_PROMPT,
+      },
       {
         role: 'user',
         content: [
           { type: 'text', text: textPrompt },
-          ...urls.map((url) => ({ type: 'image_url', image_url: { url } }))
-        ]
-      }
+          ...urls.map((url) => ({ type: 'image_url', image_url: { url } })),
+        ],
+      },
     ],
-    stream: false
+    stream: false,
     // model / temperature / max_tokens 由 vault 端 moderation-image 行裁决，前端不可篡改
   };
 
@@ -225,7 +303,7 @@ async function callCloudImageModeration(dataUrls, { timeoutMs = CLOUD_TIMEOUT_MS
     payload,
     apiUrl: '',
     timeoutMs,
-    signal
+    signal,
   });
 }
 
@@ -238,7 +316,7 @@ async function localFallbackModerate(file) {
       score: localResult.score,
       reason: localResult.reason || '图片未通过安全检测（云端审核暂不可用，本地检测拦截）',
       source: 'local_fallback',
-      scores: localResult.scores
+      scores: localResult.scores,
     };
   }
   if (localResult?.status === 'needs_review') {
@@ -247,7 +325,7 @@ async function localFallbackModerate(file) {
       score: localResult.score,
       reason: `本地兜底放行（检测低置信 ${Number(localResult.score || 0).toFixed(2)}，建议后台抽查）`,
       source: 'local_fallback_borderline',
-      scores: localResult.scores
+      scores: localResult.scores,
     };
   }
   return {
@@ -255,7 +333,7 @@ async function localFallbackModerate(file) {
     score: localResult?.score || 0,
     reason: '本地兜底检测通过',
     source: 'local_fallback',
-    scores: localResult?.scores
+    scores: localResult?.scores,
   };
 }
 
@@ -270,9 +348,22 @@ async function attemptCloudVerdict(dataUrls, { timeoutMs, signal }) {
   const failure = {
     code: first?.error?.code,
     status: first?.status,
-    message: first?.error?.message
+    message: first?.error?.message,
   };
   const classified = classifyCloudFailure(failure);
+
+  // 「首次失败即冷却」（2026-10-04）：可重试类（upstream / bad_response）此前要等**第二次**
+  // 也失败才进冷却，于是多图批次里第 2..N 张各自都要再赔两轮超时。
+  // 现在第一次失败就先把冷却立起来（后续张直接走本地兜底），本次重试照旧 ——
+  // 若重试成功，调用方的 markCloudModerationSuccess() 会把冷却清掉，不误伤。
+  // `cooldownMarked` 用来告诉 handleUnreachable「已经标过了」，避免它再标一次
+  // （markCloudModerationUnreachable 的 until 是按当前时刻算的，重复调用一定会「延长」并再打一条日志）。
+  let cooldownMarked = false;
+  if (classified.cooldownMs > 0) {
+    markCloudModerationUnreachable(classified.cooldownMs, `image:${classified.kind}`);
+    cooldownMarked = true;
+  }
+
   if (isRetryableFailureKind(classified.kind)) {
     await new Promise((resolve) => setTimeout(resolve, CLOUD_RETRY_DELAY_MS));
     const second = await callCloudImageModeration(dataUrls, { timeoutMs, signal });
@@ -280,14 +371,32 @@ async function attemptCloudVerdict(dataUrls, { timeoutMs, signal }) {
     const secondClassified = classifyCloudFailure({
       code: second?.error?.code,
       status: second?.status,
-      message: second?.error?.message
+      message: second?.error?.message,
     });
-    return { ok: false, failure: { ...failure, kind: secondClassified.kind, cooldownMs: secondClassified.cooldownMs } };
+    return {
+      ok: false,
+      failure: {
+        ...failure,
+        kind: secondClassified.kind,
+        cooldownMs: secondClassified.cooldownMs,
+        cooldownMarked,
+      },
+    };
   }
-  return { ok: false, failure: { ...failure, kind: classified.kind, cooldownMs: classified.cooldownMs } };
+  return {
+    ok: false,
+    failure: {
+      ...failure,
+      kind: classified.kind,
+      cooldownMs: classified.cooldownMs,
+      cooldownMarked,
+    },
+  };
 }
 
 function handleUnreachable(failure) {
+  // 已经在 attemptCloudVerdict 里标过冷却（首次失败即冷却）—— 这里只收口 kind，不重复标
+  if (failure?.cooldownMarked) return failure?.kind || 'bad_response';
   if (failure?.cooldownMs > 0) {
     markCloudModerationUnreachable(failure.cooldownMs, `image:${failure.kind}`);
   } else {
@@ -298,7 +407,10 @@ function handleUnreachable(failure) {
 
 // 单图入口：云端优先，不可达回退本地兜底。
 // 返回结构与旧版 moderateForumImageFile 兼容：{status:'approved'|'rejected', score, reason, source}
-export async function moderateImageWithFallback(file, { timeoutMs = CLOUD_TIMEOUT_MS, signal } = {}) {
+export async function moderateImageWithFallback(
+  file,
+  { timeoutMs = CLOUD_TIMEOUT_MS, signal } = {},
+) {
   const forced = getForcedLayer();
 
   if (forced === 'local') {
@@ -319,24 +431,36 @@ export async function moderateImageWithFallback(file, { timeoutMs = CLOUD_TIMEOU
             score: verdict.confidence,
             reason: verdict.reason,
             reasonCode: verdict.reasonCode,
-            source: 'gemini'
+            source: 'gemini',
           };
         }
-        const kind = handleUnreachable({ kind: 'bad_response', cooldownMs: COOLDOWN_UNREACHABLE_MS });
+        const kind = handleUnreachable({
+          kind: 'bad_response',
+          cooldownMs: COOLDOWN_UNREACHABLE_MS,
+        });
         logger.warn('image-moderation-pipeline', '云端审核响应无法解析，回退本地兜底', { kind });
       } else {
         const kind = handleUnreachable(attempt.failure);
-        logger.warn('image-moderation-pipeline', '云端审核不可达，回退本地兜底', { kind, status: attempt.failure?.status });
+        logger.warn('image-moderation-pipeline', '云端审核不可达，回退本地兜底', {
+          kind,
+          status: attempt.failure?.status,
+        });
       }
     } catch (error) {
       // 编码失败（图片无法解析）属于图片本身问题，不是云端不可达 —— 原样抛出，
       // 与旧版行为一致（调用方按「图片无法解析」提示用户换图）。
-      if (error?.code === 'IMAGE_MODERATION_TIMEOUT' || error?.code === 'IMAGE_MODERATION_UNAVAILABLE'
-        || String(error?.message || '').includes('图片')) {
+      if (
+        error?.code === 'IMAGE_MODERATION_TIMEOUT' ||
+        error?.code === 'IMAGE_MODERATION_UNAVAILABLE' ||
+        String(error?.message || '').includes('图片')
+      ) {
         throw error;
       }
       const kind = handleUnreachable({ kind: 'network', cooldownMs: COOLDOWN_UNREACHABLE_MS });
-      logger.warn('image-moderation-pipeline', '云端审核调用异常，回退本地兜底', { kind, message: error?.message });
+      logger.warn('image-moderation-pipeline', '云端审核调用异常，回退本地兜底', {
+        kind,
+        message: error?.message,
+      });
     }
   }
 
@@ -345,18 +469,26 @@ export async function moderateImageWithFallback(file, { timeoutMs = CLOUD_TIMEOU
 
 // 批量入口：多图合并为一次云端请求（省配额预扣与限流计数）。
 // 云端不可达时整组逐张走本地兜底；单图结果缺失时仅该图单独兜底。
-export async function moderateImagesWithFallback(files, { timeoutMs = CLOUD_TIMEOUT_MS + 4000, signal } = {}) {
+export async function moderateImagesWithFallback(
+  files,
+  { timeoutMs = CLOUD_BATCH_TIMEOUT_MS, signal } = {},
+) {
   const list = Array.isArray(files) ? files.filter(Boolean) : [];
   if (list.length === 0) return [];
   if (list.length === 1) {
-    const single = await moderateImageWithFallback(list[0], { timeoutMs: CLOUD_TIMEOUT_MS, signal });
+    const single = await moderateImageWithFallback(list[0], {
+      timeoutMs: CLOUD_TIMEOUT_MS,
+      signal,
+    });
     return [single];
   }
 
   const forced = getForcedLayer();
   if (forced !== 'local' && (forced === 'cloud' || !isCloudModerationCoolingDown())) {
     try {
-      const dataUrls = await Promise.all(list.map((file) => encodeImageForCloudModeration(file)));
+      const dataUrls = await mapWithConcurrency(list, DECODE_CONCURRENCY, (file) =>
+        encodeImageForCloudModeration(file),
+      );
       const attempt = await attemptCloudVerdict(dataUrls, { timeoutMs, signal });
       if (attempt.ok) {
         const results = parseCloudResponse(attempt.data, { batchCount: list.length });
@@ -370,7 +502,7 @@ export async function moderateImagesWithFallback(files, { timeoutMs = CLOUD_TIME
               verdictByIndex.set(idx, verdict);
             }
           }
-          return Promise.all(list.map(async (file, idx) => {
+          return mapWithConcurrency(list, DECODE_CONCURRENCY, async (file, idx) => {
             const verdict = verdictByIndex.get(idx);
             if (verdict) {
               return {
@@ -378,11 +510,13 @@ export async function moderateImagesWithFallback(files, { timeoutMs = CLOUD_TIME
                 score: verdict.confidence,
                 reason: verdict.reason,
                 reasonCode: verdict.reasonCode,
-                source: 'gemini'
+                source: 'gemini',
               };
             }
             // 个别图缺结果：仅该图单独走本地兜底（标记冷却但不阻断其他图）
-            logger.warn('image-moderation-pipeline', '批量结果缺失，单图走本地兜底', { index: idx });
+            logger.warn('image-moderation-pipeline', '批量结果缺失，单图走本地兜底', {
+              index: idx,
+            });
             try {
               return await localFallbackModerate(file);
             } catch (error) {
@@ -390,12 +524,15 @@ export async function moderateImagesWithFallback(files, { timeoutMs = CLOUD_TIME
                 status: 'rejected',
                 score: 0,
                 reason: error?.message || '图片安全检测失败',
-                source: 'local_fallback_error'
+                source: 'local_fallback_error',
               };
             }
-          }));
+          });
         }
-        const kind = handleUnreachable({ kind: 'bad_response', cooldownMs: COOLDOWN_UNREACHABLE_MS });
+        const kind = handleUnreachable({
+          kind: 'bad_response',
+          cooldownMs: COOLDOWN_UNREACHABLE_MS,
+        });
         logger.warn('image-moderation-pipeline', '批量审核响应无法解析，整组回退本地', { kind });
       } else {
         const kind = handleUnreachable(attempt.failure);
@@ -403,11 +540,15 @@ export async function moderateImagesWithFallback(files, { timeoutMs = CLOUD_TIME
       }
     } catch (error) {
       const kind = handleUnreachable({ kind: 'network', cooldownMs: COOLDOWN_UNREACHABLE_MS });
-      logger.warn('image-moderation-pipeline', '批量审核调用异常，整组回退本地', { kind, message: error?.message });
+      logger.warn('image-moderation-pipeline', '批量审核调用异常，整组回退本地', {
+        kind,
+        message: error?.message,
+      });
     }
   }
 
-  return Promise.all(list.map((file) => localFallbackModerate(file)));
+  // 整组本地兜底：同样有界并发（每项都要解码一张原图）
+  return mapWithConcurrency(list, DECODE_CONCURRENCY, (file) => localFallbackModerate(file));
 }
 
 // 面板「连通性测试」：直接发一张内置测试图到 moderation-image 行，返回裁决与耗时。
@@ -429,7 +570,12 @@ export async function testCloudImageModeration({ timeoutMs = 10000 } = {}) {
     context.fillText('B', 32, 32);
     dataUrl = canvas.toDataURL('image/jpeg', 0.8);
   } catch (error) {
-    return { ok: false, message: `无法生成测试图片：${error?.message || 'unknown'}`, verdict: null, elapsedMs: 0 };
+    return {
+      ok: false,
+      message: `无法生成测试图片：${error?.message || 'unknown'}`,
+      verdict: null,
+      elapsedMs: 0,
+    };
   }
 
   try {
@@ -441,21 +587,27 @@ export async function testCloudImageModeration({ timeoutMs = 10000 } = {}) {
         message: result?.error?.message || `云端审核返回失败 (${result?.status || 0})`,
         keyInfo: result?.data?.keyInfo || null,
         verdict: null,
-        elapsedMs
+        elapsedMs,
       };
     }
     const verdict = parseCloudResponse(result.data, { batchCount: 1 });
     if (!verdict) {
       return {
         ok: false,
-        message: '云端返回了响应，但无法解析出审核裁决（请检查 moderation-image 行的模型是否具备视觉能力）',
+        message:
+          '云端返回了响应，但无法解析出审核裁决（请检查 moderation-image 行的模型是否具备视觉能力）',
         keyInfo: result.keyInfo,
         verdict: null,
-        elapsedMs
+        elapsedMs,
       };
     }
     return { ok: true, message: verdict.reason, keyInfo: result.keyInfo, verdict, elapsedMs };
   } catch (error) {
-    return { ok: false, message: error?.message || '云端审核调用失败', verdict: null, elapsedMs: Date.now() - startedAt };
+    return {
+      ok: false,
+      message: error?.message || '云端审核调用失败',
+      verdict: null,
+      elapsedMs: Date.now() - startedAt,
+    };
   }
 }

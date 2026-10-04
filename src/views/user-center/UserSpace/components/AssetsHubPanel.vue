@@ -1169,13 +1169,6 @@ const retryLedger = () => {
   void loadLedger();
 };
 
-const formatPoints = (pts) => {
-  const n = Number(pts) || 0;
-  if (n >= 10000) return (n / 10000).toFixed(1) + 'w';
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
-  return n.toLocaleString();
-};
-
 const formatDate = (d) => {
   if (!d) return '--';
   const date = new Date(d);
@@ -1961,23 +1954,6 @@ const getGiftStatusLabel = (s) => {
   return map[s] || s;
 };
 
-const giftStatusTitle = computed(() => {
-  if (!currentGift.value) return '待命中的礼物';
-  const status = currentGift.value.gift_status;
-  const dateSource =
-    status === 'completed'
-      ? currentGift.value.completed_at ||
-        currentGift.value.updated_at ||
-        currentGift.value.created_at
-      : currentGift.value.updated_at || currentGift.value.created_at;
-  const date = formatDateShort(dateSource);
-  if (status === 'preparing') return `备货中 ${date}`;
-  if (status === 'processing') return `正在处理 ${date}`;
-  if (status === 'shipped') return `已发货 ${date}`;
-  if (status === 'completed') return `已送达 ${date}`;
-  return '礼物状态';
-});
-
 const giftStatusDate = computed(() => {
   if (!currentGift.value) return '';
   const status = currentGift.value.gift_status;
@@ -2107,11 +2083,6 @@ const loadGifts = async () => {
   } finally {
     giftsLoading.value = false;
   }
-};
-
-const refreshGifts = () => {
-  giftsLoaded.value = false;
-  void loadGifts();
 };
 
 const refreshFulfillment = () => {

@@ -29,6 +29,10 @@
  *   A12 浮层同时含「对话上下文」「今日额度」两行
  *   A13 移开鼠标 → 浮层 180ms 延迟收起
  *   （A10-A13 依赖发送一条消息触发 orb 渲染；模型与 quota-status 均被 mock）
+ *   C1 圆钮浮层的「完整用量」→ 打开**设置面板**并滚到用量卡（2026-10-03 起不再开额度侧板）
+ *   C2 设置面板结构 = 4 卡（对话偏好 / 记忆与上下文 / 外观 / 用量）+ 折叠高级 + 数据卡
+ *   C3 用量卡读到 quota-status 的 mock 值（88% + Web Searching 3 次）
+ *   C4 退役的 AiQuotaSidePanel 已消失（无 .quota-drawer）+ 设置面板里没有「思考速度」第二入口
  *   B1 ⌘K（真实快捷键，走 App.vue 的 handleGlobalAiKeydown）→ AI 岛展开
  *   B2 岛内渲染出 composer 胶囊
  *   B3 岛内打开面板后，面板与二级菜单都完整落在视口内（没被岛的 overflow:hidden 裁掉）
@@ -36,6 +40,8 @@
  * 反证（必须做，否则不算自证）：
  *   把 `selectThinkingSpeed` 改回「只收二级菜单」（composerSubOpen.value = ''），
  *   A5 必红；把 BOHAIIsland 的紧凑面板覆盖加回去，B3 的位置读数会变 —— 两侧都要能红。
+ *   C 组：把 `openUsageInSettings` 改回「开额度侧板」（settingsFocusSection 不置 'usage'）→
+ *   C1 的 scrollTop/usageVisible 必红；把设置面板的用量卡整段删掉 → C2/C3 必红。
  */
 import { chromium } from 'playwright';
 
@@ -379,6 +385,67 @@ const newPage = async (ctx, bucket) => {
   });
   check('A13 移开鼠标 → 浮层延迟收起', hoverClosed, `closed=${hoverClosed}`);
 
+  // ── C1-C4 设置面板（2026-10-03 plans/023 步骤 ④：7 分区重排 + AiQuotaSidePanel 退役）──
+  // 圆钮浮层是唯一的「看完整用量」入口，它必须落到**设置面板的用量卡** —— 不再有第二层抽屉。
+  // 这条链路（浮层按钮 → settingsOpen + scrollIntoView）没有别的探针覆盖，所以放在这里：
+  // mock 还在（quota-status 已被上面 route 拦下），且浮层刚被 A11-A13 验过。
+  await page.hover('.usage-orb');
+  await page.waitForTimeout(320);
+  await page.locator('.usage-pop-more').click();
+  await page.waitForSelector('.ai-settings-drawer', { timeout: 8000 });
+  await page.waitForTimeout(700); // 等 scrollIntoView 与卡片入场动画落定
+
+  const settingsShape = await page.evaluate(() => {
+    const body = document.querySelector('.ai-settings-body');
+    const usageSection = document.querySelector('.ai-settings-usage-section');
+    const usageRect = usageSection?.getBoundingClientRect();
+    const bodyRect = body?.getBoundingClientRect();
+    return {
+      titles: [...document.querySelectorAll('.ai-settings-group-title')].map((el) =>
+        el.textContent.trim(),
+      ),
+      collapseHead: !!document.querySelector('.ai-settings-collapse-head'),
+      usageVisible:
+        !!usageRect &&
+        !!bodyRect &&
+        usageRect.top < bodyRect.bottom &&
+        usageRect.bottom > bodyRect.top,
+      scrollTop: body?.scrollTop || 0,
+      drawer: !!document.querySelector('.ai-settings-drawer'),
+      legacyQuotaDrawer: document.querySelectorAll('.quota-drawer, .quota-backdrop').length,
+      text: (document.querySelector('.ai-settings-drawer')?.innerText || '').replace(/\s+/g, ' '),
+    };
+  });
+
+  check(
+    'C1 圆钮浮层「完整用量」→ 打开设置面板并滚到用量卡',
+    settingsShape.drawer && settingsShape.usageVisible && settingsShape.scrollTop > 0,
+    `scrollTop=${settingsShape.scrollTop} usageVisible=${settingsShape.usageVisible}`,
+  );
+  check(
+    'C2 设置面板为 4 卡 + 折叠高级 + 数据卡',
+    ['对话偏好', '记忆与上下文', '外观', '用量', '数据'].every((t) =>
+      settingsShape.titles.includes(t),
+    ) && settingsShape.collapseHead,
+    settingsShape.titles.join(' / '),
+  );
+  // ⚠️ 断言只认**数据**，不认文案：面板底部那句说明里也含「Web Searching」，
+  // 早先的写法（`includes('Web Searching')`）被那句文案满足，把 C3 变成了假绿
+  // （反证实测：把段标题改成 WEB SEARCH，C3 仍然 PASS）。
+  check(
+    'C3 用量卡读到 quota-status 的 mock 值（88% + 已用 3 次 / 共 10 次）',
+    settingsShape.text.includes('88%') &&
+      settingsShape.text.includes('已用 3 次') &&
+      settingsShape.text.includes('共 10 次'),
+    settingsShape.text.slice(0, 160),
+  );
+  check(
+    'C4 退役的额度侧板已消失 + 思考强度不再有第二入口',
+    settingsShape.legacyQuotaDrawer === 0 && !settingsShape.text.includes('思考速度'),
+    `legacy=${settingsShape.legacyQuotaDrawer}`,
+  );
+
+  await page.screenshot({ path: `${OUT}/bohai-settings-usage.png` });
   await page.unroute('**/functions/v1/api-key-vault**');
   await page.screenshot({ path: `${OUT}/bohai-usage-orb-single.png` });
   await ctx.close();

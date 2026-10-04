@@ -38,7 +38,6 @@ vi.mock('../_shared.js', () => ({
 
 // Since schedulePostModeration is not exported, we re-implement the retry logic here for testing
 const REJECTED_STATUS = 'rejected';
-const APPROVED_STATUS = 'approved';
 const POST_ASYNC_MODERATION_TIMEOUT_MS = 45000;
 const BASE_DELAY_MS = 2000;
 

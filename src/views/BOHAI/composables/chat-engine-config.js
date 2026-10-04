@@ -4,15 +4,6 @@ import { NO_FABRICATION_RULE } from '../shared-rules.js';
 export const BOH_MEMBER_NAMES =
   'ryyik|lf|小牛|橙子|eleven|end|雨芙蕖|白烨|丁老师|汉堡|百城|小天光|小仙';
 
-export const SILICON_CLOUD_URL =
-  import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
-export const SILICON_EMBEDDING_URL =
-  import.meta.env.VITE_SILICON_EMBEDDING_URL || 'https://api.siliconflow.cn/v1/embeddings';
-export const SILICON_RERANK_URL =
-  import.meta.env.VITE_SILICON_RERANK_URL || 'https://api.siliconflow.cn/v1/rerank';
-export const ZHIPU_CHAT_URL =
-  import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-
 // 历史上下文窗口：进度从 0% 单调增长到 100%，到达后自动整理并开启下一轮。
 // - MAX_CONTEXT_MESSAGES=30: 一轮窗口内可保留 30 条历史。
 // - MAX_HISTORY_CONTEXT_CHARS=12000: 全部历史合计 ≤ 12000 字符（约 3K tokens），
@@ -55,11 +46,34 @@ export const USER_PRIVATE_POSTS_FETCH_LIMIT = 24;
 export const USER_PRIVATE_MAIL_FETCH_LIMIT = 40;
 export const USER_PRIVATE_GIFTS_FETCH_LIMIT = 20;
 export const USER_PRIVATE_CONTEXT_MAX_ITEM_CHARS = 200;
+// 站内活动 / 抽奖 / 演出的检索触发词（2026-10-04，对应 BOHAI_CONNECTOR_IDS.siteActivities）。
+// ⚠️ 词表偏宽是刻意的：connector 只在这组词命中时才跑（并行 3 个轻量查询），
+// 漏读的代价（AI 答不出「最近有什么活动」）比多读一次大。误触发的收紧口径见
+// useIntentDetection.shouldUseSiteActivities（已排除站点操作类问题）。
+export const SITE_ACTIVITY_TRIGGER_KEYWORDS = [
+  '活动',
+  '比赛',
+  '赛事',
+  '报名',
+  '投稿',
+  '参赛',
+  '征稿',
+  '征集',
+  '抽奖',
+  '中签',
+  '中奖',
+  '开奖',
+  '奖品',
+  '获奖',
+  '演出',
+  '表演',
+  '公演',
+  '作品展',
+];
+
 export const MEMORY_CAPTURE_SETTING_KEY = 'boh_ai_memory_capture_enabled_v1';
 export const TREEHOLE_MEMORY_SYNC_SETTING_KEY = 'boh_ai_note_reference_enabled_v1';
 export const LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY = 'boh_ai_treehole_sync_enabled_v1';
-export const CLOUD_REFERENCE_CONSENT_KEY = 'boh_ai_cloud_reference_consent_v1';
-export const QUICK_NOTE_SETTING_KEY = 'boh_ai_quick_note_enabled_v1';
 export const RESPONSE_STYLE_SETTING_KEY = 'boh_ai_response_style_v1';
 export const THINKING_SPEED_SETTING_KEY = 'boh_ai_thinking_speed_v1';
 export const PLAN_MODE_SETTING_KEY = 'boh_ai_plan_mode_enabled_v1';
@@ -82,8 +96,6 @@ export const KNOWLEDGE_CONTEXT_MAX_CHARS = 6500;
 export const KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS = 3000;
 export const ACTION_DRAFT_CONTENT_MAX_CHARS = 3000;
 export const ACTION_DRAFT_TITLE_MAX_CHARS = 64;
-export const QUICK_NOTE_CONTENT_MAX_CHARS = 3000;
-export const QUICK_NOTE_TITLE_MAX_CHARS = 80;
 
 // 模式 → 生成参数（仅作用于 5 个真实模式；auto 已在 2026-06-08 移除）。
 export const GENERATION_PROFILE_BY_MODE = {

@@ -271,8 +271,11 @@
 
   /* --rail-* 条目状态底色：side-rail.css 把亮色挂在 .user-space-page、
      本文件把他人空间的挂在 .profile-page —— 首页没有那两类祖先，
-     照他人空间的做法在本页根元素上补挂一份（亮色 + 暗色）。 */
-  body.page-home {
+     照他人空间的做法在本页根元素上补挂一份（亮色 + 暗色）。
+     2026-10-03：BOH AI 整页（body.page-aichat）同样没有这两类祖先，
+     一并挂在这里 —— **共用同一条规则**而不是复制一份，色值只此一处。 */
+  body.page-home,
+  body.page-aichat {
     --rail-item-bg-hover: rgba(15, 23, 42, 0.05);
     --rail-item-bg-active: rgba(15, 23, 42, 0.07);
     --rail-pill-bg: rgba(15, 23, 42, 0.075);
@@ -308,8 +311,10 @@
   }
 
   /* 暗色：主题挂在 html 上（theme-manager 是唯一写入点），
-     与 .profile-page[data-theme="dark"] 同值 */
-  html[data-theme="dark"] body.page-home {
+     与 .profile-page[data-theme="dark"] 同值。
+     2026-10-03：body.page-aichat 复用同一条规则（AI 整页同样没有 .user-space-page 祖先）。 */
+  html[data-theme="dark"] body.page-home,
+  html[data-theme="dark"] body.page-aichat {
     --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
     --rail-item-bg-active: rgba(255, 255, 255, 0.12);
     --rail-pill-bg: rgba(255, 255, 255, 0.12);
@@ -319,5 +324,49 @@
 @media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
   body.page-home {
     --userspace-rail-w: 240px;
+  }
+}
+
+/* ================================================================
+   BOH AI 整页（/ai-chat → body.page-aichat）横屏同体系左栏
+   ================================================================
+   2026-10-03 用户口径：AI 是底栏「AI」席的全屏落点，原先一切到 AI 左栏就整条消失 ——
+   横屏电脑上从「我」页点 AI，导航直接没了，只剩一个返回键。
+   这里挂同一份 UserSpaceSideRail（BOHAIMain 里 v-if="isStandalone"），
+   规则与 UserSpace / 他人空间 / 首页同构：
+
+     · 断点与 side-rail.css 完全一致（改一处必须同步三处 + 本处）
+     · AI 页是 100dvh 满屏容器、内部不滚动，故 rail 用 fixed
+       （.bohai-page 未定位，absolute 的包含块本来也是视口，写 fixed 语义更直白）
+     · 内容让位走 .bohai-page 的 padding-left：整页一起右移 ——
+       .bohai-container / 聊天区 / 输入区 / ☰ 按钮（它 absolute 在 .bohai-container 内）
+       全部自动跟着走，不需要逐个子元素改 left
+     · AI 自带的会话侧栏是 **Teleport 到 body** 的，body 上的 padding 管不到它 ——
+       它的 left 改由 BohaiSidebar 里 var(--bohai-sidebar-left) 驱动（默认 0，只有本页置位），
+       于是侧栏正好接在左栏右侧，两块面板不叠
+     · 栏宽固定 88px，**不随 ≥1280 升到 240px**：AI 页本身已有一条 ~280px 的会话侧栏，
+       1280 宽下再来一条带文字的 240px 左栏会吃掉 520px，聊天区只剩一半
+     · 暗色与条目状态底色复用上面 body.page-home 的那两条规则（见文件上半部分）
+   ================================================================ */
+
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  body.page-aichat {
+    --userspace-rail-w: 88px;
+    /* 只有本页把会话侧栏推开：其余页面的 .sidebar 仍是 left: 0 */
+    --bohai-sidebar-left: var(--userspace-rail-w);
+  }
+
+  body.page-aichat .userspace-rail.liquid-glass {
+    position: fixed;
+  }
+
+  body.page-aichat .bohai-page {
+    padding-left: var(--userspace-rail-w);
+  }
+
+  /* 顶部导航以内容区居中而不是整页居中：与 UserSpace / 首页同一条杠杆
+     （.unified-nav-surface 靠 margin auto 在满宽容器里居中，基准默认是整页） */
+  body.page-aichat .unified-nav-surface {
+    left: calc(var(--userspace-rail-w, 88px) / 2);
   }
 }

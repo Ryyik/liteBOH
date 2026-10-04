@@ -782,31 +782,6 @@ onMounted(() => {
   }
 });
 
-const joinDate = computed(() => props.profile.joinDate || '');
-const joinDateText = computed(() => {
-  const val = joinDate.value;
-  if (!val) return '设置入群时间';
-  const date = new Date(val);
-  if (Number.isNaN(date.getTime())) return val;
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-});
-
-const birthday = computed(() => {
-  if (props.profile.birthMonth && props.profile.birthDay) {
-    return { month: props.profile.birthMonth, day: props.profile.birthDay };
-  }
-  return null;
-});
-
-const birthdayText = computed(() => {
-  const b = birthday.value;
-  if (!b) return '设置生日';
-  const month = Number(b.month);
-  const day = Number(b.day);
-  if (!Number.isFinite(month) || !Number.isFinite(day)) return '';
-  return `${month}月${day}日`;
-});
-
 const formatPoints = (points) => {
   if (!points || points === 0) return '0';
   if (points >= 10000) return (points / 10000).toFixed(1) + 'w';

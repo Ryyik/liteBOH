@@ -1,8 +1,6 @@
-import { CONNECTOR_TIMEOUT_MS } from './bohai-constants.js';
+import { CONNECTOR_TIMEOUT_MS, SILICON_CLOUD_CHAT_URL } from './bohai-constants.js';
 import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
 
-const BOHAI_CHAT_API_URL =
-  import.meta.env.VITE_SILICON_CLOUD_URL || 'https://api.siliconflow.cn/v1/chat/completions';
 const ZHIPU_CHAT_API_URL =
   import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 
@@ -29,8 +27,8 @@ const isTimeoutError = (error) => {
 const isRetryableStatus = (status) => status === 429 || (status >= 500 && status <= 599);
 
 export const getBohAIModelStatus = () => ({
-  hasConfig: Boolean(BOHAI_CHAT_API_URL),
-  url: BOHAI_CHAT_API_URL,
+  hasConfig: Boolean(SILICON_CLOUD_CHAT_URL),
+  url: SILICON_CLOUD_CHAT_URL,
   defaultModelId: getBohaiDefaultModelId(),
   usesVaultFallback: true,
 });
@@ -72,7 +70,7 @@ export const callBohAIModel = async ({
     .startsWith('glm-')
     ? 'zhipu'
     : 'siliconflow';
-  const apiUrl = provider === 'zhipu' ? ZHIPU_CHAT_API_URL : BOHAI_CHAT_API_URL;
+  const apiUrl = provider === 'zhipu' ? ZHIPU_CHAT_API_URL : SILICON_CLOUD_CHAT_URL;
 
   let lastError = null;
 

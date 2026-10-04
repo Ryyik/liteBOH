@@ -1,7 +1,10 @@
 export const BOHAI_ACTION_AUDIT_STORAGE_KEY = 'boh_ai_action_audits';
 export const BOHAI_ACTION_AUDIT_MAX_ITEMS = 60;
 
-const normalizeText = (value, maxChars = 180) => String(value || '').trim().slice(0, maxChars);
+const normalizeText = (value, maxChars = 180) =>
+  String(value || '')
+    .trim()
+    .slice(0, maxChars);
 
 const summarizePayload = (actionId = '', payload = {}) => {
   const safePayload = payload && typeof payload === 'object' ? payload : {};
@@ -13,28 +16,22 @@ const summarizePayload = (actionId = '', payload = {}) => {
       return {
         title,
         contentPreview: content,
-        contentLength: String(safePayload.content || '').length
+        contentLength: String(safePayload.content || '').length,
       };
-    case 'saveCloud':
-    case 'quickNote':
     case 'saveSharedMemory':
       return {
         title,
         contentPreview: content,
-        contentLength: String(safePayload.content || '').length
+        contentLength: String(safePayload.content || '').length,
       };
     default:
       return {
-        preview: normalizeText(JSON.stringify(safePayload), 220)
+        preview: normalizeText(JSON.stringify(safePayload), 220),
       };
   }
 };
 
-export const createBohAIActionAuditEntry = ({
-  result = {},
-  payload = {},
-  auth = {}
-} = {}) => {
+export const createBohAIActionAuditEntry = ({ result = {}, payload = {}, auth = {} } = {}) => {
   const actionId = String(result?.actionId || '').trim();
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
@@ -48,13 +45,13 @@ export const createBohAIActionAuditEntry = ({
     username: normalizeText(auth?.username || '', 80),
     createdAt: Date.now(),
     payload: summarizePayload(actionId, payload),
-    metadata: result?.metadata && typeof result.metadata === 'object' ? result.metadata : {}
+    metadata: result?.metadata && typeof result.metadata === 'object' ? result.metadata : {},
   };
 };
 
 export const loadBohAIActionAuditsFromStorage = ({
   storage = typeof window !== 'undefined' ? window.localStorage : null,
-  storageKey = BOHAI_ACTION_AUDIT_STORAGE_KEY
+  storageKey = BOHAI_ACTION_AUDIT_STORAGE_KEY,
 } = {}) => {
   if (!storage) return [];
   try {
@@ -70,10 +67,13 @@ export const loadBohAIActionAuditsFromStorage = ({
 export const saveBohAIActionAuditsToStorage = ({
   storage = typeof window !== 'undefined' ? window.localStorage : null,
   storageKey = BOHAI_ACTION_AUDIT_STORAGE_KEY,
-  audits = []
+  audits = [],
 } = {}) => {
   if (!storage) return false;
-  storage.setItem(storageKey, JSON.stringify((Array.isArray(audits) ? audits : []).slice(0, BOHAI_ACTION_AUDIT_MAX_ITEMS)));
+  storage.setItem(
+    storageKey,
+    JSON.stringify((Array.isArray(audits) ? audits : []).slice(0, BOHAI_ACTION_AUDIT_MAX_ITEMS)),
+  );
   return true;
 };
 
@@ -81,17 +81,20 @@ export const appendBohAIActionAudit = ({
   storage = typeof window !== 'undefined' ? window.localStorage : null,
   storageKey = BOHAI_ACTION_AUDIT_STORAGE_KEY,
   audits = [],
-  entry = null
+  entry = null,
 } = {}) => {
   if (!entry) return Array.isArray(audits) ? audits : [];
-  const next = [entry, ...(Array.isArray(audits) ? audits : [])].slice(0, BOHAI_ACTION_AUDIT_MAX_ITEMS);
+  const next = [entry, ...(Array.isArray(audits) ? audits : [])].slice(
+    0,
+    BOHAI_ACTION_AUDIT_MAX_ITEMS,
+  );
   saveBohAIActionAuditsToStorage({ storage, storageKey, audits: next });
   return next;
 };
 
 export const clearBohAIActionAuditsStorage = ({
   storage = typeof window !== 'undefined' ? window.localStorage : null,
-  storageKey = BOHAI_ACTION_AUDIT_STORAGE_KEY
+  storageKey = BOHAI_ACTION_AUDIT_STORAGE_KEY,
 } = {}) => {
   if (!storage) return false;
   storage.removeItem(storageKey);

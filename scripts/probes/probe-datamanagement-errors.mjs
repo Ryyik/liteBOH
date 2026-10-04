@@ -24,15 +24,16 @@ fs.mkdirSync(SHOTS, { recursive: true });
 
 const browser = await chromium.launch({
   channel: 'chrome',
-  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
+  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
 });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await context.newPage();
 
 // ---- 采集器 ----
-let bucket = [];          // 当前页签的采集窗口
-const globalEvents = [];  // 全流程事件
-const pushEvent = (kind, payload) => { bucket.push({ kind, ...payload }); };
+let bucket = []; // 当前页签的采集窗口
+const pushEvent = (kind, payload) => {
+  bucket.push({ kind, ...payload });
+};
 
 const REST_RE = /\/rest\/v1\//;
 
@@ -40,16 +41,24 @@ page.on('response', async (res) => {
   if (!REST_RE.test(res.url())) return;
   if (res.status() < 400) return;
   let body = '';
-  try { body = (await res.text()).slice(0, 400); } catch { body = '(body 读取失败)'; }
+  try {
+    body = (await res.text()).slice(0, 400);
+  } catch {
+    body = '(body 读取失败)';
+  }
   let parsed = null;
-  try { parsed = JSON.parse(body); } catch { /* 非 JSON */ }
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    /* 非 JSON */
+  }
   pushEvent('rest', {
     status: res.status(),
     url: res.url().replace(BASE, '').slice(0, 300),
     message: parsed?.message || body.slice(0, 300),
     code: parsed?.code || null,
     details: parsed?.details || null,
-    hint: parsed?.hint || null
+    hint: parsed?.hint || null,
   });
 });
 page.on('pageerror', (e) => pushEvent('pageerror', { message: String(e.message).slice(0, 300) }));
@@ -82,7 +91,9 @@ const armAdminGuard = () =>
 
 const currentRole = () =>
   page.evaluate(() => {
-    const v = document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia?.state?.value?.auth;
+    const v =
+      document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia?.state?.value
+        ?.auth;
     return `${v?.userInfo?.role || '(空)'} loggedIn=${v?.isLoggedIn}`;
   });
 
@@ -99,26 +110,33 @@ const stubAdminRpcs = () =>
       status: 200,
       contentType: 'application/json',
       headers: { 'content-range': listShaped ? '0--1/*' : '0-0/0' },
-      body: listShaped ? '[]' : '{}'
+      body: listShaped ? '[]' : '{}',
     });
   });
 
 const toastText = () =>
   page.evaluate(() => {
     const nodes = document.querySelectorAll(
-      '.boh-toast, .toast, [class*="toast"] [class*="message"], [class*="toast"]'
+      '.boh-toast, .toast, [class*="toast"] [class*="message"], [class*="toast"]',
     );
-    return [...nodes].map((n) => n.textContent.trim()).filter(Boolean).slice(0, 3);
+    return [...nodes]
+      .map((n) => n.textContent.trim())
+      .filter(Boolean)
+      .slice(0, 3);
   });
 
 // ---- 打开面板 ----
 const page2 = page;
 await page2.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-await page2.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+await page2.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+  timeout: 30000,
+});
 await page2.waitForTimeout(3500); // 等启动期会话检查放完，之后再注 pinia 才是稳态
 await stubAdminRpcs();
 const roleAfterArm = await armAdminGuard();
-await page2.evaluate(() => { location.hash = '#/admin/data-management'; });
+await page2.evaluate(() => {
+  location.hash = '#/admin/data-management';
+});
 await page2.waitForSelector('.admin-shell', { timeout: 30000 });
 await page2.waitForTimeout(2500);
 await armAdminGuard(); // 幂等，兜底
@@ -132,26 +150,30 @@ const readModules = () =>
       index: i,
       label: b.querySelector('.g-nav-label')?.textContent?.trim() || b.textContent.trim(),
       denied: b.classList.contains('is-denied') || b.getAttribute('aria-disabled') === 'true',
-      active: b.classList.contains('is-active')
-    }))
+      active: b.classList.contains('is-active'),
+    })),
   );
 
 const modules = await readModules();
-console.log(`侧栏模块 ${modules.length} 个: ${modules.map((m) => m.label + (m.denied ? '(禁)' : '')).join(' / ')}`);
+console.log(
+  `侧栏模块 ${modules.length} 个: ${modules.map((m) => m.label + (m.denied ? '(禁)' : '')).join(' / ')}`,
+);
 
 const results = [];
 const tabTexts = () =>
   page2.evaluate(() =>
-    [...document.querySelectorAll('.g-module-tab, .g-tab')].map((e) => e.textContent.trim())
+    [...document.querySelectorAll('.g-module-tab, .g-tab')].map((e) => e.textContent.trim()),
   );
 
 const listTabs = () =>
   page2.evaluate(() =>
-    [...document.querySelectorAll('.g-module-tab, .g-tab')].map((b, i) => ({
-      index: i,
-      label: b.textContent.trim().slice(0, 24),
-      active: b.classList.contains('is-active')
-    })).filter((t) => t.label)
+    [...document.querySelectorAll('.g-module-tab, .g-tab')]
+      .map((b, i) => ({
+        index: i,
+        label: b.textContent.trim().slice(0, 24),
+        active: b.classList.contains('is-active'),
+      }))
+      .filter((t) => t.label),
   );
 
 for (const mod of modules) {
@@ -179,11 +201,13 @@ for (const mod of modules) {
   await page2
     .waitForFunction(
       (prev) => {
-        const now = [...document.querySelectorAll('.g-module-tab, .g-tab')].map((e) => e.textContent.trim());
+        const now = [...document.querySelectorAll('.g-module-tab, .g-tab')].map((e) =>
+          e.textContent.trim(),
+        );
         return JSON.stringify(now) !== JSON.stringify(prev);
       },
       before,
-      { timeout: 8000 }
+      { timeout: 8000 },
     )
     .catch(() => {});
   await page2.waitForTimeout(2200);
@@ -207,8 +231,12 @@ for (const mod of modules) {
       results.push({ module: mod.label, tab: tab.label, toasts, events: [...bucket] });
     }
   }
-  const errCount = results.filter((r) => r.module === mod.label).reduce((a, r) => a + r.events.length, 0);
-  console.log(`▸ ${mod.label.padEnd(10)} 页签 ${String(tabs.length).padStart(2)} 个 · 事件 ${errCount}`);
+  const errCount = results
+    .filter((r) => r.module === mod.label)
+    .reduce((a, r) => a + r.events.length, 0);
+  console.log(
+    `▸ ${mod.label.padEnd(10)} 页签 ${String(tabs.length).padStart(2)} 个 · 事件 ${errCount}`,
+  );
 }
 
 // 补：把模块级采集里属于各页签的量也算进去（上面已按页签重置 bucket，模块级只留了非表格模块）
@@ -222,7 +250,9 @@ const otherErrors = [];
 for (const r of results) {
   for (const e of r.events) {
     const row = { module: r.module, tab: r.tab, ...e };
-    const isColErr = e.kind === 'rest' && /does not exist|could not find|42703|PGRST204|PGRST200/i.test(`${e.message} ${e.code}`);
+    const isColErr =
+      e.kind === 'rest' &&
+      /does not exist|could not find|42703|PGRST204|PGRST200/i.test(`${e.message} ${e.code}`);
     (isColErr ? colErrors : otherErrors).push(row);
   }
 }
@@ -273,7 +303,17 @@ if (toastHits.length) {
 
 fs.writeFileSync(
   path.join(OUT, 'datamanagement-error-scan.json'),
-  JSON.stringify({ generatedAt: new Date().toISOString(), base: BASE, results, colErrors: colU, otherErrors: otherU }, null, 2)
+  JSON.stringify(
+    {
+      generatedAt: new Date().toISOString(),
+      base: BASE,
+      results,
+      colErrors: colU,
+      otherErrors: otherU,
+    },
+    null,
+    2,
+  ),
 );
 console.log(`\n明细已写入 ${OUT}/datamanagement-error-scan.json`);
 process.exit(colU.length || otherU.length ? 1 : 0);

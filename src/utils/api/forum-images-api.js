@@ -1,11 +1,12 @@
 import { supabase } from '../supabase-client.js';
 import { normalizeDbError } from '../request-core.js';
 import { logger } from '../logger.js';
+import { CLOUD_UPLOAD_MAX_CONCURRENCY } from '../cloud-upload-guard.js';
 import {
   assertCloudinaryUploadAllowed,
   deleteCloudinaryAssetByToken,
   deleteCloudinaryAssetsByPublicIds,
-  uploadImageToCloudinary
+  uploadImageToCloudinary,
 } from '../cloudinary-client.js';
 import {
   APPROVED_STATUS,
@@ -15,12 +16,13 @@ import {
   FORUM_IMAGE_MAX_SIZE_MB,
   normalizeForumImage,
   normalizeForumImageUploadError,
-  normalizeForumImages
+  normalizeForumImages,
 } from './forum-format.js';
 
 // 多图上传并发控制：仅网络层并发（压缩/NSFW 检测仍在调用方串行执行，避免移动端 GPU/内存崩溃）。
 // 3 路并发上传可将多图帖总耗时压到 ≈ max(检测串行和, 单图上传耗时)，带宽充足时提速约 3 倍。
-const MAX_CONCURRENT_UPLOADS = 3;
+// 数字真源在 cloud-upload-guard.js（影集编辑器共用同一个上限）。
+const MAX_CONCURRENT_UPLOADS = CLOUD_UPLOAD_MAX_CONCURRENCY;
 let uploadQueue = [];
 let activeUploads = 0;
 
@@ -63,7 +65,11 @@ export async function preloadForumImageModeration() {
     return { ok: true, skipped: false, error: null };
   } catch (error) {
     logger.warn('forum-images-api', '论坛图片安全检测模型预加载失败（不阻断发帖）', error);
-    return { ok: false, skipped: false, error: normalizeDbError(error, '图片安全检测模型预加载失败') };
+    return {
+      ok: false,
+      skipped: false,
+      error: normalizeDbError(error, '图片安全检测模型预加载失败'),
+    };
   }
 }
 
@@ -72,7 +78,9 @@ const validateForumImageFile = (file) => {
     throw new Error('请选择有效的图片文件');
   }
 
-  const mimeType = String(file.type || '').trim().toLowerCase();
+  const mimeType = String(file.type || '')
+    .trim()
+    .toLowerCase();
   if (!FORUM_ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
     throw new Error('论坛图片仅支持 PNG、JPG 或 WebP，暂不开放 GIF');
   }
@@ -111,7 +119,7 @@ export async function uploadApprovedForumImage(file, moderation = {}, options = 
       pendingSource: 'forum',
       skipUploadPreflight: true,
       onProgress: options.onProgress,
-      signal: options.signal
+      signal: options.signal,
     });
 
     return {
@@ -120,16 +128,16 @@ export async function uploadApprovedForumImage(file, moderation = {}, options = 
         ...uploaded,
         moderationStatus: APPROVED_STATUS,
         moderationScore: moderation.score || 0,
-        moderationReason: moderation.reason || 'NSFWJS 预筛通过'
+        moderationReason: moderation.reason || 'NSFWJS 预筛通过',
       }),
       error: null,
-      moderation
+      moderation,
     };
   } catch (error) {
     logger.warn('forum-images-api', '论坛图片上传/预筛失败', error);
     return { ok: false, data: null, error: normalizeForumImageUploadError(error) };
   }
-};
+}
 
 // Stable mode keeps its existing public API: moderation and upload happen as one queued operation.
 const uploadForumImageCore = async (file) => {
@@ -209,6 +217,6 @@ export async function getForumPostImages(postId) {
   return {
     ok: !error,
     data: normalizeForumImages(data || []),
-    error: normalizeDbError(error)
+    error: normalizeDbError(error),
   };
 }

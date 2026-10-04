@@ -15,7 +15,7 @@
     "build:full": "npm run build",
     "compress-images": "node scripts/compress-images.mjs",
     "preview": "vite preview",
-    "lint": "eslint . --max-warnings 183",
+    "lint": "eslint . --max-warnings 118",
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json",
     "check:views": "node scripts/check-view-collisions.mjs",
     "check:structure": "node scripts/check-project-structure.mjs",
@@ -98,7 +98,6 @@
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@types/node": "^25.5.0",
-    "@typescript-eslint/eslint-plugin": "^8.61.0",
     "@typescript-eslint/parser": "^8.61.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "acorn": "^8.16.0",

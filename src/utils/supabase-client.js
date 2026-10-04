@@ -2,10 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const SUPABASE_TIMEOUT_MS = Number(import.meta.env.VITE_SUPABASE_TIMEOUT_MS || 12000);
 const SUPABASE_READ_TIMEOUT_MS = Number(import.meta.env.VITE_SUPABASE_READ_TIMEOUT_MS || 8000);
 const SUPABASE_WRITE_TIMEOUT_MS = Number(import.meta.env.VITE_SUPABASE_WRITE_TIMEOUT_MS || 15000);
-const SUPABASE_FUNCTION_TIMEOUT_MS = Number(import.meta.env.VITE_SUPABASE_FUNCTION_TIMEOUT_MS || 180000);
+const SUPABASE_FUNCTION_TIMEOUT_MS = Number(
+  import.meta.env.VITE_SUPABASE_FUNCTION_TIMEOUT_MS || 180000,
+);
 
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -34,11 +35,11 @@ function normalizeSupabaseImplicitHashCallback() {
   }
 
   const looksLikeSupabaseImplicitCallback =
-    params.has('access_token')
-    || params.has('refresh_token')
-    || params.has('token_type')
-    || params.has('expires_in')
-    || params.has('expires_at');
+    params.has('access_token') ||
+    params.has('refresh_token') ||
+    params.has('token_type') ||
+    params.has('expires_in') ||
+    params.has('expires_at');
 
   if (!looksLikeSupabaseImplicitCallback) return;
 
@@ -67,7 +68,7 @@ async function timeoutFetch(input, init = {}) {
     // 直接传递 init，让 Supabase 自动处理 headers
     const response = await fetch(input, {
       ...init,
-      signal
+      signal,
     });
     return response;
   } finally {
@@ -79,7 +80,7 @@ normalizeSupabaseImplicitHashCallback();
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   global: {
-    fetch: timeoutFetch
+    fetch: timeoutFetch,
   },
   auth: {
     autoRefreshToken: true,
@@ -93,10 +94,10 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     // 通行密钥（Passkey/WebAuthn）：线上 GoTrue 已开启 passkeys（rp_id=blockofhome.cn）。
     // 开启后 supabase-js 暴露 auth.signInWithPasskey / auth.registerPasskey / auth.passkey.*。
     experimental: {
-      passkey: true
-    }
+      passkey: true,
+    },
   },
   db: {
-    schema: 'public'
-  }
+    schema: 'public',
+  },
 });

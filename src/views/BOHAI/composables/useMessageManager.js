@@ -1,11 +1,8 @@
 import { ref, nextTick } from 'vue';
 import {
-  QUICK_NOTE_CONTENT_MAX_CHARS,
-  QUICK_NOTE_TITLE_MAX_CHARS,
   ACTION_DRAFT_CONTENT_MAX_CHARS,
   ACTION_DRAFT_TITLE_MAX_CHARS,
 } from './chat-engine-config.js';
-import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { normalizePromptLine as _normalizePromptLine } from './bohai-engine-helpers.js';
 
 /**
@@ -22,36 +19,23 @@ import { normalizePromptLine as _normalizePromptLine } from './bohai-engine-help
  *
  * @param {Object} options
  * @param {Function} options.getSessionByIndex - 根据索引获取会话对象
- * @param {Function} options.callModelInternal - 调用 AI 模型（非流式）
- * @param {import('vue').Ref} options.currentModel - 当前模型 ref
- * @param {Array} [options.availableModels] - 可用模型列表
  * @param {import('vue').Ref<boolean>} options.isLoggedIn - 登录状态
  * @param {import('vue').Ref} options.userInfo - 用户信息
- * @param {import('vue').Ref<boolean>} options.isQuickNoteEnabled - 随手记功能开关
  * @param {Function} options.scrollToBottom - 滚动到底部
  * @param {Function} [options.normalizePromptLineFn] - 文本归一化函数（默认从 helpers 导入）
  * @param {import('vue').Ref<number>} options.currentSessionIndex - 当前会话索引
  * @param {Function} [options.submitPostDraft] - 提交帖子草稿回调
  * @param {Object} [options.logger] - 日志记录器
- * @param {Object} [options.pendingQuickNote] - 外部注入的 pendingQuickNote（useConversationManager）
  * @param {Object} [options.pendingActionDraft] - 外部注入的 pendingActionDraft（useConversationManager）
  * @param {Function} [options.resetPendingActionDraft] - 外部注入的 resetPendingActionDraft
  */
 export function useMessageManager({
   getSessionByIndex,
-  callModelInternal,
-  currentModel,
-  availableModels = [],
-  isLoggedIn,
-  userInfo,
-  isQuickNoteEnabled,
   scrollToBottom,
   normalizePromptLineFn,
   currentSessionIndex,
   submitPostDraft,
-  logger = console,
   // 从 useConversationManager 注入的 pending 状态
-  pendingQuickNote,
   pendingActionDraft,
   resetPendingActionDraft,
 } = {}) {
@@ -171,146 +155,6 @@ export function useMessageManager({
   };
 
   // --------------------------------------------------------------
-  // 随手记
-  // --------------------------------------------------------------
-
-  /**
-   * 从文本中提取随手记内容，超出 QUICK_NOTE_CONTENT_MAX_CHARS 时截断。
-   * @param {string} text
-   * @returns {string}
-   */
-  const extractQuickNoteContent = (text) => {
-    const safeText = String(text || '').trim();
-    if (!safeText) return '';
-    if (safeText.length <= QUICK_NOTE_CONTENT_MAX_CHARS) return safeText;
-    return `${safeText.slice(0, QUICK_NOTE_CONTENT_MAX_CHARS - 3)}...`;
-  };
-
-  /**
-   * 从内容中构建随手记标题：取首行归一化结果，兜底为"BOH AI 随手记"。
-   * @param {string} content
-   * @returns {string}
-   */
-  const buildQuickNoteTitle = (content) => {
-    const firstLine =
-      String(content || '')
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .find(Boolean) || '';
-    const normalized = normalize(firstLine.replace(/^#+\s*/, ''), QUICK_NOTE_TITLE_MAX_CHARS);
-    return normalized || 'BOH AI 随手记';
-  };
-
-  /**
-   * 调用 AI 生成随手记标题；失败时降级为 buildQuickNoteTitle。
-   * @param {string} content - 随手记原文
-   * @param {AbortSignal} [requestSignal] - 可中断信号
-   * @param {string} [modelId] - 模型 ID
-   * @returns {Promise<string>}
-   */
-  const generateQuickNoteTitle = async (content, requestSignal = undefined, modelId = '') => {
-    const fallbackTitle = buildQuickNoteTitle(content);
-    const noteContent = extractQuickNoteContent(content);
-    if (!noteContent) return fallbackTitle;
-
-    try {
-      const titleModelId = modelId || currentModel?.value?.id || availableModels[0]?.id;
-      if (!titleModelId) return fallbackTitle;
-      const rawTitle = await callModelInternal(
-        titleModelId,
-        [
-          '请为下面这段用户原文生成一个适合 Cloud+ 随手记的短标题。',
-          '要求：只输出标题本身，不要引号，不要解释，中文优先，最多 18 个汉字或 36 个英文字符。',
-          '',
-          `用户原文：${noteContent}`,
-        ].join('\n'),
-        '<role>你是 BOH AI 的随手记标题生成器。</role>\n<constraints>\n- 只输出简短标题\n- 不要引号，不要解释\n- 中文优先，最多 18 个汉字或 36 个英文字符\n</constraints>',
-        [],
-        requestSignal,
-        0,
-        TASK_GENERATION_PRESETS.quickTitle,
-      );
-      const cleanTitle = normalize(
-        String(rawTitle || '')
-          .replace(/^["'“”‘’「『]+|["'“”‘’」』]+$/g, '')
-          .replace(/^(标题|Title)\s*[:：]\s*/i, ''),
-        QUICK_NOTE_TITLE_MAX_CHARS,
-      );
-      return cleanTitle || fallbackTitle;
-    } catch (error) {
-      if (error?.name !== 'AbortError') {
-        logger.warn('boh-ai', '随手记标题生成失败，使用原文首句兜底', error);
-      }
-      return fallbackTitle;
-    }
-  };
-
-  /**
-   * 向会话追加一条随手记确认消息，并异步更新标题。
-   * @param {Object} options
-   * @param {string} options.rawText - 原始文本
-   * @param {number} options.sessionIndex - 会话索引
-   * @param {AbortSignal} [options.requestSignal] - 可中断信号
-   * @param {string} [options.modelId] - AI 模型 ID
-   * @returns {boolean} 是否成功加入队列
-   */
-  const queueQuickNoteConfirmation = async ({
-    rawText,
-    sessionIndex,
-    requestSignal = undefined,
-    modelId = '',
-  } = {}) => {
-    if (!isQuickNoteEnabled?.value) return false;
-    const userId = String(userInfo?.value?.id || '').trim();
-    if (!isLoggedIn?.value || !userId) return false;
-
-    const content = extractQuickNoteContent(rawText);
-    if (!content) return false;
-
-    const targetSession = getSessionByIndex(sessionIndex);
-    if (!targetSession) return false;
-
-    const title = buildQuickNoteTitle(content);
-
-    pendingQuickNote.visible = true;
-    pendingQuickNote.busy = false;
-    pendingQuickNote.userId = userId;
-    pendingQuickNote.sessionIndex = sessionIndex;
-    pendingQuickNote.messageIndex = targetSession.messages.length;
-    pendingQuickNote.title = title;
-    pendingQuickNote.content = content;
-    pendingQuickNote.error = '';
-    appendSessionMessage(
-      sessionIndex,
-      'assistant',
-      `要把这条内容记录到 Cloud+ 吗？\n\n${title}\n${content}`,
-      { kind: 'quick_note_confirm' },
-    );
-
-    generateQuickNoteTitle(content, requestSignal, modelId)
-      .then((generatedTitle) => {
-        const nextTitle = normalize(generatedTitle, QUICK_NOTE_TITLE_MAX_CHARS);
-        if (!nextTitle || nextTitle === title) return;
-        if (!pendingQuickNote.visible || pendingQuickNote.busy) return;
-        if (pendingQuickNote.userId !== userId || pendingQuickNote.sessionIndex !== sessionIndex)
-          return;
-        pendingQuickNote.title = nextTitle;
-        const sessionToUpdate = getSessionByIndex(sessionIndex);
-        const confirmMessage = sessionToUpdate?.messages?.[pendingQuickNote.messageIndex];
-        if (confirmMessage?.meta?.kind === 'quick_note_confirm') {
-          confirmMessage.content = `要把这条内容记录到 Cloud+ 吗？\n\n${nextTitle}\n${content}`;
-        }
-      })
-      .catch((error) => {
-        if (error?.name !== 'AbortError') {
-          logger.warn('boh-ai', '随手记标题后台更新失败，保留兜底标题', error);
-        }
-      });
-
-    return true;
-  };
-
-  // --------------------------------------------------------------
   // 操作草稿 UI 交互
   // --------------------------------------------------------------
 
@@ -377,10 +221,6 @@ export function useMessageManager({
     updateAssistantActionNotes,
     appendUserMessageWithTitle,
     resetComposerInput,
-    extractQuickNoteContent,
-    buildQuickNoteTitle,
-    generateQuickNoteTitle,
-    queueQuickNoteConfirmation,
     cancelPendingActionDraftFromUI,
     confirmPendingActionDraftFromUI,
     updatePendingPostDraftFromUI,

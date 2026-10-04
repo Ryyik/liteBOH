@@ -2246,7 +2246,10 @@
   inset: 0;
   background: var(--apple-bg);
   z-index: 11000;
-  animation: fadeIn 0.2s ease;
+  /* 进出场动画不写在这里：由 <Transition name="cloud-detail"> 的
+     .cloud-detail-enter-active / -leave-active 驱动（见文件末尾「2026-10-03 动效」段）。
+     写死在基类上只能有进场、没有退场（v-if 卸载时类还没生效），
+     而退场正是「缩回原来那一格」需要的那一半。 */
   /* 原来这里 padding-top: 72px + 弹窗 height: calc(100% - 72px)，顶部永久留一条 72px 的
      空白带（滚动时它不跟着走）—— 就是报障的「向下滑动顶部有异常白条」。弹窗是全屏面板，
      顶部不应留带；关闭按钮自己负责避让安全区。 */
@@ -2271,7 +2274,7 @@
   padding: 40px 20px;
   background: var(--apple-bg);
   position: relative;
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  /* 同上：进场（放大展开）与退场（缩回）都在 .cloud-detail-* 里 */
 }
 
 .detail-modal::-webkit-scrollbar {
@@ -3401,6 +3404,11 @@
   overflow: hidden;
   background: var(--apple-bg-secondary);
   cursor: pointer;
+  /* 2026-10-03 动效（放大 / 缩小）：本体缩放 + 投影一起过渡。
+     圆角刻意保持 0 —— 相册是「画面」不是「卡片」，动效不该换语汇。 */
+  transition:
+    transform 260ms cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 260ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .tile-cover {
@@ -3412,8 +3420,25 @@
   transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.gallery-tile:hover .tile-cover {
-  transform: scale(1.045);
+/* hover 只在「真有指针」的设备上生效。
+   触屏没有 hover，直接写 :hover 会让点过的格子一直保持放大态（实测粘滞）。 */
+@media (hover: hover) and (pointer: fine) {
+  .gallery-tile:hover {
+    /* 抬到相邻格之上：1.035 在 2px 缝上会压到邻居约 2px，不抬层会被后画的格子盖住半边 */
+    z-index: 1;
+    transform: scale(1.035);
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.18);
+  }
+
+  .gallery-tile:hover .tile-cover {
+    transform: scale(1.06);
+  }
+}
+
+/* 按压：缩回一档（比 hover 更快，手感是「按下去」而不是「慢慢变小」） */
+.gallery-tile:active {
+  transform: scale(0.965);
+  transition-duration: 110ms;
 }
 
 .tile-mood-badge {
@@ -3732,6 +3757,135 @@
   .gallery-fab,
   .composer-panel {
     transition-duration: 100ms;
+    animation-duration: 0.001ms;
+    animation-iteration-count: 1;
+  }
+}
+
+/* ================================================================
+   2026-10-03 Cloud+ 动效（放大 / 缩小 / 切换）
+   ================================================================
+   三条独立动效，都只有**一个**元素参与动画 —— 刻意不做「逐格错峰」：
+   2026-10-02 的报障（滑动不流畅、内容一直闪烁）正是 26 格逐个 FLIP + 逐格淡入造成的，
+   那条性能结论继续有效，这里一条都不推翻。
+
+   ① 图库格子：hover 放大 / 按压缩小 —— 规则写在 .gallery-tile 本体旁（见上）
+   ② 详情弹窗：从点中的那一格放大展开、关闭时缩回原处
+   ③ 切换：内容 / 分享 / 设置三档切换的右区过渡 + 捏合切列的落定回弹
+   ================================================================ */
+
+/* ── ② 详情：放大展开 / 缩回 ─────────────────────────────────────
+   .detail-overlay 是 Transition 的根节点，进场/退场类名挂在它自己身上。
+   transform-origin 取 --detail-origin-x/y（openEntry 写入 = 点中格子的中心，视口坐标；
+   深链/程序化打开时回落 50% 50% 即居中展开）—— 这就是「从这一格长出来」的全部秘密。 */
+.detail-overlay.cloud-detail-enter-active {
+  animation: cloudDetailScrimIn 240ms ease both;
+}
+
+.detail-overlay.cloud-detail-leave-active {
+  animation: cloudDetailScrimOut 200ms ease both;
+}
+
+.detail-overlay.cloud-detail-enter-active .detail-modal {
+  transform-origin: var(--detail-origin-x, 50%) var(--detail-origin-y, 50%);
+  animation: cloudDetailZoomIn 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.detail-overlay.cloud-detail-leave-active .detail-modal {
+  transform-origin: var(--detail-origin-x, 50%) var(--detail-origin-y, 50%);
+  animation: cloudDetailZoomOut 220ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* 关闭时整层锁住交互：退场只有 220ms，但期间连点会二次触发 closeEntry */
+.detail-overlay.cloud-detail-leave-active {
+  pointer-events: none;
+}
+
+@keyframes cloudDetailScrimIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cloudDetailScrimOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes cloudDetailZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cloudDetailZoomOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* ── ③ 切换：三档视图过渡 ───────────────────────────────────────
+   只动 opacity + translateY，不动布局几何（探索针读 rect 不受影响）。
+   ⚠️ translateY 会让 .cloud-main 在这 320ms 内成为 fixed 后代的包含块；
+   本页 fixed 后代只有 .composer-overlay，而它 z-index 高于底栏、在场时点不到 tab 切换，
+   所以这条路径不会被走到。 */
+.cloud-main.is-view-entering {
+  animation: cloudViewEnter 320ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes cloudViewEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── ③ 切换：捏合切列的「落定」回弹 ─────────────────────────────
+   grid-template-columns 不可过渡（改列数是一步 reflow），所以不做连续缩放，
+   而是在列数真的变了之后给整片网格一次 280ms 的收束。 */
+.album-tile-grid.is-settling {
+  animation: cloudAlbumSettle 280ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes cloudAlbumSettle {
+  from {
+    opacity: 0.82;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-overlay.cloud-detail-enter-active,
+  .detail-overlay.cloud-detail-leave-active,
+  .detail-overlay.cloud-detail-enter-active .detail-modal,
+  .detail-overlay.cloud-detail-leave-active .detail-modal,
+  .cloud-main.is-view-entering,
+  .album-tile-grid.is-settling {
     animation-duration: 0.001ms;
     animation-iteration-count: 1;
   }

@@ -1,13 +1,10 @@
-export const AI_SEARCH_MODEL_ID = import.meta.env.VITE_FORUM_AI_SEARCH_MODEL || '';
 export const POSTS_PER_PAGE = 10;
 export const LIST_REPLY_PREVIEW_COUNT = 3;
 export const WEEKLY_CHECKIN_REWARD_POINTS = 5;
 export const FORUM_POST_IMAGE_MAX_COUNT = 6;
-export const FORUM_LIST_PREVIEW_IMAGE_MAX_COUNT = 4;
 export const FORUM_POST_DRAFT_PREFIX = 'boh_forum_post_draft';
 export const FORUM_POST_DRAFT_VERSION_LIMIT = 5;
 export const SEARCH_DEBOUNCE_MS = 350;
-export const FORUM_IMAGE_UPLOAD_CONCURRENCY = 1;
 /* 图片转换档位单源（2026-09-27）：这 5 个常量曾在 utils/api/forum-format.js（数据层，
    真正在拼 URL 的地方）和本文件各写一份 —— 改一处忘另一处是迟早的事（LQIP 那次就差点分叉）。
    现在只留数据层那份，这里做 re-export，调用方的 import 路径一行都不用改。 */

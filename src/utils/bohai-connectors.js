@@ -10,7 +10,7 @@ import {
   recordConnectorFailure,
   resetConnectorFailures,
   recordActionFailure,
-  resetActionFailures
+  resetActionFailures,
 } from './bohai-constants.js';
 
 export const BOHAI_CONNECTOR_IDS = {
@@ -21,24 +21,24 @@ export const BOHAI_CONNECTOR_IDS = {
   forum: 'forum',
   userPrivate: 'userPrivate',
   health: 'health',
-  webSearch: 'webSearch'
+  webSearch: 'webSearch',
+  // 2026-10-04 新增：站内活动 / 抽奖 / 演出（公开数据，不要求登录）
+  siteActivities: 'siteActivities',
 };
 
+// 2026-10-04 收敛：删除 saveCloud / quickNote（写 Cloud+）、saveBothMemories（两处同存）、
+// cloudReferenceConsent（读 Cloud+ 的授权闸门）。写侧只剩「发帖 / 写公共记忆 / 生成网页」。
 export const BOHAI_ACTION_IDS = {
   createPost: 'createPost',
-  saveCloud: 'saveCloud',
   saveSharedMemory: 'saveSharedMemory',
-  saveBothMemories: 'saveBothMemories',
-  quickNote: 'quickNote',
-  cloudReferenceConsent: 'cloudReferenceConsent',
-  createPage: 'createPage'
+  createPage: 'createPage',
 };
 
 export const BOHAI_CONNECTOR_LAYERS = {
   capability: 'capability',
   routing: 'routing',
   evidence: 'evidence',
-  action: 'action'
+  action: 'action',
 };
 
 const toArray = (value) => {
@@ -70,7 +70,7 @@ export const createBohAIConnector = ({
   evidencePrefix = '',
   requiresLogin = false,
   read = null,
-  describeAction = null
+  describeAction = null,
 } = {}) => {
   // 强制要求 id 必填，避免后续熔断 key 漂移：不同 connector 共用空串或 planKey
   // 会让 circuit breaker 状态互相污染。
@@ -87,7 +87,7 @@ export const createBohAIConnector = ({
     evidencePrefix,
     requiresLogin: Boolean(requiresLogin),
     read,
-    describeAction
+    describeAction,
   };
 };
 
@@ -100,7 +100,7 @@ export const createBohAIAction = ({
   validate = null,
   execute = null,
   formatSuccess = null,
-  formatFailure = null
+  formatFailure = null,
 } = {}) => ({
   id,
   label,
@@ -111,7 +111,7 @@ export const createBohAIAction = ({
   validate,
   execute,
   formatSuccess,
-  formatFailure
+  formatFailure,
 });
 
 export const normalizeBohAIActionResult = (action = {}, rawResult = {}) => {
@@ -127,7 +127,7 @@ export const normalizeBohAIActionResult = (action = {}, rawResult = {}) => {
     message,
     errorMessage,
     data: payload.data ?? null,
-    metadata: payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : {}
+    metadata: payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : {},
   };
 };
 
@@ -137,7 +137,7 @@ export const runBohAIAction = async ({
   auth = {},
   logger = null,
   retryCount = 0,
-  actionTimeoutMs = CONNECTOR_TIMEOUT_MS
+  actionTimeoutMs = CONNECTOR_TIMEOUT_MS,
 } = {}) => {
   if (!action || typeof action !== 'object') {
     return {
@@ -148,7 +148,7 @@ export const runBohAIAction = async ({
       message: '',
       errorMessage: BOHAI_ERROR_MESSAGES.actionNotFound,
       data: null,
-      metadata: {}
+      metadata: {},
     };
   }
 
@@ -163,7 +163,7 @@ export const runBohAIAction = async ({
       message: '',
       errorMessage: BOHAI_ERROR_MESSAGES.loginRequired,
       data: null,
-      metadata: { reason: BOHAI_ERROR_TYPES.LOGIN_REQUIRED }
+      metadata: { reason: BOHAI_ERROR_TYPES.LOGIN_REQUIRED },
     };
   }
 
@@ -183,13 +183,17 @@ export const runBohAIAction = async ({
       message: '',
       errorMessage: BOHAI_ERROR_MESSAGES.missingExecutor,
       data: null,
-      metadata: { reason: BOHAI_ERROR_TYPES.VALIDATION_ERROR }
+      metadata: { reason: BOHAI_ERROR_TYPES.VALIDATION_ERROR },
     };
   }
 
   try {
     const executePromise = action.execute(payload, { auth, action });
-    const rawResult = await withTimeout(executePromise, actionTimeoutMs, BOHAI_ERROR_MESSAGES.connectorTimeout);
+    const rawResult = await withTimeout(
+      executePromise,
+      actionTimeoutMs,
+      BOHAI_ERROR_MESSAGES.connectorTimeout,
+    );
     resetActionFailures(action.id || 'action');
     return normalizeBohAIActionResult(action, rawResult);
   } catch (error) {
@@ -201,7 +205,7 @@ export const runBohAIAction = async ({
         error: error.message,
         type: errorInfo.type,
         recoverable: errorInfo.recoverable,
-        retry: retryCount
+        retry: retryCount,
       });
     }
 
@@ -213,7 +217,7 @@ export const runBohAIAction = async ({
         auth,
         logger,
         retryCount: retryCount + 1,
-        actionTimeoutMs
+        actionTimeoutMs,
       });
     }
 
@@ -231,8 +235,8 @@ export const runBohAIAction = async ({
       metadata: {
         reason: errorInfo.type,
         recoverable: errorInfo.recoverable,
-        retries: retryCount
-      }
+        retries: retryCount,
+      },
     };
   }
 };
@@ -252,7 +256,7 @@ export const normalizeConnectorReadResult = (connector = {}, rawResult = null) =
     labels: [],
     confidence: 0,
     evidenceRefs: [],
-    metadata: {}
+    metadata: {},
   };
 
   if (!rawResult) return fallback;
@@ -264,22 +268,28 @@ export const normalizeConnectorReadResult = (connector = {}, rawResult = null) =
       context,
       total: context ? 1 : 0,
       confidence: context ? 0.7 : 0,
-      evidenceRefs: extractCitationIdsFromText(context)
+      evidenceRefs: extractCitationIdsFromText(context),
     };
   }
 
   const context = String(rawResult.context || '').trim();
   const total = Number.isFinite(Number(rawResult.total))
     ? Math.max(0, Number(rawResult.total))
-    : (context ? 1 : 0);
-  const labels = toArray(rawResult.labels)
-    .map(normalizeLabel)
-    .filter(Boolean);
+    : context
+      ? 1
+      : 0;
+  const labels = toArray(rawResult.labels).map(normalizeLabel).filter(Boolean);
   const confidence = Number.isFinite(Number(rawResult.confidence))
     ? Math.max(0, Math.min(1, Number(rawResult.confidence)))
-    : (context ? 0.72 : 0);
+    : context
+      ? 0.72
+      : 0;
   const explicitEvidenceRefs = toArray(rawResult.evidenceRefs)
-    .map((item) => String(item || '').trim().toUpperCase())
+    .map((item) =>
+      String(item || '')
+        .trim()
+        .toUpperCase(),
+    )
     .filter(Boolean);
 
   return {
@@ -288,12 +298,10 @@ export const normalizeConnectorReadResult = (connector = {}, rawResult = null) =
     total,
     labels,
     confidence,
-    evidenceRefs: explicitEvidenceRefs.length > 0
-      ? explicitEvidenceRefs
-      : extractCitationIdsFromText(context),
-    metadata: rawResult.metadata && typeof rawResult.metadata === 'object'
-      ? rawResult.metadata
-      : {}
+    evidenceRefs:
+      explicitEvidenceRefs.length > 0 ? explicitEvidenceRefs : extractCitationIdsFromText(context),
+    metadata:
+      rawResult.metadata && typeof rawResult.metadata === 'object' ? rawResult.metadata : {},
   };
 };
 
@@ -305,7 +313,7 @@ const runBohAIReadConnectorsCore = async ({
   queryText = '',
   logger = null,
   timeoutMs = CONNECTOR_TIMEOUT_MS,
-  onProgress = null
+  onProgress = null,
 } = {}) => {
   const activeConnectors = connectors.filter((connector) => {
     if (!isConnectorActiveForPlan(connector, plan)) return false;
@@ -325,7 +333,7 @@ const runBohAIReadConnectorsCore = async ({
         total,
         percentage: total > 0 ? Math.round((completed / total) * 100) : 100,
         currentConnector: currentLabel || null,
-        status: completed >= total ? 'completed' : 'loading'
+        status: completed >= total ? 'completed' : 'loading',
       });
     }
   };
@@ -340,7 +348,11 @@ const runBohAIReadConnectorsCore = async ({
       }
       try {
         const readPromise = connector.read(queryText, { plan, connector });
-        const rawResult = await withTimeout(readPromise, timeoutMs, BOHAI_ERROR_MESSAGES.connectorTimeout);
+        const rawResult = await withTimeout(
+          readPromise,
+          timeoutMs,
+          BOHAI_ERROR_MESSAGES.connectorTimeout,
+        );
         resetConnectorFailures(connectorId);
         notifyProgress(connectorLabel);
         return normalizeConnectorReadResult(connector, rawResult);
@@ -349,14 +361,14 @@ const runBohAIReadConnectorsCore = async ({
         if (logger && typeof logger.warn === 'function') {
           logger.warn('boh-ai', `${connectorLabel} 检索失败`, {
             error: error.message,
-            type: errorInfo.type
+            type: errorInfo.type,
           });
         }
         recordConnectorFailure(connectorId);
         notifyProgress(connectorLabel);
         throw error;
       }
-    })
+    }),
   );
 
   return settled.map((result, index) => {
@@ -365,7 +377,7 @@ const runBohAIReadConnectorsCore = async ({
       return {
         ok: true,
         connector,
-        ...result.value
+        ...result.value,
       };
     }
 
@@ -381,14 +393,15 @@ const runBohAIReadConnectorsCore = async ({
       confidence: 0,
       evidenceRefs: [],
       metadata: {},
-      error: result.reason
+      error: result.reason,
     };
   });
 };
 
 export const runBohAIReadConnectors = async (options = {}) => runBohAIReadConnectorsCore(options);
 
-export const runBohAIReadConnectorsWithProgress = async (options = {}) => runBohAIReadConnectorsCore(options);
+export const runBohAIReadConnectorsWithProgress = async (options = {}) =>
+  runBohAIReadConnectorsCore(options);
 
 export const summarizeBohAIConnectorResults = (results = []) => {
   const source = Array.isArray(results) ? results : [];
@@ -408,7 +421,9 @@ export const summarizeBohAIConnectorResults = (results = []) => {
     }
 
     toArray(result?.evidenceRefs).forEach((ref) => {
-      const normalized = String(ref || '').trim().toUpperCase();
+      const normalized = String(ref || '')
+        .trim()
+        .toUpperCase();
       if (normalized) evidenceRefs.add(normalized);
     });
   });
@@ -417,7 +432,7 @@ export const summarizeBohAIConnectorResults = (results = []) => {
     contextBlocks,
     evidenceRefs: [...evidenceRefs],
     totalsById,
-    labelsById
+    labelsById,
   };
 };
 

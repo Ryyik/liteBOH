@@ -438,9 +438,17 @@ export function invalidateByTags(tags = []) {
   }
 }
 
-// 创建 AbortController 的便捷方法
-export function createAbortController() {
-  return new AbortController();
+// 按 key 复用 AbortController：同一 key 再次发起请求时先 abort 上一次。
+// store 传 Map 或普通对象都可以（两个调用方各用了一种形态）。
+// 2026-10-04 收敛：此前 Messages/index.vue 与 UserSpace/UserSpaceMain.vue 各写了一份同构实现；
+// 其中 Messages 那份定义了却从未被调用（该页的请求取消实际没有接线，已单独记录）。
+export function createKeyedAbortController(store, key) {
+  const previous = store instanceof Map ? store.get(key) : store[key];
+  if (previous) previous.abort();
+  const controller = new AbortController();
+  if (store instanceof Map) store.set(key, controller);
+  else store[key] = controller;
+  return controller;
 }
 
 // 获取请求队列统计信息

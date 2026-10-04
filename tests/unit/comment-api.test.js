@@ -25,7 +25,8 @@ const {
   const rpcMock = vi.fn();
   const mockNormalizeDbError = vi.fn((error) => {
     if (!error) return null;
-    if (typeof error === 'string') return { message: error, code: 'APP_ERROR', details: null, hint: null };
+    if (typeof error === 'string')
+      return { message: error, code: 'APP_ERROR', details: null, hint: null };
     return {
       message: String(error.message || '请求失败'),
       code: error.code || 'APP_ERROR',
@@ -56,11 +57,15 @@ const {
   const mockRunAsyncRelaxedModeration = vi.fn();
   const mockRunSyncStrictModeration = vi.fn();
   const mockNormalizeContentStatus = vi.fn((status, fallback = 'approved') => {
-    const normalized = String(status || '').trim().toLowerCase();
+    const normalized = String(status || '')
+      .trim()
+      .toLowerCase();
     return ['approved', 'rejected'].includes(normalized) ? normalized : fallback;
   });
   const mockShouldSyncModerateComment = vi.fn(() => false);
-  const mockBuildCommentModerationInput = vi.fn((content) => `正文：${String(content || '').trim()}`);
+  const mockBuildCommentModerationInput = vi.fn(
+    (content) => `正文：${String(content || '').trim()}`,
+  );
   const mockIsMissingRpcFunctionError = vi.fn();
   const mockWriteAsyncModerationLog = vi.fn();
   const mockEnsureModerationNotification = vi.fn();
@@ -234,9 +239,7 @@ describe('getComments', () => {
 
   it('supports topLevelOnly filter', async () => {
     const calls = [];
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null }, calls)
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
 
     await getComments('post-1', 'u1', { topLevelOnly: true });
 
@@ -248,9 +251,7 @@ describe('getComments', () => {
 
   it('does not apply topLevelOnly when false', async () => {
     const calls = [];
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null }, calls)
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
 
     await getComments('post-1', 'u1', { topLevelOnly: false });
 
@@ -260,9 +261,7 @@ describe('getComments', () => {
 
   it('supports parentId filter when topLevelOnly is false', async () => {
     const calls = [];
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null }, calls)
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
 
     await getComments('post-1', 'u1', { parentId: 'parent-1' });
 
@@ -274,9 +273,7 @@ describe('getComments', () => {
 
   it('skips parentId filter when parentId is empty string', async () => {
     const calls = [];
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null }, calls)
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
 
     await getComments('post-1', 'u1', { parentId: '' });
 
@@ -287,9 +284,7 @@ describe('getComments', () => {
 
   it('supports pagination with page and pageSize', async () => {
     const calls = [];
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null }, calls)
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
 
     await getComments('post-1', 'u1', { page: 3, pageSize: 10 });
 
@@ -302,9 +297,7 @@ describe('getComments', () => {
 
   it('defaults to page=1, pageSize=20 when no pagination options', async () => {
     const calls = [];
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null }, calls)
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
 
     await getComments('post-1');
 
@@ -315,9 +308,7 @@ describe('getComments', () => {
 
   it('supports desc order', async () => {
     const calls = [];
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null }, calls)
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
 
     await getComments('post-1', 'u1', { order: 'desc' });
 
@@ -329,9 +320,7 @@ describe('getComments', () => {
 
   it('defaults to asc order', async () => {
     const calls = [];
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null }, calls)
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
 
     await getComments('post-1', 'u1', { order: 'asc' });
 
@@ -349,7 +338,7 @@ describe('getComments', () => {
           { id: 'c3', content: '!', author: { avatar_url: null } },
         ],
         error: null,
-      })
+      }),
     );
 
     const result = await getComments('post-1', 'u1', { page: 1, pageSize: 10 });
@@ -369,9 +358,7 @@ describe('getComments', () => {
       author: null,
     }));
 
-    fromMock.mockReturnValue(
-      makeQuery({ data: items, error: null })
-    );
+    fromMock.mockReturnValue(makeQuery({ data: items, error: null }));
 
     const result = await getComments('post-1', 'u1', { page: 1, pageSize: 5 });
 
@@ -387,9 +374,7 @@ describe('getComments', () => {
       author: null,
     }));
 
-    fromMock.mockReturnValue(
-      makeQuery({ data: items, error: null })
-    );
+    fromMock.mockReturnValue(makeQuery({ data: items, error: null }));
 
     const result = await getComments('post-1', 'u1', { page: 1, pageSize: 5 });
 
@@ -403,7 +388,7 @@ describe('getComments', () => {
       makeQuery({
         data: [{ id: 'c1', content: 'only one', author: null }],
         error: null,
-      })
+      }),
     );
 
     const result = await getComments('post-1', 'u1', { page: 1, pageSize: 20 });
@@ -414,9 +399,7 @@ describe('getComments', () => {
   });
 
   it('returns empty data on supabase error', async () => {
-    fromMock.mockReturnValue(
-      makeQuery({ data: null, error: { message: 'Database error' } })
-    );
+    fromMock.mockReturnValue(makeQuery({ data: null, error: { message: 'Database error' } }));
 
     const result = await getComments('post-1', 'u1');
 
@@ -426,9 +409,7 @@ describe('getComments', () => {
   });
 
   it('handles non-array data gracefully', async () => {
-    fromMock.mockReturnValue(
-      makeQuery({ data: null, error: null })
-    );
+    fromMock.mockReturnValue(makeQuery({ data: null, error: null }));
 
     const result = await getComments('post-1', 'u1');
 
@@ -437,9 +418,7 @@ describe('getComments', () => {
   });
 
   it('passes through currentUserId', async () => {
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null })
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }));
 
     await getComments('post-1', 'user-42', { page: 1, pageSize: 10 });
 
@@ -447,7 +426,7 @@ describe('getComments', () => {
       'comments.getComments',
       expect.objectContaining({ currentUserId: 'user-42' }),
       expect.any(Function),
-      expect.any(Object)
+      expect.any(Object),
     );
   });
 });
@@ -490,7 +469,12 @@ describe('getCommentThreadReplies', () => {
 
   it('tries RPC first and returns RPC result on success', async () => {
     const rpcData = [
-      { id: 'r1', content: 'reply 1', author_avatar_url: 'https://example.com/av.png', has_more: false },
+      {
+        id: 'r1',
+        content: 'reply 1',
+        author_avatar_url: 'https://example.com/av.png',
+        has_more: false,
+      },
       { id: 'r2', content: 'reply 2', author_avatar_url: null },
     ];
     rpcMock.mockResolvedValue({ data: rpcData, error: null });
@@ -534,15 +518,24 @@ describe('getCommentThreadReplies', () => {
   });
 
   it('falls back to direct query when RPC function is missing', async () => {
-    const rpcError = { message: 'Could not find the function list_forum_comment_thread', code: 'PGRST202' };
+    const rpcError = {
+      message: 'Could not find the function list_forum_comment_thread',
+      code: 'PGRST202',
+    };
     rpcMock.mockResolvedValue({ data: null, error: rpcError });
     mockIsMissingRpcFunctionError.mockReturnValue(true);
 
     fromMock.mockReturnValue(
       makeQuery({
-        data: [{ id: 'd1', content: 'direct reply', author: { avatar_url: 'https://example.com/av2.png' } }],
+        data: [
+          {
+            id: 'd1',
+            content: 'direct reply',
+            author: { avatar_url: 'https://example.com/av2.png' },
+          },
+        ],
         error: null,
-      })
+      }),
     );
 
     const result = await getCommentThreadReplies('post-1', 'root-1', 'u1');
@@ -550,7 +543,10 @@ describe('getCommentThreadReplies', () => {
     expect(result.ok).toBe(true);
     expect(result.data).toHaveLength(1);
     expect(result.data[0].author_avatar_url).toBe('https://example.com/av2.png');
-    expect(mockIsMissingRpcFunctionError).toHaveBeenCalledWith(rpcError, 'list_forum_comment_thread');
+    expect(mockIsMissingRpcFunctionError).toHaveBeenCalledWith(
+      rpcError,
+      'list_forum_comment_thread',
+    );
   });
 
   it('returns error when RPC fails with non-missing error', async () => {
@@ -573,9 +569,7 @@ describe('getCommentThreadReplies', () => {
     });
     mockIsMissingRpcFunctionError.mockReturnValue(true);
 
-    fromMock.mockReturnValue(
-      makeQuery({ data: null, error: { message: 'Table error' } })
-    );
+    fromMock.mockReturnValue(makeQuery({ data: null, error: { message: 'Table error' } }));
 
     const result = await getCommentThreadReplies('post-1', 'root-1', 'u1');
 
@@ -592,9 +586,7 @@ describe('getCommentThreadReplies', () => {
     mockIsMissingRpcFunctionError.mockReturnValue(true);
 
     const calls = [];
-    fromMock.mockReturnValue(
-      makeQuery({ data: [], error: null }, calls)
-    );
+    fromMock.mockReturnValue(makeQuery({ data: [], error: null }, calls));
 
     await getCommentThreadReplies('post-1', 'root-1', 'u1', { page: 3, pageSize: 10 });
 
@@ -709,7 +701,7 @@ describe('createComment', () => {
       makeQuery({
         data: [{ id: 'c1', content: 'good content', status: 'approved' }],
         error: null,
-      })
+      }),
     );
 
     const result = await createComment('post-1', 'good content', 'author-1', 'author');
@@ -758,7 +750,7 @@ describe('createComment', () => {
       makeQuery({
         data: [{ id: 'c1', content: 'content', status: 'pending' }],
         error: null,
-      })
+      }),
     );
 
     const result = await createComment('post-1', 'content', 'author-1', 'author', 'pending');
@@ -776,7 +768,7 @@ describe('createComment', () => {
       makeQuery({
         data: [{ id: 'c1', content: 'short content', status: 'approved' }],
         error: null,
-      })
+      }),
     );
 
     const result = await createComment('post-1', 'short content', 'author-1', 'author');
@@ -793,10 +785,13 @@ describe('createComment', () => {
 
     const calls = [];
     fromMock.mockReturnValue(
-      makeQuery({
-        data: [{ id: 'c-inserted', content: 'hello world', status: 'approved' }],
-        error: null,
-      }, calls)
+      makeQuery(
+        {
+          data: [{ id: 'c-inserted', content: 'hello world', status: 'approved' }],
+          error: null,
+        },
+        calls,
+      ),
     );
 
     const result = await createComment('post-1', 'hello world', 'author-1', 'testuser', 'approved');
@@ -822,10 +817,13 @@ describe('createComment', () => {
 
     const calls = [];
     fromMock.mockReturnValue(
-      makeQuery({
-        data: [{ id: 'c-reply', content: 'reply', status: 'approved' }],
-        error: null,
-      }, calls)
+      makeQuery(
+        {
+          data: [{ id: 'c-reply', content: 'reply', status: 'approved' }],
+          error: null,
+        },
+        calls,
+      ),
     );
 
     await createComment('post-1', 'reply', 'author-1', 'testuser', 'approved', 'parent-c1');
@@ -841,13 +839,24 @@ describe('createComment', () => {
 
     const calls = [];
     fromMock.mockReturnValue(
-      makeQuery({
-        data: [{ id: 'c-reply', content: 'reply', status: 'approved' }],
-        error: null,
-      }, calls)
+      makeQuery(
+        {
+          data: [{ id: 'c-reply', content: 'reply', status: 'approved' }],
+          error: null,
+        },
+        calls,
+      ),
     );
 
-    await createComment('post-1', 'reply', 'author-1', 'testuser', 'approved', null, 'originalAuthor');
+    await createComment(
+      'post-1',
+      'reply',
+      'author-1',
+      'testuser',
+      'approved',
+      null,
+      'originalAuthor',
+    );
 
     const insertCall = calls.find((c) => c.method === 'insert');
     expect(insertCall.data[0].reply_to_username).toBe('originalAuthor');
@@ -860,10 +869,13 @@ describe('createComment', () => {
 
     const calls = [];
     fromMock.mockReturnValue(
-      makeQuery({
-        data: [{ id: 'c1', content: 'comment', status: 'approved' }],
-        error: null,
-      }, calls)
+      makeQuery(
+        {
+          data: [{ id: 'c1', content: 'comment', status: 'approved' }],
+          error: null,
+        },
+        calls,
+      ),
     );
 
     await createComment('post-1', 'comment', 'author-1', 'testuser', 'approved');
@@ -883,7 +895,7 @@ describe('createComment', () => {
       makeQuery({
         data: [{ id: 'c1', content: 'content', status: 'approved' }],
         error: null,
-      })
+      }),
     );
 
     await createComment('post-1', 'content', 'author-1', 'testuser');
@@ -903,15 +915,12 @@ describe('createComment', () => {
     });
     const updateQuery = makeQuery({ data: null, error: null });
 
-    fromMock
-      .mockReturnValueOnce(insertQuery)
-      .mockReturnValueOnce(updateQuery);
+    fromMock.mockReturnValueOnce(insertQuery).mockReturnValueOnce(updateQuery);
 
     const result = await createComment('post-1', 'content', 'author-1', 'testuser');
 
     expect(result.ok).toBe(true);
     // The update should have been called to normalize the status
-    const updateCalls = [];
     // We need to verify update was called... but the second fromMock return is for the update
     expect(fromMock).toHaveBeenCalledTimes(2);
   });
@@ -926,7 +935,7 @@ describe('createComment', () => {
       makeQuery({
         data: [{ id: 'c1', content: 'content', status: 'approved' }],
         error: null,
-      })
+      }),
     );
 
     await createComment('post-1', 'content', 'author-1', 'testuser');
@@ -943,7 +952,7 @@ describe('createComment', () => {
       makeQuery({
         data: null,
         error: { message: 'Insert failed' },
-      })
+      }),
     );
 
     const result = await createComment('post-1', 'content', 'author-1', 'testuser');
@@ -963,7 +972,7 @@ describe('createComment', () => {
       makeQuery({
         data: [{ id: 'c-async', content: 'content', status: 'approved' }],
         error: null,
-      })
+      }),
     );
 
     const result = await createComment('post-1', 'content', 'author-1', 'testuser');
@@ -971,9 +980,12 @@ describe('createComment', () => {
     expect(result.ok).toBe(true);
 
     // Wait for the fire-and-forget async moderation to complete
-    await vi.waitFor(() => {
-      expect(mockRunAsyncRelaxedModeration).toHaveBeenCalled();
-    }, { timeout: 5000 });
+    await vi.waitFor(
+      () => {
+        expect(mockRunAsyncRelaxedModeration).toHaveBeenCalled();
+      },
+      { timeout: 5000 },
+    );
 
     expect(mockBuildCommentModerationInput).toHaveBeenCalledWith('content');
   });
@@ -987,7 +999,7 @@ describe('createComment', () => {
       makeQuery({
         data: [{ id: 'c1', content: 'content', status: 'rejected' }],
         error: null,
-      })
+      }),
     );
 
     const result = await createComment('post-1', 'content', 'author-1', 'testuser', 'rejected');
@@ -1008,7 +1020,7 @@ describe('createComment', () => {
       makeQuery({
         data: [{ content: 'content', status: 'approved' }], // no id
         error: null,
-      })
+      }),
     );
 
     await createComment('post-1', 'content', 'author-1', 'testuser');
@@ -1027,7 +1039,7 @@ describe('createComment', () => {
       makeQuery({
         data: null,
         error: { message: 'Insert constraint violation', code: '23505' },
-      })
+      }),
     );
 
     const result = await createComment('post-1', 'content', 'author-1', 'testuser');
@@ -1046,9 +1058,7 @@ describe('deleteComment', () => {
   });
 
   it('checks comment exists', async () => {
-    fromMock.mockReturnValue(
-      makeQuery({ data: null, error: { message: 'Not found' } })
-    );
+    fromMock.mockReturnValue(makeQuery({ data: null, error: { message: 'Not found' } }));
 
     const result = await deleteComment('c1', 'user-1', 'user');
 
@@ -1062,7 +1072,7 @@ describe('deleteComment', () => {
       makeQuery({
         data: { author_id: 'other-user', status: 'approved' },
         error: null,
-      })
+      }),
     );
 
     const result = await deleteComment('c1', 'user-1', 'user');
@@ -1076,13 +1086,11 @@ describe('deleteComment', () => {
     const calls = [];
     const selectQuery = makeQuery(
       { data: { author_id: 'other-user', status: 'approved' }, error: null },
-      calls
+      calls,
     );
     const deleteQuery = makeQuery({ data: null, error: null });
 
-    fromMock
-      .mockReturnValueOnce(selectQuery)
-      .mockReturnValueOnce(deleteQuery);
+    fromMock.mockReturnValueOnce(selectQuery).mockReturnValueOnce(deleteQuery);
 
     const result = await deleteComment('c1', 'admin-user', 'admin');
 
@@ -1098,9 +1106,7 @@ describe('deleteComment', () => {
     });
     const deleteQuery = makeQuery({ data: null, error: null });
 
-    fromMock
-      .mockReturnValueOnce(selectQuery)
-      .mockReturnValueOnce(deleteQuery);
+    fromMock.mockReturnValueOnce(selectQuery).mockReturnValueOnce(deleteQuery);
 
     const result = await deleteComment('c1', 'user-1', 'user');
 
@@ -1117,9 +1123,7 @@ describe('deleteComment', () => {
     const calls = [];
     const deleteQuery = makeQuery({ data: null, error: null }, calls);
 
-    fromMock
-      .mockReturnValueOnce(selectQuery)
-      .mockReturnValueOnce(deleteQuery);
+    fromMock.mockReturnValueOnce(selectQuery).mockReturnValueOnce(deleteQuery);
 
     const result = await deleteComment('c-delete', 'user-1', 'user');
 
@@ -1136,11 +1140,9 @@ describe('deleteComment', () => {
   it('invalidates cache tags after successful delete', async () => {
     fromMock
       .mockReturnValueOnce(
-        makeQuery({ data: { author_id: 'user-1', status: 'approved' }, error: null })
+        makeQuery({ data: { author_id: 'user-1', status: 'approved' }, error: null }),
       )
-      .mockReturnValueOnce(
-        makeQuery({ data: null, error: null })
-      );
+      .mockReturnValueOnce(makeQuery({ data: null, error: null }));
 
     await deleteComment('c1', 'user-1', 'user');
 
@@ -1148,9 +1150,7 @@ describe('deleteComment', () => {
   });
 
   it('does not invalidate cache when comment not found', async () => {
-    fromMock.mockReturnValue(
-      makeQuery({ data: null, error: { message: 'Not found' } })
-    );
+    fromMock.mockReturnValue(makeQuery({ data: null, error: { message: 'Not found' } }));
 
     await deleteComment('c1', 'user-1', 'user');
 
@@ -1159,7 +1159,7 @@ describe('deleteComment', () => {
 
   it('does not invalidate cache when permission denied', async () => {
     fromMock.mockReturnValue(
-      makeQuery({ data: { author_id: 'other-user', status: 'approved' }, error: null })
+      makeQuery({ data: { author_id: 'other-user', status: 'approved' }, error: null }),
     );
 
     await deleteComment('c1', 'user-1', 'user');
@@ -1170,13 +1170,13 @@ describe('deleteComment', () => {
   it('returns error when delete fails', async () => {
     fromMock
       .mockReturnValueOnce(
-        makeQuery({ data: { author_id: 'user-1', status: 'approved' }, error: null })
+        makeQuery({ data: { author_id: 'user-1', status: 'approved' }, error: null }),
       )
       .mockReturnValueOnce(
         makeQuery({
           data: null,
           error: { message: 'Delete constraint violation' },
-        })
+        }),
       );
 
     const result = await deleteComment('c1', 'user-1', 'user');
@@ -1190,11 +1190,9 @@ describe('deleteComment', () => {
   it('does not invalidate cache when delete fails', async () => {
     fromMock
       .mockReturnValueOnce(
-        makeQuery({ data: { author_id: 'user-1', status: 'approved' }, error: null })
+        makeQuery({ data: { author_id: 'user-1', status: 'approved' }, error: null }),
       )
-      .mockReturnValueOnce(
-        makeQuery({ data: null, error: { message: 'Delete failed' } })
-      );
+      .mockReturnValueOnce(makeQuery({ data: null, error: { message: 'Delete failed' } }));
 
     await deleteComment('c1', 'user-1', 'user');
 
@@ -1213,7 +1211,7 @@ describe('getCommentAncestors', () => {
     const mockAncestors = [
       { id: 'c1', parent_id: 'c2', post_id: 'p1', status: 'approved', depth: 0 },
       { id: 'c2', parent_id: 'c3', post_id: 'p1', status: 'approved', depth: 1 },
-      { id: 'c3', parent_id: null, post_id: 'p1', status: 'approved', depth: 2 }
+      { id: 'c3', parent_id: null, post_id: 'p1', status: 'approved', depth: 2 },
     ];
     rpcMock.mockResolvedValue({ data: mockAncestors, error: null });
 
@@ -1225,14 +1223,14 @@ describe('getCommentAncestors', () => {
     expect(result.data).toEqual(mockAncestors);
     expect(rpcMock).toHaveBeenCalledWith('get_comment_ancestors', {
       p_comment_id: 'c1',
-      p_post_id: 'p1'
+      p_post_id: 'p1',
     });
   });
 
   it('returns fallback:true when RPC function is missing (PGRST202)', async () => {
     rpcMock.mockResolvedValue({
       data: null,
-      error: { code: 'PGRST202', message: 'Could not find the function get_comment_ancestors' }
+      error: { code: 'PGRST202', message: 'Could not find the function get_comment_ancestors' },
     });
     mockIsMissingRpcFunctionError.mockReturnValue(true);
 
@@ -1251,7 +1249,7 @@ describe('getCommentAncestors', () => {
   it('returns error for non-PGRST202 RPC errors', async () => {
     rpcMock.mockResolvedValue({
       data: null,
-      error: { code: '42501', message: 'permission denied' }
+      error: { code: '42501', message: 'permission denied' },
     });
 
     const result = await getCommentAncestors('c1', 'p1');
@@ -1271,7 +1269,7 @@ describe('getCommentThreadPreviewsBatch', () => {
   it('returns batch previews when RPC succeeds', async () => {
     const mockPreviews = [
       { root_comment_id: 'c1', id: 'r1', content: 'reply 1', has_more: true },
-      { root_comment_id: 'c3', id: 'r2', content: 'reply 2', has_more: false }
+      { root_comment_id: 'c3', id: 'r2', content: 'reply 2', has_more: false },
     ];
     rpcMock.mockResolvedValue({ data: mockPreviews, error: null });
 
@@ -1282,14 +1280,17 @@ describe('getCommentThreadPreviewsBatch', () => {
     expect(result.data).toEqual(mockPreviews);
     expect(rpcMock).toHaveBeenCalledWith('get_comment_thread_previews', {
       p_post_id: 'p1',
-      p_comment_ids: ['c1', 'c2', 'c3']
+      p_comment_ids: ['c1', 'c2', 'c3'],
     });
   });
 
   it('returns fallback:true when RPC function is missing', async () => {
     rpcMock.mockResolvedValue({
       data: null,
-      error: { code: 'PGRST202', message: 'Could not find the function get_comment_thread_previews' }
+      error: {
+        code: 'PGRST202',
+        message: 'Could not find the function get_comment_thread_previews',
+      },
     });
     mockIsMissingRpcFunctionError.mockReturnValue(true);
 
@@ -1310,7 +1311,7 @@ describe('getCommentThreadPreviewsBatch', () => {
 
     expect(rpcMock).toHaveBeenCalledWith('get_comment_thread_previews', {
       p_post_id: 'p1',
-      p_comment_ids: ['c1', 'c2']
+      p_comment_ids: ['c1', 'c2'],
     });
   });
 });

@@ -1739,13 +1739,6 @@ const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
 
 // 管理面板返回站点首页，避免后台操作被带回个人空间。
-const goBack = () => {
-  if (window.history.length > 1) {
-    router.back();
-  } else {
-    router.push('/');
-  }
-};
 
 // 替换 window.confirm / window.prompt 的响应式弹窗(P1-P2)
 // 弹窗实例已在 App.vue 全局挂载, 此处仅获取 dialog API
@@ -2202,7 +2195,6 @@ const suppressDraftSave = ref(false);
 
 const autoRefreshInterval = ref(null);
 const secondsUntilRefresh = ref(30);
-const isAutoRefreshing = ref(false);
 
 // 提示消息（action 为可选操作按钮，如审核撤销）
 const toast = reactive({
@@ -2463,7 +2455,6 @@ const isReadOnlyTab = computed(() => currentTabActions.value.size <= 1 && hasTab
 const isSubscriptionTab = computed(() => currentTab.value === 'subscriptions');
 const currentTabInfo = computed(() => tabs.find((t) => t.id === currentTab.value));
 const isPageTab = computed(() => currentTabInfo.value?.type === 'page');
-const isTableTab = computed(() => !isPageTab.value);
 const PAGE_TAB_COMPONENTS = {
   'api-keys': ApiKeyConsole,
   freemodels: FreemodelsConfig,
@@ -3055,22 +3046,6 @@ const getRowIdentity = (item) => {
   return id;
 };
 
-const visiblePages = computed(() => {
-  const pages = [];
-  const maxVisible = 5;
-  let start = Math.max(1, currentPage.value - Math.floor(maxVisible / 2));
-  let end = Math.min(totalPages.value, start + maxVisible - 1);
-
-  if (end - start < maxVisible - 1) {
-    start = Math.max(1, end - maxVisible + 1);
-  }
-
-  for (let i = start; i <= end; i++) {
-    pages.push(i);
-  }
-  return pages;
-});
-
 // 选择相关
 const isAllSelected = computed(() => {
   return (
@@ -3569,40 +3544,6 @@ const handleThemeChange = (theme) => {
   currentTheme.value = normalizeTheme(theme);
 };
 
-const handleQuickEdit = async (record) => {
-  if (!record?.tabId || !record?.id) return;
-  switchTab(record.tabId);
-  await nextTick();
-  const items = dataStore[record.tabId] || [];
-  const item = items.find((i) => String(i.id) === String(record.id));
-  if (item) {
-    openEditModal(item);
-  } else {
-    const table = dataConfig[record.tabId]?.table;
-    if (!table) return;
-    try {
-      const { data } = await supabase.from(table).select('*').eq('id', record.id).single();
-      if (data) {
-        // H-1 修复：profiles 表敏感字段已收窄，通过 RPC 补充
-        if (table === 'profiles' && data.id) {
-          try {
-            const { data: secData } = await supabase.rpc('admin_get_user_sensitive', {
-              p_user_id: data.id,
-            });
-            if (secData) Object.assign(data, secData);
-          } catch (secErr) {
-            logger.warn('data-admin', '获取用户敏感字段失败:', secErr);
-          }
-        }
-        openEditModal(data);
-      }
-    } catch (error) {
-      logger.warn('data-admin', '快速编辑获取记录失败:', error);
-      showToast('获取记录失败', 'error');
-    }
-  }
-};
-
 const toggleSelectAll = () => {
   if (selectAllResultsMode.value) {
     // 已全选所有结果时，再次点击 = 取消全选
@@ -3629,10 +3570,6 @@ const selectAllResults = () => {
 const clearAllSelection = () => {
   selectAllResultsMode.value = false;
   selectedItems.value = [];
-};
-
-const itemIndex = (item) => {
-  return currentData.value.findIndex((i) => i.id === item.id);
 };
 
 const isFieldDisabled = (field) => {

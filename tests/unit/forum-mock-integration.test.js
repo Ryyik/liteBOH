@@ -5,7 +5,7 @@ import {
   restoreImageAtPosition,
   shouldFallbackReplyPreview,
   buildFallbackReplyPreviewOptions,
-  getLikeErrorToast
+  getLikeErrorToast,
 } from '../../src/utils/forum-helpers.js';
 
 // ============================================================
@@ -17,8 +17,7 @@ describe('resolveReplyUsername (Bug #5)', () => {
   });
 
   it('username 为空字符串时用 user_ 前缀 + ID 前8位兜底', () => {
-    expect(resolveReplyUsername({ id: 'abcdefgh123456', username: '' }))
-      .toBe('user_abcdefgh');
+    expect(resolveReplyUsername({ id: 'abcdefgh123456', username: '' })).toBe('user_abcdefgh');
   });
 
   it('username 为 null/undefined 时兜底', () => {
@@ -176,7 +175,7 @@ describe('回复预览降级查询 (Bug #1)', () => {
         topLevelOnly: true,
         page: 1,
         pageSize: 5,
-        order: 'desc'
+        order: 'desc',
       };
       const result = buildFallbackReplyPreviewOptions(options);
       expect(result).toEqual({ page: 1, pageSize: 5, order: 'desc' });
@@ -241,7 +240,7 @@ describe('Mock 集成: loadPostReplyPreview 降级流程 (Bug #1)', () => {
       topLevelOnly: true,
       page: 1,
       pageSize: 3,
-      order: 'desc'
+      order: 'desc',
     };
 
     let { data, hasMore } = await mockGetComments(post.id, currentUserId, baseOptions);
@@ -260,7 +259,7 @@ describe('Mock 集成: loadPostReplyPreview 降级流程 (Bug #1)', () => {
   it('首次查询有数据时不触发降级（仅调用一次 getComments）', async () => {
     mockGetComments.mockResolvedValueOnce({
       data: [{ id: 1, content: 'hello' }],
-      hasMore: false
+      hasMore: false,
     });
 
     const post = { id: 'post1', comment_count: 5, replies: null, replies_has_more: false };
@@ -273,8 +272,8 @@ describe('Mock 集成: loadPostReplyPreview 降级流程 (Bug #1)', () => {
 
   it('首次查询为空但有评论数时触发降级（调用两次，第二次无 topLevelOnly）', async () => {
     mockGetComments
-      .mockResolvedValueOnce({ data: [], hasMore: false })  // topLevelOnly 查询为空
-      .mockResolvedValueOnce({ data: [{ id: 2 }], hasMore: false });  // 降级查询有结果
+      .mockResolvedValueOnce({ data: [], hasMore: false }) // topLevelOnly 查询为空
+      .mockResolvedValueOnce({ data: [{ id: 2 }], hasMore: false }); // 降级查询有结果
 
     const post = { id: 'post2', comment_count: 3, replies: null, replies_has_more: false };
     await simulateLoadPostReplyPreview(post, 'user1');
@@ -338,7 +337,7 @@ describe('Mock 集成: handleToggleLike 乐观更新与错误处理 (Bug #3, #7)
     mockToggleLike.mockResolvedValueOnce({
       action: 'liked',
       data: { likeCount: 42 },
-      error: null
+      error: null,
     });
 
     const post = { id: 'p1', like_count: 41, isLiked: false };
@@ -353,7 +352,7 @@ describe('Mock 集成: handleToggleLike 乐观更新与错误处理 (Bug #3, #7)
     mockToggleLike.mockResolvedValueOnce({
       action: 'unliked',
       data: { likeCount: 40 },
-      error: null
+      error: null,
     });
 
     const post = { id: 'p1', like_count: 41, isLiked: true };
@@ -367,7 +366,7 @@ describe('Mock 集成: handleToggleLike 乐观更新与错误处理 (Bug #3, #7)
     mockToggleLike.mockResolvedValueOnce({
       action: 'liked',
       data: {},
-      error: null
+      error: null,
     });
 
     const post = { id: 'p1', like_count: 41, isLiked: false };
@@ -380,7 +379,7 @@ describe('Mock 集成: handleToggleLike 乐观更新与错误处理 (Bug #3, #7)
     mockToggleLike.mockResolvedValueOnce({
       action: null,
       data: null,
-      error: { message: '操作过于频繁，请稍后再试' }
+      error: { message: '操作过于频繁，请稍后再试' },
     });
 
     const post = { id: 'p1', like_count: 41, isLiked: false };
@@ -389,11 +388,7 @@ describe('Mock 集成: handleToggleLike 乐观更新与错误处理 (Bug #3, #7)
     expect(result.success).toBe(false);
     expect(post.like_count).toBe(41); // 未变
     expect(post.isLiked).toBe(false); // 未变
-    expect(mockShowModal).toHaveBeenCalledWith(
-      'warning',
-      '操作失败',
-      '操作过于频繁，请稍后再试'
-    );
+    expect(mockShowModal).toHaveBeenCalledWith('warning', '操作失败', '操作过于频繁，请稍后再试');
   });
 });
 
@@ -406,12 +401,12 @@ describe('Mock 集成: retryPostImageUpload 位置恢复 (Bug #8)', () => {
     const images = [
       { id: 'a', sortOrder: 0 },
       { id: 'b_failed', sortOrder: 1, uploadStatus: 'failed' },
-      { id: 'c', sortOrder: 2 }
+      { id: 'c', sortOrder: 2 },
     ];
 
     // Step 1: 移除失败图片
     const before = images.slice(0, 1); // [a]
-    const after = images.slice(2);     // [c]
+    const after = images.slice(2); // [c]
     const current = [...before, ...after]; // [a, c]
 
     // Step 2: 模拟上传新图片追加到末尾
@@ -422,44 +417,40 @@ describe('Mock 集成: retryPostImageUpload 位置恢复 (Bug #8)', () => {
     const restored = restoreImageAtPosition(
       afterUpload.slice(0, current.length), // [a, c]
       newImages,
-      1
+      1,
     );
     // 期望: [a, b_new, c]
     expect(restored).toEqual([
       { id: 'a', sortOrder: 0 },
       { id: 'b_new', sortOrder: 3 },
-      { id: 'c', sortOrder: 2 }
+      { id: 'c', sortOrder: 2 },
     ]);
   });
 
   it('重试第一张图片时恢复到开头', () => {
     const images = [
       { id: 'failed', sortOrder: 0 },
-      { id: 'b', sortOrder: 1 }
+      { id: 'b', sortOrder: 1 },
     ];
     const before = images.slice(0, 0); // []
-    const after = images.slice(1);     // [b]
+    const after = images.slice(1); // [b]
     const current = [...before, ...after]; // [b]
 
     const newImages = [{ id: 'retried', sortOrder: 2 }];
     const restored = restoreImageAtPosition(current, newImages, 0);
     expect(restored).toEqual([
       { id: 'retried', sortOrder: 2 },
-      { id: 'b', sortOrder: 1 }
+      { id: 'b', sortOrder: 1 },
     ]);
   });
 
   it('重试最后一张图片时恢复到末尾', () => {
-    const images = [
-      { id: 'a', sortOrder: 0 },
-      { id: 'failed', sortOrder: 1 }
-    ];
     const current = [{ id: 'a', sortOrder: 0 }]; // 移除 failed 后
     const newImages = [{ id: 'retried', sortOrder: 2 }];
     const restored = restoreImageAtPosition(current, newImages, 1);
     expect(restored).toEqual([
       { id: 'a', sortOrder: 0 },
-      { id: 'retried', sortOrder: 2 }
+      { id: 'retried', sortOrder: 2 },
     ]);
   });
 });

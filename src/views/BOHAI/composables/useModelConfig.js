@@ -1,11 +1,9 @@
 import { ref, computed } from 'vue';
 import {
   BOH_DEFAULT_MODE_ID,
-  CLOUD_REFERENCE_CONSENT_KEY,
   MEMORY_CAPTURE_SETTING_KEY,
   TREEHOLE_MEMORY_SYNC_SETTING_KEY,
   LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY,
-  QUICK_NOTE_SETTING_KEY,
   RESPONSE_STYLE_SETTING_KEY,
   RESPONSE_STYLE_OPTIONS,
   PLAN_MODE_SETTING_KEY,
@@ -97,8 +95,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const isTreeholeMemoryToggling = ref(false);
 
-  const isQuickNoteEnabled = ref(false);
-
   const isPlanModeEnabled = ref(false);
 
   const isSharedMemoryEnabled = ref(readBooleanSetting(SHARED_MEMORY_SETTING_KEY, false));
@@ -163,34 +159,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   };
 
   // ─── Other state ───────────────────────────────────────────────────────────────
-
-  // cloudReferenceConsent 初始化：
-  // 此处 userInfo 尚未加载（authStore 异步恢复会话），无法直接构造 per-user key。
-  // 扫描 localStorage 中所有 per-user key（boh_ai_cloud_reference_consent_v1:<userId>），
-  // 若任一为 'granted' 则初始即为 'granted'，避免页面加载后短暂为 'unknown' 触发重复弹窗。
-  // refreshCloudReferenceConsent 会在 userInfo 就绪后精确修正为当前用户的值。
-  const cloudReferenceConsent = ref(
-    (() => {
-      if (typeof window === 'undefined') return 'unknown';
-      try {
-        // 1. 扫描 per-user key（当前实现唯一持久化方式）
-        const prefix = `${CLOUD_REFERENCE_CONSENT_KEY}:`;
-        for (let i = 0; i < localStorage.length; i += 1) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith(prefix)) {
-            const v = localStorage.getItem(k);
-            if (v === 'granted') return 'granted';
-            if (v === 'denied') return 'denied';
-          }
-        }
-        // 2. 兜底：legacy 全局 key（兼容旧版本，首次升级场景）
-        const saved = localStorage.getItem(CLOUD_REFERENCE_CONSENT_KEY);
-        return saved === 'granted' || saved === 'denied' ? saved : 'unknown';
-      } catch {
-        return 'unknown';
-      }
-    })(),
-  );
 
   // 会话级"联网搜索未配置"提示去重：避免每轮都刷一条。
   const webSearchDisabledNoticeShownFor = new Set();
@@ -261,11 +229,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     localStorage.removeItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY);
   };
 
-  const persistQuickNoteSetting = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem(QUICK_NOTE_SETTING_KEY);
-  };
-
   const persistSharedMemorySetting = () => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(SHARED_MEMORY_SETTING_KEY, isSharedMemoryEnabled.value ? '1' : '0');
@@ -292,7 +255,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,
-    isQuickNoteEnabled,
     isPlanModeEnabled,
     isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
@@ -308,7 +270,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     thinkingSpeedOptions: THINKING_SPEED_OPTIONS,
 
     // Other state
-    cloudReferenceConsent,
     webSearchDisabledNoticeShownFor,
 
     // Functions
@@ -321,7 +282,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     persistPlanModeSetting,
     persistMemoryCaptureSetting,
     persistTreeholeMemorySetting,
-    persistQuickNoteSetting,
     persistSharedMemorySetting,
     persistKnowledgeBaseSetting,
   };

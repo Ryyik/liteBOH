@@ -119,7 +119,6 @@ function buildStyles(preset) {
   const bodyFont = getFontStack('body', preset.tokens);
   const primary = preset.tokens.color.primary;
   const textC = preset.tokens.color.text.onLight;
-  const mutedC = preset.tokens.color.text.muted;
 
   return {
     default: {

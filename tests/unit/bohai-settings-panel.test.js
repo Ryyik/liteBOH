@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 // 源码守卫断言的格式宽容归一（读源码 + toContain 的断言必须过它，见 helpers/source.js）
-import { flattenSource, squeezeSource } from '../helpers/source.js';
+import { flattenSource, squeezeSource, scriptSection, stripComments } from '../helpers/source.js';
 
 // ============================================================
 // 测试 chatErrorMessages 工具函数
@@ -189,7 +189,6 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
       'update:modelValue',
       'selectMode',
       'selectResponseStyle',
-      'selectThinkingSpeed',
       'toggleTreeholeMemory',
       'toggleSharedMemory',
       'clearCurrentChat',
@@ -199,6 +198,13 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
     for (const emit of requiredEmits) {
       expect(content).toContain(emit);
     }
+    // 2026-10-03（plans/023 步骤 ④）：思考强度只在输入区面板（同一个状态），
+    // 设置面板不再有第二个入口；额度侧板退役后 openQuotaPanel 也不再需要。
+    // 否定断言必须剥注释 —— 组件里有一句说明「删 openQuotaPanel」的注释，
+    // 直接在原文上断言会假红（见 helpers/source.js 文件头）。
+    const codeOnly = stripComments(scriptSection(content));
+    expect(codeOnly).not.toContain("'selectThinkingSpeed'");
+    expect(codeOnly).not.toContain('openQuotaPanel');
   });
 
   it('使用 Teleport 渲染到 body', () => {
@@ -274,7 +280,6 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
     const requiredEvents = [
       '@select-mode',
       '@select-response-style',
-      '@select-thinking-speed',
       '@toggle-treehole-memory',
       '@toggle-shared-memory',
       '@clear-current-chat',
@@ -284,6 +289,7 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
     for (const event of requiredEvents) {
       expect(content).toContain(event);
     }
+    expect(content).not.toContain('@select-thinking-speed');
   });
 
   it('完整 AI 页面接入主题、密度和字号设置', () => {

@@ -11,8 +11,6 @@
  *
  * 改这里两处同步生效 —— 与 `bottom-nav.ts` / `forum-sections.ts` 同范式。
  */
-import type { Component } from 'vue';
-
 export interface SiteNavNode {
   name: string;
   label: string;
@@ -145,6 +143,3 @@ export const flattenSiteNavPages = (
   }
   return out;
 };
-
-/** 便于消费方给图标用的类型别名（与 vue Component 对齐） */
-export type SiteNavIcon = Component;

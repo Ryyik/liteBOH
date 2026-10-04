@@ -431,14 +431,83 @@ const currentModelId = computed(() => currentMode.value.model);
 `not.toContain('full-ai-toolbar')` 防止顶栏偷偷回来）；lint 无新增警告；
 一次性 Playwright 检查 **7/7 通过**（顶栏已删 / 侧栏默认展开 / 收起后「打开侧栏」按钮出现 / 点它能恢复）。
 
+### ✅ 步骤 ④ 设置面板重排 + AiQuotaSidePanel 退役（2026-10-03 完成）
+
+**已改文件**：`components/BohaiSettingsPanel.vue`（重写模板与脚本）、`BOHAIMain.vue`（接线）、
+`tests/unit/bohai-quick-sidebar.test.js`、`tests/unit/bohai-settings-panel.test.js`、
+`scripts/important-budget.json`、`scripts/dark-token-budget.json`。
+**已删文件**：`src/components/ai/AiQuotaSidePanel.vue`（949 行，`src/components/ai/` 目录随之空掉）。
+
+**分区：7 → 4 卡 + 折叠高级 + 底部数据**（⚠️ 与原口径「3 卡」有偏差，理由见下）：
+
+| 新结构 | 内容 |
+| --- | --- |
+| 卡 1 · 对话偏好 | 默认响应模式 / 回答风格 / 发送方式 / 新对话默认联网 / 回复详情入口 |
+| 卡 2 · 记忆与上下文 | 个人记忆 / 社区知识 / 自动附加当前页面 / 识别选中文本 / 上下文范围 |
+| 卡 3 · 外观 | 主题 / 密度 / 字号 / 界面动效 |
+| **卡 4 · 用量**（新） | 方案 + Token + **Web Searching** + 积分（pointsMode）+ 登录/升级按钮 |
+| 折叠 · 高级 | 全局快捷键 / 快捷键组合 / 边缘手势 / 灵敏度 / 触感反馈 / 呼出后打开 / 自动聚焦 |
+| 底部数据行 | 清除当前对话 / 导出对话数据 / 清除所有对话（危险色） |
+
+**⚠️ 与原方案的偏差（必须记）**：原写「3 卡」，实际是 **4 卡**。理由：用量必须单列 ——
+它承接了退役的 `AiQuotaSidePanel`，塞进任何一张偏好卡都会让那张卡变成杂物箱；
+而且本文件 §10 ⑤ 自己就要求「上下文环点击开**设置面板的用量卡**」，说明用量卡必须独立存在。
+
+**退役的接线（不是只删组件）**：
+- 删 `isQuotaPanelOpen` ref、`openQuotaPanel` / `closeQuotaPanel`、`<AiQuotaSidePanel>` 挂载与 import；
+- 上下文环浮层的两个入口（「完整用量 ›」「用量详情」）改为 `openUsageInSettings()` ——
+  打开设置面板并靠新增的 `:focus-section="'usage'"` 滚到用量卡（`scrollIntoView`），不再多一层抽屉；
+- `toggleSidebar` / `closeOverlayPanels` / `resetQuickNavigation` / `overlay-state` watch /
+  `handleEscapeLayer` 五处的 `isQuotaPanelOpen` 分支一并清除。
+- ⚠️ **不能只删组件不搬数据**：`AiQuotaSidePanel` 额外做了「用真实订阅档位覆盖 `quota-status` 的 tier」
+  （`getMySubscriptions` + `resolveHighestTierCode`）与 Web Searching / 积分三段展示 ——
+  这些**已原样搬进设置面板**，否则订阅刚变更的用户会看到滞后的档位。
+
+**思考强度已移出**（§5 的口径）：设置面板的「思考速度」行删除，`currentThinkingSpeedId` /
+`thinkingSpeedOptions` 两个 prop 与 `selectThinkingSpeed` emit 一并删 —— 输入区面板的「推理强度」
+是同一个状态（`setThinkingSpeed`），两个入口重复。⚠️ 删 emit 会让两条读源码的守卫断言变红，
+已同批改（`bohai-settings-panel.test.js` 的 emits / 事件列表各删一项，并加 `not.toContain` 反向锁）。
+
+**两个棘轮都下调了**（删组件 + 新增样式都不许升）：
+`important-budget 1262 → 1217`（−45）、`dark-tokens 2865 → 2854`（−11，设置面板单文件 55→73
+被退役组件的 29 抵掉）。⚠️ 新样式**一处 `!important` 都没加** —— chip 的 `color` 改用
+`.ai-settings-usage-plan .ai-settings-usage-chip` 提高特异性压过 `.ai-settings-usage-plan span`。
+
 ### ⬜ 未做
 
-- **步骤 ④** 设置面板重排（7 分区 → 3 卡 + 折叠高级 + 底部数据行）+ `AiQuotaSidePanel` 退役
-- **步骤 ⑤** 三形态人工验收 + 新探针 `probe-bohai-composer.mjs`
+- **步骤 ⑤** 三形态人工验收（新探针 `probe-bohai-composer.mjs` **已建并跑过**，见下）
 - **步骤 ⑥** 去气泡 —— **用户已拍板：保留用户端气泡、AI 回复不放气泡**。
   实测结论：**这就是现状，无需改动**（AI 回复在浅色下无背景；暗色下 `bohai-dark.css:540-546`
   显式 `background: transparent; border: none; box-shadow: none`）。用户气泡保留三处定义
   （`messages.css:244` / `adaptive-layout.css:591` 生效 / `bohai-dark.css:94`）。
+
+### ✅ 步骤 ⑤ 的探针已建（2026-10-02 建，2026-10-03 补设置面板一组）
+
+`scripts/probes/probe-bohai-composer.mjs`，**22 条断言全绿**：
+
+| 组 | 覆盖 |
+| --- | --- |
+| A1–A13 | 独立页全量交互（底行胶囊 / 三行面板 / 左右二级菜单 / 高级四工具 / 用量圆钮单环 + hover 浮层） |
+| **C1–C4**（2026-10-03 新增） | **设置面板**：4 卡 + 折叠高级 + 数据卡；用量卡读到 quota-status 的 mock 值；**退役的额度侧板必须为 0**；圆钮浮层「完整用量」→ 设置面板 + 滚到用量卡 |
+| B1–B5 | AI 岛：⌘K 展开 / 岛内胶囊 / 面板与子菜单不被 `overflow:hidden` 裁 |
+
+产物：`debug-screenshots/bohai-composer-standalone.png` / `bohai-composer-island.png` /
+`bohai-usage-orb-single.png` / **`bohai-settings-usage.png`**（设置面板用量卡）。
+
+**反证（两条，都实测过）**：
+1. `openUsageInSettings` 里的 `settingsFocusSection = 'usage'` 改回 `''` → **C1 红**（`scrollTop=0 usageVisible=false`）。
+2. `fetchQuota` 里 `quota.value = data` 改成 `null`（模拟数据没到）→ **C1 + C3 红**，C2/C4 仍绿
+   ⇒ 说明这两组断言互不敏感，没有互相兜底。
+
+⚠️ **C3 的第一版是假绿，记下来**：原写 `includes('Web Searching')`，但面板底部那句说明
+「失败的 Web Searching 不计入次数」也含这个词 —— 把段标题改成 `WEB SEARCH` 后 C3 **仍然 PASS**。
+改成只认数据（`88%` / `已用 3 次` / `共 10 次`）才有牙。
+
+⚠️ **另一条实测坑**：用量卡是**数据到了才变高**的，打开时只滚一次会停在半路（`usageVisible=false`）——
+必须在 `fetchQuota` 落定后**再滚一次**（`scrollToUsageCard()` 抽出来两处调用）。
+
+⚠️ 第三种形态「用户空间内嵌 / ai-tab」**已随底栏收席下线**（`AsyncBOHAI` 成零引用死导出），
+故探针只设两形态 —— 三形态验收实际只剩两形态。
 
 ### ⚠️ 遗留：约 35 处死 CSS 未清
 

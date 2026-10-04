@@ -19,13 +19,16 @@ const BASE = 'http://[::1]:5173';
 const OUT = 'debug-screenshots';
 fs.mkdirSync(OUT, { recursive: true });
 
-const launch = () => chromium.launch({
-  channel: 'chrome',
-  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
-});
+const launch = () =>
+  chromium.launch({
+    channel: 'chrome',
+    args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
+  });
 
 const injectAuth = async (page) => {
-  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+    timeout: 30000,
+  });
   await page.waitForTimeout(600);
   await page.evaluate(() => {
     const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
@@ -33,7 +36,9 @@ const injectAuth = async (page) => {
     auth.isLoggedIn = true;
     Object.assign(auth.userInfo, {
       id: '00ac36b4-6594-440f-a9c1-38b7bd47ee8b',
-      username: 'probe_user', role: 'user', points: 42
+      username: 'probe_user',
+      role: 'user',
+      points: 42,
     });
   });
 };
@@ -53,7 +58,12 @@ const MEASURE_FN = () => {
   const rect = (el) => {
     if (!el) return null;
     const r = el.getBoundingClientRect();
-    return { w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top), left: Math.round(r.left) };
+    return {
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      top: Math.round(r.top),
+      left: Math.round(r.left),
+    };
   };
   const surface = $('.unified-nav-surface');
   const container = surface ? surface.querySelector('.nav-container') : null;
@@ -74,33 +84,44 @@ const MEASURE_FN = () => {
     logoIcon: rect($('.nav-logo-icon')),
     avatar: rect($('.nav-avatar')),
     burger: rect($('#nav-hamburger')),
-    burgerRendered: (() => { const b = $('#nav-hamburger'); if (!b) return false; const s = getComputedStyle(b); const r2 = b.getBoundingClientRect(); return s.display !== 'none' && r2.width > 0; })(),
+    burgerRendered: (() => {
+      const b = $('#nav-hamburger');
+      if (!b) return false;
+      const s = getComputedStyle(b);
+      const r2 = b.getBoundingClientRect();
+      return s.display !== 'none' && r2.width > 0;
+    })(),
     menuActive: !!menu && menu.classList.contains('active'),
     menuDisplay: menu ? getComputedStyle(menu).display : null,
     statusCardRect: rect(statusCard),
-    statusCardRendered: (() => { if (!statusCard) return false; const s = getComputedStyle(statusCard); return s.display !== 'none' && statusCard.getBoundingClientRect().height > 0; })(),
-    viewport: { w: window.innerWidth, h: window.innerHeight }
+    statusCardRendered: (() => {
+      if (!statusCard) return false;
+      const s = getComputedStyle(statusCard);
+      return s.display !== 'none' && statusCard.getBoundingClientRect().height > 0;
+    })(),
+    viewport: { w: window.innerWidth, h: window.innerHeight },
   };
 };
 
-const dispatchIsland = (title, durationMs) => {
-  window.dispatchEvent(new CustomEvent('boh_global_nav_status', {
-    detail: { title, message: '', icon: 'success', durationMs }
-  }));
-};
-
 // 采样 surface 宽度轨迹（E 场景「无闪断」的判据）
-const startWidthPolling = (page) => page.evaluate(() => {
-  window.__miniPoll = [];
-  window.__miniPollTimer = setInterval(() => {
-    const s = document.querySelector('.unified-nav-surface');
-    if (s) window.__miniPoll.push({ t: Date.now(), w: Math.round(s.getBoundingClientRect().width), island: s.classList.contains('has-status-card') });
-  }, 50);
-});
-const stopWidthPolling = (page) => page.evaluate(() => {
-  clearInterval(window.__miniPollTimer);
-  return window.__miniPoll || [];
-});
+const startWidthPolling = (page) =>
+  page.evaluate(() => {
+    window.__miniPoll = [];
+    window.__miniPollTimer = setInterval(() => {
+      const s = document.querySelector('.unified-nav-surface');
+      if (s)
+        window.__miniPoll.push({
+          t: Date.now(),
+          w: Math.round(s.getBoundingClientRect().width),
+          island: s.classList.contains('has-status-card'),
+        });
+    }, 50);
+  });
+const stopWidthPolling = (page) =>
+  page.evaluate(() => {
+    clearInterval(window.__miniPollTimer);
+    return window.__miniPoll || [];
+  });
 
 const report = { results: {}, checks: {}, pageErrors: [] };
 const browser = await launch();
@@ -154,12 +175,14 @@ const browser = await launch();
   await injectAuth(page);
   await page.waitForSelector('.unified-nav-surface', { state: 'attached', timeout: 20000 });
   await page.waitForTimeout(1000);
-  await page.click('#nav-hamburger');       // 先开菜单
+  await page.click('#nav-hamburger'); // 先开菜单
   await page.waitForTimeout(800);
   await page.evaluate(() => {
-    window.dispatchEvent(new CustomEvent('boh_global_nav_status', {
-      detail: { title: '离线摘要已生成', message: '探针 D', icon: 'success', durationMs: 4000 }
-    }));
+    window.dispatchEvent(
+      new CustomEvent('boh_global_nav_status', {
+        detail: { title: '离线摘要已生成', message: '探针 D', icon: 'success', durationMs: 4000 },
+      }),
+    );
   });
   await page.waitForTimeout(1100);
   report.results.D_island = await evalRetry(page, MEASURE_FN);
@@ -182,11 +205,14 @@ const browser = await launch();
   await page.waitForTimeout(1000);
   await startWidthPolling(page);
   await page.evaluate(() => {
-    const fire = (title) => window.dispatchEvent(new CustomEvent('boh_global_nav_status', {
-      detail: { title, message: '', icon: 'success', durationMs: 1800 }
-    }));
+    const fire = (title) =>
+      window.dispatchEvent(
+        new CustomEvent('boh_global_nav_status', {
+          detail: { title, message: '', icon: 'success', durationMs: 1800 },
+        }),
+      );
     fire('探针通知一');
-    setTimeout(() => fire('探针通知二'), 120);   // 第二条入队（第一条在场）
+    setTimeout(() => fire('探针通知二'), 120); // 第二条入队（第一条在场）
   });
   await page.waitForTimeout(6200);
   const track = await stopWidthPolling(page);
@@ -194,8 +220,16 @@ const browser = await launch();
   const islandFrames = track.filter((f) => f.island);
   const minIslandW = islandFrames.length ? Math.min(...islandFrames.map((f) => f.w)) : 0;
   const lastW = track.length ? track[track.length - 1].w : 0;
-  const islandSpan = islandFrames.length ? islandFrames[islandFrames.length - 1].t - islandFrames[0].t : 0;
-  report.results.E_track = { frames: track.length, islandFrames: islandFrames.length, minIslandW, lastW, islandSpan };
+  const islandSpan = islandFrames.length
+    ? islandFrames[islandFrames.length - 1].t - islandFrames[0].t
+    : 0;
+  report.results.E_track = {
+    frames: track.length,
+    islandFrames: islandFrames.length,
+    minIslandW,
+    lastW,
+    islandSpan,
+  };
   report.results.E_minIslandW = minIslandW;
   report.results.E_lastW = lastW;
   report.results.E_islandSpan = islandSpan;
@@ -216,7 +250,8 @@ const browser = await launch();
   await page.evaluate(() => {
     const d = document.createElement('div');
     d.id = 'probe-hscroll';
-    d.style.cssText = 'position:fixed;left:0;bottom:0;width:200px;height:40px;overflow-x:auto;z-index:1;';
+    d.style.cssText =
+      'position:fixed;left:0;bottom:0;width:200px;height:40px;overflow-x:auto;z-index:1;';
     d.innerHTML = '<div style="width:600px;height:10px"></div>';
     document.body.appendChild(d);
     d.scrollLeft = 80;
@@ -282,7 +317,8 @@ report.checks = {
   A_mini_width: A.surface && A.surface.w >= 162 && A.surface.w <= 174,
   A_no_overflow: A.containerScrollW && A.containerScrollW <= A.surface.w - 2,
   A_texts_hidden: A.logoTextOpacity === '0' && A.usernameOpacity === '0',
-  A_anchors_alive: !!A.logoIcon && A.logoIcon.w > 0 && A.avatar && A.avatar.w > 0 && A.burgerRendered,
+  A_anchors_alive:
+    !!A.logoIcon && A.logoIcon.w > 0 && A.avatar && A.avatar.w > 0 && A.burgerRendered,
   A_logo_tap_no_expand: hasMini(AL) && !hasExpanded(AL) && AL.surface && AL.surface.w <= 174,
   // B：点汉堡一步到位 —— 长条 + 菜单 + 文本可见
   B_expanded_class: hasExpanded(B) && hasMini(B),
@@ -295,9 +331,11 @@ report.checks = {
   // D：岛强制展开 + 连体（状态卡 top 相对 surface ≈ status-top 57px）+ 菜单被收
   D_island_forced_expand: hasExpanded(D) && D.surface && D.surface.w > 300,
   D_menu_auto_closed: !D.menuActive || D.menuDisplay === 'none',
-  D_island_attached: D.statusCardRect && D.surface && Math.abs((D.statusCardRect.top - D.surface.top) - 57) <= 10,
+  D_island_attached:
+    D.statusCardRect && D.surface && Math.abs(D.statusCardRect.top - D.surface.top - 57) <= 10,
   // 岛关闭后一起回缩（双轴：宽回 mini、高回 50）
-  D_closed_back_to_mini: hasMini(DC) && !hasExpanded(DC) && DC.surface && DC.surface.w <= 174 && DC.surfaceH === '50px',
+  D_closed_back_to_mini:
+    hasMini(DC) && !hasExpanded(DC) && DC.surface && DC.surface.w <= 174 && DC.surfaceH === '50px',
   // E：连发两条，岛活跃窗口内宽度轨迹最小值仍 >300（无闪断），结束回 mini
   E_no_flash_gap: report.results.E_minIslandW > 300 && report.results.E_islandSpan > 3200,
   E_back_to_mini: report.results.E_lastW <= 174,
@@ -309,7 +347,7 @@ report.checks = {
   G_landscape_width_intact: G.surface && Math.abs(G.surface.w - 860) <= 4,
   // H：>480 竖屏 mini 档 188（内容实测 144 + 两条间隙各 8 + padding 28）
   H_mini_width_188: hasMini(H) && H.surface && H.surface.w >= 182 && H.surface.w <= 194,
-  H_no_overflow: H.containerScrollW && H.containerScrollW <= H.surface.w - 2
+  H_no_overflow: H.containerScrollW && H.containerScrollW <= H.surface.w - 2,
 };
 
 report.pass = Object.values(report.checks).every(Boolean) && report.pageErrors.length === 0;

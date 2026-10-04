@@ -198,9 +198,7 @@ export function useChatEngine() {
     sharedMemorySearchCache,
     actionAuditLog,
     pendingTreeholeCreation,
-    pendingCloudReferenceConsent,
     pendingSharedMemoryCapture,
-    pendingQuickNote,
     pendingActionDraft,
     userPrivateContextCache,
     isCompressingContext,
@@ -212,9 +210,7 @@ export function useChatEngine() {
     resetUserPrivateContextCache,
     resetSharedMemorySearchCache,
     resetPendingTreeholeCreation,
-    resetPendingCloudReferenceConsent,
     resetPendingSharedMemoryCapture,
-    resetPendingQuickNote,
     resetPendingActionDraft,
     computeContextBudgetUsage,
     loadSessions,
@@ -271,14 +267,8 @@ export function useChatEngine() {
       resetSharedMemorySearchCache();
       resetUserPrivateContextCache();
       resetPendingTreeholeCreation();
-      resetPendingCloudReferenceConsent();
       resetPendingSharedMemoryCapture();
-      resetPendingQuickNote();
       resetPendingActionDraft();
-      if (!nextId && isQuickNoteEnabled.value) {
-        isQuickNoteEnabled.value = false;
-        persistQuickNoteSetting();
-      }
     },
   );
 
@@ -322,7 +312,6 @@ export function useChatEngine() {
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,
-    isQuickNoteEnabled,
     isPlanModeEnabled,
     isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
@@ -332,7 +321,6 @@ export function useChatEngine() {
     currentThinkingSpeedId,
     currentThinkingSpeed,
     thinkingSpeedOptions,
-    cloudReferenceConsent,
     webSearchDisabledNoticeShownFor,
     getModelForModeId,
     togglePlanMode,
@@ -341,7 +329,6 @@ export function useChatEngine() {
     persistModeSetting,
     persistMemoryCaptureSetting,
     persistTreeholeMemorySetting,
-    persistQuickNoteSetting,
     persistSharedMemorySetting,
     persistKnowledgeBaseSetting,
   } = useModelConfig({ availableModels: runtimeAvailableModels, chatModes: runtimeChatModes });
@@ -491,9 +478,6 @@ export function useChatEngine() {
     updateAssistantActionNotes,
     appendUserMessageWithTitle,
     resetComposerInput,
-    extractQuickNoteContent,
-    buildQuickNoteTitle,
-    queueQuickNoteConfirmation,
     cancelPendingActionDraftFromUI,
     confirmPendingActionDraftFromUI,
     updatePendingPostDraftFromUI,
@@ -504,13 +488,10 @@ export function useChatEngine() {
     availableModels: runtimeAvailableModels.value,
     isLoggedIn,
     userInfo,
-    isQuickNoteEnabled,
     scrollToBottom: safeScrollToBottom,
     currentSessionIndex,
     submitPostDraft: (...args) => submitPostDraft(...args),
     logger,
-    pendingQuickNote,
-    resetPendingQuickNote,
     pendingActionDraft,
     resetPendingActionDraft,
     activeActionDraft,
@@ -523,7 +504,6 @@ export function useChatEngine() {
     currentSessionIndex,
     pendingActionDraft,
     actionAuditLog,
-    treeholeMemoryCache,
     sharedMemoryCache,
     resetSharedMemorySearchCache,
     appendSessionMessage,
@@ -545,13 +525,10 @@ export function useChatEngine() {
     currentModel,
     runtimeAvailableModels,
     callModelInternal,
-    extractQuickNoteContent,
-    buildQuickNoteTitle,
     getSharedMemoriesCached,
   });
 
   const {
-    getLocalDateKey,
     formatPostDraftPreview,
     formatPageDraftPreview,
     updatePostDraftByUserInput,
@@ -571,29 +548,16 @@ export function useChatEngine() {
   const {
     toggleMemoryCapture,
     toggleTreeholeMemory,
-    refreshCloudReferenceConsent,
-    toggleQuickNoteMode,
-    updatePendingQuickNoteDraft,
-    dismissQuickNoteDraft,
-    confirmQuickNoteDraft,
-    requestCloudReferenceConsent,
-    approveCloudReferenceConsent,
-    rejectCloudReferenceConsent,
-    handlePendingCloudReferenceConsentReply,
     handlePendingTreeholeCreationReply,
     requestSharedMemorySaveConfirmation,
     memoryCaptureTip,
     _requestTreeholeCreationConfirmation,
   } = useMemoryCapture({
     pendingTreeholeCreation,
-    pendingCloudReferenceConsent,
     pendingSharedMemoryCapture,
-    pendingQuickNote,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
-    isQuickNoteEnabled,
     isTreeholeMemoryToggling,
-    cloudReferenceConsent,
     memoryCaptureStatusMessage,
     isLoggedIn,
     userInfo,
@@ -604,20 +568,15 @@ export function useChatEngine() {
     appendSessionMessage,
     resetComposerInput,
     resetPendingTreeholeCreation,
-    resetPendingCloudReferenceConsent,
     resetPendingSharedMemoryCapture,
-    resetPendingQuickNote,
     persistMemoryCaptureSetting,
     persistTreeholeMemorySetting,
-    persistQuickNoteSetting,
     setMemoryCaptureStatusMessage,
     getSessionByIndex,
     scrollToBottom: safeScrollToBottom,
     nextTick,
     runRegisteredAction,
     normalizePromptLine,
-    extractQuickNoteContent,
-    buildQuickNoteTitle,
   });
   // --------------------------------------------------------------
 
@@ -1131,7 +1090,6 @@ export function useChatEngine() {
       session.expertState = recordUserTurn(session.expertState, userText);
     }
 
-    if (await handlePendingCloudReferenceConsentReply(userText)) return;
     if (await handlePendingTreeholeCreationReply(userText)) return;
 
     if (await tryStartActionDraftFromUserInput(userText, sessionIndex)) return;
@@ -1375,34 +1333,24 @@ export function useChatEngine() {
         maxChars: MAX_USER_INPUT_CHARS,
       },
     );
-    refreshCloudReferenceConsent();
     markTiming('contextReadyMs');
 
     // 4 模式不再做"自动路由"，但 capability 决策（联网/Cloud+ 引用/保存/指令）仍统一由
     // resolveAutoModeDecisionLocally 提供，本地纯函数判定，不再调 LLM 二次校验。
+    // 2026-10-04：Cloud+ 参考的同意闸门已移除 —— 是否读 Cloud+ 只由用户的「个人记忆」开关决定。
     const autoDecision = resolveAutoModeDecisionLocally(routingQueryText, {
       isAutoMode: currentModeId.value === 'auto',
-      cloudReferenceEnabled: Boolean(
-        isTreeholeMemoryEnabled.value || cloudReferenceConsent.value === 'granted',
-      ),
+      cloudReferenceEnabled: Boolean(isTreeholeMemoryEnabled.value),
       isLoggedIn: Boolean(isLoggedIn.value && userInfo.value?.id),
       helpers: { isPostDraftRequest },
     });
 
-    if (
-      autoDecision?.shouldSaveCloud ||
-      autoDecision?.shouldSaveSharedMemory ||
-      autoDecision?.shouldAskMemoryDestination
-    ) {
+    // 2026-10-04：保存只剩「写入公共记忆库」一条路径（Cloud+ 写入与「两处同存」已下线），
+    // 所以不再判断 shouldSaveCloud / shouldAskMemoryDestination，也不必再传 destination。
+    if (autoDecision?.shouldSaveSharedMemory) {
       removePreflightLoader();
       finishPreflightOnly();
-      if (
-        requestSharedMemorySaveConfirmation({
-          content: userText,
-          sessionIndex,
-          destination: autoDecision.saveDestination || 'ask',
-        })
-      ) {
+      if (requestSharedMemorySaveConfirmation({ content: userText, sessionIndex })) {
         return;
       }
     }
@@ -1419,24 +1367,7 @@ export function useChatEngine() {
         return;
       }
 
-      if (cloudReferenceConsent.value === 'denied') {
-        removePreflightLoader();
-        finishPreflightOnly();
-        appendSessionMessage(
-          sessionIndex,
-          'assistant',
-          '你此前已关闭 Cloud+ 隐私授权，因此本次不会读取个人内容。如需重新开启，请前往 BOH AI 设置中的“个人记忆”。',
-        );
-        return;
-      }
-
-      if (cloudReferenceConsent.value !== 'granted') {
-        removePreflightLoader();
-        finishPreflightOnly();
-        requestCloudReferenceConsent();
-        return;
-      }
-
+      // 2026-10-04：不再有「首次授权」环节 —— 需要 Cloud+ 时直接开启并继续读取。
       isTreeholeMemoryEnabled.value = true;
       persistTreeholeMemorySetting();
       setMemoryCaptureStatusMessage('Auto 已为你开启 Cloud+ 参考。');
@@ -2541,12 +2472,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
           '我暂时没有生成到有效内容，请再试一次。';
         updateContent(sanitizeCommunityEvidenceClaims(groundedRepairedContent));
         nextTick(scrollToBottom);
-        await queueQuickNoteConfirmation({
-          rawText: userText,
-          sessionIndex,
-          requestSignal: requestController.signal,
-          modelId: generationModel.id,
-        });
 
         void captureMemoryFromConversation({
           sessionIndex,
@@ -2641,12 +2566,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
         updateContent(finalFilteredContent);
       }
       nextTick(scrollToBottom);
-      await queueQuickNoteConfirmation({
-        rawText: userText,
-        sessionIndex,
-        requestSignal: requestController.signal,
-        modelId: generationModel.id,
-      });
 
       // 对话结束后异步尝试“选择性记忆沉淀”，不阻塞主回答流程
       void captureMemoryFromConversation({
@@ -2725,7 +2644,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,
-    isQuickNoteEnabled,
     isPlanModeEnabled,
     isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
@@ -2737,8 +2655,6 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     currentThinkingSpeedId,
     currentThinkingSpeed,
     thinkingSpeedOptions,
-    pendingCloudReferenceConsent,
-    pendingQuickNote,
     actionAuditLog,
     memoryCaptureTip,
     isRateLimited,
@@ -2761,18 +2677,12 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
     sendMessage,
     toggleMemoryCapture,
     toggleTreeholeMemory,
-    toggleQuickNoteMode,
     togglePlanMode,
     setResponseStyle,
     setThinkingSpeed,
     persistModeSetting,
     persistSharedMemorySetting,
     persistKnowledgeBaseSetting,
-    updatePendingQuickNoteDraft,
-    dismissQuickNoteDraft,
-    confirmQuickNoteDraft,
-    approveCloudReferenceConsent,
-    rejectCloudReferenceConsent,
     activeActionDraft,
     updatePendingPostDraftFromUI,
     cancelPendingActionDraftFromUI,

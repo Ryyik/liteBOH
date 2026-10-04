@@ -21,9 +21,7 @@ import { resolveBOHAIAutoModeDecision } from './bohai-auto-router.js';
  * 前者是创作、后者是读取，都不是「沉淀记忆」的语境。
  */
 const SAVE_INTENT_OFF = Object.freeze({
-  shouldSaveCloud: false,
   shouldSaveSharedMemory: false,
-  shouldAskMemoryDestination: false,
   saveDestination: 'none',
 });
 

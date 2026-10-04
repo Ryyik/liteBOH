@@ -1,23 +1,3 @@
-/**
- * 摄影集版式库（数据即版式：引擎只认 slots 描述，扩展版式不动引擎）
- *
- * 设计文档：docs/superpowers/specs/2026-09-27-photo-albums-design.md §4/§9
- * - P1 六版式：full / duo / trio / grid4 / img-left-text / img-right-text
- * - P2 追加：hero-text（通栏题图）/ strip（胶片条）
- *
- * 渲染契约（编辑器画布与阅读页共用）：
- *   - layout.gridAreas → CSS grid-template-areas（含文字区 t 时由消费方渲染配文）
- *   - layout.maxPhotos → photo_refs 槽位上限
- *   - 未填满的槽位渲染为占位框（编辑器）/直接折叠（阅读页）
- */
-
-export const PAGE_TYPES = {
-  cover: '封面',
-  chapter: '章节',
-  content: '内容',
-  end: '尾页',
-};
-
 export const ALBUM_LAYOUTS = {
   full: {
     id: 'full',
@@ -108,9 +88,6 @@ export const ALBUM_LAYOUTS = {
     gap: 'sm',
   },
 };
-
-/** 内容页可用版式（章节页/封面页不开放版式切换） */
-export const CONTENT_LAYOUT_IDS = Object.keys(ALBUM_LAYOUTS);
 
 export function getLayout(layoutId) {
   return ALBUM_LAYOUTS[layoutId] || ALBUM_LAYOUTS.full;

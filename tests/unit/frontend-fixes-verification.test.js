@@ -89,15 +89,14 @@ describe('L11: useChatEngine stopGeneration 清理 generationTimeoutTimer', () =
   });
 });
 
-describe('L12: useMemoryCapture watch 条件创建修复', () => {
+// 2026-10-04：那个「登录态就绪后刷新 Cloud+ 同意状态」的 watcher 已随授权闸门一起删除，
+// 原先的 L12 修复不再需要守卫。断言反转为「不许回来」—— 它回来即意味着授权链路被重新引入。
+describe('L12: useMemoryCapture 不再需要登录态授权 watcher', () => {
   const source = readFile('src/views/BOHAI/composables/useMemoryCapture.js');
 
-  it('watch 创建条件不再检查 typeof isLoggedIn.value !== undefined', () => {
+  it('不再创建刷新授权状态的 watch', () => {
     expect(source).not.toMatch(/typeof\s+isLoggedIn\.value\s*!==\s*['"]undefined['"]/);
-  });
-
-  it('仅检查 if (isLoggedIn) 确保 watcher 总是被创建', () => {
-    expect(source).toMatch(/if\s*\(isLoggedIn\)\s*\{[\s\S]*watch\(/);
+    expect(source).not.toContain('refreshCloudReferenceConsent');
   });
 });
 

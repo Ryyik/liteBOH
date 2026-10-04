@@ -18,6 +18,16 @@ import {
 import { buildAutoLayoutPages, appendPhotosToPages } from '@/utils/photo-albums/auto-layout.js';
 import { getLayout } from '@/utils/photo-albums/layouts.js';
 import { checkPhotoQuota } from '@/utils/photo-albums/quota.js';
+import { resolveCloudUploadConcurrency } from '@/utils/cloud-upload-guard.js';
+
+/**
+ * 云端审核的**分块大小**：批量入口 `moderateImagesWithFallback` 会把一个块里的图
+ * 合进**一次**云端请求（省配额与限流计数，也省掉 N-1 次串行往返）。
+ * 不一次全塞的两个原因：① 批量超时是 12s，图越多越容易整块超时回落本地；
+ * ② 块内每张都要在主线程解码一次全分辨率原图（见 moderation pipeline 的 DECODE_CONCURRENCY）。
+ * 6 是「一次请求的收益」与「超时 / 内存风险」之间的折中。
+ */
+const MODERATION_CHUNK_SIZE = 6;
 
 export function useAlbumEditor() {
   const album = ref(null);
@@ -116,8 +126,22 @@ export function useAlbumEditor() {
   /**
    * 上传照片进照片池：审核 → 压缩 → 上传 → 入库 → 自动追加进页面流
    *
-   * 回调约定（2026-09-27 改造）：
-   * - onProgress(done, total, stage)    单张处理进度（兼容旧）
+   * 流水线（2026-10-03 提速改造，2026-10-04 审核批量化的补充）：
+   * - **审核阶段：分块批量**（`MODERATION_CHUNK_SIZE` = 6 张/次，走 `moderateImagesWithFallback`）
+   *   —— 一个块合进**一次**云端请求，取代此前「每张一次」。
+   *   块内整批失败时退回逐张（`moderateChunkIndividually`），保证一张坏图不连坐其他张。
+   *   ⚠️ 不放开审核的**并发**：云端审核是配额/限流计数的来源，本地兜底走 tfjs WebGL
+   *   （`forum-image-moderation.js` 的 `classifyMutex` 不允许并发 classify）。这条与论坛同口径。
+   * - **「压缩 → 上传」进入并发池**（默认 3 路，与 `forum-images-api.js` 的
+   *   `MAX_CONCURRENT_UPLOADS` 同口径；`hardwareConcurrency <= 4` 的低配机降为 2 路）。
+   *   改造前整批是**纯串行**，N 张图耗时 = N ×（审核 + 压缩 + 签名 + 上传）；
+   *   现在第 i 张在上传时第 i+1 块已在审核，总耗时 ≈
+   *   max(审核总时长, (压缩+上传)总时长 / 并发数)。
+   *   峰值负载仍低于论坛链路（论坛是 2 路压缩 + 3 路上传并存，这里是 3 路择一）。
+   * - 结果**按下标落位** ⇒ 与改造前一样保序（`addAlbumPhotos` 依赖顺序写 `sort_order`）。
+   *
+   * 回调约定：
+   * - onProgress(done, total, stage)    已落定张数 / 总数 + 阶段文案
    * - onPhotoRejected({name, reason})   保留旧回调，**调用方应不展示 UI**（避免逐张通知风暴）
    * - onUploadedSummary({total, added, rejected: [{name, reason}]})
    *     整批结束后一次性回调；调用方把 rejected 一次性渲染到聚合岛（UploadResultIsland）
@@ -138,7 +162,8 @@ export function useAlbumEditor() {
       };
     }
 
-    const { moderateImageWithFallback } = await import('@/utils/image-moderation-pipeline.js');
+    const { moderateImageWithFallback, moderateImagesWithFallback } =
+      await import('@/utils/image-moderation-pipeline.js');
     const { compressImageFileToUploadLimit, getImageCompressionPlan } =
       await import('@/utils/image-compression.js');
     const { uploadImageToCloudinary } = await import('@/utils/cloudinary-client.js');
@@ -147,94 +172,174 @@ export function useAlbumEditor() {
     uploadAbortController.value = new AbortController();
     const { signal } = uploadAbortController.value;
 
-    const uploadedRows = [];
-    const rejected = []; // 整批累计，避免逐张 callback → UI 通知风暴
     const total = files.length;
-    try {
-      for (let i = 0; i < total; i += 1) {
+    const rejected = []; // 整批累计，避免逐张 callback → UI 通知风暴
+    const rowByIndex = []; // 稀疏数组：按下标落位，保证入库顺序 == 选图顺序
+    let settledCount = 0; // 已落定（成功 / 被拒 / 失败）张数，仅用于进度
+    let uploadedCount = 0;
+    let producerDone = false; // 审核阶段是否走完，仅用于阶段文案
+
+    const report = () =>
+      options.onProgress?.(settledCount, total, producerDone ? '上传中' : '审核中');
+
+    // ---------- 「压缩 → 上传」并发池 ----------
+    const concurrency = resolveCloudUploadConcurrency();
+    const queue = [];
+    let activeCount = 0;
+    let drainResolve = null;
+    const drained = new Promise((resolve) => {
+      drainResolve = resolve;
+    });
+
+    const pump = () => {
+      while (activeCount < concurrency && queue.length) {
+        const runJob = queue.shift();
+        activeCount += 1;
+        runJob()
+          .catch(() => {})
+          .finally(() => {
+            activeCount -= 1;
+            settledCount += 1;
+            report();
+            if (queue.length || activeCount) pump();
+            else drainResolve();
+          });
+      }
+    };
+
+    const makeUploadJob = (index, file, moderation) => async () => {
+      if (signal.aborted) return;
+      try {
+        const plan = await getImageCompressionPlan(file, { optimizeForUpload: true });
+        const payload = plan.shouldCompress
+          ? await compressImageFileToUploadLimit(file, plan, { signal })
+          : file;
+
+        const uploaded = await uploadImageToCloudinary(payload, {
+          folder: 'photo-album',
+          pendingSource: 'photo-album',
+          signal,
+        });
+
+        const width = Number(uploaded?.width || plan.dimensions?.width || 0);
+        const height = Number(uploaded?.height || plan.dimensions?.height || 0);
+        const ratio =
+          width && height
+            ? Math.abs(width - height) <= Math.max(width, height) * 0.08
+              ? 'square'
+              : width > height
+                ? 'landscape'
+                : 'portrait'
+            : 'landscape';
+
+        rowByIndex[index] = {
+          url: uploaded.secure_url,
+          publicId: uploaded.public_id || '',
+          width,
+          height,
+          ratio,
+          moderationStatus: 'approved',
+          moderationScore: Number(moderation?.score || 0),
+          moderationSource: moderation?.source || 'auto',
+          createdAt: new Date(file.lastModified || Date.now()).toISOString(),
+          // 仅供入库失败时定位文件名，不会落库（addAlbumPhotos 按白名单取字段）
+          sourceIndex: index,
+        };
+        uploadedCount += 1;
+      } catch (photoError) {
+        if (photoError?.name === 'AbortError') return;
+        const entry = { name: file?.name || '图片', reason: photoError?.message || '上传失败' };
+        rejected.push(entry);
+        options.onPhotoRejected?.(entry);
+      }
+    };
+
+    /**
+     * 逐张审核兜底：分块批量通道整块失败时使用（例如块内有一张图解不开）。
+     * 目的是保证「一张坏图不连坐同块的其他张」——与逐张改造前的语义一致。
+     * 返回稀疏数组：已取消的槽位留空，调用方按 `signal.aborted` 提前退出即可。
+     */
+    const moderateChunkIndividually = async (chunkFiles) => {
+      const verdicts = [];
+      for (let i = 0; i < chunkFiles.length; i += 1) {
         if (signal.aborted) break;
-        const file = files[i];
-        const report = (stage) => options.onProgress?.(i, total, stage);
-
         try {
-          report('审核中');
-          const moderation = await moderateImageWithFallback(file, { signal });
-          if (moderation.status !== 'approved') {
-            const entry = { name: file.name, reason: moderation.reason || '未通过安全检测' };
-            rejected.push(entry);
-            options.onPhotoRejected?.(entry); // 旧回调保留，调用方应忽视 UI
-            continue;
-          }
-
-          report('压缩中');
-          const plan = await getImageCompressionPlan(file, { optimizeForUpload: true });
-          const payload = plan.shouldCompress
-            ? await compressImageFileToUploadLimit(file, plan, { signal })
-            : file;
-
-          report('上传中');
-          const uploaded = await uploadImageToCloudinary(payload, {
-            folder: 'photo-album',
-            pendingSource: 'photo-album',
-            signal,
-          });
-
-          const width = Number(uploaded?.width || plan.dimensions?.width || 0);
-          const height = Number(uploaded?.height || plan.dimensions?.height || 0);
-          const ratio =
-            width && height
-              ? Math.abs(width - height) <= Math.max(width, height) * 0.08
-                ? 'square'
-                : width > height
-                  ? 'landscape'
-                  : 'portrait'
-              : 'landscape';
-
-          uploadedRows.push({
-            url: uploaded.secure_url,
-            publicId: uploaded.public_id || '',
-            width,
-            height,
-            ratio,
-            moderationStatus: 'approved',
-            moderationScore: Number(moderation.score || 0),
-            moderationSource: moderation.source || 'auto',
-            createdAt: new Date(file.lastModified || Date.now()).toISOString(),
-          });
-        } catch (photoError) {
-          if (photoError?.name === 'AbortError') break;
-          const entry = { name: file?.name || '图片', reason: photoError?.message || '上传失败' };
-          rejected.push(entry);
-          options.onPhotoRejected?.(entry);
+          verdicts[i] = await moderateImageWithFallback(chunkFiles[i], { signal });
+        } catch (error) {
+          if (error?.name === 'AbortError') break;
+          verdicts[i] = {
+            status: 'rejected',
+            score: 0,
+            reason: error?.message || '图片安全检测失败',
+            source: 'local_fallback_error',
+          };
         }
       }
+      return verdicts;
+    };
 
-      if (signal.aborted && !uploadedRows.length) {
+    try {
+      // ---------- 生产者：分块批量审核（一次请求审多张），通过一张就丢进并发池 ----------
+      for (let chunkStart = 0; chunkStart < total; chunkStart += MODERATION_CHUNK_SIZE) {
+        if (signal.aborted) break;
+        const chunkFiles = files.slice(chunkStart, chunkStart + MODERATION_CHUNK_SIZE);
+        report();
+
+        let verdicts;
+        try {
+          verdicts = await moderateImagesWithFallback(chunkFiles, { signal });
+        } catch (chunkError) {
+          if (chunkError?.name === 'AbortError') break;
+          // 整块通道失败 ⇒ 退回逐张，避免一张坏图把同块其余张一起判死
+          verdicts = await moderateChunkIndividually(chunkFiles);
+        }
+
+        for (let i = 0; i < chunkFiles.length; i += 1) {
+          if (signal.aborted) break;
+          const file = chunkFiles[i];
+          const moderation = verdicts[i];
+          if (!moderation || moderation.status !== 'approved') {
+            const entry = { name: file.name, reason: moderation?.reason || '未通过安全检测' };
+            rejected.push(entry);
+            options.onPhotoRejected?.(entry); // 旧回调保留，调用方应忽视 UI
+            settledCount += 1;
+            continue;
+          }
+          queue.push(makeUploadJob(chunkStart + i, file, moderation));
+          pump();
+        }
+        report();
+      }
+
+      producerDone = true;
+      report();
+      // 队列与在飞任务都空时才不必等（否则 drained 永远不会 resolve）
+      if (queue.length || activeCount) await drained;
+
+      if (signal.aborted && !uploadedCount) {
         // 提前取消且没有成功入库 → 一次性回调，剩下的也明示给调用方
         options.onUploadedSummary?.({ total, added: 0, rejected });
         return { ok: false, added: 0, error: '已取消上传' };
       }
 
-      if (uploadedRows.length) {
+      if (uploadedCount) {
         options.onProgress?.(total, total, '入库中');
-        const insertResult = await addAlbumPhotos(album.value.id, uploadedRows);
+        const rows = rowByIndex.filter(Boolean); // 稀疏数组去洞 ⇒ 升序，保持原选图顺序
+        const insertResult = await addAlbumPhotos(album.value.id, rows);
         if (!insertResult.ok) {
           // 入库失败：把整批（含已上传）作为被拒回传，让聚合岛展示可执行回退
-          const failed = uploadedRows.map((row, idx) => ({
-            name:
-              files.find(
-                (f) => new Date(f.lastModified || Date.now()).toISOString() === row.createdAt,
-              )?.name || `第 ${idx + 1} 张`,
+          const failed = rows.map((row, idx) => ({
+            name: files[row.sourceIndex]?.name || `第 ${idx + 1} 张`,
             reason: insertResult.error || '入库失败',
           }));
           options.onUploadedSummary?.({ total, added: 0, rejected: [...rejected, ...failed] });
           return { ok: false, added: 0, error: insertResult.error };
         }
 
-        // addAlbumPhotos 保序插入：data[i] 对应 uploadedRows[i]
+        // addAlbumPhotos 保序插入：data[i] 对应 rows[i]
         const newPhotos = insertResult.data.map((photo, idx) => ({
           ...photo,
-          createdAt: uploadedRows[idx]?.createdAt,
+          createdAt: rows[idx]?.createdAt,
         }));
         photos.value = [...photos.value, ...newPhotos];
 
@@ -244,8 +349,8 @@ export function useAlbumEditor() {
           markDirty();
         }
       }
-      options.onUploadedSummary?.({ total, added: uploadedRows.length, rejected });
-      return { ok: true, added: uploadedRows.length, error: null };
+      options.onUploadedSummary?.({ total, added: uploadedCount, rejected });
+      return { ok: true, added: uploadedCount, error: null };
     } finally {
       isUploading.value = false;
       uploadAbortController.value = null;

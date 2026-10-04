@@ -47,7 +47,6 @@ beforeEach(async () => {
 function createInstance() {
   const tm = new ThemeManager();
   // Stub applyTheme to avoid DOM side effects in non-DOM tests
-  const origApply = tm.applyTheme;
   tm.applyTheme = function (theme, pref) {
     this.theme = theme;
     this.preference = pref || this.preference;
@@ -252,7 +251,9 @@ describe('theme-manager: addListener / removeListener', () => {
   it('handles listener errors gracefully', () => {
     const tm = createInstance();
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const badCb = vi.fn(() => { throw new Error('listener error'); });
+    const badCb = vi.fn(() => {
+      throw new Error('listener error');
+    });
     const goodCb = vi.fn();
     tm.addListener(badCb);
     tm.addListener(goodCb);

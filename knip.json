@@ -1,0 +1,36 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "index.html",
+    "vite.config.js",
+    "vitest.config.js",
+    "playwright.config.js",
+    "src/main.js",
+    "scripts/**/*.mjs",
+    "scripts/shims/**/*.js",
+    "scripts/loadtest/**/*.js",
+    "tests/**/*.{js,ts}",
+    "supabase/functions/*/index.ts"
+  ],
+  "project": [
+    "src/**/*.{js,ts,vue}",
+    "scripts/**/*.{mjs,js}",
+    "tests/**/*.{js,ts}",
+    "supabase/functions/**/*.ts"
+  ],
+  "ignore": [
+    "dist/**",
+    "dist-check/**",
+    "output/**",
+    "debug-screenshots/**",
+    "test-results/**",
+    "playwright-test-results/**",
+    "public/**",
+    "docs/**",
+    "plans/**",
+    "android-twa/**",
+    "cloudflare/**",
+    "**/*.d.ts"
+  ],
+  "ignoreExportsUsedInFile": true
+}

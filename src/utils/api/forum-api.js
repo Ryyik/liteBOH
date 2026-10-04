@@ -17,7 +17,6 @@ export {
   getWeeklyCheckinStatus,
   submitWeeklyCheckin,
   claimPostPublishReward,
-  getActivePostReward
 } from './forum/post-api.js';
 
 export {
@@ -26,7 +25,7 @@ export {
   getCommentAncestors,
   getCommentThreadPreviewsBatch,
   createComment,
-  deleteComment
+  deleteComment,
 } from './forum/comment-api.js';
 
 export {
@@ -36,19 +35,21 @@ export {
   getLikedCommentIds,
   createQuoteRepost,
   findQuoteRepostSourceId,
-  publishOfficialForumCard,
-  reportPost
+  reportPost,
 } from './forum/forum-interaction-api.js';
 
 // Preserve original re-exports
 export { normalizeForumTag } from './forum-format.js';
-export { getLatestForumWeeklyReport, generateForumWeeklyReport } from './forum/forum-weekly-report-api.js';
-export { fetchQuotedPostsByIds, getCachedQuotedPost } from './forum/_shared.js';
+export {
+  getLatestForumWeeklyReport,
+  generateForumWeeklyReport,
+} from './forum/forum-weekly-report-api.js';
+export { fetchQuotedPostsByIds } from './forum/_shared.js';
 export {
   deleteUploadedForumImage,
   getForumPostImages,
   moderateForumImage,
   preloadForumImageModeration,
   uploadApprovedForumImageQueued,
-  uploadForumImage
+  uploadForumImage,
 } from './forum-images-api.js';

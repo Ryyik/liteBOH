@@ -13,7 +13,12 @@ const {
   const mockBuildHistoryMessagesWithCachedSummary = vi.fn(() => []);
   const mockGetCachedSummaryIfUsable = vi.fn(() => '');
   const mockNormalizePromptLine = vi.fn((text) => String(text || ''));
-  return { mockSanitizeChatSessionForStorage, mockBuildHistoryMessagesWithCachedSummary, mockGetCachedSummaryIfUsable, mockNormalizePromptLine };
+  return {
+    mockSanitizeChatSessionForStorage,
+    mockBuildHistoryMessagesWithCachedSummary,
+    mockGetCachedSummaryIfUsable,
+    mockNormalizePromptLine,
+  };
 });
 
 vi.mock('@/utils/bohai-chat-session-store.js', () => ({
@@ -40,7 +45,7 @@ vi.mock('../../src/views/BOHAI/composables/bohai-engine-helpers.js', () => ({
   buildHistoryMessagesWithCachedSummary: mockBuildHistoryMessagesWithCachedSummary,
   getCachedSummaryIfUsable: mockGetCachedSummaryIfUsable,
   normalizePromptLine: mockNormalizePromptLine,
-  getStorableDialogueMessages: vi.fn((messages) => Array.isArray(messages) ? messages : []),
+  getStorableDialogueMessages: vi.fn((messages) => (Array.isArray(messages) ? messages : [])),
   CONVERSATION_SUMMARY_MAX_CHARS: 2000,
   ESTIMATED_SYSTEM_PROMPT_CHARS: 600,
   isEmptyAssistantPlaceholder: vi.fn((message) => {
@@ -195,29 +200,13 @@ describe('useConversationManager', () => {
       expect(manager.pendingTreeholeCreation.sessionIndex).toBe(-1);
     });
 
-    it('has pendingCloudReferenceConsent with defaults', () => {
-      expect(manager.pendingCloudReferenceConsent.awaitingConfirmation).toBe(false);
-      expect(manager.pendingCloudReferenceConsent.userId).toBe('');
-      expect(manager.pendingCloudReferenceConsent.sessionIndex).toBe(-1);
-    });
-
+    // 2026-10-04：pendingCloudReferenceConsent（读授权）与 pendingQuickNote（随手记）
+    // 已随两条链路一起删除；pendingSharedMemoryCapture 也不再需要 destination 字段。
     it('has pendingSharedMemoryCapture with defaults', () => {
       expect(manager.pendingSharedMemoryCapture.awaitingConfirmation).toBe(false);
       expect(manager.pendingSharedMemoryCapture.userId).toBe('');
       expect(manager.pendingSharedMemoryCapture.sessionIndex).toBe(-1);
       expect(manager.pendingSharedMemoryCapture.content).toBe('');
-      expect(manager.pendingSharedMemoryCapture.destination).toBe('ask');
-    });
-
-    it('has pendingQuickNote with defaults', () => {
-      expect(manager.pendingQuickNote.visible).toBe(false);
-      expect(manager.pendingQuickNote.busy).toBe(false);
-      expect(manager.pendingQuickNote.userId).toBe('');
-      expect(manager.pendingQuickNote.sessionIndex).toBe(-1);
-      expect(manager.pendingQuickNote.messageIndex).toBe(-1);
-      expect(manager.pendingQuickNote.title).toBe('');
-      expect(manager.pendingQuickNote.content).toBe('');
-      expect(manager.pendingQuickNote.error).toBe('');
     });
 
     it('has pendingActionDraft with defaults', () => {
@@ -430,9 +419,12 @@ describe('useConversationManager', () => {
       current = scrollFn;
 
       // Wait for nextTick
-      await vi.waitFor(() => {
-        return scrollFn.mock.calls.length > 0;
-      }, { timeout: 100 });
+      await vi.waitFor(
+        () => {
+          return scrollFn.mock.calls.length > 0;
+        },
+        { timeout: 100 },
+      );
 
       expect(scrollFn).toHaveBeenCalledTimes(1);
       expect(scrollFn).toHaveBeenCalledWith(true);
@@ -446,9 +438,12 @@ describe('useConversationManager', () => {
       m.chatSessions.push(createSession({ title: 'A' }));
       m.switchSession(1);
 
-      await vi.waitFor(() => {
-        return scrollToBottom.mock.calls.length > 0;
-      }, { timeout: 100 });
+      await vi.waitFor(
+        () => {
+          return scrollToBottom.mock.calls.length > 0;
+        },
+        { timeout: 100 },
+      );
 
       expect(scrollToBottom).toHaveBeenCalledTimes(1);
       expect(scrollToBottom).toHaveBeenCalledWith(true);
@@ -509,32 +504,15 @@ describe('useConversationManager', () => {
   });
 
   // ==========================================================
-  // resetPendingCloudReferenceConsent
-  // ==========================================================
-  describe('resetPendingCloudReferenceConsent', () => {
-    it('resets all fields to defaults', () => {
-      manager.pendingCloudReferenceConsent.awaitingConfirmation = true;
-      manager.pendingCloudReferenceConsent.userId = 'user1';
-      manager.pendingCloudReferenceConsent.sessionIndex = 5;
-
-      manager.resetPendingCloudReferenceConsent();
-
-      expect(manager.pendingCloudReferenceConsent.awaitingConfirmation).toBe(false);
-      expect(manager.pendingCloudReferenceConsent.userId).toBe('');
-      expect(manager.pendingCloudReferenceConsent.sessionIndex).toBe(-1);
-    });
-  });
-
-  // ==========================================================
   // resetPendingSharedMemoryCapture
   // ==========================================================
+  // 2026-10-04：resetPendingCloudReferenceConsent 与 resetPendingQuickNote 已随各自链路删除。
   describe('resetPendingSharedMemoryCapture', () => {
     it('resets all fields to defaults', () => {
       manager.pendingSharedMemoryCapture.awaitingConfirmation = true;
       manager.pendingSharedMemoryCapture.userId = 'user1';
       manager.pendingSharedMemoryCapture.sessionIndex = 2;
       manager.pendingSharedMemoryCapture.content = 'some content';
-      manager.pendingSharedMemoryCapture.destination = 'treehole';
 
       manager.resetPendingSharedMemoryCapture();
 
@@ -542,34 +520,6 @@ describe('useConversationManager', () => {
       expect(manager.pendingSharedMemoryCapture.userId).toBe('');
       expect(manager.pendingSharedMemoryCapture.sessionIndex).toBe(-1);
       expect(manager.pendingSharedMemoryCapture.content).toBe('');
-      expect(manager.pendingSharedMemoryCapture.destination).toBe('ask');
-    });
-  });
-
-  // ==========================================================
-  // resetPendingQuickNote
-  // ==========================================================
-  describe('resetPendingQuickNote', () => {
-    it('resets all fields to defaults', () => {
-      manager.pendingQuickNote.visible = true;
-      manager.pendingQuickNote.busy = true;
-      manager.pendingQuickNote.userId = 'user1';
-      manager.pendingQuickNote.sessionIndex = 2;
-      manager.pendingQuickNote.messageIndex = 5;
-      manager.pendingQuickNote.title = 'Note title';
-      manager.pendingQuickNote.content = 'Note content';
-      manager.pendingQuickNote.error = 'Some error';
-
-      manager.resetPendingQuickNote();
-
-      expect(manager.pendingQuickNote.visible).toBe(false);
-      expect(manager.pendingQuickNote.busy).toBe(false);
-      expect(manager.pendingQuickNote.userId).toBe('');
-      expect(manager.pendingQuickNote.sessionIndex).toBe(-1);
-      expect(manager.pendingQuickNote.messageIndex).toBe(-1);
-      expect(manager.pendingQuickNote.title).toBe('');
-      expect(manager.pendingQuickNote.content).toBe('');
-      expect(manager.pendingQuickNote.error).toBe('');
     });
   });
 
@@ -704,9 +654,16 @@ describe('useConversationManager', () => {
       mockBuildHistoryMessagesWithCachedSummary.mockReturnValue([
         { role: 'user', content: longContent },
       ]);
-      const result = manager.computeContextBudgetUsage({
-        messages: [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'x' }, { role: 'user', content: longContent }],
-      }, { pendingCount: 0 });
+      const result = manager.computeContextBudgetUsage(
+        {
+          messages: [
+            { role: 'user', content: 'x' },
+            { role: 'assistant', content: 'x' },
+            { role: 'user', content: longContent },
+          ],
+        },
+        { pendingCount: 0 },
+      );
       expect(result.level).toBe('mid');
     });
 
@@ -715,9 +672,16 @@ describe('useConversationManager', () => {
       mockBuildHistoryMessagesWithCachedSummary.mockReturnValue([
         { role: 'user', content: longContent },
       ]);
-      const result = manager.computeContextBudgetUsage({
-        messages: [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'x' }, { role: 'user', content: longContent }],
-      }, { pendingCount: 0 });
+      const result = manager.computeContextBudgetUsage(
+        {
+          messages: [
+            { role: 'user', content: 'x' },
+            { role: 'assistant', content: 'x' },
+            { role: 'user', content: longContent },
+          ],
+        },
+        { pendingCount: 0 },
+      );
       expect(result.level).toBe('high');
     });
 
@@ -726,9 +690,16 @@ describe('useConversationManager', () => {
       mockBuildHistoryMessagesWithCachedSummary.mockReturnValue([
         { role: 'user', content: longContent },
       ]);
-      const result = manager.computeContextBudgetUsage({
-        messages: [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'x' }, { role: 'user', content: longContent }],
-      }, { pendingCount: 0 });
+      const result = manager.computeContextBudgetUsage(
+        {
+          messages: [
+            { role: 'user', content: 'x' },
+            { role: 'assistant', content: 'x' },
+            { role: 'user', content: longContent },
+          ],
+        },
+        { pendingCount: 0 },
+      );
       expect(result.level).toBe('full');
     });
 
@@ -738,7 +709,11 @@ describe('useConversationManager', () => {
         { role: 'user', content: longContent },
       ]);
       const result = manager.computeContextBudgetUsage({
-        messages: [{ role: 'user', content: 'x' }, { role: 'assistant', content: 'x' }, { role: 'user', content: longContent }],
+        messages: [
+          { role: 'user', content: 'x' },
+          { role: 'assistant', content: 'x' },
+          { role: 'user', content: longContent },
+        ],
       });
       expect(result.percent).toBeLessThanOrEqual(100);
     });
@@ -756,8 +731,8 @@ describe('useConversationManager', () => {
         messages: baseMessages,
         contextSummary: {
           sourceMessageCount: 4,
-          retainedHistoryChars: 100
-        }
+          retainedHistoryChars: 100,
+        },
       };
 
       const resetUsage = manager.computeContextBudgetUsage(session, { pendingCount: 0 });
@@ -863,17 +838,13 @@ describe('useConversationManager', () => {
 
     it('resets all pending states', () => {
       manager.pendingTreeholeCreation.awaitingConfirmation = true;
-      manager.pendingCloudReferenceConsent.awaitingConfirmation = true;
       manager.pendingSharedMemoryCapture.awaitingConfirmation = true;
-      manager.pendingQuickNote.visible = true;
       manager.pendingActionDraft.active = true;
 
       manager.clearCache();
 
       expect(manager.pendingTreeholeCreation.awaitingConfirmation).toBe(false);
-      expect(manager.pendingCloudReferenceConsent.awaitingConfirmation).toBe(false);
       expect(manager.pendingSharedMemoryCapture.awaitingConfirmation).toBe(false);
-      expect(manager.pendingQuickNote.visible).toBe(false);
       expect(manager.pendingActionDraft.active).toBe(false);
     });
 
@@ -1029,7 +1000,9 @@ describe('useConversationManager', () => {
     });
 
     it('returns false for assistant with content', () => {
-      expect(manager.isEmptyAssistantPlaceholder({ role: 'assistant', content: 'Hello' })).toBe(false);
+      expect(manager.isEmptyAssistantPlaceholder({ role: 'assistant', content: 'Hello' })).toBe(
+        false,
+      );
     });
 
     it('returns true for assistant with whitespace-only content and no meta', () => {
@@ -1042,33 +1015,41 @@ describe('useConversationManager', () => {
     });
 
     it('returns true for assistant with empty content and empty meta', () => {
-      expect(manager.isEmptyAssistantPlaceholder({ role: 'assistant', content: '', meta: {} })).toBe(true);
+      expect(
+        manager.isEmptyAssistantPlaceholder({ role: 'assistant', content: '', meta: {} }),
+      ).toBe(true);
     });
 
     it('returns false for assistant with empty content but non-empty meta', () => {
-      expect(manager.isEmptyAssistantPlaceholder({
-        role: 'assistant',
-        content: '',
-        meta: { tool_calls: [] },
-      })).toBe(false);
+      expect(
+        manager.isEmptyAssistantPlaceholder({
+          role: 'assistant',
+          content: '',
+          meta: { tool_calls: [] },
+        }),
+      ).toBe(false);
     });
 
     it('returns true for assistant with empty content and non-object meta (null)', () => {
       // null is not typeof 'object', so meta becomes null, !null → true
-      expect(manager.isEmptyAssistantPlaceholder({
-        role: 'assistant',
-        content: '',
-        meta: null,
-      })).toBe(true);
+      expect(
+        manager.isEmptyAssistantPlaceholder({
+          role: 'assistant',
+          content: '',
+          meta: null,
+        }),
+      ).toBe(true);
     });
 
     it('returns true for assistant with empty content and string meta', () => {
       // string is not typeof 'object', so meta becomes null, !null → true
-      expect(manager.isEmptyAssistantPlaceholder({
-        role: 'assistant',
-        content: '',
-        meta: 'some string',
-      })).toBe(true);
+      expect(
+        manager.isEmptyAssistantPlaceholder({
+          role: 'assistant',
+          content: '',
+          meta: 'some string',
+        }),
+      ).toBe(true);
     });
   });
 
@@ -1128,7 +1109,7 @@ describe('useConversationManager', () => {
         expect.objectContaining({
           sanitizeSession: expect.any(Function),
           onError: expect.any(Function),
-        })
+        }),
       );
     });
 
@@ -1159,7 +1140,7 @@ describe('useConversationManager', () => {
         expect.objectContaining({
           sessions: manager.chatSessions,
           sanitizeSession: expect.any(Function),
-        })
+        }),
       );
     });
   });
