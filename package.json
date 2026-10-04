@@ -44,6 +44,9 @@
     "probe:ai-panels": "node scripts/probes/probe-ai-panels.mjs",
     "ai:config": "node scripts/probes/probe-ai-billing-config.mjs",
     "probe:route-switch": "node scripts/probes/probe-route-switch.mjs",
+    "probe:a11y": "node scripts/probes/probe-a11y.mjs",
+    "probe:a11y:update": "node scripts/probes/probe-a11y.mjs --update",
+    "probe:a11y:report": "node scripts/probes/probe-a11y.mjs --report",
     "probe:dm-errors": "node scripts/probes/probe-datamanagement-errors.mjs",
     "audit:dm-columns": "node scripts/probes/audit-datamanagement-columns.mjs",
     "audit:dm-columns:live": "node --env-file=.env scripts/probes/verify-datamanagement-columns-live.mjs",
@@ -99,6 +102,7 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.62.1",
     "@types/node": "^25.5.0",
     "@typescript-eslint/parser": "^8.61.0",
