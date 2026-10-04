@@ -20,7 +20,7 @@ pre-commit hook 在 `.git/hooks/pre-commit`（**不在 husky、不随 clone 分�
 
 ## 门禁 / 测试
 `npm run verify`（lint + type-check + test + 8 check + 棘轮总账）。
-⚠️ verify 绿 ≠ 干净：`lint` 带 `--max-warnings 183` 棘轮（2026-10-01 自 189 → 187 → 185 → 183 三轮下调）→ **报绿必须同时报警告条数**，口径用 `eslint . -f json` 聚合。unused-vars 是 `'warn'`，计数归零前别翻 error；`fix-unused-vars.mjs` 已删（2026-09-29，零引用且带 `X as ,` latent 洞），手法见 `docs/重构验证协议.md` §五。
+⚠️ verify 绿 ≠ 干净：`lint` 带 `--max-warnings` 棘轮（2026-10-01：189 → 187 → 185 → 183；**2026-10-04 实测已降到 118** —— 以 `package.json` 现值为准，别信本行旧数字）→ **报绿必须同时报警告条数**，口径用 `eslint . -f json` 聚合。unused-vars 是 `'warn'`，计数归零前别翻 error；`fix-unused-vars.mjs` 已删（2026-09-29，零引用且带 `X as ,` latent 洞），手法见 `docs/重构验证协议.md` §五。
 ⚠️ 提交前先手动跑一遍钩子同款（`prettier --write` + `eslint --fix --no-warn-ignored`，只给改动文件），否则「验证过的树 ≠ 提交的树」；提交后仍要核对 `git show --stat HEAD`（lint-staged 的 stash/restore 会卷进无关未暂存文件），并对**提交后的树**再跑一次 verify。
 ⚠️ 探针切「窄浮层」（<300px 面板/菜单）里的选项，要用页面内 `element.click()`；Playwright 坐标点击会落到遮罩上被 `handleClickOutside` 关掉面板 —— 看起来「面板收起了」，其实业务 handler 根本没跑，反证会假绿。
 新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则被 `check:gates-self-test` 列「未覆盖」；棘轮 baseline 只许下调。
