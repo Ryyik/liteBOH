@@ -29,9 +29,10 @@ updates:
         update-types:
           - minor
           - patch
-      prod-patch:
+      prod-minor-patch:
         dependency-type: production
         update-types:
+          - minor
           - patch
     ignore:
       # 大版本升级一律人工：先看 CHANGELOG，再单独开分支跑全量 verify

@@ -66,4 +66,4 @@ jobs:
           if [ "$fail" -ne 0 ]; then
             echo "::warning title=deno check::有 Edge Function 未通过类型检查（当前为观察档，不阻断）"
           fi
-          exit 0
+          exit "$fail"
