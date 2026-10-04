@@ -1,0 +1,6 @@
+{
+  "updatedAt": "2026-10-04",
+  "searchPathMutable": [],
+  "rlsDisabled": [],
+  "rlsNoPolicy": ["_rate_limits", "forum_post_submissions", "lottery_pity_backfill_runs"]
+}

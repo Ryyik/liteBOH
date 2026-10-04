@@ -193,6 +193,36 @@ export const FIXTURES = [
         '内联生成参数字面量 temperature: 0.9 / max_tokens: 99',
       ),
   },
+  {
+    gate: 'check:db-lint',
+    why: '线上 DB 函数体引用了不存在的列/表/函数 ⇒ **每次调用都抛运行期异常**，而 200+ 前端探针与 10 道构建门禁一个都看不到（2026-10-04 首跑实测：一次抓出 6 个坏函数，含 reserve_ai_points 让 AI 积分预扣从未成功、execute_lottery_draw 让抽奖开奖不可用）',
+    // 本门禁的正常路径要连线上库（`supabase db lint --linked`），离线造不出违规。
+    // 但它支持 `--report <path>` / 环境变量 `BOH_DB_LINT_REPORT` 回放一份已保存的报告，
+    // 于是这里用**合成报告**证明「有 error 时确实 exit 1」。
+    // ⚠️ 若将来上游改了环境变量名或 --report 语义，本条会以「❌ 没红（exit 0）—— 假绿嫌疑」
+    //    **大声失败**，不会静默失效（这是选 env 注入而非静默文件的原因）。
+    prepare: () => {
+      const report = JSON.stringify([
+        {
+          function: 'public.__gates_probe_fn',
+          issues: [
+            {
+              level: 'error',
+              message: 'column "nope" does not exist',
+              sqlState: '42703',
+              query: { text: 'select nope from public.__gates_probe_table' },
+            },
+          ],
+        },
+      ]);
+      const removeFile = createFile('scripts/__gates_probe_db_lint_report.json', report);
+      process.env.BOH_DB_LINT_REPORT = 'scripts/__gates_probe_db_lint_report.json';
+      return () => {
+        delete process.env.BOH_DB_LINT_REPORT;
+        removeFile();
+      };
+    },
+  },
 ];
 
 /**
@@ -207,6 +237,10 @@ export const UNTESTABLE = [
   {
     gate: 'security:anon-check',
     why: '需要 Supabase Management API token 读 pg_catalog，离线无法造违规',
+  },
+  {
+    gate: 'check:db-advisors',
+    why: '同上：要 Management API token 读 pg_catalog 比对基线，离线造不出「新增违规」（与 security:anon-check 同策略）',
   },
   { gate: 'check:shell-precache', why: '读 dist/ 产物，需先构建' },
   {

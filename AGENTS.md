@@ -37,6 +37,23 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 > 它会给每条门禁注入一个已知违规样本、断言退出码非 0、再撤销；样本写在 `scripts/lib/gate-fixtures.mjs`。
 > 没有 fixture 的门禁会在输出里被列成「未覆盖」——那是**明账**，不是可以忽略的噪声。
 
+> ⭐ **两道「线上库」门禁（2026-10-04 新增，发布前跑，刻意不进 `verify`）**
+>
+> `npm run check:db-lint` —— `supabase db lint --linked`：查**函数体的运行期必错**
+> （表/列/函数名写错、缺 cast、漏建临时表）。**首次跑就抓到 6 个线上坏函数**，
+> 其中 `reserve_ai_points` 的 `hashtextext` 让 AI 积分预扣**从未成功**、`execute_lottery_draw`
+> 让抽奖开奖不可用 —— 而 200+ 探针与 10 道构建门禁**一个都没发现**。
+> 离线可用 `--report <保存的 json>` 回放（自证 fixture 走这条路）。
+>
+> `npm run check:db-advisors` —— 实现 splinter 里最有价值的三条（棘轮）：
+> `function_search_path_mutable`（SECURITY DEFINER 未固定 search_path ⇒ **提权**）、
+> `rls_disabled_in_public`、`rls_enabled_no_policy`。**首次跑就抓到 `handle_new_user`
+> （注册触发器）未固定 search_path**，已修（`2026100404`）。清理后用 `check:db-advisors:update` 下调基线。
+>
+> ⚠️ 两者都需要 **Management API access token**（不是 anon key）；拿不到时**告警 + exit 0**，
+> 与 `security:anon-check` 同策略。**不要接进 `verify` / `build:ci`** —— CI 没有 token，
+> 接进去只会永远降级跳过，变成假门禁。
+
 > ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings 183`，这是一道**警告棘轮**
 > （`ci.yml:43` 与 `deploy.yml:45` 都跑 `npm run lint`，所以 CI 和发布链上都有牙）。
 > 存量是 **183 条 unused-vars**（js 179 + ts 4；口径 `eslint . -f json`，2026-10-01 三次复核）——
