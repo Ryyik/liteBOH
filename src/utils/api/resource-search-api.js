@@ -7,7 +7,7 @@ export const RESOURCE_TYPE_LABELS = {
   mod: 'Mod',
   modpack: '整合包',
   resourcepack: '材质包',
-  shader: '光影'
+  shader: '光影',
 };
 
 const SORT_ALIASES = new Set(['relevance', 'downloads', 'follows', 'newest', 'updated']);
@@ -16,25 +16,88 @@ const TYPE_PATTERNS = [
   { type: 'modpack', pattern: /(整合包|整合|modpack|pack)/i },
   { type: 'resourcepack', pattern: /(材质包|资源包|材质|纹理|resource\s*pack|texture)/i },
   { type: 'shader', pattern: /(光影|shader|shaders)/i },
-  { type: 'mod', pattern: /(模组|mod|插件)/i }
+  { type: 'mod', pattern: /(模组|mod|插件)/i },
 ];
 
 const LOADER_PATTERNS = [
   { loader: 'fabric', pattern: /fabric/i },
   { loader: 'forge', pattern: /forge/i },
   { loader: 'neoforge', pattern: /neo\s*forge|neoforge/i },
-  { loader: 'quilt', pattern: /quilt/i }
+  { loader: 'quilt', pattern: /quilt/i },
 ];
 
 const SEARCH_STOP_WORDS = [
-  '帮我找一下', '帮我找找', '帮我找', '我想要', '我需要', '给我', '帮我',
-  '搜索', '搜一下', '查找', '找一下', '找几个', '找找', '找', '推荐', '下载',
-  '想要', '我要', '需要', '求', '来点', '给点', '再来点', '再推荐', '继续推荐', '再', '继续', '接着',
-  '资源', '资源中心', '列表', '看看', '一点', '一些', '几个', '有没有', '可以', '一下',
-  '随便', '好玩', '热门', '优秀', '高质量', '有趣', '更多', '一点点',
-  'mod', '模组', '整合包', '整合', '材质包', '资源包', '材质', '光影', 'shader',
-  'fabric', 'forge', 'neoforge', 'quilt', 'minecraft', '我的世界', 'mc',
-  'search', 'find', 'look for', 'recommend', 'recommendation', 'download', 'popular', 'best', 'top'
+  '帮我找一下',
+  '帮我找找',
+  '帮我找',
+  '我想要',
+  '我需要',
+  '给我',
+  '帮我',
+  '搜索',
+  '搜一下',
+  '查找',
+  '找一下',
+  '找几个',
+  '找找',
+  '找',
+  '推荐',
+  '下载',
+  '想要',
+  '我要',
+  '需要',
+  '求',
+  '来点',
+  '给点',
+  '再来点',
+  '再推荐',
+  '继续推荐',
+  '再',
+  '继续',
+  '接着',
+  '资源',
+  '资源中心',
+  '列表',
+  '看看',
+  '一点',
+  '一些',
+  '几个',
+  '有没有',
+  '可以',
+  '一下',
+  '随便',
+  '好玩',
+  '热门',
+  '优秀',
+  '高质量',
+  '有趣',
+  '更多',
+  '一点点',
+  'mod',
+  '模组',
+  '整合包',
+  '整合',
+  '材质包',
+  '资源包',
+  '材质',
+  '光影',
+  'shader',
+  'fabric',
+  'forge',
+  'neoforge',
+  'quilt',
+  'minecraft',
+  '我的世界',
+  'mc',
+  'search',
+  'find',
+  'look for',
+  'recommend',
+  'recommendation',
+  'download',
+  'popular',
+  'best',
+  'top',
 ];
 
 const KNOWN_RESOURCE_ALIASES = [
@@ -49,15 +112,21 @@ const KNOWN_RESOURCE_ALIASES = [
   { pattern: /(沉浸工程|immersive\s*engineering)/i, terms: ['immersive engineering'] },
   { pattern: /(农夫乐事|farmers?\s*delight)/i, terms: ["farmer's delight"] },
   { pattern: /(暮色|twilight)/i, terms: ['twilight forest'] },
-  { pattern: /(jei|just\s*enough\s*items|足够物品|物品管理器)/i, terms: ['jei', 'just enough items'] },
+  {
+    pattern: /(jei|just\s*enough\s*items|足够物品|物品管理器)/i,
+    terms: ['jei', 'just enough items'],
+  },
   { pattern: /(rei|roughly\s*enough\s*items)/i, terms: ['rei', 'roughly enough items'] },
   { pattern: /(jade|玉|waila|hwyla)/i, terms: ['jade'] },
   { pattern: /(旅行地图|journey\s*map|journeymap)/i, terms: ['journeymap'] },
-  { pattern: /(xaero|小地图)/i, terms: ['xaero minimap'] }
+  { pattern: /(xaero|小地图)/i, terms: ['xaero minimap'] },
 ];
 
 const QUERY_ALIASES = [
-  { pattern: /(宝可梦|神奇宝贝|精灵宝可梦|口袋妖怪|pokemon|pixelmon|cobblemon)/i, terms: ['cobblemon', 'pixelmon', 'pokemon'] },
+  {
+    pattern: /(宝可梦|神奇宝贝|精灵宝可梦|口袋妖怪|pokemon|pixelmon|cobblemon)/i,
+    terms: ['cobblemon', 'pixelmon', 'pokemon'],
+  },
   { pattern: /(优化|性能|帧数|卡顿|流畅)/i, terms: ['performance'] },
   { pattern: /(小地图|地图导航|导航)/i, terms: ['minimap', 'map'] },
   { pattern: /(科技|工业|机械|自动化)/i, terms: ['tech', 'automation'] },
@@ -71,7 +140,7 @@ const QUERY_ALIASES = [
   { pattern: /(家具|家居|沙发|椅子|桌子|柜子)/i, terms: ['furniture', 'decoration'] },
   { pattern: /(室内|摆件|装饰)/i, terms: ['decoration', 'furniture'] },
   { pattern: /(高清|真实|写实)/i, terms: ['realistic', 'high resolution'] },
-  { pattern: /(低配|轻量)/i, terms: ['lightweight', 'performance'] }
+  { pattern: /(低配|轻量)/i, terms: ['lightweight', 'performance'] },
 ];
 
 const clampInteger = (value, fallback, min, max) => {
@@ -80,7 +149,10 @@ const clampInteger = (value, fallback, min, max) => {
   return Math.min(max, Math.max(min, Math.trunc(parsed)));
 };
 
-const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeText = (value) =>
+  String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const containsNonAscii = (value) => /[^\u0000-\u007f]/.test(String(value || ''));
 
@@ -116,7 +188,29 @@ const stripSearchNoise = (text = '') => {
   return normalizeText(next);
 };
 
-export const buildResourceSearchQuery = (text = '', { type: _type = 'all', loader: _loader = '', version: _version = '' } = {}) => {
+/**
+ * 剥掉停用词后是否还剩下「有检索价值」的内容。
+ *
+ * ⚠️ 2026-10-04 修：`SEARCH_STOP_WORDS` 里含类型词（光影 / 整合包 / 模组 / 材质包 …），
+ * 剥完它们之后**量词与助词会留下来** —— 实测「帮我找个光影包」剥成 `个 包`、
+ * 「推荐一个整合包」剥成 `一个`，这种查询词送进 Modrinth 等于没搜。
+ * 这类情况应当**不把 stripped 当查询词**（类型信息已由 `type` / facets 承担）。
+ *
+ * 判定方式选「整串是否全是无实义词」而不是往停用词表里加「个/包」：
+ * 停用词表走的是**子串替换**，加「包」会把「背包」削成「背」、加「个」会把「个人」削成「人」。
+ */
+const MEANINGLESS_QUERY_PATTERN = /^[个只件种款些点儿们的一了是吗呢吧啊哦呀包]+$/;
+
+const isMeaningfulQuery = (value) => {
+  const compact = String(value || '').replace(/\s+/g, '');
+  if (compact.length < 2) return false;
+  return !MEANINGLESS_QUERY_PATTERN.test(compact);
+};
+
+export const buildResourceSearchQuery = (
+  text = '',
+  { type: _type = 'all', loader: _loader = '', version: _version = '' } = {},
+) => {
   const raw = normalizeText(text);
   const stripped = stripSearchNoise(raw);
   const terms = [];
@@ -135,7 +229,7 @@ export const buildResourceSearchQuery = (text = '', { type: _type = 'all', loade
     });
   }
 
-  if (stripped && (!containsNonAscii(stripped) || terms.length === 0)) {
+  if (isMeaningfulQuery(stripped) && (!containsNonAscii(stripped) || terms.length === 0)) {
     terms.unshift(stripped);
   }
 
@@ -150,24 +244,34 @@ export const detectBohAIResourceSearchIntent = (text = '') => {
     return { matched: false, query: '', type: 'all', loader: '', version: '' };
   }
 
-  const hasResourceWord = /(资源|mod|模组|整合包|材质包|资源包|光影|shader|minecraft|我的世界|mc)/i.test(source);
-  const hasResourceNeedWord = /(想要|我要|我想要|需要|求|来点|给点|有啥|有什么|want|need|looking\s*for)/i.test(source);
-  const hasSearchWord = /(搜索|搜|查找|找|推荐|下载|有没有|给我|帮我|列表|search|find|look\s*for|recommend|download)/i.test(source);
-  const hasResourceTopicWord = /(宝可梦|神奇宝贝|精灵宝可梦|口袋妖怪|pokemon|pixelmon|cobblemon|家具|家居|装饰|优化|性能|小地图|科技|魔法|冒险|建筑|农业|生存|服务端|背包|材质|光影)/i.test(source);
+  const hasResourceWord =
+    /(资源|mod|模组|整合包|材质包|资源包|光影|shader|minecraft|我的世界|mc)/i.test(source);
+  const hasResourceNeedWord =
+    /(想要|我要|我想要|需要|求|来点|给点|有啥|有什么|want|need|looking\s*for)/i.test(source);
+  const hasSearchWord =
+    /(搜索|搜|查找|找|推荐|下载|有没有|给我|帮我|列表|search|find|look\s*for|recommend|download)/i.test(
+      source,
+    );
+  const hasResourceTopicWord =
+    /(宝可梦|神奇宝贝|精灵宝可梦|口袋妖怪|pokemon|pixelmon|cobblemon|家具|家居|装饰|优化|性能|小地图|科技|魔法|冒险|建筑|农业|生存|服务端|背包|材质|光影)/i.test(
+      source,
+    );
   const hasKnownResourceAlias = KNOWN_RESOURCE_ALIASES.some((item) => item.pattern.test(source));
   const type = inferResourceSearchType(source);
   const loader = inferResourceLoader(source);
   const version = inferMinecraftVersion(source);
-  const matched = (
-    (hasSearchWord || hasResourceNeedWord) && (hasResourceWord || type !== 'all' || hasKnownResourceAlias || Boolean(loader || version))
-  ) || (hasResourceWord && hasResourceTopicWord) || ((hasSearchWord || hasResourceNeedWord) && hasKnownResourceAlias);
+  const matched =
+    ((hasSearchWord || hasResourceNeedWord) &&
+      (hasResourceWord || type !== 'all' || hasKnownResourceAlias || Boolean(loader || version))) ||
+    (hasResourceWord && hasResourceTopicWord) ||
+    ((hasSearchWord || hasResourceNeedWord) && hasKnownResourceAlias);
 
   return {
     matched,
     query: buildResourceSearchQuery(source, { type, loader, version }),
     type,
     loader,
-    version
+    version,
   };
 };
 
@@ -202,7 +306,7 @@ export const normalizeModrinthResource = (item = {}) => {
     source: 'modrinth',
     source_label: 'Modrinth',
     slug,
-    url: slug ? `https://modrinth.com/${projectType}/${slug}` : 'https://modrinth.com'
+    url: slug ? `https://modrinth.com/${projectType}/${slug}` : 'https://modrinth.com',
   };
 };
 
@@ -213,7 +317,7 @@ export async function searchMinecraftResourcesForBohAI({
   loader = '',
   limit = 10,
   sort = 'relevance',
-  signal = undefined
+  signal = undefined,
 } = {}) {
   const safeLimit = clampInteger(limit, 10, 1, 20);
   const safeType = RESOURCE_SEARCH_TYPES.includes(type) ? type : 'all';
@@ -224,7 +328,7 @@ export async function searchMinecraftResourcesForBohAI({
     limit: String(safeLimit),
     offset: '0',
     index: safeSort,
-    facets: buildModrinthFacets({ type: safeType, version, loader })
+    facets: buildModrinthFacets({ type: safeType, version, loader }),
   });
   if (safeQuery) params.set('query', safeQuery);
 
@@ -243,6 +347,6 @@ export async function searchMinecraftResourcesForBohAI({
     version: normalizeText(version),
     loader: normalizeText(loader),
     totalHits: Number(payload.total_hits || hits.length),
-    results: hits.map(normalizeModrinthResource)
+    results: hits.map(normalizeModrinthResource),
   };
 }
