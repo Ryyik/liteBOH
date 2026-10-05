@@ -15,6 +15,13 @@ const SESSION_HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000;
 // 离开可见（切走/最小化/关闭前）时立即补写 last_active_at 的去抖窗口，
 // 防 hide/show 快速乒乓；RPC 恒写 now、幂等，重复写无害（在线时间准确性专项 2026-09-29）
 const ACTIVE_WRITE_DEBOUNCE_MS = 30 * 1000;
+// 「上次在线」锚点的**重取**阈值（2026-10-05）：
+// 锚点原先是「每个实例只取一次」，而长生命周期实例（PWA / 从不刷新的标签页）实测能挂两周以上，
+// 于是「天天回来」的用户一直看到实例启动那一刻的旧日期（用户报障：DB 里 last_active_at 已是当天，
+// 智能概览还写 9月22日）。跨过「一次访问」的边界就必须重取 —— 判据有两条，都按本阈值：
+//   ① 页面被隐藏/无写入的时长（切走 10 秒不算新访问，隔夜/隔天才算）；
+//   ② 本机自然日翻页（实例挂过零点）。
+const ANCHOR_REARM_GAP_MS = 30 * 60 * 1000;
 const AUTH_SESSION_MISSING_ERROR_CODE = 'AUTH_SESSION_MISSING';
 
 interface CreatorPlatformIds {
@@ -176,9 +183,17 @@ export const useAuthStore = defineStore(
       bannedUntil: null,
       mutedUntil: null,
     });
-    // 会话级离线概览锚点：在首次刷新 last_active_at 前快照，避免离线期间内容被排除。
-    // 不持久化（persist paths 只含 isLoggedIn/userInfo），每次会话重新捕获。
+    // 离线概览锚点：在写 last_active_at 之前快照「上一段连续在线的结束时刻」，供智能概览页的
+    // 「上次在线」与灵动岛的「你离开了 N 天」展示，并撑开离线内容窗口。
+    // 不持久化（persist paths 只含 isLoggedIn/userInfo）。
+    // ⚠️ 不能只在实例首次加载时取一次（2026-10-05 修）：长生命周期实例（PWA / 从不刷新的标签页）
+    // 能挂两周以上，只取一次会让锚点永远停在实例启动那一刻的旧值。跨过「一次访问」边界要重取，
+    // 判据见 ANCHOR_REARM_GAP_MS 与 captureOfflineAnchor。
     const offlineAnchorAt = ref<string | null>(null);
+    // 锚点捕获时的本机自然日（getLocalDayKey）：用于「实例挂过零点 → 重取锚点」
+    let anchorDayKey = '';
+    // 页面最后一次转入隐藏的时刻（0 = 当前可见）：用于量出「本次回到页面」的间隔
+    let hiddenSinceAt = 0;
     // 真·首次登录（DB profiles.last_active_at 为空，注册触发器不写该列）：
     // 此时离线锚点是「now - 7 天」的**合成值**，只用于撑开推送窗口，
     // 不能当作真实离线时间展示（否则新账号会看到「你离开了 7 天」）。
@@ -363,10 +378,15 @@ export const useAuthStore = defineStore(
       const handleVisibilityChange = () => {
         if (!isLoggedIn.value) return;
         if (document.visibilityState === 'visible') {
+          // 量出「这次离开页面」有多久并交给 updateOnlineStatus：隔夜/隔天回来要重取「上次在线」
+          // 锚点（隐藏期间心跳可能一直在写库，光看「距上次写库的间隔」会判不出新访问 —— 2026-10-05）
+          const hiddenMs = hiddenSinceAt > 0 ? Date.now() - hiddenSinceAt : 0;
+          hiddenSinceAt = 0;
           void syncAuthState({ reason: 'visibility', force: false });
-          void updateOnlineStatus();
+          void updateOnlineStatus({ awayMs: hiddenMs });
           return;
         }
+        hiddenSinceAt = Date.now();
         // 离开可见（切走 / 最小化 / 关闭前）：立即把 last_active_at 顶到 now，
         // 收掉 120s 心跳的尾巴 ——「上次在线」精确到离开瞬间（在线时间准确性专项 2026-09-29）。
         // 关闭标签前 visibilitychange 必先于 pagehide 触发，此刻文档仍存活、请求链路完整，
@@ -1010,27 +1030,57 @@ export const useAuthStore = defineStore(
       return run;
     };
 
-    const updateOnlineStatus = async () => {
+    /**
+     * 捕获 / 重取「上次在线」锚点。
+     * 真源是 userInfo.lastActiveAt —— 每次写库成功后本地同步为同一时刻，因此在一段新访问开始时
+     * 它正好等于「上一段在线结束的时刻」（离开时的补写 / 上一次心跳）。
+     * @param rearm 允许覆盖已有锚点（跨过访问边界时才为 true）
+     */
+    const captureOfflineAnchor = ({ rearm = false }: { rearm?: boolean } = {}): void => {
+      if (offlineAnchorAt.value && !rearm) return;
+      if (userInfo.lastActiveAt) {
+        offlineAnchorAt.value = userInfo.lastActiveAt;
+        anchorDayKey = getLocalDayKey();
+        return;
+      }
+      // 重取时拿不到真值（异常路径）：保留旧锚点，别退回合成的 7 天锚点
+      if (rearm) return;
+      // 全新账号（DB 无 last_active_at）：紧接着的 update_last_active_at RPC
+      // 会立刻把 DB 写成 now，get_offline_overview 的 first_login 分支因此
+      // 永远不可达、概览恒为空。这里在写库前主动放一个 7 天锚点，
+      // 让首次登录能看到最近 7 天的内容。
+      offlineAnchorAt.value = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      anchorDayKey = getLocalDayKey();
+      // 标记该锚点是合成值：窗口照用，但展示层不得把它当成「真实离开 7 天」
+      isFirstLoginSession.value = true;
+    };
+
+    const updateOnlineStatus = async ({ awayMs = 0 }: { awayMs?: number } = {}) => {
       try {
         // 两阶段锚点：首次刷新前捕获 DB 中保存的旧活跃时间（syncAuthState 已写入 userInfo），
         // 之后 RPC 与本地覆盖都会让 userInfo.lastActiveAt 变成"刚刚"，概览只能依赖此快照。
-        if (!offlineAnchorAt.value) {
-          if (userInfo.lastActiveAt) {
-            offlineAnchorAt.value = userInfo.lastActiveAt;
-          } else {
-            // 全新账号（DB 无 last_active_at）：紧接着的 update_last_active_at RPC
-            // 会立刻把 DB 写成 now，get_offline_overview 的 first_login 分支因此
-            // 永远不可达、概览恒为空。这里在写库前主动放一个 7 天锚点，
-            // 让首次登录能看到最近 7 天的内容。
-            offlineAnchorAt.value = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-            // 标记该锚点是合成值：窗口照用，但展示层不得把它当成「真实离开 7 天」
-            isFirstLoginSession.value = true;
-          }
-        }
+        // 锚点必须跟着「访问边界」走，否则长生命周期实例（PWA）会永远展示实例启动时的旧日期：
+        //   ① awayMs 超过阈值（切走/最小化/被冻结后隔了很久才回来）；
+        //   ② 距上次成功写库超过阈值（机器休眠、心跳被冻结，没有 visibilitychange 也能判出）；
+        //   ③ 本机自然日已翻页（实例一直挂着过了零点）。
+        const gapMs =
+          lastActiveWriteAt > 0 ? Date.now() - lastActiveWriteAt : Number.POSITIVE_INFINITY;
+        const crossedVisitBoundary =
+          awayMs > ANCHOR_REARM_GAP_MS ||
+          gapMs > ANCHOR_REARM_GAP_MS ||
+          getLocalDayKey() !== anchorDayKey;
+        captureOfflineAnchor({ rearm: crossedVisitBoundary });
         const { supabase } = await loadAuthApi();
-        await supabase.rpc('update_last_active_at');
+        // ⚠️ supabase-js 的 rpc() 在服务端报错时**不会抛异常**，而是 resolve 出 { error }：
+        // 不判 error 就会把它当成功 —— 本地 lastActiveAt 被顶成「刚刚」、lastActiveWriteAt 也前进，
+        // 于是 DB 一直陈旧却完全无声（2026-10-05：这正是「天天上线、上次在线却停在三周前」的另一条腿）。
+        const { error: activeError } = await supabase.rpc('update_last_active_at');
+        if (activeError) {
+          throw activeError;
+        }
         userInfo.lastActiveAt = new Date().toISOString();
         lastActiveWriteAt = Date.now();
+        anchorDayKey = getLocalDayKey();
         // 顺带同步跨设备天粒度标记（上次在线日 / 当日已检查），供智能概览的窗口与同日去重使用
         void refreshOverviewMarks();
       } catch (error) {
@@ -1109,6 +1159,8 @@ export const useAuthStore = defineStore(
     const resetState = async (): Promise<void> => {
       isLoggedIn.value = false;
       offlineAnchorAt.value = null;
+      anchorDayKey = '';
+      hiddenSinceAt = 0;
       isFirstLoginSession.value = false;
       overviewMarks.value = null;
       overviewMarksInFlight = null;
