@@ -100,8 +100,8 @@ function toggleVisibility(next) {
   }
 }
 
-function installSessionAndProfile() {
-  dbLastActive = OLD_DB_LAST_ACTIVE;
+function installSessionAndProfile({ lastActiveAt = OLD_DB_LAST_ACTIVE } = {}) {
+  dbLastActive = lastActiveAt;
   mockSupabase.auth.getSession.mockResolvedValue({
     data: {
       session: {
@@ -225,6 +225,21 @@ describe('auth store: 「上次在线」锚点跨访问边界重取（2026-10-05
     // 重取到「翻页前最后一次心跳」那一刻：不早于启动写库、早于翻页后的写入
     expect(anchorMs).toBeGreaterThanOrEqual(bootWriteMs);
     expect(anchorMs).toBeLessThan(new Date(store.userInfo.lastActiveAt).getTime());
+  });
+
+  // 重取判据在首帧必然为真（anchorDayKey 还是空串），所以「重取」不能把首次登录的
+  // 合成 7 天锚点吞掉：全新账号 DB 无 last_active_at，若按 rearm 直接 return，
+  // 锚点会一直为 null，而首帧那次 RPC 已把 DB 写成 now ⇒ 概览窗口塌成 0、文案错档。
+  it('全新账号（DB 无 last_active_at）：首帧仍拿到合成 7 天锚点并标记首次登录', async () => {
+    installSessionAndProfile({ lastActiveAt: null });
+
+    const store = await createBootedStore();
+
+    expect(store.offlineAnchorAt).toBeTruthy();
+    expect(store.isFirstLoginSession).toBe(true);
+    const expected = Date.now() - 7 * 24 * 60 * MINUTE;
+    expect(Math.abs(new Date(store.offlineAnchorAt).getTime() - expected)).toBeLessThan(5000);
+    expect(lastActiveWriteCalls()).toBeGreaterThan(0);
   });
 
   // 第二条腿：supabase-js 的 rpc() 在服务端报错时**不抛异常**，而是 resolve 出 { error }。

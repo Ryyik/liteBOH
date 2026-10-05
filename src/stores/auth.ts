@@ -1037,18 +1037,21 @@ export const useAuthStore = defineStore(
      * @param rearm 允许覆盖已有锚点（跨过访问边界时才为 true）
      */
     const captureOfflineAnchor = ({ rearm = false }: { rearm?: boolean } = {}): void => {
-      if (offlineAnchorAt.value && !rearm) return;
+      const hasAnchor = Boolean(offlineAnchorAt.value);
+      if (hasAnchor && !rearm) return;
       if (userInfo.lastActiveAt) {
         offlineAnchorAt.value = userInfo.lastActiveAt;
         anchorDayKey = getLocalDayKey();
         return;
       }
-      // 重取时拿不到真值（异常路径）：保留旧锚点，别退回合成的 7 天锚点
-      if (rearm) return;
+      // 已有锚点却拿不到真值（异常路径）：保留旧锚点，别把展示倒退成合成的 7 天
+      if (hasAnchor) return;
       // 全新账号（DB 无 last_active_at）：紧接着的 update_last_active_at RPC
       // 会立刻把 DB 写成 now，get_offline_overview 的 first_login 分支因此
       // 永远不可达、概览恒为空。这里在写库前主动放一个 7 天锚点，
       // 让首次登录能看到最近 7 天的内容。
+      // ⚠️ 这条兜底只在「还没有锚点」时生效：重取判据（访问边界/翻页）在首帧必然为真，
+      // 若按 rearm 就 return，新账号会连合成锚点都拿不到（首帧空窗 + 文案错档）。
       offlineAnchorAt.value = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       anchorDayKey = getLocalDayKey();
       // 标记该锚点是合成值：窗口照用，但展示层不得把它当成「真实离开 7 天」
