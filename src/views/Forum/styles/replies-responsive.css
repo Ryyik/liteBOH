@@ -522,44 +522,9 @@
   margin-top: 10px;
 }
 
-.mobile-compose-fab {
-  position: fixed;
-  right: 18px;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-  z-index: 1200;
-  width: 56px;
-  height: 56px;
-  border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
-  border-radius: 999px;
-  background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-  color: var(--liquid-text-primary, #1d1d1f);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06)), 0 14px 28px rgba(0,0,0,0.12);
-  backdrop-filter: var(--glass-filter-sm, blur(18px));
-  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
-}
-
-.mobile-compose-fab span {
-  display: block;
-  font-size: 34px;
-  font-weight: 500;
-  line-height: 1;
-  transform: translateY(-2px);
-}
-
-.mobile-compose-fab:active {
-  transform: scale(0.94);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
-}
-
-.mobile-compose-fab.embedded-compose-fab {
-  bottom: calc(144px + env(safe-area-inset-bottom, 0px));
-  z-index: 1200;
-}
+/* .mobile-compose-fab 四条规则已迁往 src/styles/common/compose-fab.css（2026-10-05）：
+   GlobalComposeFab 也要用，且它出现在 ForumMain 未挂载的路由，scoped CSS 在那里不加载。
+   ForumMain 的 <style> 块已并列 @import 该文件，本文件不再保留副本。 */
 
 .mobile-composer-overlay {
   position: fixed;

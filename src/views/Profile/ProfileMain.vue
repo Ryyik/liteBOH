@@ -1039,7 +1039,11 @@ import PostCreateModal from './components/PostCreateModal.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
 import ActivityHeatmap from '@/views/user-center/UserSpace/components/ActivityHeatmap.vue';
 import { supabase } from '@/utils/supabase-client.js';
-import { uploadAvatarFile, removeAvatarByUrl } from '@/utils/api/avatar-storage.js';
+import {
+  prepareAvatarUpload,
+  uploadAvatarFile,
+  removeAvatarByUrl,
+} from '@/utils/api/avatar-storage.js';
 import {
   getProfileByUsername,
   getPostsByUsername,
@@ -1073,7 +1077,6 @@ import {
 import { formatSmartTime } from '@/utils/time.js';
 import { getLevelInfo } from '@/utils/xp.js';
 import { useUserOnlineStatus } from '@/views/user-center/UserSpace/composables/useUserOnlineStatus.js';
-import imageCompression from 'browser-image-compression';
 import {
   buildCreatorPlatformJumpUrl,
   CREATOR_PLATFORM_KEYS,
@@ -2210,13 +2213,8 @@ const handleCropConfirm = async (blob) => {
     // 将 blob 转为 file
     const file = new File([blob], 'avatar.png', { type: 'image/png' });
 
-    // 依然进行轻度压缩以确保大小
-    const options = {
-      maxSizeMB: 0.5,
-      maxWidthOrHeight: 800,
-      useWebWorker: true,
-    };
-    const compressedFile = await imageCompression(file, options);
+    // 头像档位（512px webp）唯一真源在 utils/api/avatar-storage.js
+    const compressedFile = await prepareAvatarUpload(file);
 
     isUploadingAvatar.value = true;
     await uploadToSupabase(compressedFile);

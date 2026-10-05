@@ -66,11 +66,9 @@ import {
 import { uploadApprovedForumImageQueued } from '../../utils/api/forum-api.js';
 import { showIsland } from '@/composables/useIsland.js';
 import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
-import {
-  compressImageFileToUploadLimit,
-  formatImageFileSize,
-  getImageCompressionPlan,
-} from '@/utils/image-compression.js';
+// 发帖图压缩库按需加载：image-compression vendor（≈40KB gz）不进论坛首屏闭包
+//（报告 §9.1；动态 import 的 chunk 在首次选图时才拉取）
+import { loadOfficialDirectory } from '@/utils/api/forum/official-directory.js';
 import {
   clearForumReturnState,
   getForumReturnKeyFromQuery,
@@ -419,9 +417,37 @@ const initializeForumData = async () => {
   }
 
   applyForumReturnStateFilters(savedState);
+
+  // 快照直跳：会话快照（2min TTL）覆盖目标页且含滚动锚点时，免掉「拉第 1 页 +
+  // 逐页回放」的串行链（keyset 游标链天生串行，最多 12 连发，报告 §10 P1-3）。
+  // 快照最多存 40 帖，页数深到被截断时放弃直跳，走原回放保证滚动锚点能落地。
+  const desiredPage = Math.max(1, Math.min(12, Number(savedState.currentPage || 1)));
+  const snapshot = readForumFeedSnapshot(getForumFeedSnapshotKey());
+  const anchorPostId = String(savedState.postId || '').trim();
+  const snapshotCoversAnchor =
+    !anchorPostId ||
+    (snapshot?.posts || []).some((post) => String(post?.id || '') === anchorPostId);
+  const snapshotUntruncated = (snapshot?.posts?.length || 0) >= (desiredPage - 1) * POSTS_PER_PAGE;
+  if (
+    snapshot?.posts?.length &&
+    Number(snapshot.currentPage || 1) >= desiredPage &&
+    snapshotUntruncated &&
+    snapshotCoversAnchor
+  ) {
+    forumData.value = prepareForumPosts(snapshot.posts);
+    currentPage.value = snapshot.currentPage;
+    nextPageCursor.value = snapshot.nextPageCursor;
+    hasMoreData.value = snapshot.hasMoreData;
+    isLoading.value = false;
+    prefetchAuthorTiersFor(snapshot.posts);
+    void ensureQuotedPostsForReposts();
+    await restoreForumScrollPosition(savedState);
+    clearForumReturnState(returnKey);
+    return;
+  }
+
   await fetchForumData();
 
-  const desiredPage = Math.max(1, Math.min(12, Number(savedState.currentPage || 1)));
   while (currentPage.value < desiredPage && hasMoreData.value) {
     await fetchForumData(true);
   }
@@ -2099,6 +2125,8 @@ const prepareForumImageForUpload = async (
   uploadId = '',
   options = {},
 ) => {
+  const { compressImageFileToUploadLimit, formatImageFileSize, getImageCompressionPlan } =
+    await import('@/utils/image-compression.js');
   const plan = await getImageCompressionPlan(file, { optimizeForUpload: true });
   if (!plan.shouldCompress) return file;
 
@@ -2267,12 +2295,37 @@ if (typeof window !== 'undefined') {
   releaseComposerModeWatch = onForumPortraitComposerChange(handleComposerModeChange);
 }
 
+// KeepAlive 失活守卫：UserSpace 是 keepAlive 路由，切到底栏其它 tab 后本组件（连同
+// Teleport 到 body 的 FAB）仍然存活 —— 失活实例绝不允许再露 FAB，否则回到首页会出现
+// 两个重叠的 + 号（2026-10-05 实测往返切换后 count=2）。非 keepAlive 宿主（首页）这两个
+// 钩子不会触发，ref 保持初始 true，行为不变。
+const isRouteInstanceActive = ref(true);
+onActivated(() => {
+  isRouteInstanceActive.value = true;
+});
+onDeactivated(() => {
+  isRouteInstanceActive.value = false;
+});
+
 const isForumComposerFabVisible = computed(() => {
+  if (!isRouteInstanceActive.value) return false;
   if (!isMobileComposerMode.value || feedMode.value !== 'posts') return false;
   if (!props.embedded) return true;
-  // 2026-09-22 首页社区化改版：嵌入式论坛的宿主是首页（UserSpace 不再有社区 tab）。
+  // 2026-09-22 首页社区化改版：嵌入式论坛的宿主是首页。
   // 论坛在首页由 v-show 挂着，只有当前停在「最新/关注/新闻/活动」这类 feed 分区时才露 FAB。
-  if (route.path !== '/') return false;
+  // 2026-10-05 修「底栏切换后 + 号消失」：plans/022 收席后 UserSpace 的「方块」tab 也挂同一份
+  // embedded ForumMain（分区壳 v-show 常驻，其它 tab 下也 mounted）——但只有方块 tab 真正
+  // 可见时才允许露 FAB，否则会从 v-show 后面钻出第二个 + 号；其余 tab 与 AI 页由
+  // App 级 GlobalComposeFab 兜住（/?compose=1 深链）。
+  if (route.path === '/user-space') {
+    // 只有方块 tab 真正可见时才露 FAB（分区壳 v-show 常驻，其它 tab 下 ForumMain 也
+    // mounted，不拦会从 v-show 后面钻出第二个 + 号）。无 tab 参数 = UserSpace 默认进
+    // 方块 tab（useUserSpaceTabs initialTab='community'），同样算可见。
+    const tab = getQueryString(route.query.tab);
+    if (tab !== '' && tab !== 'community') return false;
+  } else if (route.path !== '/') {
+    return false;
+  }
   const view = getQueryString(route.query.view);
   return view === '' || isForumFeedSection(view);
 });
@@ -2801,21 +2854,35 @@ const prepareForumPosts = (posts = [], startIndex = 0) =>
     : [];
 
 const hydrateOfficialPostKinds = async (posts = []) => {
-  const ids = (Array.isArray(posts) ? posts : []).map((post) => post?.id).filter(Boolean);
-  if (!ids.length) return posts;
-  const [postMeta, newsMeta, activityMeta] = await Promise.all([
-    supabase.from('posts').select('id, post_kind, cover_image_url, title').in('id', ids),
-    supabase.from('news').select('title, image'),
-    supabase.from('activities').select('title, image'),
-  ]);
-  const metadata = new Map((postMeta.data || []).map((row) => [row.id, row]));
-  const newsByTitle = new Map(
-    (newsMeta.data || []).map((row) => [String(row.title || '').trim(), row]),
-  );
-  const activityByTitle = new Map(
-    (activityMeta.data || []).map((row) => [String(row.title || '').trim(), row]),
-  );
-  return posts.map((post) => ({
+  const safePosts = Array.isArray(posts) ? posts : [];
+  const ids = safePosts.map((post) => post?.id).filter(Boolean);
+  if (!ids.length) return safePosts;
+  // 类型回源只补「行里没有 post_kind」的帖子：keyset 直查行自带 posts 表真值
+  //（DB 零空值，2026-10-05 实测 145/145）；list_forum_posts RPC 24 列里没有
+  // post_kind，搜索/排序/关注路径的行才需要回源 —— 官方帖类型历史事故守卫保留。
+  const missingKindIds = [
+    ...new Set(safePosts.filter((post) => post?.id && !post.post_kind).map((post) => post.id)),
+  ];
+  const metadata = new Map();
+  if (missingKindIds.length) {
+    const { data } = await supabase
+      .from('posts')
+      .select('id, post_kind, cover_image_url, title')
+      .in('id', missingKindIds);
+    for (const row of data || []) metadata.set(row.id, row);
+  }
+  // 目录（news/activities）只被「缺类型或缺封面」的帖子消费；5min memo 见 official-directory.js
+  const needsDirectory = safePosts.some((post) => {
+    if (!post) return false;
+    const meta = metadata.get(post.id);
+    const kindUnresolved = !post.post_kind && !meta?.post_kind;
+    const coverUnresolved = !post.cover_image_url && !meta?.cover_image_url;
+    return kindUnresolved || coverUnresolved;
+  });
+  const { newsByTitle, activityByTitle } = needsDirectory
+    ? await loadOfficialDirectory()
+    : { newsByTitle: new Map(), activityByTitle: new Map() };
+  return safePosts.map((post) => ({
     ...post,
     post_kind:
       metadata.get(post.id)?.post_kind ||
@@ -5402,6 +5469,7 @@ const openPostDetail = (postId) => {
 @import './styles/composer.css';
 @import './styles/feed.css';
 @import './styles/replies-responsive.css';
+@import '../../styles/common/compose-fab.css';
 @import './styles/drawers-skeletons.css';
 @import './styles/anniversary.css';
 @import './styles/weekly-report.css';

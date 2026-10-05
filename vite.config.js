@@ -322,6 +322,20 @@ export default defineConfig({
             },
           },
           {
+            // P2-8（perf 报告 §6.3）：/static/images/* 此前既不在 precache 也没有
+            // runtime 规则，线上又只拿 max-age=14400（GitHub Pages 不吃 _headers）——
+            // 10.3MB 本地图每次跨会话都真下载。文件名带内容 hash（不可变）→ CacheFirst。
+            // ⚠️ 只匹配打包产物；public/ 下的非 hash 静态图（avatars/frames 等）不落这里。
+            urlPattern: /\/static\/images\/[^/]+\.(?:webp|png|jpe?g|gif|svg|avif)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'static-images',
+              // 209 张 / 10.3MB（2026-09-29 实测），maxEntries 留出跨版本淘汰余量
+              expiration: { maxEntries: 260, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // M-5 修复：仅缓存 Supabase Storage 公开对象（图片等），
             // /auth/v1/ 和 /rest/v1/ 完全不缓存，防止跨用户数据泄露。
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/object\/public\/.*/i,

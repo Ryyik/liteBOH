@@ -1,6 +1,6 @@
 {
-  "total": 166,
-  "updatedAt": "2026-10-04",
+  "total": 164,
+  "updatedAt": "2026-10-05",
   "files": {
     "src/views/DataManagement/DataAdmin.vue": 24,
     "src/views/DataManagement/composables/useDataAdminMutations.js": 20,
@@ -19,7 +19,6 @@
     "src/views/ShopConsole/index.vue": 4,
     "src/views/DataManagement/components/ApiKeyConsole.vue": 3,
     "src/views/DataManagement/components/ModerationModelConfig.vue": 3,
-    "src/views/Forum/ForumMain.vue": 3,
     "src/components/AdminContentPublishModal.vue": 2,
     "src/composables/useAvatarFrame.js": 2,
     "src/composables/useUserTier.js": 2,
@@ -30,6 +29,7 @@
     "src/composables/useNews.js": 1,
     "src/views/DataManagement/components/EditDrawer.vue": 1,
     "src/views/DataManagement/composables/useDataAdminGlobalSearch.js": 1,
+    "src/views/Forum/ForumMain.vue": 1,
     "src/views/Forum/components/AdSlot.vue": 1,
     "src/views/Forum/composables/useActiveAds.js": 1,
     "src/views/HeroConsole/index.vue": 1,

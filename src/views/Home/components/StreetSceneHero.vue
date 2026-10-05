@@ -60,6 +60,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';
 import { resolveGreetingText, resolveHintText } from '@/utils/street-scene-copy.js';
 
 /* 首屏街景开场画（任务 A）
@@ -104,9 +105,16 @@ const setupOrientation = () => {
 // 像素图放大靠 image-rendering: pixelated 保持棱角，不做位图多档 —— 一张 512 到处够用。
 const BRAND_LOGO_SRC = '/icons/icon-512.png';
 
+// hero 档位：c_limit 只压不裁（裁切交给 object-fit: cover），w_1440 覆盖到 1440 CSS 1x /
+// 720 CSS 2x；2560px 横屏原图从这里下到 CDN 压缩档。当前 home_heroes 的
+// image_portrait/landscape 全为 NULL（2026-10-05 实测，首屏走品牌兜底），配置后自动生效。
+const HERO_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1440';
+
 const orientedSrc = computed(() => {
-  const raw = isPortrait.value ? props.hero?.image_portrait : props.hero?.image_landscape;
-  return String(raw || '').trim();
+  const raw = String(
+    (isPortrait.value ? props.hero?.image_portrait : props.hero?.image_landscape) || '',
+  ).trim();
+  return raw ? getCloudinaryTransformedUrl(raw, HERO_IMAGE_TRANSFORM) : '';
 });
 
 // 本方向配了街景图且没加载失败 → 照片形态；否则进入品牌兜底（白底 + logo + 黑字）。

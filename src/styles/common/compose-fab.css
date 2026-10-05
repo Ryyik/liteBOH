@@ -1,0 +1,50 @@
+/**
+ * 发帖 FAB（.mobile-compose-fab）样式单源 —— 2026-10-05 从
+ * Forum/styles/replies-responsive.css 抽出。
+ *
+ * 为什么要独立成全局文件：这个按钮有两个宿主 —— ForumMain（论坛内 FAB，Teleport 到
+ * body）和 App 级 GlobalComposeFab（底栏 我/消息/AI 落点的兜底 +）。GlobalComposeFab
+ * 出现在 ForumMain 未挂载的路由（/ai-chat 等），ForumMain 的 scoped CSS 在那里根本没
+ * 加载（实测裸类名按钮 10×30 裸奔在视口外）。消费方各自 import 本文件：
+ *   · ForumMain.vue 的 <style> @import（与其它 styles/*.css 并列）
+ *   · GlobalComposeFab.vue 的 <style src>（进应用壳，任何路由都有样式）
+ * 变体约定：.embedded-compose-fab = 抬到 144px 避开竖屏底栏。
+ */
+.mobile-compose-fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  z-index: 1200;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
+  border-radius: 999px;
+  background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
+  color: var(--liquid-text-primary, #1d1d1f);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06)), 0 14px 28px rgba(0,0,0,0.12);
+  backdrop-filter: var(--glass-filter-sm, blur(18px));
+  -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+
+.mobile-compose-fab span {
+  display: block;
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1;
+  transform: translateY(-2px);
+}
+
+.mobile-compose-fab:active {
+  transform: scale(0.94);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+}
+
+.mobile-compose-fab.embedded-compose-fab {
+  bottom: calc(144px + env(safe-area-inset-bottom, 0px));
+  z-index: 1200;
+}

@@ -168,6 +168,7 @@
                 :class="{ active: item.isActive }"
                 active-class=""
                 exact-active-class=""
+                @pointerenter="prefetchRoute(item.path)"
               >
                 {{ item.label }}
               </router-link>
@@ -206,6 +207,7 @@
               id="nav-user-info"
               title="进入我的方块"
               @click="handleMyBlockClick"
+              @pointerenter="prefetchRoute('/user-space')"
             >
               <span class="boh-avatar-wrap">
                 <div class="nav-avatar">
@@ -451,6 +453,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useVersionCheck } from '@/composables/useVersionCheck.js';
 import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
 import { useGlobalSearch } from '@/composables/useGlobalSearch.js';
+import { useRoutePrefetch, scheduleIdleRoutePrefetch } from '@/composables/useRoutePrefetch.js';
 import { toggleHiagentChat } from '@/utils/hiagent-widget.js';
 import { SITE_NAV_ITEMS } from '@/config/site-nav';
 import GlobalNavStatusCard from './GlobalNavStatusCard.vue';
@@ -493,6 +496,9 @@ const notificationStoreRef = getNotificationStoreRef();
 const { alert, confirm } = useConfirmDialog();
 const { checkForUpdate, applyUpdate, isChecking } = useVersionCheck();
 const router = useRouter();
+// 路由 chunk 预取：桌面导航 hover 预载 + 首屏 idle 预载 /forum（useRoutePrefetch.js）
+const prefetchRoute = useRoutePrefetch();
+scheduleIdleRoutePrefetch(prefetchRoute);
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
 const isHomeCatActive = computed(

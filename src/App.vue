@@ -19,6 +19,7 @@ const AccountBindPrompt = defineAsyncComponent(
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import PWAUpdateToast from '@/components/PWAUpdateToast/index.vue';
 import PostDetailModal from './views/PostDetail/PostDetailModal.vue';
+import GlobalComposeFab from '@/components/GlobalComposeFab.vue';
 import {
   useGlobalAiPreferences,
   matchesGlobalAiShortcut,
@@ -398,6 +399,10 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
 
   <!-- 帖子详情弹窗宿主（横屏）：壳很轻可常驻；重的 PostDetailMain 在弹窗内异步加载 -->
   <PostDetailModal />
+
+  <!-- 全局发帖 FAB（竖屏）：底栏切到 我/消息/AI 落点时兜住 + 号（论坛自身 FAB 覆盖 /
+       方块 tab），点击走 /?compose=1 深链原地唤起发帖器 -->
+  <GlobalComposeFab />
 
   <!-- AI 边缘触发区（移动端侧拉唤起 BOHAI 灵动岛）；导航栏隐藏的路由上岛无宿主，一并隐藏 -->
   <AiEdgeTrigger

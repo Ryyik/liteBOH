@@ -439,7 +439,11 @@ import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
-import { uploadAvatarFile, removeAvatarByUrl } from '@/utils/api/avatar-storage.js';
+import {
+  prepareAvatarUpload,
+  uploadAvatarFile,
+  removeAvatarByUrl,
+} from '@/utils/api/avatar-storage.js';
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 import UserSpaceSideRail from './components/UserSpaceSideRail.vue';
@@ -2913,14 +2917,8 @@ const handleCropConfirm = async (blob) => {
     }
 
     const file = new File([blob], 'avatar.png', { type: 'image/png' });
-    const imageCompression = await loadImageCompression();
-
-    const options = {
-      maxSizeMB: 0.5,
-      maxWidthOrHeight: 800,
-      useWebWorker: true,
-    };
-    const compressedFile = await imageCompression(file, options);
+    // 头像档位（512px webp）与背景/卡面档位不同源，见 utils/api/avatar-storage.js
+    const compressedFile = await prepareAvatarUpload(file);
 
     await uploadToSupabase(compressedFile);
     showCropModal.value = false;

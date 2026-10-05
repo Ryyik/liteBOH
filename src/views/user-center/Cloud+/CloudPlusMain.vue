@@ -1506,18 +1506,46 @@ const albumPinch = { active: false, startDistance: 0, startColumns: ALBUM_NARROW
 // 错误的列数。回调只在值真变时赋值，不会形成「改列数 → 触发布局 → 再触发」的环。
 let albumResizeObserver = null;
 
-onMounted(() => {
+function disconnectAlbumResizeObserver() {
+  albumResizeObserver?.disconnect();
+  albumResizeObserver = null;
+}
+
+function observeAlbumSection(section) {
+  disconnectAlbumResizeObserver();
+  lastAlbumSectionWidth = 0;
+  if (!section) return;
+
   measureAutoAlbumColumns();
-  window.addEventListener('resize', measureAutoAlbumColumns);
-  if (typeof ResizeObserver !== 'undefined' && albumSectionRef.value) {
+  if (typeof ResizeObserver !== 'undefined') {
     albumResizeObserver = new ResizeObserver(measureAutoAlbumColumns);
-    albumResizeObserver.observe(albumSectionRef.value);
+    albumResizeObserver.observe(section);
   }
+}
+
+// 内容档是条件渲染的：切到设置 / 分享时 section 会卸载，切回时 ref 指向新节点。
+// 监听 template ref，保证新节点重新测量并重新接上 ResizeObserver，而不是等窗口 resize。
+watch(
+  albumSectionRef,
+  (section) => {
+    if (!section) {
+      disconnectAlbumResizeObserver();
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      if (section === albumSectionRef.value) observeAlbumSection(section);
+    });
+  },
+  { flush: 'post' },
+);
+
+onMounted(() => {
+  window.addEventListener('resize', measureAutoAlbumColumns);
 });
 onUnmounted(() => {
   window.removeEventListener('resize', measureAutoAlbumColumns);
-  albumResizeObserver?.disconnect();
-  albumResizeObserver = null;
+  disconnectAlbumResizeObserver();
 });
 
 function readTouchDistance(touches) {

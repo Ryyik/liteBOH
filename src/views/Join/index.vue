@@ -534,7 +534,11 @@ import {
   toPasskeyRegisterMessage,
 } from '@/utils/api/auth-api.js';
 import { supabase } from '@/utils/supabase-client.js';
-import { uploadAvatarFile, removeAvatarByPath } from '@/utils/api/avatar-storage.js';
+import {
+  prepareAvatarUpload,
+  uploadAvatarFile,
+  removeAvatarByPath,
+} from '@/utils/api/avatar-storage.js';
 import { logger } from '@/utils/logger.js';
 import { getAltchaChallengeUrl, isAltchaEnabled } from '@/utils/altcha.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
@@ -868,19 +872,6 @@ const avatarInputRef = ref(null);
 const showCropModal = ref(false);
 const cropImageSrc = ref('');
 const isProcessingCrop = ref(false);
-let imageCompressionLoader = null;
-
-const loadImageCompression = async () => {
-  if (!imageCompressionLoader) {
-    imageCompressionLoader = import('browser-image-compression')
-      .then((module) => module.default || module)
-      .catch((error) => {
-        imageCompressionLoader = null;
-        throw error;
-      });
-  }
-  return imageCompressionLoader;
-};
 const handleAvatarClick = () => avatarInputRef.value?.click();
 const handleAvatarFileChange = (event) => {
   const file = event.target.files?.[0];
@@ -898,12 +889,7 @@ const handleCropConfirm = async (blob) => {
   avatarError.value = '';
   try {
     const file = new File([blob], 'avatar.png', { type: 'image/png' });
-    const imageCompression = await loadImageCompression();
-    const compressedFile = await imageCompression(file, {
-      maxSizeMB: 0.5,
-      maxWidthOrHeight: 800,
-      useWebWorker: true,
-    });
+    const compressedFile = await prepareAvatarUpload(file);
     formData.avatarBlob = compressedFile;
     const reader = new FileReader();
     reader.onload = (e) => {

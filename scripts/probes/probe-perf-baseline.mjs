@@ -19,7 +19,7 @@
  *   A1 入口闭包不得包含 nsfw-weights / tfjs chunk（3.6MB 审核模型不许回到首屏）
  *   A2 路由文件 0 个静态 view 引入（路由全懒加载不许回退）
  *   A3 `/` 冷首访 supabase REST 请求 ≤ 15（2026-09-29 实测 15；P1-1/P1-2 落地后应下调）
- *   A4 线上单张头像框 PNG ≤ 400KB（2026-09-29 实测最大 hamster 384KB；P0-2 落地后应下调）
+ *   A4 线上单张头像框 PNG ≤ 32KB（2026-10-05 实测最大 12KB；旧基线 hamster 384KB 已随 P0-2 作废）
  *
  * 用法：
  *   node scripts/probes/probe-perf-baseline.mjs                    # 全部段（约 2 分钟）
@@ -321,9 +321,9 @@ async function coldSection(browser) {
       `[cold] 线上框 PNG 字节：${frameUnion.map((f) => `${f.url} ${f.kb}KB`).join(', ')}`,
     );
     check(
-      'A4 单张头像框 PNG ≤ 400KB',
-      max <= 400,
-      `最大 ${max}KB（2026-09-29 基线 hamster 384KB）`,
+      'A4 单张头像框 PNG ≤ 32KB',
+      max <= 32,
+      `最大 ${max}KB（P0-2 已落地：2026-10-05 实测最大 elf-grass 12KB；2026-09-29 旧基线 hamster 384KB）`,
     );
   } else {
     console.log('SKIP  A4（冷首访未拉到框 PNG，内容依赖）');
