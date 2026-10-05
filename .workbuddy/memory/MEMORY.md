@@ -58,6 +58,11 @@ Cloud+ 整页**无暗色适配**（`.cloud-page` 硬编码亮色 token，`[data-
 ref `nplnlefdwfgtyimfkyih`。github.com 被 SNI 阻断 → SSH(`ssh.github.com:443`) 或 Git Data API；迁移走 Management API + 手写 `schema_migrations`；凭据在钥匙串（剥 `go-keyring-base64:`）。
 撤 EXECUTE 用 `from anon,authenticated,public`；撤权优先于 drop；新表 grant anon+authenticated；撤权前五查；RPC 静默失败=审计表取 code。
 
+## GitHub CI / Dependabot
+⚠️ **Dependabot 触发的 workflow 读不到 repository secrets**（GitHub 硬机制），只能读 Dependabot 专属那套 ⇒ 本仓 5 个依赖 PR 的 CI 曾因此全红，症状是 `Error: supabaseUrl is required`（2026-10-05 修）。核对：`gh secret list --app dependabot --repo Ryyik/liteBOH`（repository 那套是 `gh secret list`，两套独立、必须分别配）。本次补的是 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`（两者本就是可公开的前端配置，`ci.yml` 注释亦如此声明）。
+⚠️ **改 secrets 不会自动重跑已有 run** ⇒ 要 `gh run rerun <id>` 才验得到。
+⚠️ `git push` 被 SIGTERM（exit 137）**不等于失败** ⇒ 先 `git ls-remote origin main` 问远程再决定要不要重推（本地 remote-tracking ref 滞后 ≠ 没推上去）。
+
 ## 输入框自动增高
 真源 `composables/useAutoGrowTextarea.js`（**不要再加第 5 份**）；上限只声明在 CSS `max-height`，JS 读 `getComputedStyle`。
 ⚠️ 空内容时必须**临时摘掉 placeholder 再量**：浏览器把折行后的占位文字算进 `scrollHeight`，窄框里 "说点什么" 折两行会把空态撑成两行高（详情页评论框 107px 宽，实测 66px vs 应有 42px）。
