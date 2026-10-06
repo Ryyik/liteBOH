@@ -2963,6 +2963,10 @@ watch(
 // 不再通过 emitIslandMessage 弹出提示，避免与手动压缩反馈冲突。
 </script>
 
+<!-- BOH AI 设计令牌单一真源（plans/025 v2 · Step 1，零行为变更）。
+     必须是**非 scoped**：`:root` 若被加上 `[data-v-*]` 属性选择器就永远匹配不到 <html>。 -->
+<style src="./styles/tokens.css"></style>
+
 <style scoped src="./styles/shell-header.css"></style>
 <style scoped src="./styles/full-workspace.css"></style>
 <style scoped src="./styles/messages.css"></style>

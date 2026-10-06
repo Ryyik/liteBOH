@@ -1,0 +1,117 @@
+/**
+ * tokens.css — BOH AI 设计令牌**单一真源**（口径见 docs/DESIGN-BOHAI.md §1）
+ *
+ * ⚠️ 两条硬纪律：
+ *   1. **所有颜色字面量只允许出现在本文件的 `:root` 块**；`[data-boh-theme='dark']` 块
+ *      **只允许 `var()` 引用**。原因：`check:dark-tokens:strict` 棘轮统计的是
+ *      「**暗色规则块内**的颜色字面量」——把裸值写进暗色块会当场推高基线（2854 → +N）。
+ *   2. 组件 CSS 只消费 `--boh-*`：**零裸色值、零 `!important`**（三道棘轮）。
+ *
+ * 落地时点：`plans/025` v2 的 **Step 1**（只定义、不消费 ⇒ 零行为变更）。
+ * 真源命名：`--boh-*`（BOH AI 私有），与站点品牌绿、全局 `--liquid-*` **互不干扰**。
+ */
+:root {
+  /* ── 灰度阶 0–1000（OpenAI 体系，浅色为正序） ── */
+  --boh-gray-0: #ffffff;
+  --boh-gray-50: #fafafa;
+  --boh-gray-100: #f5f5f5;
+  --boh-gray-200: #e5e5e5;
+  --boh-gray-300: #d4d4d4;
+  --boh-gray-400: #a3a3a3;
+  --boh-gray-500: #737373;
+  --boh-gray-600: #525252;
+  --boh-gray-700: #404040;
+  --boh-gray-800: #262626;
+  /* 850：补在 800/900 之间的**暗色描边**专用档（DESIGN §1.3 的 #303030） */
+  --boh-gray-850: #303030;
+  --boh-gray-900: #171717;
+  --boh-gray-950: #0f0f0f;
+  --boh-gray-1000: #0a0a0a;
+
+  /* ── 半透明叠加（浅色 / 深色各一份；暗色块只引用） ── */
+  --boh-a-light-hover: rgba(0, 0, 0, 0.045);
+  --boh-a-light-active: rgba(0, 0, 0, 0.08);
+  --boh-a-light-soft: rgba(0, 0, 0, 0.06);
+  --boh-a-light-backdrop: rgba(23, 23, 23, 0.34);
+  --boh-a-dark-hover: rgba(255, 255, 255, 0.06);
+  --boh-a-dark-active: rgba(255, 255, 255, 0.1);
+  --boh-a-dark-backdrop: rgba(0, 0, 0, 0.5);
+
+  /* ── 阴影（浅色 / 深色各一份；暗色块只引用） ── */
+  --boh-shadow-sm-light: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --boh-shadow-md-light: 0 4px 14px rgba(0, 0, 0, 0.08);
+  --boh-shadow-lg-light: 0 14px 40px rgba(0, 0, 0, 0.16);
+  --boh-shadow-sm-dark: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --boh-shadow-md-dark: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --boh-shadow-lg-dark: 0 14px 40px rgba(0, 0, 0, 0.6);
+
+  /* ── 语义别名（浅色） ── */
+  --boh-bg-page: var(--boh-gray-0);
+  --boh-bg-card: var(--boh-gray-100);
+  --boh-bg-hover: var(--boh-a-light-hover);
+  --boh-bg-active: var(--boh-a-light-active);
+  --boh-border: var(--boh-gray-200);
+  --boh-border-strong: var(--boh-gray-300);
+  --boh-text-1: var(--boh-gray-1000);
+  --boh-text-2: var(--boh-gray-500);
+  --boh-text-3: var(--boh-gray-400);
+  --boh-accent: var(--boh-gray-1000); /* 强调 = 墨色（黑白灰，无彩度） */
+  --boh-accent-contrast: var(--boh-gray-0); /* 墨色底上的文字/图标 */
+  --boh-accent-soft: var(--boh-a-light-soft);
+  --boh-code-bg: var(--boh-gray-50);
+  --boh-code-head: var(--boh-gray-100);
+  --boh-shadow-sm: var(--boh-shadow-sm-light);
+  --boh-shadow-md: var(--boh-shadow-md-light);
+  --boh-shadow-lg: var(--boh-shadow-lg-light);
+  --boh-backdrop: var(--boh-a-light-backdrop);
+
+  /* ── 圆角（8 / 10 / 12 / 14 + 外壳 20） ── */
+  --boh-radius-sm: 8px;
+  --boh-radius-md: 10px;
+  --boh-radius-lg: 12px;
+  --boh-radius-xl: 14px;
+  --boh-radius-shell: 20px;
+
+  /* ── 字体（系统栈，不引 Web 字体 —— 大陆可达性） ── */
+  --boh-font-ui:
+    ui-sans-serif, -apple-system, system-ui, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei',
+    sans-serif;
+  --boh-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ── 字距 ── */
+  --boh-ls-body: -0.01em;
+  --boh-ls-head: -0.02em;
+
+  /* ── 动效（只有两个时长、唯一缓动；CSS 里不许写字面时长） ── */
+  --boh-dur-fast: 150ms;
+  --boh-dur-med: 200ms;
+  --boh-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── 布局常量 ── */
+  --boh-rail-w: 88px;
+  --boh-sidebar-w: 280px;
+  --boh-work-w: 360px;
+  --boh-content-w: 768px;
+}
+
+/* 暗色：**只切语义别名**，且只用 var()（见文件头纪律 1） */
+:root[data-boh-theme='dark'] {
+  --boh-bg-page: var(--boh-gray-900);
+  --boh-bg-card: var(--boh-gray-800);
+  --boh-bg-hover: var(--boh-a-dark-hover);
+  --boh-bg-active: var(--boh-a-dark-active);
+  --boh-border: var(--boh-gray-850);
+  --boh-border-strong: var(--boh-gray-700);
+  --boh-text-1: var(--boh-gray-100);
+  --boh-text-2: var(--boh-gray-400);
+  --boh-text-3: var(--boh-gray-500);
+  --boh-accent: var(--boh-gray-100); /* 墨色反转 = 近白 */
+  --boh-accent-contrast: var(--boh-gray-1000);
+  --boh-accent-soft: var(--boh-a-dark-active);
+  --boh-code-bg: var(--boh-gray-950);
+  --boh-code-head: var(--boh-gray-900);
+  --boh-shadow-sm: var(--boh-shadow-sm-dark);
+  --boh-shadow-md: var(--boh-shadow-md-dark);
+  --boh-shadow-lg: var(--boh-shadow-lg-dark);
+  --boh-backdrop: var(--boh-a-dark-backdrop);
+}
