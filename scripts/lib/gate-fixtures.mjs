@@ -231,10 +231,27 @@ export const FIXTURES = [
     // 于是用一份**含 critical 的合成报告**证明「有新增时确实 exit 1」。
     // ⚠️ 若上游改了环境变量名，本条会以「❌ 没红（exit 0）」**大声失败**，不会静默失效。
     prepare: () => {
+      // ⚠️ 2026-10-06：**不能写死数字**。基线会随「注册表漂移」上移
+      // （那天 critical 0→2 / moderate 2→6），写死的 `critical: 1` 就落到了新基线之下
+      // ⇒ 不再算「新增」⇒ 本门禁自证从 ✅ 变 ❌（报「假绿嫌疑」）。
+      // 改为从**当前基线推导**：各档 = 基线 + 1，保证**永远越线**，基线再变也不会失效。
+      let base = { critical: 0, high: 0, moderate: 0, low: 0 };
+      try {
+        base = JSON.parse(readFileSync('scripts/npm-audit-baseline.json', 'utf-8'));
+      } catch {
+        // 基线缺失：退回全 0，注入的样本仍会越线（当前 > 基线）
+      }
+      const bump = (k) => Number(base[k] || 0) + 1;
+      const levels = {
+        info: 0,
+        low: bump('low'),
+        moderate: bump('moderate'),
+        high: bump('high'),
+        critical: bump('critical'),
+      };
+      levels.total = levels.low + levels.moderate + levels.high + levels.critical;
       const report = JSON.stringify({
-        metadata: {
-          vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 1, total: 1 },
-        },
+        metadata: { vulnerabilities: levels },
         vulnerabilities: {
           __gates_probe_pkg: {
             name: '__gates_probe_pkg',
