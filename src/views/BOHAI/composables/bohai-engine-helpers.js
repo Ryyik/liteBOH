@@ -2,14 +2,6 @@ import {
   ACTION_DRAFT_CONTENT_MAX_CHARS,
   ACTION_DRAFT_TITLE_MAX_CHARS,
   ACTION_POST_TRIGGER_PATTERN,
-  DEGENERATE_PUNCT_REPEAT_COUNT,
-  DEGENERATE_PUNCTUATION_RATIO,
-  DEGENERATE_REPEAT_COUNT,
-  DEGENERATE_STREAM_MIN_CHARS,
-  DEGENERATE_STREAM_PUNCTUATION_RATIO,
-  DEGENERATE_STREAM_REPEAT_COUNT,
-  DEGENERATE_STREAM_WINDOW_CHARS,
-  GENERATION_PROFILE_BY_MODE,
   KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS,
   KNOWLEDGE_CONTEXT_MAX_CHARS,
   KNOWLEDGE_MAX_CHUNKS,
@@ -20,9 +12,7 @@ import {
   MAX_PROMPT_EXTRA_CHARS,
   MAX_SEARCH_RESULT_CONTENT_CHARS,
   MAX_USER_INPUT_CHARS,
-  PSYCH_INTERVIEW_GENERATION_PROFILE,
 } from './chat-engine-config.js';
-import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { logger } from '@/utils/logger.js';
 import {
   EVIDENCE_SOURCE_WEIGHTS,
@@ -30,6 +20,22 @@ import {
   KEYWORD_CACHE_MAX_SIZE,
 } from '@/utils/bohai-constants.js';
 import { searchVaultFree, searchVaultTavily } from '@/utils/api/api-key-runtime-api.js';
+
+// ────────────────────────────────────────────────────────────
+// plans/025 v2 · Step 3「utils 归位」：本文件保留为**临时 barrel**。
+// 已拆出的模块在此转出口 ⇒ 所有既有 import 点**零改动**；
+// 消费方重写时改为直连具体模块，最后删掉本 barrel。
+// ────────────────────────────────────────────────────────────
+import {
+  TOKEN_ESTIMATE_ROLE_OVERHEAD,
+  estimateMessagesTokens,
+  estimateTokens,
+} from '../utils/tokens.js';
+export { TOKEN_ESTIMATE_ROLE_OVERHEAD, estimateMessagesTokens, estimateTokens };
+export * from '../utils/degenerate-guard.js';
+export * from '../utils/structured-memory.js';
+export * from '../utils/page-context.js';
+export * from '../utils/generation-profile.js';
 
 let aiMemoryCache = '';
 let aiMemoryLoader = null;
@@ -150,38 +156,6 @@ export const extractQueryKeywords = (text) => {
   keywordCache.set(normalized, result);
 
   return result;
-};
-
-// --- Token 估算 ---
-// 用字符数估算 token 消耗，比纯 char.length 更准确。
-// 中文: ~1.8 tokens/char，英文/ASCII: ~0.3 tokens/char，其他: ~1.0 tokens/char。
-// 加上每条消息的角色标记开销 (~20 tokens)。
-export const TOKEN_ESTIMATE_ROLE_OVERHEAD = 20;
-
-export const estimateTokens = (text) => {
-  if (!text) return 0;
-  let tokens = 0;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code >= 0x4e00 && code <= 0x9fff) {
-      // CJK 统一表意文字
-      tokens += 1.8;
-    } else if (code <= 0x7f) {
-      // ASCII
-      tokens += 0.3;
-    } else {
-      // 其他 Unicode（标点、符号、日韩等）
-      tokens += 1.0;
-    }
-  }
-  return Math.ceil(tokens);
-};
-
-export const estimateMessagesTokens = (messages) => {
-  if (!messages || messages.length === 0) return 0;
-  return messages.reduce((sum, msg) => {
-    return sum + TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(String(msg.content || ''));
-  }, 0);
 };
 
 export const scoreChunk = (chunk, keywords) => {
@@ -1243,159 +1217,6 @@ export const compressKnowledgeContextBlocks = (
   return merged;
 };
 
-// getGenerationProfile 的 memoize cache：避免同一组参数重复创建对象
-const _generationProfileCache = new Map();
-const _GEN_PROFILE_CACHE_MAX = 32;
-const _GEN_PROFILE_CACHE_TTL_MS = 60_000;
-
-export const getGenerationProfile = (
-  modeId,
-  { factualQuestion = false, operationQuestion = false, psychInterview = false } = {},
-) => {
-  // ⚠️ psychInterview 必须进 cacheKey：缓存按 key 命中，漏掉它会让访谈态拿到非访谈态的 profile
-  // （或反过来），而且这种错配是静默的 —— 表现只是"有时候像问卷腔"。
-  const cacheKey = `${modeId}|${factualQuestion}|${operationQuestion}|${psychInterview}`;
-  const cached = _generationProfileCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < _GEN_PROFILE_CACHE_TTL_MS) return cached.value;
-  if (cached) _generationProfileCache.delete(cacheKey);
-
-  const fallback = TASK_GENERATION_PRESETS.engineParamFallback;
-  const base = GENERATION_PROFILE_BY_MODE[modeId] || fallback;
-  const profile = { ...base };
-  if (factualQuestion || operationQuestion) {
-    profile.temperature = Math.min(profile.temperature, operationQuestion ? 0.14 : 0.16);
-    profile.top_p = Math.min(profile.top_p, operationQuestion ? 0.68 : 0.72);
-    profile.frequency_penalty = Math.min(profile.frequency_penalty, 0.08);
-  }
-
-  // 访谈态最后覆盖，且**有意放在上面的 clamp 之后**：
-  // 访谈中途用户难免问出"我该怎么办"这类操作/事实问句，若让 clamp 生效会把温度压到 0.14，
-  // 访谈立刻退回问卷腔。访谈要的是"像人"，不是"准确"，所以它优先级最高。
-  if (psychInterview) {
-    Object.assign(profile, PSYCH_INTERVIEW_GENERATION_PROFILE);
-  }
-
-  // LRU-style cache eviction
-  if (_generationProfileCache.size >= _GEN_PROFILE_CACHE_MAX) {
-    const firstKey = _generationProfileCache.keys().next().value;
-    _generationProfileCache.delete(firstKey);
-  }
-  _generationProfileCache.set(cacheKey, { value: profile, timestamp: Date.now() });
-  return profile;
-};
-
-export const INTERNAL_PROGRESS_LINE_PATTERNS = [
-  /^\s*>\s*\*\*(?:正在搜索|找到\s*\d+\s*个结果|未找到相关结果|自动检索中|知识路由|已完成内部检索|未检索到匹配内部资料)\*\*.*$/u,
-  /^\s*>\s*(?:⚠️|✅|❌|⚙️)\s*\*\*.*\*\*.*$/u,
-  /^\s*>\s*\d+\.\s*\[[^\]]+\]\((?:https?:\/\/|www\.)[^)]+\)\s*$/u,
-];
-
-// 模型幻觉输出的工具调用标签（项目未注册任何 LLM 工具，这类文本需统一清洗）。
-// 覆盖单行自闭合、单行成对、多行块三种形态，args 内容不含 '<' 字符，可安全用 [^<] 匹配单行。
-const TOOL_HALLUCINATION_PATTERNS = [
-  /<tool_call>[\s\S]*?<\/tool_call>\s*/gi,
-  /<function_call>[\s\S]*?<\/function_call>\s*/gi,
-  /<tool\s+name=["'][^"']+["'][^<]*?\/\s*>\s*/gi,
-  /<tool\s+name=["'][^"']+["'][\s\S]*?<\/tool>\s*/gi,
-];
-
-export const cleanAssistantVisibleReply = (text) => {
-  const raw = String(text || '');
-  if (!raw) return '';
-
-  const sanitized = TOOL_HALLUCINATION_PATTERNS.reduce(
-    (acc, pattern) => acc.replace(pattern, ''),
-    raw,
-  );
-
-  const filteredLines = sanitized
-    .split('\n')
-    .filter((line) => !INTERNAL_PROGRESS_LINE_PATTERNS.some((pattern) => pattern.test(line)));
-
-  const compacted = [];
-  for (let i = 0; i < filteredLines.length; i += 1) {
-    const current = filteredLines[i];
-    const prev = compacted[compacted.length - 1];
-    if (current.trim() === '' && String(prev || '').trim() === '') continue;
-    compacted.push(current);
-  }
-  return compacted.join('\n').trim();
-};
-
-export const normalizeCompactText = (text) => String(text || '').replace(/\s+/g, '');
-
-export const normalizeEscapedLineBreaks = (text) => {
-  const raw = String(text || '');
-  const escapedBreakCount = (raw.match(/\\[rn]/g) || []).length;
-  if (escapedBreakCount < 2) return raw;
-
-  return raw
-    .replace(/\\r\\n/g, '\n')
-    .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\n');
-};
-
-export const hasEscapedLineBreakFlood = (text) => {
-  const raw = String(text || '');
-  if (raw.length < 24) return false;
-
-  const escapedBreaks = raw.match(/\\[rn]/g) || [];
-  if (escapedBreaks.length >= 14) return true;
-
-  const compact = raw.replace(/\s+/g, '');
-  if (/(?:\\[rn]["'`]?){8,}/i.test(compact)) return true;
-
-  const tail = compact.slice(-DEGENERATE_STREAM_WINDOW_CHARS);
-  return /(?:\\[rn]["'`]?){6,}$/i.test(tail);
-};
-
-// 退化判定中识别的标点/符号字符集。中英文、全半角混排统一纳入。
-// 字符级正则源串：用于构造 RegExp。已对 \ ] 等字符做转义。
-const PUNCT_REPEAT_CHAR_CLASS = '[!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;\`\'"\\[\\]{}]';
-// 字符级正则源串：用于 match 中提取标点（不含 [ ] { }，与原始实现保持一致）。
-const PUNCT_DENSITY_CHAR_CLASS = '[!！?？。．.，,、~～\\-_=+*#@%^&|/\\\\:;\`\'"]';
-
-const buildPunctRepeatRegex = (repeatCount) =>
-  new RegExp(`(${PUNCT_REPEAT_CHAR_CLASS})\\1{${repeatCount},}`, 'u');
-const buildPunctDensityRegex = () => new RegExp(PUNCT_DENSITY_CHAR_CLASS, 'gu');
-
-export const isDegenerateAssistantReply = (text) => {
-  const normalized = normalizeEscapedLineBreaks(text).trim();
-  if (!normalized) return true;
-  if (hasEscapedLineBreakFlood(text)) return true;
-
-  const compact = normalizeCompactText(normalized);
-  if (!compact) return true;
-  if (new RegExp(`(.)\\1{${DEGENERATE_REPEAT_COUNT},}`, 'u').test(compact)) return true;
-  if (buildPunctRepeatRegex(DEGENERATE_PUNCT_REPEAT_COUNT).test(compact)) return true;
-
-  if (compact.length < 40) return false;
-  const punctCount = (compact.match(buildPunctDensityRegex()) || []).length;
-  return punctCount / compact.length >= DEGENERATE_PUNCTUATION_RATIO;
-};
-
-export const isDegenerateStreamOutput = (text) => {
-  const normalized = String(text || '').trim();
-  if (!normalized) return false;
-  if (hasEscapedLineBreakFlood(normalized)) return true;
-
-  const compact = normalizeCompactText(normalized.slice(-DEGENERATE_STREAM_WINDOW_CHARS));
-  const tailPunctuationRun = compact.match(
-    new RegExp(`(?:${PUNCT_DENSITY_CHAR_CLASS}){18,}$`, 'u'),
-  );
-  if (tailPunctuationRun && tailPunctuationRun[0].length / Math.max(1, compact.length) >= 0.08) {
-    return true;
-  }
-  if (compact.length < DEGENERATE_STREAM_MIN_CHARS) return false;
-
-  if (buildPunctRepeatRegex(DEGENERATE_STREAM_REPEAT_COUNT).test(compact)) {
-    return true;
-  }
-
-  const punctCount = (compact.match(buildPunctDensityRegex()) || []).length;
-  return punctCount / compact.length >= DEGENERATE_STREAM_PUNCTUATION_RATIO;
-};
-
 // ============================================================
 // 优化 1: Token 预算监控 — ContextManager
 // 跟踪每种上下文的 token 用量，超出时提供降级建议。
@@ -1496,158 +1317,6 @@ export const createContextBudgetTracker = (budgets = {}) => {
   };
 
   return { addEstimate, getUsage, getDegradationPlan, reset };
-};
-
-// ============================================================
-// 优化 2: 结构化记忆提取
-// 从对话中提取类型化关键事实，以紧凑 JSON 格式注入上下文。
-// ============================================================
-
-export const STRUCTURED_MEMORY_TYPES = {
-  PREFERENCE: 'preference',
-  PERSONAL_INFO: 'personal_info',
-  DECISION: 'decision',
-  GOAL: 'goal',
-  RELATIONSHIP: 'relationship',
-  EVENT: 'event',
-};
-
-export const extractStructuredMemories = (messages = []) => {
-  if (!Array.isArray(messages) || messages.length < 4) return [];
-
-  const memories = [];
-  const text = messages
-    .filter((m) => m?.role === 'user' || m?.role === 'assistant')
-    .map((m) => String(m.content || ''))
-    .join('\n')
-    .slice(-6000);
-
-  const patterns = [
-    {
-      type: STRUCTURED_MEMORY_TYPES.PREFERENCE,
-      re: /(?:我|用户)(?:喜欢|不喜欢|偏爱|更愿意)\s*(.+?)[。，；;]/g,
-    },
-    {
-      type: STRUCTURED_MEMORY_TYPES.PERSONAL_INFO,
-      re: /(?:我|用户)(?:是|叫|在|来自|今年)\s*(.+?)[。，；;]/g,
-    },
-    {
-      type: STRUCTURED_MEMORY_TYPES.DECISION,
-      re: /(?:我|用户)(?:决定|选择|打算|想|要)\s*(.+?)[。，；;]/g,
-    },
-    {
-      type: STRUCTURED_MEMORY_TYPES.GOAL,
-      re: /(?:我|用户)(?:的目标|的目标是|希望|想要|需要|梦想)\s*(.+?)[。，；;]/g,
-    },
-    {
-      type: STRUCTURED_MEMORY_TYPES.EVENT,
-      re: /(?:我|用户)(?:最近|刚刚|之前|昨天|上周|今天)\s*(.+?)[。，；;]/g,
-    },
-  ];
-
-  for (const { type, re } of patterns) {
-    let match;
-    while ((match = re.exec(text)) !== null) {
-      const value = match[1].trim().slice(0, 100);
-      if (
-        value.length >= 4 &&
-        !memories.some((m) => m.value.includes(value) || value.includes(m.value))
-      ) {
-        memories.push({
-          type,
-          value,
-          confidence: type === STRUCTURED_MEMORY_TYPES.PERSONAL_INFO ? 0.7 : 0.5,
-        });
-        if (memories.length >= 12) break;
-      }
-    }
-    if (memories.length >= 12) break;
-  }
-
-  return memories;
-};
-
-export const buildStructuredMemoryBlock = (memories = []) => {
-  if (!memories.length) return '';
-  const xml = memories
-    .map(
-      (m) =>
-        `  <fact type="${m.type}" confidence="${m.confidence.toFixed(1)}">${escapeXml(m.value)}</fact>`,
-    )
-    .join('\n');
-  return `<structured_memory>\n${xml}\n</structured_memory>`;
-};
-
-const escapeXml = (s) =>
-  String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-
-// ============================================================
-// 优化 3: 分层上下文压缩
-// 3 层压缩策略：trim → summarize → compact
-// ============================================================
-
-export const compactMessages = (messages, maxTokens) => {
-  if (!Array.isArray(messages) || messages.length <= 2) return messages;
-
-  const totalTokens = estimateMessagesTokens(messages);
-  if (totalTokens <= maxTokens) return messages;
-
-  // Layer 1: Trim tool outputs (长消息截断)
-  let result = messages.map((m) => {
-    const content = String(m.content || '');
-    if (estimateTokens(content) > 800) {
-      return { ...m, content: content.slice(0, 2400) + '...（内容已截断）' };
-    }
-    return m;
-  });
-
-  if (estimateMessagesTokens(result) <= maxTokens) return result;
-
-  // Layer 2: 从最早的非 system 消息开始丢弃
-  const system = result.filter((m) => m.role === 'system');
-  const nonSystem = result.filter((m) => m.role !== 'system');
-
-  const kept = [];
-  let used = estimateMessagesTokens(system);
-  for (let i = nonSystem.length - 1; i >= 0; i--) {
-    const estimated =
-      TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(String(nonSystem[i].content || ''));
-    if (used + estimated > maxTokens) break;
-    kept.unshift(nonSystem[i]);
-    used += estimated;
-  }
-
-  return [...system, ...kept];
-};
-
-// ============================================================
-// 页面上下文块构建（替代原来的 appendToComposer 混入方式）
-// 将附加的页面上下文构建为结构化的 <page_context> 块，
-// 与用户问题分离，不占用 MAX_USER_INPUT_CHARS 预算。
-// ============================================================
-
-export const MAX_PAGE_CONTEXT_CHARS = 4000;
-
-export const buildPageContextBlock = (pageContext = null) => {
-  if (!pageContext) return '';
-  const { title = '', url = '', selection = '', content = '', description = '' } = pageContext;
-  if (!title && !url && !selection && !content) return '';
-
-  const sections = [];
-  if (title) sections.push(`页面标题：${title}`);
-  if (url) sections.push(`页面地址：${url}`);
-  if (description) sections.push(`页面描述：${description}`);
-  if (selection) sections.push(`选中的内容：\n${selection}`);
-  if (content) {
-    const trimmed = content.slice(0, MAX_PAGE_CONTEXT_CHARS);
-    sections.push(`页面正文：\n${trimmed}`);
-  }
-
-  return `<page_context>\n${sections.join('\n')}\n</page_context>`;
 };
 
 // ============================================================
