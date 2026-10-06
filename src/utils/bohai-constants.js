@@ -17,23 +17,10 @@ export const MEMORY_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export const ROUTE_DECISION_CACHE_MAX_SIZE = 200;
 
-export const EVIDENCE_SOURCE_WEIGHTS = {
-  userPrivate: 22,
-  cloud: 18,
-  forum: 16,
-  sharedMemory: 14,
-  knowledge: 12,
-  siteGuide: 10,
-  // BOH Health 本机数据：用户本人的记录，排序应高于通用站点手册，
-  // 否则多源竞争预算时健康证据会落到 defaultSourceScore 垫底
-  health: 15,
-};
-
-export const RANKING_SCORE_WEIGHTS = {
-  lexicalMultiplier: 5,
-  defaultSourceScore: 6,
-  confidenceMultiplier: 10,
-};
+// 注：`EVIDENCE_SOURCE_WEIGHTS` / `RANKING_SCORE_WEIGHTS` 已迁至
+// `src/views/BOHAI/domain/evidence.js`（plans/025 v2 · Step 2「domain 数据沉淀」）。
+// 它们是 BOHAI 领域数据（证据源排序口径），且只被 BOHAI 消费；
+// 全局这里保留副本会给「谁是真源」制造第二处。
 
 export const CIRCUIT_BREAKER = {
   failureThreshold: 3,

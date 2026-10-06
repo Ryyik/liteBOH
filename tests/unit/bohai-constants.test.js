@@ -6,12 +6,12 @@ import {
   KEYWORD_CACHE_MAX_SIZE,
   MEMORY_CACHE_TTL_MS,
   ROUTE_DECISION_CACHE_MAX_SIZE,
-  EVIDENCE_SOURCE_WEIGHTS,
-  RANKING_SCORE_WEIGHTS,
   CIRCUIT_BREAKER,
   BOHAI_ERROR_TYPES,
   BOHAI_ERROR_MESSAGES,
 } from '@/utils/bohai-constants.js';
+// 这两项已迁至 BOHAI domain（plans/025 v2 · Step 2「domain 数据沉淀」）—— 见 domain/evidence.js
+import { EVIDENCE_SOURCE_WEIGHTS, RANKING_SCORE_WEIGHTS } from '@/views/BOHAI/domain/evidence.js';
 
 describe('bohai-constants', () => {
   describe('timing constants', () => {
@@ -76,9 +76,7 @@ describe('bohai-constants', () => {
     });
 
     it('reset window is greater than failure window', () => {
-      expect(CIRCUIT_BREAKER.resetWindowMs).toBeGreaterThan(
-        CIRCUIT_BREAKER.failureWindowMs
-      );
+      expect(CIRCUIT_BREAKER.resetWindowMs).toBeGreaterThan(CIRCUIT_BREAKER.failureWindowMs);
     });
   });
 

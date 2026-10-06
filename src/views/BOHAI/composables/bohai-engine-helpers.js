@@ -14,11 +14,8 @@ import {
   MAX_USER_INPUT_CHARS,
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
-import {
-  EVIDENCE_SOURCE_WEIGHTS,
-  RANKING_SCORE_WEIGHTS,
-  KEYWORD_CACHE_MAX_SIZE,
-} from '@/utils/bohai-constants.js';
+import { KEYWORD_CACHE_MAX_SIZE } from '@/utils/bohai-constants.js';
+import { EVIDENCE_SOURCE_WEIGHTS, RANKING_SCORE_WEIGHTS } from '../domain/evidence.js';
 import { searchVaultFree, searchVaultTavily } from '@/utils/api/api-key-runtime-api.js';
 
 // ────────────────────────────────────────────────────────────
