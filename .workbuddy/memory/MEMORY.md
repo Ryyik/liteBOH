@@ -6,7 +6,9 @@ vite 只绑 IPv6 → `--host ::`；构建 `--outDir dist-check`（勿动 dist）
 ⚠️ safe-delete 守卫对 `--outDir dist-check` **同样生效**（目标目录里 >50 个文件就拦，`npm run build` 和 `vite build --outDir` 都拦）→ 先 `mv dist-check /tmp/xxx` 让位再 build；`mv` 不算删、不会被拦。
 ⚠️ 后台起 dev/preview 服务必须用托管后台任务；`nohup … &` / `& disown` 起的进程会在那次工具调用结束时被杀，症状是「curl 刚 200，下一次探针就 ERR_CONNECTION_REFUSED」。
 playwright：chrome channel + `--proxy-server=direct:// --proxy-bypass-list=*`；伪造登录注 pinia；mock Supabase 必回 Content-Range。
-⚠️ BSD grep 的 `\|` `\b` `\s` 全不支持（静默 0 命中）→ 用 `grep -E` / `[[:space:]]`，或直接用 Grep 工具。
+⚠️ 从 `/tmp` 跑一次性 ESM 脚本要引仓库依赖时 **`NODE_PATH` 无效**（ESM 不认）→ `createRequire('<repo>/package.json')('playwright')`，或把脚本放进仓库根（用完删）。
+⚠️ vite 绑了 `::` 时 `localhost:5173` 与 `[::1]:5173` 都可 curl（`--noproxy '*'`），dev 路由形如 `http://[::1]:5173/#/__dev/<name>`。
+⚠️ BSD grep 的 `\|` `\b` `\s` 全不支持（静默 0 命中）→ 用 `grep -E` / `[[:space:]]`，或直接用 Grep 工具。（2026-10-06 又踩：险些误判「文件已自己修好」）
 ⚠️ macOS 无 `timeout` 命令 → 限时用 `ssh -o ConnectTimeout=N`、`GIT_SSH_COMMAND="ssh -o ConnectTimeout=15"`。
 推 GitHub：`~/.ssh/config` 已把 `github.com` 指向 `ssh.github.com:443`（绕 HTTPS/SNI 阻断），`git push` 直连即可；`gh run watch <id> --exit-status` 看 CI。
 ⚠️ 并行会话同工作区：文件 last-write-wins；棘轮跨会话共享（他人新增警告也让你红）→ 用 `eslint . -f json` 做 (文件,行,规则) set diff 归因；**提交只给明确路径，永不 `git add -A`**。
