@@ -2308,24 +2308,13 @@ onDeactivated(() => {
 });
 
 const isForumComposerFabVisible = computed(() => {
+  // 2026-10-05 定稿（用户口径）：FAB 只属于「内容」——只在首页 feed 分区
+  // （最新/关注/新闻/活动）露出；官方 Tab（view=official，ForumMain 被 v-if 卸载）
+  // 与底栏其它落点（我/消息/AI）一律不挂载，与 2026-09-22 首页社区化改版口径一致。
   if (!isRouteInstanceActive.value) return false;
   if (!isMobileComposerMode.value || feedMode.value !== 'posts') return false;
   if (!props.embedded) return true;
-  // 2026-09-22 首页社区化改版：嵌入式论坛的宿主是首页。
-  // 论坛在首页由 v-show 挂着，只有当前停在「最新/关注/新闻/活动」这类 feed 分区时才露 FAB。
-  // 2026-10-05 修「底栏切换后 + 号消失」：plans/022 收席后 UserSpace 的「方块」tab 也挂同一份
-  // embedded ForumMain（分区壳 v-show 常驻，其它 tab 下也 mounted）——但只有方块 tab 真正
-  // 可见时才允许露 FAB，否则会从 v-show 后面钻出第二个 + 号；其余 tab 与 AI 页由
-  // App 级 GlobalComposeFab 兜住（/?compose=1 深链）。
-  if (route.path === '/user-space') {
-    // 只有方块 tab 真正可见时才露 FAB（分区壳 v-show 常驻，其它 tab 下 ForumMain 也
-    // mounted，不拦会从 v-show 后面钻出第二个 + 号）。无 tab 参数 = UserSpace 默认进
-    // 方块 tab（useUserSpaceTabs initialTab='community'），同样算可见。
-    const tab = getQueryString(route.query.tab);
-    if (tab !== '' && tab !== 'community') return false;
-  } else if (route.path !== '/') {
-    return false;
-  }
+  if (route.path !== '/') return false;
   const view = getQueryString(route.query.view);
   return view === '' || isForumFeedSection(view);
 });

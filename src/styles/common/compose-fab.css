@@ -2,13 +2,12 @@
  * 发帖 FAB（.mobile-compose-fab）样式单源 —— 2026-10-05 从
  * Forum/styles/replies-responsive.css 抽出。
  *
- * 为什么要独立成全局文件：这个按钮有两个宿主 —— ForumMain（论坛内 FAB，Teleport 到
- * body）和 App 级 GlobalComposeFab（底栏 我/消息/AI 落点的兜底 +）。GlobalComposeFab
- * 出现在 ForumMain 未挂载的路由（/ai-chat 等），ForumMain 的 scoped CSS 在那里根本没
- * 加载（实测裸类名按钮 10×30 裸奔在视口外）。消费方各自 import 本文件：
- *   · ForumMain.vue 的 <style> @import（与其它 styles/*.css 并列）
- *   · GlobalComposeFab.vue 的 <style src>（进应用壳，任何路由都有样式）
+ * 为什么独立成文件：这个按钮 Teleport 到 body，且会被 keepAlive 缓存的 UserSpace
+ * 实例复用；从 scoped CSS 抽为全局文件后，规则不依赖任何组件的 data-v 哈希，
+ * ForumMain.vue 的 <style> 块 @import 本文件（此前 scoped 版本的行为等价）。
  * 变体约定：.embedded-compose-fab = 抬到 144px 避开竖屏底栏。
+ * FAB 的显隐口径：只属于「内容」的 feed 分区（ForumMain isForumComposerFabVisible），
+ * 官方 Tab 与底栏其它落点一律不挂载 —— 2026-10-05 用户定稿。
  */
 .mobile-compose-fab {
   position: fixed;
