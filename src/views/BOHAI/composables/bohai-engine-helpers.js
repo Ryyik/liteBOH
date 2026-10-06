@@ -14,7 +14,6 @@ import {
   MAX_USER_INPUT_CHARS,
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
-import { KEYWORD_CACHE_MAX_SIZE } from '@/utils/bohai-constants.js';
 import { EVIDENCE_SOURCE_WEIGHTS, RANKING_SCORE_WEIGHTS } from '../domain/evidence.js';
 import { searchVaultFree, searchVaultTavily } from '@/utils/api/api-key-runtime-api.js';
 
@@ -28,7 +27,56 @@ import {
   estimateMessagesTokens,
   estimateTokens,
 } from '../utils/tokens.js';
-export { TOKEN_ESTIMATE_ROLE_OVERHEAD, estimateMessagesTokens, estimateTokens };
+import {
+  containsAnyKeyword,
+  escapePromptXmlAttr,
+  normalizePromptLine,
+  normalizeText,
+  stripWrappingQuotes,
+  truncateText,
+} from '../utils/text/normalize.js';
+import {
+  clearKeywordCache,
+  extractQueryKeywords,
+  splitKnowledgeChunks,
+} from '../utils/text/keywords.js';
+import {
+  formatBillingCycleLabel,
+  formatPromptDate,
+  formatPromptDateTime,
+  getBirthdayCountdown,
+  parseBirthdayValue,
+} from '../utils/format/display.js';
+import {
+  getPostTitleAndBody,
+  isMissingRelationError,
+  parsePostTitleAndBody,
+} from '../utils/format/post.js';
+import { isOperationQuestion, shouldUseSiteGuide } from '../utils/intent/rules.js';
+export {
+  TOKEN_ESTIMATE_ROLE_OVERHEAD,
+  estimateMessagesTokens,
+  estimateTokens,
+  containsAnyKeyword,
+  escapePromptXmlAttr,
+  normalizePromptLine,
+  normalizeText,
+  stripWrappingQuotes,
+  truncateText,
+  clearKeywordCache,
+  extractQueryKeywords,
+  splitKnowledgeChunks,
+  formatBillingCycleLabel,
+  formatPromptDate,
+  formatPromptDateTime,
+  getBirthdayCountdown,
+  parseBirthdayValue,
+  getPostTitleAndBody,
+  isMissingRelationError,
+  parsePostTitleAndBody,
+  isOperationQuestion,
+  shouldUseSiteGuide,
+};
 export * from '../utils/degenerate-guard.js';
 export * from '../utils/structured-memory.js';
 export * from '../utils/page-context.js';
@@ -84,77 +132,6 @@ export async function getAIMemory({ forceReload = false } = {}) {
   return aiMemoryLoader;
 }
 
-export const normalizeText = (text) =>
-  String(text || '')
-    .toLowerCase()
-    .trim();
-
-export const splitKnowledgeChunks = (rawText) => {
-  return String(rawText || '')
-    .split(/\n{2,}/)
-    .map((chunk) => chunk.trim())
-    .filter((chunk) => chunk.length >= 16);
-};
-
-// 使用 LRU 语义（命中时重新插入到尾部）提升高频查询场景的缓存命中率
-const keywordCache = new Map();
-
-export const clearKeywordCache = () => {
-  keywordCache.clear();
-};
-
-export const extractQueryKeywords = (text) => {
-  const normalized = normalizeText(text);
-
-  if (keywordCache.has(normalized)) {
-    // LRU bump: 将命中的 key 移到末尾
-    const value = keywordCache.get(normalized);
-    keywordCache.delete(normalized);
-    keywordCache.set(normalized, value);
-    return value;
-  }
-
-  const tokens = normalized.match(/[a-z0-9_/-]{2,}|[\u4e00-\u9fa5]{2,}/g) || [];
-  const stopwords = new Set([
-    '这个',
-    '那个',
-    '什么',
-    '怎么',
-    '如何',
-    '请问',
-    '一下',
-    '以及',
-    '然后',
-    '可以',
-    '一个',
-    '我们',
-    '你们',
-  ]);
-  const expanded = new Set();
-
-  tokens.forEach((token) => {
-    if (stopwords.has(token)) return;
-    expanded.add(token);
-
-    if (/^[\u4e00-\u9fa5]+$/.test(token) && token.length >= 4 && token.length <= 12) {
-      // Only expand 2-grams + full token, skip 3/4-grams to reduce O(n^2) overhead
-      for (let i = 0; i <= token.length - 2; i += 1) {
-        expanded.add(token.slice(i, i + 2));
-      }
-    }
-  });
-
-  const result = [...expanded];
-
-  if (keywordCache.size >= KEYWORD_CACHE_MAX_SIZE) {
-    const firstKey = keywordCache.keys().next().value;
-    keywordCache.delete(firstKey);
-  }
-  keywordCache.set(normalized, result);
-
-  return result;
-};
-
 export const scoreChunk = (chunk, keywords) => {
   if (!chunk || keywords.length === 0) return 0;
   const normalizedChunk = normalizeText(chunk);
@@ -199,13 +176,6 @@ export const trimKnowledgeChunk = (text, maxLength = 320) => {
   return `${normalized.slice(0, maxLength)}...`;
 };
 
-export const truncateText = (text, maxChars) => {
-  const normalized = String(text ?? '');
-  if (!Number.isFinite(maxChars) || maxChars <= 0) return '';
-  if (normalized.length <= maxChars) return normalized;
-  return `${normalized.slice(0, Math.max(0, maxChars - 3))}...`;
-};
-
 export const normalizeMemoryCompareText = (text) =>
   String(text || '')
     .toLowerCase()
@@ -226,13 +196,6 @@ export const isLikelyMemoryDuplicate = (candidate, existingItems = []) => {
       normalizedCandidate.includes(normalized)
     );
   });
-};
-
-export const stripWrappingQuotes = (text) => {
-  let output = String(text || '').trim();
-  output = output.replace(/^[「『“"']+/, '');
-  output = output.replace(/[」』”"']+$/, '');
-  return output.trim();
 };
 
 export const extractExplicitMemoryContent = (text) => {
@@ -264,13 +227,6 @@ export const appendPromptSection = (base, section, maxChars = MAX_FINAL_PROMPT_C
   if (remaining <= 0) return current;
   if (addition.length <= remaining) return current + addition;
   return current + addition.slice(0, Math.max(0, remaining));
-};
-
-export const normalizePromptLine = (text, maxChars = MAX_HISTORY_MESSAGE_CHARS) => {
-  const normalized = String(text ?? '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return truncateText(normalized, maxChars);
 };
 
 const ELLIPTICAL_ELABORATION_PATTERN =
@@ -618,126 +574,6 @@ export const buildSystemEvidenceContext = ({ evidenceContext = '', searchContext
   return parts.join('\n\n');
 };
 
-export const containsAnyKeyword = (normalizedText, keywords = []) => {
-  const source = String(normalizedText || '');
-  if (!source) return false;
-  return keywords.some((keyword) => source.includes(String(keyword || '').toLowerCase()));
-};
-
-export const isMissingRelationError = (error, relation = '') => {
-  const code = String(error?.code || '').toUpperCase();
-  const message = String(error?.message || '').toLowerCase();
-  const target = String(relation || '').toLowerCase();
-  if (code === '42P01') return true;
-  if (!target) return false;
-  return message.includes(target);
-};
-
-export const parsePostTitleAndBody = (rawContent) => {
-  const raw = String(rawContent || '').trim();
-  if (!raw) {
-    return { title: '无标题', body: '' };
-  }
-
-  const matched = raw.match(/^【([^】]{1,80})】\s*([\s\S]*)$/u);
-  if (matched) {
-    const parsedTitle = normalizePromptLine(matched[1], 48) || '无标题';
-    const parsedBody = normalizePromptLine(matched[2], 600);
-    return { title: parsedTitle, body: parsedBody };
-  }
-
-  const lines = raw.split(/\r?\n/).filter(Boolean);
-  const firstLine = normalizePromptLine(lines[0], 48) || '无标题';
-  return { title: firstLine, body: normalizePromptLine(raw, 600) };
-};
-
-export const getPostTitleAndBody = (post = {}) => {
-  const explicitTitle = normalizePromptLine(post?.title, 80);
-  const explicitBody = normalizePromptLine(post?.body, 900);
-  if (explicitTitle || explicitBody) {
-    return {
-      title: explicitTitle || '无标题',
-      body: explicitBody || normalizePromptLine(post?.content, 900),
-    };
-  }
-  return parsePostTitleAndBody(post?.content);
-};
-
-export const formatPromptDate = (value, fallback = '未知') => {
-  if (!value) return fallback;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return normalizePromptLine(value, 32) || fallback;
-  }
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-export const formatPromptDateTime = (value, fallback = '未知') => {
-  if (!value) return fallback;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return normalizePromptLine(value, 40) || fallback;
-  }
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
-};
-
-export const parseBirthdayValue = (monthText, dayText) => {
-  const month = Number(String(monthText || '').trim());
-  const day = Number(String(dayText || '').trim());
-  if (!Number.isInteger(month) || !Number.isInteger(day)) return null;
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  return { month, day };
-};
-
-export const getBirthdayCountdown = (monthText, dayText) => {
-  const parsed = parseBirthdayValue(monthText, dayText);
-  if (!parsed) return null;
-
-  const now = new Date();
-  const year = now.getFullYear();
-  let nextBirthday = new Date(year, parsed.month - 1, parsed.day, 0, 0, 0, 0);
-  if (Number.isNaN(nextBirthday.getTime())) return null;
-
-  if (nextBirthday < new Date(year, now.getMonth(), now.getDate(), 0, 0, 0, 0)) {
-    nextBirthday = new Date(year + 1, parsed.month - 1, parsed.day, 0, 0, 0, 0);
-  }
-
-  const diffMs =
-    nextBirthday.getTime() -
-    new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
-  const days = Math.max(0, Math.round(diffMs / 86400000));
-  return {
-    month: parsed.month,
-    day: parsed.day,
-    nextDate: formatPromptDate(nextBirthday, '未知'),
-    daysUntil: days,
-  };
-};
-
-export const formatBillingCycleLabel = (cycle) => {
-  const normalized = String(cycle || '')
-    .toLowerCase()
-    .trim();
-  if (normalized === 'yearly') return '年付';
-  if (normalized === 'monthly') return '月付';
-  return '未知';
-};
-
-export const escapePromptXmlAttr = (text) =>
-  String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-
 export const buildSearchResultsContext = (results = [], aiAnswer = '') => {
   if (!Array.isArray(results) || results.length === 0) {
     // 即使没有结构化结果，若有 AI 摘要也作为上下文返回，避免完全无依据
@@ -900,35 +736,6 @@ export const searchWebForPrompt = async (queryText, requestSignal = undefined) =
     message,
     error: freeResult.error,
   };
-};
-
-export const isOperationQuestion = (text) => {
-  const normalized = normalizeText(text);
-  const operationKeywords = [
-    '如何',
-    '怎么',
-    '步骤',
-    '入口',
-    '路径',
-    '路由',
-    '在哪',
-    '在哪里',
-    '使用',
-    '操作',
-    '教程',
-    '指引',
-    '写印象',
-    '发帖',
-    '发布',
-    '查看',
-    '进入',
-    '打开',
-  ];
-  return operationKeywords.some((keyword) => normalized.includes(keyword));
-};
-
-export const shouldUseSiteGuide = (text) => {
-  return isOperationQuestion(text);
 };
 
 export const normalizeActionInput = (text) =>
