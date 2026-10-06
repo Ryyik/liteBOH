@@ -65,13 +65,14 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 >
 > 侦察依据与取舍见 `docs/2026-10-04-GitHub开源可引入方案调研.md` §8。
 
-> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings 183`，这是一道**警告棘轮**
-> （`ci.yml:43` 与 `deploy.yml:45` 都跑 `npm run lint`，所以 CI 和发布链上都有牙）。
-> 存量是 **183 条 unused-vars**（js 179 + ts 4；口径 `eslint . -f json`，2026-10-01 三次复核）——
-> **新增一条死代码当场 exit 1**，实测反证：往 `src/` 放一个 `const unusedX = 1` → `found too many warnings (maximum: 183)`。
-> 三条纪律：① **清理后请把 183 改小**（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
+> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings`（现为 **118**，2026-10-06 由 183 下调），
+> 这是一道**警告棘轮**（`ci.yml:43` 与 `deploy.yml:45` 都跑 `npm run lint`，所以 CI 和发布链上都有牙）。
+> 存量是 **118 条 unused-vars**（js 47 + mjs 17 + vue 50 + ts 4；口径 `eslint . -f json`，
+> 2026-10-06 复核：118 warnings / 0 errors / 44 文件）——
+> **新增一条死代码当场 exit 1**，实测反证：往 `src/` 放一个 `const unusedX = 1` → `found too many warnings (maximum: 118)`。
+> 三条纪律：① **清理后请把 118 改小**（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
 > （与 `check:important-budget` 等棘轮同规矩）；③ 计数口径用 `eslint . -f json` 聚合，**别 grep 文本数**（会串）。
-> 之所以是「棘轮」而不是「把规则翻成 error」：191 条直接翻红只会逼人把变量改名 `_x` 保住绿，死代码变成「有名字的僵尸」，
+> 之所以是「棘轮」而不是「把规则翻成 error」：118 条直接翻红只会逼人把变量改名 `_x` 保住绿，死代码变成「有名字的僵尸」，
 > 还可能引出 `--no-verify` 绕过。**计数归零之后才翻 error。**
 
 | 你改了什么 | 除了 verify，还要跑 |
