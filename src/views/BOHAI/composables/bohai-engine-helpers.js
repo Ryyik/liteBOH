@@ -2,9 +2,6 @@ import {
   ACTION_DRAFT_CONTENT_MAX_CHARS,
   ACTION_DRAFT_TITLE_MAX_CHARS,
   ACTION_POST_TRIGGER_PATTERN,
-  KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS,
-  KNOWLEDGE_CONTEXT_MAX_CHARS,
-  KNOWLEDGE_MAX_CHUNKS,
   MAX_CONTEXT_MESSAGES,
   MAX_FINAL_PROMPT_CHARS,
   MAX_HISTORY_CONTEXT_CHARS,
@@ -14,7 +11,6 @@ import {
   MAX_USER_INPUT_CHARS,
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
-import { EVIDENCE_SOURCE_WEIGHTS, RANKING_SCORE_WEIGHTS } from '../domain/evidence.js';
 import { searchVaultFree, searchVaultTavily } from '@/utils/api/api-key-runtime-api.js';
 
 // ────────────────────────────────────────────────────────────
@@ -53,6 +49,20 @@ import {
   parsePostTitleAndBody,
 } from '../utils/format/post.js';
 import { isOperationQuestion, shouldUseSiteGuide } from '../utils/intent/rules.js';
+import {
+  buildSharedEvidenceContext,
+  compressKnowledgeContextBlocks,
+  rankEvidenceContextBlocks,
+  scoreChunk,
+  selectRelevantChunks,
+  trimKnowledgeChunk,
+} from '../utils/retrieval/scoring.js';
+import {
+  ESTIMATED_SYSTEM_PROMPT_CHARS,
+  buildHistoryMessagesWithinBudget,
+  getStorableDialogueMessages,
+  trimMessagesToBudget,
+} from '../utils/retrieval/budget.js';
 export {
   TOKEN_ESTIMATE_ROLE_OVERHEAD,
   estimateMessagesTokens,
@@ -76,6 +86,16 @@ export {
   parsePostTitleAndBody,
   isOperationQuestion,
   shouldUseSiteGuide,
+  buildSharedEvidenceContext,
+  compressKnowledgeContextBlocks,
+  rankEvidenceContextBlocks,
+  scoreChunk,
+  selectRelevantChunks,
+  trimKnowledgeChunk,
+  ESTIMATED_SYSTEM_PROMPT_CHARS,
+  buildHistoryMessagesWithinBudget,
+  getStorableDialogueMessages,
+  trimMessagesToBudget,
 };
 export * from '../utils/degenerate-guard.js';
 export * from '../utils/structured-memory.js';
@@ -95,9 +115,6 @@ export const CONVERSATION_SUMMARY_MIN_MESSAGES = 10;
 export const CONVERSATION_SUMMARY_MAX_CHARS = 2000;
 export const CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD = 50;
 export const CONVERSATION_SUMMARY_STORAGE_VERSION = 2;
-
-// 系统提示词估算字符数
-export const ESTIMATED_SYSTEM_PROMPT_CHARS = 600;
 
 export const isEmptyAssistantPlaceholder = (message) => {
   if (!message || message.role !== 'assistant') return false;
@@ -131,50 +148,6 @@ export async function getAIMemory({ forceReload = false } = {}) {
     });
   return aiMemoryLoader;
 }
-
-export const scoreChunk = (chunk, keywords) => {
-  if (!chunk || keywords.length === 0) return 0;
-  const normalizedChunk = normalizeText(chunk);
-  const chunkLen = normalizedChunk.length || 1;
-  return keywords.reduce((score, keyword) => {
-    if (!normalizedChunk.includes(keyword)) return score;
-    const baseScore = Math.min(3, Math.ceil(keyword.length / 2));
-    const pos = normalizedChunk.indexOf(keyword);
-    const positionBonus = 1 + (1 - pos / chunkLen) * 0.5; // earlier = higher score (1.0x-1.5x)
-    return score + Math.round(baseScore * positionBonus * 10) / 10;
-  }, 0);
-};
-
-export const selectRelevantChunks = (
-  rawText,
-  query,
-  maxChunks = KNOWLEDGE_MAX_CHUNKS,
-  { fallback = 'none' } = {},
-) => {
-  const chunks = splitKnowledgeChunks(rawText);
-  if (chunks.length === 0) return [];
-  const keywords = extractQueryKeywords(query);
-  const scored = chunks
-    .map((chunk) => ({ chunk, score: scoreChunk(chunk, keywords) }))
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score);
-
-  if (scored.length === 0 && fallback === 'head') {
-    return chunks.slice(0, Math.min(2, maxChunks));
-  }
-
-  if (scored.length === 0) return [];
-
-  return scored.slice(0, maxChunks).map((item) => item.chunk);
-};
-
-export const trimKnowledgeChunk = (text, maxLength = 320) => {
-  const normalized = String(text || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, maxLength)}...`;
-};
 
 export const normalizeMemoryCompareText = (text) =>
   String(text || '')
@@ -322,52 +295,6 @@ export const buildContextualWebSearchQuery = (
   return truncateText(queryParts.join('；'), maxChars);
 };
 
-export const buildHistoryMessagesWithinBudget = (
-  messages,
-  {
-    maxChars = MAX_HISTORY_CONTEXT_CHARS,
-    maxMessages = MAX_CONTEXT_MESSAGES,
-    maxPerMessage = MAX_HISTORY_MESSAGE_CHARS,
-  } = {},
-) => {
-  const source = Array.isArray(messages) ? messages : [];
-  const selected = [];
-  let usedTokens = 0;
-
-  for (let index = source.length - 1; index >= 0; index -= 1) {
-    const item = source[index];
-    if (item?.meta?.kind === 'memory_saved_notice') continue;
-    // 连贯性修复：保留原始换行和结构，只做首尾 trim + 长度截断
-    // 之前用 normalizePromptLine 会把换行压成单空格，破坏代码块/列表/段落结构
-    const content = truncateText(String(item?.content ?? '').trim(), maxPerMessage);
-    if (!content) continue;
-
-    const role = item?.role === 'assistant' || item?.role === 'system' ? item.role : 'user';
-    // C3 fix: 使用 token 估算替代字符计数，中文消息更准确
-    const estimated = TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(content);
-    if (selected.length > 0 && usedTokens + estimated > maxChars) {
-      break;
-    }
-
-    selected.unshift({ role, content });
-    usedTokens += estimated;
-    if (selected.length >= maxMessages) break;
-  }
-
-  return selected;
-};
-
-export const getStorableDialogueMessages = (messages = []) => {
-  return (Array.isArray(messages) ? messages : [])
-    .filter((item) => item?.meta?.kind !== 'memory_saved_notice')
-    .filter((item) => item?.role === 'assistant' || item?.role === 'user')
-    .map((item) => ({
-      role: item.role === 'assistant' ? 'assistant' : 'user',
-      content: normalizePromptLine(item?.content, MAX_HISTORY_MESSAGE_CHARS),
-    }))
-    .filter((item) => item.content);
-};
-
 export const buildConversationSummaryFingerprint = (messages = []) => {
   const source = getStorableDialogueMessages(messages);
   if (source.length <= CONVERSATION_SUMMARY_RECENT_MESSAGES) return '';
@@ -437,105 +364,6 @@ export const getCachedSummaryIfUsable = (session = {}) => {
   // 兼容尚未带覆盖范围元数据的旧会话摘要。
   const expectedFingerprint = buildConversationSummaryFingerprint(allMessages);
   return summary.fingerprint === expectedFingerprint ? content : '';
-};
-
-export const rankEvidenceContextBlocks = (results = [], queryText = '') => {
-  const source = Array.isArray(results) ? results : [];
-  const keywords = extractQueryKeywords(queryText);
-
-  return source
-    .filter((result) => result?.ok && normalizePromptLine(result?.context, 20))
-    .map((result, index) => {
-      const connectorId = String(result?.connectorId || result?.connector?.id || '').trim();
-      const context = String(result.context || '').trim();
-      const lexicalScore = scoreChunk(context, keywords);
-      const confidenceScore = Math.round(
-        Number(result.confidence || 0) * RANKING_SCORE_WEIGHTS.confidenceMultiplier,
-      );
-      const sourceScore =
-        EVIDENCE_SOURCE_WEIGHTS[connectorId] || RANKING_SCORE_WEIGHTS.defaultSourceScore;
-      return {
-        context,
-        result,
-        index,
-        score:
-          lexicalScore * RANKING_SCORE_WEIGHTS.lexicalMultiplier + sourceScore + confidenceScore,
-      };
-    })
-    .sort((a, b) => b.score - a.score || a.index - b.index);
-};
-
-// --- 共享上下文预算 + 去重 ---
-// P0: 知识检索和联网搜索共享 8000 字预算，知识检索优先，剩余分配给搜索。
-// P2: 对内容做 URL 级去重，避免重复内容浪费上下文。
-export const buildSharedEvidenceContext = ({
-  evidenceContext = '',
-  searchContext = '',
-  maxChars = MAX_PROMPT_EXTRA_CHARS,
-  evidenceUrls = [],
-  searchUrls = [],
-} = {}) => {
-  const evidence = String(evidenceContext || '').trim();
-  const search = String(searchContext || '').trim();
-
-  // 去重：如果搜索内容 URL 和知识检索 URL 重叠，搜索内容截断
-  const evidenceUrlSet = new Set(
-    (Array.isArray(evidenceUrls) ? evidenceUrls : []).map((u) => String(u).trim()).filter(Boolean),
-  );
-  const searchUrlSet = new Set(
-    (Array.isArray(searchUrls) ? searchUrls : []).map((u) => String(u).trim()).filter(Boolean),
-  );
-  const overlapUrls = new Set([...evidenceUrlSet].filter((u) => searchUrlSet.has(u)));
-
-  let dedupedSearch = search;
-  if (overlapUrls.size > 0 && search) {
-    // 简单策略：如果 URL 重叠，搜索内容截断到 25%
-    const searchBudget = Math.floor(maxChars * 0.25);
-    dedupedSearch = truncateText(search, searchBudget);
-  }
-
-  // 知识检索优先，剩余预算给搜索
-  let evidenceBudget = Math.min(evidence.length, maxChars);
-  let searchBudget = Math.max(0, maxChars - evidenceBudget);
-
-  // 如果搜索内容很短，多余的预算还给知识检索
-  const actualSearch = truncateText(dedupedSearch, searchBudget);
-  if (actualSearch.length < searchBudget) {
-    evidenceBudget = Math.min(evidence.length, maxChars - actualSearch.length);
-  }
-
-  return {
-    evidenceContext: truncateText(evidence, evidenceBudget),
-    searchContext: actualSearch,
-  };
-};
-
-// --- 最终消息数组裁剪 ---
-// P0: 在发送前对 messages 数组做 token 预算裁剪，防止静默超出模型上下文窗口。
-// 保留系统消息和最近消息，从中间裁剪。
-export const trimMessagesToBudget = (messages, maxTokens) => {
-  if (!Array.isArray(messages) || messages.length === 0) return messages;
-
-  // 系统消息不裁剪
-  const systemMessages = messages.filter((m) => m.role === 'system');
-  const nonSystemMessages = messages.filter((m) => m.role !== 'system');
-
-  // 计算系统消息 token 消耗
-  const systemTokens = estimateMessagesTokens(systemMessages);
-  const availableForMessages = Math.max(0, maxTokens - systemTokens);
-
-  // 从最近的消息开始选，直到超出预算
-  const selected = [];
-  let usedTokens = 0;
-  for (let i = nonSystemMessages.length - 1; i >= 0; i--) {
-    const msg = nonSystemMessages[i];
-    const estimated = TOKEN_ESTIMATE_ROLE_OVERHEAD + estimateTokens(String(msg.content || ''));
-    if (usedTokens + estimated > availableForMessages) break;
-    selected.unshift(msg);
-    usedTokens += estimated;
-  }
-
-  return [...systemMessages, ...selected];
 };
 
 export const buildStructuredUserPrompt = ({
@@ -993,35 +821,6 @@ export const buildPageDraftFromText = (text) => {
   };
 };
 
-export const compressKnowledgeContextBlocks = (
-  blocks = [],
-  { maxChars = KNOWLEDGE_CONTEXT_MAX_CHARS, maxPerBlock = KNOWLEDGE_CONTEXT_MAX_BLOCK_CHARS } = {},
-) => {
-  const source = Array.isArray(blocks) ? blocks : [];
-  const normalizedBlocks = source
-    .map((block) => normalizePromptLine(block, maxPerBlock))
-    .filter(Boolean);
-  if (normalizedBlocks.length === 0) return '';
-
-  let merged = '';
-  for (let i = 0; i < normalizedBlocks.length; i += 1) {
-    const block = normalizedBlocks[i];
-    const candidate = merged ? `${merged}\n\n${block}` : block;
-    if (candidate.length <= maxChars) {
-      merged = candidate;
-      continue;
-    }
-    const remain = maxChars - merged.length - (merged ? 2 : 0);
-    if (remain <= 48) break;
-    const clipped = truncateText(block, remain);
-    merged = merged ? `${merged}\n\n${clipped}` : clipped;
-    break;
-  }
-
-  return merged;
-};
-
-// ============================================================
 // 优化 1: Token 预算监控 — ContextManager
 // 跟踪每种上下文的 token 用量，超出时提供降级建议。
 // ============================================================
