@@ -133,7 +133,11 @@ const collectReExportRuntimeBindingIssues = (projectRoot) => {
 
   for (const file of sourceFiles) {
     const source = readFileSync(file, 'utf8');
-    const reExportPattern = /export\s*\{([\s\S]*?)\}\s*from\s*["'][^"']+["'];?/g;
+    // ⚠️ 用 `[^{}]*` 而不是 `[\s\S]*?`：名字列表里不可能有花括号，而 `[\s\S]*?` 会**跨块**
+    // 懒匹配到后面第一个 `} from '…'`（例如紧跟其后的 `import { … } from '…'`），
+    // 把 import 的绑定名误判成「转发导出未创建本地绑定」—— 2026-10-07 在
+    // `bohai-engine-helpers.js` 的 barrel 上实测踩到（8 条假阳性）。
+    const reExportPattern = /export\s*\{([^{}]*)\}\s*from\s*["'][^"']+["'];?/g;
     const reExports = [];
     let match;
 
