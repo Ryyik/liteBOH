@@ -15,6 +15,9 @@ import {
 import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { TOKEN_ESTIMATE_ROLE_OVERHEAD, estimateMessagesTokens, estimateTokens } from './tokens.js';
 
+// 生成停滞判定阈值（原在 bohai-engine-helpers.js，plans/025 v2 · Step 3「utils 归位」）
+export const GENERATION_STALL_TIMEOUT_MS = 120000;
+
 // getGenerationProfile 的 memoize cache：避免同一组参数重复创建对象
 const _generationProfileCache = new Map();
 const _GEN_PROFILE_CACHE_MAX = 32;
