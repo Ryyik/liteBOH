@@ -4,7 +4,7 @@ import {
   getResourceTypeLabel,
   searchMinecraftResourcesForBohAI,
 } from '@/utils/api/resource-search-api.js';
-import { normalizePromptLine, truncateText } from './bohai-engine-helpers.js';
+import { normalizePromptLine, truncateText } from '../utils/text/normalize.js';
 import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { logger } from '@/utils/logger.js';
 import { safeErrorDetail, isAbortError, CHAT_ERROR_MESSAGES } from '../utils/chatErrorMessages.js';

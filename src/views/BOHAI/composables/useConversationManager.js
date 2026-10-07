@@ -22,12 +22,14 @@ import {
 import {
   buildHistoryMessagesWithCachedSummary,
   getCachedSummaryIfUsable,
-  getStorableDialogueMessages,
-  isEmptyAssistantPlaceholder,
-  normalizePromptLine,
-  ESTIMATED_SYSTEM_PROMPT_CHARS,
   CONVERSATION_SUMMARY_MAX_CHARS,
-} from './bohai-engine-helpers.js';
+} from '../utils/memory/store.js';
+import { isEmptyAssistantPlaceholder } from '../utils/prompt/assembly.js';
+import {
+  getStorableDialogueMessages,
+  ESTIMATED_SYSTEM_PROMPT_CHARS,
+} from '../utils/retrieval/budget.js';
+import { normalizePromptLine } from '../utils/text/normalize.js';
 import { logger } from '@/utils/logger.js';
 
 // 使用 ref 让 _lastActualExtraChars 成为响应式，确保 computeContextBudgetUsage 能追踪其变化

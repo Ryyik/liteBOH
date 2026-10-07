@@ -37,23 +37,19 @@ import {
   ROUTING_FORUM_REALTIME_PATTERN,
   ROUTING_HISTORY_FACT_PATTERN,
 } from './chat-engine-config.js';
+import { formatPromptDate } from '../utils/format/display.js';
+import { isMissingRelationError, getPostTitleAndBody } from '../utils/format/post.js';
+import { isOperationQuestion, shouldUseSiteGuide } from '../utils/intent/rules.js';
+import { getAIMemory } from '../utils/memory/store.js';
 import {
-  getAIMemory,
-  normalizeText,
-  extractQueryKeywords,
   scoreChunk,
   selectRelevantChunks,
   trimKnowledgeChunk,
-  isMissingRelationError,
-  normalizePromptLine,
   rankEvidenceContextBlocks,
   compressKnowledgeContextBlocks,
-  containsAnyKeyword,
-  getPostTitleAndBody,
-  formatPromptDate,
-  isOperationQuestion,
-  shouldUseSiteGuide,
-} from './bohai-engine-helpers.js';
+} from '../utils/retrieval/scoring.js';
+import { extractQueryKeywords } from '../utils/text/keywords.js';
+import { normalizeText, normalizePromptLine, containsAnyKeyword } from '../utils/text/normalize.js';
 import {
   resolveUserPrivateRetrievalPlan,
   getUserOverviewContext,

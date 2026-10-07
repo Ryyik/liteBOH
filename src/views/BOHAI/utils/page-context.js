@@ -2,7 +2,7 @@
  * page-context.js — 页面上下文块构建
  *
  * 来源：从 `composables/bohai-engine-helpers.js` **原样拆出**（plans/025 v2 · Step 3「utils 归位」）。
- * 值逐字不变；`bohai-engine-helpers.js` 仍作为临时 barrel 转出口，消费方零改动。
+ * 值逐字不变；原 barrel `bohai-engine-helpers.js` 已在 Step 3 ⑧ 删除，消费方直连本模块。
  *
  * 用途：把附加的页面上下文构建为结构化的 `<page_context>` 块，
  * 与用户问题分离，不占用 `MAX_USER_INPUT_CHARS` 预算。

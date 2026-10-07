@@ -15,7 +15,7 @@ export function useWebSearchLifecycle({ search }) {
         context: '',
         results: [],
         error,
-        message: error?.message || '未知错误'
+        message: error?.message || '未知错误',
       };
     } finally {
       webSearchActive.value = false;
@@ -29,6 +29,6 @@ export function useWebSearchLifecycle({ search }) {
   return {
     webSearchActive,
     runWebSearch,
-    resetWebSearchLifecycle
+    resetWebSearchLifecycle,
   };
 }

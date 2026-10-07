@@ -11,17 +11,14 @@
  */
 
 import { useHealthStore, localDateISO } from '@/stores/health';
-import {
-  HEALTH_CONTEXT_MAX_CHARS,
-  HEALTH_CONTEXT_MAX_LOGS
-} from './chat-engine-config.js';
+import { HEALTH_CONTEXT_MAX_CHARS, HEALTH_CONTEXT_MAX_LOGS } from './chat-engine-config.js';
 
 const SEX_LABELS = {
   male: '男',
   female: '女',
   other: '其他',
   prefer_not_to_say: '不愿透露',
-  '': '未填写'
+  '': '未填写',
 };
 
 const ACTIVITY_LABELS = {
@@ -29,7 +26,7 @@ const ACTIVITY_LABELS = {
   light: '轻度活动（每周 1-3 次）',
   moderate: '中度活动（每周 3-5 次）',
   active: '高强度活动（每周 6-7 次）',
-  '': '未填写'
+  '': '未填写',
 };
 
 const MOOD_LABELS = {
@@ -38,7 +35,7 @@ const MOOD_LABELS = {
   ok: '一般',
   low: '低落',
   bad: '很差',
-  '': '-'
+  '': '-',
 };
 
 const WEEKDAY = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -48,9 +45,8 @@ const weekdayOf = (iso) => {
   return Number.isNaN(d.getTime()) ? '' : WEEKDAY[d.getDay()];
 };
 
-const num = (value, digits = 0) => (
-  typeof value === 'number' && Number.isFinite(value) ? Number(value).toFixed(digits) : null
-);
+const num = (value, digits = 0) =>
+  typeof value === 'number' && Number.isFinite(value) ? Number(value).toFixed(digits) : null;
 
 const trimTo = (text, maxChars) => {
   const raw = String(text || '');
@@ -59,12 +55,13 @@ const trimTo = (text, maxChars) => {
 
 // 自由文本（心情备注/体检指标）进入 system prompt 前的中性化：
 // 去掉尖括号与反引号，防闭合标记逃逸和代码围栏注入；换行压成空格
-const sanitizeFreeText = (text, maxChars) => trimTo(
-  String(text || '')
-    .replace(/[<>`]/g, "'")
-    .replace(/[\r\n]+/g, ' '),
-  maxChars
-);
+const sanitizeFreeText = (text, maxChars) =>
+  trimTo(
+    String(text || '')
+      .replace(/[<>`]/g, "'")
+      .replace(/[\r\n]+/g, ' '),
+    maxChars,
+  );
 
 // 年龄段化：不把确切出生年份/年龄送出本机，只给模型粗粒度年龄段
 const ageBandOf = (age) => {
@@ -112,11 +109,11 @@ export const getHealthContext = () => {
   // ── 1. 基础档案 ──────────────────────────────────────────────────────────
   const profileLines = [];
   const hasProfile = Boolean(
-    profile.sex
-    || profile.birthYear
-    || profile.heightCm
-    || profile.weightKg
-    || profile.activityLevel
+    profile.sex ||
+    profile.birthYear ||
+    profile.heightCm ||
+    profile.weightKg ||
+    profile.activityLevel,
   );
 
   if (profile.sex) profileLines.push(`性别：${SEX_LABELS[profile.sex] || profile.sex}`);
@@ -126,7 +123,9 @@ export const getHealthContext = () => {
   if (profile.heightCm) profileLines.push(`身高：${num(profile.heightCm)} cm`);
   if (profile.weightKg) profileLines.push(`体重：${num(profile.weightKg, 1)} kg`);
   if (store.bmi !== null && store.bmi !== undefined) {
-    profileLines.push(`BMI：${store.bmi}（${store.bmiCategory || '未分级'}，中国成人标准：偏轻<18.5 / 健康18.5-24 / 超重24-28 / 肥胖≥28）`);
+    profileLines.push(
+      `BMI：${store.bmi}（${store.bmiCategory || '未分级'}，中国成人标准：偏轻<18.5 / 健康18.5-24 / 超重24-28 / 肥胖≥28）`,
+    );
   }
   profileLines.push(`活动量：${ACTIVITY_LABELS[profile.activityLevel] || '未填写'}`);
   if (store.bmr) profileLines.push(`基础代谢 BMR：约 ${store.bmr} kcal/日（Mifflin-St Jeor 估算）`);
@@ -136,7 +135,7 @@ export const getHealthContext = () => {
     'BOH Health 基础档案',
     hasProfile
       ? profileLines.join('\n')
-      : '用户尚未填写基础档案（身高/体重/年龄/性别/活动量均为空）。'
+      : '用户尚未填写基础档案（身高/体重/年龄/性别/活动量均为空）。',
   );
 
   // ── 2. 日常记录 ──────────────────────────────────────────────────────────
@@ -148,9 +147,15 @@ export const getHealthContext = () => {
     const body = sortedLogs
       .map((log) => {
         const parts = [];
-        parts.push(`睡眠 ${log.sleepHours !== null && log.sleepHours !== undefined ? `${num(log.sleepHours, 1)} h` : '未记录'}`);
-        parts.push(`步数 ${log.steps !== null && log.steps !== undefined ? Number(log.steps).toLocaleString() : '未记录'}`);
-        parts.push(`饮水 ${log.waterCups !== null && log.waterCups !== undefined ? `${log.waterCups} 杯` : '未记录'}`);
+        parts.push(
+          `睡眠 ${log.sleepHours !== null && log.sleepHours !== undefined ? `${num(log.sleepHours, 1)} h` : '未记录'}`,
+        );
+        parts.push(
+          `步数 ${log.steps !== null && log.steps !== undefined ? Number(log.steps).toLocaleString() : '未记录'}`,
+        );
+        parts.push(
+          `饮水 ${log.waterCups !== null && log.waterCups !== undefined ? `${log.waterCups} 杯` : '未记录'}`,
+        );
         parts.push(`心情 ${MOOD_LABELS[log.mood] || '-'}`);
         const line = `${localDateISO(new Date(`${log.date}T00:00:00`))} ${weekdayOf(log.date)}：${parts.join(' · ')}`;
         return log.moodNote ? `${line}｜备注：${sanitizeFreeText(log.moodNote, 60)}` : line;
@@ -158,9 +163,8 @@ export const getHealthContext = () => {
       .join('\n');
 
     const avgSleep = store.weeklyAvgSleep;
-    const summary = avgSleep !== null && avgSleep !== undefined
-      ? `（近 7 天平均睡眠 ${avgSleep} h）`
-      : '';
+    const summary =
+      avgSleep !== null && avgSleep !== undefined ? `（近 7 天平均睡眠 ${avgSleep} h）` : '';
     pushBlock(`BOH Health 日常记录（近 ${sortedLogs.length} 条${summary}）`, body);
   }
 
@@ -175,7 +179,7 @@ export const getHealthContext = () => {
     const delta = (newest.weightKg - oldest.weightKg).toFixed(1);
     pushBlock(
       `BOH Health 体重记录（近 ${recent.length} 次，区间变化 ${delta > 0 ? '+' : ''}${delta} kg）`,
-      body
+      body,
     );
   }
 
@@ -199,7 +203,7 @@ export const getHealthContext = () => {
 
   const context = trimTo(
     `【用户 BOH Health 本机健康数据（[H1] 等为引用编号，可在回答中引用）】\n${blocks.join('\n\n')}`,
-    HEALTH_CONTEXT_MAX_CHARS
+    HEALTH_CONTEXT_MAX_CHARS,
   );
 
   return {
@@ -212,7 +216,7 @@ export const getHealthContext = () => {
       hasProfile,
       dailyLogCount: dailyLogs.length,
       weightLogCount: weightLogs.length,
-      vaultCount: vaultRecords.length
-    }
+      vaultCount: vaultRecords.length,
+    },
   };
 };

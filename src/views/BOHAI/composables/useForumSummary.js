@@ -1,12 +1,8 @@
-import {
-  normalizePromptLine,
-  truncateText,
-  extractQueryKeywords,
-  scoreChunk,
-  getPostTitleAndBody,
-  formatPromptDateTime,
-  normalizeText,
-} from './bohai-engine-helpers.js';
+import { formatPromptDateTime } from '../utils/format/display.js';
+import { getPostTitleAndBody } from '../utils/format/post.js';
+import { scoreChunk } from '../utils/retrieval/scoring.js';
+import { extractQueryKeywords } from '../utils/text/keywords.js';
+import { normalizePromptLine, truncateText, normalizeText } from '../utils/text/normalize.js';
 import { FORUM_MAX_POSTS } from './chat-engine-config.js';
 
 export const rankForumPostsByQuery = (posts, queryText) => {

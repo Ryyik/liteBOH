@@ -3,7 +3,7 @@ import {
   BLOCK_DURATION_MS,
   MIN_INTERVAL_MS,
   RATE_LIMIT_WINDOW_MS,
-  MAX_MESSAGES_PER_WINDOW
+  MAX_MESSAGES_PER_WINDOW,
 } from './chat-engine-config.js';
 
 export function useRateLimiter() {
@@ -23,7 +23,9 @@ export function useRateLimiter() {
         windowStartTime.value = now;
         rateLimitMessage.value = '';
       } else {
-        const remainingSeconds = Math.ceil((lastMessageTime.value + BLOCK_DURATION_MS - now) / 1000);
+        const remainingSeconds = Math.ceil(
+          (lastMessageTime.value + BLOCK_DURATION_MS - now) / 1000,
+        );
         rateLimitMessage.value = `发送频率过高，请休息 ${remainingSeconds} 秒后再试。`;
         return { blocked: true, message: rateLimitMessage.value };
       }
@@ -63,6 +65,6 @@ export function useRateLimiter() {
     isRateLimited,
     rateLimitMessage,
     checkRateLimit,
-    recordMessageSent
+    recordMessageSent,
   };
 }

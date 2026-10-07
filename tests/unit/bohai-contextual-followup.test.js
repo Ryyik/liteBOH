@@ -1,19 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildContextualWebSearchQuery,
-  buildContextualFollowUpQuery,
   buildConversationSummaryFingerprint,
   buildHistoryMessagesWithCachedSummary,
-  getWebSearchFreshnessDays,
+} from '../../src/views/BOHAI/utils/memory/store.js';
+import {
+  buildContextualWebSearchQuery,
+  buildContextualFollowUpQuery,
   isEllipticalElaborationFollowUp,
-  isContextDependentFollowUp
-} from '../../src/views/BOHAI/composables/bohai-engine-helpers.js';
+  isContextDependentFollowUp,
+} from '../../src/views/BOHAI/utils/prompt/followup.js';
+import { getWebSearchFreshnessDays } from '../../src/views/BOHAI/utils/web/search.js';
 
 describe('bohai contextual follow-up query', () => {
   it('carries recent topic into short follow-up questions', () => {
     const query = buildContextualFollowUpQuery('作用是什么', [
       { role: 'user', content: '介绍一下共振呼吸法' },
-      { role: 'assistant', content: '共振呼吸法是一种通过调节呼吸节奏促进身心平衡的技巧。' }
+      { role: 'assistant', content: '共振呼吸法是一种通过调节呼吸节奏促进身心平衡的技巧。' },
     ]);
 
     expect(isContextDependentFollowUp('作用是什么')).toBe(true);
@@ -25,7 +27,7 @@ describe('bohai contextual follow-up query', () => {
     const question = '介绍一下共振呼吸法的作用和适合场景';
     const query = buildContextualFollowUpQuery(question, [
       { role: 'user', content: '为什么天空是蓝的' },
-      { role: 'assistant', content: '主要和瑞利散射有关。' }
+      { role: 'assistant', content: '主要和瑞利散射有关。' },
     ]);
 
     expect(query).toBe(question);
@@ -35,7 +37,7 @@ describe('bohai contextual follow-up query', () => {
     const followUp = '介绍一下';
     const history = [
       { role: 'user', content: 'Kimi 目前最新的模型是什么？' },
-      { role: 'assistant', content: '目前 Kimi 的最新模型是 Kimi K3。' }
+      { role: 'assistant', content: '目前 Kimi 的最新模型是 Kimi K3。' },
     ];
 
     expect(isEllipticalElaborationFollowUp(followUp)).toBe(true);
@@ -54,7 +56,7 @@ describe('bohai contextual follow-up query', () => {
     const followUp = '最近呢，就这几天？';
     const query = buildContextualFollowUpQuery(followUp, [
       { role: 'user', content: '索尼最近发布了什么相机？' },
-      { role: 'assistant', content: '索尼最近发布了 Alpha 7 V 和 Alpha 7R VI。' }
+      { role: 'assistant', content: '索尼最近发布了 Alpha 7 V 和 Alpha 7R VI。' },
     ]);
 
     expect(isContextDependentFollowUp(followUp)).toBe(true);
@@ -65,7 +67,7 @@ describe('bohai contextual follow-up query', () => {
 
     const searchQuery = buildContextualWebSearchQuery(followUp, [
       { role: 'user', content: '索尼最近发布了什么相机？' },
-      { role: 'assistant', content: '未经证实的型号 Alpha 7 V。' }
+      { role: 'assistant', content: '未经证实的型号 Alpha 7 V。' },
     ]);
     expect(searchQuery).toContain('索尼最近发布了什么相机');
     expect(searchQuery).not.toContain('未经证实');
@@ -75,10 +77,12 @@ describe('bohai contextual follow-up query', () => {
     const question = '最近有什么相机发布？';
 
     expect(isContextDependentFollowUp(question)).toBe(false);
-    expect(buildContextualFollowUpQuery(question, [
-      { role: 'user', content: '最近有什么好电影？' },
-      { role: 'assistant', content: '这里有几部近期上映的电影。' }
-    ])).toBe(question);
+    expect(
+      buildContextualFollowUpQuery(question, [
+        { role: 'user', content: '最近有什么好电影？' },
+        { role: 'assistant', content: '这里有几部近期上映的电影。' },
+      ]),
+    ).toBe(question);
   });
 
   it('only applies freshness filters to time-sensitive searches', () => {
@@ -90,7 +94,7 @@ describe('bohai contextual follow-up query', () => {
   it('keeps full history until a valid summary can replace older turns', () => {
     const messages = Array.from({ length: 12 }, (_, index) => ({
       role: index % 2 === 0 ? 'user' : 'assistant',
-      content: `message-${index + 1}`
+      content: `message-${index + 1}`,
     }));
 
     const withoutSummary = buildHistoryMessagesWithCachedSummary({ messages });
@@ -103,8 +107,8 @@ describe('bohai contextual follow-up query', () => {
       contextSummary: {
         version: 2,
         fingerprint,
-        content: '<facts>earlier context</facts>'
-      }
+        content: '<facts>earlier context</facts>',
+      },
     });
     expect(withSummary).toHaveLength(8);
     expect(withSummary[0].content).toBe('message-5');
@@ -112,7 +116,7 @@ describe('bohai contextual follow-up query', () => {
     const appendedMessages = [
       ...messages,
       { role: 'user', content: 'message-13' },
-      { role: 'assistant', content: 'message-14' }
+      { role: 'assistant', content: 'message-14' },
     ];
     const withPersistentSummary = buildHistoryMessagesWithCachedSummary({
       messages: appendedMessages,
@@ -121,8 +125,8 @@ describe('bohai contextual follow-up query', () => {
         fingerprint,
         content: '<facts>earlier context</facts>',
         coveredMessageCount: 4,
-        sourceMessageCount: 12
-      }
+        sourceMessageCount: 12,
+      },
     });
     expect(withPersistentSummary).toHaveLength(10);
     expect(withPersistentSummary[0].content).toBe('message-5');

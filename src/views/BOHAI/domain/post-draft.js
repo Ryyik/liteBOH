@@ -2,7 +2,7 @@
  * post-draft.js — 发帖 / 页面草稿的本地构建（领域数据 + 解析规则）
  *
  * 来源：从 `composables/bohai-engine-helpers.js` **原样拆出**（plans/025 v2 · Step 2「domain 数据沉淀」
- * 与 Step 3「utils 归位」合并推进）。值逐字不变；`bohai-engine-helpers.js` 仍作为临时 barrel 转出口。
+ * 与 Step 3「utils 归位」合并推进）。值逐字不变；原 barrel `bohai-engine-helpers.js` 已在 Step 3 ⑧ 删除。
  *
  * ⚠️ `POST_DRAFT_*` 两条模式是**领域知识**（中文「发帖」意图的噪音词表），逐字保留、禁止重新发明。
  */

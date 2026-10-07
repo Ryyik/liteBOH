@@ -5,12 +5,8 @@
  * （shouldUseTreeholeContext 除外，需外部传入响应式状态）。
  */
 
-import {
-  normalizeText,
-  isOperationQuestion,
-  containsAnyKeyword,
-  normalizePromptLine,
-} from './bohai-engine-helpers.js';
+import { isOperationQuestion } from '../utils/intent/rules.js';
+import { normalizeText, containsAnyKeyword, normalizePromptLine } from '../utils/text/normalize.js';
 import { normalizeActionDecisionText } from '@/utils/bohai-action-draft-intent.js';
 // normalizeActionDecisionText 仍被 isTreeholeCreateConfirm / isSharedMemorySaveConfirm 使用
 import {

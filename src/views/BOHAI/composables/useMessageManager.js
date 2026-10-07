@@ -3,7 +3,7 @@ import {
   ACTION_DRAFT_CONTENT_MAX_CHARS,
   ACTION_DRAFT_TITLE_MAX_CHARS,
 } from './chat-engine-config.js';
-import { normalizePromptLine as _normalizePromptLine } from './bohai-engine-helpers.js';
+import { normalizePromptLine as _normalizePromptLine } from '../utils/text/normalize.js';
 
 /**
  * @template T

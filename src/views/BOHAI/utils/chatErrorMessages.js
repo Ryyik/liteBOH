@@ -42,8 +42,7 @@ export const CHAT_ERROR_MESSAGES = {
     detail ? `服务暂时繁忙，请稍后重试。\n\n详情：${detail}` : `服务暂时繁忙，请稍后重试。`,
 
   /** 资源搜索失败 */
-  resourceSearchFailed: () =>
-    `资源搜索暂时失败，你也可以先打开资源中心手动搜索。`,
+  resourceSearchFailed: () => `资源搜索暂时失败，你也可以先打开资源中心手动搜索。`,
 
   /** 回答内容异常 */
   abnormalReply: '回答内容出现异常，请重新发送一次。',
@@ -55,8 +54,7 @@ export const CHAT_ERROR_MESSAGES = {
   generationStopped: '已停止生成。',
 
   /** 带已有内容的停止提示 */
-  generationStoppedWithContent: (content) =>
-    `${content}\n\n（已停止生成）`,
+  generationStoppedWithContent: (content) => `${content}\n\n（已停止生成）`,
 
   /** 生成超时 */
   generationTimeout: '生成超时已自动停止，请重试。',
@@ -77,7 +75,10 @@ export const CHAT_ERROR_MESSAGES = {
  * @param {boolean} [options.isDegenerate=false] - 是否退化回复
  * @returns {string}
  */
-export function getAbortMessage(currentContent = '', { timedOut = false, isDegenerate = false } = {}) {
+export function getAbortMessage(
+  currentContent = '',
+  { timedOut = false, isDegenerate = false } = {},
+) {
   if (timedOut) return CHAT_ERROR_MESSAGES.generationTimeout;
   if (isDegenerate) return CHAT_ERROR_MESSAGES.degenerateReplyStopped;
   if (currentContent) return CHAT_ERROR_MESSAGES.generationStoppedWithContent(currentContent);

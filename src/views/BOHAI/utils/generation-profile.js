@@ -2,7 +2,7 @@
  * generation-profile.js — 生成参数 profile 解析 + 分层上下文压缩
  *
  * 来源：从 `composables/bohai-engine-helpers.js` **原样拆出**（plans/025 v2 · Step 3「utils 归位」）。
- * 值逐字不变；`bohai-engine-helpers.js` 仍作为临时 barrel 转出口，消费方零改动。
+ * 值逐字不变；原 barrel `bohai-engine-helpers.js` 已在 Step 3 ⑧ 删除，消费方直连本模块。
  *
  * ⚠️ 参数真源：`GENERATION_PROFILE_BY_MODE` / `PSYCH_INTERVIEW_GENERATION_PROFILE`
  * 在 `composables/chat-engine-config.js`，`TASK_GENERATION_PRESETS` 在 `generation-params.js`；

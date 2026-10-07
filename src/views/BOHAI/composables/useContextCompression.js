@@ -5,7 +5,7 @@ export function useContextCompression({
   isCompressingContext,
   compressingSessionIndex,
   computeContextBudgetUsage,
-  refreshConversationSummaryCache
+  refreshConversationSummaryCache,
 }) {
   let currentAbortController = null; // 修复竞态条件:保存当前的AbortController
   const compressionQueue = new Map();
@@ -35,7 +35,10 @@ export function useContextCompression({
     }
 
     if (typeof refreshConversationSummaryCache !== 'function') {
-      logger.warn('boh-ai', 'Context compression skipped: refreshConversationSummaryCache not registered');
+      logger.warn(
+        'boh-ai',
+        'Context compression skipped: refreshConversationSummaryCache not registered',
+      );
       return false;
     }
 
@@ -96,6 +99,6 @@ export function useContextCompression({
   };
 
   return {
-    ensureContextCompression
+    ensureContextCompression,
   };
 }

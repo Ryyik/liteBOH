@@ -2,7 +2,7 @@
  * dedupe.js — 记忆去重比较 + 显式记忆内容抽取
  *
  * 来源：从 `composables/bohai-engine-helpers.js` **原样拆出**（plans/025 v2 · Step 3「utils 归位」）。
- * 值逐字不变；`bohai-engine-helpers.js` 仍作为临时 barrel 转出口，消费方零改动。
+ * 值逐字不变；原 barrel `bohai-engine-helpers.js` 已在 Step 3 ⑧ 删除，消费方直连本模块。
  */
 import { stripWrappingQuotes, truncateText } from '../text/normalize.js';
 

@@ -2,16 +2,16 @@ import { describe, it, expect } from 'vitest';
 import {
   RESPONSE_STYLE_OPTIONS,
   PSYCH_INTERVIEW_GENERATION_PROFILE,
-  GENERATION_PROFILE_BY_MODE
+  GENERATION_PROFILE_BY_MODE,
 } from '../../src/views/BOHAI/composables/chat-engine-config.js';
 import {
   PSYCH_INTERVIEW_APPENDIX,
   PSYCHOLOGIST_PROMPT_APPENDIX,
   PSYCH_CRISIS_RESOURCES,
   PSYCH_L0_RULES,
-  PSYCH_L1_RULES
+  PSYCH_L1_RULES,
 } from '../../src/views/BOHAI/expert-roles/psychologist.js';
-import { getGenerationProfile } from '../../src/views/BOHAI/composables/bohai-engine-helpers.js';
+import { getGenerationProfile } from '../../src/views/BOHAI/utils/generation-profile.js';
 
 const byId = (id) => RESPONSE_STYLE_OPTIONS.find((s) => s.id === id);
 const psych = byId('psychologist');
@@ -26,13 +26,20 @@ const psych = byId('psychologist');
 describe('心理专家 · 附录分层（M3）', () => {
   it('陪伴式附录（风格级）在册，且保留 style 包裹与 id 对齐', () => {
     expect(psych.promptAppendix).toContain('<style id="psychologist">');
-    ['<constraints>', '<instructions>', '<how_to_start_interview>', '<safety>']
-      .forEach((tag) => expect(psych.promptAppendix).toContain(tag));
+    ['<constraints>', '<instructions>', '<how_to_start_interview>', '<safety>'].forEach((tag) =>
+      expect(psych.promptAppendix).toContain(tag),
+    );
   });
 
   it('★ 访谈协议**不在**风格附录里（这条是 M3 的核心）', () => {
-    ['<interview_protocol>', '<interview_mode>', '<no_options>', '<epistemic_layering>', '<report_format>', '<mode_switch>']
-      .forEach((tag) => expect(psych.promptAppendix).not.toContain(tag));
+    [
+      '<interview_protocol>',
+      '<interview_mode>',
+      '<no_options>',
+      '<epistemic_layering>',
+      '<report_format>',
+      '<mode_switch>',
+    ].forEach((tag) => expect(psych.promptAppendix).not.toContain(tag));
   });
 
   it('风格附录明确要求「不要主动发起访谈」，并给出入口指引', () => {
@@ -41,8 +48,13 @@ describe('心理专家 · 附录分层（M3）', () => {
   });
 
   it('访谈附录（会话级）在册，四个规则段齐全', () => {
-    ['<interview_mode>', '<interview_protocol>', '<no_options>', '<epistemic_layering>', '<report_format>']
-      .forEach((tag) => expect(PSYCH_INTERVIEW_APPENDIX).toContain(tag));
+    [
+      '<interview_mode>',
+      '<interview_protocol>',
+      '<no_options>',
+      '<epistemic_layering>',
+      '<report_format>',
+    ].forEach((tag) => expect(PSYCH_INTERVIEW_APPENDIX).toContain(tag));
   });
 
   it('陪伴式仍保留默认语气（不劫持原有体验）', () => {
@@ -69,12 +81,12 @@ describe('心理专家 · 规则覆盖（M1 防丢）', () => {
     不暴露技术名词: 'TERMS',
     不给建议: 'ADVICE',
     不重复上一问: 'REPEAT',
-    不复述原话: 'PARROT'
+    不复述原话: 'PARROT',
   };
 
   it('六个可被代码检测的规则都有对应的 violation 类型（不是只写在 prompt 里）', () => {
     expect(Object.values(codeEnforced)).toEqual(
-      expect.arrayContaining(['MULTI_QUESTION', 'OPTIONS', 'TERMS', 'ADVICE', 'REPEAT', 'PARROT'])
+      expect.arrayContaining(['MULTI_QUESTION', 'OPTIONS', 'TERMS', 'ADVICE', 'REPEAT', 'PARROT']),
     );
   });
 
@@ -102,8 +114,9 @@ describe('心理专家 · 规则覆盖（M1 防丢）', () => {
   });
 
   it('对照示例在册（考不过 / 背单词 / 没办法应对 / 烦 / 不知道）', () => {
-    ['考不过呗', '背单词好难坚持', '没办法应对', '烦。', '不知道，想不起来了']
-      .forEach((sample) => expect(PSYCH_INTERVIEW_APPENDIX).toContain(sample));
+    ['考不过呗', '背单词好难坚持', '没办法应对', '烦。', '不知道，想不起来了'].forEach((sample) =>
+      expect(PSYCH_INTERVIEW_APPENDIX).toContain(sample),
+    );
   });
 
   it('示例段真的成对：每个 ✗ 后面都跟着一个 ✓', () => {
@@ -161,7 +174,9 @@ describe('心理专家 · 访谈态生成参数（M6）', () => {
     const interview = getGenerationProfile('pro', { psychInterview: true });
     expect(interview.temperature).toBe(PSYCH_INTERVIEW_GENERATION_PROFILE.temperature);
     expect(interview.temperature).toBeGreaterThan(GENERATION_PROFILE_BY_MODE.pro.temperature);
-    expect(interview.frequency_penalty).toBeGreaterThan(GENERATION_PROFILE_BY_MODE.pro.frequency_penalty);
+    expect(interview.frequency_penalty).toBeGreaterThan(
+      GENERATION_PROFILE_BY_MODE.pro.frequency_penalty,
+    );
   });
 
   it('max_tokens 继承 mode，不被访谈参数清掉', () => {
@@ -171,7 +186,10 @@ describe('心理专家 · 访谈态生成参数（M6）', () => {
 
   it('★ 访谈态优先级高于 factual / operation 的降温 clamp', () => {
     const clamped = getGenerationProfile('pro', { operationQuestion: true });
-    const interview = getGenerationProfile('pro', { operationQuestion: true, psychInterview: true });
+    const interview = getGenerationProfile('pro', {
+      operationQuestion: true,
+      psychInterview: true,
+    });
     expect(clamped.temperature).toBeLessThanOrEqual(0.14);
     expect(interview.temperature).toBe(PSYCH_INTERVIEW_GENERATION_PROFILE.temperature);
   });

@@ -41,13 +41,25 @@ vi.mock('@/utils/logger.js', () => ({
   },
 }));
 
-vi.mock('../../src/views/BOHAI/composables/bohai-engine-helpers.js', () => ({
+// plans/025 v2 · Step 3 ⑧：原 barrel `bohai-engine-helpers.js` 已删，按新模块拆分 mock。
+// 一律 `importOriginal` 展开真实导出再覆盖，避免误伤同一模块的其他消费者。
+vi.mock('../../src/views/BOHAI/utils/memory/store.js', async (importOriginal) => ({
+  ...(await importOriginal()),
   buildHistoryMessagesWithCachedSummary: mockBuildHistoryMessagesWithCachedSummary,
   getCachedSummaryIfUsable: mockGetCachedSummaryIfUsable,
-  normalizePromptLine: mockNormalizePromptLine,
-  getStorableDialogueMessages: vi.fn((messages) => (Array.isArray(messages) ? messages : [])),
   CONVERSATION_SUMMARY_MAX_CHARS: 2000,
+}));
+vi.mock('../../src/views/BOHAI/utils/text/normalize.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  normalizePromptLine: mockNormalizePromptLine,
+}));
+vi.mock('../../src/views/BOHAI/utils/retrieval/budget.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getStorableDialogueMessages: vi.fn((messages) => (Array.isArray(messages) ? messages : [])),
   ESTIMATED_SYSTEM_PROMPT_CHARS: 600,
+}));
+vi.mock('../../src/views/BOHAI/utils/prompt/assembly.js', async (importOriginal) => ({
+  ...(await importOriginal()),
   isEmptyAssistantPlaceholder: vi.fn((message) => {
     if (!message || message.role !== 'assistant') return false;
     if (String(message.content || '').trim()) return false;

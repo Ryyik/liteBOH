@@ -2,7 +2,7 @@
  * context-budget.js — Token 预算监控（ContextManager）+ 子代理上下文构建
  *
  * 来源：从 `composables/bohai-engine-helpers.js` **原样拆出**（plans/025 v2 · Step 3「utils 归位」）。
- * 值逐字不变；`bohai-engine-helpers.js` 仍作为临时 barrel 转出口，消费方零改动。
+ * 值逐字不变；原 barrel `bohai-engine-helpers.js` 已在 Step 3 ⑧ 删除，消费方直连本模块。
  *
  * 依赖：`./tokens`（估算）、`./retrieval/budget`（历史消息预算）——
  * 后者也是本组必须在 retrieval 之后拆的原因。

@@ -11,12 +11,9 @@ import {
   formatPostDraftPreview as buildPostDraftPreview,
 } from './action-draft-formatters.js';
 import { updatePostDraftFromText } from './action-draft-updaters.js';
-import {
-  normalizePromptLine,
-  isLikelyMemoryDuplicate,
-  truncateText,
-  buildPageDraftFromText,
-} from './bohai-engine-helpers.js';
+import { buildPageDraftFromText } from '../domain/post-draft.js';
+import { isLikelyMemoryDuplicate } from '../utils/memory/dedupe.js';
+import { normalizePromptLine, truncateText } from '../utils/text/normalize.js';
 import {
   isActionDraftCancelIntent,
   isPostDraftConfirmIntent,

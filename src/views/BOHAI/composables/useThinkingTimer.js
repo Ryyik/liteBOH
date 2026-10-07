@@ -35,6 +35,6 @@ export function useThinkingTimer() {
     startThinkingTimer,
     stopThinkingTimer,
     setThinkingStatus,
-    clearThinkingStatus
+    clearThinkingStatus,
   };
 }

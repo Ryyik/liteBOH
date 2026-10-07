@@ -16,7 +16,7 @@ vi.mock('@/utils/logger.js', () => ({ logger: mocks.logger }));
 import {
   resetTavilySearchAvailability,
   searchWebForPrompt,
-} from '../../src/views/BOHAI/composables/bohai-engine-helpers.js';
+} from '../../src/views/BOHAI/utils/web/search.js';
 
 const okResult = (answer = '答案') => ({
   ok: true,

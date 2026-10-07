@@ -98,41 +98,47 @@ import { useKnowledgeRetrieval } from './useKnowledgeRetrieval.js';
 import { useAgentClusterSources } from './useAgentClusterSources.js';
 import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { NO_FABRICATION_RULE } from '../shared-rules.js';
+import { createContextBudgetTracker, CONTEXT_CATEGORIES } from '../utils/context-budget.js';
+import {
+  cleanAssistantVisibleReply,
+  isDegenerateAssistantReply,
+  isDegenerateStreamOutput,
+} from '../utils/degenerate-guard.js';
+import {
+  GENERATION_STALL_TIMEOUT_MS,
+  getGenerationProfile as getDefaultGenerationProfile,
+  compactMessages,
+} from '../utils/generation-profile.js';
+import { isOperationQuestion } from '../utils/intent/rules.js';
+import { isLikelyMemoryDuplicate, extractExplicitMemoryContent } from '../utils/memory/dedupe.js';
 import {
   CONVERSATION_SUMMARY_RECENT_MESSAGES,
   CONVERSATION_SUMMARY_MIN_MESSAGES,
   CONVERSATION_SUMMARY_MAX_CHARS,
   CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD,
   CONVERSATION_SUMMARY_STORAGE_VERSION,
-  GENERATION_STALL_TIMEOUT_MS,
-  truncateText,
-  isLikelyMemoryDuplicate,
-  extractExplicitMemoryContent,
-  appendPromptSection,
-  normalizePromptLine,
-  buildContextualFollowUpQuery,
-  buildContextualWebSearchQuery,
-  getStorableDialogueMessages,
   buildConversationSummaryFingerprint,
   buildHistoryMessagesWithCachedSummary,
   getCachedSummaryIfUsable,
-  buildSearchResultsContext,
-  buildSharedEvidenceContext,
+} from '../utils/memory/store.js';
+import { buildPageContextBlock } from '../utils/page-context.js';
+import {
+  appendPromptSection,
   buildSystemEvidenceContext,
   buildStructuredUserPrompt,
-  searchWebForPrompt,
-  isOperationQuestion,
-  getGenerationProfile as getDefaultGenerationProfile,
-  cleanAssistantVisibleReply,
-  isDegenerateAssistantReply,
-  isDegenerateStreamOutput,
-  createContextBudgetTracker,
+} from '../utils/prompt/assembly.js';
+import {
+  buildContextualFollowUpQuery,
+  buildContextualWebSearchQuery,
+} from '../utils/prompt/followup.js';
+import { getStorableDialogueMessages } from '../utils/retrieval/budget.js';
+import { buildSharedEvidenceContext } from '../utils/retrieval/scoring.js';
+import {
   extractStructuredMemories,
   buildStructuredMemoryBlock,
-  compactMessages,
-  buildPageContextBlock,
-  CONTEXT_CATEGORIES,
-} from './bohai-engine-helpers.js';
+} from '../utils/structured-memory.js';
+import { truncateText, normalizePromptLine } from '../utils/text/normalize.js';
+import { buildSearchResultsContext, searchWebForPrompt } from '../utils/web/search.js';
 import {
   runAgentClusterBranch,
   isAgentClusterMode,
