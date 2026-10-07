@@ -61,6 +61,25 @@ const withTimeout = (promise, timeoutMs, timeoutMessage) => {
   });
 };
 
+/**
+ * 创建一个「读连接器」描述符。
+ *
+ * ⚠️ 这里的 JSDoc 是**类型真源**：本文件是 `.js`（`checkJs: false`），TS 只能靠 JSDoc 推断。
+ * 没有它时 `read` / `describeAction` 会被推成 `null`（因为默认值是 `null`），
+ * 于是 `tools/retrieval/*.ts` 这类 **.ts 消费者会报 TS2322**（2026-10-07 实测）。
+ *
+ * @param {{
+ *   id?: string,
+ *   planKey?: string,
+ *   label?: string,
+ *   source?: string,
+ *   layer?: string,
+ *   evidencePrefix?: string,
+ *   requiresLogin?: boolean,
+ *   read?: ((queryText: string) => Promise<unknown>) | null,
+ *   describeAction?: ((result: unknown) => string) | null,
+ * }} [options]
+ */
 export const createBohAIConnector = ({
   id = '',
   planKey = '',

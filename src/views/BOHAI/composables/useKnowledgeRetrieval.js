@@ -4,7 +4,6 @@ import {
 } from '@/utils/ai-chat-grounding.js';
 import {
   BOHAI_CONNECTOR_IDS,
-  createBohAIConnector,
   runBohAIReadConnectors,
   summarizeBohAIConnectorResults,
 } from '@/utils/bohai-connectors.js';
@@ -13,6 +12,8 @@ import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
 import { logger } from '@/utils/logger.js';
 import { getHealthContext } from './useHealthRetrieval.js';
 import { getActivitiesContext } from './useSiteActivitiesRetrieval.js';
+// plans/025 v2 · Step 4：8 个读连接器已各自一文件，注册表在 tools/retrieval/。
+import { createReadConnectors as createReadConnectorsFromRegistry } from '../tools/retrieval/index';
 import {
   FORUM_MAX_CHARS_PER_POST,
   FORUM_MAX_POSTS,
@@ -1018,107 +1019,17 @@ export function useKnowledgeRetrieval(deps) {
   // 读取连接器
   // ============================================================
 
-  const createReadConnectors = () => [
-    createBohAIConnector({
-      id: BOHAI_CONNECTOR_IDS.cloud,
-      planKey: 'treehole',
-      label: 'BOH Cloud+',
-      source: 'BOH Cloud+ 私有内容',
-      evidencePrefix: 'T',
-      requiresLogin: true,
-      read: getTreeholeContext,
-      describeAction: (result) =>
-        Number(result?.total || 0) > 0
-          ? `看了你的 BOH Cloud+ ${Number(result.total)} 条内容`
-          : '看了你的 BOH Cloud+',
-    }),
-    createBohAIConnector({
-      id: BOHAI_CONNECTOR_IDS.sharedMemory,
-      planKey: 'sharedMemory',
-      label: 'AI 公共记忆',
-      source: 'AI 公共记忆库',
-      evidencePrefix: 'S',
-      read: getSharedMemoryContext,
-      describeAction: (result) =>
-        Number(result?.total || 0) > 0
-          ? `查看了公共记忆库 ${Number(result.total)} 条内容`
-          : '查看了公共记忆库',
-    }),
-    createBohAIConnector({
-      id: BOHAI_CONNECTOR_IDS.knowledge,
-      planKey: 'memory',
-      label: '核心记忆库/导入知识库',
-      source: 'BOH 历史背景与导入知识库',
-      evidencePrefix: 'K',
-      read: getMemoryContext,
-      describeAction: () => '查看了 BOH 历史背景与导入知识库',
-    }),
-    createBohAIConnector({
-      id: BOHAI_CONNECTOR_IDS.siteGuide,
-      planKey: 'siteGuide',
-      label: '站点操作手册',
-      source: '站点操作与路径知识库',
-      evidencePrefix: 'G',
-      read: (queryText) => getSiteGuideContext(queryText),
-      describeAction: () => '查看了站点操作手册',
-    }),
-    createBohAIConnector({
-      id: BOHAI_CONNECTOR_IDS.forum,
-      planKey: 'forum',
-      label: '社区帖子',
-      source: '社区帖子',
-      evidencePrefix: 'F',
-      read: getForumContext,
-      describeAction: (result) => {
-        const total = Number(result?.total || 0);
-        return total > 0 ? `检索了社区帖子 ${total} 条` : '检索了社区帖子';
-      },
-    }),
-    createBohAIConnector({
-      id: BOHAI_CONNECTOR_IDS.userPrivate,
-      planKey: 'userPrivate',
-      label: '当前账号资料',
-      source: '当前登录用户私域数据',
-      evidencePrefix: 'U',
-      requiresLogin: true,
-      read: getUserPrivateContext,
-      describeAction: (result) => {
-        const labels = Array.isArray(result?.labels) ? result.labels : [];
-        const labelText = labels.length > 0 ? labels.slice(0, 2).join('、') : '当前账号资料';
-        return `查看了${labelText}`;
-      },
-    }),
-    createBohAIConnector({
-      id: BOHAI_CONNECTOR_IDS.health,
-      planKey: 'health',
-      label: 'BOH Health 数据',
-      source: 'BOH Health 本机健康记录',
-      evidencePrefix: 'H',
-      // 数据存在用户本机 localStorage，不要求登录
-      requiresLogin: false,
-      read: getHealthContext,
-      describeAction: (result) => {
-        const total = Number(result?.total || 0);
-        return total > 0 ? `查看了你的 BOH Health 数据 ${total} 组` : '查看了你的 BOH Health 数据';
-      },
-    }),
-    // 2026-10-04 新增：站内活动 / 抽奖 / 演出。三者都是公开数据（不要求登录），
-    // 由 `shouldUseSiteActivities` 的关键词命中驱动（planKey = activities）。
-    createBohAIConnector({
-      id: BOHAI_CONNECTOR_IDS.siteActivities,
-      planKey: 'activities',
-      label: '站内活动与抽奖',
-      source: '站内活动 / 抽奖 / 创作者演出',
-      evidencePrefix: 'A',
-      requiresLogin: false,
-      read: () => getActivitiesContext(),
-      describeAction: (result) => {
-        const labels = Array.isArray(result?.labels) ? result.labels : [];
-        return labels.length > 0 ? `查看了${labels.join('、')}` : '查看了站内活动';
-      },
-    }),
-  ];
-
+  const createReadConnectors = () =>
+    createReadConnectorsFromRegistry({
+      getTreeholeContext,
+      getSharedMemoryContext,
+      getMemoryContext,
+      getSiteGuideContext,
+      getForumContext,
+      getUserPrivateContext,
+      getHealthContext,
+      getActivitiesContext,
+    });
   // ============================================================
   // 自动知识上下文构建
   // ============================================================

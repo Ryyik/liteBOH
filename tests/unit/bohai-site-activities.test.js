@@ -70,23 +70,30 @@ describe('BOHAI 站内活动读连接器', () => {
   });
 
   describe('连接器注册', () => {
-    const retrievalPath = resolve(
-      import.meta.dirname,
-      '../../src/views/BOHAI/composables/useKnowledgeRetrieval.js',
-    );
+    // plans/025 v2 · Step 4：连接器定义已从 useKnowledgeRetrieval.js 拆到
+    // `tools/retrieval/<name>.ts`（定义） + `tools/retrieval/index.ts`（接线）。
+    // 守卫随之改指新文件 —— 锁的不变量不变（id/planKey 与路由键一致、公开数据免登录、真被接到取数函数）。
+    const retrievalDir = resolve(import.meta.dirname, '../../src/views/BOHAI/tools/retrieval');
+    const connectorPath = resolve(retrievalDir, 'site-activities.ts');
+    const registryPath = resolve(retrievalDir, 'index.ts');
 
-    it('createReadConnectors 注册了 siteActivities，且 planKey 与路由键一致', () => {
-      const code = squeezeSource(readFileSync(retrievalPath, 'utf8'));
+    it('site-activities connector 的 id 与 planKey 和路由键一致', () => {
+      const code = squeezeSource(readFileSync(connectorPath, 'utf8'));
       expect(code).toContain('id: BOHAI_CONNECTOR_IDS.siteActivities');
       expect(code).toContain("planKey: 'activities'");
-      expect(code).toContain('read: () => getActivitiesContext()');
     });
 
     it('不要求登录（活动 / 抽奖 / 演出都是公开数据）', () => {
-      const code = squeezeSource(readFileSync(retrievalPath, 'utf8'));
+      const code = squeezeSource(readFileSync(connectorPath, 'utf8'));
       const block = code.slice(code.indexOf('BOHAI_CONNECTOR_IDS.siteActivities'));
       const head = block.slice(0, block.indexOf('}),'));
       expect(head).toContain('requiresLogin: false');
+    });
+
+    it('注册表把 getActivitiesContext 接到该 connector（定义与接线分离）', () => {
+      const code = squeezeSource(readFileSync(registryPath, 'utf8'));
+      expect(code).toContain('createSiteActivitiesConnector');
+      expect(code).toContain('read: deps.getActivitiesContext');
     });
 
     it('connector id 常量存在', () => {
