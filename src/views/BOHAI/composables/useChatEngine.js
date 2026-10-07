@@ -38,11 +38,7 @@ import {
   buildBohaiRuntimeModels,
   listActiveBohaiModelConfigs,
 } from '@/utils/api/bohai-model-config-api.js';
-import {
-  isLikelyBohInternalFactualQuestion,
-  isLikelyFactualQuestion,
-  sanitizeUnsupportedCommunityEvidenceClaims,
-} from '@/utils/ai-chat-grounding.js';
+import { sanitizeUnsupportedCommunityEvidenceClaims } from '@/utils/ai-chat-grounding.js';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { isPostDraftRequest } from '@/utils/bohai-action-draft-intent.js';
@@ -57,11 +53,7 @@ import { useWebSearchLifecycle } from './useWebSearchLifecycle.js';
 import { useRateLimiter } from './useRateLimiter.js';
 import { useContextCompression } from './useContextCompression.js';
 import { useResourceSearch } from './useResourceSearch.js';
-import {
-  isCommunityQuestion,
-  isCommunityCreativeRequest,
-  summarizeThinkingSubject,
-} from './useIntentDetection.js';
+import { summarizeThinkingSubject } from './useIntentDetection.js';
 import { logger } from '@/utils/logger.js';
 import {
   isAbortError,
@@ -109,7 +101,6 @@ import {
   getGenerationProfile as getDefaultGenerationProfile,
   compactMessages,
 } from '../utils/generation-profile.js';
-import { isOperationQuestion } from '../utils/intent/rules.js';
 import { isLikelyMemoryDuplicate, extractExplicitMemoryContent } from '../utils/memory/dedupe.js';
 import {
   CONVERSATION_SUMMARY_RECENT_MESSAGES,
@@ -146,6 +137,8 @@ import {
 } from './agent-cluster-helpers.js';
 // plans/025 v2 · Step 5-1：四条前置捷径已抽成 stage（engine/stages/shortcuts.ts）
 import { runShortcutBranches } from '../engine/stages/shortcuts';
+// plans/025 v2 · Step 5-2：6 个意图标志的计算已抽成 stage（engine/stages/intent.ts）
+import { computeIntentFlags } from '../engine/stages/intent';
 
 const dispatchGlobalNavStatus = (payload = {}) => {
   if (typeof window === 'undefined') return;
@@ -1395,16 +1388,14 @@ export function useChatEngine() {
       });
     }
 
-    const operationQuestion = isOperationQuestion(routingQueryText);
-    const communityQuestion = isCommunityQuestion(routingQueryText);
-    const communityCreativeRequest = communityQuestion && isCommunityCreativeRequest(userText);
-    const communityNeedsEvidence = communityQuestion && !communityCreativeRequest;
-    const bohInternalFactualQuestion = isLikelyBohInternalFactualQuestion(routingQueryText, {
+    // 只解构下游真正用到的 4 个（`communityQuestion` / `communityCreativeRequest` 是
+    // 阶段内部用来推导 `communityNeedsEvidence` 的中间量，这里再解构会变成未使用变量）。
+    const {
       operationQuestion,
-    });
-    const factualQuestion =
-      isLikelyFactualQuestion(routingQueryText, { operationQuestion }) ||
-      bohInternalFactualQuestion;
+      communityNeedsEvidence,
+      bohInternalFactualQuestion,
+      factualQuestion,
+    } = computeIntentFlags({ routingQueryText, userText });
     // 联网搜索触发条件：仅当用户手动开启联网搜索开关时才触发。
     // 之前 autoDecision.shouldSearchWeb 会让 AI 在用户未开启搜索时自动发起联网搜索，
     // 与用户预期不符，已移除自动触发逻辑。
