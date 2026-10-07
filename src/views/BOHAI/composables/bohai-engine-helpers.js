@@ -3,12 +3,10 @@ import {
   ACTION_DRAFT_TITLE_MAX_CHARS,
   ACTION_POST_TRIGGER_PATTERN,
   MAX_CONTEXT_MESSAGES,
-  MAX_FINAL_PROMPT_CHARS,
   MAX_HISTORY_CONTEXT_CHARS,
   MAX_HISTORY_MESSAGE_CHARS,
   MAX_PROMPT_EXTRA_CHARS,
   MAX_SEARCH_RESULT_CONTENT_CHARS,
-  MAX_USER_INPUT_CHARS,
 } from './chat-engine-config.js';
 import { logger } from '@/utils/logger.js';
 import { searchVaultFree, searchVaultTavily } from '@/utils/api/api-key-runtime-api.js';
@@ -63,6 +61,18 @@ import {
   getStorableDialogueMessages,
   trimMessagesToBudget,
 } from '../utils/retrieval/budget.js';
+import {
+  appendPromptSection,
+  buildStructuredUserPrompt,
+  buildSystemEvidenceContext,
+  isEmptyAssistantPlaceholder,
+} from '../utils/prompt/assembly.js';
+import {
+  buildContextualFollowUpQuery,
+  buildContextualWebSearchQuery,
+  isContextDependentFollowUp,
+  isEllipticalElaborationFollowUp,
+} from '../utils/prompt/followup.js';
 export {
   TOKEN_ESTIMATE_ROLE_OVERHEAD,
   estimateMessagesTokens,
@@ -96,6 +106,14 @@ export {
   buildHistoryMessagesWithinBudget,
   getStorableDialogueMessages,
   trimMessagesToBudget,
+  appendPromptSection,
+  buildStructuredUserPrompt,
+  buildSystemEvidenceContext,
+  isEmptyAssistantPlaceholder,
+  buildContextualFollowUpQuery,
+  buildContextualWebSearchQuery,
+  isContextDependentFollowUp,
+  isEllipticalElaborationFollowUp,
 };
 export * from '../utils/degenerate-guard.js';
 export * from '../utils/structured-memory.js';
@@ -116,12 +134,6 @@ export const CONVERSATION_SUMMARY_MAX_CHARS = 2000;
 export const CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD = 50;
 export const CONVERSATION_SUMMARY_STORAGE_VERSION = 2;
 
-export const isEmptyAssistantPlaceholder = (message) => {
-  if (!message || message.role !== 'assistant') return false;
-  if (String(message.content || '').trim()) return false;
-  const meta = message.meta && typeof message.meta === 'object' ? message.meta : null;
-  return !meta || Object.keys(meta).length === 0;
-};
 export const GENERATION_STALL_TIMEOUT_MS = 120000;
 
 const AI_MEMORY_RETRY_DELAY_MS = 30000;
@@ -190,109 +202,6 @@ export const extractExplicitMemoryContent = (text) => {
   }
 
   return '';
-};
-
-export const appendPromptSection = (base, section, maxChars = MAX_FINAL_PROMPT_CHARS) => {
-  const current = String(base || '');
-  const addition = String(section || '');
-  if (!addition) return current;
-  const remaining = maxChars - current.length;
-  if (remaining <= 0) return current;
-  if (addition.length <= remaining) return current + addition;
-  return current + addition.slice(0, Math.max(0, remaining));
-};
-
-const ELLIPTICAL_ELABORATION_PATTERN =
-  /^(?:(?:请|麻烦)\s*)?(?:介绍(?:一?下)?|简单介绍(?:一?下)?|详细介绍(?:一?下)?|讲讲|讲一?下|说说|说一?下|展开讲讲|展开说说)(?:呢|吧|可以吗)?[？?。！!]*$/i;
-
-export const isEllipticalElaborationFollowUp = (text = '') => {
-  const normalized = normalizePromptLine(text, 80);
-  return Boolean(normalized && ELLIPTICAL_ELABORATION_PATTERN.test(normalized));
-};
-
-export const isContextDependentFollowUp = (text = '') => {
-  const normalized = normalizePromptLine(text, 200);
-  if (!normalized) return false;
-  // 显式追问词：代词/时间副词/延续动词/编号引用
-  const explicitFollowUpPattern =
-    /(这个|那个|上面|刚才|刚刚|前面|继续|展开|详细|多说|那|它|其|然后呢|还有呢|刚才提到|你说的|上一条|前面提到|接着|接下来|进一步|深入|细说)/i;
-  // 编号引用追问：[W1]、F1、第2点、第二条等
-  const referenceFollowUpPattern =
-    /\[?[wfd]\d+\]?|第[一二三四五六七八九十\d]+\s*[条点步个]|上面\s*第\s*\d+\s*点/i;
-  const shortAttributeQuestionPattern =
-    /^(?:这个|那个|它|那)?(?:作用|用途|原理|好处|区别|怎么做|怎么练|有什么用|为什么|是什么|怎么办|咋办)(?:是?什么|呢|吗|呀|啊)?$/i;
-  // 用户常用短句修正上一轮问题的时间范围。缺少主题时必须携带上一轮话题去检索，
-  // 否则搜索引擎会把“最近呢，就这几天”当成词义问题。
-  const temporalScopeFollowUpPattern =
-    /^(?:(?:那|不(?:是)?|我是说|我的意思是)\s*[，,]?\s*)?(?:(?:最近|近期)(?:(?:几|两|三|一)天|一周|一个月)?(?:内|呢|的)?|(?:就\s*)?(?:这|近|过去)(?:几|两|三|一)天(?:内|呢)?)(?:\s*[，,]?\s*(?:就\s*)?(?:这|近|过去)(?:几|两|三|一)天(?:内|呢)?)?[？?。！!]*$/i;
-  return (
-    (explicitFollowUpPattern.test(normalized) ||
-      referenceFollowUpPattern.test(normalized) ||
-      shortAttributeQuestionPattern.test(normalized) ||
-      temporalScopeFollowUpPattern.test(normalized) ||
-      isEllipticalElaborationFollowUp(normalized)) &&
-    normalized.length <= 120
-  );
-};
-
-export const buildContextualFollowUpQuery = (
-  userText = '',
-  historyMessages = [],
-  { maxChars = 900 } = {},
-) => {
-  const current = normalizePromptLine(userText, MAX_HISTORY_MESSAGE_CHARS);
-  if (!current || !isContextDependentFollowUp(current)) return current;
-
-  const source = Array.isArray(historyMessages) ? historyMessages : [];
-  const previousTurns = [];
-  for (let index = source.length - 1; index >= 0; index -= 1) {
-    const item = source[index];
-    if (item?.meta?.kind === 'memory_saved_notice') continue;
-    if (item?.role !== 'assistant' && item?.role !== 'user') continue;
-    const content = truncateText(String(item?.content || '').trim(), 600);
-    if (!content) continue;
-    previousTurns.unshift(`${item.role === 'assistant' ? '助手' : '用户'}：${content}`);
-    if (previousTurns.length >= 4) break;
-  }
-
-  if (previousTurns.length === 0) return current;
-  return truncateText(`最近对话：${previousTurns.join(' | ')}\n当前追问：${current}`, maxChars);
-};
-
-// 联网检索默认只继承用户表达过的主题。“介绍一下”这类完全省略对象的追问会额外
-// 携带上一轮回答用于定位实体，但明确标记为待核实，避免把它直接当成已确认事实。
-export const buildContextualWebSearchQuery = (
-  userText = '',
-  historyMessages = [],
-  { maxChars = 600 } = {},
-) => {
-  const current = normalizePromptLine(userText, MAX_HISTORY_MESSAGE_CHARS);
-  if (!current || !isContextDependentFollowUp(current)) return current;
-
-  const source = Array.isArray(historyMessages) ? historyMessages : [];
-  const previousUserTurns = [];
-  let previousAssistantTurn = '';
-  for (let index = source.length - 1; index >= 0; index -= 1) {
-    const item = source[index];
-    if (item?.meta?.kind === 'memory_saved_notice') continue;
-    if (!previousAssistantTurn && item?.role === 'assistant') {
-      previousAssistantTurn = normalizePromptLine(item?.content, 240);
-      continue;
-    }
-    if (item?.role !== 'user') continue;
-    const content = normalizePromptLine(item?.content, 260);
-    if (!content || content === current) continue;
-    previousUserTurns.unshift(content);
-    if (previousUserTurns.length >= 2) break;
-  }
-
-  if (previousUserTurns.length === 0) return current;
-  const queryParts = [`用户话题：${previousUserTurns.join('；')}`];
-  if (isEllipticalElaborationFollowUp(current) && previousAssistantTurn) {
-    queryParts.push(`上一轮回答提到（仅用于定位对象，请联网核实）：${previousAssistantTurn}`);
-  }
-  queryParts.push(`当前追问：${current}`);
-  return truncateText(queryParts.join('；'), maxChars);
 };
 
 export const buildConversationSummaryFingerprint = (messages = []) => {
@@ -364,42 +273,6 @@ export const getCachedSummaryIfUsable = (session = {}) => {
   // 兼容尚未带覆盖范围元数据的旧会话摘要。
   const expectedFingerprint = buildConversationSummaryFingerprint(allMessages);
   return summary.fingerprint === expectedFingerprint ? content : '';
-};
-
-export const buildStructuredUserPrompt = ({
-  userText = '',
-  responseRules = '',
-  communityRules = '',
-  evidenceRules = '',
-  operationRules = '',
-} = {}) => {
-  const sections = [`<task>\n${truncateText(userText, MAX_USER_INPUT_CHARS)}\n</task>`];
-
-  const ruleSections = [responseRules, communityRules, evidenceRules, operationRules]
-    .map((item) => String(item || '').trim())
-    .filter(Boolean);
-
-  if (ruleSections.length > 0) {
-    sections.push(`<response_rules>\n${ruleSections.join('\n\n')}\n</response_rules>`);
-  }
-
-  return truncateText(sections.join('\n\n'), MAX_FINAL_PROMPT_CHARS);
-};
-
-export const buildSystemEvidenceContext = ({ evidenceContext = '', searchContext = '' } = {}) => {
-  const evidence = String(evidenceContext || '').trim();
-  const search = String(searchContext || '').trim();
-  const parts = [];
-
-  if (evidence) {
-    parts.push(`<internal_evidence>\n${evidence}\n</internal_evidence>`);
-  }
-
-  if (search) {
-    parts.push(`<web_evidence>\n${search}\n</web_evidence>`);
-  }
-
-  return parts.join('\n\n');
 };
 
 export const buildSearchResultsContext = (results = [], aiAnswer = '') => {
