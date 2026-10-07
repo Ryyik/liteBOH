@@ -144,6 +144,8 @@ import {
   isAgentClusterMode,
   useAgentClusterState,
 } from './agent-cluster-helpers.js';
+// plans/025 v2 · Step 5-1：四条前置捷径已抽成 stage（engine/stages/shortcuts.ts）
+import { runShortcutBranches } from '../engine/stages/shortcuts';
 
 const dispatchGlobalNavStatus = (payload = {}) => {
   if (typeof window === 'undefined') return;
@@ -1096,11 +1098,17 @@ export function useChatEngine() {
       session.expertState = recordUserTurn(session.expertState, userText);
     }
 
-    if (await handlePendingTreeholeCreationReply(userText)) return;
-
-    if (await tryStartActionDraftFromUserInput(userText, sessionIndex)) return;
-    if (await tryStartPageCreationFromUserInput(userText, sessionIndex)) return;
-    if (await handleResourceSearchRequest(userText)) return;
+    // ── 阶段 1：前置捷径（顺序敏感，见 engine/stages/shortcuts.ts）──────────
+    const shortcutHandled = await runShortcutBranches(
+      {
+        handlePendingTreeholeCreationReply,
+        tryStartActionDraftFromUserInput,
+        tryStartPageCreationFromUserInput,
+        handleResourceSearchRequest,
+      },
+      { userText, sessionIndex },
+    );
+    if (shortcutHandled) return;
 
     if (isAgentClusterMode(currentModeId.value)) {
       isStreamingGeneration.value = true;

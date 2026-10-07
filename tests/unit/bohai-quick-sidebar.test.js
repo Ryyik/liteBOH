@@ -22,6 +22,11 @@ const memoryCapturePath = resolve(
   import.meta.dirname,
   '../../src/views/BOHAI/composables/useMemoryCapture.js',
 );
+// plans/025 v2 · Step 5-1：四条前置捷径已从 useChatEngine 抽到 engine/stages/shortcuts.ts
+const shortcutsPath = resolve(
+  import.meta.dirname,
+  '../../src/views/BOHAI/engine/stages/shortcuts.ts',
+);
 const cloudApiPath = resolve(import.meta.dirname, '../../src/utils/api/boh-cloud-api.js');
 // 2026-10-03（plans/023 步骤 ④）：AiQuotaSidePanel.vue 已退役，用量信息整体搬进
 // BohaiSettingsPanel 的「用量」卡 —— 断言随之改读设置面板（否则 readFileSync 直接抛错）。
@@ -180,7 +185,10 @@ describe('BOH AI Cloud+ 读取（授权闸门已移除）', () => {
     expect(engine).not.toContain('cloudReferenceConsent');
     expect(engine).not.toContain('你此前已关闭 Cloud+ 隐私授权');
     expect(engine).toContain('cloudReferenceEnabled: Boolean(isTreeholeMemoryEnabled.value)');
-    expect(engine).toContain('handlePendingTreeholeCreationReply(userText)');
+    // 树洞回复路径仍在 —— Step 5-1 后该调用搬进 shortcuts stage（引擎只留 ctx 接线）
+    const shortcuts = stripComments(readFileSync(shortcutsPath, 'utf8'));
+    expect(shortcuts).toContain('handlePendingTreeholeCreationReply(userText)');
+    expect(engine).toContain('handlePendingTreeholeCreationReply');
   });
 });
 
