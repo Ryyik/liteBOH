@@ -145,6 +145,8 @@ import { buildGroundingGuards } from '../engine/stages/grounding-guard';
 import { buildRequestBody } from '../engine/stages/request-body';
 // plans/025 v2 · Step 5-3：流式消费已抽成 stage
 import { runStreamStage } from '../engine/stages/stream';
+// plans/025 v2 · Step 5-3：心理守门 + 访谈状态推进已抽成 stage
+import { runPsychGuardStage } from '../engine/stages/psych-guard';
 // plans/025 v2 · Step 5-3：后处理两段（退化流修复 / 回答定稿）已抽成 stage
 import { runDegenerateRepair } from '../engine/stages/degenerate-repair';
 import { finalizeAssistantReply } from '../engine/stages/finalize-reply';
@@ -1772,77 +1774,40 @@ export function useChatEngine() {
       let lastVisibleStreamContent = streamState.lastVisibleStreamContent;
       let shouldRepairDegenerateStream = streamState.shouldRepairDegenerateStream;
 
-      // 心理访谈守门（prompt 是软约束，必须代码兜底）
-      // 模型在「助手惯性」下会持续给出选项、一轮多问、甚至替用户编造经历 —— 这些在 prompt 里
-      // 已明令禁止仍会复发。这里照 degenerate 修复的既有模式：检测到违规就用重写指令再生成一次
-      // 并替换消息内容。每轮最多重写一次（不递归），避免死循环和延迟叠加。
-      if (psychInterviewActive && !shouldRepairDegenerateStream) {
-        const psychDraft = cleanAssistantVisibleReply(filterThinkingContent(assistantMessage));
-        // 「上一问」= 当前 assistant 之前最近的那条 assistant（中间隔一条 user）
-        const previousAssistantReply = session.messages?.[messageIndex - 2]?.content || '';
-        // 「对方上一句」用于检测复述（把他的话重排一遍当接住）
-        const previousUserMessage = session.messages?.[messageIndex - 1]?.content || '';
-        const psychFindings = detectViolations(psychDraft, {
-          prevReply: previousAssistantReply,
-          prevUserText: previousUserMessage,
-        });
-        const guardTriggered = shouldRewrite(psychFindings);
-        let guardAdopted = false;
-
-        if (guardTriggered) {
-          const rewritePrompt = appendPromptSection(
-            finalPrompt,
-            `\n${buildRewriteInstruction(psychFindings)}`,
-            MAX_FINAL_PROMPT_CHARS,
-          );
-          const rewriteReply = await callModelInternal(
-            generationModel.id,
-            rewritePrompt,
-            systemPromptContent,
-            recentMessages,
-            requestController.signal,
-            0,
-            generationProfile,
-          );
-          const rewriteFiltered = cleanAssistantVisibleReply(filterThinkingContent(rewriteReply));
-          // 只在重写稿严格更优时采纳（判据在 guards.js 的 shouldAdoptRewrite，纯函数、可测）。
-          // 原先只要非空就替换 —— 于是守门的误报会拿一版更拘谨的回答盖掉原本可用的回答，
-          // 而且全程不可见。约束系统不应有把输出改差的权限。
-          guardAdopted = shouldAdoptRewrite(psychFindings, rewriteFiltered, {
-            prevReply: previousAssistantReply,
-            prevUserText: previousUserMessage,
-          });
-          if (guardAdopted) {
-            updateContent(rewriteFiltered);
-            nextTick(scrollToBottom);
-          }
-        }
-
-        // 留痕：触发率与采纳率是判断「prompt 规则够不够 / 守门有没有误报」的唯一依据。
-        // 注意：guardStats / lastViolations 必须同时登记进 bohai-chat-session-store 的白名单，
-        // 否则保存时会被静默丢弃（上一版的 lastViolations 就是这么失效的）。
-        const violationTarget = getSessionByIndex(sessionIndex);
-        if (violationTarget?.expertState) {
-          violationTarget.expertState = {
-            ...violationTarget.expertState,
-            lastViolations: summarizeViolations(psychFindings),
-            guardStats: bumpGuardStats(violationTarget.expertState.guardStats, {
-              triggered: guardTriggered,
-              adopted: guardAdopted,
-              types: psychFindings.map((finding) => finding.type),
-            }),
-          };
-        }
-      }
-
-      // 推进访谈状态（向下追问深度 / 小结点）—— 下一轮的状态块与 L2 规则据此计算
-      if (psychInterviewActive) {
-        const stateTarget = getSessionByIndex(sessionIndex);
-        if (stateTarget?.expertState) {
-          const finalReply = stateTarget.messages?.[messageIndex]?.content || '';
-          stateTarget.expertState = recordAssistantTurn(stateTarget.expertState, finalReply);
-        }
-      }
+      // Step 5-3：心理访谈守门（违规检测→重写一次→留痕）+ 访谈状态推进已抽成 engine/stages/psych-guard.ts
+      await runPsychGuardStage(
+        {
+          cleanAssistantVisibleReply,
+          filterThinkingContent,
+          detectViolations,
+          shouldRewrite,
+          buildRewriteInstruction,
+          appendPromptSection,
+          callModelInternal,
+          shouldAdoptRewrite,
+          updateContent,
+          scrollToBottom,
+          summarizeViolations,
+          bumpGuardStats,
+          getSessionByIndex,
+          recordAssistantTurn,
+        },
+        {
+          psychInterviewActive,
+          shouldRepairDegenerateStream,
+          assistantMessage,
+          session,
+          messageIndex,
+          finalPrompt,
+          maxFinalPromptChars: MAX_FINAL_PROMPT_CHARS,
+          generationModelId: generationModel.id,
+          systemPromptContent,
+          recentMessages,
+          requestController,
+          generationProfile,
+          sessionIndex,
+        },
+      );
 
       if (shouldRepairDegenerateStream) {
         // Step 5-3：退化流修复（严格重试一次 + 依据护栏 + 洗断言）已抽成 engine/stages/degenerate-repair.ts
