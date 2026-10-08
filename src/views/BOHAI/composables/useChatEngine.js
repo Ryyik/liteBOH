@@ -142,6 +142,8 @@ import { computeIntentFlags } from '../engine/stages/intent';
 import { computeRetrievalTargets } from '../engine/stages/retrieval-targets';
 import { buildResponseRuleBlocks } from '../engine/stages/response-rules';
 import { resolveCrossTurnEvidence } from '../engine/stages/evidence-reuse';
+// plans/025 v2 · Step 5-2：Agent 集群分支（自带早退）已抽成 stage
+import { runAgentClusterStage } from '../engine/stages/agent-cluster';
 
 const dispatchGlobalNavStatus = (payload = {}) => {
   if (typeof window === 'undefined') return;
@@ -1107,151 +1109,36 @@ export function useChatEngine() {
     if (shortcutHandled) return;
 
     if (isAgentClusterMode(currentModeId.value)) {
-      isStreamingGeneration.value = true;
-      appendUserMessageWithTitle(sessionIndex, userText);
-      resetComposerInput();
-      clearAttachedContext();
-      scrollToBottom(true);
-      // Agent 集群分支同样会携带历史消息，先压缩上下文让 BOH AI 看到的就是压缩后窗口
-      await ensureContextCompression(sessionIndex);
-      session.isLoading = true;
-      session.isThinking = true;
-      activeGenerationSessionIndex.value = sessionIndex;
-      const clusterController = new AbortController();
-      abortController.value = clusterController;
-      session.messages.push({ role: 'assistant', content: '' });
-      const clusterMessageIndex = session.messages.length - 1;
-      await nextTick();
-      scrollToBottom();
-      resetAgentClusterState();
-      try {
-        const historyForCluster = Array.isArray(session.messages)
-          ? session.messages.slice(0, -1)
-          : [];
-        // 真实 contextSummary：把已经压缩过的旧历史摘要喂给 Orchestrator，避免它把全量历史当 cold start 处理
-        const sessionSummaryContent =
-          session?.contextSummary && typeof session.contextSummary === 'object'
-            ? String(session.contextSummary.content || '').trim()
-            : '';
-        // P1-7：把主 ChatEngine 的真实调用链注入 cluster 的 chat-engine Agent，
-        // 这样集群里的"对话"Agent 与主 ChatEngine 共享 system prompt、上下文压缩与所有自动注入。
-        const clusterInvokeChatEngine = async ({ query, history, signal, onStream }) => {
-          try {
-            const activeModeId = runtimeChatModes.value.some(
-              (mode) => mode.id === currentModeId.value,
-            )
-              ? currentModeId.value
-              : BOH_DEFAULT_MODE_ID;
-            const generationModel =
-              getModelForModeId(activeModeId, { userText: query }) ||
-              currentModel.value ||
-              runtimeAvailableModels.value[0];
-            const modeAppendix = String(
-              runtimeChatModes.value.find((mode) => mode.id === activeModeId)?.promptAppendix || '',
-            ).trim();
-            const systemPromptContent = [BASE_SYSTEM_PROMPT, modeAppendix]
-              .filter(Boolean)
-              .join('\n');
-            const content = await callModelInternal(
-              generationModel.id,
-              String(query || ''),
-              systemPromptContent,
-              Array.isArray(history) ? history : [],
-              signal,
-              0,
-              TASK_GENERATION_PRESETS.clusterChatMain,
-            );
-            const answerText = String(content || '').trim();
-            if (typeof onStream === 'function' && answerText) {
-              onStream(answerText);
-            }
-            return {
-              ok: true,
-              answer: answerText,
-              mode: currentModeId.value,
-              sources: [],
-              notes: ['对话 Agent 走主 ChatEngine'],
-              tokens: Math.max(400, Math.round(answerText.length / 1.5)),
-            };
-          } catch (error) {
-            if (isAbortError(error)) {
-              return { ok: false, status: 'cancelled', answer: '', error: { message: '已取消' } };
-            }
-            return {
-              ok: false,
-              status: 'failed',
-              answer: '',
-              error: { message: error?.message || String(error) },
-              notes: [`对话 Agent 失败：${error?.message || String(error)}`],
-            };
-          }
-        };
-        const result = await runAgentClusterBranch({
-          userText,
-          history: historyForCluster,
-          historySummary: sessionSummaryContent,
-          clusterMode: 'auto',
-          signal: clusterController.signal,
-          invokeChatEngine: clusterInvokeChatEngine,
-          onEvent: applyAgentClusterEvent,
-          webSearch: isSearching.value ? searchWebForPrompt : undefined,
-          invokeRetriever: clusterSources.invokeRetriever,
-          invokeSharedMemory: clusterSources.invokeSharedMemory,
-          invokeCloud: clusterSources.invokeCloud,
-          userId: userInfo.value?.id || '',
-          onStream: (text) => {
-            const target = getSessionByIndex(sessionIndex);
-            const message = target?.messages?.[clusterMessageIndex];
-            if (message) {
-              message.content = String(text || '');
-              scrollToBottom();
-            }
-          },
-        });
-        // 兜底：onStream 可能因中间层未透传而丢失，这里确保最终答案一定写入消息
-        const target = getSessionByIndex(sessionIndex);
-        const message = target?.messages?.[clusterMessageIndex];
-        if (message && result?.answer && !message.content) {
-          message.content = String(result.answer);
-          scrollToBottom();
-        }
-        if (result?.degraded) {
-          if (message) {
-            const note = agentClusterState.lastError
-              ? `\n\n（Agent 集群已降级：${String(agentClusterState.lastError).slice(0, 80)}）`
-              : '';
-            message.content = `${message.content || ''}${note}`;
-          }
-        }
-        return;
-      } catch (clusterError) {
-        if (!isAbortError(clusterError)) {
-          logger.error('boh-ai', 'Agent cluster branch failed', clusterError);
-        }
-        applyAgentClusterEvent({
-          type: isAbortError(clusterError) ? 'cancelled' : 'error',
-          payload: { message: clusterError?.message || String(clusterError || '') },
-          createdAt: Date.now(),
-        });
-        const target = getSessionByIndex(sessionIndex);
-        if (target?.messages?.[clusterMessageIndex]) {
-          target.messages[clusterMessageIndex].content = isAbortError(clusterError)
-            ? '已停止生成。'
-            : `多任务处理失败，请重试。`;
-        }
-        return;
-      } finally {
-        session.isLoading = false;
-        session.isThinking = false;
-        isStreamingGeneration.value = false;
-        if (activeGenerationSessionIndex.value === sessionIndex) {
-          activeGenerationSessionIndex.value = null;
-        }
-        if (abortController.value === clusterController) {
-          abortController.value = null;
-        }
-        stopThinkingTimer();
-      }
+      // Step 5-2：Agent 集群分支已抽成 engine/stages/agent-cluster.ts（自带早退）
+      await runAgentClusterStage(
+        {
+          isStreamingGeneration,
+          activeGenerationSessionIndex,
+          abortController,
+          currentModeId,
+          runtimeChatModes,
+          runtimeAvailableModels,
+          currentModel,
+          isSearching,
+          userInfo,
+          appendUserMessageWithTitle,
+          resetComposerInput,
+          clearAttachedContext,
+          scrollToBottom,
+          ensureContextCompression,
+          getSessionByIndex,
+          stopThinkingTimer,
+          runAgentClusterBranch,
+          applyAgentClusterEvent,
+          resetAgentClusterState,
+          agentClusterState,
+          clusterSources,
+          getModelForModeId,
+          callModelInternal,
+        },
+        { sessionIndex, userText, session },
+      );
+      return;
     }
 
     appendUserMessageWithTitle(sessionIndex, userText);
