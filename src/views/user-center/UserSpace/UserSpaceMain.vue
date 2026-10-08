@@ -525,7 +525,6 @@ import {
 } from '@/utils/cloudinary-client.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
-import { syncAvatarFrameFromServer } from '@/composables/useAvatarFrame.js';
 import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { themeManager } from '@/utils/theme-manager.js';
 import { isHomeCatTheme } from '@/utils/home-cat-theme.js';
@@ -3145,8 +3144,8 @@ watch(
 
 onMounted(() => {
   void nextTick(syncUserspaceNavHeight);
-  // 佩戴框云同步：登录态下库↔本地对齐（多设备一致），失败静默
-  if (isLoggedIn.value) void syncAvatarFrameFromServer();
+  // 佩戴框云同步已上移到全局唯一注册点 initAvatarFrameSync（src/main.js 启动时调用），
+  // 这里不再单独同步 —— 否则「新设备不进我的页就拉不到框」的时机依赖又会长回来。
   const islandEl = document.getElementById('unified-nav-container');
   if (islandEl && typeof ResizeObserver !== 'undefined') {
     navIslandResizeObserver = new ResizeObserver(syncUserspaceNavHeight);

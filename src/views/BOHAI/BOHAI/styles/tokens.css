@@ -37,6 +37,15 @@
   --boh-a-dark-active: rgba(255, 255, 255, 0.1);
   --boh-a-dark-backdrop: rgba(0, 0, 0, 0.5);
 
+  /* ── 语义色：**危险 / 警示**（只用于额度压力与删除类操作；
+       DESIGN §0.1 的「无彩色 accent」不覆盖语义色） ── */
+  --boh-danger-light: #d64545;
+  --boh-danger-dark: #ff6b6b;
+  --boh-warn-light: #d98206;
+  --boh-warn-dark: #f0a340;
+  --boh-danger: var(--boh-danger-light);
+  --boh-warn: var(--boh-warn-light);
+
   /* ── 阴影（浅色 / 深色各一份；暗色块只引用） ── */
   --boh-shadow-sm-light: 0 1px 2px rgba(0, 0, 0, 0.05);
   --boh-shadow-md-light: 0 4px 14px rgba(0, 0, 0, 0.08);
@@ -86,6 +95,11 @@
   --boh-dur-fast: 150ms;
   --boh-dur-med: 200ms;
   --boh-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  /* 全仓仅两处循环动画（DESIGN §2.4）：打字三点 / 集群进度转圈。 */
+  --boh-dur-bob: 1.1s;
+  --boh-dur-spin: 0.9s;
+  /* 思考圆点的呼吸（**用户口径：等待动作保持旧版圆点**，2026-10-08 拍板） */
+  --boh-dur-breath: 2s;
 
   /* ── 布局常量 ── */
   --boh-rail-w: 88px;
@@ -114,4 +128,6 @@
   --boh-shadow-md: var(--boh-shadow-md-dark);
   --boh-shadow-lg: var(--boh-shadow-lg-dark);
   --boh-backdrop: var(--boh-a-dark-backdrop);
+  --boh-danger: var(--boh-danger-dark);
+  --boh-warn: var(--boh-warn-dark);
 }

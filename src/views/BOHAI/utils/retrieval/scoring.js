@@ -58,6 +58,41 @@ export const trimKnowledgeChunk = (text, maxLength = 320) => {
   return `${normalized.slice(0, maxLength)}...`;
 };
 
+/**
+ * 时间衰减惩罚（2026-10-08 新增）。
+ *
+ * 半衰期模型：`penalty = maxPenalty × (1 - 2^(-ageDays / halfLife))`，
+ * 惩罚上限 `maxPenalty` 分，参考天数 `referenceDays` 之后基本触顶（再旧也不再更差）。
+ *
+ * ⚠️ **没有 `latestAt` 时返回 0（不惩罚）**。这是本函数最重要的一条口径：
+ * 缺失时间戳 ≠ 内容过期。若把「无日期」按「最旧」处理，站点手册、知识库这些
+ * 本来就没有时间维度的源会被系统性打死 —— 那是把「数据缺失」误读成「内容陈旧」。
+ */
+export const freshnessPenalty = (connectorId, latestAt, now = Date.now()) => {
+  const {
+    freshnessMaxPenalty: maxPenalty = 0,
+    freshnessReferenceDays: referenceDays = 0,
+    freshnessHalfLifeDays: halfLives = {},
+    freshnessFallbackHalfLifeDays: fallbackHalfLife = 0,
+  } = RANKING_SCORE_WEIGHTS;
+  if (!maxPenalty || !referenceDays) return 0;
+
+  const halfLife = halfLives[connectorId] || fallbackHalfLife;
+  if (!halfLife) return 0;
+
+  const raw = String(latestAt || '').trim();
+  if (!raw) return 0;
+  const timestamp = Date.parse(raw);
+  if (Number.isNaN(timestamp)) return 0;
+
+  const ageDays = Math.max(0, (now - timestamp) / 86_400_000);
+  if (ageDays <= 0) return 0;
+  // 超过参考天数就按触顶计，避免极端旧数据（1970 年时间戳）产生无意义的巨大差值
+  const cappedAge = Math.min(ageDays, referenceDays * 4);
+  const ratio = 1 - Math.pow(2, -cappedAge / halfLife);
+  return Math.min(maxPenalty, maxPenalty * ratio);
+};
+
 export const rankEvidenceContextBlocks = (results = [], queryText = '') => {
   const source = Array.isArray(results) ? results : [];
   const keywords = extractQueryKeywords(queryText);
@@ -73,12 +108,17 @@ export const rankEvidenceContextBlocks = (results = [], queryText = '') => {
       );
       const sourceScore =
         EVIDENCE_SOURCE_WEIGHTS[connectorId] || RANKING_SCORE_WEIGHTS.defaultSourceScore;
+      const penalty = freshnessPenalty(connectorId, result?.latestAt);
       return {
         context,
         result,
         index,
         score:
-          lexicalScore * RANKING_SCORE_WEIGHTS.lexicalMultiplier + sourceScore + confidenceScore,
+          lexicalScore * RANKING_SCORE_WEIGHTS.lexicalMultiplier +
+          sourceScore +
+          confidenceScore -
+          penalty,
+        freshnessPenalty: penalty,
       };
     })
     .sort((a, b) => b.score - a.score || a.index - b.index);

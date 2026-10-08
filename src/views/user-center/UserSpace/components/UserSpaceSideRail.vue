@@ -2,10 +2,10 @@
   <aside class="userspace-rail liquid-glass" aria-label="用户空间导航">
     <!-- 品牌位：占进「与内容区首屏对齐」留出的顶部空白，绝对定位、不进文档流 ——
          因此不增加内容高度、也不推挤首个条目（实测首项 top 不变）。
-         右侧「更多」承载低频偏好与破坏性操作：主题、退出登录。
-         退出登录原本与「首页」同级吸底，等于给破坏性操作发了常用操作的权重，
-         移进来后要两步才登出 —— 这是用一点点可用性换误触成本，取舍已确认。 -->
-    <div ref="brandRef" class="userspace-rail-brand">
+         2026-10-08：原来这里还挂着一个「更多」（主题 / 退出登录）按钮，
+         已搬到滚动区**最底部** —— 低频 + 破坏性操作靠底是惯例，且底部菜单向上弹，
+         不会再像挂在品牌位时那样横向跑出 88px 窄栏、被视口裁掉。 -->
+    <div class="userspace-rail-brand">
       <img
         class="userspace-rail-brand-mark"
         src="/favicon.png"
@@ -15,50 +15,6 @@
         aria-hidden="true"
       />
       <span class="userspace-rail-brand-name">方块之家</span>
-      <button
-        ref="moreBtnRef"
-        type="button"
-        class="userspace-rail-more"
-        data-rail-action="more"
-        :aria-expanded="moreOpen ? 'true' : 'false'"
-        aria-haspopup="menu"
-        aria-label="更多"
-        @click.stop="toggleMore"
-      >
-        <svg class="userspace-rail-more-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="5" cy="12" r="1.5" />
-          <circle cx="12" cy="12" r="1.5" />
-          <circle cx="19" cy="12" r="1.5" />
-        </svg>
-      </button>
-      <div v-if="moreOpen" class="userspace-rail-menu" role="menu">
-        <button
-          type="button"
-          role="menuitem"
-          class="userspace-rail-menu-item"
-          data-rail-action="theme"
-          @click.stop="pickAction('theme')"
-        >
-          <component
-            :is="currentTheme === 'dark' ? Sun : Moon"
-            :size="16"
-            :stroke-width="1.9"
-            aria-hidden="true"
-          />
-          <span>{{ currentTheme === 'dark' ? '浅色模式' : '深色模式' }}</span>
-        </button>
-        <button
-          v-if="isLoggedIn"
-          type="button"
-          role="menuitem"
-          class="userspace-rail-menu-item is-danger"
-          data-rail-action="logout"
-          @click.stop="pickAction('logout')"
-        >
-          <LogOut :size="16" :stroke-width="1.9" aria-hidden="true" />
-          <span>退出登录</span>
-        </button>
-      </div>
     </div>
 
     <div class="userspace-rail-scroll">
@@ -130,6 +86,60 @@
           <span class="userspace-rail-label">首页</span>
         </button>
       </nav>
+
+      <!-- 更多（主题 / 退出登录）：收低频偏好与破坏性操作 —— 要两步才登出，
+           这是用一点点可用性换误触成本，取舍已确认。菜单**向上**弹。 -->
+      <div ref="moreWrapRef" class="userspace-rail-more-wrap">
+        <button
+          ref="moreBtnRef"
+          type="button"
+          class="userspace-rail-item userspace-rail-more"
+          data-rail-action="more"
+          :aria-expanded="moreOpen ? 'true' : 'false'"
+          aria-haspopup="menu"
+          aria-label="更多"
+          @click.stop="toggleMore"
+        >
+          <svg
+            class="userspace-rail-icon userspace-rail-more-icon"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <circle cx="5" cy="12" r="1.5" />
+            <circle cx="12" cy="12" r="1.5" />
+            <circle cx="19" cy="12" r="1.5" />
+          </svg>
+          <span class="userspace-rail-label">更多</span>
+        </button>
+        <div v-if="moreOpen" class="userspace-rail-menu" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            class="userspace-rail-menu-item"
+            data-rail-action="theme"
+            @click.stop="pickAction('theme')"
+          >
+            <component
+              :is="currentTheme === 'dark' ? Sun : Moon"
+              :size="16"
+              :stroke-width="1.9"
+              aria-hidden="true"
+            />
+            <span>{{ currentTheme === 'dark' ? '浅色模式' : '深色模式' }}</span>
+          </button>
+          <button
+            v-if="isLoggedIn"
+            type="button"
+            role="menuitem"
+            class="userspace-rail-menu-item is-danger"
+            data-rail-action="logout"
+            @click.stop="pickAction('logout')"
+          >
+            <LogOut :size="16" :stroke-width="1.9" aria-hidden="true" />
+            <span>退出登录</span>
+          </button>
+        </div>
+      </div>
     </div>
   </aside>
 </template>
@@ -183,7 +193,6 @@ const navGroupRef = ref(null);
 const indicatorStyle = ref({ transform: 'translateY(0px)', height: '56px', opacity: 0 });
 const indicatorSettled = ref(true);
 let resizeObserver = null;
-// onScrollSync 的 RAF 去重闸：0 = 当前无待执行帧回调（requestAnimationFrame 返回值恒为正数）
 
 const syncIndicator = async () => {
   await nextTick();
@@ -245,9 +254,9 @@ onBeforeUnmount(() => {
 });
 
 /* 「更多」菜单（主题 / 退出登录）。
-   outside-click 判定用品牌位容器而不是按钮本身：菜单也挂在容器内，
+   outside-click 判定用**外层容器**而不是按钮本身：菜单也挂在容器内，
    否则 pointerdown 会先于 click 关掉菜单，菜单项永远点不到。 */
-const brandRef = ref(null);
+const moreWrapRef = ref(null);
 const moreBtnRef = ref(null);
 const moreOpen = ref(false);
 
@@ -262,7 +271,7 @@ const pickAction = (actionId) => {
 
 const onDocPointerDown = (event) => {
   if (!moreOpen.value) return;
-  const root = brandRef.value;
+  const root = moreWrapRef.value;
   if (root && event.target && root.contains(event.target)) return;
   moreOpen.value = false;
 };

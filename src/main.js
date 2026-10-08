@@ -326,10 +326,12 @@ authStore.initLoginState().catch((err) => {
 });
 bagStore.loadShoppingBag();
 
-// 头像框清单：动态引入（不进首屏壳），DB 优先、失败回退内置清单，绝不阻塞首屏或佩戴
+// 头像框：清单加载 + 云同步注册（都动态引入，不进首屏壳；DB 优先、失败回退内置清单）
+// 同步时机收敛在 initAvatarFrameSync（登录态确立后对齐本机、登出清本机），
+// 不再依赖「用户点进我的页」—— 那样换个设备不进我的页就永远拉不到云端的框。
 const scheduleAvatarFrameLoad = () => {
   void import('@/composables/useAvatarFrame.js')
-    .then((m) => m.loadAvatarFrameData())
+    .then((m) => m.loadAvatarFrameData().then(() => m.initAvatarFrameSync()))
     .catch(() => {
       /* 离线/未登录：静默走内置清单 */
     });

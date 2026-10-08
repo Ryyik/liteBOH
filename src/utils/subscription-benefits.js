@@ -8,6 +8,25 @@ export const PLAN_DISPLAY_NAMES = {
   ultra: 'Ultra',
 };
 
+/**
+ * 当前档位的**用户可见文案单一真源**。
+ *
+ * ⚠️ 与上面的 `PLAN_DISPLAY_NAMES` 分工不同，别合并：
+ *   · `PLAN_DISPLAY_NAMES` = **产品名**（Free / Plus / Pro …），用于权益表、营销页；
+ *   · 本表 = **「你现在是什么」的口语文案**，用于设置面板的用量卡与侧栏账号浮层，
+ *     并且必须覆盖 `guest`（未登录）这一档 —— 那是 `PLAN_DISPLAY_NAMES` 没有的。
+ * 2026-10-08 从 `BohaiSettingsPanel` 的局部常量收敛过来：侧栏账号浮层也要显示同一文案，
+ * 留在组件里就会让同一个用户在两处看到两种叫法。
+ */
+export const TIER_DISPLAY_LABELS = {
+  guest: '未登录用户',
+  free: '免费用户',
+  plus: 'Plus',
+  pro: 'Pro',
+  max: 'Max',
+  ultra: 'Ultra',
+};
+
 export const PLAN_CLOUD_IMAGE_LIMITS = {
   free: 150,
   plus: 300,
@@ -18,14 +37,18 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
 
 /* ===== 档位权益展示单源 =====
    订阅页卡片与对比表共用：改一处两处同步（展示格式化在 SubscriptionPlans.vue）。
-   - PLAN_AI_TOKENS：BOH AI 每日 Token 额度。**真实值以 ai_quota_config.daily_token_limit 为准**
-     （数据管理面板「AI 额度与计费」可调），此处是**展示副本** —— 调完额度必须回来改这里，
-     否则页面会宣传一个系统不认的数字。
+   - PLAN_AI_TOKEN_LIMITS / PLAN_AI_TOKEN_PERCENTS：BOH AI 每日 Token 额度。**真实值以
+     ai_quota_config.daily_token_limit 为准**（数据管理面板「AI 额度与计费」可调），
+     此处是**展示副本** —— 调完额度必须回来改这里，否则页面会宣传一个系统不认的数字。
      ⚠️ 2026-10-02：档位额度 ÷2（plus 80万→40万 / pro 200万→100万 / max 500万→250万 /
-     ultra 1000万→500万），此处已同步；`free` 从「20 万」改成「—」——
+     ultra 1000万→500万），此处已同步；`free` 从「20 万」改成「0」——
      **free 的 daily_token_limit 一直是 0**（无 token 额度，纯走积分兜底），
      那个「20 万」从上线起就没对应过任何东西，属既存展示错误。
      对齐口径：与 ai_pricing_config.rate_tokens_per_point 一起决定「1 积分能买多少」。
+     ⚠️ 2026-10-08 口径变更（用户口径「不再展示你还有多少 token，只用百分比」）：
+     界面**不再展示绝对 Token 数**。`PLAN_AI_TOKEN_LIMITS` 保留为**绝对值底数** ——
+     它既是档位百分比的推导来源，也是附加包百分比的分母；界面一律读
+     `PLAN_AI_TOKEN_PERCENTS`（横向对比）/ `utils/ai-quota-display.js`（自己用了多少）。
    - PLAN_LAB_QUOTAS：实验室 PPT / Word 产出次数
    - PLAN_PHOTO_ALBUM_*：摄影集权益展示口径（2026-09-27 上线）。数值必须与
      utils/photo-albums/quota.js 的三张 enforcement MAP 对齐：
@@ -34,13 +57,47 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
    - PLAN_LOTTERY_PITY_THRESHOLDS：抽奖保底门槛，口径对齐 get_my_lottery_pity_status：
      按「连续未中奖场次」累计、中奖清零、达标后兑保底礼；Free 不计保底（null）。
      真实阈值以数据库 RPC 为准，此处为展示口径，改动需与 PityIslandCard 阈值文案同步核对。 */
-export const PLAN_AI_TOKENS = {
-  free: '—',
-  plus: '40 万',
-  pro: '100 万',
-  max: '250 万',
-  ultra: '500 万',
+export const PLAN_AI_TOKEN_LIMITS = {
+  free: 0,
+  plus: 400000,
+  pro: 1000000,
+  max: 2500000,
+  ultra: 5000000,
 };
+
+/* 档位横向对比的基准档：**最低付费档**。Plus = 100%、Pro = 250%…
+   （free 无 token 额度 ⇒ '—'，不参与百分比） */
+export const PLAN_AI_TOKEN_BASELINE_TIER = 'plus';
+
+export const PLAN_AI_TOKEN_PERCENTS = Object.fromEntries(
+  Object.entries(PLAN_AI_TOKEN_LIMITS).map(([code, tokens]) => [
+    code,
+    tokens > 0
+      ? `${Math.round((tokens / PLAN_AI_TOKEN_LIMITS[PLAN_AI_TOKEN_BASELINE_TIER]) * 100)}%`
+      : '—',
+  ]),
+);
+
+/**
+ * 「Plus = 100%」这把尺子上某档位的**数值**（Plus 100 / Pro 250 / Max 625 / Ultra 1250）。
+ *
+ * 为什么需要它：`PLAN_AI_TOKEN_PERCENTS` 是给表格/卡片直接印的**字符串**（'625%'），
+ * 而 AI 页要做「剩余 = 总额 − 已用」的运算，得拿到数值。2026-10-08 第二版口径把
+ * AI 页的尺子也统一到这一把，于是 `utils/ai-quota-display.js` 依赖它。
+ *
+ * ⚠️ 刻意从 `PLAN_AI_TOKEN_PERCENTS` 反解、而不是重新除一遍 `PLAN_AI_TOKEN_LIMITS` ——
+ *    两处各算一遍就等于又多了一份真源，改额度时必漏一处。百分比表是唯一真源。
+ * ⚠️ 不能写成模块级常量去调 `normalizeSubscriptionPlanCode()`：那个函数依赖文件下方
+ *    才初始化的 `PLAN_CODE_ALIASES`，在模块初始化期调用会踩 TDZ。故做成运行时函数。
+ *
+ * @returns {number|null} free / guest / 未知档位 ⇒ null（没有 token 额度或没有订阅）
+ */
+export function resolveTierQuotaPercent(tierCode) {
+  const label = PLAN_AI_TOKEN_PERCENTS[normalizeSubscriptionPlanCode(tierCode)];
+  if (!label || label === '—') return null;
+  const value = Number.parseFloat(label);
+  return Number.isFinite(value) ? value : null;
+}
 
 /* AI 积分消费倍率（超出额度后按量计费的折扣）。展示口径：
    真实值以 ai_quota_config.points_multiplier 为准（数据管理面板「AI 额度与计费」可调），
@@ -53,7 +110,8 @@ export const PLAN_AI_POINT_MULTIPLIERS = {
   ultra: 0.8,
 };
 
-/* Coding 附加包（Token Plan 包）展示口径：加成与 ai-key-vault CODING_PLAN_BONUSES 对齐，
+/* Coding 附加包（Token Plan 包）：`tokenBonus` 是**数值**，与 ai-key-vault
+   CODING_PLAN_BONUSES 逐个对齐（tests/unit/ai-coding-pack-bonus-parity.test.js 守），
    积分价格以 subscription_plan_prices 服务端取价为准（面板可改），此处仅展示。
    free 档没有每日额度，包的每日加成即其全部「日额度」。
    ⚠️ 2026-10-02：tokenBonus 随档位额度一起 ÷2（+50/150/300/600 万 → +25/75/150/300 万），
@@ -61,37 +119,67 @@ export const PLAN_AI_POINT_MULTIPLIERS = {
    改这里**必须同时改** Edge Function 的 CODING_PLAN_BONUSES 并重新部署 ——
    只改展示会出现「页面说 +25 万、实际加 +50 万」，比不改更糟。
    注意：倍率同时降了 10 倍，所以包的实际可用量（actual tokens）仍然比改动前多约 5 倍 ——
-   这是「降额度 + 提可用量」的连带效果，不是 bug。 */
+   这是「降额度 + 提可用量」的连带效果，不是 bug。
+   ⚠️ 2026-10-08：字段从展示字符串（' +25 万 Token / 天 '）改成**数值** —— 界面不再展示
+   Token 数，改成百分比就必须能参与计算，字符串得先解析才能用（旧做法是把口径漏进正则）。 */
 export const CODING_PACKS = [
   {
     code: 'coding-lite',
     name: 'Coding Lite',
-    tokenBonus: '+25 万 Token / 天',
-    webSearchBonus: '+10 次 / 天',
+    tokenBonus: 250000,
+    webSearchBonus: 10,
     monthlyPrice: 10,
   },
   {
     code: 'coding-plus',
     name: 'Coding Plus',
-    tokenBonus: '+75 万 Token / 天',
-    webSearchBonus: '+30 次 / 天',
+    tokenBonus: 750000,
+    webSearchBonus: 30,
     monthlyPrice: 34,
   },
   {
     code: 'coding-pro',
     name: 'Coding Pro',
-    tokenBonus: '+150 万 Token / 天',
-    webSearchBonus: '+60 次 / 天',
+    tokenBonus: 1500000,
+    webSearchBonus: 60,
     monthlyPrice: 68,
   },
   {
     code: 'coding-ultra',
     name: 'Coding Ultra',
-    tokenBonus: '+300 万 Token / 天',
-    webSearchBonus: '+120 次 / 天',
+    tokenBonus: 3000000,
+    webSearchBonus: 120,
     monthlyPrice: 135,
   },
 ];
+
+/* 附加包百分比的取整步长：用户口径要「150% 以此类推」这种整数字，5% 一档最耐看。 */
+export const PACK_QUOTA_PERCENT_STEP = 5;
+
+/**
+ * 附加包相对**某档位基础额度**的百分比（取整到 5%）。
+ *
+ * ⚠️ 包是独立售卖的，同一个包在不同档位占比天然不同：coding-lite 对 Plus = 62.5%
+ *    （取整 65%）、对 Pro = 25%。订阅页对访客也可见、没有「当前档位」⇒ 一律用
+ *    **基准档 Plus** 折算，与档位对比行同一把尺子；AI 页里则用用户自己的档位，
+ *   由 `quota-status` 返回的 baseTokenLimit/bonusTokens 直接算出，不查这张表。
+ *
+ * free 档基础额度为 0（包就是它的全部额度）⇒ 返回 `null`，调用方按「以包为全部」展示。
+ */
+export function resolvePackQuotaPercent(packCode, tierCode = PLAN_AI_TOKEN_BASELINE_TIER) {
+  const pack = CODING_PACKS.find((item) => item.code === packCode);
+  if (!pack) return null;
+  const baseTokens = Number(PLAN_AI_TOKEN_LIMITS[normalizeSubscriptionPlanCode(tierCode)] || 0);
+  if (!(baseTokens > 0)) return null;
+  const step = PACK_QUOTA_PERCENT_STEP;
+  return Math.max(step, Math.round(((pack.tokenBonus / baseTokens) * 100) / step) * step);
+}
+
+/** 附加包卡片上的额度文案：'额度 +60%'（基础额度为 0 的档位 ⇒ '按包额度'） */
+export function formatPackQuotaPercent(packCode, tierCode = PLAN_AI_TOKEN_BASELINE_TIER) {
+  const percent = resolvePackQuotaPercent(packCode, tierCode);
+  return percent === null ? '按包额度' : `额度 +${percent}%`;
+}
 
 export const PLAN_LAB_QUOTAS = {
   free: '10 次 / 月',

@@ -31,4 +31,30 @@ export const RANKING_SCORE_WEIGHTS = {
   lexicalMultiplier: 5,
   defaultSourceScore: 6,
   confidenceMultiplier: 10,
+  // ⚠️ 时间衰减（2026-10-08 新增）。下面三项**不改**既有三项的值，
+  //    只是给排序加了一个独立的时间维度。
+  //
+  // 为什么需要：原排序只有 词面×5 + 源权重 + 置信度×10，**证据日期完全不参与**。
+  // 于是半年前的一条论坛帖与昨天的另一条，只要源和词面相当，得分完全一样 ——
+  // 「最近有什么变化」这类问题会稳定拿到旧资料，且模型无从察觉。
+  //
+  // 为什么是减法（penalty）而不是乘衰减系数：乘系数会同时压低高置信度的新证据，
+  // 改动的排序面更大；减法只影响**同等条件下的新旧之争**，正是要修的那个面。
+  //
+  // 半衰期按源区分：论坛/健康/Cloud+ 的事实随时间失效得快，站点手册与知识库几乎不变。
+  // 单位：天。
+  freshnessMaxPenalty: 8,
+  freshnessReferenceDays: 90,
+  freshnessHalfLifeDays: {
+    forum: 14,
+    health: 21,
+    cloud: 30,
+    sharedMemory: 30,
+    userPrivate: 120,
+    knowledge: 365,
+    siteGuide: 365,
+  },
+  // 无日期时的兜底半衰期：取最保守（接近不惩罚），避免把「没提供日期」的源
+  // （字符串形态的连接器结果、历史数据）一次性打死。
+  freshnessFallbackHalfLifeDays: 365,
 };

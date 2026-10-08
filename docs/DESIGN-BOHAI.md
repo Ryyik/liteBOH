@@ -125,6 +125,9 @@
 | | `--boh-ls-head` | `-0.02em` |
 | **动效** | `--boh-dur-fast` | `150ms` |
 | | `--boh-dur-med` | `200ms` |
+| | `--boh-dur-bob` | `1.1s`（检索进度条） |
+| | `--boh-dur-spin` | `0.9s`（集群进度） |
+| | `--boh-dur-breath` | `2s`（思考圆点，旧版口径） |
 | | `--boh-ease` | `cubic-bezier(0.4, 0, 0.2, 1)` |
 | **布局常量** | `--boh-rail-w` | `88px` |
 | | `--boh-sidebar-w` | `280px` |
@@ -179,7 +182,12 @@
 - **只有两个时长**：`150ms`（`--boh-dur-fast`，悬停/颜色/描边）与 `200ms`（`--boh-dur-med`，抽屉/展开/淡入）。
 - **唯一缓动**：`cubic-bezier(0.4, 0, 0.2, 1)`（`--boh-ease`）。
 - **CSS 里不许写字面时长**（时长唯一真源 = 令牌）。
-- 入场/循环动画仅两处：打字三点 `bob`（`1.1s`）、集群进度转圈 `spin`（`0.9s`）。
+- 入场/循环动画仅三处：检索进度条滑动 `--boh-dur-bob`（`1.1s`）、集群进度转圈 `--boh-dur-spin`（`0.9s`）、
+  **思考圆点呼吸 `--boh-dur-breath`（`2s`）**。
+  > ⚠️ **思考圆点按旧版口径保留**（2026-10-08 用户拍板：「思考状态依旧保持旧版圆点」）——
+  > 形状 / 动画逐字沿用旧 `messages.css` 的 `.thinking` + `.thinking-dot` + `@keyframes thinkingBreath`
+  > （`scale .72→1.22` / `opacity .55→1` / `2s ease-in-out`）。**不要**换成 Demo 预览件里的三点打字动画：
+  > 等待动作与输出格式属「不变项」（同 `plans/023` 的原话「AI 的等待动作和输出的格式不变」）。
 - **必须尊重 `prefers-reduced-motion: reduce`**（预览件已内置降级）。
 - ⚠️ `animation-fill-mode: both` 会让该属性从此不可过渡，离场必须走关键帧（仓库既有坑）。
 
@@ -361,11 +369,12 @@ Work = retrieval + web + generator(docx / pptx / xlsx + 代码) + agents 集群 
 
 | 探针 | 目标视口 | 断言 |
 | --- | --- | --- |
-| `probe-bohai-composer.mjs` | **1440×900 / 390×844 / 844×390** 三档 | 22 条起，**只增不减** |
-| `probe-aichat-landscape-rail.mjs` | 1440×900 / 390×844 | 14（左栏 fixed + 岛心居中） |
-| `probe-ai-island-rail.mjs` | 桌面 + 岛 | 保持 |
-| `probe-ai-panels.mjs` | 桌面 | 保持 |
-| 新增（Work 面板 / 三栏布局） | 1440×900 / 1280×800 | 新增 |
+| `probe-bohai-composer.mjs` | **1440×900 / 390×844 / 844×390** 三档 | **30 条**（A1–A19 桌面全量交互 / B1–B6 竖屏 / C1–C5 矮横屏），只增不减 |
+| `probe-bohai-shell.mjs` | 1440×900 / 390×844 / 844×390 | **25 条**（壳骨架 + 左栏 + 侧栏静态列/抽屉 + 顶栏三档 + 空态 + Work 面板挂载） |
+| `probe-aichat-landscape-rail.mjs` | 1440×900 / 390×844 | 14（左栏 fixed + 岛心居中 + 会话侧栏 left:88px） |
+| `probe-ai-island-rail.mjs` | 1280×900 | 7（岛展开不顶动左栏与页签） |
+| `probe-ai-panels.mjs` | 1440×900 | 设置面板惰性挂载 + 壳/侧栏/顶栏存在 |
+| `probe-bohai-mode-loading.mjs` | 1280×900 | 6（骨架 → 释放 → 空态兜底 → 即时就绪，全部离线 mock） |
 
 **纪律**：
 
@@ -379,8 +388,8 @@ Work = retrieval + web + generator(docx / pptx / xlsx + 代码) + agents 集群 
 
 | 棘轮 | 现值 | 本设计系统如何满足 |
 | --- | --- | --- |
-| **零裸色值**（`check:dark-tokens:strict`） | 2,854 | 组件 CSS **只消费 `--boh-*`**；暗色**只切令牌值**，不写第二套规则、不写裸 hex |
-| **零 `!important`**（`check:important-budget`） | 1,217（BOHAI 名下约 **497** + `BOHAIIsland.vue` **73**） | 新 CSS **零 `!important`**；Step 7 把 BOHAI 名下**归零**并**下调**棘轮基线 |
+| **零裸色值**（`check:dark-tokens:strict`） | **2,785**（2026-10-08 由 2,854 下调） | 组件 CSS **只消费 `--boh-*`**；暗色**只切令牌值**，不写第二套规则、不写裸 hex |
+| **零 `!important`**（`check:important-budget`） | **701**（2026-10-08 由 1,217 下调；旧 BOHAI 名下约 497 + `BOHAIIsland.vue` 73 已随旧 CSS / 旧 `:global()` 覆盖一起消失） | 新 CSS **零 `!important`**；降级动效**只把时长令牌归零**，不写 `!important` |
 | **时长唯一真源** | 令牌 | **CSS 里不许写字面时长**，一律 `var(--boh-dur-*)` + `var(--boh-ease)` |
 
 > 判据：`node -e "console.log(require('./scripts/important-budget.json').total)"`（→1217）、

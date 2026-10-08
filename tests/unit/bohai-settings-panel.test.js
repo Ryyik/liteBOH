@@ -289,7 +289,16 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
     for (const event of requiredEvents) {
       expect(content).toContain(event);
     }
-    expect(content).not.toContain('@select-thinking-speed');
+    // 思考强度**只许**在输入区面板（BohComposer）里，设置面板不许有第二个入口。
+    // 2026-10-08（plans/025 Step 6-4）：输入区整体重绘为 BohComposer，它的强度分段改走
+    // `@select-thinking-speed` ⇒ 不能再用「整份 BOHAIMain 不含该串」这种粗断言（会假红）。
+    // 改成：**设置面板那一块**不许含它 + 输入区必须真的接线。
+    const settingsTagStart = content.indexOf('<BohaiSettingsPanel');
+    const settingsTagEnd = content.indexOf('/>', settingsTagStart);
+    const settingsTag = content.slice(settingsTagStart, settingsTagEnd);
+    expect(settingsTag.length, '未找到 <BohaiSettingsPanel ... /> 标签').toBeGreaterThan(0);
+    expect(settingsTag).not.toContain('@select-thinking-speed');
+    expect(content).toContain('@select-thinking-speed="selectThinkingSpeed"');
   });
 
   it('完整 AI 页面接入主题、密度和字号设置', () => {
@@ -305,16 +314,32 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
     expect(content).toContain('clearAllSessions();');
   });
 
-  it('设置页显示 Token 百分比、数值和进度条', () => {
+  it('设置页用量卡显示「剩余」百分比（不再有 Token 绝对数），进度条按消耗归一', () => {
     const content = readComponent();
     expect(content).toContain('ai-settings-quota-overview');
-    expect(content).toContain('quotaPercent');
-    expect(content).toContain('quotaPercentLabel');
-    expect(content).toContain('quotaUsed');
+    // 2026-10-08 用户口径：「不再展示你还有多少 token，只用百分比」——
+    // 口径与归一计算全部交给 utils/ai-quota-display.js，组件里不再自己算除法。
+    // 第二版补充：主指标是**剩余**，尺子是唯一的「Plus = 100%」（Max ⇒ 625%）。
+    expect(content).toContain('resolveAiQuotaDisplay');
+    expect(content).toContain('quotaRemainingLabel');
+    expect(content).toContain('今日剩余');
+    expect(content).toContain('quotaMeterText');
     expect(content).toContain('role="progressbar"');
-    expect(content).toContain('quotaLimit === -1');
-    expect(content).toContain("'has-usage': quotaPercent > 0");
-    expect(content).not.toContain('Math.round((quotaUsed.value / quotaLimit.value) * 100)');
+    expect(content).toContain('quotaIsUnlimited');
+    // 剩余是 625% 这种三位数 ⇒ 条宽必须归一（aria 量程固定 0–100），
+    // 「总额 + 附加包」只在有包时作为副行出现。
+    expect(content).toContain('quotaDisplay.meterPercent');
+    expect(content).toContain('quotaTotalLabel');
+    expect(content).toContain("'has-usage': quotaDisplay.meterPercent > 0");
+    // 否定断言分两路，避免源码注释里的「合法复述」造成假红（见 helpers/source.js 文件头）：
+    //   · 模板侧：锁插值形态 —— 注释里不会出现收尾的 `}}`
+    //   · 脚本侧：剥掉注释后再断言
+    expect(content).not.toContain('formatTokenCount(quotaUsed) }}');
+    expect(content).not.toContain('formatTokenCount(quotaLimit) }}');
+    const code = stripComments(scriptSection(readComponent()));
+    expect(code).not.toContain('formatTokenCount(quotaUsed)');
+    expect(code).not.toContain('formatTokenCount(quotaRemaining)');
+    expect(code).not.toContain('Math.round((quotaUsed.value / quotaLimit.value) * 100)');
   });
 });
 

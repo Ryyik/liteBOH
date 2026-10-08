@@ -24,6 +24,7 @@
 | **Cloud+ 动效**（格子放大/缩小、详情从点中的格子放大展开并缩回、三档切换过渡、切列落定回弹） | `probe-cloud-motion.mjs` | 16 |
 | **BOH AI 整页横屏左栏**（`/ai-chat` 切过去后左栏导航不能消失） | `probe-aichat-landscape-rail.mjs` | 14 |
 | **BOH AI 输入区 + 设置面板**（底行胶囊 / 三行面板 / 左右二级菜单 / 高级工具组 / 用量圆钮单环+hover 浮层 / 设置面板 4 卡+折叠高级+用量卡 / 退役额度侧板不存在）—— 独立页 + AI 岛两形态 | `probe-bohai-composer.mjs` | 22 |
+| **BOH AI 斜杠命令执行语义**（点发送键必须执行命令、而不是把 `/web` 当文本发给模型 / 带参数剥掉命令字 / 未知命令不静默放行 / 普通输入不被误伤 / 触屏两条 / 空态建议卡一条）。⚠️ **当前预期红 6/7**，判据见 `docs/2026-10-08-BOHAI对齐Codex优化方案与斜杠命令修复.md` | `probe-bohai-slash-commands.mjs` | 7 |
 | 活动页封面图 / 活动页报名区与月份轨道 | `probe-activities-images.mjs` / `probe-campaign-ui.mjs` | 7 / 35 |
 | 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 49 |

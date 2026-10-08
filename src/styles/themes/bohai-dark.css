@@ -586,27 +586,11 @@
   background: #3a3a3a;
 }
 
-.bohai-page[data-theme="dark"] .ai-settings-backdrop,
-[data-theme="dark"] .bohai-page .ai-settings-backdrop {
-  background: rgba(0, 0, 0, 0.34);
-}
-
-.bohai-page[data-theme="dark"] .ai-settings-drawer,
-[data-theme="dark"] .bohai-page .ai-settings-drawer {
-  background: #2f2f2f;
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-}
-
-.bohai-page[data-theme="dark"] .ai-settings-header,
-[data-theme="dark"] .bohai-page .ai-settings-header {
-  border-bottom-color: rgba(255, 255, 255, 0.10);
-}
-
-.bohai-page[data-theme="dark"] .ai-settings-header h2,
-[data-theme="dark"] .bohai-page .ai-settings-header h2 {
-  color: #ececec;
-}
+/* 2026-10-08：`.ai-settings-*` 的暗色规则已删 —— 设置面板重写为「全屏设置页」后
+   整套调色板走 `.ai-settings-backdrop` 上的局部变量（`[data-theme='dark']` 换一组
+   `--boh-gray-*` 引用），**块内零颜色字面量**。旧规则是硬编码色值、且选择器
+   `.bohai-page[data-theme=dark] .ai-settings-backdrop` 在设置面板 Teleport 到 body
+   （独立页形态）时根本不命中 —— 属于「看着在、其实无效」的一批。 */
 
 /* Dark theme: Settings back button */
 

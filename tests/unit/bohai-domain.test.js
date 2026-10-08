@@ -39,11 +39,23 @@ describe('BOHAI domain 门面契约', () => {
     expect(EVIDENCE_SOURCE_WEIGHTS.health).toBe(15);
     expect(EVIDENCE_SOURCE_WEIGHTS.knowledge).toBe(12);
     expect(EVIDENCE_SOURCE_WEIGHTS.siteGuide).toBe(10);
-    expect(RANKING_SCORE_WEIGHTS).toEqual({
-      lexicalMultiplier: 5,
-      defaultSourceScore: 6,
-      confidenceMultiplier: 10,
+    // 原有三项逐字不动（2026-10-08 加时间衰减时只**新增**字段，没改这三个值）
+    expect(RANKING_SCORE_WEIGHTS.lexicalMultiplier).toBe(5);
+    expect(RANKING_SCORE_WEIGHTS.defaultSourceScore).toBe(6);
+    expect(RANKING_SCORE_WEIGHTS.confidenceMultiplier).toBe(10);
+    // 时间衰减参数（2026-10-08 新增）
+    expect(RANKING_SCORE_WEIGHTS.freshnessMaxPenalty).toBe(8);
+    expect(RANKING_SCORE_WEIGHTS.freshnessReferenceDays).toBe(90);
+    expect(RANKING_SCORE_WEIGHTS.freshnessHalfLifeDays).toEqual({
+      forum: 14,
+      health: 21,
+      cloud: 30,
+      sharedMemory: 30,
+      userPrivate: 120,
+      knowledge: 365,
+      siteGuide: 365,
     });
+    expect(RANKING_SCORE_WEIGHTS.freshnessFallbackHalfLifeDays).toBe(365);
   });
 
   it('全局 bohai-constants 里**不再有**第二份（单一真源）', async () => {

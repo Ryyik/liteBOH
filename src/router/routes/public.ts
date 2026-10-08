@@ -102,6 +102,10 @@ export const publicRoutes: RouteRecordRaw[] = [
   {
     path: '/ai-chat',
     name: 'AiChat',
+    // 沉浸导航（2026-10-08 用户口径）：打开 BOHAI 时顶部导航**收成一颗球**，
+    // 落在横向左栏的品牌 logo 位上（页面因此顶到满屏）；点那颗球唤醒完整导航。
+    // 复用阅读页/创作页已有的 `immersiveNav` 机制（含球 ↔ 胶囊 FLIP morph）。
+    meta: { immersiveNav: true },
     component: () => import('../../views/BOHAI/BOHAI/index.vue'),
   },
   {

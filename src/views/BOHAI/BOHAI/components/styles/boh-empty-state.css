@@ -1,51 +1,31 @@
 /**
- * boh-empty-state.css — `BohEmptyState.vue` 的样式（plans/025 v2 · Step 6-3 第一刀）
+ * boh-empty-state.css — 空态（BohEmptyState.vue 私有）
  *
- * 口径真源：`docs/DESIGN-BOHAI.md` §2.1（字号）/ §2.3（圆角）/ §1（令牌）。
+ * 口径真源：`output/boh-ui-demo/index.html` 的 `.empty-state` / `.empty-grid` / `.empty-card`
+ * （DESIGN §2.1 字号 / §2.3 圆角 / §1 令牌）。
  *
  * ⚠️ 三条纪律：
  *   1. **零裸色值** —— 只消费 `--boh-*`（`check:dark-tokens:strict` 棘轮）；
- *   2. **零 `!important`** —— 原 `adaptive-layout.css` 的 overlay 变体靠 `!important` 压基座，
- *      搬进来后**靠文件内顺序**（基座在前、变体在后）+ 更高特异性即可，无需 `!important`；
- *   3. **移动优先** —— 基础样式 = 竖屏；断点一律上收 `layout.css`（DESIGN §3.2），
- *      本文件只保留「与断点无关」的页面级变体（`.bohai-page` / `.overlay-mode`）。
+ *   2. **零 `!important`** —— 变体靠**文件内顺序 + 更高特异性**取胜；
+ *   3. **断点与基座同文件** —— 实测：`scoped` 给每条规则追加 `[data-v-x]`（+1 特异性），
+ *      全局 `layout.css` 的同深度选择器压不过组件 scoped 的基座（竖屏宽 358 而非 362、
+ *      建议仍 2 列）。DESIGN §3.2 的「断点上收」需要 `@layer` 之类机制，**待后续统一**。
  *
- * 迁移自：`messages.css`（基座）/ `full-workspace.css`（建议按钮 + 字号档 + 暗色 + 窄屏）/
- *        `adaptive-layout.css`（页面级 + overlay 变体）/ `motion-system.css`（动画）。
  * 旧类名（`empty-state` / `empty-brand` / `empty-subtitle` / `full-ai-suggestions` /
- * `quick-context-suggestions`）**不做迁移**（DESIGN §5），旧规则待 Step 7 清理。
+ * `quick-context-suggestions`）**不迁移**（DESIGN §5：旧类名随旧 DOM 一起死）。
  */
 
-/* ── 1. 基座（竖屏优先） ─────────────────────────────────────────── */
+/* ── 基座（移动优先） ─────────────────────────────────────────── */
 .boh-empty {
-  min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 28px 22px 64px;
+  padding: 34px 0 18px;
   text-align: center;
 }
 
-.boh-empty__brand {
-  display: inline-flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 10px;
-  color: var(--boh-text-1);
-  font-size: clamp(38px, 5vw, 56px);
-  font-weight: 700;
-  line-height: 0.98;
-  letter-spacing: var(--boh-ls-head);
-}
-
-.boh-empty__brand span:last-child {
-  font-weight: 600;
-}
-
 .boh-empty__title {
-  margin: 0;
+  margin-top: 18px;
   color: var(--boh-text-1);
   font-size: 22px;
   font-weight: 600;
@@ -54,186 +34,120 @@
 }
 
 .boh-empty__subtitle {
-  max-width: 520px;
-  margin: 0;
-  color: var(--boh-text-2);
+  margin-top: 7px;
+  color: var(--boh-text-3);
   font-size: 13px;
   line-height: 1.55;
 }
 
-/* ── 2. 建议按钮 ─────────────────────────────────────────────────── */
 .boh-empty__suggestions {
-  width: min(100%, 620px);
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 20px;
-}
-
-.boh-empty__suggestions button {
-  min-height: 42px;
-  padding: 9px 12px;
-  border: 1px solid var(--boh-border);
-  border-radius: var(--boh-radius-sm);
-  background: var(--boh-bg-card);
-  color: var(--boh-text-1);
-  text-align: left;
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  transition:
-    background-color var(--boh-dur-fast) var(--boh-ease),
-    border-color var(--boh-dur-fast) var(--boh-ease);
-}
-
-.boh-empty__suggestions button:hover {
-  border-color: var(--boh-border-strong);
-  background: var(--boh-bg-hover);
-}
-
-/* ── 3. 页面级（`.bohai-page` 下收紧，靠底对齐） ─────────────────── */
-.bohai-page .boh-empty {
-  width: min(calc(100% - 32px), var(--bohai-rail));
-  min-height: auto;
-  justify-content: flex-end;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin: 0 auto;
-  padding: 0 0 18px;
+  width: 100%;
+  max-width: 560px;
+  margin-top: 24px;
 }
 
-/* ── 4. overlay（岛内）变体 —— 文件顺序在后 + 特异性更高 ⇒ 无需 !important ── */
-.bohai-page.overlay-mode .boh-empty,
-.bohai-page.overlay-mode.empty-chat-mode .boh-empty,
-.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .boh-empty {
-  min-height: auto;
-  width: min(100% - 28px, var(--bohai-rail));
-  justify-content: center;
-  padding: 0 16px;
-  margin: 0 auto;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-}
-
-.bohai-page.overlay-mode .boh-empty__suggestions--quick {
-  width: min(100%, 360px);
-  display: grid;
-  gap: 6px;
-  margin-top: 16px;
-}
-
-.bohai-page.overlay-mode .boh-empty__suggestions--quick button {
-  min-height: 36px;
-  padding: 8px 11px;
-  border-radius: var(--boh-radius-md);
-  background: var(--boh-bg-hover);
+.boh-empty__suggestions > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-page);
   color: var(--boh-text-1);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    border-color var(--boh-dur-fast) var(--boh-ease),
+    transform var(--boh-dur-fast) var(--boh-ease);
 }
 
-.bohai-page.overlay-mode.empty-chat-mode .boh-empty,
-.bohai-page.overlay-mode.embedded-mode.empty-chat-mode .boh-empty {
-  position: absolute;
-  top: 43%;
-  left: 50%;
-  width: min(calc(100% - 32px), var(--bohai-rail));
-  transform: translate(-50%, -50%);
+.boh-empty__suggestions > button:hover {
+  border-color: var(--boh-border-strong);
+  background: var(--boh-bg-card);
+  transform: translateY(-1px);
 }
 
-/* ── 5. 动效（沿用既有 keyframes，时长/缓动走令牌） ──────────────── */
-.boh-empty__brand {
-  animation: bohai-empty-brand-enter 480ms var(--bohai-motion-emphasized) 40ms both;
+.boh-empty__sug-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--boh-text-2);
 }
 
-.boh-empty__title {
-  animation: bohai-rise-in var(--boh-dur-med) var(--boh-ease) 100ms both;
+.boh-empty__sug-cmd {
+  flex: none;
+  margin-right: 2px;
+  color: var(--boh-text-1);
+  font-family: var(--boh-font-mono);
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.boh-empty__subtitle {
-  animation: bohai-rise-in var(--boh-dur-med) var(--boh-ease) 150ms both;
+/* ── 浮层（岛）形态：更紧凑 ───────────────────────────────────── */
+.boh-empty.is-island {
+  padding: 20px 0 10px;
 }
 
-.boh-empty__suggestions button {
-  animation: bohai-rise-in var(--boh-dur-med) var(--boh-ease) both;
-  animation-delay: calc(190ms + var(--bohai-item-order, 0) * 45ms);
+.boh-empty.is-island .boh-empty__title {
+  margin-top: 12px;
+  font-size: 17px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .boh-empty__brand,
-  .boh-empty__title,
-  .boh-empty__subtitle,
-  .boh-empty__suggestions button {
-    animation: none;
-  }
+.boh-empty.is-island .boh-empty__subtitle {
+  font-size: 12.5px;
 }
 
-/* ── 6. 断点（4+1）─────────────────────────────────────────────────
-   ⚠️ **实测：断点不能放全局 layout.css** —— scoped 会给每条规则的选择器追加一个
-   `[data-v-x]` 属性选择器（+1 特异性），而全局文件的同深度选择器**压不过**它。
-   实测现象：`.bohai-page .boh-empty { width: calc(100% - 28px) }` 放在全局文件里
-   被组件 scoped 的基座规则（`min(100% - 32px, --bohai-rail)`）压掉 ⇒ 竖屏宽 358（应为 362）、
-   建议仍 2 列（应为 1 列）。
-   ⇒ 断点与基座**同文件**（靠文件内顺序取胜）；DESIGN §3.2 的「断点上收 layout.css」
-     需要能穿透 scoped 特异性的机制（如 `@layer`），**待后续统一**。 */
-
-@media (max-width: 768px) and (orientation: portrait) {
-  .bohai-page .boh-empty {
-    width: calc(100% - 28px);
-    padding-bottom: 14px;
-  }
-
-  .bohai-page .boh-empty__brand {
-    gap: 10px;
-    font-size: clamp(32px, 10vw, 46px);
-  }
-
-  .bohai-page .boh-empty__title {
-    font-size: 18px;
-  }
-
-  .bohai-page .boh-empty__subtitle {
-    max-width: 320px;
-    font-size: 12px;
-  }
-
-  .boh-empty__suggestions {
-    grid-template-columns: minmax(0, 1fr);
-    width: min(100%, 360px);
-    gap: 6px;
-    margin-top: 14px;
-  }
-
-  .boh-empty__suggestions button {
-    min-height: 38px;
-  }
+.boh-empty.is-island .boh-empty__suggestions {
+  gap: 8px;
+  margin-top: 14px;
 }
 
-@media (orientation: landscape) and (max-height: 600px) {
-  .bohai-page .boh-empty {
-    padding-bottom: 10px;
-  }
-
-  .bohai-page .boh-empty__brand {
-    font-size: 42px;
-  }
-
-  .bohai-page .boh-empty__title {
-    font-size: 19px;
-  }
-
-  .bohai-page .boh-empty__subtitle {
-    display: none;
-  }
-
-  .boh-empty__suggestions {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.boh-empty.is-island .boh-empty__suggestions > button {
+  padding: 9px 11px;
+  font-size: 12.5px;
 }
 
-/* ── 7. 字号档 ───────────────────────────────────────────────────── */
+/* ── 字号档（全局 AI 偏好） ───────────────────────────────────── */
 .bohai-page[data-font-scale='small'] .boh-empty__subtitle {
   font-size: 13px;
 }
 
 .bohai-page[data-font-scale='large'] .boh-empty__subtitle {
   font-size: 16px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   断点（与基座同文件，靠文件内顺序取胜）
+   ══════════════════════════════════════════════════════════════ */
+
+/* 矮横屏：landscape 且 max-height 600 —— 副标题隐藏、建议 4 列 */
+@media (orientation: landscape) and (max-height: 600px) {
+  .boh-empty {
+    padding-bottom: 8px;
+  }
+
+  .boh-empty__title {
+    font-size: 19px;
+  }
+
+  .boh-empty__subtitle {
+    display: none;
+  }
+
+  .boh-empty__suggestions {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+}
+
+/* 小手机 ≤480：建议两列（Demo 口径：窄屏仍两列） */
+@media (max-width: 480px) {
+  .boh-empty__suggestions {
+    grid-template-columns: 1fr 1fr;
+  }
 }

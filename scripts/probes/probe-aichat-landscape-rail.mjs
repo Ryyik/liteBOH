@@ -40,12 +40,23 @@ const probeLandscape = async () => {
   await page.goto(`${BASE}/#/ai-chat`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4500);
 
+  // 2026-10-08：AI 页顶部导航默认**收成一颗球**（沉浸导航，见 probe-nav-immersive-orb.mjs），
+  // 球态下不存在「内容区居中」这件事 ⇒ 先把导航唤醒成完整胶囊，再量下面这组几何。
+  // （球与左栏的对位由沉浸球探针负责，这里只管展开态的光学居中。）
+  await page
+    .locator('#unified-nav-container .unified-nav-surface')
+    .click()
+    .catch(() => {});
+  await page.waitForTimeout(900);
+
   const m = await page.evaluate(() => {
     const rail = document.querySelector('.userspace-rail');
     const pageEl = document.querySelector('.bohai-page');
-    const sidebar = document.querySelector('.sidebar');
+    // plans/025 v2 · Step 6：会话侧栏重绘为 `.boh-sidebar`（旧 `.sidebar` 随旧 DOM 删除），
+    // 主列由 `.main-content` 改为 `.boh-main`。
+    const sidebar = document.querySelector('.boh-sidebar');
     const active = document.querySelector('.userspace-rail-item.active');
-    const main = document.querySelector('.main-content');
+    const main = document.querySelector('.boh-main');
     const cs = rail ? getComputedStyle(rail) : null;
     const r = rail?.getBoundingClientRect();
     return {
@@ -60,7 +71,7 @@ const probeLandscape = async () => {
       activeTab: active?.getAttribute('data-tab') || '',
       pagePaddingLeft: pageEl ? getComputedStyle(pageEl).paddingLeft : '',
       sidebarLeft: sidebar ? getComputedStyle(sidebar).left : '(no sidebar)',
-      sidebarOpen: !!sidebar && sidebar.classList.contains('open'),
+      sidebarOpen: !!sidebar && sidebar.classList.contains('is-open'),
       mainLeft: main ? Math.round(main.getBoundingClientRect().left) : -1,
       navSurfaceLeft: (() => {
         const s = document.querySelector('.unified-nav-surface');

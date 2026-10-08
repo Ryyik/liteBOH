@@ -274,6 +274,8 @@ export const normalizeConnectorReadResult = (connector = {}, rawResult = null) =
     total: 0,
     labels: [],
     confidence: 0,
+    // 空串 = 该源没有可用的最新时间 ⇒ ranking 不施加时间惩罚（缺失 ≠ 过期）
+    latestAt: '',
     evidenceRefs: [],
     metadata: {},
   };
@@ -292,6 +294,14 @@ export const normalizeConnectorReadResult = (connector = {}, rawResult = null) =
   }
 
   const context = String(rawResult.context || '').trim();
+  // `latestAt`：该源里最新一条证据的时间（ISO 字符串或空）。
+  // ⚠️ 显式声明「没有日期」与「日期很旧」是两件事：没有日期时 ranking 不施加时间惩罚
+  //   （见 utils/retrieval/scoring.js 的 freshnessPenalty）—— 缺失不等于过期。
+  const latestAtRaw = rawResult.latestAt;
+  const latestAt =
+    typeof latestAtRaw === 'string' && !Number.isNaN(Date.parse(latestAtRaw))
+      ? new Date(latestAtRaw).toISOString()
+      : '';
   const total = Number.isFinite(Number(rawResult.total))
     ? Math.max(0, Number(rawResult.total))
     : context
@@ -317,6 +327,7 @@ export const normalizeConnectorReadResult = (connector = {}, rawResult = null) =
     total,
     labels,
     confidence,
+    latestAt,
     evidenceRefs:
       explicitEvidenceRefs.length > 0 ? explicitEvidenceRefs : extractCitationIdsFromText(context),
     metadata:

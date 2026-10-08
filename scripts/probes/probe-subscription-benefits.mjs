@@ -19,6 +19,12 @@ import fs from 'node:fs';
 //    · C 组的 `digits()` 把折数的 0.95 也拼进了 AI 额度（`400.95` vs `40`）。
 //    两处都用「换回 HEAD 版跑」反证过：HEAD 同样 40/8，与当天的额度调整无关。
 //    同时新增 B10 锁住 AI 额度行的五个值（Free = 「—」，它没有 token 额度）。
+//
+// ⚠️ 2026-10-08 口径变更（用户口径「不再展示你还有多少 token，只用百分比」）：
+//    AI 额度那一行与卡片首项从绝对 Token 数（'40 万'）改成**相对基准档的百分比** ——
+//    基准 = 最低付费档 Plus = 100%（plus 100% / pro 250% / max 625% / ultra 1250%），
+//    行名也从 'BOH AI Token / 天' 改成 'BOH AI 额度'。改口径必须同批改 A2/B10/C，
+//    否则三条会一起红（它们都逐字读这一行）。
 // =====================================================================
 const BASE = 'http://[::1]:5173';
 const OUT = 'debug-screenshots/subscription-benefits';
@@ -98,13 +104,13 @@ async function readTable(page) {
     cards.map((c) => c.name).join('/'),
   );
   // ⚠️ AI 行的期望值必须带「· 积分 N 折」后缀 —— 卡片模板是逐字渲染
-  //    `buildCardFeatures` 生成的整串（`BOH AI {额度} Token / 天 · 积分 {折} 折`），
+  //    `buildCardFeatures` 生成的整串（`BOH AI 额度 {百分比} · 积分 {折} 折`），
   //    只写前半段会让 A2 恒红。2026-10-02 修：此前这 4 条一直是失败的（既存缺陷，
   //    与当天的额度调整无关；换回 HEAD 版同样 40 pass / 8 fail）。
   //    折数来自 PLAN_AI_POINT_MULTIPLIERS：0.95 / 0.9 / 0.85 / 0.8。
   const expectCards = {
     Plus: [
-      'BOH AI 40 万 Token / 天 · 积分 0.95 折',
+      'BOH AI 额度 100% · 积分 0.95 折',
       'Cloud+ 300 张',
       '实验室 PPT / Word 15 次 / 月',
       '摄影集 3 本 · 单集 24 张',
@@ -112,7 +118,7 @@ async function readTable(page) {
       '连续 24 场未中奖可兑保底礼',
     ],
     Pro: [
-      'BOH AI 100 万 Token / 天 · 积分 0.9 折',
+      'BOH AI 额度 250% · 积分 0.9 折',
       'Cloud+ 450 张',
       '实验室 PPT / Word 20 次 / 月',
       '摄影集 5 本 · 单集 40 张',
@@ -120,7 +126,7 @@ async function readTable(page) {
       '连续 18 场未中奖可兑保底礼',
     ],
     Max: [
-      'BOH AI 250 万 Token / 天 · 积分 0.85 折',
+      'BOH AI 额度 625% · 积分 0.85 折',
       'Cloud+ 900 张',
       '实验室 PPT / Word 30 次 / 月',
       '摄影集 10 本 · 单集 60 张',
@@ -128,7 +134,7 @@ async function readTable(page) {
       '连续 12 场未中奖可兑保底礼',
     ],
     Ultra: [
-      'BOH AI 500 万 Token / 天 · 积分 0.8 折',
+      'BOH AI 额度 1250% · 积分 0.8 折',
       'Cloud+ 1200 张',
       '实验室 PPT / Word 不限次数',
       '摄影集 不限 · 单集 不限',
@@ -201,13 +207,20 @@ async function readTable(page) {
     (rowMap['每月离线导出'] || []).join('/'),
   );
   // 2026-10-02 新增：锁住 AI 额度行的五个值（Free 无 token 额度 = 「—」）。
-  // 这一行是 subscription-benefits.js 里 PLAN_AI_TOKENS 的直接投影；
+  // 2026-10-08：值从绝对 Token 数改成**相对基准档 Plus = 100% 的百分比**，
+  // 行名同步从 'BOH AI Token / 天' 改成 'BOH AI 额度'。
+  // 这一行是 subscription-benefits.js 里 PLAN_AI_TOKEN_PERCENTS 的直接投影；
   // 改档位额度（ai_quota_config.daily_token_limit）时必须同批改它，此断言负责抓漏改。
   check(
-    'B10 BOH AI Token / 天 行：—/40 万/100 万/250 万/500 万',
-    JSON.stringify(rowMap['BOH AI Token / 天']) ===
-      JSON.stringify(['—', '40 万', '100 万', '250 万', '500 万']),
-    (rowMap['BOH AI Token / 天'] || []).join('/'),
+    'B10 BOH AI 额度 行：—/100%/250%/625%/1250%',
+    JSON.stringify(rowMap['BOH AI 额度']) ===
+      JSON.stringify(['—', '100%', '250%', '625%', '1250%']),
+    (rowMap['BOH AI 额度'] || []).join('/'),
+  );
+  check(
+    'B11 旧的「BOH AI Token / 天」行已消失 + 公共说明写明百分比基准',
+    !rowMap['BOH AI Token / 天'] && /Plus\s*=\s*100%/.test(table.note),
+    `note=${table.note.slice(0, 80)}`,
   );
 
   // C. 卡片 vs 表格数值一致性（P1 验收核心）
@@ -218,10 +231,10 @@ async function readTable(page) {
     const cell = (label) => (rowMap[label] || [])[col] || '';
     const pairs = [
       // ⚠️ AI 行必须先切掉 ` · ` 之后的部分再取数字：卡片文案是
-      //    `BOH AI 40 万 Token / 天 · 积分 0.95 折`，`digits()` 会把折数的 0.95 也拼进来
-      //    （得到 `400.95`），而表格单元格只有 `40 万`。2026-10-02 修 —— 此前这 4 条
+      //    `BOH AI 额度 250% · 积分 0.9 折`，`digits()` 会把折数的 0.9 也拼进来
+      //    （得到 `2500.9`），而表格单元格只有 `250%`。2026-10-02 修 —— 此前这 4 条
       //    一直是失败的（既存缺陷，与当天的额度调整无关）。
-      ['AI 额度', digits(pick(/^BOH AI/).split(' · ')[0]), digits(cell('BOH AI Token / 天'))],
+      ['AI 额度', digits(pick(/^BOH AI/).split(' · ')[0]), digits(cell('BOH AI 额度'))],
       ['Cloud+', digits(pick(/^Cloud\+/)), digits(cell('Cloud+ 存储空间'))],
       ['实验室', pick(/^实验室/).replace(/^实验室 PPT \/ Word /, ''), cell('实验室 PPT / Word')],
       [
@@ -241,6 +254,32 @@ async function readTable(page) {
       );
     }
   }
+
+  // C2. 附加包卡片：额度也走**百分比**（基准 = 最低付费档 Plus，与档位对比行同一把尺子）
+  //     2026-10-08 用户口径：从 ' +25 万 Token / 天 ' 改成 '额度 +N%'。
+  const packs = await page.evaluate(() =>
+    [...document.querySelectorAll('.apple-pricing.v2 .pack-card')].map((card) => ({
+      name: card.querySelector('h3')?.textContent?.trim() || '',
+      bonus: card.querySelector('.pack-bonus')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+      web: card.querySelector('.pack-web')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    })),
+  );
+  check(
+    'C2 四个附加包只写百分比（相对 Plus：+65% / +190% / +375% / +750%）',
+    JSON.stringify(packs.map((p) => p.bonus)) ===
+      JSON.stringify(['额度 +65%', '额度 +190%', '额度 +375%', '额度 +750%']),
+    packs.map((p) => `${p.name}:${p.bonus}`).join(' | '),
+  );
+  check(
+    'C3 附加包卡片不再出现 Token 绝对数',
+    packs.length === 4 && !packs.some((p) => /Token|万/.test(p.bonus)),
+    packs.map((p) => p.bonus).join(' | '),
+  );
+  check(
+    'C4 附加包联网次数带上加号与单位（字段从字符串改成数值后由模板补单位）',
+    packs.length === 4 && packs.every((p) => /^联网搜索 \+\d+ 次 \/ 天$/.test(p.web)),
+    packs.map((p) => p.web).join(' | '),
+  );
 
   // D. 月付 / 年付切换
   await page.click('.apple-pricing.v2 .seg-btn:has-text("单年")');

@@ -1130,15 +1130,54 @@ const isExpandedLooking = computed(() =>
       !!islandCustomSlot.component,
 );
 
+/* 「球态」写到 body 上供页面侧消费 —— 目前只有 AI 页用：
+   `body.page-aichat.nav-orb-mode` 把 `--bohai-standalone-nav-height` 归零，
+   于是 `.bohai-page` 不再避让导航高度、整页顶到满屏（用户口径「页面高度提升上去」）。
+   ⚠️ 与球的显隐共用 isExpandedLooking 同一处判定，不要再造第二个真源。 */
+let orbTransitionTimer = null;
+watch(
+  [immersiveNav, isExpandedLooking],
+  ([immersive, expanded]) => {
+    if (typeof document === 'undefined') return;
+    document.body.classList.toggle('nav-orb-mode', Boolean(immersive) && !expanded);
+    // 页面高度的过渡只在**形态切换窗口内**挂：常驻 transition 会把软键盘的
+    // `--kb-inset` 适配（同样改 .bohai-page 的 height）一起拖慢 460ms。
+    document.body.classList.add('nav-orb-transitioning');
+    if (orbTransitionTimer) clearTimeout(orbTransitionTimer);
+    orbTransitionTimer = setTimeout(() => {
+      orbTransitionTimer = null;
+      document.body.classList.remove('nav-orb-transitioning');
+    }, 480);
+  },
+  { immediate: true },
+);
+
 // ============================================
 // 沉浸形态 FLIP 灵动过渡：球 ↔ 展开胶囊位置连续 morph
 // （fixed 球与流内胶囊无法用 CSS transition 插值，改用 WAAPI：
 //   新态挂载后，从已知旧态几何反演 transform，再过渡回原位）
 // ============================================
-const IMMERSIVE_ORB = { x: 14, y: 14, size: 52 };
+/* 球几何的**默认值**只作兜底；真源是 CSS 变量 `--nav-orb-*`（见 style.scoped.css）。
+   AI 页（/ai-chat）会把球挪到横向左栏的品牌 logo 位上 —— 静态球位与 FLIP 起点必须同源，
+   否则展开/收起时球会从错误的位置起跳。 */
+const IMMERSIVE_ORB_FALLBACK = { x: 14, y: 14, size: 52 };
 const IMMERSIVE_CAPSULE = { width: 860, height: 58 };
 const IMMERSIVE_FLIP_MS = 460;
 const IMMERSIVE_FLIP_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
+
+const readImmersiveOrb = (el) => {
+  if (!el || typeof window === 'undefined') return IMMERSIVE_ORB_FALLBACK;
+  const cs = getComputedStyle(el);
+  const readPx = (name, fallback) => {
+    const value = parseFloat(cs.getPropertyValue(name));
+    return Number.isFinite(value) ? value : fallback;
+  };
+  return {
+    x: readPx('--nav-orb-x', IMMERSIVE_ORB_FALLBACK.x),
+    y: readPx('--nav-orb-y', IMMERSIVE_ORB_FALLBACK.y),
+    size: readPx('--nav-orb-size', IMMERSIVE_ORB_FALLBACK.size),
+  };
+};
 
 watch(
   isExpandedLooking,
@@ -1152,12 +1191,13 @@ watch(
 
     const toRect = surface.getBoundingClientRect();
     const expanding = isExpandedLooking.value;
+    const orb = readImmersiveOrb(surface);
     const fromRect = expanding
       ? {
-          x: IMMERSIVE_ORB.x,
-          y: IMMERSIVE_ORB.y,
-          width: IMMERSIVE_ORB.size,
-          height: IMMERSIVE_ORB.size,
+          x: orb.x,
+          y: orb.y,
+          width: orb.size,
+          height: orb.size,
         }
       : {
           x: (window.innerWidth - Math.min(IMMERSIVE_CAPSULE.width, window.innerWidth - 24)) / 2,

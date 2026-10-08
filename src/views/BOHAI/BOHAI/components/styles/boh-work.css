@@ -1,0 +1,270 @@
+/**
+ * boh-work.css — Work 面板（BohWorkPanel.vue 私有）
+ *
+ * 口径真源：`output/boh-ui-demo/index.html` 的 `§5 Work 面板`。
+ * 只消费 `--boh-*`（零裸色值、零 `!important`）。断点与基座同文件（见 `styles/layout.css` 头）。
+ */
+
+.boh-work {
+  display: none;
+  flex: none;
+  width: 0;
+  overflow: hidden;
+  /* 收起时**连描边也收掉**：`box-sizing: border-box` 下 1px 边框会让收起态仍占 1px
+     （实测：`getBoundingClientRect().width === 1`，主列被挤 1px）。 */
+  border-left: 0 solid var(--boh-border);
+  background: var(--boh-bg-page);
+  opacity: 0;
+  transition:
+    width var(--boh-dur-med) var(--boh-ease),
+    opacity var(--boh-dur-med) var(--boh-ease);
+}
+
+.boh-wp-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--boh-border);
+  color: var(--boh-text-1);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: var(--boh-ls-head);
+}
+
+.boh-icon-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-2);
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-icon-btn:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-wp-sec {
+  flex: none;
+  padding: 14px 16px 4px;
+}
+
+.boh-wp-sec h3 {
+  margin-bottom: 9px;
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.boh-wp-empty {
+  padding: 2px 0 10px;
+  color: var(--boh-text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.boh-wp-empty b {
+  color: var(--boh-text-2);
+  font-weight: 600;
+}
+
+.boh-artifact {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 8px;
+  padding: 11px 12px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-card);
+}
+
+.boh-af-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-md);
+  background: var(--boh-bg-page);
+  color: var(--boh-text-1);
+}
+
+.boh-af-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.boh-af-info b {
+  display: block;
+  overflow: hidden;
+  color: var(--boh-text-1);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.boh-af-info span {
+  display: block;
+  margin-top: 2px;
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+}
+
+.boh-af-dl {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-sm);
+  color: var(--boh-text-2);
+  font-size: 12px;
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-af-dl:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-src-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 4px;
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+}
+
+.boh-src-row b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--boh-text-1);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.boh-src-row > span:last-child {
+  flex: none;
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+}
+
+.boh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3.5px 10px;
+  border: 1px solid var(--boh-border);
+  border-radius: 999px;
+  background: var(--boh-bg-page);
+  color: var(--boh-text-2);
+  font-size: 12px;
+}
+
+.boh-chip i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--boh-accent);
+  color: var(--boh-accent-contrast);
+  font-family: var(--boh-font-mono);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.boh-step-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 4px;
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+}
+
+.boh-step-dot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--boh-text-3);
+}
+
+.boh-step-dot.is-done {
+  color: var(--boh-text-1);
+}
+
+.boh-step-dot.is-failed {
+  color: var(--boh-danger);
+}
+
+.boh-step-dot.is-run {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--boh-border-strong);
+  border-top-color: var(--boh-accent);
+  border-radius: 50%;
+  animation: boh-spin var(--boh-dur-spin) linear infinite;
+}
+
+@keyframes boh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   断点（与基座同文件）—— Work 面板**只在桌面档存在**
+   ══════════════════════════════════════════════════════════════ */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .boh-work {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--boh-gray-300) transparent;
+  }
+
+  .boh-work.is-open {
+    width: var(--boh-work-w);
+    border-left-width: 1px;
+    opacity: 1;
+  }
+
+  .boh-work::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .boh-work::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background: var(--boh-gray-300);
+    background-clip: content-box;
+  }
+}

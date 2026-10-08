@@ -325,6 +325,38 @@ body.page-aichat {
   --bohai-standalone-nav-height: 72px;
 }
 
+/* 沉浸导航（2026-10-08 用户口径）：打开 BOHAI 时顶部导航**收成一颗球**、落在横向左栏的
+   品牌 logo 位上，页面因此**不再避让导航高度**、整页顶到满屏。两个 class 都由 UnifiedNavbar
+   写入：`nav-orb-mode` 与球的显隐同一处判定；`nav-orb-transitioning` 只在切换窗口内存在，
+   免得常驻 transition 把软键盘的 `--kb-inset` 适配也拖慢 460ms。 */
+body.page-aichat.nav-orb-mode {
+  --bohai-standalone-nav-height: 0px;
+}
+
+/* AI 页的球位 = **左栏品牌 logo 位**（用户口径「在侧边导航栏 logo 的位置」）。
+   左栏恒 88px ⇒ 品牌位 center + logo 26px ⇒ 中心 (44, 47)，球 52px ⇒ left 18 / top 21。
+   与 style.scoped.css 的默认值同一组变量，FLIP 也读它。 */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  body.page-aichat #unified-nav-container {
+    --nav-orb-x: 18px;
+    --nav-orb-y: 21px;
+  }
+
+  /* AI 页的「内容区居中」契约在沉浸**展开态**会丢：展开态把 surface 打回
+     `position: static`（回到流内胶囊，见 style.scoped.css），而 landscape-rail.css 给
+     AI 页做的居中用的是 `left: calc(var(--userspace-rail-w) / 2)` —— left 对 static
+     元素不生效 ⇒ 导航退回整页居中、相对内容区偏左 44px（实测 720 vs 期望 764）。
+     这里用 transform 把那半栏偏移补回来（与展开态既有的 translateY(10px) 合并）。
+     特异性远高于 style.scoped.css 里那条 :global 规则，不依赖加载顺序。 */
+  body.page-aichat
+    #unified-nav-container.nav-immersive-on.nav-immersive-expanded
+    .unified-nav-surface:not(.has-status-card):not(.has-task-card):not(.has-custom-card):not(
+      .has-bohai-island
+    ) {
+    transform: translate(calc(var(--userspace-rail-w, 88px) / 2), 10px);
+  }
+}
+
 body.page-aichat #app {
   /* --kb-inset：键盘遮挡高度（useKeyboardInset.js 写入 documentElement，阈值 120px）。
      iOS 的 100dvh 不随软键盘收缩，不扣它则键盘盖住 BOHAI 输入区（2026-09-24 修复）。 */
@@ -338,6 +370,14 @@ body.page-aichat .bohai-page:not(.embedded-mode):not(.overlay-mode) {
      扣 --kb-inset 与 #app 保持一致，margin-top 保留（顶部 fixed 导航不随键盘动）。 */
   height: calc(100dvh - var(--bohai-standalone-nav-height) - var(--kb-inset, 0px));
   margin-top: var(--bohai-standalone-nav-height);
+}
+
+/* 「页面高度顶上去」的过渡：与球的 FLIP 同长（460ms）同曲线，两者一起动才像一次形变。
+   只在切换窗口内生效（见上面的 nav-orb-transitioning）。 */
+body.page-aichat.nav-orb-transitioning .bohai-page:not(.embedded-mode):not(.overlay-mode) {
+  transition:
+    height 460ms cubic-bezier(0.16, 1, 0.3, 1),
+    margin-top 460ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (orientation: landscape) and (max-width: 1024px) {

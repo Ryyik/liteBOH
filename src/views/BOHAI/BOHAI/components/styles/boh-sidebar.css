@@ -1,0 +1,629 @@
+/**
+ * boh-sidebar.css — 会话侧栏（BohSidebar.vue 私有）
+ *
+ * 口径真源：`output/boh-ui-demo/index.html` 的 `§5 侧栏` 段（`.boh-sidebar` / `.sb-head` /
+ * `.surface-switch` / `.surface-menu` / `.new-chat` / `.sb-search` / `.sb-groups` / `.sb-item` /
+ * `.sb-foot` / `.mini-ring`）。
+ *
+ * ⚠️ 两条契约：
+ *   1. **Teleport 到 body** ⇒ 它不参与 `.boh-shell` 的 flex 流，`left` 由
+ *      `var(--bohai-sidebar-left, 0px)` 驱动（只有 `body.page-aichat` 横屏 ≥1024×600 置位 88px）。
+ *   2. **零 `!important` / 零裸色值**（两道棘轮）；断点与基座同文件（见 `styles/layout.css` 头）。
+ */
+
+.boh-sidebar {
+  position: fixed;
+  top: var(--bohai-standalone-nav-height, 0px);
+  bottom: 0;
+  left: var(--bohai-sidebar-left, 0px);
+  z-index: 2147483450;
+  display: flex;
+  flex-direction: column;
+  width: min(78vw, var(--boh-sidebar-w));
+  border-right: 1px solid var(--boh-border);
+  background: var(--boh-bg-page);
+  color: var(--boh-text-1);
+  font-family: var(--boh-font-ui);
+  letter-spacing: var(--boh-ls-body);
+  transform: translateX(-102%);
+  transition: transform var(--boh-dur-med) var(--boh-ease);
+}
+
+.boh-sidebar.is-open {
+  transform: translateX(0);
+  box-shadow: var(--boh-shadow-lg);
+}
+
+/* ── 头部：形态切换器 + 搜索 / 收起 ──────────────────────────── */
+.boh-sb-head {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 14px 10px;
+}
+
+.boh-sb-head-spacer {
+  flex: 1;
+}
+
+.boh-surface-switch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 10px 6px 8px;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-1);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: var(--boh-ls-head);
+  transition: background var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-surface-switch:hover {
+  background: var(--boh-bg-hover);
+}
+
+.boh-surface-switch > svg {
+  color: var(--boh-text-3);
+}
+
+.boh-surface-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 10px;
+  z-index: 45;
+  width: 248px;
+  padding: 6px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-page);
+  box-shadow: var(--boh-shadow-lg);
+}
+
+.boh-sm-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-1);
+  text-align: left;
+  transition: background var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-sm-item:hover {
+  background: var(--boh-bg-hover);
+}
+
+.boh-sm-item.is-on {
+  background: var(--boh-bg-active);
+}
+
+.boh-sm-item b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: var(--boh-ls-head);
+}
+
+.boh-sm-item small {
+  display: block;
+  margin-top: 1px;
+  color: var(--boh-text-2);
+  font-size: 12px;
+}
+
+.boh-sm-check {
+  flex: none;
+  margin-left: auto;
+  color: var(--boh-text-1);
+  opacity: 0;
+}
+
+.boh-sm-item.is-on .boh-sm-check {
+  opacity: 1;
+}
+
+.boh-icon-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-2);
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-icon-btn:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+/* ── 新对话 ─────────────────────────────────────────────────── */
+.boh-new-chat {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 12px 10px;
+  padding: 9px 12px;
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-accent);
+  box-shadow: var(--boh-shadow-sm);
+  color: var(--boh-accent-contrast);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition:
+    filter var(--boh-dur-fast) var(--boh-ease),
+    transform var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-new-chat:hover {
+  filter: brightness(1.12);
+}
+
+.boh-new-chat:active {
+  transform: scale(0.985);
+}
+
+/* ── 搜索 ───────────────────────────────────────────────────── */
+.boh-sb-search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-md);
+  background: var(--boh-bg-card);
+  color: var(--boh-text-3);
+}
+
+.boh-sb-search:focus-within {
+  border-color: var(--boh-border-strong);
+  box-shadow: 0 0 0 3px var(--boh-accent-soft);
+}
+
+.boh-sb-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--boh-text-1);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.boh-sb-search input::placeholder {
+  color: var(--boh-text-3);
+}
+
+/* ── 会话分组 ───────────────────────────────────────────────── */
+.boh-sb-groups {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--boh-gray-300) transparent;
+}
+
+.boh-sb-groups::-webkit-scrollbar {
+  width: 8px;
+}
+
+.boh-sb-groups::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--boh-gray-300);
+  background-clip: content-box;
+}
+
+.boh-sb-glabel {
+  padding: 12px 8px 5px;
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+
+.boh-sb-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--boh-radius-md);
+  cursor: pointer;
+  transition: background var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-sb-item:hover {
+  background: var(--boh-bg-hover);
+}
+
+.boh-sb-item.is-active {
+  background: var(--boh-bg-active);
+}
+
+.boh-sb-pin {
+  flex: none;
+  color: var(--boh-text-2);
+}
+
+.boh-sb-title-wrap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.boh-sb-title {
+  overflow: hidden;
+  color: var(--boh-text-1);
+  font-size: 13.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.boh-sb-item.is-active .boh-sb-title {
+  font-weight: 500;
+}
+
+.boh-sb-title-wrap small {
+  overflow: hidden;
+  color: var(--boh-text-3);
+  font-size: 10.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.boh-sb-rename {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--boh-border-strong);
+  border-radius: 6px;
+  outline: 0;
+  background: var(--boh-bg-page);
+  color: var(--boh-text-1);
+  font-family: inherit;
+  font-size: 13.5px;
+}
+
+.boh-sb-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--boh-bg-active);
+  color: var(--boh-text-2);
+  font-size: 10.5px;
+}
+
+.boh-sb-time {
+  flex: none;
+  color: var(--boh-text-3);
+  font-size: 11px;
+}
+
+.boh-sb-more {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--boh-text-3);
+  opacity: 0;
+  transition:
+    opacity var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-sb-item:hover .boh-sb-more,
+.boh-sb-item.is-active .boh-sb-more {
+  opacity: 1;
+}
+
+.boh-sb-more:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-sb-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  right: 8px;
+  z-index: 46;
+  min-width: 132px;
+  padding: 5px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-md);
+  background: var(--boh-bg-page);
+  box-shadow: var(--boh-shadow-lg);
+}
+
+.boh-sb-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 7px;
+  color: var(--boh-text-1);
+  font-size: 13px;
+  text-align: left;
+}
+
+.boh-sb-menu button:hover {
+  background: var(--boh-bg-hover);
+}
+
+.boh-sb-menu button.is-danger {
+  color: var(--boh-danger);
+}
+
+.boh-sb-empty {
+  padding: 16px 10px;
+  color: var(--boh-text-3);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+/* ── 底部：设置 + 今日额度 ──────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   左下角账号入口 + 「账号 / 额度 / 订阅」浮层（2026-10-08 用户口径）
+   形态参考 WorkBuddy 的账号菜单：底部显示头像 + 名称，hover 或点击都弹浮层。
+   浮层**向上弹**且宽度按侧栏内边收（left/right 各 8px）—— 侧栏是 `overflow: hidden`，
+   浮层必须留在侧栏边界内，不能像 rail 菜单那样向右溢出。
+   ══════════════════════════════════════════════════════════════ */
+.boh-sb-foot {
+  position: relative;
+  flex: none;
+  padding: 8px;
+  border-top: 1px solid var(--boh-border);
+}
+
+.boh-sb-foot-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-2);
+  font-size: 13px;
+  text-align: left;
+}
+
+.boh-sb-foot-row:hover {
+  background: var(--boh-bg-hover);
+}
+
+.boh-account-btn[aria-expanded='true'] {
+  background: var(--boh-bg-active);
+  color: var(--boh-text-1);
+}
+
+.boh-account-avatar {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--boh-bg-active);
+  object-fit: cover;
+}
+
+.boh-account-avatar.is-lg {
+  width: 32px;
+  height: 32px;
+}
+
+/* 无头像时用首字母兜底：同一个圆里放一个字，避免出现空洞 */
+.boh-account-avatar.is-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--boh-text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.boh-account-avatar.is-lg.is-fallback {
+  font-size: 14px;
+}
+
+.boh-account-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--boh-text-1);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.boh-account-pop {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 6px);
+  left: 8px;
+  z-index: 5;
+  padding: 10px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-page);
+  box-shadow: var(--boh-shadow-lg);
+}
+
+.boh-account-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--boh-border);
+}
+
+.boh-account-pop-id {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.boh-account-pop-id strong {
+  overflow: hidden;
+  color: var(--boh-text-1);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.boh-account-pop-id small {
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+}
+
+.boh-account-quota {
+  padding: 10px 0;
+}
+
+.boh-account-quota-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--boh-text-2);
+  font-size: 12px;
+}
+
+.boh-account-quota-head b {
+  color: var(--boh-text-1);
+  font-size: 13px;
+}
+
+.boh-account-quota-track {
+  overflow: hidden;
+  height: 5px;
+  margin: 7px 0 6px;
+  border-radius: 999px;
+  background: var(--boh-bg-active);
+}
+
+.boh-account-quota-track i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--boh-accent);
+}
+
+.boh-account-quota-foot {
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.boh-account-plan-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--boh-border);
+}
+
+.boh-account-plan-label {
+  color: var(--boh-text-2);
+  font-size: 12px;
+}
+
+.boh-account-plan-row strong {
+  color: var(--boh-text-1);
+  font-size: 13px;
+}
+
+.boh-account-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.boh-account-actions button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-account-actions button:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-account-actions button.is-primary {
+  border-color: transparent;
+  background: var(--boh-accent);
+  color: var(--boh-accent-contrast);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   断点（与基座同文件）
+   ══════════════════════════════════════════════════════════════ */
+
+/* 桌面 ≥1024×600：静态列 —— 收起 = **宽度收拢**（不是 translateX），子项定宽被裁 */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .boh-sidebar {
+    width: 0;
+    overflow: hidden;
+    border-right-width: 0;
+    transform: none;
+    box-shadow: none;
+    transition: width var(--boh-dur-med) var(--boh-ease);
+  }
+
+  .boh-sidebar > * {
+    min-width: var(--boh-sidebar-w);
+  }
+
+  /* ⚠️ 上面那条 min-width 算的是**元素自身**宽度，不含水平外距 ⇒ 自带
+     `margin: 0 12px` 的两个块会各自比容器宽 24px，被侧栏的 `overflow: hidden`
+     从右边裁断。2026-10-08 用户报的「新对话和搜索的条有超出」就是这里
+     （实测 1440×900：侧栏 right=368，而新对话/搜索条 right=380）。
+     这里把它们的「设计宽度」扣掉自身水平外距（12 × 2），收敛回容器宽度。
+     收起态「定宽内容被容器裁切」的意图不变，只是宽度终于对上了。
+     选择器多一个类（0,2,0 > 0,1,0），不依赖与上一条的先后。 */
+  .boh-sidebar > .boh-new-chat,
+  .boh-sidebar > .boh-sb-search {
+    min-width: calc(var(--boh-sidebar-w) - 24px);
+  }
+
+  .boh-sidebar.is-open {
+    width: var(--boh-sidebar-w);
+    border-right-width: 1px;
+    box-shadow: none;
+  }
+}
+
+/* 矮横屏：底部额度行放不下就收掉（与 Work 入口同一口径） */
+@media (orientation: landscape) and (max-height: 600px) {
+  .boh-sb-foot-row.is-static {
+    display: none;
+  }
+}

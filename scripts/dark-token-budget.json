@@ -1,7 +1,7 @@
 {
-  "total": 2854,
+  "total": 2706,
   "perFile": {
-    "src/styles/themes/bohai-dark.css": 231,
+    "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 187,
     "src/styles/themes/user-space-dark.css": 153,
     "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 146,
@@ -10,7 +10,6 @@
     "src/views/user-center/Messages/style.scoped.css": 106,
     "src/views/Newsroom/style.scoped.css": 103,
     "src/views/user-center/UserSpace/styles/shell-community.css": 103,
-    "src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue": 73,
     "src/components/UnifiedNavbar/style.scoped.css": 71,
     "src/views/Lab/components/LabQuotaIsland.vue": 65,
     "src/styles/themes/dark-mode.css": 58,
@@ -26,14 +25,12 @@
     "src/views/CommunityLotteries/style.scoped.css": 38,
     "src/views/CommunityLotteries/PityIslandCard.vue": 37,
     "src/components/AdminContentPublishModal.vue": 34,
-    "src/components/UnifiedNavbar/BOHAIIsland.vue": 32,
     "src/views/AlertStyleEditor/style.scoped.css": 32,
     "src/views/user-center/UserSpace/styles/settings-glass.css": 29,
     "src/views/Health/health.css": 28,
     "src/views/user-center/UserSpace/components/bottom-nav.css": 27,
     "src/views/Lab/style.scoped.css": 26,
     "src/components/UnifiedNavbar/ContentDetailIsland.vue": 25,
-    "src/views/BOHAI/BOHAI/styles/full-workspace.css": 25,
     "src/styles/common/tokens.css": 24,
     "src/views/Forum/styles/weekly-report.css": 23,
     "src/components/SubscriptionNavIsland.vue": 22,
@@ -46,12 +43,11 @@
     "src/views/Newsroom/NewsDetailPage.vue": 18,
     "src/views/user-center/BetaPreview/BetaPreviewMain.vue": 18,
     "src/views/user-center/UserSpace/components/AvatarFramePickerModal.vue": 18,
-    "src/views/BOHAI/BOHAI/styles/messages.css": 17,
+    "src/components/UnifiedNavbar/BOHAIIsland.vue": 17,
     "src/views/SmartOverview/styles/news-modal.css": 16,
     "src/components/AddressManager.vue": 14,
     "src/components/UnifiedNavbar/GlobalNavTaskCard.vue": 14,
     "src/components/AccountBindPrompt/index.vue": 12,
-    "src/views/BOHAI/BOHAI/components/BohaiSidebar.vue": 12,
     "src/views/Shop/style.scoped.css": 12,
     "src/views/Shows/style.scoped.css": 12,
     "src/views/user-center/AccountSecurity/index.vue": 12,
@@ -97,5 +93,5 @@
     "src/views/DataManagement/components/EditDrawer.vue": 1,
     "src/views/PhotoAlbums/index.vue": 1
   },
-  "updatedAt": "2026-10-03"
+  "updatedAt": "2026-10-08"
 }

@@ -545,15 +545,25 @@
   pointer-events: auto;
 }
 
-/* 球几何：固定左上角，仅 logo 图标居中 */
+/* 球几何的**单一真源**：位置与尺寸只在这里声明。
+   ⚠️ JS 的 FLIP（index.vue `readImmersiveOrb`）读同一组变量 —— 静态球位与动画起点必须同源，
+   否则展开/收起时球会从错误的位置起跳。
+   AI 页（`body.page-aichat`）会把球挪到横向左栏的品牌 logo 位上，见 src/style.css。 */
+:global(#unified-nav-container) {
+  --nav-orb-x: 14px;
+  --nav-orb-y: 14px;
+  --nav-orb-size: 52px;
+}
+
+/* 球几何：固定左上角（AI 页由页面级变量覆盖到左栏 logo 位），仅 logo 图标居中 */
 :global(#unified-nav-container.nav-immersive-on .unified-nav-surface:not(.nav-expanded)) {
   position: fixed;
-  left: 14px;
-  top: 14px;
-  width: 52px;
-  height: 52px;
-  max-width: 52px;
-  min-width: 52px;
+  left: var(--nav-orb-x, 14px);
+  top: var(--nav-orb-y, 14px);
+  width: var(--nav-orb-size, 52px);
+  height: var(--nav-orb-size, 52px);
+  max-width: var(--nav-orb-size, 52px);
+  min-width: var(--nav-orb-size, 52px);
   border-radius: 999px;
   transform: none;
   background-color: rgba(255, 255, 255, 0.86);

@@ -1030,6 +1030,46 @@ const clampInt = (value: unknown, fallback: number, min: number, max: number) =>
   return Math.min(max, Math.max(min, Math.trunc(parsed)));
 };
 
+/** 小数版 clampInt（BYOK 的 temperature 用）：null / '' / NaN 一律回退到 fallback。 */
+const clampNumber = (value: unknown, fallback: number, min: number, max: number) => {
+  if (value === null || value === undefined || value === '') return fallback;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+};
+
+/**
+ * 取本次对话要用的 API Key。
+ * • 官方模式：从全局 vault 按 provider/purpose 查（站方的 Key）
+ * • BYOK：用**用户自己的** Key（策略阶段已解密），绝不查 vault ——
+ *   否则会变成「拿站方的 Key 打用户自己的端点」，而且 vault 里根本没有 byok 这个 provider。
+ */
+const resolveChatSecret = async (
+  client: ReturnType<typeof createServiceClient>,
+  provider: string,
+  purpose: string,
+  policy: RuntimeModelPolicy,
+) => {
+  if (policy.byok) {
+    return { row: null as VaultRow | null, apiKey: String(policy.apiKey || '') };
+  }
+  return resolveActiveSecret(client, provider, purpose);
+};
+
+/** keyInfo 回给前端展示「当前在用哪个 Key」；BYOK 没有 vault 行，用端点名合成一份。 */
+const buildChatKeyInfo = (row: VaultRow | null, policy: RuntimeModelPolicy) =>
+  row
+    ? buildKeyInfo(row)
+    : {
+        id: '',
+        provider: 'byok',
+        purpose: 'chat',
+        label: policy.keyLabel || '自有 Key',
+        maskedValue: '自备',
+        source: 'user_endpoint',
+        readonly: true,
+      };
+
 const runtimeChatCompletion = async (
   client: ReturnType<typeof createServiceClient>,
   body: Record<string, unknown>,
@@ -1037,7 +1077,7 @@ const runtimeChatCompletion = async (
 ) => {
   const provider = policy.provider;
   const purpose = 'chat';
-  const { row, apiKey } = await resolveActiveSecret(client, provider, purpose);
+  const { row, apiKey } = await resolveChatSecret(client, provider, purpose, policy);
   let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
   if (provider === 'zhipu') {
     defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
@@ -1068,10 +1108,10 @@ const runtimeChatCompletion = async (
         data?.error?.message || data?.message || `${provider} 请求失败：${response.status}`,
       ),
       data,
-      keyInfo: buildKeyInfo(row),
+      keyInfo: buildChatKeyInfo(row, policy),
     };
   }
-  return { ok: true, status: response.status, data, keyInfo: buildKeyInfo(row) };
+  return { ok: true, status: response.status, data, keyInfo: buildChatKeyInfo(row, policy) };
 };
 
 const runtimeChatCompletionStream = async (
@@ -1083,7 +1123,7 @@ const runtimeChatCompletionStream = async (
 ) => {
   const provider = policy.provider;
   const purpose = 'chat';
-  const { row, apiKey } = await resolveActiveSecret(client, provider, purpose);
+  const { row, apiKey } = await resolveChatSecret(client, provider, purpose, policy);
 
   const streamHeaders = {
     ...buildCorsHeaders(origin),
@@ -1103,7 +1143,10 @@ const runtimeChatCompletionStream = async (
   const apiUrl = validateRuntimeApiUrl(policy.apiUrl, defaultApiUrl);
   const payload = {
     ...buildRuntimePayload(body, policy, true),
-    ...(provider === 'zhipu'
+    // ⚠️ BYOK 也要跳过 stream_options：用户端点多半是 OpenAI 兼容的**中转站/自建反代**，
+    //    未必认识这个字段（不认识就 400，用户只会看到「模型请求失败」）。
+    //    代价是拿不到上游 usage —— 但 BYOK 本来就不记账，用量精度无所谓。
+    ...(provider === 'zhipu' || policy.byok
       ? {}
       : {
           stream_options: {
@@ -1129,7 +1172,7 @@ const runtimeChatCompletionStream = async (
     const message = text.slice(0, 500) || `${provider} 流式请求失败：${response.status}`;
     await releaseTokenReservation(client, quota).catch(() => undefined);
     return new Response(
-      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message, keyInfo: buildKeyInfo(row) })}\n\n`,
+      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message, keyInfo: buildChatKeyInfo(row, policy) })}\n\n`,
       { status: 502, headers: streamHeaders },
     );
   }
@@ -1137,12 +1180,12 @@ const runtimeChatCompletionStream = async (
   if (!response.body) {
     await releaseTokenReservation(client, quota).catch(() => undefined);
     return new Response(
-      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message: '模型服务未返回可读流。', keyInfo: buildKeyInfo(row) })}\n\n`,
+      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message: '模型服务未返回可读流。', keyInfo: buildChatKeyInfo(row, policy) })}\n\n`,
       { status: 502, headers: streamHeaders },
     );
   }
 
-  const keyInfoPayload = JSON.stringify({ ok: true, keyInfo: buildKeyInfo(row) });
+  const keyInfoPayload = JSON.stringify({ ok: true, keyInfo: buildChatKeyInfo(row, policy) });
   const metaEvent = `event: meta\ndata: ${keyInfoPayload}\n\n`;
   const metaEncoder = new TextEncoder();
   let metaFlushed = false;
@@ -1540,6 +1583,10 @@ type TokenQuota = {
   billedViaPoints?: boolean;
   pointsReserved?: number;
   pointsError?: string;
+  // BYOK（用户自带 Key，2026-10-08）：**不扣 BOH 额度** ⇒ 不预约、不记账。
+  // ⚠️ 特意用一个独立标记，而不是把 tokenLimit 设成 -1 —— -1 的语义是「当前方案不限量」，
+  //    会让额度面板 / 日志把自带 Key 当成会员特权，而这两件事完全无关。
+  byok?: boolean;
 };
 
 type RuntimeModelPolicy = {
@@ -1552,6 +1599,11 @@ type RuntimeModelPolicy = {
   topP: number;
   frequencyPenalty: number;
   quotaMultiplier: number;
+  // BYOK 路径（用户自带 Key）：Key 在策略解析阶段就已解密，不再去 vault 查全局密钥；
+  // 同时标记 byok=true 跳过额度预约与记账。
+  byok?: boolean;
+  apiKey?: string;
+  keyLabel?: string;
 };
 
 const TIER_RANK: Record<string, number> = {
@@ -1733,6 +1785,106 @@ const runtimeAccessError = (message: string, status = 403, code = 'RUNTIME_ACCES
   return error;
 };
 
+/* ══ 用户自带 Key（BYOK）的自定义厂商 / 模型（2026-10-08）═════════════════════
+   数据落点（迁移 2026100802_user_ai_endpoints.sql，RLS 无 policy + 已撤 anon/authenticated）：
+     · user_ai_endpoints = 厂商：名称 / Base URL / AES-GCM 加密的 Key
+     · user_ai_models    = 该厂商下的模型，一条模型在运行时就是一个可选「模式」
+
+   为什么把模型编成 `mode = 'user:<uuid>'`：现有链路前端**只传 mode**，provider / api_url /
+   model 全部由服务端按 mode 决定。沿用这条约定，客户端的请求协议一个字都不用改 ——
+   前端只是多拿到几个可选模式，走的还是同一条流式管道。
+
+   ⚠️ `where id = ? and user_id = ?` 这一句是整条 BYOK 路径上**唯一**的归属断言：
+      少了它，任何登录用户都能用别人的 Key、打别人的付费端点。
+   ⚠️ 这里不做 tier / min_tier 校验：用自己 Key 的模型不该受 BOH 订阅档位限制。
+   ⚠️ 全局 vault 的密钥**绝不能**参与这条路径（那会变成「拿站方的 Key 打用户自己的端点」，
+      而且 vault 里根本没有 byok 这个 provider）。 */
+const USER_MODE_PREFIX = 'user:';
+const USER_MODEL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const USER_MODEL_DEFAULT_MAX_TOKENS = 1800;
+const USER_MODEL_MAX_TOKENS_CEILING = 32768;
+
+const parseUserModeId = (mode: string): string => {
+  const raw = mode.slice(USER_MODE_PREFIX.length);
+  return USER_MODEL_UUID_PATTERN.test(raw) ? raw : '';
+};
+
+async function resolveUserModelPolicy(
+  client: ReturnType<typeof createServiceClient>,
+  mode: string,
+  userId: string | null,
+): Promise<RuntimeModelPolicy> {
+  if (!userId) {
+    throw runtimeAccessError('使用自定义模型需要先登录。', 401, 'LOGIN_REQUIRED');
+  }
+  const modelRowId = parseUserModeId(mode);
+  if (!modelRowId) throw runtimeAccessError('自定义模型 ID 格式无效。', 400, 'MODE_ID_INVALID');
+
+  const { data: modelRow, error: modelError } = await client
+    .from('user_ai_models')
+    .select('id, endpoint_id, user_id, model_id, temperature, max_tokens')
+    .eq('id', modelRowId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (modelError || !modelRow) {
+    throw runtimeAccessError('自定义模型不存在，或不属于当前账号。', 404, 'USER_MODEL_NOT_FOUND');
+  }
+
+  const { data: endpointRow, error: endpointError } = await client
+    .from('user_ai_endpoints')
+    .select('id, user_id, name, base_url, encrypted_value, status')
+    .eq('id', modelRow.endpoint_id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (endpointError || !endpointRow) {
+    throw runtimeAccessError(
+      '自定义厂商不存在，或不属于当前账号。',
+      404,
+      'USER_ENDPOINT_NOT_FOUND',
+    );
+  }
+  if (String(endpointRow.status || 'active') !== 'active') {
+    throw runtimeAccessError(
+      '该自定义厂商已停用，请到设置里重新启用。',
+      403,
+      'USER_ENDPOINT_DISABLED',
+    );
+  }
+
+  const apiUrl = validateRuntimeApiUrl(String(endpointRow.base_url || ''), '');
+  if (!apiUrl) {
+    throw runtimeAccessError(
+      '自定义厂商的 Base URL 无效（必须是可公网访问的 http(s) 地址）。',
+      400,
+      'USER_ENDPOINT_URL_INVALID',
+    );
+  }
+  const apiKey = await decryptSecret(String(endpointRow.encrypted_value || ''));
+  const modelId = toText(modelRow.model_id, 120);
+  if (!modelId) throw runtimeAccessError('自定义模型未填写模型 ID。', 400, 'USER_MODEL_ID_EMPTY');
+
+  return {
+    mode,
+    provider: 'byok',
+    apiUrl,
+    modelId,
+    maxTokens: clampInt(
+      modelRow.max_tokens,
+      USER_MODEL_DEFAULT_MAX_TOKENS,
+      1,
+      USER_MODEL_MAX_TOKENS_CEILING,
+    ),
+    temperature: clampNumber(modelRow.temperature, 0.2, 0, 2),
+    topP: 0.95,
+    frequencyPenalty: 0,
+    // BYOK 不参与 BOH 额度计费 ⇒ 倍率固定 0，且整个预约/记账流程都会被跳过
+    quotaMultiplier: 0,
+    byok: true,
+    apiKey,
+    keyLabel: toText(endpointRow.name, 40) || '自定义模型',
+  };
+}
+
 async function resolveRuntimeModelPolicy(
   client: ReturnType<typeof createServiceClient>,
   requestedMode: string,
@@ -1742,6 +1894,11 @@ async function resolveRuntimeModelPolicy(
   const mode = normalizeModeId(requestedMode) || 'fast';
   if (!/^[a-z0-9][a-z0-9._:-]{0,79}$/.test(mode)) {
     throw runtimeAccessError('模式 ID 格式无效。', 400, 'MODE_ID_INVALID');
+  }
+  // 用户自定义模型（BYOK）走独立解析：不去 bohai_model_configs 查、不受 tier 限制、
+  // 也不走全局 vault 密钥。放在最前面 —— 这条路径与官方模式的配置来源完全不同。
+  if (mode.startsWith(USER_MODE_PREFIX)) {
+    return resolveUserModelPolicy(client, mode, userId);
   }
   // 5 分钟内存缓存：模式配置是低频变更的元数据，缓存原始行数据。
   // tier 检查仍每次执行，确保用户降级后立即被拦截。
@@ -2007,6 +2164,9 @@ async function logTokenUsage(
   status = 'success',
   quotaMultiplier = 1,
 ): Promise<void> {
+  // BYOK：用户自带 Key，**不扣 BOH 额度**（2026-10-08 用户口径），因此不记账也不结算。
+  // 限流（每分钟请求数）在上游照旧生效，与「谁付钱」无关。
+  if (quota.byok) return;
   if (quota.reservationId) {
     const payload = (body.payload || {}) as Record<string, unknown>;
     // 积分结算必须先于 settle_ai_token_quota：后者会把预约置为 settled，
@@ -2054,6 +2214,8 @@ async function releaseTokenReservation(
   client: ReturnType<typeof createServiceClient>,
   quota: TokenQuota,
 ): Promise<void> {
+  // BYOK 从不预约额度（见 reserveTokenQuota 的短路），所以也没有可释放的预留。
+  if (quota.byok) return;
   if (!quota.reservationId) return;
   const { error } = await client.rpc('release_ai_token_quota', {
     p_reservation_id: quota.reservationId,
@@ -2208,8 +2370,12 @@ async function handleQuotaStatus(client: ReturnType<typeof createServiceClient>,
   const pricing = await getPricingConfig(client);
   let tokenLimit = policy.tokenLimit;
   let webSearchLimit = policy.webSearchLimit;
+  // 附加包加成单独留一份：前端 2026-10-08 起用「档位基础额度 = 100%、附加包把满量程推到
+  // 100% + 包%」的百分比口径，只返回合并后的 tokenLimit 是拆不出这两个分量的。
+  let bonusTokens = 0;
   if (userId) {
     const bonuses = sumCodingBonuses(await resolveUserPlans(client, userId));
+    bonusTokens = bonuses.tokenBonus;
     if (tokenLimit !== -1) tokenLimit += bonuses.tokenBonus;
     if (webSearchLimit !== -1) webSearchLimit += bonuses.webSearchBonus;
   }
@@ -2249,6 +2415,11 @@ async function handleQuotaStatus(client: ReturnType<typeof createServiceClient>,
     limit: tokenLimit,
     usedTokens,
     tokenLimit,
+    // 2026-10-08 新增：百分比口径要的两个分量 —— 基础额度（分母）与附加包加成。
+    // baseTokenLimit = tokenLimit − bonusTokens（不限量时为 -1）。
+    // free 档 daily_token_limit = 0 且买了包 ⇒ base 为 0，前端按「包即全部额度」降级处理。
+    baseTokenLimit: tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - bonusTokens),
+    bonusTokens,
     remainingTokens,
     webSearchUsed,
     webSearchLimit,
@@ -2265,6 +2436,425 @@ async function handleQuotaStatus(client: ReturnType<typeof createServiceClient>,
     pointsUsedToday,
   };
 }
+
+/* ══ 用户自定义厂商 / 模型（BYOK）的 CRUD ═══════════════════════════════════
+   规则（与整仓的密钥纪律一致）：
+     · 全部要求登录；**每一条查询都带 `user_id = 当前用户`** —— 归属靠 SQL 谓词，不靠前端传参；
+     · 只回**掩码**，明文 Key 永不出服务端（连测试/发现的错误信息里也不回显）；
+     · Base URL 必须 https 且非内网（复用 isPrivateOrLocalHost，与 runtime 同一套 SSRF 判据）；
+     · 用户填的可能是「域名 / /v1 / 完整 chat-completions 地址」三种形态，统一归一到
+       chat completions 端点后再落库，运行时就不用再猜。 */
+const USER_ENDPOINT_LIMIT = 8;
+const USER_ENDPOINT_MODEL_LIMIT = 12;
+const USER_ENDPOINT_TEST_TIMEOUT_MS = 20_000;
+
+// supabase-js 的查询结果在本地无类型（EF 不参与 tsconfig.app.json），显式声明行形状，
+// 免得整条链路都是 any（顺手把「字段名拼错」从运行期问题变成编译期问题）。
+type UserEndpointRow = {
+  id: string;
+  name: string;
+  base_url: string;
+  encrypted_value?: string | null;
+  masked_value: string;
+  status: string;
+  last_test_status?: string | null;
+  last_test_message?: string | null;
+  last_tested_at?: string | null;
+  created_at?: string | null;
+};
+
+type UserModelRow = {
+  id: string;
+  endpoint_id: string;
+  model_id: string;
+  display_name?: string | null;
+  temperature?: number | null;
+  max_tokens?: number | null;
+  sort_order?: number | null;
+};
+
+/**
+ * 把用户填的 Base URL 归一成 chat completions 端点。
+ * 归一规则（至少覆盖最常见的三种填法）：
+ *   · 已经以 /chat/completions 结尾 → 原样
+ *   · 以 /v1、/v2… 结尾            → 追加 /chat/completions
+ *   · 只有域名或其它路径            → 追加 /v1/chat/completions
+ */
+const normalizeUserChatUrl = (raw: unknown): { url: string; error: string } => {
+  const text = toText(raw, 300);
+  if (!text) return { url: '', error: '请填写 Base URL。' };
+  const withScheme = /^https?:\/\//i.test(text) ? text : `https://${text}`;
+  let parsed: URL;
+  try {
+    parsed = new URL(withScheme);
+  } catch {
+    return { url: '', error: 'Base URL 格式不正确，示例：https://api.example.com/v1' };
+  }
+  if (parsed.protocol !== 'https:') {
+    return { url: '', error: 'Base URL 必须是 https 地址（明文 http 会在公网泄露你的 Key）。' };
+  }
+  if (isPrivateOrLocalHost(parsed.hostname)) {
+    return { url: '', error: 'Base URL 不能指向本机或内网地址。' };
+  }
+  const path = parsed.pathname.replace(/\/+$/, '');
+  if (/\/chat\/completions$/i.test(path)) {
+    parsed.pathname = path;
+  } else if (/\/v\d+$/i.test(path)) {
+    parsed.pathname = `${path}/chat/completions`;
+  } else if (!path) {
+    parsed.pathname = '/v1/chat/completions';
+  } else {
+    parsed.pathname = `${path}/chat/completions`;
+  }
+  parsed.search = '';
+  parsed.hash = '';
+  return { url: parsed.toString(), error: '' };
+};
+
+/** 从「已保存的 id」或「本次表单里的 baseUrl + apiKey」两路取凭证（测试/发现共用）。 */
+const resolveUserEndpointCredentials = async (
+  client: ReturnType<typeof createServiceClient>,
+  userId: string,
+  body: Record<string, unknown>,
+) => {
+  const id = toText(body.id, 60);
+  if (id) {
+    const { data: row, error } = await client
+      .from('user_ai_endpoints')
+      .select('id, base_url, encrypted_value, status')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !row) throw new Error('厂商不存在，或不属于当前账号。');
+    // 表单里同时给了新的 Key/URL 时以表单为准（「改完先测一下再保存」的正常用法）
+    const apiKeyOverride = toText(body.apiKey, 400);
+    const chatUrl = normalizeUserChatUrl(toText(body.baseUrl, 300) || row.base_url);
+    if (chatUrl.error) throw new Error(chatUrl.error);
+    return {
+      sourceId: id,
+      baseUrl: chatUrl.url,
+      apiKey: apiKeyOverride || (await decryptSecret(String(row.encrypted_value || ''))),
+    };
+  }
+  const apiKey = toText(body.apiKey, 400);
+  if (!apiKey) throw new Error('请填写 API Key。');
+  const chatUrl = normalizeUserChatUrl(body.baseUrl);
+  if (chatUrl.error) throw new Error(chatUrl.error);
+  return { sourceId: '', baseUrl: chatUrl.url, apiKey };
+};
+
+const listUserEndpoints = async (
+  client: ReturnType<typeof createServiceClient>,
+  userId: string,
+) => {
+  const { data: endpoints, error } = await client
+    .from('user_ai_endpoints')
+    .select(
+      'id, name, base_url, masked_value, status, last_test_status, last_test_message, last_tested_at, created_at',
+    )
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  const endpointRows = (endpoints || []) as UserEndpointRow[];
+
+  const ids = endpointRows.map((row) => row.id);
+  const { data: models, error: modelError } = ids.length
+    ? await client
+        .from('user_ai_models')
+        .select('id, endpoint_id, model_id, display_name, temperature, max_tokens, sort_order')
+        .eq('user_id', userId)
+        .in('endpoint_id', ids)
+        .order('sort_order', { ascending: true })
+    : { data: [], error: null };
+  if (modelError) throw modelError;
+  const modelRows = (models || []) as UserModelRow[];
+
+  return {
+    endpoints: endpointRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      baseUrl: row.base_url,
+      keyMasked: row.masked_value,
+      status: row.status,
+      lastTestStatus: row.last_test_status || '',
+      lastTestMessage: row.last_test_message || '',
+      lastTestedAt: row.last_tested_at || '',
+      models: modelRows
+        .filter((m) => m.endpoint_id === row.id)
+        .map((m) => ({
+          id: m.id,
+          // 运行时就是一个模式 id：前端拿它填 currentModeId 即可，无需其它协议
+          modeId: `${USER_MODE_PREFIX}${m.id}`,
+          modelId: m.model_id,
+          displayName: m.display_name || m.model_id,
+          temperature: m.temperature,
+          maxTokens: m.max_tokens,
+        })),
+    })),
+    limits: { endpoints: USER_ENDPOINT_LIMIT, modelsPerEndpoint: USER_ENDPOINT_MODEL_LIMIT },
+  };
+};
+
+const upsertUserEndpoint = async (
+  client: ReturnType<typeof createServiceClient>,
+  userId: string,
+  body: Record<string, unknown>,
+) => {
+  const id = toText(body.id, 60);
+  const name = toText(body.name, 40);
+  if (!name) throw new Error('请填写厂商名称。');
+
+  let endpointId = id;
+  let encryptedValue = '';
+  let maskedValue = '';
+  if (id) {
+    const { data: existing, error } = await client
+      .from('user_ai_endpoints')
+      .select('id, encrypted_value, masked_value')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !existing) throw new Error('厂商不存在，或不属于当前账号。');
+    encryptedValue = String(existing.encrypted_value || '');
+    maskedValue = String(existing.masked_value || '');
+  }
+  // Key 留空 = 不改（编辑时不想重填的正常用法）
+  const apiKeyInput = toText(body.apiKey, 400);
+  if (apiKeyInput) {
+    if (apiKeyInput.length < 8) throw new Error('API Key 太短，请检查是否复制完整。');
+    encryptedValue = await encryptSecret(apiKeyInput);
+    maskedValue = maskSecret(apiKeyInput);
+  }
+  if (!encryptedValue) throw new Error('请填写 API Key。');
+
+  const chatUrl = normalizeUserChatUrl(body.baseUrl);
+  if (chatUrl.error) throw new Error(chatUrl.error);
+
+  if (!endpointId) {
+    const { count, error: countError } = await client
+      .from('user_ai_endpoints')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    if (countError) throw countError;
+    if (Number(count || 0) >= USER_ENDPOINT_LIMIT) {
+      throw new Error(`最多只能添加 ${USER_ENDPOINT_LIMIT} 个自定义厂商。`);
+    }
+  }
+
+  const payload = {
+    user_id: userId,
+    name,
+    base_url: chatUrl.url,
+    encrypted_value: encryptedValue,
+    masked_value: maskedValue,
+    status: 'active',
+    updated_at: new Date().toISOString(),
+  };
+  if (endpointId) {
+    const { error } = await client
+      .from('user_ai_endpoints')
+      .update(payload)
+      .eq('id', endpointId)
+      .eq('user_id', userId);
+    if (error) throw error;
+  } else {
+    const { data, error } = await client
+      .from('user_ai_endpoints')
+      .insert([payload])
+      .select('id')
+      .single();
+    if (error) throw error;
+    endpointId = String(data.id);
+  }
+
+  // 模型列表按「整表替换」处理：前端提交完整列表，服务端只做去重/截断/落库。
+  // 比逐个 diff 简单得多，语义也更明确（保存后的列表 == 表单里的列表）。
+  const seen = new Set<string>();
+  const wanted = (Array.isArray(body.models) ? body.models : [])
+    .map((item) => {
+      const record = toMetadata(item);
+      return {
+        modelId: toText(record.modelId, 120),
+        displayName: toText(record.displayName, 60),
+        temperature: record.temperature,
+        maxTokens: record.maxTokens,
+      };
+    })
+    .filter((item) => item.modelId && !seen.has(item.modelId) && seen.add(item.modelId))
+    .slice(0, USER_ENDPOINT_MODEL_LIMIT);
+  if (!wanted.length) throw new Error('至少填一个模型 ID，否则这个厂商没有任何可用的模型。');
+
+  const { data: current, error: currentError } = await client
+    .from('user_ai_models')
+    .select('id, model_id')
+    .eq('endpoint_id', endpointId)
+    .eq('user_id', userId);
+  if (currentError) throw currentError;
+  const currentRows = (current || []) as Array<{ id: string; model_id: string }>;
+
+  const keepIds = new Set<string>();
+  for (const [index, item] of wanted.entries()) {
+    const row = {
+      endpoint_id: endpointId,
+      user_id: userId,
+      model_id: item.modelId,
+      display_name: item.displayName,
+      temperature:
+        item.temperature === undefined || item.temperature === null || item.temperature === ''
+          ? null
+          : clampNumber(item.temperature, 0.2, 0, 2),
+      max_tokens:
+        item.maxTokens === undefined || item.maxTokens === null || item.maxTokens === ''
+          ? null
+          : clampInt(
+              item.maxTokens,
+              USER_MODEL_DEFAULT_MAX_TOKENS,
+              1,
+              USER_MODEL_MAX_TOKENS_CEILING,
+            ),
+      sort_order: (index + 1) * 10,
+    };
+    const matched = currentRows.find((row2) => row2.model_id === item.modelId);
+    if (matched) {
+      const { error } = await client
+        .from('user_ai_models')
+        .update(row)
+        .eq('id', matched.id)
+        .eq('user_id', userId);
+      if (error) throw error;
+      keepIds.add(String(matched.id));
+    } else {
+      const { data, error } = await client
+        .from('user_ai_models')
+        .insert([row])
+        .select('id')
+        .single();
+      if (error) throw error;
+      keepIds.add(String(data.id));
+    }
+  }
+  const staleIds = currentRows.filter((row) => !keepIds.has(String(row.id))).map((row) => row.id);
+  if (staleIds.length) {
+    const { error } = await client
+      .from('user_ai_models')
+      .delete()
+      .eq('user_id', userId)
+      .in('id', staleIds);
+    if (error) throw error;
+  }
+  return listUserEndpoints(client, userId);
+};
+
+const deleteUserEndpoint = async (
+  client: ReturnType<typeof createServiceClient>,
+  userId: string,
+  body: Record<string, unknown>,
+) => {
+  const id = toText(body.id, 60);
+  if (!id) throw new Error('缺少厂商 ID。');
+  // 模型行由外键 on delete cascade 带走，这里只删厂商（且必须是自己那条）
+  const { error } = await client
+    .from('user_ai_endpoints')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', userId);
+  if (error) throw error;
+  return listUserEndpoints(client, userId);
+};
+
+const testUserEndpoint = async (
+  client: ReturnType<typeof createServiceClient>,
+  userId: string,
+  body: Record<string, unknown>,
+) => {
+  const { sourceId, baseUrl, apiKey } = await resolveUserEndpointCredentials(client, userId, body);
+  const modelId = toText(body.modelId, 120);
+  if (!modelId) throw new Error('请先填写模型 ID，测试会真的向该端点发一次对话请求。');
+
+  const startedAt = Date.now();
+  let ok = false;
+  let status = 0;
+  let message = '';
+  try {
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: modelId,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 8,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(USER_ENDPOINT_TEST_TIMEOUT_MS),
+    });
+    status = response.status;
+    ok = response.ok;
+    const text = await response.text().catch(() => '');
+    if (!ok) {
+      // 只回上游的错误描述，**不回显任何请求头**（避免把用户的 Key 带进日志/响应）
+      message = sanitizeMessage(
+        (() => {
+          try {
+            const parsed = JSON.parse(text);
+            return String(parsed?.error?.message || parsed?.message || text || '');
+          } catch {
+            return text;
+          }
+        })() || `端点返回 ${status}`,
+        240,
+      );
+    } else {
+      message = '连接成功，端点已返回可用的响应。';
+    }
+  } catch (error) {
+    status = 0;
+    ok = false;
+    message =
+      error instanceof Error && error.name === 'TimeoutError'
+        ? `连接超时（${USER_ENDPOINT_TEST_TIMEOUT_MS / 1000}s），请检查 Base URL 是否可达。`
+        : sanitizeMessage(error instanceof Error ? error.message : '连接失败', 240);
+  }
+
+  const latencyMs = Date.now() - startedAt;
+  if (sourceId) {
+    await client
+      .from('user_ai_endpoints')
+      .update({
+        last_test_status: ok ? 'success' : 'failed',
+        last_test_message: message,
+        last_tested_at: new Date().toISOString(),
+      })
+      .eq('id', sourceId)
+      .eq('user_id', userId);
+  }
+  return { ok, status, latencyMs, message };
+};
+
+const discoverUserEndpointModels = async (
+  client: ReturnType<typeof createServiceClient>,
+  userId: string,
+  body: Record<string, unknown>,
+) => {
+  const { baseUrl, apiKey } = await resolveUserEndpointCredentials(client, userId, body);
+  // 复用管理端那套 models 端点推导（剥 /chat/completions 换 /models、补 /v1 等）
+  const modelsUrl = deriveModelsUrl('custom', { apiUrl: baseUrl });
+  if (!modelsUrl) throw new Error('无法推导出 models 端点，请检查 Base URL。');
+  const result = await discoverProviderModels(apiKey, 'custom', { apiUrl: baseUrl });
+  if (!result.ok) {
+    return {
+      ok: false,
+      modelsUrl: result.modelsUrl || modelsUrl,
+      models: [],
+      message: result.message,
+    };
+  }
+  return {
+    ok: true,
+    modelsUrl: result.modelsUrl || modelsUrl,
+    models: result.models,
+    message: `成功获取 ${result.models.length} 个模型。`,
+  };
+};
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
@@ -2323,14 +2913,25 @@ Deno.serve(async (request) => {
         identity.userId,
       );
       console.log('[vault] user auth ok, reserving token quota');
-      let quota = initialQuota;
-      quota = await reserveTokenQuota(
-        client,
-        quota,
-        body,
-        policy.maxTokens,
-        policy.quotaMultiplier,
-      );
+      // BYOK（用户自带 Key，2026-10-08）**不预约 BOH 额度** —— 用户口径「不扣 BOH 额度」。
+      // ⚠️ 限流不豁免：上游那次 checkRateLimitDb（每用户每分钟 10 次）照旧生效，防的是
+      //    脚本刷自己的端点把 EF 打满，与「谁付钱」无关。
+      // byok 分支不带 reservationId ⇒ logTokenUsage / releaseTokenReservation 双双短路。
+      let quota: TokenQuota = policy.byok
+        ? {
+            ...initialQuota,
+            allowed: true,
+            byok: true,
+            reservationId: undefined,
+            billedViaPoints: false,
+          }
+        : await reserveTokenQuota(
+            client,
+            initialQuota,
+            body,
+            policy.maxTokens,
+            policy.quotaMultiplier,
+          );
       if (!quota.allowed) {
         // 免费额度不足 → 积分兜底（仅已登录非游客，且 ai_pricing_config.enabled）
         const pricing = await getPricingConfig(client);
@@ -2459,14 +3060,25 @@ Deno.serve(async (request) => {
         tier,
         identity.userId,
       );
-      let quota = initialQuota;
-      quota = await reserveTokenQuota(
-        client,
-        quota,
-        body,
-        policy.maxTokens,
-        policy.quotaMultiplier,
-      );
+      // BYOK（用户自带 Key，2026-10-08）**不预约 BOH 额度** —— 用户口径「不扣 BOH 额度」。
+      // ⚠️ 限流不豁免：上游那次 checkRateLimitDb（每用户每分钟 10 次）照旧生效，防的是
+      //    脚本刷自己的端点把 EF 打满，与「谁付钱」无关。
+      // byok 分支不带 reservationId ⇒ logTokenUsage / releaseTokenReservation 双双短路。
+      let quota: TokenQuota = policy.byok
+        ? {
+            ...initialQuota,
+            allowed: true,
+            byok: true,
+            reservationId: undefined,
+            billedViaPoints: false,
+          }
+        : await reserveTokenQuota(
+            client,
+            initialQuota,
+            body,
+            policy.maxTokens,
+            policy.quotaMultiplier,
+          );
       if (!quota.allowed) {
         // 免费额度不足 → 积分兜底（仅已登录非游客，且 ai_pricing_config.enabled）
         const pricing = await getPricingConfig(client);
@@ -2583,6 +3195,75 @@ Deno.serve(async (request) => {
     if (action === 'quota-status') {
       const data = await handleQuotaStatus(client, request);
       return jsonResponse({ ok: true, data }, 200, origin);
+    }
+    /* ── 用户自定义厂商 / 模型（BYOK）：仅需登录，不需要管理员 ────────────────
+       ⚠️ 校验类失败一律回 400 + 可读文案（前端直接展示）：若让它冒到外层 catch，
+          会变成 500「服务异常」，用户改个 Base URL 却看到「服务器出错了」。 */
+    if (action.startsWith('user-endpoint-')) {
+      const user = await requireUser(request, client);
+      if (!user.ok) {
+        return jsonResponse(
+          { ok: false, code: user.code, message: user.message },
+          user.status,
+          origin,
+        );
+      }
+      const runUserEndpointAction = async (fn: () => Promise<unknown>) => {
+        try {
+          return jsonResponse({ ok: true, data: await fn() }, 200, origin);
+        } catch (error) {
+          return jsonResponse(
+            {
+              ok: false,
+              code: 'USER_ENDPOINT_ERROR',
+              message: sanitizeMessage(error instanceof Error ? error.message : '操作失败'),
+            },
+            400,
+            origin,
+          );
+        }
+      };
+      if (action === 'user-endpoint-list') {
+        return runUserEndpointAction(() => listUserEndpoints(client, user.userId));
+      }
+      if (action === 'user-endpoint-upsert') {
+        return runUserEndpointAction(() => upsertUserEndpoint(client, user.userId, body));
+      }
+      if (action === 'user-endpoint-delete') {
+        return runUserEndpointAction(() => deleteUserEndpoint(client, user.userId, body));
+      }
+      if (action === 'user-endpoint-test') {
+        // 这两个 action 会**真的向外发请求**（用户的 Base URL + 用户的 Key）⇒ 必须限流，
+        // 否则登录用户可以把 EF 当免费代理去扫任意地址 / 刷对方接口。
+        const rate = await checkRateLimitDb(`user_endpoint_probe:${user.userId}`, 20, 60_000);
+        if (!rate.ok) {
+          return jsonResponse(
+            {
+              ok: false,
+              code: 'RATE_LIMITED',
+              message: `操作过于频繁，请 ${rate.retryAfter} 秒后再试。`,
+            },
+            429,
+            origin,
+          );
+        }
+        return runUserEndpointAction(() => testUserEndpoint(client, user.userId, body));
+      }
+      if (action === 'user-endpoint-models') {
+        const rate = await checkRateLimitDb(`user_endpoint_probe:${user.userId}`, 20, 60_000);
+        if (!rate.ok) {
+          return jsonResponse(
+            {
+              ok: false,
+              code: 'RATE_LIMITED',
+              message: `操作过于频繁，请 ${rate.retryAfter} 秒后再试。`,
+            },
+            429,
+            origin,
+          );
+        }
+        return runUserEndpointAction(() => discoverUserEndpointModels(client, user.userId, body));
+      }
     }
     if (action === 'clear-user-tier-cache') {
       const targetUserId = String(body?.targetUserId || '').trim();

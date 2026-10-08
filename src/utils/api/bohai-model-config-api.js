@@ -21,9 +21,10 @@ export const normalizeBohaiModelConfigRow = (row = {}) => {
   const modeId = toText(row.mode_id || row.modeId);
   const modelId = toText(row.model_id || row.modelId);
   const displayName = toText(row.display_name || row.displayName || row.name, modeId);
-  const apiUrl = provider === 'boh'
-    ? ''
-    : toText(row.api_url || row.apiUrl, getDefaultApiUrlForBohaiProvider(provider));
+  const apiUrl =
+    provider === 'boh'
+      ? ''
+      : toText(row.api_url || row.apiUrl, getDefaultApiUrlForBohaiProvider(provider));
 
   if (!modeId || !modelId || !displayName) return null;
 
@@ -46,13 +47,19 @@ export const normalizeBohaiModelConfigRow = (row = {}) => {
     status: toText(row.status, 'active'),
     minTier: toText(row.min_tier || row.minTier, 'free').toLowerCase(),
     sortOrder: Math.trunc(toFiniteNumber(row.sort_order || row.sortOrder, 100, 0, 10000)),
-    quotaMultiplier: toFiniteNumber(row.quota_multiplier || row.quotaMultiplier, 1.00, 0.1, 100)
+    // ⚠️ `0` 是**合法值**（免费模型：quota_multiplier = 0 ⇒ 不扣 BOH 额度），
+    // 所以两处都不能踩：
+    //   · 不能用 `||` 兜底 —— `0 || undefined` 是 undefined，直接掉进默认值 1.00，
+    //     于是「Fast」这种免费模型在前端变成 **1x**（用户 2026-10-08 当场问
+    //     「Fast 为啥显示的是 1x 倍率」）；`??` 才只兜 null/undefined。
+    //   · 下界不能夹到 0.1（旧代码正是如此）—— 那会把合法的 0 抬成 0.1，
+    //     而 `isFreeMode()` 判的是 `=== 0`，于是免费模型既不算免费、倍率也不是 1。
+    quotaMultiplier: toFiniteNumber(row.quota_multiplier ?? row.quotaMultiplier, 1.0, 0, 100),
   };
 };
 
 export const listActiveBohaiModelConfigs = async () => {
-  const { data, error } = await supabase
-    .rpc('list_public_bohai_modes');
+  const { data, error } = await supabase.rpc('list_public_bohai_modes');
 
   if (error) {
     return {
@@ -60,30 +67,31 @@ export const listActiveBohaiModelConfigs = async () => {
       data: [],
       error: {
         message: error.message || '读取 BOHAI 模型配置失败',
-        code: error.code || 'BOHAI_MODEL_CONFIG_ERROR'
-      }
+        code: error.code || 'BOHAI_MODEL_CONFIG_ERROR',
+      },
     };
   }
 
   return {
     ok: true,
     data: (Array.isArray(data) ? data : [])
-      .map((row) => normalizeBohaiModelConfigRow({
-        ...row,
-        provider: 'boh',
-        provider_label: 'BOH',
-        model_id: `boh:${row.mode_id}`,
-        api_url: '',
-        status: 'active'
-      }))
+      .map((row) =>
+        normalizeBohaiModelConfigRow({
+          ...row,
+          provider: 'boh',
+          provider_label: 'BOH',
+          model_id: `boh:${row.mode_id}`,
+          api_url: '',
+          status: 'active',
+        }),
+      )
       .filter(Boolean),
-    error: null
+    error: null,
   };
 };
 
 export const listActiveBohaiPublicModeConfigs = async () => {
-  const { data, error } = await supabase
-    .rpc('list_public_bohai_modes');
+  const { data, error } = await supabase.rpc('list_public_bohai_modes');
 
   if (error) {
     return {
@@ -91,8 +99,8 @@ export const listActiveBohaiPublicModeConfigs = async () => {
       data: [],
       error: {
         message: error.message || '读取 BOHAI 公开模式失败',
-        code: error.code || 'BOHAI_PUBLIC_MODE_ERROR'
-      }
+        code: error.code || 'BOHAI_PUBLIC_MODE_ERROR',
+      },
     };
   }
 
@@ -107,10 +115,10 @@ export const listActiveBohaiPublicModeConfigs = async () => {
         capability: toText(row.capability, 'chat'),
         icon: toText(row.icon, 'sparkles'),
         minTier: toText(row.min_tier, 'free').toLowerCase(),
-        sortOrder: Math.trunc(toFiniteNumber(row.sort_order, 100, 0, 10000))
+        sortOrder: Math.trunc(toFiniteNumber(row.sort_order, 100, 0, 10000)),
       }))
       .filter((item) => item.modeId && item.displayName),
-    error: null
+    error: null,
   };
 };
 
@@ -129,7 +137,7 @@ export const buildBohaiRuntimeModels = (rows = []) => {
     model: item.modelId,
     capability: item.capability,
     minTier: item.minTier,
-    quotaMultiplier: item.quotaMultiplier
+    quotaMultiplier: item.quotaMultiplier,
   }));
 
   const modelMap = new Map();
@@ -141,7 +149,7 @@ export const buildBohaiRuntimeModels = (rows = []) => {
         provider: item.providerLabel,
         providerKey: item.provider,
         url: item.apiUrl,
-        apiKey: ''
+        apiKey: '',
       });
     }
   });
@@ -151,7 +159,7 @@ export const buildBohaiRuntimeModels = (rows = []) => {
       temperature: item.temperature,
       top_p: item.top_p,
       frequency_penalty: item.frequency_penalty,
-      max_tokens: item.max_tokens
+      max_tokens: item.max_tokens,
     };
     return map;
   }, {});
@@ -159,6 +167,6 @@ export const buildBohaiRuntimeModels = (rows = []) => {
   return {
     chatModes,
     availableModels: [...modelMap.values()],
-    generationProfiles
+    generationProfiles,
   };
 };

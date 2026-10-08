@@ -65,14 +65,13 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 >
 > 侦察依据与取舍见 `docs/2026-10-04-GitHub开源可引入方案调研.md` §8。
 
-> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings`（现为 **118**，2026-10-06 由 183 下调），
+> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 自 2026-09-29 起带 `--max-warnings`（现为 **116**，2026-10-08 由 118 下调），
 > 这是一道**警告棘轮**（`ci.yml:43` 与 `deploy.yml:45` 都跑 `npm run lint`，所以 CI 和发布链上都有牙）。
-> 存量是 **118 条 unused-vars**（js 47 + mjs 17 + vue 50 + ts 4；口径 `eslint . -f json`，
-> 2026-10-06 复核：118 warnings / 0 errors / 44 文件）——
-> **新增一条死代码当场 exit 1**，实测反证：往 `src/` 放一个 `const unusedX = 1` → `found too many warnings (maximum: 118)`。
-> 三条纪律：① **清理后请把 118 改小**（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
+> 存量是 **116 条 unused-vars**（口径 `eslint . -f json`；**别 grep 文本数**）——
+> **新增一条死代码当场 exit 1**，实测反证：往 `src/` 放一个 `const unusedX = 1` → `found too many warnings (maximum: 116)`。
+> 三条纪律：① **清理后请把 116 改小**（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
 > （与 `check:important-budget` 等棘轮同规矩）；③ 计数口径用 `eslint . -f json` 聚合，**别 grep 文本数**（会串）。
-> 之所以是「棘轮」而不是「把规则翻成 error」：118 条直接翻红只会逼人把变量改名 `_x` 保住绿，死代码变成「有名字的僵尸」，
+> 之所以是「棘轮」而不是「把规则翻成 error」：116 条直接翻红只会逼人把变量改名 `_x` 保住绿，死代码变成「有名字的僵尸」，
 > 还可能引出 `--no-verify` 绕过。**计数归零之后才翻 error。**
 
 | 你改了什么 | 除了 verify，还要跑 |
@@ -101,6 +100,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | AI 面板 / BOHAI | `npm run probe:ai-panels` |
 | **BOH AI 输入区 composer**（底行胶囊 / 三行面板 / 左右二级菜单 / 高级工具组 / 用量圆钮；`views/BOHAI/BOHAI/BOHAIMain.vue` + `styles/{adaptive-layout,messages,motion-system}.css`） | `node scripts/probes/probe-bohai-composer.mjs`（22，含独立页 + AI 岛两形态 + 设置面板）。⚠️ 四条已实测的坑：① `currentThinkingSpeed` 必须**和 `currentThinkingSpeedId` 一起**从 `useChatEngine()` 解构 —— 只解构后者时模板三处（胶囊强度段 / 推理强度行 / trigger title）会静默走空值兜底（永远是「中」），状态其实切换成功却永不回显，Vue 只发 warning 不抛错（2026-10-01 由 A5/A9 抓到）；② 二级菜单必须挂在 `.composer-panel` 内部且面板 `overflow: visible`，否则子菜单被裁或挡住「推理强度」行的点击；③ 探针里切换选项要用**页面内 `element.click()`**，Playwright 坐标点击在 248px 窄浮层边缘会落到遮罩上、被 `handleClickOutside` 关掉面板，看起来「面板收起了」其实 `setThinkingSpeed` 没跑；④ 断言零 pageerror 之外还要断言**零「模板引用未定义绑定」的 Vue warning**（`is not defined on instance` / `accessed during render`），这是本轮唯一能抓住漏解构的信号。另（2026-10-02）：用量圆钮已改**单环**（= 上下文，额度吃紧 ≥85/95% 由 quota-warn/danger 接管环色），额度与上下文数字都在 hover / 点击浮层里 —— A10-A13 锁这条契约，A10-A13 依赖先发一条消息（模型与 quota-status 均被 mock），mock 额度 88000/100000 = 88% 故意踩进 warn 档。另（2026-10-03，plans/023 步骤 ④）：新增 **C1-C4 覆盖设置面板**（4 卡 + 折叠高级 + 数据卡）与**退役的额度侧板**（`.quota-drawer` 必须为 0），C1 走的是「圆钮浮层『完整用量』→ 设置面板 + `scrollIntoView` 到用量卡」这条链。⚠️ 两条已实测的坑：① 用量卡是**数据到了才变高**的 —— 只在打开时滚一次会停在半路（实测 `usageVisible=false`），必须在 `fetchQuota` 落定后再滚一次；② C3 只认**数据**（`88%` / `已用 3 次` / `共 10 次`），别写成 `includes('Web Searching')` —— 面板底部那句说明文案里也有这个词，会假绿（反证实测：把段标题改成 WEB SEARCH，C3 仍 PASS） |
 | **BOH AI 生成参数**（改 temperature / max_tokens / top_p 等调参，或新增 LLM 调用点） | 已在 verify 链内跑 `check:bohai-params`（严格门禁，禁止在真源表之外内联字面量）。真源两张表：`src/views/BOHAI/generation-params.js`（按任务语义）与 `chat-engine-config.js` 的 `GENERATION_PROFILE_BY_MODE`（按对话模式）。改真源表的值属于**行为变更**：跑 `npm run probe:ai-panels` 并人眼复核对话质量 |
+| **BOH AI 斜杠命令**（改 `/` 命令表、命令解析、或**新增任何「用户发出这条输入」的入口**） | `node scripts/probes/probe-bohai-slash-commands.mjs`（7）。⚠️ **2026-10-08 用户报障**：输入 `/cloud` 后 AI 回「你发送了 /cloud 指令」—— 命令被当**普通文本**发了。根因：**执行逻辑只挂在 2 个入口**（菜单项 `mousedown`、菜单开着时的 Enter 拦截），**发送路径零斜杠分支** ⇒ 点发送键必然把字面量交给模型；逻辑层（`composables/` `engine/` `domain/`）里 `slash` 命中 **0** 次。⇒ **新增入口时必须在同一个解析函数上过闸**，别再加第三处 `if (event.key === 'Enter')`。四条已实测的坑：① **带参数命令菜单永不开** —— `slashQuery` 要求整条输入不含空白（`.vue:1644`），`/cloud 素材盘点成表格` 直接退化成普通消息；② **移动端全入口失效** —— `isCoarsePointer` 让 `handleEnter` 直接 return（`:1502`），触屏只剩「点菜单项」，而带参数时菜单不开 ⇒ 唯一畅通的路径恰好是错的那条；③ **空态建议卡在教用户写错** —— Work 形态第 4 张卡带 `command: '/cloud'`（`BohEmptyState.vue:101-115`），点击填入 `/cloud 素材盘点成表格`，而实现只认「整条输入是一个命令字」；④ **老探针抓不到** —— `probe-bohai-composer.mjs` 的 A8 只断言菜单**文案**存在、**从未点击过命令项**（`grep -c boh-slash-item` → 0），所以 22 条全绿而功能不可用。判据/修复设计见 `docs/2026-10-08-BOHAI对齐Codex优化方案与斜杠命令修复.md`（探针当前**预期红 6/7**，修完须 7/7） |
 | 数据管理面板列定义 | `npm run audit:dm-columns` |
 | `vite.config.js` 依赖别名 / optimizeDeps | `node scripts/probes/probe-vite-dep-scan.mjs`（6） |
 | 权限策略 / 归档 SQL | `npm run security:anon-check`（棘轮，红了说明新增了 anon EXECUTE） |

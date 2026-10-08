@@ -1,16 +1,25 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+/**
+ * 云上咖啡店 —— 主视图（plans/026 重构版）
+ *
+ * 与旧版的差异（每条都对应 plans/026 的实测发现）：
+ *  P0-1 本文件不再塞数据表/引擎/存档/音效，全部在 src/games/cafe/ 下。
+ *  P0-2 八类机制各自不同的核心动作（原来是 11 步共用一条进度条规则）。
+ *  P0-3 四档判定，Fail 扣 15 耐心并清连击。
+ *  P0-4 猫救场品质 68、清连击、每局封顶 2 次，且认真做收益更高。
+ *  P0-5 布局改成 CSS Grid（竖屏四行 / 桌面三栏），**不再用 transform: scale 硬缩**。
+ *       旧版 5 个 media query 各写一套绝对定位坐标，谁也不让谁，
+ *       竖屏面板占屏 59.7%、字号压到 7px，桌面中部却是 300px 空洞。
+ *  P0-6 装置改内联 SVG，背景分层视差。
+ */
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import {
-  ArrowUp,
   Coffee,
-  Droplets,
   Gauge,
   Heart,
   House,
   Milk,
-  MoveHorizontal,
-  MoveVertical,
   Pause,
   Play,
   RotateCcw,
@@ -19,1074 +28,1185 @@ import {
   Trash2,
   Volume2,
   VolumeX,
-  X
-} from 'lucide-vue-next'
+  X,
+} from 'lucide-vue-next';
 
-import cafeImage from '@/assets/images/26coffee4.webp'
-import fourYearsImage from '@/assets/images/2022-7-4years.webp'
-import fiveYearsImage from '@/assets/images/2023-7-5years.webp'
-import winterMuseumImage from '@/assets/images/2025wintermuseam.webp'
-import habitrainImage from '@/assets/images/habitrain.webp'
-import fuzhouImage from '@/assets/images/fuzhou.webp'
-import ryyikSkin from '@/assets/images/anniversary-cafe/skins/ryyik-cutout.webp'
-import baiyeSkin from '@/assets/images/anniversary-cafe/skins/baiye-cutout.webp'
-import chengziSkin from '@/assets/images/anniversary-cafe/skins/chengzi-cutout.webp'
-import hamburgerSkin from '@/assets/images/anniversary-cafe/skins/hamburger-cutout.webp'
-import xiaoniuSkin from '@/assets/images/anniversary-cafe/skins/xiaoniu-cutout.webp'
-import thoikSkin from '@/assets/images/anniversary-cafe/skins/thoik-cutout.webp'
-import teacherDingSkin from '@/assets/images/anniversary-cafe/skins/teacher-ding-cutout.webp'
-import pufferfishSkin from '@/assets/images/anniversary-cafe/skins/pufferfish-cutout.webp'
-import elevenSkin from '@/assets/images/anniversary-cafe/skins/eleven-cutout.webp'
-import endSkin from '@/assets/images/anniversary-cafe/skins/end-cutout.webp'
-import yufuquSkin from '@/assets/images/anniversary-cafe/skins/yufuqu-cutout.webp'
-import fivegeSkin from '@/assets/images/anniversary-cafe/skins/fivege-cutout.webp'
+import { CUSTOMERS, MEMORIES, getCustomer } from '@/games/cafe/data/people.js';
+import {
+  DRINKS,
+  GRADES,
+  MAX_CONCURRENT_ORDERS,
+  ROUND_SECONDS,
+  STEP_DEFINITIONS,
+} from '@/games/cafe/core/steps.js';
+import {
+  applyStepResult,
+  averageOf,
+  canRescue,
+  collectExpiredOrders,
+  createOrder,
+  createStats,
+  getCurrentStepId,
+  getDrink,
+  isOrderComplete,
+  mergeSettlement,
+  nextStepFeedback,
+  resetOrderSerial,
+  settleCatRescue,
+  settleNormalServe,
+  applyPatienceDecay,
+} from '@/games/cafe/core/round.js';
+import {
+  createStepState,
+  doseOnce,
+  latteGuideY,
+  sampleSwirl,
+  sampleTrace,
+  stepCommit,
+  stepTick,
+} from '@/games/cafe/core/engine.js';
+import {
+  CAT_AFFINITY_CAP,
+  CAT_HELP_COST,
+  CAT_PET_COOLDOWN_MS,
+  MAX_CAT_RESCUES,
+  tryPetCat,
+  tryPlayWithCat,
+} from '@/games/cafe/systems/cat.js';
+import {
+  persistRound,
+  persistWalletAndUpgrades,
+  readBestScore,
+  readUpgrades,
+  readWallet,
+} from '@/games/cafe/systems/persistence.js';
+import { playSfx } from '@/games/cafe/audio/sfx.js';
+import { createPausableTaskScheduler } from '@/utils/pausable-task-scheduler.js';
 import {
   getAnniversaryCafeResultTitle,
-  getAnniversaryCafeStars
-} from '@/utils/anniversary-cafe-result.js'
-import { createPausableTaskScheduler } from '@/utils/pausable-task-scheduler.js'
+  getAnniversaryCafeStars,
+} from '@/utils/anniversary-cafe-result.js';
+import StationPanel from './StationPanel.vue';
+import { BACKDROP_URL, memoryUrl, skinUrl } from './images.js';
+import './style.scoped.css';
 
-const ROUND_SECONDS = 150
-const CAT_HELP_COST = 8
-const router = useRouter()
+const ICONS = { Coffee, Gauge, Heart, House, Milk, Send, Sparkles, Trash2 };
+const stepIcon = (id) => ICONS[STEP_DEFINITIONS[id]?.icon] || Coffee;
 
-const stepDefinitions = {
-  grind: { name: '研磨咖啡豆', short: '研磨', icon: Coffee, mode: 'hold', visual: 'grind', target: [62, 78], rate: 29, action: '按住研磨' },
-  extract: { name: '萃取浓缩', short: '萃取', icon: Gauge, mode: 'toggle', visual: 'extract', target: [58, 72], rate: 22, action: '开始萃取' },
-  water: { name: '注入热水', short: '热水', icon: Droplets, mode: 'gesture', gesture: 'water', visual: 'water', target: [64, 79], rate: 33, instruction: '向上拖动水壶，保持倾角控制水量' },
-  steam: { name: '蒸汽打奶泡', short: '奶泡', icon: Milk, mode: 'gesture', gesture: 'steam', visual: 'steam', target: [58, 72], rate: 25, instruction: '上下拖动奶缸，让蒸汽棒保持在旋涡中心' },
-  syrup: { name: '加入焦糖糖浆', short: '焦糖', icon: Sparkles, mode: 'tap', visual: 'dose', targetCount: 2, unit: '泵', jarLabel: '焦糖', color: '#b85b3f', action: '按压焦糖泵' },
-  ice: { name: '加入冰块', short: '冰块', icon: Droplets, mode: 'tap', visual: 'dose', targetCount: 3, unit: '块', jarLabel: 'ICE', color: '#8fcbd7', action: '加入一块冰' },
-  fruit: { name: '压入鲜果汁', short: '果汁', icon: Sparkles, mode: 'tap', visual: 'dose', targetCount: 2, unit: '压', jarLabel: '鲜果', color: '#df744a', action: '按压果汁泵' },
-  cocoa: { name: '加入可可', short: '可可', icon: Coffee, mode: 'tap', visual: 'dose', targetCount: 2, unit: '勺', jarLabel: '可可', color: '#6f4129', action: '加入一勺可可' },
-  coconut: { name: '倒入生椰乳', short: '生椰', icon: Milk, mode: 'gesture', gesture: 'water', visual: 'water', target: [61, 77], rate: 30, instruction: '向上拖动生椰瓶，控制椰乳比例' },
-  sparkling: { name: '注入气泡水', short: '气泡', icon: Droplets, mode: 'gesture', gesture: 'water', visual: 'water', target: [60, 77], rate: 36, instruction: '缓慢倾斜气泡瓶，避免气泡溢出' },
-  pour: { name: '融合与拉花', short: '融合', icon: Milk, mode: 'gesture', gesture: 'pour', visual: 'pour', target: [69, 84], rate: 31, instruction: '在杯面左右往复拖动，完成融合与拉花' }
-}
+const router = useRouter();
+const taskScheduler = createPausableTaskScheduler();
 
-const drinks = [
-  { id: 'americano', name: '云上美式', price: 22, steps: ['grind', 'extract', 'water'], color: '#7b4a2d' },
-  { id: 'latte', name: '经典拿铁', price: 30, steps: ['grind', 'extract', 'steam', 'pour'], color: '#d7aa70' },
-  { id: 'coconut-americano', name: '生椰美式', price: 32, steps: ['grind', 'extract', 'ice', 'coconut'], color: '#e5d6b4' },
-  { id: 'orange-americano', name: '橙香美式', price: 34, steps: ['grind', 'extract', 'ice', 'fruit'], color: '#df7745' },
-  { id: 'grape-sparkling', name: '葡萄气泡果咖', price: 36, steps: ['ice', 'fruit', 'sparkling', 'extract'], color: '#8b6ca8' },
-  { id: 'caramel-macchiato', name: '焦糖玛奇朵', price: 36, steps: ['grind', 'extract', 'steam', 'syrup', 'pour'], color: '#bc784c' },
-  { id: 'mocha', name: '黑森林摩卡', price: 36, steps: ['grind', 'extract', 'cocoa', 'steam', 'pour'], color: '#603725' },
-  { id: 'anniversary', name: '八周年特调', price: 42, steps: ['grind', 'extract', 'steam', 'fruit', 'syrup', 'pour'], color: '#d96752' }
-]
+// ─────────────────────────── 局内状态 ───────────────────────────
+const phase = ref('intro');
+const timeLeft = ref(ROUND_SECONDS);
+const orders = ref([]);
+const activeOrderId = ref(null);
+const isPaused = ref(false);
+const showMenu = ref(false);
+const showExitConfirm = ref(false);
+const exitTarget = ref('intro');
+const pauseReason = ref('');
+const soundEnabled = ref(true);
+const stats = ref(createStats());
 
-const customers = [
-  { name: 'Ryyik', note: '今天也想喝熟悉的味道', image: ryyikSkin },
-  { name: '白夜', note: '刚结束一段很长的旅程', image: baiyeSkin },
-  { name: '橙子', note: '想在窗边休息一会儿', image: chengziSkin },
-  { name: '汉堡', note: '带着新地图来到了店里', image: hamburgerSkin },
-  { name: '小牛', note: '点单前已经拍了很多照片', image: xiaoniuSkin },
-  { name: 'Thoik', note: '今天想试试菜单上的新品', image: thoikSkin },
-  { name: '丁老师', note: '下课后需要一杯热咖啡', image: teacherDingSkin },
-  { name: '河豚', note: '在气泡果咖前犹豫了很久', image: pufferfishSkin },
-  { name: '十一', note: '想把咖啡带去新的世界', image: elevenSkin },
-  { name: 'End', note: '还是坐在靠近吧台的位置', image: endSkin },
-  { name: '渔夫曲', note: '从很远的海边赶来', image: yufuquSkin },
-  { name: '五歌', note: '想尝尝今天最复杂的一杯', image: fivegeSkin }
-]
+const machineHeat = ref(0);
+const steamCleanliness = ref(100);
+const counterCleanliness = ref(100);
+const maintenanceLock = ref('');
 
-const cafeMemories = [
-  { id: 'four-years', year: '2022', title: '四周年烟花夜', detail: '老朋友们重新聚在一起，也留下了第一批被认真保存的周年影像。', image: fourYearsImage },
-  { id: 'five-years', year: '2023', title: '五周年纪念册', detail: '第五年的合影被收进纪念册，后来每一次周年都延续了这份仪式感。', image: fiveYearsImage },
-  { id: 'winter-museum', year: '2025', title: '冬眠博物馆', detail: '方块街圣诞与生日会特别活动，把大家的冬日回忆收藏进了博物馆。', image: winterMuseumImage },
-  { id: 'habitrain', year: '2026', title: '哈比快车谋杀案', detail: '那趟充满推理、身份与笑声的列车，至今仍是方块之家最热闹的游戏之一。', image: habitrainImage },
-  { id: 'fuzhou', year: '2026', title: 'Halo，福州', detail: '遇见系列从线上世界走到真实城市，新的共同记忆正在福州发生。', image: fuzhouImage }
-]
+const catAffinity = ref(0);
+const catMood = ref('idle');
+const catMessage = ref('');
+const catSpot = ref(1);
+const hearts = ref([]);
 
-const phase = ref('intro')
-const timeLeft = ref(ROUND_SECONDS)
-const coins = ref(0)
-const served = ref(0)
-const missed = ref(0)
-const combo = ref(0)
-const bestCombo = ref(0)
-const bestScore = ref(0)
-const totalQuality = ref(0)
-const orders = ref([])
-const activeOrderId = ref(null)
-const isPaused = ref(false)
-const soundEnabled = ref(true)
-const showMenu = ref(false)
-const showExitConfirm = ref(false)
-const exitTarget = ref('intro')
-const pauseReason = ref('')
-const customerIndex = ref(-1)
-const catAffinity = ref(0)
-const catMood = ref('idle')
-const catMessage = ref('')
-const catSpot = ref(1)
-const hearts = ref([])
-const machineHeat = ref(0)
-const steamCleanliness = ref(100)
-const counterCleanliness = ref(100)
-const maintenanceLock = ref('')
-const wallet = ref(0)
-const upgrades = ref({ grinder: 0, machine: 0, steam: 0 })
-const discoveredMemories = ref([])
-const activeMemoryId = ref(null)
-const memoryMessage = ref(null)
-const pauseResumeButton = ref(null)
-const exitCancelButton = ref(null)
+const wallet = ref(0);
+const upgrades = ref({ grinder: 0, machine: 0, steam: 0 });
+const bestScore = ref(0);
 
-const order = computed(() => orders.value.find((item) => item.id === activeOrderId.value) || null)
+const discoveredMemories = ref([]);
+const activeMemoryId = ref(null);
+const memoryMessage = ref(null);
 
-function activeOrderField(key, fallback) {
-  return computed({
-    get: () => order.value?.[key] ?? fallback,
-    set: (value) => {
-      if (order.value) order.value[key] = value
-    }
-  })
-}
+const pointer = ref(null);
+const holding = ref(false);
+/**
+ * 每一步的运行时状态：**按订单隔离**（`{ [orderId]: { [stepId]: state } }`）。
+ *
+ * ⚠️ 2026-10-08 修「有概率长按没反应」：原来是**全局单例** `{ [stepId]: state }`，
+ * 三个订单共用一份。于是 A 单失败的 `status:'failed'` 会污染 B 单，
+ * 而 `canInteract()` 见到 failed 直接 return false ⇒
+ * 玩家切单后长按**完全没有任何反应**。
+ * 「有概率」正是因为取决于「哪一单先失败」和「玩家有没有切单」。
+ */
+const stepStates = ref({});
 
-const patience = activeOrderField('patience', 100)
-const feedback = activeOrderField('feedback', '等待操作')
-const feedbackTone = activeOrderField('feedbackTone', 'neutral')
-const isResolving = activeOrderField('isResolving', false)
-const activeStepIndex = activeOrderField('activeStepIndex', 0)
-const processProgress = activeOrderField('processProgress', 0)
-const processState = activeOrderField('processState', 'idle')
-const stepQualities = activeOrderField('stepQualities', [])
-const syrupPumps = activeOrderField('syrupPumps', 0)
-const isHolding = activeOrderField('isHolding', false)
-const extractionRunning = activeOrderField('extractionRunning', false)
-const kettleAngle = activeOrderField('kettleAngle', 0)
-const steamPosition = activeOrderField('steamPosition', 50)
-const latteTrail = activeOrderField('latteTrail', [])
-const latteReversals = activeOrderField('latteReversals', 0)
-const keyboardPourDirection = activeOrderField('keyboardPourDirection', 0)
+const pauseResumeButton = ref(null);
+const exitCancelButton = ref(null);
 
-const currentDrink = computed(() => drinks.find((drink) => drink.id === order.value?.drinkId) || drinks[0])
-const currentCustomer = computed(() => customers[order.value?.customerIndex ?? 0])
-const currentStepId = computed(() => currentDrink.value.steps[activeStepIndex.value] || null)
-const currentStep = computed(() => currentStepId.value ? stepDefinitions[currentStepId.value] : null)
-const canServe = computed(() => activeStepIndex.value >= currentDrink.value.steps.length)
-const isTapStep = computed(() => currentStep.value?.mode === 'tap')
-const progress = computed(() => ((ROUND_SECONDS - timeLeft.value) / ROUND_SECONDS) * 100)
-const catHelpReady = computed(() => catAffinity.value >= CAT_HELP_COST && phase.value === 'playing' && !isPaused.value && !isResolving.value)
-const catPositionStyle = computed(() => ({ '--cat-spot': `${43 + catSpot.value * 18}%` }))
-const currentQuality = computed(() => stepQualities.value.length
-  ? Math.round(stepQualities.value.reduce((sum, value) => sum + value, 0) / stepQualities.value.length)
-  : 0)
-const averageQuality = computed(() => served.value ? Math.round(totalQuality.value / served.value) : 0)
-const resultTitle = computed(() => getAnniversaryCafeResultTitle(served.value, averageQuality.value))
-const stars = computed(() => getAnniversaryCafeStars(served.value, averageQuality.value))
-const targetBounds = computed(() => {
-  if (!currentStep.value || isTapStep.value) return [0, 100]
-  const [start, end] = currentStep.value.target
-  const shrink = Math.min(5, served.value * 0.65)
-  let upgradeBonus = 0
-  if (currentStepId.value === 'grind') upgradeBonus = upgrades.value.grinder * 1.4
-  if (currentStepId.value === 'extract') upgradeBonus = upgrades.value.machine * 1.25
-  if (currentStepId.value === 'steam') upgradeBonus = upgrades.value.steam * 1.3
-  return [Math.max(2, start + shrink - upgradeBonus), Math.min(98, end - shrink + upgradeBonus)]
-})
-const measurement = computed(() => {
-  const value = processProgress.value
-  if (currentStepId.value === 'grind') return `${Math.round(value)}% 细度`
-  if (currentStepId.value === 'extract') return `${(18 + value * 0.18).toFixed(1)} 秒`
-  if (currentStepId.value === 'water') return `${Math.round(value * 1.8)} ml`
-  if (currentStepId.value === 'coconut') return `${Math.round(value * 1.45)} ml 椰乳`
-  if (currentStepId.value === 'sparkling') return `${Math.round(value * 1.7)} ml 气泡水`
-  if (currentStepId.value === 'steam') return `${Math.round(22 + value * 0.66)}°C`
-  if (currentStepId.value === 'pour') return `${Math.round(value)}% 融合`
-  if (isTapStep.value) return `${syrupPumps.value} / ${currentStep.value.targetCount} ${currentStep.value.unit}`
-  return '完成'
-})
-const machineActionLabel = computed(() => {
-  if (canServe.value) return '可以出杯'
-  if (currentStepId.value === 'extract' && extractionRunning.value) return '停止萃取'
-  return currentStep.value?.action || '制作完成'
-})
-const gestureInstruction = computed(() => {
-  return currentStep.value?.instruction || ''
-})
-const keyboardGestureInstruction = computed(() => {
-  if (currentStep.value?.gesture === 'water') return '方向键上下调整用量，回车确认'
-  if (currentStep.value?.gesture === 'steam') return '方向键上下移动奶缸，回车确认'
-  if (currentStep.value?.gesture === 'pour') return '方向键左右往复拉花，回车确认'
-  return ''
-})
-const usesEquipmentGesture = computed(() => currentStep.value?.mode === 'gesture')
-const queueCount = computed(() => orders.value.filter((item) => !item.isResolving).length)
-const activeMemory = computed(() => cafeMemories.find((memory) => memory.id === activeMemoryId.value) || null)
+const order = computed(() => orders.value.find((item) => item.id === activeOrderId.value) || null);
+const drink = computed(() => getDrink(order.value));
+const currentStepId = computed(() => getCurrentStepId(order.value));
+const currentStep = computed(() =>
+  currentStepId.value ? STEP_DEFINITIONS[currentStepId.value] : null,
+);
+const canServe = computed(() => (order.value ? isOrderComplete(order.value) : false));
+const currentQuality = computed(() => averageOf(order.value?.stepQualities || []));
+const queueCount = computed(() => orders.value.filter((item) => !item.isResolving).length);
+const progress = computed(() => ((ROUND_SECONDS - timeLeft.value) / ROUND_SECONDS) * 100);
+const stepState = computed(() => {
+  const oid = activeOrderId.value;
+  const sid = currentStepId.value;
+  return oid && sid ? stepStates.value[oid]?.[sid] || null : null;
+});
+/** 需要指针交互的机制（timed/sequenced 走按钮，不进拖拽区） */
+const interactiveStation = computed(
+  () => Boolean(currentStep.value) && !['timed', 'sequenced'].includes(currentStep.value.kind),
+);
+/**
+ * 「店里正忙」= 有一单处在制作流程中（还没到可出杯）。
+ *
+ * ⚠️ 判据不能只看 holding（正在按住）：
+ * 2026-10-08 端到端探针抓到 —— 开局没人按按钮时 holding=false，
+ * 于是摸猫/逗猫可用，玩家可以在「第一杯还没开始做」时白嫖亲密度，
+ * P0-4① 的反白嫖约束形同虚设（实测 7a/7b 转红）。
+ * 正确口径：**有订单在进行中且未完成**就算占用，让亲密度只能靠
+ * 「等单做完的空档」或「发现回忆」获取。
+ */
+const anyStepInProgress = computed(() => {
+  if (holding.value) return true;
+  return orders.value.some(
+    (item) => !item.isResolving && item.stepIndex < getDrink(item).steps.length,
+  );
+});
+const catHelpReady = computed(() =>
+  canRescue({
+    affinity: catAffinity.value,
+    phase: phase.value,
+    paused: isPaused.value,
+    resolving: Boolean(order.value?.isResolving),
+    rescuesUsed: stats.value.rescuesUsed,
+  }),
+);
+const catPositionStyle = computed(() => ({ '--cat-spot': `${43 + catSpot.value * 18}%` }));
+const averageQuality = computed(() =>
+  stats.value.served ? Math.round(stats.value.totalQuality / stats.value.served) : 0,
+);
+const resultTitle = computed(() =>
+  getAnniversaryCafeResultTitle(stats.value.served, averageQuality.value),
+);
+const stars = computed(() => getAnniversaryCafeStars(stats.value.served, averageQuality.value));
 const upgradeCatalog = computed(() => [
-  { id: 'grinder', name: '钻石磨豆机', description: '扩大研磨最佳区间', level: upgrades.value.grinder, cost: 120 + upgrades.value.grinder * 90 },
-  { id: 'machine', name: '双锅炉咖啡机', description: '降低萃取升温并扩大窗口', level: upgrades.value.machine, cost: 150 + upgrades.value.machine * 110 },
-  { id: 'steam', name: '强力蒸汽棒', description: '奶泡更稳定且更耐用', level: upgrades.value.steam, cost: 130 + upgrades.value.steam * 100 }
-])
+  {
+    id: 'grinder',
+    name: '钻石磨豆机',
+    description: '研磨目标区更宽',
+    level: upgrades.value.grinder,
+    cost: 120 + upgrades.value.grinder * 90,
+  },
+  {
+    id: 'machine',
+    name: '双锅炉咖啡机',
+    description: '萃取更稳且更耐用',
+    level: upgrades.value.machine,
+    cost: 150 + upgrades.value.machine * 110,
+  },
+  {
+    id: 'steam',
+    name: '强力蒸汽棒',
+    description: '奶泡更稳且更耐用',
+    level: upgrades.value.steam,
+    cost: 130 + upgrades.value.steam * 100,
+  },
+]);
 
-let gameTimer = null
-let catTimer = null
-let processFrame = 0
-let processTimestamp = 0
-let heartId = 0
-let audioContext = null
-let lastPetAt = 0
-let equipmentGesture = null
-let arrivalTimer = null
-let orderSerial = 0
-let memoryTask = null
-let pausedAt = 0
-let roundDeadline = 0
-let lastGameTickAt = 0
-let lastFocusedElement = null
-let exitWasPaused = false
-const taskScheduler = createPausableTaskScheduler()
+const customerList = computed(() =>
+  CUSTOMERS.map((item) => ({ ...item, image: skinUrl(item.imageKey) })),
+);
+const memoryList = computed(() =>
+  MEMORIES.map((item) => ({ ...item, image: memoryUrl(item.assetKey) })),
+);
+const activeMemory = computed(
+  () => memoryList.value.find((m) => m.id === activeMemoryId.value) || null,
+);
+const currentCustomer = computed(() => {
+  if (!order.value) return customerList.value[0];
+  return {
+    ...getCustomer(order.value.customerIndex),
+    image: skinUrl(getCustomer(order.value.customerIndex).imageKey),
+  };
+});
 
-function playTone(kind = 'tap') {
-  if (!soundEnabled.value || typeof window === 'undefined') return
-  try {
-    audioContext ||= new AudioContext()
-    const oscillator = audioContext.createOscillator()
-    const gain = audioContext.createGain()
-    const frequencies = { tap: 350, machine: 125, success: 660, error: 145, purr: 108, pump: 240 }
-    oscillator.frequency.setValueAtTime(frequencies[kind] || 350, audioContext.currentTime)
-    if (kind === 'success') oscillator.frequency.exponentialRampToValueAtTime(880, audioContext.currentTime + 0.13)
-    oscillator.type = ['machine', 'purr'].includes(kind) ? 'triangle' : 'sine'
-    gain.gain.setValueAtTime(0.0001, audioContext.currentTime)
-    gain.gain.exponentialRampToValueAtTime(kind === 'error' ? 0.055 : 0.03, audioContext.currentTime + 0.01)
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.17)
-    oscillator.connect(gain).connect(audioContext.destination)
-    oscillator.start()
-    oscillator.stop(audioContext.currentTime + 0.18)
-  } catch {
-    soundEnabled.value = false
+// ─────────────────────────── 计时器句柄 ───────────────────────────
+let gameTimer = null;
+let catTimer = null;
+let arrivalTimer = null;
+let rafId = 0;
+let lastFrameAt = 0;
+let heartId = 0;
+let customerCursor = -1;
+let roundDeadline = 0;
+let lastGameTickAt = 0;
+let lastFocusedElement = null;
+let exitWasPaused = false;
+let lastPetAt = 0;
+let lastPlayAt = 0;
+let pendingTask = null;
+let pausedAt = 0;
+
+// ─────────────────────────── 音效与反馈 ───────────────────────────
+function sfx(kind) {
+  playSfx(kind, soundEnabled.value);
+}
+
+function ensureStepState(stepId) {
+  if (!stepId) return null;
+  const oid = activeOrderId.value;
+  if (!oid) return null;
+  if (!stepStates.value[oid]?.[stepId]) {
+    const upgradeKey = STEP_DEFINITIONS[stepId].upgradeKey;
+    const upgradeBonus = upgradeKey ? (upgrades.value[upgradeKey] || 0) * 1.4 : 0;
+    stepStates.value = {
+      ...stepStates.value,
+      [oid]: {
+        ...(stepStates.value[oid] || {}),
+        [stepId]: createStepState(stepId, {
+          served: stats.value.served,
+          upgradeBonus,
+          previousHeight: order.value?.layerHeights?.previous || 0,
+        }),
+      },
+    };
   }
+  return stepStates.value[oid]?.[stepId] || null;
 }
 
-function setFeedback(message, tone = 'neutral') {
-  feedback.value = message
-  feedbackTone.value = tone
+function patchStepState(stepId, next, orderId = activeOrderId.value) {
+  if (!orderId) return;
+  stepStates.value = {
+    ...stepStates.value,
+    [orderId]: { ...(stepStates.value[orderId] || {}), [stepId]: next },
+  };
 }
 
+function setOrderField(key, value) {
+  const target = orders.value.find((item) => item.id === activeOrderId.value);
+  if (target) target[key] = value;
+}
+
+// ─────────────────────────── 记忆与猫 ───────────────────────────
 function selectNextMemory() {
-  const undiscovered = cafeMemories.filter((memory) => !discoveredMemories.value.some((item) => item.id === memory.id))
-  activeMemoryId.value = undiscovered.length
-    ? undiscovered[Math.floor(Math.random() * undiscovered.length)].id
-    : null
+  const rest = memoryList.value.filter((m) => !discoveredMemories.value.some((d) => d.id === m.id));
+  activeMemoryId.value = rest.length ? rest[Math.floor(Math.random() * rest.length)].id : null;
 }
 
 function closeMemory() {
-  taskScheduler.cancel(memoryTask)
-  memoryTask = null
-  memoryMessage.value = null
-  if (phase.value === 'playing') selectNextMemory()
+  taskScheduler.cancel(pendingTask);
+  pendingTask = null;
+  memoryMessage.value = null;
+  if (phase.value === 'playing') selectNextMemory();
 }
 
 function discoverMemory(memory) {
-  if (!memory || memoryMessage.value) return
+  if (!memory || memoryMessage.value) return;
   if (!discoveredMemories.value.some((item) => item.id === memory.id)) {
-    discoveredMemories.value.push(memory)
-    catAffinity.value = Math.min(16, catAffinity.value + 1)
+    discoveredMemories.value.push(memory);
+    catAffinity.value = Math.min(CAT_AFFINITY_CAP, catAffinity.value + 1);
   }
-  activeMemoryId.value = null
-  memoryMessage.value = memory
-  playTone('success')
-  memoryTask = taskScheduler.schedule(closeMemory, 4200)
-}
-
-function cancelProcessFrame() {
-  cancelAnimationFrame(processFrame)
-  processFrame = 0
-  processTimestamp = 0
-  isHolding.value = false
-  extractionRunning.value = false
-  equipmentGesture = null
-}
-
-function clearTimers() {
-  window.clearInterval(gameTimer)
-  window.clearInterval(catTimer)
-  window.clearInterval(arrivalTimer)
-  taskScheduler.clear()
-  gameTimer = null
-  catTimer = null
-  arrivalTimer = null
-  memoryTask = null
-  cancelProcessFrame()
-}
-
-function createOrder() {
-  if (orders.value.length >= 3) return null
-  const usedCustomers = new Set(orders.value.map((item) => item.customerIndex))
-  customerIndex.value = (customerIndex.value + 1) % customers.length
-  while (usedCustomers.has(customerIndex.value)) customerIndex.value = (customerIndex.value + 1) % customers.length
-  const previousDrink = orders.value.at(-1)?.drinkId
-  const options = drinks.filter((drink) => drink.id !== previousDrink)
-  const drink = options[Math.floor(Math.random() * options.length)]
-  const newOrder = {
-    id: `order-${orderSerial += 1}`,
-    customerIndex: customerIndex.value,
-    drinkId: drink.id,
-    patience: 100,
-    feedback: `先完成「${stepDefinitions[drink.steps[0]].name}」`,
-    feedbackTone: 'neutral',
-    isResolving: false,
-    activeStepIndex: 0,
-    processProgress: 0,
-    processState: 'idle',
-    stepQualities: [],
-    syrupPumps: 0,
-    isHolding: false,
-    extractionRunning: false,
-    kettleAngle: 0,
-    steamPosition: 50,
-    latteTrail: [],
-    latteReversals: 0,
-    keyboardPourDirection: 0
-  }
-  orders.value.push(newOrder)
-  if (!activeOrderId.value) activeOrderId.value = newOrder.id
-  playTone('tap')
-  return newOrder
-}
-
-function getOrderDrink(queuedOrder) {
-  return drinks.find((drink) => drink.id === queuedOrder.drinkId) || drinks[0]
-}
-
-function getOrderCustomer(queuedOrder) {
-  return customers[queuedOrder.customerIndex] || customers[0]
-}
-
-function getOrderStep(queuedOrder) {
-  const drink = getOrderDrink(queuedOrder)
-  if (queuedOrder.activeStepIndex >= drink.steps.length) return '等待出杯'
-  return stepDefinitions[drink.steps[queuedOrder.activeStepIndex]].short
-}
-
-function selectOrder(orderId) {
-  if (orderId === activeOrderId.value || !orders.value.some((item) => item.id === orderId)) return
-  if (processState.value === 'running') processState.value = 'idle'
-  cancelProcessFrame()
-  activeOrderId.value = orderId
-  playTone('tap')
-}
-
-function scheduleReplacement(delay = 1200) {
-  taskScheduler.schedule(() => {
-    if (phase.value === 'playing') createOrder()
-  }, delay)
-}
-
-function removeOrder(orderId) {
-  const wasActive = activeOrderId.value === orderId
-  orders.value = orders.value.filter((item) => item.id !== orderId)
-  if (wasActive) activeOrderId.value = orders.value.find((item) => !item.isResolving)?.id || null
-  if (phase.value === 'playing') scheduleReplacement()
-}
-
-function startGame() {
-  clearTimers()
-  taskScheduler.resume()
-  phase.value = 'playing'
-  showMenu.value = false
-  showExitConfirm.value = false
-  timeLeft.value = ROUND_SECONDS
-  coins.value = 0
-  served.value = 0
-  missed.value = 0
-  combo.value = 0
-  bestCombo.value = 0
-  totalQuality.value = 0
-  orders.value = []
-  activeOrderId.value = null
-  orderSerial = 0
-  customerIndex.value = -1
-  catAffinity.value = 0
-  discoveredMemories.value = []
-  memoryMessage.value = null
-  catMood.value = 'idle'
-  catMessage.value = ''
-  hearts.value = []
-  isPaused.value = false
-  pauseReason.value = ''
-  machineHeat.value = 0
-  steamCleanliness.value = 100
-  counterCleanliness.value = 100
-  maintenanceLock.value = ''
-  selectNextMemory()
-  createOrder()
-  createOrder()
-  createOrder()
-  playTone('success')
-
-  const startedAt = Date.now()
-  roundDeadline = startedAt + ROUND_SECONDS * 1000
-  lastGameTickAt = startedAt
-
-  gameTimer = window.setInterval(() => {
-    if (isPaused.value || phase.value !== 'playing') return
-    const now = Date.now()
-    const elapsedSeconds = Math.max(0, (now - lastGameTickAt) / 1000)
-    lastGameTickAt = now
-    timeLeft.value = Math.max(0, Math.ceil((roundDeadline - now) / 1000))
-    machineHeat.value = Math.max(0, machineHeat.value - (2.5 + upgrades.value.machine * 0.35) * elapsedSeconds)
-    const expiredOrders = []
-    for (const queuedOrder of orders.value) {
-      if (queuedOrder.isResolving) continue
-      queuedOrder.patience = Math.max(0, queuedOrder.patience - (0.62 + served.value * 0.055) * elapsedSeconds)
-      if (queuedOrder.patience <= 0) expiredOrders.push(queuedOrder.id)
-    }
-    expiredOrders.forEach(loseOrder)
-    if (timeLeft.value <= 0) finishGame()
-  }, 1000)
-
-  arrivalTimer = window.setInterval(() => {
-    if (!isPaused.value && phase.value === 'playing') createOrder()
-  }, 10500)
-
-  catTimer = window.setInterval(() => {
-    if (isPaused.value || phase.value !== 'playing' || catMood.value === 'chase') return
-    catSpot.value = Math.floor(Math.random() * 3)
-    catMood.value = Math.random() > 0.7 ? 'sleep' : 'walk'
-    catMessage.value = catMood.value === 'sleep' ? '呼噜…' : ''
-    taskScheduler.schedule(() => {
-      if (catMood.value !== 'chase') catMood.value = 'idle'
-    }, 1800)
-  }, 5600)
-}
-
-function finishGame() {
-  if (phase.value !== 'playing') return
-  phase.value = 'result'
-  showMenu.value = false
-  isPaused.value = false
-  clearTimers()
-  bestScore.value = Math.max(bestScore.value, coins.value)
-  wallet.value += coins.value
-  try {
-    localStorage.setItem('boh-anniversary-cafe-best', String(bestScore.value))
-    localStorage.setItem('boh-anniversary-cafe-wallet', String(wallet.value))
-    localStorage.setItem('boh-anniversary-cafe-upgrades', JSON.stringify(upgrades.value))
-  } catch { /* localStorage may be unavailable in private contexts. */ }
-  playTone('success')
-}
-
-function setPaused(nextPaused, reason = '', withSound = true) {
-  if (phase.value !== 'playing') return
-  if (isPaused.value === nextPaused) return
-  isPaused.value = nextPaused
-  if (nextPaused) {
-    pauseReason.value = reason
-    pausedAt = Date.now()
-    lastFocusedElement = document.activeElement
-    cancelProcessFrame()
-    taskScheduler.pause()
-    nextTick(() => pauseResumeButton.value?.focus())
-  } else {
-    const resumedAt = Date.now()
-    roundDeadline += Math.max(0, resumedAt - pausedAt)
-    lastGameTickAt = resumedAt
-    pauseReason.value = ''
-    taskScheduler.resume()
-    nextTick(() => lastFocusedElement?.focus?.())
-  }
-  if (withSound) playTone('tap')
-}
-
-function togglePause() {
-  setPaused(!isPaused.value)
-}
-
-function processLoop(timestamp) {
-  if ((!isHolding.value && !extractionRunning.value) || isPaused.value || processState.value !== 'running') return
-  if (!processTimestamp) processTimestamp = timestamp
-  const delta = Math.min(0.05, (timestamp - processTimestamp) / 1000)
-  processTimestamp = timestamp
-  const difficulty = 1 + Math.min(0.32, served.value * 0.035)
-  let gestureRate = 1
-  if (currentStep.value?.gesture === 'water') gestureRate = Math.max(0.08, kettleAngle.value / 52)
-  if (currentStep.value?.gesture === 'steam') gestureRate = steamPosition.value >= 36 && steamPosition.value <= 66 ? 1 : 0.42
-  processProgress.value = Math.min(100, processProgress.value + currentStep.value.rate * difficulty * gestureRate * delta)
-  if (processProgress.value >= 100) {
-    failStep('操作过头了，需要重新来')
-    return
-  }
-  processFrame = requestAnimationFrame(processLoop)
-}
-
-function beginHold(event) {
-  if (!currentStep.value || currentStep.value.mode !== 'hold') return
-  if (isPaused.value || isResolving.value || ['passed', 'error'].includes(processState.value)) return
-  if (maintenanceLock.value) {
-    setFeedback('设备正在维护，请稍候', 'error')
-    return
-  }
-  event.currentTarget.setPointerCapture?.(event.pointerId)
-  isHolding.value = true
-  processState.value = 'running'
-  processTimestamp = 0
-  setFeedback('保持住，在金色区域松手')
-  playTone('machine')
-  processFrame = requestAnimationFrame(processLoop)
-}
-
-function beginKeyboardHold(event) {
-  if (event.repeat || isHolding.value) return
-  beginHold(event)
-}
-
-function beginEquipmentGesture(event) {
-  if (!usesEquipmentGesture.value || isPaused.value || isResolving.value || ['passed', 'error'].includes(processState.value)) return
-  if (maintenanceLock.value) {
-    setFeedback('设备正在维护，请稍候', 'error')
-    return
-  }
-  if (currentStep.value?.gesture === 'steam' && steamCleanliness.value < 24) {
-    setFeedback('蒸汽棒需要先清洁和排气', 'error')
-    playTone('error')
-    return
-  }
-  event.currentTarget.setPointerCapture?.(event.pointerId)
-  const rect = event.currentTarget.getBoundingClientRect()
-  equipmentGesture = {
-    pointerId: event.pointerId,
-    rect,
-    startX: event.clientX,
-    startY: event.clientY,
-    lastX: event.clientX,
-    lastY: event.clientY,
-    distance: 0,
-    direction: 0
-  }
-  isHolding.value = true
-  processState.value = 'running'
-  processTimestamp = 0
-  if (currentStep.value?.gesture === 'pour') {
-    processProgress.value = 0
-    latteTrail.value = []
-    latteReversals.value = 0
-  } else {
-    processFrame = requestAnimationFrame(processLoop)
-  }
-  setFeedback(gestureInstruction.value)
-  playTone('machine')
-}
-
-function moveEquipmentGesture(event) {
-  if (!equipmentGesture || event.pointerId !== equipmentGesture.pointerId) return
-  const gesture = equipmentGesture
-  if (currentStep.value?.gesture === 'water') {
-    kettleAngle.value = Math.max(0, Math.min(55, (gesture.startY - event.clientY) * 0.72))
-  } else if (currentStep.value?.gesture === 'steam') {
-    steamPosition.value = Math.max(0, Math.min(100, ((event.clientY - gesture.rect.top) / gesture.rect.height) * 100))
-  } else if (currentStep.value?.gesture === 'pour') {
-    const dx = event.clientX - gesture.lastX
-    const dy = event.clientY - gesture.lastY
-    const distance = Math.hypot(dx, dy)
-    if (distance > 1) {
-      gesture.distance += distance
-      const direction = Math.abs(dx) > 2 ? Math.sign(dx) : gesture.direction
-      if (gesture.direction && direction && direction !== gesture.direction) latteReversals.value += 1
-      gesture.direction = direction
-      processProgress.value = Math.min(100, gesture.distance / Math.max(1.8, gesture.rect.width * 0.0065))
-      latteTrail.value = [...latteTrail.value.slice(-13), {
-        x: ((event.clientX - gesture.rect.left) / gesture.rect.width) * 100,
-        y: ((event.clientY - gesture.rect.top) / gesture.rect.height) * 100
-      }]
-    }
-  }
-  gesture.lastX = event.clientX
-  gesture.lastY = event.clientY
-}
-
-function endEquipmentGesture(event) {
-  if (!equipmentGesture || (event?.pointerId != null && event.pointerId !== equipmentGesture.pointerId)) return
-  const gestureType = currentStep.value?.gesture
-  isHolding.value = false
-  cancelAnimationFrame(processFrame)
-  processFrame = 0
-  equipmentGesture = null
-  if (gestureType === 'steam' && (steamPosition.value < 36 || steamPosition.value > 66)) {
-    failStep('奶缸位置偏离蒸汽旋涡')
-    return
-  }
-  if (gestureType === 'pour' && latteReversals.value < 3) {
-    failStep('拉花需要至少三次左右往复')
-    return
-  }
-  gradeStep()
-}
-
-function handleEquipmentKeydown(event) {
-  if (!usesEquipmentGesture.value || isPaused.value || isResolving.value) return
-  if (event.key === 'Enter') {
-    event.preventDefault()
-    if (processState.value !== 'running') return
-    if (currentStep.value?.gesture === 'steam' && (steamPosition.value < 36 || steamPosition.value > 66)) {
-      failStep('奶缸位置偏离蒸汽旋涡')
-      return
-    }
-    if (currentStep.value?.gesture === 'pour' && latteReversals.value < 3) {
-      failStep('拉花需要至少三次左右往复')
-      return
-    }
-    gradeStep()
-    return
-  }
-
-  const isVertical = ['ArrowUp', 'ArrowDown'].includes(event.key)
-  const isHorizontal = ['ArrowLeft', 'ArrowRight'].includes(event.key)
-  const gesture = currentStep.value?.gesture
-  if ((gesture === 'pour' && !isHorizontal) || (gesture !== 'pour' && !isVertical)) return
-  event.preventDefault()
-
-  if (maintenanceLock.value) {
-    setFeedback('设备正在维护，请稍候', 'error')
-    return
-  }
-  if (gesture === 'steam' && steamCleanliness.value < 24) {
-    setFeedback('蒸汽棒需要先清洁和排气', 'error')
-    playTone('error')
-    return
-  }
-  if (['passed', 'error'].includes(processState.value)) return
-
-  processState.value = 'running'
-  if (gesture === 'water') {
-    const delta = event.key === 'ArrowUp' ? 6 : -6
-    processProgress.value = Math.max(0, Math.min(99, processProgress.value + delta))
-    kettleAngle.value = Math.max(0, Math.min(55, processProgress.value * 0.65))
-  } else if (gesture === 'steam') {
-    steamPosition.value = Math.max(0, Math.min(100, steamPosition.value + (event.key === 'ArrowUp' ? -7 : 7)))
-    const stability = steamPosition.value >= 36 && steamPosition.value <= 66 ? 9 : 4
-    processProgress.value = Math.min(99, processProgress.value + stability)
-  } else {
-    const direction = event.key === 'ArrowLeft' ? -1 : 1
-    if (keyboardPourDirection.value && keyboardPourDirection.value !== direction) latteReversals.value += 1
-    keyboardPourDirection.value = direction
-    processProgress.value = Math.min(99, processProgress.value + 9)
-  }
-  setFeedback(`${keyboardGestureInstruction.value} · 当前 ${measurement.value}`)
-  playTone('tap')
-}
-
-function releaseHold() {
-  if (!isHolding.value) return
-  isHolding.value = false
-  cancelAnimationFrame(processFrame)
-  gradeStep()
-}
-
-function toggleExtraction() {
-  if (currentStepId.value !== 'extract' || isPaused.value || isResolving.value || processState.value === 'passed') return
-  if (extractionRunning.value) {
-    extractionRunning.value = false
-    cancelAnimationFrame(processFrame)
-    gradeStep()
-    return
-  }
-  if (machineHeat.value >= 88) {
-    setFeedback('咖啡机过热，需要排压降温', 'error')
-    playTone('error')
-    return
-  }
-  if (maintenanceLock.value) return
-  processState.value = 'running'
-  extractionRunning.value = true
-  processTimestamp = 0
-  setFeedback('观察压力表，在金色区域停止')
-  playTone('machine')
-  processFrame = requestAnimationFrame(processLoop)
-}
-
-function doseIngredient() {
-  if (!isTapStep.value || isPaused.value || isResolving.value || processState.value === 'passed') return
-  syrupPumps.value += 1
-  processProgress.value = (syrupPumps.value / currentStep.value.targetCount) * 100
-  playTone('pump')
-  if (syrupPumps.value < currentStep.value.targetCount) {
-    processState.value = 'running'
-    setFeedback(`还需要 ${currentStep.value.targetCount - syrupPumps.value} ${currentStep.value.unit}${currentStep.value.name}`)
-    return
-  }
-  completeStep(96, `${currentStep.value.targetCount} ${currentStep.value.unit}，份量刚好`)
-}
-
-function gradeStep() {
-  if (!currentStep.value || processState.value !== 'running') return
-  const [start, end] = targetBounds.value
-  const value = processProgress.value
-  if (value >= start && value <= end) {
-    const center = (start + end) / 2
-    const half = Math.max(1, (end - start) / 2)
-    const quality = Math.round(100 - (Math.abs(value - center) / half) * 13)
-    completeStep(quality, quality >= 96 ? '时机完美' : '状态很好')
-    return
-  }
-  const distance = value < start ? start - value : value - end
-  if (distance <= 8) {
-    completeStep(Math.round(76 - distance * 2), '稍有偏差，但可以继续')
-    return
-  }
-  failStep(value < start ? '太早了，设备还没进入状态' : '太晚了，这一步需要重做')
-}
-
-function completeStep(quality, message) {
-  const completedOrder = order.value
-  if (!completedOrder) return
-  cancelProcessFrame()
-  completedOrder.processState = 'passed'
-  completedOrder.stepQualities.push(quality)
-  completedOrder.feedback = `${message} · 品质 ${quality}`
-  completedOrder.feedbackTone = 'success'
-  if (currentStepId.value === 'extract') machineHeat.value = Math.min(100, machineHeat.value + Math.max(12, 25 - upgrades.value.machine * 4))
-  if (currentStepId.value === 'steam') steamCleanliness.value = Math.max(0, steamCleanliness.value - Math.max(14, 29 - upgrades.value.steam * 3))
-  playTone('success')
-  const completedOrderId = completedOrder.id
-  taskScheduler.schedule(() => {
-    const targetOrder = orders.value.find((item) => item.id === completedOrderId)
-    if (!targetOrder) return
-    targetOrder.activeStepIndex += 1
-    targetOrder.processProgress = 0
-    targetOrder.syrupPumps = 0
-    targetOrder.processState = 'idle'
-    const targetDrink = drinks.find((drink) => drink.id === targetOrder.drinkId)
-    const nextStepId = targetDrink.steps[targetOrder.activeStepIndex]
-    const average = Math.round(targetOrder.stepQualities.reduce((sum, value) => sum + value, 0) / targetOrder.stepQualities.length)
-    targetOrder.feedback = nextStepId ? `下一步：${stepDefinitions[nextStepId].name}` : `制作完成 · 综合品质 ${average}`
-    targetOrder.feedbackTone = nextStepId ? 'neutral' : 'success'
-  }, 480)
-}
-
-function failStep(message) {
-  const failedOrder = order.value
-  if (!failedOrder) return
-  cancelProcessFrame()
-  failedOrder.processState = 'error'
-  failedOrder.patience = Math.max(5, failedOrder.patience - 8)
-  failedOrder.feedback = `${message} · 顾客耐心 -8`
-  failedOrder.feedbackTone = 'error'
-  playTone('error')
-  const failedOrderId = failedOrder.id
-  taskScheduler.schedule(() => {
-    const targetOrder = orders.value.find((item) => item.id === failedOrderId)
-    if (!targetOrder) return
-    targetOrder.processProgress = 0
-    targetOrder.syrupPumps = 0
-    targetOrder.processState = 'idle'
-  }, 650)
-}
-
-function resetCurrentStep() {
-  if (processState.value === 'passed' || canServe.value) return
-  cancelProcessFrame()
-  processProgress.value = 0
-  syrupPumps.value = 0
-  kettleAngle.value = 0
-  steamPosition.value = 50
-  latteTrail.value = []
-  latteReversals.value = 0
-  keyboardPourDirection.value = 0
-  processState.value = 'idle'
-  setFeedback(`已重置「${currentStep.value.name}」`)
-  playTone('tap')
-}
-
-function resolveSuccess({ catAssist = false, orderId = activeOrderId.value } = {}) {
-  if (phase.value !== 'playing') return
-  const completedOrder = orders.value.find((item) => item.id === orderId)
-  if (!completedOrder || completedOrder.isResolving) return
-  completedOrder.isResolving = true
-  const completedDrink = drinks.find((drink) => drink.id === completedOrder.drinkId)
-  const quality = catAssist
-    ? 82
-    : Math.round(completedOrder.stepQualities.reduce((sum, value) => sum + value, 0) / completedOrder.stepQualities.length)
-  const earnedCombo = catAssist ? combo.value : combo.value + 1
-  combo.value = earnedCombo
-  bestCombo.value = Math.max(bestCombo.value, earnedCombo)
-  const qualityTip = Math.round((quality - 60) / 4)
-  const patienceTip = Math.round(completedOrder.patience / 14)
-  const comboTip = Math.min(earnedCombo * 2, 14)
-  const earned = completedDrink.price + Math.max(0, qualityTip) + patienceTip + comboTip
-  coins.value += earned
-  served.value += 1
-  totalQuality.value += quality
-  completedOrder.feedback = catAssist ? `小满稳稳送出了 ${completedDrink.name}` : `出杯完成 · 品质 ${quality} · +${earned}`
-  completedOrder.feedbackTone = 'success'
-  counterCleanliness.value = Math.max(0, counterCleanliness.value - 11)
-  playTone('success')
-  if (activeOrderId.value === orderId) {
-    cancelProcessFrame()
-    activeOrderId.value = orders.value.find((item) => item.id !== orderId && !item.isResolving)?.id || orderId
-  }
-  taskScheduler.schedule(() => {
-    removeOrder(orderId)
-  }, 650)
-}
-
-function serveDrink() {
-  if (phase.value !== 'playing' || isPaused.value || isResolving.value) return
-  if (!canServe.value) {
-    patience.value = Math.max(5, patience.value - 4)
-    setFeedback(`还没有完成「${currentStep.value.name}」`, 'error')
-    playTone('error')
-    return
-  }
-  if (counterCleanliness.value < 16) {
-    setFeedback('操作台需要先清洁才能出杯', 'error')
-    playTone('error')
-    return
-  }
-  resolveSuccess()
-}
-
-function serviceEquipment(kind) {
-  if (maintenanceLock.value || isHolding.value || extractionRunning.value) return
-  maintenanceLock.value = kind
-  cancelProcessFrame()
-  playTone('machine')
-  taskScheduler.schedule(() => {
-    if (kind === 'machine') machineHeat.value = Math.max(0, machineHeat.value - 42)
-    if (kind === 'steam') steamCleanliness.value = 100
-    if (kind === 'counter') counterCleanliness.value = 100
-    maintenanceLock.value = ''
-    if (order.value) setFeedback(kind === 'machine' ? '排压完成，咖啡机已经降温' : kind === 'steam' ? '蒸汽棒清洁完成' : '操作台已经擦干净', 'success')
-    playTone('success')
-  }, kind === 'machine' ? 1200 : 900)
-}
-
-function purchaseUpgrade(item) {
-  if (wallet.value < item.cost || item.level >= 3) return
-  wallet.value -= item.cost
-  upgrades.value[item.id] += 1
-  try {
-    localStorage.setItem('boh-anniversary-cafe-wallet', String(wallet.value))
-    localStorage.setItem('boh-anniversary-cafe-upgrades', JSON.stringify(upgrades.value))
-  } catch { /* localStorage may be unavailable in private contexts. */ }
-  playTone('success')
-}
-
-function loseOrder(orderId = activeOrderId.value) {
-  const lostOrder = orders.value.find((item) => item.id === orderId)
-  if (!lostOrder || lostOrder.isResolving) return
-  lostOrder.isResolving = true
-  const lostCustomer = customers[lostOrder.customerIndex]
-  if (activeOrderId.value === orderId) cancelProcessFrame()
-  missed.value += 1
-  combo.value = 0
-  lostOrder.feedback = `${lostCustomer.name} 没能等到这杯咖啡`
-  lostOrder.feedbackTone = 'error'
-  playTone('error')
-  if (activeOrderId.value === orderId) {
-    activeOrderId.value = orders.value.find((item) => item.id !== orderId && !item.isResolving)?.id || orderId
-  }
-  taskScheduler.schedule(() => {
-    removeOrder(orderId)
-  }, 650)
+  activeMemoryId.value = null;
+  memoryMessage.value = memory;
+  sfx('success');
+  pendingTask = taskScheduler.schedule(closeMemory, 4200);
 }
 
 function spawnHeart() {
-  const id = heartId += 1
-  hearts.value.push({ id, left: 42 + Math.random() * 16 })
+  const id = (heartId += 1);
+  hearts.value.push({ id, left: 42 + Math.random() * 16 });
   taskScheduler.schedule(() => {
-    hearts.value = hearts.value.filter((heart) => heart.id !== id)
-  }, 1100)
+    hearts.value = hearts.value.filter((heart) => heart.id !== id);
+  }, 1100);
 }
 
 function petCat() {
-  if (phase.value !== 'playing' || isPaused.value) return
-  const now = Date.now()
-  if (now - lastPetAt < 320) return
-  lastPetAt = now
-  catAffinity.value = Math.min(16, catAffinity.value + 1)
-  catMood.value = 'happy'
-  catMessage.value = catAffinity.value >= CAT_HELP_COST ? '我能帮忙！' : '喵~'
-  spawnHeart()
-  playTone('purr')
+  if (phase.value !== 'playing') return;
+  const result = tryPetCat({
+    affinity: catAffinity.value,
+    nowMs: Date.now(),
+    lastPetAt,
+    anyStepInProgress: anyStepInProgress.value,
+    paused: isPaused.value,
+  });
+  if (!result.ok) return;
+  lastPetAt = Date.now();
+  catAffinity.value = result.affinity;
+  catMood.value = 'happy';
+  catMessage.value = '喵~';
+  spawnHeart();
+  sfx('purr');
   taskScheduler.schedule(() => {
-    if (catMood.value === 'happy') catMood.value = 'idle'
-    catMessage.value = ''
-  }, 1200)
+    if (catMood.value === 'happy') catMood.value = 'idle';
+    catMessage.value = '';
+  }, 1200);
 }
 
 function playWithCat() {
-  if (phase.value !== 'playing' || isPaused.value || catMood.value === 'chase') return
-  catMood.value = 'chase'
-  catMessage.value = '抓到了！'
-  catAffinity.value = Math.min(16, catAffinity.value + 2)
-  catSpot.value = (catSpot.value + 1) % 3
-  playTone('tap')
+  if (phase.value !== 'playing') return;
+  const result = tryPlayWithCat({
+    affinity: catAffinity.value,
+    nowMs: Date.now(),
+    lastPlayAt,
+    catMood: catMood.value,
+    anyStepInProgress: anyStepInProgress.value,
+    paused: isPaused.value,
+  });
+  if (!result.ok) return;
+  lastPlayAt = Date.now();
+  catMood.value = 'chase';
+  catMessage.value = '抓到了！';
+  catAffinity.value = result.affinity;
+  catSpot.value = (catSpot.value + 1) % 3;
+  sfx('tap');
   taskScheduler.schedule(() => {
-    catMood.value = 'happy'
-    catMessage.value = ''
-  }, 1300)
+    catMood.value = 'happy';
+    catMessage.value = '';
+  }, 1300);
 }
 
 function askCatForHelp() {
-  if (!catHelpReady.value) return
-  const assistedOrderId = activeOrderId.value
-  catAffinity.value -= CAT_HELP_COST
-  catMood.value = 'help'
-  catMessage.value = '这杯交给我！'
-  cancelProcessFrame()
-  activeStepIndex.value = currentDrink.value.steps.length
-  stepQualities.value = currentDrink.value.steps.map(() => 82)
-  processState.value = 'passed'
-  taskScheduler.schedule(() => resolveSuccess({ catAssist: true, orderId: assistedOrderId }), 350)
+  if (!catHelpReady.value) return;
+  const target = order.value;
+  if (!target) return;
+  catAffinity.value -= CAT_HELP_COST;
+  catMood.value = 'help';
+  catMessage.value = '这杯交给我！';
+  const settlement = settleCatRescue(target, stats.value, stats.value.rescuesUsed);
+  if (!settlement) return;
+  stats.value = mergeSettlement(stats.value, settlement);
+  target.feedback = `小满稳稳送出了 ${drink.value.name}（品质 ${settlement.quality}）`;
+  target.feedbackTone = settlement.comboBroken ? 'neutral' : 'success';
+  counterCleanliness.value = Math.max(0, counterCleanliness.value - 11);
+  cancelPointer();
+  target.isResolving = true;
+  sfx('success');
   taskScheduler.schedule(() => {
-    catMood.value = 'idle'
-    catMessage.value = ''
-  }, 1500)
+    removeOrder(target.id);
+    catMood.value = 'idle';
+    catMessage.value = '';
+    if (activeOrderId.value === target.id) activeOrderId.value = nextActiveId();
+  }, 650);
+}
+
+// ─────────────────────────── 订单流转 ───────────────────────────
+function nextActiveId(excludeId = null) {
+  return orders.value.find((item) => item.id !== excludeId && !item.isResolving)?.id || null;
+}
+
+function addOrder() {
+  if (orders.value.length >= MAX_CONCURRENT_ORDERS) return null;
+  customerCursor = (customerCursor + 1) % CUSTOMERS.length;
+  const previousDrinkId = orders.value.at(-1)?.drinkId || null;
+  const created = createOrder({
+    customers: CUSTOMERS,
+    nextCustomerIndex: customerCursor,
+    previousDrinkId,
+  });
+  orders.value.push(created);
+  if (!activeOrderId.value) activeOrderId.value = created.id;
+  sfx('tap');
+  return created;
+}
+
+function selectOrder(orderId) {
+  if (orderId === activeOrderId.value) return;
+  cancelPointer();
+  holding.value = false;
+  activeOrderId.value = orderId;
+  // 不需要清 stepStates —— 它已按订单隔离（切单不会串状态）
+  sfx('tap');
+}
+
+function removeOrder(orderId) {
+  const wasActive = activeOrderId.value === orderId;
+  orders.value = orders.value.filter((item) => item.id !== orderId);
+  //订单没了，它的步骤状态也一起清掉（否则 orderId 复用时会拿到旧状态）
+  if (stepStates.value[orderId]) {
+    const perOrder = { ...stepStates.value };
+    delete perOrder[orderId];
+    stepStates.value = perOrder;
+  }
+  if (wasActive) activeOrderId.value = nextActiveId(orderId);
+  if (phase.value === 'playing') taskScheduler.schedule(() => addOrder(), 1200);
+}
+
+function loseOrder(orderId) {
+  const lost = orders.value.find((item) => item.id === orderId);
+  if (!lost || lost.isResolving) return;
+  lost.isResolving = true;
+  stats.value = { ...stats.value, missed: stats.value.missed + 1, combo: 0 };
+  lost.feedback = `${getCustomer(lost.customerIndex).name} 没能等到这杯咖啡`;
+  lost.feedbackTone = 'error';
+  sfx('error');
+  if (activeOrderId.value === orderId) activeOrderId.value = nextActiveId(orderId);
+  taskScheduler.schedule(() => removeOrder(orderId), 650);
+}
+
+// ─────────────────────────── 设备 ───────────────────────────
+function serviceEquipment(kind) {
+  if (maintenanceLock.value || anyStepInProgress.value) return;
+  maintenanceLock.value = kind;
+  cancelPointer();
+  sfx('machine');
+  taskScheduler.schedule(
+    () => {
+      if (kind === 'machine') machineHeat.value = Math.max(0, machineHeat.value - 42);
+      if (kind === 'steam') steamCleanliness.value = 100;
+      if (kind === 'counter') counterCleanliness.value = 100;
+      maintenanceLock.value = '';
+      const label =
+        kind === 'machine'
+          ? '排压完成，咖啡机已经降温'
+          : kind === 'steam'
+            ? '蒸汽棒清洁完成'
+            : '操作台已经擦干净';
+      if (order.value) setOrderField('feedback', label);
+      sfx('success');
+    },
+    kind === 'machine' ? 1200 : 900,
+  );
+}
+
+// ─────────────────────────── 指针与机制交互 ───────────────────────────
+function localPoint(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  return {
+    x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+    y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height)),
+  };
+}
+
+function cancelPointer() {
+  pointer.value = null;
+  holding.value = false;
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = 0;
+}
+
+function canInteract() {
+  if (isPaused.value || order.value?.isResolving || maintenanceLock.value) return false;
+  if (stepState.value?.status === 'settled' || stepState.value?.status === 'failed') return false;
+  return true;
+}
+
+function onStationDown(event) {
+  const stepId = currentStepId.value;
+  const def = STEP_DEFINITIONS[stepId];
+  if (!def || !canInteract()) return;
+  if (def.kind === 'timed' || def.kind === 'sequenced') return;
+  if (def.kind === 'staged' && machineHeat.value >= 88) {
+    setOrderField('feedback', '咖啡机过热，需要排压降温');
+    sfx('error');
+    return;
+  }
+  if (def.kind === 'texture' && steamCleanliness.value < 24) {
+    setOrderField('feedback', '蒸汽棒需要先清洁和排气');
+    sfx('error');
+    return;
+  }
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  pointer.value = { id: event.pointerId, orderId: activeOrderId.value, stepId, def };
+  holding.value = true;
+  const state = ensureStepState(stepId);
+  patchStepState(stepId, { ...state, status: 'holding', startedAt: Date.now() });
+  const base = stepStates.value[activeOrderId.value]?.[stepId];
+  if (def.kind === 'swirl' && base)
+    patchStepState(stepId, { ...base, accumulatedAngle: 0, wobble: 0, lastAngle: null });
+  if (def.kind === 'trace' && base)
+    patchStepState(stepId, { ...base, progress: 0, deviation: 0, trail: [], endOffset: null });
+  lastFrameAt = 0;
+  sfx('machine');
+  // ⚠️ **所有**按住型机制都要起rAF。
+  // 旧写法只给 swirl/trace 起了循环，oscillate/staged/texture/layer 从不推进 ——
+  // 表现是：按住 1.6 秒读数条纹丝不动（value 恒 0），松手时 commitStep 拿
+  // 未推进的 state 去判定，却仍判成「完成」，端到端探针里呈现为
+  // 「1c 通过（步进前进）但 1b 转红（读数不动）」的自相矛盾结果。
+  rafId = requestAnimationFrame(frameLoop);
+}
+
+/**
+ * 采样型机制（swirl / trace）的坐标归一化。
+ *
+ * ⚠️ 必须**正方形归一化**，不能用捕获层的宽高各自归一化。
+ * 事件来自 `.gesture-capture`（实测 504×132，宽高比 3.8:1），
+ * 而引导线画在 SVG 里是1:1 的正方形坐标系（viewBox 0 0 100 100）。
+ * 直接用 (clientX-left)/width、(clientY-top)/height 会把 y 压缩 3.8 倍
+ * ⇒ 点位与引导线永远对不上，端到端探针实测「progress 到 98 但判定失败」。
+ *
+ * 正确做法：以捕获层中心为原点，取**较短边**为半径做归一化，
+ * 这样「屏幕上的正方形」与「SVG 的正方形」一一对应。
+ */
+function localSquarePoint(event) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  const size = Math.min(rect.width, rect.height);
+  return {
+    x: Math.max(0, Math.min(1, (event.clientX - rect.left - (rect.width - size) / 2) / size + 0.5)),
+    y: Math.max(0, Math.min(1, (event.clientY - rect.top - (rect.height - size) / 2) / size + 0.5)),
+  };
+}
+
+function onStationMove(event) {
+  const gesture = pointer.value;
+  if (!gesture || event.pointerId !== gesture.id) return;
+  const state = stepStates.value[gesture.orderId]?.[gesture.stepId];
+  if (!state) return;
+  const isSampling = gesture.def.kind === 'swirl' || gesture.def.kind === 'trace';
+  const point = isSampling ? localSquarePoint(event) : localPoint(event);
+  if (gesture.def.kind === 'swirl')
+    patchStepState(gesture.stepId, sampleSwirl(state, point), gesture.orderId);
+  else if (gesture.def.kind === 'trace')
+    patchStepState(gesture.stepId, sampleTrace(state, point, latteGuideY), gesture.orderId);
+}
+
+function onStationUp(event) {
+  const gesture = pointer.value;
+  if (!gesture || (event?.pointerId != null && event.pointerId !== gesture.id)) return;
+  const state = stepStates.value[gesture.orderId]?.[gesture.stepId];
+  cancelPointer();
+  if (!state) return;
+  commitStep(gesture.stepId, state, gesture.orderId);
+}
+
+/** 按住型机制（oscillate/staged/texture/layer）的每帧推进 */
+function frameLoop(timestamp) {
+  const gesture = pointer.value;
+  if (!gesture || !holding.value) return;
+  const state = stepStates.value[gesture.orderId]?.[gesture.stepId];
+  if (!state) return;
+  if (!lastFrameAt) lastFrameAt = timestamp;
+  const delta = Math.min(0.05, (timestamp - lastFrameAt) / 1000);
+  lastFrameAt = timestamp;
+  // swirl / trace 是**采样型**：状态由 pointermove 的 sampleSwirl / sampleTrace 更新，
+  // 不能用时间推进（否则会凭空累积）。这里只维持循环，实际更新交给 move 事件。
+  const isSampling = gesture.def.kind === 'swirl' || gesture.def.kind === 'trace';
+  const next = isSampling
+    ? state
+    : stepTick(gesture.def, state, delta, { served: stats.value.served });
+  if (!isSampling) patchStepState(gesture.stepId, next, gesture.orderId);
+  if (gesture.def.kind === 'oscillate' && next.stable) {
+    commitStep(gesture.stepId, next, gesture.orderId);
+    return;
+  }
+  if (gesture.def.kind === 'staged' && next.status === 'exhausted') {
+    // 撞到 100 = 过萃，必须停下等玩家看到结果，不能继续涨
+    commitStep(gesture.stepId, next, gesture.orderId);
+    return;
+  }
+  rafId = requestAnimationFrame(frameLoop);
+}
+
+function ventExtractor() {
+  const stepId = currentStepId.value;
+  if (STEP_DEFINITIONS[stepId]?.kind !== 'staged') return;
+  const state = ensureStepState(stepId);
+  patchStepState(stepId, { ...state, ventedAt: state.value });
+  sfx('pump');
+}
+
+function doseIngredient() {
+  const stepId = currentStepId.value;
+  const def = STEP_DEFINITIONS[stepId];
+  if (!def || (def.kind !== 'timed' && def.kind !== 'sequenced') || !canInteract()) return;
+  const state = ensureStepState(stepId);
+  const next = doseOnce(def, state, Date.now());
+  patchStepState(stepId, next);
+  sfx('pump');
+  // ⚠️ 投够数必须**立刻提交**。旧实现只patch 状态等玩家再点一次，
+  // 端到端探针表现为「点了 2~3 次投料，done 计数纹丝不动」——
+  // 因为 doseOnce 把最后一次的 status 设成 'holding'（等提交），
+  // 而投料类没有 pointerup 路径，state 就永远卡在 holding。
+  if (next.added >= def.targetCount) commitStep(stepId, next);
+}
+
+function resetCurrentStep() {
+  const stepId = currentStepId.value;
+  if (!stepId || canServe.value) return;
+  cancelPointer();
+  patchStepState(stepId, createStepState(stepId, { served: stats.value.served }));
+  setOrderField('feedback', `已重置「${STEP_DEFINITIONS[stepId].name}」`);
+  sfx('tap');
+}
+
+/**
+ * 提交一步：唯一判定入口（P0-3四档惩罚在这里落地）
+ */
+function commitStep(stepId, state, orderId = activeOrderId.value) {
+  const def = STEP_DEFINITIONS[stepId];
+  const env = {
+    melted:
+      def.kind === 'timed' && order.value?.meltStartedAt
+        ? Date.now() - order.value.meltStartedAt > (order.value.meltMs || def.meltMs)
+        : false,
+    elapsedMs: order.value?.meltStartedAt ? Date.now() - order.value.meltStartedAt : 0,
+  };
+  const result = stepCommit(def, state, env);
+  patchStepState(stepId, result, orderId);
+
+  if (result.grade === 'fail') {
+    // P0-3：Fail 扣 15 耐心并清连击（旧实现只扣 8 且不清连击）
+    stats.value = { ...stats.value, combo: 0 };
+    sfx('error');
+  } else if (result.grade === 'fair') {
+    stats.value = { ...stats.value, combo: 0 };
+    sfx('error');
+  } else {
+    sfx(result.grade === 'perfect' ? 'perfect' : 'success');
+  }
+
+  const target = orders.value.find((item) => item.id === orderId);
+  if (!target) return;
+  const updated = applyStepResult(target, result, stepId);
+  orders.value = orders.value.map((item) => (item.id === updated.id ? updated : item));
+
+  if (def.id === 'staged' && result.grade !== 'fail')
+    machineHeat.value = Math.min(
+      100,
+      machineHeat.value + Math.max(12, 25 - upgrades.value.machine * 4),
+    );
+  if (def.id === 'texture' && result.grade !== 'fail')
+    steamCleanliness.value = Math.max(
+      0,
+      steamCleanliness.value - Math.max(14, 29 - upgrades.value.steam * 3),
+    );
+
+  // ⚠️ 失败时**不能**写「下一步：xxx」—— 步骤没推进（applyStepResult 里 fail 不 +1），
+  // 那样写等于告诉玩家「已经进入下一步」，而按钮其实还停在原地。
+  // 2026-10-08 实测症状：长按没稳住后反馈永久停在
+  // 「没能稳住转速 · 下一步：萃取浓缩」，玩家以为按钮坏了。
+  if (result.grade === 'fail') {
+    setOrderField('feedback', `${result.message} · 这一步要重做`);
+    setOrderField('feedbackTone', 'error');
+    // 关键：把状态复位，否则 canInteract() 见到 'failed' 会让长按彻底无反应。
+    // 给一个短的「看清失败提示」的窗口再自动复位。
+    taskScheduler.schedule(() => {
+      const current = stepStates.value[orderId]?.[stepId];
+      if (current?.status !== 'failed') return;
+      // 直接删掉，让下次 ensureStepState 重建一个干净的 idle 状态
+      const perOrder = { ...(stepStates.value[orderId] || {}) };
+      delete perOrder[stepId];
+      stepStates.value = { ...stepStates.value, [orderId]: perOrder };
+    }, 900);
+    return;
+  }
+
+  const followUp = nextStepFeedback(updated);
+  setOrderField('feedback', `${result.message} · ${followUp.text}`);
+  setOrderField('feedbackTone', followUp.tone);
+  // 冰化倒计时：这一步做完就停表
+  if (def.kind === 'timed' && updated.meltStartedAt === 0) updated.meltStartedAt = Date.now();
+
+  // 下一步若是冰块，重新起倒计时
+  const nextStepId =
+    updated.stepIndex < drink.value.steps.length ? drink.value.steps[updated.stepIndex] : null;
+  if (nextStepId === 'ice') {
+    taskScheduler.schedule(() => {
+      const target = orders.value.find((item) => item.id === updated.id);
+      if (target && target.meltStartedAt === 0) target.meltStartedAt = Date.now();
+    }, 400);
+  }
+}
+
+function serveDrink() {
+  if (phase.value !== 'playing' || isPaused.value || !order.value) return;
+  if (!canServe.value) {
+    setOrderField('patience', Math.max(5, (order.value.patience || 100) - 4));
+    setOrderField('feedback', `还没有完成「${currentStep.value?.name}」`);
+    sfx('error');
+    return;
+  }
+  if (counterCleanliness.value < 16) {
+    setOrderField('feedback', '操作台需要先清洁才能出杯');
+    sfx('error');
+    return;
+  }
+  const settlement = settleNormalServe(order.value, stats.value);
+  if (!settlement) return;
+  stats.value = mergeSettlement(stats.value, settlement);
+  setOrderField('feedback', `出杯完成 · 品质 ${settlement.quality} · +${settlement.coinsDelta}`);
+  setOrderField('feedbackTone', 'success');
+  counterCleanliness.value = Math.max(0, counterCleanliness.value - 11);
+  order.value.isResolving = true;
+  sfx('success');
+  taskScheduler.schedule(() => removeOrder(order.value.id), 650);
+}
+
+// ─────────────────────────── 一局生命周期 ───────────────────────────
+function clearTimers() {
+  window.clearInterval(gameTimer);
+  window.clearInterval(catTimer);
+  window.clearInterval(arrivalTimer);
+  taskScheduler.clear();
+  gameTimer = null;
+  catTimer = null;
+  arrivalTimer = null;
+  pendingTask = null;
+  cancelPointer();
+}
+
+function startGame() {
+  clearTimers();
+  taskScheduler.resume();
+  resetOrderSerial();
+  phase.value = 'playing';
+  showMenu.value = false;
+  showExitConfirm.value = false;
+  isPaused.value = false;
+  pauseReason.value = '';
+  timeLeft.value = ROUND_SECONDS;
+  stats.value = createStats();
+  orders.value = [];
+  activeOrderId.value = null;
+  stepStates.value = {};
+  customerCursor = -1;
+  catAffinity.value = 0;
+  catMood.value = 'idle';
+  catMessage.value = '';
+  hearts.value = [];
+  discoveredMemories.value = [];
+  memoryMessage.value = null;
+  machineHeat.value = 0;
+  steamCleanliness.value = 100;
+  counterCleanliness.value = 100;
+  maintenanceLock.value = '';
+  lastPetAt = 0;
+  lastPlayAt = 0;
+  selectNextMemory();
+  addOrder();
+  addOrder();
+  addOrder();
+  sfx('success');
+
+  const startedAt = Date.now();
+  roundDeadline = startedAt + ROUND_SECONDS * 1000;
+  lastGameTickAt = startedAt;
+
+  gameTimer = window.setInterval(() => {
+    if (isPaused.value || phase.value !== 'playing') return;
+    const now = Date.now();
+    const elapsed = Math.max(0, (now - lastGameTickAt) / 1000);
+    lastGameTickAt = now;
+    timeLeft.value = Math.max(0, Math.ceil((roundDeadline - now) / 1000));
+    machineHeat.value = Math.max(
+      0,
+      machineHeat.value - (2.5 + upgrades.value.machine * 0.35) * elapsed,
+    );
+    orders.value = applyPatienceDecay(orders.value, elapsed, stats.value.served);
+    collectExpiredOrders(orders.value, elapsed, stats.value.served).forEach(loseOrder);
+    if (timeLeft.value <= 0) finishGame();
+  }, 1000);
+
+  arrivalTimer = window.setInterval(() => {
+    if (!isPaused.value && phase.value === 'playing') addOrder();
+  }, 10500);
+
+  catTimer = window.setInterval(() => {
+    if (isPaused.value || phase.value !== 'playing' || catMood.value === 'chase') return;
+    catSpot.value = Math.floor(Math.random() * 3);
+    catMood.value = Math.random() > 0.7 ? 'sleep' : 'walk';
+    catMessage.value = catMood.value === 'sleep' ? '呼噜…' : '';
+    taskScheduler.schedule(() => {
+      if (catMood.value !== 'chase') catMood.value = 'idle';
+    }, 1800);
+  }, 5600);
+}
+
+function finishGame() {
+  if (phase.value !== 'playing') return;
+  phase.value = 'result';
+  showMenu.value = false;
+  isPaused.value = false;
+  clearTimers();
+  bestScore.value = Math.max(bestScore.value, stats.value.coins);
+  wallet.value += stats.value.coins;
+  persistRound({ bestScore: bestScore.value, wallet: wallet.value, upgrades: upgrades.value });
+  sfx('success');
+}
+
+function purchaseUpgrade(item) {
+  if (wallet.value < item.cost || item.level >= 3) return;
+  wallet.value -= item.cost;
+  upgrades.value = { ...upgrades.value, [item.id]: item.level + 1 };
+  persistWalletAndUpgrades({ wallet: wallet.value, upgrades: upgrades.value });
+  sfx('success');
+}
+
+/**
+ * 暂停/恢复（单一实现）。
+ * ⚠️ 恢复时要把 roundDeadline 顺延暂停时长，否则「暂停 30 秒回来只剩 30 秒」——
+ * 这是原实现的关键修正点，暂停时计时器真的停摆（taskScheduler.pause），所以要手动补。
+ */
+function togglePause() {
+  if (phase.value !== 'playing') return;
+  if (isPaused.value) {
+    const resumedAt = Date.now();
+    roundDeadline += Math.max(0, resumedAt - pausedAt);
+    lastGameTickAt = resumedAt;
+    isPaused.value = false;
+    pauseReason.value = '';
+    taskScheduler.resume();
+    nextTick(() => lastFocusedElement?.focus?.());
+  } else {
+    pausedAt = Date.now();
+    isPaused.value = true;
+    pauseReason.value = '';
+    lastFocusedElement = document.activeElement;
+    cancelPointer();
+    taskScheduler.pause();
+    nextTick(() => pauseResumeButton.value?.focus());
+  }
+  sfx('tap');
 }
 
 function requestExit(target) {
   if (phase.value !== 'playing') {
-    if (target === 'home') router.push('/')
-    else returnToIntro()
-    return
+    if (target === 'home') router.push('/');
+    else returnToIntro();
+    return;
   }
-  exitTarget.value = target
-  exitWasPaused = isPaused.value
-  if (!isPaused.value) setPaused(true)
-  showExitConfirm.value = true
-  nextTick(() => exitCancelButton.value?.focus())
+  exitTarget.value = target;
+  exitWasPaused = isPaused.value;
+  if (!isPaused.value) togglePause();
+  showExitConfirm.value = true;
+  nextTick(() => exitCancelButton.value?.focus());
 }
 
 function cancelExit() {
-  showExitConfirm.value = false
-  if (!exitWasPaused) setPaused(false)
-  else nextTick(() => pauseResumeButton.value?.focus())
+  showExitConfirm.value = false;
+  if (!exitWasPaused && isPaused.value) togglePause();
+  else nextTick(() => pauseResumeButton.value?.focus());
 }
 
 function confirmExit() {
-  const target = exitTarget.value
-  showExitConfirm.value = false
+  const target = exitTarget.value;
+  showExitConfirm.value = false;
   if (target === 'home') {
-    clearTimers()
-    router.push('/')
-    return
+    clearTimers();
+    router.push('/');
+    return;
   }
-  returnToIntro()
+  returnToIntro();
+}
+
+function returnToIntro() {
+  clearTimers();
+  taskScheduler.resume();
+  phase.value = 'intro';
+  showMenu.value = false;
+  showExitConfirm.value = false;
+  memoryMessage.value = null;
+  activeMemoryId.value = null;
+  orders.value = [];
+  activeOrderId.value = null;
+  isPaused.value = false;
+  pauseReason.value = '';
 }
 
 function handleGlobalKeydown(event) {
-  if (event.key !== 'Escape') return
-  if (showExitConfirm.value) {
-    cancelExit()
-    return
-  }
+  if (event.key !== 'Escape') return;
+  if (showExitConfirm.value) return cancelExit();
   if (showMenu.value) {
-    showMenu.value = false
-    return
+    showMenu.value = false;
+    return;
   }
-  if (isPaused.value) togglePause()
+  if (isPaused.value) togglePause();
 }
 
 function handleVisibilityChange() {
   if (document.hidden && phase.value === 'playing' && !isPaused.value) {
-    setPaused(true, '切换页面时已自动暂停', false)
+    pausedAt = Date.now();
+    isPaused.value = true;
+    pauseReason.value = '切换页面时已自动暂停';
+    cancelPointer();
+    taskScheduler.pause();
   }
 }
 
-function returnToIntro() {
-  clearTimers()
-  taskScheduler.resume()
-  phase.value = 'intro'
-  showMenu.value = false
-  showExitConfirm.value = false
-  memoryMessage.value = null
-  activeMemoryId.value = null
-  orders.value = []
-  activeOrderId.value = null
-  isPaused.value = false
-  pauseReason.value = ''
-}
-
 onMounted(() => {
-  document.documentElement.classList.add('anniversary-cafe-open')
-  document.addEventListener('keydown', handleGlobalKeydown)
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-  try {
-    bestScore.value = Number(localStorage.getItem('boh-anniversary-cafe-best')) || 0
-    wallet.value = Math.max(0, Number(localStorage.getItem('boh-anniversary-cafe-wallet')) || 0)
-    const savedUpgrades = JSON.parse(localStorage.getItem('boh-anniversary-cafe-upgrades') || '{}')
-    for (const key of Object.keys(upgrades.value)) {
-      const level = Number(savedUpgrades[key])
-      upgrades.value[key] = Number.isFinite(level) ? Math.max(0, Math.min(3, Math.floor(level))) : 0
-    }
-  } catch { /* localStorage may be unavailable in private contexts. */ }
-})
+  document.documentElement.classList.add('anniversary-cafe-open');
+  document.addEventListener('keydown', handleGlobalKeydown);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  bestScore.value = readBestScore();
+  wallet.value = readWallet();
+  upgrades.value = readUpgrades();
+  /**
+   * 开发期调试钩子（仅 `import.meta.env.DEV`，生产构建里不存在）。
+   * 用途：让探针能直接指定开局配方 —— 否则 8 款咖啡里只有 4 款含 `pour`，
+   * 随机开局下端到端探针有相当概率跑不到拉花/分层这些机制
+   * （实测 switchToKind 找 24 轮都遇不到 trace）。
+   * 用法：window.__cafeDebug.forceDrink('latte')
+   */
+  if (import.meta.env.DEV) {
+    window.__cafeDebug = {
+      forceDrink: (drinkId) => {
+        const drink = DRINKS.find((item) => item.id === drinkId) || DRINKS[0];
+        const target = order.value;
+        if (!target) return false;
+        target.drinkId = drink.id;
+        target.stepIndex = 0;
+        target.stepQualities = [];
+        target.grades = [];
+        target.layerHeights = {};
+        target.feedback = `先完成「${STEP_DEFINITIONS[drink.steps[0]].name}」`;
+        stepStates.value = {};
+        return true;
+      },
+      setStep: (stepId) => {
+        const target = order.value;
+        if (!target || !STEP_DEFINITIONS[stepId]) return false;
+        const drink = DRINKS.find((item) => item.steps.includes(stepId));
+        if (drink) target.drinkId = drink.id;
+        target.stepIndex = Math.max(0, (drink?.steps || []).indexOf(stepId));
+        target.stepQualities = [];
+        target.grades = [];
+        target.layerHeights = {};
+        stepStates.value = {};
+        return true;
+      },
+      list: () => ({ drink: order.value?.drinkId, step: getCurrentStepId(order.value) }),
+    };
+  }
+});
 
 onUnmounted(() => {
-  clearTimers()
-  document.removeEventListener('keydown', handleGlobalKeydown)
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
-  document.documentElement.classList.remove('anniversary-cafe-open')
-  audioContext?.close()
-})
+  clearTimers();
+  document.removeEventListener('keydown', handleGlobalKeydown);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  document.documentElement.classList.remove('anniversary-cafe-open');
+  if (typeof window !== 'undefined') delete window.__cafeDebug;
+});
 </script>
 
 <template>
-  <main class="cafe-game" :style="{ '--cafe-image': `url(${cafeImage})` }">
+  <main class="cafe-game" :style="{ '--cafe-image': `url(${BACKDROP_URL})` }">
     <div class="cafe-backdrop" aria-hidden="true"></div>
     <div class="cafe-shade" aria-hidden="true"></div>
 
-    <header class="game-bar" :inert="isPaused || showExitConfirm">
-      <button type="button" class="brand-lockup" aria-label="返回开场" @click="requestExit('intro')">
-        <span class="brand-mark">BOH</span>
-        <span><strong>云上咖啡店</strong><small>八周年营业日</small></span>
-      </button>
-      <div v-if="phase === 'playing'" class="day-progress" aria-label="营业时间进度">
-        <span>营业中</span><div><i :style="{ transform: `scaleX(${progress / 100})` }"></i></div><strong>{{ timeLeft }}s</strong>
-      </div>
-      <div class="bar-actions">
-        <button type="button" class="icon-button" aria-label="返回网站首页" @click="requestExit('home')">
-          <House :size="18" />
+    <!-- ═══ 顶栏：整页栅格的第一行，不再 absolute 浮在内容之上 ═══
+         旧版 top-bar 是 absolute + .cafe-stage 用 padding-top 顶开，
+         两套定位互不知情 ⇒ 实测重叠 24180px²。这里改成同一个 grid 的独立行。 -->
+    <header class="top-bar" :inert="isPaused || showExitConfirm">
+      <div class="top-row">
+        <button
+          type="button"
+          class="brand-lockup"
+          aria-label="返回开场"
+          @click="requestExit('intro')"
+        >
+          <span class="brand-mark">BOH</span>
+          <span class="brand-text"><strong>云上咖啡店</strong><small>八周年营业日</small></span>
         </button>
-        <button type="button" class="icon-button" :aria-label="soundEnabled ? '关闭音效' : '打开音效'" @click="soundEnabled = !soundEnabled">
-          <Volume2 v-if="soundEnabled" :size="18" /><VolumeX v-else :size="18" />
-        </button>
-        <button v-if="phase === 'playing'" type="button" class="icon-button" :aria-label="isPaused ? '继续营业' : '暂停营业'" @click="togglePause">
-          <Play v-if="isPaused" :size="18" /><Pause v-else :size="18" />
-        </button>
+
+        <div v-if="phase === 'playing'" class="day-progress" aria-label="营业时间进度">
+          <span class="day-label">营业中</span>
+          <div class="day-track"><i :style="{ transform: `scaleX(${progress / 100})` }"></i></div>
+          <strong class="day-time">{{ timeLeft }}s</strong>
+        </div>
+
+        <div v-if="phase === 'playing'" class="hud" aria-label="营业数据" aria-live="polite">
+          <div>
+            <small>营业额</small><strong>¥{{ stats.coins }}</strong>
+          </div>
+          <div>
+            <small>已出杯</small><strong>{{ stats.served }}</strong>
+          </div>
+          <div :class="{ active: stats.combo > 1 }">
+            <small>连杯</small><strong>× {{ stats.combo }}</strong>
+          </div>
+        </div>
+
+        <div class="bar-actions">
+          <button
+            type="button"
+            class="icon-button"
+            aria-label="返回网站首页"
+            @click="requestExit('home')"
+          >
+            <House :size="17" />
+          </button>
+          <button
+            type="button"
+            class="icon-button"
+            :aria-label="soundEnabled ? '关闭音效' : '打开音效'"
+            @click="soundEnabled = !soundEnabled"
+          >
+            <Volume2 v-if="soundEnabled" :size="17" /><VolumeX v-else :size="17" />
+          </button>
+          <button
+            v-if="phase === 'playing'"
+            type="button"
+            class="icon-button"
+            :aria-label="isPaused ? '继续营业' : '暂停营业'"
+            @click="togglePause"
+          >
+            <Play v-if="isPaused" :size="17" /><Pause v-else :size="17" />
+          </button>
+        </div>
       </div>
     </header>
 
-    <section v-if="phase === 'playing'" class="hud" aria-label="营业数据" aria-live="polite">
-      <div><small>营业额</small><strong>¥ {{ coins }}</strong></div>
-      <div><small>已出杯</small><strong>{{ served }}</strong></div>
-      <div :class="{ active: combo > 1 }"><small>连杯</small><strong>× {{ combo }}</strong></div>
-    </section>
-
-    <section v-if="phase === 'playing'" class="game-stage" :class="{ paused: isPaused }" :inert="isPaused || showExitConfirm">
-      <nav class="order-queue" aria-label="待制作订单">
-        <header><span>ORDER QUEUE</span><strong>{{ queueCount }} / 3</strong></header>
-        <button
-          v-for="queuedOrder in orders"
-          :key="queuedOrder.id"
-          type="button"
-          class="queue-order"
-          :class="{ active: queuedOrder.id === activeOrderId, resolving: queuedOrder.isResolving, warning: queuedOrder.patience < 35 }"
-          :disabled="queuedOrder.isResolving"
-          @click="selectOrder(queuedOrder.id)"
-        >
-          <img :src="getOrderCustomer(queuedOrder).image" alt="">
-          <span><b>{{ getOrderCustomer(queuedOrder).name }}</b><small>{{ getOrderDrink(queuedOrder).name }}</small></span>
-          <em>{{ queuedOrder.isResolving ? '完成' : getOrderStep(queuedOrder) }}</em>
-          <i><span :style="{ transform: `scaleX(${queuedOrder.patience / 100})` }"></span></i>
-        </button>
+    <!-- ═══ 游戏区 ═══ -->
+    <section
+      v-if="phase === 'playing'"
+      class="cafe-stage"
+      :class="{ paused: isPaused }"
+      :inert="isPaused || showExitConfirm"
+    >
+      <!-- 订单条：横向滚动的单行胶囊（旧版是三列卡，每列 123px 挤 5 行字） -->
+      <nav class="order-strip" aria-label="待制作订单">
+        <span class="strip-label">ORDER QUEUE</span>
+        <div class="strip-track">
+          <button
+            v-for="queuedOrder in orders"
+            :key="queuedOrder.id"
+            type="button"
+            class="order-pill"
+            :class="{
+              active: queuedOrder.id === activeOrderId,
+              resolving: queuedOrder.isResolving,
+              warning: queuedOrder.patience < 35,
+            }"
+            :disabled="queuedOrder.isResolving"
+            @click="selectOrder(queuedOrder.id)"
+          >
+            <img :src="skinUrl(getCustomer(queuedOrder.customerIndex).imageKey)" alt="" />
+            <span class="pill-text">
+              <b>{{ getCustomer(queuedOrder.customerIndex).name }}</b>
+              <small>{{ getDrink(queuedOrder).name }}</small>
+            </span>
+            <span class="pill-patience"
+              ><i :style="{ transform: `scaleX(${queuedOrder.patience / 100})` }"></i
+            ></span>
+          </button>
+          <span v-if="queueCount === 0" class="strip-empty">暂时没有等待的客人</span>
+        </div>
+        <strong class="strip-count">{{ queueCount }} / {{ MAX_CONCURRENT_ORDERS }}</strong>
       </nav>
 
-      <aside class="equipment-status" aria-label="设备状态">
-        <header><span>EQUIPMENT</span><strong>{{ maintenanceLock ? '维护中' : '设备监控' }}</strong></header>
-        <button type="button" :class="{ danger: machineHeat >= 72 }" :disabled="Boolean(maintenanceLock)" @click="serviceEquipment('machine')">
-          <Gauge :size="15" /><span><b>锅炉温度</b><i><em :style="{ transform: `scaleX(${machineHeat / 100})` }"></em></i></span><strong>{{ Math.round(machineHeat) }}%</strong><small>{{ maintenanceLock === 'machine' ? '排压中' : '排压' }}</small>
-        </button>
-        <button type="button" :class="{ danger: steamCleanliness <= 38 }" :disabled="Boolean(maintenanceLock)" @click="serviceEquipment('steam')">
-          <Milk :size="15" /><span><b>蒸汽棒</b><i><em :style="{ transform: `scaleX(${steamCleanliness / 100})` }"></em></i></span><strong>{{ Math.round(steamCleanliness) }}%</strong><small>{{ maintenanceLock === 'steam' ? '清洁中' : '清洁' }}</small>
-        </button>
-        <button type="button" :class="{ danger: counterCleanliness <= 32 }" :disabled="Boolean(maintenanceLock)" @click="serviceEquipment('counter')">
-          <Sparkles :size="15" /><span><b>操作台</b><i><em :style="{ transform: `scaleX(${counterCleanliness / 100})` }"></em></i></span><strong>{{ Math.round(counterCleanliness) }}%</strong><small>{{ maintenanceLock === 'counter' ? '擦拭中' : '擦拭' }}</small>
-        </button>
-      </aside>
+      <!-- 舞台：顾客 + 猫（桌面三栏的中间栏，竖屏占 1fr） -->
+      <div class="stage-floor">
+        <div v-if="order" class="customer-zone" :key="order.id">
+          <img
+            class="mc-customer"
+            :src="currentCustomer.image"
+            :alt="`${currentCustomer.name} 的Minecraft 皮肤角色`"
+          />
+          <div class="speech-ticket">
+            <div class="ticket-topline">
+              <span>{{ currentCustomer.name }}</span>
+              <span class="patience-dot" :class="{ warning: order.patience < 35 }"></span>
+            </div>
+            <strong>{{ drink.name }}</strong>
+            <small>{{ currentCustomer.note }}</small>
+            <div class="patience-track" aria-label="顾客耐心">
+              <i :style="{ transform: `scaleX(${order.patience / 100})` }"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="cat-zone" :style="catPositionStyle">
+          <TransitionGroup name="heart-rise">
+            <Heart
+              v-for="heart in hearts"
+              :key="heart.id"
+              class="cat-heart"
+              :style="{ left: `${heart.left}%` }"
+              :size="18"
+              fill="currentColor"
+            />
+          </TransitionGroup>
+          <span v-if="catMessage" class="cat-bubble">{{ catMessage }}</span>
+          <button
+            type="button"
+            class="voxel-cat"
+            :class="`mood-${catMood}`"
+            :aria-label="`摸摸小满（冷却 ${CAT_PET_COOLDOWN_MS / 1000} 秒，${anyStepInProgress ? '制作中不能摸' : '可摸'}）`"
+            :disabled="anyStepInProgress"
+            @pointerdown="petCat"
+          >
+            <span class="cat-tail"></span><span class="cat-body"></span
+            ><span class="cat-chest"></span>
+            <span class="cat-head"
+              ><i class="ear left"></i><i class="ear right"></i><i class="eye left"></i
+              ><i class="eye right"></i><i class="nose"></i
+            ></span>
+            <span class="cat-paw left"></span><span class="cat-paw right"></span>
+          </button>
+          <div class="cat-controls">
+            <button
+              type="button"
+              class="toy-button"
+              :disabled="anyStepInProgress || catMood === 'chase'"
+              @click="playWithCat"
+            >
+              <span aria-hidden="true"></span>逗猫
+            </button>
+            <button
+              type="button"
+              class="help-button"
+              :disabled="!catHelpReady"
+              @click="askCatForHelp"
+            >
+              <Heart :size="13" :fill="catHelpReady ? 'currentColor' : 'none'" />
+              {{ catHelpReady ? '小满救场' : `${catAffinity}/${CAT_HELP_COST}` }}
+              <small>本局剩 {{ MAX_CAT_RESCUES - stats.rescuesUsed }} 次</small>
+            </button>
+          </div>
+        </div>
+
+        <!-- 设备条：舞台右栏。⚠️ 必须在 .stage-floor 内部——
+             放在外面时它和 .workbench 同占 grid-area: bench，实测重叠 15459px²。 -->
+        <aside class="equipment-bar" aria-label="设备状态">
+          <header>
+            <span>EQUIPMENT</span><strong>{{ maintenanceLock ? '维护中' : '设备' }}</strong>
+          </header>
+          <button
+            type="button"
+            :class="{ danger: machineHeat >= 72 }"
+            :disabled="Boolean(maintenanceLock)"
+            @click="serviceEquipment('machine')"
+          >
+            <Gauge :size="14" />
+            <span class="eq-text"
+              ><b>锅炉</b><i><em :style="{ transform: `scaleX(${machineHeat / 100})` }"></em></i
+            ></span>
+            <strong>{{ Math.round(machineHeat) }}%</strong>
+          </button>
+          <button
+            type="button"
+            :class="{ danger: steamCleanliness <= 38 }"
+            :disabled="Boolean(maintenanceLock)"
+            @click="serviceEquipment('steam')"
+          >
+            <Milk :size="14" />
+            <span class="eq-text"
+              ><b>蒸汽</b
+              ><i><em :style="{ transform: `scaleX(${steamCleanliness / 100})` }"></em></i
+            ></span>
+            <strong>{{ Math.round(steamCleanliness) }}%</strong>
+          </button>
+          <button
+            type="button"
+            :class="{ danger: counterCleanliness <= 32 }"
+            :disabled="Boolean(maintenanceLock)"
+            @click="serviceEquipment('counter')"
+          >
+            <Sparkles :size="14" />
+            <span class="eq-text"
+              ><b>台面</b
+              ><i><em :style="{ transform: `scaleX(${counterCleanliness / 100})` }"></em></i
+            ></span>
+            <strong>{{ Math.round(counterCleanliness) }}%</strong>
+          </button>
+        </aside>
+      </div>
 
       <button
         v-if="activeMemory"
@@ -1095,157 +1215,147 @@ onUnmounted(() => {
         :aria-label="`查看方块之家回忆：${activeMemory.title}`"
         @click="discoverMemory(activeMemory)"
       >
-        <img :src="activeMemory.image" :alt="activeMemory.title">
+        <img :src="activeMemory.image" :alt="activeMemory.title" />
         <span>{{ activeMemory.year }}</span>
       </button>
 
       <Transition name="memory-pop">
         <aside v-if="memoryMessage" class="memory-reveal" role="status">
-          <img :src="memoryMessage.image" :alt="memoryMessage.title">
-          <div><small>BOH MEMORY · {{ memoryMessage.year }}</small><strong>{{ memoryMessage.title }}</strong><p>{{ memoryMessage.detail }}</p></div>
-          <button type="button" aria-label="收起回忆" @click="closeMemory"><X :size="16" /></button>
+          <img :src="memoryMessage.image" :alt="memoryMessage.title" />
+          <div>
+            <small>BOH MEMORY · {{ memoryMessage.year }}</small
+            ><strong>{{ memoryMessage.title }}</strong>
+            <p>{{ memoryMessage.detail }}</p>
+          </div>
+          <button type="button" aria-label="收起回忆" @click="closeMemory"><X :size="15" /></button>
         </aside>
       </Transition>
 
-      <div v-if="order" class="customer-zone" :key="order.id">
-        <div class="speech-ticket">
-          <div class="ticket-topline"><span>{{ currentCustomer.name }}</span><span class="patience-dot" :class="{ warning: patience < 35 }"></span></div>
-          <strong>{{ currentDrink.name }}</strong>
-          <small>{{ currentCustomer.note }}</small>
-          <div class="patience-track" aria-label="顾客耐心"><i :style="{ transform: `scaleX(${patience / 100})` }"></i></div>
-        </div>
-        <img class="mc-customer" :src="currentCustomer.image" :alt="`${currentCustomer.name} 的 Minecraft 皮肤角色`">
-      </div>
-
-      <div class="cat-zone" :style="catPositionStyle">
-        <TransitionGroup name="heart-rise">
-          <Heart v-for="heart in hearts" :key="heart.id" class="cat-heart" :style="{ left: `${heart.left}%` }" :size="19" fill="currentColor" />
-        </TransitionGroup>
-        <span v-if="catMessage" class="cat-bubble">{{ catMessage }}</span>
-        <button type="button" class="voxel-cat" :class="`mood-${catMood}`" aria-label="摸摸小满" @pointerdown="petCat">
-          <span class="cat-tail"></span><span class="cat-body"></span><span class="cat-chest"></span>
-          <span class="cat-head"><i class="ear left"></i><i class="ear right"></i><i class="eye left"></i><i class="eye right"></i><i class="nose"></i></span>
-          <span class="cat-paw left"></span><span class="cat-paw right"></span>
-        </button>
-        <div class="cat-controls">
-          <button type="button" class="toy-button" @click="playWithCat"><span aria-hidden="true"></span>逗猫</button>
-          <button type="button" class="help-button" :disabled="!catHelpReady" @click="askCatForHelp">
-            <Heart :size="14" :fill="catHelpReady ? 'currentColor' : 'none'" />{{ catHelpReady ? '小满救场' : `${catAffinity}/${CAT_HELP_COST}` }}
-          </button>
-        </div>
-      </div>
-
+      <!-- 操作台：横贯全宽，装置在左、控制区在右 -->
       <section v-if="order" class="workbench" aria-label="咖啡制作台">
         <header class="ticket-rail">
-          <button type="button" class="menu-toggle" aria-controls="cafe-menu-sheet" :aria-expanded="showMenu" @click="showMenu = !showMenu"><Coffee :size="16" /><span>{{ currentDrink.name }}</span></button>
+          <button
+            type="button"
+            class="menu-toggle"
+            aria-controls="cafe-menu-sheet"
+            :aria-expanded="showMenu"
+            @click="showMenu = !showMenu"
+          >
+            <Coffee :size="15" /><span>{{ drink.name }}</span>
+          </button>
           <ol class="process-steps">
             <li
-              v-for="(stepId, index) in currentDrink.steps"
+              v-for="(stepId, index) in drink.steps"
               :key="stepId"
-              :class="{ done: index < activeStepIndex, active: index === activeStepIndex && !canServe }"
+              :class="{
+                done: index < order.stepIndex,
+                active: index === order.stepIndex && !canServe,
+              }"
             >
-              <component :is="stepDefinitions[stepId].icon" :size="14" />
-              <span>{{ stepDefinitions[stepId].short }}</span>
-              <b v-if="index < activeStepIndex">{{ stepQualities[index] }}</b>
+              <component :is="stepIcon(stepId)" :size="13" />
+              <span>{{ STEP_DEFINITIONS[stepId]?.short }}</span>
+              <b v-if="index < order.stepIndex" :class="`grade-${order.grades[index]}`">{{
+                order.grades[index] === 'perfect' ? '★' : order.stepQualities[index]
+              }}</b>
             </li>
           </ol>
-          <div class="quality-readout"><small>本杯品质</small><strong>{{ currentQuality || '--' }}</strong></div>
+          <div class="quality-readout">
+            <small>本杯品质</small><strong>{{ currentQuality || '--' }}</strong>
+          </div>
         </header>
 
-        <div class="machine-deck" :class="`station-${currentStepId || 'serve'}`">
+        <div class="machine-deck">
+          <StationPanel
+            class="deck-station"
+            :step-id="currentStepId"
+            :state="stepState || createStepState(currentStepId || 'serve')"
+            :holding="holding"
+            :interactive="
+              Boolean(currentStep) && !['timed', 'sequenced'].includes(currentStep?.kind)
+            "
+            :can-serve="canServe"
+            @pointer-down="onStationDown"
+            @pointer-move="onStationMove"
+            @pointer-up="onStationUp"
+            @dose="doseIngredient"
+            @vent="ventExtractor"
+          />
+
           <div
-            class="equipment-bay"
-            :class="{ interactive: usesEquipmentGesture, 'gesture-active': isHolding }"
-            :role="usesEquipmentGesture ? 'button' : undefined"
-            :tabindex="usesEquipmentGesture ? 0 : undefined"
-            :aria-label="usesEquipmentGesture ? `${gestureInstruction}。键盘操作：${keyboardGestureInstruction}` : undefined"
-            :aria-keyshortcuts="usesEquipmentGesture ? 'ArrowUp ArrowDown ArrowLeft ArrowRight Enter' : undefined"
-            @pointerdown="beginEquipmentGesture"
-            @pointermove="moveEquipmentGesture"
-            @pointerup="endEquipmentGesture"
-            @pointercancel="endEquipmentGesture"
-            @keydown="handleEquipmentKeydown"
-          >
-            <div
-              v-if="usesEquipmentGesture"
-              class="gesture-guide"
-              :class="`guide-${currentStep?.gesture}`"
-              aria-hidden="true"
-            >
-              <ArrowUp v-if="currentStep?.gesture === 'water'" :size="24" :stroke-width="2.5" />
-              <MoveVertical v-else-if="currentStep?.gesture === 'steam'" :size="24" :stroke-width="2.5" />
-              <MoveHorizontal v-else :size="28" :stroke-width="2.5" />
-            </div>
-            <div v-if="currentStep?.visual === 'grind'" class="grinder machine-object">
-              <span class="bean-hopper"><i v-for="bean in 7" :key="bean"></i></span><span class="grinder-body"><b></b></span><span class="portafilter"></span><span class="grounds" :style="{ transform: `scaleY(${processProgress / 100})` }"></span>
-            </div>
-            <div v-else-if="currentStep?.visual === 'extract'" class="espresso-machine machine-object" :class="{ running: extractionRunning }">
-              <span class="machine-top"><i></i><b></b></span><span class="machine-face"><i :style="{ transform: `rotate(${-115 + processProgress * 2.3}deg)` }"></i></span><span class="group-head"></span><span class="coffee-stream"></span><span class="machine-cup"><i :style="{ transform: `scaleY(${processProgress / 100})` }"></i></span>
-            </div>
-            <div v-else-if="currentStep?.visual === 'water'" class="kettle-station machine-object" :class="{ running: isHolding, coconut: currentStepId === 'coconut', sparkling: currentStepId === 'sparkling' }">
-              <span class="voxel-kettle" :style="{ '--kettle-angle': `${-kettleAngle}deg` }"><i></i><b></b><em>{{ currentStepId === 'coconut' ? 'COCO' : currentStepId === 'sparkling' ? 'SODA' : 'H₂O' }}</em></span><span class="water-stream" :style="{ opacity: kettleAngle > 8 ? Math.min(1, kettleAngle / 28) : 0 }"></span><span class="brew-cup"><i :style="{ transform: `scaleY(${processProgress / 100})` }"></i></span>
-            </div>
-            <div v-else-if="currentStep?.visual === 'steam'" class="steam-station machine-object" :class="{ running: isHolding }">
-              <span class="steam-wand"><i></i></span><span class="milk-pitcher" :style="{ transform: `translate(-50%, ${(steamPosition - 50) * 0.32}px)` }"><i :style="{ transform: `scaleY(${Math.max(0.2, processProgress / 100)})` }"></i></span><span class="steam-cloud">•••</span>
-            </div>
-            <div v-else-if="currentStep?.visual === 'dose'" class="syrup-station machine-object" :class="{ pumping: processState === 'running' }" :style="{ '--dose-color': currentStep.color }">
-              <span class="syrup-bottle"><i>{{ currentStep.jarLabel }}</i><b></b></span><span class="syrup-pump"></span><span class="syrup-cup"><i v-for="pump in syrupPumps" :key="pump"></i></span>
-            </div>
-            <div v-else-if="currentStep?.visual === 'pour'" class="pour-station machine-object" :class="{ running: isHolding }">
-              <span class="pour-pitcher"><i></i></span><span class="milk-ribbon"></span><span class="latte-cup"><i :style="{ transform: `scale(${processProgress / 100})` }"></i><b v-for="(point, index) in latteTrail" :key="index" :style="{ left: `${point.x}%`, top: `${point.y}%` }"></b></span>
-            </div>
-            <div v-else class="serve-station machine-object"><span class="finished-cup"><i></i></span><Sparkles :size="28" /></div>
-          </div>
+            v-if="interactiveStation"
+            class="gesture-capture"
+            :class="`capture-${currentStep.kind}`"
+            @pointerdown="onStationDown"
+            @pointermove="onStationMove"
+            @pointerup="onStationUp"
+            @pointercancel="onStationUp"
+          ></div>
 
           <div class="control-bay">
             <div class="control-heading">
-              <span>STEP {{ Math.min(activeStepIndex + 1, currentDrink.steps.length) }} / {{ currentDrink.steps.length }}</span>
-              <strong>{{ canServe ? '制作完成' : currentStep.name }}</strong>
-              <small>{{ canServe ? '检查品质并交给顾客' : measurement }}</small>
+              <span
+                >STEP {{ Math.min(order.stepIndex + 1, drink.steps.length) }} /
+                {{ drink.steps.length }}</span
+              >
+              <strong>{{ canServe ? '制作完成' : currentStep?.name }}</strong>
+              <small>{{ canServe ? '检查品质并交给顾客' : currentStep?.instruction }}</small>
             </div>
 
-            <div v-if="!canServe && !isTapStep" class="process-meter" :class="processState">
-              <span class="meter-target" :style="{ left: `${targetBounds[0]}%`, width: `${targetBounds[1] - targetBounds[0]}%` }"></span>
-              <i :style="{ transform: `scaleX(${processProgress / 100})` }"></i>
-              <b :style="{ left: `${processProgress}%` }"></b>
-            </div>
-            <div v-else-if="isTapStep" class="pump-counter">
-              <i v-for="dose in currentStep.targetCount" :key="dose" :class="{ filled: syrupPumps >= dose }"></i>
-            </div>
-            <div v-else class="quality-bar"><span :style="{ width: `${currentQuality}%` }"></span></div>
+            <p class="feedback" :class="order.feedbackTone" role="status">{{ order.feedback }}</p>
 
-            <p class="feedback" :class="feedbackTone" role="status">{{ feedback }}</p>
+            <div class="grade-legend" aria-label="判定档位说明">
+              <span v-for="g in ['perfect', 'good', 'fair', 'fail']" :key="g" :class="`lg-${g}`">{{
+                GRADES[g].label
+              }}</span>
+              <small>失误会清连击并扣{{ GRADES.fail.patiencePenalty }} 耐心</small>
+            </div>
 
             <div class="machine-actions">
-              <button v-if="!canServe" type="button" class="reset-button" :disabled="processState === 'passed'" aria-label="重置当前步骤" @click="resetCurrentStep"><Trash2 :size="18" /></button>
               <button
-                v-if="currentStepId === 'extract'"
+                v-if="!canServe"
                 type="button"
-                class="machine-button"
-                :class="{ running: extractionRunning }"
-                @click="toggleExtraction"
-              ><Gauge :size="18" />{{ machineActionLabel }}</button>
+                class="reset-button"
+                :disabled="stepState?.status === 'settled'"
+                aria-label="重置当前步骤"
+                @click="resetCurrentStep"
+              >
+                <Trash2 :size="17" />
+              </button>
               <button
-                v-else-if="isTapStep"
+                v-if="currentStep && ['timed', 'sequenced'].includes(currentStep.kind)"
                 type="button"
                 class="machine-button"
                 @click="doseIngredient"
-              ><Sparkles :size="18" />{{ machineActionLabel }}</button>
-              <div v-else-if="usesEquipmentGesture" class="gesture-hint">
-                <component :is="currentStep.icon" :size="18" /><span>{{ gestureInstruction }}</span>
-              </div>
+              >
+                <Sparkles :size="17" />{{ currentStep.action }}
+              </button>
               <button
-                v-else-if="!canServe"
+                v-else-if="currentStep?.kind === 'staged'"
+                type="button"
+                class="machine-button"
+                :class="{ running: holding }"
+                @pointerdown="onStationDown"
+                @pointerup="onStationUp"
+                @pointercancel="onStationUp"
+              >
+                <Gauge :size="17" />{{ holding ? '收萃' : currentStep.action }}
+              </button>
+              <button v-else-if="canServe" type="button" class="serve-button" @click="serveDrink">
+                <Send :size="18" />出杯给 {{ currentCustomer.name }}
+              </button>
+              <button
+                v-else-if="currentStep"
                 type="button"
                 class="machine-button hold-button"
-                :class="{ running: isHolding }"
-                @pointerdown="beginHold"
-                @pointerup="releaseHold"
-                @pointercancel="releaseHold"
-                @keydown.space.prevent="beginKeyboardHold"
-                @keyup.space.prevent="releaseHold"
-              ><component :is="currentStep.icon" :size="18" />{{ machineActionLabel }}</button>
-              <button v-else type="button" class="serve-button" @click="serveDrink"><Send :size="19" />出杯给 {{ currentCustomer.name }}</button>
+                :class="{ running: holding }"
+                @pointerdown="onStationDown"
+                @pointerup="onStationUp"
+                @pointercancel="onStationUp"
+              >
+                <component :is="stepIcon(currentStepId)" :size="17" />{{
+                  holding ? '松手提交' : currentStep.action
+                }}
+              </button>
             </div>
           </div>
         </div>
@@ -1253,66 +1363,180 @@ onUnmounted(() => {
 
       <Transition name="menu-pop">
         <aside v-if="showMenu" id="cafe-menu-sheet" class="menu-sheet" aria-label="完整菜单">
-          <div class="menu-sheet-head"><div><small>MENU / 今日菜单</small><strong>云上咖啡</strong></div><button type="button" class="icon-button" aria-label="关闭菜单" @click="showMenu = false"><X :size="18" /></button></div>
-          <div v-for="drink in drinks" :key="drink.id" class="menu-line">
-            <span :style="{ '--drink-color': drink.color }"></span><strong>{{ drink.name }}</strong><small>{{ drink.steps.map((step) => stepDefinitions[step].short).join(' → ') }}</small><b>¥{{ drink.price }}</b>
+          <div class="menu-sheet-head">
+            <div><small>MENU / 今日菜单</small><strong>云上咖啡</strong></div>
+            <button
+              type="button"
+              class="icon-button"
+              aria-label="关闭菜单"
+              @click="showMenu = false"
+            >
+              <X :size="17" />
+            </button>
+          </div>
+          <div v-for="menuDrink in DRINKS" :key="menuDrink.id" class="menu-line">
+            <span :style="{ '--drink-color': menuDrink.color }"></span>
+            <strong>{{ menuDrink.name }}</strong>
+            <small>{{
+              menuDrink.steps.map((step) => STEP_DEFINITIONS[step].short).join(' → ')
+            }}</small>
+            <b>¥{{ menuDrink.price }}</b>
           </div>
         </aside>
       </Transition>
     </section>
 
+    <!-- ═══ 开场 ═══ -->
     <section v-if="phase === 'intro'" class="opening-panel">
       <p class="opening-kicker">BLOCK OF HOME · 8TH ANNIVERSARY</p>
-      <h1>亲手做一杯<br>云上的咖啡。</h1>
-      <p class="opening-copy">同时照顾三位方块熟客，在研磨、萃取、奶泡与融合之间灵活切换。留意设备温度和清洁度，打烊后还能永久升级吧台。</p>
-      <div class="opening-meta"><span><strong>150</strong> 秒营业</span><span><strong>3</strong> 单并行</span><span><strong>8</strong> 款咖啡</span></div>
-      <button type="button" class="start-button" @click="startGame"><Play :size="19" fill="currentColor" />开始营业</button>
+      <h1>亲手做一杯<br />云上的咖啡。</h1>
+      <p class="opening-copy">
+        每一步都是不同的手艺：稳住转速、中途排气、绕圈注水、找准进气时机、分层不能混、拉花跟着线走。
+        三位客人同时在等 —— 而认真做一杯，永远比让小满救场更划算。
+      </p>
+      <div class="opening-meta">
+        <span
+          ><strong>{{ ROUND_SECONDS }}</strong> 秒营业</span
+        ><span
+          ><strong>{{ MAX_CONCURRENT_ORDERS }}</strong> 单并行</span
+        ><span
+          ><strong>{{ DRINKS.length }}</strong> 款咖啡</span
+        >
+      </div>
+      <button type="button" class="start-button" @click="startGame">
+        <Play :size="18" fill="currentColor" />开始营业
+      </button>
       <p v-if="bestScore" class="best-score">历史最佳营业额 ¥{{ bestScore }}</p>
     </section>
 
+    <!-- ═══ 打烊 ═══ -->
     <section v-if="phase === 'result'" class="result-panel">
       <p class="opening-kicker">CLOSED · 今日打烊</p>
-      <div class="result-stars" :aria-label="`${stars} 星评价`"><Sparkles v-for="star in 3" :key="star" :class="{ lit: star <= stars }" :size="24" fill="currentColor" /></div>
+      <div class="result-stars" :aria-label="`${stars} 星评价`">
+        <Sparkles
+          v-for="star in 3"
+          :key="star"
+          :class="{ lit: star <= stars }"
+          :size="22"
+          fill="currentColor"
+        />
+      </div>
       <h2>{{ resultTitle }}</h2>
       <p>最后一位客人离开后，小满跳上操作台，认真检查了咖啡机和今天的账本。</p>
-      <div class="result-grid"><div><small>营业额</small><strong>¥{{ coins }}</strong></div><div><small>完成订单</small><strong>{{ served }}</strong></div><div><small>漏单</small><strong>{{ missed }}</strong></div><div><small>平均品质</small><strong>{{ averageQuality }}</strong></div><div><small>最高连杯</small><strong>×{{ bestCombo }}</strong></div></div>
-      <section v-if="discoveredMemories.length" class="memory-log" aria-label="本局发现的方块之家回忆">
-        <header><span>今日找到的回忆</span><strong>{{ discoveredMemories.length }} / {{ cafeMemories.length }}</strong></header>
-        <div><span v-for="memory in discoveredMemories" :key="memory.id"><img :src="memory.image" alt=""><b>{{ memory.year }}</b>{{ memory.title }}</span></div>
+      <div class="result-grid">
+        <div>
+          <small>营业额</small><strong>¥{{ stats.coins }}</strong>
+        </div>
+        <div>
+          <small>完成订单</small><strong>{{ stats.served }}</strong>
+        </div>
+        <div>
+          <small>漏单</small><strong>{{ stats.missed }}</strong>
+        </div>
+        <div>
+          <small>平均品质</small><strong>{{ averageQuality }}</strong>
+        </div>
+        <div>
+          <small>最高连杯</small><strong>×{{ stats.bestCombo }}</strong>
+        </div>
+        <div>
+          <small>小满救场</small><strong>{{ stats.rescuesUsed }} 次</strong>
+        </div>
+      </div>
+      <section
+        v-if="discoveredMemories.length"
+        class="memory-log"
+        aria-label="本局发现的方块之家回忆"
+      >
+        <header>
+          <span>今日找到的回忆</span
+          ><strong>{{ discoveredMemories.length }} / {{ memoryList.length }}</strong>
+        </header>
+        <div>
+          <span v-for="memory in discoveredMemories" :key="memory.id"
+            ><img :src="memory.image" alt="" /><b>{{ memory.year }}</b
+            >{{ memory.title }}</span
+          >
+        </div>
       </section>
       <section class="upgrade-shop" aria-label="设备升级">
-        <header><span><small>长期经营资金</small><strong>¥{{ wallet }}</strong></span><b>永久升级</b></header>
+        <header>
+          <span
+            ><small>长期经营资金</small><strong>¥{{ wallet }}</strong></span
+          ><b>永久升级</b>
+        </header>
         <div v-for="item in upgradeCatalog" :key="item.id" class="upgrade-row">
-          <span><strong>{{ item.name }}</strong><small>{{ item.description }}</small></span>
-          <div class="upgrade-level" :aria-label="`${item.level} 级，共 3 级`"><i v-for="level in 3" :key="level" :class="{ filled: level <= item.level }"></i></div>
-          <button type="button" :disabled="item.level >= 3 || wallet < item.cost" @click="purchaseUpgrade(item)">{{ item.level >= 3 ? '已满级' : `¥${item.cost} 升级` }}</button>
+          <span
+            ><strong>{{ item.name }}</strong
+            ><small>{{ item.description }}</small></span
+          >
+          <div class="upgrade-level" :aria-label="`${item.level} 级，共 3 级`">
+            <i v-for="level in 3" :key="level" :class="{ filled: level <= item.level }"></i>
+          </div>
+          <button
+            type="button"
+            :disabled="item.level >= 3 || wallet < item.cost"
+            @click="purchaseUpgrade(item)"
+          >
+            {{ item.level >= 3 ? '已满级' : `¥${item.cost} 升级` }}
+          </button>
         </div>
       </section>
       <p class="result-note">今日营业额已存入长期经营资金，升级会保留到下一局。</p>
-      <div class="result-actions"><button type="button" class="secondary-button" @click="returnToIntro">回到店外</button><button type="button" class="start-button" @click="startGame"><RotateCcw :size="18" />再营业一次</button></div>
+      <div class="result-actions">
+        <button type="button" class="secondary-button" @click="returnToIntro">回到店外</button
+        ><button type="button" class="start-button" @click="startGame">
+          <RotateCcw :size="17" />再营业一次
+        </button>
+      </div>
     </section>
 
     <Transition name="pause-fade">
-      <div v-if="isPaused && !showExitConfirm" class="pause-overlay" role="dialog" aria-modal="true" aria-labelledby="cafe-pause-title" aria-describedby="cafe-pause-description">
-        <button ref="pauseResumeButton" type="button" aria-label="继续营业" @click="togglePause"><Play :size="28" fill="currentColor" /></button>
+      <div
+        v-if="isPaused && !showExitConfirm"
+        class="pause-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cafe-pause-title"
+        aria-describedby="cafe-pause-description"
+      >
+        <button ref="pauseResumeButton" type="button" aria-label="继续营业" @click="togglePause">
+          <Play :size="26" fill="currentColor" />
+        </button>
         <strong id="cafe-pause-title">暂停营业</strong>
-        <span id="cafe-pause-description">{{ pauseReason || '计时、订单、设备和顾客耐心都已暂停' }}</span>
+        <span id="cafe-pause-description">{{
+          pauseReason || '计时、订单、设备和顾客耐心都已暂停'
+        }}</span>
       </div>
     </Transition>
 
     <Transition name="pause-fade">
-      <div v-if="showExitConfirm" class="exit-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="cafe-exit-title" aria-describedby="cafe-exit-description">
+      <div
+        v-if="showExitConfirm"
+        class="exit-confirm-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cafe-exit-title"
+        aria-describedby="cafe-exit-description"
+      >
         <section class="exit-confirm-panel">
           <strong id="cafe-exit-title">要结束本次营业吗？</strong>
           <p id="cafe-exit-description">本局营业额和进度不会保存，永久升级不会受到影响。</p>
           <div>
-            <button ref="exitCancelButton" type="button" class="secondary-button" @click="cancelExit">继续营业</button>
-            <button type="button" class="danger-button" @click="confirmExit">结束并{{ exitTarget === 'home' ? '返回首页' : '回到店外' }}</button>
+            <button
+              ref="exitCancelButton"
+              type="button"
+              class="secondary-button"
+              @click="cancelExit"
+            >
+              继续营业
+            </button>
+            <button type="button" class="danger-button" @click="confirmExit">
+              结束并{{ exitTarget === 'home' ? '返回首页' : '回到店外' }}
+            </button>
           </div>
         </section>
       </div>
     </Transition>
   </main>
 </template>
-
-<style scoped src="./style.scoped.css"></style>

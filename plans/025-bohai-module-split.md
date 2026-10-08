@@ -339,6 +339,8 @@ await runRetrievalStage(ctx, { query, signal });
 
 **每块的动作 = 新组件 + 新样式 + 新探针 + 旧组件/旧样式/旧探针同批删。**
 
+> ✅ **2026-10-08 全部完成**（用户口径「必须一次做完」）。落地清单见本节末尾「Step 6 完成记录」。
+
 | 块 | 内容 | 随块重写的探针 |
 | --- | --- | --- |
 | 6-1 壳 | `BOHAIMain.vue` 布局装配 + 形态切换 | `probe-aichat-landscape-rail`（14） |
@@ -352,6 +354,43 @@ await runRetrievalStage(ctx, { query, signal });
 >
 > **类名纪律**（「不允许重命名」的准确含义）：**旧类名不做迁移**（旧 DOM 一起死、旧 CSS 直接删不拆），
 > **新组件用 `Boh*` 前缀新名**，**探针落成后名字冻结**。
+
+#### Step 6 完成记录（2026-10-08）
+
+**新增（`src/views/BOHAI/BOHAI/`）**
+
+| 文件 | 作用 |
+| --- | --- |
+| `styles/layout.css` | 壳级布局（`.bohai-page` / `.boh-shell` / `.boh-main` / `.boh-topbar` / `.boh-backdrop`）+ 壳级断点 |
+| `components/BohLogo.vue` | 方块之家母题（2×2 圆角方），三档尺寸 |
+| `components/BohSidebar.vue` + `styles/boh-sidebar.css` | 会话侧栏（Teleport 抽屉 / 静态列）+ **形态切换器** + 底部今日额度 |
+| `components/BohChatStream.vue` + `styles/boh-stream.css` | 消息流（气泡 / AI 头 / 检索状态 / 任务面板 / 来源 chip / 内联追问 / 跳转导航） |
+| `components/BohComposer.vue` + `styles/boh-composer.css` | 输入区（用量圆钮 + 浮层 / 模式·强度胶囊 + 单层面板 / 斜杠菜单 / 圆形发送） |
+| `components/BohWorkPanel.vue` + `styles/boh-work.css` | Work 面板（产物 / 检索来源 / 集群进度），仅 ≥1024×600 挂载 |
+| `components/boh-markdown.js` | `renderMarkdown`（marked + hljs + DOMPurify）从壳原样迁出 |
+| `components/boh-sources.js` | 来源 chip 的**证据前缀**真源（消息流与 Work 面板共用） |
+
+**删除**：`styles/{messages,adaptive-layout,shell-header,full-workspace,motion-system}.css`、
+`components/BohaiSidebar.vue`（合计约 **6,400 行**）；
+`BOHAIIsland.vue` 里指向旧类名的 **约 250 行 `:global()` 覆盖**（含 40+ 个 `!important`）。
+
+**行为变更（3 条，均经用户拍板）**
+1. **思考圆点按旧版口径保留**（2026-10-08）——不换成 Demo 的三点打字动画；
+2. 独立页**恢复顶栏**（侧栏展开入口 + 会话名 + 工作台开关），侧栏自己的 `sidebar-open-btn` 删除；
+3. 新增**大模式 = 形态**（Chat / Work）与 Work 面板；形态存 `localStorage.boh_ai_surface_v1`。
+
+**自证**：`npm run verify` **EXIT=0**（180 文件 / **2490 passed** / 1 skipped；lint **116/116**；
+`important-budget 701/701`（↓512）、`dark-tokens 2785/2785`（↓69）、`layering 164/164`）；
+`check:gates-self-test` 11/11 通过；
+探针 **`probe-bohai-shell` 25/25**、**`probe-bohai-composer` 30/30（三档）**、
+`probe-aichat-landscape-rail` 14/14、`probe-ai-panels` 通过、`probe-ai-island-rail` 7/7、
+`probe-bohai-mode-loading` 6/6。
+
+**遗留（属 Step 7）**：`BOHAIMain.vue` 仍是 **2,134 行**（模板已薄到 ~250 行，`<script setup>` 的
+210 条顶层声明未动）⇒ 「组件 < 400 行」阈值**未达**，须在 Step 7 把状态/接线抽成
+`composables/useBohShell.js` 后再收紧阈值。另 `BohChatStream.vue`（474）/ `BohComposer.vue`（494）
+也略高于 400 行阈值。`src/styles/themes/bohai-dark.css`（908 行）已基本成为死 CSS
+（新组件走 `--boh-*` 令牌），待 Step 7 一并清理。
 
 ### Step 7 — 收尾
 

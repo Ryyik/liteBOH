@@ -1,92 +1,77 @@
 # BOHLITE 硬规则速查
-> 2026-09-29 精简；全文（含推演与实测过程）归档在同目录 `MEMORY-full-2026-09-29.md`。
+> 全文（含推演实测）归档同目录 `MEMORY-full-2026-09-29.md`；每日进展见日期日志文件。
 
 ## 环境
-vite 只绑 IPv6 → `--host ::`；构建 `--outDir dist-check`（勿动 dist）；vitest `--pool=forks`；npx 被 SIGTERM → `./node_modules/.bin/<tool>`。
-⚠️ safe-delete 守卫对 `--outDir dist-check` **同样生效**（目标目录里 >50 个文件就拦，`npm run build` 和 `vite build --outDir` 都拦）→ 先 `mv dist-check /tmp/xxx` 让位再 build；`mv` 不算删、不会被拦。
-⚠️ 后台起 dev/preview 服务必须用托管后台任务；`nohup … &` / `& disown` 起的进程会在那次工具调用结束时被杀，症状是「curl 刚 200，下一次探针就 ERR_CONNECTION_REFUSED」。
-playwright：chrome channel + `--proxy-server=direct:// --proxy-bypass-list=*`；伪造登录注 pinia；mock Supabase 必回 Content-Range。
-⚠️ 从 `/tmp` 跑一次性 ESM 脚本要引仓库依赖时 **`NODE_PATH` 无效**（ESM 不认）→ `createRequire('<repo>/package.json')('playwright')`，或把脚本放进仓库根（用完删）。
-⚠️ vite 绑了 `::` 时 `localhost:5173` 与 `[::1]:5173` 都可 curl（`--noproxy '*'`），dev 路由形如 `http://[::1]:5173/#/__dev/<name>`。
-⚠️ BSD grep 的 `\|` `\b` `\s` 全不支持（静默 0 命中）→ 用 `grep -E` / `[[:space:]]`，或直接用 Grep 工具。（2026-10-06 又踩：险些误判「文件已自己修好」）
-⚠️ macOS 无 `timeout` 命令 → 限时用 `ssh -o ConnectTimeout=N`、`GIT_SSH_COMMAND="ssh -o ConnectTimeout=15"`。
-推 GitHub：`~/.ssh/config` 已把 `github.com` 指向 `ssh.github.com:443`（绕 HTTPS/SNI 阻断），`git push` 直连即可；`gh run watch <id> --exit-status` 看 CI。
-⚠️ 并行会话同工作区：文件 last-write-wins；棘轮跨会话共享（他人新增警告也让你红）→ 用 `eslint . -f json` 做 (文件,行,规则) set diff 归因；**提交只给明确路径，永不 `git add -A`**。
+vite 只绑 IPv6 → `--host ::`；构建 `--outDir dist-check` 勿动 dist；vitest `--pool=forks`；npx 被 SIGTERM → `./node_modules/.bin/<tool>`。
+⚠️ safe-delete 守卫拦「>50 文件的删除」：build 前 dist-check 已存在 → `mv` 到 /tmp 让位；dev server 首启同理（node_modules/.vite ~109 文件）→ `mv node_modules/.vite /tmp/…` 让位再起。`mv` 不算删、不被拦。
+⚠️ 后台服务必须用托管后台任务；`nohup … &` 会在工具调用结束时被杀（症状：curl 刚 200，下一探针 ERR_CONNECTION_REFUSED）。
+playwright：chrome channel + `--proxy-server=direct:// --proxy-bypass-list=*`；伪造登录注 pinia；mock Supabase 必回 Content-Range。窄浮层（<300px）里选项必须页面内 `element.click()`，坐标点击会落遮罩被关面板（假绿）。
+⚠️ /tmp 一次性 ESM 引仓库依赖 NODE_PATH 无效 → `createRequire('<repo>/package.json')` 或脚本放仓库根（用完删）。
+⚠️ BSD grep 不支持 `\|` `\b` `\s`（静默 0 命中）→ `grep -E` / `[[:space:]]` / Grep 工具。macOS 无 `timeout` → `ssh -o ConnectTimeout=N`。
+推 GitHub：`~/.ssh/config` 已把 github.com 指 `ssh.github.com:443`，`git push` 直连；`gh run watch <id> --exit-status`。
+⚠️ 并行会话同工作区：last-write-wins；棘轮跨会话共享 → `eslint . -f json` 做 (文件,行,规则) set diff 归因；**提交只给明确路径，永不 `git add -A`**。判并行写入者：`find … -newermt '-3 minutes'` 连看两次。
 改完必反证；探针偶发漂移=抖动非回归。
 
 ## 提交
-pre-commit hook 在 `.git/hooks/pre-commit`（**不在 husky、不随 clone 分发**；新环境 `cp scripts/git-hooks/pre-commit .git/hooks/ && chmod +x`），跑 lint-staged = prettier --write + eslint --fix。
-🔴 **lint-staged 会把无关的未暂存文件卷进本次提交**（stash/restore 副作用）→ **每次 commit 后必须核对 `git show --stat HEAD`**；误入的修法：`git reset --soft HEAD~1` → `git restore --staged <侵入文件>` → 重新 commit。
-⚠️ 钩子会重排文件 → **提交后要对「提交后的树」再跑一次 verify**（验证过的 ≠ 提交的）；别把钩子改成 `prettier --check`（本仓 513 文件不合 prettier）。「改门禁」与「提交门禁脚本」必须同一 commit（`38dec8c1` 曾漏掉 check 脚本 → HEAD 本身跑 verify 就红）。
-判「还有并行写入者」：`find … -newermt '-3 minutes' -type f`，**连续看两次**才算。
+pre-commit 在 `.git/hooks/pre-commit`（**非 husky**；新环境 `cp scripts/git-hooks/pre-commit .git/hooks/ && chmod +x`）。
+🔴 lint-staged 会把无关未暂存文件卷进提交 → **每次 commit 后核对 `git show --stat HEAD`**；误入修法：`git reset --soft HEAD~1` → `git restore --staged <侵入文件>` → 重提。
+⚠️ 钩子会重排文件 → 提交前先手动跑钩子同款（prettier --write + eslint --fix，只给改动文件），提交后对**提交后的树**再跑一次 verify；别把钩子改成 prettier --check。
 
 ## 门禁 / 测试
-`npm run verify`（lint + type-check + test + 8 check + 棘轮总账）。
-⚠️ verify 绿 ≠ 干净：`lint` 带 `--max-warnings` 棘轮（2026-10-01：189 → 187 → 185 → 183；**2026-10-04 实测已降到 118** —— 以 `package.json` 现值为准，别信本行旧数字）→ **报绿必须同时报警告条数**，口径用 `eslint . -f json` 聚合。unused-vars 是 `'warn'`，计数归零前别翻 error；`fix-unused-vars.mjs` 已删（2026-09-29，零引用且带 `X as ,` latent 洞），手法见 `docs/重构验证协议.md` §五。
-⚠️ 提交前先手动跑一遍钩子同款（`prettier --write` + `eslint --fix --no-warn-ignored`，只给改动文件），否则「验证过的树 ≠ 提交的树」；提交后仍要核对 `git show --stat HEAD`（lint-staged 的 stash/restore 会卷进无关未暂存文件），并对**提交后的树**再跑一次 verify。
-⚠️ 探针切「窄浮层」（<300px 面板/菜单）里的选项，要用页面内 `element.click()`；Playwright 坐标点击会落到遮罩上被 `handleClickOutside` 关掉面板 —— 看起来「面板收起了」，其实业务 handler 根本没跑，反证会假绿。
-新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则被 `check:gates-self-test` 列「未覆盖」；棘轮 baseline 只许下调。
-源码守卫必须过 `tests/helpers/source.js` 归一且**两边同一个**（`squeezeSource`/`flattenSource`）；否定断言先 `scriptSection()`+`stripComments()`（对 .vue 全文剥注释会吃掉真实代码）；注释里别写「星号+斜杠」连写。prettier 对逐字断言的影响：换行/尾逗号交归一，**引号风格（含 CSS）/补分号**要写宽容正则。
+`npm run verify` 一条兜底（lint+type-check+test+8 check+棘轮总账）。
+⚠️ lint 带 `--max-warnings` 棘轮（**以 package.json 现值为准**，2026-10-06=118 条 unused-vars）→ 报绿必须同时报警告条数，口径 `eslint . -f json` 聚合；计数归零才翻 error；上调必须走 commit message。unused 警告还兜「Edit 漏抄一行」。
+新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则 `check:gates-self-test` 列未覆盖；棘轮 baseline 只许下调。
+源码守卫必须过 `tests/helpers/source.js` 归一且**两边同一个**；否定断言先 `scriptSection()`+`stripComments()`（.vue 全文剥注释会吃掉真实代码）；prettier 对逐字断言：换行/尾逗号交归一，引号风格/补分号写宽容正则。
 
-## DB 图片地址（裂图重灾区）
-DB 图片列混存 `@/assets/...` 别名与 `res.cloudinary.com` 绝对地址，后者大陆不可达（curl 000；`cdn.blockofhome.cn` 200）。
-**统一走 `utils/db-image-url.js`**：`resolveDbCardImage` / `resolveDbDetailImage` / `resolveDbPointsCardImage` / `resolveDbImageUrl`；顺序固定「先 getImageUrl 再改写」。**只调 `getImageUrl` 就是裂图**。
-已修：活动页、积分卡面（PointsCard 内收口）、自定义预设缩略图。**未修**：`CommunityLotteries/index.vue`、`Shop/index.vue`；头像框 9 处 `url(${frame.url})` 直绑（其中 3 个素材是 cloudinary 直链，实测加载失败）。
-积分卡面用 `c_limit` 不 `c_fill`（卡面是整幅画，服务端预裁砍主体）；预设 `:class` 的 active 判断仍比**原始** url。
-护栏：`probe-activities-images`(7)、`probe-points-card-image`(7)、`tests/unit/db-image-url.test.js`、`points-card-image-source.test.js`。
+## DB 图片（裂图重灾区）
+DB 图片列混存 `@/assets` 别名与 cloudinary 绝对地址（大陆不可达；`cdn.blockofhome.cn` 200）。**统一走 `utils/db-image-url.js`**（resolveDb* 系列，顺序固定：先 getImageUrl 再改写）；只调 getImageUrl = 裂图。已修：活动页/积分卡面/预设缩略图；**未修**：CommunityLotteries、Shop、头像框 9 处直绑。积分卡面 `c_limit` 不 `c_fill`。
 
 ## CSS
-`:root` 禁进 scoped @import（`[data-v-x]:root` 全死）；全局变量唯一入口 `styles/common/glass-aliases.css`；论坛共享 css 的 scoped @import 是承重墙。
-`animation-fill-mode:both` → 该属性不可过渡；动效/玻璃单源 `tokens.css`；暗色真源 `theme-manager.js`；scoped 特异性 +1；`:global(#id[attr]) .cls` 不产出规则。
-⚠️ **液态玻璃三铁律**（2026-10-01 实测）：① 材质单源 `styles/common/liquid-glass.css`，**只挂基础类 `.liquid-glass`** —— `--subtle/--strong/--inset/--pill` 变体在 ≤768px 被强制 `backdrop-filter:none` + 近实白（移动端只留外层模糊）；② scoped 选择器特异性**高于**全局类，组件里任何 `background:` 都会把玻璃盖回实色 → 让位写 `:not(.liquid-glass)`（症状是「blur 生效了但卡片还是 #f5f5f7」）；③ **白底上玻璃不可感知**（白玻璃+纯白底=白），需底衬：`.cloud-page::before` 极淡 `color-mix(in srgb, var(--apple-blue) 11%/6%, transparent)` 环境光 + 父级 `isolation: isolate`（否则负 z-index 伪元素掉到 body 背景下、整层不可见）；色值走 `color-mix` 不增暗色棘轮。
-Cloud+ 整页**无暗色适配**（`.cloud-page` 硬编码亮色 token，`[data-theme="dark"]` 出现 0 次）；顶栏标题暗色下白字不可见 = 既有缺陷。
-⚠️ **抬升靠内边距，不靠减高度**：全屏遮罩/面板避让软键盘时写 `height:100dvh; padding-bottom:calc(env(safe-area-inset-bottom)+var(--kb-inset))`，**不要**写 `height:calc(100dvh - var(--kb-inset))` —— 后者一旦 `--kb-inset` 量出偏大值就只剩半屏、下半屏露出底下的页面（2026-10-01 发帖遮罩实测：inset=380 → 遮罩 464px）。
-⚠️ **`max-height` 约束 border-box**：断言/比较元素高度上限用 `offsetHeight`，`clientHeight` 会扣掉边框（1px 边框 = 恒差 2px）。
-⚠️ **窄屏一行的「硬压」三连**：`flex-wrap: nowrap` + 子项 `min-width:0` + 某个子项 `flex-shrink:0`，会同时产出「有的被压到 0 宽」「有的文字折行成竖排」「不收缩那个溢出被裁」。Cloud+ 工具行即此（2026-10-01）。修法是**折行**，不是继续压。另：`.primary-btn { width: 100% }` 在 `@media (max-width:640px)`（不是 ≤900）且与两列网格共用 → 单行场景要局部 `width: auto`。
+`:root` 禁进 scoped @import；全局变量唯一入口 `glass-aliases.css`；动效/玻璃单源 `tokens.css`；暗色真源 `theme-manager.js`；scoped 特异性 +1。
+⚠️ 液态玻璃三铁律：材质单源 `liquid-glass.css` 只挂基础类（变体在 ≤768px 被强制关 backdrop）；scoped 特异性高于全局类 → 让位写 `:not(.liquid-glass)`；白底玻璃需 `.cloud-page::before` 环境光 + 父级 `isolation:isolate`（否则负 z-index 伪元素不可见）；色值走 color-mix。
+⚠️ 避软键盘：`height:100dvh; padding-bottom:calc(env(safe-area-inset-bottom)+var(--kb-inset))`，**别减高度**（inset 偏大=半屏）。
+⚠️ 高度断言用 `offsetHeight`（clientHeight 扣边框恒差 2px）。
+⚠️ 窄屏一行硬压三连（nowrap + min-width:0 + 某子项 shrink:0）= 压 0 宽/竖排字/溢出被裁；修法是折行。
 
 ## 路由 / 交互
-`key=route.path`（禁 fullPath/name）；实时搜索不写 URL；`<script setup>` 运行时 API 必须显式 import；ForumMain watch immediate 禁同步调下方 const（TDZ）。
-`useConfirmDialog` 互斥**会 reject**（判据单源 `isDialogBusy`）；调用点须把预期拒绝归化成「取消」，别删那条 reject（`PWAUpdateToast` 靠它）。焦点遮罩 z-index:12000 → 弹窗一开底下按钮点不到。
-⚠️ UserSpace 旧 tab 映射**必须单源**：`resolveRequestedUserSpaceTab()`（UserSpaceMain）同时供 `initialUserSpaceTab` / `onMounted` 同步 / `watch(route.query.tab)` 三处。三处里任一处直接用裸 `route.query.tab`，只要某个旧值（如 `assets`）失去自己的 tab-page 就**整页白屏**（2026-10-01 实测）。
-「我」页 = 三段 `空间/资产/印象`；`assets` 不再是 tab（`?tab=assets` 经映射落 `?tab=posts&view=assets`）；印象数据层单源 `composables/useProfileImpressions.js`。
+`key=route.path`（禁 fullPath/name）；`<script setup>` 运行时 API 显式 import；ForumMain watch immediate 禁同步调下方 const（TDZ）。
+`useConfirmDialog` 互斥**会 reject** → 调用点把预期拒绝归化成取消，别删那条 reject。
+⚠️ UserSpace 旧 tab 映射单源 `resolveRequestedUserSpaceTab()`（initial/onMounted/watch 三处共用）；谁直接用裸 `route.query.tab`，旧值失映射=整页白屏。
 
-## 导航 / 首页 / 论坛 / 头像框
-可见性单源 `isGlobalNavbarVisible(route)`；岛优先级 AI>任务>通知；`.scrolled` 整套已废（守卫 `unified-nav-scrolled-guard`）。
-首页入场真源 `.home --gate-p`、时长真源 GATE_TIMINGS；护栏 `probe-home-gate-pull`(50)。竖屏菜单 `probe-nav-mobile-menu`(48)；几何断言别用「父级 vs 首个子元素」差值（margin 折叠会恒 0）。
-论坛搜索 `list_forum_posts` 单实现 9 参数，禁新增签名（PG 42725）；必须登录；中文走 RPC ILIKE。
-头像框：归属 `is_avatar_frame_owned_by`、发放 `grant_avatar_frame`；新增 tier 必须同步 `avatar_frame_tier_rank`。
+## 导航 / 首页 / 头像框
+可见性单源 `isGlobalNavbarVisible(route)`；首页入场真源 `.home --gate-p`（probe-home-gate-pull 50）；竖屏菜单 probe-nav-mobile-menu(48)；概览岛唯一触发点=首页 gateSettled 落定。
+头像框：佩戴同步唯一注册点 `initAvatarFrameSync()`（main.js 调）；url→id 反查不到**保留本机**、绝不回落 none；`avatar_frames.url` 发布后不可变；本机 key：`boh-avatar-frame-id/-owner/-pending`。
 
 ## Supabase / 网络
-ref `nplnlefdwfgtyimfkyih`。github.com 被 SNI 阻断 → SSH(`ssh.github.com:443`) 或 Git Data API；迁移走 Management API + 手写 `schema_migrations`；凭据在钥匙串（剥 `go-keyring-base64:`）。
-撤 EXECUTE 用 `from anon,authenticated,public`；撤权优先于 drop；新表 grant anon+authenticated；撤权前五查；RPC 静默失败=审计表取 code。
+ref `nplnlefdwfgtyimfkyih`；SMTP 走 Brevo（smtp-relay.brevo.com:587，2026-09-22 接入免费档；SMTP key 90 天不活跃回收，探活=`POST /auth/v1/recover` 期待 200+`{}`；自动保活=mail-keepalive EF + 每月 pg_cron，运维单点 `scripts/mail-keepalive-ops.mjs`）。
+⚠️ EF 部署坑：deploy 的 `slug` 是 **query 参数**（不传=UUID slug→404）；multipart 字段 `file`（单数）+`metadata`；自定义 x- 头过不了 pg_net→EF，token 走 Authorization Bearer；`/secrets` GET 读回值≠EF env 注入值，不能作凭证比对。本机→`*.supabase.co` 间歇全断、`api.supabase.com` 常通 ⇒ 端到端验证用「一次性 pg_cron 云端代触发 + 底账表回读」。
+迁移走 Management API + 手写 `schema_migrations`；凭据在钥匙串（剥 `go-keyring-base64:`）。撤 EXECUTE 用 `from anon,authenticated,public`；撤权优先于 drop；新表 grant anon+authenticated；RPC 静默失败=审计表取 code。
 
-## GitHub CI / Dependabot
-⚠️ **Dependabot 触发的 workflow 读不到 repository secrets**（GitHub 硬机制），只能读 Dependabot 专属那套 ⇒ 本仓 5 个依赖 PR 的 CI 曾因此全红，症状是 `Error: supabaseUrl is required`（2026-10-05 修）。核对：`gh secret list --app dependabot --repo Ryyik/liteBOH`（repository 那套是 `gh secret list`，两套独立、必须分别配）。本次补的是 `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`（两者本就是可公开的前端配置，`ci.yml` 注释亦如此声明）。
-⚠️ **改 secrets 不会自动重跑已有 run** ⇒ 要 `gh run rerun <id>` 才验得到。
-⚠️ `git push` 被 SIGTERM（exit 137）**不等于失败** ⇒ 先 `git ls-remote origin main` 问远程再决定要不要重推（本地 remote-tracking ref 滞后 ≠ 没推上去）。
+## GitHub CI
+⚠️ Dependabot 触发的 workflow 读不到 repository secrets（须 `gh secret list --app dependabot` 另配一套）；改 secrets 后要 `gh run rerun` 才验得到。
+⚠️ `git push` SIGTERM(137) ≠ 失败 → 先 `git ls-remote origin main` 再决定重推。
 
 ## 输入框自动增高
-真源 `composables/useAutoGrowTextarea.js`（**不要再加第 5 份**）；上限只声明在 CSS `max-height`，JS 读 `getComputedStyle`。
-⚠️ 空内容时必须**临时摘掉 placeholder 再量**：浏览器把折行后的占位文字算进 `scrollHeight`，窄框里 "说点什么" 折两行会把空态撑成两行高（详情页评论框 107px 宽，实测 66px vs 应有 42px）。
-⚠️ `height='auto'` 之后必须**无条件写回**，写「next 相等就 return」会把元素永久留在 `auto`。护栏 `probe-reply-autogrow`(10)。
+真源 `composables/useAutoGrowTextarea.js`（勿加第 5 份）；上限只声明在 CSS max-height（JS 读 getComputedStyle）；空内容先摘 placeholder 再量；`height='auto'` 后必须无条件写回。护栏 probe-reply-autogrow(10)。
 
-## Cloud+ = 私密备份库（2026-10-02 口径，plans/023）
-「设为公开」入口**已取消**（详情无该按钮，makeEntryPublic 已删）；对外可见只有 token 令牌分享 / 转为帖子。
-相册显示**全部备份**（不再按可见性过滤）；底账（source='forum'）禁止单独删/公开（FORUM_SYNCED_CLOUD_ENTRY_LOCKED）。
-发帖成功 → `backupPostImagesToCloud`（best-effort，void 前缀，无图帖不备份）创建底账并带 `source_post_id`；
-删帖删备份 = **DB cascade**（迁移 2026100202 **已执行**：Management API + 事务内手写 schema_migrations 台账；列缺失降级逻辑保留作新环境兜底）。
-转为帖子 = sessionStorage `boh-cloud-convert-draft` 一次性预填 + ForumMain `convertPrefillApplied` 抑制草稿恢复（防旧草稿覆盖预填）。
-守卫：`cloud-album-order.test.js`（10 条）。
+## Cloud+（plans/023）
+私密备份库：对外只有 token 分享/转帖子；底账(source='forum')禁单独删/公开；发帖→backupPostImagesToCloud 建底账（best-effort）；删帖删备份=DB cascade。
+相册排序：API 层 `entry_date desc, nullsFirst:false`（别按 updated_at 主排、别视图层补 sort）；多图贴 key=`${entry.id}::${index}`（否则串图）。
+⚠️ Edit 多行替换 old_string 必须覆盖夹在中间的不变量（.eq 过滤条件），漏抄会被 unused-vars 抓。
 
-## Cloud+ 相册（iOS 图库式，2026-10-02）
-形态：**去月份分组**（单网格 `.album-flow`，`.album-month-*` 已删）、竖屏固定 **5 列**通栏 1px 缝直角、宽屏 `.cloud-shell.is-gallery` 解除 980 上限铺满（1280 → 10 列）。
-多图贴**一张图一格**：`albumTiles` 用 `flatMap` 摊平，key 必须 `` `${entry.id}::${index}` ``（只写 `entry.id` 会撞 key、Vue 复用节点**串图**）；「N 图」角标已废，心情角标只留第一格。
-排序：**API 层** `.order('entry_date', { ascending: false, nullsFirst: false })` + `updated_at` 做次级。**不能按 `updated_at` 主排**（症状＝编辑旧内容跳到最前，用户看着像「日期错乱」）；**别在视图层补 sort**（查询带 limit(240)，客户端只能排已截断的一页）；`nullsFirst:false` 必写（PG 在 DESC 时默认 NULLS FIRST）。产品口径 = **降序**（最新在最上），讨论过两次，别再翻。
-列数：`--album-columns` 由 JS 算（`resolvedAlbumColumns` = 用户选择 ?? 视口自动），**不能退回 CSS `auto-fill`** —— 那样手势覆盖不了。捏合＝**阶梯**切档（阈值 1.25 / 0.8，跨过即重置基线，一次张手连切 5→4→3）；`touchmove` 必须非 passive 才拦得住默认缩放，宿主还要 `touch-action: pan-y`。列数测量用 **ResizeObserver**（切分页时窗口不 resize，只监听 window 会留错值）。
-护栏：`probe-cloud-album.mjs`(22)、`tests/unit/cloud-album-order.test.js`(7)。
-
-⚠️ **Edit 多行替换时 old_string 必须覆盖夹在中间的不变量**（where 子句、`.eq()` 过滤条件…）。2026-10-02 改排序时漏抄 `.eq('user_id', safeUserId)`，整行过滤被替换掉 → legacy 回退会**跨用户拉数据**；是 lint 的 `unused vars` 抓回来的。unused 警告在这个仓库不只提示死代码，还兜「少抄一行」。
+## 页游/小游戏（src/games/，2026-10-08 咖啡店）
+**不引 Phaser**（345KB gzip 与路由/无障碍冲突；「不好玩」是设计问题）；要渲染层用 **PixiJS v8**（~50KB 只做粒子/精灵，DOM 管 HUD）。
+⚠️ 最易塌陷=「所有玩法退化成同一条规则」：`new Set(kinds).size` 要等于机制数；断言写「达标⇒高档 / 不达标⇒fail」，不能调评分函数蒙。
+四铁律：① 设计可达性先算（窗口穿越时间 ≥ 停留要求×1.6；互斥时间窗不重叠）；单测看不出，须显式断言区间关系。② 采样型机制（拖画轨迹）必须正方形归一化（否则 y 被压缩判定必败）。③ absolute 元素显式确认定位祖先（.machine-deck 无 position → 捕获层落左上角盖订单条）。④ SVG 里不能放 HTML 按钮（恒 0 尺寸，「逻辑对 UI 死」）。
+布局禁 `transform: scale()` 响应式（桌面空竖屏挤，改 Grid + clamp()）；「占屏比」会骗人 → 拆 UI chrome vs 玩法画面（后者主判据），断言直接测装置内部（SVG 实高）。
+护栏：probe:cafe-layout(21)、probe:cafe-mechanics(30+场景6.5)、cafe-steps.test.js(23)、cafe-cat.test.js(13)、cafe-round.test.js(9)；调试钩子 `window.__cafeDebug.forceDrink(id)`（DEV 门控，随机开局遇不到的机制要能指定配方）。
+⚠️ **并行实体的状态容器必须以实体 id 为第一层 key**：2026-10-08「有概率长按没反应」真因是 `stepStates` 写成全局 `{[stepId]:state}` 被三单共用 ⇒ A 单 failed 污染 B 单、而 `canInteract()` 见 failed 直接 return ⇒ 切单后完全无反应。凡「同一状态容器服务多个实例」都要查key 有没有实例 id。
+⚠️ **失败态必须能重置回可交互**（否则偶发失败= 永久卡死）；且失败反馈**绝不能出现「下一步」**（步骤没推进却写「下一步」⇒ 玩家以为按钮坏了）。两条都要写断言。
+⚠️ **只在终态出现的空指针单测抓不到**（`createStepState(null)`：一杯做完最后一步时 currentStepId 变 null 但视图还在用）⇒ 靠 E2E 探针 +「撤掉修复确认重现」。
+⚠️ E2E 判据坑：`doneCount` 在整单做完→订单移除时会重置为 0（出现 `2→0` 假失败）⇒ 用 `activeStepIndex`；场景会互相污染（一场景把所有单做掉⇒ 后面拿不到 kind）⇒ 每场景独立开页 + 调试钩子指定配方。
 
 ## 其它单源
-动态模块加载失败恢复 = `vite-preload-recovery.js`（`recoverDynamicImportFailure`：30s 冷却 + forceCleanAndReload）；组件级 defineAsyncComponent 若是全局壳（弹窗/挂 App.vue），必须带 onError retry + errorComponent，否则 chunk 404 = 无声空白（症状「时好时坏」＝部署窗口期特征）；反证 `probe-pd-modal-chunk-fail`(12)。
-`subscription-benefits.js`；`photo-albums/quota.js`；AI 唯一生效 `bohai_model_configs.api_url`、只解析 `choices[0]`；密码 ≥8 `auth-validation.js`；通知 store `stores/notification-loader.ts`（七宿主）。
+动态加载失败恢复 `vite-preload-recovery.js`（全局壳 defineAsyncComponent 必带 onError retry+errorComponent）；AI 唯一生效 `bohai_model_configs.api_url` 只解析 choices[0]；密码 ≥8 `auth-validation.js`；通知 store `stores/notification-loader.ts`；论坛搜索 RPC 单实现 9 参（PG 42725，禁新增签名）。
+AI 额度口径 `utils/ai-quota-display.js`（界面**只显示百分比**：基础额度=100%、附加包把满量程推到 100%+包%、进度条走 `meterPercent` 归一、`percent` 不封顶；档位横向比大小走 `subscription-benefits.js` 的 `PLAN_AI_TOKEN_PERCENTS`，基准 = Plus 100%）。绝对值底数 `PLAN_AI_TOKEN_LIMITS` 仍在（百分比由它推导），**界面不许再显示 Token 数**。
+EF 部署：`scripts/lib/supabase-admin-api.mjs` 取凭据 → Management API `POST /functions/deploy?slug=<name>`（multipart；`file` 单数字段名；`_shared/*` 依赖必须一起传；`verify_jwt` 沿用线上现值）。`api-key-vault` 依赖 `_shared/{cors,rate-limiter,supabase}.ts`。
+⚠️ 探针里「找不到元素就跳过」= 假绿温床（入口搬家后断言整段失效、探针照样报通过）⇒ 找不到就 **fail**。

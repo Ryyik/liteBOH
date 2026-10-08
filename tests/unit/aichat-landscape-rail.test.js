@@ -7,7 +7,10 @@ const root = resolve(import.meta.dirname, '../..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
 
 const BOHAI_MAIN = 'src/views/BOHAI/BOHAI/BOHAIMain.vue';
-const BOHAI_SIDEBAR = 'src/views/BOHAI/BOHAI/components/BohaiSidebar.vue';
+// plans/025 v2 · Step 6-2：侧栏已重绘为 `BohSidebar.vue`（旧 `BohaiSidebar.vue` 随旧 DOM 删除），
+// 样式搬进同组件的 scoped CSS 文件 ⇒ 两处都要读。
+const BOHAI_SIDEBAR = 'src/views/BOHAI/BOHAI/components/BohSidebar.vue';
+const BOHAI_SIDEBAR_CSS = 'src/views/BOHAI/BOHAI/components/styles/boh-sidebar.css';
 const RAIL_CSS = 'src/views/user-center/UserSpace/styles/landscape-rail.css';
 
 /**
@@ -39,7 +42,9 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
   it('只在 standalone（/ai-chat 整页）挂载，且高亮 AI 席', () => {
     const src = read(BOHAI_MAIN);
     // embedded / overlayMode 下宿主自己已有左栏，再挂一份就是两条左栏
-    expect(src).toMatch(/<UserSpaceSideRail\s+v-if="isStandalone"/);
+    // 2026-10-08：横屏左栏也要在**设置打开时**让位 —— 设置已重写为「全屏设置页」，
+    // 打开时壳会把会话侧栏与这条左栏一起撤掉（否则两条导航都浮在设置页上）。
+    expect(src).toMatch(/<UserSpaceSideRail\s+v-if="isStandalone && !settingsOpen"/);
     expect(src).toMatch(/current-tab="ai"/);
     expect(src).toMatch(/:nav-items="userSpaceNavItems"/);
     expect(src).toMatch(/@nav-click="handleRailNavClick"/);
@@ -88,10 +93,12 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
   });
 
   it('会话侧栏的 left 由变量驱动（默认 0，只有 AI 整页置位）', () => {
-    const src = read(BOHAI_SIDEBAR);
-    expect(src).toContain('left: var(--bohai-sidebar-left, 0px)');
+    const css = read(BOHAI_SIDEBAR_CSS);
+    expect(css).toContain('left: var(--bohai-sidebar-left, 0px)');
     // 写死 0 会让会话侧栏压在左栏下面（两块面板重叠）
-    expect(src).not.toMatch(/\.sidebar\s*\{[\s\S]{0,120}left: 0 !important/);
+    expect(css).not.toMatch(/\.boh-sidebar\s*\{[\s\S]{0,160}left: 0 !important/);
+    // 侧栏必须仍 Teleport 到 body —— 否则 left 由变量驱动这件事失去意义（父容器 padding 管不到它）
+    expect(read(BOHAI_SIDEBAR)).toContain('<Teleport to="body">');
   });
 
   it('左栏动作分发到已有 handler（发布 / 搜索 / 主题 / 首页 / 退出）', () => {

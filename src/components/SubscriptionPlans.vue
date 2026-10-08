@@ -231,8 +231,11 @@
       <div class="pack-grid">
         <article v-for="pack in codingPacks" :key="pack.code" class="liquid-glass pack-card reveal">
           <h3>{{ pack.name }}</h3>
-          <p class="pack-bonus">{{ pack.tokenBonus }}</p>
-          <p class="pack-web">联网搜索 {{ pack.webSearchBonus }}</p>
+          <!-- 2026-10-08：从 ' +25 万 Token / 天 ' 改成百分比（基准 = Plus 档基础额度，
+               与档位对比行同一把尺子）。包是独立售卖的，实际占比随用户档位不同，
+               个人化数字在 AI 页的用量卡里按自己的档位算。 -->
+          <p class="pack-bonus">{{ formatPackQuotaPercent(pack.code) }}</p>
+          <p class="pack-web">联网搜索 +{{ pack.webSearchBonus }} 次 / 天</p>
           <div class="pack-price">
             <strong>{{ pack.monthlyPrice }}</strong>
             <span>积分 / 月</span>
@@ -263,7 +266,8 @@
       <p class="comparison-note reveal">
         所有档位均包含 <b>多模态交互</b> 与
         <b>定制化看板</b
-        >。保底门槛按「连续未中奖场次」累计、中奖后清零，达标后可在计入并兑现的活动中领取保底礼。
+        >。保底门槛按「连续未中奖场次」累计、中奖后清零，达标后可在计入并兑现的活动中领取保底礼。 AI
+        额度以 <b>Plus = 100%</b> 为基准换算（不展示 Token 绝对值），附加包按同一基准标注增量。
       </p>
       <div class="liquid-glass table-scroll reveal">
         <table aria-describedby="comparison-title">
@@ -515,7 +519,8 @@ import { logger } from '@/utils/logger.js';
 import {
   CODING_PACKS,
   PLAN_AI_POINT_MULTIPLIERS,
-  PLAN_AI_TOKENS,
+  PLAN_AI_TOKEN_LIMITS,
+  PLAN_AI_TOKEN_PERCENTS,
   PLAN_CLOUD_IMAGE_LIMITS,
   PLAN_LAB_QUOTAS,
   PLAN_LOTTERY_PITY_THRESHOLDS,
@@ -523,6 +528,7 @@ import {
   PLAN_PHOTO_ALBUM_EXPORTS,
   PLAN_PHOTO_ALBUM_PHOTOS,
   TIER_NICKNAME_COLORS,
+  formatPackQuotaPercent,
   normalizeSubscriptionPlanCode,
 } from '@/utils/subscription-benefits.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
@@ -610,9 +616,11 @@ const buildCardFeatures = (code) => {
   const nickname = nicknameText(code);
   const multiplier = PLAN_AI_POINT_MULTIPLIERS[code];
   return [
-    ...(multiplier && multiplier < 1 && PLAN_AI_TOKENS[code]
+    // 2026-10-08 口径：不再写绝对 Token 数（'40 万 Token / 天'），
+    // 改成相对基准档的百分比 —— 基准 = 最低付费档 Plus = 100%，见 PLAN_AI_TOKEN_PERCENTS。
+    ...(multiplier && multiplier < 1 && PLAN_AI_TOKEN_LIMITS[code] > 0
       ? [
-          `BOH AI ${PLAN_AI_TOKENS[code]} Token / 天 · 积分 ${Math.round(multiplier * 100) / 100} 折`,
+          `BOH AI 额度 ${PLAN_AI_TOKEN_PERCENTS[code]} · 积分 ${Math.round(multiplier * 100) / 100} 折`,
         ]
       : ['AI 对话按积分计费 · 注册送体验积分']),
     `Cloud+ ${PLAN_CLOUD_IMAGE_LIMITS[code]} 张`,
@@ -737,7 +745,9 @@ const billingTabs = [
    「多模态交互」「定制化看板」全档一致，移到表格上方公共权益说明，不再占行。
    客服优先级 / 年度徽章仅此处出现，保留明确标注：无差别档写「普通」，不写空白。 */
 const comparisonRows = [
-  buildBenefitRow('BOH AI Token / 天', (code) => PLAN_AI_TOKENS[code]),
+  // 行名去掉 'Token / 天' —— 2026-10-08 起这一行显示的是百分比，不是 Token 数
+  // （基准 = 最低付费档 Plus = 100%，说明见表格上方 comparison-note）。
+  buildBenefitRow('BOH AI 额度', (code) => PLAN_AI_TOKEN_PERCENTS[code]),
   buildBenefitRow('AI 积分消费', (code) => aiPointsText(code)),
   buildBenefitRow('Cloud+ 存储空间', (code) => `${PLAN_CLOUD_IMAGE_LIMITS[code]} 张`),
   buildBenefitRow('实验室 PPT / Word', (code) => PLAN_LAB_QUOTAS[code]),

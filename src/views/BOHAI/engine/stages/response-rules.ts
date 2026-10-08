@@ -86,9 +86,15 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
 
   let evidenceRules = '';
   if (shouldEnforceGrounding) {
+    // ⚠️ 引用口径（2026-10-08 修冲突）：本段**与联网搜索模板要求标注 [W1]/[F1] 编号**
+    //   （utils/web/search.js 的 SEARCH_SUFFIX_TEMPLATE、responseRules 的论坛总结段）。
+    //   原文写的是「不需要标注来源编号」，两段同时进 prompt，模型在「标」与「不标」之间摇摆，
+    //   引用可核查性直接受损 —— 而引用编号是本项目 grounding 契约的一部分。
+    //   现在改成：编号照标，但**不要复述编号本身**（「据 W1 显示」这类话禁止），
+    //   既保住可核查性，也不让回答变成索引堆砌。
     evidenceRules = `<constraints>
 - 优先基于检索到的资料回答，不确定的部分直接说明不确定。
-- 回答要自然流畅，不需要标注来源编号。
+- 引用了检索资料时，在对应句末标注来源编号（如 [W1] 表示联网结果、[F1] 表示论坛帖子）；但不要把编号写进正文叙述里（如不要写「据 W1 显示」），编号只作标注。
 </constraints>`;
   }
 

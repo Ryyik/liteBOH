@@ -97,41 +97,33 @@
     text-overflow: ellipsis;
   }
 
-  .userspace-rail-more {
-    margin-left: auto;
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    padding: 0;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--liquid-text-secondary);
-    cursor: pointer;
-    transition: background-color 160ms ease, color 160ms ease;
-  }
-
-  .userspace-rail-more:hover {
-    background: var(--rail-item-bg-hover);
-    color: var(--liquid-text-primary);
+  /* 「更多」（主题 / 退出登录）：2026-10-08 从品牌位搬到滚动区**最底部**。
+     它就是一条普通 rail-item（图标 + 文字），尺寸 / hover / 暗色全部复用条目那一套，
+     不再自成一份 26px 小按钮 —— 那套还得在 88px 窄栏里给菜单横向找位置，
+     正是「菜单跑出视口、主题切换按钮显示不全」的来源。
+     放最底也符合惯例：低频偏好 + 破坏性操作（退出登录）收在栏底，要两步才登出。 */
+  .userspace-rail-more-wrap {
+    position: relative;
+    flex: none;
+    margin-top: 6px;
   }
 
   .userspace-rail-more-icon {
-    width: 18px;
-    height: 18px;
     fill: currentColor;
     stroke: none;
   }
 
-  /* 浮层：右对齐到品牌行。窄栏下会溢出栏宽 —— 玻璃容器本身没有 overflow:hidden
-     （滚动只在内层 .userspace-rail-scroll），所以不会被裁掉。 */
+  /* 浮层位置：**向上弹、左对齐到按钮**。
+     ⚠️ 历史坑（2026-10-08）：上一版挂在品牌位且 `right: 0` 右对齐 —— 88px 窄栏里左边缘
+     落到 78 − 172 = −94 ⇒ **整块跑出视口左侧**被裁掉（实测 `themeItem.x = -91`，
+     即用户看到的「主题切换按钮显示不全」）。搬到最底部后下方已无空间，必须向上弹；
+     横向左对齐（`left: 0`）落在 12 → 184，任何栏宽都在视口内。
+     ⚠️ 别按 240px 推算：**AI 页的左栏恒为 88px**（`body.page-aichat` 在 landscape-rail.css
+     里写死 `--userspace-rail-w: 88px`，刻意不随 ≥1280 升到 240px）。 */
   .userspace-rail-menu {
     position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
+    bottom: calc(100% + 6px);
+    left: 0;
     z-index: 4;
     min-width: 172px;
     padding: 5px;
@@ -466,15 +458,8 @@
     font-size: 16px;
   }
 
-  .userspace-rail-more {
-    width: 30px;
-    height: 30px;
-  }
-
-  .userspace-rail-more-icon {
-    width: 20px;
-    height: 20px;
-  }
+  /* AI 页的品牌位例外（左栏恒 88px 却命中本档）统一在文件末尾的「AI 页品牌位」段处理，
+     不在媒体查询里对同一件事再点一次名。 */
 }
 
 /* 窄栏档（1024–1279）：品牌位贴 10px，与条目左右边缘对齐（宽栏档是 12px） */
@@ -558,4 +543,34 @@
   .userspace-rail-badge {
     animation: none;
   }
+}
+
+/* ================================================================
+   AI 页（/ai-chat）的品牌位：**统一到窄栏档规格**
+   ================================================================
+   2026-10-08。为什么需要这段：宽栏档（视口 ≥1280）把品牌位改成
+   `left: 12px / flex-start / logo 32px / 显示文字` —— 那套是按 240px 栏设计的，
+   而 **AI 页的左栏恒 88px**（`body.page-aichat` 写死 `--userspace-rail-w`）。
+   套在 88px 栏上会导致：logo 偏到栏左、并且和「顶部导航收起后落在这里的那颗球」
+   对不上位置（用户口径：球要落在左栏 logo 位上）。
+   所以这里按页面钉死一套：left/right 10 · top 34 · 居中 · logo 26px
+   ⇒ logo 中心 (44, 47)，与 `src/style.css` 里 `body.page-aichat` 的
+   `--nav-orb-x: 18px / --nav-orb-y: 21px`（52px 球）配套。
+   特异性 `body.page-aichat ...`（0,2,1）稳过宽栏档的 `.userspace-rail-brand`（0,1,0），
+   不依赖加载顺序。宽度断点无需重复：AI 页左栏本来就不随 ≥1280 变宽。 */
+body.page-aichat .userspace-rail-brand {
+  left: 10px;
+  right: 10px;
+  top: 34px;
+  justify-content: center;
+}
+
+body.page-aichat .userspace-rail-brand-mark {
+  width: 26px;
+  height: 26px;
+}
+
+/* 缩小态不显示品牌文字（用户 2026-10-08 口径）—— AI 页左栏恒 88px，永远算缩小态 */
+body.page-aichat .userspace-rail-brand-name {
+  display: none;
 }

@@ -1,0 +1,197 @@
+/**
+ * layout.css — BOH AI **壳级**布局（plans/025 v2 · Step 6-1）
+ *
+ * 口径真源：`docs/DESIGN-BOHAI.md` §4（布局矩阵）/ §3.1（断点表 4+1）。
+ * 事实基准：`output/boh-ui-demo/index.html` 的 `§4 布局 layout`。
+ *
+ * 本文件只负责 **BOHAIMain.vue 自己模板里的元素**（`.bohai-page` / `.boh-shell` /
+ * `.boh-main` / `.boh-float-actions` / `.boh-backdrop`）。各区域组件（侧栏 / 消息流 / 输入区 /
+ * Work 面板）的基座与断点**在各自的 scoped CSS 里** —— 见下方纪律 2。
+ *
+ * ⚠️ 两条实测纪律（别推翻，2026-10-08 实测）：
+ *   1. **`.bohai-page` 这个类名必须保留**：`src/style.css:336`、`theme-manager.js:104`、
+ *      `landscape-rail.css` 的 `body.page-aichat` 段都按它取数（独立页高度 / 主题 / 左栏让位）。
+ *   2. **断点不能上收到本文件**：`scoped` 会给每条规则追加 `[data-v-x]`（+1 属性选择器特异性），
+ *      本文件的同深度选择器**压不过子组件 scoped 的基座**。实测：把空态竖屏宽度写在这里会被
+ *      组件内的基座压掉（竖屏宽 358 而非 362）。⇒ **断点与基座同文件**，靠文件内顺序取胜。
+ *      （DESIGN §3.2 的「断点上收 layout.css」需要 `@layer` 之类能穿透 scoped 特异性的机制，待后续统一。）
+ */
+
+/* ── 根：整页容器 ─────────────────────────────────────────────── */
+.bohai-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--boh-bg-page);
+  color: var(--boh-text-1);
+  font-family: var(--boh-font-ui);
+  font-size: 14px;
+  letter-spacing: var(--boh-ls-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 独立页高度/顶部让位由 `src/style.css` 的 `body.page-aichat` 段接管（特异性更高）。 */
+
+/* ── 壳：rail 之外的四区容器 ──────────────────────────────────── */
+.boh-shell {
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  background: var(--boh-bg-page);
+}
+
+/* 岛形态：宿主 `.bohai-island-chat` 已是 `flex:1 + overflow:hidden` 的定位容器 */
+.bohai-page.overlay-mode .boh-shell {
+  height: 100%;
+}
+
+/* ── 主列 ─────────────────────────────────────────────────────── */
+.boh-main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ── 右上角浮动操作（替代已删的顶栏，2026-10-08） ──────────────
+   用户口径「整体布局参考 Codex」：Codex 的主区没有横条，入口收成右上角的小按钮。
+     · 「打开侧栏」只在侧栏收起时渲染（模板 `v-if="!isSidebarOpen"`）
+     · 「工作台」仅桌面档渲染（`.is-work` 的断点在本文件后半段） */
+.boh-float-actions {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* 浮在消息流之上 ⇒ 常态压低存在感，指针进入整组才变实 */
+  opacity: 0.55;
+  transition: opacity var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-float-actions:hover,
+.boh-float-actions:focus-within {
+  opacity: 1;
+}
+
+.boh-icon-btn.is-on {
+  background: var(--boh-bg-active);
+  color: var(--boh-text-1);
+}
+
+.boh-icon-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--boh-radius-md);
+  color: var(--boh-text-2);
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-icon-btn:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+/* ── 抽屉遮罩（≤1023 才出现） ─────────────────────────────────── */
+.boh-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  background: var(--boh-backdrop);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--boh-dur-med) var(--boh-ease);
+}
+
+.boh-shell.sidebar-open .boh-backdrop {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   断点（壳级）—— 档位表见 DESIGN §3.1
+   ══════════════════════════════════════════════════════════════ */
+
+/* 小手机 ≤480：浮动按钮贴边收窄 */
+@media (max-width: 480px) {
+  .boh-float-actions {
+    top: 8px;
+    right: 8px;
+  }
+}
+
+/* 矮横屏：浮动按钮上移贴齐（原顶栏 44px 那一档的等价处理） */
+@media (orientation: landscape) and (max-height: 600px) {
+  .boh-float-actions {
+    top: 6px;
+  }
+}
+
+/* 桌面 ≥1024×600：侧栏变静态列 ⇒ 主列让位（宽度收拢，不是 translateX） */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .boh-main {
+    margin-left: 0;
+    transition: margin-left var(--boh-dur-med) var(--boh-ease);
+  }
+
+  .boh-shell.sidebar-open .boh-main {
+    margin-left: var(--boh-sidebar-w);
+  }
+
+  .boh-backdrop {
+    display: none;
+  }
+}
+
+/* Work 面板只在桌面档出现（≤1023 隐藏入口与面板） */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .boh-float-actions .is-work {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 1023px) {
+  .boh-float-actions .is-work {
+    display: none;
+  }
+}
+
+/* ── 滚动条 / 焦点 / 动效克制（DESIGN §2.4 / §0.1） ──────────── */
+.bohai-page :focus-visible {
+  outline: 2px solid var(--boh-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 降级动效：**只把时长令牌归零**，不写 `!important`（棘轮 + DESIGN §0.1 零 `!important`）。
+   `.reduce-motion` 类由壳在「界面动效」关闭时挂上（同一份口径，两条入口）。 */
+@media (prefers-reduced-motion: reduce) {
+  .bohai-page {
+    --boh-dur-fast: 0.01ms;
+    --boh-dur-med: 0.01ms;
+    --boh-dur-bob: 0.01ms;
+    --boh-dur-spin: 0.01ms;
+    --boh-dur-breath: 0.01ms;
+  }
+}
+
+.bohai-page.reduce-motion {
+  --boh-dur-fast: 0.01ms;
+  --boh-dur-med: 0.01ms;
+  --boh-dur-bob: 0.01ms;
+  --boh-dur-spin: 0.01ms;
+  --boh-dur-breath: 0.01ms;
+}

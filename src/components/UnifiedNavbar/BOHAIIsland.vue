@@ -393,7 +393,13 @@ function onNewChat() {
 
 /* ============================================
    聊天区域（内嵌 BOHAIMain）
-   ============================================ */
+   ============================================
+   2026-10-08（plans/025 v2 · Step 6）：BOHAIMain 的 UI 树已整体重写为 `Boh*` 组件。
+   岛形态**不再靠 `:global()` 覆盖去改造内部 DOM** —— 新组件自己认识岛：
+   · 侧栏与顶栏在岛形态下**根本不渲染**（`v-if="!props.overlayMode"`，壳里）；
+   · 消息流 / 输入区通过 `overlayMode` prop 拿到 `is-island` 类，样式在各自 scoped CSS 里。
+   原先那 ~250 行指向 `.sidebar` / `.chat-container` / `.message-*` / `.composer-*` /
+   `.empty-state` 的覆盖（含 40+ 个 `!important`）**随旧 DOM 一起删除**。 */
 :global(.bohai-island-chat) {
   flex: 1 1 auto;
   min-height: 0;
@@ -401,163 +407,8 @@ function onNewChat() {
   position: relative;
 }
 
-/* 隐藏 BOHAIMain 的 sidebar */
-:global(.bohai-island-chat .sidebar) {
-  display: none !important;
-}
-
-/* 隐藏 BOHAIMain 的顶部 toolbar（岛自己有 header） */
-:global(.bohai-island-chat .full-ai-toolbar),
-:global(.bohai-island-chat .full-ai-toolbar-actions),
-:global(.bohai-island-chat .full-ai-header) {
-  display: none !important;
-}
-
-/* 调整 chat-container 高度：占满中间区域，不带顶部 padding */
-:global(.bohai-island-chat .chat-container) {
-  padding-top: 12px !important;
-  padding-bottom: 8px !important;
-  padding-left: 18px !important;
-  padding-right: 18px !important;
-}
-
-/* ============================================
-   去气泡化：把消息气泡变成纯文字流
-   ============================================ */
-:global(.bohai-island-chat .message-wrapper) {
-  padding: 6px 0 !important;
-}
-
-:global(.bohai-island-chat .message-content-inner) {
-  max-width: 100% !important;
-  width: 100% !important;
-  padding: 0 !important;
-}
-
-:global(.bohai-island-chat .message.user),
-:global(.bohai-island-chat .message.assistant) {
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  color: inherit !important;
-  font-size: 14px !important;
-  line-height: 1.65 !important;
-}
-
-/* 用户消息：右对齐，无气泡 */
-:global(.bohai-island-chat .message.user) {
-  text-align: right;
-  color: #1d2938;
-}
-
-/* AI 消息：左对齐，无气泡 */
-:global(.bohai-island-chat .message.assistant) {
-  text-align: left;
-  color: #334155;
-}
-
-/* 消息 header：只留 BOH AI 名字小字，去掉气泡感 */
-:global(.bohai-island-chat .message-header) {
-  padding: 0 0 4px 0 !important;
-  margin: 0 !important;
-  background: transparent !important;
-  border: 0 !important;
-}
-
-:global(.bohai-island-chat .message-role) {
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  color: #6d38c8 !important;
-  letter-spacing: 0.02em !important;
-  text-transform: none !important;
-  background: transparent !important;
-  padding: 0 !important;
-  border: 0 !important;
-}
-
-/* 空态：居中，简化 */
-:global(.bohai-island-chat .empty-state) {
-  padding: 20px 10px 10px !important;
-}
-
-:global(.bohai-island-chat .empty-brand) {
-  font-size: 22px !important;
-  margin-bottom: 6px !important;
-}
-
-:global(.bohai-island-chat .empty-state h2) {
-  font-size: 16px !important;
-  margin-bottom: 4px !important;
-}
-
-:global(.bohai-island-chat .empty-subtitle) {
-  font-size: 12.5px !important;
-}
-
-/* 隐藏 standalone 模式的建议按钮（岛太小放不下） */
-:global(.bohai-island-chat .full-ai-suggestions) {
-  display: none !important;
-}
-
-/* 隐藏"显示更早"按钮（岛模式下从第一条开始即可） */
-:global(.bohai-island-chat .load-earlier-btn) {
-  display: none !important;
-}
-
-/* 输入区域：去掉气泡感，融入岛底部 */
-:global(.bohai-island-chat .composer-wrapper) {
-  padding: 8px 14px 12px !important;
-  background: transparent !important;
-  border-top: 1px solid rgba(148, 163, 184, 0.14) !important;
-  box-shadow: none !important;
-}
-
-:global(.bohai-island-chat .composer-input-wrapper) {
-  background: rgba(255, 255, 255, 0.34) !important;
-  border: 1px solid rgba(255, 255, 255, 0.46) !important;
-  border-radius: 100px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    0 4px 12px rgba(29, 41, 56, 0.045) !important;
-  backdrop-filter: var(--liquid-filter-sm) !important;
-}
-
-:global(.bohai-island-chat .composer-textarea) {
-  color: #1d2938 !important;
-  font-size: 14px !important;
-}
-
-:global(.bohai-island-chat .composer-textarea::placeholder) {
-  color: #94a3b8 !important;
-}
-
-:global(.bohai-island-chat .composer-send-btn) {
-  background: linear-gradient(135deg, #d8f4e9, #c5eee0) !important;
-  color: #057857 !important;
-  border: 1px solid rgba(255, 255, 255, 0.6) !important;
-}
-
-:global(.bohai-island-chat .composer-send-btn:hover) {
-  background: linear-gradient(135deg, #b9ecd7, #a5e5cb) !important;
-}
-
-/* ============================================
-   模式菜单页脚：岛内高度有限，正文收窄；
-   面板/二级菜单本身沿用 BOHAIMain 的尺寸（2026-10-01 清掉 5 条指向
-   已废弃类名 .composer-mode-menu / .composer-mode-option / .mode-option-*
-   的 :global() 覆盖；岛内是否被 overflow:hidden 裁切由三形态验收确认）
-   ============================================ */
-:global(.bohai-island .bohai-island-chat .mode-menu-footer) {
-  padding: 5px 6px 2px !important;
-  margin-top: 3px !important;
-}
-
-:global(.bohai-island .bohai-island-chat .mode-menu-intro-link) {
-  font-size: 11.5px !important;
-  padding: 3px 8px !important;
-}
+/* （2026-10-08 删除：`.chat-container` 内边距 / 去气泡化 / 空态 / 输入区 /
+   模式菜单页脚 共约 200 行 `:global()` 覆盖 —— 旧类名随旧 DOM 一起死。） */
 
 /* ============================================
    暗色模式
@@ -596,47 +447,8 @@ function onNewChat() {
   color: #f8fafc;
 }
 
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .message.user) {
-  color: #f8fafc;
-}
-
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .message.assistant) {
-  color: rgba(226, 232, 240, 0.86);
-}
-
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .message-role) {
-  color: #c4b5fd !important;
-}
-
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-wrapper) {
-  border-top-color: rgba(255, 255, 255, 0.06) !important;
-}
-
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-input-wrapper) {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
-}
-
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-textarea) {
-  color: #f8fafc !important;
-}
-
-:global(
-  #unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-textarea::placeholder
-) {
-  color: rgba(148, 163, 184, 0.7) !important;
-}
-
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-send-btn) {
-  background: linear-gradient(135deg, rgba(5, 120, 87, 0.4), rgba(5, 120, 87, 0.28)) !important;
-  color: #6ee7b7 !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
-}
-
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-chat .composer-send-btn:hover) {
-  background: linear-gradient(135deg, rgba(5, 120, 87, 0.55), rgba(5, 120, 87, 0.4)) !important;
-}
+/* （2026-10-08 删除：暗色下指向 `.message-*` / `.composer-*` 的 8 条 `:global()` 覆盖 ——
+   新组件用 `--boh-*` 令牌，暗色只切令牌值，不再需要第二套规则。） */
 
 /* ============================================
    响应式
@@ -649,11 +461,6 @@ function onNewChat() {
   :global(.bohai-island) {
     right: 5px;
     left: 5px;
-  }
-
-  :global(.bohai-island-chat .chat-container) {
-    padding-left: 14px !important;
-    padding-right: 14px !important;
   }
 }
 

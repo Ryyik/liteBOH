@@ -50,6 +50,7 @@ import {
   compressKnowledgeContextBlocks,
 } from '../utils/retrieval/scoring.js';
 import { extractQueryKeywords } from '../utils/text/keywords.js';
+import { UNTRUSTED_CONTENT_BOUNDARY } from '../utils/web/search.js';
 import { normalizeText, normalizePromptLine, containsAnyKeyword } from '../utils/text/normalize.js';
 import {
   resolveUserPrivateRetrievalPlan,
@@ -651,7 +652,17 @@ export function useKnowledgeRetrieval(deps) {
         }
       }
 
-      if (mergedPosts.length < FORUM_MAX_POSTS) {
+      // ⚠️ 补位收紧（2026-10-08）：旧实现是「只要不够 5 条就无条件捞最近帖」，
+      // 于是「有没有人聊过 Vue 性能优化」这种精确提问，检索命中 1 条后会被塞进 4 条
+      // 完全无关的最新帖 —— 模型把它们当检索结果用，答案被带偏。
+      //
+      // 现在分两种情况：
+      //   - `latestSummaryMode`（「最近有什么新帖」）：**保持补位**。这类提问本来就没有
+      //     检索词，`candidateQueries` 为空，不补就一条都拿不到 —— 补位是它的正常路径。
+      //   - 其余（带检索词）：**宁缺毋滥**，只补 tagFilter 命中（用户确实想看某个标签）
+      //     或排序已经是 latest 的情况，不再无条件兜底。
+      const allowBroadFallback = latestSummaryMode || sortMode === 'latest' || Boolean(tagFilter);
+      if (mergedPosts.length < FORUM_MAX_POSTS && allowBroadFallback) {
         const { data: fallbackPosts } = await getPosts(null, {
           page: 1,
           pageSize: latestSummaryMode ? FORUM_MAX_POSTS : 10,
@@ -697,9 +708,30 @@ export function useKnowledgeRetrieval(deps) {
         })
         .join('\n\n');
 
+      // 检索覆盖说明必须**如实反映**本轮实际做了什么（2026-10-08）。
+      // 收紧补位后，「无结果」有两种含义：宽泛兜底捞到了旧帖 / 压根没捞（宁缺毋滥）。
+      // 不区分就会让模型以为拿到的是相关最新资料，把兜底帖当检索命中来答。
+      const scopeNote =
+        recentPosts.length > 0
+          ? '近 30 日优先'
+          : allowBroadFallback
+            ? '（近 30 日无结果，回退到最近可用帖子；这些不一定与问题相关，引用前请自行判断）'
+            : '（无近期相关结果，本轮不做宽泛兜底）';
       return {
-        context: `【社区帖子检索结果】\n检索词：${candidateQueries.join(' / ') || '最新社区帖子'}\n范围：近 30 日优先${recentPosts.length > 0 ? '' : '（近 30 日无结果，回退到最近可用帖子）'}\n排序：${sortMode === 'hottest' ? '近期热门优先' : '最新优先'}${tagFilter ? `\n标签过滤：${tagFilter}` : ''}${latestSummaryMode || sortMode === 'latest' ? `\n输出约束：必须严格按 [F1] 到 [F${selectedPosts.length}] 的顺序总结；[F1] 是当前检索到的最新发布帖子，后续依次按发布时间从新到旧排列。不要按热度、重要性或相关性重排。` : ''}\n\n${forumContext}`,
+        // ⚠️ 论坛正文是**任意注册用户**写的，与联网搜索同属不可信外部内容。
+        //   2026-10-08 起与 utils/web/search.js 的 UNTRUSTED_CONTENT_BOUNDARY 同一套措辞注入。
+        context: `${UNTRUSTED_CONTENT_BOUNDARY}\n【社区帖子检索结果】\n检索词：${candidateQueries.join(' / ') || '最新社区帖子'}\n范围：${scopeNote}\n排序：${sortMode === 'hottest' ? '近期热门优先' : '最新优先'}${tagFilter ? `\n标签过滤：${tagFilter}` : ''}${latestSummaryMode || sortMode === 'latest' ? `\n输出约束：必须严格按 [F1] 到 [F${selectedPosts.length}] 的顺序总结；[F1] 是当前检索到的最新发布帖子，后续依次按发布时间从新到旧排列。不要按热度、重要性或相关性重排。` : ''}\n\n${forumContext}`,
         total: selectedPosts.length,
+        // 时间衰减的输入：所选帖子里最新的一条发布时间（2026-10-08）。
+        // 取不到就留空 —— scoring 会跳过时间惩罚，**不会**把「无日期」误判成「过期」。
+        latestAt:
+          selectedPosts
+            .map((post) => post?.created_at)
+            .filter(Boolean)
+            .map((value) => new Date(value).toISOString())
+            .filter((value) => !Number.isNaN(Date.parse(value)))
+            .sort()
+            .at(-1) || '',
         evidenceRefs: selectedPosts.map((_, index) => `F${index + 1}`),
         labels: [`社区帖子(${selectedPosts.length}条)`],
         confidence: selectedPosts.length > 0 ? 0.86 : 0,
