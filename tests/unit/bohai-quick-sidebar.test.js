@@ -18,6 +18,11 @@ const enginePath = resolve(
   import.meta.dirname,
   '../../src/views/BOHAI/composables/useChatEngine.js',
 );
+// Step 5-2：`communitySearchActive` 的赋值随「检索主体」搬进该 stage
+const retrievalStagePath = resolve(
+  import.meta.dirname,
+  '../../src/views/BOHAI/engine/stages/retrieval.ts',
+);
 const memoryCapturePath = resolve(
   import.meta.dirname,
   '../../src/views/BOHAI/composables/useMemoryCapture.js',
@@ -97,12 +102,17 @@ describe('BOH AI motion system', () => {
     expect(messages).toContain('background-clip: text');
     // prettier 会把 `Boolean(` 后的实参断到下一行，压成单空格后是 `Boolean( communityNeeds…`
     // （`(` 后多一个空格），还原不掉 → 这处必须用「全空白移除」归一。详见 helpers/source.js。
-    expect(flattenSource(readFileSync(enginePath, 'utf8'))).toContain(
+    //
+    // Step 5-2：这段随「检索主体」搬进 engine/stages/retrieval.ts ⇒ 守卫改指新文件；
+    // 同时保留一条「壳仍接线」断言（引擎里必须调用该 stage）。
+    const retrievalStage = flattenSource(readFileSync(retrievalStagePath, 'utf8'));
+    expect(retrievalStage).toContain(
       flattenSource(
-        'communitySearchActive.value = Boolean(communityNeedsEvidence || isForumSearchEnabled.value)',
+        'deps.communitySearchActive.value = Boolean(deps.communityNeedsEvidence || deps.isForumSearchEnabled.value)',
       ),
     );
-    expect(engine).toContain('communitySearchActive.value = false');
+    expect(retrievalStage).toContain(flattenSource('deps.communitySearchActive.value = false'));
+    expect(engine).toContain('runRetrievalStage(');
   });
 
   it('renders a stateful task panel with progress and recovery controls', () => {
