@@ -38,7 +38,6 @@ import {
   buildBohaiRuntimeModels,
   listActiveBohaiModelConfigs,
 } from '@/utils/api/bohai-model-config-api.js';
-import { sanitizeUnsupportedCommunityEvidenceClaims } from '@/utils/ai-chat-grounding.js';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { isPostDraftRequest } from '@/utils/bohai-action-draft-intent.js';
@@ -62,20 +61,17 @@ import {
 } from '../utils/chatErrorMessages.js';
 import {
   BASE_SYSTEM_PROMPT,
-  CONTEXT_PLACEHOLDER,
   HEALTH_ANALYSIS_PROMPT_APPENDIX,
   MAX_CONTEXT_MESSAGES,
   MAX_FINAL_PROMPT_CHARS,
   MAX_HISTORY_CONTEXT_CHARS,
   MAX_HISTORY_MESSAGE_CHARS,
-  MAX_MESSAGES_TOTAL_TOKENS,
   MAX_PROMPT_EXTRA_CHARS,
   MAX_USER_INPUT_CHARS,
   MEMORY_CAPTURE_CONTEXT_ITEMS,
   MEMORY_CAPTURE_MIN_DIALOGUE_ITEMS,
   MEMORY_CAPTURE_MIN_USER_CHARS,
   MEMORY_NOTICE_MAX_ITEMS,
-  PLAN_MODE_PROMPT_APPENDIX,
   SHOW_INTERNAL_PROGRESS_NOTES,
   THINKING_SPEED_DELTAS_BY_ID,
   BOH_DEFAULT_MODE_ID,
@@ -97,7 +93,6 @@ import {
 import {
   GENERATION_STALL_TIMEOUT_MS,
   getGenerationProfile as getDefaultGenerationProfile,
-  compactMessages,
 } from '../utils/generation-profile.js';
 import { isLikelyMemoryDuplicate, extractExplicitMemoryContent } from '../utils/memory/dedupe.js';
 import {
@@ -144,6 +139,10 @@ import { resolveCrossTurnEvidence } from '../engine/stages/evidence-reuse';
 import { runAgentClusterStage } from '../engine/stages/agent-cluster';
 // plans/025 v2 · Step 5-2：检索主体（站内检索 + 联网搜索并行编排）已抽成 stage
 import { runRetrievalStage } from '../engine/stages/retrieval';
+// plans/025 v2 · Step 5-3：装配段的三块纯计算已抽成 stage
+import { buildSystemPromptSections } from '../engine/stages/system-prompt';
+import { buildGroundingGuards } from '../engine/stages/grounding-guard';
+import { buildRequestBody } from '../engine/stages/request-body';
 
 const dispatchGlobalNavStatus = (payload = {}) => {
   if (typeof window === 'undefined') return;
@@ -1547,15 +1546,6 @@ export function useChatEngine() {
       // 摘要并入主 system prompt 的 context 段落（之前作为独立 system 消息，部分模型处理不一致）
       const cachedSummary = getCachedSummaryIfUsable(session);
       const pageContextBlock = buildPageContextBlock(attachedContext.value);
-      const contextBlock = [
-        pageContextBlock,
-        evidenceContextBlock,
-        cachedSummary
-          ? `\n<conversation_summary>\n${cachedSummary}\n</conversation_summary>\n`
-          : '',
-      ]
-        .filter((s) => String(s || '').trim())
-        .join('\n');
 
       // 心理访谈：每轮重建注入「访谈协议 + 状态块 + 分层规则」。
       // 模型数不准轮次、长对话里也会忘规则，所以不依赖它记 —— 每轮都重新喂（见方案 §16）。
@@ -1577,21 +1567,18 @@ export function useChatEngine() {
           ].join('\n')
         : '';
 
-      const systemPromptContent = [
-        BASE_SYSTEM_PROMPT.replace(
-          `\n${CONTEXT_PLACEHOLDER}\n`,
-          contextBlock ? `\n${contextBlock}\n` : '',
-        ),
+      const { systemPromptContent } = buildSystemPromptSections({
+        pageContextBlock,
+        evidenceContextBlock,
+        cachedSummary,
         structuredMemoryBlock,
-        isPlanMode ? PLAN_MODE_PROMPT_APPENDIX : '',
-        healthAnalysisActive ? HEALTH_ANALYSIS_PROMPT_APPENDIX : '',
+        isPlanMode,
+        healthAnalysisActive,
         psychInterviewProtocol,
         psychStateBlock,
         psychRulesBlock,
         stylePromptAppendix,
-      ]
-        .filter((section) => String(section || '').trim())
-        .join('\n');
+      });
       // 访谈态单独一份生成参数（提温 + 略提 frequency_penalty），不共用 pro 的冷参数
       const generationProfile = getGenerationProfile(activeModeId, {
         factualQuestion: factualQuestion || communityNeedsEvidence,
@@ -1683,111 +1670,31 @@ export function useChatEngine() {
         return;
       }
 
-      const groundingRefSet = new Set(
-        (Array.isArray(groundingEvidenceRefs) ? groundingEvidenceRefs : []).map((id) =>
-          String(id).toUpperCase(),
-        ),
-      );
-      const maxSearchCitationRef = enableSearch
-        ? Math.max(0, Math.min(9, Math.trunc(Number(searchResultCount) || 0)))
-        : 0;
-      const totalGroundingRefCount = groundingRefSet.size + maxSearchCitationRef;
+      // Step 5-3：依据护栏（洗无证据断言 + 无依据时追加不确定声明）已抽成 engine/stages/grounding-guard.ts
+      const { sanitizeCommunityEvidenceClaims, ensureGroundedReply } = buildGroundingGuards({
+        groundingEvidenceRefs,
+        searchResultCount,
+        enableSearch,
+        factualQuestion,
+        webSearchVerified,
+        communityNeedsEvidence,
+        bohInternalFactualQuestion,
+        psychInterviewActive,
+        shouldEnforceGrounding,
+      });
 
-      const needsInternalEvidence = communityNeedsEvidence || bohInternalFactualQuestion;
-      const noInternalEvidence = needsInternalEvidence && totalGroundingRefCount <= 0;
-
-      const sanitizeCommunityEvidenceClaims = (reply) =>
-        sanitizeUnsupportedCommunityEvidenceClaims(reply, {
-          availableEvidenceRefs: groundingEvidenceRefs,
-          fallbackText: '我没有检索到对应的 BOH 论坛帖子或用户，不能把这件事说成社区里有人分享过。',
-        });
-
-      // 依据校验：无内部证据时追加不确定声明，不拦截回答
-      const ensureGroundedReply = (rawReply) => {
-        const safeReply = String(rawReply || '').trim();
-        const realtimeVerificationNote =
-          enableSearch && factualQuestion && !webSearchVerified
-            ? '（联网搜索未返回可用结果，以下内容未经过实时网络验证。）\n\n'
-            : '';
-        if (noInternalEvidence && safeReply) {
-          // 心理访谈是封闭域：检索是被主动关闭的，不是「没找到资料」。
-          // 不加这句尾巴 —— 否则每轮回答后面都挂一句「未检索到相关站内资料」，很出戏。
-          if (psychInterviewActive) return realtimeVerificationNote + safeReply;
-          return (
-            realtimeVerificationNote +
-            safeReply +
-            '\n\n（未检索到相关站内资料，以上回答基于通用知识）'
-          );
-        }
-        if (!safeReply) return realtimeVerificationNote.trim();
-        if (!shouldEnforceGrounding) return realtimeVerificationNote + safeReply;
-        if (totalGroundingRefCount <= 0) {
-          if (needsInternalEvidence) {
-            return '未检索到明确依据，无法确认这部分 BOH 内部内容。为了避免编造，我不能凭印象补全答案；可以换个更具体的关键词，或开启联网搜索后再试。';
-          }
-          return realtimeVerificationNote + safeReply;
-        }
-        return realtimeVerificationNote + safeReply;
-      };
-
+      // Step 5-3：请求体装配（含速度档位偏移 + 分层压缩 + 预算日志）已抽成 engine/stages/request-body.ts
       const thinkingSpeedDeltas = THINKING_SPEED_DELTAS_BY_ID[currentThinkingSpeedId.value];
-      const hasSpeedOverride =
-        thinkingSpeedDeltas &&
-        (thinkingSpeedDeltas.temperature !== 0 ||
-          thinkingSpeedDeltas.topP !== 0 ||
-          thinkingSpeedDeltas.maxTokensScale !== 1);
-
-      requestBody = {
-        model: generationModel.id,
-        messages: [
-          { role: 'system', content: systemPromptContent },
-          ...recentMessages,
-          { role: 'user', content: finalPrompt },
-        ],
-        stream: true,
-        temperature: Math.max(
-          0,
-          Math.min(
-            2,
-            generationProfile.temperature +
-              (hasSpeedOverride ? thinkingSpeedDeltas.temperature || 0 : 0),
-          ),
-        ),
-        top_p: Math.max(
-          0,
-          Math.min(
-            1,
-            generationProfile.top_p + (hasSpeedOverride ? thinkingSpeedDeltas.topP || 0 : 0),
-          ),
-        ),
-        frequency_penalty: generationProfile.frequency_penalty,
-        max_tokens: hasSpeedOverride
-          ? Math.max(
-              1,
-              Math.round(
-                (generationProfile.max_tokens || 4096) * (thinkingSpeedDeltas.maxTokensScale || 1),
-              ),
-            )
-          : generationProfile.max_tokens,
-      };
-
-      // C1 fix + 优化1/3: 发送前裁剪 messages 数组，使用分层压缩
-      budgetTracker.addEstimate(
-        CONTEXT_CATEGORIES.HISTORY,
-        recentMessages.map((m) => m.content).join(' '),
-      );
-      const budgetState = budgetTracker.getUsage();
-      requestBody.messages = compactMessages(requestBody.messages, MAX_MESSAGES_TOTAL_TOKENS);
-      if (budgetState.level === 'high' || budgetState.level === 'full') {
-        const degPlan = budgetTracker.getDegradationPlan();
-        if (degPlan.drops.length > 0) {
-          logger.info(
-            'boh-ai',
-            'Context budget',
-            JSON.stringify({ level: budgetState.level, drops: degPlan.drops }),
-          );
-        }
-      }
+      const { requestBody: assembledRequestBody } = buildRequestBody({
+        generationModel,
+        systemPromptContent,
+        recentMessages,
+        finalPrompt,
+        generationProfile,
+        thinkingSpeedDeltas,
+        budgetTracker,
+      });
+      requestBody = assembledRequestBody;
 
       const STREAM_FETCH_TIMEOUT_MS = 120_000; // 2 min stream timeout
       markGenerationProgress('正在请求模型生成回答...');

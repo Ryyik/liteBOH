@@ -229,6 +229,16 @@ export const hasUnsupportedCommunityEvidenceClaim = (text, { availableEvidenceRe
   );
 };
 
+/**
+ * 洗掉**无证据支撑**的社区断言。
+ *
+ * ⚠️ JSDoc 是**类型真源**（本文件是 `.js`，`checkJs:false`）：不给注解时
+ * `availableEvidenceRefs = []` 会被 TS 推成 `never[]` ⇒ `.ts` 消费者传 `unknown[]` 报 TS2322。
+ *
+ * @param {string} text
+ * @param {{ availableEvidenceRefs?: unknown[]; fallbackText?: string }} [options]
+ * @returns {string}
+ */
 export const sanitizeUnsupportedCommunityEvidenceClaims = (
   text,
   { availableEvidenceRefs = [], fallbackText = '这部分内容未经检索确认，已省略。' } = {},
