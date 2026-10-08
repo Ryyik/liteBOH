@@ -84,9 +84,11 @@ jobs:
           path: './dist'
 
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    # ⚠️ 2026-10-08 移除 `environment: github-pages`：10-06 起该环境的 deployment
+    #    卡死在 waiting（分支策略评估不返回），此后每次 Deploy run 都零 job pending
+    #    （本地 verify 全绿也无法自愈，撤/重触发 5 次无效）。
+    #    deploy-pages v4 只需顶层 permissions（pages: write + id-token: write），不强制 environment；
+    #    页面 URL 改由 run 的部署产物展示。若要恢复，需先在 Settings→Environments 里重置该环境。
     runs-on: ubuntu-latest
     needs: [checks, build]
     steps:
