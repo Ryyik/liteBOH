@@ -1,0 +1,887 @@
+/**
+ * boh-stream.css — 消息流（BohChatStream.vue 私有）
+ *
+ * 口径真源：`output/boh-ui-demo/index.html` 的 `§5 消息流` + `§7 滚动条/焦点/动效克制`。
+ * 只消费 `--boh-*`（零裸色值、零 `!important`）。断点与基座同文件（见 `styles/layout.css` 头）。
+ *
+ * ⚠️ markdown 正文是 `v-html` 注入的，**不在本组件的 scope 里** ⇒ 一律走 `:deep()`。
+ */
+
+.boh-stream {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--boh-gray-300) transparent;
+}
+
+.boh-stream::-webkit-scrollbar {
+  width: 8px;
+}
+
+.boh-stream::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--boh-gray-300);
+  background-clip: content-box;
+}
+
+.boh-stream-pad {
+  max-width: var(--boh-content-w);
+  margin: 0 auto;
+  padding: 16px 16px 6px;
+}
+
+/* ── 消息 ───────────────────────────────────────────────────── */
+.boh-msg + .boh-msg {
+  margin-top: 24px;
+}
+
+.boh-msg.is-user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.boh-bubble {
+  max-width: 80%;
+  padding: 10px 14px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-xl);
+  border-bottom-right-radius: 4px;
+  background: var(--boh-bg-card);
+  font-size: 14.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 2026-10-08：「[logo] BOH AI」头行与独立删除键已删（对话流不再出现 BOHAI）。
+   删除键并入 `.boh-msg-actions`，用 `.boh-msg-action.is-danger` 区分破坏性。 */
+
+/* ── 正文（v-html ⇒ :deep） ─────────────────────────────────── */
+.boh-ai-body {
+  font-size: 14.5px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.boh-ai-body :deep(p + p),
+.boh-ai-body :deep(ul),
+.boh-ai-body :deep(ol),
+.boh-ai-body :deep(pre),
+.boh-ai-body :deep(table),
+.boh-ai-body :deep(blockquote) {
+  margin-top: 10px;
+}
+
+.boh-ai-body :deep(strong),
+.boh-ai-body :deep(b) {
+  font-weight: 600;
+}
+
+.boh-ai-body :deep(ul),
+.boh-ai-body :deep(ol) {
+  padding-left: 20px;
+}
+
+.boh-ai-body :deep(li) {
+  margin: 3px 0;
+}
+
+.boh-ai-body :deep(li::marker) {
+  color: var(--boh-text-3);
+}
+
+.boh-ai-body :deep(a) {
+  color: var(--boh-text-1);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.boh-ai-body :deep(blockquote) {
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--boh-accent);
+  color: var(--boh-text-1);
+  font-weight: 500;
+}
+
+.boh-ai-body :deep(code) {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--boh-code-bg);
+  font-family: var(--boh-font-mono);
+  font-size: 12.5px;
+}
+
+.boh-ai-body :deep(pre) {
+  overflow-x: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-code-bg);
+}
+
+.boh-ai-body :deep(pre code) {
+  padding: 0;
+  background: none;
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.boh-ai-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.boh-ai-body :deep(th),
+.boh-ai-body :deep(td) {
+  padding: 6px 10px;
+  border: 1px solid var(--boh-border);
+  text-align: left;
+}
+
+.boh-ai-body :deep(th) {
+  background: var(--boh-code-head);
+  font-weight: 600;
+}
+
+/* ── 检索状态（2026-10-08 用户口径：**纯文本活动行**，参考 Grok 活动列表 —— 不要卡片框） ── */
+.boh-search-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.boh-search-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 2px 0;
+  background: none;
+  text-align: left;
+}
+
+.boh-search-ico {
+  flex: none;
+  color: var(--boh-text-3);
+}
+
+/* 轮换行：单行截断；`:key` 变化时整行重挂 ⇒ 淡入动画每拍重放 */
+.boh-search-line {
+  overflow: hidden;
+  max-width: 46vw;
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  animation: boh-search-fade 260ms ease;
+}
+
+/* 流动光效：检索在途时亮带扫过「网页搜索」四字（clip 到文字本身）。
+   亮/底都走令牌（暗色下 text-1 更亮，天然成立），时长复用 --boh-dur-bob 单源。 */
+.boh-search-line.is-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--boh-text-3) 38%,
+    var(--boh-text-1) 50%,
+    var(--boh-text-3) 62%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: boh-search-shimmer var(--boh-dur-bob, 2s) linear infinite;
+}
+
+@keyframes boh-search-shimmer {
+  0% {
+    background-position: 130% 0;
+  }
+
+  100% {
+    background-position: -130% 0;
+  }
+}
+
+@keyframes boh-search-fade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.boh-search-chevron {
+  flex: none;
+  color: var(--boh-text-3);
+  transition: transform var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-search-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+/* 展开的网页清单：纯文本行（编号 + 标题 + 域名），无框无底 */
+.boh-search-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 2px 0;
+  padding: 0 0 0 20px;
+  list-style: none;
+}
+
+.boh-search-pages li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+}
+
+.boh-search-page-idx {
+  flex: none;
+  color: var(--boh-text-3);
+  font-family: var(--boh-font-mono);
+  font-size: 11px;
+}
+
+.boh-search-pages a,
+.boh-search-page-title {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--boh-text-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.boh-search-pages a {
+  text-decoration: none;
+}
+
+.boh-search-pages a:hover {
+  color: var(--boh-brand-blue, #0071e3);
+  text-decoration: underline;
+}
+
+.boh-search-pages em {
+  flex: none;
+  margin-left: auto;
+  color: var(--boh-text-3);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.boh-action-notes {
+  margin-bottom: 8px;
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+}
+
+.boh-action-notes p + p {
+  margin-top: 4px;
+}
+
+/* ── 来源 chip ──────────────────────────────────────────────── */
+.boh-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.boh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3.5px 10px;
+  border: 1px solid var(--boh-border);
+  border-radius: 999px;
+  background: var(--boh-bg-page);
+  color: var(--boh-text-2);
+  font-size: 12px;
+  cursor: default;
+  transition:
+    border-color var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-chip:hover {
+  border-color: var(--boh-border-strong);
+  color: var(--boh-text-1);
+}
+
+.boh-chip i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  background: var(--boh-accent);
+  color: var(--boh-accent-contrast);
+  font-family: var(--boh-font-mono);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* ── 思考圆点（**旧版口径，不许改成三点**） ─────────────────────
+   2026-10-08 用户拍板：「思考状态依旧保持旧版圆点」—— 等待动作与输出格式属**不变项**
+   （同 plans/023 的原话「AI 的等待动作和输出的格式不变」）。
+   形状 / 动画逐字沿用旧 `messages.css` 的 `.thinking` + `.thinking-dot` + `@keyframes thinkingBreath`
+   （scale .72→1.22 / opacity .55→1 / 2s ease-in-out）；只有底色改成令牌（旧版写死 `#111111`，
+   暗色下靠第二套规则补，现在一处令牌就够）。 */
+.boh-thinking {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  margin-top: 12px;
+}
+
+.boh-thinking-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--boh-text-1);
+  animation: boh-thinking-breath var(--boh-dur-breath) ease-in-out infinite;
+}
+
+@keyframes boh-thinking-breath {
+  0%,
+  100% {
+    transform: scale(0.72);
+    opacity: 0.55;
+  }
+
+  50% {
+    transform: scale(1.22);
+    opacity: 1;
+  }
+}
+
+/* ── 消息操作行 ─────────────────────────────────────────────── */
+.boh-msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-msg:hover .boh-msg-actions {
+  opacity: 1;
+}
+
+.boh-msg-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--boh-radius-sm);
+  color: var(--boh-text-3);
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-msg-action:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-msg-action.is-active {
+  color: var(--boh-text-1);
+}
+
+/* 删除=破坏性：与复制/赞同同排，但 hover 走危险色，避免误读成普通操作 */
+.boh-msg-action.is-danger:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-danger);
+}
+
+/* ── 详情面板 ───────────────────────────────────────────────── */
+.boh-meta {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-card);
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+}
+
+.boh-meta-sec + .boh-meta-sec {
+  margin-top: 10px;
+}
+
+.boh-meta-sec strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--boh-text-1);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.boh-meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.boh-meta-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--boh-border);
+  border-radius: 999px;
+  font-size: 11.5px;
+}
+
+.boh-meta-chip.is-failed {
+  color: var(--boh-danger);
+}
+
+/* ── 任务 / 计划面板 ────────────────────────────────────────── */
+.boh-plan {
+  margin: 10px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-card);
+}
+
+.boh-plan-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.boh-plan-state {
+  display: inline-flex;
+  flex: none;
+  color: var(--boh-text-2);
+}
+
+.boh-plan-heading {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--boh-text-3);
+}
+
+.boh-plan-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.boh-plan-title-row strong {
+  color: var(--boh-text-1);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.boh-plan-status-label {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--boh-bg-active);
+  color: var(--boh-text-2);
+  font-size: 11px;
+}
+
+.boh-plan-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--boh-text-3);
+}
+
+.boh-plan-toggle:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-plan-progress {
+  overflow: hidden;
+  height: 3px;
+  margin: 10px 0 8px;
+  border-radius: 999px;
+  background: var(--boh-border);
+}
+
+.boh-plan-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--boh-accent);
+  transition: width var(--boh-dur-med) var(--boh-ease);
+}
+
+.boh-plan-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+}
+
+.boh-plan-list {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--boh-border);
+}
+
+.boh-plan-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 5px 0;
+}
+
+.boh-plan-check {
+  display: inline-flex;
+  flex: none;
+  margin-top: 1px;
+  color: var(--boh-text-3);
+}
+
+.boh-plan-item.is-done .boh-plan-check,
+.boh-plan-item.is-active .boh-plan-check {
+  color: var(--boh-text-1);
+}
+
+.boh-plan-item.is-failed .boh-plan-check {
+  color: var(--boh-danger);
+}
+
+.boh-plan-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--boh-text-3);
+}
+
+.boh-plan-copy strong {
+  color: var(--boh-text-1);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.boh-plan-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.boh-plan-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-sm);
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+}
+
+.boh-plan-actions button:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+/* ── 内联追问 ───────────────────────────────────────────────── */
+.boh-inline-q {
+  margin: 12px 0 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-lg);
+  background: var(--boh-bg-card);
+}
+
+.boh-inline-q-title {
+  margin-bottom: 12px;
+  color: var(--boh-text-1);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.boh-inline-q-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.boh-inline-q-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-md);
+  background: var(--boh-bg-page);
+  color: var(--boh-text-1);
+  font-size: 13px;
+  text-align: left;
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    border-color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-inline-q-option:hover {
+  background: var(--boh-bg-hover);
+}
+
+.boh-inline-q-option.is-selected {
+  border-color: var(--boh-border-strong);
+  background: var(--boh-bg-active);
+}
+
+.boh-inline-q-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--boh-text-2);
+}
+
+.boh-inline-q-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 8px;
+  color: var(--boh-text-3);
+  font-size: 11.5px;
+}
+
+.boh-inline-q-divider::before,
+.boh-inline-q-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--boh-border);
+}
+
+.boh-inline-q-input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--boh-border);
+  border-radius: var(--boh-radius-md);
+  outline: 0;
+  background: var(--boh-bg-page);
+  color: var(--boh-text-1);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.boh-inline-q-input:focus {
+  border-color: var(--boh-border-strong);
+  box-shadow: 0 0 0 3px var(--boh-accent-soft);
+}
+
+.boh-inline-q-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.boh-inline-q-submit {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--boh-accent);
+  color: var(--boh-accent-contrast);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.boh-inline-q-submit:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ── 更早消息 ───────────────────────────────────────────────── */
+.boh-load-earlier {
+  display: block;
+  margin: 0 auto 18px;
+  padding: 6px 14px;
+  border: 1px solid var(--boh-border);
+  border-radius: 999px;
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+}
+
+.boh-load-earlier:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+/* ── 用户消息跳转导航 ───────────────────────────────────────── */
+.boh-jump {
+  position: sticky;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  float: right;
+  flex-direction: column;
+  gap: 4px;
+  margin-right: 8px;
+  /* 2026-10-08 目标形态（用户给的参考图）：常态是几根光秃秃的小横条，
+     hover 时整列聚成**一枚白色圆角卡片**（文字在左、横条在右）。
+     padding 与圆角**常态就占位**，hover 只补底色与投影 ⇒ 切换时没有几何跳变，
+     只有一层底色淡入。 */
+  padding: 6px;
+  border-radius: var(--boh-radius-xl);
+  background: transparent;
+  transition:
+    background var(--boh-dur-med) var(--boh-ease),
+    box-shadow var(--boh-dur-med) var(--boh-ease);
+}
+
+.boh-jump:hover,
+.boh-jump:focus-within {
+  background: var(--boh-bg-page);
+  box-shadow: var(--boh-shadow-md);
+}
+
+.boh-jump-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 216px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  /* 常态无底：每项只是一根小横条（底色由 `.boh-jump` 的卡片出，不在单项上画药丸） */
+  background: transparent;
+  color: var(--boh-text-2);
+  font-size: 11.5px;
+  transition: color var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-jump-item:hover {
+  color: var(--boh-text-1);
+}
+
+/* 当前阅读位置：文字与横条一起走品牌蓝（目标图里那一根蓝横条 + 蓝字） */
+.boh-jump-item.is-active {
+  color: var(--boh-brand-blue, #0071e3);
+}
+
+/* 常态把摘要**折叠到 0 宽**：用 `max-width` 而不是 `display:none` / `width:auto` ——
+   前者没过渡、后者不可动画。于是静止态每条只剩 `.boh-jump-mark` 那根小横条。 */
+.boh-jump-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition:
+    max-width var(--boh-dur-med) var(--boh-ease),
+    opacity var(--boh-dur-fast) var(--boh-ease);
+}
+
+/* hover（或键盘聚焦）整条跳转栏 → 所有项一起展开摘要。
+   用容器级而不是单项级：鼠标扫过去时整列一起亮，动作更整齐。 */
+.boh-jump:hover .boh-jump-label,
+.boh-jump:focus-within .boh-jump-label {
+  max-width: 200px;
+  opacity: 1;
+}
+
+/* 横条（原为 3×12 的竖条，2026-10-08 按目标图改成扁横条） */
+.boh-jump-mark {
+  flex: none;
+  width: 16px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--boh-border-strong);
+}
+
+.boh-jump-item.is-active .boh-jump-mark {
+  background: var(--boh-brand-blue, #0071e3);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   断点（与基座同文件）
+   ══════════════════════════════════════════════════════════════ */
+
+/* 桌面 ≥1024×600 */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .boh-stream-pad {
+    padding: 28px 32px 8px;
+  }
+
+  .boh-msg + .boh-msg {
+    margin-top: 32px;
+  }
+}
+
+/* 宽屏 ≥1440 */
+@media (orientation: landscape) and (min-width: 1440px) {
+  .boh-stream-pad {
+    padding: 32px 40px 8px;
+  }
+}
+
+/* 矮横屏 */
+@media (orientation: landscape) and (max-height: 600px) {
+  .boh-stream-pad {
+    padding: 12px 20px 4px;
+  }
+
+  .boh-msg + .boh-msg {
+    margin-top: 18px;
+  }
+
+  .boh-load-earlier {
+    display: none;
+  }
+}
+
+/* 小手机 ≤480 */
+@media (max-width: 480px) {
+  .boh-stream-pad {
+    padding: 12px 12px 4px;
+  }
+
+  .boh-bubble {
+    max-width: 88%;
+  }
+}
+
+/* 岛形态：内边距更紧凑 */
+.boh-stream.is-island .boh-stream-pad {
+  padding: 12px 16px 4px;
+}
+
+/* 触屏（无 hover）⇒ 卡片与摘要常驻：否则 `.boh-jump-label` 折叠到 0 宽就永远打不开，
+   跳转栏退化成几根对应不上内容的横条。判据用 `hover: none` 而不是宽度断点 ——
+   平板横屏（≥1024）也可能是触屏，两者不是一回事。 */
+@media (hover: none) {
+  .boh-jump {
+    background: var(--boh-bg-page);
+    box-shadow: var(--boh-shadow-md);
+  }
+
+  .boh-jump-label {
+    max-width: 200px;
+    opacity: 1;
+  }
+}

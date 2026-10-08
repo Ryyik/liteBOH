@@ -28,6 +28,7 @@ import {
   searchSharedAIMemoriesForAI,
   searchBohAIKnowledgeForAI,
   createSharedAIMemory,
+  updateSharedAIMemoryStatus,
   createTreeholeMemory,
   captureTreeholeMemoriesFromDialogue,
 } from '@/utils/api/treehole-api.js';
@@ -38,6 +39,14 @@ import {
   buildBohaiRuntimeModels,
   listActiveBohaiModelConfigs,
 } from '@/utils/api/bohai-model-config-api.js';
+// 用户自带 Key（BYOK）的自定义模型：与官方模式合并进同一个模式选择器（2026-10-08）
+import {
+  loadUserEndpoints,
+  resetUserEndpoints,
+  userAiAvailableModels,
+  userAiChatModes,
+  userAiGenerationProfiles,
+} from './useUserEndpoints.js';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { isPostDraftRequest } from '@/utils/bohai-action-draft-intent.js';
@@ -94,7 +103,11 @@ import {
   GENERATION_STALL_TIMEOUT_MS,
   getGenerationProfile as getDefaultGenerationProfile,
 } from '../utils/generation-profile.js';
-import { isLikelyMemoryDuplicate, extractExplicitMemoryContent } from '../utils/memory/dedupe.js';
+import {
+  classifyMemoryWrite,
+  extractExplicitMemoryContent,
+  findSupersededMemory,
+} from '../utils/memory/dedupe.js';
 import {
   CONVERSATION_SUMMARY_RECENT_MESSAGES,
   CONVERSATION_SUMMARY_MIN_MESSAGES,
@@ -185,9 +198,10 @@ export function useChatEngine() {
     reset: resetAgentClusterState,
     apply: applyAgentClusterEvent,
   } = useAgentClusterState();
-  const { webSearchActive, runWebSearch, resetWebSearchLifecycle } = useWebSearchLifecycle({
-    search: searchWebForPrompt,
-  });
+  const { webSearchActive, webSearchResults, runWebSearch, resetWebSearchLifecycle } =
+    useWebSearchLifecycle({
+      search: searchWebForPrompt,
+    });
   const communitySearchActive = ref(false);
 
   // scrollToBottom getter — 允许 useConversationManager 在 scrollToBottom
@@ -345,22 +359,63 @@ export function useChatEngine() {
     persistKnowledgeBaseSetting,
   } = useModelConfig({ availableModels: runtimeAvailableModels, chatModes: runtimeChatModes });
 
+  /* 运行时模式表 = 官方配置（DB）+ 用户自定义模型（BYOK）。
+     官方那份缓存在本地变量里，用户那份是响应式的 —— 设置页刚保存完，watch 立刻重算，
+     不必为了一个新模型重拉整个 DB 配置。用户模型永远排在官方模式**之后**，不抢默认位。 */
+  const officialRuntimeConfig = {
+    availableModels: [],
+    chatModes: [],
+    generationProfiles: {},
+  };
+
+  const mergeRuntimeModelConfig = () => {
+    const mergedModes = [...officialRuntimeConfig.chatModes, ...userAiChatModes.value];
+    if (mergedModes.length > 0) {
+      runtimeChatModes.value.splice(0, runtimeChatModes.value.length, ...mergedModes);
+    }
+    const mergedModels = [...officialRuntimeConfig.availableModels, ...userAiAvailableModels.value];
+    if (mergedModels.length > 0) {
+      runtimeAvailableModels.value.splice(0, runtimeAvailableModels.value.length, ...mergedModels);
+    }
+    runtimeGenerationProfiles.value = {
+      ...officialRuntimeConfig.generationProfiles,
+      ...userAiGenerationProfiles.value,
+    };
+    // 当前模式可能刚被删掉（用户删了那个自定义厂商）⇒ 回落到第一个可用模式。
+    // ⚠️ 只在新表非空时兜底：表为空说明官方配置还没加载完，此时把 currentModeId 打回默认
+    //    会让用户刚选好的模式被重置。
+    if (
+      runtimeChatModes.value.length > 0 &&
+      !runtimeChatModes.value.some((mode) => mode.id === currentModeId.value)
+    ) {
+      currentModeId.value = runtimeChatModes.value[0]?.id || BOH_DEFAULT_MODE_ID;
+    }
+  };
+
   const applyRuntimeModelConfig = (payload = {}) => {
     if (Array.isArray(payload.availableModels) && payload.availableModels.length > 0) {
-      runtimeAvailableModels.value.splice(
-        0,
-        runtimeAvailableModels.value.length,
-        ...payload.availableModels,
-      );
+      officialRuntimeConfig.availableModels = payload.availableModels;
     }
     if (Array.isArray(payload.chatModes) && payload.chatModes.length > 0) {
-      runtimeChatModes.value.splice(0, runtimeChatModes.value.length, ...payload.chatModes);
-      if (!runtimeChatModes.value.some((mode) => mode.id === currentModeId.value)) {
-        currentModeId.value = runtimeChatModes.value[0]?.id || BOH_DEFAULT_MODE_ID;
-      }
+      officialRuntimeConfig.chatModes = payload.chatModes;
     }
-    runtimeGenerationProfiles.value = payload.generationProfiles || {};
+    officialRuntimeConfig.generationProfiles = payload.generationProfiles || {};
+    mergeRuntimeModelConfig();
   };
+
+  // 设置页保存/删除自定义厂商 ⇒ 模式表立即跟着变（不需要刷新页面）
+  watch(userAiChatModes, mergeRuntimeModelConfig);
+
+  // 登录状态变化才去拉自定义模型：未登录时 EF 会回 401，白跑一次请求；
+  // 登出时必须清空，否则同一台机器上的下一个账号会在选择器里看到上一个人的模型。
+  watch(
+    isLoggedIn,
+    (loggedIn) => {
+      if (loggedIn) void loadUserEndpoints();
+      else resetUserEndpoints();
+    },
+    { immediate: true },
+  );
 
   // --------------------------------------------------------------
   // AI 生成管线（从 useGenerationPipeline 导入）
@@ -756,19 +811,49 @@ export function useChatEngine() {
 
     const explicitMemoryContent = extractExplicitMemoryContent(safeUserText);
     if (explicitMemoryContent) {
-      let isDuplicate = false;
+      // ⚠️ 判重结果分两类（2026-10-08 修），不能一律跳过：
+      //   `exact`    —— 同一句话说两遍，跳过（这是原本的行为，仍然正确）
+      //   `supersede`—— **同一 slot 的事实变了**（旧「我在上海」→ 新「我现在在北京」）。
+      //                 旧实现把它当重复静默丢弃，于是旧事实永久占位、用户改了也改不掉。
+      //                 正确做法是归档旧记忆再写新的，让新事实生效。
+      // 判重本身见 utils/memory/dedupe.js 的 SUBSET_DUPLICATE_LENGTH_RATIO 说明。
+      let duplicateKind = 'none';
+      let supersededMemoryId = '';
       if (shouldWriteSharedMemory) {
         const existingShared = await getSharedMemoriesCached();
-        isDuplicate = isLikelyMemoryDuplicate(explicitMemoryContent, existingShared);
+        duplicateKind = classifyMemoryWrite(explicitMemoryContent, existingShared);
+        if (duplicateKind === 'supersede') {
+          const match = findSupersededMemory(explicitMemoryContent, existingShared);
+          supersededMemoryId = String(match?.id || '').trim();
+        }
       }
-      if (!isDuplicate && shouldWriteTreeholeMemory) {
-        const existingTreehole = await getTreeholeMemoriesCached();
-        isDuplicate = isLikelyMemoryDuplicate(explicitMemoryContent, existingTreehole);
+      if (duplicateKind === 'supersede' && !supersededMemoryId) {
+        // 判定为覆盖但没定位到具体行（数据缺 id）：退化成追加，宁可并存也不误删。
+        duplicateKind = 'none';
       }
 
-      if (!isDuplicate) {
+      if (duplicateKind === 'exact') {
+        setMemoryCaptureStatusMessage('这条记忆已存在，已自动跳过重复保存。');
+      } else {
         let sharedSavedCount = 0;
         let treeholeSavedCount = 0;
+
+        if (duplicateKind === 'supersede' && supersededMemoryId) {
+          // 先归档旧事实。⚠️ 归档失败**不阻断**新记忆写入：新事实是用户当下的表达，
+          // 优先级高于旧记录；两条并存最坏只是检索时可能取到旧的（打分层已有源权重兜底）。
+          const archiveResult = await updateSharedAIMemoryStatus(
+            String(userInfo.value?.id || ''),
+            supersededMemoryId,
+            'archived',
+          );
+          if (!archiveResult.ok) {
+            logger.warn(
+              'boh-ai',
+              '旧记忆归档失败，改为并存写入',
+              archiveResult.error?.message || archiveResult.error,
+            );
+          }
+        }
 
         if (shouldWriteSharedMemory) {
           const manualSaveResult = await createSharedAIMemory(String(userInfo.value?.id || ''), {
@@ -830,7 +915,10 @@ export function useChatEngine() {
             treeholeSavedCount,
             pendingCount: 0,
           });
-          if (sharedSavedCount > 0 && treeholeSavedCount > 0) {
+          if (duplicateKind === 'supersede') {
+            // 覆盖场景要说清「旧的已归档」，否则用户会以为记了两遍。
+            setMemoryCaptureStatusMessage('已更新这条记忆（旧的那条已归档）。');
+          } else if (sharedSavedCount > 0 && treeholeSavedCount > 0) {
             setMemoryCaptureStatusMessage('已根据你的明确指令保存 1 条公共记忆，并写入树洞。');
           } else if (sharedSavedCount > 0) {
             setMemoryCaptureStatusMessage('已根据你的明确指令保存 1 条公共记忆。');
@@ -838,8 +926,6 @@ export function useChatEngine() {
             setMemoryCaptureStatusMessage('已根据你的明确指令保存 1 条树洞私密记忆。');
           }
         }
-      } else {
-        setMemoryCaptureStatusMessage('这条记忆已存在，已自动跳过重复保存。');
       }
     }
 
@@ -1155,6 +1241,9 @@ export function useChatEngine() {
 
     session.isLoading = true;
     session.isThinking = true;
+    // 新一轮开始先清掉上一轮的搜索标题 —— 否则这一轮没开联网时，
+    // 消息流的折叠面板会拿旧一轮的标题轮换（webSearchActive 是本轮的，标题也得是）。
+    webSearchResults.value = [];
     activeGenerationSessionIndex.value = sessionIndex;
     // 上下文窗口接近上限时，先把会话历史压成摘要，再让模型拿到真正"压缩后"的上下文。
     // 摘要生成失败/无更新会快速 no-op 退出，不会阻塞发送。
@@ -1945,6 +2034,7 @@ export function useChatEngine() {
     isCommandMode,
     isSearching,
     webSearchActive,
+    webSearchResults,
     communitySearchActive,
     isForumSearchEnabled,
     isHealthAnalysisEnabled,
