@@ -143,6 +143,8 @@ import { runRetrievalStage } from '../engine/stages/retrieval';
 import { buildSystemPromptSections } from '../engine/stages/system-prompt';
 import { buildGroundingGuards } from '../engine/stages/grounding-guard';
 import { buildRequestBody } from '../engine/stages/request-body';
+// plans/025 v2 · Step 5-3：流式消费已抽成 stage
+import { runStreamStage } from '../engine/stages/stream';
 // plans/025 v2 · Step 5-3：后处理两段（退化流修复 / 回答定稿）已抽成 stage
 import { runDegenerateRepair } from '../engine/stages/degenerate-repair';
 import { finalizeAssistantReply } from '../engine/stages/finalize-reply';
@@ -1033,7 +1035,8 @@ export function useChatEngine() {
   });
 
   let generationTimeoutTimer = null;
-  let streamIdleTimer = null;
+  // 流式空闲超时计时器：用**引用容器**（stage 就地写、壳在 finally 里清），避免 stage 私有计时器泄漏
+  const streamIdleTimerRef = { current: null };
 
   const sendMessage = async () => {
     if (!inputMessage.value.trim() || isLoading.value || abortController.value) return;
@@ -1708,21 +1711,23 @@ export function useChatEngine() {
               AbortSignal.timeout(STREAM_FETCH_TIMEOUT_MS),
             ])
           : requestController.signal;
-
-      // 创建流专用的思考过滤状态
-      const thinkingState = createThinkingState();
       markGenerationProgress('正在生成回答...');
 
-      let assistantMessage =
-        getSessionByIndex(sessionIndex)?.messages?.[messageIndex]?.content || '';
-      let lastVisibleStreamContent = cleanAssistantVisibleReply(
-        filterThinkingContent(assistantMessage),
+      // Step 5-3：流式消费（SSE 解析 + while 循环 + 收尾 flush）已抽成 engine/stages/stream.ts。
+      // ⚠️ 可变状态放进 streamState（stage 就地读写）；stopThinkingWhenAnswerVisible 由壳持有
+      //    （它闭包 markTiming / clearThinkingStatus，且回答定稿阶段还要用）。
+      const streamState = {
+        assistantMessage: getSessionByIndex(sessionIndex)?.messages?.[messageIndex]?.content || '',
+        lastVisibleStreamContent: '',
+        shouldRepairDegenerateStream: false,
+        hasReceivedVisibleAnswer: false,
+      };
+      streamState.lastVisibleStreamContent = cleanAssistantVisibleReply(
+        filterThinkingContent(streamState.assistantMessage),
       );
-      let shouldRepairDegenerateStream = false;
-      let hasReceivedVisibleAnswer = false;
       const stopThinkingWhenAnswerVisible = () => {
-        if (hasReceivedVisibleAnswer) return;
-        hasReceivedVisibleAnswer = true;
+        if (streamState.hasReceivedVisibleAnswer) return;
+        streamState.hasReceivedVisibleAnswer = true;
         // 首个可见 token —— 这才是用户感知的「响应速度」
         markTiming('firstTokenMs');
         clearThinkingStatus();
@@ -1733,124 +1738,39 @@ export function useChatEngine() {
       };
 
       markTiming('requestSentMs');
-      const response = await callVaultSiliconChatStream({
-        provider: generationModel.providerKey || 'siliconflow',
-        purpose: 'chat',
-        mode: activeModeId,
-        apiUrl: url,
-        timeoutMs: STREAM_FETCH_TIMEOUT_MS,
-        signal: streamFetchSignal,
-        payload: requestBody,
-      });
-
-      // B9 fix: callVaultSiliconChatStream 已在内部对 !response.ok 抛出错误，
-      // 此处 response 必定 ok 且 body 为可读流，移除不可达的 !response.ok 检查。
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      streamIdleTimer = null;
-      const readNextStreamChunk = async () => {
-        if (!hasReceivedVisibleAnswer) return reader.read();
-        return Promise.race([
-          reader.read(),
-          new Promise((resolve) => {
-            streamIdleTimer = setTimeout(() => {
-              resolve({ done: true, value: undefined, idleTimeout: true });
-            }, 2500);
-          }),
-        ]).finally(() => {
-          if (streamIdleTimer) {
-            clearTimeout(streamIdleTimer);
-            streamIdleTimer = null;
-          }
-        });
-      };
-      const sseParser = createSseLineParser((payload) => {
-        try {
-          const data = JSON.parse(payload);
-          const delta = data.choices?.[0]?.delta || {};
-          const rawContent = delta.content || '';
-
-          if (rawContent) {
-            resetGenerationStallTimeout('正在接收模型输出');
-            const content = safeChunkToString(rawContent);
-            const filteredContent = filterThinkingContentStream(content, thinkingState);
-            if (filteredContent && filteredContent !== '[object Object]') {
-              if (shouldRepairDegenerateStream) {
-                return;
-              }
-              if (String(filteredContent).trim()) {
-                stopThinkingWhenAnswerVisible();
-              }
-              assistantMessage += filteredContent;
-              const visibleStreamContent = cleanAssistantVisibleReply(
-                filterThinkingContent(assistantMessage),
-              );
-              if (visibleStreamContent) {
-                lastVisibleStreamContent = visibleStreamContent;
-              }
-              updateContent(assistantMessage);
-              nextTick(scrollToBottom);
-
-              if (isDegenerateStreamOutput(assistantMessage)) {
-                shouldRepairDegenerateStream = true;
-                markGenerationProgress('生成内容异常，正在自动修复...');
-                appendProgressContent('回答异常，正在自动修复...\n\n');
-              }
-            }
-          }
-        } catch (e) {
-          logger.error('boh-ai', 'Parse error', e);
-        }
-      });
-
-      while (true) {
-        const { done, value, idleTimeout } = await readNextStreamChunk();
-        if (idleTimeout) {
-          try {
-            await reader.cancel();
-          } catch (_cancelError) {
-            // Ignore reader cancel errors.
-          }
-          break;
-        }
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        sseParser.push(chunk);
-        if (sseParser.isDone()) break;
-        if (shouldRepairDegenerateStream) {
-          try {
-            await reader.cancel();
-          } catch (_cancelError) {
-            // Ignore reader cancel errors.
-          }
-          break;
-        }
-      }
-
-      if (!shouldRepairDegenerateStream && !sseParser.isDone()) {
-        sseParser.push(decoder.decode());
-        sseParser.flush();
-
-        // 流式处理结束，刷新缓冲区并添加剩余内容
-        const remainingContent = flushThinkingBuffer(thinkingState);
-        if (remainingContent) {
-          assistantMessage += remainingContent;
-          const visibleStreamContent = cleanAssistantVisibleReply(
-            filterThinkingContent(assistantMessage),
-          );
-          if (visibleStreamContent) {
-            lastVisibleStreamContent = visibleStreamContent;
-            updateContent(assistantMessage);
-            nextTick(scrollToBottom);
-          }
-        }
-      }
-
-      // SSE error 事件处理：边缘函数在流中发送 event: error 时，抛出错误让上层捕获
-      const sseError = sseParser.getError?.();
-      if (sseError) {
-        throw sseError;
-      }
+      await runStreamStage(
+        {
+          callVaultSiliconChatStream,
+          createThinkingState,
+          createSseLineParser,
+          filterThinkingContentStream,
+          flushThinkingBuffer,
+          safeChunkToString,
+          isDegenerateStreamOutput,
+          filterThinkingContent,
+          cleanAssistantVisibleReply,
+          resetGenerationStallTimeout,
+          updateContent,
+          scrollToBottom,
+          markGenerationProgress,
+          appendProgressContent,
+          stopThinkingWhenAnswerVisible,
+        },
+        {
+          provider: generationModel.providerKey || 'siliconflow',
+          purpose: 'chat',
+          mode: activeModeId,
+          apiUrl: url,
+          timeoutMs: STREAM_FETCH_TIMEOUT_MS,
+          signal: streamFetchSignal,
+          payload: requestBody,
+          state: streamState,
+          idleTimerRef: streamIdleTimerRef,
+        },
+      );
+      let assistantMessage = streamState.assistantMessage;
+      let lastVisibleStreamContent = streamState.lastVisibleStreamContent;
+      let shouldRepairDegenerateStream = streamState.shouldRepairDegenerateStream;
 
       // 心理访谈守门（prompt 是软约束，必须代码兜底）
       // 模型在「助手惯性」下会持续给出选项、一轮多问、甚至替用户编造经历 —— 这些在 prompt 里
@@ -2034,7 +1954,7 @@ export function useChatEngine() {
 
   onScopeDispose(() => {
     clearTimeout(generationTimeoutTimer);
-    clearTimeout(streamIdleTimer);
+    clearTimeout(streamIdleTimerRef.current);
     stopThinkingTimer(); // 修复：清理 100ms interval 定时器
     if (abortController.value) {
       abortController.value.abort();

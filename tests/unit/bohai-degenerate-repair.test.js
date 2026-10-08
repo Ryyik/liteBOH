@@ -79,12 +79,15 @@ describe('BOHAI 退化流修复（Step 5-3）', () => {
     expect(call[1]).toContain('禁止输出连续重复标点');
   });
 
-  it('壳仍接线：调用两个后处理 stage，且 SSE 回调内层早退**仍在**', () => {
-    const code = read(CHAT_ENGINE);
-    expect(code).toContain('await runDegenerateRepair(');
-    expect(code).toContain('await finalizeAssistantReply(');
-    // ⚠️ SSE 回调里另有一处**同名**早退（12 空格缩进）。抽外层 40 行块时按 `trim()` 匹配会误伤它
-    //    （实测踩过：把内层 3 行也替换成了 stage 调用）。这条守卫专门钉住它。
-    expect(code).toContain('              if (shouldRepairDegenerateStream) {');
+  it('壳仍接线：调用三个 stage；SSE 回调内层早退**仍在**（已随流式段搬进 stream.ts）', () => {
+    const engine = read(CHAT_ENGINE);
+    expect(engine).toContain('await runDegenerateRepair(');
+    expect(engine).toContain('await finalizeAssistantReply(');
+    expect(engine).toContain('await runStreamStage(');
+    // ⚠️ SSE 回调里另有一处**同名**早退。抽外层 40 行块时按 `trim()` 匹配会误伤它
+    //    （实测踩过：把内层 3 行也替换成了 stage 调用）。Step 5-3 后它随流式段搬进 stream.ts，
+    //    守卫**改指新文件**，并保留 10 空格缩进的精确断言。
+    const stream = read('src/views/BOHAI/engine/stages/stream.ts');
+    expect(stream).toContain('          if (state.shouldRepairDegenerateStream) {');
   });
 });
