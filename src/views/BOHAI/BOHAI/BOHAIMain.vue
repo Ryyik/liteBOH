@@ -65,39 +65,13 @@
           :class="{ 'is-positioning-initial-scroll': props.overlayMode && !isInitialScrollReady }"
           @scroll="updateActiveUserMessageFromScroll"
         >
-          <div v-if="messages.length === 0" class="empty-state">
-            <div class="empty-brand" aria-label="BOH AI">
-              <span>BOH</span>
-              <span>AI</span>
-            </div>
-            <h2>今天需要我如何帮你？</h2>
-            <p class="empty-subtitle">提问、检索、计划任务，或让 BOH AI 整理你的想法。</p>
-            <div v-if="isStandalone" class="full-ai-suggestions">
-              <button
-                v-for="(suggestion, suggestionIndex) in fullPageSuggestions"
-                :key="suggestion"
-                type="button"
-                :style="{ '--bohai-item-order': suggestionIndex }"
-                @click="useQuickSuggestion(suggestion)"
-              >
-                {{ suggestion }}
-              </button>
-            </div>
-            <div
-              v-if="props.overlayMode && quickSuggestions.length"
-              class="quick-context-suggestions"
-            >
-              <button
-                v-for="(suggestion, suggestionIndex) in quickSuggestions"
-                :key="suggestion"
-                type="button"
-                :style="{ '--bohai-item-order': suggestionIndex }"
-                @click="useQuickSuggestion(suggestion)"
-              >
-                {{ suggestion }}
-              </button>
-            </div>
-          </div>
+          <BohEmptyState
+            :standalone="isStandalone"
+            :overlay-mode="props.overlayMode"
+            :standalone-suggestions="fullPageSuggestions"
+            :quick-suggestions="quickSuggestions"
+            @pick="useQuickSuggestion"
+          />
 
           <button
             v-if="hiddenMessageCount > 0"
@@ -948,6 +922,8 @@ import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import BohaiSidebar from './components/BohaiSidebar.vue';
 import BohaiSettingsPanel from './components/BohaiSettingsPanel.vue';
+// plans/025 v2 · Step 6-3 第一刀：空态已抽成 Boh* 组件（旧类名随旧 DOM 一起死）
+import BohEmptyState from './components/BohEmptyState.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import { marked } from 'marked';
 import { logger } from '@/utils/logger.js';

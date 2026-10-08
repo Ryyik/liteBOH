@@ -57,10 +57,10 @@ try {
       const container = q('.bohai-container');
       const main = q('.main-content');
       const chat = q('.chat-container');
-      const empty = q('.empty-state');
-      const suggestions = q('.full-ai-suggestions');
+      const empty = q('.boh-empty');
+      const suggestions = q('.boh-empty__suggestions');
       const buttons = suggestions ? [...suggestions.querySelectorAll('button')] : [];
-      const sub = q('.empty-subtitle');
+      const sub = q('.boh-empty__subtitle');
       const input = q('.input-area');
       const railVar = pageEl
         ? getComputedStyle(pageEl).getPropertyValue('--bohai-rail').trim()
@@ -138,8 +138,8 @@ try {
     const m = await page.evaluate(() => {
       const q = (s) => document.querySelector(s);
       const rail = q('.userspace-rail');
-      const empty = q('.empty-state');
-      const suggestions = q('.full-ai-suggestions');
+      const empty = q('.boh-empty');
+      const suggestions = q('.boh-empty__suggestions');
       return {
         railDisplay: rail ? getComputedStyle(rail).display : 'none',
         emptyWidth: empty ? empty.getBoundingClientRect().width : 0,
@@ -168,7 +168,7 @@ try {
     await page.goto(`${BASE}/#/ai-chat`, { waitUntil: 'load' });
     await page.waitForTimeout(4000);
     const l = await page.evaluate(() => {
-      const sub = document.querySelector('.empty-subtitle');
+      const sub = document.querySelector('.boh-empty__subtitle');
       return { subDisplay: sub ? getComputedStyle(sub).display : '(无节点)' };
     });
     check(
