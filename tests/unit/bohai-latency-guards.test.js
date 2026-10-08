@@ -21,6 +21,9 @@ const CHAT_ENGINE = 'src/views/BOHAI/composables/useChatEngine.js';
 const AUTO_ROUTER = 'src/views/BOHAI/engine/bohai-auto-router.js';
 const CHAT_CONFIG = 'src/views/BOHAI/composables/chat-engine-config.js';
 const SHARED_RULES = 'src/views/BOHAI/shared-rules.js';
+// Step 5-2：检索段的两块纯计算已抽成 stage，相关守卫改指新文件
+const EVIDENCE_REUSE_STAGE = 'src/views/BOHAI/engine/stages/evidence-reuse.ts';
+const RESPONSE_RULES_STAGE = 'src/views/BOHAI/engine/stages/response-rules.ts';
 
 describe('plans/024 · P0-2：追问改写的 LLM 调用不得回来', () => {
   it('useChatEngine 里不再有那次「上下文理解器」调用', () => {
@@ -161,7 +164,10 @@ describe('plans/024 · P0-1：废弃的 auto 路由链不得回来', () => {
 
 describe('plans/024 · P1-1：跨轮证据的时效护栏', () => {
   it('复用上一轮证据前先判时效', () => {
-    const code = readCode(CHAT_ENGINE);
+    // Step 5-2：时效护栏已搬进 engine/stages/evidence-reuse.ts ⇒ 守卫改指新文件，
+    // 并保留一条「壳仍接线」的断言（引擎里必须调用该 stage）。
+    expect(readCode(CHAT_ENGINE)).toContain('resolveCrossTurnEvidence');
+    const code = readCode(EVIDENCE_REUSE_STAGE);
     expect(code).toContain('ROUTING_FORUM_REALTIME_PATTERN');
     expect(code).toContain('isRealtimeQuery');
     expect(code).toContain('stale_evidence_note');
@@ -170,10 +176,14 @@ describe('plans/024 · P1-1：跨轮证据的时效护栏', () => {
 
 describe('plans/024 · P1-2：参数与规则不再同向叠加', () => {
   it('responseRules 里那句与 frequency_penalty 打架的「不要重复」已删', () => {
-    const code = readCode(CHAT_ENGINE);
-    expect(code).not.toContain('不要重复已说过的内容');
+    // Step 5-2：responseRules 已搬进 engine/stages/response-rules.ts。
+    // 否定断言在**两处**都必须成立（引擎与 stage 都不得有），正向断言指向 stage。
+    const engine = readCode(CHAT_ENGINE);
+    const rules = readCode(RESPONSE_RULES_STAGE);
+    expect(engine).not.toContain('不要重复已说过的内容');
+    expect(rules).not.toContain('不要重复已说过的内容');
     // 承接意图改成正向表述，必须仍在
-    expect(code).toContain('承接上一轮的结论直接推进');
+    expect(rules).toContain('承接上一轮的结论直接推进');
   });
 });
 

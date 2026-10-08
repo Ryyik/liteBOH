@@ -80,7 +80,6 @@ import {
   SHOW_INTERNAL_PROGRESS_NOTES,
   THINKING_SPEED_DELTAS_BY_ID,
   BOH_DEFAULT_MODE_ID,
-  ROUTING_FORUM_REALTIME_PATTERN,
 } from './chat-engine-config.js';
 import { useConversationManager, updateLastActualExtraChars } from './useConversationManager.js';
 import { useGenerationPipeline } from './useGenerationPipeline.js';
@@ -129,7 +128,7 @@ import {
   buildStructuredMemoryBlock,
 } from '../utils/structured-memory.js';
 import { truncateText, normalizePromptLine } from '../utils/text/normalize.js';
-import { buildSearchResultsContext, searchWebForPrompt } from '../utils/web/search.js';
+import { searchWebForPrompt } from '../utils/web/search.js';
 import {
   runAgentClusterBranch,
   isAgentClusterMode,
@@ -139,6 +138,10 @@ import {
 import { runShortcutBranches } from '../engine/stages/shortcuts';
 // plans/025 v2 · Step 5-2：6 个意图标志的计算已抽成 stage（engine/stages/intent.ts）
 import { computeIntentFlags } from '../engine/stages/intent';
+// plans/025 v2 · Step 5-2：检索段的三块**纯计算**已抽成 stage
+import { computeRetrievalTargets } from '../engine/stages/retrieval-targets';
+import { buildResponseRuleBlocks } from '../engine/stages/response-rules';
+import { resolveCrossTurnEvidence } from '../engine/stages/evidence-reuse';
 
 const dispatchGlobalNavStatus = (payload = {}) => {
   if (typeof window === 'undefined') return;
@@ -1579,33 +1582,15 @@ export function useChatEngine() {
           ) {
             latestForumSummaryPosts = forumConnectorResult.metadata.posts;
           }
-          const retrievalTargets = [];
-          if (retrievalPlan.treehole)
-            retrievalTargets.push(
-              treeholeTotal > 0 ? `BOH Cloud+(${treeholeTotal}条)` : 'BOH Cloud+',
-            );
-          if (retrievalPlan.sharedMemory && sharedMemoryTotal > 0) {
-            retrievalTargets.push(`AI公共记忆(${sharedMemoryTotal}条)`);
-          }
-          if (retrievalPlan.memory) retrievalTargets.push('记忆库');
-          if (retrievalPlan.siteGuide) retrievalTargets.push('操作手册');
-          if (retrievalPlan.forum) retrievalTargets.push('社区帖子');
-          if (
-            retrievalPlan.userPrivate &&
-            Array.isArray(userPrivateLabels) &&
-            userPrivateLabels.length > 0
-          ) {
-            retrievalTargets.push(...userPrivateLabels.slice(0, 3));
-          }
-          if (retrievalPlan.health) {
-            const healthResult = successfulConnectorResults.find(
-              (item) => item?.connectorId === BOHAI_CONNECTOR_IDS.health,
-            );
-            if (healthResult && Number(healthResult.total || 0) > 0) {
-              healthAnalysisActive = true;
-              retrievalTargets.push(`BOH Health(${healthResult.total}组)`);
-            }
-          }
+          const { targets: retrievalTargets, healthAnalysisActive: healthTargetActive } =
+            computeRetrievalTargets({
+              retrievalPlan,
+              treeholeTotal,
+              sharedMemoryTotal,
+              userPrivateLabels,
+              successfulConnectorResults,
+            });
+          if (healthTargetActive) healthAnalysisActive = true;
 
           mergeAssistantMessageMeta(sessionIndex, messageIndex, { ragTrace: retrievalTrace });
 
@@ -1746,54 +1731,18 @@ export function useChatEngine() {
         Array.isArray(groundingEvidenceRefs) &&
         groundingEvidenceRefs.some((ref) => /^F\d+$/i.test(String(ref)));
 
-      const responseRules = `<constraints>
-- 涉及社区事实时，优先依据检索内容回答。
-- 涉及用户个人复盘时，优先结合 BOH Cloud+ 私有内容给出总结和建议。
-- 追问时承接上一轮的结论直接推进，不要从头重新解释背景。
-- 对于通用知识问题（非方块之家站内内容），直接给出最佳回答，不确定的部分标注不确定即可；不要建议用户去论坛搜索、不要提供搜索步骤，也不要问"你是想了解 X 还是想在论坛查帖子"。
-${
-  hasForumEvidence
-    ? `- 总结论坛帖子时，用检索资料中的发帖者信息指代，不要泛称"有人提到"。
-- 不要编造论坛用户、帖子或链接；没有检索到论坛资料时，不要提及论坛内容。`
-    : ''
-}
-${personalSupportMode ? '- 用户在表达自己的困扰、情绪或身体状态时，先用 1-2 句接住他的处境和感受，再给最多 2-3 个低压力、今晚就能做的小动作；不要上来就列长清单，不要把普通困扰写成医学建议。结尾可以轻轻问一句具体情况，让用户愿意继续说。' : ''}
-${isPlanMode ? '- Plan 模式下需要提问时用【追问】格式，不要直接在对话中发问；信息充足后用 - [ ] 输出结构化计划。' : ''}
-${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须严格按 [F1]、[F2]、[F3]、[F4]、[F5] 的顺序输出；[F1] 是最新发布，后面依次更早。不得按热度、重要性或主题重排；若不足 5 条，只输出已检索到的条目。' : ''}
-</constraints>`;
-
-      let communityRules = '';
-      if (bohInternalFactualQuestion) {
-        communityRules = `<constraints>
-- 涉及方块之家、BOH、论坛帖子、成员、活动、历史等内容时，依据检索到的资料回答。
-- 不要凭印象补全人物、事件、时间线或统计数字。
-- 资料没有覆盖的点，直接说“未检索到相关依据”即可。
-</constraints>`;
-      }
-
-      let evidenceRules = '';
-      if (shouldEnforceGrounding) {
-        evidenceRules = `<constraints>
-- 优先基于检索到的资料回答，不确定的部分直接说明不确定。
-- 回答要自然流畅，不需要标注来源编号。
-</constraints>`;
-      }
-
-      let operationRules = '';
-      if (operationQuestion) {
-        operationRules = `<constraints>
-- 给出入口路径和操作步骤；简单操作用自然段落说明，复杂操作用编号步骤。
-- 如果无法从已检索资料确认路径，直接说“无法确认该功能的准确路径”。
-- 禁止猜测未出现过的页面路径或按钮文案。
-</constraints>`;
-      }
-
-      const actualExtraChars =
-        (internalEvidenceContext.length || 0) +
-        (webEvidenceContext.length || 0) +
-        (communityRules.length || 0) +
-        (evidenceRules.length || 0) +
-        (operationRules.length || 0);
+      const { responseRules, communityRules, evidenceRules, operationRules, actualExtraChars } =
+        buildResponseRuleBlocks({
+          hasForumEvidence,
+          personalSupportMode,
+          isPlanMode,
+          latestForumSummaryMode,
+          bohInternalFactualQuestion,
+          shouldEnforceGrounding,
+          operationQuestion,
+          internalEvidenceChars: internalEvidenceContext.length || 0,
+          webEvidenceChars: webEvidenceContext.length || 0,
+        });
       updateLastActualExtraChars(actualExtraChars);
       markTiming('retrievalDoneMs');
 
@@ -1808,87 +1757,22 @@ ${latestForumSummaryMode ? '- 用户要求总结论坛最新内容时，必须�
       //   1. 本轮提问命中时效词（最新/最近/今天…）→ **禁止复用**，改为注入说明，
       //      让模型据实告知「本轮没有检索到新资料」，而不是拿旧的冒充新的。
       //   2. 其余情况允许复用，但在证据块前加一行「来自上一轮」的前缀。
-      const isRealtimeQuery = ROUTING_FORUM_REALTIME_PATTERN.test(String(routingQueryText || ''));
-      const STALE_EVIDENCE_PREFIX =
-        '（以下资料来自上一轮检索，可能已过时；若与用户本轮问的时效性内容冲突，请以「未获取到最新资料」作答）';
-      let reusedFromPreviousTurn = false;
-
-      // 对话连贯性修复：当前轮未搜索时，复用上一轮 assistant 消息的搜索结果
-      // 解决"追问时 AI 不知道上一轮 [W1][W2] 的实际内容"导致的不连贯问题
-      if (!webEvidenceContext && !isRealtimeQuery && historyMessagesForCurrentTurn.length >= 2) {
-        for (let i = historyMessagesForCurrentTurn.length - 1; i >= 0; i -= 1) {
-          const prevMsg = historyMessagesForCurrentTurn[i];
-          if (prevMsg?.role !== 'assistant') continue;
-          const prevSearch = prevMsg?.meta?.searchContext;
-          if (!prevSearch || !Array.isArray(prevSearch.results) || prevSearch.results.length === 0)
-            break;
-          // 用上一轮的精简搜索结果重建 context
-          const restoredResults = prevSearch.results.map((r) => ({
-            title: String(r?.title || ''),
-            url: String(r?.url || ''),
-            content: String(r?.content || ''),
-          }));
-          webEvidenceContext = buildSearchResultsContext(
-            restoredResults,
-            String(prevSearch.aiAnswer || ''),
-          );
-          // 标记为复用上下文，供后续逻辑识别
-          searchResultCount = restoredResults.length;
-          webSearchVerified = true;
-          reusedFromPreviousTurn = true;
-          break;
-        }
-      }
-      // 内部证据跨轮恢复：当前轮未检索到内部证据时，复用上一轮的 evidenceContext
-      // 解决"追问 [F1] 是谁时模型不知道 [F1] 内容"的割裂问题
-      if (
-        !internalEvidenceContext &&
-        !isRealtimeQuery &&
-        historyMessagesForCurrentTurn.length >= 2
-      ) {
-        for (let i = historyMessagesForCurrentTurn.length - 1; i >= 0; i -= 1) {
-          const prevMsg = historyMessagesForCurrentTurn[i];
-          if (prevMsg?.role !== 'assistant') continue;
-          const prevEvidence = prevMsg?.meta?.evidenceContext;
-          const prevRefs = prevMsg?.meta?.evidenceRefs;
-          if (!prevEvidence) break;
-          internalEvidenceContext = String(prevEvidence);
-          if (Array.isArray(prevRefs) && prevRefs.length > 0) {
-            groundingEvidenceRefs = prevRefs.slice(0, 32);
-          }
-          reusedFromPreviousTurn = true;
-          break;
-        }
-      }
-      if (reusedFromPreviousTurn) {
-        if (internalEvidenceContext) {
-          internalEvidenceContext = `${STALE_EVIDENCE_PREFIX}\n${internalEvidenceContext}`;
-        }
-        if (webEvidenceContext) {
-          webEvidenceContext = `${STALE_EVIDENCE_PREFIX}\n${webEvidenceContext}`;
-        }
-      }
-      // 命中时效词但没有本轮证据：显式告知「本轮没检索到新的」，避免模型拿旧料充数
-      if (isRealtimeQuery && !internalEvidenceContext && !webEvidenceContext) {
-        internalEvidenceContext = `<stale_evidence_note>\n用户问的是有时效性的内容（最新/最近/今天等），但本轮没有检索到新资料，也没有可复用的上一轮结果。请直接说明「本轮没有检索到最新资料」，不要凭记忆或旧印象作答。\n</stale_evidence_note>`;
-        groundingEvidenceRefs = [];
-      }
-
-      // 搜索状态兜底：用户开启了联网搜索但当前轮搜索失败/无结果，且没有上一轮结果可复用时，
-      // 把失败状态注入 webEvidenceContext，让模型知道搜索未能完成并据实告知用户，
-      // 而不是因为上下文为空就回答"我没有访问实时数据的能力"。
-      if (enableSearch && !webEvidenceContext) {
-        let searchStatusReason = '搜索未能完成';
-        if (webSearchResult?.disabled) {
-          searchStatusReason = '联网搜索未配置（Tavily Key 缺失）';
-        } else if (webSearchResult?.ok && searchResultCount === 0) {
-          searchStatusReason = '未找到相关搜索结果';
-        } else if (!webSearchResult?.ok) {
-          const failMsg = String(webSearchResult?.message || '').trim();
-          searchStatusReason = failMsg || '搜索服务暂时不可用';
-        }
-        webEvidenceContext = `<web_search_status>\n用户已开启联网搜索，但${searchStatusReason}。请在回答开头用一句话简要告知用户搜索未能完成及原因，再基于你已有的知识尽力回答用户问题；不要说"我没有访问实时数据的能力"这类话。\n</web_search_status>`;
-      }
+      const evidenceState = resolveCrossTurnEvidence({
+        internalEvidenceContext,
+        webEvidenceContext,
+        groundingEvidenceRefs,
+        searchResultCount,
+        webSearchVerified,
+        routingQueryText,
+        historyMessagesForCurrentTurn,
+        enableSearch,
+        webSearchResult,
+      });
+      internalEvidenceContext = evidenceState.internalEvidenceContext;
+      webEvidenceContext = evidenceState.webEvidenceContext;
+      groundingEvidenceRefs = evidenceState.groundingEvidenceRefs;
+      searchResultCount = evidenceState.searchResultCount;
+      webSearchVerified = evidenceState.webSearchVerified;
 
       // C2+C5 fix: 共享 8000 字预算 + URL 去重
       const evidenceUrls = Array.isArray(groundingEvidenceRefs)
