@@ -143,6 +143,9 @@ import { runRetrievalStage } from '../engine/stages/retrieval';
 import { buildSystemPromptSections } from '../engine/stages/system-prompt';
 import { buildGroundingGuards } from '../engine/stages/grounding-guard';
 import { buildRequestBody } from '../engine/stages/request-body';
+// plans/025 v2 · Step 5-3：后处理两段（退化流修复 / 回答定稿）已抽成 stage
+import { runDegenerateRepair } from '../engine/stages/degenerate-repair';
+import { finalizeAssistantReply } from '../engine/stages/finalize-reply';
 
 const dispatchGlobalNavStatus = (payload = {}) => {
   if (typeof window === 'undefined') return;
@@ -1922,137 +1925,75 @@ export function useChatEngine() {
       }
 
       if (shouldRepairDegenerateStream) {
-        const retryPrompt = appendPromptSection(
-          finalPrompt,
-          `\n<constraints>
-- 禁止输出连续重复标点或无意义字符（如 !!!!!、?????、-----）。
-- 输出必须是正常中文句子，结构清晰，不要输出长串符号。
-- 若信息不足，请直接说明"我暂时无法确认"，不要输出占位符。
-</constraints>`,
-          MAX_FINAL_PROMPT_CHARS,
+        // Step 5-3：退化流修复（严格重试一次 + 依据护栏 + 洗断言）已抽成 engine/stages/degenerate-repair.ts
+        await runDegenerateRepair(
+          {
+            appendPromptSection,
+            callModelInternal,
+            filterThinkingContent,
+            cleanAssistantVisibleReply,
+            isDegenerateAssistantReply,
+            ensureGroundedReply,
+            sanitizeCommunityEvidenceClaims,
+            updateContent,
+            scrollToBottom,
+            captureMemoryFromConversation,
+          },
+          {
+            finalPrompt,
+            maxFinalPromptChars: MAX_FINAL_PROMPT_CHARS,
+            generationModelId: generationModel.id,
+            systemPromptContent,
+            recentMessages,
+            requestController,
+            generationProfile,
+            sessionIndex,
+            userText,
+          },
         );
-
-        const retryReply = await callModelInternal(
-          generationModel.id,
-          retryPrompt,
-          systemPromptContent,
-          recentMessages,
-          requestController.signal,
-          0,
-          generationProfile,
-        );
-        const retryFiltered = filterThinkingContent(retryReply);
-
-        const repairedContent =
-          !isDegenerateAssistantReply(retryFiltered) && String(retryFiltered || '').trim()
-            ? retryFiltered
-            : '回答出现异常，可以切换到“思考”模式重试。';
-
-        const groundedRepairedContent =
-          cleanAssistantVisibleReply(ensureGroundedReply(repairedContent)) ||
-          '我暂时没有生成到有效内容，请再试一次。';
-        updateContent(sanitizeCommunityEvidenceClaims(groundedRepairedContent));
-        nextTick(scrollToBottom);
-
-        void captureMemoryFromConversation({
-          sessionIndex,
-          userText,
-          assistantText: groundedRepairedContent,
-        });
         return;
       }
 
       // 对完整内容进行二次过滤，确保所有思考内容都被过滤掉
-      let finalFilteredContent = filterThinkingContent(assistantMessage);
-      if (String(finalFilteredContent || '').trim()) {
-        stopThinkingWhenAnswerVisible();
-      }
-
-      if (!cleanAssistantVisibleReply(finalFilteredContent)) {
-        logger.warn(
-          'boh-ai',
-          'Stream completed without visible assistant content, retrying non-stream fallback',
-        );
-        markGenerationProgress('正在补全回答...');
-        try {
-          const fallbackModel = getFallbackModel(generationModel.id);
-          const fallbackReply = await callModelInternal(
-            fallbackModel?.id || generationModel.id,
-            appendPromptSection(
-              finalPrompt,
-              '\n<constraints>\n- 补答：上一轮流式输出没有生成可见正文\n- 直接给出最终回答，不要输出思考过程、检索日志或空内容\n</constraints>',
-              MAX_FINAL_PROMPT_CHARS,
-            ),
-            systemPromptContent,
-            recentMessages,
-            requestController.signal,
-            0,
-            {
-              ...generationProfile,
-              max_tokens: Math.min(Number(generationProfile.max_tokens || 1200), 1200),
-            },
-          );
-          finalFilteredContent = filterThinkingContent(fallbackReply);
-        } catch (fallbackError) {
-          logger.warn('boh-ai', 'Non-stream fallback after empty stream failed', fallbackError);
-        }
-      }
-
-      if (isDegenerateAssistantReply(finalFilteredContent)) {
-        logger.warn('boh-ai', 'Detected degenerate output, retrying once with strict settings');
-        markGenerationProgress('生成内容异常，正在自动重试...');
-        appendProgressContent('回答异常，正在自动重试...\n\n');
-
-        const retryPrompt = appendPromptSection(
+      // Step 5-3：回答定稿（二次过滤 → 补答 → 退化重试 → 依据护栏 → 洗断言）已抽成 engine/stages/finalize-reply.ts
+      const finalized = await finalizeAssistantReply(
+        {
+          filterThinkingContent,
+          cleanAssistantVisibleReply,
+          isDegenerateAssistantReply,
+          ensureGroundedReply,
+          sanitizeCommunityEvidenceClaims,
+          callModelInternal,
+          getFallbackModel,
+          appendPromptSection,
+          markGenerationProgress,
+          appendProgressContent,
+          stopThinkingWhenAnswerVisible,
+        },
+        {
+          assistantMessage,
+          lastVisibleStreamContent,
           finalPrompt,
-          `\n<constraints>
-- 禁止输出连续重复标点或无意义字符（如 !!!!!、?????、-----）。
-- 若信息不足，请直接说明"我暂时无法确认"，不要输出占位符。
-</constraints>`,
-          MAX_FINAL_PROMPT_CHARS,
-        );
-
-        const retryReply = await callModelInternal(
-          generationModel.id,
-          retryPrompt,
+          maxFinalPromptChars: MAX_FINAL_PROMPT_CHARS,
+          generationModelId: generationModel.id,
           systemPromptContent,
           recentMessages,
-          requestController.signal,
-          0,
+          requestController,
           generationProfile,
-        );
-        const retryFiltered = filterThinkingContent(retryReply);
-
-        if (!isDegenerateAssistantReply(retryFiltered) && String(retryFiltered || '').trim()) {
-          finalFilteredContent = retryFiltered;
-        } else {
-          finalFilteredContent =
-            '抱歉，本轮生成内容异常。你可以切到“思考/专业”模式重试，我也可以继续帮你完成这个问题。';
-        }
-      }
-
-      finalFilteredContent = ensureGroundedReply(finalFilteredContent);
-      finalFilteredContent = cleanAssistantVisibleReply(finalFilteredContent);
-      finalFilteredContent = sanitizeCommunityEvidenceClaims(finalFilteredContent);
-      if (!finalFilteredContent) {
-        finalFilteredContent = lastVisibleStreamContent || CHAT_ERROR_MESSAGES.noValidContent;
-        finalFilteredContent = sanitizeCommunityEvidenceClaims(finalFilteredContent);
-      }
-
-      const typedVisibleContent = cleanAssistantVisibleReply(
-        filterThinkingContent(assistantMessage),
+        },
       );
-      if (finalFilteredContent !== typedVisibleContent) {
-        assistantMessage = finalFilteredContent;
-        updateContent(finalFilteredContent);
+      if (finalized.changed) {
+        assistantMessage = finalized.finalContent;
+        updateContent(finalized.finalContent);
       }
+
       nextTick(scrollToBottom);
 
       // 对话结束后异步尝试“选择性记忆沉淀”，不阻塞主回答流程
       void captureMemoryFromConversation({
         sessionIndex,
         userText,
-        assistantText: finalFilteredContent,
+        assistantText: finalized.finalContent,
       });
     } catch (error) {
       const targetSession = getSessionByIndex(sessionIndex);
