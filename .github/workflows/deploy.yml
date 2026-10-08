@@ -19,8 +19,11 @@ permissions:
 #   Deployment request failed for <sha> due to in progress deployment
 # 那一步挂掉时 Lint / Build 都是绿的 —— 看起来像「构建失败」，其实是部署撞车。
 # cancel-in-progress: false = 后来的排队等前一次跑完（不取消，避免把正在发布的产物撤掉）。
+# ⚠️ 2026-10-08 组名从 `pages` 改为 `pages-deploy-v2`：旧组名被 GitHub 侧的僵尸持有
+#    （任何用该组的新 run 都零 job 永久 pending，撤/重触发均无效；API 查不到持有者。
+#    用一次性 probe workflow 复现实锤）。组名只是个串行化标记，换名即绕开。
 concurrency:
-  group: pages
+  group: pages-deploy-v2
   cancel-in-progress: false
 
 jobs:
