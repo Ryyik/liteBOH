@@ -304,7 +304,9 @@ const loadConfig = async () => {
     const data = await getAiQuotaAdminConfig();
     modes.value = data.modes.map((row) => ({
       ...row,
-      quota_multiplier: Number(row.quota_multiplier || 1),
+      // ⚠️ 必须用 `??` 不能用 `||`：0 是合法值（免费模型）。用 `||` 会把 0 抬成 1，
+      // 于是「打开面板 → 保存」这一步就把免费模型悄悄改回 1x（saveConfig 会把 modes 全量写回）。
+      quota_multiplier: Number(row.quota_multiplier ?? 1),
     }));
     tiers.value = data.tiers.map((row) => ({
       ...row,

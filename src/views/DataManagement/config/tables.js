@@ -29,7 +29,7 @@ import {
   BIRTHDAY_WISH_STATUS_OPTIONS,
   FORUM_POST_TAG_OPTIONS,
   BOOLEAN_DISPLAY_OPTIONS,
-  POST_REWARD_STATUS_OPTIONS
+  POST_REWARD_STATUS_OPTIONS,
 } from './fields.js';
 import { parseActivityDate } from '../../../utils/activity-date';
 
@@ -37,8 +37,12 @@ export const PRODUCTS_CACHE_KEY = 'boh_products_cache_v1';
 
 export const invalidateProductsCache = () => {
   try {
-    [PRODUCTS_CACHE_KEY, 'boh_products_cache_v2', 'boh_products_cache_v3', 'boh_products_cache_v4']
-      .forEach((key) => localStorage.removeItem(key));
+    [
+      PRODUCTS_CACHE_KEY,
+      'boh_products_cache_v2',
+      'boh_products_cache_v3',
+      'boh_products_cache_v4',
+    ].forEach((key) => localStorage.removeItem(key));
   } catch (error) {
     logger.warn('DataConfig', '清理商品缓存失败:', error);
   }
@@ -47,13 +51,13 @@ export const invalidateProductsCache = () => {
 // 封禁状态选项
 const BAN_STATUS_OPTIONS = [
   { value: false, label: '正常' },
-  { value: true, label: '已封禁' }
+  { value: true, label: '已封禁' },
 ];
 
 // 禁言状态选项
 const MUTE_STATUS_OPTIONS = [
   { value: false, label: '正常' },
-  { value: true, label: '已禁言' }
+  { value: true, label: '已禁言' },
 ];
 
 export const dataConfig = {
@@ -67,12 +71,33 @@ export const dataConfig = {
       { key: 'is_banned', label: '封禁', type: 'badge' },
       { key: 'is_muted', label: '禁言', type: 'badge' },
       { key: 'points', label: '积分', type: 'number' },
-      { key: 'join_date', label: '注册时间', type: 'date' }
+      { key: 'join_date', label: '注册时间', type: 'date' },
     ],
     fields: [
-      { key: 'id', label: '用户ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
-      { key: 'username', label: '用户名', type: 'text', required: true, maxLength: 32, group: 'basic' },
-      { key: 'email', label: '邮箱', type: 'email', disabled: true, hint: '邮箱由认证服务持有（profiles 表无此列），后台只读；变更请走账号绑定流程。', group: 'basic' },
+      {
+        key: 'id',
+        label: '用户ID',
+        type: 'text',
+        disabled: true,
+        hint: 'UUID 主键由系统生成，不可手动修改。',
+        group: 'basic',
+      },
+      {
+        key: 'username',
+        label: '用户名',
+        type: 'text',
+        required: true,
+        maxLength: 32,
+        group: 'basic',
+      },
+      {
+        key: 'email',
+        label: '邮箱',
+        type: 'email',
+        disabled: true,
+        hint: '邮箱由认证服务持有（profiles 表无此列），后台只读；变更请走账号绑定流程。',
+        group: 'basic',
+      },
       { key: 'role', label: '角色', type: 'select', options: USER_ROLE_OPTIONS, group: 'basic' },
       { key: 'points', label: '积分', type: 'number', min: 0, group: 'stats' },
       { key: 'experience', label: '经验值', type: 'number', min: 0, group: 'stats' },
@@ -81,45 +106,135 @@ export const dataConfig = {
       { key: 'avatar_url', label: '头像URL', type: 'text', group: 'extra' },
       { key: 'tags', label: '标签', type: 'tags', group: 'extra' },
       // 生日信息
-      { key: 'birth_month', label: '生日月份', type: 'number', min: 1, max: 12, placeholder: '1-12', group: 'extra' },
-      { key: 'birth_day', label: '生日日期', type: 'number', min: 1, max: 31, placeholder: '1-31', group: 'extra' },
+      {
+        key: 'birth_month',
+        label: '生日月份',
+        type: 'number',
+        min: 1,
+        max: 12,
+        placeholder: '1-12',
+        group: 'extra',
+      },
+      {
+        key: 'birth_day',
+        label: '生日日期',
+        type: 'number',
+        min: 1,
+        max: 31,
+        placeholder: '1-31',
+        group: 'extra',
+      },
       // 推送通知
-      { key: 'pushplus_enabled', label: 'PushPlus推送', type: 'select', options: [
-        { value: true, label: '已启用' },
-        { value: false, label: '未启用' }
-      ], group: 'extra' },
+      {
+        key: 'pushplus_enabled',
+        label: 'PushPlus推送',
+        type: 'select',
+        options: [
+          { value: true, label: '已启用' },
+          { value: false, label: '未启用' },
+        ],
+        group: 'extra',
+      },
       // 个人主页背景
-      { key: 'profile_background_url', label: '主页背景图', type: 'text', placeholder: '图片URL', group: 'extra' },
-      { key: 'profile_background_public_id', label: '背景图Public ID', type: 'text', disabled: true, group: 'extra' },
+      {
+        key: 'profile_background_url',
+        label: '主页背景图',
+        type: 'text',
+        placeholder: '图片URL',
+        group: 'extra',
+      },
+      {
+        key: 'profile_background_public_id',
+        label: '背景图Public ID',
+        type: 'text',
+        disabled: true,
+        group: 'extra',
+      },
       // 隐私设置
-      { key: 'hide_online_status', label: '隐藏在线状态', type: 'select', options: [
-        { value: true, label: '隐藏' },
-        { value: false, label: '显示' }
-      ], group: 'privacy' },
-      { key: 'hide_follow_data', label: '隐藏关注数据', type: 'select', options: [
-        { value: true, label: '隐藏' },
-        { value: false, label: '显示' }
-      ], group: 'privacy' },
+      {
+        key: 'hide_online_status',
+        label: '隐藏在线状态',
+        type: 'select',
+        options: [
+          { value: true, label: '隐藏' },
+          { value: false, label: '显示' },
+        ],
+        group: 'privacy',
+      },
+      {
+        key: 'hide_follow_data',
+        label: '隐藏关注数据',
+        type: 'select',
+        options: [
+          { value: true, label: '隐藏' },
+          { value: false, label: '显示' },
+        ],
+        group: 'privacy',
+      },
       // 创作者认证
-      { key: 'is_boh_creator', label: 'BOH创作者', type: 'select', options: [
-        { value: true, label: '已认证' },
-        { value: false, label: '未认证' }
-      ], group: 'creator' },
+      {
+        key: 'is_boh_creator',
+        label: 'BOH创作者',
+        type: 'select',
+        options: [
+          { value: true, label: '已认证' },
+          { value: false, label: '未认证' },
+        ],
+        group: 'creator',
+      },
       { key: 'creator_platform_ids', label: '创作者平台ID', type: 'json', group: 'creator' },
       { key: 'creator_platform_visibility', label: '平台可见性', type: 'json', group: 'creator' },
       { key: 'creator_platform_order', label: '平台排序', type: 'json', group: 'creator' },
       { key: 'showcase_post_ids', label: '展示帖ID列表', type: 'json', group: 'creator' },
       // 封禁相关字段
-      { key: 'is_banned', label: '封禁状态', type: 'select', options: BAN_STATUS_OPTIONS, group: 'ban' },
-      { key: 'ban_reason', label: '封禁原因', type: 'textarea', rows: 2, placeholder: '请输入封禁原因', group: 'ban' },
-      { key: 'banned_until', label: '封禁到期', type: 'datetime', hint: '留空表示永久封禁', group: 'ban' },
+      {
+        key: 'is_banned',
+        label: '封禁状态',
+        type: 'select',
+        options: BAN_STATUS_OPTIONS,
+        group: 'ban',
+      },
+      {
+        key: 'ban_reason',
+        label: '封禁原因',
+        type: 'textarea',
+        rows: 2,
+        placeholder: '请输入封禁原因',
+        group: 'ban',
+      },
+      {
+        key: 'banned_until',
+        label: '封禁到期',
+        type: 'datetime',
+        hint: '留空表示永久封禁',
+        group: 'ban',
+      },
       { key: 'banned_at', label: '封禁时间', type: 'datetime', disabled: true, group: 'ban' },
       // 禁言相关字段
-      { key: 'is_muted', label: '禁言状态', type: 'select', options: MUTE_STATUS_OPTIONS, group: 'mute' },
-      { key: 'mute_reason', label: '禁言原因', type: 'textarea', rows: 2, placeholder: '请输入禁言原因', group: 'mute' },
-      { key: 'muted_until', label: '禁言到期', type: 'datetime', hint: '留空表示永久禁言', group: 'mute' },
-      { key: 'muted_at', label: '禁言时间', type: 'datetime', disabled: true, group: 'mute' }
-    ]
+      {
+        key: 'is_muted',
+        label: '禁言状态',
+        type: 'select',
+        options: MUTE_STATUS_OPTIONS,
+        group: 'mute',
+      },
+      {
+        key: 'mute_reason',
+        label: '禁言原因',
+        type: 'textarea',
+        rows: 2,
+        placeholder: '请输入禁言原因',
+        group: 'mute',
+      },
+      {
+        key: 'muted_until',
+        label: '禁言到期',
+        type: 'datetime',
+        hint: '留空表示永久禁言',
+        group: 'mute',
+      },
+      { key: 'muted_at', label: '禁言时间', type: 'datetime', disabled: true, group: 'mute' },
+    ],
   },
   points: {
     table: 'profiles',
@@ -131,16 +246,23 @@ export const dataConfig = {
       { key: 'is_muted', label: '禁言', type: 'badge' },
       { key: 'points', label: '当前积分', type: 'number' },
       { key: 'experience', label: '经验值', type: 'number' },
-      { key: 'join_date', label: '加群时间', type: 'date' }
+      { key: 'join_date', label: '加群时间', type: 'date' },
     ],
     fields: [
-      { key: 'id', label: '用户ID', type: 'text', disabled: true, hint: 'UUID 主键不可编辑。', group: 'basic' },
+      {
+        key: 'id',
+        label: '用户ID',
+        type: 'text',
+        disabled: true,
+        hint: 'UUID 主键不可编辑。',
+        group: 'basic',
+      },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'basic' },
       { key: 'points', label: '当前积分', type: 'number', required: true, min: 0, group: 'stats' },
       { key: 'experience', label: '经验值', type: 'number', min: 0, group: 'stats' },
       { key: 'role', label: '角色', type: 'select', options: USER_ROLE_OPTIONS, group: 'basic' },
-      { key: 'join_date', label: '加群时间', type: 'date', group: 'time' }
-    ]
+      { key: 'join_date', label: '加群时间', type: 'date', group: 'time' },
+    ],
   },
   subscriptions: {
     table: 'user_subscriptions',
@@ -154,23 +276,73 @@ export const dataConfig = {
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'started_at', label: '订阅时间', type: 'datetime' },
       { key: 'expires_at', label: '到期时间', type: 'datetime' },
-      { key: 'points_cost', label: '积分成本', type: 'number' }
+      { key: 'points_cost', label: '积分成本', type: 'number' },
     ],
     fields: [
-      { key: 'id', label: '订阅ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
+      {
+        key: 'id',
+        label: '订阅ID',
+        type: 'text',
+        disabled: true,
+        hint: 'UUID 主键由系统生成，不可手动修改。',
+        group: 'basic',
+      },
       { key: 'user_id', label: '订阅用户', type: 'user-picker', required: true, group: 'user' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
       { key: 'email', label: '邮箱', type: 'text', disabled: true, group: 'user' },
-      { key: 'plan_code', label: '订阅内容', type: 'select', required: true, options: SUBSCRIPTION_PLAN_OPTIONS, group: 'plan' },
-      { key: 'plan_name', label: '订阅名称', type: 'text', required: true, hint: '切换订阅内容后会自动填入，可按需改显示名。', group: 'plan' },
-      { key: 'billing_cycle', label: '订阅周期', type: 'select', required: true, options: SUBSCRIPTION_BILLING_OPTIONS, group: 'plan' },
-      { key: 'points_cost', label: '积分成本', type: 'number', required: true, min: 0, group: 'plan' },
-      { key: 'duration_months', label: '订阅月数', type: 'number', required: true, min: 1, max: 120, group: 'plan' },
+      {
+        key: 'plan_code',
+        label: '订阅内容',
+        type: 'select',
+        required: true,
+        options: SUBSCRIPTION_PLAN_OPTIONS,
+        group: 'plan',
+      },
+      {
+        key: 'plan_name',
+        label: '订阅名称',
+        type: 'text',
+        required: true,
+        hint: '切换订阅内容后会自动填入，可按需改显示名。',
+        group: 'plan',
+      },
+      {
+        key: 'billing_cycle',
+        label: '订阅周期',
+        type: 'select',
+        required: true,
+        options: SUBSCRIPTION_BILLING_OPTIONS,
+        group: 'plan',
+      },
+      {
+        key: 'points_cost',
+        label: '积分成本',
+        type: 'number',
+        required: true,
+        min: 0,
+        group: 'plan',
+      },
+      {
+        key: 'duration_months',
+        label: '订阅月数',
+        type: 'number',
+        required: true,
+        min: 1,
+        max: 120,
+        group: 'plan',
+      },
       { key: 'started_at', label: '订阅时间', type: 'datetime', required: true, group: 'time' },
       { key: 'expires_at', label: '到期时间', type: 'datetime', required: true, group: 'time' },
-      { key: 'status', label: '订阅状态', type: 'select', required: true, options: SUBSCRIPTION_STATUS_OPTIONS, group: 'time' },
-      { key: 'metadata', label: '附加信息', type: 'json', group: 'extra' }
-    ]
+      {
+        key: 'status',
+        label: '订阅状态',
+        type: 'select',
+        required: true,
+        options: SUBSCRIPTION_STATUS_OPTIONS,
+        group: 'time',
+      },
+      { key: 'metadata', label: '附加信息', type: 'json', group: 'extra' },
+    ],
   },
   gifts: {
     table: 'user_gifts',
@@ -185,34 +357,75 @@ export const dataConfig = {
       { key: 'gift_price', label: '礼物金额', type: 'price' },
       { key: 'gift_points', label: '消耗积分', type: 'number' },
       { key: 'created_at', label: '创建时间', type: 'datetime' },
-      { key: 'completed_at', label: '完成日期', type: 'datetime' }
+      { key: 'completed_at', label: '完成日期', type: 'datetime' },
     ],
     fields: [
       { key: 'id', label: '礼物ID', type: 'text', disabled: true, group: 'detail' },
       { key: 'user_id', label: '用户', type: 'user-picker', required: true, group: 'user' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
-      { key: 'address_id', label: '收货地址', type: 'address-picker', hint: '选择该用户的一个收货地址；若不选择则使用默认地址', group: 'user' },
+      {
+        key: 'address_id',
+        label: '收货地址',
+        type: 'address-picker',
+        hint: '选择该用户的一个收货地址；若不选择则使用默认地址',
+        group: 'user',
+      },
       { key: 'shipping_recipient', label: '收件人', type: 'text', disabled: true, group: 'user' },
       { key: 'shipping_phone', label: '联系电话', type: 'text', disabled: true, group: 'user' },
-      { key: 'shipping_address', label: '收货地址', type: 'textarea', disabled: true, group: 'user' },
       {
-        key: 'gift_status', label: '礼物状态', type: 'select', options: [
+        key: 'shipping_address',
+        label: '收货地址',
+        type: 'textarea',
+        disabled: true,
+        group: 'user',
+      },
+      {
+        key: 'gift_status',
+        label: '礼物状态',
+        type: 'select',
+        options: [
           { value: 'preparing', label: '准备中' },
           { value: 'processing', label: '处理中' },
           { value: 'shipped', label: '已发货' },
-          { value: 'completed', label: '已完成' }
-        ], group: 'time'
+          { value: 'completed', label: '已完成' },
+        ],
+        group: 'time',
       },
-      { key: 'gift_content', label: '礼物内容', type: 'product-picker', hint: '可从商城商品中选择，或直接手动填写礼物名称。选择商品后会自动填充名称、图片和金额。', group: 'detail' },
+      {
+        key: 'gift_content',
+        label: '礼物内容',
+        type: 'product-picker',
+        hint: '可从商城商品中选择，或直接手动填写礼物名称。选择商品后会自动填充名称、图片和金额。',
+        group: 'detail',
+      },
       { key: 'gift_no', label: '快递单号', type: 'text', group: 'detail' },
       { key: 'gift_price', label: '礼物金额', type: 'number', group: 'detail' },
-      { key: 'gift_points', label: '消耗积分', type: 'number', min: 0, hint: '该礼物对应的积分消耗（如有）。', group: 'detail' },
+      {
+        key: 'gift_points',
+        label: '消耗积分',
+        type: 'number',
+        min: 0,
+        hint: '该礼物对应的积分消耗（如有）。',
+        group: 'detail',
+      },
       { key: 'gift_image', label: '礼物图片', type: 'text', group: 'detail' },
-      { key: 'is_active', label: '是否当前礼物', type: 'select', options: [
-        { value: true, label: '当前礼物' },
-        { value: false, label: '历史礼物' }
-      ], group: 'time' },
-      { key: 'completed_at', label: '完成日期', type: 'datetime', placeholder: '可自定义完成日期', group: 'time' }
+      {
+        key: 'is_active',
+        label: '是否当前礼物',
+        type: 'select',
+        options: [
+          { value: true, label: '当前礼物' },
+          { value: false, label: '历史礼物' },
+        ],
+        group: 'time',
+      },
+      {
+        key: 'completed_at',
+        label: '完成日期',
+        type: 'datetime',
+        placeholder: '可自定义完成日期',
+        group: 'time',
+      },
     ],
     cardView: {
       imageKey: 'gift_image',
@@ -225,20 +438,20 @@ export const dataConfig = {
         preparing: { label: '准备中', tone: 'muted' },
         processing: { label: '处理中', tone: 'info' },
         shipped: { label: '已发货', tone: 'warning' },
-        completed: { label: '已完成', tone: 'success' }
+        completed: { label: '已完成', tone: 'success' },
       },
       stats: [
         { label: '类型', key: 'gift_scope_label' },
         { label: '金额', key: 'gift_price', format: 'price' },
-        { label: '快递单号', key: 'gift_no' }
+        { label: '快递单号', key: 'gift_no' },
       ],
       meta: [
         { label: '收件人', key: 'shipping_recipient' },
         { label: '联系电话', key: 'shipping_phone' },
         { label: '收货地址', key: 'shipping_address' },
-        { label: '完成日期', key: 'completed_at', format: 'datetime' }
-      ]
-    }
+        { label: '完成日期', key: 'completed_at', format: 'datetime' },
+      ],
+    },
   },
   addresses: {
     table: 'user_addresses',
@@ -249,7 +462,7 @@ export const dataConfig = {
       { key: 'detail', label: '详细地址', maxLength: 28 },
       { key: 'tag', label: '标签', type: 'badge' },
       { key: 'is_default', label: '默认', type: 'badge' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
       { key: 'id', label: '地址ID', type: 'text', disabled: true, group: 'basic' },
@@ -257,18 +470,43 @@ export const dataConfig = {
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
       { key: 'recipient', label: '收件人', type: 'text', required: true, group: 'basic' },
       { key: 'phone', label: '联系电话', type: 'text', required: true, group: 'basic' },
-      { key: 'region', label: '地区', type: 'text', placeholder: '如：广东省深圳市', group: 'detail' },
-      { key: 'detail', label: '详细地址', type: 'textarea', required: true, rows: 2, group: 'detail' },
-      { key: 'tag', label: '标签', type: 'select', options: [
-        { value: '', label: '无' },
-        { value: 'home', label: '家' },
-        { value: 'company', label: '公司' },
-        { value: 'school', label: '学校' }
-      ], group: 'detail' },
-      { key: 'is_default', label: '默认地址', type: 'select', options: [
-        { value: true, label: '默认' },
-        { value: false, label: '非默认' }
-      ], group: 'detail' }
+      {
+        key: 'region',
+        label: '地区',
+        type: 'text',
+        placeholder: '如：广东省深圳市',
+        group: 'detail',
+      },
+      {
+        key: 'detail',
+        label: '详细地址',
+        type: 'textarea',
+        required: true,
+        rows: 2,
+        group: 'detail',
+      },
+      {
+        key: 'tag',
+        label: '标签',
+        type: 'select',
+        options: [
+          { value: '', label: '无' },
+          { value: 'home', label: '家' },
+          { value: 'company', label: '公司' },
+          { value: 'school', label: '学校' },
+        ],
+        group: 'detail',
+      },
+      {
+        key: 'is_default',
+        label: '默认地址',
+        type: 'select',
+        options: [
+          { value: true, label: '默认' },
+          { value: false, label: '非默认' },
+        ],
+        group: 'detail',
+      },
     ],
     cardView: {
       placeholderIcon: '📍',
@@ -278,17 +516,21 @@ export const dataConfig = {
       statusKey: 'is_default',
       statusMeta: {
         true: { label: '默认', tone: 'success' },
-        false: { label: '', tone: 'muted' }
+        false: { label: '', tone: 'muted' },
       },
       stats: [
-        { label: '标签', key: 'tag', values: { home: '家', company: '公司', school: '学校', '': '无' } },
-        { label: '地区', key: 'region' }
+        {
+          label: '标签',
+          key: 'tag',
+          values: { home: '家', company: '公司', school: '学校', '': '无' },
+        },
+        { label: '地区', key: 'region' },
       ],
       meta: [
         { label: '联系电话', key: 'phone', copyable: true },
-        { label: '详细地址', key: 'detail', copyable: true, copyText: 'fullAddress' }
-      ]
-    }
+        { label: '详细地址', key: 'detail', copyable: true, copyText: 'fullAddress' },
+      ],
+    },
   },
   posterRequests: {
     table: 'poster_requests',
@@ -299,7 +541,7 @@ export const dataConfig = {
       { key: 'address', label: '收货地址', maxLength: 28 },
       { key: 'material_fee', label: '物料费', type: 'price' },
       { key: 'status', label: '状态', type: 'badge' },
-      { key: 'created_at', label: '申请时间', type: 'datetime' }
+      { key: 'created_at', label: '申请时间', type: 'datetime' },
     ],
     fields: [
       { key: 'id', label: '申请ID', type: 'text', disabled: true, group: 'detail' },
@@ -308,17 +550,28 @@ export const dataConfig = {
       { key: 'recipient', label: '收件人', type: 'text', disabled: true, group: 'detail' },
       { key: 'phone', label: '联系电话', type: 'text', disabled: true, group: 'detail' },
       { key: 'address', label: '收货地址', type: 'textarea', disabled: true, group: 'detail' },
-      { key: 'material_fee', label: '物料费 (RMB)', type: 'number', disabled: true, min: 0, group: 'detail' },
+      {
+        key: 'material_fee',
+        label: '物料费 (RMB)',
+        type: 'number',
+        disabled: true,
+        min: 0,
+        group: 'detail',
+      },
       { key: 'campaign_code', label: '活动代号', type: 'text', disabled: true, group: 'detail' },
       {
-        key: 'status', label: '申请状态', type: 'select', options: [
+        key: 'status',
+        label: '申请状态',
+        type: 'select',
+        options: [
           { value: 'pending', label: '已收到申请' },
           { value: 'processing', label: '处理中' },
           { value: 'shipped', label: '已寄出' },
-          { value: 'completed', label: '已送达' }
-        ], group: 'time'
+          { value: 'completed', label: '已送达' },
+        ],
+        group: 'time',
       },
-      { key: 'created_at', label: '申请时间', type: 'datetime', disabled: true, group: 'time' }
+      { key: 'created_at', label: '申请时间', type: 'datetime', disabled: true, group: 'time' },
     ],
     cardView: {
       placeholderIcon: '🖼️',
@@ -330,19 +583,19 @@ export const dataConfig = {
         pending: { label: '已收到', tone: 'muted' },
         processing: { label: '处理中', tone: 'info' },
         shipped: { label: '已寄出', tone: 'warning' },
-        completed: { label: '已送达', tone: 'success' }
+        completed: { label: '已送达', tone: 'success' },
       },
       stats: [
         { label: '物料费', key: 'material_fee', format: 'price' },
-        { label: '活动代号', key: 'campaign_code' }
+        { label: '活动代号', key: 'campaign_code' },
       ],
       meta: [
         { label: '收件人', key: 'recipient' },
         { label: '联系电话', key: 'phone' },
         { label: '收货地址', key: 'address' },
-        { label: '申请时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '申请时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   forum: {
     table: 'posts',
@@ -355,18 +608,57 @@ export const dataConfig = {
       { key: 'like_count', label: '点赞', type: 'number' },
       { key: 'comment_count', label: '评论', type: 'number' },
       { key: 'image_count', label: '图片', type: 'number' },
-      { key: 'created_at', label: '发布时间', type: 'date' }
+      { key: 'created_at', label: '发布时间', type: 'date' },
     ],
     fields: [
       { key: 'id', label: '帖子ID', type: 'text', disabled: true, group: 'meta' },
       { key: 'title', label: '标题', type: 'text', required: true, group: 'content' },
-      { key: 'content', label: '正文', type: 'textarea', required: true, rows: 8, placeholder: '仅填写正文，保存时会自动组合标题。', group: 'content' },
-      { key: 'tag', label: '帖子标签', type: 'select', options: FORUM_POST_TAG_OPTIONS, hint: '帖子分类标签。', group: 'content' },
-      { key: 'cover_image_url', label: '封面图', type: 'image', placeholder: '可粘贴图片链接', group: 'content' },
-      { key: 'location_name', label: '位置名称', type: 'text', placeholder: '如：广东省深圳市', group: 'content' },
-      { key: 'author_id', label: '作者ID', type: 'text', placeholder: 'UUID，可留空', group: 'meta' },
+      {
+        key: 'content',
+        label: '正文',
+        type: 'textarea',
+        required: true,
+        rows: 8,
+        placeholder: '仅填写正文，保存时会自动组合标题。',
+        group: 'content',
+      },
+      {
+        key: 'tag',
+        label: '帖子标签',
+        type: 'select',
+        options: FORUM_POST_TAG_OPTIONS,
+        hint: '帖子分类标签。',
+        group: 'content',
+      },
+      {
+        key: 'cover_image_url',
+        label: '封面图',
+        type: 'image',
+        placeholder: '可粘贴图片链接',
+        group: 'content',
+      },
+      {
+        key: 'location_name',
+        label: '位置名称',
+        type: 'text',
+        placeholder: '如：广东省深圳市',
+        group: 'content',
+      },
+      {
+        key: 'author_id',
+        label: '作者ID',
+        type: 'text',
+        placeholder: 'UUID，可留空',
+        group: 'meta',
+      },
       { key: 'author_username', label: '作者用户名', type: 'text', group: 'meta' },
-      { key: 'status', label: '帖子状态', type: 'select', options: FORUM_STATUS_OPTIONS, group: 'meta' }
+      {
+        key: 'status',
+        label: '帖子状态',
+        type: 'select',
+        options: FORUM_STATUS_OPTIONS,
+        group: 'meta',
+      },
     ],
     cardView: {
       imageKey: 'cover_image_url',
@@ -379,19 +671,30 @@ export const dataConfig = {
         approved: { label: '已通过', tone: 'success' },
         pending: { label: '待审核', tone: 'warning' },
         rejected: { label: '已拒绝', tone: 'error' },
-        deleted: { label: '已删除', tone: 'muted' }
+        deleted: { label: '已删除', tone: 'muted' },
       },
       stats: [
-        { label: '标签', key: 'tag', values: { share: '分享', question: '提问', discussion: '讨论', guide: '教程', news: '资讯', '': '无' } },
+        {
+          label: '标签',
+          key: 'tag',
+          values: {
+            share: '分享',
+            question: '提问',
+            discussion: '讨论',
+            guide: '教程',
+            news: '资讯',
+            '': '无',
+          },
+        },
         { label: '点赞', key: 'like_count' },
         { label: '评论', key: 'comment_count' },
-        { label: '图片', key: 'image_count' }
+        { label: '图片', key: 'image_count' },
       ],
       meta: [
         { label: '位置', key: 'location_name' },
-        { label: '发布时间', key: 'created_at', format: 'date' }
-      ]
-    }
+        { label: '发布时间', key: 'created_at', format: 'date' },
+      ],
+    },
   },
   ads: {
     table: 'advertisements',
@@ -403,35 +706,126 @@ export const dataConfig = {
       { key: 'feed_interval', label: '间隔', type: 'number' },
       { key: 'clicks', label: '点击', type: 'number' },
       { key: 'image_url', label: '图片', type: 'image' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: '广告ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
-      { key: 'title', label: '广告名称', type: 'text', required: true, maxLength: 120, placeholder: '例如：BOH 订阅计划推广', group: 'basic' },
-      { key: 'placement', label: '广告位', type: 'select', required: true, options: [
-        { value: 'list_feed', label: '列表信息流' },
-        { value: 'top_banner', label: '顶部横幅' },
-        { value: 'bottom_banner', label: '底部横幅' },
-        { value: 'detail_between', label: '详情信息流' },
-        { value: 'sidebar', label: '侧边栏' }
-      ], hint: '当前已落地"列表信息流"，其余广告位为预留。', group: 'basic' },
-      { key: 'status', label: '状态', type: 'select', required: true, options: [
-        { value: 'active', label: '启用' },
-        { value: 'inactive', label: '停用' }
-      ], group: 'basic' },
-      { key: 'image_url', label: '广告图片', type: 'image', hint: '卡片高度固定时图片按居中裁切填充，不再撑高卡片；建议用 16:9 或帖子同宽的横向图。', group: 'creative' },
-      { key: 'card_size', label: '卡片高度', type: 'select', options: [
-        { value: 'post', label: '帖子大小（推荐）' },
-        { value: 'auto', label: '自适应（跟随图片比例）' },
-        { value: 'custom', label: '自定义像素' }
-      ], hint: '默认「帖子大小」：广告卡片与帖子卡片同高，横屏 520px、竖屏 400px 自动切换。', group: 'creative' },
-      { key: 'card_height_landscape', label: '自定义高度 · 横屏（px）', type: 'number', min: 0, max: 1200, visibleWhen: (item) => item.card_size === 'custom', hint: '默认 520（≈ 桌面端帖子卡片高度）；填 0 表示沿用「帖子大小」档。', group: 'creative' },
-      { key: 'card_height_portrait', label: '自定义高度 · 竖屏（px）', type: 'number', min: 0, max: 1200, visibleWhen: (item) => item.card_size === 'custom', hint: '默认 400（≈ 手机端帖子卡片高度）；填 0 表示沿用「帖子大小」档。', group: 'creative' },
-      { key: 'link_url', label: '跳转链接', type: 'text', placeholder: '例如：/user-space/subscriptions', hint: '点击广告后跳转的地址，可填完整 URL 或站内路径。', group: 'creative' },
-      { key: 'sort_order', label: '排序', type: 'number', min: 0, required: true, hint: '同广告位内展示顺序，越小越靠前。', group: 'target' },
-      { key: 'feed_interval', label: '信息流间隔', type: 'number', min: 2, required: true, hint: '列表信息流中每隔多少条帖子插入一条广告，最小 2。', group: 'target' },
-      { key: 'clicks', label: '点击量', type: 'number', disabled: true, hint: '由前端点击自动累计，仅用于统计。', group: 'stats' },
-      { key: 'created_at', label: '创建时间', type: 'datetime', disabled: true, group: 'stats' }
+      {
+        key: 'id',
+        label: '广告ID',
+        type: 'text',
+        disabled: true,
+        hint: 'UUID 主键由系统生成，不可手动修改。',
+        group: 'basic',
+      },
+      {
+        key: 'title',
+        label: '广告名称',
+        type: 'text',
+        required: true,
+        maxLength: 120,
+        placeholder: '例如：BOH 订阅计划推广',
+        group: 'basic',
+      },
+      {
+        key: 'placement',
+        label: '广告位',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'list_feed', label: '列表信息流' },
+          { value: 'top_banner', label: '顶部横幅' },
+          { value: 'bottom_banner', label: '底部横幅' },
+          { value: 'detail_between', label: '详情信息流' },
+          { value: 'sidebar', label: '侧边栏' },
+        ],
+        hint: '当前已落地"列表信息流"，其余广告位为预留。',
+        group: 'basic',
+      },
+      {
+        key: 'status',
+        label: '状态',
+        type: 'select',
+        required: true,
+        options: [
+          { value: 'active', label: '启用' },
+          { value: 'inactive', label: '停用' },
+        ],
+        group: 'basic',
+      },
+      {
+        key: 'image_url',
+        label: '广告图片',
+        type: 'image',
+        hint: '卡片高度固定时图片按居中裁切填充，不再撑高卡片；建议用 16:9 或帖子同宽的横向图。',
+        group: 'creative',
+      },
+      {
+        key: 'card_size',
+        label: '卡片高度',
+        type: 'select',
+        options: [
+          { value: 'post', label: '帖子大小（推荐）' },
+          { value: 'auto', label: '自适应（跟随图片比例）' },
+          { value: 'custom', label: '自定义像素' },
+        ],
+        hint: '默认「帖子大小」：广告卡片与帖子卡片同高，横屏 520px、竖屏 400px 自动切换。',
+        group: 'creative',
+      },
+      {
+        key: 'card_height_landscape',
+        label: '自定义高度 · 横屏（px）',
+        type: 'number',
+        min: 0,
+        max: 1200,
+        visibleWhen: (item) => item.card_size === 'custom',
+        hint: '默认 520（≈ 桌面端帖子卡片高度）；填 0 表示沿用「帖子大小」档。',
+        group: 'creative',
+      },
+      {
+        key: 'card_height_portrait',
+        label: '自定义高度 · 竖屏（px）',
+        type: 'number',
+        min: 0,
+        max: 1200,
+        visibleWhen: (item) => item.card_size === 'custom',
+        hint: '默认 400（≈ 手机端帖子卡片高度）；填 0 表示沿用「帖子大小」档。',
+        group: 'creative',
+      },
+      {
+        key: 'link_url',
+        label: '跳转链接',
+        type: 'text',
+        placeholder: '例如：/user-space/subscriptions',
+        hint: '点击广告后跳转的地址，可填完整 URL 或站内路径。',
+        group: 'creative',
+      },
+      {
+        key: 'sort_order',
+        label: '排序',
+        type: 'number',
+        min: 0,
+        required: true,
+        hint: '同广告位内展示顺序，越小越靠前。',
+        group: 'target',
+      },
+      {
+        key: 'feed_interval',
+        label: '信息流间隔',
+        type: 'number',
+        min: 2,
+        required: true,
+        hint: '列表信息流中每隔多少条帖子插入一条广告，最小 2。',
+        group: 'target',
+      },
+      {
+        key: 'clicks',
+        label: '点击量',
+        type: 'number',
+        disabled: true,
+        hint: '由前端点击自动累计，仅用于统计。',
+        group: 'stats',
+      },
+      { key: 'created_at', label: '创建时间', type: 'datetime', disabled: true, group: 'stats' },
     ],
     cardView: {
       imageKey: 'image_url',
@@ -442,23 +836,34 @@ export const dataConfig = {
       statusKey: 'status',
       statusMeta: {
         active: { label: '启用', tone: 'success' },
-        inactive: { label: '停用', tone: 'muted' }
+        inactive: { label: '停用', tone: 'muted' },
       },
       stats: [
-        { label: '广告位', key: 'placement', values: {
-          list_feed: '列表信息流', top_banner: '顶部横幅', bottom_banner: '底部横幅',
-          detail_between: '详情信息流', sidebar: '侧边栏'
-        } },
+        {
+          label: '广告位',
+          key: 'placement',
+          values: {
+            list_feed: '列表信息流',
+            top_banner: '顶部横幅',
+            bottom_banner: '底部横幅',
+            detail_between: '详情信息流',
+            sidebar: '侧边栏',
+          },
+        },
         { label: '排序', key: 'sort_order' },
         { label: '间隔', key: 'feed_interval' },
-        { label: '高度', key: 'card_size', values: { post: '帖子大小', auto: '自适应', custom: '自定义' } },
-        { label: '点击', key: 'clicks' }
+        {
+          label: '高度',
+          key: 'card_size',
+          values: { post: '帖子大小', auto: '自适应', custom: '自定义' },
+        },
+        { label: '点击', key: 'clicks' },
       ],
       meta: [
         { label: '跳转链接', key: 'link_url', copyable: true },
-        { label: '创建时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '创建时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   reviewPosts: {
     table: 'posts',
@@ -467,7 +872,7 @@ export const dataConfig = {
       { key: 'author_username', label: '作者' },
       { key: 'content', label: '内容', maxLength: 48 },
       { key: 'status', label: '状态', type: 'badge' },
-      { key: 'created_at', label: '发布时间', type: 'date' }
+      { key: 'created_at', label: '发布时间', type: 'date' },
     ],
     fields: [],
     kanban: {
@@ -475,9 +880,9 @@ export const dataConfig = {
       statusMeta: {
         approved: { label: '已通过', tone: 'success' },
         limited: { label: '仅作者可见', tone: 'warning' },
-        rejected: { label: '已拒绝', tone: 'danger' }
-      }
-    }
+        rejected: { label: '已拒绝', tone: 'danger' },
+      },
+    },
   },
   reportedPosts: {
     table: 'posts',
@@ -490,7 +895,7 @@ export const dataConfig = {
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'latest_report_at', label: '最近举报', type: 'datetime' },
       { key: 'created_at', label: '发布时间', type: 'date' },
-      { key: 'content', label: '内容', maxLength: 48 }
+      { key: 'content', label: '内容', maxLength: 48 },
     ],
     fields: [],
     kanban: {
@@ -498,9 +903,9 @@ export const dataConfig = {
       statusMeta: {
         approved: { label: '已通过', tone: 'success' },
         limited: { label: '仅作者可见', tone: 'warning' },
-        rejected: { label: '已拒绝', tone: 'danger' }
-      }
-    }
+        rejected: { label: '已拒绝', tone: 'danger' },
+      },
+    },
   },
   reviewComments: {
     table: 'comments',
@@ -510,7 +915,7 @@ export const dataConfig = {
       { key: 'author_username', label: '作者' },
       { key: 'content', label: '内容', maxLength: 48 },
       { key: 'status', label: '状态', type: 'badge' },
-      { key: 'created_at', label: '发布时间', type: 'date' }
+      { key: 'created_at', label: '发布时间', type: 'date' },
     ],
     fields: [],
     kanban: {
@@ -518,9 +923,9 @@ export const dataConfig = {
       statusMeta: {
         approved: { label: '已通过', tone: 'success' },
         limited: { label: '仅作者可见', tone: 'warning' },
-        rejected: { label: '已拒绝', tone: 'danger' }
-      }
-    }
+        rejected: { label: '已拒绝', tone: 'danger' },
+      },
+    },
   },
   coreMemories: {
     table: 'boh_ai_core_memories',
@@ -531,7 +936,7 @@ export const dataConfig = {
       { key: 'priority', label: '优先级', type: 'number' },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'updated_at', label: '更新时间', type: 'datetime' },
-      { key: 'content', label: '内容', maxLength: 60 }
+      { key: 'content', label: '内容', maxLength: 60 },
     ],
     cardView: {
       placeholderIcon: '📚',
@@ -542,26 +947,89 @@ export const dataConfig = {
       statusMeta: {
         active: { label: '启用', tone: 'success' },
         draft: { label: '草稿', tone: 'warning' },
-        archived: { label: '归档', tone: 'muted' }
+        archived: { label: '归档', tone: 'muted' },
       },
-      stats: [
-        { label: '优先级', key: 'priority' }
-      ],
-      meta: [
-        { label: '更新时间', key: 'updated_at', format: 'datetime' }
-      ]
+      stats: [{ label: '优先级', key: 'priority' }],
+      meta: [{ label: '更新时间', key: 'updated_at', format: 'datetime' }],
     },
     fields: [
-      { key: 'id', label: '事实ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
-      { key: 'title', label: '标题', type: 'text', required: true, maxLength: 160, placeholder: '例如：方块之家社区起源', group: 'basic' },
-      { key: 'category', label: '分类', type: 'select', required: true, options: CORE_MEMORY_CATEGORY_OPTIONS, group: 'source' },
-      { key: 'status', label: '状态', type: 'select', required: true, options: CORE_MEMORY_STATUS_OPTIONS, group: 'source' },
-      { key: 'priority', label: '优先级', type: 'number', required: true, min: 0, max: 100, hint: '0-100，越高越优先进入检索候选。', group: 'source' },
-      { key: 'source_label', label: '来源名称', type: 'text', maxLength: 120, placeholder: '例如：BOH 官方 / 周年资料 / 管理员整理', group: 'source' },
-      { key: 'source_url', label: '来源链接', type: 'text', maxLength: 600, placeholder: '可留空，建议填写可核验资料链接。', group: 'source' },
-      { key: 'tags', label: '标签', type: 'tags', hint: '用于检索召回，例如：起源、Ryyik、周年庆。', group: 'source' },
-      { key: 'content', label: '官方事实内容', type: 'textarea', required: true, rows: 10, maxLength: 12000, placeholder: '写确定、可复用的官方事实。避免把用户主观回忆混入这里。', group: 'content' }
-    ]
+      {
+        key: 'id',
+        label: '事实ID',
+        type: 'text',
+        disabled: true,
+        hint: 'UUID 主键由系统生成，不可手动修改。',
+        group: 'basic',
+      },
+      {
+        key: 'title',
+        label: '标题',
+        type: 'text',
+        required: true,
+        maxLength: 160,
+        placeholder: '例如：方块之家社区起源',
+        group: 'basic',
+      },
+      {
+        key: 'category',
+        label: '分类',
+        type: 'select',
+        required: true,
+        options: CORE_MEMORY_CATEGORY_OPTIONS,
+        group: 'source',
+      },
+      {
+        key: 'status',
+        label: '状态',
+        type: 'select',
+        required: true,
+        options: CORE_MEMORY_STATUS_OPTIONS,
+        group: 'source',
+      },
+      {
+        key: 'priority',
+        label: '优先级',
+        type: 'number',
+        required: true,
+        min: 0,
+        max: 100,
+        hint: '0-100，越高越优先进入检索候选。',
+        group: 'source',
+      },
+      {
+        key: 'source_label',
+        label: '来源名称',
+        type: 'text',
+        maxLength: 120,
+        placeholder: '例如：BOH 官方 / 周年资料 / 管理员整理',
+        group: 'source',
+      },
+      {
+        key: 'source_url',
+        label: '来源链接',
+        type: 'text',
+        maxLength: 600,
+        placeholder: '可留空，建议填写可核验资料链接。',
+        group: 'source',
+      },
+      {
+        key: 'tags',
+        label: '标签',
+        type: 'tags',
+        hint: '用于检索召回，例如：起源、Ryyik、周年庆。',
+        group: 'source',
+      },
+      {
+        key: 'content',
+        label: '官方事实内容',
+        type: 'textarea',
+        required: true,
+        rows: 10,
+        maxLength: 12000,
+        placeholder: '写确定、可复用的官方事实。避免把用户主观回忆混入这里。',
+        group: 'content',
+      },
+    ],
   },
   bohaiModels: {
     table: 'bohai_model_configs',
@@ -577,30 +1045,185 @@ export const dataConfig = {
       { key: 'temperature', label: '温度', type: 'number' },
       { key: 'max_tokens', label: '输出上限', type: 'number' },
       { key: 'quota_multiplier', label: '额度倍率', type: 'number' },
-      { key: 'updated_at', label: '更新时间', type: 'datetime' }
+      { key: 'updated_at', label: '更新时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: '配置ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
-      { key: 'mode_id', label: '模式ID', type: 'text', required: true, maxLength: 64, placeholder: '例如：fast / pro / multimodal / plan / agent-cluster', group: 'basic' },
-      { key: 'display_name', label: '显示名称', type: 'text', required: true, maxLength: 40, placeholder: '例如：Fast', group: 'basic' },
-      { key: 'tagline', label: '短说明', type: 'text', maxLength: 120, placeholder: '显示在 BOHAI 模式菜单里的简短说明。', group: 'basic' },
-      { key: 'description', label: '详细说明', type: 'textarea', rows: 3, maxLength: 500, group: 'basic' },
-      { key: 'provider', label: '供应商标识', type: 'select', required: true, options: BOHAI_MODEL_PROVIDER_OPTIONS, group: 'provider' },
-      { key: 'provider_label', label: '供应商显示名', type: 'text', maxLength: 80, placeholder: '例如：智谱 AI / SiliconFlow', group: 'provider' },
-      { key: 'model_id', label: '模型ID', type: 'select', required: true, optionsSource: 'freemodels', hint: '只能从免费模型库中选择。', group: 'provider' },
-      { key: 'api_url', label: '接口地址', type: 'text', maxLength: 600, placeholder: '留空会按供应商自动填默认地址。', group: 'provider' },
-      { key: 'capability', label: '能力类型', type: 'select', required: true, options: BOHAI_MODEL_CAPABILITY_OPTIONS, group: 'provider' },
-      { key: 'icon', label: '图标', type: 'select', required: true, options: BOHAI_MODEL_ICON_OPTIONS, group: 'basic' },
-      { key: 'temperature', label: 'Temperature', type: 'number', min: 0, max: 1.2, required: true, group: 'params' },
-      { key: 'top_p', label: 'Top P', type: 'number', min: 0.1, max: 1, required: true, group: 'params' },
-      { key: 'frequency_penalty', label: 'Frequency Penalty', type: 'number', min: 0, max: 2, required: true, group: 'params' },
-      { key: 'max_tokens', label: '最大输出 tokens', type: 'number', min: 256, max: 4096, required: true, group: 'params' },
-      { key: 'quota_multiplier', label: '额度消耗倍率', type: 'number', min: 0.1, max: 100, step: 0.1, required: true, hint: '实际 Token × 此倍率计入今日额度。', group: 'params' },
-      { key: 'sort_order', label: '显示排序', type: 'number', min: 0, max: 10000, required: true, group: 'extra' },
-      { key: 'min_tier', label: '最低订阅档位', type: 'select', required: true, options: BOHAI_MODEL_MIN_TIER_OPTIONS, hint: '普通档位按订阅等级校验；Coding 档位仅订阅对应（或更高）Coding 附加包的用户可用。', group: 'extra' },
-      { key: 'status', label: '状态', type: 'select', required: true, options: BOHAI_MODEL_STATUS_OPTIONS, group: 'extra' },
-      { key: 'notes', label: '管理员备注', type: 'textarea', rows: 3, maxLength: 1000, group: 'extra' }
-    ]
+      {
+        key: 'id',
+        label: '配置ID',
+        type: 'text',
+        disabled: true,
+        hint: 'UUID 主键由系统生成，不可手动修改。',
+        group: 'basic',
+      },
+      {
+        key: 'mode_id',
+        label: '模式ID',
+        type: 'text',
+        required: true,
+        maxLength: 64,
+        placeholder: '例如：fast / pro / multimodal / plan / agent-cluster',
+        group: 'basic',
+      },
+      {
+        key: 'display_name',
+        label: '显示名称',
+        type: 'text',
+        required: true,
+        maxLength: 40,
+        placeholder: '例如：Fast',
+        group: 'basic',
+      },
+      {
+        key: 'tagline',
+        label: '短说明',
+        type: 'text',
+        maxLength: 120,
+        placeholder: '显示在 BOHAI 模式菜单里的简短说明。',
+        group: 'basic',
+      },
+      {
+        key: 'description',
+        label: '详细说明',
+        type: 'textarea',
+        rows: 3,
+        maxLength: 500,
+        group: 'basic',
+      },
+      {
+        key: 'provider',
+        label: '供应商标识',
+        type: 'select',
+        required: true,
+        options: BOHAI_MODEL_PROVIDER_OPTIONS,
+        group: 'provider',
+      },
+      {
+        key: 'provider_label',
+        label: '供应商显示名',
+        type: 'text',
+        maxLength: 80,
+        placeholder: '例如：智谱 AI / SiliconFlow',
+        group: 'provider',
+      },
+      {
+        key: 'model_id',
+        label: '模型ID',
+        type: 'select',
+        required: true,
+        optionsSource: 'freemodels',
+        hint: '只能从免费模型库中选择。',
+        group: 'provider',
+      },
+      {
+        key: 'api_url',
+        label: '接口地址',
+        type: 'text',
+        maxLength: 600,
+        placeholder: '留空会按供应商自动填默认地址。',
+        group: 'provider',
+      },
+      {
+        key: 'capability',
+        label: '能力类型',
+        type: 'select',
+        required: true,
+        options: BOHAI_MODEL_CAPABILITY_OPTIONS,
+        group: 'provider',
+      },
+      {
+        key: 'icon',
+        label: '图标',
+        type: 'select',
+        required: true,
+        options: BOHAI_MODEL_ICON_OPTIONS,
+        group: 'basic',
+      },
+      {
+        key: 'temperature',
+        label: 'Temperature',
+        type: 'number',
+        min: 0,
+        max: 1.2,
+        required: true,
+        group: 'params',
+      },
+      {
+        key: 'top_p',
+        label: 'Top P',
+        type: 'number',
+        min: 0.1,
+        max: 1,
+        required: true,
+        group: 'params',
+      },
+      {
+        key: 'frequency_penalty',
+        label: 'Frequency Penalty',
+        type: 'number',
+        min: 0,
+        max: 2,
+        required: true,
+        group: 'params',
+      },
+      {
+        key: 'max_tokens',
+        label: '最大输出 tokens',
+        type: 'number',
+        min: 256,
+        max: 4096,
+        required: true,
+        group: 'params',
+      },
+      // 下界是 0（不是 0.1）：0 = 免费模型，EF 侧按 billed_tokens = 0 记，不扣额度也不扣积分。
+      // 线上 CHECK 约束 2026092906 已放宽到 `quota_multiplier >= 0`，这里若还夹 0.1，
+      // 就会出现「面板拦、DB 收」的两套口径（用户 2026-10-11 保存 0 倍率模型被面板拦下）。
+      {
+        key: 'quota_multiplier',
+        label: '额度消耗倍率',
+        type: 'number',
+        min: 0,
+        max: 100,
+        step: 0.1,
+        required: true,
+        hint: '实际 Token × 此倍率计入今日额度；填 0 表示免费模型（不扣额度、不扣积分）。',
+        group: 'params',
+      },
+      {
+        key: 'sort_order',
+        label: '显示排序',
+        type: 'number',
+        min: 0,
+        max: 10000,
+        required: true,
+        group: 'extra',
+      },
+      {
+        key: 'min_tier',
+        label: '最低订阅档位',
+        type: 'select',
+        required: true,
+        options: BOHAI_MODEL_MIN_TIER_OPTIONS,
+        hint: '普通档位按订阅等级校验；Coding 档位仅订阅对应（或更高）Coding 附加包的用户可用。',
+        group: 'extra',
+      },
+      {
+        key: 'status',
+        label: '状态',
+        type: 'select',
+        required: true,
+        options: BOHAI_MODEL_STATUS_OPTIONS,
+        group: 'extra',
+      },
+      {
+        key: 'notes',
+        label: '管理员备注',
+        type: 'textarea',
+        rows: 3,
+        maxLength: 1000,
+        group: 'extra',
+      },
+    ],
   },
   lotteries: {
     table: 'lotteries',
@@ -618,37 +1241,208 @@ export const dataConfig = {
       { key: 'entry_deadline_at', label: '报名截止', type: 'datetime' },
       { key: 'draw_at', label: '计划开奖', type: 'datetime' },
       { key: 'drawn_at', label: '实际开奖', type: 'datetime' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: '抽奖ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
-      { key: 'title', label: '抽奖标题', type: 'text', required: true, maxLength: 120, placeholder: '例如：八周年纪念抽奖', group: 'basic' },
-      { key: 'description', label: '抽奖说明', type: 'textarea', rows: 4, maxLength: 1200, placeholder: '写给社区抽奖页和首页映射模块看的活动说明。', group: 'prize' },
-      { key: 'prize_title', label: '奖品名称', type: 'text', required: true, maxLength: 120, placeholder: '例如：BOH 纪念礼盒', group: 'prize' },
-      { key: 'prize_description', label: '奖品说明', type: 'textarea', rows: 3, maxLength: 800, placeholder: '可写规格、数量、发放方式等。', group: 'prize' },
-      { key: 'pity_reward_title', label: '保底礼', type: 'text', maxLength: 120, placeholder: '例如：BOH 基础礼盒', hint: '仅限 1 位达到保底且未获得普通奖的用户获得。', visibleWhen: (item) => item.pity_mode === 'eligible', group: 'prize' },
-      { key: 'pity_reward_description', label: '保底礼说明', type: 'textarea', rows: 2, maxLength: 800, placeholder: '写明规格、发放方式或使用条件。', visibleWhen: (item) => item.pity_mode === 'eligible', group: 'prize' },
-      { key: 'cover_image_url', label: '抽奖封面', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', group: 'prize' },
-      { key: 'status', label: '抽奖状态', type: 'select', required: true, options: LOTTERY_STATUS_OPTIONS, group: 'rule' },
-      { key: 'fulfillment_status', label: '中奖处理状态', type: 'select', required: true, options: LOTTERY_FULFILLMENT_STATUS_OPTIONS, hint: '开奖后用于跟踪联系、确认和发放进度。', group: 'rule' },
-      { key: 'is_community_visible', label: '社区展示', type: 'select', required: true, options: LOTTERY_COMMUNITY_VISIBLE_OPTIONS, hint: '首页会自动映射社区抽奖页中最新一条报名中的抽奖；关闭后不会出现在首页、社区抽奖页或历史抽奖。', group: 'rule' },
-      { key: 'is_home_visible', label: '首页展示', type: 'select', required: true, options: LOTTERY_COMMUNITY_VISIBLE_OPTIONS, hint: '独立控制是否在首页轮播展示。', group: 'rule' },
-      { key: 'enforce_account_age_check', label: '账号年龄校验', type: 'select', required: true, options: [
-        { value: true, label: '启用' },
-        { value: false, label: '不启用' }
-      ], hint: '启用后仅满足账号年龄要求的用户可报名。', group: 'rule' },
-      { key: 'max_entries', label: '报名人数上限', type: 'number', min: 1, placeholder: '留空表示不限制', hint: '不填写即不限人数。', group: 'rule' },
-      { key: 'winner_count', label: '中奖人数', type: 'number', required: true, min: 1, max: 2, placeholder: '默认 1', hint: '不兑现保底时固定 1 人；兑现保底时固定 2 人：1 位普通中奖人和至多 1 位保底中奖人。', group: 'rule' },
-      { key: 'pity_mode', label: '保底规则', type: 'select', required: true, options: LOTTERY_PITY_MODE_OPTIONS, hint: '所有中奖都会重置保底次数；保底中奖人与普通中奖人必定不同。', group: 'rule' },
-      { key: 'entry_deadline_at', label: '报名截止时间', type: 'datetime', hint: '到达该时间后用户不能再报名；留空表示报名直到开奖前。报名截止时间必须早于或等于自动开奖时间。', group: 'rule' },
-      { key: 'draw_at', label: '自动开奖时间', type: 'datetime', hint: '到达该时间后，数据库定时任务会自动随机开奖；用户打开抽奖页或报名时也会兜底触发。', group: 'rule' },
+      {
+        key: 'id',
+        label: '抽奖ID',
+        type: 'text',
+        disabled: true,
+        hint: 'UUID 主键由系统生成，不可手动修改。',
+        group: 'basic',
+      },
+      {
+        key: 'title',
+        label: '抽奖标题',
+        type: 'text',
+        required: true,
+        maxLength: 120,
+        placeholder: '例如：八周年纪念抽奖',
+        group: 'basic',
+      },
+      {
+        key: 'description',
+        label: '抽奖说明',
+        type: 'textarea',
+        rows: 4,
+        maxLength: 1200,
+        placeholder: '写给社区抽奖页和首页映射模块看的活动说明。',
+        group: 'prize',
+      },
+      {
+        key: 'prize_title',
+        label: '奖品名称',
+        type: 'text',
+        required: true,
+        maxLength: 120,
+        placeholder: '例如：BOH 纪念礼盒',
+        group: 'prize',
+      },
+      {
+        key: 'prize_description',
+        label: '奖品说明',
+        type: 'textarea',
+        rows: 3,
+        maxLength: 800,
+        placeholder: '可写规格、数量、发放方式等。',
+        group: 'prize',
+      },
+      {
+        key: 'pity_reward_title',
+        label: '保底礼',
+        type: 'text',
+        maxLength: 120,
+        placeholder: '例如：BOH 基础礼盒',
+        hint: '仅限 1 位达到保底且未获得普通奖的用户获得。',
+        visibleWhen: (item) => item.pity_mode === 'eligible',
+        group: 'prize',
+      },
+      {
+        key: 'pity_reward_description',
+        label: '保底礼说明',
+        type: 'textarea',
+        rows: 2,
+        maxLength: 800,
+        placeholder: '写明规格、发放方式或使用条件。',
+        visibleWhen: (item) => item.pity_mode === 'eligible',
+        group: 'prize',
+      },
+      {
+        key: 'cover_image_url',
+        label: '抽奖封面',
+        type: 'image',
+        placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接',
+        group: 'prize',
+      },
+      {
+        key: 'status',
+        label: '抽奖状态',
+        type: 'select',
+        required: true,
+        options: LOTTERY_STATUS_OPTIONS,
+        group: 'rule',
+      },
+      {
+        key: 'fulfillment_status',
+        label: '中奖处理状态',
+        type: 'select',
+        required: true,
+        options: LOTTERY_FULFILLMENT_STATUS_OPTIONS,
+        hint: '开奖后用于跟踪联系、确认和发放进度。',
+        group: 'rule',
+      },
+      {
+        key: 'is_community_visible',
+        label: '社区展示',
+        type: 'select',
+        required: true,
+        options: LOTTERY_COMMUNITY_VISIBLE_OPTIONS,
+        hint: '首页会自动映射社区抽奖页中最新一条报名中的抽奖；关闭后不会出现在首页、社区抽奖页或历史抽奖。',
+        group: 'rule',
+      },
+      {
+        key: 'is_home_visible',
+        label: '首页展示',
+        type: 'select',
+        required: true,
+        options: LOTTERY_COMMUNITY_VISIBLE_OPTIONS,
+        hint: '独立控制是否在首页轮播展示。',
+        group: 'rule',
+      },
+      {
+        key: 'enforce_account_age_check',
+        label: '账号年龄校验',
+        type: 'select',
+        required: true,
+        options: [
+          { value: true, label: '启用' },
+          { value: false, label: '不启用' },
+        ],
+        hint: '启用后仅满足账号年龄要求的用户可报名。',
+        group: 'rule',
+      },
+      {
+        key: 'max_entries',
+        label: '报名人数上限',
+        type: 'number',
+        min: 1,
+        placeholder: '留空表示不限制',
+        hint: '不填写即不限人数。',
+        group: 'rule',
+      },
+      {
+        key: 'winner_count',
+        label: '中奖人数',
+        type: 'number',
+        required: true,
+        min: 1,
+        max: 2,
+        placeholder: '默认 1',
+        hint: '不兑现保底时固定 1 人；兑现保底时固定 2 人：1 位普通中奖人和至多 1 位保底中奖人。',
+        group: 'rule',
+      },
+      {
+        key: 'pity_mode',
+        label: '保底规则',
+        type: 'select',
+        required: true,
+        options: LOTTERY_PITY_MODE_OPTIONS,
+        hint: '所有中奖都会重置保底次数；保底中奖人与普通中奖人必定不同。',
+        group: 'rule',
+      },
+      {
+        key: 'entry_deadline_at',
+        label: '报名截止时间',
+        type: 'datetime',
+        hint: '到达该时间后用户不能再报名；留空表示报名直到开奖前。报名截止时间必须早于或等于自动开奖时间。',
+        group: 'rule',
+      },
+      {
+        key: 'draw_at',
+        label: '自动开奖时间',
+        type: 'datetime',
+        hint: '到达该时间后，数据库定时任务会自动随机开奖；用户打开抽奖页或报名时也会兜底触发。',
+        group: 'rule',
+      },
       { key: 'drawn_at', label: '实际开奖时间', type: 'datetime', disabled: true, group: 'draw' },
-      { key: 'draw_attempted_at', label: '最近开奖尝试', type: 'datetime', disabled: true, group: 'draw' },
-      { key: 'draw_failed_at', label: '最近失败时间', type: 'datetime', disabled: true, group: 'draw' },
-      { key: 'draw_failure_message', label: '失败原因', type: 'textarea', disabled: true, group: 'draw' },
-      { key: 'draw_candidate_hash', label: '候选名单 Hash', type: 'text', disabled: true, hint: '开奖时按报名名单生成的 MD5 摘要，用于事后审计候选池是否变化。', group: 'draw' },
-      { key: 'draw_algorithm_version', label: '随机算法版本', type: 'text', disabled: true, group: 'draw' },
-      { key: 'winner_username', label: '首位中奖者', type: 'text', disabled: true, group: 'draw' }
+      {
+        key: 'draw_attempted_at',
+        label: '最近开奖尝试',
+        type: 'datetime',
+        disabled: true,
+        group: 'draw',
+      },
+      {
+        key: 'draw_failed_at',
+        label: '最近失败时间',
+        type: 'datetime',
+        disabled: true,
+        group: 'draw',
+      },
+      {
+        key: 'draw_failure_message',
+        label: '失败原因',
+        type: 'textarea',
+        disabled: true,
+        group: 'draw',
+      },
+      {
+        key: 'draw_candidate_hash',
+        label: '候选名单 Hash',
+        type: 'text',
+        disabled: true,
+        hint: '开奖时按报名名单生成的 MD5 摘要，用于事后审计候选池是否变化。',
+        group: 'draw',
+      },
+      {
+        key: 'draw_algorithm_version',
+        label: '随机算法版本',
+        type: 'text',
+        disabled: true,
+        group: 'draw',
+      },
+      { key: 'winner_username', label: '首位中奖者', type: 'text', disabled: true, group: 'draw' },
     ],
     cardView: {
       imageKey: 'cover_image_url',
@@ -661,24 +1455,35 @@ export const dataConfig = {
         draft: { label: '草稿', tone: 'muted' },
         open: { label: '报名中', tone: 'info' },
         drawn: { label: '已开奖', tone: 'success' },
-        closed: { label: '已关闭', tone: 'neutral' }
+        closed: { label: '已关闭', tone: 'neutral' },
       },
       stats: [
         { label: '报名', key: 'entry_count' },
         { label: '中奖人数', key: 'winner_count' },
         { label: '保底礼', key: 'pity_reward_title' },
-        { label: '保底', key: 'pity_mode', values: { none: '不计入', count_only: '仅计入', eligible: '计入并兑现' } },
-        { label: '处理', key: 'fulfillment_status', values: {
-          pending_contact: '待联系', confirmed: '已确认', fulfilled: '已发放', voided: '已作废'
-        } }
+        {
+          label: '保底',
+          key: 'pity_mode',
+          values: { none: '不计入', count_only: '仅计入', eligible: '计入并兑现' },
+        },
+        {
+          label: '处理',
+          key: 'fulfillment_status',
+          values: {
+            pending_contact: '待联系',
+            confirmed: '已确认',
+            fulfilled: '已发放',
+            voided: '已作废',
+          },
+        },
       ],
       meta: [
         { label: '首位中奖', key: 'winner_username' },
         { label: '报名截止', key: 'entry_deadline_at', format: 'datetime' },
         { label: '计划开奖', key: 'draw_at', format: 'datetime' },
-        { label: '实际开奖', key: 'drawn_at', format: 'datetime' }
-      ]
-    }
+        { label: '实际开奖', key: 'drawn_at', format: 'datetime' },
+      ],
+    },
   },
   lotteryFulfillments: {
     table: 'lottery_winner_fulfillments',
@@ -692,7 +1497,7 @@ export const dataConfig = {
       { key: 'is_current_label', label: '当前资格', type: 'badge' },
       { key: 'tracking_number', label: '物流单号', maxLength: 22 },
       { key: 'contacted_at', label: '首次联系', type: 'datetime' },
-      { key: 'updated_at', label: '更新时间', type: 'datetime' }
+      { key: 'updated_at', label: '更新时间', type: 'datetime' },
     ],
     fields: [],
     kanban: {
@@ -701,9 +1506,9 @@ export const dataConfig = {
         pending_contact: { label: '待联系', tone: 'warning' },
         confirmed: { label: '已确认', tone: 'info' },
         fulfilled: { label: '已发放', tone: 'success' },
-        voided: { label: '已作废', tone: 'muted' }
-      }
-    }
+        voided: { label: '已作废', tone: 'muted' },
+      },
+    },
   },
   lotteryEntries: {
     table: 'lottery_entries',
@@ -714,9 +1519,9 @@ export const dataConfig = {
       { key: 'user_created_at', label: '加入日期', type: 'date' },
       { key: 'entry_number', label: '报名序号', type: 'number' },
       { key: 'created_at', label: '报名时间', type: 'datetime' },
-      { key: 'lottery_id', label: '抽奖ID', maxLength: 24 }
+      { key: 'lottery_id', label: '抽奖ID', maxLength: 24 },
     ],
-    fields: []
+    fields: [],
   },
   lotteryDrawLogs: {
     table: 'lottery_draw_logs',
@@ -729,9 +1534,9 @@ export const dataConfig = {
       { key: 'drawn_by_username', label: '操作人' },
       { key: 'reason', label: '原因', maxLength: 28 },
       { key: 'created_at', label: '开奖时间', type: 'datetime' },
-      { key: 'lottery_id', label: '抽奖ID', maxLength: 24 }
+      { key: 'lottery_id', label: '抽奖ID', maxLength: 24 },
     ],
-    fields: []
+    fields: [],
   },
   lotteryFailureStats: {
     table: 'lottery_failure_stats',
@@ -744,9 +1549,9 @@ export const dataConfig = {
       { key: 'failure_rate', label: '失败率', type: 'number' },
       { key: 'last_result_label', label: '最近结果', type: 'badge' },
       { key: 'last_participated_at', label: '最近参与', type: 'datetime' },
-      { key: 'latest_lottery_title', label: '最近抽奖', maxLength: 28 }
+      { key: 'latest_lottery_title', label: '最近抽奖', maxLength: 28 },
     ],
-    fields: []
+    fields: [],
   },
   lotterySchedulerLogs: {
     table: 'lottery_scheduler_logs',
@@ -760,9 +1565,9 @@ export const dataConfig = {
       { key: 'drawn_count', label: '开奖数', type: 'number' },
       { key: 'failed_count', label: '失败数', type: 'number' },
       { key: 'duration_label', label: '耗时' },
-      { key: 'error_message', label: '错误', maxLength: 36 }
+      { key: 'error_message', label: '错误', maxLength: 36 },
     ],
-    fields: []
+    fields: [],
   },
   lotteryNotificationJobs: {
     table: 'lottery_notification_jobs',
@@ -774,9 +1579,9 @@ export const dataConfig = {
       { key: 'winner_position', label: '中奖序号', type: 'number' },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'attempt_count', label: '尝试次数', type: 'number' },
-      { key: 'last_error', label: '错误', maxLength: 36 }
+      { key: 'last_error', label: '错误', maxLength: 36 },
     ],
-    fields: []
+    fields: [],
   },
   lotteryJoinAttempts: {
     table: 'lottery_join_attempts',
@@ -787,9 +1592,9 @@ export const dataConfig = {
       { key: 'result_code', label: '结果', type: 'badge' },
       { key: 'message', label: '说明', maxLength: 36 },
       { key: 'created_at', label: '请求时间', type: 'datetime' },
-      { key: 'lottery_id', label: '抽奖ID', maxLength: 24 }
+      { key: 'lottery_id', label: '抽奖ID', maxLength: 24 },
     ],
-    fields: []
+    fields: [],
   },
   lotteryAuditLogs: {
     table: 'lottery_admin_audit_logs',
@@ -798,9 +1603,9 @@ export const dataConfig = {
       { key: 'lottery_title', label: '抽奖', maxLength: 24 },
       { key: 'action', label: '操作', type: 'badge' },
       { key: 'actor_username', label: '操作人' },
-      { key: 'detail_preview', label: '详情', maxLength: 48 }
+      { key: 'detail_preview', label: '详情', maxLength: 48 },
     ],
-    fields: []
+    fields: [],
   },
   news: {
     table: 'news',
@@ -809,10 +1614,17 @@ export const dataConfig = {
       { key: 'title', label: '标题', maxLength: 25 },
       { key: 'category', label: '分类', type: 'badge' },
       { key: 'author', label: '作者' },
-      { key: 'date', label: '日期', type: 'date' }
+      { key: 'date', label: '日期', type: 'date' },
     ],
     fields: [
-      { key: 'id', label: 'ID', type: 'number', disabled: true, hint: '新增新闻时自动生成，可点击上方按钮重新生成。', group: 'basic' },
+      {
+        key: 'id',
+        label: 'ID',
+        type: 'number',
+        disabled: true,
+        hint: '新增新闻时自动生成，可点击上方按钮重新生成。',
+        group: 'basic',
+      },
       {
         key: 'category',
         label: '分类',
@@ -820,14 +1632,51 @@ export const dataConfig = {
         required: true,
         options: NEWS_CATEGORY_OPTIONS,
         hint: '必须使用系统内置分类，避免保存时报约束错误。',
-        group: 'basic'
+        group: 'basic',
       },
-      { key: 'title', label: '标题', type: 'text', required: true, placeholder: '例如：春季活动正式开启', group: 'content' },
+      {
+        key: 'title',
+        label: '标题',
+        type: 'text',
+        required: true,
+        placeholder: '例如：春季活动正式开启',
+        group: 'content',
+      },
       { key: 'date', label: '发布日期', type: 'date', required: true, group: 'basic' },
-      { key: 'author', label: '作者', type: 'text', required: true, placeholder: '例如：Ryyik', group: 'content' },
-      { key: 'excerpt', label: '摘要', type: 'textarea', required: true, rows: 3, placeholder: '用 1-2 句话写新闻列表预览，建议 30-80 字。', group: 'content' },
-      { key: 'content', label: '正文内容', type: 'textarea', required: true, rows: 9, placeholder: '直接写正文即可。空行会分段，以“- ”开头会自动变成列表。', group: 'content' },
-      { key: 'image', label: '封面图', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', hint: '推荐使用"上传到 Cloud"，也支持 @/assets 路径或远程图片地址。', group: 'media' }
+      {
+        key: 'author',
+        label: '作者',
+        type: 'text',
+        required: true,
+        placeholder: '例如：Ryyik',
+        group: 'content',
+      },
+      {
+        key: 'excerpt',
+        label: '摘要',
+        type: 'textarea',
+        required: true,
+        rows: 3,
+        placeholder: '用 1-2 句话写新闻列表预览，建议 30-80 字。',
+        group: 'content',
+      },
+      {
+        key: 'content',
+        label: '正文内容',
+        type: 'textarea',
+        required: true,
+        rows: 9,
+        placeholder: '直接写正文即可。空行会分段，以“- ”开头会自动变成列表。',
+        group: 'content',
+      },
+      {
+        key: 'image',
+        label: '封面图',
+        type: 'image',
+        placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接',
+        hint: '推荐使用"上传到 Cloud"，也支持 @/assets 路径或远程图片地址。',
+        group: 'media',
+      },
     ],
     cardView: {
       imageKey: 'image',
@@ -840,13 +1689,13 @@ export const dataConfig = {
         event: { label: '活动公告', tone: 'info' },
         update: { label: '功能更新', tone: 'success' },
         community: { label: '社区动态', tone: 'warning' },
-        announce: { label: '站内公告', tone: 'danger' }
+        announce: { label: '站内公告', tone: 'danger' },
       },
       meta: [
         { label: '发布日期', key: 'date', format: 'date' },
-        { label: '摘要', key: 'excerpt' }
-      ]
-    }
+        { label: '摘要', key: 'excerpt' },
+      ],
+    },
   },
   activities: {
     table: 'activities',
@@ -857,14 +1706,41 @@ export const dataConfig = {
       // 原样显示存储值，管理员一眼能看出哪条是 2025/10（缺「日」）哪条是 2026-08-10。
       { key: 'date', label: '日期' },
       { key: 'datePrecision', label: '精度', type: 'badge', virtual: true },
-      { key: 'created_at', label: '创建时间', type: 'date' }
+      { key: 'created_at', label: '创建时间', type: 'date' },
     ],
     fields: [
-      { key: 'id', label: 'ID', type: 'number', disabled: true, hint: '新增活动自动生成 ID。', group: 'basic' },
+      {
+        key: 'id',
+        label: 'ID',
+        type: 'number',
+        disabled: true,
+        hint: '新增活动自动生成 ID。',
+        group: 'basic',
+      },
       { key: 'title', label: '标题', type: 'text', required: true, maxLength: 255, group: 'basic' },
-      { key: 'date', label: '日期', type: 'activity-date', required: true, hint: '只记得月份的活动，把「日」留空即可。', group: 'basic' },
-      { key: 'description', label: '描述', type: 'textarea', placeholder: '直接写活动介绍，不需要填写任何代码。', group: 'basic' },
-      { key: 'image', label: '活动图', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', hint: '推荐使用"上传到 Cloud"。', group: 'media' }
+      {
+        key: 'date',
+        label: '日期',
+        type: 'activity-date',
+        required: true,
+        hint: '只记得月份的活动，把「日」留空即可。',
+        group: 'basic',
+      },
+      {
+        key: 'description',
+        label: '描述',
+        type: 'textarea',
+        placeholder: '直接写活动介绍，不需要填写任何代码。',
+        group: 'basic',
+      },
+      {
+        key: 'image',
+        label: '活动图',
+        type: 'image',
+        placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接',
+        hint: '推荐使用"上传到 Cloud"。',
+        group: 'media',
+      },
     ],
     // 精度是派生展示（virtual，不入库）：让「只到月份」的记录在后台显性化，
     // 而不是被静默当成 1 日。
@@ -873,7 +1749,7 @@ export const dataConfig = {
       return {
         ...row,
         datePrecision: parsed.valid ? (parsed.hasDay ? '精确到日' : '仅年月') : '无法识别',
-        dateLabel: parsed.valid ? parsed.dateLabel : ''
+        dateLabel: parsed.valid ? parsed.dateLabel : '',
       };
     },
     cardView: {
@@ -882,10 +1758,8 @@ export const dataConfig = {
       titleKey: 'title',
       subtitleKey: 'dateLabel',
       subtitleLabel: '活动日期',
-      meta: [
-        { label: '描述', key: 'description' }
-      ]
-    }
+      meta: [{ label: '描述', key: 'description' }],
+    },
   },
   postReward: {
     table: 'post_reward_campaigns',
@@ -898,17 +1772,78 @@ export const dataConfig = {
       { key: 'daily_limit', label: '每日上限', type: 'number' },
       { key: 'monthly_limit', label: '每月上限', type: 'number' },
       { key: 'start_at', label: '开始', type: 'datetime' },
-      { key: 'end_at', label: '结束', type: 'datetime' }
+      { key: 'end_at', label: '结束', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: '活动ID', type: 'number', disabled: true, hint: '新增活动自动生成 ID。', group: 'basic' },
-      { key: 'title', label: '活动标题', type: 'text', required: true, maxLength: 255, placeholder: '例如：8月发帖有奖', group: 'basic' },
-      { key: 'status', label: '状态', type: 'select', required: true, options: POST_REWARD_STATUS_OPTIONS, group: 'basic' },
-      { key: 'points_per_post', label: '每帖积分', type: 'number', required: true, min: 1, max: 1000, placeholder: '每成功发帖发放的积分', group: 'rule' },
-      { key: 'daily_limit', label: '每日上限(次)', type: 'number', min: 0, placeholder: '0 = 不限制', hint: '单个用户每日最多可领次数，0 表示不限制。', group: 'rule' },
-      { key: 'monthly_limit', label: '每月上限(次)', type: 'number', min: 0, placeholder: '0 = 不限制', hint: '单个用户每月最多可领次数，0 表示不限制。', group: 'rule' },
-      { key: 'start_at', label: '开始时间', type: 'datetime', required: true, hint: '活动生效开始时间，用户在此之后发帖可领奖。', group: 'time' },
-      { key: 'end_at', label: '结束时间', type: 'datetime', required: true, hint: '活动结束时间，用户在此之前发帖可领奖。', group: 'time' }
+      {
+        key: 'id',
+        label: '活动ID',
+        type: 'number',
+        disabled: true,
+        hint: '新增活动自动生成 ID。',
+        group: 'basic',
+      },
+      {
+        key: 'title',
+        label: '活动标题',
+        type: 'text',
+        required: true,
+        maxLength: 255,
+        placeholder: '例如：8月发帖有奖',
+        group: 'basic',
+      },
+      {
+        key: 'status',
+        label: '状态',
+        type: 'select',
+        required: true,
+        options: POST_REWARD_STATUS_OPTIONS,
+        group: 'basic',
+      },
+      {
+        key: 'points_per_post',
+        label: '每帖积分',
+        type: 'number',
+        required: true,
+        min: 1,
+        max: 1000,
+        placeholder: '每成功发帖发放的积分',
+        group: 'rule',
+      },
+      {
+        key: 'daily_limit',
+        label: '每日上限(次)',
+        type: 'number',
+        min: 0,
+        placeholder: '0 = 不限制',
+        hint: '单个用户每日最多可领次数，0 表示不限制。',
+        group: 'rule',
+      },
+      {
+        key: 'monthly_limit',
+        label: '每月上限(次)',
+        type: 'number',
+        min: 0,
+        placeholder: '0 = 不限制',
+        hint: '单个用户每月最多可领次数，0 表示不限制。',
+        group: 'rule',
+      },
+      {
+        key: 'start_at',
+        label: '开始时间',
+        type: 'datetime',
+        required: true,
+        hint: '活动生效开始时间，用户在此之后发帖可领奖。',
+        group: 'time',
+      },
+      {
+        key: 'end_at',
+        label: '结束时间',
+        type: 'datetime',
+        required: true,
+        hint: '活动结束时间，用户在此之前发帖可领奖。',
+        group: 'time',
+      },
     ],
     // 生命周期：按起止时间 + 状态派生的只读展示字段（virtual = 不入库、不进高级筛选）
     rowDecorator: (row) => {
@@ -929,10 +1864,8 @@ export const dataConfig = {
       titleKey: 'title',
       subtitleKey: 'status',
       subtitleLabel: '状态',
-      meta: [
-        { label: '生命周期', key: 'lifecycle' }
-      ]
-    }
+      meta: [{ label: '生命周期', key: 'lifecycle' }],
+    },
   },
   products: {
     table: 'products',
@@ -946,21 +1879,90 @@ export const dataConfig = {
       { key: 'rmb_price', label: 'RMB定价', type: 'price' },
       { key: 'stock', label: '库存', type: 'number' },
       { key: 'is_active', label: '商城展示', type: 'badge' },
-      { key: 'is_purchasable', label: '允许购买', type: 'badge' }
+      { key: 'is_purchasable', label: '允许购买', type: 'badge' },
     ],
     fields: [
-      { key: 'id', label: '商品ID', type: 'number', disabled: true, hint: '新增商品自动生成 ID。', group: 'basic' },
+      {
+        key: 'id',
+        label: '商品ID',
+        type: 'number',
+        disabled: true,
+        hint: '新增商品自动生成 ID。',
+        group: 'basic',
+      },
       { key: 'title', label: '商品名称', type: 'text', required: true, group: 'basic' },
-      { key: 'category', label: '分类', type: 'select', required: true, options: PRODUCT_CATEGORY_OPTIONS, group: 'basic' },
-      { key: 'description', label: '商品描述', type: 'textarea', placeholder: '直接写给用户看的商品介绍。', group: 'detail' },
-      { key: 'payment_mode', label: '支付模式', type: 'select', required: true, options: PRODUCT_PAYMENT_MODE_OPTIONS, hint: '纯积分=仅积分购买；纯人民币=仅RMB购买；积分+人民币=需同时支付。', group: 'pricing' },
-      { key: 'points_cost', label: '积分定价', type: 'number', placeholder: '例如：40', required: true, min: 0, group: 'pricing' },
-      { key: 'rmb_price', label: 'RMB 定价(分)', type: 'number', placeholder: '单位：分，如 500 = ¥5.00', min: 0, hint: '支付模式为纯人民币或混合时必填，单位为分。', group: 'pricing' },
+      {
+        key: 'category',
+        label: '分类',
+        type: 'select',
+        required: true,
+        options: PRODUCT_CATEGORY_OPTIONS,
+        group: 'basic',
+      },
+      {
+        key: 'description',
+        label: '商品描述',
+        type: 'textarea',
+        placeholder: '直接写给用户看的商品介绍。',
+        group: 'detail',
+      },
+      {
+        key: 'payment_mode',
+        label: '支付模式',
+        type: 'select',
+        required: true,
+        options: PRODUCT_PAYMENT_MODE_OPTIONS,
+        hint: '纯积分=仅积分购买；纯人民币=仅RMB购买；积分+人民币=需同时支付。',
+        group: 'pricing',
+      },
+      {
+        key: 'points_cost',
+        label: '积分定价',
+        type: 'number',
+        placeholder: '例如：40',
+        required: true,
+        min: 0,
+        group: 'pricing',
+      },
+      {
+        key: 'rmb_price',
+        label: 'RMB 定价(分)',
+        type: 'number',
+        placeholder: '单位：分，如 500 = ¥5.00',
+        min: 0,
+        hint: '支付模式为纯人民币或混合时必填，单位为分。',
+        group: 'pricing',
+      },
       { key: 'stock', label: '库存', type: 'number', required: true, min: 0, group: 'pricing' },
-      { key: 'is_active', label: '商城展示', type: 'select', options: [{ value: true, label: '显示' }, { value: false, label: '隐藏' }], group: 'pricing' },
-      { key: 'is_purchasable', label: '允许购买', type: 'select', options: [{ value: true, label: '允许购买' }, { value: false, label: '不可购买' }], group: 'pricing' },
-      { key: 'image', label: '商品图片', type: 'image', placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接', hint: '推荐使用"上传到 Cloud"。', group: 'media' },
-      { key: 'specifications', label: '规格选项', type: 'specifications', group: 'specs' }
+      {
+        key: 'is_active',
+        label: '商城展示',
+        type: 'select',
+        options: [
+          { value: true, label: '显示' },
+          { value: false, label: '隐藏' },
+        ],
+        group: 'pricing',
+      },
+      {
+        key: 'is_purchasable',
+        label: '允许购买',
+        type: 'select',
+        options: [
+          { value: true, label: '允许购买' },
+          { value: false, label: '不可购买' },
+        ],
+        group: 'pricing',
+      },
+      {
+        key: 'image',
+        label: '商品图片',
+        type: 'image',
+        placeholder: '上传后自动填入，也可以粘贴 https:// 图片链接',
+        hint: '推荐使用"上传到 Cloud"。',
+        group: 'media',
+      },
+      { key: 'specifications', label: '规格选项', type: 'specifications', group: 'specs' },
     ],
     cardView: {
       imageKey: 'image',
@@ -971,16 +1973,20 @@ export const dataConfig = {
       statusKey: 'is_active',
       statusMeta: {
         true: { label: '上架', tone: 'success' },
-        false: { label: '隐藏', tone: 'muted' }
+        false: { label: '隐藏', tone: 'muted' },
       },
       stats: [
-        { label: '支付', key: 'payment_mode', values: { points: '积分', rmb: 'RMB', mixed: '混合' } },
+        {
+          label: '支付',
+          key: 'payment_mode',
+          values: { points: '积分', rmb: 'RMB', mixed: '混合' },
+        },
         { label: '积分', key: 'points_cost' },
         { label: 'RMB', key: 'rmb_price', format: 'price' },
         { label: '库存', key: 'stock' },
-        { label: '可购', key: 'is_purchasable', values: { true: '允许', false: '禁止' } }
-      ]
-    }
+        { label: '可购', key: 'is_purchasable', values: { true: '允许', false: '禁止' } },
+      ],
+    },
   },
   // ========== 商城订单管理 ==========
   shopOrders: {
@@ -995,24 +2001,42 @@ export const dataConfig = {
       { key: 'rmb_total', label: 'RMB总额', type: 'price' },
       { key: 'payment_mode', label: '支付模式', type: 'badge' },
       { key: 'status', label: '状态', type: 'badge' },
-      { key: 'created_at', label: '下单时间', type: 'datetime' }
+      { key: 'created_at', label: '下单时间', type: 'datetime' },
     ],
     fields: [
       { key: 'id', label: '订单ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'order_no', label: '订单号', type: 'text', disabled: true, group: 'basic' },
       { key: 'user_id', label: '用户ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'basic' },
-      { key: 'contact_type', label: '联系方式', type: 'select', options: ORDER_CONTACT_TYPE_OPTIONS, disabled: true, group: 'detail' },
+      {
+        key: 'contact_type',
+        label: '联系方式',
+        type: 'select',
+        options: ORDER_CONTACT_TYPE_OPTIONS,
+        disabled: true,
+        group: 'detail',
+      },
       { key: 'contact_value', label: '联系账号', type: 'text', disabled: true, group: 'detail' },
-      { key: 'items', label: '商品明细', type: 'textarea', disabled: true, rows: 4, group: 'detail' },
+      {
+        key: 'items',
+        label: '商品明细',
+        type: 'textarea',
+        disabled: true,
+        rows: 4,
+        group: 'detail',
+      },
       { key: 'total_points', label: '积分总额', type: 'number', disabled: true, group: 'detail' },
       { key: 'rmb_total', label: 'RMB总额(分)', type: 'number', disabled: true, group: 'detail' },
       { key: 'payment_mode', label: '支付模式', type: 'text', disabled: true, group: 'detail' },
       { key: 'points_used', label: '已扣积分', type: 'number', disabled: true, group: 'detail' },
       { key: 'created_at', label: '下单时间', type: 'datetime', disabled: true, group: 'time' },
       {
-        key: 'status', label: '订单状态', type: 'select', options: ORDER_STATUS_OPTIONS, group: 'time'
-      }
+        key: 'status',
+        label: '订单状态',
+        type: 'select',
+        options: ORDER_STATUS_OPTIONS,
+        group: 'time',
+      },
     ],
     cardView: {
       placeholderIcon: '🛒',
@@ -1025,19 +2049,27 @@ export const dataConfig = {
         processing: { label: '处理中', tone: 'info' },
         shipped: { label: '已发货', tone: 'info' },
         completed: { label: '已完成', tone: 'success' },
-        cancelled: { label: '已取消', tone: 'muted' }
+        cancelled: { label: '已取消', tone: 'muted' },
       },
       stats: [
-        { label: '支付', key: 'payment_mode', values: { points: '积分', rmb: 'RMB', mixed: '混合' } },
+        {
+          label: '支付',
+          key: 'payment_mode',
+          values: { points: '积分', rmb: 'RMB', mixed: '混合' },
+        },
         { label: '积分', key: 'total_points' },
-        { label: 'RMB', key: 'rmb_total', format: 'price' }
+        { label: 'RMB', key: 'rmb_total', format: 'price' },
       ],
       meta: [
-        { label: '联系方式', key: 'contact_type', values: { qq: 'QQ', wechat: '微信', phone: '电话' } },
+        {
+          label: '联系方式',
+          key: 'contact_type',
+          values: { qq: 'QQ', wechat: '微信', phone: '电话' },
+        },
         { label: '联系账号', key: 'contact_value', copyable: true },
-        { label: '下单时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '下单时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== 积分流水 ==========
   pointsTransactions: {
@@ -1051,7 +2083,7 @@ export const dataConfig = {
       { key: 'remark', label: '备注', maxLength: 24 },
       { key: 'operator_name', label: '操作人' },
       { key: 'batch_id', label: '批次ID', maxLength: 20 },
-      { key: 'created_at', label: '时间', type: 'datetime' }
+      { key: 'created_at', label: '时间', type: 'datetime' },
     ],
     fields: [],
     cardView: {
@@ -1068,19 +2100,19 @@ export const dataConfig = {
         subscribe: { label: '订阅', tone: 'info' },
         checkin: { label: '签到', tone: 'success' },
         lottery: { label: '抽奖', tone: 'info' },
-        adjust: { label: '调整', tone: 'muted' }
+        adjust: { label: '调整', tone: 'muted' },
       },
       stats: [
         { label: '变动', key: 'amount', format: 'signedNumber' },
-        { label: '余额', key: 'balance_after' }
+        { label: '余额', key: 'balance_after' },
       ],
       meta: [
         { label: '备注', key: 'remark' },
         { label: '操作人', key: 'operator_name' },
         { label: '批次ID', key: 'batch_id', copyable: true },
-        { label: '时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== 通知管理 ==========
   notifications: {
@@ -1093,7 +2125,7 @@ export const dataConfig = {
       { key: 'content', label: '内容', maxLength: 40 },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'created_at', label: '创建时间', type: 'datetime' },
-      { key: 'archived_at', label: '归档时间', type: 'datetime' }
+      { key: 'archived_at', label: '归档时间', type: 'datetime' },
     ],
     fields: [],
     cardView: {
@@ -1105,18 +2137,30 @@ export const dataConfig = {
       statusKey: 'status',
       statusMeta: {
         unread: { label: '未读', tone: 'warning' },
-        read: { label: '已读', tone: 'muted' }
+        read: { label: '已读', tone: 'muted' },
       },
       stats: [
         { label: '接收人', key: 'recipient_name' },
-        { label: '类型', key: 'type', values: { like: '点赞', comment: '评论', reply: '回复', follow: '关注', impression: '访客', lottery: '抽奖', system: '系统' } }
+        {
+          label: '类型',
+          key: 'type',
+          values: {
+            like: '点赞',
+            comment: '评论',
+            reply: '回复',
+            follow: '关注',
+            impression: '访客',
+            lottery: '抽奖',
+            system: '系统',
+          },
+        },
       ],
       meta: [
         { label: '内容', key: 'content' },
         { label: '创建时间', key: 'created_at', format: 'datetime' },
-        { label: '归档时间', key: 'archived_at', format: 'datetime' }
-      ]
-    }
+        { label: '归档时间', key: 'archived_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== 审核日志 ==========
   moderationLogs: {
@@ -1128,9 +2172,9 @@ export const dataConfig = {
       { key: 'ai_result', label: 'AI结果', maxLength: 20 },
       { key: 'ai_reason', label: 'AI原因', maxLength: 30 },
       { key: 'moderator_name', label: '操作人' },
-      { key: 'created_at', label: '时间', type: 'datetime' }
+      { key: 'created_at', label: '时间', type: 'datetime' },
     ],
-    fields: []
+    fields: [],
   },
   // ========== 举报明细 ==========
   forumPostReports: {
@@ -1144,7 +2188,7 @@ export const dataConfig = {
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'resolver_name', label: '处理人' },
       { key: 'created_at', label: '举报时间', type: 'datetime' },
-      { key: 'resolved_at', label: '处理时间', type: 'datetime' }
+      { key: 'resolved_at', label: '处理时间', type: 'datetime' },
     ],
     fields: [],
     cardView: {
@@ -1157,18 +2201,16 @@ export const dataConfig = {
       statusMeta: {
         pending: { label: '待处理', tone: 'warning' },
         resolved: { label: '已处理', tone: 'success' },
-        dismissed: { label: '已驳回', tone: 'muted' }
+        dismissed: { label: '已驳回', tone: 'muted' },
       },
-      stats: [
-        { label: '帖子ID', key: 'post_id' }
-      ],
+      stats: [{ label: '帖子ID', key: 'post_id' }],
       meta: [
         { label: '详情', key: 'detail' },
         { label: '处理人', key: 'resolver_name' },
         { label: '举报时间', key: 'created_at', format: 'datetime' },
-        { label: '处理时间', key: 'resolved_at', format: 'datetime' }
-      ]
-    }
+        { label: '处理时间', key: 'resolved_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== 每周签到 ==========
   forumWeeklyCheckins: {
@@ -1178,9 +2220,9 @@ export const dataConfig = {
       { key: 'username', label: '用户名' },
       { key: 'week_start_date', label: '周起始', type: 'date' },
       { key: 'signed_at', label: '签到时间', type: 'datetime' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
-    fields: []
+    fields: [],
   },
   // ========== 论坛图片审核 ==========
   forumPostImages: {
@@ -1194,7 +2236,7 @@ export const dataConfig = {
       { key: 'moderation_source', label: '审核来源', type: 'badge' },
       { key: 'moderation_score', label: '审核分数', type: 'number' },
       { key: 'moderation_reason', label: '审核原因', maxLength: 24 },
-      { key: 'created_at', label: '上传时间', type: 'datetime' }
+      { key: 'created_at', label: '上传时间', type: 'datetime' },
     ],
     fields: [],
     cardView: {
@@ -1209,18 +2251,18 @@ export const dataConfig = {
         approved: { label: '已通过', tone: 'success' },
         rejected: { label: '已拒绝', tone: 'error' },
         pending: { label: '待审核', tone: 'warning' },
-        reviewing: { label: '审核中', tone: 'info' }
+        reviewing: { label: '审核中', tone: 'info' },
       },
       stats: [
         { label: '来源', key: 'moderation_source', values: { auto: 'AI自动', manual: '人工' } },
-        { label: '分数', key: 'moderation_score' }
+        { label: '分数', key: 'moderation_score' },
       ],
       meta: [
         { label: '帖子ID', key: 'post_id', copyable: true },
         { label: '审核原因', key: 'moderation_reason' },
-        { label: '上传时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '上传时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== 摄影集 ==========
   photoAlbums: {
@@ -1234,7 +2276,7 @@ export const dataConfig = {
       { key: 'shared_to_community', label: '社区分享', type: 'badge' },
       { key: 'photo_count', label: '照片数', type: 'number' },
       { key: 'updated_at', label: '更新时间', type: 'datetime' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
       { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
@@ -1242,16 +2284,35 @@ export const dataConfig = {
       { key: 'username', label: '作者', type: 'text', disabled: true, group: 'basic' },
       { key: 'title', label: '标题', type: 'text', required: true, maxLength: 80, group: 'basic' },
       { key: 'subtitle', label: '副标题', type: 'text', maxLength: 120, group: 'basic' },
-      { key: 'status', label: '状态', type: 'select', options: [
-        { value: 'draft', label: '草稿' },
-        { value: 'published', label: '已发布' }
-      ], group: 'basic' },
-      { key: 'shared_to_community', label: '分享到社区', type: 'select', options: [
-        { value: true, label: '已分享' },
-        { value: false, label: '未分享' }
-      ], group: 'basic' },
+      {
+        key: 'status',
+        label: '状态',
+        type: 'select',
+        options: [
+          { value: 'draft', label: '草稿' },
+          { value: 'published', label: '已发布' },
+        ],
+        group: 'basic',
+      },
+      {
+        key: 'shared_to_community',
+        label: '分享到社区',
+        type: 'select',
+        options: [
+          { value: true, label: '已分享' },
+          { value: false, label: '未分享' },
+        ],
+        group: 'basic',
+      },
       { key: 'cover_url', label: '封面图', type: 'image', group: 'media' },
-      { key: 'photo_count', label: '照片数', type: 'number', disabled: true, hint: '由照片表统计自动维护，手动修改无效。', group: 'media' }
+      {
+        key: 'photo_count',
+        label: '照片数',
+        type: 'number',
+        disabled: true,
+        hint: '由照片表统计自动维护，手动修改无效。',
+        group: 'media',
+      },
     ],
     cardView: {
       imageKey: 'cover_url',
@@ -1262,19 +2323,24 @@ export const dataConfig = {
       statusKey: 'status',
       statusMeta: {
         draft: { label: '草稿', tone: 'info' },
-        published: { label: '已发布', tone: 'success' }
+        published: { label: '已发布', tone: 'success' },
       },
       stats: [
         { label: '作者', key: 'username' },
-        { label: '照片', key: 'photo_count' }
+        { label: '照片', key: 'photo_count' },
       ],
       meta: [
         { label: '副标题', key: 'subtitle' },
-        { label: '社区分享', key: 'shared_to_community', format: 'badge', values: { true: '已分享', false: '未分享' } },
+        {
+          label: '社区分享',
+          key: 'shared_to_community',
+          format: 'badge',
+          values: { true: '已分享', false: '未分享' },
+        },
         { label: '更新时间', key: 'updated_at', format: 'datetime' },
-        { label: '创建时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '创建时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== Cloudinary 待上传 ==========
   // 注意：原 `cloudinaryUploads`（上传队列）页签已于 2026-09-24 摘除。
@@ -1294,9 +2360,9 @@ export const dataConfig = {
       { key: 'provider', label: '供应商' },
       { key: 'purpose', label: '用途' },
       { key: 'actor_id', label: '操作人ID', maxLength: 24 },
-      { key: 'created_at', label: '时间', type: 'datetime' }
+      { key: 'created_at', label: '时间', type: 'datetime' },
     ],
-    fields: []
+    fields: [],
   },
   // ========== AI 联网搜索日志 ==========
   aiWebSearchLog: {
@@ -1307,9 +2373,9 @@ export const dataConfig = {
       { key: 'tier', label: '档位', type: 'badge' },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'settled_at', label: '结算时间', type: 'datetime' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
-    fields: []
+    fields: [],
   },
   // ========== 周年订阅领取 ==========
   anniversaryClaims: {
@@ -1320,9 +2386,9 @@ export const dataConfig = {
       { key: 'granted_plan_code', label: '方案' },
       { key: 'started_at', label: '开始时间', type: 'datetime' },
       { key: 'expires_at', label: '到期时间', type: 'datetime' },
-      { key: 'created_at', label: '领取时间', type: 'datetime' }
+      { key: 'created_at', label: '领取时间', type: 'datetime' },
     ],
-    fields: []
+    fields: [],
   },
   // ========== 方块墙 ==========
   blockWallItems: {
@@ -1334,23 +2400,35 @@ export const dataConfig = {
       { key: 'content', label: '内容', maxLength: 24 },
       { key: 'color', label: '颜色', type: 'badge' },
       { key: 'image_url', label: '图片', type: 'image' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
       { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_id', label: '作者ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_username', label: '作者', type: 'text', disabled: true, group: 'basic' },
-      { key: 'item_type', label: '类型', type: 'select', options: [
-        { value: 'text', label: '文字' },
-        { value: 'image', label: '图片' }
-      ], group: 'content' },
+      {
+        key: 'item_type',
+        label: '类型',
+        type: 'select',
+        options: [
+          { value: 'text', label: '文字' },
+          { value: 'image', label: '图片' },
+        ],
+        group: 'content',
+      },
       { key: 'content', label: '内容', type: 'textarea', rows: 3, group: 'content' },
       { key: 'color', label: '颜色', type: 'text', placeholder: '如 #FF6B6B', group: 'content' },
       { key: 'image_url', label: '图片URL', type: 'image', group: 'media' },
-      { key: 'image_public_id', label: '图片Public ID', type: 'text', disabled: true, group: 'media' },
+      {
+        key: 'image_public_id',
+        label: '图片Public ID',
+        type: 'text',
+        disabled: true,
+        group: 'media',
+      },
       { key: 'position_x', label: 'X坐标', type: 'number', step: 0.1, group: 'position' },
       { key: 'position_y', label: 'Y坐标', type: 'number', step: 0.1, group: 'position' },
-      { key: 'rotation', label: '旋转角度', type: 'number', step: 1, group: 'position' }
+      { key: 'rotation', label: '旋转角度', type: 'number', step: 1, group: 'position' },
     ],
     cardView: {
       imageKey: 'image_url',
@@ -1362,18 +2440,16 @@ export const dataConfig = {
       statusKey: 'item_type',
       statusMeta: {
         text: { label: '文字', tone: 'info' },
-        image: { label: '图片', tone: 'success' }
+        image: { label: '图片', tone: 'success' },
       },
-      stats: [
-        { label: '颜色', key: 'color' }
-      ],
+      stats: [{ label: '颜色', key: 'color' }],
       meta: [
         { label: '内容', key: 'content' },
         { label: '位置', key: 'position_x', format: 'coord', pairKey: 'position_y' },
         { label: '旋转', key: 'rotation', suffix: '°' },
-        { label: '创建时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '创建时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== 创作者展示 ==========
   campaigns: {
@@ -1385,20 +2461,68 @@ export const dataConfig = {
       { key: 'signupWindow', label: '报名窗口', virtual: true },
       { key: 'start_at', label: '活动开始', type: 'datetime' },
       { key: 'end_at', label: '活动结束', type: 'datetime' },
-      { key: 'created_at', label: '创建时间', type: 'date' }
+      { key: 'created_at', label: '创建时间', type: 'date' },
     ],
     fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, hint: 'UUID 主键由系统生成，不可手动修改。', group: 'basic' },
-      { key: 'slug', label: 'Slug（URL 标识）', type: 'text', required: true, maxLength: 64, placeholder: 'boh-9th-birthday', hint: '只允许小写字母、数字和连字符，保存时自动归一。', group: 'basic' },
-      { key: 'title', label: '活动标题', type: 'text', required: true, maxLength: 80, group: 'basic' },
-      { key: 'description', label: '活动介绍', type: 'textarea', placeholder: '会展示在首页报名卡上的简介。', group: 'basic' },
-      { key: 'stage', label: '生命周期阶段', type: 'select', options: CAMPAIGN_STAGE_OPTIONS, hint: '只有「报名中 / 投稿中 / 评审中」会出现在前台报名区。', group: 'basic' },
+      {
+        key: 'id',
+        label: 'ID',
+        type: 'text',
+        disabled: true,
+        hint: 'UUID 主键由系统生成，不可手动修改。',
+        group: 'basic',
+      },
+      {
+        key: 'slug',
+        label: 'Slug（URL 标识）',
+        type: 'text',
+        required: true,
+        maxLength: 64,
+        placeholder: 'boh-9th-birthday',
+        hint: '只允许小写字母、数字和连字符，保存时自动归一。',
+        group: 'basic',
+      },
+      {
+        key: 'title',
+        label: '活动标题',
+        type: 'text',
+        required: true,
+        maxLength: 80,
+        group: 'basic',
+      },
+      {
+        key: 'description',
+        label: '活动介绍',
+        type: 'textarea',
+        placeholder: '会展示在首页报名卡上的简介。',
+        group: 'basic',
+      },
+      {
+        key: 'stage',
+        label: '生命周期阶段',
+        type: 'select',
+        options: CAMPAIGN_STAGE_OPTIONS,
+        hint: '只有「报名中 / 投稿中 / 评审中」会出现在前台报名区。',
+        group: 'basic',
+      },
       // 时间字段用 datetime 选择器（此前是手填 ISO 字符串，管理员要自己写 2026-09-10T00:00:00+08:00）
       { key: 'signup_start_at', label: '报名开始', type: 'datetime', group: 'time' },
-      { key: 'signup_end_at', label: '报名截止', type: 'datetime', hint: '留空表示不限截止时间。', group: 'time' },
+      {
+        key: 'signup_end_at',
+        label: '报名截止',
+        type: 'datetime',
+        hint: '留空表示不限截止时间。',
+        group: 'time',
+      },
       { key: 'start_at', label: '活动开始', type: 'datetime', group: 'time' },
       { key: 'end_at', label: '活动结束', type: 'datetime', group: 'time' },
-      { key: 'config', label: '活动配置（JSON）', type: 'json', group: 'extra', hint: '报名表单字段、评审规则、文案等私有配置。' }
+      {
+        key: 'config',
+        label: '活动配置（JSON）',
+        type: 'json',
+        group: 'extra',
+        hint: '报名表单字段、评审规则、文案等私有配置。',
+      },
     ],
     rowDecorator: (row) => {
       const fmt = (iso) => {
@@ -1411,9 +2535,9 @@ export const dataConfig = {
       const end = fmt(row?.signup_end_at);
       return {
         ...row,
-        signupWindow: start || end ? `${start || '…'} - ${end || '…'}` : '未设置'
+        signupWindow: start || end ? `${start || '…'} - ${end || '…'}` : '未设置',
       };
-    }
+    },
   },
   campaignEntries: {
     table: 'activity_entries',
@@ -1422,19 +2546,47 @@ export const dataConfig = {
       { key: 'campaign_id', label: '活动ID', maxLength: 12 },
       { key: 'user_id', label: '用户ID', maxLength: 12 },
       { key: 'kind', label: '类型', type: 'badge' },
-      { key: 'status', label: '状态', type: 'badge' }
+      { key: 'status', label: '状态', type: 'badge' },
     ],
     // 此前 fields 为空 + 不在 TAB_WRITABLE_FIELDS 里 → 报名明细在后台完全只读，
     // 审核报名只能直连数据库改。这里开放 status 审核，其余字段保持只读以防改坏归属。
     fields: [
       { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
-      { key: 'campaign_id', label: '活动 ID', type: 'text', disabled: true, hint: '归属由系统记录，不可修改。', group: 'basic' },
+      {
+        key: 'campaign_id',
+        label: '活动 ID',
+        type: 'text',
+        disabled: true,
+        hint: '归属由系统记录，不可修改。',
+        group: 'basic',
+      },
       { key: 'user_id', label: '用户 ID', type: 'text', disabled: true, group: 'basic' },
-      { key: 'kind', label: '记录类型', type: 'select', disabled: true, options: CAMPAIGN_ENTRY_KIND_OPTIONS, group: 'basic' },
-      { key: 'status', label: '审核状态', type: 'select', options: CAMPAIGN_ENTRY_STATUS_OPTIONS, hint: '报名默认自动通过；需要人工复核的活动可改为待审核或拒绝。', group: 'basic' },
-      { key: 'payload', label: '报名内容', type: 'json', disabled: true, group: 'extra', hint: 'signup 阶段的表单填写内容 / submission 阶段的投稿正文。' },
-      { key: 'created_at', label: '提交时间', type: 'text', disabled: true, group: 'extra' }
-    ]
+      {
+        key: 'kind',
+        label: '记录类型',
+        type: 'select',
+        disabled: true,
+        options: CAMPAIGN_ENTRY_KIND_OPTIONS,
+        group: 'basic',
+      },
+      {
+        key: 'status',
+        label: '审核状态',
+        type: 'select',
+        options: CAMPAIGN_ENTRY_STATUS_OPTIONS,
+        hint: '报名默认自动通过；需要人工复核的活动可改为待审核或拒绝。',
+        group: 'basic',
+      },
+      {
+        key: 'payload',
+        label: '报名内容',
+        type: 'json',
+        disabled: true,
+        group: 'extra',
+        hint: 'signup 阶段的表单填写内容 / submission 阶段的投稿正文。',
+      },
+      { key: 'created_at', label: '提交时间', type: 'text', disabled: true, group: 'extra' },
+    ],
   },
   campaignRewards: {
     table: 'activity_rewards',
@@ -1444,16 +2596,30 @@ export const dataConfig = {
       { key: 'user_id', label: '用户ID', maxLength: 12 },
       { key: 'reward_type', label: '奖励类型', type: 'badge' },
       { key: 'amount', label: '数量', type: 'number' },
-      { key: 'status', label: '状态', type: 'badge' }
+      { key: 'status', label: '状态', type: 'badge' },
     ],
     fields: [
       { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'campaign_id', label: '活动 ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'user_id', label: '用户 ID', type: 'text', disabled: true, group: 'basic' },
-      { key: 'reward_type', label: '奖励类型', type: 'select', disabled: true, options: CAMPAIGN_REWARD_TYPE_OPTIONS, hint: '只做发放台账，积分/券的入账走各自权益体系。', group: 'basic' },
+      {
+        key: 'reward_type',
+        label: '奖励类型',
+        type: 'select',
+        disabled: true,
+        options: CAMPAIGN_REWARD_TYPE_OPTIONS,
+        hint: '只做发放台账，积分/券的入账走各自权益体系。',
+        group: 'basic',
+      },
       { key: 'amount', label: '数量', type: 'number', disabled: true, min: 1, group: 'basic' },
-      { key: 'status', label: '发放状态', type: 'select', options: CAMPAIGN_REWARD_STATUS_OPTIONS, group: 'basic' }
-    ]
+      {
+        key: 'status',
+        label: '发放状态',
+        type: 'select',
+        options: CAMPAIGN_REWARD_STATUS_OPTIONS,
+        group: 'basic',
+      },
+    ],
   },
   bohCreatorShows: {
     table: 'boh_creator_shows',
@@ -1464,23 +2630,29 @@ export const dataConfig = {
       { key: 'title', label: '标题', maxLength: 24 },
       { key: 'description', label: '描述', maxLength: 30 },
       { key: 'video_url', label: '视频链接', maxLength: 24 },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
       { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_id', label: '作者ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_username', label: '作者', type: 'text', disabled: true, group: 'basic' },
-      { key: 'creator_platform', label: '平台', type: 'select', options: [
-        { value: 'bilibili', label: '哔哩哔哩' },
-        { value: 'douyin', label: '抖音' },
-        { value: 'youtube', label: 'YouTube' },
-        { value: 'xiaohongshu', label: '小红书' },
-        { value: 'other', label: '其他' }
-      ], group: 'basic' },
+      {
+        key: 'creator_platform',
+        label: '平台',
+        type: 'select',
+        options: [
+          { value: 'bilibili', label: '哔哩哔哩' },
+          { value: 'douyin', label: '抖音' },
+          { value: 'youtube', label: 'YouTube' },
+          { value: 'xiaohongshu', label: '小红书' },
+          { value: 'other', label: '其他' },
+        ],
+        group: 'basic',
+      },
       { key: 'creator_platform_id', label: '平台ID', type: 'text', group: 'basic' },
       { key: 'title', label: '标题', type: 'text', required: true, group: 'content' },
       { key: 'description', label: '描述', type: 'textarea', rows: 3, group: 'content' },
-      { key: 'video_url', label: '视频链接', type: 'text', required: true, group: 'content' }
+      { key: 'video_url', label: '视频链接', type: 'text', required: true, group: 'content' },
     ],
     cardView: {
       placeholderIcon: '🎬',
@@ -1493,17 +2665,15 @@ export const dataConfig = {
         douyin: { label: '抖音', tone: 'success' },
         youtube: { label: 'YouTube', tone: 'error' },
         xiaohongshu: { label: '小红书', tone: 'warning' },
-        other: { label: '其他', tone: 'muted' }
+        other: { label: '其他', tone: 'muted' },
       },
-      stats: [
-        { label: '平台ID', key: 'creator_platform_id' }
-      ],
+      stats: [{ label: '平台ID', key: 'creator_platform_id' }],
       meta: [
         { label: '描述', key: 'description' },
         { label: '视频链接', key: 'video_url', copyable: true },
-        { label: '创建时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '创建时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== 生日活动 ==========
   birthdayEvents: {
@@ -1515,18 +2685,30 @@ export const dataConfig = {
       { key: 'celebration_date', label: '庆祝日期', type: 'date' },
       { key: 'is_active', label: '状态', type: 'badge' },
       { key: 'sort_order', label: '排序', type: 'number' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
       { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
-      { key: 'target_user_id', label: '寿星用户ID', type: 'user-picker', required: true, group: 'basic' },
+      {
+        key: 'target_user_id',
+        label: '寿星用户ID',
+        type: 'user-picker',
+        required: true,
+        group: 'basic',
+      },
       { key: 'title', label: '标题', type: 'text', required: true, group: 'basic' },
       { key: 'subtitle', label: '副标题', type: 'text', group: 'basic' },
       { key: 'hero_quote', label: '英雄区引言', type: 'textarea', rows: 2, group: 'content' },
       { key: 'page_copy', label: '页面文案', type: 'json', group: 'content' },
       { key: 'celebration_date', label: '庆祝日期', type: 'date', required: true, group: 'time' },
-      { key: 'is_active', label: '启用', type: 'select', options: BOOLEAN_DISPLAY_OPTIONS, group: 'time' },
-      { key: 'sort_order', label: '排序', type: 'number', min: 0, group: 'time' }
+      {
+        key: 'is_active',
+        label: '启用',
+        type: 'select',
+        options: BOOLEAN_DISPLAY_OPTIONS,
+        group: 'time',
+      },
+      { key: 'sort_order', label: '排序', type: 'number', min: 0, group: 'time' },
     ],
     cardView: {
       placeholderIcon: '🎂',
@@ -1536,18 +2718,18 @@ export const dataConfig = {
       statusKey: 'is_active',
       statusMeta: {
         true: { label: '进行中', tone: 'success' },
-        false: { label: '已结束', tone: 'muted' }
+        false: { label: '已结束', tone: 'muted' },
       },
       stats: [
         { label: '庆祝日期', key: 'celebration_date', format: 'date' },
-        { label: '排序', key: 'sort_order' }
+        { label: '排序', key: 'sort_order' },
       ],
       meta: [
         { label: '副标题', key: 'subtitle' },
         { label: '引言', key: 'hero_quote' },
-        { label: '创建时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '创建时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== 生日祝福 ==========
   birthdayWishes: {
@@ -1559,16 +2741,35 @@ export const dataConfig = {
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'is_featured', label: '精选', type: 'badge' },
       { key: 'likes', label: '点赞', type: 'number' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
       { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'event_id', label: '活动ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_name', label: '作者', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_id', label: '作者ID', type: 'text', disabled: true, group: 'basic' },
-      { key: 'content', label: '内容', type: 'textarea', rows: 4, disabled: true, group: 'content' },
-      { key: 'status', label: '状态', type: 'select', options: BIRTHDAY_WISH_STATUS_OPTIONS, group: 'moderation' },
-      { key: 'is_featured', label: '精选', type: 'select', options: BOOLEAN_DISPLAY_OPTIONS, group: 'moderation' }
+      {
+        key: 'content',
+        label: '内容',
+        type: 'textarea',
+        rows: 4,
+        disabled: true,
+        group: 'content',
+      },
+      {
+        key: 'status',
+        label: '状态',
+        type: 'select',
+        options: BIRTHDAY_WISH_STATUS_OPTIONS,
+        group: 'moderation',
+      },
+      {
+        key: 'is_featured',
+        label: '精选',
+        type: 'select',
+        options: BOOLEAN_DISPLAY_OPTIONS,
+        group: 'moderation',
+      },
     ],
     cardView: {
       placeholderIcon: '💌',
@@ -1580,18 +2781,18 @@ export const dataConfig = {
       statusMeta: {
         pending: { label: '待审核', tone: 'warning' },
         approved: { label: '已通过', tone: 'success' },
-        rejected: { label: '已拒绝', tone: 'error' }
+        rejected: { label: '已拒绝', tone: 'error' },
       },
       stats: [
         { label: '精选', key: 'is_featured', values: { true: '⭐ 精选', false: '普通' } },
-        { label: '点赞', key: 'likes' }
+        { label: '点赞', key: 'likes' },
       ],
       meta: [
         { label: '祝福内容', key: 'content' },
         { label: '活动ID', key: 'event_id', copyable: true },
-        { label: '创建时间', key: 'created_at', format: 'datetime' }
-      ]
-    }
+        { label: '创建时间', key: 'created_at', format: 'datetime' },
+      ],
+    },
   },
   // ========== 用户关注关系 ==========
   userFollows: {
@@ -1600,9 +2801,9 @@ export const dataConfig = {
       { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'follower_name', label: '关注者' },
       { key: 'following_name', label: '被关注者' },
-      { key: 'created_at', label: '关注时间', type: 'datetime' }
+      { key: 'created_at', label: '关注时间', type: 'datetime' },
     ],
-    fields: []
+    fields: [],
   },
   // ========== 用户访客记录 ==========
   userImpressions: {
@@ -1611,9 +2812,9 @@ export const dataConfig = {
       { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'author_name', label: '访客' },
       { key: 'target_name', label: '被访者' },
-      { key: 'created_at', label: '时间', type: 'datetime' }
+      { key: 'created_at', label: '时间', type: 'datetime' },
     ],
-    fields: []
+    fields: [],
   },
   // ========== 实验室使用记录 ==========
   labUsageRecords: {
@@ -1624,9 +2825,9 @@ export const dataConfig = {
       { key: 'device_id', label: '设备ID', maxLength: 20 },
       { key: 'flow_type', label: '流程类型', type: 'badge' },
       { key: 'expires_at', label: '过期时间', type: 'datetime' },
-      { key: 'created_at', label: '创建时间', type: 'datetime' }
+      { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
-    fields: []
+    fields: [],
   },
   // ========== 用户数据导出任务 ==========
   userDataExportJobs: {
@@ -1640,8 +2841,8 @@ export const dataConfig = {
       { key: 'file_size', label: '文件大小', type: 'number' },
       { key: 'error', label: '错误信息', maxLength: 80 },
       { key: 'requested_at', label: '申请时间', type: 'datetime' },
-      { key: 'expires_at', label: '过期时间', type: 'datetime' }
+      { key: 'expires_at', label: '过期时间', type: 'datetime' },
     ],
-    fields: []
-  }
+    fields: [],
+  },
 };

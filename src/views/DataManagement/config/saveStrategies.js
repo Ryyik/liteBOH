@@ -1,8 +1,17 @@
-import { stripHtml, UUID_REGEX, EMAIL_REGEX, normalizeNewsContent } from '../composables/useDataAdminValidation.js';
+import {
+  stripHtml,
+  UUID_REGEX,
+  EMAIL_REGEX,
+  normalizeNewsContent,
+} from '../composables/useDataAdminValidation.js';
 import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
 import { TAB_WRITABLE_FIELDS } from './index.js';
 import { normalizeActivityDateInput } from '@/utils/activity-date.js';
-import { normalizeCampaignSlug, toIsoOrNull, validateCampaignWindow } from '@/utils/activity-campaign.js';
+import {
+  normalizeCampaignSlug,
+  toIsoOrNull,
+  validateCampaignWindow,
+} from '@/utils/activity-campaign.js';
 
 function toDateInputValue(dateValue) {
   if (!dateValue) return '';
@@ -62,7 +71,11 @@ export const SAVE_STRATEGIES = {
       dataToSave.points = Math.round(normalizedPoints);
     }
 
-    if (dataToSave.experience !== undefined && dataToSave.experience !== null && dataToSave.experience !== '') {
+    if (
+      dataToSave.experience !== undefined &&
+      dataToSave.experience !== null &&
+      dataToSave.experience !== ''
+    ) {
       const normalizedExperience = Number(dataToSave.experience);
       if (!Number.isFinite(normalizedExperience) || normalizedExperience < 0) {
         throw new Error('经验值必须是大于等于 0 的数字');
@@ -96,7 +109,11 @@ export const SAVE_STRATEGIES = {
       dataToSave.points = Math.round(normalizedPoints);
     }
 
-    if (dataToSave.experience !== undefined && dataToSave.experience !== null && dataToSave.experience !== '') {
+    if (
+      dataToSave.experience !== undefined &&
+      dataToSave.experience !== null &&
+      dataToSave.experience !== ''
+    ) {
       const normalizedExperience = Number(dataToSave.experience);
       if (!Number.isFinite(normalizedExperience) || normalizedExperience < 0) {
         throw new Error('经验值必须是大于等于 0 的数字');
@@ -123,7 +140,8 @@ export const SAVE_STRATEGIES = {
 
     if (!forumTitle) throw new Error('帖子标题不能为空');
     if (!forumBody) throw new Error('帖子正文不能为空');
-    if (normalizedAuthorId && !UUID_REGEX.test(normalizedAuthorId)) throw new Error('作者 ID 必须是 UUID');
+    if (normalizedAuthorId && !UUID_REGEX.test(normalizedAuthorId))
+      throw new Error('作者 ID 必须是 UUID');
 
     const finalForumContent = `\u3010${forumTitle}\u3011\n${forumBody}`;
     return pickWritableFields('forum', {
@@ -134,7 +152,7 @@ export const SAVE_STRATEGIES = {
       tag: normalizedTag,
       cover_image_url: normalizedCoverImageUrl,
       location_name: normalizedLocationName || null,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
   },
 
@@ -144,8 +162,16 @@ export const SAVE_STRATEGIES = {
     const normalizedStatus = String(editingItem.status || 'inactive').trim() || 'inactive';
     const normalizedFeedInterval = Number(editingItem.feed_interval);
     const normalizedCardSize = String(editingItem.card_size || 'post').trim();
-    const cardHeightLandscape = normalizeAdCardHeight(editingItem.card_height_landscape, 520, '自定义高度 · 横屏');
-    const cardHeightPortrait = normalizeAdCardHeight(editingItem.card_height_portrait, 400, '自定义高度 · 竖屏');
+    const cardHeightLandscape = normalizeAdCardHeight(
+      editingItem.card_height_landscape,
+      520,
+      '自定义高度 · 横屏',
+    );
+    const cardHeightPortrait = normalizeAdCardHeight(
+      editingItem.card_height_portrait,
+      400,
+      '自定义高度 · 竖屏',
+    );
 
     if (!normalizedTitle) throw new Error('广告名称不能为空');
     if (!normalizedPlacement) throw new Error('请选择广告位');
@@ -167,7 +193,7 @@ export const SAVE_STRATEGIES = {
       card_height_portrait: cardHeightPortrait,
       sort_order: editingItem.sort_order != null ? Number(editingItem.sort_order) : 0,
       feed_interval: Number.isInteger(normalizedFeedInterval) ? normalizedFeedInterval : 5,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
   },
 
@@ -182,13 +208,21 @@ export const SAVE_STRATEGIES = {
     const startedAtIso = toISOStringFromInput(editingItem.started_at);
     const expiresAtIso = toISOStringFromInput(editingItem.expires_at);
 
-    if (!normalizedUserId || !UUID_REGEX.test(normalizedUserId)) throw new Error('请先选择有效用户');
+    if (!normalizedUserId || !UUID_REGEX.test(normalizedUserId))
+      throw new Error('请先选择有效用户');
     if (!normalizedPlanCode || !normalizedPlanName) throw new Error('订阅内容不能为空');
-    if (!Number.isFinite(normalizedPointsCost) || normalizedPointsCost < 0) throw new Error('积分成本必须是大于等于 0 的数字');
-    if (!Number.isInteger(normalizedDurationMonths) || normalizedDurationMonths <= 0 || normalizedDurationMonths > 120) throw new Error('订阅月数必须是 1-120 之间的整数');
+    if (!Number.isFinite(normalizedPointsCost) || normalizedPointsCost < 0)
+      throw new Error('积分成本必须是大于等于 0 的数字');
+    if (
+      !Number.isInteger(normalizedDurationMonths) ||
+      normalizedDurationMonths <= 0 ||
+      normalizedDurationMonths > 120
+    )
+      throw new Error('订阅月数必须是 1-120 之间的整数');
     if (!startedAtIso) throw new Error('订阅时间无效');
     if (!expiresAtIso) throw new Error('到期时间无效');
-    if (Date.parse(expiresAtIso) <= Date.parse(startedAtIso)) throw new Error('到期时间必须晚于订阅时间');
+    if (Date.parse(expiresAtIso) <= Date.parse(startedAtIso))
+      throw new Error('到期时间必须晚于订阅时间');
 
     return pickWritableFields('subscriptions', {
       user_id: normalizedUserId,
@@ -201,7 +235,7 @@ export const SAVE_STRATEGIES = {
       expires_at: expiresAtIso,
       status: normalizedStatus,
       metadata: editingItem.metadata || {},
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
   },
 
@@ -212,12 +246,19 @@ export const SAVE_STRATEGIES = {
     const normalizedStatus = String(editingItem.status || 'active').trim() || 'active';
     const normalizedPriority = Number(editingItem.priority);
     const normalizedTags = Array.isArray(editingItem.tags)
-      ? editingItem.tags.map((tag) => String(tag || '').trim()).filter(Boolean).slice(0, 30)
+      ? editingItem.tags
+          .map((tag) => String(tag || '').trim())
+          .filter(Boolean)
+          .slice(0, 30)
       : [];
 
     if (!normalizedTitle) throw new Error('标题不能为空');
     if (!normalizedContent) throw new Error('官方事实内容不能为空');
-    if (!Number.isFinite(normalizedPriority) || normalizedPriority < 0 || normalizedPriority > 100) {
+    if (
+      !Number.isFinite(normalizedPriority) ||
+      normalizedPriority < 0 ||
+      normalizedPriority > 100
+    ) {
       throw new Error('优先级必须是 0-100 之间的数字');
     }
 
@@ -230,42 +271,101 @@ export const SAVE_STRATEGIES = {
       source_label: String(editingItem.source_label || 'BOH 官方').trim() || 'BOH 官方',
       source_url: String(editingItem.source_url || '').trim(),
       status: normalizedStatus,
-      updated_by: userId || null
+      updated_by: userId || null,
     });
   },
 
   bohaiModels: async ({ editingItem, userId, isEditing }) => {
     const normalizedModeId = String(editingItem.mode_id || '').trim();
     const normalizedDisplayName = String(editingItem.display_name || '').trim();
-    const normalizedProvider = String(editingItem.provider || 'siliconflow').trim().toLowerCase();
+    const normalizedProvider = String(editingItem.provider || 'siliconflow')
+      .trim()
+      .toLowerCase();
     const normalizedModelId = String(editingItem.model_id || '').trim();
-    const normalizedCapability = String(editingItem.capability || 'chat').trim().toLowerCase();
-    const normalizedStatus = String(editingItem.status || 'active').trim().toLowerCase();
+    const normalizedCapability = String(editingItem.capability || 'chat')
+      .trim()
+      .toLowerCase();
+    const normalizedStatus = String(editingItem.status || 'active')
+      .trim()
+      .toLowerCase();
     const normalizedIcon = String(editingItem.icon || 'sparkles').trim() || 'sparkles';
-    const normalizedMinTier = String(editingItem.min_tier || 'free').trim().toLowerCase();
+    const normalizedMinTier = String(editingItem.min_tier || 'free')
+      .trim()
+      .toLowerCase();
     const normalizedTemperature = Number(editingItem.temperature);
     const normalizedTopP = Number(editingItem.top_p);
     const normalizedFrequencyPenalty = Number(editingItem.frequency_penalty);
     const normalizedMaxTokens = Number(editingItem.max_tokens);
-    const normalizedQuotaMultiplier = Number(editingItem.quota_multiplier ?? 1);
+    // ⚠️ 空串不能落成 0：`Number('') === 0` 会把「管理员清空了输入框」静默保存成**免费模型**。
+    // 真正的 null/undefined 仍兜底 1（新建行的默认值在 DataAdmin 已显式写 1）。
+    const rawQuotaMultiplier = editingItem.quota_multiplier;
+    const isBlankQuotaMultiplier =
+      rawQuotaMultiplier !== null &&
+      rawQuotaMultiplier !== undefined &&
+      String(rawQuotaMultiplier).trim() === '';
+    const normalizedQuotaMultiplier = isBlankQuotaMultiplier
+      ? Number.NaN
+      : Number(rawQuotaMultiplier ?? 1);
     const normalizedSortOrder = Number(editingItem.sort_order);
 
     if (!normalizedModeId || !/^[a-z0-9][a-z0-9_-]{1,63}$/i.test(normalizedModeId)) {
       throw new Error('模式 ID 只能包含字母、数字、横线或下划线，长度 2-64');
     }
     if (!normalizedDisplayName) throw new Error('显示名称不能为空');
-    if (!['siliconflow', 'zhipu', 'openrouter', 'custom'].includes(normalizedProvider)) throw new Error('供应商必须是 siliconflow / zhipu / openrouter / custom');
+    if (!['siliconflow', 'zhipu', 'openrouter', 'custom'].includes(normalizedProvider))
+      throw new Error('供应商必须是 siliconflow / zhipu / openrouter / custom');
     if (!normalizedModelId) throw new Error('模型 ID 不能为空');
-    if (!['chat', 'multimodal', 'plan', 'agent'].includes(normalizedCapability)) throw new Error('能力类型无效');
-    if (!['active', 'disabled'].includes(normalizedStatus)) throw new Error('状态必须是 active 或 disabled');
-    const allowedMinTiers = new Set(['guest', 'free', 'plus', 'pro', 'max', 'ultra', 'coding-lite', 'coding-plus', 'coding-pro', 'coding-ultra']);
+    if (!['chat', 'multimodal', 'plan', 'agent'].includes(normalizedCapability))
+      throw new Error('能力类型无效');
+    if (!['active', 'disabled'].includes(normalizedStatus))
+      throw new Error('状态必须是 active 或 disabled');
+    const allowedMinTiers = new Set([
+      'guest',
+      'free',
+      'plus',
+      'pro',
+      'max',
+      'ultra',
+      'coding-lite',
+      'coding-plus',
+      'coding-pro',
+      'coding-ultra',
+    ]);
     if (!allowedMinTiers.has(normalizedMinTier)) throw new Error('最低订阅档位无效');
-    if (!Number.isFinite(normalizedTemperature) || normalizedTemperature < 0 || normalizedTemperature > 1.2) throw new Error('Temperature 必须在 0-1.2 之间');
-    if (!Number.isFinite(normalizedTopP) || normalizedTopP < 0.1 || normalizedTopP > 1) throw new Error('Top P 必须在 0.1-1 之间');
-    if (!Number.isFinite(normalizedFrequencyPenalty) || normalizedFrequencyPenalty < 0 || normalizedFrequencyPenalty > 2) throw new Error('Frequency Penalty 必须在 0-2 之间');
-    if (!Number.isInteger(normalizedMaxTokens) || normalizedMaxTokens < 256 || normalizedMaxTokens > 4096) throw new Error('最大输出 tokens 必须是 256-4096 的整数');
-    if (!Number.isFinite(normalizedQuotaMultiplier) || normalizedQuotaMultiplier < 0.1 || normalizedQuotaMultiplier > 100) throw new Error('额度倍率必须在 0.1-100 之间');
-    if (!Number.isInteger(normalizedSortOrder) || normalizedSortOrder < 0 || normalizedSortOrder > 10000) throw new Error('显示排序必须是 0-10000 的整数');
+    if (
+      !Number.isFinite(normalizedTemperature) ||
+      normalizedTemperature < 0 ||
+      normalizedTemperature > 1.2
+    )
+      throw new Error('Temperature 必须在 0-1.2 之间');
+    if (!Number.isFinite(normalizedTopP) || normalizedTopP < 0.1 || normalizedTopP > 1)
+      throw new Error('Top P 必须在 0.1-1 之间');
+    if (
+      !Number.isFinite(normalizedFrequencyPenalty) ||
+      normalizedFrequencyPenalty < 0 ||
+      normalizedFrequencyPenalty > 2
+    )
+      throw new Error('Frequency Penalty 必须在 0-2 之间');
+    if (
+      !Number.isInteger(normalizedMaxTokens) ||
+      normalizedMaxTokens < 256 ||
+      normalizedMaxTokens > 4096
+    )
+      throw new Error('最大输出 tokens 必须是 256-4096 的整数');
+    // 下界是 0（不是 0.1）：0 = 免费模型（billed_tokens = 0，不扣额度也不扣积分）。
+    // 线上 CHECK 约束 2026092906 已是 `>= 0`，此处必须同口径，否则面板成为第二道假限制。
+    if (
+      !Number.isFinite(normalizedQuotaMultiplier) ||
+      normalizedQuotaMultiplier < 0 ||
+      normalizedQuotaMultiplier > 100
+    )
+      throw new Error('额度倍率必须在 0-100 之间（0 = 免费模型）');
+    if (
+      !Number.isInteger(normalizedSortOrder) ||
+      normalizedSortOrder < 0 ||
+      normalizedSortOrder > 10000
+    )
+      throw new Error('显示排序必须是 0-10000 的整数');
 
     return pickWritableFields('bohaiModels', {
       mode_id: normalizedModeId,
@@ -275,7 +375,9 @@ export const SAVE_STRATEGIES = {
       provider: normalizedProvider,
       provider_label: String(editingItem.provider_label || '').trim() || normalizedProvider,
       model_id: normalizedModelId,
-      api_url: String(editingItem.api_url || '').trim() || getDefaultApiUrlForBohaiProvider(normalizedProvider),
+      api_url:
+        String(editingItem.api_url || '').trim() ||
+        getDefaultApiUrlForBohaiProvider(normalizedProvider),
       capability: normalizedCapability,
       icon: normalizedIcon,
       temperature: normalizedTemperature,
@@ -287,8 +389,8 @@ export const SAVE_STRATEGIES = {
       sort_order: normalizedSortOrder,
       status: normalizedStatus,
       notes: String(editingItem.notes || '').trim(),
-      created_by: isEditing ? undefined : (userId || null),
-      updated_by: userId || null
+      created_by: isEditing ? undefined : userId || null,
+      updated_by: userId || null,
     });
   },
 
@@ -296,37 +398,62 @@ export const SAVE_STRATEGIES = {
     const normalizedTitle = String(editingItem.title || '').trim();
     const normalizedPrizeTitle = String(editingItem.prize_title || '').trim();
     const normalizedStatus = String(editingItem.status || 'open').trim() || 'open';
-    const normalizedFulfillmentStatus = String(editingItem.fulfillment_status || 'pending_contact').trim() || 'pending_contact';
-    const normalizedCommunityVisible = editingItem.is_community_visible !== false && editingItem.is_community_visible !== 'false';
-    const normalizedHomeVisible = editingItem.is_home_visible !== false && editingItem.is_home_visible !== 'false';
-    const normalizedEnforceAccountAgeCheck = editingItem.enforce_account_age_check === true || editingItem.enforce_account_age_check === 'true';
+    const normalizedFulfillmentStatus =
+      String(editingItem.fulfillment_status || 'pending_contact').trim() || 'pending_contact';
+    const normalizedCommunityVisible =
+      editingItem.is_community_visible !== false && editingItem.is_community_visible !== 'false';
+    const normalizedHomeVisible =
+      editingItem.is_home_visible !== false && editingItem.is_home_visible !== 'false';
+    const normalizedEnforceAccountAgeCheck =
+      editingItem.enforce_account_age_check === true ||
+      editingItem.enforce_account_age_check === 'true';
     const normalizedPityMode = String(editingItem.pity_mode || 'none').trim() || 'none';
     const rawMaxEntries = editingItem.max_entries;
-    const hasMaxEntries = rawMaxEntries !== null && rawMaxEntries !== undefined && rawMaxEntries !== '';
+    const hasMaxEntries =
+      rawMaxEntries !== null && rawMaxEntries !== undefined && rawMaxEntries !== '';
     const normalizedMaxEntries = hasMaxEntries ? Number(rawMaxEntries) : null;
     const rawWinnerCount = editingItem.winner_count;
-    const normalizedWinnerCount = rawWinnerCount === null || rawWinnerCount === undefined || rawWinnerCount === ''
-      ? 1
-      : Number(rawWinnerCount);
+    const normalizedWinnerCount =
+      rawWinnerCount === null || rawWinnerCount === undefined || rawWinnerCount === ''
+        ? 1
+        : Number(rawWinnerCount);
     const normalizedPityRewardTitle = String(editingItem.pity_reward_title || '').trim();
-    const normalizedPityRewardDescription = String(editingItem.pity_reward_description || '').trim();
+    const normalizedPityRewardDescription = String(
+      editingItem.pity_reward_description || '',
+    ).trim();
     const normalizedEntryDeadlineAt = toISOStringFromInput(editingItem.entry_deadline_at);
     const normalizedDrawAt = toISOStringFromInput(editingItem.draw_at);
 
     if (!normalizedTitle) throw new Error('抽奖标题不能为空');
     if (!normalizedPrizeTitle) throw new Error('奖品名称不能为空');
-    if (!['draft', 'open', 'drawn', 'closed'].includes(normalizedStatus)) throw new Error('抽奖状态无效');
-    if (!['pending_contact', 'confirmed', 'fulfilled', 'voided'].includes(normalizedFulfillmentStatus)) throw new Error('中奖处理状态无效');
-    if (hasMaxEntries && (!Number.isInteger(normalizedMaxEntries) || normalizedMaxEntries <= 0)) throw new Error('报名人数上限必须是正整数，或留空表示不限');
-    if (!Number.isInteger(normalizedWinnerCount) || ![1, 2].includes(normalizedWinnerCount)) throw new Error('中奖人数只能为 1 或 2');
-    if (!['none', 'count_only', 'eligible'].includes(normalizedPityMode)) throw new Error('保底失败计算方式无效');
-    if (normalizedPityMode === 'eligible' && normalizedWinnerCount !== 2) throw new Error('兑现保底时中奖人数固定为 2：1 位普通中奖人和 1 位保底中奖人');
-    if (normalizedPityMode !== 'eligible' && normalizedWinnerCount !== 1) throw new Error('不兑现保底时中奖人数固定为 1 位普通中奖人');
-    if (normalizedMaxEntries !== null && normalizedWinnerCount > normalizedMaxEntries) throw new Error('中奖人数不能大于报名人数上限');
-    if (normalizedPityMode === 'eligible' && !normalizedPityRewardTitle) throw new Error('允许保底时必须填写主保底礼');
+    if (!['draft', 'open', 'drawn', 'closed'].includes(normalizedStatus))
+      throw new Error('抽奖状态无效');
+    if (
+      !['pending_contact', 'confirmed', 'fulfilled', 'voided'].includes(normalizedFulfillmentStatus)
+    )
+      throw new Error('中奖处理状态无效');
+    if (hasMaxEntries && (!Number.isInteger(normalizedMaxEntries) || normalizedMaxEntries <= 0))
+      throw new Error('报名人数上限必须是正整数，或留空表示不限');
+    if (!Number.isInteger(normalizedWinnerCount) || ![1, 2].includes(normalizedWinnerCount))
+      throw new Error('中奖人数只能为 1 或 2');
+    if (!['none', 'count_only', 'eligible'].includes(normalizedPityMode))
+      throw new Error('保底失败计算方式无效');
+    if (normalizedPityMode === 'eligible' && normalizedWinnerCount !== 2)
+      throw new Error('兑现保底时中奖人数固定为 2：1 位普通中奖人和 1 位保底中奖人');
+    if (normalizedPityMode !== 'eligible' && normalizedWinnerCount !== 1)
+      throw new Error('不兑现保底时中奖人数固定为 1 位普通中奖人');
+    if (normalizedMaxEntries !== null && normalizedWinnerCount > normalizedMaxEntries)
+      throw new Error('中奖人数不能大于报名人数上限');
+    if (normalizedPityMode === 'eligible' && !normalizedPityRewardTitle)
+      throw new Error('允许保底时必须填写主保底礼');
     if (editingItem.draw_at && !normalizedDrawAt) throw new Error('自动开奖时间无效');
-    if (editingItem.entry_deadline_at && !normalizedEntryDeadlineAt) throw new Error('报名截止时间无效');
-    if (normalizedEntryDeadlineAt && normalizedDrawAt && Date.parse(normalizedEntryDeadlineAt) > Date.parse(normalizedDrawAt)) {
+    if (editingItem.entry_deadline_at && !normalizedEntryDeadlineAt)
+      throw new Error('报名截止时间无效');
+    if (
+      normalizedEntryDeadlineAt &&
+      normalizedDrawAt &&
+      Date.parse(normalizedEntryDeadlineAt) > Date.parse(normalizedDrawAt)
+    ) {
       throw new Error('报名截止时间不能晚于自动开奖时间');
     }
 
@@ -336,7 +463,8 @@ export const SAVE_STRATEGIES = {
       prize_title: normalizedPrizeTitle,
       prize_description: String(editingItem.prize_description || '').trim(),
       pity_reward_title: normalizedPityMode === 'eligible' ? normalizedPityRewardTitle : null,
-      pity_reward_description: normalizedPityMode === 'eligible' ? normalizedPityRewardDescription : null,
+      pity_reward_description:
+        normalizedPityMode === 'eligible' ? normalizedPityRewardDescription : null,
       cover_image_url: String(editingItem.cover_image_url || '').trim(),
       status: normalizedStatus,
       fulfillment_status: normalizedFulfillmentStatus,
@@ -348,38 +476,48 @@ export const SAVE_STRATEGIES = {
       pity_mode: normalizedPityMode,
       entry_deadline_at: normalizedEntryDeadlineAt,
       draw_at: normalizedDrawAt,
-      created_by: isEditing ? undefined : (userId || null),
-      updated_by: userId || null
+      created_by: isEditing ? undefined : userId || null,
+      updated_by: userId || null,
     });
   },
 
   products: async ({ editingItem }) => {
     const normalizedId = Number(editingItem.id);
-    if (!Number.isInteger(normalizedId) || normalizedId <= 0) throw new Error('商品 ID 必须是正整数');
+    if (!Number.isInteger(normalizedId) || normalizedId <= 0)
+      throw new Error('商品 ID 必须是正整数');
 
     const normalizedPointsCost = Number(editingItem.points_cost);
-    if (!Number.isFinite(normalizedPointsCost) || normalizedPointsCost < 0) throw new Error('商品积分定价必须是大于等于 0 的数字');
+    if (!Number.isFinite(normalizedPointsCost) || normalizedPointsCost < 0)
+      throw new Error('商品积分定价必须是大于等于 0 的数字');
 
     const normalizedStock = Number(editingItem.stock);
-    if (!Number.isFinite(normalizedStock) || normalizedStock < 0) throw new Error('库存必须是大于等于 0 的数字');
+    if (!Number.isFinite(normalizedStock) || normalizedStock < 0)
+      throw new Error('库存必须是大于等于 0 的数字');
 
     const normalizedPaymentMode = String(editingItem.payment_mode || 'points').trim();
-    if (!['points', 'rmb', 'mixed'].includes(normalizedPaymentMode)) throw new Error('支付模式无效');
+    if (!['points', 'rmb', 'mixed'].includes(normalizedPaymentMode))
+      throw new Error('支付模式无效');
 
-    const normalizedRmbPrice = editingItem.rmb_price !== null && editingItem.rmb_price !== undefined && editingItem.rmb_price !== ''
-      ? Number(editingItem.rmb_price)
-      : null;
-    if (normalizedRmbPrice !== null && (!Number.isFinite(normalizedRmbPrice) || normalizedRmbPrice < 0)) {
+    const normalizedRmbPrice =
+      editingItem.rmb_price !== null &&
+      editingItem.rmb_price !== undefined &&
+      editingItem.rmb_price !== ''
+        ? Number(editingItem.rmb_price)
+        : null;
+    if (
+      normalizedRmbPrice !== null &&
+      (!Number.isFinite(normalizedRmbPrice) || normalizedRmbPrice < 0)
+    ) {
       throw new Error('RMB 定价必须是大于等于 0 的数字');
     }
 
     const normalizedSpecifications = Array.isArray(editingItem.specifications)
       ? editingItem.specifications
-        .map((spec) => ({
-          label: String(spec?.label || '').trim(),
-          value: String(spec?.value || '').trim()
-        }))
-        .filter((spec) => spec.label && spec.value)
+          .map((spec) => ({
+            label: String(spec?.label || '').trim(),
+            value: String(spec?.value || '').trim(),
+          }))
+          .filter((spec) => spec.label && spec.value)
       : [];
 
     return pickWritableFields('products', {
@@ -394,7 +532,7 @@ export const SAVE_STRATEGIES = {
       image: String(editingItem.image || '').trim(),
       specifications: normalizedSpecifications,
       is_active: editingItem.is_active === true || editingItem.is_active === 'true',
-      is_purchasable: editingItem.is_purchasable === true || editingItem.is_purchasable === 'true'
+      is_purchasable: editingItem.is_purchasable === true || editingItem.is_purchasable === 'true',
     });
   },
 
@@ -405,7 +543,7 @@ export const SAVE_STRATEGIES = {
 
     return pickWritableFields('shopOrders', {
       status: normalizedStatus,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
   },
 
@@ -450,7 +588,7 @@ export const SAVE_STRATEGIES = {
       signup_end_at: signupEnd,
       start_at: startAt,
       end_at: endAt,
-      config
+      config,
     });
   },
 
@@ -477,18 +615,19 @@ export const SAVE_STRATEGIES = {
       celebration_date: normalizedDate,
       is_active: editingItem.is_active === true || editingItem.is_active === 'true',
       sort_order: Number(editingItem.sort_order || 0),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
   },
 
   birthdayWishes: async ({ editingItem }) => {
     const normalizedStatus = String(editingItem.status || 'pending').trim();
-    if (!['pending', 'approved', 'rejected'].includes(normalizedStatus)) throw new Error('祝福状态无效');
+    if (!['pending', 'approved', 'rejected'].includes(normalizedStatus))
+      throw new Error('祝福状态无效');
 
     return pickWritableFields('birthdayWishes', {
       status: normalizedStatus,
       is_featured: editingItem.is_featured === true || editingItem.is_featured === 'true',
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
   },
 
@@ -501,7 +640,7 @@ export const SAVE_STRATEGIES = {
       position_x: Number(editingItem.position_x || 0),
       position_y: Number(editingItem.position_y || 0),
       rotation: Number(editingItem.rotation || 0),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
   },
 
@@ -517,7 +656,7 @@ export const SAVE_STRATEGIES = {
       video_url: normalizedVideoUrl,
       creator_platform: String(editingItem.creator_platform || 'other').trim(),
       creator_platform_id: String(editingItem.creator_platform_id || '').trim(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
   },
 
@@ -547,7 +686,8 @@ export const SAVE_STRATEGIES = {
     // 让「只精确到月」的记录凭空多出 1 日（历史 17 条里有 6 条是这种）。按原精度归一。
     const normalizedDate = normalizeActivityDateInput(editingItem.date);
 
-    if (!Number.isInteger(normalizedId) || normalizedId <= 0) throw new Error('活动 ID 必须是正整数');
+    if (!Number.isInteger(normalizedId) || normalizedId <= 0)
+      throw new Error('活动 ID 必须是正整数');
     if (!normalizedDate) throw new Error('活动日期不能为空，请至少选择年月');
 
     return pickWritableFields('activities', {
@@ -555,7 +695,7 @@ export const SAVE_STRATEGIES = {
       title: normalizedTitle,
       date: normalizedDate,
       image: String(editingItem.image || '').trim(),
-      description: String(editingItem.description || '').trim()
+      description: String(editingItem.description || '').trim(),
     });
   },
 
@@ -563,28 +703,29 @@ export const SAVE_STRATEGIES = {
     const normalizedTitle = String(editingItem.title || '').trim();
     const normalizedStatus = String(editingItem.status || 'active').trim() || 'active';
     const rawPoints = editingItem.points_per_post;
-    const normalizedPoints = (rawPoints === null || rawPoints === undefined || rawPoints === '')
-      ? 0
-      : Number(rawPoints);
+    const normalizedPoints =
+      rawPoints === null || rawPoints === undefined || rawPoints === '' ? 0 : Number(rawPoints);
     const rawDaily = editingItem.daily_limit;
-    const normalizedDaily = (rawDaily === null || rawDaily === undefined || rawDaily === '')
-      ? 0
-      : Number(rawDaily);
+    const normalizedDaily =
+      rawDaily === null || rawDaily === undefined || rawDaily === '' ? 0 : Number(rawDaily);
     const rawMonthly = editingItem.monthly_limit;
-    const normalizedMonthly = (rawMonthly === null || rawMonthly === undefined || rawMonthly === '')
-      ? 0
-      : Number(rawMonthly);
+    const normalizedMonthly =
+      rawMonthly === null || rawMonthly === undefined || rawMonthly === '' ? 0 : Number(rawMonthly);
     const normalizedStartAt = toISOStringFromInput(editingItem.start_at);
     const normalizedEndAt = toISOStringFromInput(editingItem.end_at);
 
     if (!normalizedTitle) throw new Error('活动标题不能为空');
     if (!['active', 'inactive'].includes(normalizedStatus)) throw new Error('活动状态无效');
-    if (!Number.isInteger(normalizedPoints) || normalizedPoints <= 0) throw new Error('每帖积分必须是大于 0 的整数');
-    if (!Number.isInteger(normalizedDaily) || normalizedDaily < 0) throw new Error('每日上限必须是非负整数，0 表示不限制');
-    if (!Number.isInteger(normalizedMonthly) || normalizedMonthly < 0) throw new Error('每月上限必须是非负整数，0 表示不限制');
+    if (!Number.isInteger(normalizedPoints) || normalizedPoints <= 0)
+      throw new Error('每帖积分必须是大于 0 的整数');
+    if (!Number.isInteger(normalizedDaily) || normalizedDaily < 0)
+      throw new Error('每日上限必须是非负整数，0 表示不限制');
+    if (!Number.isInteger(normalizedMonthly) || normalizedMonthly < 0)
+      throw new Error('每月上限必须是非负整数，0 表示不限制');
     if (!normalizedStartAt) throw new Error('开始时间无效');
     if (!normalizedEndAt) throw new Error('结束时间无效');
-    if (Date.parse(normalizedStartAt) >= Date.parse(normalizedEndAt)) throw new Error('结束时间必须晚于开始时间');
+    if (Date.parse(normalizedStartAt) >= Date.parse(normalizedEndAt))
+      throw new Error('结束时间必须晚于开始时间');
 
     return pickWritableFields('postReward', {
       title: normalizedTitle,
@@ -593,28 +734,32 @@ export const SAVE_STRATEGIES = {
       daily_limit: normalizedDaily,
       monthly_limit: normalizedMonthly,
       start_at: normalizedStartAt,
-      end_at: normalizedEndAt
+      end_at: normalizedEndAt,
     });
   },
 
   gifts: async ({ editingItem }) => {
     const normalizedUserId = String(editingItem.user_id || '').trim();
     if (!normalizedUserId) throw new Error('请先选择用户');
-    if (!editingItem.gift_content || !String(editingItem.gift_content).trim()) throw new Error('礼物内容不能为空');
+    if (!editingItem.gift_content || !String(editingItem.gift_content).trim())
+      throw new Error('礼物内容不能为空');
 
     const customCompletedAt = toISOStringFromInput(editingItem.completed_at);
-    const normalizedIsActive = typeof editingItem.is_active === 'string'
-      ? editingItem.is_active === 'true'
-      : Boolean(editingItem.is_active);
+    const normalizedIsActive =
+      typeof editingItem.is_active === 'string'
+        ? editingItem.is_active === 'true'
+        : Boolean(editingItem.is_active);
     const normalizedGiftStatus = editingItem.gift_status;
     const nowIso = new Date().toISOString();
-    const normalizedCompletedAt = normalizedGiftStatus === 'completed'
-      ? (customCompletedAt || nowIso)
-      : null;
+    const normalizedCompletedAt =
+      normalizedGiftStatus === 'completed' ? customCompletedAt || nowIso : null;
 
-    const normalizedGiftPoints = editingItem.gift_points !== null && editingItem.gift_points !== undefined && editingItem.gift_points !== ''
-      ? Number(editingItem.gift_points)
-      : 0;
+    const normalizedGiftPoints =
+      editingItem.gift_points !== null &&
+      editingItem.gift_points !== undefined &&
+      editingItem.gift_points !== ''
+        ? Number(editingItem.gift_points)
+        : 0;
 
     return pickWritableFields('gifts', {
       user_id: normalizedUserId,
@@ -627,7 +772,7 @@ export const SAVE_STRATEGIES = {
       is_active: normalizedIsActive,
       address_id: editingItem.address_id || null,
       completed_at: normalizedCompletedAt,
-      updated_at: nowIso
+      updated_at: nowIso,
     });
   },
 
@@ -649,9 +794,10 @@ export const SAVE_STRATEGIES = {
     if (!allowedTags.has(tag)) throw new Error('地址标签无效');
 
     // is_default 来自 select 字段，可能是字符串 'true'/'false' 或布尔值
-    const normalizedIsDefault = typeof editingItem.is_default === 'string'
-      ? editingItem.is_default === 'true'
-      : Boolean(editingItem.is_default);
+    const normalizedIsDefault =
+      typeof editingItem.is_default === 'string'
+        ? editingItem.is_default === 'true'
+        : Boolean(editingItem.is_default);
 
     return pickWritableFields('addresses', {
       user_id: normalizedUserId,
@@ -661,7 +807,7 @@ export const SAVE_STRATEGIES = {
       detail,
       tag,
       is_default: normalizedIsDefault,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
   },
 
@@ -676,7 +822,7 @@ export const SAVE_STRATEGIES = {
     return pickWritableFields('posterRequests', {
       user_id: normalizedUserId,
       status: normalizedStatus,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
-  }
+  },
 };
