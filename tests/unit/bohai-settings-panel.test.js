@@ -289,16 +289,16 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
     for (const event of requiredEvents) {
       expect(content).toContain(event);
     }
-    // 思考强度**只许**在输入区面板（BohComposer）里，设置面板不许有第二个入口。
-    // 2026-10-08（plans/025 Step 6-4）：输入区整体重绘为 BohComposer，它的强度分段改走
-    // `@select-thinking-speed` ⇒ 不能再用「整份 BOHAIMain 不含该串」这种粗断言（会假红）。
-    // 改成：**设置面板那一块**不许含它 + 输入区必须真的接线。
+    // 思考强度已整体下线（2026-10-11 用户口径「不做，直接隐藏」）—— 现有在用模式里
+    // 只有 gemini 支持调思考强度，且服务端会用 DB 值覆盖客户端采样参数 ⇒ 该控件是空转的。
+    // ⇒ 输入区与设置面板**都不许**再出现这个 emit：接线是彻底移除，不是「换个入口」。
     const settingsTagStart = content.indexOf('<BohaiSettingsPanel');
     const settingsTagEnd = content.indexOf('/>', settingsTagStart);
     const settingsTag = content.slice(settingsTagStart, settingsTagEnd);
     expect(settingsTag.length, '未找到 <BohaiSettingsPanel ... /> 标签').toBeGreaterThan(0);
     expect(settingsTag).not.toContain('@select-thinking-speed');
-    expect(content).toContain('@select-thinking-speed="selectThinkingSpeed"');
+    expect(content).not.toContain('@select-thinking-speed');
+    expect(content).not.toContain('selectThinkingSpeed');
   });
 
   it('完整 AI 页面接入主题、密度和字号设置', () => {

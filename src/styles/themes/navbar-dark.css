@@ -4,19 +4,24 @@
  * ============================================
  */
 
-/* 统一导航栏容器 - 使用双重选择器提高优先级 */
+/* 统一导航栏容器
+   ⚠️ dark audit 2026-10-11：这里原先是「不透明黑条 + 模糊 + 底边 + 投影」四件套，
+   但浅色下这个容器在**所有页面**都是透明的（vendor 的 `.unified-nav` 白条被页面级
+   rule 覆盖；实测 light 全站 computed = rgba(0,0,0,0)）。暗色独有黑条带来两个后果：
+     ① 页面顶部多出一条 78px 纯黑带（浅色没有）；
+     ② 更要命：容器会被撑高的 `.unified-nav-surface` 撑开（岛展开时 height 78 → 391），
+        实心背景铺满后就是页顶一大块实心矩形 —— 用户报的
+        「一旦有任何岛的活动，就带出一大块黑色的东西」（2026-10-11）。
+   视觉（玻璃底/描边）与点击拦截都归 `.unified-nav-surface` 自己，容器保持透明即可；
+   容器**保留撑高**是有意的 —— 它用来接住「点面板外部关闭」。
+   同一处理已见于沉浸态（style.scoped.css 的 `.nav-immersive-on .unified-nav` 退场）。 */
 #unified-nav-container[data-theme="dark"],
 [data-theme="dark"] #unified-nav-container {
-  background-color: rgba(10, 10, 15, 0.85) !important;
-  backdrop-filter: var(--liquid-filter) !important;
-  -webkit-backdrop-filter: var(--liquid-filter) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3) !important;
-}
-
-#unified-nav-container[data-theme="dark"] .unified-nav,
-[data-theme="dark"] #unified-nav-container .unified-nav {
   background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom-color: transparent !important;
+  box-shadow: none !important;
 }
 
 /* 导航链接 */

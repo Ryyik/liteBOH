@@ -59,6 +59,8 @@
           :key="action.id"
           type="button"
           class="userspace-rail-item"
+          :class="{ active: activeAction === action.id }"
+          :aria-current="activeAction === action.id ? 'true' : undefined"
           :data-rail-action="action.id"
           @click.stop="$emit('action', action.id)"
         >
@@ -86,59 +88,68 @@
           <span class="userspace-rail-label">首页</span>
         </button>
       </nav>
+    </div>
 
-      <!-- 更多（主题 / 退出登录）：收低频偏好与破坏性操作 —— 要两步才登出，
-           这是用一点点可用性换误触成本，取舍已确认。菜单**向上**弹。 -->
-      <div ref="moreWrapRef" class="userspace-rail-more-wrap">
-        <button
-          ref="moreBtnRef"
-          type="button"
-          class="userspace-rail-item userspace-rail-more"
-          data-rail-action="more"
-          :aria-expanded="moreOpen ? 'true' : 'false'"
-          aria-haspopup="menu"
-          aria-label="更多"
-          @click.stop="toggleMore"
+    <!-- 更多（主题 / 退出登录）：收低频偏好与破坏性操作 —— 要两步才登出，
+         这是用一点点可用性换误触成本，取舍已确认。菜单**向上**弹。
+
+         ⚠️ 它必须是 .userspace-rail-scroll 的**兄弟**、不能放在滚动容器里面
+         （2026-10-11 修）：滚动容器是 `overflow-x: hidden + overflow-y: auto`
+         （见 side-rail.css），绝对定位的后代会被它的 padding box 裁掉 ——
+         88px 窄栏下浮层宽 172px，实际只剩 68px 可见，用户看到的是
+         「深色模式 → 深」「退出登录 → 退」这种只剩图标 + 半个字的残条。
+         240px 宽栏恰好没暴露（滚动容器 215px > 浮层 172px），所以此前三处
+         探针全绿。挂在 scroll 外面后浮层不再受裁剪，窄栏下正常向右展开盖住内容区
+         （左栏 z-index 2 高于内容层）；「更多」按钮同时变成常驻栏底、不再随内容滚走。 -->
+    <div ref="moreWrapRef" class="userspace-rail-more-wrap">
+      <button
+        ref="moreBtnRef"
+        type="button"
+        class="userspace-rail-item userspace-rail-more"
+        data-rail-action="more"
+        :aria-expanded="moreOpen ? 'true' : 'false'"
+        aria-haspopup="menu"
+        aria-label="更多"
+        @click.stop="toggleMore"
+      >
+        <svg
+          class="userspace-rail-icon userspace-rail-more-icon"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
         >
-          <svg
-            class="userspace-rail-icon userspace-rail-more-icon"
-            viewBox="0 0 24 24"
+          <circle cx="5" cy="12" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="19" cy="12" r="1.5" />
+        </svg>
+        <span class="userspace-rail-label">更多</span>
+      </button>
+      <div v-if="moreOpen" class="userspace-rail-menu" role="menu">
+        <button
+          type="button"
+          role="menuitem"
+          class="userspace-rail-menu-item"
+          data-rail-action="theme"
+          @click.stop="pickAction('theme')"
+        >
+          <component
+            :is="currentTheme === 'dark' ? Sun : Moon"
+            :size="16"
+            :stroke-width="1.9"
             aria-hidden="true"
-          >
-            <circle cx="5" cy="12" r="1.5" />
-            <circle cx="12" cy="12" r="1.5" />
-            <circle cx="19" cy="12" r="1.5" />
-          </svg>
-          <span class="userspace-rail-label">更多</span>
+          />
+          <span>{{ currentTheme === 'dark' ? '浅色模式' : '深色模式' }}</span>
         </button>
-        <div v-if="moreOpen" class="userspace-rail-menu" role="menu">
-          <button
-            type="button"
-            role="menuitem"
-            class="userspace-rail-menu-item"
-            data-rail-action="theme"
-            @click.stop="pickAction('theme')"
-          >
-            <component
-              :is="currentTheme === 'dark' ? Sun : Moon"
-              :size="16"
-              :stroke-width="1.9"
-              aria-hidden="true"
-            />
-            <span>{{ currentTheme === 'dark' ? '浅色模式' : '深色模式' }}</span>
-          </button>
-          <button
-            v-if="isLoggedIn"
-            type="button"
-            role="menuitem"
-            class="userspace-rail-menu-item is-danger"
-            data-rail-action="logout"
-            @click.stop="pickAction('logout')"
-          >
-            <LogOut :size="16" :stroke-width="1.9" aria-hidden="true" />
-            <span>退出登录</span>
-          </button>
-        </div>
+        <button
+          v-if="isLoggedIn"
+          type="button"
+          role="menuitem"
+          class="userspace-rail-menu-item is-danger"
+          data-rail-action="logout"
+          @click.stop="pickAction('logout')"
+        >
+          <LogOut :size="16" :stroke-width="1.9" aria-hidden="true" />
+          <span>退出登录</span>
+        </button>
       </div>
     </div>
   </aside>
@@ -167,6 +178,15 @@ const props = defineProps({
   currentTab: {
     type: String,
     required: true,
+  },
+  /**
+   * 便捷区（发布 / 搜索）里当前处于「已打开会话」的那一项 id，没有则空串。
+   * 与 currentTab 分开是有意的：会话是浮层、页面仍是内容页，两者语义不同层级。
+   * 状态真源在 ForumMain（composer-state 事件），本组件只做展示。
+   */
+  activeAction: {
+    type: String,
+    default: '',
   },
   hasUnreadMessages: {
     type: Boolean,

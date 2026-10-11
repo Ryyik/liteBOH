@@ -253,13 +253,30 @@
             </div>
           </div>
 
+          <!-- 推理过程（2026-10-10 用户口径）：思考态是**纯文本「正在思考」**（不是黑点），
+               默认收起，点击展开看推理原文；生成结束后标题变「思考过程」。
+               ⚠️ 正文用 v-show（不是 v-if）—— v-if 会重建节点，滚动位置与探针读取都会抖。 -->
           <div
-            v-if="showThinkingDot(idx)"
-            class="boh-thinking"
-            aria-live="polite"
-            aria-label="正在处理"
+            v-if="showReasoningRow(idx, msg)"
+            class="boh-reason"
+            :class="{ 'is-live': isReasoningLive(idx) }"
           >
-            <span class="boh-thinking-dot" aria-hidden="true"></span>
+            <button
+              v-if="reasoningOf(msg)"
+              type="button"
+              class="boh-reason-head"
+              :aria-expanded="reasoningOpen.has(idx)"
+              @click="toggleReasoning(idx)"
+            >
+              <ChevronRight :size="14" class="boh-reason-caret" aria-hidden="true" />
+              <span>{{ isReasoningLive(idx) ? '正在思考' : '思考过程' }}</span>
+            </button>
+            <div v-else class="boh-reason-head is-static" aria-live="polite">
+              <span>正在思考</span>
+            </div>
+            <div v-show="reasoningOpen.has(idx)" class="boh-reason-body">
+              {{ reasoningOf(msg) }}
+            </div>
           </div>
         </template>
 
@@ -366,8 +383,10 @@ import {
   AlertCircle,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Circle,
   Copy,
+  Globe,
   LoaderCircle,
   MessagesSquare,
   MoreHorizontal,
@@ -474,17 +493,31 @@ const communityActive = (index, message) =>
   index === props.messages.length - 1 &&
   message?.role === 'assistant';
 
-/* ── 思考黑点的**分相门控**（2026-10-08 用户口径）：
-   「网络搜索的时候不显示黑点动画，只有模型思考和回复的时候才显示黑点」——
-   · 联网搜索在途（webSearchActive 的窗口 = 请求发出 → 响应返回）→ 无黑点；
-   · 搜索结束后（模型思考）与流式回复中（isThinking 翻 false 但 isLoading 仍在）→ 黑点。
-   ⚠️ isThinking 从发送保持到首个可见 token（含搜索期），所以不能只看它。
-   ⚠️ communitySearchActive **不进**门控：它从检索开始挂到整轮结束（不止请求窗口），
-      进门控会让社区类问题的黑点整轮消失 —— 社区搜索的行为保持原样。 */
-const showThinkingDot = (index) =>
+/* ── 推理过程块（2026-10-10 用户口径）─────────────────────────────
+   · **思考态 = 纯文本「正在思考」**（黑点已退役）；
+   · 默认收起，点击展开看推理原文；生成结束后标题变「思考过程」；
+   · 展开态是**纯 UI 状态**，留在本组件（与 `webSearchExpanded` 同口径），不进壳。
+   ⚠️ 数据源 `msg.reasoning` 由生成管线分流而来（useGenerationPipeline 的
+      `getThinkingReasoning` → useChatEngine 的 `updateReasoning`），
+      修复前那段文字是被**丢弃**的。 */
+const reasoningOpen = ref(new Set());
+const reasoningOf = (message) => String(message?.reasoning || '');
+const toggleReasoning = (index) => {
+  const next = new Set(reasoningOpen.value);
+  if (next.has(index)) next.delete(index);
+  else next.add(index);
+  reasoningOpen.value = next;
+};
+
+/* 生成中（思考 + 流式回复）＝ 标题「正在思考」；否则「思考过程」。
+   门控与旧黑点一致：联网搜索在途时不出这一行（搜索面板自己在报状态）。 */
+const isReasoningLive = (index) =>
   (props.isThinking || props.isLoading) &&
   !props.webSearchActive &&
   index === props.messages.length - 1;
+
+/** 有推理内容就常驻（生成结束后仍可展开）；没有时只在生成中显示「正在思考」 */
+const showReasoningRow = (index, message) => isReasoningLive(index) || !!reasoningOf(message);
 
 /** 整轮生成忙（含搜索期）—— 操作行在忙时隐藏（否则流式回复中黑点和操作行同时出现）。 */
 const isGenerationBusy = (index) =>

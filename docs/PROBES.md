@@ -13,6 +13,7 @@
 | --- | --- | --- |
 | 首页布局 / 左栏 / 底栏 | `probe-home-forum-rail.mjs` | 21 |
 | 横屏左栏落位 | `probe-rail-landing.mjs` | 45 |
+| **横屏左栏「更多」浮层**（窄栏 88px 下主题 / 退出登录不被滚动容器裁成半个字、不被内容层遮挡；含反证自检） | `probe-rail-more-menu.mjs` | 16 |
 | 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
 | 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
@@ -23,7 +24,7 @@
 | **Cloud+ 相册形态**（iOS 图库式密铺：去月份分组、多图铺开、捏合切列、宽屏铺满） | `probe-cloud-album.mjs` | 22 |
 | **Cloud+ 动效**（格子放大/缩小、详情从点中的格子放大展开并缩回、三档切换过渡、切列落定回弹） | `probe-cloud-motion.mjs` | 16 |
 | **BOH AI 整页横屏左栏**（`/ai-chat` 切过去后左栏导航不能消失） | `probe-aichat-landscape-rail.mjs` | 14 |
-| **BOH AI 输入区 + 设置面板**（底行胶囊 / 三行面板 / 左右二级菜单 / 高级工具组 / 用量圆钮单环+hover 浮层 / 设置面板 4 卡+折叠高级+用量卡 / 退役额度侧板不存在）—— 独立页 + AI 岛两形态 | `probe-bohai-composer.mjs` | 22 |
+| **BOH AI 输入区 + 设置面板**（底行两胶囊（模型 / 工具）/ 模型与工具浮层 / 用量圆钮单环+hover 浮层 / 设置面板 4 卡+折叠高级+用量卡 / 退役额度侧板不存在 / **思考强度控件已整体下线**）—— 独立页 + AI 岛两形态 | `probe-bohai-composer.mjs` | 32 |
 | **BOH AI 斜杠命令执行语义**（点发送键必须执行命令、而不是把 `/web` 当文本发给模型 / 带参数剥掉命令字 / 未知命令不静默放行 / 普通输入不被误伤 / 触屏两条 / 空态建议卡一条）。⚠️ **当前预期红 6/7**，判据见 `docs/2026-10-08-BOHAI对齐Codex优化方案与斜杠命令修复.md` | `probe-bohai-slash-commands.mjs` | 7 |
 | 活动页封面图 / 活动页报名区与月份轨道 | `probe-activities-images.mjs` / `probe-campaign-ui.mjs` | 7 / 35 |
 | 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
@@ -80,7 +81,7 @@
 | `probe-nav-dark.mjs` | — | 探针：暗色模式下导航栏 logo/链接文字颜色（vendor 无暗色规则的修复验证） |
 | `probe-settings-glass.mjs` | — | 探针：设置子页液态玻璃统一验证。2026-09-30 起带 12 条断言（骨架 5 + 搜索 7，失败 exit 1）：iOS 式分组卡片骨架（容器 gap / 卡片圆角 / 组间留白 / 标题在卡片外 / 分隔线内缩越过图标）+ 设置搜索（命中、跨子页命中、空态、清除、输入框未被顶部固定导航遮挡的 elementFromPoint 命中测试） |
 
-### 首页 / 入场闸门 / 导航栏 / 灵动岛（21）
+### 首页 / 入场闸门 / 导航栏 / 灵动岛（22）
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
@@ -105,6 +106,7 @@
 | `probe-overview-island-guards.mjs` | — | 智能概览（灵动岛 + /overview 页）守卫回归探针（Playwright + 伪造登录，不需要真实账号） |
 | `probe-pity-island.mjs` | — | 探针：社区抽奖保底进度自定义岛（PityIslandCard） |
 | `probe-rail-indicator-diag.mjs` | — | （无头部说明） |
+| `probe-rail-more-menu.mjs` | — | 探针：横屏左栏「更多」（主题 / 退出登录）浮层可见性。回归对象：浮层挂在 `overflow-x: hidden` 的 `.userspace-rail-scroll` 内 → 88px 窄栏下被裁到 68px（「深色模式」只剩「深」），240px 宽栏恰好不暴露。六档：UserSpace 窄栏 / UserSpace 宽栏 / AI 页 88px / 首页 fixed 左栏 / 1024×600 矮窗 / **反证自检**（把浮层运行时搬回滚动容器 ⇒ 测量必须报出 widthLoss > 0，防断言空转）。⚠️ 「不被祖先裁」≠「看得见」：窄栏下浮层要向右越出 88px 栏压到内容区上，故断言同时做 `elementFromPoint` 遮挡检测 |
 | `probe-share-island.mjs` | — | （无头部说明） |
 
 ### 论坛 / 帖子 / 发布器（16）

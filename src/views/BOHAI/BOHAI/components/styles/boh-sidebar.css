@@ -11,12 +11,22 @@
  *   2. **零 `!important` / 零裸色值**（两道棘轮）；断点与基座同文件（见 `styles/layout.css` 头）。
  */
 
+/* 层级阶梯（2026-10-11 实测后重排，**别再写 2147483450**）：
+ *     页面内容（.boh-main 1 / 浮动操作 6）
+ *       → 对话管理（本文件，30）
+ *         → 临时浮层（输入区三个菜单 40~46、侧栏自己的菜单 45/46）
+ *           → 全局 chrome（导航栏 9999：灵动岛 / 全局搜索岛都在它里面）
+ *             → 全屏设置页（2147483600，BohaiSettingsPanel）
+ *   原值 `2147483450` 是「会话侧栏还是抽屉、要压住一切」时代留下的（2026-10-03 注释里
+ *   记着它和设置页 300 之间的那次事故）。侧栏改成桌面静态列之后它再没被需要，
+ *   留下的唯一后果是：**全局搜索岛被对话管理压住**（实测交叠点命中的是 `.boh-sb-groups`，
+ *   搜索面板左边缘被侧栏吃掉一条）。导航栏 9999 是全站 chrome 的档位，侧栏必须低于它。 */
 .boh-sidebar {
   position: fixed;
   top: var(--bohai-standalone-nav-height, 0px);
   bottom: 0;
   left: var(--bohai-sidebar-left, 0px);
-  z-index: 2147483450;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   width: min(78vw, var(--boh-sidebar-w));

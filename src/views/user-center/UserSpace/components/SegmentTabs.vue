@@ -10,7 +10,9 @@
       :class="{ active: modelValue === s.id }"
       :aria-selected="modelValue === s.id"
       @click="$emit('update:modelValue', s.id)"
-    >{{ s.label }}</button>
+    >
+      {{ s.label }}
+    </button>
     <span class="segment-tab-indicator" :style="indicatorStyle" aria-hidden="true"></span>
   </div>
 </template>
@@ -23,16 +25,16 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 const props = defineProps({
   sections: {
     type: Array,
-    required: true
+    required: true,
   },
   modelValue: {
     type: String,
-    default: ''
+    default: '',
   },
   ariaLabel: {
     type: String,
-    default: '分区切换'
-  }
+    default: '分区切换',
+  },
 });
 
 defineEmits(['update:modelValue']);
@@ -56,15 +58,22 @@ const measure = async () => {
 const indicatorStyle = computed(() => ({
   width: `${indicator.value.w || 0}px`,
   transform: `translateX(${indicator.value.x || 0}px)`,
-  opacity: indicator.value.ready ? 1 : 0
+  opacity: indicator.value.ready ? 1 : 0,
 }));
 
-watch(() => props.modelValue, () => {
-  void measure();
-});
-watch(() => props.sections, () => {
-  void measure();
-}, { deep: true });
+watch(
+  () => props.modelValue,
+  () => {
+    void measure();
+  },
+);
+watch(
+  () => props.sections,
+  () => {
+    void measure();
+  },
+  { deep: true },
+);
 
 let resizeObserver = null;
 onMounted(() => {
@@ -77,9 +86,11 @@ onMounted(() => {
   }
   // 字体加载完成后校准一次（文字宽度变化）
   if (typeof document !== 'undefined' && document.fonts?.ready) {
-    document.fonts.ready.then(() => {
-      void measure();
-    }).catch(() => {});
+    document.fonts.ready
+      .then(() => {
+        void measure();
+      })
+      .catch(() => {});
   }
 });
 
@@ -99,7 +110,11 @@ onUnmounted(() => {
   gap: clamp(20px, 5vw, 34px);
   /* 避让 = 导航岛实测高度（--userspace-nav-h 由 UserSpaceMain ResizeObserver 写入）
      + 刘海屏安全区（岛 fixed top:0 自身不避让）+ 呼吸 4px */
-  padding: var(--segment-tabs-inset, calc(var(--userspace-nav-h, 84px) + env(safe-area-inset-top, 0px) + 4px)) 20px 2px;
+  padding: var(
+      --segment-tabs-inset,
+      calc(var(--userspace-nav-h, 84px) + env(safe-area-inset-top, 0px) + 4px)
+    )
+    20px 2px;
 }
 
 .segment-tab {
@@ -111,7 +126,7 @@ onUnmounted(() => {
   font-size: 14.5px;
   font-weight: 500;
   letter-spacing: 0.01em;
-  color: var(--text-secondary, #6e6e73);
+  color: var(--liquid-text-secondary, #6e6e73);
   cursor: pointer;
   transition:
     color 180ms var(--ease-out, ease-out),
@@ -120,7 +135,7 @@ onUnmounted(() => {
 }
 
 .segment-tab:hover {
-  color: var(--text-primary, #1d1d1f);
+  color: var(--liquid-text-primary, #1d1d1f);
 }
 
 .segment-tab:active {
@@ -128,7 +143,7 @@ onUnmounted(() => {
 }
 
 .segment-tab.active {
-  color: var(--text-primary, #1d1d1f);
+  color: var(--liquid-text-primary, #1d1d1f);
   font-weight: 600;
   font-size: 15.5px;
 }
@@ -139,8 +154,10 @@ onUnmounted(() => {
   left: 0;
   height: 3px;
   border-radius: 2px;
-  background: var(--text-primary, #1d1d1f);
-  transition: transform 300ms cubic-bezier(0.3, 1.15, 0.35, 1), width 300ms cubic-bezier(0.3, 1.15, 0.35, 1);
+  background: var(--liquid-text-primary, #1d1d1f);
+  transition:
+    transform 300ms cubic-bezier(0.3, 1.15, 0.35, 1),
+    width 300ms cubic-bezier(0.3, 1.15, 0.35, 1);
 }
 
 @media (max-width: 480px) {

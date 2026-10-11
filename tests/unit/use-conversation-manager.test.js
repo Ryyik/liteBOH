@@ -26,6 +26,14 @@ vi.mock('@/utils/bohai-chat-session-store.js', () => ({
   saveBohAIChatSessionsToStorage: vi.fn(),
   clearBohAIChatSessionsStorage: vi.fn(),
   createBohAIChatSessionSanitizer: vi.fn(() => mockSanitizeChatSessionForStorage),
+  // 2026-10-11 写入所有权守卫（KeepAlive + 灵动岛双实例）。
+  // 这里给一份「永远没人改过存储」的桩：单实例下 canWrite 恒 true，
+  // 冲突分支由 `bohai-chat-session-store.test.js` 的守卫单测负责。
+  createBohAISessionWriteGuard: vi.fn(() => ({
+    adopt: vi.fn(() => null),
+    canWrite: vi.fn(() => true),
+    commit: vi.fn(() => null),
+  })),
 }));
 
 vi.mock('@/utils/bohai-action-audit.js', () => ({
@@ -80,6 +88,7 @@ import {
   saveBohAIChatSessionsToStorage,
   clearBohAIChatSessionsStorage,
   createBohAIChatSessionSanitizer,
+  createBohAISessionWriteGuard,
 } from '@/utils/bohai-chat-session-store.js';
 import {
   loadBohAIActionAuditsFromStorage,
@@ -1154,6 +1163,28 @@ describe('useConversationManager', () => {
           sanitizeSession: expect.any(Function),
         }),
       );
+    });
+
+    // 2026-10-11：`/ai-chat` 进 KeepAlive 后，页面实例与灵动岛可能同时活着，
+    // 两个引擎共用 `boh_chat_sessions` 一个键。守卫说「别人写过了」时必须**放弃写入** ——
+    // 静默覆盖的症状是「换页回来少一条消息」，而且不报任何错。
+    it('存储被另一实例改过时放弃写入（不覆盖对方）', () => {
+      const guard = {
+        adopt: vi.fn(() => null),
+        canWrite: vi.fn(() => false),
+        commit: vi.fn(() => null),
+      };
+      createBohAISessionWriteGuard.mockReturnValueOnce(guard);
+      const conflicted = createManager(vi.fn());
+      saveBohAIChatSessionsToStorage.mockClear();
+
+      conflicted.saveSessions();
+
+      expect(saveBohAIChatSessionsToStorage).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith('boh-ai', expect.stringContaining('另一实例'));
+      // 放弃写入后必须能择机重载，把对方的版本读回来
+      expect(conflicted.syncSessionsFromStorage()).toBe(true);
+      expect(loadBohAIChatSessionsFromStorage).toHaveBeenCalled();
     });
   });
 

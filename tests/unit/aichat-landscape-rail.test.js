@@ -87,8 +87,11 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
     const sheet = read(RAIL_CSS);
     // 亮色与暗色两处都必须是「选择器列表 + 一份色值」，否则裸色棘轮会涨
     expect(sheet).toMatch(/body\.page-home,\s*\n\s*body\.page-aichat\s*\{/);
+    // ⚠️ 属性选择器的引号写成 [\"'] —— 2026-10-11 实测踩过：`npm run format`
+    //   把这条的 `data-theme="dark"` 规范成单引号，断言当场假红（选择器语义没变）。
+    //   这条断言要锁的是「两个页共用一条规则」，不是引号风格。
     expect(sheet).toMatch(
-      /html\[data-theme="dark"\] body\.page-home,\s*\n\s*html\[data-theme="dark"\] body\.page-aichat\s*\{/,
+      /html\[data-theme=["']dark["']\] body\.page-home,\s*\n\s*html\[data-theme=["']dark["']\] body\.page-aichat\s*\{/,
     );
   });
 

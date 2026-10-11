@@ -66,7 +66,9 @@
         @click="isSidebarOpen = false"
       ></div>
 
-      <main class="boh-main">
+      <!-- `is-empty`（2026-10-11）：空态时整组（虚影字 + 输入框）垂直居中，
+           第一条消息发出后由壳把输入框 FLIP 到底部。判据与动画见 `animateComposerHome`。 -->
+      <main class="boh-main" :class="{ 'is-empty': isEmptySession }">
         <!-- 2026-10-08（用户口径：整体布局参考 Codex 那种感觉）：删掉整条顶栏。
              Codex 式布局的主区没有横条，入口收成右上角一组浮动小按钮：
                · 「打开侧栏」只在侧栏收起时出现 —— 展开时侧栏自带收起键（`.boh-sb-close`），
@@ -147,9 +149,6 @@
           :modes-loading="chatModesLoading"
           :current-mode="currentMode"
           :current-mode-id="currentModeId"
-          :thinking-speed-options="thinkingSpeedOptions"
-          :current-thinking-speed-id="currentThinkingSpeedId"
-          :current-thinking-speed="currentThinkingSpeed"
           :tools="composerTools"
           :attached-context="attachedContext"
           :usage="composerUsage"
@@ -161,18 +160,18 @@
           :context-warning-text="showContextWarning ? contextWarningText : ''"
           @input="handleComposerInput"
           @keydown="handleComposerKeydown"
-          @send="sendMessage"
+          @send="handleSend"
           @stop="stopGeneration"
           @toggle-search="toggleSearch"
           @toggle-tool="toggleTool"
           @start-psych="startPsychAnalysis"
           @select-mode="selectMode"
-          @select-thinking-speed="selectThinkingSpeed"
-          @run-slash-command="runSlashCommand"
+          @run-slash-command="executeSlashCommand"
           @update:slash-active-index="slashActiveIndex = $event"
           @clear-context="clearAttachedContext"
           @compress="handleManualCompress"
           @open-usage="openUsageInSettings"
+          @open-settings="openSettingsFromComposer"
         />
       </main>
 
@@ -230,7 +229,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick, watch, onUnmounted } from 'vue';
+import { ref, reactive, computed, onActivated, onMounted, nextTick, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { PanelLeft, PanelRight } from 'lucide-vue-next';
 import { useChatEngine } from '../composables/useChatEngine';
@@ -245,6 +244,16 @@ import BohaiSettingsPanel from './components/BohaiSettingsPanel.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import { clearMarkdownCache } from './components/boh-markdown.js';
 import { sourcePrefix } from './components/boh-sources.js';
+/* 斜杠命令的唯一真源（2026-10-08）：定义 + 解析 + 菜单构造全在这个纯函数模块里。
+   ⚠️ 不要再在壳里写 `startsWith('/')` —— 规则散两处正是本次「点发送键把 /cloud
+   当普通文本发给模型」的根因。 */
+import {
+  buildSlashMenuItems,
+  filterSlashItems,
+  formatSlashHelp,
+  parseSlashInput,
+  slashMenuQuery,
+} from './bohai-slash-commands.js';
 import { logger } from '@/utils/logger.js';
 import { getAiQuotaStatus } from '@/utils/api/api-key-runtime-api.js';
 import { resolveAiQuotaDisplay } from '@/utils/ai-quota-display.js';
@@ -325,9 +334,19 @@ onMounted(() => {
   void ensureNotificationStore();
 });
 
-const isSidebarOpen = ref(
-  isStandalone.value && typeof window !== 'undefined' && window.innerWidth >= 1024,
-);
+/**
+ * 会话侧栏「对话管理」默认**收起**（2026-10-11 用户口径）。
+ *
+ * 口径：进入 /ai-chat 时先给主区一整屏 —— 对话才是主角，侧栏是随时可召出的辅助。
+ * 收起后入口是主区右上角那颗浮动按钮（`.boh-icon-btn[title="打开侧栏"]`，
+ * 模板里 `v-if="!isSidebarOpen"`，所以「收起」与「有入口」是同一条契约的两面）。
+ *
+ * ⚠️ 这里**不**做「记住上次展开与否」的持久化：
+ *   `/ai-chat` 进了 KeepAlive（2026-10-11），组件切走再回来不会重跑这段初始化，
+ *   用户开着的侧栏会一直开着 —— 那正是「初始状态」的语义。
+ *   想要「每次进站都收起」得把状态挪进 `onActivated`，那是另一条口径，先别混进来。
+ */
+const isSidebarOpen = ref(false);
 const isComponentVisible = ref(true);
 let visibilityObserver = null;
 // ✅ 性能优化 P0-2：可见性检测改用 ResizeObserver（display:none 折叠为 0 会触发回调），
@@ -448,6 +467,13 @@ const openUsageInSettings = () => {
   settingsOpen.value = true;
 };
 
+/* 模型列表底部的「配置自定义模型」（2026-10-10）：先收起输入区那张模式面板，再打开设置页
+   —— 否则设置关掉之后模式面板还开着，用户会以为没关干净。BYOK 的自定义厂商/模型在设置里。 */
+const openSettingsFromComposer = () => {
+  composerRef.value?.closePanel();
+  openSettings();
+};
+
 let quotaRefreshTimer = null;
 let quotaRefreshing = false;
 
@@ -563,7 +589,6 @@ const {
   textareaRef,
   currentModeId,
   currentMode,
-  isCommandMode,
   isSearching,
   webSearchActive,
   webSearchResults,
@@ -595,20 +620,24 @@ const {
   currentResponseStyleId,
   setResponseStyle,
   responseStyleOptions,
-  currentThinkingSpeedId,
-  // ⚠️ 必须一起解构：胶囊强度段 / 推理强度行 / trigger title 都读
-  // `currentThinkingSpeed?.name || '中'`。漏掉它会静默退化成「永远是 中」——
-  // 状态其实切换成功（子菜单 active 会跟着动、localStorage 也落盘），只是不回显。
-  // 2026-10-01 由 probe-bohai-composer.mjs 的 A5 抓到。
-  currentThinkingSpeed,
-  thinkingSpeedOptions,
-  setThinkingSpeed,
   persistModeSetting,
   persistSharedMemorySetting,
   toggleTreeholeMemory,
   isTreeholeMemoryToggling,
   memoryCaptureTip,
+  syncSessionsIfStale,
 } = useChatEngine();
+
+/**
+ * `/ai-chat` 进了 `<KeepAlive>`（2026-10-11，为了「切页不掐流」）。
+ * ⇒ 切走是 **deactivated** 而非 unmount：流继续跑、会话继续落盘（这正是要的效果）。
+ * ⇒ 代价：页面实例在后台**仍然活着**，而灵动岛会另起一个 BOHAIMain ⇒ 两个引擎共存。
+ *    写入侧已由 `createBohAISessionWriteGuard` 挡住互相覆盖；这一行负责把
+ *    「本实例放弃过一次写入」的状态在**重新可见时**补上（引擎内部已保证流式中不换）。
+ */
+onActivated(() => {
+  syncSessionsIfStale();
+});
 
 /* 输入框元素现在长在 `BohComposer` 里，但引擎（`useChatEngine` / `useMessageManager` /
    `useMemoryCapture`）都按 `textareaRef` 直接操作它（聚焦 / 重置高度）⇒ 必须把子组件的
@@ -628,6 +657,51 @@ watch(isThinking, (thinking, wasThinking) => {
     quotaRefreshTimer = setTimeout(fetchTodayQuota, 1500);
   }
 });
+
+/* ── 空态 ⇄ 对话态：输入框的居中 ↔ 贴底（2026-10-11 用户样稿）──────────────
+   空态时 `.boh-main.is-empty` 让「虚影字 + 输入框」整组垂直居中；发出第一条消息后
+   组落到贴底。**这不是 CSS 能自己插值的变化** —— `flex: 1` ↔ `margin: auto` 两者都不可过渡
+   （margin 的 auto 根本没有中间值），所以必须量一次做 FLIP：
+     ① 旧位置（pre flush，此刻 DOM 还是空态布局）；
+     ② 换状态 + `nextTick`（此刻 DOM 已是贴底布局）→ 量新位置；
+     ③ 先把 transform 写成差值且 `transition: none`，再放开 → CSS 过渡把它送回 0。
+   ⚠️ `flush: 'pre'` 是关键：默认 flush 在 DOM 更新**之后**跑，那时量到的已经是新位置，
+      差值恒为 0、动画静默失效（看起来就是「没动画」而不是报错）。
+   ⚠️ 时长/缓动走 `--boh-dur-*` 令牌 ⇒ reduced-motion 把令牌归零后自动变瞬移，不用另判。 */
+const isEmptySession = computed(
+  () => (chatSessions[currentSessionIndex.value]?.messages || []).length === 0,
+);
+
+let composerFlipRaf = 0;
+
+const animateComposerHome = async () => {
+  const el = composerRef.value?.wrapEl || null;
+  if (!el) return;
+  const before = el.getBoundingClientRect().top;
+  await nextTick();
+  const after = el.getBoundingClientRect().top;
+  const delta = before - after;
+  if (Math.abs(delta) < 1) return;
+  el.style.transition = 'none';
+  el.style.transform = `translateY(${delta}px)`;
+  // 读一次布局属性，把「无过渡的起始变换」落实，再在下一帧放开过渡
+  void el.offsetHeight;
+  cancelAnimationFrame(composerFlipRaf);
+  composerFlipRaf = requestAnimationFrame(() => {
+    el.style.transition = '';
+    el.style.transform = '';
+  });
+};
+
+watch(
+  isEmptySession,
+  (empty, wasEmpty) => {
+    if (wasEmpty && !empty) void animateComposerHome();
+  },
+  { flush: 'pre' },
+);
+
+onUnmounted(() => cancelAnimationFrame(composerFlipRaf));
 
 const startNewChat = () => {
   startNewChatEngine();
@@ -1502,7 +1576,9 @@ const handleEnter = (e) => {
   if (isCoarsePointer) return;
   if (globalAiPreferences.enterToSend ? e.shiftKey : !(e.metaKey || e.ctrlKey)) return;
   e.preventDefault();
-  sendMessage();
+  // 走发送闸门（而不是直连 sendMessage）—— 这样「菜单关着时输入一条命令再回车」
+  // 也能被斜杠解析接住（修复前这条路径把 `/cloud 素材…` 原样发给了模型）。
+  handleSend();
 };
 
 const scrollToBottom = (force = false) => {
@@ -1545,11 +1621,6 @@ const settleInitialScrollPosition = async () => {
   });
 };
 
-// 选完强度与 selectMode 行为一致：整个面板收起（由 `BohComposer` 内部完成）。
-const selectThinkingSpeed = (id) => {
-  setThinkingSpeed(id);
-};
-
 const selectMode = (modeId) => {
   const mode = chatModes.value?.find((item) => item.id === modeId);
   if (!mode) {
@@ -1585,9 +1656,6 @@ const applySeedMode = (modeId) => {
 
 const toggleSearch = () => {
   isSearching.value = !isSearching.value;
-  if (isSearching.value) {
-    isCommandMode.value = false;
-  }
 };
 
 const toggleForumSearch = () => {
@@ -1639,71 +1707,29 @@ const startPsychAnalysis = () => {
   );
 };
 
-const slashQuery = computed(() => {
-  const value = String(inputMessage.value || '');
-  if (!value.startsWith('/') || value.includes('\n') || /\s/.test(value)) return null;
-  return value.slice(1).toLowerCase();
-});
+/* 菜单开不开 / 列哪些项 —— 判据全部委托给真源模块，壳里不再自带一份斜杠判断 */
+const slashQuery = computed(() => slashMenuQuery(inputMessage.value));
 
-const slashCommands = computed(() => [
-  {
-    id: 'web',
-    keyword: 'web',
-    label: '联网搜索',
-    description: '为下一条消息获取最新网络信息',
-    action: 'web',
-  },
-  {
-    id: 'community',
-    keyword: 'community',
-    label: '社区搜索',
-    description: '为下一条消息查找 BOH 社区内容',
-    action: 'community',
-  },
-  {
-    id: 'cloud',
-    keyword: 'cloud',
-    label: '个人 Cloud+',
-    description: '允许下一条回答参考你的 Cloud+ 内容',
-    action: 'cloud',
-  },
-  {
-    id: 'health',
-    keyword: 'health',
-    label: '健康分析',
-    description: '让下一条回答参考你的 BOH Health 数据',
-    action: 'health',
-  },
-  ...(chatModes.value || []).map((mode) => ({
-    id: `mode-${mode.id}`,
-    keyword: String(mode.name || mode.id)
-      .toLowerCase()
-      .replace(/\s+/g, '-'),
-    label: `切换到 ${mode.name}`,
-    description: mode.tagline || '更改当前响应模式',
-    action: 'mode',
-    modeId: mode.id,
-  })),
-]);
+const slashCommands = computed(() => buildSlashMenuItems({ chatModes: chatModes.value }));
 
 const filteredSlashCommands = computed(() => {
   const query = slashQuery.value;
   if (query === null) return [];
-  if (!query) return slashCommands.value;
-  return slashCommands.value.filter(
-    (command) => command.keyword.includes(query) || command.label.toLowerCase().includes(query),
-  );
+  return filterSlashItems(slashCommands.value, query);
 });
 
 const slashMenuOpen = computed(
   () => !slashDismissed.value && slashQuery.value !== null && !isLoading.value,
 );
 
-const runSlashCommand = async (command) => {
+/**
+ * 斜杠命令的**唯一执行处**。
+ * ⚠️ 三个入口（发送键 / Enter / 菜单点击）都汇到这里；别再在别处写第二份
+ * `if (action === ...)` —— 那正是本次「发送键漏接命令、把 /cloud 发给模型」的成因。
+ */
+const executeSlashCommand = async (command, args = '') => {
   if (!command) return;
-  if (command.action === 'web') isSearching.value = true;
-  if (command.action === 'community') isForumSearchEnabled.value = true;
-  if (command.action === 'mode' && command.modeId) selectMode(command.modeId);
+  // 命令执行后输入框必然不再是「命令输入」⇒ 清空并复位菜单状态
   inputMessage.value = '';
   slashDismissed.value = false;
   slashActiveIndex.value = 0;
@@ -1711,31 +1737,135 @@ const runSlashCommand = async (command) => {
     composerRef.value?.autoResize();
     composerRef.value?.focus();
   });
-  if (command.action === 'cloud') {
-    if (isTreeholeMemoryEnabled.value) {
+
+  switch (command.action) {
+    case 'web':
+      isSearching.value = true;
+      break;
+    case 'community':
+      isForumSearchEnabled.value = true;
+      break;
+    case 'cloud':
+      if (isTreeholeMemoryEnabled.value) {
+        emitIslandMessage({
+          title: '个人 Cloud+ 已开启',
+          message: '下一条回答可以参考你的 Cloud+ 内容',
+          icon: 'ai',
+          type: 'notification',
+          actionLabel: '知道了',
+          durationMs: 3000,
+        });
+      } else {
+        await handleTreeholeMemoryToggle();
+      }
+      break;
+    case 'health':
+      isHealthAnalysisEnabled.value = true;
       emitIslandMessage({
-        title: '个人 Cloud+ 已开启',
-        message: '下一条回答可以参考你的 Cloud+ 内容',
+        title: '已开启健康分析',
+        message: '接下来的回答会带上你的 BOH Health 数据，点输入框上的「健康分析」标签可关闭',
         icon: 'ai',
         type: 'notification',
         actionLabel: '知道了',
-        durationMs: 3000,
+        durationMs: 3600,
       });
-    } else {
-      await toggleTreeholeMemory();
-    }
+      break;
+    case 'surface':
+      setSurface(command.surface);
+      break;
+    case 'new':
+      startNewChat();
+      break;
+    case 'temp':
+      startTemporaryChat();
+      break;
+    case 'mode':
+      applySlashMode(args || command.modeId);
+      break;
+    case 'clear':
+      clearCurrentChat();
+      break;
+    case 'settings':
+      openSettings();
+      break;
+    case 'usage':
+      openUsageInSettings();
+      break;
+    case 'compress':
+      await handleManualCompress();
+      break;
+    case 'stop':
+      stopGeneration();
+      break;
+    case 'help':
+      emitIslandMessage({
+        title: '可用命令',
+        message: formatSlashHelp(),
+        icon: 'ai',
+        type: 'notification',
+        actionLabel: '知道了',
+        durationMs: 6000,
+      });
+      break;
+    default:
+      break;
   }
-  if (command.action === 'health') {
-    isHealthAnalysisEnabled.value = true;
-    emitIslandMessage({
-      title: '已开启健康分析',
-      message: '接下来的回答会带上你的 BOH Health 数据，点输入框上的「健康分析」标签可关闭',
-      icon: 'ai',
-      type: 'notification',
-      actionLabel: '知道了',
-      durationMs: 3600,
-    });
+};
+
+/** `/model <名>` 的参数解析：按 id 或名称（大小写不敏感）匹配一个对话模式 */
+const applySlashMode = (needle) => {
+  const raw = String(needle || '')
+    .trim()
+    .toLowerCase();
+  if (!raw) {
+    notifyUnavailable('用法：/model 模式名，例如 /model 深度思考');
+    return;
   }
+  const mode = (chatModes.value || []).find(
+    (item) =>
+      String(item?.id || '').toLowerCase() === raw ||
+      String(item?.name || '').toLowerCase() === raw,
+  );
+  if (!mode) {
+    notifyUnavailable(`没有名为「${String(needle).trim()}」的模式`);
+    return;
+  }
+  selectMode(mode.id);
+};
+
+/** 未知命令：**不发、不清空**，只给一条可撤回的提示（护栏，防止未来加命令时再漏入口） */
+const notifyUnknownCommand = (keyword) => {
+  const label = String(keyword || '').trim();
+  notifyUnavailable(
+    label ? `未知命令 /${label}，输入 /help 查看全部命令` : '请输入完整的命令，例如 /web',
+  );
+};
+
+/**
+ * **唯一的发送闸门**：所有「用户想发出这条输入」的路径都到这里
+ * （发送按钮 `@send` / 菜单关着时的 Enter）。
+ *
+ * ⚠️ 程序化发送（种子提问 / 内联追问 / 任务重试）**不走这里** —— 它们直接调
+ * `sendMessage()`：那些内容里出现 `/` 时不该被当命令解析。
+ */
+const handleSend = () => {
+  const parsed = parseSlashInput(inputMessage.value, { commands: slashCommands.value });
+
+  if (parsed.kind === 'unknown') {
+    notifyUnknownCommand(parsed.keyword);
+    return; // 不发、不清空
+  }
+  if (parsed.kind === 'literal') {
+    inputMessage.value = parsed.text; // `//foo` ⇒ 发字面量 `/foo`
+    return sendMessage();
+  }
+  if (parsed.kind === 'command') {
+    void executeSlashCommand(parsed.command, parsed.args);
+    if (!parsed.args) return; // 纯命令：本地执行完就结束，不发消息
+    if (parsed.command.action === 'mode') return; // /model 的参数是模式名，不是消息
+    inputMessage.value = parsed.args; // 带参数：剥掉命令字再发
+  }
+  return sendMessage();
 };
 
 const handleComposerInput = () => {
@@ -1761,7 +1891,7 @@ const handleComposerKeydown = (event) => {
     }
     if (event.key === 'Enter' && !event.shiftKey && filteredSlashCommands.value.length > 0) {
       event.preventDefault();
-      runSlashCommand(
+      executeSlashCommand(
         filteredSlashCommands.value[slashActiveIndex.value] || filteredSlashCommands.value[0],
       );
       return;

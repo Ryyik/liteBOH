@@ -1,5 +1,5 @@
 {
-  "total": 2706,
+  "total": 2703,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 187,
@@ -38,12 +38,12 @@
     "src/components/UnifiedNavbar/GlobalNavStatusCard.vue": 21,
     "src/views/SmartOverview/styles/overview.css": 21,
     "src/views/activities/components/ActivitySignupSection.vue": 20,
-    "src/styles/themes/navbar-dark.css": 19,
     "src/views/Forum/styles/drawers-skeletons.css": 18,
     "src/views/Newsroom/NewsDetailPage.vue": 18,
     "src/views/user-center/BetaPreview/BetaPreviewMain.vue": 18,
     "src/views/user-center/UserSpace/components/AvatarFramePickerModal.vue": 18,
     "src/components/UnifiedNavbar/BOHAIIsland.vue": 17,
+    "src/styles/themes/navbar-dark.css": 16,
     "src/views/SmartOverview/styles/news-modal.css": 16,
     "src/components/AddressManager.vue": 14,
     "src/components/UnifiedNavbar/GlobalNavTaskCard.vue": 14,
@@ -93,5 +93,5 @@
     "src/views/DataManagement/components/EditDrawer.vue": 1,
     "src/views/PhotoAlbums/index.vue": 1
   },
-  "updatedAt": "2026-10-08"
+  "updatedAt": "2026-10-11"
 }

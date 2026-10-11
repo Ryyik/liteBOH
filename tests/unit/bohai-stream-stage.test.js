@@ -47,6 +47,9 @@ const setup = ({ chunks = [], parserIsDone = false, parserError = null, depsOver
     }),
     filterThinkingContentStream: vi.fn((c) => c),
     flushThinkingBuffer: vi.fn(() => ''),
+    // 2026-10-10「推理过程可展开」：stage 每块都会问一次推理内容并写回消息
+    getThinkingReasoning: vi.fn(() => ''),
+    updateReasoning: vi.fn(),
     safeChunkToString: vi.fn((r) => String(r)),
     isDegenerateStreamOutput: vi.fn(() => false),
     filterThinkingContent: vi.fn((t) => t),
@@ -139,5 +142,54 @@ describe('BOHAI 流式消费阶段（Step 5-3）', () => {
         timeoutMs: 1000,
       }),
     );
+  });
+
+  // ── 推理内容分流（2026-10-10「推理过程可展开」）─────────────────────────
+  it('思考块原文写进 updateReasoning，且正文不受影响', async () => {
+    const { state, deps, options } = setup({
+      chunks: [chunkOf('正文')],
+      depsOver: {
+        filterThinkingContentStream: vi.fn(() => '正文'),
+        getThinkingReasoning: vi.fn(() => '先想一下'),
+      },
+    });
+    await runStreamStage(deps, options);
+    expect(deps.updateReasoning).toHaveBeenCalledWith('先想一下');
+    expect(state.assistantMessage).toBe('正文');
+  });
+
+  it('推理长度未变 → 不重复落盘（每块都写会白触发一轮响应式）', async () => {
+    const { deps, options } = setup({
+      chunks: [chunkOf('a'), chunkOf('b')],
+      depsOver: {
+        filterThinkingContentStream: vi.fn(() => ''),
+        getThinkingReasoning: vi.fn(() => '长度不变'),
+      },
+    });
+    await runStreamStage(deps, options);
+    expect(deps.updateReasoning).toHaveBeenCalledTimes(1);
+  });
+
+  it('收尾 flush 之后补推一次（思考块内被截断的残留也归推理）', async () => {
+    let reasoning = '';
+    const { deps, options } = setup({
+      chunks: [chunkOf('x')],
+      depsOver: {
+        filterThinkingContentStream: vi.fn(() => 'x'),
+        getThinkingReasoning: vi.fn(() => reasoning),
+        flushThinkingBuffer: vi.fn(() => {
+          reasoning = '被截断的推理';
+          return '';
+        }),
+      },
+    });
+    await runStreamStage(deps, options);
+    expect(deps.updateReasoning).toHaveBeenCalledWith('被截断的推理');
+  });
+
+  it('全程没有思考块 → updateReasoning 一次都不调（不凭空写空串）', async () => {
+    const { deps, options } = setup({ chunks: [chunkOf('普通')] });
+    await runStreamStage(deps, options);
+    expect(deps.updateReasoning).not.toHaveBeenCalled();
   });
 });

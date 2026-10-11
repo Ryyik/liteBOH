@@ -1195,7 +1195,7 @@ const props = defineProps({
 });
 
 // 2026-10-03（plans/023 步骤 ④）：
-//  - 删 selectThinkingSpeed —— 思考强度只在输入区面板（同一个状态，不再有第二个入口）
+//  - 思考强度不在本面板（2026-10-11 起该控件已**整体下线**，输入区与设置页都没有入口）
 //  - 删 openQuotaPanel —— 额度侧板已退役，用量卡就在本面板内，不需要再跳一层
 const emit = defineEmits([
   'update:modelValue',

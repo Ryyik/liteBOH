@@ -56,7 +56,9 @@
     line-height: 1.5;
     -webkit-text-size-adjust: 100%;
     tab-size: 4;
-    font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    font-family:
+      ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+      'Segoe UI Symbol', 'Noto Color Emoji';
     font-feature-settings: normal;
     font-variation-settings: normal;
     -webkit-tap-highlight-color: transparent;
@@ -73,7 +75,12 @@
     text-decoration: underline dotted;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-size: inherit;
     font-weight: inherit;
   }
@@ -84,12 +91,18 @@
     text-decoration: inherit;
   }
 
-  b, strong {
+  b,
+  strong {
     font-weight: bolder;
   }
 
-  code, kbd, samp, pre {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+      monospace;
     font-feature-settings: normal;
     font-variation-settings: normal;
     font-size: 1em;
@@ -99,7 +112,8 @@
     font-size: 80%;
   }
 
-  sub, sup {
+  sub,
+  sup {
     font-size: 75%;
     line-height: 0;
     position: relative;
@@ -132,16 +146,26 @@
     display: list-item;
   }
 
-  ol, ul, menu {
+  ol,
+  ul,
+  menu {
     list-style: none;
   }
 
-  img, svg, video, canvas, audio, iframe, embed, object {
+  img,
+  svg,
+  video,
+  canvas,
+  audio,
+  iframe,
+  embed,
+  object {
     display: block;
     vertical-align: middle;
   }
 
-  img, video {
+  img,
+  video {
     max-width: 100%;
     height: auto;
   }
@@ -284,7 +308,9 @@ body {
 body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft YaHei", "微软雅黑", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Microsoft YaHei', '微软雅黑', sans-serif;
   /* 页面底色走 token（暖白）；暗色在 themes/dark-mode.css 覆写同一变量。
      fallback #ffffff 仅当 tokens.css 尚未加载时兜底，避免白屏闪。 */
   background-color: var(--boh-page-bg, #ffffff);
@@ -365,6 +391,24 @@ body.page-aichat #app {
   overflow: hidden;
 }
 
+/* 沉浸球 vs 竖屏会话抽屉（2026-10-11 用户报障「悬浮球会遮挡内容」）：
+   沉浸球模式下页面顶到满屏，而竖屏抽屉是从 y=0 起的 —— 实测抽屉头部 0..65 与球
+   14..66 重叠，球压在「Chat」标题与收起键上。抽屉打开时让球退场：
+   它是「去导航」的入口，抽屉开着的时候导航本就不该被抢。
+   ⚠️ 规则只能写在这份**全局**表里：球在导航组件内部，拿不到 BOHAI 的状态；
+   从 body 上用 :has() 反向看「有没有抽屉开着」是唯一单向可靠的口子。
+   （写进 BOHAI 的 scoped CSS 会被追加 [data-v-x] 到最后一个选择器上 ⇒ 永不匹配。）
+   ⚠️ 不写 transition：球的形变有它自己的一套时长与曲线，这里再叠一条只会打架。 */
+body.page-aichat.nav-orb-mode:has(.boh-sidebar.is-open) .unified-nav-surface.nav-immersive {
+  opacity: 0;
+  /* ⚠️ 这里**必须再写 `visibility: hidden`**，不能只写 `pointer-events: none`：
+     vendor 的 `unified-nav.css:1518` 给 surface 写了 `pointer-events: auto !important`，
+     常规声明压不过它（实测 computed 仍是 auto）⇒ 只藏不挡的话，
+     抽屉打开后左上角会留一个**看不见但能吃点击**的 52px 靶子。
+     `visibility: hidden` 让元素退出命中测试，不与那条 !important 打架。 */
+  visibility: hidden;
+}
+
 body.page-aichat .bohai-page:not(.embedded-mode):not(.overlay-mode) {
   /* 这条特异性高于 BOHAI styles 里 .bohai-page 的基础高度，是独立模式的真源；
      扣 --kb-inset 与 #app 保持一致，margin-top 保留（顶部 fixed 导航不随键盘动）。 */
@@ -414,12 +458,15 @@ button {
 }
 
 /* 移除默认的列表样式 */
-ul, ol {
+ul,
+ol {
   list-style: none;
 }
 
 /* 移除默认的表单元素样式 */
-input, textarea, select {
+input,
+textarea,
+select {
   font-family: inherit;
   background: none;
   border: none;
@@ -602,7 +649,7 @@ html {
   --apple-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05);
   --apple-shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
   --apple-shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05);
-  --apple-shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06);
+  --apple-shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.1), 0 8px 16px -8px rgba(0, 0, 0, 0.06);
 
   /* Motion */
   --apple-ease: cubic-bezier(0.32, 0.72, 0, 1);
@@ -613,7 +660,9 @@ html {
 
 /* P0 竖屏可操作性：防止 iOS 输入框自动缩放（viewport 已放开 user-scalable） */
 @media (max-width: 768px) {
-  input, textarea, select {
+  input,
+  textarea,
+  select {
     font-size: 16px !important;
   }
 }
@@ -634,7 +683,7 @@ html {
    局部有意保持浅色的表面（如登录模态的输入框）就地声明 color-scheme: light，
    特异性高于这里，会正确覆盖，不要当成"反向 bug"删掉。
    ============================================ */
-html[data-theme="dark"] {
+html[data-theme='dark'] {
   color-scheme: dark;
 }
 

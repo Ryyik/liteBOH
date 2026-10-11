@@ -57,6 +57,13 @@
   /* ── 语义别名（浅色） ── */
   --boh-bg-page: var(--boh-gray-0);
   --boh-bg-card: var(--boh-gray-100);
+  /* 输入框底色（2026-10-11 用户口径「输入框要白色底」）：浅色下跟页面底同源 = 纯白。
+     ⚠️ **不能直接改 `--boh-bg-card`** —— 那个是侧栏 / 工作台 / 气泡共用的，
+     改它等于把整个 BOHAI 界面一起刷白。输入框要单独一口令牌。 */
+  --boh-composer-bg: var(--boh-bg-page);
+  /* 空态虚影字标（2026-10-11）：比正文灰再浅一档 —— 用 `--boh-text-3` 会读成
+     「淡灰色的真标题」，那就不是虚影了。 */
+  --boh-ghost-word: var(--boh-gray-100);
   --boh-bg-hover: var(--boh-a-light-hover);
   --boh-bg-active: var(--boh-a-light-active);
   --boh-border: var(--boh-gray-200);
@@ -95,11 +102,34 @@
   --boh-dur-fast: 150ms;
   --boh-dur-med: 200ms;
   --boh-ease: cubic-bezier(0.4, 0, 0.2, 1);
-  /* 全仓仅两处循环动画（DESIGN §2.4）：打字三点 / 集群进度转圈。 */
-  --boh-dur-bob: 1.1s;
+  /* 全仓仅两处循环动画（DESIGN §2.4）：检索/思考**流光** / 集群进度转圈。
+     ⚠️ 旧注释写的「打字三点」从未落地，2026-10-10 更正。 */
+  /* 流光亮带扫过文字的周期（2026-10-11 用户口径「正在思考的流动光效要慢一点」：1.1s → 1.8s）。
+     ⚠️ **两个消费者共用这一条**：网页搜索在途 + 正在思考。它们是同一套视觉语言，
+        只让其中一个慢会造成「同一块面板里两种速度」；要分开就得引入第二份时长真源，
+        那正是这个令牌当初被抽出来要避免的事。 */
+  --boh-dur-bob: 1.8s;
   --boh-dur-spin: 0.9s;
-  /* 思考圆点的呼吸（**用户口径：等待动作保持旧版圆点**，2026-10-08 拍板） */
+  /* 思考圆点呼吸（**2026-10-10 已退役**：等待动作改为纯文本「正在思考」+ 流光。
+     令牌作为设计令牌集的一员保留，当前**无消费者** —— 见 DESIGN-BOHAI.md §2.4） */
   --boh-dur-breath: 2s;
+
+  /* ── 液态玻璃（跳转导航 hover 卡，2026-10-10 用户口径）──
+     ⚠️ **材质必须引用全局单源** `--liquid-filter-sm`（`src/styles/common/tokens.css`）：
+     `scripts/check-liquid-glass.mjs` 禁止在 `liquid-glass.css` 之外重写 blur 材质。
+     ⚠️ 颜色**必须自己给一对**，不能直接吃 `--liquid-bg-*`：那套是随**站点主题属性**
+     翻转的，而 BOHAI 主题走 `[data-boh-theme]`、两者互不联动 ——
+     站点浅色 + AI 暗色时直接引用会翻出一张亮白卡。
+     成对命名的写法与上面的 `--boh-a-light-*` / `--boh-a-dark-*` 同口径。 */
+  --boh-glass-bg-light: rgba(255, 255, 255, 0.58);
+  --boh-glass-bg-dark: rgba(38, 38, 48, 0.58);
+  --boh-glass-border-light: rgba(255, 255, 255, 0.65);
+  --boh-glass-border-dark: rgba(255, 255, 255, 0.12);
+  --boh-glass-highlight-light: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --boh-glass-highlight-dark: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --boh-glass-bg: var(--boh-glass-bg-light);
+  --boh-glass-border: var(--boh-glass-border-light);
+  --boh-glass-highlight: var(--boh-glass-highlight-light);
 
   /* ── 布局常量 ── */
   --boh-rail-w: 88px;
@@ -112,6 +142,11 @@
 :root[data-boh-theme='dark'] {
   --boh-bg-page: var(--boh-gray-900);
   --boh-bg-card: var(--boh-gray-800);
+  /* 暗色下输入框**保持卡片色**：换成页面底会让它糊进背景、丢掉「浮起的一层」。
+     「白色底」是浅色下的口径，暗色照旧走 `--boh-bg-card`。 */
+  --boh-composer-bg: var(--boh-bg-card);
+  /* 暗色下反过来：比页面底**亮**一档，方向与亮色一致（都是「比底色淡一点点」） */
+  --boh-ghost-word: var(--boh-gray-850);
   --boh-bg-hover: var(--boh-a-dark-hover);
   --boh-bg-active: var(--boh-a-dark-active);
   --boh-border: var(--boh-gray-850);
@@ -130,4 +165,8 @@
   --boh-backdrop: var(--boh-a-dark-backdrop);
   --boh-danger: var(--boh-danger-dark);
   --boh-warn: var(--boh-warn-dark);
+  /* 液态玻璃：只切别名，值取自 :root 里成对定义的那三对（纪律 1：暗色块零字面量） */
+  --boh-glass-bg: var(--boh-glass-bg-dark);
+  --boh-glass-border: var(--boh-glass-border-dark);
+  --boh-glass-highlight: var(--boh-glass-highlight-dark);
 }

@@ -19,6 +19,9 @@ import { RANKING_SCORE_WEIGHTS } from '@/views/BOHAI/domain/evidence.js';
 const DAY = 86_400_000;
 const NOW = Date.parse('2026-10-08T00:00:00.000Z');
 const daysAgo = (n) => new Date(NOW - n * DAY).toISOString();
+// ⚠️ 样本日期是相对 NOW 构造的 ⇒ 调 `rankEvidenceContextBlocks` **必须把 NOW 传进去**
+// （第三个参数是可注入时钟）。不传时它读真实 `Date.now()`，样本会随真实日期一起漂移，
+// 「1 天前」过几天就变成「3 天前」，惩罚变大 ⇒ 断言 `diff < 1` 假红（2026-10-10 实测崩到 1.19）。
 
 describe('BOHAI 证据时间衰减', () => {
   describe('freshnessPenalty', () => {
@@ -76,6 +79,7 @@ describe('BOHAI 证据时间衰减', () => {
       const ranked = rankEvidenceContextBlocks(
         [mk({ latestAt: daysAgo(400) }), mk({ latestAt: daysAgo(1) })],
         'Vue 性能优化',
+        NOW,
       );
       expect(ranked[0].result.latestAt).toBe(daysAgo(1));
       expect(ranked[0].freshnessPenalty).toBeLessThan(ranked[1].freshnessPenalty);
@@ -85,6 +89,7 @@ describe('BOHAI 证据时间衰减', () => {
       const withDate = rankEvidenceContextBlocks(
         [mk({ latestAt: daysAgo(1) }), mk({})],
         'Vue 性能优化',
+        NOW,
       );
       const fresh = withDate.find((r) => r.result.latestAt === daysAgo(1));
       const undated = withDate.find((r) => !r.result.latestAt);
@@ -100,6 +105,7 @@ describe('BOHAI 证据时间衰减', () => {
           mk({ connectorId: 'userPrivate', latestAt: daysAgo(200) }),
         ],
         '我的资料',
+        NOW,
       );
       // userPrivate 源权重 22 高于 forum 16，衰减上限只有 8 ⇒ 私域仍在前
       expect(ranked[0].result.connectorId).toBe('userPrivate');
@@ -109,6 +115,7 @@ describe('BOHAI 证据时间衰减', () => {
       const ranked = rankEvidenceContextBlocks(
         [mk({ ok: false }), mk({ context: '' }), mk({})],
         'Vue',
+        NOW,
       );
       expect(ranked).toHaveLength(1);
     });

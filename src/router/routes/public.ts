@@ -105,7 +105,18 @@ export const publicRoutes: RouteRecordRaw[] = [
     // 沉浸导航（2026-10-08 用户口径）：打开 BOHAI 时顶部导航**收成一颗球**，
     // 落在横向左栏的品牌 logo 位上（页面因此顶到满屏）；点那颗球唤醒完整导航。
     // 复用阅读页/创作页已有的 `immersiveNav` 机制（含球 ↔ 胶囊 FLIP morph）。
-    meta: { immersiveNav: true },
+    //
+    // keepAlive（2026-10-11）：**切页不再掐流**。
+    //   此前没有 meta.keepAlive ⇒ App.vue 走 `:key="route.path"` 那条分支，切页即
+    //   **销毁**整棵组件树 ⇒ `useChatEngine` 的 `onScopeDispose` 执行
+    //   `abortController.abort()` ⇒ 用户离开会话，正在生成的回答当场停止（不是暂停）。
+    //   进 KeepAlive 后切走只是 deactivated，流继续跑完并落盘，回来是完整答案。
+    // ⚠️ 代价一：整页常驻内存（消息流 DOM + 会话数组），直到关标签页。
+    // ⚠️ 代价二：页面实例后台存活时，**灵动岛会另起一个 BOHAIMain**，两个引擎共用
+    //    同一个 localStorage 键 `boh_chat_sessions` ⇒ 写入侧由
+    //    `bohai-chat-session-store.js` 的 `createBohAISessionWriteGuard` 挡住互相覆盖，
+    //    重载时机在 `BOHAIMain` 的 `onActivated`（流式中不换，避免冲掉在飞的消息）。
+    meta: { immersiveNav: true, keepAlive: true },
     component: () => import('../../views/BOHAI/BOHAI/index.vue'),
   },
   {

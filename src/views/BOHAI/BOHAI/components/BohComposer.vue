@@ -1,6 +1,6 @@
 <template>
-  <div class="boh-composer-wrap" :class="{ 'is-island': overlayMode }">
-    <div class="boh-composer">
+  <div ref="wrapEl" class="boh-composer-wrap" :class="{ 'is-island': overlayMode }">
+    <div ref="composerEl" class="boh-composer">
       <!-- 附加的页面上下文（原 `.context-chip-row`） -->
       <div v-if="attachedContext" class="boh-ctx">
         <button
@@ -39,159 +39,6 @@
         <div v-if="slashCommands.length === 0" class="boh-slash-empty">没有匹配的命令</div>
       </div>
 
-      <!-- 模式 / 推理强度 菜单（2026-10-08 按用户样稿重排）：
-           一颗胶囊「模型名 强度」→ 单浮层**两视图**（⚠️ 必须 v-show，不许 v-if ——
-           probe-bohai-user-models B6/B11 直接查 DOM，v-if 会把「模型混进选择器」测成假红）：
-           视图一「强度」= 大字档位（品牌蓝）+ 模型行（点进视图二）+ 三档滑杆 + 重置（样稿 1/2）；
-           视图二「模型」= 可返回标题行 + 分组头（默认 / 数据库配置）+ 纯文本行 + 选中勾（样稿 3），
-           倍率收成右侧弱化小字。视图中没有的「高级」四工具挂视图一底部（保持一次可达）。 -->
-      <div v-show="panelOpen" class="boh-mode-menu" role="dialog" aria-label="模式与推理强度">
-        <!-- 视图一：思考强度 -->
-        <div v-show="menuView === 'effort'" class="boh-mm-view is-effort">
-          <button
-            type="button"
-            class="boh-effort-reset"
-            :disabled="currentThinkingSpeedId === defaultThinkingSpeedId"
-            title="恢复默认（中）"
-            aria-label="恢复默认思考强度"
-            @click="resetEffort"
-          >
-            <RotateCcw :size="14" aria-hidden="true" />
-          </button>
-          <div class="boh-effort-word" aria-hidden="true">
-            {{ currentThinkingSpeed?.name || '中' }}
-          </div>
-          <button
-            type="button"
-            class="boh-effort-mode"
-            aria-label="选择模型"
-            @click="openModelView"
-          >
-            <span>{{ currentMode.name }}</span>
-            <ChevronRight :size="14" aria-hidden="true" />
-          </button>
-          <!-- 三档离散滑杆（低/中/高）—— **全自绘**（2026-10-08 用户口径「不要原生的拖动条」，
-               原生 range 的样式再怎么覆盖也留着原生骨架）。轨道/填充/滑块都是 span，
-               指针落点吸附最近档 + 拖动跟随，键盘 ←/→/Home/End 换档，
-               role=slider + aria 值与原生 range 可达性等价。
-               BOH 的强度走 sampling deltas，没有连续数值档，不照抄样稿的「5.5」数字。
-               ⚠️ 换档**不收面板** —— 拖到一半面板关掉 = 滑杆坏了；选「模式」仍收（pickMode 契约不变）。 -->
-          <div
-            v-if="thinkingSpeedOptions.length > 1"
-            class="boh-effort-track-wrap"
-            role="slider"
-            tabindex="0"
-            aria-label="思考强度"
-            :aria-valuemin="0"
-            :aria-valuemax="thinkingSpeedOptions.length - 1"
-            :aria-valuenow="effortIndex"
-            :aria-valuetext="currentThinkingSpeed?.name || ''"
-            :style="{ '--boh-effort-fill': effortFill }"
-            @pointerdown="onEffortPointerDown"
-            @keydown="onEffortKeydown"
-          >
-            <span class="boh-effort-track" aria-hidden="true"></span>
-            <span class="boh-effort-fill" aria-hidden="true"></span>
-            <span
-              v-for="(option, i) in thinkingSpeedOptions"
-              :key="`dot-${option.id}`"
-              class="boh-effort-dot"
-              :data-thinking-speed-id="option.id"
-              :class="{ 'is-filled': effortIndex >= i }"
-              :style="{ left: `${(i / (thinkingSpeedOptions.length - 1)) * 100}%` }"
-              aria-hidden="true"
-            ></span>
-            <span class="boh-effort-thumb" aria-hidden="true"></span>
-          </div>
-          <div class="boh-mm-sep" aria-hidden="true"></div>
-          <button
-            type="button"
-            class="boh-mm-item is-adv"
-            :class="{ 'is-on': advOpen }"
-            :aria-expanded="advOpen"
-            @click="advOpen = !advOpen"
-          >
-            <span class="boh-mm-name">高级</span>
-            <ChevronUp :size="15" aria-hidden="true" />
-          </button>
-          <div v-show="advOpen" class="boh-mm-adv">
-            <button
-              type="button"
-              class="boh-mm-tool"
-              :class="{ 'is-on': tools.forum }"
-              @click="emit('toggle-tool', 'forum')"
-            >
-              <Search :size="16" aria-hidden="true" />
-              <span><strong>社区搜索</strong><small>查找 BOH 社区内容</small></span>
-            </button>
-            <button
-              type="button"
-              class="boh-mm-tool"
-              :class="{ 'is-on': tools.cloud }"
-              @click="emit('toggle-tool', 'cloud')"
-            >
-              <Cloud :size="16" aria-hidden="true" />
-              <span><strong>个人 Cloud+</strong><small>参考你的 Cloud+ 私有内容</small></span>
-            </button>
-            <button
-              type="button"
-              class="boh-mm-tool"
-              :class="{ 'is-on': tools.health }"
-              @click="emit('toggle-tool', 'health')"
-            >
-              <HeartPulse :size="16" aria-hidden="true" />
-              <span><strong>健康分析</strong><small>参考你本机的 BOH Health 数据</small></span>
-            </button>
-            <button type="button" class="boh-mm-tool" @click="emit('start-psych')">
-              <Brain :size="16" aria-hidden="true" />
-              <span
-                ><strong>心理分析</strong><small>切换心理专家，由 AI 逐个提问陪你梳理</small></span
-              >
-            </button>
-          </div>
-        </div>
-
-        <!-- 视图二：选择模型（样稿 3：标题 + 分组头 + 纯文本行 + 选中勾，倍率收右侧弱化小字） -->
-        <div v-show="menuView === 'model'" class="boh-mm-view is-model">
-          <button type="button" class="boh-mm-back" aria-label="返回思考强度" @click="backToEffort">
-            <ChevronLeft :size="15" aria-hidden="true" />
-            <span class="boh-mm-title">选择模型</span>
-          </button>
-          <div class="boh-mm-group">
-            <span class="boh-mm-group-name">默认</span>
-            <span class="boh-mm-group-sub">数据库配置</span>
-          </div>
-          <div v-if="modesLoading" class="boh-mm-loading" aria-live="polite">
-            <span
-              v-for="i in 3"
-              :key="`sk-${i}`"
-              class="boh-mm-skeleton"
-              :class="{ 'is-short': i === 3 }"
-            ></span>
-            <p>模式加载中…</p>
-          </div>
-          <div v-else-if="modes.length === 0" class="boh-mm-empty">暂无可用模式</div>
-          <template v-else>
-            <button
-              v-for="mode in modes"
-              :key="mode.id"
-              type="button"
-              class="boh-mm-item"
-              :class="{ 'is-on': currentModeId === mode.id }"
-              :data-mode-id="mode.id"
-              :title="mode.tagline || mode.description || ''"
-              @click="pickMode(mode.id)"
-            >
-              <span class="boh-mm-name">{{ mode.name }}</span>
-              <span class="boh-mm-rate" :class="{ 'is-free': isFreeMode(mode) || mode.byok }">{{
-                formatModeRateLabel(mode)
-              }}</span>
-              <Check :size="15" aria-hidden="true" />
-            </button>
-          </template>
-        </div>
-      </div>
-
       <textarea
         ref="textareaEl"
         class="boh-composer-input"
@@ -214,6 +61,173 @@
         >
           <Globe :size="17" aria-hidden="true" />
         </button>
+
+        <!-- 模型选择（2026-10-11 用户样稿：底行「模型名 ⌄」独立成一颗胶囊 + 一个玻璃浮层；
+             胶囊样式沿用原 `.boh-mode-pill`，未改视觉。
+             ⚠️ 三条契约：① 行按钮保留 `.boh-mm-item` + `data-mode-id`
+             （probe-bohai-user-models B6/B11、probe-bohai-mode-loading 直接查 DOM）；
+             ② `.boh-mm-body` 是**内层滚动容器**（矮横屏封顶的安全网），详情卡挂在它**外面**，
+             否则会被 `overflow-y: auto` 裁掉；③ 面板改**左对齐**（触发键搬到了底行左侧），
+             hover 详情卡随之镜像到面板**右侧**，越界时由 `is-flipped` 翻回左侧。 -->
+        <div class="boh-mode-wrap" @click.stop>
+          <button
+            type="button"
+            class="boh-mode-pill"
+            :class="{ 'is-open': activeMenu === 'model' }"
+            :title="`模型：${currentMode.name}`"
+            :aria-expanded="activeMenu === 'model'"
+            aria-haspopup="dialog"
+            @click="toggleMenu('model')"
+          >
+            <Sparkles :size="13" class="boh-mode-pill-icon" aria-hidden="true" />
+            <span class="boh-mode-pill-name">{{ currentMode.name }}</span>
+            <ChevronDown :size="13" aria-hidden="true" />
+          </button>
+
+          <div
+            v-show="activeMenu === 'model'"
+            class="boh-mode-menu"
+            role="dialog"
+            aria-label="选择模型"
+          >
+            <div class="boh-mm-body">
+              <div v-if="modesLoading" class="boh-mm-loading" aria-live="polite">
+                <span
+                  v-for="i in 3"
+                  :key="`sk-${i}`"
+                  class="boh-mm-skeleton"
+                  :class="{ 'is-short': i === 3 }"
+                ></span>
+                <p>模式加载中…</p>
+              </div>
+              <div v-else-if="modes.length === 0" class="boh-mm-empty">暂无可用模式</div>
+              <div v-else class="boh-mm-rows">
+                <div
+                  v-for="mode in modes"
+                  :key="mode.id"
+                  class="boh-mm-row"
+                  @mouseenter="onModeRowEnter($event, mode)"
+                  @mouseleave="scheduleCloseModeDetail()"
+                >
+                  <button
+                    type="button"
+                    class="boh-mm-item"
+                    :class="{ 'is-on': currentModeId === mode.id }"
+                    :data-mode-id="mode.id"
+                    :aria-current="currentModeId === mode.id"
+                    :title="mode.tagline || mode.description || ''"
+                    @click="pickMode(mode.id)"
+                  >
+                    <span class="boh-mm-name">{{ mode.name }}</span>
+                    <span
+                      class="boh-mm-rate"
+                      :class="{ 'is-free': isFreeMode(mode) || mode.byok }"
+                      >{{ formatModeRateLabel(mode) }}</span
+                    >
+                    <Check :size="15" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <button type="button" class="boh-mm-custom" @click="emit('open-settings')">
+                <Pencil :size="15" aria-hidden="true" />
+                <span>配置自定义模型</span>
+              </button>
+            </div>
+            <!-- hover 详情卡：只放描述 / 消耗速度 / 使用此模式。 -->
+            <div
+              v-if="hoverMode"
+              ref="hoverDetailEl"
+              class="boh-mm-detail"
+              :class="{ 'is-flipped': hoverFlipped }"
+              role="group"
+              :aria-label="`模式详情：${hoverMode.name}`"
+              :style="{ top: `${hoverTop}px` }"
+              @mouseenter="cancelCloseModeDetail()"
+              @mouseleave="scheduleCloseModeDetail()"
+            >
+              <div class="boh-mm-detail-name">{{ hoverMode.name }}</div>
+              <p v-if="hoverMode.description || hoverMode.tagline" class="boh-mm-detail-desc">
+                {{ hoverMode.description || hoverMode.tagline }}
+              </p>
+              <div class="boh-mm-detail-sep" aria-hidden="true"></div>
+              <div class="boh-mm-detail-row">
+                <span>消耗速度</span>
+                <b>{{ formatModeRateLabel(hoverMode) || '—' }}</b>
+              </div>
+              <button
+                type="button"
+                class="boh-mm-detail-use"
+                :disabled="currentModeId === hoverMode.id"
+                @click="pickMode(hoverMode.id)"
+              >
+                {{ currentModeId === hoverMode.id ? '当前模式' : '使用此模式' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 工具（原「高级」四工具的落点，2026-10-11 从模式面板里独立出来） -->
+        <div class="boh-tools-wrap" @click.stop>
+          <button
+            type="button"
+            class="boh-tools-pill"
+            :class="{ 'is-open': activeMenu === 'tools' }"
+            title="工具"
+            aria-label="工具"
+            :aria-expanded="activeMenu === 'tools'"
+            aria-haspopup="dialog"
+            @click="toggleMenu('tools')"
+          >
+            <SlidersHorizontal :size="14" aria-hidden="true" />
+            <ChevronDown :size="12" class="boh-tools-caret" aria-hidden="true" />
+          </button>
+          <div
+            v-show="activeMenu === 'tools'"
+            class="boh-tools-menu"
+            role="dialog"
+            aria-label="工具"
+          >
+            <div class="boh-mm-adv">
+              <button
+                type="button"
+                class="boh-mm-tool"
+                :class="{ 'is-on': tools.forum }"
+                :aria-pressed="tools.forum"
+                @click="emit('toggle-tool', 'forum')"
+              >
+                <Search :size="16" aria-hidden="true" />
+                <span><strong>社区搜索</strong><small>查找 BOH 社区内容</small></span>
+              </button>
+              <button
+                type="button"
+                class="boh-mm-tool"
+                :class="{ 'is-on': tools.cloud }"
+                :aria-pressed="tools.cloud"
+                @click="emit('toggle-tool', 'cloud')"
+              >
+                <Cloud :size="16" aria-hidden="true" />
+                <span><strong>个人 Cloud+</strong><small>参考你的 Cloud+ 私有内容</small></span>
+              </button>
+              <button
+                type="button"
+                class="boh-mm-tool"
+                :class="{ 'is-on': tools.health }"
+                :aria-pressed="tools.health"
+                @click="emit('toggle-tool', 'health')"
+              >
+                <HeartPulse :size="16" aria-hidden="true" />
+                <span><strong>健康分析</strong><small>参考你本机的 BOH Health 数据</small></span>
+              </button>
+              <button type="button" class="boh-mm-tool" @click="emit('start-psych')">
+                <Brain :size="16" aria-hidden="true" />
+                <span
+                  ><strong>心理分析</strong
+                  ><small>切换心理专家，由 AI 逐个提问陪你梳理</small></span
+                >
+              </button>
+            </div>
+          </div>
+        </div>
 
         <span class="boh-cp-spacer"></span>
 
@@ -289,22 +303,6 @@
           </div>
         </div>
 
-        <div class="boh-mode-wrap" @click.stop>
-          <button
-            type="button"
-            class="boh-mode-pill"
-            :class="{ 'is-open': panelOpen }"
-            :title="`${currentMode.name} · 推理强度 ${effortName}`"
-            :aria-expanded="panelOpen"
-            aria-haspopup="dialog"
-            @click="togglePanel"
-          >
-            <!-- 样稿的「5.5 高」形态：模型名 + 强度名，中间不加分隔符 -->
-            {{ currentMode.name }} {{ effortName }}
-            <ChevronDown :size="13" aria-hidden="true" />
-          </button>
-        </div>
-
         <button
           v-if="isLoading"
           type="button"
@@ -353,7 +351,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
   Archive,
   ArrowUp,
@@ -361,20 +359,18 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
   Cloud,
   FileText,
   Globe,
   HeartPulse,
-  RotateCcw,
+  Pencil,
   Search,
+  SlidersHorizontal,
+  Sparkles,
   Square,
   X,
 } from 'lucide-vue-next';
 import { formatModeRateLabel, isFreeMode } from '@/views/BOHAI/utils/mode-rate-label.js';
-import { BOH_DEFAULT_THINKING_SPEED_ID } from '@/views/BOHAI/composables/chat-engine-config.js';
 
 /**
  * BohComposer.vue — 输入区（plans/025 v2 · Step 6-4）
@@ -384,7 +380,7 @@ import { BOH_DEFAULT_THINKING_SPEED_ID } from '@/views/BOHAI/composables/chat-en
  * `.cp-note`）。
  *
  * 状态划分：
- *   · **业务状态在壳**（输入值 / 模式 / 强度 / 工具开关 / 联网 / 用量数据 / 斜杠命令清单）；
+ *   · **业务状态在壳**（输入值 / 模式 / 工具开关 / 联网 / 用量数据 / 斜杠命令清单）；
  *   · **纯 UI 状态在本组件**（面板开合 / 高级折叠 / 用量浮层开合）。
  *     壳的 Esc 与「关闭浮层」通过 `defineExpose().closePanel()` 调用（口径不变）。
  *
@@ -402,9 +398,6 @@ const props = defineProps({
   modesLoading: { type: Boolean, default: false },
   currentMode: { type: Object, default: () => ({ name: '' }) },
   currentModeId: { type: String, default: '' },
-  thinkingSpeedOptions: { type: Array, default: () => [] },
-  currentThinkingSpeedId: { type: String, default: '' },
-  currentThinkingSpeed: { type: Object, default: null },
   tools: { type: Object, default: () => ({ forum: false, cloud: false, health: false }) },
   attachedContext: { type: Object, default: null },
   usage: { type: Object, default: () => ({ visible: false }) },
@@ -429,23 +422,29 @@ const emit = defineEmits([
   'toggle-tool',
   'start-psych',
   'select-mode',
-  'select-thinking-speed',
   'run-slash-command',
   'update:slashActiveIndex',
   'clear-context',
   'compress',
   'open-usage',
+  /* 2026-10-10：模型列表底部的「配置自定义模型」→ 打开设置页（BYOK 在那边）。 */
+  'open-settings',
 ]);
 
 const textareaEl = ref(null);
-const panelOpen = ref(false);
-const advOpen = ref(false);
+/** 根节点：壳的 FLIP（空态居中 → 贴底）要量它，见 `BOHAIMain.animateComposerHome` */
+const wrapEl = ref(null);
+/** 输入框外壳：斜杠菜单要按它算「上方可用高度」，见 `syncSlashAvail` */
+const composerEl = ref(null);
+/** 2026-10-11：两个浮层（模型 / 工具）**互斥**，用一颗状态表达 ——
+    原先是 `panelOpen` + `menuView` 两颗（单浮层两视图），拆成独立胶囊后必然要互斥，
+    再拆成两个布尔只会让「同时开两个」成为可能。用 `activeMenu` 一颗锁死。 */
+const activeMenu = ref(null);
 const usagePopOpen = ref(false);
-/** 面板内两视图：'effort'（强度，默认） / 'model'（模型清单）。关闭时必须归位 effort。 */
-const menuView = ref('effort');
 let usagePopCloseTimer = null;
 
-const effortName = computed(() => props.currentThinkingSpeed?.name || '中');
+/** 供壳的 Esc 分层用（`BOHAIMain` 读 `composerRef.panelOpen`）—— 现在是派生值 */
+const panelOpen = computed(() => activeMenu.value !== null);
 
 const attachedTitle = computed(() => {
   const title = String(props.attachedContext?.title || '当前页面');
@@ -456,102 +455,77 @@ const attachedTitle = computed(() => {
    设置页的模式选择器要用同一份，留在这里必然分叉（Fast 显示成 1x 就是这么来的）。 */
 
 /* ── 纯 UI 状态 ── */
-const closePanel = () => {
-  panelOpen.value = false;
-  advOpen.value = false;
-  menuView.value = 'effort';
-};
+/* 模型视图的 hover 详情卡（2026-10-10 用户样稿）。
+   卡片挂在 `.boh-mm-body`（内层滚动容器）**外面** ⇒ top 要从行与 `.boh-mode-menu` 的
+   getBoundingClientRect 差值换算成**同一坐标系**；不要直接用 viewport 的 top。
+   再按实际卡片高度 clamp 到视口内（模型描述长度各不相同，不能假设卡片固定高度）。 */
+const hoverMode = ref(null);
+const hoverTop = ref(0);
+/** 详情卡默认挂在面板**右侧**（面板左对齐）；右侧放不下时翻回左侧 */
+const hoverFlipped = ref(false);
+const hoverDetailEl = ref(null);
+let modeDetailCloseTimer = null;
 
-const openModelView = () => {
-  menuView.value = 'model';
-};
-
-const backToEffort = () => {
-  menuView.value = 'effort';
-};
-
-const togglePanel = () => {
-  if (panelOpen.value) {
-    closePanel();
-    return;
+const cancelCloseModeDetail = () => {
+  if (modeDetailCloseTimer) {
+    clearTimeout(modeDetailCloseTimer);
+    modeDetailCloseTimer = null;
   }
-  usagePopOpen.value = false;
-  panelOpen.value = true;
 };
 
-/* 选完模式 / 强度 → **整个面板收起**（2026-10-01 用户拍板两者表现一致）。
-   工具开关与「心理分析」不关面板 —— 用户常接着改第二项。 */
+const scheduleCloseModeDetail = () => {
+  cancelCloseModeDetail();
+  modeDetailCloseTimer = setTimeout(() => {
+    modeDetailCloseTimer = null;
+    hoverMode.value = null;
+  }, 240);
+};
+
+const closePanel = () => {
+  cancelCloseModeDetail();
+  activeMenu.value = null;
+  hoverMode.value = null;
+};
+
+/** 两个浮层共用一个开关：再点自己那颗胶囊 = 收起（`aria-expanded` 也要跟着翻） */
+const toggleMenu = (name) => {
+  usagePopOpen.value = false;
+  activeMenu.value = activeMenu.value === name ? null : name;
+};
+
+/* 选完模式 → **收起浮层**（2026-10-01 用户拍板）。工具开关与「心理分析」不收 ——
+   用户常接着改第二项。 */
 const pickMode = (modeId) => {
   emit('select-mode', modeId);
   closePanel();
 };
 
-/* ── 思考强度：全自绘滑杆（2026-10-08 参考图口径 + 用户口径「不要原生拖动条」）──
-   三档离散（低/中/高，走 sampling deltas，没有连续数值档）。
-   ⚠️ 换档**不收面板** —— 拖到一半面板关掉 = 滑杆坏了；选「模式」仍收（pickMode 契约不变，
-   2026-10-01 拍板的「两者一致」随滑杆作废）。 */
-const defaultThinkingSpeedId = BOH_DEFAULT_THINKING_SPEED_ID;
+const onModeRowEnter = (event, mode) => {
+  cancelCloseModeDetail();
+  const row = event?.currentTarget;
+  const panel = row?.closest?.('.boh-mode-menu');
+  const rowRect = row?.getBoundingClientRect?.();
+  const panelRect = panel?.getBoundingClientRect?.();
+  if (!rowRect || !panelRect) return;
 
-const effortIndex = computed(() => {
-  const idx = props.thinkingSpeedOptions.findIndex((o) => o.id === props.currentThinkingSpeedId);
-  return idx >= 0 ? idx : 0;
-});
-
-/** 轨道填充比例与滑块位置共用这一个值（写进 --boh-effort-fill，CSS 只消费） */
-const effortFill = computed(() => {
-  const max = Math.max(props.thinkingSpeedOptions.length - 1, 1);
-  return `${(effortIndex.value / max) * 100}%`;
-});
-
-const setEffortIndex = (idx) => {
-  const option = props.thinkingSpeedOptions[idx];
-  if (option && option.id !== props.currentThinkingSpeedId) {
-    emit('select-thinking-speed', option.id);
-  }
+  hoverMode.value = mode;
+  hoverTop.value = Math.max(0, rowRect.top - panelRect.top);
+  hoverFlipped.value = false;
+  void nextTick(() => {
+    // 若鼠标已经快速移到另一行，旧行的量尺回调不得覆盖新详情卡的位置。
+    if (hoverMode.value?.id !== mode?.id) return;
+    const detail = hoverDetailEl.value;
+    if (!detail || !panel.isConnected || typeof window === 'undefined') return;
+    const currentPanelRect = panel.getBoundingClientRect();
+    const detailHeight = detail.getBoundingClientRect().height;
+    const maxTop = Math.max(0, window.innerHeight - 8 - detailHeight - currentPanelRect.top);
+    hoverTop.value = Math.min(hoverTop.value, maxTop);
+    // 面板左侧触发 ⇒ 详情卡默认在右侧；右侧不够 8px 边距就翻回左侧（2026-10-11 镜像）
+    const detailWidth = detail.getBoundingClientRect().width;
+    hoverFlipped.value =
+      currentPanelRect.left + currentPanelRect.width + 8 + detailWidth > window.innerWidth - 8;
+  });
 };
-
-/** 指针横坐标 → 最近档位（离散吸附）。wrap 由调用方捕获，不能读 event.currentTarget
-    —— pointermove 派发在 window 上，currentTarget 早已还原为 null。 */
-const effortIndexFromEvent = (wrap, event) => {
-  const rect = wrap.getBoundingClientRect();
-  if (rect.width <= 0) return 0;
-  const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
-  return Math.round(ratio * (props.thinkingSpeedOptions.length - 1));
-};
-
-const onEffortPointerDown = (event) => {
-  const wrap = event.currentTarget;
-  if (!wrap) return;
-  setEffortIndex(effortIndexFromEvent(wrap, event));
-  const onMove = (moveEvent) => setEffortIndex(effortIndexFromEvent(wrap, moveEvent));
-  const onUp = () => {
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
-    window.removeEventListener('pointercancel', onUp);
-  };
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
-  window.addEventListener('pointercancel', onUp);
-};
-
-const onEffortKeydown = (event) => {
-  const max = props.thinkingSpeedOptions.length - 1;
-  if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
-    event.preventDefault();
-    setEffortIndex(Math.min(effortIndex.value + 1, max));
-  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
-    event.preventDefault();
-    setEffortIndex(Math.max(effortIndex.value - 1, 0));
-  } else if (event.key === 'Home') {
-    event.preventDefault();
-    setEffortIndex(0);
-  } else if (event.key === 'End') {
-    event.preventDefault();
-    setEffortIndex(max);
-  }
-};
-
-const resetEffort = () => emit('select-thinking-speed', BOH_DEFAULT_THINKING_SPEED_ID);
 
 const clearUsageTimer = () => {
   if (usagePopCloseTimer) {
@@ -587,7 +561,11 @@ const onInput = (event) => {
 };
 
 const onDocumentClick = (event) => {
-  if (panelOpen.value && !event.target.closest?.('.boh-mode-wrap, .boh-mode-menu')) {
+  // 两个浮层各自贴着自己的胶囊，点在**任何一个**里面都不算「点外面」
+  if (
+    panelOpen.value &&
+    !event.target.closest?.('.boh-mode-wrap, .boh-mode-menu, .boh-tools-wrap, .boh-tools-menu')
+  ) {
     closePanel();
   }
   if (usagePopOpen.value && !event.target.closest?.('.boh-usage-wrap')) {
@@ -595,10 +573,33 @@ const onDocumentClick = (event) => {
   }
 };
 
-onMounted(() => document.addEventListener('click', onDocumentClick));
+/* 斜杠菜单的「上方可用高度」上限（2026-10-11）。
+   空态下「虚影字 + 输入框」整组垂直居中 ⇒ 输入框顶只剩 ~460px，而菜单内容要 ~780px，
+   顶端会被推出视口（实测 1440×900：菜单 `top = −318`，前 7 条命令既看不见也够不到，
+   而键盘初始焦点恰好就在看不见的 `/web` 上）。
+   ⚠️ 这里**只把量到的输入框顶**写进 CSS 变量，两条上限怎么取舍留在 CSS
+      （`.boh-slash` 的 `min(calc(100vh - 120px), calc(var(--boh-slash-top) - 16px))`）——
+      与 `autoResize` 同一条纪律：**JS 不写第二份设计像素值**。 */
+const syncSlashAvail = () => {
+  const el = composerEl.value;
+  if (!el) return;
+  el.style.setProperty('--boh-slash-top', `${Math.round(el.getBoundingClientRect().top)}px`);
+};
+
+/** 窗口尺寸变化时输入框会挪位（空态是居中定位）⇒ 菜单开着就重量一次 */
+const onViewportResize = () => {
+  if (props.slashOpen) syncSlashAvail();
+};
+
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick);
+  window.addEventListener('resize', onViewportResize);
+});
 onUnmounted(() => {
   document.removeEventListener('click', onDocumentClick);
+  window.removeEventListener('resize', onViewportResize);
   clearUsageTimer();
+  cancelCloseModeDetail();
 });
 
 /* 输入框自动增高。⚠️ 三条纪律（2026-10-08 复核）：
@@ -629,15 +630,21 @@ watch(
 );
 
 /* 面板打开时不再需要斜杠菜单（两者都贴在输入框上方，同时开必重叠） */
+/* 面板打开时不再需要斜杠菜单（两者都贴在输入框上方，同时开必重叠）；
+   斜杠菜单打开时同步一次「上方可用高度」—— 必须 `nextTick`：`v-if` 刚挂上，
+   此时量输入框位置才是最终布局（空态居中的 FLIP 也已落定）。 */
 watch(
   () => props.slashOpen,
   (open) => {
-    if (open) closePanel();
+    if (!open) return;
+    closePanel();
+    nextTick(syncSlashAvail);
   },
 );
 
 defineExpose({
   closePanel,
+  wrapEl,
   /** 供壳的 Esc 分层用：面板是否开着 */
   panelOpen,
   focus: () => textareaEl.value?.focus(),

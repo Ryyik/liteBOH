@@ -14,6 +14,13 @@ const sidebarPath = resolve(
   '../../src/views/BOHAI/BOHAI/components/BohSidebar.vue',
 );
 const mainPath = resolve(import.meta.dirname, '../../src/views/BOHAI/BOHAI/BOHAIMain.vue');
+// 2026-10-08：斜杠命令的「定义 + 解析 + 菜单构造」抽成单一真源模块
+// （`bohai-slash-commands.js`）⇒ 命令表本身的守卫必须**改指新文件**，
+// 壳里只剩分派（`case 'cloud':`）。两条断言合起来才锁得住「定义在 + 壳真接线了」。
+const slashPath = resolve(
+  import.meta.dirname,
+  '../../src/views/BOHAI/BOHAI/bohai-slash-commands.js',
+);
 // plans/025 v2 · Step 6：UI 树重写为 `Boh*` 组件 ⇒ 消息流 / 输入区 / Work 面板的
 // 源码守卫必须**改指新文件**（旧 messages.css / adaptive-layout.css 等 5 个样式文件已删）。
 const streamPath = resolve(
@@ -143,15 +150,28 @@ describe('BOH AI motion system', () => {
     const layout = squeezeSource(readFileSync(layoutCssPath, 'utf8'));
     expect(layout).toContain('prefers-reduced-motion: reduce');
     expect(layout).not.toMatch(/prefers-reduced-motion[\s\S]{0,400}!/);
-    // 全仓三处循环动画：搜索文字流光（2026-10-08 由滑动进度条改版）/ 集群进度转圈 / **思考圆点呼吸**
+    // 全仓两处循环动画：搜索文字流光（2026-10-08 由滑动进度条改版）/ 集群进度转圈
+    // （第三处「思考圆点呼吸」已于 2026-10-10 随圆点退役 —— 见下方断言）
     const streamCss = squeezeSource(readFileSync(streamCssPath, 'utf8'));
     expect(streamCss).toContain('@keyframes boh-search-shimmer');
-    // 2026-10-08 用户拍板：「思考状态依旧保持旧版圆点」⇒ 形状与动画必须逐字沿用旧口径，
-    // 不许换成 Demo 的三点打字动画。
-    expect(streamCss).toContain('@keyframes boh-thinking-breath');
+    // 2026-10-10 用户拍板（**取代 10-08 的圆点口径**）：思考态改成纯文本「正在思考」
+    // + 可展开的推理原文 ⇒ 旧圆点与它的呼吸动画一并退役；依旧不许引入三点打字动画。
+    expect(streamCss).not.toContain('@keyframes boh-thinking-breath');
     expect(streamCss).not.toContain('@keyframes boh-bob');
+    expect(streamCss).toContain('.boh-reason-body');
     const streamSrc = squeezeSource(readFileSync(streamPath, 'utf8'));
-    expect(streamSrc).toContain('class="boh-thinking-dot"');
+    expect(streamSrc).not.toContain('class="boh-thinking-dot"');
+    expect(streamSrc).toContain('class="boh-reason"');
+    // 2026-10-10 二次（用户「思考也改成流光」）：流光定义**单源**，两个选择器共用同一组属性；
+    // 思考那处挂 `…head span` 而不是 `…head` —— 挂 head 会让 caret 一起 `color: transparent` 而消失。
+    expect(streamCss).toContain(
+      '.boh-search-line.is-shimmer, .boh-reason.is-live .boh-reason-head span',
+    );
+    // 降级：reduced-motion 下 `--boh-dur-bob` 被归零，亮带停位 ⇒ 必须恢复实色，
+    // 否则 `color: transparent` 会让这两处状态文字**直接看不见**。
+    expect(streamCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]{0,220}color: inherit/,
+    );
   });
 
   it('快捷对话跳转条：常态只剩竖条，hover 才展开摘要', () => {
@@ -173,6 +193,34 @@ describe('BOH AI motion system', () => {
     );
     // hover 时整列聚成**一枚卡片**：底色与投影挂在 .boh-jump 本体上，不在单项上画药丸
     expect(css).toMatch(/\.boh-jump:hover[\s\S]{0,60}background:\s*var\(--boh-bg-page\)/);
+
+    // ── 2026-10-10 三次（用户口径「hover 变为一个**液态玻璃**小圆角」）──────────
+    // ① 材质必须引用**全局单源**令牌 —— check:liquid-glass 禁止在 liquid-glass.css
+    //    之外重写 blur 材质，所以这里绝不能出现裸 blur(14px+)。
+    expect(css).toMatch(/backdrop-filter:\s*var\(--liquid-filter-sm\)/);
+    expect(css).not.toMatch(/backdrop-filter:\s*blur\((?:1[4-9]|[2-9]\d)px\)/);
+    // ② 升级块包在 @supports 里 ⇒ 不支持 backdrop-filter 时自动落回上面的实色卡
+    expect(css).toMatch(/@supports\s*\(\(backdrop-filter:\s*blur\(1px\)\)/);
+    // ③ 颜色走 --boh-glass-*（BOHAI 主题 [data-boh-theme] 不跟站点 [data-theme] 联动，
+    //    直接吃 --liquid-bg-* 会在「站点浅色 + AI 暗色」时翻出一张亮白卡）
+    expect(css).toMatch(/background:\s*var\(--boh-glass-bg\)/);
+    // ④ 描边**常态占位**（透明 1px），否则 hover 多出一条边框 = 又一次几何跳变
+    expect(css).toMatch(/\.boh-jump\s*\{[^}]*border:\s*1px solid transparent/);
+    const jumpTokens = readFileSync(tokensCssPath, 'utf8');
+    expect(jumpTokens).toMatch(/--boh-glass-bg-light:\s*rgba\(/);
+    expect(jumpTokens).toMatch(/--boh-glass-bg-dark:\s*rgba\(/);
+    // 暗色块里只许 var()（纪律 1；否则 check:dark-tokens:strict 棘轮上升）
+    expect(jumpTokens).toMatch(
+      /\[data-boh-theme='dark'\][\s\S]*--boh-glass-bg:\s*var\(--boh-glass-bg-dark\)/,
+    );
+
+    // ── 2026-10-10 四次（用户口径「竖屏不需要跳转对话的东西」）──────────────────
+    // 竖屏整条隐掉。⚠️ 判据用 `orientation: portrait`，与 DESIGN §3.1 的分档同源 ——
+    // 本仓「桌面 / 宽屏 / 矮横屏」三档都限定 `orientation: landscape`，
+    // 所以竖屏就是那三档之外的一半；**不是**宽度断点（768 宽的横屏手机也该保留）。
+    expect(css).toMatch(
+      /@media\s*\(orientation:\s*portrait\)\s*\{\s*\.boh-jump\s*\{\s*display:\s*none/,
+    );
   });
 
   it('renders Community Searching with the Web Searching animation contract', () => {
@@ -225,12 +273,13 @@ describe('BOH AI motion system', () => {
     expect(streamCss).toContain('@keyframes boh-search-fade');
     expect(streamCss).toMatch(/\.boh-search-line\s*\{[^}]*text-overflow:\s*ellipsis/);
 
-    // 黑点分相（2026-10-08 用户口径）：联网搜索在途必须无黑点；思考（isThinking）与
-    // 回复（isLoading，流式期 isThinking 已翻 false）都要有黑点。
-    // ⚠️ communitySearchActive 不进门控 —— 它挂到整轮结束，进门控会让社区类问题黑点全灭。
-    const dotGuard = stream.match(/const showThinkingDot = \(index\) =>[\s\S]*?;/) || [];
-    expect(dotGuard[0]).toContain('props.isThinking || props.isLoading');
-    expect(dotGuard[0]).toContain('!props.webSearchActive');
+    // 思考行的分相门控（2026-10-08 口径不变，只是「黑点」换成了「正在思考」文本行）：
+    // 联网搜索在途必须**不出**这一行；思考（isThinking）与回复（isLoading，流式期
+    // isThinking 已翻 false）都要出。
+    // ⚠️ communitySearchActive 不进门控 —— 它挂到整轮结束，进门控会让社区类问题整轮无提示。
+    const reasonGuard = stream.match(/const isReasoningLive = \(index\) =>[\s\S]*?;/) || [];
+    expect(reasonGuard[0]).toContain('props.isThinking || props.isLoading');
+    expect(reasonGuard[0]).toContain('!props.webSearchActive');
     // 操作行跟着「整轮忙」走：忙（含搜索期）不渲染，避免流式期黑点与操作行同屏
     const busyGuard = stream.match(/const isGenerationBusy = \(index\) =>[\s\S]*?;/) || [];
     expect(busyGuard[0]).toContain('props.isThinking || props.isLoading');
@@ -270,10 +319,14 @@ describe('BOH AI motion system', () => {
 
   it('includes a personal Cloud+ shortcut command', () => {
     const main = squeezeSource(readFileSync(mainPath, 'utf8'));
+    const slash = squeezeSource(readFileSync(slashPath, 'utf8'));
     const composer = squeezeSource(readFileSync(composerPath, 'utf8'));
-    expect(main).toContain("keyword: 'cloud'");
-    expect(main).toContain("label: '个人 Cloud+'");
-    expect(main).toContain("command.action === 'cloud'");
+    // 定义在真源模块（2026-10-08 抽出，见 slashPath 注释）
+    expect(slash).toContain("keyword: 'cloud'");
+    expect(slash).toContain("label: '个人 Cloud+'");
+    expect(slash).toContain("action: 'cloud'");
+    // 壳仍接线：分派分支必须还在（定义搬走后，这条是唯一能证明「没接断」的断言）
+    expect(main).toContain("case 'cloud':");
     // 面板「高级」工具组的行文案搬进输入区组件
     expect(composer).toContain('<strong>个人 Cloud+</strong>');
     expect(composer).toContain('class="boh-mm-tool"');

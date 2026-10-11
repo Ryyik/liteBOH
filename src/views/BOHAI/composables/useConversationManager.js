@@ -14,6 +14,7 @@ import {
   saveBohAIChatSessionsToStorage,
   clearBohAIChatSessionsStorage,
   createBohAIChatSessionSanitizer,
+  createBohAISessionWriteGuard,
 } from '@/utils/bohai-chat-session-store.js';
 import {
   loadBohAIActionAuditsFromStorage,
@@ -289,7 +290,16 @@ export function useConversationManager({ scrollToBottom: scrollToBottomOption } 
 
   // ============================================================
   // Save / Load sessions from local storage
+  // ------------------------------------------------------------
+  // ⚠️ 写入所有权（2026-10-11）：`/ai-chat` 进 KeepAlive 之后，页面实例与灵动岛
+  //    的 BOHAIMain 可能**同时活着**，两边共用 `boh_chat_sessions` 一个键。
+  //    没有守卫时「谁后写谁覆盖」，且不报错 —— 症状是换页回来少一条消息。
+  //    细则与判据见 `bohai-chat-session-store.js` 的 createBohAISessionWriteGuard。
   // ============================================================
+  const sessionWriteGuard = createBohAISessionWriteGuard();
+  /** 本实例是否因为「存储被别人改过」而放弃过一次写入（= 该重新载入了） */
+  const hasSkippedConflictingWrite = ref(false);
+
   const loadSessions = () => {
     const migratedSessions = loadBohAIChatSessionsFromStorage({
       sanitizeSession: sanitizeChatSessionForStorage,
@@ -298,13 +308,37 @@ export function useConversationManager({ scrollToBottom: scrollToBottomOption } 
     if (migratedSessions.length > 0) {
       chatSessions.splice(0, chatSessions.length, ...migratedSessions);
     }
+    sessionWriteGuard.adopt();
   };
 
   const saveSessions = () => {
+    if (!sessionWriteGuard.canWrite()) {
+      // 另一个引擎（灵动岛）在这期间写过 —— 放弃本次覆盖，交给 syncSessionsFromStorage 择机重载
+      hasSkippedConflictingWrite.value = true;
+      logger.warn('boh-ai', '会话存储已被另一实例改写，放弃本次写入');
+      return;
+    }
     saveBohAIChatSessionsToStorage({
       sessions: chatSessions,
       sanitizeSession: sanitizeChatSessionForStorage,
     });
+    sessionWriteGuard.commit();
+  };
+
+  /**
+   * 存储被别的实例改写后，把它的版本读回来。
+   * ⚠️ 调用方**必须**先确认不在流式中（见 `useChatEngine.syncSessionsIfStale`）：
+   *    换状态会把正在生成的那条消息冲掉，用户看到的是「回答凭空少了一段」。
+   *
+   * @returns {boolean} 是否真的重载了
+   */
+  const syncSessionsFromStorage = () => {
+    if (!hasSkippedConflictingWrite.value) return false;
+    hasSkippedConflictingWrite.value = false;
+    if (sessionWriteGuard.canWrite()) return false;
+    logger.info('boh-ai', '会话存储被另一实例改写，重新载入');
+    loadSessions();
+    return true;
   };
 
   const clearSaveTimers = () => {
@@ -559,6 +593,7 @@ export function useConversationManager({ scrollToBottom: scrollToBottomOption } 
     computeContextBudgetUsage,
     loadSessions,
     saveSessions,
+    syncSessionsFromStorage,
     scheduleSaveSessions,
     clearSaveTimers,
     clearCache,

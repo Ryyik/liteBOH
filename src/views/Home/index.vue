@@ -48,6 +48,7 @@
         ref="forumShellRef"
         v-model:section="forumSection"
         @island-message="handleIslandMessage"
+        @composer-state="handleComposerState"
       >
         <template #official>
           <AsyncOfficialHeroStage />
@@ -65,6 +66,7 @@
     <UserSpaceSideRail
       :nav-items="BOTTOM_NAV_ITEMS"
       :current-tab="activeBottomNavId"
+      :active-action="composerOpen ? 'compose' : ''"
       :has-unread-messages="hasUnreadMessages"
       :unread-count="unreadCount"
       :current-theme="currentTheme"
@@ -124,6 +126,7 @@ import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpac
 import ThemeModal from '@/views/user-center/UserSpace/components/ThemeModal.vue';
 import { preloadProfileStyles } from '@/views/user-center/UserSpace/async-loaders.js';
 import { useScrollDirectionHide } from '@/views/user-center/UserSpace/composables/useScrollDirectionHide.js';
+import { useForumComposerSession } from '@/views/user-center/UserSpace/composables/useForumComposerSession.js';
 import { useHomeHeroesStore } from '@/stores/homeHeroes';
 import { useAuthStore } from '@/stores/auth';
 import { FORUM_DEFAULT_SECTION, resolveForumSection } from '@/config/forum-sections';
@@ -200,6 +203,12 @@ watch(
 // ============================================
 const forumSection = ref(resolveForumSection(route.query.view));
 const forumShellRef = ref(null);
+
+/* 横屏左栏的「发布会话」闸门（与 UserSpaceMain 共用同一份实现，见 composables/
+   useForumComposerSession.js）：会话状态由 ForumMain 的 composer-state 事件透传上来，
+   切落点前一律先 await dismissComposerSession()。 */
+const { composerOpen, handleComposerState, dismissComposerSession } =
+  useForumComposerSession(forumShellRef);
 
 watch(forumSection, (next) => {
   const nextQuery = { ...route.query };
@@ -283,7 +292,13 @@ const bottomNavIndicatorStyle = computed(() => {
   };
 });
 
-const handleBottomNavClick = (itemId) => {
+const handleBottomNavClick = async (itemId) => {
+  /* ⚠️ 闸门必须在最前面、且在「已在论坛就回顶部」那条短路之前：
+     首页这一席恒为 'community'，而「内容」那一席的 id 正好也是 community，
+     会话开着时点「内容」原本会命中下面那条提前 return —— 什么都不发生、
+     遮罩继续盖着内容区，且论坛侧的「保存草稿」确认链永远走不到。
+     有未保存内容时这里会等用户在确认框里选完（Promise 才 resolve）。 */
+  await dismissComposerSession();
   // 「方块」就是本页：已经在论坛了，回到论坛顶部即可，不做无谓跳转
   if (itemId === activeBottomNavId.value) {
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -322,6 +337,9 @@ const setThemePreference = (preference) => {
 };
 
 const handleRailAction = async (actionId) => {
+  // 「发布」本身就是打开这个会话，其余动作都先收掉它
+  // （与 UserSpaceMain.handleRailAction 同一套语义）
+  if (actionId !== 'compose') await dismissComposerSession();
   switch (actionId) {
     case 'compose':
       await callForumShell('openComposer');

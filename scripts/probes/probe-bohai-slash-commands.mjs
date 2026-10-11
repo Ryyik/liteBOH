@@ -30,7 +30,14 @@
  * 反证（修复后必须做，否则不算自证）：
  *   · 把 `handleSend` 里的斜杠分支删掉 → A1 / A3 / A4 / B1 必红；
  *   · 把「剥掉命令字」改成原样透传 → A3 必红；
- *   · 把 `unknown` 分支改成放行 → A4 必红。
+ *   · 把 `unknown` 分支改成放行 → A4 必红；
+ *   · 把 `.boh-slash` 的 `max-height` 改回单条 `calc(100vh - 120px)`（去掉
+ *     `--boh-slash-top` 上限）→ B3 的 `top >= 0` 必红（竖屏空态下实测 top = −304）；
+ *   · 把 `@media (hover: none)` 的 `min-height: 44px` 删掉 → B3 的 `itemH >= 44` 必红（掉到 ~43.8）；
+ *   · 把 `::-webkit-scrollbar { display: none }` + `scrollbar-width: none` 删掉
+ *     → B3 的 `scrollbarWidth === 'none'` 必红。
+ *     ⚠️ 判据必须是 CSS 属性，**不能量布局宽度**：headless Chrome 的 overlay 滚动条不占宽度，
+ *        `offsetWidth - clientWidth` 在有/无滚动条两种状态下都是「两侧边框」（实测都是 2）⇒ 假绿。
  *
  * 环境事实（本仓踩过的坑，照抄）：
  *   · Playwright 必须 `channel: 'chrome'` + 三个 proxy 参数（否则连不上 dev server）；
@@ -68,7 +75,40 @@ const browser = await chromium.launch({
  * 记进 `chatReqs`（这就是「哪些内容真的进了模型」的唯一可信来源 —— 读气泡只能证明
  * 消息落了 UI，读请求体才能证明它到了模型），然后一律回失败。
  */
+/**
+ * 模式清单 mock（`list_public_bohai_modes`）。
+ * ⚠️ 必填 `model_id`：`normalizeBohaiModelConfigRow` 会把缺 model_id 的行整条丢掉
+ *    ⇒ `availableModels` 为空 ⇒ `callModelStream` 直接抛「Model not found」，
+ *    请求根本没发出去（本探针会读成 chat请求=0，且**看起来像被测代码坏了**）。
+ *    不 mock 的后果就是「线上 RPC 通的时候绿、网络一抖就红」—— 判据必须是可复现的。
+ */
+const MOCK_MODES = [
+  {
+    id: 'fast',
+    mode_id: 'fast',
+    model_id: 'deepseek-ai/DeepSeek-V3',
+    name: 'Fast',
+    display_name: 'Fast',
+    tagline: '极速响应',
+    min_tier: 'free',
+    status: 'active',
+    sort_order: 10,
+    quota_multiplier: 1,
+  },
+];
+
+const mockModeConfig = async (page) => {
+  await page.route('**/rest/v1/rpc/list_public_bohai_modes*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(MOCK_MODES),
+    });
+  });
+};
+
 const installModelSpy = async (page, chatReqs) => {
+  await mockModeConfig(page);
   await page.route('**/functions/v1/api-key-vault**', async (route) => {
     let body = {};
     try {
@@ -277,6 +317,45 @@ const bubbleTexts = (page) =>
     `chat请求=${chatCount(chatReqs)} <task>=${JSON.stringify(b2Task)}`,
   );
 
+  // ── B3 触屏几何（2026-10-11 紧凑档）────────────────────────────────────────
+  //     竖屏 390 是斜杠菜单**唯一有真触屏**的档：紧凑档把行高压到 ~43.8px 会跌破 44px
+  //     触控推荐值 ⇒ `@media (hover: none)` 里补 `min-height: 44px`，这条断言就是它的守卫。
+  //     顺带锁「不越出视口」（`--boh-slash-top` 上限在竖屏同样要生效）与「无滚动条」。
+  await page.fill(SEL.input, '');
+  await page.waitForTimeout(300);
+  await page.fill(SEL.input, '/');
+  await page.waitForTimeout(400);
+  const b3Geo = await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el || getComputedStyle(el).display === 'none') return null;
+    const r = el.getBoundingClientRect();
+    const items = [...el.querySelectorAll('.boh-slash-item')];
+    return {
+      w: Math.round(r.width),
+      top: Math.round(r.top),
+      left: Math.round(r.left),
+      right: Math.round(r.right),
+      itemH: Math.round(Math.max(...items.map((n) => n.getBoundingClientRect().height)) * 10) / 10,
+      rows: items.length,
+      // ⚠️ 「无滚动条」读 CSS 属性而不是布局宽度：overlay 滚动条不占宽度，
+      //    `offsetWidth - clientWidth` 在有/无滚动条两种状态下都是「两侧边框」⇒ 量宽度是假绿。
+      scrollbarWidth: getComputedStyle(el).scrollbarWidth,
+      vw: window.innerWidth,
+    };
+  }, SEL.slash);
+  check(
+    'B3 触屏几何（行高补回 44px / 不越出视口 / 无滚动条）',
+    !!b3Geo &&
+      b3Geo.rows > 0 &&
+      b3Geo.itemH >= 44 &&
+      b3Geo.top >= 0 &&
+      b3Geo.left >= 0 &&
+      b3Geo.right <= b3Geo.vw &&
+      b3Geo.w <= 420 &&
+      b3Geo.scrollbarWidth === 'none',
+    JSON.stringify(b3Geo),
+  );
+
   await ctx.close();
 }
 
@@ -295,66 +374,23 @@ const bubbleTexts = (page) =>
   await page.waitForSelector(SEL.input, { timeout: 20000 });
   await page.waitForTimeout(700);
 
-  // 建议卡只出现在 Work 形态（`BohEmptyState` 的 WORK_SUGGESTIONS）⇒ 先切形态。
-  // 形态切换器在会话侧栏头部（≥1024 时侧栏默认展开）。
-  const switched = await page.evaluate(() => {
-    const btn = [...document.querySelectorAll('button')].find((n) =>
-      /^(Chat|Work)$/.test((n.textContent || '').trim()),
-    );
-    if (!btn) return null;
-    const label = btn.textContent.trim();
-    btn.click();
-    return label;
-  });
-  await page.waitForTimeout(400);
-  if (switched === 'Chat') {
-    await page.evaluate(() => {
-      const opt = [...document.querySelectorAll('button')].find((n) =>
-        /^Work/.test((n.textContent || '').trim()),
-      );
-      opt?.click();
-    });
-    await page.waitForTimeout(600);
-  }
-
-  // ── C1 空态里带 `/cloud` 前缀的建议卡：「点击 → 填入 → 发出」整条链必须剥掉命令字 ──
-  //    这条最容易被忽略：UI 用它**主动暗示**「这是命令」，若走漏则等于产品教用户写出错误用法。
-  const cardExists = await page.evaluate(() =>
-    [...document.querySelectorAll('.boh-empty__suggestions button')].some((n) =>
-      /素材盘点/.test(n.textContent || ''),
-    ),
+  // ── C1 空态不再有建议卡（2026-10-11 重做，用户口径「按图全删」）────────────
+  //    这条原来验的是「Work 形态第 4 张卡带 `/cloud` 前缀，点击后必须剥掉命令字」。
+  //    卡片既然下线，那条**教学风险**（UI 用一张带命令前缀的卡暗示一种用户不知道的用法）
+  //    也就没有载体了 —— 现在要锁的是「建议卡这个载体不再回来」。
+  //    带参数命令的剥离仍由 B2（触屏）/ A4（桌面）两条覆盖，能力没丢。
+  const emptyStateShape = await page.evaluate(() => ({
+    hasSuggestions: !!document.querySelector('.boh-empty__suggestions'),
+    cardCount: document.querySelectorAll('.boh-empty__suggestions button').length,
+    ghost: document.querySelector('.boh-empty__ghost')?.textContent?.trim() || '',
+  }));
+  check(
+    'C1 空态只留虚影字，建议卡整块下线',
+    !emptyStateShape.hasSuggestions &&
+      emptyStateShape.cardCount === 0 &&
+      emptyStateShape.ghost === 'BOHAI',
+    JSON.stringify(emptyStateShape),
   );
-  if (cardExists) {
-    await page.evaluate(() => {
-      const hit = [...document.querySelectorAll('.boh-empty__suggestions button')].find((n) =>
-        /素材盘点/.test(n.textContent || ''),
-      );
-      hit?.click();
-    });
-    await page.waitForTimeout(500);
-    const filled = await page.evaluate(
-      (sel) => document.querySelector(sel)?.value ?? null,
-      SEL.input,
-    );
-    chatReqs.length = 0;
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(1400);
-    const c1Task = lastTaskSegment(chatReqs);
-    check(
-      'C1 空态建议卡「/cloud 素材…」剥掉命令字',
-      chatCount(chatReqs) > 0 &&
-        !!c1Task &&
-        !c1Task.includes('/cloud') &&
-        c1Task.includes('素材盘点'),
-      `填入=${JSON.stringify(filled)} chat请求=${chatCount(chatReqs)} <task>=${JSON.stringify(c1Task)}`,
-    );
-  } else {
-    check(
-      'C1 空态建议卡「/cloud 素材…」剥掉命令字',
-      false,
-      '未找到带 /cloud 的建议卡（形态或文案变了？）',
-    );
-  }
 
   await ctx.close();
 }

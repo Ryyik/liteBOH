@@ -159,9 +159,9 @@ v1 认为：**拆文件**和**重写**是两件事，风险差一个数量级；
 
 | 棘轮 | 现值 | 真源 |
 | --- | --- | --- |
-| **lint 警告** | **118** | `package.json:18`（`--max-warnings 118`）⚠️ `AGENTS.md` 里写的 **183 已过时**，本次顺手更正 |
-| `!important` | **1,217**（BOHAI 名下 **约 497**：`adaptive-layout` 267 + `BohaiSidebar` 157 + `SettingsPanel` 56 + `motion-system` 10 + `full-workspace` 5 + `shell-header` 2） | `scripts/important-budget.json` |
-| 暗色裸值 | **2,854** | `scripts/dark-token-budget.json` |
+| **lint 警告** | **116**（2026-10-08 由 118 下调） | `package.json:18`（`--max-warnings 116`）⚠️ `AGENTS.md` 里写的 **183 已过时**，本次顺手更正 |
+| `!important` | **645**（2026-10-08；**BOHAI 名下已归零**：`views/BOHAI` **0 个文件**、`BOHAIIsland.vue` **2**） | `scripts/important-budget.json` |
+| 暗色裸值 | **2,706**（2026-10-08） | `scripts/dark-token-budget.json` |
 
 > 判据：`sed -n '18p' package.json`；`node -e "console.log(require('./scripts/important-budget.json').total)"`；
 > 同法读 `dark-token-budget.json`。（2026-10-06 实测）
@@ -398,7 +398,7 @@ await runRetrievalStage(ctx, { query, signal });
 | --- | --- | --- |
 | 7-1 | BOHAI 目录行数阈值收紧（**组件 400 / 模块 500**）并入 `check-project-structure` | 门禁绿 |
 | 7-2 | **断言总数核算 ≥ 落盘日实测**（162 文件 / 2,361 passed） | `npm run test` 输出 |
-| 7-3 | **BOHAI 名下 `!important` 归零**并下调棘轮基线 | `scripts/important-budget.json`（BOHAI 名下现值约 497 + `BOHAIIsland.vue` 73） |
+| 7-3 | ~~**BOHAI 名下 `!important` 归零**并下调棘轮基线~~ ✅ **2026-10-08 复核：已达成** | `node -e "const j=require('./scripts/important-budget.json');console.log(Object.entries(j.files).filter(([k])=>/views\/BOHAI/i.test(k)).length)"` → **0**（`BOHAIIsland.vue` 从 73 → **2**）。⚠️ 本行原写「现值约 497 + 73」**已失效**，判据见 `docs/2026-10-08-BOHAI对齐Codex优化方案与斜杠命令修复.md` §10 |
 | 7-4 | BOHAI 文件**掉出全仓 top-20**（见 §1.2，不追求 WARN 归零） | 全仓行数降序排名 |
 
 ---

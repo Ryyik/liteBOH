@@ -1,153 +1,66 @@
 /**
  * boh-empty-state.css — 空态（BohEmptyState.vue 私有）
  *
- * 口径真源：`output/boh-ui-demo/index.html` 的 `.empty-state` / `.empty-grid` / `.empty-card`
- * （DESIGN §2.1 字号 / §2.3 圆角 / §1 令牌）。
+ * 口径真源：用户样稿（2026-10-11，Codex 式）—— **只有一行虚影 BOHAI**，
+ * 压在居中的输入框上方；发第一条消息时由壳把输入框 FLIP 到底部。
  *
  * ⚠️ 三条纪律：
  *   1. **零裸色值** —— 只消费 `--boh-*`（`check:dark-tokens:strict` 棘轮）；
  *   2. **零 `!important`** —— 变体靠**文件内顺序 + 更高特异性**取胜；
- *   3. **断点与基座同文件** —— 实测：`scoped` 给每条规则追加 `[data-v-x]`（+1 特异性），
- *      全局 `layout.css` 的同深度选择器压不过组件 scoped 的基座（竖屏宽 358 而非 362、
- *      建议仍 2 列）。DESIGN §3.2 的「断点上收」需要 `@layer` 之类机制，**待后续统一**。
+ *   3. 断点与基座同文件 —— 实测：`scoped` 给每条规则追加 `[data-v-x]`（+1 特异性），
+ *      全局 `layout.css` 的同深度选择器压不过组件 scoped 的基座。DESIGN §3.2 的
+ *      「断点上收」需要 `@layer` 之类机制，**待后续统一**。
  *
- * 旧类名（`empty-state` / `empty-brand` / `empty-subtitle` / `full-ai-suggestions` /
- * `quick-context-suggestions`）**不迁移**（DESIGN §5：旧类名随旧 DOM 一起死）。
+ * 2026-10-11：`.boh-empty__brand` / `-title` / `-subtitle` / `-suggestions` 一族
+ * 连同「logo + 今天想聊点什么 + 四张建议卡」**整块下线**（用户口径「按图全删」），
+ * 只留下面这一行虚影字。旧类名不留死规则 —— 留着它们，下一个人会以为还能用。
  */
 
-/* ── 基座（移动优先） ─────────────────────────────────────────── */
+/* ── 容器：只负责把虚影字放到输入框正上方 ─────────────────────────────── */
 .boh-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 34px 0 18px;
+  justify-content: flex-end;
+  padding: 0 0 4px;
   text-align: center;
 }
 
-.boh-empty__title {
-  margin-top: 18px;
-  color: var(--boh-text-1);
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1.24;
-  letter-spacing: var(--boh-ls-head);
+/* ── 虚影字标 ───────────────────────────────────────────────────────
+   三个细节缺一个就「不像虚影」：
+     ① 极浅的颜色（`--boh-ghost-word`，随 BOHAI 主题切暗色；**不是** `--boh-text-3`，
+        那是正文级的灰，虚影必须比它再浅一档）；
+     ② 底部渐隐遮罩 —— 参考图的字是被**切**在一条水平线上的，不是完整字形；
+     ③ 负字距（`letter-spacing: -0.02em`）—— 大号粗体加正字距会散成一排独立的方块。
+   ⚠️ `mask-image` 不加 `-webkit-` 前缀：目标浏览器（Mac Chrome/Safari 17+）都认标准写法，
+      而 vendor 的前缀在 scoped CSS 里会多一条特异性出来，没必要。 */
+.boh-empty__ghost {
+  color: var(--boh-ghost-word);
+  font-size: clamp(58px, 11vw, 128px);
+  font-weight: 800;
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  user-select: none;
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 96%);
+  mask-image: linear-gradient(to bottom, #000 62%, transparent 96%);
 }
 
-.boh-empty__subtitle {
-  margin-top: 7px;
-  color: var(--boh-text-3);
-  font-size: 13px;
-  line-height: 1.55;
+/* 岛（浮层）形态：宿主宽度有限，虚影字必须跟着收，否则横向溢出 */
+.boh-empty.is-island .boh-empty__ghost {
+  font-size: clamp(44px, 13vw, 84px);
 }
 
-.boh-empty__suggestions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  width: 100%;
-  max-width: 560px;
-  margin-top: 24px;
-}
-
-.boh-empty__suggestions > button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--boh-border);
-  border-radius: var(--boh-radius-lg);
-  background: var(--boh-bg-page);
-  color: var(--boh-text-1);
-  font-family: inherit;
-  font-size: 13px;
-  text-align: left;
-  transition:
-    background var(--boh-dur-fast) var(--boh-ease),
-    border-color var(--boh-dur-fast) var(--boh-ease),
-    transform var(--boh-dur-fast) var(--boh-ease);
-}
-
-.boh-empty__suggestions > button:hover {
-  border-color: var(--boh-border-strong);
-  background: var(--boh-bg-card);
-  transform: translateY(-1px);
-}
-
-.boh-empty__sug-icon {
-  display: inline-flex;
-  flex: none;
-  color: var(--boh-text-2);
-}
-
-.boh-empty__sug-cmd {
-  flex: none;
-  margin-right: 2px;
-  color: var(--boh-text-1);
-  font-family: var(--boh-font-mono);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* ── 浮层（岛）形态：更紧凑 ───────────────────────────────────── */
-.boh-empty.is-island {
-  padding: 20px 0 10px;
-}
-
-.boh-empty.is-island .boh-empty__title {
-  margin-top: 12px;
-  font-size: 17px;
-}
-
-.boh-empty.is-island .boh-empty__subtitle {
-  font-size: 12.5px;
-}
-
-.boh-empty.is-island .boh-empty__suggestions {
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.boh-empty.is-island .boh-empty__suggestions > button {
-  padding: 9px 11px;
-  font-size: 12.5px;
-}
-
-/* ── 字号档（全局 AI 偏好） ───────────────────────────────────── */
-.bohai-page[data-font-scale='small'] .boh-empty__subtitle {
-  font-size: 13px;
-}
-
-.bohai-page[data-font-scale='large'] .boh-empty__subtitle {
-  font-size: 16px;
-}
-
-/* ══════════════════════════════════════════════════════════════
-   断点（与基座同文件，靠文件内顺序取胜）
-   ══════════════════════════════════════════════════════════════ */
-
-/* 矮横屏：landscape 且 max-height 600 —— 副标题隐藏、建议 4 列 */
-@media (orientation: landscape) and (max-height: 600px) {
-  .boh-empty {
-    padding-bottom: 8px;
-  }
-
-  .boh-empty__title {
-    font-size: 19px;
-  }
-
-  .boh-empty__subtitle {
-    display: none;
-  }
-
-  .boh-empty__suggestions {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-  }
-}
-
-/* 小手机 ≤480：建议两列（Demo 口径：窄屏仍两列） */
+/* 窄屏：上下都留给输入框，别让字占掉一半屏 */
 @media (max-width: 480px) {
-  .boh-empty__suggestions {
-    grid-template-columns: 1fr 1fr;
+  .boh-empty__ghost {
+    font-size: clamp(46px, 15vw, 72px);
+  }
+}
+
+/* 矮横屏（≤600px 高）：整组本来就要居中，字再大就把输入框顶出视口 */
+@media (orientation: landscape) and (max-height: 600px) {
+  .boh-empty__ghost {
+    font-size: clamp(38px, 9vh, 64px);
   }
 }

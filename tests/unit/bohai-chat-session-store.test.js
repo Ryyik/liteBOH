@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   BOHAI_CHAT_SESSIONS_MAX_ITEMS,
   createBohAIChatSessionSanitizer,
+  createBohAISessionWriteGuard,
   loadBohAIChatSessionsFromStorage,
   saveBohAIChatSessionsToStorage,
 } from '../../src/utils/bohai-chat-session-store.js';
@@ -11,8 +12,12 @@ const mockStorage = () => {
   const store = {};
   return {
     getItem: vi.fn((key) => store[key] || null),
-    setItem: vi.fn((key, value) => { store[key] = value; }),
-    removeItem: vi.fn((key) => { delete store[key]; }),
+    setItem: vi.fn((key, value) => {
+      store[key] = value;
+    }),
+    removeItem: vi.fn((key) => {
+      delete store[key];
+    }),
   };
 };
 
@@ -168,10 +173,56 @@ describe('bohai-chat-session: saveBohAIChatSessionsToStorage', () => {
       { title: '临时对话', temporary: true },
       { title: '保留的对话', pinned: true },
     ];
-    saveBohAIChatSessionsToStorage({ storage, sessions, sanitizeSession: createBohAIChatSessionSanitizer() });
+    saveBohAIChatSessionsToStorage({
+      storage,
+      sessions,
+      sanitizeSession: createBohAIChatSessionSanitizer(),
+    });
     const saved = JSON.parse(storage.setItem.mock.calls[0][1]);
     expect(saved).toHaveLength(1);
     expect(saved[0].title).toBe('保留的对话');
     expect(saved[0].pinned).toBe(true);
+  });
+});
+
+/**
+ * 写入所有权守卫（2026-10-11 配 `/ai-chat` 的 `meta.keepAlive`）。
+ * 要防的场景：页面实例被 KeepAlive 挂在后台、灵动岛另起一个引擎写同一个键，
+ * 两边互相覆盖且**不报错**。判据是「上次同步时读到的原文」。
+ */
+describe('bohai-chat-session: createBohAISessionWriteGuard', () => {
+  it('adopt 之后可以写；自己写完（commit）后仍然可以写', () => {
+    const storage = mockStorage();
+    const guard = createBohAISessionWriteGuard({ storage });
+    expect(guard.canWrite()).toBe(true); // 首次：存储为空，与「未同步」等价
+    guard.adopt();
+    storage.setItem('boh_chat_sessions', '[{"title":"A"}]');
+    guard.commit();
+    expect(guard.canWrite()).toBe(true);
+  });
+
+  it('别人改过存储后 canWrite 为 false —— 这正是「放弃覆盖」的判据', () => {
+    const storage = mockStorage();
+    const guard = createBohAISessionWriteGuard({ storage });
+    storage.setItem('boh_chat_sessions', '[{"title":"A"}]');
+    guard.adopt();
+    // 另一个引擎（灵动岛）写了
+    storage.setItem('boh_chat_sessions', '[{"title":"A"},{"title":"B"}]');
+    expect(guard.canWrite()).toBe(false);
+    // 重新载入对方那版之后恢复可写
+    guard.adopt();
+    expect(guard.canWrite()).toBe(true);
+  });
+
+  it('存储读不出来（隐私模式）时按「没人写过」处理，不阻断写入', () => {
+    const storage = {
+      getItem: () => {
+        throw new Error('SecurityError');
+      },
+      setItem: vi.fn(),
+    };
+    const guard = createBohAISessionWriteGuard({ storage });
+    expect(guard.canWrite()).toBe(true);
+    expect(guard.adopt()).toBeNull();
   });
 });

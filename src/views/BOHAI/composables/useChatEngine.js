@@ -240,6 +240,7 @@ export function useChatEngine() {
     resetPendingActionDraft,
     computeContextBudgetUsage,
     loadSessions,
+    syncSessionsFromStorage,
     scheduleSaveSessions,
     clearCache,
     getSessionByIndex,
@@ -254,6 +255,21 @@ export function useChatEngine() {
   });
 
   const isStreamingGeneration = ref(false);
+
+  /**
+   * KeepAlive 场景下的会话对账（2026-10-11，配 `meta.keepAlive`）：
+   * 页面实例被切到后台后，灵动岛可能用**另一个引擎**往同一个 localStorage 键写过；
+   * 本实例的写入会被守卫挡下（不覆盖对方），代价是内存里是旧快照。
+   * 回到 /ai-chat 时（`onActivated`）调一次，把对方的版本读回来。
+   *
+   * ⚠️ 流式中**绝不**换状态：正在生成的那条消息会被整条冲掉，用户看到的是
+   *    「回答凭空少了一段」。所以这里直接返回 false，等下一轮空闲再说。
+   */
+  const syncSessionsIfStale = () => {
+    if (isStreamingGeneration.value) return false;
+    return syncSessionsFromStorage();
+  };
+
   const attachedContext = ref(null);
   const setAttachedContext = (ctx) => {
     attachedContext.value = ctx;
@@ -330,7 +346,6 @@ export function useChatEngine() {
     currentMode,
     currentModelId,
     currentModel,
-    isCommandMode,
     isSearching,
     isForumSearchEnabled,
     isHealthAnalysisEnabled,
@@ -428,6 +443,7 @@ export function useChatEngine() {
     filterThinkingContent,
     filterThinkingContentStream,
     flushThinkingBuffer,
+    getThinkingReasoning,
     resetThinkingState,
     createSseLineParser,
     getFallbackModel,
@@ -647,24 +663,6 @@ export function useChatEngine() {
   });
   // --------------------------------------------------------------
 
-  // 功能互斥：避免“指令模式 + 联网搜索”同时开启造成行为与 UI 不一致
-  watch(isCommandMode, (enabled) => {
-    if (enabled && isSearching.value) {
-      isSearching.value = false;
-    }
-  });
-  watch(isSearching, (enabled) => {
-    if (enabled && isCommandMode.value) {
-      isCommandMode.value = false;
-    }
-  });
-
-  watch(isForumSearchEnabled, (enabled) => {
-    if (enabled && isCommandMode.value) {
-      isCommandMode.value = false;
-    }
-  });
-
   const { isRateLimited, rateLimitMessage, checkRateLimit, recordMessageSent } = useRateLimiter();
 
   const messages = computed(() => chatSessions[currentSessionIndex.value]?.messages || []);
@@ -707,7 +705,6 @@ export function useChatEngine() {
   // Session Management — 会话 CRUD 已委托给 useConversationManager
   const startNewChat = () => {
     _startNewChat();
-    isCommandMode.value = false; // Reset modes
     isSearching.value = false;
     isForumSearchEnabled.value = false;
     isHealthAnalysisEnabled.value = false;
@@ -1403,6 +1400,19 @@ export function useChatEngine() {
       targetSession.messages[messageIndex].content = text;
       scrollToBottom();
     };
+    /* 推理内容落点（2026-10-10「推理过程可展开」）：与 content 并列存在消息上，
+       渲染层把它画成「正在思考 / 思考过程」可展开块。值相同时直接 return ——
+       流式每块都推一次，不设这个闸门会白触发一轮响应式。
+       ⚠️ 会话持久化对消息字段是 `{...message}` 透传（bohai-chat-session-store），
+       所以这里不需要额外登记白名单；长度上限在那里统一截。 */
+    const updateReasoning = (text) => {
+      const targetSession = getSessionByIndex(sessionIndex);
+      const message = targetSession?.messages?.[messageIndex];
+      if (!message) return;
+      const next = String(text || '');
+      if (message.reasoning === next) return;
+      message.reasoning = next;
+    };
     const resetGenerationStallTimeout = (reason = generationTimeoutReason) => {
       generationTimeoutReason = reason;
       clearTimeout(generationTimeoutTimer);
@@ -1813,6 +1823,8 @@ export function useChatEngine() {
         shouldRepairDegenerateStream: false,
         hasReceivedVisibleAnswer: false,
       };
+      // 新一轮生成：先清掉上一轮的推理内容（重试 / 重新生成时不能残留旧思考）
+      updateReasoning('');
       streamState.lastVisibleStreamContent = cleanAssistantVisibleReply(
         filterThinkingContent(streamState.assistantMessage),
       );
@@ -1836,12 +1848,14 @@ export function useChatEngine() {
           createSseLineParser,
           filterThinkingContentStream,
           flushThinkingBuffer,
+          getThinkingReasoning,
           safeChunkToString,
           isDegenerateStreamOutput,
           filterThinkingContent,
           cleanAssistantVisibleReply,
           resetGenerationStallTimeout,
           updateContent,
+          updateReasoning,
           scrollToBottom,
           markGenerationProgress,
           appendProgressContent,
@@ -2021,6 +2035,7 @@ export function useChatEngine() {
   return {
     chatSessions,
     currentSessionIndex,
+    syncSessionsIfStale,
     inputMessage,
     isLoading,
     isThinking,
@@ -2031,7 +2046,6 @@ export function useChatEngine() {
     currentMode,
     currentModelId,
     currentModel,
-    isCommandMode,
     isSearching,
     webSearchActive,
     webSearchResults,

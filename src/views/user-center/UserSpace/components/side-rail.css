@@ -101,7 +101,12 @@
      它就是一条普通 rail-item（图标 + 文字），尺寸 / hover / 暗色全部复用条目那一套，
      不再自成一份 26px 小按钮 —— 那套还得在 88px 窄栏里给菜单横向找位置，
      正是「菜单跑出视口、主题切换按钮显示不全」的来源。
-     放最底也符合惯例：低频偏好 + 破坏性操作（退出登录）收在栏底，要两步才登出。 */
+     放最底也符合惯例：低频偏好 + 破坏性操作（退出登录）收在栏底，要两步才登出。
+
+     ⚠️ 2026-10-11：它是 .userspace-rail-scroll 的**兄弟**（不在滚动容器内），
+     这是修复「窄栏下浮层被裁成半个字」的关键 —— 滚动容器 overflow-x: hidden
+     会把 172px 的浮层裁到 68px 宽。所以这里的 flex: none 是相对 **.userspace-rail**
+     这个 flex 列而言（常驻栏底、不随内容滚走），不是相对滚动区。 */
   .userspace-rail-more-wrap {
     position: relative;
     flex: none;
@@ -154,7 +159,9 @@
     text-align: left;
     white-space: nowrap;
     cursor: pointer;
-    transition: background-color 150ms ease, color 150ms ease;
+    transition:
+      background-color 150ms ease,
+      color 150ms ease;
   }
 
   .userspace-rail-menu-item:hover {
@@ -316,7 +323,7 @@
   /* 便捷组「发布」= 主操作。原来是「整项涂主题蓝」—— 蓝字在左栏里与「选中」是同一个语义，
      两者同屏时会误读成两个选中项。改成实心圆角按钮：形状主导，颜色只做辅助。
      窄栏没有横向空间，收成圆形按钮、文字走 .userspace-rail-label 隐藏（宽栏档恢复文字）。 */
-  .userspace-rail-item[data-rail-action="compose"] {
+  .userspace-rail-item[data-rail-action='compose'] {
     width: 40px;
     min-height: 40px;
     margin: 4px auto;
@@ -327,12 +334,23 @@
     color: #ffffff;
   }
 
-  .userspace-rail-item[data-rail-action="compose"]:hover {
+  .userspace-rail-item[data-rail-action='compose']:hover {
     background: #0f5fc4;
     color: #ffffff;
   }
 
-  .userspace-rail-item[data-rail-action="compose"] .userspace-rail-label {
+  /* 发布会话进行中：给「发布」加一圈蓝色光晕（2026-10-11）。
+     为什么不用 rail 自己的「选中」语言（淡染 + 加粗字）？见上面 316-318 那段注释 ——
+     一旦涂成淡染，它就与「内容」的选中态同语义，同屏出现两个「选中项」会误读。
+     所以这条走**形状/光晕**通道：底色照旧是主操作蓝（CTA 身份不丢），
+     外圈多一层淡蓝光环 ⇒「这个操作正在开着」与「页签选中」是两个不同层级的信号。
+     ⚠️ 必须写在这个块里（≥1024）：它是两条宽度档的公共父块，
+     写进下面 ≥1280 的块会让窄栏档（88px 圆形按钮）失去这个反馈。 */
+  .userspace-rail-item[data-rail-action='compose'].active {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--apple-blue, #0071e3) 24%, transparent);
+  }
+
+  .userspace-rail-item[data-rail-action='compose'] .userspace-rail-label {
     display: none;
   }
 
@@ -378,7 +396,7 @@
 /* 暗色：只翻条目状态底色（玻璃与文字色都已由 token 自动切换）。
    指示器淡染随主题翻转：暗底上用白染（等价 toolbar-ai-btn 的深染逻辑）。
    浓度跟亮色同步提到 0.12 —— 亮色 0.045→0.075，暗色 0.08→0.12，两边辨识度对齐 */
-.user-space-page[data-theme="dark"] {
+.user-space-page[data-theme='dark'] {
   --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
   --rail-item-bg-active: rgba(255, 255, 255, 0.12);
   --rail-pill-bg: rgba(255, 255, 255, 0.12);
@@ -419,7 +437,7 @@
   }
 
   /* 发布：宽栏恢复胶囊形态（窄栏是圆形按钮） */
-  .userspace-rail-item[data-rail-action="compose"] {
+  .userspace-rail-item[data-rail-action='compose'] {
     width: 100%;
     min-height: 48px;
     margin: 2px 0;
@@ -428,7 +446,7 @@
     border-radius: var(--liquid-radius-pill, 999px);
   }
 
-  .userspace-rail-item[data-rail-action="compose"] .userspace-rail-label {
+  .userspace-rail-item[data-rail-action='compose'] .userspace-rail-label {
     display: inline;
     font-size: 16px;
   }
@@ -484,7 +502,7 @@
    min-height 顶到 45px，10 项就是 10px 的差距。
    位置必须在宽栏档之后：同特异性下靠加载顺序覆盖两套尺寸。 */
 @media (orientation: landscape) and (min-width: 1024px) and (max-width: 1279px) and (min-height: 600px) and (max-height: 790px),
-       (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) and (max-height: 700px) {
+  (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) and (max-height: 700px) {
   .userspace-rail-group {
     gap: 2px;
   }

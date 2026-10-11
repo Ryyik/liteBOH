@@ -93,7 +93,15 @@ export const freshnessPenalty = (connectorId, latestAt, now = Date.now()) => {
   return Math.min(maxPenalty, maxPenalty * ratio);
 };
 
-export const rankEvidenceContextBlocks = (results = [], queryText = '') => {
+/**
+ * 证据排序。
+ *
+ * ⚠️ `now` 是**可注入的时钟**（默认 `Date.now()`），只为让「时间衰减」可确定性测试：
+ * 不注入时内部读真实时间，测试里用写死的日期构造样本会随真实日期漂移而假红
+ * （2026-10-10 实测：`bohai-evidence-freshness.test.js` 的 NOW 固定为 10-08，
+ * 两天后「1 天前」实际变成 3 天前，惩罚变大 ⇒ 断言 `diff < 1` 崩成 1.19）。
+ */
+export const rankEvidenceContextBlocks = (results = [], queryText = '', now = Date.now()) => {
   const source = Array.isArray(results) ? results : [];
   const keywords = extractQueryKeywords(queryText);
 
@@ -108,7 +116,7 @@ export const rankEvidenceContextBlocks = (results = [], queryText = '') => {
       );
       const sourceScore =
         EVIDENCE_SOURCE_WEIGHTS[connectorId] || RANKING_SCORE_WEIGHTS.defaultSourceScore;
-      const penalty = freshnessPenalty(connectorId, result?.latestAt);
+      const penalty = freshnessPenalty(connectorId, result?.latestAt, now);
       return {
         context,
         result,

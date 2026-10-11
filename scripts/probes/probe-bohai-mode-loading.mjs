@@ -22,8 +22,9 @@
  *      （代价：不再回归「真实 RPC 能通」—— 那条由线上冒烟覆盖，不是本探针的职责。）
  *
  * 2026-10-08 晚（用户样稿第二轮）：面板改**两视图**——打开默认停在「强度」视图，
- *   模式清单收进「模型」视图（`.boh-effort-mode` 进入）。因此 openModeMenu 多一步：
- *   点胶囊 → 点「模型名 ›」→ 才能看到骨架 / 空态 / 清单。
+ *   ⚠️ 2026-10-11 这条路径**已作废**：底行拆成「模型 / 工具 / 思考强度」三颗独立胶囊后，
+ *   点模型胶囊**直接**就是模式清单（不再有「强度视图 → 点模型名 › → 模型视图」这一步）。
+ *   openModeMenu 相应少一次点击。下面 SEL.modeLink 保留为空串是为了让「旧路径已死」显式可见。
  *
  * 用法：BASE=http://localhost:5173 node scripts/probes/probe-bohai-mode-loading.mjs
  */
@@ -36,7 +37,8 @@ const results = {};
 const SEL = {
   trigger: '.boh-mode-pill',
   panel: '.boh-mode-menu',
-  modeLink: '.boh-effort-mode',
+  // 已随「两视图」下线（2026-10-11）：旧路径要点的 `.boh-effort-mode` 不复存在
+  modeLink: '.boh-effort-mode[should-not-exist]',
   modeItem: '.boh-mm-item[data-mode-id]',
   itemName: '.boh-mm-name',
   loading: '.boh-mm-loading',
@@ -175,7 +177,6 @@ async function openModeMenu(page) {
   await page.locator(SEL.trigger).first().scrollIntoViewIfNeeded();
   await page.locator(SEL.trigger).first().click();
   await page.waitForSelector(SEL.panel, { state: 'visible', timeout: 5000 });
-  await page.locator(SEL.modeLink).first().click();
   await page.waitForTimeout(220);
 }
 

@@ -18,6 +18,7 @@
           :embedded="true"
           :external-feed="externalFeed"
           @island-message="emit('island-message', $event)"
+          @composer-state="emit('composer-state', $event)"
         />
       </KeepAlive>
     </div>
@@ -73,6 +74,8 @@ const props = defineProps({
 const emit = defineEmits([
   'update:section',
   'island-message',
+  // 发布会话开关（ForumMain 的 isMobileComposerOpen → 外层左栏用）
+  'composer-state',
   'switch-tab',
   'open-follow-modal',
   'section-change',

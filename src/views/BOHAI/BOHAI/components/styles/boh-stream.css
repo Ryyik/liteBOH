@@ -32,6 +32,62 @@
   padding: 16px 16px 6px;
 }
 
+/* ── 空态：整组（虚影字 + 输入框）垂直居中（2026-10-11）──────────────────
+   壳在 `.boh-main` 上挂 `is-empty`。这里把消息区从「吃掉全部剩余空间」收成
+   「内容高度」，并只留 **margin-top: auto**（剩余空间的一半）。
+   ⚠️ 另一半在输入区那边（`.boh-composer-wrap { margin-bottom: auto }`，见
+      `boh-composer.css`）—— **两边都写 auto 会把剩余空间对半分在虚影字与输入框
+      *之间***，实测那会让两者之间裂开 309px 的空洞（2026-10-11 实测，不是推演）。
+      auto 只能加在**整组的两端**。
+   ⚠️ 这条选择器带父类 `.boh-main.is-empty`（0,3,0 + 本组件的 [data-v-x]）才能压过上面
+      `.boh-stream { flex: 1 }`（0,1,0 + 同一个 [data-v-x]）—— 只写 `.boh-stream.is-empty`
+      是够不着的，因为 `is-empty` 挂在壳上，不在本组件里。
+   ⚠️ 位移动画**不在这里**：flex-grow 与 margin:auto 都不可过渡，靠壳做 FLIP。 */
+.boh-main.is-empty .boh-stream {
+  flex: 0 1 auto;
+  margin-top: auto;
+}
+
+/* 空态的消息区内衬不需要上下留白（居中由 auto 外边距负责） */
+.boh-main.is-empty .boh-stream-pad {
+  padding-top: 0;
+}
+
+/* 矮横屏（≤600px 高）**不居中**，维持贴底（2026-10-11 实测）：
+   390px 高的视口里，锚在输入框上方的模型菜单有 272px 高 —— 输入框一旦居中，
+   菜单就被推出视口顶部（实测 y = −66）。矮横屏本来就是「安全网」档位，
+   这里选「不居中」而不是「把菜单改成向下弹」—— 后者会让同一个菜单在两档里
+   朝不同方向弹出，交互不一致的代价比这一屏的居中更大。 */
+@media (orientation: landscape) and (max-height: 600px) {
+  .boh-main.is-empty .boh-stream {
+    flex: 1;
+    margin-top: 0;
+  }
+
+  .boh-main.is-empty .boh-composer-wrap {
+    margin-bottom: 0;
+  }
+}
+
+/* ── 沉浸球模式：给顶部留一条，别让浮动 chrome 压在消息上 ──────────────────
+   沉浸导航（`body.nav-orb-mode`）把 `--bohai-standalone-nav-height` 归零、页面顶到满屏，
+   于是两颗浮动件就压在内容头上（实测 390×844）：
+     · 悬浮球 `14..66`（左上，52px）
+     · 浮动操作 `8..40`（右上，32px，含「打开侧栏」）
+   用户 2026-10-11 报障「竖屏下打开侧栏的按钮会和消息重叠」。
+   ⚠️ 两个档位给不同的值：**竖屏**内容列全宽，球落在内容上方 ⇒ 要让开球底 66；
+     **横屏**球在 88px 左栏里、不压主列，只需让开浮动操作。
+     都写成同一个值会在横屏白丢 24px —— 这类「一刀切的安全值」在多档布局里通常是错的。 */
+body.page-aichat.nav-orb-mode .boh-stream-pad {
+  padding-top: 44px;
+}
+
+@media (orientation: portrait) {
+  body.page-aichat.nav-orb-mode .boh-stream-pad {
+    padding-top: 68px;
+  }
+}
+
 /* ── 消息 ───────────────────────────────────────────────────── */
 .boh-msg + .boh-msg {
   margin-top: 24px;
@@ -180,9 +236,16 @@
   animation: boh-search-fade 260ms ease;
 }
 
-/* 流动光效：检索在途时亮带扫过「网页搜索」四字（clip 到文字本身）。
-   亮/底都走令牌（暗色下 text-1 更亮，天然成立），时长复用 --boh-dur-bob 单源。 */
-.boh-search-line.is-shimmer {
+/* ── 流光文字（**单源定义**，两个消费者）───────────────────────────────
+   亮带扫过文字本身（`background-clip: text`，clip 到字形）。
+   消费者：① 联网检索在途的「网页搜索」（`.boh-search-line.is-shimmer`）
+           ② 思考中的「正在思考」（`.boh-reason.is-live .boh-reason-head span`）
+   亮/底都走令牌（暗色下 text-1 更亮，天然成立），时长复用 `--boh-dur-bob` 单源。
+   ⚠️ **只许挂在纯文本节点上**：挂在含 SVG 的容器上会让 caret 一起 `color: transparent`
+      而消失 —— 所以思考那处选的是 `…head span` 而不是 `…head`。
+   ⚠️ 想加第三个消费者？**追加到这个选择器组**，别再抄一份属性。 */
+.boh-search-line.is-shimmer,
+.boh-reason.is-live .boh-reason-head span {
   background: linear-gradient(
     90deg,
     var(--boh-text-3) 38%,
@@ -194,6 +257,18 @@
   background-clip: text;
   color: transparent;
   animation: boh-search-shimmer var(--boh-dur-bob, 2s) linear infinite;
+}
+
+/* 降级：reduced-motion 下 `layout.css` 把 `--boh-dur-bob` 归零 ⇒ 亮带停在非亮处，
+   而 `color: transparent` 还在 ⇒ **文字直接看不见**。这里恢复实色，保证这两处
+   状态文字（「网页搜索」/「正在思考」）**任何情况下都可读**。 */
+@media (prefers-reduced-motion: reduce) {
+  .boh-search-line.is-shimmer,
+  .boh-reason.is-live .boh-reason-head span {
+    background: none;
+    color: inherit;
+    animation: none;
+  }
 }
 
 @keyframes boh-search-shimmer {
@@ -334,38 +409,58 @@
   font-weight: 700;
 }
 
-/* ── 思考圆点（**旧版口径，不许改成三点**） ─────────────────────
-   2026-10-08 用户拍板：「思考状态依旧保持旧版圆点」—— 等待动作与输出格式属**不变项**
-   （同 plans/023 的原话「AI 的等待动作和输出的格式不变」）。
-   形状 / 动画逐字沿用旧 `messages.css` 的 `.thinking` + `.thinking-dot` + `@keyframes thinkingBreath`
-   （scale .72→1.22 / opacity .55→1 / 2s ease-in-out）；只有底色改成令牌（旧版写死 `#111111`，
-   暗色下靠第二套规则补，现在一处令牌就够）。 */
-.boh-thinking {
+/* ── 推理过程块（2026-10-10 用户口径，**取代旧思考圆点**）─────────────
+   「思考状态就是纯文本『正在思考』，默认收起，点击可展开」——
+   旧版那颗呼吸圆点（`.boh-thinking-dot` 与其呼吸 keyframes）已**整段删除**：
+   等待动作从「一颗会呼吸的点」改成「一行可展开的文字」。
+   2026-10-10 二次（用户口径「思考也改成流光」）：思考中（`.is-live`）的标题文字
+   **走与「网页搜索」同一组流光定义**（见上方「流光文字」段，单源、不是抄第二份）。
+   ⚠️ `--boh-dur-breath` 令牌保留在 tokens.css / layout.css（设计令牌集的一员，
+      DESIGN-BOHAI.md §动效 仍登记），当前无消费者。 */
+.boh-reason {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.boh-reason-head {
   display: inline-flex;
   align-items: center;
-  min-height: 20px;
-  margin-top: 12px;
+  gap: 6px;
+  padding: 2px 6px 2px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--boh-text-3);
+  font: inherit;
+  cursor: pointer;
 }
 
-.boh-thinking-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--boh-text-1);
-  animation: boh-thinking-breath var(--boh-dur-breath) ease-in-out infinite;
+.boh-reason-head.is-static {
+  cursor: default;
 }
 
-@keyframes boh-thinking-breath {
-  0%,
-  100% {
-    transform: scale(0.72);
-    opacity: 0.55;
-  }
+.boh-reason-head:hover {
+  color: var(--boh-text-2);
+}
 
-  50% {
-    transform: scale(1.22);
-    opacity: 1;
-  }
+.boh-reason-caret {
+  transition: transform var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-reason-head[aria-expanded='true'] .boh-reason-caret {
+  transform: rotate(90deg);
+}
+
+/* 推理原文：等宽感不必，但**必须保留换行**（模型的分点/缩进是语义的一部分） */
+.boh-reason-body {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--boh-border);
+  color: var(--boh-text-2);
+  font-size: 12.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* ── 消息操作行 ─────────────────────────────────────────────── */
@@ -743,21 +838,45 @@
   gap: 4px;
   margin-right: 8px;
   /* 2026-10-08 目标形态（用户给的参考图）：常态是几根光秃秃的小横条，
-     hover 时整列聚成**一枚白色圆角卡片**（文字在左、横条在右）。
+     hover 时整列聚成**一枚圆角卡片**（文字在左、横条在右）。
      padding 与圆角**常态就占位**，hover 只补底色与投影 ⇒ 切换时没有几何跳变，
-     只有一层底色淡入。 */
+     只有一层底色淡入。
+     2026-10-10（用户口径「hover 变为一个**液态玻璃**小圆角」）：底色从实心
+     `--boh-bg-page` 升级为液态玻璃。**描边同样常态占位**（透明 1px），
+     否则 hover 时多出一条 1px 边框 = 又一次几何跳变。 */
   padding: 6px;
+  border: 1px solid transparent;
   border-radius: var(--boh-radius-xl);
   background: transparent;
   transition:
     background var(--boh-dur-med) var(--boh-ease),
+    border-color var(--boh-dur-med) var(--boh-ease),
     box-shadow var(--boh-dur-med) var(--boh-ease);
 }
 
+/* 降级（也是不支持 backdrop-filter 时的唯一路径）：实色卡 —— 与改动前逐字一致 */
 .boh-jump:hover,
 .boh-jump:focus-within {
   background: var(--boh-bg-page);
   box-shadow: var(--boh-shadow-md);
+}
+
+/* 液态玻璃（2026-10-10）：材质**引用全局单源** `--liquid-filter-sm` ——
+   `scripts/check-liquid-glass.mjs` 禁止在 `liquid-glass.css` 之外重写 blur 材质。
+   ⚠️ 连**注释里**都不能出现那条被禁的写法：门禁读的是**原文、不剥注释**，
+      写个「反例」等于自己把门禁顶红（这条已经咬过两次）。
+   颜色走 `--boh-glass-*`：BOHAI 主题（`data-boh-theme`）不跟**站点主题**联动，
+   直接吃 `--liquid-bg-*` 会在「站点浅色 + AI 暗色」时翻出一张亮白卡。
+   ⚠️ 放进 `@supports`（而不是覆盖上面那条）⇒ 不支持时自动落回实色卡，无需第二份 not 查询。 */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .boh-jump:hover,
+  .boh-jump:focus-within {
+    background: var(--boh-glass-bg);
+    border-color: var(--boh-glass-border);
+    box-shadow: var(--boh-glass-highlight), var(--liquid-shadow-sm);
+    backdrop-filter: var(--liquid-filter-sm);
+    -webkit-backdrop-filter: var(--liquid-filter-sm);
+  }
 }
 
 .boh-jump-item {
@@ -822,6 +941,19 @@
    断点（与基座同文件）
    ══════════════════════════════════════════════════════════════ */
 
+/* ── 竖屏：**不提供跳转导航**（2026-10-10 用户口径「竖屏不需要跳转对话的东西」）──
+   两条理由：① 竖屏档宽度容不下这条右侧浮栏，它会压到正文上；
+   ② 竖屏里用户消息本来就短、滚动距离小，跳转的价值最低。
+   判据用 `orientation: portrait` 而不是宽度断点 —— 与 DESIGN §3.1 的分档同源：
+   本仓「桌面 / 宽屏 / 矮横屏」三档**全部限定 `orientation: landscape`**，
+   所以「竖屏」就是这三档之外的那一半，桌面竖屏窄窗口也一并隐掉，行为一致。
+   ⚠️ 只影响这一条浮栏，**不动** `.boh-jump-*` 的任何基础样式（横屏照旧）。 */
+@media (orientation: portrait) {
+  .boh-jump {
+    display: none;
+  }
+}
+
 /* 桌面 ≥1024×600 */
 @media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
   .boh-stream-pad {
@@ -873,8 +1005,13 @@
 
 /* 触屏（无 hover）⇒ 卡片与摘要常驻：否则 `.boh-jump-label` 折叠到 0 宽就永远打不开，
    跳转栏退化成几根对应不上内容的横条。判据用 `hover: none` 而不是宽度断点 ——
-   平板横屏（≥1024）也可能是触屏，两者不是一回事。 */
+   平板横屏（≥1024）也可能是触屏，两者不是一回事。
+   ⚠️ 竖屏已被上面的 `orientation: portrait` **整条隐掉** ⇒ 这一档实际只作用于
+   **横屏触屏**（平板横屏 / 横屏手机）。 */
 @media (hover: none) {
+  /* ⚠️ 触屏这档**刻意不用液态玻璃**（与桌面 hover 态不同）：这里卡片是**常驻**的，
+     常驻 backdrop-filter 等于让一块浮层持续参与合成 —— 移动端不划算。
+     桌面是「hover 才出现」的瞬时态，玻璃的观感收益才成立。 */
   .boh-jump {
     background: var(--boh-bg-page);
     box-shadow: var(--boh-shadow-md);

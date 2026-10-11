@@ -2,8 +2,16 @@
   <section class="home-archive" aria-label="历史回顾">
     <router-link to="/history" class="home-archive-toggle">
       <span class="home-archive-toggle-icon" aria-hidden="true">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-          stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <path d="M4 8h16" />
           <path d="M5 8l1 11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-11" />
           <path d="M9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
@@ -14,10 +22,20 @@
         <span class="home-archive-toggle-title">历史回顾</span>
         <span class="home-archive-toggle-subtitle">旧英雄区都收藏在这里</span>
       </span>
-      <span v-if="archivedCount" class="home-archive-count" aria-hidden="true">{{ archivedCount }}</span>
+      <span v-if="archivedCount" class="home-archive-count" aria-hidden="true">{{
+        archivedCount
+      }}</span>
       <span class="home-archive-chevron" aria-hidden="true">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <path d="M9 6l6 6-6 6" />
         </svg>
       </span>
@@ -85,7 +103,9 @@ defineProps({
 .home-archive-toggle-subtitle {
   font-size: 12px;
   line-height: 1.4;
-  color: var(--text-500, #6e6e73);
+  /* --text-500 全仓无定义（永远走 fallback），暗色下因此固定深灰；
+     改用全局液态玻璃 token —— 浅色值同为 #6e6e73，暗色自动翻亮（2026-10-11） */
+  color: var(--liquid-text-secondary, #6e6e73);
 }
 
 .home-archive-count {
@@ -117,24 +137,24 @@ defineProps({
 }
 
 /* ============ 深色模式 ============ */
-:global([data-theme="dark"] .home-archive ){
+:global([data-theme='dark'] .home-archive) {
   border-bottom-color: color-mix(in srgb, var(--background-50, #f5f5f7) 10%, transparent);
 }
 
-:global([data-theme="dark"] .home-archive-toggle-title ){
+:global([data-theme='dark'] .home-archive-toggle-title) {
   color: var(--background-50, #f5f5f7);
 }
 
-:global([data-theme="dark"] .home-archive-toggle:hover .home-archive-toggle-title),
-:global([data-theme="dark"] .home-archive-toggle:hover .home-archive-chevron ){
+:global([data-theme='dark'] .home-archive-toggle:hover .home-archive-toggle-title),
+:global([data-theme='dark'] .home-archive-toggle:hover .home-archive-chevron) {
   color: var(--background-50, #f5f5f7);
 }
 
-:global([data-theme="dark"] .home-archive-toggle-icon ){
+:global([data-theme='dark'] .home-archive-toggle-icon) {
   background: color-mix(in srgb, var(--background-50, #f5f5f7) 8%, transparent);
 }
 
-:global([data-theme="dark"] .home-archive-count ){
+:global([data-theme='dark'] .home-archive-count) {
   color: var(--background-900, #1d1d1f);
   background: var(--background-50, #f5f5f7);
 }

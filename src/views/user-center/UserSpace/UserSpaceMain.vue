@@ -50,6 +50,7 @@
         ref="communityShellRef"
         v-model:section="communitySection"
         @island-message="showTopNavStatus"
+        @composer-state="handleComposerState"
         @switch-tab="handleCommunitySwitchTab"
         @open-follow-modal="openUserFollowModal"
       >
@@ -345,6 +346,7 @@
     <UserSpaceSideRail
       :nav-items="navItems"
       :current-tab="activeBottomNavId"
+      :active-action="composerOpen ? 'compose' : ''"
       :has-unread-messages="hasUnreadMessages"
       :unread-count="unreadCount"
       :current-theme="currentTheme"
@@ -450,6 +452,8 @@ import UserSpaceSideRail from './components/UserSpaceSideRail.vue';
 import SegmentTabs from './components/SegmentTabs.vue';
 // 方块（论坛）分区壳：与首页 `/` 下滑直达共用同一份（2026-09-23 单源）
 import ForumSectionShell from './components/ForumSectionShell.vue';
+// 发布会话闸门（左栏切落点前先收会话 + 「发布」选中态）：与首页 `/` 共用一份实现
+import { useForumComposerSession } from './composables/useForumComposerSession.js';
 const ProfileHomePanel = defineAsyncComponent(() => import('./components/ProfileHomePanel.vue'));
 const AvatarCropModal = defineAsyncComponent(() => import('@/components/AvatarCropModal.vue'));
 // 官方分区舞台（英雄区 + 各周年弹窗）：只在切到「官方」时才请求，不进 UserSpace 主 chunk
@@ -598,6 +602,12 @@ const hideOnlineStatus = computed(() => userInfo.value?.hideOnlineStatus ?? fals
 const hideFollowData = computed(() => userInfo.value?.hideFollowData ?? false);
 // 方块（论坛）分区壳实例：内嵌论坛的滚动刷新与发布/搜索意图都经它转发
 const communityShellRef = ref(null);
+
+/* 横屏左栏的「发布会话」闸门（与首页 `/` 共用同一份实现，见
+   composables/useForumComposerSession.js）。会话状态真源在 ForumMain，
+   经 ForumSectionShell 的 composer-state 事件透传上来 —— 本文件只转发，别自己推。 */
+const { composerOpen, handleComposerState, dismissComposerSession } =
+  useForumComposerSession(communityShellRef);
 const tabPageRefs = new Map();
 const tabScrollPositions = reactive(
   Object.fromEntries(USER_SPACE_VALID_TABS.map((tab) => [tab, 0])),
@@ -2328,15 +2338,9 @@ const waitForForumView = async (methodName, timeoutMs = 4000) => {
 };
 
 /* 发布会话（.mobile-composer-overlay）在横屏下只覆盖右区、且被 Teleport 到 body，
-   切 tab 不会自动收起它，会一直盖住新页面 → 任何导航动作前先请求关闭。
+   切 tab 不会自动收起它，会一直盖住新页面 → 任何导航动作前先请求关闭
+   （dismissComposerSession 来自 composables/useForumComposerSession.js，与首页共用）。
    无改动内容时直接关；有内容时由论坛弹「保存草稿」确认，用户选完再继续。 */
-const dismissComposerSession = async () => {
-  const view = communityShellRef.value;
-  if (view && typeof view.closeComposer === 'function') {
-    await view.closeComposer();
-  }
-  // 方块 tab 未挂载时（ForumMain 不在 DOM）样式层不会有残留
-};
 
 const handleRailAction = async (actionId) => {
   // 「发布」本身就是打开这个会话，其余动作都先收掉它

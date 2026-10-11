@@ -375,7 +375,7 @@ Codex / ChatGPT 的惯例是 `/` 是一个显式的「唤起命令」键（在�
 
 | 维度 | BOHAI 现状 | 与 Codex 的差距 |
 | --- | --- | --- |
-| 左栏会话列表 | 有，按 **日期**分组（置顶/今天/昨天/本周/本月/更早，`BohSidebar.vue:382-387`）+ 置顶/重命名/删除 | Codex 按**项目**分组，无日期档 |
+| 左栏会话列表 | 有，按 **日期**分组（置顶/今天/昨天/本周/本月/更早，`BohSidebar.vue:375-380`）+ 置顶/重命名/删除 | Codex 按**项目**分组，无日期档 |
 | 中列消息流 | 有，纯文字流（用户气泡 + AI 无气泡） | 基本一致 |
 | 底部 composer | 有，圆形发送键 + 底部「内容由 AI 生成」 | **缺 `+` 附件、缺顶部元信息条、缺审批模式** |
 | 空态 | 有，Logo + 标题 + 副标题 + 建议卡 | 结构一致，**文案与形态联动有缺口**（§5.3） |
@@ -396,7 +396,7 @@ Codex / ChatGPT 的惯例是 `/` 是一个显式的「唤起命令」键（在�
 
 ```
 结论：空态副标题按形态取值，work 形态的 subtitle 只讲产物、不含任何快捷键/命令提示；chat 形态的 subtitle 含 Enter/Shift+Enter/`/` 三条提示
-判据：读 src/views/BOHAI/BOHAI/components/BohEmptyState.vue:86-95   （2026-10-08）
+判据：读 src/views/BOHAI/BOHAI/components/BohEmptyState.vue:82-91   （2026-10-08）
 ```
 
 现状（`BohEmptyState.vue` 的 `COPY`）：
@@ -414,7 +414,7 @@ Codex / ChatGPT 的惯例是 `/` 是一个显式的「唤起命令」键（在�
 | # | 项 | 现状证据 | 收益 |
 | --- | --- | --- | --- |
 | 1 | **composer 加 `+` 附件钮** | 全 BOHAI 零附件入口（`grep -i paperclip src/views/BOHAI/` → 0） | 对齐 Codex 最显眼的一处；但**依赖上传/解析能力**（见 `docs/2026-10-05` 的 P1 ⑥） |
-| 2 | **消息操作加「重新生成」** | 助手消息操作行只有：复制 / 赞同 / 不赞同 / 更多 / 删除（`BohChatStream.vue:254-290`）；`regenerate` 全仓 0 命中 | 高频操作，纯前端（截断到该条 + 重发） |
+| 2 | **消息操作加「重新生成」** | 助手消息操作行只有：复制 / 赞同 / 不赞同 / 更多 / 删除（`BohChatStream.vue:275-311`）；`regenerate` 全仓 0 命中 | 高频操作，纯前端（截断到该条 + 重发） |
 | 3 | **会话列表项目分组** | 现按日期分组，无 project 概念；会话存 localStorage（`bohai-chat-session-store.js`，上限 **20** 条） | ⚠️ **成本被低估的陷阱**：会话只存 localStorage 且上限 20 ⇒ 项目分组要么接受「项目也是本地态、只对本人可见」，要么先做会话上云。**建议先做前者**（标记为主观分组，不做同步） |
 | 4 | **composer 顶部元信息条** | Codex 在输入框上方显示「项目 / 本地 / 分支」。BOHAI 的对应物是**已附加的页面上下文**（`attachedContext`）—— ⚠️ 但该入口**当前不可达**：`setAttachedContext` 被 expose 却**零调用点** | 把不可达的 UI 接上，或删掉。二选一，别留着 |
 | 5 | **修 `boh-ai-focus-composer` 断链** | `App.vue:229` 派发，全仓 0 监听（见 §2.3） | 让 ⌘K 在岛已打开时真的聚焦输入框 |
@@ -424,7 +424,7 @@ Codex / ChatGPT 的惯例是 `/` 是一个显式的「唤起命令」键（在�
 | # | 项 | 说明 |
 | --- | --- | --- |
 | 1 | **推理过程可展开** | 现状推理内容被**主动剥离**（`useGenerationPipeline.js:315` / `:345`），消息流里只有一颗呼吸点（`boh-thinking-dot`）。要做成 Codex 那种「Thought for Ns ▾」可展开块，需**改剥离逻辑为分流**（保留而非丢弃）—— 动到生成管线的核心，须先评估对既有「纯文字流」口径的冲击（`plans/023` 用户拍板过「保留纯文字流」） |
-| 2 | **键盘快捷键补齐** | 现状：`/` 不是快捷键（只靠输入）、无命令面板、无焦点快捷键（`boh-ai-focus-composer` 断链）。⚠️ `⌘K` **已被 AI 岛占用**（`useGlobalAiPreferences.js:57`），`/` 已给全局搜索（`AGENTS.md` §全局搜索）。⇒ 新快捷键必须先做占用表，否则必然冲突 |
+| 2 | **键盘快捷键补齐** | 现状：`/` 不是快捷键（只靠输入）、无命令面板、无焦点快捷键（`boh-ai-focus-composer` 断链）。⚠️ `⌘K` **已被 AI 岛占用**（`useGlobalAiPreferences.js:54` 的 `return hasModifier && key === 'k'`），`/` 已给全局搜索（`AGENTS.md` §全局搜索）。⇒ 新快捷键必须先做占用表，否则必然冲突 |
 | 3 | **审批模式（Codex 的「请求批准」）** | BOHAI 的任务面板有 `pending`（标签「待开始」）但**没有任何用户审批闸门**。做这个的前提是 Work 形态真的有「会改动外部状态的动作」—— 即 `docs/2026-10-05` 的 generator/agents 落地之后。**现在做等于给不存在的功能做 UI** |
 
 ---
@@ -445,9 +445,9 @@ Codex / ChatGPT 的惯例是 `/` 是一个显式的「唤起命令」键（在�
 
 | 约束 | 影响 |
 | --- | --- |
-| `check:important-budget`（BOHAI 名下约 497） | §3 的修复**不应新增任何 `!important`**；若必须，先想办法绕开 |
+| `check:important-budget`（全仓 **645**，其中 `views/BOHAI` 名下 **0**） | §3 的修复**不应新增任何 `!important`**。修完请重跑核实 BOHAI 仍为 0 —— 这是 `plans/025` Step 7-3「BOHAI 名下 `!important` 归零」**已达成的成果**，别反向破坏 |
 | `check:dark-tokens:strict` | 新提示文案若加样式，**裸色值必须走 `--boh-*` 令牌**（真源 `BOHAI/BOHAI/styles/tokens.css`） |
-| `check:layering`（169/37 文件） | §3 新增的 `bohai-slash-commands.js` 是**纯函数**，不得出现 `supabase.from/rpc/functions.invoke` |
+| `check:layering`（实测 **164 / 基线 164**，37 个文件） | §3 新增的 `bohai-slash-commands.js` 是**纯函数**，不得出现 `supabase.from/rpc/functions.invoke`（`AGENTS.md` 里写的「基线 169 处 / 37 文件」已过时） |
 | 组件行数阈值 | `BOHAIMain.vue` 现 **2,203 行**；`plans/025` Step 7 目标「组件 400 行」**未达**。§3 的改动应在 `BOHAIMain` **之内**完成（新增 `handleSend` 约 15 行），**不要**顺手抽 composable —— 那是 Step 7 的工作，混做会让自证范围失控 |
 | `plans/025` 红线 1 | `agents/` + `expert-roles/` + `engine/` 三层**不动**。§3 的新模块放在 `BOHAI/BOHAI/`（视图层旁），不碰这三层 |
 | 三形态 | 改动必须在 **独立页 / AI 岛** 两形态下都自证（第三种「用户空间内嵌」已随底栏收席下线） |
@@ -506,6 +506,8 @@ Codex / ChatGPT 的惯例是 `/` 是一个显式的「唤起命令」键（在�
 | 助手消息无「重新生成」 | `grep -cE "regenerate\|retryMessage\|editMessage" src/views/BOHAI/BOHAI/components/BohChatStream.vue` → 0 | 2026-10-08 |
 | BOHAI 无附件入口 | `grep -ri "paperclip" src/views/BOHAI/ \| wc -l` → 0 | 2026-10-08 |
 | 会话上限 20 条且只存 localStorage | `grep -n "MAX_ITEMS\|STORAGE_KEY" src/utils/bohai-chat-session-store.js` | 2026-10-08 |
+| **`views/BOHAI` 名下 `!important` 已归零**（更正 `plans/025` §Step 7-3 的「约 497 + 73」） | `node -e "const j=require('./scripts/important-budget.json');console.log(Object.entries(j.files).filter(([k])=>/views\/BOHAI/i.test(k)).length)"` → **0** | 2026-10-08 |
+| 全仓棘轮现值（verify 尾账） | `important-budget 645/645`、`dark-tokens 2706/2706`、`layering 164/164` | 2026-10-08 |
 | 外壳行数（修 bug 前基线） | `BOHAIMain.vue` 2,203 / `BohComposer.vue` 650 / `BohSidebar.vue` 517 / `BohChatStream.vue` 563 / `BohaiSettingsPanel.vue` 2,704 | 2026-10-08 |
 
 > 判据脚本 `scripts/probes/probe-bohai-slash-commands.mjs` **已随仓库落盘**（探针目录随 clone 分发），

@@ -45,12 +45,16 @@ export interface StreamStageDeps {
   createSseLineParser: (onPayload: (payload: string) => void) => SseLineParserLike;
   filterThinkingContentStream: (content: string, state: unknown) => string;
   flushThinkingBuffer: (state: unknown) => string;
+  /** 取本轮累积的推理内容（思考块里的原文，不再丢弃 ⇒ 渲染成可展开块） */
+  getThinkingReasoning: (state: unknown) => string;
   safeChunkToString: (raw: unknown) => string;
   isDegenerateStreamOutput: (text: string) => boolean;
   filterThinkingContent: (text: string) => string;
   cleanAssistantVisibleReply: (text: string) => string;
   resetGenerationStallTimeout: (reason: string) => void;
   updateContent: (text: string) => void;
+  /** 把推理内容写进当前 assistant 消息（与 updateContent 并列） */
+  updateReasoning: (text: string) => void;
   scrollToBottom: () => void;
   markGenerationProgress: (status: string) => void;
   appendProgressContent: (text: string) => void;
@@ -121,6 +125,17 @@ export const runStreamStage = async (
       }
     });
   };
+  // 推理内容与正文走同一股流：每块推一次，**长度没变就不重复写**（避免无谓响应式触发）。
+  // 2026-10-10「推理过程可展开」：思考块里的原文由 filterThinkingContentStream 分流累积，
+  // 这里负责把它落到消息上，渲染层才有东西可展开。
+  let lastReasoningLength = 0;
+  const pushReasoning = () => {
+    const reasoning = deps.getThinkingReasoning(thinkingState);
+    if (reasoning.length === lastReasoningLength) return;
+    lastReasoningLength = reasoning.length;
+    deps.updateReasoning(reasoning);
+  };
+
   const sseParser = deps.createSseLineParser((payloadChunk) => {
     try {
       const data = JSON.parse(payloadChunk);
@@ -131,6 +146,7 @@ export const runStreamStage = async (
         deps.resetGenerationStallTimeout('正在接收模型输出');
         const content = deps.safeChunkToString(rawContent);
         const filteredContent = deps.filterThinkingContentStream(content, thinkingState);
+        pushReasoning();
         if (filteredContent && filteredContent !== '[object Object]') {
           if (state.shouldRepairDegenerateStream) {
             return;
@@ -190,6 +206,7 @@ export const runStreamStage = async (
 
     // 流式处理结束，刷新缓冲区并添加剩余内容
     const remainingContent = deps.flushThinkingBuffer(thinkingState);
+    pushReasoning(); // 思考块内被截断的残留也归推理（见 flushThinkingBuffer）
     if (remainingContent) {
       state.assistantMessage += remainingContent;
       const visibleStreamContent = deps.cleanAssistantVisibleReply(

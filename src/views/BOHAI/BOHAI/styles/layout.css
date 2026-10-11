@@ -125,11 +125,27 @@
    断点（壳级）—— 档位表见 DESIGN §3.1
    ══════════════════════════════════════════════════════════════ */
 
-/* 小手机 ≤480：浮动按钮贴边收窄 */
+/* 窄竖屏：三个浮层都要完整落在视口内；hover 详情卡不挂 ——
+   触屏本来就没有 hover，竖屏也没有并排空间。模型行仍可直接选择。 */
+@media (orientation: portrait) {
+  .boh-mm-detail {
+    display: none;
+  }
+}
+
+/* 小手机 ≤480：浮动按钮贴边收窄 + 两个选择面板不超出视口 */
 @media (max-width: 480px) {
   .boh-float-actions {
     top: 8px;
     right: 8px;
+  }
+
+  /* ⚠️ 模型 / 工具面板都是**左对齐**（两颗胶囊的触发键都在底行左侧），
+     别把它们写回 `right`。 */
+  .boh-mode-menu,
+  .boh-tools-menu {
+    left: 0;
+    width: min(252px, calc(100vw - 24px));
   }
 }
 

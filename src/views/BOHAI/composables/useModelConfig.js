@@ -74,7 +74,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   // ─── Feature toggle refs ───────────────────────────────────────────────────────
 
-  const isCommandMode = ref(false);
   const isSearching = ref(false);
   const isForumSearchEnabled = ref(false);
   // 健康分析：开启后，本轮回答会读取用户本机的 BOH Health 数据。
@@ -247,7 +246,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     currentModel,
 
     // Feature toggles
-    isCommandMode,
     isSearching,
     isForumSearchEnabled,
     isHealthAnalysisEnabled,

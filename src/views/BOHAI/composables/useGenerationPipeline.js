@@ -292,11 +292,24 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     return String(value);
   };
 
+  // 不完整的 `</think…` 尾巴（分块边界把闭合标签切开）—— 必须留在缓冲区里等下一块拼回来。
+  // 单源：思考块内的推理分流与下面的「潜在标签结尾」检测共用同一条规则。
+  const PARTIAL_THINK_CLOSE_RE = /<\/(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?)?$/i;
+
   // 修复状态残留：将thinking状态改为函数级而非模块级
   // 创建thinking状态管理器，确保每次调用独立
+  //
+  // 2026-10-10（用户口径「推理过程可展开」）：**推理内容不再丢弃，改为分流**。
+  //   旧实现把 `<think>…</think>` 里的文字直接扔掉（正文里只剩答案），于是
+  //   用户看不到模型在想什么。现在同一段文字累积进 `reasoning`，由消息层
+  //   渲染成「正在思考 / 思考过程」可展开块（默认收起）。
+  //   ⚠️ 正文输出**一个字符都不变** —— 只是不再丢，不是新增可见文本。
+  //   ⚠️ `reset()` **不清 reasoning**：它属于「这一轮生成」，不属于解析状态；
+  //      解析状态会在一轮里被 flush 多次，清掉就把前面的推理丢了。
   const createThinkingState = () => {
     let inThinkingBlock = false;
     let thinkingBuffer = '';
+    let reasoning = '';
 
     return {
       reset: () => {
@@ -308,6 +321,11 @@ export function useGenerationPipeline({ availableModels, abortController, curren
         inThinkingBlock = state.inThinkingBlock;
         thinkingBuffer = state.thinkingBuffer;
       },
+      appendReasoning: (text) => {
+        const next = String(text || '');
+        if (next) reasoning += next;
+      },
+      getReasoning: () => reasoning,
     };
   };
 
@@ -359,7 +377,14 @@ export function useGenerationPipeline({ availableModels, abortController, curren
           newInThinkingBlock = false;
           continue;
         } else {
-          state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' });
+          // 这一整段都是推理内容（修复前在这里被**丢弃**）。分块可能把闭合标签切开 ⇒
+          // 把不完整的 `</think…` 尾巴留在缓冲区等下一块拼回来，其余归推理。
+          const partial = newBuffer.match(PARTIAL_THINK_CLOSE_RE);
+          state.appendReasoning(partial ? newBuffer.slice(0, partial.index) : newBuffer);
+          state.setState({
+            inThinkingBlock: newInThinkingBlock,
+            thinkingBuffer: partial ? partial[0] : '',
+          });
           return output;
         }
       }
@@ -371,13 +396,20 @@ export function useGenerationPipeline({ availableModels, abortController, curren
 
         const endMatch = afterThink.match(/<\/(?:think|thinking)>/i);
         if (endMatch) {
+          // 同一块里的完整 `<think>…</think>`：中间就是推理内容（修复前丢弃）
+          state.appendReasoning(afterThink.slice(0, endMatch.index));
           output += beforeThink;
           newBuffer = afterThink.slice(endMatch.index + endMatch[0].length);
           continue;
         } else {
           newInThinkingBlock = true;
           output += beforeThink;
-          state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: '' });
+          const partial = afterThink.match(PARTIAL_THINK_CLOSE_RE);
+          state.appendReasoning(partial ? afterThink.slice(0, partial.index) : afterThink);
+          state.setState({
+            inThinkingBlock: newInThinkingBlock,
+            thinkingBuffer: partial ? partial[0] : '',
+          });
           return output;
         }
       }
@@ -385,10 +417,8 @@ export function useGenerationPipeline({ availableModels, abortController, curren
       break;
     }
 
-    // 检测不完整标签结尾
-    const potentialTagMatch = newBuffer.match(
-      /<\/(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?)?$/i,
-    );
+    // 检测不完整标签结尾（与思考块内的分流共用同一条正则）
+    const potentialTagMatch = newBuffer.match(PARTIAL_THINK_CLOSE_RE);
     if (potentialTagMatch) {
       output += newBuffer.slice(0, potentialTagMatch.index);
       state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: potentialTagMatch[0] });
@@ -403,10 +433,20 @@ export function useGenerationPipeline({ availableModels, abortController, curren
   // 流式处理结束时刷新缓冲区
   const flushThinkingBuffer = (thinkingState) => {
     const state = thinkingState;
-    const { thinkingBuffer } = state.getState();
+    const { inThinkingBlock, thinkingBuffer } = state.getState();
+    if (inThinkingBlock) {
+      // 流在思考块里结束：残留内容（可能是不完整的闭合标签）也归**推理**，
+      // 绝不能当成正文吐出去（否则推理尾巴会混进答案）。
+      state.appendReasoning(thinkingBuffer.replace(PARTIAL_THINK_CLOSE_RE, ''));
+      state.reset();
+      return '';
+    }
     state.reset();
     return thinkingBuffer;
   };
+
+  /** 取本轮累积的推理内容（渲染层「思考过程」块的数据源） */
+  const getThinkingReasoning = (thinkingState) => thinkingState?.getReasoning?.() || '';
 
   // 重置思考过滤状态（兼容旧接口）
   const resetThinkingState = () => {};
@@ -591,6 +631,7 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     filterThinkingContent,
     filterThinkingContentStream,
     flushThinkingBuffer,
+    getThinkingReasoning,
     resetThinkingState,
     createSseLineParser,
     getFallbackModel,

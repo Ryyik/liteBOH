@@ -127,7 +127,7 @@
 | | `--boh-dur-med` | `200ms` |
 | | `--boh-dur-bob` | `1.1s`（检索进度条） |
 | | `--boh-dur-spin` | `0.9s`（集群进度） |
-| | `--boh-dur-breath` | `2s`（思考圆点，旧版口径） |
+| | `--boh-dur-breath` | `2s`（**已无消费者**；原思考圆点，2026-10-10 退役） |
 | | `--boh-ease` | `cubic-bezier(0.4, 0, 0.2, 1)` |
 | **布局常量** | `--boh-rail-w` | `88px` |
 | | `--boh-sidebar-w` | `280px` |
@@ -144,7 +144,7 @@
 
 | 语义 | 字号 | 字重 | 备注 |
 | --- | --- | --- | --- |
-| 空态主标题 | `22px` | 600 | 矮横屏降 `19px`；岛内降 `17px` |
+| 空态虚影字标 | `clamp(58px, 11vw, 128px)` | 800 | 岛内 `clamp(44px, 13vw, 84px)`；≤480 `clamp(46px, 15vw, 72px)`；矮横屏 `clamp(38px, 9vh, 64px)`。颜色 `--boh-ghost-word`，底部渐隐遮罩 |
 | 会话标题 / 品牌名 | `14.5–15px` | 600 | `--boh-ls-head` |
 | 正文（消息） | `14.5px` | 400 | 行高 `1.65–1.75` |
 | 按钮 / 菜单项 | `13–13.5px` | 400/500 | 选中 `500` |
@@ -182,12 +182,19 @@
 - **只有两个时长**：`150ms`（`--boh-dur-fast`，悬停/颜色/描边）与 `200ms`（`--boh-dur-med`，抽屉/展开/淡入）。
 - **唯一缓动**：`cubic-bezier(0.4, 0, 0.2, 1)`（`--boh-ease`）。
 - **CSS 里不许写字面时长**（时长唯一真源 = 令牌）。
-- 入场/循环动画仅三处：检索进度条滑动 `--boh-dur-bob`（`1.1s`）、集群进度转圈 `--boh-dur-spin`（`0.9s`）、
-  **思考圆点呼吸 `--boh-dur-breath`（`2s`）**。
-  > ⚠️ **思考圆点按旧版口径保留**（2026-10-08 用户拍板：「思考状态依旧保持旧版圆点」）——
-  > 形状 / 动画逐字沿用旧 `messages.css` 的 `.thinking` + `.thinking-dot` + `@keyframes thinkingBreath`
-  > （`scale .72→1.22` / `opacity .55→1` / `2s ease-in-out`）。**不要**换成 Demo 预览件里的三点打字动画：
-  > 等待动作与输出格式属「不变项」（同 `plans/023` 的原话「AI 的等待动作和输出的格式不变」）。
+- **关键帧动画一共三处声明、其中两条循环**（2026-10-10 复核，判据见下）：
+  ① 流光 `boh-search-shimmer`（`--boh-dur-bob` = `1.1s`，`linear`，`infinite`）——**两个消费者共用一组定义**
+     （`.boh-search-line.is-shimmer, .boh-reason.is-live .boh-reason-head span`）：联网在途的「网页搜索」与思考中的「正在思考」；
+     该选择器组自带 `prefers-reduced-motion` 兜底（恢复实色），否则降级时 `color: transparent` 会让文字看不见；
+  ② 集群/工作台进度转圈 `boh-spin`（`--boh-dur-spin` = `0.9s`，`linear`，`infinite`）；
+  ③ 搜索标题轮换淡入 `boh-search-fade`（`260ms` `ease`，**一次性**，每次换标题重放）。
+  > 判据：`grep -n "@keyframes\|animation:" src/views/BOHAI/` → 3 + 3（BOH AI 模块内）。
+  > ⚠️ **思考圆点已于 2026-10-10 退役**（**取代** 2026-10-08 的「思考状态依旧保持旧版圆点」口径）：
+  > 用户拍板「思考状态就是纯文本『正在思考』，默认收起，点击可展开」⇒ `.boh-thinking-dot` 与
+  > `@keyframes boh-thinking-breath` **整段删除**，等待动作改为**一行可展开的文字**（`.boh-reason`），
+  > 推理原文由生成管线**分流**而来（不再是丢弃）。`--boh-dur-breath` 令牌仍留在令牌表里，**当前无消费者**。
+  > **不要**换成 Demo 预览件里的三点打字动画：等待动作与输出格式属「不变项」
+  > （同 `plans/023` 的原话「AI 的等待动作和输出的格式不变」）。
 - **必须尊重 `prefers-reduced-motion: reduce`**（预览件已内置降级）。
 - ⚠️ `animation-fill-mode: both` 会让该属性从此不可过渡，离场必须走关键帧（仓库既有坑）。
 
@@ -199,7 +206,7 @@
 
 | 档 | 条件 | 定位 |
 | --- | --- | --- |
-| **小手机** | `max-width: 480px` | 竖屏小屏：顶栏 `46px`、流内边距 `12px`、用户气泡 `≤88%`、空态卡两列 |
+| **小手机** | `max-width: 480px` | 竖屏小屏：顶栏 `46px`、流内边距 `12px`、用户气泡 `≤88%`、虚影字收窄 |
 | **手机/平板竖屏** | `≤ 768px` | 竖屏基准档（基础样式即此档） |
 | **桌面** | `≥ 1024px` | 三/四栏布局起点（与横屏左栏契约同界） |
 | **宽屏** | `≥ 1440px` | 内容区加宽、Work 默认展开 |
@@ -234,7 +241,7 @@
 | 档 | Chat 形态 | Work 形态 |
 | --- | --- | --- |
 | **≤480 / ≤768（竖屏）** | **单列**：会话侧栏 = **Teleport 抽屉**（`min(78vw, 280px)` + 遮罩）；composer 贴底，高度走 `--kb-inset`；**Work 入口隐藏**（`≤1023` 隐藏） | 同 Chat（Work 面板在竖屏不出现，能力经对话/产物卡体现） |
-| **矮横屏（landscape ≤600 高）** | **单列宽版**：顶栏 `44px`、流内边距 `12px 20px`、消息间距 `18px`、输入框 `min-height 30 / max-height 60`、隐藏底部说明与空态副标题、空态建议 **4 列** | 同上 |
+| **矮横屏（landscape ≤600 高）** | **单列宽版**：顶栏 `44px`、流内边距 `12px 20px`、消息间距 `18px`、输入框 `min-height 30 / max-height 60`、隐藏底部说明、虚影字按视口高度收窄 | 同上 |
 | **≥1024（桌面）** | **三栏**：横屏左栏 `88` + 会话侧栏 `280` + 内容区 `768`（居中）；侧栏收起 = **宽度收拢 + 内容定宽裁切**（**不是 translateX**）；遮罩 `display: none` | **四栏**：+ Work 面板 `360`（可折叠）；**切到 Work 桌面档自动展开工作台** |
 | **≥1440（宽屏）** | 桌面布局；内容区加宽（`32px 40px`） | **Work 默认展开** |
 
@@ -242,7 +249,7 @@
 
 - 位置：`left: 5px; right: 5px`（**全宽 − 10px**）、`bottom: 64px`、`border-radius: 18px`；
 - 高度上限：**`min(58%, 460px)`**（见 §0.2 C2；提示词记 `min(54vh,460px)`）；
-- 矮横屏：`bottom: 58px`、`max-height: calc(100% - 118px)`、空态建议 4 列；
+- 矮横屏：`bottom: 58px`、`max-height: calc(100% - 118px)`、虚影字收窄；
 - 桌面档：`width: min(680px, calc(100% - 20px))`、居中、`max-height: calc(100% - 150px)`。
 
 > **桌面侧栏收起的准确语义**：**宽度收拢（`width: 280 → 0`，`overflow: hidden`，子项 `min-width: 280px`
@@ -266,7 +273,7 @@ BOHAIMain.vue                        # 壳：布局装配 + 形态切换（< 400
 │  ├─ BohChatMessage                 # 单条（含 markdown / 思考块 / 引用）
 │  ├─ BohSearchChips                 # 检索来源 chip（T/S/K/G/F）
 │  └─ BohInlineFollowUp              # 内联追问
-├─ BohEmptyState                     # 空态（建议随形态切换）
+├─ BohEmptyState                     # 空态（一行虚影 BOHAI，2026-10-11 重做）
 ├─ BohComposer                       # 输入区
 │  ├─ BohUsageOrb                    # 上下文环 + 额度浮层
 │  ├─ BohModeMenu                    # 五模式 + 强度分段
@@ -286,7 +293,7 @@ BOHAIMain.vue                        # 壳：布局装配 + 形态切换（< 400
 ## 6. （预留）AI 岛形态的布局要点
 
 见 §4 的「AI 岛」段（位置/高度/断点）。岛的两条 `@container` 规则按 §3.2 归并进 `layout.css`。
-岛内空态：`h2` 降到 `17px`、建议卡两列（矮横屏四列）、`gap 8px`。
+岛内空态：虚影字降到 `clamp(44px, 13vw, 84px)`。
 
 ---
 
@@ -301,27 +308,41 @@ BOHAIMain.vue                        # 壳：布局装配 + 形态切换（< 400
 - **落点**：**侧栏左上角切换器**（Codex 式），点击弹菜单，两项：
   - **Chat** —— 副标题「**创作、学习与探索**」
   - **Work** —— 副标题「**构建、交付与执行**」
-- **切换效果**：① 切到 **Work 桌面档自动展开工作台**（`≥1024`）；② 空态建议与占位文案随形态切换
+- **切换效果**：① 切到 **Work 桌面档自动展开工作台**（`≥1024`）
   （`今天想聊点什么?` ↔ `今天要做点什么?`）；③ 输入框 placeholder 随形态切换。
 - **存储**：前端设置（仿现有 `MODE_SETTING_KEY` 口径，如 `boh_ai_surface_v1`）+ 路由。
 
-### 7.2 第二层：对话模式 + 思考强度
+### 7.2 第二层：对话模式（思考强度已下线）
 
 | 维度 | 真源 | 现状 |
 | --- | --- | --- |
 | **对话模式** | **数据库 `bohai_model_configs`**（运行时 RPC 读取） | **Fast / Air / Code / Ultra / Gemini**（用户确认的库现状） |
-| **思考强度** | `src/views/BOHAI/composables/chat-engine-config.js:270`（`THINKING_SPEED_OPTIONS`） | **低 / 中 / 高**，默认 **中**（`BOH_DEFAULT_THINKING_SPEED_ID = 'medium'`） |
+| ~~思考强度~~ | ~~`chat-engine-config.js`（`THINKING_SPEED_OPTIONS`）~~ | **2026-10-11 整体下线**（用户口径「不做，直接隐藏」）—— 原因见下方注 |
 
 **硬规则**：
 
 1. **模式清单运行时从 `bohai_model_configs` 读取，不进前端硬编码**（新增/下线模式只改库）。
 2. ⚠️ `chat-engine-config.js:511-518` 的注释仍是 **2026-06-08 口径**（Fast / Pro / Plan / Agent），
    **与线上库不一致** —— 重写时**以 DB 为真源，并更正该注释**。
-3. **composer 右下角 pill** 形如「**Fast · 中**」（对齐 Codex 的「5.6 Sol High」式）；
-   点击弹菜单 = **五模式（单选）+ 思考强度分段（低/中/高）**。
+3. **composer 底行 = 两颗独立胶囊**（2026-10-11）：模型（左，图标 + 模型名 + ⌄）/ 工具（左，图标 + ⌄），
+   各点各的浮层，互斥由 `activeMenu` 单状态锁死；模型浮层是**扁平模式列表**
+   （模式名 + 消耗倍率 + 当前勾）+ 底部「配置自定义模型」。
+4. **模式行 hover 卡**（2026-10-10 用户样稿）：显示模式描述 + 消耗速度 +「使用此模式」；
+   免费模式仍显示 **`0.00x`**。
+   ⚠️ **不展示**上下文窗口 / 模型 logo / Free now 药丸 / 促销文案 —— RPC 没有对应字段，
+   `max_tokens` 是输出上限（≤4096），不得拿来冒充上下文窗口。窄竖屏不显示左侧 hover 卡，主面板宽度受视口约束。
 
-> 判据：`THINKING_SPEED_OPTIONS` 读 `chat-engine-config.js:270-293`（低/中/高 + 默认 `medium`）；
-> 模式注释读 `chat-engine-config.js:505-520`。（2026-10-06 实测）
+> **为什么下线思考强度（2026-10-11 查证）**：线上 5 个在用模式里**只有 `gemini` 的模型支持**
+> 调思考强度（`reasoning_effort`）—— `fast`/`Air` 是非推理模型、`Code` 用的 `GLM-Z1-Flash`
+> 内置思考且无档位开关、`Ultra` 是 `openrouter/free` 随机模型。且 EF `api-key-vault` 的
+> `buildRuntimePayload` 会**无条件用 DB 的 `bohai_model_configs` 采样参数覆盖客户端 payload**
+> ⇒ 前端叠的 deltas 在服务端被丢弃。故该控件既不生效、也不影响计费
+> （`billed_tokens = 实际 total_tokens × quota_multiplier`，强度不在公式里）。
+> `THINKING_SPEED_OPTIONS` 等常量仍留在 `chat-engine-config.js`（导出、无副作用），
+> 将来若把模式换成支持思考强度的模型，可低成本重新接线。
+
+> 判据：模式注释读 `chat-engine-config.js:505-520`（2026-10-06 实测）；思考强度下线后的
+> 无残骸断言读 `tests/unit/bohai-glass-surfaces.test.js`（「思考强度已整体下线」一条）。
 
 ---
 
@@ -370,7 +391,7 @@ Work = retrieval + web + generator(docx / pptx / xlsx + 代码) + agents 集群 
 | 探针 | 目标视口 | 断言 |
 | --- | --- | --- |
 | `probe-bohai-composer.mjs` | **1440×900 / 390×844 / 844×390** 三档 | **30 条**（A1–A19 桌面全量交互 / B1–B6 竖屏 / C1–C5 矮横屏），只增不减 |
-| `probe-bohai-shell.mjs` | 1440×900 / 390×844 / 844×390 | **25 条**（壳骨架 + 左栏 + 侧栏静态列/抽屉 + 顶栏三档 + 空态 + Work 面板挂载） |
+| `probe-bohai-shell.mjs` | 1440×900 / 390×844 / 844×390 + 场景 D | **27 条**（壳骨架 + 左栏 + 侧栏静态列/抽屉 + 浮动操作三档 + 空态虚影字与整组居中 + Work 面板挂载 + 第一条消息的 FLIP 位移） |
 | `probe-aichat-landscape-rail.mjs` | 1440×900 / 390×844 | 14（左栏 fixed + 岛心居中 + 会话侧栏 left:88px） |
 | `probe-ai-island-rail.mjs` | 1280×900 | 7（岛展开不顶动左栏与页签） |
 | `probe-ai-panels.mjs` | 1440×900 | 设置面板惰性挂载 + 壳/侧栏/顶栏存在 |

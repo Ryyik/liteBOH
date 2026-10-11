@@ -127,7 +127,11 @@ const props = defineProps({
   // 外部接管「最新/关注/新闻/活动」筛选（用户空间社区段控驱动）：非空时隐藏内部筛选钮并跟随
   externalFeed: { type: String, default: '' },
 });
-const emit = defineEmits(['island-message']);
+// composer-state：发布会话（.mobile-composer-overlay）开关状态外报。
+// 它被 Teleport 到 body，横屏下会盖住右区，外层（首页 / UserSpace 的左栏）
+// 必须知道它开没开 —— 一是切换落点前要先收掉，二是左栏「发布」项的选中态。
+// 真源只有本文件的 isMobileComposerOpen，外层一律经 ForumSectionShell 透传，别自己推。
+const emit = defineEmits(['island-message', 'composer-state']);
 
 const router = useRouter();
 const route = useRoute();
@@ -2582,6 +2586,8 @@ watch(isMobileComposerOpen, (isOpen) => {
   document.body.style.overflow = isOpen ? 'hidden' : '';
   // 用户打开编辑器即为发图意图信号，移动端此时才开始预载检测模型
   if (isOpen) scheduleForumImageModerationPreload({ immediate: true });
+  // 会话开关外报：外层左栏据此做「发布」选中态 + 切落点前先收会话
+  emit('composer-state', isOpen);
 });
 
 watch(isLoggedIn, (loggedIn) => {

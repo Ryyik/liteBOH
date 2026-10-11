@@ -4,12 +4,20 @@
  * 用户口径：
  *   ① 搜索到的网页标题要**实时**显示在消息流里并**轮换**；
  *   ② 面板**默认折叠**（一行），可展开看全部网页；
- *   ③ **网络搜索期间不显示思考黑点**，黑点只在模型思考（搜索结束→首 token 前）
+ *   ③ **网络搜索期间不显示思考行**，思考行只在模型思考（搜索结束→首 token 前）
  *      与流式回复（isLoading）时出现。
+ *
+ * ⚠️ 2026-10-10 口径变更：思考态从「呼吸黑点」（`.boh-thinking-dot`）改成
+ *    **纯文本「正在思考」+ 可展开的推理原文**（`.boh-reason`）⇒ 本探针的判据
+ *    随之改指新标记（A2 / A4 / A7），并补 A9 / A10 覆盖展开与「推理不进正文」。
+ * ⚠️ 同日二次（用户「思考也改成流光」）：思考中的「正在思考」**复用**「网页搜索」
+ *    那组流光定义（`.boh-search-line.is-shimmer, .boh-reason.is-live .boh-reason-head span`
+ *    共用一组属性）⇒ A4 断言流光在、A7 断言生成结束后流光收掉。
  *
  * 手法：拦 `api-key-vault` 按 action 分流 ——
  *   · runtime-search：延迟 1.2s 后返回 3 条带标题/链接的结果（搜索窗口可观察）；
  *   · runtime-chat-stream：延迟 1.5s 后回 SSE —— 「搜索结束→首 token」的思考窗口同样可观察；
+ *     首块带 `<think>…</think>`，用来验证推理内容**被分流到可展开块**而不是混进正文；
  *   · quota-status / user-endpoint-list：常规 mock。
  * 知识检索 RPC 一律回 `[]`（失败被 stage 容忍，不影响本探针）。
  *
@@ -112,7 +120,8 @@ await page.route('**/functions/v1/api-key-vault**', async (route) => {
   if (body.action === 'runtime-chat-stream') {
     await new Promise((r) => setTimeout(r, 1500)); // 思考窗口：搜索已结束、首 token 未到
     const sse = [
-      'data: {"choices":[{"delta":{"content":"根据搜索结果："}}]}',
+      // 首块是思考块 ⇒ 只进 reasoning，不进正文（A9/A10 的判据）
+      'data: {"choices":[{"delta":{"content":"<think>用户问的是社区动态，先联网确认最新帖再答。</think>根据搜索结果："}}]}',
       'data: {"choices":[{"delta":{"content":"方块之家（BOH）是一个社区产品，"}}]}',
       'data: {"choices":[{"delta":{"content":"本轮联网检索到了 3 篇相关网页。"}}]}',
       'data: [DONE]',
@@ -171,16 +180,18 @@ await page.locator('.boh-send').click();
 await page.waitForSelector('.boh-search-row.is-web', { timeout: 8000 });
 const duringSearch = await page.evaluate(() => {
   const line = document.querySelector('.boh-search-line');
-  const dot = document.querySelector('.boh-thinking-dot');
+  const thinkingRow = document.querySelector('.boh-reason');
   return {
     line: line?.textContent.trim() || '',
-    dotPresent: !!dot,
+    thinkingRowPresent: !!thinkingRow,
     collapsedByDefault: !document.querySelector('.boh-search-pages')?.checkVisibility(),
   };
 });
 check(
-  'A2 搜索在途：纯文本行出现且默认折叠 + 「网页搜索」+ **无黑点**',
-  duringSearch.line === '网页搜索' && !duringSearch.dotPresent && duringSearch.collapsedByDefault,
+  'A2 搜索在途：纯文本行出现且默认折叠 + 「网页搜索」+ **无思考行**',
+  duringSearch.line === '网页搜索' &&
+    !duringSearch.thinkingRowPresent &&
+    duringSearch.collapsedByDefault,
   JSON.stringify(duringSearch),
 );
 
@@ -199,18 +210,54 @@ check(
   `「${titleShown}」`,
 );
 
-// A4 思考窗口（stream 延迟 1.5s）：搜索已结束 → **黑点出现**，面板仍在轮换
-await page.waitForSelector('.boh-thinking-dot', { timeout: 6000 });
-const thinkingState = await page.evaluate(() => ({
-  dotPresent: !!document.querySelector('.boh-thinking-dot'),
-  pillVisible: !!document.querySelector('.boh-search-row.is-web')?.checkVisibility(),
-}));
+// A4 思考窗口（stream 延迟 1.5s）：搜索已结束 → **「正在思考」出现且走流光**，面板仍在轮换
+await page.waitForSelector('.boh-reason', { timeout: 6000 });
+const thinkingState = await page.evaluate(() => {
+  const row = document.querySelector('.boh-reason');
+  const span = row?.querySelector('.boh-reason-head span');
+  const cs = span ? getComputedStyle(span) : null;
+  return {
+    rowPresent: !!row,
+    // 2026-10-10 口径：思考态是**纯文本「正在思考」**（不再是呼吸黑点）
+    label: row?.querySelector('.boh-reason-head')?.textContent.trim() || '',
+    live: !!row?.classList.contains('is-live'),
+    // 2026-10-10 二次口径（用户「思考也改成流光」）：思考中的标题复用「网页搜索」同一组流光
+    shimmer: !!cs && /shimmer/.test(cs.animationName || '') && cs.webkitBackgroundClip === 'text',
+    pillVisible: !!document.querySelector('.boh-search-row.is-web')?.checkVisibility(),
+  };
+});
 check(
-  'A4 思考期：黑点出现（搜索已结束）+ 搜索面板仍在',
-  thinkingState.dotPresent && thinkingState.pillVisible,
+  'A4 思考期：纯文本「正在思考」+ **流光**（搜索已结束）+ 搜索面板仍在',
+  thinkingState.rowPresent &&
+    thinkingState.label === '正在思考' &&
+    thinkingState.live &&
+    thinkingState.shimmer &&
+    thinkingState.pillVisible,
   JSON.stringify(thinkingState),
 );
 await page.screenshot({ path: `${OUT}/bohai-search-status-rotating.png` });
+
+// A4b reduced-motion 降级（**必须真模拟**，不能只看源码写了没写）：
+//     `--boh-dur-bob` 被 layout.css 归零 ⇒ 亮带停在非亮处，若还留着 `color: transparent`
+//     状态文字会**直接看不见**。断言降级后恢复实色且动画停掉。
+await page.emulateMedia({ reducedMotion: 'reduce' });
+await page.waitForTimeout(160);
+const reduced = await page.evaluate(() => {
+  const span = document.querySelector('.boh-reason-head span');
+  const cs = span ? getComputedStyle(span) : null;
+  return {
+    present: !!span,
+    color: cs?.color || '',
+    transparent: (cs?.color || '').replace(/\s/g, '') === 'rgba(0,0,0,0)',
+    animation: cs?.animationName || '',
+  };
+});
+await page.emulateMedia({ reducedMotion: null });
+check(
+  'A4b reduced-motion：思考标题恢复实色（不再透明）+ 流光停掉',
+  reduced.present && !reduced.transparent && reduced.animation === 'none',
+  JSON.stringify(reduced),
+);
 
 // A5 展开清单：3 行、含标题与域名
 await page.locator('.boh-search-head').click();
@@ -248,28 +295,86 @@ const collapsedAgain = await page.evaluate(() => {
 });
 check('A6 收起后清单隐藏（折叠态往返）', collapsedAgain);
 
-// A7 回复完成：面板整个退场（来源 chip 接管），黑点消失
+// A7 回复完成：面板整个退场（来源 chip 接管），思考态收起、推理原文**不进正文**
 await page.waitForSelector('.boh-msg-actions', { timeout: 30000 });
 await page.waitForTimeout(600);
 const afterDone = await page.evaluate(() => {
   const pill = document.querySelector('.boh-search-row.is-web');
-  const dot = document.querySelector('.boh-thinking-dot');
+  const row = document.querySelector('.boh-reason');
   // ⚠️ 不用 :last-of-type —— ai-body 后面还有 chips/actions 的 div，恒匹配不上
   const replyText = [...document.querySelectorAll('.boh-ai-body')]
     .map((el) => el.textContent || '')
     .join('');
   return {
     pillGone: !pill || !pill.checkVisibility(),
-    dotGone: !dot,
+    // 生成结束后「正在思考」态必须收掉（行还在，但不再是 live）
+    liveGone: !row?.classList.contains('is-live'),
+    rowLabel: row?.querySelector('.boh-reason-head')?.textContent.trim() || '',
+    bodyHidden: !document.querySelector('.boh-reason-body')?.checkVisibility(),
+    // 生成结束后流光必须收掉（`.is-live` 摘掉 ⇒ 回到静态实色文字）
+    shimmerGone: !/shimmer/.test(
+      getComputedStyle(document.querySelector('.boh-reason-head span') || document.body)
+        .animationName || '',
+    ),
     replyShown: replyText.includes('方块之家'),
+    // ⚠️ 核心判据：推理原文**一个字都不能进正文**（分流不是新增可见文本）
+    reasoningLeaked: replyText.includes('先联网确认最新帖'),
   };
 });
 check(
-  'A7 回复完成：面板退场 + 黑点消失 + 回复正文在场',
-  afterDone.pillGone && afterDone.dotGone && afterDone.replyShown,
+  'A7 回复完成：面板退场 + 思考态收起（流光收掉）+ 正文在场且不含推理原文',
+  afterDone.pillGone &&
+    afterDone.liveGone &&
+    afterDone.rowLabel === '思考过程' &&
+    afterDone.bodyHidden &&
+    afterDone.shimmerGone &&
+    afterDone.replyShown &&
+    !afterDone.reasoningLeaked,
   JSON.stringify(afterDone),
 );
 await page.screenshot({ path: `${OUT}/bohai-search-status-done.png` });
+
+// A9 / A10 推理过程可展开（2026-10-10 新口径；A7 已断言「默认收起」）
+// ⚠️ 这两步放在 A8（零 pageerror）之前，让它们的异常也计入错误判据。
+// ⚠️ 判据必须先看节点在不在再点 —— 回归时应该**红**，不该让 locator 抛错把脚本打断
+//    （推理块整个缺失时 `.first().click()` 会 throw，后面的汇总行根本打不出来）。
+const reasonHead = page.locator('.boh-reason-head');
+const reasonHeadCount = await reasonHead.count();
+if (reasonHeadCount === 0) {
+  check('A9 点标题展开推理原文（内容 = 模型思考）', false, '找不到 .boh-reason-head（推理块缺失）');
+  check('A10 再点收起（折叠态可往返）', false, '找不到 .boh-reason-head（推理块缺失）');
+} else {
+  await reasonHead.first().click();
+  await page.waitForTimeout(220);
+  const reasonExpanded = await page.evaluate(() => {
+    const body = document.querySelector('.boh-reason-body');
+    return {
+      visible: !!body?.checkVisibility(),
+      text: body?.textContent.trim() || '',
+      expanded:
+        document.querySelector('.boh-reason-head')?.getAttribute('aria-expanded') === 'true',
+    };
+  });
+  check(
+    'A9 点标题展开推理原文（内容 = 模型思考）',
+    reasonExpanded.visible &&
+      reasonExpanded.expanded &&
+      reasonExpanded.text.includes('先联网确认最新帖'),
+    JSON.stringify(reasonExpanded).slice(0, 200),
+  );
+
+  await reasonHead.first().click();
+  await page.waitForTimeout(220);
+  const reasonCollapsed = await page.evaluate(() => ({
+    hidden: !document.querySelector('.boh-reason-body')?.checkVisibility(),
+    expanded: document.querySelector('.boh-reason-head')?.getAttribute('aria-expanded') === 'true',
+  }));
+  check(
+    'A10 再点收起（折叠态可往返）',
+    reasonCollapsed.hidden && !reasonCollapsed.expanded,
+    JSON.stringify(reasonCollapsed),
+  );
+}
 
 check('A8 零 pageerror', errors.length === 0, errors.slice(0, 3).join(' | '));
 

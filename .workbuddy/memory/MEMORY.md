@@ -9,12 +9,13 @@ playwright：chrome channel + `--proxy-server=direct:// --proxy-bypass-list=*`�
 ⚠️ /tmp 一次性 ESM 引仓库依赖 NODE_PATH 无效 → `createRequire('<repo>/package.json')` 或脚本放仓库根（用完删）。
 ⚠️ BSD grep 不支持 `\|` `\b` `\s`（静默 0 命中）→ `grep -E` / `[[:space:]]` / Grep 工具。macOS 无 `timeout` → `ssh -o ConnectTimeout=N`。
 推 GitHub：`~/.ssh/config` 已把 github.com 指 `ssh.github.com:443`，`git push` 直连；`gh run watch <id> --exit-status`。
-⚠️ 并行会话同工作区：last-write-wins；棘轮跨会话共享 → `eslint . -f json` 做 (文件,行,规则) set diff 归因；**提交只给明确路径，永不 `git add -A`**。判并行写入者：`find … -newermt '-3 minutes'` 连看两次。
+⚠️ 并行会话同工作区：last-write-wins；棘轮跨会话共享 → `eslint . -f json` 做 (文件,行,规则) set diff 归因；**提交只给明确路径，永不 `git add -A`**。判并行写入者：`find … -mmin -3` 连看两次（⚠️ macOS BSD find **不支持 `-newermt`**，会静默 0 命中，别用它判「没人写」）。
+⚠️ **未提交的修复会被对方 git 级回滚**（2026-10-11 实证：14:15 改好、14:25 自证绿、**14:26 被整目录 restore 回编辑前原样** —— 判据=连 prettier 格式都回退了，说明是 `git restore/checkout <路径>` 而不是格式化；用户 14:50 报「还是不能填 0」）。⇒ **交付后立刻核对改动是否还在（`grep` 修复点 + 复跑守卫测试，两条都要）**，能提交就提交明确路径；否则跟对方划清路径边界。
 改完必反证；探针偶发漂移=抖动非回归。
 
 ## 提交
 pre-commit 在 `.git/hooks/pre-commit`（**非 husky**；新环境 `cp scripts/git-hooks/pre-commit .git/hooks/ && chmod +x`）。
-🔴 lint-staged 会把无关未暂存文件卷进提交 → **每次 commit 后核对 `git show --stat HEAD`**；误入修法：`git reset --soft HEAD~1` → `git restore --staged <侵入文件>` → 重提。
+🔴 lint-staged 会把无关未暂存文件卷进提交 → **每次 commit 后核对 `git show --stat HEAD`**；误入修法：`git reset --soft HEAD~1` → `git restore --staged <侵入文件>` → **重提时用 `--only` 路径式**（`git commit -F <msg> -- <路径…>`：只取这些路径的工作区内容、忽略其它已暂存 ⇒ 钩子再捎带也进不来）。2026-10-11 实测：并发会话在改的 `boh-empty-state.css` 就被卷进过一次。
 ⚠️ 钩子会重排文件 → 提交前先手动跑钩子同款（prettier --write + eslint --fix，只给改动文件），提交后对**提交后的树**再跑一次 verify；别把钩子改成 prettier --check。
 
 ## 门禁 / 测试
@@ -31,7 +32,11 @@ DB 图片列混存 `@/assets` 别名与 cloudinary 绝对地址（大陆不可�
 ⚠️ 液态玻璃三铁律：材质单源 `liquid-glass.css` 只挂基础类（变体在 ≤768px 被强制关 backdrop）；scoped 特异性高于全局类 → 让位写 `:not(.liquid-glass)`；白底玻璃需 `.cloud-page::before` 环境光 + 父级 `isolation:isolate`（否则负 z-index 伪元素不可见）；色值走 color-mix。
 ⚠️ 避软键盘：`height:100dvh; padding-bottom:calc(env(safe-area-inset-bottom)+var(--kb-inset))`，**别减高度**（inset 偏大=半屏）。
 ⚠️ 高度断言用 `offsetHeight`（clientHeight 扣边框恒差 2px）。
+⚠️ **暗色覆盖三坑（2026-10-11）**：① 异步 chunk 组件的 `<style scoped>` 自带 `[data-v-*]` 且**晚于 themes/*.css 加载** ⇒ `[data-theme=dark] .x` 同优先级被压掉（实测整片失效），必须写 `html[data-theme=dark] .x` 提一级；② 反色实心按钮 `background:var(--liquid-text-primary)+color:#fff` **只在浅色成立**（浅色 token=近黑），暗色 token 变近白 → 白底白字，暗色改 `color:var(--boh-bg-primary)`；③ 共享组件（SegmentTabs）禁依赖宿主私有变量 —— `--text-primary` 只由 `.user-space-page` 定义，首页宿主拿 fallback 近黑字，走全局 `--liquid-text-*`。
+⚠️ 判"白玻璃"看**元素自身 background-color**，合成亮度会骗人（55% 白叠深底 lum≈0.27，阈值 0.35 假绿）；`check:dark-tokens` 连 `var(--x,#hex)` 的 fallback 也计数 ⇒ 想零增长就别写 fallback。护栏 `probe:dark-surfaces`（36，含窄档/两宿主/已签态/岛展开）。
+⚠️ **fixed 容器会被内部撑高的子元素撑开**：`#unified-nav-container`（=`.unified-nav` 同元素）在岛展开时 78→390px 且 `pointer-events:auto`（**撑高是有意的**，接「点外部关闭」，别改高度）；此时它若带实心背景/backdrop/投影，就变成页顶一大块矩形（用户报「一有岛的活动就带出一大块黑色」，2026-10-11）。⇒ 容器只做定位+接点击，**视觉全交 `.unified-nav-surface`**；判据真源是"浅色下容器本来就透明"（暗色 id+`!important` 曾压过 vendor `body.page-*.unified-nav` 的透明声明）。同款先例：沉浸态 `.nav-immersive-on .unified-nav` 退场。
 ⚠️ 窄屏一行硬压三连（nowrap + min-width:0 + 某子项 shrink:0）= 压 0 宽/竖排字/溢出被裁；修法是折行。
+⚠️ 绝对定位浮层**禁挂 overflow 滚动容器内**：`overflow-x:hidden`（或任一轴非 visible）会把后代裁到它自己的 padding box —— 左栏「更多」浮层 172px 在 88px 窄栏被裁到 68px（「深色模式→深」）；**240px 宽栏 215>172 恰好不暴露 ⇒ 断言必须覆盖窄档**，宽档绿=假绿。浮层要挂成滚动容器的**兄弟**。另：`contain:paint`（`.liquid-glass` 基础类、`check:liquid-glass` 会查）同样裁后代，左栏靠 `side-rail.css` 的 `contain:none` 让位。护栏 probe-rail-more-menu(16)。
 
 ## 路由 / 交互
 `key=route.path`（禁 fullPath/name）；`<script setup>` 运行时 API 显式 import；ForumMain watch immediate 禁同步调下方 const（TDZ）。

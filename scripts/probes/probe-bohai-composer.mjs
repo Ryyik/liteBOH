@@ -2,15 +2,15 @@
  * probe-bohai-composer.mjs — BOH AI 输入区（composer）探针
  *
  * 背景：2026-10-08（plans/025 v2 · Step 6-4）输入区整体重绘为 `BohComposer.vue`：
- *   「模式名 · 强度」胶囊 + 单层面板（模式清单 / 强度分段 / 高级四工具）
- *   + 用量圆钮与浮层 + 斜杠菜单 + 圆形发送键 + 底部「内容由 AI 生成」说明。
+ *   模式胶囊 + 浮层面板（模型清单 / 工具四件）+ 用量圆钮与浮层 + 斜杠菜单
+ *   + 圆形发送键 + 底部「内容由 AI 生成」说明。
  * 旧版的三行面板 + 左右二级菜单结构已随旧 DOM 删除，断言随之改锁新落点。
  *
- * 2026-10-08 晚（用户样稿第二轮）：面板改**两视图**（v-show 切换，DOM 常驻）——
- *   视图一「强度」= 大字档位（品牌蓝）+ 模型行（点进视图二）+ 三档滑杆 + 右上角重置；
- *   视图二「模型」= 可返回标题行 + 分组头（默认 / 数据库配置）+ 纯文本行 + 选中勾。
- *   契约变化：**换强度不收面板**（滑杆拖一半面板关掉 = 坏了），选模式仍收（pickMode 不变）。
- *   胶囊文案从「模式 · 强度」改为「模式名 强度名」（样稿的「5.5 高」形态）。
+ * 2026-10-11：底行拆成**两颗独立胶囊**（模型 / 工具），各点各的浮层，互斥由
+ *   `activeMenu` 单状态锁死；hover 详情卡挂在 `.boh-mm-body` 外面。
+ * ⚠️ 2026-10-11 同日：**思考强度控件整体下线**（用户口径「不做，直接隐藏」）——
+ *   在用模式里只有 gemini 支持调思考强度，且服务端 `buildRuntimePayload` 会用 DB 值
+ *   覆盖客户端采样参数 ⇒ 该控件空转。A1 不再断言强度胶囊，A4（换档）整条已删。
  *
  * ⚠️ **本探针必须覆盖三档视口**（DESIGN §10）：现状旧版 22 条**全在桌面档**，
  *   竖屏与矮横屏零覆盖 —— 这是本次必须补的缺口。
@@ -21,8 +21,7 @@
  *   BASE=http://[::1]:5173 node scripts/probes/probe-bohai-composer.mjs
  *
  * 反证（必须做，否则不算自证）：
- *   · 把 `setEffortIndex` 里的 emit 去掉 → A4 必红；
- *   · 把 `menuView` 归位从 `closePanel()` 里删掉 → 重开面板停在模型视图 → A2a 必红；
+ *   · 把 `.boh-tools-pill` 的 `@click="toggleMenu('tools')"` 改成 `toggleMenu('model')` → A1/A5 必红；
  *   · 把 `.boh-usage-pop` 的 `v-show` 改成恒真 → A11 必红；
  *   · 把 `openUsageInSettings` 的 `settingsFocusSection = 'usage'` 改回 `''` → A12 必红。
  */
@@ -49,16 +48,16 @@ const SEL = {
   sidebar: '.boh-sidebar',
   composer: '.boh-composer',
   input: '.boh-composer-input',
+  // 2026-10-11：底行拆成两颗**独立**胶囊，各点各的浮层（原先只有一颗「模型名 强度」）
   pill: '.boh-mode-pill',
+  toolsPill: '.boh-tools-pill',
   panel: '.boh-mode-menu',
-  modeLink: '.boh-effort-mode',
-  modeBack: '.boh-mm-back',
+  toolsMenu: '.boh-tools-menu',
   modeItem: '.boh-mm-item[data-mode-id]',
-  effortDot: '.boh-effort-dot[data-thinking-speed-id]',
-  effortWord: '.boh-effort-word',
-  effortTrack: '.boh-effort-track-wrap',
-  advRow: '.boh-mm-item.is-adv',
-  advBox: '.boh-mm-adv',
+  // ⚠️ `modeBack`（`.boh-mm-back`）已随「两视图」下线：A2a 断言它**不存在**，
+  //    留着这条选择器是为了能断言它真的没了，别顺手删掉。
+  modeBack: '.boh-mm-back',
+  mmCustom: '.boh-mm-custom',
   tool: '.boh-mm-tool',
   webToggle: '.boh-cp-icon',
   send: '.boh-send',
@@ -109,7 +108,7 @@ const newPage = async (ctx, bucket) => {
     if (m.type() === 'error') bucket.console.push(m.text().slice(0, 180));
     // ⚠️ Vue 对「模板里用了 setup 作用域中不存在的绑定」只发 warning、不抛错，
     // 渲染出来是 `undefined || 兜底值` —— 静默、肉眼难发现。2026-10-01 就靠这条抓到
-    // BOHAIMain 漏解构 currentThinkingSpeed（胶囊强度段永远显示「中」）。
+    // BOHAIMain 漏解构一个被模板读到的状态（当时是胶囊的强度档位）。
     if (
       m.type() === 'warning' &&
       /is not defined on instance|accessed during render/i.test(m.text())
@@ -147,15 +146,10 @@ const mockQuota = async (page) => {
   });
 };
 
+/** 点模型胶囊（`.boh-mode-pill`）打开模型菜单 —— 三颗胶囊里只有它带模型清单 */
 const openPanel = async (page, scope = '') => {
   await page.locator(`${scope} ${SEL.pill}`.trim()).first().click();
   await page.waitForTimeout(280);
-};
-
-/** A4 之后面板可能仍开着（新契约：换强度不收面板）—— 没开才点胶囊，开了直接用 */
-const ensurePanelOpen = async (page) => {
-  const open = await page.evaluate(rectOf(SEL.panel));
-  if (!open) await openPanel(page);
 };
 
 // ===================== 场景 A：独立页 1440×900（全量交互） =====================
@@ -171,60 +165,117 @@ const ensurePanelOpen = async (page) => {
   await injectAuth(page);
   await page.waitForSelector(SEL.pill, { timeout: 20000 });
 
-  // A1 胶囊 = 「模型名 强度名」（样稿「5.5 高」形态，不再有 · 分隔）
-  const pillText = await page.evaluate(
-    (sel) => document.querySelector(sel)?.textContent.trim() || '',
-    SEL.pill,
+  // A1 两颗独立胶囊：模型（左，图标 + 模型名 + ⌄）/ 工具（图标）
+  //    2026-10-11 拆胶囊：原先是**一颗**「模型名 强度名」，点开一个装两视图的浮层。
+  //    ⚠️ 同日「思考强度」整体下线 ⇒ 这里**不再**断言强度胶囊（旧 A1 的第二半条）。
+  const pills = await page.evaluate(
+    ([modeSel, toolSel]) => {
+      const text = (s) => document.querySelector(s)?.textContent.trim() || '';
+      const has = (s) => !!document.querySelector(s);
+      return {
+        mode: text(modeSel),
+        modeIcon: !!document.querySelector(`${modeSel} > svg`),
+        tools: has(toolSel),
+        // 已下线的强度控件必须一个都查不到（含菜单与档位按钮）
+        staleEffort: !!document.querySelector(
+          '.boh-effort-pill, .boh-effort-menu, .boh-effort-option',
+        ),
+      };
+    },
+    [SEL.pill, SEL.toolsPill],
   );
-  check('A1 底行胶囊渲染（模型名 + 强度名）', /^(.+)\s(低|中|高)$/.test(pillText), pillText);
+  check(
+    'A1 底行两颗独立胶囊（模型名 / 工具），且强度控件已彻底下线',
+    pills.mode.length > 0 && pills.modeIcon && pills.tools && !pills.staleEffort,
+    JSON.stringify(pills),
+  );
 
-  // A2a 强度视图（默认视图）：大字档位 / 模型行 / 三档滑点 / 高级行
+  // A2a 点模型胶囊 → 模型菜单（扁平清单 + 每行倍率 + 底部配置入口；**无返回行**）
   await openPanel(page);
-  const effortView = await page.evaluate(
-    ([panelSel, dotSel, wordSel, advSel, linkSel]) => {
-      const el = document.querySelector(panelSel);
-      if (!el || getComputedStyle(el).display === 'none') return null;
-      return {
-        dots: [...el.querySelectorAll(dotSel)].map((n) => n.dataset.thinkingSpeedId),
-        word: el.querySelector(wordSel)?.textContent.trim() || '',
-        adv: !!el.querySelector(advSel),
-        link: el.querySelector(linkSel)?.textContent.trim() || '',
-      };
-    },
-    [SEL.panel, SEL.effortDot, SEL.effortWord, SEL.advRow, SEL.modeLink],
-  );
-  check(
-    'A2a 强度视图齐全（大字档位 / 模型行 / 三档滑点 / 高级行）',
-    !!effortView &&
-      effortView.dots.length === 3 &&
-      !!effortView.word &&
-      !!effortView.link &&
-      effortView.adv,
-    JSON.stringify(effortView),
-  );
-
-  // A2b 点「模型名 ›」→ 模型视图（清单 / 返回行 / 分组头；v-show 切换，DOM 常驻）
-  await page.locator(SEL.modeLink).first().click();
-  await page.waitForTimeout(240);
+  // ⚠️ 必须等清单落地再读：模式表是**异步**拉的，开面板那一刻往往还在骨架态，
+  // 直接读会拿到 `modes: []` —— 那是竞态，不是「菜单坏了」（实测间歇假红）。
+  const modesLanded = await page
+    .waitForSelector('.boh-mm-item[data-mode-id]', { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
   const modelView = await page.evaluate(
-    ([panelSel, modeSel, backSel]) => {
+    ([panelSel, modeSel, backSel, customSel]) => {
       const el = document.querySelector(panelSel);
       if (!el || getComputedStyle(el).display === 'none') return null;
+      const rows = [...el.querySelectorAll(modeSel)];
       return {
-        modes: [...el.querySelectorAll(modeSel)].map((n) => n.dataset.modeId),
+        modes: rows.map((n) => n.dataset.modeId),
+        // 2026-10-11：三颗胶囊各自独立 ⇒ 没有「上一层视图」，返回行必须消失
         back: !!el.querySelector(backSel),
-        groupHead: el.querySelector('.boh-mm-group-name')?.textContent.trim() || '',
+        rates: rows.map((n) => !!n.querySelector('.boh-mm-rate')),
+        custom: !!el.querySelector(customSel),
+        // 详情卡里只有描述 / 消耗速度 / 使用此模式（强度控件已整体下线）
+        staleEffort: !!el.querySelector('.boh-mm-detail-effort'),
       };
     },
-    [SEL.panel, SEL.modeItem, SEL.modeBack],
+    [SEL.panel, SEL.modeItem, SEL.modeBack, SEL.mmCustom],
   );
   check(
-    'A2b 模型视图（点「模型名 ›」进入：清单 / 返回行 / 分组头）',
-    !!modelView && modelView.modes.length >= 1 && modelView.back && modelView.groupHead === '默认',
+    'A2a 模型菜单（清单 / 每行倍率 / 配置自定义模型 / 无返回行）',
+    modesLanded &&
+      !!modelView &&
+      modelView.modes.length >= 1 &&
+      !modelView.back &&
+      !modelView.staleEffort &&
+      modelView.rates.length === modelView.modes.length &&
+      modelView.rates.every(Boolean) &&
+      modelView.custom,
     JSON.stringify(modelView),
   );
 
-  // A3 面板贴在胶囊上方（不压输入框）
+  // A2b hover 任一**未选中**模型行 → 右侧详情卡显示描述/消耗速度/使用此模式。
+  //     2026-10-11：卡片随面板左对齐而**镜像到右侧**，放不下时 `is-flipped` 翻回左侧。
+  const unselectedRows = page
+    .locator('.boh-mm-row')
+    .filter({ has: page.locator('.boh-mm-item:not(.is-on)') });
+  const hasOtherMode = (await unselectedRows.count()) > 0;
+  await (hasOtherMode ? unselectedRows.first() : page.locator('.boh-mm-row').first()).hover();
+  await page.waitForSelector('.boh-mm-detail', { timeout: 4000 });
+  // 从行挪到卡（240ms 延迟收起）—— 卡片不能因为指针离开行就消失
+  const cardBox = await page.locator('.boh-mm-detail').boundingBox();
+  if (cardBox) await page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + 12);
+  await page.waitForTimeout(360);
+  const detail = await page.evaluate(
+    ([panelSel]) => {
+      const card = document.querySelector('.boh-mm-detail');
+      const panel = document.querySelector(panelSel);
+      const cr = card?.getBoundingClientRect();
+      const pr = panel?.getBoundingClientRect();
+      return {
+        visible: !!card?.checkVisibility(),
+        flipped: !!card?.classList.contains('is-flipped'),
+        text: card?.textContent?.replace(/\s+/g, ' ').trim() || '',
+        useButton: !!card?.querySelector('.boh-mm-detail-use'),
+        useDisabled: card?.querySelector('.boh-mm-detail-use')?.disabled ?? true,
+        detailLabels: [...(card?.querySelectorAll('.boh-mm-detail-row span') || [])].map((n) =>
+          n.textContent.trim(),
+        ),
+        // 默认贴面板右侧（面板左对齐）；翻到左侧时也必须仍然完整落在视口内
+        side:
+          cr && pr ? (cr.left >= pr.right ? 'right' : cr.right <= pr.left ? 'left' : 'over') : '',
+        inViewport: cr ? cr.left >= 0 && cr.right <= window.innerWidth : false,
+      };
+    },
+    [SEL.panel],
+  );
+  check(
+    'A2b hover 详情卡：描述/消耗速度齐全、可使用此模式、不越视口、指针移入不消失',
+    detail.visible &&
+      detail.useButton &&
+      detail.useDisabled === !hasOtherMode &&
+      detail.detailLabels.join('/') === '消耗速度' &&
+      detail.text.length > detail.detailLabels.join('/').length &&
+      detail.side !== 'over' &&
+      detail.inViewport,
+    JSON.stringify(detail),
+  );
+
+  // A3 面板贴在胶囊上方 (不压输入框)
   const panelRect = await page.evaluate(rectOf(SEL.panel));
   const pillRect = await page.evaluate(rectOf(SEL.pill));
   check(
@@ -233,50 +284,36 @@ const ensurePanelOpen = async (page) => {
     `panel.bottom=${panelRect?.bottom} pill.y=${pillRect?.y}`,
   );
 
-  // A4 换强度 → **面板保持打开**（2026-10-08 样稿契约：拖一半关掉 = 滑杆坏了）
-  //    + 大字档位/胶囊更新 + 落盘。先从模型视图返回强度视图。
-  //    滑杆是全自绘的（用户口径「不要原生拖动条」）⇒ 走真实指针路径点轨道目标档。
-  await page.locator(SEL.modeBack).first().click();
-  await page.waitForTimeout(240);
-  const wordBefore = effortView?.word || '';
-  const pillBefore = pillText;
-  const dots = effortView?.dots || [];
-  const curIdx = await page.evaluate(
-    (sel) => Number(document.querySelector(sel)?.getAttribute('aria-valuenow') || 0),
-    SEL.effortTrack,
+  // A4 两颗胶囊**互斥**：模型面板开着时点工具胶囊 ⇒ 模型面板必须收起、工具菜单接管。
+  //    （原 A4 是「点强度胶囊 → 换档」；强度控件 2026-10-11 整体下线后，这条改锁互斥契约。）
+  await openPanel(page);
+  await page.waitForTimeout(200);
+  await page.locator(SEL.toolsPill).first().click();
+  await page.waitForTimeout(260);
+  const exclusivity = await page.evaluate(
+    ([panelSel, menuSel, toolSel]) => {
+      const display = (s) => {
+        const el = document.querySelector(s);
+        return el ? getComputedStyle(el).display : 'missing';
+      };
+      return {
+        modelClosed: display(panelSel) === 'none',
+        toolsOpen: display(menuSel) !== 'none',
+        toolCount: document.querySelectorAll(toolSel).length,
+      };
+    },
+    [SEL.panel, SEL.toolsMenu, SEL.tool],
   );
-  const otherIdx = dots.length > 1 ? (curIdx + 1) % dots.length : -1;
-  if (otherIdx >= 0) {
-    const otherId = dots[otherIdx];
-    const trackBox = await page.locator(SEL.effortTrack).first().boundingBox();
-    // ⚠️ 目标档在 0% / 100% 时点击点正好压在边界上，亚像素可能落空（实测 A4 假红）⇒ 向内收 2px
-    const rawX = (trackBox.width * otherIdx) / (dots.length - 1);
-    const targetX = trackBox.x + Math.min(Math.max(rawX, 2), trackBox.width - 2);
-    await page.mouse.click(targetX, trackBox.y + trackBox.height / 2);
-    await page.waitForTimeout(420);
-    const panelAfter = await page.evaluate(rectOf(SEL.panel));
-    const wordAfter = await page.evaluate(
-      (sel) => document.querySelector(sel)?.textContent.trim() || '',
-      SEL.effortWord,
-    );
-    const pillAfter = await page.evaluate(
-      (sel) => document.querySelector(sel)?.textContent.trim() || '',
-      SEL.pill,
-    );
-    const stored = await page.evaluate(() => localStorage.getItem('boh_ai_thinking_speed_v1'));
-    check(
-      'A4 换强度 → 面板保持打开 + 大字/胶囊更新 + 落盘',
-      !!panelAfter && wordAfter !== wordBefore && pillAfter !== pillBefore && stored === otherId,
-      `panel=${panelAfter ? 'open' : 'closed'} ${wordBefore}→${wordAfter} ${pillBefore}→${pillAfter} stored=${stored}`,
-    );
-  } else {
-    check('A4 换强度 → 面板保持打开 + 大字/胶囊更新 + 落盘', false, '没有可切换的强度档');
-  }
+  check(
+    'A4 两颗胶囊互斥：开工具菜单后模型面板收起',
+    exclusivity.modelClosed && exclusivity.toolsOpen && exclusivity.toolCount === 4,
+    JSON.stringify(exclusivity),
+  );
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
 
-  // A5 选模式 → 面板收起 + 胶囊模式名变（先进模型视图再选）
-  await ensurePanelOpen(page);
-  await page.locator(SEL.modeLink).first().click();
-  await page.waitForTimeout(240);
+  // A5 选模式 → 面板收起 + 模型胶囊更新
+  await openPanel(page);
   const modes = await page.evaluate(
     (sel) =>
       [...document.querySelectorAll(sel)].map((n) => ({
@@ -292,38 +329,46 @@ const ensurePanelOpen = async (page) => {
       [SEL.modeItem, otherMode.id],
     );
     await page.waitForTimeout(560);
-    const panelAfter = await page.evaluate(rectOf(SEL.panel));
-    const pillAfter = await page.evaluate(
-      (sel) => document.querySelector(sel)?.textContent.trim() || '',
-      SEL.pill,
+    const after = await page.evaluate(
+      ([panelSel, pillSel]) => ({
+        panelOpen: getComputedStyle(document.querySelector(panelSel)).display !== 'none',
+        pill: document.querySelector(pillSel)?.textContent.trim() || '',
+      }),
+      [SEL.panel, SEL.pill],
     );
     check(
-      'A5 选完模式 → 面板收起 + 胶囊模式名更新',
-      !panelAfter && !pillAfter.startsWith(modes.find((m) => m.on)?.id || ' '),
-      `${modes.find((m) => m.on)?.id} → ${pillAfter} (panel=${panelAfter ? 'open' : 'closed'})`,
+      'A5 选完模式 → 面板收起 + 模型胶囊更新',
+      !after.panelOpen && after.pill !== modes.find((m) => m.on)?.id,
+      `${modes.find((m) => m.on)?.id} → ${after.pill} (panel=${after.panelOpen ? 'open' : 'closed'})`,
     );
   } else {
-    check('A5 选完模式 → 面板收起 + 胶囊模式名更新', false, '只有一个模式可选，无法测切换');
+    check('A5 选完模式 → 面板收起 + 模型胶囊更新', false, '只有一个模式可选，无法测切换');
   }
 
-  // A6 高级区四个工具
-  await openPanel(page);
-  await page.locator(SEL.advRow).first().click();
-  await page.waitForTimeout(240);
+  // A6 工具菜单（第三颗胶囊）：四件齐全，且不收浮层（用户常接着改第二项）
+  await page.locator(SEL.toolsPill).first().click();
+  await page.waitForTimeout(260);
   const toolNames = await page.evaluate(
-    (sel) =>
-      [...document.querySelectorAll(sel)].map(
-        (el) => el.querySelector('strong')?.textContent.trim() || '',
-      ),
-    SEL.tool,
+    ([menuSel, toolSel]) => {
+      const menu = document.querySelector(menuSel);
+      return {
+        open: !!menu && getComputedStyle(menu).display !== 'none',
+        names: [...menu.querySelectorAll(toolSel)].map(
+          (el) => el.querySelector('strong')?.textContent.trim() || '',
+        ),
+      };
+    },
+    [SEL.toolsMenu, SEL.tool],
   );
   const wantTools = ['社区搜索', '个人 Cloud+', '健康分析', '心理分析'];
-  const missing = wantTools.filter((n) => !toolNames.includes(n));
+  const missing = wantTools.filter((n) => !toolNames.names.includes(n));
   check(
-    'A6 高级区四个工具齐全',
-    missing.length === 0,
-    `缺 ${missing.join('/') || '无'}；实得 ${toolNames.join(' / ')}`,
+    'A6 工具胶囊 → 四件工具齐全',
+    toolNames.open && missing.length === 0,
+    `缺 ${missing.join('/') || '无'}；实得 ${toolNames.names.join(' / ')}`,
   );
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
 
   // A7 联网单键：点击后呈开启态
   await page.keyboard.press('Escape');
@@ -351,6 +396,44 @@ const ensurePanelOpen = async (page) => {
     Array.isArray(slashCmds) &&
       ['/web', '/community', '/cloud', '/health'].every((c) => slashCmds.includes(c)),
     (slashCmds || []).join(' '),
+  );
+
+  // A8b 斜杠菜单几何（2026-10-11 紧凑档 + 上方可用高度上限）。
+  //     ⚠️ 为什么必须量几何：A8 只判「文案在不在」，菜单被裁 / 顶端被推出视口 / 宽度没生效
+  //     它**全绿** —— 实测过：`/web`…`/new` 7 条命令完全看不见也够不到时 A8 依然 PASS。
+  const slashGeo = await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el || getComputedStyle(el).display === 'none') return null;
+    const r = el.getBoundingClientRect();
+    const composer = document.querySelector('.boh-composer').getBoundingClientRect();
+    const items = [...el.querySelectorAll('.boh-slash-item')];
+    const heights = items.map((n) => n.getBoundingClientRect().height);
+    return {
+      w: Math.round(r.width),
+      top: Math.round(r.top),
+      right: Math.round(r.right),
+      // `left: 10px` 的参照是输入框的 padding box ⇒ 加上外壳 1px 边框，实测恒 11
+      leftOffset: Math.round(r.left - composer.left),
+      itemH: Math.round(Math.max(...heights) * 10) / 10,
+      rows: items.length,
+      // ⚠️ 「无滚动条」只能读 CSS 属性，**不能量布局宽度**：headless Chrome 是 overlay 滚动条，
+      //    `offsetWidth - clientWidth` 在有/无滚动条两种状态下**都是 2（两侧边框）** ⇒ 量宽度是假绿。
+      scrollbarWidth: getComputedStyle(el).scrollbarWidth,
+      vw: window.innerWidth,
+    };
+  }, SEL.slash);
+  check(
+    'A8b 斜杠菜单几何（宽 420 左对齐 / 行高 <48 / 顶端不越出视口 / 无滚动条）',
+    !!slashGeo &&
+      slashGeo.w === 420 &&
+      slashGeo.leftOffset >= 10 &&
+      slashGeo.leftOffset <= 12 &&
+      slashGeo.itemH >= 36 &&
+      slashGeo.itemH < 48 &&
+      slashGeo.top >= 0 &&
+      slashGeo.right <= slashGeo.vw &&
+      slashGeo.scrollbarWidth === 'none',
+    JSON.stringify(slashGeo),
   );
   await page.fill(SEL.input, '');
   await page.waitForTimeout(240);
@@ -437,28 +520,37 @@ const ensurePanelOpen = async (page) => {
   await page.waitForTimeout(340);
   await page.locator('.boh-usage-pop-head button').first().click();
   await page.waitForSelector('.ai-settings-drawer', { timeout: 8000 });
-  await page.waitForTimeout(700);
-
-  const settingsShape = await page.evaluate(() => {
-    const body = document.querySelector('.ai-settings-body');
-    const usageSection = document.querySelector('.ai-settings-usage-section');
-    const usageRect = usageSection?.getBoundingClientRect();
-    const bodyRect = body?.getBoundingClientRect();
-    return {
-      titles: [...document.querySelectorAll('.ai-settings-group-title')].map((el) =>
-        el.textContent.trim(),
-      ),
-      collapseHead: !!document.querySelector('.ai-settings-collapse-head'),
-      usageVisible:
-        !!usageRect &&
-        !!bodyRect &&
-        usageRect.top < bodyRect.bottom &&
-        usageRect.bottom > bodyRect.top,
-      scrollTop: body?.scrollTop || 0,
-      legacyQuotaDrawer: document.querySelectorAll('.quota-drawer, .quota-backdrop').length,
-      text: (document.querySelector('.ai-settings-drawer')?.innerText || '').replace(/\s+/g, ' '),
-    };
-  });
+  // ⚠️ 用量卡是**数据到了才变高**的（quota 落定后卡片才填内容），打开时那一次
+  // scrollIntoView 会停在半路 —— 症状是 `usageVisible=false` 而设置面板其实正常。
+  // 固定 waitForTimeout 等不到这个竞态（实测时红时绿），改成「读一次 → 没到位就补滚」。
+  let settingsShape = null;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await page.waitForTimeout(500);
+    settingsShape = await page.evaluate(() => {
+      const body = document.querySelector('.ai-settings-body');
+      const usageSection = document.querySelector('.ai-settings-usage-section');
+      const usageRect = usageSection?.getBoundingClientRect();
+      const bodyRect = body?.getBoundingClientRect();
+      return {
+        titles: [...document.querySelectorAll('.ai-settings-group-title')].map((el) =>
+          el.textContent.trim(),
+        ),
+        collapseHead: !!document.querySelector('.ai-settings-collapse-head'),
+        usageVisible:
+          !!usageRect &&
+          !!bodyRect &&
+          usageRect.top < bodyRect.bottom &&
+          usageRect.bottom > bodyRect.top,
+        scrollTop: body?.scrollTop || 0,
+        legacyQuotaDrawer: document.querySelectorAll('.quota-drawer, .quota-backdrop').length,
+        text: (document.querySelector('.ai-settings-drawer')?.innerText || '').replace(/\s+/g, ' '),
+      };
+    });
+    if (settingsShape.usageVisible && settingsShape.scrollTop > 0) break;
+    await page.evaluate(() => {
+      document.querySelector('.ai-settings-usage-section')?.scrollIntoView({ block: 'start' });
+    });
+  }
   check(
     'A14 圆钮浮层「完整用量」→ 打开设置面板并滚到用量卡',
     settingsShape.usageVisible && settingsShape.scrollTop > 0,
@@ -483,7 +575,7 @@ const ensurePanelOpen = async (page) => {
     settingsShape.text.slice(0, 160),
   );
   check(
-    'A17 退役的额度侧板已消失 + 思考强度不再有第二入口',
+    'A17 退役的额度侧板已消失 + 思考强度控件整体下线',
     settingsShape.legacyQuotaDrawer === 0 && !settingsShape.text.includes('思考速度'),
     `legacy=${settingsShape.legacyQuotaDrawer}`,
   );
@@ -519,7 +611,17 @@ const ensurePanelOpen = async (page) => {
   await page.waitForTimeout(400);
 
   const portrait = await page.evaluate(
-    ([composerSel, inputSel, sendSel, webSel, pillSel, topbarSel, sidebarSel, menuBtnSel]) => {
+    ([
+      composerSel,
+      inputSel,
+      sendSel,
+      webSel,
+      pillSel,
+      toolsSel,
+      topbarSel,
+      sidebarSel,
+      menuBtnSel,
+    ]) => {
       const rect = (s) => {
         const el = document.querySelector(s);
         return el ? el.getBoundingClientRect() : null;
@@ -532,6 +634,7 @@ const ensurePanelOpen = async (page) => {
         hasInput: !!document.querySelector(inputSel),
         hasWeb: !!document.querySelector(webSel),
         hasPill: !!document.querySelector(pillSel),
+        hasTools: !!document.querySelector(toolsSel),
         sendW: Math.round(s?.width ?? 0),
         sendH: Math.round(s?.height ?? 0),
         topbarH: Math.round(rect(topbarSel)?.height ?? 0),
@@ -545,6 +648,7 @@ const ensurePanelOpen = async (page) => {
       SEL.send,
       SEL.webToggle,
       SEL.pill,
+      SEL.toolsPill,
       SEL.topbar,
       SEL.sidebar,
       SEL.topbarMenuBtn,
@@ -556,8 +660,13 @@ const ensurePanelOpen = async (page) => {
     `left=${portrait.composerLeft} right=${portrait.composerRight}`,
   );
   check(
-    'B2 底行三件套齐全（联网 / 模式胶囊 / 发送）',
-    portrait.hasWeb && portrait.hasPill && Math.abs(portrait.sendW - portrait.sendH) <= 1,
+    // 2026-10-11：两颗胶囊 + 联网 + 发送。⚠️ 390px 下模型名必须靠省略号收窄才挤得下，
+    // 这条断言就是防「有人把模型名改成不截断」把底行撑破。
+    'B2 底行齐全（联网 / 模型 / 工具 / 发送）',
+    portrait.hasWeb &&
+      portrait.hasPill &&
+      portrait.hasTools &&
+      Math.abs(portrait.sendW - portrait.sendH) <= 1,
     JSON.stringify(portrait),
   );
   // 2026-10-08：顶栏已删 ⇒ 竖屏不再有 46px 横条，改为「右上角浮动操作在场且含侧栏入口」。
