@@ -523,6 +523,13 @@ try {
         aiWidth: Math.round(r(q('.boh-msg.is-ai'))?.width ?? -1),
         bubbleRight: Math.round(r(q('.boh-msg.is-user .boh-bubble'))?.right ?? -1),
         bubbleBg: getComputedStyle(q('.boh-msg.is-user .boh-bubble')).backgroundColor,
+        // 输入框：液态玻璃 + 浮在消息流之上（2026-10-12 用户口径）
+        composerBackdrop: getComputedStyle(q('.boh-composer')).backdropFilter,
+        composerTop: Math.round(r(q('.boh-composer'))?.top ?? -1),
+        streamBottom: Math.round(r(q('.boh-stream'))?.bottom ?? -1),
+        streamPaddingBottom: Math.round(
+          parseFloat(getComputedStyle(q('.boh-stream')).paddingBottom) || 0,
+        ),
       };
     });
     const contentLeft = g.padLeft + g.padPadLeft;
@@ -547,6 +554,19 @@ try {
       '桌面（有消息）：用户气泡是白底（不是 `--boh-bg-card` 的 #f5f5f5 灰）',
       g.bubbleBg === 'rgb(255, 255, 255)',
       g.bubbleBg,
+    );
+    // ── 输入框：液态玻璃 + 浮在消息流之上（2026-10-12 用户口径）──────────────
+    // 玻璃的价值是「透出底下的内容」⇒ 只判材质不够，必须同时判**真的叠在消息区上**：
+    // 流式布局里两者不重叠时，底下只有页面底色，玻璃等于白上。
+    check(
+      '桌面（有消息）：输入框上了液态玻璃（backdrop-filter 非 none）',
+      typeof g.composerBackdrop === 'string' && g.composerBackdrop !== 'none',
+      g.composerBackdrop,
+    );
+    check(
+      '桌面（有消息）：输入框浮在消息流之上（消息区补了等高底部内衬，且真的重叠）',
+      g.streamPaddingBottom >= 40 && g.composerTop < g.streamBottom,
+      `streamPaddingBottom=${g.streamPaddingBottom} composerTop=${g.composerTop} streamBottom=${g.streamBottom}`,
     );
     await ctx.close();
   }

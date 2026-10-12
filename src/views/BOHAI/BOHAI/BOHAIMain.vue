@@ -701,6 +701,31 @@ watch(
   { flush: 'pre' },
 );
 
+/* ── 输入框高度 → `--boh-composer-h`（2026-10-12）───────────────────────────
+   输入区改成**浮在消息流之上**（玻璃要透出滚动的内容，见 `boh-composer.css`），
+   消息区据此补等高的 `padding-bottom`（见 `boh-stream.css`）。
+   ⚠️ 高度必须**实测**：textarea 自动长高（上限 `min(40vh, 340px)`，由 `autoResize` 写），
+      写死一个像素值 ⇒ 长输入时最后一条消息被压在输入框底下。
+   ⚠️ 变量写在 `.boh-main` 上：它是消息区与输入区的**共同祖先**，两侧都要读得到。 */
+let composerSizeObserver = null;
+
+const syncComposerHeight = () => {
+  const wrap = composerRef.value?.wrapEl || null;
+  const main = wrap?.closest?.('.boh-main') || null;
+  if (!wrap || !main) return;
+  main.style.setProperty('--boh-composer-h', `${Math.round(wrap.offsetHeight)}px`);
+};
+
+const observeComposerHeight = () => {
+  const wrap = composerRef.value?.wrapEl || null;
+  if (!wrap) return;
+  syncComposerHeight();
+  if (typeof ResizeObserver === 'function') {
+    composerSizeObserver = new ResizeObserver(syncComposerHeight);
+    composerSizeObserver.observe(wrap);
+  }
+};
+
 onUnmounted(() => cancelAnimationFrame(composerFlipRaf));
 
 const startNewChat = () => {
@@ -2122,6 +2147,8 @@ onMounted(() => {
   onScrollToBottom(scrollToBottom);
   settleInitialScrollPosition();
   window.addEventListener('resize', syncStandaloneViewport);
+  // 输入框高度 → `--boh-composer-h`（等 nextTick：ref 在挂载后才可用）
+  nextTick(observeComposerHeight);
   // ⌘K **二次触发**：AI 浮层已经开着时，`App.vue` 的 handleGlobalAiKeydown 派发
   // `boh-ai-focus-composer`（见 `src/App.vue`）。2026-10-08 登记时全仓**只有派发、没有监听**
   // ⇒「岛已开着时按 ⌘K 聚焦输入框」这条链是断的（grep 该事件名 → 1 处）。这里接上。
@@ -2219,6 +2246,10 @@ onUnmounted(() => {
   if (visibilityObserver) {
     visibilityObserver.cleanup();
     visibilityObserver = null;
+  }
+  if (composerSizeObserver) {
+    composerSizeObserver.disconnect();
+    composerSizeObserver = null;
   }
   if (uiNoticeTimer) {
     clearTimeout(uiNoticeTimer);

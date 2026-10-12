@@ -1,11 +1,12 @@
 /**
  * bohai-glass-surfaces.test.js — 锁「哪些面上液态玻璃」（2026-10-10 A 档口径）
  *
- * 口径（用户）：液态玻璃只上**浮在内容之上、面积小、出现时间短**的面；
+ * 口径（用户）：液态玻璃上**浮在内容之上**的面；
  *   · 上玻璃：跳转导航 hover 卡、模型/工具两个浮层、斜杠菜单、用量浮层、
- *     模型面板里的 hover 详情卡、灵动岛外壳（本来就已是）；
- *   · **不上**：常驻面板（侧栏 / 工作台）、阅读主体（气泡）、**输入框**
- *     （用户明确「我想要输入框是纯白」，2026-10-11 再确认「要白色底」）。
+ *     模型面板里的 hover 详情卡、灵动岛外壳（本来就已是）、**输入框**
+ *     （2026-10-12 口径变更：「输入框应该是液态玻璃形式，带点透明，这样滚动的时候会透出
+ *      下面的内容」—— 为此输入区**同时**改成浮在消息流之上，否则底下没有可透的内容）；
+ *   · **不上**：常驻面板（侧栏 / 工作台）、阅读主体（用户气泡）—— 底下没有可透的内容。
  *
  * ⚠️ 材质必须引用全局单源 `--liquid-filter-sm`（`scripts/check-liquid-glass.mjs` 禁止在
  *    `liquid-glass.css` 之外重写 blur 材质；**注释里也别复述那条被禁的写法** —— 门禁读原文）。
@@ -25,10 +26,10 @@ const TOKENS = 'src/views/BOHAI/BOHAI/styles/tokens.css';
 const COMPOSER_VUE = 'src/views/BOHAI/BOHAI/components/BohComposer.vue';
 
 describe('BOHAI 液态玻璃：哪些面上了玻璃', () => {
-  it('五个浮层**共用一组材质**（模型/工具面板 / 斜杠菜单 / 用量浮层 / hover 详情卡）', () => {
+  it('六个面**共用一组材质**（模型/工具面板 / 斜杠菜单 / 用量浮层 / hover 详情卡 / 输入框）', () => {
     const css = squeezeSource(read(COMPOSER));
     expect(css).toContain(
-      '.boh-mode-menu, .boh-tools-menu, .boh-slash, .boh-usage-pop, .boh-mm-detail {',
+      '.boh-mode-menu, .boh-tools-menu, .boh-slash, .boh-usage-pop, .boh-mm-detail, .boh-composer {',
     );
     expect(css).toContain('backdrop-filter: var(--liquid-filter-sm)');
     expect(css).not.toMatch(/backdrop-filter:\s*blur\((?:1[4-9]|[2-9]\d)px\)/);
@@ -46,18 +47,34 @@ describe('BOHAI 液态玻璃：哪些面上了玻璃', () => {
     );
   });
 
-  it('输入框明确不上玻璃，保留纯白/实色表面（底色走单源令牌，不在组件里写死 #fff）', () => {
+  it('输入框**上**玻璃（2026-10-12 口径反转），基础规则仍留实色兜底', () => {
     const css = squeezeSource(read(COMPOSER));
+    // ① 进了同一组材质（`@supports` 块内）—— 这条 2026-10-11 时是反过来的
+    expect(css).toContain('.boh-mm-detail, .boh-composer {');
+    // ② `@supports` 之外的基础规则仍是实色 ⇒ 不支持 backdrop-filter 时自动落回
     const composerRule = css.match(/\.boh-composer \{[^}]*\}/);
-    expect(composerRule?.[0] || '').not.toContain('backdrop-filter');
     expect(composerRule?.[0] || '').toContain('background: var(--boh-composer-bg)');
-    expect(css).not.toMatch(/\.boh-composer,\s*\.boh-(mode-menu|tools-menu|slash|usage-pop)/);
-    // 令牌单源：亮色 = 页面底（纯白），暗色 = 卡片色（别把暗色也刷白）
+    expect(composerRule?.[0] || '').not.toContain('backdrop-filter');
+    // ③ 令牌单源：亮色 = 页面底（纯白），暗色 = 卡片色（别把暗色也刷白）
     const tokens = read(TOKENS);
     expect(tokens).toMatch(/--boh-composer-bg:\s*var\(--boh-bg-page\)/);
     expect(tokens).toMatch(
       /\[data-boh-theme='dark'\][\s\S]*--boh-composer-bg:\s*var\(--boh-bg-card\)/,
     );
+  });
+
+  it('输入框**浮在消息流之上** —— 否则玻璃底下没有可透的内容', () => {
+    const composer = squeezeSource(read(COMPOSER));
+    const stream = squeezeSource(read(STREAM));
+    // 输入区负掉自身高度拉回消息区之上
+    expect(composer).toContain('.boh-main:not(.is-empty) .boh-composer-wrap');
+    expect(composer).toContain('margin-top: calc(-1 * var(--boh-composer-h');
+    // 消息区补等高的底部内衬（否则最后一条消息被压在输入框底下）
+    expect(stream).toContain('.boh-main:not(.is-empty) .boh-stream');
+    expect(stream).toContain('padding-bottom: var(--boh-composer-h');
+    // 高度必须实测：壳把 `--boh-composer-h` 写在共同祖先 `.boh-main` 上
+    const shell = read('src/views/BOHAI/BOHAI/BOHAIMain.vue');
+    expect(shell).toContain("setProperty('--boh-composer-h'");
   });
 
   it('常驻面板与阅读主体不上玻璃（底下没有可透的内容）', () => {

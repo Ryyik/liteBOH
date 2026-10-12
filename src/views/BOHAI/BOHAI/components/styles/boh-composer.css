@@ -82,6 +82,17 @@
   margin-bottom: auto;
 }
 
+/* 输入框**浮在消息流之上**（2026-10-12 用户口径「液态玻璃，滚动时透出下面的内容」）——
+   玻璃的全部价值就是「透出底下的内容」，而输入区在流式布局里与消息区**不重叠** ⇒
+   底下只有页面底色，玻璃等于白上。
+   做法：`margin-top` 负掉自身高度，把输入区**拉回**消息区之上；消息区再补等高的
+   `padding-bottom`（见 `boh-stream.css` 同名注释），否则最后一条消息会被压在输入框底下。
+   ⚠️ 高度由壳实测后写 `--boh-composer-h`（textarea 会自动长高，写死必错）。
+   ⚠️ 只作用于**非空态**：空态靠 `margin-bottom: auto` 做整组垂直居中，负 margin 会拆掉那套布局。 */
+.boh-main:not(.is-empty) .boh-composer-wrap {
+  margin-top: calc(-1 * var(--boh-composer-h, 0px));
+}
+
 /* ── 底行 ───────────────────────────────────────────────────── */
 .boh-cp-toolbar {
   display: flex;
@@ -868,24 +879,26 @@
   }
 }
 
-/* ── 液态玻璃浮层（2026-10-10 用户口径「A 档」）────────────────────────
-   **一组材质、五个消费者**：模型 / 工具两个浮层、斜杠菜单、用量浮层，
-   以及模型面板里那张 hover 详情卡。
-   它们都是「浮在消息流上方、出现时间短、面积小」的浮层 —— 玻璃的价值（透出底下的内容）
-   正好落在它们身上；而常驻面板 / 阅读主体（侧栏、工作台、气泡、输入框）**刻意不做**。
+/* ── 液态玻璃（2026-10-10 用户口径「A 档」；2026-10-12 扩到输入框）────────────
+   **一组材质、六个消费者**：模型 / 工具两个浮层、斜杠菜单、用量浮层、模型面板里那张
+   hover 详情卡，以及**输入框**（2026-10-12 用户口径「输入框应该是液态玻璃形式，
+   带点透明，这样滚动的时候会透出下面的内容」—— 为此输入区改成**浮在消息流之上**，
+   见上面 `.boh-main:not(.is-empty) .boh-composer-wrap` 那条）。
+   常驻面板 / 阅读主体（侧栏、工作台、用户气泡）仍然**刻意不做**：它们底下没有可透的内容。
    材质引用**全局单源** `--liquid-filter-sm`：`scripts/check-liquid-glass.mjs` 禁止在
    `liquid-glass.css` 之外重写 blur 材质（注释里也别复述那条被禁的写法）。
    颜色走 `--boh-glass-*`：BOHAI 主题（`data-boh-theme`）不跟**站点主题**联动。
    基础规则仍是实心 `--boh-bg-page` ⇒ 放进 `@supports` 后，不支持 backdrop-filter 时
-   **自动落回实色**，无需第二份 `not` 查询。
-   ⚠️ 五者原本都是 `border: 1px solid var(--boh-border)` ⇒ 这里只换 `border-color`，
+   **自动落回实色**，无需第二份 `not` 查询（输入框同理：基础是 `--boh-composer-bg`）。
+   ⚠️ 六者原本都是 `border: 1px solid var(--boh-border)` ⇒ 这里只换 `border-color`，
       几何不变（玻璃描边是白色高光，直接换色即可，不用像 `.boh-jump` 那样补透明占位）。 */
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .boh-mode-menu,
   .boh-tools-menu,
   .boh-slash,
   .boh-usage-pop,
-  .boh-mm-detail {
+  .boh-mm-detail,
+  .boh-composer {
     background: var(--boh-glass-bg);
     border-color: var(--boh-glass-border);
     box-shadow: var(--boh-glass-highlight), var(--liquid-shadow-sm);
