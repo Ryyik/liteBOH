@@ -2122,6 +2122,12 @@ onMounted(() => {
   onScrollToBottom(scrollToBottom);
   settleInitialScrollPosition();
   window.addEventListener('resize', syncStandaloneViewport);
+  // ⌘K **二次触发**：AI 浮层已经开着时，`App.vue` 的 handleGlobalAiKeydown 派发
+  // `boh-ai-focus-composer`（见 `src/App.vue`）。2026-10-08 登记时全仓**只有派发、没有监听**
+  // ⇒「岛已开着时按 ⌘K 聚焦输入框」这条链是断的（grep 该事件名 → 1 处）。这里接上。
+  // 岛与独立页共用本组件 ⇒ 一处接上，两形态都生效；卸载时必须摘掉，否则 KeepAlive
+  // 后台存活的实例会留着监听（同一个事件被多个实例响应）。
+  window.addEventListener('boh-ai-focus-composer', focusComposer);
   fetchTodayQuota();
 
   // 支持其他页面带种子提问跳转过来（例如 BOH Health 的「用 BOH AI 分析」）：
@@ -2205,6 +2211,7 @@ onMounted(() => {
 onUnmounted(() => {
   themeManager.removeListener(handleThemeChange);
   window.removeEventListener('resize', syncStandaloneViewport);
+  window.removeEventListener('boh-ai-focus-composer', focusComposer);
   if (quotaRefreshTimer) {
     clearTimeout(quotaRefreshTimer);
     quotaRefreshTimer = null;
