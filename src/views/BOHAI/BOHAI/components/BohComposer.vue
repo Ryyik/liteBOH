@@ -228,6 +228,21 @@
                     ><small>切换心理专家，由 AI 逐个提问陪你梳理</small></span
                   >
                 </button>
+                <!-- 引用当前页面（2026-10-12 接上原先零调用点的 setAttachedContext）：
+                     只有**灵动岛形态**有「另一页」可引 —— 独立页时当前页面就是 AI 自己。
+                     这是一次性动作而非开关，所以走新 emit + 顺手收起菜单。 -->
+                <button
+                  v-if="overlayMode"
+                  type="button"
+                  class="boh-mm-tool"
+                  @click="requestAttachPage"
+                >
+                  <FileText :size="16" aria-hidden="true" />
+                  <span
+                    ><strong>引用当前页面</strong
+                    ><small>把这一页的标题、地址和你选中的内容带给 AI</small></span
+                  >
+                </button>
               </div>
             </div>
           </Transition>
@@ -431,6 +446,8 @@ const emit = defineEmits([
   'run-slash-command',
   'update:slashActiveIndex',
   'clear-context',
+  /* 2026-10-12：「引用当前页面」是一次性动作（不是开关）⇒ 独立于 clear-context。 */
+  'attach-page',
   'compress',
   'open-usage',
   /* 2026-10-10：模型列表底部的「配置自定义模型」→ 打开设置页（BYOK 在那边）。 */
@@ -497,6 +514,16 @@ const closePanel = () => {
 const toggleMenu = (name) => {
   usagePopOpen.value = false;
   activeMenu.value = activeMenu.value === name ? null : name;
+};
+
+/** 「引用当前页面」（2026-10-12）：采集 + 收起工具菜单。
+    ⚠️ 采集真源在壳（`captureCurrentPageContext`）：它要读 `document.title` /
+    `location.href` / 当前选区，那是「页面级」信息，输入框不该知道自己飘在哪个页面上。
+    ⚠️ 顺手收菜单：这一口是一次性动作，不是开关，没有「再点一次关掉」的语义。 */
+const requestAttachPage = () => {
+  usagePopOpen.value = false;
+  activeMenu.value = null;
+  emit('attach-page');
 };
 
 /* 选完模式 → **收起浮层**（2026-10-01 用户拍板）。工具开关与「心理分析」不收 ——

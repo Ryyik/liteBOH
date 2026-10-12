@@ -164,6 +164,7 @@
           @stop="stopGeneration"
           @toggle-search="toggleSearch"
           @toggle-tool="toggleTool"
+          @attach-page="handleAttachPage"
           @start-psych="startPsychAnalysis"
           @select-mode="selectMode"
           @run-slash-command="executeSlashCommand"
@@ -244,6 +245,7 @@ import BohaiSettingsPanel from './components/BohaiSettingsPanel.vue';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import { clearMarkdownCache } from './components/boh-markdown.js';
 import { sourcePrefix } from './components/boh-sources.js';
+import { captureCurrentPageContext } from '../utils/page-context.js';
 /* 斜杠命令的唯一真源（2026-10-08）：定义 + 解析 + 菜单构造全在这个纯函数模块里。
    ⚠️ 不要再在壳里写 `startsWith('/')` —— 规则散两处正是本次「点发送键把 /cloud
    当普通文本发给模型」的根因。 */
@@ -792,6 +794,21 @@ const requestDeleteSession = (index) => {
 };
 
 const focusComposer = () => nextTick(() => composerRef.value?.focus());
+
+/* 「引用当前页面」（2026-10-12 接上原先零调用点的 `setAttachedContext`）——
+   入口只在**灵动岛形态**出现（见 BohComposer 的工具菜单），因为独立页时「当前页面」
+   就是 AI 自己。采到的对象直接喂 `buildPageContextBlock`（`useChatEngine` 里已经在读了），
+   所以这里只管采集，不做格式转换。
+   ⚠️ 采集不到就明说，别静默失败：用户点了没反应比报错更难排查。 */
+const handleAttachPage = () => {
+  const ctx = captureCurrentPageContext();
+  if (!ctx) {
+    notifyUnavailable('这一页没有可引用的内容');
+    return;
+  }
+  setAttachedContext(ctx);
+  notifyUnavailable(`已引用：${ctx.title || '当前页面'}`);
+};
 
 const appendToComposer = (text) => {
   const content = String(text || '').trim();
