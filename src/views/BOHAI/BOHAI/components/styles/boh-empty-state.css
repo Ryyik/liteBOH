@@ -26,6 +26,26 @@
   text-align: center;
 }
 
+/* ── 一次性进场（2026-10-12）─────────────────────────────────────────
+   此前空态整块**瞬间出现**（本文件原先 0 处 transition / animation）。空态属
+   「偶尔看到、情绪高」的那一档，是少数值得给一点进场的地方 —— 但只做**一次**淡入 +
+   微缩放，不循环、不加位移（`.boh-empty` 的定位是 flex-end 贴输入框，位移会与壳的
+   FLIP 打架）。
+   ⚠️ **只定义 enter**：leave 刻意不做 —— 发第一条消息时虚影字与壳的 FLIP 同时发生，
+      再叠一段退场动画会读成「卡了一下」。不写 `-leave-*` 类 ⇒ 退场仍是瞬隐（= 现状）。
+   ⚠️ 时长走 `--boh-dur-med` ⇒ `prefers-reduced-motion` / `.reduce-motion` 下令牌归零，
+      自动退化成瞬显。 */
+.boh-empty-enter-active {
+  transition:
+    opacity var(--boh-dur-med) var(--boh-ease),
+    transform var(--boh-dur-med) var(--boh-ease);
+}
+
+.boh-empty-enter-from {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
 /* ── 虚影字标 ───────────────────────────────────────────────────────
    三个细节缺一个就「不像虚影」：
      ① 极浅的颜色（`--boh-ghost-word`，随 BOHAI 主题切暗色；**不是** `--boh-text-3`，

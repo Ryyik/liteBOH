@@ -146,6 +146,10 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
+  /* 额度刷新时环走一段过渡而不是瞬间跳（2026-10-12）。`--boh-ring-p` 已在
+     `styles/tokens.css` 用 `@property` 注册成 `<number>` —— **未注册的自定义属性
+     不可插值**，不注册这条 transition 是空转。reduce 下 `--boh-dur-med` 归零即瞬变。 */
+  transition: --boh-ring-p var(--boh-dur-med) var(--boh-ease);
   background: conic-gradient(
     var(--boh-accent) 0 calc(var(--boh-ring-p, 0) * 1%),
     var(--boh-border) 0
@@ -393,6 +397,28 @@
 .boh-tools-menu {
   left: 0;
   width: 252px;
+}
+
+/* ── 浮层进场（2026-10-12）────────────────────────────────────────────
+   模式 / 工具 / 用量三个面板此前是**瞬间弹出**（`v-show` 切的是 `display`，零 transition）。
+   按本仓既有的 `<Transition>` 约定（`-enter-active` / `-enter-from`，与 App.vue 的 toast、
+   PhotoAlbums 的 pa-modal 同款）补齐 —— 不引入第二种机制。
+   ⚠️ 只用 `opacity` + 4px 位移，**不用 `scale`**：`probe-bohai-composer` 打开菜单后最快
+      200ms 就量几何，而 `transform: scale` 会让动画窗口内的 `getBoundingClientRect`
+      返回**缩放后**的盒子 ⇒ 假红。150ms 进场在 200ms 采样点已经落定。
+   ⚠️ 时长走 `--boh-dur-fast` ⇒ `prefers-reduced-motion` / `.reduce-motion` 下令牌被
+      `layout.css` 归零，自动退化成瞬显 —— **不要**另写一份 reduce 查询（那是第二份真源）。 */
+.boh-pop-enter-active,
+.boh-pop-leave-active {
+  transition:
+    opacity var(--boh-dur-fast) var(--boh-ease),
+    transform var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-pop-enter-from,
+.boh-pop-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 
 /* 视图内容的封顶 + 内层滚动（原 `.boh-mode-menu` 的 max-height/overflow-y 搬到这里）。

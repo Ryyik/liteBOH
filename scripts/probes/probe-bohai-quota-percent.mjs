@@ -77,6 +77,12 @@ const routeVault = async (page, quotaData) => {
 const openAiChat = async (page) => {
   await page.goto(`${BASE}/#/ai-chat`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.boh-shell', { timeout: 30000 });
+  // ⚠️ 2026-10-12 修：2026-10-11 起对话管理**默认收起**（`isSidebarOpen` 初值 `false`）
+  // ⇒ `.boh-account-btn` 落在 `width: 0; overflow: hidden` 的容器里，节点在、但 hover
+  // 打不到（实测 hover 点被左栏「更多」按钮接管 ⇒ TimeoutError「intercepts pointer events」）。
+  // 本探针此前**从不展开侧栏**，所以自那天起恒红 —— 先点开再量。
+  await page.locator('[title="打开侧栏"]').first().click();
+  await page.waitForTimeout(400); // 等 280px 的宽度收拢过渡走完
   await page.waitForSelector('.boh-account-btn', { timeout: 15000 });
   await page.waitForTimeout(1200); // 等 onMounted 的 fetchTodayQuota 落地
 };

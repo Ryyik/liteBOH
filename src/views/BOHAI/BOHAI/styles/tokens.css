@@ -149,6 +149,18 @@
   --boh-content-mr: auto;
 }
 
+/* `--boh-ring-p` 注册为**可插值的数值**（2026-10-12）：用量环是 `conic-gradient` 读这个
+   自定义属性画的，而未注册的自定义属性**不可插值** ⇒ 额度刷新时环会瞬间跳。
+   注册之后 `.boh-usage i` 上的 `transition: --boh-ring-p` 才生效（见 `boh-composer.css`）。
+   ⚠️ `@property` 是**全局注册**、不受组件作用域影响，所以它必须待在**非 scoped** 的令牌文件里
+      （本文件经 `<style src>` 非 scoped 接入）。
+   ⚠️ 不支持 `@property` 的浏览器直接忽略它 ⇒ 退回「瞬间跳」（= 改动前的行为，**零回归**）。 */
+@property --boh-ring-p {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+
 /* 暗色：**只切语义别名**，且只用 var()（见文件头纪律 1） */
 :root[data-boh-theme='dark'] {
   --boh-bg-page: var(--boh-gray-900);

@@ -6,15 +6,17 @@
     @scroll="emit('scroll')"
   >
     <div class="boh-stream-pad">
-      <BohEmptyState
-        v-if="isEmpty"
-        :standalone="standalone"
-        :overlay-mode="overlayMode"
-        :surface="surface"
-        :standalone-suggestions="standaloneSuggestions"
-        :quick-suggestions="quickSuggestions"
-        @pick="(text) => emit('pick-suggestion', text)"
-      />
+      <Transition name="boh-empty">
+        <BohEmptyState
+          v-if="isEmpty"
+          :standalone="standalone"
+          :overlay-mode="overlayMode"
+          :surface="surface"
+          :standalone-suggestions="standaloneSuggestions"
+          :quick-suggestions="quickSuggestions"
+          @pick="(text) => emit('pick-suggestion', text)"
+        />
+      </Transition>
 
       <button
         v-if="hiddenCount > 0"

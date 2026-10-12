@@ -263,6 +263,30 @@
   background: var(--boh-bg-active);
 }
 
+/* ── 会话列表项的进出与让位（2026-10-12）───────────────────────────────
+   新建 / 删除对话时，列表此前是**瞬间跳变**：新项凭空出现、下面的项直接弹上来。
+   用 `<TransitionGroup name="boh-sb">`（**不写 `tag`** ⇒ Vue 3 渲染成 Fragment，
+   零额外 DOM 节点，不动任何既有选择器）补三件事：
+     · enter：新项淡入 + 6px 上浮；
+     · move：被挤动的项走 FLIP 位移（这才是「跳变」的主因）；
+     · leave：**刻意不做** —— 要动就得 `position: absolute`，而 `.boh-sb-groups` 是
+       `overflow: auto` 的滚动容器，脱流会让滚动位置跳一下。删除时瞬隐，其余项 FLIP 让位。
+   ⚠️ 时长走 `--boh-dur-*` ⇒ reduce 下自动退化成瞬显（不要另写 reduce 查询）。 */
+.boh-sb-enter-active {
+  transition:
+    opacity var(--boh-dur-fast) var(--boh-ease),
+    transform var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-sb-enter-from {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.boh-sb-move {
+  transition: transform var(--boh-dur-med) var(--boh-ease);
+}
+
 .boh-sb-pin {
   flex: none;
   color: var(--boh-text-2);

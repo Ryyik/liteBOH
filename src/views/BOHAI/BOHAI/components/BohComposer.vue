@@ -84,86 +84,88 @@
             <ChevronDown :size="13" aria-hidden="true" />
           </button>
 
-          <div
-            v-show="activeMenu === 'model'"
-            class="boh-mode-menu"
-            role="dialog"
-            aria-label="选择模型"
-          >
-            <div class="boh-mm-body">
-              <div v-if="modesLoading" class="boh-mm-loading" aria-live="polite">
-                <span
-                  v-for="i in 3"
-                  :key="`sk-${i}`"
-                  class="boh-mm-skeleton"
-                  :class="{ 'is-short': i === 3 }"
-                ></span>
-                <p>模式加载中…</p>
-              </div>
-              <div v-else-if="modes.length === 0" class="boh-mm-empty">暂无可用模式</div>
-              <div v-else class="boh-mm-rows">
-                <div
-                  v-for="mode in modes"
-                  :key="mode.id"
-                  class="boh-mm-row"
-                  @mouseenter="onModeRowEnter($event, mode)"
-                  @mouseleave="scheduleCloseModeDetail()"
-                >
-                  <button
-                    type="button"
-                    class="boh-mm-item"
-                    :class="{ 'is-on': currentModeId === mode.id }"
-                    :data-mode-id="mode.id"
-                    :aria-current="currentModeId === mode.id"
-                    :title="mode.tagline || mode.description || ''"
-                    @click="pickMode(mode.id)"
-                  >
-                    <span class="boh-mm-name">{{ mode.name }}</span>
-                    <span
-                      class="boh-mm-rate"
-                      :class="{ 'is-free': isFreeMode(mode) || mode.byok }"
-                      >{{ formatModeRateLabel(mode) }}</span
-                    >
-                    <Check :size="15" aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-              <button type="button" class="boh-mm-custom" @click="emit('open-settings')">
-                <Pencil :size="15" aria-hidden="true" />
-                <span>配置自定义模型</span>
-              </button>
-            </div>
-            <!-- hover 详情卡：只放描述 / 消耗速度 / 使用此模式。 -->
+          <Transition name="boh-pop">
             <div
-              v-if="hoverMode"
-              ref="hoverDetailEl"
-              class="boh-mm-detail"
-              :class="{ 'is-flipped': hoverFlipped }"
-              role="group"
-              :aria-label="`模式详情：${hoverMode.name}`"
-              :style="{ top: `${hoverTop}px` }"
-              @mouseenter="cancelCloseModeDetail()"
-              @mouseleave="scheduleCloseModeDetail()"
+              v-show="activeMenu === 'model'"
+              class="boh-mode-menu"
+              role="dialog"
+              aria-label="选择模型"
             >
-              <div class="boh-mm-detail-name">{{ hoverMode.name }}</div>
-              <p v-if="hoverMode.description || hoverMode.tagline" class="boh-mm-detail-desc">
-                {{ hoverMode.description || hoverMode.tagline }}
-              </p>
-              <div class="boh-mm-detail-sep" aria-hidden="true"></div>
-              <div class="boh-mm-detail-row">
-                <span>消耗速度</span>
-                <b>{{ formatModeRateLabel(hoverMode) || '—' }}</b>
+              <div class="boh-mm-body">
+                <div v-if="modesLoading" class="boh-mm-loading" aria-live="polite">
+                  <span
+                    v-for="i in 3"
+                    :key="`sk-${i}`"
+                    class="boh-mm-skeleton"
+                    :class="{ 'is-short': i === 3 }"
+                  ></span>
+                  <p>模式加载中…</p>
+                </div>
+                <div v-else-if="modes.length === 0" class="boh-mm-empty">暂无可用模式</div>
+                <div v-else class="boh-mm-rows">
+                  <div
+                    v-for="mode in modes"
+                    :key="mode.id"
+                    class="boh-mm-row"
+                    @mouseenter="onModeRowEnter($event, mode)"
+                    @mouseleave="scheduleCloseModeDetail()"
+                  >
+                    <button
+                      type="button"
+                      class="boh-mm-item"
+                      :class="{ 'is-on': currentModeId === mode.id }"
+                      :data-mode-id="mode.id"
+                      :aria-current="currentModeId === mode.id"
+                      :title="mode.tagline || mode.description || ''"
+                      @click="pickMode(mode.id)"
+                    >
+                      <span class="boh-mm-name">{{ mode.name }}</span>
+                      <span
+                        class="boh-mm-rate"
+                        :class="{ 'is-free': isFreeMode(mode) || mode.byok }"
+                        >{{ formatModeRateLabel(mode) }}</span
+                      >
+                      <Check :size="15" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+                <button type="button" class="boh-mm-custom" @click="emit('open-settings')">
+                  <Pencil :size="15" aria-hidden="true" />
+                  <span>配置自定义模型</span>
+                </button>
               </div>
-              <button
-                type="button"
-                class="boh-mm-detail-use"
-                :disabled="currentModeId === hoverMode.id"
-                @click="pickMode(hoverMode.id)"
+              <!-- hover 详情卡：只放描述 / 消耗速度 / 使用此模式。 -->
+              <div
+                v-if="hoverMode"
+                ref="hoverDetailEl"
+                class="boh-mm-detail"
+                :class="{ 'is-flipped': hoverFlipped }"
+                role="group"
+                :aria-label="`模式详情：${hoverMode.name}`"
+                :style="{ top: `${hoverTop}px` }"
+                @mouseenter="cancelCloseModeDetail()"
+                @mouseleave="scheduleCloseModeDetail()"
               >
-                {{ currentModeId === hoverMode.id ? '当前模式' : '使用此模式' }}
-              </button>
+                <div class="boh-mm-detail-name">{{ hoverMode.name }}</div>
+                <p v-if="hoverMode.description || hoverMode.tagline" class="boh-mm-detail-desc">
+                  {{ hoverMode.description || hoverMode.tagline }}
+                </p>
+                <div class="boh-mm-detail-sep" aria-hidden="true"></div>
+                <div class="boh-mm-detail-row">
+                  <span>消耗速度</span>
+                  <b>{{ formatModeRateLabel(hoverMode) || '—' }}</b>
+                </div>
+                <button
+                  type="button"
+                  class="boh-mm-detail-use"
+                  :disabled="currentModeId === hoverMode.id"
+                  @click="pickMode(hoverMode.id)"
+                >
+                  {{ currentModeId === hoverMode.id ? '当前模式' : '使用此模式' }}
+                </button>
+              </div>
             </div>
-          </div>
+          </Transition>
         </div>
 
         <!-- 工具（原「高级」四工具的落点，2026-10-11 从模式面板里独立出来） -->
@@ -181,52 +183,54 @@
             <SlidersHorizontal :size="14" aria-hidden="true" />
             <ChevronDown :size="12" class="boh-tools-caret" aria-hidden="true" />
           </button>
-          <div
-            v-show="activeMenu === 'tools'"
-            class="boh-tools-menu"
-            role="dialog"
-            aria-label="工具"
-          >
-            <div class="boh-mm-adv">
-              <button
-                type="button"
-                class="boh-mm-tool"
-                :class="{ 'is-on': tools.forum }"
-                :aria-pressed="tools.forum"
-                @click="emit('toggle-tool', 'forum')"
-              >
-                <Search :size="16" aria-hidden="true" />
-                <span><strong>社区搜索</strong><small>查找 BOH 社区内容</small></span>
-              </button>
-              <button
-                type="button"
-                class="boh-mm-tool"
-                :class="{ 'is-on': tools.cloud }"
-                :aria-pressed="tools.cloud"
-                @click="emit('toggle-tool', 'cloud')"
-              >
-                <Cloud :size="16" aria-hidden="true" />
-                <span><strong>个人 Cloud+</strong><small>参考你的 Cloud+ 私有内容</small></span>
-              </button>
-              <button
-                type="button"
-                class="boh-mm-tool"
-                :class="{ 'is-on': tools.health }"
-                :aria-pressed="tools.health"
-                @click="emit('toggle-tool', 'health')"
-              >
-                <HeartPulse :size="16" aria-hidden="true" />
-                <span><strong>健康分析</strong><small>参考你本机的 BOH Health 数据</small></span>
-              </button>
-              <button type="button" class="boh-mm-tool" @click="emit('start-psych')">
-                <Brain :size="16" aria-hidden="true" />
-                <span
-                  ><strong>心理分析</strong
-                  ><small>切换心理专家，由 AI 逐个提问陪你梳理</small></span
+          <Transition name="boh-pop">
+            <div
+              v-show="activeMenu === 'tools'"
+              class="boh-tools-menu"
+              role="dialog"
+              aria-label="工具"
+            >
+              <div class="boh-mm-adv">
+                <button
+                  type="button"
+                  class="boh-mm-tool"
+                  :class="{ 'is-on': tools.forum }"
+                  :aria-pressed="tools.forum"
+                  @click="emit('toggle-tool', 'forum')"
                 >
-              </button>
+                  <Search :size="16" aria-hidden="true" />
+                  <span><strong>社区搜索</strong><small>查找 BOH 社区内容</small></span>
+                </button>
+                <button
+                  type="button"
+                  class="boh-mm-tool"
+                  :class="{ 'is-on': tools.cloud }"
+                  :aria-pressed="tools.cloud"
+                  @click="emit('toggle-tool', 'cloud')"
+                >
+                  <Cloud :size="16" aria-hidden="true" />
+                  <span><strong>个人 Cloud+</strong><small>参考你的 Cloud+ 私有内容</small></span>
+                </button>
+                <button
+                  type="button"
+                  class="boh-mm-tool"
+                  :class="{ 'is-on': tools.health }"
+                  :aria-pressed="tools.health"
+                  @click="emit('toggle-tool', 'health')"
+                >
+                  <HeartPulse :size="16" aria-hidden="true" />
+                  <span><strong>健康分析</strong><small>参考你本机的 BOH Health 数据</small></span>
+                </button>
+                <button type="button" class="boh-mm-tool" @click="emit('start-psych')">
+                  <Brain :size="16" aria-hidden="true" />
+                  <span
+                    ><strong>心理分析</strong
+                    ><small>切换心理专家，由 AI 逐个提问陪你梳理</small></span
+                  >
+                </button>
+              </div>
             </div>
-          </div>
+          </Transition>
         </div>
 
         <span class="boh-cp-spacer"></span>
@@ -250,57 +254,59 @@
             <b>{{ usage.percentText }}</b>
           </button>
 
-          <div v-show="usagePopOpen" class="boh-usage-pop" role="dialog" aria-label="使用情况">
-            <div class="boh-usage-pop-head">
-              <span>使用情况</span>
-              <button type="button" @click.stop="emit('open-usage')">完整用量 ›</button>
-            </div>
+          <Transition name="boh-pop">
+            <div v-show="usagePopOpen" class="boh-usage-pop" role="dialog" aria-label="使用情况">
+              <div class="boh-usage-pop-head">
+                <span>使用情况</span>
+                <button type="button" @click.stop="emit('open-usage')">完整用量 ›</button>
+              </div>
 
-            <div class="boh-usage-row">
-              <span class="boh-usage-dot" aria-hidden="true"></span>
-              <span>对话上下文</span>
-              <b>{{ usage.percentText }}</b>
-            </div>
-            <div class="boh-usage-meter"><i :style="{ width: usage.percentText }"></i></div>
-            <p class="boh-usage-foot">
-              本轮约 {{ usage.windowUsed || 0 }} / {{ usage.windowMax || 0 }} 字符 · 已含
-              {{ usage.includedMessageCount || 0 }} 轮历史{{
-                usage.hasSummary ? ' · 更早内容已存入摘要' : ''
-              }}
-            </p>
-
-            <template v-if="usage.quotaVisible">
               <div class="boh-usage-row">
-                <span class="boh-usage-dot is-quota" aria-hidden="true"></span>
-                <span>今日剩余</span>
-                <b>{{ usage.quotaRemainingText }}</b>
+                <span class="boh-usage-dot" aria-hidden="true"></span>
+                <span>对话上下文</span>
+                <b>{{ usage.percentText }}</b>
               </div>
-              <!-- 宽度用归一后的 meterText（已用 ÷ 总额，天然 0–100）。
+              <div class="boh-usage-meter"><i :style="{ width: usage.percentText }"></i></div>
+              <p class="boh-usage-foot">
+                本轮约 {{ usage.windowUsed || 0 }} / {{ usage.windowMax || 0 }} 字符 · 已含
+                {{ usage.includedMessageCount || 0 }} 轮历史{{
+                  usage.hasSummary ? ' · 更早内容已存入摘要' : ''
+                }}
+              </p>
+
+              <template v-if="usage.quotaVisible">
+                <div class="boh-usage-row">
+                  <span class="boh-usage-dot is-quota" aria-hidden="true"></span>
+                  <span>今日剩余</span>
+                  <b>{{ usage.quotaRemainingText }}</b>
+                </div>
+                <!-- 宽度用归一后的 meterText（已用 ÷ 总额，天然 0–100）。
                    主指标是剩余（Plus 尺子，Max 可到 625%）—— 那个数当 width 会撑破容器。 -->
-              <div class="boh-usage-meter is-quota">
-                <i :style="{ width: usage.quotaMeterText }"></i>
+                <div class="boh-usage-meter is-quota">
+                  <i :style="{ width: usage.quotaMeterText }"></i>
+                </div>
+                <p class="boh-usage-foot">{{ usage.quotaDetailText }}</p>
+              </template>
+
+              <div class="boh-usage-pop-actions">
+                <button
+                  v-if="usage.canCompress"
+                  type="button"
+                  class="is-primary"
+                  :disabled="isCompressing"
+                  title="立即压缩历史对话，整理早期内容为摘要"
+                  @click.stop="emit('compress')"
+                >
+                  <Archive :size="12" aria-hidden="true" /><span>整理上下文</span>
+                </button>
+                <button type="button" @click.stop="emit('open-usage')">用量详情</button>
               </div>
-              <p class="boh-usage-foot">{{ usage.quotaDetailText }}</p>
-            </template>
 
-            <div class="boh-usage-pop-actions">
-              <button
-                v-if="usage.canCompress"
-                type="button"
-                class="is-primary"
-                :disabled="isCompressing"
-                title="立即压缩历史对话，整理早期内容为摘要"
-                @click.stop="emit('compress')"
-              >
-                <Archive :size="12" aria-hidden="true" /><span>整理上下文</span>
-              </button>
-              <button type="button" @click.stop="emit('open-usage')">用量详情</button>
+              <div v-if="usage.compressSuccess" class="boh-usage-done">
+                <CheckCircle2 :size="12" aria-hidden="true" /><span>上下文已压缩</span>
+              </div>
             </div>
-
-            <div v-if="usage.compressSuccess" class="boh-usage-done">
-              <CheckCircle2 :size="12" aria-hidden="true" /><span>上下文已压缩</span>
-            </div>
-          </div>
+          </Transition>
         </div>
 
         <button

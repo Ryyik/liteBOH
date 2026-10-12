@@ -68,60 +68,64 @@
       <nav class="boh-sb-groups">
         <template v-for="group in filteredGroups" :key="group.id">
           <div class="boh-sb-glabel">{{ group.label }}</div>
-          <div
-            v-for="item in group.items"
-            :key="item.session.timestamp || item.index"
-            class="boh-sb-item"
-            :class="{ 'is-active': item.index === currentIndex }"
-            :data-session-index="item.index"
-            @click="selectSession(item.index)"
-          >
-            <Pin v-if="item.session.pinned" class="boh-sb-pin" :size="12" aria-hidden="true" />
-            <input
-              v-if="renamingIndex === item.index"
-              ref="renameInput"
-              v-model="renameValue"
-              class="boh-sb-rename"
-              maxlength="48"
-              @click.stop
-              @keydown.enter.stop="commitRename(item.index)"
-              @keydown.escape.stop="cancelRename"
-              @blur="commitRename(item.index)"
-            />
-            <span v-else class="boh-sb-title-wrap">
-              <span class="boh-sb-title">{{ item.session.title || '新对话' }}</span>
-              <small v-if="query && matchPreview(item.session)">{{
-                matchPreview(item.session)
-              }}</small>
-            </span>
-            <span v-if="item.session.temporary" class="boh-sb-badge">临时</span>
-            <button
-              v-if="renamingIndex !== item.index"
-              type="button"
-              class="boh-sb-more"
-              title="更多操作"
-              aria-label="更多操作"
-              @click.stop="toggleMenu(item.index)"
+          <TransitionGroup name="boh-sb">
+            <div
+              v-for="item in group.items"
+              :key="item.session.timestamp || item.index"
+              class="boh-sb-item"
+              :class="{ 'is-active': item.index === currentIndex }"
+              :data-session-index="item.index"
+              @click="selectSession(item.index)"
             >
-              <MoreHorizontal :size="15" aria-hidden="true" />
-            </button>
-            <div v-if="menuIndex === item.index" class="boh-sb-menu" @click.stop>
-              <button type="button" @click="beginRename(item)">
-                <Pencil :size="14" aria-hidden="true" />重命名
-              </button>
-              <button type="button" @click="togglePin(item.index)">
-                <Pin :size="14" aria-hidden="true" />{{ item.session.pinned ? '取消置顶' : '置顶' }}
-              </button>
+              <Pin v-if="item.session.pinned" class="boh-sb-pin" :size="12" aria-hidden="true" />
+              <input
+                v-if="renamingIndex === item.index"
+                ref="renameInput"
+                v-model="renameValue"
+                class="boh-sb-rename"
+                maxlength="48"
+                @click.stop
+                @keydown.enter.stop="commitRename(item.index)"
+                @keydown.escape.stop="cancelRename"
+                @blur="commitRename(item.index)"
+              />
+              <span v-else class="boh-sb-title-wrap">
+                <span class="boh-sb-title">{{ item.session.title || '新对话' }}</span>
+                <small v-if="query && matchPreview(item.session)">{{
+                  matchPreview(item.session)
+                }}</small>
+              </span>
+              <span v-if="item.session.temporary" class="boh-sb-badge">临时</span>
               <button
-                v-if="sessions.length > 1"
+                v-if="renamingIndex !== item.index"
                 type="button"
-                class="is-danger"
-                @click="requestDelete(item.index)"
+                class="boh-sb-more"
+                title="更多操作"
+                aria-label="更多操作"
+                @click.stop="toggleMenu(item.index)"
               >
-                <Trash2 :size="14" aria-hidden="true" />删除
+                <MoreHorizontal :size="15" aria-hidden="true" />
               </button>
+              <div v-if="menuIndex === item.index" class="boh-sb-menu" @click.stop>
+                <button type="button" @click="beginRename(item)">
+                  <Pencil :size="14" aria-hidden="true" />重命名
+                </button>
+                <button type="button" @click="togglePin(item.index)">
+                  <Pin :size="14" aria-hidden="true" />{{
+                    item.session.pinned ? '取消置顶' : '置顶'
+                  }}
+                </button>
+                <button
+                  v-if="sessions.length > 1"
+                  type="button"
+                  class="is-danger"
+                  @click="requestDelete(item.index)"
+                >
+                  <Trash2 :size="14" aria-hidden="true" />删除
+                </button>
+              </div>
             </div>
-          </div>
+          </TransitionGroup>
         </template>
         <div v-if="filteredGroups.length === 0" class="boh-sb-empty">没有匹配的对话</div>
       </nav>
