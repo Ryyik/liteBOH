@@ -7,7 +7,6 @@ import {
   clearRouteDecisionCache,
   isLikelyCloudReferenceRequest,
   isLikelyCodeOrCommandRequest,
-  isLikelyCommunityMemoryShare,
   isLikelyDailySummaryRequest,
   isLikelyPersonalSupportRequest,
   resolveBOHAIAutoModeDecision,
@@ -42,21 +41,20 @@ describe('bohai auto router: 决策字段收敛', () => {
     expect(empty).toBe(EMPTY_AUTO_DECISION);
   });
 
-  it('ROUTING_PATTERNS 只保留有消费方的 14 类', () => {
+  // 2026-10-12：删掉 question / community / memoryShare / memoryQuery 四类（见下方
+  // 「已下线」那三条断言）⇒ 14 → 10。⚠️ 这个清单是**精确相等** —— 新增/删除任一类
+  // 都会在这里红，别改成 `toContain` 之类的宽松判据（那就失去「只保留有消费方」的意义）。
+  it('ROUTING_PATTERNS 只保留有消费方的 10 类', () => {
     expect(Object.keys(ROUTING_PATTERNS).sort()).toEqual([
       'bothSave',
       'cloudReference',
       'cloudSave',
       'codeOrCommand',
-      'community',
       'dailySummary',
       'forumPost',
       'internalSource',
-      'memoryQuery',
-      'memoryShare',
       'personalSupport',
       'professionalHealth',
-      'question',
       'sharedSave',
     ]);
   });
@@ -152,14 +150,27 @@ describe('bohai auto router: 存活判定函数', () => {
     expect(isLikelyPersonalSupportRequest('抑郁症的诊断标准是什么')).toBe(false);
   });
 
-  it('isLikelyCommunityMemoryShare 不把社区问题当记忆分享', () => {
-    expect(isLikelyCommunityMemoryShare('方块之家成立背景是什么？')).toBe(false);
-    expect(isLikelyCommunityMemoryShare('总结一下论坛最近发生的事')).toBe(false);
-    expect(
-      isLikelyCommunityMemoryShare(
-        '今天 LF 和 Eleven 在方块之家群里一起玩哈比快车谋杀案，还提到要下周继续组织活动。',
-      ),
-    ).toBe(true);
+  // 2026-10-12 删除：该谓词唯一的下游 `shouldAskMemoryDestination`（「保存到哪里」的
+  // 询问）在 2026-10-04 随 Cloud+ 写入与「两处同存」一起下线 ⇒ 此后它零产品调用点。
+  // ⚠️ 断言**反转为否定**而不是删掉（断言只增不减）：谁把它加回来，这里立刻红。
+  // ⚠️ 这些是**运行时**检查（不是文本扫描），所以注释里写名字不会把断言喂饱。
+  it('「分享社群记忆」的谓词已下线：引擎不导出、门面不转出', async () => {
+    const engine = await import('../../src/views/BOHAI/engine/bohai-auto-router.js');
+    const facade = await import('../../src/views/BOHAI/domain/routing-patterns.js');
+    expect(engine.isLikelyCommunityMemoryShare).toBeUndefined();
+    expect(facade.isLikelyCommunityMemoryShare).toBeUndefined();
+  });
+
+  it('它的 4 类正则（question / community / memoryShare / memoryQuery）也一并下线', () => {
+    for (const key of ['question', 'community', 'memoryShare', 'memoryQuery']) {
+      expect(ROUTING_PATTERNS[key]).toBeUndefined();
+    }
+  });
+
+  it('仍在用的那几类正则没被误删（删死代码的回归网）', () => {
+    for (const key of ['codeOrCommand', 'sharedSave', 'professionalHealth', 'personalSupport']) {
+      expect(ROUTING_PATTERNS[key]?.pattern).toBeInstanceOf(RegExp);
+    }
   });
 });
 

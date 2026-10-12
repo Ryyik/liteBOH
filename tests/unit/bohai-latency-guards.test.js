@@ -112,7 +112,12 @@ describe('plans/024 · P0-1：废弃的 auto 路由链不得回来', () => {
     }
   });
 
-  it('14 类有消费方的正则仍在（收口不许误伤）', () => {
+  // 2026-10-12：14 → 10 —— `question` / `community` / `memoryShare` / `memoryQuery`
+  // 四类已连同 `isLikelyCommunityMemoryShare` 删除（唯一下游
+  // `shouldAskMemoryDestination` 2026-10-04 下线 ⇒ 零调用点）。
+  // ⚠️ 别把它们加回这个清单 ——它现在是「收口不许误伤**活着的**」，
+  //    想锁「已下线的别回来」看 `bohai-auto-router.test.js` 的否定断言。
+  it('10 类有消费方的正则仍在（收口不许误伤）', () => {
     const code = readCode(AUTO_ROUTER);
     for (const alive of [
       'cloudSave',
@@ -122,10 +127,6 @@ describe('plans/024 · P0-1：废弃的 auto 路由链不得回来', () => {
       'dailySummary',
       'cloudReference',
       'internalSource',
-      'question',
-      'community',
-      'memoryShare',
-      'memoryQuery',
       'codeOrCommand',
       'professionalHealth',
       'personalSupport',

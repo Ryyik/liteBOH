@@ -18,17 +18,19 @@ describe('BOHAI domain 门面契约', () => {
     expect(Object.keys(VIA_DOMAIN).length).toBeGreaterThan(0);
   });
 
-  it('routing-patterns 转出了「间接存活」的 5 个谓词', async () => {
+  it('routing-patterns 转出 4 个谓词（第 5 个已随功能下线）', async () => {
     const mod = await import('@/views/BOHAI/domain/routing-patterns.js');
     for (const name of [
       'isLikelyCodeOrCommandRequest',
       'isLikelyDailySummaryRequest',
       'isLikelyCloudReferenceRequest',
       'isLikelyPersonalSupportRequest',
-      'isLikelyCommunityMemoryShare',
     ]) {
       expect(typeof mod[name]).toBe('function');
     }
+    // 2026-10-12 下线：它唯一的下游 `shouldAskMemoryDestination` 已于 2026-10-04 取消
+    // ⇒ 门面不再转出。反转为否定断言（不是删断言）。
+    expect(mod.isLikelyCommunityMemoryShare).toBeUndefined();
   });
 
   it('evidence 权重值逐字保留', () => {

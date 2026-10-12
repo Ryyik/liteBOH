@@ -13,10 +13,12 @@
  * 维护约定：
  * 1. ROUTING_PATTERNS 里的每一类正则都必须有真实消费方。新增前先确认调用点，
  *    否则会重演「正则照跑、结果没人读」。
- * 2. 删除任何一类正则前，必须追到它的消费方链终点；其中 community / question /
- *    memoryQuery / memoryShare 是**间接存活**（只经 isLikelyCommunityMemoryShare →
- *    shouldAskMemoryDestination 生效），professionalHealth / personalSupport 被
- *    `useChatEngine.js` 直接 import —— 这 6 类最容易被误删。
+ * 2. 删除任何一类正则前，必须追到它的消费方链终点。professionalHealth / personalSupport
+ *    被 `useChatEngine.js` 直接 import —— 这两类最容易被误删。
+ *    ⚠️ 旧注释点名的另 4 类（community / question / memoryQuery / memoryShare）曾因
+ *    `shouldAskMemoryDestination` 而「间接存活」，但那个下游 2026-10-04 就下线了
+ *    ⇒ 2026-10-12 已连同 `isLikelyCommunityMemoryShare` 一并删除（见下方注释）。
+ *    追消费方链时**别再拿这条旧口径当免死金牌** —— 先 grep。
  * 3. 缓存键只看文本指纹：决策结果已不依赖登录态或 Cloud+ 开关。
  * ------------------------------------------------------------
  */
@@ -124,31 +126,7 @@ export const ROUTING_PATTERNS = {
     label: '内部数据源',
   },
 
-  // ── 「这句是不是在分享社群记忆」的判据 ───────────────────────
-  // 下面 4 类只被 isLikelyCommunityMemoryShare 使用，**不要因为「没人直接调」就删**：
-  // 它的产物经 shouldAskMemoryDestination 影响「保存到哪里」的询问。
-  question: {
-    pattern:
-      /[?？]|^(?:请问|问一下|想问|能不能|可以吗|是否|是不是|有没有|怎么|如何|为什么|what|why|how|when|where|who)\b|(?:总结|复盘|回顾|梳理|概括|说说|讲讲|介绍|列出|看看|查询|搜索|找一下|发生了什么|最近发生)/i,
-    label: '问题类请求',
-  },
-  community: {
-    pattern:
-      /(方块之家|block of home|\bboh\b|社区|社群|群里|论坛|成员|周年庆|内战|服务器|联机|hypixel|我的世界|minecraft|\bmc\b|英雄联盟|\blol\b|王者荣耀|ryyik|lf|小牛|eleven|end|汉堡|丁老师|雨芙蕖|白烨|百城|小天光|小仙)/i,
-    label: '社区相关内容',
-  },
-  memoryShare: {
-    pattern:
-      /(今天|昨天|刚刚|最近|后来|以前|之前|当时|这次|这件事|发生|加入|认识|一起|玩了|聊了|说过|提到|决定|举办|更新|补充|记一下|记录一下|分享一下|告诉你)/i,
-    label: '记忆共享',
-  },
-  memoryQuery: {
-    pattern:
-      /(总结|复盘|回顾|梳理|概括|说说|讲讲|介绍|查询|搜索|找一下|看看|最近发生|发生了什么|最新动态|热帖|公告|论坛最近|帖子最近|大家在聊)/i,
-    label: '记忆查询',
-  },
-
-  // ── 代码/命令（isLikelyCommunityMemoryShare 用它排除）────────
+  // ── 代码/命令（`isLikelyCodeOrCommandRequest` 用它，另有消费方，勿删）──
   codeOrCommand: {
     pattern:
       /(```|\/(?:give|summon|execute|tp|scoreboard|effect|title|tellraw|setblock|fill)\b|代码|编程|函数|组件|接口|api|sql|脚本|报错|bug|debug|调试|重构|命令|指令|终端|shell|bash|npm|node|python|javascript|typescript|vue|react|css|html|json|正则|minecraft\s*command|mc\s*指令|命令方块)/i,
@@ -195,18 +173,12 @@ export const isLikelyPersonalSupportRequest = (text) => {
   return ROUTING_PATTERNS.personalSupport.pattern.test(normalized);
 };
 
-export const isLikelyCommunityMemoryShare = (text) => {
-  const normalized = normalizeText(text);
-  if (!normalized) return false;
-  if (!ROUTING_PATTERNS.community.pattern.test(normalized)) return false;
-  if (ROUTING_PATTERNS.question.pattern.test(normalized)) return false;
-  if (ROUTING_PATTERNS.memoryQuery.pattern.test(normalized)) return false;
-  if (isLikelyCodeOrCommandRequest(normalized)) return false;
-  if (ROUTING_PATTERNS.memoryShare.pattern.test(normalized)) return true;
-  // 仅当文本较长且包含记忆相关关键词时才判定为记忆分享
-  const hasMemoryKeywords = /记忆|回忆|分享|story|memory|remember/i.test(normalized);
-  return normalized.length >= 64 && hasMemoryKeywords;
-};
+// 「这句是不是在分享社群记忆」的谓词与其 4 类正则（question / community /
+// memoryShare / memoryQuery）已于 2026-10-12 删除：它唯一的下游
+// `shouldAskMemoryDestination`（「保存到哪里」的询问）在 2026-10-04 随 Cloud+ 写入与
+// 「两处同存」一起下线，此后它零产品调用点。plans/024 标注的「间接存活」以那个下游
+// 存在为前提 —— 下游没了，它们就是死代码（删除范围含门面再导出与两处单测）。
+// ⚠️ 需要社区关键词表时从 git 历史取，别凭记忆重写。
 
 // 冻结的"中性空决策"
 export const EMPTY_AUTO_DECISION = Object.freeze({
@@ -242,9 +214,8 @@ export const resolveBOHAIAutoModeDecision = (text, _options = {}) => {
   const forumPostAction = ROUTING_PATTERNS.forumPost.pattern.test(safeText);
   // 2026-10-04：Cloud+ 写入（cloudSave）与「两处同存」（bothSave）已下线 ⇒ 目的地只剩
   // shared / none 两种；「问用户存哪里」（shouldAskMemoryDestination）也随之取消。
-  // ⚠️ `isLikelyCommunityMemoryShare` 的调用已移除，但**函数与它的 4 类正则先保留** ——
-  // 删它们要连带改单测，且 `community/question/memoryQuery/memoryShare` 属于 024 标注的
-  // 「间接存活」正则，误删代价高。要清理请单独一次提交 + 反证。
+  // 该函数与它的 4 类正则已于 2026-10-12 删除（本注释原先写「先保留」，
+  // 直到这次带反证地清理完 —— 见上方「删除说明」）。
   const wantsSharedSave = !forumPostAction && ROUTING_PATTERNS.sharedSave.pattern.test(safeText);
   const saveDestination = wantsSharedSave ? 'shared' : 'none';
 

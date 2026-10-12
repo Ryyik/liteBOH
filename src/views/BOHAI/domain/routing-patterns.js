@@ -19,5 +19,5 @@ export {
   isLikelyDailySummaryRequest,
   isLikelyCloudReferenceRequest,
   isLikelyPersonalSupportRequest,
-  isLikelyCommunityMemoryShare,
 } from '../engine/bohai-auto-router.js';
+// ⚠️ 原先这里还转出 `isLikelyCommunityMemoryShare`，随其下线于 2026-10-12 移除。
