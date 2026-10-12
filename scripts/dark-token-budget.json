@@ -1,5 +1,5 @@
 {
-  "total": 2703,
+  "total": 2702,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 187,
@@ -89,9 +89,8 @@
     "src/styles/common/avatar-frame.css": 1,
     "src/styles/common/glass-ui.css": 1,
     "src/styles/common/liquid-glass.css": 1,
-    "src/views/AIPlaza/index.vue": 1,
     "src/views/DataManagement/components/EditDrawer.vue": 1,
     "src/views/PhotoAlbums/index.vue": 1
   },
-  "updatedAt": "2026-10-11"
+  "updatedAt": "2026-10-12"
 }

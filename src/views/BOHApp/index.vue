@@ -7,28 +7,50 @@
  * 两条实现约束（都踩过坑，改动前先读）：
  * 1. 根节点与 html/body 都必须 overflow: visible，否则祖先的 overflow 会把
  *    sticky 舞台降级成普通块，滚动分镜直接失效。
- * 2. 滚动进度整体走 rAF 节流 + 缓存几何量，不在 scroll 回调里读 getBoundingClientRect，
- *    否则每帧强制同步布局。
+ * 2. 滚动进度走 useScrollStage（rAF 节流 + 缓存几何量），不在 scroll 回调里读
+ *    getBoundingClientRect，否则每帧强制同步布局。
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue';
 import {
-  ArrowDown, BatteryCharging, Check, Copy, Download, Eraser,
-  Feather, ShieldCheck, Users
-} from 'lucide-vue-next'
-import { ANDROID_APP_RELEASE, detectPlatform } from './app-release.js'
+  ArrowDown,
+  BatteryCharging,
+  Check,
+  Copy,
+  Download,
+  Eraser,
+  Feather,
+  ShieldCheck,
+  Users,
+} from 'lucide-vue-next';
+import { ANDROID_APP_RELEASE, detectPlatform } from './app-release.js';
+import { useScrollStage } from '@/composables/useScrollStage.js';
 
-const release = ANDROID_APP_RELEASE
+const release = ANDROID_APP_RELEASE;
 
-const rootRef = ref(null)
-const stageRef = ref(null)
+const stageRef = ref(null);
 
-const platform = ref('desktop')
-const reduceMotion = ref(false)
-const heroProgress = ref(0)
-const stageProgress = ref(0)
-const copyState = ref('idle')
+const platform = ref('desktop');
+const copyState = ref('idle');
 
-const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value))
+const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+
+/* 滚动分镜的公共机制（html 类复位 body overflow / rAF 节流的进度 / reduce 短路）统一走
+   useScrollStage —— 这一页原先手写了一份，与 AboutUs / BOH8YearsJourney 各写各的，
+   改一处口径要动三处。真源只在 src/composables/useScrollStage.js。 */
+const {
+  progress: stageProgress,
+  scrollY,
+  viewportHeight,
+  reduceMotion,
+} = useScrollStage(stageRef, {
+  scrollClass: 'boh-app-scroll',
+});
+
+/* 首屏文案 / 手机模型的退场进度：以「滚了 0.85 屏」为满程。
+   它和分镜无关，只需要一条原始 scrollY，所以留在页面里而不进 composable。 */
+const heroProgress = computed(() =>
+  reduceMotion.value ? 0 : clamp(scrollY.value / (viewportHeight.value * 0.85 || 1)),
+);
 
 /**
  * 滚动分镜的三个卖点 —— 只讲三件别的客户端做不到的事：
@@ -56,7 +78,7 @@ const features = [
     body: `独立窗口，自己的启动屏和任务栈。长按桌面图标，直接进${release.shortcuts.map((s) => s.label).join('、')}。`,
     note: '深色模式跟随系统自动切换',
   },
-]
+];
 
 /**
  * 补充细节。每一条都必须是分镜里没提过的角度，
@@ -67,32 +89,32 @@ const highlights = [
   { icon: BatteryCharging, title: '不常驻后台', body: '关掉就是关掉，不偷偷占资源' },
   { icon: Users, title: '账号是同一套', body: '与网页共用登录，帖子和积分实时一致' },
   { icon: Eraser, title: '卸载无残留', body: '不绑定商店账号，删掉就干净' },
-]
+];
 
 const steps = [
   { title: '下载安装包', body: '点上面的按钮，浏览器会存下一个不到 1 MB 的文件。' },
   { title: '允许安装', body: '首次会提示「未知来源」。这是侧载应用的正常流程，允许即可。' },
   { title: '打开并登录', body: '用你已有的账号登录。之后打开就是社区，没有多余步骤。' },
-]
+];
 
-const downloadHref = release.downloadUrl
+const downloadHref = release.downloadUrl;
 
-const isStandalone = computed(() => platform.value === 'standalone')
-const isIos = computed(() => platform.value === 'ios')
-const isAndroid = computed(() => platform.value === 'android')
+const isStandalone = computed(() => platform.value === 'standalone');
+const isIos = computed(() => platform.value === 'ios');
+const isAndroid = computed(() => platform.value === 'android');
 
 /** 已装用户不必再被引导安装，主按钮让位给版本信息。 */
-const primaryLabel = computed(() => (isStandalone.value ? '查看版本信息' : '下载 APK'))
+const primaryLabel = computed(() => (isStandalone.value ? '查看版本信息' : '下载 APK'));
 
 /**
  * 当前分镜序号。整段滚动被均分成「面板数 - 1」个间隔，
  * 于是 progress 的 0 和 1 正好落在首尾两块面板的正中心。
  */
 const activeFeatureIndex = computed(() => {
-  const last = features.length - 1
-  if (last <= 0) return 0
-  return Math.min(last, Math.max(0, Math.round(stageProgress.value * last)))
-})
+  const last = features.length - 1;
+  if (last <= 0) return 0;
+  return Math.min(last, Math.max(0, Math.round(stageProgress.value * last)));
+});
 
 /**
  * 分镜面板的视觉状态：唯一驱动量是「离当前进度中心多远」。
@@ -103,13 +125,13 @@ const activeFeatureIndex = computed(() => {
  *    表现为滚到开头第一屏只剩 25% 不透明度。
  */
 const panelStyle = (index) => {
-  if (reduceMotion.value) return null
-  const last = features.length - 1
-  if (last <= 0) return { opacity: 1, pointerEvents: 'auto' }
+  if (reduceMotion.value) return null;
+  const last = features.length - 1;
+  if (last <= 0) return { opacity: 1, pointerEvents: 'auto' };
 
   // signed：当前进度离本屏中心几个「屏间隔」，0 = 正中，±1 = 相邻屏正中
-  const signed = (stageProgress.value - index / last) * last
-  const distance = Math.abs(signed)
+  const signed = (stageProgress.value - index / last) * last;
+  const distance = Math.abs(signed);
 
   // 过渡只在 |signed| 的 0.45 → 0.55 这 10% 区间内完成。
   // 换算成滚动距离约 140px：两屏同时半透明的时间极短，肉眼几乎捕捉不到重影。
@@ -118,119 +140,57 @@ const panelStyle = (index) => {
   // 而面板只占视口一半高 —— 想靠位移让上下两屏完全不重叠，就得各自移动半屏以上，
   // 于是过渡途中整个视口中间空掉（实测截图：上下各留一片内容、中间全白）。
   // 交叉淡入的短促版本反而是这里唯一不产生空白的方案。
-  const t = clamp((distance - 0.45) / 0.1)
-  const focus = 1 - t
+  const t = clamp((distance - 0.45) / 0.1);
+  const focus = 1 - t;
 
   return {
     opacity: focus,
     // 只留一点上浮感，不承担分离职责
     transform: `translate3d(0, ${-Math.sign(signed) * t * 36}px, 0)`,
     pointerEvents: focus > 0.5 ? 'auto' : 'none',
-  }
-}
-
-let stageMetrics = null
-let scrollFrame = 0
-let geometryObserver = null
-
-const measureStage = () => {
-  const element = stageRef.value
-  if (!element) {
-    stageMetrics = null
-    return
-  }
-  const rect = element.getBoundingClientRect()
-  stageMetrics = {
-    top: window.scrollY + rect.top,
-    distance: element.offsetHeight - window.innerHeight,
-  }
-}
-
-const updateScroll = () => {
-  const viewportHeight = window.innerHeight || 1
-  heroProgress.value = reduceMotion.value ? 0 : clamp(window.scrollY / (viewportHeight * 0.85))
-
-  if (!stageMetrics || stageMetrics.distance <= 0) {
-    stageProgress.value = 0
-    return
-  }
-  stageProgress.value = clamp((window.scrollY - stageMetrics.top) / stageMetrics.distance)
-}
-
-const requestScrollUpdate = () => {
-  if (scrollFrame) return
-  scrollFrame = requestAnimationFrame(() => {
-    updateScroll()
-    scrollFrame = 0
-  })
-}
-
-const handleResize = () => {
-  measureStage()
-  requestScrollUpdate()
-}
+  };
+};
 
 const copyDownloadLink = async () => {
   try {
-    await navigator.clipboard.writeText(downloadHref)
-    copyState.value = 'copied'
+    await navigator.clipboard.writeText(downloadHref);
+    copyState.value = 'copied';
   } catch {
-    copyState.value = 'failed'
+    copyState.value = 'failed';
   }
-  window.setTimeout(() => { copyState.value = 'idle' }, 2200)
-}
+  window.setTimeout(() => {
+    copyState.value = 'idle';
+  }, 2200);
+};
 
+/* 平台判定之外没有别的副作用：body overflow 复位、滚动监听、几何量重测、reduce 短路
+   全部由 useScrollStage 在自己的挂载/卸载钩子里收口（含 cancelAnimationFrame 与
+   ResizeObserver.disconnect）。 */
 onMounted(() => {
-  platform.value = detectPlatform()
-  reduceMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-  // 放开 body 的 overflow，否则 sticky 分镜整体失效（原因见 style.scoped.css 顶部注释）
-  document.documentElement.classList.add('boh-app-scroll')
-
-  measureStage()
-  updateScroll()
-
-  if ('ResizeObserver' in window && rootRef.value) {
-    geometryObserver = new ResizeObserver(() => {
-      measureStage()
-      requestScrollUpdate()
-    })
-    geometryObserver.observe(rootRef.value)
-  }
-
-  window.addEventListener('scroll', requestScrollUpdate, { passive: true })
-  window.addEventListener('resize', handleResize, { passive: true })
-})
-
-onUnmounted(() => {
-  document.documentElement.classList.remove('boh-app-scroll')
-  window.removeEventListener('scroll', requestScrollUpdate)
-  window.removeEventListener('resize', handleResize)
-  geometryObserver?.disconnect()
-  geometryObserver = null
-  if (scrollFrame) cancelAnimationFrame(scrollFrame)
-})
+  platform.value = detectPlatform();
+});
 </script>
 
 <template>
-  <main ref="rootRef" class="boh-app-page">
+  <main class="boh-app-page">
     <section class="hero">
       <div class="hero-glow" aria-hidden="true" />
 
       <div class="hero-inner">
         <div
           class="hero-copy"
-          :style="reduceMotion ? null : {
-            transform: `translate3d(0, ${heroProgress * -42}px, 0)`,
-            opacity: 1 - heroProgress * 1.15
-          }"
+          :style="
+            reduceMotion
+              ? null
+              : {
+                  transform: `translate3d(0, ${heroProgress * -42}px, 0)`,
+                  opacity: 1 - heroProgress * 1.15,
+                }
+          "
         >
           <p class="eyebrow">BOH · ANDROID</p>
-          <h1>方块之家<br>装进手机</h1>
-          <p class="lead">
-            不用去应用商店。不用记着升级。
-            下载、安装，桌面上就多了一个方块之家。
-          </p>
+          <h1>方块之家<br />装进手机</h1>
+          <p class="lead">不用去应用商店。不用记着升级。 下载、安装，桌面上就多了一个方块之家。</p>
 
           <div class="hero-actions">
             <a class="btn btn-primary" :href="downloadHref" rel="noopener">
@@ -252,15 +212,25 @@ onUnmounted(() => {
 
         <div
           class="hero-visual"
-          :style="reduceMotion ? null : {
-            transform: `translate3d(0, ${heroProgress * -16}px, 0) scale(${1 - heroProgress * 0.05})`,
-            opacity: 1 - heroProgress * 0.75
-          }"
+          :style="
+            reduceMotion
+              ? null
+              : {
+                  transform: `translate3d(0, ${heroProgress * -16}px, 0) scale(${1 - heroProgress * 0.05})`,
+                  opacity: 1 - heroProgress * 0.75,
+                }
+          "
         >
           <div class="phone">
             <span class="phone-notch" aria-hidden="true" />
             <div class="phone-screen">
-              <img class="phone-icon" src="/icons/icon-192.png" alt="BOH 应用图标" width="72" height="72">
+              <img
+                class="phone-icon"
+                src="/icons/icon-192.png"
+                alt="BOH 应用图标"
+                width="72"
+                height="72"
+              />
               <p class="phone-name">Block of Home</p>
               <p class="phone-hint">正在载入最新版本…</p>
               <span class="phone-bar" aria-hidden="true" />
@@ -385,7 +355,8 @@ onUnmounted(() => {
       <p class="steps-note">
         <ShieldCheck :size="16" aria-hidden="true" />
         安装包由本项目的构建流水线签名产出，包名固定为
-        <code>{{ release.packageId }}</code>，升级时直接覆盖，不会变成两个应用。
+        <code>{{ release.packageId }}</code
+        >，升级时直接覆盖，不会变成两个应用。
       </p>
     </section>
 
@@ -428,7 +399,13 @@ onUnmounted(() => {
 
           <button type="button" class="btn btn-ghost" @click="copyDownloadLink">
             <component :is="copyState === 'copied' ? Check : Copy" :size="16" aria-hidden="true" />
-            {{ copyState === 'copied' ? '链接已复制' : copyState === 'failed' ? '复制失败，请手动选择' : '复制下载链接' }}
+            {{
+              copyState === 'copied'
+                ? '链接已复制'
+                : copyState === 'failed'
+                  ? '复制失败，请手动选择'
+                  : '复制下载链接'
+            }}
           </button>
         </div>
 
@@ -447,12 +424,16 @@ onUnmounted(() => {
           </div>
           <div>
             <dt>包名</dt>
-            <dd><code>{{ release.packageId }}</code></dd>
+            <dd>
+              <code>{{ release.packageId }}</code>
+            </dd>
           </div>
         </dl>
 
         <p class="download-foot">
-          <a :href="release.releasePageUrl" rel="noopener" target="_blank">查看发布记录与更新日志</a>
+          <a :href="release.releasePageUrl" rel="noopener" target="_blank"
+            >查看发布记录与更新日志</a
+          >
         </p>
       </div>
     </section>

@@ -1,5 +1,5 @@
 {
-  "total": 645,
+  "total": 637,
   "files": {
     "src/App.vue": 1,
     "src/components/AiEdgeTrigger.vue": 2,
@@ -22,7 +22,7 @@
     "src/styles/layouts/footer.css": 1,
     "src/styles/pages/section__header.css": 10,
     "src/styles/vendor/unified-nav.css": 145,
-    "src/views/AIPlaza/index.vue": 15,
+    "src/views/AIPlaza/index.vue": 7,
     "src/views/AboutUs/style.global.css": 1,
     "src/views/AnniversaryCafe/style.scoped.css": 2,
     "src/views/BOH8YearsEvent/style.scoped.css": 18,
