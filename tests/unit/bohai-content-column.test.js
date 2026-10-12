@@ -4,14 +4,17 @@ import { describe, expect, it } from 'vitest';
 import { squeezeSource, stripComments } from '../helpers/source.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 内容列（AI 回复 / 输入框 / 底部说明）**横向对齐**的单一真源守卫（2026-10-12）。
+// 消息列的横向布局守卫（2026-10-12 两轮用户口径合并）。
 //
-// 用户口径：AI 回复要靠左、并加宽（原口径是 768px 居中，DESIGN §4 已同步）。
-// 三处消费者必须共用同一对令牌 —— 否则「输入框与 AI 回复错开」这种缺陷**不报错、
-// 只是看着歪**（本仓对这类静默错位的既定做法就是源码守卫，探针进不了 CI）。
+// ① **AI 回复靠左、用户气泡靠右**：列宽约束在**消息级**，不在容器级 ——
+//    容器（`.boh-stream-pad`）必须全宽，否则用户气泡只能贴到内容列右缘
+//    （实测 1440 下 928），够不到可用区域右边（`main.right − 40 = 1400`）。
+// ② **用户气泡 = 白色底 + 灰描边**：底色走 `--boh-bubble-bg` 单源 ——
+//    直接用 `--boh-bg-card`（#f5f5f5 灰）就是报障本身。
+// ③ 输入框 / 底部说明仍走 `--boh-content-ml`/`--boh-content-mr` 靠左（与 AI 回复同列）。
 //
-// ⚠️ 断言只认**令牌接线**，不认像素：像素值只在 `tokens.css` 出现一次，由本文件锁住；
-//    几何后果（真的靠左、右侧留白更大）由 `scripts/probes/probe-bohai-shell.mjs` 钉。
+// ⚠️ 断言只认**令牌与选择器接线**，不认像素；几何后果由
+//    `scripts/probes/probe-bohai-shell.mjs` 钉。
 // ⚠️ 取块前先 `stripComments`：否定断言会被注释里的复述满足（本仓踩过）。
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -29,28 +32,30 @@ const blockOf = (source, anchor) => {
   return stripComments(source.slice(brace + 1, source.indexOf('}', brace)));
 };
 
-describe('内容列横向对齐 · 令牌只有一处定义', () => {
-  it('对齐令牌是「靠左」口径（0 + auto）', () => {
+const blockOfFile = (relPath, anchor) => blockOf(read(relPath), anchor);
+
+describe('列宽与对齐令牌只有一处定义', () => {
+  it('内容列宽 880px', () => {
+    expect(squeezeSource(read(TOKENS))).toContain(squeezeSource('--boh-content-w: 880px;'));
+  });
+
+  it('靠左对齐令牌是「0 + auto」', () => {
     const tokens = squeezeSource(read(TOKENS));
     expect(tokens).toContain(squeezeSource('--boh-content-ml: 0;'));
     expect(tokens).toContain(squeezeSource('--boh-content-mr: auto;'));
   });
-
-  it('内容列宽度 880px', () => {
-    expect(squeezeSource(read(TOKENS))).toContain(squeezeSource('--boh-content-w: 880px;'));
-  });
 });
 
-describe('内容列的每个消费者都走令牌（没有掉队的）', () => {
+describe('输入区与底部说明：横向对齐走令牌（与 AI 回复同列）', () => {
   const cases = [
-    { file: STREAM, anchor: '.boh-stream-pad {' },
-    { file: COMPOSER, anchor: '.boh-composer {' },
-    { file: COMPOSER, anchor: '.boh-cp-note {' },
-    { file: COMPOSER, anchor: '.boh-cp-warn {' },
+    { anchor: '.boh-composer {' },
+    { anchor: '.boh-cp-note {' },
+    { anchor: '.boh-cp-warn {' },
+    { anchor: '.boh-cp-alert,' },
   ];
 
-  it.each(cases)('$anchor 的横向外边距走令牌', ({ file, anchor }) => {
-    const block = blockOf(read(file), anchor);
+  it.each(cases)('$anchor 的横向外边距走令牌', ({ anchor }) => {
+    const block = blockOfFile(COMPOSER, anchor);
     expect(block, `${anchor} 未找到`).toBeTruthy();
     expect(squeezeSource(block)).toContain(squeezeSource('var(--boh-content-mr)'));
     expect(squeezeSource(block)).toContain(squeezeSource('var(--boh-content-ml)'));
@@ -58,16 +63,52 @@ describe('内容列的每个消费者都走令牌（没有掉队的）', () => {
     expect(block).not.toMatch(/margin:[^;]*\bauto\b/);
   });
 
-  it('消费者总数与令牌引用数一致（新增消费者必须同步本断言）', () => {
-    const countIn = (relPath) => (read(relPath).match(/var\(--boh-content-mr\)/g) || []).length;
+  it('输入区的令牌引用数与消费者数一致（新增消费者必须同步本断言）', () => {
     // 4 = .boh-composer / .boh-cp-note / .boh-cp-alert+notice / .boh-cp-warn
-    expect(countIn(COMPOSER)).toBe(4);
-    expect(countIn(STREAM)).toBe(1);
+    expect((read(COMPOSER).match(/var\(--boh-content-mr\)/g) || []).length).toBe(4);
+  });
+});
+
+describe('AI 回复靠左、用户气泡靠右（列宽下移到消息级）', () => {
+  it('消息容器不再限宽 —— 限宽写回容器会让用户气泡够不到右边', () => {
+    const block = blockOfFile(STREAM, '.boh-stream-pad {');
+    expect(block, '.boh-stream-pad 未找到').toBeTruthy();
+    expect(block).not.toMatch(/max-width/);
+    expect(block).not.toMatch(/margin/);
   });
 
-  it('底部说明那组（alert / notice）也接了令牌', () => {
-    const block = blockOf(read(COMPOSER), '.boh-cp-alert,');
-    expect(block, '.boh-cp-alert 组未找到').toBeTruthy();
-    expect(squeezeSource(block)).toContain(squeezeSource('var(--boh-content-mr)'));
+  it('AI 回复自己限宽到内容列宽', () => {
+    const block = blockOfFile(STREAM, '.boh-msg.is-ai {');
+    expect(block, '.boh-msg.is-ai 未找到').toBeTruthy();
+    expect(squeezeSource(block)).toContain(squeezeSource('max-width: var(--boh-content-w)'));
+  });
+
+  it('用户消息靠右', () => {
+    const block = blockOfFile(STREAM, '.boh-msg.is-user {');
+    expect(block, '.boh-msg.is-user 未找到').toBeTruthy();
+    expect(squeezeSource(block)).toContain(squeezeSource('justify-content: flex-end'));
+  });
+});
+
+describe('用户气泡：白色底 + 灰描边', () => {
+  it('底色走 `--boh-bubble-bg` 单源，不再用卡片灰', () => {
+    const block = blockOfFile(STREAM, '.boh-bubble {');
+    expect(block, '.boh-bubble 未找到').toBeTruthy();
+    expect(squeezeSource(block)).toContain(squeezeSource('background: var(--boh-bubble-bg)'));
+    expect(block).not.toContain('var(--boh-bg-card)');
+  });
+
+  it('描边沿用 `--boh-border`（浅色 #e5e5e5 灰）', () => {
+    expect(squeezeSource(blockOfFile(STREAM, '.boh-bubble {'))).toContain(
+      squeezeSource('border: 1px solid var(--boh-border)'),
+    );
+  });
+
+  it('气泡底色令牌在浅色与暗色各定义一次', () => {
+    const tokens = read(TOKENS);
+    expect((tokens.match(/--boh-bubble-bg:/g) || []).length).toBe(2);
+    // 浅色 = 页面白底；暗色 = 卡片色
+    expect(squeezeSource(tokens)).toContain(squeezeSource('--boh-bubble-bg: var(--boh-bg-page);'));
+    expect(squeezeSource(tokens)).toContain(squeezeSource('--boh-bubble-bg: var(--boh-bg-card);'));
   });
 });

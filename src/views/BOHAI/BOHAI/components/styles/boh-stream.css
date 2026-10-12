@@ -26,10 +26,11 @@
   background-clip: content-box;
 }
 
+/* ⚠️ 这里**不再限宽**（2026-10-12 用户口径「右边栏关闭时用户消息应该靠右」）：
+   列宽约束**下移到消息级**（见下面 `.boh-msg.is-ai`）。容器一旦限宽，用户气泡就只能贴到
+   内容列右缘（实测 1440 下 928），够不到可用区域右边（`main.right − 40 = 1400`）。
+   ⇒ AI 回复靠左（880 上限）、用户气泡靠右，两者共用这个全宽容器。 */
 .boh-stream-pad {
-  max-width: var(--boh-content-w);
-  /* 横向对齐走令牌（`--boh-content-ml/-mr`）：靠左，不再居中 —— 用户 2026-10-12 口径。 */
-  margin: 0 var(--boh-content-mr) 0 var(--boh-content-ml);
   padding: 16px 16px 6px;
 }
 
@@ -94,18 +95,28 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
   margin-top: 24px;
 }
 
+/* AI 回复：限宽 + 靠左 —— DESIGN §4「内容区 880 靠左」现在落在**消息级**（2026-10-12）。
+   容器（`.boh-stream-pad`）全宽，所以这里必须自己限宽，否则正文会摊满整行。 */
+.boh-msg.is-ai {
+  max-width: var(--boh-content-w);
+}
+
 .boh-msg.is-user {
   display: flex;
   justify-content: flex-end;
 }
 
 .boh-bubble {
-  max-width: 80%;
+  /* 容器现在全宽 ⇒ 上限取「80% 与内容列宽的小者」：窄屏保持原比例（竖屏 ≤88% 那条
+     媒体查询仍然覆盖它），宽屏不让长消息摊满整行（与 AI 回复同宽 880）。 */
+  max-width: min(80%, var(--boh-content-w));
   padding: 10px 14px;
   border: 1px solid var(--boh-border);
   border-radius: var(--boh-radius-xl);
   border-bottom-right-radius: 4px;
-  background: var(--boh-bg-card);
+  /* 白色底 + 灰描边（2026-10-12 用户口径）。底色走 `--boh-bubble-bg` 单源，
+     描边沿用 `--boh-border`；两者都跟着 BOHAI 主题（`data-boh-theme`）翻转。 */
+  background: var(--boh-bubble-bg);
   font-size: 14.5px;
   line-height: 1.65;
   white-space: pre-wrap;

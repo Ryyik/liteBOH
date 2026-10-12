@@ -98,16 +98,17 @@ try {
           : 0,
         mainLeft: Math.round(rect(main)?.x ?? -1),
         mainMarginLeft: main ? getComputedStyle(main).marginLeft : '',
-        // 内容列（AI 回复 / 输入框 / 底部说明）的**横向对齐**（2026-10-12 口径变更：
-        // 由「768 居中」改成「880 靠左」）。⚠️ 只判宽度会漏掉居中 —— 居中的宽度一模一样，
-        // 必须比「列左缘 vs 主列左缘」与「左右留白之差」。
+        // 消息列（AI 回复 / 用户气泡 / 输入框）的**横向布局**（2026-10-12 两轮口径）：
+        //   · 容器 `.boh-stream-pad` **全宽**（列宽约束下移到消息级）
+        //   · AI 回复靠左、宽 `--boh-content-w`（880）；用户气泡贴可用区域右边
+        //   · 输入框与 AI 回复同一条列
+        // ⚠️ 容器全宽 ⇒ 拿容器右缘判「靠左 / 靠右」会永远失败，消息自己的盒子在**场景 E** 量。
+        // ⚠️ 比「同列」必须比**内容左缘**：`.boh-stream-pad` 的横向内衬写在它自己身上
+        //    （盒内），输入框的让位来自父级 `.boh-composer-wrap` 的 padding（盒外）
+        //    ⇒ 直接比两个盒子的 `x` 会差一个 padding（实测 1440 下 40px）。
         mainRight: Math.round(rect(main)?.right ?? -1),
         padLeft: Math.round(rect(q('.boh-stream-pad'))?.x ?? -1),
         padRight: Math.round(rect(q('.boh-stream-pad'))?.right ?? -1),
-        padWidth: Math.round(rect(q('.boh-stream-pad'))?.width ?? -1),
-        // ⚠️ 比左缘必须比「**内容**左缘」：`.boh-stream-pad` 的横向内衬写在它**自己**身上
-        //    （盒内），而输入框的横向让位来自父级 `.boh-composer-wrap` 的 padding
-        //    （盒外）⇒ 直接比两个盒子的 `x` 会差出一个 padding（实测 1440 下差 40px）。
         padPadLeft: Math.round(parseFloat(getComputedStyle(q('.boh-stream-pad')).paddingLeft) || 0),
         composerLeft: Math.round(rect(composer)?.x ?? -1),
         topbarHeight: Math.round(rect(topbar)?.height ?? 0),
@@ -145,19 +146,15 @@ try {
       `display=${d.railDisplay} w=${d.railWidth}`,
     );
     check('桌面：.boh-shell 在左栏右侧', d.shellLeft >= 88, `left=${d.shellLeft}`);
-    // ── 内容列的横向对齐（2026-10-12 用户口径：AI 回复要靠左、并加宽到 880）──────
-    // ⚠️ 四条要一起看：只判宽度漏掉居中（居中宽度相同）；只判左缘漏掉「列被压窄」。
+    // ── 消息列的横向布局（2026-10-12 用户口径）────────────────────────────
+    // 「列宽约束在**消息级**、容器全宽」是「用户气泡能贴到右边」的前提：容器一旦限宽，
+    // 气泡就只能贴到内容列右缘（实测 1440 下 928），够不到可用区域右边（1400）。
+    // 消息自己的两条几何断言在**场景 E**（那里才有消息）。
     check(
-      '桌面：内容列靠左（列左缘贴主列左缘，不是居中）',
-      d.padLeft >= 0 && Math.abs(d.padLeft - d.mainLeft) <= 2,
-      `padLeft=${d.padLeft} mainLeft=${d.mainLeft}`,
+      '桌面：消息容器全宽（列宽约束在消息级，不在容器）',
+      d.padLeft === d.mainLeft && d.padRight === d.mainRight,
+      `pad=${d.padLeft}..${d.padRight} main=${d.mainLeft}..${d.mainRight}`,
     );
-    check(
-      '桌面：内容列右侧留白明显大于左侧（靠左而非居中的判据）',
-      d.mainRight - d.padRight > d.padLeft - d.mainLeft + 40,
-      `右留白=${d.mainRight - d.padRight} 左留白=${d.padLeft - d.mainLeft}`,
-    );
-    check('桌面：内容列宽 880px（主列够宽时）', d.padWidth === 880, `w=${d.padWidth}`);
     check(
       '桌面：输入框与消息列同一条列（内容左缘对齐）',
       Math.abs(d.padLeft + d.padPadLeft - d.composerLeft) <= 2,
@@ -478,6 +475,78 @@ try {
       '桌面：落点贴底且 is-empty 已摘、消息已渲染',
       Math.abs(end.top - end.mainBottom) < 200 && !end.isEmptyClass && end.msgs >= 1,
       `top=${end.top} mainBottom=${end.mainBottom} is-empty=${end.isEmptyClass} msgs=${end.msgs}`,
+    );
+    await ctx.close();
+  }
+  // ── 场景 E：消息列的横向布局（2026-10-12 用户口径）────────────────────
+  //   用户报障两连：①「AI 回复要往左靠一些」②「右边栏关闭时用户消息应该靠右」。
+  //   两条都是**消息级**几何（空态量不到）⇒ 这里**播种会话**后量（不调真模型，
+  //   几何是确定的；也让这条断言与「模型能不能回」解耦）。
+  {
+    const ctx = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      serviceWorkers: 'block',
+    });
+    const page = await ctx.newPage();
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'boh_chat_sessions',
+        JSON.stringify([
+          {
+            title: '探针：横向布局',
+            pinned: false,
+            timestamp: Date.now(),
+            messages: [
+              { role: 'user', content: '你好' },
+              { role: 'assistant', content: '你好！很高兴见到你。有什么我可以帮助你的吗？' },
+            ],
+          },
+        ]),
+      );
+    });
+    await page.goto(`${BASE}/#/ai-chat`, { waitUntil: 'load' });
+    await page.waitForSelector('.boh-msg.is-user .boh-bubble', { timeout: 20000 });
+    await page.waitForTimeout(800);
+
+    const g = await page.evaluate(() => {
+      const q = (s) => document.querySelector(s);
+      const r = (el) => (el ? el.getBoundingClientRect() : null);
+      const pad = q('.boh-stream-pad');
+      const cs = getComputedStyle(pad);
+      return {
+        padLeft: Math.round(r(pad).left),
+        padRight: Math.round(r(pad).right),
+        padPadLeft: Math.round(parseFloat(cs.paddingLeft) || 0),
+        padPadRight: Math.round(parseFloat(cs.paddingRight) || 0),
+        aiLeft: Math.round(r(q('.boh-msg.is-ai'))?.left ?? -1),
+        aiRight: Math.round(r(q('.boh-msg.is-ai'))?.right ?? -1),
+        aiWidth: Math.round(r(q('.boh-msg.is-ai'))?.width ?? -1),
+        bubbleRight: Math.round(r(q('.boh-msg.is-user .boh-bubble'))?.right ?? -1),
+        bubbleBg: getComputedStyle(q('.boh-msg.is-user .boh-bubble')).backgroundColor,
+      };
+    });
+    const contentLeft = g.padLeft + g.padPadLeft;
+    const availableRight = g.padRight - g.padPadRight;
+
+    check(
+      '桌面（有消息）：AI 回复靠左且宽 880（主列够宽时）',
+      g.aiLeft === contentLeft && g.aiWidth === 880,
+      `aiLeft=${g.aiLeft} 内容左缘=${contentLeft} w=${g.aiWidth}`,
+    );
+    check(
+      '桌面（有消息）：AI 回复右侧留白明显大于左侧（靠左而非居中）',
+      availableRight - g.aiRight > g.aiLeft - contentLeft + 40,
+      `右留白=${availableRight - g.aiRight} 左留白=${g.aiLeft - contentLeft}`,
+    );
+    check(
+      '桌面（有消息）：用户气泡贴可用区域右边（不是贴内容列右缘）',
+      Math.abs(g.bubbleRight - availableRight) <= 2,
+      `bubble=${g.bubbleRight} 可用右缘=${availableRight}`,
+    );
+    check(
+      '桌面（有消息）：用户气泡是白底（不是 `--boh-bg-card` 的 #f5f5f5 灰）',
+      g.bubbleBg === 'rgb(255, 255, 255)',
+      g.bubbleBg,
     );
     await ctx.close();
   }
