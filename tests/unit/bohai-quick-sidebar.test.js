@@ -145,7 +145,12 @@ describe('BOH AI motion system', () => {
     expect(tokens).toContain('--boh-dur-med');
     expect(tokens).toContain('--boh-dur-bob');
     expect(tokens).toContain('--boh-dur-spin');
-    expect(tokens).toContain('--boh-dur-breath');
+    // 2026-10-12：那颗呼吸令牌删了（思考圆点 2026-10-10 退役时漏的尾巴，
+    // 连带 `layout.css` 两个 reduce 分支一起清）。
+    // ⚠️ 这是**否定断言** ⇒ 注释里**不写**那个令牌名 —— 负向断言会被注释里的复述满足。
+    expect(tokens).not.toContain('--boh-dur-breath');
+    // 死副本令牌也要保持「不复述」：左栏宽度真源是全局的 `--userspace-rail-w`。
+    expect(tokens).not.toContain('--boh-rail-w');
     // 降级：只把令牌归零，不写 !important（棘轮 + DESIGN §0.1）
     const layout = squeezeSource(readFileSync(layoutCssPath, 'utf8'));
     expect(layout).toContain('prefers-reduced-motion: reduce');

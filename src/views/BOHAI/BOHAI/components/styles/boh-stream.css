@@ -437,8 +437,8 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
    等待动作从「一颗会呼吸的点」改成「一行可展开的文字」。
    2026-10-10 二次（用户口径「思考也改成流光」）：思考中（`.is-live`）的标题文字
    **走与「网页搜索」同一组流光定义**（见上方「流光文字」段，单源、不是抄第二份）。
-   ⚠️ `--boh-dur-breath` 令牌保留在 tokens.css / layout.css（设计令牌集的一员，
-      DESIGN-BOHAI.md §动效 仍登记），当前无消费者。 */
+   2026-10-12 三次：连那颗圆点的呼吸令牌也删了（本体退役时漏的尾巴，
+   布局文件里两个 reduce 分支一并清掉）。 */
 .boh-reason {
   margin-top: 12px;
   font-size: 13px;

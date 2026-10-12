@@ -115,9 +115,11 @@
         那正是这个令牌当初被抽出来要避免的事。 */
   --boh-dur-bob: 1.8s;
   --boh-dur-spin: 0.9s;
-  /* 思考圆点呼吸（**2026-10-10 已退役**：等待动作改为纯文本「正在思考」+ 流光。
-     令牌作为设计令牌集的一员保留，当前**无消费者** —— 见 DESIGN-BOHAI.md §2.4） */
-  --boh-dur-breath: 2s;
+  /* 思考圆点的呼吸令牌 2026-10-12 **删除**（本体 2026-10-10 退役时就该一起删，
+     当时以「设计令牌集的一员」为由多留了两天，结果白留两个 reduce 分支和一條断言）。
+     删除范围 = 本文件 + `layout.css` 的两个 reduce 块 + DESIGN §2.4 登记 +
+     `bohai-quick-sidebar.test.js` 的同名断言（**反转为否定**，不是删断言）。
+     ⚠️ 不要加回来 —— 要「呼吸感」请复用 `--boh-dur-bob`（流光那一条，两个消费者共用）。 */
 
   /* ── 液态玻璃（跳转导航 hover 卡，2026-10-10 用户口径）──
      ⚠️ **材质必须引用全局单源** `--liquid-filter-sm`（`src/styles/common/tokens.css`）：
@@ -137,7 +139,11 @@
   --boh-glass-highlight: var(--boh-glass-highlight-light);
 
   /* ── 布局常量 ── */
-  --boh-rail-w: 88px;
+  /* 左栏宽度真源是**全局**的 `--userspace-rail-w`（`UserSpace/styles/landscape-rail.css`，
+     AI 页 `body.page-aichat` 恒 88）。BOHAI 自己那份**同义的左栏令牌**已于 2026-10-12 删除 ——
+     它是死副本、名字还和真源极易混淆，改它不会有任何效果。
+     ⚠️ 这里**不写**那个旧名：`bohai-quick-sidebar.test.js` 对它有否定断言，
+        注释里复述会让断言被自己的注释满足（本仓踩过的假绿）。 */
   --boh-sidebar-w: 280px;
   --boh-work-w: 360px;
   --boh-content-w: 880px;
