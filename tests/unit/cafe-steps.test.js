@@ -4,7 +4,8 @@
  * 反证判据（改坏任一机制时本文件必须转红）：
  *  - 每种 kind 都有一条「机制达标 ⇒ 高档」「机制不达标 ⇒ fail/fair」的断言，
  *    而不是因为「只要调gradeByWindow 就会过」。
- *  - P0-3 的三档惩罚必须真的连击清零 + 扣 15 耐心（原来只扣 8）。
+ *  - P0-3 的惩罚必须真的连击清零 + 扣耐心（fail -10，fair -4 不断连击；
+ *    2026-10-12 从 fail -15 回调）。
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -37,21 +38,22 @@ describe('目标区与判定分级（P0-3）', () => {
     expect(gradeByWindow(40, [60, 80]).grade).toBe('fail');
   });
 
-  it('Fail 的惩罚是「连击清零 + 耐心 -15」，不是旧的 -8', () => {
-    expect(GRADES.fail.patiencePenalty).toBe(15);
+  it('Fail 的惩罚是「连击清零 + 耐心 -10」，fair 只扣 4 且不断连击', () => {
+    expect(GRADES.fail.patiencePenalty).toBe(10);
+    expect(GRADES.fair.patiencePenalty).toBe(4);
     expect(GRADES.fail.comboDelta).toBe(0);
     expect(GRADES.fair.comboDelta).toBe(0);
     expect(GRADES.perfect.comboMultiplier).toBe(2);
   });
 
-  it('难度收窄封顶 3.5，且升级能把难度加回来（单一真源在resolveTargetWindow）', () => {
+  it('难度收窄封顶 2.5，且升级能把难度加回来（单一真源在resolveTargetWindow）', () => {
     const base = STEP_DEFINITIONS.grind.target;
     const late = resolveTargetWindow(60, base);
     const lateWidth = late[1] - late[0];
     const baseWidth = base[1] - base[0];
     // 收窄存在，但封顶 ⇒ 不会越做越窄到消失
     expect(lateWidth).toBeLessThan(baseWidth);
-    expect(lateWidth).toBeGreaterThan(baseWidth - 2 * 3.5 - 0.001);
+    expect(lateWidth).toBeGreaterThan(baseWidth - 2 * 2.5 - 0.001);
     // 升级加宽确实生效
     const upgraded = resolveTargetWindow(60, base, 4.2);
     expect(upgraded[1] - upgraded[0]).toBeGreaterThan(lateWidth);

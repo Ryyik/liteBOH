@@ -5,8 +5,8 @@
  * 与旧版的差异（每条都对应 plans/026 的实测发现）：
  *  P0-1 本文件不再塞数据表/引擎/存档/音效，全部在 src/games/cafe/ 下。
  *  P0-2 八类机制各自不同的核心动作（原来是 11 步共用一条进度条规则）。
- *  P0-3 四档判定，Fail 扣 15 耐心并清连击。
- *  P0-4 猫救场品质 68、清连击、每局封顶 2 次，且认真做收益更高。
+ *  P0-3 四档判定，Fail 扣 10 耐心并清连击（2026-10-12 从 15 回调；fair 不清连击）。
+ *  P0-4 猫救场品质 72、清连击、每局封顶 2 次，且认真做收益更高。
  *  P0-5 布局改成 CSS Grid（竖屏四行 / 桌面三栏），**不再用 transform: scale 硬缩**。
  *       旧版 5 个 media query 各写一套绝对定位坐标，谁也不让谁，
  *       竖屏面板占屏 59.7%、字号压到 7px，桌面中部却是 300px 空洞。
@@ -20,11 +20,13 @@ import {
   Heart,
   House,
   Milk,
+  Moon,
   Pause,
   Play,
   RotateCcw,
   Send,
   Sparkles,
+  Sun,
   Trash2,
   Volume2,
   VolumeX,
@@ -108,6 +110,24 @@ const exitTarget = ref('intro');
 const pauseReason = ref('');
 const soundEnabled = ref(true);
 const stats = ref(createStats());
+/**
+ * 店内主题：night（默认深色木屋）/ day（暖色白昼）。
+ * 2026-10-12 UI 对比：同一套 DOM，两套变量皮肤，顶栏一键切换、
+ * localStorage 记住选择。day 的全部色值只出现在 `.theme-day` 规则块里
+ * （暗色门禁只扫 dark 选择器块，互不干扰）。
+ */
+const cafeTheme = ref('night');
+const CAFE_THEME_KEY = 'boh-anniversary-cafe-theme';
+
+function toggleCafeTheme() {
+  cafeTheme.value = cafeTheme.value === 'night' ? 'day' : 'night';
+  try {
+    window.localStorage.setItem(CAFE_THEME_KEY, cafeTheme.value);
+  } catch {
+    /* 无痕模式写失败也不影响游戏 */
+  }
+  sfx('tap');
+}
 
 const machineHeat = ref(0);
 const steamCleanliness = ref(100);
@@ -164,21 +184,16 @@ const interactiveStation = computed(
   () => Boolean(currentStep.value) && !['timed', 'sequenced'].includes(currentStep.value.kind),
 );
 /**
- * 「店里正忙」= 有一单处在制作流程中（还没到可出杯）。
+ * 「手头正忙」= 玩家正在按住操作，或设备正在维护。
  *
- * ⚠️ 判据不能只看 holding（正在按住）：
- * 2026-10-08 端到端探针抓到 —— 开局没人按按钮时 holding=false，
- * 于是摸猫/逗猫可用，玩家可以在「第一杯还没开始做」时白嫖亲密度，
- * P0-4① 的反白嫖约束形同虚设（实测 7a/7b 转红）。
- * 正确口径：**有订单在进行中且未完成**就算占用，让亲密度只能靠
- * 「等单做完的空档」或「发现回忆」获取。
+ * ⚠️ 2026-10-12 回调：旧口径是「有订单没做完就算忙」—— 开局即 3 单并发，
+ * 于是整局几乎永远 busy，摸猫/逗猫/设备维护形同虚设，
+ * 「猫救场被砍 + 亲密度攒不到」是「改版后更难玩」体感里最大的一块。
+ * 新口径只看「手有没有在设备上」：按住读数条 / 画圈 / 维护时不能分心摸猫
+ * （反白嫖还在：tryPetCat 的 busy 分支与单测原样保留），
+ * 但等步骤间隙、等出杯的空档都可以摸 —— 猫回到「喘口气」的定位。
  */
-const anyStepInProgress = computed(() => {
-  if (holding.value) return true;
-  return orders.value.some(
-    (item) => !item.isResolving && item.stepIndex < getDrink(item).steps.length,
-  );
-});
+const handsBusy = computed(() => holding.value || Boolean(maintenanceLock.value));
 const catHelpReady = computed(() =>
   canRescue({
     affinity: catAffinity.value,
@@ -333,7 +348,7 @@ function petCat() {
     affinity: catAffinity.value,
     nowMs: Date.now(),
     lastPetAt,
-    anyStepInProgress: anyStepInProgress.value,
+    anyStepInProgress: handsBusy.value,
     paused: isPaused.value,
   });
   if (!result.ok) return;
@@ -356,7 +371,7 @@ function playWithCat() {
     nowMs: Date.now(),
     lastPlayAt,
     catMood: catMood.value,
-    anyStepInProgress: anyStepInProgress.value,
+    anyStepInProgress: handsBusy.value,
     paused: isPaused.value,
   });
   if (!result.ok) return;
@@ -427,6 +442,7 @@ function selectOrder(orderId) {
 
 function removeOrder(orderId) {
   const wasActive = activeOrderId.value === orderId;
+  stopDoseHold();
   orders.value = orders.value.filter((item) => item.id !== orderId);
   //订单没了，它的步骤状态也一起清掉（否则 orderId 复用时会拿到旧状态）
   if (stepStates.value[orderId]) {
@@ -452,7 +468,7 @@ function loseOrder(orderId) {
 
 // ─────────────────────────── 设备 ───────────────────────────
 function serviceEquipment(kind) {
-  if (maintenanceLock.value || anyStepInProgress.value) return;
+  if (maintenanceLock.value || handsBusy.value) return;
   maintenanceLock.value = kind;
   cancelPointer();
   sfx('machine');
@@ -487,6 +503,7 @@ function localPoint(event) {
 function cancelPointer() {
   pointer.value = null;
   holding.value = false;
+  stopDoseHold();
   if (rafId) cancelAnimationFrame(rafId);
   rafId = 0;
 }
@@ -626,6 +643,54 @@ function doseIngredient() {
   if (next.added >= def.targetCount) commitStep(stepId, next);
 }
 
+/**
+ * 按住连投（2026-10-12「一直点按钮」回调）。
+ *
+ * timed/sequenced 原来只能逐下点：冰块 3 下、八周年特调 6 下，
+ * 一局点下来全是投料点击。改成：pointerdown 立投一次，
+ * 按住则每 450ms 自动再投一发，投满自动提交、松手即停。
+ * 间隔 450ms ≥ minGapMs(380) ⇒ 按住的节奏均匀、仍能拿 perfect；
+ * 而狂点（间隔 <380）照样判「混在一起」—— 节奏判定一点没动。
+ * 键盘用户走 click（无前置 pointerdown），用 600ms 窗口防双投。
+ */
+let doseHoldTimer = null;
+let lastPointerDoseAt = 0;
+const DOSE_HOLD_INTERVAL_MS = 450;
+
+function stopDoseHold() {
+  if (doseHoldTimer) {
+    window.clearInterval(doseHoldTimer);
+    doseHoldTimer = null;
+  }
+  // 只收自己这一路的 holding：投料按钮与按住型按钮不会同时存在（同一时刻只有一个当前步骤）
+  if (holding.value && !pointer.value) holding.value = false;
+}
+
+function startDoseHold() {
+  const stepId = currentStepId.value;
+  const def = STEP_DEFINITIONS[stepId];
+  if (!def || (def.kind !== 'timed' && def.kind !== 'sequenced') || !canInteract()) return;
+  stopDoseHold();
+  lastPointerDoseAt = Date.now();
+  holding.value = true;
+  doseIngredient();
+  doseHoldTimer = window.setInterval(() => {
+    if (!canInteract()) {
+      stopDoseHold();
+      return;
+    }
+    doseIngredient();
+    if (stepState.value?.status === 'settled' || stepState.value?.status === 'failed') {
+      stopDoseHold();
+    }
+  }, DOSE_HOLD_INTERVAL_MS);
+}
+
+function onDoseClick() {
+  if (Date.now() - lastPointerDoseAt < 600) return;
+  doseIngredient();
+}
+
 function resetCurrentStep() {
   const stepId = currentStepId.value;
   if (!stepId || canServe.value) return;
@@ -651,12 +716,13 @@ function commitStep(stepId, state, orderId = activeOrderId.value) {
   patchStepState(stepId, result, orderId);
 
   if (result.grade === 'fail') {
-    // P0-3：Fail 扣 15 耐心并清连击（旧实现只扣 8 且不清连击）
+    // P0-3：Fail 扣 10 耐心并清连击（2026-10-12 从 15 回调到 10）。
+    // fair（尚可）**不清连击**：它是「勉强完成但推进了」，新手连击不断档；
+    // 只有 fail（这步要重做）才断 —— 威慑留给真正的失误。
     stats.value = { ...stats.value, combo: 0 };
     sfx('error');
   } else if (result.grade === 'fair') {
-    stats.value = { ...stats.value, combo: 0 };
-    sfx('error');
+    sfx('success');
   } else {
     sfx(result.grade === 'perfect' ? 'perfect' : 'success');
   }
@@ -936,6 +1002,11 @@ onMounted(() => {
   bestScore.value = readBestScore();
   wallet.value = readWallet();
   upgrades.value = readUpgrades();
+  try {
+    if (window.localStorage.getItem(CAFE_THEME_KEY) === 'day') cafeTheme.value = 'day';
+  } catch {
+    /* 读不到就用默认夜色 */
+  }
   /**
    * 开发期调试钩子（仅 `import.meta.env.DEV`，生产构建里不存在）。
    * 用途：让探针能直接指定开局配方 —— 否则 8 款咖啡里只有 4 款含 `pour`，
@@ -985,7 +1056,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="cafe-game" :style="{ '--cafe-image': `url(${BACKDROP_URL})` }">
+  <main
+    class="cafe-game"
+    :class="{ 'theme-day': cafeTheme === 'day' }"
+    :style="{ '--cafe-image': `url(${BACKDROP_URL})` }"
+  >
     <div class="cafe-backdrop" aria-hidden="true"></div>
     <div class="cafe-shade" aria-hidden="true"></div>
 
@@ -1030,6 +1105,14 @@ onUnmounted(() => {
             @click="requestExit('home')"
           >
             <House :size="17" />
+          </button>
+          <button
+            type="button"
+            class="icon-button"
+            :aria-label="cafeTheme === 'night' ? '切换到白昼主题' : '切换到夜色主题'"
+            @click="toggleCafeTheme"
+          >
+            <Sun v-if="cafeTheme === 'night'" :size="17" /><Moon v-else :size="17" />
           </button>
           <button
             type="button"
@@ -1127,8 +1210,8 @@ onUnmounted(() => {
             type="button"
             class="voxel-cat"
             :class="`mood-${catMood}`"
-            :aria-label="`摸摸小满（冷却 ${CAT_PET_COOLDOWN_MS / 1000} 秒，${anyStepInProgress ? '制作中不能摸' : '可摸'}）`"
-            :disabled="anyStepInProgress"
+            :aria-label="`摸摸小满（冷却 ${CAT_PET_COOLDOWN_MS / 1000} 秒，${handsBusy ? '操作中不能摸' : '可摸'}）`"
+            :disabled="handsBusy"
             @pointerdown="petCat"
           >
             <span class="cat-tail"></span><span class="cat-body"></span
@@ -1143,7 +1226,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="toy-button"
-              :disabled="anyStepInProgress || catMood === 'chase'"
+              :disabled="handsBusy || catMood === 'chase'"
               @click="playWithCat"
             >
               <span aria-hidden="true"></span>逗猫
@@ -1324,8 +1407,13 @@ onUnmounted(() => {
               <button
                 v-if="currentStep && ['timed', 'sequenced'].includes(currentStep.kind)"
                 type="button"
-                class="machine-button"
-                @click="doseIngredient"
+                class="machine-button dose-button"
+                :aria-label="`按住连续${currentStep.action}`"
+                @pointerdown="startDoseHold"
+                @pointerup="stopDoseHold"
+                @pointercancel="stopDoseHold"
+                @pointerleave="stopDoseHold"
+                @click="onDoseClick"
               >
                 <Sparkles :size="17" />{{ currentStep.action }}
               </button>

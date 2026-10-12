@@ -43,11 +43,15 @@ export const CAT_PLAY_COOLDOWN_MS = 2400;
 export const MAX_CAT_RESCUES = 2;
 
 /**
- * 救场的品质：**68**，低于认真做的中位档（good=88）。
+ * 救场的品质：**72**，低于认真做的中位档（good=88）。
  * 旧值 82 偏高，加上时间成本只有 1/6，导致刷猫严格优于认真做。
  * 取 68 = 与 fair 同档，语义上也对：救场是「勉强及格」，不是「完美代劳」。
+ *
+ * 2026-10-12 回调：68 → 72。救场仍是全场最低档（fair 保守 70 上下、good 88），
+ * 代价结构（清连击、无 comboTip、整局 2 次）一点没动；多给 4 点只是让
+ * 「用掉攒了半局的额度」这一下不那么肉疼。
  */
-export const CAT_RESCUE_QUALITY = 68;
+export const CAT_RESCUE_QUALITY = 72;
 
 /**
  * 能否逗猫：必须**当前没有任何订单正在制作**。

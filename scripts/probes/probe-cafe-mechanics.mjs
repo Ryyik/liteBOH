@@ -461,29 +461,54 @@ async function followGuide(page) {
   await page.close();
 }
 
-// ═══════════════ 场景 7：猫救场的三条约束真的生效（P0-4）═══════════════
+// ═══════════════ 场景 7：猫的三条约束真的生效（P0-4 + 2026-10-12 回调）═══════════════
+//
+// ⚠️ 2026-10-12 回调改了忙闲口径：旧规则「有单没做完就算忙」让猫整局被锁死
+// （开局即 3 单并发 ⇒ busy 恒真），新规则只看「手有没有在设备上」
+// （holding / 维护中）。反白嫖还在：按住操作时摸/逗照样禁用。
 {
-  const { page, errors } = await openRound();
-  const catState = await page.evaluate(() => {
-    const pet = document.querySelector('.voxel-cat');
-    const toy = document.querySelector('.toy-button');
-    const help = document.querySelector('.help-button');
-    return {
-      petDisabled: pet?.disabled ?? null,
-      toyDisabled: toy?.disabled ?? null,
-      helpDisabled: help?.disabled ?? null,
-      helpText: help?.textContent?.trim() || null,
-      toyText: toy?.textContent?.trim() || null,
-    };
-  });
-  // 制作中（第一步就是 grind 在跑）⇒ 摸猫与逗猫都应禁用
+  const { page, errors, read } = await openRound();
+  const catDisabled = () =>
+    page.evaluate(() => ({
+      petDisabled: document.querySelector('.voxel-cat')?.disabled ?? null,
+      toyDisabled: document.querySelector('.toy-button')?.disabled ?? null,
+      helpDisabled: document.querySelector('.help-button')?.disabled ?? null,
+      helpText: document.querySelector('.help-button')?.textContent?.trim() || null,
+    }));
+  // 开局有单在等、但手没在设备上 ⇒ 摸猫与逗猫都可用（这就是本次回调的修复点）
+  const idle = await catDisabled();
   check(
-    '7a 制作中摸猫被禁用（P0-4① 反白嫖）',
-    catState.petDisabled === true,
-    `disabled=${catState.petDisabled}`,
+    '7a 步骤间隙摸猫可用（旧口径下这里恒禁用）',
+    idle.petDisabled === false,
+    `disabled=${idle.petDisabled}`,
   );
-  check('7b 制作中逗猫被禁用', catState.toyDisabled === true, `disabled=${catState.toyDisabled}`);
+  check('7b 步骤间隙逗猫可用', idle.toyDisabled === false, `disabled=${idle.toyDisabled}`);
+  // 按住操作时 ⇒ 摸猫与逗猫都应禁用（反白嫖还在）
+  const holdBtn = page.locator('.hold-button, .machine-button').first();
+  if (await holdBtn.count()) {
+    const box = await holdBtn.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(400);
+    const busy = await catDisabled();
+    const mid = await read();
+    await page.mouse.up();
+    check(
+      '7a2 按住操作时摸猫被禁用（P0-4① 反白嫖）',
+      busy.petDisabled === true && mid.holding === true,
+      `disabled=${busy.petDisabled} holding=${mid.holding}`,
+    );
+    check('7b2 按住操作时逗猫被禁用', busy.toyDisabled === true, `disabled=${busy.toyDisabled}`);
+    await page.waitForTimeout(900);
+    const after = await catDisabled();
+    check('7a3 松手后摸猫恢复可用', after.petDisabled === false, `disabled=${after.petDisabled}`);
+  } else {
+    check('7a2 按住操作时摸猫被禁用（P0-4① 反白嫖）', false, '操作按钮缺失');
+    check('7b2 按住操作时逗猫被禁用', false, '操作按钮缺失');
+    check('7a3 松手后摸猫恢复可用', false, '操作按钮缺失');
+  }
   // 救场按钮应显示「亲密度/12」与剩余次数，且额度为 0 时禁用
+  const catState = await catDisabled();
   check(
     '7c 救场显示亲密度进度与剩余次数',
     /\d+\/12/.test(catState.helpText || '') && /剩\s*2\s*次/.test(catState.helpText || ''),
@@ -552,11 +577,13 @@ async function followGuide(page) {
       } else if (state.stationKind === 'trace') {
         await followGuide(page);
       } else if (['sequenced', 'timed'].includes(state.stationKind)) {
-        const dose = page.locator('.machine-button').first();
-        for (let i = 0; i < (state.stationKind === 'timed' ? 3 : 2); i += 1) {
-          await dose.click();
-          await page.waitForTimeout(450);
-        }
+        // 2026-10-12 回调：投料改按住连泵（450ms/发）。这里走按住路径：
+        // sequenced 2 发 ≈ 0.5s、timed 3 发 ≈ 1.0s；逐下点路径由场景 4 覆盖。
+        const doseBox = await page.locator('.dose-button').boundingBox();
+        await page.mouse.move(doseBox.x + doseBox.width / 2, doseBox.y + doseBox.height / 2);
+        await page.mouse.down();
+        await page.waitForTimeout(state.stationKind === 'timed' ? 1200 : 800);
+        await page.mouse.up();
       } else if (state.stationKind === 'layer') {
         const box = await page.locator('.hold-button').boundingBox();
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

@@ -62,7 +62,7 @@ describe('失败不推进步骤（长按失灵根因 ①）', () => {
     expect(averageOf(failed.stepQualities)).toBe(0);
   });
 
-  it('fail ⇒ 扣 15 耐心、反馈标明要重做、不出现「下一步」', () => {
+  it('fail ⇒ 扣 10 耐心、反馈标明要重做、不出现「下一步」', () => {
     const order = makeOrder('americano');
     const failed = applyStepResult(
       order,
@@ -70,7 +70,7 @@ describe('失败不推进步骤（长按失灵根因 ①）', () => {
       'grind',
     );
     expect(order.patience).toBe(100);
-    expect(failed.patience).toBe(85); // GRADES.fail.patiencePenalty = 15
+    expect(failed.patience).toBe(90); // GRADES.fail.patiencePenalty = 10
     expect(failed.feedback).toContain('重做');
     //⚠️ 反证：失败后绝不能出现「下一步」——那会让玩家以为已经换步骤了，
     //   而按钮还在原地 ⇒ 正是「长按没反应」的观感来源。
@@ -101,7 +101,7 @@ describe('失败不推进步骤（长按失灵根因 ①）', () => {
     expect(order.stepIndex).toBe(0);
     expect(getCurrentStepId(order)).toBe('grind');
     // 耐心会耗尽但步骤不推进 —— 玩家仍能继续尝试
-    expect(order.patience).toBe(25);
+    expect(order.patience).toBe(50);
   });
 });
 
@@ -125,11 +125,11 @@ describe('出杯结算（未回归，顺带钉住P0-4）', () => {
     expect(r.comboTip).toBeGreaterThan(0);
   });
 
-  it('猫救场 ⇒ 品质 68、连击清零、无 comboTip', () => {
+  it('猫救场 ⇒ 品质 72（2026-10-12 从 68 回调，仍低于 good=88）、连击清零、无 comboTip', () => {
     const stats = { ...createStats(), combo: 4 };
     const order = makeOrder('americano');
     const r = settleCatRescue(order, stats, 0);
-    expect(r.quality).toBe(68);
+    expect(r.quality).toBe(72);
     expect(r.nextCombo).toBe(0);
     expect(r.comboTip).toBe(0);
     // comboBroken 必须透出到 round 层：AnniversaryCafe/index.vue 用它选反馈色调
@@ -229,5 +229,40 @@ describe('周年馆视图接线（防「结算不回写」静默复发）', () =
 
   it('反馈文案读该杯增量 coinsDelta（不是累计值 coins）', () => {
     expect(cafeViewScript()).toMatch(/settlement\.coinsDelta/);
+  });
+});
+
+/**
+ * ⚠️ 视图接线守卫（2026-10-12「更难玩 + 一直点按钮」回调）
+ *
+ * 三条行为变更都只动了视图层 / 常量，纯函数单测抓不到，回退时会静默复发：
+ *  1. 摸猫锁从「有单没做完」收成「手头正忙」（holding/维护中）—— 旧名
+ *     `anyStepInProgress` 一旦回来，猫在整局里几乎永远被锁死；
+ *  2. fair 不清连击 —— 旧分支回来，新手连击会频繁断档；
+ *  3. 投料走按住连投 —— @click 直调 doseIngredient 一回来，就退回逐下点。
+ */
+describe('周年馆视图接线（2026-10-12 回调三条）', () => {
+  it('忙闲判据是 handsBusy，旧的 anyStepInProgress 计算口径不得回来', () => {
+    const code = cafeViewScript();
+    expect(code).toMatch(/handsBusy/);
+    // 注：传给 tryPetCat 的参数名仍叫 anyStepInProgress（那是 cat.js 的 API），
+    // 这里锁的是「视图层曾经用订单状态推 busy 的那行 computed」。
+    expect(code).not.toMatch(/const anyStepInProgress = computed/);
+  });
+
+  it('fair 分支不得写 combo: 0（只有 fail 才清连击）', () => {
+    const code = cafeViewScript();
+    const fairBranch = code.match(/result\.grade === 'fair'\) \{[^}]*\}/)?.[0] || '';
+    expect(fairBranch).not.toContain('combo');
+  });
+
+  it('投料按钮走按住连投（startDoseHold + 定时器），click 只做键盘兜底', () => {
+    const code = cafeViewScript();
+    expect(code).toMatch(/startDoseHold/);
+    expect(code).toMatch(/DOSE_HOLD_INTERVAL_MS/);
+    // 模板绑定在 </script> 之后，用整文件断言（cafeViewScript 只切 script 区）
+    const full = read('src/views/AnniversaryCafe/index.vue');
+    expect(full).toMatch(/@pointerdown="startDoseHold"/);
+    expect(full).toMatch(/@click="onDoseClick"/);
   });
 });

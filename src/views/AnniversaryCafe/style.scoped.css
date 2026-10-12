@@ -960,3 +960,96 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   }
   .day-track i { transition: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   白昼主题（2026-10-12 UI 对比 A 版：暖色像素咖啡馆）。
+   同一套 DOM，只翻变量 + 盖掉深色硬底；night（默认）零改动。
+   注：色值只出现在 `.theme-day` 规则块里 —— 暗色门禁只统计
+   dark 选择器块（[data-theme="dark"] 等）内的字面量，互不干扰。
+   ═══════════════════════════════════════════════════════════════════ */
+.cafe-game.theme-day {
+  --ink: #4a3220;
+  --wood: #8a5f36;
+  --wood-light: #b98d54;
+  --gold: #9a6a12;
+  --coral: #c04a33;
+  --teal: #1e7a6c;
+  --panel: rgba(255, 251, 243, .92);
+  --panel-line: rgba(122, 84, 48, .42);
+  --focus: #7a4d16;
+  background: #f0e2c8;
+}
+.cafe-game.theme-day .cafe-shade {
+  background:
+    linear-gradient(180deg, rgba(255, 246, 224, .74), rgba(255, 246, 224, .10) 30%, rgba(150, 96, 44, .10) 62%, rgba(150, 96, 44, .32)),
+    linear-gradient(90deg, rgba(255, 250, 235, .30), transparent 46%, rgba(150, 96, 44, .10));
+}
+.cafe-game.theme-day .top-bar {
+  background: linear-gradient(180deg, rgba(255, 251, 243, .96), rgba(255, 251, 243, .55) 78%, transparent);
+}
+.cafe-game.theme-day .brand-lockup,
+.cafe-game.theme-day .icon-button {
+  background: rgba(255, 252, 246, .92);
+}
+.cafe-game.theme-day .icon-button:hover { background: #fffdf8; }
+.cafe-game.theme-day .order-pill.active {
+  background: rgba(242, 196, 99, .38);
+}
+.cafe-game.theme-day .toy-button,
+.cafe-game.theme-day .help-button {
+  background: rgba(255, 252, 246, .94);
+}
+.cafe-game.theme-day .toy-button:hover:not(:disabled),
+.cafe-game.theme-day .help-button:hover:not(:disabled) {
+  background: #fffdf8;
+}
+.cafe-game.theme-day .equipment-bar button:hover:not(:disabled) {
+  background: rgba(242, 196, 99, .30);
+}
+.cafe-game.theme-day .cafe-stage-station {
+  background: linear-gradient(180deg, rgba(255, 252, 246, .96), rgba(244, 231, 205, .94));
+}
+.cafe-game.theme-day .menu-toggle,
+.cafe-game.theme-day .process-steps li,
+.cafe-game.theme-day .reset-button {
+  background: rgba(122, 84, 48, .10);
+}
+.cafe-game.theme-day .feedback.success { color: #1e7a4d; }
+.cafe-game.theme-day .feedback.error { color: #b23c22; }
+.cafe-game.theme-day .grade-legend .lg-good { color: #1e7a4d; }
+.cafe-game.theme-day .menu-sheet {
+  background: rgba(255, 251, 243, .98);
+  box-shadow: 0 24px 60px rgba(122, 84, 48, .35);
+}
+.cafe-game.theme-day .menu-line { border-top-color: rgba(122, 84, 48, .18); }
+.cafe-game.theme-day .opening-panel,
+.cafe-game.theme-day .result-panel,
+.cafe-game.theme-day .exit-confirm-panel {
+  background: rgba(255, 251, 243, .97);
+  box-shadow: 0 28px 70px rgba(122, 84, 48, .35);
+}
+.cafe-game.theme-day .result-grid > div,
+.cafe-game.theme-day .upgrade-row button,
+.cafe-game.theme-day .secondary-button,
+.cafe-game.theme-day .memory-reveal button {
+  background: rgba(122, 84, 48, .10);
+}
+.cafe-game.theme-day .upgrade-row { border-top-color: rgba(122, 84, 48, .18); }
+.cafe-game.theme-day .memory-reveal {
+  background: rgba(255, 251, 243, .98);
+  box-shadow: 0 24px 60px rgba(122, 84, 48, .35);
+}
+.cafe-game.theme-day .pause-overlay,
+.cafe-game.theme-day .exit-confirm-overlay {
+  background: rgba(240, 226, 200, .82);
+}
+.cafe-game.theme-day .result-stars { color: rgba(154, 106, 18, .30); }
+.cafe-game.theme-day .day-track,
+.cafe-game.theme-day .pill-patience,
+.cafe-game.theme-day .patience-track,
+.cafe-game.theme-day .eq-text i,
+.cafe-game.theme-day .readout-track {
+  background: rgba(122, 84, 48, .22);
+}
+.cafe-game.theme-day .station-readout.state-settled .readout-label { color: #1e7a6c; }
+.cafe-game.theme-day .process-steps li.active { color: #9a6a12; }

@@ -25,8 +25,12 @@ export { ROUND_SECONDS, MAX_CONCURRENT_ORDERS };
 
 /** 耐心衰减基础值（%/s） */
 export const PATIENCE_BASE_DECAY = 0.62;
-/** 每出一杯额外增加（%/s） */
-export const PATIENCE_DECAY_PER_SERVED = 0.055;
+/**
+ * 每出一杯额外增加（%/s）。
+ * 2026-10-12 回调：0.055 → 0.04。served=8 时衰减从 1.06 降到 0.94，
+ * 后半局不再「越做越赶」，爬坡只留在目标区收窄与全局加速两处。
+ */
+export const PATIENCE_DECAY_PER_SERVED = 0.04;
 
 let orderSerial = 0;
 

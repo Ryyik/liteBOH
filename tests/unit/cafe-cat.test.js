@@ -81,7 +81,7 @@ describe('摸猫与逗猫 —— 获取变慢（P0-4 ①）', () => {
 });
 
 describe('救场 —— 真实代价 + 次数封顶（P0-4 ②③）', () => {
-  it('品质 68，低于认真做的中位档（good=88）', () => {
+  it('品质 72（2026-10-12 从 68 回调），低于认真做的中位档（good=88）', () => {
     expect(CAT_RESCUE_QUALITY).toBeLessThan(88);
     expect(CAT_RESCUE_QUALITY).toBeGreaterThanOrEqual(60);
   });

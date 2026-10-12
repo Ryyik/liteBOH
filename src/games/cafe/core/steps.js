@@ -41,7 +41,9 @@ export const GRADES = {
     quality: 70,
     comboDelta: 0,
     comboMultiplier: 0,
-    patiencePenalty: 6,
+    // 2026-10-12 回调：6 → 4。fair 是「勉强完成但推进了」，只小扣一点；
+    // 且视图层不再因 fair 清连击（fail 才清），新手连击不断档。
+    patiencePenalty: 4,
   },
   fail: {
     id: 'fail',
@@ -49,7 +51,9 @@ export const GRADES = {
     quality: 0,
     comboDelta: 0,
     comboMultiplier: 0,
-    patiencePenalty: 15,
+    // 2026-10-12 回调：15 → 10。保留「清连击 + 明显扣耐心」的威慑，
+    // 但连失误两次不再直接丢一单（2×15=30 太疼，2×10 还能救）。
+    patiencePenalty: 10,
   },
 };
 
@@ -63,8 +67,12 @@ export const PERFECT_BAND_RATIO = 0.3;
  * 目标区随难度收窄，但**必须给出一段下限**。
  * 原实现 shrink 上限 5（即每侧 -10，总宽 16 → 6），会被磨豆机满级 bonus(+8.4) 反超，
  * 导致「越熟练越难但升级能把难度买回来」。这里收窄封顶 3.5，且收窄对所有步骤一致。
+ *
+ * 2026-10-12 回调：封顶 3.5 → 2.5、速率 0.35 → 0.25。
+ * 实测反馈是「后半局窗口缩得太快、新手学不会」—— 保留爬坡（后期仍比开局窄 5 点），
+ * 但 served=8 时只收 2 点而不是 2.8，窗口学得会、稳得住。
  */
-export const DIFFICULTY_SHRINK_CAP = 3.5;
+export const DIFFICULTY_SHRINK_CAP = 2.5;
 
 /**
  * @param {number} served 已出杯数
@@ -74,7 +82,7 @@ export const DIFFICULTY_SHRINK_CAP = 3.5;
  */
 export function resolveTargetWindow(served, base, upgradeBonus = 0) {
   const [start, end] = base;
-  const shrink = Math.min(DIFFICULTY_SHRINK_CAP, served * 0.35);
+  const shrink = Math.min(DIFFICULTY_SHRINK_CAP, served * 0.25);
   return [Math.max(4, start + shrink - upgradeBonus), Math.min(96, end - shrink + upgradeBonus)];
 }
 
@@ -191,7 +199,7 @@ export const STEP_DEFINITIONS = {
     icon: 'Sparkles',
     visual: 'dose',
     action: '按压焦糖泵',
-    instruction: '分两次泵入，间隔太短会混在一起',
+    instruction: '按住连续泵入两泵，松手太快会混在一起',
     targetCount: 2,
     minGapMs: 380,
     color: '#b85b3f',
@@ -206,9 +214,12 @@ export const STEP_DEFINITIONS = {
     icon: 'Droplets',
     visual: 'dose',
     action: '加入一块冰',
-    instruction: '冰块会化 —— 倒计时归零前必须完成这一杯',
+    instruction: '冰块会化 —— 按住连续加冰，倒计时归零前必须完成这一杯',
     targetCount: 3,
-    meltMs: 8200,
+    // 2026-10-12 回调：8200 → 12000。8.2s 里要做完「3 次投料 + 剩下整杯」，
+    // 探针与实测都显示新手在这步大量超时；12s 仍比一杯的正常用时短，
+    // 倒计时还在，只是不再是「必超时」的死线。
+    meltMs: 12000,
     color: '#8fcbd7',
     jarLabel: 'ICE',
     upgradeKey: null,
@@ -221,7 +232,7 @@ export const STEP_DEFINITIONS = {
     icon: 'Sparkles',
     visual: 'dose',
     action: '按压果汁泵',
-    instruction: '分两次压入，间隔太短会混在一起',
+    instruction: '按住连续压入两泵，松手太快会混在一起',
     targetCount: 2,
     minGapMs: 380,
     color: '#df744a',
@@ -236,7 +247,7 @@ export const STEP_DEFINITIONS = {
     icon: 'Coffee',
     visual: 'dose',
     action: '加入一勺可可',
-    instruction: '分两勺加入，间隔太短会结块',
+    instruction: '按住连续加入两勺，松手太快会结块',
     targetCount: 2,
     minGapMs: 380,
     color: '#6f4129',

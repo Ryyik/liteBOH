@@ -87,7 +87,10 @@ export function createStepState(stepId, context = {}) {
  * @param {object} env { served, upgradeBonus, blocked }
  */
 export function stepTick(def, state, delta, env = {}) {
-  const difficulty = 1 + Math.min(0.28, (env.served || 0) * 0.03);
+  // 2026-10-12 回调：1 + min(0.28, served×0.03) → 1 + min(0.18, served×0.02)。
+  // 后半局全局加速 28% 对新手是隐形难度（读数条越跑越快却无处告知），
+  // 压到 18% 后爬坡仍在（served=9 到顶），但手感不断档。
+  const difficulty = 1 + Math.min(0.18, (env.served || 0) * 0.02);
   if (env.blocked) return state;
 
   switch (def.kind) {
