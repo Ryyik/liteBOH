@@ -135,7 +135,13 @@
   --boh-rail-w: 88px;
   --boh-sidebar-w: 280px;
   --boh-work-w: 360px;
-  --boh-content-w: 768px;
+  --boh-content-w: 880px;
+  /* 内容列（AI 回复 / 输入框 / 底部说明）的**横向对齐** —— 单一真源。
+     0 + auto = 靠左；auto + auto = 居中。
+     2026-10-12 用户口径：AI 回复要靠左、别居中（原口径是居中，见 DESIGN §4）。
+     三个消费者统一引用这两个令牌，改口径只动这里。 */
+  --boh-content-ml: 0;
+  --boh-content-mr: auto;
 }
 
 /* 暗色：**只切语义别名**，且只用 var()（见文件头纪律 1） */

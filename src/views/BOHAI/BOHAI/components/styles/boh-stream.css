@@ -28,7 +28,8 @@
 
 .boh-stream-pad {
   max-width: var(--boh-content-w);
-  margin: 0 auto;
+  /* 横向对齐走令牌（`--boh-content-ml/-mr`）：靠左，不再居中 —— 用户 2026-10-12 口径。 */
+  margin: 0 var(--boh-content-mr) 0 var(--boh-content-ml);
   padding: 16px 16px 6px;
 }
 

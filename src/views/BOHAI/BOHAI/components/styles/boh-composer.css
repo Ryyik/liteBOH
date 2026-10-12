@@ -30,7 +30,8 @@
 .boh-composer {
   position: relative;
   max-width: var(--boh-content-w);
-  margin: 0 auto;
+  /* 与消息流同一条列 ⇒ 横向对齐必须共用令牌，否则输入框会和 AI 回复错开。 */
+  margin: 0 var(--boh-content-mr) 0 var(--boh-content-ml);
   padding: 11px 13px 9px;
   border: 1px solid var(--boh-border);
   border-radius: var(--boh-radius-shell);
@@ -669,7 +670,7 @@
 /* ── 底部说明 / 提示 ────────────────────────────────────────── */
 .boh-cp-note {
   max-width: var(--boh-content-w);
-  margin: 7px auto 0;
+  margin: 7px var(--boh-content-mr) 0 var(--boh-content-ml);
   color: var(--boh-text-3);
   font-size: 11px;
   text-align: center;
@@ -678,7 +679,7 @@
 .boh-cp-alert,
 .boh-cp-notice {
   max-width: var(--boh-content-w);
-  margin: 6px auto 0;
+  margin: 6px var(--boh-content-mr) 0 var(--boh-content-ml);
   color: var(--boh-danger);
   font-size: 12px;
   text-align: center;
@@ -694,7 +695,7 @@
   justify-content: center;
   gap: 6px;
   max-width: var(--boh-content-w);
-  margin: 6px auto 0;
+  margin: 6px var(--boh-content-mr) 0 var(--boh-content-ml);
   color: var(--boh-warn);
   font-size: 12px;
 }

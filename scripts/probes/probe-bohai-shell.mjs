@@ -98,6 +98,18 @@ try {
           : 0,
         mainLeft: Math.round(rect(main)?.x ?? -1),
         mainMarginLeft: main ? getComputedStyle(main).marginLeft : '',
+        // 内容列（AI 回复 / 输入框 / 底部说明）的**横向对齐**（2026-10-12 口径变更：
+        // 由「768 居中」改成「880 靠左」）。⚠️ 只判宽度会漏掉居中 —— 居中的宽度一模一样，
+        // 必须比「列左缘 vs 主列左缘」与「左右留白之差」。
+        mainRight: Math.round(rect(main)?.right ?? -1),
+        padLeft: Math.round(rect(q('.boh-stream-pad'))?.x ?? -1),
+        padRight: Math.round(rect(q('.boh-stream-pad'))?.right ?? -1),
+        padWidth: Math.round(rect(q('.boh-stream-pad'))?.width ?? -1),
+        // ⚠️ 比左缘必须比「**内容**左缘」：`.boh-stream-pad` 的横向内衬写在它**自己**身上
+        //    （盒内），而输入框的横向让位来自父级 `.boh-composer-wrap` 的 padding
+        //    （盒外）⇒ 直接比两个盒子的 `x` 会差出一个 padding（实测 1440 下差 40px）。
+        padPadLeft: Math.round(parseFloat(getComputedStyle(q('.boh-stream-pad')).paddingLeft) || 0),
+        composerLeft: Math.round(rect(composer)?.x ?? -1),
         topbarHeight: Math.round(rect(topbar)?.height ?? 0),
         topbarWork: !!topbar?.querySelector('.is-work'),
         streamHeight: Math.round(rect(stream)?.height ?? 0),
@@ -133,6 +145,24 @@ try {
       `display=${d.railDisplay} w=${d.railWidth}`,
     );
     check('桌面：.boh-shell 在左栏右侧', d.shellLeft >= 88, `left=${d.shellLeft}`);
+    // ── 内容列的横向对齐（2026-10-12 用户口径：AI 回复要靠左、并加宽到 880）──────
+    // ⚠️ 四条要一起看：只判宽度漏掉居中（居中宽度相同）；只判左缘漏掉「列被压窄」。
+    check(
+      '桌面：内容列靠左（列左缘贴主列左缘，不是居中）',
+      d.padLeft >= 0 && Math.abs(d.padLeft - d.mainLeft) <= 2,
+      `padLeft=${d.padLeft} mainLeft=${d.mainLeft}`,
+    );
+    check(
+      '桌面：内容列右侧留白明显大于左侧（靠左而非居中的判据）',
+      d.mainRight - d.padRight > d.padLeft - d.mainLeft + 40,
+      `右留白=${d.mainRight - d.padRight} 左留白=${d.padLeft - d.mainLeft}`,
+    );
+    check('桌面：内容列宽 880px（主列够宽时）', d.padWidth === 880, `w=${d.padWidth}`);
+    check(
+      '桌面：输入框与消息列同一条列（内容左缘对齐）',
+      Math.abs(d.padLeft + d.padPadLeft - d.composerLeft) <= 2,
+      `pad 内容左缘=${d.padLeft + d.padPadLeft} composer=${d.composerLeft}`,
+    );
     // 2026-10-11：默认收起。判据是「宽度 0 + 主列不让位 + 入口在场」三条一起 ——
     // 只判 `is-open` 为假会把「侧栏被 display:none 干掉」也读成通过。
     check(
