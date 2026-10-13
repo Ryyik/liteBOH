@@ -30,8 +30,10 @@ import { resolve } from 'path';
 import { scriptSection, squeezeSource, stripComments } from '../helpers/source.js';
 
 const read = (rel) => readFileSync(resolve(process.cwd(), rel), 'utf8');
-const viewCode = () =>
-  squeezeSource(stripComments(scriptSection(read('src/views/BOHAI/BOHAI/BOHAIMain.vue'))));
+// plans/025 v2 · Step 7：syncThemeAttribute / resolvedAiTheme 等逻辑搬进
+// `composables/useBohShell.js` ⇒ 源码守卫改指新文件；模板侧断言仍读 BOHAIMain。
+const SHELL = 'src/views/BOHAI/composables/useBohShell.js';
+const viewCode = () => squeezeSource(stripComments(scriptSection(read(SHELL))));
 const tokensCss = () => read('src/views/BOHAI/BOHAI/styles/tokens.css');
 
 describe('BOHAI 暗色：token 入口仍只有一处', () => {

@@ -72,8 +72,9 @@ describe('BOHAI 液态玻璃：哪些面上了玻璃', () => {
     // 消息区补等高的底部内衬（否则最后一条消息被压在输入框底下）
     expect(stream).toContain('.boh-main:not(.is-empty) .boh-stream');
     expect(stream).toContain('padding-bottom: var(--boh-composer-h');
-    // 高度必须实测：壳把 `--boh-composer-h` 写在共同祖先 `.boh-main` 上
-    const shell = read('src/views/BOHAI/BOHAI/BOHAIMain.vue');
+    // 高度必须实测：壳把 `--boh-composer-h` 写在共同祖先 `.boh-main` 上。
+    // Step 7：实测逻辑搬进 composables/useBohShell.js ⇒ 断言改指新文件。
+    const shell = read('src/views/BOHAI/composables/useBohShell.js');
     expect(shell).toContain("setProperty('--boh-composer-h'");
   });
 

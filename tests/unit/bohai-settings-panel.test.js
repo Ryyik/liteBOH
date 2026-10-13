@@ -309,7 +309,13 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
   });
 
   it('清除操作调用会话管理正式接口', () => {
-    const content = readMain();
+    // Step 7：清除操作的确认回调（clearCurrentSession / clearAllSessions 的调用点）
+    // 随状态搬进 composables/useBohShell.js ⇒ 断言改指新文件；模板侧 emit 接线
+    // （@clear-current-chat / @clear-all-chat-data）仍由上面的用例锁在 BOHAIMain。
+    const content = readFileSync(
+      resolve(projectRoot, 'src/views/BOHAI/composables/useBohShell.js'),
+      'utf-8',
+    );
     expect(content).toContain('clearCurrentSession();');
     expect(content).toContain('clearAllSessions();');
   });

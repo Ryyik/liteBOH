@@ -23,7 +23,10 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const read = (relPath) => readFileSync(resolve(import.meta.dirname, '../..', relPath), 'utf8');
-const SHELL = 'src/views/BOHAI/BOHAI/BOHAIMain.vue';
+// Step 7：发送闸门（handleSend / executeSlashCommand）搬进 composables/useBohShell.js
+// ⇒ 代码侧断言改指新文件；模板侧接线（@send / @run-slash-command）仍读 BOHAIMain。
+const SHELL = 'src/views/BOHAI/composables/useBohShell.js';
+const MAIN = 'src/views/BOHAI/BOHAI/BOHAIMain.vue';
 const MODULE = 'src/views/BOHAI/BOHAI/bohai-slash-commands.js';
 
 describe('parseSlashInput · 六类解析契约', () => {
@@ -134,7 +137,8 @@ describe('接线守卫 · 壳里只有一个发送闸门', () => {
   const raw = read(SHELL);
   // ⚠️ 必须剥注释：壳里解释「为什么删掉 startsWith('/')」的注释本身就含那个字面量
   const code = squeezeSource(stripComments(scriptSection(raw)));
-  const template = squeezeSource(raw.slice(0, raw.indexOf('<script setup>')));
+  const mainRaw = read(MAIN);
+  const template = squeezeSource(mainRaw.slice(0, mainRaw.indexOf('<script setup>')));
 
   it('发送按钮与菜单项都接新入口，不再直连 sendMessage', () => {
     expect(template).toContain(squeezeSource('@send="handleSend"'));

@@ -14,6 +14,9 @@ const sidebarPath = resolve(
   '../../src/views/BOHAI/BOHAI/components/BohSidebar.vue',
 );
 const mainPath = resolve(import.meta.dirname, '../../src/views/BOHAI/BOHAI/BOHAIMain.vue');
+// plans/025 v2 · Step 7：任务面板状态机 / 工具分发 / useChatEngine 接线等脚本侧
+// 逻辑搬进 `composables/useBohShell.js` ⇒ 脚本侧断言改指新文件；模板侧绑定仍读 BOHAIMain。
+const shellPath = resolve(import.meta.dirname, '../../src/views/BOHAI/composables/useBohShell.js');
 // 2026-10-08：斜杠命令的「定义 + 解析 + 菜单构造」抽成单一真源模块
 // （`bohai-slash-commands.js`）⇒ 命令表本身的守卫必须**改指新文件**，
 // 壳里只剩分派（`case 'cloud':`）。两条断言合起来才锁得住「定义在 + 壳真接线了」。
@@ -298,19 +301,21 @@ describe('BOH AI motion system', () => {
 
   it('renders a stateful task panel with progress and recovery controls', () => {
     const main = squeezeSource(readFileSync(mainPath, 'utf8'));
+    const shell = squeezeSource(readFileSync(shellPath, 'utf8'));
     const stream = squeezeSource(readFileSync(streamPath, 'utf8'));
     // 结构在消息流组件里
     expect(stream).toContain('class="boh-plan"');
     expect(stream).toContain('role="progressbar"');
     expect(stream).toContain("emit('stop-plan')");
     expect(stream).toContain("emit('retry-plan')");
-    // 状态机（文案 / 进度 / 可见性）仍在壳里
-    expect(main).toContain('taskPanelStatus');
-    expect(main).toContain('已停止');
+    // 状态机（文案 / 进度 / 可见性）随状态搬进 useBohShell（Step 7）
+    expect(shell).toContain('taskPanelStatus');
+    expect(shell).toContain('已停止');
+    // 模板侧接线留在壳里
     expect(main).toContain('@stop-plan="stopTaskPanel"');
     expect(main).toContain('@retry-plan="retryTaskPanel"');
-    expect(main).toContain('isPlanExperienceActive.value && planTodoItems.value.length > 0');
-    expect(main).toContain('制定.{0,12}计划');
+    expect(shell).toContain('isPlanExperienceActive.value && planTodoItems.value.length > 0');
+    expect(shell).toContain('制定.{0,12}计划');
     expect(main).toContain(':plan-card="planCard"');
   });
 
@@ -324,14 +329,16 @@ describe('BOH AI motion system', () => {
 
   it('includes a personal Cloud+ shortcut command', () => {
     const main = squeezeSource(readFileSync(mainPath, 'utf8'));
+    const shell = squeezeSource(readFileSync(shellPath, 'utf8'));
     const slash = squeezeSource(readFileSync(slashPath, 'utf8'));
     const composer = squeezeSource(readFileSync(composerPath, 'utf8'));
     // 定义在真源模块（2026-10-08 抽出，见 slashPath 注释）
     expect(slash).toContain("keyword: 'cloud'");
     expect(slash).toContain("label: '个人 Cloud+'");
     expect(slash).toContain("action: 'cloud'");
-    // 壳仍接线：分派分支必须还在（定义搬走后，这条是唯一能证明「没接断」的断言）
-    expect(main).toContain("case 'cloud':");
+    // 壳仍接线：分派分支随状态搬进 useBohShell（Step 7）—— 定义搬走后，
+    // 这条是唯一能证明「没接断」的断言
+    expect(shell).toContain("case 'cloud':");
     // 面板「高级」工具组的行文案搬进输入区组件
     expect(composer).toContain('<strong>个人 Cloud+</strong>');
     expect(composer).toContain('class="boh-mm-tool"');
@@ -339,7 +346,7 @@ describe('BOH AI motion system', () => {
     // 2026-10-08（plans/025 Step 6-4）面板整体重绘为 BohComposer ⇒ 断言改锁新落点：
     // 组件只发 kind，壳按 kind 分发到原有 handler。
     expect(composer).toContain("emit('toggle-tool', 'cloud')");
-    expect(main).toContain("if (kind === 'cloud') handleTreeholeMemoryToggle();");
+    expect(shell).toContain("if (kind === 'cloud') handleTreeholeMemoryToggle();");
     expect(main).toContain('@toggle-tool="toggleTool"');
   });
 });
@@ -381,13 +388,15 @@ describe('BOH AI quota visualization', () => {
   // 否定断言必须先排掉模板区、再剥注释 —— 两处新注释都「合法复述」了被删的写法
   // （模板里一句说明、script 里一句），直接在原文上断言会假红。见 helpers/source.js 文件头。
   it('retired AiQuotaSidePanel is gone from the workspace', () => {
-    const main = stripComments(scriptSection(readFileSync(mainPath, 'utf8')));
+    // Step 7：脚本侧（含旧 import）已搬进 useBohShell ⇒ 否定断言改指新文件。
+    const main = stripComments(scriptSection(readFileSync(shellPath, 'utf8')));
     expect(main).not.toContain('AiQuotaSidePanel');
     expect(main).not.toContain('isQuotaPanelOpen');
   });
 
   it('subscribes to thinking state only after the chat engine is initialized', () => {
-    const main = squeezeSource(readFileSync(mainPath, 'utf8'));
+    // Step 7：useChatEngine 解构与 watch(isThinking) 同在 useBohShell.js 里。
+    const main = squeezeSource(readFileSync(shellPath, 'utf8'));
     expect(main.indexOf('watch(isThinking')).toBeGreaterThan(main.indexOf('} = useChatEngine();'));
   });
 });

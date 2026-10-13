@@ -29,6 +29,21 @@ const LARGE_FILE_LINE_LIMITS = {
   '.ts': 2500,
   '.vue': 2500,
 };
+/* plans/025 v2 · Step 7-1：BOHAI 目录行数阈值收紧 —— 组件（.vue）400 行 /
+   模块（.js/.ts）500 行。BOHAI 是「重写范围」内收敛的目录（plans/025 §0.3），
+   阈值只对 BOHAI 生效，且**不受 top-20 窗口限制**（§1.2 的教训：窗口会让
+   排名靠后的大文件永不被报）。
+   ⚠️ 与全局阈值的关系：BOHAI 文件取两者中更严的一档，同一文件只报一次。
+   ⚠️ 现状仍是 WARN 不是 error：BohaiSettingsPanel.vue（2712）/ useChatEngine.js
+   （2107）等存量文件尚待继续拆分（Step 6 遗留），硬 error 门禁当下不可绿；
+   本档先让「新增/继续膨胀」可见，拆分收敛后再升 error。 */
+const BOHAI_ROOT = 'src/views/BOHAI';
+const BOHAI_LINE_LIMITS = {
+  '.css': 2000,
+  '.js': 500,
+  '.ts': 500,
+  '.vue': 400,
+};
 
 const walkFiles = (root, ignores = DEFAULT_IGNORES) => {
   const files = [];
@@ -236,10 +251,21 @@ const collectStructureReport = (projectRoot = process.cwd()) => {
     }))
     .sort((a, b) => b.lines - a.lines);
 
-  for (const item of sourceFiles.slice(0, 20)) {
+  // BOHAI 文件按收紧阈值全量扫（Step 7-1）；其余文件维持既有口径：只扫全仓
+  // top-20（`slice(0, 20)` 的缺陷登记在 plans/025 §1.2，是独立任务）。
+  const bohaiFiles = sourceFiles.filter((item) =>
+    normalize(projectRoot, item.file).startsWith(`${BOHAI_ROOT}/`),
+  );
+  const otherTopFiles = sourceFiles
+    .filter((item) => !normalize(projectRoot, item.file).startsWith(`${BOHAI_ROOT}/`))
+    .slice(0, 20);
+
+  for (const item of [...bohaiFiles, ...otherTopFiles]) {
     const relative = normalize(projectRoot, item.file);
     const ext = path.extname(item.file);
-    const limit = LARGE_FILE_LINE_LIMITS[ext] || 3000;
+    const isBohai = relative.startsWith(`${BOHAI_ROOT}/`);
+    const limit =
+      (isBohai ? BOHAI_LINE_LIMITS[ext] : undefined) ?? LARGE_FILE_LINE_LIMITS[ext] ?? 3000;
     if (item.lines >= limit) {
       warnings.push(`超大文件建议拆分: ${relative} (${item.lines} 行，建议阈值 ${limit} 行)`);
     }

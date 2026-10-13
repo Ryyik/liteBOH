@@ -15,7 +15,10 @@ import { scriptSection, squeezeSource, stripComments } from '../helpers/source.j
 
 const read = (relPath) => readFileSync(resolve(import.meta.dirname, '../..', relPath), 'utf8');
 const APP = 'src/App.vue';
-const SHELL = 'src/views/BOHAI/BOHAI/BOHAIMain.vue';
+// plans/025 v2 · Step 7：监听端（挂载/卸载监听）随状态搬进
+// `composables/useBohShell.js` ⇒ 断言改指新文件。
+// 「壳仍接线」（导入 + 解构 + exposedApi 转发）由 bohai-shell-structure.test.js 锁定。
+const SHELL = 'src/views/BOHAI/composables/useBohShell.js';
 const COMPOSER = 'src/views/BOHAI/BOHAI/components/BohComposer.vue';
 const EVENT = 'boh-ai-focus-composer';
 
@@ -39,7 +42,7 @@ describe('⌘K 二次触发 · 派发端（App.vue）', () => {
   });
 });
 
-describe('⌘K 二次触发 · 监听端（BOHAIMain）', () => {
+describe('⌘K 二次触发 · 监听端（useBohShell）', () => {
   const shell = codeOf(SHELL);
 
   it('挂载时监听、卸载时摘掉（成对）', () => {

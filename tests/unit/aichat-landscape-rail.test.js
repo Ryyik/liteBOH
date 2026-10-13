@@ -7,6 +7,10 @@ const root = resolve(import.meta.dirname, '../..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
 
 const BOHAI_MAIN = 'src/views/BOHAI/BOHAI/BOHAIMain.vue';
+// plans/025 v2 · Step 7：左栏 handler 与 navItems 导入搬进
+// `composables/useBohShell.js` ⇒ 代码侧断言改指新文件；组件挂载条件与
+// landscape-rail.css 引入（模板/style 区）仍读 BOHAIMain。
+const SHELL = 'src/views/BOHAI/composables/useBohShell.js';
 // plans/025 v2 · Step 6-2：侧栏已重绘为 `BohSidebar.vue`（旧 `BohaiSidebar.vue` 随旧 DOM 删除），
 // 样式搬进同组件的 scoped CSS 文件 ⇒ 两处都要读。
 const BOHAI_SIDEBAR = 'src/views/BOHAI/BOHAI/components/BohSidebar.vue';
@@ -24,19 +28,18 @@ const RAIL_CSS = 'src/views/user-center/UserSpace/styles/landscape-rail.css';
  * （最容易漏的一处：landscape-rail.css 是按页引入的，不是全局样式）；
  * ③ body.page-aichat 段是否把 rail 钉住、把内容让开、把会话侧栏推到右边。
  */
-describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没了」）', () => {
-  const script = () => scriptSection(read(BOHAI_MAIN));
-
+describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没了」', () => {
   it('复用 UserSpace 的同一份左栏组件与 navItems 单源', () => {
     const src = read(BOHAI_MAIN);
     expect(src).toContain(
       "import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpaceSideRail.vue'",
     );
-    expect(src).toContain(
+    // navItems 单源导入随 handler 搬进 composable（Step 7）
+    expect(read(SHELL)).toContain(
       "import { userSpaceNavItems } from '@/views/user-center/UserSpace/composables/useUserSpaceTabs.js'",
     );
     // 不许在 AI 页自己拼一份 navItems —— 那会让底栏/左栏/首页三处分叉
-    expect(src).not.toMatch(/const\s+userSpaceNavItems\s*=/);
+    expect(read(SHELL)).not.toMatch(/const\s+userSpaceNavItems\s*=/);
   });
 
   it('只在 standalone（/ai-chat 整页）挂载，且高亮 AI 席', () => {
@@ -105,7 +108,7 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
   });
 
   it('左栏动作分发到已有 handler（发布 / 搜索 / 主题 / 首页 / 退出）', () => {
-    const code = script();
+    const code = scriptSection(read(SHELL));
     expect(code).toContain('handleRailNavClick');
     expect(code).toContain('handleRailAction');
     for (const action of ['compose', 'search', 'theme', 'home', 'logout']) {

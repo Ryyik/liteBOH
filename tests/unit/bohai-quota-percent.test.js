@@ -189,7 +189,9 @@ describe('resolveAiQuotaDisplay：档位百分比 × 用量占比，主指标是
 });
 
 describe('百分比口径的源码守卫：三个页面都不再自算 Token 数', () => {
-  const MAIN = 'src/views/BOHAI/BOHAI/BOHAIMain.vue';
+  // Step 7：壳层逻辑（fetchTodayQuota / quotaDisplay 等）搬进
+  // `composables/useBohShell.js` ⇒ 源码守卫改指新文件。
+  const MAIN = 'src/views/BOHAI/composables/useBohShell.js';
   const COMPOSER = 'src/views/BOHAI/BOHAI/components/BohComposer.vue';
   const SETTINGS = 'src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue';
   const SIDEBAR = 'src/views/BOHAI/BOHAI/components/BohSidebar.vue';

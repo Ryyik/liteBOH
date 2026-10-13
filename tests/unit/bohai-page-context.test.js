@@ -116,7 +116,10 @@ describe('buildPageContextBlock：契约没变', () => {
 
 describe('接线守卫：入口存在、且只在灵动岛形态出现', () => {
   const composer = read('src/views/BOHAI/BOHAI/components/BohComposer.vue');
-  const shell = read('src/views/BOHAI/BOHAI/BOHAIMain.vue');
+  // Step 7：采集入口（import + handleAttachPage）搬进 composables/useBohShell.js，
+  // 模板接线（@attach-page / @clear-context）留在 BOHAIMain —— 两边都要读。
+  const main = read('src/views/BOHAI/BOHAI/BOHAIMain.vue');
+  const shell = read('src/views/BOHAI/composables/useBohShell.js');
 
   it('工具菜单第 5 项挂了 `v-if="overlayMode"`（独立页不开这个入口）', () => {
     expect(composer).toContain('v-if="overlayMode"');
@@ -133,10 +136,10 @@ describe('接线守卫：入口存在、且只在灵动岛形态出现', () => {
 
   it('壳侧：导入采集真源 + 监听 attach-page + 走到 setAttachedContext', () => {
     expect(shell).toContain("import { captureCurrentPageContext } from '../utils/page-context.js'");
-    expect(shell).toContain('@attach-page="handleAttachPage"');
+    expect(main).toContain('@attach-page="handleAttachPage"');
     expect(shell).toMatch(/const handleAttachPage = \(\) => \{[\s\S]*setAttachedContext\(/);
     // 移除按钮原先就接好了（`@clear-context`），这次别碰坏它
-    expect(shell).toContain('@clear-context="clearAttachedContext"');
+    expect(main).toContain('@clear-context="clearAttachedContext"');
   });
 
   it('采集真源自己 import 了 estimateTokens（不在组件里另写估算）', () => {
