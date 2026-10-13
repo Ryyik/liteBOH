@@ -2,9 +2,9 @@
 /**
  * DataManagement 页面入口 — 异步懒加载，减少首屏 JS 体积。
  */
-import { defineAsyncComponent } from 'vue';
+import { createPanelAsync } from '@/utils/async-component.js';
 
-const DataAdmin = defineAsyncComponent(() => import('./DataAdmin.vue'));
+const DataAdmin = createPanelAsync(() => import('./DataAdmin.vue'), { label: 'DataAdmin' });
 </script>
 
 <template>
@@ -19,7 +19,11 @@ const DataAdmin = defineAsyncComponent(() => import('./DataAdmin.vue'));
           <div class="dm-suspense-bar short animate-skeleton-wave"></div>
         </div>
         <div class="dm-suspense-tabs">
-          <div v-for="i in 5" :key="`dm-suspense-tab-${i}`" class="dm-suspense-tab animate-skeleton-wave"></div>
+          <div
+            v-for="i in 5"
+            :key="`dm-suspense-tab-${i}`"
+            class="dm-suspense-tab animate-skeleton-wave"
+          ></div>
         </div>
         <div class="dm-suspense-table glass-panel">
           <div class="dm-suspense-table-head">
@@ -149,7 +153,7 @@ const DataAdmin = defineAsyncComponent(() => import('./DataAdmin.vue'));
     grid-template-columns: 32px 1fr 90px;
   }
 
-  .dm-suspense-table-row > .dm-suspense-cell:nth-child(n+4):not(.action) {
+  .dm-suspense-table-row > .dm-suspense-cell:nth-child(n + 4):not(.action) {
     display: none;
   }
 }

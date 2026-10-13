@@ -529,7 +529,13 @@ function onStationDown(event) {
     sfx('error');
     return;
   }
-  event.currentTarget.setPointerCapture?.(event.pointerId);
+  // ⚠️ 指针捕获只给拖拽层（.gesture-capture）：按钮按住时一旦捕获，
+  // 「另一根手指点排气阀」的 pointerdown 会被重定向到按钮 ⇒ 排气阀永远点不掉
+  // （探针 6c 与触屏双指实测）。按钮松手的兜底改走 window pointerup（见
+  // handleWindowPointerEnd），排气阀的松手用 .vent-valve 豁免，不会误结束本轮。
+  if (event.currentTarget.classList?.contains('gesture-capture')) {
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
   pointer.value = { id: event.pointerId, orderId: activeOrderId.value, stepId, def };
   holding.value = true;
   const state = ensureStepState(stepId);
@@ -560,13 +566,21 @@ function onStationDown(event) {
  *
  * 正确做法：以捕获层中心为原点，取**较短边**为半径做归一化，
  * 这样「屏幕上的正方形」与「SVG 的正方形」一一对应。
+ *
+ * ⚠️ 输出是 0..1（正方形中心 = 0.5），**不要再 +0.5**。
+ * 2026-10-12 修：首版公式尾巴带 `+ 0.5`，输出是 0.5..1.5 ——
+ * sampleSwirl 里 `- 0.5` 之后角度是绕捕获区**左上角**算的，
+ * 绕杯心画一圈只能攒 ~115°（targetArc=300，下辈子也攒不够），
+ * trace 的后半点还被 clamp 钳在 1.0 导致 progress 永远到不了 96。
+ * 表现为「注水/拉花怎么画都失败」。单测 sampleSwirl/sampleTrace
+ * 用的就是 0..1 点（圆心 0.5），与本函数输出必须同口径。
  */
 function localSquarePoint(event) {
   const rect = event.currentTarget.getBoundingClientRect();
   const size = Math.min(rect.width, rect.height);
   return {
-    x: Math.max(0, Math.min(1, (event.clientX - rect.left - (rect.width - size) / 2) / size + 0.5)),
-    y: Math.max(0, Math.min(1, (event.clientY - rect.top - (rect.height - size) / 2) / size + 0.5)),
+    x: Math.max(0, Math.min(1, (event.clientX - rect.left - (rect.width - size) / 2) / size)),
+    y: Math.max(0, Math.min(1, (event.clientY - rect.top - (rect.height - size) / 2) / size)),
   };
 }
 
@@ -589,7 +603,27 @@ function onStationUp(event) {
   const state = stepStates.value[gesture.orderId]?.[gesture.stepId];
   cancelPointer();
   if (!state) return;
+  // ⚠️ 自动提交过的状态不再二次提交：oscillate 稳住 / staged 撞顶时 frameLoop
+  // 已经 commit（步骤已推进），松手再 commit 会把同一份成绩记到**下一步**、
+  // 多推一步（fail 还会再扣一次耐心）。2026-10-12 修。
+  if (state.status === 'settled' || state.status === 'failed') return;
   commitStep(gesture.stepId, state, gesture.orderId);
+}
+
+/**
+ * window 级松手兜底（2026-10-12，配合上面的捕获收窄）。
+ * 按钮按住时不再 setPointerCapture，手指在按钮外松开时按钮收不到 pointerup，
+ * 由这里收尾。排气阀的松手豁免：它有自己的 pointerdown 职责，不能结束本轮。
+ */
+function handleWindowPointerEnd(event) {
+  // 排气阀自己的松手（阀在 down 时已消失，up 落不到它身上，只能认 pointerId）
+  if (event.pointerId === ventPointerId) {
+    ventPointerId = null;
+    return;
+  }
+  if (!pointer.value || event.pointerId !== pointer.value.id) return;
+  if (event.target?.closest?.('.vent-valve')) return;
+  onStationUp(event);
 }
 
 /** 按住型机制（oscillate/staged/texture/layer）的每帧推进 */
@@ -626,6 +660,23 @@ function ventExtractor() {
   const state = ensureStepState(stepId);
   patchStepState(stepId, { ...state, ventedAt: state.value });
   sfx('pump');
+}
+
+/**
+ * 排气阀按压建档（2026-10-12 修「点阀=提前结算」）。
+ *
+ * 点下排气阀的同一瞬间阀就消失（v-if 隐藏），随后到来的 pointerup 落到
+ * 下面的元素上 —— window 兜底（handleWindowPointerEnd）会把它当成
+ * 「本轮按住的松手」，在 value≈40 时提前 commit ⇒ 必 fail。
+ * 所以阀的 down/up 必须用 pointerId 认出来并豁免（target 定位法靠不住，
+ * 因为 up 到达时阀已经不在了）。
+ */
+let ventPointerId = null;
+
+function onVentPress(event) {
+  // 阀的 pointerdown 事件从 StationPanel 经 emit('vent', $event) 透传过来。
+  ventPointerId = event?.pointerId ?? null;
+  ventExtractor();
 }
 
 function doseIngredient() {
@@ -999,6 +1050,8 @@ onMounted(() => {
   document.documentElement.classList.add('anniversary-cafe-open');
   document.addEventListener('keydown', handleGlobalKeydown);
   document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('pointerup', handleWindowPointerEnd);
+  window.addEventListener('pointercancel', handleWindowPointerEnd);
   bestScore.value = readBestScore();
   wallet.value = readWallet();
   upgrades.value = readUpgrades();
@@ -1050,6 +1103,8 @@ onUnmounted(() => {
   clearTimers();
   document.removeEventListener('keydown', handleGlobalKeydown);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
+  window.removeEventListener('pointerup', handleWindowPointerEnd);
+  window.removeEventListener('pointercancel', handleWindowPointerEnd);
   document.documentElement.classList.remove('anniversary-cafe-open');
   if (typeof window !== 'undefined') delete window.__cafeDebug;
 });
@@ -1361,7 +1416,7 @@ onUnmounted(() => {
             @pointer-move="onStationMove"
             @pointer-up="onStationUp"
             @dose="doseIngredient"
-            @vent="ventExtractor"
+            @vent="onVentPress"
           />
 
           <div

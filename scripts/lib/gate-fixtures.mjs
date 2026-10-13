@@ -174,6 +174,26 @@ export const FIXTURES = [
       ),
   },
   {
+    gate: 'check:async-component-fallback',
+    why: '异步组件没有失败兜底 = chunk 拉不到就无声空白（存量棘轮只许降，新增一处即红）',
+    // 落点用 __gates_probe 前缀：真实文件永不占用该名，被硬杀留下的残留一眼可辨
+    prepare: () =>
+      createFile(
+        'src/views/__gates_probe_async.vue',
+        [
+          '<script setup>',
+          "import { defineAsyncComponent } from 'vue';",
+          "const __GatesProbe = defineAsyncComponent(() => import('./Home/index.vue'));",
+          '</script>',
+          '',
+          '<template>',
+          '  <component :is="__GatesProbe" />',
+          '</template>',
+          '',
+        ].join('\n'),
+      ),
+  },
+  {
     gate: 'check:first-paint',
     why: '首屏骨架色值必须与 token 同步，否则会白屏闪烁或主题错色',
     prepare: () =>

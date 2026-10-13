@@ -2,9 +2,9 @@
 /**
  * Profile 页面入口 — 异步懒加载，减少首屏 JS 体积。
  */
-import { defineAsyncComponent } from 'vue';
+import { createPanelAsync } from '@/utils/async-component.js';
 
-const ProfileMain = defineAsyncComponent(() => import('./ProfileMain.vue'));
+const ProfileMain = createPanelAsync(() => import('./ProfileMain.vue'), { label: 'ProfileMain' });
 </script>
 
 <template>
@@ -23,7 +23,11 @@ const ProfileMain = defineAsyncComponent(() => import('./ProfileMain.vue'));
             <div class="profile-suspense-line long animate-skeleton-wave"></div>
           </div>
           <div class="profile-suspense-cards">
-            <div v-for="i in 4" :key="`profile-suspense-card-${i}`" class="profile-suspense-card glass-panel animate-skeleton-wave"></div>
+            <div
+              v-for="i in 4"
+              :key="`profile-suspense-card-${i}`"
+              class="profile-suspense-card glass-panel animate-skeleton-wave"
+            ></div>
           </div>
         </div>
       </div>
@@ -52,7 +56,11 @@ const ProfileMain = defineAsyncComponent(() => import('./ProfileMain.vue'));
   width: 100%;
   height: 140px;
   border-radius: 16px;
-  background: linear-gradient(135deg, var(--glass-bg, rgba(255, 255, 255, 0.6)) 0%, var(--glass-bg-2, rgba(255, 255, 255, 0.4)) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--glass-bg, rgba(255, 255, 255, 0.6)) 0%,
+    var(--glass-bg-2, rgba(255, 255, 255, 0.4)) 100%
+  );
 }
 
 .profile-suspense-body {

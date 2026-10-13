@@ -1,8 +1,27 @@
+/**
+ * section → 进入该 section 时默认激活的 tab。
+ * ⚠️ 页面型 section 必须显式列在这里：早期只写了 `data`，于是从 /admin/api-keys
+ * 这类入口进来时 defaultTab 是 undefined → 不切 tab → 会停在用户上一次看的那张表上
+ * （表现为「点进来看到的不是我预期的页面」）。
+ */
 export const ADMIN_SECTION_DEFAULT_TABS = {
-  data: 'users'
+  data: 'users',
+  // 合并后的「密钥与模型」页；后面两条是旧 section 的兼容别名（旧书签仍可用）
+  'keys-models': 'keys-models',
+  'api-keys': 'keys-models',
+  freemodels: 'keys-models',
+  'moderation-model': 'moderation-model',
+  'lab-ai-model': 'lab-ai-model',
 };
 
-export const DATA_CONSOLE_SECTIONS = new Set(['data', 'api-keys', 'freemodels', 'moderation-model', 'lab-ai-model']);
+export const DATA_CONSOLE_SECTIONS = new Set([
+  'data',
+  'keys-models',
+  'api-keys',
+  'freemodels',
+  'moderation-model',
+  'lab-ai-model',
+]);
 export const PLACEHOLDER_ADMIN_SECTIONS = new Set(['media', 'settings']);
 export const STATUS_FILTER_FIELDS = {
   users: 'role',
@@ -37,7 +56,7 @@ export const STATUS_FILTER_FIELDS = {
   blockWallItems: 'item_type',
   bohCreatorShows: 'creator_platform',
   aiWebSearchLog: 'status',
-  postReward: 'status'
+  postReward: 'status',
 };
 
 export const DATE_FILTER_FIELDS = {
@@ -82,13 +101,14 @@ export const DATE_FILTER_FIELDS = {
   birthdayWishes: 'created_at',
   userFollows: 'created_at',
   userImpressions: 'created_at',
-  labUsageRecords: 'created_at'
+  labUsageRecords: 'created_at',
 };
 
 export const TAB_SELECT_COLUMNS = {
   // H-1 修复：profiles 敏感字段已通过列级权限收窄，
   // users tab 的 email/shipping_* 改由 fetchTabData 中调用 admin_list_users_with_sensitive RPC 获取
-  users: 'id, username, role, points, experience, join_date, bio, avatar_url, avatar_frame_url, tags',
+  users:
+    'id, username, role, points, experience, join_date, bio, avatar_url, avatar_frame_url, tags',
   points: 'id, username, role, points, experience, join_date',
   subscriptions: `
     id,
@@ -197,10 +217,14 @@ export const TAB_SELECT_COLUMNS = {
     reports:forum_post_reports(id, reason, status, created_at, reporter_id)
   `,
   reviewPosts: 'id, content, author_id, author_username, created_at, updated_at, status',
-  reviewComments: 'id, post_id, author_id, author_username, content, created_at, status, parent_id, reply_to_username',
-  coreMemories: 'id, title, content, category, tags, priority, source_label, source_url, status, updated_by, created_at, updated_at',
-  bohaiModels: 'id, mode_id, display_name, tagline, description, provider, provider_label, model_id, api_url, capability, icon, temperature, top_p, frequency_penalty, max_tokens, quota_multiplier, min_tier, status, sort_order, notes, created_by, updated_by, created_at, updated_at',
-  lotteries: 'id, title, description, prize_title, prize_description, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description, cover_image_url, status, is_community_visible, is_home_visible, enforce_account_age_check, max_entries, winner_count, pity_mode, entry_deadline_at, draw_at, drawn_at, draw_attempted_at, draw_failed_at, draw_failure_message, draw_entry_count_snapshot, draw_candidate_hash, draw_algorithm_version, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at',
+  reviewComments:
+    'id, post_id, author_id, author_username, content, created_at, status, parent_id, reply_to_username',
+  coreMemories:
+    'id, title, content, category, tags, priority, source_label, source_url, status, updated_by, created_at, updated_at',
+  bohaiModels:
+    'id, mode_id, display_name, tagline, description, provider, provider_label, model_id, api_url, capability, icon, temperature, top_p, frequency_penalty, max_tokens, quota_multiplier, min_tier, status, sort_order, notes, created_by, updated_by, created_at, updated_at',
+  lotteries:
+    'id, title, description, prize_title, prize_description, pity_reward_title, pity_reward_description, pity_overflow_reward_title, pity_overflow_reward_description, cover_image_url, status, is_community_visible, is_home_visible, enforce_account_age_check, max_entries, winner_count, pity_mode, entry_deadline_at, draw_at, drawn_at, draw_attempted_at, draw_failed_at, draw_failure_message, draw_entry_count_snapshot, draw_candidate_hash, draw_algorithm_version, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at',
   lotteryFulfillments: `
     id,
     lottery_id,
@@ -251,7 +275,8 @@ export const TAB_SELECT_COLUMNS = {
     lottery:lottery_id(title),
     drawer:drawn_by(username)
   `,
-  lotteryFailureStats: 'id, user_id, username, total_participations, win_count, failure_count, current_failure_streak, failure_rate, last_result_label, last_participated_at, latest_lottery_id, latest_lottery_title',
+  lotteryFailureStats:
+    'id, user_id, username, total_participations, win_count, failure_count, current_failure_streak, failure_rate, last_result_label, last_participated_at, latest_lottery_id, latest_lottery_title',
   lotterySchedulerLogs: `
     id,
     run_source,
@@ -307,8 +332,10 @@ export const TAB_SELECT_COLUMNS = {
   `,
   news: 'id, category, title, excerpt, date, author, image, content, created_at, updated_at',
   activities: 'id, title, date, image, description, created_at, updated_at',
-  postReward: 'id, title, status, points_per_post, daily_limit, monthly_limit, start_at, end_at, created_at',
-  products: 'id, title, category, description, points_cost, rmb_price, payment_mode, stock, image, specifications, is_active, is_purchasable',
+  postReward:
+    'id, title, status, points_per_post, daily_limit, monthly_limit, start_at, end_at, created_at',
+  products:
+    'id, title, category, description, points_cost, rmb_price, payment_mode, stock, image, specifications, is_active, is_purchasable',
 
   // ========== 商城订单 ==========
   shopOrders: `
@@ -546,20 +573,23 @@ export const TAB_SELECT_COLUMNS = {
     expires_at,
     created_at,
     profile:user_id(username)
-  `
+  `,
 };
 
-export const LOTTERY_LEGACY_SELECT_COLUMNS = 'id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, is_home_visible, enforce_account_age_check, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at';
+export const LOTTERY_LEGACY_SELECT_COLUMNS =
+  'id, title, description, prize_title, prize_description, cover_image_url, status, is_community_visible, is_home_visible, enforce_account_age_check, max_entries, winner_count, entry_deadline_at, draw_at, drawn_at, winner_entry_id, winner_user_id, winner_username, fulfillment_status, created_by, updated_by, created_at, updated_at';
 
 export const isMissingLotteryObservabilitySchemaError = (error) => {
   const code = String(error?.code || '').toUpperCase();
   const message = String(error?.message || '').toLowerCase();
-  return code === '42703'
-    || message.includes('draw_attempted_at')
-    || message.includes('draw_failed_at')
-    || message.includes('draw_candidate_hash')
-    || message.includes('lottery_scheduler_logs')
-    || message.includes('lottery_notification_jobs');
+  return (
+    code === '42703' ||
+    message.includes('draw_attempted_at') ||
+    message.includes('draw_failed_at') ||
+    message.includes('draw_candidate_hash') ||
+    message.includes('lottery_scheduler_logs') ||
+    message.includes('lottery_notification_jobs')
+  );
 };
 
 export const TAB_DEFAULT_SORT = {
@@ -573,8 +603,16 @@ export const TAB_DEFAULT_SORT = {
   reportedPosts: { column: 'updated_at', ascending: false },
   reviewPosts: { column: 'created_at', ascending: false },
   reviewComments: { column: 'created_at', ascending: false },
-  coreMemories: { column: 'priority', ascending: false, secondary: { column: 'updated_at', ascending: false } },
-  bohaiModels: { column: 'sort_order', ascending: true, secondary: { column: 'display_name', ascending: true } },
+  coreMemories: {
+    column: 'priority',
+    ascending: false,
+    secondary: { column: 'updated_at', ascending: false },
+  },
+  bohaiModels: {
+    column: 'sort_order',
+    ascending: true,
+    secondary: { column: 'display_name', ascending: true },
+  },
   lotteries: { column: 'created_at', ascending: false },
   lotteryEntries: { column: 'created_at', ascending: true },
   lotteryDrawLogs: { column: 'created_at', ascending: false },
@@ -605,13 +643,20 @@ export const TAB_DEFAULT_SORT = {
   birthdayWishes: { column: 'created_at', ascending: false },
   userFollows: { column: 'created_at', ascending: false },
   userImpressions: { column: 'created_at', ascending: false },
-  labUsageRecords: { column: 'created_at', ascending: false }
+  labUsageRecords: { column: 'created_at', ascending: false },
 };
 
 export const TAB_SORT_COLUMNS = {
   users: new Set(['username', 'role', 'points', 'join_date']),
   points: new Set(['username', 'role', 'points', 'experience', 'join_date']),
-  subscriptions: new Set(['plan_code', 'billing_cycle', 'status', 'started_at', 'expires_at', 'points_cost']),
+  subscriptions: new Set([
+    'plan_code',
+    'billing_cycle',
+    'status',
+    'started_at',
+    'expires_at',
+    'points_cost',
+  ]),
   gifts: new Set(['created_at', 'completed_at', 'gift_status', 'gift_price']),
   posterRequests: new Set(['created_at', 'status', 'recipient']),
   forum: new Set(['created_at', 'status', 'author_username']),
@@ -620,19 +665,56 @@ export const TAB_SORT_COLUMNS = {
   reviewPosts: new Set(['created_at', 'status', 'author_username']),
   reviewComments: new Set(['created_at', 'status', 'author_username']),
   coreMemories: new Set(['priority', 'updated_at', 'category', 'status']),
-  bohaiModels: new Set(['sort_order', 'display_name', 'provider', 'capability', 'min_tier', 'status', 'updated_at']),
+  bohaiModels: new Set([
+    'sort_order',
+    'display_name',
+    'provider',
+    'capability',
+    'min_tier',
+    'status',
+    'updated_at',
+  ]),
   lotteries: new Set(['created_at', 'status', 'fulfillment_status', 'draw_at', 'drawn_at']),
   lotteryEntries: new Set(['created_at', 'lottery_id', 'user_id']),
   lotteryDrawLogs: new Set(['created_at', 'draw_no', 'lottery_id']),
-  lotteryFailureStats: new Set(['username', 'total_participations', 'win_count', 'failure_count', 'current_failure_streak', 'failure_rate', 'last_participated_at']),
-  lotterySchedulerLogs: new Set(['started_at', 'status', 'run_source', 'due_count', 'failed_count']),
-  lotteryFulfillments: new Set(['updated_at', 'status', 'lottery_id', 'user_id', 'winner_position']),
+  lotteryFailureStats: new Set([
+    'username',
+    'total_participations',
+    'win_count',
+    'failure_count',
+    'current_failure_streak',
+    'failure_rate',
+    'last_participated_at',
+  ]),
+  lotterySchedulerLogs: new Set([
+    'started_at',
+    'status',
+    'run_source',
+    'due_count',
+    'failed_count',
+  ]),
+  lotteryFulfillments: new Set([
+    'updated_at',
+    'status',
+    'lottery_id',
+    'user_id',
+    'winner_position',
+  ]),
   lotteryNotificationJobs: new Set(['created_at', 'status', 'lottery_id', 'user_id', 'draw_no']),
   lotteryJoinAttempts: new Set(['created_at', 'result_code', 'lottery_id', 'user_id']),
   lotteryAuditLogs: new Set(['created_at', 'action', 'lottery_id', 'actor_id']),
   news: new Set(['id', 'date', 'category', 'author']),
   activities: new Set(['id', 'date', 'created_at']),
-  postReward: new Set(['id', 'status', 'points_per_post', 'daily_limit', 'monthly_limit', 'start_at', 'end_at', 'created_at']),
+  postReward: new Set([
+    'id',
+    'status',
+    'points_per_post',
+    'daily_limit',
+    'monthly_limit',
+    'start_at',
+    'end_at',
+    'created_at',
+  ]),
   products: new Set(['id', 'category', 'points_cost', 'rmb_price', 'payment_mode', 'stock']),
   shopOrders: new Set(['created_at', 'status', 'payment_mode', 'total_points', 'rmb_total']),
   pointsTransactions: new Set(['created_at', 'amount', 'reason', 'batch_id']),
@@ -651,52 +733,287 @@ export const TAB_SORT_COLUMNS = {
   birthdayWishes: new Set(['created_at', 'status', 'is_featured']),
   userFollows: new Set(['created_at']),
   userImpressions: new Set(['created_at']),
-  labUsageRecords: new Set(['created_at', 'flow_type'])
+  labUsageRecords: new Set(['created_at', 'flow_type']),
 };
 
 export const TAB_SEARCH_FIELDS = {
   // H-1 修复：email 已通过列级权限收窄，从搜索字段中移除
-  users: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'role', type: 'text' }],
-  points: [{ column: 'id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'role', type: 'text' }],
-  subscriptions: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'plan_code', type: 'text' }, { column: 'plan_name', type: 'text' }, { column: 'status', type: 'text' }],
-  gifts: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'gift_no', type: 'text' }, { column: 'gift_content', type: 'text' }, { column: 'gift_status', type: 'text' }],
-  posterRequests: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'recipient', type: 'text' }, { column: 'phone', type: 'text' }, { column: 'status', type: 'text' }],
-  forum: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  ads: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'placement', type: 'text' }, { column: 'status', type: 'text' }],
-  reportedPosts: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  reviewPosts: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  reviewComments: [{ column: 'id', type: 'uuid' }, { column: 'post_id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  coreMemories: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'content', type: 'text' }, { column: 'category', type: 'text' }, { column: 'status', type: 'text' }],
-  bohaiModels: [{ column: 'id', type: 'uuid' }, { column: 'mode_id', type: 'text' }, { column: 'display_name', type: 'text' }, { column: 'provider', type: 'text' }, { column: 'model_id', type: 'text' }, { column: 'capability', type: 'text' }, { column: 'min_tier', type: 'text' }, { column: 'status', type: 'text' }],
-  lotteries: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'prize_title', type: 'text' }, { column: 'status', type: 'text' }, { column: 'fulfillment_status', type: 'text' }, { column: 'winner_username', type: 'text' }],
-  lotteryEntries: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'username_snapshot', type: 'text' }],
-  lotteryDrawLogs: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'username_snapshot', type: 'text' }, { column: 'reason', type: 'text' }],
-  lotteryFailureStats: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'username', type: 'text' }, { column: 'latest_lottery_title', type: 'text' }],
-  lotterySchedulerLogs: [{ column: 'id', type: 'uuid' }, { column: 'run_source', type: 'text' }, { column: 'status', type: 'text' }, { column: 'error_message', type: 'text' }],
-  lotteryFulfillments: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'username_snapshot', type: 'text' }, { column: 'status', type: 'text' }, { column: 'tracking_number', type: 'text' }],
-  lotteryNotificationJobs: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'status', type: 'text' }, { column: 'last_error', type: 'text' }],
-  lotteryJoinAttempts: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'result_code', type: 'text' }, { column: 'message', type: 'text' }],
-  lotteryAuditLogs: [{ column: 'id', type: 'uuid' }, { column: 'lottery_id', type: 'uuid' }, { column: 'actor_id', type: 'uuid' }, { column: 'action', type: 'text' }],
-  news: [{ column: 'id', type: 'number' }, { column: 'category', type: 'text' }, { column: 'title', type: 'text' }, { column: 'excerpt', type: 'text' }, { column: 'author', type: 'text' }],
-  activities: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'date', type: 'text' }, { column: 'description', type: 'text' }],
-  postReward: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'status', type: 'text' }, { column: 'start_at', type: 'text' }, { column: 'end_at', type: 'text' }],
-  products: [{ column: 'id', type: 'number' }, { column: 'title', type: 'text' }, { column: 'category', type: 'text' }, { column: 'description', type: 'text' }, { column: 'payment_mode', type: 'text' }],
-  shopOrders: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'order_no', type: 'text' }, { column: 'contact_value', type: 'text' }, { column: 'status', type: 'text' }, { column: 'payment_mode', type: 'text' }],
-  pointsTransactions: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'reason', type: 'text' }, { column: 'remark', type: 'text' }, { column: 'batch_id', type: 'uuid' }],
-  notifications: [{ column: 'id', type: 'uuid' }, { column: 'type', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  moderationLogs: [{ column: 'id', type: 'uuid' }, { column: 'target_type', type: 'text' }, { column: 'target_id', type: 'uuid' }, { column: 'ai_result', type: 'text' }, { column: 'moderator_id', type: 'uuid' }],
-  forumPostReports: [{ column: 'id', type: 'uuid' }, { column: 'post_id', type: 'uuid' }, { column: 'reason', type: 'text' }, { column: 'detail', type: 'text' }, { column: 'status', type: 'text' }],
-  forumWeeklyCheckins: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'week_start_date', type: 'date' }],
-  forumPostImages: [{ column: 'id', type: 'uuid' }, { column: 'post_id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'moderation_status', type: 'text' }],
-  apiKeyAuditLogs: [{ column: 'id', type: 'uuid' }, { column: 'action', type: 'text' }, { column: 'provider', type: 'text' }, { column: 'actor_id', type: 'uuid' }],
-  aiWebSearchLog: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'status', type: 'text' }, { column: 'tier', type: 'text' }],
-  anniversaryClaims: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'granted_plan_code', type: 'text' }],
-  blockWallItems: [{ column: 'id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'content', type: 'text' }, { column: 'item_type', type: 'text' }],
-  bohCreatorShows: [{ column: 'id', type: 'uuid' }, { column: 'author_username', type: 'text' }, { column: 'title', type: 'text' }, { column: 'creator_platform', type: 'text' }],
-  birthdayEvents: [{ column: 'id', type: 'uuid' }, { column: 'title', type: 'text' }, { column: 'target_user_id', type: 'uuid' }],
-  campaigns: [{ column: 'id', type: 'uuid' }, { column: 'slug', type: 'text' }, { column: 'title', type: 'text' }],
-  birthdayWishes: [{ column: 'id', type: 'uuid' }, { column: 'author_name', type: 'text' }, { column: 'content', type: 'text' }, { column: 'status', type: 'text' }],
-  userFollows: [{ column: 'id', type: 'uuid' }, { column: 'follower_id', type: 'uuid' }, { column: 'following_id', type: 'uuid' }],
-  userImpressions: [{ column: 'id', type: 'uuid' }, { column: 'author_id', type: 'uuid' }, { column: 'target_id', type: 'uuid' }],
-  labUsageRecords: [{ column: 'id', type: 'uuid' }, { column: 'user_id', type: 'uuid' }, { column: 'device_id', type: 'text' }, { column: 'flow_type', type: 'text' }]
+  users: [
+    { column: 'id', type: 'uuid' },
+    { column: 'username', type: 'text' },
+    { column: 'role', type: 'text' },
+  ],
+  points: [
+    { column: 'id', type: 'uuid' },
+    { column: 'username', type: 'text' },
+    { column: 'role', type: 'text' },
+  ],
+  subscriptions: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'plan_code', type: 'text' },
+    { column: 'plan_name', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  gifts: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'gift_no', type: 'text' },
+    { column: 'gift_content', type: 'text' },
+    { column: 'gift_status', type: 'text' },
+  ],
+  posterRequests: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'recipient', type: 'text' },
+    { column: 'phone', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  forum: [
+    { column: 'id', type: 'uuid' },
+    { column: 'author_id', type: 'uuid' },
+    { column: 'author_username', type: 'text' },
+    { column: 'content', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  ads: [
+    { column: 'id', type: 'uuid' },
+    { column: 'title', type: 'text' },
+    { column: 'placement', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  reportedPosts: [
+    { column: 'id', type: 'uuid' },
+    { column: 'author_id', type: 'uuid' },
+    { column: 'author_username', type: 'text' },
+    { column: 'content', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  reviewPosts: [
+    { column: 'id', type: 'uuid' },
+    { column: 'author_id', type: 'uuid' },
+    { column: 'author_username', type: 'text' },
+    { column: 'content', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  reviewComments: [
+    { column: 'id', type: 'uuid' },
+    { column: 'post_id', type: 'uuid' },
+    { column: 'author_id', type: 'uuid' },
+    { column: 'author_username', type: 'text' },
+    { column: 'content', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  coreMemories: [
+    { column: 'id', type: 'uuid' },
+    { column: 'title', type: 'text' },
+    { column: 'content', type: 'text' },
+    { column: 'category', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  bohaiModels: [
+    { column: 'id', type: 'uuid' },
+    { column: 'mode_id', type: 'text' },
+    { column: 'display_name', type: 'text' },
+    { column: 'provider', type: 'text' },
+    { column: 'model_id', type: 'text' },
+    { column: 'capability', type: 'text' },
+    { column: 'min_tier', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  lotteries: [
+    { column: 'id', type: 'uuid' },
+    { column: 'title', type: 'text' },
+    { column: 'prize_title', type: 'text' },
+    { column: 'status', type: 'text' },
+    { column: 'fulfillment_status', type: 'text' },
+    { column: 'winner_username', type: 'text' },
+  ],
+  lotteryEntries: [
+    { column: 'id', type: 'uuid' },
+    { column: 'lottery_id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'username_snapshot', type: 'text' },
+  ],
+  lotteryDrawLogs: [
+    { column: 'id', type: 'uuid' },
+    { column: 'lottery_id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'username_snapshot', type: 'text' },
+    { column: 'reason', type: 'text' },
+  ],
+  lotteryFailureStats: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'username', type: 'text' },
+    { column: 'latest_lottery_title', type: 'text' },
+  ],
+  lotterySchedulerLogs: [
+    { column: 'id', type: 'uuid' },
+    { column: 'run_source', type: 'text' },
+    { column: 'status', type: 'text' },
+    { column: 'error_message', type: 'text' },
+  ],
+  lotteryFulfillments: [
+    { column: 'id', type: 'uuid' },
+    { column: 'lottery_id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'username_snapshot', type: 'text' },
+    { column: 'status', type: 'text' },
+    { column: 'tracking_number', type: 'text' },
+  ],
+  lotteryNotificationJobs: [
+    { column: 'id', type: 'uuid' },
+    { column: 'lottery_id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'status', type: 'text' },
+    { column: 'last_error', type: 'text' },
+  ],
+  lotteryJoinAttempts: [
+    { column: 'id', type: 'uuid' },
+    { column: 'lottery_id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'result_code', type: 'text' },
+    { column: 'message', type: 'text' },
+  ],
+  lotteryAuditLogs: [
+    { column: 'id', type: 'uuid' },
+    { column: 'lottery_id', type: 'uuid' },
+    { column: 'actor_id', type: 'uuid' },
+    { column: 'action', type: 'text' },
+  ],
+  news: [
+    { column: 'id', type: 'number' },
+    { column: 'category', type: 'text' },
+    { column: 'title', type: 'text' },
+    { column: 'excerpt', type: 'text' },
+    { column: 'author', type: 'text' },
+  ],
+  activities: [
+    { column: 'id', type: 'number' },
+    { column: 'title', type: 'text' },
+    { column: 'date', type: 'text' },
+    { column: 'description', type: 'text' },
+  ],
+  postReward: [
+    { column: 'id', type: 'number' },
+    { column: 'title', type: 'text' },
+    { column: 'status', type: 'text' },
+    { column: 'start_at', type: 'text' },
+    { column: 'end_at', type: 'text' },
+  ],
+  products: [
+    { column: 'id', type: 'number' },
+    { column: 'title', type: 'text' },
+    { column: 'category', type: 'text' },
+    { column: 'description', type: 'text' },
+    { column: 'payment_mode', type: 'text' },
+  ],
+  shopOrders: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'order_no', type: 'text' },
+    { column: 'contact_value', type: 'text' },
+    { column: 'status', type: 'text' },
+    { column: 'payment_mode', type: 'text' },
+  ],
+  pointsTransactions: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'reason', type: 'text' },
+    { column: 'remark', type: 'text' },
+    { column: 'batch_id', type: 'uuid' },
+  ],
+  notifications: [
+    { column: 'id', type: 'uuid' },
+    { column: 'type', type: 'text' },
+    { column: 'content', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  moderationLogs: [
+    { column: 'id', type: 'uuid' },
+    { column: 'target_type', type: 'text' },
+    { column: 'target_id', type: 'uuid' },
+    { column: 'ai_result', type: 'text' },
+    { column: 'moderator_id', type: 'uuid' },
+  ],
+  forumPostReports: [
+    { column: 'id', type: 'uuid' },
+    { column: 'post_id', type: 'uuid' },
+    { column: 'reason', type: 'text' },
+    { column: 'detail', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  forumWeeklyCheckins: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'week_start_date', type: 'date' },
+  ],
+  forumPostImages: [
+    { column: 'id', type: 'uuid' },
+    { column: 'post_id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'moderation_status', type: 'text' },
+  ],
+  apiKeyAuditLogs: [
+    { column: 'id', type: 'uuid' },
+    { column: 'action', type: 'text' },
+    { column: 'provider', type: 'text' },
+    { column: 'actor_id', type: 'uuid' },
+  ],
+  aiWebSearchLog: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'status', type: 'text' },
+    { column: 'tier', type: 'text' },
+  ],
+  anniversaryClaims: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'granted_plan_code', type: 'text' },
+  ],
+  blockWallItems: [
+    { column: 'id', type: 'uuid' },
+    { column: 'author_username', type: 'text' },
+    { column: 'content', type: 'text' },
+    { column: 'item_type', type: 'text' },
+  ],
+  bohCreatorShows: [
+    { column: 'id', type: 'uuid' },
+    { column: 'author_username', type: 'text' },
+    { column: 'title', type: 'text' },
+    { column: 'creator_platform', type: 'text' },
+  ],
+  birthdayEvents: [
+    { column: 'id', type: 'uuid' },
+    { column: 'title', type: 'text' },
+    { column: 'target_user_id', type: 'uuid' },
+  ],
+  campaigns: [
+    { column: 'id', type: 'uuid' },
+    { column: 'slug', type: 'text' },
+    { column: 'title', type: 'text' },
+  ],
+  birthdayWishes: [
+    { column: 'id', type: 'uuid' },
+    { column: 'author_name', type: 'text' },
+    { column: 'content', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
+  userFollows: [
+    { column: 'id', type: 'uuid' },
+    { column: 'follower_id', type: 'uuid' },
+    { column: 'following_id', type: 'uuid' },
+  ],
+  userImpressions: [
+    { column: 'id', type: 'uuid' },
+    { column: 'author_id', type: 'uuid' },
+    { column: 'target_id', type: 'uuid' },
+  ],
+  labUsageRecords: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'device_id', type: 'text' },
+    { column: 'flow_type', type: 'text' },
+  ],
 };

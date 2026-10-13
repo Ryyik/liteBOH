@@ -76,9 +76,13 @@ describe('async wrapper attrs pass-through', () => {
       const template = extractTemplate(content);
       const script = extractScriptSetup(content);
 
-      it('uses defineAsyncComponent for lazy loading', () => {
+      it('使用异步组件工厂做懒加载（createPanelAsync 或 defineAsyncComponent）', () => {
         if (!isAsync) return;
-        expect(script).toMatch(/defineAsyncComponent/);
+        // 2026-10-13 单源化：裸 defineAsyncComponent 已清零（24→0），本仓库统一走
+        // createPanelAsync 工厂。断言「两个工厂之一被**调用**」而不是删掉这条 ——
+        // 要守住的语义是「入口是异步懒加载，不是静态 import 一个大组件」
+        // （后者会让首屏 JS 体积失控）。带 `(` 是为了要求真的调用，不是只 import 名字。
+        expect(script).toMatch(/createPanelAsync\s*\(|defineAsyncComponent\s*\(/);
       });
 
       it(`imports ${entry.mainFile} via dynamic import`, () => {

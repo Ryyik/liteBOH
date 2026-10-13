@@ -56,7 +56,6 @@ const PAGES = [
   { path: '/admin/data-management', name: 'admin-data' },
   { path: '/admin/api-keys', name: 'admin-apikeys' },
   { path: '/admin/alert-style-editor', name: 'admin-alert' },
-  { path: '/admin/ai-quota', name: 'admin-aiquota' },
   { path: '/admin/birthday', name: 'admin-birthday' },
   { path: '/admin/shop-console', name: 'admin-shop' },
   { path: '/admin/hero-console', name: 'admin-hero' },

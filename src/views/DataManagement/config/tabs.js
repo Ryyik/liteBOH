@@ -54,8 +54,24 @@ export const tabs = [
   { id: 'lotteryEntries', label: '报名明细', icon: '🧾', module: 'lottery' },
   { id: 'lotteryAuditLogs', label: '运行审计', icon: '📜', module: 'lottery' },
   { id: 'pity-grant', label: '保底中心', icon: '🛡️', module: 'lottery', type: 'page' },
-  { id: 'api-keys', label: 'API Key', icon: '🔑', module: 'ai-config', type: 'page' },
-  { id: 'freemodels', label: '免费模型库', icon: '🆓', module: 'ai-config', type: 'page' },
+  // 合并页：原「API Key」+「免费模型库」两个 tab 合成一个（左栏平台、右栏密钥与模型）
+  { id: 'keys-models', label: '密钥与模型', icon: '🔑', module: 'ai-config', type: 'page' },
+  // 以下两个 id 保留定义仅为兼容旧深链（?tab=api-keys / freemodels 仍要能取到 label）。
+  // 它们已不在 ai-config 的 tabIds 里，不再作为独立页面显示。
+  {
+    id: 'api-keys',
+    label: 'API Key（已并入密钥与模型）',
+    icon: '🔑',
+    module: 'ai-config',
+    type: 'page',
+  },
+  {
+    id: 'freemodels',
+    label: '免费模型库（已并入密钥与模型）',
+    icon: '🆓',
+    module: 'ai-config',
+    type: 'page',
+  },
   { id: 'bohaiModels', label: 'BOHAI 模型', icon: '🤖', module: 'ai-config', type: 'table' },
   { id: 'ai-quota', label: 'AI 额度', icon: '📊', module: 'ai-config', type: 'page' },
   { id: 'moderation-model', label: '审核模型', icon: '🛡️', module: 'ai-config', type: 'page' },
@@ -205,15 +221,8 @@ export const tabModules = [
     label: 'AI 配置',
     icon: Sparkles,
     section: 'data',
-    defaultTab: 'api-keys',
-    tabIds: [
-      'api-keys',
-      'freemodels',
-      'bohaiModels',
-      'ai-quota',
-      'moderation-model',
-      'lab-ai-model',
-    ],
+    defaultTab: 'keys-models',
+    tabIds: ['keys-models', 'bohaiModels', 'ai-quota', 'moderation-model', 'lab-ai-model'],
     description: 'API Key、免费模型库与各场景模型配置',
   },
   {
@@ -290,6 +299,7 @@ export const TABS_ACTIONS = {
   lotteryNotificationJobs: ['view'],
   lotteryJoinAttempts: ['view'],
   lotteryAuditLogs: ['view'],
+  'keys-models': ['view', 'create', 'edit', 'delete'],
   'api-keys': ['view', 'create', 'edit', 'delete'],
   freemodels: ['view', 'create', 'edit', 'delete'],
   bohaiModels: ['view', 'create', 'edit', 'delete'],

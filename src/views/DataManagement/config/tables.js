@@ -1175,9 +1175,11 @@ export const dataConfig = {
         required: true,
         group: 'params',
       },
-      // 下界是 0（不是 0.1）：0 = 免费模型，EF 侧按 billed_tokens = 0 记，不扣额度也不扣积分。
-      // 线上 CHECK 约束 2026092906 已放宽到 `quota_multiplier >= 0`，这里若还夹 0.1，
-      // 就会出现「面板拦、DB 收」的两套口径（用户 2026-10-11 保存 0 倍率模型被面板拦下）。
+      // ⚠️ 只读展示（2026-10-12）。额度倍率的**唯一写入口是「AI 额度」页**
+      // （AiQuotaConfigConsole → ai-quota-admin-api）。
+      // 历史上这里也能改，于是同一列有两个写入口，且本面板的保存是「整行 UPDATE」——
+      // 在 AI 额度页改完倍率后，只要有人在本页面保存别的字段，就会把倍率覆盖回旧值。
+      // 下界是 0（不是 0.1）：0 = 免费模型（billed_tokens = 0，不扣额度也不扣积分）。
       {
         key: 'quota_multiplier',
         label: '额度消耗倍率',
@@ -1186,7 +1188,8 @@ export const dataConfig = {
         max: 100,
         step: 0.1,
         required: true,
-        hint: '实际 Token × 此倍率计入今日额度；填 0 表示免费模型（不扣额度、不扣积分）。',
+        disabled: true,
+        hint: '只读。改倍率请去「AI 额度」页 —— 那是唯一写入口（0 = 免费模型，不扣额度也不扣积分）。',
         group: 'params',
       },
       {

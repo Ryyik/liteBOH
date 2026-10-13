@@ -68,12 +68,14 @@
 
 <script setup>
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { createPanelAsync } from '@/utils/async-component.js';
 import { useRoute, useRouter } from 'vue-router';
 import { LoaderCircle, Maximize2, Plus, Sparkles, X } from 'lucide-vue-next';
-import { defineAsyncComponent } from 'vue';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 
-const BOHAIMain = defineAsyncComponent(() => import('@/views/BOHAI/BOHAI/BOHAIMain.vue'));
+const BOHAIMain = createPanelAsync(() => import('@/views/BOHAI/BOHAI/BOHAIMain.vue'), {
+  label: 'BOHAIMain',
+});
 
 const route = useRoute();
 const router = useRouter();

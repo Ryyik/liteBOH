@@ -1625,6 +1625,7 @@ import AdminOverview from './components/AdminOverview.vue';
 import AdminSidebar from './components/AdminSidebar.vue';
 import LotteryOperationsPanel from './components/LotteryOperationsPanel.vue';
 import ApiKeyConsole from './components/ApiKeyConsole.vue';
+import KeysAndModels from './components/KeysAndModels.vue';
 import LabAiModelConfig from './components/LabAiModelConfig.vue';
 import ModerationModelConfig from './components/ModerationModelConfig.vue';
 import FreemodelsConfig from './components/FreemodelsConfig.vue';
@@ -1675,6 +1676,7 @@ import {
   getUserRole,
 } from './config/rbac.js';
 import { BOHAI_MODEL_PROVIDER_OPTIONS } from './config/fields.js';
+import { excludeInternalBohaiModes } from './config/bohai-internal-modes.js';
 import {
   DATA_CONSOLE_SECTIONS,
   DATE_FILTER_FIELDS,
@@ -2456,6 +2458,9 @@ const isSubscriptionTab = computed(() => currentTab.value === 'subscriptions');
 const currentTabInfo = computed(() => tabs.find((t) => t.id === currentTab.value));
 const isPageTab = computed(() => currentTabInfo.value?.type === 'page');
 const PAGE_TAB_COMPONENTS = {
+  'keys-models': KeysAndModels,
+  // 过渡期保留旧页映射：新页若出问题，旧深链（?tab=api-keys / freemodels）还能兜底。
+  // 新页验证稳定后连同 ApiKeyConsole / FreemodelsConfig 一起删。
   'api-keys': ApiKeyConsole,
   freemodels: FreemodelsConfig,
   'ai-quota': AiQuotaConfigConsole,
@@ -3836,7 +3841,8 @@ const fetchStats = async () => {
     reviewPosts: fetchCount('posts', (query) => query.ilike('status', 'rejected')),
     reviewComments: fetchCount('comments', (query) => query.ilike('status', 'rejected')),
     coreMemories: fetchCount('boh_ai_core_memories'),
-    bohaiModels: fetchCount('bohai_model_configs'),
+    // 与列表查询共用同一个排除口径，否则会出现「列表 8 行、计数 10 条」
+    bohaiModels: fetchCount('bohai_model_configs', excludeInternalBohaiModes),
     lotteries: fetchCount('lotteries'),
     lotteryEntries: fetchCount('lottery_entries'),
     lotteryDrawLogs: fetchCount('lottery_draw_logs'),
@@ -3929,6 +3935,10 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       query = query.ilike('status', 'rejected');
     } else if (tabId === 'reviewComments') {
       query = query.ilike('status', 'rejected');
+    } else if (tabId === 'bohaiModels') {
+      // 审核专用的两行（moderation-text / moderation-image）归「审核模型」页维护，
+      // 不进出这个面向用户的模式列表。口径与写入端同源（config/bohai-internal-modes.js）。
+      query = excludeInternalBohaiModes(query);
     }
 
     let { data, error, count } = await paginateQuery(

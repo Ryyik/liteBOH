@@ -1,0 +1,31 @@
+# BOHLITE 分册规则：运维 / 云 / 页游
+> 主文件是 `MEMORY.md`（常驻注入）。本册按需读取 —— 动 Supabase/EF/CI/Cloud+/图片列/游戏 时先读这里。
+
+## Supabase / 网络
+- ref `nplnlefdwfgtyimfkyih`；SMTP 走 Brevo（smtp-relay.brevo.com:587；key 90 天不活跃回收，探活 `POST /auth/v1/recover` 期待 200+`{}`；保活＝mail-keepalive EF + 每月 pg_cron，运维单点 `scripts/mail-keepalive-ops.mjs`）。
+- ⚠️ EF 部署：`slug` 是 **query 参数**（不传＝UUID slug→404）；multipart 字段 `file`（单数）+`metadata`；自定义 x- 头过不了 pg_net→EF，token 走 Authorization Bearer；`/secrets` GET 读回值 ≠ EF env。本机→`*.supabase.co` 间歇全断、`api.supabase.com` 常通 ⇒ 端到端验证用「一次性 pg_cron 云端代触发 + 底账表回读」。
+- 部署脚本 `scripts/lib/supabase-admin-api.mjs` → `POST /functions/deploy?slug=<name>`（`_shared/*` 依赖必须一起传；`verify_jwt` 沿用线上现值）。`api-key-vault` 依赖 `_shared/{cors,rate-limiter,supabase}.ts`。
+- 迁移走 Management API + 手写 `schema_migrations`；凭据在钥匙串（剥 `go-keyring-base64:`）。撤 EXECUTE 用 `from anon,authenticated,public`；撤权优先于 drop；新表 grant anon+authenticated；RPC 静默失败＝审计表取 code。
+
+## GitHub CI
+- ⚠️ Dependabot 触发的 workflow 读不到 repository secrets（须 `gh secret list --app dependabot` 另配一套）；改 secrets 后要 `gh run rerun` 才验得到。
+- ⚠️ `git push` SIGTERM(137) ≠ 失败 → 先 `git ls-remote origin main`。
+
+## Cloud+（plans/023）
+- 私密备份库：对外只有 token 分享/转帖子；底账(source='forum')禁单独删/公开；发帖→`backupPostImagesToCloud` 建底账（best-effort）；删帖删备份＝DB cascade。
+- 相册排序：API 层 `entry_date desc, nullsFirst:false`（别按 updated_at 主排、别视图层补 sort）；多图贴 key＝`${entry.id}::${index}`（否则串图）。
+
+## DB 图片（裂图重灾区）
+- 图片列混存 `@/assets` 别名与 cloudinary 绝对地址（大陆不可达；`cdn.blockofhome.cn` 200）⇒ **统一走 `utils/db-image-url.js`**（resolveDb* 系列，顺序固定：先 getImageUrl 再改写）；只调 getImageUrl＝裂图。
+- 已修：活动页/积分卡面/预设缩略图；**未修**：CommunityLotteries、Shop、头像框 9 处直绑。积分卡面 `c_limit` 不 `c_fill`。
+
+## 页游 / 小游戏（src/games/）
+- **不引 Phaser**（345KB gzip 与路由/无障碍冲突；「不好玩」是设计问题）；要渲染层用 **PixiJS v8**（~50KB，只做粒子/精灵，DOM 管 HUD）。
+- ⚠️ 最易塌陷＝「所有玩法退化成同一条规则」：`new Set(kinds).size` 要等于机制数；断言写「达标⇒高档 / 不达标⇒fail」，不能调评分函数蒙。
+- 四铁律：① 设计可达性先算（窗口穿越时间 ≥ 停留要求×1.6；互斥时间窗不重叠），单测看不出须显式断言区间关系；② 采样型机制（拖画轨迹）必须正方形归一化；③ absolute 元素显式确认定位祖先（`.machine-deck` 无 position ⇒ 捕获层落左上角盖订单条）；④ SVG 里不能放 HTML 按钮（恒 0 尺寸）。
+- 布局禁 `transform: scale()` 响应式（改 Grid + clamp()）；「占屏比」会骗人 ⇒ 拆 UI chrome vs 玩法画面（后者主判据），断言直接测装置内部（SVG 实高）。
+- ⚠️ **并行实体的状态容器必须以实体 id 为第一层 key**：`{[stepId]:state}` 被多单共用 ⇒ A 单 failed 污染 B 单，`canInteract()` 见 failed 直接 return ⇒ 切单完全无反应。
+- ⚠️ **失败态必须能重置回可交互**（否则偶发失败＝永久卡死）；失败反馈**绝不能出现「下一步」**。两条都要写断言。
+- ⚠️ **只在终态出现的空指针单测抓不到**（`createStepState(null)`）⇒ 靠 E2E 探针 +「撤掉修复确认重现」。
+- ⚠️ E2E 判据：`doneCount` 在订单移除时重置为 0（`2→0` 假失败）⇒ 用 `activeStepIndex`；场景互相污染 ⇒ 每场景独立开页 + 调试钩子 `window.__cafeDebug.forceDrink(id)`（DEV 门控）。
+- 护栏：probe:cafe-layout(21)、probe:cafe-mechanics(30+)、cafe-steps(23)、cafe-cat(13)、cafe-round(9)。

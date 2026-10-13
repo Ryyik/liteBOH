@@ -78,6 +78,7 @@
       <div
         v-show="contentSection === 'home'"
         class="profile-tab profile-home-active content-home-host"
+        :data-styles-ready="profileStylesReady ? 'true' : 'false'"
       >
         <div class="profile-page-content">
           <div v-if="!isLoggedIn" class="login-prompt">
@@ -429,12 +430,12 @@ import {
   shallowRef,
   shallowReactive,
   markRaw,
-  defineAsyncComponent,
 } from 'vue';
 /* 未登录占位图标（方块 / 我的 / 设置三个 tab 的 login-prompt 都用它）。
    2026-09-24 修：此前模板写了 <User> 但从未导入 —— Vue 解析失败退化为原生元素，
    图标渲染不出来，控制台刷「Failed to resolve component: User」。 */
 import { User } from 'lucide-vue-next';
+import { createPanelAsync } from '@/utils/async-component.js';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
@@ -454,26 +455,44 @@ import SegmentTabs from './components/SegmentTabs.vue';
 import ForumSectionShell from './components/ForumSectionShell.vue';
 // 发布会话闸门（左栏切落点前先收会话 + 「发布」选中态）：与首页 `/` 共用一份实现
 import { useForumComposerSession } from './composables/useForumComposerSession.js';
-const ProfileHomePanel = defineAsyncComponent(() => import('./components/ProfileHomePanel.vue'));
-const AvatarCropModal = defineAsyncComponent(() => import('@/components/AvatarCropModal.vue'));
+const ProfileHomePanel = createPanelAsync(() => import('./components/ProfileHomePanel.vue'), {
+  label: 'ProfileHomePanel',
+});
+const AvatarCropModal = createPanelAsync(() => import('@/components/AvatarCropModal.vue'), {
+  label: 'AvatarCropModal',
+});
 // 官方分区舞台（英雄区 + 各周年弹窗）：只在切到「官方」时才请求，不进 UserSpace 主 chunk
-const AsyncOfficialHeroStage = defineAsyncComponent(
+const AsyncOfficialHeroStage = createPanelAsync(
   () => import('@/views/Home/components/OfficialHeroStage.vue'),
+  { label: 'AsyncOfficialHeroStage' },
 );
-const ProfileSettingsPanel = defineAsyncComponent(
+const ProfileSettingsPanel = createPanelAsync(
   () => import('./components/ProfileSettingsPanel.vue'),
+  { label: 'ProfileSettingsPanel' },
 );
-const EditProfilePanel = defineAsyncComponent(() => import('./components/EditProfilePanel.vue'));
-const AvatarFramePickerModal = defineAsyncComponent(
+const EditProfilePanel = createPanelAsync(() => import('./components/EditProfilePanel.vue'), {
+  label: 'EditProfilePanel',
+});
+const AvatarFramePickerModal = createPanelAsync(
   () => import('./components/AvatarFramePickerModal.vue'),
+  { label: 'AvatarFramePickerModal' },
 );
-const SponsorPanel = defineAsyncComponent(() => import('./components/SponsorPanel.vue'));
-const DataPrivacyPanel = defineAsyncComponent(() => import('./components/DataPrivacyPanel.vue'));
-const DataExportPanel = defineAsyncComponent(() => import('./components/DataExportPanel.vue'));
-const AssetsHubPanel = defineAsyncComponent(() => import('./components/AssetsHubPanel.vue'));
+const SponsorPanel = createPanelAsync(() => import('./components/SponsorPanel.vue'), {
+  label: 'SponsorPanel',
+});
+const DataPrivacyPanel = createPanelAsync(() => import('./components/DataPrivacyPanel.vue'), {
+  label: 'DataPrivacyPanel',
+});
+const DataExportPanel = createPanelAsync(() => import('./components/DataExportPanel.vue'), {
+  label: 'DataExportPanel',
+});
+const AssetsHubPanel = createPanelAsync(() => import('./components/AssetsHubPanel.vue'), {
+  label: 'AssetsHubPanel',
+});
 // 「我」页第三分段（印象）：数据层单源在 composables/useProfileImpressions.js
-const ProfileImpressionsSection = defineAsyncComponent(
+const ProfileImpressionsSection = createPanelAsync(
   () => import('./components/ProfileImpressionsSection.vue'),
+  { label: 'ProfileImpressionsSection' },
 );
 import ThemeModal from './components/ThemeModal.vue';
 import NotificationSuggestIsland from '@/components/UnifiedNavbar/NotificationSuggestIsland.vue';
@@ -492,6 +511,7 @@ import { resolveBottomNavIdForUserSpaceTab } from '@/config/bottom-nav';
 import { useImageCompressionLoader } from './composables/useImageCompressionLoader.js';
 import {
   AsyncMessages,
+  areProfileStylesApplied,
   clearIdlePreloadTasks,
   clearScheduledForumPreload,
   preloadForumComponent,
@@ -501,6 +521,7 @@ import {
   scheduleForumPreload,
   scheduleIdleTask,
   setUserSpaceMountedForPreload,
+  waitForProfileStyles,
 } from './async-loaders.js';
 import { FORUM_DEFAULT_SECTION, isForumFeedSection, isForumSection } from '@/config/forum-sections';
 import { supabase } from '@/utils/supabase-client.js';
@@ -664,12 +685,42 @@ const resolveRequestedUserSpaceTab = (rawTab) => {
 };
 const rawRequestedTab = String(route.query.tab || '');
 const initialUserSpaceTab = resolveRequestedUserSpaceTab(rawRequestedTab);
-if (
-  initialUserSpaceTab === 'posts' ||
-  initialUserSpaceTab === 'assets' ||
-  initialUserSpaceTab === 'settings'
-) {
+
+/* 冷启动直达 posts 的「就绪门」：profile 三样式就位前先不亮内容（模板 data-styles-ready），
+   避免「先裸后穿」。只有 posts 分区有这层壳；assets/settings 维持原样。
+   ⚠️ 超时兜底（FALLBACK_MS）不能省：样式真失败时宁可退化成「半样式可见」（现状），
+      也不能给用户一块永久空白 —— 同一个函数在 switchTab 切回 posts 时也会走。 */
+const PROFILE_STYLES_READY_FALLBACK_MS = 1000;
+const profileStylesReady = ref(false);
+let profileStylesReadyFallbackTimer = null;
+
+const markProfileStylesReady = () => {
+  profileStylesReady.value = true;
+  if (profileStylesReadyFallbackTimer !== null) {
+    window.clearTimeout(profileStylesReadyFallbackTimer);
+    profileStylesReadyFallbackTimer = null;
+  }
+};
+
+const gateProfileContentUntilStylesReady = () => {
+  if (profileStylesReady.value) return;
+  if (profileStylesReadyFallbackTimer === null) {
+    profileStylesReadyFallbackTimer = window.setTimeout(
+      markProfileStylesReady,
+      PROFILE_STYLES_READY_FALLBACK_MS,
+    );
+  }
+  void waitForProfileStyles().then((ready) => {
+    if (ready || areProfileStylesApplied()) markProfileStylesReady();
+  });
+};
+
+if (initialUserSpaceTab === 'assets' || initialUserSpaceTab === 'settings') {
   void preloadProfileStyles();
+}
+if (initialUserSpaceTab === 'posts') {
+  // 就绪门内部会发起 preloadProfileStyles，不必重复调用
+  gateProfileContentUntilStylesReady();
 }
 // tab 内段控 section（2026-09 IA：原 profile 二级面板拆平到各 tab）
 const pageRootRef = ref(null);
@@ -3234,7 +3285,8 @@ watch(
       void activateForumTab();
     }
     if (nextTab === 'posts') {
-      void preloadProfileStyles();
+      // 切回 posts 也走就绪门：样式已就绪时它是零成本空转（函数首行即 return）
+      gateProfileContentUntilStylesReady();
       runProfileCriticalFetches();
     }
     if (nextTab === 'settings') {
@@ -3428,6 +3480,15 @@ watch(unreadCount, (count) => {
 <style src="./styles/landscape-rail.css"></style>
 
 <style scoped>
+/* 冷启动直达 posts 的「就绪门」：profile 三样式就位前先不亮内容，避免「先裸后穿」。
+   用 visibility 而不是 display —— 保留盒模型，内容已在 DOM 里（高度算得出来），
+   切换时不会因「从 0 高度长出来」再抖一下。
+   ⚠️ 放行有两条：script 侧 1000ms 超时兜底，或 areProfileStylesApplied() 为真。
+      样式真失败时走超时分支 ⇒ 退化成「半样式可见」（现状），不会永久空白。 */
+.content-home-host[data-styles-ready='false'] {
+  visibility: hidden;
+}
+
 .hidden-file-input {
   position: absolute;
   width: 1px;

@@ -3,9 +3,11 @@
  * PostDetail 页面入口 — 异步懒加载，减少首屏 JS 体积。
  * Suspense fallback 使用与主组件同构的轻量骨架，避免空白与简陋的"加载中..."文字。
  */
-import { defineAsyncComponent } from 'vue';
+import { createPanelAsync } from '@/utils/async-component.js';
 
-const PostDetailMain = defineAsyncComponent(() => import('./PostDetailMain.vue'));
+const PostDetailMain = createPanelAsync(() => import('./PostDetailMain.vue'), {
+  label: 'PostDetailMain',
+});
 </script>
 
 <template>

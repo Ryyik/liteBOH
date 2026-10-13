@@ -202,10 +202,16 @@ import {
 import { getRuntimeModerationConfig } from '@/utils/content-moderation.js';
 import DashboardHero from './shared/DashboardHero.vue';
 import DashboardNotice from './shared/DashboardNotice.vue';
+import {
+  MODERATION_TEXT_MODE_ID,
+  MODERATION_IMAGE_MODE_ID,
+} from '../config/bohai-internal-modes.js';
 
 const WORKER_CHAT_URL = 'https://boh-gemini-proxy.18768487974.workers.dev/v1/chat/completions';
-const TEXT_MODE_ID = 'moderation-text';
-const IMAGE_MODE_ID = 'moderation-image';
+// mode_id 字面量的单一真源在 config/bohai-internal-modes.js ——
+// DataAdmin 用同源的 mode_id 前缀把这两行从「BOHAI 模型」列表里排除。
+const TEXT_MODE_ID = MODERATION_TEXT_MODE_ID;
+const IMAGE_MODE_ID = MODERATION_IMAGE_MODE_ID;
 const LEGACY_STORAGE_MIGRATION_HINT =
   '检测到旧版本的本地审核配置，已预填到「文本审核」块，请确认后保存以完成迁移。';
 
@@ -278,7 +284,8 @@ function buildModeRow(kind) {
     max_tokens: 256,
     status: block.enabled ? 'active' : 'disabled',
     sort_order: isImage ? 901 : 900,
-    notes: '审核专用模式：由数据管理面板「审核模型配置」维护，请勿在 BOHAI 模式列表中启用给用户。',
+    notes:
+      '审核专用模式：由「审核模型配置」页维护，已从 BOHAI 模式列表中自动排除（口径见 config/bohai-internal-modes.js）。',
   };
 }
 

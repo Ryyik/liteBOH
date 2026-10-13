@@ -56,7 +56,9 @@ const updateServiceWorkerBeforeReload = async () => {
   let timeoutId = null;
   const controllerChanged = new Promise((resolve) => {
     controllerChangeHandler = () => resolve(true);
-    navigator.serviceWorker.addEventListener('controllerchange', controllerChangeHandler, { once: true });
+    navigator.serviceWorker.addEventListener('controllerchange', controllerChangeHandler, {
+      once: true,
+    });
   });
   const timeout = new Promise((resolve) => {
     timeoutId = window.setTimeout(() => resolve(false), SERVICE_WORKER_UPDATE_TIMEOUT);
@@ -66,9 +68,13 @@ const updateServiceWorkerBeforeReload = async () => {
     // 先让浏览器重新拉取 sw.js（updateViaCache:'none'，只等脚本字节比对完成，
     // 不等新 SW 的全量预缓存下载）。installing/waiting 一旦出现说明确有新版本。
     // 整条链路（update + 等接管）与超时对跑：弱网下 update() 挂起时也能按时兜底。
-    const updatePromise = Promise.allSettled(registrations.map((registration) => registration.update()));
+    const updatePromise = Promise.allSettled(
+      registrations.map((registration) => registration.update()),
+    );
     const flow = updatePromise.then(() => {
-      const hasPendingWorker = registrations.some((registration) => registration.installing || registration.waiting);
+      const hasPendingWorker = registrations.some(
+        (registration) => registration.installing || registration.waiting,
+      );
       if (!hasPendingWorker) {
         // 没有新 SW：当前活跃 SW 的预缓存清单已是最新，导航即可拿到新应用壳。
         return true;
@@ -101,7 +107,7 @@ const dismantleServiceWorkers = async () => {
   try {
     const registrations = await navigator.serviceWorker.getRegistrations();
     const unregisterPromise = Promise.allSettled(
-      registrations.map((registration) => registration.unregister())
+      registrations.map((registration) => registration.unregister()),
     );
     if (typeof caches !== 'undefined') {
       const keys = await caches.keys();
@@ -185,7 +191,7 @@ const fetchRemoteVersion = () => {
         method: 'GET',
         cache: 'no-store',
         credentials: 'omit',
-        headers: { 'Accept': 'application/json' },
+        headers: { Accept: 'application/json' },
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -247,26 +253,73 @@ export const forceCleanAndReload = async (targetBuildId = '') => {
 // 标记本次会话是否已派发过更新提示，避免重复弹窗打扰
 let updateNotified = false;
 
+/* 「已知有新构建但还没应用」的状态。
+   启动时那条 autoApply 只覆盖「冷启动就发现是旧构建」；用户一直开着页面时，
+   轮询/可见性检查发现更新只会弹 toast，页面继续跑旧构建 —— 而他下一次点击导航
+   正好去请求已被新部署删掉的 hash 资源（实测：点底栏毫无反应 / 半样式）。
+   所以把这个状态留在这里，交给 router 的导航守卫在**用户本来就要换页的那一拍**应用。 */
+let pendingUpdate = null;
+
+/**
+ * 记录「远端有新构建可用」。
+ * 与「弹提示」分开：提示是给人看的，本状态是给导航守卫用的，两者生命周期不同。
+ */
+export const markUpdateAvailable = (remoteVersion, remoteBuildId) => {
+  if (!remoteBuildId) return;
+  pendingUpdate = { remoteVersion: remoteVersion || '', remoteBuildId: String(remoteBuildId) };
+};
+
+export const getPendingUpdate = () => pendingUpdate;
+
+export const clearPendingUpdate = () => {
+  pendingUpdate = null;
+};
+
+/**
+ * 导航前应用挂起的更新：该刷新就发起刷新并返回 true（调用方应**取消本次导航**）。
+ *
+ * 为什么是「导航这一拍」：
+ *   · 用户在旧构建上继续操作，下一次导航大概率撞上已删除的 hash 资源（404 / 半样式）；
+ *   · 与其等他撞上再由恢复链整页强刷（那时页面已经坏了一下），不如在他本来就要换页时先切构建 ——
+ *     落点由 hash 保留，用户感知就是「点了就到位」，只是这一次多了一次整页加载。
+ * 防循环：`boh_version_reload_target` 记住本次会话已尝试过的目标 buildId
+ *（沿用 shouldAutoApplyVersion 的判定，与启动时那条 autoApply 同一套护栏）。
+ */
+export const applyPendingUpdateBeforeNavigation = () => {
+  const target = pendingUpdate?.remoteBuildId;
+  if (!target) return false;
+  if (!shouldAutoApplyVersion(target, readReloadTarget())) return false;
+  logger.info('version', '导航时发现挂起的新构建，先切构建再继续', {
+    from: currentBuildId,
+    to: target,
+  });
+  void forceCleanAndReload(target);
+  return true;
+};
+
 /**
  * 通知应用层有新版本可用（由自动轮询/visibilitychange 触发）
  * 通过自定义事件让 PWAUpdateToast 弹出统一对话框，不直接刷新
  */
 const notifyUpdateAvailable = (remoteVersion, remoteBuildId) => {
+  markUpdateAvailable(remoteVersion, remoteBuildId);
   if (updateNotified) {
     logger.debug('version', '本次会话已派发过更新提示，跳过');
     return;
   }
   updateNotified = true;
   logger.info('version', '派发 boh:update-available 事件', { remoteVersion, remoteBuildId });
-  window.dispatchEvent(new CustomEvent('boh:update-available', {
-    detail: {
-      remoteVersion,
-      remoteBuildId,
-      currentVersion,
-      currentBuildId,
-      message: `发现新版本 ${remoteVersion}，建议立即刷新以获取最新内容。`,
-    },
-  }));
+  window.dispatchEvent(
+    new CustomEvent('boh:update-available', {
+      detail: {
+        remoteVersion,
+        remoteBuildId,
+        currentVersion,
+        currentBuildId,
+        message: `发现新版本 ${remoteVersion}，建议立即刷新以获取最新内容。`,
+      },
+    }),
+  );
 };
 
 const clearCompletedReloadState = (remoteBuildId) => {
@@ -278,7 +331,7 @@ const clearCompletedReloadState = (remoteBuildId) => {
   window.history.replaceState(
     window.history.state,
     '',
-    `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+    `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
   );
 };
 
@@ -330,7 +383,12 @@ export const checkVersion = async () => {
     }
 
     clearCompletedReloadState(remote.buildId);
-    logger.debug('version', '版本一致，无需更新', { version: currentVersion, buildId: currentBuildId });
+    // 远端已与当前一致（说明刷新已落地）⇒ 挂起态必须清掉，否则导航守卫会拿旧目标反复尝试
+    clearPendingUpdate();
+    logger.debug('version', '版本一致，无需更新', {
+      version: currentVersion,
+      buildId: currentBuildId,
+    });
     return {
       hasUpdate: false,
       message: `当前已是最新版本 ${currentVersion}`,
@@ -363,7 +421,9 @@ export const initVersionChecker = () => {
   const isTypingInForm = (el) => {
     if (!el) return false;
     const tag = String(el.tagName || '').toUpperCase();
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
+    return (
+      tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true
+    );
   };
 
   const autoCheck = ({ autoApply = false } = {}) => {
@@ -419,7 +479,10 @@ export const initVersionChecker = () => {
   };
   document.addEventListener('visibilitychange', visibilityHandler);
 
-  logger.info('version', `版本检测器已启动（每 ${CHECK_INTERVAL / 1000 / 60} 分钟检查一次，检测到新版本将弹窗提示）`);
+  logger.info(
+    'version',
+    `版本检测器已启动（每 ${CHECK_INTERVAL / 1000 / 60} 分钟检查一次，检测到新版本将弹窗提示）`,
+  );
 };
 
 /**

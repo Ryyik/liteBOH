@@ -2,7 +2,10 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import { notify } from '../utils/notify';
-import { forceCleanAndReload } from '../utils/version-checker.js';
+import {
+  applyPendingUpdateBeforeNavigation,
+  forceCleanAndReload,
+} from '../utils/version-checker.js';
 import { logger } from '../utils/logger.js';
 import { adminRoutes } from './routes/admin';
 import { communityRoutes } from './routes/community';
@@ -100,6 +103,13 @@ const isActiveBanned = (): boolean => {
 };
 
 router.beforeEach(async (to, from, next) => {
+  // 已知有新构建时，把「强制刷新」放在**用户本来就要换页的这一拍**再应用：
+  // 他继续在旧构建上点的下一次导航，正好会去请求已被新部署删掉的 hash 资源
+  // （实测：点底栏毫无反应 / 半样式，只能等恢复链整页兜）。同一目标 buildId 只试一次
+  // （护栏复用 boh_version_reload_target），不会刷新循环。
+  // 放在鉴权之前：既然马上要整页换构建，这次导航连带整个守卫链都不必跑完。
+  if (applyPendingUpdateBeforeNavigation()) return next(false);
+
   initAuthStore();
 
   if (!authStore) return next();

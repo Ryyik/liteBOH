@@ -27,6 +27,7 @@ const COMPUTABLE = [
   { script: 'scripts/check-important-budget.mjs', desc: '!important 总量' },
   { script: 'scripts/check-dark-tokens.mjs', desc: '暗色裸色值' },
   { script: 'scripts/check-layering.mjs', desc: 'UI 层直连数据层出口' },
+  { script: 'scripts/check-async-component-fallback.mjs', desc: '无失败兜底的异步组件' },
 ];
 
 /** 离线算不出的：只读基线，并说明为什么拿不到现值 */

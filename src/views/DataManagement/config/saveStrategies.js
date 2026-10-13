@@ -296,16 +296,10 @@ export const SAVE_STRATEGIES = {
     const normalizedTopP = Number(editingItem.top_p);
     const normalizedFrequencyPenalty = Number(editingItem.frequency_penalty);
     const normalizedMaxTokens = Number(editingItem.max_tokens);
-    // ⚠️ 空串不能落成 0：`Number('') === 0` 会把「管理员清空了输入框」静默保存成**免费模型**。
-    // 真正的 null/undefined 仍兜底 1（新建行的默认值在 DataAdmin 已显式写 1）。
-    const rawQuotaMultiplier = editingItem.quota_multiplier;
-    const isBlankQuotaMultiplier =
-      rawQuotaMultiplier !== null &&
-      rawQuotaMultiplier !== undefined &&
-      String(rawQuotaMultiplier).trim() === '';
-    const normalizedQuotaMultiplier = isBlankQuotaMultiplier
-      ? Number.NaN
-      : Number(rawQuotaMultiplier ?? 1);
+    // 额度倍率的唯一写入口是「AI 额度」页（AiQuotaConfigConsole）。
+    // 本面板**不写这一列**：这里的保存是整行 UPDATE，若带上 quota_multiplier，
+    // 就会把 AI 额度页刚改的值覆盖回「打开编辑框那一刻」的旧值。
+    // 新建时仍给一次初值（见下方 payload 构造），之后只由 AI 额度页维护。
     const normalizedSortOrder = Number(editingItem.sort_order);
 
     if (!normalizedModeId || !/^[a-z0-9][a-z0-9_-]{1,63}$/i.test(normalizedModeId)) {
@@ -352,14 +346,8 @@ export const SAVE_STRATEGIES = {
       normalizedMaxTokens > 4096
     )
       throw new Error('最大输出 tokens 必须是 256-4096 的整数');
-    // 下界是 0（不是 0.1）：0 = 免费模型（billed_tokens = 0，不扣额度也不扣积分）。
-    // 线上 CHECK 约束 2026092906 已是 `>= 0`，此处必须同口径，否则面板成为第二道假限制。
-    if (
-      !Number.isFinite(normalizedQuotaMultiplier) ||
-      normalizedQuotaMultiplier < 0 ||
-      normalizedQuotaMultiplier > 100
-    )
-      throw new Error('额度倍率必须在 0-100 之间（0 = 免费模型）');
+    // 额度倍率的校验已随写入口一起移到「AI 额度」页（见上方说明）——
+    // 本面板不再校验、也不再写该列，避免重新造出「面板拦、DB 收」的第二套口径。
     if (
       !Number.isInteger(normalizedSortOrder) ||
       normalizedSortOrder < 0 ||
@@ -367,7 +355,7 @@ export const SAVE_STRATEGIES = {
     )
       throw new Error('显示排序必须是 0-10000 的整数');
 
-    return pickWritableFields('bohaiModels', {
+    const payload = pickWritableFields('bohaiModels', {
       mode_id: normalizedModeId,
       display_name: normalizedDisplayName,
       tagline: String(editingItem.tagline || '').trim(),
@@ -384,7 +372,6 @@ export const SAVE_STRATEGIES = {
       top_p: normalizedTopP,
       frequency_penalty: normalizedFrequencyPenalty,
       max_tokens: normalizedMaxTokens,
-      quota_multiplier: normalizedQuotaMultiplier,
       min_tier: normalizedMinTier,
       sort_order: normalizedSortOrder,
       status: normalizedStatus,
@@ -392,6 +379,9 @@ export const SAVE_STRATEGIES = {
       created_by: isEditing ? undefined : userId || null,
       updated_by: userId || null,
     });
+    // 仅新建时写一次初值（1 = 按量）。DB 侧该列 NOT NULL，必须给值。
+    if (!isEditing) payload.quota_multiplier = 1;
+    return payload;
   },
 
   lotteries: async ({ editingItem, userId, isEditing }) => {

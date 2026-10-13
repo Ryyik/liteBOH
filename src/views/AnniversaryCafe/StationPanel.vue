@@ -335,7 +335,7 @@ const windowStyle = computed(() => {
       type="button"
       class="vent-valve"
       aria-label="排气阀：按一次排出中段蒸汽"
-      @pointerdown.stop.prevent="emit('vent')"
+      @pointerdown.stop.prevent="emit('vent', $event)"
     >
       <Wind :size="13" />排气
     </button>

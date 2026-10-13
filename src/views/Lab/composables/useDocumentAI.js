@@ -1,10 +1,11 @@
-import { ref } from 'vue'
-import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js'
-import { supabase } from '@/utils/supabase-client.js'
-import { FRONTEND_MAX_OUTPUT_TOKENS } from '../config/ai-schemas.js'
+import { ref } from 'vue';
+import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js';
+import { supabase } from '@/utils/supabase-client.js';
+import { FRONTEND_MAX_OUTPUT_TOKENS } from '../config/ai-schemas.js';
 
-// model_id 存 bohai_model_configs.mode_id，调用时以 mode 传给 vault，由服务端按模式配置路由 provider/model/参数
-const FALLBACK_MODEL = 'fast'
+// 本表 model_id 存的是 bohai mode_id（不是上游模型名）——
+// 完整语义见 src/config/field-semantics.js（单一真源，被 field-semantics.test.js 锁住）
+const FALLBACK_MODEL = 'fast';
 
 // 从 lab_ai_model_configs 表读取文档排版的模型配置
 async function loadDocModelConfig() {
@@ -14,16 +15,17 @@ async function loadDocModelConfig() {
       .select('model_id, temperature, max_tokens, api_key_purpose')
       .eq('feature_key', 'doc-formatting')
       .eq('is_active', true)
-      .maybeSingle()
-    if (error || !data) return { model: FALLBACK_MODEL, temperature: 0.1, max_tokens: 4096, apiKeyPurpose: 'chat' }
+      .maybeSingle();
+    if (error || !data)
+      return { model: FALLBACK_MODEL, temperature: 0.1, max_tokens: 4096, apiKeyPurpose: 'chat' };
     return {
       model: data.model_id || FALLBACK_MODEL,
       temperature: Number(data.temperature) || 0.1,
       max_tokens: data.max_tokens || 4096,
       apiKeyPurpose: data.api_key_purpose || 'chat',
-    }
+    };
   } catch {
-    return { model: FALLBACK_MODEL, temperature: 0.1, max_tokens: 4096, apiKeyPurpose: 'chat' }
+    return { model: FALLBACK_MODEL, temperature: 0.1, max_tokens: 4096, apiKeyPurpose: 'chat' };
   }
 }
 
@@ -82,88 +84,108 @@ font=s(字体名, e.g. SimSun, SimHei) | size=s(字号半磅, 12pt=24) | bold=bo
 <operations>
 replaceText: {"type":"replaceText","find":"旧文字","replace":"新文字"} | insertText: {"type":"insertText","atIndex":0,"text":"插入的文字"} | deleteParagraph: {"type":"deleteParagraph","atIndex":2} | addParagraph: {"type":"addParagraph","text":"新段落内容","style":"Normal","align":"left"}
 operations 可以包含 __document__ 目标来设置页面参数，可以混合样式操作和内容操作
-</operations>`
+</operations>`;
 
 export function useDocumentAI() {
-  const aiLoading = ref(false)
+  const aiLoading = ref(false);
 
   function buildDocSummary(styles, content) {
-    const s = styles.slice(0, 20).map(st => {
-      const parts = [`${st.name}(${st.styleId})`]
-      if (st.font?.ascii) parts.push(st.font.ascii)
-      if (st.size) parts.push(`${(st.size / 2).toFixed(1)}pt`)
-      if (st.bold) parts.push('加粗')
-      if (st.color) parts.push(`#${st.color}`)
-      if (st.spacing?.line) parts.push(`行距${(st.spacing.line / 240).toFixed(1)}倍`)
-      if (st.align) parts.push(st.align)
-      if (st.indent?.firstLine) parts.push(`首行缩进${st.indent.firstLine}twip`)
-      return '- ' + parts.join(', ')
-    }).join('\n')
+    const s = styles
+      .slice(0, 20)
+      .map((st) => {
+        const parts = [`${st.name}(${st.styleId})`];
+        if (st.font?.ascii) parts.push(st.font.ascii);
+        if (st.size) parts.push(`${(st.size / 2).toFixed(1)}pt`);
+        if (st.bold) parts.push('加粗');
+        if (st.color) parts.push(`#${st.color}`);
+        if (st.spacing?.line) parts.push(`行距${(st.spacing.line / 240).toFixed(1)}倍`);
+        if (st.align) parts.push(st.align);
+        if (st.indent?.firstLine) parts.push(`首行缩进${st.indent.firstLine}twip`);
+        return '- ' + parts.join(', ');
+      })
+      .join('\n');
 
-    const c = content.slice(0, 25).map(p => {
-      const mark = p.isHeading ? '#' : ' '
-      const txt = p.text.slice(0, 60).replace(/\n/g, ' ')
-      return `${mark} [${p.styleName}] ${txt}`
-    }).join('\n')
+    const c = content
+      .slice(0, 25)
+      .map((p) => {
+        const mark = p.isHeading ? '#' : ' ';
+        const txt = p.text.slice(0, 60).replace(/\n/g, ' ');
+        return `${mark} [${p.styleName}] ${txt}`;
+      })
+      .join('\n');
 
-    return `【样式清单】\n${s || '(无)'}\n\n【内容预览】\n${c || '(空)'}`
+    return `【样式清单】\n${s || '(无)'}\n\n【内容预览】\n${c || '(空)'}`;
   }
 
   async function chat(userMessage, history, styles, content, signal) {
-    aiLoading.value = true
-    const docSummary = buildDocSummary(styles, content)
-    const systemPrompt = `${SYSTEM_PROMPT}\n\n## 当前文档\n${docSummary}`
+    aiLoading.value = true;
+    const docSummary = buildDocSummary(styles, content);
+    const systemPrompt = `${SYSTEM_PROMPT}\n\n## 当前文档\n${docSummary}`;
 
     try {
-      const modelConfig = await loadDocModelConfig()
+      const modelConfig = await loadDocModelConfig();
       const messages = [
         { role: 'system', content: systemPrompt },
-        ...history.slice(-10).map(m => ({ role: m.role, content: m.content })),
+        ...history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
         { role: 'user', content: userMessage },
-      ]
+      ];
 
       const vaultResult = await callVaultSiliconChatStreamCollect({
         mode: modelConfig.model,
         purpose: modelConfig.apiKeyPurpose,
-        payload: { model: modelConfig.model, messages, stream: true, temperature: modelConfig.temperature, max_tokens: Math.min(modelConfig.max_tokens, FRONTEND_MAX_OUTPUT_TOKENS) },
+        payload: {
+          model: modelConfig.model,
+          messages,
+          stream: true,
+          temperature: modelConfig.temperature,
+          max_tokens: Math.min(modelConfig.max_tokens, FRONTEND_MAX_OUTPUT_TOKENS),
+        },
         timeoutMs: 120000,
         signal,
-      })
+      });
 
-      if (!vaultResult.ok) throw new Error(vaultResult.error?.message || 'AI 调用失败')
-      const raw = vaultResult.data?.choices?.[0]?.message?.content || ''
-      return parseResponse(raw)
+      if (!vaultResult.ok) throw new Error(vaultResult.error?.message || 'AI 调用失败');
+      const raw = vaultResult.data?.choices?.[0]?.message?.content || '';
+      return parseResponse(raw);
     } catch (e) {
       if (e?.name === 'AbortError' || e?.name === 'TimeoutError') {
-        return { reply: '已停止生成。', operations: [] }
+        return { reply: '已停止生成。', operations: [] };
       }
-      return { reply: `调用失败：${e.message}，请重试`, operations: [] }
+      return { reply: `调用失败：${e.message}，请重试`, operations: [] };
     } finally {
-      aiLoading.value = false
+      aiLoading.value = false;
     }
   }
 
-  return { chat, aiLoading }
+  return { chat, aiLoading };
 }
 
 function parseResponse(raw) {
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
   try {
-    const parsed = JSON.parse(cleaned)
+    const parsed = JSON.parse(cleaned);
     return {
       reply: parsed.reply || '已完成。',
       operations: Array.isArray(parsed.operations) ? parsed.operations : [],
-    }
+    };
   } catch {
-    const r = cleaned.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/)
-    const o = cleaned.match(/"operations"\s*:\s*(\[[\s\S]*?\])/)
+    const r = cleaned.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    const o = cleaned.match(/"operations"\s*:\s*(\[[\s\S]*?\])/);
     return {
       reply: r ? r[1].replace(/\\n/g, '\n') : '已处理。',
       operations: o ? safeParse(o[1], []) : [],
-    }
+    };
   }
 }
 
 function safeParse(str, fallback) {
-  try { return JSON.parse(str) } catch { return fallback }
+  try {
+    return JSON.parse(str);
+  } catch {
+    return fallback;
+  }
 }

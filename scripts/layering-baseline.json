@@ -1,6 +1,6 @@
 {
-  "total": 164,
-  "updatedAt": "2026-10-05",
+  "total": 162,
+  "updatedAt": "2026-10-12",
   "files": {
     "src/views/DataManagement/DataAdmin.vue": 24,
     "src/views/DataManagement/composables/useDataAdminMutations.js": 20,
@@ -22,7 +22,6 @@
     "src/components/AdminContentPublishModal.vue": 2,
     "src/composables/useAvatarFrame.js": 2,
     "src/composables/useUserTier.js": 2,
-    "src/views/AiQuotaConfig/index.vue": 2,
     "src/views/DataManagement/composables/useDataAdminExport.js": 2,
     "src/views/Profile/ProfileMain.vue": 2,
     "src/composables/useActivities.js": 1,

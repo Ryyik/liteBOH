@@ -1,0 +1,2155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 配置 · 改版原型</title>
+<style>
+/* ==========================================================================
+   AI 配置改版原型 — 单文件，零外部依赖
+   视觉跟随产品：DataManagement/styles/base.css 的 Google 色系 token
+   + styles/common/tokens.css 的 --liquid-* 玻璃材质
+   注意：本文件在仓库根目录，不在 check:liquid-glass 扫描范围内，故自带一份
+        token 拷贝；搬进 .vue 时必须删掉这份拷贝，直接用项目 tokens。
+   ========================================================================== */
+
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "JetBrains Mono", monospace;
+  --ctrl-h: 52px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #eef1f6;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 控制条（非 fixed，与 container 查询互不干扰） ---------- */
+.ctrl-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 20px;
+  min-height: var(--ctrl-h);
+  background: #ffffff;
+  border-bottom: 1px solid #e3e7ee;
+}
+.ctrl-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ctrl-title strong { font-size: 14px; font-weight: 500; color: #0e1115; }
+.ctrl-title span { font-size: 12px; color: #5a6577; }
+.ctrl-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: #eff1f4;
+  border-radius: 9px;
+}
+.seg-btn {
+  border: 0;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 12px;
+  color: #5a6577;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.seg-btn.is-on { background: #ffffff; color: #0e1115; box-shadow: 0 1px 2px rgba(15,23,42,.08); }
+.ctrl-btn {
+  border: 1px solid #d9dee7;
+  background: #ffffff;
+  color: #0e1115;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.ctrl-btn.is-on { background: #e8f0fe; border-color: #4285f4; color: #0b3d91; }
+.ctrl-btn:hover { border-color: #b9c2d0; }
+
+/* ---------- 舞台 ---------- */
+.stage { padding: 24px 20px 56px; }
+.frame {
+  position: relative;
+  width: 100%;
+  max-width: 1140px;
+  margin: 0 auto;
+  container-type: inline-size;
+  transition: max-width .28s cubic-bezier(.23,1,.32,1);
+  /* 玻璃必须有可模糊的底。关键：主图放在**面板背后**（进入 backdrop-filter），
+     不能放在面板自己的 background-image 上 —— 后者不经过模糊，图上的大字会
+     直接透到正文里（实测白遮罩 .90 仍能看出约 8% 的深色字块）。 */
+  border-radius: 20px;
+  overflow: hidden;
+  background-image: url("src/assets/images/main1-1280.webp");
+  background-size: cover;
+  background-position: center top;
+}
+.frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(238, 241, 246, .78);
+  transition: background var(--duration-base, 240ms) var(--ease-out, ease);
+}
+.frame.is-dark::before { background: rgba(8, 9, 12, .62); }
+.stage.is-mobile .frame { max-width: 392px; }
+
+/* ---------- 产品 token（浅色） ---------- */
+.page {
+  --radius: 8px;
+  --radius-card: 14px;
+  --primary: #4285f4;
+  --primary-foreground: #ffffff;
+  --background: #ffffff;
+  --foreground: #0e1115;
+  --card: rgba(255,255,255,.72);
+  --card-solid: #ffffff;
+  --nested: rgba(255,255,255,.55);
+  --muted: #eff1f4;
+  /* 对比度修正：产品原值 #7f8d9f 在白底仅 3.38:1（低于 WCAG AA 4.5）
+     这里换成 5.41:1，并作为一条修复标注 */
+  --muted-foreground: #5a6577;
+  --border: #e6e9ef;
+  --border-strong: #d3d9e3;
+  --ring: #4285f4;
+  --success: #0f7a52;
+  --success-soft: rgba(15,138,106,.12);
+  --warning: #9a5b06;
+  --warning-soft: rgba(180,83,9,.12);
+  --danger: #b3261e;
+  --danger-soft: rgba(179,38,30,.10);
+  --liquid-bg: rgba(255,255,255,.72);
+  --liquid-bg-nested: rgba(255,255,255,.55);
+  --liquid-border: rgba(255,255,255,.65);
+  --liquid-filter: blur(28px) saturate(180%) brightness(1.02);
+  --liquid-shadow: 0 20px 60px rgba(15,23,42,.07), 0 1px 3px rgba(15,23,42,.06);
+  /* 玻璃面的合成底色：背景图被遮罩钳到可预期区间后，再叠 --liquid-bg 的近似实色。
+     用于对比度计算的地板值（取偏暗的一侧，宁可严一点）。 */
+  --surface-composited: #f2f4f8;
+
+  position: relative;
+  border-radius: 20px;
+  border: 1px solid var(--liquid-border);
+  background: var(--liquid-bg);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.86), var(--liquid-shadow);
+  color: var(--foreground);
+  overflow: hidden;
+}
+/* 暗色：只由 data-theme 驱动，与产品一致 */
+.page[data-theme="dark"] {
+  --primary: #fc2c50;
+  --primary-foreground: #ffffff;
+  --background: #161616;
+  --foreground: #eff1f4;
+  --card: rgba(29,29,28,.72);
+  --card-solid: #1d1d1c;
+  --nested: rgba(38,38,48,.55);
+  --muted: #2a2a2e;
+  --muted-foreground: #a8b0bd;
+  --border: #33333a;
+  --border-strong: #45454e;
+  --ring: #fc2c50;
+  --success: #4ade9b;
+  --success-soft: rgba(74,222,155,.14);
+  --warning: #f0b34a;
+  --warning-soft: rgba(240,179,74,.14);
+  --danger: #ff8b82;
+  --danger-soft: rgba(255,139,130,.14);
+  --liquid-bg: rgba(28,28,36,.72);
+  --liquid-bg-nested: rgba(38,38,48,.55);
+  --liquid-border: rgba(255,255,255,.12);
+  --liquid-shadow: 0 20px 60px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+  --surface-composited: #1c1c24;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), var(--liquid-shadow);
+}
+
+/* ---------- 页头与标签 ---------- */
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 16px;
+}
+.eyebrow {
+  display: block;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.page-head h1 { margin: 4px 0 0; font-size: 20px; font-weight: 500; }
+.page-head p { margin: 5px 0 0; font-size: 13px; line-height: 1.6; color: var(--muted-foreground); }
+
+.page-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.page-tab {
+  position: relative;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  padding: 10px 12px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.page-tab.is-on { color: var(--foreground); box-shadow: inset 0 -2px 0 var(--primary); }
+.page-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 6px; }
+
+.panel { padding: 18px 22px 26px; }
+
+/* ---------- 通用组件 ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  background: var(--card-solid);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--ring); }
+.btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.btn-primary:hover { filter: brightness(.95); }
+.btn-sm { height: 28px; padding: 0 11px; font-size: 12px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.key-row .btn.is-done { color: var(--success); border-color: var(--success); }
+
+.link-btn {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: var(--primary);
+  padding: 2px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.link-btn:hover { background: var(--muted); }
+.link-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--muted);
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.badge.is-ok { background: var(--success-soft); color: var(--success); }
+.badge.is-free { background: var(--success-soft); color: var(--success); }
+.badge.is-paid { background: var(--warning-soft); color: var(--warning); }
+.badge.is-off { background: var(--muted); color: var(--muted-foreground); }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.block-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--border);
+}
+.block-head h3 { margin: 0; font-size: 13px; font-weight: 500; }
+.block-head .block-count { font-size: 12px; color: var(--muted-foreground); }
+.block-head .spacer { flex: 1; }
+
+/* ---------- Tab 1：密钥与模型 ---------- */
+.assets-grid { display: grid; grid-template-columns: 262px minmax(0,1fr); gap: 16px; align-items: start; }
+
+.platform-rail { padding: 12px; }
+.rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.rail-foot { margin: 10px 4px 2px; font-size: 11px; color: var(--muted-foreground); }
+.platform-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pf-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--card-solid);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 3px;
+}
+.pf-card:hover { border-color: var(--border-strong); }
+.pf-card.is-active { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.pf-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.pf-top { display: flex; align-items: center; gap: 7px; }
+.pf-name { font-size: 13px; font-weight: 500; }
+.pf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-foreground); flex: 0 0 7px; }
+.pf-dot.is-live { background: var(--success); }
+.pf-meta { font-size: 11px; color: var(--muted-foreground); }
+
+.detail { display: grid; gap: 14px; }
+.detail-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 2px 0; }
+.detail-head h2 { margin: 0; font-size: 16px; font-weight: 500; }
+.detail-head .detail-check { font-size: 11px; color: var(--muted-foreground); margin-left: auto; }
+.detail-url { font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground); }
+
+.key-rows, .model-rows { list-style: none; margin: 0; padding: 0; }
+.key-row, .model-row {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--border);
+}
+.key-row { grid-template-columns: minmax(0,1fr) auto auto auto; }
+.model-row { grid-template-columns: minmax(0,1fr) auto minmax(0,1.15fr) auto; }
+.model-main { display: grid; gap: 2px; min-width: 0; }
+.model-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.model-tier { font-size: 11px; color: var(--muted-foreground); white-space: nowrap; }
+.model-ops { display: flex; align-items: center; gap: 4px; }
+.badge.is-cap { background: var(--info-soft); color: var(--info); }
+.key-row:last-child, .model-row:last-child { border-bottom: 0; }
+.key-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.key-label { font-size: 13px; font-weight: 500; }
+.tag {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+.key-mask { font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); }
+.key-actions { display: flex; gap: 2px; }
+.model-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.model-scenes { font-size: 11px; color: var(--muted-foreground); text-align: right; }
+.block-actions { display: flex; gap: 8px; padding: 13px 15px; flex-wrap: wrap; }
+
+.switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 38px;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15,23,42,.25);
+  transition: transform .16s cubic-bezier(.23,1,.32,1);
+}
+.switch.is-on { background: var(--primary); border-color: var(--primary); }
+.switch.is-on::after { transform: translateX(16px); }
+.switch:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* ---------- Tab 2：场景绑定 ---------- */
+.scene-note {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 11px 14px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.scene-list { display: grid; gap: 10px; }
+.scene-row {
+  display: grid;
+  grid-template-columns: minmax(0,1.5fr) minmax(0,1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 13px 15px;
+}
+.scene-info { display: grid; gap: 3px; min-width: 0; }
+.scene-info strong { font-size: 13px; font-weight: 500; }
+.scene-info span { font-size: 12px; color: var(--muted-foreground); line-height: 1.5; }
+.scene-affects { color: var(--muted-foreground); }
+.scene-ops { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.scene-active-label { font-size: 11px; color: var(--muted-foreground); white-space: nowrap; }
+.scene-params {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+.scene-params label {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.scene-params input {
+  width: 118px;
+  height: 32px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--card-solid);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+}
+.scene-params .hint { font-size: 11px; color: var(--muted-foreground); max-width: 300px; line-height: 1.5; }
+.scene-select, .wiz-input, .wiz-select {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  background: var(--card-solid);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 13px;
+}
+.scene-select:focus-visible, .wiz-input:focus-visible, .wiz-select:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring);
+}
+.scene-subs {
+  display: grid;
+  gap: 11px;
+  padding: 12px 15px 4px 34px;
+  margin-left: 6px;
+  border-left: 2px solid var(--border-strong);
+}
+.sub-row { display: grid; grid-template-columns: minmax(76px, auto) auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.sub-name { font-size: 12px; }
+.sub-need { font-size: 11px; color: var(--muted-foreground); white-space: nowrap; }
+.sub-warn { font-size: 11px; color: var(--warning); white-space: nowrap; }
+.scene-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+.tree-toggle {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 0 0 0 16px;
+  position: relative;
+  justify-self: start;
+}
+.tree-toggle::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-70%) rotate(-45deg);
+  transform-origin: center;
+}
+.tree-toggle.is-open::before { transform: translateY(-30%) rotate(45deg); }
+
+/* ---------- Tab 3：额度 ---------- */
+.quota-note {
+  padding: 11px 14px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.quota-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.quota-table th, .quota-table td { padding: 11px 15px; text-align: left; border-bottom: 1px solid var(--border); }
+.quota-table th { font-size: 11px; font-weight: 500; color: var(--muted-foreground); }
+.quota-table tr:last-child td { border-bottom: 0; }
+.quota-table code { font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground); }
+
+/* ---------- 向导 ---------- */
+.modal {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15,23,42,.34);
+}
+.page[data-theme="dark"] .modal { background: rgba(0,0,0,.56); }
+.modal-box {
+  position: relative;
+  width: 100%;
+  max-width: 470px;
+  max-height: 100%;
+  overflow: auto;
+  background: var(--card-solid);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(15,23,42,.22);
+}
+.modal-head { padding: 18px 20px 0; }
+.modal-head h2 { margin: 0; font-size: 16px; font-weight: 500; }
+.modal-head p { margin: 5px 0 0; font-size: 12px; color: var(--muted-foreground); line-height: 1.6; }
+.steps { display: flex; gap: 10px; padding: 15px 20px 0; flex-wrap: wrap; }
+.step { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted-foreground); }
+.step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  flex: 0 0 20px;
+}
+.step.is-now { color: var(--foreground); }
+.step.is-now .step-num { background: var(--primary); color: var(--primary-foreground); }
+.step.is-done .step-num { background: var(--success-soft); color: var(--success); }
+
+.modal-body { padding: 16px 20px 4px; display: grid; gap: 12px; }
+.field { display: grid; gap: 6px; }
+.field > label { font-size: 12px; font-weight: 500; }
+.field > .hint { font-size: 11px; color: var(--muted-foreground); line-height: 1.5; }
+.wiz-error {
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.preset-list { display: grid; gap: 8px; }
+.preset {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-solid);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.preset:hover { border-color: var(--border-strong); }
+.preset.is-on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.preset-copy { display: grid; gap: 2px; min-width: 0; }
+.preset-copy strong { font-size: 13px; font-weight: 500; }
+.preset-copy span { font-size: 11px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preset-locked {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--muted);
+}
+.preset-locked strong { font-size: 13px; font-weight: 500; }
+.preset-locked .link-btn { margin-left: auto; }
+.wiz-ok {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.block-actions .foot-note { font-size: 11px; color: var(--muted-foreground); align-self: center; }
+
+.pick-group { display: grid; gap: 6px; }
+.pick-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  padding-top: 4px;
+}
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+}
+.pick-row.is-on { border-color: var(--primary); background: var(--success-soft); }
+.pick-row input { width: 16px; height: 16px; accent-color: var(--primary); flex: 0 0 16px; }
+.pick-copy { display: grid; gap: 1px; min-width: 0; }
+.pick-copy strong { font-size: 12px; font-weight: 500; }
+.pick-copy span { font-family: var(--font-mono); font-size: 11px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+}
+.modal-foot .spacer { flex: 1; }
+.modal-foot .foot-note { font-size: 11px; color: var(--muted-foreground); }
+
+/* ---------- 模型设置：字段按「人的心智」分组 ---------- */
+.msection { display: grid; gap: 10px; padding: 13px 0; border-bottom: 1px solid var(--border); }
+.msection:last-of-type { border-bottom: 0; }
+.msection > h4 { margin: 0; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+.msection-body { display: grid; gap: 12px; }
+.me-ro {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 修复标注 ---------- */
+.anno-layer { position: absolute; inset: 0; pointer-events: none; z-index: 50; }
+.anno-chip {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid #ffffff;
+  background: #d85a30;
+  color: #ffffff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 2px 6px rgba(15,23,42,.28);
+}
+.anno-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.anno-pop {
+  position: absolute;
+  width: 300px;
+  max-width: calc(100% - 16px);
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #1f2430;
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.6;
+  pointer-events: auto;
+  box-shadow: 0 16px 40px rgba(15,23,42,.34);
+  display: grid;
+  gap: 7px;
+}
+.anno-pop strong { font-size: 12px; font-weight: 500; }
+.anno-pop .was { color: #f09595; }
+.anno-pop .now { color: #97c459; }
+.anno-pop .close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: 0;
+  background: transparent;
+  color: #b4b2a9;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.anno-pop .close:hover { color: #ffffff; }
+.page[data-theme="dark"] .anno-pop { background: #2e2e2e; }
+
+/* ---------- 响应式：真重排，不是缩放 ---------- */
+@container (max-width: 760px) {
+  .page-head { flex-direction: column; align-items: stretch; }
+  .page-head .btn { width: 100%; justify-content: center; }
+  .assets-grid { grid-template-columns: 1fr; }
+  .platform-rail .platform-list { grid-auto-flow: column; grid-auto-columns: 78%; overflow-x: auto; }
+  .key-row { grid-template-columns: minmax(0,1fr) auto; row-gap: 8px; }
+  .key-row .key-mask { grid-column: 1 / -1; }
+  /* 徽标在 1fr 列里默认 stretch，会被拉成一条横带（实测） */
+  .key-row > .badge,
+  .model-row > .badge { justify-self: start; }
+  .model-row { grid-template-columns: minmax(0,1fr) auto; row-gap: 8px; }
+  .model-row .model-main,
+  .model-row .model-meta,
+  .model-row .model-scenes { grid-column: 1 / -1; }
+  .model-row .model-scenes { text-align: left; }
+  .scene-row { grid-template-columns: 1fr; gap: 10px; }
+  .scene-ops { justify-content: flex-start; }
+  .sub-row { grid-template-columns: 1fr; gap: 6px; }
+  .scene-subs { padding-left: 15px; }
+  .block-actions .btn { flex: 1; justify-content: center; }
+  .anno-pop { width: 240px; }
+}
+
+/* [hidden] 不变式：必须在样式表末尾，且不能依赖 !important
+   （上面 .modal{display:flex} 与 [hidden]{display:none} 同特异性，靠源序决胜） */
+[hidden] { display: none; }
+</style>
+</head>
+<body>
+
+<header class="ctrl-bar">
+  <div class="ctrl-title">
+    <strong>AI 配置 · 改版原型</strong>
+    <span>数据管理 → AI 配置：6 个子页收成 3 个</span>
+  </div>
+  <div class="ctrl-group">
+    <div class="seg" role="group" aria-label="主题">
+      <button type="button" class="seg-btn is-on" data-theme-set="light">浅色</button>
+      <button type="button" class="seg-btn" data-theme-set="dark">暗色</button>
+    </div>
+    <div class="seg" role="group" aria-label="视口">
+      <button type="button" class="seg-btn is-on" data-vp-set="desktop">桌面</button>
+      <button type="button" class="seg-btn" data-vp-set="mobile">移动</button>
+    </div>
+    <button type="button" class="ctrl-btn is-on" id="btnAnno">标注：开</button>
+    <button type="button" class="ctrl-btn" id="btnInject">注入错误态</button>
+  </div>
+</header>
+
+<main class="stage" id="stage">
+  <div class="frame" id="frame">
+    <div class="page" id="page" data-theme="light">
+
+      <div class="page-head">
+        <div>
+          <span class="eyebrow">AI Config</span>
+          <h1>AI 配置</h1>
+          <p>密钥、模型、场景绑定与额度都在这一层，不用在四个标签页之间来回找。</p>
+        </div>
+        <button type="button" class="btn btn-primary" id="btnAddPlatform" data-anno="add-platform">添加平台</button>
+      </div>
+
+      <nav class="page-tabs" role="tablist" aria-label="AI 配置分区">
+        <button type="button" class="page-tab is-on" role="tab" aria-selected="true" data-tab="assets">密钥与模型</button>
+        <button type="button" class="page-tab" role="tab" aria-selected="false" data-tab="scenes">场景绑定</button>
+        <button type="button" class="page-tab" role="tab" aria-selected="false" data-tab="quota">额度与计费</button>
+      </nav>
+
+      <section class="panel is-on" data-panel="assets">
+        <div class="assets-grid">
+          <aside class="platform-rail card" data-anno="platform-rail">
+            <div class="rail-head"><span>平台</span><span id="railCount">0</span></div>
+            <ul class="platform-list" id="platformList"></ul>
+            <p class="rail-foot" id="railFoot"></p>
+          </aside>
+          <div class="detail" id="detail"></div>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="scenes" hidden>
+        <div class="scene-note" data-anno="save-rule">
+          <span>保存规则统一了：资产类（密钥、模型）改完即时生效，绑定类（这里的每个场景）点保存才写入。不再出现「这个页面到底要不要点保存」的猜谜。</span>
+        </div>
+        <div class="scene-list" id="sceneList"></div>
+        <div class="scene-foot">
+          <button type="button" class="btn btn-sm" id="btnSceneReset">放弃改动</button>
+          <button type="button" class="btn btn-primary btn-sm" id="btnSceneSave" disabled>保存场景绑定</button>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="quota" hidden>
+        <p class="quota-note">这一页保持现状（<b>AiQuotaConfigConsole.vue</b>）：模型倍率、档位日限额、积分计费、Coding 附加包。原「AI 额度」独立路由 <b>/admin/ai-quota</b> 是无人引用的重复实现，建议删除。</p>
+        <div class="card">
+          <div class="block-head"><h3>模型计费倍率</h3><span class="block-count">0 表示免费</span></div>
+          <div style="overflow-x:auto">
+            <table class="quota-table">
+              <thead><tr><th>模型</th><th>模式 ID</th><th>消耗倍率</th></tr></thead>
+              <tbody>
+                <tr><td>Qwen3-8B</td><td><code>Qwen/Qwen3-8B</code></td><td>0</td></tr>
+                <tr><td>GLM-4-Flash</td><td><code>glm-4-flash</code></td><td>0</td></tr>
+                <tr><td>DeepSeek-V3</td><td><code>deepseek-ai/DeepSeek-V3</code></td><td>1.0</td></tr>
+                <tr><td>GLM-4V-Plus</td><td><code>glm-4v-plus</code></td><td>1.5</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    <div class="modal" id="wizard" hidden>
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="wizTitle">
+        <div class="modal-head">
+          <h2 id="wizTitle">添加平台</h2>
+          <p id="wizSub">选平台、贴密钥、勾模型，一次做完。</p>
+        </div>
+        <div class="steps" id="wizSteps"></div>
+        <div class="modal-body" id="wizBody"></div>
+        <div class="modal-foot" id="wizFoot"></div>
+      </div>
+    </div>
+
+    <div class="modal" id="modelWizard" hidden>
+      <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mwTitle">
+        <div class="modal-head">
+          <h2 id="mwTitle">添加模型</h2>
+          <p id="mwSub">选好它属于哪个平台，剩下的就是模型自己的信息。</p>
+        </div>
+        <div class="modal-body" id="mwBody"></div>
+        <div class="modal-foot" id="mwFoot"></div>
+      </div>
+    </div>
+
+      <div class="modal" id="modelEditor" hidden>
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="meTitle">
+          <div class="modal-head">
+            <h2 id="meTitle">模型设置</h2>
+            <p id="meSub"></p>
+          </div>
+          <div class="modal-body" id="meBody"></div>
+          <div class="modal-foot" id="meFoot"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="anno-layer" id="annoLayer"></div>
+
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var PURPOSES = { chat: "对话", embedding: "向量", moderation: "审核", image: "图像" };
+
+  /* 能力：真实枚举来自 config/fields.js 的 BOHAI_MODEL_CAPABILITY_OPTIONS。
+     标签改成「能干什么」，而不是内部分类名。 */
+  var CAPABILITIES = {
+    chat: { label: "文字对话", hint: "只能处理文字" },
+    multimodal: { label: "能看图", hint: "多模态，可用于图片审核" },
+    plan: { label: "任务规划", hint: "拆解多步任务" },
+    agent: { label: "自动执行", hint: "可调用工具自主执行" }
+  };
+
+  /* 档位：真实枚举来自 BOHAI_MODEL_MIN_TIER_OPTIONS（10 个扁平值）。
+     界面收成 4 档阶梯 + 附加包，让「谁能用」一眼可读。 */
+  var TIERS = [
+    { value: "guest", label: "所有人", hint: "含未登录访客" },
+    { value: "free", label: "登录用户", hint: "免费账号可用" },
+    { value: "plus", label: "Plus 及以上", hint: "含 Pro / Max / Ultra" },
+    { value: "pro", label: "Pro 及以上", hint: "含 Max / Ultra" },
+    { value: "max", label: "Max 及以上", hint: "含 Ultra" },
+    { value: "ultra", label: "仅 Ultra", hint: "最高档专属" }
+  ];
+
+  function tierLabel(v) {
+    var t = TIERS.filter(function (x) { return x.value === v; })[0];
+    return t ? t.label : v;
+  }
+
+  function capabilityLabel(v) {
+    var c = CAPABILITIES[v];
+    return c ? c.label : v;
+  }
+
+  /* 模型统一工厂：默认值集中一处，避免每个模型对象各写一遍、
+     也避免「漏了某个字段」在界面上变成空白（那正是「不明确」的来源之一）。 */
+  function mkModel(o) {
+    var paid = o.free === false;
+    return {
+      id: o.id,
+      name: o.name,
+      modelId: o.modelId,
+      capability: o.capability || "chat",
+      minTier: o.minTier || "guest",
+      free: !paid,
+      multiplier: o.multiplier == null ? (paid ? 1 : 0) : o.multiplier,
+      scenes: o.scenes || [],
+      active: o.active !== false,
+      temperature: o.temperature == null ? 0.7 : o.temperature,
+      topP: o.topP == null ? 0.9 : o.topP,
+      frequencyPenalty: o.frequencyPenalty == null ? 0 : o.frequencyPenalty,
+      maxTokens: o.maxTokens == null ? 2048 : o.maxTokens,
+      sortOrder: o.sortOrder == null ? 10 : o.sortOrder
+    };
+  }
+
+  var PRESETS = [
+    { id: "siliconflow", name: "SiliconFlow", tagline: "硅基流动 · 免费模型最多", auto: true },
+    { id: "zhipu", name: "智谱 AI", tagline: "GLM 系列", auto: true },
+    { id: "openai", name: "OpenAI 兼容", tagline: "官方或第三方兼容端点", auto: true },
+    { id: "custom", name: "手动添加平台", tagline: "自己填名称、接口地址和密钥", auto: false }
+  ];
+
+  var CATALOG = {
+    siliconflow: [
+      { name: "Qwen3-8B", modelId: "Qwen/Qwen3-8B", free: true, capability: "chat" },
+      { name: "GLM-4-Flash", modelId: "glm-4-flash", free: true, capability: "chat" },
+      { name: "Qwen3-32B", modelId: "Qwen/Qwen3-32B", free: true, capability: "chat" },
+      { name: "Qwen2.5-VL-7B", modelId: "Qwen/Qwen2.5-VL-7B-Instruct", free: true, capability: "multimodal" },
+      { name: "DeepSeek-V3", modelId: "deepseek-ai/DeepSeek-V3", free: false, capability: "chat" },
+      { name: "DeepSeek-R1", modelId: "deepseek-ai/DeepSeek-R1", free: false, capability: "plan" }
+    ],
+    zhipu: [
+      { name: "GLM-4-Flash", modelId: "glm-4-flash", free: true, capability: "chat" },
+      { name: "GLM-4V-Plus", modelId: "glm-4v-plus", free: false, capability: "multimodal" }
+    ],
+    openai: [
+      { name: "GPT-4o mini", modelId: "gpt-4o-mini", free: false, capability: "multimodal" }
+    ],
+    custom: [
+      { name: "Gemini 2.0 Flash", modelId: "gemini-2.0-flash", free: true, capability: "multimodal" },
+      { name: "Gemini 1.5 Pro", modelId: "gemini-1.5-pro", free: false, capability: "chat" }
+    ]
+  };
+
+  var state = {
+    tab: "assets",
+    theme: "light",
+    vp: "desktop",
+    anno: true,
+    annoOpen: null,
+    activePlatform: "siliconflow",
+    testingKey: null,
+    platforms: [
+      {
+        id: "siliconflow",
+        name: "SiliconFlow",
+        baseUrl: "https://api.siliconflow.cn/v1",
+        lastCheck: "2 分钟前",
+        keys: [
+          { id: "k1", label: "主密钥", purpose: "chat", masked: "sk-········3f2a", status: "active" },
+          { id: "k2", label: "备用", purpose: "chat", masked: "sk-········9b17", status: "active" },
+          { id: "k3", label: "向量专用", purpose: "embedding", masked: "sk-········04ce", status: "disabled" }
+        ],
+        models: [
+          mkModel({ id: "m1", name: "Qwen3-8B", modelId: "Qwen/Qwen3-8B", capability: "chat", minTier: "guest", free: true,
+            scenes: ["BOHAI 对话", "实验室 · 文档排版", "实验室 · PPT", "实验室 · Word"], temperature: 0.7, maxTokens: 2048, sortOrder: 10 }),
+          mkModel({ id: "m2", name: "GLM-4-Flash", modelId: "glm-4-flash", capability: "chat", minTier: "guest", free: true,
+            scenes: [], temperature: 0.6, maxTokens: 2048, sortOrder: 20 }),
+          mkModel({ id: "m3", name: "Qwen2.5-VL-7B", modelId: "Qwen/Qwen2.5-VL-7B-Instruct", capability: "multimodal", minTier: "plus", free: false,
+            scenes: ["内容审核 · 图片"], temperature: 0.1, maxTokens: 256, sortOrder: 30 }),
+          mkModel({ id: "m4", name: "DeepSeek-V3", modelId: "deepseek-ai/DeepSeek-V3", capability: "chat", minTier: "plus", free: false,
+            scenes: ["内容审核 · 文本", "实验室 · 代码生成"], temperature: 0.3, maxTokens: 4096, sortOrder: 40 })
+        ]
+      },
+      {
+        id: "zhipu",
+        name: "智谱 AI",
+        baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+        lastCheck: "1 小时前",
+        keys: [
+          { id: "k4", label: "主密钥", purpose: "chat", masked: "········7c2d", status: "active" }
+        ],
+        models: [
+          mkModel({ id: "m5", name: "GLM-4V-Plus", modelId: "glm-4v-plus", capability: "multimodal", minTier: "plus", free: false,
+            scenes: [], multiplier: 1.5, temperature: 0.1, maxTokens: 256, sortOrder: 10 }),
+          mkModel({ id: "m6", name: "GLM-4-Flash", modelId: "glm-4-flash", capability: "chat", minTier: "guest", free: true,
+            scenes: [], active: false, sortOrder: 20 })
+        ]
+      },
+      {
+        id: "custom",
+        name: "自定义反代",
+        baseUrl: "https://boh-gemini-proxy.example.workers.dev/v1",
+        lastCheck: "—",
+        keys: [],
+        models: []
+      }
+    ],
+    scenes: [
+      {
+        id: "chat", name: "BOHAI 对话",
+        affects: "用户在 BOHAI 里新建对话时默认选中的模型。改这里等于换掉全站默认模型。",
+        model: "Qwen/Qwen3-8B", temperature: 0.7, maxTokens: 2048,
+        active: true, keyPurpose: "", open: false, subs: null
+      },
+      {
+        id: "moderation", name: "内容审核",
+        affects: "发帖、评论、资料等文字先过这里；只有云端不可达时才回退本地关键词检查。图片是另外一套配置。",
+        model: null, temperature: 0.1, maxTokens: 256,
+        active: true, keyPurpose: "chat", open: true,
+        subs: [
+          { id: "moderation-text", name: "文本审核", model: "deepseek-ai/DeepSeek-V3", temperature: 0.1, maxTokens: 256, need: "chat" },
+          { id: "moderation-image", name: "图片审核", model: "Qwen/Qwen2.5-VL-7B-Instruct", temperature: 0.1, maxTokens: 256, need: "multimodal" }
+        ]
+      },
+      {
+        id: "lab", name: "实验室",
+        affects: "文档排版、PPT、代码、Word 四个生成功能。默认跟随同一个模型，需要时可以逐个覆盖。",
+        model: null, temperature: 0.7, maxTokens: 2048,
+        active: true, keyPurpose: "", open: false,
+        subs: [
+          { id: "doc-formatting", name: "文档排版", model: "Qwen/Qwen3-8B", temperature: 0.6, maxTokens: 2048, need: "chat" },
+          { id: "ppt-generator", name: "PPT 生成", model: "Qwen/Qwen3-8B", temperature: 0.7, maxTokens: 4096, need: "chat" },
+          { id: "code-generator", name: "代码生成", model: "deepseek-ai/DeepSeek-V3", temperature: 0.2, maxTokens: 4096, need: "chat" },
+          { id: "word-generator", name: "Word 生成", model: "Qwen/Qwen3-8B", temperature: 0.6, maxTokens: 2048, need: "chat" }
+        ]
+      },
+      {
+        id: "weekly", name: "论坛周报",
+        affects: "每周一自动生成的社区周报正文。服务端直连，所以要单独指定用哪个 Key。",
+        model: "Qwen/Qwen3-8B", temperature: 0.7, maxTokens: 2048,
+        active: true, keyPurpose: "chat", open: false, subs: null
+      }
+    ]
+  };
+
+  var sceneDraft = null;
+  var wizard = null;
+  var runToken = 0;
+
+  var PRESET_URL = {
+    siliconflow: "https://api.siliconflow.cn/v1",
+    zhipu: "https://open.bigmodel.cn/api/paas/v4",
+    openai: "https://api.openai.com/v1",
+    custom: "https://your-proxy.example.com/v1"
+  };
+
+  function presetById(id) {
+    return PRESETS.filter(function (p) { return p.id === id; })[0] || null;
+  }
+
+  var $ = function (sel, root) { return (root || document).querySelector(sel); };
+
+  
+  var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+  var esc = function (s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  };
+
+  /* ==================== 修复标注 ==================== */
+  var ANNOS = [
+    { id: "add-platform", n: 1, tab: "assets", title: "平台用预设，选完自动拉取",
+      was: "每一项都要手填：服务商、用途、显示名称、密钥串、base_url，然后是逐个模型填 model_id 等 6 个字段。",
+      now: "选平台预设（接口地址已内置）→ 贴 Key → 自动检测并拉取模型清单 → 勾选完成。全程不出现 base_url。" },
+    { id: "platform-rail", n: 2, tab: "assets", title: "平台成为实体",
+      was: "API Key 与模型是两个平级标签页，只靠 provider 字符串软匹配关联（LabAiModelConfig.vue:258 的 getFilteredApiKeys 就是给这个缺失打的补丁）。",
+      now: "左栏每张卡是一个平台，密钥与模型都挂在它下面，归属关系直接可见。" },
+    { id: "key-block", n: 3, tab: "assets", title: "密钥平铺 + 动作带文字",
+      was: "左侧列表 + 右侧表单双栏；每行 5 个纯图标按钮（测试 / 发现模型 / 替换 / 启停 / 删除），只能靠 hover 提示辨认。",
+      now: "密钥平铺成行，次要动作带文字标签；「发现模型」从密钥行移走 —— 它是模型的事。" },
+    { id: "fetch-models", n: 4, tab: "assets", title: "加模型不用管平台的事",
+      was: "要加模型得先弄清它属于哪个平台、provider 字段该写什么、sort_order 填几，还要切到免费模型库页逐个手填 6 个字段。",
+      now: "「添加模型」只选平台 + 填模型信息；手动建平台也只有三个字段：名称、接口地址、密钥。" },
+    { id: "model-row", n: 5, tab: "assets", title: "模型行自证",
+      was: "免费与否要去「AI 额度」页查倍率；被哪些场景引用完全没有展示，删模型会让场景静默失效。",
+      now: "行内直接标免费 / 按量，并列出被哪些场景引用。" },
+    { id: "save-rule", n: 6, tab: "scenes", title: "保存规则统一",
+      was: "五种保存模型并存：页面级（AI 额度 / 审核）· 卡片级（实验室）· 行级（旧额度页）· 即时（密钥 / 排序）· 弹窗（模型增改）。",
+      now: "资产类即时生效，绑定类卡片级保存，规则写在页头。" },
+    { id: "scene-select", n: 7, tab: "scenes", title: "下拉按平台分组",
+      was: "实验室页的下拉选项是「显示名 (平台) · 需X — mode_id」，四层概念挤在一行里。",
+      now: "按平台分组，只显示模型名，来源限定为已加入的模型。" },
+    { id: "contrast", n: 8, tab: "assets", title: "次要文字对比度",
+      was: "面板 --muted-foreground 实测 #7f8d9f 在白底只有 3.38:1，低于 WCAG AA 的 4.5，所有模式 ID / 模型 ID 都在这个色上。",
+      now: "改用 #5a6577（5.41:1），暗色 #a8b0bd（7.49:1）。" },
+    { id: "scene-affects", n: 9, tab: "scenes", title: "写清「改了会影响谁」",
+      was: "每个场景只有名字 + 一句泛泛的描述（如「用户侧对话模型的默认选择」），不知道改它具体动到哪里的用户。",
+      now: "写明影响的具体功能与用户路径，例如「用户在 BOHAI 里新建对话时默认选中的模型」。",
+      },
+    { id: "scene-params", n: 10, tab: "scenes", title: "参数跟着场景走",
+      was: "温度、最大输出只能去模型的编辑弹窗里改 —— 一改就是全站生效，没法针对单个场景微调（审核要 0.1，写代码要更大输出）。",
+      now: "每个场景可单独覆盖温度和最大输出，展开即改；不覆盖就跟随模型默认值。",
+      },
+    { id: "scene-subneed", n: 11, tab: "scenes", title: "把「必须满足的条件」写在旁边",
+      was: "图片审核要求模型能看图（multimodal），但这个约束只写在代码注释和一句笼统提示里，选错了要到运行时才失败。",
+      now: "子场景直接标注「需要『能看图』的模型」，下拉里不符合的选项也会被点名。",
+      }
+  ];
+
+  /* ==================== 渲染：平台栏 ==================== */
+  function keySummary(p) {
+    if (!p.keys.length) return "尚未配置密钥";
+    var live = p.keys.filter(function (k) { return k.status === "active"; }).length;
+    return live + " / " + p.keys.length + " 个密钥启用";
+  }
+
+  function renderPlatforms() {
+    var list = $("#platformList");
+    list.innerHTML = state.platforms.map(function (p) {
+      var live = p.keys.some(function (k) { return k.status === "active"; });
+      return '<li><button type="button" class="pf-card' + (p.id === state.activePlatform ? " is-active" : "") +
+        '" data-pf="' + esc(p.id) + '">' +
+        '<span class="pf-top"><span class="pf-name">' + esc(p.name) + '</span>' +
+        '<span class="pf-dot' + (live ? " is-live" : "") + '"></span></span>' +
+        '<span class="pf-meta">' + esc(p.models.length + " 个模型 · " + keySummary(p)) + "</span>" +
+        "</button></li>";
+    }).join("");
+    $("#railCount").textContent = String(state.platforms.length);
+    var totalModels = state.platforms.reduce(function (s, p) { return s + p.models.length; }, 0);
+    $("#railFoot").textContent = "共 " + state.platforms.length + " 个平台 · " + totalModels + " 个模型";
+  }
+
+  /* ==================== 渲染：平台详情 ==================== */
+  function renderDetail() {
+    var p = state.platforms.filter(function (x) { return x.id === state.activePlatform; })[0];
+    var host = $("#detail");
+    if (!p) { host.innerHTML = ""; return; }
+
+    var keysHtml = p.keys.length
+      ? '<ul class="key-rows" data-anno-group="keys">' + p.keys.map(function (k) {
+          var busy = state.testingKey === k.id;
+          return '<li class="key-row">' +
+            '<span class="key-title"><span class="key-label">' + esc(k.label || "未命名") + "</span>" +
+            '<span class="tag">' + esc(PURPOSES[k.purpose] || k.purpose) + "</span></span>" +
+            '<code class="key-mask">' + esc(k.masked) + "</code>" +
+            '<span class="badge ' + (k.status === "active" ? "is-ok" : "is-off") + '">' +
+            '<span class="badge-dot"></span>' + (k.status === "active" ? "启用" : "停用") + "</span>" +
+            '<span class="key-actions">' +
+            '<button type="button" class="link-btn ' + (k.tested ? "is-done" : "") + '" data-key-test="' + esc(k.id) + '">' +
+            (busy ? "测试中…" : k.tested ? "连接正常" : "测试") + "</button>" +
+            '<button type="button" class="link-btn" data-key-replace="' + esc(k.id) + '">替换</button>' +
+            '<button type="button" class="link-btn" data-key-toggle="' + esc(k.id) + '">' +
+            (k.status === "active" ? "停用" : "启用") + "</button></span>" +
+            "</li>";
+        }).join("") + "</ul>"
+      : '<p class="rail-foot" style="padding:14px 15px;margin:0">还没有密钥。先点「添加 Key」，或回到「添加平台」一次性配好。</p>';
+
+    var modelsHtml = p.models.length
+      ? '<ul class="model-rows">' + p.models.map(function (m, i) {
+          return '<li class="model-row"' + (i === 0 ? ' data-anno="model-row"' : "") + ">" +
+            '<span class="model-main">' +
+              '<span class="model-name">' + esc(m.name) + "</span>" +
+              '<code class="model-id"' + (i === 0 ? ' data-anno="contrast"' : "") + ">" + esc(m.modelId) + "</code>" +
+            "</span>" +
+            '<span class="model-meta">' +
+              '<span class="badge is-cap" title="' + esc(CAPABILITIES[m.capability] ? CAPABILITIES[m.capability].hint : "") + '">' +
+                esc(capabilityLabel(m.capability)) + "</span>" +
+              '<span class="badge ' + (m.free ? "is-free" : "is-paid") + '" title="' +
+                esc(m.free ? "倍率 0：不扣额度也不扣积分" : "倍率 " + m.multiplier + "：实际 Token × 倍率计入今日额度") + '">' +
+                (m.free ? "免费" : "按量 ×" + m.multiplier) + "</span>" +
+              '<span class="model-tier">' + esc(tierLabel(m.minTier)) + "可用</span>" +
+            "</span>" +
+            '<span class="model-scenes">' + (m.scenes.length ? "用于 " + esc(m.scenes.join("、")) : "未被任何场景引用") + "</span>" +
+            '<span class="model-ops">' +
+              '<button type="button" class="link-btn" data-model-edit="' + esc(m.id) + '">设置</button>' +
+              '<button type="button" class="switch' + (m.active ? " is-on" : "") + '" role="switch" aria-checked="' +
+              (m.active ? "true" : "false") + '" aria-label="启用 ' + esc(m.name) + '" data-model-toggle="' + esc(m.id) + '"></button>' +
+            "</span>" +
+            "</li>";
+        }).join("") + "</ul>"
+      : '<p class="rail-foot" style="padding:14px 15px;margin:0">这个平台还没有加入任何模型。</p>';
+
+    host.innerHTML =
+      '<div class="detail-head">' +
+        "<h2>" + esc(p.name) + "</h2>" +
+        (p.keys.length ? '<span class="badge is-ok"><span class="badge-dot"></span>已连接</span>'
+          : '<span class="badge is-off"><span class="badge-dot"></span>未配置</span>') +
+        '<span class="detail-check">上次校验 ' + esc(p.lastCheck) + "</span>" +
+      "</div>" +
+      '<p class="detail-url">' + esc(p.baseUrl) + "</p>" +
+
+      '<section class="card" data-anno="key-block">' +
+        '<div class="block-head"><h3>API Key</h3>' +
+        '<span class="block-count">' + p.keys.length + " 个</span><span class=\"spacer\"></span>" +
+        '<button type="button" class="btn btn-sm" id="btnAddKey">添加 Key</button></div>' +
+        keysHtml +
+      "</section>" +
+
+      '<section class="card">' +
+        '<div class="block-head"><h3>该平台可用的模型</h3>' +
+        '<span class="block-count">' + p.models.length + " 个</span></div>" +
+        modelsHtml +
+        '<div class="block-actions">' +
+          '<button type="button" class="btn btn-primary btn-sm" id="btnAddModel" data-anno="fetch-models">添加模型</button>' +
+          '<span class="foot-note">平台与密钥已在上面配好，这里只挑模型</span>' +
+        "</div>" +
+      "</section>";
+  }
+
+  /* ==================== 渲染：场景绑定 ==================== */
+  function modelOptions(selected, need) {
+    // need（需要的模型能力）用于标注不匹配的选项：图片审核必须选「能看图」的模型。
+    var groups = state.platforms.map(function (p) {
+      var usable = p.models.filter(function (m) { return m.active; });
+      if (!usable.length) return "";
+      return '<optgroup label="' + esc(p.name) + '">' + usable.map(function (m) {
+        var mismatch = need && m.capability !== need;
+        return '<option value="' + esc(m.modelId) + '"' + (m.modelId === selected ? " selected" : "") + ">" +
+          esc(m.name) + "（" + esc(capabilityLabel(m.capability)) + (m.free ? " · 免费" : " · 按量") + "）" +
+          (mismatch ? "  ⚠ 与场景要求不符" : "") + "</option>";
+      }).join("") + "</optgroup>";
+    }).join("");
+    return groups || '<option value="">（还没有可用模型）</option>';
+  }
+
+  function findModelByModelId(modelId) {
+    var out = null;
+    state.platforms.forEach(function (p) {
+      p.models.forEach(function (m) { if (m.modelId === modelId) out = m; });
+    });
+    return out;
+  }
+
+  function sceneParamRow(s) {
+    if (!s.paramsOpen || s.subs) return "";
+    return '<div class="scene-params">' +
+      '<label>温度<input type="number" step="0.01" min="0" max="1.2" data-param="temperature" data-scene-id="' +
+      esc(s.id) + '" value="' + esc(s.temperature) + '"></label>' +
+      '<label>最大输出 Tokens<input type="number" step="256" min="256" max="4096" data-param="maxTokens" data-scene-id="' +
+      esc(s.id) + '" value="' + esc(s.maxTokens) + '"></label>' +
+      '<span class="hint">这两个只作用于本场景，不会改动模型自身的默认值。</span>' +
+      "</div>";
+  }
+
+  function renderScenes() {
+    var data = sceneDraft || state.scenes;
+    var host = $("#sceneList");
+    host.innerHTML = data.map(function (s, idx) {
+      var isFirst = idx === 0;
+      var head = '<div class="card scene-row">' +
+        '<div class="scene-info">' +
+          "<strong>" + esc(s.name) + "</strong>" +
+          '<span class="scene-affects"' + (isFirst ? ' data-anno="scene-affects"' : "") + ">" + esc(s.affects) + "</span>" +
+        "</div>" +
+        (s.subs
+          ? '<div class="scene-ops">' +
+              '<button type="button" class="tree-toggle' + (s.open ? " is-open" : "") + '" data-tree="' + esc(s.id) + '">' +
+              (s.open ? "收起 " + s.subs.length + " 项" : "展开 " + s.subs.length + " 项") + "</button></div>"
+          : '<select class="scene-select" data-scene="' + esc(s.id) + '" aria-label="' + esc(s.name) +
+            ' 使用的模型">' + modelOptions(s.model, s.need) + "</select>") +
+        '<div class="scene-ops">' +
+          (s.subs
+            ? ""
+            : '<button type="button" class="link-btn" data-params="' + esc(s.id) + '"' +
+              (isFirst ? ' data-anno="scene-params"' : "") + ">" + (s.paramsOpen ? "收起参数" : "参数") + "</button>") +
+          '<span class="scene-active-label">' + (s.active ? "已启用" : "已停用") + "</span>" +
+          '<button type="button" class="switch' + (s.active ? " is-on" : "") + '" role="switch" aria-checked="' +
+          (s.active ? "true" : "false") + '" aria-label="启用 ' + esc(s.name) + '" data-scene-active="' + esc(s.id) + '"></button>' +
+        "</div>" +
+        "</div>" +
+        sceneParamRow(s);
+
+      var subs = s.subs && s.open
+        ? '<div class="scene-subs">' + s.subs.map(function (sub) {
+            var cur = findModelByModelId(sub.model);
+            var mismatch = sub.need && cur && cur.capability !== sub.need;
+            return '<div class="sub-row">' +
+              '<span class="sub-name">' + esc(sub.name) + "</span>" +
+              (sub.need
+                ? '<span class="sub-need"' + (sub.id === "moderation-image" ? ' data-anno="scene-subneed"' : "") + ">需要「" +
+                  esc(capabilityLabel(sub.need)) + '」的模型</span>'
+                : "<span></span>") +
+              '<select class="scene-select" data-sub="' + esc(sub.id) + '" data-parent="' + esc(s.id) +
+              '" aria-label="' + esc(sub.name) + ' 使用的模型">' + modelOptions(sub.model, sub.need) + "</select>" +
+              '<span class="sub-warn">' + (mismatch ? "当前选的模型不符合要求，该功能会失败" : "") + "</span>" +
+              "</div>";
+          }).join("") + "</div>"
+        : "";
+      return head + subs;
+    }).join("");
+    syncSceneFoot();
+  }
+
+  function syncSceneFoot() {
+    var dirty = false;
+    if (sceneDraft) {
+      var a = JSON.stringify(state.scenes.map(pickScene));
+      var b = JSON.stringify(sceneDraft.map(pickScene));
+      dirty = a !== b;
+    }
+    $("#btnSceneSave").disabled = !dirty;
+    $("#btnSceneSave").textContent = dirty ? "保存场景绑定" : "已保存";
+  }
+
+  function pickScene(s) {
+    return {
+      id: s.id,
+      model: s.model || null,
+      temperature: s.temperature,
+      maxTokens: s.maxTokens,
+      active: s.active,
+      keyPurpose: s.keyPurpose,
+      subs: s.subs
+        ? s.subs.map(function (x) {
+            return { id: x.id, model: x.model, temperature: x.temperature, maxTokens: x.maxTokens };
+          })
+        : null
+    };
+  }
+
+  /* ==================== 向导 ==================== */
+  function openWizard(presetId, mode) {
+    runToken++;
+    wizard = {
+      mode: mode || "platform",
+      step: presetId ? 2 : 1,
+      preset: presetId || "",
+      key: "",
+      name: "",
+      baseUrl: "",
+      error: "",
+      verifying: false,
+      fetched: [],
+      picked: {}
+    };
+    $("#wizard").hidden = false;
+    renderWizard();
+  }
+
+  function closeWizard() {
+    wizard = null;
+    $("#wizard").hidden = true;
+    layoutAnnotations();
+  }
+
+  var NEW_KEY_HINT = "至少 20 个字符。密钥只在服务端加密保存，前端只显示脱敏值。";
+
+  function renderWizard() {
+    var w = wizard;
+    if (!w) return;
+    var steps = [
+      { n: 1, label: "选平台" },
+      { n: 2, label: "填密钥" },
+      { n: 3, label: "选择模型" }
+    ];
+    $("#wizSteps").innerHTML = steps.map(function (s) {
+      var cls = s.n === w.step ? " is-now" : s.n < w.step ? " is-done" : "";
+      return '<span class="step' + cls + '"><span class="step-num">' + (s.n < w.step ? "✓" : s.n) + "</span>" + s.label + "</span>";
+    }).join("");
+
+    var body = "";
+    if (w.step === 1) {
+      body = '<div class="field"><label>选择平台</label>' +
+        '<div class="preset-list">' + PRESETS.map(function (p) {
+          return '<button type="button" class="preset' + (p.id === w.preset ? " is-on" : "") + '" data-preset="' + esc(p.id) + '">' +
+            '<span class="preset-copy"><strong>' + esc(p.name) + "</strong><span>" + esc(p.tagline) + "</span></span>" +
+            '<span class="badge ' + (p.auto ? "is-free" : "is-off") + '">' + (p.auto ? "自动拉取" : "手动") + "</span></button>";
+        }).join("") + "</div>" +
+        '<span class="hint">接口地址、鉴权方式都内置在平台预设里，不需要你填。点一下即进入下一步。</span></div>';
+    } else if (w.step === 2) {
+      var preset = presetById(w.preset);
+      var isManual = !!(preset && preset.auto === false);
+      if (isManual) {
+        body = '<div class="field"><label for="wizName">平台名称</label>' +
+          '<input class="wiz-input" id="wizName" type="text" placeholder="例如 公司内网网关" value="' + esc(w.name) + '">' +
+          '<span class="hint">只给你自己看，起个能认出来的名字就行。</span></div>' +
+          '<div class="field"><label for="wizUrl">API 地址</label>' +
+          '<input class="wiz-input" id="wizUrl" type="text" placeholder="https://你的域名/v1" value="' + esc(w.baseUrl) + '">' +
+          '<span class="hint">预设里没有这个地址，所以要你填。填到 /v1 即可，具体路径由系统补全。</span></div>' +
+          '<div class="field"><label for="wizKey">API Key</label>' +
+          '<input class="wiz-input" id="wizKey" type="password" placeholder="粘贴密钥" value="' + esc(w.key) + '" autocomplete="off">' +
+          '<span class="hint">' + NEW_KEY_HINT + "</span></div>";
+      } else {
+        body = '<div class="field"><label>平台</label>' +
+          '<div class="preset-locked"><strong>' + esc(preset.name) + "</strong>" +
+          '<span class="badge is-ok"><span class="badge-dot"></span>接口地址已内置</span>' +
+          '<button type="button" class="link-btn" data-wiz-changepreset="1">换一个</button></div></div>' +
+          '<div class="field"><label for="wizKey">粘贴 API Key</label>' +
+          '<input class="wiz-input" id="wizKey" type="password" placeholder="从平台控制台复制过来" value="' + esc(w.key) + '" autocomplete="off">' +
+          '<span class="hint">' + NEW_KEY_HINT + "</span></div>";
+      }
+      if (w.error) body += '<p class="wiz-error">' + esc(w.error) + "</p>";
+    } else {
+      var free = w.fetched.filter(function (m) { return m.free; });
+      var paid = w.fetched.filter(function (m) { return !m.free; });
+      var picked = Object.keys(w.picked).filter(function (k) { return w.picked[k]; }).length;
+      body = '<p class="wiz-ok">密钥验证通过，已自动检测到 ' + w.fetched.length + " 个可用模型。</p>" +
+        (w.fetched.length
+          ? pickGroupHtml("免费模型（已默认勾选）", free, w.picked) + pickGroupHtml("计费模型", paid, w.picked)
+          : '<p class="hint">这个平台没有返回任何模型，可以先跳过，之后在平台详情里手动添加。</p>') +
+        '<p class="hint">已选 ' + picked + " 个。加入后可以在平台详情里逐个启停。</p>";
+    }
+    $("#wizBody").innerHTML = body;
+
+    var foot = '<button type="button" class="btn btn-sm" id="wizCancel">取消</button><span class="spacer"></span>';
+    if (w.step === 1) {
+      foot += '<button type="button" class="btn btn-primary btn-sm" id="wizNext"' + (w.preset ? "" : " disabled") + ">下一步</button>";
+    } else if (w.step === 2) {
+      foot = '<button type="button" class="btn btn-sm" id="wizBack">上一步</button>' + foot;
+      foot += '<button type="button" class="btn btn-primary btn-sm" id="wizVerify"' + (w.verifying ? " disabled" : "") + ">" +
+        (w.verifying ? "检测中…" : "连接并拉取模型") + "</button>";
+    } else {
+      var n = Object.keys(w.picked).filter(function (k) { return w.picked[k]; }).length;
+      foot += '<button type="button" class="btn btn-primary btn-sm" id="wizFinish">完成' + (n ? "，加入 " + n + " 个" : "") + "</button>";
+    }
+    $("#wizFoot").innerHTML = foot;
+  }
+
+  function pickGroupHtml(title, rows, picked) {
+    if (!rows.length) return "";
+    var kind = rows[0].free ? "free" : "paid";
+    return '<div class="pick-group"><div class="pick-group-head"><span>' + title + "</span>" +
+      '<button type="button" class="link-btn" data-pick-all="' + kind + '">全选</button></div>' +
+      rows.map(function (m) {
+        return '<label class="pick-row' + (picked[m.modelId] ? " is-on" : "") + '">' +
+          '<input type="checkbox" data-pick="' + esc(m.modelId) + '"' + (picked[m.modelId] ? " checked" : "") + ">" +
+          '<span class="pick-copy"><strong>' + esc(m.name) + "</strong><span>" + esc(m.modelId) + "</span></span></label>";
+      }).join("") + "</div>";
+  }
+
+  function verifyKey() {
+    var w = wizard;
+    if (!w) return;
+    var preset = presetById(w.preset);
+    var isManual = !!(preset && preset.auto === false);
+    if (isManual) {
+      if (!String(w.name || "").trim()) {
+        w.error = "平台名称不能为空。";
+        renderWizard();
+        return;
+      }
+      if (!/^https?:\/\//i.test(String(w.baseUrl || "").trim())) {
+        w.error = "API 地址需要以 http:// 或 https:// 开头。";
+        renderWizard();
+        return;
+      }
+    }
+    var value = (w.key || "").trim();
+    if (value.length < 20) {
+      w.error = "密钥格式不正确：当前 " + value.length + " 个字符，至少需要 20 个。";
+      renderWizard();
+      return;
+    }
+    w.error = "";
+    w.verifying = true;
+    renderWizard();
+    var token = runToken;
+    var presetId = w.preset;
+    setTimeout(function () {
+      if (!wizard || token !== runToken) return;
+      wizard.verifying = false;
+      if (wizard.mode === "addkey") {
+        wizard.fetched = [];
+        wizard.picked = {};
+        finishWizard();
+        return;
+      }
+      wizard.fetched = (CATALOG[presetId] || []).slice();
+      wizard.picked = {};
+      wizard.fetched.forEach(function (m) { if (m.free) wizard.picked[m.modelId] = true; });
+      wizard.step = 3;
+      renderWizard();
+    }, 900);
+  }
+
+  function finishWizard() {
+    var w = wizard;
+    if (!w) return;
+    var preset = presetById(w.preset);
+    var isManual = !!(preset && preset.auto === false);
+    var platformId = isManual ? "manual-" + Date.now() : w.preset;
+    var platformName = isManual ? String(w.name).trim() : (preset ? preset.name : w.preset);
+    var platformUrl = isManual ? String(w.baseUrl).trim() : (PRESET_URL[w.preset] || "");
+    var chosen = w.fetched.filter(function (m) { return w.picked[m.modelId]; });
+    var existing = state.platforms.filter(function (p) { return p.id === platformId; })[0];
+
+    if (existing) {
+      chosen.forEach(function (m) {
+        if (!existing.models.some(function (x) { return x.modelId === m.modelId; })) {
+          existing.models.push(mkModel({
+            id: "m" + (Date.now() + existing.models.length),
+            name: m.name,
+            modelId: m.modelId,
+            capability: m.capability,
+            free: m.free,
+            sortOrder: (existing.models.length + 1) * 10
+          }));
+        }
+      });
+      existing.keys.push({ id: "k" + Date.now(), label: "主密钥", purpose: "chat", masked: "sk-········" + w.key.slice(-4), status: "active" });
+      existing.lastCheck = "刚刚";
+      state.activePlatform = existing.id;
+    } else {
+      state.platforms.push({
+        id: platformId,
+        name: platformName,
+        baseUrl: platformUrl,
+        lastCheck: "刚刚",
+        keys: [{ id: "k" + Date.now(), label: "主密钥", purpose: "chat", masked: "sk-········" + w.key.slice(-4), status: "active" }],
+        models: chosen.map(function (m, i) {
+          return mkModel({ id: "m" + (Date.now() + i), name: m.name, modelId: m.modelId, capability: m.capability, free: m.free, sortOrder: (i + 1) * 10 });
+        })
+      });
+      state.activePlatform = platformId;
+    }
+    closeWizard();
+    renderPlatforms();
+    renderDetail();
+    renderScenes();
+  }
+
+  /* ==================== 添加模型（独立、极简） ==================== */
+  var modelWizard = null;
+
+  function openModelWizard(platformId, mode) {
+    modelWizard = {
+      platformId: platformId || state.activePlatform,
+      src: mode || "fetch",
+      fetched: null,
+      fetching: false,
+      picked: {},
+      modelId: "",
+      name: "",
+      error: ""
+    };
+    $("#modelWizard").hidden = false;
+    renderModelWizard();
+  }
+
+  function closeModelWizard() {
+    modelWizard = null;
+    $("#modelWizard").hidden = true;
+    layoutAnnotations();
+  }
+
+  function renderModelWizard() {
+    var w = modelWizard;
+    if (!w) return;
+    var body = '<div class="field"><label for="mwPlatform">平台</label>' +
+      '<select class="wiz-select" id="mwPlatform">' +
+      state.platforms.map(function (p) {
+        return '<option value="' + esc(p.id) + '"' + (p.id === w.platformId ? " selected" : "") + ">" + esc(p.name) + "</option>";
+      }).join("") + "</select>" +
+      '<span class="hint">接口地址与密钥由平台保存，这里不用管。</span></div>' +
+      '<div class="field"><label>模型来源</label><div class="seg" role="group" aria-label="模型来源">' +
+      '<button type="button" class="seg-btn' + (w.src === "fetch" ? " is-on" : "") + '" data-mw-src="fetch">从平台拉取</button>' +
+      '<button type="button" class="seg-btn' + (w.src === "manual" ? " is-on" : "") + '" data-mw-src="manual">手动填写</button>' +
+      "</div></div>";
+
+    if (w.src === "fetch") {
+      if (!w.fetched) {
+        body += '<button type="button" class="btn btn-sm" id="mwFetch"' + (w.fetching ? " disabled" : "") + ">" +
+          (w.fetching ? "拉取中…" : "拉取模型列表") + "</button>";
+      } else if (!w.fetched.length) {
+        body += '<p class="hint">这个平台没有返回模型清单，换成「手动填写」再试。</p>';
+      } else {
+        var free = w.fetched.filter(function (m) { return m.free; });
+        var paid = w.fetched.filter(function (m) { return !m.free; });
+        body += '<p class="wiz-ok">从平台拉到 ' + w.fetched.length + " 个模型。</p>" +
+          pickGroupHtml("免费模型（已默认勾选）", free, w.picked) + pickGroupHtml("计费模型", paid, w.picked);
+      }
+    } else {
+      body += '<div class="field"><label for="mwModelId">模型 ID</label>' +
+        '<input class="wiz-input" id="mwModelId" type="text" placeholder="例如 Qwen/Qwen3-8B" value="' + esc(w.modelId) + '"></div>' +
+        '<div class="field"><label for="mwName">显示名称（选填）</label>' +
+        '<input class="wiz-input" id="mwName" type="text" placeholder="留空则取模型 ID 的末段" value="' + esc(w.name) + '"></div>';
+    }
+    if (w.error) body += '<p class="wiz-error">' + esc(w.error) + "</p>";
+    $("#mwBody").innerHTML = body;
+
+    var count = modelPickCount();
+    $("#mwFoot").innerHTML = '<button type="button" class="btn btn-sm" id="mwCancel">取消</button><span class="spacer"></span>' +
+      '<button type="button" class="btn btn-primary btn-sm" id="mwSubmit"' + (count ? "" : " disabled") + ">" +
+      (count ? "加入 " + count + " 个模型" : "加入模型") + "</button>";
+  }
+
+  function modelPickCount() {
+    if (!modelWizard) return 0;
+    return modelWizard.src === "manual"
+      ? (String(modelWizard.modelId).trim() ? 1 : 0)
+      : Object.keys(modelWizard.picked).filter(function (k) { return modelWizard.picked[k]; }).length;
+  }
+
+  /* 输入时只同步提交按钮，不整体重绘 —— 重绘会重建 input，正在打字的光标会丢。 */
+  function syncModelSubmit() {
+    var btn = $("#mwSubmit");
+    if (!btn) return;
+    var count = modelPickCount();
+    btn.disabled = !count;
+    btn.textContent = count ? "加入 " + count + " 个模型" : "加入模型";
+  }
+
+  function fetchModelsForPicker() {
+    var w = modelWizard;
+    if (!w || w.fetching) return;
+    w.fetching = true;
+    w.error = "";
+    renderModelWizard();
+    var pid = w.platformId;
+    setTimeout(function () {
+      if (!modelWizard || modelWizard.platformId !== pid) return;
+      modelWizard.fetching = false;
+      modelWizard.fetched = (CATALOG[pid] || []).slice();
+      modelWizard.picked = {};
+      modelWizard.fetched.forEach(function (m) { if (m.free) modelWizard.picked[m.modelId] = true; });
+      renderModelWizard();
+    }, 800);
+  }
+
+  function submitModelWizard() {
+    var w = modelWizard;
+    if (!w) return;
+    var p = state.platforms.filter(function (x) { return x.id === w.platformId; })[0];
+    if (!p) { w.error = "找不到这个平台。"; renderModelWizard(); return; }
+    var added = 0;
+    if (w.src === "manual") {
+      var mid = String(w.modelId || "").trim();
+      if (!mid) { w.error = "模型 ID 不能为空。"; renderModelWizard(); return; }
+      if (p.models.some(function (m) { return m.modelId === mid; })) {
+        w.error = "这个平台已经有「" + mid + "」了。";
+        renderModelWizard();
+        return;
+      }
+      p.models.push(mkModel({
+        id: "m" + Date.now(),
+        name: String(w.name || "").trim() || mid.split("/").pop(),
+        modelId: mid,
+        free: false,
+        sortOrder: (p.models.length + 1) * 10
+      }));
+      added = 1;
+    } else {
+      if (!w.fetched) { w.error = "先拉取一次模型列表。"; renderModelWizard(); return; }
+      w.fetched.forEach(function (m) {
+        if (!w.picked[m.modelId]) return;
+        if (p.models.some(function (x) { return x.modelId === m.modelId; })) return;
+        p.models.push(mkModel({
+          id: "m" + Date.now() + p.models.length,
+          name: m.name,
+          modelId: m.modelId,
+          capability: m.capability,
+          free: m.free,
+          sortOrder: (p.models.length + 1) * 10
+        }));
+        added += 1;
+      });
+    }
+    if (!added) { w.error = "没有可加入的新模型。"; renderModelWizard(); return; }
+    p.lastCheck = "刚刚";
+    closeModelWizard();
+    renderPlatforms();
+    renderDetail();
+    renderScenes();
+  }
+
+  /* ==================== 模型设置（字段按「人的心智」分组） ==================== */
+  var modelEditor = null;
+
+  function findModel(id) {
+    var out = null;
+    state.platforms.forEach(function (p) {
+      p.models.forEach(function (m) { if (m.id === id) out = { platform: p, model: m }; });
+    });
+    return out;
+  }
+
+  function openModelEditor(modelId) {
+    var hit = findModel(modelId);
+    if (!hit) return;
+    modelEditor = { modelId: modelId, draft: JSON.parse(JSON.stringify(hit.model)), error: "" };
+    $("#modelEditor").hidden = false;
+    renderModelEditor();
+  }
+
+  function closeModelEditor() {
+    modelEditor = null;
+    $("#modelEditor").hidden = true;
+    layoutAnnotations();
+  }
+
+  function meField(label, control, hint) {
+    return '<div class="field"><label>' + esc(label) + "</label>" + control +
+      (hint ? '<span class="hint">' + esc(hint) + "</span>" : "") + "</div>";
+  }
+
+  function meSection(title, items) {
+    return '<div class="msection"><h4>' + esc(title) + '</h4><div class="msection-body">' +
+      items.join("") + "</div></div>";
+  }
+
+  function renderModelEditor() {
+    if (!modelEditor) return;
+    var hit = findModel(modelEditor.modelId);
+    if (!hit) return;
+    var d = modelEditor.draft;
+    var p = hit.platform;
+
+    var capOpts = Object.keys(CAPABILITIES).map(function (k) {
+      return '<option value="' + esc(k) + '"' + (d.capability === k ? " selected" : "") + ">" +
+        esc(CAPABILITIES[k].label) + " — " + esc(CAPABILITIES[k].hint) + "</option>";
+    }).join("");
+
+    var tierOpts = TIERS.map(function (t) {
+      return '<option value="' + esc(t.value) + '"' + (d.minTier === t.value ? " selected" : "") + ">" +
+        esc(t.label) + " — " + esc(t.hint) + "</option>";
+    }).join("");
+
+    var num = function (key, min, max, step) {
+      return '<input class="wiz-input" type="number" data-me="' + key + '" min="' + min + '" max="' + max +
+        '" step="' + step + '" value="' + esc(d[key]) + '">';
+    };
+
+    $("#meSub").textContent = d.name + " · 属于 " + p.name;
+    $("#meBody").innerHTML =
+      meSection("用户会看到什么", [
+        meField("显示名称", '<input class="wiz-input" data-me="name" type="text" value="' + esc(d.name) + '">',
+          "用户在 BOHAI 的模式列表里看到的名字。"),
+        meField("内部标识", '<input class="wiz-input" data-me="modelId" type="text" value="' + esc(d.modelId) + '">',
+          "只给系统用（上游真实的模型 ID）。已经被某个场景引用后尽量不要改，改了要重新绑定。")
+      ]) +
+      meSection("它在哪、能干什么", [
+        meField("来自平台", '<p class="me-ro">' + esc(p.name) + " · " + esc(p.baseUrl) + "</p>",
+          "接口地址和密钥由平台统一保存 —— 这里只读，不该在模型上改。"),
+        meField("能力", '<select class="wiz-select" data-me="capability">' + capOpts + "</select>",
+          "选「能看图」才能被用来做图片审核；选错了对应场景会提示不匹配。"),
+        meField("谁能用", '<select class="wiz-select" data-me="minTier">' + tierOpts + "</select>",
+          "低于这个档位的用户看不到、也调不到这个模型。")
+      ]) +
+      meSection("生成参数（影响回答风格）", [
+        meField("温度 Temperature", num("temperature", 0, 1.2, 0.01),
+          "越高回答越发散，越低越稳定。审核类建议 0.1 左右。"),
+        meField("Top P", num("topP", 0.1, 1, 0.01),
+          "候选词范围，0.9 是常用值；调低会更保守。"),
+        meField("频率惩罚", num("frequencyPenalty", 0, 2, 0.1),
+          "越高越不容易重复用词，默认 0。"),
+        meField("最大输出 Tokens", num("maxTokens", 256, 4096, 256),
+          "单次回答的长度上限。写代码、做 PPT 需要调大。")
+      ]) +
+      meSection("计费与顺序", [
+        meField("额度消耗倍率", num("multiplier", 0, 100, 0.1),
+          "实际 Token × 本倍率 = 计入今日额度的量。填 0 就是免费模型：不扣额度、也不扣积分。"),
+        meField("显示排序", num("sortOrder", 0, 10000, 1),
+          "数字越小越靠前，决定用户在模式列表里看到的先后。")
+      ]) +
+      (modelEditor.error ? '<p class="wiz-error">' + esc(modelEditor.error) + "</p>" : "");
+
+    $("#meFoot").innerHTML =
+      '<button type="button" class="btn btn-sm" id="meCancel">取消</button>' +
+      '<span class="spacer"></span>' +
+      '<button type="button" class="btn btn-primary btn-sm" id="meSave">保存</button>';
+  }
+
+  function saveModelEditor() {
+    if (!modelEditor) return;
+    var hit = findModel(modelEditor.modelId);
+    if (!hit) { closeModelEditor(); return; }
+    var d = modelEditor.draft;
+    if (!String(d.name || "").trim()) {
+      modelEditor.error = "显示名称不能为空 —— 用户看到的就是这个名字。";
+      renderModelEditor();
+      return;
+    }
+    if (!String(d.modelId || "").trim()) {
+      modelEditor.error = "内部标识不能为空。";
+      renderModelEditor();
+      return;
+    }
+    Object.keys(d).forEach(function (k) { hit.model[k] = d[k]; });
+    hit.model.free = Number(hit.model.multiplier) === 0;
+    closeModelEditor();
+    renderPlatforms();
+    renderDetail();
+    renderScenes();
+  }
+
+  /* ==================== 修复标注层 ==================== */
+  function layoutAnnotations() {
+    var layer = $("#annoLayer");
+    layer.innerHTML = "";
+    if (!state.anno) return;
+    var page = $("#page");
+    if (!page) return;
+    var frameRect = $("#frame").getBoundingClientRect();
+    ANNOS.filter(function (a) { return a.tab === state.tab; }).forEach(function (a) {
+      var el = page.querySelector('[data-anno="' + a.id + '"]');
+      if (!el) return;
+      // 挂点可能落在页头等面板之外；隐藏面板里的挂点 getClientRects 为 0，跳过
+      if (el.getClientRects().length === 0) return;
+      var r = el.getBoundingClientRect();
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "anno-chip";
+      chip.textContent = String(a.n);
+      chip.dataset.annoChip = a.id;
+      chip.setAttribute("aria-label", "修复标注 " + a.n + "：" + a.title);
+      chip.style.left = Math.max(4, r.right - frameRect.left - 10) + "px";
+      chip.style.top = Math.max(4, r.top - frameRect.top - 10) + "px";
+      chip.addEventListener("click", function (e) {
+        e.stopPropagation();
+        state.annoOpen = state.annoOpen === a.id ? null : a.id;
+        layoutAnnotations();
+      });
+      layer.appendChild(chip);
+
+      if (state.annoOpen === a.id) {
+        var pop = document.createElement("div");
+        pop.className = "anno-pop";
+        pop.setAttribute("role", "note");
+        pop.innerHTML = '<button type="button" class="close" aria-label="关闭标注">×</button>' +
+          "<strong>" + esc(a.title) + "</strong>" +
+          '<span class="was">原来：' + esc(a.was) + "</span>" +
+          '<span class="now">现在：' + esc(a.now) + "</span>";
+        pop.querySelector(".close").addEventListener("click", function (e) {
+          e.stopPropagation();
+          state.annoOpen = null;
+          layoutAnnotations();
+        });
+        var left = Math.min(Math.max(8, r.right - frameRect.left - 300), frameRect.width - 308);
+        var top = r.bottom - frameRect.top + 10;
+        if (top + 150 > frameRect.height) top = Math.max(8, r.top - frameRect.top - 160);
+        pop.style.left = left + "px";
+        pop.style.top = top + "px";
+        layer.appendChild(pop);
+      }
+    });
+  }
+
+  /* ==================== 事件 ==================== */
+  function switchTab(tab) {
+    state.tab = tab;
+    state.annoOpen = null;
+    $$(".page-tab").forEach(function (b) {
+      var on = b.dataset.tab === tab;
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    $$(".panel").forEach(function (p) {
+      var on = p.dataset.panel === tab;
+      p.classList.toggle("is-on", on);
+      // hidden 属性必须与 is-on 同步：只加 class 会让旧面板继续显示
+      if (on) p.removeAttribute("hidden");
+      else p.setAttribute("hidden", "");
+    });
+    layoutAnnotations();
+  }
+
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    if (!(t instanceof Element)) return;
+
+    var tabBtn = t.closest(".page-tab");
+    if (tabBtn) { switchTab(tabBtn.dataset.tab); return; }
+
+    var pf = t.closest("[data-pf]");
+    if (pf) {
+      state.activePlatform = pf.dataset.pf;
+      state.annoOpen = null;
+      renderPlatforms();
+      renderDetail();
+      layoutAnnotations();
+      return;
+    }
+
+    var tree = t.closest("[data-tree]");
+    if (tree) {
+      var data = sceneDraft || state.scenes;
+      var s = data.filter(function (x) { return x.id === tree.dataset.tree; })[0];
+      if (s) { s.open = !s.open; renderScenes(); layoutAnnotations(); }
+      return;
+    }
+
+    if (t.closest("#btnAddPlatform")) { openWizard(""); return; }
+    if (t.closest("#btnAddKey")) { openWizard(state.activePlatform, "addkey"); return; }
+
+    var meBtn = t.closest("[data-model-edit]");
+    if (meBtn) { openModelEditor(meBtn.dataset.modelEdit); return; }
+    if (t.closest("#meCancel")) { closeModelEditor(); return; }
+    if (t.closest("#meSave")) { saveModelEditor(); return; }
+
+    var paramsBtn = t.closest("[data-params]");
+    if (paramsBtn) {
+      var pid = paramsBtn.dataset.params;
+      var pd = sceneDraft || state.scenes;
+      pd.forEach(function (s) { if (s.id === pid) s.paramsOpen = !s.paramsOpen; });
+      renderScenes();
+      layoutAnnotations();
+      return;
+    }
+
+    var sceneSw = t.closest("[data-scene-active]");
+    if (sceneSw) {
+      var swId = sceneSw.dataset.sceneActive;
+      if (!sceneDraft) sceneDraft = JSON.parse(JSON.stringify(state.scenes));
+      sceneDraft.forEach(function (s) { if (s.id === swId) s.active = !s.active; });
+      renderScenes();
+      return;
+    }
+
+    if (t.closest("#btnAddModel")) { openModelWizard(state.activePlatform, "fetch"); return; }
+    if (t.closest("#mwCancel")) { closeModelWizard(); return; }
+    if (t.closest("#mwFetch")) { fetchModelsForPicker(); return; }
+    if (t.closest("#mwSubmit")) { submitModelWizard(); return; }
+
+    var srcBtn = t.closest("[data-mw-src]");
+    if (srcBtn) {
+      if (modelWizard) {
+        modelWizard.src = srcBtn.dataset.mwSrc;
+        modelWizard.error = "";
+        renderModelWizard();
+      }
+      return;
+    }
+
+    var kl = t.closest("[data-key-test]");
+    if (kl) {
+      var kid = kl.dataset.keyTest;
+      state.testingKey = kid;
+      renderDetail();
+      var token = runToken;
+      setTimeout(function () {
+        if (token !== runToken) return;
+        state.testingKey = null;
+        state.platforms.forEach(function (pp) {
+          pp.keys.forEach(function (k) { if (k.id === kid) k.tested = true; });
+        });
+        renderDetail();
+      }, 700);
+      return;
+    }
+
+    var kt = t.closest("[data-key-toggle]");
+    if (kt) {
+      var tid = kt.dataset.keyToggle;
+      state.platforms.forEach(function (pp) {
+        pp.keys.forEach(function (k) { if (k.id === tid) k.status = k.status === "active" ? "disabled" : "active"; });
+      });
+      renderPlatforms();
+      renderDetail();
+      layoutAnnotations();
+      return;
+    }
+
+    var kr = t.closest("[data-key-replace]");
+    if (kr) { openWizard(state.activePlatform, "addkey"); return; }
+
+    var mt = t.closest("[data-model-toggle]");
+    if (mt) {
+      var mid = mt.dataset.modelToggle;
+      state.platforms.forEach(function (pp) {
+        pp.models.forEach(function (m) { if (m.id === mid) m.active = !m.active; });
+      });
+      renderDetail();
+      return;
+    }
+
+    if (t.closest("#btnSceneReset")) { sceneDraft = null; renderScenes(); layoutAnnotations(); return; }
+    if (t.closest("#btnSceneSave")) {
+      if (sceneDraft) { state.scenes = sceneDraft; sceneDraft = null; }
+      renderScenes();
+      return;
+    }
+
+    if (t.closest("#wizCancel")) { closeWizard(); return; }
+    if (t.closest("#wizBack")) { wizard.step = Math.max(1, wizard.step - 1); renderWizard(); return; }
+    if (t.closest("#wizNext")) { wizard.step = 2; renderWizard(); return; }
+    if (t.closest("#wizVerify")) { verifyKey(); return; }
+    if (t.closest("#wizFinish")) { finishWizard(); return; }
+
+    var preset = t.closest("[data-preset]");
+    if (preset) {
+      wizard.preset = preset.dataset.preset;
+      wizard.step = 2;
+      wizard.error = "";
+      renderWizard();
+      var keyField = document.getElementById("wizKey");
+      if (keyField) keyField.focus();
+      return;
+    }
+
+    if (t.closest("[data-wiz-changepreset]")) {
+      wizard.step = 1;
+      wizard.error = "";
+      renderWizard();
+      return;
+    }
+
+    var pink = t.closest("[data-pick]");
+    if (pink) { return; }
+
+    var allBtn = t.closest("[data-pick-all]");
+    if (allBtn) {
+      var kind = allBtn.dataset.pickAll;
+      var target = modelWizard && !$("#modelWizard").hidden ? modelWizard : wizard;
+      if (target && target.fetched) {
+        target.fetched.forEach(function (m) {
+          if ((kind === "free") === m.free) target.picked[m.modelId] = true;
+        });
+        if (target === modelWizard) renderModelWizard(); else renderWizard();
+      }
+      return;
+    }
+  });
+
+  document.addEventListener("change", function (e) {
+    var t = e.target;
+    if (!(t instanceof Element)) return;
+    if (t.matches("#wizKey")) {
+      if (wizard) wizard.key = t.value;
+      return;
+    }
+    if (t.matches("[data-pick]")) {
+      if (modelWizard && !$("#modelWizard").hidden) {
+        modelWizard.picked[t.dataset.pick] = t.checked;
+        renderModelWizard();
+      } else if (wizard) {
+        wizard.picked[t.dataset.pick] = t.checked;
+        renderWizard();
+      }
+      return;
+    }
+    var meSel = t.getAttribute && t.getAttribute("data-me");
+    if (meSel && modelEditor) {
+      modelEditor.draft[meSel] = t.value;
+      return;
+    }
+    if (t.matches("#mwPlatform")) {
+      if (modelWizard) {
+        modelWizard.platformId = t.value;
+        modelWizard.fetched = null;
+        modelWizard.picked = {};
+        modelWizard.error = "";
+        renderModelWizard();
+      }
+      return;
+    }
+    if (t.matches("[data-scene]")) {
+      if (!sceneDraft) sceneDraft = JSON.parse(JSON.stringify(state.scenes));
+      sceneDraft.forEach(function (s) { if (s.id === t.dataset.scene) s.model = t.value; });
+      renderScenes();
+      return;
+    }
+    if (t.matches("[data-sub]")) {
+      if (!sceneDraft) sceneDraft = JSON.parse(JSON.stringify(state.scenes));
+      sceneDraft.forEach(function (s) {
+        if (s.id === t.dataset.parent) s.subs.forEach(function (x) { if (x.id === t.dataset.sub) x.model = t.value; });
+      });
+      renderScenes();
+      return;
+    }
+  });
+
+  document.addEventListener("input", function (e) {
+    if (!(e.target instanceof Element)) return;
+    if (wizard) {
+      if (e.target.matches("#wizKey")) wizard.key = e.target.value;
+      if (e.target.matches("#wizName")) wizard.name = e.target.value;
+      if (e.target.matches("#wizUrl")) wizard.baseUrl = e.target.value;
+    }
+    if (modelEditor) {
+      var meKey = e.target.getAttribute("data-me");
+      if (meKey) {
+        modelEditor.draft[meKey] = e.target.type === "number" ? Number(e.target.value) : e.target.value;
+      }
+    }
+    if (modelWizard) {
+      if (e.target.matches("#mwModelId")) {
+        modelWizard.modelId = e.target.value;
+        syncModelSubmit();
+      }
+      if (e.target.matches("#mwName")) modelWizard.name = e.target.value;
+    }
+    // 场景级参数：改的是「这个场景用多少」，不碰模型自身的默认值
+    var paramKey = e.target.getAttribute("data-param");
+    if (paramKey) {
+      var sceneId = e.target.getAttribute("data-scene-id");
+      if (!sceneDraft) sceneDraft = JSON.parse(JSON.stringify(state.scenes));
+      sceneDraft.forEach(function (s) { if (s.id === sceneId) s[paramKey] = Number(e.target.value); });
+      syncSceneFoot();
+    }
+  });
+
+  $$("[data-theme-set]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.theme = b.dataset.themeSet;
+      $("#page").setAttribute("data-theme", state.theme);
+      $("#frame").classList.toggle("is-dark", state.theme === "dark");
+      $$("[data-theme-set]").forEach(function (x) { x.classList.toggle("is-on", x === b); });
+    });
+  });
+
+  $$("[data-vp-set]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      state.vp = b.dataset.vpSet;
+      $("#stage").classList.toggle("is-mobile", state.vp === "mobile");
+      $$("[data-vp-set]").forEach(function (x) { x.classList.toggle("is-on", x === b); });
+      layoutAnnotations();
+    });
+  });
+
+  $("#btnAnno").addEventListener("click", function () {
+    state.anno = !state.anno;
+    state.annoOpen = null;
+    $("#btnAnno").classList.toggle("is-on", state.anno);
+    $("#btnAnno").textContent = "标注：" + (state.anno ? "开" : "关");
+    layoutAnnotations();
+  });
+
+  $("#btnInject").addEventListener("click", function () {
+    switchTab("assets");
+    openWizard("siliconflow");
+    wizard.step = 2;
+    wizard.key = "abc";
+    wizard.error = "";
+    renderWizard();
+    verifyKey();
+  });
+
+  window.addEventListener("resize", layoutAnnotations);
+  window.addEventListener("scroll", layoutAnnotations, true);
+
+  renderPlatforms();
+  renderDetail();
+  renderScenes();
+  layoutAnnotations();
+
+  /* 探针钩子：把内部状态暴露给 scripts/probes/probe-ai-config-demo.mjs，
+     让「标注挂点是否齐全」这类断言可查，而不是靠 querySelector 静默跳过。 */
+  window.__aiConfigDemo = {
+    getAnnos: function () { return ANNOS; },
+    getState: function () { return state; },
+    getPlatforms: function () { return state.platforms; }
+  };
+})();
+</script>
+</body>
+</html>

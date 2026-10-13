@@ -2,9 +2,11 @@
 /**
  * Cloud+ 页面入口 — 异步懒加载，减少首屏 JS 体积。
  */
-import { defineAsyncComponent } from 'vue';
+import { createPanelAsync } from '@/utils/async-component.js';
 
-const CloudPlusMain = defineAsyncComponent(() => import('./CloudPlusMain.vue'));
+const CloudPlusMain = createPanelAsync(() => import('./CloudPlusMain.vue'), {
+  label: 'CloudPlusMain',
+});
 </script>
 
 <template>
@@ -19,7 +21,11 @@ const CloudPlusMain = defineAsyncComponent(() => import('./CloudPlusMain.vue'));
           <div class="cp-suspense-action animate-skeleton-wave"></div>
         </div>
         <div class="cp-suspense-grid">
-          <article v-for="i in 6" :key="`cp-suspense-card-${i}`" class="cp-suspense-card glass-panel">
+          <article
+            v-for="i in 6"
+            :key="`cp-suspense-card-${i}`"
+            class="cp-suspense-card glass-panel"
+          >
             <div class="cp-suspense-visual animate-skeleton-wave"></div>
             <div class="cp-suspense-card-body">
               <div class="cp-suspense-line date animate-skeleton-wave"></div>

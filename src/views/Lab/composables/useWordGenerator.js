@@ -1,12 +1,17 @@
-import { ref } from 'vue'
-import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js'
-import { supabase } from '@/utils/supabase-client.js'
-import { DEFAULT_PRESET_ID } from '../config/design-tokens.js'
+import { ref } from 'vue';
+import { callVaultSiliconChatStreamCollect } from '@/utils/api/api-key-runtime-api.js';
+import { supabase } from '@/utils/supabase-client.js';
+import { DEFAULT_PRESET_ID } from '../config/design-tokens.js';
 import {
-  WORD_OUTLINE_PROMPT, WORD_DETAIL_PROMPT, WORD_SCHEMA, extractJSON, FRONTEND_MAX_OUTPUT_TOKENS,
-} from '../config/ai-schemas.js'
+  WORD_OUTLINE_PROMPT,
+  WORD_DETAIL_PROMPT,
+  WORD_SCHEMA,
+  extractJSON,
+  FRONTEND_MAX_OUTPUT_TOKENS,
+} from '../config/ai-schemas.js';
 
-// model_id 存 bohai_model_configs.mode_id，调用时以 mode 传给 vault，由服务端按模式配置路由 provider/model/参数
+// 本表 model_id 存的是 bohai mode_id（不是上游模型名）——
+// 完整语义见 src/config/field-semantics.js（单一真源，被 field-semantics.test.js 锁住）
 
 async function loadWordModelConfig() {
   try {
@@ -15,18 +20,18 @@ async function loadWordModelConfig() {
       .select('model_id, temperature, max_tokens, api_key_purpose')
       .eq('feature_key', 'word-generator')
       .eq('is_active', true)
-      .maybeSingle()
+      .maybeSingle();
     if (error || !data || !data.model_id) {
-      throw new Error('lab_ai_model_configs 中未配置 word-generator 模型')
+      throw new Error('lab_ai_model_configs 中未配置 word-generator 模型');
     }
     return {
       model: data.model_id,
       temperature: Number(data.temperature) || 0.5,
       max_tokens: data.max_tokens || 4096,
       apiKeyPurpose: data.api_key_purpose || 'chat',
-    }
+    };
   } catch (e) {
-    throw new Error('加载文档生成模型配置失败：' + (e?.message || e))
+    throw new Error('加载文档生成模型配置失败：' + (e?.message || e));
   }
 }
 
@@ -34,11 +39,11 @@ async function loadWordModelConfig() {
  * Word 从零生成器（两阶段：大纲 → 详情 + token-based 渲染）
  */
 export function useWordGenerator() {
-  const isGenerating = ref(false)
-  const error = ref('')
-  const docData = ref(null)
-  const outline = ref(null)
-  const stage = ref('')
+  const isGenerating = ref(false);
+  const error = ref('');
+  const docData = ref(null);
+  const outline = ref(null);
+  const stage = ref('');
 
   /**
    * 第一阶段：生成大纲
@@ -47,12 +52,12 @@ export function useWordGenerator() {
    * @param {function} onProgress - 进度回调 (stage, progress, text)
    */
   async function generateOutline(topic, context = '', onProgress = null, signal) {
-    isGenerating.value = true
-    error.value = ''
-    stage.value = 'outline'
-    if (onProgress) onProgress('outline', 0, 'BOH Agent正在为你生成Word大纲')
+    isGenerating.value = true;
+    error.value = '';
+    stage.value = 'outline';
+    if (onProgress) onProgress('outline', 0, 'BOH Agent正在为你生成Word大纲');
     try {
-      const modelConfig = await loadWordModelConfig()
+      const modelConfig = await loadWordModelConfig();
       const prompt = `${WORD_OUTLINE_PROMPT}
 
 主题：${topic}
@@ -67,9 +72,9 @@ ${context ? `额外要求：${context}` : ''}
     { "type": "list", "title": "列表项", "summary": "3-5 项" },
     { "type": "table", "title": "表格标题", "summary": "行列结构" }
   ]
-}`
+}`;
 
-      if (onProgress) onProgress('outline', 30, 'BOH Agent正在为你生成Word大纲')
+      if (onProgress) onProgress('outline', 30, 'BOH Agent正在为你生成Word大纲');
 
       const result = await callVaultSiliconChatStreamCollect({
         mode: modelConfig.model,
@@ -86,24 +91,24 @@ ${context ? `额外要求：${context}` : ''}
           temperature: modelConfig.temperature,
           max_tokens: Math.min(modelConfig.max_tokens, FRONTEND_MAX_OUTPUT_TOKENS),
         },
-      })
+      });
 
-      if (onProgress) onProgress('outline', 70, 'BOH Agent正在解析大纲结构')
+      if (onProgress) onProgress('outline', 70, 'BOH Agent正在解析大纲结构');
 
-      if (!result.ok) throw new Error(result.error?.message || 'AI 调用失败')
-      const raw = result.data?.choices?.[0]?.message?.content || ''
-      const data = extractJSON(raw)
-      if (!data || !data.outline) throw new Error('AI 未返回有效大纲')
+      if (!result.ok) throw new Error(result.error?.message || 'AI 调用失败');
+      const raw = result.data?.choices?.[0]?.message?.content || '';
+      const data = extractJSON(raw);
+      if (!data || !data.outline) throw new Error('AI 未返回有效大纲');
 
-      if (onProgress) onProgress('outline', 100, '大纲生成完成')
-      outline.value = data
-      return data
+      if (onProgress) onProgress('outline', 100, '大纲生成完成');
+      outline.value = data;
+      return data;
     } catch (e) {
-      error.value = e.message
-      throw e
+      error.value = e.message;
+      throw e;
     } finally {
-      isGenerating.value = false
-      stage.value = ''
+      isGenerating.value = false;
+      stage.value = '';
     }
   }
 
@@ -115,15 +120,15 @@ ${context ? `额外要求：${context}` : ''}
    * @param {function} onProgress - 进度回调 (stage, progress, text)
    */
   async function generateDoc(topic, context = '', outlineData = null, onProgress = null, signal) {
-    isGenerating.value = true
-    error.value = ''
-    stage.value = 'detail'
-    if (onProgress) onProgress('detail', 0, 'BOH Agent正在为你输出Word文档')
+    isGenerating.value = true;
+    error.value = '';
+    stage.value = 'detail';
+    if (onProgress) onProgress('detail', 0, 'BOH Agent正在为你输出Word文档');
     try {
-      const useOutline = outlineData || outline.value
-      const modelConfig = await loadWordModelConfig()
+      const useOutline = outlineData || outline.value;
+      const modelConfig = await loadWordModelConfig();
 
-      if (onProgress) onProgress('detail', 20, 'BOH Agent正在为你输出Word文档')
+      if (onProgress) onProgress('detail', 20, 'BOH Agent正在为你输出Word文档');
 
       const prompt = `${WORD_DETAIL_PROMPT}
 
@@ -139,9 +144,9 @@ ${JSON.stringify(WORD_SCHEMA, null, 2)}
 要求：
 - blocks 数组顺序与大纲一致
 - 正文段落充实，每段 100-300 字
-- 严格输出 JSON，不要任何额外文字`
+- 严格输出 JSON，不要任何额外文字`;
 
-      if (onProgress) onProgress('detail', 40, 'BOH Agent正在生成文档内容')
+      if (onProgress) onProgress('detail', 40, 'BOH Agent正在生成文档内容');
 
       const result = await callVaultSiliconChatStreamCollect({
         mode: modelConfig.model,
@@ -158,24 +163,24 @@ ${JSON.stringify(WORD_SCHEMA, null, 2)}
           temperature: modelConfig.temperature,
           max_tokens: Math.min(modelConfig.max_tokens, FRONTEND_MAX_OUTPUT_TOKENS),
         },
-      })
+      });
 
-      if (onProgress) onProgress('detail', 70, 'BOH Agent正在构建文档结构')
+      if (onProgress) onProgress('detail', 70, 'BOH Agent正在构建文档结构');
 
-      if (!result.ok) throw new Error(result.error?.message || 'AI 调用失败')
-      const raw = result.data?.choices?.[0]?.message?.content || ''
-      const data = extractJSON(raw)
-      if (!data || !data.blocks) throw new Error('AI 未返回有效文档结构')
+      if (!result.ok) throw new Error(result.error?.message || 'AI 调用失败');
+      const raw = result.data?.choices?.[0]?.message?.content || '';
+      const data = extractJSON(raw);
+      if (!data || !data.blocks) throw new Error('AI 未返回有效文档结构');
 
-      if (onProgress) onProgress('detail', 100, 'Word文档生成完成')
-      docData.value = data
-      return data
+      if (onProgress) onProgress('detail', 100, 'Word文档生成完成');
+      docData.value = data;
+      return data;
     } catch (e) {
-      error.value = e.message
-      throw e
+      error.value = e.message;
+      throw e;
     } finally {
-      isGenerating.value = false
-      stage.value = ''
+      isGenerating.value = false;
+      stage.value = '';
     }
   }
 
@@ -183,16 +188,16 @@ ${JSON.stringify(WORD_SCHEMA, null, 2)}
    * 构建 Word 文件
    */
   async function buildWordFile(data, presetId = DEFAULT_PRESET_ID, fileName = 'AI生成.docx') {
-    const { buildAndDownloadWord } = await import('../engine/word-builder.js')
-    return buildAndDownloadWord(data, presetId, fileName)
+    const { buildAndDownloadWord } = await import('../engine/word-builder.js');
+    return buildAndDownloadWord(data, presetId, fileName);
   }
 
   /**
    * 构建 Word Blob（不触发下载，用于预览）
    */
   async function buildWordBlob(data, presetId = DEFAULT_PRESET_ID) {
-    const { buildWordDoc } = await import('../engine/word-builder.js')
-    return buildWordDoc(data, presetId)
+    const { buildWordDoc } = await import('../engine/word-builder.js');
+    return buildWordDoc(data, presetId);
   }
 
   return {
@@ -205,5 +210,5 @@ ${JSON.stringify(WORD_SCHEMA, null, 2)}
     generateDoc,
     buildWordFile,
     buildWordBlob,
-  }
+  };
 }

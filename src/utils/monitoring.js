@@ -1,20 +1,43 @@
 import { logger } from './logger.js';
 
-const MONITORING_ENDPOINT = import.meta.env.VITE_MONITORING_ENDPOINT;
+/* ⚠️ 端点刻意**惰性读取**（不在模块顶层取常量）：
+   构建时 Vite 仍会把 `import.meta.env.VITE_MONITORING_ENDPOINT` 内联成字面量，
+   生产行为不变；但单测可以用 vi.stubEnv 在不重置模块的情况下驱动真行为。 */
+const getMonitoringEndpoint = () => import.meta.env.VITE_MONITORING_ENDPOINT;
 
 function sendMetric(payload) {
-  if (!MONITORING_ENDPOINT || typeof navigator === 'undefined') return;
+  const endpoint = getMonitoringEndpoint();
+  if (!endpoint || typeof navigator === 'undefined') return;
   try {
     const body = JSON.stringify({
       ...payload,
       ts: Date.now(),
       url: window.location.href,
-      ua: navigator.userAgent
+      ua: navigator.userAgent,
     });
-    navigator.sendBeacon(MONITORING_ENDPOINT, body);
+    navigator.sendBeacon(endpoint, body);
   } catch (err) {
     logger.warn('monitoring', 'sendMetric failed', err);
   }
+}
+
+/**
+ * 业务事件上报（相对 web-vitals 的通用出口）。
+ *
+ * 现在的使用者是「样式加载失败」这一类**静默降级**：用户看到的是「页面样式错乱」，
+ * 而我们在服务端什么都看不到（2026-10-12 那次报障就是靠用户口述才发现的）。
+ *
+ * 返回 true = 已发出 beacon；false = 未配置端点（本地/预览环境属正常，不报错）。
+ */
+export function reportEvent(type, payload = {}) {
+  if (!type) return false;
+  if (!getMonitoringEndpoint()) {
+    // 没配端点时留一条 debug：本地调试能看到信号存在，但不会污染 warn 级日志
+    logger.debug('monitoring', `未配置监控端点，跳过上报：${type}`, payload);
+    return false;
+  }
+  sendMetric({ type, ...payload });
+  return true;
 }
 
 function initWebVitalsLite() {
@@ -40,7 +63,7 @@ function initWebVitalsLite() {
           lcpObserver.disconnect();
         }
       },
-      { once: true }
+      { once: true },
     );
   } catch (err) {
     logger.warn('monitoring', 'LCP observer unavailable', err);
@@ -66,7 +89,7 @@ function initWebVitalsLite() {
           clsObserver.disconnect();
         }
       },
-      { once: true }
+      { once: true },
     );
   } catch (err) {
     logger.warn('monitoring', 'CLS observer unavailable', err);
@@ -92,7 +115,7 @@ function initWebVitalsLite() {
           inpObserver.disconnect();
         }
       },
-      { once: true }
+      { once: true },
     );
   } catch (err) {
     logger.warn('monitoring', 'INP observer unavailable', err);
@@ -108,7 +131,7 @@ export function initMonitoring() {
       message: event.message,
       source: event.filename,
       line: event.lineno,
-      col: event.colno
+      col: event.colno,
     };
     logger.error('monitoring', payload.message || 'runtime_error', payload);
     sendMetric(payload);
@@ -118,7 +141,7 @@ export function initMonitoring() {
     const reason = event.reason?.message || String(event.reason || 'unknown');
     const payload = {
       type: 'unhandled_rejection',
-      message: reason
+      message: reason,
     };
     logger.error('monitoring', payload.message, payload);
     sendMetric(payload);

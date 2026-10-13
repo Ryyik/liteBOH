@@ -1,5 +1,6 @@
 <script setup>
-import { watch, onMounted, onUnmounted, ref, computed, defineAsyncComponent } from 'vue';
+import { watch, onMounted, onUnmounted, ref, computed } from 'vue';
+import { createPanelAsync } from '@/utils/async-component.js';
 import { useRoute, useRouter } from 'vue-router';
 import Footer from './components/Footer.vue';
 import { isGlobalNavbarVisible } from '@/utils/global-navbar-visibility.js';
@@ -10,11 +11,16 @@ import { storeToRefs } from 'pinia';
 import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { logger } from '@/utils/logger.js';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
-const AiEdgeTrigger = defineAsyncComponent(() => import('@/components/AiEdgeTrigger.vue'));
-const AdminConfirmModal = defineAsyncComponent(() => import('@/components/AdminConfirmModal.vue'));
+const AiEdgeTrigger = createPanelAsync(() => import('@/components/AiEdgeTrigger.vue'), {
+  label: 'AiEdgeTrigger',
+});
+const AdminConfirmModal = createPanelAsync(() => import('@/components/AdminConfirmModal.vue'), {
+  label: 'AdminConfirmModal',
+});
 // 账户绑定引导（通行密钥 + 消息通知）：异步加载，不进首屏壳；自身判定何时该弹
-const AccountBindPrompt = defineAsyncComponent(
+const AccountBindPrompt = createPanelAsync(
   () => import('@/components/AccountBindPrompt/index.vue'),
+  { label: 'AccountBindPrompt' },
 );
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import PWAUpdateToast from '@/components/PWAUpdateToast/index.vue';
@@ -123,7 +129,7 @@ const handleBoundaryRecover = () => {
 const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
 const notificationStoreRef = getNotificationStoreRef();
-const LoginView = defineAsyncComponent(() => import('./views/Login/index.vue'));
+const LoginView = createPanelAsync(() => import('./views/Login/index.vue'), { label: 'LoginView' });
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
 
 const {

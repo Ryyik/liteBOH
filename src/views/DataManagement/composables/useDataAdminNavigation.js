@@ -9,31 +9,49 @@ import { setAdminTabJumpSearch } from './useAdminTabIntent.js';
 const SECTION_TO_MODULE_MAP = {
   overview: 'overview',
   data: 'users',
+  'keys-models': 'ai-config',
   'api-keys': 'ai-config',
   freemodels: 'ai-config',
   'moderation-model': 'ai-config',
   'lab-ai-model': 'ai-config',
   media: 'system',
-  settings: 'system'
+  settings: 'system',
 };
 
 // 归属于 'data' section 的模块：保留用户已选模块，避免被 'data' → 'users' 覆盖
 const DATA_SECTION_MODULES = new Set([
-  'users', 'gifts', 'shop', 'community', 'operations', 'moderation', 'lottery', 'ai-config', 'logs', 'shop-console', 'hero-console', 'avatar-console'
+  'users',
+  'gifts',
+  'shop',
+  'community',
+  'operations',
+  'moderation',
+  'lottery',
+  'ai-config',
+  'logs',
+  'shop-console',
+  'hero-console',
+  'avatar-console',
 ]);
 
+// section / 模块 → 实际路由路径。
+// ⚠️ 单一真源：**面板内的页面一律走 /admin/data-management**，靠 `?section=&tab=` 定位。
+// 曾经 'api-keys' 特判到 /admin/api-keys，导致同一个侧栏动作在两条代码路径下
+// 写出两种 URL（handleModuleClick 写 data-management、handleAdminNavClick 写 api-keys）。
+// /admin/api-keys 路由现仅作为**对外兼容别名**保留（旧书签可用），内部导航不再指向它。
 const ROUTE_MAP = {
-    overview: '/admin/data-management',
-    'api-keys': '/admin/api-keys',
-    'moderation-model': '/admin/data-management',
-    'lab-ai-model': '/admin/data-management',
-    'shop-console': '/admin/shop-console',
-    'hero-console': '/admin/hero-console',
-    'avatar-console': '/admin/avatar-console',
-    data: '/admin/data-management',
-    media: '/admin/data-management',
-    settings: '/admin/data-management'
-  };
+  overview: '/admin/data-management',
+  'keys-models': '/admin/data-management',
+  'api-keys': '/admin/data-management',
+  'moderation-model': '/admin/data-management',
+  'lab-ai-model': '/admin/data-management',
+  'shop-console': '/admin/shop-console',
+  'hero-console': '/admin/hero-console',
+  'avatar-console': '/admin/avatar-console',
+  data: '/admin/data-management',
+  media: '/admin/data-management',
+  settings: '/admin/data-management',
+};
 
 export const createNavigationCenter = ({
   activeAdminSectionRef,
@@ -52,25 +70,25 @@ export const createNavigationCenter = ({
   resetFiltersForTab,
   clearFieldErrors,
   fetchTabData,
-  loadLotterySchedulerStatus
+  loadLotterySchedulerStatus,
 }) => {
   const router = useRouter();
   const activeModule = ref('overview');
 
-  const sidebarModules = computed(() => tabModules.map(m => ({ ...m })));
+  const sidebarModules = computed(() => tabModules.map((m) => ({ ...m })));
 
-  const currentModule = computed(() =>
-    tabModules.find(m => m.id === activeModule.value) || tabModules[0]
+  const currentModule = computed(
+    () => tabModules.find((m) => m.id === activeModule.value) || tabModules[0],
   );
 
   const currentModuleTabIds = computed(() => currentModule.value?.tabIds || []);
 
   const currentAdminPageMeta = computed(
-    () => ADMIN_PAGE_META[activeModule.value] || ADMIN_PAGE_META.overview
+    () => ADMIN_PAGE_META[activeModule.value] || ADMIN_PAGE_META.overview,
   );
 
   const getTabLabel = (tabId) => {
-    const tab = tabs.find(t => t.id === tabId);
+    const tab = tabs.find((t) => t.id === tabId);
     return tab?.label || tabId;
   };
 
@@ -137,9 +155,13 @@ export const createNavigationCenter = ({
       return;
     }
     if (item.id === 'ai-config') {
-      // 点击 AI 配置父项：导航到第一个子项
+      // 点击 AI 配置父项：落到第一个子项（api-keys）。
+      // 必须与 handleModuleClick 的 ai-config 分支**写成同一个 URL**，否则同一个
+      // 侧栏动作会因走哪条代码路径而产生两种地址（本次统一：都走 data-management）。
       activeAdminSectionRef.value = 'api-keys';
-      navigateTo(ROUTE_MAP['api-keys']);
+      if (currentTabRef.value !== 'api-keys') switchTab('api-keys');
+      navigateTo('/admin/data-management');
+      isAdminSidebarOpenRef.value = false;
       return;
     }
     activeAdminSectionRef.value = item.id;
@@ -196,7 +218,7 @@ export const createNavigationCenter = ({
     }
     isAdminSidebarOpenRef.value = false;
     currentTabRef.value = tabId;
-    const tabInfo = tabs.find(t => t.id === tabId);
+    const tabInfo = tabs.find((t) => t.id === tabId);
     if (tabInfo?.module && activeModule.value !== tabInfo.module) {
       activeModule.value = tabInfo.module;
     }
@@ -236,6 +258,6 @@ export const createNavigationCenter = ({
     handleSidebarTabClick,
     handlePlaceholderAction,
     getTabsByGroup,
-    switchTab
+    switchTab,
   };
 };

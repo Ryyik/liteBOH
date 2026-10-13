@@ -114,7 +114,8 @@
    - 论坛本体与 UserSpace 的「方块」分区共用 ForumSectionShell（单源），
      分区七席、30s 轮询、分区过渡动画全部原样。
    - 底栏四席来自 @/config/bottom-nav，进度过半时从下方浮入，随后由滚动方向驱动显隐。 */
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { createPanelAsync } from '@/utils/async-component.js';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import StreetSceneHero from './components/StreetSceneHero.vue';
@@ -137,8 +138,9 @@ import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
 import { themeManager } from '@/utils/theme-manager.js';
 
 // 官方英雄区舞台（hero 流 + 四类周年弹窗）：独立 chunk，只在切到「官方」分区时才请求
-const AsyncOfficialHeroStage = defineAsyncComponent(
+const AsyncOfficialHeroStage = createPanelAsync(
   () => import('./components/OfficialHeroStage.vue'),
+  { label: 'AsyncOfficialHeroStage' },
 );
 
 const router = useRouter();

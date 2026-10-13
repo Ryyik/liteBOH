@@ -256,6 +256,21 @@ describe('周年馆视图接线（2026-10-12 回调三条）', () => {
     expect(fairBranch).not.toContain('combo');
   });
 
+  it('松手提交跳过已结算状态（防自动结算后二次提交多推一步）', () => {
+    const code = cafeViewScript();
+    expect(code).toMatch(/state\.status === 'settled' \|\| state\.status === 'failed'/);
+  });
+
+  it('采样坐标输出 0..1（正方形中心 0.5），尾巴不得再 +0.5', () => {
+    // 反证：localSquarePoint 曾输出 0.5..1.5（尾巴 +0.5），sampleSwirl 再 -0.5 后
+    // 角度变成绕捕获区左上角算 —— 绕杯心画一圈只攒 ~115°（targetArc=300），
+    // 注水/拉花永远判失败，而单测用的 0..1 点照样全绿（口径错位，单测看不见）。
+    const code = cafeViewScript();
+    const fn = code.match(/function localSquarePoint[\s\S]*?\n\}/)?.[0] || '';
+    expect(fn).not.toContain('+ 0.5');
+    expect(fn).toContain('Math.min(rect.width, rect.height)');
+  });
+
   it('投料按钮走按住连投（startDoseHold + 定时器），click 只做键盘兜底', () => {
     const code = cafeViewScript();
     expect(code).toMatch(/startDoseHold/);

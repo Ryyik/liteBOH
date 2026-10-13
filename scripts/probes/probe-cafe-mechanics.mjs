@@ -31,15 +31,21 @@ async function finishCurrentStep(page, read, kind) {
     const box = await btn.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.waitForTimeout(kind === 'oscillate' ? 1600 : 2400);
+    // 研磨要 2.43s（1.43s 进窗 + 稳 1.0s，riseRate 28/窗口[40,92] 的硬账），
+    // 1.6s 只够进窗不够稳 ⇒ 必 fail。奶泡/分层 2.4s 够用，但统一 2.6s 省得再算。
+    await page.waitForTimeout(kind === 'oscillate' ? 2600 : 2400);
     await page.mouse.up();
   } else if (kind === 'staged') {
     const btn = page.locator('.machine-button').first();
     const box = await btn.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.waitForTimeout(2400);
+    // rate=20/s：2.0s 时 value=40（排气窗[28,56] 内）先排气，再按到 3.4s
+    // （value≈68，金区[62,94] 内）松手 ⇒ 一次过。2400ms 就松手只到 48，
+    // 距金区 14 点 ⇒ 必 fail，只能靠「失败保留读数」的重试蹭过去。
+    await page.waitForTimeout(2000);
     if (await page.locator('.vent-valve').count()) await page.locator('.vent-valve').click();
+    await page.waitForTimeout(1400);
     await page.mouse.up();
   } else if (kind === 'swirl') {
     await drawCircle(page, 1.15);
@@ -205,10 +211,11 @@ async function followGuide(page) {
     const box = await btn.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    // 稳定需要 1 秒且不能撞顶（riseRate 28，窗口 40→92）。
-    // 按 1.6s：起步阶段要先进窗口才计时，1.25s 太紧会读到还没起步的读数条。
-    await page.waitForTimeout(1600);
+    // 中途读数要趁早：约 2.43s 会自动结算（stable 分支），之后读数条属于下一步。
+    // 1.5s 时 value≈42（进窗 0.07s），读到非零即证明 rAF 在推进。
+    await page.waitForTimeout(1500);
     const mid = await read();
+    await page.waitForTimeout(1100);
     await page.mouse.up();
     await page.waitForTimeout(400);
     const after = await read();
@@ -217,7 +224,11 @@ async function followGuide(page) {
       mid.readoutValue && mid.readoutValue !== '0%',
       `值=${mid.readoutValue}`,
     );
-    check('1c 研磨完成后步进前进', after.doneCount > before, `${before} → ${after.doneCount}`);
+    check(
+      '1c 研磨完成后步进恰好前进 1（多推一步 = 松手二次提交的 bug）',
+      after.doneCount === before + 1,
+      `${before} → ${after.doneCount}`,
+    );
   }
   check('1d 无 JS 错误', errors.length === 0, errors.join(' | '));
   await page.close();
@@ -447,6 +458,10 @@ async function followGuide(page) {
     );
     const box3 = await page.locator('.hold-button').boundingBox();
     if (box3) {
+      // 6.5d 那次 500ms 按压又是一次 fail（读数 13% 远不够稳），它的 900ms
+      // 自动复位可能还没走完 ⇒ 先等复位再按，否则 canInteract 见 failed 直接拒按。
+      // 这与 6.5d 前的 1100ms 是同一套路。
+      await page.waitForTimeout(1100);
       await page.mouse.move(box3.x + box3.width / 2, box3.y + box3.height / 2);
       await page.mouse.down();
       await page.waitForTimeout(500);
@@ -556,15 +571,18 @@ async function followGuide(page) {
         const box = await page.locator('.hold-button').boundingBox();
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
         await page.mouse.down();
-        await page.waitForTimeout(1250);
+        // 单次按满 2.6s（进窗 1.43s + 稳 1.0s），一次过，不靠失败重试蹭。
+        await page.waitForTimeout(2600);
         await page.mouse.up();
       } else if (state.stationKind === 'staged') {
         const box = await page.locator('.machine-button').first().boundingBox();
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
         await page.mouse.down();
-        await page.waitForTimeout(2600);
+        // 2.0s（value≈40）排气，再按到 3.4s（value≈68，金区内）松手。
+        await page.waitForTimeout(2000);
         const withVent = await read();
         if (withVent.hasVent) await page.locator('.vent-valve').click();
+        await page.waitForTimeout(1400);
         await page.mouse.up();
       } else if (state.stationKind === 'swirl') {
         await drawCircle(page, 1.15);
