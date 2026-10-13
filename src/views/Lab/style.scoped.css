@@ -818,6 +818,9 @@ html[data-theme='dark'] .pill-menu-item.active:hover {
   line-height: 1.55;
   color: var(--foreground);
   min-height: 52px;
+  /* 多字扩展上限（真源划分：上限只住 CSS，useAutoGrowTextarea 读 getComputedStyle 取用。
+     2026-10-13 前的自研 autoGrow 在 JS 里写死 200，收敛时原值迁到这里） */
+  max-height: 200px;
   box-sizing: border-box;
 }
 .composer-input::placeholder {

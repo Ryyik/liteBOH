@@ -54,7 +54,6 @@
               rows="3"
               :disabled="aiLoading"
               @keydown.enter.exact.prevent="onComposerEnter"
-              @input="autoGrow"
             />
             <div v-if="pendingFile" class="composer-chips">
               <span v-if="pendingFile" class="attach-chip">
@@ -392,7 +391,6 @@
               rows="2"
               :disabled="aiLoading"
               @keydown.enter.exact.prevent="onComposerEnter"
-              @input="autoGrow"
             />
             <div v-if="pendingFile" class="composer-chips">
               <span v-if="pendingFile" class="attach-chip">
@@ -815,6 +813,7 @@ import { SILICON_CLOUD_CHAT_URL } from '@/utils/bohai-constants.js';
 import { BASE_SYSTEM_PROMPT } from '@/prompts/index.js';
 import { STYLE_PRESETS, DEFAULT_PRESET_ID, getPresetById } from './config/design-tokens.js';
 import { showIsland } from '@/composables/useIsland.js';
+import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 import LabQuotaIsland from './components/LabQuotaIsland.vue';
 
 const router = useRouter();
@@ -932,8 +931,14 @@ const notifyLab = (title, message = '', type = 'info') => {
   else if (t.success) t.success(title, message);
   return false;
 };
-const heroTextareaRef = ref(null);
-const bottomTextareaRef = ref(null);
+// 两个输入框的「多字扩展」：单一真源 composables/useAutoGrowTextarea.js
+// （2026-10-13 收敛自研 autoGrow）。上限 200px 由 style.scoped.css 的
+// `.composer-input { max-height }` 提供，JS 不写第二份像素值。
+// hero / bottom 同一时间只有一个在 DOM 里（v-if 互斥），各持一个实例互不影响；
+// 两者监听同一个 text：发送后 text.value = '' 由 value watcher 收缩高度，
+// 不再需要调用方手动重置 style.height。
+const { textareaRef: heroTextareaRef } = useAutoGrowTextarea({ value: () => text.value });
+const { textareaRef: bottomTextareaRef } = useAutoGrowTextarea({ value: () => text.value });
 const heroFileInput = ref(null);
 const bottomFileInput = ref(null);
 
@@ -1577,12 +1582,6 @@ function nowTime() {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-function autoGrow(e) {
-  const el = e.target;
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-}
-
 function chooseDoc() {
   const which = hasConversation.value ? 'bottom' : 'hero';
   nextTick(() => triggerUpload(which));
@@ -1775,12 +1774,8 @@ async function send(presetText) {
     await handleFileUpload(pendingFile.value);
   }
 
+  // 清空输入（高度收缩由 useAutoGrowTextarea 的 value watcher 负责，见 hero/bottom 实例）
   text.value = '';
-  // 重置 textarea 高度
-  nextTick(() => {
-    if (heroTextareaRef.value) heroTextareaRef.value.style.height = 'auto';
-    if (bottomTextareaRef.value) bottomTextareaRef.value.style.height = 'auto';
-  });
 
   let userText = content || (pendingFile.value ? '帮我优化这份文档的排版' : '');
   if (userText) {

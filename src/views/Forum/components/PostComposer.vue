@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import GlassPillButton from '@/components/ui/GlassPillButton.vue';
 import {
   ArrowLeft,
@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-vue-next';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
+import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 
 const props = defineProps({
   isLoggedIn: { type: Boolean, default: false },
@@ -71,25 +72,21 @@ const isEditMode = computed(() => Boolean(props.editMode));
 
 /* 标题上限：与主流社区一致，防止超长标题撑破排版 */
 const TITLE_MAX_LENGTH = 50;
-const postTitleInputRef = ref(null);
 
-const autoResizeTitle = async () => {
-  await nextTick();
-  const el = postTitleInputRef.value;
-  if (!el) return;
-  el.style.height = 'auto';
-  el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
-};
-
-watch(() => props.newPost.title, autoResizeTitle);
-
-onMounted(autoResizeTitle);
+// 标题「多字扩展」：单一真源 composables/useAutoGrowTextarea.js（2026-10-13 收敛自研
+// autoResizeTitle）。上限 132px 由 composer.css 的 `.post-title-input { max-height }`
+// 提供，JS 不写第二份像素值。
+// ⚠️ 必须传 value：标题是 `:value` + `@input` 受控写法，父组件会主动改写
+// props.newPost.title（编辑模式载入 / 草稿恢复 / 发布后清空），只绑 @input 的
+// 实现在这些路径上不会收缩。
+const { textareaRef: postTitleInputRef } = useAutoGrowTextarea({
+  value: () => props.newPost.title,
+});
 
 const handleTitleInput = (event) => {
   const value = String(event.target.value || '').slice(0, TITLE_MAX_LENGTH);
   event.target.value = value;
   updateTitle(value);
-  autoResizeTitle();
 };
 const editorGreetingLabel = computed(() =>
   isEditMode.value ? '编辑帖子' : `你好，${props.userInfo.username || '朋友'}！`,
