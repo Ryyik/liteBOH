@@ -3,7 +3,7 @@
  *
  * 背景：2026-10-08（plans/025 v2 · Step 6-4）输入区整体重绘为 `BohComposer.vue`：
  *   模式胶囊 + 浮层面板（模型清单 / 工具四件）+ 用量圆钮与浮层 + 斜杠菜单
- *   + 圆形发送键 + 底部「内容由 AI 生成」说明。
+ *   + 圆形发送键（底部「内容由 AI 生成」说明已于 2026-10-13 按用户口径删除）。
  * 旧版的三行面板 + 左右二级菜单结构已随旧 DOM 删除，断言随之改锁新落点。
  *
  * 2026-10-11：底行拆成**两颗独立胶囊**（模型 / 工具），各点各的浮层，互斥由
@@ -438,7 +438,7 @@ const openPanel = async (page, scope = '') => {
   await page.fill(SEL.input, '');
   await page.waitForTimeout(240);
 
-  // A9 发送键为圆形 + 底部说明在场
+  // A9 发送键为圆形（底部「内容由 AI 生成」说明已于 2026-10-13 按用户口径删除）
   const sendShape = await page.evaluate((sel) => {
     const el = document.querySelector(sel);
     if (!el) return null;
@@ -449,17 +449,15 @@ const openPanel = async (page, scope = '') => {
       radius: getComputedStyle(el).borderRadius,
     };
   }, SEL.send);
-  const noteText = await page.evaluate(
-    (sel) => document.querySelector(sel)?.textContent.trim() || '',
-    SEL.note,
-  );
+  // 负向绊线：说明被删是刻意口径，重新加回来必须同步本探针（别让它悄悄回潮）
+  const noteGone = await page.evaluate(() => !document.querySelector('.boh-cp-note'));
   check(
-    'A9 发送键为圆形 + 底部「内容由 AI 生成」说明在场',
+    'A9 发送键为圆形 + 底部说明已按口径删除',
     !!sendShape &&
       Math.abs(sendShape.w - sendShape.h) <= 1 &&
       /999px|50%/.test(sendShape.radius) &&
-      /AI 生成/.test(noteText),
-    `${JSON.stringify(sendShape)} note=「${noteText}」`,
+      noteGone,
+    `${JSON.stringify(sendShape)} note已删除=${noteGone}`,
   );
 
   // ── A10-A13 用量圆钮（发送一条消息后才渲染） ──
@@ -748,9 +746,11 @@ const openPanel = async (page, scope = '') => {
     [SEL.topbar, SEL.note, SEL.input],
   );
   check('C1 矮横屏：浮动操作在场（顶栏已删）', short.topbarH > 0, `${short.topbarH}px`);
+  // 2026-10-13：底部说明（`.boh-cp-note`）已按用户口径删除 ⇒ 这条从「矮横屏隐藏它」
+  // 改成**负向绊线**：元素必须不存在。矮横屏省空间的需求随之消失（本来就没有了）。
   check(
-    'C2 矮横屏隐藏底部说明（省纵向空间）',
-    !short.hasNote || short.noteDisplay === 'none',
+    'C2 底部说明已删除（2026-10-13 用户口径；重新加回需同步本探针）',
+    !short.hasNote,
     `has=${short.hasNote} display=${short.noteDisplay}`,
   );
   // 2026-10-08：上限由写死的 60px 提到 `min(38vh, 180px)`（用户口径「输入框随内容自适应」）。

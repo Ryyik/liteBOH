@@ -215,7 +215,9 @@ await page.evaluate(() => {
 await page.waitForTimeout(700);
 const onForum = await page.evaluate(() => ({
   hash: location.hash,
-  stillAi: document.body.innerText.includes('内容由 AI 生成，请注意核实'),
+  // ⚠️ 2026-10-13：原判据是「页面文字里还有『内容由 AI 生成，请注意核实』」——那句话
+  //    已按用户口径删除 ⇒ 改用**结构判据**（`.boh-shell` 在不在），不再依赖任何文案。
+  stillAi: !!document.querySelector('.boh-shell'),
 }));
 check(
   'A3 切走后确实离开了 AI 页（此刻哨兵还没到）',

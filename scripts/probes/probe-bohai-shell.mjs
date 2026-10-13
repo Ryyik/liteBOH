@@ -133,6 +133,14 @@ try {
           return c && g ? Math.round(c.top - g.bottom) : -1;
         })(),
         mainHeight: Math.round(rect(main)?.height ?? 0),
+        // 空态**水平**居中判据（2026-10-13）：左右留白之差。会话态刻意靠左（与 AI 回复同列），
+        // 空态没有内容要对齐 ⇒ 必须居中。相对 main 量（wrap 的 padding 左右对称，不影响差值）。
+        composerCenterDelta: (() => {
+          const m = main?.getBoundingClientRect();
+          const c = composer?.getBoundingClientRect();
+          if (!m || !c) return -1;
+          return Math.round(Math.abs(c.left - m.left - (m.right - c.right)));
+        })(),
         hasComposer: !!composer,
         workDisplay: work ? getComputedStyle(work).display : 'none',
         workWidth: Math.round(rect(work)?.width ?? 0),
@@ -155,9 +163,13 @@ try {
       d.padLeft === d.mainLeft && d.padRight === d.mainRight,
       `pad=${d.padLeft}..${d.padRight} main=${d.mainLeft}..${d.mainRight}`,
     );
+    // ⚠️ 2026-10-13 口径变更：这条原先在**空态**断言「输入框与消息列同一条列（内容左缘对齐）」。
+    //    但空态根本没有消息列可对齐 —— 那条断言让输入框在宽屏贴左、右侧空一大片
+    //    （用户报「空状态的输入框不居中」，1440 下实测左 40 / 右 432）。
+    //    ⇒ 空态改为**水平居中**（见下一条）；「与消息列同列」搬到**场景 E**（有消息时才成立）。
     check(
-      '桌面：输入框与消息列同一条列（内容左缘对齐）',
-      Math.abs(d.padLeft + d.padPadLeft - d.composerLeft) <= 2,
+      '桌面（空态）：输入框不再对齐消息列左缘（空态无消息列可对齐）',
+      Math.abs(d.padLeft + d.padPadLeft - d.composerLeft) > 2,
       `pad 内容左缘=${d.padLeft + d.padPadLeft} composer=${d.composerLeft}`,
     );
     // 2026-10-11：默认收起。判据是「宽度 0 + 主列不让位 + 入口在场」三条一起 ——
@@ -250,6 +262,14 @@ try {
       '桌面：空态整组（虚影字 + 输入框）垂直居中（中点偏差 ≤ 主区高的 6%）',
       d.groupMidDelta >= 0 && d.groupMidDelta <= Math.round(d.mainHeight * 0.06),
       `偏差=${d.groupMidDelta}px 主区高=${d.mainHeight}`,
+    );
+    // 2026-10-13 用户报「空状态的输入框不居中」：`.boh-composer` 的列对齐令牌是
+    // `margin: 0 var(--boh-content-mr) 0 var(--boh-content-ml)` = `0 auto 0 0` ⇒ 限宽 880 后靠左。
+    // 会话态这是刻意的（与 AI 回复同列），空态则必须居中（实测修复前左 40 / 右 432）。
+    check(
+      '桌面：空态输入框水平居中（左右留白差 ≤ 2px）',
+      d.composerCenterDelta >= 0 && d.composerCenterDelta <= 2,
+      `左右留白差=${d.composerCenterDelta}px`,
     );
     // 反向保险：auto 写错位置时两者之间会裂开一个大洞（实测 309px），这条钉住上界
     check(
@@ -527,6 +547,7 @@ try {
         composerBackdrop: getComputedStyle(q('.boh-composer')).backdropFilter,
         composerTop: Math.round(r(q('.boh-composer'))?.top ?? -1),
         streamBottom: Math.round(r(q('.boh-stream'))?.bottom ?? -1),
+        composerLeft: Math.round(r(q('.boh-composer'))?.left ?? -1),
         streamPaddingBottom: Math.round(
           parseFloat(getComputedStyle(q('.boh-stream')).paddingBottom) || 0,
         ),
@@ -544,6 +565,13 @@ try {
       '桌面（有消息）：AI 回复右侧留白明显大于左侧（靠左而非居中）',
       availableRight - g.aiRight > g.aiLeft - contentLeft + 40,
       `右留白=${availableRight - g.aiRight} 左留白=${g.aiLeft - contentLeft}`,
+    );
+    // 2026-10-13：这条原在空态断言（那里已改为「水平居中」）——「与消息列同列」只在**有消息**
+    // 时才有意义：输入框必须与 AI 回复共用同一条列，否则两者横向错开。
+    check(
+      '桌面（有消息）：输入框与消息列同一条列（内容左缘对齐）',
+      Math.abs(contentLeft - g.composerLeft) <= 2,
+      `内容左缘=${contentLeft} composer=${g.composerLeft}`,
     );
     check(
       '桌面（有消息）：用户气泡贴可用区域右边（不是贴内容列右缘）',

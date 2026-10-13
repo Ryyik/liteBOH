@@ -11,7 +11,8 @@ import { squeezeSource, stripComments } from '../helpers/source.js';
 //    （实测 1440 下 928），够不到可用区域右边（`main.right − 40 = 1400`）。
 // ② **用户气泡 = 白色底 + 灰描边**：底色走 `--boh-bubble-bg` 单源 ——
 //    直接用 `--boh-bg-card`（#f5f5f5 灰）就是报障本身。
-// ③ 输入框 / 底部说明仍走 `--boh-content-ml`/`--boh-content-mr` 靠左（与 AI 回复同列）。
+// ③ 输入框 / 底部提示仍走 `--boh-content-ml`/`--boh-content-mr` 靠左（与 AI 回复同列）。
+// ④ 2026-10-13：`.boh-cp-note`（「内容由 AI 生成，请注意核实」）按用户口径删除 ⇒ 消费者 4 → 3。
 //
 // ⚠️ 断言只认**令牌与选择器接线**，不认像素；几何后果由
 //    `scripts/probes/probe-bohai-shell.mjs` 钉。
@@ -49,7 +50,6 @@ describe('列宽与对齐令牌只有一处定义', () => {
 describe('输入区与底部说明：横向对齐走令牌（与 AI 回复同列）', () => {
   const cases = [
     { anchor: '.boh-composer {' },
-    { anchor: '.boh-cp-note {' },
     { anchor: '.boh-cp-warn {' },
     { anchor: '.boh-cp-alert,' },
   ];
@@ -64,8 +64,12 @@ describe('输入区与底部说明：横向对齐走令牌（与 AI 回复同列
   });
 
   it('输入区的令牌引用数与消费者数一致（新增消费者必须同步本断言）', () => {
-    // 4 = .boh-composer / .boh-cp-note / .boh-cp-alert+notice / .boh-cp-warn
-    expect((read(COMPOSER).match(/var\(--boh-content-mr\)/g) || []).length).toBe(4);
+    // 3 = .boh-composer / .boh-cp-alert+notice / .boh-cp-warn
+    //    （`.boh-cp-note`「内容由 AI 生成，请注意核实」2026-10-13 按用户口径删除，消费者 4 → 3）
+    // ⚠️ 计数前**必须先剥注释**：注释里复述 `var(--boh-content-mr)` 会让计数虚高
+    //    （2026-10-13 实测：一条解释性注释把 4 变成 5，断言红在注释上）。
+    const code = stripComments(read(COMPOSER));
+    expect((code.match(/var\(--boh-content-mr\)/g) || []).length).toBe(3);
   });
 });
 

@@ -82,6 +82,17 @@
   margin-bottom: auto;
 }
 
+/* 空态：输入框**水平居中**（2026-10-13 用户报「空状态的输入框不居中」）。
+   根因：`.boh-composer` 的列对齐是 `margin: 0 var(--boh-content-mr) 0 var(--boh-content-ml)`
+   = `0 auto 0 0`（ml=0 / mr=auto）⇒ 限宽 880 后**靠左**。会话态这是刻意的（与 AI 回复同列），
+   但空态没有任何内容要对齐，虚影字又是居中排的 ⇒ 输入框贴左、右侧空一大片（1440 下实测
+   左留白 40 / 右留白 432）。
+   ⚠️ 只覆盖空态：会话态写 auto 会把输入框推到视口中间，与上方消息列错开。 */
+.boh-main.is-empty .boh-composer {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* 输入框**浮在消息流之上**（2026-10-12 用户口径「液态玻璃，滚动时透出下面的内容」）——
    玻璃的全部价值就是「透出底下的内容」，而输入区在流式布局里与消息区**不重叠** ⇒
    底下只有页面底色，玻璃等于白上。
@@ -704,15 +715,9 @@
   transform: none;
 }
 
-/* ── 底部说明 / 提示 ────────────────────────────────────────── */
-.boh-cp-note {
-  max-width: var(--boh-content-w);
-  margin: 7px var(--boh-content-mr) 0 var(--boh-content-ml);
-  color: var(--boh-text-3);
-  font-size: 11px;
-  text-align: center;
-}
-
+/* ── 底部说明 / 提示 ──────────────────────────────────────────
+   ⚠️ `.boh-cp-note`（「内容由 AI 生成，请注意核实」）已于 2026-10-13 按用户口径删除 ——
+   元素、规则、矮横屏与岛形态的两条 `display: none` 一并清掉，别只删模板留死 CSS。 */
 .boh-cp-alert,
 .boh-cp-notice {
   max-width: var(--boh-content-w);
@@ -974,10 +979,6 @@
     min-height: 30px;
     max-height: min(38vh, 180px);
   }
-
-  .boh-cp-note {
-    display: none;
-  }
 }
 
 /* 小手机 ≤480：底行只留图标 */
@@ -1002,8 +1003,4 @@
 /* 岛形态 */
 .boh-composer-wrap.is-island {
   padding: 6px 12px 12px;
-}
-
-.boh-composer-wrap.is-island .boh-cp-note {
-  display: none;
 }

@@ -348,8 +348,6 @@
       </div>
     </div>
 
-    <p class="boh-cp-note">内容由 AI 生成，请注意核实</p>
-
     <p v-if="rateLimitMessage" class="boh-cp-alert">{{ rateLimitMessage }}</p>
     <p v-if="notice" class="boh-cp-notice" role="status">{{ notice }}</p>
     <div v-if="contextWarningText" class="boh-cp-warn" role="status">
