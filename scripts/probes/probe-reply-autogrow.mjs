@@ -6,20 +6,32 @@ import fs from 'node:fs';
 //
 //   场景 A：竖屏手机 390×844，用户空间内嵌论坛的卡片内联回复框（PostCard，主症）
 //   场景 B：竖屏手机 390×844，帖子详情页底部评论输入框（2026-10-01 起也是自动增高 textarea）
-//   真实登录注入 + 真实数据（不做 RPC mock）。
+//   场景 C：竖屏手机 390×844，消息中心通知详情的回复框（plans/021 阶段2 接入）
+//   场景 D：竖屏手机 390×844，社区伙伴印象墙的印象输入框（plans/021 阶段2 接入）
+//   A/B 用真实登录注入 + 真实数据；C 需要 supabase 真实会话（探针拿不到），
+//   沿用 scripts/probes/probe-messages-ui.mjs 的 mock 先例（拦截 /auth/v1/user
+//   与 /rest/v1/notifications + 伪造本地会话）；D 的伙伴列表是公开数据，走真实请求。
+//    ForumMain「引用转发弹窗」经复核是死 UI（PostCard 无 quote-repost 发射点，
+//   真实转发入口已迁至 ShareIsland），按纪律不接线；场景 A 末尾留了一条绊线：
+//   分享→站内转发后 ForumMain 的 section[aria-label="引用转发"] 必须保持 0 个。
 //
 //   断言（场景 A 各跑一遍）：
 //     A 空内容高度 = rows 撑出的高度，且无内部滚动
 //     B 逐行加内容 → 高度单调不减；未到上限前 scrollHeight ≤ clientHeight + 1
 //     C 内容超上限 → 高度停在上限，框内出现滚动（scrollHeight > clientHeight），overflow-y: auto
+//       （无 CSS max-height 的框：不断言停住，改断言「继续长高且仍无内部滚动」）
 //     D 清空 → 高度回到 A 的值
 //     E 父组件改写内容（同卡切到嵌套回复：replyContent 被 buildReplyDraft 换成 '@user '）
 //       → 高度必须回落。这是 `:value` 受控写法下最容易漏的一条 —— 只绑 @input 的实现不会收缩。
 //       该卡没有嵌套回复时记 SKIP（不记红），避免把「数据没有」误报成「代码不对」。
 //     F 竖屏键盘遮挡：只**测量并报告**，不作断言（plans/021 §8：先测再改）
+//     G 关闭再重开（v-if 卸载→再挂载）→ 新元素从 rows 高度起步（场景 C/D）
 //
 //   counter-proof（必须做）：`git checkout -- src/views/Forum/components/PostCard.vue`
 //   撤掉接线后 B / C / E 必红（高度恒为 85）。只测「修复后全绿」不算自证。
+//
+//   BASE 环境变量可覆盖（默认 http://[::1]:5173）：与占住 5173 的会话错峰时
+//   用 `BASE=http://127.0.0.1:5174 node scripts/probes/probe-reply-autogrow.mjs`。
 // =====================================================================
 
 const BASE = process.env.BASE || 'http://[::1]:5173';
@@ -120,8 +132,13 @@ const lines = (n) => Array.from({ length: n }, (_, i) => `第${i + 1}行内容`)
  *   详情页评论框只有 ~107px 宽，一行中文会折成两个视觉行，第 2 个采样点就顶上上限了
  *   （只有 1 个未到上限的采样），所以那一处传 1。断言的真实不变量是
  *   「存在一段区间：高度随内容增长且无内部滚动」，采样计数只是它的强度。
+ * @param {number} [opts.emptyHeightMax=120] 空内容高度的上界。rows×行高+padding 因框而异
+ *   （印象框 padding 32px、行高约 30px，rows=3 空态实测 123px），按各框实测放宽。
  */
-const runGrowthChecks = async (page, { selector, label, minBelowCap = 2 }) => {
+const runGrowthChecks = async (
+  page,
+  { selector, label, minBelowCap = 2, emptyHeightMax = 120 },
+) => {
   const read = readBox(selector);
   const set = (text) => page.evaluate(setBoxValue, { selector, text });
 
@@ -130,7 +147,7 @@ const runGrowthChecks = async (page, { selector, label, minBelowCap = 2 }) => {
     Boolean(empty) &&
     empty.rows > 0 &&
     empty.clientHeight > 30 &&
-    empty.clientHeight < 120 &&
+    empty.clientHeight < emptyHeightMax &&
     empty.scrollHeight - empty.clientHeight <= 1 &&
     empty.overflowY === 'auto';
   check(
@@ -161,13 +178,26 @@ const runGrowthChecks = async (page, { selector, label, minBelowCap = 2 }) => {
   await set(lines(30));
   await sleep(SETTLE);
   const capped = await page.evaluate(read);
-  check(
-    `${label} · C 超上限后高度停在上限并框内滚动`,
-    Math.abs(capped.offsetHeight - MAX) <= 1 &&
-      capped.scrollHeight > capped.clientHeight + 40 &&
-      capped.overflowY === 'auto',
-    `offsetHeight=${capped.offsetHeight} maxHeight=${MAX} scrollHeight=${capped.scrollHeight} overflowY=${capped.overflowY}`,
-  );
+  if (Number.isFinite(MAX)) {
+    check(
+      `${label} · C 超上限后高度停在上限并框内滚动`,
+      Math.abs(capped.offsetHeight - MAX) <= 1 &&
+        capped.scrollHeight > capped.clientHeight + 40 &&
+        capped.overflowY === 'auto',
+      `offsetHeight=${capped.offsetHeight} maxHeight=${MAX} scrollHeight=${capped.scrollHeight} overflowY=${capped.overflowY}`,
+    );
+  } else {
+    // 无 CSS max-height 的框（消息中心回复框 / 印象框）：不断言「停在上限」——
+    // 它们就不该有上限；改断言高度继续跟着内容长、且依然不出现内部滚动。
+    const maxSample = Math.max(...samples.map((s) => s.h));
+    check(
+      `${label} · C 无 CSS 上限时高度继续随内容增长且不出现内部滚动`,
+      capped.offsetHeight > maxSample &&
+        capped.scrollHeight - capped.clientHeight <= 1 &&
+        capped.overflowY === 'auto',
+      `30行=${capped.offsetHeight} 采样峰值=${maxSample} scrollHeight=${capped.scrollHeight} overflowY=${capped.overflowY}`,
+    );
+  }
 
   await set('');
   await sleep(SETTLE);
@@ -179,6 +209,58 @@ const runGrowthChecks = async (page, { selector, label, minBelowCap = 2 }) => {
   );
 
   return { H0, MAX, samples, capped, read, set, ok: ok0 };
+};
+
+/**
+ * G：关闭再重开（v-if 卸载 → 再挂载）后，新元素从 rows 高度起步。
+ * close / reopen 由调用方按各自页面的真实交互路径给出：
+ *   · close 后必须等元素真正离开 DOM（Transition leave 有过渡期）再 reopen；
+ *   · 新元素的 v-model 值应为空（关闭路径都主动清了内容），高度回到 A 的初值。
+ */
+const runRemountCheck = async (page, { selector, label, H0, close, reopen }) => {
+  await close();
+  // ⚠️ page.evaluate 的函数体在浏览器里求值，闭不住 Node 侧的 selector —— 必须走 arg 传参
+  const detached = await waitForInPage(page, (sel) => ({ done: !document.querySelector(sel) }), {
+    timeout: 10000,
+    arg: selector,
+  });
+  if (!detached?.done) {
+    check(`${label} · G 关闭再重开后新元素从 rows 高度起步`, false, '关闭后元素未离开 DOM');
+    return;
+  }
+  await reopen();
+  const fresh = await waitForInPage(
+    page,
+    (sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return { done: false };
+      return { done: true, clientHeight: el.clientHeight, value: el.value };
+    },
+    { timeout: 12000, arg: selector },
+  );
+  if (!fresh?.done) {
+    // 超时 ≠ 一定代码问题：采集现场（弹窗在不在 / 表单在不在 / 登录态塌没塌）再断红
+    const diag = await page.evaluate(() => {
+      const pinia = document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia;
+      return {
+        textareas: document.querySelectorAll('textarea').length,
+        modalLike: document.querySelectorAll('[class*="modal"], [class*="overlay"]').length,
+        isLoggedIn: pinia?.state?.value?.auth?.isLoggedIn ?? null,
+        hash: location.hash,
+      };
+    });
+    check(
+      `${label} · G 关闭再重开后新元素从 rows 高度起步`,
+      false,
+      `重开后 12s 未见元素；诊断=${JSON.stringify(diag)} 初始=${H0}`,
+    );
+    return;
+  }
+  check(
+    `${label} · G 关闭再重开后新元素从 rows 高度起步`,
+    Boolean(fresh?.done) && fresh.value === '' && Math.abs(fresh.clientHeight - H0) <= 1,
+    `重开后=${fresh?.clientHeight}(len ${String(fresh?.value ?? '').length}) 初始=${H0}`,
+  );
 };
 
 const openCommunity = async (page) => {
@@ -312,6 +394,54 @@ try {
       await page.screenshot({ path: `${OUT}/probe-reply-autogrow-after-switch.png` });
     }
 
+    // ---------- 绊线：ForumMain「引用转发弹窗」是死 UI，转发撰写在 ShareIsland ----------
+    // 2026-10-13 复核（按类名扫出后运行时验证过）：PostCard 无 quote-repost 发射点，
+    // ForumMain 的 quoteRepostState 弹窗全站不可达 —— 真实转发入口已迁至
+    // ShareIsland 的 .share-compose-input（另一处组件，不在本探针接线范围内）。
+    // 走一遍 分享 → 站内转发：ForumMain 的 section[aria-label="引用转发"] 必须保持 0 个。
+    // 哪天真有人重新接线，这条会红，提醒同步接 useAutoGrowTextarea 并更新本探针。
+    await page.evaluate(() => {
+      document.querySelector('.post-card-v2 .share-btn-v2')?.click();
+    });
+    const islandUp = await waitForInPage(
+      page,
+      () => ({ done: Boolean(document.querySelector('.share-island-card')) }),
+      { timeout: 10000 },
+    );
+    if (!islandUp?.done) {
+      skip('引用转发弹窗仍是死 UI（ForumMain modal 不出现）', '分享灵动岛未弹出，无法走转发路径');
+    } else {
+      await sleep(SETTLE); // 岛卡进场 320ms，落定再点
+      await page.evaluate(() => {
+        const options = [...document.querySelectorAll('.share-island-card .share-option')];
+        options.find((btn) => btn.textContent.includes('站内转发'))?.click();
+      });
+      const forwardReady = await waitForInPage(
+        page,
+        () => {
+          const islandComposer = document.querySelectorAll('.share-compose-input').length;
+          const forumModal = document.querySelectorAll(
+            'section.forum-confirm-modal[aria-label="引用转发"]',
+          ).length;
+          if (!islandComposer && !forumModal) return { done: false };
+          return { done: true, islandComposer, forumModal };
+        },
+        { timeout: 10000 },
+      );
+      if (!forwardReady?.done) {
+        skip(
+          '引用转发弹窗仍是死 UI（ForumMain modal 不出现）',
+          '点「站内转发」后既无岛内撰写框也无 ForumMain 弹窗（分享链路可能已改）',
+        );
+      } else {
+        check(
+          '引用转发弹窗仍是死 UI：转发撰写在 ShareIsland，ForumMain modal 不出现',
+          forwardReady.islandComposer === 1 && forwardReady.forumModal === 0,
+          `岛内撰写框=${forwardReady.islandComposer} ForumMain 引用转发弹窗=${forwardReady.forumModal}`,
+        );
+      }
+    }
+
     await ctx.close();
   }
 
@@ -372,6 +502,252 @@ try {
         minBelowCap: 1,
       });
       await page.screenshot({ path: `${OUT}/probe-reply-autogrow-detail.png` });
+    }
+
+    await ctx.close();
+  }
+
+  // ================= 场景 C：消息中心通知详情的回复框（plans/021 阶段2 接入） =================
+  // mock 登录 + mock 通知：与 scripts/probes/probe-messages-ui.mjs 同款先例。
+  // 原因：本页数据链路（getCurrentUser → supabase.auth.getUser）要真实 supabase 会话，
+  // pinia 假登录到不了 REST 层，不 mock 就永远只有空态。高度断言与场景 A/B 完全同一套。
+  {
+    const mockUser = {
+      id: '00000000-0000-4000-8000-000000000001',
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: 'probe@bohlite.example.com',
+      app_metadata: { provider: 'email' },
+      user_metadata: { username: 'probe_user' },
+      created_at: '2024-01-01T00:00:00Z',
+    };
+    const iso = (minsAgo) => new Date(Date.now() - minsAgo * 60000).toISOString();
+    const mockRows = [
+      {
+        id: 'probe-n-comment',
+        type: 'comment',
+        status: 'unread',
+        created_at: iso(5),
+        sender_id: 'probe-u-sender',
+        recipient_id: mockUser.id,
+        archived_at: null,
+        sender: { id: 'probe-u-sender', username: 'Mochi', avatar_url: '' },
+        post: {
+          id: 'probe-p-1',
+          title: '竖屏回复框的多字扩展',
+          body: null,
+          content: '竖屏回复框的多字扩展',
+        },
+        comment: {
+          id: 'probe-c-1',
+          content: '竖屏写长回复时框不会变高，只能框内滚动，看不到上下文',
+          parent_id: null,
+          author_username: 'Mochi',
+          parent: null,
+        },
+      },
+      {
+        id: 'probe-n-like',
+        type: 'like',
+        status: 'read',
+        created_at: iso(60),
+        sender_id: 'probe-u-sender2',
+        recipient_id: mockUser.id,
+        archived_at: null,
+        sender: { id: 'probe-u-sender2', username: '星野', avatar_url: '' },
+        post: { id: 'probe-p-2', title: null, body: null, content: 'Beta 的玻璃导航真好看' },
+        comment: null,
+      },
+    ];
+
+    const ctx = await browser.newContext({
+      viewport: VIEWPORT,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+    });
+    await ctx.route('**/auth/v1/user', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockUser),
+      }),
+    );
+    await ctx.route('**/rest/v1/notifications**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockRows),
+      }),
+    );
+    await ctx.addInitScript((user) => {
+      // 伪造 supabase-js 本地会话：getUser() 才会真正发起 /auth/v1/user 请求
+      localStorage.setItem(
+        'sb-nplnlefdwfgtyimfkyih-auth-token',
+        JSON.stringify({
+          access_token: 'mock-access-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+          refresh_token: 'mock-refresh-token',
+          user,
+        }),
+      );
+    }, mockUser);
+    const page = await ctx.newPage();
+
+    await page.goto(`${BASE}/#/user-space?tab=messages`, { waitUntil: 'domcontentloaded' });
+    await injectAuth(page);
+    // 与假会话双保险：把 pinia 的 userInfo 对齐 mock 用户，
+    // 避免真实会话解析失败时列表落到未登录空态。
+    await page.evaluate((user) => {
+      const pinia = document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia;
+      const auth = pinia?.state?.value?.auth;
+      if (auth?.userInfo) {
+        auth.userInfo.id = user.id;
+        auth.userInfo.username = 'probe_user';
+      }
+    }, mockUser);
+
+    const listReady = await waitForInPage(
+      page,
+      () => ({ done: Boolean(document.querySelector('.x-notifications-container .x-item')) }),
+      { timeout: 25000 },
+    );
+    report.info.messagesList = { ready: Boolean(listReady?.done) };
+    if (!listReady?.done) {
+      skip('消息中心回复框', '通知列表 25s 内未渲染（mock 登录/数据链路异常，非代码问题）');
+    } else {
+      const opened = await page.evaluate(() => {
+        // 只有 comment 类型通知详情里才有「回复」按钮
+        const item = [...document.querySelectorAll('.x-notifications-container .x-item')].find(
+          (el) => el.querySelector('.x-t-comment'),
+        );
+        if (!item) return false;
+        item.click();
+        return true;
+      });
+      const replyBtnReady = opened
+        ? await waitForInPage(
+            page,
+            () => ({ done: Boolean(document.querySelector('.notif-action-btn.reply')) }),
+            { timeout: 15000 },
+          )
+        : null;
+      if (!replyBtnReady?.done) {
+        skip('消息中心回复框', '没有 comment 类型通知或详情未打开（数据原因，非代码问题）');
+      } else {
+        await page.evaluate(() => document.querySelector('.notif-action-btn.reply')?.click());
+        await page.waitForSelector('.reply-textarea', { timeout: 10000 });
+        await sleep(SETTLE);
+
+        const api = await runGrowthChecks(page, {
+          selector: '.reply-textarea',
+          label: '消息中心回复框',
+        });
+        report.info.messagesReplyBox = {
+          H0: api.H0,
+          maxHeight: api.MAX,
+          samples: api.samples,
+        };
+        await page.screenshot({ path: `${OUT}/probe-reply-autogrow-messages.png` });
+
+        await runRemountCheck(page, {
+          selector: '.reply-textarea',
+          label: '消息中心回复框',
+          H0: api.H0,
+          close: () => page.evaluate(() => document.querySelector('.cancel-reply-btn')?.click()),
+          reopen: () =>
+            page.evaluate(() => document.querySelector('.notif-action-btn.reply')?.click()),
+        });
+      }
+    }
+
+    await ctx.close();
+  }
+
+  // ================= 场景 D：社区伙伴印象墙的印象输入框（plans/021 阶段2 接入） =================
+  // 伙伴列表是公开数据（profiles 公开读），走真实请求；pinia 假登录即可拿到
+  // 「写印象」入口（isLoggedIn && 非本人；表单对本人不渲染，逐行尝试）。
+  {
+    const { ctx, page } = await newPage(browser);
+    // Partners 路由 requiresLogin：路由守卫在**初始导航**就把未登录用户弹回 `/`，
+    // 事后再注入 pinia 假登录来不及（hash 已被改成 `#/`）。按 probe-messages-ui.mjs
+    // 先例：先落公开页 → 注入假登录 → 再切 hash（此时 from.name 已在、auth store
+    // 已 initialized，守卫按已登录放行）。
+    await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
+    await injectAuth(page);
+    await page.evaluate(() => {
+      window.location.hash = '#/user-space/partners';
+    });
+    const listReady = await waitForInPage(
+      page,
+      () => ({ done: Boolean(document.querySelector('.partner-row')) }),
+      { timeout: 25000 },
+    );
+    if (!listReady?.done) {
+      skip('伙伴印象框', '伙伴列表 25s 内未渲染（数据原因，非代码问题）');
+    } else {
+      const clickWriteImpression = (idx) =>
+        page.evaluate((i) => {
+          const rows = [...document.querySelectorAll('.partner-row')];
+          const row = rows[i];
+          const btn =
+            row &&
+            [...row.querySelectorAll('.action-buttons button')].find(
+              (b) => b.textContent.trim() === '写印象',
+            );
+          btn?.click();
+          return Boolean(btn);
+        }, idx);
+
+      let openedIndex = -1;
+      let boxReady = null;
+      for (let attempt = 0; attempt < 5 && !boxReady?.done; attempt += 1) {
+        await clickWriteImpression(attempt);
+        boxReady = await waitForInPage(
+          page,
+          () => ({
+            done: Boolean(document.querySelector('.add-impression-box .impression-input')),
+          }),
+          { timeout: 6000 },
+        );
+        if (boxReady?.done) {
+          openedIndex = attempt;
+        } else {
+          // 这一行打不开（很可能就是当前用户本人），关掉弹窗试下一行
+          await page.evaluate(() =>
+            document.querySelector('.impression-modal .close-btn')?.click(),
+          );
+          await sleep(400);
+        }
+      }
+
+      if (!boxReady?.done) {
+        skip('伙伴印象框', '前 5 行都打不开印象表单（数据原因，非代码问题）');
+      } else {
+        await sleep(SETTLE);
+        const api = await runGrowthChecks(page, {
+          selector: '.impression-input',
+          label: '伙伴印象框',
+          // 印象框 padding 32px + 行高约 30px，rows=3 空态实测 123px，放宽上界
+          emptyHeightMax: 160,
+        });
+        report.info.partnersImpressionBox = {
+          H0: api.H0,
+          maxHeight: api.MAX,
+          samples: api.samples,
+        };
+        await page.screenshot({ path: `${OUT}/probe-reply-autogrow-partners.png` });
+
+        await runRemountCheck(page, {
+          selector: '.impression-input',
+          label: '伙伴印象框',
+          H0: api.H0,
+          close: () =>
+            page.evaluate(() => document.querySelector('.impression-modal .close-btn')?.click()),
+          reopen: () => clickWriteImpression(openedIndex),
+        });
+      }
     }
 
     await ctx.close();
