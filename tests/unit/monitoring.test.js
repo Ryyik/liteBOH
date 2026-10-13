@@ -39,25 +39,26 @@ function createMocks() {
     navigator: mockNavigator,
   };
 
+  // vitest 5 起 vi.fn() 不可再当构造器 new（tinyspy 2 语义收紧），
+  // 用普通函数：构造器返回对象时 new 的结果即该对象，行为与升级前一致。
+  function MockPerformanceObserver(callback) {
+    const instance = {
+      observe: vi.fn((options) => {
+        observeCalls.push(options);
+      }),
+      disconnect: vi.fn(() => {
+        disconnectCalls.push(instance);
+      }),
+    };
+    observerCallbacks.push({ callback, instance });
+    return instance;
+  }
+
   function stubAll() {
     vi.stubGlobal('window', mockWindow);
     vi.stubGlobal('document', mockDocument);
     vi.stubGlobal('navigator', mockNavigator);
-    vi.stubGlobal(
-      'PerformanceObserver',
-      vi.fn((callback) => {
-        const instance = {
-          observe: vi.fn((options) => {
-            observeCalls.push(options);
-          }),
-          disconnect: vi.fn(() => {
-            disconnectCalls.push(instance);
-          }),
-        };
-        observerCallbacks.push({ callback, instance });
-        return instance;
-      }),
-    );
+    vi.stubGlobal('PerformanceObserver', MockPerformanceObserver);
   }
 
   return {
@@ -110,10 +111,7 @@ describe('monitoring', () => {
       const { initMonitoring } = await import('../../src/utils/monitoring.js');
       initMonitoring();
 
-      expect(mocks.mockWindow.addEventListener).toHaveBeenCalledWith(
-        'error',
-        expect.any(Function),
-      );
+      expect(mocks.mockWindow.addEventListener).toHaveBeenCalledWith('error', expect.any(Function));
     });
 
     it('registers window unhandledrejection event listener', async () => {
@@ -319,9 +317,9 @@ describe('monitoring', () => {
       initMonitoring();
 
       // Should not throw, nor call sendBeacon (because navigator is undefined)
-      const errorHandler = vi.mocked(window).addEventListener.mock.calls.find(
-        ([type]) => type === 'error',
-      )?.[1];
+      const errorHandler = vi
+        .mocked(window)
+        .addEventListener.mock.calls.find(([type]) => type === 'error')?.[1];
 
       expect(() =>
         errorHandler({
@@ -463,9 +461,7 @@ describe('monitoring', () => {
 
       // Set visibility to hidden and fire the handler
       mocks.mockDocument.visibilityState = 'hidden';
-      const lcpVisibilityHandler = mocks.visibilityListeners.find(
-        (l) => l.options?.once === true,
-      );
+      const lcpVisibilityHandler = mocks.visibilityListeners.find((l) => l.options?.once === true);
       lcpVisibilityHandler.handler();
 
       expect(mocks.mockNavigator.sendBeacon).toHaveBeenCalledTimes(1);
@@ -713,10 +709,12 @@ describe('monitoring', () => {
       });
       vi.stubGlobal('document', {});
       vi.stubGlobal('navigator', { sendBeacon: vi.fn(), userAgent: 'old' });
-      vi.stubGlobal('PerformanceObserver', vi.fn(() => ({
-        observe: vi.fn(),
-        disconnect: vi.fn(),
-      })));
+      vi.stubGlobal('PerformanceObserver', function () {
+        return {
+          observe: vi.fn(),
+          disconnect: vi.fn(),
+        };
+      });
 
       const { initMonitoring } = await import('../../src/utils/monitoring.js');
 
@@ -728,12 +726,9 @@ describe('monitoring', () => {
       vi.stubEnv('VITE_MONITORING_ENDPOINT', 'https://telemetry.example.com/v1');
       const mocks = createMocks();
 
-      vi.stubGlobal(
-        'PerformanceObserver',
-        vi.fn(() => {
-          throw new Error('PerformanceObserver not supported');
-        }),
-      );
+      vi.stubGlobal('PerformanceObserver', function () {
+        throw new Error('PerformanceObserver not supported');
+      });
       vi.stubGlobal('window', mocks.mockWindow);
       vi.stubGlobal('document', mocks.mockDocument);
       vi.stubGlobal('navigator', mocks.mockNavigator);
