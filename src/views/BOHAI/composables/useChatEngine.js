@@ -647,7 +647,6 @@ export function useChatEngine() {
     currentSessionIndex,
     chatSessions,
     inputMessage,
-    textareaRef,
     appendSessionMessage,
     resetComposerInput,
     resetPendingTreeholeCreation,

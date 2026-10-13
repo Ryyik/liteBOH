@@ -57,7 +57,6 @@ export function useMemoryCapture(deps) {
 
     // Composer state
     inputMessage,
-    textareaRef,
   } = deps;
 
   // ── 树洞创建确认请求 ──────────────────────────────────────────
@@ -110,8 +109,8 @@ export function useMemoryCapture(deps) {
       targetSession.title = safeText.slice(0, 30) + (safeText.length > 30 ? '...' : '');
     }
 
+    // 高度回弹由 BohComposer 的 useAutoGrowTextarea 订阅 modelValue 自动完成（plans/021 阶段 3）
     inputMessage.value = '';
-    if (textareaRef.value) textareaRef.value.style.height = 'auto';
 
     if (isTreeholeCreateReject(safeText)) {
       resetPendingTreeholeCreation();

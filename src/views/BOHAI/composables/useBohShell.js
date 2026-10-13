@@ -415,9 +415,11 @@ export function useBohShell(props, emit) {
     syncSessionsIfStale();
   });
 
-  /* 输入框元素现在长在 `BohComposer` 里，但引擎（`useChatEngine` / `useMessageManager` /
-     `useMemoryCapture`）都按 `textareaRef` 直接操作它（聚焦 / 重置高度）⇒ 必须把子组件的
-     textarea 元素回填给引擎的 ref，否则「发送后聚焦」「清空后回弹」会静默失效。 */
+  /* 输入框元素现在长在 `BohComposer` 里，但引擎（`useChatEngine`）仍按 `textareaRef`
+     直接**聚焦**它 ⇒ 必须把子组件的 textarea 元素回填给引擎的 ref，否则「发送后聚焦」
+     会静默失效。（增高已不经这条路：BohComposer 内的 `useAutoGrowTextarea` 订阅
+     `modelValue` 自闭环，见 plans/021 阶段 3；`useMessageManager` / `useMemoryCapture`
+     里手写 `style.height = 'auto'` 的 poke 已随之删除。） */
   watch(
     composerRef,
     (instance) => {
@@ -480,8 +482,8 @@ export function useBohShell(props, emit) {
   /* ── 输入框高度 → `--boh-composer-h`（2026-10-12）───────────────────────────
      输入区改成**浮在消息流之上**（玻璃要透出滚动的内容，见 `boh-composer.css`），
      消息区据此补等高的 `padding-bottom`（见 `boh-stream.css`）。
-     ⚠️ 高度必须**实测**：textarea 自动长高（上限 `min(40vh, 340px)`，由 `autoResize` 写），
-        写死一个像素值 ⇒ 长输入时最后一条消息被压在输入框底下。
+     ⚠️ 高度必须**实测**：textarea 自动长高（上限 `min(40vh, 340px)`，由 `BohComposer` 内的
+        `useAutoGrowTextarea` 写），写死一个像素值 ⇒ 长输入时最后一条消息被压在输入框底下。
      ⚠️ 变量写在 `.boh-main` 上：它是消息区与输入区的**共同祖先**，两侧都要读得到。 */
   let composerSizeObserver = null;
 
@@ -591,7 +593,7 @@ export function useBohShell(props, emit) {
     if (!content) return;
     inputMessage.value = `${inputMessage.value ? `${inputMessage.value}\n\n` : ''}${content}`;
     nextTick(() => {
-      composerRef.value?.autoResize();
+      // 增高不用手动触发了：BohComposer 内的 useAutoGrowTextarea 订阅 modelValue 自闭环
       composerRef.value?.focus();
     });
   };
@@ -1555,7 +1557,6 @@ export function useBohShell(props, emit) {
     slashDismissed.value = false;
     slashActiveIndex.value = 0;
     nextTick(() => {
-      composerRef.value?.autoResize();
       composerRef.value?.focus();
     });
 
@@ -1971,7 +1972,6 @@ export function useBohShell(props, emit) {
       }
       inputMessage.value = seedAsk;
       nextTick(() => {
-        composerRef.value?.autoResize();
         composerRef.value?.focus();
       });
       // 等配额与会话初始化完成后自动发出，完成无缝接力；

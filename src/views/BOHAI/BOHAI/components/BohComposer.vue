@@ -392,6 +392,7 @@ import {
   X,
 } from 'lucide-vue-next';
 import { formatModeRateLabel, isFreeMode } from '@/views/BOHAI/utils/mode-rate-label.js';
+import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 
 /**
  * BohComposer.vue — 输入区（plans/025 v2 · Step 6-4）
@@ -454,7 +455,11 @@ const emit = defineEmits([
   'open-settings',
 ]);
 
-const textareaEl = ref(null);
+/* 输入框自动增高：单源 `composables/useAutoGrowTextarea.js`（plans/021 阶段 3 收敛，
+   原先这里有一份自研 `autoResize` + `modelValue` watch，已删）。
+   内容源是受控 prop ⇒ 必须传 **getter**（包一层 `() => unref(value)` 会让 watcher 永不触发）；
+   别名 `textareaEl` 保留原名 —— 模板 ref / `focus` / `defineExpose` 都仍用这个名字。 */
+const { textareaRef: textareaEl } = useAutoGrowTextarea({ value: () => props.modelValue });
 /** 根节点：壳的 FLIP（空态居中 → 贴底）要量它，见 `BOHAIMain.animateComposerHome` */
 const wrapEl = ref(null);
 /** 输入框外壳：斜杠菜单要按它算「上方可用高度」，见 `syncSlashAvail` */
@@ -612,7 +617,7 @@ const onDocumentClick = (event) => {
    而键盘初始焦点恰好就在看不见的 `/web` 上）。
    ⚠️ 这里**只把量到的输入框顶**写进 CSS 变量，两条上限怎么取舍留在 CSS
       （`.boh-slash` 的 `min(calc(100vh - 120px), calc(var(--boh-slash-top) - 16px))`）——
-      与 `autoResize` 同一条纪律：**JS 不写第二份设计像素值**。 */
+      与输入框增高（`useAutoGrowTextarea`）同一条纪律：**JS 不写第二份设计像素值**。 */
 const syncSlashAvail = () => {
   const el = composerEl.value;
   if (!el) return;
@@ -635,32 +640,9 @@ onUnmounted(() => {
   cancelCloseModeDetail();
 });
 
-/* 输入框自动增高。⚠️ 三条纪律（2026-10-08 复核）：
-   1. `height='auto'` 之后**必须无条件写回** —— 写「next 相等就 return」会把元素永久留在
-      auto，内容超过上限后掉回 `rows` 固有高度；
-   2. **上限只声明在 CSS 的 `max-height`**（现为 `min(40vh, 340px)`），这里读
-      getComputedStyle 取用 —— 不在 JS 写第二份像素值（改上限只动 CSS 一处）；
-   3. 空内容时先摘 `placeholder` 再量：浏览器会把折行后的占位文字算进 `scrollHeight`。 */
-const autoResize = () => {
-  const el = textareaEl.value;
-  if (!el) return;
-  const placeholder = el.getAttribute('placeholder');
-  if (placeholder) el.removeAttribute('placeholder');
-  el.style.height = 'auto';
-  const maxHeight = parseFloat(getComputedStyle(el).maxHeight);
-  const next = Number.isFinite(maxHeight) ? Math.min(el.scrollHeight, maxHeight) : el.scrollHeight;
-  el.style.height = `${next}px`;
-  if (placeholder) el.setAttribute('placeholder', placeholder);
-};
-
-watch(
-  () => props.modelValue,
-  () => {
-    // 内容变化（含程序化填入：建议卡 / 预填提问 / 发送后清空）都要重新量一次
-    requestAnimationFrame(autoResize);
-  },
-  { flush: 'post' },
-);
+/* （输入框增高已收敛到 `useAutoGrowTextarea` 单源，见文件头下方的接线处。
+   原自研 `autoResize` + `modelValue` watch 整段删除 —— composable 内部同样遵守原三条纪律：
+   `height='auto'` 后无条件写回、上限只住 CSS 的 `max-height`、空内容先摘 placeholder。） */
 
 /* 面板打开时不再需要斜杠菜单（两者都贴在输入框上方，同时开必重叠） */
 /* 面板打开时不再需要斜杠菜单（两者都贴在输入框上方，同时开必重叠）；
@@ -681,7 +663,6 @@ defineExpose({
   /** 供壳的 Esc 分层用：面板是否开着 */
   panelOpen,
   focus: () => textareaEl.value?.focus(),
-  autoResize,
   textareaEl,
 });
 </script>

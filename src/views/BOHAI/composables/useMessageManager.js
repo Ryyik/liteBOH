@@ -147,11 +147,12 @@ export function useMessageManager({
   };
 
   /**
-   * 重置输入框内容，并将 textarea 高度恢复为 auto。
+   * 重置输入框内容。
+   * （高度回弹不在这里管：`BohComposer` 的 `useAutoGrowTextarea` 订阅 `modelValue`，
+   * 内容清空后自动重量，见 plans/021 阶段 3。）
    */
   const resetComposerInput = () => {
     inputMessage.value = '';
-    if (textareaRef.value) textareaRef.value.style.height = 'auto';
   };
 
   // --------------------------------------------------------------

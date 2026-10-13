@@ -38,9 +38,9 @@
   background: var(--boh-composer-bg);
 }
 
-/* ⚠️ `max-height` 是**自动增高的唯一上限声明**（`BohComposer.autoResize` 读 getComputedStyle 取用，
-   JS 里不许再写第二份像素值）。2026-10-08 由 160px 提到 min(40vh, 340px)：长输入（贴代码/长需求）
-   到 160px 就停住，读起来像被截断，而参考图那种输入区要能长到半屏。 */
+/* ⚠️ `max-height` 是**自动增高的唯一上限声明**（`composables/useAutoGrowTextarea.js` 读
+   getComputedStyle 取用，JS 里不许再写第二份像素值）。2026-10-08 由 160px 提到 min(40vh, 340px)：
+   长输入（贴代码/长需求）到 160px 就停住，读起来像被截断，而参考图那种输入区要能长到半屏。 */
 .boh-composer-input {
   display: block;
   width: 100%;
