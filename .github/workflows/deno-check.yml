@@ -7,14 +7,13 @@ name: Edge Functions Type Check
 # 本地装不了 deno（本环境没有 deno，也没有 install_binary），但 **CI 能装**。
 # 于是把「EF 的类型检查」从「靠人眼」变成「CI 里真跑一遍 deno check」。
 #
-# ⚠️ 首版是**观察档**（step 上带 continue-on-error: true），原因说清楚：
-#   我**无法在本地预先验证** `deno check` 能否全绿 ——
-#   EF 里有需要联网解析的外部 import（`https://deno.land/std@…`、`jsr:@negrel/webpush@…`、
-#   `npm:@supabase/supabase-js@…`、`npm:altcha-lib@…`、`npm:jszip@…`）。
-#   按本仓纪律「不写没验证过的门禁」：先让它跑一轮观察，
-#   **跑绿之后把 continue-on-error 删掉改成阻断**，再登记进 AGENTS.md 的门禁表。
-#   若它一上来就报一堆既有类型错，那本身就是有价值的产出（说明 EF 里躺着类型债），
-#   应该逐条修或加 baseline，而不是把 step 删掉。
+# ⚠️ 2026-10-13 转正：观察档（step 上带 continue-on-error: true）已跑绿并移除 ——
+#    证据是 main 上最近两次 push 触发的运行（run 37759043572 / 37754022262，均 success），
+#    外部 import（https://deno.land/std@…、jsr:/npm: 说明符）在 CI 里可稳定联网解析。
+#    现在是**阻断门禁**：任一 EF 类型检查失败即红。
+#    历史存底：首版之所以是观察档，是因为本地装不了 deno、无法预先验证能否全绿，
+#    按「不写没验证过的门禁」纪律先跑一轮观察。若转正后出现既有类型错，
+#    应该逐条修或加 baseline，而不是把 continue-on-error 加回来。
 
 on:
   pull_request:
@@ -52,7 +51,6 @@ jobs:
       # ⚠️ 刻意不加 `--no-remote`：外部 import 必须联网解析，这是本检查能成立的前提。
       # 逐文件跑而不是一次全传：单个 EF 报错不会掩盖其它 EF 的结果。
       - name: deno check each Edge Function
-        continue-on-error: true # 观察档：跑绿一轮后删除此行改为阻断（见文件头注释）
         run: |
           set -o pipefail
           fail=0
