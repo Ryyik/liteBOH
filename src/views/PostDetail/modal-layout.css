@@ -339,7 +339,12 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   outline: none;
-  transition: border-color var(--duration-fast, 180ms) ease, background var(--duration-fast, 180ms) ease;
+  /* ⚠️ 这里**不能**给 min-height / height 加过渡（2026-10-13 实测踩到）：
+     textarea 的 scrollHeight 会把「自身当前高度」算进去，展开↔还原时过渡中途量到的是
+     半途高度（实测 77px），被 useAutoGrowTextarea 原样写回成 inline 高度 ⇒ 框永久停在
+     77px，D 断言「清空后回落到初始值」红。高度必须瞬时切换，只让颜色/圆角过渡。 */
+  transition: border-color var(--duration-fast, 180ms) ease, background var(--duration-fast, 180ms) ease,
+    border-radius var(--duration-fast, 180ms) ease;
 }
 
 .pd-reply-input::placeholder {
@@ -456,4 +461,30 @@
   .post-detail-page--modal .pd-reply-send {
     height: 34px;
   }
+}
+
+/* ── 竖屏「聚焦即展开」（2026-10-13）────────────────────────────────────────
+   点击底栏回复框聚焦后，展开为适合输入的多行视图；发送成功 / 取消回复 / 空态失焦时还原。
+   状态真源 = PostDetailMain 的 `isReplyExpanded`（JS 侧已用 isForumPortraitComposer
+   限定竖屏 ≤1024px），所以这里**不写第二份媒体查询**，只消费 `.is-expanded`。
+   展开形态：输入框独占一行并抬高最小高度；点赞/评论/分享组让位；发送键落到第二行右端。
+   高度契约不变：上限仍是上面的 max-height（132px），由 useAutoGrowTextarea 读取，
+   这里只动 min-height，不引入第二份像素真源。 */
+.pd-actionbar.is-expanded {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.pd-actionbar.is-expanded .pd-reply-input {
+  flex: 1 0 100%;
+  min-height: 80px;
+  border-radius: 16px;
+}
+
+.pd-actionbar.is-expanded .pd-action-group {
+  display: none;
+}
+
+.pd-actionbar.is-expanded .pd-reply-send {
+  margin-left: auto;
 }

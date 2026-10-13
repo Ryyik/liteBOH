@@ -148,6 +148,14 @@ const isEditUploadingPostImage = ref(false);
 const editImageUploadStatus = ref('');
 // 竖屏编辑器形态：单源判据（与 ForumMain 的 isMobileComposerMode 同源），变化由订阅驱动
 const isEditPortrait = ref(typeof window !== 'undefined' ? isForumPortraitComposer() : false);
+
+/**
+ * 竖屏「聚焦即展开」：底栏回复框被点击聚焦后，展开成舒适的多行输入视图
+ * （输入框独占一行 + 抬高最小高度 + 点赞/评论/分享组让位），发送成功后还原。
+ * 判据用 isEditPortrait（= isForumPortraitComposer，竖屏 ≤1024px）⇒ 桌面/横屏不受影响；
+ * CSS 侧不再写第二份媒体查询，只消费 `.pd-actionbar.is-expanded`。
+ */
+const isReplyExpanded = ref(false);
 let releaseEditPortraitWatch = null;
 const isReportModalOpen = ref(false);
 const reportForm = ref({
@@ -549,6 +557,8 @@ const focusModalReply = () => {
   if (isLoggedIn.value && !activeReplyId.value) {
     activeReplyId.value = post.value?.id || null;
   }
+  // 竖屏：聚焦即展开（桌面/横屏保持单行紧凑态）
+  if (isEditPortrait.value) isReplyExpanded.value = true;
   nextTick(() => {
     modalReplyField.value?.focus?.();
   });
@@ -586,6 +596,8 @@ const onModalReplyEnter = (event) => {
 // 有内容时不收 —— 把用户刚写完的多行文字藏起来是坏行为。
 const handleReplyFieldBlur = () => {
   if (String(replyContent.value || '').trim()) return;
+  // 空态失焦 = 用户点开又没写（或刚发送完）⇒ 一并还原展开态
+  isReplyExpanded.value = false;
   resetReplyFieldHeight();
 };
 
@@ -1518,6 +1530,8 @@ const toggleReplyInput = (targetId = null, username = null, _quotedContent = '')
     replyToUser.value = null;
     activeReplyQuote.value = '';
     replyContent.value = '';
+    // 取消回复 = 还原单行紧凑态（弹窗模式随后会把焦点放回底栏，届时按聚焦规则再展开）
+    isReplyExpanded.value = false;
     // 弹窗模式：取消回复后焦点回到底栏
     if (props.modalMode) focusModalReply();
   } else {
@@ -1607,6 +1621,8 @@ const submitReply = async () => {
     activeReplyId.value = null;
     replyToUser.value = null;
     activeReplyQuote.value = '';
+    // 发送成功 ⇒ 还原原始（单行紧凑）状态
+    isReplyExpanded.value = false;
 
     if (parentId) {
       patchChildReplyState(parentId, { expanded: true });
@@ -2519,7 +2535,7 @@ const handleChangeCommentSortMode = async (mode) => {
               />
             </div>
 
-            <div class="pd-actionbar">
+            <div class="pd-actionbar" :class="{ 'is-expanded': isReplyExpanded }">
               <textarea
                 v-if="isLoggedIn"
                 ref="modalReplyField"
@@ -2901,7 +2917,11 @@ const handleChangeCommentSortMode = async (mode) => {
     </div>
 
     <!-- 整页模式底部固定操作栏（Threads/小红书式）：输入 + 点赞/评论/分享，卡内动作栏已移除 -->
-    <div v-if="!modalMode && post" class="pd-actionbar pd-actionbar--page">
+    <div
+      v-if="!modalMode && post"
+      class="pd-actionbar pd-actionbar--page"
+      :class="{ 'is-expanded': isReplyExpanded }"
+    >
       <textarea
         v-if="isLoggedIn"
         ref="modalReplyField"

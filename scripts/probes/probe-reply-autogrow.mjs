@@ -27,6 +27,11 @@ import fs from 'node:fs';
 //     F 竖屏键盘遮挡：只**测量并报告**，不作断言（plans/021 §8：先测再改）
 //     G 关闭再重开（v-if 卸载→再挂载）→ 新元素从 rows 高度起步（场景 C/D）
 //
+//   场景 B 追加（2026-10-13，竖屏底栏「聚焦即展开」）：
+//     · 聚焦 → `.pd-actionbar.is-expanded` + 输入框最小高度 ≥76px 且独占一行 + 操作组让位
+//     · 空态失焦 → 还原（去类 + 回到单行最小高度 + 操作组回来）
+//     · 发送成功 → 还原 + 内容清空（**mock 掉 REST 写入**，绝不往线上库写真实评论）
+//
 //   counter-proof（必须做）：`git checkout -- src/views/Forum/components/PostCard.vue`
 //   撤掉接线后 B / C / E 必红（高度恒为 85）。只测「修复后全绿」不算自证。
 //
@@ -134,10 +139,13 @@ const lines = (n) => Array.from({ length: n }, (_, i) => `第${i + 1}行内容`)
  *   「存在一段区间：高度随内容增长且无内部滚动」，采样计数只是它的强度。
  * @param {number} [opts.emptyHeightMax=120] 空内容高度的上界。rows×行高+padding 因框而异
  *   （印象框 padding 32px、行高约 30px，rows=3 空态实测 123px），按各框实测放宽。
+ * @param {boolean} [opts.blurAfterClear=false] 清空后再失焦一次再量 D。
+ *   详情页底栏 2026-10-13 起是「聚焦即展开」（min-height 40→80）：聚焦态下清空本就该停在
+ *   展开高度，所以 D 必须在失焦还原之后再量 —— 这条同时把「空态失焦即还原」钉住。
  */
 const runGrowthChecks = async (
   page,
-  { selector, label, minBelowCap = 2, emptyHeightMax = 120 },
+  { selector, label, minBelowCap = 2, emptyHeightMax = 120, blurAfterClear = false },
 ) => {
   const read = readBox(selector);
   const set = (text) => page.evaluate(setBoxValue, { selector, text });
@@ -200,12 +208,30 @@ const runGrowthChecks = async (
   }
 
   await set('');
+  if (blurAfterClear) {
+    // 失焦要在内容已清空之后：内容非空时 blur 不还原（handleReplyFieldBlur 的早退），
+    // 顺序写反会量到展开态高度，把「还原」误判成「没回落」。
+    await page.evaluate((sel) => document.querySelector(sel)?.blur?.(), selector);
+  }
   await sleep(SETTLE);
   const cleared = await page.evaluate(read);
+  const clearDiag = await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    const bar = el?.closest('.pd-actionbar');
+    const cs = el ? getComputedStyle(el) : null;
+    return {
+      barClass: bar ? bar.className : null,
+      minHeight: cs ? cs.minHeight : null,
+      inlineHeight: el ? el.style.height : null,
+      valueLen: el ? String(el.value || '').length : null,
+      rows: el ? el.rows : null,
+      focused: document.activeElement === el,
+    };
+  }, selector);
   check(
     `${label} · D 清空后高度回落到初始值`,
     Math.abs(cleared.clientHeight - H0) <= 1,
-    `清空后=${cleared.clientHeight} 初始=${H0}`,
+    `清空后=${cleared.clientHeight} 初始=${H0} | 栏="${clearDiag.barClass}" minH=${clearDiag.minHeight} inline=${clearDiag.inlineHeight} valueLen=${clearDiag.valueLen} rows=${clearDiag.rows} focused=${clearDiag.focused}`,
   );
 
   return { H0, MAX, samples, capped, read, set, ok: ok0 };
@@ -500,8 +526,120 @@ try {
         label: '详情页评论框',
         // 窄框（~107px）：中文一行折两行，第 2 个采样点即触顶，未到上限的采样只剩 1 个
         minBelowCap: 1,
+        // 聚焦即展开（min-height 40→80）：清空后须先失焦还原，再量 D
+        blurAfterClear: true,
       });
       await page.screenshot({ path: `${OUT}/probe-reply-autogrow-detail.png` });
+
+      // ---- 2026-10-13 新增：竖屏「聚焦即展开 / 发送或空态失焦即还原」 ----
+      // 背景：竖屏底栏是单行 flex（输入框 + 发送 + 点赞/评论/分享组），390px 下输入框只剩 ~100px。
+      // 口径：聚焦 → 展开成舒适多行视图；发送成功 / 取消回复 / 空态失焦 → 还原单行紧凑态。
+      // 状态真源 = PostDetailMain 的 isReplyExpanded（JS 判据 isForumPortraitComposer）；
+      // CSS 只消费 `.pd-actionbar.is-expanded`，不写第二份媒体查询。
+      await page.evaluate(() => document.querySelector('.pd-reply-input')?.focus?.());
+      await sleep(SETTLE);
+      const expanded = await page.evaluate(() => {
+        const bar = document.querySelector('.pd-actionbar');
+        const input = document.querySelector('.pd-reply-input');
+        const group = document.querySelector('.pd-action-group');
+        const barRect = bar?.getBoundingClientRect();
+        const inputRect = input?.getBoundingClientRect();
+        return {
+          hasClass: Boolean(bar?.classList.contains('is-expanded')),
+          minHeight: input ? parseFloat(getComputedStyle(input).minHeight) || 0 : 0,
+          inputW: Math.round(inputRect?.width || 0),
+          barW: Math.round(barRect?.width || 0),
+          groupDisplay: group ? getComputedStyle(group).display : null,
+          barH: Math.round(barRect?.height || 0),
+        };
+      });
+      report.info.detailExpanded = expanded;
+      check(
+        '详情页底栏聚焦后展开（is-expanded + 输入框抬高并独占一行 + 操作组让位）',
+        expanded.hasClass &&
+          expanded.minHeight >= 76 &&
+          expanded.inputW >= expanded.barW - 40 &&
+          expanded.groupDisplay === 'none',
+        `class=${expanded.hasClass} minH=${expanded.minHeight} 输入宽=${expanded.inputW}/${expanded.barW} 操作组=${expanded.groupDisplay} 栏高=${expanded.barH}`,
+      );
+      await page.screenshot({ path: `${OUT}/probe-reply-autogrow-detail-expanded.png` });
+
+      // 空态失焦 → 还原
+      await page.evaluate(() => document.querySelector('.pd-reply-input')?.blur?.());
+      await sleep(SETTLE);
+      const collapsed = await page.evaluate(() => {
+        const bar = document.querySelector('.pd-actionbar');
+        const input = document.querySelector('.pd-reply-input');
+        const group = document.querySelector('.pd-action-group');
+        return {
+          hasClass: Boolean(bar?.classList.contains('is-expanded')),
+          minHeight: input ? parseFloat(getComputedStyle(input).minHeight) || 0 : 0,
+          groupDisplay: group ? getComputedStyle(group).display : null,
+        };
+      });
+      report.info.detailCollapsed = collapsed;
+      check(
+        '详情页底栏空态失焦后还原（去掉 is-expanded + 回到单行最小高度 + 操作组回来）',
+        !collapsed.hasClass && collapsed.minHeight <= 48 && collapsed.groupDisplay !== 'none',
+        `class=${collapsed.hasClass} minH=${collapsed.minHeight} 操作组=${collapsed.groupDisplay}`,
+      );
+
+      // 发送成功后还原：mock 掉评论写入链路（**绝不**往线上库写真实评论）。
+      // 写入走 supabase REST；后续刷新走 comments GET + rpc。Content-Range 必回，
+      // 否则 supabase-js v2 会把空响应当错误（本仓既有先例）。
+      const mockRest = (route) => {
+        const method = route.request().method();
+        if (method === 'POST') {
+          return route.fulfill({
+            status: 201,
+            headers: { 'Content-Range': '0-0/1' },
+            contentType: 'application/json',
+            body: JSON.stringify([{}]),
+          });
+        }
+        if (method === 'PATCH' || method === 'DELETE')
+          return route.fulfill({ status: 204, body: '' });
+        return route.fulfill({
+          status: 200,
+          headers: { 'Content-Range': '*/0' },
+          contentType: 'application/json',
+          body: '[]',
+        });
+      };
+      await ctx.route('**/rest/v1/**', mockRest);
+      await ctx.route('**/functions/v1/**', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ status: 'approved', moderation: 'approved' }),
+        }),
+      );
+
+      await page.evaluate(() => document.querySelector('.pd-reply-input')?.focus?.());
+      await page.fill('.pd-reply-input', '竖屏展开后发送应还原');
+      await sleep(120);
+      await page.click('.pd-reply-send');
+      await sleep(SETTLE + 400);
+      const afterSend = await page.evaluate(() => {
+        const bar = document.querySelector('.pd-actionbar');
+        const input = document.querySelector('.pd-reply-input');
+        const group = document.querySelector('.pd-action-group');
+        return {
+          hasClass: Boolean(bar?.classList.contains('is-expanded')),
+          value: input?.value ?? null,
+          minHeight: input ? parseFloat(getComputedStyle(input).minHeight) || 0 : 0,
+          groupDisplay: group ? getComputedStyle(group).display : null,
+        };
+      });
+      report.info.detailAfterSend = afterSend;
+      check(
+        '详情页底栏发送成功后还原原始状态（去掉 is-expanded + 内容清空 + 操作组回来）',
+        !afterSend.hasClass &&
+          !String(afterSend.value || '').trim() &&
+          afterSend.groupDisplay !== 'none',
+        `class=${afterSend.hasClass} value="${afterSend.value}" minH=${afterSend.minHeight} 操作组=${afterSend.groupDisplay}`,
+      );
+      await page.screenshot({ path: `${OUT}/probe-reply-autogrow-detail-after-send.png` });
     }
 
     await ctx.close();
