@@ -838,6 +838,7 @@
               <Transition name="fade-slide">
                 <div v-if="showReplyInput" class="reply-input-section">
                   <textarea
+                    ref="replyTextareaRef"
                     v-model="replyContent"
                     :placeholder="`回复 @${selectedMessage.sender?.username || '用户'}...`"
                     rows="3"
@@ -1024,6 +1025,7 @@ import {
 import { useDebounce, useThrottle } from '@/composables/useDebounceThrottle';
 import { useVirtualList } from '@vueuse/core';
 import { showIsland } from '@/composables/useIsland.js';
+import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 
 // Props
 const props = defineProps({
@@ -1244,6 +1246,12 @@ const isRetryingSelectedNotification = computed(() => {
 const showReplyInput = ref(false);
 const replyContent = ref('');
 const isReplySubmitting = ref(false);
+// 回复框「多字扩展」：高度随内容长高，真源见 composables/useAutoGrowTextarea.js。
+// ⚠️ 必须传 value：取消 / 发送成功 / 关闭详情都会主动清空 replyContent，
+// 只绑 @input 的实现在这些路径上不会收缩。
+const { textareaRef: replyTextareaRef } = useAutoGrowTextarea({
+  value: () => replyContent.value,
+});
 const TASK_TIMEOUT_MS = 12000;
 
 const withTaskTimeout = (promise, timeoutMs = TASK_TIMEOUT_MS, message = '请求超时，请稍后重试') =>

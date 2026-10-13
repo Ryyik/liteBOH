@@ -1,6 +1,17 @@
 <template>
-  <div class="partners-container" :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
-    <UserCenterPageHeader v-if="isFromUserSpace" title="社区里的伙伴" max-width="1200px" @back="goBack" />
+  <div
+    class="partners-container"
+    :style="{
+      '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px',
+      paddingTop: isFromUserSpace ? '0px' : '72px',
+    }"
+  >
+    <UserCenterPageHeader
+      v-if="isFromUserSpace"
+      title="社区里的伙伴"
+      max-width="1200px"
+      @back="goBack"
+    />
 
     <!-- 1. Dashboard Header (Stats) -->
     <div class="dashboard-header">
@@ -47,28 +58,67 @@
             <!-- Left: Avatar & Info -->
             <div class="partner-info-group" @click="goToProfile(partner.username)">
               <div class="partner-avatar-wrapper">
-                <img v-if="partner.avatar_url" :src="partner.avatar_url" class="partner-avatar-img"
-                  :alt="partner.username"  loading="lazy" />
-                <span v-else class="partner-avatar-text">{{ partner.username?.charAt(0)?.toUpperCase?.() || '?' }}</span>
+                <img
+                  v-if="partner.avatar_url"
+                  :src="partner.avatar_url"
+                  class="partner-avatar-img"
+                  :alt="partner.username"
+                  loading="lazy"
+                />
+                <span v-else class="partner-avatar-text">{{
+                  partner.username?.charAt(0)?.toUpperCase?.() || '?'
+                }}</span>
                 <span v-if="isUserOnline(partner, hideOnlineStatus)" class="online-dot"></span>
               </div>
               <div class="partner-details">
                 <div class="partner-title-row">
                   <span class="partner-name">{{ partner.username }}</span>
-                  <span class="partner-status" :class="{ 'status-online': isUserOnline(partner, hideOnlineStatus) }" :title="formatOnlineStatusTooltip(partner, hideOnlineStatus)">{{ formatUserOnlineStatus(partner, hideOnlineStatus) }}</span>
-                  <span class="partner-role-tag" :class="partner.role">{{ getRoleLabel(partner.role) }}</span>
+                  <span
+                    class="partner-status"
+                    :class="{ 'status-online': isUserOnline(partner, hideOnlineStatus) }"
+                    :title="formatOnlineStatusTooltip(partner, hideOnlineStatus)"
+                    >{{ formatUserOnlineStatus(partner, hideOnlineStatus) }}</span
+                  >
+                  <span class="partner-role-tag" :class="partner.role">{{
+                    getRoleLabel(partner.role)
+                  }}</span>
                 </div>
                 <div class="partner-meta">
                   <span class="meta-item">
-                    <CalendarDays class="meta-icon" :size="13" :stroke-width="1.8" aria-hidden="true" />
+                    <CalendarDays
+                      class="meta-icon"
+                      :size="13"
+                      :stroke-width="1.8"
+                      aria-hidden="true"
+                    />
                     {{ formatDate(partner.join_date) }} 加入
                   </span>
                   <span class="meta-item">
                     <Sparkles class="meta-icon" :size="13" :stroke-width="1.8" aria-hidden="true" />
                     {{ partner.points || 0 }} 积分
                   </span>
-                  <span v-if="partner.followersCount !== undefined" class="meta-item follow-count-item" :class="{ 'clickable-follow-stat': !partner.hide_follow_data || partner.id === userInfo.id }" @click.stop="(!partner.hide_follow_data || partner.id === userInfo.id) ? openPartnerFollowModal(partner, 'followers') : undefined">
-                    <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                  <span
+                    v-if="partner.followersCount !== undefined"
+                    class="meta-item follow-count-item"
+                    :class="{
+                      'clickable-follow-stat':
+                        !partner.hide_follow_data || partner.id === userInfo.id,
+                    }"
+                    @click.stop="
+                      !partner.hide_follow_data || partner.id === userInfo.id
+                        ? openPartnerFollowModal(partner, 'followers')
+                        : undefined
+                    "
+                  >
+                    <svg
+                      class="meta-icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      width="13"
+                      height="13"
+                    >
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                       <circle cx="9" cy="7" r="4"></circle>
                       <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -76,8 +126,28 @@
                     </svg>
                     粉丝 {{ partner.followersCount || 0 }}
                   </span>
-                  <span v-if="partner.followingCount !== undefined" class="meta-item follow-count-item" :class="{ 'clickable-follow-stat': !partner.hide_follow_data || partner.id === userInfo.id }" @click.stop="(!partner.hide_follow_data || partner.id === userInfo.id) ? openPartnerFollowModal(partner, 'following') : undefined">
-                    <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                  <span
+                    v-if="partner.followingCount !== undefined"
+                    class="meta-item follow-count-item"
+                    :class="{
+                      'clickable-follow-stat':
+                        !partner.hide_follow_data || partner.id === userInfo.id,
+                    }"
+                    @click.stop="
+                      !partner.hide_follow_data || partner.id === userInfo.id
+                        ? openPartnerFollowModal(partner, 'following')
+                        : undefined
+                    "
+                  >
+                    <svg
+                      class="meta-icon"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      width="13"
+                      height="13"
+                    >
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                       <circle cx="9" cy="7" r="4"></circle>
                       <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -92,11 +162,17 @@
             <!-- Right: Tags & Action -->
             <div class="partner-right-group">
               <div class="partner-tags" v-if="partner.tags && partner.tags.length > 0">
-                <span v-for="tag in partner.tags.slice(0, 2)" :key="tag" class="partner-tag">{{ tag }}</span>
+                <span v-for="tag in partner.tags.slice(0, 2)" :key="tag" class="partner-tag">{{
+                  tag
+                }}</span>
               </div>
               <div class="action-buttons">
-                <button class="action-btn-outline view-profile-btn"
-                  @click="goToProfile(partner.username)">查看空间</button>
+                <button
+                  class="action-btn-outline view-profile-btn"
+                  @click="goToProfile(partner.username)"
+                >
+                  查看空间
+                </button>
                 <button
                   v-if="isLoggedIn && partner.id !== userInfo.id"
                   class="action-btn-outline follow-btn-partner"
@@ -104,7 +180,13 @@
                   :disabled="isTogglingFollow(partner.id)"
                   @click.stop="handleToggleFollow(partner)"
                 >
-                  {{ isTogglingFollow(partner.id) ? '...' : isFollowed(partner.id) ? '已关注' : '关注' }}
+                  {{
+                    isTogglingFollow(partner.id)
+                      ? '...'
+                      : isFollowed(partner.id)
+                        ? '已关注'
+                        : '关注'
+                  }}
                 </button>
                 <button class="action-btn-outline" @click="openImpressions(partner)">写印象</button>
               </div>
@@ -118,9 +200,17 @@
 
       <!-- Pagination -->
       <div class="pagination-container" v-if="totalPages > 1">
-        <button class="page-btn" :disabled="loading || currentPage === 1" @click="currentPage--">上一页</button>
+        <button class="page-btn" :disabled="loading || currentPage === 1" @click="currentPage--">
+          上一页
+        </button>
         <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
-        <button class="page-btn" :disabled="loading || currentPage === totalPages" @click="currentPage++">下一页</button>
+        <button
+          class="page-btn"
+          :disabled="loading || currentPage === totalPages"
+          @click="currentPage++"
+        >
+          下一页
+        </button>
       </div>
     </div>
 
@@ -132,9 +222,16 @@
             <div class="modal-header">
               <div class="user-profile-mini">
                 <div class="mini-avatar">
-                  <img v-if="selectedPartner.avatar_url" :src="selectedPartner.avatar_url" class="mini-avatar-img"
-                    :alt="selectedPartner.username"  loading="lazy" />
-                  <span v-else>{{ selectedPartner.username?.charAt(0)?.toUpperCase?.() || '?' }}</span>
+                  <img
+                    v-if="selectedPartner.avatar_url"
+                    :src="selectedPartner.avatar_url"
+                    class="mini-avatar-img"
+                    :alt="selectedPartner.username"
+                    loading="lazy"
+                  />
+                  <span v-else>{{
+                    selectedPartner.username?.charAt(0)?.toUpperCase?.() || '?'
+                  }}</span>
                 </div>
                 <div class="mini-info">
                   <h3>{{ selectedPartner.username }} 的印象墙</h3>
@@ -146,11 +243,23 @@
 
             <div class="modal-body custom-scrollbar">
               <!-- Add Impression Form -->
-              <div v-if="isLoggedIn && userInfo.id !== selectedPartner.id" class="add-impression-box">
-                <textarea v-model="newImpression" placeholder="写下你对 TA 的印象..." class="impression-input"
-                  rows="3"></textarea>
+              <div
+                v-if="isLoggedIn && userInfo.id !== selectedPartner.id"
+                class="add-impression-box"
+              >
+                <textarea
+                  ref="impressionTextareaRef"
+                  v-model="newImpression"
+                  placeholder="写下你对 TA 的印象..."
+                  class="impression-input"
+                  rows="3"
+                ></textarea>
                 <div class="add-actions">
-                  <button class="submit-btn" :disabled="submitting || !newImpression.trim()" @click="submitImpression">
+                  <button
+                    class="submit-btn"
+                    :disabled="submitting || !newImpression.trim()"
+                    @click="submitImpression"
+                  >
                     {{ submitting ? '提交中...' : '发布印象' }}
                   </button>
                 </div>
@@ -165,15 +274,27 @@
                     <div class="imp-footer">
                       <div class="imp-author-group" @click="goToProfile(imp.author?.username)">
                         <div class="imp-author-avatar">
-                          <img v-if="imp.author?.avatar_url" :src="imp.author?.avatar_url" class="imp-avatar-img"  loading="lazy" />
-                          <span v-else>{{ imp.author?.username?.charAt(0)?.toUpperCase?.() || '?' }}</span>
+                          <img
+                            v-if="imp.author?.avatar_url"
+                            :src="imp.author?.avatar_url"
+                            class="imp-avatar-img"
+                            loading="lazy"
+                          />
+                          <span v-else>{{
+                            imp.author?.username?.charAt(0)?.toUpperCase?.() || '?'
+                          }}</span>
                         </div>
                         <span class="imp-author">— {{ imp.author?.username || '神秘伙伴' }}</span>
                       </div>
                       <div class="imp-actions">
                         <span class="imp-date">{{ formatSimpleDate(imp.created_at) }}</span>
-                        <button v-if="canDelete(imp)" class="delete-btn"
-                          @click="handleDeleteImpression(imp.id)">删除</button>
+                        <button
+                          v-if="canDelete(imp)"
+                          class="delete-btn"
+                          @click="handleDeleteImpression(imp.id)"
+                        >
+                          删除
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -207,7 +328,16 @@ import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { CalendarDays, Sparkles } from 'lucide-vue-next';
 import { getProfilesPage } from '@/utils/api/auth-api.js';
-import { getUserImpressions, addUserImpression, deleteUserImpression, followUser, unfollowUser, getFollowCountsBatch, getFollowers, getFollowing } from '@/utils/api/profile-api.js';
+import {
+  getUserImpressions,
+  addUserImpression,
+  deleteUserImpression,
+  followUser,
+  unfollowUser,
+  getFollowCountsBatch,
+  getFollowers,
+  getFollowing,
+} from '@/utils/api/profile-api.js';
 import FollowListModal from '@/components/FollowListModal.vue';
 import { supabase } from '@/utils/supabase-client.js';
 import { useAuthStore } from '@/stores/auth';
@@ -217,6 +347,7 @@ import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useUserOnlineStatus } from './UserSpace/composables/useUserOnlineStatus.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 
 // State
 const router = useRouter();
@@ -272,7 +403,7 @@ const loadFollowedUsers = async () => {
       .select('following_id')
       .eq('follower_id', userInfo.value.id);
     if (follows) {
-      followedUserIds.value = new Set(follows.map(f => f.following_id));
+      followedUserIds.value = new Set(follows.map((f) => f.following_id));
     }
   } catch {
     // silent
@@ -305,6 +436,11 @@ const selectedPartner = ref(null);
 const impressions = ref([]);
 const loadingImpressions = ref(false);
 const newImpression = ref('');
+// 印象输入框「多字扩展」：高度随内容长高，真源见 composables/useAutoGrowTextarea.js。
+// 传 value：关闭弹窗 / 发布成功都会主动清空 newImpression，只绑 @input 不会收缩。
+const { textareaRef: impressionTextareaRef } = useAutoGrowTextarea({
+  value: () => newImpression.value,
+});
 const submitting = ref(false);
 
 // Methods
@@ -316,7 +452,7 @@ const fetchPartners = async () => {
     const { data, error } = await getProfilesPage({
       page: currentPage.value,
       pageSize,
-      search: debouncedSearchQuery.value
+      search: debouncedSearchQuery.value,
     });
 
     if (fetchId !== latestFetchId) {
@@ -327,9 +463,7 @@ const fetchPartners = async () => {
       const currentUsername = userInfo.value.username;
       const nowISO = new Date().toISOString();
       partners.value = (data?.items || [])
-        .map((p) =>
-          p.username === currentUsername ? { ...p, last_active_at: nowISO } : p
-        )
+        .map((p) => (p.username === currentUsername ? { ...p, last_active_at: nowISO } : p))
         .sort((a, b) => {
           const ta = a.last_active_at ? new Date(a.last_active_at).getTime() : 0;
           const tb = b.last_active_at ? new Date(b.last_active_at).getTime() : 0;
@@ -360,7 +494,7 @@ const fetchPartners = async () => {
 const loadPartnerFollowCounts = async () => {
   const users = partners.value;
   if (!users.length) return;
-  const ids = users.map(u => u.id).filter(Boolean);
+  const ids = users.map((u) => u.id).filter(Boolean);
   if (!ids.length) return;
   try {
     const res = await getFollowCountsBatch(ids);
@@ -387,7 +521,7 @@ const partnerFollowModal = reactive({
   loading: false,
   loadingMore: false,
   hasMore: false,
-  page: 1
+  page: 1,
 });
 
 const openPartnerFollowModal = async (user, type) => {
@@ -410,7 +544,7 @@ const loadPartnerFollowListPage = async ({ reset = false } = {}) => {
     const pageToLoad = reset ? 1 : partnerFollowModal.page;
     const loadFn = partnerFollowModal.type === 'followers' ? getFollowers : getFollowing;
     const res = await loadFn(targetId, { page: pageToLoad, pageSize: 20 });
-    const incoming = res.error ? [] : (res.data || []);
+    const incoming = res.error ? [] : res.data || [];
     partnerFollowModal.users = reset ? incoming : [...partnerFollowModal.users, ...incoming];
     partnerFollowModal.hasMore = incoming.length === 20;
     partnerFollowModal.page = pageToLoad + 1;
@@ -457,7 +591,11 @@ const submitImpression = async () => {
   if (!newImpression.value.trim() || !isLoggedIn.value) return;
   submitting.value = true;
   try {
-    const { error } = await addUserImpression(userInfo.value.id, selectedPartner.value.id, newImpression.value);
+    const { error } = await addUserImpression(
+      userInfo.value.id,
+      selectedPartner.value.id,
+      newImpression.value,
+    );
     if (!error) {
       newImpression.value = '';
       // Refresh list
@@ -478,22 +616,29 @@ const submitImpression = async () => {
 
 const canDelete = (imp) => {
   if (!isLoggedIn.value) return false;
-  return imp.author_id === userInfo.value.id || imp.target_id === userInfo.value.id || userInfo.value.role === 'admin';
+  return (
+    imp.author_id === userInfo.value.id ||
+    imp.target_id === userInfo.value.id ||
+    userInfo.value.role === 'admin'
+  );
 };
 
 const handleDeleteImpression = async (id) => {
-  if (!await dialog.confirm({
-    title: '删除印象',
-    message: '确定要删除这条印象吗？',
-    tone: 'danger',
-    confirmText: '删除'
-  })) return;
+  if (
+    !(await dialog.confirm({
+      title: '删除印象',
+      message: '确定要删除这条印象吗？',
+      tone: 'danger',
+      confirmText: '删除',
+    }))
+  )
+    return;
   try {
     const currentUserId = String(userInfo.value.id || '').trim();
     if (!currentUserId) return;
     const { error } = await deleteUserImpression(id, currentUserId);
     if (!error) {
-      impressions.value = impressions.value.filter(i => i.id !== id);
+      impressions.value = impressions.value.filter((i) => i.id !== id);
     } else {
       logger.error('partners', '删除印象失败:', error);
     }
@@ -504,13 +649,17 @@ const handleDeleteImpression = async (id) => {
 
 // Utils
 const getRoleLabel = (role) => {
-  const labels = { 'admin': '管理员', 'moderator': '版主', 'user': '成员' };
+  const labels = { admin: '管理员', moderator: '版主', user: '成员' };
   return labels[role] || '成员';
 };
 
 const formatDate = (dateString) => {
   if (!dateString) return '未知时间';
-  return new Date(dateString).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+  return new Date(dateString).toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 };
 
 const formatSimpleDate = (dateString) => {
@@ -538,13 +687,21 @@ watch(debouncedSearchQuery, () => {
   fetchPartners();
 });
 
-watch(currentPage, () => {
-  fetchPartners();
-}, { immediate: true });
+watch(
+  currentPage,
+  () => {
+    fetchPartners();
+  },
+  { immediate: true },
+);
 
-watch(isLoggedIn, () => {
-  loadFollowedUsers();
-}, { immediate: true });
+watch(
+  isLoggedIn,
+  () => {
+    loadFollowedUsers();
+  },
+  { immediate: true },
+);
 
 onBeforeUnmount(() => {
   if (searchDebounceTimer) {
@@ -563,7 +720,15 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 40px;
   padding: 72px 0 60px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   position: relative;
 }
@@ -834,7 +999,9 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   background: #34d399;
   border: 2px solid #fff;
-  box-shadow: 0 0 0 1.5px rgba(52, 211, 153, 0.3), 0 2px 6px rgba(52, 211, 153, 0.25);
+  box-shadow:
+    0 0 0 1.5px rgba(52, 211, 153, 0.3),
+    0 2px 6px rgba(52, 211, 153, 0.25);
   z-index: 1;
   pointer-events: none;
 }
@@ -897,8 +1064,8 @@ onBeforeUnmount(() => {
 }
 
 .view-profile-btn {
-  border-color: #5856D6;
-  color: #5856D6;
+  border-color: #5856d6;
+  color: #5856d6;
 }
 
 .view-profile-btn:hover {
@@ -1140,7 +1307,10 @@ onBeforeUnmount(() => {
   border-color: #007aff;
   background: #007aff;
   color: white;
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
 }
 
 .follow-btn-partner:hover {
