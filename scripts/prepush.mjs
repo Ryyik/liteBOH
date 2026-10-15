@@ -17,7 +17,7 @@
  *   · `git worktree add --detach <tmp> HEAD`：干净检出，**不碰工作区、不碰索引**；
  *   · 在里面跑全部门禁（清单从 package.json 的 verify 链自动提取，不写第二份）；
  *   · `npm ci --dry-run`：抓 package.json / lock 失同步（不装包、不碰本机 node_modules）；
- *   · `--full`：symlink node_modules 后再加跑 lint + type-check + test（约多 4 分钟）。
+ *   · `--full`：symlink node_modules 后再加跑 lint + type-check + test（约多 10 分钟；build:ci 会暴露「只有构建才炸」的坑，如 worker/静态资源缺失）。
  *
  * 用法：npm run prepush [--full]
  * 退出码：全部绿 = 0；任何一门红 = 1。⏱ 默认约 40s（最重的是全仓结构扫描）。
@@ -98,7 +98,7 @@ allOk = run('lock 同步', 'npm', ['ci', '--dry-run'], wt) && allOk;
 
 if (FULL) {
   console.log('[prepush] --full：lint + type-check + test …');
-  for (const name of ['lint', 'type-check', 'test']) {
+  for (const name of ['lint', 'type-check', 'test', 'build:ci']) {
     allOk = run(name, 'npm', ['run', '--silent', name], wt) && allOk;
   }
 }
