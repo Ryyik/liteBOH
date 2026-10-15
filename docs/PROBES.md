@@ -261,6 +261,7 @@
 | `probe-keyboard-inset.mjs` | — | 键盘 inset 全链路探针（2026-09-24） 验证目标（桌面 Chrome 无法真弹键盘，用 mock visualViewport 模拟「键盘占 300px」）： |
 | `probe-landscape-rail-demo.mjs` | — | 探针：横屏左栏改造 demo（landscape-rail-demo.html） |
 | `probe-messages-metrics.mjs` | — | 量测：消息页顶部每一层的实际占位（竖屏 + 横屏） |
+| `probe-bohai-portrait.mjs` | 5 | BOHAI 竖屏 390×844 适配回归（2026-10-15）：无横向滚动 / 模式与工具菜单全宽 action-sheet 不越视口 / 零 pageerror，附四张截图。⚠️ 登出态跑（模式清单确定性单行，多行满高场景由工具菜单承担）；模式清单 RPC 走真实网络，mock 形状保真度差会退化成单行干扰判断 |
 | `probe-messages-ui.mjs` | — | 探针：消息中心 UI 现状截图（注入 mock 通知数据） |
 | `probe-messages-glass.mjs` | 21 | 消息中心液态玻璃验收（2026-10-15）：挂载/材质 token 口径/**像素级模糊开-关**（确定性条纹背板 + about:blank 整页重建）/采样根链（.tab-page 架构白名单）× 浅暗双主题 + 旧路由重定向。⚠️ 三坑：fixed 岛状态卡会探进页头 clip 污染能量读数（测前滚 300px + 藏岛）；暗色容器 `background !important`（0,2,0）会压平 0,1,0 背板条纹（同特异度 + 后注入才赢）；登录必须种**会话形状**（pinia 注入触发不了 supabase.getUser 的取数链 —— 无会话时它零网络静默返 null，实测踩过） |
 | `probe-news-image-check.mjs` | — | （无头部说明） |

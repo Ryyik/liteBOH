@@ -415,8 +415,20 @@
    2026-10-14：从 `layout.css` 迁入 —— 那边是 scoped 到 BOHAIMain 的，选择器带
    `[data-v-main]`、够不到本组件模板内的元素（半死规则），迁到本文件才真生效。 */
 @media (max-width: 480px) {
+  /* 2026-10-15 竖屏修复：两个菜单锚统一「全宽减边距」（action-sheet 式）——
+     原先锚随胶囊左对齐、宽 252，工具胶囊在底行偏右（x≈170）时菜单右缘越出视口 32px
+     （390 实测 right=422）。⚠️ 锚的定位父级是胶囊 wrap（relative）——
+     left/right 直接写会把面板钳进 wrap 里（实测 w=76 / h=1845），
+     必须先让 wrap 退为 static、把锚上交给 .boh-composer（relative）承载。
+     usage-anchor 右对齐不受影响（usage-wrap 保持 relative）。 */
+  .boh-mode-wrap,
+  .boh-tools-wrap {
+    position: static;
+  }
   .boh-menu-anchor {
-    width: min(252px, calc(100vw - 24px));
+    left: 12px;
+    right: 12px;
+    width: auto;
   }
 }
 

@@ -269,9 +269,15 @@ describe('BOHAI 输入区：2026-10-11 两颗独立胶囊', () => {
     );
     // 宽度钳制随「锚」迁进 scoped 正确的文件 —— layout.css 是 scoped 到 BOHAIMain 的，
     // 原来那条选择器带 [data-v-main]、够不到 BohComposer 内部元素（半死规则，2026-10-14 修）
+    // 2026-10-15 竖屏修复：≤480 从「宽 252 钳制」升级为「全宽减边距 action-sheet」
+    // （工具胶囊 x≈170 时旧钳制仍右缘越出视口 32px，实测 right=422），
+    // 且 wrap 退为 static 把锚交给 composer 承载（left/right 写在 wrap 内会锁进 wrap）。
     const composerCss = squeezeSource(read(COMPOSER));
     expect(composerCss).toMatch(
-      /@media\s*\(max-width:\s*480px\)[\s\S]*?\.boh-menu-anchor\s*\{[^}]*width:\s*min\(252px,\s*calc\(100vw\s*-\s*24px\)\)/,
+      /@media\s*\(max-width:\s*480px\)[\s\S]*?\.boh-mode-wrap,\s*\.boh-tools-wrap\s*\{[^}]*position:\s*static/,
+    );
+    expect(composerCss).toMatch(
+      /@media\s*\(max-width:\s*480px\)[\s\S]*?\.boh-menu-anchor\s*\{[^}]*left:\s*12px[^}]*right:\s*12px[^}]*width:\s*auto/,
     );
   });
 });
