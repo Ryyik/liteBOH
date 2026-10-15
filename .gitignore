@@ -89,3 +89,23 @@ __pycache__/
 
 # WorkBuddy 定时任务的运行时记忆（每台机器各一份，不是项目真源）
 .workbuddy/memory/automations/
+
+# JiuwenSwarm runtime file operation logs
+.agent_history/
+
+# ── AI / 编辑器工具的运行时产物（2026-10-15 AI 环境审计补） ──────────────
+# 判据：这 7 个目录/文件都是**工具在本机生成的**，不是项目资产；
+# 其中 .arts/settings.json 含生产库连接串（本仓 public）⇒ 这条 ignore 是**安全边界**，别删。
+# 详细背景与「为什么不能靠人记」见 docs/AI-ENV.md。
+# ⚠️ 有意**不**包含 .trae/ 与 .claude/ .agents/：
+#    .agents/ 是 skills 真源（.claude/ 全是指向它的 symlink，设计合理，已入库）；
+#    .trae/ 下 256 个已入库文件待用户裁决（见 docs/2026-10-15-AI-环境审计.md 建议 C-15），
+#    在那之前不动它 —— 半途加 ignore 只会造成「跟踪状态与 ignore 规则打架」。
+.arts/
+.office-claw/
+.codeartsdoer/
+.codex_tmp/
+.zcode/
+coding_memory/
+prompt_attachment/
+repro-import-tmp.mjs

@@ -1,0 +1,31 @@
+{
+  "note": "根目录沙盒棘轮基线（check-root-clean.mjs）。存量记账、只许下调；新增根目录 *.html 或临时脚本会 exit 1。归拢到 docs/demos/ 之后跑 npm run check:root-clean:update 下调。",
+  "html": [
+    "account-bind-prompt-demo.html",
+    "ai-config-demo.html",
+    "avatar-frame-console-demo.html",
+    "avatar-frame-demo.html",
+    "avatar-frame-template.html",
+    "beta6-hero-demo.html",
+    "boh-fenjing-demo.html",
+    "boh-poster.html",
+    "cloudflare-config-demo.html",
+    "dark-gate-demo.html",
+    "demo-bohai-composer.html",
+    "demo-bohai-glass-refract.html",
+    "demo-nav-mini-bar.html",
+    "demo-publish-island-airdrop.html",
+    "demo-publish-progress.html",
+    "demo-user-space-ia.html",
+    "demo-wxperia-liquid.html",
+    "export-preview-demo.html",
+    "export-preview-v2-demo.html",
+    "home-hero-font-demo.html",
+    "join-wizard-demo.html",
+    "landscape-rail-demo.html",
+    "overview-island-flow-demo.html",
+    "overview-island-loading-demo.html",
+    "post-ui-demo.html"
+  ],
+  "scratch": ["diag-render-tmp.mjs", "repro-import-tmp.mjs", "test_dm_ui.py"]
+}

@@ -140,6 +140,20 @@ export const FIXTURES = [
       ),
   },
   {
+    gate: 'check:liquid-glass',
+    why: '折射级实例预算：每个实例一个 SVG filter，列表里批量上玻璃会把合成拖垮（§21.11）',
+    prepare: () =>
+      createFile(
+        'src/components/__gates_probe_refract.vue',
+        [
+          '<template>',
+          ...Array.from({ length: 7 }, (_, i) => `  <BohGlassRefract :radius="${i + 1}" />`),
+          '</template>',
+          '',
+        ].join('\n'),
+      ),
+  },
+  {
     gate: 'check:important-budget',
     why: '!important 是存量债棘轮，只许降不许升（靠它拦「用 !important 抢特异性」这种绕过）',
     prepare: () =>
@@ -211,6 +225,18 @@ export const FIXTURES = [
         'src/views/BOHAI/composables/useMessageManager.js',
         'export const __gatesProbeParams = { temperature: 0.9, max_tokens: 99 };',
         '内联生成参数字面量 temperature: 0.9 / max_tokens: 99',
+      ),
+  },
+  {
+    gate: 'check:root-clean',
+    why: 'AGENTS.md §6「不要往根目录新增 demo」在 2026-10-15 审计时被实测为**没有牙的规则**（写了 14 个存量，实际 24 个，且新增还在发生）；这道门禁把"别再放"变成机器可执行',
+    // 落点：根目录下名字一眼可辨的样本文件。
+    // 之所以不用真实 demo 名（如 `xxx-demo.html`）当落点：被 SIGKILL 留下的残留
+    // 会看起来像一个正常沙盒，让本门禁长期变红却查不到源头（见文件头第 4 条）。
+    prepare: () =>
+      createFile(
+        '__gates_probe-demo.html',
+        '<!-- gates-self-test 临时样本：根目录沙盒棘轮（用完即删） -->\n',
       ),
   },
   {
