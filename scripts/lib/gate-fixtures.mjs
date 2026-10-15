@@ -28,6 +28,9 @@
 import { readFileSync, writeFileSync, rmSync, rmdirSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+/** doc-truth 的落点：必读面主文件（module 顶部声明一次，别在 fixture 里写第二份路径）。 */
+const AGENTS_DOC = 'AGENTS.md';
+
 /**
  * 改写已有文件，返回还原函数。
  * 若 mutate 没改变任何内容 → 抛错（说明 fixture 已失效，例如上游把锚点改了）。
@@ -258,6 +261,29 @@ export const FIXTURES = [
       createFile(
         '__gates_probe-demo.html',
         '<!-- gates-self-test 临时样本：根目录沙盒棘轮（用完即删） -->\n',
+      ),
+  },
+  {
+    gate: 'check:doc-truth',
+    why: 'AGENTS.md 里的关键数字（测试/脚本/棘轮基线…）若与实测漂移，AI 会按错误事实做决定 —— 2026-10-15 审计一口气抓到 5 处；这条门禁让漂移当场红',
+    // 数字对账：把文档里"211 个单元测试文件"改成 999 ⇒ 与实测不一致 ⇒ 红。
+    prepare: () =>
+      editFile(
+        AGENTS_DOC,
+        (s) => s.replace(/(\d+) 个单元测试文件/, '999 个单元测试文件'),
+        '文档数字 211 → 999',
+      ),
+  },
+  {
+    gate: 'check:doc-truth',
+    why: '必读面（AGENTS.md / docs/AI-ENV.md）每个会话都要读进上下文，字节棘轮只许降不许涨 —— 否则上下文预算被悄悄吃掉',
+    // 字节预算：往 AGENTS.md 追加一大段注释 ⇒ 超基线 ⇒ 红。
+    // 追加量必须明显大于基线（当前约 47KB），用 8KB 保证任何合理基线下都越线。
+    prepare: () =>
+      appendTo(
+        AGENTS_DOC,
+        `<!-- ${'doc-truth 注入样本 '.repeat(400)} -->`,
+        'AGENTS.md 追加 8KB ⇒ 超必读面字节预算',
       ),
   },
   {

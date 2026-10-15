@@ -43,3 +43,9 @@ if [ -n "$before_tree" ] && [ -n "$after_tree" ] && [ "$before_tree" != "$after_
   echo '    否则「本地绿、CI 红」就是这么来的（见 AGENTS.md §5）。'
   echo ''
 fi
+
+# ── 秒级门禁（各 ~10ms）：这两类错误最适合在「提交」这一刻拦下 ──────────
+# 它们也在 verify / verify:fast 里；放在钩子里是因为「根目录新增沙盒」和
+# 「CI 脚本里写了会静默失败的 grep」最常发生在提交前的最后一步。
+node scripts/check-root-clean.mjs || exit 1
+node scripts/check-shell-grep.mjs || exit 1

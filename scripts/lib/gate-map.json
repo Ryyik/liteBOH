@@ -1,0 +1,106 @@
+{
+  "note": "机器可读的「改动 → 额外要跑什么」映射。人读版（含事故级坑记录）在 AGENTS.md §2 与 docs/gate-matrix.md；改门禁时两边都要改。verify 本身永远兜底，这里只列『额外』。",
+  "entries": [
+    {
+      "glob": ".github/workflows/**",
+      "run": ["npm run build:ci"],
+      "why": "CI/部署链路改动必须过构建门禁"
+    },
+    {
+      "glob": "src/App.vue",
+      "run": ["npm run probe:route-switch"],
+      "why": "路由组件 key / <RouterView> 切换"
+    },
+    {
+      "glob": "src/views/Home/**",
+      "run": [
+        "node scripts/probes/probe-home-gate-pull.mjs",
+        "node scripts/probes/probe-home-forum-rail.mjs"
+      ],
+      "why": "首屏拉动/落定动效 + 底栏布局"
+    },
+    {
+      "glob": "src/components/UnifiedNavbar/**",
+      "run": [
+        "node scripts/probes/probe-global-search.mjs",
+        "node scripts/probes/probe-nav-mobile-menu.mjs"
+      ],
+      "why": "可见性/灵动岛/搜索 + 竖屏菜单几何"
+    },
+    {
+      "glob": "src/utils/global-navbar-visibility.js",
+      "run": ["node scripts/probes/probe-global-search.mjs"],
+      "why": "可见性唯一真源"
+    },
+    {
+      "glob": "src/views/user-center/UserSpace/**",
+      "run": [
+        "node scripts/probes/probe-rail-landing.mjs",
+        "node scripts/probes/probe-rail-more-menu.mjs",
+        "node scripts/probes/probe-composer-session-gate.mjs",
+        "node scripts/probes/probe-user-space-ia.mjs"
+      ],
+      "why": "横屏左栏浮层/发布会话闸门/IA 结构"
+    },
+    {
+      "glob": "src/views/Forum/**",
+      "run": [
+        "node scripts/probes/probe-composer-session-gate.mjs",
+        "node scripts/probes/probe-composer-image-stall.mjs"
+      ],
+      "why": "发布会话闸门（双宿主）+ 选图反馈口径"
+    },
+    {
+      "glob": "src/views/PostDetail/**",
+      "run": ["node scripts/probes/probe-reply-autogrow.mjs"],
+      "why": "详情页评论框自动增高"
+    },
+    {
+      "glob": "src/composables/useAutoGrowTextarea.js",
+      "run": ["node scripts/probes/probe-reply-autogrow.mjs"],
+      "why": "自动增高唯一真源"
+    },
+    {
+      "glob": "src/views/BOHAI/**",
+      "run": [
+        "npm run probe:ai-panels",
+        "node scripts/probes/probe-bohai-composer.mjs",
+        "node scripts/probes/probe-bohai-shell.mjs",
+        "node scripts/probes/probe-bohai-slash-commands.mjs",
+        "node scripts/probes/probe-bohai-search-status.mjs"
+      ],
+      "why": "AI 面板 + composer/壳/斜杠命令/推理块；事故记录见 docs/gate-matrix.md §C"
+    },
+    {
+      "glob": "src/views/BOHAI/generation-params.js",
+      "run": [],
+      "note": "改真源表属于行为变更：npm run probe:ai-panels 并人眼复核；check:bohai-params 已在 verify 内"
+    },
+    {
+      "glob": "src/styles/themes/**",
+      "run": [],
+      "note": "check:dark-tokens:strict 已在 verify 内（棘轮）"
+    },
+    { "glob": "src/utils/api/**", "run": [], "note": "check:layering 已在 verify 内（棘轮）" },
+    {
+      "glob": "supabase/migrations/**",
+      "run": [],
+      "note": "check:db-lint / check:db-advisors（需 Management API token，发布前跑，刻意不在 verify 内）"
+    },
+    {
+      "glob": "supabase/functions/**",
+      "run": [],
+      "note": "类型检查走 CI 的 deno-check.yml（本地无 deno）"
+    },
+    {
+      "glob": "package.json",
+      "run": ["npm run check:gates-self-test"],
+      "why": "改了 scripts/门禁清单就自证一遍"
+    },
+    {
+      "glob": "scripts/lib/gate-fixtures.mjs",
+      "run": ["npm run check:gates-self-test"],
+      "why": "改了样本就全量自证"
+    }
+  ]
+}
