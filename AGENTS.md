@@ -199,7 +199,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 ## 6. 不要做的事
 
 - 不要为了「跑起来」给现有代码加 `!important`、加 window 全局、或复制第二份 `.home-gate` 定义 —— 这类做法只是把债从一处挪到另一处。
-- 不要往仓库根目录新增 `xxx-demo.html` 或临时脚本（`repro-*` / `diag-*` / `test_*` / `*-tmp.mjs`）。**现存 25 个 html + 3 个临时脚本是冻结的存量**（2026-10-15 复核；原文写"14 个"已过时，且这条规则**过去没有牙** ⇒ 现在由 `npm run check:root-clean` 拦，新增即红，在 `verify` 链内）。要视觉沙盒走 `docs/demos/`、`scripts/probes/` 或 `output/`。
+- 不要往仓库根目录新增 `xxx-demo.html` 或临时脚本（`repro-*` / `diag-*` / `test_*` / `*-tmp.mjs`）。**现存 22 个 html + 3 个临时脚本是冻结的存量**（2026-10-15 复核；原文写"14 个"已过时，且这条规则**过去没有牙** ⇒ 现在由 `npm run check:root-clean` 拦，新增即红，在 `verify` 链内）。要视觉沙盒走 `docs/demos/`、`scripts/probes/` 或 `output/`。
 - 不要提交 `.env`、`dist/`、`dist-check/` 和截图产物（`debug-screenshots/`、`output/` 已 gitignore，也别把未忽略的新截图目录加进去）。
 - 不要把搜索词、未转义字符拼进 URL 或 SQL 字符串。
 - 修改 Supabase 权限、表结构、Edge Function 属于对外部署行动，**先跟人确认**。
