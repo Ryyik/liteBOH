@@ -15,9 +15,15 @@
       "glob": "src/views/Home/**",
       "run": [
         "node scripts/probes/probe-home-gate-pull.mjs",
-        "node scripts/probes/probe-home-forum-rail.mjs"
+        "node scripts/probes/probe-home-forum-rail.mjs",
+        "node scripts/probes/probe-overview-island-guards.mjs"
       ],
-      "why": "首屏拉动/落定动效 + 底栏布局"
+      "why": "首屏拉动/落定动效 + 底栏布局 + 概览岛触发点（唯一触发点在首页 gateSettled）"
+    },
+    {
+      "glob": "src/views/SmartOverview/**",
+      "run": ["node scripts/probes/probe-overview-island-guards.mjs"],
+      "why": "/overview 页口径（离线天数/去重标记）"
     },
     {
       "glob": "src/components/UnifiedNavbar/**",
@@ -38,17 +44,20 @@
         "node scripts/probes/probe-rail-landing.mjs",
         "node scripts/probes/probe-rail-more-menu.mjs",
         "node scripts/probes/probe-composer-session-gate.mjs",
-        "node scripts/probes/probe-user-space-ia.mjs"
+        "node scripts/probes/probe-user-space-ia.mjs",
+        "node scripts/probes/probe-points-card-image.mjs"
       ],
-      "why": "横屏左栏浮层/发布会话闸门/IA 结构"
+      "why": "横屏左栏浮层/发布会话闸门/IA 结构/积分卡卡面"
     },
     {
       "glob": "src/views/Forum/**",
       "run": [
         "node scripts/probes/probe-composer-session-gate.mjs",
-        "node scripts/probes/probe-composer-image-stall.mjs"
+        "node scripts/probes/probe-composer-image-stall.mjs",
+        "node scripts/probes/probe-forum-search.mjs",
+        "node scripts/probes/probe-weekly-checkin-points.mjs"
       ],
-      "why": "发布会话闸门（双宿主）+ 选图反馈口径"
+      "why": "发布会话闸门（双宿主）+ 选图反馈口径 + 论坛搜索 RPC + 周签到"
     },
     {
       "glob": "src/views/PostDetail/**",
@@ -58,7 +67,7 @@
     {
       "glob": "src/composables/useAutoGrowTextarea.js",
       "run": ["node scripts/probes/probe-reply-autogrow.mjs"],
-      "why": "自动增高唯一真源"
+      "why": "自动增高唯一真源（勿加第 5 份）"
     },
     {
       "glob": "src/views/BOHAI/**",
@@ -67,14 +76,51 @@
         "node scripts/probes/probe-bohai-composer.mjs",
         "node scripts/probes/probe-bohai-shell.mjs",
         "node scripts/probes/probe-bohai-slash-commands.mjs",
-        "node scripts/probes/probe-bohai-search-status.mjs"
+        "node scripts/probes/probe-bohai-search-status.mjs",
+        "node scripts/probes/probe-bohai-keepalive-stream.mjs",
+        "node scripts/probes/probe-aichat-landscape-rail.mjs"
       ],
-      "why": "AI 面板 + composer/壳/斜杠命令/推理块；事故记录见 docs/gate-matrix.md §C"
+      "why": "AI 面板 + composer/壳/斜杠命令/推理块/切页不掐流/横屏左栏；事故记录见 docs/gate-matrix.md §C"
     },
     {
-      "glob": "src/views/BOHAI/generation-params.js",
-      "run": [],
-      "note": "改真源表属于行为变更：npm run probe:ai-panels 并人眼复核；check:bohai-params 已在 verify 内"
+      "glob": "src/views/activities/**",
+      "run": [
+        "node scripts/probes/probe-activities-images.mjs",
+        "node scripts/probes/probe-campaign-ui.mjs"
+      ],
+      "why": "活动页封面图（DB 图片列必须走 utils/db-image-url.js）+ 报名区/月份轨道"
+    },
+    {
+      "glob": "src/views/ActivitiesWall/**",
+      "run": ["node scripts/probes/probe-activities-images.mjs"],
+      "why": "活动墙图片裂图同因"
+    },
+    {
+      "glob": "src/views/user-center/Cloud+/**",
+      "run": [
+        "node scripts/probes/probe-cloud-album.mjs",
+        "node scripts/probes/probe-cloud-portrait.mjs",
+        "node scripts/probes/probe-cloud-motion.mjs"
+      ],
+      "why": "Cloud+ 图库形态/竖屏几何/动效（需 mock 数据，坑见 docs/gate-matrix.md）"
+    },
+    {
+      "glob": "src/views/AvatarConsole/**",
+      "run": [
+        "node scripts/probes/probe-avatar-frame-grant.mjs",
+        "node scripts/probes/probe-avatar-frame-console.mjs"
+      ],
+      "why": "头像框发放 + 控制台（新素材/变换）"
+    },
+    {
+      "glob": "src/utils/subscription-benefits.js",
+      "run": ["node scripts/probes/probe-subscription-benefits.mjs"],
+      "why": "订阅权益 / 摄影集配额口径"
+    },
+    {
+      "glob": "vite.config.js",
+      "run": ["node scripts/probes/probe-vite-dep-scan.mjs"],
+      "why": "依赖别名 / optimizeDeps；改图片管线或 SW 预缓存另跑 probe-perf-baseline（不进 verify 主链）"
     },
     {
       "glob": "src/styles/themes/**",
@@ -85,7 +131,7 @@
     {
       "glob": "supabase/migrations/**",
       "run": [],
-      "note": "check:db-lint / check:db-advisors（需 Management API token，发布前跑，刻意不在 verify 内）"
+      "note": "check:db-lint / check:db-advisors / probe-anon-revoke-safety（前两者需 Management API token，发布前跑，刻意不在 verify 内）"
     },
     {
       "glob": "supabase/functions/**",

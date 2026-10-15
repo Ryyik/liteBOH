@@ -29,6 +29,7 @@ const COMPUTABLE = [
   { script: 'scripts/check-layering.mjs', desc: 'UI 层直连数据层出口' },
   { script: 'scripts/check-async-component-fallback.mjs', desc: '无失败兜底的异步组件' },
   { script: 'scripts/check-root-clean.mjs', desc: '根目录沙盒（demo/临时脚本）' },
+  { script: 'scripts/check-doc-truth.mjs', desc: '必读面字节（AGENTS/AI-ENV）' },
 ];
 
 /** 离线算不出的：只读基线，并说明为什么拿不到现值 */

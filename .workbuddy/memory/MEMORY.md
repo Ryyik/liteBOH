@@ -17,7 +17,7 @@
 
 ## 开工三步
 
-- `npm run env:doctor` —— 30 项**实测**环境自检。⚠️ **诊断档，永远 exit 0，刻意不进 verify**；`--strict` 才当门禁。
+- `npm run env:doctor` —— 34 项**实测**环境自检。⚠️ **诊断档，永远 exit 0，刻意不进 verify**；`--strict` 才当门禁。
 - `npm run verify:fast`（约 10s）；`git status --porcelain | wc -l` 看工作区有多脏（并行会话判断依据）。
 - 环境坑与并行会话纪律 → `docs/AI-ENV.md`（**别在这里再抄一份**）。
 

@@ -42,7 +42,12 @@ const compiled = map.entries.map((e) => ({ ...e, re: globToRegExp(e.glob) }));
 
 const git = (args) => {
   try {
-    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf-8' });
+    // core.quotepath=false：否则非 ASCII 路径会被转成八进制转义（\346\234…），
+    // 既没法跟 glob 匹配，输出里也没法读。
+    return execFileSync('git', ['-c', 'core.quotepath=false', ...args], {
+      cwd: ROOT,
+      encoding: 'utf-8',
+    });
   } catch {
     return '';
   }

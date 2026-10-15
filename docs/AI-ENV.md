@@ -17,9 +17,11 @@
 ## 1. 开工三步
 
 ```bash
-npm run env:doctor     # 30 项环境自检（实测，不靠平台名推断）；诊断档，永远 exit 0
-npm run verify:fast    # 3~4 道门禁，约 10s
+npm run env:doctor     # 34 项环境自检（实测，不靠平台名推断）；诊断档，永远 exit 0
+npm run gate:plan      # 按本次改动路径，列出「额外要跑」的探针/命令清单（--json 可机读）
+npm run verify:fast    # 6 道秒级门禁，约 10s
 git status --porcelain | wc -l   # 工作区有多脏（并行会话判断依据）
+# 三步并作一条：npm run session:start
 ```
 
 `env:doctor` 输出 `❌` 就按它给的 `↳` 提示修；`⚠️` 是「本机如此」的事实，读一眼即可。
@@ -85,7 +87,7 @@ git status --porcelain | wc -l   # 工作区有多脏（并行会话判断依据
 
 ## 4. 门禁反馈链与棘轮归因
 
-`verify` 全链 = lint(≈25s) + type-check(≈58s) + test(≈3min) + 8 道 check + 棘轮总账，
+`verify` 全链 = 12 道 check(≈10s) + lint(≈25s) + type-check(≈58s) + test(≈3min) + 棘轮总账，
 合计 **4~5 分钟**；`verify:full` 再加构建与产物门禁，**10 分钟量级**。
 所以：小改用 `verify:fast`（≈10s），别每次全量。
 
@@ -108,10 +110,13 @@ npm run lint:delta -- --all   # 只看当前全量聚合
 
 | 命令 | 作用 | 定位 |
 | --- | --- | --- |
-| `npm run env:doctor` | 30 项环境自检（实测） | 诊断，永远 exit 0 |
+| `npm run env:doctor` | 34 项环境自检（实测） | 诊断，永远 exit 0 |
+| `npm run gate:plan` | 改动路径 → 额外要跑什么（真源 `scripts/lib/gate-map.json`） | 诊断，永远 exit 0 |
+| `npm run session:start` | env:doctor + verify:fast 并一条 | 诊断 |
 | `npm run env:doctor:strict` | 有 ❌ 时 exit 1 | 门禁（预检脚本用） |
 | `npm run lint:delta` | lint 警告差集归因 | 诊断 |
 | `npm run check:root-clean` | 根目录沙盒棘轮（新增即红） | **门禁**，在 verify 链内 |
+| `npm run check:doc-truth` | AGENTS.md 关键数字对账 + 必读面字节棘轮 | **门禁**，在 verify 链内 |
 | `npm run clean:screenshots --keep-days=7` | `debug-screenshots/` 轮转 | 维护 |
 | `npm run check:gates-self-test` | 证明每道门禁真的会红 | 门禁自检（勿进主链） |
 
@@ -119,9 +124,8 @@ npm run lint:delta -- --all   # 只看当前全量聚合
 
 ## 6. 工作区迁移注记
 
-项目在 `~/Documents/`（macOS TCC 保护区），而 AI 工具箱的工作区在 `~/WorkBuddy/`。
-每个新会话都要跨目录 + 一次授权，属**低成本但每次都要付**的摩擦。
-若哪天要根治，把项目挪出 TCC 保护区（或给终端预授权）比在每个会话里忍更划算。
+项目在 `~/Documents/`（macOS TCC 保护区）、AI 工具箱工作区在 `~/WorkBuddy/` ⇒ 每个新会话都要跨目录 + 一次授权。
+根治法：把项目挪出 TCC 保护区（或给终端预授权），比每个会话里忍更划算。
 
 ## 7. 沙箱命令规则（schema 已确认，2026-10-15）
 

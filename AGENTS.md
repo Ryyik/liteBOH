@@ -31,7 +31,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 
 ## 2. 改动 → 必跑门禁（不许跳过）
 
-`npm run verify` 是一条命令兜底（lint + type-check + test + 8 道 check，末尾附**棘轮总账**，不需要构建）。
+`npm run verify` 是一条命令兜底（12 道 check → lint → type-check → test，末尾附**棘轮总账**，fail-fast：最贵的排最后，不需要构建）。
 只改 CSS 或小改动用 `npm run verify:fast`；发布前用 `npm run verify:full`（含构建与产物门禁）。
 
 > ⚠️ **判绿之前先确认门禁真的有牙**。这个仓库出过两次「检查在跑、但永远绿」：
@@ -152,7 +152,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 
 ## 4. 环境事实（省得每次试）
 
-> 🤖 **先跑 `npm run env:doctor`** —— 30 项环境自检（**实测**，不靠平台名推断）。
+> 🤖 **先跑 `npm run env:doctor`** —— 34 项环境自检（**实测**，不靠平台名推断）。
 > 本机 10 条环境坑的完整清单、正确做法、以及**并行会话纪律**都在 `docs/AI-ENV.md`（必读通道）。
 > 下面这几条是其中最容易撞上的。
 
@@ -182,7 +182,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
   - 它**只报数、不判定、永远 exit 0**；判定是各棘轮自己的职责，否则「总账」会变成第 5 个门禁，出问题时反而分不清是谁红的。
   - `anon-execute` 需 Management API token，离线只显示基线并标注原因 —— 不留一个看起来像 0 的假数字。
 - **门禁自检**：`npm run check:gates-self-test`（约 45s）。给每道门禁注入一个已知违规样本 → 断言它 `exit` 非 0 → 撤销；样本在 `scripts/lib/gate-fixtures.mjs`。**改了门禁就跑它**，否则你无法区分「门禁通过」和「门禁是假绿」。⚠️ 它会临时改写工作区文件（有兜底还原），**不要塞进 verify/build:ci 主链**，要进 CI 请单开 job。
-- **环境自检**：`npm run env:doctor`（30 项，实测；诊断档永远 exit 0，`--strict` 才当门禁）。⚠️ **刻意不进 `verify`** —— 工具缺席是环境事实、不是代码缺陷，接进去只会变成一条永远红的假门禁。要进 CI 请单开 job。
+- **环境自检**：`npm run env:doctor`（34 项，实测；诊断档永远 exit 0，`--strict` 才当门禁）。⚠️ **刻意不进 `verify`** —— 工具缺席是环境事实、不是代码缺陷，接进去只会变成一条永远红的假门禁。要进 CI 请单开 job。
 - **lint 归因**：`npm run lint:delta` —— 跑全量 eslint + **并发**对变更文件取 `HEAD` 基线（走 `eslint --stdin --stdin-filename`，**不碰工作区**），输出「新增了哪一条 / 哪个文件哪一行 / 离上限还剩几格」。默认只给「当前仍有警告」的文件做基线（约 1 分钟）；要连"消除"也完整统计加 `--full`（约 6 分钟）。
 - **根目录沙盒棘轮**：`npm run check:root-clean`（已挂在 `verify` 与 `verify:fast`）。冻结现存 25 个根目录 html + 3 个临时脚本，**新增即红**。归拢到 `docs/demos/` 后跑 `check:root-clean:update` 下调基线。
 - **提交门禁**：`.git/hooks/pre-commit` 跑 lint-staged，只处理本次暂存的文件（prettier + eslint --fix），规则见 `.lintstagedrc.json`。需要跳过时用 `git commit --no-verify`。

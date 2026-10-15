@@ -170,6 +170,11 @@ if (UPDATE || !existsSync(BASELINE)) {
   console.log(
     `✅ 字节预算基线已${UPDATE ? '更新' : '建立'}：${BUDGET_FILES.map((f) => `${f}=${currentBytes[f] || 0}B`).join('，')}`,
   );
+  // ⚠️ 必须在这里退出：内存里的 `budget` 还是**旧基线**，不退出的话下面的判定
+  // 会拿旧基线比新值，输出「基线已更新」紧接着又报「超基线」——自相矛盾。
+  // 2026-10-15 自查实测踩到（与 check-important-budget / check-root-clean 的
+  // 「--update 后 exit 0」惯例不一致，本次对齐）。
+  process.exit(0);
 }
 
 // ── 输出 ──────────────────────────────────────────────────────────────

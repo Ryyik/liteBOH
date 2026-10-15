@@ -23,7 +23,7 @@
 
 ## A. 门禁链与自证纪律
 
-`npm run verify` 是一条命令兜底（lint + type-check + test + 8 道 check，末尾附**棘轮总账**，不需要构建）。
+`npm run verify` 是一条命令兜底（12 道 check → lint → type-check → test，末尾附**棘轮总账**，fail-fast：最贵的排最后，不需要构建）。
 只改 CSS 或小改动用 `npm run verify:fast`；发布前用 `npm run verify:full`（含构建与产物门禁）。
 
 > ⚠️ **判绿之前先确认门禁真的有牙**。这个仓库出过两次「检查在跑、但永远绿」：
