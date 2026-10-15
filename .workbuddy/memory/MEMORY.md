@@ -42,7 +42,11 @@
 - `npm run verify` 一条兜底（**12 道 check → lint → type-check → test → 棘轮总账**，2026-10-15 起 fail-fast：最贵的排最后）；发布前 `verify:full`。
 - **`npm run gate:plan`**：改了什么 → 额外要跑什么，一条命令（映射真源 `scripts/lib/gate-map.json`；verify 永远兜底）。**别再通读 §2 表格做关键词匹配。**
 - **`npm run check:doc-truth`**（verify 链内）：AGENTS.md 关键数字与实测对账 + 必读面字节棘轮。文档数字写错/过时当场红 —— 别手改估计值。
+- **`npm run prepush`**（2026-10-15）：推送前对 HEAD 的干净 worktree 跑全部门禁 + `npm ci --dry-run`。**推送前必跑** —— 它专抓「本地绿 = 工作区绿、CI 红 = 提交树红」四兄弟：没提交的门禁/基线/lock 配套、先行入库的半成品测试。`--full` 加跑 lint/type-check/test。
+- ⚠️ **基线校准（一切 --update）必须在提交树口径上做**：脏工作区的读数含未提交的清理/新增，本地/CI 会差（实测同 commit 2701 vs 2706）。
+- ⚠️ doc-truth 计数口径 = `git ls-tree HEAD`（提交树恒定）；文件系统口径随「谁在改什么」漂移。
 - `npm run session:start` ＝ 开工三步并一条（env:doctor + verify:fast）。
+- 推 github：SSH over 443 间歇抖动（`core.sshCommand` 已配 ConnectTimeout=15），失败重试 1~2 次即通；确认远端用 `gh api repos/…/git/refs/heads/main`。
 - lint 带 `--max-warnings` 棘轮（**以 package.json 现值为准**，2026-10-15 = 116）⇒ 报绿必须同时报警告条数
   （口径 `eslint . -f json`）；计数归零才翻 error；上调必走 commit message。**红了用 `npm run lint:delta` 归因。**
 - ✅ ~~满载跑 verify 偶发 `project-structure.test.js` 45s 超时~~ **已修（2026-10-15）**：根因是
