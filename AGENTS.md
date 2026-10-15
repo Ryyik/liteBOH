@@ -6,7 +6,7 @@
 ## 0. 项目一句话
 
 Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH」，迭代代号 Beta 2.5 / Beta 6。
-`src/` 589 个源文件（.vue/.js/.ts），246 个脚本（`scripts/*.mjs` 53 + `scripts/probes/*.mjs` 193），212 个单元测试文件。
+`src/` 589 个源文件（.vue/.js/.ts），245 个脚本（`scripts/*.mjs` 52 + `scripts/probes/*.mjs` 193），212 个单元测试文件。
 （这三个数由 `npm run check:doc-truth` 实时对账，写错/过时会被 verify 拦下 —— 别手改估计值。）
 
 三条最高纲领：
@@ -184,7 +184,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 - **门禁自检**：`npm run check:gates-self-test`（约 45s）。给每道门禁注入一个已知违规样本 → 断言它 `exit` 非 0 → 撤销；样本在 `scripts/lib/gate-fixtures.mjs`。**改了门禁就跑它**，否则你无法区分「门禁通过」和「门禁是假绿」。⚠️ 它会临时改写工作区文件（有兜底还原），**不要塞进 verify/build:ci 主链**，要进 CI 请单开 job。
 - **环境自检**：`npm run env:doctor`（34 项，实测；诊断档永远 exit 0，`--strict` 才当门禁）。⚠️ **刻意不进 `verify`** —— 工具缺席是环境事实、不是代码缺陷，接进去只会变成一条永远红的假门禁。要进 CI 请单开 job。
 - **lint 归因**：`npm run lint:delta` —— 跑全量 eslint + **并发**对变更文件取 `HEAD` 基线（走 `eslint --stdin --stdin-filename`，**不碰工作区**），输出「新增了哪一条 / 哪个文件哪一行 / 离上限还剩几格」。默认只给「当前仍有警告」的文件做基线（约 1 分钟）；要连"消除"也完整统计加 `--full`（约 6 分钟）。
-- **根目录沙盒棘轮**：`npm run check:root-clean`（已挂在 `verify` 与 `verify:fast`）。冻结现存 25 个根目录 html + 3 个临时脚本，**新增即红**。归拢到 `docs/demos/` 后跑 `check:root-clean:update` 下调基线。
+- **根目录沙盒棘轮**：`npm run check:root-clean`（已挂在 `verify` 与 `verify:fast`）。冻结现存 22 个根目录 html + 3 个临时脚本，**新增即红**。归拢到 `docs/demos/` 后跑 `check:root-clean:update` 下调基线。
 - **提交门禁**：`.git/hooks/pre-commit` 跑 lint-staged，只处理本次暂存的文件（prettier + eslint --fix），规则见 `.lintstagedrc.json`。需要跳过时用 `git commit --no-verify`。
   - ⚠️ **钩子会改文件，所以「你验证的树」可能不是「提交的树」**。改完代码先 `npm run format` 再跑 verify；判绿一律以提交后的树为准（9-27 那次 CI 三连挂就是这么来的：prettier 重排让三个格式敏感的源码正则断言失配，本地全绿）。钩子现在会在改写文件后**把被改的文件名打出来**并提示重跑 verify —— 看到那段输出就说明你验证的树已经变了。
   - 为什么钩子不做成 `prettier --check`（只检查不修改）：实测有 **513 个文件**不符合 prettier，而 `npm run format` 是**全仓** `prettier --write .`。只检查的话碰任一未格式化文件都提交失败，而唯一修复命令会重排半个仓库 —— 那种钩子会被 `--no-verify` 习惯性绕过，比不改更糟。**自动格式化 + 显式报告改了什么**是这里性价比最高的形态。
