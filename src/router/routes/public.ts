@@ -21,6 +21,14 @@ export const publicRoutes: RouteRecordRaw[] = [
           component: () => import('../../views/Dev/GlassBackdropRepro.vue'),
           meta: { hideNavbar: true, hideFooter: true },
         },
+        {
+          // 路由索引（DEV-only）：列出 getRoutes() 全量路由，点击任意一行新窗口打开。
+          // 与上面三个 dev 页一致只在开发构建注册，生产产物零成本（死代码消除）。
+          path: '/__dev/routes',
+          name: 'RouteIndex',
+          component: () => import('../../views/Dev/RouteIndex.vue'),
+          meta: { hideFooter: true },
+        },
       ]
     : []),
   {
