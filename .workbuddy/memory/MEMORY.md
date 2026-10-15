@@ -45,13 +45,15 @@
 - `npm run session:start` ＝ 开工三步并一条（env:doctor + verify:fast）。
 - lint 带 `--max-warnings` 棘轮（**以 package.json 现值为准**，2026-10-15 = 116）⇒ 报绿必须同时报警告条数
   （口径 `eslint . -f json`）；计数归零才翻 error；上调必走 commit message。**红了用 `npm run lint:delta` 归因。**
-- ⚠️ 满载跑 verify 偶发 `project-structure.test.js` 45s 超时 ⇒ 判红先单跑那个文件（实测 200~300ms 全绿即抖动）。
+- ✅ ~~满载跑 verify 偶发 `project-structure.test.js` 45s 超时~~ **已修（2026-10-15）**：根因是
+  `maxForks: 2` 在 vitest 5 是未知选项被**静默忽略**（正名 `maxWorkers`，睡眠探针实验定案）+ src 双读合并单遍。
+  **留下的通用教训：未知配置项静默忽略，「限流失效」的唯一表现是最重用例偶发红；
+  summary 的「N workers spawned」数的是隔离体不是并发数，别拿它当限流证据。**（详见 vitest.config.js 注释）
 - 新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则 `check:gates-self-test` 列未覆盖；棘轮 baseline 只许下调。
 - 源码守卫：两边过**同一个** `tests/helpers/source.js` 归一函数；否定断言先 `scriptSection()` + `stripComments()`。
 - ⚠️ 「找不到元素就跳过」＝假绿温床 ⇒ 找不到就 **fail**；「模板里有 X」是没牙断言 ⇒ 给产物打 `data-*` 钩子按 id 对齐断言；
   反证**只撤单点**（撤两处会中途崩）。
-- ⚠️ **`tests/unit/project-structure.test.js` 存在已知满载抖动**（45s 超时；211 个 worker 各约 10.8s 启动）⇒
-  它把 verify 判红时**先单跑那个文件**（实测 200~300ms 全绿即抖动），别急着改代码。
+- ⚠️ ⛔ 已删：「project-structure 满载抖动 ⇒ 判红先单跑」—— **2026-10-15 已修到根**（maxForks 被静默忽略 + src 双读），这条过时规则不再适用。
 - ⚠️⚠️ **样式类改动/故障的验收必须带截图肉眼过**（2026-10-13 实证：三 CSS 全失败时程序化差分只报 1 项，
   肉眼是大面积塌陷；采样点不能替代视觉）。留证探针 `probe:css-visual`。
 

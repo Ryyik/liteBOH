@@ -193,8 +193,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
     `cp scripts/git-hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
   - 没用 husky 是刻意的：husky 会接管 `core.hooksPath`，而现有 `.git/hooks/post-commit` 是 Qoder 的 tracker，接管后它会静默失效。
 - **MCP**：`~/.workbuddy/mcp.json` 配了三个 —— supabase（`--read-only`，project ref `nplnlefdwfgtyimfkyih`）、playwright（`--browser chrome`）、github。首次启用要在连接器管理页点「信任」。Supabase 那一个是只读档，写操作照旧走 migration SQL。
-- **测试**：`npm run test` 覆盖 **211 个测试文件**（口径 `find tests -name '*.test.js' | wc -l`；用例数看 `npm run test` 输出），跑满约 3 分钟。`pool: forks` 与 `maxForks: 2` 是 `vitest.config.js` 里的定数，**不要调高并发** —— 配置里写了实测数据：默认并发会把 `project-structure.test.js` 里那条同步全仓扫描拖到超时，压到 2 之后反而整套更快。要再降它的耗时，改 `scripts/check-project-structure.mjs` 的 `DEFAULT_IGNORES`（别把 gitignore 的产物目录再扫一遍）。
-  - ⚠️ 满载跑有**偶发抖动**（实测 1/211：失败文件单跑 556ms 全绿）⇒ 判红之前先单跑那个文件，别急着改代码。
+- **测试**：`npm run test` 覆盖 **211 个测试文件**（口径 `find tests -name '*.test.js' | wc -l`），跑满约 3 分钟。`pool: forks` + `maxWorkers: 2` 是定数**别调高**（CPU 密集任务抢不到时间片，只会互相拖累）。⚠️ `maxForks` 是 vitest 5 的**未知选项、被静默忽略**，曾致 project-structure 每次全量撞 45s 超时——2026-10-15 已修正名并合并 src 双读（17s→9.1s），对照实验与教训见 `vitest.config.js` 注释。
 - **截图产物轮转**：`npm run clean:screenshots --keep-days=7`。`debug-screenshots/` 已 gitignore 但**只会涨**（2026-10-15 实测 757 个文件）。
 
 ## 6. 不要做的事
