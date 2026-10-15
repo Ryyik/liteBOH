@@ -552,13 +552,23 @@
 }
 
 /* hover 详情卡：**面板右侧**（2026-10-11 面板改左对齐，触发键在底行左侧 ⇒ 镜像）。
-   绝对定位在 `.boh-mode-menu` 里、且**不在** `.boh-mm-body` 内 ⇒ 不被滚动容器裁掉。
-   `is-flipped` = 右侧放不下时翻回左侧（窄横屏 / 岛形态）。 */
-.boh-mm-detail {
+   2026-10-15（§21.8 线 1 收尾）：定位上移到 `.boh-mm-detail-anchor`（挂在 `.boh-menu-anchor`
+   里、面板外）—— 卡整体悬在面板右外侧，留在面板 z20 堆叠上下文里采样必被裁空（§21.11）。
+   锚无 z-index；`is-flipped` = 右侧放不下时翻回左侧（窄横屏 / 岛形态）。 */
+.boh-mm-detail-anchor {
   position: absolute;
-  z-index: 1;
   left: calc(100% + 8px);
   width: 232px;
+  /* 无 z-index：锚不许建堆叠上下文（§21.7）。 */
+}
+
+.boh-mm-detail-anchor.is-flipped {
+  right: calc(100% + 8px);
+  left: auto;
+}
+
+.boh-mm-detail {
+  width: 100%;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
   padding: 14px 16px;
@@ -567,11 +577,6 @@
   background: var(--boh-bg-page);
   box-shadow: var(--boh-shadow-lg);
   text-align: left;
-}
-
-.boh-mm-detail.is-flipped {
-  right: calc(100% + 8px);
-  left: auto;
 }
 
 .boh-mm-detail-name {
@@ -823,15 +828,21 @@
    （吸附 DESIGN-BOHAI §2.2 的 4px 刻度，`6` 是文档允许的细调值）。
    材质仍是**共用的那套液态玻璃圆角矩形**（下面 `@supports` 六选择器块，圆角取
    DESIGN §2.3 的浮层口径 `--boh-radius-lg` = 12px）—— 这里不重复声明任何材质属性。 */
-.boh-slash {
+.boh-slash-anchor {
+  /* 无 z-index 锚（§21.7 采样根，§21.10 用量浮层同款）：定位与宽度从 .boh-slash 上移到此，
+     玻璃（inset:0）才与面板等大；回滚 = 删锚 + 玻璃两层。 */
   position: absolute;
   bottom: calc(100% + 8px);
   left: 10px;
-  /* 2026-10-14：41 → 21（与 `.boh-mode-menu` 同因：落到抽屉遮罩 z 25 之下，§21.7）。
-     相对次序保持「用量 22 > 斜杠 21 > 模型/工具 20」。 */
-  z-index: 21;
   /* 常量宽 + 左对齐；窄屏（竖屏 390 下输入框仅 366px）用 `100% - 20px` 兜底，右留 10px */
   width: min(420px, calc(100% - 20px));
+}
+
+.boh-slash {
+  /* 定位与宽度已上移到锚；层级口径不变 —— 2026-10-14：41 → 21（与 `.boh-mode-menu` 同因：
+     落到抽屉遮罩 z 25 之下，§21.7）。相对次序保持「用量 22 > 斜杠 21 > 模型/工具 20」。 */
+  z-index: 21;
+  width: 100%;
   /* 两条上限取小：
      ① `100vh - 120px` 是老的安全网（输入框贴底时够用）；
      ② `--boh-slash-top - 16px` 是**空态**才需要的 —— 那里「虚影字 + 输入框」整组垂直居中，
@@ -939,31 +950,14 @@
   }
 }
 
-/* ── 液态玻璃（2026-10-10 用户口径「A 档」；2026-10-12 扩到输入框）────────────
-   **一组材质、两个保留消费者**：斜杠菜单、模型面板里那张 hover 详情卡。
-   ⚠️ 2026-10-14 起，原「六个消费者」中的**输入框 / 模型浮层 / 工具浮层 / 用量浮层**升级为
-   **折射级**（`BohGlassRefract`，JS 覆盖层，见本节末尾的独立 `@supports` 段与 §21.7）——
-   它们的材质由组件内联提供，**不经过** `--liquid-filter-sm`；本段只继续负责上面两者。
+/* ── 模糊级消费者清零（2026-10-15 §21.8 线 1 收尾）──────────────────────────
+   最后两个模糊级消费者（斜杠菜单、模型面板 hover 详情卡）已升级为**折射级**
+   （`BohGlassRefract` 锚模式，见模板 `.boh-slash-anchor` / `.boh-mm-detail-anchor`）——
+   本文件不再有任何 backdrop-filter 声明，材质只剩「基座实底兑底 + 折射级撤实底让位」。
+   历史口径存档：2026-10-10「A 档」、2026-10-12 扩输入框、2026-10-14 四面升折射（§21.7）。
    输入框浮在消息流之上（2026-10-12 用户口径「带点透明、滚动时透出下面的内容」）——
    那条负 margin 仍有效，见上面 `.boh-main:not(.is-empty) .boh-composer-wrap`。
-   常驻面板 / 阅读主体（侧栏、工作台、用户气泡）仍然**刻意不做**：它们底下没有可透的内容。
-   材质引用**全局单源** `--liquid-filter-sm`：`scripts/check-liquid-glass.mjs` 禁止在
-   `liquid-glass.css` 之外重写 blur 材质（注释里也别复述那条被禁的写法）。
-   颜色走 `--boh-glass-*`：BOHAI 主题（`data-boh-theme`）不跟**站点主题**联动。
-   基础规则仍是实心 `--boh-bg-page` ⇒ 放进 `@supports` 后，不支持 backdrop-filter 时
-   **自动落回实色**，无需第二份 `not` 查询。
-   ⚠️ 三者原本都是 `border: 1px solid var(--boh-border)` ⇒ 这里只换 `border-color`，
-      几何不变（玻璃描边是白色高光，直接换色即可，不用像 `.boh-jump` 那样补透明占位）。 */
-@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .boh-slash,
-  .boh-mm-detail {
-    background: var(--boh-glass-bg);
-    border-color: var(--boh-glass-border);
-    box-shadow: var(--boh-glass-highlight), var(--liquid-shadow-sm);
-    backdrop-filter: var(--liquid-filter-sm);
-    -webkit-backdrop-filter: var(--liquid-filter-sm);
-  }
-}
+   常驻面板 / 阅读主体（侧栏、工作台、用户气泡）仍然**刻意不做**：它们底下没有可透的内容。 */
 
 /* ── 折射级（2026-10-14，§21.7；§21.8 线1 加用量浮层）：输入框 + 模型/工具浮层 + 用量浮层 ──
    玻璃由 `BohGlassRefract`（JS 覆盖层）提供；本段只做两件事：
@@ -987,6 +981,13 @@
 
   /* 用量浮层（§21.8 线1）：与两个菜单同款让位 —— 材质改由锚里的折射玻璃提供。 */
   .boh-usage-pop {
+    background: transparent;
+  }
+
+  /* 线 1 收尾（2026-10-15）：斜杠菜单 + hover 详情卡同款让位（锚见模板
+     .boh-slash-anchor / .boh-mm-detail-anchor）；基座实底在不支持时自动回填。 */
+  .boh-slash,
+  .boh-mm-detail {
     background: transparent;
   }
 }

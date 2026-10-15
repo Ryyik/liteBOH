@@ -33,13 +33,27 @@ const GLOBAL_TOKENS = 'src/styles/common/tokens.css';
 const COMPOSER_VUE = 'src/views/BOHAI/BOHAI/components/BohComposer.vue';
 
 describe('BOHAI 液态玻璃：哪些面上了玻璃', () => {
-  it('保留的两个代表**共用一组材质**（斜杠菜单 / hover 详情卡）', () => {
-    const css = squeezeSource(read(COMPOSER));
-    expect(css).toContain('.boh-slash, .boh-mm-detail {');
-    expect(css).toContain('backdrop-filter: var(--liquid-filter-sm)');
-    expect(css).not.toMatch(/backdrop-filter:\s*blur\((?:1[4-9]|[2-9]\d)px\)/);
-    expect(css).toContain('background: var(--boh-glass-bg)');
-    expect(css).toMatch(/@supports\s*\(\(backdrop-filter:\s*blur\(1px\)\)/);
+  it('斜杠 / hover 详情卡升级折射级（§21.8 线 1 收尾）：锚无 z-index，模糊级组清零', () => {
+    /* 剥 CSS 注释再断言：注释里合法地写着「无 z-index 锚」这类词（messages-glass 同款教训）；
+       负向断言用「声明作用域」正则 —— @supports 查询条件里合法地含 "backdrop-filter:"，裸词必误伤 */
+    const css = squeezeSource(String(read(COMPOSER)).replace(/\/\*[\s\S]*?\*\//g, ' '));
+    // ① 模糊级材质组不回来：composer css 不应再有任何 backdrop-filter **声明**
+    expect(css).not.toMatch(/[{;]\s*backdrop-filter\s*:/);
+    // ② 两个锚存在且无 z-index（§21.7 采样根：锚不许建堆叠上下文）
+    for (const anchor of ['.boh-slash-anchor', '.boh-mm-detail-anchor']) {
+      const rule = css.match(new RegExp(`${anchor.replace(/\./g, '\\.')},?\\s*\\{[^}]*\\}`));
+      const anchorRule = rule?.[0] || '';
+      expect(anchorRule, `${anchor} 规则存在`).not.toBe('');
+      expect(anchorRule, `${anchor} 不得带 z-index`).not.toMatch(/z-index/);
+    }
+    // ③ @supports 撤实底名单包含两者（不支持 backdrop-filter 时落回基座实底 --boh-bg-page）
+    expect(css).toContain(squeezeSource('.boh-slash, .boh-mm-detail { background: transparent; }'));
+    // ④ 模板：两个锚各挂一枚玻璃；实例数 = 6（门禁 REFRACT_INSTANCE_BUDGET 上限，别再加）
+    const source = read(COMPOSER_VUE);
+    const template = squeezeSource(source.slice(0, source.indexOf('<script setup>')));
+    expect(template).toContain('<div v-if="slashOpen" class="boh-slash-anchor">');
+    expect(template).toContain('class="boh-mm-detail-anchor"');
+    expect((template.match(/<BohGlassRefract/g) || []).length).toBe(6);
   });
 
   it('输入框 / 模型 / 工具 / 用量浮层升级为**折射级**（§21.7；用量浮层见 §21.10）', () => {

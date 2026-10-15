@@ -21,26 +21,30 @@
           </button>
         </div>
 
-        <!-- 斜杠命令 -->
-        <div v-if="slashOpen" class="boh-slash" role="listbox" aria-label="快捷命令">
-          <button
-            v-for="(command, commandIndex) in slashCommands"
-            :key="command.id"
-            type="button"
-            class="boh-slash-item"
-            :class="{ 'is-current': slashActiveIndex === commandIndex }"
-            role="option"
-            :aria-selected="slashActiveIndex === commandIndex"
-            @mouseenter="emit('update:slashActiveIndex', commandIndex)"
-            @mousedown.prevent="emit('run-slash-command', command)"
-          >
-            <span class="boh-slash-cmd">/{{ command.keyword }}</span>
-            <span class="boh-slash-copy">
-              <strong>{{ command.label }}</strong>
-              <small>{{ command.description }}</small>
-            </span>
-          </button>
-          <div v-if="slashCommands.length === 0" class="boh-slash-empty">没有匹配的命令</div>
+        <!-- 斜杠命令：锚承载定位（无 z-index），玻璃与面板做兄弟（§21.7 采样根）；
+             回滚 = 删锚 + 玻璃两层。 -->
+        <div v-if="slashOpen" class="boh-slash-anchor">
+          <BohGlassRefract :radius="12" />
+          <div class="boh-slash" role="listbox" aria-label="快捷命令">
+            <button
+              v-for="(command, commandIndex) in slashCommands"
+              :key="command.id"
+              type="button"
+              class="boh-slash-item"
+              :class="{ 'is-current': slashActiveIndex === commandIndex }"
+              role="option"
+              :aria-selected="slashActiveIndex === commandIndex"
+              @mouseenter="emit('update:slashActiveIndex', commandIndex)"
+              @mousedown.prevent="emit('run-slash-command', command)"
+            >
+              <span class="boh-slash-cmd">/{{ command.keyword }}</span>
+              <span class="boh-slash-copy">
+                <strong>{{ command.label }}</strong>
+                <small>{{ command.description }}</small>
+              </span>
+            </button>
+            <div v-if="slashCommands.length === 0" class="boh-slash-empty">没有匹配的命令</div>
+          </div>
         </div>
 
         <textarea
@@ -141,38 +145,46 @@
                       <span>配置自定义模型</span>
                     </button>
                   </div>
-                  <!-- hover 详情卡：只放描述 / 消耗速度 / 使用此模式。 -->
-                  <div
-                    v-if="hoverMode"
-                    ref="hoverDetailEl"
-                    class="boh-mm-detail"
-                    :class="{ 'is-flipped': hoverFlipped }"
-                    role="group"
-                    :aria-label="`模式详情：${hoverMode.name}`"
-                    :style="{ top: `${hoverTop}px` }"
-                    @mouseenter="cancelCloseModeDetail()"
-                    @mouseleave="scheduleCloseModeDetail()"
-                  >
-                    <div class="boh-mm-detail-name">{{ hoverMode.name }}</div>
-                    <p v-if="hoverMode.description || hoverMode.tagline" class="boh-mm-detail-desc">
-                      {{ hoverMode.description || hoverMode.tagline }}
-                    </p>
-                    <div class="boh-mm-detail-sep" aria-hidden="true"></div>
-                    <div class="boh-mm-detail-row">
-                      <span>消耗速度</span>
-                      <b>{{ formatModeRateLabel(hoverMode) || '—' }}</b>
-                    </div>
-                    <button
-                      type="button"
-                      class="boh-mm-detail-use"
-                      :disabled="currentModeId === hoverMode.id"
-                      @click="pickMode(hoverMode.id)"
-                    >
-                      {{ currentModeId === hoverMode.id ? '当前模式' : '使用此模式' }}
-                    </button>
-                  </div>
                 </div>
               </Transition>
+
+              <!-- hover 详情卡：挪出面板的堆叠上下文（§21.11：面板 z20 会把采样裁到面板子树，
+                   而卡整体悬在面板右外侧 ⇒ 留在面板里玻璃必死）。锚无 z-index、与面板同顶
+                   （锚顶 = 面板顶，hoverTop 语义不变），玻璃与卡做兄弟；回滚 = 删锚 + 玻璃两层。 -->
+              <div
+                v-if="activeMenu === 'model' && hoverMode"
+                class="boh-mm-detail-anchor"
+                :class="{ 'is-flipped': hoverFlipped }"
+                :style="{ top: `${hoverTop}px` }"
+              >
+                <BohGlassRefract :radius="12" />
+                <div
+                  ref="hoverDetailEl"
+                  class="boh-mm-detail"
+                  role="group"
+                  :aria-label="`模式详情：${hoverMode.name}`"
+                  @mouseenter="cancelCloseModeDetail()"
+                  @mouseleave="scheduleCloseModeDetail()"
+                >
+                  <div class="boh-mm-detail-name">{{ hoverMode.name }}</div>
+                  <p v-if="hoverMode.description || hoverMode.tagline" class="boh-mm-detail-desc">
+                    {{ hoverMode.description || hoverMode.tagline }}
+                  </p>
+                  <div class="boh-mm-detail-sep" aria-hidden="true"></div>
+                  <div class="boh-mm-detail-row">
+                    <span>消耗速度</span>
+                    <b>{{ formatModeRateLabel(hoverMode) || '—' }}</b>
+                  </div>
+                  <button
+                    type="button"
+                    class="boh-mm-detail-use"
+                    :disabled="currentModeId === hoverMode.id"
+                    @click="pickMode(hoverMode.id)"
+                  >
+                    {{ currentModeId === hoverMode.id ? '当前模式' : '使用此模式' }}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

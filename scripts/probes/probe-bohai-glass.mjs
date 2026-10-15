@@ -389,6 +389,84 @@ check('工具菜单玻璃对齐', m1.ok, JSON.stringify(m1));
 await page.click('.boh-tools-pill');
 await page.waitForTimeout(200);
 
+/* ── 线 1 收尾（2026-10-15）：斜杠菜单 + hover 详情卡升折射（锚模式同用量浮层）── */
+/* 斜杠：输入 '/' 唤起。玻璃与面板做兄弟（.boh-slash-anchor 无 z-index）。 */
+await page.fill('.boh-composer-input', '/');
+await page.waitForTimeout(350);
+check(
+  '斜杠锚与玻璃层存在',
+  (await page.locator('.boh-slash-anchor .boh-glass-under').count()) === 1,
+);
+const sl0 = await alignWith('.boh-slash-anchor', '.boh-slash');
+check('斜杠玻璃与面板对齐', sl0.ok, JSON.stringify(sl0));
+await tmpStyle(
+  'pbg-slash-bg',
+  '.boh-stream { background-image: repeating-linear-gradient(45deg, #111 0 3px, #eee 3px 6px); }',
+);
+await page.waitForTimeout(220);
+await blurDiff('斜杠玻璃模糊真实生效', '.boh-slash *', async () => {
+  const r = await page.locator('.boh-slash').boundingBox();
+  return {
+    x: Math.round(r.x + 12),
+    y: Math.round(r.y + 8),
+    width: Math.round(r.width - 24),
+    height: Math.round(r.height * 0.5),
+  };
+});
+await rmStyle('pbg-slash-bg');
+await page.fill('.boh-composer-input', '');
+await page.waitForTimeout(300);
+
+/* hover 详情卡：卡整体悬在面板右外侧 ⇒ 必须挂在锚层（面板 z20 会裁空采样，§21.11）。
+   hover 交互语义不变（mouseenter/mouseleave 原样随卡走）。 */
+await page.click('.boh-mode-pill');
+await page.waitForTimeout(350);
+await page.hover('.boh-mm-item[data-mode-id="ultra"]');
+await page.waitForTimeout(450);
+check(
+  'hover 详情卡锚与玻璃层存在',
+  (await page.locator('.boh-mm-detail-anchor .boh-glass-under').count()) === 1,
+);
+const md0 = await page.evaluate(() => {
+  const g = document
+    .querySelector('.boh-mm-detail-anchor .boh-glass-under')
+    ?.getBoundingClientRect();
+  const c = document.querySelector('.boh-mm-detail')?.getBoundingClientRect();
+  if (!g || !c) return { ok: false, note: 'missing' };
+  const dx = Math.abs(g.left + g.width / 2 - (c.left + c.width / 2));
+  const dy = Math.abs(g.top + g.height / 2 - (c.top + c.height / 2));
+  const dw = Math.abs(g.width - c.width);
+  const dh = Math.abs(g.height - c.height);
+  return {
+    ok: dx < 4 && dy < 4 && dw < 6 && dh < 6,
+    d: `${Math.round(dx)}/${Math.round(dy)}/${Math.round(dw)}/${Math.round(dh)}`,
+  };
+});
+check('hover 详情卡玻璃与卡对齐', md0.ok, JSON.stringify(md0));
+check(
+  'hover 详情卡采样根链合法（坏根=0）',
+  (await chainCheck()).length === 0,
+  JSON.stringify(await chainCheck()),
+);
+await tmpStyle(
+  'pbg-detail-bg',
+  '.boh-stream { background-image: repeating-linear-gradient(45deg, #111 0 3px, #eee 3px 6px); }',
+);
+await page.waitForTimeout(220);
+await blurDiff('hover 详情卡玻璃模糊真实生效', '.boh-mm-detail *', async () => {
+  const r = await page.locator('.boh-mm-detail').boundingBox();
+  return {
+    x: Math.round(r.x + 10),
+    y: Math.round(r.y + 8),
+    width: Math.round(r.width - 20),
+    height: Math.round(r.height * 0.5),
+  };
+});
+await rmStyle('pbg-detail-bg');
+/* 关菜单恢复现场（后续用量浮层断言基于收起态） */
+await page.click('.boh-mode-pill');
+await page.waitForTimeout(250);
+
 /* 用量浮层（§21.8 线1）：hover 圆钮 → 锚内折射玻璃；与输入框/菜单同款「无 z-index 锚 + 兄弟玻璃」。
    ⚠️ 每个新面都要重演一次采样根链检查（chainCheck 遍历**所有** .boh-glass-under，天然覆盖）。 */
 await page.fill('.boh-composer-input', '');

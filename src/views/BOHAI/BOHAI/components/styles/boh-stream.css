@@ -865,7 +865,11 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
      只有一层底色淡入。
      2026-10-10（用户口径「hover 变为一个**液态玻璃**小圆角」）：底色从实心
      `--boh-bg-page` 升级为液态玻璃。**描边同样常态占位**（透明 1px），
-     否则 hover 时多出一条 1px 边框 = 又一次几何跳变。 */
+     否则 hover 时多出一条 1px 边框 = 又一次几何跳变。
+     ⚠️ 2026-10-15（§21.8 线 1 收尾评估）：**结论性维持模糊级，不上折射** ——
+     ① sticky + z-index:3 + float 的宿主，折射玻璃要脱离堆叠上下文须另起一层跟随定位；
+     ② hover 时整列「横条 → 圆角卡片」逐帧变形，折射覆盖层必须逐帧同步尺寸（无现成机制，
+        用量浮层的静态锚模式套不上）；③ 收益是瞬时小卡，改造成本与回归面不成比例。 */
   padding: 6px;
   border: 1px solid transparent;
   border-radius: var(--boh-radius-xl);
