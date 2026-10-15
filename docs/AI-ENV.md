@@ -122,3 +122,19 @@ npm run lint:delta -- --all   # 只看当前全量聚合
 项目在 `~/Documents/`（macOS TCC 保护区），而 AI 工具箱的工作区在 `~/WorkBuddy/`。
 每个新会话都要跨目录 + 一次授权，属**低成本但每次都要付**的摩擦。
 若哪天要根治，把项目挪出 TCC 保护区（或给终端预授权）比在每个会话里忍更划算。
+
+## 7. 沙箱命令规则（schema 已确认，2026-10-15）
+
+WorkBuddy 的「设置 → 安全中心 → 命令安全」背后是 `~/.workbuddy/settings.json` 的
+`sandbox.orderedRules.command.rules`（JSON 数组）。**规则结构是从渲染器源码确认的，不是猜的**：
+
+```json
+{ "id": "...", "source": "user", "prefix": "git push", "action": "ask" }
+```
+
+- `prefix` ＝ **可执行名 + 参数前缀**（如 `git push`），按数组顺序自上而下匹配；只取可执行名最后一段路径。
+- `action` ∈ `allow / ask / deny`。
+- ⚠️ **它只做前缀匹配，不做正则/条件** ⇒ **拦不住「grep 且不带 -E」这类**（`deny grep` 会堵死所有 grep、
+  `ask grep` 每条命令都弹确认，都不可用）。grep 静默失败坑的拦截层是 §3 的能力矩阵 + `check:shell-grep` 门禁。
+- 它适合拦的是**整类命令**：`deny "rm -rf /"`、`ask "git push"`、`ask "npm publish"` 这类。
+  要加就经 UI 加（保证 schema 正确）；想批量自动化时，先在 UI 建一条再从 settings.json 回读真实形状。
