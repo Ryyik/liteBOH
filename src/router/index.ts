@@ -7,9 +7,10 @@ import {
   forceCleanAndReload,
 } from '../utils/version-checker.js';
 import { logger } from '../utils/logger.js';
+import { reportUnknownRoute } from '../utils/monitoring.js';
 import { adminRoutes } from './routes/admin';
 import { communityRoutes } from './routes/community';
-import { creatorRoutes } from './routes/creator';
+import { compatRoutes } from './routes/compat';
 import { publicRoutes } from './routes/public';
 import { userSpaceRoutes } from './routes/user-space';
 import { healthRoutes } from './routes/health';
@@ -27,12 +28,19 @@ const routes: RouteRecordRaw[] = [
   ...communityRoutes,
   ...healthRoutes,
   ...adminRoutes,
-  ...creatorRoutes,
   ...userSpaceRoutes,
+  // 兼容重定向单一登记处（routes/compat.ts）：只含 redirect、无 component，政策见其文件头
+  ...compatRoutes,
   {
+    // 兜底：未知路径先记一笔 unknown_route（会话内按路径去重），再回首页。
+    // 这是兼容层的「日落度量」——compat.ts 到期复核时按真实命中量决定旧链接的删/续，
+    // 不再拍脑袋。上报走 utils/monitoring.js 的 sendBeacon 通道（未配端点时静默跳过）。
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
-    redirect: '/',
+    redirect: (to) => {
+      reportUnknownRoute(to.fullPath);
+      return '/';
+    },
   },
 ];
 

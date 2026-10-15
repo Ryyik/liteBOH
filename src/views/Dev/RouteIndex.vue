@@ -115,6 +115,7 @@ for (const item of BOTTOM_NAV_ITEMS) {
   if (!labelMap.has(key)) labelMap.set(key, item.label);
 }
 const EXTRA_LABELS = {
+  '/user-center/:rest(.*)': '旧用户中心（兼容折叠）',
   '/user-space': '我',
   '/login': '登录',
   '/reset-password': '重置密码',
@@ -149,7 +150,10 @@ const GROUP_TITLES = {
 const groupKeyOf = (path) => path.split('/').filter(Boolean)[0] || '';
 
 const isPageRoute = (route) => !!(route.components && Object.keys(route.components).length > 0);
-const isCatchAll = (route) => route.path.includes('pathMatch') || route.path.includes('(.*)');
+// ⚠️ 只排除 NotFound 兜底（/:pathMatch(.*)*）。**不要**用 `path.includes('(.*)')` 兜底判断 ——
+// 参数化兼容路由（如 /user-center/:rest(.*)，routes/compat.ts）也含 `(.*)`，会被一起滤掉。
+// 这条写错过一次：折叠条目从索引页消失、重定向计数少 1（2026-10-15，冒烟当即抓出）。
+const isCatchAll = (route) => route.path.includes('pathMatch') || route.name === 'NotFound';
 
 const badgesOf = (route) => {
   const badges = [];

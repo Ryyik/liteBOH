@@ -40,6 +40,21 @@ export function reportEvent(type, payload = {}) {
   return true;
 }
 
+/* ── unknown_route 埋点（2026-10-15）───────────────────────────────────────
+   背景：兼容重定向（30 条 → routes/compat.ts 的 17 条）此前**没有任何命中度量**，
+   「旧链接还有没有人用、该不该删」只能拍脑袋，于是它们默认永久存在。
+   现在 NotFound 兜底（router/index.ts）每次命中就报一条 unknown_route；
+   到期复核时按真实数据决定每条兼容的删/续。
+   ⚠️ 同一条路径每次会话只报一次（Set 去重）——防止脚本遍历/爬虫把埋点刷成噪声。 */
+const reportedUnknownRoutes = new Set();
+
+export function reportUnknownRoute(fullPath) {
+  const path = String(fullPath || '').slice(0, 200);
+  if (!path || reportedUnknownRoutes.has(path)) return false;
+  reportedUnknownRoutes.add(path);
+  return reportEvent('unknown_route', { path });
+}
+
 function initWebVitalsLite() {
   if (typeof window === 'undefined' || typeof PerformanceObserver === 'undefined') return;
 

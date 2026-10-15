@@ -2,88 +2,13 @@ import type { RouteRecordRaw } from 'vue-router';
 
 const userSpaceMeta = { requiresLogin: true };
 
-// Vue Router 4 的 redirect 函数类型较为严格，使用实用类型转换来处理动态重定向
-const redirectWithQuery =
-  (path: string, extraQuery: Record<string, string> = {}): any =>
-  (to: any) => ({
-    path,
-    query: { ...to.query, ...extraQuery },
-  });
-
-const redirectToUserSpaceTab =
-  (tab: string): any =>
-  (to: any) => ({
-    path: '/user-space',
-    query: { ...to.query, tab },
-  });
-
+// ⚠️ 兼容重定向（/user-center/*、/mailbox、/user-space/{posts,community,ai,assets,settings,
+// profile,messages,tags-impressions}、/user-space/settings/beta-preview 等）已全部收进
+// routes/compat.ts 单一登记处（2026-10-15 起）。本文件只放真页面，别再往回加 redirect。
+//
 // 2026-09-30 起「标签与印象」独立页已收掉（孤儿页，全站零 UI 入口，见 plans/022 §5）。
-// 印象的落点：2026-10-01 起是「我」页的第三个分段 `?tab=posts&view=impressions`
-// （原先临时指向论坛「印象」分区；该分区已随 plans/022 §4.5 移除，不要再指回去）。
-// 保留 redirect 兜底旧深链，不做 404。
-const redirectToUserSpaceImpressions: any = (to: any) => ({
-  path: '/user-space',
-  query: { ...to.query, tab: 'posts', view: 'impressions' },
-});
-
-const redirectToUserSpaceMessages: any = (to: any) => ({
-  path: '/user-space',
-  query: { ...to.query, tab: 'messages', section: 'notifications' },
-});
-
+// 印象的落点：「我」页的分段 `?tab=posts&view=impressions`（旧深链由 compat.ts 兜底）。
 export const userSpaceRoutes: RouteRecordRaw[] = [
-  {
-    path: '/mailbox',
-    redirect: redirectToUserSpaceMessages,
-  },
-  {
-    path: '/user-center/points',
-    redirect: redirectWithQuery('/user-space?tab=assets'),
-  },
-  {
-    path: '/user-center',
-    redirect: redirectWithQuery('/user-space?tab=posts'),
-  },
-  {
-    path: '/user-center-v2',
-    redirect: redirectWithQuery('/user-space?tab=posts'),
-  },
-  {
-    path: '/user-center/info',
-    redirect: redirectWithQuery('/user-space?tab=posts'),
-  },
-  {
-    path: '/user-center/subscriptions',
-    redirect: redirectWithQuery('/user-space?tab=assets'),
-  },
-  {
-    path: '/user-center/address',
-    redirect: redirectWithQuery('/user-space?tab=assets'),
-  },
-  {
-    path: '/user-center/messages',
-    redirect: redirectToUserSpaceMessages,
-  },
-  {
-    path: '/user-center/partners',
-    redirect: redirectWithQuery('/user-space/partners'),
-  },
-  {
-    path: '/user-center/tags-impressions',
-    redirect: redirectToUserSpaceImpressions,
-  },
-  {
-    path: '/user-center/pushplus-settings',
-    redirect: redirectWithQuery('/user-space/pushplus-settings'),
-  },
-  {
-    path: '/user-center/pushplus',
-    redirect: redirectWithQuery('/user-space/pushplus-settings'),
-  },
-  {
-    path: '/user-center/shared-memories',
-    redirect: redirectWithQuery('/user-space/shared-memories'),
-  },
   {
     path: '/user-space/subscriptions',
     name: 'Subscriptions',
@@ -98,10 +23,6 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     meta: { ...userSpaceMeta },
   },
   {
-    path: '/user-space/messages',
-    redirect: redirectToUserSpaceMessages,
-  },
-  {
     path: '/user-space/partners',
     name: 'Partners',
     component: () => import('../../views/user-center/Partners.vue'),
@@ -114,33 +35,6 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     name: 'UserSpace',
     component: () => import('../../views/user-center/UserSpace/index.vue'),
     meta: { keepAlive: true },
-  },
-  {
-    path: '/user-space/profile',
-    redirect: redirectToUserSpaceTab('posts'),
-  },
-  {
-    path: '/user-space/posts',
-    // 2026-09 IA：旧 tab=posts 语义是「论坛」，论坛现居社区 tab
-    redirect: redirectToUserSpaceTab('community'),
-  },
-  {
-    path: '/user-space/community',
-    // 旧 tab=community 语义是「关注/粉丝」，现随身份卡居内容 tab
-    redirect: redirectToUserSpaceTab('posts'),
-  },
-  {
-    path: '/user-space/ai',
-    // AI 并入消息 tab
-    redirect: redirectToUserSpaceTab('messages'),
-  },
-  {
-    path: '/user-space/assets',
-    redirect: redirectToUserSpaceTab('assets'),
-  },
-  {
-    path: '/user-space/settings',
-    redirect: redirectToUserSpaceTab('settings'),
   },
   {
     // 摄影集：我的影集列表（创建/编辑/阅读/导出/分享入口）
@@ -168,10 +62,6 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     meta: { ...userSpaceMeta },
   },
   {
-    path: '/user-space/tags-impressions',
-    redirect: redirectToUserSpaceImpressions,
-  },
-  {
     path: '/user-space/pushplus-settings',
     name: 'PushplusSettings',
     component: () => import('../../views/user-center/PushplusSettingsPage.vue'),
@@ -183,9 +73,5 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     component: () => import('../../views/user-center/BetaPreview/BetaPreviewMain.vue'),
     // keepAlive：版本/预览信息与当前构建绑定，在一次会话内不会变，缓存无新鲜度代价。
     meta: { ...userSpaceMeta, hideNavbar: true, hideFooter: true, keepAlive: true },
-  },
-  {
-    path: '/user-space/settings/beta-preview',
-    redirect: '/user-space/settings/version',
   },
 ];

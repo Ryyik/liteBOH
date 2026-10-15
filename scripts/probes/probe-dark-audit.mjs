@@ -10,6 +10,10 @@ const OUT_JSON = 'dark-audit-results.json';
 const SHOT_DIR = 'debug-screenshots';
 if (!fs.existsSync(SHOT_DIR)) fs.mkdirSync(SHOT_DIR, { recursive: true });
 
+// ⚠️ 路径一律用**现行 canonical 形式**（不经重定向）——2026-10-15 清理过一次：
+// 旧 tab 深链（/user-space/posts|profile|ai…）、/mailbox、/user-center/points、
+// /creator-studio 曾在此列，全是重定向或已删路由（探针自己漂移了）；
+// 兼容层现状与政策见 src/router/routes/compat.ts。
 const PAGES = [
   { path: '/', name: 'home' },
   { path: '/newsroom', name: 'newsroom' },
@@ -18,8 +22,7 @@ const PAGES = [
   { path: '/forum/post/1', name: 'post-detail' },
   { path: '/lotteries', name: 'lotteries' },
   { path: '/activities-wall', name: 'activities-wall' },
-  { path: '/activities-wall/list', name: 'activities-list' },
-  { path: '/activities-wall/photo-wall', name: 'photo-wall' },
+  { path: '/activities-wall?tab=wall', name: 'block-wall' },
   { path: `/profile/${encodeURIComponent('方块之家')}`, name: 'profile' },
   { path: '/shop', name: 'shop' },
   { path: '/shop/account', name: 'shop-account' },
@@ -32,7 +35,6 @@ const PAGES = [
   { path: '/about', name: 'about' },
   { path: '/join', name: 'join' },
   { path: '/download', name: 'download' },
-  { path: '/tutorial', name: 'tutorial' },
   { path: '/shows', name: 'shows' },
   { path: '/character-book', name: 'character-book' },
   { path: '/ai-chat', name: 'ai-chat' },
@@ -42,17 +44,14 @@ const PAGES = [
   { path: '/lab', name: 'lab' },
   { path: '/health', name: 'health' },
   { path: '/user-space', name: 'user-space' },
+  { path: '/user-space?tab=community', name: 'us-community' },
+  { path: '/user-space?tab=posts', name: 'us-posts' },
+  { path: '/user-space?tab=assets', name: 'us-assets' },
+  { path: '/user-space?tab=messages', name: 'us-messages' },
   { path: '/user-space/subscriptions', name: 'us-subscriptions' },
   { path: '/user-space/gifts', name: 'us-gifts' },
-  { path: '/user-space/messages', name: 'us-messages' },
   { path: '/user-space/partners', name: 'us-partners' },
-  { path: '/user-space/profile', name: 'us-profile' },
-  { path: '/user-space/posts', name: 'us-posts' },
-  { path: '/user-space/ai', name: 'us-ai' },
   { path: '/user-space/account-security', name: 'us-account' },
-  { path: '/mailbox', name: 'mailbox' },
-  { path: '/user-center/points', name: 'uc-points' },
-  { path: '/creator-studio', name: 'creator-studio' },
   { path: '/admin/data-management', name: 'admin-data' },
   { path: '/admin/api-keys', name: 'admin-apikeys' },
   { path: '/admin/alert-style-editor', name: 'admin-alert' },
