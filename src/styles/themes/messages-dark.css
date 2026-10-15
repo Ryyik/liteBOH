@@ -13,10 +13,13 @@
 /* ============================================
    页面头部
    ============================================ */
-.x-notifications-container[data-theme="dark"] .x-header {
-  background: rgba(13, 13, 18, 0.95);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: var(--liquid-filter-sm);
+/* 玻璃材质已收敛到 --liquid-*（2026-10-15）：页头的暗色由 token 自动翻转，
+   旧 rgba(13,13,18,0.95) 近实底会压死暗色玻璃，已删。
+   这里只补页头内实底控件的暗色可读性（文字用 token，不新增裸色值）。 */
+.x-notifications-container[data-theme="dark"] .x-filter-chip,
+.x-notifications-container[data-theme="dark"] .x-select-btn,
+.x-notifications-container[data-theme="dark"] .x-mark-all-btn-minimal {
+  color: var(--liquid-text-secondary);
 }
 
 .x-notifications-container[data-theme="dark"] .x-mark-all-btn {
@@ -40,29 +43,11 @@
   background: transparent;
 }
 
-.x-notifications-container[data-theme="dark"] .x-inbox-list,
-[data-theme="dark"] .x-notifications-container .x-inbox-list {
-  background: #1e1e2a;
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
+/* .x-inbox-list 暗色实底已删：基础规则走 --liquid-bg/border/shadow，
+   [data-theme="dark"] 下 token 自动翻转（旧 #1e1e2a 实底会压死暗色玻璃）。 */
 
-/* 通知项 - 修复：使用正确的类名 */
-.x-notifications-container[data-theme="dark"] .x-item {
-  background: #1e1e2a;
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.x-notifications-container[data-theme="dark"] .x-item:hover {
-  background: #252532;
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-.x-notifications-container[data-theme="dark"] .x-item.unread {
-  border-left: 3px solid #60a5fa;
-  background: rgba(59, 130, 246, 0.08);
-}
+/* 通知项暗色实底已删：行在玻璃列表上保持透明，暗色 hover/未读 tint
+   由组件 scoped 的 [data-theme="dark"] 块提供（单一真源，不再双系统打架）。 */
 
 /* 通知头像 */
 .x-notifications-container[data-theme="dark"] .x-avatar,
@@ -107,8 +92,6 @@
 
 .x-notifications-container[data-theme="dark"] .x-quick-btn,
 [data-theme="dark"] .x-notifications-container .x-quick-btn {
-  background: #252532;
-  border-color: rgba(255, 255, 255, 0.1);
   color: #c4c4cc;
 }
 
@@ -238,10 +221,7 @@
   color: #ffffff;
 }
 
-[data-theme="dark"] .detail-user-card {
-  background: #252532;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
+/* detail-user-card 暗色实底已删：基础规则已收敛到 --liquid-bg，暗色 token 自动翻转 */
 
 [data-theme="dark"] .user-info .name {
   color: #ffffff;
@@ -261,7 +241,6 @@
 }
 
 [data-theme="dark"] .source-content {
-  background: #252532;
   border-left: 4px solid #60a5fa;
 }
 
@@ -278,20 +257,11 @@
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-[data-theme="dark"] .reply-input-section {
-  background: #252532;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
+/* reply-input-section 暗色实底已删：基础规则已收敛到 --liquid-bg-subtle */
 
-[data-theme="dark"] .notification-actions {
-  background: rgba(30, 30, 42, 0.94);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
+/* notification-actions 暗色实底已删：基础规则已收敛到 --liquid-bg */
 
-[data-theme="dark"] .notif-action-btn {
-  background: #2a2a3a;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
+/* notif-action-btn 暗色实底已删：基础规则已收敛到 --liquid-bg-strong */
 
 [data-theme="dark"] .notif-action-btn.reply {
   color: #60a5fa;
@@ -334,10 +304,7 @@
   background: transparent;
 }
 
-.x-notifications-container[data-theme="dark"] .x-header-minimal {
-  background: rgba(13, 13, 18, 0.8);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
+/* .x-header-minimal 暗色实底已删：基础规则已玻璃化（--liquid-bg + 发丝线），暗色 token 自动翻转 */
 
 .x-notifications-container[data-theme="dark"] .x-mark-all-btn-minimal {
   background: rgba(59, 130, 246, 0.15);
@@ -372,14 +339,7 @@
 /* ============================================
    全局深色模式适配 (data-theme="dark" 在父元素)
    ============================================ */
-[data-theme="dark"] .x-notifications-container .x-item {
-  background: #1e1e2a;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-[data-theme="dark"] .x-notifications-container .x-item:hover {
-  background: #252532;
-}
+/* 旧版通知项实底双写已删（与上方“通知项”同因）：行透明 + scoped 暗色 tint 单一真源 */
 
 [data-theme="dark"] .x-notifications-container .x-sender-name,
 [data-theme="dark"] .x-notifications-container .x-text {
@@ -390,18 +350,8 @@
   color: #71717a;
 }
 
-/* 新版收件箱式消息中心兜底覆盖 */
-.x-notifications-container[data-theme="dark"] .x-inbox-list .x-item,
-[data-theme="dark"] .x-notifications-container .x-inbox-list .x-item {
-  border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: none;
-}
-
-.x-notifications-container[data-theme="dark"] .x-inbox-list .x-item:last-child,
-[data-theme="dark"] .x-notifications-container .x-inbox-list .x-item:last-child {
-  border-bottom: 0;
-}
+/* 新版收件箱式消息中心兜底已删：行 hairline 走 --liquid-border-hairline，
+   暗色由 token 自动翻转；旧块只是为了压住上面已删的实底双写。 */
 
 .x-notifications-container[data-theme="dark"] .x-skeleton-item,
 [data-theme="dark"] .x-notifications-container .x-skeleton-item {

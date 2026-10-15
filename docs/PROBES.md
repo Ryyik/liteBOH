@@ -262,6 +262,7 @@
 | `probe-landscape-rail-demo.mjs` | — | 探针：横屏左栏改造 demo（landscape-rail-demo.html） |
 | `probe-messages-metrics.mjs` | — | 量测：消息页顶部每一层的实际占位（竖屏 + 横屏） |
 | `probe-messages-ui.mjs` | — | 探针：消息中心 UI 现状截图（注入 mock 通知数据） |
+| `probe-messages-glass.mjs` | 21 | 消息中心液态玻璃验收（2026-10-15）：挂载/材质 token 口径/**像素级模糊开-关**（确定性条纹背板 + about:blank 整页重建）/采样根链（.tab-page 架构白名单）× 浅暗双主题 + 旧路由重定向。⚠️ 三坑：fixed 岛状态卡会探进页头 clip 污染能量读数（测前滚 300px + 藏岛）；暗色容器 `background !important`（0,2,0）会压平 0,1,0 背板条纹（同特异度 + 后注入才赢）；登录必须种**会话形状**（pinia 注入触发不了 supabase.getUser 的取数链 —— 无会话时它零网络静默返 null，实测踩过） |
 | `probe-news-image-check.mjs` | — | （无头部说明） |
 | `probe-overview-day-marker.mjs` | — | 离线总结「上次在线日 / 当日已检查」天粒度游标 — 纯函数单元验证 |
 | `probe-pd-modal.mjs` | — | 探针：横屏帖子详情弹窗化（openForumPost 单源分流 + 小红书式布局） |

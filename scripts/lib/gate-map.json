@@ -50,6 +50,19 @@
       "why": "横屏左栏浮层/发布会话闸门/IA 结构/积分卡卡面"
     },
     {
+      "glob": "src/views/user-center/Messages/**",
+      "run": [
+        "node scripts/probes/probe-messages-glass.mjs",
+        "node scripts/probes/probe-messages-metrics.mjs"
+      ],
+      "why": "消息中心液态玻璃（采样链/像素级开-关/双主题）+ 顶部占位量测"
+    },
+    {
+      "glob": "src/styles/themes/messages-dark.css",
+      "run": ["node scripts/probes/probe-messages-glass.mjs"],
+      "why": "消息暗色覆盖链：面板底色不许压死 token 玻璃（§21.11）"
+    },
+    {
       "glob": "src/views/Forum/**",
       "run": [
         "node scripts/probes/probe-composer-session-gate.mjs",
