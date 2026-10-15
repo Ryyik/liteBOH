@@ -171,7 +171,7 @@
 | `probe-profile-info-row.mjs` | — | probe-profile-info-row.mjs — 他人主页「积分卡 + 用户信息」横屏并排验证 |
 | `probe-profile-rail.mjs` | — | 探针：他人空间（/profile/:username）横屏同体系分栏验收（2026-09-19） |
 | `probe-reset-password-liquid.mjs` | — | 探针：重置密码页 liquid 改造验证（亮/暗两态截图） |
-| `probe-user-space-ia.mjs` | — | 探针：用户空间 IA 回归（2026-09 面板上提 + 抖音式文字页签） |
+| `probe-user-space-ia.mjs` | — | 探针：用户空间 IA 回归（91 断言，2026-10 收口版：底栏四席 / 论坛六席 / 我页三段 / ?tab=assets 旧深链回落 / 左栏 4 项 / 暗色 / 手机横屏；BASE 可传 dev server 地址，默认 localhost:5173） |
 | `probe-user-space-perf.mjs` | — | 探针：User Space 系统性性能审查 v2（索引切阶段 + 定时器堆栈归因） |
 | `probe-userspace-pages.mjs` | `npm run probe:userspace-pages` | probe-userspace-pages.mjs — UserSpace **全页面**切换审计（逐页，不抽样） |
 | `probe-userspace-switch.mjs` | `npm run probe:userspace-switch` | probe-userspace-switch.mjs — UserSpace 分区切换流畅度实测 |

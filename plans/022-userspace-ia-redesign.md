@@ -426,7 +426,7 @@ export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
 
 ## 6.5 实施进度（2026-09-30 23:00 起）
 
-> 本方案于 2026-09-30 22:55 开工，分 7 个任务推进。**已完成 4 个**，均跑过 `npm run verify`。
+> 本方案于 2026-09-30 22:55 开工，分 7 个任务推进。**6 完成 / 1 部分**（2026-10-15 复核），均跑过 `npm run verify`。
 
 | # | 任务 | 状态 | 落地内容 |
 | --- | --- | --- | --- |
@@ -435,21 +435,20 @@ export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
 | 4 | 底栏 5 席 → 4 席 | ✅ 完成 | `bottom-nav.ts` 改为 **内容 / 消息 / AI / 我**；新增 `fullPage` 字段（AI 席 `fullPage:true`，点它 `router.push('/ai-chat')` 不参与 tab 切换）；`USERSPACE_TAB_TO_BOTTOM_NAV_ID` 改为多对一（`assets`/`settings` → `posts`）；`useUserSpaceTabs.js` 的 `activeNavIndex` 与 `UserSpaceMain` 的 `:current-tab` 都改走映射（否则 `findIndex` 得 -1 会错误高亮第一席）；`handleBottomNavClick` 加 `fullPage` 分流；`Home/index.vue` 注释「五席」→「四席」 |
 | 6 | 设置入口齿轮 → 文字「设置」 | ✅ 完成 | `ProfileHomePanel.vue:22-42` 的齿轮 SVG 换为文字；`.profile-settings-btn` 由 40×40 圆形改文字胶囊（`min-height:32px` / `padding:0 14px` / `border-radius:999px` / `font-size:13px`）；移除已无用的 `.profile-settings-btn svg` 规则 |
 | 5 | 「我」页三段 tab + 印象数据层搬迁 | ✅ 完成（2026-10-01） | **已完成**：消息 tab 去掉 AI 段（模板删 `SegmentTabs` + `ai-host`；脚本删 `MESSAGE_SECTION_ITEMS` / `bohaiActivatedOnVisit` + 两个 watch / `setMessagesSection` / 预载 watch；清 `AsyncBOHAI`、`preloadBOHAIComponent` import）。**已补齐（2026-10-01）**：`[空间｜资产｜印象]` 三段 tab 全部落地 —— 资产块从独立 tab-page 搬进 posts tab（闩锁改用 `assetsSegmentVisited`），印象数据层从 `ForumSectionShell.vue` 抽到 `composables/useProfileImpressions.js` + `ProfileImpressionsSection.vue`，论坛侧 `impressions` 席与 `FORUM_SECTION_ITEMS` 条目一并移除。⚠️ 剩余遗留死 CSS：`.ai-host` / `.ai-workspace` 在 `shell-community.css`（~7 处）与 `landscape-rail.css`（2 处）待清理（`.content-cloud-host` 已随本次改名清掉） |
-| 3 | 论坛分区 7 席 → 4 档 | ⬜ 待做 | `forum-sections.ts` 收敛 + news/activity 降为 chips |
-| 7 | 探针更新 + 全量自证 | ⬜ 待做 | `probe-user-space-ia.mjs` 13 条存量 FAIL 必须一并更新 |
+| 3 | 论坛分区 7 席 → 4 档 | 🔄 部分 | 现为 **6 席**（印象已移除；news/activity 去留待拍板，见未完成任务清单 §20 第 5 项），`forum-sections.ts` 收敛未做 |
+| 7 | 探针更新 + 全量自证 | ✅ 完成 | 探针重写对齐收口版（`16e723d3`，91 断言）；2026-10-15 在当前工作树复跑 **91 PASS / 0 FAIL ×2** |
 
 **门禁结论（2026-09-30 23:38）**：`npm run verify` **EXIT=0**；lint **188** 条 warning
 （棘轮已从 189 下调到 188）；三项棘轮全部持平在下调后的值：
 `important-budget 1315/1315`（原 1319）、`dark-tokens 2885/2885`（原 2902）、`layering 168/168`。
 测试 146 文件全过（2274 passed / 1 skipped）。
 
-**⚠️ 任务 2 的 redirect 目标是临时的**：当前指向论坛「印象」分区（`?tab=community&view=impressions`），
-因为「我」页的印象分段（任务 5）尚未落地。任务 5 完成后应改为 `?tab=posts&section=impressions`。
+**✅ 任务 2 的 redirect 临时目标已解除**（2026-10-15 复核）：现指向 `?tab=posts&view=impressions`
+（「我」页印象分段，任务 5 已落地）。
 
-**⚠️ 任务 4 已完成但任务 5 未做，中间态影响**：`assets` / `settings` 已从底栏撤下，
-但尚未成为「我」页分段。当前：
-- 设置：仍可从资料卡右上角「设置」进入（`openProfileSettings` → `jumpWithSection('settings','home')`）✅
-- 资产：底栏入口已无，仅剩页内入口（`openAssetsHub` / `openSponsorPage`）与直链 `?tab=assets` ⚠️
+**✅ 任务 4/5 中间态已解除**（2026-10-15 复核）：资产与设置均已是「我」页内落点——
+资产 = posts 分段 `assets-shell`（`?tab=assets` 旧深链冷启回落并回写 `?tab=posts&view=assets`，
+探针有断言）；设置 = 资料卡右上角「设置」文字入口 / `?tab=settings` 直达（底栏高亮落「我」）。
 
 **过程记录（值得留档）**：
 - 又一次踩到 **bash `grep "a\|b"` 在本环境恒返回 0 匹配**（BRE 交替不生效）：查 `BOTTOM_NAV_ITEMS` 消费方时假阴性，改用 Grep 工具才查到。已写入 `.workbuddy-ai/memory/MEMORY.md`。
@@ -464,7 +463,7 @@ export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
 | --- | --- |
 | 通用门禁 | `npm run verify` |
 | 首页 / 底栏 / 左栏 / 论坛入口布局 | `node scripts/probes/probe-home-forum-rail.mjs`（21 断言）、`node scripts/probes/probe-rail-landing.mjs`（45） |
-| UserSpace IA | `node scripts/probes/probe-user-space-ia.mjs`（⚠️ 已知 13 条存量 FAIL：探针仍断言旧底栏五席与社区六档，属「探针文档过期」，改 IA 时**必须一并更新这份探针**，否则新旧漂移混在一起无法判红） |
+| UserSpace IA | `node scripts/probes/probe-user-space-ia.mjs`（91 断言，已对齐收口版；2026-10-15 复跑 91 PASS / 0 FAIL ×2。BASE 可传 dev server 地址，默认 `localhost:5173`） |
 | AI 面板 | `npm run probe:ai-panels` |
 | 暗色 token | 已在 verify 链内 `check:dark-tokens:strict` |
 | UI 层直连数据层 | 已在 verify 链内 `check:layering` |
