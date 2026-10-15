@@ -3,6 +3,12 @@
 > 需求基线（用户定 2026-10-12）+ 该页全部已实测陷阱。原型产物 `ai-config-demo.html`（根目录）。
 
 ## 需求基线（用户定，2026-10-12）
+
+> ⚠️ **三条必读陷阱（2026-10-15 从 MEMORY.md 主文件下放到这里）**：
+> ① provider 分「模型平台 / 工具服务」两类，别混；
+> ② **`api_key_vault` 唯一键是 `(provider,purpose)` ⇒ 再保存＝替换**，落库前必须先点名它要覆盖哪一行；
+> ③ **一列只能有一个写入口**（`quota_multiplier` 曾双写互相覆盖）。
+
 - **添加平台＝选平台→贴 Key→自动拉取模型**（界面不出现 base_url）；**手动建平台只有 名称/地址/Key 三字段**；**添加模型＝只选平台 + 填模型信息**。页面 6 tab → 3 tab（密钥与模型 / 场景绑定 / 额度）。
 - 原型产物：`ai-config-demo.html`（根目录单文件）+ `scripts/probes/probe-ai-config-demo.mjs`（支持 `DEMO_FILE` / `EXPECT_RED` / `SHOT_DIR`）。
 - ⚠️ **「配置不明确」三根因**：① 一个词指多个东西；② 编辑器按**代码结构**分组（basic/provider/params/extra）而不是按人的心智；③ 界面把内部枚举名当文案（`chat/multimodal`、`min_tier` 10 个扁平值）。修法：一字段一名字 + 分组按「要干什么」+ 枚举换人话 + 每字段一句「改了会怎样」。

@@ -58,7 +58,7 @@ git status --porcelain | wc -l   # 工作区有多脏（并行会话判断依据
 | 1 | `npx <tool>` 会被 **SIGTERM** | 一律用 `./node_modules/.bin/<tool>` | `env:doctor` 实测探测 |
 | 2 | vite 只绑定 **IPv6** | 探针/脚本连 `http://[::1]:5173`（或启动时显式 `--host ::`） | ❌ 记在这里 |
 | 3 | `nohup … &` 后台服务**随工具调用被杀** | 用托管后台任务（`run_in_background`），不要自己 detach | ❌ 记在这里 |
-| 4 | safe-delete 拦「一次删 >50 文件」 | 跑 `vite build`／`build:ci` **之前**先 `mv dist /tmp/dist-$(date +%s)` | `env:doctor` 检查 dist 残留 |
+| 4 | safe-delete 拦「一次删 >50 文件」（跑 build 前删 `dist` 就撞它） | 跑 `vite build`／`build:ci` **之前**先 `mv dist /tmp/dist-$(date +%s)`。⚠️ 直接建会报 `SAFE_DELETE_BULK_CONFIRM_REQUIRED`，并**吐「壳样式允许清单为空」等次生 warning 误导**（真正的失败在删除那一步）；`node_modules/.vite` 同理。CI 上没有这个 shim | `env:doctor` 检查 dist 残留 |
 | 5 | **BSD grep 不支持 BRE 的 `\|`**（静默 0 命中！） | 一律 `grep -E`，或直接用 Grep 工具 | `env:doctor` 实测探测 |
 | 6 | `github.com` HTTPS 被 **SNI 阻断** | push 走 `ssh.github.com:443`；兜底 `scripts/push-via-api.py` | `env:doctor --deep` 探测 |
 | 7 | Playwright 与外层代理冲突 | 必须 `channel:'chrome'` + `--proxy-server=direct:// --proxy-bypass-list=*` | `env:doctor` 提示代理变量 |
@@ -72,6 +72,8 @@ git status --porcelain | wc -l   # 工作区有多脏（并行会话判断依据
 - `/tmp` 下的一次性 ESM 脚本**引不到仓库依赖** ⇒ 用 `createRequire('<repo>/package.json')`，或把脚本放仓库根（用完删）。
 - 探针 `page.evaluate(fn)` **只序列化函数体** ⇒ 闭包依赖必须作为**参数**传进去。
 - node 22 的 `globalThis.navigator` 是**只读**的 ⇒ 要 mock 得走 `Object.defineProperty`。
+- **探针里伪造登录**：等 `#app.__vue_app__` 出现后改 `pinia.state.value.auth`（**不要**种 `sb-*-auth-token`）。
+- **看 CI**：`gh run watch <id> --exit-status` —— `--exit-status` 才能让脚本按结论退码。
 
 ---
 
