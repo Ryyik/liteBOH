@@ -1,21 +1,21 @@
 {
-  "total": 2702,
+  "total": 2701,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 187,
     "src/styles/themes/user-space-dark.css": 153,
-    "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 146,
-    "src/styles/themes/post-detail-dark.css": 126,
+    "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 149,
+    "src/styles/themes/post-detail-dark.css": 123,
     "src/styles/themes/messages-dark.css": 108,
     "src/views/user-center/Messages/style.scoped.css": 106,
     "src/views/Newsroom/style.scoped.css": 103,
     "src/views/user-center/UserSpace/styles/shell-community.css": 103,
-    "src/components/UnifiedNavbar/style.scoped.css": 71,
+    "src/components/UnifiedNavbar/style.scoped.css": 69,
     "src/views/Lab/components/LabQuotaIsland.vue": 65,
     "src/styles/themes/dark-mode.css": 58,
     "src/components/UnifiedNavbar/GlobalSearchIsland.vue": 50,
     "src/views/DataManagement/styles/base.css": 50,
-    "src/views/user-center/UserSpace/components/AvatarFrameGrid.vue": 48,
+    "src/views/user-center/UserSpace/components/AvatarFrameGrid.vue": 49,
     "src/components/SubscriptionPlans.vue": 47,
     "src/views/Profile/style.scoped.css": 46,
     "src/views/DataManagement/styles/responsive.css": 44,
@@ -92,5 +92,5 @@
     "src/views/DataManagement/components/EditDrawer.vue": 1,
     "src/views/PhotoAlbums/index.vue": 1
   },
-  "updatedAt": "2026-10-12"
+  "updatedAt": "2026-10-15"
 }
