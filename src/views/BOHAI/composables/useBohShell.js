@@ -52,6 +52,7 @@ import { themeManager } from '@/utils/theme-manager.js';
 import { userSpaceNavItems } from '@/views/user-center/UserSpace/composables/useUserSpaceTabs.js';
 import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { useGlobalAiPreferences } from '@/composables/useGlobalAiPreferences.js';
+import { LIQUID_GLASS_SPEC } from '@/config/liquid-glass-spec.js';
 
 /**
  * BOHAIMain 薄壳的全部状态与接线。
@@ -1794,6 +1795,22 @@ export function useBohShell(props, emit) {
   // 外观偏好在设置面板里改，**不经过 themeManager** —— 原先只有 onMounted 与站点主题
   // 切换两条路径能重跑上面那段，改成深色后不会立即生效。这里补一条依赖。
   watch(resolvedAiTheme, syncThemeAttribute);
+
+  /* ── 折射玻璃透明度（2026-10-14，§21.7；§21.11 令牌提为站点级）──────────────
+     玻璃白膜走 `rgba(var(--refract-tint-rgb), var(--refract-alpha))`，
+     这里把偏好写到**根元素**（变量随全文档继承，BOHAI 全部玻璃实例同时生效）。
+     ⚠️ 这是 BOHAI 的**用户偏好**（设置→外观），不是站点级默认档：
+        站点 chrome（顶栏）在自己的玻璃宿主上把 `--refract-alpha` **重新声明**成
+        `--refract-alpha-default` 来显式遮蔽，不跟着这条滑杆走（见 UnifiedNavbar）。
+     默认值与钳制边界真源 = `src/config/liquid-glass-spec.js`（官方样貌单源）。 */
+  const syncGlassOpacity = () => {
+    const value = Number(globalAiPreferences.glassOpacity);
+    const alpha = Number.isFinite(value)
+      ? Math.min(LIQUID_GLASS_SPEC.tintAlphaMax, Math.max(LIQUID_GLASS_SPEC.tintAlphaMin, value))
+      : LIQUID_GLASS_SPEC.tintAlphaDefault;
+    document.documentElement.style.setProperty('--refract-alpha', alpha.toFixed(2));
+  };
+  watch(() => globalAiPreferences.glassOpacity, syncGlassOpacity, { immediate: true });
 
   const handleThemeChange = (
     _theme,

@@ -62,6 +62,6 @@ jobs:
             echo "::endgroup::"
           done
           if [ "$fail" -ne 0 ]; then
-            echo "::warning title=deno check::有 Edge Function 未通过类型检查（当前为观察档，不阻断）"
+            echo "::error title=deno check::有 Edge Function 未通过类型检查（阻断门禁，见 AGENTS.md）"
           fi
           exit "$fail"

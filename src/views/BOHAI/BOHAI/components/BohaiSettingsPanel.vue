@@ -663,6 +663,37 @@
                       </div>
                     </div>
 
+                    <!-- 玻璃透明度（2026-10-14，§21.7）：折射玻璃白膜 α，实时生效 -->
+                    <div class="ai-settings-row">
+                      <div class="ai-settings-label-stack">
+                        <span class="ai-settings-label">玻璃透明度</span>
+                        <span class="ai-settings-desc"
+                          >输入框与浮层液态玻璃的透光度（低 = 更磨砂）</span
+                        >
+                      </div>
+                      <div class="ai-settings-row-right">
+                        <div class="ai-settings-glass-row">
+                          <div class="ai-settings-glass-preview" aria-hidden="true">
+                            <span class="ai-settings-glass-preview-chip">预览</span>
+                          </div>
+                          <input
+                            class="ai-settings-range"
+                            type="range"
+                            :min="GLASS_SPEC.tintAlphaMin * 100"
+                            :max="GLASS_SPEC.tintAlphaMax * 100"
+                            step="5"
+                            :value="Math.round(preferences.glassOpacity * 100)"
+                            :aria-valuetext="`${Math.round(preferences.glassOpacity * 100)}%`"
+                            aria-label="液态玻璃透明度"
+                            @input="preferences.glassOpacity = Number($event.target.value) / 100"
+                          />
+                          <b class="ai-settings-range-value">
+                            {{ Math.round(preferences.glassOpacity * 100) }}%
+                          </b>
+                        </div>
+                      </div>
+                    </div>
+
                     <div
                       class="ai-settings-row clickable"
                       role="switch"
@@ -1141,6 +1172,7 @@ import {
   useGlobalAiPreferences,
   getGlobalAiShortcutLabel,
 } from '@/composables/useGlobalAiPreferences.js';
+import { LIQUID_GLASS_SPEC } from '@/config/liquid-glass-spec.js';
 import { getAiQuotaStatus } from '@/utils/api/api-key-runtime-api.js';
 import {
   deleteUserAiEndpoint,
@@ -1339,6 +1371,9 @@ const quota = ref(null);
 const quotaLoading = ref(false);
 let focusRestore = null;
 const { preferences } = useGlobalAiPreferences();
+
+/* 玻璃透明度滑杆的边界（官方样貌单源，别在这里写死数值） */
+const GLASS_SPEC = LIQUID_GLASS_SPEC;
 
 // 档位文案已收敛到 utils/subscription-benefits.js 的 TIER_DISPLAY_LABELS
 // （侧栏账号浮层要显示同一文案），顶部以 `TIER_DISPLAY_LABELS as TIER_LABELS` 引入，用法不变。
@@ -2178,6 +2213,59 @@ onUnmounted(() => {
   background: var(--ai-accent);
   color: var(--ai-accent-contrast);
   font-weight: 500;
+}
+
+/* ── 玻璃透明度（2026-10-14，§21.7）：滑杆 + 实时预览chip ────────────────────
+   预览 chip 的白膜走同一对令牌（rgba(var(--refract-tint-rgb), var(--refract-alpha))），
+   滑杆改偏好 ⇒ 变量跟着变 ⇒ 预览与真玻璃同时变。 */
+.ai-settings-glass-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ai-settings-glass-preview {
+  position: relative;
+  flex: none;
+  width: 132px;
+  height: 40px;
+  border-radius: var(--boh-radius-md);
+  overflow: hidden;
+  background: linear-gradient(115deg, #4f8bf7 0%, #8f6bff 34%, #23c9c0 68%, #ffb765 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-settings-glass-preview-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 104px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(var(--refract-tint-rgb), var(--refract-alpha));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  border: 1px solid var(--boh-glass-border);
+  color: var(--ai-text-1);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+}
+
+.ai-settings-range {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--ai-accent);
+}
+
+.ai-settings-range-value {
+  flex: none;
+  min-width: 40px;
+  text-align: right;
+  font-size: 12.5px;
+  color: var(--ai-text-1);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── 开关 ───────────────────────────────────────────────────── */

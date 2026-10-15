@@ -15,6 +15,12 @@ export const publicRoutes: RouteRecordRaw[] = [
           component: () => import('../../views/Dev/LiquidGlassNavDemo.vue'),
           meta: { hideNavbar: true, hideFooter: true },
         },
+        {
+          path: '/__dev/glass-repro',
+          name: 'GlassBackdropRepro',
+          component: () => import('../../views/Dev/GlassBackdropRepro.vue'),
+          meta: { hideNavbar: true, hideFooter: true },
+        },
       ]
     : []),
   {

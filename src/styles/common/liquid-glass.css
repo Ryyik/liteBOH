@@ -111,7 +111,9 @@
 
 /* 性能优化：移动端仅保留外层玻璃，内层全部实色，层数 3→1 */
 @media (max-width: 768px) {
-  .liquid-glass { --liquid-blur: 16px; --liquid-saturate: 150%; }
+  /* ⚠️ 这里也是「基准值」，必须同样乘 `--glass-blur-scale`（§21.12）——
+     否则窄屏下用户调了全站模糊度、这一档不跟，症状是「只在手机上不生效」。 */
+  .liquid-glass { --liquid-blur: calc(16px * var(--glass-blur-scale)); --liquid-saturate: 150%; }
   .liquid-glass--overlay { backdrop-filter: var(--liquid-filter); -webkit-backdrop-filter: var(--liquid-filter); }
   /* 内层胶囊/列表在移动端不再叠加模糊，避免嵌套离屏纹理 */
   .liquid-glass--inset,

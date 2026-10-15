@@ -17,7 +17,7 @@ import { getAvatarUrl } from '@/utils/avatar.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
 // getForumImageKey 与 ForumMain 的「写入标记」侧共用同一实现 —— 两边漂移会让
 // 图片已加载态静默失效，故收敛到 forum-helpers.js（见该函数注释）。
-import { getForumImageKey } from '@/utils/forum-helpers.js';
+import { getForumImageKey, shouldShowReplyTarget } from '@/utils/forum-helpers.js';
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -675,7 +675,15 @@ watch(
                   title="该账号已被封禁"
                   >已封禁</span
                 >
-                <span v-if="reply.reply_to_username" class="reply-to-tag">
+                <span
+                  v-if="
+                    shouldShowReplyTarget(
+                      reply.reply_to_username,
+                      reply.parent_id ? null : reply.author_username,
+                    )
+                  "
+                  class="reply-to-tag"
+                >
                   回复 <span class="target-name">@{{ reply.reply_to_username }}</span>
                 </span>
               </div>
@@ -691,6 +699,7 @@ watch(
                       reply.parent_id || reply.id,
                       reply.author_username,
                       reply.content,
+                      reply.parent_id ? null : reply.author_username,
                     )
                   "
                 >

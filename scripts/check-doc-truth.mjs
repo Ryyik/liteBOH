@@ -22,8 +22,9 @@
  *   node scripts/check-doc-truth.mjs --update   # 以当前值重写字节预算基线（只该在瘦身时用）
  *   node scripts/check-doc-truth.mjs --json     # 机读出口（供 check-ratchet-summary）
  */
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
 const BASELINE = join(ROOT, 'scripts', 'doc-truth-baseline.json');
@@ -33,28 +34,31 @@ const AGENTS = 'AGENTS.md';
 const AI_ENV = 'docs/AI-ENV.md';
 const read = (p) => (existsSync(join(ROOT, p)) ? readFileSync(join(ROOT, p), 'utf8') : null);
 
-/** 目录下按扩展名递归计数 */
-const countByExt = (dir, exts, depth = 1) => {
-  let n = 0;
-  const walk = (d, level) => {
-    for (const e of readdirSync(d, { withFileTypes: true })) {
-      if (e.isDirectory()) {
-        if (level < depth) walk(join(d, e.name), level + 1);
-        continue;
-      }
-      if (exts.some((x) => e.name.endsWith(x))) n += 1;
-    }
-  };
-  walk(dir, 0);
-  return n;
-};
+/** 计数必须用 tracked 文件集（git ls-files）：工作区里有并行会话未提交的新文件，
+ *  文件系统口径会让数字随「谁在改什么」漂移，且本地绿/CI 红再犯。ls-files 对同一 commit 恒定。 */
+const trackedCount = (dir, exts) =>
+  execFileSync(
+    'git',
+    ['-c', 'core.quotepath=false', 'ls-tree', '-r', '--name-only', 'HEAD', '--', dir],
+    {
+      cwd: ROOT,
+      encoding: 'utf-8',
+    },
+  )
+    .split('\n')
+    .filter(Boolean)
+    .filter((f) => exts.some((x) => f.endsWith(x))).length;
 
-const testsCount = countByExt(join(ROOT, 'tests'), ['.test.js'], 3);
-const srcCount = countByExt(join(ROOT, 'src'), ['.vue', '.js', '.ts'], 4);
-const scriptsTop = readdirSync(join(ROOT, 'scripts')).filter((f) => f.endsWith('.mjs')).length;
-const probesCount = readdirSync(join(ROOT, 'scripts', 'probes')).filter((f) =>
-  f.endsWith('.mjs'),
-).length;
+const testsCount = trackedCount('tests', ['.test.js']);
+const srcCount = trackedCount('src', ['.vue', '.js', '.ts']);
+const probesCount = trackedCount('scripts/probes', ['.mjs']);
+const scriptsTop = execFileSync(
+  'git',
+  ['-c', 'core.quotepath=false', 'ls-tree', '--name-only', 'HEAD', '--', 'scripts/'],
+  { cwd: ROOT, encoding: 'utf-8' },
+)
+  .split('\n')
+  .filter((f) => f.endsWith('.mjs')).length;
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const lintLimit = Number((pkg.scripts?.lint || '').match(/--max-warnings\s+(\d+)/)?.[1] ?? NaN);
 

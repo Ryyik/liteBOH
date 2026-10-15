@@ -543,8 +543,23 @@ try {
         aiWidth: Math.round(r(q('.boh-msg.is-ai'))?.width ?? -1),
         bubbleRight: Math.round(r(q('.boh-msg.is-user .boh-bubble'))?.right ?? -1),
         bubbleBg: getComputedStyle(q('.boh-msg.is-user .boh-bubble')).backgroundColor,
-        // 输入框：液态玻璃 + 浮在消息流之上（2026-10-12 用户口径）
-        composerBackdrop: getComputedStyle(q('.boh-composer')).backdropFilter,
+        // 输入框：折射玻璃 + 浮在消息流之上（2026-10-12 用户口径；2026-10-14 §21.7 材质升级）
+        // ⚠️ 材质已搬到独立覆盖层 `.boh-glass-under`（BohGlassRefract）—— 查询跟着搬家
+        composerGlassBackdrop: (() => {
+          const glass = q('.boh-composer-anchor .boh-glass-under');
+          if (!glass) return 'MISSING';
+          let found = 'none';
+          glass.querySelectorAll('*').forEach((n) => {
+            const v = getComputedStyle(n).backdropFilter || '';
+            if (v.includes('blur') && found === 'none') found = v;
+          });
+          return found;
+        })(),
+        composerGlassPointer: (() => {
+          const glass = q('.boh-composer-anchor .boh-glass-under');
+          return glass ? getComputedStyle(glass).pointerEvents : 'MISSING';
+        })(),
+        composerBg: getComputedStyle(q('.boh-composer')).backgroundColor,
         composerTop: Math.round(r(q('.boh-composer'))?.top ?? -1),
         streamBottom: Math.round(r(q('.boh-stream'))?.bottom ?? -1),
         composerLeft: Math.round(r(q('.boh-composer'))?.left ?? -1),
@@ -587,9 +602,16 @@ try {
     // 玻璃的价值是「透出底下的内容」⇒ 只判材质不够，必须同时判**真的叠在消息区上**：
     // 流式布局里两者不重叠时，底下只有页面底色，玻璃等于白上。
     check(
-      '桌面（有消息）：输入框上了液态玻璃（backdrop-filter 非 none）',
-      typeof g.composerBackdrop === 'string' && g.composerBackdrop !== 'none',
-      g.composerBackdrop,
+      '桌面（有消息）：输入框上了折射玻璃（覆盖层 backdrop-filter 非 none + 不吃点击）',
+      typeof g.composerGlassBackdrop === 'string' &&
+        g.composerGlassBackdrop.includes('blur') &&
+        g.composerGlassPointer === 'none',
+      `backdrop=${g.composerGlassBackdrop} pointerEvents=${g.composerGlassPointer}`,
+    );
+    check(
+      '桌面（有消息）：.boh-composer 本体背景透明（材质由玻璃层出，不叠第二层）',
+      g.composerBg === 'rgba(0, 0, 0, 0)',
+      g.composerBg,
     );
     check(
       '桌面（有消息）：输入框浮在消息流之上（消息区补了等高底部内衬，且真的重叠）',

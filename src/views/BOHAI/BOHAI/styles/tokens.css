@@ -138,6 +138,14 @@
   --boh-glass-border: var(--boh-glass-border-light);
   --boh-glass-highlight: var(--boh-glass-highlight-light);
 
+  /* ── 折射级液态玻璃（WXperia，2026-10-14）──
+     ⚠️ 2026-10-14 §21.11：令牌已**提为站点级单源** —— 定义搬去
+        `src/styles/common/tokens.css` 的 `--refract-*`（与 `--liquid-*` 平级）。
+        BOHAI 域内只剩一件事：**按 BOHAI 主题覆写白膜三元组**，见本文件末尾的
+        `.bohai-page` 作用域块。**不要**在这里重新定义 `--refract-*` 的值。
+     接线硬约束（§21.7）：玻璃祖先链上不得有**堆叠上下文**（isolation/opacity/filter/
+        transform）——`.boh-main` 的 `z-index: 1` 已因此让位（layout.css）。 */
+
   /* ── 布局常量 ── */
   /* 左栏宽度真源是**全局**的 `--userspace-rail-w`（`UserSpace/styles/landscape-rail.css`，
      AI 页 `body.page-aichat` 恒 88）。BOHAI 自己那份**同义的左栏令牌**已于 2026-10-12 删除 ——
@@ -153,6 +161,24 @@
      三个消费者统一引用这两个令牌，改口径只动这里。 */
   --boh-content-ml: 0;
   --boh-content-mr: auto;
+}
+
+/* ── 折射级白膜：BOHAI 域内**不跟站点主题联动**（2026-10-14 §21.11）───────────────
+   三元组真源在 `src/styles/common/tokens.css` 的 `--refract-tint-rgb-light/dark`；
+   这里只做「BOHAI 主题 → 三元组」的映射，覆盖站点主题（`[data-theme="dark"]`）。
+   ⚠️ 必须挂 `.bohai-page`（`BOHAIMain.vue` 的根，独立页与岛两个宿主都过它），
+      **不能**挂 `:root` —— `data-boh-theme` 在离开 BOHAI 后**不会被清掉**
+      （`useBohShell` 没有 onUnmounted 清理），挂 :root 会把 BOHAI 的暗色白膜
+      泄漏给顶栏等站点级玻璃。
+   ⚠️ 特异性：`.bohai-page`（0,1,0）与 `[data-theme="dark"]`（0,1,0）同权 ⇒ 靠**加载顺序**
+      决胜，而本文件是 BOHAI 路由懒加载、注入晚于全局 tokens.css ⇒ 后到者赢。
+      暗色那条（0,3,0）稳压。 */
+.bohai-page {
+  --refract-tint-rgb: var(--refract-tint-rgb-light);
+}
+
+:root[data-boh-theme='dark'] .bohai-page {
+  --refract-tint-rgb: var(--refract-tint-rgb-dark);
 }
 
 /* `--boh-ring-p` 注册为**可插值的数值**（2026-10-12）：用量环是 `conic-gradient` 读这个
@@ -200,4 +226,5 @@
   --boh-glass-bg: var(--boh-glass-bg-dark);
   --boh-glass-border: var(--boh-glass-border-dark);
   --boh-glass-highlight: var(--boh-glass-highlight-dark);
+  /* 折射级白膜：**不在这里切** —— 见文件末尾的 `.bohai-page` 作用域块（§21.11）。 */
 }

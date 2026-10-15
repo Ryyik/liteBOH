@@ -50,7 +50,7 @@ import { clearForumFeedSnapshots } from '@/utils/forum-feed-cache.js';
 import { isForumPortraitComposer, onForumPortraitComposerChange } from '@/utils/forum-viewport.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { themeManager } from '@/utils/theme-manager.js';
-import { buildReplyDraft } from '@/utils/forum-helpers.js';
+import { buildReplyDraft, shouldShowReplyTarget } from '@/utils/forum-helpers.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { isFollowing, followUser, unfollowUser } from '../../utils/api/profile-api.js';
 import { isNarrowDetailViewport, onNarrowDetailChange } from '@/utils/forum-viewport.js';
@@ -1518,7 +1518,12 @@ const handleToggleLike = async () => {
   }
 };
 
-const toggleReplyInput = (targetId = null, username = null, _quotedContent = '') => {
+const toggleReplyInput = (
+  targetId = null,
+  username = null,
+  _quotedContent = '',
+  rootAuthorUsername = null,
+) => {
   if (!isLoggedIn.value) {
     showLoginModal.value = true;
     return;
@@ -1538,7 +1543,11 @@ const toggleReplyInput = (targetId = null, username = null, _quotedContent = '')
     activeReplyId.value = replyTargetId;
     replyToUser.value = username;
     activeReplyQuote.value = '';
-    replyContent.value = buildReplyDraft(username);
+    // 直接回复楼层根评论（发出这条评论的人）时不预填 @ —— 从属关系已由楼层表达；
+    // 只有回复楼里其他子评论时才预填 @ 指明对象（与标签显示同一判据）。
+    replyContent.value = shouldShowReplyTarget(username, rootAuthorUsername)
+      ? buildReplyDraft(username)
+      : '';
 
     // 弹窗模式：底栏是唯一输入框，聚焦并把上下文同步到底栏
     if (props.modalMode) {
@@ -2515,7 +2524,8 @@ const handleChangeCommentSortMode = async (mode) => {
                 :highlighted-comment-id="highlightedCommentId"
                 :comment-sort-mode="commentSortMode"
                 @reply="
-                  ({ targetId, username, content }) => toggleReplyInput(targetId, username, content)
+                  ({ targetId, username, content, rootAuthorUsername }) =>
+                    toggleReplyInput(targetId, username, content, rootAuthorUsername)
                 "
                 @submit-reply="submitReply"
                 @cancel-reply="
@@ -2893,7 +2903,8 @@ const handleChangeCommentSortMode = async (mode) => {
               :highlighted-comment-id="highlightedCommentId"
               :comment-sort-mode="commentSortMode"
               @reply="
-                ({ targetId, username, content }) => toggleReplyInput(targetId, username, content)
+                ({ targetId, username, content, rootAuthorUsername }) =>
+                  toggleReplyInput(targetId, username, content, rootAuthorUsername)
               "
               @submit-reply="submitReply"
               @cancel-reply="

@@ -744,7 +744,8 @@
   .glass-message-bubble,
   .glass-user-bubble,
   .glass-button-primary {
-    --liquid-blur: 16px;
-    --liquid-blur-sm: 12px;
+    /* 窄屏基准收小，但**仍然乘全站模糊度**（§21.12，同 liquid-glass.css 的移动档） */
+    --liquid-blur: calc(16px * var(--glass-blur-scale));
+    --liquid-blur-sm: calc(12px * var(--glass-blur-scale));
   }
 }

@@ -14,29 +14,45 @@
 }
 
 /* ============================================
-   X 风格布局
+   X 风格布局（2026-10-15 横竖屏口径对齐）
+   浅色几何：竖屏 ≤1024 是连续内容流（容器/帖卡/评论壳全透明，见
+   style.scoped.css 的 ≤1024 媒体查询）；横屏整页 = 透明布局容器 + 双白玻璃卡。
+   暗色镜像同一几何：容器透明、双卡换深色玻璃。
+   ⚠️ 不再沿用旧的「.post-x-layout 整块 #12121a 色带」—— 那是给旧版卡片式
+   整页布局写的，竖屏重构后色带变成悬空中断的色块（竖屏深色割裂的根因）。
+   html 前缀提一级特异性：scoped 规则自带 [data-v-*] 且晚于本文件加载。
    ============================================ */
-.post-detail-page[data-theme='dark'] .post-x-layout,
-[data-theme='dark'] .post-detail-page .post-x-layout {
-  background: #12121a !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3) !important;
+
+/* 弹窗宿主（横屏）内页面保持透明：玻璃质感由弹窗面板（--liquid-bg-strong）提供，
+   镜像 modal-layout.css 浅色口径；否则下面的 #0a0a0f 实底会盖掉面板玻璃 */
+html[data-theme='dark'] .post-detail-page--modal {
+  background-color: transparent !important;
+  background-image: none !important;
 }
 
-.post-detail-page[data-theme='dark'] .x-main-column,
-[data-theme='dark'] .post-detail-page .x-main-column {
-  border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+/* 横屏整页（≥1025）：主栏/评论栏深色玻璃（镜像浅色 rgba(255,255,255,0.7) 双卡）。
+   边框不写 —— 浅色基础规则的 var(--detail-line) 在暗色下已派生为 hairline。
+   竖屏 ≤1024 与弹窗不落这条：竖屏由 scoped 媒体查询透明化，弹窗见文件尾覆盖。 */
+@media (min-width: 1025px) {
+  html[data-theme='dark'] .post-detail-page .x-main-column {
+    background: rgba(18, 18, 26, 0.8) !important;
+    box-shadow: 0 18px 55px rgba(0, 0, 0, 0.35) !important;
+  }
+
+  html[data-theme='dark'] .post-detail-page .x-side-content {
+    background: rgba(18, 18, 26, 0.8) !important;
+  }
 }
 
-.post-detail-page[data-theme='dark'] .x-main-column::-webkit-scrollbar-thumb,
-[data-theme='dark'] .post-detail-page .x-main-column::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1) !important;
-}
-
-/* 右侧栏 - 使用更高优先级覆盖 scoped CSS */
-.post-detail-page[data-theme='dark'] .x-side-content,
-[data-theme='dark'] .post-detail-page .x-side-content {
-  background: #0f0f16 !important;
+/* 竖屏 ≤1024：评论壳跟帖卡一样透明（连续内容流）。
+   该元素同时挂着 glass-panel 类，下方的 .glass-panel 暗色规则带 !important
+   会压过 scoped 的透明化规则，必须在这里同强度堵住（html 前缀 (0,3,1)）。 */
+@media (max-width: 1024px) {
+  html[data-theme='dark'] .post-detail-page .x-side-content {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
 }
 
 /* ============================================
@@ -194,8 +210,14 @@
 /* ============================================
    帖子卡片（在详情页中复用）
    ============================================ */
-.post-detail-page[data-theme='dark'] .x-post-card {
+/* 帖卡跟随宿主容器透明（浅色口径 .post-detail-page .x-post-card 本就透明）。
+   ⚠️ 必须 html 前缀 (0,3,1)：不带前缀的同特异性规则会被文件更后方的
+   .glass-panel 暗色规则（同一元素还有 glass-panel 类）按源序压掉，
+   也会被 scoped 的 tier 微色调浅色 !important 压掉 —— 竖屏深色「卡中卡」的根因。 */
+html[data-theme='dark'] .post-detail-page .x-post-card {
   background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* 如果详情页有独立的帖子样式 */
@@ -632,4 +654,17 @@ html[data-theme='dark'] .post-detail-page .detail-skeleton-block {
 
 html[data-theme='dark'] .post-detail-page .detail-skeleton-block::after {
   background: linear-gradient(90deg, transparent, var(--liquid-border), transparent);
+}
+
+/* ============================================================
+   2026-10-15 横竖屏口径对齐（补）—— 弹窗内评论区融入面板
+   ============================================================
+   上方 min-width:1025 的评论壳深色玻璃只该落在横屏「整页」；弹窗里
+   CommentThread 根壳（.pd-comment-thread.x-side-content）必须跟随
+   modal-layout.css 的浅色口径保持透明，否则深色弹窗会浮出一块带边框的
+   玻璃卡（浅色弹窗没有）。特异性 (0,4,1) 压过 (0,3,1)，与源序无关。 */
+html[data-theme='dark'] .post-detail-page--modal .pd-comment-thread.x-side-content {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }

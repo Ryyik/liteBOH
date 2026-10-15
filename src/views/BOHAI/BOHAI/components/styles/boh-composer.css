@@ -27,11 +27,17 @@
       亮色是纯白、暗色要退回卡片色，一处写死就等于把暗色也刷白。
    ⚠️ 框线走 `--boh-border` 同一个语义令牌（跟随 BOHAI 主题切暗色），
       不要写死 `#e5e5e5` —— 那会被 `check:dark-tokens` 记成暗色裸色。 */
-.boh-composer {
+/* ⚠️ 折射玻璃锚（2026-10-14，§21.7）：`max-width / 横向对齐` 从 `.boh-composer` 上移到这里，
+   玻璃层（BohGlassRefract，inset:0）才与输入框等宽；`.boh-composer` 本体只留内盒几何。 */
+.boh-composer-anchor {
   position: relative;
   max-width: var(--boh-content-w);
   /* 与消息流同一条列 ⇒ 横向对齐必须共用令牌，否则输入框会和 AI 回复错开。 */
   margin: 0 var(--boh-content-mr) 0 var(--boh-content-ml);
+}
+
+.boh-composer {
+  position: relative;
   padding: 11px 13px 9px;
   border: 1px solid var(--boh-border);
   border-radius: var(--boh-radius-shell);
@@ -87,8 +93,9 @@
    = `0 auto 0 0`（ml=0 / mr=auto）⇒ 限宽 880 后**靠左**。会话态这是刻意的（与 AI 回复同列），
    但空态没有任何内容要对齐，虚影字又是居中排的 ⇒ 输入框贴左、右侧空一大片（1440 下实测
    左留白 40 / 右留白 432）。
-   ⚠️ 只覆盖空态：会话态写 auto 会把输入框推到视口中间，与上方消息列错开。 */
-.boh-main.is-empty .boh-composer {
+   ⚠️ 只覆盖空态：会话态写 auto 会把输入框推到视口中间，与上方消息列错开。
+   2026-10-14：横向对齐随 `max-width` 一起上移到锚（`.boh-composer-anchor`，§21.7）。 */
+.boh-main.is-empty .boh-composer-anchor {
   margin-left: auto;
   margin-right: auto;
 }
@@ -189,12 +196,22 @@
   font-weight: 600;
 }
 
-.boh-usage-pop {
+/* 折射玻璃锚（2026-10-14，§21.8 线1）：定位（right/bottom/宽）从浮层上移到锚 ——
+   与 `.boh-menu-anchor` 同款。⚠️ 锚本身**不许带 z-index**：堆叠上下文会裁掉玻璃的
+   背板采样（§21.7「采样根」硬约束）。浮层的 z-index 22 由**兄弟**（浮层自己）带。 */
+.boh-usage-anchor {
   position: absolute;
   right: 0;
   bottom: calc(100% + 10px);
-  z-index: 42;
   width: 264px;
+}
+
+.boh-usage-pop {
+  position: relative;
+  /* 2026-10-14：42 → 22（同 `.boh-mode-menu` 的让位原因，§21.7）。 */
+  z-index: 22;
+  /* 宽度由锚给（264px）⇒ 浮层撑满锚，玻璃（inset:0）才与浮层等大。 */
+  width: 100%;
   /* 与 `.boh-mode-menu` 同一条安全网：矮横屏下不许被推出视口顶部 */
   max-height: calc(100vh - 120px);
   overflow-y: auto;
@@ -385,11 +402,31 @@
 /* 两个浮层的共同外壳：贴着自己的胶囊**向上**弹出。
    ⚠️ 两颗胶囊的触发键都在底行**左侧** ⇒ 面板一律左对齐（`right: 10px` 会把 252px 的
    模型面板推到视口左边之外）。 */
-.boh-mode-menu,
-.boh-tools-menu {
+/* 折射玻璃锚（2026-10-14，§21.7）：定位（bottom/left/宽）从菜单上移到锚；
+   玻璃（BohGlassRefract，v-if 与菜单同开同关）与菜单同尺寸（inset:0 + glass-size 100%）。 */
+.boh-menu-anchor {
   position: absolute;
   bottom: calc(100% + 8px);
-  z-index: 40;
+  left: 0;
+  width: 252px;
+}
+
+/* 小手机 ≤480：面板宽度受视口约束（左下对齐，别写回 right）。
+   2026-10-14：从 `layout.css` 迁入 —— 那边是 scoped 到 BOHAIMain 的，选择器带
+   `[data-v-main]`、够不到本组件模板内的元素（半死规则），迁到本文件才真生效。 */
+@media (max-width: 480px) {
+  .boh-menu-anchor {
+    width: min(252px, calc(100vw - 24px));
+  }
+}
+
+/* ⚠️ 2026-10-14：z-index 40 → 20 —— `.boh-main` 的 `z-index: 1` 让位后（§21.7 采样根
+   硬约束），本层不再被 `.boh-main` 的堆叠上下文兜底，必须自行落在抽屉遮罩
+   （`.boh-backdrop`，z 25）之下，否则浮层会盖到遮罩上面。 */
+.boh-mode-menu,
+.boh-tools-menu {
+  position: relative;
+  z-index: 20;
   padding: 6px;
   border: 1px solid var(--boh-border);
   border-radius: var(--boh-radius-lg);
@@ -398,16 +435,6 @@
   /* ⚠️ 外层**不裁**：模型面板的 hover 详情卡要伸到面板外侧去。
      封顶 + 内层滚动（矮横屏 844×390 的安全网）搬在 `.boh-mm-body` 上。 */
   overflow: visible;
-}
-
-.boh-mode-menu {
-  left: 0;
-  width: 252px;
-}
-
-.boh-tools-menu {
-  left: 0;
-  width: 252px;
 }
 
 /* ── 浮层进场（2026-10-12）────────────────────────────────────────────
@@ -800,7 +827,9 @@
   position: absolute;
   bottom: calc(100% + 8px);
   left: 10px;
-  z-index: 41;
+  /* 2026-10-14：41 → 21（与 `.boh-mode-menu` 同因：落到抽屉遮罩 z 25 之下，§21.7）。
+     相对次序保持「用量 22 > 斜杠 21 > 模型/工具 20」。 */
+  z-index: 21;
   /* 常量宽 + 左对齐；窄屏（竖屏 390 下输入框仅 366px）用 `100% - 20px` 兜底，右留 10px */
   width: min(420px, calc(100% - 20px));
   /* 两条上限取小：
@@ -911,30 +940,60 @@
 }
 
 /* ── 液态玻璃（2026-10-10 用户口径「A 档」；2026-10-12 扩到输入框）────────────
-   **一组材质、六个消费者**：模型 / 工具两个浮层、斜杠菜单、用量浮层、模型面板里那张
-   hover 详情卡，以及**输入框**（2026-10-12 用户口径「输入框应该是液态玻璃形式，
-   带点透明，这样滚动的时候会透出下面的内容」—— 为此输入区改成**浮在消息流之上**，
-   见上面 `.boh-main:not(.is-empty) .boh-composer-wrap` 那条）。
+   **一组材质、两个保留消费者**：斜杠菜单、模型面板里那张 hover 详情卡。
+   ⚠️ 2026-10-14 起，原「六个消费者」中的**输入框 / 模型浮层 / 工具浮层 / 用量浮层**升级为
+   **折射级**（`BohGlassRefract`，JS 覆盖层，见本节末尾的独立 `@supports` 段与 §21.7）——
+   它们的材质由组件内联提供，**不经过** `--liquid-filter-sm`；本段只继续负责上面两者。
+   输入框浮在消息流之上（2026-10-12 用户口径「带点透明、滚动时透出下面的内容」）——
+   那条负 margin 仍有效，见上面 `.boh-main:not(.is-empty) .boh-composer-wrap`。
    常驻面板 / 阅读主体（侧栏、工作台、用户气泡）仍然**刻意不做**：它们底下没有可透的内容。
    材质引用**全局单源** `--liquid-filter-sm`：`scripts/check-liquid-glass.mjs` 禁止在
    `liquid-glass.css` 之外重写 blur 材质（注释里也别复述那条被禁的写法）。
    颜色走 `--boh-glass-*`：BOHAI 主题（`data-boh-theme`）不跟**站点主题**联动。
    基础规则仍是实心 `--boh-bg-page` ⇒ 放进 `@supports` 后，不支持 backdrop-filter 时
-   **自动落回实色**，无需第二份 `not` 查询（输入框同理：基础是 `--boh-composer-bg`）。
-   ⚠️ 六者原本都是 `border: 1px solid var(--boh-border)` ⇒ 这里只换 `border-color`，
+   **自动落回实色**，无需第二份 `not` 查询。
+   ⚠️ 三者原本都是 `border: 1px solid var(--boh-border)` ⇒ 这里只换 `border-color`，
       几何不变（玻璃描边是白色高光，直接换色即可，不用像 `.boh-jump` 那样补透明占位）。 */
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .boh-mode-menu,
-  .boh-tools-menu,
   .boh-slash,
-  .boh-usage-pop,
-  .boh-mm-detail,
-  .boh-composer {
+  .boh-mm-detail {
     background: var(--boh-glass-bg);
     border-color: var(--boh-glass-border);
     box-shadow: var(--boh-glass-highlight), var(--liquid-shadow-sm);
     backdrop-filter: var(--liquid-filter-sm);
     -webkit-backdrop-filter: var(--liquid-filter-sm);
+  }
+}
+
+/* ── 折射级（2026-10-14，§21.7；§21.8 线1 加用量浮层）：输入框 + 模型/工具浮层 + 用量浮层 ──
+   玻璃由 `BohGlassRefract`（JS 覆盖层）提供；本段只做两件事：
+   ① 支持 backdrop-filter 时**撤掉 CSS 层材质**（避免双层过滤叠色）；
+   ② 不支持时**藏掉玻璃**、保留各自基座的实底兜底（输入框的 `--boh-composer-bg`、
+      浮层的 `--boh-bg-page` + 边框 + 阴影，均在各自基座块里）。
+   ⚠️ 同批硬约束：玻璃祖先链不得有堆叠上下文 ⇒ 见 `.boh-main`（layout.css，z-index 已让位）、
+      上方 `.boh-mode-menu` 的 `z-index: 20`、以及 `.boh-usage-anchor` 的无 z-index 注释。 */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .boh-composer {
+    background: transparent;
+  }
+
+  /* ⚠️ 官方样貌要素 B（liquid-glass-spec.js）：玻璃模式**只撤实底**——
+     边框与投影必须保留，白底上玻璃的轮廓识别全靠它们。
+     2026-10-14 两次事故（本仓 + 并行会话）都是在这里多撤了一手，别再犯。 */
+  .boh-mode-menu,
+  .boh-tools-menu {
+    background: transparent;
+  }
+
+  /* 用量浮层（§21.8 线1）：与两个菜单同款让位 —— 材质改由锚里的折射玻璃提供。 */
+  .boh-usage-pop {
+    background: transparent;
+  }
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .boh-glass-under {
+    display: none;
   }
 }
 

@@ -49,7 +49,8 @@ describe('列宽与对齐令牌只有一处定义', () => {
 
 describe('输入区与底部说明：横向对齐走令牌（与 AI 回复同列）', () => {
   const cases = [
-    { anchor: '.boh-composer {' },
+    // 2026-10-14（§21.7）：横向对齐随 max-width 一起上移到锚（玻璃才与输入框等宽）
+    { anchor: '.boh-composer-anchor {' },
     { anchor: '.boh-cp-warn {' },
     { anchor: '.boh-cp-alert,' },
   ];

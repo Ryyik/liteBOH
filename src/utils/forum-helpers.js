@@ -27,6 +27,29 @@ export function buildReplyDraft(username) {
 }
 
 /**
+ * 判断「回复 @xxx」标签是否应显示（小红书式规则）。
+ *
+ * 评论区是「主评论（楼层根）+ 其下子回复」两层。被回复者若就是该楼层的根评论作者
+ * （即「直接回复发出这条评论的人」），从属关系已由所在楼层表达，无需再显示「回复 @xxx」；
+ * 只有回复楼里其他子评论时才显示。
+ *
+ * 判据：`reply_to_username === 楼层根评论的 author_username` ⇒ 不显示。
+ * ⚠️ 库中没有 `reply_to_user_id`，只能靠用户名快照比较（`comments.reply_to_username`
+ *    与楼层根评论的 `author_username`）；两值写入时同源，同名不同人会误判，属已知边界。
+ *
+ * 同一判据也用于「回复草稿是否预填 @xxx」：返回 `true` 才预填。
+ *
+ * @param {string|null} replyToUsername - 被回复者用户名（comments.reply_to_username）
+ * @param {string|null} rootAuthorUsername - 所在楼层根评论的作者用户名
+ * @returns {boolean} true = 显示标签 / 预填 @
+ */
+export function shouldShowReplyTarget(replyToUsername, rootAuthorUsername) {
+  const target = String(replyToUsername ?? '').trim();
+  if (!target) return false;
+  return target !== String(rootAuthorUsername ?? '').trim();
+}
+
+/**
  * HTML 转义，防止 XSS
  * @param {string} unsafe - 不安全的文本
  * @returns {string} 转义后的安全文本

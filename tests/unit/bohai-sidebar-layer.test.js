@@ -41,10 +41,13 @@ describe('BOHAI 层级阶梯：对话管理必须低于全局 chrome', () => {
     expect(sidebar).toBeLessThan(navbar);
   });
 
-  it('侧栏仍高于页面内容与遮罩（不能为了压 chrome 把抽屉压没了）', () => {
+  it('侧栏仍高于遮罩；`.boh-main` 保持无 z-index（2026-10-14 折射玻璃的采样根约束）', () => {
     const sidebar = zIndexOf(sidebarCss, '.boh-sidebar');
     expect(sidebar).toBeGreaterThan(zIndexOf(layoutCss, '.boh-backdrop'));
-    expect(sidebar).toBeGreaterThan(zIndexOf(layoutCss, '.boh-main'));
+    // ⚠️ `.boh-main` 的 z-index 已**刻意移除**（§21.7：玻璃祖先链不得有堆叠上下文，
+    //    否则 backdrop 采样被裁、模糊降级 —— 实测 Δ 从 -32 掉到 -7）。原「把浮层关在
+    //    遮罩之下」的职责改由 boh-composer.css 里三个浮层的 z-index(<25) 承担。别加回来。
+    expect(zIndexOf(layoutCss, '.boh-main')).toBeNull();
   });
 
   it('侧栏仍低于全屏设置页（2026-10-03 那次事故的反向保险）', () => {

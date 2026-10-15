@@ -78,9 +78,17 @@
   --liquid-border: rgba(255, 255, 255, 0.65);
   --liquid-border-strong: rgba(255, 255, 255, 0.82);
   --liquid-border-hairline: rgba(15, 23, 42, 0.06);
-  --liquid-blur: 28px;
-  --liquid-blur-sm: 18px;
-  --liquid-blur-lg: 36px;
+  /* ── 全站玻璃「模糊度」（2026-10-14 §21.12）：用户可调的**无量纲倍数** ──────────
+     ⚠️ 单源是 `src/config/liquid-glass-spec.js` 的 `blurScaleDefault / Min / Max`
+        （守卫锁「本处默认值 == spec 默认值」）；运行时由偏好链写根元素覆写。
+     ⚠️ 下面三档 px 是**官方口径的基准**，全部乘本倍数派生 —— 全站模糊级玻璃
+        （`.liquid-glass` 系、顶栏、Cloud+、Island 家族…20+ 消费者）都只读 `--liquid-filter*`，
+        所以「改一处 = 全站生效」在这里成立。折射级由 JS 侧乘同一个倍数（见 BohGlassRefract）。
+     ⚠️ 不要在这里再写死第二份 px：要改基准就改这三行，要改「用户的档」就改 spec。 */
+  --glass-blur-scale: 1;
+  --liquid-blur: calc(28px * var(--glass-blur-scale));
+  --liquid-blur-sm: calc(18px * var(--glass-blur-scale));
+  --liquid-blur-lg: calc(36px * var(--glass-blur-scale));
   --liquid-saturate: 180%;
   /* 液态滤镜成品档（直接用于 backdrop-filter）：主 / 轻 / 强 三档 */
   --liquid-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) brightness(1.02);
@@ -97,6 +105,26 @@
   --liquid-text-primary: #1d1d1f;
   --liquid-text-secondary: #6e6e73;
   --liquid-text-tertiary: #8b9098;
+
+  /* ── 折射级液态玻璃（站点级单源登记，2026-10-14 §21.11）─────────────────────
+     与上面「模糊级」`--liquid-*` 平级：模糊级 = 纯 backdrop-filter；
+     折射级 = 在 backdrop 之上再加**边缘位移/色差**（`@wxperia/liquid-glass-vue`，JS 内联，
+     不经过 `--liquid-filter-*`，故 `check:liquid-glass` 扫不到 —— 本组令牌就是它的**登记处**）。
+     ⚠️ 观感参数（磨砂/位移/饱和/色差/弹性）的真源是 JS 的 `src/config/liquid-glass-spec.js`，
+        不在这里。这里只放 CSS 侧两件：
+          ① 白膜 RGB 三元组（随**站点**主题翻转）；
+          ② 无 JS 时的白膜 α 兜底（值必须等于 spec.tintAlphaDefault，由守卫锁「两处一致」）。
+     ⚠️ BOHAI 域内**不跟站点主题联动**（由 `[data-boh-theme]` 表达）⇒ BOHAI 在自己的
+        tokens.css 里按 `.bohai-page` 作用域覆写 `--refract-tint-rgb`。 */
+  --refract-tint-rgb-light: 255, 255, 255;
+  --refract-tint-rgb-dark: 38, 38, 48;
+  --refract-tint-rgb: var(--refract-tint-rgb-light);
+  /* 站点级默认档（= spec.tintAlphaDefault，守卫锁两处一致）。站点 chrome（顶栏）显式引用它，
+     从而**不跟着** BOHAI 的「玻璃透明度」用户偏好走。 */
+  --refract-alpha-default: 0.1;
+  /* 实际生效值：默认 = 站点默认档；BOHAI 域内由 useBohShell 按用户偏好覆写（写根元素）。 */
+  --refract-alpha: var(--refract-alpha-default);
+  --refract-tint: rgba(var(--refract-tint-rgb), var(--refract-alpha));
 }
 
 [data-theme="dark"] {
@@ -120,6 +148,10 @@
   --liquid-text-secondary: #a1a1a6;
   --liquid-text-tertiary: #8a919c;
 
+  /* 折射级白膜：只切 RGB 三元组（α 是共享的 `--refract-alpha`，两主题同值）。
+     ⚠️ 这里必须写**站点**主题（`[data-theme="dark"]`）；BOHAI 域内由 `.bohai-page` 覆写。 */
+  --refract-tint-rgb: var(--refract-tint-rgb-dark);
+
   /* Heatmap 暗色：0 档必须能浮现在深底上（略高于面板底），1→4 走拾色变亮 */
   --boh-heat-0: rgba(255, 255, 255, 0.07);
   --boh-heat-1: #145246;
@@ -141,9 +173,11 @@
   }
 }
 
+/* 低性能模式：基准收小，但**仍然乘全站模糊度**（§21.12）——
+   否则用户调了模糊度、开了省电模式就不跟，症状是「设置偶尔失效」。 */
 .boh-perf-lite {
-  --liquid-blur: 12px;
-  --liquid-blur-sm: 8px;
-  --liquid-blur-lg: 12px;
+  --liquid-blur: calc(12px * var(--glass-blur-scale));
+  --liquid-blur-sm: calc(8px * var(--glass-blur-scale));
+  --liquid-blur-lg: calc(12px * var(--glass-blur-scale));
   --liquid-saturate: 140%;
 }

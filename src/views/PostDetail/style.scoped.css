@@ -1419,6 +1419,15 @@
   }
 }
 
+/* 手机竖屏：收窄 CommentThread 根壳水平内边距（与 ≤1024 的 20px 同特异性、源序更后生效），
+   与 CommentThread 自身 ≤480 的 .x-comments-section 12px 配合，把宽度让给正文 */
+@media (max-width: 480px) {
+  .post-detail-page .x-side-content.x-side-content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
 /* 横屏整页：媒体保持「作者→正文→图片」原顺序（carousel 提为直接子级后用 order 归位） */
 @media (min-width: 1025px) {
   .post-detail-page .x-post-card {

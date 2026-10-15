@@ -12,6 +12,11 @@
    冻结成棘轮基线，**新增即红**。
 2. **落点**：就是这里。
 
+## 已迁入（2026-10-15）
+
+- `boh-fenjing-demo.html`（BOH分镜原型）· `demo-bohai-glass-refract.html` · `demo-wxperia-liquid.html`
+  —— 原在仓库根，随全量入库迁到这里（单文件零依赖，直接打开可用）。
+
 ## 放什么
 
 | 类型 | 放哪 |

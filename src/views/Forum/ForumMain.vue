@@ -83,6 +83,7 @@ import {
 } from '@/utils/forum-feed-cache.js';
 import {
   buildReplyDraft,
+  shouldShowReplyTarget,
   resolveReplyUsername,
   calculateOptimisticLikeCount,
   restoreImageAtPosition,
@@ -3692,7 +3693,13 @@ const activeReplyTarget = ref(null); // { postId, parentId, username }
 const replyContent = ref('');
 const isReplySubmitting = ref(false);
 
-const toggleReplyInput = (postId, parentId = null, username = null, quotedContent = '') => {
+const toggleReplyInput = (
+  postId,
+  parentId = null,
+  username = null,
+  quotedContent = '',
+  rootAuthorUsername = null,
+) => {
   if (
     activeReplyTarget.value &&
     activeReplyTarget.value.postId === postId &&
@@ -3702,12 +3709,27 @@ const toggleReplyInput = (postId, parentId = null, username = null, quotedConten
     replyContent.value = '';
   } else {
     activeReplyTarget.value = { postId, parentId, username, quotedContent };
-    replyContent.value = buildReplyDraft(username);
+    // 直接回复楼层根评论时不预填 @（与详情页同一判据）；回复楼里其他子评论才预填。
+    replyContent.value = shouldShowReplyTarget(username, rootAuthorUsername)
+      ? buildReplyDraft(username)
+      : '';
   }
 };
 
-const handlePostCardToggleReplyInput = (postId, parentId, username, quotedContent) => {
-  toggleReplyInput(postId, parentId ?? null, username ?? null, quotedContent ?? '');
+const handlePostCardToggleReplyInput = (
+  postId,
+  parentId,
+  username,
+  quotedContent,
+  rootAuthorUsername,
+) => {
+  toggleReplyInput(
+    postId,
+    parentId ?? null,
+    username ?? null,
+    quotedContent ?? '',
+    rootAuthorUsername ?? null,
+  );
 };
 
 const handlePostCardClearReplyTarget = (postId) => {

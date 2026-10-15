@@ -46,8 +46,12 @@
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-top: 0;
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02);
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  /* ⚠️ 顶栏是**清晰玻璃（clear glass）**：刻意**不上 `backdrop-filter`** —— 2026-10-14 用户口径
+     「去掉顶栏岛的模糊」。理由：它是最上层的 chrome，模糊会让底下滚过的内容糊成一片、反而更花；
+     轮廓靠**边框 + 投影**立住（与 `liquid-glass-spec.js` 的「白底三要素」同一条纪律）。
+     ⚠️ 因此顶栏**不参与** `--glass-blur-scale` 那档「全站模糊度」—— 它没有模糊可缩放。
+        要让它重新参与，把这两行加回来即可：`backdrop-filter: var(--liquid-filter-sm);`。
+     ⚠️ 别再给这个岛写死 `blur(NNpx)` 字面量（`check:liquid-glass` 会红）。 */
   transition:
     max-width 500ms cubic-bezier(0.16, 1, 0.3, 1),
     height 500ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -64,16 +68,19 @@
 }
 
 /* Beta 6：导航为常驻悬浮岛（旧 stable 滚动收缩态与双模式切换已移除）。 */
+/* §21.13「去杂」：岛的**底色 / 描边 / 投影 / 高光**全部收敛到全局玻璃单源
+   `src/styles/common/tokens.css` 的 `--liquid-*`（仓库规则：玻璃变量只有一个出口，
+   子组件不许自建）。改观感就改 tokens.css 一处，全站玻璃一起动。 */
 :global(#unified-nav-container .unified-nav-surface) {
   --global-nav-rest-height: 58px;
   --global-nav-status-top: 65px;
   max-width: min(860px, calc(100% - 24px));
   height: 58px;
   transform: translateY(10px);
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  border: 1px solid var(--liquid-border);
   border-radius: 100px;
-  background-color: rgba(255, 255, 255, 0.66);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  background-color: var(--liquid-bg);
+  box-shadow: var(--liquid-shadow-sm);
   transition: none;
   will-change: auto;
 }
@@ -92,12 +99,18 @@
   max-width: min(920px, calc(100% - 20px));
   height: var(--global-nav-open-height) !important;
   border-radius: 30px !important;
-  background-color: rgba(255, 255, 255, 0.56);
-  box-shadow:
-    0 18px 48px rgba(15, 23, 42, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
+  /* ⚠️ §21.13（2026-10-15）：此处**原本**还有 `background-color` 与两层 `box-shadow`
+     （想让展开态比常态更淡：`--liquid-bg-subtle` 0.58 + overlay 投影 + inset 高光）。
+     实测这两条**从来没有生效过**：本规则权重 (0,3,0)，被上方带 ID 前缀的基础规则
+     `:global(#unified-nav-container .unified-nav-surface)` (1,1,0) 整体压掉 ——
+     和旁边 `height` / `border-radius` 需要 `!important` 是同一个权重墙，只是那两条
+     被补了 `!important`、这两条没有，于是静默死了很久（`probe-navbar-tokens.mjs`
+     实测展开态底色 = 常态的 `--liquid-bg`，不是这里的 subtle）。
+     ⇒ 已删掉这两条死声明：它们比字面量更坏 —— 读代码的人会以为展开态另有一份材质。
+     展开态的材质现在**统一由基础规则的 `--liquid-*` 提供**（与常态一致）。
+     ⚠️ 若确实想让展开态更淡：给这两条补 `!important`（与 height/border-radius 一致），
+        并先跑 `probe-navbar-tokens.mjs` 确认真的换值了 —— 那是观感决策，别静默改。 */
+  /* 岛展开态同样**不上模糊**（与常态一致，见 `.unified-nav-surface` 基础块的注释） */
   transition:
     height var(--global-nav-status-duration, 240ms)
       var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
@@ -168,8 +181,7 @@
   box-shadow:
     0 8px 16px rgba(29, 41, 56, 0.07),
     inset 0 -1px 0 rgba(255, 255, 255, 0.55);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
+  /* 岛展开时贴在岛下沿的**同一视觉单元** ⇒ 与岛一致不上模糊（否则接缝处一条糊一条清） */
 }
 .nav-island-action {
   display: inline-flex;
@@ -272,9 +284,17 @@
   }
 }
 
+/* ⚠️ §21.13（2026-10-15）暗色分层的真相，别再改错地方：
+   暗色下岛**真正的**底色/描边来自 `src/styles/themes/navbar-dark.css` 的
+   `…unified-nav-surface:not(.has-login-card) { background: rgba(20,27,37,.9) !important;
+   border-color: rgba(220,235,255,.16) !important }` —— `!important` 压过本文件一切非 important 声明。
+   那是一条**藏青 palette**（与 BOHAI 暗色同族），与 `--liquid-*` 的中性暗色不是一套，
+   所以这里**没有**也不该硬换成令牌：换了就是全站暗色观感决策，不是收敛。
+   ⇒ 本块的角色只剩**兜底**：暗色 CSS 懒加载失败 / 被测试手动塞 data-theme 时，
+      让岛不至于变成透明（那就又是一次「白底上玻璃隐形」）。 */
 #unified-nav-container[data-theme='dark'] .unified-nav-surface {
-  border-color: rgba(255, 255, 255, 0.1);
-  background-color: rgba(24, 24, 26, 0.7);
+  border-color: var(--liquid-border);
+  background-color: var(--liquid-bg);
 }
 
 /* 暗色：logo / 主导航链接 / 用户名 / 登录按钮。vendor unified-nav.css 只有 #1a1a1a/#000 浅色态，
@@ -569,8 +589,7 @@
   background-color: rgba(255, 255, 255, 0.86);
   border-color: rgba(255, 255, 255, 0.5);
   box-shadow: 0 8px 26px rgba(15, 23, 42, 0.16);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* 沉浸态的迷你球同属「顶栏岛」⇒ 同样不上模糊 */
   transition:
     width 300ms var(--ease-emphasized),
     height 300ms var(--ease-emphasized),
@@ -648,7 +667,8 @@
 ) {
   position: static;
   transform: translateY(10px);
-  background-color: rgba(255, 255, 255, 0.66);
+  /* §21.13：与常态岛同一个底色令牌（原来抄了一份 0.66 的字面量）。 */
+  background-color: var(--liquid-bg);
 }
 
 /* 暗色主题球 */

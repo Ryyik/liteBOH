@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildReplyDraft, truncateTextSafe, escapeHtml } from '../../src/utils/forum-helpers.js';
+import {
+  buildReplyDraft,
+  shouldShowReplyTarget,
+  truncateTextSafe,
+  escapeHtml,
+} from '../../src/utils/forum-helpers.js';
 
 // ============================================================
 // buildReplyDraft：单参数提及格式（引用内容已移除，仅生成 @提及）
@@ -31,6 +36,46 @@ describe('buildReplyDraft', () => {
   it('参数是数字类型时转为字符串处理', () => {
     // Number 会被 String() 转为字符串
     expect(buildReplyDraft(12345)).toBe('@12345 ');
+  });
+});
+
+// ============================================================
+// shouldShowReplyTarget：「回复 @xxx」标签 / 预填 @ 的显示判据
+// 规则：被回复者 === 楼层根评论作者（直接回复发出评论的人）⇒ 不显示；
+//       回复楼里其他子评论 ⇒ 显示。
+// ============================================================
+describe('shouldShowReplyTarget', () => {
+  it('直接回复主评论（被回复者就是楼层根作者）→ 不显示', () => {
+    expect(shouldShowReplyTarget('楼主', '楼主')).toBe(false);
+  });
+
+  it('回复楼里某条子评论（被回复者≠楼层根作者）→ 显示', () => {
+    expect(shouldShowReplyTarget('路人甲', '楼主')).toBe(true);
+  });
+
+  it('无被回复者（新发主评论 / 无 @）→ 不显示', () => {
+    expect(shouldShowReplyTarget(null, '楼主')).toBe(false);
+    expect(shouldShowReplyTarget(undefined, '楼主')).toBe(false);
+    expect(shouldShowReplyTarget('', '楼主')).toBe(false);
+    expect(shouldShowReplyTarget('   ', '楼主')).toBe(false);
+  });
+
+  it('楼层根作者缺失但存在被回复者 → 显示', () => {
+    expect(shouldShowReplyTarget('路人甲', null)).toBe(true);
+    expect(shouldShowReplyTarget('路人甲', undefined)).toBe(true);
+  });
+
+  it('两侧空白会被 trim 后再比较', () => {
+    expect(shouldShowReplyTarget(' 楼主 ', '楼主')).toBe(false);
+    expect(shouldShowReplyTarget('楼主', ' 楼主 ')).toBe(false);
+  });
+
+  it('与 buildReplyDraft 组合：仅显示时才应预填 @', () => {
+    const draftFor = (target, root) =>
+      shouldShowReplyTarget(target, root) ? buildReplyDraft(target) : '';
+    expect(draftFor('楼主', '楼主')).toBe('');
+    expect(draftFor('路人甲', '楼主')).toBe('@路人甲 ');
+    expect(draftFor(null, '楼主')).toBe('');
   });
 });
 
@@ -88,8 +133,9 @@ describe('truncateTextSafe', () => {
 // ============================================================
 describe('escapeHtml', () => {
   it('转义 HTML 特殊字符', () => {
-    expect(escapeHtml('<script>alert("XSS")</script>'))
-      .toBe('&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;');
+    expect(escapeHtml('<script>alert("XSS")</script>')).toBe(
+      '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;',
+    );
   });
 
   it('转义单引号', () => {

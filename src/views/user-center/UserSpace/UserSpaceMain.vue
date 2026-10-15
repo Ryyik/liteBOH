@@ -115,7 +115,7 @@
             @sponsor="openSponsorPage"
             @data-management="openProfileDataManagement"
             @cloud-plus="openCloudPlusArea"
-            @assets="openAssetsHub"
+            @assets="openAssetsPointsPanel"
             @photo-albums="openPhotoAlbums"
             @post-click="openProfilePost"
             @switch-tab="switchTab"
@@ -169,6 +169,7 @@
               @redeem-points-card-cats="redeemPointsCardCats"
               @load-points-card-data="loadPointsCardData"
               @sponsor="openSponsorPage"
+              @tab-change="handleAssetsPanelChange"
             />
             <SponsorPanel
               v-else
@@ -497,6 +498,11 @@ const ProfileImpressionsSection = createPanelAsync(
 import ThemeModal from './components/ThemeModal.vue';
 import NotificationSuggestIsland from '@/components/UnifiedNavbar/NotificationSuggestIsland.vue';
 import { showIsland, islandTaskView } from '@/composables/useIsland.js';
+import { buildUnreadDigest, UNREAD_DIGEST_MIN } from '@/utils/notification-digest.js';
+import {
+  getUserNotifications,
+  filterSelfActionNotifications,
+} from '@/utils/api/notifications-api.js';
 import { isForumLandscape } from '@/utils/forum-viewport.js';
 import { openForumPost } from '@/composables/usePostDetailModal.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
@@ -573,7 +579,13 @@ const refreshUnreadCount = async () => {
   await notificationStore.refreshUnreadCount();
 };
 
+// 资产段内层面板的「内存镜像」：真源是 URL ?panel=，这里同时是向 AssetsHubPanel
+// 传 initial-tab 的通道（组件侧有 normalize，值域单一真源在组件）。
 const assetsInitialTab = ref('');
+// openAssetsHub 显式跳转的意图闩锁（null = 无意图）：URL 写入是异步的，落段 watch
+// 若立刻回读 URL 会被「尚未落地」的旧值覆盖（服务行直达被冲回概览的成因）。
+// 消费顺序：下次 contentSection 落 'assets' 时优先采信本值，随后置空。
+let pendingAssetsPanel = null;
 const TAB_LEAVE_CLEAR_DELAY_MS = 340;
 let userSpaceWarmupTimeoutId = null;
 // ✅ 性能优化：使用 markRaw 标记静态配置，避免不必要的响应式追踪
@@ -844,6 +856,8 @@ const resolveSectionFromRoute = () => {
     // 而不是默认的「空间」—— 否则老链接会把用户送到错误的分段。
     if (!requestedView && rawRequestedTab === 'assets') contentSection.value = 'assets';
     else if (CONTENT_SECTIONS.includes(requestedView)) contentSection.value = requestedView;
+    // ?panel= → 资产段内层面板（覆盖「同段 URL 变化」：前进/后退、深链直达）
+    syncAssetsPanelFromRoute();
   } else if (currentTab.value === 'messages') {
     if (MESSAGES_SECTIONS.includes(requestedView)) messagesSection.value = requestedView;
   } else if (currentTab.value === 'settings') {
@@ -871,14 +885,45 @@ const openSettingsPanelFromRoute = async () => {
 };
 
 /** tab → 分区内存单源：URL 的 view 一律由这里推导，别再各写一套。
-    ⚠️ `assets` 不是 tab 了（是「我」页的分段），别再往这张表里加 —— 它的内层档位
-    hub/sponsor 是纯内存态（`assetsSection`），不进 URL：`view` 这个参数已经被
-    「分段」占用，两者共用一个 query 名必然打架。 */
+    ⚠️ `assets` 不是 tab 了（是「我」页的分段），别再往这张表里加 —— 它的内层分两层：
+    hub 内的 7 档面板走 URL `?panel=`（见 applyAssetsPanelToQuery，2026-10-15）；
+    外层档位（hub ↔ sponsor）仍是纯内存态（`assetsSection`），不入 URL ——
+    `view` 参数已被「分段」占用，这也正是面板参数另起 `panel` 名的原因。 */
 const SECTION_REFS = {
   community: communitySection,
   posts: contentSection,
   messages: messagesSection,
   settings: settingsSection,
+};
+
+/* ---------- 资产段内层面板（?panel=，2026-10-15）----------
+   「我」页资产段的内层 = AssetsHubPanel 七个 tab（概览/装扮/积分/订阅/订单/抽奖/赞助）。
+   面板值域真源在 AssetsHubPanel.betaTabIds（含旧值映射与非法回落），宿主只负责 URL 搬运：
+   写入从 assetsInitialTab（面板镜像）读，读取落回 assetsInitialTab（经 initial-tab 传组件）。
+   `panel` 仅在「posts + view=assets」下有效；其余分段/切 tab 一律清除（不产生悬挂参数）。 */
+
+/** 内存面板 → query.panel（默认档 overview 省略；非资产段一律清除） */
+const applyAssetsPanelToQuery = (nextQuery) => {
+  const isAssets = nextQuery.tab === 'posts' && String(nextQuery.view || '') === 'assets';
+  const panel = isAssets ? String(assetsInitialTab.value || '').trim() : '';
+  if (panel && panel !== 'overview') nextQuery.panel = panel;
+  else delete nextQuery.panel;
+  return nextQuery;
+};
+
+/** URL ?panel= → 内存面板镜像（仅在「我页·资产段」生效；无值即归默认）。 */
+const syncAssetsPanelFromRoute = () => {
+  if (currentTab.value !== 'posts' || contentSection.value !== 'assets') return;
+  assetsInitialTab.value = String(route.query.panel || '').trim();
+};
+
+/** 内层面板切换 → 写 URL（组件 tab-change 的唯一响应点；非资产段 / 同值不写）。 */
+const handleAssetsPanelChange = (panel) => {
+  assetsInitialTab.value = panel === 'overview' ? '' : String(panel || '');
+  if (currentTab.value !== 'posts' || contentSection.value !== 'assets') return;
+  const nextQuery = applyAssetsPanelToQuery({ ...route.query, tab: 'posts', view: 'assets' });
+  if (String(nextQuery.panel || '') === String(route.query.panel || '')) return;
+  router.replace({ query: nextQuery });
 };
 
 /** 把某 tab 的当前分区按统一口径写进 query：等于默认值则删 view，否则写 view */
@@ -898,7 +943,7 @@ const setSectionRoute = (tabId, section) => {
   } else {
     nextQuery.view = section;
   }
-  router.replace({ query: nextQuery });
+  router.replace({ query: applyAssetsPanelToQuery(nextQuery) });
 };
 
 const jumpWithSection = (tabId, section) => {
@@ -916,8 +961,23 @@ const jumpWithSection = (tabId, section) => {
 
 /** 「我」页分段的惰性挂载闩锁 + URL 回写（分段值必须进 URL，否则刷新即丢失） */
 watch(contentSection, (next) => {
-  if (next === 'assets') assetsSegmentVisited.value = true;
-  else if (next === 'impressions') impressionsSegmentVisited.value = true;
+  if (next === 'assets') {
+    assetsSegmentVisited.value = true;
+    if (pendingAssetsPanel !== null) {
+      // openAssetsHub 的显式意图优先于 URL（此刻 URL 的写入可能尚未落地，
+      // 回读会拿到旧值；见 pendingAssetsPanel 声明处注释）
+      assetsInitialTab.value = pendingAssetsPanel;
+      pendingAssetsPanel = null;
+    } else {
+      // 段控切回 / 深链首落：面板恢复自 URL（无 panel 即归默认）——
+      // 「切走再切回」不保留上次内层面板，与设置分段的「切回回 home」同口径
+      syncAssetsPanelFromRoute();
+    }
+  } else {
+    // 离开资产段：闩锁若未消费即视为跳转流产（同 tick 内被连续切段合并的场景）
+    pendingAssetsPanel = null;
+    if (next === 'impressions') impressionsSegmentVisited.value = true;
+  }
   if (currentTab.value === 'posts') setSectionRoute('posts', next);
 });
 
@@ -1819,7 +1879,8 @@ const openSponsorPage = () => {
   sponsorQrLoadFailed.value = false;
   sponsorQrLoading.value = false;
   sponsorCatBurstKey.value += 1;
-  // 赞助是「资产」分段的内层档位：先落到资产段，再切内层（内层不进 URL）
+  // 赞助是「资产」分段的外层档位（hub ↔ sponsor，纯内存态不入 URL）：先落到资产段再切外层。
+  // 进入时不动 ?panel=（保留 hub 的记忆），SponsorPanel 返回时据此恢复离开前的内层面板。
   assetsSegmentVisited.value = true;
   assetsSection.value = 'sponsor';
   jumpWithSection('posts', 'assets');
@@ -1829,20 +1890,27 @@ const openPhotoAlbums = () => {
   router.push('/user-space/albums');
 };
 
+/** 资产段入口：值域归一交给 AssetsHubPanel.normalizeInitialTab（单一真源，含旧值映射与
+    非法回落）—— 旧实现的白名单（含已废弃 cards/addresses）已删除，面板名单不再有第二份。
+    显式意图走 pendingAssetsPanel 闩锁，避免落段 watch 回读未落地的 URL 把意图冲掉。 */
 const openAssetsHub = (initialTab = '') => {
-  const betaTabs = ['overview', 'cards', 'points', 'subscription', 'fulfillment', 'addresses'];
-  let nextTab = String(initialTab);
-  // 旧积分页 orders/gifts 入口统一落到 fulfillment（旧 4.9.1 tab 集已随回退通道移除）
-  if (['orders', 'gifts'].includes(nextTab)) nextTab = 'fulfillment';
-  assetsInitialTab.value = betaTabs.includes(nextTab) ? nextTab : '';
+  const raw = String(initialTab || '').trim();
+  const panel = raw === 'overview' ? '' : raw;
   assetsSegmentVisited.value = true;
   assetsSection.value = 'hub';
+  assetsInitialTab.value = panel;
+  pendingAssetsPanel = panel;
   jumpWithSection('posts', 'assets');
 };
 
+/** 空间段服务面板「方块积分」行：直达资产段·积分面板（原为只到概览） */
+const openAssetsPointsPanel = () => openAssetsHub('points');
+
 const backToAssetsHub = () => {
   assetsSection.value = 'hub';
-  assetsInitialTab.value = '';
+  // 回到进入外层前的内层面板（URL ?panel= 是记忆源）；无 panel 即归默认。
+  // SponsorPanel 期间 AssetsHubPanel 被 v-if 卸载，重挂载时按本值归一（normalize 在组件侧）。
+  assetsInitialTab.value = String(route.query.panel || '').trim();
 };
 
 const openProfileDataManagement = () => {
@@ -2298,13 +2366,22 @@ const syncUserSpaceTabRoute = (tabId) => {
     delete nextQuery.to;
     nextQuery.section = 'notifications';
   }
+  // 资产段内层面板：仅在「posts + view=assets」保留，其余一并清除
+  applyAssetsPanelToQuery(nextQuery);
 
   const currentRouteTab = String(route.query.tab || '');
   const currentSection = String(route.query.section || '');
   const nextSection = String(nextQuery.section || '');
   const currentView = String(route.query.view || '');
   const nextView = String(nextQuery.view || '');
-  if (currentRouteTab === tabId && currentSection === nextSection && currentView === nextView)
+  const currentPanel = String(route.query.panel || '');
+  const nextPanel = String(nextQuery.panel || '');
+  if (
+    currentRouteTab === tabId &&
+    currentSection === nextSection &&
+    currentView === nextView &&
+    currentPanel === nextPanel
+  )
     return;
 
   router.replace({ path: '/user-space', query: nextQuery });
@@ -3324,6 +3401,15 @@ watch(
   },
 );
 
+// 资产段内层面板：view 不变的纯 panel 变化（前进/后退、同页改 URL）也要同步到组件；
+// view 同时变化的情形已由上面一条 watch 覆盖（resolveSectionFromRoute 内含面板同步）。
+watch(
+  () => route.query.panel,
+  () => {
+    resolveSectionFromRoute();
+  },
+);
+
 watch(
   () => route.query.setting,
   () => {
@@ -3420,16 +3506,36 @@ const handleSuggestAction = async (actionId) => {
   }
 };
 
-const presentSuggestIsland = () => {
+const presentSuggestIsland = async () => {
   closeSuggestIsland();
-  if (!isLoggedIn.value || unreadCount.value <= 0) return;
+  // 2026-10-15 拍板：未读 ≤3 条不弹岛（少量未读用户扫一眼列表即可），≥4 条才弹
+  if (!isLoggedIn.value || unreadCount.value < UNREAD_DIGEST_MIN) return;
   // 同批次（未读数未增长）已被用户 × 掉过则不再打扰；未读有新增重新解锁
   const dismissedAtCount = Number(sessionStorage.getItem(SUGGEST_DISMISS_KEY) || 0);
   if (unreadCount.value <= dismissedAtCount) return;
   // 任务岛（发帖/上传进度）在展示时让位，不抢导航 surface
   if (islandTaskView.value) return;
+  // 聚合文案是增强不是依赖：拉取失败/明细不足 4 条时 digest 留空，退回默认「N 条未读消息」
+  let digest = '';
+  const userId = String(userInfo.value.id || '').trim();
+  if (userId) {
+    try {
+      const { data } = await getUserNotifications(userId, { limit: 30 });
+      digest =
+        buildUnreadDigest(filterSelfActionNotifications(data || []), {
+          totalCount: unreadCount.value,
+        }) || '';
+    } catch {
+      digest = '';
+    }
+  }
+  // 拉取期间状态可能已变：登出 / 未读跌破阈值 / **用户已切离收件箱**（async 化引入的
+  // 时序窗口——同步版不存在此问题）——三道都过才出卡，否则拉取结果直接丢弃。
+  if (!isLoggedIn.value || unreadCount.value < UNREAD_DIGEST_MIN) return;
+  if (!isMessagesInboxActive.value) return;
   suggestIslandHandle = showIsland.custom(NotificationSuggestIsland, {
     unreadCount: unreadCount.value,
+    digest,
     busy: false,
     done: false,
     actions: [{ id: 'mark-all-read', label: '全部已读' }],
@@ -3453,7 +3559,7 @@ void ensureNotificationStore();
 watch(
   isMessagesInboxActive,
   (active) => {
-    if (active) presentSuggestIsland();
+    if (active) void presentSuggestIsland();
     else closeSuggestIsland();
   },
   { immediate: true },
@@ -3471,7 +3577,7 @@ watch(unreadCount, (count) => {
     suggestIslandHandle.update({ unreadCount: count });
     return;
   }
-  if (isMessagesInboxActive.value && count > 0) presentSuggestIsland();
+  if (isMessagesInboxActive.value && count >= UNREAD_DIGEST_MIN) void presentSuggestIsland();
 });
 </script>
 
