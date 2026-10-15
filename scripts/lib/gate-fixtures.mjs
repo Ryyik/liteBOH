@@ -228,6 +228,27 @@ export const FIXTURES = [
       ),
   },
   {
+    gate: 'check:shell-grep',
+    why: '本环境 PATH 的 grep 是 toybox shim，缺 `\\|`/BRE 量词与 `\\s` 等 GNU 扩展且**静默 0 命中**；咬在 CI workflow/构建脚本里就是一条永远绿的检查（2026-10-15 一天被咬 3 次）',
+    // 落点：workflows 目录下名字一眼可辨的样本 —— 被本门禁的 glob 扫到即违规。
+    // 不借用真实 workflow：被硬杀留下的残留会看起来像正常 CI 文件（见文件头第 4 条）。
+    prepare: () =>
+      createFile(
+        '.github/workflows/__gates_probe.yml',
+        [
+          '# gates-self-test 临时样本：toybox shim 上静默失败的 grep（用完即删）',
+          'name: __gates_probe',
+          'on: push',
+          'jobs:',
+          '  probe:',
+          '    runs-on: ubuntu-latest',
+          '    steps:',
+          "      - run: grep -c 'foo\\|bar' some-file.txt",
+          '',
+        ].join('\n'),
+      ),
+  },
+  {
     gate: 'check:root-clean',
     why: 'AGENTS.md §6「不要往根目录新增 demo」在 2026-10-15 审计时被实测为**没有牙的规则**（写了 14 个存量，实际 24 个，且新增还在发生）；这道门禁把"别再放"变成机器可执行',
     // 落点：根目录下名字一眼可辨的样本文件。

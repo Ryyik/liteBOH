@@ -197,22 +197,78 @@ for (const [port, what] of [
   );
 }
 
-// ── 5. 平台能力（**实测**，不按平台名推断）────────────────────────────
-section('5. 平台能力（实测）');
+// ── 5. Shell 能力（**实测**，不按平台名推断）─────────────────────────
+section('5. Shell 能力（实测）');
 
-// BSD grep 没有 BRE 的 `\|`：`grep 'a\|b'` 会**静默 0 命中**，
-// 让人误判「没有引用」。这是本仓库踩得最多的一条 grep 坑。
-const grepProbe = sh('grep', ['a\\|b'], { input: 'a\n' });
-if (grepProbe.status === 0) {
-  report(OK, 'grep BRE 交替 (\\|)', '支持');
-} else {
+// ⚠️ 本环境 PATH 上的 grep/sed/find 是 WorkBuddy CLI 的 **toybox shim**
+// （`command -v grep` 指到 brokered-bin/codebuddy-toybox-dispatch），
+// 它既不是 BSD 也不是 GNU：CLI 约定像 GNU（`sed -i` 不要后缀），
+// 但正则/选项集**小得多**。最坑的是它**静默 0 命中** —— `grep 'a\|b'`
+// 不报错、不匹配 ⇒ 你会得出「没有引用」的错误结论。
+// 所以这里逐个**跑真匹配**（stdin 喂必中的输入），而不是读 --version 就完事。
+const GREP_SHIM = (sh('sh', ['-c', 'command -v grep']).stdout || '').includes('brokered-bin');
+const grepId = (sh('grep', ['--version']).stdout || '').split('\n')[0]?.trim() || '未知';
+report(INFO, 'grep 是谁', `${GREP_SHIM ? 'toybox shim' : '系统实现'}（${grepId}）`);
+
+const grepProbes = [
+  ['a\\|b（BRE 交替）', 'a\\|b', 'ab\n'],
+  ['\\ba\\b（词边界）', '\\ba\\b', 'a\n'],
+  ['a\\sb（空白）', 'a\\sb', 'a b\n'],
+  ['a\\wb（词字符）', 'a\\wb', 'axb\n'],
+];
+const grepBroken = grepProbes
+  .filter(([, pat, input]) => sh('grep', [pat], { input }).status !== 0)
+  .map(([label]) => label);
+
+if (grepBroken.length) {
   report(
     WARN,
-    'grep BRE 交替 (\\|)',
-    '不支持 —— `grep "a\\|b"` 会静默 0 命中',
-    '一律用 grep -E 或 Grep 工具（本仓库硬规则）',
+    'grep 扩展正则',
+    `${grepBroken.length}/${grepProbes.length} 不支持：${grepBroken.join('、')}`,
+    '这些写法会**静默 0 命中**。用 POSIX 类（[[:space:]]/[[:alpha:]]…）或加 `-E` 用裸 `|`',
+  );
+} else {
+  report(OK, 'grep 扩展正则', `${grepProbes.length}/${grepProbes.length} 支持`);
+}
+
+// 比「不支持 \s」更反直觉的一条：**-E 也救不了它**。
+// `grep -E 'a\sb'` 在 toybox shim 下照样静默失败 —— `-E` 只把 `|` 变成交替，
+// `\s` 是 GNU 扩展，不在 POSIX ERE 里。必须单独报。
+const grepESpace = sh('grep', ['-E', 'a\\sb'], { input: 'a b\n' });
+report(
+  grepESpace.status === 0 ? OK : WARN,
+  'grep -E 对 \\s 有效吗',
+  grepESpace.status === 0 ? '有效' : '无效 —— `-E` 救不了 GNU 扩展',
+  grepESpace.status === 0
+    ? null
+    : '含 \\s/\\w/\\d/\\b 的富正则用 POSIX 类，或直接调 `/usr/bin/grep`',
+);
+
+// 系统的 /usr/bin/grep（BSD 2.6.0-FreeBSD，GNU compatible）反而是**全功能**的。
+// 在 shim 上丢的 `\|`/`\s`/`\b`/`\+` 它全支持 ⇒ 作为兜底路径值得报出来。
+const SYS_GREP = '/usr/bin/grep';
+if (existsSync(SYS_GREP)) {
+  const sysBroken = grepProbes.filter(
+    ([, pat, input]) => sh(SYS_GREP, [pat], { input }).status !== 0,
+  );
+  report(
+    sysBroken.length ? WARN : OK,
+    `${SYS_GREP} 兜底`,
+    sysBroken.length
+      ? `${sysBroken.length} 项不支持`
+      : '全功能（shim 丢的正则它都支持）⇒ 富正则可直接 /usr/bin/grep',
   );
 }
+
+// sed 同理：shim（toybox）`sed -i` **不要**后缀；/usr/bin/sed（BSD）**要**后缀。
+// 这两条方向相反 —— 谁写错都是报错或改错文件。靠 resolved path 分类，不猜平台。
+const sedShim = (sh('sh', ['-c', 'command -v sed']).stdout || '').includes('brokered-bin');
+report(
+  INFO,
+  'sed -i 要不要后缀',
+  sedShim ? '不要（toybox shim）' : '要（BSD /usr/bin/sed）',
+  sedShim ? null : `你当前 PATH 上是 ${sedShim ? 'shim' : 'BSD'} —— 以这条为准，别照抄"BSD 要后缀"`,
+);
 
 const timeoutProbe = sh('sh', ['-c', 'command -v timeout']);
 report(
@@ -224,7 +280,7 @@ report(
 
 const findProbe = sh('find', ['.', '-maxdepth', '0', '-newermt', '2000-01-01']);
 if (unsupported(findProbe)) {
-  report(WARN, 'find -newermt', '不支持（BSD find）', '改用 git ls-files / -mtime');
+  report(WARN, 'find -newermt', '不支持', '改用 git ls-files / -mtime');
 } else {
   report(OK, 'find -newermt', '支持');
 }
@@ -233,7 +289,7 @@ const dateProbe = sh('date', ['-d', '@0']);
 report(
   unsupported(dateProbe) || dateProbe.status !== 0 ? WARN : OK,
   'date -d',
-  dateProbe.status === 0 ? '支持' : '不支持（BSD date）',
+  dateProbe.status === 0 ? '支持' : '不支持',
   dateProbe.status === 0 ? null : '要取时间戳用 date -v / 或直接交给 shell 算',
 );
 

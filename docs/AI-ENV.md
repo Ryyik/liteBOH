@@ -59,16 +59,22 @@ git status --porcelain | wc -l   # 工作区有多脏（并行会话判断依据
 | 2 | vite 只绑定 **IPv6** | 探针/脚本连 `http://[::1]:5173`（或启动时显式 `--host ::`） | ❌ 记在这里 |
 | 3 | `nohup … &` 后台服务**随工具调用被杀** | 用托管后台任务（`run_in_background`），不要自己 detach | ❌ 记在这里 |
 | 4 | safe-delete 拦「一次删 >50 文件」（跑 build 前删 `dist` 就撞它） | 跑 `vite build`／`build:ci` **之前**先 `mv dist /tmp/dist-$(date +%s)`。⚠️ 直接建会报 `SAFE_DELETE_BULK_CONFIRM_REQUIRED`，并**吐「壳样式允许清单为空」等次生 warning 误导**（真正的失败在删除那一步）；`node_modules/.vite` 同理。CI 上没有这个 shim | `env:doctor` 检查 dist 残留 |
-| 5 | **BSD grep 不支持 BRE 的 `\|`**（静默 0 命中！） | 一律 `grep -E`，或直接用 Grep 工具 | `env:doctor` 实测探测 |
+| 5 | **PATH 上的 `grep` 是 toybox shim（既不是 BSD 也不是 GNU），`\|`、`\b`、`\s`、`\w`、`\d` 全部静默 0 命中——而且 `-E` 也救不了 `\s`** | ① 用 POSIX 类（`[[:space:]]`/`[[:alpha:]]`…）；② 复杂正则直接 `/usr/bin/grep`（系统自带的 BSD grep 反而**全功能**，`\|`/`\s`/`\b` 都支持）；③ 更复杂就用 Grep 工具（ripgrep） | `env:doctor` 实测出完整能力矩阵 |
 | 6 | `github.com` HTTPS 被 **SNI 阻断** | push 走 `ssh.github.com:443`；兜底 `scripts/push-via-api.py` | `env:doctor --deep` 探测 |
 | 7 | Playwright 与外层代理冲突 | 必须 `channel:'chrome'` + `--proxy-server=direct:// --proxy-bypass-list=*` | `env:doctor` 提示代理变量 |
 | 8 | macOS 无 `timeout`、BSD `find` 有/无 `-newermt` 因版本而异 | 别在脚本里用 `timeout`；用 `git ls-files` 替代时间过滤 | `env:doctor` 实测探测 |
 | 9 | `lint-staged` 卷进无关未暂存文件 | 提交后核对 `git show --stat HEAD`（见 §2） | ❌ 记在这里 |
 | 10 | **deno 本地装不了** | 改 Edge Function 的类型检查只能等 CI（`deno-check.yml`，2026-10-13 起为阻断门禁） | ❌ 记在这里 |
 
+> ⚠️ **一条最重要的"本机事实"**：你 shell 里的 `grep` / `sed` / `find` 是 **WorkBuddy CLI 的
+> toybox shim**（`command -v` 会指到 `brokered-bin/codebuddy-toybox-dispatch`），**既不是 BSD
+> 也不是 GNU** —— CLI 约定像 GNU（`sed -i` **不要**后缀），但正则/选项集小得多；系统的
+> `/usr/bin/grep` / `/usr/bin/sed` 才是 BSD 系（`sed -i` **要**后缀）。
+> **这两条方向相反**，所以别背"BSD 要后缀"这种口诀 —— 一律跑 `npm run env:doctor` 看实测矩阵。
+
 补充（同属"本机事实"，一并记下）：
 
-- **BSD `sed -i` 需要显式后缀**（`sed -i ''`）；**BSD `date` 没有 `-d`**（用 `-v`）。
+- **`date -d` 不存在**（取时间戳用 `date -v` 或直接交给 shell 算）。
 - `/tmp` 下的一次性 ESM 脚本**引不到仓库依赖** ⇒ 用 `createRequire('<repo>/package.json')`，或把脚本放仓库根（用完删）。
 - 探针 `page.evaluate(fn)` **只序列化函数体** ⇒ 闭包依赖必须作为**参数**传进去。
 - node 22 的 `globalThis.navigator` 是**只读**的 ⇒ 要 mock 得走 `Object.defineProperty`。
