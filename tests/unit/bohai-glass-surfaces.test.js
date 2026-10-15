@@ -8,11 +8,6 @@
  *      下面的内容」—— 为此输入区**同时**改成浮在消息流之上，否则底下没有可透的内容）；
  *   · **不上**：常驻面板（侧栏 / 工作台）、阅读主体（用户气泡）—— 底下没有可透的内容。
  *
- * ⚠️ 2026-10-14 升级（§21.7）：输入框 / 模型浮层 / 工具浮层三者从「模糊级」升级为
- *   **折射级**（`BohGlassRefract`，JS 覆盖层；材质不经过 `--liquid-filter-sm`）。
- *   本文件同步把材质串断言改为「三个保留消费者（斜杠/用量/详情卡）」，并新增折射级的
- *   关键约束断言（standard 免 worker / elasticity 0 / tint 令牌 / `.boh-main` 无 z-index）。
- *
  * ⚠️ 材质必须引用全局单源 `--liquid-filter-sm`（`scripts/check-liquid-glass.mjs` 禁止在
  *    `liquid-glass.css` 之外重写 blur 材质；**注释里也别复述那条被禁的写法** —— 门禁读原文）。
  * ⚠️ 颜色必须走 `--boh-glass-*`：BOHAI 主题（`data-boh-theme`）不跟站点主题联动，
@@ -28,88 +23,18 @@ const read = (rel) => readFileSync(resolve(import.meta.dirname, '../..', rel), '
 const COMPOSER = 'src/views/BOHAI/BOHAI/components/styles/boh-composer.css';
 const STREAM = 'src/views/BOHAI/BOHAI/components/styles/boh-stream.css';
 const TOKENS = 'src/views/BOHAI/BOHAI/styles/tokens.css';
-/* §21.11：折射级材质提为**站点级**，白膜令牌定义搬到全局 tokens（与 `--liquid-*` 平级） */
-const GLOBAL_TOKENS = 'src/styles/common/tokens.css';
 const COMPOSER_VUE = 'src/views/BOHAI/BOHAI/components/BohComposer.vue';
 
 describe('BOHAI 液态玻璃：哪些面上了玻璃', () => {
-  it('保留的两个代表**共用一组材质**（斜杠菜单 / hover 详情卡）', () => {
+  it('六个面**共用一组材质**（模型/工具面板 / 斜杠菜单 / 用量浮层 / hover 详情卡 / 输入框）', () => {
     const css = squeezeSource(read(COMPOSER));
-    expect(css).toContain('.boh-slash, .boh-mm-detail {');
+    expect(css).toContain(
+      '.boh-mode-menu, .boh-tools-menu, .boh-slash, .boh-usage-pop, .boh-mm-detail, .boh-composer {',
+    );
     expect(css).toContain('backdrop-filter: var(--liquid-filter-sm)');
     expect(css).not.toMatch(/backdrop-filter:\s*blur\((?:1[4-9]|[2-9]\d)px\)/);
     expect(css).toContain('background: var(--boh-glass-bg)');
     expect(css).toMatch(/@supports\s*\(\(backdrop-filter:\s*blur\(1px\)\)/);
-  });
-
-  it('输入框 / 模型 / 工具 / 用量浮层升级为**折射级**（§21.7；用量浮层见 §21.10）', () => {
-    const css = squeezeSource(read(COMPOSER));
-    // ① 四者已从模糊级材质串里移出（反证锚：旧组合不许回来）
-    expect(css).not.toContain('.boh-mode-menu, .boh-tools-menu, .boh-slash');
-    expect(css).not.toContain('.boh-mm-detail, .boh-composer {');
-    expect(css).not.toContain('.boh-slash, .boh-usage-pop');
-    // ② @supports 里撤掉 CSS 层材质（避免与折射玻璃双层过滤）
-    //    ⚠️ 期望串必须过同款 squeeze（它会删闭括号前空白 ⇒ 裸字面量永远匹配不上，实测咬过一次）
-    expect(css).toContain(squeezeSource('.boh-composer { background: transparent; }'));
-    expect(css).toContain(
-      squeezeSource('.boh-mode-menu, .boh-tools-menu { background: transparent;'),
-    );
-    expect(css).toContain(squeezeSource('.boh-usage-pop { background: transparent;'));
-    // ②' 用量浮层的「无 z-index 锚」必须存在（采样根硬约束，§21.8 线1）——
-    //    浮层的 z-index 留在自己身上、锚不许带，否则玻璃背板采样被裁。
-    expect(css).toContain(squeezeSource('.boh-usage-anchor { position: absolute;'));
-    expect(css).toMatch(/\.boh-usage-anchor\s*\{[^}]*\}/);
-    expect(css.match(/\.boh-usage-anchor\s*\{[^}]*\}/)?.[0] || '').not.toContain('z-index');
-    // ②'' 模板：玻璃挂进用量锚，与浮层**同开同关**（玻璃 `v-if` 与浮层 `v-show` 同一个状态源）
-    const tplSource = read(COMPOSER_VUE);
-    const tpl = squeezeSource(tplSource.slice(0, tplSource.indexOf('<script setup>')));
-    expect(tpl).toContain(squeezeSource('<div class="boh-usage-anchor">'));
-    expect(tpl).toContain(squeezeSource('<BohGlassRefract v-if="usagePopOpen" :radius="12" />'));
-    // ③ 玻璃组件本体关键约束：standard 模式（免 worker）/ 弹性恒 0 / 百分比尺寸 / 白膜走令牌链
-    //    ⚠️ §21.11：组件已从 BOHAI 域**升到 `src/components/ui/`**（站点级共享）
-    const glass = read('src/components/ui/BohGlassRefract.vue');
-    expect(glass).toContain('mode="standard"');
-    expect(glass).toContain(':elasticity="SPEC.elasticity"');
-    expect(glass).toContain("width: '100%'");
-    expect(glass).toContain('rgba(var(--refract-tint-rgb), var(--refract-alpha))');
-    // 白膜令牌的**定义**在站点级单源（与 `--liquid-*` 平级），不再锁在 BOHAI 域内
-    const globalTokens = read(GLOBAL_TOKENS);
-    expect(globalTokens).toMatch(/--refract-tint-rgb-light:/);
-    expect(globalTokens).toMatch(/--refract-tint-rgb-dark:/);
-    expect(globalTokens).toMatch(/--refract-alpha-default:\s*0\.1/);
-    expect(globalTokens).toMatch(
-      /\[data-theme="dark"\][\s\S]*--refract-tint-rgb:\s*var\(--refract-tint-rgb-dark\)/,
-    );
-    // BOHAI 域内只保留「按 BOHAI 主题覆写三元组」，且必须挂 `.bohai-page`（BOHAIMain 根）
-    // —— `data-boh-theme` 离开 BOHAI 后**不会被清**，挂 :root 会把暗色白膜泄漏给站点级玻璃
-    const bohTokens = read(TOKENS);
-    expect(bohTokens).toMatch(
-      /\.bohai-page\s*\{[\s\S]*?--refract-tint-rgb:\s*var\(--refract-tint-rgb-light\)/,
-    );
-    expect(bohTokens).toMatch(
-      /:root\[data-boh-theme='dark'\]\s+\.bohai-page\s*\{[\s\S]*?--refract-tint-rgb:\s*var\(--refract-tint-rgb-dark\)/,
-    );
-    expect(bohTokens).not.toMatch(/--boh-refract-/);
-    // ④ 采样根硬约束：`.boh-main` 不得再挂 z-index（守护 §21.7 的让位决定）
-    const layout = squeezeSource(read('src/views/BOHAI/BOHAI/styles/layout.css'));
-    expect(layout).not.toMatch(/\.boh-main\s*\{[^}]*z-index/);
-  });
-
-  it('玻璃透明度是用户偏好：令牌链 / 设置行 / 壳同步三处齐全（2026-10-14，§21.7）', () => {
-    // ① 偏好默认值与持久化键（useGlobalAiPreferences 单源）
-    const prefs = read('src/composables/useGlobalAiPreferences.js');
-    expect(prefs).toContain('LIQUID_GLASS_SPEC.tintAlphaDefault');
-    // ② 壳把偏好写到根（采样根变量），带 0.30~0.85 边界钳制（min 在外、max 在内）
-    const shell = squeezeSource(read('src/views/BOHAI/composables/useBohShell.js'));
-    expect(shell).toContain('syncGlassOpacity');
-    expect(shell).toContain("'--refract-alpha'");
-    expect(shell).toContain('LIQUID_GLASS_SPEC.tintAlphaMax');
-    expect(shell).toContain('LIQUID_GLASS_SPEC.tintAlphaMin');
-    // ③ 设置→外观 的滑杆行（含实时预览 chip，走同一对令牌）
-    const panel = read('src/views/BOHAI/BOHAI/components/BohaiSettingsPanel.vue');
-    expect(panel).toContain('玻璃透明度');
-    expect(panel).toContain('preferences.glassOpacity');
-    expect(panel).toContain('rgba(var(--refract-tint-rgb), var(--refract-alpha))');
   });
 
   it('跳转导航 hover 卡与浮层共用同一套 --boh-glass-* 令牌（单源）', () => {
@@ -122,13 +47,10 @@ describe('BOHAI 液态玻璃：哪些面上了玻璃', () => {
     );
   });
 
-  it('输入框材质＝折射玻璃（2026-10-14 升级，§21.7）；基础规则仍留实色兜底', () => {
+  it('输入框**上**玻璃（2026-10-12 口径反转），基础规则仍留实色兜底', () => {
     const css = squeezeSource(read(COMPOSER));
-    // ① 折射玻璃挂进输入框锚（模板 + 样式双锚点）——2026-10-12「进同组模糊材质」的形态已随之作废
-    const source = read(COMPOSER_VUE);
-    const template = squeezeSource(source.slice(0, source.indexOf('<script setup>')));
-    expect(template).toContain('<BohGlassRefract :radius="20" />');
-    expect(css).toContain('.boh-composer-anchor {');
+    // ① 进了同一组材质（`@supports` 块内）—— 这条 2026-10-11 时是反过来的
+    expect(css).toContain('.boh-mm-detail, .boh-composer {');
     // ② `@supports` 之外的基础规则仍是实色 ⇒ 不支持 backdrop-filter 时自动落回
     const composerRule = css.match(/\.boh-composer \{[^}]*\}/);
     expect(composerRule?.[0] || '').toContain('background: var(--boh-composer-bg)');
@@ -248,16 +170,13 @@ describe('BOHAI 输入区：2026-10-11 两颗独立胶囊', () => {
     expect(formatModeRateLabel({ quotaMultiplier: 0 })).toBe('0.00x');
   });
 
-  it('窄竖屏详情卡不挂；面板锚宽度受视口约束（2026-10-14 起钳制在 boh-composer.css）', () => {
+  it('窄竖屏详情卡不挂；两个面板宽度受视口约束', () => {
     const layout = squeezeSource(read('src/views/BOHAI/BOHAI/styles/layout.css'));
     expect(layout).toMatch(
       /@media\s*\(orientation:\s*portrait\)[\s\S]*?\.boh-mm-detail\s*\{\s*display:\s*none/,
     );
-    // 宽度钳制随「锚」迁进 scoped 正确的文件 —— layout.css 是 scoped 到 BOHAIMain 的，
-    // 原来那条选择器带 [data-v-main]、够不到 BohComposer 内部元素（半死规则，2026-10-14 修）
-    const composerCss = squeezeSource(read(COMPOSER));
-    expect(composerCss).toMatch(
-      /@media\s*\(max-width:\s*480px\)[\s\S]*?\.boh-menu-anchor\s*\{[^}]*width:\s*min\(252px,\s*calc\(100vw\s*-\s*24px\)\)/,
+    expect(layout).toMatch(
+      /@media\s*\(max-width:\s*480px\)[\s\S]*?\.boh-mode-menu,\s*\.boh-tools-menu\s*\{[^}]*width:\s*min\(252px,\s*calc\(100vw\s*-\s*24px\)\)/,
     );
   });
 });
