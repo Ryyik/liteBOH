@@ -39,10 +39,13 @@
 
 ## 门禁 / 测试
 
-- `npm run verify` 一条兜底（lint + type-check + test + 8 check + 棘轮总账）；发布前 `verify:full`。
-  ⚠️ 全链 **4~8 分钟**，且**最贵的 test 排在 check 之前** ⇒ 一次失败要等很久才知道。
+- `npm run verify` 一条兜底（**12 道 check → lint → type-check → test → 棘轮总账**，2026-10-15 起 fail-fast：最贵的排最后）；发布前 `verify:full`。
+- **`npm run gate:plan`**：改了什么 → 额外要跑什么，一条命令（映射真源 `scripts/lib/gate-map.json`；verify 永远兜底）。**别再通读 §2 表格做关键词匹配。**
+- **`npm run check:doc-truth`**（verify 链内）：AGENTS.md 关键数字与实测对账 + 必读面字节棘轮。文档数字写错/过时当场红 —— 别手改估计值。
+- `npm run session:start` ＝ 开工三步并一条（env:doctor + verify:fast）。
 - lint 带 `--max-warnings` 棘轮（**以 package.json 现值为准**，2026-10-15 = 116）⇒ 报绿必须同时报警告条数
   （口径 `eslint . -f json`）；计数归零才翻 error；上调必走 commit message。**红了用 `npm run lint:delta` 归因。**
+- ⚠️ 满载跑 verify 偶发 `project-structure.test.js` 45s 超时 ⇒ 判红先单跑那个文件（实测 200~300ms 全绿即抖动）。
 - 新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则 `check:gates-self-test` 列未覆盖；棘轮 baseline 只许下调。
 - 源码守卫：两边过**同一个** `tests/helpers/source.js` 归一函数；否定断言先 `scriptSection()` + `stripComments()`。
 - ⚠️ 「找不到元素就跳过」＝假绿温床 ⇒ 找不到就 **fail**；「模板里有 X」是没牙断言 ⇒ 给产物打 `data-*` 钩子按 id 对齐断言；
