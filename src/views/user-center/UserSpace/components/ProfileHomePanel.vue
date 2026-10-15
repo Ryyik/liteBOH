@@ -248,7 +248,9 @@
           </svg>
         </span>
         <span class="profile-service-body">
-          <strong>方块积分</strong>
+          <!-- 2026-10-15 改名「资产中心」：该入口实际承载积分/装扮/订阅/订单/抽奖/赞助七类功能，
+               旧名「方块积分」名不副实（与 AssetsHubPanel 页头同步改）。 -->
+          <strong>资产中心</strong>
           <small class="profile-service-hint"
             >{{ formatPoints(stats.points) || '0' }} 积分 · {{ subscriptionSummaryText }}</small
           >

@@ -1,7 +1,7 @@
 <template>
   <div class="profile-subpage-shell">
     <UserCenterPageHeader
-      title="方块积分"
+      title="资产中心"
       back-label="返回我的"
       max-width="1200px"
       :show-back="showBack"
@@ -9,7 +9,10 @@
     />
 
     <div class="profile-subpage-body">
-      <nav class="ah-hub-card">
+      <nav class="ah-hub-card is-refract">
+        <!-- 折射级液态玻璃（覆盖层，同 BohComposer 口径）：inset:0 垫在内容之下、
+             pointer-events:none；自体 backdrop-filter/厚背景已撤（见 AssetsHubPanel.css 注释）。 -->
+        <BohGlassRefract class="ah-hub-refract" :radius="26" />
         <div class="ah-top-row">
           <div class="ah-user-left">
             <FramedAvatar
@@ -32,7 +35,9 @@
             </div>
           </div>
 
-          <div v-if="activeTab !== 'overview'" class="ah-points-block">
+          <!-- 积分常驻（2026-10-15）：原 v-if 在概览页隐藏 —— 概览反而看不到余额，
+               同页元素忽现忽隐；概览里的 PointsCard 是卡面展示，与顶栏余额不构成重复。 -->
+          <div class="ah-points-block">
             <div class="ah-points-icon-wrap">
               <Coins :size="18" :stroke-width="1.7" />
             </div>
@@ -811,7 +816,14 @@
               >
                 <span class="ah-skin-preview is-custom"
                   ><ImagePlus :size="18" :stroke-width="1.8" /></span
-                ><strong>添加卡面</strong><small>上传并裁切</small>
+                ><strong>添加卡面</strong>
+                <!-- 禁用必须给原因（2026-10-15）：满员时原样只写「上传并裁切」，用户不知道为什么点不动 -->
+                <small v-if="isPointsCardPresetQuotaLoading">检查额度…</small>
+                <small v-else-if="!canAddPointsCardPreset"
+                  >{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} ·
+                  删除后可加</small
+                >
+                <small v-else>上传并裁切</small>
               </button>
             </div>
 
@@ -869,7 +881,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
@@ -912,6 +924,7 @@ import { showIsland } from '@/composables/useIsland.js';
 import PointsCard from './PointsCard.vue';
 import SegmentTabs from './SegmentTabs.vue';
 import AvatarFrameGrid from './AvatarFrameGrid.vue';
+import BohGlassRefract from '@/components/ui/BohGlassRefract.vue';
 import FramedAvatar from './FramedAvatar.vue';
 import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
@@ -926,6 +939,9 @@ const emit = defineEmits([
   'redeem-points-card-cats',
   'sponsor',
   'load-points-card-data',
+  // 面板切换统一上报（含 onMounted 的初始档）：宿主据此把 ?panel= 写进 URL。
+  // 值域保证 = betaTabIds（activateTab 有守卫），宿主无需再校验。
+  'tab-change',
 ]);
 
 const props = defineProps({
@@ -985,7 +1001,10 @@ const normalizeInitialTab = () => {
   return betaTabIds.has(tab) ? tab : 'overview';
 };
 const activeTab = ref(normalizeInitialTab());
-// 2026-09-11 起换 SegmentTabs 纯文字单行平铺；icon 字段保留备用，当前不渲染
+// 2026-09-11 起换 SegmentTabs 纯文字单行平铺；icon 字段保留备用，当前不渲染。
+// 2026-10-15 分组口径：**前 3 席 = 资产**（概览/装扮/积分），**后 4 席 = 服务**
+// （订阅/订单/抽奖/赞助）。SegmentTabs 是共享组件、不渲染 group 字段 ——
+// 分组视觉由 AssetsHubPanel.css 对 .segment-tab:nth-child(4) 画分隔线表达，改席位数要同步。
 const tabGroups = computed(() => [
   { id: 'overview', label: '概览', icon: LayoutDashboard },
   { id: 'decor', label: '装扮', icon: ImagePlus },
@@ -1431,6 +1450,9 @@ const loadSubscription = async () => {
 const activateTab = (tabId) => {
   if (!betaTabIds.has(tabId)) return;
   activeTab.value = tabId;
+  // 面板切换统一上报宿主（URL ?panel= 的唯一写入源）：内部切换 / 外部驱动 / 挂载初始档都汇到这里。
+  // 宿主端有「与 URL 同值即忽略」守卫，清理链（resolve → 本组件）不构成循环。
+  emit('tab-change', tabId);
   if (tabId === 'overview') void loadOverview();
   if (tabId === 'decor') emit('load-points-card-data');
   if (tabId === 'points') void loadLedger();
@@ -1441,6 +1463,18 @@ const activateTab = (tabId) => {
     void loadGifts();
   }
 };
+
+// 外部驱动：宿主从 URL ?panel= 派生初始档后经 initial-tab 传入。组件保活期间
+// （v-if assetsSegmentVisited 闩锁）props 变化必须生效，否则「深链直达 / 从空间段
+// 服务行跳转」只在首访有效。归一化（旧值映射 + 非法回落）继续走 normalizeInitialTab ——
+// 面板值域单一真源仍在本组件，宿主只透传。
+watch(
+  () => props.initialTab,
+  () => {
+    const next = normalizeInitialTab();
+    if (next !== activeTab.value) activateTab(next);
+  },
+);
 
 // ─── 抽奖数据（独立小分页） ───
 const lotteryLoading = ref(false);

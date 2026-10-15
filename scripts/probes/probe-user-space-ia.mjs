@@ -422,6 +422,155 @@ const backHidden = await page.evaluate(() => {
 check('资产首屏返回按钮已取消', backHidden);
 await page.screenshot({ path: 'debug-screenshots/ia-content-assets.png' });
 
+// ---------- 4b. 资产段内层面板进 URL（?panel=，2026-10-15 机制包） ----------
+// 面板值域真源 = AssetsHubPanel.betaTabIds；URL 写入唯一出口 = 组件 tab-change → 宿主。
+// 覆盖：内层切换写 URL / 默认档省略 / 切走清除 / 切回归默认 / 服务行直达 / 两种深链直达。
+const readPanelQuery = () =>
+  page.evaluate(() => {
+    const q = new URLSearchParams(location.hash.split('?')[1] || '');
+    return { tab: q.get('tab'), view: q.get('view'), panel: q.get('panel') };
+  });
+const waitForPanel = async (expected, timeout = 6000) => {
+  try {
+    await page.waitForFunction(
+      (exp) => {
+        const q = new URLSearchParams(location.hash.split('?')[1] || '');
+        return (q.get('panel') || '') === exp;
+      },
+      expected,
+      { timeout },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+};
+const clickAssetsTab = (label) =>
+  page.evaluate((text) => {
+    // 限定资产内层段控（.ah-segment-tabs），与外层「我」页段控（空间/资产/印象）区分
+    const tabs = document.querySelector('.ah-segment-tabs');
+    const hit = tabs
+      ? Array.from(tabs.querySelectorAll('.segment-tab')).find((b) => b.textContent.trim() === text)
+      : null;
+    hit?.click();
+    return !!hit;
+  }, label);
+const assetsActiveTab = () =>
+  page.evaluate(() => {
+    const active = document.querySelector('.ah-segment-tabs .segment-tab.active');
+    return active ? active.textContent.trim() : 'NONE';
+  });
+
+// A. 内层切换 → URL 写 panel 并跟随更新
+await clickAssetsTab('积分');
+const pointsPanelOk = await waitForPanel('points');
+await page.waitForTimeout(400);
+check(
+  '资产内层切「积分」→ URL 写 ?panel=points',
+  pointsPanelOk && (await assetsActiveTab()) === '积分',
+  `active=${await assetsActiveTab()} panel=${(await readPanelQuery()).panel}`,
+);
+await clickAssetsTab('抽奖');
+const lotteryPanelOk = await waitForPanel('lottery');
+await page.waitForTimeout(400);
+check(
+  '资产内层切「抽奖」→ URL 跟随 ?panel=lottery',
+  lotteryPanelOk && (await assetsActiveTab()) === '抽奖',
+  `active=${await assetsActiveTab()} panel=${(await readPanelQuery()).panel}`,
+);
+// B. 切回默认档「概览」→ panel 从 URL 移除（与 view 的默认值省略同口径）
+await clickAssetsTab('概览');
+const panelCleared = await waitForPanel('');
+await page.waitForTimeout(400);
+check(
+  '资产内层切回「概览」→ URL 移除 panel（默认档省略）',
+  panelCleared && (await assetsActiveTab()) === '概览',
+  `active=${await assetsActiveTab()}`,
+);
+
+// C. 切走资产段 → panel 清除；切回 → 面板归默认（不保留上次档，与设置分段同口径）
+await clickSeg('印象');
+await page.waitForTimeout(700);
+check('切离资产段 → URL 移除 panel', String((await readPanelQuery()).panel || '') === '');
+await clickSeg('资产');
+await page.waitForTimeout(900);
+check(
+  '切回资产段 → 面板归默认「概览」',
+  (await assetsActiveTab()) === '概览',
+  `active=${await assetsActiveTab()}`,
+);
+
+// D. 空间段服务面板「资产中心」行 → 直达资产段·积分
+//    （2026-10-15 行文案由「方块积分」改名「资产中心」——入口承载七类功能，旧名不副实；
+//      定位兼配两种文案，避免文案再变时探针假红）
+await clickSeg('空间');
+await page.waitForTimeout(700);
+const serviceRowClicked = await page.evaluate(() => {
+  const rows = Array.from(document.querySelectorAll('.profile-service-row'));
+  const hit = rows.find(
+    (r) => r.textContent.includes('资产中心') || r.textContent.includes('方块积分'),
+  );
+  hit?.click();
+  return !!hit;
+});
+const servicePanelOk = await waitForPanel('points');
+await page.waitForTimeout(600);
+check(
+  '空间段「资产中心」行 → 直达资产段·积分（?panel=points）',
+  serviceRowClicked && servicePanelOk && (await assetsActiveTab()) === '积分',
+  `clicked=${serviceRowClicked} active=${await assetsActiveTab()}`,
+);
+
+// E. 冷加载深链：?tab=posts&view=assets&panel=subscription 直达订阅
+await page.goto('about:blank');
+await page.goto(`${BASE}/#/user-space?tab=posts&view=assets&panel=subscription`, {
+  waitUntil: 'domcontentloaded',
+});
+await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+  timeout: 20000,
+});
+await injectLogin(page);
+let deepPanelOk = false;
+try {
+  await page.waitForSelector('.content-assets-host .profile-page-content > *:not(.login-prompt)', {
+    timeout: 20000,
+  });
+  deepPanelOk = true;
+} catch {}
+await page.waitForTimeout(700);
+check(
+  '冷加载 ?view=assets&panel=subscription 直达订阅面板',
+  deepPanelOk && (await assetsActiveTab()) === '订阅',
+  `panel=${deepPanelOk} active=${await assetsActiveTab()}`,
+);
+
+// F. 旧深链 ?tab=assets&panel=points（历史 tab 形态 + 面板组合）→ 落资产段并直达积分
+await page.goto('about:blank');
+await page.goto(`${BASE}/#/user-space?tab=assets&panel=points`, { waitUntil: 'domcontentloaded' });
+await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+  timeout: 20000,
+});
+await injectLogin(page);
+let legacyPanelOk2 = false;
+try {
+  await page.waitForSelector('.content-assets-host .profile-page-content > *:not(.login-prompt)', {
+    timeout: 20000,
+  });
+  legacyPanelOk2 = true;
+} catch {}
+await page.waitForTimeout(900);
+const legacyPanelQuery = await readPanelQuery();
+check(
+  '旧深链 ?tab=assets&panel=points 落资产段并直达积分（URL 回写 tab=posts&view=assets&panel=points）',
+  legacyPanelOk2 &&
+    (await assetsActiveTab()) === '积分' &&
+    legacyPanelQuery.tab === 'posts' &&
+    legacyPanelQuery.view === 'assets' &&
+    legacyPanelQuery.panel === 'points',
+  `active=${await assetsActiveTab()} tab=${legacyPanelQuery.tab} view=${legacyPanelQuery.view} panel=${legacyPanelQuery.panel}`,
+);
+// ⚠️ 本组结束时页面停在资产段·积分面板；下方「印象段」用例以 clickSeg('印象') 接力，基线不受影响。
+
 // 印象段：原论坛第 7 席，2026-10-01 搬入我页第三分段
 await clickSeg('印象');
 let impressionsOk = false;

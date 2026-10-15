@@ -1,19 +1,44 @@
-/* ─── 用户 + 积分 + Tab 合并大卡片 ─── */
+/* ─── 用户 + 积分 + Tab 合并大卡片 ───
+   2026-10-15 本文件原有两处 .ah-hub-card 定义（此处 + 「账户导航与概览」区），后者静默覆盖
+   前者 —— 改样式时极易改错地方。现合并为**单处**，最终生效值全部落在这里。 */
 .ah-hub-card {
   --ah-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* 折射级液态玻璃宿主（2026-10-15，同 BohComposer 口径）：
+     1) position:relative 接管玻璃包含块职责（原 transform: translateZ(0) 已撤 ——
+        玻璃祖先链禁堆叠上下文，§21.7）；
+     2) 自体 backdrop-filter 与厚白膜已撤：backdrop-filter 会把本卡片变成子玻璃的
+        Backdrop Root（白上白事故机制，档案见 liquid-glass-spec.js 文件头）；
+     3) 官方样貌三要素 B「轮廓常在」：border 与 box-shadow 必须保留，任何撤除都是事故。 */
+  position: relative;
   display: flex;
   flex-direction: column;
-  padding: 16px 20px 8px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.68);
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  border: 0.5px solid rgba(255, 255, 255, 0.62);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  padding: 18px 20px 14px;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: var(--liquid-filter);
+  -webkit-backdrop-filter: var(--liquid-filter);
+  border: 0.5px solid rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 22px 52px rgba(15, 23, 42, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
   width: 100%;
   max-width: 980px;
   margin: 0 auto;
-  transform: translateZ(0);
+}
+
+/* 折射接线态（is-refract 由模板挂 BohGlassRefract 时同步挂上）：
+   白膜与磨砂交给折射层（tint α 单源 tokens.css --refract-alpha），本卡只留轮廓。 */
+.ah-hub-card.is-refract {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* 内容层抬到玻璃之上：同堆叠上下文内定位元素按 DOM 顺序绘制，玻璃在 DOM 首位垫底 */
+.ah-hub-card.is-refract > * {
+  position: relative;
+}
+.ah-hub-card.is-refract > .ah-hub-refract {
+  position: absolute;
 }
 
 /* 顶部行：用户信息（左）+ 当前积分（右，同一行） */
@@ -120,6 +145,29 @@
   padding: 10px 2px 2px;
   overflow-x: auto;
   scrollbar-width: none;
+}
+
+/* tab 分组（2026-10-15）：前 3 席 = 资产（概览/装扮/积分），后 4 席 = 服务（订阅/订单/抽奖/赞助）。
+   SegmentTabs 是共享组件、不渲染 group 字段 —— 分组视觉用第 4 席前的分隔线 + 组间间距表达。
+   ⚠️ 席位数若增删，这里的 nth-child(4) 与 AssetsHubPanel.vue tabGroups 注释要同步改。 */
+.ah-hub-card .ah-segment-tabs :deep(.segment-tab:nth-child(4)) {
+  margin-left: 14px;
+}
+.ah-hub-card .ah-segment-tabs :deep(.segment-tab:nth-child(4))::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -9px;
+  width: 1px;
+  height: 14px;
+  transform: translateY(-50%);
+  background: rgba(15, 23, 42, 0.16);
+}
+.user-space-page[data-theme='dark']
+  .ah-hub-card
+  .ah-segment-tabs
+  :deep(.segment-tab:nth-child(4))::before {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .ah-hub-card .ah-segment-tabs::-webkit-scrollbar {
@@ -345,19 +393,8 @@
   }
 }
 
-/* ─── 账户导航与概览 ─── */
-.ah-hub-card {
-  padding: 18px 20px 14px;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.62);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  border-color: rgba(255, 255, 255, 0.78);
-  box-shadow:
-    0 22px 52px rgba(15, 23, 42, 0.11),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
-}
-
+/* ─── 账户导航与概览 ───
+   2026-10-15：原第二处 .ah-hub-card 覆盖定义已并入文件顶部单源（防静默覆盖，见顶注）。 */
 .ah-overview {
   display: flex;
   flex-direction: column;
@@ -1628,11 +1665,13 @@
   .ah-ledger-item:hover .ah-ledger-icon {
     transform: scale(1.06);
   }
+  /* 2026-10-15 修复：原这里写了 translateY(-3px) + 大阴影，源序晚于上方「去卡片化」
+     的 hover（transform:none / box-shadow:none），静默覆盖了它 —— 积分明细每行 hover
+     都整行卡片上浮，与列表化设计意图相反。现在只保留底色与图标微缩，与 1098 行口径一致。 */
   .ah-ledger-item:hover {
-    transform: translateY(-3px);
-    box-shadow:
-      0 22px 40px rgba(15, 23, 42, 0.11),
-      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    background: rgba(15, 23, 42, 0.025);
+    transform: none;
+    box-shadow: none;
   }
   .ah-shop-btn:hover {
     background: #000;
@@ -1652,6 +1691,13 @@
   box-shadow:
     0 24px 54px rgba(0, 0, 0, 0.38),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+/* 暗色折射态：白膜 RGB 由 --refract-tint-rgb-dark（tokens.css）在折射层内自动翻转，
+   本卡同样只留轮廓；reduced-transparency 回退段会把实心背景加回来。 */
+.user-space-page[data-theme='dark'] .ah-hub-card.is-refract {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .user-space-page[data-theme='dark'] .ah-points-block {
   background: rgba(41, 151, 255, 0.1);
@@ -3014,6 +3060,18 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
+  /* 折射玻璃同回退（2026-10-15）：用户要求降透明度时藏玻璃层、恢复实心卡面 */
+  .ah-hub-card.is-refract .ah-hub-refract {
+    display: none;
+  }
+  .ah-hub-card.is-refract {
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .user-space-page[data-theme='dark'] .ah-hub-card.is-refract {
+    background: #1c1e24;
+  }
   .ah-hub-card,
   .ah-smart-focus,
   .ah-smart-section,
@@ -3038,6 +3096,22 @@
   .user-space-page[data-theme='dark'] .ah-gift-card,
   .user-space-page[data-theme='dark'] .ah-gift-status-panel {
     background: #1c1e24;
+  }
+}
+
+/* 窄屏（≤768px）折射回退（2026-10-15）：与 liquid-glass.css「移动端仅保留外层玻璃」
+   同口径 —— 藏折射组件、恢复 CSS 玻璃（外层模糊一层，不再叠加离屏纹理）。 */
+@media (max-width: 768px) {
+  .ah-hub-card.is-refract .ah-hub-refract {
+    display: none;
+  }
+  .ah-hub-card.is-refract {
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: var(--liquid-filter);
+    -webkit-backdrop-filter: var(--liquid-filter);
+  }
+  .user-space-page[data-theme='dark'] .ah-hub-card.is-refract {
+    background: rgba(24, 26, 32, 0.62);
   }
 }
 
@@ -3530,6 +3604,20 @@
   color: #a24444;
   cursor: pointer;
   box-shadow: 0 5px 12px rgba(25, 37, 49, 0.14);
+  /* 防误触（2026-10-15）：删除是破坏性操作，常驻按钮极易在滑动中误点。
+     桌面 hover/键盘 focus 才显现；触屏（hover:none）保持常显 —— 那里没有 hover 可依赖。 */
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+.ah-card-preset:hover .ah-card-preset-delete,
+.ah-card-preset-delete:focus-visible,
+.ah-card-preset-delete:focus {
+  opacity: 1;
+}
+@media (hover: none) {
+  .ah-card-preset-delete {
+    opacity: 1;
+  }
 }
 .ah-card-preset-delete:hover {
   background: #fff;
