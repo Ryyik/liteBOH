@@ -139,6 +139,50 @@ const collectLocalBindings = (source) => {
   return bindings;
 };
 
+const collectReExportIssuesFromSource = (source, displayPath) => {
+  // ⚠️ 用 `[^{}]*` 而不是 `[\s\S]*?`：名字列表里不可能有花括号，而 `[\s\S]*?` 会**跨块**
+  // 懒匹配到后面第一个 `} from '…'`（例如紧跟其后的 `import { … } from '…'`），
+  // 把 import 的绑定名误判成「转发导出未创建本地绑定」—— 2026-10-07 在
+  // `bohai-engine-helpers.js` 的 barrel 上实测踩到（8 条假阳性）。
+  const reExportPattern = /export\s*\{([^{}]*)\}\s*from\s*["'][^"']+["'];?/g;
+  const reExports = [];
+  let match;
+
+  while ((match = reExportPattern.exec(source))) {
+    reExports.push({
+      start: match.index,
+      end: reExportPattern.lastIndex,
+      names: parseExportedNames(match[1]),
+    });
+  }
+
+  if (reExports.length === 0) return [];
+
+  const reExportNames = [...new Set(reExports.flatMap((item) => item.names))];
+  if (reExportNames.length === 0) return [];
+
+  const sourceWithoutReExports = reExports.reduceRight(
+    (current, item) => `${current.slice(0, item.start)}${current.slice(item.end)}`,
+    source,
+  );
+  const localBindings = collectLocalBindings(sourceWithoutReExports);
+  const searchableSource = stripCommentsAndStrings(sourceWithoutReExports);
+
+  const issues = [];
+  for (const name of reExportNames) {
+    if (localBindings.has(name)) {
+      continue;
+    }
+
+    const runtimeReferencePattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, 'm');
+    if (runtimeReferencePattern.test(searchableSource)) {
+      issues.push(`转发导出未创建本地绑定，但文件内部引用了 ${name}: ${displayPath}`);
+    }
+  }
+
+  return issues;
+};
+
 const collectReExportRuntimeBindingIssues = (projectRoot) => {
   const srcDir = path.join(projectRoot, 'src');
   if (!existsSync(srcDir)) return [];
@@ -147,47 +191,9 @@ const collectReExportRuntimeBindingIssues = (projectRoot) => {
   const sourceFiles = walkFiles(srcDir).filter((file) => /\.(vue|js|ts)$/.test(file));
 
   for (const file of sourceFiles) {
-    const source = readFileSync(file, 'utf8');
-    // ⚠️ 用 `[^{}]*` 而不是 `[\s\S]*?`：名字列表里不可能有花括号，而 `[\s\S]*?` 会**跨块**
-    // 懒匹配到后面第一个 `} from '…'`（例如紧跟其后的 `import { … } from '…'`），
-    // 把 import 的绑定名误判成「转发导出未创建本地绑定」—— 2026-10-07 在
-    // `bohai-engine-helpers.js` 的 barrel 上实测踩到（8 条假阳性）。
-    const reExportPattern = /export\s*\{([^{}]*)\}\s*from\s*["'][^"']+["'];?/g;
-    const reExports = [];
-    let match;
-
-    while ((match = reExportPattern.exec(source))) {
-      reExports.push({
-        start: match.index,
-        end: reExportPattern.lastIndex,
-        names: parseExportedNames(match[1]),
-      });
-    }
-
-    if (reExports.length === 0) continue;
-
-    const reExportNames = [...new Set(reExports.flatMap((item) => item.names))];
-    if (reExportNames.length === 0) continue;
-
-    const sourceWithoutReExports = reExports.reduceRight(
-      (current, item) => `${current.slice(0, item.start)}${current.slice(item.end)}`,
-      source,
+    issues.push(
+      ...collectReExportIssuesFromSource(readFileSync(file, 'utf8'), normalize(projectRoot, file)),
     );
-    const localBindings = collectLocalBindings(sourceWithoutReExports);
-    const searchableSource = stripCommentsAndStrings(sourceWithoutReExports);
-
-    for (const name of reExportNames) {
-      if (localBindings.has(name)) {
-        continue;
-      }
-
-      const runtimeReferencePattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, 'm');
-      if (runtimeReferencePattern.test(searchableSource)) {
-        issues.push(
-          `转发导出未创建本地绑定，但文件内部引用了 ${name}: ${normalize(projectRoot, file)}`,
-        );
-      }
-    }
   }
 
   return issues;
@@ -225,7 +231,26 @@ const collectStructureReport = (projectRoot = process.cwd()) => {
   }
 
   errors.push(...collectRouteImportIssues(projectRoot));
-  errors.push(...collectReExportRuntimeBindingIssues(projectRoot));
+
+  // ── src 单遍扫描（2026-10-15 性能修复）───────────────────────────────
+  // 此前转发导出分析与行数统计**各自 walk + read 一遍 src**（682 文件 / 8.9MB × 2），
+  // 冷态 17s；而本环境的文件读取有每文件 ~13ms 的固定开销（并行读也无法摊薄，
+  // 实测 9.4s vs 9.2s），唯一有效的省法是**少读** ⇒ 合并为单遍。
+  // 语义不变：同一文件集（.vue/.js/.ts 走转发导出分析，.css 只数行）、
+  // 错误与警告的条数和顺序逐条一致（已与旧实现的全量报告 diff 验证）。
+  const sourceFiles = walkFiles(path.join(projectRoot, 'src')).filter((file) =>
+    /\.(vue|js|ts|css)$/.test(file),
+  );
+
+  const lineStats = [];
+  for (const file of sourceFiles) {
+    const source = readFileSync(file, 'utf8');
+    if (/\.(vue|js|ts)$/.test(file)) {
+      errors.push(...collectReExportIssuesFromSource(source, normalize(projectRoot, file)));
+    }
+    lineStats.push({ file, lines: source.split(/\r?\n/).length });
+  }
+  lineStats.sort((a, b) => b.lines - a.lines);
 
   const viteConfig = path.join(projectRoot, 'vite.config.js');
   if (existsSync(viteConfig)) {
@@ -243,20 +268,12 @@ const collectStructureReport = (projectRoot = process.cwd()) => {
     errors.push(`运行时图片目录只保留 WebP/SVG，请将原图归档到 docs/assets-source/images: ${file}`);
   }
 
-  const sourceFiles = walkFiles(path.join(projectRoot, 'src'))
-    .filter((file) => /\.(vue|js|ts|css)$/.test(file))
-    .map((file) => ({
-      file,
-      lines: readFileSync(file, 'utf8').split(/\r?\n/).length,
-    }))
-    .sort((a, b) => b.lines - a.lines);
-
   // BOHAI 文件按收紧阈值全量扫（Step 7-1）；其余文件维持既有口径：只扫全仓
   // top-20（`slice(0, 20)` 的缺陷登记在 plans/025 §1.2，是独立任务）。
-  const bohaiFiles = sourceFiles.filter((item) =>
+  const bohaiFiles = lineStats.filter((item) =>
     normalize(projectRoot, item.file).startsWith(`${BOHAI_ROOT}/`),
   );
-  const otherTopFiles = sourceFiles
+  const otherTopFiles = lineStats
     .filter((item) => !normalize(projectRoot, item.file).startsWith(`${BOHAI_ROOT}/`))
     .slice(0, 20);
 
