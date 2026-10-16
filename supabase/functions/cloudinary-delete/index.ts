@@ -40,7 +40,13 @@ const normalizeResourceType = (resourceType: unknown) => {
   return safeResourceType === 'image' ? 'image' : '';
 };
 
-const verifyUser = async (request: Request) => {
+// 标注不能省：无返回类型标注时 `ok` 会被加宽成 `boolean`，联合类型失去判别能力，
+// `!authResult.ok` 收窄失效 ⇒ `.userId` 变成 `string | undefined`（deno check 报 TS2345）。
+const verifyUser = async (
+  request: Request,
+): Promise<
+  { ok: true; userId: string } | { ok: false; status: number; code: string; message: string }
+> => {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
   if (!token) {

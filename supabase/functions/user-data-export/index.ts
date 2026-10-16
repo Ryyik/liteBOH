@@ -230,7 +230,11 @@ const uploadExportFile = async (path: string, bytes: Uint8Array, token: string) 
   const response = await fetch(url, {
     method: 'POST',
     headers: { ...getStorageHeaders(token, 'application/zip'), 'x-upsert': 'true' },
-    body: bytes,
+    // `BodyInit`（经 BufferSource）只接受 ArrayBuffer 背书的视图，而 jszip 返回
+    // `Uint8Array<ArrayBufferLike>`。运行时它是 fresh 的普通（非共享）ArrayBuffer
+    // 视图，fetch 收它完全合法 —— 按运行时语义显式断言；不用 .slice()（会为
+    // 整个压缩包多复制一份临时内存，本文件按 50MB 图片量级做内存预算）。
+    body: bytes as BodyInit,
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
