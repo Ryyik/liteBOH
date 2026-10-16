@@ -3,8 +3,10 @@
 
 ## Supabase / 网络
 - ref `nplnlefdwfgtyimfkyih`；SMTP 走 Brevo（smtp-relay.brevo.com:587；key 90 天不活跃回收，探活 `POST /auth/v1/recover` 期待 200+`{}`；保活＝mail-keepalive EF + 每月 pg_cron，运维单点 `scripts/mail-keepalive-ops.mjs`）。
-- ⚠️ EF 部署：`slug` 是 **query 参数**（不传＝UUID slug→404）；multipart 字段 `file`（单数）+`metadata`；自定义 x- 头过不了 pg_net→EF，token 走 Authorization Bearer；`/secrets` GET 读回值 ≠ EF env。本机→`*.supabase.co` 间歇全断、`api.supabase.com` 常通 ⇒ 端到端验证用「一次性 pg_cron 云端代触发 + 底账表回读」。
-- 部署脚本 `scripts/lib/supabase-admin-api.mjs` → `POST /functions/deploy?slug=<name>`（`_shared/*` 依赖必须一起传；`verify_jwt` 沿用线上现值）。`api-key-vault` 依赖 `_shared/{cors,rate-limiter,supabase}.ts`。
+- ⚠️ EF 部署：① **CLI（2026-10-16 实证）**：`supabase functions deploy <slug> --use-api` 本机可用（无 config.toml 也行，靠 `supabase/.temp/project-ref`）；部署前先 `functions download <slug>` + diff 校验部署面（plans/024 纪律）。② admin-API 路线见下条。`/secrets` GET 读回值 ≠ EF env。
+- ⚠️ 本机→`*.supabase.co` **直连不通**（沙箱代理 TLS reset + 直连 reset；浏览器 / `api.supabase.com` / `api.siliconflow.cn` 均通）⇒ 触发 EF 与端到端冒烟走 **Management API + pg_net**：`select net.http_post(url:=…, body:=…::jsonb, headers:=…::jsonb, timeout_milliseconds:=120000)` → 轮询 `net._http_response where id=<request_id>`（status_code 非空即回）。**`x-` 头经 headers JSONB 实测可过**（`x-retrieval-sync-secret`，sync+search 双验证）—— 旧注记「x- 头过不了 pg_net→EF」不成立；若丢头先查 `net._http_response.error_msg`。
+- 检索链路密钥（2026-10-16 已设）：`SILICON_CLOUD_API_KEY` + `BOH_AI_RETRIEVAL_SYNC_SECRET`（`boh-ai-forum-memory` 读同一把）；`boh-ai-retrieval` v33 = 提交树（重排默认 `BAAI/bge-reranker-v2-m3`）。
+- 部署脚本 `scripts/lib/supabase-admin-api.mjs` → `POST /functions/deploy?slug=<name>`（`slug` 是 **query 参数**，不传＝UUID slug→404；multipart 字段 `file`（单数）+`metadata`；`_shared/*` 依赖必须一起传；`verify_jwt` 沿用线上现值）。`api-key-vault` 依赖 `_shared/{cors,rate-limiter,supabase}.ts`。
 - 迁移走 Management API + 手写 `schema_migrations`；凭据在钥匙串（剥 `go-keyring-base64:`）。撤 EXECUTE 用 `from anon,authenticated,public`；撤权优先于 drop；新表 grant anon+authenticated；RPC 静默失败＝审计表取 code。
 
 ## GitHub CI
