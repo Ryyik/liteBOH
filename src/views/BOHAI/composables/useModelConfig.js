@@ -98,7 +98,11 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const isSharedMemoryEnabled = ref(readBooleanSetting(SHARED_MEMORY_SETTING_KEY, false));
 
-  const isKnowledgeBaseEnabled = ref(false);
+  // 云端官方事实库（`boh_ai_core_memories`）开关。默认**开**：
+  // 内容是维护者手写的社区事实，属于产品自带知识，关掉只会让 AI 答不出自己的事。
+  // ⚠️ 2026-10-16 前这里是 `ref(false)` 且 `persistKnowledgeBaseSetting` 恒写 '0'
+  //    —— 硬编码关闭导致「官方事实 + 知识库」两条检索源从未生效（线上 28 条事实一条没被用过）。
+  const isKnowledgeBaseEnabled = ref(readBooleanSetting(KNOWLEDGE_BASE_SETTING_KEY, true));
 
   // ─── Style state ───────────────────────────────────────────────────────────────
 
@@ -235,7 +239,7 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const persistKnowledgeBaseSetting = () => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(KNOWLEDGE_BASE_SETTING_KEY, '0');
+    localStorage.setItem(KNOWLEDGE_BASE_SETTING_KEY, isKnowledgeBaseEnabled.value ? '1' : '0');
   };
 
   return {

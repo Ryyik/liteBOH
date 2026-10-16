@@ -375,6 +375,7 @@ export function useBohShell(props, emit) {
     isTreeholeMemoryEnabled,
     isPlanModeEnabled,
     isSharedMemoryEnabled,
+    isKnowledgeBaseEnabled,
     rateLimitMessage,
     chatModes,
     chatModesLoading,
@@ -399,6 +400,7 @@ export function useBohShell(props, emit) {
     responseStyleOptions,
     persistModeSetting,
     persistSharedMemorySetting,
+    persistKnowledgeBaseSetting,
     toggleTreeholeMemory,
     isTreeholeMemoryToggling,
     memoryCaptureTip,
@@ -524,7 +526,7 @@ export function useBohShell(props, emit) {
   const memorySettingsStatus = computed(() => {
     const liveStatus = String(memoryCaptureTip.value || '');
     if (/请先登录|登录后可/.test(liveStatus)) return liveStatus;
-    return `个人记忆${isTreeholeMemoryEnabled.value ? '已开启' : '已关闭'}；社区知识${isSharedMemoryEnabled.value ? '已开启' : '已关闭'}。`;
+    return `官方记忆${isKnowledgeBaseEnabled.value ? '已开启' : '已关闭'}；个人记忆${isTreeholeMemoryEnabled.value ? '已开启' : '已关闭'}；社区知识${isSharedMemoryEnabled.value ? '已开启' : '已关闭'}。`;
   });
 
   const handleTreeholeMemoryToggle = async () => {
@@ -539,6 +541,21 @@ export function useBohShell(props, emit) {
       message: isSharedMemoryEnabled.value
         ? '回答可检索社区共享知识'
         : '回答将不再读取社区共享知识',
+      icon: 'ai',
+      type: 'notification',
+      actionLabel: '知道了',
+      durationMs: 3200,
+    });
+  };
+
+  const handleKnowledgeBaseToggle = () => {
+    isKnowledgeBaseEnabled.value = !isKnowledgeBaseEnabled.value;
+    persistKnowledgeBaseSetting();
+    emitIslandMessage({
+      title: isKnowledgeBaseEnabled.value ? '官方记忆已开启' : '官方记忆已关闭',
+      message: isKnowledgeBaseEnabled.value
+        ? '回答可检索 BOH 官方事实与知识库'
+        : '回答将不再读取 BOH 官方事实',
       icon: 'ai',
       type: 'notification',
       actionLabel: '知道了',
@@ -2281,10 +2298,12 @@ export function useBohShell(props, emit) {
     responseStyleOptions,
     isTreeholeMemoryEnabled,
     isSharedMemoryEnabled,
+    isKnowledgeBaseEnabled,
     isTreeholeMemoryToggling,
     memorySettingsStatus,
     handleTreeholeMemoryToggle,
     handleSharedMemoryToggle,
+    handleKnowledgeBaseToggle,
     clearCurrentChat,
     exportChatData,
     clearAllChatData,

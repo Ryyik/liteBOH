@@ -448,6 +448,26 @@
                   <div class="ai-settings-list">
                     <div
                       class="ai-settings-row clickable"
+                      role="switch"
+                      tabindex="0"
+                      :aria-checked="isKnowledgeBaseEnabled"
+                      @click="$emit('toggleKnowledgeBase')"
+                      @keydown.enter.prevent="$emit('toggleKnowledgeBase')"
+                      @keydown.space.prevent="$emit('toggleKnowledgeBase')"
+                    >
+                      <div class="ai-settings-label-stack">
+                        <span class="ai-settings-label">官方记忆</span>
+                        <span class="ai-settings-desc">允许回答引用 BOH 官方事实与知识库</span>
+                      </div>
+                      <div class="ai-settings-row-right">
+                        <span
+                          :class="['ai-settings-switch', { enabled: isKnowledgeBaseEnabled }]"
+                        ></span>
+                      </div>
+                    </div>
+
+                    <div
+                      class="ai-settings-row clickable"
                       :class="{ disabled: isTreeholeMemoryToggling }"
                       role="switch"
                       tabindex="0"
@@ -1221,6 +1241,7 @@ const props = defineProps({
   responseStyleOptions: { type: Array, default: () => [] },
   isTreeholeMemoryEnabled: { type: Boolean, default: false },
   isSharedMemoryEnabled: { type: Boolean, default: false },
+  isKnowledgeBaseEnabled: { type: Boolean, default: true },
   isTreeholeMemoryToggling: { type: Boolean, default: false },
   memoryStatusText: { type: String, default: '' },
   resolvedTheme: { type: String, default: 'light' },
@@ -1235,6 +1256,7 @@ const emit = defineEmits([
   'selectResponseStyle',
   'toggleTreeholeMemory',
   'toggleSharedMemory',
+  'toggleKnowledgeBase',
   'clearCurrentChat',
   'exportChatData',
   'clearAllChatData',

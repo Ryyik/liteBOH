@@ -41,7 +41,6 @@ import {
 import { formatPromptDate } from '../utils/format/display.js';
 import { isMissingRelationError, getPostTitleAndBody } from '../utils/format/post.js';
 import { isOperationQuestion, shouldUseSiteGuide } from '../utils/intent/rules.js';
-import { getAIMemory } from '../utils/memory/store.js';
 import {
   scoreChunk,
   selectRelevantChunks,
@@ -236,30 +235,33 @@ export function useKnowledgeRetrieval(deps) {
   // 核心记忆库
   // ============================================================
 
+  /**
+   * 官方事实 / 导入知识库 / 论坛记忆检索。
+   *
+   * 真源全在云端：
+   *   - `boh_ai_core_memories`  → source_type `core_memory`（后台「数据管理 → 官方事实」维护）
+   *   - `boh_ai_knowledge_bases`→ source_type `knowledge_base`（JSONL 批量导入）
+   *   - `boh_ai_forum_memories` → source_type `forum_memory`（每日 pg_cron 从论坛帖抽的事实卡）
+   *
+   * ⚠️ 2026-10-16：原先这里还有一条「本地 `src/data/ai-memory.js` + 关键词打分」的兜底，
+   * 已随该文件一并删除。理由是**单一真源**：EF 内部本来就有
+   * `buildKeywordRowsFromCoreMemories` / `buildKeywordRowsFromForumMemories` 关键词兜底，
+   * 且 `mergeRetrievedRows` 会把向量结果与关键词结果合并返回 ⇒ 前端再兜一层等于同一份
+   * 社区事实存两份，改一处要动两处（正是那种「改一处要动四处」的缺陷）。
+   */
   const getMemoryContext = async (queryText) => {
-    const vectorPromise = getVectorKnowledgeChunks(queryText, {
-      sourceTypes: ['core_memory', 'knowledge_base'],
+    const chunks = await getVectorKnowledgeChunks(queryText, {
+      sourceTypes: ['core_memory', 'knowledge_base', 'forum_memory'],
       limit: Math.max(MEMORY_MAX_CHUNKS, 8),
       syncLimit: 60,
       minSimilarity: 0.1,
     });
-    const keywordPromise = getAIMemory();
-
-    const [vectorChunks, memoryResult] = await Promise.allSettled([vectorPromise, keywordPromise]);
-    const vectorChunksResolved = vectorChunks.status === 'fulfilled' ? vectorChunks.value : [];
-
-    if (vectorChunksResolved.length > 0) {
-      return buildVectorKnowledgeContext('官方事实与导入知识库语义检索结果', vectorChunksResolved, {
-        citationPrefix: 'K',
-        maxItems: MEMORY_MAX_CHUNKS,
-        maxContentChars: 520,
-      });
-    }
-
-    const memory = memoryResult.status === 'fulfilled' ? memoryResult.value : null;
-    if (!memory) return '';
-    const chunks = selectRelevantChunks(memory, queryText, MEMORY_MAX_CHUNKS);
-    return buildKnowledgeContextBlock('核心记忆库检索结果', chunks, { citationPrefix: 'K' });
+    if (chunks.length === 0) return '';
+    return buildVectorKnowledgeContext('官方事实、知识库与论坛记忆检索结果', chunks, {
+      citationPrefix: 'K',
+      maxItems: MEMORY_MAX_CHUNKS,
+      maxContentChars: 520,
+    });
   };
 
   // ============================================================
@@ -1006,7 +1008,7 @@ export function useKnowledgeRetrieval(deps) {
   const getRetrievalTargetLabels = (plan = {}) => {
     const labels = [];
     if (plan.forum) labels.push('社区帖子');
-    if (plan.memory) labels.push('核心记忆库/导入知识库');
+    if (plan.memory) labels.push('官方事实/知识库/论坛记忆');
     if (plan.sharedMemory) labels.push('AI 公共记忆');
     if (plan.siteGuide) labels.push('站点操作手册');
     if (plan.treehole) labels.push('BOH Cloud+');
@@ -1026,7 +1028,7 @@ export function useKnowledgeRetrieval(deps) {
         treeholeTotal > 0 ? `看了你的 BOH Cloud+ ${treeholeTotal} 条内容` : '看了你的 BOH Cloud+',
       );
     }
-    if (retrievalPlan.memory) parts.push('查看了 BOH 历史背景与导入知识库');
+    if (retrievalPlan.memory) parts.push('查看了 BOH 官方事实与论坛记忆');
     if (retrievalPlan.sharedMemory) {
       parts.push(
         sharedMemoryTotal > 0 ? `查看了公共记忆库 ${sharedMemoryTotal} 条内容` : '查看了公共记忆库',

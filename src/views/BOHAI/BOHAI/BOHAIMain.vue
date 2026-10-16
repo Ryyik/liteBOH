@@ -206,6 +206,7 @@
       :response-style-options="responseStyleOptions"
       :is-treehole-memory-enabled="isTreeholeMemoryEnabled"
       :is-shared-memory-enabled="isSharedMemoryEnabled"
+      :is-knowledge-base-enabled="isKnowledgeBaseEnabled"
       :is-treehole-memory-toggling="isTreeholeMemoryToggling"
       :memory-status-text="memorySettingsStatus"
       :resolved-theme="resolvedAiTheme"
@@ -213,6 +214,7 @@
       @select-response-style="setResponseStyle"
       @toggle-treehole-memory="handleTreeholeMemoryToggle"
       @toggle-shared-memory="handleSharedMemoryToggle"
+      @toggle-knowledge-base="handleKnowledgeBaseToggle"
       @clear-current-chat="clearCurrentChat"
       @export-chat-data="exportChatData"
       @clear-all-chat-data="clearAllChatData"
@@ -361,10 +363,12 @@ const {
   responseStyleOptions,
   isTreeholeMemoryEnabled,
   isSharedMemoryEnabled,
+  isKnowledgeBaseEnabled,
   isTreeholeMemoryToggling,
   memorySettingsStatus,
   handleTreeholeMemoryToggle,
   handleSharedMemoryToggle,
+  handleKnowledgeBaseToggle,
   clearCurrentChat,
   exportChatData,
   clearAllChatData,

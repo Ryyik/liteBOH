@@ -1,23 +1,22 @@
 /**
- * store.js — 历史摘要（两层）与 AI 记忆加载
+ * store.js — 历史摘要（两层）
  *
  * 来源：从 `composables/bohai-engine-helpers.js` **原样拆出**（plans/025 v2 · Step 3「utils 归位」）。
  * 值逐字不变；原 barrel `bohai-engine-helpers.js` 已在 Step 3 ⑧ 删除，消费方直连本模块。
+ *
+ * 2026-10-16：原「AI 记忆加载」职责（`getAIMemory` 动态 import `@/data/ai-memory.js`）
+ * 已移除 —— 官方社区事实真源迁至云端 `boh_ai_core_memories`，本模块只剩历史摘要。
  */
 import {
   MAX_CONTEXT_MESSAGES,
   MAX_HISTORY_CONTEXT_CHARS,
   MAX_HISTORY_MESSAGE_CHARS,
 } from '../../composables/chat-engine-config.js';
-import { logger } from '@/utils/logger.js';
 import {
   buildHistoryMessagesWithinBudget,
   getStorableDialogueMessages,
 } from '../retrieval/budget.js';
 import { normalizePromptLine } from '../text/normalize.js';
-
-let aiMemoryCache = '';
-let aiMemoryLoader = null;
 
 // 历史摘要参数：配合放大的上下文窗口同步上调。
 // - RECENT_MESSAGES=8: 摘要只覆盖"倒数第 8 条之前"，保留更多原文以减少摘要信息损失。
@@ -30,30 +29,12 @@ export const CONVERSATION_SUMMARY_MAX_CHARS = 2000;
 export const CONVERSATION_SUMMARY_TWO_LEVEL_THRESHOLD = 50;
 export const CONVERSATION_SUMMARY_STORAGE_VERSION = 2;
 
-const AI_MEMORY_RETRY_DELAY_MS = 30000;
-
-export async function getAIMemory({ forceReload = false } = {}) {
-  if (!forceReload && aiMemoryCache) return aiMemoryCache;
-  if (!forceReload && aiMemoryLoader) return aiMemoryLoader;
-  if (forceReload) {
-    aiMemoryCache = '';
-    aiMemoryLoader = null;
-  }
-  aiMemoryLoader = import('@/data/ai-memory.js')
-    .then((module) => {
-      aiMemoryCache = typeof module.AI_MEMORY === 'string' ? module.AI_MEMORY : '';
-      return aiMemoryCache;
-    })
-    .catch((error) => {
-      logger.error('boh-ai', 'Load AI memory failed', error);
-      aiMemoryLoader = null;
-      setTimeout(() => {
-        if (aiMemoryCache === '') aiMemoryLoader = null;
-      }, AI_MEMORY_RETRY_DELAY_MS).unref?.();
-      return '';
-    });
-  return aiMemoryLoader;
-}
+/**
+ * ⚠️ 2026-10-16：原先这里还有 `getAIMemory()`（动态 import `@/data/ai-memory.js` 并缓存），
+ * 已随该文件删除。官方社区事实的真源是云端 `boh_ai_core_memories`
+ * （由 `boh-ai-retrieval` 向量化后检索），前端不再持有一份副本。
+ * 迁移脚本见 `scripts/seed-boh-core-memories.mjs`。
+ */
 
 export const buildConversationSummaryFingerprint = (messages = []) => {
   const source = getStorableDialogueMessages(messages);

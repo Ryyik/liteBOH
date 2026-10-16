@@ -1,7 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
-import { buildCorsHeaders as buildSharedCorsHeaders, jsonResponse as jsonSharedResponse } from '../_shared/cors.ts';
+import {
+  buildCorsHeaders as buildSharedCorsHeaders,
+  jsonResponse as jsonSharedResponse,
+} from '../_shared/cors.ts';
 
-type SourceType = 'core_memory' | 'shared_memory' | 'cloud_entry' | 'knowledge_base';
+type SourceType =
+  'core_memory' | 'shared_memory' | 'cloud_entry' | 'knowledge_base' | 'forum_memory';
 
 type KnowledgeSource = {
   sourceType: SourceType;
@@ -50,36 +54,36 @@ type KnowledgeBaseImportChunk = {
 };
 
 const SILICON_API_KEY = String(
-  Deno.env.get('SILICON_CLOUD_API_KEY')
-    || Deno.env.get('VITE_SILICON_CLOUD_API_KEY')
-    || '',
+  Deno.env.get('SILICON_CLOUD_API_KEY') || Deno.env.get('VITE_SILICON_CLOUD_API_KEY') || '',
 ).trim();
 const EMBEDDING_API_URL = String(
-  Deno.env.get('BOH_AI_EMBEDDING_API_URL')
-    || 'https://api.siliconflow.cn/v1/embeddings',
+  Deno.env.get('BOH_AI_EMBEDDING_API_URL') || 'https://api.siliconflow.cn/v1/embeddings',
 ).trim();
 const RERANK_API_URL = String(
-  Deno.env.get('BOH_AI_RERANK_API_URL')
-    || 'https://api.siliconflow.cn/v1/rerank',
+  Deno.env.get('BOH_AI_RERANK_API_URL') || 'https://api.siliconflow.cn/v1/rerank',
 ).trim();
 const EMBEDDING_MODEL_ID = String(
-  Deno.env.get('BOH_AI_EMBEDDING_MODEL_ID')
-    || 'BAAI/bge-m3',
+  Deno.env.get('BOH_AI_EMBEDDING_MODEL_ID') || 'BAAI/bge-m3',
 ).trim();
 const RERANK_MODEL_ID = String(
-  Deno.env.get('BOH_AI_RERANK_MODEL_ID')
-    || 'netease-youdao/bce-reranker-base_v1',
+  Deno.env.get('BOH_AI_RERANK_MODEL_ID') || 'netease-youdao/bce-reranker-base_v1',
 ).trim();
 const RERANK_ENABLED = String(Deno.env.get('BOH_AI_RERANK_ENABLED') || 'true').trim() === 'true';
 const ALLOW_PAID_RERANK = String(Deno.env.get('BOH_AI_ALLOW_PAID_RERANK') || '').trim() === 'true';
 const SUPABASE_URL = String(Deno.env.get('SUPABASE_URL') || '').trim();
 const SUPABASE_SERVICE_ROLE_KEY = String(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
-const BOH_AI_RETRIEVAL_SYNC_SECRET = String(Deno.env.get('BOH_AI_RETRIEVAL_SYNC_SECRET') || '').trim();
+const BOH_AI_RETRIEVAL_SYNC_SECRET = String(
+  Deno.env.get('BOH_AI_RETRIEVAL_SYNC_SECRET') || '',
+).trim();
 
-const SOURCE_TYPES = new Set<SourceType>(['core_memory', 'shared_memory', 'cloud_entry', 'knowledge_base']);
-const FREE_RERANK_MODELS = new Set([
-  'netease-youdao/bce-reranker-base_v1',
+const SOURCE_TYPES = new Set<SourceType>([
+  'core_memory',
+  'shared_memory',
+  'cloud_entry',
+  'knowledge_base',
+  'forum_memory',
 ]);
+const FREE_RERANK_MODELS = new Set(['netease-youdao/bce-reranker-base_v1']);
 const MAX_SYNC_SOURCES = 80;
 const MAX_MATCH_COUNT = 24;
 const MAX_CHUNK_CHARS = 1800;
@@ -91,11 +95,8 @@ const MAX_IMPORT_CHUNK_CHARS = 3000;
 const buildCorsHeaders = (origin: string | null) =>
   buildSharedCorsHeaders(origin, ['x-retrieval-sync-secret']);
 
-const jsonResponse = (
-  body: unknown,
-  status = 200,
-  origin: string | null = null,
-) => jsonSharedResponse(body, status, origin, ['x-retrieval-sync-secret']);
+const jsonResponse = (body: unknown, status = 200, origin: string | null = null) =>
+  jsonSharedResponse(body, status, origin, ['x-retrieval-sync-secret']);
 
 const clampInt = (value: unknown, fallback: number, min: number, max: number) => {
   const parsed = Number(value);
@@ -195,13 +196,21 @@ const getAllowedSyncSourceTypes = (
     isAdmin = false,
     hasSecret = false,
   }: { userId?: string; isAdmin?: boolean; hasSecret?: boolean } = {},
-) => sourceTypes.filter((sourceType) => {
-  if (sourceType === 'knowledge_base') return false;
-  if (hasSecret || isAdmin) return true;
-  return sourceType === 'cloud_entry' && Boolean(userId);
-});
+) =>
+  sourceTypes.filter((sourceType) => {
+    // knowledge_base 走 import_knowledge_base 专用通道，不允许顺手 sync（会按位置重排切片）
+    if (sourceType === 'knowledge_base') return false;
+    // forum_memory 的索引同步由 boh-ai-forum-memory 摄取任务（带 sync secret）触发，
+    // 普通用户搜一次就重算一遍全站论坛事实的 embedding 是不可接受的成本。
+    if (sourceType === 'forum_memory') return hasSecret || isAdmin;
+    if (hasSecret || isAdmin) return true;
+    return sourceType === 'cloud_entry' && Boolean(userId);
+  });
 
-const getRequestUserId = async (client: ReturnType<typeof createServiceClient>, request: Request) => {
+const getRequestUserId = async (
+  client: ReturnType<typeof createServiceClient>,
+  request: Request,
+) => {
   const token = getBearerToken(request);
   if (!token) return '';
   const { data, error } = await client.auth.getUser(token);
@@ -250,13 +259,17 @@ const callEmbedding = async (inputs: string[]) => {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = payload?.error?.message || payload?.message || `Embedding API failed: ${response.status}`;
+    const message =
+      payload?.error?.message || payload?.message || `Embedding API failed: ${response.status}`;
     throw new Error(message);
   }
 
   const data = Array.isArray(payload?.data) ? payload.data : [];
   return data
-    .sort((a: { index?: number }, b: { index?: number }) => Number(a?.index || 0) - Number(b?.index || 0))
+    .sort(
+      (a: { index?: number }, b: { index?: number }) =>
+        Number(a?.index || 0) - Number(b?.index || 0),
+    )
     .map((item: { embedding?: unknown }) => item?.embedding)
     .filter((embedding: unknown) => Array.isArray(embedding));
 };
@@ -325,18 +338,22 @@ const upsertKnowledgeSource = async (
     existingByIndex.set(Number(row.chunk_index), row as ExistingChunk);
   }
 
-  const prepared = await Promise.all(chunks.map(async (content, index) => ({
-    index,
-    content,
-    contentHash: await sha256Hex(`${source.sourceType}:${source.sourceId}:${index}:${content}`),
-  })));
+  const prepared = await Promise.all(
+    chunks.map(async (content, index) => ({
+      index,
+      content,
+      contentHash: await sha256Hex(`${source.sourceType}:${source.sourceId}:${index}:${content}`),
+    })),
+  );
 
   const changed = prepared.filter((chunk) => {
     const existing = existingByIndex.get(chunk.index);
-    return !existing
-      || existing.content_hash !== chunk.contentHash
-      || existing.embedding_model !== EMBEDDING_MODEL_ID
-      || existing.status !== 'active';
+    return (
+      !existing ||
+      existing.content_hash !== chunk.contentHash ||
+      existing.embedding_model !== EMBEDDING_MODEL_ID ||
+      existing.status !== 'active'
+    );
   });
 
   if (changed.length === 0) {
@@ -409,11 +426,13 @@ const upsertKnowledgeSourcesBatch = async (
   for (const source of sources) {
     const chunks = chunkText(source.content);
     if (chunks.length === 0) continue;
-    const prepared = await Promise.all(chunks.map(async (content, index) => ({
-      index,
-      content,
-      contentHash: await sha256Hex(`${source.sourceType}:${source.sourceId}:${index}:${content}`),
-    })));
+    const prepared = await Promise.all(
+      chunks.map(async (content, index) => ({
+        index,
+        content,
+        contentHash: await sha256Hex(`${source.sourceType}:${source.sourceId}:${index}:${content}`),
+      })),
+    );
     allPrepared.push({ source, chunks, prepared });
   }
 
@@ -451,7 +470,11 @@ const upsertKnowledgeSourcesBatch = async (
     chunk: { index: number; content: string; contentHash: string };
     totalChunks: number;
   }> = [];
-  const sourcesToArchive: Array<{ sourceType: SourceType; sourceId: string; maxChunkIndex: number }> = [];
+  const sourcesToArchive: Array<{
+    sourceType: SourceType;
+    sourceId: string;
+    maxChunkIndex: number;
+  }> = [];
 
   for (const item of allPrepared) {
     const sourceKey = `${item.source.sourceType}:${item.source.sourceId}`;
@@ -459,10 +482,12 @@ const upsertKnowledgeSourcesBatch = async (
 
     const changed = item.prepared.filter((chunk) => {
       const existing = existingByIndex.get(chunk.index);
-      return !existing
-        || existing.content_hash !== chunk.contentHash
-        || existing.embedding_model !== EMBEDDING_MODEL_ID
-        || existing.status !== 'active';
+      return (
+        !existing ||
+        existing.content_hash !== chunk.contentHash ||
+        existing.embedding_model !== EMBEDDING_MODEL_ID ||
+        existing.status !== 'active'
+      );
     });
 
     for (const chunk of changed) {
@@ -481,14 +506,16 @@ const upsertKnowledgeSourcesBatch = async (
   // 无变更时仍需归档旧 chunks
   if (allChanged.length === 0) {
     if (sourcesToArchive.length > 0) {
-      await Promise.all(sourcesToArchive.map(({ sourceType, sourceId, maxChunkIndex }) =>
-        client
-          .from('boh_ai_knowledge_chunks')
-          .update({ status: 'archived' })
-          .eq('source_type', sourceType)
-          .eq('source_id', sourceId)
-          .gte('chunk_index', maxChunkIndex),
-      ));
+      await Promise.all(
+        sourcesToArchive.map(({ sourceType, sourceId, maxChunkIndex }) =>
+          client
+            .from('boh_ai_knowledge_chunks')
+            .update({ status: 'archived' })
+            .eq('source_type', sourceType)
+            .eq('source_id', sourceId)
+            .gte('chunk_index', maxChunkIndex),
+        ),
+      );
     }
     return 0;
   }
@@ -532,14 +559,16 @@ const upsertKnowledgeSourcesBatch = async (
 
   // 6. 并行归档旧 chunks
   if (sourcesToArchive.length > 0) {
-    await Promise.all(sourcesToArchive.map(({ sourceType, sourceId, maxChunkIndex }) =>
-      client
-        .from('boh_ai_knowledge_chunks')
-        .update({ status: 'archived' })
-        .eq('source_type', sourceType)
-        .eq('source_id', sourceId)
-        .gte('chunk_index', maxChunkIndex),
-    ));
+    await Promise.all(
+      sourcesToArchive.map(({ sourceType, sourceId, maxChunkIndex }) =>
+        client
+          .from('boh_ai_knowledge_chunks')
+          .update({ status: 'archived' })
+          .eq('source_type', sourceType)
+          .eq('source_id', sourceId)
+          .gte('chunk_index', maxChunkIndex),
+      ),
+    );
   }
 
   return rows.length;
@@ -568,44 +597,52 @@ const normalizeImportChunks = (
     sourceSlug = '',
     version = '',
   }: { fallbackTitle?: string; sourceSlug?: string; version?: string } = {},
-) => rawChunks
-  .slice(0, MAX_IMPORT_CHUNKS)
-  .map((chunk, index): KnowledgeBaseImportChunk | null => {
-    const source = chunk && typeof chunk === 'object' ? chunk as Record<string, unknown> : {};
-    const title = toText(source.title, 160) || fallbackTitle;
-    const sectionPath = toStringArray(source.section_path || source.sectionPath, 12, 80);
-    const content = toText(source.content, MAX_IMPORT_CHUNK_CHARS);
-    if (!content) return null;
+) =>
+  rawChunks
+    .slice(0, MAX_IMPORT_CHUNKS)
+    .map((chunk, index): KnowledgeBaseImportChunk | null => {
+      const source = chunk && typeof chunk === 'object' ? (chunk as Record<string, unknown>) : {};
+      const title = toText(source.title, 160) || fallbackTitle;
+      const sectionPath = toStringArray(source.section_path || source.sectionPath, 12, 80);
+      const content = toText(source.content, MAX_IMPORT_CHUNK_CHARS);
+      if (!content) return null;
 
-    return {
-      chunkId: toText(source.chunk_id || source.chunkId, 120) || `${sourceSlug || 'kb'}_${String(index + 1).padStart(3, '0')}`,
-      title,
-      sectionPath,
-      content,
-      summary: toText(source.summary, 500),
-      keywords: toStringArray(source.keywords, 30, 60),
-      tags: toStringArray(source.tags, 30, 40),
-      priority: clampInt(source.priority, 3, 1, 5),
-      metadata: {
-        ...normalizeMetadata(source.metadata),
-        sourceKey: toText(source.source_id || source.sourceId || sourceSlug, 160),
-        originalChunkId: toText(source.chunk_id || source.chunkId, 120),
-        version: toText(source.version || version, 80),
-      },
-    };
-  })
-  .filter((chunk): chunk is KnowledgeBaseImportChunk => Boolean(chunk));
+      return {
+        chunkId:
+          toText(source.chunk_id || source.chunkId, 120) ||
+          `${sourceSlug || 'kb'}_${String(index + 1).padStart(3, '0')}`,
+        title,
+        sectionPath,
+        content,
+        summary: toText(source.summary, 500),
+        keywords: toStringArray(source.keywords, 30, 60),
+        tags: toStringArray(source.tags, 30, 40),
+        priority: clampInt(source.priority, 3, 1, 5),
+        metadata: {
+          ...normalizeMetadata(source.metadata),
+          sourceKey: toText(source.source_id || source.sourceId || sourceSlug, 160),
+          originalChunkId: toText(source.chunk_id || source.chunkId, 120),
+          version: toText(source.version || version, 80),
+        },
+      };
+    })
+    .filter((chunk): chunk is KnowledgeBaseImportChunk => Boolean(chunk));
 
 const buildKnowledgeBaseChunkContent = (chunk: KnowledgeBaseImportChunk) => {
   const section = chunk.sectionPath.length > 0 ? chunk.sectionPath.join(' / ') : '';
   const keywords = chunk.keywords.length > 0 ? chunk.keywords.join('、') : '';
-  return toText([
-    `标题：${chunk.title}`,
-    section ? `章节：${section}` : '',
-    chunk.summary ? `摘要：${chunk.summary}` : '',
-    keywords ? `关键词：${keywords}` : '',
-    chunk.content,
-  ].filter(Boolean).join('\n'), MAX_IMPORT_CHUNK_CHARS);
+  return toText(
+    [
+      `标题：${chunk.title}`,
+      section ? `章节：${section}` : '',
+      chunk.summary ? `摘要：${chunk.summary}` : '',
+      keywords ? `关键词：${keywords}` : '',
+      chunk.content,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    MAX_IMPORT_CHUNK_CHARS,
+  );
 };
 
 const importKnowledgeBase = async (
@@ -623,10 +660,10 @@ const importKnowledgeBase = async (
 
   const slug = toSlug(body.slug || body.sourceId || body.source_id);
   const title = toText(body.title, 160) || slug;
-  const visibility = String(body.visibility || 'public').trim() === 'private' ? 'private' : 'public';
-  const ownerUserId = visibility === 'private'
-    ? toText(body.ownerUserId || body.owner_user_id || userId, 80)
-    : null;
+  const visibility =
+    String(body.visibility || 'public').trim() === 'private' ? 'private' : 'public';
+  const ownerUserId =
+    visibility === 'private' ? toText(body.ownerUserId || body.owner_user_id || userId, 80) : null;
   if (visibility === 'private' && !ownerUserId) {
     return { ok: false, status: 400, message: 'Private knowledge base requires ownerUserId' };
   }
@@ -643,16 +680,19 @@ const importKnowledgeBase = async (
 
   const { data: baseRow, error: baseError } = await client
     .from('boh_ai_knowledge_bases')
-    .upsert({
-      slug,
-      title,
-      description: toText(body.description, 800),
-      owner_user_id: ownerUserId,
-      visibility,
-      version: toText(body.version, 80),
-      metadata: normalizeMetadata(body.metadata),
-      status: 'active',
-    }, { onConflict: 'slug' })
+    .upsert(
+      {
+        slug,
+        title,
+        description: toText(body.description, 800),
+        owner_user_id: ownerUserId,
+        visibility,
+        version: toText(body.version, 80),
+        metadata: normalizeMetadata(body.metadata),
+        status: 'active',
+      },
+      { onConflict: 'slug' },
+    )
     .select('id, slug, title, visibility')
     .single();
 
@@ -672,22 +712,26 @@ const importKnowledgeBase = async (
     existingByIndex.set(Number(row.chunk_index), row as ExistingChunk);
   }
 
-  const prepared = await Promise.all(chunks.map(async (chunk, index) => {
-    const content = buildKnowledgeBaseChunkContent(chunk);
-    return {
-      index,
-      chunk,
-      content,
-      contentHash: await sha256Hex(`knowledge_base:${sourceId}:${index}:${content}`),
-    };
-  }));
+  const prepared = await Promise.all(
+    chunks.map(async (chunk, index) => {
+      const content = buildKnowledgeBaseChunkContent(chunk);
+      return {
+        index,
+        chunk,
+        content,
+        contentHash: await sha256Hex(`knowledge_base:${sourceId}:${index}:${content}`),
+      };
+    }),
+  );
 
   const changed = prepared.filter((chunk) => {
     const existing = existingByIndex.get(chunk.index);
-    return !existing
-      || existing.content_hash !== chunk.contentHash
-      || existing.embedding_model !== EMBEDDING_MODEL_ID
-      || existing.status !== 'active';
+    return (
+      !existing ||
+      existing.content_hash !== chunk.contentHash ||
+      existing.embedding_model !== EMBEDDING_MODEL_ID ||
+      existing.status !== 'active'
+    );
   });
 
   let upsertedCount = 0;
@@ -755,10 +799,79 @@ const importKnowledgeBase = async (
   };
 };
 
-const syncSharedMemories = async (client: ReturnType<typeof createServiceClient>, limit: number) => {
+/**
+ * 论坛记忆（事实卡）→ 向量切片。
+ *
+ * 一条事实卡 = 一个 chunk（`chunk_index` 恒 0，`source_id` = 事实卡 id），
+ * 这样事实卡被归档/删除时，既有 `archive_boh_ai_knowledge_chunks_for_source('forum_memory')`
+ * 触发器能按 `source_id` 精确命中，不需要额外映射表。
+ *
+ * 切片正文里带上「出处帖子 + 发帖人 + 时间」，是为了让模型引用时能交代来源
+ * （论坛内容属不可信外部内容，必须可溯源 —— 与 `useForumSummary` 同一口径）。
+ */
+const syncForumMemories = async (client: ReturnType<typeof createServiceClient>, limit: number) => {
+  const { data, error } = await client
+    .from('boh_ai_forum_memories')
+    .select(
+      'id, source_post_id, source_post_title, source_post_author, fact, category, people, occurred_at, confidence, evidence, model, updated_at, created_at',
+    )
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length === 0) return 0;
+
+  const sources: KnowledgeSource[] = rows.map((row) => {
+    const people = Array.isArray(row.people) ? row.people.join('、') : '';
+    const title = toText(row.source_post_title, 120) || '论坛记忆';
+    const postId = toText(row.source_post_id, 80);
+    const content = [
+      `事实：${toText(row.fact, 600)}`,
+      row.category ? `分类：${toText(row.category, 60)}` : '',
+      people ? `涉及成员：${people}` : '',
+      row.occurred_at ? `时间：${toText(row.occurred_at, 60)}` : '',
+      `出处帖子：${title}`,
+      row.source_post_author ? `发帖人：${toText(row.source_post_author, 80)}` : '',
+      row.evidence ? `原文片段：${toText(row.evidence, 600)}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    return {
+      sourceType: 'forum_memory',
+      sourceId: String(row.id),
+      ownerUserId: null,
+      visibility: 'public',
+      title,
+      content,
+      metadata: {
+        category: row.category || 'general',
+        people: Array.isArray(row.people) ? row.people : [],
+        occurredAt: row.occurred_at || '',
+        confidence: Number(row.confidence || 0),
+        sourcePostId: postId,
+        sourcePostUrl: postId ? `#/forum/post/${postId}` : '',
+        sourcePostAuthor: row.source_post_author || '',
+        model: row.model || '',
+        updatedAt: row.updated_at || row.created_at || '',
+      },
+    };
+  });
+
+  return upsertKnowledgeSourcesBatch(client, sources);
+};
+
+const syncSharedMemories = async (
+  client: ReturnType<typeof createServiceClient>,
+  limit: number,
+) => {
   const { data, error } = await client
     .from('boh_ai_shared_memories')
-    .select('id, owner_user_id, content, mood, tags, confidence, evidence, source, updated_at, created_at')
+    .select(
+      'id, owner_user_id, content, mood, tags, confidence, evidence, source, updated_at, created_at',
+    )
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
     .limit(limit);
@@ -773,7 +886,9 @@ const syncSharedMemories = async (client: ReturnType<typeof createServiceClient>
       toText(row.content, 1800),
       row.mood ? `心情：${toText(row.mood, 24)}` : '',
       tags ? `标签：${tags}` : '',
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     return {
       sourceType: 'shared_memory',
@@ -799,7 +914,9 @@ const syncSharedMemories = async (client: ReturnType<typeof createServiceClient>
 const syncCoreMemories = async (client: ReturnType<typeof createServiceClient>, limit: number) => {
   const { data, error } = await client
     .from('boh_ai_core_memories')
-    .select('id, title, content, category, tags, priority, source_label, source_url, updated_at, created_at')
+    .select(
+      'id, title, content, category, tags, priority, source_label, source_url, updated_at, created_at',
+    )
     .eq('status', 'active')
     .order('priority', { ascending: false })
     .order('updated_at', { ascending: false })
@@ -818,7 +935,9 @@ const syncCoreMemories = async (client: ReturnType<typeof createServiceClient>, 
       tags ? `标签：${tags}` : '',
       row.source_label ? `来源：${toText(row.source_label, 120)}` : '',
       toText(row.content, 20000),
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     return {
       sourceType: 'core_memory',
@@ -865,7 +984,9 @@ const syncCloudEntries = async (
       row.entry_date ? `日期：${toText(row.entry_date, 40)}` : '',
       row.mood ? `心情：${toText(row.mood, 24)}` : '',
       toText(row.content_text, 20000),
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     return {
       sourceType: 'cloud_entry',
@@ -894,7 +1015,9 @@ const buildKeywordRowsFromSharedMemories = async (
 ) => {
   const { data, error } = await client
     .from('boh_ai_shared_memories')
-    .select('id, owner_user_id, content, mood, tags, confidence, evidence, source, updated_at, created_at')
+    .select(
+      'id, owner_user_id, content, mood, tags, confidence, evidence, source, updated_at, created_at',
+    )
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
     .limit(KEYWORD_CANDIDATE_LIMIT);
@@ -918,7 +1041,9 @@ const buildKeywordRowsFromSharedMemories = async (
           toText(row.content, 1800),
           row.mood ? `心情：${toText(row.mood, 24)}` : '',
           tags ? `标签：${tags}` : '',
-        ].filter(Boolean).join('\n'),
+        ]
+          .filter(Boolean)
+          .join('\n'),
         metadata: {
           mood: row.mood || '',
           tags: Array.isArray(row.tags) ? row.tags : [],
@@ -948,7 +1073,9 @@ const buildKeywordRowsFromCoreMemories = async (
 ) => {
   const { data, error } = await client
     .from('boh_ai_core_memories')
-    .select('id, title, content, category, tags, priority, source_label, source_url, updated_at, created_at')
+    .select(
+      'id, title, content, category, tags, priority, source_label, source_url, updated_at, created_at',
+    )
     .eq('status', 'active')
     .order('priority', { ascending: false })
     .order('updated_at', { ascending: false })
@@ -962,9 +1089,8 @@ const buildKeywordRowsFromCoreMemories = async (
       const tags = Array.isArray(row.tags) ? row.tags.join(' ') : '';
       const merged = `${title}\n${row.category || ''}\n${tags}\n${row.content || ''}`;
       const keywordScore = scoreKeywordMatch(merged, query, tokens);
-      const score = keywordScore > 0
-        ? keywordScore + Math.min(4, Number(row.priority || 0) / 25)
-        : 0;
+      const score =
+        keywordScore > 0 ? keywordScore + Math.min(4, Number(row.priority || 0) / 25) : 0;
       return {
         id: String(row.id),
         source_type: 'core_memory',
@@ -979,7 +1105,9 @@ const buildKeywordRowsFromCoreMemories = async (
           tags ? `标签：${tags}` : '',
           row.source_label ? `来源：${toText(row.source_label, 120)}` : '',
           toText(row.content, 3000),
-        ].filter(Boolean).join('\n'),
+        ]
+          .filter(Boolean)
+          .join('\n'),
         metadata: {
           category: row.category || 'general',
           tags: Array.isArray(row.tags) ? row.tags : [],
@@ -1036,7 +1164,9 @@ const buildKeywordRowsFromCloudEntries = async (
           row.entry_date ? `日期：${toText(row.entry_date, 40)}` : '',
           row.mood ? `心情：${toText(row.mood, 24)}` : '',
           toText(row.content_text, 20000),
-        ].filter(Boolean).join('\n'),
+        ]
+          .filter(Boolean)
+          .join('\n'),
         metadata: {
           entryDate: row.entry_date || '',
           mood: row.mood || '',
@@ -1056,6 +1186,83 @@ const buildKeywordRowsFromCloudEntries = async (
     .slice(0, limit);
 };
 
+/**
+ * 论坛记忆的关键词兜底。
+ *
+ * ⚠️ 必须与 `syncForumMemories` 拼出的 chunk 正文保持**同一套字段**，且
+ * `chunk_index` 都取 0 —— `mergeRetrievedRows` 以 `source_type:source_id:chunk_index`
+ * 为键合并向量与关键词结果，键不一致会让同一张事实卡在结果里出现两次。
+ */
+const buildKeywordRowsFromForumMemories = async (
+  client: ReturnType<typeof createServiceClient>,
+  query: string,
+  tokens: string[],
+  limit: number,
+) => {
+  const { data, error } = await client
+    .from('boh_ai_forum_memories')
+    .select(
+      'id, source_post_id, source_post_title, source_post_author, fact, category, people, occurred_at, confidence, evidence, updated_at, created_at',
+    )
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false })
+    .limit(KEYWORD_CANDIDATE_LIMIT);
+
+  if (error) return [];
+
+  return (Array.isArray(data) ? data : [])
+    .map((row) => {
+      const people = Array.isArray(row.people) ? row.people.join('、') : '';
+      const title = toText(row.source_post_title, 120) || '论坛记忆';
+      const merged = [row.fact || '', row.category || '', people, row.evidence || '', title].join(
+        '\n',
+      );
+      return { row, title, people, score: scoreKeywordMatch(merged, query, tokens) };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ row, title, people, score }) => {
+      const postId = toText(row.source_post_id, 80);
+      return {
+        id: String(row.id),
+        source_type: 'forum_memory',
+        source_id: String(row.id),
+        owner_user_id: null,
+        visibility: 'public',
+        chunk_index: 0,
+        title,
+        content: [
+          `事实：${toText(row.fact, 600)}`,
+          row.category ? `分类：${toText(row.category, 60)}` : '',
+          people ? `涉及成员：${people}` : '',
+          row.occurred_at ? `时间：${toText(row.occurred_at, 60)}` : '',
+          `出处帖子：${title}`,
+          row.source_post_author ? `发帖人：${toText(row.source_post_author, 80)}` : '',
+          row.evidence ? `原文片段：${toText(row.evidence, 600)}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        metadata: {
+          category: row.category || 'general',
+          people: Array.isArray(row.people) ? row.people : [],
+          occurredAt: row.occurred_at || '',
+          confidence: Number(row.confidence || 0),
+          sourcePostId: postId,
+          sourcePostUrl: postId ? `#/forum/post/${postId}` : '',
+          sourcePostAuthor: row.source_post_author || '',
+          updatedAt: row.updated_at || row.created_at || '',
+          retrievalMethod: 'keyword',
+        },
+        embedding_model: '',
+        updated_at: row.updated_at || row.created_at || '',
+        similarity: Math.min(0.9, score / 12),
+        combinedScore: score,
+        retrievalMethod: 'keyword',
+      } satisfies RetrievalRow;
+    });
+};
+
 const buildKeywordRowsFromKnowledgeBases = async (
   client: ReturnType<typeof createServiceClient>,
   userId: string,
@@ -1065,7 +1272,9 @@ const buildKeywordRowsFromKnowledgeBases = async (
 ) => {
   const queryBuilder = client
     .from('boh_ai_knowledge_chunks')
-    .select('id, source_type, source_id, owner_user_id, visibility, chunk_index, title, content, metadata, embedding_model, updated_at')
+    .select(
+      'id, source_type, source_id, owner_user_id, visibility, chunk_index, title, content, metadata, embedding_model, updated_at',
+    )
     .eq('source_type', 'knowledge_base')
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
@@ -1116,7 +1325,7 @@ const buildKeywordFallbackRows = async (
   limit: number,
 ) => {
   const tokens = tokenizeQuery(query);
-  const [coreRows, sharedRows, cloudRows, knowledgeBaseRows] = await Promise.all([
+  const [coreRows, sharedRows, cloudRows, knowledgeBaseRows, forumMemoryRows] = await Promise.all([
     sourceTypes.includes('core_memory')
       ? buildKeywordRowsFromCoreMemories(client, query, tokens, limit)
       : Promise.resolve([]),
@@ -1129,14 +1338,21 @@ const buildKeywordFallbackRows = async (
     sourceTypes.includes('knowledge_base')
       ? buildKeywordRowsFromKnowledgeBases(client, userId, query, tokens, limit)
       : Promise.resolve([]),
+    sourceTypes.includes('forum_memory')
+      ? buildKeywordRowsFromForumMemories(client, query, tokens, limit)
+      : Promise.resolve([]),
   ]);
 
-  return [...coreRows, ...sharedRows, ...cloudRows, ...knowledgeBaseRows]
+  return [...coreRows, ...sharedRows, ...cloudRows, ...knowledgeBaseRows, ...forumMemoryRows]
     .sort((a, b) => Number(b.combinedScore || 0) - Number(a.combinedScore || 0))
     .slice(0, limit);
 };
 
-const mergeRetrievedRows = (vectorRows: RetrievalRow[], keywordRows: RetrievalRow[], limit: number) => {
+const mergeRetrievedRows = (
+  vectorRows: RetrievalRow[],
+  keywordRows: RetrievalRow[],
+  limit: number,
+) => {
   const byKey = new Map<string, RetrievalRow>();
 
   for (const row of vectorRows) {
@@ -1179,7 +1395,9 @@ const mergeRetrievedRows = (vectorRows: RetrievalRow[], keywordRows: RetrievalRo
 };
 
 const normalizeSourceTypes = (value: unknown, userId: string) => {
-  const raw = Array.isArray(value) ? value : ['core_memory', 'shared_memory', 'cloud_entry', 'knowledge_base'];
+  const raw = Array.isArray(value)
+    ? value
+    : ['core_memory', 'shared_memory', 'cloud_entry', 'knowledge_base', 'forum_memory'];
   const sourceTypes = raw
     .map((item) => String(item || '').trim())
     .filter((item): item is SourceType => SOURCE_TYPES.has(item as SourceType));
@@ -1227,22 +1445,35 @@ Deno.serve(async (request) => {
         hasSecret: requestHasSyncSecret,
       });
       if (syncSourceTypes.length === 0) {
-        return jsonResponse({ ok: false, message: 'Not allowed to sync requested sources' }, 403, origin);
+        return jsonResponse(
+          { ok: false, message: 'Not allowed to sync requested sources' },
+          403,
+          origin,
+        );
       }
       const syncLimit = clampInt(body?.syncLimit, 40, 1, MAX_SYNC_SOURCES);
       let indexedCount = 0;
-      if (syncSourceTypes.includes('core_memory')) indexedCount += await syncCoreMemories(client, syncLimit);
-      if (syncSourceTypes.includes('shared_memory')) indexedCount += await syncSharedMemories(client, syncLimit);
-      if (syncSourceTypes.includes('cloud_entry')) indexedCount += await syncCloudEntries(client, userId, syncLimit);
-      return jsonResponse({
-        ok: true,
-        data: {
-          indexedCount,
-          sourceTypes,
-          syncSourceTypes,
-          canSync: syncSourceTypes.length > 0,
+      if (syncSourceTypes.includes('core_memory'))
+        indexedCount += await syncCoreMemories(client, syncLimit);
+      if (syncSourceTypes.includes('shared_memory'))
+        indexedCount += await syncSharedMemories(client, syncLimit);
+      if (syncSourceTypes.includes('cloud_entry'))
+        indexedCount += await syncCloudEntries(client, userId, syncLimit);
+      if (syncSourceTypes.includes('forum_memory'))
+        indexedCount += await syncForumMemories(client, syncLimit);
+      return jsonResponse(
+        {
+          ok: true,
+          data: {
+            indexedCount,
+            sourceTypes,
+            syncSourceTypes,
+            canSync: syncSourceTypes.length > 0,
+          },
         },
-      }, 200, origin);
+        200,
+        origin,
+      );
     }
 
     if (action !== 'search') {
@@ -1256,7 +1487,11 @@ Deno.serve(async (request) => {
 
     const sourceTypes = normalizeSourceTypes(body?.sourceTypes, userId);
     if (sourceTypes.length === 0) {
-      return jsonResponse({ ok: true, data: { chunks: [], indexedCount: 0, sourceTypes } }, 200, origin);
+      return jsonResponse(
+        { ok: true, data: { chunks: [], indexedCount: 0, sourceTypes } },
+        200,
+        origin,
+      );
     }
 
     const syncSourceTypes = getAllowedSyncSourceTypes(sourceTypes, {
@@ -1274,8 +1509,11 @@ Deno.serve(async (request) => {
       void (async () => {
         try {
           if (syncSourceTypes.includes('core_memory')) await syncCoreMemories(client, syncLimit);
-          if (syncSourceTypes.includes('shared_memory')) await syncSharedMemories(client, syncLimit);
-          if (syncSourceTypes.includes('cloud_entry')) await syncCloudEntries(client, userId, syncLimit);
+          if (syncSourceTypes.includes('shared_memory'))
+            await syncSharedMemories(client, syncLimit);
+          if (syncSourceTypes.includes('cloud_entry'))
+            await syncCloudEntries(client, userId, syncLimit);
+          if (syncSourceTypes.includes('forum_memory')) await syncForumMemories(client, syncLimit);
         } catch (syncError) {
           console.error('[boh-ai-retrieval] 后台索引同步失败', syncError);
         }
@@ -1302,35 +1540,49 @@ Deno.serve(async (request) => {
       vectorRows = (Array.isArray(data) ? data : []) as RetrievalRow[];
     }
 
-    const keywordRows = await buildKeywordFallbackRows(client, query, sourceTypes, userId, candidateCount);
+    const keywordRows = await buildKeywordFallbackRows(
+      client,
+      query,
+      sourceTypes,
+      userId,
+      candidateCount,
+    );
     const mergedRows = mergeRetrievedRows(vectorRows, keywordRows, candidateCount);
     const rerankResult = await callRerank(query, mergedRows);
     const finalRows = rerankResult.rows.slice(0, matchCount);
     const rerankAllowed = ALLOW_PAID_RERANK || FREE_RERANK_MODELS.has(RERANK_MODEL_ID);
 
-    return jsonResponse({
-      ok: true,
-      data: {
-        chunks: finalRows,
-        indexedCount,
-        sourceTypes,
-        syncSourceTypes,
-        embeddingModel,
-        vectorMatches: vectorRows.length,
-        keywordMatches: keywordRows.length,
-        rerankModel: rerankResult.used ? RERANK_MODEL_ID : '',
-        rerankEnabled: RERANK_ENABLED,
-        rerankAllowed,
-        rerankUsed: rerankResult.used,
-        rerankSkippedReason: rerankResult.skippedReason,
-        syncAttempted: shouldSync,
-        canSync: syncSourceTypes.length > 0,
+    return jsonResponse(
+      {
+        ok: true,
+        data: {
+          chunks: finalRows,
+          indexedCount,
+          sourceTypes,
+          syncSourceTypes,
+          embeddingModel,
+          vectorMatches: vectorRows.length,
+          keywordMatches: keywordRows.length,
+          rerankModel: rerankResult.used ? RERANK_MODEL_ID : '',
+          rerankEnabled: RERANK_ENABLED,
+          rerankAllowed,
+          rerankUsed: rerankResult.used,
+          rerankSkippedReason: rerankResult.skippedReason,
+          syncAttempted: shouldSync,
+          canSync: syncSourceTypes.length > 0,
+        },
       },
-    }, 200, origin);
+      200,
+      origin,
+    );
   } catch (error) {
-    return jsonResponse({
-      ok: false,
-      message: error instanceof Error ? error.message : String(error || 'Unknown error'),
-    }, 500, origin);
+    return jsonResponse(
+      {
+        ok: false,
+        message: error instanceof Error ? error.message : String(error || 'Unknown error'),
+      },
+      500,
+      origin,
+    );
   }
 });

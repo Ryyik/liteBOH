@@ -3,9 +3,25 @@ import { executeRead } from '../../request-core.js';
 import { CACHE_TTL_LEVELS } from '../../cache-strategy.js';
 import { toTrimmedText, TREEHOLE_SHARED_MEMORY_CACHE_TAG } from '../treehole-helpers.js';
 
+/**
+ * 允许检索的知识源类型（单一真源）。
+ *
+ * 必须与 EF `boh-ai-retrieval` 的 `SOURCE_TYPES` 集合、以及迁移里
+ * `boh_ai_knowledge_chunks_source_type_check` 的 CHECK 白名单保持一致 ——
+ * 三处任一漏加都会表现为「检索静默少一类结果」，不报错。
+ * 2026-10-16 新增 `forum_memory`（论坛事实卡）。
+ */
+const ALLOWED_KNOWLEDGE_SOURCE_TYPES = [
+  'core_memory',
+  'shared_memory',
+  'cloud_entry',
+  'knowledge_base',
+  'forum_memory',
+];
+
 export async function searchBohAIKnowledgeForAI({
   query = '',
-  sourceTypes = ['core_memory', 'shared_memory', 'cloud_entry', 'knowledge_base'],
+  sourceTypes = ALLOWED_KNOWLEDGE_SOURCE_TYPES,
   limit = 8,
   ensureIndexed = true,
   syncLimit = 40,
@@ -19,10 +35,8 @@ export async function searchBohAIKnowledgeForAI({
   const safeSourceTypes = Array.isArray(sourceTypes)
     ? sourceTypes
         .map((item) => String(item || '').trim())
-        .filter((item) =>
-          ['core_memory', 'shared_memory', 'cloud_entry', 'knowledge_base'].includes(item),
-        )
-    : ['core_memory', 'shared_memory', 'cloud_entry', 'knowledge_base'];
+        .filter((item) => ALLOWED_KNOWLEDGE_SOURCE_TYPES.includes(item))
+    : ALLOWED_KNOWLEDGE_SOURCE_TYPES;
 
   if (!safeQuery || safeSourceTypes.length === 0) {
     return { ok: true, data: { chunks: [], sourceTypes: safeSourceTypes }, error: null };
