@@ -20,6 +20,7 @@ import markdown from 'highlight.js/lib/languages/markdown';
 import python from 'highlight.js/lib/languages/python';
 import 'highlight.js/styles/github.css';
 import DOMPurify from '@/utils/dompurify.js';
+import { AI_ANSWER_IMAGE_ORIGINS } from '@/utils/image-origins.js';
 
 const HIGHLIGHT_LANGUAGE_SUBSET = [
   'javascript',
@@ -60,8 +61,27 @@ const MARKDOWN_SANITIZE_OPTIONS = {
     'td',
     'span',
     'del',
+    // 2026-10-16（图文并茂 Phase 1）：论坛帖配图要能在回答里显示。
+    // ⚠️ 仅加白名单**不等于**放开任意图：src 由 `utils/dompurify.js` 的钩子
+    // 按 `AI_ANSWER_IMAGE_ORIGINS` 逐个校验，不在白名单的 img 会被整个移除。
+    'img',
   ],
-  ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'class'],
+  ALLOWED_ATTR: [
+    'href',
+    'title',
+    'target',
+    'rel',
+    'class',
+    'src',
+    'alt',
+    'loading',
+    'referrerpolicy',
+    'width',
+    'height',
+  ],
+  // 传给 DOMPurify 钩子（见 utils/dompurify.js）：只放行自建 CDN。
+  // `res.cloudinary.com` 刻意不放行 —— 大陆实测不可达，宁可不出图也不给裂图。
+  allowedImageOrigins: AI_ANSWER_IMAGE_ORIGINS,
 };
 
 hljs.registerLanguage('javascript', javascript);

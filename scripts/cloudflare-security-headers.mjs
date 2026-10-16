@@ -25,6 +25,9 @@
  *   SECURITY_HEADER_HOSTS —— 可选，逗号分隔；默认两个裸域/子域
  */
 
+// 图片域名白名单单一真源（渲染白名单也从这里取，见文件头 CSP_VALUE 注释）
+import { CSP_IMAGE_ORIGINS } from '../src/utils/image-origins.js';
+
 const RULE_MARKER = '[boh-security-headers]';
 const PHASE = 'http_response_headers_transform';
 const API_BASE = 'https://api.cloudflare.com/client/v4';
@@ -53,12 +56,17 @@ const SAFE_HEADERS = {
 /**
  * CSP：收得很紧，必须逐步放开。
  * 先以 Report-Only 观察（--csp-enforce 前不要强制）。
+ *
+ * ⚠️ `img-src` 的域名清单**不在这里手写** —— 从 `src/utils/image-origins.js` 的
+ * `CSP_IMAGE_ORIGINS` 生成。原因（2026-10-16）：AI 回答的渲染白名单也要用同一份清单，
+ * 两处手写必然漂移，而漂移的表现是「渲染器放行、CSP 拦截」的**静默裂图**，
+ * 且 CSP 当前是 Report-Only，本地根本看不出来。单测会断言两者的包含关系。
  */
 const CSP_VALUE = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://res.cloudinary.com https://cdn.blockofhome.cn",
+  `img-src 'self' data: blob: ${CSP_IMAGE_ORIGINS.join(' ')}`,
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cloudinary.com https://*.cloudinary.com",
   "frame-ancestors 'none'",
@@ -69,7 +77,8 @@ const CSP_VALUE = [
 
 const buildHeaders = () => {
   const headers = { ...SAFE_HEADERS };
-  headers[CSP_ENFORCE ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only'] = CSP_VALUE;
+  headers[CSP_ENFORCE ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only'] =
+    CSP_VALUE;
   return headers;
 };
 
@@ -116,7 +125,9 @@ const main = async () => {
   }
 
   if (!token || !zoneId) {
-    console.log('::notice::security-headers skipped: 需要 CLOUDFLARE_API_TOKEN 与 CLOUDFLARE_ZONE_ID。');
+    console.log(
+      '::notice::security-headers skipped: 需要 CLOUDFLARE_API_TOKEN 与 CLOUDFLARE_ZONE_ID。',
+    );
     return;
   }
 
@@ -124,15 +135,23 @@ const main = async () => {
   const existing = await api('GET', entrypointPath);
   if (!existing.ok && existing.status !== 404) {
     const detail = JSON.stringify(existing.payload?.errors || existing.payload).slice(0, 300);
-    console.log(`::warning::security-headers 读取现有规则失败（HTTP ${existing.status}）：${detail}`);
+    console.log(
+      `::warning::security-headers 读取现有规则失败（HTTP ${existing.status}）：${detail}`,
+    );
     if (existing.status === 403) {
-      console.log('::warning::token 权限不足：需在 Cloudflare My Profile → API Tokens 追加 Zone / Transform Rules / Edit；当前 token 仅 Cache Purge。');
+      console.log(
+        '::warning::token 权限不足：需在 Cloudflare My Profile → API Tokens 追加 Zone / Transform Rules / Edit；当前 token 仅 Cache Purge。',
+      );
     }
     return;
   }
 
-  const currentRules = Array.isArray(existing.payload?.result?.rules) ? existing.payload.result.rules : [];
-  const foreignRules = currentRules.filter((item) => !String(item?.description || '').startsWith(RULE_MARKER));
+  const currentRules = Array.isArray(existing.payload?.result?.rules)
+    ? existing.payload.result.rules
+    : [];
+  const foreignRules = currentRules.filter(
+    (item) => !String(item?.description || '').startsWith(RULE_MARKER),
+  );
 
   const nextRules = REMOVE ? foreignRules : [...foreignRules, rule];
 
@@ -144,7 +163,9 @@ const main = async () => {
     return;
   }
 
-  const applied = Array.isArray(result.payload?.result?.rules) ? result.payload.result.rules.length : nextRules.length;
+  const applied = Array.isArray(result.payload?.result?.rules)
+    ? result.payload.result.rules.length
+    : nextRules.length;
   console.log(
     `[security-headers] ${REMOVE ? '已移除' : '已应用'}安全响应头规则；该 phase 现有 ${applied} 条规则（其中本脚本管理 1 条）。`,
   );

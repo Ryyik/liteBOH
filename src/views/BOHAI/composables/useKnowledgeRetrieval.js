@@ -9,6 +9,7 @@ import {
 } from '@/utils/bohai-connectors.js';
 import { createBohAIRetrievalTrace } from '@/utils/bohai-observability.js';
 import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
+import { AI_ANSWER_IMAGE_ORIGINS, isAllowedImageSrc } from '@/utils/image-origins.js';
 import { logger } from '@/utils/logger.js';
 import { getHealthContext } from './useHealthRetrieval.js';
 import { getActivitiesContext } from './useSiteActivitiesRetrieval.js';
@@ -685,6 +686,7 @@ export function useKnowledgeRetrieval(deps) {
           ? sortForumPostsByCreatedAtDesc(recentSource)
           : rankForumPostsByQuery(recentSource, queryText);
       const selectedPosts = rankedPosts.slice(0, FORUM_MAX_POSTS);
+      let postsWithImage = 0;
       const forumContext = selectedPosts
         .map((post, index) => {
           const parsed = getPostTitleAndBody(post);
@@ -700,15 +702,34 @@ export function useKnowledgeRetrieval(deps) {
           const postId = String(post?.id || '').trim();
           const url = postId ? `#/forum/post/${postId}` : '#/forum';
           const excerpt = normalizePromptLine(post?.search_excerpt, FORUM_MAX_CHARS_PER_POST);
+          // 配图（2026-10-16 图文并茂 Phase 1）：`cover_image_url` 已由
+          // `utils/api/forum-format.js` 的 `normalizePostListRecord` 统一改写为
+          // 自建 CDN 地址（Cloudinary 原址大陆不可达，直接给会裂图）。
+          // 这里**再用同一份白名单校验一次** —— 目的是让模型根本看不到不合规地址；
+          // 渲染侧 DOMPurify 的白名单是第二道防线，不是唯一一道。
+          const rawImageUrl = String(post?.cover_image_url || '').trim();
+          const imageUrl = isAllowedImageSrc(rawImageUrl, AI_ANSWER_IMAGE_ORIGINS)
+            ? rawImageUrl
+            : '';
+          if (imageUrl) postsWithImage += 1;
           return [
             `[F${index + 1}] 【论坛帖子】${title}`,
             `发帖ID：${authorIdLabel} ｜ 标签：${tag} ｜ 时间：${time}`,
             `查看：${url}`,
+            imageUrl ? `配图：${imageUrl}` : '',
             `内容：${excerpt || preview}${!excerpt && parsed.body.length > FORUM_MAX_CHARS_PER_POST ? '...' : ''}`,
             `互动：点赞 ${likes}，评论 ${comments}`,
-          ].join('\n');
+          ]
+            .filter(Boolean)
+            .join('\n');
         })
         .join('\n\n');
+
+      // 只在**确实有可引用配图**时才给约束，避免无图时白占提示词预算、也避免模型被诱导去编图。
+      const imageNote =
+        postsWithImage > 0
+          ? `\n配图约束：上面 [Fn] 里的「配图」是该帖原图（自建 CDN，可直接显示）。**仅当配图与你的回答直接相关**时才用 markdown 图片语法 ![简述](图片地址) 引用，最多 1~2 张，紧跟对应段落之后；不要为了「好看」而配图，不要引用上面没出现过的图片地址，更不要编造图片。`
+          : '';
 
       // 检索覆盖说明必须**如实反映**本轮实际做了什么（2026-10-08）。
       // 收紧补位后，「无结果」有两种含义：宽泛兜底捞到了旧帖 / 压根没捞（宁缺毋滥）。
@@ -722,7 +743,7 @@ export function useKnowledgeRetrieval(deps) {
       return {
         // ⚠️ 论坛正文是**任意注册用户**写的，与联网搜索同属不可信外部内容。
         //   2026-10-08 起与 utils/web/search.js 的 UNTRUSTED_CONTENT_BOUNDARY 同一套措辞注入。
-        context: `${UNTRUSTED_CONTENT_BOUNDARY}\n【社区帖子检索结果】\n检索词：${candidateQueries.join(' / ') || '最新社区帖子'}\n范围：${scopeNote}\n排序：${sortMode === 'hottest' ? '近期热门优先' : '最新优先'}${tagFilter ? `\n标签过滤：${tagFilter}` : ''}${latestSummaryMode || sortMode === 'latest' ? `\n输出约束：必须严格按 [F1] 到 [F${selectedPosts.length}] 的顺序总结；[F1] 是当前检索到的最新发布帖子，后续依次按发布时间从新到旧排列。不要按热度、重要性或相关性重排。` : ''}\n\n${forumContext}`,
+        context: `${UNTRUSTED_CONTENT_BOUNDARY}\n【社区帖子检索结果】\n检索词：${candidateQueries.join(' / ') || '最新社区帖子'}\n范围：${scopeNote}\n排序：${sortMode === 'hottest' ? '近期热门优先' : '最新优先'}${tagFilter ? `\n标签过滤：${tagFilter}` : ''}${latestSummaryMode || sortMode === 'latest' ? `\n输出约束：必须严格按 [F1] 到 [F${selectedPosts.length}] 的顺序总结；[F1] 是当前检索到的最新发布帖子，后续依次按发布时间从新到旧排列。不要按热度、重要性或相关性重排。` : ''}${imageNote}\n\n${forumContext}`,
         total: selectedPosts.length,
         // 时间衰减的输入：所选帖子里最新的一条发布时间（2026-10-08）。
         // 取不到就留空 —— scoring 会跳过时间惩罚，**不会**把「无日期」误判成「过期」。
