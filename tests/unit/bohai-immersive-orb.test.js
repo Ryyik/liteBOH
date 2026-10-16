@@ -13,7 +13,8 @@ import { scriptSection, squeezeSource, stripComments } from '../helpers/source.j
  * 这套能力**复用**阅读页/创作页已有的 `immersiveNav`（含球 ↔ 胶囊 FLIP morph），
  * 本次新增的是三件联动 —— 也就是本文件要锁死的东西：
  *   ① AI 路由声明 immersiveNav；
- *   ② 球几何收敛成 CSS 变量 `--nav-orb-*` 单一真源（静态球位与 FLIP 起点必须同源）；
+ *   ② 球几何收敛成 CSS 变量 `--nav-orb-*` 单一真源（静态球位与 FLIP 起点必须同源，
+ *      2026-10-16 起 FLIP 不再读这组变量 —— 改为切换前量真实几何，变量只服务纯 CSS）；
  *   ③ 球态写 body ⇒ `--bohai-standalone-nav-height` 归零 ⇒ `.bohai-page` 顶满。
  *
  * 运行时几何另有 `scripts/probes/probe-nav-immersive-orb.mjs` 兜底。
@@ -42,14 +43,28 @@ describe('BOH AI 沉浸导航（收球 + 唤醒 + 页面顶满）', () => {
     expect(css).not.toContain(squeezeSource('left: 14px'));
   });
 
-  it('FLIP 起点读同一组变量（不再用写死的球几何常量）', () => {
+  it('FLIP 不倒推几何（flush pre 量真实旧几何 + 冻结 CSS transition + 终帧用 CSS 常态 transform）', () => {
+    // 2026-10-16 重写：旧实现（readImmersiveOrb 读 --nav-orb-* / 收起用「假定居中」公式）
+    // 在用户报障「拖动动画不自然」后作废 —— 收起起点实测错位 88px、动画结尾横跳 44px、
+    // CSS transition 与 WAAPI 双轨 8 个动画混战。新机制的特征锁定如下：
     const nav = read('src/components/UnifiedNavbar/index.vue');
-    expect(nav).toContain('readImmersiveOrb');
-    expect(nav).toContain("readPx('--nav-orb-x'");
+    // ① DOM 切换**前**（flush 'pre'）量真实旧几何 —— 通知卡/任务卡形态的 surface 高度
+    //    各不相同，任何倒推公式都会错位
+    expect(nav).toContain("flush: 'pre'");
+    expect(nav).toContain('getBoundingClientRect');
+    // ② 动画窗口冻结 surface 自身的 CSS transition（transition/FLIP 不再抢同一批属性）
+    expect(nav).toContain('nav-flip-lock');
+    // ③ 终帧读 CSS 常态 transform（AI 页展开胶囊带 44px translate 补偿，
+    //    写死 'none' 会在动画结束瞬间横跳 44px —— 逐帧采样 f8→f9 实锤）
+    expect(nav).toContain('readCssTranslate');
+
     const codeOnly = stripComments(scriptSection(nav));
-    // 只认代码：注释里会提到旧常量名，直接在原文断言会假红（helpers/source.js 文件头）
-    expect(codeOnly).not.toContain('IMMERSIVE_ORB.x');
-    expect(codeOnly).not.toContain('IMMERSIVE_ORB.size');
+    // 旧倒推机制根绝：只认代码，注释里的历史记录不算（helpers/source.js 文件头）
+    expect(codeOnly).not.toContain('readImmersiveOrb');
+    expect(codeOnly).not.toContain('IMMERSIVE_CAPSULE');
+    expect(codeOnly).not.toContain('IMMERSIVE_ORB');
+    // 「假定居中」公式的特征：用窗口宽度算胶囊几何
+    expect(codeOnly).not.toContain('Math.min(IMMERSIVE');
   });
 
   it('球态写到 body，AI 页据此把页面顶满', () => {

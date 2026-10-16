@@ -59,11 +59,11 @@
                 href="javascript:;"
                 class="nav-link-wrapper"
                 :class="{ active: item.isActive, expanded: item.isExpanded }"
-                @click="toggleSubMenu(item.name)"
+                @click.stop="toggleSubMenu(item.name)"
               >
                 <span>{{ item.label }}</span>
               </a>
-              <ul class="nav-submenu" :class="{ active: item.isExpanded }">
+              <ul class="nav-submenu" :class="{ active: item.isExpanded }" @click.stop>
                 <!-- 有分组的菜单：分组列表 ↔ 三级下钻（带切换动画） -->
                 <template v-if="hasGroupChildren(item)">
                   <Transition name="nav-drill" mode="out-in">
@@ -1154,34 +1154,50 @@ watch(
 
 // ============================================
 // 沉浸形态 FLIP 灵动过渡：球 ↔ 展开胶囊位置连续 morph
-// （fixed 球与流内胶囊无法用 CSS transition 插值，改用 WAAPI：
-//   新态挂载后，从已知旧态几何反演 transform，再过渡回原位）
+// （fixed 球与流内胶囊无法用 CSS transition 插值，改用 WAAPI）
+//
+// 2026-10-16 重写（用户报障「拖动动画不自然」+ 逐帧采样实锤三宗罪）：
+//   ① 旧实现收起方向用「假定居中」几何当 fromRect —— AI 页胶囊带 44px translate，
+//     实测起点错位 88px，胶囊从错误位置起跳；
+//   ② 旧实现终帧写死 `transform: none`，而 AI 页展开态 CSS 常态是 translate(44px,10px)
+//     —— 动画结束瞬间横跳 44px（采样 f8 x=290 → f9 x=334），动画尾巴上点导航项会落空；
+//   ③ CSS transition（width/height 300ms）与 WAAPI（transform 460ms）双轨混战
+//     （实测同帧 8 个动画）：layout 收缩 × transform scale 复合叠加 + borderRadius
+//     keyframe 不随方向翻转（收起时 860px 宽的胶囊先顶成 999px 巨圆角再缩）。
+// 修法 = 真 FLIP：
+//   · flush 'pre' 在 DOM 切换**前**量真实旧几何（fromRect 不再靠 orb 变量/居中公式倒推）；
+//   · 动画窗口挂 .nav-flip-lock 冻结 CSS transition（transition/FLIP 不再抢同一批属性）；
+//   · 终帧 = 新形态的 CSS 常态 transform（含 AI 页 44px 补偿），起帧反演叠加同一偏移
+//     —— 两帧共享 (tx,ty)，插值全程无跳变；
+//   · borderRadius 按方向翻转；opacity 只用于展开进场（收起方向带它会在终态跳变）。
 // ============================================
-/* 球几何的**默认值**只作兜底；真源是 CSS 变量 `--nav-orb-*`（见 style.scoped.css）。
-   AI 页（/ai-chat）会把球挪到横向左栏的品牌 logo 位上 —— 静态球位与 FLIP 起点必须同源，
-   否则展开/收起时球会从错误的位置起跳。 */
-const IMMERSIVE_ORB_FALLBACK = { x: 14, y: 14, size: 52 };
-const IMMERSIVE_CAPSULE = { width: 860, height: 58 };
 const IMMERSIVE_FLIP_MS = 460;
 const IMMERSIVE_FLIP_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
+const FLIP_LOCK_CLASS = 'nav-flip-lock';
 
-const readImmersiveOrb = (el) => {
-  if (!el || typeof window === 'undefined') return IMMERSIVE_ORB_FALLBACK;
-  const cs = getComputedStyle(el);
-  const readPx = (name, fallback) => {
-    const value = parseFloat(cs.getPropertyValue(name));
-    return Number.isFinite(value) ? value : fallback;
-  };
-  return {
-    x: readPx('--nav-orb-x', IMMERSIVE_ORB_FALLBACK.x),
-    y: readPx('--nav-orb-y', IMMERSIVE_ORB_FALLBACK.y),
-    size: readPx('--nav-orb-size', IMMERSIVE_ORB_FALLBACK.size),
-  };
+// CSS 常态 transform → 平移分量（surface 的 CSS 只会写 none / translateY / translate）。
+// computed 值恒为 `none` 或 `matrix(...)`，取 e/f（第 5、6 元）即 tx/ty。
+const readCssTranslate = (el) => {
+  const value = getComputedStyle(el).transform;
+  if (!value || value === 'none') return { tx: 0, ty: 0, css: 'none' };
+  const m = value.match(/matrix\(([^)]+)\)/);
+  if (!m) return { tx: 0, ty: 0, css: 'none' };
+  const parts = m[1].split(',').map(Number);
+  if (parts.length < 6 || parts.some((n) => !Number.isFinite(n))) {
+    return { tx: 0, ty: 0, css: 'none' };
+  }
+  return { tx: parts[4], ty: parts[5], css: value };
+};
+
+const cancelSurfaceAnimations = (el) => {
+  // 同时掐掉 WAAPI FLIP 与 CSS transition（transition 也住在 getAnimations 里），
+  // 被掐的元素瞬回 CSS 终态 —— 连续快速切换时 guarantee fromRect 量到的是稳定几何。
+  el.getAnimations?.().forEach((a) => a.cancel());
 };
 
 watch(
   isExpandedLooking,
-  () => {
+  async (expandedAtTrigger) => {
     if (!immersiveNav.value || typeof window === 'undefined') return;
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) return;
 
@@ -1189,39 +1205,53 @@ watch(
     const bar = document.querySelector('#unified-nav-container.unified-nav');
     if (!surface) return;
 
+    // ① flush 'pre'：DOM 仍是旧形态 —— 掐掉在途动画后量【真实旧几何】
+    cancelSurfaceAnimations(surface);
+    const fromRect = surface.getBoundingClientRect();
+
+    // ② 等 DOM 更新到新形态（class 已切、CSS 已生效）
+    await nextTick();
+    if (isExpandedLooking.value !== expandedAtTrigger) {
+      // nextTick 期间形态又被切回（连续快速点击）：本次作废，等下一次 watch 接管
+      return;
+    }
+    const expanding = expandedAtTrigger;
+    // ③ 冻结 CSS transition，掐掉 class 切换新起的 transition，再量【新形态几何 + CSS 常态 transform】
+    surface.classList.add(FLIP_LOCK_CLASS);
+    cancelSurfaceAnimations(surface);
     const toRect = surface.getBoundingClientRect();
-    const expanding = isExpandedLooking.value;
-    const orb = readImmersiveOrb(surface);
-    const fromRect = expanding
-      ? {
-          x: orb.x,
-          y: orb.y,
-          width: orb.size,
-          height: orb.size,
-        }
-      : {
-          x: (window.innerWidth - Math.min(IMMERSIVE_CAPSULE.width, window.innerWidth - 24)) / 2,
-          y: 10,
-          width: Math.min(IMMERSIVE_CAPSULE.width, window.innerWidth - 24),
-          height: IMMERSIVE_CAPSULE.height,
-        };
+    const { tx, ty, css } = readCssTranslate(surface);
 
     const dx = fromRect.x + fromRect.width / 2 - (toRect.x + toRect.width / 2);
     const dy = fromRect.y + fromRect.height / 2 - (toRect.y + toRect.height / 2);
     const sx = Math.max(fromRect.width / Math.max(toRect.width, 1), 0.02);
     const sy = Math.max(fromRect.height / Math.max(toRect.height, 1), 0.02);
 
-    // FLIP：从旧形态几何反演到新态（fill 默认 none，结束后交还 CSS，避免锁死 hover transition）
-    surface.animate(
-      [
-        {
-          transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`,
-          borderRadius: '999px',
-          opacity: 0.55,
-        },
-        { transform: 'none', borderRadius: '100px', opacity: 1 },
-      ],
-      { duration: IMMERSIVE_FLIP_MS, easing: IMMERSIVE_FLIP_EASING },
+    // 起帧 = 反演（把新形态视觉钉在旧几何位）+ 与终帧共享的 CSS 平移；
+    // toRect（getBoundingClientRect）已含 CSS transform ⇒ dx+tx 恰好抵消，两方向通用。
+    const firstFrame = {
+      transform: `translate(${dx + tx}px, ${dy + ty}px) scale(${sx}, ${sy})`,
+    };
+    const lastFrame = { transform: css };
+    // borderRadius 按方向翻转：球 999px ↔ 胶囊 100px（与两态 CSS 终值一致，结束零跳变）
+    if (expanding) {
+      firstFrame.borderRadius = '999px';
+      firstFrame.opacity = 0.55;
+      lastFrame.borderRadius = '100px';
+      lastFrame.opacity = 1;
+    } else {
+      firstFrame.borderRadius = '100px';
+      lastFrame.borderRadius = '999px';
+    }
+
+    const flip = surface.animate([firstFrame, lastFrame], {
+      duration: IMMERSIVE_FLIP_MS,
+      easing: IMMERSIVE_FLIP_EASING,
+    });
+    // 动画结束（或被下一次 cancel）后摘锁，交还 hover 等常规 transition
+    flip.finished.then(
+      () => surface.classList.remove(FLIP_LOCK_CLASS),
+      () => surface.classList.remove(FLIP_LOCK_CLASS),
     );
     // 白条随形态淡入淡出（球态透明 / 展开态白底）
     bar?.animate([{ opacity: expanding ? 0 : 1 }, { opacity: expanding ? 1 : 0 }], {
@@ -1229,7 +1259,7 @@ watch(
       easing: 'ease',
     });
   },
-  { flush: 'post' },
+  { flush: 'pre' },
 );
 
 // 任意岛唤起时收起移动菜单（岛需要全宽 surface，菜单与岛互斥）
@@ -1254,6 +1284,13 @@ const handleSurfaceTap = () => {
       isBohaiIslandOpen.value ||
       !!islandCustomSlot.component;
     if (islandShowing || isMobileMenuOpen.value) return;
+    // 竖屏沉浸：点球直接开移动菜单（2026-10-16 用户报障「导航栏无法点击切换跳转」）。
+    // 展开胶囊里桌面菜单（.nav-menu）在 ≤768px 是 display:none —— 先展开再点汉堡是
+    // 两步死路，且与「非沉浸竖屏点 mini 胶囊开菜单」的既有行为不一致。
+    if (navMini.value) {
+      toggleMobileMenu();
+      return;
+    }
     immersiveExpanded.value = !immersiveExpanded.value;
     return;
   }
