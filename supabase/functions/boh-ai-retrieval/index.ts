@@ -65,8 +65,12 @@ const RERANK_API_URL = String(
 const EMBEDDING_MODEL_ID = String(
   Deno.env.get('BOH_AI_EMBEDDING_MODEL_ID') || 'BAAI/bge-m3',
 ).trim();
+/* 重排模型：默认 bge-reranker-v2-m3（2026-10-16 从 bce-reranker-base 升级 —— 同为
+   硅基流动免费档、v2 多语言版更强；bce 版保留在 FREE_RERANK_MODELS 里，可随时用
+   env `BOH_AI_RERANK_MODEL_ID` 切回）。
+   ⚠️ 换模型时同步检查：FREE_RERANK_MODELS 白名单 + callRerank 的 bce 专有参数开关。 */
 const RERANK_MODEL_ID = String(
-  Deno.env.get('BOH_AI_RERANK_MODEL_ID') || 'netease-youdao/bce-reranker-base_v1',
+  Deno.env.get('BOH_AI_RERANK_MODEL_ID') || 'BAAI/bge-reranker-v2-m3',
 ).trim();
 const RERANK_ENABLED = String(Deno.env.get('BOH_AI_RERANK_ENABLED') || 'true').trim() === 'true';
 const ALLOW_PAID_RERANK = String(Deno.env.get('BOH_AI_ALLOW_PAID_RERANK') || '').trim() === 'true';
@@ -83,7 +87,12 @@ const SOURCE_TYPES = new Set<SourceType>([
   'knowledge_base',
   'forum_memory',
 ]);
-const FREE_RERANK_MODELS = new Set(['netease-youdao/bce-reranker-base_v1']);
+/* 免费档重排模型白名单（不在名单里的模型会被 `ALLOW_PAID_RERANK` 挡下、重排整体跳过）。
+   2026-10-16：bge-reranker-v2-m3 入选（硅基流动免费档，后台「免费模型库」同步登记）。 */
+const FREE_RERANK_MODELS = new Set([
+  'netease-youdao/bce-reranker-base_v1',
+  'BAAI/bge-reranker-v2-m3',
+]);
 const MAX_SYNC_SOURCES = 80;
 const MAX_MATCH_COUNT = 24;
 const MAX_CHUNK_CHARS = 1800;
@@ -295,8 +304,11 @@ const callRerank = async (query: string, rows: RetrievalRow[]): Promise<RerankRe
       documents,
       return_documents: false,
       top_n: rows.length,
-      max_chunks_per_doc: 64,
-      overlap_tokens: 40,
+      /* ⚠️ `max_chunks_per_doc` / `overlap_tokens` 是 netease-youdao 系（bce）专有参数，
+         bge-reranker 系不支持 ⇒ 按模型前缀条件携带（2026-10-16 随默认模型升级加）。 */
+      ...(RERANK_MODEL_ID.startsWith('netease-youdao/')
+        ? { max_chunks_per_doc: 64, overlap_tokens: 40 }
+        : {}),
     }),
   });
 
