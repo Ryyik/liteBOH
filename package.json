@@ -22,6 +22,7 @@
     "env:doctor:strict": "node scripts/env-doctor.mjs --strict",
     "session:start": "npm run env:doctor && npm run verify:fast",
     "prepush": "node scripts/prepush.mjs",
+    "ci:watch": "gh run watch $(gh run list -L 1 --json databaseId -q '.[0].databaseId') --exit-status",
     "gate:plan": "node scripts/gate-plan.mjs",
     "clean:screenshots": "node scripts/clean-screenshots.mjs",
     "lint": "eslint . --max-warnings 114",
