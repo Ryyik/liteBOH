@@ -1781,6 +1781,7 @@ import { createFilterState } from './composables/useDataAdminFilterState.js';
 import { createMutationsCenter } from './composables/useDataAdminMutations.js';
 import { createLotteryOperationsCenter } from './composables/useLotteryOperations.js';
 import { parseQuickFact, QUICK_FACT_CATEGORY_LABELS } from './composables/quick-fact.js';
+import { createCoreMemoryRow } from '@/utils/api/treehole/core-memory-api.js';
 import { SAVE_STRATEGIES } from './config/saveStrategies.js';
 import { setupDataAdminLifecycle } from './composables/useDataAdminLifecycle.js';
 import {
@@ -6274,17 +6275,12 @@ const handleQuickAddFact = async () => {
       isEditing: false,
       userId: userInfo.value?.id,
     });
-    const { data, error } = await supabase
-      .from(currentConfig.value.table)
-      .insert([dataToSave])
-      .select();
-    if (error) throw error;
+    const createdRow = await createCoreMemoryRow(dataToSave);
     await syncCoreMemoriesIndex();
     quickFactText.value = '';
     clearTabFetchCache('coreMemories');
     await refreshCurrentViewAfterMutation();
     const categoryLabel = QUICK_FACT_CATEGORY_LABELS[parsed.category] || parsed.category;
-    const createdRow = Array.isArray(data) && data[0] ? data[0] : null;
     showToast(
       `已入库 · 归类「${categoryLabel}」· ${parsed.title}`,
       'success',
