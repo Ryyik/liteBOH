@@ -55,6 +55,8 @@
   summary 的「N workers spawned」数的是隔离体不是并发数，别拿它当限流证据。**（详见 vitest.config.js 注释）
 - 新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则 `check:gates-self-test` 列未覆盖；棘轮 baseline 只许下调。
 - 源码守卫：两边过**同一个** `tests/helpers/source.js` 归一函数；否定断言先 `scriptSection()` + `stripComments()`。
+- 数据管理面板表格类 tab：`query-config.js` 六张查询地图缺任一（尤其 `TAB_SELECT_COLUMNS`）＝**静默空列表、连请求都不发**
+  （2026-10-16 活动报名明细事故）⇒ 新增 tab 必须补齐；护栏 `tests/unit/data-admin-tab-config-coverage.test.js`。
 - ⚠️ 「找不到元素就跳过」＝假绿温床 ⇒ 找不到就 **fail**；「模板里有 X」是没牙断言 ⇒ 给产物打 `data-*` 钩子按 id 对齐断言；
   反证**只撤单点**（撤两处会中途崩）。
 - ⚠️ ⛔ 已删：「project-structure 满载抖动 ⇒ 判红先单跑」—— **2026-10-15 已修到根**（maxForks 被静默忽略 + src 双读），这条过时规则不再适用。
