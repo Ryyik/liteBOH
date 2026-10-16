@@ -24,7 +24,7 @@
  *   POST /functions/v1/boh-ai-forum-memory  {"wait":true}  # 同步等待，返回本轮统计
  *   POST .../boh-ai-forum-memory  {"limit":3,"wait":true}  # 只处理 3 条（调试用）
  */
-import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 
 const supabaseUrl = String(Deno.env.get('SUPABASE_URL') || '').trim();

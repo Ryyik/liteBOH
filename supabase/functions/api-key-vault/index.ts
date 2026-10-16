@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 

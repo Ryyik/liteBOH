@@ -23,14 +23,18 @@
  */
 
 import * as webpush from 'jsr:@negrel/webpush@0.5.0';
-import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 
 const supabaseUrl = String(Deno.env.get('SUPABASE_URL') || '').trim();
-const anonKey = String(Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '').trim();
+const anonKey = String(
+  Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '',
+).trim();
 const vapidKeysJson = String(Deno.env.get('VAPID_KEYS_JSON') || '').trim();
-const vapidSubject = String(Deno.env.get('VAPID_SUBJECT') || 'mailto:support@blockofhome.cn').trim();
+const vapidSubject = String(
+  Deno.env.get('VAPID_SUBJECT') || 'mailto:support@blockofhome.cn',
+).trim();
 
 /** 单条订阅最多试几次；超了就置 failed，不再重投 */
 const MAX_ATTEMPTS = 3;
@@ -81,7 +85,9 @@ const SYSTEM_LABEL: Record<string, string> = {
 };
 
 const truncate = (value: unknown, max: number) => {
-  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  const text = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
   return text.length > max ? `${text.slice(0, max)}…` : text;
 };
 
@@ -241,7 +247,8 @@ const deliverOutbox = async (
         .eq('id', outboxId)
         .maybeSingle();
       const attempts = Number(row?.attempts || 0) + 1;
-      await client.from('push_outbox')
+      await client
+        .from('push_outbox')
         .update({
           attempts,
           last_error: truncate(detail, 500),
@@ -284,7 +291,8 @@ const deliverOutboxCore = async (
 
   if (notificationError) throw notificationError;
   if (!notification) {
-    await client.from('push_outbox')
+    await client
+      .from('push_outbox')
       .update({ status: 'failed', attempts, last_error: '通知已被删除' })
       .eq('id', outbox.id);
     return { outcome: 'failed', detail: '通知已被删除' };
@@ -301,7 +309,8 @@ const deliverOutboxCore = async (
   const targets = (subscriptions || []) as SubscriptionRow[];
   if (targets.length === 0) {
     // 没有有效订阅 = 这人还没在任何设备开启推送，不是错误，不重投
-    await client.from('push_outbox')
+    await client
+      .from('push_outbox')
       .update({ status: 'skipped', attempts, last_error: null })
       .eq('id', outbox.id);
     return { outcome: 'skipped' };
@@ -314,53 +323,68 @@ const deliverOutboxCore = async (
   let delivered = 0;
   const failures: string[] = [];
 
-  await Promise.all(targets.map(async (sub) => {
-    try {
-      const subscriber = appServer.subscribe({
-        endpoint: sub.endpoint,
-        keys: { p256dh: sub.p256dh, auth: sub.auth },
-      });
-      await subscriber.pushTextMessage(payload, options);
-      delivered += 1;
-      await client.from('push_subscriptions')
-        .update({ last_seen_at: new Date().toISOString(), failure_count: 0 })
-        .eq('id', sub.id);
-    } catch (error) {
-      const status = error instanceof webpush.PushMessageError ? error.response.status : 0;
-      failures.push(`${sub.id}:${status || (error instanceof Error ? error.message : String(error))}`);
-
-      // 404 / 410 表示这个端点被浏览器或推送服务永久回收了，直接停用
-      const isGone = status === 404 || status === 410
-        || (error instanceof webpush.PushMessageError && error.isGone());
-      if (isGone) {
-        await client.from('push_subscriptions')
-          .update({ disabled_at: new Date().toISOString() })
-          .eq('id', sub.id);
-      } else {
-        const { data: current } = await client
+  await Promise.all(
+    targets.map(async (sub) => {
+      try {
+        const subscriber = appServer.subscribe({
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.p256dh, auth: sub.auth },
+        });
+        await subscriber.pushTextMessage(payload, options);
+        delivered += 1;
+        await client
           .from('push_subscriptions')
-          .select('failure_count')
-          .eq('id', sub.id)
-          .maybeSingle<{ failure_count: number }>();
-        const nextFailures = Number(current?.failure_count || 0) + 1;
-        const patch: Record<string, unknown> = { failure_count: nextFailures };
-        if (nextFailures >= MAX_SUB_FAILURES) patch.disabled_at = new Date().toISOString();
-        await client.from('push_subscriptions').update(patch).eq('id', sub.id);
+          .update({ last_seen_at: new Date().toISOString(), failure_count: 0 })
+          .eq('id', sub.id);
+      } catch (error) {
+        const status = error instanceof webpush.PushMessageError ? error.response.status : 0;
+        failures.push(
+          `${sub.id}:${status || (error instanceof Error ? error.message : String(error))}`,
+        );
+
+        // 404 / 410 表示这个端点被浏览器或推送服务永久回收了，直接停用
+        const isGone =
+          status === 404 ||
+          status === 410 ||
+          (error instanceof webpush.PushMessageError && error.isGone());
+        if (isGone) {
+          await client
+            .from('push_subscriptions')
+            .update({ disabled_at: new Date().toISOString() })
+            .eq('id', sub.id);
+        } else {
+          const { data: current } = await client
+            .from('push_subscriptions')
+            .select('failure_count')
+            .eq('id', sub.id)
+            .maybeSingle<{ failure_count: number }>();
+          const nextFailures = Number(current?.failure_count || 0) + 1;
+          const patch: Record<string, unknown> = { failure_count: nextFailures };
+          if (nextFailures >= MAX_SUB_FAILURES) patch.disabled_at = new Date().toISOString();
+          await client.from('push_subscriptions').update(patch).eq('id', sub.id);
+        }
       }
-    }
-  }));
+    }),
+  );
 
   const lastError = failures.length ? truncate(failures.join(' | '), 500) : null;
 
   if (delivered > 0) {
-    await client.from('push_outbox')
-      .update({ status: 'sent', attempts, sent_at: new Date().toISOString(), last_error: lastError })
+    await client
+      .from('push_outbox')
+      .update({
+        status: 'sent',
+        attempts,
+        sent_at: new Date().toISOString(),
+        last_error: lastError,
+      })
       .eq('id', outbox.id);
     return { outcome: 'sent', delivered, detail: lastError || undefined };
   }
 
   const exhausted = attempts >= MAX_ATTEMPTS;
-  await client.from('push_outbox')
+  await client
+    .from('push_outbox')
     .update({ status: exhausted ? 'failed' : 'pending', attempts, last_error: lastError })
     .eq('id', outbox.id);
 
@@ -383,12 +407,17 @@ const verifyUser = async (request: Request) => {
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: buildCorsHeaders(origin) });
+  if (request.method === 'OPTIONS')
+    return new Response('ok', { headers: buildCorsHeaders(origin) });
   if (request.method !== 'GET' && request.method !== 'POST') {
     return jsonResponse({ ok: false, code: 'METHOD_NOT_ALLOWED' }, 405, origin);
   }
   if (!supabaseUrl) {
-    return jsonResponse({ ok: false, code: 'CONFIG_MISSING', message: '服务暂不可用' }, 500, origin);
+    return jsonResponse(
+      { ok: false, code: 'CONFIG_MISSING', message: '服务暂不可用' },
+      500,
+      origin,
+    );
   }
 
   const url = new URL(request.url);
@@ -401,26 +430,43 @@ Deno.serve(async (request) => {
       return jsonResponse({ ok: true, enabled: false, vapidPublicKey: null }, 200, origin);
     }
     try {
-      return jsonResponse({ ok: true, enabled: true, vapidPublicKey: await getPublicKey() }, 200, origin);
+      return jsonResponse(
+        { ok: true, enabled: true, vapidPublicKey: await getPublicKey() },
+        200,
+        origin,
+      );
     } catch (error) {
-      return jsonResponse({
-        ok: false,
-        code: 'VAPID_INVALID',
-        message: error instanceof Error ? error.message : '密钥不可用',
-      }, 500, origin);
+      return jsonResponse(
+        {
+          ok: false,
+          code: 'VAPID_INVALID',
+          message: error instanceof Error ? error.message : '密钥不可用',
+        },
+        500,
+        origin,
+      );
     }
   }
 
   if (!anonKey) {
-    return jsonResponse({ ok: false, code: 'CONFIG_MISSING', message: '服务暂不可用' }, 500, origin);
+    return jsonResponse(
+      { ok: false, code: 'CONFIG_MISSING', message: '服务暂不可用' },
+      500,
+      origin,
+    );
   }
 
   // ---------- 用户通道：给自己发测试推送 ----------
   if (action === 'test') {
     const auth = await verifyUser(request);
-    if (!auth.ok) return jsonResponse({ ok: false, code: 'UNAUTHORIZED', message: auth.message }, 401, origin);
+    if (!auth.ok)
+      return jsonResponse({ ok: false, code: 'UNAUTHORIZED', message: auth.message }, 401, origin);
     if (!vapidKeysJson) {
-      return jsonResponse({ ok: false, code: 'PUSH_NOT_CONFIGURED', message: '推送服务尚未配置' }, 503, origin);
+      return jsonResponse(
+        { ok: false, code: 'PUSH_NOT_CONFIGURED', message: '推送服务尚未配置' },
+        503,
+        origin,
+      );
     }
 
     const client = createServiceClient();
@@ -431,10 +477,16 @@ Deno.serve(async (request) => {
       .is('disabled_at', null);
     const targets = (subscriptions || []) as SubscriptionRow[];
     if (targets.length === 0) {
-      return jsonResponse({ ok: false, code: 'NO_SUBSCRIPTION', message: '当前设备还没有开启通知' }, 400, origin);
+      return jsonResponse(
+        { ok: false, code: 'NO_SUBSCRIPTION', message: '当前设备还没有开启通知' },
+        400,
+        origin,
+      );
     }
 
-    const badgeRes = await client.rpc('boh_count_unread_notifications', { p_recipient_id: auth.userId });
+    const badgeRes = await client.rpc('boh_count_unread_notifications', {
+      p_recipient_id: auth.userId,
+    });
     const testTitle = '方块之家 · 通知已开启';
     const testBody = '这是一条测试消息，后续有新的互动会这样提醒你。';
     const testBadge = Number((badgeRes as { data?: number | string | null }).data ?? 0) || 0;
@@ -458,25 +510,33 @@ Deno.serve(async (request) => {
     const appServer = await getAppServer();
     let delivered = 0;
     const errors: string[] = [];
-    await Promise.all(targets.map(async (sub) => {
-      try {
-        await appServer.subscribe({
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth },
-        }).pushTextMessage(payload, { urgency: webpush.Urgency.High, ttl: 600 });
-        delivered += 1;
-      } catch (error) {
-        errors.push(error instanceof Error ? error.message : String(error));
-      }
-    }));
+    await Promise.all(
+      targets.map(async (sub) => {
+        try {
+          await appServer
+            .subscribe({
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            })
+            .pushTextMessage(payload, { urgency: webpush.Urgency.High, ttl: 600 });
+          delivered += 1;
+        } catch (error) {
+          errors.push(error instanceof Error ? error.message : String(error));
+        }
+      }),
+    );
 
-    return jsonResponse({
-      ok: delivered > 0,
-      delivered,
-      total: targets.length,
-      message: delivered > 0 ? '测试通知已发送' : '发送失败',
-      errors: errors.length ? errors : undefined,
-    }, delivered > 0 ? 200 : 502, origin);
+    return jsonResponse(
+      {
+        ok: delivered > 0,
+        delivered,
+        total: targets.length,
+        message: delivered > 0 ? '测试通知已发送' : '发送失败',
+        errors: errors.length ? errors : undefined,
+      },
+      delivered > 0 ? 200 : 502,
+      origin,
+    );
   }
 
   // ---------- 服务端通道：需专用投递凭证 Bearer ----------
@@ -491,14 +551,18 @@ Deno.serve(async (request) => {
   const serviceRoleKey = String(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
   const presentedAuth = String(request.headers.get('authorization') || '');
   const isServiceCall = Boolean(
-    (dispatchKey && presentedAuth === `Bearer ${dispatchKey}`)
-    || (serviceRoleKey && presentedAuth === `Bearer ${serviceRoleKey}`),
+    (dispatchKey && presentedAuth === `Bearer ${dispatchKey}`) ||
+    (serviceRoleKey && presentedAuth === `Bearer ${serviceRoleKey}`),
   );
   if (!isServiceCall) {
     return jsonResponse({ ok: false, code: 'UNAUTHORIZED', message: '无权调用' }, 401, origin);
   }
   if (!vapidKeysJson) {
-    return jsonResponse({ ok: false, code: 'PUSH_NOT_CONFIGURED', message: '推送服务尚未配置' }, 503, origin);
+    return jsonResponse(
+      { ok: false, code: 'PUSH_NOT_CONFIGURED', message: '推送服务尚未配置' },
+      503,
+      origin,
+    );
   }
 
   const client = createServiceClient();
@@ -506,8 +570,10 @@ Deno.serve(async (request) => {
   if (action === 'send') {
     const outboxId = String(body?.outboxId || '').trim();
     if (!outboxId) return jsonResponse({ ok: false, code: 'OUTBOX_ID_REQUIRED' }, 400, origin);
-    const result = await deliverOutbox(client, outboxId)
-      .catch((error) => ({ outcome: 'failed' as SendOutcome, detail: error instanceof Error ? error.message : String(error) }));
+    const result = await deliverOutbox(client, outboxId).catch((error) => ({
+      outcome: 'failed' as SendOutcome,
+      detail: error instanceof Error ? error.message : String(error),
+    }));
     return jsonResponse({ ok: result.outcome !== 'failed', ...result }, 200, origin);
   }
 
@@ -531,14 +597,20 @@ Deno.serve(async (request) => {
     const ids = (pending || []).map((row: { id: string }) => row.id);
 
     // 批量补投放到后台执行：不占 pg_net 的 5s 等待，结果全部落在 push_outbox 里可查
-    EdgeRuntime.waitUntil((async () => {
-      for (const id of ids) {
-        await deliverOutbox(client, id).catch(() => undefined);
-      }
-    })());
+    EdgeRuntime.waitUntil(
+      (async () => {
+        for (const id of ids) {
+          await deliverOutbox(client, id).catch(() => undefined);
+        }
+      })(),
+    );
 
     return jsonResponse({ ok: true, accepted: ids.length }, 202, origin);
   }
 
-  return jsonResponse({ ok: false, code: 'UNKNOWN_ACTION', message: `未知动作：${action}` }, 400, origin);
+  return jsonResponse(
+    { ok: false, code: 'UNKNOWN_ACTION', message: `未知动作：${action}` },
+    400,
+    origin,
+  );
 });

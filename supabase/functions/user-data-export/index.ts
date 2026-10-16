@@ -21,7 +21,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
-import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 // jszip exposes its constructor as the package default export in Deno's npm
 // compatibility layer. A named import makes the function fail during module
 // initialization before it can handle any request.
@@ -46,10 +46,7 @@ const EXPORT_CREATE_RATE_LIMIT_WINDOW_MS = 3_600_000;
 
 // M1: 图片下载域名白名单（防 SSRF）。仅允许可信 CDN 与当前 Supabase 项目 host
 // （avatars 等 storage 直链）。新增自托管图片域名时，在下方数组追加小写 hostname（不含协议与端口）。
-const ALLOWED_IMAGE_HOSTS = new Set([
-  'res.cloudinary.com',
-  'cdn.blockofhome.cn',
-]);
+const ALLOWED_IMAGE_HOSTS = new Set(['res.cloudinary.com', 'cdn.blockofhome.cn']);
 try {
   const supabaseHost = new URL(Deno.env.get('SUPABASE_URL') || '').hostname.toLowerCase();
   if (supabaseHost) ALLOWED_IMAGE_HOSTS.add(supabaseHost);
@@ -68,31 +65,121 @@ interface TableSpec {
 
 const TABLE_SPECS: TableSpec[] = [
   { table: 'user_addresses', path: 'profile/addresses.json', column: 'user_id', label: '收货地址' },
-  { table: 'user_follows', path: 'profile/following.json', column: 'follower_id', label: '关注列表' },
-  { table: 'user_follows', path: 'profile/followers.json', column: 'following_id', label: '粉丝列表' },
+  {
+    table: 'user_follows',
+    path: 'profile/following.json',
+    column: 'follower_id',
+    label: '关注列表',
+  },
+  {
+    table: 'user_follows',
+    path: 'profile/followers.json',
+    column: 'following_id',
+    label: '粉丝列表',
+  },
   { table: 'posts', path: 'forum/posts.json', column: 'author_id', label: '论坛帖子' },
-  { table: 'forum_post_images', path: 'forum/post_images.json', column: 'user_id', label: '帖子图片记录' },
+  {
+    table: 'forum_post_images',
+    path: 'forum/post_images.json',
+    column: 'user_id',
+    label: '帖子图片记录',
+  },
   { table: 'forum_post_drafts', path: 'forum/drafts.json', column: 'user_id', label: '帖子草稿' },
   { table: 'comments', path: 'forum/comments.json', column: 'author_id', label: '论坛评论' },
   { table: 'likes', path: 'forum/likes.json', column: 'user_id', label: '帖子点赞' },
-  { table: 'forum_weekly_checkins', path: 'forum/checkins.json', column: 'user_id', label: '每周签到' },
-  { table: 'boh_cloud_entries', path: 'cloud/entries.json', column: 'user_id', label: 'Cloud+ 条目' },
-  { table: 'boh_cloud_share_channels', path: 'cloud/share_channels.json', column: 'user_id', label: 'Cloud+ 分享链接' },
-  { table: 'boh_treehole_spaces', path: 'treehole/space.json', column: 'user_id', label: '树洞空间' },
-  { table: 'boh_treehole_memories', path: 'treehole/memories.json', column: 'user_id', label: '树洞记忆' },
-  { table: 'user_impressions', path: 'interactions/impressions_authored.json', column: 'author_id', label: '发出的印象' },
-  { table: 'user_impressions', path: 'interactions/impressions_received.json', column: 'target_id', label: '收到的印象' },
-  { table: 'block_wall_items', path: 'interactions/block_wall_items.json', column: 'author_id', label: '留言墙' },
-  { table: 'notifications', path: 'interactions/notifications.json', column: 'recipient_id', label: '站内通知' },
-  { table: 'lottery_entries', path: 'records/lottery_entries.json', column: 'user_id', label: '抽奖报名' },
+  {
+    table: 'forum_weekly_checkins',
+    path: 'forum/checkins.json',
+    column: 'user_id',
+    label: '每周签到',
+  },
+  {
+    table: 'boh_cloud_entries',
+    path: 'cloud/entries.json',
+    column: 'user_id',
+    label: 'Cloud+ 条目',
+  },
+  {
+    table: 'boh_cloud_share_channels',
+    path: 'cloud/share_channels.json',
+    column: 'user_id',
+    label: 'Cloud+ 分享链接',
+  },
+  {
+    table: 'boh_treehole_spaces',
+    path: 'treehole/space.json',
+    column: 'user_id',
+    label: '树洞空间',
+  },
+  {
+    table: 'boh_treehole_memories',
+    path: 'treehole/memories.json',
+    column: 'user_id',
+    label: '树洞记忆',
+  },
+  {
+    table: 'user_impressions',
+    path: 'interactions/impressions_authored.json',
+    column: 'author_id',
+    label: '发出的印象',
+  },
+  {
+    table: 'user_impressions',
+    path: 'interactions/impressions_received.json',
+    column: 'target_id',
+    label: '收到的印象',
+  },
+  {
+    table: 'block_wall_items',
+    path: 'interactions/block_wall_items.json',
+    column: 'author_id',
+    label: '留言墙',
+  },
+  {
+    table: 'notifications',
+    path: 'interactions/notifications.json',
+    column: 'recipient_id',
+    label: '站内通知',
+  },
+  {
+    table: 'lottery_entries',
+    path: 'records/lottery_entries.json',
+    column: 'user_id',
+    label: '抽奖报名',
+  },
   { table: 'user_gifts', path: 'records/gifts.json', column: 'user_id', label: '礼物记录' },
-  { table: 'points_transactions', path: 'records/points_transactions.json', column: 'user_id', label: '积分流水' },
-  { table: 'poster_requests', path: 'records/poster_requests.json', column: 'user_id', label: '海报申请' },
+  {
+    table: 'points_transactions',
+    path: 'records/points_transactions.json',
+    column: 'user_id',
+    label: '积分流水',
+  },
+  {
+    table: 'poster_requests',
+    path: 'records/poster_requests.json',
+    column: 'user_id',
+    label: '海报申请',
+  },
   // BOH Health 四表：健康数据已云同步，必须纳入用户数据导出（可携权）
   { table: 'health_profiles', path: 'health/profile.json', column: 'user_id', label: '健康档案' },
-  { table: 'health_weight_logs', path: 'health/weight_logs.json', column: 'user_id', label: '体重记录' },
-  { table: 'health_daily_logs', path: 'health/daily_logs.json', column: 'user_id', label: '每日健康日志' },
-  { table: 'health_vault_records', path: 'health/vault_records.json', column: 'user_id', label: '体检报告库' },
+  {
+    table: 'health_weight_logs',
+    path: 'health/weight_logs.json',
+    column: 'user_id',
+    label: '体重记录',
+  },
+  {
+    table: 'health_daily_logs',
+    path: 'health/daily_logs.json',
+    column: 'user_id',
+    label: '每日健康日志',
+  },
+  {
+    table: 'health_vault_records',
+    path: 'health/vault_records.json',
+    column: 'user_id',
+    label: '体检报告库',
+  },
   // messages 表可能已被移除，查询失败时静默跳过并记录到 manifest
   { table: 'messages', path: 'records/messages.json', column: null, orFilter: true, label: '私信' },
 ];
@@ -105,12 +192,13 @@ class CancelledError extends Error {
 
 const nowIso = () => new Date().toISOString();
 
-const escapeHtml = (value: unknown) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+const escapeHtml = (value: unknown) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const createServiceClient = () => {
   const url = Deno.env.get('SUPABASE_URL') || '';
@@ -125,7 +213,9 @@ const createServiceClient = () => {
 // which makes Storage reject them with "Invalid Compact JWS". Keep the key in
 // `apikey` and only send a Bearer header when it is an actual JWT.
 const getStorageHeaders = (token: string, contentType?: string) => {
-  const anonKey = String(Deno.env.get('SUPABASE_ANON_KEY') || '').trim().replace(/^['"]|['"]$/g, '');
+  const anonKey = String(Deno.env.get('SUPABASE_ANON_KEY') || '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '');
   const headers: Record<string, string> = { apikey: anonKey, Authorization: `Bearer ${token}` };
   if (contentType) headers['Content-Type'] = contentType;
   return headers;
@@ -160,8 +250,7 @@ const createExportSignedUrl = async (path: string, expiresIn: number, token: str
 const verifyUser = async (
   request: Request,
 ): Promise<
-  | { ok: true; userId: string; token: string }
-  | { ok: false; status: number; message: string }
+  { ok: true; userId: string; token: string } | { ok: false; status: number; message: string }
 > => {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
@@ -196,7 +285,10 @@ const cleanupExpiredJobs = async (svc: ReturnType<typeof createServiceClient>, u
     .lt('expires_at', nowIso());
   for (const job of expired ?? []) {
     if (job.file_path) {
-      await svc.storage.from(EXPORT_BUCKET).remove([job.file_path]).catch(() => {});
+      await svc.storage
+        .from(EXPORT_BUCKET)
+        .remove([job.file_path])
+        .catch(() => {});
     }
     await svc
       .from('user_data_export_jobs')
@@ -216,7 +308,12 @@ const markStaleJobsFailed = async (svc: ReturnType<typeof createServiceClient>, 
   for (const job of stale ?? []) {
     await svc
       .from('user_data_export_jobs')
-      .update({ status: 'failed', stage: '导出中断', error: '导出任务意外中断，请重新申请', completed_at: nowIso() })
+      .update({
+        status: 'failed',
+        stage: '导出中断',
+        error: '导出任务意外中断，请重新申请',
+        completed_at: nowIso(),
+      })
       .eq('id', job.id);
   }
 };
@@ -353,7 +450,10 @@ const runExport = async (userId: string, jobId: string, storageToken: string) =>
       if (rows.length >= ROW_LIMIT) {
         truncatedTables.push(spec.label);
       }
-      await writeProgress(5 + ((i + 1) / TABLE_SPECS.length) * 20, `正在收集数据（${i + 1}/${TABLE_SPECS.length}）`);
+      await writeProgress(
+        5 + ((i + 1) / TABLE_SPECS.length) * 20,
+        `正在收集数据（${i + 1}/${TABLE_SPECS.length}）`,
+      );
     }
 
     await checkCancelled();
@@ -371,7 +471,10 @@ const runExport = async (userId: string, jobId: string, storageToken: string) =>
         return;
       }
       seenUrls.add(url);
-      images.push({ url, path: `${folder}/${prefix}_${String(images.length + 1).padStart(3, '0')}${extOf(url)}` });
+      images.push({
+        url,
+        path: `${folder}/${prefix}_${String(images.length + 1).padStart(3, '0')}${extOf(url)}`,
+      });
     };
 
     // 优先级：头像 / 背景图 → Cloud+ → 帖子图 → 留言墙
@@ -386,12 +489,16 @@ const runExport = async (userId: string, jobId: string, storageToken: string) =>
       collectImageUrlsFromJson(row.content_blocks, inner);
       for (const url of inner) pushImage(url, 'cloud/images', 'cloud');
     }
-    const postImageRows = (jsonFiles.get('forum/post_images.json') ?? []) as Array<Record<string, unknown>>;
+    const postImageRows = (jsonFiles.get('forum/post_images.json') ?? []) as Array<
+      Record<string, unknown>
+    >;
     for (const row of postImageRows) {
       const postId = typeof row.post_id === 'string' ? row.post_id.slice(0, 8) : 'unknown';
       pushImage(row.url, `forum/images/${postId}`, 'img');
     }
-    const wallRows = (jsonFiles.get('interactions/block_wall_items.json') ?? []) as Array<Record<string, unknown>>;
+    const wallRows = (jsonFiles.get('interactions/block_wall_items.json') ?? []) as Array<
+      Record<string, unknown>
+    >;
     for (const row of wallRows) {
       pushImage(row.image_url, 'interactions/block_wall_images', 'wall');
     }
@@ -417,7 +524,9 @@ const runExport = async (userId: string, jobId: string, storageToken: string) =>
           return;
         }
         try {
-          const res = await fetch(item.url, { signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS) });
+          const res = await fetch(item.url, {
+            signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS),
+          });
           if (res.ok) {
             const buf = new Uint8Array(await res.arrayBuffer());
             if (totalBytes + buf.byteLength <= MAX_TOTAL_IMAGE_BYTES) {
@@ -436,7 +545,9 @@ const runExport = async (userId: string, jobId: string, storageToken: string) =>
         if (doneCount % 5 === 0 || queue.length === 0) {
           await writeProgress(
             25 + (discoveredImageCount === 0 ? 63 : (doneCount / discoveredImageCount) * 63),
-            discoveredImageCount === 0 ? '正在整理数据' : `正在下载图片（${doneCount}/${discoveredImageCount}）`,
+            discoveredImageCount === 0
+              ? '正在整理数据'
+              : `正在下载图片（${doneCount}/${discoveredImageCount}）`,
           );
         }
         if (doneCount % 25 === 0) await checkCancelled();
@@ -480,9 +591,13 @@ const runExport = async (userId: string, jobId: string, storageToken: string) =>
       '- interactions/：印象、留言墙、通知',
       '- records/：抽奖报名、礼物、积分流水、海报申请、私信（若存在）',
       '',
-      truncated ? '注意：图片数量或体积超出上限，部分图片未包含在本次导出中，详见 manifest.json。' : '',
+      truncated
+        ? '注意：图片数量或体积超出上限，部分图片未包含在本次导出中，详见 manifest.json。'
+        : '',
       '数据截止至生成时间。如需再次导出，请在设置中重新申请（每 7 天一次）。',
-    ].filter(Boolean).join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     // L4: 已成功下载的图片 URL → ZIP 内相对路径，供预览页引用本地图片
     const resolvedImages = new Map<string, string>();
@@ -1164,7 +1279,6 @@ themeBtn.addEventListener('click',function(){
 </body>
 </html>`;
 
-
     zip.file(`${root}/index.html`, previewHtml);
     zip.file(`${root}/README.txt`, readme);
     zip.file(`${root}/manifest.json`, JSON.stringify(manifest, null, 2));
@@ -1196,10 +1310,7 @@ themeBtn.addEventListener('click',function(){
 
     // 上传期间保持心跳，避免长传输被 stale 检测误判为中断
     const heartbeat = setInterval(() => {
-      void svc
-        .from('user_data_export_jobs')
-        .update({ last_active_at: nowIso() })
-        .eq('id', jobId);
+      void svc.from('user_data_export_jobs').update({ last_active_at: nowIso() }).eq('id', jobId);
     }, 45_000);
 
     try {
@@ -1213,7 +1324,10 @@ themeBtn.addEventListener('click',function(){
           const uploadPromise = uploadExportFile(filePath, bytes, storageToken);
           // 定时器在竞速分出胜负后清理，避免残留 reject 触发 unhandled rejection
           const timeoutPromise = new Promise<never>((_, reject) => {
-            timeoutTimer = setTimeout(() => reject(new Error(`上传超过 ${UPLOAD_TIMEOUT_MS / 1000}s 未完成`)), UPLOAD_TIMEOUT_MS);
+            timeoutTimer = setTimeout(
+              () => reject(new Error(`上传超过 ${UPLOAD_TIMEOUT_MS / 1000}s 未完成`)),
+              UPLOAD_TIMEOUT_MS,
+            );
           });
           await Promise.race([uploadPromise, timeoutPromise]);
           uploaded = true;
@@ -1367,8 +1481,13 @@ const handleCreate = async (userId: string, storageToken: string, origin: string
 
   // 后台异步执行；EdgeRuntime.waitUntil 保证响应返回后继续运行
   const processing = runExport(userId, job.id, storageToken);
-  if (typeof (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime !== 'undefined') {
-    (globalThis as { EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime.waitUntil(processing);
+  if (
+    typeof (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } })
+      .EdgeRuntime !== 'undefined'
+  ) {
+    (
+      globalThis as { EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } }
+    ).EdgeRuntime.waitUntil(processing);
   } else {
     void processing;
   }
@@ -1419,7 +1538,12 @@ const handleCancel = async (userId: string, origin: string | null) => {
   }
   await svc
     .from('user_data_export_jobs')
-    .update({ status: 'cancelled', stage: '已取消', completed_at: nowIso(), last_active_at: nowIso() })
+    .update({
+      status: 'cancelled',
+      stage: '已取消',
+      completed_at: nowIso(),
+      last_active_at: nowIso(),
+    })
     .eq('id', job.id)
     .eq('status', 'processing');
   return jsonResponse({ ok: true }, 200, origin);

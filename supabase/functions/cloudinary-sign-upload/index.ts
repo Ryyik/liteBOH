@@ -1,5 +1,5 @@
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
-import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 import {
   resolveUploadMode,
@@ -74,7 +74,12 @@ const verifyAuth = async (request: Request): Promise<AuthenticatedUser | AuthErr
 
   const { data, error } = await anonClient.auth.getUser(token);
   if (error || !data?.user?.id) {
-    return { ok: false, status: 401, code: 'INVALID_SESSION', message: '登录状态已失效，请重新登录。' };
+    return {
+      ok: false,
+      status: 401,
+      code: 'INVALID_SESSION',
+      message: '登录状态已失效，请重新登录。',
+    };
   }
 
   return { ok: true, userId: data.user.id, token };
@@ -95,7 +100,10 @@ const assertUploadAllowed = async (token: string, source: string) => {
   });
 
   const { error } = await userClient.rpc('assert_cloudinary_upload_allowed', {
-    p_source: String(source || 'generic').trim().slice(0, 40) || 'generic',
+    p_source:
+      String(source || 'generic')
+        .trim()
+        .slice(0, 40) || 'generic',
   });
 
   return error;
@@ -109,7 +117,11 @@ Deno.serve(async (request) => {
   }
 
   if (request.method !== 'POST') {
-    return jsonResponse({ ok: false, code: 'METHOD_NOT_ALLOWED', message: '仅支持 POST 请求。' }, 405, origin);
+    return jsonResponse(
+      { ok: false, code: 'METHOD_NOT_ALLOWED', message: '仅支持 POST 请求。' },
+      405,
+      origin,
+    );
   }
 
   // 按请求读取，使 secrets 变更立即生效（见 readCloudinaryEnv 注释）
@@ -118,7 +130,11 @@ Deno.serve(async (request) => {
   try {
     const auth = await verifyAuth(request);
     if (!auth.ok) {
-      return jsonResponse({ ok: false, code: auth.code, message: auth.message }, auth.status, origin);
+      return jsonResponse(
+        { ok: false, code: auth.code, message: auth.message },
+        auth.status,
+        origin,
+      );
     }
 
     const rateCheck = await checkRateLimitDb(
@@ -128,7 +144,11 @@ Deno.serve(async (request) => {
     );
     if (!rateCheck.ok) {
       return jsonResponse(
-        { ok: false, code: 'RATE_LIMITED', message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。` },
+        {
+          ok: false,
+          code: 'RATE_LIMITED',
+          message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。`,
+        },
         429,
         origin,
       );
@@ -147,7 +167,11 @@ Deno.serve(async (request) => {
     try {
       folder = sanitizeCloudinaryFolder(body?.folder, env.defaultFolder);
     } catch {
-      return jsonResponse({ ok: false, code: 'INVALID_FOLDER', message: '上传目录不合法。' }, 400, origin);
+      return jsonResponse(
+        { ok: false, code: 'INVALID_FOLDER', message: '上传目录不合法。' },
+        400,
+        origin,
+      );
     }
 
     // 服务端额度预检（原客户端预检可被绕过；这里是真正的闸）
@@ -156,7 +180,8 @@ Deno.serve(async (request) => {
       const raw = String(allowanceError.message || '');
       const segments = raw.split(':');
       const code = segments.length >= 3 ? segments[1] : 'UPLOAD_NOT_ALLOWED';
-      const message = segments.length >= 3 ? segments.slice(2).join(':') : '当前不可上传图片，请稍后再试。';
+      const message =
+        segments.length >= 3 ? segments.slice(2).join(':') : '当前不可上传图片，请稍后再试。';
       const retryAfter = Number(allowanceError.hint || 0);
 
       return jsonResponse(
@@ -184,7 +209,8 @@ Deno.serve(async (request) => {
         {
           ok: false,
           code: 'ENV_MISSING',
-          message: '签名服务未配置：需要 CLOUDINARY_CLOUD_NAME / CLOUDINARY_UPLOAD_PRESET / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET。',
+          message:
+            '签名服务未配置：需要 CLOUDINARY_CLOUD_NAME / CLOUDINARY_UPLOAD_PRESET / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET。',
         },
         500,
         origin,

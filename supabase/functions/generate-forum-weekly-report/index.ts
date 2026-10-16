@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 
 const supabaseUrl = String(Deno.env.get('SUPABASE_URL') || '').trim();
@@ -11,20 +11,31 @@ const client = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
 });
 
-const bearer = (request: Request) => String(request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
-const safeText = (value: unknown, max = 5000) => String(value || '').trim().slice(0, max);
+const bearer = (request: Request) =>
+  String(request.headers.get('authorization') || '')
+    .replace(/^Bearer\s+/i, '')
+    .trim();
+const safeText = (value: unknown, max = 5000) =>
+  String(value || '')
+    .trim()
+    .slice(0, max);
 const isoDate = (date: Date) => date.toISOString().slice(0, 10);
 
 const getShanghaiDate = () => {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).formatToParts(new Date());
   const value = (type: string) => parts.find((part) => part.type === type)?.value || '';
   return `${value('year')}-${value('month')}-${value('day')}`;
 };
 
 const getPreviousWeek = (input?: string) => {
-  const anchorDate = /^\d{4}-\d{2}-\d{2}$/.test(String(input || '')) ? String(input) : getShanghaiDate();
+  const anchorDate = /^\d{4}-\d{2}-\d{2}$/.test(String(input || ''))
+    ? String(input)
+    : getShanghaiDate();
   // Use UTC noon only as a date arithmetic carrier; the source date is Shanghai-local.
   const anchor = new Date(`${anchorDate}T12:00:00Z`);
   const day = anchor.getUTCDay();
@@ -40,7 +51,8 @@ const base64ToBytes = (value: string) => {
 };
 
 const decryptSecret = async (payload: string) => {
-  if (!vaultMasterKey || vaultMasterKey.length < 24) throw new Error('未配置 API_KEY_VAULT_MASTER_KEY。');
+  if (!vaultMasterKey || vaultMasterKey.length < 24)
+    throw new Error('未配置 API_KEY_VAULT_MASTER_KEY。');
   const [rawIv, rawCiphertext] = String(payload || '').split('.');
   if (!rawIv || !rawCiphertext) throw new Error('API Key 密文格式无效。');
   const digest = await crypto.subtle.digest('SHA-256', encoder.encode(vaultMasterKey));
@@ -54,7 +66,9 @@ const decryptSecret = async (payload: string) => {
 };
 
 const parseJson = (text: string) => {
-  const clean = String(text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const clean = String(text || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .trim();
   const fenced = clean.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1] || clean;
   const start = fenced.indexOf('{');
   const end = fenced.lastIndexOf('}');
@@ -62,9 +76,15 @@ const parseJson = (text: string) => {
   return JSON.parse(fenced.slice(start, end + 1));
 };
 
-const normalizeArray = (value: unknown, max: number) => Array.isArray(value) ? value.slice(0, max) : [];
+const normalizeArray = (value: unknown, max: number) =>
+  Array.isArray(value) ? value.slice(0, max) : [];
 
-const callProvider = async (provider: string, apiKey: string, apiUrl: string, payload: Record<string, unknown>) => {
+const callProvider = async (
+  provider: string,
+  apiKey: string,
+  apiUrl: string,
+  payload: Record<string, unknown>,
+) => {
   const defaults: Record<string, string> = {
     siliconflow: 'https://api.siliconflow.cn/v1/chat/completions',
     zhipu: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
@@ -88,7 +108,10 @@ const callProvider = async (provider: string, apiKey: string, apiUrl: string, pa
     throw error;
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(safeText(data?.error?.message || data?.message || `AI 请求失败 (${response.status})`, 300));
+  if (!response.ok)
+    throw new Error(
+      safeText(data?.error?.message || data?.message || `AI 请求失败 (${response.status})`, 300),
+    );
   return safeText(data?.choices?.[0]?.message?.content, 30000);
 };
 
@@ -99,21 +122,29 @@ const isAdminRequest = async (request: Request) => {
   const { data } = await client.auth.getUser(token).catch(() => ({ data: null }));
   const userId = String(data?.user?.id || '').trim();
   if (!userId) return false;
-  const { data: profile } = await client.from('profiles').select('role').eq('id', userId).maybeSingle();
+  const { data: profile } = await client
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle();
   return ['admin', 'superadmin'].includes(String(profile?.role || '').trim());
 };
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: buildCorsHeaders(origin) });
-  if (request.method !== 'POST') return jsonResponse({ ok: false, message: '仅支持 POST 请求。' }, 405, origin);
+  if (request.method === 'OPTIONS')
+    return new Response('ok', { headers: buildCorsHeaders(origin) });
+  if (request.method !== 'POST')
+    return jsonResponse({ ok: false, message: '仅支持 POST 请求。' }, 405, origin);
 
   try {
-    if (!(await isAdminRequest(request))) return jsonResponse({ ok: false, message: '仅管理员可生成论坛周报。' }, 403, origin);
+    if (!(await isAdminRequest(request)))
+      return jsonResponse({ ok: false, message: '仅管理员可生成论坛周报。' }, 403, origin);
     const body = await request.json().catch(() => ({}));
-    const { weekStart, weekEnd } = body?.weekStart && body?.weekEnd
-      ? { weekStart: safeText(body.weekStart, 10), weekEnd: safeText(body.weekEnd, 10) }
-      : getPreviousWeek(body?.anchorDate);
+    const { weekStart, weekEnd } =
+      body?.weekStart && body?.weekEnd
+        ? { weekStart: safeText(body.weekStart, 10), weekEnd: safeText(body.weekEnd, 10) }
+        : getPreviousWeek(body?.anchorDate);
 
     const { data: config, error: configError } = await client
       .from('lab_ai_model_configs')
@@ -141,7 +172,8 @@ Deno.serve(async (request) => {
       .eq('purpose', purpose)
       .maybeSingle();
     if (keyError) throw keyError;
-    if (!keyRow?.encrypted_value || keyRow.status !== 'active') throw new Error(`未找到启用的 ${model.provider}/${purpose} API Key。`);
+    if (!keyRow?.encrypted_value || keyRow.status !== 'active')
+      throw new Error(`未找到启用的 ${model.provider}/${purpose} API Key。`);
     const apiKey = await decryptSecret(keyRow.encrypted_value);
     const apiUrl = safeText(model.api_url, 240) || safeText(keyRow.metadata?.apiUrl, 240);
 
@@ -150,7 +182,10 @@ Deno.serve(async (request) => {
       .select('id, title, content, author_username, tag, created_at, like_count, comment_count')
       .or('status.is.null,status.eq.approved')
       .gte('created_at', `${weekStart}T00:00:00+08:00`)
-      .lt('created_at', `${new Date(new Date(`${weekEnd}T12:00:00+08:00`).getTime() + 86400000).toISOString().slice(0, 10)}T00:00:00+08:00`)
+      .lt(
+        'created_at',
+        `${new Date(new Date(`${weekEnd}T12:00:00+08:00`).getTime() + 86400000).toISOString().slice(0, 10)}T00:00:00+08:00`,
+      )
       .order('created_at', { ascending: false })
       .limit(50);
     if (postsError) throw postsError;
@@ -167,7 +202,7 @@ Deno.serve(async (request) => {
     }));
     // Keep the prompt bounded while prioritizing posts that actually drove discussion.
     const postRows = [...allPostRows]
-      .sort((a, b) => (b.likes + b.comments) - (a.likes + a.comments))
+      .sort((a, b) => b.likes + b.comments - (a.likes + a.comments))
       .slice(0, 30);
     const communityMetrics = {
       post_count: allPostRows.length,
@@ -201,7 +236,11 @@ Deno.serve(async (request) => {
       open_questions: normalizeArray(report.open_questions, 8),
       source_post_ids: sourceIds,
       model_id: config.model_id,
-      config_snapshot: { temperature: config.temperature, max_tokens: config.max_tokens, api_key_purpose: purpose },
+      config_snapshot: {
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        api_key_purpose: purpose,
+      },
       generated_at: new Date().toISOString(),
       error_message: '',
     };

@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.99.1';
+import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import {
   buildCorsHeaders as buildSharedCorsHeaders,
   jsonResponse as jsonSharedResponse,
