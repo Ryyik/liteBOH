@@ -939,14 +939,18 @@ const discoverModels = async (
       ...baseResult,
     };
   }
+  // ⚠️ 2026-10-16：`...baseResult` 必须放在**显式字段之前**。
+  //   原先它排在最后，而 baseResult 自带 `models: [] as DiscoveredModel[]` 与 `total: 0`
+  //   ⇒ 成功分支里 `models` / `total` 会被静默覆盖成空数组和 0
+  //   （模型发现永远返回空列表）。deno check 的 TS2783/TS2785 报的就是这件事。
   return {
     ok: true,
     status: 'success',
     message: `成功获取 ${result.models.length} 个模型。`,
     modelsUrl: result.modelsUrl,
+    ...baseResult,
     models: result.models,
     total: result.models.length,
-    ...baseResult,
   };
 };
 
@@ -973,9 +977,12 @@ const resolveActiveSecret = async (
   try {
     return await attemptResolve(purpose);
   } catch (error) {
+    // 2026-10-16：catch 变量此处被推成 `{}`，`error?.message` 直接 TS2339。
+    // 先收敛成字符串再用 —— 行为与原先 `String(error?.message || '')` 一致。
+    const errorMessage = error instanceof Error ? error.message : String(error ?? '');
     // 当 chat purpose 在数据库中未找到时，回退到 default purpose（custom provider 场景：
     // custom provider 的 key 默认 purpose 为 'default'，但 runtime chat 硬编码查找 'chat'）
-    if (purpose === 'chat' && String(error?.message || '').includes('未找到')) {
+    if (purpose === 'chat' && errorMessage.includes('未找到')) {
       try {
         if (DEBUG) console.log('[vault] chat purpose not found, falling back to default purpose');
         return await attemptResolve('default');
@@ -983,7 +990,7 @@ const resolveActiveSecret = async (
         // default 也找不到，继续走环境变量回退
       }
     }
-    if (DEBUG) console.log('[vault] resolveRow failed, trying fallback secrets:', error?.message);
+    if (DEBUG) console.log('[vault] resolveRow failed, trying fallback secrets:', errorMessage);
     let fallbackKey = '';
     if (provider === 'tavily') {
       fallbackKey = String(Deno.env.get('TAVILY_API_KEY') || '').trim();
@@ -1925,7 +1932,11 @@ async function resolveRuntimeModelPolicy(
     MODEL_CONFIG_CACHE.set(cacheKey, { row: data, fetchedAt: Date.now() });
   }
 
-  const minTier = toText(data.min_tier, 'free').toLowerCase();
+  // 2026-10-16：原先写 `toText(data.min_tier, 'free')` —— toText 第二参是**长度上限（number）**，
+  // 传字符串会让 `max > 0` 恒 false（碰巧不截断），但「min_tier 为空时兜底成 free」
+  // 这个意图**根本没生效**（空值仍得到 ''），档位闸门会静默跳过。
+  // 改成显式兜底，语义与注释意图一致。
+  const minTier = (toText(data.min_tier) || 'free').toLowerCase();
   const codingRank = CODING_PLAN_RANK[minTier];
   if (codingRank !== undefined) {
     if (getCodingPlanRank(await resolveUserPlans(client, userId)) < codingRank) {
@@ -1940,7 +1951,8 @@ async function resolveRuntimeModelPolicy(
     }
   }
 
-  const provider = toText(data.provider, 'siliconflow').toLowerCase();
+  // 同上：第二参是长度上限，不是兜底值；兜底改用显式 `||`。
+  const provider = (toText(data.provider) || 'siliconflow').toLowerCase();
   if (!PROVIDER_OPTIONS.has(provider) || provider === 'tavily') {
     throw runtimeAccessError('当前模式配置无效，请联系管理员。', 500, 'MODE_CONFIG_INVALID');
   }

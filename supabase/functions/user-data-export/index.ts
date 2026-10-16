@@ -27,6 +27,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 // initialization before it can handle any request.
 import JSZip from 'npm:jszip@3.10.1';
 
+// Supabase Edge Runtime 提供的全局，Deno 类型库未声明 ⇒ deno check 报 TS2304（本地声明一次）
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
+
 const EXPORT_BUCKET = 'user-exports';
 const RATE_LIMIT_DAYS = 7;
 const LINK_VALID_SECONDS = 600;
@@ -1481,13 +1484,12 @@ const handleCreate = async (userId: string, storageToken: string, origin: string
 
   // 后台异步执行；EdgeRuntime.waitUntil 保证响应返回后继续运行
   const processing = runExport(userId, job.id, storageToken);
-  if (
-    typeof (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } })
-      .EdgeRuntime !== 'undefined'
-  ) {
-    (
-      globalThis as { EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } }
-    ).EdgeRuntime.waitUntil(processing);
+  // 2026-10-16：原先用 `(globalThis as {...}).EdgeRuntime` 转型守卫绕开「EdgeRuntime 未声明」，
+  // 但那个转型本身被 TS 判为「两者不充分重叠」（TS2352）。改为与 push-send /
+  // forum-async-worker / boh-ai-forum-memory 一致的做法：顶部 `declare const EdgeRuntime`，
+  // 这里直接调用 —— 守卫保留（运行时不存在时不抛）。
+  if (typeof EdgeRuntime !== 'undefined') {
+    EdgeRuntime.waitUntil(processing);
   } else {
     void processing;
   }

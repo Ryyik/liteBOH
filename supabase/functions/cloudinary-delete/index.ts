@@ -15,23 +15,28 @@ const sha1Hex = async (input: string) => {
 
 const normalizePublicIds = (publicIds: unknown) => {
   if (!Array.isArray(publicIds)) return [];
-  return Array.from(new Set(
-    publicIds
-      .map((item) => String(item || '').trim())
-      .filter((item) => (
-        item
-        && item.length <= 255
-        && !item.startsWith('/')
-        && !item.includes('..')
-        && !item.includes('\\')
-        && !item.includes(',')
-      ))
-      .slice(0, 50)
-  ));
+  return Array.from(
+    new Set(
+      publicIds
+        .map((item) => String(item || '').trim())
+        .filter(
+          (item) =>
+            item &&
+            item.length <= 255 &&
+            !item.startsWith('/') &&
+            !item.includes('..') &&
+            !item.includes('\\') &&
+            !item.includes(','),
+        )
+        .slice(0, 50),
+    ),
+  );
 };
 
 const normalizeResourceType = (resourceType: unknown) => {
-  const safeResourceType = String(resourceType || 'image').trim().toLowerCase();
+  const safeResourceType = String(resourceType || 'image')
+    .trim()
+    .toLowerCase();
   return safeResourceType === 'image' ? 'image' : '';
 };
 
@@ -45,7 +50,12 @@ const verifyUser = async (request: Request) => {
   const anonClient = createAnonClient();
   const { data, error } = await anonClient.auth.getUser(token);
   if (error || !data?.user?.id) {
-    return { ok: false, status: 401, code: 'INVALID_SESSION', message: '登录状态已失效，请重新登录。' };
+    return {
+      ok: false,
+      status: 401,
+      code: 'INVALID_SESSION',
+      message: '登录状态已失效，请重新登录。',
+    };
   }
 
   return { ok: true, userId: String(data.user.id || '').trim() };
@@ -53,7 +63,9 @@ const verifyUser = async (request: Request) => {
 
 const destroyAsset = async (publicId: string, resourceType = 'image') => {
   const timestamp = Math.floor(Date.now() / 1000);
-  const signature = await sha1Hex(`public_id=${publicId}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`);
+  const signature = await sha1Hex(
+    `public_id=${publicId}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`,
+  );
 
   const formData = new FormData();
   formData.append('public_id', publicId);
@@ -61,10 +73,13 @@ const destroyAsset = async (publicId: string, resourceType = 'image') => {
   formData.append('api_key', CLOUDINARY_API_KEY);
   formData.append('signature', signature);
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/destroy`, {
-    method: 'POST',
-    body: formData,
-  });
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/destroy`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+  );
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -78,17 +93,20 @@ const destroyAsset = async (publicId: string, resourceType = 'image') => {
 };
 
 type AssetContextResult =
-  | { status: 'found'; contextUid: string }
-  | { status: 'not_found' }
-  | { status: 'error' };
+  { status: 'found'; contextUid: string } | { status: 'not_found' } | { status: 'error' };
 
 // 查询 Cloudinary 资产上传时写入的 context（uid 归属标记）。
 // GET /v1_1/{cloud}/resources/{resourceType}?public_ids[0]={publicId}
 // 签名规则与 destroyAsset 一致：除 file/api_key/signature 外的参数按字母序 key=value 用 & 连接，
 // 拼接 api_secret 后 sha1；GET 请求把 api_key/timestamp/signature 作为 query 参数。
-const fetchAssetContext = async (publicId: string, resourceType: string): Promise<AssetContextResult> => {
+const fetchAssetContext = async (
+  publicId: string,
+  resourceType: string,
+): Promise<AssetContextResult> => {
   const timestamp = Math.floor(Date.now() / 1000);
-  const signature = await sha1Hex(`public_ids[0]=${publicId}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`);
+  const signature = await sha1Hex(
+    `public_ids[0]=${publicId}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`,
+  );
 
   const query = new URLSearchParams();
   query.set('public_ids[0]', publicId);
@@ -193,11 +211,19 @@ Deno.serve(async (request) => {
   }
 
   if (request.method !== 'POST') {
-    return jsonResponse({ ok: false, code: 'METHOD_NOT_ALLOWED', message: '仅支持 POST 请求。' }, 405, origin);
+    return jsonResponse(
+      { ok: false, code: 'METHOD_NOT_ALLOWED', message: '仅支持 POST 请求。' },
+      405,
+      origin,
+    );
   }
 
   if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
-    return jsonResponse({ ok: false, code: 'CLOUDINARY_ENV_MISSING', message: '缺少 Cloudinary 服务端环境变量。' }, 500, origin);
+    return jsonResponse(
+      { ok: false, code: 'CLOUDINARY_ENV_MISSING', message: '缺少 Cloudinary 服务端环境变量。' },
+      500,
+      origin,
+    );
   }
 
   const authResult = await verifyUser(request);
@@ -211,15 +237,31 @@ Deno.serve(async (request) => {
     const resourceType = normalizeResourceType(body?.resourceType);
 
     if (!publicIds.length) {
-      return jsonResponse({ ok: false, code: 'INVALID_INPUT', message: '请提供至少一个 publicId。' }, 400, origin);
+      return jsonResponse(
+        { ok: false, code: 'INVALID_INPUT', message: '请提供至少一个 publicId。' },
+        400,
+        origin,
+      );
     }
     if (!resourceType) {
-      return jsonResponse({ ok: false, code: 'INVALID_RESOURCE_TYPE', message: '仅支持删除图片资源。' }, 400, origin);
+      return jsonResponse(
+        { ok: false, code: 'INVALID_RESOURCE_TYPE', message: '仅支持删除图片资源。' },
+        400,
+        origin,
+      );
     }
 
     const ownedPublicIds = await filterOwnedCloudPublicIds(authResult.userId, publicIds);
     if (!ownedPublicIds.length) {
-      return jsonResponse({ ok: false, code: 'FORBIDDEN_PUBLIC_ID', message: '只能删除当前账号 Cloud+ 内容中已保存的图片。' }, 403, origin);
+      return jsonResponse(
+        {
+          ok: false,
+          code: 'FORBIDDEN_PUBLIC_ID',
+          message: '只能删除当前账号 Cloud+ 内容中已保存的图片。',
+        },
+        403,
+        origin,
+      );
     }
 
     // 归属强验证：数据库归属可被伪造（用户可写表），以上传时写入 Cloudinary 的 context.uid 为准。
@@ -245,8 +287,10 @@ Deno.serve(async (request) => {
       }
     }
 
-    const results = await Promise.allSettled(verifiedPublicIds.map((publicId) => destroyAsset(publicId, resourceType)));
-    const deleted = [];
+    const results = await Promise.allSettled(
+      verifiedPublicIds.map((publicId) => destroyAsset(publicId, resourceType)),
+    );
+    const deleted: { publicId: string; result: string }[] = [];
     const failed = [
       ...publicIds
         .filter((publicId) => !ownedPublicIds.includes(publicId))
@@ -272,6 +316,11 @@ Deno.serve(async (request) => {
       .map((item) => String(item?.publicId || '').trim())
       .filter(Boolean);
     if (deletedPublicIds.length) {
+      // ⚠️ 2026-10-16：这里原先直接用 `serviceClient` —— 但那个变量只在
+      // `filterOwnedCloudPublicIds`（:125）的作用域里定义，本处理器里**根本不存在**，
+      // 走到这一步必然 ReferenceError（deno check 的 TS2304 早就报了，只是一直没跑）。
+      // 改为在本作用域现建一个 service client。
+      const serviceClient = createServiceClient();
       const { error: markDeletedError } = await serviceClient
         .from('cloudinary_pending_uploads')
         .update({ deleted_at: new Date().toISOString() })
