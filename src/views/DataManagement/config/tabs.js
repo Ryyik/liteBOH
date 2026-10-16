@@ -283,7 +283,10 @@ export const TABS_ACTIONS = {
   birthdayEvents: ['view', 'create', 'edit', 'delete'],
   birthdayWishes: ['view', 'edit'],
   campaigns: ['view', 'create', 'edit', 'delete'],
-  campaignEntries: ['view', 'edit'],
+  // 报名/投稿明细开放删除：DB 侧 activity_entries_delete 政策本就含管理员分支
+  // （删自己或管理员），此前只是 UI 没接——表现为报名记录只能改状态、无法清理。
+  campaignEntries: ['view', 'edit', 'delete'],
+  // 发放台账刻意不给删除（append-only 语义）：纠错走 status → cancelled，避免抹掉发放痕迹。
   campaignRewards: ['view', 'edit'],
   reportedPosts: ['view', 'moderate'],
   reviewPosts: ['view', 'moderate'],

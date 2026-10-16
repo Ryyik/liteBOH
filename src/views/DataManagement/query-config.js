@@ -52,11 +52,14 @@ export const STATUS_FILTER_FIELDS = {
   forumPostImages: 'moderation_status',
   birthdayEvents: 'is_active',
   campaigns: 'stage',
+  campaignEntries: 'status',
+  campaignRewards: 'status',
   birthdayWishes: 'status',
   blockWallItems: 'item_type',
   bohCreatorShows: 'creator_platform',
   aiWebSearchLog: 'status',
   postReward: 'status',
+  userDataExportJobs: 'status',
 };
 
 export const DATE_FILTER_FIELDS = {
@@ -98,10 +101,13 @@ export const DATE_FILTER_FIELDS = {
   bohCreatorShows: 'created_at',
   birthdayEvents: 'celebration_date',
   campaigns: 'start_at',
+  campaignEntries: 'created_at',
+  campaignRewards: 'created_at',
   birthdayWishes: 'created_at',
   userFollows: 'created_at',
   userImpressions: 'created_at',
   labUsageRecords: 'created_at',
+  userDataExportJobs: 'requested_at',
 };
 
 export const TAB_SELECT_COLUMNS = {
@@ -516,6 +522,31 @@ export const TAB_SELECT_COLUMNS = {
     created_at
   `,
 
+  // 报名/投稿明细：字段与 config/tables.js 的 columns + fields 对齐
+  // ⚠️ 缺这里条目的 tab 不会报错——fetchTabData 取不到 selectColumns 会直接 return，
+  // 表现为「页签永远空列表、连请求都不发」（2026-10-16 线上实证）。
+  // 新增表格类 tab 时务必同步补这里，护栏见 tests/unit/data-admin-tab-config-coverage.test.js。
+  campaignEntries: `
+    id,
+    campaign_id,
+    user_id,
+    kind,
+    payload,
+    status,
+    created_at
+  `,
+
+  // 发放台账：columns + fields 用到的列
+  campaignRewards: `
+    id,
+    campaign_id,
+    user_id,
+    reward_type,
+    amount,
+    status,
+    created_at
+  `,
+
   // ========== 生日活动 ==========
   birthdayEvents: `
     id,
@@ -573,6 +604,20 @@ export const TAB_SELECT_COLUMNS = {
     expires_at,
     created_at,
     profile:user_id(username)
+  `,
+
+  // ========== 用户数据导出任务 ==========
+  // 2026-10-16 补齐：该 tab 此前六张地图全缺，面板永远空列表（与活动报名明细同类事故）。
+  userDataExportJobs: `
+    id,
+    user_id,
+    status,
+    stage,
+    progress,
+    file_size,
+    error,
+    requested_at,
+    expires_at
   `,
 };
 
@@ -640,10 +685,13 @@ export const TAB_DEFAULT_SORT = {
   bohCreatorShows: { column: 'created_at', ascending: false },
   birthdayEvents: { column: 'celebration_date', ascending: false },
   campaigns: { column: 'created_at', ascending: false },
+  campaignEntries: { column: 'created_at', ascending: false },
+  campaignRewards: { column: 'created_at', ascending: false },
   birthdayWishes: { column: 'created_at', ascending: false },
   userFollows: { column: 'created_at', ascending: false },
   userImpressions: { column: 'created_at', ascending: false },
   labUsageRecords: { column: 'created_at', ascending: false },
+  userDataExportJobs: { column: 'requested_at', ascending: false },
 };
 
 export const TAB_SORT_COLUMNS = {
@@ -729,11 +777,28 @@ export const TAB_SORT_COLUMNS = {
   blockWallItems: new Set(['created_at', 'item_type']),
   bohCreatorShows: new Set(['created_at', 'creator_platform']),
   birthdayEvents: new Set(['celebration_date', 'is_active', 'sort_order']),
-  campaigns: new Set(['stage']),
+  campaigns: new Set(['slug', 'title', 'stage', 'start_at', 'end_at', 'created_at']),
+  campaignEntries: new Set(['created_at', 'kind', 'status', 'campaign_id', 'user_id']),
+  campaignRewards: new Set([
+    'created_at',
+    'reward_type',
+    'status',
+    'amount',
+    'campaign_id',
+    'user_id',
+  ]),
   birthdayWishes: new Set(['created_at', 'status', 'is_featured']),
   userFollows: new Set(['created_at']),
   userImpressions: new Set(['created_at']),
   labUsageRecords: new Set(['created_at', 'flow_type']),
+  userDataExportJobs: new Set([
+    'requested_at',
+    'expires_at',
+    'status',
+    'stage',
+    'progress',
+    'file_size',
+  ]),
 };
 
 export const TAB_SEARCH_FIELDS = {
@@ -994,6 +1059,16 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'slug', type: 'text' },
     { column: 'title', type: 'text' },
   ],
+  campaignEntries: [
+    { column: 'id', type: 'uuid' },
+    { column: 'campaign_id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+  ],
+  campaignRewards: [
+    { column: 'id', type: 'uuid' },
+    { column: 'campaign_id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+  ],
   birthdayWishes: [
     { column: 'id', type: 'uuid' },
     { column: 'author_name', type: 'text' },
@@ -1015,5 +1090,10 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'user_id', type: 'uuid' },
     { column: 'device_id', type: 'text' },
     { column: 'flow_type', type: 'text' },
+  ],
+  userDataExportJobs: [
+    { column: 'id', type: 'uuid' },
+    { column: 'user_id', type: 'uuid' },
+    { column: 'status', type: 'text' },
   ],
 };

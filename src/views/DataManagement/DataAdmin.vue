@@ -3925,7 +3925,16 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
   try {
     const table = dataConfig[tabId]?.table;
     const selectColumns = TAB_SELECT_COLUMNS[tabId];
-    if (!table || !selectColumns) return;
+    if (!table || !selectColumns) {
+      // page 型 tab（不在 dataConfig）本就没有查询配置，静默跳过是预期行为；
+      // 但「在 dataConfig 里有表、却缺 TAB_SELECT_COLUMNS」属于配置漏配 ——
+      // 此前表现为页签永远空列表、连请求都不发（2026-10-16 活动报名明细事故），
+      // 这里留明账而不是假装「暂无数据」。护栏见 tests/unit/data-admin-tab-config-coverage.test.js。
+      if (table) {
+        logger.warn('data-admin', `页签 ${tabId} 缺少 TAB_SELECT_COLUMNS 配置，列表将保持为空`);
+      }
+      return;
+    }
 
     let query = supabase.from(table).select(selectColumns, { count: 'exact' });
 
