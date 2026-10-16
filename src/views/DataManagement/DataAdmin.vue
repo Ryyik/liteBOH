@@ -633,6 +633,30 @@
                   </button>
                 </div>
 
+                <!-- 官方事实速记：一句话自动归类入库（2026-10-16） -->
+                <div
+                  v-if="currentTab === 'coreMemories' && canCreateCurrentTab"
+                  class="quick-fact-bar"
+                >
+                  <input
+                    v-model="quickFactText"
+                    type="text"
+                    class="quick-fact-input"
+                    placeholder="速记一条事实，回车自动归类入库：如「人物：小牛 是技术担当，运营苦力怕服务器」"
+                    aria-label="速记官方事实"
+                    :disabled="quickFactSaving"
+                    @keydown.enter.prevent="handleQuickAddFact"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-primary quick-fact-btn"
+                    :disabled="quickFactSaving || !quickFactText.trim()"
+                    @click="handleQuickAddFact"
+                  >
+                    {{ quickFactSaving ? '入库中…' : '添加' }}
+                  </button>
+                </div>
+
                 <!-- 移动端卡片 -->
                 <div v-if="isMobileView" class="mobile-card-list">
                   <div
@@ -1756,6 +1780,7 @@ import { createChangeLogCenter } from './composables/useDataAdminChangeLog.js';
 import { createFilterState } from './composables/useDataAdminFilterState.js';
 import { createMutationsCenter } from './composables/useDataAdminMutations.js';
 import { createLotteryOperationsCenter } from './composables/useLotteryOperations.js';
+import { parseQuickFact, QUICK_FACT_CATEGORY_LABELS } from './composables/quick-fact.js';
 import { SAVE_STRATEGIES } from './config/saveStrategies.js';
 import { setupDataAdminLifecycle } from './composables/useDataAdminLifecycle.js';
 import {
@@ -6219,6 +6244,60 @@ const handleCardClick = (item) => {
   if (!currentCardViewConfig.value?.clickToEdit) return;
   if (!canEditCurrentTab.value) return;
   openEditModal(item);
+};
+
+// ==================== 官方事实速记（2026-10-16）====================
+// 一句话入库：显式前缀/已知成员名/关键词 自动归类（解析器见 composables/quick-fact.js，
+// 纯函数有单测）。入库后同步向量索引 —— 与抽屉保存同一条铁律。
+const quickFactText = ref('');
+const quickFactSaving = ref(false);
+const handleQuickAddFact = async () => {
+  const text = String(quickFactText.value || '').trim();
+  if (!text || quickFactSaving.value) return;
+  if (!canCreateCurrentTab.value) return;
+  quickFactSaving.value = true;
+  try {
+    const knownNames = [
+      ...new Set(
+        currentData.value
+          .filter((row) => row.category === 'member_profile')
+          .flatMap((row) =>
+            Array.isArray(row.tags) ? row.tags.map((tag) => String(tag || '').trim()) : [],
+          )
+          .filter(Boolean),
+      ),
+    ];
+    const parsed = parseQuickFact(text, { knownNames });
+    if (!parsed) return;
+    const dataToSave = await SAVE_STRATEGIES.coreMemories({
+      editingItem: parsed,
+      isEditing: false,
+      userId: userInfo.value?.id,
+    });
+    const { data, error } = await supabase
+      .from(currentConfig.value.table)
+      .insert([dataToSave])
+      .select();
+    if (error) throw error;
+    await syncCoreMemoriesIndex();
+    quickFactText.value = '';
+    clearTabFetchCache('coreMemories');
+    await refreshCurrentViewAfterMutation();
+    const categoryLabel = QUICK_FACT_CATEGORY_LABELS[parsed.category] || parsed.category;
+    const createdRow = Array.isArray(data) && data[0] ? data[0] : null;
+    showToast(
+      `已入库 · 归类「${categoryLabel}」· ${parsed.title}`,
+      'success',
+      createdRow && canEditCurrentTab.value
+        ? { label: '编辑', run: () => openEditModal(createdRow) }
+        : null,
+    );
+  } catch (error) {
+    logger.error('data-admin', '速记入库失败:', error);
+    showToast('速记入库失败: ' + buildActionErrorMessage(error, '请重试'), 'error');
+  } finally {
+    quickFactSaving.value = false;
+  }
 };
 
 const cancelInlineEdit = () => {

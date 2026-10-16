@@ -28,6 +28,9 @@ console.log(
   modText.includes('cell-text-multiline') && modText.includes('lottery-card-preview') ? '✅' : '❌',
 );
 
+// 官方事实速记输入条（2026-10-16）：一句话自动归类入库
+console.log('速记输入条已注入(quick-fact-bar):', modText.includes('quick-fact-bar') ? '✅' : '❌');
+
 const valResp = await page.request.get(
   'http://localhost:5173/src/views/DataManagement/composables/useDataAdminValidation.js',
 );

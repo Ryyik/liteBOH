@@ -2265,3 +2265,47 @@
 .row-fade-move {
   transition: none;
 }
+
+/* 官方事实速记输入条（2026-10-16）：一句话自动归类入库 */
+.quick-fact-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.quick-fact-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card, #fff);
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.quick-fact-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.quick-fact-input::placeholder {
+  color: #7f8d9f;
+}
+
+.quick-fact-btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .quick-fact-bar {
+    flex-wrap: wrap;
+  }
+
+  .quick-fact-input {
+    width: 100%;
+    flex: none;
+  }
+}
