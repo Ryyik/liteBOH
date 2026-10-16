@@ -27,6 +27,9 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.1
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 
+// Supabase Edge Runtime 提供的全局，Deno 类型库未声明 ⇒ deno check 报 TS2304（本地声明一次）
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
+
 const supabaseUrl = String(Deno.env.get('SUPABASE_URL') || '').trim();
 const anonKey = String(
   Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '',

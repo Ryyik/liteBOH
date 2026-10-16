@@ -27,6 +27,13 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 
+/**
+ * Supabase Edge Runtime 提供的全局，**Deno 的类型库里没有声明** ⇒ `deno check` 会报
+ * TS2304 Cannot find name 'EdgeRuntime'。本地声明一次即可（push-send / forum-async-worker
+ * 踩的是同一个坑，一并补了声明）。
+ */
+declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
+
 const supabaseUrl = String(Deno.env.get('SUPABASE_URL') || '').trim();
 const serviceRoleKey = String(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '').trim();
 /** 与 vault 里 `push_dispatch_key` 同值的专用投递凭证（push-send 已在用同一套）。 */
