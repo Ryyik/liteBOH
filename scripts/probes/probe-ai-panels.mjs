@@ -55,12 +55,21 @@ try {
 
   // 删顶栏后，「打开侧栏」只在侧栏收起时出现 ⇒ 必须真的证明「收起 → 还能打开」。
   // plans/023 步骤③踩过这个坑：删顶栏后侧栏永久打不开，而当时的探针全绿。
+  // ⚠️ 2026-10-16 修前提：侧栏**默认收起**（`useBohShell` 的 `isSidebarOpen` 初始 false，
+  //    历史如此、非新回归）。原断言把「`.boh-sb-close` 在 DOM 里」当成「侧栏开着」——
+  //    收起态该按钮仍在 DOM（被 0 宽裁掉、点击必被主区拦截，实测 30s 超时崩溃）。
+  //    改为按契约走全程：先确保「开」（必要时点浮动入口）→ 收起 → 断言浮动入口出现 →
+  //    点它 → 断言恢复 is-open。
   {
-    const collapseBtn = page.locator('.boh-sb-close');
-    if ((await collapseBtn.count()) > 0) {
-      await collapseBtn.first().click();
+    const sidebarOpen = () => page.evaluate(() => !!document.querySelector('.boh-sidebar.is-open'));
+    const reopen = page.locator('.boh-float-actions [title="打开侧栏"]');
+    if (!(await sidebarOpen()) && (await reopen.count()) > 0) {
+      await reopen.first().click();
       await page.waitForTimeout(450);
-      const reopen = page.locator('.boh-float-actions [title="打开侧栏"]');
+    }
+    if (await sidebarOpen()) {
+      await page.locator('.boh-sb-close').first().click();
+      await page.waitForTimeout(450);
       const hasReopen = (await reopen.count()) > 0;
       if (!hasReopen) {
         fail('侧栏收起后没有重新打开的入口（浮动「打开侧栏」未出现）');
@@ -72,7 +81,7 @@ try {
         else console.log('[ai-panels] 收起 → 浮动按钮重新打开侧栏：通过');
       }
     } else {
-      console.log('[ai-panels] 未找到侧栏收起键（可能未登录），跳过折叠往返断言');
+      console.log('[ai-panels] 侧栏不可用（未登录/窄屏），跳过折叠往返断言');
     }
   }
 

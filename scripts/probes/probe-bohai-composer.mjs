@@ -306,7 +306,9 @@ const openPanel = async (page, scope = '') => {
   );
   check(
     'A4 两颗胶囊互斥：开工具菜单后模型面板收起',
-    exclusivity.modelClosed && exclusivity.toolsOpen && exclusivity.toolCount === 4,
+    exclusivity.modelClosed && exclusivity.toolsOpen && exclusivity.toolCount === 3,
+    // ⚠️ 2026-10-16：3 = BOH Health 下线后的现行件数（社区搜索 / 个人 Cloud+ / 心理分析）。
+    //    本次之前是 4（含健康分析）—— Health 下线提交只摘了 A8，漏了这里和 A6。
     JSON.stringify(exclusivity),
   );
   await page.keyboard.press('Escape');
@@ -345,7 +347,8 @@ const openPanel = async (page, scope = '') => {
     check('A5 选完模式 → 面板收起 + 模型胶囊更新', false, '只有一个模式可选，无法测切换');
   }
 
-  // A6 工具菜单（第三颗胶囊）：四件齐全，且不收浮层（用户常接着改第二项）
+  // A6 工具菜单（第三颗胶囊）：三件齐全，且不收浮层（用户常接着改第二项）。
+  // ⚠️ 2026-10-16：BOH Health 下线后由四件变三件（原断言还在找「健康分析」⇒ 假红）。
   await page.locator(SEL.toolsPill).first().click();
   await page.waitForTimeout(260);
   const toolNames = await page.evaluate(
@@ -360,11 +363,11 @@ const openPanel = async (page, scope = '') => {
     },
     [SEL.toolsMenu, SEL.tool],
   );
-  const wantTools = ['社区搜索', '个人 Cloud+', '健康分析', '心理分析'];
+  const wantTools = ['社区搜索', '个人 Cloud+', '心理分析'];
   const missing = wantTools.filter((n) => !toolNames.names.includes(n));
   check(
-    'A6 工具胶囊 → 四件工具齐全',
-    toolNames.open && missing.length === 0,
+    'A6 工具胶囊 → 三件工具齐全',
+    toolNames.open && missing.length === 0 && toolNames.names.length === wantTools.length,
     `缺 ${missing.join('/') || '无'}；实得 ${toolNames.names.join(' / ')}`,
   );
   await page.keyboard.press('Escape');

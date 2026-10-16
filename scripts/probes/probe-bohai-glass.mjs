@@ -10,6 +10,11 @@
  *      断言「玻璃开着 < 关着 × 50%」（隐藏玻璃自身内容与 tint 后只比背后文字）；
  *   4. **零 JS 跟随**：textarea 自动增高后玻璃仍对齐（`glass-size: 100%` 的功劳）。
  *
+ * ⭐ 2026-10-16 补第五条（事故判据）**内容层在玻璃之上**：玻璃是「垫底覆盖层」，
+ *   内容面板忘了自带 position 就会被玻璃盖住、整面文字糊掉（斜杠菜单 + hover 详情卡
+ *   各出过一次，用户截图实证）。两条腿：`paintOrderSweep`（结构，覆盖所有玻璃宿主）+
+ *   `textSharpness`（像素，Δ 判据；实测事故态 0.16/0.02 vs 修复态 12.43/3.82）。
+ *
  * 附带：菜单 elasticity=0（鼠标划过零位移）+ 点选联动 + 用量浮层同款接线（§21.8 线1）。
  *
  * 用法（打 dev server）：
@@ -247,6 +252,45 @@ const chainCheck = () =>
     return Array.from(bad);
   });
 
+/* 绘制次序不变量（2026-10-16「斜杠菜单/详情卡玻璃盖文字」事故的机器判据）：
+   玻璃是 inset:0 的 absolute 覆盖层、垫在**内容面板之下**（§21.7/§21.10 锚模式）——
+   内容面板必须自己带 `position`：z-index 只对定位元素生效，static 元素上写了等于没写，
+   玻璃（同堆叠上下文的定位元素、DOM 又在前）会画到它上面，整面文字糊掉。
+   判据：每个 .boh-glass-under 的**下一个元素兄弟**（内容面板）computed position ≠ static。
+   ⚠️ 玻璃 pointer-events:none ⇒ 不进命中测试，elementFromPoint 查不出这类错误；
+   只能查 computed style（本文，确定性）或像素（斜杠/详情卡另有 textSharpness 判据）。 */
+const paintOrderSweep = () =>
+  page.evaluate(() =>
+    Array.from(document.querySelectorAll('.boh-glass-under'))
+      .map((g) => {
+        const host = (g.parentElement?.className || '').split(' ')[0] || '?';
+        const content = g.nextElementSibling;
+        if (!content) return `${host}: 玻璃后无内容兄弟`;
+        const cs = getComputedStyle(content);
+        if (cs.position === 'static')
+          return `${host} → ${(content.className || '').split(' ')[0]}: static（玻璃会盖住内容）`;
+        return null;
+      })
+      .filter(Boolean),
+  );
+
+/* 像素判据：文字在玻璃**之上**时保持锐利 ⇒「文字可见 − 文字隐藏」的梯度能量增量显著。
+   2026-10-16 实测（条纹背板 + 玻璃开）：斜杠菜单 事故态 Δ=0.16 / 修复态 Δ=12.43；
+   详情卡 事故态 Δ=0.02 / 修复态 Δ=3.82。阈值取 3 / 1.2（对两侧各留 ≥3 倍裕量）。 */
+const textSharpness = async (name, textSel, clipOf, minDelta) => {
+  await tmpStyle('pbg-hide-text', `${textSel} { visibility: hidden !important; }`);
+  await page.waitForTimeout(200);
+  const base = await energy(await clipOf());
+  await rmStyle('pbg-hide-text');
+  await page.waitForTimeout(200);
+  const withText = await energy(await clipOf());
+  check(
+    `${name}（Δ≥${minDelta}）`,
+    withText - base >= minDelta,
+    `Δ=${(withText - base).toFixed(2)}（隐藏文字 ${base.toFixed(2)} / 含文字 ${withText.toFixed(2)}）`,
+  );
+};
+
 check(
   '输入框锚与玻璃层存在',
   (await page.locator('.boh-composer-anchor .boh-glass-under').count()) === 1,
@@ -275,6 +319,11 @@ check(
   '采样根链合法（坏根=0）',
   (await chainCheck()).length === 0,
   JSON.stringify(await chainCheck()),
+);
+check(
+  '折射宿主内容层在玻璃之上（position≠static，坏宿主=0）',
+  (await paintOrderSweep()).length === 0,
+  JSON.stringify(await paintOrderSweep()),
 );
 
 /* 发两条消息（mock 不调真模型 ⇒ AI 侧渲染失败占位，但消息节点在）⇒ 背板有内容 */
@@ -386,6 +435,11 @@ await page.waitForTimeout(350);
 check('工具菜单打开', await page.locator('.boh-tools-wrap .boh-menu-anchor').isVisible());
 const m1 = await alignWith('.boh-tools-wrap .boh-menu-anchor', '.boh-tools-wrap .boh-tools-menu');
 check('工具菜单玻璃对齐', m1.ok, JSON.stringify(m1));
+check(
+  '工具菜单宿主内容层在玻璃之上（坏宿主=0）',
+  (await paintOrderSweep()).length === 0,
+  JSON.stringify(await paintOrderSweep()),
+);
 await page.click('.boh-tools-pill');
 await page.waitForTimeout(200);
 
@@ -399,6 +453,11 @@ check(
 );
 const sl0 = await alignWith('.boh-slash-anchor', '.boh-slash');
 check('斜杠玻璃与面板对齐', sl0.ok, JSON.stringify(sl0));
+check(
+  '斜杠菜单宿主内容层在玻璃之上（坏宿主=0）',
+  (await paintOrderSweep()).length === 0,
+  JSON.stringify(await paintOrderSweep()),
+);
 await tmpStyle(
   'pbg-slash-bg',
   '.boh-stream { background-image: repeating-linear-gradient(45deg, #111 0 3px, #eee 3px 6px); }',
@@ -413,6 +472,20 @@ await blurDiff('斜杠玻璃模糊真实生效', '.boh-slash *', async () => {
     height: Math.round(r.height * 0.5),
   };
 });
+await textSharpness(
+  '斜杠菜单文字在玻璃之上保持锐利',
+  '.boh-slash *',
+  async () => {
+    const r = await page.locator('.boh-slash').boundingBox();
+    return {
+      x: Math.round(r.x + 12),
+      y: Math.round(r.y + 8),
+      width: Math.round(r.width - 24),
+      height: Math.round(r.height * 0.5),
+    };
+  },
+  3,
+);
 await rmStyle('pbg-slash-bg');
 await page.fill('.boh-composer-input', '');
 await page.waitForTimeout(300);
@@ -448,6 +521,11 @@ check(
   (await chainCheck()).length === 0,
   JSON.stringify(await chainCheck()),
 );
+check(
+  'hover 详情卡宿主内容层在玻璃之上（坏宿主=0）',
+  (await paintOrderSweep()).length === 0,
+  JSON.stringify(await paintOrderSweep()),
+);
 await tmpStyle(
   'pbg-detail-bg',
   '.boh-stream { background-image: repeating-linear-gradient(45deg, #111 0 3px, #eee 3px 6px); }',
@@ -462,6 +540,20 @@ await blurDiff('hover 详情卡玻璃模糊真实生效', '.boh-mm-detail *', as
     height: Math.round(r.height * 0.5),
   };
 });
+await textSharpness(
+  'hover 详情卡文字在玻璃之上保持锐利',
+  '.boh-mm-detail *',
+  async () => {
+    const r = await page.locator('.boh-mm-detail').boundingBox();
+    return {
+      x: Math.round(r.x + 10),
+      y: Math.round(r.y + 8),
+      width: Math.round(r.width - 20),
+      height: Math.round(r.height * 0.5),
+    };
+  },
+  1.2,
+);
 await rmStyle('pbg-detail-bg');
 /* 关菜单恢复现场（后续用量浮层断言基于收起态） */
 await page.click('.boh-mode-pill');
@@ -487,6 +579,11 @@ check(
   '用量浮层玻璃采样根链合法（坏根=0）',
   (await chainCheck()).length === 0,
   JSON.stringify(await chainCheck()),
+);
+check(
+  '用量浮层宿主内容层在玻璃之上（坏宿主=0）',
+  (await paintOrderSweep()).length === 0,
+  JSON.stringify(await paintOrderSweep()),
 );
 /* ⚠️ 浮层锚在工具栏**最右**、弹出位置常落在消息稀疏区 ⇒ 背板能量可能恒 0，
    判据会退化成「0 < 0×50%」必然红（实测踩到）。给 `.boh-stream` **临时铺一层高频底纹**

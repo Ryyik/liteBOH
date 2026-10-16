@@ -59,3 +59,15 @@
   都会降级或灭掉模糊 —— **真实代码 `.boh-main{z-index:1}` 接线时必改**（菜单 z 40→20 保抽屉层级）；
   堆叠 A/B 必须**整页重建**（运行时切换不复合）；elasticity 必须 0；
   overlay 结构 + `glassSize:{width:'100%'}` 可让 autogrow 零 JS 跟随。详见 `docs/未完成任务清单.md` §21.7。
+
+## ⚠️ 折射级「内容必须在玻璃之上」硬规则（2026-10-16 事故定案）
+
+- 事故：斜杠菜单 + hover 详情卡升折射（`6deee467`，10-15）时把定位上移到**锚**，面板自身漏补 `position`
+  ⇒ `z-index` 对 static 元素无效 = **死值** ⇒ 玻璃（DOM 前置的 absolute 兄弟）画到文字**上面**，整面糊
+  （用户截图实证）。
+- 硬规则：**锚只扛定位（无 z-index）；面板必须自带 `position`（+z-index）自成一档**。
+  验收别只看 class / 元素存在性；`pointer-events:none` 的玻璃不进命中测试，`elementFromPoint` 也查不出这类错。
+- 护栏：`probe-bohai-glass` 的 `paintOrderSweep`（每个 `.boh-glass-under` 的下个元素兄弟 position≠static，
+  天然覆盖所有宿主）+ `textSharpness`（像素 Δ 判据：斜杠 6.08 / 详情卡 3.27；事故态 0.16 / 0.02）。
+- 全站宿主清单（截至 2026-10-16，**全仓仅 3 个文件**使用 `BohGlassRefract`）：BohComposer ×6、
+  AssetsHubPanel（`> * relative` 写法本就正确）、Dev/GlassBackdropRepro（DEV 页无内容）。
