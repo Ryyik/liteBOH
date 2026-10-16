@@ -1,5 +1,5 @@
 {
-  "total": 637,
+  "total": 635,
   "files": {
     "src/App.vue": 1,
     "src/components/AiEdgeTrigger.vue": 2,
@@ -39,7 +39,6 @@
     "src/views/Forum/styles/feed.css": 14,
     "src/views/Forum/styles/replies-responsive.css": 3,
     "src/views/Gift/style.scoped.css": 7,
-    "src/views/Health/health.css": 2,
     "src/views/Home/components/BirthdayHero.vue": 3,
     "src/views/Home/style.global.css": 20,
     "src/views/Lab/style.scoped.css": 1,

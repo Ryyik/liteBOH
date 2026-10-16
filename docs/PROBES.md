@@ -251,11 +251,9 @@
 | `probe-card-image-check.mjs` | — | 用内容类型筛选捞出全部活动官方卡 |
 | `probe-cf-config-demo.mjs` | — | 1. 面板一：资源列表渲染 |
 | `probe-character-ring-fix.mjs` | — | （无头部说明） |
-| `probe-compact.mjs` | — | （无头部说明） |
 | `probe-email-count.mjs` | — | （无头部说明） |
 | `probe-export-demo.mjs` | — | ---------- 浅色 ---------- |
 | `probe-export-v2-harness.mjs` | — | ---------- 1. 从 index.ts 抽出生产 previewHtml 模板并插值 ---------- |
-| `probe-health-ai.mjs` | — | （无头部说明） |
 | `probe-hero-console-street-scene.mjs` | — | 首屏可编辑性探针 —— 验证「数据管理 → 首页装修 → 首屏街景」这条控制链路是否真的可点通。 |
 | `probe-hero-unify.mjs` | — | Hero 规范 V1 代码统一回归探针（零视觉变化验证）： 1) 关键计算样式数值快照（Beta6 headline/玻璃卡/AGC S 档标题/CTA 颜色） |
 | `probe-keyboard-inset.mjs` | — | 键盘 inset 全链路探针（2026-09-24） 验证目标（桌面 Chrome 无法真弹键盘，用 mock visualViewport 模拟「键盘占 300px」）： |

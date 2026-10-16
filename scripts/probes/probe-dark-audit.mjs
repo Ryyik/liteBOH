@@ -42,7 +42,6 @@ const PAGES = [
   { path: '/boh-8-years-event', name: 'boh-8-years' },
   { path: '/boh-8-years-journey', name: 'boh-8-years-journey' },
   { path: '/lab', name: 'lab' },
-  { path: '/health', name: 'health' },
   { path: '/user-space', name: 'user-space' },
   { path: '/user-space?tab=community', name: 'us-community' },
   { path: '/user-space?tab=posts', name: 'us-posts' },

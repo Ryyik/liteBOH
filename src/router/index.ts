@@ -13,7 +13,6 @@ import { communityRoutes } from './routes/community';
 import { compatRoutes } from './routes/compat';
 import { publicRoutes } from './routes/public';
 import { userSpaceRoutes } from './routes/user-space';
-import { healthRoutes } from './routes/health';
 
 let authStore: ReturnType<typeof useAuthStore> | null = null;
 
@@ -26,7 +25,6 @@ const initAuthStore = (): void => {
 const routes: RouteRecordRaw[] = [
   ...publicRoutes,
   ...communityRoutes,
-  ...healthRoutes,
   ...adminRoutes,
   ...userSpaceRoutes,
   // 兼容重定向单一登记处（routes/compat.ts）：只含 redirect、无 component，政策见其文件头

@@ -77,11 +77,6 @@ export const SITE_NAV_ITEMS: SiteNavNode[] = [
     name: 'services',
     label: '服务',
     children: [
-      {
-        name: 'health-group',
-        label: '健康服务',
-        children: [{ name: 'boh-health', path: '/health', label: 'BOH Health' }],
-      },
       { name: 'shop', path: '/shop', label: '周边商城' },
       { name: 'subscription', path: '/user-space/subscriptions', label: '订阅计划' },
       {

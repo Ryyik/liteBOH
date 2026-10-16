@@ -4,11 +4,10 @@
  * 关键口径：
  *   ① `contextBlock` 顺序 = 页面 → 证据 → 摘要（摘要包 `<conversation_summary>`）；
  *   ② `contextBlock` 必须**替换进** `BASE_SYSTEM_PROMPT` 的占位符（不留 `CONTEXT_PLACEHOLDER`）；
- *   ③ 空段一律被 `filter` 掉；Plan / 健康 / 访谈块按开关出现。
+ *   ③ 空段一律被 `filter` 掉；Plan / 访谈块按开关出现。
  */
 import { describe, expect, it } from 'vitest';
 import {
-  HEALTH_ANALYSIS_PROMPT_APPENDIX,
   PLAN_MODE_PROMPT_APPENDIX,
   CONTEXT_PLACEHOLDER,
 } from '../../src/views/BOHAI/composables/chat-engine-config';
@@ -20,7 +19,6 @@ const BASE = {
   cachedSummary: null,
   structuredMemoryBlock: '',
   isPlanMode: false,
-  healthAnalysisActive: false,
   psychInterviewProtocol: '',
   psychStateBlock: '',
   psychRulesBlock: '',
@@ -54,20 +52,17 @@ describe('BOHAI system prompt 段落拼装（Step 5-3）', () => {
     expect(systemPromptContent).toContain('EVID');
   });
 
-  it('Plan / 健康 / 访谈块按开关出现，空段被丢弃', () => {
+  it('Plan / 访谈块按开关出现，空段被丢弃', () => {
     const off = buildSystemPromptSections(BASE);
     expect(off.systemPromptContent).not.toContain(PLAN_MODE_PROMPT_APPENDIX);
-    expect(off.systemPromptContent).not.toContain(HEALTH_ANALYSIS_PROMPT_APPENDIX);
 
     const on = buildSystemPromptSections({
       ...BASE,
       isPlanMode: true,
-      healthAnalysisActive: true,
       psychInterviewProtocol: 'PROTO',
       structuredMemoryBlock: 'SM',
     });
     expect(on.systemPromptContent).toContain(PLAN_MODE_PROMPT_APPENDIX);
-    expect(on.systemPromptContent).toContain(HEALTH_ANALYSIS_PROMPT_APPENDIX);
     expect(on.systemPromptContent).toContain('PROTO');
     expect(on.systemPromptContent).toContain('SM');
   });

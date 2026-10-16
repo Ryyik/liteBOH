@@ -161,7 +161,8 @@ A2b hover 卡 / A4 两胶囊互斥 / A5 选模式 / A6 工具四件）
 **2026-10-16 补两条命令 + 一条不变量断言**
 
 补 `/memory`（官方记忆，→ `handleKnowledgeBaseToggle`）与 `/shared`（社区知识，→ `handleSharedMemoryToggle`）：
-这两个开关原本只有设置面板入口，而同族的 `/web` `/community` `/cloud` `/health` 都有命令。
+这两个开关原本只有设置面板入口，而同族的 `/web` `/community` `/cloud` 都有命令
+（`/health` 随 BOH Health 功能整体下线，2026-10-16）。
 
 ⚠️ **当时的真实形态**：先加了「官方记忆」的设置面板开关与 `handleKnowledgeBaseToggle`，
 **却忘了在 `executeSlashCommand` 的 switch 里加 case** ⇒ 用户敲 `/memory` 只会得到「未知命令」。

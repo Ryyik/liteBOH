@@ -20,7 +20,6 @@ export const BOHAI_CONNECTOR_IDS = {
   siteGuide: 'siteGuide',
   forum: 'forum',
   userPrivate: 'userPrivate',
-  health: 'health',
   webSearch: 'webSearch',
   // 2026-10-04 新增：站内活动 / 抽奖 / 演出（公开数据，不要求登录）
   siteActivities: 'siteActivities',

@@ -236,18 +236,6 @@
                         ><strong>个人 Cloud+</strong><small>参考你的 Cloud+ 私有内容</small></span
                       >
                     </button>
-                    <button
-                      type="button"
-                      class="boh-mm-tool"
-                      :class="{ 'is-on': tools.health }"
-                      :aria-pressed="tools.health"
-                      @click="emit('toggle-tool', 'health')"
-                    >
-                      <HeartPulse :size="16" aria-hidden="true" />
-                      <span
-                        ><strong>健康分析</strong><small>参考你本机的 BOH Health 数据</small></span
-                      >
-                    </button>
                     <button type="button" class="boh-mm-tool" @click="emit('start-psych')">
                       <Brain :size="16" aria-hidden="true" />
                       <span
@@ -422,7 +410,6 @@ import {
   Cloud,
   FileText,
   Globe,
-  HeartPulse,
   Pencil,
   Search,
   SlidersHorizontal,
@@ -461,7 +448,7 @@ const props = defineProps({
   modesLoading: { type: Boolean, default: false },
   currentMode: { type: Object, default: () => ({ name: '' }) },
   currentModeId: { type: String, default: '' },
-  tools: { type: Object, default: () => ({ forum: false, cloud: false, health: false }) },
+  tools: { type: Object, default: () => ({ forum: false, cloud: false }) },
   attachedContext: { type: Object, default: null },
   usage: { type: Object, default: () => ({ visible: false }) },
   slashOpen: { type: Boolean, default: false },

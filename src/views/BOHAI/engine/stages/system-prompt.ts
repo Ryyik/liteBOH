@@ -4,18 +4,20 @@
  * 两件事：
  *   ① `contextBlock` —— 页面上下文 + 证据块 + 会话摘要，**替换进** `BASE_SYSTEM_PROMPT` 的占位符
  *      （而不是作为独立 system 消息，部分模型处理不一致）；
- *   ② `systemPromptContent` —— 主 prompt + 结构化记忆 + Plan 附录 + 健康附录 + 访谈三块 + 风格附录。
+ *   ② `systemPromptContent` —— 主 prompt + 结构化记忆 + Plan 附录 + 访谈三块 + 风格附录。
  *
  * 纯函数：只做字符串拼装与「去空段」。
  *
  * ⚠️ 两条**顺序不可换**：
  *   1. `contextBlock` 的拼接顺序 = 页面 → 证据 → 摘要（摘要最后，因为它最长、最"背景"）；
  *   2. `systemPromptContent` 的段落顺序固定（见实现）—— 顺序变了就是改提示词优先级。
+ *
+ * 2026-10-16：BOH Health 功能整体下线，健康分析附录（`HEALTH_ANALYSIS_PROMPT_APPENDIX`）
+ * 与其开关一并移除。
  */
 import {
   BASE_SYSTEM_PROMPT,
   CONTEXT_PLACEHOLDER,
-  HEALTH_ANALYSIS_PROMPT_APPENDIX,
   PLAN_MODE_PROMPT_APPENDIX,
 } from '../../composables/chat-engine-config.js';
 
@@ -26,7 +28,6 @@ export interface SystemPromptInput {
   cachedSummary: string | null | undefined;
   structuredMemoryBlock: string;
   isPlanMode: boolean;
-  healthAnalysisActive: boolean;
   psychInterviewProtocol: string;
   psychStateBlock: string;
   psychRulesBlock: string;
@@ -44,7 +45,6 @@ export const buildSystemPromptSections = ({
   cachedSummary,
   structuredMemoryBlock,
   isPlanMode,
-  healthAnalysisActive,
   psychInterviewProtocol,
   psychStateBlock,
   psychRulesBlock,
@@ -66,7 +66,6 @@ export const buildSystemPromptSections = ({
     ),
     structuredMemoryBlock,
     isPlanMode ? PLAN_MODE_PROMPT_APPENDIX : '',
-    healthAnalysisActive ? HEALTH_ANALYSIS_PROMPT_APPENDIX : '',
     psychInterviewProtocol,
     psychStateBlock,
     psychRulesBlock,

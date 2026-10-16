@@ -38,7 +38,6 @@ describe('BOHAI domain 门面契约', () => {
     expect(EVIDENCE_SOURCE_WEIGHTS.cloud).toBe(18);
     expect(EVIDENCE_SOURCE_WEIGHTS.forum).toBe(16);
     expect(EVIDENCE_SOURCE_WEIGHTS.sharedMemory).toBe(14);
-    expect(EVIDENCE_SOURCE_WEIGHTS.health).toBe(15);
     expect(EVIDENCE_SOURCE_WEIGHTS.knowledge).toBe(12);
     expect(EVIDENCE_SOURCE_WEIGHTS.siteGuide).toBe(10);
     // 原有三项逐字不动（2026-10-08 加时间衰减时只**新增**字段，没改这三个值）
@@ -50,7 +49,6 @@ describe('BOHAI domain 门面契约', () => {
     expect(RANKING_SCORE_WEIGHTS.freshnessReferenceDays).toBe(90);
     expect(RANKING_SCORE_WEIGHTS.freshnessHalfLifeDays).toEqual({
       forum: 14,
-      health: 21,
       cloud: 30,
       sharedMemory: 30,
       userPrivate: 120,

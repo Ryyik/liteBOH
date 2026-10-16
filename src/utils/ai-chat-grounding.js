@@ -304,7 +304,6 @@ export const resolveKnowledgeRoutingPlanCore = ({
     siteGuide: false,
     forum: false,
     userPrivate: false,
-    health: false,
     // 2026-10-04：站内活动 / 抽奖 / 演出（公开数据）
     activities: false,
     ...basePlan,
@@ -346,11 +345,6 @@ export const resolveKnowledgeRoutingPlanCore = ({
 
   if (plan.userPrivate && !operation) {
     reasons.push('账号私域问题 -> 读取当前登录用户数据');
-  }
-
-  // 健康分析不受 operation / community 分支影响：命中健康关键词就带上本机健康数据
-  if (plan.health) {
-    reasons.push('健康相关问题 -> 读取 BOH Health 本机健康数据');
   }
 
   return { plan, reasons };

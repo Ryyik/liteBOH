@@ -70,7 +70,6 @@ import {
 } from '../utils/chatErrorMessages.js';
 import {
   BASE_SYSTEM_PROMPT,
-  HEALTH_ANALYSIS_PROMPT_APPENDIX,
   MAX_CONTEXT_MESSAGES,
   MAX_FINAL_PROMPT_CHARS,
   MAX_HISTORY_CONTEXT_CHARS,
@@ -348,8 +347,6 @@ export function useChatEngine() {
     currentModel,
     isSearching,
     isForumSearchEnabled,
-    isHealthAnalysisEnabled,
-    isHealthAnalysisDismissed,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,
@@ -522,8 +519,6 @@ export function useChatEngine() {
     userInfo,
     isTreeholeMemoryEnabled,
     isForumSearchEnabled,
-    isHealthAnalysisEnabled,
-    isHealthAnalysisDismissed,
     isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     treeholeMemoryCache,
@@ -706,9 +701,10 @@ export function useChatEngine() {
     _startNewChat();
     isSearching.value = false;
     isForumSearchEnabled.value = false;
-    isHealthAnalysisEnabled.value = false;
-    isHealthAnalysisDismissed.value = false;
-    isKnowledgeBaseEnabled.value = false;
+    // ⚠️ 这里**不要**再重置 isKnowledgeBaseEnabled —— 它是持久化的用户偏好
+    //（localStorage `boh_ai_knowledge_base_enabled_v1`，默认开），不是 per-session 状态。
+    // 2026-10-16 实测：原先这行把它强制置 false ⇒ 每次「新对话」都悄悄关掉官方记忆检索，
+    // 而 localStorage 仍是 1 ⇒ 刷新后打开、新开会话后关闭，用户完全看不出为什么。
   };
 
   const stopGeneration = () => {
@@ -1487,7 +1483,6 @@ export function useChatEngine() {
       let searchResultCount = retrieval.searchResultCount;
       let webSearchVerified = retrieval.webSearchVerified;
       let hasKnowledgeContext = retrieval.hasKnowledgeContext;
-      let healthAnalysisActive = retrieval.healthAnalysisActive;
       let latestForumSummaryPosts = retrieval.latestForumSummaryPosts;
       const webSearchResult = retrieval.webSearchResult;
 
@@ -1635,12 +1630,6 @@ export function useChatEngine() {
       // 优化1: Token 预算监控
       const budgetTracker = createContextBudgetTracker();
       budgetTracker.addEstimate(CONTEXT_CATEGORIES.SYSTEM_PROMPT, BASE_SYSTEM_PROMPT);
-      if (healthAnalysisActive) {
-        budgetTracker.addEstimate(
-          CONTEXT_CATEGORIES.SYSTEM_PROMPT,
-          HEALTH_ANALYSIS_PROMPT_APPENDIX,
-        );
-      }
       budgetTracker.addEstimate(CONTEXT_CATEGORIES.EVIDENCE, evidenceContextBlock);
       budgetTracker.addEstimate(CONTEXT_CATEGORIES.RULES, finalPrompt);
 
@@ -1679,7 +1668,6 @@ export function useChatEngine() {
         cachedSummary,
         structuredMemoryBlock,
         isPlanMode,
-        healthAnalysisActive,
         psychInterviewProtocol,
         psychStateBlock,
         psychRulesBlock,
@@ -2050,7 +2038,6 @@ export function useChatEngine() {
     webSearchResults,
     communitySearchActive,
     isForumSearchEnabled,
-    isHealthAnalysisEnabled,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,

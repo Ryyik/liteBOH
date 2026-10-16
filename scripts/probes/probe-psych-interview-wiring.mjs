@@ -141,19 +141,16 @@ try {
   );
   // 注意：BASE_SYSTEM_PROMPT 自带的 <conversation_continuity> 里就写着「[W1]/[W2] 是网络搜索编号、
   // [F1]/[F2] 是论坛帖子编号」——那是编号体系说明，不是真实证据，别把它当注入（第一版断言在这里误报过）。
-  // [H1] 只可能来自健康连接器的证据块，是可靠的判据。
   const memIdx = systemText.indexOf('boh_ai_shared_memories');
   const hasForumEvidence = /\[F1\](?!\/)/.test(systemText);
-  const hasHealthEvidence = /\[H1\]/.test(systemText);
   check(
     'sandbox：开场请求未注入检索证据',
-    memIdx === -1 && !hasForumEvidence && !hasHealthEvidence,
-    `mem@${memIdx} forum=${hasForumEvidence} health=${hasHealthEvidence}`,
+    memIdx === -1 && !hasForumEvidence,
+    `mem@${memIdx} forum=${hasForumEvidence}`,
   );
 
-  // ── sandbox 的关键验证：发一条会命中「健康 / 情绪」关键词的消息 ──
-  // 未接线时这里会注入 BOH Health 证据（用户实测气泡下方出现「来源 BOH Health 数据」）。
-  // 开场语本身不含触发词，所以必须补这一条，否则等于没验证到 sandbox。
+  // ── sandbox 的关键验证：发一条会命中「情绪」关键词的消息 ──
+  // （2026-10-16 前这里还会用「健康」关键词验证 sandbox 不注入 BOH Health 证据 —— 该功能已下线。）
   await page.waitForTimeout(2500);
   const composer = await page.$('textarea.input-textarea');
   if (composer) {
@@ -169,23 +166,14 @@ try {
       const text = JSON.stringify(item.payload?.messages || []);
       return text.includes('睡不着') && text.includes('心情很差');
     }) || null;
-  check(
-    '已发出第二条（含健康/情绪触发词）请求',
-    Boolean(keywordRequest),
-    `captured=${captured.length}`,
-  );
+  check('已发出第二条（含情绪触发词）请求', Boolean(keywordRequest), `captured=${captured.length}`);
   if (keywordRequest) {
     const systemKeyword = (keywordRequest.payload?.messages || [])
       .filter((m) => m.role === 'system')
       .map((m) => String(m.content || ''))
       .join('\n');
     check(
-      '★ sandbox：命中健康关键词时仍未注入健康证据',
-      !systemKeyword.includes('BOH Health') && !/\[H1\]/.test(systemKeyword),
-      `health=${/\[H1\]/.test(systemKeyword)}`,
-    );
-    check(
-      '★ sandbox：命中关键词时也未注入社区/记忆证据',
+      '★ sandbox：命中情绪关键词时仍未注入社区/记忆证据',
       !/\[F1\](?!\/)/.test(systemKeyword) && !systemKeyword.includes('boh_ai_shared_memories'),
     );
     check('状态块在第二轮仍被注入（轮次已推进）', systemKeyword.includes('<interview_state>'));

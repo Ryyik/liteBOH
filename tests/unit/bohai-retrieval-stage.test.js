@@ -76,19 +76,6 @@ describe('BOHAI 检索主体阶段（Step 5-2）', () => {
     expect(deps.appendProgressContent).toHaveBeenCalledWith(expect.stringContaining('社区帖子'));
   });
 
-  it('BOH Health 命中 → healthAnalysisActive 置真', async () => {
-    const deps = makeDeps({
-      buildAutoKnowledgeContext: vi.fn(async () => ({
-        ok: true,
-        retrievalPlan: { health: true },
-        connectorResults: [{ ok: true, connectorId: 'health', total: 3 }],
-        contextText: '',
-      })),
-    });
-    const r = await runRetrievalStage(deps, makeOptions());
-    expect(r.healthAnalysisActive).toBe(true);
-  });
-
   it('联网 ok → 计数 / 上下文 / verified + 写 searchContext meta', async () => {
     const deps = makeDeps({
       runWebSearch: vi.fn(async () => ({

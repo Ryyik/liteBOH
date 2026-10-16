@@ -236,11 +236,13 @@ describe('BOHAI 输入区：2026-10-11 两颗独立胶囊', () => {
     expect(squeezeSource(read(COMPOSER))).not.toContain('boh-effort');
   });
 
-  it('工具四件（社区搜索 / Cloud+ / 健康 / 心理）挂在工具胶囊下，不在模型面板里', () => {
+  it('工具三件（社区搜索 / Cloud+ / 心理）挂在工具胶囊下，不在模型面板里', () => {
     expect(template).toContain('class="boh-tools-menu"');
-    for (const name of ['社区搜索', '个人 Cloud+', '健康分析', '心理分析']) {
+    // 2026-10-16：BOH Health 下线 ⇒ 原「健康分析」那颗工具胶囊已移除（三件，不再是四件）
+    for (const name of ['社区搜索', '个人 Cloud+', '心理分析']) {
       expect(template).toContain(name);
     }
+    expect(template).not.toContain('健康分析');
     expect(template).toContain('class="boh-mm-tool"');
     // 「高级」折叠行已下线
     expect(template).not.toContain('is-adv');

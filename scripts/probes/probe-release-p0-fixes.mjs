@@ -2,18 +2,16 @@
  * probe-release-p0-fixes.mjs
  *
  * 验证 release 报告批次 0 的两处修复，逐条对应报告里的「验收」条款：
- *   T1-1  全局 ErrorBoundary UI 缺失（S6）
- *         → 渲染期抛错不再白屏，出现带出口的提示卡；换路由自动复位
  *   T0-1  SharedMemoryManagement 的 dialog 未定义（N1）
  *         → 编辑与删除各成功执行一次；写接口失败时乐观值回滚、按钮可再点
  *
- * 崩溃用真实数据触发，不篡改组件内部：
- *   localStorage['boh_health_persist'].profile = null
- *   → Health 页模板读已持久化的空 profile
- *   → TypeError（正是报告 S11（固定 key 持久化）+ S16（模板深层解引用）的交叉点）
+ * ⚠️ 2026-10-16：BOH Health 功能整体下线 ⇒ **Part A（全局 ErrorBoundary）整段移除**。
+ *   它原先用「Health 页 + `boh_health_persist.profile = null` 触发渲染期 TypeError」当崩溃触发器。
+ *   全仓没有第二个**能在渲染期稳定抛错**的替代触发器（其它 localStorage 读取都有 try/catch），
+ *   且本地无法跑 dev server + playwright 验证新触发器 ⇒ 宁可整段移除，也不留一个必然假红的探针。
+ *   **覆盖缺口已记入 `docs/未完成任务清单.md`**（需要新的崩溃触发器才能恢复这 15+ 条断言）。
  *
- * 反证记录：撤掉 App.vue 的边界包裹 → A2~A14 转红；
- *           删掉 SharedMemoryManagement 的 dialog 实例 → B4/B7/B8 转红。
+ * 反证记录：删掉 SharedMemoryManagement 的 dialog 实例 → B4/B7/B8 转红。
  *
  * 用法（从仓库根）：node scripts/probes/probe-release-p0-fixes.mjs
  */
@@ -39,7 +37,8 @@ const check = (ok, name, detail = '') => {
   results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`);
 };
 const note = (text) => results.push(`      （${text}）`);
-const section = (title) => results.push(`\n── ${title} ${'─'.repeat(Math.max(0, 56 - title.length))}`);
+const section = (title) =>
+  results.push(`\n── ${title} ${'─'.repeat(Math.max(0, 56 - title.length))}`);
 
 const FAKE_ROW = {
   id: FAKE_MEMORY_ID,
@@ -52,13 +51,13 @@ const FAKE_ROW = {
   source: 'probe',
   status: 'active',
   created_at: '2026-09-01T00:00:00.000Z',
-  updated_at: '2026-09-01T00:00:00.000Z'
+  updated_at: '2026-09-01T00:00:00.000Z',
 };
 
 const browser = await chromium.launch({
   channel: 'chrome',
   headless: true,
-  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
+  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
 });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await context.newPage();
@@ -75,7 +74,7 @@ page.on('response', (res) => {
   const m = res.request().method();
   if (m !== 'GET' && /boh_ai_shared_memories/.test(res.url())) {
     writeResponses.push(
-      `${m} ${res.status()} content-range=${res.headers()['content-range'] || '(none)'}`
+      `${m} ${res.status()} content-range=${res.headers()['content-range'] || '(none)'}`,
     );
   }
 });
@@ -88,7 +87,7 @@ let writeMode = 'ok';
 // 漏了这条，delete({ count:'exact' }) 会被判成「不存在或无权限」而回滚。
 const jsonHeaders = {
   'content-type': 'application/json',
-  'access-control-expose-headers': 'Content-Range'
+  'access-control-expose-headers': 'Content-Range',
 };
 
 await page.route('**/rest/v1/boh_ai_shared_memories**', (route) => {
@@ -98,7 +97,7 @@ await page.route('**/rest/v1/boh_ai_shared_memories**', (route) => {
     return route.fulfill({
       status: 200,
       headers: { ...jsonHeaders, 'content-range': '0-0/1' },
-      body: JSON.stringify([FAKE_ROW])
+      body: JSON.stringify([FAKE_ROW]),
     });
   }
 
@@ -106,7 +105,7 @@ await page.route('**/rest/v1/boh_ai_shared_memories**', (route) => {
     return route.fulfill({
       status: 500,
       headers: jsonHeaders,
-      body: JSON.stringify({ message: '探针强制失败', code: 'PROBE_FORCED_FAILURE' })
+      body: JSON.stringify({ message: '探针强制失败', code: 'PROBE_FORCED_FAILURE' }),
     });
   }
 
@@ -117,14 +116,18 @@ await page.route('**/rest/v1/boh_ai_shared_memories**', (route) => {
     return route.fulfill({
       status: 200,
       headers: { ...jsonHeaders, 'content-range': '0-0/1' },
-      body: JSON.stringify([{ id: FAKE_MEMORY_ID }])
+      body: JSON.stringify([{ id: FAKE_MEMORY_ID }]),
     });
   }
   // PATCH 走 .select().maybeSingle()，必须回单行对象
-  return route.fulfill({ status: 200, headers: jsonHeaders, body: JSON.stringify({ ...FAKE_ROW }) });
+  return route.fulfill({
+    status: 200,
+    headers: jsonHeaders,
+    body: JSON.stringify({ ...FAKE_ROW }),
+  });
 });
 await page.route('**/rest/v1/rpc/**', (route) =>
-  route.fulfill({ status: 200, headers: jsonHeaders, body: '[]' })
+  route.fulfill({ status: 200, headers: jsonHeaders, body: '[]' }),
 );
 
 const injectLogin = async () => {
@@ -135,7 +138,7 @@ const injectLogin = async () => {
         return pinia && pinia.state.value.auth.isInitialized === true;
       },
       null,
-      { timeout: 15000 }
+      { timeout: 15000 },
     )
     .catch(() => {});
 
@@ -150,7 +153,7 @@ const injectLogin = async () => {
         if (auth.userInfo && typeof auth.userInfo === 'object') Object.assign(auth.userInfo, info);
         else auth.userInfo = info;
       },
-      { uid: PROBE_USER_ID }
+      { uid: PROBE_USER_ID },
     );
     await page.waitForTimeout(420);
     const stillIn = await page
@@ -192,7 +195,7 @@ const boundaryGeometry = () =>
         w: Math.round(br.width),
         h: Math.round(br.height),
         display: bs.display,
-        visibility: bs.visibility
+        visibility: bs.visibility,
       };
     });
     return {
@@ -205,131 +208,9 @@ const boundaryGeometry = () =>
       backdrop: cs.backdropFilter || cs.webkitBackdropFilter || 'none',
       title: document.querySelector('.geb-title')?.textContent.trim() || '',
       message: document.querySelector('.geb-message')?.textContent.trim() || '',
-      buttons
+      buttons,
     };
   });
-
-// ═══════════════════════════════════════════════════════════
-// Part A · T1-1 全局 ErrorBoundary
-// ═══════════════════════════════════════════════════════════
-section('T1-1 全局 ErrorBoundary（渲染期抛错不再白屏）');
-
-await page.addInitScript(() => {
-  try {
-    window.localStorage.setItem(
-      'boh_health_persist',
-      JSON.stringify({
-        profile: null,
-        weightLogs: [],
-        dailyLogs: [],
-        vaultRecords: null,
-        onboardingDone: true
-      })
-    );
-  } catch {
-    /* localStorage 不可用时跳过 */
-  }
-});
-
-await page.goto(`${BASE}/#/health`, { waitUntil: 'domcontentloaded' });
-await injectLogin();
-
-const boundaryShown = await page
-  .waitForSelector('.geb-root', { timeout: 9000 })
-  .then(() => true)
-  .catch(() => false);
-
-const geo = await boundaryGeometry();
-// onErrorCaptured 返回 false 会阻止错误继续冒泡，window 上不会有 pageerror ——
-// 「没有 pageerror」恰恰是边界生效的证据。判据是卡片正文带出了原始错误信息。
-check(
-  /Cannot read properties of null/.test(geo?.message || ''),
-  'A1 畸形持久化数据确实触发了真实渲染错误（错误信息被边界接住）',
-  (geo?.message || pageErrors[0] || '').slice(0, 100)
-);
-check(boundaryShown, 'A2 抛错后渲染出错误边界提示卡（未白屏）');
-check(pageErrors.length === 0, 'A3 错误未冒泡到 window（onErrorCaptured 返回 false 生效）');
-
-if (boundaryShown && geo) {
-  check(!(await isBlankScreen()), 'A4 页面有可见内容，不是白屏');
-  check(geo.w > 200 && geo.h > 100, 'A5 提示卡尺寸正常', `${geo.w}×${geo.h}`);
-  check(
-    geo.background !== 'rgba(0, 0, 0, 0)' && geo.background !== 'transparent',
-    'A6 卡片背景不透明（玻璃材质已生效）',
-    geo.background
-  );
-  check(parseFloat(geo.radius) > 8, 'A7 圆角生效（--liquid-radius-* 已解析，非 0）', geo.radius);
-  check(geo.display !== 'none' && geo.visibility === 'visible', 'A8 卡片可见未隐藏');
-  check(geo.backdrop !== 'none', 'A9 玻璃滤镜生效', geo.backdrop);
-  check(geo.title.length > 0, 'A10 标题有文案', geo.title);
-  check(geo.message.length > 0, 'A11 正文有文案', geo.message.slice(0, 36));
-
-  const visibleBtns = geo.buttons.filter(
-    (b) => b.w > 40 && b.h > 20 && b.display !== 'none' && b.visibility === 'visible'
-  );
-  check(visibleBtns.length >= 3, 'A12 三个出口按钮均可见可点', visibleBtns.map((b) => b.text).join(' / '));
-  check(
-    geo.buttons.some((b) => b.text.includes('清除缓存')),
-    'A13 提供「清除缓存后重载」出口（chunk 404 自愈场景）'
-  );
-
-  await page.screenshot({ path: `${OUT_DIR}/boundary-light.png` });
-
-  // 就地切暗色验证 token 翻转。组件样式只依赖全局 --liquid-*，不该依赖任何宿主 class；
-  // 就地改 data-theme 比重走一次「重载 + 崩溃复现」更精准，也不受 boot 时序影响。
-  const lightTitleColor = await page.evaluate(
-    () => getComputedStyle(document.querySelector('.geb-title')).color
-  );
-  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
-  await page.waitForTimeout(400);
-  const darkColors = await page.evaluate(() => ({
-    title: getComputedStyle(document.querySelector('.geb-title')).color,
-    card: getComputedStyle(document.querySelector('.geb-card')).backgroundColor
-  }));
-  check(
-    darkColors.title !== lightTitleColor,
-    'A13a 暗色下标题文字翻转为亮色（token 自动翻转）',
-    `${lightTitleColor} → ${darkColors.title}`
-  );
-  await page.screenshot({ path: `${OUT_DIR}/boundary-dark.png` });
-  await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
-  await page.waitForTimeout(250);
-
-  await page.evaluate(() => {
-    Array.from(document.querySelectorAll('.geb-btn'))
-      .find((b) => b.textContent.includes('回到首页'))
-      ?.click();
-  });
-  await page
-    .waitForFunction(() => !document.querySelector('.geb-root'), null, { timeout: 8000 })
-    .catch(() => {});
-  await page.waitForTimeout(600);
-
-  const hashNow = await page.evaluate(() => location.hash);
-  check((await page.$('.geb-root')) === null, 'A14 点「回到首页」后卡片消失');
-  check(hashNow === '#/' || hashNow === '', 'A15 路由已回到首页', hashNow);
-  check(!(await isBlankScreen()), 'A16 首页正常渲染（边界已复位）');
-  await page.screenshot({ path: `${OUT_DIR}/boundary-recovered.png` });
-} else {
-  check(false, 'A4 提示卡几何读取失败');
-}
-
-// 换路由自动复位
-await page.goto(`${BASE}/#/health`, { waitUntil: 'domcontentloaded' });
-await page.waitForTimeout(1200);
-await injectLogin();
-if (await page.waitForSelector('.geb-root', { timeout: 9000 }).then(() => true).catch(() => false)) {
-  await page.evaluate(() => {
-    document.querySelector('#app').__vue_app__.config.globalProperties.$router.push('/');
-  });
-  await page
-    .waitForFunction(() => !document.querySelector('.geb-root'), null, { timeout: 8000 })
-    .catch(() => {});
-  await page.waitForTimeout(500);
-  check((await page.$('.geb-root')) === null, 'A17 换路由后边界自动复位（一次崩溃不污染后续页面）');
-} else {
-  check(false, 'A17 第二次崩溃未复现，无法验证路由复位');
-}
 
 // ═══════════════════════════════════════════════════════════
 // Part B · T0-1 公共记忆编辑/删除
@@ -349,7 +230,7 @@ const settled = await page
       !!document.querySelector('.empty-state') ||
       !!document.querySelector('.loading-state'),
     null,
-    { timeout: 15000 }
+    { timeout: 15000 },
   )
   .then(() =>
     page.evaluate(() => {
@@ -357,7 +238,7 @@ const settled = await page
       if (document.querySelector('.empty-state')) return 'empty';
       if (document.querySelector('.loading-state')) return 'loading';
       return 'unknown';
-    })
+    }),
   )
   .catch(() => 'timeout');
 
@@ -371,7 +252,7 @@ const entryState = await page.evaluate(() => {
   const btns = Array.from(document.querySelectorAll('button'));
   return {
     edit: btns.filter((b) => /编辑/.test(b.textContent || '')).length,
-    del: btns.filter((b) => /删除/.test(b.textContent || '')).length
+    del: btns.filter((b) => /删除/.test(b.textContent || '')).length,
   };
 });
 check(entryState.edit > 0, 'B3 编辑入口已渲染', `${entryState.edit} 个`);
@@ -400,7 +281,7 @@ const dialogState = () =>
       background: cs.backgroundColor,
       radius: cs.borderTopLeftRadius,
       hasInput: !!input,
-      inputValue: input?.value ?? null
+      inputValue: input?.value ?? null,
     };
   });
 
@@ -423,14 +304,14 @@ const cardState = () =>
   page.evaluate(() => {
     const card = document.querySelector('.memory-card');
     const editBtn = Array.from(document.querySelectorAll('button')).find((b) =>
-      /编辑/.test(b.textContent || '')
+      /编辑/.test(b.textContent || ''),
     );
     return {
       count: document.querySelectorAll('.memory-card').length,
       content: document.querySelector('.memory-content')?.textContent.trim() || '',
       notice: document.querySelector('.notice')?.textContent.trim() || '',
       editDisabled: editBtn?.disabled ?? null,
-      modalOpen: !!document.querySelector('.confirm-modal')
+      modalOpen: !!document.querySelector('.confirm-modal'),
     };
   });
 
@@ -441,11 +322,17 @@ await page.waitForTimeout(700);
 const promptBefore = await dialogState();
 check(promptBefore?.visible === true, 'B5 点「编辑」后确认弹窗真实弹出（几何校验，非仅 DOM 存在）');
 check(promptBefore?.hasInput === true, 'B6 编辑弹窗带输入框（prompt 模式）');
-check(promptBefore?.inputValue === FAKE_CONTENT, 'B7 输入框预填当前内容', JSON.stringify(promptBefore?.inputValue));
 check(
-  promptBefore && promptBefore.background !== 'rgba(0, 0, 0, 0)' && parseFloat(promptBefore.radius) > 4,
+  promptBefore?.inputValue === FAKE_CONTENT,
+  'B7 输入框预填当前内容',
+  JSON.stringify(promptBefore?.inputValue),
+);
+check(
+  promptBefore &&
+    promptBefore.background !== 'rgba(0, 0, 0, 0)' &&
+    parseFloat(promptBefore.radius) > 4,
   'B8 弹窗材质与圆角生效',
-  promptBefore ? `${promptBefore.background} / ${promptBefore.radius}` : ''
+  promptBefore ? `${promptBefore.background} / ${promptBefore.radius}` : '',
 );
 await page.screenshot({ path: `${OUT_DIR}/edit-dialog.png` });
 
@@ -458,10 +345,18 @@ if (promptBefore?.visible) {
   check(
     afterFail.content === FAKE_CONTENT,
     'B10 写接口失败时乐观值已回滚（内容恢复原值）',
-    afterFail.content.slice(0, 30)
+    afterFail.content.slice(0, 30),
   );
-  check(afterFail.editDisabled === false, 'B11 失败后按钮可再次点击', `disabled=${afterFail.editDisabled}`);
-  check(/失败|错误|不存在|无权限/.test(afterFail.notice), 'B12 失败有可见提示', afterFail.notice.slice(0, 40));
+  check(
+    afterFail.editDisabled === false,
+    'B11 失败后按钮可再次点击',
+    `disabled=${afterFail.editDisabled}`,
+  );
+  check(
+    /失败|错误|不存在|无权限/.test(afterFail.notice),
+    'B12 失败有可见提示',
+    afterFail.notice.slice(0, 40),
+  );
 } else {
   check(false, 'B9~B12 编辑弹窗未弹出，失败路径无法验证');
 }
@@ -476,7 +371,11 @@ if ((await dialogState())?.visible) {
   await submitDialog();
   await page.waitForTimeout(700);
   const afterEdit = await cardState();
-  check(afterEdit.content === EDITED_CONTENT, 'B13 编辑成功执行一次（卡片内容已更新）', afterEdit.content.slice(0, 30));
+  check(
+    afterEdit.content === EDITED_CONTENT,
+    'B13 编辑成功执行一次（卡片内容已更新）',
+    afterEdit.content.slice(0, 30),
+  );
 } else {
   check(false, 'B13 编辑弹窗未弹出，成功路径无法验证');
 }
@@ -487,8 +386,16 @@ await page.waitForTimeout(400);
 await clickEntry('删除');
 await page.waitForTimeout(700);
 const delPrompt = await dialogState();
-check(delPrompt?.visible === true, 'B14 点「删除」后确认弹窗真实弹出', delPrompt ? `${delPrompt.w}px` : '无弹窗');
-check(delPrompt?.confirmText === '删除', 'B15 删除弹窗主按钮文案明确', delPrompt?.confirmText || '');
+check(
+  delPrompt?.visible === true,
+  'B14 点「删除」后确认弹窗真实弹出',
+  delPrompt ? `${delPrompt.w}px` : '无弹窗',
+);
+check(
+  delPrompt?.confirmText === '删除',
+  'B15 删除弹窗主按钮文案明确',
+  delPrompt?.confirmText || '',
+);
 await page.screenshot({ path: `${OUT_DIR}/delete-dialog.png` });
 
 if (delPrompt?.visible) {
@@ -499,7 +406,7 @@ if (delPrompt?.visible) {
   check(
     afterDel.count === 0,
     'B16 删除成功执行一次（卡片已从列表移除）',
-    `剩 ${afterDel.count} 张 · notice="${afterDel.notice}"`
+    `剩 ${afterDel.count} 张 · notice="${afterDel.notice}"`,
   );
   check(!afterDel.modalOpen, 'B17 删除后弹窗关闭');
   await page.screenshot({ path: `${OUT_DIR}/after-delete.png` });

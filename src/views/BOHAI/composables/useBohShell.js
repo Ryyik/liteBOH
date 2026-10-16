@@ -371,7 +371,6 @@ export function useBohShell(props, emit) {
     webSearchResults,
     communitySearchActive,
     isForumSearchEnabled,
-    isHealthAnalysisEnabled,
     isTreeholeMemoryEnabled,
     isPlanModeEnabled,
     isSharedMemoryEnabled,
@@ -1503,15 +1502,9 @@ export function useBohShell(props, emit) {
     isForumSearchEnabled.value = !isForumSearchEnabled.value;
   };
 
-  // 健康分析：开启后本轮回答会带上用户本机的 BOH Health 数据（localStorage，无需登录）
-  const toggleHealthAnalysis = () => {
-    isHealthAnalysisEnabled.value = !isHealthAnalysisEnabled.value;
-  };
-
-  /** 面板「高级」四工具的统一入口（`BohComposer` 只发 kind） */
+  /** 面板「高级」工具的统一入口（`BohComposer` 只发 kind） */
   const toggleTool = (kind) => {
     if (kind === 'forum') toggleForumSearch();
-    if (kind === 'health') toggleHealthAnalysis();
     if (kind === 'cloud') handleTreeholeMemoryToggle();
   };
 
@@ -1598,17 +1591,6 @@ export function useBohShell(props, emit) {
         } else {
           await handleTreeholeMemoryToggle();
         }
-        break;
-      case 'health':
-        isHealthAnalysisEnabled.value = true;
-        emitIslandMessage({
-          title: '已开启健康分析',
-          message: '接下来的回答会带上你的 BOH Health 数据，点输入框上的「健康分析」标签可关闭',
-          icon: 'ai',
-          type: 'notification',
-          actionLabel: '知道了',
-          durationMs: 3600,
-        });
         break;
       // 2026-10-16 补：与设置面板的两个开关一一对应，复用它们各自的切换函数
       // （岛提示也在那两个函数里发，此处不再重复发一条）
@@ -1858,7 +1840,6 @@ export function useBohShell(props, emit) {
   const composerTools = computed(() => ({
     forum: Boolean(isForumSearchEnabled.value),
     cloud: Boolean(isTreeholeMemoryEnabled.value),
-    health: Boolean(isHealthAnalysisEnabled.value),
   }));
 
   const composerUsage = computed(() => ({

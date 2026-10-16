@@ -17,7 +17,6 @@ export const SOURCE_PREFIX_BY_CONNECTOR = {
   siteGuide: 'G',
   forum: 'F',
   userPrivate: 'U',
-  health: 'H',
   siteActivities: 'A',
   webSearch: 'W',
 };

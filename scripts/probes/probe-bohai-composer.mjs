@@ -392,9 +392,9 @@ const openPanel = async (page, scope = '') => {
     return [...el.querySelectorAll('.boh-slash-cmd')].map((n) => n.textContent.trim());
   }, SEL.slash);
   check(
-    'A8 斜杠菜单（/web /community /cloud /health）',
+    'A8 斜杠菜单（/web /community /cloud）',
     Array.isArray(slashCmds) &&
-      ['/web', '/community', '/cloud', '/health'].every((c) => slashCmds.includes(c)),
+      ['/web', '/community', '/cloud'].every((c) => slashCmds.includes(c)),
     (slashCmds || []).join(' '),
   );
 

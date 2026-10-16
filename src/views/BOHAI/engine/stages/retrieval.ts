@@ -100,7 +100,6 @@ export interface RetrievalStageResult {
   searchResultCount: number;
   webSearchVerified: boolean;
   hasKnowledgeContext: boolean;
-  healthAnalysisActive: boolean;
   latestForumSummaryPosts: unknown[];
   webSearchResult: WebSearchResultLike | null;
 }
@@ -124,8 +123,6 @@ export const runRetrievalStage = async (
   let searchResultCount = 0;
   let webSearchVerified = false;
   let hasKnowledgeContext = false;
-  // 本轮是否命中 BOH Health 本机健康数据（决定要不要注入健康分析附录）
-  let healthAnalysisActive = false;
   let latestForumSummaryPosts: unknown[] = [];
 
   const WEB_SEARCH_TIMEOUT_MS = 30_000; // 30s web search timeout
@@ -246,15 +243,12 @@ export const runRetrievalStage = async (
       ) {
         latestForumSummaryPosts = forumConnectorResult.metadata.posts;
       }
-      const { targets: retrievalTargets, healthAnalysisActive: healthTargetActive } =
-        computeRetrievalTargets({
-          retrievalPlan,
-          treeholeTotal: Number(treeholeTotal || 0),
-          sharedMemoryTotal: Number(sharedMemoryTotal || 0),
-          userPrivateLabels,
-          successfulConnectorResults,
-        });
-      if (healthTargetActive) healthAnalysisActive = true;
+      const { targets: retrievalTargets } = computeRetrievalTargets({
+        retrievalPlan,
+        treeholeTotal: Number(treeholeTotal || 0),
+        sharedMemoryTotal: Number(sharedMemoryTotal || 0),
+        userPrivateLabels,
+      });
 
       deps.mergeAssistantMessageMeta(sessionIndex, messageIndex, { ragTrace: retrievalTrace });
 
@@ -370,7 +364,6 @@ export const runRetrievalStage = async (
     searchResultCount,
     webSearchVerified,
     hasKnowledgeContext,
-    healthAnalysisActive,
     latestForumSummaryPosts,
     webSearchResult,
   };

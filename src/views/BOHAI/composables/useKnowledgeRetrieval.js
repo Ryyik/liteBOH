@@ -11,7 +11,6 @@ import { createBohAIRetrievalTrace } from '@/utils/bohai-observability.js';
 import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
 import { AI_ANSWER_IMAGE_ORIGINS, isAllowedImageSrc } from '@/utils/image-origins.js';
 import { logger } from '@/utils/logger.js';
-import { getHealthContext } from './useHealthRetrieval.js';
 import { getActivitiesContext } from './useSiteActivitiesRetrieval.js';
 // plans/025 v2 · Step 4：8 个读连接器已各自一文件，注册表在 tools/retrieval/。
 import { createReadConnectors as createReadConnectorsFromRegistry } from '../tools/retrieval/index';
@@ -65,7 +64,6 @@ import {
   isCommunityQuestion,
   shouldUseMemoryContext,
   shouldUseSharedMemoryContext,
-  shouldUseHealthContext,
   shouldUseSiteActivities,
   shouldUseTreeholeContext as _shouldUseTreeholeContext,
 } from './useIntentDetection.js';
@@ -98,8 +96,6 @@ import {
  * @param {import('vue').Ref<Object>} deps.userInfo
  * @param {import('vue').Ref<boolean>} deps.isTreeholeMemoryEnabled
  * @param {import('vue').Ref<boolean>} deps.isForumSearchEnabled
- * @param {import('vue').Ref<boolean>} deps.isHealthAnalysisEnabled
- * @param {import('vue').Ref<boolean>} deps.isHealthAnalysisDismissed
  * @param {import('vue').Ref<boolean>} deps.isSharedMemoryEnabled
  * @param {import('vue').Ref<boolean>} deps.isKnowledgeBaseEnabled
  * @param {Object} deps.treeholeMemoryCache
@@ -122,8 +118,6 @@ export function useKnowledgeRetrieval(deps) {
     userInfo,
     isTreeholeMemoryEnabled,
     isForumSearchEnabled,
-    isHealthAnalysisEnabled,
-    isHealthAnalysisDismissed,
     isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     treeholeMemoryCache,
@@ -1011,7 +1005,6 @@ export function useKnowledgeRetrieval(deps) {
       // forum 仅由用户手动开关控制，不再自动判定
       forum: false,
       userPrivate: userPrivatePlan.shouldUse,
-      health: shouldUseHealthContext(normalized),
       // 2026-10-04：站内活动 / 抽奖 / 演出（公开数据）
       activities: shouldUseSiteActivities(normalized),
     };
@@ -1034,7 +1027,6 @@ export function useKnowledgeRetrieval(deps) {
     if (plan.siteGuide) labels.push('站点操作手册');
     if (plan.treehole) labels.push('BOH Cloud+');
     if (plan.userPrivate) labels.push('当前账号资料');
-    if (plan.health) labels.push('BOH Health 数据');
     if (plan.activities) labels.push('站内活动与抽奖');
     return labels;
   };
@@ -1064,7 +1056,6 @@ export function useKnowledgeRetrieval(deps) {
           : '当前账号资料';
       parts.push(`查看了${labelText}`);
     }
-    if (retrievalPlan.health) parts.push('查看了你的 BOH Health 数据');
     if (retrievalPlan.activities) parts.push('查看了站内活动与抽奖');
     if (parts.length === 0) return '';
     return `${parts.join('，')}。`;
@@ -1082,7 +1073,6 @@ export function useKnowledgeRetrieval(deps) {
       getSiteGuideContext,
       getForumContext,
       getUserPrivateContext,
-      getHealthContext,
       getActivitiesContext,
     });
   // ============================================================
@@ -1097,14 +1087,6 @@ export function useKnowledgeRetrieval(deps) {
     }
     if (isForumSearchEnabled.value) {
       retrievalPlan.forum = true;
-    }
-    // 健康分析由用户显式开启（/health 或输入框 chip）时强制读取本机健康数据，
-    // 无需问题里恰好出现健康关键词。
-    if (isHealthAnalysisEnabled?.value) {
-      retrievalPlan.health = true;
-    } else if (isHealthAnalysisDismissed?.value) {
-      // 用户显式关闭过健康分析：即使命中健康关键词也不再读取健康数据
-      retrievalPlan.health = false;
     }
     // 统一开关过滤：未开启的知识源强制关闭
     if (!isSharedMemoryEnabled.value) {

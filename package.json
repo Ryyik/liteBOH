@@ -24,7 +24,7 @@
     "prepush": "node scripts/prepush.mjs",
     "gate:plan": "node scripts/gate-plan.mjs",
     "clean:screenshots": "node scripts/clean-screenshots.mjs",
-    "lint": "eslint . --max-warnings 116",
+    "lint": "eslint . --max-warnings 114",
     "lint:delta": "node scripts/lint-delta.mjs",
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json",
     "check:views": "node scripts/check-view-collisions.mjs",
