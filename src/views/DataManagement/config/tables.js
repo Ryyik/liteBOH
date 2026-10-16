@@ -932,11 +932,13 @@ export const dataConfig = {
     columns: [
       { key: 'id', label: 'ID', maxLength: 12 },
       { key: 'title', label: '标题', maxLength: 32 },
+      /* 内容列上移到标题后 + 多行预览（2026-10-16 用户口径「没办法一下看到内容」）：
+         3 行截断显示正文、悬停 title 看全文，铅笔直达抽屉的内容字段。 */
+      { key: 'content', label: '内容', multiline: true, clampLines: 3, maxLength: 120 },
       { key: 'category', label: '分类', type: 'badge' },
       { key: 'priority', label: '优先级', type: 'number' },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'updated_at', label: '更新时间', type: 'datetime' },
-      { key: 'content', label: '内容', maxLength: 60 },
     ],
     cardView: {
       placeholderIcon: '📚',
@@ -944,6 +946,10 @@ export const dataConfig = {
       subtitleKey: 'category',
       subtitleLabel: '分类',
       statusKey: 'status',
+      /* 卡片正文预览 + 整卡点击编辑（coreMemories 专属，2026-10-16）：
+         卡片直接露出官方事实内容（5 行截断），点卡片任意处即进编辑抽屉。 */
+      bodyKey: 'content',
+      clickToEdit: true,
       statusMeta: {
         active: { label: '启用', tone: 'success' },
         draft: { label: '草稿', tone: 'warning' },
@@ -1024,7 +1030,7 @@ export const dataConfig = {
         label: '官方事实内容',
         type: 'textarea',
         required: true,
-        rows: 10,
+        rows: 14,
         maxLength: 12000,
         placeholder: '写确定、可复用的官方事实。避免把用户主观回忆混入这里。',
         group: 'content',

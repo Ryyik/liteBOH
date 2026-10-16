@@ -32,6 +32,7 @@
 - pre-commit 在 `.git/hooks/pre-commit`（**非 husky**；新环境 `cp scripts/git-hooks/pre-commit .git/hooks/ && chmod +x`）。
 - 🔴 lint-staged 会卷进无关未暂存文件 ⇒ 每次 commit 后核对 `git show --stat HEAD`。
   误入修法：`git reset --soft HEAD~1` → `git restore --staged <侵入文件>` → 路径式 `git commit -F <msg> -- <路径…>`。
+- ⚙️ lint-staged 只覆盖 `*.{js,mjs,vue,ts}` + json（`.lintstagedrc.json`）⇒ 手跑 `prettier --write` **不要扫到 CSS 等其他类型**（仓库漂移文件多，会全文件重排带来百行级无关 churn）；CSS 改动一律手动局部编辑。
 - 🔴 **`git status` 里的 ` M` 可能混着别人的在途改动** ⇒ 提交前对自己要提交的**每个**文件先 `git diff <file>` 扫一眼，
   别只看 `--cached --name-status` 的文件名。（2026-10-15 实证：把并行会话未提交的 MEMORY.md 压缩改写一起带进了提交。）
 - 钩子会重排文件 ⇒ 提交前手跑同款（仅改动文件 `prettier --write` + `eslint --fix`），提交后对**提交后的树**再跑 verify。

@@ -1421,6 +1421,23 @@
   line-height: 1.5;
 }
 
+/* 多行预览单元格（col.multiline，如官方事实「内容」列）：多行截断看正文，
+   行数由 inline style 的 -webkit-line-clamp 覆盖；悬停 title 看全文。 */
+.cell-text-multiline {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  font-size: 13.5px;
+  line-height: 1.5;
+  max-width: 360px;
+  min-width: 220px;
+  padding-right: 22px;
+}
+
 /* 操作按钮 */
 .action-btns {
   display: inline-flex;

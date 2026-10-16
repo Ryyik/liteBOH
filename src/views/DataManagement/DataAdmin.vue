@@ -792,7 +792,19 @@
                       v-for="item in paginatedData"
                       :key="item.id || getRowIdentity(item)"
                       class="lottery-card"
-                      :class="{ selected: isSelected(item), anomaly: isAnomalyRow(item) }"
+                      :class="{
+                        selected: isSelected(item),
+                        anomaly: isAnomalyRow(item),
+                        'is-clickable': Boolean(currentCardViewConfig.clickToEdit),
+                      }"
+                      :role="currentCardViewConfig.clickToEdit ? 'button' : null"
+                      :tabindex="currentCardViewConfig.clickToEdit ? 0 : null"
+                      :aria-label="
+                        currentCardViewConfig.clickToEdit ? `编辑 ${getCardTitle(item)}` : null
+                      "
+                      @click="handleCardClick(item)"
+                      @keydown.enter.prevent="handleCardClick(item)"
+                      @keydown.space.prevent="handleCardClick(item)"
                     >
                       <div
                         v-if="currentCardViewConfig.imageKey"
@@ -847,6 +859,15 @@
                             formatCardSubtitle(item, currentCardViewConfig)
                           }}</span>
                         </div>
+                        <p
+                          v-if="
+                            currentCardViewConfig.bodyKey && item[currentCardViewConfig.bodyKey]
+                          "
+                          class="lottery-card-preview"
+                          :title="item[currentCardViewConfig.bodyKey]"
+                        >
+                          {{ item[currentCardViewConfig.bodyKey] }}
+                        </p>
                         <div v-if="currentCardViewConfig.stats?.length" class="lottery-card-stats">
                           <div
                             v-for="stat in currentCardViewConfig.stats"
@@ -874,7 +895,7 @@
                                 type="button"
                                 class="card-copy-btn"
                                 :class="{ copied: isCardFieldCopied(meta, item) }"
-                                @click="copyCardField(item, meta)"
+                                @click.stop="copyCardField(item, meta)"
                                 :title="isCardFieldCopied(meta, item) ? '已复制' : '一键复制'"
                                 aria-label="复制"
                               >
@@ -885,7 +906,7 @@
                           </template>
                         </div>
                       </div>
-                      <div class="lottery-card-actions">
+                      <div class="lottery-card-actions" @click.stop>
                         <button
                           v-if="currentTab === 'lotteries' && item.status === 'open'"
                           class="review-btn approve"
@@ -1303,6 +1324,28 @@
                               <span class="cell-json" :title="JSON.stringify(item[col.key])">
                                 {{ getJsonPreview(item[col.key]) }}
                               </span>
+                            </template>
+                            <template v-else-if="col.multiline">
+                              <span
+                                class="cell-text-multiline"
+                                :style="
+                                  col.clampLines
+                                    ? { '-webkit-line-clamp': String(col.clampLines) }
+                                    : null
+                                "
+                                :title="item[col.key] || ''"
+                                >{{ item[col.key] || '-' }}</span
+                              >
+                              <button
+                                v-if="isCellEditable(col, item) && !isInlineEditing(item, col)"
+                                type="button"
+                                class="cell-edit-trigger"
+                                :aria-label="`编辑 ${col.label}`"
+                                title="编辑"
+                                @click="quickEditCell(item, col)"
+                              >
+                                <Pencil :size="12" />
+                              </button>
                             </template>
                             <template v-else>
                               <button
@@ -6167,6 +6210,17 @@ const quickEditCell = (item, col) => {
   else if (isDrawerEditable(col, item)) openEditModal(item, { focusField: col.key });
 };
 
+/**
+ * 卡片视图「整卡点击即编辑」（config: cardView.clickToEdit，如官方事实 tab）——
+ * 动作区/复制键已 stopPropagation，键盘可达（role=button + Enter/Space）。
+ * 仅对显式开启 clickToEdit 的 tab 生效，不影响抽奖等既有卡片。
+ */
+const handleCardClick = (item) => {
+  if (!currentCardViewConfig.value?.clickToEdit) return;
+  if (!canEditCurrentTab.value) return;
+  openEditModal(item);
+};
+
 const cancelInlineEdit = () => {
   inlineEditState.rowId = '';
   inlineEditState.fieldKey = '';
@@ -7339,6 +7393,26 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* 卡片正文预览（cardView.bodyKey，如官方事实）：5 行截断看内容，悬停 title 看全文 */
+.lottery-card-preview {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--foreground, #0f172a) 82%, transparent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+}
+.lottery-card.is-clickable {
+  cursor: pointer;
+}
+.lottery-card.is-clickable:focus-visible {
+  outline: 2px solid var(--ring, #2563eb);
+  outline-offset: 2px;
 }
 .lottery-card-prize {
   display: flex;
