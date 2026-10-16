@@ -60,6 +60,25 @@ export const BOH_SLASH_COMMANDS = [
     description: '让下一条回答参考你的 BOH Health 数据',
     action: 'health',
   },
+  // 2026-10-16 补：这两个开关原本只有设置面板入口、没有斜杠命令
+  // （`/web` `/community` `/cloud` `/health` 四个同族开关都有）。
+  // ⚠️ 纪律不变：action 必须在壳里 `executeSlashCommand` 的 switch 里有对应 case ——
+  //    单测 `bohai-slash-commands.test.js` 会逐条断言「每个 action 都有 case」，
+  //    就是为了防「加了命令却没接线」（本次补的正是这个缺口）。
+  {
+    id: 'memory',
+    keyword: 'memory',
+    label: '官方记忆',
+    description: '让下一条回答参考 BOH 官方事实与论坛记忆',
+    action: 'memory',
+  },
+  {
+    id: 'shared',
+    keyword: 'shared',
+    label: '社区知识',
+    description: '让下一条回答参考社区共享内容',
+    action: 'shared',
+  },
   {
     id: 'chat',
     keyword: 'chat',

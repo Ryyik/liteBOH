@@ -157,3 +157,17 @@ A2b hover 卡 / A4 两胶囊互斥 / A5 选模式 / A6 工具四件）
 （`//` 前缀是转义逃生口），带参数命令剥掉命令字再发；探针 **7/7**，单测
 `tests/unit/bohai-slash-commands.test.js`（18）。
 ⇒ 新增「用户发出这条输入」的入口只许汇到 `handleSend` / `executeSlashCommand`，**不许再写第三处 `startsWith('/')`**。
+
+**2026-10-16 补两条命令 + 一条不变量断言**
+
+补 `/memory`（官方记忆，→ `handleKnowledgeBaseToggle`）与 `/shared`（社区知识，→ `handleSharedMemoryToggle`）：
+这两个开关原本只有设置面板入口，而同族的 `/web` `/community` `/cloud` `/health` 都有命令。
+
+⚠️ **当时的真实形态**：先加了「官方记忆」的设置面板开关与 `handleKnowledgeBaseToggle`，
+**却忘了在 `executeSlashCommand` 的 switch 里加 case** ⇒ 用户敲 `/memory` 只会得到「未知命令」。
+这类「加了开关没加命令」在测试里原本没有任何东西能发现。
+
+⇒ 已补的不变量断言（`tests/unit/bohai-slash-commands.test.js`，18 → **21** 条）：
+**每条固定命令的 `action` 都必须在壳的 switch 里有对应 `case`** —— 逐条遍历 `BOH_SLASH_COMMANDS`
+去壳源码里找 `case '<action>':`。反证已做（注释掉 `case 'memory':` → 断言 FAIL 且报的正是它）。
+**新增命令时两处都要动**（真源表 + 壳里 case），单测会兜住漏掉的那处。

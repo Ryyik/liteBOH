@@ -1610,6 +1610,14 @@ export function useBohShell(props, emit) {
           durationMs: 3600,
         });
         break;
+      // 2026-10-16 补：与设置面板的两个开关一一对应，复用它们各自的切换函数
+      // （岛提示也在那两个函数里发，此处不再重复发一条）
+      case 'memory':
+        handleKnowledgeBaseToggle();
+        break;
+      case 'shared':
+        handleSharedMemoryToggle();
+        break;
       case 'surface':
         setSurface(command.surface);
         break;

@@ -111,6 +111,39 @@ describe('buildSlashMenuItems · 固定命令优先', () => {
   });
 });
 
+describe('命令清单 ↔ 壳里分派的不变量（2026-10-16 补）', () => {
+  it('/memory 与 /shared 可解析，且指向对应 action', () => {
+    const memory = parseSlashInput('/memory');
+    expect(memory.kind).toBe('command');
+    expect(memory.command.action).toBe('memory');
+
+    const shared = parseSlashInput('/shared');
+    expect(shared.kind).toBe('command');
+    expect(shared.command.action).toBe('shared');
+  });
+
+  it('每条固定命令的 action 在壳里都有对应 case', () => {
+    // 事故形态（2026-10-16 实际发生）：给「官方记忆」加了设置面板开关与
+    // handleKnowledgeBaseToggle，却没在 executeSlashCommand 的 switch 里加 case
+    // ⇒ 用户敲 /memory 只会得到「未知命令」。这条断言把该形态永久堵住。
+    const code = squeezeSource(stripComments(scriptSection(read(SHELL))));
+    const actions = [...new Set(BOH_SLASH_COMMANDS.map((command) => command.action))];
+    expect(actions.length).toBeGreaterThan(0);
+    for (const action of actions) {
+      expect(code).toContain(squeezeSource(`case '${action}':`));
+    }
+  });
+
+  it('两个新命令在菜单与 /help 文案里都出现', () => {
+    const items = buildSlashMenuItems();
+    const keywords = items.map((item) => item.keyword);
+    expect(keywords).toContain('memory');
+    expect(keywords).toContain('shared');
+    expect(formatSlashHelp()).toContain('/memory');
+    expect(formatSlashHelp()).toContain('/shared');
+  });
+});
+
 describe('slashMenuQuery / filterSlashItems', () => {
   it('只有「以 / 开头且无空白」才开菜单', () => {
     expect(slashMenuQuery('/we')).toBe('we');
