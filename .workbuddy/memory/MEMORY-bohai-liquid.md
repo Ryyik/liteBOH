@@ -71,3 +71,11 @@
   天然覆盖所有宿主）+ `textSharpness`（像素 Δ 判据：斜杠 6.08 / 详情卡 3.27；事故态 0.16 / 0.02）。
 - 全站宿主清单（截至 2026-10-16，**全仓仅 3 个文件**使用 `BohGlassRefract`）：BohComposer ×6、
   AssetsHubPanel（`> * relative` 写法本就正确）、Dev/GlassBackdropRepro（DEV 页无内容）。
+
+## 输入区「开关 chip」（2026-10-16）—— 状态真源与删除入口
+
+- 斜杠命令 / 设置面板打开的「下一条消息」开关（web/community/cloud/memory/shared）在输入框里
+  显示为**可删除 chip**（`.boh-flags`）：点 ×、或空输入框按 Backspace 删最右一个（IME 组合期不拦）。
+- ⚠️ 单一真源：chip 状态 = `useBohShell` 的 `activeComposerFlags`（文案**取 `BOH_SLASH_COMMANDS`**）；
+  删除入口 = `toggleComposerFlag(id)`（复用各开关既有切换函数 + `focusComposer()`）—— 别在组件里写第二套。
+- 判据：`probe-bohai-slash-commands` 的 A1b–A1e / B1b（反证：芯片 `v-if` 改 false 恰红 5 条、零连带）。

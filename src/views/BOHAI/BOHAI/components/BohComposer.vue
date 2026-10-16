@@ -21,6 +21,23 @@
           </button>
         </div>
 
+        <!-- 已开启开关的 chip 反馈（2026-10-16 用户口径：斜杠命令应用后，输入框里带着一个
+             tag（如「官方记忆」），用户可以继续打字；且要**可以删除**——点 ×、或空输入框
+             按 Backspace 删最右一个）。状态在壳里算（activeComposerFlags 单一真源），
+             这里只渲染 + 发删除意图；与 `.boh-ctx` 同款位置（文字上方），不影响输入。 -->
+        <div v-if="activeFlags.length" class="boh-flags" aria-label="已开启的检索开关">
+          <button
+            v-for="flag in activeFlags"
+            :key="flag.id"
+            type="button"
+            class="boh-flag"
+            :title="`${flag.label}已开启，对下一条消息生效；点击移除`"
+            @click="emit('toggle-flag', flag.id)"
+          >
+            <i aria-hidden="true"></i>{{ flag.label }}<X :size="11" aria-hidden="true" />
+          </button>
+        </div>
+
         <!-- 斜杠命令：锚承载定位（无 z-index），玻璃与面板做兄弟（§21.7 采样根）；
              回滚 = 删锚 + 玻璃两层。 -->
         <div v-if="slashOpen" class="boh-slash-anchor">
@@ -449,6 +466,8 @@ const props = defineProps({
   currentMode: { type: Object, default: () => ({ name: '' }) },
   currentModeId: { type: String, default: '' },
   tools: { type: Object, default: () => ({ forum: false, cloud: false }) },
+  /** 已开启的「下一条消息」开关（斜杠命令应用后的 tag 反馈；状态真源在壳，这里只渲染） */
+  activeFlags: { type: Array, default: () => [] },
   attachedContext: { type: Object, default: null },
   usage: { type: Object, default: () => ({ visible: false }) },
   slashOpen: { type: Boolean, default: false },
@@ -470,6 +489,8 @@ const emit = defineEmits([
   'stop',
   'toggle-search',
   'toggle-tool',
+  /* 2026-10-16：开关 chip 的删除意图（id 由壳映射到既有切换函数） */
+  'toggle-flag',
   'start-psych',
   'select-mode',
   'run-slash-command',

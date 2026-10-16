@@ -31,6 +31,8 @@
  *   · 把 `handleSend` 里的斜杠分支删掉 → A1 / A3 / A4 / B1 必红；
  *   · 把「剥掉命令字」改成原样透传 → A3 必红；
  *   · 把 `unknown` 分支改成放行 → A4 必红；
+ *   · 把 `.boh-flags` 的 `v-if` 改 false（或撤掉 `toggleComposerFlag` 的某个 id 映射）
+ *     → A1b / A1c / A1d / A1e / B1b 必红（开关芯片反馈与「可删除」手感全链，2026-10-16 增）；
  *   · 把 `.boh-slash` 的 `max-height` 改回单条 `calc(100vh - 120px)`（去掉
  *     `--boh-slash-top` 上限）→ B3 的 `top >= 0` 必红（竖屏空态下实测 top = −304）；
  *   · 把 `@media (hover: none)` 的 `min-height: 44px` 删掉 → B3 的 `itemH >= 44` 必红（掉到 ~43.8）；
@@ -176,6 +178,12 @@ const bubbleTexts = (page) =>
     SEL.userBubble,
   );
 
+/** 开关 tag 反馈（2026-10-16 用户口径）：输入框里 `.boh-flags` 的 tag 文案列表 */
+const flagsOf = (page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll('.boh-flags .boh-flag')].map((n) => n.textContent.trim()),
+  );
+
 // ===================== 场景 A：桌面 1440×900 =====================
 {
   const ctx = await browser.newContext({
@@ -190,6 +198,9 @@ const bubbleTexts = (page) =>
   await injectAuth(page);
   await page.waitForSelector(SEL.input, { timeout: 20000 });
   await page.waitForTimeout(700);
+
+  // 开关 tag 反馈的初始态（2026-10-16 用户口径）：默认开启的「官方记忆」应在输入框里带 tag
+  const flags0 = await flagsOf(page);
 
   // ── A1 点发送键：`/web` 应**本地执行**（开联网），而不是把 "web" 当消息发出去 ──
   chatReqs.length = 0;
@@ -207,6 +218,68 @@ const bubbleTexts = (page) =>
     'A1 点发送键执行 /web（不把字面量发给模型，且联网真的打开）',
     chatCount(chatReqs) === 0 && webOn && a1Bubbles.length === 0,
     `菜单=${menuBeforeSend} chat请求=${chatCount(chatReqs)} 联网on=${webOn} 气泡=${JSON.stringify(a1Bubbles)}`,
+  );
+
+  // ── A1b 开关 tag 反馈（2026-10-16 用户口径）：/web 后「联网搜索」tag 出现，
+  //        且默认开启的「官方记忆」同框；初始态不该出现未开的「联网搜索」──
+  const flags1 = await flagsOf(page);
+  check(
+    'A1b switch tag 反馈（默认「官方记忆」在；/web 后「联网搜索」出现）',
+    flags0.includes('官方记忆') &&
+      !flags0.includes('联网搜索') &&
+      flags1.includes('联网搜索') &&
+      flags1.includes('官方记忆'),
+    `初始=${JSON.stringify(flags0)} 之后=${JSON.stringify(flags1)}`,
+  );
+
+  // ── A1c tag 不挡打字（用户口径：「然后用户可以继续打字」）──
+  await page.fill(SEL.input, '继续打字不冲突');
+  await page.waitForTimeout(250);
+  const typedValue = await page.evaluate(
+    (sel) => document.querySelector(sel)?.value || '',
+    SEL.input,
+  );
+  const flags2 = await flagsOf(page);
+  check(
+    'A1c tag 出现后仍可继续输入（值正确，tag 保持）',
+    typedValue === '继续打字不冲突' && flags2.includes('联网搜索'),
+    `value=${JSON.stringify(typedValue)} flags=${JSON.stringify(flags2)}`,
+  );
+
+  // ── A1d 点击 chip 可删除（用户口径：「可以删除的那种感觉」）：点「联网搜索」的 ×
+  //        ⇒ chip 消失 + 联网开关真的关掉（globe 不再 is-on）+ 输入框文字不受影响 ──
+  await page.evaluate(() => {
+    const chips = [...document.querySelectorAll('.boh-flags .boh-flag')];
+    const hit = chips.find((n) => n.textContent.includes('联网搜索'));
+    hit?.click();
+  });
+  await page.waitForTimeout(350);
+  const flags3 = await flagsOf(page);
+  const webOffAfterChip = await page.evaluate(
+    (sel) => !document.querySelector(sel)?.classList.contains('is-on'),
+    SEL.webToggle,
+  );
+  const valueAfterChip = await page.evaluate(
+    (sel) => document.querySelector(sel)?.value || '',
+    SEL.input,
+  );
+  check(
+    'A1d 点 chip × 删除（联网搜索 chip 消失 + 开关关闭 + 文字不受影响）',
+    !flags3.includes('联网搜索') && webOffAfterChip && valueAfterChip === '继续打字不冲突',
+    `flags=${JSON.stringify(flags3)} webOff=${webOffAfterChip} value=${JSON.stringify(valueAfterChip)}`,
+  );
+
+  // ── A1e 空输入框按 Backspace = 删最右 chip（chip 输入的通用手感）──
+  await page.fill(SEL.input, '');
+  await page.waitForTimeout(250);
+  const beforeBackspace = await flagsOf(page);
+  await page.keyboard.press('Backspace');
+  await page.waitForTimeout(350);
+  const afterBackspace = await flagsOf(page);
+  check(
+    'A1e 空输入框按 Backspace 删除最右 chip（官方记忆被移除）',
+    beforeBackspace.length > 0 && afterBackspace.length === beforeBackspace.length - 1,
+    `前=${JSON.stringify(beforeBackspace)} 后=${JSON.stringify(afterBackspace)}`,
   );
 
   // ── A2 带参数：`/cloud 素材盘点成表格` ⇒ 应剥掉命令字，只把参数当消息发 ──
@@ -297,6 +370,18 @@ const bubbleTexts = (page) =>
     'B1 触屏：点发送键执行 /web（移动端唯一可用路径）',
     coarse && chatCount(chatReqs) === 0 && b1WebOn && b1Bubbles.length === 0,
     `coarse=${coarse} 菜单=${b1Menu} chat请求=${chatCount(chatReqs)} 联网on=${b1WebOn} 气泡=${JSON.stringify(b1Bubbles)}`,
+  );
+
+  // ── B1b 竖屏 tag 反馈：可见、不横向溢出（390px 下多个 tag 必须折行而非撑破）──
+  const bFlags = await flagsOf(page);
+  const bOverflow = await page.evaluate(() => {
+    const el = document.querySelector('.boh-flags');
+    return el ? el.scrollWidth - el.clientWidth : 0;
+  });
+  check(
+    'B1b 竖屏：tag 反馈可见且不横向溢出',
+    bFlags.includes('联网搜索') && bOverflow <= 1,
+    `flags=${JSON.stringify(bFlags)} overflow=${bOverflow}`,
   );
 
   // ── B2 触屏 + 带参数：菜单必关（含空格）⇒ 同样只能靠发送键，必须剥前缀 ──

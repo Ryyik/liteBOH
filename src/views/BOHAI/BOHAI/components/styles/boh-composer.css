@@ -838,6 +838,61 @@
   font-size: 11px;
 }
 
+/* ── 已开启开关的 chip 行（2026-10-16）─────────────────────────────
+   斜杠命令 / 设置面板把「下一条消息」开关打开后，这一行给**可删除的 chip 反馈**
+   （用户口径：「输入框里带着一个 tag 官方记忆，然后用户可以继续打字」+「可以删除的
+   那种感觉」）。状态真源 = 壳里的 `activeComposerFlags`；删除入口 = 点 chip 的 ×
+   或空输入框按 Backspace（壳里 `toggleComposerFlag`），chip 本身只发删除意图。 */
+.boh-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px 8px;
+}
+
+.boh-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--boh-bg-active);
+  color: var(--boh-text-2);
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease);
+}
+
+/* 可删除 affordance：悬停加深 + × 由半透明转实（点击即移除并关掉对应开关） */
+.boh-flag:hover {
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+.boh-flag > svg {
+  flex: none;
+  opacity: 0.55;
+}
+
+.boh-flag:hover > svg {
+  opacity: 1;
+}
+
+/* 「已开启」状态点：accent 实心点（同语言里的状态符号，不抢正文） */
+.boh-flag i {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--boh-accent);
+}
+
 /* ── 斜杠命令 ───────────────────────────────────────────────── */
 /* 紧凑档（2026-10-11 用户口径）：原先是 `left/right: 10px` ⇒ 左右撑满输入框（桌面 742px），
    15 条命令每行只用到左半边、右半边整片空白。收窄到 420px 左对齐后，宽度还顺带变成

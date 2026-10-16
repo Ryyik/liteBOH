@@ -32,6 +32,7 @@ import { captureCurrentPageContext } from '../utils/page-context.js';
    ⚠️ 不要再在壳里写 `startsWith('/')` —— 规则散两处正是本次「点发送键把 /cloud
    当普通文本发给模型」的根因。 */
 import {
+  BOH_SLASH_COMMANDS,
   buildSlashMenuItems,
   filterSlashItems,
   formatSlashHelp,
@@ -1509,6 +1510,22 @@ export function useBohShell(props, emit) {
   };
 
   /**
+   * 输入框开关 chip 的「删除」入口（2026-10-16 用户口径：tag 要**可以删除**）。
+   * chip 只在 ON 时渲染 ⇒ 删除 = 关掉它。两个删除入口共用本函数：点 chip 的 ×、
+   * 空输入框按 Backspace。
+   * ⚠️ 复用各开关**已有**的切换函数（含提示语与持久化）—— 别在这里重写第二套关闭逻辑；
+   *    切完把焦点还给输入框（「删完还能继续打字」）。
+   */
+  const toggleComposerFlag = (id) => {
+    if (id === 'web') toggleSearch();
+    else if (id === 'community') toggleTool('forum');
+    else if (id === 'cloud') toggleTool('cloud');
+    else if (id === 'memory') handleKnowledgeBaseToggle();
+    else if (id === 'shared') handleSharedMemoryToggle();
+    focusComposer();
+  };
+
+  /**
    * 心理分析：输入框右侧展开面板 → 工具组里的一键入口。
    *
    * 做三件事：
@@ -1555,6 +1572,28 @@ export function useBohShell(props, emit) {
   const slashMenuOpen = computed(
     () => !slashDismissed.value && slashQuery.value !== null && !isLoading.value,
   );
+
+  /**
+   * 「下一条消息」开关的 tag 反馈（2026-10-16 用户口径：斜杠命令应用后，输入框里要带着
+   * 一个 tag（如「官方记忆」），用户可以继续打字）。
+   *
+   * 状态五件套在这里 → tag；**标签文案直接取命令表**（`BOH_SLASH_COMMANDS`，单一真源，
+   * 别在别处再抄一份）；顺序天然 = 命令表顺序（web / community / cloud / memory / shared）。
+   * ⚠️ 只读展示：改状态仍走设置面板 / 斜杠命令，别把 tag 做成第二套开关入口。
+   */
+  const activeComposerFlags = computed(() => {
+    const stateById = {
+      web: isSearching.value,
+      community: isForumSearchEnabled.value,
+      cloud: isTreeholeMemoryEnabled.value,
+      memory: isKnowledgeBaseEnabled.value,
+      shared: isSharedMemoryEnabled.value,
+    };
+    return BOH_SLASH_COMMANDS.filter((command) => stateById[command.id]).map((command) => ({
+      id: command.id,
+      label: command.label,
+    }));
+  });
 
   /**
    * 斜杠命令的**唯一执行处**。
@@ -1704,6 +1743,19 @@ export function useBohShell(props, emit) {
   };
 
   const handleComposerKeydown = (event) => {
+    /* 空输入 + Backspace = 删除最后一个开关 chip（2026-10-16 用户口径「可以删除的那种感觉」）：
+       chip 输入的通用手感 —— 没字可删时，删除落到 chip 上（删最右一个）。
+       ⚠️ IME 组合期间不拦（`isComposing`）；有文字时 Backspace 仍是正常删字。 */
+    if (
+      event.key === 'Backspace' &&
+      !event.isComposing &&
+      !inputMessage.value &&
+      activeComposerFlags.value.length > 0
+    ) {
+      event.preventDefault();
+      toggleComposerFlag(activeComposerFlags.value[activeComposerFlags.value.length - 1].id);
+      return;
+    }
     if (slashMenuOpen.value) {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
@@ -2261,6 +2313,7 @@ export function useBohShell(props, emit) {
     slashMenuOpen,
     filteredSlashCommands,
     slashActiveIndex,
+    activeComposerFlags,
     rateLimitMessage,
     uiNotice,
     showContextWarning,
@@ -2271,6 +2324,7 @@ export function useBohShell(props, emit) {
     stopGeneration,
     toggleSearch,
     toggleTool,
+    toggleComposerFlag,
     handleAttachPage,
     startPsychAnalysis,
     selectMode,

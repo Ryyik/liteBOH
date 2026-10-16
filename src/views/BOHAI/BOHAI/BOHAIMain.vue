@@ -66,16 +66,14 @@
         @click="isSidebarOpen = false"
       ></div>
 
-      <!-- `is-empty`（2026-10-11）：空态时整组（虚影字 + 输入框）垂直居中，
-           第一条消息发出后由壳把输入框 FLIP 到底部。判据与动画见 `animateComposerHome`。 -->
+      <!-- `is-empty`（2026-10-11）：空态时整组（虚影字 + 输入框）垂直居中，第一条消息发出后由壳把输入框 FLIP 到底部（判据与动画见 `animateComposerHome`）。 -->
       <main class="boh-main" :class="{ 'is-empty': isEmptySession }">
         <!-- 2026-10-08（用户口径：整体布局参考 Codex 那种感觉）：删掉整条顶栏。
              Codex 式布局的主区没有横条，入口收成右上角一组浮动小按钮：
                · 「打开侧栏」只在侧栏收起时出现 —— 展开时侧栏自带收起键（`.boh-sb-close`），
                  所以这条**不会**留下「收起后打不开」的坑（plans/023 步骤③踩过的那次）；
                · 「工作台」仅桌面档出现（与 Work 形态联动，见 `setSurface`）。
-             会话名不再顶栏展示 —— 侧栏会话列表的高亮项就是它（删顶栏时重复了一遍）。
-             岛形态不渲染（岛自带 header，见 `BOHAIIsland.vue`）。 -->
+             会话名不再顶栏展示 —— 侧栏会话列表的高亮项就是它（删顶栏时重复了一遍）。岛形态不渲染（岛自带 header，见 `BOHAIIsland.vue`）。 -->
         <div v-if="!props.overlayMode" class="boh-float-actions">
           <button
             v-if="!isSidebarOpen"
@@ -150,6 +148,7 @@
           :current-mode="currentMode"
           :current-mode-id="currentModeId"
           :tools="composerTools"
+          :active-flags="activeComposerFlags"
           :attached-context="attachedContext"
           :usage="composerUsage"
           :slash-open="slashMenuOpen"
@@ -164,6 +163,7 @@
           @stop="stopGeneration"
           @toggle-search="toggleSearch"
           @toggle-tool="toggleTool"
+          @toggle-flag="toggleComposerFlag"
           @attach-page="handleAttachPage"
           @start-psych="startPsychAnalysis"
           @select-mode="selectMode"
@@ -347,6 +347,7 @@ const {
   stopGeneration,
   toggleSearch,
   toggleTool,
+  toggleComposerFlag,
   handleAttachPage,
   startPsychAnalysis,
   selectMode,
@@ -364,6 +365,7 @@ const {
   isTreeholeMemoryEnabled,
   isSharedMemoryEnabled,
   isKnowledgeBaseEnabled,
+  activeComposerFlags,
   isTreeholeMemoryToggling,
   memorySettingsStatus,
   handleTreeholeMemoryToggle,
