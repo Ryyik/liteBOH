@@ -4,16 +4,19 @@ name: Edge Functions Type Check
 #
 #   「沙箱里没有 deno ⇒ 改 Edge Function 只能人工 review + 部署后冒烟。」
 #
-# 本地装不了 deno（本环境没有 deno，也没有 install_binary），但 **CI 能装**。
+# 本地当时装不了 deno（本环境没有 deno，也没有 install_binary），但 **CI 能装**。
 # 于是把「EF 的类型检查」从「靠人眼」变成「CI 里真跑一遍 deno check」。
+#
+# ⚠️ 2026-10-16 更新：「本地装不了」已推翻 —— dl.deno.land 直下二进制解压即用
+#    （实测 v2.9.7 / arm64）；推送前可本地 `deno check` 全部 EF 预验，CI 仍是最终裁定。
 #
 # ⚠️ 2026-10-13 转正：观察档（step 上带 continue-on-error: true）已跑绿并移除 ——
 #    证据是 main 上最近两次 push 触发的运行（run 37759043572 / 37754022262，均 success），
 #    外部 import（https://deno.land/std@…、jsr:/npm: 说明符）在 CI 里可稳定联网解析。
 #    现在是**阻断门禁**：任一 EF 类型检查失败即红。
-#    历史存底：首版之所以是观察档，是因为本地装不了 deno、无法预先验证能否全绿，
-#    按「不写没验证过的门禁」纪律先跑一轮观察。若转正后出现既有类型错，
-#    应该逐条修或加 baseline，而不是把 continue-on-error 加回来。
+#    历史存底：首版之所以是观察档，是因为当时本地装不了 deno、无法预先验证能否全绿
+#    （2026-10-16 已推翻，见上），按「不写没验证过的门禁」纪律先跑一轮观察。
+#    若转正后出现既有类型错，应该逐条修或加 baseline，而不是把 continue-on-error 加回来。
 
 on:
   pull_request:

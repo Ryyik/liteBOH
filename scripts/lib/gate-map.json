@@ -150,7 +150,7 @@
     {
       "glob": "supabase/functions/**",
       "run": [],
-      "note": "类型检查走 CI 的 deno-check.yml（本地无 deno）"
+      "note": "类型检查走 CI 的 deno-check.yml（阻断）；本地已可装 deno 预验（2026-10-16 实测，见 docs/AI-ENV.md #10）"
     },
     {
       "glob": "package.json",
