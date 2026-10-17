@@ -22,6 +22,25 @@ export const FORUM_MAX_POSTS = 5;
 export const OPERATION_MAX_STEPS = 6;
 export const SITE_GUIDE_MAX_CHUNKS = 3;
 export const MEMORY_MAX_CHUNKS = 4;
+/**
+ * 官方记忆上下文的重排地板（2026-10-17 准确度实测）：`minSimilarity 0.1` 是宽召回 ——
+ * 负样本（「今天天气怎么样」「帮我写首诗」）仍会以 sim 0.34-0.46 带回噪声块，
+ * 但 bge-reranker 把它们正确归零（0.000-0.004），真实命中最低 0.195。
+ * ⇒ 注入上下文前按 `rerankScore >= 0.05` 过滤；无 `rerankScore`（重排被跳过/结果过少）
+ *   的块不滤，保持原召回。`filterChunksByRerankFloor` 是它的纯函数实现（有单测）。
+ */
+export const MEMORY_RERANK_FLOOR = 0.05;
+
+/**
+ * 按重排分过滤检索块：重排分是相关性真判据（向量相似度在 bge-m3 上分布偏高、判别力弱）。
+ * @param {Array<{rerankScore?: number}>} chunks 检索块（EF 已按 rerankScore 降序）
+ * @param {number} [floor=MEMORY_RERANK_FLOOR]
+ * @returns {Array} 过滤后的块（保持原顺序）
+ */
+export const filterChunksByRerankFloor = (chunks, floor = MEMORY_RERANK_FLOOR) =>
+  (Array.isArray(chunks) ? chunks : []).filter(
+    (chunk) => chunk?.rerankScore === undefined || Number(chunk.rerankScore) >= floor,
+  );
 export const FORUM_MAX_CHARS_PER_POST = 420;
 export const MAX_HISTORY_CONTEXT_CHARS = 12000;
 export const MAX_HISTORY_MESSAGE_CHARS = 2000;

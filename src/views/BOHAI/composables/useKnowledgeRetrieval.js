@@ -12,6 +12,7 @@ import { SITE_OPERATION_MEMORY } from '@/data/ai-site-guide.js';
 import { AI_ANSWER_IMAGE_ORIGINS, isAllowedImageSrc } from '@/utils/image-origins.js';
 import { logger } from '@/utils/logger.js';
 import { getActivitiesContext } from './useSiteActivitiesRetrieval.js';
+import { applyKnowledgeSourceSwitches } from './knowledge-plan-switches.js';
 // plans/025 v2 · Step 4：8 个读连接器已各自一文件，注册表在 tools/retrieval/。
 import { createReadConnectors as createReadConnectorsFromRegistry } from '../tools/retrieval/index';
 import {
@@ -37,6 +38,7 @@ import {
   USER_PRIVATE_POSTS_FETCH_LIMIT,
   ROUTING_FORUM_REALTIME_PATTERN,
   ROUTING_HISTORY_FACT_PATTERN,
+  filterChunksByRerankFloor,
 } from './chat-engine-config.js';
 import { formatPromptDate } from '../utils/format/display.js';
 import { isMissingRelationError, getPostTitleAndBody } from '../utils/format/post.js';
@@ -251,8 +253,11 @@ export function useKnowledgeRetrieval(deps) {
       syncLimit: 60,
       minSimilarity: 0.1,
     });
-    if (chunks.length === 0) return '';
-    return buildVectorKnowledgeContext('官方事实、知识库与论坛记忆检索结果', chunks, {
+    // 重排地板：宽召回（minSimilarity 0.1）会带回无关噪声（负样本 sim 可达 0.4+），
+    // 重排分已正确归零 ⇒ 注入前滤掉，别让它占上下文预算、误导模型（2026-10-17 实测）。
+    const relevantChunks = filterChunksByRerankFloor(chunks);
+    if (relevantChunks.length === 0) return '';
+    return buildVectorKnowledgeContext('官方事实、知识库与论坛记忆检索结果', relevantChunks, {
       citationPrefix: 'K',
       maxItems: MEMORY_MAX_CHUNKS,
       maxContentChars: 520,
@@ -1088,14 +1093,18 @@ export function useKnowledgeRetrieval(deps) {
     if (isForumSearchEnabled.value) {
       retrievalPlan.forum = true;
     }
-    // 统一开关过滤：未开启的知识源强制关闭
+    // 统一开关过滤：未开启的知识源强制关闭；官方记忆开关 ON ⇒ 每条消息必查
+    //（2026-10-17 用户报告：旧逻辑里开关只能"关"，"开"时仍由关键词路由决定 ⇒
+    // 第二问措辞没命中就静默跳过。开关是显式意图，压过路由 —— 见 knowledge-plan-switches.js）
     if (!isSharedMemoryEnabled.value) {
       retrievalPlan.sharedMemory = false;
     }
-    if (!isKnowledgeBaseEnabled.value) {
-      retrievalPlan.memory = false;
-      retrievalPlan.siteGuide = false;
-    }
+    Object.assign(
+      retrievalPlan,
+      applyKnowledgeSourceSwitches(retrievalPlan, {
+        knowledgeBaseEnabled: isKnowledgeBaseEnabled.value,
+      }),
+    );
     const routingReasons = Array.isArray(routingDecision.reasons) ? routingDecision.reasons : [];
     const connectorResults = await runBohAIReadConnectors({
       connectors: createReadConnectors(),
