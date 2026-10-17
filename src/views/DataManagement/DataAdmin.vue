@@ -249,6 +249,30 @@
                   <span class="collection-overview-hint">当前视图 {{ currentData.length }} 条</span>
                 </section>
 
+                <!-- 原 content-toolbar 并入筛选行右侧（plans/027 阶段 1.4） -->
+                <div class="filter-row-tools">
+                  <button
+                    class="btn btn-secondary"
+                    type="button"
+                    @click="showColumnPanel = !showColumnPanel"
+                  >
+                    列配置
+                  </button>
+                  <RowActionMenu
+                    :items="toolbarMenuItems"
+                    title="更多表格操作"
+                    @open="openRowMenu"
+                  />
+                  <button
+                    class="btn btn-secondary"
+                    type="button"
+                    title="命令面板（⌘K / Ctrl+K）"
+                    @click="openCommandPalette"
+                  >
+                    命令 ⌘K
+                  </button>
+                </div>
+
                 <div v-if="showFilterBar" class="filter-bar">
                   <button
                     class="clear-filters-btn"
@@ -403,31 +427,6 @@
 
               <!-- 数据表格区域 -->
               <div class="data-content" :data-density="density">
-                <div class="content-toolbar">
-                  <div class="toolbar-right">
-                    <button
-                      class="btn btn-secondary"
-                      type="button"
-                      @click="showColumnPanel = !showColumnPanel"
-                    >
-                      列配置
-                    </button>
-                    <RowActionMenu
-                      :items="toolbarMenuItems"
-                      title="更多表格操作"
-                      @open="openRowMenu"
-                    />
-                    <button
-                      class="btn btn-secondary"
-                      type="button"
-                      title="命令面板（⌘K / Ctrl+K）"
-                      @click="openCommandPalette"
-                    >
-                      命令 ⌘K
-                    </button>
-                  </div>
-                </div>
-
                 <!-- 浮动批量操作条：选中后出现，替代常驻的批量按钮组 -->
                 <div v-if="selectedItems.length > 0" class="bulk-bar" role="status">
                   <span class="bulk-count"
@@ -1854,7 +1853,6 @@ import { createGlobalSearchCenter } from './composables/useDataAdminGlobalSearch
 import { createShortcutsCenter } from './composables/useDataAdminShortcuts.js';
 import { createNavigationCenter } from './composables/useDataAdminNavigation.js';
 import { consumeAdminTabJumpSearch } from './composables/useAdminTabIntent.js';
-import { resolveInitialAdminTab } from './composables/resolveInitialAdminTab.js';
 
 const CACHE_TTL = 45_000;
 
@@ -1874,24 +1872,7 @@ const dialog = useConfirmDialog();
 const routeQuery = router.currentRoute.value?.query || {};
 const routeQueryTab = typeof routeQuery.tab === 'string' ? routeQuery.tab : '';
 const isValidAdminTab = (tabId) => tabs.some((tab) => tab.id === tabId);
-// section 解析必须**先于**初始 tab：初始 tab 要按 section 查默认值
-// （2026-10-17 P1-2：`?section=keys-models` 不带 tab 的直达链接曾落到「用户管理」表）。
-const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
-const routeQuerySection =
-  typeof routeQuery.section === 'string' && /^[a-z][a-z-]{1,29}$/.test(routeQuery.section)
-    ? routeQuery.section
-    : '';
-// query.section 优先于路由 meta：用户在面板内切换 section 后，刷新应恢复"最后停留处"而非路由默认
-const initialAdminSection =
-  routeQuerySection ||
-  (typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview');
-const currentTab = ref(
-  resolveInitialAdminTab({
-    queryTab: routeQueryTab,
-    section: initialAdminSection,
-    isValidTab: isValidAdminTab,
-  }),
-);
+const currentTab = ref(isValidAdminTab(routeQueryTab) ? routeQueryTab : 'users');
 const isLoading = ref(false);
 const isFilterLoading = ref(false);
 const isRefreshing = ref(false);
@@ -1978,9 +1959,16 @@ watch(isSidebarCollapsed, (collapsed) => {
 });
 // 侧栏模块筛选关键词（仅过滤导航，不过滤表格数据）
 const sidebarSearchQuery = ref('');
-// 注：section 的解析与初始值已在 currentTab 之前完成（见上方 initialAdminSection），
-// 这里只把同一个值交给响应式 ref —— 两处必须同一来源，否则「tab 按 A 段选、section 是 B 段」。
-const activeAdminSection = ref(initialAdminSection);
+const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
+const routeQuerySection =
+  typeof routeQuery.section === 'string' && /^[a-z][a-z-]{1,29}$/.test(routeQuery.section)
+    ? routeQuery.section
+    : '';
+// query.section 优先于路由 meta：用户在面板内切换 section 后，刷新应恢复"最后停留处"而非路由默认
+const activeAdminSection = ref(
+  routeQuerySection ||
+    (typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview'),
+);
 
 // section/tab 变更统一写回 URL（replace 不堆积历史）：watch 收口所有变更路径
 // （switchTab / handleModuleClick / handleAdminNavClick / 占位页动作），无需逐处补 replace

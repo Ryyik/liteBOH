@@ -2362,3 +2362,11 @@
   flex: 0 0 auto;
   margin: 2px 0 0;
 }
+
+/* 原 content-toolbar 并入筛选行右侧（plans/027 阶段 1.4） */
+.filter-row-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
