@@ -68,10 +68,12 @@
 /* ---------- Eyebrow + Metric + Trend ---------- */
 .g-eyebrow {
   font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  /* plans/027 阶段 1.2：后台统一 14px 基线、去 uppercase / letter-spacing。
+     这里原来是大写 + 0.08em 字距，中文语境下只贡献噪音。 */
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--muted-foreground);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .g-metric {

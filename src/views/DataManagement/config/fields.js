@@ -1,3 +1,5 @@
+import { FORUM_TAG_OPTIONS } from '@/views/Forum/forum-config.js';
+
 export const TAB_WRITABLE_FIELDS = {
   // ⚠️ 邮箱不在此列表：email 属于 auth.users，profiles 表根本没有 email 列
   //    （后台展示的邮箱是 admin_list_users_with_sensitive RPC 补的，只读）。
@@ -167,6 +169,9 @@ export const TAB_WRITABLE_FIELDS = {
   ],
   shopOrders: ['status', 'updated_at'],
   birthdayEvents: [
+    // target_user_id 是 NOT NULL；表单里是 required 的 user-picker，
+    // 漏进 allowList 会让新增在 insert 时直接 400。
+    'target_user_id',
     'title',
     'subtitle',
     'hero_quote',
@@ -178,7 +183,15 @@ export const TAB_WRITABLE_FIELDS = {
   ],
   // ⚠️ birthday_wishes 表没有 updated_at 列，写入会 400
   birthdayWishes: ['status', 'is_featured'],
+  // photo_albums 的 status/shared_to_community 是管理端审核位；漏了这张表会让
+  // 「编辑」抽屉的保存载荷被 pickWritableFields 过滤成 {}（点保存什么都不发生）。
+  photoAlbums: ['title', 'subtitle', 'cover_url', 'status', 'shared_to_community'],
   blockWallItems: [
+    // author_id/author_username/item_type 是 NOT NULL 且无默认值：新增时由
+    // saveStrategies 用当前管理员补齐，漏进 allowList 会被 pickWritableFields 丢掉。
+    'author_id',
+    'author_username',
+    'item_type',
     'content',
     'color',
     'image_url',
@@ -189,6 +202,8 @@ export const TAB_WRITABLE_FIELDS = {
     'updated_at',
   ],
   bohCreatorShows: [
+    // author_id 是 NOT NULL；DB 触发器还要求它指向已认证创作者（is_boh_creator）。
+    'author_id',
     'title',
     'description',
     'video_url',
@@ -361,25 +376,27 @@ export const LOTTERY_FULFILLMENT_STATUS_OPTIONS = [
 
 // 商品支付模式
 export const PRODUCT_PAYMENT_MODE_OPTIONS = [
-  { value: 'points', label: '纯积分（points）' },
-  { value: 'rmb', label: '纯人民币（rmb）' },
-  { value: 'mixed', label: '积分+人民币（mixed）' },
+  // 与 DB CHECK / 商城端一致（points_only / rmb_only / combined）；
+  // 这里曾是 points / rmb / mixed，保存商品必 400。
+  { value: 'points_only', label: '纯积分（points_only）' },
+  { value: 'rmb_only', label: '纯人民币（rmb_only）' },
+  { value: 'combined', label: '积分+人民币（combined）' },
 ];
 
 // 商城订单状态
 export const ORDER_STATUS_OPTIONS = [
+  // shop_points_orders.status 的 DB CHECK 只有这四档（没有 shipped）
   { value: 'pending', label: '待处理（pending）' },
   { value: 'processing', label: '处理中（processing）' },
-  { value: 'shipped', label: '已发货（shipped）' },
   { value: 'completed', label: '已完成（completed）' },
   { value: 'cancelled', label: '已取消（cancelled）' },
 ];
 
 // 订单联系类型
 export const ORDER_CONTACT_TYPE_OPTIONS = [
+  // 商城下单端只写 qq / vx（Shop/index.vue）；DB CHECK 也是这两档
   { value: 'qq', label: 'QQ' },
-  { value: 'wechat', label: '微信' },
-  { value: 'phone', label: '电话' },
+  { value: 'vx', label: '微信' },
 ];
 
 // 生日祝福状态
@@ -390,14 +407,11 @@ export const BIRTHDAY_WISH_STATUS_OPTIONS = [
 ];
 
 // 论坛帖子标签
-export const FORUM_POST_TAG_OPTIONS = [
-  { value: '', label: '无标签' },
-  { value: 'share', label: '分享' },
-  { value: 'question', label: '提问' },
-  { value: 'discussion', label: '讨论' },
-  { value: 'guide', label: '教程' },
-  { value: 'news', label: '资讯' },
-];
+// 单一真源：论坛标签以 Forum 的 FORUM_TAG_OPTIONS 为准（server/activity/daily/question）。
+// 这里曾维护过一份 share/question/discussion/guide/news 的副本，与 DB CHECK 和论坛端
+// 全不一致 —— 在后台选任何标签保存都会 400。posts.tag 是 NOT NULL（默认 daily），
+// 所以不提供「无标签」空值选项。
+export const FORUM_POST_TAG_OPTIONS = FORUM_TAG_OPTIONS;
 
 // 布尔展示选项
 export const BOOLEAN_DISPLAY_OPTIONS = [

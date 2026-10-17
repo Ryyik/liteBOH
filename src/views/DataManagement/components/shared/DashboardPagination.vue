@@ -79,3 +79,20 @@ const rangeEnd = computed(() => Math.min(props.total, props.modelValue * props.p
 
 defineExpose({ totalPages, rangeStart, rangeEnd });
 </script>
+
+<style scoped>
+/* 竖屏：分页是移动端唯一的翻页入口，32×32 的方块拇指点不准。
+   规则放在组件内 —— 从 responsive.css 跨组件覆盖 .g-pager-item 不可靠
+   （DataAdmin 的 scoped @import 在本仓实际按 scoped 处理，子组件内部的
+   按钮没有宿主的 [data-v] 属性，外部规则静默失效）。 */
+@media (max-width: 768px) {
+  .g-pager-item {
+    min-width: 40px;
+    height: 40px;
+  }
+
+  .g-pager {
+    gap: 4px;
+  }
+}
+</style>

@@ -1500,6 +1500,139 @@
     width: 100%;
   }
 
+  /* ── 竖屏手机：把首屏让给内容 ────────────────────────────────────────
+     实测 390×844：首张卡片 top=584（屏高 69%），其中
+     toolbar-primary 146 + toolbar-secondary 259。原因是
+     view-context 的「未应用筛选 / 刷新于 …」换行、状态 chips 换行、
+     以及触屏上无意义的「命令 ⌘K」各占一行。
+     目标：单屏至少能看到 2 张卡片（≤390px 起算）。
+     选择器统一带 .data-management-page 前缀：组件的 scoped 规则是
+     (0,2,0)，裸类名 (0,1,0) 会静默失效。 */
+  .data-management-page .toolbar-primary {
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 10px 14px;
+  }
+
+  .data-management-page .toolbar-primary .toolbar-left {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .data-management-page .toolbar-primary .toolbar-right {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+
+  .data-management-page .view-context {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  /* nowrap 只治容器不治子项：flex 子项默认 shrink=1，会被压到
+     min-content（"用户管理"竖排成两行），容器反而更高。 */
+  .data-management-page .view-context > span {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .data-management-page .view-context::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 刷新时间/筛选摘要属桌面端上下文噪音；筛选是否生效由 chips 与
+     筛选按钮的选中态表达，竖屏不再重复占两行。 */
+  .data-management-page .view-context-filter,
+  .data-management-page .view-context-refresh {
+    display: none;
+  }
+
+  .data-management-page .toolbar-secondary {
+    gap: 8px;
+    padding: 10px 14px;
+  }
+
+  .data-management-page .search-box {
+    order: 1;
+    /* flex-basis 参与换行计算：给 140 时「搜索+筛选+列配置」放不下一行，
+       列配置被挤到第二行（多 48px）。100 是实测能同行的值。 */
+    flex: 1 1 100px;
+    min-width: 0;
+    width: auto;
+  }
+
+  .data-management-page .search-box input {
+    padding: 8px 34px 8px 38px;
+  }
+
+  .data-management-page .filter-toggle {
+    order: 2;
+    flex: 0 0 auto;
+    min-height: 40px;
+  }
+
+  .data-management-page .filter-row-tools {
+    order: 3;
+    flex: 0 0 auto;
+  }
+
+  /* 触屏没有物理键盘：⌘K 在竖屏纯占位（桌面仍是主入口）。 */
+  .data-management-page .command-palette-trigger {
+    display: none;
+  }
+
+  .data-management-page .collection-overview {
+    order: 4;
+    width: 100%;
+  }
+
+  /* 状态 chips 单行横滑，不再换行吃掉 30~60px */
+  .data-management-page .toolbar-secondary .collection-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .data-management-page .toolbar-secondary .collection-chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .data-management-page .collection-overview-hint {
+    display: none;
+  }
+
+  /* 18px 复选框在拇指下几乎点不中（WCAG 2.2 AA 目标 24px，HIG 44px）：
+     命中区撑到 40×40，视觉方块仍 18px 且位置不变（负 margin 抵消）。 */
+  .data-management-page .mobile-card .checkbox-wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: -11px;
+    flex: 0 0 auto;
+  }
+
+  .data-management-page .mobile-card-header {
+    gap: 4px;
+  }
+
+  /* 主操作按钮（新增/导出/筛选）是竖屏最高频的三次点击，36px 偏小 */
+  .data-management-page .toolbar-primary .btn,
+  .data-management-page .toolbar-secondary .btn {
+    min-height: 40px;
+  }
+
+  /* 后台面包屑与「顶栏标题 + 模块 tab」三重重复；390px 下白占 35px。
+     详情页有独立的面包屑（DetailHeader），不受影响。
+     选择器带 admin-main 是为了压过 scoped 的 .admin-breadcrumb[data-v-*]
+     （同为 0,2,0，靠后加载的 scoped 规则会赢），这里取 0,3,0。 */
+  .data-management-page .admin-main .admin-breadcrumb {
+    display: none;
+  }
+
   .content-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -1591,6 +1724,26 @@
 
   .tabs-header {
     gap: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  /* 手机窄屏：view-context 只保留前 2 枚 chip（模块 / 表名）。
+     实测 390px 下第 3 枚起会被右侧「新增/导出」挤成半截 chip，看着像 bug；
+     条数在底部「共 N 条」已有，不必重复。 */
+  .data-management-page .view-context > span:nth-child(n + 3) {
+    display: none;
+  }
+
+  .data-management-page .toolbar-primary {
+    justify-content: space-between;
+    min-height: 0;
+  }
+
+  /* 「状态分布」四个字在 360px 下会把 chips 挤到第二行（+33px）；
+     点得到彩色 chip 就知道是状态分布，标签可去。 */
+  .data-management-page .collection-overview-label {
+    display: none;
   }
 }
 

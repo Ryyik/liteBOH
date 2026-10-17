@@ -40,8 +40,9 @@ export const createExportCenter = ({
     addChangeLogEntry?.('export', null, { count: rows.length, scope, tab: currentTabRef.value });
     logAdminAction({
       action: 'export',
-      table: currentTabRef.value,
-      meta: { count: rows.length, scope },
+      // 审计的 resource_table 必须是真实表名；tab id（如 shopOrders）不是表
+      table: dataConfig[currentTabRef.value]?.table || currentTabRef.value,
+      meta: { count: rows.length, scope, tab: currentTabRef.value },
     });
   };
 

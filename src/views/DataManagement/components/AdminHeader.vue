@@ -48,7 +48,7 @@
       <slot name="actions">
         <button
           type="button"
-          class="g-btn g-btn-ghost"
+          class="g-btn g-btn-ghost g-topbar-home"
           aria-label="返回站点首页"
           title="返回站点首页"
           @click="$emit('home')"
@@ -479,11 +479,38 @@ defineExpose({ searchModel });
 }
 
 @media (max-width: 600px) {
-  .g-topbar-titles h1 {
+  /* 竖屏只剩 56px：显示中文页标题，隐藏英文 eyebrow（原本只留 eyebrow ⇒
+     顶栏只剩 "USERS"，反而看不出在哪一页）。 */
+  .g-eyebrow {
     display: none;
+  }
+  .g-topbar-titles h1 {
+    display: block;
+    font-size: 0.95rem;
   }
   .g-btn span {
     display: none;
+  }
+  /* 竖屏顶栏只剩 ~230px 给右侧集群，新增按钮在列表页与工具栏重复、在详情页
+     也不常用（先返回再新建）；让位给标题，避免 h1 被压成「用户…」。 */
+  .g-topbar-right .g-btn-primary {
+    display: none;
+  }
+  /* 竖屏窄屏：6 个按钮 + 头像在 390px 下会溢出 17px，导致整页被浏览器缩小到
+     0.958（innerWidth 407 / clientWidth 390）。「返回首页」与头像菜单里的
+     「返回站点」重复，窄屏隐藏它，把宽度让给其余按钮。 */
+  .g-topbar-home {
+    display: none;
+  }
+  .g-topbar-right {
+    gap: calc(var(--spacing) * 1.5);
+    min-width: 0;
+  }
+  .g-topbar-right .g-btn,
+  .g-topbar-right .g-icon-btn,
+  .g-topbar-left .g-icon-btn {
+    min-height: 40px;
+    min-width: 40px;
   }
 }
 </style>

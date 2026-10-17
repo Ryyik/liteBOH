@@ -134,7 +134,7 @@ export const SAVE_STRATEGIES = {
     const normalizedAuthorId = String(editingItem.author_id || '').trim();
     const normalizedAuthorUsername = String(editingItem.author_username || '').trim();
     const normalizedStatus = String(editingItem.status || 'approved').trim() || 'approved';
-    const normalizedTag = String(editingItem.tag || '').trim();
+    const normalizedTag = String(editingItem.tag || 'daily').trim() || 'daily';
     const normalizedCoverImageUrl = String(editingItem.cover_image_url || '').trim();
     const normalizedLocationName = String(editingItem.location_name || '').trim();
 
@@ -484,8 +484,8 @@ export const SAVE_STRATEGIES = {
     if (!Number.isFinite(normalizedStock) || normalizedStock < 0)
       throw new Error('库存必须是大于等于 0 的数字');
 
-    const normalizedPaymentMode = String(editingItem.payment_mode || 'points').trim();
-    if (!['points', 'rmb', 'mixed'].includes(normalizedPaymentMode))
+    const normalizedPaymentMode = String(editingItem.payment_mode || 'points_only').trim();
+    if (!['points_only', 'rmb_only', 'combined'].includes(normalizedPaymentMode))
       throw new Error('支付模式无效');
 
     const normalizedRmbPrice =
@@ -528,7 +528,7 @@ export const SAVE_STRATEGIES = {
 
   shopOrders: async ({ editingItem }) => {
     const normalizedStatus = String(editingItem.status || 'pending').trim();
-    const allowedStatuses = new Set(['pending', 'processing', 'shipped', 'completed', 'cancelled']);
+    const allowedStatuses = new Set(['pending', 'processing', 'completed', 'cancelled']);
     if (!allowedStatuses.has(normalizedStatus)) throw new Error('订单状态无效');
 
     return pickWritableFields('shopOrders', {
@@ -591,6 +591,32 @@ export const SAVE_STRATEGIES = {
     return pickWritableFields('campaignEntries', { status });
   },
 
+  campaignRewards: async ({ editingItem }) => {
+    // 发放台账只允许改状态；金额/权益由各自体系入账，表单里是 disabled
+    const status = String(editingItem.status || '').trim();
+    if (!['granted', 'fulfilled', 'cancelled'].includes(status)) {
+      throw new Error('发放状态无效');
+    }
+    return pickWritableFields('campaignRewards', { status });
+  },
+
+  photoAlbums: async ({ editingItem }) => {
+    const normalizedTitle = String(editingItem.title || '').trim();
+    if (!normalizedTitle) throw new Error('标题不能为空');
+    const normalizedStatus = String(editingItem.status || 'draft').trim();
+    if (!['draft', 'published'].includes(normalizedStatus)) {
+      throw new Error('相册状态无效');
+    }
+    return pickWritableFields('photoAlbums', {
+      title: normalizedTitle,
+      subtitle: String(editingItem.subtitle || '').trim(),
+      cover_url: String(editingItem.cover_url || '').trim(),
+      status: normalizedStatus,
+      shared_to_community:
+        editingItem.shared_to_community === true || editingItem.shared_to_community === 'true',
+    });
+  },
+
   birthdayEvents: async ({ editingItem }) => {
     const normalizedTitle = String(editingItem.title || '').trim();
     if (!normalizedTitle) throw new Error('标题不能为空');
@@ -598,6 +624,8 @@ export const SAVE_STRATEGIES = {
     if (!normalizedDate) throw new Error('庆祝日期不能为空');
 
     return pickWritableFields('birthdayEvents', {
+      // target_user_id 是 NOT NULL；表单里是 required 的 user-picker
+      target_user_id: editingItem.target_user_id || null,
       title: normalizedTitle,
       subtitle: String(editingItem.subtitle || '').trim(),
       hero_quote: String(editingItem.hero_quote || '').trim(),
@@ -621,11 +649,33 @@ export const SAVE_STRATEGIES = {
     });
   },
 
-  blockWallItems: async ({ editingItem }) => {
+  blockWallItems: async ({ editingItem, originalItem, userId, userName }) => {
+    const allowedColors = ['butter', 'blush', 'mint', 'sky', 'lilac', 'cream'];
+    const itemType = String(editingItem.item_type || 'note').trim();
+    if (!['note', 'photo'].includes(itemType)) throw new Error('方块类型无效');
+    const originalType = String(originalItem?.item_type || '').trim();
+    // 类型不可改：photo 行有 image_width/height 的 CHECK，改成 note 会留下图片字段；
+    // note 行改成 photo 又没有宽高采集入口（后台没有这两个字段）。
+    if (originalType && itemType !== originalType) throw new Error('方块类型不可修改');
+    if (itemType === 'photo' && originalType !== 'photo') {
+      throw new Error('图片方块请在用户端发布（后台未采集图片宽高）');
+    }
+    const content = String(editingItem.content || '').trim();
+    if (itemType === 'note' && !content) throw new Error('文字便签内容不能为空');
+    const imageUrl = String(editingItem.image_url || '').trim();
+    if (itemType === 'photo' && !imageUrl) throw new Error('图片方块缺少图片地址');
+    const color = String(editingItem.color || 'butter').trim();
+    if (!allowedColors.includes(color)) throw new Error('方块墙颜色无效');
+
     return pickWritableFields('blockWallItems', {
-      content: String(editingItem.content || '').trim(),
-      color: String(editingItem.color || '').trim(),
-      image_url: String(editingItem.image_url || '').trim(),
+      // author_id / author_username / item_type 是 NOT NULL：新增时用当前管理员补齐；
+      // 编辑时保留原值，避免把别人的方块墙内容改成管理员名下。
+      author_id: editingItem.author_id || userId || null,
+      author_username: String(editingItem.author_username || userName || '').trim(),
+      item_type: itemType,
+      content,
+      color,
+      image_url: imageUrl,
       image_public_id: String(editingItem.image_public_id || '').trim() || null,
       position_x: Number(editingItem.position_x || 0),
       position_y: Number(editingItem.position_y || 0),
@@ -639,12 +689,23 @@ export const SAVE_STRATEGIES = {
     if (!normalizedTitle) throw new Error('标题不能为空');
     const normalizedVideoUrl = String(editingItem.video_url || '').trim();
     if (!normalizedVideoUrl) throw new Error('视频链接不能为空');
+    const normalizedDescription = String(editingItem.description || '').trim();
+    if (!normalizedDescription) throw new Error('描述不能为空（DB 要求 1–320 字）');
+    const authorId = String(editingItem.author_id || '').trim();
+    if (!authorId) throw new Error('请先选择创作者');
+    const platform = String(editingItem.creator_platform || '').trim();
+    if (!['bilibili', 'douyin', 'xiaohongshu'].includes(platform)) {
+      throw new Error('平台必须是 bilibili / douyin / xiaohongshu');
+    }
 
     return pickWritableFields('bohCreatorShows', {
+      // author_id 是 NOT NULL，且 DB 触发器会校验 is_boh_creator；表单里是
+      // required 的 user-picker，必须随载荷一起提交（否则触发器直接 raise）。
+      author_id: authorId,
       title: normalizedTitle,
-      description: String(editingItem.description || '').trim(),
+      description: normalizedDescription,
       video_url: normalizedVideoUrl,
-      creator_platform: String(editingItem.creator_platform || 'other').trim(),
+      creator_platform: platform,
       creator_platform_id: String(editingItem.creator_platform_id || '').trim(),
       updated_at: new Date().toISOString(),
     });

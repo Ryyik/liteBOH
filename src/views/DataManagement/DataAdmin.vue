@@ -213,8 +213,8 @@
                     <span v-for="item in currentAdminPageMetrics" :key="item.label">{{
                       item.value
                     }}</span>
-                    <span>{{ activeFilterSummary }}</span>
-                    <span>{{ lastRefreshLabel }}</span>
+                    <span class="view-context-filter">{{ activeFilterSummary }}</span>
+                    <span class="view-context-refresh">{{ lastRefreshLabel }}</span>
                   </div>
                 </div>
                 <div class="toolbar-right">
@@ -285,7 +285,7 @@
                     @open="openRowMenu"
                   />
                   <button
-                    class="btn btn-secondary"
+                    class="btn btn-secondary command-palette-trigger"
                     type="button"
                     title="命令面板（⌘K / Ctrl+K）"
                     @click="openCommandPalette"
@@ -812,7 +812,7 @@
 
                 <!-- 数据表格 -->
                 <DashboardSheet
-                  v-if="!isMobileView"
+                  v-if="!isMobileView && !emptyState"
                   :title="currentTabLabel"
                   :badge="totalRecordCount > 0 ? `${totalRecordCount} 条` : ''"
                   style="position: relative"
@@ -1907,6 +1907,12 @@ import { createGlobalSearchCenter } from './composables/useDataAdminGlobalSearch
 import { createShortcutsCenter } from './composables/useDataAdminShortcuts.js';
 import { createNavigationCenter } from './composables/useDataAdminNavigation.js';
 import { consumeAdminTabJumpSearch } from './composables/useAdminTabIntent.js';
+import { resolveInitialAdminTab } from './composables/resolveInitialAdminTab.js';
+import {
+  buildBatchDeleteConditions as buildBatchDeleteConditionsFor,
+  getBaseScopeConditions as getBaseScopeConditionsFor,
+} from './composables/data-admin-batch-scope.js';
+import { sumDiagnosticIssues } from './composables/data-admin-diagnostics.js';
 
 const CACHE_TTL = 45_000;
 
@@ -1926,7 +1932,37 @@ const dialog = useConfirmDialog();
 const routeQuery = router.currentRoute.value?.query || {};
 const routeQueryTab = typeof routeQuery.tab === 'string' ? routeQuery.tab : '';
 const isValidAdminTab = (tabId) => tabs.some((tab) => tab.id === tabId);
-const currentTab = ref(isValidAdminTab(routeQueryTab) ? routeQueryTab : 'users');
+// section 解析必须**先于**初始 tab：初始 tab 要按 section 查默认值
+// （2026-10-17 P1-2：`?section=keys-models` 不带 tab 的直达链接曾落到「用户管理」表）。
+const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
+const routeQuerySection =
+  typeof routeQuery.section === 'string' && /^[a-z][a-z-]{1,29}$/.test(routeQuery.section)
+    ? routeQuery.section
+    : '';
+// 详情子页（/admin/data-management/:tab/:id）的 tab 也必须进 currentTab。
+// 2026-10-17 审查 P0：openRecordDetail 的 push 不带 query，而 App.vue 用
+// `:key="activeRoute.path"` 渲染路由组件 ⇒ 详情路由必然重建实例；
+// 若这里只读 query.tab，currentTab 会回落到 users，导致详情页的
+// 编辑抽屉/删除目标/面包屑全部指向用户表。route.params.tab 是详情态的
+// 唯一 tab 真源，优先级高于 query。
+const routeRecordTab =
+  typeof router.currentRoute.value?.params?.tab === 'string'
+    ? router.currentRoute.value.params.tab
+    : '';
+const initialDetailTab = routeRecordTab && isValidAdminTab(routeRecordTab) ? routeRecordTab : '';
+// query.section 优先于路由 meta：用户在面板内切换 section 后，刷新应恢复"最后停留处"而非路由默认
+const initialAdminSection = initialDetailTab
+  ? 'data'
+  : routeQuerySection ||
+    (typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview');
+const currentTab = ref(
+  initialDetailTab ||
+    resolveInitialAdminTab({
+      queryTab: routeQueryTab,
+      section: initialAdminSection,
+      isValidTab: isValidAdminTab,
+    }),
+);
 const isLoading = ref(false);
 const isFilterLoading = ref(false);
 const isRefreshing = ref(false);
@@ -2013,16 +2049,9 @@ watch(isSidebarCollapsed, (collapsed) => {
 });
 // 侧栏模块筛选关键词（仅过滤导航，不过滤表格数据）
 const sidebarSearchQuery = ref('');
-const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
-const routeQuerySection =
-  typeof routeQuery.section === 'string' && /^[a-z][a-z-]{1,29}$/.test(routeQuery.section)
-    ? routeQuery.section
-    : '';
-// query.section 优先于路由 meta：用户在面板内切换 section 后，刷新应恢复"最后停留处"而非路由默认
-const activeAdminSection = ref(
-  routeQuerySection ||
-    (typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview'),
-);
+// 注：section 的解析与初始值已在 currentTab 之前完成（见上方 initialAdminSection），
+// 这里只把同一个值交给响应式 ref —— 两处必须同一来源，否则「tab 按 A 段选、section 是 B 段」。
+const activeAdminSection = ref(initialAdminSection);
 
 // URL 即状态（plans/027 E6.6）：section/tab 之外，筛选/页码/排序/搜索一并写回
 // （replace 不堆积历史）。详情路由态（:tab/:id）不写筛选 query。
@@ -2817,16 +2846,15 @@ const statusBreakdownForCurrentTab = computed(() => {
 });
 
 const diagnosticIssueCount = computed(() => {
-  const dueDraws = Number(lotterySchedulerStatus.value?.due_count || 0);
   const schedulerFailed = ['failed', 'partial_failure'].includes(
     String(lotterySchedulerStatus.value?.last_run?.status || ''),
   );
-  return (
-    moderationPendingCount.value +
-    dueDraws +
-    getTabCount('lotteryNotificationJobs') +
-    (schedulerFailed ? 1 : 0)
-  );
+  return sumDiagnosticIssues({
+    moderationPendingCount: moderationPendingCount.value,
+    dueDraws: lotterySchedulerStatus.value?.due_count,
+    notificationJobs: getTabCount('lotteryNotificationJobs'),
+    schedulerFailed,
+  });
 });
 const healthScore = computed(() =>
   Math.max(70, 100 - Math.min(diagnosticIssueCount.value * 3, 30)),
@@ -3850,6 +3878,12 @@ const onRowCheckboxChange = (item, event) => {
   lastSelectedIndex.value = idx;
 };
 
+// 切 tab / 翻页 / 改筛选后，旧页的下标锚点已失效；不重置会让首次 Shift 选中
+// 一个用户看不见的区间（plans/027 B 批审查 P2）。
+watch([currentTab, currentPage, searchQuery, statusFilter, dateFromFilter, dateToFilter], () => {
+  lastSelectedIndex.value = -1;
+});
+
 const clearAllSelection = () => {
   selectAllResultsMode.value = false;
   selectedItems.value = [];
@@ -4071,19 +4105,26 @@ const fetchStats = async () => {
       }
     });
 
-    stats.totalUsers = tabTotals.users;
-    stats.totalPosts = tabTotals.forum;
-    stats.totalCoreMemories = tabTotals.coreMemories;
-    stats.totalBohaiModels = tabTotals.bohaiModels;
-    stats.totalLotteries = tabTotals.lotteries;
-    stats.totalLotteryEntries = tabTotals.lotteryEntries;
-    stats.totalLotteryDrawLogs = tabTotals.lotteryDrawLogs;
-    stats.totalLotterySchedulerLogs = tabTotals.lotterySchedulerLogs;
-    stats.totalLotteryNotificationJobs = tabTotals.lotteryNotificationJobs;
-    stats.totalLotteryJoinAttempts = tabTotals.lotteryJoinAttempts;
-    stats.totalNews = tabTotals.news;
-    stats.totalActivities = tabTotals.activities;
-    stats.totalProducts = tabTotals.products;
+    // tabTotals 只初始化 tabs 数组里的 tab；lotteryDrawLogs / lotteryNotificationJobs /
+    // lotteryJoinAttempts 这些已合并的旧 tab 不在其中 ⇒ 直接赋值 undefined 会让
+    // 概览「待处理事项」变成 NaN（截图 batch-d-detail.png 实测）。统一按 0 兜底。
+    const totalOf = (key) => {
+      const value = Number(tabTotals[key]);
+      return Number.isFinite(value) ? value : 0;
+    };
+    stats.totalUsers = totalOf('users');
+    stats.totalPosts = totalOf('forum');
+    stats.totalCoreMemories = totalOf('coreMemories');
+    stats.totalBohaiModels = totalOf('bohaiModels');
+    stats.totalLotteries = totalOf('lotteries');
+    stats.totalLotteryEntries = totalOf('lotteryEntries');
+    stats.totalLotteryDrawLogs = totalOf('lotteryDrawLogs');
+    stats.totalLotterySchedulerLogs = totalOf('lotterySchedulerLogs');
+    stats.totalLotteryNotificationJobs = totalOf('lotteryNotificationJobs');
+    stats.totalLotteryJoinAttempts = totalOf('lotteryJoinAttempts');
+    stats.totalNews = totalOf('news');
+    stats.totalActivities = totalOf('activities');
+    stats.totalProducts = totalOf('products');
   };
 
   const { data: rpcCounts, error: rpcCountsError } = await supabase.rpc(
@@ -4914,6 +4955,15 @@ const {
   fetchTabData,
   loadLotterySchedulerStatus,
 });
+
+// 详情子页的模块归属：currentTab 已按 route.params.tab 初始化，这里把侧栏高亮
+// 与面包屑的模块标签一并对齐（否则会停在「概览」，与详情内容不符）。
+if (initialDetailTab) {
+  const detailModule = tabs.find((tab) => tab.id === initialDetailTab)?.module;
+  if (detailModule && activeModule.value !== detailModule) {
+    activeModule.value = detailModule;
+  }
+}
 
 watch(
   activeModule,
@@ -6366,8 +6416,10 @@ const saveData = async ({ keepOpen = false } = {}) => {
     }
     const dataToSave = await strategy({
       editingItem: editingItem.value,
+      originalItem: editingOriginalItem.value,
       isEditing: isEditing.value,
       userId: userInfo.value?.id,
+      userName: userInfo.value?.username,
       validateNewsPayload,
     });
 
@@ -6911,33 +6963,34 @@ const enterSelectAllScope = () => {
   selectAllResultsMode.value = true;
   selectedItems.value = [];
 };
-const buildBatchDeleteConditions = () => {
-  const conds = [];
-  const statusField = currentStatusFilterField.value;
-  if (statusFilter.value && statusField) {
-    conds.push({ column: statusField, op: 'eq', value: String(statusFilter.value) });
-  }
-  const dateField = currentDateFilterField.value;
-  if (dateField && dateFromFilter.value) {
-    conds.push({ column: dateField, op: 'gte', value: String(dateFromFilter.value) });
-  }
-  if (dateField && dateToFilter.value) {
-    conds.push({ column: dateField, op: 'lte', value: String(dateToFilter.value) });
-  }
-  const searchColumns = (TAB_SEARCH_FIELDS[currentTab.value] || []).map((f) => f.column);
-  if (searchQuery.value && searchColumns.length) {
-    conds.push({ op: 'or_ilike', columns: searchColumns, value: `%${searchQuery.value}%` });
-  }
-  return conds;
-};
+const buildBatchDeleteConditions = () =>
+  buildBatchDeleteConditionsFor({
+    tabId: currentTab.value,
+    statusField: currentStatusFilterField.value,
+    statusFilter: statusFilter.value,
+    dateField: currentDateFilterField.value,
+    dateFrom: dateFromFilter.value,
+    dateTo: dateToFilter.value,
+    searchColumns: (TAB_SEARCH_FIELDS[currentTab.value] || []).map((f) => f.column),
+    searchQuery: searchQuery.value,
+  });
 const batchDeleteAll = async () => {
   if (isBatchDeleteAll.value) return;
   if (activeAdvancedRules.value?.length) {
     showToast('高级筛选下的全量删除暂不支持：请清除高级规则后重试', 'warning');
     return;
   }
+  // 基础过滤（reportedPosts 等）只是 tab 的数据边界，不算用户筛选；
+  // 没有用户可见条件时必须仍然拒绝，否则会退化成「删掉整个基础集合」。
+  if (!hasActiveFilters.value) {
+    showToast('拒绝无条件全表删除：请先设置筛选条件', 'warning');
+    return;
+  }
   const conditions = buildBatchDeleteConditions();
-  if (!conditions.length) {
+  // 必须至少有 1 条「用户条件」，不能只有 tab 的基础过滤（否则等于删掉整个基础集合）。
+  // 这里用 conditions 与 baseScope 的差值判定，避免「hasActiveFilters 为真但字段
+  // 映射不到条件」（例如该 tab 没有搜索列）时误放行。
+  if (conditions.length <= getBaseScopeConditionsFor(currentTab.value).length) {
     showToast('拒绝无条件全表删除：请先设置筛选条件', 'warning');
     return;
   }
@@ -8300,4 +8353,8 @@ onUnmounted(() => {
  * 需先补容器命名空间才能照此办理。 */
 @import './styles/overlays.css';
 @import './styles/google-components.css';
+/* 按钮基线：所有选择器都带 .data-management-page 前缀，可安全走全局；
+   补的是「scoped admin 样式到不了子组件内部元素」的洞（详情页按钮曾退回
+   站点遗留的 #333 直角按钮）。 */
+@import './styles/panel-buttons.css';
 </style>

@@ -81,4 +81,36 @@ defineEmits(['back', 'crumb']);
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* 竖屏：面包屑是触屏唯一的"上一级"入口，24px 的行高拇指点不准；
+   撑到 32px 命中区，同时允许横向滑动避免长表名换行挤压标题。 */
+@media (max-width: 768px) {
+  .detail-crumbs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .detail-crumbs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .detail-crumb {
+    min-height: 32px;
+    padding: 0 4px;
+    flex: 0 0 auto;
+  }
+
+  .detail-header-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .detail-header-row .btn {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 8px 14px;
+  }
+}
 </style>

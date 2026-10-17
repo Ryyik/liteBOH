@@ -47,6 +47,10 @@ describe('detail route wiring', () => {
     expect(view).toContain('<RecordPane');
     expect(view).toContain('openRecordDetail');
     expect(view).toContain('goBackToList');
+    // 详情路由的 tab 必须进 currentTab（2026-10-17 审查 P0：否则编辑/删除指向 users）
+    expect(view).toContain('router.currentRoute.value?.params?.tab');
+    expect(view).toContain('initialDetailTab');
+    expect(view).toContain('activeModule.value = detailModule');
     // 取数走 api 收口（layering：UI 层不新增直连出口）
     expect(read('src/utils/api/data-admin-table-api.js')).toContain('fetchRecordById');
   });

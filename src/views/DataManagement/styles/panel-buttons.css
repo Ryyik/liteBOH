@@ -1,0 +1,107 @@
+/**
+ * panel-buttons.css — 后台面板的按钮基线（**非 scoped**，作用于 .data-management-page 内所有后代）
+ *
+ * 为什么需要这个文件：
+ *   DataAdmin.vue 的整套 admin 样式写在 `<style scoped>` 里并 @import base/console/
+ *   responsive —— 编译后全部带 `[data-v-*]`，只作用于 DataAdmin 自己模板渲染的元素。
+ *   子组件（DetailHeader / DetailActionBar / DetailAside / RecordPane / ShortcutHelp /
+ *   BatchJobResult …）内部的 `.btn` 拿不到 `.btn-secondary` 等定义，会退回站点遗留的
+ *   全局 `.btn`（src/styles/components/buttons.css：#333 底、50px 高、直角、capitalize）。
+ *   实测：详情页「返回列表 / 编辑 / 删除」全是黑块，桌面端一样。
+ *
+ * 约束：
+ *   · 只允许 `.data-management-page` 前缀，避免污染站点其它页面；
+ *   · 数值必须与 console.css 的 `.btn*` 保持一致 —— 本文件加载在其后，
+ *     同特异性下会赢，改这里等于改全后台的按钮外观。
+ */
+
+.data-management-page .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius, 8px);
+  border: 1px solid transparent;
+  background: var(--card);
+  color: var(--foreground);
+  font-family: 'DM Sans', ui-sans-serif, sans-serif, system-ui;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 1px 2px -1px rgba(14, 17, 21, 0.08);
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s,
+    transform 0.05s;
+}
+
+.data-management-page .btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.data-management-page .btn:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.data-management-page .btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: transparent;
+  box-shadow:
+    0 1px 2px rgba(14, 17, 21, 0.12),
+    0 1px 3px rgba(14, 17, 21, 0.08);
+}
+
+.data-management-page .btn-primary:hover {
+  background: #3367d6;
+}
+
+.data-management-page .btn-secondary {
+  background: var(--card);
+  color: var(--foreground);
+  border-color: var(--input);
+  box-shadow: 0 1px 2px -1px rgba(14, 17, 21, 0.06);
+}
+
+.data-management-page .btn-secondary:hover {
+  background: var(--muted);
+  border-color: #c4c7c5;
+}
+
+.data-management-page .btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--input);
+  box-shadow: none;
+}
+
+.data-management-page .btn-danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: var(--danger);
+}
+
+.data-management-page .btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+.data-management-page .btn:disabled {
+  background: var(--muted);
+  color: var(--dm-text-subtle);
+  border-color: transparent;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}

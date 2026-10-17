@@ -24,7 +24,8 @@ describe('E3 服务端真全选批量删除（源码守卫）', () => {
   });
 
   it('服务端 RPC：白名单 + 列名校验 + op 白名单 + count 预检 + 上限 + or_ilike', () => {
-    const sql = read('supabase/migrations/2026101703_admin_batch_delete.sql');
+    // 以最新迁移为准：2026101704 修正了 2026101703 里 or_ilike 排在列校验之后的问题
+    const sql = read('supabase/migrations/2026101704_admin_hardening.sql');
     expect(sql).toContain('not (p_table = any(v_allowed))');
     expect(sql).toContain('information_schema.columns');
     expect(sql).toContain("'or_ilike'");
@@ -35,6 +36,18 @@ describe('E3 服务端真全选批量删除（源码守卫）', () => {
     expect(sql).not.toContain("'users',");
     expect(sql).not.toContain("'points',");
     expect(sql).not.toContain("'admin_audit_logs',");
+  });
+
+  it('or_ilike 分支必须排在列存在性校验之前（否则无 column 字段必抛）', () => {
+    const sql = read('supabase/migrations/2026101704_admin_hardening.sql');
+    const orIlikePos = sql.indexOf("if v_op = 'or_ilike'");
+    const colCheckPos = sql.indexOf('if v_col is null or not exists');
+    expect(orIlikePos).toBeGreaterThan(-1);
+    expect(colCheckPos).toBeGreaterThan(-1);
+    expect(orIlikePos).toBeLessThan(colCheckPos);
+    // 基础过滤需要的 not_like 与真实行数
+    expect(sql).toContain("'not_like'");
+    expect(sql).toContain('get diagnostics v_deleted = row_count');
   });
 
   it('Danger zone：输入完整 record.id 确认，不匹配静默中止', () => {

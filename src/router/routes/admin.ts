@@ -9,8 +9,11 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavbar: true },
   },
   {
-    // 详情子页（plans/027 D1）：与列表共用同一个组件 —— 仅参数变化时
-    // Vue Router 复用组件实例，列表的筛选/页码/滚动位置天然保留。
+    // 详情子页（plans/027 D1）：与列表共用同一个组件。
+    // ⚠️ 不要以为「共用组件 = 实例复用」：App.vue 用 `:key="activeRoute.path"` 渲染
+    // 路由组件，列表 ↔ 详情的 path 不同 ⇒ 实例会重建。列表的筛选/页码靠 E 批的
+    // URL 即状态恢复，滚动位置**不保留**；详情态的 tab 由 route.params.tab 提供
+    // （DataAdmin 的 initialDetailTab），不要依赖 query.tab。
     path: '/admin/data-management/:tab/:id',
     name: 'DataManagementRecord',
     component: () => import('../../views/DataManagement/index.vue'),
