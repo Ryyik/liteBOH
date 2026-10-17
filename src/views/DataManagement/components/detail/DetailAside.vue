@@ -16,7 +16,10 @@
 
     <div class="detail-aside-card is-danger">
       <h3>Danger zone</h3>
-      <p class="detail-aside-empty">删除 / 批量危险操作在批次 E（审计 + 权限矩阵）上线。</p>
+      <p class="detail-aside-empty">删除不可恢复，将写入审计日志（plans/027 E6.4）。</p>
+      <button v-if="canDelete" type="button" class="btn btn-danger btn-sm" @click="$emit('delete')">
+        删除此记录
+      </button>
     </div>
   </aside>
 </template>
@@ -25,7 +28,9 @@
 defineProps({
   record: { type: Object, default: null },
   relatedLabels: { type: Array, default: () => [] },
+  canDelete: { type: Boolean, default: false },
 });
+defineEmits(['delete']);
 
 const formatTime = (val) => {
   if (!val) return '—';

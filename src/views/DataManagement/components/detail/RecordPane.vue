@@ -19,7 +19,12 @@
         <div class="record-pane-main">
           <DetailFields :fields="fields" :record="record" />
         </div>
-        <DetailAside :record="record" :related-labels="getRelatedLabels?.(record) || []" />
+        <DetailAside
+          :record="record"
+          :related-labels="getRelatedLabels?.(record) || []"
+          :can-delete="canDelete"
+          @delete="$emit('delete', record)"
+        />
       </div>
       <DetailActionBar @edit="$emit('edit', record)" />
     </template>
@@ -43,8 +48,9 @@ const props = defineProps({
   moduleLabel: { type: String, default: '' },
   tabLabel: { type: String, default: '' },
   getRelatedLabels: { type: Function, default: null },
+  canDelete: { type: Boolean, default: false },
 });
-const emit = defineEmits(['back', 'edit', 'crumb']);
+const emit = defineEmits(['back', 'edit', 'crumb', 'delete']);
 
 const record = ref(null);
 const loading = ref(false);

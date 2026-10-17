@@ -117,9 +117,11 @@
               :module-label="currentModule?.label || '数据管理'"
               :tab-label="detailTabLabel"
               :get-related-labels="getDetailRelatedLabels"
+              :can-delete="canDeleteCurrentTab && !isModerationTab"
               @back="goBackToList"
               @edit="onEditRecord"
               @crumb="onDetailCrumb"
+              @delete="onDetailDangerDelete"
             />
           </section>
           <section v-else-if="recordId" class="management-section">
@@ -446,11 +448,29 @@
 
               <!-- 数据表格区域 -->
               <div class="data-content" :data-density="density">
+                <!-- 批量结果面板（plans/027 E6.3）：原子语义下成功/整败两态 -->
+                <BatchJobResult
+                  v-if="batchJobResult"
+                  :deleted="batchJobResult.deleted"
+                  :failed="batchJobResult.failed"
+                  :error="batchJobResult.error"
+                  @retry="batchDeleteAll"
+                />
+
                 <!-- 浮动批量操作条：选中后出现，替代常驻的批量按钮组 -->
-                <div v-if="selectedItems.length > 0" class="bulk-bar" role="status">
+                <div
+                  v-if="selectedItems.length > 0 || selectAllResultsMode"
+                  class="bulk-bar"
+                  role="status"
+                >
                   <span class="bulk-count"
-                    >已选 <strong>{{ selectedItems.length }}</strong> 项<span
-                      v-if="
+                    >已选
+                    <strong>{{
+                      selectAllResultsMode ? totalRecordCount : selectedItems.length
+                    }}</strong>
+                    项<span v-if="selectAllResultsMode">（按当前筛选，服务端执行）</span
+                    ><span
+                      v-else-if="
                         selectedItems.length === paginatedData.length &&
                         totalRecordCount > selectedItems.length
                       "
@@ -459,7 +479,19 @@
                   >
                   <div class="bulk-actions">
                     <button
-                      v-if="editableFields.length && canEditCurrentTab"
+                      v-if="
+                        !selectAllResultsMode &&
+                        canBatchDeleteAll &&
+                        totalRecordCount > paginatedData.length
+                      "
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      @click="enterSelectAllScope"
+                    >
+                      全选全部（{{ totalRecordCount }} 条）
+                    </button>
+                    <button
+                      v-if="!selectAllResultsMode && editableFields.length && canEditCurrentTab"
                       type="button"
                       class="btn btn-secondary btn-sm"
                       @click="showBatchEditPanel = !showBatchEditPanel"
@@ -470,7 +502,7 @@
                       v-if="!isModerationTab && canDeleteCurrentTab && !isProfileDerivedTab"
                       type="button"
                       class="btn btn-danger btn-sm"
-                      @click="batchDelete"
+                      @click="onBulkDeleteClick"
                     >
                       删除
                     </button>
@@ -1772,7 +1804,9 @@ import { resolveEmptyState } from './composables/data-admin-empty-state.js';
 import ShortcutHelp from './components/shared/ShortcutHelp.vue';
 import CopyCell from './components/shared/CopyCell.vue';
 import RecordPane from './components/detail/RecordPane.vue';
+import BatchJobResult from './components/shared/BatchJobResult.vue';
 import { logAdminAction } from '@/utils/api/admin-audit-api.js';
+import { adminBatchDelete } from '@/utils/api/admin-batch-api.js';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
 import { getImageUrl } from '../../utils/asset-helper';
@@ -6830,6 +6864,20 @@ const openRecordDetail = (item) => {
 
 const onEditRecord = (record) => openEditModal(record);
 
+// Danger zone（plans/027 E6.4）：输入完整 record.id 确认，不匹配静默中止；
+// 确认后走既有 deleteItem（富确认 + 审计）
+const onDetailDangerDelete = async (record) => {
+  if (!record?.id) return;
+  const input = await dialog.prompt({
+    title: '危险操作：删除这条记录',
+    message: `请输入完整记录 ID 以确认删除（不可恢复）：\n${record.id}`,
+    placeholder: `${String(record.id).slice(0, 8)}…（粘贴完整 ID）`,
+    defaultValue: '',
+  });
+  if (String(input ?? '').trim() !== String(record.id)) return;
+  await deleteItem(record);
+};
+
 const onDetailCrumb = (idx) => {
   if (idx === 0) {
     router.replace({ path: '/admin/data-management' });
@@ -6843,6 +6891,92 @@ const onPrimaryCellClick = (col, item) => {
   if (visibleCurrentColumns.value[0]?.key === col.key) {
     openRecordDetail(item);
   }
+};
+
+// ==================== 服务端真全选批量删除（plans/027 E6.3） ====================
+// selectAllResultsMode 在此复用（S1 时预留）：true = 按 URL 筛选在服务端执行，
+// 不再往 selectedItems 塞 id（跨页 id 集合前端根本拿不全）。
+const batchJobResult = ref(null);
+const isBatchDeleteAll = ref(false);
+// 白名单前端镜像（服务端仍硬编码校验）：users/points 走 admin_delete_user_account，
+// 审计表自身不可批量删
+const BATCH_ALL_EXCLUDED_TABS = new Set(['users', 'points', 'adminAuditLogs']);
+const canBatchDeleteAll = computed(
+  () =>
+    Boolean(dataConfig[currentTab.value]?.table) &&
+    Boolean(TAB_SELECT_COLUMNS[currentTab.value]) &&
+    !BATCH_ALL_EXCLUDED_TABS.has(currentTab.value),
+);
+const enterSelectAllScope = () => {
+  selectAllResultsMode.value = true;
+  selectedItems.value = [];
+};
+const buildBatchDeleteConditions = () => {
+  const conds = [];
+  const statusField = currentStatusFilterField.value;
+  if (statusFilter.value && statusField) {
+    conds.push({ column: statusField, op: 'eq', value: String(statusFilter.value) });
+  }
+  const dateField = currentDateFilterField.value;
+  if (dateField && dateFromFilter.value) {
+    conds.push({ column: dateField, op: 'gte', value: String(dateFromFilter.value) });
+  }
+  if (dateField && dateToFilter.value) {
+    conds.push({ column: dateField, op: 'lte', value: String(dateToFilter.value) });
+  }
+  const searchColumns = (TAB_SEARCH_FIELDS[currentTab.value] || []).map((f) => f.column);
+  if (searchQuery.value && searchColumns.length) {
+    conds.push({ op: 'or_ilike', columns: searchColumns, value: `%${searchQuery.value}%` });
+  }
+  return conds;
+};
+const batchDeleteAll = async () => {
+  if (isBatchDeleteAll.value) return;
+  if (activeAdvancedRules.value?.length) {
+    showToast('高级筛选下的全量删除暂不支持：请清除高级规则后重试', 'warning');
+    return;
+  }
+  const conditions = buildBatchDeleteConditions();
+  if (!conditions.length) {
+    showToast('拒绝无条件全表删除：请先设置筛选条件', 'warning');
+    return;
+  }
+  const expected = totalRecordCount.value;
+  const confirmed = await dialog.confirm({
+    title: '按筛选全量删除',
+    message: `即将在服务端按当前筛选删除 ${expected} 条「${currentTabLabel.value}」记录。\n筛选：${activeFilterSummary.value}\n此操作不可恢复，将写入审计。`,
+    tone: 'danger',
+    confirmText: `删除 ${expected} 条`,
+  });
+  if (!confirmed) return;
+  isBatchDeleteAll.value = true;
+  batchJobResult.value = null;
+  try {
+    assertAdminAction();
+    const deleted = await adminBatchDelete({
+      table: dataConfig[currentTab.value].table,
+      filters: conditions,
+      expectedCount: expected,
+    });
+    batchJobResult.value = { deleted, failed: 0, error: '' };
+    selectedItems.value = [];
+    selectAllResultsMode.value = false;
+    clearTabFetchCache(currentTab.value);
+    await refreshCurrentViewAfterMutation();
+  } catch (error) {
+    batchJobResult.value = {
+      deleted: 0,
+      failed: expected,
+      error: buildActionErrorMessage(error, '批量删除失败'),
+    };
+    showToast('全量删除失败: ' + buildActionErrorMessage(error, '批量删除失败'), 'error');
+  } finally {
+    isBatchDeleteAll.value = false;
+  }
+};
+const onBulkDeleteClick = () => {
+  if (selectAllResultsMode.value) batchDeleteAll();
+  else batchDelete();
 };
 const commandQuery = ref('');
 const commandActiveIndex = ref(0);
