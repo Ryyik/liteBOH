@@ -174,7 +174,7 @@ const runViewport = async (width, height) => {
         editBtn: tap('.mobile-card .mobile-action-btn.edit'),
         rowMenu: tap('.mobile-card [aria-haspopup="menu"], .mobile-card .row-action-trigger'),
         searchInput: tap('.toolbar-secondary .search-box input'),
-        createBtn: tap('.toolbar-primary .btn-primary'),
+        createBtn: tap('.toolbar-actions .btn-primary'),
         paginationNext: tap('.mobile-data-pagination button'),
       },
       fontSizes: {
