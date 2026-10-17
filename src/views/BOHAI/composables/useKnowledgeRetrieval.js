@@ -248,7 +248,7 @@ export function useKnowledgeRetrieval(deps) {
    */
   const getMemoryContext = async (queryText) => {
     const chunks = await getVectorKnowledgeChunks(queryText, {
-      sourceTypes: ['core_memory', 'knowledge_base', 'forum_memory'],
+      sourceTypes: ['core_memory', 'knowledge_base', 'forum_memory', 'site_news', 'site_activity'],
       limit: Math.max(MEMORY_MAX_CHUNKS, 8),
       syncLimit: 60,
       minSimilarity: 0.1,
@@ -1027,7 +1027,7 @@ export function useKnowledgeRetrieval(deps) {
   const getRetrievalTargetLabels = (plan = {}) => {
     const labels = [];
     if (plan.forum) labels.push('社区帖子');
-    if (plan.memory) labels.push('官方事实/知识库/论坛记忆');
+    if (plan.memory) labels.push('官方事实/知识库/论坛/新闻活动');
     if (plan.sharedMemory) labels.push('AI 公共记忆');
     if (plan.siteGuide) labels.push('站点操作手册');
     if (plan.treehole) labels.push('BOH Cloud+');
@@ -1046,7 +1046,7 @@ export function useKnowledgeRetrieval(deps) {
         treeholeTotal > 0 ? `看了你的 BOH Cloud+ ${treeholeTotal} 条内容` : '看了你的 BOH Cloud+',
       );
     }
-    if (retrievalPlan.memory) parts.push('查看了 BOH 官方事实与论坛记忆');
+    if (retrievalPlan.memory) parts.push('查看了 BOH 官方事实、论坛记忆与站内新闻活动');
     if (retrievalPlan.sharedMemory) {
       parts.push(
         sharedMemoryTotal > 0 ? `查看了公共记忆库 ${sharedMemoryTotal} 条内容` : '查看了公共记忆库',

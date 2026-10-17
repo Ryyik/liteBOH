@@ -400,7 +400,12 @@ const runIngestion = async (client: SupabaseClient, limit: number): Promise<RunS
           Authorization: `Bearer ${serviceRoleKey}`,
           'x-retrieval-sync-secret': retrievalSyncSecret,
         },
-        body: JSON.stringify({ action: 'sync', sourceTypes: ['forum_memory'], syncLimit: 80 }),
+        body: JSON.stringify({
+          action: 'sync',
+          // 2026-10-17：同一轮顺带同步官方新闻/活动 —— 每晚一次覆盖全部官方内容源
+          sourceTypes: ['forum_memory', 'site_news', 'site_activity'],
+          syncLimit: 80,
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       stats.indexed = Boolean(response.ok && payload?.ok !== false);

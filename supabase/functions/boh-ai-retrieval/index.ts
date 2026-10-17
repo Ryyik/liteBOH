@@ -5,7 +5,13 @@ import {
 } from '../_shared/cors.ts';
 
 type SourceType =
-  'core_memory' | 'shared_memory' | 'cloud_entry' | 'knowledge_base' | 'forum_memory';
+  | 'core_memory'
+  | 'shared_memory'
+  | 'cloud_entry'
+  | 'knowledge_base'
+  | 'forum_memory'
+  | 'site_news'
+  | 'site_activity';
 
 type KnowledgeSource = {
   sourceType: SourceType;
@@ -80,12 +86,18 @@ const BOH_AI_RETRIEVAL_SYNC_SECRET = String(
   Deno.env.get('BOH_AI_RETRIEVAL_SYNC_SECRET') || '',
 ).trim();
 
+/* 知识源全集（2026-10-17 扩充：+site_news / site_activity —— 官方新闻与活动自动扩充知识库）。
+   ⚠️ 三处一致性（任一漏加 = 检索静默少一类结果）：
+   本集合 ↔ DB CHECK（migrations 2026101701）↔ 前端 ALLOWED_KNOWLEDGE_SOURCE_TYPES
+   （守卫：tests/unit/bohai-knowledge-source-types-consistency.test.js） */
 const SOURCE_TYPES = new Set<SourceType>([
   'core_memory',
   'shared_memory',
   'cloud_entry',
   'knowledge_base',
   'forum_memory',
+  'site_news',
+  'site_activity',
 ]);
 /* 免费档重排模型白名单（不在名单里的模型会被 `ALLOW_PAID_RERANK` 挡下、重排整体跳过）。
    2026-10-16：bge-reranker-v2-m3 入选（硅基流动免费档，后台「免费模型库」同步登记）。 */
@@ -875,6 +887,135 @@ const syncForumMemories = async (client: ReturnType<typeof createServiceClient>,
   return upsertKnowledgeSourcesBatch(client, sources);
 };
 
+/**
+ * 归档「源已消失」的站点内容块（2026-10-17）：新闻被删除 / 活动下线后，
+ * 其知识块不能继续被检索。与 forum-memory 侧的 archivedStale 同目的。
+ * @returns 归档的 source 数
+ */
+const archiveStaleSiteContentChunks = async (
+  client: ReturnType<typeof createServiceClient>,
+  sourceType: 'site_news' | 'site_activity',
+  keepSourceIds: string[],
+): Promise<number> => {
+  const { data, error } = await client
+    .from('boh_ai_knowledge_chunks')
+    .select('source_id')
+    .eq('source_type', sourceType)
+    .eq('status', 'active');
+  if (error) throw error;
+  const keep = new Set(keepSourceIds.map(String));
+  const staleIds = [
+    ...new Set((Array.isArray(data) ? data : []).map((row) => String(row.source_id))),
+  ].filter((sourceId) => !keep.has(sourceId));
+  if (staleIds.length === 0) return 0;
+  const { error: archiveError } = await client
+    .from('boh_ai_knowledge_chunks')
+    .update({ status: 'archived' })
+    .eq('source_type', sourceType)
+    .eq('status', 'active')
+    .in('source_id', staleIds);
+  if (archiveError) throw archiveError;
+  return staleIds.length;
+};
+
+/** 官方新闻 → 知识块（2026-10-17 自动扩充）：内容即事实，无需 LLM 抽取 */
+const syncSiteNews = async (client: ReturnType<typeof createServiceClient>, limit: number) => {
+  const { data, error } = await client
+    .from('news')
+    .select('id, category, title, excerpt, date, author, content, updated_at, created_at')
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length === 0) return 0;
+
+  const sources: KnowledgeSource[] = rows.map((row) => {
+    const title = toText(row.title, 160) || '站内新闻';
+    const content = [
+      `标题：${title}`,
+      row.category ? `分类：${toText(row.category, 60)}` : '',
+      row.date ? `发布日期：${toText(row.date, 60)}` : '',
+      row.author ? `作者：${toText(row.author, 80)}` : '',
+      toText(row.excerpt, 300),
+      toText(row.content, 20000),
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    return {
+      sourceType: 'site_news',
+      sourceId: String(row.id),
+      ownerUserId: null,
+      visibility: 'public',
+      title,
+      content,
+      metadata: {
+        category: row.category || '',
+        date: row.date || '',
+        author: row.author || '',
+        updatedAt: row.updated_at || row.created_at || '',
+      },
+    };
+  });
+
+  const indexed = await upsertKnowledgeSourcesBatch(client, sources);
+  await archiveStaleSiteContentChunks(
+    client,
+    'site_news',
+    sources.map((source) => source.sourceId),
+  );
+  return indexed;
+};
+
+/** 官方活动 → 知识块（2026-10-17 自动扩充）：同上，无需 LLM 抽取 */
+const syncSiteActivities = async (
+  client: ReturnType<typeof createServiceClient>,
+  limit: number,
+) => {
+  const { data, error } = await client
+    .from('activities')
+    .select('id, title, date, description, updated_at, created_at')
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length === 0) return 0;
+
+  const sources: KnowledgeSource[] = rows.map((row) => {
+    const title = toText(row.title, 160) || '站内活动';
+    const content = [
+      `标题：${title}`,
+      row.date ? `活动日期：${toText(row.date, 60)}` : '',
+      toText(row.description, 20000),
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    return {
+      sourceType: 'site_activity',
+      sourceId: String(row.id),
+      ownerUserId: null,
+      visibility: 'public',
+      title,
+      content,
+      metadata: {
+        date: row.date || '',
+        updatedAt: row.updated_at || row.created_at || '',
+      },
+    };
+  });
+
+  const indexed = await upsertKnowledgeSourcesBatch(client, sources);
+  await archiveStaleSiteContentChunks(
+    client,
+    'site_activity',
+    sources.map((source) => source.sourceId),
+  );
+  return indexed;
+};
+
 const syncSharedMemories = async (
   client: ReturnType<typeof createServiceClient>,
   limit: number,
@@ -1473,6 +1614,10 @@ Deno.serve(async (request) => {
         indexedCount += await syncCloudEntries(client, userId, syncLimit);
       if (syncSourceTypes.includes('forum_memory'))
         indexedCount += await syncForumMemories(client, syncLimit);
+      if (syncSourceTypes.includes('site_news'))
+        indexedCount += await syncSiteNews(client, syncLimit);
+      if (syncSourceTypes.includes('site_activity'))
+        indexedCount += await syncSiteActivities(client, syncLimit);
       return jsonResponse(
         {
           ok: true,
@@ -1526,6 +1671,9 @@ Deno.serve(async (request) => {
           if (syncSourceTypes.includes('cloud_entry'))
             await syncCloudEntries(client, userId, syncLimit);
           if (syncSourceTypes.includes('forum_memory')) await syncForumMemories(client, syncLimit);
+          if (syncSourceTypes.includes('site_news')) await syncSiteNews(client, syncLimit);
+          if (syncSourceTypes.includes('site_activity'))
+            await syncSiteActivities(client, syncLimit);
         } catch (syncError) {
           console.error('[boh-ai-retrieval] 后台索引同步失败', syncError);
         }

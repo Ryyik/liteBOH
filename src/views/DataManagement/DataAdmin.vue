@@ -3732,6 +3732,21 @@ const syncCoreMemoriesIndex = async () => {
   }
 };
 
+// 官方新闻/活动保存后即时同步（2026-10-17 自动扩充知识库；夜间 cron 兜底全量）
+const syncSiteContentIndex = async () => {
+  try {
+    await supabase.functions.invoke('boh-ai-retrieval', {
+      body: {
+        action: 'sync',
+        sourceTypes: ['site_news', 'site_activity'],
+        syncLimit: 80,
+      },
+    });
+  } catch (error) {
+    logger.warn('data-admin', '同步新闻/活动向量索引失败:', error);
+  }
+};
+
 // sanitizeSearchTerm / buildSearchFilters / normalizeFilterValue / ALLOWED_ADVANCED_OPERATORS
 // applyAdvancedFilters / applySearchAndSort / buildSearchFiltersForKeyword / getSearchablePreviewFields
 // 已迁移至 composables/useDataAdminFilters.js
@@ -6094,6 +6109,8 @@ const saveData = async ({ keepOpen = false } = {}) => {
       if (currentTab.value === 'subscriptions')
         invalidateSubscriptionCache(dataToSave.user_id || editingItem.value.user_id);
       if (currentTab.value === 'coreMemories') await syncCoreMemoriesIndex();
+      if (currentTab.value === 'news' || currentTab.value === 'activities')
+        await syncSiteContentIndex();
       if (currentTab.value === 'bohaiModels') {
         clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
       }
@@ -6117,6 +6134,8 @@ const saveData = async ({ keepOpen = false } = {}) => {
       if (currentTab.value === 'products') invalidateProductsCache();
       if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(dataToSave.user_id);
       if (currentTab.value === 'coreMemories') await syncCoreMemoriesIndex();
+      if (currentTab.value === 'news' || currentTab.value === 'activities')
+        await syncSiteContentIndex();
       if (currentTab.value === 'bohaiModels') {
         clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
       }
