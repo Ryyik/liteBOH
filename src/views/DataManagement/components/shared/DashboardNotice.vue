@@ -6,7 +6,15 @@
     <span class="g-notice-text">
       <slot />
     </span>
-    <button v-if="dismissible" type="button" class="g-notice-close" @click="$emit('dismiss')" aria-label="关闭">×</button>
+    <button
+      v-if="dismissible"
+      type="button"
+      class="g-notice-close"
+      @click="$emit('dismiss')"
+      aria-label="关闭"
+    >
+      ×
+    </button>
   </div>
 </template>
 
@@ -15,7 +23,7 @@ import { computed } from 'vue';
 
 const props = defineProps({
   tone: { type: String, default: 'info' }, // info | success | warn | error
-  dismissible: { type: Boolean, default: false }
+  dismissible: { type: Boolean, default: false },
 });
 
 defineEmits(['dismiss']);

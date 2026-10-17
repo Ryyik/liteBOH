@@ -20,7 +20,7 @@ import { Ellipsis } from 'lucide-vue-next';
 const props = defineProps({
   /** 菜单项：[{ label, tone: 'default'|'danger', disabled, run }] */
   items: { type: Array, required: true },
-  title: { type: String, default: '更多操作' }
+  title: { type: String, default: '更多操作' },
 });
 
 const emit = defineEmits(['open']);

@@ -17,7 +17,9 @@
         :class="['g-pager-item', { 'is-active': modelValue === item }]"
         :aria-current="modelValue === item ? 'page' : undefined"
         @click="goTo(item)"
-      >{{ item }}</button>
+      >
+        {{ item }}
+      </button>
     </template>
     <button
       type="button"
@@ -39,7 +41,7 @@ const props = defineProps({
   total: { type: Number, required: true },
   pageSize: { type: Number, default: 10 },
   siblingCount: { type: Number, default: 1 },
-  ariaLabel: { type: String, default: 'Pagination' }
+  ariaLabel: { type: String, default: 'Pagination' },
 });
 const emit = defineEmits(['update:modelValue']);
 
@@ -70,7 +72,9 @@ const goTo = (page) => {
   emit('update:modelValue', page);
 };
 
-const rangeStart = computed(() => (props.total === 0 ? 0 : (props.modelValue - 1) * props.pageSize + 1));
+const rangeStart = computed(() =>
+  props.total === 0 ? 0 : (props.modelValue - 1) * props.pageSize + 1,
+);
 const rangeEnd = computed(() => Math.min(props.total, props.modelValue * props.pageSize));
 
 defineExpose({ totalPages, rangeStart, rangeEnd });

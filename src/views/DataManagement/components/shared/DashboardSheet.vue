@@ -4,7 +4,9 @@
       <div class="g-sheet-head-titles">
         <strong>{{ title }}</strong>
         <slot name="head" />
-        <span v-if="badge" class="g-badge is-muted" style="margin-left: calc(var(--spacing) * 2);">{{ badge }}</span>
+        <span v-if="badge" class="g-badge is-muted" style="margin-left: calc(var(--spacing) * 2)">{{
+          badge
+        }}</span>
       </div>
       <div class="g-sheet-head-actions">
         <slot name="actions" />
@@ -36,7 +38,7 @@ defineProps({
   title: { type: String, default: '' },
   badge: { type: [String, Number], default: '' },
   summary: { type: String, default: '' },
-  pagination: { type: Object, default: null } // { page, total, pageSize }
+  pagination: { type: Object, default: null }, // { page, total, pageSize }
 });
 defineEmits(['page-change']);
 </script>

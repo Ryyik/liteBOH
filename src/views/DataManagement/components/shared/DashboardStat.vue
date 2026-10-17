@@ -22,7 +22,7 @@ const props = defineProps({
   detail: { type: String, default: '' },
   interactive: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
-  mono: { type: Boolean, default: true }
+  mono: { type: Boolean, default: true },
 });
 
 const trendTone = computed(() => {

@@ -30,7 +30,7 @@ const props = defineProps({
   label: { type: String, default: '' },
   tone: { type: String, default: 'primary' }, // primary | success | warn | danger
   size: { type: String, default: 'md' }, // sm | md | lg
-  legend: { type: Array, default: () => [] } // [{ label, value, color? }]
+  legend: { type: Array, default: () => [] }, // [{ label, value, color? }]
 });
 
 const clampedPercent = computed(() => {
@@ -39,5 +39,7 @@ const clampedPercent = computed(() => {
 });
 
 const toneClass = computed(() => `is-${props.tone}`);
-const sizeClass = computed(() => (props.size === 'sm' ? 'is-sm' : props.size === 'lg' ? 'is-lg' : ''));
+const sizeClass = computed(() =>
+  props.size === 'sm' ? 'is-sm' : props.size === 'lg' ? 'is-lg' : '',
+);
 </script>

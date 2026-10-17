@@ -1,7 +1,21 @@
 <template>
-  <div class="g-progress" :aria-valuenow="ariaValueNow" :aria-valuemin="min" :aria-valuemax="max" role="progressbar">
+  <div
+    class="g-progress"
+    :aria-valuenow="ariaValueNow"
+    :aria-valuemin="min"
+    :aria-valuemax="max"
+    role="progressbar"
+  >
     <div
-      :class="['g-progress-fill', { 'is-unlimited': unlimited, 'is-warm': clampedValue >= 60 && clampedValue < 85, 'is-red': clampedValue >= 85, 'is-green': clampedValue < 30 }]"
+      :class="[
+        'g-progress-fill',
+        {
+          'is-unlimited': unlimited,
+          'is-warm': clampedValue >= 60 && clampedValue < 85,
+          'is-red': clampedValue >= 85,
+          'is-green': clampedValue < 30,
+        },
+      ]"
       :style="{ width: fillWidth }"
     />
   </div>
@@ -16,7 +30,7 @@ const props = defineProps({
   max: { type: Number, default: 100 },
   unlimited: { type: Boolean, default: false },
   // 当数值极小时设置最小可见宽度，避免进度条消失
-  minVisibleWidth: { type: Number, default: 4 }
+  minVisibleWidth: { type: Number, default: 4 },
 });
 
 const clampedValue = computed(() => {
