@@ -4,10 +4,17 @@
       <div>
         <span class="quota-kicker">Points Grant</span>
         <h2>积分发放</h2>
-        <p>统一给全部用户批量发放积分，或指定部分用户发放，可填写备注（会同步展示在用户的「积分明细」中）。</p>
+        <p>
+          统一给全部用户批量发放积分，或指定部分用户发放，可填写备注（会同步展示在用户的「积分明细」中）。
+        </p>
       </div>
       <div class="quota-hero-actions">
-        <button class="quota-btn ghost" type="button" :disabled="loading || saving" @click="loadRecent">
+        <button
+          class="quota-btn ghost"
+          type="button"
+          :disabled="loading || saving"
+          @click="loadRecent"
+        >
           <RefreshCw :size="15" :class="{ spinning: loading }" />刷新
         </button>
       </div>
@@ -17,10 +24,21 @@
 
     <section class="quota-panel grant-panel">
       <div class="quota-panel-heading">
-        <div><h3>发放方式</h3><p>「全部用户」会将积分发放给所有非管理员账号。</p></div>
+        <div>
+          <h3>发放方式</h3>
+          <p>「全部用户」会将积分发放给所有非管理员账号。</p>
+        </div>
         <div class="grant-mode-switch" role="tablist" aria-label="发放范围">
-          <button type="button" :class="{ 'is-active': mode === 'all' }" @click="mode = 'all'">全部用户</button>
-          <button type="button" :class="{ 'is-active': mode === 'selected' }" @click="mode = 'selected'">指定用户</button>
+          <button type="button" :class="{ 'is-active': mode === 'all' }" @click="mode = 'all'">
+            全部用户
+          </button>
+          <button
+            type="button"
+            :class="{ 'is-active': mode === 'selected' }"
+            @click="mode = 'selected'"
+          >
+            指定用户
+          </button>
         </div>
       </div>
 
@@ -34,7 +52,12 @@
               aria-label="搜索用户"
               @input="handleSearch"
             />
-            <button class="quota-btn ghost" type="button" :disabled="searching" @click="handleSearch">
+            <button
+              class="quota-btn ghost"
+              type="button"
+              :disabled="searching"
+              @click="handleSearch"
+            >
               <Search :size="15" />{{ searching ? '搜索中…' : '搜索' }}
             </button>
           </div>
@@ -55,7 +78,9 @@
           <div class="grant-selected-wrap" v-if="selectedUsers.length > 0">
             <div class="grant-selected-head">
               <span>已选择 {{ selectedUsers.length }} 位用户</span>
-              <button type="button" class="grant-clear-all" @click="selectedUsers = []">清空</button>
+              <button type="button" class="grant-clear-all" @click="selectedUsers = []">
+                清空
+              </button>
             </div>
             <div class="grant-selected-list">
               <span v-for="user in selectedUsers" :key="user.id" class="grant-chip">
@@ -69,11 +94,24 @@
         <div class="grant-fields">
           <label class="grant-field">
             <span>积分数量</span>
-            <input v-model.number="amount" type="number" :min="1" step="1" placeholder="例如 10" aria-label="积分数量" />
+            <input
+              v-model.number="amount"
+              type="number"
+              :min="1"
+              step="1"
+              placeholder="例如 10"
+              aria-label="积分数量"
+            />
           </label>
           <label class="grant-field grant-field-wide">
             <span>备注（展示在积分明细中）</span>
-            <input v-model="remark" type="text" maxlength="120" placeholder="例如：社区活动奖励" aria-label="备注" />
+            <input
+              v-model="remark"
+              type="text"
+              maxlength="120"
+              placeholder="例如：社区活动奖励"
+              aria-label="备注"
+            />
           </label>
         </div>
 
@@ -83,7 +121,12 @@
             <strong>{{ mode === 'all' ? '全部' : selectedUsers.length }} 位用户</strong>
             <template v-if="remark">，备注「{{ remark }}」</template>
           </span>
-          <button class="quota-btn primary" type="button" :disabled="saving || !canSubmit" @click="submitGrant">
+          <button
+            class="quota-btn primary"
+            type="button"
+            :disabled="saving || !canSubmit"
+            @click="submitGrant"
+          >
             <Send :size="15" />{{ saving ? '发放中…' : '确认发放' }}
           </button>
         </div>
@@ -92,7 +135,10 @@
 
     <section class="quota-panel grant-panel">
       <div class="quota-panel-heading">
-        <div><h3>最近发放记录</h3><p>按发放批次展示，可整批撤销。</p></div>
+        <div>
+          <h3>最近发放记录</h3>
+          <p>按发放批次展示，可整批撤销。</p>
+        </div>
         <span>{{ recentTotal }} 批次</span>
       </div>
       <div v-if="recentLoading" class="grant-loading">正在加载发放记录…</div>
@@ -111,7 +157,8 @@
             <div class="grant-batch-meta">
               <span class="grant-batch-time">{{ formatDate(batch.createdAt) }}</span>
               <span class="grant-batch-amount">
-                +{{ batch.amount }} 积分 × {{ batch.count }} 位用户（共 {{ batch.amount * batch.count }} 积分）
+                +{{ batch.amount }} 积分 × {{ batch.count }} 位用户（共
+                {{ batch.amount * batch.count }} 积分）
               </span>
               <span v-if="batch.revoked" class="grant-batch-tag revoked">已撤销</span>
               <span v-else class="grant-batch-tag active">有效</span>
@@ -138,14 +185,16 @@
             </div>
             <!-- 服务端聚合上界为 200 条：明细被截断时明确提示，避免误以为只有这些人 -->
             <p v-if="batch.grants.length < batch.count" class="grant-batch-truncated">
-              该批次共 {{ batch.count }} 条明细，此处仅展示前 {{ batch.grants.length }} 条；完整明细请前往「积分流水」按批次追溯
+              该批次共 {{ batch.count }} 条明细，此处仅展示前
+              {{ batch.grants.length }} 条；完整明细请前往「积分流水」按批次追溯
             </p>
           </details>
         </div>
       </div>
       <footer v-if="recentTotal > recentPageSize" class="g-sheet-foot grant-pagination">
         <span class="g-sheet-foot-text">
-          显示 {{ (recentPage - 1) * recentPageSize + 1 }} - {{ Math.min(recentPage * recentPageSize, recentTotal) }} 批 / 共 {{ recentTotal }} 批
+          显示 {{ (recentPage - 1) * recentPageSize + 1 }} -
+          {{ Math.min(recentPage * recentPageSize, recentTotal) }} 批 / 共 {{ recentTotal }} 批
         </span>
         <DashboardPagination
           :model-value="recentPage"
@@ -163,7 +212,12 @@
 import { computed, onMounted, ref } from 'vue';
 import { Inbox, RefreshCw, Search, Send, Undo2 } from 'lucide-vue-next';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
-import { fetchRecentGrants, grantPoints, revokeGrant, searchGrantTargetUsers } from '@/utils/api/points-admin-api.js';
+import {
+  fetchRecentGrants,
+  grantPoints,
+  revokeGrant,
+  searchGrantTargetUsers,
+} from '@/utils/api/points-admin-api.js';
 import { logger } from '@/utils/logger.js';
 import DashboardPagination from './shared/DashboardPagination.vue';
 
@@ -195,20 +249,23 @@ const canSubmit = computed(() => {
   return true;
 });
 
-const notify = (text, tone = 'success') => { message.value = text; messageTone.value = tone; };
+const notify = (text, tone = 'success') => {
+  message.value = text;
+  messageTone.value = tone;
+};
 
-const isSelected = (id) => selectedUsers.value.some(u => u.id === id);
+const isSelected = (id) => selectedUsers.value.some((u) => u.id === id);
 
 const toggleUser = (user) => {
   if (isSelected(user.id)) {
-    selectedUsers.value = selectedUsers.value.filter(u => u.id !== user.id);
+    selectedUsers.value = selectedUsers.value.filter((u) => u.id !== user.id);
   } else {
     selectedUsers.value = [...selectedUsers.value, user];
   }
 };
 
 const removeUser = (id) => {
-  selectedUsers.value = selectedUsers.value.filter(u => u.id !== id);
+  selectedUsers.value = selectedUsers.value.filter((u) => u.id !== id);
 };
 
 const handleSearch = async () => {
@@ -224,19 +281,21 @@ const handleSearch = async () => {
 
 const submitGrant = async () => {
   if (!canSubmit.value) return;
-  const userIds = mode.value === 'all' ? null : selectedUsers.value.map(u => u.id);
+  const userIds = mode.value === 'all' ? null : selectedUsers.value.map((u) => u.id);
   const targetCount = mode.value === 'all' ? '全部' : selectedUsers.value.length;
   const accepted = await confirm({
     title: '确认发放积分',
     message: `将向 ${targetCount} 位用户发放 ${amount.value} 积分${remark.value ? `，备注「${remark.value}」` : ''}。该操作立即生效，如需取消可在发放记录中撤销。`,
-    confirmText: '确认发放'
+    confirmText: '确认发放',
   });
   if (!accepted) return;
 
   saving.value = true;
   try {
     const result = await grantPoints({ userIds, amount: amount.value, remark: remark.value });
-    notify(`已向 ${result?.affected ?? targetCount} 位用户发放 ${result?.amount ?? amount.value} 积分`);
+    notify(
+      `已向 ${result?.affected ?? targetCount} 位用户发放 ${result?.amount ?? amount.value} 积分`,
+    );
     amount.value = 0;
     remark.value = '';
     selectedUsers.value = [];
@@ -254,7 +313,13 @@ const formatDate = (d) => {
   if (!d) return '--';
   const date = new Date(d);
   if (Number.isNaN(date.getTime())) return '--';
-  return date.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 const loadRecent = async (page = recentPage.value) => {
@@ -280,7 +345,7 @@ const loadRecent = async (page = recentPage.value) => {
       createdAt: batch.created_at,
       grants: Array.isArray(batch.grants) ? batch.grants : [],
       revoked: Boolean(batch.revoked),
-      canRevoke: Boolean(batch.batch_id) && !batch.revoked
+      canRevoke: Boolean(batch.batch_id) && !batch.revoked,
     }));
   } catch (error) {
     if (myRequestId !== recentRequestId) return;
@@ -295,7 +360,7 @@ const handleRevoke = async (batch) => {
   const accepted = await confirm({
     title: '确认撤销发放',
     message: `将撤销 ${formatDate(batch.createdAt)} 的发放批次：${batch.amount} 积分 × ${batch.count} 位用户。所有用户将扣回对应积分，该操作不可恢复。`,
-    confirmText: '确认撤销'
+    confirmText: '确认撤销',
   });
   if (!accepted) return;
 
@@ -318,41 +383,160 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.points-grant-page { display: grid; gap: 16px; color: var(--foreground); }
-
-/* quota-* 基础样式（scoped 自包含，与 AiQuotaConfigConsole 一致） */
-.quota-config-hero, .quota-panel { border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
-.quota-config-hero { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 22px; }
-.quota-kicker { color: var(--muted-foreground); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.quota-config-hero h2 { margin: 4px 0 0; font-size: 22px; }
-.quota-config-hero h2, .quota-panel-heading h3 { color: var(--foreground); }
-.quota-config-hero p, .quota-panel-heading p { margin: 5px 0 0; color: var(--muted-foreground); font-size: 13px; line-height: 1.5; }
-.quota-hero-actions { display: flex; gap: 8px; }
-.quota-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 13px; border: 1px solid var(--border); border-radius: 9px; background: var(--card); color: var(--foreground); font-weight: 650; cursor: pointer; }
-.quota-btn.primary { background: var(--foreground); color: var(--background); border-color: var(--foreground); }
-.quota-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.spinning { animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.quota-notice { padding: 11px 14px; border-radius: 10px; font-size: 13px; }
-.quota-notice.success { background: #ecfdf3; color: #067647; }
-.quota-notice.error { background: #fff1f0; color: #b42318; }
-.quota-panel { overflow: hidden; }
-.quota-panel-heading { display: flex; align-items: center; justify-content: space-between; padding: 17px 18px; border-bottom: 1px solid var(--border); }
-.quota-panel-heading h3 { font-size: 15px; color: var(--foreground); }
-.quota-panel-heading > span { color: var(--muted-foreground); font-size: 12px; }
-.quota-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.quota-table th, .quota-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
-.quota-table th { color: var(--muted-foreground); font-size: 11px; font-weight: 650; }
-.quota-table tbody tr:last-child td { border-bottom: 0; }
-.quota-table code { color: var(--muted-foreground); font-size: 11px; }
-.muted { color: var(--muted-foreground); max-width: 250px; overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 720px) {
-  .quota-config-hero { align-items: stretch; flex-direction: column; }
-  .quota-hero-actions { width: 100%; }
-  .quota-hero-actions .quota-btn { flex: 1; }
+.points-grant-page {
+  display: grid;
+  gap: 16px;
+  color: var(--foreground);
 }
 
-.grant-panel { overflow: hidden; }
+/* quota-* 基础样式（scoped 自包含，与 AiQuotaConfigConsole 一致） */
+.quota-config-hero,
+.quota-panel {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+.quota-config-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 22px;
+}
+.quota-kicker {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.quota-config-hero h2 {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+.quota-config-hero h2,
+.quota-panel-heading h3 {
+  color: var(--foreground);
+}
+.quota-config-hero p,
+.quota-panel-heading p {
+  margin: 5px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.quota-hero-actions {
+  display: flex;
+  gap: 8px;
+}
+.quota-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 600;
+  cursor: pointer;
+}
+.quota-btn.primary {
+  background: var(--foreground);
+  color: var(--background);
+  border-color: var(--foreground);
+}
+.quota-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.spinning {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.quota-notice {
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.quota-notice.success {
+  background: #ecfdf3;
+  color: #067647;
+}
+.quota-notice.error {
+  background: #fff1f0;
+  color: #b42318;
+}
+.quota-panel {
+  overflow: hidden;
+}
+.quota-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 17px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.quota-panel-heading h3 {
+  font-size: 15px;
+  color: var(--foreground);
+}
+.quota-panel-heading > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.quota-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.quota-table th,
+.quota-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+.quota-table th {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+}
+.quota-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.quota-table code {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.muted {
+  color: var(--muted-foreground);
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 720px) {
+  .quota-config-hero {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .quota-hero-actions {
+    width: 100%;
+  }
+  .quota-hero-actions .quota-btn {
+    flex: 1;
+  }
+}
+
+.grant-panel {
+  overflow: hidden;
+}
 .grant-mode-switch {
   display: inline-flex;
   padding: 3px;
@@ -365,7 +549,7 @@ onMounted(() => {
   padding: 7px 16px;
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted-foreground);
   cursor: pointer;
   transition: all 0.18s ease;
@@ -374,8 +558,15 @@ onMounted(() => {
   background: var(--foreground);
   color: var(--background);
 }
-.grant-body { padding: 16px; display: grid; gap: 14px; }
-.grant-search-row { display: flex; gap: 8px; }
+.grant-body {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+.grant-search-row {
+  display: flex;
+  gap: 8px;
+}
 .grant-search-row input {
   flex: 1;
   min-width: 0;
@@ -387,7 +578,9 @@ onMounted(() => {
   color: var(--foreground);
   outline: none;
 }
-.grant-search-row input:focus { border-color: var(--foreground); }
+.grant-search-row input:focus {
+  border-color: var(--foreground);
+}
 .grant-search-results {
   display: grid;
   gap: 6px;
@@ -411,15 +604,30 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.15s ease;
 }
-.grant-user-item:hover { background: var(--muted); }
+.grant-user-item:hover {
+  background: var(--muted);
+}
 .grant-user-item.is-selected {
   background: color-mix(in srgb, var(--foreground) 8%, transparent);
   border-color: color-mix(in srgb, var(--foreground) 30%, transparent);
 }
-.grant-user-name { font-weight: 650; }
-.grant-user-item code, .grant-user-code { color: var(--muted-foreground); font-size: 11px; }
-.grant-user-points { margin-left: auto; color: var(--muted-foreground); font-size: 12px; }
-.grant-selected-wrap { display: grid; gap: 8px; }
+.grant-user-name {
+  font-weight: 600;
+}
+.grant-user-item code,
+.grant-user-code {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.grant-user-points {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.grant-selected-wrap {
+  display: grid;
+  gap: 8px;
+}
 .grant-selected-head {
   display: flex;
   justify-content: space-between;
@@ -432,10 +640,14 @@ onMounted(() => {
   background: none;
   color: var(--foreground);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
 }
-.grant-selected-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.grant-selected-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .grant-chip {
   display: inline-flex;
   align-items: center;
@@ -454,11 +666,27 @@ onMounted(() => {
   cursor: pointer;
   line-height: 1;
 }
-.grant-chip button:hover { color: var(--foreground); }
-.grant-fields { display: grid; grid-template-columns: 200px 1fr; gap: 12px; }
-@media (max-width: 720px) { .grant-fields { grid-template-columns: 1fr; } }
-.grant-field { display: grid; gap: 6px; }
-.grant-field > span { color: var(--muted-foreground); font-size: 12px; }
+.grant-chip button:hover {
+  color: var(--foreground);
+}
+.grant-fields {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 12px;
+}
+@media (max-width: 720px) {
+  .grant-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.grant-field {
+  display: grid;
+  gap: 6px;
+}
+.grant-field > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
 .grant-field input {
   width: 100%;
   height: 38px;
@@ -470,7 +698,9 @@ onMounted(() => {
   outline: none;
   box-sizing: border-box;
 }
-.grant-field input:focus { border-color: var(--foreground); }
+.grant-field input:focus {
+  border-color: var(--foreground);
+}
 .grant-submit-row {
   display: flex;
   align-items: center;
@@ -479,29 +709,71 @@ onMounted(() => {
   padding-top: 4px;
 }
 @media (max-width: 720px) {
-  .grant-submit-row { flex-direction: column; align-items: stretch; }
-  .grant-submit-row .quota-btn { width: 100%; }
+  .grant-submit-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .grant-submit-row .quota-btn {
+    width: 100%;
+  }
 }
-.grant-summary { font-size: 13px; color: var(--muted-foreground); line-height: 1.5; }
-.grant-summary strong { color: var(--foreground); }
-.grant-loading, .grant-empty { padding: 28px; text-align: center; color: var(--muted-foreground); font-size: 13px; }
-.grant-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.grant-empty p { margin: 0; }
-.grant-table-wrap { overflow-x: auto; }
-.grant-amount { font-weight: 800; color: #12b76a; }
-.grant-amount.negative { color: #f04438; }
-.grant-user-code { margin-left: 8px; }
+.grant-summary {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+.grant-summary strong {
+  color: var(--foreground);
+}
+.grant-loading,
+.grant-empty {
+  padding: 28px;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.grant-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.grant-empty p {
+  margin: 0;
+}
+.grant-table-wrap {
+  overflow-x: auto;
+}
+.grant-amount {
+  font-weight: 800;
+  color: #12b76a;
+}
+.grant-amount.negative {
+  color: #f04438;
+}
+.grant-user-code {
+  margin-left: 8px;
+}
 
 /* 批次分组卡片 */
-.grant-batch-list { display: grid; gap: 10px; padding: 14px; }
+.grant-batch-list {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
 .grant-batch-card {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--background);
   overflow: hidden;
-  transition: border-color 0.18s ease, opacity 0.18s ease;
+  transition:
+    border-color 0.18s ease,
+    opacity 0.18s ease;
 }
-.grant-batch-card.is-revoked { opacity: 0.62; border-style: dashed; }
+.grant-batch-card.is-revoked {
+  opacity: 0.62;
+  border-style: dashed;
+}
 .grant-batch-head {
   display: flex;
   align-items: center;
@@ -509,21 +781,53 @@ onMounted(() => {
   padding: 12px 14px;
   flex-wrap: wrap;
 }
-.grant-batch-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 0; }
-.grant-batch-time { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
-.grant-batch-amount { font-size: 13px; font-weight: 700; color: var(--foreground); white-space: nowrap; }
-.grant-batch-remark { font-size: 12px; color: var(--muted-foreground); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grant-batch-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.grant-batch-time {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.grant-batch-amount {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.grant-batch-remark {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .grant-batch-tag {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.04em;
   padding: 2px 8px;
   border-radius: 999px;
   white-space: nowrap;
 }
-.grant-batch-tag.active { background: #ecfdf3; color: #067647; }
-.grant-batch-tag.revoked { background: #fef0c7; color: #b54708; }
-.grant-batch-card.is-revoked .grant-batch-tag.revoked { background: #fee4e2; color: #b42318; }
+.grant-batch-tag.active {
+  background: #ecfdf3;
+  color: #067647;
+}
+.grant-batch-tag.revoked {
+  background: #fef0c7;
+  color: #b54708;
+}
+.grant-batch-card.is-revoked .grant-batch-tag.revoked {
+  background: #fee4e2;
+  color: #b42318;
+}
 
 .quota-btn.danger-ghost {
   border-color: color-mix(in srgb, #f04438 35%, transparent);
@@ -533,9 +837,14 @@ onMounted(() => {
 .quota-btn.danger-ghost:hover:not(:disabled) {
   background: color-mix(in srgb, #f04438 8%, transparent);
 }
-.quota-btn.danger-ghost:disabled { opacity: 0.55; cursor: not-allowed; }
+.quota-btn.danger-ghost:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
-.grant-batch-detail { border-top: 1px solid var(--border); }
+.grant-batch-detail {
+  border-top: 1px solid var(--border);
+}
 .grant-batch-detail > summary {
   padding: 9px 14px;
   font-size: 12px;
@@ -544,10 +853,21 @@ onMounted(() => {
   user-select: none;
   list-style: none;
 }
-.grant-batch-detail > summary::-webkit-details-marker { display: none; }
-.grant-batch-detail > summary::before { content: '▸'; margin-right: 6px; transition: transform 0.15s ease; display: inline-block; }
-.grant-batch-detail[open] > summary::before { transform: rotate(90deg); }
-.grant-batch-detail[open] > summary { color: var(--foreground); }
+.grant-batch-detail > summary::-webkit-details-marker {
+  display: none;
+}
+.grant-batch-detail > summary::before {
+  content: '▸';
+  margin-right: 6px;
+  transition: transform 0.15s ease;
+  display: inline-block;
+}
+.grant-batch-detail[open] > summary::before {
+  transform: rotate(90deg);
+}
+.grant-batch-detail[open] > summary {
+  color: var(--foreground);
+}
 
 .grant-batch-users {
   display: flex;
@@ -577,12 +897,16 @@ onMounted(() => {
   font-size: 11px;
   white-space: nowrap;
 }
-.grant-batch-card.is-revoked .grant-batch-user { opacity: 0.7; }
+.grant-batch-card.is-revoked .grant-batch-user {
+  opacity: 0.7;
+}
 .grant-batch-truncated {
   margin: 0;
   padding: 0 14px 12px;
   font-size: 12px;
   color: var(--muted-foreground);
 }
-.grant-pagination { padding-inline: 14px; }
+.grant-pagination {
+  padding-inline: 14px;
+}
 </style>

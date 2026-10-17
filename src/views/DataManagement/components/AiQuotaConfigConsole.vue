@@ -464,7 +464,7 @@ onMounted(loadConfig);
 .quota-kicker {
   color: var(--muted-foreground);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -501,7 +501,7 @@ p {
   border-radius: 9px;
   background: var(--card);
   color: var(--foreground);
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
 }
 .quota-btn.primary {
@@ -576,7 +576,7 @@ p {
 .quota-table th {
   color: var(--muted-foreground);
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
 }
 .quota-table tbody tr:last-child td {
   border-bottom: 0;

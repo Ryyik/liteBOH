@@ -231,7 +231,7 @@ const goHome = () => {
   place-items: center;
   background: var(--sidebar-primary);
   color: var(--sidebar-primary-foreground);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.9rem;
   flex: 0 0 32px;
 }
@@ -243,7 +243,7 @@ const goHome = () => {
 }
 .g-sidebar-brand-copy strong {
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--sidebar-foreground);
 }
 .g-sidebar-brand-copy span {
@@ -336,7 +336,7 @@ const goHome = () => {
 }
 .g-sidebar-group-label {
   font-size: 0.66rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted-foreground);

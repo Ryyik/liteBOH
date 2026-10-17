@@ -84,27 +84,6 @@
             @quick-create="quickCreateRecord"
           />
 
-          <section
-            v-if="activeAdminSection !== 'overview' && !isPlaceholderAdminSection && !isPageTab"
-            class="admin-section-hero"
-          >
-            <div>
-              <span class="admin-section-eyebrow">{{ currentAdminPageMeta.eyebrow }}</span>
-              <h2>{{ currentAdminPageMeta.title }}</h2>
-              <p>{{ currentAdminPageMeta.description }}</p>
-            </div>
-            <div class="admin-section-metrics">
-              <div
-                v-for="item in currentAdminPageMetrics"
-                :key="item.label"
-                class="admin-section-metric"
-              >
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-              </div>
-            </div>
-          </section>
-
           <section v-if="isPlaceholderAdminSection" class="admin-placeholder-panel">
             <div class="panel-heading">
               <div>
@@ -138,7 +117,7 @@
               aria-label="子表切换"
             >
               <button
-                v-for="tabId in currentModuleTabIds"
+                v-for="tabId in visibleModuleTabs"
                 :key="tabId"
                 type="button"
                 role="tab"
@@ -147,6 +126,15 @@
                 @click="switchTab(tabId)"
               >
                 {{ getTabLabel(tabId) }}
+              </button>
+              <button
+                v-if="overflowModuleTabs.length && !isMobileView"
+                type="button"
+                class="g-module-tab g-module-tab-more"
+                aria-haspopup="menu"
+                @click="openMoreTabsMenu($event)"
+              >
+                更多 {{ overflowModuleTabs.length }} ▾
               </button>
             </div>
 
@@ -172,15 +160,14 @@
             <template v-else>
               <div class="toolbar-primary">
                 <div class="toolbar-left">
-                  <div>
-                    <h2 class="section-title">{{ currentTabLabel }}</h2>
-                    <div class="view-context">
-                      <span>{{ currentModule?.label || '数据管理' }}</span>
-                      <span>{{ activeFilterSummary }}</span>
-                      <span>{{ lastRefreshLabel }}</span>
-                    </div>
+                  <!-- 单层标题：内联统计取代 Hero（plans/027 4.1.2/4.1.3） -->
+                  <div class="view-context">
+                    <span v-for="item in currentAdminPageMetrics" :key="item.label">{{
+                      item.value
+                    }}</span>
+                    <span>{{ activeFilterSummary }}</span>
+                    <span>{{ lastRefreshLabel }}</span>
                   </div>
-                  <span class="data-badge">{{ totalRecordCount }} 条记录</span>
                 </div>
                 <div class="toolbar-right">
                   <button
@@ -214,6 +201,27 @@
                   <Filter :size="16" />
                   筛选
                 </button>
+
+                <!-- 状态分布 chips：常驻在筛选行（plans/027 4.1.5，不再独立占一行） -->
+                <section v-if="statusBreakdownForCurrentTab.length" class="collection-overview">
+                  <span class="collection-overview-label">状态分布</span>
+                  <div class="collection-chips">
+                    <button
+                      v-for="chip in statusBreakdownForCurrentTab"
+                      :key="chip.value || 'all'"
+                      type="button"
+                      class="collection-chip"
+                      :class="[`tone-${chip.tone}`, { 'is-active': chip.active }]"
+                      :aria-pressed="chip.active"
+                      @click="applyCollectionStatusFilter(chip.value)"
+                    >
+                      <span class="collection-chip-label">{{ chip.label }}</span>
+                      <span class="collection-chip-count">{{ chip.count }}</span>
+                    </button>
+                  </div>
+                  <span class="collection-overview-hint">当前视图 {{ currentData.length }} 条</span>
+                </section>
+
                 <div v-if="showFilterBar" class="filter-bar">
                   <button
                     class="clear-filters-btn"
@@ -276,26 +284,6 @@
                   </button>
                 </div>
               </div>
-
-              <!-- 收集结果概览: 状态分布 chip, 点击即筛选 -->
-              <section v-if="statusBreakdownForCurrentTab.length" class="collection-overview">
-                <span class="collection-overview-label">状态分布</span>
-                <div class="collection-chips">
-                  <button
-                    v-for="chip in statusBreakdownForCurrentTab"
-                    :key="chip.value || 'all'"
-                    type="button"
-                    class="collection-chip"
-                    :class="[`tone-${chip.tone}`, { 'is-active': chip.active }]"
-                    :aria-pressed="chip.active"
-                    @click="applyCollectionStatusFilter(chip.value)"
-                  >
-                    <span class="collection-chip-label">{{ chip.label }}</span>
-                    <span class="collection-chip-count">{{ chip.count }}</span>
-                  </button>
-                </div>
-                <span class="collection-overview-hint">当前视图 {{ currentData.length }} 条</span>
-              </section>
 
               <div v-if="showGlobalSearchPanel" class="editor-panel search-panel">
                 <div class="panel-inline-form">
@@ -762,6 +750,15 @@
                         @click="setDensity('compact')"
                       >
                         紧凑
+                      </button>
+                      <button
+                        type="button"
+                        :class="{ 'is-active': density === 'standard' }"
+                        :aria-pressed="density === 'standard'"
+                        title="标准密度"
+                        @click="setDensity('standard')"
+                      >
+                        标准
                       </button>
                       <button
                         type="button"
@@ -1892,13 +1889,14 @@ const selectedItems = ref([]);
 const selectAllResultsMode = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(20);
-// 表格密度：compact 紧凑（默认）| comfortable 舒适，持久化到 localStorage
+// 表格密度：compact 紧凑 | standard 标准（默认）| comfortable 舒适，持久化到 localStorage
 const density = ref(
   (() => {
     try {
-      return localStorage.getItem('dm-density') || 'compact';
+      const saved = localStorage.getItem('dm-density');
+      return ['compact', 'standard', 'comfortable'].includes(saved) ? saved : 'standard';
     } catch {
-      return 'compact';
+      return 'standard';
     }
   })(),
 );
@@ -2964,6 +2962,30 @@ const currentAdminPageActions = computed(() => {
   }
   return [];
 });
+// tab 溢出（plans/027 4.1.4）：置顶优先，最多可见 4 个，其余进「更多 ▾」浮层
+const MAX_VISIBLE_TABS = 4;
+const visibleModuleTabs = computed(() => {
+  const all = currentModuleTabIds.value;
+  const pinned = all.filter((id) => isTabPinned(id));
+  const rest = all.filter((id) => !isTabPinned(id));
+  return [...pinned, ...rest].slice(0, MAX_VISIBLE_TABS);
+});
+const overflowModuleTabs = computed(() =>
+  currentModuleTabIds.value.filter((id) => !visibleModuleTabs.value.includes(id)),
+);
+const openMoreTabsMenu = (event) => {
+  const rect = event.currentTarget?.getBoundingClientRect();
+  if (!rect) return;
+  openRowMenu({
+    rect,
+    items: overflowModuleTabs.value.map((tabId) => ({
+      id: tabId,
+      label: getTabLabel(tabId),
+      run: () => switchTab(tabId),
+    })),
+  });
+};
+
 const currentAdminPageMetrics = computed(() => {
   const section = activeAdminSection.value;
   if (section === 'data') {
@@ -7207,7 +7229,7 @@ onUnmounted(() => {
   background: #d97706;
 }
 .collection-chip.tone-info.is-active {
-  background: #2563eb;
+  background: var(--dm-accent);
 }
 .collection-chip.tone-success.is-active {
   background: #16a34a;
@@ -7292,7 +7314,7 @@ onUnmounted(() => {
   background: #d97706;
 }
 .kanban-col-dot.tone-info {
-  background: #2563eb;
+  background: var(--dm-accent);
 }
 .kanban-col-dot.tone-danger {
   background: #dc2626;
@@ -7595,7 +7617,7 @@ onUnmounted(() => {
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.02em;
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
@@ -7606,7 +7628,7 @@ onUnmounted(() => {
 }
 .lottery-card-status.tone-info {
   background: rgba(59, 130, 246, 0.12);
-  color: #2563eb;
+  color: var(--dm-accent);
 }
 .lottery-card-status.tone-success {
   background: rgba(34, 197, 94, 0.12);
@@ -7627,7 +7649,7 @@ onUnmounted(() => {
 .lottery-card-title {
   margin: 0;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--foreground, #0f172a);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7690,7 +7712,7 @@ onUnmounted(() => {
 }
 .lottery-card-stat-value {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--foreground, #0f172a);
 }
 .lottery-card-meta {
@@ -7719,7 +7741,7 @@ onUnmounted(() => {
   color: #64748b;
 }
 .tone-text-info {
-  color: #2563eb;
+  color: var(--dm-accent);
 }
 .tone-text-success {
   color: #16a34a;
@@ -7838,18 +7860,24 @@ onUnmounted(() => {
   }
 }
 
-/* 密度：紧凑（默认）/ 舒适 */
+/* 密度三档（plans/027 4.4）：compact 34px / standard 42px（默认）/ comfortable 48px */
 .data-content[data-density='compact'] .g-table-sheet tbody td {
-  padding: 8px 12px;
+  padding: 4px 12px;
 }
 .data-content[data-density='compact'] .g-table-sheet thead th {
+  padding: 4px 12px;
+}
+.data-content[data-density='standard'] .g-table-sheet tbody td {
+  padding: 8px 12px;
+}
+.data-content[data-density='standard'] .g-table-sheet thead th {
   padding: 8px 12px;
 }
 .data-content[data-density='comfortable'] .g-table-sheet tbody td {
-  padding: 14px 16px;
+  padding: 12px 12px;
 }
 .data-content[data-density='comfortable'] .g-table-sheet thead th {
-  padding: 12px 16px;
+  padding: 12px 12px;
 }
 .density-toggle {
   display: inline-flex;
@@ -7960,20 +7988,6 @@ onUnmounted(() => {
   55% {
     background: color-mix(in srgb, var(--primary) 14%, transparent);
   }
-}
-
-/* 模块 hero 瘦身：收紧内边距与标题字号，减少首屏占用 */
-.admin-section-hero {
-  padding: 14px 18px;
-  margin-bottom: 12px;
-  align-items: center;
-}
-.admin-section-hero h2 {
-  font-size: 19px;
-  margin-bottom: 4px;
-}
-.admin-section-hero p {
-  font-size: 13px;
 }
 </style>
 

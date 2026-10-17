@@ -902,7 +902,7 @@ onMounted(() => {
 .quota-kicker {
   color: var(--muted-foreground);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -936,7 +936,7 @@ onMounted(() => {
   border-radius: 9px;
   background: var(--card);
   color: var(--foreground);
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
 }
 .quota-btn.primary {
@@ -1015,7 +1015,7 @@ onMounted(() => {
   padding: 7px 16px;
   border-radius: 999px;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted-foreground);
   cursor: pointer;
   transition: all 0.18s ease;
@@ -1037,7 +1037,7 @@ onMounted(() => {
   padding: 4px 12px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--muted-foreground);
   cursor: pointer;
   transition: all 0.18s ease;
@@ -1121,7 +1121,7 @@ onMounted(() => {
   background: var(--muted);
   color: var(--muted-foreground);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   overflow: hidden;
   position: relative;
 }
@@ -1141,7 +1141,7 @@ onMounted(() => {
   min-width: 0;
 }
 .grant-user-name {
-  font-weight: 650;
+  font-weight: 600;
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1157,7 +1157,7 @@ onMounted(() => {
 .grant-user-role {
   font-style: normal;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 1px 6px;
   border-radius: 999px;
   background: var(--muted);
@@ -1201,7 +1201,7 @@ onMounted(() => {
   background: none;
   color: var(--foreground);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   cursor: pointer;
 }
 .grant-selected-list {
@@ -1245,7 +1245,7 @@ onMounted(() => {
 .grant-duration-label {
   color: var(--muted-foreground);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   flex-shrink: 0;
 }
 .grant-duration-chips {
@@ -1262,7 +1262,7 @@ onMounted(() => {
   padding: 8px 15px;
   border-radius: 8px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--muted-foreground);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1359,7 +1359,7 @@ onMounted(() => {
   gap: 8px;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--foreground);
   user-select: none;
 }
@@ -1395,7 +1395,7 @@ onMounted(() => {
 }
 .grant-existing-name {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--foreground);
   min-width: 90px;
 }
@@ -1405,7 +1405,7 @@ onMounted(() => {
 }
 .grant-existing-count {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--foreground) 8%, transparent);
@@ -1422,7 +1422,7 @@ onMounted(() => {
   background: var(--card);
   color: var(--foreground);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   padding: 5px 12px;
   border-radius: 8px;
   cursor: pointer;
@@ -1526,7 +1526,7 @@ onMounted(() => {
 }
 .grant-batch-amount {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--foreground);
   white-space: nowrap;
 }
@@ -1542,7 +1542,7 @@ onMounted(() => {
 }
 .grant-batch-tag {
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.04em;
   padding: 2px 8px;
   border-radius: 999px;

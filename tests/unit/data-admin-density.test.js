@@ -85,3 +85,16 @@ describe('data admin overview cockpit', () => {
     expect(overview).not.toContain('DashboardTabs');
   });
 });
+
+describe('data admin density tiers (plans/027 4.4)', () => {
+  const read = (p) => readFileSync(resolve(import.meta.dirname, '../..', p), 'utf8');
+
+  it('standard 为默认档，三档齐全', () => {
+    const view = read('src/views/DataManagement/DataAdmin.vue');
+    expect(view).toContain("['compact', 'standard', 'comfortable']");
+    expect(view).toContain("density === 'standard'");
+    expect(view).toContain("data-density='standard']");
+    // 三档 padding：compact 4px / standard 8px / comfortable 12px
+    expect(view).toContain("data-density='comfortable']");
+  });
+});

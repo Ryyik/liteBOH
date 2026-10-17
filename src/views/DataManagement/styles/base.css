@@ -74,6 +74,14 @@
   --dm-header-height: 76px;
   --dm-sidebar-width: 260px;
   --dm-sidebar-width-collapsed: 84px;
+  /* 语义 token（plans/027 4.3）：只引用既有站点变量，不新增主题源；
+     themeManager 是唯一写入点，后台跟随全站深浅色 */
+  --dm-bg-canvas: var(--background);
+  --dm-bg-surface: var(--card);
+  --dm-text-default: var(--foreground);
+  --dm-text-subtle: var(--muted-foreground);
+  --dm-border-hairline: var(--border);
+  --dm-accent: var(--primary);
 
   /* Liquid Glass adapter — 玻璃表面顶部内高光（随本页三条暗色路径切换，
      滤镜本体直接用全局 --liquid-filter / --liquid-filter-sm token） */
@@ -418,7 +426,7 @@
   display: block;
   font-size: 30px;
   line-height: 1;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--foreground);
 }
 

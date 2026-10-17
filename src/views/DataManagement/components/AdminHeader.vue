@@ -38,7 +38,9 @@
           class="g-topbar-search-clear"
           aria-label="清除搜索"
           @click="clearSearch"
-        >×</button>
+        >
+          ×
+        </button>
       </div>
     </div>
 
@@ -149,7 +151,7 @@ import {
   RefreshCw,
   Search as SearchIcon,
   Sun,
-  Moon
+  Moon,
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -169,12 +171,19 @@ const props = defineProps({
   /** 真实头像 URL（来自 userInfo.avatarUrl；为空或加载失败时回退首字母） */
   avatarUrl: { type: String, default: '' },
   /** 待处理通知数（审核待复核等） */
-  notificationCount: { type: Number, default: 0 }
+  notificationCount: { type: Number, default: 0 },
 });
 
 const emit = defineEmits([
-  'refresh', 'create', 'toggle-sidebar', 'search', 'update:searchValue',
-  'toggle-theme', 'notify', 'home', 'logout'
+  'refresh',
+  'create',
+  'toggle-sidebar',
+  'search',
+  'update:searchValue',
+  'toggle-theme',
+  'notify',
+  'home',
+  'logout',
 ]);
 
 const searchModel = ref(props.searchValue);
@@ -183,14 +192,20 @@ const userMenuWrap = ref(null);
 const avatarBroken = ref(false);
 
 // 同步父级 searchValue 变化（如外部清空）
-watch(() => props.searchValue, (v) => {
-  if (v !== searchModel.value) searchModel.value = v;
-});
+watch(
+  () => props.searchValue,
+  (v) => {
+    if (v !== searchModel.value) searchModel.value = v;
+  },
+);
 
 // 头像地址变化时重置失败标记，允许重试加载
-watch(() => props.avatarUrl, () => {
-  avatarBroken.value = false;
-});
+watch(
+  () => props.avatarUrl,
+  () => {
+    avatarBroken.value = false;
+  },
+);
 
 const userInitial = computed(() => {
   const label = (props.userLabel || 'A').trim();
@@ -313,7 +328,9 @@ defineExpose({ searchModel });
   color: var(--foreground);
   transition: border-color 0.2s ease;
 }
-.g-topbar-search:focus-within { border-color: var(--primary); }
+.g-topbar-search:focus-within {
+  border-color: var(--primary);
+}
 .g-topbar-search > input {
   flex: 1;
   border: none;
@@ -324,7 +341,9 @@ defineExpose({ searchModel });
   font-size: 0.85rem;
   min-width: 0;
 }
-.g-topbar-search > input::placeholder { color: var(--muted-foreground); }
+.g-topbar-search > input::placeholder {
+  color: var(--muted-foreground);
+}
 .g-topbar-kbd {
   border: 1px solid var(--border);
   background: var(--card);
@@ -344,9 +363,13 @@ defineExpose({ searchModel });
   cursor: pointer;
   padding: 0;
 }
-.g-topbar-search-clear:hover { color: var(--foreground); }
+.g-topbar-search-clear:hover {
+  color: var(--foreground);
+}
 
-.g-notify-btn { position: relative; }
+.g-notify-btn {
+  position: relative;
+}
 .g-notify-badge {
   position: absolute;
   top: 2px;
@@ -358,12 +381,14 @@ defineExpose({ searchModel });
   background: var(--destructive, #e5484d);
   color: #fff;
   font-size: 0.62rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 16px;
   text-align: center;
 }
 
-.g-user-menu-wrap { position: relative; }
+.g-user-menu-wrap {
+  position: relative;
+}
 .g-topbar-avatar {
   width: 36px;
   height: 36px;
@@ -372,7 +397,7 @@ defineExpose({ searchModel });
   place-items: center;
   background: var(--primary);
   color: var(--primary-foreground);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.85rem;
   flex: 0 0 36px;
   border: 1px solid var(--border);
@@ -409,8 +434,14 @@ defineExpose({ searchModel });
   border-bottom: 1px solid var(--border);
   margin-bottom: calc(var(--spacing) * 1);
 }
-.g-user-menu-head strong { font-size: 0.85rem; color: var(--foreground); }
-.g-user-menu-head span { font-size: 0.72rem; color: var(--muted-foreground); }
+.g-user-menu-head strong {
+  font-size: 0.85rem;
+  color: var(--foreground);
+}
+.g-user-menu-head span {
+  font-size: 0.72rem;
+  color: var(--muted-foreground);
+}
 .g-user-menu button {
   display: flex;
   align-items: center;
@@ -426,20 +457,33 @@ defineExpose({ searchModel });
   cursor: pointer;
   text-align: left;
 }
-.g-user-menu button:hover { background: var(--accent, var(--muted)); }
-.g-user-menu button.is-danger { color: var(--destructive, #e5484d); }
+.g-user-menu button:hover {
+  background: var(--accent, var(--muted));
+}
+.g-user-menu button.is-danger {
+  color: var(--destructive, #e5484d);
+}
 
 .is-spinning {
   pointer-events: none;
 }
 
 @media (max-width: 900px) {
-  .g-topbar { padding: 0 calc(var(--spacing) * 4); gap: calc(var(--spacing) * 3); }
-  .g-topbar-center { display: none; }
+  .g-topbar {
+    padding: 0 calc(var(--spacing) * 4);
+    gap: calc(var(--spacing) * 3);
+  }
+  .g-topbar-center {
+    display: none;
+  }
 }
 
 @media (max-width: 600px) {
-  .g-topbar-titles h1 { display: none; }
-  .g-btn span { display: none; }
+  .g-topbar-titles h1 {
+    display: none;
+  }
+  .g-btn span {
+    display: none;
+  }
 }
 </style>
