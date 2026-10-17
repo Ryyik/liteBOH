@@ -676,7 +676,7 @@
                         <input
                           type="checkbox"
                           :checked="isSelected(item)"
-                          @change="toggleSelect(item)"
+                          @click="onRowCheckboxChange(item, $event)"
                         />
                         <span class="checkmark"></span>
                       </label>
@@ -863,12 +863,23 @@
                         </span>
                       </div>
                       <div class="lottery-card-body">
-                        <h4
-                          class="lottery-card-title"
-                          :title="item[currentCardViewConfig.titleKey]"
-                        >
-                          {{ item[currentCardViewConfig.titleKey] || '未命名' }}
-                        </h4>
+                        <div class="lottery-card-title-row">
+                          <h4
+                            class="lottery-card-title"
+                            :title="item[currentCardViewConfig.titleKey]"
+                          >
+                            {{ item[currentCardViewConfig.titleKey] || '未命名' }}
+                          </h4>
+                          <label class="checkbox-wrapper lottery-card-check" @click.stop>
+                            <input
+                              type="checkbox"
+                              :checked="isSelected(item)"
+                              :aria-label="`选择 ${item[currentCardViewConfig.titleKey] || '记录'}`"
+                              @click="onRowCheckboxChange(item, $event)"
+                            />
+                            <span class="checkmark"></span>
+                          </label>
+                        </div>
                         <div
                           v-if="
                             currentCardViewConfig.subtitleKey &&
@@ -1170,7 +1181,7 @@
                               <input
                                 type="checkbox"
                                 :checked="isSelected(item)"
-                                @change="toggleSelect(item)"
+                                @click="onRowCheckboxChange(item, $event)"
                               />
                               <span class="checkmark"></span>
                             </label>
@@ -1398,6 +1409,13 @@
                                 @keydown.space.prevent="quickEditCell(item, col)"
                                 v-html="highlightCellValue(item[col.key], col.maxLength)"
                               ></span>
+                              <CopyCell
+                                v-if="col.copyable && item[col.key] != null && item[col.key] !== ''"
+                                :value="item[col.key]"
+                                :label="col.label"
+                                @copied="showToast('已复制', 'success')"
+                                @copy-failed="showToast('复制失败，请手动选择', 'warning')"
+                              />
                               <button
                                 v-if="isCellEditable(col, item) && !isInlineEditing(item, col)"
                                 type="button"
@@ -1627,6 +1645,8 @@
       </div>
     </Transition>
 
+    <ShortcutHelp :show="showShortcutHelp" @close="showShortcutHelp = false" />
+
     <Transition name="toast">
       <div
         v-if="toast.show"
@@ -1706,6 +1726,8 @@ import DashboardSheet from './components/shared/DashboardSheet.vue';
 import ExportMenu from './components/shared/ExportMenu.vue';
 import { fetchAllRows } from '@/utils/api/data-admin-table-api.js';
 import { resolveEmptyState } from './composables/data-admin-empty-state.js';
+import ShortcutHelp from './components/shared/ShortcutHelp.vue';
+import CopyCell from './components/shared/CopyCell.vue';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
 import { getImageUrl } from '../../utils/asset-helper';
@@ -3652,9 +3674,38 @@ const toggleSelectAll = () => {
   }
 };
 
+// Shift 区间选择（plans/027 4.2）：记录上次勾选行下标，Shift 勾选/反选区间。
+// ⚠️ 必须挂 @click 而不是 @change：change 是普通 Event 不带 shiftKey，
+// 区间分支会永远走不到（探针实测）。命中区间时 preventDefault 阻止原生翻转，
+// 由 :checked 响应式接管；非 Shift 保持原生 toggle。
+const lastSelectedIndex = ref(-1);
+const onRowCheckboxChange = (item, event) => {
+  const idx = paginatedData.value.findIndex((row) => getRowIdentity(row) === getRowIdentity(item));
+  const useRange = Boolean(event?.shiftKey && lastSelectedIndex.value >= 0 && idx >= 0);
+  if (useRange) event.preventDefault();
+  if (useRange) {
+    const [from, to] = [lastSelectedIndex.value, idx].sort((a, b) => a - b);
+    const range = paginatedData.value.slice(from, to + 1);
+    const shouldSelect = !isSelected(item);
+    range.forEach((row) => {
+      if (shouldSelect && !isSelected(row)) {
+        selectedItems.value.push(row);
+      } else if (!shouldSelect && isSelected(row)) {
+        selectedItems.value = selectedItems.value.filter(
+          (r) => getRowIdentity(r) !== getRowIdentity(row),
+        );
+      }
+    });
+  } else {
+    toggleSelect(item);
+  }
+  lastSelectedIndex.value = idx;
+};
+
 const clearAllSelection = () => {
   selectAllResultsMode.value = false;
   selectedItems.value = [];
+  lastSelectedIndex.value = -1;
 };
 
 const isFieldDisabled = (field) => {
@@ -6612,6 +6663,8 @@ const handleVisibilityChange = () => {
 
 // ==================== ⌘K / Ctrl+K 命令面板 ====================
 const showCommandPalette = ref(false);
+// ? 快捷键帮助浮层（plans/027 4.5）
+const showShortcutHelp = ref(false);
 const commandQuery = ref('');
 const commandActiveIndex = ref(0);
 const commandInputRef = ref(null);
@@ -6853,6 +6906,7 @@ const { handleGlobalShortcuts } = createShortcutsCenter({
   canCreateCurrentTabRef: canCreateCurrentTab,
   activeAdminSectionRef: activeAdminSection,
   editDrawerNavRef: editDrawerNav,
+  shortcutHelpRef: showShortcutHelp,
   saveData,
   closeModal,
   openEditModal,

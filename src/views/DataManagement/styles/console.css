@@ -2309,3 +2309,16 @@
     flex: none;
   }
 }
+
+/* 卡片视图标题行：标题 + 勾选框（plans/027 4.2 Shift 区间选择的第三处接线） */
+.lottery-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lottery-card-title-row .checkbox-wrapper {
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+}

@@ -64,9 +64,9 @@ export const dataConfig = {
   users: {
     table: 'profiles',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
-      { key: 'email', label: '邮箱' },
+      { key: 'email', label: '邮箱', copyable: true },
       { key: 'role', label: '角色', type: 'badge' },
       { key: 'is_banned', label: '封禁', type: 'badge' },
       { key: 'is_muted', label: '禁言', type: 'badge' },
@@ -239,7 +239,7 @@ export const dataConfig = {
   points: {
     table: 'profiles',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'role', label: '角色', type: 'badge' },
       { key: 'is_banned', label: '封禁', type: 'badge' },
@@ -267,9 +267,9 @@ export const dataConfig = {
   subscriptions: {
     table: 'user_subscriptions',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
-      { key: 'email', label: '邮箱', maxLength: 22 },
+      { key: 'email', label: '邮箱', maxLength: 22, copyable: true },
       { key: 'plan_name', label: '订阅内容' },
       { key: 'plan_code', label: '方案代码', maxLength: 16 },
       { key: 'billing_cycle', label: '周期', type: 'badge' },
@@ -289,7 +289,7 @@ export const dataConfig = {
       },
       { key: 'user_id', label: '订阅用户', type: 'user-picker', required: true, group: 'user' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
-      { key: 'email', label: '邮箱', type: 'text', disabled: true, group: 'user' },
+      { key: 'email', label: '邮箱', type: 'text', disabled: true, group: 'user', copyable: true },
       {
         key: 'plan_code',
         label: '订阅内容',
@@ -360,7 +360,7 @@ export const dataConfig = {
       { key: 'completed_at', label: '完成日期', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: '礼物ID', type: 'text', disabled: true, group: 'detail' },
+      { key: 'id', label: '礼物ID', type: 'text', disabled: true, group: 'detail', copyable: true },
       { key: 'user_id', label: '用户', type: 'user-picker', required: true, group: 'user' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
       {
@@ -465,7 +465,7 @@ export const dataConfig = {
       { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: '地址ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'id', label: '地址ID', type: 'text', disabled: true, group: 'basic', copyable: true },
       { key: 'user_id', label: '所属用户', type: 'user-picker', required: true, group: 'user' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
       { key: 'recipient', label: '收件人', type: 'text', required: true, group: 'basic' },
@@ -544,7 +544,7 @@ export const dataConfig = {
       { key: 'created_at', label: '申请时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: '申请ID', type: 'text', disabled: true, group: 'detail' },
+      { key: 'id', label: '申请ID', type: 'text', disabled: true, group: 'detail', copyable: true },
       { key: 'user_id', label: '用户', type: 'user-picker', required: true, group: 'user' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'user' },
       { key: 'recipient', label: '收件人', type: 'text', disabled: true, group: 'detail' },
@@ -600,7 +600,7 @@ export const dataConfig = {
   forum: {
     table: 'posts',
     columns: [
-      { key: 'id', label: 'ID' },
+      { key: 'id', label: 'ID', copyable: true },
       { key: 'title', label: '标题', maxLength: 30 },
       { key: 'author_username', label: '作者' },
       { key: 'tag', label: '标签', type: 'badge' },
@@ -611,7 +611,7 @@ export const dataConfig = {
       { key: 'created_at', label: '发布时间', type: 'date' },
     ],
     fields: [
-      { key: 'id', label: '帖子ID', type: 'text', disabled: true, group: 'meta' },
+      { key: 'id', label: '帖子ID', type: 'text', disabled: true, group: 'meta', copyable: true },
       { key: 'title', label: '标题', type: 'text', required: true, group: 'content' },
       {
         key: 'content',
@@ -868,7 +868,7 @@ export const dataConfig = {
   reviewPosts: {
     table: 'posts',
     columns: [
-      { key: 'id', label: 'ID' },
+      { key: 'id', label: 'ID', copyable: true },
       { key: 'author_username', label: '作者' },
       { key: 'content', label: '内容', maxLength: 48 },
       { key: 'status', label: '状态', type: 'badge' },
@@ -887,7 +887,7 @@ export const dataConfig = {
   reportedPosts: {
     table: 'posts',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'title', label: '标题', maxLength: 28 },
       { key: 'author_username', label: '作者' },
       { key: 'active_report_count', label: '举报数', type: 'number' },
@@ -910,7 +910,7 @@ export const dataConfig = {
   reviewComments: {
     table: 'comments',
     columns: [
-      { key: 'id', label: 'ID' },
+      { key: 'id', label: 'ID', copyable: true },
       { key: 'post_id', label: '帖子ID', maxLength: 24 },
       { key: 'author_username', label: '作者' },
       { key: 'content', label: '内容', maxLength: 48 },
@@ -930,7 +930,7 @@ export const dataConfig = {
   coreMemories: {
     table: 'boh_ai_core_memories',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'title', label: '标题', maxLength: 32 },
       /* 内容列上移到标题后 + 多行预览（2026-10-16 用户口径「没办法一下看到内容」）：
          3 行截断显示正文、悬停 title 看全文，铅笔直达抽屉的内容字段。 */
@@ -1619,7 +1619,7 @@ export const dataConfig = {
   news: {
     table: 'news',
     columns: [
-      { key: 'id', label: 'ID' },
+      { key: 'id', label: 'ID', copyable: true },
       { key: 'title', label: '标题', maxLength: 25 },
       { key: 'category', label: '分类', type: 'badge' },
       { key: 'author', label: '作者' },
@@ -1709,7 +1709,7 @@ export const dataConfig = {
   activities: {
     table: 'activities',
     columns: [
-      { key: 'id', label: 'ID' },
+      { key: 'id', label: 'ID', copyable: true },
       { key: 'title', label: '标题', maxLength: 25 },
       // date 是 varchar(50)，历史数据三种格式混录。这里刻意不挂 type: 'date'，
       // 原样显示存储值，管理员一眼能看出哪条是 2025/10（缺「日」）哪条是 2026-08-10。
@@ -1773,7 +1773,7 @@ export const dataConfig = {
   postReward: {
     table: 'post_reward_campaigns',
     columns: [
-      { key: 'id', label: '活动ID' },
+      { key: 'id', label: '活动ID', copyable: true },
       { key: 'title', label: '活动标题', maxLength: 30 },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'lifecycle', label: '生命周期', type: 'badge', virtual: true },
@@ -1879,7 +1879,7 @@ export const dataConfig = {
   products: {
     table: 'products',
     columns: [
-      { key: 'id', label: 'ID' },
+      { key: 'id', label: 'ID', copyable: true },
       { key: 'image', label: '图片', type: 'image' },
       { key: 'title', label: '商品名称', maxLength: 25 },
       { key: 'category', label: '分类', type: 'badge' },
@@ -2001,7 +2001,7 @@ export const dataConfig = {
   shopOrders: {
     table: 'shop_points_orders',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'order_no', label: '订单号', maxLength: 20 },
       { key: 'username', label: '用户名' },
       { key: 'contact_type', label: '联系方式', type: 'badge' },
@@ -2013,7 +2013,7 @@ export const dataConfig = {
       { key: 'created_at', label: '下单时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: '订单ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'id', label: '订单ID', type: 'text', disabled: true, group: 'basic', copyable: true },
       { key: 'order_no', label: '订单号', type: 'text', disabled: true, group: 'basic' },
       { key: 'user_id', label: '用户ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'username', label: '用户名', type: 'text', disabled: true, group: 'basic' },
@@ -2084,7 +2084,7 @@ export const dataConfig = {
   pointsTransactions: {
     table: 'points_transactions',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'amount', label: '变动', type: 'number' },
       { key: 'balance_after', label: '变动后余额', type: 'number' },
@@ -2127,7 +2127,7 @@ export const dataConfig = {
   notifications: {
     table: 'notifications',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'recipient_name', label: '接收人' },
       { key: 'sender_name', label: '发送人' },
       { key: 'type', label: '类型', type: 'badge' },
@@ -2175,7 +2175,7 @@ export const dataConfig = {
   moderationLogs: {
     table: 'moderation_logs',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'target_type', label: '目标类型', type: 'badge' },
       { key: 'target_id', label: '目标ID', maxLength: 24 },
       { key: 'ai_result', label: 'AI结果', maxLength: 20 },
@@ -2189,7 +2189,7 @@ export const dataConfig = {
   forumPostReports: {
     table: 'forum_post_reports',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'post_id', label: '帖子ID', maxLength: 24 },
       { key: 'reporter_name', label: '举报人' },
       { key: 'reason', label: '原因', type: 'badge' },
@@ -2225,7 +2225,7 @@ export const dataConfig = {
   forumWeeklyCheckins: {
     table: 'forum_weekly_checkins',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'week_start_date', label: '周起始', type: 'date' },
       { key: 'signed_at', label: '签到时间', type: 'datetime' },
@@ -2237,7 +2237,7 @@ export const dataConfig = {
   forumPostImages: {
     table: 'forum_post_images',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'post_id', label: '帖子ID', maxLength: 24 },
       { key: 'username', label: '上传者' },
       { key: 'url', label: '图片', type: 'image' },
@@ -2277,7 +2277,7 @@ export const dataConfig = {
   photoAlbums: {
     table: 'photo_albums',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'username', label: '作者' },
       { key: 'title', label: '标题', maxLength: 20 },
       { key: 'subtitle', label: '副标题', maxLength: 16 },
@@ -2288,7 +2288,7 @@ export const dataConfig = {
       { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic', copyable: true },
       { key: 'user_id', label: '作者ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'username', label: '作者', type: 'text', disabled: true, group: 'basic' },
       { key: 'title', label: '标题', type: 'text', required: true, maxLength: 80, group: 'basic' },
@@ -2364,7 +2364,7 @@ export const dataConfig = {
   apiKeyAuditLogs: {
     table: 'api_key_vault_audit_logs',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'action', label: '操作', type: 'badge' },
       { key: 'provider', label: '供应商' },
       { key: 'purpose', label: '用途' },
@@ -2377,7 +2377,7 @@ export const dataConfig = {
   aiWebSearchLog: {
     table: 'ai_web_search_log',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'user_id', label: '用户ID', maxLength: 24 },
       { key: 'tier', label: '档位', type: 'badge' },
       { key: 'status', label: '状态', type: 'badge' },
@@ -2390,7 +2390,7 @@ export const dataConfig = {
   anniversaryClaims: {
     table: 'anniversary_subscription_claims',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'granted_plan_code', label: '方案' },
       { key: 'started_at', label: '开始时间', type: 'datetime' },
@@ -2403,7 +2403,7 @@ export const dataConfig = {
   blockWallItems: {
     table: 'block_wall_items',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'author_username', label: '作者' },
       { key: 'item_type', label: '类型', type: 'badge' },
       { key: 'content', label: '内容', maxLength: 24 },
@@ -2412,7 +2412,7 @@ export const dataConfig = {
       { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic', copyable: true },
       { key: 'author_id', label: '作者ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_username', label: '作者', type: 'text', disabled: true, group: 'basic' },
       {
@@ -2560,7 +2560,7 @@ export const dataConfig = {
     // 此前 fields 为空 + 不在 TAB_WRITABLE_FIELDS 里 → 报名明细在后台完全只读，
     // 审核报名只能直连数据库改。这里开放 status 审核，其余字段保持只读以防改坏归属。
     fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic', copyable: true },
       {
         key: 'campaign_id',
         label: '活动 ID',
@@ -2608,7 +2608,7 @@ export const dataConfig = {
       { key: 'status', label: '状态', type: 'badge' },
     ],
     fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic', copyable: true },
       { key: 'campaign_id', label: '活动 ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'user_id', label: '用户 ID', type: 'text', disabled: true, group: 'basic' },
       {
@@ -2633,7 +2633,7 @@ export const dataConfig = {
   bohCreatorShows: {
     table: 'boh_creator_shows',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'author_username', label: '作者' },
       { key: 'creator_platform', label: '平台', type: 'badge' },
       { key: 'title', label: '标题', maxLength: 24 },
@@ -2642,7 +2642,7 @@ export const dataConfig = {
       { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic', copyable: true },
       { key: 'author_id', label: '作者ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_username', label: '作者', type: 'text', disabled: true, group: 'basic' },
       {
@@ -2688,7 +2688,7 @@ export const dataConfig = {
   birthdayEvents: {
     table: 'birthday_events',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'title', label: '标题', maxLength: 20 },
       { key: 'target_name', label: '寿星' },
       { key: 'celebration_date', label: '庆祝日期', type: 'date' },
@@ -2697,7 +2697,7 @@ export const dataConfig = {
       { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic', copyable: true },
       {
         key: 'target_user_id',
         label: '寿星用户ID',
@@ -2744,7 +2744,7 @@ export const dataConfig = {
   birthdayWishes: {
     table: 'birthday_wishes',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'author_name', label: '作者' },
       { key: 'content', label: '内容', maxLength: 36 },
       { key: 'status', label: '状态', type: 'badge' },
@@ -2753,7 +2753,7 @@ export const dataConfig = {
       { key: 'created_at', label: '创建时间', type: 'datetime' },
     ],
     fields: [
-      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic' },
+      { key: 'id', label: 'ID', type: 'text', disabled: true, group: 'basic', copyable: true },
       { key: 'event_id', label: '活动ID', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_name', label: '作者', type: 'text', disabled: true, group: 'basic' },
       { key: 'author_id', label: '作者ID', type: 'text', disabled: true, group: 'basic' },
@@ -2807,7 +2807,7 @@ export const dataConfig = {
   userFollows: {
     table: 'user_follows',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'follower_name', label: '关注者' },
       { key: 'following_name', label: '被关注者' },
       { key: 'created_at', label: '关注时间', type: 'datetime' },
@@ -2818,7 +2818,7 @@ export const dataConfig = {
   userImpressions: {
     table: 'user_impressions',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'author_name', label: '访客' },
       { key: 'target_name', label: '被访者' },
       { key: 'created_at', label: '时间', type: 'datetime' },
@@ -2829,7 +2829,7 @@ export const dataConfig = {
   labUsageRecords: {
     table: 'lab_usage_records',
     columns: [
-      { key: 'id', label: 'ID', maxLength: 12 },
+      { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'device_id', label: '设备ID', maxLength: 20 },
       { key: 'flow_type', label: '流程类型', type: 'badge' },
@@ -2842,7 +2842,7 @@ export const dataConfig = {
   userDataExportJobs: {
     table: 'user_data_export_jobs',
     columns: [
-      { key: 'id', label: '任务ID', maxLength: 24 },
+      { key: 'id', label: '任务ID', maxLength: 24, copyable: true },
       { key: 'user_id', label: '用户ID', maxLength: 24 },
       { key: 'status', label: '状态', type: 'badge' },
       { key: 'stage', label: '处理阶段' },
