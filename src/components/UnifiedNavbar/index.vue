@@ -7,7 +7,7 @@
       'nav-immersive-on': immersiveNav,
       'nav-immersive-expanded': immersiveNav && isExpandedLooking,
     }"
-    data-theme
+    :data-theme="currentTheme"
   >
     <div
       class="unified-nav-surface"

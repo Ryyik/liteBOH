@@ -335,7 +335,11 @@ for (const p of PAGES) {
     await page.goto(`${BASE}/#${p.path}`, { waitUntil: 'domcontentloaded', timeout: 20000 });
     await page.waitForTimeout(1300);
     await injectState();
-    await page.waitForTimeout(400);
+    // 2000ms（原 400）：登录注入会让带入场动画的卡片重挂载，400ms 可能落在
+    // 入场淡入的中间帧，产生跨轮方差（如 birthday warn 数抖动）。等动画落定再取样。
+    // （boh-8-years 白卡 severe 的真因是 UserSpace 全局 .glass-card !important 污染，
+    //  见 docs/2026-10-17-暗色模式审查报告.md §2.3，与本等待无关。）
+    await page.waitForTimeout(2000);
     const r = await page.evaluate(AUDIT_FN);
     const finalUrl = await page.url();
     await page.screenshot({ path: `${SHOT_DIR}/dark-audit-${p.name}.png` });

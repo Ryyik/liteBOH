@@ -1,8 +1,22 @@
 /* ===== 基础样式 ===== */
 .boh-8-years-event {
+  /* 实心主按钮的反色对：亮色=近黑底白字，暗色在文件底部换绑（var 链，不新增裸色） */
+  --8y-btn-bg: #1d1d1f;
+  --8y-btn-fg: #fff;
+  /* 描边次按钮的字色/边框 */
+  --8y-btn2-fg: #1d1d1f;
+  --8y-btn2-border: rgba(0, 0, 0, 0.2);
+  /* UserSpace profile-panels.css:721 有一条全局 .glass-card { background: var(--glass-bg-elevated,
+     rgba(255,255,255,.8)) !important }（Profile/index.vue 无 scoped 块 @import 引入，全站生效）。
+     它会压过本页任何非 !important 的背景声明，故在本页根上就地定义这两个变量，
+     让全局规则解析回本页自己的玻璃材质（暗色换值见文件底部暗色块）。 */
+  --glass-bg-elevated: #fff;
+  --glass-blur: var(--liquid-filter);
   min-height: 100vh;
   background-color: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
   color: #1d1d1f;
   overflow-x: hidden;
 }
@@ -20,7 +34,9 @@
   margin-bottom: 48px;
   opacity: 0;
   transform: translateY(20px);
-  transition: opacity 0.8s ease, transform 0.8s ease;
+  transition:
+    opacity 0.8s ease,
+    transform 0.8s ease;
 }
 
 .anniversary-hero.animate-in {
@@ -170,7 +186,7 @@
 }
 
 .poster-preview:focus {
-  outline: 2px solid #007AFF;
+  outline: 2px solid #007aff;
   outline-offset: 2px;
 }
 
@@ -259,8 +275,8 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #1d1d1f;
-  color: #fff;
+  background: var(--8y-btn-bg);
+  color: var(--8y-btn-fg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -306,8 +322,8 @@
 }
 
 .step-btn.primary {
-  background: #1d1d1f !important;
-  color: #fff !important;
+  background: var(--8y-btn-bg) !important;
+  color: var(--8y-btn-fg) !important;
   border: none !important;
 }
 
@@ -316,8 +332,8 @@
 .step-btn.primary:hover,
 .step-btn.primary:active,
 .step-btn.primary:focus {
-  background: #1d1d1f !important;
-  color: #fff !important;
+  background: var(--8y-btn-bg) !important;
+  color: var(--8y-btn-fg) !important;
   border: none !important;
   text-decoration: none !important;
   outline: none !important;
@@ -326,8 +342,8 @@
 
 .step-btn.secondary {
   background: transparent !important;
-  color: #1d1d1f !important;
-  border: 1px solid rgba(0, 0, 0, 0.2) !important;
+  color: var(--8y-btn2-fg) !important;
+  border: 1px solid var(--8y-btn2-border) !important;
 }
 
 .step-btn.secondary:link,
@@ -336,8 +352,8 @@
 .step-btn.secondary:active,
 .step-btn.secondary:focus {
   background: transparent !important;
-  color: #1d1d1f !important;
-  border: 1px solid rgba(0, 0, 0, 0.2) !important;
+  color: var(--8y-btn2-fg) !important;
+  border: 1px solid var(--8y-btn2-border) !important;
   text-decoration: none !important;
   outline: none !important;
   box-shadow: none !important;
@@ -357,7 +373,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #248A3D;
+  color: #248a3d;
   font-size: 13px;
   font-weight: 600;
 }
@@ -369,7 +385,7 @@
 
 .step-link {
   font-size: 13px;
-  color: #8B5CF6;
+  color: #8b5cf6;
   text-decoration: none;
   font-weight: 500;
 }
@@ -703,8 +719,8 @@
 }
 
 .modal-btn.primary {
-  background: #1d1d1f;
-  color: #fff;
+  background: var(--8y-btn-bg);
+  color: var(--8y-btn-fg);
   border: none;
 }
 
@@ -864,7 +880,6 @@
 
 /* ===== 减少动画偏好 ===== */
 @media (prefers-reduced-motion: reduce) {
-
   .anniversary-hero,
   .glass-card {
     transition: none;
@@ -897,7 +912,6 @@
 
 /* ===== 打印样式 ===== */
 @media print {
-
   .modal-overlay {
     display: none;
   }
@@ -911,4 +925,91 @@
     border: 1px solid #000;
     break-inside: avoid;
   }
+}
+
+/* ===== 暗色适配 =====
+   只消费全局 --boh-* token（themes/dark-mode.css 在 [data-theme="dark"] 下换值），
+   本块零裸色字面量：不推高 check:dark-tokens 棘轮，也不新增 !important。
+   必须用 html[...] 前缀（异步 chunk scoped + 暗色三坑①）。 */
+html[data-theme='dark'] .boh-8-years-event {
+  background-color: var(--boh-bg-primary);
+  color: var(--boh-text-primary);
+  /* 实心主按钮反色：亮底变暗墨、字变画布色 */
+  --8y-btn-bg: var(--boh-text-primary);
+  --8y-btn-fg: var(--boh-bg-primary);
+  --8y-btn2-fg: var(--boh-text-primary);
+  --8y-btn2-border: var(--boh-border-primary);
+  /* 同上：全局 .glass-card !important 规则读这两个变量，暗色下换绑到暗色 token */
+  --glass-bg-elevated: var(--boh-bg-secondary);
+  --glass-blur: var(--liquid-filter);
+}
+
+html[data-theme='dark'] .boh-8-years-event .title-number,
+html[data-theme='dark'] .boh-8-years-event .title-text,
+html[data-theme='dark'] .boh-8-years-event .card-icon,
+html[data-theme='dark'] .boh-8-years-event .card-title,
+html[data-theme='dark'] .boh-8-years-event .intro-text,
+html[data-theme='dark'] .boh-8-years-event .step-title,
+html[data-theme='dark'] .boh-8-years-event .setting-title,
+html[data-theme='dark'] .boh-8-years-event .bead-skin-text,
+html[data-theme='dark'] .boh-8-years-event .character-table,
+html[data-theme='dark'] .boh-8-years-event .modal-title {
+  color: var(--boh-text-primary);
+}
+
+html[data-theme='dark'] .boh-8-years-event .hero-badge,
+html[data-theme='dark'] .boh-8-years-event .hero-subtitle,
+html[data-theme='dark'] .boh-8-years-event .info-text,
+html[data-theme='dark'] .boh-8-years-event .poster-placeholder,
+html[data-theme='dark'] .boh-8-years-event .poster-full-placeholder,
+html[data-theme='dark'] .boh-8-years-event .map-placeholder,
+html[data-theme='dark'] .boh-8-years-event .map-status,
+html[data-theme='dark'] .boh-8-years-event .step-desc,
+html[data-theme='dark'] .boh-8-years-event .step-or,
+html[data-theme='dark'] .boh-8-years-event .setting-desc,
+html[data-theme='dark'] .boh-8-years-event .empty-title,
+html[data-theme='dark'] .boh-8-years-event .empty-desc,
+html[data-theme='dark'] .boh-8-years-event .bead-skin-label,
+html[data-theme='dark'] .boh-8-years-event .bead-skin-credit,
+html[data-theme='dark'] .boh-8-years-event .footer-text,
+html[data-theme='dark'] .boh-8-years-event .character-table th,
+html[data-theme='dark'] .boh-8-years-event .modal-btn.secondary,
+html[data-theme='dark'] .boh-8-years-event .modal-close {
+  color: var(--boh-text-tertiary);
+}
+
+html[data-theme='dark'] .boh-8-years-event .step-completed {
+  color: var(--boh-brand-green);
+}
+
+html[data-theme='dark'] .boh-8-years-event .glass-card {
+  background: var(--boh-bg-secondary);
+  border-color: var(--boh-border-primary);
+}
+
+html[data-theme='dark'] .boh-8-years-event .card-header,
+html[data-theme='dark'] .boh-8-years-event .card-intro,
+html[data-theme='dark'] .boh-8-years-event .map-preview,
+html[data-theme='dark'] .boh-8-years-event .character-table th,
+html[data-theme='dark'] .boh-8-years-event .character-table td,
+html[data-theme='dark'] .boh-8-years-event .setting-item,
+html[data-theme='dark'] .boh-8-years-event .empty-state,
+html[data-theme='dark'] .boh-8-years-event .page-footer,
+html[data-theme='dark'] .boh-8-years-event .modal-header,
+html[data-theme='dark'] .boh-8-years-event .poster-preview,
+html[data-theme='dark'] .boh-8-years-event .poster-fullview {
+  border-color: var(--boh-divider);
+}
+
+html[data-theme='dark'] .boh-8-years-event .connector-line {
+  background: var(--boh-divider);
+}
+
+html[data-theme='dark'] .boh-8-years-event .modal-close {
+  background: var(--boh-bg-elevated);
+}
+
+html[data-theme='dark'] .boh-8-years-event .glass-modal {
+  background: var(--boh-bg-tertiary);
+  border-color: var(--boh-border-primary);
 }
