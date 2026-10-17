@@ -16,3 +16,17 @@ export async function createCoreMemoryRow(payload) {
   if (error) throw error;
   return Array.isArray(data) && data[0] ? data[0] : null;
 }
+
+/**
+ * 触发 `boh-ai-retrieval` 的向量索引同步（admin 面板保存后即时同步用）。
+ * 收口目的同上：视图层不得直连 `supabase.functions.invoke`（layering 棘轮，
+ * 2026-10-17 syncSiteContentIndex 首版因此红过 CI）。
+ * @param {string[]} sourceTypes 允许同步的知识源（须在 EF SOURCE_TYPES 白名单内）。
+ * @param {number} [syncLimit=80]
+ */
+export async function syncKnowledgeSources(sourceTypes, syncLimit = 80) {
+  const { error } = await supabase.functions.invoke('boh-ai-retrieval', {
+    body: { action: 'sync', sourceTypes, syncLimit },
+  });
+  if (error) throw error;
+}

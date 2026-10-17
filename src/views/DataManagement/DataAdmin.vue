@@ -1781,7 +1781,7 @@ import { createFilterState } from './composables/useDataAdminFilterState.js';
 import { createMutationsCenter } from './composables/useDataAdminMutations.js';
 import { createLotteryOperationsCenter } from './composables/useLotteryOperations.js';
 import { parseQuickFact, QUICK_FACT_CATEGORY_LABELS } from './composables/quick-fact.js';
-import { createCoreMemoryRow } from '@/utils/api/treehole/core-memory-api.js';
+import { createCoreMemoryRow, syncKnowledgeSources } from '@/utils/api/treehole/core-memory-api.js';
 import { SAVE_STRATEGIES } from './config/saveStrategies.js';
 import { setupDataAdminLifecycle } from './composables/useDataAdminLifecycle.js';
 import {
@@ -3718,30 +3718,19 @@ const collectReportSummary = (reports = []) => {
   };
 };
 
+// 官方事实/新闻/活动保存后即时同步（收口在 core-memory-api::syncKnowledgeSources；
+// 夜间 cron 兜底全量 —— 2026-10-17 layering 棘轮：视图层禁止直连 functions.invoke）
 const syncCoreMemoriesIndex = async () => {
   try {
-    await supabase.functions.invoke('boh-ai-retrieval', {
-      body: {
-        action: 'sync',
-        sourceTypes: ['core_memory'],
-        syncLimit: 80,
-      },
-    });
+    await syncKnowledgeSources(['core_memory']);
   } catch (error) {
     logger.warn('data-admin', '同步官方事实向量索引失败:', error);
   }
 };
 
-// 官方新闻/活动保存后即时同步（2026-10-17 自动扩充知识库；夜间 cron 兜底全量）
 const syncSiteContentIndex = async () => {
   try {
-    await supabase.functions.invoke('boh-ai-retrieval', {
-      body: {
-        action: 'sync',
-        sourceTypes: ['site_news', 'site_activity'],
-        syncLimit: 80,
-      },
-    });
+    await syncKnowledgeSources(['site_news', 'site_activity']);
   } catch (error) {
     logger.warn('data-admin', '同步新闻/活动向量索引失败:', error);
   }
