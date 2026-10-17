@@ -417,19 +417,14 @@
                 <div v-if="selectedItems.length > 0" class="bulk-bar" role="status">
                   <span class="bulk-count"
                     >已选 <strong>{{ selectedItems.length }}</strong> 项<span
-                      v-if="selectAllResultsMode"
-                      >（跨页全选）</span
+                      v-if="
+                        selectedItems.length === paginatedData.length &&
+                        totalRecordCount > selectedItems.length
+                      "
+                      >（本页）</span
                     ></span
                   >
                   <div class="bulk-actions">
-                    <button
-                      v-if="!selectAllResultsMode && totalRecordCount > paginatedData.length"
-                      type="button"
-                      class="btn btn-secondary btn-sm"
-                      @click="selectAllResults"
-                    >
-                      全选全部 {{ totalRecordCount }}
-                    </button>
                     <button
                       v-if="editableFields.length && canEditCurrentTab"
                       type="button"
@@ -1870,7 +1865,8 @@ const productPickerKeyword = ref('');
 const productPickerLoading = ref(false);
 const productPickerProducts = ref([]);
 const selectedItems = ref([]);
-// 全选所有结果模式：为 true 时 selectedItems 代表跨页全选（Gmail 语义）
+// 全选模式开关：旧入口按钮已删（S1），批次 E 服务端真全选接线时复用；
+// selectedItems 现阶段只代表当前页勾选
 const selectAllResultsMode = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(20);
@@ -3656,12 +3652,6 @@ const toggleSelectAll = () => {
   }
 };
 
-const selectAllResults = () => {
-  selectAllResultsMode.value = true;
-  selectedItems.value = [...currentData.value];
-  showToast(`已选择全部 ${selectedItems.value.length} 条结果`, 'success');
-};
-
 const clearAllSelection = () => {
   selectAllResultsMode.value = false;
   selectedItems.value = [];
@@ -5011,7 +5001,7 @@ const getRowActionModel = (item) => {
         id: 'issue-token',
         label: '签发登录令牌',
         title: '为信任用户签发一次性登录 token（写入审计，token 直接进剪贴板）',
-        run: () => issueLoginToken(item),
+        run: () => issueLoginCode(item),
       });
     }
   }
@@ -5306,7 +5296,7 @@ const {
   // 用户封禁/禁言
   banUser,
   unbanUser,
-  issueLoginToken,
+  issueLoginCode,
   muteUser,
   unmuteUser,
   isMissingRpcFunctionError,
@@ -5320,6 +5310,14 @@ const {
   addChangeLogEntry,
   refreshCurrentViewAfterMutation,
   currentTab,
+  currentTabLabel,
+  getRelatedTypeLabels: (item) => [
+    ...new Set(
+      relatedJumpsForItem(item)
+        .map((r) => r.tabLabel)
+        .filter(Boolean),
+    ),
+  ],
   currentConfig,
   selectedItems,
   buildActionErrorMessage,

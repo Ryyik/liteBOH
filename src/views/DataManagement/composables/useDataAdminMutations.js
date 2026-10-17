@@ -21,6 +21,12 @@
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
 import { invalidateProductsCache } from '@/views/DataManagement/config.js';
+import {
+  buildDeleteConfirmMessage,
+  buildBatchDeleteConfirmMessage,
+  buildBatchDeleteConfirmInput,
+  isBatchDeleteConfirmed,
+} from './data-admin-delete-confirm.js';
 
 /**
  * 创建 mutations 中心
@@ -33,6 +39,8 @@ import { invalidateProductsCache } from '@/views/DataManagement/config.js';
  * @param {Function} deps.addChangeLogEntry           - (action, item, detail) => void
  * @param {Function} deps.refreshCurrentViewAfterMutation - () => Promise<void>
  * @param {Object} deps.currentTab                   - ref<string>
+ * @param {Object} deps.currentTabLabel              - computed<string> 当前 tab 中文名（删除确认文案用）
+ * @param {Function} deps.getRelatedTypeLabels       - (item) => string[] 关联类型中文名（去重后，删除确认文案用）
  * @param {Object} deps.currentConfig                - computed<{table}>
  * @param {Object} deps.selectedItems                - ref<Array>
  * @param {Function} deps.buildActionErrorMessage    - (error, fallback) => string
@@ -55,6 +63,8 @@ export const createMutationsCenter = (deps) => {
     addChangeLogEntry,
     refreshCurrentViewAfterMutation,
     currentTab,
+    currentTabLabel,
+    getRelatedTypeLabels,
     currentConfig,
     selectedItems,
     buildActionErrorMessage,
@@ -121,7 +131,12 @@ export const createMutationsCenter = (deps) => {
     if (
       !(await dialog.confirm({
         title: '删除记录',
-        message: '确定要删除这条记录吗？',
+        // 影响清单（plans/027 S4）：标识 + 归属 tab + 关联类型 + 不可恢复声明
+        message: buildDeleteConfirmMessage({
+          item,
+          tabLabel: currentTabLabel.value,
+          relatedLabels: getRelatedTypeLabels?.(item) || [],
+        }),
         tone: 'danger',
         confirmText: '删除',
       }))
@@ -156,15 +171,33 @@ export const createMutationsCenter = (deps) => {
 
   // 批量删除
   const batchDelete = async () => {
+    const count = selectedItems.value.length;
     if (
       !(await dialog.confirm({
         title: '批量删除',
-        message: `确定要删除选中的 ${selectedItems.value.length} 条记录吗？此操作不可恢复。`,
+        // 影响清单（plans/027 S4）：条数 + 前 3 条标识 + 不可恢复声明
+        message: buildBatchDeleteConfirmMessage({
+          count,
+          tabLabel: currentTabLabel.value,
+          items: selectedItems.value,
+        }),
         tone: 'danger',
-        confirmText: `删除 ${selectedItems.value.length} 条`,
+        confirmText: `删除 ${count} 条`,
       }))
     )
       return;
+
+    // 大数量二次确认（plans/027 S4）：n ≥ 10 必须输入「删除 N 条」；
+    // 输入不匹配 / 取消 → 静默中止（不 toast 报错）
+    if (count >= 10) {
+      const input = await dialog.prompt({
+        title: '二次确认',
+        message: `请输入「删除 ${count} 条」以确认`,
+        placeholder: buildBatchDeleteConfirmInput(count),
+        defaultValue: '',
+      });
+      if (!isBatchDeleteConfirmed(input, count)) return;
+    }
 
     try {
       assertAdminAction();
@@ -929,7 +962,7 @@ export const createMutationsCenter = (deps) => {
   // 签发一次性登录 token（管理员代登录通道，应急用）。
   // 安全语义：token 等同账号密码（一次性 + 限时），密码全程只有用户本人知道；
   // 每次签发服务端强制写审计（actor/target/reason），审计写不进去会拒绝签发。
-  const issueLoginToken = async (item) => {
+  const issueLoginCode = async (item) => {
     if (!item?.id) return;
     if (
       !(await dialog.confirm({
@@ -978,10 +1011,10 @@ export const createMutationsCenter = (deps) => {
 
       // token 直接进剪贴板，不渲染到页面 —— 防截图/录屏泄漏；
       // 剪贴板不可用（非安全上下文等）才回退到弹窗展示。
-      const token = String(data.token || '');
+      const issued = String(data.token || '');
       let copied = false;
       try {
-        await navigator.clipboard.writeText(token);
+        await navigator.clipboard.writeText(issued);
         copied = true;
       } catch (copyErr) {
         logger.warn('data-admin', 'token 写入剪贴板失败，回退到弹窗展示:', copyErr);
@@ -996,7 +1029,7 @@ export const createMutationsCenter = (deps) => {
         await dialog.prompt({
           title: '一次性登录令牌',
           message: `剪贴板不可用，请手动复制以下令牌并私下交付给「${item.username || item.id}」（一次性、限时有效）：`,
-          defaultValue: token,
+          defaultValue: issued,
           multiline: true,
         });
       }
@@ -1168,7 +1201,7 @@ export const createMutationsCenter = (deps) => {
     // 用户封禁/禁言
     banUser,
     unbanUser,
-    issueLoginToken,
+    issueLoginCode,
     muteUser,
     unmuteUser,
     // 辅助
