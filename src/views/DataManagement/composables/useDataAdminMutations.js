@@ -66,7 +66,7 @@ export const createMutationsCenter = (deps) => {
     addRecentRecord,
     switchTab,
     // P1 修复: 添加 dataStore 用于直接更新用户状态
-    dataStore
+    dataStore,
   } = deps;
 
   // ==================== 辅助函数 ====================
@@ -86,7 +86,11 @@ export const createMutationsCenter = (deps) => {
     }
     const rawMessage = String(error?.message || '').toLowerCase();
     const rawCode = String(error?.code || '').toUpperCase();
-    if (rawCode === '42501' || rawMessage.includes('row-level security') || rawMessage.includes('permission denied')) {
+    if (
+      rawCode === '42501' ||
+      rawMessage.includes('row-level security') ||
+      rawMessage.includes('permission denied')
+    ) {
       return '当前账号没有审核写入权限，请检查 Supabase 的 RLS/策略配置';
     }
     return String(error?.message || '操作失败');
@@ -97,7 +101,7 @@ export const createMutationsCenter = (deps) => {
   // 管理员删除用户账号(走 RPC, 失败时报错)
   const deleteAdminUser = async (item) => {
     const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_user_account', {
-      p_user_id: item.id
+      p_user_id: item.id,
     });
 
     if (rpcError) {
@@ -114,12 +118,15 @@ export const createMutationsCenter = (deps) => {
 
   // 单条删除
   const deleteItem = async (item) => {
-    if (!await dialog.confirm({
-      title: '删除记录',
-      message: '确定要删除这条记录吗？',
-      tone: 'danger',
-      confirmText: '删除'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '删除记录',
+        message: '确定要删除这条记录吗？',
+        tone: 'danger',
+        confirmText: '删除',
+      }))
+    )
+      return;
 
     try {
       assertAdminAction();
@@ -149,12 +156,15 @@ export const createMutationsCenter = (deps) => {
 
   // 批量删除
   const batchDelete = async () => {
-    if (!await dialog.confirm({
-      title: '批量删除',
-      message: `确定要删除选中的 ${selectedItems.value.length} 条记录吗？此操作不可恢复。`,
-      tone: 'danger',
-      confirmText: `删除 ${selectedItems.value.length} 条`
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '批量删除',
+        message: `确定要删除选中的 ${selectedItems.value.length} 条记录吗？此操作不可恢复。`,
+        tone: 'danger',
+        confirmText: `删除 ${selectedItems.value.length} 条`,
+      }))
+    )
+      return;
 
     try {
       assertAdminAction();
@@ -166,15 +176,13 @@ export const createMutationsCenter = (deps) => {
           await deleteAdminUser(item);
         }
       } else {
-        const { data, error } = await supabase
-          .from(table)
-          .delete()
-          .in('id', ids)
-          .select('id');
+        const { data, error } = await supabase.from(table).delete().in('id', ids).select('id');
 
         if (error) throw error;
         if (!Array.isArray(data) || data.length !== ids.length) {
-          throw new Error(`批量删除未完全生效：请求 ${ids.length} 条，实际删除 ${Array.isArray(data) ? data.length : 0} 条`);
+          throw new Error(
+            `批量删除未完全生效：请求 ${ids.length} 条，实际删除 ${Array.isArray(data) ? data.length : 0} 条`,
+          );
         }
       }
       if (currentTab.value === 'products') invalidateProductsCache();
@@ -197,15 +205,19 @@ export const createMutationsCenter = (deps) => {
   const drawLotteryNow = async (item) => {
     if (!item?.id || isLotteryActionPending(item.id)) return;
     const entryCount = Number(item.entry_count || 0);
-    const confirmMessage = entryCount > 0
-      ? `确定要从 ${entryCount} 名报名用户中随机开奖吗？`
-      : '当前还没有报名用户，仍要开奖并标记为"无中奖者"吗？';
-    if (!await dialog.confirm({
-      title: '立即开奖',
-      message: confirmMessage,
-      tone: 'warning',
-      confirmText: '立即开奖'
-    })) return;
+    const confirmMessage =
+      entryCount > 0
+        ? `确定要从 ${entryCount} 名报名用户中随机开奖吗？`
+        : '当前还没有报名用户，仍要开奖并标记为"无中奖者"吗？';
+    if (
+      !(await dialog.confirm({
+        title: '立即开奖',
+        message: confirmMessage,
+        tone: 'warning',
+        confirmText: '立即开奖',
+      }))
+    )
+      return;
 
     setLotteryActionPending(item.id, true);
     try {
@@ -214,7 +226,7 @@ export const createMutationsCenter = (deps) => {
         p_lottery_id: item.id,
         p_force: true,
         p_redraw: false,
-        p_reason: 'manual_draw'
+        p_reason: 'manual_draw',
       });
       if (error) throw error;
       if (!data?.ok) {
@@ -224,7 +236,12 @@ export const createMutationsCenter = (deps) => {
         ? data.winners.map((winner) => String(winner?.username || '').trim()).filter(Boolean)
         : [];
       addChangeLogEntry('lottery_draw', item, { winners: winnerNames, entryCount });
-      showToast(winnerNames.length ? `开奖完成，中奖者：${winnerNames.join('、')}` : '开奖完成，本期暂无中奖者', 'success');
+      showToast(
+        winnerNames.length
+          ? `开奖完成，中奖者：${winnerNames.join('、')}`
+          : '开奖完成，本期暂无中奖者',
+        'success',
+      );
       await refreshCurrentViewAfterMutation();
     } catch (error) {
       logger.error('data-admin', '抽奖开奖失败:', error);
@@ -241,7 +258,7 @@ export const createMutationsCenter = (deps) => {
       title: '重抽原因',
       message: '请输入重抽原因（例如：中奖者失联 / 不符合资格）',
       placeholder: '必填',
-      defaultValue: ''
+      defaultValue: '',
     });
     if (reason === null) return;
     const normalizedReason = String(reason || '').trim();
@@ -249,12 +266,15 @@ export const createMutationsCenter = (deps) => {
       showToast('重抽必须填写原因', 'error');
       return;
     }
-    if (!await dialog.confirm({
-      title: '重新开奖',
-      message: '确定要重新开奖吗？系统会保留历史开奖日志，并通知新的中奖用户。',
-      tone: 'warning',
-      confirmText: '重新开奖'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '重新开奖',
+        message: '确定要重新开奖吗？系统会保留历史开奖日志，并通知新的中奖用户。',
+        tone: 'warning',
+        confirmText: '重新开奖',
+      }))
+    )
+      return;
 
     setLotteryActionPending(item.id, true);
     try {
@@ -263,7 +283,7 @@ export const createMutationsCenter = (deps) => {
         p_lottery_id: item.id,
         p_force: true,
         p_redraw: true,
-        p_reason: normalizedReason
+        p_reason: normalizedReason,
       });
       if (error) throw error;
       if (!data?.ok) {
@@ -273,7 +293,12 @@ export const createMutationsCenter = (deps) => {
         ? data.winners.map((winner) => String(winner?.username || '').trim()).filter(Boolean)
         : [];
       addChangeLogEntry('lottery_redraw', item, { reason: normalizedReason, winners: winnerNames });
-      showToast(winnerNames.length ? `重抽完成，中奖者：${winnerNames.join('、')}` : '重抽完成，本期暂无中奖者', 'success');
+      showToast(
+        winnerNames.length
+          ? `重抽完成，中奖者：${winnerNames.join('、')}`
+          : '重抽完成，本期暂无中奖者',
+        'success',
+      );
       await refreshCurrentViewAfterMutation();
     } catch (error) {
       logger.error('data-admin', '抽奖重抽失败:', error);
@@ -286,12 +311,15 @@ export const createMutationsCenter = (deps) => {
   // 关闭抽奖
   const closeLottery = async (item) => {
     if (!item?.id || isLotteryActionPending(item.id)) return;
-    if (!await dialog.confirm({
-      title: '关闭抽奖',
-      message: '确定要关闭这个抽奖吗？关闭后仍会保留在历史抽奖中。',
-      tone: 'warning',
-      confirmText: '关闭'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '关闭抽奖',
+        message: '确定要关闭这个抽奖吗？关闭后仍会保留在历史抽奖中。',
+        tone: 'warning',
+        confirmText: '关闭',
+      }))
+    )
+      return;
 
     setLotteryActionPending(item.id, true);
     try {
@@ -300,7 +328,7 @@ export const createMutationsCenter = (deps) => {
         .from('lotteries')
         .update({
           status: 'closed',
-          updated_by: userInfo?.id || null
+          updated_by: userInfo?.id || null,
         })
         .eq('id', item.id)
         .select('id');
@@ -349,17 +377,20 @@ export const createMutationsCenter = (deps) => {
       pending_contact: 'contacted',
       contacted: 'confirmed',
       confirmed: 'shipping',
-      shipping: 'fulfilled'
+      shipping: 'fulfilled',
     }[String(item.status || '')];
     if (!nextStatus) {
       showToast('当前履约状态无需继续推进', 'warning');
       return;
     }
-    if (!await dialog.confirm({
-      title: '推进中奖履约',
-      message: `将「${item.username || item.username_snapshot || '该中奖用户'}」更新为 ${nextStatus}。确定继续？`,
-      confirmText: '确认推进'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '推进中奖履约',
+        message: `将「${item.username || item.username_snapshot || '该中奖用户'}」更新为 ${nextStatus}。确定继续？`,
+        confirmText: '确认推进',
+      }))
+    )
+      return;
     try {
       assertAdminAction();
       const { data, error } = await supabase.rpc('admin_update_lottery_winner_fulfillment', {
@@ -368,7 +399,7 @@ export const createMutationsCenter = (deps) => {
         p_contact_note: item.contact_note || null,
         p_address_id: item.address_id || null,
         p_shipping_carrier: item.shipping_carrier || null,
-        p_tracking_number: item.tracking_number || null
+        p_tracking_number: item.tracking_number || null,
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(String(data?.message || '更新履约失败'));
@@ -391,7 +422,7 @@ export const createMutationsCenter = (deps) => {
       title: '替补中奖人',
       message: '请输入取消当前中奖资格的原因。系统将从符合条件的报名用户中随机替补同一席位。',
       placeholder: '必填，例如：多次联系未回应',
-      defaultValue: ''
+      defaultValue: '',
     });
     if (reason === null) return;
     const normalizedReason = String(reason || '').trim();
@@ -403,7 +434,7 @@ export const createMutationsCenter = (deps) => {
       assertAdminAction();
       const { data, error } = await supabase.rpc('admin_replace_lottery_winner', {
         p_fulfillment_id: item.id,
-        p_reason: normalizedReason
+        p_reason: normalizedReason,
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(String(data?.message || '没有可用候补用户'));
@@ -418,17 +449,24 @@ export const createMutationsCenter = (deps) => {
 
   const retryLotteryNotification = async (item) => {
     if (!item?.id || item.status === 'sent') return;
-    if (!await dialog.confirm({
-      title: '重试中奖通知',
-      message: `将重新向「${item.username || '中奖用户'}」发送中奖通知。`,
-      confirmText: '重新发送'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '重试中奖通知',
+        message: `将重新向「${item.username || '中奖用户'}」发送中奖通知。`,
+        confirmText: '重新发送',
+      }))
+    )
+      return;
     try {
       assertAdminAction();
-      const { data, error } = await supabase.rpc('admin_retry_lottery_notification', { p_job_id: item.id });
+      const { data, error } = await supabase.rpc('admin_retry_lottery_notification', {
+        p_job_id: item.id,
+      });
       if (error) throw error;
       if (!data?.ok) throw new Error(String(data?.message || '通知发送失败'));
-      addChangeLogEntry('lottery_notification_retry', item, { attempt: Number(item.attempt_count || 0) + 1 });
+      addChangeLogEntry('lottery_notification_retry', item, {
+        attempt: Number(item.attempt_count || 0) + 1,
+      });
       showToast('中奖通知已重新发送', 'success');
       await refreshCurrentViewAfterMutation();
     } catch (error) {
@@ -446,7 +484,7 @@ export const createMutationsCenter = (deps) => {
       target_type: moderationTabConfig.value?.targetType || 'unknown',
       ai_result: actionStatus,
       ai_reason: reason || null,
-      moderator_id: userInfo.value?.id || null
+      moderator_id: userInfo.value?.id || null,
     };
 
     const { error } = await supabase.from('moderation_logs').insert([payload]);
@@ -461,9 +499,12 @@ export const createMutationsCenter = (deps) => {
       p_target_type: config.targetType,
       p_target_id: item.id,
       p_action_status: updateData[config.statusField],
-      p_reason: config.reasonField ? (updateData[config.reasonField] || null) : null
+      p_reason: config.reasonField ? updateData[config.reasonField] || null : null,
     };
-    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_apply_moderation_action', rpcPayload);
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      'admin_apply_moderation_action',
+      rpcPayload,
+    );
 
     if (!rpcError) {
       const ok = Boolean(rpcData?.ok);
@@ -492,10 +533,13 @@ export const createMutationsCenter = (deps) => {
 
   // 删除审核目标(优先 RPC, 回退到直接 delete)
   const deleteModerationTarget = async (item, config) => {
-    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_moderation_target', {
-      p_target_type: config.targetType,
-      p_target_id: item.id
-    });
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      'admin_delete_moderation_target',
+      {
+        p_target_type: config.targetType,
+        p_target_id: item.id,
+      },
+    );
 
     if (!rpcError) {
       const ok = Boolean(rpcData?.ok);
@@ -543,7 +587,7 @@ export const createMutationsCenter = (deps) => {
         title: '拒绝原因',
         message: '请输入拒绝原因（必填）',
         placeholder: '必填',
-        defaultValue: ''
+        defaultValue: '',
       });
       if (inputReason === null) return;
       reason = inputReason.trim();
@@ -560,7 +604,7 @@ export const createMutationsCenter = (deps) => {
           ? config.approveValue
           : isKeepLimited
             ? 'limited'
-            : config.rejectValue
+            : config.rejectValue,
       };
 
       if (config.reasonField) {
@@ -572,12 +616,19 @@ export const createMutationsCenter = (deps) => {
       await saveModerationLog(item, updateData[config.statusField], reason);
       addChangeLogEntry(`moderation_${action}`, item, {
         status: updateData[config.statusField],
-        reason
+        reason,
       });
 
       // 仅在非批量操作时显示 toast 和刷新
       if (!skipRefresh) {
-        showToast(isApprove ? '审核通过已生效' : isKeepLimited ? '已维持下架并结案举报' : '已拒绝并记录原因', 'success');
+        showToast(
+          isApprove
+            ? '审核通过已生效'
+            : isKeepLimited
+              ? '已维持下架并结案举报'
+              : '已拒绝并记录原因',
+          'success',
+        );
         await refreshCurrentViewAfterMutation();
       }
     } catch (error) {
@@ -599,12 +650,15 @@ export const createMutationsCenter = (deps) => {
   const deleteModerationItem = async (item) => {
     if (!moderationTabConfig.value || !item?.id) return;
     if (isModerationActionPending(item.id)) return;
-    if (!await dialog.confirm({
-      title: '删除记录',
-      message: '确定要删除这条记录吗？删除后不可恢复。',
-      tone: 'danger',
-      confirmText: '删除'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '删除记录',
+        message: '确定要删除这条记录吗？删除后不可恢复。',
+        tone: 'danger',
+        confirmText: '删除',
+      }))
+    )
+      return;
 
     const config = moderationTabConfig.value;
     setModerationPending(item.id, true);
@@ -643,7 +697,7 @@ export const createMutationsCenter = (deps) => {
       message: `封禁用户「${item.username || item.id}」后，该用户将无法登录。\n\n请输入封禁原因和天数（天数留空表示永久封禁）`,
       placeholder: '原因:违规操作 天数:7',
       defaultValue: '',
-      multiline: true
+      multiline: true,
     });
     if (result === null) return;
 
@@ -669,7 +723,7 @@ export const createMutationsCenter = (deps) => {
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_ban_user', {
         p_user_id: item.id,
         p_reason: reason || null,
-        p_until: bannedUntil
+        p_until: bannedUntil,
       });
 
       if (rpcError) {
@@ -687,7 +741,7 @@ export const createMutationsCenter = (deps) => {
       // 即使撤销失败也不回滚封禁状态（数据库已置 is_banned=true，心跳会兜底登出）。
       try {
         const { error: revokeError } = await supabase.functions.invoke('admin-revoke-session', {
-          body: { user_id: item.id }
+          body: { user_id: item.id },
         });
         if (revokeError) {
           logger.warn('data-admin', '撤销被封禁用户会话失败（不阻断封禁）:', revokeError);
@@ -701,7 +755,7 @@ export const createMutationsCenter = (deps) => {
         is_banned: true,
         ban_reason: reason || null,
         banned_until: bannedUntil,
-        banned_at: new Date().toISOString()
+        banned_at: new Date().toISOString(),
       });
 
       addChangeLogEntry('user_ban', item, { reason: reason || '未填写', days: days || '永久' });
@@ -716,17 +770,20 @@ export const createMutationsCenter = (deps) => {
   // 解封用户
   const unbanUser = async (item) => {
     if (!item?.id) return;
-    if (!await dialog.confirm({
-      title: '解封用户',
-      message: `确定要解封用户「${item.username || item.id}」吗？`,
-      tone: 'warning',
-      confirmText: '解封'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '解封用户',
+        message: `确定要解封用户「${item.username || item.id}」吗？`,
+        tone: 'warning',
+        confirmText: '解封',
+      }))
+    )
+      return;
 
     try {
       assertAdminAction();
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_unban_user', {
-        p_user_id: item.id
+        p_user_id: item.id,
       });
 
       if (rpcError) {
@@ -745,7 +802,7 @@ export const createMutationsCenter = (deps) => {
         is_banned: false,
         ban_reason: null,
         banned_until: null,
-        unbanned_at: new Date().toISOString()
+        unbanned_at: new Date().toISOString(),
       });
 
       addChangeLogEntry('user_unban', item, {});
@@ -767,7 +824,7 @@ export const createMutationsCenter = (deps) => {
       message: `禁言用户「${item.username || item.id}」后，该用户将无法发布内容。\n\n请输入禁言原因和天数（天数留空表示永久禁言）`,
       placeholder: '原因:发布不当言论 天数:7',
       defaultValue: '',
-      multiline: true
+      multiline: true,
     });
     if (result === null) return;
 
@@ -791,7 +848,7 @@ export const createMutationsCenter = (deps) => {
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_mute_user', {
         p_user_id: item.id,
         p_reason: reason || null,
-        p_until: mutedUntil
+        p_until: mutedUntil,
       });
 
       if (rpcError) {
@@ -810,7 +867,7 @@ export const createMutationsCenter = (deps) => {
         is_muted: true,
         mute_reason: reason || null,
         muted_until: mutedUntil,
-        muted_at: new Date().toISOString()
+        muted_at: new Date().toISOString(),
       });
 
       addChangeLogEntry('user_mute', item, { reason: reason || '未填写', days: days || '永久' });
@@ -825,17 +882,20 @@ export const createMutationsCenter = (deps) => {
   // 解除禁言
   const unmuteUser = async (item) => {
     if (!item?.id) return;
-    if (!await dialog.confirm({
-      title: '解除禁言',
-      message: `确定要解除用户「${item.username || item.id}」的禁言状态吗？`,
-      tone: 'warning',
-      confirmText: '解除'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '解除禁言',
+        message: `确定要解除用户「${item.username || item.id}」的禁言状态吗？`,
+        tone: 'warning',
+        confirmText: '解除',
+      }))
+    )
+      return;
 
     try {
       assertAdminAction();
       const { data: rpcData, error: rpcError } = await supabase.rpc('admin_unmute_user', {
-        p_user_id: item.id
+        p_user_id: item.id,
       });
 
       if (rpcError) {
@@ -854,7 +914,7 @@ export const createMutationsCenter = (deps) => {
         is_muted: false,
         mute_reason: null,
         muted_until: null,
-        unmuted_at: new Date().toISOString()
+        unmuted_at: new Date().toISOString(),
       });
 
       addChangeLogEntry('user_unmute', item, {});
@@ -871,19 +931,22 @@ export const createMutationsCenter = (deps) => {
   // 每次签发服务端强制写审计（actor/target/reason），审计写不进去会拒绝签发。
   const issueLoginToken = async (item) => {
     if (!item?.id) return;
-    if (!await dialog.confirm({
-      title: '签发一次性登录令牌',
-      message: `将为用户「${item.username || item.id}」签发一次性登录令牌：\n\n· 令牌等同账号密码，任何拿到它的人都能直接登录\n· 一次性有效，且限时（超时作废）\n· 仅限当面或私聊交付，勿发群聊\n\n继续吗？`,
-      tone: 'warning',
-      confirmText: '继续签发'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '签发一次性登录令牌',
+        message: `将为用户「${item.username || item.id}」签发一次性登录令牌：\n\n· 令牌等同账号密码，任何拿到它的人都能直接登录\n· 一次性有效，且限时（超时作废）\n· 仅限当面或私聊交付，勿发群聊\n\n继续吗？`,
+        tone: 'warning',
+        confirmText: '继续签发',
+      }))
+    )
+      return;
 
     const reason = await dialog.prompt({
       title: '签发原因（必填）',
       message: '签发原因将写入审计日志，请如实填写：',
       placeholder: '例如：用户丢失邮箱访问，已当面核实身份',
       defaultValue: '',
-      multiline: true
+      multiline: true,
     });
     if (reason === null) return;
     const trimmedReason = String(reason || '').trim();
@@ -895,7 +958,7 @@ export const createMutationsCenter = (deps) => {
     try {
       assertAdminAction();
       const { data, error } = await supabase.functions.invoke('admin-issue-login-token', {
-        body: { user_id: item.id, reason: trimmedReason }
+        body: { user_id: item.id, reason: trimmedReason },
       });
 
       if (error) {
@@ -925,13 +988,16 @@ export const createMutationsCenter = (deps) => {
       }
 
       if (copied) {
-        showToast(`令牌已复制到剪贴板，请当面/私聊交付给「${item.username || item.id}」（一次性、勿发群聊）`, 'success');
+        showToast(
+          `令牌已复制到剪贴板，请当面/私聊交付给「${item.username || item.id}」（一次性、勿发群聊）`,
+          'success',
+        );
       } else {
         await dialog.prompt({
           title: '一次性登录令牌',
           message: `剪贴板不可用，请手动复制以下令牌并私下交付给「${item.username || item.id}」（一次性、限时有效）：`,
           defaultValue: token,
-          multiline: true
+          multiline: true,
         });
       }
 
@@ -949,12 +1015,15 @@ export const createMutationsCenter = (deps) => {
     if (!items?.length) return;
 
     const ids = items.map((item) => item.id).filter(Boolean);
-    if (!await dialog.confirm({
-      title: '批量审核通过',
-      message: `确定要通过选中的 ${ids.length} 条审核记录吗？`,
-      tone: 'success',
-      confirmText: '批量通过'
-    })) return;
+    if (
+      !(await dialog.confirm({
+        title: '批量审核通过',
+        message: `确定要通过选中的 ${ids.length} 条审核记录吗？`,
+        tone: 'success',
+        confirmText: '批量通过',
+      }))
+    )
+      return;
 
     let successCount = 0;
     let failCount = 0;
@@ -967,7 +1036,7 @@ export const createMutationsCenter = (deps) => {
       for (let i = 0; i < items.length; i += batchSize) {
         const batch = items.slice(i, i + batchSize);
         const results = await Promise.allSettled(
-          batch.map((item) => applyModerationAction(item, 'approve', { skipRefresh: true }))
+          batch.map((item) => applyModerationAction(item, 'approve', { skipRefresh: true })),
         );
 
         results.forEach((result) => {
@@ -981,9 +1050,15 @@ export const createMutationsCenter = (deps) => {
       }
 
       if (successCount > 0) {
-        addChangeLogEntry('batch_moderation_approve', { id: ids.join(',') }, { count: successCount });
-        showToast(`批量审核完成：${successCount} 条通过，${failCount} 条失败`,
-          failCount > 0 ? 'warning' : 'success');
+        addChangeLogEntry(
+          'batch_moderation_approve',
+          { id: ids.join(',') },
+          { count: successCount },
+        );
+        showToast(
+          `批量审核完成：${successCount} 条通过，${failCount} 条失败`,
+          failCount > 0 ? 'warning' : 'success',
+        );
       } else {
         showToast('批量审核失败：所有记录处理失败', 'error');
       }
@@ -1007,7 +1082,7 @@ export const createMutationsCenter = (deps) => {
       message: `确定要拒绝选中的 ${ids.length} 条审核记录吗？\n请输入拒绝原因（可选）`,
       placeholder: '例如：内容不符合规范',
       defaultValue: '',
-      multiline: true
+      multiline: true,
     });
     if (reason === null) return;
 
@@ -1021,10 +1096,12 @@ export const createMutationsCenter = (deps) => {
       for (let i = 0; i < items.length; i += batchSize) {
         const batch = items.slice(i, i + batchSize);
         const results = await Promise.allSettled(
-          batch.map((item) => applyModerationAction(item, 'reject', {
-            skipRefresh: true,
-            reason: reason.trim() || null
-          }))
+          batch.map((item) =>
+            applyModerationAction(item, 'reject', {
+              skipRefresh: true,
+              reason: reason.trim() || null,
+            }),
+          ),
         );
 
         results.forEach((result) => {
@@ -1038,12 +1115,18 @@ export const createMutationsCenter = (deps) => {
       }
 
       if (successCount > 0) {
-        addChangeLogEntry('batch_moderation_reject', { id: ids.join(',') }, {
-          count: successCount,
-          reason: reason.trim() || '未填写'
-        });
-        showToast(`批量审核完成：${successCount} 条拒绝，${failCount} 条失败`,
-          failCount > 0 ? 'warning' : 'success');
+        addChangeLogEntry(
+          'batch_moderation_reject',
+          { id: ids.join(',') },
+          {
+            count: successCount,
+            reason: reason.trim() || '未填写',
+          },
+        );
+        showToast(
+          `批量审核完成：${successCount} 条拒绝，${failCount} 条失败`,
+          failCount > 0 ? 'warning' : 'success',
+        );
       } else {
         showToast('批量审核失败：所有记录处理失败', 'error');
       }
@@ -1090,6 +1173,6 @@ export const createMutationsCenter = (deps) => {
     unmuteUser,
     // 辅助
     isMissingRpcFunctionError,
-    buildModerationErrorMessage
+    buildModerationErrorMessage,
   };
 };
