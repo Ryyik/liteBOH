@@ -21,7 +21,13 @@ export const createShortcutsCenter = ({
 }) => {
   const handleGlobalShortcuts = (e) => {
     const tag = e.target.tagName;
-    const isTypingInField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    // 「输入态」= 文本输入；勾选框/按钮聚焦时 ? 与 Esc 仍应生效（探针实测：
+    // 点过勾选框后按 ? 被吞 —— INPUT 一刀切把 checkbox 也当成了输入框）
+    const isTypingInField =
+      (tag === 'INPUT' && !['checkbox', 'radio', 'button'].includes(e.target.type)) ||
+      tag === 'TEXTAREA' ||
+      tag === 'SELECT' ||
+      e.target.isContentEditable === true;
 
     // Ctrl+S / Cmd+S → save
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {

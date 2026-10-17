@@ -45,6 +45,8 @@ describe('batch B interactions wiring', () => {
     expect(sc).toContain("e.key === 'j'");
     expect(sc).toContain("e.key === 'k'");
     expect(sc).toContain('shortcutHelpRef.value = false');
+    // 「输入态」排除勾选框/按钮（点过勾选框后 ? / Esc 仍生效，探针实测）
+    expect(sc).toContain("'checkbox', 'radio', 'button'");
     expect(view).toContain('<ShortcutHelp');
     expect(view).toContain('showShortcutHelp');
   });
