@@ -216,8 +216,9 @@ for (const [w, h] of [
     },
     { name: 'chips 可见', pass: out.chipVisible === true, value: out.chipVisible },
     {
-      name: '标准密度行高 = 42',
-      pass: out.firstRowHeight === targets.firstRowHeight,
+      // 42 = 内容 26 + 上下 8px padding；实际节距 43（多 1px tr 分隔线），容差 ±1
+      name: '标准密度行高 = 42(±1)',
+      pass: Math.abs((out.firstRowHeight || 0) - targets.firstRowHeight) <= 1,
       value: out.firstRowHeight,
     },
   ];

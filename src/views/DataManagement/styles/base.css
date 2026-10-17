@@ -71,7 +71,8 @@
 
   /* Layout sizing */
   --dm-nav-height: 64px;
-  --dm-header-height: 76px;
+  /* C 批 -12px：顶栏 64px（按钮 40px 上下各留 12），thead ≤240 的预算之一 */
+  --dm-header-height: 64px;
   --dm-sidebar-width: 260px;
   --dm-sidebar-width-collapsed: 84px;
   /* 语义 token（plans/027 4.3）：只引用既有站点变量，不新增主题源；
@@ -354,7 +355,8 @@
 .main-container {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 24px;
+  /* C 批：顶部 24 → 12，与顶栏之间的空隙让位给数据行 */
+  padding: 12px 24px 24px;
 }
 
 /* ==================== Stats Section ==================== */

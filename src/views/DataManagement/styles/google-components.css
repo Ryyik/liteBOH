@@ -781,13 +781,17 @@
   padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
   vertical-align: middle;
   color: var(--foreground);
+  /* C 批行高 42：继承的 body line-height 1.9（26.6px）会把单行文本格撑过
+     42，这里收敛到 1.35（多行文本格不受影响，行高由 26px 按钮决定） */
+  line-height: 1.35;
 }
 .g-table-sheet .actions-col {
   position: sticky;
   right: 0;
   z-index: 3;
-  min-width: 112px;
-  width: 112px;
+  /* 150px：容纳「1 主操作(40) + 编辑(26) + ⋯(26) + gap」单行；审核 tab 双按钮 ~130 也在内 */
+  min-width: 150px;
+  width: 150px;
   background: var(--card-solid, var(--card));
   box-shadow: -6px 0 10px -10px color-mix(in srgb, var(--foreground) 45%, transparent);
 }
@@ -799,8 +803,68 @@
 .g-table-sheet tbody tr.is-selected .actions-col {
   background: var(--muted);
 }
+/* 行内操作按钮全局基线：RowActionMenu 的 ⋯ 触发器是子组件内部元素，
+   DataAdmin scoped 的 .icon-btn 到不了它（曾以 UA 默认尺寸把行高撑到 44）。 */
+.g-table-sheet .action-btns .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.g-table-sheet .action-btns .icon-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.g-table-sheet .action-btns .icon-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 .g-table-sheet tbody td.is-muted { color: var(--muted-foreground); }
 .g-table-sheet tbody td.is-mono { font-family: var(--font-mono); font-size: 0.78rem; }
+
+/* 复制按钮：悬停浮层（与行内编辑铅笔同款交互）。
+   必须放全局：CopyCell 是子组件，DataAdmin scoped 的 admin 样式到不了它的
+   内部元素。此前它是无样式 inline 按钮，会把行高从 42 撑到 64（自己占一行）。 */
+.g-table-sheet .cell-copy-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease;
+}
+.g-table-sheet tr:hover .cell-copy-btn,
+.g-table-sheet td:focus-within .cell-copy-btn,
+.cell-copy-btn:focus-visible {
+  opacity: 1;
+}
+.g-table-sheet .cell-copy-btn:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+/* 同格还有编辑铅笔时，复制让位到铅笔左侧（铅笔 right:4px、宽 20px） */
+.g-table-sheet td:has(.cell-edit-trigger) .cell-copy-btn {
+  right: 26px;
+}
 
 /* ---------- Tabs (underline navigation) ---------- */
 .g-tabs {

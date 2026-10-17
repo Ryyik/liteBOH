@@ -67,22 +67,9 @@
           </button>
         </div>
 
-        <nav class="admin-breadcrumb" aria-label="面包屑导航">
-          <template v-for="(crumb, index) in adminBreadcrumbs" :key="`${crumb.label}-${index}`">
-            <span v-if="index > 0" class="admin-breadcrumb-sep" aria-hidden="true">/</span>
-            <button
-              v-if="!crumb.current"
-              type="button"
-              class="admin-breadcrumb-link"
-              @click="handleBreadcrumbClick(crumb)"
-            >
-              {{ crumb.label }}
-            </button>
-            <span v-else class="admin-breadcrumb-current" aria-current="page">{{
-              crumb.label
-            }}</span>
-          </template>
-        </nav>
+        <!-- 面包屑已移除（plans/027 C 批 -54px）：「数据管理 / 模块 / tab」与
+             顶栏标题 + 模块 tab + 侧栏三重重复；详情子页的层级导航由
+             DetailHeader 的面包屑承担，不受影响。 -->
 
         <div class="main-container">
           <AdminOverview
@@ -204,35 +191,10 @@
               <component :is="currentPageComponent" />
             </div>
 
-            <!-- 表格类型 Tab：原有工具栏和表格 -->
+            <!-- 表格类型 Tab：单行工具栏（plans/027 C 批 -87px：原 toolbar-primary
+                 的 view-context 统计与「新增/导出」并入本行右侧；筛选摘要与刷新
+                 时间下沉到表脚，首屏让位给数据行） -->
             <template v-else>
-              <div class="toolbar-primary">
-                <div class="toolbar-left">
-                  <!-- 单层标题：内联统计取代 Hero（plans/027 4.1.2/4.1.3） -->
-                  <div class="view-context">
-                    <span v-for="item in currentAdminPageMetrics" :key="item.label">{{
-                      item.value
-                    }}</span>
-                    <span class="view-context-filter">{{ activeFilterSummary }}</span>
-                    <span class="view-context-refresh">{{ lastRefreshLabel }}</span>
-                  </div>
-                </div>
-                <div class="toolbar-right">
-                  <button
-                    v-if="!isModerationTab && canCreateCurrentTab"
-                    class="btn btn-primary"
-                    @click="openEditModal()"
-                  >
-                    <Plus :size="16" />
-                    新增
-                  </button>
-                  <ExportMenu
-                    :items="exportMenuItems"
-                    :loading="isExportingAll"
-                    @open="openRowMenu"
-                  />
-                </div>
-              </div>
               <div class="toolbar-secondary">
                 <div class="search-box">
                   <Search class="search-icon" :size="18" aria-hidden="true" />
@@ -292,6 +254,23 @@
                   >
                     命令 ⌘K
                   </button>
+                </div>
+
+                <!-- 右侧动作组：原 toolbar-primary 的「新增 / 导出」并入本行（C 批 -87px） -->
+                <div class="toolbar-actions">
+                  <button
+                    v-if="!isModerationTab && canCreateCurrentTab"
+                    class="btn btn-primary"
+                    @click="openEditModal()"
+                  >
+                    <Plus :size="16" />
+                    新增
+                  </button>
+                  <ExportMenu
+                    :items="exportMenuItems"
+                    :loading="isExportingAll"
+                    @open="openRowMenu"
+                  />
                 </div>
 
                 <div v-if="showFilterBar" class="filter-bar">
@@ -810,76 +789,85 @@
                   </div>
                 </div>
 
-                <!-- 数据表格 -->
-                <DashboardSheet
-                  v-if="!isMobileView && !emptyState"
-                  :title="currentTabLabel"
-                  :badge="totalRecordCount > 0 ? `${totalRecordCount} 条` : ''"
-                  style="position: relative"
-                >
-                  <template #actions>
-                    <div class="density-toggle" role="group" aria-label="表格密度">
-                      <button
-                        type="button"
-                        :class="{ 'is-active': density === 'compact' }"
-                        :aria-pressed="density === 'compact'"
-                        title="紧凑密度"
-                        @click="setDensity('compact')"
+                <!-- 数据表格（plans/027 C 批 -71px：g-sheet-head 的重复标题与
+                     密度/视图/每页条数移到表脚 #pagination，head 整行不再渲染） -->
+                <DashboardSheet v-if="!isMobileView && !emptyState" style="position: relative">
+                  <template #pagination>
+                    <div class="g-sheet-foot-tools">
+                      <div class="density-toggle" role="group" aria-label="表格密度">
+                        <button
+                          type="button"
+                          :class="{ 'is-active': density === 'compact' }"
+                          :aria-pressed="density === 'compact'"
+                          title="紧凑密度"
+                          @click="setDensity('compact')"
+                        >
+                          紧凑
+                        </button>
+                        <button
+                          type="button"
+                          :class="{ 'is-active': density === 'standard' }"
+                          :aria-pressed="density === 'standard'"
+                          title="标准密度"
+                          @click="setDensity('standard')"
+                        >
+                          标准
+                        </button>
+                        <button
+                          type="button"
+                          :class="{ 'is-active': density === 'comfortable' }"
+                          :aria-pressed="density === 'comfortable'"
+                          title="舒适密度"
+                          @click="setDensity('comfortable')"
+                        >
+                          舒适
+                        </button>
+                      </div>
+                      <div
+                        v-if="availableViewModes.length > 1"
+                        class="view-mode-toggle"
+                        role="tablist"
+                        aria-label="视图模式"
                       >
-                        紧凑
-                      </button>
-                      <button
-                        type="button"
-                        :class="{ 'is-active': density === 'standard' }"
-                        :aria-pressed="density === 'standard'"
-                        title="标准密度"
-                        @click="setDensity('standard')"
+                        <button
+                          v-for="mode in availableViewModes"
+                          :key="mode"
+                          type="button"
+                          :class="{ 'is-active': viewMode === mode }"
+                          :aria-pressed="viewMode === mode"
+                          @click="setViewMode(mode)"
+                        >
+                          {{ VIEW_MODE_LABELS[mode] }}
+                        </button>
+                      </div>
+                      <select
+                        v-model="pageSize"
+                        class="g-select"
+                        style="
+                          height: 32px;
+                          width: auto;
+                          padding: 0 calc(var(--spacing) * 3);
+                          font-size: 0.78rem;
+                        "
+                        aria-label="每页条数"
                       >
-                        标准
-                      </button>
-                      <button
-                        type="button"
-                        :class="{ 'is-active': density === 'comfortable' }"
-                        :aria-pressed="density === 'comfortable'"
-                        title="舒适密度"
-                        @click="setDensity('comfortable')"
-                      >
-                        舒适
-                      </button>
+                        <option :value="10">10 条/页</option>
+                        <option :value="20">20 条/页</option>
+                        <option :value="50">50 条/页</option>
+                        <option :value="100">100 条/页</option>
+                      </select>
                     </div>
-                    <div
-                      v-if="availableViewModes.length > 1"
-                      class="view-mode-toggle"
-                      role="tablist"
-                      aria-label="视图模式"
-                    >
-                      <button
-                        v-for="mode in availableViewModes"
-                        :key="mode"
-                        type="button"
-                        :class="{ 'is-active': viewMode === mode }"
-                        :aria-pressed="viewMode === mode"
-                        @click="setViewMode(mode)"
-                      >
-                        {{ VIEW_MODE_LABELS[mode] }}
-                      </button>
-                    </div>
-                    <select
-                      v-model="pageSize"
-                      class="g-select"
-                      style="
-                        height: 32px;
-                        width: auto;
-                        padding: 0 calc(var(--spacing) * 3);
-                        font-size: 0.78rem;
-                      "
-                      aria-label="每页条数"
-                    >
-                      <option :value="10">10 条/页</option>
-                      <option :value="20">20 条/页</option>
-                      <option :value="50">50 条/页</option>
-                      <option :value="100">100 条/页</option>
-                    </select>
+                    <span v-if="totalRecordCount > 0" class="g-sheet-foot-text">
+                      显示 {{ (currentPage - 1) * pageSize + 1 }} -
+                      {{ Math.min(currentPage * pageSize, totalRecordCount) }} 条 / 共
+                      {{ totalRecordCount }} 条
+                    </span>
+                    <DashboardPagination
+                      v-if="totalRecordCount > 0"
+                      v-model="currentPage"
+                      :total="totalRecordCount"
+                      :page-size="pageSize"
+                    />
                   </template>
 
                   <div v-if="isFilterLoading" class="filter-loading-overlay">
@@ -1506,7 +1494,7 @@
                           <td v-if="hasActionColumn" class="actions-col">
                             <div class="action-btns">
                               <button
-                                v-for="act in getRowActionModel(item).primary"
+                                v-for="act in getRowTableActions(item).primary"
                                 :key="act.id"
                                 type="button"
                                 :class="['review-btn', act.tone]"
@@ -1526,7 +1514,7 @@
                                 <Pencil :size="14" />
                               </button>
                               <RowActionMenu
-                                :items="getRowActionModel(item).menu"
+                                :items="getRowTableActions(item).menu"
                                 @open="openRowMenu"
                               />
                             </div>
@@ -1535,20 +1523,6 @@
                       </TransitionGroup>
                     </table>
                   </div>
-
-                  <template #pagination>
-                    <span v-if="totalRecordCount > 0" class="g-sheet-foot-text">
-                      显示 {{ (currentPage - 1) * pageSize + 1 }} -
-                      {{ Math.min(currentPage * pageSize, totalRecordCount) }} 条 / 共
-                      {{ totalRecordCount }} 条
-                    </span>
-                    <DashboardPagination
-                      v-if="totalRecordCount > 0"
-                      v-model="currentPage"
-                      :total="totalRecordCount"
-                      :page-size="pageSize"
-                    />
-                  </template>
                 </DashboardSheet>
                 <button
                   v-if="isMobileView && !isModerationTab && canCreateCurrentTab"
@@ -3137,34 +3111,6 @@ const openMoreTabsMenu = (event) => {
   });
 };
 
-const currentAdminPageMetrics = computed(() => {
-  const section = activeAdminSection.value;
-  if (section === 'data') {
-    return [
-      { label: '当前模块', value: currentModule.value?.label || '数据管理' },
-      { label: '当前数据表', value: currentTabLabel.value || '未选择' },
-      { label: '当前记录', value: totalRecordCount.value },
-      { label: '待复核', value: moderationPendingCount.value },
-    ];
-  }
-  if (section === 'media') {
-    return [
-      { label: '商品图', value: getTabCount('products') },
-      { label: '新闻图', value: getTabCount('news') },
-      { label: '活动图', value: getTabCount('activities') },
-      { label: '抽奖图', value: getTabCount('lotteries') },
-    ];
-  }
-  if (section === 'settings') {
-    return [
-      { label: '健康度', value: `${healthScore.value}%` },
-      { label: '通知任务', value: getTabCount('lotteryFulfillments') },
-      { label: '最近刷新', value: lastRefreshLabel.value },
-    ];
-  }
-  return [];
-});
-
 const tableSummaryCards = computed(() =>
   dashboardTableIds.map((tabId) => {
     const meta = tabs.find((tab) => tab.id === tabId) || {};
@@ -4559,7 +4505,8 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         );
 
         if (!rpcEntryCountError) {
-          (rpcEntryCountRows || []).forEach((entry) => {
+          // Array.isArray 兜底：RPC 异常负载（对象/字符串）不能进 forEach（曾整页 toast 报错）
+          (Array.isArray(rpcEntryCountRows) ? rpcEntryCountRows : []).forEach((entry) => {
             const lotteryId = String(entry?.lottery_id || '');
             if (!lotteryId) return;
             lotteryEntryCounts.set(lotteryId, Number(entry.entry_count || 0));
@@ -5084,30 +5031,10 @@ const handleAdminLogout = async () => {
   }
 };
 
-// ==================== 面包屑：首页 / 模块 / 子表 ====================
-const isOverviewSection = computed(() => activeAdminSection.value === 'overview');
-const adminBreadcrumbs = computed(() => {
-  const crumbs = [{ label: '首页', moduleId: 'overview' }];
-  if (isOverviewSection.value) {
-    crumbs.push({ label: currentAdminPageMeta.value?.title || '概览', current: true });
-    return crumbs;
-  }
-  crumbs.push({
-    label: currentModule.value?.label || '数据管理',
-    moduleId: currentModule.value?.id,
-  });
-  if (isDataConsoleSection.value && currentTabLabel.value) {
-    crumbs.push({ label: currentTabLabel.value, current: true });
-  } else {
-    crumbs.push({ label: currentAdminPageMeta.value?.title || '', current: true });
-  }
-  return crumbs;
-});
-const handleBreadcrumbClick = (crumb) => {
-  if (crumb.current || !crumb.moduleId) return;
-  const mod = (sidebarModules.value || []).find((m) => m.id === crumb.moduleId);
-  guardedModuleClick(mod || { id: crumb.moduleId, label: crumb.label });
-};
+// ==================== 面包屑（已下线）====================
+// plans/027 C 批移除模板渲染（与顶栏标题 / 模块 tab / 侧栏三重重复），
+// 详情子页层级导航由 DetailHeader 独立承担；adminBreadcrumbs /
+// handleBreadcrumbClick / isOverviewSection 一并删除。
 
 // ==================== 行动作模型：主操作 inline + 其余收进 ⋯ 菜单 ====================
 // 目标：操作列永远单行（通过/拒绝/封禁等高频保留，开奖/履约/删除等收进菜单），
@@ -5261,6 +5188,19 @@ const getRowActionModel = (item) => {
     menu.push({ id: 'delete', label: '删除', tone: 'danger', run: () => deleteItem(item) });
   }
   return { primary, menu };
+};
+
+// 表格操作列视图（与移动端卡片共用 getRowActionModel，但表格列宽只有 150px）：
+// 非审核 tab 只保留 1 个主操作，其余主操作并入 ⋯ 菜单——配合 26px 紧凑按钮
+// 保证行内单行（plans/027 C 批行高 42 的前提）。审核 tab 的「通过/拒绝」是
+// 页面核心动作，保留双按钮。
+const getRowTableActions = (item) => {
+  const model = getRowActionModel(item);
+  if (isModerationTab.value || model.primary.length <= 1) return model;
+  return {
+    primary: model.primary.slice(0, 1),
+    menu: [...model.primary.slice(1), ...model.menu],
+  };
 };
 
 // 全局浮动行菜单（fixed 定位，避免被表格滚动容器裁剪）
@@ -7499,8 +7439,9 @@ onUnmounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 10px 14px;
-  margin: 0 0 12px;
+  /* C 批：10/14 → 5/10，chips 行高 30 → 24 */
+  padding: 5px 10px;
+  margin: 0 0 8px;
   background: var(--card, #fff);
   border: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
   border-radius: 12px;
@@ -8176,16 +8117,16 @@ onUnmounted(() => {
   flex-wrap: nowrap;
   gap: 6px;
 }
-/* 表格内按钮缩小：40px 大圆钮 → 30px */
+/* 表格内按钮缩小：40px 大圆钮 → 26px（C 批行高 42 = 26 + 上下 8px padding） */
 .action-btns .icon-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
 }
 .action-btns .review-btn {
   min-width: 0;
-  height: 30px;
-  padding: 0 10px;
+  height: 26px;
+  padding: 0 8px;
   font-size: 12px;
   border-radius: 7px;
 }
@@ -8218,11 +8159,28 @@ onUnmounted(() => {
   padding: 8px 12px;
 }
 .data-content[data-density='comfortable'] .g-table-sheet tbody td {
-  padding: 12px 12px;
+  /* 11px：48 = 26px 内容 + 22px 上下 padding（12px 会溢出到 50） */
+  padding: 11px 12px;
 }
 .data-content[data-density='comfortable'] .g-table-sheet thead th {
   padding: 12px 12px;
 }
+/* C 批：内容区双层顶部 padding（19.2 + 18px）收敛到 8 + 10 */
+.data-management-page .main-container {
+  padding-top: 8px;
+}
+.data-management-page .data-content {
+  padding-top: 10px;
+}
+
+/* 表脚工具组（C 批：g-sheet-head 移除后密度/视图/每页条数落位处） */
+.g-sheet-foot-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .density-toggle {
   display: inline-flex;
   padding: 3px;

@@ -320,7 +320,9 @@
 
 .search-box input {
   width: 100%;
-  padding: 10px 36px 10px 40px;
+  /* C 批：与同行按钮同高 36px（原 padding 10px 把行撑到 49） */
+  height: 36px;
+  padding: 0 36px 0 40px;
   border-radius: 8px;
   border: 1px solid var(--input);
   background: var(--muted);
@@ -410,25 +412,25 @@
 }
 
 /* ==================== Toolbar Restructure ==================== */
-.toolbar-primary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
-  gap: 16px;
-  flex-wrap: wrap;
-  background: transparent;
-}
-
+/* plans/027 C 批：toolbar-primary 已并入 toolbar-secondary（模板同删），
+   现在只有一条工具栏：左 = 搜索/筛选/列配置/⋯，右 = 新增/导出（.toolbar-actions），
+   chips 独占第二行。目标行高 48px（按钮 36 + 上下 6px）。 */
 .toolbar-secondary {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
+  gap: 8px;
+  padding: 6px 20px;
   border-bottom: 1px solid var(--border);
   background: transparent;
   flex-wrap: wrap;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 /* 状态 chips 常驻筛选行（plans/027 4.1.5）：去除独立区块的外框 */
@@ -437,20 +439,23 @@
   padding: 0;
   border: 0;
   background: transparent;
+  /* chips 独占第二行：避免和工具按钮挤一行导致 1280 下换行 */
+  width: 100%;
+  order: 5;
 }
 
 .filter-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 36px;
+  height: 36px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--dm-text-subtle);
   font-size: 13px;
   font-weight: 500;
-  padding: 8px 12px;
+  padding: 0 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
@@ -586,7 +591,8 @@
 
 /* ==================== 数据内容区 ==================== */
 .data-content {
-  padding: 20px;
+  /* C 批：20 → 12/16，表格上移 */
+  padding: 12px 16px 16px;
 }
 
 .content-toolbar {
@@ -729,30 +735,6 @@
   font-size: 11px;
   font-weight: 500;
   color: var(--dm-text-subtle);
-}
-
-.view-context {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 5px;
-  color: var(--dm-text-subtle, #7f8d9f);
-  font-size: 12.5px;
-}
-
-.view-context span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  border-radius: 999px;
-  background: var(--muted);
-  padding: 2px 8px;
-}
-
-.toolbar-right {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .table-mini-stats {
@@ -1231,11 +1213,15 @@
 }
 
 .cell-badge {
-  display: inline-block;
-  padding: 3px 8px;
+  /* 24px：与 26px 动作按钮同为行高 42 的内容上限（24+8+8+2border） */
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 500;
+  line-height: 1;
   background: var(--muted);
   color: var(--foreground);
 }
