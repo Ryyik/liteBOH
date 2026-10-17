@@ -84,6 +84,29 @@
             @quick-create="quickCreateRecord"
           />
 
+          <!-- 详情子页（D1）：面包屑 + 只读字段 + 侧栏；编辑走既有抽屉。
+               直接深链时 section 态未初始化也不影响：本分支只依赖 recordId/recordTab。 -->
+          <section
+            v-if="recordId && dataConfig[recordTab]"
+            class="management-section record-section"
+          >
+            <RecordPane
+              :record-id="recordId"
+              :table="detailTable"
+              :select-columns="detailSelectColumns"
+              :fields="detailFields"
+              :module-label="currentModule?.label || '数据管理'"
+              :tab-label="detailTabLabel"
+              :get-related-labels="getDetailRelatedLabels"
+              @back="goBackToList"
+              @edit="onEditRecord"
+              @crumb="onDetailCrumb"
+            />
+          </section>
+          <section v-else-if="recordId" class="management-section">
+            <div class="record-pane-state">记录不存在或已被删除。</div>
+          </section>
+
           <section v-if="isPlaceholderAdminSection" class="admin-placeholder-panel">
             <div class="panel-heading">
               <div>
@@ -108,7 +131,11 @@
           </section>
 
           <!-- 管理模块标签页 -->
-          <section v-if="isDataConsoleSection" id="data-console" class="management-section">
+          <section
+            v-if="isDataConsoleSection && !recordId"
+            id="data-console"
+            class="management-section"
+          >
             <!-- 模块内子表 Tabs -->
             <div
               v-if="currentModuleTabIds.length > 1"
@@ -1404,6 +1431,7 @@
                                 @dblclick="quickEditCell(item, col)"
                                 @keydown.enter.prevent="quickEditCell(item, col)"
                                 @keydown.space.prevent="quickEditCell(item, col)"
+                                @click="onPrimaryCellClick(col, item)"
                                 v-html="highlightCellValue(item[col.key], col.maxLength)"
                               ></span>
                               <CopyCell
@@ -1683,7 +1711,7 @@ import {
   onUnmounted,
   watch,
 } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -1725,6 +1753,7 @@ import { fetchAllRows } from '@/utils/api/data-admin-table-api.js';
 import { resolveEmptyState } from './composables/data-admin-empty-state.js';
 import ShortcutHelp from './components/shared/ShortcutHelp.vue';
 import CopyCell from './components/shared/CopyCell.vue';
+import RecordPane from './components/detail/RecordPane.vue';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
 import { getImageUrl } from '../../utils/asset-helper';
@@ -1825,6 +1854,7 @@ import { createGlobalSearchCenter } from './composables/useDataAdminGlobalSearch
 import { createShortcutsCenter } from './composables/useDataAdminShortcuts.js';
 import { createNavigationCenter } from './composables/useDataAdminNavigation.js';
 import { consumeAdminTabJumpSearch } from './composables/useAdminTabIntent.js';
+import { resolveInitialAdminTab } from './composables/resolveInitialAdminTab.js';
 
 const CACHE_TTL = 45_000;
 
@@ -1844,7 +1874,24 @@ const dialog = useConfirmDialog();
 const routeQuery = router.currentRoute.value?.query || {};
 const routeQueryTab = typeof routeQuery.tab === 'string' ? routeQuery.tab : '';
 const isValidAdminTab = (tabId) => tabs.some((tab) => tab.id === tabId);
-const currentTab = ref(isValidAdminTab(routeQueryTab) ? routeQueryTab : 'users');
+// section 解析必须**先于**初始 tab：初始 tab 要按 section 查默认值
+// （2026-10-17 P1-2：`?section=keys-models` 不带 tab 的直达链接曾落到「用户管理」表）。
+const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
+const routeQuerySection =
+  typeof routeQuery.section === 'string' && /^[a-z][a-z-]{1,29}$/.test(routeQuery.section)
+    ? routeQuery.section
+    : '';
+// query.section 优先于路由 meta：用户在面板内切换 section 后，刷新应恢复"最后停留处"而非路由默认
+const initialAdminSection =
+  routeQuerySection ||
+  (typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview');
+const currentTab = ref(
+  resolveInitialAdminTab({
+    queryTab: routeQueryTab,
+    section: initialAdminSection,
+    isValidTab: isValidAdminTab,
+  }),
+);
 const isLoading = ref(false);
 const isFilterLoading = ref(false);
 const isRefreshing = ref(false);
@@ -1931,16 +1978,9 @@ watch(isSidebarCollapsed, (collapsed) => {
 });
 // 侧栏模块筛选关键词（仅过滤导航，不过滤表格数据）
 const sidebarSearchQuery = ref('');
-const routeAdminSection = router.currentRoute.value?.meta?.adminSection;
-const routeQuerySection =
-  typeof routeQuery.section === 'string' && /^[a-z][a-z-]{1,29}$/.test(routeQuery.section)
-    ? routeQuery.section
-    : '';
-// query.section 优先于路由 meta：用户在面板内切换 section 后，刷新应恢复"最后停留处"而非路由默认
-const activeAdminSection = ref(
-  routeQuerySection ||
-    (typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview'),
-);
+// 注：section 的解析与初始值已在 currentTab 之前完成（见上方 initialAdminSection），
+// 这里只把同一个值交给响应式 ref —— 两处必须同一来源，否则「tab 按 A 段选、section 是 B 段」。
+const activeAdminSection = ref(initialAdminSection);
 
 // section/tab 变更统一写回 URL（replace 不堆积历史）：watch 收口所有变更路径
 // （switchTab / handleModuleClick / handleAdminNavClick / 占位页动作），无需逐处补 replace
@@ -6687,6 +6727,57 @@ const handleVisibilityChange = () => {
 const showCommandPalette = ref(false);
 // ? 快捷键帮助浮层（plans/027 4.5）
 const showShortcutHelp = ref(false);
+
+// ==================== 详情子页（plans/027 D1） ====================
+// 与列表共用同一个组件实例：仅 route.params 变化时 Vue Router 复用组件，
+// 列表的筛选/页码/滚动位置天然保留。
+const route = useRoute();
+const recordId = computed(() => String(route.params.id || ''));
+const recordTab = computed(() => String(route.params.tab || currentTab.value));
+const detailTabLabel = computed(
+  () => tabs.find((t) => t.id === recordTab.value)?.label || recordTab.value,
+);
+const detailTable = computed(() => dataConfig[recordTab.value]?.table || '');
+const detailSelectColumns = computed(() => TAB_SELECT_COLUMNS[recordTab.value] || '');
+const detailFields = computed(() => dataConfig[recordTab.value]?.columns || []);
+const getDetailRelatedLabels = (record) => [
+  ...new Set(
+    relatedJumpsForItem(record)
+      .map((r) => r.tabLabel)
+      .filter(Boolean),
+  ),
+];
+
+const goBackToList = () => {
+  if (window.history.length > 1) router.back();
+  else router.replace({ path: '/admin/data-management', query: { tab: recordTab.value } });
+};
+
+const openRecordDetail = (item) => {
+  // 防御性回退：无 id 仍开抽屉（plans/027 §5.2）
+  if (!item?.id) return openEditModal(item);
+  router.push({
+    name: 'DataManagementRecord',
+    params: { tab: currentTab.value, id: String(item.id) },
+  });
+};
+
+const onEditRecord = (record) => openEditModal(record);
+
+const onDetailCrumb = (idx) => {
+  if (idx === 0) {
+    router.replace({ path: '/admin/data-management' });
+  } else {
+    goBackToList();
+  }
+};
+
+// 主标识列（第一可见列）单点进详情；双击编辑行为不变
+const onPrimaryCellClick = (col, item) => {
+  if (visibleCurrentColumns.value[0]?.key === col.key) {
+    openRecordDetail(item);
+  }
+};
 const commandQuery = ref('');
 const commandActiveIndex = ref(0);
 const commandInputRef = ref(null);
@@ -6971,7 +7062,7 @@ onUnmounted(() => {
 }
 .g-module-tab {
   position: relative;
-  padding: calc(var(--spacing) * 2.5) calc(var(--spacing) * 1);
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 1);
   border: none;
   background: transparent;
   color: var(--muted-foreground);

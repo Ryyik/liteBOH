@@ -18,6 +18,16 @@ import { supabase } from '@/utils/supabase-client.js';
  *   查询命中特定缺列错误时改用旧列装配重试（lotteries 观测字段未部署的降级，口径同列表 fetchTabData）。
  * @returns {Promise<Array<Object>>} 全量行
  */
+export const fetchRecordById = async ({ table, selectColumns, id }) => {
+  const { data, error } = await supabase
+    .from(table)
+    .select(selectColumns)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+};
+
 export const fetchAllRows = async ({
   table,
   selectColumns,
