@@ -406,6 +406,7 @@ import {
   SUBSCRIPTION_STATUS_OPTIONS,
 } from '../config/fields.js';
 import { logger } from '@/utils/logger.js';
+import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 import DashboardPagination from './shared/DashboardPagination.vue';
 import SubscriptionEditModal from './SubscriptionEditModal.vue';
 
@@ -788,6 +789,17 @@ const submitGrant = async () => {
       skipAnyTier: skipScope.value === 'any',
     });
     const affected = result?.affected ?? 0;
+    logAdminAction({
+      action: 'grant',
+      table: 'subscriptions',
+      id: userIds.join(','),
+      meta: {
+        planCode: planCode.value,
+        billingCycle: billingCycle.value,
+        durationDays: durationDays.value,
+        affected,
+      },
+    });
     const skipped = Number(result?.skipped || 0);
     const extended = Number(result?.extended || 0);
     const notified = Number(result?.notified || 0);

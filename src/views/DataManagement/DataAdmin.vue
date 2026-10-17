@@ -48,6 +48,25 @@
           @logout="handleAdminLogout"
         />
 
+        <!-- 全局异常 banner（plans/027 E6.5）：正常时不渲染不占高度（v-if 非 v-show） -->
+        <div v-if="diagnosticIssueCount > 0" class="admin-issue-banner" role="status">
+          <span class="admin-issue-banner-text">
+            {{ diagnosticIssueCount }} 项需要处理<template
+              v-for="issue in topDiagnosticIssues"
+              :key="issue.id"
+            >
+              · {{ issue.title }} {{ issue.count }}</template
+            >
+          </span>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            @click="activeAdminSection = 'overview'"
+          >
+            查看
+          </button>
+        </div>
+
         <nav class="admin-breadcrumb" aria-label="面包屑导航">
           <template v-for="(crumb, index) in adminBreadcrumbs" :key="`${crumb.label}-${index}`">
             <span v-if="index > 0" class="admin-breadcrumb-sep" aria-hidden="true">/</span>
@@ -1753,6 +1772,7 @@ import { resolveEmptyState } from './composables/data-admin-empty-state.js';
 import ShortcutHelp from './components/shared/ShortcutHelp.vue';
 import CopyCell from './components/shared/CopyCell.vue';
 import RecordPane from './components/detail/RecordPane.vue';
+import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
 import { getImageUrl } from '../../utils/asset-helper';
@@ -1970,13 +1990,54 @@ const activeAdminSection = ref(
     (typeof routeAdminSection === 'string' && routeAdminSection ? routeAdminSection : 'overview'),
 );
 
+// URL 即状态（plans/027 E6.6）：section/tab 之外，筛选/页码/排序/搜索一并写回
+// （replace 不堆积历史）。详情路由态（:tab/:id）不写筛选 query。
+watch(
+  [
+    activeAdminSection,
+    currentTab,
+    () => statusFilter.value,
+    () => dateFromFilter.value,
+    () => dateToFilter.value,
+    () => currentPage.value,
+    () => sortKey.value,
+    () => sortOrder.value,
+    () => searchQuery.value,
+  ],
+  () => {
+    if (recordId.value) return;
+    const query = { section: activeAdminSection.value, tab: currentTab.value };
+    if (statusFilter.value) query.status = String(statusFilter.value);
+    if (dateFromFilter.value) query.from = String(dateFromFilter.value);
+    if (dateToFilter.value) query.to = String(dateToFilter.value);
+    if (Number(currentPage.value) > 1) query.page = String(currentPage.value);
+    if (sortKey.value) {
+      query.sort = String(sortKey.value);
+      query.dir = sortOrder.value === 'desc' ? 'desc' : 'asc';
+    }
+    if (searchQuery.value) query.q = String(searchQuery.value);
+    const currentQuery = router.currentRoute.value?.query || {};
+    const keys = ['section', 'tab', 'status', 'from', 'to', 'page', 'sort', 'dir', 'q'];
+    if (keys.every((k) => String(currentQuery[k] ?? '') === String(query[k] ?? ''))) return;
+    router.replace({ query }).catch(() => {});
+  },
+);
+
+// URL 即状态：初始化读 query 覆盖默认值（一次性，早于首次取数）
+(() => {
+  const q = router.currentRoute.value?.query || {};
+  if (typeof q.status === 'string' && q.status) statusFilter.value = q.status;
+  if (typeof q.from === 'string' && q.from) dateFromFilter.value = q.from;
+  if (typeof q.to === 'string' && q.to) dateToFilter.value = q.to;
+  const page = Number(q.page);
+  if (Number.isFinite(page) && page > 1) currentPage.value = page;
+  if (typeof q.sort === 'string' && q.sort) sortKey.value = q.sort;
+  if (q.dir === 'asc' || q.dir === 'desc') sortOrder.value = q.dir;
+  if (typeof q.q === 'string' && q.q) searchQuery.value = q.q;
+})();
+
 // section/tab 变更统一写回 URL（replace 不堆积历史）：watch 收口所有变更路径
 // （switchTab / handleModuleClick / handleAdminNavClick / 占位页动作），无需逐处补 replace
-watch([activeAdminSection, currentTab], ([section, tab]) => {
-  const currentQuery = router.currentRoute.value?.query || {};
-  if (currentQuery.section === section && currentQuery.tab === tab) return;
-  router.replace({ query: { ...currentQuery, section, tab } }).catch(() => {});
-});
 // 反向同步（浏览器后退/前进）在下方 switchTab 定义之后挂载，需复用其完整状态重置逻辑
 const isDataTreeCollapsed = ref(false);
 // 移动端判定：窄屏，或粗指针+横屏矮视口（手机横屏按移动卡片走，不进桌面表格）
@@ -3054,6 +3115,9 @@ const tableSummaryCards = computed(() =>
   }),
 );
 
+const topDiagnosticIssues = computed(() =>
+  activeDiagnostics.value.filter((d) => Number(d.count) > 0).slice(0, 2),
+);
 const activeDiagnostics = computed(() => [
   {
     id: 'reported-posts',
@@ -6306,6 +6370,14 @@ const saveData = async ({ keepOpen = false } = {}) => {
       addChangeLogEntry('update', editingItem.value, {
         diffs: getPayloadDiffs(editingOriginalItem.value || {}, dataToSave).slice(0, 20),
       });
+      // 审计留痕（plans/027 E6.1）：update 带 diff，失败静默
+      logAdminAction({
+        action: 'update',
+        table,
+        id: data[0]?.id ?? editingItem.value?.id ?? null,
+        diff: getPayloadDiffs(editingOriginalItem.value || {}, dataToSave).slice(0, 20),
+        meta: { tab: currentTab.value },
+      });
       // C1: 命中当前页则单行 patch，跳过整表刷新（保留滚动与勾选）
       savedRowPatched = patchStoreRow(currentTab.value, data[0]);
       if (savedRowPatched) clearTabFetchCache(currentTab.value);
@@ -6337,6 +6409,12 @@ const saveData = async ({ keepOpen = false } = {}) => {
           fields: Object.keys(dataToSave),
         },
       );
+      logAdminAction({
+        action: 'create',
+        table,
+        id: dataToSave.id ?? editingItem.value?.id ?? null,
+        meta: { tab: currentTab.value },
+      });
       showToast('数据添加成功', 'success');
     }
 

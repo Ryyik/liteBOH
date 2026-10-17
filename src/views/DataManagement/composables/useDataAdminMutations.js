@@ -27,6 +27,7 @@ import {
   buildBatchDeleteConfirmInput,
   isBatchDeleteConfirmed,
 } from './data-admin-delete-confirm.js';
+import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 
 /**
  * 创建 mutations 中心
@@ -161,6 +162,13 @@ export const createMutationsCenter = (deps) => {
       if (currentTab.value === 'products') invalidateProductsCache();
       if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
       addChangeLogEntry('delete', item, { recordId: item?.id || '' });
+      // 审计留痕（plans/027 E6.1）：失败静默，不阻断业务
+      logAdminAction({
+        action: 'delete',
+        table: currentConfig.value.table,
+        id: item?.id ?? null,
+        meta: { tab: currentTab.value },
+      });
       showToast('删除成功', 'success');
       await refreshCurrentViewAfterMutation();
     } catch (error) {
@@ -223,6 +231,12 @@ export const createMutationsCenter = (deps) => {
         selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
       }
       addChangeLogEntry('batch_delete', { id: ids.join(',') }, { count: ids.length });
+      logAdminAction({
+        action: 'batch_delete',
+        table,
+        id: ids.join(','),
+        meta: { count: ids.length, tab: currentTab.value },
+      });
       showToast('批量删除成功', 'success');
       selectedItems.value = [];
       await refreshCurrentViewAfterMutation();
@@ -650,6 +664,12 @@ export const createMutationsCenter = (deps) => {
       addChangeLogEntry(`moderation_${action}`, item, {
         status: updateData[config.statusField],
         reason,
+      });
+      logAdminAction({
+        action: 'moderate',
+        table: config.table,
+        id: item.id ?? null,
+        meta: { status: updateData[config.statusField], reason, tab: currentTab.value },
       });
 
       // 仅在非批量操作时显示 toast 和刷新

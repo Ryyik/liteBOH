@@ -219,6 +219,7 @@ import {
   searchGrantTargetUsers,
 } from '@/utils/api/points-admin-api.js';
 import { logger } from '@/utils/logger.js';
+import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 import DashboardPagination from './shared/DashboardPagination.vue';
 
 const { confirm } = useConfirmDialog();
@@ -293,6 +294,16 @@ const submitGrant = async () => {
   saving.value = true;
   try {
     const result = await grantPoints({ userIds, amount: amount.value, remark: remark.value });
+    logAdminAction({
+      action: 'grant',
+      table: 'points',
+      id: userIds.join(','),
+      meta: {
+        amount: amount.value,
+        remark: remark.value,
+        affected: result?.affected ?? null,
+      },
+    });
     notify(
       `已向 ${result?.affected ?? targetCount} 位用户发放 ${result?.amount ?? amount.value} 积分`,
     );

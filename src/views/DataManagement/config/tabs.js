@@ -82,6 +82,7 @@ export const tabs = [
   { id: 'userFollows', label: '关注关系', icon: '👥', module: 'logs' },
   { id: 'userImpressions', label: '访客记录', icon: '👁️', module: 'logs' },
   { id: 'lotterySchedulerLogs', label: '抽奖调度', icon: '⚙️', module: 'logs' },
+  { id: 'adminAuditLogs', label: '审计日志', icon: '🧾', module: 'logs' },
   { id: 'userDataExportJobs', label: '用户数据导出', icon: '📤', module: 'logs' },
 ];
 
@@ -239,6 +240,7 @@ export const tabModules = [
       'userImpressions',
       'lotterySchedulerLogs',
       'userDataExportJobs',
+      'adminAuditLogs',
     ],
     description: 'AI搜索、Key审计、实验室、关注、访客与抽奖调度日志',
   },
@@ -293,6 +295,7 @@ export const TABS_ACTIONS = {
   reviewComments: ['view', 'moderate'],
   moderationLogs: ['view'],
   notifications: ['view'],
+  adminAuditLogs: ['view'],
   lotteries: ['view', 'create', 'edit', 'delete', 'close'],
   lotteryFulfillments: ['view', 'manage'],
   lotteryEntries: ['view'],

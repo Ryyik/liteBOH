@@ -95,6 +95,7 @@ export const DATE_FILTER_FIELDS = {
   forumWeeklyCheckins: 'signed_at',
   forumPostImages: 'created_at',
   apiKeyAuditLogs: 'created_at',
+  adminAuditLogs: 'created_at',
   aiWebSearchLog: 'created_at',
   anniversaryClaims: 'created_at',
   blockWallItems: 'created_at',
@@ -454,6 +455,17 @@ export const TAB_SELECT_COLUMNS = {
     actor_id,
     created_at
   `,
+  adminAuditLogs: `
+    id,
+    created_at,
+    actor_id,
+    actor_label,
+    action,
+    resource_table,
+    resource_id,
+    diff,
+    meta
+  `,
 
   // ========== AI 联网搜索日志 ==========
   aiWebSearchLog: `
@@ -679,6 +691,7 @@ export const TAB_DEFAULT_SORT = {
   forumWeeklyCheckins: { column: 'signed_at', ascending: false },
   forumPostImages: { column: 'created_at', ascending: false },
   apiKeyAuditLogs: { column: 'created_at', ascending: false },
+  adminAuditLogs: { column: 'created_at', ascending: false },
   aiWebSearchLog: { column: 'created_at', ascending: false },
   anniversaryClaims: { column: 'created_at', ascending: false },
   blockWallItems: { column: 'created_at', ascending: false },
@@ -772,6 +785,7 @@ export const TAB_SORT_COLUMNS = {
   forumWeeklyCheckins: new Set(['signed_at', 'week_start_date']),
   forumPostImages: new Set(['created_at', 'moderation_status']),
   apiKeyAuditLogs: new Set(['created_at', 'action', 'provider']),
+  adminAuditLogs: new Set(['created_at', 'actor_label', 'action', 'resource_table']),
   aiWebSearchLog: new Set(['created_at', 'status', 'tier']),
   anniversaryClaims: new Set(['created_at', 'expires_at']),
   blockWallItems: new Set(['created_at', 'item_type']),
@@ -1025,6 +1039,12 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'action', type: 'text' },
     { column: 'provider', type: 'text' },
     { column: 'actor_id', type: 'uuid' },
+  ],
+  adminAuditLogs: [
+    { column: 'actor_label', type: 'text' },
+    { column: 'action', type: 'text' },
+    { column: 'resource_table', type: 'text' },
+    { column: 'resource_id', type: 'text' },
   ],
   aiWebSearchLog: [
     { column: 'id', type: 'uuid' },

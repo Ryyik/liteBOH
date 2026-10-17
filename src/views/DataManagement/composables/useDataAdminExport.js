@@ -4,6 +4,7 @@ import { logger } from '@/utils/logger.js';
 import { dataConfig, tabs } from '../config.js';
 import { downloadBlob } from './useDataAdminHelpers.js';
 import { buildCsvContent } from './csv-export.js';
+import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 
 export const createExportCenter = ({
   currentTabRef,
@@ -37,6 +38,11 @@ export const createExportCenter = ({
     const scopeText = scope === 'all' ? '全部筛选结果' : '当前页';
     showToast(`已导出 ${rows.length} 条（${scopeText}）`, 'success');
     addChangeLogEntry?.('export', null, { count: rows.length, scope, tab: currentTabRef.value });
+    logAdminAction({
+      action: 'export',
+      table: currentTabRef.value,
+      meta: { count: rows.length, scope },
+    });
   };
 
   const exportData = () => {
@@ -178,20 +184,17 @@ export const createExportCenter = ({
         totalRows: summary.reduce((acc, s) => acc + (s.exported || 0), 0),
         note: '备份含 PII,请妥善保管',
       });
-      try {
-        await supabase.from('admin_audit_log').insert([
-          {
-            actor_id: userInfoRef.value?.id || null,
-            action: 'backup_export',
-            metadata: {
-              tables: summary.map((s) => s.table),
-              total_rows: summary.reduce((acc, s) => acc + (s.exported || 0), 0),
-            },
-          },
-        ]);
-      } catch (auditErr) {
-        logger.warn('data-admin', '备份审计写入失败(忽略):', auditErr);
-      }
+      // 备份审计：旧实现直插 admin_audit_log（单数表，一直在静默失败）——
+      // 收口到 admin-audit-api（复数 admin_audit_logs，E2 迁移部署后生效）
+      logAdminAction({
+        action: 'export',
+        table: 'backup',
+        meta: {
+          kind: 'backup',
+          tables: summary.map((s) => s.table),
+          totalRows: summary.reduce((acc, s) => acc + (s.exported || 0), 0),
+        },
+      });
     } catch (error) {
       logger.error('data-admin', '备份导出失败:', error);
       showToast('备份导出失败: ' + buildActionErrorMessage(error, '备份导出失败'), 'error');

@@ -2370,3 +2370,21 @@
   gap: 8px;
   margin-left: auto;
 }
+
+/* 全局异常 banner（plans/027 E6.5）：v-if 渲染，正常态零高度 */
+.admin-issue-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--destructive) 8%, transparent);
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.admin-issue-banner-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

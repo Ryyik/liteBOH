@@ -2854,4 +2854,18 @@ export const dataConfig = {
     ],
     fields: [],
   },
+  adminAuditLogs: {
+    // 管理端审计（plans/027 E6.2，只读）：由 log_admin_action RPC 追加写，
+    // RLS 仅 admin 可读；本面不提供新增/编辑/删除（TABS_ACTIONS 仅 view）
+    table: 'admin_audit_logs',
+    columns: [
+      { key: 'created_at', label: '时间', type: 'datetime' },
+      { key: 'actor_label', label: '操作人' },
+      { key: 'action', label: '动作', type: 'badge' },
+      { key: 'resource_table', label: '数据表' },
+      { key: 'resource_id', label: '记录ID', maxLength: 12, copyable: true },
+      { key: 'diff', label: '变更摘要', type: 'json' },
+    ],
+    fields: [],
+  },
 };
