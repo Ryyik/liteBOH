@@ -3,6 +3,7 @@ import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
 import { dataConfig, tabs } from '../config.js';
 import { downloadBlob } from './useDataAdminHelpers.js';
+import { buildCsvContent } from './csv-export.js';
 
 export const createExportCenter = ({
   currentTabRef,
@@ -13,38 +14,52 @@ export const createExportCenter = ({
   assertAdminAction,
   buildActionErrorMessage,
   addChangeLogEntry,
+  fetchAllFilteredRows,
 }) => {
   const isExportingBackup = ref(false);
   const isBackupExporting = ref(false);
+  const isExportingAll = ref(false);
   const backupProgress = ref(0);
   const backupProgressText = ref('');
   let backupAbortController = null;
   let cancelBackupExport = null;
 
-  const exportData = () => {
-    const data = currentDataRef.value;
+  // 统一回执：文件名带范围后缀，toast 报条数与范围（plans/027 S2）。
+  const runExport = (rows, scope) => {
     const columns = visibleCurrentColumnsRef.value;
-
-    const csvContent = [
-      columns.map((col) => col.label).join(','),
-      ...data.map((item) =>
-        columns
-          .map((col) => {
-            let val = item[col.key];
-            if (typeof val === 'object') val = JSON.stringify(val);
-            let cellValue = String(val ?? '');
-            // CSV 注入防护: 以 = + - @ 开头的值前缀单引号
-            if (/^[=+\-@]/.test(cellValue)) cellValue = "'" + cellValue;
-            return `"${cellValue.replace(/"/g, '""')}"`;
-          })
-          .join(','),
-      ),
-    ].join('\n');
-
+    const csvContent = buildCsvContent(rows, columns);
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    downloadBlob(blob, `${currentTabRef.value}_${new Date().toISOString().split('T')[0]}.csv`);
+    const suffix = scope === 'all' ? '_all' : '';
+    downloadBlob(
+      blob,
+      `${currentTabRef.value}${suffix}_${new Date().toISOString().split('T')[0]}.csv`,
+    );
+    const scopeText = scope === 'all' ? '全部筛选结果' : '当前页';
+    showToast(`已导出 ${rows.length} 条（${scopeText}）`, 'success');
+    addChangeLogEntry?.('export', null, { count: rows.length, scope, tab: currentTabRef.value });
+  };
 
-    showToast('数据导出成功', 'success');
+  const exportData = () => {
+    runExport(currentDataRef.value || [], 'page');
+  };
+
+  const exportAllFiltered = async () => {
+    if (isExportingAll.value) return;
+    isExportingAll.value = true;
+    try {
+      assertAdminAction();
+      const rows = await fetchAllFilteredRows();
+      if (!rows.length) {
+        showToast('当前筛选没有可导出的记录', 'warning');
+        return;
+      }
+      runExport(rows, 'all');
+    } catch (error) {
+      logger.error('data-admin', '全量导出失败:', error);
+      showToast('导出失败: ' + buildActionErrorMessage(error, '导出失败'), 'error');
+    } finally {
+      isExportingAll.value = false;
+    }
   };
 
   const getBackupTableTargets = () => {
@@ -194,10 +209,12 @@ export const createExportCenter = ({
   return {
     isExportingBackup,
     isBackupExporting,
+    isExportingAll,
     backupProgress,
     backupProgressText,
     cancelBackupExport,
     exportData,
+    exportAllFiltered,
     exportBackupData,
     abortBackupExport,
   };

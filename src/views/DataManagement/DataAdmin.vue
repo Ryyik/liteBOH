@@ -191,15 +191,11 @@
                     <Plus :size="16" />
                     新增
                   </button>
-                  <button
-                    class="btn btn-secondary"
-                    type="button"
-                    title="导出当前表"
-                    @click="exportData"
-                  >
-                    <Download :size="16" />
-                    导出
-                  </button>
+                  <ExportMenu
+                    :items="exportMenuItems"
+                    :loading="isExportingAll"
+                    @open="openRowMenu"
+                  />
                 </div>
               </div>
               <div class="toolbar-secondary">
@@ -1672,7 +1668,6 @@ import {
   Check,
   Copy,
   Database,
-  Download,
   FileText,
   Filter,
   Image,
@@ -1702,6 +1697,8 @@ import PityGrantConsole from './components/PityGrantConsole.vue';
 import SubscriptionGrantConsole from './components/SubscriptionGrantConsole.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
+import ExportMenu from './components/shared/ExportMenu.vue';
+import { fetchAllRows } from '@/utils/api/data-admin-table-api.js';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
 import { getImageUrl } from '../../utils/asset-helper';
@@ -4534,6 +4531,71 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
   }
 };
 
+// ==================== 导出全部筛选结果：按当前筛选拉全量行（plans/027 S2） ====================
+const EXPORT_BATCH = 1000;
+const EXPORT_MAX_ROWS = 50000;
+
+/** 按当前筛选条件拉取全部行（供「导出全部筛选结果」用）。 */
+const fetchAllFilteredRows = async (tabId = currentTab.value) => {
+  const selectColumns = TAB_SELECT_COLUMNS[tabId];
+  if (!dataConfig[tabId]?.table || !selectColumns) return [];
+
+  // 与 fetchTabData 同款装配：tab 级基础过滤（reportedPosts / review* / bohaiModels）
+  // + applySearchAndSort。漏掉基础过滤的话，这四个 tab 的「全部筛选结果」条数
+  // 会比页脚「共 N 条」多（把被过滤掉的行也导出去了）。
+  // supabase.from 收口在 utils/api/data-admin-table-api.js（layering：UI 层不新增直连出口）。
+  const decorateQuery = (query) => {
+    let decorated = query;
+    if (tabId === 'reportedPosts') {
+      decorated = decorated.eq('status', 'limited');
+    } else if (tabId === 'reviewPosts') {
+      decorated = decorated.ilike('status', 'rejected');
+    } else if (tabId === 'reviewComments') {
+      decorated = decorated.ilike('status', 'rejected');
+    } else if (tabId === 'bohaiModels') {
+      // 审核专用的两行归「审核模型」页维护，口径与 fetchTabData 同源。
+      decorated = excludeInternalBohaiModes(decorated);
+    }
+    return applySearchAndSortUtil({
+      query: decorated,
+      tabId,
+      keyword: searchQuery.value,
+      statusFilter: statusFilter.value,
+      dateFrom: dateFromFilter.value,
+      dateTo: dateToFilter.value,
+      advancedRules: activeAdvancedRules.value,
+      sortKey: sortKey.value,
+      sortOrder: sortOrder.value,
+      configs: {
+        tabSearchFields: TAB_SEARCH_FIELDS,
+        statusFilterFields: STATUS_FILTER_FIELDS,
+        dateFilterFields: DATE_FILTER_FIELDS,
+        tabSortColumns: TAB_SORT_COLUMNS,
+        tabDefaultSort: TAB_DEFAULT_SORT,
+      },
+      allowedAdvancedFields: (currentColumns.value || [])
+        .filter((c) => !c.virtual)
+        .map((c) => c.key),
+    });
+  };
+
+  return fetchAllRows({
+    table: dataConfig[tabId].table,
+    selectColumns,
+    decorateQuery,
+    batchSize: EXPORT_BATCH,
+    maxRows: EXPORT_MAX_ROWS,
+    // 与列表 fetchTabData 同款降级：lotteries 观测字段未部署时改用旧列装配。
+    legacyFallback:
+      tabId === 'lotteries'
+        ? {
+            columns: LOTTERY_LEGACY_SELECT_COLUMNS,
+            isLegacySchemaError: isMissingLotteryObservabilitySchemaError,
+          }
+        : null,
+  });
+};
+
 // ==================== 第二阶段: createFilterState 工厂注入 ====================
 // 在 fetchTabData 定义之后注入, 这样筛选状态工厂可以引用真实的 fetchTabData
 const {
@@ -5076,6 +5138,21 @@ const toolbarMenuItems = computed(() => {
   }
   return items;
 });
+
+// 导出菜单：区分「当前页」与「全部筛选结果」，条数回执（plans/027 S2）。
+// 服务端真全选在批次 E 才做；当前「全部筛选结果」= 按同一筛选拉全量行导出。
+const exportMenuItems = computed(() => [
+  {
+    id: 'export-page',
+    label: `导出当前页（${paginatedData.value.length} 条）`,
+    run: () => exportData(),
+  },
+  {
+    id: 'export-all',
+    label: `导出全部筛选结果（${totalRecordCount.value.toLocaleString()} 条）`,
+    run: () => exportAllFiltered(),
+  },
+]);
 
 // ==================== 变更日志中心注入 ====================
 // 在 createNavigationCenter 之后注入, 因为需要 switchTab
@@ -6682,10 +6759,12 @@ setupDataAdminLifecycle({
 const {
   isExportingBackup,
   isBackupExporting,
+  isExportingAll,
   backupProgress,
   backupProgressText,
   cancelBackupExport,
   exportData,
+  exportAllFiltered,
   exportBackupData,
   abortBackupExport,
 } = createExportCenter({
@@ -6697,6 +6776,7 @@ const {
   assertAdminAction,
   buildActionErrorMessage,
   addChangeLogEntry,
+  fetchAllFilteredRows,
 });
 
 const {
