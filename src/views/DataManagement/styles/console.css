@@ -1666,6 +1666,21 @@
   margin: 0 0 20px;
 }
 
+/* 空状态：已生效筛选条件摘要 + 操作区（plans/027 S3）。
+   注意选择器带 .empty-state 前缀：.empty-state p（0-1-1）会压过单类名，必须 0-2-0 才能盖住字号/颜色/外边距。 */
+.empty-state .empty-state-filters {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.empty-state-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
 /* ==================== 移动端卡片布局 ==================== */
 .mobile-card-list {
   display: flex;

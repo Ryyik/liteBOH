@@ -608,25 +608,36 @@
                   </div>
                 </div>
 
-                <!-- 空状态 -->
-                <div v-else-if="totalRecordCount === 0 && hasLoadedOnce" class="empty-state">
+                <!-- 空状态：无数据 / 筛选无结果 / 搜索无结果 三分支（plans/027 S3） -->
+                <div v-else-if="emptyState" class="empty-state" :data-empty-kind="emptyState.kind">
                   <div class="empty-icon">📭</div>
-                  <h3>暂无数据</h3>
-                  <p>
-                    {{
-                      searchQuery
-                        ? '没有找到匹配的数据'
-                        : '当前模块还没有数据，点击新增按钮添加第一条记录'
-                    }}
+                  <h3>{{ emptyState.title }}</h3>
+                  <p>{{ emptyState.description }}</p>
+
+                  <!-- 已生效条件（仅筛选/搜索分支显示） -->
+                  <p v-if="emptyState.showClear && hasActiveFilters" class="empty-state-filters">
+                    {{ activeFilterSummary }}
                   </p>
-                  <button
-                    v-if="!searchQuery && !isModerationTab && canCreateCurrentTab"
-                    class="btn btn-primary"
-                    @click="openEditModal()"
-                  >
-                    <Plus :size="16" />
-                    新增数据
-                  </button>
+
+                  <div class="empty-state-actions">
+                    <button
+                      v-if="emptyState.showClear"
+                      class="btn btn-primary"
+                      type="button"
+                      @click="clearAllFilters"
+                    >
+                      清除全部筛选
+                    </button>
+                    <button
+                      v-if="emptyState.showCreate"
+                      class="btn btn-primary"
+                      type="button"
+                      @click="openEditModal()"
+                    >
+                      <Plus :size="16" />
+                      新增数据
+                    </button>
+                  </div>
                 </div>
 
                 <!-- 官方事实速记：一句话自动归类入库（2026-10-16） -->
@@ -1699,6 +1710,7 @@ import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
 import ExportMenu from './components/shared/ExportMenu.vue';
 import { fetchAllRows } from '@/utils/api/data-admin-table-api.js';
+import { resolveEmptyState } from './composables/data-admin-empty-state.js';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
 import { getImageUrl } from '../../utils/asset-helper';
@@ -3063,6 +3075,18 @@ const totalRecordCount = computed(() => {
   const queryTotal = Number(tabQueryTotals[currentTab.value]);
   if (Number.isFinite(queryTotal)) return queryTotal;
   return currentData.value.length || 0;
+});
+
+// 空状态三分支：无数据 / 筛选无结果 / 搜索无结果（plans/027 S3）。
+// 判定顺序在纯函数里锁死：先搜索后筛选（hasActiveFilters 包含 searchQuery）。
+const emptyState = computed(() => {
+  if (!hasLoadedOnce.value) return null;
+  return resolveEmptyState({
+    totalCount: totalRecordCount.value,
+    searchQuery: searchQuery.value,
+    hasActiveFilters: hasActiveFilters.value,
+    canCreate: canCreateCurrentTab.value && !isModerationTab.value,
+  });
 });
 const totalCountAllTables = computed(() => tabs.reduce((sum, tab) => sum + getTabCount(tab.id), 0));
 const liveStatusCards = computed(() => [
