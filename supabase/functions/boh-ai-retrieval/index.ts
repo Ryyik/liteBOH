@@ -918,6 +918,15 @@ const archiveStaleSiteContentChunks = async (
   return staleIds.length;
 };
 
+/**
+ * bigint 主键（news/activities）→ 稳定 UUID：chunks.source_id 是 uuid 类型，
+ * 用「源类型:原始 id」的 sha256 派生恒等映射（同源同 id 永远同一 uuid，增量 diff 才能对上）。
+ */
+const stableSourceUuid = async (sourceType: SourceType, rawId: string) => {
+  const hash = await sha256Hex(`${sourceType}:${rawId}`);
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-3${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+};
+
 /** 官方新闻 → 知识块（2026-10-17 自动扩充）：内容即事实，无需 LLM 抽取 */
 const syncSiteNews = async (client: ReturnType<typeof createServiceClient>, limit: number) => {
   const { data, error } = await client
@@ -930,34 +939,39 @@ const syncSiteNews = async (client: ReturnType<typeof createServiceClient>, limi
   const rows = Array.isArray(data) ? data : [];
   if (rows.length === 0) return 0;
 
-  const sources: KnowledgeSource[] = rows.map((row) => {
-    const title = toText(row.title, 160) || '站内新闻';
-    const content = [
-      `标题：${title}`,
-      row.category ? `分类：${toText(row.category, 60)}` : '',
-      row.date ? `发布日期：${toText(row.date, 60)}` : '',
-      row.author ? `作者：${toText(row.author, 80)}` : '',
-      toText(row.excerpt, 300),
-      toText(row.content, 20000),
-    ]
-      .filter(Boolean)
-      .join('\n');
+  // ⚠️ news.id 是 bigint 而 chunks.source_id 是 uuid ⇒ 用确定性 UUID 恒等映射
+  //（同源同 id 永远得到同一个 uuid，重跑/增量 diff 才能对上）；原始 id 存 metadata.sourceKey。
+  const sources: KnowledgeSource[] = await Promise.all(
+    rows.map(async (row) => {
+      const title = toText(row.title, 160) || '站内新闻';
+      const content = [
+        `标题：${title}`,
+        row.category ? `分类：${toText(row.category, 60)}` : '',
+        row.date ? `发布日期：${toText(row.date, 60)}` : '',
+        row.author ? `作者：${toText(row.author, 80)}` : '',
+        toText(row.excerpt, 300),
+        toText(row.content, 20000),
+      ]
+        .filter(Boolean)
+        .join('\n');
 
-    return {
-      sourceType: 'site_news',
-      sourceId: String(row.id),
-      ownerUserId: null,
-      visibility: 'public',
-      title,
-      content,
-      metadata: {
-        category: row.category || '',
-        date: row.date || '',
-        author: row.author || '',
-        updatedAt: row.updated_at || row.created_at || '',
-      },
-    };
-  });
+      return {
+        sourceType: 'site_news',
+        sourceId: await stableSourceUuid('site_news', String(row.id)),
+        ownerUserId: null,
+        visibility: 'public',
+        title,
+        content,
+        metadata: {
+          sourceKey: String(row.id),
+          category: row.category || '',
+          date: row.date || '',
+          author: row.author || '',
+          updatedAt: row.updated_at || row.created_at || '',
+        },
+      };
+    }),
+  );
 
   const indexed = await upsertKnowledgeSourcesBatch(client, sources);
   await archiveStaleSiteContentChunks(
@@ -983,29 +997,32 @@ const syncSiteActivities = async (
   const rows = Array.isArray(data) ? data : [];
   if (rows.length === 0) return 0;
 
-  const sources: KnowledgeSource[] = rows.map((row) => {
-    const title = toText(row.title, 160) || '站内活动';
-    const content = [
-      `标题：${title}`,
-      row.date ? `活动日期：${toText(row.date, 60)}` : '',
-      toText(row.description, 20000),
-    ]
-      .filter(Boolean)
-      .join('\n');
+  const sources: KnowledgeSource[] = await Promise.all(
+    rows.map(async (row) => {
+      const title = toText(row.title, 160) || '站内活动';
+      const content = [
+        `标题：${title}`,
+        row.date ? `活动日期：${toText(row.date, 60)}` : '',
+        toText(row.description, 20000),
+      ]
+        .filter(Boolean)
+        .join('\n');
 
-    return {
-      sourceType: 'site_activity',
-      sourceId: String(row.id),
-      ownerUserId: null,
-      visibility: 'public',
-      title,
-      content,
-      metadata: {
-        date: row.date || '',
-        updatedAt: row.updated_at || row.created_at || '',
-      },
-    };
-  });
+      return {
+        sourceType: 'site_activity',
+        sourceId: await stableSourceUuid('site_activity', String(row.id)),
+        ownerUserId: null,
+        visibility: 'public',
+        title,
+        content,
+        metadata: {
+          sourceKey: String(row.id),
+          date: row.date || '',
+          updatedAt: row.updated_at || row.created_at || '',
+        },
+      };
+    }),
+  );
 
   const indexed = await upsertKnowledgeSourcesBatch(client, sources);
   await archiveStaleSiteContentChunks(
@@ -1739,7 +1756,9 @@ Deno.serve(async (request) => {
     return jsonResponse(
       {
         ok: false,
-        message: error instanceof Error ? error.message : String(error || 'Unknown error'),
+        // PostgrestError 等非 Error 对象直接 String() 会变成 "[object Object]"
+        //（2026-10-17 速记同步排障实录）⇒ 非 Error 一律 JSON.stringify 保留诊断信息。
+        message: error instanceof Error ? error.message : JSON.stringify(error || 'Unknown error'),
       },
       500,
       origin,
