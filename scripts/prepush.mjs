@@ -42,9 +42,15 @@ const git = (args) => {
 // 门禁清单从 verify 链自动提取 —— 不写第二份清单（写第二份迟早和 verify 分叉）。
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const SKIP = new Set(['lint', 'type-check', 'test', 'check:ratchets']);
-const gates = [...(pkg.scripts.verify || '').matchAll(/npm run ([A-Za-z0-9:_-]+)/g)]
-  .map((m) => m[1])
-  .filter((name) => !SKIP.has(name));
+const gates = [
+  ...[...(pkg.scripts.verify || '').matchAll(/npm run ([A-Za-z0-9:_-]+)/g)]
+    .map((m) => m[1])
+    .filter((name) => !SKIP.has(name)),
+  // verify 链不跑自检（注入违规→断言变红，耗时数分钟），只有 CI Quality Gate 跑 ——
+  // 2026-10-18 layering 基线余量假绿连红 CI 10 次而本地/prepush 全绿，就是这条缝。
+  // 自检是「你凭什么证明自己会红」的总闸，推送前必须过。
+  'check:gates-self-test',
+];
 
 // 干净 worktree + 退出兜底（任何路径都必须清掉，否则 /tmp 会攒一排检出）
 const wt = mkdtempSync(path.join(tmpdir(), 'boh-prepush-'));
