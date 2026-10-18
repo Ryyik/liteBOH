@@ -162,20 +162,42 @@ check(
 check('侧栏高亮=抽奖（不是概览）', activeNav.includes('抽奖'), activeNav);
 check('详情页不再叠加概览区', overviewCount === 0, `overview nodes=${overviewCount}`);
 
-// ── D2 升级：详情页内编辑 ──
+// ── D2 升级（第二版）：详情页内编辑 = 完整抽屉表单嵌入（Teleport 进槽位） ──
 await page.locator('.detail-action-bar button', { hasText: '编辑' }).click();
-await page.waitForSelector('.detail-edit-form', { timeout: 10000 });
-const drawerCountInEdit = await page.locator('.drawer').count();
-check('编辑=页内表单（不弹抽屉）', drawerCountInEdit === 0, `drawer=${drawerCountInEdit}`);
-const formFieldCount = await page.locator('.detail-edit-form .de-input').count();
-check('页内表单渲染字段', formFieldCount > 0, `inputs=${formFieldCount}`);
+await page.waitForTimeout(1500);
+const dbgState = await page.evaluate(() => ({
+  slotHTML: (document.querySelector('#detail-edit-slot')?.innerHTML || '').slice(0, 120),
+  overlays: document.querySelectorAll('.drawer-overlay').length,
+  embedded: document.querySelectorAll('.drawer-overlay.is-embedded').length,
+  toast: document.querySelector('.toast-message')?.innerText?.trim() || '',
+  slotExists: Boolean(document.querySelector('#detail-edit-slot')),
+}));
+console.log('EDIT DBG:', JSON.stringify(dbgState));
+await page.waitForSelector('#detail-edit-slot .drawer-overlay.is-embedded', {
+  timeout: 10000,
+  state: 'attached',
+});
+const embedVisible = await page.evaluate(() => {
+  const el = document.querySelector('#detail-edit-slot .drawer-overlay');
+  if (!el) return { v: false, why: 'no el' };
+  const r = el.getBoundingClientRect();
+  return { v: r.width > 0 && r.height > 0, w: Math.round(r.width), h: Math.round(r.height) };
+});
+console.log('embedded 可见性:', JSON.stringify(embedVisible));
+check('编辑=嵌入完整表单（槽位内）', true);
+const overlayCount = await page.locator('.drawer-overlay:not(.is-embedded)').count();
+check('编辑不弹遮罩抽屉', overlayCount === 0, `popup=${overlayCount}`);
+const formFieldCount = await page
+  .locator(
+    '#detail-edit-slot .drawer input, #detail-edit-slot .drawer select, #detail-edit-slot .drawer textarea',
+  )
+  .count();
+check('嵌入表单渲染字段', formFieldCount > 0, `widgets=${formFieldCount}`);
 
-// 修改第一个数值字段并保存（mock PATCH 回显）。lotteries 列里没有 title 输入框，
-// 取第一个 input 的 de-<key> 反查字段名，通用于任何表。
-// draw_at 在抽奖保存策略白名单里（entry_count 是派生值，不回写）
-const firstInput = page.locator('.detail-edit-form input#de-draw_at');
-await firstInput.fill('2026-12-25T18:30');
-await page.locator('.detail-edit-foot .btn-primary').click();
+// 修改 draw_at（datetime 输入）并保存（mock PATCH 回显）
+const drawInput = page.locator('#detail-edit-slot .drawer input#f-lotteries-draw_at');
+await drawInput.fill('2026-12-25T18:30');
+await page.locator('.detail-action-bar .btn-primary', { hasText: '保存' }).click();
 // saveData 会先弹「保存前差异预览」确认（与抽屉一致），确认后才发 PATCH
 await page.waitForSelector('.confirm-modal', { timeout: 10000 });
 await page.locator('.confirm-btn.primary').click();
@@ -189,37 +211,9 @@ check(
   patchCalls.some((p) => String(p.draw_at || '').startsWith('2026-12-25')),
   JSON.stringify(patchCalls[patchCalls.length - 1] || {}).slice(0, 140),
 );
-const formGone = await page.locator('.detail-edit-form').count();
-check('保存后回到只读视图', formGone === 0, `form=${formGone}`);
+const embedGone = await page.locator('#detail-edit-slot .drawer.is-embedded').count();
+check('保存后回到只读视图', embedGone === 0, `embedded=${embedGone}`);
 lastPatch = patchCalls[patchCalls.length - 1] || {};
-
-// 复杂字段经「完整编辑」进抽屉（抽奖表含图片类字段时按钮才出现）
-const drawerBtn = page.locator('.detail-action-bar button, .detail-edit-foot button', {
-  hasText: '完整编辑',
-});
-// 回到编辑态再测（上一检查已退出编辑态）
-await page.locator('.detail-action-bar button', { hasText: '编辑' }).click();
-await page.waitForSelector('.detail-edit-form', { timeout: 10000 });
-const drawerBtn2 = page.locator('.detail-edit-foot button', { hasText: '完整编辑' });
-if (await drawerBtn2.count()) {
-  await drawerBtn2.first().click();
-  await page.waitForSelector('.drawer', { timeout: 10000 });
-  const drawerTab = await page.locator('.drawer-title-group p').innerText();
-  check('完整编辑抽屉绑定抽奖表', drawerTab.includes('抽奖管理'), drawerTab);
-  await page.locator('.drawer-close').click();
-  await page.waitForTimeout(400);
-  if (await page.locator('.confirm-modal').count()) {
-    await page.locator('.confirm-btn.cancel').click();
-    await page.waitForTimeout(400);
-  }
-} else {
-  check('完整编辑抽屉绑定抽奖表', true, '（本表无复杂字段，按钮不出现）');
-}
-// 退出编辑态再继续 Danger zone 流程（走抽屉路径时编辑态已被 openDetailDrawer 复位）
-if (await page.locator('.detail-edit-form').count()) {
-  await page.locator('.detail-edit-foot .btn-secondary', { hasText: '取消' }).click();
-  await page.waitForTimeout(400);
-}
 
 await page.locator('.detail-aside-card.is-danger button').click();
 await page.waitForSelector('.confirm-modal', { timeout: 10000 });

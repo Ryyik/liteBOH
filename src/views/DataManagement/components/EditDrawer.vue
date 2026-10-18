@@ -1,20 +1,22 @@
 <template>
-  <!-- 编辑/新增抽屉 -->
-  <Transition name="drawer">
+  <!-- 编辑/新增抽屉。D2 升级（2026-10-18）：embedded 形态 = 整个表单嵌入
+       详情页（Teleport 进 #detail-edit-slot），无遮罩/无滚动锁/无 Esc 关闭，
+       头部与底部按钮隐藏（保存/取消由详情操作条承担）。 -->
+  <Transition :name="embedded ? 'drawer-embedded' : 'drawer'">
     <div
       v-if="show"
-      class="drawer-overlay"
-      role="dialog"
-      aria-modal="true"
+      :class="['drawer-overlay', { 'is-embedded': embedded }]"
+      :role="embedded ? 'region' : 'dialog'"
+      :aria-modal="embedded ? undefined : true"
       :aria-labelledby="titleId"
-      @click.self="$emit('close')"
-      @keydown.esc.stop="$emit('close')"
-      @keydown.tab="trapFocus"
+      @click.self="onOverlayClick"
+      @keydown.esc.stop="onEscKey"
+      @keydown.tab="onTabKey"
       tabindex="-1"
       ref="overlayRef"
     >
       <div class="drawer" @keydown.esc.stop="$emit('close')">
-        <div class="drawer-header">
+        <div v-if="!embedded" class="drawer-header">
           <div class="drawer-title-group">
             <h3 :id="titleId">{{ isEditing ? '编辑数据' : '新增数据' }}</h3>
             <p>{{ currentTabLabel }}</p>
@@ -768,7 +770,7 @@
             </div>
           </form>
         </div>
-        <div class="drawer-footer">
+        <div v-if="!embedded" class="drawer-footer">
           <span class="drawer-footer-hint"> <kbd>Esc</kbd> 关闭 </span>
           <div class="drawer-footer-actions">
             <button class="btn btn-secondary" @click="$emit('close')">取消</button>
@@ -881,7 +883,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, nextTick, onBeforeUnmount, onMounted } from 'vue';
 import { getImageUrl } from '../../../utils/asset-helper';
 import { supabase } from '../../../utils/supabase-client.js';
 import { listApiKeys } from '../../../utils/api/api-key-vault-api.js';
@@ -1189,8 +1191,16 @@ const lockBodyScroll = (lock) => {
 
 onBeforeUnmount(() => lockBodyScroll(false));
 
+// D2：embedded 首渲染时 show 一开始就是 true（无翻转），show watcher 不会触发；
+// 分组展开必须在挂载时补一次（弹层形态仍走 show watcher / 分组记忆）
+onMounted(() => {
+  if (props.embedded) expandAllGroups();
+});
+
 const props = defineProps({
   show: Boolean,
+  // D2：嵌入详情页形态（无遮罩/无滚动锁/Esc/焦点圈，头尾隐藏）
+  embedded: Boolean,
   isEditing: Boolean,
   editingItem: Object,
   currentTab: String,
@@ -1396,12 +1406,18 @@ watch(
         loadBohaiApiKeys(true);
       }
 
+      // D2：嵌入详情页形态没有分组折叠记忆的交互语境（脚底「全部展开」已隐藏），
+      // 打开即全部展开，保证所有字段直接可见可改
+      if (props.embedded) {
+        expandAllGroups();
+      }
+
       if (typeof document !== 'undefined') {
         lastFocusedElement = document.activeElement;
       }
-      lockBodyScroll(true);
+      lockBodyScroll(Boolean(visible) && !props.embedded);
       await nextTick();
-      focusFirstInteractive();
+      if (!props.embedded) focusFirstInteractive();
     } else {
       lockBodyScroll(false);
       if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
@@ -1415,6 +1431,17 @@ watch(
 );
 
 // 焦点陷阱：Tab 循环保持在抽屉内
+// embedded 形态下禁用遮罩点击关闭 / Esc 关闭 / 焦点圈（保存与取消走详情操作条）
+const onOverlayClick = () => {
+  if (!props.embedded) emit('close');
+};
+const onEscKey = () => {
+  if (!props.embedded) emit('close');
+};
+const onTabKey = (e) => {
+  if (!props.embedded) trapFocus(e);
+};
+
 const trapFocus = (e) => {
   if (!props.show || e.key !== 'Tab') return;
   const overlay = overlayRef.value;

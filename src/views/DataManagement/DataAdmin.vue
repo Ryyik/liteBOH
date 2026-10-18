@@ -119,7 +119,6 @@
               @delete="onDetailDangerDelete"
               @save="saveDetailEdit"
               @cancel-edit="cancelDetailEdit"
-              @open-drawer="openDetailDrawer"
             />
           </section>
           <section v-else-if="recordId" class="management-section">
@@ -1570,7 +1569,88 @@
       </button>
     </div>
 
+    <!-- D2 升级（第二版）：编辑态 = 同一 EditDrawer 的 embedded 实例 Teleport 进
+         详情槽位（全部字段类型可用）；列表页仍是弹层抽屉。两个实例 v-if/v-else
+         互斥 —— 同一时刻只挂载一个，共享同一份 editingItem / 保存管线。
+         不用「单实例 + Teleport disabled 动态切换」：disabled 与子树同帧翻转时
+         内容会落在原位（实测）。 -->
+    <!-- Teleport 自身 v-if 门控：目标 #detail-edit-slot 由 RecordPane 在详情路由
+         渲染；若 Teleport 在首页（无目标）就挂载，target 会解析失败并缓存空值 -->
+    <Teleport v-if="detailEditing" to="#detail-edit-slot">
+      <EditDrawer
+        ref="editDrawerRef"
+        embedded
+        :show="detailEditing"
+        :is-editing="isEditing"
+        :editing-item="editingItem"
+        :current-tab="currentTab"
+        :current-fields="currentFields"
+        :is-saving="isSaving"
+        :is-news-tab="isNewsTab"
+        :can-regenerate-auto-id="canRegenerateAutoId"
+        :current-tab-label="currentTabLabel"
+        :field-errors="fieldErrors"
+        :json-buffers="jsonBuffers"
+        :selected-gift-user="selectedGiftUser"
+        :show-user-picker="showUserPickerModal"
+        :user-picker-keyword="userPickerKeyword"
+        @update:user-picker-keyword="(v) => (userPickerKeyword = v)"
+        :filtered-gift-users="filteredGiftUsers"
+        :address-bundle-text="addressBundleText"
+        :address-ai-text="addressAiText"
+        :is-processing-address-ai="isProcessingAddressAi"
+        :gift-address-options="giftAddressOptions"
+        @update:address-ai-text="(v) => (addressAiText = v)"
+        @extract-address="handleExtractAddress"
+        @clear-address-ai-text="clearAddressAiText"
+        @select-gift-address="handleSelectGiftAddress"
+        :uploading-image-fields="uploadingImageFields"
+        :user-picker-loading="userPickerLoading"
+        :show-product-picker="showProductPicker"
+        :product-picker-keyword="productPickerKeyword"
+        :product-picker-loading="productPickerLoading"
+        :filtered-products="filteredProducts"
+        @update:product-picker-keyword="(v) => (productPickerKeyword = v)"
+        @toggle-product-picker="toggleProductPicker"
+        @select-product="selectProduct"
+        :is-field-disabled="isFieldDisabled"
+        :is-image-upload-pending="isImageUploadPending"
+        :has-prev-record="editDrawerNav.hasPrev"
+        :has-next-record="editDrawerNav.hasNext"
+        :record-nav-label="editDrawerNav.label"
+        @close="onDrawerClose"
+        @save="saveData"
+        @save-and-next="saveAndEditNext"
+        @save-and-create="saveAndCreateNext"
+        @prev-record="navigateEditRecord(-1)"
+        @next-record="navigateEditRecord(1)"
+        @regenerate-id="regenerateAutoIdForCurrentTab"
+        @regenerate-news-id="regenerateNewsId"
+        @inject-news-template="injectNewsTemplate"
+        @generate-excerpt="generateExcerptFromContent"
+        @copy-address-bundle="copyAddressBundle"
+        @open-user-picker="openUserPicker"
+        @close-user-picker="closeUserPicker"
+        @select-gift-user="selectGiftUser"
+        @clear-gift-user="clearSelectedGiftUser"
+        @clear-image-field="clearImageField"
+        @copy-image-value="copyImageValue"
+        @image-upload="handleAdminImageUpload"
+        @add-tag="addTag"
+        @remove-tag="removeTag"
+        @add-spec="addSpec"
+        @remove-spec="removeSpec"
+        @clear-field-error="clearFieldError"
+        @validate-field="validateField"
+        @update-field="handleUpdateField"
+        @update-json-buffer="handleUpdateJsonBuffer"
+        @update-spec-field="handleUpdateSpecField"
+        @bohai-key-select="handleBohaiKeySelect"
+      />
+    </Teleport>
+
     <EditDrawer
+      v-if="!detailEditing"
       ref="editDrawerRef"
       :show="showModal"
       :is-editing="isEditing"
@@ -1610,7 +1690,7 @@
       :has-prev-record="editDrawerNav.hasPrev"
       :has-next-record="editDrawerNav.hasNext"
       :record-nav-label="editDrawerNav.label"
-      @close="closeModal"
+      @close="onDrawerClose"
       @save="saveData"
       @save-and-next="saveAndEditNext"
       @save-and-create="saveAndCreateNext"
@@ -6470,6 +6550,11 @@ const saveData = async ({ keepOpen = false } = {}) => {
       lastRefreshedAt.value = new Date().toISOString();
     }
     await closeModal({ askDraft: false });
+    // D2：embedded 保存成功 → 退出页内编辑态并重取详情（只读视图立即反映新值）
+    if (detailEditing.value) {
+      detailEditing.value = false;
+      recordPaneRef.value?.fetchRecord?.();
+    }
     return true;
   } catch (error) {
     // P0 修复: 检查是否是当前保存请求，忽略过期的请求错误
@@ -6882,13 +6967,12 @@ const onEditRecord = (record) => {
   detailEditing.value = true;
 };
 
-const saveDetailEdit = async () => {
-  const ok = await saveData();
-  if (ok) {
-    detailEditing.value = false;
-    // 保存后重取详情，让只读视图立即反映新值
-    recordPaneRef.value?.fetchRecord?.();
-  }
+const saveDetailEdit = async () => saveData();
+
+// 抽屉关闭：embedded（详情编辑）= 取消页内编辑；弹层 = 原关闭流程（含草稿确认）
+const onDrawerClose = () => {
+  if (detailEditing.value) return cancelDetailEdit();
+  closeModal();
 };
 
 const cancelDetailEdit = () => {
@@ -6898,12 +6982,6 @@ const cancelDetailEdit = () => {
   editingOriginalItem.value = null;
   clearFieldErrors();
   jsonBuffers.value = {};
-};
-
-// 编辑态里点「完整编辑（抽屉）」：退出页内编辑，转用抽屉（可改复杂字段）
-const openDetailDrawer = (record) => {
-  detailEditing.value = false;
-  openEditModal(record);
 };
 
 // 换记录 / 离开详情时复位编辑态（防止把 A 记录的表单带到 B 记录）

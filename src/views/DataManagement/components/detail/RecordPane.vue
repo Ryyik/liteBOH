@@ -17,17 +17,10 @@
     <template v-else>
       <div class="record-pane-layout">
         <div class="record-pane-main">
-          <!-- 页内编辑态：表单绑定 DataAdmin 的 editingItem，保存走既有 saveData 管线 -->
-          <DetailEditForm
-            v-if="editing"
-            :model="editModel"
-            :fields="fields"
-            :saving="saving"
-            @save="$emit('save')"
-            @cancel="$emit('cancel-edit')"
-            @open-drawer="$emit('open-drawer', record)"
-          />
-          <DetailFields v-else :fields="fields" :record="record" />
+          <!-- D2 升级：编辑态 = 完整抽屉表单 Teleport 进本槽位（全部字段类型可用），
+               只读视图与编辑表单互斥显示；槽位必须常驻（Teleport 目标） -->
+          <DetailFields v-show="!editing" :fields="fields" :record="record" />
+          <div id="detail-edit-slot" v-show="editing"></div>
         </div>
         <DetailAside
           v-if="!editing"
@@ -54,7 +47,6 @@ import { ref, computed, watch } from 'vue';
 import DetailHeader from './DetailHeader.vue';
 import DetailFields from './DetailFields.vue';
 import DetailAside from './DetailAside.vue';
-import DetailEditForm from './DetailEditForm.vue';
 import DetailActionBar from './DetailActionBar.vue';
 import { fetchRecordById } from '@/utils/api/data-admin-table-api.js';
 import { buildRecordBreadcrumb } from '../../composables/detail-breadcrumb.js';

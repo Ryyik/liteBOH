@@ -1276,3 +1276,41 @@
     border-radius: 0;
   }
 }
+
+/* ==================== D2 升级：抽屉嵌入详情页形态（2026-10-18） ====================
+   .drawer-overlay.is-embedded：同一 EditDrawer 组件 Teleport 进
+   #detail-edit-slot（记录面板内），去掉遮罩/定位/高度，头部与底部由
+   DetailHeader / DetailActionBar 承担。 */
+.drawer-overlay.is-embedded {
+  position: static;
+  inset: auto;
+  width: auto;
+  height: auto;
+  background: none;
+  z-index: auto;
+  display: block;
+  overflow: visible;
+  overscroll-behavior: auto;
+}
+
+.drawer-overlay.is-embedded .drawer {
+  width: 100%;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: none;
+  animation: none;
+}
+
+/* 嵌入形态禁用滑入动画（Transition name=drawer-embedded，无对应 CSS 即瞬时） */
+.drawer-embedded-enter-active,
+.drawer-embedded-leave-active {
+  transition: none;
+}
+.drawer-embedded-enter-from,
+.drawer-embedded-leave-to {
+  opacity: 1;
+  transform: none;
+}
