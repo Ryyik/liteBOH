@@ -49,7 +49,7 @@ const gates = QUICK
   ? // 漏配快速档：只跑「配套一致性」两道（lock 同步在流程尾部单独跑）。
     // 覆盖 2026-10-18 复盘的三类根因：计数漂移（doc-truth）、
     // 基线余量假绿（self-test）、lockfile 失同步（ci --dry-run）。
-    ['check:doc-truth', 'check:gates-self-test', 'check:untracked-imports']
+    ['lint', 'check:doc-truth', 'check:gates-self-test', 'check:untracked-imports']
   : [
       ...[...(pkg.scripts.verify || '').matchAll(/npm run ([A-Za-z0-9:_-]+)/g)]
         .map((m) => m[1])
