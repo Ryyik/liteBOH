@@ -29,6 +29,9 @@ import path from 'node:path';
 
 const ROOT = process.cwd();
 const FULL = process.argv.includes('--full');
+// --quick：漏配快速档（doc-truth + self-test + lock），供 git pre-push 钩子调用。
+// 对提交树跑（干净 worktree）——工作区的并行会话在途改动不背锅。
+const QUICK = process.argv.includes('--quick');
 
 const git = (args) => {
   const r = spawnSync('git', ['-c', 'core.quotepath=false', ...args], {
@@ -42,15 +45,20 @@ const git = (args) => {
 // 门禁清单从 verify 链自动提取 —— 不写第二份清单（写第二份迟早和 verify 分叉）。
 const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const SKIP = new Set(['lint', 'type-check', 'test', 'check:ratchets']);
-const gates = [
-  ...[...(pkg.scripts.verify || '').matchAll(/npm run ([A-Za-z0-9:_-]+)/g)]
-    .map((m) => m[1])
-    .filter((name) => !SKIP.has(name)),
-  // verify 链不跑自检（注入违规→断言变红，耗时数分钟），只有 CI Quality Gate 跑 ——
-  // 2026-10-18 layering 基线余量假绿连红 CI 10 次而本地/prepush 全绿，就是这条缝。
-  // 自检是「你凭什么证明自己会红」的总闸，推送前必须过。
-  'check:gates-self-test',
-];
+const gates = QUICK
+  ? // 漏配快速档：只跑「配套一致性」两道（lock 同步在流程尾部单独跑）。
+    // 覆盖 2026-10-18 复盘的三类根因：计数漂移（doc-truth）、
+    // 基线余量假绿（self-test）、lockfile 失同步（ci --dry-run）。
+    ['check:doc-truth', 'check:gates-self-test']
+  : [
+      ...[...(pkg.scripts.verify || '').matchAll(/npm run ([A-Za-z0-9:_-]+)/g)]
+        .map((m) => m[1])
+        .filter((name) => !SKIP.has(name)),
+      // verify 链不跑自检（注入违规→断言变红，耗时数分钟），只有 CI Quality Gate 跑 ——
+      // 2026-10-18 layering 基线余量假绿连红 CI 10 次而本地/prepush 全绿，就是这条缝。
+      // 自检是「你凭什么证明自己会红」的总闸，推送前必须过。
+      'check:gates-self-test',
+    ];
 
 // 干净 worktree + 退出兜底（任何路径都必须清掉，否则 /tmp 会攒一排检出）
 const wt = mkdtempSync(path.join(tmpdir(), 'boh-prepush-'));
@@ -95,7 +103,9 @@ const run = (label, cmd, args, cwd) => {
   return ok;
 };
 
-console.log(`[prepush] 跑 ${gates.length} 道门禁（对提交树）…`);
+console.log(
+  `[prepush]${QUICK ? '（quick 漏配快速档）' : ''} 跑 ${gates.length} 道门禁（对提交树）…`,
+);
 let allOk = true;
 for (const name of gates) allOk = run(name, 'npm', ['run', '--silent', name], wt) && allOk;
 

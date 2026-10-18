@@ -1,0 +1,39 @@
+#!/bin/sh
+# git pre-push 钩子 —— 推送前自动跑「漏配快速档」，不依赖任何人（人或 AI）记住。
+#
+# 背景（2026-10-18 复盘）：这两天 CI 连红 13 次全部是「配套物漏交」——
+#   ① 漏交被引用的文件 → 构建红；② lockfile 没跟 package.json 同步 → npm ci 红；
+#   ③ 门禁基线余量（假绿）→ gates-self-test 红；④ 计数文档漂移 → doc-truth 红。
+# 这些在 `npm run prepush`（全量，5-8 分钟）里都能拦住，但它靠人手动跑，忘了就漏。
+#
+# 设计取舍：
+#   - **不跑全量 prepush**：每次 push 等 5-8 分钟会被 --no-verify 习惯性绕过，
+#     「那种钩子被绕过比没有更糟」（pre-commit 注释里同款教训）。全量门禁
+#     （lint/type-check/test/构建）由 CI Quality Gate 兜底。
+#   - 快速档只跑「漏配四件套」（约 1-2 分钟），恰好对应上面四类根因：
+#       check:doc-truth        计数/真源文档漂移
+#       check:gates-self-test  门禁假绿（基线余量、守卫失效）
+#       npm ci --dry-run       lockfile 与 package.json 失同步
+#       worktree 干净性        半成品测试/门禁先行入库
+#
+# 临时绕过：BOH_SKIP_PREPUSH=1 git push（请在 push 后的 commit/沟通里写明理由）
+# 完整检查：npm run prepush（推荐 push 前手动跑）
+
+if [ "$BOH_SKIP_PREPUSH" = "1" ]; then
+  echo "[pre-push] BOH_SKIP_PREPUSH=1，跳过漏配快速档（请自行确认配套物已同步）"
+  exit 0
+fi
+
+# 对提交树跑（干净 worktree，复用 prepush.mjs 基建）：工作区里并行会话的
+# 在途改动不该背锅——要推的是 HEAD 树。--quick 只跑漏配四件套（约 1-2 分钟）。
+node "$(git rev-parse --show-toplevel)/scripts/prepush.mjs" --quick
+status=$?
+if [ "$status" -ne 0 ]; then
+  echo ""
+  echo "[pre-push] ❌ 漏配快速档红（见上方 ❌ 项与修法提示）。"
+  echo "           修好后重推；确属紧急可用 BOH_SKIP_PREPUSH=1 git push 绕过（请留痕说明）。"
+  exit 1
+fi
+
+echo "[pre-push] ✅ 快速档通过。完整门禁请用 npm run prepush（CI 会再兜底一次）。"
+exit 0

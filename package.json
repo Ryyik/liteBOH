@@ -13,6 +13,7 @@
   ],
   "type": "module",
   "scripts": {
+    "prepare": "sh scripts/install-git-hooks.sh",
     "dev": "vite",
     "build": "npm run check:views && npm run check:structure && npm run type-check && npm run compress-images && vite build",
     "build:full": "npm run build",
