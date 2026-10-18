@@ -18,10 +18,9 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const ROOT = process.cwd();
-const SRC = join(ROOT, 'src');
 
 const git = (args) =>
   execFileSync('git', args, { cwd: ROOT, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 }).trim();
@@ -86,7 +85,9 @@ for (const file of trackedSources) {
       let isDir = false;
       try {
         isDir = statSync(join(ROOT, rel)).isDirectory();
-      } catch {}
+      } catch {
+        // stat 失败 = 竞态中消失的文件，跳过该后缀候选
+      }
       if (isDir) continue;
       if (tracked.has(rel)) break; // 已跟踪：合法引用，本条 spec 结束
       if (isIgnored(rel)) break; // 被忽略（产物）：不算漏交
