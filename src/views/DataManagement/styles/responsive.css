@@ -1359,7 +1359,11 @@
   }
 }
 
-@media (max-width: 768px) {
+/* 窄视口（手机竖屏）或 矮横屏（手机旋转 / 矮窗口）都走移动布局：
+   844×390 宽度虽 >768，但那是「桌面布局塞进矮视口」的夹缝形态——
+   触屏优化（⌘K/返回首页隐藏、40px 命中区、工具栏单行化）全部失效。
+   第二个条件只对「高 ≤500 且横屏」生效，iPad 横屏（768 高）不受影响。 */
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
   .data-management-page {
     --dm-nav-height: 58px;
   }

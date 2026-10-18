@@ -713,8 +713,9 @@
                   </button>
                 </div>
 
-                <!-- 移动端卡片 -->
-                <div v-if="isMobileView" class="mobile-card-list">
+                <!-- 移动端卡片。emptyState 时与空状态互斥（同 DashboardSheet
+                     的 v-if 修法）：否则空状态 + 12 张卡片同屏。 -->
+                <div v-if="isMobileView && !emptyState" class="mobile-card-list">
                   <div
                     v-for="item in paginatedData"
                     :key="item.id || getRowIdentity(item)"
@@ -2921,10 +2922,6 @@ const diagnosticIssueCount = computed(() => {
     schedulerFailed,
   });
 });
-const healthScore = computed(() =>
-  Math.max(70, 100 - Math.min(diagnosticIssueCount.value * 3, 30)),
-);
-
 const lotterySchedulerCards = computed(() => {
   const status = lotterySchedulerStatus.value || {};
   const lastRun = status.last_run || null;
@@ -7542,7 +7539,8 @@ onUnmounted(() => {
   }
 }
 
-@media (min-width: 769px) {
+/* 同 console.css 的卡片列表规则：矮横屏（手机旋转）走移动分页 */
+@media (min-width: 769px) and not ((orientation: landscape) and (max-height: 500px)) {
   .mobile-data-pagination {
     display: none;
   }

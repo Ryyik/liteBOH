@@ -1297,7 +1297,11 @@
   width: 100%;
   max-width: none;
   height: auto;
-  max-height: none;
+  /* 限高 + 内部滚动（.drawer-body 已有 overflow-y:auto + min-height:0）：
+     完整表单可达 2800px 高，不限高会把整个详情页撑到 3000px+——
+     横屏(390 高)下第一个输入框在视口上方 344px，竖屏也要滚很久。
+     216 = 顶栏 64 + 详情头部 ~90 + 操作条 ~60；极矮视口保底 160px。 */
+  max-height: max(160px, calc(100dvh - 216px));
   border-radius: 12px;
   border: 1px solid var(--border);
   box-shadow: none;

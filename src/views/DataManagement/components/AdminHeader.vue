@@ -478,8 +478,10 @@ defineExpose({ searchModel });
   }
 }
 
-@media (max-width: 600px) {
-  /* 竖屏只剩 56px：显示中文页标题，隐藏英文 eyebrow（原本只留 eyebrow ⇒
+/* 窄屏或矮横屏（手机旋转）：触屏顶栏同一套收敛。组合条件说明见
+   styles/responsive.css 的同名媒体查询。 */
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+  /* 窄屏只剩 56px：显示中文页标题，隐藏英文 eyebrow（原本只留 eyebrow ⇒
      顶栏只剩 "USERS"，反而看不出在哪一页）。 */
   .g-eyebrow {
     display: none;

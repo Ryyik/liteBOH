@@ -1907,7 +1907,10 @@
   }
 }
 
-@media (min-width: 769px) {
+/* 宽 ≥769 默认藏卡片列表（桌面走表格）；但手机横屏（矮视口）JS 侧
+   computeMobileView 判定为移动视图、只渲染卡片列表——CSS 必须同样放行，
+   否则两边打架：卡片被藏、表格没渲染，内容区真空（844×390 实测）。 */
+@media (min-width: 769px) and not ((orientation: landscape) and (max-height: 500px)) {
   .data-content .mobile-card-list {
     display: none;
   }

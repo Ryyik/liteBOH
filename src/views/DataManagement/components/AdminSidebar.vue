@@ -544,7 +544,9 @@ const goHome = () => {
   }
 }
 
-@media (max-width: 768px) {
+/* 窄屏或矮横屏（手机旋转）侧栏抽屉化：与 DataAdmin computeMobileView
+   判据对齐 —— 844×390 若仍走桌面常驻侧栏，内容区被压到 533px。 */
+@media (max-width: 768px), (orientation: landscape) and (max-height: 500px) {
   .g-sidebar {
     position: fixed;
     top: var(--dm-nav-height);
