@@ -23,6 +23,10 @@
  *        就必须弹岛；点「我的方块」自本轮起**不再**触发。
  *     H2 离线天数按**真实上次在线时间差**算（与 /overview 页同口径）—— 10 小时前还在线
  *        必须说「今天有 N 条新内容」，而不是窗口游标算出来的「你离开了 1 天」。
+ *     I. 20261018 长会话游标停滞：PWA/不关标签挂机数天，天粒度游标（本机 + 服务端）停在
+ *        会话启动日，而真实锚点已是「今天 HH:MM」（心跳维护）——p_anchor 必须取
+ *        max(frontier, 锚点)，把最后在线时刻之前的内容视为已读，不重推在线期间看过的帖子。
+ *        （2026-10-18 实证：岛推出用户 10-16 在线时发过的帖子；/overview 页走锚点不受影响。）
  *
  * ⚠️ 触发点迁到首屏解锁后，**探针必须显式解锁开场画**才能测到弹岛：
  *  每个场景都是新 browser context，`boh-home-gate-passed` 一定没落盘 → 开场画必播 →
@@ -487,6 +491,94 @@ const runForumEntryScenario = async (
   }
 };
 
+/** I：20261018 长会话游标停滞 —— 天粒度游标（本机 + 服务端）停在会话启动日（5 天前），
+ *  真实锚点是「今天 6 小时前」（长会话期间心跳一直维护 last_active_at）。
+ *  旧行为 p_anchor = 游标日次日零点（4 天前）→ 用户在线期间看过的内容被当「离开期间新内容」重推；
+ *  修复后 p_anchor = max(frontier, 锚点) = 锚点。反证：撤掉 useOverviewIsland 里的锚点钳制，本场景必红。 */
+const runStaleCursorScenario = async (browser, { name, anchorIso, staleDayKey }) => {
+  const captured = { summaryCalls: 0, summaryAnchor: null };
+  const { page, pageErrors } = await openApp(browser, {
+    onPage: (p) => {
+      p.route('**/rest/v1/rpc/mark_overview_state', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          // 长会话期间从未检查成功：服务端「上次在线日」停在会话启动日、「当日已检查」为空
+          body: JSON.stringify({
+            today: todayKey(),
+            previous_online_day: staleDayKey,
+            checked_day: null,
+          }),
+        });
+      });
+      p.route('**/rest/v1/rpc/get_offline_overview', async (route) => {
+        captured.summaryCalls += 1;
+        const body = JSON.parse(route.request().postData() || '{}');
+        captured.summaryAnchor = body?.p_anchor ?? null;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            anchor: body?.p_anchor ?? null,
+            anchor_source: 'param',
+            is_first_login: false,
+            server_time: new Date().toISOString(),
+            total: 2,
+            has_more: false,
+            items: [
+              {
+                type: 'post',
+                id: 'probe-stale-cursor-1',
+                title: '长会话窗口里的帖子',
+                excerpt: '探针数据',
+                author: '探针账号',
+                published_at: new Date().toISOString(),
+                image: '',
+                category: 'daily',
+              },
+            ],
+          }),
+        });
+      });
+    },
+  });
+
+  try {
+    await installIslandRecorder(page);
+    await injectFakeLogin(page, anchorIso);
+    // 长会话：本机「上次在线日」停在会话启动日（pagehide 从未触发）；injectFakeLogin 会清游标，
+    // 所以必须在注入**之后**写入
+    await page.evaluate(
+      ({ onlineKey, checkedKey, day }) => {
+        localStorage.setItem(onlineKey, day);
+        localStorage.removeItem(checkedKey);
+      },
+      { onlineKey: DAY_MARKER_KEY, checkedKey: CHECKED_DAY_KEY, day: staleDayKey },
+    );
+    await unlockHomeGate(page);
+    await page.waitForTimeout(2000);
+    const island = await readIslandRecorder(page);
+
+    check(
+      `${name} · 弹岛（钳紧窗口不掐掉弹岛本身）`,
+      island.appeared && island.visible,
+      `出现过=${island.appeared} 可见=${island.visible}`,
+    );
+    check(
+      `${name} · p_anchor 钳到真实锚点`,
+      captured.summaryAnchor === anchorIso,
+      `实际=${captured.summaryAnchor} 期望=${anchorIso}`,
+    );
+    check(
+      `${name} · 无未捕获页面错误`,
+      pageErrors.length === 0,
+      pageErrors.join(' | ').slice(0, 160),
+    );
+  } finally {
+    await page.close();
+  }
+};
+
 /** E：/overview 页 RPC 请求体的 p_anchor 断言（路由拦截，不依赖真实会话） */
 const runAnchorScenario = async (browser, { name, anchorIso, expect }) => {
   const captured = { body: null };
@@ -634,6 +726,13 @@ const main = async () => {
       name: 'H2 离线天数按真实锚点（10 小时前在线）',
       anchorIso: new Date(Date.now() - 10 * 3600000).toISOString(),
       expectCard: '今天有 2 条新内容',
+    });
+
+    // I：20261018 —— 长会话游标停滞：p_anchor 必须被真实锚点钳紧（岛不重推在线期间看过的内容）
+    await runStaleCursorScenario(browser, {
+      name: 'I 长会话游标停滞(锚点下界钳制)',
+      anchorIso: new Date(Date.now() - 6 * 3600000).toISOString(),
+      staleDayKey: fiveDaysAgoKey,
     });
   } finally {
     await browser.close();

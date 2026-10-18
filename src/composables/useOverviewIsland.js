@@ -229,10 +229,26 @@ export function useOverviewIsland() {
       // 写下去会把当天钉死，后续每次触发都被上方守卫短路（连加载岛都不会出现）
       if (!pushFrontier) return;
 
+      // 锚点下界钳制（2026-10-18 长会话修复）：天粒度游标只在「会话启动 / pagehide / 检查成功」
+      // 推进，PWA / 不关标签挂机数天时它停在会话启动日，而真实锚点（offlineAnchorAt，心跳维护）
+      // 已是「最后在线时刻」——只信旧游标会把用户在线期间已看过的内容当「离开期间新内容」重推
+      // （2026-10-18 实证：岛推出用户 10-16 在线时发过的帖子，而 /overview 页因走锚点不受影响）。
+      // 产品语义「该日在线 = 该日已读」这里收紧为「该时刻在线 = 该时刻前已读」：p_anchor 取
+      // 天粒度 frontier 与真实锚点的较晚者。正常隔天锚点（昨晚离线时刻）早于 frontier（今日零点），
+      // 行为不变；长会话锚点（今天 HH:MM）晚于 frontier，窗口被钳紧，老帖不再落入。
+      const anchorMs = authStore.offlineAnchorAt
+        ? new Date(authStore.offlineAnchorAt).getTime()
+        : NaN;
+      const frontierMs = new Date(pushFrontier).getTime();
+      const effectiveAnchor =
+        Number.isFinite(anchorMs) && Number.isFinite(frontierMs) && anchorMs > frontierMs
+          ? new Date(anchorMs).toISOString()
+          : pushFrontier;
+
       // 先弹加载岛覆盖请求窗口：无新内容/异常时静默收掉，不弹引导（20260911 口径）
       showLoadingIsland();
 
-      const summary = await fetchOfflineOverviewSummary({ anchor: pushFrontier });
+      const summary = await fetchOfflineOverviewSummary({ anchor: effectiveAnchor });
       lastCheckedAt = Date.now();
       lastCheckedUserId = checkedUserId;
 
