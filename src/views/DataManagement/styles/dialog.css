@@ -1,0 +1,83 @@
+/* ==================== 管理后台通用对话框（.g-dialog 系列）====================
+ *
+ * 2026-10-17（全面审查 P1-1）从 `components/FreemodelsConfig.vue` 的 `<style scoped>`
+ * 提到这里，改为两个组件共用。
+ *
+ * 为什么必须提出来：
+ *   scoped 样式**只作用于本组件的 DOM**。`.g-dialog*` 原本只写在 FreemodelsConfig 的
+ *   scoped 块里，而真正使用它的 `KeysAndModels.vue`（「添加平台 / 添加 Key / 从平台拉取 /
+ *   手动添加模型」三个对话框）只 @import 了 base.css + responsive.css —— 那两个文件里
+ *   一个 `.g-dialog` 都没有。于是 overlay 掉回 `position: static` 落进文档流底部，
+ *   用户视角是「点按钮没反应」，而 AI 配置的核心写入口正是这三个对话框。
+ *   症状 10-13 就报过、4 天没人修，因为它**不报错、不白屏**，只是不可见。
+ *
+ * 约定：
+ *   · 新加对话框一律复用这里的类名，别在自己组件的 scoped 块里再抄一份；
+ *   · 本文件被 FreemodelsConfig / KeysAndModels 各自 @import 一次（重复引入只是
+ *     多一份等价规则，不产生优先级变化）。
+ *   · 回归锁：scripts/probes/probe-admin-dialogs.mjs 断言 overlay 的 computed
+ *     position === 'fixed' 且 rect 覆盖视口 —— 样式再次「掉回文档流」时必红。
+ * ========================================================================== */
+
+.g-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  display: grid;
+  place-items: center;
+  z-index: 1100;
+  padding: calc(var(--spacing) * 5);
+}
+
+.g-dialog {
+  /* ⚠️ 用 --card-solid 而不是 --card：本页的 --card 是 62% 半透明（液态玻璃），
+     卡片底下就是表格正文 ⇒ 对话框里的字段标签会和背后的文字叠在一起（实测截图可读性
+     已经崩了）。--card-solid 这个 token 存在的意义就是「必须遮底的表面」（sticky 等），
+     模态框正属此类。 */
+  background: var(--card-solid, var(--card, #fff));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: calc(var(--spacing) * 5);
+  width: min(440px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.g-dialog.g-dialog-wide {
+  width: min(640px, 100%);
+}
+
+.g-dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: calc(var(--spacing) * 3);
+  margin-bottom: calc(var(--spacing) * 4);
+}
+
+.g-dialog-form {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 3);
+}
+
+.g-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: calc(var(--spacing) * 2);
+  padding-top: calc(var(--spacing) * 3);
+  border-top: 1px solid var(--border);
+  margin-top: calc(var(--spacing) * 2);
+}
+
+/* `.g-dialog-foot` 只在 KeysAndModels 用（FreemodelsConfig 用 .g-dialog-actions）。
+   此前全仓没有任何定义 ⇒ 这两个 footer 一直是裸 block（按钮左对齐、无分隔线）。 */
+.g-dialog-foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  padding-top: calc(var(--spacing) * 3);
+  border-top: 1px solid var(--border);
+  margin-top: calc(var(--spacing) * 2);
+}
