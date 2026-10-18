@@ -362,6 +362,27 @@ export const FIXTURES = [
       };
     },
   },
+  {
+    gate: 'check:untracked-imports',
+    why: '被已提交代码引用的源文件若停留在未跟踪状态，推送后 CI vite build 必红（2026-10-17 resolveInitialAdminTab 三连红、10-18 useDialogFocusTrap 补交，同型两犯）',
+    // 落点一对：createFile 未跟踪样本 + editFile 已提交文件 import 它。
+    // restore 先撤 import 再删文件（顺序不能反，否则引用悬空）。
+    prepare: () => {
+      const removeFile = createFile(
+        'src/composables/__gates_probe_untracked__.js',
+        'export const __gatesProbeUntracked = 1;\n',
+      );
+      const restoreEdit = editFile(
+        'src/composables/useNews.js',
+        (s) => "import './__gates_probe_untracked__.js';\n" + s,
+        'useNews.js 顶部加未跟踪 import',
+      );
+      return () => {
+        restoreEdit();
+        removeFile();
+      };
+    },
+  },
 ];
 
 /**
@@ -391,4 +412,5 @@ export const UNTESTABLE = [
   { gate: 'check:sw-upgrade', why: '要 dist 与 dist-check 双产物对比，属手工专项' },
   { gate: 'lint / type-check / test', why: '本身即测试套件，红不红由用例决定，无需造样本' },
   { gate: '各类 probe:*', why: '要浏览器环境（Playwright），样本即测试用例本身' },
+
 ];
