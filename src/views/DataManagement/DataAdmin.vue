@@ -90,13 +90,17 @@
             @quick-create="quickCreateRecord"
           />
 
-          <!-- 详情子页（D1）：面包屑 + 只读字段 + 侧栏；编辑走既有抽屉。
+          <!-- 详情子页（D1）：面包屑 + 字段面板 + 侧栏。
+               D2 升级（2026-10-18）：「编辑」改为页内编辑态（detailEditing），
+               复用 openEditModal 的字段预处理与 saveData 整条管线，抽屉仅在
+               处理复杂字段（图片/选择器/JSON）时经「完整编辑」按钮打开。
                直接深链时 section 态未初始化也不影响：本分支只依赖 recordId/recordTab。 -->
           <section
             v-if="recordId && dataConfig[recordTab]"
             class="management-section record-section"
           >
             <RecordPane
+              ref="recordPaneRef"
               :record-id="recordId"
               :table="detailTable"
               :select-columns="detailSelectColumns"
@@ -105,10 +109,17 @@
               :tab-label="detailTabLabel"
               :get-related-labels="getDetailRelatedLabels"
               :can-delete="canDeleteCurrentTab && !isModerationTab"
+              :can-edit="canEditCurrentTab"
+              :editing="detailEditing"
+              :saving="isSaving"
+              :edit-model="editingItem"
               @back="goBackToList"
               @edit="onEditRecord"
               @crumb="onDetailCrumb"
               @delete="onDetailDangerDelete"
+              @save="saveDetailEdit"
+              @cancel-edit="cancelDetailEdit"
+              @open-drawer="openDetailDrawer"
             />
           </section>
           <section v-else-if="recordId" class="management-section">
@@ -5931,10 +5942,11 @@ const openEditModal = async (item = null, opts = {}) => {
         editingItem.value.specifications = [];
       }
     }
-    showModal.value = true;
-    nextTick(maybeRestoreDraft);
-    // E4: 直达字段（行内铅笔）— 抽屉渲染后滚动定位并高亮
-    if (pendingFocusField) {
+    // D2 升级：embedded = 详情页内编辑（复用全部字段预处理，但不弹抽屉）
+    showModal.value = !opts.embedded;
+    if (!opts.embedded) nextTick(maybeRestoreDraft);
+    // E4: 直达字段（行内铅笔）— 抽屉渲染后滚动定位并高亮（embedded 无抽屉，跳过）
+    if (pendingFocusField && !opts.embedded) {
       const target = pendingFocusField;
       pendingFocusField = '';
       nextTick(() => nextTick(() => editDrawerRef.value?.revealField?.(target)));
@@ -5952,7 +5964,8 @@ const openEditModal = async (item = null, opts = {}) => {
         editingItem.value = {};
         editingOriginalItem.value = null;
       }
-      showModal.value = true;
+      // embedded（详情页内编辑）失败兜底：不弹抽屉，编辑态由调用方复位
+      showModal.value = !opts.embedded;
     }
   }
 };
@@ -6830,7 +6843,9 @@ const detailTabLabel = computed(
   () => tabs.find((t) => t.id === recordTab.value)?.label || recordTab.value,
 );
 const detailTable = computed(() => dataConfig[recordTab.value]?.table || '');
-const detailSelectColumns = computed(() => TAB_SELECT_COLUMNS[recordTab.value] || '');
+// D2 升级：详情页内编辑需要完整行（保存策略会读取列表列之外的字段，
+// 窄列清单会让 editingItem 缺键 → 更新时把未知字段写成 undefined）。单行查询用 *。
+const detailSelectColumns = computed(() => '*');
 const detailFields = computed(() => dataConfig[recordTab.value]?.columns || []);
 const getDetailRelatedLabels = (record) => [
   ...new Set(
@@ -6854,7 +6869,52 @@ const openRecordDetail = (item) => {
   });
 };
 
-const onEditRecord = (record) => openEditModal(record);
+// ==================== 详情页内编辑（D2 升级，2026-10-18） ====================
+// 「编辑」不再直开抽屉：复用 openEditModal 的字段预处理（forum 拆分 /
+// subscriptions plan_name / json 缓冲 / 日期转换 / gifts 地址）+ saveData 的
+// 校验/策略/审计/缓存管线；抽屉本体保持关闭，仅复杂字段经「完整编辑」打开。
+const detailEditing = ref(false);
+const recordPaneRef = ref(null);
+
+const onEditRecord = (record) => {
+  if (!record?.id) return openEditModal(record);
+  openEditModal(record, { embedded: true });
+  detailEditing.value = true;
+};
+
+const saveDetailEdit = async () => {
+  const ok = await saveData();
+  if (ok) {
+    detailEditing.value = false;
+    // 保存后重取详情，让只读视图立即反映新值
+    recordPaneRef.value?.fetchRecord?.();
+  }
+};
+
+const cancelDetailEdit = () => {
+  detailEditing.value = false;
+  isEditing.value = false;
+  editingItem.value = {};
+  editingOriginalItem.value = null;
+  clearFieldErrors();
+  jsonBuffers.value = {};
+};
+
+// 编辑态里点「完整编辑（抽屉）」：退出页内编辑，转用抽屉（可改复杂字段）
+const openDetailDrawer = (record) => {
+  detailEditing.value = false;
+  openEditModal(record);
+};
+
+// 换记录 / 离开详情时复位编辑态（防止把 A 记录的表单带到 B 记录）
+watch(recordId, () => {
+  if (detailEditing.value) {
+    detailEditing.value = false;
+    isEditing.value = false;
+    clearFieldErrors();
+    jsonBuffers.value = {};
+  }
+});
 
 // Danger zone（plans/027 E6.4）：输入完整 record.id 确认，不匹配静默中止；
 // 确认后走既有 deleteItem（富确认 + 审计）

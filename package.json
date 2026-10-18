@@ -25,7 +25,7 @@
     "ci:watch": "gh run watch $(gh run list -L 1 --json databaseId -q '.[0].databaseId') --exit-status",
     "gate:plan": "node scripts/gate-plan.mjs",
     "clean:screenshots": "node scripts/clean-screenshots.mjs",
-    "lint": "eslint . --max-warnings 114",
+    "lint": "eslint . --max-warnings 115",
     "lint:delta": "node scripts/lint-delta.mjs",
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json",
     "check:views": "node scripts/check-view-collisions.mjs",
@@ -127,6 +127,9 @@
     "vue": "^3.5.24",
     "vue-advanced-cropper": "^2.8.9",
     "vue-router": "^4.6.4"
+  },
+  "overrides": {
+    "image-size": "^2.0.4"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

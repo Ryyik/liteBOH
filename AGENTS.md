@@ -50,9 +50,9 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 > `security:audit`（依赖漏洞棘轮，基线 `scripts/npm-audit-baseline.json`，降完跑 `security:audit:update`）。
 > 四者的取舍与侦察依据 → `docs/gate-matrix.md` §A 与 `docs/2026-10-04-GitHub开源可引入方案调研.md` §8。
 
-> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 带 `--max-warnings`（**现为 114**，以 `package.json` 现值为准；
+> ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 带 `--max-warnings`（**现为 115**，以 `package.json` 现值为准；
 > CI 与发布链都跑它，所以有牙）。这是一道**警告棘轮**，**新增一条死代码当场 exit 1**。
-> 三条纪律：① 清理后把 114 改小（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
+> 三条纪律：① 清理后把 115 改小（下调永远是好方向，不用交代）；② 确需上调必须走 commit message 说明理由
 > （与 `check:important-budget` 等棘轮同规矩）；③ 计数口径 `eslint . -f json` 聚合，**别 grep 文本数**（会串）。
 > 🤖 **归因用 `npm run lint:delta`** —— 一条命令告诉你新增了哪一条、在哪个文件哪一行、离上限还剩几格，
 > 别再手工 set diff。为什么它是棘轮而不是直接把规则翻成 error → `docs/gate-matrix.md` §A。

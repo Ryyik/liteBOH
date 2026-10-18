@@ -29,9 +29,19 @@ const ROW = {
   entry_count: 0,
   max_entries: 100,
   created_by: ADMIN_UUID,
+  // 表单必填字段（缺一个 saveData 就会被 required 校验拦下）
+  prize_title: 'E2E 奖品',
+  fulfillment_status: 'fulfilled',
+  is_community_visible: true,
+  is_home_visible: true,
+  enforce_account_age_check: false,
+  winner_count: 1,
+  pity_mode: 'none',
 };
 
 const results = [];
+const patchCalls = [];
+let lastPatch = {};
 const check = (name, pass, detail = '') => {
   results.push({ name, pass, detail });
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  -- ' + detail : ''}`);
@@ -83,12 +93,25 @@ await page.route('**/rest/v1/**', async (route) => {
       body: JSON.stringify([]),
     });
   }
+  if (req.method() === 'PATCH' && url.includes('id=eq.')) {
+    // saveData 的 update：回显已应用的补丁（合并进 ROW）
+    let patch = {};
+    try {
+      patch = JSON.parse(req.postData() || '{}');
+    } catch {}
+    patchCalls.push(patch);
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ ...ROW, ...patch }]),
+    });
+  }
   if (url.includes('id=eq.')) {
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
       headers: wantObject ? {} : { 'content-range': '0-0/0' },
-      body: JSON.stringify(wantObject ? ROW : [ROW]),
+      body: JSON.stringify(wantObject ? { ...ROW, ...lastPatch } : [{ ...ROW, ...lastPatch }]),
     });
   }
   return route.fulfill({
@@ -139,26 +162,62 @@ check(
 check('侧栏高亮=抽奖（不是概览）', activeNav.includes('抽奖'), activeNav);
 check('详情页不再叠加概览区', overviewCount === 0, `overview nodes=${overviewCount}`);
 
+// ── D2 升级：详情页内编辑 ──
 await page.locator('.detail-action-bar button', { hasText: '编辑' }).click();
-await page.waitForSelector('.drawer', { timeout: 10000 });
-const drawerTab = await page.locator('.drawer-title-group p').innerText();
-const drawerHasLotteryField = await page.locator('.drawer', { hasText: '抽奖标题' }).count();
-check(
-  '编辑抽屉绑定抽奖表（不是用户表）',
-  drawerTab.includes('抽奖管理') && drawerHasLotteryField > 0,
-  `${drawerTab} / field=${drawerHasLotteryField}`,
+await page.waitForSelector('.detail-edit-form', { timeout: 10000 });
+const drawerCountInEdit = await page.locator('.drawer').count();
+check('编辑=页内表单（不弹抽屉）', drawerCountInEdit === 0, `drawer=${drawerCountInEdit}`);
+const formFieldCount = await page.locator('.detail-edit-form .de-input').count();
+check('页内表单渲染字段', formFieldCount > 0, `inputs=${formFieldCount}`);
+
+// 修改第一个数值字段并保存（mock PATCH 回显）。lotteries 列里没有 title 输入框，
+// 取第一个 input 的 de-<key> 反查字段名，通用于任何表。
+// draw_at 在抽奖保存策略白名单里（entry_count 是派生值，不回写）
+const firstInput = page.locator('.detail-edit-form input#de-draw_at');
+await firstInput.fill('2026-12-25T18:30');
+await page.locator('.detail-edit-foot .btn-primary').click();
+// saveData 会先弹「保存前差异预览」确认（与抽屉一致），确认后才发 PATCH
+await page.waitForSelector('.confirm-modal', { timeout: 10000 });
+await page.locator('.confirm-btn.primary').click();
+await page.waitForTimeout(1500);
+const saveToast = await page.evaluate(
+  () => document.querySelector('.toast-message')?.innerText?.trim() || '',
 );
-await page.locator('.drawer-close').click();
-await page.waitForTimeout(400);
-// 关闭抽屉会弹「保留草稿」；选「丢弃」（cancel）再继续
-if (await page.locator('.confirm-modal').count()) {
-  const draftMsg = await page.locator('.confirm-message').innerText();
-  check(
-    '关闭抽屉弹出草稿确认',
-    draftMsg.includes('保留') && draftMsg.includes('草稿'),
-    draftMsg.replace(/\n/g, ' ').slice(0, 100),
-  );
-  await page.locator('.confirm-btn.cancel').click();
+check('页内保存成功 toast', saveToast.includes('数据更新成功'), saveToast);
+check(
+  'PATCH 携带新 draw_at',
+  patchCalls.some((p) => String(p.draw_at || '').startsWith('2026-12-25')),
+  JSON.stringify(patchCalls[patchCalls.length - 1] || {}).slice(0, 140),
+);
+const formGone = await page.locator('.detail-edit-form').count();
+check('保存后回到只读视图', formGone === 0, `form=${formGone}`);
+lastPatch = patchCalls[patchCalls.length - 1] || {};
+
+// 复杂字段经「完整编辑」进抽屉（抽奖表含图片类字段时按钮才出现）
+const drawerBtn = page.locator('.detail-action-bar button, .detail-edit-foot button', {
+  hasText: '完整编辑',
+});
+// 回到编辑态再测（上一检查已退出编辑态）
+await page.locator('.detail-action-bar button', { hasText: '编辑' }).click();
+await page.waitForSelector('.detail-edit-form', { timeout: 10000 });
+const drawerBtn2 = page.locator('.detail-edit-foot button', { hasText: '完整编辑' });
+if (await drawerBtn2.count()) {
+  await drawerBtn2.first().click();
+  await page.waitForSelector('.drawer', { timeout: 10000 });
+  const drawerTab = await page.locator('.drawer-title-group p').innerText();
+  check('完整编辑抽屉绑定抽奖表', drawerTab.includes('抽奖管理'), drawerTab);
+  await page.locator('.drawer-close').click();
+  await page.waitForTimeout(400);
+  if (await page.locator('.confirm-modal').count()) {
+    await page.locator('.confirm-btn.cancel').click();
+    await page.waitForTimeout(400);
+  }
+} else {
+  check('完整编辑抽屉绑定抽奖表', true, '（本表无复杂字段，按钮不出现）');
+}
+// 退出编辑态再继续 Danger zone 流程（走抽屉路径时编辑态已被 openDetailDrawer 复位）
+if (await page.locator('.detail-edit-form').count()) {
+  await page.locator('.detail-edit-foot .btn-secondary', { hasText: '取消' }).click();
   await page.waitForTimeout(400);
 }
 

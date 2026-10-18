@@ -17,16 +17,34 @@
     <template v-else>
       <div class="record-pane-layout">
         <div class="record-pane-main">
-          <DetailFields :fields="fields" :record="record" />
+          <!-- 页内编辑态：表单绑定 DataAdmin 的 editingItem，保存走既有 saveData 管线 -->
+          <DetailEditForm
+            v-if="editing"
+            :model="editModel"
+            :fields="fields"
+            :saving="saving"
+            @save="$emit('save')"
+            @cancel="$emit('cancel-edit')"
+            @open-drawer="$emit('open-drawer', record)"
+          />
+          <DetailFields v-else :fields="fields" :record="record" />
         </div>
         <DetailAside
+          v-if="!editing"
           :record="record"
           :related-labels="getRelatedLabels?.(record) || []"
           :can-delete="canDelete"
           @delete="$emit('delete', record)"
         />
       </div>
-      <DetailActionBar @edit="$emit('edit', record)" />
+      <DetailActionBar
+        :editing="editing"
+        :saving="saving"
+        :can-edit="canEdit"
+        @edit="$emit('edit', record)"
+        @save="$emit('save')"
+        @cancel="$emit('cancel-edit')"
+      />
     </template>
   </div>
 </template>
@@ -36,6 +54,7 @@ import { ref, computed, watch } from 'vue';
 import DetailHeader from './DetailHeader.vue';
 import DetailFields from './DetailFields.vue';
 import DetailAside from './DetailAside.vue';
+import DetailEditForm from './DetailEditForm.vue';
 import DetailActionBar from './DetailActionBar.vue';
 import { fetchRecordById } from '@/utils/api/data-admin-table-api.js';
 import { buildRecordBreadcrumb } from '../../composables/detail-breadcrumb.js';
@@ -49,8 +68,14 @@ const props = defineProps({
   tabLabel: { type: String, default: '' },
   getRelatedLabels: { type: Function, default: null },
   canDelete: { type: Boolean, default: false },
+  // 页内编辑（D2 升级）：editing 由 DataAdmin 的 detailEditing 驱动，
+  // editModel 即 DataAdmin 的 editingItem（保存管线直接消费）
+  editing: { type: Boolean, default: false },
+  saving: { type: Boolean, default: false },
+  canEdit: { type: Boolean, default: false },
+  editModel: { type: Object, default: null },
 });
-const emit = defineEmits(['back', 'edit', 'crumb', 'delete']);
+const emit = defineEmits(['back', 'edit', 'crumb', 'delete', 'save', 'cancel-edit', 'open-drawer']);
 
 const record = ref(null);
 const loading = ref(false);
@@ -98,6 +123,9 @@ watch(
   },
   { immediate: true },
 );
+
+// 详情页内编辑保存后由父级调用，刷新只读视图
+defineExpose({ fetchRecord });
 </script>
 
 <style scoped>
