@@ -114,6 +114,11 @@ const SHELL_CHUNKS = [
   'ui-icons',
   'vue-utils-vendor',
   'ui-sanitize',
+  // 2026-10-19：入口 import 图新增的壳依赖（auth-store → auth-api、App 全局 AI 偏好、
+  // 购物袋），缺一个弱网/离线就白屏 —— 由 check:shell-precache 从产物反推兜底。
+  'useGlobalAiPreferences',
+  'auth-api',
+  'bag',
 ];
 // 入口 chunk 的产物名由 entryFileNames 固定为 app-[hash].js
 const SHELL_CHUNKS_WITH_ENTRY = ['app', ...SHELL_CHUNKS];
