@@ -49,7 +49,6 @@ const PAGES = [
   { path: '/user-space?tab=messages', name: 'us-messages' },
   { path: '/user-space/subscriptions', name: 'us-subscriptions' },
   { path: '/user-space/gifts', name: 'us-gifts' },
-  { path: '/user-space/partners', name: 'us-partners' },
   { path: '/user-space/account-security', name: 'us-account' },
   { path: '/admin/data-management', name: 'admin-data' },
   { path: '/admin/api-keys', name: 'admin-apikeys' },

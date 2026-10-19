@@ -23,14 +23,6 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     meta: { ...userSpaceMeta },
   },
   {
-    path: '/user-space/partners',
-    name: 'Partners',
-    component: () => import('../../views/user-center/Partners.vue'),
-    // keepAlive：这是「分页浏览社区成员」的目录页，缓存可保住当前页码与已加载列表，
-    // 返回时零重建零取数。目录内容更新频率低，短暂缓存不构成功能变化。
-    meta: { ...userSpaceMeta, keepAlive: true },
-  },
-  {
     path: '/user-space',
     name: 'UserSpace',
     component: () => import('../../views/user-center/UserSpace/index.vue'),

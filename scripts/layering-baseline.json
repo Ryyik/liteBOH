@@ -1,6 +1,6 @@
 {
-  "total": 160,
-  "updatedAt": "2026-10-18",
+  "total": 159,
+  "updatedAt": "2026-10-19",
   "files": {
     "src/views/DataManagement/DataAdmin.vue": 23,
     "src/views/DataManagement/composables/useDataAdminMutations.js": 20,
@@ -36,7 +36,6 @@
     "src/views/Lab/composables/useCodeGenerator.js": 1,
     "src/views/Lab/composables/useDocumentAI.js": 1,
     "src/views/Lab/composables/usePPTGenerator.js": 1,
-    "src/views/Lab/composables/useWordGenerator.js": 1,
-    "src/views/user-center/Partners.vue": 1
+    "src/views/Lab/composables/useWordGenerator.js": 1
   }
 }

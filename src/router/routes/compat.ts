@@ -14,12 +14,13 @@ import { resolveForumSection } from '../../config/forum-sections';
  *   · 改动本文件的验收：单测 tests/unit/compat-routes.test.js（折叠覆盖 + 落点对照）
  *     + 全量 verify。
  *
- * 现行清单（17 条 = 2 参数化 + 15 直条）：
+ * 现行清单（18 条 = 2 参数化 + 16 直条）：
  *   · 旧用户中心 /user-center/*（引入 ≤2026-06）：12 条折叠为 2 条（见下方分节）
  *   · 旧用户空间深链（引入 2026-09-30，tab 语义迁移）：8 条
  *   · Beta 6 退场（引入 2026-09-27）：/forum、/activities(×3)、/block-wall、/tutorial
  *
  * 变更史：
+ *   2026-10-19 新增 1 条：/user-space/partners（孤儿页）收编 → 论坛「成员」分区
  *   2026-10-15 收编 30 条里的 17 条 + 折叠(11→2) + 删除 3 条零引用
  *   （/user-center-v2、/creator-studio、/user-space/settings/beta-preview）+
  *   修正 /forum 误落（原 `?tab=posts` 在 tab 语义翻转后是「我」页，现落首页论坛）。
@@ -35,10 +36,13 @@ const toPage =
   (path: string): any =>
   (to: any) => ({ path, query: { ...to.query } });
 
+/** 落到首页论坛「成员」分区（2026-10-19：/user-space/partners 孤儿页的收编落点） */
+const toForumMembers = (to: any) => ({ path: '/', query: { ...to.query, view: 'members' } });
+
 /**
  * /user-center/<rest…> 的前缀分流 —— 与折叠前 11 条直条**逐条对照、落点不变**：
  *   points / subscriptions / address → 资产分段（旧 `?tab=assets`，UserSpaceMain 有回落）
- *   messages → 消息 tab；tags-impressions → 印象分段；partners / pushplus / shared-memories → 独立子页
+ *   messages → 消息 tab；tags-impressions → 印象分段；partners → 论坛「成员」分区；pushplus / shared-memories → 独立子页
  *   其余（info、未知子路径）→ 「我」页默认（空间分段）
  */
 const userCenterTarget = (to: any) => {
@@ -55,7 +59,7 @@ const userCenterTarget = (to: any) => {
   if (head === 'tags-impressions') {
     return { path: '/user-space', query: { ...to.query, tab: 'posts', view: 'impressions' } };
   }
-  if (head === 'partners') return toPage('/user-space/partners')(to);
+  if (head === 'partners') return toForumMembers(to);
   if (head === 'pushplus' || head === 'pushplus-settings') {
     return toPage('/user-space/pushplus-settings')(to);
   }
@@ -115,6 +119,15 @@ export const compatRoutes: RouteRecordRaw[] = [
   {
     path: '/mailbox',
     redirect: toUserSpace({ tab: 'messages', section: 'notifications' }),
+  },
+
+  // ═══ 孤儿页收编（2026-10-19）═══════════════════════════════════════════
+  // 引入 2026-10-19 · 到期 2027-04-30
+  // /user-space/partners（社区成员目录）全站零 UI 入口（孤儿页）；「浏览成员」的能力
+  // 已由论坛「成员」分区承接（?view=members → CommunityTab）⇒ 删真页面，老链接重定向过去。
+  {
+    path: '/user-space/partners',
+    redirect: toForumMembers,
   },
 
   // ═══ Beta 6 退场（2026-09-27）═══════════════════════════════════════════

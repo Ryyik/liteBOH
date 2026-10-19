@@ -18,7 +18,7 @@
 | 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
 | **帖子详情弹窗 chunk 加载失败兜底**（部署窗口期旧入口 import 旧 chunk 404：错误态出现、不再无声空白、DEV 不强刷、正常路径内容完整渲染） | `probe-pd-modal-chunk-fail.mjs` | 12 |
-| 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 10 |
+| 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 19 |
 | **移动端发帖选图反馈口径**（选图→发布保持安静、4s 卡顿观察器一次性提示、blob 首帧 / 无 lazy、徽章仅 failed；入口在首页 `/#/`，`/#/forum` 已被 IA 改版重定向） | `probe-composer-image-stall.mjs` | 6 |
 | **Cloud+ 图库竖屏顶栏 + 设置页玻璃**（工具行不折字/不溢出、页头不吸顶、底栏玻璃、卡片玻璃材质） | `probe-cloud-portrait.mjs` | 27 |
 | **Cloud+ 相册形态**（iOS 图库式密铺：去月份分组、多图铺开、捏合切列、宽屏铺满） | `probe-cloud-album.mjs` | 22 |
@@ -130,7 +130,7 @@
 | `probe-official-publish.mjs` | — | ===== Newsroom ===== |
 | `probe-post-detail-fix.mjs` | — | probe-post-detail-fix.mjs — 论坛帖子详情两问题复现探针 |
 | `probe-post-detail-verify.mjs` | — | probe-post-detail-verify.mjs — 修复后验证 P1: 活动/新闻帖详情显示封面图（@/assets 引用 + Cloudinary cover 两种） |
-| `probe-reply-autogrow.mjs` | — | **评论/回复输入框「多字扩展」（10 断言，2026-09-30 新增 / 2026-10-01 场景 B 改回 A–D）**：竖屏 390×844，场景 A 打在用户空间内嵌论坛的卡片内联回复框（`PostCard` 的 `.reply-textarea-v2`）：A 空内容高度 = `rows` 撑出的高度且无内部滚动 / B 逐行加内容高度单调不减且未到上限时 `scrollHeight ≤ clientHeight + 1` / C 超上限后停在上限并框内滚动 / D 清空后回落 / E 父组件改写内容（同卡切嵌套回复，`replyContent` 被 `buildReplyDraft` 换成 `@user `）后必须回落。**E 是 `:value` 受控写法下唯一会命中 `watch(value)` 的真实路径**，只绑 `@input` 的实现不会收缩；前 6 张卡都没回复时记 SKIP 不记红。另有 F「键盘遮挡」仅测量上报（`plans/021` §8：先测再改）。场景 B（**2026-10-01 起已从绊线改回 A–D 断言**）：详情页底部评论输入已由单行 `input.pd-reply-input` 换成自动增高 `<textarea rows="1">`（产品口径「输入时自动扩充、输入完成自动收回」），所以它现在跑「形态 + A–D」共 5 条；`rows` 与内嵌 `.reply-textarea-x` 不渲染两条保留。⚠️ 两条口径坑：① 上限比较必须用 `offsetHeight` —— CSS `max-height` 约束 border-box，`clientHeight` 扣掉 1px 边框后会恒差 1~2px；② 该框只有 ~107px 宽，一行中文折两行，第 2 个采样点就触顶，故该场景 `minBelowCap: 1`（不变量是「存在一段无内部滚动的增长区间」，采样计数只是强度）。**反证已做**：`git checkout`/本地替换撤掉详情页接线后 B/C 红（高度恒为 42，即报障原状）；`git checkout -- src/views/Forum/components/PostCard.vue` 撤掉卡片接线后 B/C/E 红（高度恒为 85）。需先起本地 dev（默认 `http://[::1]:5173`，可用 `BASE` 覆盖） |
+| `probe-reply-autogrow.mjs` | — | **评论/回复输入框「多字扩展」（19 断言，2026-09-30 新增 / 2026-10-01 场景 B 改回 A–D / 2026-10-19 删场景 D：伙伴印象页退场）**：竖屏 390×844，场景 A 打在用户空间内嵌论坛的卡片内联回复框（`PostCard` 的 `.reply-textarea-v2`）：A 空内容高度 = `rows` 撑出的高度且无内部滚动 / B 逐行加内容高度单调不减且未到上限时 `scrollHeight ≤ clientHeight + 1` / C 超上限后停在上限并框内滚动 / D 清空后回落 / E 父组件改写内容（同卡切嵌套回复，`replyContent` 被 `buildReplyDraft` 换成 `@user `）后必须回落。**E 是 `:value` 受控写法下唯一会命中 `watch(value)` 的真实路径**，只绑 `@input` 的实现不会收缩；前 6 张卡都没回复时记 SKIP 不记红。另有 F「键盘遮挡」仅测量上报（`plans/021` §8：先测再改）。场景 B（**2026-10-01 起已从绊线改回 A–D 断言**）：详情页底部评论输入已由单行 `input.pd-reply-input` 换成自动增高 `<textarea rows="1">`（产品口径「输入时自动扩充、输入完成自动收回」），所以它现在跑「形态 + A–D」共 5 条；`rows` 与内嵌 `.reply-textarea-x` 不渲染两条保留。⚠️ 两条口径坑：① 上限比较必须用 `offsetHeight` —— CSS `max-height` 约束 border-box，`clientHeight` 扣掉 1px 边框后会恒差 1~2px；② 该框只有 ~107px 宽，一行中文折两行，第 2 个采样点就触顶，故该场景 `minBelowCap: 1`（不变量是「存在一段无内部滚动的增长区间」，采样计数只是强度）。**反证已做**：`git checkout`/本地替换撤掉详情页接线后 B/C 红（高度恒为 42，即报障原状）；`git checkout -- src/views/Forum/components/PostCard.vue` 撤掉卡片接线后 B/C/E 红（高度恒为 85）。需先起本地 dev（默认 `http://[::1]:5173`，可用 `BASE` 覆盖） |
 
 ### 活动 / 方块墙 / 内容运营（4）
 

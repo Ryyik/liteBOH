@@ -24,7 +24,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) {
@@ -39,7 +38,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.x-header-title, .page-title, .section-title, .list-title, .card-title) {
@@ -50,7 +48,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle) {
@@ -64,7 +61,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle):hover:not(:disabled) {
@@ -77,7 +73,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -93,7 +88,6 @@
   .info-card,
   .memory-card,
   .login-card,
-  .partners-list-container,
   .stat-card,
   .points-balance-pill,
   .nav-card,
@@ -121,7 +115,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -134,13 +127,11 @@
   label,
   .highlight-1200,
   .stat-value,
-  .partner-name,
   .product-name,
   .status-title,
   .detail-primary,
   .settings-title,
-  .guide-content h4,
-  .imp-content
+  .guide-content h4
 ) {
   color: var(--uc-dark-text) !important;
 }
@@ -149,7 +140,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -168,14 +158,10 @@
   .guide-content p,
   .info-text p,
   .count-badge,
-  .imp-author,
-  .imp-date,
   .meta-time,
   .meta-source,
   .meta-confidence,
   .evidence-hint,
-  .partner-meta,
-  .partner-tag,
   .stat-label,
   .stat-unit,
   .pag-info,
@@ -191,7 +177,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -200,7 +185,6 @@
   .sidebar-search,
   .search-input,
   .form-input,
-  .impression-input,
   input,
   textarea,
   select
@@ -215,7 +199,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -224,7 +207,6 @@
   .sidebar-search,
   .search-input,
   .form-input,
-  .impression-input,
   input,
   textarea,
   select
@@ -236,7 +218,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(
@@ -245,7 +226,6 @@
   .sidebar-search,
   .search-input,
   .form-input,
-  .impression-input,
   input,
   textarea,
   select
@@ -258,7 +238,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear) {
@@ -271,7 +250,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear):hover:not(:disabled) {
@@ -300,10 +278,8 @@
   border-color: rgba(255, 140, 140, 0.26) !important;
 }
 
-[data-theme="dark"] :is(.address-page, .partners-container, .shared-memory-page) :is(
+[data-theme="dark"] :is(.address-page, .shared-memory-page) :is(
   .user-item,
-  .partner-row,
-  .impression-item,
   .memory-card,
   .history-card
 ) {
@@ -311,16 +287,14 @@
   border-color: var(--uc-dark-border) !important;
 }
 
-[data-theme="dark"] :is(.address-page, .partners-container, .shared-memory-page) :is(
+[data-theme="dark"] :is(.address-page, .shared-memory-page) :is(
   .user-item,
-  .partner-row,
-  .impression-item,
   .history-card
 ):hover {
   background: #18253a !important;
 }
 
-[data-theme="dark"] :is(.address-page, .partners-container) :is(.partner-role-tag, .meta-status.active, .filter-chip.active) {
+[data-theme="dark"] :is(.address-page) :is(.meta-status.active, .filter-chip.active) {
   background: var(--uc-dark-accent-soft) !important;
   color: var(--uc-dark-accent) !important;
   border-color: rgba(103, 162, 255, 0.28) !important;
@@ -350,7 +324,6 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .partners-container,
   .pushplus-settings-page,
   .shared-memory-page
 ) :is(.loading-state, .empty-state, .login-card) {
@@ -358,14 +331,14 @@
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
-[data-theme="dark"] :is(.address-page, .partners-container, .shared-memory-page) .custom-scrollbar::-webkit-scrollbar-track {
+[data-theme="dark"] :is(.address-page, .shared-memory-page) .custom-scrollbar::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.03);
 }
 
-[data-theme="dark"] :is(.address-page, .partners-container, .shared-memory-page) .custom-scrollbar::-webkit-scrollbar-thumb {
+[data-theme="dark"] :is(.address-page, .shared-memory-page) .custom-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(142, 160, 184, 0.45);
 }
 
-[data-theme="dark"] :is(.address-page, .partners-container, .shared-memory-page) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+[data-theme="dark"] :is(.address-page, .shared-memory-page) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(199, 211, 227, 0.54);
 }

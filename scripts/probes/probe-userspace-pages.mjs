@@ -71,12 +71,26 @@ const SEGMENT_PAGES = [
  *  设置三档与「我的」**同路由**（只改 query），所以「主内容块类名变化」这个判据对它们无效
  *  （三次都是 `user-space-page`）——改用页头标题文字做判据，否则会误报超时。 */
 const SUB_ROUTES = [
-  { id: '设置·资料编辑', hash: '/user-space?tab=settings&view=edit-profile', guarded: false, pred: '.settings-shell .profile-edit-page-shell' },
-  { id: '设置·数据导出', hash: '/user-space?tab=settings&view=data-export', guarded: false, predText: '导出我的数据' },
-  { id: '设置·数据与隐私', hash: '/user-space?tab=settings&view=data-management', guarded: false, predText: '数据与隐私' },
+  {
+    id: '设置·资料编辑',
+    hash: '/user-space?tab=settings&view=edit-profile',
+    guarded: false,
+    pred: '.settings-shell .profile-edit-page-shell',
+  },
+  {
+    id: '设置·数据导出',
+    hash: '/user-space?tab=settings&view=data-export',
+    guarded: false,
+    predText: '导出我的数据',
+  },
+  {
+    id: '设置·数据与隐私',
+    hash: '/user-space?tab=settings&view=data-management',
+    guarded: false,
+    predText: '数据与隐私',
+  },
   { id: '订阅方案', hash: '/user-space/subscriptions', guarded: false },
   { id: '礼物/地址', hash: '/user-space/gifts', guarded: true },
-  { id: '合作伙伴', hash: '/user-space/partners', guarded: true },
   { id: '账号安全', hash: '/user-space/account-security', guarded: true },
   { id: 'BOH 云盘', hash: '/user-space/note', guarded: true },
   { id: '共享记忆', hash: '/user-space/shared-memories', guarded: true },
@@ -109,7 +123,13 @@ const endpointOf = (rawUrl) => {
 const isDataRequest = (url) =>
   !/\/static\//.test(url) && !/\.(js|css|webp|png|jpg|jpeg|svg|woff2?)(\?|$)/.test(url);
 
-const SHELL_CLASSES = ['unified-nav', 'footer-pages', 'ai-edge-trigger', 'boh-boot', 'boh-boot-body'];
+const SHELL_CLASSES = [
+  'unified-nav',
+  'footer-pages',
+  'ai-edge-trigger',
+  'boh-boot',
+  'boh-boot-body',
+];
 
 const browser = await chromium.launch({
   channel: 'chrome',
@@ -120,7 +140,10 @@ const ROWS = { tabs: [], segs: [], routes: [], roundTrips: [] };
 const violations = [];
 
 try {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    serviceWorkers: 'block',
+  });
   const page = await ctx.newPage();
 
   if (SLOW) {
@@ -140,7 +163,9 @@ try {
       new PerformanceObserver((l) => {
         for (const e of l.getEntries()) window.__longTasks.push(Math.round(e.duration));
       }).observe({ entryTypes: ['longtask'] });
-    } catch { /* 不支持则跳过 */ }
+    } catch {
+      /* 不支持则跳过 */
+    }
 
     /** 主内容块 = #app 下面积最大且非壳层的子元素 */
     window.__bohMainBlock = () => {
@@ -204,8 +229,8 @@ try {
   const loggedIn = () =>
     page.evaluate(() => {
       try {
-        return !!document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia?.state?.value
-          ?.auth?.isLoggedIn;
+        return !!document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia
+          ?.state?.value?.auth?.isLoggedIn;
       } catch {
         return false;
       }
@@ -263,7 +288,10 @@ try {
     let at = null;
     const deadline = t0 + timeoutMs;
     while (Date.now() < deadline) {
-      if (await pred()) { at = Date.now() - t0; break; }
+      if (await pred()) {
+        at = Date.now() - t0;
+        break;
+      }
       await page.waitForTimeout(20);
     }
     await page.waitForTimeout(settle);
@@ -282,7 +310,9 @@ try {
       longTasks: ltAfter - ltBefore,
       authLost: !(await loggedIn()),
       mainCls: await mainSig(),
-      errors: consoleErrors.filter((e) => !/CORS|ERR_FAILED|Failed to load resource|favicon/i.test(e)),
+      errors: consoleErrors.filter(
+        (e) => !/CORS|ERR_FAILED|Failed to load resource|favicon/i.test(e),
+      ),
     };
   };
 
@@ -301,7 +331,9 @@ try {
 
   const clickTab = (tab) =>
     page.evaluate((t) => {
-      const el = document.querySelector(`.userspace-rail [data-tab="${t}"], .userspace-bottom-nav [data-tab="${t}"]`);
+      const el = document.querySelector(
+        `.userspace-rail [data-tab="${t}"], .userspace-bottom-nav [data-tab="${t}"]`,
+      );
       if (!el) return false;
       el.click();
       return true;
@@ -313,7 +345,9 @@ try {
       ({ host, txt }) => {
         const hostEl = document.querySelector(host);
         if (!hostEl) return false;
-        const el = [...hostEl.querySelectorAll('.segment-tab')].find((b) => b.textContent.trim() === txt);
+        const el = [...hostEl.querySelectorAll('.segment-tab')].find(
+          (b) => b.textContent.trim() === txt,
+        );
         if (!el) return false;
         el.click();
         return true;
@@ -321,12 +355,17 @@ try {
       { host: `.tab-page.${tabSel}`, txt: label },
     );
 
-  const gotoHash = (hash) => page.evaluate((h) => { window.location.hash = `#${h}`; }, hash);
+  const gotoHash = (hash) =>
+    page.evaluate((h) => {
+      window.location.hash = `#${h}`;
+    }, hash);
 
   // ---------- 冷启 ----------
   const t0 = Date.now();
   await page.goto(`${BASE}/#/user-space`, { waitUntil: 'load' });
-  await page.waitForFunction(() => !!document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 }).catch(() => {});
+  await page
+    .waitForFunction(() => !!document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 })
+    .catch(() => {});
   const shellReadyMs = Date.now() - t0;
   await page.waitForTimeout(1500);
   await injectLogin();
@@ -337,104 +376,132 @@ try {
     bottom: document.querySelectorAll('.userspace-bottom-nav [data-tab]').length,
     hash: location.hash,
   }));
-  console.log(`[us-pages] 壳就绪 ${shellReadyMs}ms；user-space-page=${shell.hasShell}；左栏 ${shell.rail} 项 / 底栏 ${shell.bottom} 项；登录态=${await loggedIn()}`);
+  console.log(
+    `[us-pages] 壳就绪 ${shellReadyMs}ms；user-space-page=${shell.hasShell}；左栏 ${shell.rail} 项 / 底栏 ${shell.bottom} 项；登录态=${await loggedIn()}`,
+  );
 
   // ---------- A. 分区入口 ----------
   // ONLY=roundtrip 时跳过 A/B/C/C-2，只跑 C-3：限速下复测往返要快得多
   if (ONLY !== 'roundtrip') {
-  console.log('\n######## A. 分区入口 ########');
-  for (const t of TAB_ENTRIES) {
-    if (await vis(t.host)) {
-      ROWS.tabs.push({ ...t, phase: '起点', ms: null, dataRequests: 0, byEndpoint: {}, longTasks: 0, errors: [] });
-      continue;
+    console.log('\n######## A. 分区入口 ########');
+    for (const t of TAB_ENTRIES) {
+      if (await vis(t.host)) {
+        ROWS.tabs.push({
+          ...t,
+          phase: '起点',
+          ms: null,
+          dataRequests: 0,
+          byEndpoint: {},
+          longTasks: 0,
+          errors: [],
+        });
+        continue;
+      }
+      const r = await measureGuarded(
+        () => clickTab(t.id),
+        () => vis(t.host),
+        { settle: 450 },
+      );
+      ROWS.tabs.push({ ...t, phase: '首次', ...r });
+      if (r.timeout)
+        violations.push(`分区「${t.label}」点击后容器未可见（超时），主内容=${r.mainCls}`);
+      if (r.authLost) violations.push(`分区「${t.label}」测量窗口内掉登录态，数字不可用`);
+      await page.waitForTimeout(220);
     }
-    const r = await measureGuarded(() => clickTab(t.id), () => vis(t.host), { settle: 450 });
-    ROWS.tabs.push({ ...t, phase: '首次', ...r });
-    if (r.timeout) violations.push(`分区「${t.label}」点击后容器未可见（超时），主内容=${r.mainCls}`);
-    if (r.authLost) violations.push(`分区「${t.label}」测量窗口内掉登录态，数字不可用`);
-    await page.waitForTimeout(220);
-  }
-  for (const t of TAB_ENTRIES) {
-    const other = TAB_ENTRIES.find((x) => x.id !== t.id);
-    await clickTab(other.id);
-    await page.waitForTimeout(520);
-    const r = await measureGuarded(() => clickTab(t.id), () => vis(t.host), { settle: 450 });
-    ROWS.tabs.push({ ...t, phase: '切回', ...r });
-    await page.waitForTimeout(220);
-  }
-
-  // ---------- B. 分区内档位 ----------
-  console.log('\n######## B. 分区内档位 ########');
-  const TAB_SHELL = { community: 'community-shell', posts: 'content-shell', messages: 'messages-tab' };
-  for (const s of SEGMENT_PAGES) {
-    await clickTab(s.tab);
-    await page.waitForTimeout(560);
-    const other = SEGMENT_PAGES.find((x) => x.tab === s.tab && x.seg !== s.seg);
-    if (other) {
-      await clickSeg(TAB_SHELL[s.tab], other.seg);
-      await page.waitForTimeout(460);
+    for (const t of TAB_ENTRIES) {
+      const other = TAB_ENTRIES.find((x) => x.id !== t.id);
+      await clickTab(other.id);
+      await page.waitForTimeout(520);
+      const r = await measureGuarded(
+        () => clickTab(t.id),
+        () => vis(t.host),
+        { settle: 450 },
+      );
+      ROWS.tabs.push({ ...t, phase: '切回', ...r });
+      await page.waitForTimeout(220);
     }
-    const r = await measureGuarded(
-      () => clickSeg(TAB_SHELL[s.tab], s.seg),
-      () => vis(s.pred),
-      { settle: 420 },
-    );
-    ROWS.segs.push({ ...s, ...r });
-    if (r.timeout) violations.push(`档位「${s.tab}/${s.seg}」点击后内容未可见（超时），主内容=${r.mainCls}`);
-    if (r.authLost) violations.push(`档位「${s.tab}/${s.seg}」测量窗口内掉登录态`);
-    await page.waitForTimeout(220);
-  }
 
-  // ---------- C. 独立子路由 ----------
-  console.log('\n######## C. 独立子路由（首次进入）########');
-  await gotoHash(ROUTE_HOME);
-  await page.waitForTimeout(900);
-
-  const enterOnce = async (r) => {
-    const before = await mainSig();
-    // 判据按页面类型分派：同路由换档位不能用「主块类名变化」，得看页头标题/专属根元素
-    let pred;
-    if (r.pred) pred = () => vis(r.pred);
-    else if (r.predText) pred = () => page.evaluate((t) => (document.body.innerText || '').includes(t), r.predText);
-    else pred = async () => (await mainSig()) !== before;
-    const m = await measureGuarded(() => gotoHash(r.hash), pred, { settle: 520 });
-    const probe = await mainBlock();
-    // 假阳性守卫：签名变成登录弹窗 = 被登录守卫拦下，不是「切过去了」
-    if (probe.main && /login-modal/.test(probe.main.cls)) {
-      m.blockedByLogin = true;
+    // ---------- B. 分区内档位 ----------
+    console.log('\n######## B. 分区内档位 ########');
+    const TAB_SHELL = {
+      community: 'community-shell',
+      posts: 'content-shell',
+      messages: 'messages-tab',
+    };
+    for (const s of SEGMENT_PAGES) {
+      await clickTab(s.tab);
+      await page.waitForTimeout(560);
+      const other = SEGMENT_PAGES.find((x) => x.tab === s.tab && x.seg !== s.seg);
+      if (other) {
+        await clickSeg(TAB_SHELL[s.tab], other.seg);
+        await page.waitForTimeout(460);
+      }
+      const r = await measureGuarded(
+        () => clickSeg(TAB_SHELL[s.tab], s.seg),
+        () => vis(s.pred),
+        { settle: 420 },
+      );
+      ROWS.segs.push({ ...s, ...r });
+      if (r.timeout)
+        violations.push(`档位「${s.tab}/${s.seg}」点击后内容未可见（超时），主内容=${r.mainCls}`);
+      if (r.authLost) violations.push(`档位「${s.tab}/${s.seg}」测量窗口内掉登录态`);
+      await page.waitForTimeout(220);
     }
-    return { ...m, main: probe.main };
-  };
 
-  for (const r of SUB_ROUTES) {
-    const m = await enterOnce(r);
-    ROWS.routes.push({ ...r, phase: '首次', ...m });
-    // 记录该页主内容根节点，供「二次进入」比对
-    await page.evaluate((id) => {
-      window.__nodes = window.__nodes || {};
-      const host = [...(document.querySelector('#app')?.children || [])]
-        .filter((el) => el.getBoundingClientRect().height > 200)[0];
-      window.__nodes[id] = host || null;
-    }, r.id);
-    if (m.blockedByLogin) violations.push(`子路由「${r.id}」被登录守卫拦下（拿到的是登录弹窗，数字不可用）`);
-    if (m.timeout) violations.push(`子路由「${r.id}」切换后主内容未出现（超时）`);
-    if (m.errors.length) violations.push(`子路由「${r.id}」切换时报错：${m.errors[0]}`);
-    await page.waitForTimeout(200);
-  }
+    // ---------- C. 独立子路由 ----------
+    console.log('\n######## C. 独立子路由（首次进入）########');
+    await gotoHash(ROUTE_HOME);
+    await page.waitForTimeout(900);
 
-  console.log('\n######## C-2. 子路由二次进入（先回「我的」再进）########');
-  for (const r of SUB_ROUTES) {
-    await gotoHash(HOME_HASH);
-    await page.waitForTimeout(760);
-    const m = await enterOnce(r);
-    const same = await page.evaluate((id) => {
-      const host = [...(document.querySelector('#app')?.children || [])]
-        .filter((el) => el.getBoundingClientRect().height > 200)[0];
-      return { same: !!host && host === window.__nodes?.[id], present: !!host };
-    }, r.id);
-    ROWS.routes.push({ ...r, phase: '二次', ...m, sameNode: same.same });
-    await page.waitForTimeout(200);
-  }
+    const enterOnce = async (r) => {
+      const before = await mainSig();
+      // 判据按页面类型分派：同路由换档位不能用「主块类名变化」，得看页头标题/专属根元素
+      let pred;
+      if (r.pred) pred = () => vis(r.pred);
+      else if (r.predText)
+        pred = () => page.evaluate((t) => (document.body.innerText || '').includes(t), r.predText);
+      else pred = async () => (await mainSig()) !== before;
+      const m = await measureGuarded(() => gotoHash(r.hash), pred, { settle: 520 });
+      const probe = await mainBlock();
+      // 假阳性守卫：签名变成登录弹窗 = 被登录守卫拦下，不是「切过去了」
+      if (probe.main && /login-modal/.test(probe.main.cls)) {
+        m.blockedByLogin = true;
+      }
+      return { ...m, main: probe.main };
+    };
+
+    for (const r of SUB_ROUTES) {
+      const m = await enterOnce(r);
+      ROWS.routes.push({ ...r, phase: '首次', ...m });
+      // 记录该页主内容根节点，供「二次进入」比对
+      await page.evaluate((id) => {
+        window.__nodes = window.__nodes || {};
+        const host = [...(document.querySelector('#app')?.children || [])].filter(
+          (el) => el.getBoundingClientRect().height > 200,
+        )[0];
+        window.__nodes[id] = host || null;
+      }, r.id);
+      if (m.blockedByLogin)
+        violations.push(`子路由「${r.id}」被登录守卫拦下（拿到的是登录弹窗，数字不可用）`);
+      if (m.timeout) violations.push(`子路由「${r.id}」切换后主内容未出现（超时）`);
+      if (m.errors.length) violations.push(`子路由「${r.id}」切换时报错：${m.errors[0]}`);
+      await page.waitForTimeout(200);
+    }
+
+    console.log('\n######## C-2. 子路由二次进入（先回「我的」再进）########');
+    for (const r of SUB_ROUTES) {
+      await gotoHash(HOME_HASH);
+      await page.waitForTimeout(760);
+      const m = await enterOnce(r);
+      const same = await page.evaluate((id) => {
+        const host = [...(document.querySelector('#app')?.children || [])].filter(
+          (el) => el.getBoundingClientRect().height > 200,
+        )[0];
+        return { same: !!host && host === window.__nodes?.[id], present: !!host };
+      }, r.id);
+      ROWS.routes.push({ ...r, phase: '二次', ...m, sameNode: same.same });
+      await page.waitForTimeout(200);
+    }
   } // 结束 ONLY !== 'roundtrip'
 
   // ---------- C-3. 往返：我的 → 子路由 → 回「我的」 ----------
@@ -445,11 +512,14 @@ try {
   for (const r of ROUND_TRIP) {
     await gotoHash(HOME_HASH);
     await page.waitForTimeout(900);
-    await page.evaluate(() => { window.__shell = document.querySelector('.user-space-page'); });
+    await page.evaluate(() => {
+      window.__shell = document.querySelector('.user-space-page');
+    });
 
     let pred;
     if (r.pred) pred = () => vis(r.pred);
-    else if (r.predText) pred = () => page.evaluate((t) => (document.body.innerText || '').includes(t), r.predText);
+    else if (r.predText)
+      pred = () => page.evaluate((t) => (document.body.innerText || '').includes(t), r.predText);
     else {
       const before = await mainSig();
       pred = async () => (await mainSig()) !== before;
@@ -463,11 +533,14 @@ try {
       { settle: 560, waitQuiet: true },
     );
     const shell = await page.evaluate(() => ({
-      same: !!document.querySelector('.user-space-page') && document.querySelector('.user-space-page') === window.__shell,
+      same:
+        !!document.querySelector('.user-space-page') &&
+        document.querySelector('.user-space-page') === window.__shell,
       present: !!document.querySelector('.user-space-page'),
     }));
     ROWS.roundTrips = ROWS.roundTrips || [];
-    ROWS.roundTrips.push({ id: r.id, ...back, shellSame: shell.same, shellPresent: shell.present });    await page.waitForTimeout(200);
+    ROWS.roundTrips.push({ id: r.id, ...back, shellSame: shell.same, shellPresent: shell.present });
+    await page.waitForTimeout(200);
   }
 
   const longTasks = await page.evaluate(() => window.__longTasks || []);
@@ -476,10 +549,13 @@ try {
 
   // ---------- 报告 ----------
   const fmtMap = (m, n = 4) => {
-    const items = Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n);
+    const items = Object.entries(m)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, n);
     return items.map(([k, v]) => `${v}×${k}`).join('  ') || '—';
   };
-  const cell = (r) => `${(r.ms == null ? '超时' : r.ms + 'ms').padStart(9)}  ${String(r.dataRequests).padStart(6)}  ${String(r.longTasks).padStart(5)}`;
+  const cell = (r) =>
+    `${(r.ms == null ? '超时' : r.ms + 'ms').padStart(9)}  ${String(r.dataRequests).padStart(6)}  ${String(r.longTasks).padStart(5)}`;
 
   console.log('\n======== A. 分区入口 ========');
   console.log(`${'分区'.padEnd(8)}${'阶段'.padEnd(6)}${'耗时'.padStart(9)}  数据请求  长任务`);
@@ -494,7 +570,9 @@ try {
   }
 
   console.log('\n======== C. 独立子路由 ========');
-  console.log(`${'页面'.padEnd(16)}${'阶段'.padEnd(6)}${'耗时'.padStart(9)}  数据请求  长任务  复用  主内容`);
+  console.log(
+    `${'页面'.padEnd(16)}${'阶段'.padEnd(6)}${'耗时'.padStart(9)}  数据请求  长任务  复用  主内容`,
+  );
   for (const r of ROWS.routes) {
     console.log(
       `${r.id.padEnd(16)}${r.phase.padEnd(6)}${cell(r)}  ` +
@@ -503,7 +581,11 @@ try {
     if (r.dataRequests) console.log(`${''.padEnd(28)}${fmtMap(r.byEndpoint, 3)}`);
   }
 
-  const stat = (rows) => {    const t = rows.map((r) => r.ms).filter((x) => typeof x === 'number').sort((a, b) => a - b);
+  const stat = (rows) => {
+    const t = rows
+      .map((r) => r.ms)
+      .filter((x) => typeof x === 'number')
+      .sort((a, b) => a - b);
     if (!t.length) return '（无有效数据）';
     return `中位 ${t[Math.floor(t.length / 2)]}ms / 最慢 ${t[t.length - 1]}ms（${t.length} 次）`;
   };
@@ -512,7 +594,9 @@ try {
   const firstC = ROWS.routes.filter((r) => r.phase === '首次');
   const secondC = ROWS.routes.filter((r) => r.phase === '二次');
   console.log('\n======== C-3. 往返（返回「我的」那一段）========');
-  console.log(`${'子路由'.padEnd(16)}${'DOM出现'.padStart(9)}${'数据就位'.padStart(10)}  返回请求数  shell 复用`);
+  console.log(
+    `${'子路由'.padEnd(16)}${'DOM出现'.padStart(9)}${'数据就位'.padStart(10)}  返回请求数  shell 复用`,
+  );
   for (const r of ROWS.roundTrips) {
     console.log(
       `${r.id.padEnd(16)}${(r.ms == null ? '超时' : r.ms + 'ms').padStart(9)}` +
@@ -521,18 +605,24 @@ try {
     );
   }
   console.log('\n======== 汇总 ========');
-  console.log(`A 分区入口     首次+切回 ${stat(ROWS.tabs.filter((r) => r.ms != null))}   数据请求合计 ${reqSum(ROWS.tabs)}`);
+  console.log(
+    `A 分区入口     首次+切回 ${stat(ROWS.tabs.filter((r) => r.ms != null))}   数据请求合计 ${reqSum(ROWS.tabs)}`,
+  );
   console.log(`B 分区内档位   ${stat(ROWS.segs)}   数据请求合计 ${reqSum(ROWS.segs)}`);
   console.log(`C 子路由首次   ${stat(firstC)}   数据请求合计 ${reqSum(firstC)}`);
   console.log(`C 子路由二次   ${stat(secondC)}   数据请求合计 ${reqSum(secondC)}`);
   const rebuilt = secondC.filter((r) => r.sameNode === false);
-  console.log(`子路由二次进入「重建」：${rebuilt.length ? rebuilt.map((r) => r.id).join('、') : '无'}`);
+  console.log(
+    `子路由二次进入「重建」：${rebuilt.length ? rebuilt.map((r) => r.id).join('、') : '无'}`,
+  );
   const rt = ROWS.roundTrips;
   console.log(
     `C-3 往返返回：${stat(rt)}   返回请求合计 ${reqSum(rt)}   ` +
       `shell 复用 ${rt.filter((r) => r.shellSame).length}/${rt.length}`,
   );
-  console.log(`整轮长任务：${longTasks.length} 个${longTasks.length ? ' → ' + longTasks.slice(0, 12).join('ms, ') + 'ms' : ''}`);
+  console.log(
+    `整轮长任务：${longTasks.length} 个${longTasks.length ? ' → ' + longTasks.slice(0, 12).join('ms, ') + 'ms' : ''}`,
+  );
 } finally {
   await browser.close();
 }

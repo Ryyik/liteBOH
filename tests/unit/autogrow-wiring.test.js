@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { scriptSection, stripComments, flattenSource } from '../helpers/source.js';
 
-// plans/021 阶段 2/3：评论 / 回复 / 标题 / 印象 / Lab 输入框的「多字扩展」全部收敛到
+// plans/021 阶段 2/3：评论 / 回复 / 标题 / Lab 输入框的「多字扩展」全部收敛到
 // composables/useAutoGrowTextarea.js 单源。本文件锁三类事：
 //   1. 接线在位（模板 ref + script 里的 useAutoGrowTextarea 调用）；
 //   2. 自研实现已删（scrollHeight / style.height / autoResizeTitle / autoGrow 不再出现）；
@@ -48,23 +48,6 @@ describe('阶段 2：消息中心回复框接入', () => {
     expect(raw).toContain('ref="replyTextareaRef"');
     const code = codeOf(rel);
     expect(code).toContain('useAutoGrowTextarea({value:()=>replyContent.value})');
-  });
-
-  it('不夹带自研增高', () => {
-    const code = codeOf(rel);
-    expect(code).not.toMatch(/scrollHeight/);
-    expect(code).not.toMatch(/style\.height/);
-  });
-});
-
-describe('阶段 2：伙伴印象输入框接入', () => {
-  const rel = 'src/views/user-center/Partners.vue';
-
-  it('接线：模板 ref + value getter（关弹窗/发布成功都会主动清空 newImpression）', () => {
-    const raw = read(rel);
-    expect(raw).toContain('ref="impressionTextareaRef"');
-    const code = codeOf(rel);
-    expect(code).toContain('useAutoGrowTextarea({value:()=>newImpression.value})');
   });
 
   it('不夹带自研增高', () => {

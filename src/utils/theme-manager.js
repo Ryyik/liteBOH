@@ -97,7 +97,6 @@ class ThemeManager {
       '.account-security-page',
       '.address-page',
       '.subscription-page',
-      '.partners-container',
       '.pushplus-settings-page',
       '.shared-memory-page',
       '#unified-nav-container',

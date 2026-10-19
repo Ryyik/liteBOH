@@ -21,7 +21,7 @@ export const SITE_OPERATION_MEMORY = `
 - BOH AI: /ai-chat（底栏「AI」席直达；导航岛与右缘滑动也能唤起）
 - 论坛（方块）: /（论坛落在首页；底栏「内容」与顶栏「社区 → 论坛」同款落点）
 - 消息中心: /user-space?tab=messages（通知、点赞、评论、印象与系统消息）
-- 社区伙伴: /user-space/partners
+- 社区成员（论坛「成员」分区）: /?view=members
 - 礼物与地址: /user-space/gifts
 - 订阅计划: /user-space/subscriptions；积分与资产: /user-space?tab=posts&view=assets
 - Pushplus 推送设置: /user-space/pushplus-settings
@@ -36,26 +36,20 @@ export const SITE_OPERATION_MEMORY = `
    - 点击“发布印象”
    - 注意: 需要已登录，且不能给自己写印象
 
-2) 如何给别人写印象（社区伙伴路径）
-   - 打开 /user-space/partners
-   - 找到目标用户，点击“写印象”
-   - 在弹窗输入框填写内容
-   - 点击“发布印象”
-
-3) 如何查看我收到的印象
+2) 如何查看我收到的印象
    - 路径 A: /profile/:username -> “印象”标签
    - 路径 B: /user-space?tab=posts&view=impressions（“我”页 -> 印象分段）
    - 路径 C: /user-space?tab=messages -> “印象”分类
 
-4) 如何进入 BOH AI
+3) 如何进入 BOH AI
    - 路径 A: /ai-chat
    - 路径 B: 底栏“AI”席（全站任意页面均可直达）
 
-5) 如何进入节目
+4) 如何进入节目
    - 路径 A: /shows
    - 路径 B: /newsroom（“新闻&节目”信息流，节目与新闻混排）
 
-6) 如何查看我的常用功能
+5) 如何查看我的常用功能
    - /user-space “我”页：空间（动态）/ 资产（装扮、积分、订阅、订单、抽奖）/ 印象
    - 礼物与地址: /user-space/gifts；推送设置: /user-space/pushplus-settings
    - /profile/:username -> 查看帖子、评论、印象等个人主页内容

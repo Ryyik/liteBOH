@@ -136,7 +136,6 @@ const EXTRA_LABELS = {
   '/user-space/pushplus-settings': '推送设置',
   '/user-space/settings/version': 'Beta 预览',
   '/user-space/gifts': '礼物地址',
-  '/user-space/partners': '成员目录',
   '/shop/account': '商城账户',
 };
 

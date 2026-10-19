@@ -46,7 +46,7 @@ describe('compat route registry（兼容层唯一登记处）', () => {
       path: '/user-space',
       query: { tab: 'posts', view: 'impressions' },
     });
-    expect(userCenterFold('partners')).toEqual({ path: '/user-space/partners', query: {} });
+    expect(userCenterFold('partners')).toEqual({ path: '/', query: { view: 'members' } });
     expect(userCenterFold('pushplus')).toEqual({
       path: '/user-space/pushplus-settings',
       query: {},
@@ -86,6 +86,16 @@ describe('compat route registry（兼容层唯一登记处）', () => {
     expect(forum.redirect({ query: { view: 'bogus' } })).toEqual({
       path: '/',
       query: { view: 'latest' },
+    });
+  });
+
+  it('/user-space/partners 孤儿页收编 → 论坛「成员」分区（2026-10-19）', () => {
+    const partners = findCompat('/user-space/partners');
+    expect(partners.redirect({ query: {} })).toEqual({ path: '/', query: { view: 'members' } });
+    // query 透传（与 /forum 同款口径）
+    expect(partners.redirect({ query: { from: 'x' } })).toEqual({
+      path: '/',
+      query: { from: 'x', view: 'members' },
     });
   });
 

@@ -7,10 +7,9 @@ import fs from 'node:fs';
 //   场景 A：竖屏手机 390×844，用户空间内嵌论坛的卡片内联回复框（PostCard，主症）
 //   场景 B：竖屏手机 390×844，帖子详情页底部评论输入框（2026-10-01 起也是自动增高 textarea）
 //   场景 C：竖屏手机 390×844，消息中心通知详情的回复框（plans/021 阶段2 接入）
-//   场景 D：竖屏手机 390×844，社区伙伴印象墙的印象输入框（plans/021 阶段2 接入）
 //   A/B 用真实登录注入 + 真实数据；C 需要 supabase 真实会话（探针拿不到），
 //   沿用 scripts/probes/probe-messages-ui.mjs 的 mock 先例（拦截 /auth/v1/user
-//   与 /rest/v1/notifications + 伪造本地会话）；D 的伙伴列表是公开数据，走真实请求。
+//   与 /rest/v1/notifications + 伪造本地会话）。
 //    ForumMain「引用转发弹窗」经复核是死 UI（PostCard 无 quote-repost 发射点，
 //   真实转发入口已迁至 ShareIsland），按纪律不接线；场景 A 末尾留了一条绊线：
 //   分享→站内转发后 ForumMain 的 section[aria-label="引用转发"] 必须保持 0 个。
@@ -25,7 +24,7 @@ import fs from 'node:fs';
 //       → 高度必须回落。这是 `:value` 受控写法下最容易漏的一条 —— 只绑 @input 的实现不会收缩。
 //       该卡没有嵌套回复时记 SKIP（不记红），避免把「数据没有」误报成「代码不对」。
 //     F 竖屏键盘遮挡：只**测量并报告**，不作断言（plans/021 §8：先测再改）
-//     G 关闭再重开（v-if 卸载→再挂载）→ 新元素从 rows 高度起步（场景 C/D）
+//     G 关闭再重开（v-if 卸载→再挂载）→ 新元素从 rows 高度起步（场景 C）
 //
 //   场景 B 追加（2026-10-13，竖屏底栏「聚焦即展开」）：
 //     · 聚焦 → `.pd-actionbar.is-expanded` + 输入框最小高度 ≥76px 且独占一行 + 操作组让位
@@ -411,11 +410,12 @@ try {
 
       check(
         '论坛卡片回复框 · E 父组件改写内容后高度回落',
-        Boolean(afterSwitch) &&
+        Boolean(beforeSwitch) &&
+          Boolean(afterSwitch) &&
           afterSwitch.value !== beforeSwitch.value &&
           afterSwitch.clientHeight < beforeSwitch.clientHeight &&
           afterSwitch.clientHeight <= api.H0 + 24,
-        `改写前=${beforeSwitch.clientHeight}(len ${beforeSwitch.value.length}) 改写后=${afterSwitch?.clientHeight}(len ${afterSwitch?.value.length} value=${JSON.stringify(afterSwitch?.value?.slice(0, 12))}) 初始=${api.H0}`,
+        `改写前=${beforeSwitch?.clientHeight}(len ${beforeSwitch?.value.length}) 改写后=${afterSwitch?.clientHeight}(len ${afterSwitch?.value.length} value=${JSON.stringify(afterSwitch?.value?.slice(0, 12))}) 初始=${api.H0}`,
       );
       await page.screenshot({ path: `${OUT}/probe-reply-autogrow-after-switch.png` });
     }
@@ -796,94 +796,6 @@ try {
           close: () => page.evaluate(() => document.querySelector('.cancel-reply-btn')?.click()),
           reopen: () =>
             page.evaluate(() => document.querySelector('.notif-action-btn.reply')?.click()),
-        });
-      }
-    }
-
-    await ctx.close();
-  }
-
-  // ================= 场景 D：社区伙伴印象墙的印象输入框（plans/021 阶段2 接入） =================
-  // 伙伴列表是公开数据（profiles 公开读），走真实请求；pinia 假登录即可拿到
-  // 「写印象」入口（isLoggedIn && 非本人；表单对本人不渲染，逐行尝试）。
-  {
-    const { ctx, page } = await newPage(browser);
-    // Partners 路由 requiresLogin：路由守卫在**初始导航**就把未登录用户弹回 `/`，
-    // 事后再注入 pinia 假登录来不及（hash 已被改成 `#/`）。按 probe-messages-ui.mjs
-    // 先例：先落公开页 → 注入假登录 → 再切 hash（此时 from.name 已在、auth store
-    // 已 initialized，守卫按已登录放行）。
-    await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
-    await injectAuth(page);
-    await page.evaluate(() => {
-      window.location.hash = '#/user-space/partners';
-    });
-    const listReady = await waitForInPage(
-      page,
-      () => ({ done: Boolean(document.querySelector('.partner-row')) }),
-      { timeout: 25000 },
-    );
-    if (!listReady?.done) {
-      skip('伙伴印象框', '伙伴列表 25s 内未渲染（数据原因，非代码问题）');
-    } else {
-      const clickWriteImpression = (idx) =>
-        page.evaluate((i) => {
-          const rows = [...document.querySelectorAll('.partner-row')];
-          const row = rows[i];
-          const btn =
-            row &&
-            [...row.querySelectorAll('.action-buttons button')].find(
-              (b) => b.textContent.trim() === '写印象',
-            );
-          btn?.click();
-          return Boolean(btn);
-        }, idx);
-
-      let openedIndex = -1;
-      let boxReady = null;
-      for (let attempt = 0; attempt < 5 && !boxReady?.done; attempt += 1) {
-        await clickWriteImpression(attempt);
-        boxReady = await waitForInPage(
-          page,
-          () => ({
-            done: Boolean(document.querySelector('.add-impression-box .impression-input')),
-          }),
-          { timeout: 6000 },
-        );
-        if (boxReady?.done) {
-          openedIndex = attempt;
-        } else {
-          // 这一行打不开（很可能就是当前用户本人），关掉弹窗试下一行
-          await page.evaluate(() =>
-            document.querySelector('.impression-modal .close-btn')?.click(),
-          );
-          await sleep(400);
-        }
-      }
-
-      if (!boxReady?.done) {
-        skip('伙伴印象框', '前 5 行都打不开印象表单（数据原因，非代码问题）');
-      } else {
-        await sleep(SETTLE);
-        const api = await runGrowthChecks(page, {
-          selector: '.impression-input',
-          label: '伙伴印象框',
-          // 印象框 padding 32px + 行高约 30px，rows=3 空态实测 123px，放宽上界
-          emptyHeightMax: 160,
-        });
-        report.info.partnersImpressionBox = {
-          H0: api.H0,
-          maxHeight: api.MAX,
-          samples: api.samples,
-        };
-        await page.screenshot({ path: `${OUT}/probe-reply-autogrow-partners.png` });
-
-        await runRemountCheck(page, {
-          selector: '.impression-input',
-          label: '伙伴印象框',
-          H0: api.H0,
-          close: () =>
-            page.evaluate(() => document.querySelector('.impression-modal .close-btn')?.click()),
-          reopen: () => clickWriteImpression(openedIndex),
         });
       }
     }
