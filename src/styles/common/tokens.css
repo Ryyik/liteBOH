@@ -23,7 +23,8 @@
  *      --glass-filter-* 再派生 / 成品档字面量 / blur(NNpx) 且 NN≥14
  *
  * 3. Layout Tokens — 跨组件必须一致、禁止各自写死的布局常量（--boh-*）
- *    现有 1 个：--boh-login-island-width（横屏登录岛宽度，导航上半岛与登录卡片共用）
+ *    现有 2 个：--boh-login-island-width（横屏登录岛宽度，导航上半岛与登录卡片共用）
+ *              --boh-login-island-bg（横屏登录岛材质，上下两半必须同色）
  * ==============================================
  */
 
@@ -51,6 +52,12 @@
      值里的 100% 在两侧都解析为视口宽度（overlay padding: 0 / 导航容器满宽），
      因此两侧永远同宽。 */
   --boh-login-island-width: min(860px, calc(100% - 24px));
+
+  /* 横屏登录岛材质：导航上半岛 + 登录卡片下半岛共用，改一处两半同时变。
+     浅色取纯白：页面底是 --boh-page-bg(#fff)，岛若用灰底会读成「脏」，
+     且与基础登录弹窗（login-modal.css 的 #fff）、/login 表单区不一致。
+     暗色取 #1c1c1e（比页面底 #0a0a0f 亮一档的抬升面），见下方 [data-theme="dark"]。 */
+  --boh-login-island-bg: #ffffff;
 
   /* Page surface — 全站页面底色（2026-09-23：改回纯白）
      只服务 body 底色一处消费（src/style.css），**不要**拿它当面板/卡片底色 ——
@@ -128,6 +135,7 @@
 }
 
 [data-theme="dark"] {
+  --boh-login-island-bg: #1c1c1e;
   --liquid-bg: rgba(28, 28, 36, 0.72);
   --liquid-bg-strong: rgba(40, 40, 52, 0.84);
   --liquid-bg-subtle: rgba(38, 38, 48, 0.58);

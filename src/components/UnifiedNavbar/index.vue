@@ -470,6 +470,7 @@ import {
   islandTaskView,
   islandCustomSlot,
 } from '@/composables/useIsland.js';
+import { logoutAndReload } from '@/utils/logout-and-reload.js';
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
@@ -936,7 +937,7 @@ const handleMenuAction = async (action) => {
       cancelText: '取消',
       tone: 'warning',
     });
-    if (ok) authStore.logout();
+    if (ok) await logoutAndReload(authStore);
   }
 };
 

@@ -1014,6 +1014,7 @@
 import { ref, computed, onMounted, onUnmounted, reactive, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { logoutAndReload } from '@/utils/logout-and-reload.js';
 import { storeToRefs } from 'pinia';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { isForumLandscape } from '@/utils/forum-viewport.js';
@@ -1446,7 +1447,7 @@ const handleRailNavClick = (itemId) => {
   router.push(item.route);
 };
 
-const handleRailAction = (actionId) => {
+const handleRailAction = async (actionId) => {
   switch (actionId) {
     case 'compose':
     case 'search':
@@ -1462,8 +1463,8 @@ const handleRailAction = (actionId) => {
       router.push('/');
       break;
     case 'logout':
-      authStore.logout();
-      router.push('/');
+      // 等 logout 落定后整页重载（原实现 fire-and-forget + push，页面数据不重建）
+      await logoutAndReload(authStore);
       break;
     default:
       break;

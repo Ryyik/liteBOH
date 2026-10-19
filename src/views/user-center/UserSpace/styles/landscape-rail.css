@@ -50,6 +50,18 @@
     left: calc(var(--userspace-rail-w, 88px) / 2);
   }
 
+  /* ── 横屏登录岛：下半岛必须跟上半岛同一条中心轴 ───────────────
+     上面几条把导航胶囊推到「内容区中心」，但登录卡片仍由 overlay 的
+     flex 居中（基线是整页）⇒ 两半相差 rail/2（1440 宽栏实测 120px），
+     岛形断裂成「偏右的胶囊 + 居中的面板」。
+     这里给卡片补同一个 left。三个宿主与导航偏移规则一一对应；
+     没有左栏的页面不命中，卡片维持整页居中。 */
+  body.page-userspace .boh-login-modal-container,
+  body.page-home .boh-login-modal-container,
+  body.page-aichat .boh-login-modal-container {
+    left: calc(var(--userspace-rail-w, 88px) / 2);
+  }
+
   /* ── 内容与左栏留出呼吸 ──────────────────────────────────────
      右区的左边缘就是左栏右边缘，若内容容器自身左右 padding 为 0 就会贴栏：
        · .forum-page.embedded-mode .forum-container → 被 embedded 规则清零

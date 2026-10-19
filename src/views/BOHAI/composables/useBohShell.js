@@ -23,6 +23,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useChatEngine } from '../composables/useChatEngine';
 import { createExpertState } from '../expert-roles/interview-engine.js';
 import { useAuthStore } from '@/stores/auth';
+import { logoutAndReload } from '@/utils/logout-and-reload.js';
 import { storeToRefs } from 'pinia';
 
 import { clearMarkdownCache } from '../BOHAI/components/boh-markdown.js';
@@ -84,7 +85,7 @@ export function useBohShell(props, emit) {
     router.push(item.route);
   };
 
-  const handleRailAction = (actionId) => {
+  const handleRailAction = async (actionId) => {
     switch (actionId) {
       case 'compose':
       case 'search':
@@ -99,8 +100,8 @@ export function useBohShell(props, emit) {
         router.push('/');
         break;
       case 'logout':
-        authStore.logout();
-        router.push('/');
+        // 等注销落定后整页重载（与首页 / UserSpace / 他人空间同一条 helper）
+        await logoutAndReload(authStore);
         break;
       default:
         break;

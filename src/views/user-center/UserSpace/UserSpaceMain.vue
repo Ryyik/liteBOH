@@ -437,6 +437,7 @@ import {
    图标渲染不出来，控制台刷「Failed to resolve component: User」。 */
 import { User } from 'lucide-vue-next';
 import { createPanelAsync } from '@/utils/async-component.js';
+import { logoutAndReload } from '@/utils/logout-and-reload.js';
 import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
@@ -2444,9 +2445,10 @@ const switchTab = (tabId) => {
   }
 };
 
-const handleLogout = () => {
-  authStore.logout();
-  router.push('/');
+const handleLogout = async () => {
+  // 不再「先 push('/') 再等 logout」：那样可能在状态清完前就渲染首页；
+  // 统一由 helper 等 logout 落定后整页重载，保证游客视角干净。
+  await logoutAndReload(authStore);
 };
 
 /* ---------- 横屏左栏动作分发（2026-09-15；2026-09-23 分区壳单源后调整） ----------

@@ -136,6 +136,7 @@ import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notif
 import { showIsland } from '@/composables/useIsland.js';
 import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
 import { themeManager } from '@/utils/theme-manager.js';
+import { logoutAndReload } from '@/utils/logout-and-reload.js';
 
 // 官方英雄区舞台（hero 流 + 四类周年弹窗）：独立 chunk，只在切到「官方」分区时才请求
 const AsyncOfficialHeroStage = createPanelAsync(
@@ -360,7 +361,9 @@ const handleRailAction = async (actionId) => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       break;
     case 'logout':
-      authStore.logout();
+      // 退出后整页重载：首页论坛流/左栏/hero 都是登录态下取回的数据，
+      // 只清 pinia 不会重新取数（用户报障「点退出登录页面不刷新」）。
+      await logoutAndReload(authStore);
       break;
     default:
       break;

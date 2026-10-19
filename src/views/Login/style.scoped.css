@@ -548,10 +548,11 @@
        导航上半岛：64px 高 + translateY(10px) → 底边 74px；故 72px 正好重叠 2px。 */
     margin-top: 72px;
     padding: 30px clamp(28px, 5vw, 64px) 34px;
-    border: 1px solid rgba(255, 255, 255, 0.62);
+    border: 1px solid var(--liquid-border-hairline);
     border-top: 0;
     border-radius: 0 0 30px 30px;
-    background: #f7f7f5;
+    /* 与导航上半岛同一个材质单源（tokens.css）：两半拼成一张岛，颜色必须一致 */
+    background: var(--boh-login-island-bg);
     box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -581,6 +582,16 @@
     box-shadow: 0 1px 14px rgba(255, 255, 255, 0.92);
     pointer-events: none;
     display: none;
+  }
+
+  /* 选择态（还没点「登录 BOH」）是左右两栏：右栏按钮组以**整卡**垂直居中
+     （.mobile-login-entry 走 top:50%），左栏文案必须落在同一条中心轴上。
+     header 只有 min-height 112，默认靠上排 ⇒ 文案比按钮高约 66px，看着「错位」。
+     用卡片 flex 把 header 整体居中；header 保持 static，右栏按钮仍然相对卡片定位。 */
+  .boh-login-modal-overlay:not(.mobile-form-open) .boh-login-modal-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 
   .boh-login-modal-container .boh-login-modal-header {
@@ -627,8 +638,11 @@
     transform: translateY(-50%);
   }
 
+  /* 底色不再单独覆写：已由 tokens.css 的 --boh-login-island-bg 在
+     [data-theme='dark'] 下切到 #1c1c1e（两半共用，避免只改一半）。
+     描边仍要跟导航上半岛同为 0.2 白：发丝线（0.08）在深底上几乎看不见。 */
   :global(html[data-theme='dark'] .boh-login-modal-container) {
-    background: #1c1c1e;
+    border-color: rgba(255, 255, 255, 0.2);
   }
 
   .boh-login-modal-container .mobile-login-primary,
@@ -657,7 +671,11 @@
   .boh-login-modal-container > .boh-login-form .login-altcha-wrap,
   .boh-login-modal-container > .boh-login-form .agreement-section,
   .boh-login-modal-container > .boh-login-form .boh-form-links,
-  .boh-login-modal-container > .boh-login-form .boh-login-btn {
+  .boh-login-modal-container > .boh-login-form .boh-login-btn,
+  /* 指纹/面容是次要主操作：与「登录」同宽，否则在双列网格里只占一列（半宽），
+     视觉上像被截断。错误提示同理，跟着按钮整行。 */
+    .boh-login-modal-container > .boh-login-form .boh-passkey-btn,
+  .boh-login-modal-container > .boh-login-form .boh-passkey-error {
     grid-column: 1 / -1;
   }
 
@@ -770,8 +788,19 @@
     margin: 4px 0 14px;
   }
 
+  /* 横屏表单比竖屏宽一倍：同一份 18px padding 会撑出 68px 高的黑色巨条。
+     收到 56px（与竖屏 pad 16 + 16px 字号同档），主/次按钮才有正常的主次比例。 */
   .boh-login-modal-container .boh-login-btn {
     margin-top: 0;
+    min-height: 56px;
+    padding: 15px 18px;
+    font-size: 16px;
+  }
+
+  /* 展开表单时头部只剩一行品牌文案；那条 48×3 的装饰分割线会孤零零悬在
+     「邮箱 / 方块 ID」上方，读成一条无意义的横线 ⇒ 表单态隐藏。 */
+  .mobile-form-open .boh-login-modal-container .boh-login-modal-header::after {
+    display: none;
   }
 
   .boh-login-modal-close {
@@ -829,13 +858,13 @@
     flex-direction: column;
     gap: 12px;
     color: #1d1d1f;
-    background: #f7f7f5;
+    background: var(--boh-login-island-bg);
     animation: loginSuccessReveal 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   :global(html[data-theme='dark'] .boh-login-modal-container > .mobile-success-state) {
     color: #f5f5f7;
-    background: #1c1c1e;
+    background: var(--boh-login-island-bg);
   }
 
   .boh-login-modal-container > .mobile-success-state .boh-login-logo {
