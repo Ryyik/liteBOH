@@ -239,7 +239,7 @@ const blockDefs = [
     kind: 'image',
     label: '图片审核',
     modeId: IMAGE_MODE_ID,
-    onHint: '论坛图片/方块墙先经云端视觉模型审核，云端不可达时回退本地 nsfwjs 兜底（宽放行）。',
+    onHint: '论坛图片先经云端视觉模型审核，云端不可达时回退本地 nsfwjs 兜底（宽放行）。',
     offHint: '停用后图片审核直接走本地 nsfwjs 兜底（误杀率较高，不推荐长期停用）。',
   },
 ];
@@ -270,7 +270,7 @@ function buildModeRow(kind) {
     display_name: isImage ? '审核·图片' : '审核·文本',
     tagline: '内容审核',
     description: isImage
-      ? '论坛图片/方块墙的第一层云端审核（本地 nsfwjs 兜底）'
+      ? '论坛图片的第一层云端审核（本地 nsfwjs 兜底）'
       : '发帖/评论/资料等文字内容的第一层云端审核（本地关键词兜底）',
     provider,
     provider_label: modelRow?.provider_label || (provider === 'custom' ? '自定义上游' : provider),

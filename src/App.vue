@@ -363,7 +363,7 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
 
             · 不能用 fullPath：它含 query，而「同页换参数」是高频动作 ——
               数据管理面板（?section=…&tab=…）、新闻列表（?q=…&filter=…）、
-              活动墙（?tab=wall）、首页（?view=…）都只改 query。用 fullPath 会让
+              首页（?view=…）都只改 query。用 fullPath 会让
               每次换参数都销毁重建整个路由组件：组件内状态（关键词/勾选/页码）归零，
               且 onMounted 会补发一次取数，把带条件的结果覆盖成全量
               （2026-09-25「抽奖名单」跳转失效的根因，实测切表列表请求 2 次 → 1 次）。

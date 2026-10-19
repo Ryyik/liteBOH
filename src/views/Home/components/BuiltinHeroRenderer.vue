@@ -13,14 +13,9 @@
     @more="$emit('birthday-more')"
   />
 
-  <BlockWallHero v-else-if="builtinKey === 'block-wall'" />
-
   <MascotEvolutionHero v-else-if="builtinKey === 'mascot-evolution'" />
 
-  <AnniversaryHero
-    v-else-if="builtinKey === 'anniversary-8'"
-    @poster="$emit('poster')"
-  />
+  <AnniversaryHero v-else-if="builtinKey === 'anniversary-8'" @poster="$emit('poster')" />
 
   <!-- 云上咖啡店：全幅图片叠加 -->
   <HomeOverlayHero
@@ -34,7 +29,7 @@
     image-position="center 54%"
     :links="[
       { text: '开始营业', type: 'primary', to: '/anniversary-cafe' },
-      { text: '走进八年旅程', type: 'secondary', to: '/boh-8-years-journey' }
+      { text: '走进八年旅程', type: 'secondary', to: '/boh-8-years-journey' },
     ]"
   />
 
@@ -71,7 +66,7 @@
       image-alt="BOH Cloud+"
       :links="[
         { text: '立即体验', type: 'primary', to: '/user-space/note' },
-        { text: '了解更多', type: 'secondary', onClick: () => $emit('open-cloud-plus') }
+        { text: '了解更多', type: 'secondary', onClick: () => $emit('open-cloud-plus') },
       ]"
     />
   </template>
@@ -89,7 +84,7 @@
       image-alt="方块之家"
       :links="[
         { text: '了解更多', type: 'primary', to: '/about' },
-        { text: '加入我们', type: 'secondary', to: '/join' }
+        { text: '加入我们', type: 'secondary', to: '/join' },
       ]"
     />
 
@@ -97,7 +92,9 @@
       title="来自 Ryyik 的一封信"
       subtitle="方块之家八周年"
       variant="light"
-      :links="[{ text: '查看信件', type: 'secondary', onClick: () => $emit('open-anniversary-letter') }]"
+      :links="[
+        { text: '查看信件', type: 'secondary', onClick: () => $emit('open-anniversary-letter') },
+      ]"
     >
       <img
         :src="anniversaryTextImg"
@@ -107,7 +104,7 @@
         decoding="async"
         width="768"
         height="512"
-      >
+      />
     </AppleGridCard>
   </template>
 </template>
@@ -120,7 +117,6 @@ import AppleGridCard from '@/components/AppleGridCard.vue';
 import HomeOverlayHero from './HomeOverlayHero.vue';
 import Beta6RenewalHero from './Beta6RenewalHero.vue';
 import AnniversaryHero from './AnniversaryHero.vue';
-import BlockWallHero from './BlockWallHero.vue';
 import MascotEvolutionHero from './MascotEvolutionHero.vue';
 import MascotNewHero from './MascotNewHero.vue';
 import BirthdayHero from './BirthdayHero.vue';
@@ -140,7 +136,13 @@ const props = defineProps({
   priority: { type: Boolean, default: false },
 });
 
-defineEmits(['poster', 'birthday-more', 'open-fuzhou', 'open-cloud-plus', 'open-anniversary-letter']);
+defineEmits([
+  'poster',
+  'birthday-more',
+  'open-fuzhou',
+  'open-cloud-plus',
+  'open-anniversary-letter',
+]);
 
 const builtinKey = computed(() => props.hero?.builtin_key || '');
 </script>
@@ -176,10 +178,16 @@ const builtinKey = computed(() => props.hero?.builtin_key || '');
 }
 
 @media (max-width: 768px) {
-  .cat-theme-main-cat { width: 160px; height: 160px; }
+  .cat-theme-main-cat {
+    width: 160px;
+    height: 160px;
+  }
 }
 
 @media (max-width: 480px) {
-  .cat-theme-main-cat { width: 120px; height: 120px; }
+  .cat-theme-main-cat {
+    width: 120px;
+    height: 120px;
+  }
 }
 </style>

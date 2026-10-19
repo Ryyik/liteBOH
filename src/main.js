@@ -344,5 +344,3 @@ if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'func
 
 // 初始化主题管理器（在应用挂载后，确保 DOM 元素已存在）
 themeManager.init();
-
-// BOHAgent 由用户首次打开时初始化，避免匿名首页启动时加载第三方 SDK。

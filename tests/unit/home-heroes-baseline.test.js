@@ -8,15 +8,16 @@ describe('home hero baseline', () => {
       'mascot-new',
       'agent-preview',
       'birthday',
-      'block-wall',
       'anniversary-8',
       'cloud-cafe',
       'fuzhou',
       'special-custom',
-      'split-brand-letter'
+      'split-brand-letter',
     ]);
-    expect(HOME_HERO_BASELINE.every((hero) => (
-      hero.template === 'builtin' && hero.status === 'published' && !hero.is_archived
-    ))).toBe(true);
+    expect(
+      HOME_HERO_BASELINE.every(
+        (hero) => hero.template === 'builtin' && hero.status === 'published' && !hero.is_archived,
+      ),
+    ).toBe(true);
   });
 });

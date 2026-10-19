@@ -5,7 +5,6 @@ import {
   PLAN_AI_TOKEN_LIMITS,
   PLAN_AI_TOKEN_PERCENTS,
   PLAN_CLOUD_IMAGE_LIMITS,
-  PLAN_LAB_QUOTAS,
   PLAN_LOTTERY_PITY_THRESHOLDS,
   PLAN_PHOTO_ALBUM_COUNTS,
   PLAN_PHOTO_ALBUM_EXPORTS,
@@ -50,7 +49,6 @@ describe('plan benefit showcase single source (订阅页卡片与对比表共用
   it('defines every showcase benefit for all five tiers (卡片/表格不会缺值)', () => {
     SHOWCASE_PLAN_CODES.forEach((code) => {
       expect(PLAN_AI_TOKEN_PERCENTS[code]).toBeTruthy();
-      expect(PLAN_LAB_QUOTAS[code]).toBeTruthy();
       expect(PLAN_CLOUD_IMAGE_LIMITS[code]).toBeGreaterThan(0);
       expect(Object.prototype.hasOwnProperty.call(TIER_NICKNAME_COLORS, code)).toBe(true);
       expect(Object.prototype.hasOwnProperty.call(PLAN_LOTTERY_PITY_THRESHOLDS, code)).toBe(true);

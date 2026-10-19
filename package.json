@@ -28,7 +28,7 @@
     "ci:watch": "gh run watch $(gh run list -L 1 --json databaseId -q '.[0].databaseId') --exit-status",
     "gate:plan": "node scripts/gate-plan.mjs",
     "clean:screenshots": "node scripts/clean-screenshots.mjs",
-    "lint": "eslint . --max-warnings 115",
+    "lint": "eslint . --max-warnings 90",
     "lint:delta": "node scripts/lint-delta.mjs",
     "type-check": "vue-tsc --noEmit -p tsconfig.app.json",
     "check:views": "node scripts/check-view-collisions.mjs",

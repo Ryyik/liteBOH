@@ -25,7 +25,6 @@ export const footerColumns = [
     items: [
       { label: '论坛', to: '/forum' },
       { label: '社群动态', to: '/activities' },
-      { label: '方块墙', to: '/block-wall' },
       { label: '抽奖', to: '/lotteries' },
       { label: '生日', to: '/birthday' },
     ],

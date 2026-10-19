@@ -49,7 +49,6 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
      界面**不再展示绝对 Token 数**。`PLAN_AI_TOKEN_LIMITS` 保留为**绝对值底数** ——
      它既是档位百分比的推导来源，也是附加包百分比的分母；界面一律读
      `PLAN_AI_TOKEN_PERCENTS`（横向对比）/ `utils/ai-quota-display.js`（自己用了多少）。
-   - PLAN_LAB_QUOTAS：实验室 PPT / Word 产出次数
    - PLAN_PHOTO_ALBUM_*：摄影集权益展示口径（2026-09-27 上线）。数值必须与
      utils/photo-albums/quota.js 的三张 enforcement MAP 对齐：
      ALBUM_QUOTA_MAP / PHOTOS_QUOTA_MAP / EXPORT_QUOTA_MAP（ultra = -1 即「不限」）。
@@ -181,13 +180,8 @@ export function formatPackQuotaPercent(packCode, tierCode = PLAN_AI_TOKEN_BASELI
   return percent === null ? '按包额度' : `额度 +${percent}%`;
 }
 
-export const PLAN_LAB_QUOTAS = {
-  free: '10 次 / 月',
-  plus: '15 次 / 月',
-  pro: '20 次 / 月',
-  max: '30 次 / 月',
-  ultra: '不限次数',
-};
+/** 实验室（/lab）已于 2026-10-19 退场：PLAN_LAB_QUOTAS 展示口径同步删除；
+ *  配额 enforcement（TIER_QUOTA_MAP，composables/useLabQuota.js）保留待 BOHAI Work 接管。 */
 
 export const PLAN_LOTTERY_PITY_THRESHOLDS = {
   free: null,

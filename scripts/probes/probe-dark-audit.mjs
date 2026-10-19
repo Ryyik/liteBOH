@@ -22,7 +22,7 @@ const PAGES = [
   { path: '/forum/post/1', name: 'post-detail' },
   { path: '/lotteries', name: 'lotteries' },
   { path: '/activities-wall', name: 'activities-wall' },
-  { path: '/activities-wall?tab=wall', name: 'block-wall' },
+  { path: '/activities-wall', name: 'activities-wall' },
   { path: `/profile/${encodeURIComponent('方块之家')}`, name: 'profile' },
   { path: '/shop', name: 'shop' },
   { path: '/shop/account', name: 'shop-account' },

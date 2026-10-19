@@ -22,7 +22,6 @@ import {
   searchProducts,
   searchLotteries,
   searchActivityCampaigns,
-  searchBlockWallItems,
   searchCreatorShows,
   searchBirthdayWishes,
   searchBirthdayEvents,
@@ -59,7 +58,7 @@ export interface SiteSearchHit {
    * 动作项（Spotlight 式「搜到即执行」）：命中后不跳转，交给导航栏的
    * handleMenuAction 执行（经 useGlobalSearch 的 onAction 透传）。
    * 取值 = handleMenuAction 的 action 词表：'toggleTheme' | 'logout' |
-   * 'openAiAssistant' | 'checkVersion' | 'createDesktop'。
+   * 'checkVersion' | 'createDesktop'。
    */
   action?: string;
 }
@@ -180,12 +179,6 @@ const SITE_SEARCH_ACTIONS: SiteSearchAction[] = [
     title: () => '退出登录',
     excerpt: '退出当前账号（需确认）',
     keywords: '退出登录 登出 注销 退出账号 logout signout',
-  },
-  {
-    action: 'openAiAssistant',
-    title: () => '打开 BOHAgent',
-    excerpt: '唤起 AI 助手侧边栏',
-    keywords: 'bohagent ai助手 ai 助手 智能体 agent',
   },
   {
     action: 'checkVersion',
@@ -518,23 +511,7 @@ export const SITE_SEARCH_SOURCES: SiteSearchSource[] = [
       }));
     },
   },
-  {
-    id: 'blockwall',
-    label: '方块墙',
-    group: 'deferred',
-    async search(query, { limit, signal }) {
-      const rows = await searchBlockWallItems(query, { limit, signal });
-      return rows.map((row) => ({
-        key: `wall-${row.id}`,
-        source: 'blockwall',
-        title: buildLocalExcerpt(row.content || '', query, 0, 40) || '方块墙纸条',
-        excerpt: '',
-        meta: String(row.author_username || ''),
-        route: '/activities-wall?tab=wall',
-        badge: '纸条',
-      }));
-    },
-  },
+  // 'blockwall' 搜索源已随方块墙退场删除（2026-10-19）
   {
     id: 'shows',
     label: '节目',

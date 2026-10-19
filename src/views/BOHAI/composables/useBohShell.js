@@ -166,6 +166,14 @@ export function useBohShell(props, emit) {
   const SURFACE_SETTING_KEY = 'boh_ai_surface_v1';
   const readStoredSurface = () => {
     try {
+      // 深链支持：/ai-chat?surface=work 一次性切换大模式（导航「BOHAI Work」入口）。
+      // hash 路由下 query 在 hash 内：#/ai-chat?surface=work → split('?')[1]。
+      const hashQuery = window.location.hash.split('?')[1] || '';
+      const querySurface = new URLSearchParams(hashQuery).get('surface');
+      if (querySurface === 'work' || querySurface === 'chat') {
+        localStorage.setItem(SURFACE_SETTING_KEY, querySurface);
+        return querySurface;
+      }
       const value = localStorage.getItem(SURFACE_SETTING_KEY);
       return value === 'work' ? 'work' : 'chat';
     } catch {

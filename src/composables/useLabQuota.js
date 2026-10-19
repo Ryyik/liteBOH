@@ -30,6 +30,11 @@ function getOrCreateDeviceId() {
 
 /**
  * 实验室使用限额管理
+ *
+ * ⚠️ 2026-10-19 实验室（/lab）功能退场后本文件**有意保留**：
+ *   - enforcement 真源 TIER_QUOTA_MAP 与线上表 lab_usage_records、3 个 RPC
+ *     （get/record/refund_lab_usage）原样保留，配额体系归 BOHAI Work 接管（待接入）。
+ *   - 当前暂无消费方；接入 Work 时把命名迁到 work 域即可，勿直接复删。
  */
 export function useLabQuota() {
   const authStore = useAuthStore();

@@ -493,7 +493,6 @@ import {
   X,
   Zap,
   Cloud,
-  FileText,
   Images,
   Palette,
   Gift,
@@ -522,7 +521,6 @@ import {
   PLAN_AI_TOKEN_LIMITS,
   PLAN_AI_TOKEN_PERCENTS,
   PLAN_CLOUD_IMAGE_LIMITS,
-  PLAN_LAB_QUOTAS,
   PLAN_LOTTERY_PITY_THRESHOLDS,
   PLAN_PHOTO_ALBUM_COUNTS,
   PLAN_PHOTO_ALBUM_EXPORTS,
@@ -590,7 +588,7 @@ const tweenedPrice = (plan) => displayPrices[plan.code] ?? calculatePrice(plan);
 
 /* ===== 权益单源：卡片 features 与对比表 rows 均由同一份档位权益配置生成 =====
    数值全部来自 utils/subscription-benefits.js（与实际发放同源）：改一处，卡片与表格同步。
-   展示顺序：AI 额度 → 云盘 → 实验室 → 摄影集 → 昵称 → 抽奖保底。
+   展示顺序：AI 额度 → 云盘 → 摄影集 → 昵称 → 抽奖保底。（实验室权益 2026-10-19 退场删除）
    本组件只负责「数值 → 文案」的格式化，不再持有任何权益数值。
    保底文案口径：连续未中奖场次累计、中奖清零、达标兑保底礼，避免「抽够 N 次必中」歧义；
    Free 可参与抽奖但不计保底（保底进度需订阅开启）。
@@ -624,7 +622,6 @@ const buildCardFeatures = (code) => {
         ]
       : ['AI 对话按积分计费 · 注册送体验积分']),
     `Cloud+ ${PLAN_CLOUD_IMAGE_LIMITS[code]} 张`,
-    `实验室 PPT / Word ${PLAN_LAB_QUOTAS[code]}`,
     `摄影集 ${PLAN_PHOTO_ALBUM_COUNTS[code]} · 单集 ${PLAN_PHOTO_ALBUM_PHOTOS[code]}`,
     ...(nickname ? [`${nickname}昵称`] : []),
     pityThresholdText(code),
@@ -689,11 +686,6 @@ const introFeatures = [
     copy: '扩充云端存储，文档、PPT、Word 与素材随取随用，再多创作也装得下。',
   },
   {
-    icon: FileText,
-    title: '实验室 PPT / Word',
-    copy: '一键生成文档与演示，产出次数随档位升级，研究汇报十指飞快。',
-  },
-  {
     icon: Images,
     title: '摄影集装帧',
     copy: '亲手把照片装帧成册：自动初排、章节目录、翻页阅读，还能导出成断网也能翻开的离线影集。',
@@ -741,7 +733,7 @@ const billingTabs = [
   { value: BILLING_MONTHLY, label: '单月' },
   { value: BILLING_YEARLY, label: '单年', discount: '省 17%' },
 ];
-/* 差异行顺序与卡片一致（AI 额度 → 云盘 → 实验室 → 摄影集 → 昵称 → 保底），值全部由权益单源派生。
+/* 差异行顺序与卡片一致（AI 额度 → 云盘 → 摄影集 → 昵称 → 保底），值全部由权益单源派生。
    「多模态交互」「定制化看板」全档一致，移到表格上方公共权益说明，不再占行。
    客服优先级 / 年度徽章仅此处出现，保留明确标注：无差别档写「普通」，不写空白。 */
 const comparisonRows = [
@@ -750,7 +742,6 @@ const comparisonRows = [
   buildBenefitRow('BOH AI 额度', (code) => PLAN_AI_TOKEN_PERCENTS[code]),
   buildBenefitRow('AI 积分消费', (code) => aiPointsText(code)),
   buildBenefitRow('Cloud+ 存储空间', (code) => `${PLAN_CLOUD_IMAGE_LIMITS[code]} 张`),
-  buildBenefitRow('实验室 PPT / Word', (code) => PLAN_LAB_QUOTAS[code]),
   buildBenefitRow('摄影集数量', (code) => PLAN_PHOTO_ALBUM_COUNTS[code]),
   buildBenefitRow('单集照片数', (code) => PLAN_PHOTO_ALBUM_PHOTOS[code]),
   buildBenefitRow('每月离线导出', (code) => PLAN_PHOTO_ALBUM_EXPORTS[code]),

@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { scriptSection, stripComments, flattenSource } from '../helpers/source.js';
 
-// plans/021 阶段 2/3：评论 / 回复 / 标题 / Lab 输入框的「多字扩展」全部收敛到
-// composables/useAutoGrowTextarea.js 单源。本文件锁三类事：
+// plans/021 阶段 2/3：评论 / 回复 / 标题输入框的「多字扩展」全部收敛到
+// composables/useAutoGrowTextarea.js 单源（阶段 3 Lab 部分随 2026-10-19 实验室退场删除）。
+// 本文件锁三类事：
 //   1. 接线在位（模板 ref + script 里的 useAutoGrowTextarea 调用）；
 //   2. 自研实现已删（scrollHeight / style.height / autoResizeTitle / autoGrow 不再出现）；
 //   3. 真源划分不被破坏（上限只住 CSS；composable 的写回必须无条件、getter 必须透传）。
@@ -74,35 +75,8 @@ describe('阶段 3：PostComposer 标题框收敛', () => {
   });
 });
 
-describe('阶段 3：Lab 输入框收敛', () => {
-  const rel = 'src/views/Lab/index.vue';
-
-  it('自研 autoGrow 已删（函数体、两处 @input、发送后的手动高度重置）', () => {
-    expect(read(rel)).not.toContain('@input="autoGrow"');
-    const code = codeOf(rel);
-    expect(code).not.toMatch(/functionautoGrow/);
-    expect(code).not.toMatch(/style\.height='auto'/);
-    // 手动重置整段删除，不再有 Element.style.height 直写
-    expect(code).not.toMatch(/\.style\.height/);
-  });
-
-  it('hero / bottom 各持一个实例且都监听同一个 text', () => {
-    const code = codeOf(rel);
-    expect(code).toContain(
-      'const{textareaRef:heroTextareaRef}=useAutoGrowTextarea({value:()=>text.value})',
-    );
-    expect(code).toContain(
-      'const{textareaRef:bottomTextareaRef}=useAutoGrowTextarea({value:()=>text.value})',
-    );
-  });
-
-  it('输入框上限 200px 已从 JS 迁到 CSS（原 autoGrow 的 Math.min(...,200)）', () => {
-    const css = read('src/views/Lab/style.scoped.css');
-    expect(css).toMatch(/\.composer-input\s*\{[^}]*max-height:\s*200px/);
-    const code = codeOf(rel);
-    expect(code).not.toMatch(/Math\.min\([^)]*200\)/);
-  });
-});
+// 2026-10-19：原「阶段 3：Lab 输入框收敛」describe 块随实验室（/lab）退场删除 ——
+// Lab/index.vue 与 style.scoped.css 已不在仓库，单源纪律由上方两个 describe 继续锁。
 
 describe('ForumMain 引用转发弹窗：死 UI 不接线（2026-10-13 复核结论）', () => {
   it('PostCard 未声明/未发射 quote-repost，ForumMain 弹窗全站不可达；真实转发入口是 ShareIsland', () => {

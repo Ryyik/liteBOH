@@ -22,7 +22,7 @@ export const communityRoutes: RouteRecordRaw[] = [
     component: () => import('../../views/Newsroom/NewsDetailPage.vue'),
   },
   {
-    // 活动与方块墙组合页（液态玻璃分段切换）
+    // 活动页（原「活动&方块墙」组合页，2026-10-19 方块墙退场后收编为纯活动页）
     path: '/activities-wall',
     name: 'ActivitiesWall',
     component: () => import('../../views/ActivitiesWall/index.vue'),

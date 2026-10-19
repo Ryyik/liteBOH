@@ -9,9 +9,9 @@ const stripCssComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '');
 
 describe('frontend performance guardrails', () => {
   it('does not initialize the third-party AI SDK during app boot', () => {
-    const source = read('src/main.js');
-    expect(source).not.toMatch(/initHiagentWidget\(/);
-    expect(read('src/utils/hiagent-widget.js')).toMatch(/首次打开时初始化|toggleHiagentChat/);
+    // BOHAgent（Hiagent WebSDK）已于 2026-10-19 随外接助手退场删除；
+    // 本守卫保留 —— 防止将来重新引入任何第三方 AI SDK 的启动时初始化。
+    expect(read('src/main.js')).not.toMatch(/initHiagentWidget\(/);
   });
 
   // 机制变更（2026-09）：行级延迟渲染已移除，首屏优先改为向下传 :priority 标记。
@@ -32,15 +32,9 @@ describe('frontend performance guardrails', () => {
     expect(rowSource).not.toContain('IntersectionObserver');
   });
 
-  it('keeps document and PPT engines behind user actions', () => {
-    expect(read('src/views/Lab/composables/usePPTGenerator.js')).not.toMatch(
-      /from ['"]\.\.\/engine\/ppt-renderer/,
-    );
-    expect(read('src/views/Lab/composables/useWordGenerator.js')).not.toMatch(
-      /from ['"]\.\.\/engine\/word-builder/,
-    );
-    expect(read('src/views/Lab/index.vue')).toMatch(/import\('\.\/engine\/docx-parser\.js'\)/);
-  });
+  // 2026-10-19：原「keeps document and PPT engines behind user actions」随实验室
+  // （/lab）退场删除 —— Lab 引擎（docx/ppt renderer）已不在仓库。若 BOHAI Work
+  // 将来接管文档生成能力，需为它重新立一条等价的「引擎按需加载」守卫。
 
   it('pre-caches app shell plus first-screen dependency chunks', () => {
     const source = read('vite.config.js');

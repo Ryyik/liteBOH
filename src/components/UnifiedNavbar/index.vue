@@ -454,7 +454,6 @@ import { useVersionCheck } from '@/composables/useVersionCheck.js';
 import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
 import { useGlobalSearch } from '@/composables/useGlobalSearch.js';
 import { useRoutePrefetch, scheduleIdleRoutePrefetch } from '@/composables/useRoutePrefetch.js';
-import { toggleHiagentChat } from '@/utils/hiagent-widget.js';
 import { SITE_NAV_ITEMS } from '@/config/site-nav';
 import GlobalNavStatusCard from './GlobalNavStatusCard.vue';
 import GlobalNavTaskCard from './GlobalNavTaskCard.vue';
@@ -890,9 +889,6 @@ const handleMenuAction = async (action) => {
     }
     // 有权限，跳转到管理面板
     router.push('/admin/data-management');
-  } else if (action === 'openAiAssistant') {
-    // 打开 BOHAgent AI 助手
-    toggleHiagentChat();
   } else if (action === 'checkVersion') {
     // 版本检测
     if (isChecking.value) {

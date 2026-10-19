@@ -3,7 +3,7 @@
     <DashboardHero
       eyebrow="Foundation"
       title="免费模型库"
-      description="所有 AI 场景（BOHAI、审核、实验室）的模型均从此库选择。管理 SiliconFlow 免费模型列表，支持启用/禁用、排序调整。"
+      description="所有 AI 场景（BOHAI、审核、论坛周报）的模型均从此库选择。管理 SiliconFlow 免费模型列表，支持启用/禁用、排序调整。"
     >
       <template #actions>
         <button type="button" class="g-btn g-btn-ghost" @click="showBatchAddDialog = true">

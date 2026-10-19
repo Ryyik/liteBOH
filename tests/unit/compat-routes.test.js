@@ -110,12 +110,22 @@ describe('compat route registry（兼容层唯一登记处）', () => {
     });
   });
 
-  it('命名跳转保持：BlockWall / Activities 仍可按 name 解析（CommunityTab 在用）', () => {
+  it('命名跳转保持：BlockWall / Activities 仍可按 name 解析（name 兜底保留）', () => {
     expect(findCompat('/block-wall').name).toBe('BlockWall');
+    // 方块墙 2026-10-19 退场：/block-wall 落纯活动页，?tab=wall 不复存在
+    expect(findCompat('/block-wall').redirect({ query: { tab: 'wall' } })).toEqual({
+      path: '/activities-wall',
+    });
     expect(findCompat('/activities').name).toBe('Activities');
     expect(findCompat('/activities').children.map((child) => child.name)).toEqual([
       'ActivitiesPhotoWall',
       'ActivitiesList',
     ]);
+  });
+
+  it('实验室退场：/lab 重定向到 BOHAI Work（2026-10-19）', () => {
+    expect(findCompat('/lab').name).toBe('Lab');
+    // 字符串形式 redirect：route 记录上是属性不是函数
+    expect(findCompat('/lab').redirect).toBe('/ai-chat?surface=work');
   });
 });

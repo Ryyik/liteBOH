@@ -1,7 +1,7 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { supabase } from '@/utils/supabase-client'
-import { logger } from '@/utils/logger.js'
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+import { supabase } from '@/utils/supabase-client';
+import { logger } from '@/utils/logger.js';
 import type {
   HomeHero,
   HomeHeroRevision,
@@ -12,8 +12,8 @@ import type {
   HeroLink,
   SplitCardConfig,
   ShowcaseConfig,
-  ShowcaseCharacterConfig
-} from '@/types'
+  ShowcaseCharacterConfig,
+} from '@/types';
 
 // ============================================
 // 首页英雄区 Store
@@ -25,20 +25,20 @@ import type {
 // 草稿/发布分离：首页仅渲染 status='published' 的记录。
 
 // 版本化缓存：字段结构变更时升级版本，避免旧记录按新模板渲染。
-const CACHE_KEY = 'boh_home_heroes_v3'
-const LEGACY_CACHE_KEYS = ['boh_home_heroes_v1', 'boh_home_heroes_v2']
+const CACHE_KEY = 'boh_home_heroes_v3';
+const LEGACY_CACHE_KEYS = ['boh_home_heroes_v1', 'boh_home_heroes_v2'];
 // 缓存用于首屏即时渲染；每次进入首页仍会在后台请求最新配置。
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 // 远端不可达时的陈旧守卫：缓存超过 1 小时不再兜底，回退内置基线
-const STALE_CACHE_FALLBACK_MS = 60 * 60 * 1000
+const STALE_CACHE_FALLBACK_MS = 60 * 60 * 1000;
 
-const FALLBACK_TIMESTAMP = '2026-08-14T00:00:00.000Z'
+const FALLBACK_TIMESTAMP = '2026-08-14T00:00:00.000Z';
 
 const createBuiltinFallback = (
   builtinKey: string,
   sortOrder: number,
   title: string,
-  ariaLabel: string
+  ariaLabel: string,
 ): HomeHero => ({
   id: `builtin-${builtinKey}`,
   sort_order: sortOrder,
@@ -52,8 +52,8 @@ const createBuiltinFallback = (
   status: 'published',
   aria_label: ariaLabel,
   created_at: FALLBACK_TIMESTAMP,
-  updated_at: FALLBACK_TIMESTAMP
-})
+  updated_at: FALLBACK_TIMESTAMP,
+});
 
 // 内置区块迁入数据库后，首次访问不能再以网络请求作为首屏渲染前提。
 // 远端配置到达后会覆盖此基线，管理员的排序与显隐设置仍然是最终来源。
@@ -62,133 +62,163 @@ export const HOME_HERO_BASELINE: HomeHero[] = [
   createBuiltinFallback('mascot-new', 10, '全新吉祥物现已上线', '全新吉祥物现已上线'),
   createBuiltinFallback('agent-preview', 20, 'BOH Agent Preview', 'BOH Agent Preview'),
   createBuiltinFallback('birthday', 30, '今日生日', '今日生日'),
-  createBuiltinFallback('block-wall', 40, '方块墙', '方块墙'),
+  // 'block-wall'（方块墙 hero）已于 2026-10-19 随功能退场删除；
+  // 线上 home_heroes 表若有同名配置行，请到管理后台 Hero Console 归档。
   createBuiltinFallback('anniversary-8', 60, '八周年庆典', '方块之家八周年'),
   createBuiltinFallback('cloud-cafe', 70, '云上咖啡店', '云上咖啡店网页游戏'),
   createBuiltinFallback('fuzhou', 80, '遇见福州', '遇见福州'),
   createBuiltinFallback('special-custom', 90, '特别企划', '特别企划'),
-  createBuiltinFallback('split-brand-letter', 100, 'BOH 与 Ryyik 的信', '品牌与八周年寄语')
-]
+  createBuiltinFallback('split-brand-letter', 100, 'BOH 与 Ryyik 的信', '品牌与八周年寄语'),
+];
 
 const HOME_HERO_SELECT_COLUMNS = [
-  'id', 'sort_order', 'is_archived', 'template', 'variant', 'builtin_key',
-  'eyebrow', 'title', 'subtitle', 'image_config', 'content_layout', 'links',
-  'split_cards', 'showcase_config', 'image_portrait', 'image_landscape',
-  'greeting_text', 'hint_text',
-  'label', 'aria_label', 'status', 'published_at', 'published_by',
-  'created_at', 'updated_at', 'created_by', 'updated_by'
-].join(',')
+  'id',
+  'sort_order',
+  'is_archived',
+  'template',
+  'variant',
+  'builtin_key',
+  'eyebrow',
+  'title',
+  'subtitle',
+  'image_config',
+  'content_layout',
+  'links',
+  'split_cards',
+  'showcase_config',
+  'image_portrait',
+  'image_landscape',
+  'greeting_text',
+  'hint_text',
+  'label',
+  'aria_label',
+  'status',
+  'published_at',
+  'published_by',
+  'created_at',
+  'updated_at',
+  'created_by',
+  'updated_by',
+].join(',');
 
 interface HeroesCache {
-  timestamp: number
-  data: HomeHero[]
+  timestamp: number;
+  data: HomeHero[];
 }
 
 const readCache = (): HeroesCache | null => {
   try {
-    const raw = localStorage.getItem(CACHE_KEY)
-    if (!raw) return null
-    const parsed: HeroesCache = JSON.parse(raw)
-    if (!parsed?.timestamp || !Array.isArray(parsed?.data)) return null
-    if (Date.now() - parsed.timestamp > CACHE_TTL_MS) return null
-    return parsed
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed: HeroesCache = JSON.parse(raw);
+    if (!parsed?.timestamp || !Array.isArray(parsed?.data)) return null;
+    if (Date.now() - parsed.timestamp > CACHE_TTL_MS) return null;
+    return parsed;
   } catch {
-    return null
+    return null;
   }
-}
+};
 
 const writeCache = (data: HomeHero[]): void => {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }))
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }));
   } catch {
     // 忽略写入失败
   }
-}
+};
 
 const clearCache = (): void => {
   try {
-    localStorage.removeItem(CACHE_KEY)
-    LEGACY_CACHE_KEYS.forEach((key) => localStorage.removeItem(key))
+    localStorage.removeItem(CACHE_KEY);
+    LEGACY_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
   } catch {
     // 忽略
   }
-}
+};
 
 // 规范化：确保 JSONB 字段有正确类型
 const normalizeLinks = (raw: unknown): HeroLink[] => {
-  if (!Array.isArray(raw)) return []
+  if (!Array.isArray(raw)) return [];
   return raw
     .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
     .map((item): HeroLink => ({
       text: String(item.text || ''),
-      type: item.type === 'primary' || item.type === 'secondary' ? (item.type as 'primary' | 'secondary') : undefined,
+      type:
+        item.type === 'primary' || item.type === 'secondary'
+          ? (item.type as 'primary' | 'secondary')
+          : undefined,
       to: typeof item.to === 'string' ? item.to : undefined,
       href: typeof item.href === 'string' ? item.href : undefined,
-      onClick: typeof item.onClick === 'string' ? item.onClick : undefined
+      onClick: typeof item.onClick === 'string' ? item.onClick : undefined,
     }))
-    .filter((link) => link.text)
-}
+    .filter((link) => link.text);
+};
 
 const normalizeImageConfig = (raw: unknown): HeroImageConfig => {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
-  const cfg = raw as Record<string, unknown>
-  const result: HeroImageConfig = {}
-  if (typeof cfg.src === 'string') result.src = cfg.src
-  if (typeof cfg.alt === 'string') result.alt = cfg.alt
-  if (typeof cfg.position === 'string') result.position = cfg.position
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const cfg = raw as Record<string, unknown>;
+  const result: HeroImageConfig = {};
+  if (typeof cfg.src === 'string') result.src = cfg.src;
+  if (typeof cfg.alt === 'string') result.alt = cfg.alt;
+  if (typeof cfg.position === 'string') result.position = cfg.position;
   // 竖屏端独立配置
-  if (typeof cfg.mobile_src === 'string') result.mobile_src = cfg.mobile_src
-  if (typeof cfg.mobile_position === 'string') result.mobile_position = cfg.mobile_position
+  if (typeof cfg.mobile_src === 'string') result.mobile_src = cfg.mobile_src;
+  if (typeof cfg.mobile_position === 'string') result.mobile_position = cfg.mobile_position;
   if (cfg.mobile_object_fit === 'cover' || cfg.mobile_object_fit === 'contain') {
-    result.mobile_object_fit = cfg.mobile_object_fit
+    result.mobile_object_fit = cfg.mobile_object_fit;
   }
   if (typeof cfg.mobile_scale === 'number' && Number.isFinite(cfg.mobile_scale)) {
-    result.mobile_scale = Math.max(1, Math.min(2.2, cfg.mobile_scale))
+    result.mobile_scale = Math.max(1, Math.min(2.2, cfg.mobile_scale));
   }
   // responsive 模板专用
-  if (typeof cfg.landscapeSrc === 'string') result.landscapeSrc = cfg.landscapeSrc
-  if (typeof cfg.portraitSrc === 'string') result.portraitSrc = cfg.portraitSrc
-  if (typeof cfg.portrait_position === 'string') result.portrait_position = cfg.portrait_position
-  return result
-}
+  if (typeof cfg.landscapeSrc === 'string') result.landscapeSrc = cfg.landscapeSrc;
+  if (typeof cfg.portraitSrc === 'string') result.portraitSrc = cfg.portraitSrc;
+  if (typeof cfg.portrait_position === 'string') result.portrait_position = cfg.portrait_position;
+  return result;
+};
 
 const normalizeLayoutValues = (raw: unknown): ContentLayoutValues | null => {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
-  const cfg = raw as Record<string, unknown>
-  const result: ContentLayoutValues = {}
-  if (cfg.align === 'left' || cfg.align === 'center' || cfg.align === 'right') result.align = cfg.align
-  if (cfg.valign === 'top' || cfg.valign === 'center' || cfg.valign === 'bottom') result.valign = cfg.valign
-  if (cfg.text_align === 'left' || cfg.text_align === 'center' || cfg.text_align === 'right') result.text_align = cfg.text_align
-  if (typeof cfg.max_width === 'number' && cfg.max_width > 0) result.max_width = cfg.max_width
-  if (typeof cfg.offset_x === 'number' && Number.isFinite(cfg.offset_x)) result.offset_x = cfg.offset_x
-  if (typeof cfg.offset_y === 'number' && Number.isFinite(cfg.offset_y)) result.offset_y = cfg.offset_y
-  return Object.keys(result).length ? result : null
-}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const cfg = raw as Record<string, unknown>;
+  const result: ContentLayoutValues = {};
+  if (cfg.align === 'left' || cfg.align === 'center' || cfg.align === 'right')
+    result.align = cfg.align;
+  if (cfg.valign === 'top' || cfg.valign === 'center' || cfg.valign === 'bottom')
+    result.valign = cfg.valign;
+  if (cfg.text_align === 'left' || cfg.text_align === 'center' || cfg.text_align === 'right')
+    result.text_align = cfg.text_align;
+  if (typeof cfg.max_width === 'number' && cfg.max_width > 0) result.max_width = cfg.max_width;
+  if (typeof cfg.offset_x === 'number' && Number.isFinite(cfg.offset_x))
+    result.offset_x = cfg.offset_x;
+  if (typeof cfg.offset_y === 'number' && Number.isFinite(cfg.offset_y))
+    result.offset_y = cfg.offset_y;
+  return Object.keys(result).length ? result : null;
+};
 
 const normalizeContentLayout = (raw: unknown): ContentLayout | null => {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
-  const cfg = raw as Record<string, unknown>
-  const legacy = normalizeLayoutValues(cfg)
-  const desktop = normalizeLayoutValues(cfg.desktop)
-  const mobile = normalizeLayoutValues(cfg.mobile)
-  if (!desktop && !mobile) return legacy
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const cfg = raw as Record<string, unknown>;
+  const legacy = normalizeLayoutValues(cfg);
+  const desktop = normalizeLayoutValues(cfg.desktop);
+  const mobile = normalizeLayoutValues(cfg.mobile);
+  if (!desktop && !mobile) return legacy;
   return {
     desktop: desktop || legacy || undefined,
-    mobile: mobile || null
-  }
-}
+    mobile: mobile || null,
+  };
+};
 
 const cloneContentLayout = (layout: ContentLayout | null | undefined): ContentLayout | null => {
-  if (!layout) return null
+  if (!layout) return null;
   return {
     ...layout,
     desktop: layout.desktop ? { ...layout.desktop } : undefined,
-    mobile: layout.mobile ? { ...layout.mobile } : null
-  }
-}
+    mobile: layout.mobile ? { ...layout.mobile } : null,
+  };
+};
 
 const normalizeSplitCards = (raw: unknown): SplitCardConfig[] | null => {
-  if (!Array.isArray(raw)) return null
+  if (!Array.isArray(raw)) return null;
   return raw
     .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
     .map((item) => ({
@@ -197,13 +227,13 @@ const normalizeSplitCards = (raw: unknown): SplitCardConfig[] | null => {
       variant: item.variant === 'dark' ? 'dark' : 'light',
       image_config: normalizeImageConfig(item.image_config),
       links: normalizeLinks(item.links),
-      content_layout: normalizeContentLayout(item.content_layout)
-    }))
-}
+      content_layout: normalizeContentLayout(item.content_layout),
+    }));
+};
 
 const normalizeShowcaseCharacter = (raw: Record<string, unknown>): ShowcaseCharacterConfig => {
-  const depth = Number(raw.depth)
-  const scale = Number(raw.scale)
+  const depth = Number(raw.depth);
+  const scale = Number(raw.scale);
   return {
     key: typeof raw.key === 'string' && raw.key ? raw.key : undefined,
     src: typeof raw.src === 'string' && raw.src ? raw.src : undefined,
@@ -211,41 +241,49 @@ const normalizeShowcaseCharacter = (raw: Record<string, unknown>): ShowcaseChara
     side: raw.side === 'right' ? 'right' : 'left',
     depth: depth === 1 || depth === 2 || depth === 3 ? depth : 2,
     scale: Number.isFinite(scale) ? Math.max(0.6, Math.min(1.4, scale)) : 1,
-    mobile_hidden: Boolean(raw.mobile_hidden)
-  }
-}
+    mobile_hidden: Boolean(raw.mobile_hidden),
+  };
+};
 
 const normalizeShowcaseConfig = (raw: unknown): ShowcaseConfig | null => {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
-  const cfg = raw as Record<string, unknown>
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const cfg = raw as Record<string, unknown>;
   const characters = Array.isArray(cfg.characters)
     ? cfg.characters
-      .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-      .slice(0, 8)
-      .map(normalizeShowcaseCharacter)
-    : []
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+        .slice(0, 8)
+        .map(normalizeShowcaseCharacter)
+    : [];
   return {
     badge_text: typeof cfg.badge_text === 'string' && cfg.badge_text ? cfg.badge_text : undefined,
     particles: cfg.particles !== false,
     cover_src: typeof cfg.cover_src === 'string' && cfg.cover_src ? cfg.cover_src : undefined,
     cover_alt: typeof cfg.cover_alt === 'string' && cfg.cover_alt ? cfg.cover_alt : undefined,
-    characters
-  }
-}
+    characters,
+  };
+};
 
 const cloneShowcaseConfig = (config: ShowcaseConfig | null | undefined): ShowcaseConfig | null => {
-  if (!config) return null
+  if (!config) return null;
   return {
     ...config,
-    characters: (config.characters || []).map((c) => ({ ...c }))
-  }
-}
+    characters: (config.characters || []).map((c) => ({ ...c })),
+  };
+};
 
 const normalizeHero = (item: Record<string, unknown>): HomeHero => ({
   id: String(item.id || ''),
   sort_order: Number(item.sort_order) || 0,
   is_archived: Boolean(item.is_archived),
-  template: (['standard', 'overlay', 'split', 'responsive', 'showcase', 'builtin', 'street-scene'].includes(String(item.template))
+  template: ([
+    'standard',
+    'overlay',
+    'split',
+    'responsive',
+    'showcase',
+    'builtin',
+    'street-scene',
+  ].includes(String(item.template))
     ? String(item.template)
     : 'standard') as HomeHeroTemplate,
   variant: item.variant === 'dark' ? 'dark' : 'light',
@@ -258,9 +296,12 @@ const normalizeHero = (item: Record<string, unknown>): HomeHero => ({
   links: normalizeLinks(item.links),
   split_cards: normalizeSplitCards(item.split_cards),
   showcase_config: normalizeShowcaseConfig(item.showcase_config),
-  image_portrait: typeof item.image_portrait === 'string' && item.image_portrait ? item.image_portrait : null,
-  image_landscape: typeof item.image_landscape === 'string' && item.image_landscape ? item.image_landscape : null,
-  greeting_text: typeof item.greeting_text === 'string' && item.greeting_text ? item.greeting_text : null,
+  image_portrait:
+    typeof item.image_portrait === 'string' && item.image_portrait ? item.image_portrait : null,
+  image_landscape:
+    typeof item.image_landscape === 'string' && item.image_landscape ? item.image_landscape : null,
+  greeting_text:
+    typeof item.greeting_text === 'string' && item.greeting_text ? item.greeting_text : null,
   hint_text: typeof item.hint_text === 'string' && item.hint_text ? item.hint_text : null,
   label: typeof item.label === 'string' && item.label ? item.label : null,
   aria_label: typeof item.aria_label === 'string' && item.aria_label ? item.aria_label : null,
@@ -270,8 +311,8 @@ const normalizeHero = (item: Record<string, unknown>): HomeHero => ({
   created_at: typeof item.created_at === 'string' ? item.created_at : new Date().toISOString(),
   updated_at: typeof item.updated_at === 'string' ? item.updated_at : new Date().toISOString(),
   created_by: typeof item.created_by === 'string' ? item.created_by : null,
-  updated_by: typeof item.updated_by === 'string' ? item.updated_by : null
-})
+  updated_by: typeof item.updated_by === 'string' ? item.updated_by : null,
+});
 
 const buildSnapshot = (hero: HomeHero): HomeHero => ({
   ...hero,
@@ -279,41 +320,42 @@ const buildSnapshot = (hero: HomeHero): HomeHero => ({
   content_layout: cloneContentLayout(hero.content_layout),
   links: hero.links.map((l) => ({ ...l })),
   showcase_config: cloneShowcaseConfig(hero.showcase_config),
-  split_cards: hero.split_cards?.map((c) => ({
-    ...c,
-    image_config: { ...c.image_config },
-    content_layout: cloneContentLayout(c.content_layout),
-    links: c.links.map((l) => ({ ...l }))
-  })) ?? null
-})
+  split_cards:
+    hero.split_cards?.map((c) => ({
+      ...c,
+      image_config: { ...c.image_config },
+      content_layout: cloneContentLayout(c.content_layout),
+      links: c.links.map((l) => ({ ...l })),
+    })) ?? null,
+});
 
 export const useHomeHeroesStore = defineStore('homeHeroes', () => {
-  const cachedPublishedEntry = readCache()
-  const cachedPublishedHeroes = cachedPublishedEntry?.data ?? null
-  const cachedPublishedAt = cachedPublishedEntry?.timestamp ?? 0
-  let hasPublishedCache = Boolean(cachedPublishedHeroes?.length)
+  const cachedPublishedEntry = readCache();
+  const cachedPublishedHeroes = cachedPublishedEntry?.data ?? null;
+  const cachedPublishedAt = cachedPublishedEntry?.timestamp ?? 0;
+  let hasPublishedCache = Boolean(cachedPublishedHeroes?.length);
   // 首页已发布英雄区（未归档）
   const publishedHeroes = ref<HomeHero[]>(
-    cachedPublishedHeroes?.length ? cachedPublishedHeroes : HOME_HERO_BASELINE
-  )
+    cachedPublishedHeroes?.length ? cachedPublishedHeroes : HOME_HERO_BASELINE,
+  );
   // 首页已归档英雄区（历史区）
-  const archivedHeroes = ref<HomeHero[]>([])
+  const archivedHeroes = ref<HomeHero[]>([]);
   // 管理面板：全部英雄区（含草稿）
-  const allHeroes = ref<HomeHero[]>([])
-  const isFetching = ref(false)
-  const isSaving = ref(false)
-  const fetchError = ref('')
-  let publishedFetchPromise: Promise<HomeHero[]> | null = null
-  let hasPublishedRemoteData = false
+  const allHeroes = ref<HomeHero[]>([]);
+  const isFetching = ref(false);
+  const isSaving = ref(false);
+  const fetchError = ref('');
+  let publishedFetchPromise: Promise<HomeHero[]> | null = null;
+  let hasPublishedRemoteData = false;
   // 请求代次令牌：force 刷新后旧在途请求不得回写数据，也不得清掉新请求的去重引用
-  let publishedFetchToken = 0
+  let publishedFetchToken = 0;
 
   const fetchPublishedFromRemote = (): Promise<HomeHero[]> => {
-    if (publishedFetchPromise) return publishedFetchPromise
+    if (publishedFetchPromise) return publishedFetchPromise;
 
-    const token = ++publishedFetchToken
-    isFetching.value = true
-    fetchError.value = ''
+    const token = ++publishedFetchToken;
+    isFetching.value = true;
+    fetchError.value = '';
     publishedFetchPromise = (async () => {
       try {
         const { data, error } = await supabase
@@ -322,73 +364,78 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
           .eq('status', 'published')
           .eq('is_archived', false)
           .order('sort_order', { ascending: true })
-          .limit(50)
-        if (error) throw error
+          .limit(50);
+        if (error) throw error;
         // 已被更新的 force 请求取代：丢弃本次结果，避免旧数据晚到覆盖新数据
-        if (token !== publishedFetchToken) return publishedHeroes.value
-        const heroes = (data || []).map((item) => normalizeHero(item as unknown as Record<string, unknown>))
-        publishedHeroes.value = heroes
-        hasPublishedRemoteData = true
-        writeCache(heroes)
-        return heroes
+        if (token !== publishedFetchToken) return publishedHeroes.value;
+        const heroes = (data || []).map((item) =>
+          normalizeHero(item as unknown as Record<string, unknown>),
+        );
+        publishedHeroes.value = heroes;
+        hasPublishedRemoteData = true;
+        writeCache(heroes);
+        return heroes;
       } catch (error) {
         if (token === publishedFetchToken) {
-          logger.error('home-heroes-store', '获取已发布英雄区失败', error)
-          fetchError.value = (error as Error)?.message || 'HOME_HEROES_FETCH_FAILED'
+          logger.error('home-heroes-store', '获取已发布英雄区失败', error);
+          fetchError.value = (error as Error)?.message || 'HOME_HEROES_FETCH_FAILED';
           // 缓存陈旧守卫：远端不可达且缓存已超过 1 小时时，清缓存并回退内置基线，
           // 避免持续渲染最长 24 小时的陈旧配置；1 小时内的旧缓存继续兜底。
-          if (hasPublishedCache && !hasPublishedRemoteData
-            && Date.now() - cachedPublishedAt > STALE_CACHE_FALLBACK_MS) {
-            clearCache()
-            hasPublishedCache = false
-            publishedHeroes.value = HOME_HERO_BASELINE
+          if (
+            hasPublishedCache &&
+            !hasPublishedRemoteData &&
+            Date.now() - cachedPublishedAt > STALE_CACHE_FALLBACK_MS
+          ) {
+            clearCache();
+            hasPublishedCache = false;
+            publishedHeroes.value = HOME_HERO_BASELINE;
           }
         }
-        return publishedHeroes.value
+        return publishedHeroes.value;
       } finally {
         if (token === publishedFetchToken) {
-          isFetching.value = false
-          publishedFetchPromise = null
+          isFetching.value = false;
+          publishedFetchPromise = null;
         }
       }
-    })()
+    })();
 
-    return publishedFetchPromise
-  }
+    return publishedFetchPromise;
+  };
 
   // 首页：读取已发布未归档英雄区
   const fetchPublished = async ({ force = false } = {}): Promise<HomeHero[]> => {
     if (!force && hasPublishedRemoteData) {
-      return publishedHeroes.value
+      return publishedHeroes.value;
     }
     if (!force && hasPublishedCache) {
       // 首屏等待远端结果，避免缓存内容先渲染后又被替换造成闪现。
       // supabase-js 查询没有客户端超时，弱网/连接悬挂时请求可能永不返回，
       // 这里加 6s 竞速兜底：超时先放行缓存渲染，远端结果返回后仍会更新 store。
-      const remote = fetchPublishedFromRemote()
-      let timer: ReturnType<typeof setTimeout> | null = null
+      const remote = fetchPublishedFromRemote();
+      let timer: ReturnType<typeof setTimeout> | null = null;
       const timeout = new Promise<null>((resolve) => {
-        timer = setTimeout(() => resolve(null), 6000)
-      })
+        timer = setTimeout(() => resolve(null), 6000);
+      });
       try {
-        const result = await Promise.race([remote, timeout])
-        return result ?? publishedHeroes.value
+        const result = await Promise.race([remote, timeout]);
+        return result ?? publishedHeroes.value;
       } finally {
-        if (timer) clearTimeout(timer)
+        if (timer) clearTimeout(timer);
       }
     }
     // force=true 时作废在途请求（旧请求结果与 finally 清理均会被令牌拦截），确保发起新请求
     if (force) {
-      publishedFetchToken++
-      publishedFetchPromise = null
+      publishedFetchToken++;
+      publishedFetchPromise = null;
     }
-    return fetchPublishedFromRemote()
-  }
+    return fetchPublishedFromRemote();
+  };
 
   // Footer 历史区：读取已归档英雄区
   const fetchArchived = async ({ force = false } = {}): Promise<HomeHero[]> => {
     if (!force && archivedHeroes.value.length > 0) {
-      return archivedHeroes.value
+      return archivedHeroes.value;
     }
     try {
       const { data, error } = await supabase
@@ -397,42 +444,42 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         .eq('status', 'published')
         .eq('is_archived', true)
         .order('sort_order', { ascending: true })
-        .limit(50)
-      if (error) throw error
-      const heroes = (data || []).map((item) => normalizeHero(item as Record<string, unknown>))
-      archivedHeroes.value = heroes
-      return heroes
+        .limit(50);
+      if (error) throw error;
+      const heroes = (data || []).map((item) => normalizeHero(item as Record<string, unknown>));
+      archivedHeroes.value = heroes;
+      return heroes;
     } catch (error) {
-      logger.error('home-heroes-store', '获取归档英雄区失败', error)
-      return []
+      logger.error('home-heroes-store', '获取归档英雄区失败', error);
+      return [];
     }
-  }
+  };
 
   // 管理面板：读取全部英雄区
   const fetchAllForAdmin = async ({ force = false } = {}): Promise<HomeHero[]> => {
     if (!force && allHeroes.value.length > 0) {
-      return allHeroes.value
+      return allHeroes.value;
     }
-    fetchError.value = ''
-    isFetching.value = true
+    fetchError.value = '';
+    isFetching.value = true;
     try {
       const { data, error } = await supabase
         .from('home_heroes')
         .select('*')
         .order('sort_order', { ascending: true })
-        .limit(50)
-      if (error) throw error
-      const heroes = (data || []).map((item) => normalizeHero(item as Record<string, unknown>))
-      allHeroes.value = heroes
-      return heroes
+        .limit(50);
+      if (error) throw error;
+      const heroes = (data || []).map((item) => normalizeHero(item as Record<string, unknown>));
+      allHeroes.value = heroes;
+      return heroes;
     } catch (error) {
-      logger.error('home-heroes-store', '获取英雄区列表失败', error)
-      fetchError.value = (error as Error)?.message || 'HOME_HEROES_FETCH_FAILED'
-      return []
+      logger.error('home-heroes-store', '获取英雄区列表失败', error);
+      fetchError.value = (error as Error)?.message || 'HOME_HEROES_FETCH_FAILED';
+      return [];
     } finally {
-      isFetching.value = false
+      isFetching.value = false;
     }
-  }
+  };
 
   // 读取单个英雄区的发布历史
   const fetchRevisions = async (heroId: string): Promise<HomeHeroRevision[]> => {
@@ -442,24 +489,24 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         .select('*')
         .eq('hero_id', heroId)
         .order('published_at', { ascending: false })
-        .limit(20)
-      if (error) throw error
+        .limit(20);
+      if (error) throw error;
       return (data || []).map((item) => ({
         id: String(item.id || ''),
         hero_id: String(item.hero_id || ''),
         snapshot: normalizeHero(item.snapshot as Record<string, unknown>),
         published_at: String(item.published_at || ''),
-        published_by: typeof item.published_by === 'string' ? item.published_by : null
-      }))
+        published_by: typeof item.published_by === 'string' ? item.published_by : null,
+      }));
     } catch (error) {
-      logger.error('home-heroes-store', '获取英雄区历史版本失败', error)
-      return []
+      logger.error('home-heroes-store', '获取英雄区历史版本失败', error);
+      return [];
     }
-  }
+  };
 
   // 新建英雄区（草稿）
   const createHero = async (payload: Partial<HomeHero>): Promise<HomeHero | null> => {
-    isSaving.value = true
+    isSaving.value = true;
     try {
       const insertPayload = {
         sort_order: Number(payload.sort_order) || 0,
@@ -482,100 +529,111 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
         hint_text: payload.hint_text || null,
         label: payload.label || null,
         aria_label: payload.aria_label || null,
-        status: 'draft'
-      }
+        status: 'draft',
+      };
       const { data, error } = await supabase
         .from('home_heroes')
         .insert(insertPayload)
         .select()
-        .single()
-      if (error) throw error
-      const hero = normalizeHero(data as Record<string, unknown>)
+        .single();
+      if (error) throw error;
+      const hero = normalizeHero(data as Record<string, unknown>);
       // 新建英雄区的负数 sort_order 位于顶部；同步本地状态时也立即插到首位。
-      allHeroes.value = [hero, ...allHeroes.value]
-      return hero
+      allHeroes.value = [hero, ...allHeroes.value];
+      return hero;
     } catch (error) {
-      logger.error('home-heroes-store', '创建英雄区失败', error)
-      fetchError.value = (error as Error)?.message || 'HOME_HEROES_CREATE_FAILED'
-      return null
+      logger.error('home-heroes-store', '创建英雄区失败', error);
+      fetchError.value = (error as Error)?.message || 'HOME_HEROES_CREATE_FAILED';
+      return null;
     } finally {
-      isSaving.value = false
+      isSaving.value = false;
     }
-  }
+  };
 
   // 保存英雄区（更新草稿）
   const saveHero = async (id: string, payload: Partial<HomeHero>): Promise<boolean> => {
-    isSaving.value = true
+    isSaving.value = true;
     try {
       // saveHero 接受 Partial<HomeHero>，排序等局部更新不得把未传字段写成空值。
-      const updatePayload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      const updatePayload: Record<string, unknown> = { updated_at: new Date().toISOString() };
       const editableFields = [
-        'sort_order', 'is_archived', 'template', 'variant', 'builtin_key', 'eyebrow',
-        'title', 'subtitle', 'image_config', 'content_layout', 'links', 'split_cards',
-        'showcase_config', 'image_portrait', 'image_landscape',
-        'greeting_text', 'hint_text', 'label', 'aria_label'
-      ] as const
+        'sort_order',
+        'is_archived',
+        'template',
+        'variant',
+        'builtin_key',
+        'eyebrow',
+        'title',
+        'subtitle',
+        'image_config',
+        'content_layout',
+        'links',
+        'split_cards',
+        'showcase_config',
+        'image_portrait',
+        'image_landscape',
+        'greeting_text',
+        'hint_text',
+        'label',
+        'aria_label',
+      ] as const;
 
       for (const field of editableFields) {
         if (payload[field] !== undefined) {
           // showcase_config 在迁移中是 NOT NULL，避免旧草稿/非 showcase 模板写入 null。
-          updatePayload[field] = field === 'showcase_config' && payload[field] == null
-            ? {}
-            : payload[field]
+          updatePayload[field] =
+            field === 'showcase_config' && payload[field] == null ? {} : payload[field];
         }
       }
 
       if (payload.sort_order !== undefined) {
-        updatePayload.sort_order = Number(payload.sort_order) || 0
+        updatePayload.sort_order = Number(payload.sort_order) || 0;
       }
 
-      const { error } = await supabase
-        .from('home_heroes')
-        .update(updatePayload)
-        .eq('id', id)
-      if (error) throw error
+      const { error } = await supabase.from('home_heroes').update(updatePayload).eq('id', id);
+      if (error) throw error;
       // 同步本地
-      const idx = allHeroes.value.findIndex((h) => h.id === id)
+      const idx = allHeroes.value.findIndex((h) => h.id === id);
       if (idx >= 0) {
-        allHeroes.value[idx] = { ...allHeroes.value[idx], ...payload } as HomeHero
+        allHeroes.value[idx] = { ...allHeroes.value[idx], ...payload } as HomeHero;
         if (allHeroes.value[idx].status === 'published' && payload.sort_order !== undefined) {
-          clearCache()
+          clearCache();
         }
       }
-      return true
+      return true;
     } catch (error) {
-      logger.error('home-heroes-store', '保存英雄区失败', error)
-      fetchError.value = (error as Error)?.message || 'HOME_HEROES_SAVE_FAILED'
-      return false
+      logger.error('home-heroes-store', '保存英雄区失败', error);
+      fetchError.value = (error as Error)?.message || 'HOME_HEROES_SAVE_FAILED';
+      return false;
     } finally {
-      isSaving.value = false
+      isSaving.value = false;
     }
-  }
+  };
 
   // 发布英雄区：将草稿状态改为 published，并写入历史快照
   const publishHero = async (id: string, userId?: string): Promise<boolean> => {
-    isSaving.value = true
+    isSaving.value = true;
     try {
-      const hero = allHeroes.value.find((h) => h.id === id)
-      if (!hero) throw new Error('英雄区不存在')
+      const hero = allHeroes.value.find((h) => h.id === id);
+      if (!hero) throw new Error('英雄区不存在');
       // 归档状态由编辑面板的「归档到历史区」复选框决定，发布流程不得改写它。
       // 归档的英雄区需要 status='published' + is_archived=true 才会进入 Footer
       // 历史回顾区（见 fetchArchivedHeroes 的过滤条件）；此前这里写死
       // is_archived=false，导致「勾选归档 → 点发布」后归档被撤销，界面从
       // 「已归档」跳回「已发布」。
-      const keepArchived = Boolean(hero.is_archived)
+      const keepArchived = Boolean(hero.is_archived);
       // 1. 写入历史快照
       const { data: revisionData, error: revError } = await supabase
         .from('home_heroes_revisions')
         .insert({
           hero_id: id,
           snapshot: buildSnapshot(hero),
-          published_by: userId || null
+          published_by: userId || null,
         })
         .select('id')
-        .single()
-      if (revError) throw revError
-      const revisionId = revisionData?.id
+        .single();
+      if (revError) throw revError;
+      const revisionId = revisionData?.id;
       try {
         // 2. 更新状态为 published（is_archived 保持原值：首页只渲染
         //    status='published' 且 is_archived=false，所以归档项自然不会上首页）
@@ -586,56 +644,56 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
             is_archived: keepArchived,
             published_at: new Date().toISOString(),
             published_by: userId || null,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
-          .eq('id', id)
-        if (updateError) throw updateError
+          .eq('id', id);
+        if (updateError) throw updateError;
       } catch (updateErr) {
         // L15 修复：补偿性删除已写入的 revision，避免产生孤立 revision 记录
         if (revisionId) {
-          await supabase.from('home_heroes_revisions').delete().eq('id', revisionId)
+          await supabase.from('home_heroes_revisions').delete().eq('id', revisionId);
         }
-        throw updateErr
+        throw updateErr;
       }
       // 3. 同步本地（is_archived 与 DB 保持一致，勿写回 false）
-      const idx = allHeroes.value.findIndex((h) => h.id === id)
+      const idx = allHeroes.value.findIndex((h) => h.id === id);
       if (idx >= 0) {
         allHeroes.value[idx] = {
           ...allHeroes.value[idx],
           status: 'published',
           is_archived: keepArchived,
-          published_at: new Date().toISOString()
-        }
+          published_at: new Date().toISOString(),
+        };
       }
-      clearCache()
-      return true
+      clearCache();
+      return true;
     } catch (error) {
-      logger.error('home-heroes-store', '发布英雄区失败', error)
-      fetchError.value = (error as Error)?.message || 'HOME_HEROES_PUBLISH_FAILED'
-      return false
+      logger.error('home-heroes-store', '发布英雄区失败', error);
+      fetchError.value = (error as Error)?.message || 'HOME_HEROES_PUBLISH_FAILED';
+      return false;
     } finally {
-      isSaving.value = false
+      isSaving.value = false;
     }
-  }
+  };
 
   // 批量发布
   const publishBatch = async (ids: string[], userId?: string): Promise<number> => {
-    let successCount = 0
+    let successCount = 0;
     for (const id of ids) {
-      const ok = await publishHero(id, userId)
-      if (ok) successCount++
+      const ok = await publishHero(id, userId);
+      if (ok) successCount++;
     }
-    return successCount
-  }
+    return successCount;
+  };
 
   // 回滚到历史版本
   const rollbackHero = async (heroId: string, revisionId: string): Promise<boolean> => {
-    isSaving.value = true
+    isSaving.value = true;
     try {
-      const revisions = await fetchRevisions(heroId)
-      const target = revisions.find((r) => r.id === revisionId)
-      if (!target) throw new Error('历史版本不存在')
-      const snapshot = target.snapshot
+      const revisions = await fetchRevisions(heroId);
+      const target = revisions.find((r) => r.id === revisionId);
+      if (!target) throw new Error('历史版本不存在');
+      const snapshot = target.snapshot;
       const { error } = await supabase
         .from('home_heroes')
         .update({
@@ -654,75 +712,80 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
           is_archived: snapshot.is_archived,
           showcase_config: snapshot.showcase_config || {},
           sort_order: snapshot.sort_order,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', heroId)
-      if (error) throw error
-      const idx = allHeroes.value.findIndex((h) => h.id === heroId)
+        .eq('id', heroId);
+      if (error) throw error;
+      const idx = allHeroes.value.findIndex((h) => h.id === heroId);
       if (idx >= 0) {
-        allHeroes.value[idx] = { ...allHeroes.value[idx], ...snapshot }
+        allHeroes.value[idx] = { ...allHeroes.value[idx], ...snapshot };
       }
-      clearCache()
-      return true
+      clearCache();
+      return true;
     } catch (error) {
-      logger.error('home-heroes-store', '回滚英雄区失败', error)
-      fetchError.value = (error as Error)?.message || 'HOME_HEROES_ROLLBACK_FAILED'
-      return false
+      logger.error('home-heroes-store', '回滚英雄区失败', error);
+      fetchError.value = (error as Error)?.message || 'HOME_HEROES_ROLLBACK_FAILED';
+      return false;
     } finally {
-      isSaving.value = false
+      isSaving.value = false;
     }
-  }
+  };
 
   // 删除英雄区
   const deleteHero = async (id: string): Promise<boolean> => {
-    isSaving.value = true
+    isSaving.value = true;
     try {
-      const { error } = await supabase.from('home_heroes').delete().eq('id', id)
-      if (error) throw error
-      allHeroes.value = allHeroes.value.filter((h) => h.id !== id)
-      clearCache()
-      return true
+      const { error } = await supabase.from('home_heroes').delete().eq('id', id);
+      if (error) throw error;
+      allHeroes.value = allHeroes.value.filter((h) => h.id !== id);
+      clearCache();
+      return true;
     } catch (error) {
-      logger.error('home-heroes-store', '删除英雄区失败', error)
-      fetchError.value = (error as Error)?.message || 'HOME_HEROES_DELETE_FAILED'
-      return false
+      logger.error('home-heroes-store', '删除英雄区失败', error);
+      fetchError.value = (error as Error)?.message || 'HOME_HEROES_DELETE_FAILED';
+      return false;
     } finally {
-      isSaving.value = false
+      isSaving.value = false;
     }
-  }
+  };
 
   // 调整排序
   const reorderHeroes = async (orderedIds: string[]): Promise<boolean> => {
     try {
       const updates = orderedIds.map((id, idx) =>
-        supabase.from('home_heroes').update({ sort_order: idx, updated_at: new Date().toISOString() }).eq('id', id)
-      )
-      const results = await Promise.all(updates)
-      const hasError = results.some((r) => r.error)
-      if (hasError) throw new Error('部分排序更新失败')
+        supabase
+          .from('home_heroes')
+          .update({ sort_order: idx, updated_at: new Date().toISOString() })
+          .eq('id', id),
+      );
+      const results = await Promise.all(updates);
+      const hasError = results.some((r) => r.error);
+      if (hasError) throw new Error('部分排序更新失败');
       // 同步本地
-      allHeroes.value = orderedIds.map((id, idx) => {
-        const hero = allHeroes.value.find((h) => h.id === id)
-        return hero ? { ...hero, sort_order: idx } : null
-      }).filter((h): h is HomeHero => h !== null)
-      clearCache()
-      return true
+      allHeroes.value = orderedIds
+        .map((id, idx) => {
+          const hero = allHeroes.value.find((h) => h.id === id);
+          return hero ? { ...hero, sort_order: idx } : null;
+        })
+        .filter((h): h is HomeHero => h !== null);
+      clearCache();
+      return true;
     } catch (error) {
-      logger.error('home-heroes-store', '调整排序失败', error)
-      return false
+      logger.error('home-heroes-store', '调整排序失败', error);
+      return false;
     }
-  }
+  };
 
   const resetState = (): void => {
-    publishedHeroes.value = HOME_HERO_BASELINE
-    archivedHeroes.value = []
-    allHeroes.value = []
-    hasPublishedRemoteData = false
-    isFetching.value = false
-    isSaving.value = false
-    fetchError.value = ''
-    clearCache()
-  }
+    publishedHeroes.value = HOME_HERO_BASELINE;
+    archivedHeroes.value = [];
+    allHeroes.value = [];
+    hasPublishedRemoteData = false;
+    isFetching.value = false;
+    isSaving.value = false;
+    fetchError.value = '';
+    clearCache();
+  };
 
   return {
     publishedHeroes,
@@ -742,6 +805,6 @@ export const useHomeHeroesStore = defineStore('homeHeroes', () => {
     rollbackHero,
     deleteHero,
     reorderHeroes,
-    resetState
-  }
-})
+    resetState,
+  };
+});

@@ -12,7 +12,8 @@ import {
  *   · 判据写太宽（例如无差别 `catch { return null }`）→ 真错误被吞成「点了没反应」；
  *   · 调用点不加防御 → 预期内的拒绝上浮成错误（Vue 会把它交给 app.config.errorHandler）。
  * 判据 `isDialogBusy` 自 2026-09-29 起是**单一真源**（本文件所在模块导出），
- * 三个调用点（SharedMemoryManagement / CopyEditor / BlockWall）共用它。
+ * 两个调用点（SharedMemoryManagement / CopyEditor）共用它。
+ * （第三个调用点 BlockWall 已于 2026-10-19 随方块墙功能退场删除。）
  */
 describe('useConfirmDialog 互斥保护', () => {
   let dialog;

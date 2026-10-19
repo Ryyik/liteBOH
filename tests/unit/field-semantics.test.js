@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { FIELD_SEMANTICS, describeField } from '../../src/config/field-semantics';
-import { squeezeSource } from '../helpers/source.js';
 
 // =====================================================================
 // 跨表同名字段语义守卫
@@ -12,8 +11,9 @@ import { squeezeSource } from '../helpers/source.js';
 //
 //   本测试锁两件事：
 //     ① 「声明」本身正确（lab 那条必须点明存的是 mode_id、且不是 freemodels.model_id）；
-//     ② 「声明」与「实际读取代码」一致 —— Lab 侧 4 个 composable 确实读的是
-//        同一张表的 model_id，且都指向单一真源而不是各自复述语义。
+//     ② 「声明」与「实际读取代码」一致 —— 2026-10-19 实验室（/lab）退场后，
+//        前端 4 个 composable 已删；仍在读这张表的是 generate-forum-weekly-report
+//        Edge Function（feature_key='forum-weekly-report'），由它锁定同表语义。
 //
 //   反证：把 src/config/field-semantics.ts 里 lab 那条改成
 //   「存 freemodels.model_id」→ 第 1 条必红。
@@ -21,13 +21,6 @@ import { squeezeSource } from '../helpers/source.js';
 
 const root = resolve(import.meta.dirname, '../..');
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
-
-const LAB_COMPOSABLES = [
-  'useCodeGenerator.js',
-  'useDocumentAI.js',
-  'usePPTGenerator.js',
-  'useWordGenerator.js',
-];
 
 describe('跨表同名字段语义（model_id 三义）', () => {
   it('lab 的 model_id 点明「存的是 mode_id、不是 freemodels.model_id」', () => {
@@ -50,14 +43,12 @@ describe('跨表同名字段语义（model_id 三义）', () => {
     expect(describeField('whatever.unknown')).toBe('');
   });
 
-  it('实验室 4 个 composable 都读同表的 model_id，并指向单一真源', () => {
-    LAB_COMPOSABLES.forEach((file) => {
-      const code = squeezeSource(read(`src/views/Lab/composables/${file}`));
-      expect(code, file).toContain(`.from('lab_ai_model_configs')`);
-      expect(code, file).toContain('model_id');
-      // 语义说明只应存在于单一真源；各文件只留一行指针，不复述
-      expect(code, file).toContain('src/config/field-semantics.js');
-    });
+  it('仍读 lab_ai_model_configs 的消费方（周报 Edge Function）按同表语义取 model_id', () => {
+    const fn = read('supabase/functions/generate-forum-weekly-report/index.ts');
+    expect(fn).toContain(`from('lab_ai_model_configs')`);
+    expect(fn).toContain('model_id');
+    // EF 内注释必须复述同表语义（列名与语义不符的坑在服务端同样致命）
+    expect(fn).toContain('model_id 存 bohai_model_configs.mode_id');
   });
 
   it('面板的模型下拉以 bohai mode_id 作为选项值', () => {

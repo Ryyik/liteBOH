@@ -36,7 +36,7 @@ export const SITE_NAV_ITEMS: SiteNavNode[] = [
       { name: 'smart-overview', path: '/overview', label: '智能概览' },
       { name: 'news-shows', path: '/newsroom', label: '新闻&节目' },
       { name: 'forum', path: '/?view=latest', label: '论坛' },
-      { name: 'activities-wall', path: '/activities-wall', label: '活动&方块墙' },
+      { name: 'activities-wall', path: '/activities-wall', label: '活动' },
       { name: 'photo-albums', path: '/albums', label: '摄影集' },
       { name: 'lotteries', path: '/lotteries', label: '抽奖' },
     ],
@@ -50,18 +50,12 @@ export const SITE_NAV_ITEMS: SiteNavNode[] = [
         name: 'ai-group',
         label: 'AI 助手',
         children: [
-          { name: 'boh-agent', action: 'openAiAssistant', label: 'BOHAgent' },
+          { name: 'bohai-work', path: '/ai-chat?surface=work', label: 'BOHAI Work' },
           { name: 'ai-chat', path: '/ai-chat', label: 'BOH AI' },
         ],
       },
-      {
-        name: 'lab-group',
-        label: '实验室',
-        children: [
-          { name: 'lab', path: '/lab', label: '实验室' },
-          { name: 'mbti', path: '/mbti', label: 'MBTI' },
-        ],
-      },
+      // 实验室（/lab）已于 2026-10-19 退场，入口由 BOHAI Work 接管（见上方 ai-group）。
+      { name: 'mbti', path: '/mbti', label: 'MBTI' },
       {
         name: 'world-group',
         label: '方块世界',

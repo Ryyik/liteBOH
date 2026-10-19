@@ -4,8 +4,10 @@ import { resolve } from 'node:path';
 
 // ============================================================
 // 前端修复验证测试
-// 覆盖：M5 分页竞态、M6+L14 SSE错误处理、L11 stopGeneration 清理、
+// 覆盖：M5 分页竞态、L11 stopGeneration 清理、
 //       L12 watch条件创建、L13 force绕过、L15 补偿删除
+// （M6+L14 的 useCodeGenerator SSE 错误处理守卫已随 2026-10-19
+//   实验室 /lab 退场删除；BOHAI Work 接管文档生成时需重新立守卫）
 // ============================================================
 
 const readFile = (relPath) =>
@@ -37,32 +39,8 @@ describe('M5: PointsGrantConsole 分页竞态守卫', () => {
   });
 });
 
-describe('M6+L14: useCodeGenerator SSE 错误处理', () => {
-  const source = readFile('src/views/Lab/composables/useCodeGenerator.js');
-
-  it('定义了 sseError 标志变量', () => {
-    expect(source).toMatch(/sseError/);
-  });
-
-  it('收到 event: error 时设置 sseError 标志', () => {
-    expect(source).toMatch(/event:\s*error/);
-    expect(source).toMatch(/sseError\s*=\s*true/);
-  });
-
-  it('M6: while 循环结束后检查 sseError（无 data 行的 error 也被捕获）', () => {
-    // 验证循环外有 sseError 检查
-    expect(source).toMatch(
-      /if\s*\(sseError\)\s*\{[\s\S]*throw\s+new\s+Error\(['"]AI 服务返回错误事件但未提供详细错误信息['"]\)/,
-    );
-  });
-
-  it('L14: catch 块中保留原始错误文本而非抛出 SyntaxError', () => {
-    // 验证不再直接 throw parseErr
-    expect(source).not.toMatch(/throw\s+parseErr/);
-    // 验证构造包含原始 dataStr 的 Error
-    expect(source).toMatch(/throw\s+new\s+Error\(`AI 服务返回错误：\$\{dataStr\}`\)/);
-  });
-});
+// 2026-10-19：原「M6+L14: useCodeGenerator SSE 错误处理」describe 块随实验室
+// （/lab）退场删除 —— src/views/Lab/ 已不在仓库，SSE 错误处理代码无消费对象。
 
 describe('L11: useChatEngine stopGeneration 清理 generationTimeoutTimer', () => {
   const source = readFile('src/views/BOHAI/composables/useChatEngine.js');

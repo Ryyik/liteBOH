@@ -111,28 +111,7 @@ export const searchProducts = (
   );
 };
 
-/** 方块墙纸条（`block_wall_items`，anon 可读）→ /activities-wall?tab=wall */
-export const searchBlockWallItems = (
-  query: string,
-  { limit = DEFAULT_LIMIT, signal }: SiteSearchQueryOptions = {},
-) => {
-  const p = buildSearchPattern(query);
-  if (!p) return Promise.resolve<SiteSearchRow[]>([]);
-  return runQuery(
-    '方块墙',
-    () =>
-      withSignal(
-        supabase
-          .from('block_wall_items')
-          .select('id,content,author_username,item_type,created_at')
-          .or(`content.ilike.${p},author_username.ilike.${p}`)
-          .order('created_at', { ascending: false })
-          .limit(limit),
-        signal,
-      ),
-    signal,
-  );
-};
+/** 方块墙搜索源已随功能退场删除（2026-10-19）；block_wall_items 表保留，历史数据仍可由数据导出携带。 */
 
 /**
  * 抽奖（`lotteries`）→ /lotteries
