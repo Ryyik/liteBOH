@@ -25,7 +25,7 @@ const createWindow = () => ({
 const stubVersionDocument = () => {
   vi.stubGlobal('document', {
     querySelector: vi.fn((selector) => ({
-      getAttribute: () => selector.includes('boh-build-id') ? 'local-build' : '4.9.0',
+      getAttribute: () => (selector.includes('boh-build-id') ? 'local-build' : '4.9.0'),
     })),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
@@ -40,12 +40,15 @@ describe('version-checker behavior', () => {
     vi.stubGlobal('window', createWindow());
     vi.stubGlobal('sessionStorage', createStorage());
     vi.stubGlobal('navigator', {});
-    vi.stubGlobal('CustomEvent', class CustomEvent {
-      constructor(type, init = {}) {
-        this.type = type;
-        this.detail = init.detail;
-      }
-    });
+    vi.stubGlobal(
+      'CustomEvent',
+      class CustomEvent {
+        constructor(type, init = {}) {
+          this.type = type;
+          this.detail = init.detail;
+        }
+      },
+    );
     stubVersionDocument();
   });
 
@@ -73,7 +76,7 @@ describe('version-checker behavior', () => {
     // 无新 SW（installing/waiting 均无）→ 当前 SW 预缓存已是最新，直接导航、不注销
     expect(unregister).not.toHaveBeenCalled();
     expect(window.location.replace).toHaveBeenCalledWith(
-      '/app/?from=test&__boh_update=remote-build#/user-space'
+      '/app/?from=test&__boh_update=remote-build#/user-space',
     );
   });
 
@@ -81,11 +84,13 @@ describe('version-checker behavior', () => {
     const addEventListener = vi.fn();
     vi.stubGlobal('navigator', {
       serviceWorker: {
-        getRegistrations: vi.fn(async () => [{
-          update: vi.fn(async () => undefined),
-          unregister: vi.fn(async () => true),
-          installing: { state: 'installing' },
-        }]),
+        getRegistrations: vi.fn(async () => [
+          {
+            update: vi.fn(async () => undefined),
+            unregister: vi.fn(async () => true),
+            installing: { state: 'installing' },
+          },
+        ]),
         addEventListener,
         removeEventListener: vi.fn(),
       },
@@ -95,12 +100,14 @@ describe('version-checker behavior', () => {
     const reloadPromise = forceCleanAndReload('remote-build');
     await vi.waitFor(() => expect(addEventListener).toHaveBeenCalled());
     // 模拟新 SW 完成安装并 claim 页面（skipWaiting + clientsClaim）
-    const controllerChangeHandler = addEventListener.mock.calls.find(([type]) => type === 'controllerchange')[1];
+    const controllerChangeHandler = addEventListener.mock.calls.find(
+      ([type]) => type === 'controllerchange',
+    )[1];
     controllerChangeHandler();
     await reloadPromise;
 
     expect(window.location.replace).toHaveBeenCalledWith(
-      '/app/?from=test&__boh_update=remote-build#/user-space'
+      '/app/?from=test&__boh_update=remote-build#/user-space',
     );
   });
 
@@ -111,11 +118,13 @@ describe('version-checker behavior', () => {
     const unregister = vi.fn(() => new Promise(() => {}));
     vi.stubGlobal('navigator', {
       serviceWorker: {
-        getRegistrations: vi.fn(async () => [{
-          update: vi.fn(() => new Promise(() => {})),
-          unregister,
-          installing: { state: 'installing' },
-        }]),
+        getRegistrations: vi.fn(async () => [
+          {
+            update: vi.fn(() => new Promise(() => {})),
+            unregister,
+            installing: { state: 'installing' },
+          },
+        ]),
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
       },
@@ -131,20 +140,26 @@ describe('version-checker behavior', () => {
     // index.html 应答这次导航，用户点了「立即更新」却拿回一模一样的旧页面。
     expect(unregister).toHaveBeenCalledOnce();
     expect(window.location.replace).toHaveBeenCalledWith(
-      '/app/?from=test&__boh_update=remote-build#/user-space'
+      '/app/?from=test&__boh_update=remote-build#/user-space',
     );
   });
 
   it('treats a matching build as current when session storage is unavailable', async () => {
-    vi.stubGlobal('sessionStorage', createStorage({
-      removeItem: vi.fn(() => {
-        throw new DOMException('Blocked', 'SecurityError');
+    vi.stubGlobal(
+      'sessionStorage',
+      createStorage({
+        removeItem: vi.fn(() => {
+          throw new DOMException('Blocked', 'SecurityError');
+        }),
       }),
-    }));
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ version: '4.9.0', buildId: 'local-build' }),
-    })));
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ version: '4.9.0', buildId: 'local-build' }),
+      })),
+    );
     const { checkVersion } = await import('../../src/utils/version-checker.js');
 
     const result = await checkVersion();
@@ -155,9 +170,12 @@ describe('version-checker behavior', () => {
 
   it('reuses the in-flight version request across concurrent checks', async () => {
     let resolveFetch;
-    const fetchMock = vi.fn(() => new Promise((resolve) => {
-      resolveFetch = resolve;
-    }));
+    const fetchMock = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { checkVersion } = await import('../../src/utils/version-checker.js');
 
@@ -178,11 +196,17 @@ describe('version-checker behavior', () => {
 
   it('aborts a version request after the request timeout', async () => {
     vi.useFakeTimers();
-    vi.stubGlobal('fetch', vi.fn((_url, options) => new Promise((_resolve, reject) => {
-      options.signal.addEventListener('abort', () => {
-        reject(new DOMException('Aborted', 'AbortError'));
-      });
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url, options) =>
+          new Promise((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => {
+              reject(new DOMException('Aborted', 'AbortError'));
+            });
+          }),
+      ),
+    );
     const { checkVersion } = await import('../../src/utils/version-checker.js');
 
     const checkPromise = checkVersion();
@@ -195,16 +219,23 @@ describe('version-checker behavior', () => {
 
   it('uses the update query as the attempted build when session storage is unavailable', async () => {
     window.location.href = 'https://example.com/app/?__boh_update=remote-build#/user-space';
-    vi.stubGlobal('sessionStorage', createStorage({
-      getItem: vi.fn(() => {
-        throw new DOMException('Blocked', 'SecurityError');
+    vi.stubGlobal(
+      'sessionStorage',
+      createStorage({
+        getItem: vi.fn(() => {
+          throw new DOMException('Blocked', 'SecurityError');
+        }),
       }),
-    }));
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ version: '5.0.0', buildId: 'remote-build' }),
-    })));
-    const { initVersionChecker, destroyVersionChecker } = await import('../../src/utils/version-checker.js');
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ version: '5.0.0', buildId: 'remote-build' }),
+      })),
+    );
+    const { initVersionChecker, destroyVersionChecker } =
+      await import('../../src/utils/version-checker.js');
 
     initVersionChecker();
     await vi.waitFor(() => expect(window.dispatchEvent).toHaveBeenCalledOnce());
@@ -212,5 +243,104 @@ describe('version-checker behavior', () => {
     expect(window.location.replace).not.toHaveBeenCalled();
     expect(window.dispatchEvent.mock.calls[0][0].detail.remoteBuildId).toBe('remote-build');
     destroyVersionChecker();
+  });
+
+  // ===== recoverIfStaleBuild：引导超时自救（App.vue 10s 兜底专用） =====
+  it('auto-reloads when boot times out on a stale build facing a newer remote', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ version: '5.0.0', buildId: 'remote-build' }),
+      })),
+    );
+    const { recoverIfStaleBuild } = await import('../../src/utils/version-checker.js');
+
+    const outcome = await recoverIfStaleBuild();
+
+    expect(outcome).toBe('reloading');
+    await vi.waitFor(() =>
+      expect(window.location.replace).toHaveBeenCalledWith(
+        '/app/?from=test&__boh_update=remote-build#/user-space',
+      ),
+    );
+  });
+
+  it('stays hands-off when the remote build matches the page (真网络慢，不清缓存)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ version: '4.9.0', buildId: 'local-build' }),
+      })),
+    );
+    const { recoverIfStaleBuild } = await import('../../src/utils/version-checker.js');
+
+    const outcome = await recoverIfStaleBuild();
+
+    expect(outcome).toBe('no-update');
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  it('stays hands-off when version.json is unreachable (离线不清缓存)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    );
+    const { recoverIfStaleBuild } = await import('../../src/utils/version-checker.js');
+
+    const outcome = await recoverIfStaleBuild();
+
+    expect(outcome).toBe('unreachable');
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  it('never retries the same target buildId (CDN 未切换时防刷新循环)', async () => {
+    vi.stubGlobal('sessionStorage', createStorage({ getItem: vi.fn(() => 'remote-build') }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ version: '5.0.0', buildId: 'remote-build' }),
+      })),
+    );
+    const { recoverIfStaleBuild } = await import('../../src/utils/version-checker.js');
+
+    const outcome = await recoverIfStaleBuild();
+
+    expect(outcome).toBe('cooldown');
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op in dev', async () => {
+    vi.stubEnv('DEV', true);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { recoverIfStaleBuild } = await import('../../src/utils/version-checker.js');
+
+    const outcome = await recoverIfStaleBuild();
+
+    expect(outcome).toBe('dev');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reports no-meta when the build meta is missing (旧缓存页面不误判)', async () => {
+    vi.stubGlobal('document', {
+      querySelector: vi.fn(() => null),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      visibilityState: 'visible',
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { recoverIfStaleBuild } = await import('../../src/utils/version-checker.js');
+
+    const outcome = await recoverIfStaleBuild();
+
+    expect(outcome).toBe('no-meta');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(window.location.replace).not.toHaveBeenCalled();
   });
 });

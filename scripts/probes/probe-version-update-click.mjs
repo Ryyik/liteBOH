@@ -95,9 +95,11 @@ const fail = (m) => violations.push(m);
 
 const metaBuildIdOf = (dir) => {
   const html = readFileSync(path.join(dir, 'index.html'), 'utf8');
-  return html.match(/meta[^>]*name="boh-build-id"[^>]*content="([^"]+)"/)?.[1]
-    || html.match(/meta[^>]*content="([^"]+)"[^>]*name="boh-build-id"/)?.[1]
-    || '(未找到)';
+  return (
+    html.match(/meta[^>]*name="boh-build-id"[^>]*content="([^"]+)"/)?.[1] ||
+    html.match(/meta[^>]*content="([^"]+)"[^>]*name="boh-build-id"/)?.[1] ||
+    '(未找到)'
+  );
 };
 
 const oldBuildId = metaBuildIdOf(OLD_DIR);
@@ -133,7 +135,9 @@ try {
 
   // ---------- ① 旧版本：装 SW 并完成预缓存 ----------
   await page.goto(`${BASE}/#/home`, { waitUntil: 'load' });
-  const ready = await page.evaluate(() => navigator.serviceWorker.ready.then(() => true).catch(() => false));
+  const ready = await page.evaluate(() =>
+    navigator.serviceWorker.ready.then(() => true).catch(() => false),
+  );
   if (!ready) fail('旧版本 SW 未能就绪');
 
   const expectedOld = precacheCount(OLD_DIR);
@@ -151,7 +155,8 @@ try {
   if (!afterOld) fail('旧版本预缓存未完成，升级场景前提不成立');
 
   const pageOldBuildId = await page.evaluate(() =>
-    document.querySelector('meta[name="boh-build-id"]')?.getAttribute('content'));
+    document.querySelector('meta[name="boh-build-id"]')?.getAttribute('content'),
+  );
   console.log(`[ver-click] 页面当前 buildId：${pageOldBuildId}`);
 
   // ---------- ② 切到新目录，走真实版本检查 → 弹窗 → 点击 ----------
@@ -161,7 +166,9 @@ try {
   // 等「发现新版本」弹窗出现（AdminConfirmModal 是异步组件）
   let dialogShown = true;
   try {
-    await page.getByText('发现新版本', { exact: true }).waitFor({ state: 'visible', timeout: 15000 });
+    await page
+      .getByText('发现新版本', { exact: true })
+      .waitFor({ state: 'visible', timeout: 15000 });
   } catch {
     dialogShown = false;
     fail('切换新目录后「发现新版本」弹窗未出现');
@@ -185,7 +192,7 @@ try {
         const p = origUnregister.apply(this, a);
         p.then(
           () => stamp('unregister() resolved'),
-          (e) => stamp(`unregister() rejected: ${e}`)
+          (e) => stamp(`unregister() rejected: ${e}`),
         );
         return p;
       };
@@ -193,14 +200,20 @@ try {
       CacheStorage.prototype.keys = function (...a) {
         stamp('caches.keys() called');
         const p = origKeys.apply(this, a);
-        p.then(() => stamp('caches.keys() resolved'), (e) => stamp(`caches.keys() rejected: ${e}`));
+        p.then(
+          () => stamp('caches.keys() resolved'),
+          (e) => stamp(`caches.keys() rejected: ${e}`),
+        );
         return p;
       };
       const origDelete = CacheStorage.prototype.delete;
       CacheStorage.prototype.delete = function (...a) {
         stamp(`caches.delete(${a[0]}) called`);
         const p = origDelete.apply(this, a);
-        p.then(() => stamp(`caches.delete(${a[0]}) resolved`), (e) => stamp(`caches.delete(${a[0]}) rejected: ${e}`));
+        p.then(
+          () => stamp(`caches.delete(${a[0]}) resolved`),
+          (e) => stamp(`caches.delete(${a[0]}) rejected: ${e}`),
+        );
         return p;
       };
       const origSetTimeout = window.setTimeout.bind(window);
@@ -217,27 +230,36 @@ try {
     await page.getByRole('button', { name: '立即更新' }).click();
 
     // forceCleanAndReload 一进来就会同步写 sessionStorage 目标标记，
-    // 用它判断「点击是否真的走到了更新流程」
+    // 用它判断「点击是否真的走到了更新流程」。
+    // ⚠️ 本地磁盘快时新 SW 接管可能在 2s 内完成并导航（实测 2026-10-19：
+    // 20 条预缓存毫秒级装完），导航会销毁执行上下文 —— 那是「流程已走通」的
+    // 更强证据，不能当成失败。
     await page.waitForTimeout(2000);
-    const targetWritten = await page.evaluate(() => sessionStorage.getItem('boh_version_reload_target'));
-    console.log(`[ver-click] 点击 2s 后目标构建标记（${'boh_version_reload_target'}）：${targetWritten}`);
+    const targetWritten = await page
+      .evaluate(() => sessionStorage.getItem('boh_version_reload_target'))
+      .catch(() => '（上下文已被更新导航销毁 —— 点击已走通更新流程）');
+    console.log(
+      `[ver-click] 点击 2s 后目标构建标记（${'boh_version_reload_target'}）：${targetWritten}`,
+    );
 
     // 若 15s 后还没发生带 __boh_update 的导航，转储 SW 状态帮助定位卡点
     setTimeout(() => {
-      page.evaluate(async () => {
-        const regs = await navigator.serviceWorker.getRegistrations();
-        const dump = {
-          href: location.href,
-          regs: regs.map((r) => ({
-            scope: r.scope,
-            installing: Boolean(r.installing),
-            waiting: Boolean(r.waiting),
-            active: r.active?.state || null,
-            controller: Boolean(navigator.serviceWorker.controller),
-          })),
-        };
-        console.log(`[probe-dump] ${JSON.stringify(dump)}`);
-      }).catch(() => {});
+      page
+        .evaluate(async () => {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          const dump = {
+            href: location.href,
+            regs: regs.map((r) => ({
+              scope: r.scope,
+              installing: Boolean(r.installing),
+              waiting: Boolean(r.waiting),
+              active: r.active?.state || null,
+              controller: Boolean(navigator.serviceWorker.controller),
+            })),
+          };
+          console.log(`[probe-dump] ${JSON.stringify(dump)}`);
+        })
+        .catch(() => {});
     }, 15000).unref?.();
 
     // ---------- ③ 等带 __boh_update 的导航落地 ----------
@@ -251,7 +273,8 @@ try {
     await page.waitForTimeout(2500); // 等应用壳与 version-checker 启动自检跑完
 
     const finalBuildId = await page.evaluate(() =>
-      document.querySelector('meta[name="boh-build-id"]')?.getAttribute('content'));
+      document.querySelector('meta[name="boh-build-id"]')?.getAttribute('content'),
+    );
     const finalUrl = page.url();
     console.log(`[ver-click] 落地 URL：${finalUrl}`);
     console.log(`[ver-click] 落地后页面 buildId：${finalBuildId}（服务目录当前是 ${newBuildId}）`);
@@ -259,9 +282,13 @@ try {
     // 观察弹窗是否再次出现（旧代码的循环守卫会退化为重复弹窗）
     let dialogReappeared = false;
     try {
-      await page.getByText('发现新版本', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+      await page
+        .getByText('发现新版本', { exact: true })
+        .waitFor({ state: 'visible', timeout: 10000 });
       dialogReappeared = true;
-    } catch { /* 没再弹，正常 */ }
+    } catch {
+      /* 没再弹，正常 */
+    }
     console.log(`[ver-click] 更新弹窗是否再次出现：${dialogReappeared}`);
 
     if (EXPECT === 'stale') {
@@ -270,8 +297,10 @@ try {
         console.log('[ver-click] 意外：旧代码竟然直接拿到了新构建（本地太慢的延迟没拦住接管）');
         fail('复现失败：期望落地为旧构建（bug），但拿到了新构建');
       } else {
-        console.log('[ver-click] BUG 已复现：点击「立即更新」后页面仍停留在旧构建' +
-          (dialogReappeared ? '，且同一弹窗再次出现' : ''));
+        console.log(
+          '[ver-click] BUG 已复现：点击「立即更新」后页面仍停留在旧构建' +
+            (dialogReappeared ? '，且同一弹窗再次出现' : ''),
+        );
       }
     } else {
       // 验证模式：修复后的代码应该拿到新构建

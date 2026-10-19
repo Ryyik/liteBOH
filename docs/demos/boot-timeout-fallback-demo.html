@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>引导超时兜底 · 现状 vs 方案 Demo</title>
+    <!--
+  视觉沙盒（docs/demos/，不进构建）：
+  演示「加载超时，可能是网络不稳定或刚刚更新了版本」兜底屏的改进方案。
+  左：现状（超时后三颗点无限弹跳 + 单行文案 + 次要按钮）。
+  右：方案三态（加载中 → 更新中 → 超时报错），动效与落地 CSS 同参数。
+  落地时：样式全部内联进 index.html（骨架原则：不依赖可能失败的 CSS），App.vue 复用同类名。
+-->
+    <style>
+      /* ===== Demo 页自身框架（非落地代码） ===== */
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
+          sans-serif;
+        background: #f2f2f4;
+        color: #1d1d1f;
+        min-height: 100vh;
+        padding: 28px 20px 48px;
+      }
+      [data-theme='dark'] body {
+        background: #0d0b09;
+        color: #f5f5f7;
+      }
+
+      .demo-head {
+        max-width: 1060px;
+        margin: 0 auto 20px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+      }
+      .demo-head h1 {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0;
+        margin-right: auto;
+      }
+      .demo-head p {
+        width: 100%;
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.7;
+        color: #6e6e73;
+      }
+      [data-theme='dark'] .demo-head p {
+        color: #98989d;
+      }
+      .demo-btn {
+        padding: 7px 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(0, 0, 0, 0.14);
+        background: #fff;
+        color: #1d1d1f;
+        font-size: 13px;
+        font-family: inherit;
+        cursor: pointer;
+      }
+      [data-theme='dark'] .demo-btn {
+        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.08);
+        color: #f5f5f7;
+      }
+      .demo-btn:active {
+        transform: scale(0.97);
+      }
+      .demo-btn.is-on {
+        background: #79a947;
+        border-color: transparent;
+        color: #fff;
+      }
+      label.demo-check {
+        font-size: 13px;
+        color: #6e6e73;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+      }
+      [data-theme='dark'] label.demo-check {
+        color: #98989d;
+      }
+
+      .demo-grid {
+        max-width: 1060px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      @media (max-width: 860px) {
+        .demo-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .demo-col h2 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0 0 10px 4px;
+        color: #6e6e73;
+      }
+      [data-theme='dark'] .demo-col h2 {
+        color: #98989d;
+      }
+      .demo-col h2 small {
+        font-weight: 400;
+        opacity: 0.75;
+      }
+
+      /* ===== 手机屏框（非落地代码） ===== */
+      .screen {
+        position: relative;
+        height: 560px;
+        border-radius: 24px;
+        overflow: hidden;
+        background: #ffffff;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        display: flex;
+        flex-direction: column;
+      }
+      [data-theme='dark'] .screen {
+        background: #16120e;
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+      .screen-nav {
+        flex: none;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 500;
+        color: #1d1d1f;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      }
+      [data-theme='dark'] .screen-nav {
+        color: #f5f5f7;
+        border-bottom-color: rgba(255, 255, 255, 0.07);
+      }
+      .screen-stage {
+        flex: 1;
+        position: relative;
+      }
+      .state-tag {
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 11px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.05);
+        color: #6e6e73;
+        white-space: nowrap;
+        z-index: 5;
+      }
+      [data-theme='dark'] .state-tag {
+        background: rgba(255, 255, 255, 0.08);
+        color: #98989d;
+      }
+      .screen-note {
+        flex: none;
+        padding: 12px 16px 14px;
+        font-size: 12px;
+        line-height: 1.7;
+        color: #6e6e73;
+        border-top: 1px solid rgba(0, 0, 0, 0.05);
+      }
+      [data-theme='dark'] .screen-note {
+        color: #98989d;
+        border-top-color: rgba(255, 255, 255, 0.07);
+      }
+      .screen-note b {
+        color: inherit;
+      }
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .pill-row .demo-btn {
+        padding: 5px 12px;
+        font-size: 12px;
+      }
+
+      /* ============================================================
+     以下为「落地 CSS」——与将来写进 index.html 内联样式的参数一致
+     ============================================================ */
+
+      /* —— 引导容器（对应 .boh-boot-body）—— */
+      .boh-boot-body {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        padding: 0 24px 6vh;
+      }
+
+      /* —— 加载点（现状即有）—— */
+      .boh-boot-dots {
+        display: flex;
+        gap: 7px;
+      }
+      .boh-boot-dots span {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #c7c7cc;
+        animation: boh-boot-bounce 1.2s ease-in-out infinite;
+      }
+      [data-theme='dark'] .boh-boot-dots span {
+        background: #5d5d67;
+      }
+      .boh-boot-dots span:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+      .boh-boot-dots span:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+      @keyframes boh-boot-bounce {
+        0%,
+        80%,
+        100% {
+          transform: translateY(0);
+          opacity: 0.45;
+        }
+        40% {
+          transform: translateY(-5px);
+          opacity: 1;
+        }
+      }
+      /* 方案更新（二轮）：点只在加载态存在；离开加载态（→更新中 / →报错）
+         淡出下沉 180ms 后从布局收起 —— 「更新中」不再有跳动点 */
+      .boh-boot-dots.is-gone {
+        animation: boh-boot-dots-out 0.18s ease-out both;
+      }
+      @keyframes boh-boot-dots-out {
+        from {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+      }
+
+      /* —— 文案 —— */
+      .boh-boot-text {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #8b9098;
+        text-align: center;
+      }
+      [data-theme='dark'] .boh-boot-text {
+        color: #8a919c;
+      }
+      .boh-boot-text strong {
+        display: block;
+        font-size: 15px;
+        font-weight: 600;
+        color: #3c3c43;
+        margin-bottom: 4px;
+      }
+      [data-theme='dark'] .boh-boot-text strong {
+        color: #d1d1d6;
+      }
+      .boh-boot-text small {
+        display: block;
+        font-size: 12px;
+        opacity: 0.85;
+        margin-top: 2px;
+      }
+
+      /* —— 方案新增：更新中细流光进度线 —— */
+      .boh-boot-progress {
+        width: 76px;
+        height: 2px;
+        border-radius: 2px;
+        overflow: hidden;
+        background: rgba(127, 127, 135, 0.18);
+        position: relative;
+      }
+      .boh-boot-progress::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        width: 45%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, transparent, #79a947, transparent);
+        animation: boh-boot-sweep 1.4s ease-in-out infinite;
+      }
+      @keyframes boh-boot-sweep {
+        from {
+          transform: translateX(-110%);
+        }
+        to {
+          transform: translateX(320%);
+        }
+      }
+
+      /* —— 方案新增：报错态徽标（软圆底 + 感叹号，与 GlobalErrorBoundary 图形语言一致）—— */
+      .boh-boot-badge {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #8b9098;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        background: rgba(0, 0, 0, 0.03);
+        animation: boh-boot-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+      [data-theme='dark'] .boh-boot-badge {
+        color: #8a919c;
+        border-color: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .boh-boot-badge svg {
+        display: block;
+      }
+
+      /* —— 方案新增：报错态元素错峰入场（rise + fade，一次性）—— */
+      .is-error .boh-boot-rise-1 {
+        animation: boh-boot-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+      .is-error .boh-boot-rise-2 {
+        animation: boh-boot-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) 0.06s both;
+      }
+      .is-error .boh-boot-rise-3 {
+        animation: boh-boot-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s both;
+      }
+      @keyframes boh-boot-rise {
+        from {
+          opacity: 0;
+          transform: translateY(6px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      /* —— 按钮：现状是次要幽灵胶囊；方案在报错态升级为实心主按钮（提高可点性）—— */
+      .boh-boot-retry {
+        padding: 9px 22px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.04);
+        color: #1d1d1f;
+        font-family: inherit;
+        font-size: 14px;
+        cursor: pointer;
+        transition:
+          opacity 0.15s ease-out,
+          transform 0.1s ease-out;
+      }
+      [data-theme='dark'] .boh-boot-retry {
+        border-color: rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: #f5f5f7;
+      }
+      .boh-boot-retry:hover {
+        opacity: 0.85;
+      }
+      .boh-boot-retry:active {
+        transform: scale(0.97);
+      }
+      .boh-boot-retry--primary {
+        border-color: transparent;
+        background: #1d1d1f;
+        color: #ffffff;
+      }
+      [data-theme='dark'] .boh-boot-retry--primary {
+        background: #f5f5f7;
+        color: #1d1d1f;
+      }
+
+      /* —— reduced-motion 兜底（落地时写 @media (prefers-reduced-motion: reduce)，demo 用 .reduced 模拟）—— */
+      @media (prefers-reduced-motion: reduce) {
+        .boh-boot-dots span {
+          animation: none;
+          opacity: 0.7;
+        }
+        .boh-boot-progress::after {
+          animation: none;
+          left: 27%;
+          opacity: 0.6;
+        }
+        .boh-boot-badge,
+        .is-error .boh-boot-rise-1,
+        .is-error .boh-boot-rise-2,
+        .is-error .boh-boot-rise-3 {
+          animation: none;
+        }
+        .boh-boot-dots.is-gone {
+          animation: none;
+          opacity: 0;
+        }
+      }
+      .reduced .boh-boot-dots span {
+        animation: none;
+        opacity: 0.7;
+      }
+      .reduced .boh-boot-progress::after {
+        animation: none;
+        left: 27%;
+        opacity: 0.6;
+      }
+      .reduced .boh-boot-badge,
+      .reduced .is-error .boh-boot-rise-1,
+      .reduced .is-error .boh-boot-rise-2,
+      .reduced .is-error .boh-boot-rise-3 {
+        animation: none;
+      }
+      .reduced .boh-boot-dots.is-gone {
+        animation: none;
+        opacity: 0;
+      }
+
+      /* —— 各态可见性（demo 用；落地为 v-if / 类切换）—— */
+      .st {
+        display: none;
+      }
+      .st.is-visible {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px; /* 二轮反馈「有点拥挤」：报错/更新中各元素放松到 20px（与落地一致） */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="demo-head">
+      <h1>引导超时兜底 · 现状 vs 方案</h1>
+      <button class="demo-btn" id="themeBtn">切换暗色</button>
+      <label class="demo-check"
+        ><input type="checkbox" id="reducedChk" /> 模拟 reduced-motion</label
+      >
+      <button class="demo-btn" id="autoBtn">▶ 自动播放一遍（方案）</button>
+      <p>
+        场景：新版本发布窗口，本机旧缓存引用的 chunk 已被删，启动卡死走到 10s/12s 超时兜底。
+        <b>现状</b>：报错后三颗点仍在无限弹跳（像还在加载），文案一行两义，按钮是弱次要样式。
+        <b>方案</b>：超时先拉 version.json 自判 —— 确认线上有新构建 → 「更新中」态（无跳动点，
+        只留流光细线）自动强刷； 拉 failed / 版本一致（真网络问题）→
+        「报错」态：点收场、徽标入场、文案拆两行、主按钮。
+      </p>
+    </div>
+
+    <div class="demo-grid">
+      <!-- ============ 左：现状 ============ -->
+      <div class="demo-col">
+        <h2>现状 <small>· index.html 12s 兜底（超时回调只改文字，动画不停）</small></h2>
+        <div class="screen">
+          <div class="screen-nav">方块之家 BOH</div>
+          <div class="screen-stage">
+            <span class="state-tag">超时报错（现状）</span>
+            <div class="boh-boot-body">
+              <div class="boh-boot-dots"><span></span><span></span><span></span></div>
+              <p class="boh-boot-text">加载超时，可能是网络不稳定或刚刚更新了版本</p>
+              <button class="boh-boot-retry" type="button">重新加载</button>
+            </div>
+          </div>
+          <div class="screen-note">
+            问题：① 报错与加载信号同时在场 —— 点永远在弹，用户分不清「还在试」还是「已经失败」； ②
+            一行文案混两个原因；③ 按钮弱，且不说明点了会发生什么（会清缓存重下）。
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 右：方案 ============ -->
+      <div class="demo-col">
+        <h2>方案 <small>· 三态 + 动效（落地参数即本页 CSS）</small></h2>
+        <div class="screen">
+          <div class="screen-nav">方块之家 BOH</div>
+          <div class="screen-stage">
+            <span class="state-tag" id="planTag">加载中</span>
+
+            <!-- 态容器：点只在加载态存在，离开加载态淡出收场后从布局收起（与落地实现一致） -->
+            <div class="boh-boot-body" id="planBody">
+              <div class="boh-boot-dots" id="planDots"><span></span><span></span><span></span></div>
+
+              <!-- 态 1：加载中（现状保留） -->
+              <div class="st is-visible" data-state="loading">
+                <p class="boh-boot-text">正在加载…</p>
+              </div>
+
+              <!-- 态 2：更新中（自救已确认线上有新构建） -->
+              <div class="st" data-state="recovering">
+                <p class="boh-boot-text">检测到新版本，正在更新…</p>
+                <div class="boh-boot-progress" aria-hidden="true"></div>
+              </div>
+
+              <!-- 态 3：报错（真网络问题 / 自救不可用） -->
+              <div class="st" data-state="error">
+                <div class="boh-boot-badge boh-boot-rise-1">
+                  <svg
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                </div>
+                <p class="boh-boot-text boh-boot-rise-2">
+                  <strong>加载超时</strong>
+                  可能是网络不稳定，或刚刚发布了新版本
+                </p>
+                <button
+                  class="boh-boot-retry boh-boot-retry--primary boh-boot-rise-3"
+                  type="button"
+                >
+                  重新加载
+                </button>
+                <p
+                  class="boh-boot-text boh-boot-rise-3"
+                  style="font-size: 12px; opacity: 0.75; margin-top: -6px"
+                >
+                  将清除旧缓存并获取最新版本
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="screen-note">
+            <b>行为</b>：10s 超时 → 先自查 version.json（4s 上限）→ 有新构建：更新中 +
+            自动强刷（同启动 autoApply 先例，同一目标只试一次防循环）；
+            否则报错态，不动用户缓存。<br />
+            <b>动效</b>：报错元素错峰 rise 入场 240ms；更新中 2px 流光线 1.4s（无跳动点）；点收场
+            180ms；全部带 reduced-motion 兜底。
+            <div class="pill-row">
+              <button class="demo-btn" data-goto="loading">态1 加载中</button>
+              <button class="demo-btn" data-goto="recovering">态2 更新中</button>
+              <button class="demo-btn" data-goto="error">态3 报错</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      var themeBtn = document.getElementById('themeBtn');
+      var reducedChk = document.getElementById('reducedChk');
+      var autoBtn = document.getElementById('autoBtn');
+      var planBody = document.getElementById('planBody');
+      var planTag = document.getElementById('planTag');
+
+      themeBtn.addEventListener('click', function () {
+        var root = document.documentElement;
+        var dark = root.getAttribute('data-theme') === 'dark';
+        root.setAttribute('data-theme', dark ? 'light' : 'dark');
+        themeBtn.textContent = dark ? '切换暗色' : '切换亮色';
+      });
+      reducedChk.addEventListener('change', function () {
+        document.body.classList.toggle('reduced', reducedChk.checked);
+      });
+
+      var TAGS = { loading: '加载中', recovering: '更新中（自动强刷）', error: '超时报错' };
+      var planDots = document.getElementById('planDots');
+      var dotsHideTimer = null;
+      function showState(name) {
+        var states = planBody.querySelectorAll('.st');
+        for (var i = 0; i < states.length; i++) {
+          states[i].classList.toggle('is-visible', states[i].getAttribute('data-state') === name);
+        }
+        planBody.classList.toggle('is-error', name === 'error');
+        planTag.textContent = TAGS[name] || name;
+        // 点只在加载态存在：离开加载态（更新中/报错）先淡出（180ms 动画），随后从布局中收起；
+        // 回到加载态则还原（demo 手动切换用；真实流程不会回退）
+        if (dotsHideTimer) {
+          clearTimeout(dotsHideTimer);
+          dotsHideTimer = null;
+        }
+        if (name === 'loading') {
+          planDots.classList.remove('is-gone');
+          planDots.style.display = '';
+        } else {
+          planDots.classList.add('is-gone');
+          dotsHideTimer = setTimeout(function () {
+            planDots.style.display = 'none';
+          }, 200);
+        }
+      }
+
+      var gotoBtns = document.querySelectorAll('[data-goto]');
+      for (var k = 0; k < gotoBtns.length; k++) {
+        gotoBtns[k].addEventListener('click', function () {
+          showState(this.getAttribute('data-goto'));
+        });
+      }
+
+      var autoTimer = [];
+      autoBtn.addEventListener('click', function () {
+        for (var t = 0; t < autoTimer.length; t++) clearTimeout(autoTimer[t]);
+        autoTimer = [];
+        showState('loading');
+        autoTimer.push(
+          setTimeout(function () {
+            showState('recovering');
+          }, 1600),
+        );
+        autoTimer.push(
+          setTimeout(function () {
+            showState('error');
+          }, 4200),
+        );
+      });
+    </script>
+  </body>
+</html>

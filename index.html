@@ -199,8 +199,120 @@
         color: #f5f5f7;
       }
 
+      /* ===== 超时三态（2026-10-19）：与 src/App.vue boot 分支同类名，改这里必须同步 =====
+         参数与 docs/demos/boot-timeout-fallback-demo.html 一致（240ms rise / 180ms 收场 /
+         1.4s 流光）。此处刻意不引 tokens.css —— 骨架原则：不依赖任何可能失败的 CSS。
+         ⚠️ 本文件不进 prettier（lint-staged 不含 html），属性选择器保持双引号 ——
+         check-first-paint 按字面匹配 [data-theme="dark"]，别改成单引号。 */
+      .boh-boot-progress {
+        position: relative;
+        width: 76px;
+        height: 2px;
+        border-radius: 2px;
+        overflow: hidden;
+        background: rgba(127, 127, 135, 0.18);
+      }
+      .boh-boot-progress::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 27%;
+        width: 45%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, transparent, #79a947, transparent);
+        animation: boh-boot-sweep 1.4s ease-in-out infinite;
+      }
+      @keyframes boh-boot-sweep {
+        from { transform: translateX(-110%); }
+        to { transform: translateX(320%); }
+      }
+
+      /* 报错态：加载点整体淡出收场（停止「假加载」信号）；淡出后留位，不制造布局跳动 */
+      .boh-boot-body.is-error .boh-boot-dots { animation: boh-boot-dots-out 0.18s ease-out both; }
+      @keyframes boh-boot-dots-out {
+        from { opacity: 1; transform: translateY(0); }
+        to { opacity: 0; transform: translateY(4px); }
+      }
+
+      /* Vue <Transition name="boh-boot-dots"> 的离场类（src/App.vue）：点只在加载态存在，
+         离场淡出下沉 180ms 后卸载 —— 「更新中」态因此没有跳动点，只有文案 + 流光细线 */
+      .boh-boot-dots-leave-active {
+        transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+      }
+      .boh-boot-dots-leave-to {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+
+      /* 报错态间距整体放松（demo 二轮反馈：有点拥挤） */
+      .boh-boot-body.is-error { gap: 20px; }
+
+      /* 报错徽标：软圆底 + 感叹号（图形语言同 GlobalErrorBoundary），currentColor 自动适配暗色 */
+      .boh-boot-badge {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        background: rgba(0, 0, 0, 0.03);
+        color: #8b9098;
+      }
+      [data-theme="dark"] .boh-boot-badge {
+        border-color: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        color: #8a919c;
+      }
+
+      /* 报错元素错峰入场（一次性 rise + fade） */
+      .boh-boot-rise-1 { animation: boh-boot-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+      .boh-boot-rise-2 { animation: boh-boot-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) 0.06s both; }
+      .boh-boot-rise-3 { animation: boh-boot-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) 0.12s both; }
+      @keyframes boh-boot-rise {
+        from { opacity: 0; transform: translateY(6px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      /* 报错文案两行拆分：主行加重（近似 --liquid-text-secondary 的骨架内联值） */
+      .boh-boot-text strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #3c3c43;
+      }
+      [data-theme="dark"] .boh-boot-text strong { color: #d1d1d6; }
+      .boh-boot-hint { margin-top: -6px; font-size: 12px; opacity: 0.75; }
+
+      /* 报错态主按钮：实心（对比基础幽灵样式提高可点性；基础 .boh-boot-retry 保持原样，
+         check-first-paint 比对的是基础类，别动它的 color） */
+      .boh-boot-retry--primary {
+        border-color: transparent;
+        background: #1d1d1f;
+        color: #ffffff;
+      }
+      [data-theme="dark"] .boh-boot-retry--primary { background: #f5f5f7; color: #1d1d1f; }
+
+      /* 内联报错组的布局与显隐（[hidden] 要显式压回 display:none，否则上面的 flex 会顶掉它） */
+      .boh-boot-error {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+      }
+      .boh-boot-error[hidden] { display: none; }
+
       @media (prefers-reduced-motion: reduce) {
         .boh-boot-dots span { animation: none; opacity: 0.7; }
+        .boh-boot-dots-leave-active { transition: none; }
+        .boh-boot-body.is-error .boh-boot-dots { animation: none; opacity: 0; }
+        .boh-boot-progress::after { animation: none; opacity: 0.6; }
+        .boh-boot-badge,
+        .boh-boot-rise-1,
+        .boh-boot-rise-2,
+        .boh-boot-rise-3 { animation: none; }
       }
     </style>
 
@@ -295,10 +407,23 @@
   <body>
     <div id="app">
       <div class="boh-boot" id="boh-boot">
-        <div class="boh-boot-body">
-          <div class="boh-boot-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="boh-boot-body" id="boh-boot-body">
+          <div class="boh-boot-dots" id="boh-boot-dots" aria-hidden="true"><span></span><span></span><span></span></div>
           <p class="boh-boot-text" id="boh-boot-text">正在加载…</p>
-          <button class="boh-boot-retry" id="boh-boot-retry" type="button" hidden>重新加载</button>
+          <!-- 超时报错组：预置在 DOM 里，12s 兜底脚本揭晓（display 切换会重放入场动画）。
+               文案/类名与 src/App.vue 的 10s 兜底保持一致，改一处必须同步另一处。 -->
+          <div class="boh-boot-error" id="boh-boot-error" hidden>
+            <div class="boh-boot-badge boh-boot-rise-1" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <p class="boh-boot-text boh-boot-rise-2"><strong>加载超时</strong>可能是网络不稳定，或刚刚发布了新版本</p>
+            <button class="boh-boot-retry boh-boot-retry--primary boh-boot-rise-3" id="boh-boot-retry" type="button">重新加载</button>
+            <p class="boh-boot-text boh-boot-hint boh-boot-rise-3">将清除旧缓存并获取最新版本</p>
+          </div>
         </div>
       </div>
     </div>
@@ -312,14 +437,27 @@
       // "Vue 已挂载但路由 chunk 没到位"。两处文案与超时长度必须同步修改。
       (function () {
         var boot = document.getElementById('boh-boot');
+        var body = document.getElementById('boh-boot-body');
+        var dotsRow = document.getElementById('boh-boot-dots');
+        var loadingText = document.getElementById('boh-boot-text');
+        var errorBox = document.getElementById('boh-boot-error');
         var retry = document.getElementById('boh-boot-retry');
-        var text = document.getElementById('boh-boot-text');
         if (!boot || !retry) return;
 
         var timer = window.setTimeout(function () {
           if (!document.body.contains(boot)) return;
-          if (text) text.textContent = '加载超时，可能是网络不稳定或刚刚更新了版本';
-          retry.hidden = false;
+          // ⚠️ 这里只切到「报错态」，不做自动强刷：内联环境拿不到 version-checker，
+          // 手写第二份「拉 version.json 比对构建指纹」会违反单一真源；且入口脚本/CSS
+          // 的 404 已由上方资源监听自动强刷覆盖，能活到 12s 的残留场景（Vue 完全没挂载）
+          // 极少，保留手动自救即可。自动强刷由 src/App.vue 的 10s 兜底负责
+          // （recoverIfStaleBuild → forceCleanAndReload）。
+          // ⚠️ 文案与 src/App.vue 超时分支保持一致，改一处必须同步另一处。
+          if (loadingText) loadingText.hidden = true;
+          if (errorBox) errorBox.hidden = false;
+          if (body) body.classList.add('is-error');
+          // 点淡出收场（0.18s，见 .boh-boot-body.is-error 规则）后从布局中收起；
+          // 这块骨架的报错态是终态、不会再回到加载态，收起是安全的
+          if (dotsRow) window.setTimeout(function () { dotsRow.style.display = 'none'; }, 220);
         }, 12000);
 
         retry.addEventListener('click', function () {

@@ -250,6 +250,46 @@ export const forceCleanAndReload = async (targetBuildId = '') => {
   }
 };
 
+// ============================================
+// 引导超时自救（src/App.vue 10s 兜底专用入口）
+// 引导卡死最常见的原因是「本机旧构建撞上新部署」：旧 index.html 引用的 hash chunk
+// 已被删除。这一步用 version.json 判定是不是这种情况 —— 是，就自动强刷，用户
+// 不用手点「重新加载」；不是（真网络差 / 已是最新），就交还报错态，绝不动用户
+// 缓存（强刷会清空预缓存，弱网下二次加载反而更慢）。
+// 护栏与启动 autoApply 完全同一套：shouldAutoApplyVersion + reload target，
+// 同一目标 buildId 只试一次，CDN 尚未切换时不会形成刷新循环。
+// ============================================
+
+/**
+ * 判定「这次引导超时是不是旧构建撞上新部署」并自救。
+ * @returns {Promise<'reloading'|'no-update'|'unreachable'|'cooldown'|'dev'|'no-meta'>}
+ *   reloading    已发起 forceCleanAndReload（调用方切换到「更新中」态）
+ *   no-update    线上与当前同构建（真网络慢），调用方维持报错态
+ *   unreachable  version.json 拉取失败（离线/CDN 异常），调用方维持报错态
+ *   cooldown     该目标构建本次会话已尝试过，不重复强刷（防循环）
+ *   dev/no-meta  开发环境 / 页面缺版本 meta（旧缓存页面），不采取动作
+ */
+export const recoverIfStaleBuild = async () => {
+  if (import.meta.env.DEV) return 'dev';
+  const localBuildId = readCurrentBuildId();
+  if (!localBuildId) return 'no-meta';
+  let remote;
+  try {
+    remote = await fetchRemoteVersion();
+  } catch {
+    // version.json 拉不到：多半是真网络问题。此时强刷只会雪上加霜，交给报错态。
+    return 'unreachable';
+  }
+  if (!remote?.buildId || remote.buildId === localBuildId) return 'no-update';
+  if (!shouldAutoApplyVersion(remote.buildId, readReloadTarget())) return 'cooldown';
+  logger.info('version', '引导超时且线上有新构建，自动清理旧缓存并刷新', {
+    currentBuildId: localBuildId,
+    remoteBuildId: remote.buildId,
+  });
+  void forceCleanAndReload(remote.buildId);
+  return 'reloading';
+};
+
 // 标记本次会话是否已派发过更新提示，避免重复弹窗打扰
 let updateNotified = false;
 

@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { logger } from '@/utils/logger.js';
+import { recoverIfStaleBuild } from '@/utils/version-checker.js';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 const AiEdgeTrigger = createPanelAsync(() => import('@/components/AiEdgeTrigger.vue'), {
   label: 'AiEdgeTrigger',
@@ -47,10 +48,15 @@ const authStore = useAuthStore();
 // - index.html 内联脚本 12s：Vue 完全没挂载起来时的兜底（骨架还在 DOM 里）
 // - 本文件 10s：Vue 已挂载但首屏路由 chunk 没到位（骨架已被 mount 清空）
 // 两者不会同时生效：Vue 一挂载就清空 #app，内联定时器因 contains(boot) 为 false 失效。
-// 改文案或超时时长时务必同步另一处。
+// 超时后的 UI 是三态（加载中 / 更新中 / 报错），类名与文案定义在 index.html 的内联
+// <style> 里，本文件直接复用 —— 改类名、文案或超时时长时务必同步另一处。
+// 自动强刷只有本文件这一条路（recoverIfStaleBuild）；index.html 内联保持「哑屏」，
+// 原因见其超时脚本注释。
 const bootReady = ref(false);
 const bootTimedOut = ref(false);
+const bootRecovering = ref(false);
 let bootTimeoutId = 0;
+let bootRecoveryStarted = false;
 
 router
   .isReady()
@@ -62,8 +68,39 @@ router
     // 导航失败（如路由 chunk 拿不到）：保持加载态，交给下面的超时提示
   });
 
+// 10s 超时先自救再报错：引导卡死最常见的原因是「本机旧构建撞上新部署」
+// （旧 index.html 引用的 hash chunk 已被删除）。拉 version.json 就能判定 ——
+// 确认线上有新构建就自动强刷（与启动 autoApply 同一套护栏，同一目标只试一次，
+// 不会形成刷新循环）；拉不到或版本一致说明是真网络问题，维持报错态、不动用户缓存
+// （强刷会清空预缓存，弱网下二次加载反而更慢）。自查 race 4s 上限，
+// 避免报错态被一次慢版本请求拖到很晚才出现。
+const handleBootTimeout = async () => {
+  if (bootRecoveryStarted) return;
+  bootRecoveryStarted = true;
+  const recovery = recoverIfStaleBuild().catch(() => 'unreachable');
+  let raceTimerId = 0;
+  const raced = await Promise.race([
+    recovery,
+    new Promise((resolve) => {
+      raceTimerId = window.setTimeout(() => resolve('slow'), 4000);
+    }),
+  ]).finally(() => window.clearTimeout(raceTimerId));
+  if (raced === 'reloading') {
+    bootRecovering.value = true;
+    return;
+  }
+  bootTimedOut.value = true;
+  // 自查慢于 4s 上限但最终确认有新构建：报错态翻转为「更新中」，强刷随后发生
+  void recovery.then((outcome) => {
+    if (outcome === 'reloading') {
+      bootTimedOut.value = false;
+      bootRecovering.value = true;
+    }
+  });
+};
+
 bootTimeoutId = window.setTimeout(() => {
-  if (!bootReady.value) bootTimedOut.value = true;
+  if (!bootReady.value) void handleBootTimeout();
 }, 10000);
 
 onUnmounted(() => {
@@ -318,17 +355,52 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
   <div
     v-if="!bootReady"
     class="boh-boot-body boh-boot-body--standalone"
+    :class="{ 'is-error': bootTimedOut }"
     role="status"
     aria-live="polite"
   >
-    <template v-if="!bootTimedOut">
-      <div class="boh-boot-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-      <p class="boh-boot-text">正在加载…</p>
+    <!-- 点只在加载态存在：离开加载态（→更新中 / →报错）经 Transition 淡出收场 180ms 后卸载，
+         「更新中」不再有跳动点，只有文案 + 流光细线。离场类定义在 index.html 内联样式 -->
+    <Transition name="boh-boot-dots">
+      <div v-if="!bootTimedOut && !bootRecovering" class="boh-boot-dots" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+    </Transition>
+    <p v-if="!bootTimedOut && !bootRecovering" class="boh-boot-text">正在加载…</p>
+    <template v-else-if="bootRecovering">
+      <p class="boh-boot-text">检测到新版本，正在更新…</p>
+      <div class="boh-boot-progress" aria-hidden="true"></div>
     </template>
     <template v-else>
-      <!-- 文案与 index.html 内联的 12s 兜底保持一致：同一故障两种说法会让用户困惑 -->
-      <p class="boh-boot-text">加载超时，可能是网络不稳定或刚刚更新了版本</p>
-      <button class="boh-boot-retry" type="button" @click="reloadWithFreshBuild">重新加载</button>
+      <!-- 文案/类名与 index.html 内联的 12s 兜底保持一致：同一故障两种说法会让用户困惑 -->
+      <div class="boh-boot-badge boh-boot-rise-1" aria-hidden="true">
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      </div>
+      <p class="boh-boot-text boh-boot-rise-2">
+        <strong>加载超时</strong>
+        可能是网络不稳定，或刚刚发布了新版本
+      </p>
+      <button
+        class="boh-boot-retry boh-boot-retry--primary boh-boot-rise-3"
+        type="button"
+        @click="reloadWithFreshBuild"
+      >
+        重新加载
+      </button>
+      <p class="boh-boot-text boh-boot-hint boh-boot-rise-3">将清除旧缓存并获取最新版本</p>
     </template>
   </div>
 
