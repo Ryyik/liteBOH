@@ -57,7 +57,6 @@ export const STATUS_FILTER_FIELDS = {
   campaignEntries: 'status',
   campaignRewards: 'status',
   birthdayWishes: 'status',
-  blockWallItems: 'item_type',
   bohCreatorShows: 'creator_platform',
   aiWebSearchLog: 'status',
   postReward: 'status',
@@ -102,7 +101,6 @@ export const DATE_FILTER_FIELDS = {
   adminAuditLogs: 'created_at',
   aiWebSearchLog: 'created_at',
   anniversaryClaims: 'created_at',
-  blockWallItems: 'created_at',
   bohCreatorShows: 'created_at',
   birthdayEvents: 'celebration_date',
   campaigns: 'start_at',
@@ -522,23 +520,6 @@ export const TAB_SELECT_COLUMNS = {
     profile:user_id(username)
   `,
 
-  // ========== 方块墙 ==========
-  blockWallItems: `
-    id,
-    author_id,
-    author_username,
-    item_type,
-    content,
-    color,
-    image_url,
-    image_public_id,
-    position_x,
-    position_y,
-    rotation,
-    created_at,
-    author:author_id(username)
-  `,
-
   // ========== 创作者展示 ==========
   bohCreatorShows: `
     id,
@@ -730,7 +711,6 @@ export const TAB_DEFAULT_SORT = {
   adminAuditLogs: { column: 'created_at', ascending: false },
   aiWebSearchLog: { column: 'created_at', ascending: false },
   anniversaryClaims: { column: 'created_at', ascending: false },
-  blockWallItems: { column: 'created_at', ascending: false },
   bohCreatorShows: { column: 'created_at', ascending: false },
   birthdayEvents: { column: 'celebration_date', ascending: false },
   campaigns: { column: 'created_at', ascending: false },
@@ -826,7 +806,6 @@ export const TAB_SORT_COLUMNS = {
   adminAuditLogs: new Set(['created_at', 'actor_label', 'action', 'resource_table']),
   aiWebSearchLog: new Set(['created_at', 'status', 'tier']),
   anniversaryClaims: new Set(['created_at', 'expires_at']),
-  blockWallItems: new Set(['created_at', 'item_type']),
   bohCreatorShows: new Set(['created_at', 'creator_platform']),
   birthdayEvents: new Set(['celebration_date', 'is_active', 'sort_order']),
   campaigns: new Set(['slug', 'title', 'stage', 'start_at', 'end_at', 'created_at']),
@@ -1110,12 +1089,6 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'id', type: 'uuid' },
     { column: 'user_id', type: 'uuid' },
     { column: 'granted_plan_code', type: 'text' },
-  ],
-  blockWallItems: [
-    { column: 'id', type: 'uuid' },
-    { column: 'author_username', type: 'text' },
-    { column: 'content', type: 'text' },
-    { column: 'item_type', type: 'text' },
   ],
   bohCreatorShows: [
     { column: 'id', type: 'uuid' },

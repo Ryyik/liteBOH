@@ -111,7 +111,7 @@ export const searchProducts = (
   );
 };
 
-/** 方块墙搜索源已随功能退场删除（2026-10-19）；block_wall_items 表保留，历史数据仍可由数据导出携带。 */
+/** 方块墙搜索源已随功能退场删除（2026-10-19）；block_wall_items 表亦已 drop（2026101904 迁移）。 */
 
 /**
  * 抽奖（`lotteries`）→ /lotteries

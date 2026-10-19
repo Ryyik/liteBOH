@@ -31,7 +31,7 @@ export const tabs = [
   { id: 'forumWeeklyCheckins', label: '每周签到', icon: '📅', module: 'community' },
   { id: 'forumPostImages', label: '图片审核', icon: '🖼️', module: 'community' },
   { id: 'forumPostReports', label: '举报明细', icon: '🚩', module: 'community' },
-  { id: 'blockWallItems', label: '方块墙', icon: '🧱', module: 'community' },
+  // 'blockWallItems'（方块墙）tab 已随功能退场删除（2026-10-19，表 drop 见 2026101904 迁移）
   { id: 'photoAlbums', label: '摄影集', icon: '📷', module: 'community' },
   { id: 'news', label: '新闻管理', icon: '📰', module: 'operations' },
   { id: 'activities', label: '活动管理', icon: '🎉', module: 'operations' },
@@ -148,10 +148,9 @@ export const tabModules = [
       'forumWeeklyCheckins',
       'forumPostImages',
       'forumPostReports',
-      'blockWallItems',
       'photoAlbums',
     ],
-    description: '论坛、签到、图片审核、举报、方块墙和摄影集',
+    description: '论坛、签到、图片审核、举报和摄影集',
   },
   {
     id: 'operations',
@@ -294,7 +293,6 @@ export const TABS_ACTIONS = {
   postReward: ['view', 'create', 'edit', 'delete'],
   products: ['view', 'create', 'edit', 'delete'],
   coreMemories: ['view', 'create', 'edit', 'delete'],
-  blockWallItems: ['view', 'create', 'edit', 'delete'],
   photoAlbums: ['view', 'edit', 'delete'],
   bohCreatorShows: ['view', 'create', 'edit', 'delete'],
   birthdayEvents: ['view', 'create', 'edit', 'delete'],
@@ -369,7 +367,7 @@ export const ADMIN_PAGE_META = {
   community: {
     eyebrow: 'Community',
     title: '社区管理',
-    description: '管理论坛帖子、签到、图片审核、举报和方块墙。',
+    description: '管理论坛帖子、签到、图片审核、举报和摄影集。',
     icon: MessageCircle,
   },
   operations: {

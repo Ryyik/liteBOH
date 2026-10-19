@@ -9,7 +9,6 @@
  * 显隐/归档控制已统一到数据库 home_heroes 表的 is_archived 字段，
  * 不再使用前端硬编码的 archivedHomeHeroIds 数组。
  */
-import blockWallImg from '@/assets/images/2024-1-fangkuai.webp?url';
 import mascotImg from '@/assets/images/breadgift.webp?url';
 import anniversaryImg from '@/assets/images/8yearstext.webp?url';
 import cafeImg from '@/assets/images/26coffee4.webp?url';
@@ -38,19 +37,13 @@ export const homeArchiveMeta = {
     date: '2026',
     description: '尚在演化的 Agent 预览英雄区。',
   },
-  'birthday': {
+  birthday: {
     title: '今日生日',
     eyebrow: '纪念日',
     date: '每年',
     description: '当有用户过生日时出现的限时英雄区。',
   },
-  'block-wall': {
-    title: '方块墙',
-    eyebrow: '社区 · 故事收集处',
-    date: '持续',
-    description: '把心情、祝福或想记住的瞬间钉在墙上。',
-    image: blockWallImg,
-  },
+  // 'block-wall'（方块墙）归档条目已随功能退场删除（2026-10-19）
   'mascot-evolution': {
     title: '吉祥物进化史',
     eyebrow: 'BOH 吉祥物',
@@ -73,7 +66,7 @@ export const homeArchiveMeta = {
     image: cafeImg,
     to: '/anniversary-cafe',
   },
-  'fuzhou': {
+  fuzhou: {
     title: '遇见福州',
     eyebrow: '遇见系列',
     date: '2026',
@@ -111,12 +104,11 @@ export const builtinHeroLayout = {
   'beta6-renewal': 'full',
   'mascot-new': 'full',
   'agent-preview': 'full',
-  'birthday': 'full',
-  'block-wall': 'full',
+  birthday: 'full',
   'mascot-evolution': 'full',
   'anniversary-8': 'full',
   'cloud-cafe': 'full',
-  'fuzhou': 'full',
+  fuzhou: 'full',
   'split-theme-cloud': 'split',
   'split-brand-letter': 'split',
   'special-custom': 'full',

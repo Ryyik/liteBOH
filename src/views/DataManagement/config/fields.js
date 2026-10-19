@@ -190,21 +190,6 @@ export const TAB_WRITABLE_FIELDS = {
   // photo_albums 的 status/shared_to_community 是管理端审核位；漏了这张表会让
   // 「编辑」抽屉的保存载荷被 pickWritableFields 过滤成 {}（点保存什么都不发生）。
   photoAlbums: ['title', 'subtitle', 'cover_url', 'status', 'shared_to_community'],
-  blockWallItems: [
-    // author_id/author_username/item_type 是 NOT NULL 且无默认值：新增时由
-    // saveStrategies 用当前管理员补齐，漏进 allowList 会被 pickWritableFields 丢掉。
-    'author_id',
-    'author_username',
-    'item_type',
-    'content',
-    'color',
-    'image_url',
-    'image_public_id',
-    'position_x',
-    'position_y',
-    'rotation',
-    'updated_at',
-  ],
   bohCreatorShows: [
     // author_id 是 NOT NULL；DB 触发器还要求它指向已认证创作者（is_boh_creator）。
     'author_id',

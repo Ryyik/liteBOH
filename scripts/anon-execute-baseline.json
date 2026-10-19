@@ -1,5 +1,5 @@
 {
-  "total": 154,
+  "total": 152,
   "names": [
     "activity_platform_touch_updated_at",
     "apply_yearly_membership_gift",
@@ -133,7 +133,6 @@
     "toggle_forum_comment_like",
     "toggle_forum_like",
     "touch_advertisement_updated_at",
-    "touch_block_wall_item_updated_at",
     "touch_boh_cloud_updated_at",
     "touch_boh_note_updated_at",
     "touch_boh_treehole_updated_at",
@@ -144,7 +143,6 @@
     "update_forum_post_images",
     "update_forum_weekly_reports_updated_at",
     "update_freemodels_updated_at",
-    "update_health_updated_at",
     "update_lab_ai_model_configs_updated_at",
     "update_updated_at_column",
     "upsert_my_boh_cloud_share_channel",

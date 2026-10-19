@@ -24,7 +24,6 @@ const IMG1 = 'https://res.cloudinary.com/demo/a1b2c3d4/img1.jpg';
 const IMG2 = 'https://res.cloudinary.com/demo/a1b2c3d4/img2.jpg';
 const IMG3 = 'https://res.cloudinary.com/demo/e5f6a7b8/cat.jpg';
 const COVER = 'https://res.cloudinary.com/demo/c9d0e1f2/sea.jpg';
-const WALLIMG = 'https://res.cloudinary.com/demo/w0x1y2z3/sky.jpg';
 const AVATAR = 'https://res.cloudinary.com/demo/avatar/me.jpg';
 
 const files = {
@@ -215,28 +214,6 @@ const files = {
       created_at: '2026-08-25T21:00:00+08:00',
     },
   ],
-  'interactions/block_wall_items.json': [
-    {
-      id: 'w1',
-      author_id: U2,
-      author_username: '小满',
-      item_type: 'text',
-      content: '给未来的你：记得继续保持每周整理一次碎片！',
-      color: 'blue',
-      image_url: null,
-      created_at: '2026-08-29T10:00:00+08:00',
-    },
-    {
-      id: 'w2',
-      author_id: U3,
-      author_username: '阿澈',
-      item_type: 'image',
-      content: '路过留言墙，留一张今天的天空。',
-      color: 'cyan',
-      image_url: WALLIMG,
-      created_at: '2026-08-15T16:20:00+08:00',
-    },
-  ],
   'records/points_transactions.json': [
     {
       id: 't1',
@@ -296,7 +273,6 @@ const resolvedImages = {
   [IMG2]: 'forum/images/a1b2c3d4/img_002.jpg',
   [IMG3]: 'forum/images/e5f6a7b8/img_001.jpg',
   [COVER]: 'cloud/images/cloud_001.jpg',
-  [WALLIMG]: 'interactions/block_wall_images/wall_001.jpg',
   [AVATAR]: 'profile/avatar_001.jpg',
 };
 // 挖一个坑：故意让 IMG2「下载失败」，验证缺图时布局不炸

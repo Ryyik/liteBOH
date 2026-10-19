@@ -676,40 +676,7 @@ export const SAVE_STRATEGIES = {
     });
   },
 
-  blockWallItems: async ({ editingItem, originalItem, userId, userName }) => {
-    const allowedColors = ['butter', 'blush', 'mint', 'sky', 'lilac', 'cream'];
-    const itemType = String(editingItem.item_type || 'note').trim();
-    if (!['note', 'photo'].includes(itemType)) throw new Error('方块类型无效');
-    const originalType = String(originalItem?.item_type || '').trim();
-    // 类型不可改：photo 行有 image_width/height 的 CHECK，改成 note 会留下图片字段；
-    // note 行改成 photo 又没有宽高采集入口（后台没有这两个字段）。
-    if (originalType && itemType !== originalType) throw new Error('方块类型不可修改');
-    if (itemType === 'photo' && originalType !== 'photo') {
-      throw new Error('图片方块请在用户端发布（后台未采集图片宽高）');
-    }
-    const content = String(editingItem.content || '').trim();
-    if (itemType === 'note' && !content) throw new Error('文字便签内容不能为空');
-    const imageUrl = String(editingItem.image_url || '').trim();
-    if (itemType === 'photo' && !imageUrl) throw new Error('图片方块缺少图片地址');
-    const color = String(editingItem.color || 'butter').trim();
-    if (!allowedColors.includes(color)) throw new Error('方块墙颜色无效');
-
-    return pickWritableFields('blockWallItems', {
-      // author_id / author_username / item_type 是 NOT NULL：新增时用当前管理员补齐；
-      // 编辑时保留原值，避免把别人的方块墙内容改成管理员名下。
-      author_id: editingItem.author_id || userId || null,
-      author_username: String(editingItem.author_username || userName || '').trim(),
-      item_type: itemType,
-      content,
-      color,
-      image_url: imageUrl,
-      image_public_id: String(editingItem.image_public_id || '').trim() || null,
-      position_x: Number(editingItem.position_x || 0),
-      position_y: Number(editingItem.position_y || 0),
-      rotation: Number(editingItem.rotation || 0),
-      updated_at: new Date().toISOString(),
-    });
-  },
+  // 'blockWallItems' 保存策略已随方块墙退场删除（2026-10-19，表 drop 见 2026101904 迁移）
 
   bohCreatorShows: async ({ editingItem }) => {
     const normalizedTitle = String(editingItem.title || '').trim();

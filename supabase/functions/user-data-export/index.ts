@@ -133,12 +133,6 @@ const TABLE_SPECS: TableSpec[] = [
     label: '收到的印象',
   },
   {
-    table: 'block_wall_items',
-    path: 'interactions/block_wall_items.json',
-    column: 'author_id',
-    label: '留言墙',
-  },
-  {
     table: 'notifications',
     path: 'interactions/notifications.json',
     column: 'recipient_id',
@@ -194,14 +188,6 @@ class CancelledError extends Error {
 }
 
 const nowIso = () => new Date().toISOString();
-
-const escapeHtml = (value: unknown) =>
-  String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 
 const createServiceClient = () => {
   const url = Deno.env.get('SUPABASE_URL') || '';
@@ -503,12 +489,7 @@ const runExport = async (userId: string, jobId: string, storageToken: string) =>
       const postId = typeof row.post_id === 'string' ? row.post_id.slice(0, 8) : 'unknown';
       pushImage(row.url, `forum/images/${postId}`, 'img');
     }
-    const wallRows = (jsonFiles.get('interactions/block_wall_items.json') ?? []) as Array<
-      Record<string, unknown>
-    >;
-    for (const row of wallRows) {
-      pushImage(row.image_url, 'interactions/block_wall_images', 'wall');
-    }
+    // 方块墙图片打包已随 block_wall_items 表 drop 删除（2026101904 迁移）
 
     const discoveredImageCount = images.length;
     const failedImages: string[] = [];
@@ -1097,16 +1078,7 @@ var activityParts=[];
       activityParts.push(recordRow('impression',pick(i,'content','tag')||'一条印象',pick(i,'category'),'',i.created_at));
     });
   }
-  var wall=rows('interactions/block_wall_items.json');
-  if(wall.length){
-    activityParts.push('<div class="comments-head" style="margin:18px 0 2px">留言墙</div>');
-    wall.forEach(function(w){
-      var img=res(w.image_url);
-      var side='';
-      if(img)side='<div class="cover" style="margin-top:8px;width:132px"><img src="'+esc(img)+'" alt="" loading="lazy"></div>';
-      activityParts.push(recordRow('wall',pick(w,'content','text')||'一张留言',pick(w,'author_username')?'来自 @'+w.author_username:'',side,w.created_at));
-    });
-  }
+  // 留言墙渲染块已随 block_wall_items 表 drop 删除（2026101904 迁移）
 })();
 var recordsParts=[];
 (function(){
@@ -1169,7 +1141,7 @@ const TABS=[
   ['forum','论坛',rows('forum/posts.json').length],
   ['cloud','Cloud+',rows('cloud/entries.json').length],
   ['treehole','树洞',rows('treehole/memories.json').length],
-  ['activity','互动记录',rows('interactions/notifications.json').length+rows('interactions/impressions_received.json').length+rows('interactions/impressions_authored.json').length+rows('interactions/block_wall_items.json').length],
+  ['activity','互动记录',rows('interactions/notifications.json').length+rows('interactions/impressions_received.json').length+rows('interactions/impressions_authored.json').length],
   ['records','文字记录',rows('records/points_transactions.json').length+rows('records/gifts.json').length+rows('records/messages.json').length+rows('records/lottery_entries.json').length+rows('records/poster_requests.json').length],
   ['files','数据文件',Object.keys(DATA.files).length]
 ];

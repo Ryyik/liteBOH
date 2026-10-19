@@ -46,15 +46,9 @@ export const SITE_NAV_ITEMS: SiteNavNode[] = [
     label: '探索',
     children: [
       { name: 'boh-app', path: '/app', label: 'BOH App' },
-      {
-        name: 'ai-group',
-        label: 'AI 助手',
-        children: [
-          { name: 'bohai-work', path: '/ai-chat?surface=work', label: 'BOHAI Work' },
-          { name: 'ai-chat', path: '/ai-chat', label: 'BOH AI' },
-        ],
-      },
-      // 实验室（/lab）已于 2026-10-19 退场，入口由 BOHAI Work 接管（见上方 ai-group）。
+      // 「BOHAI Work」不设独立子导航（2026-10-19）：Work 是 /ai-chat 的形态维度，
+      // 深链 ?surface=work 仍可用（useBohShell 解析），但不占导航层级。
+      { name: 'ai-chat', path: '/ai-chat', label: 'BOH AI' },
       { name: 'mbti', path: '/mbti', label: 'MBTI' },
       {
         name: 'world-group',

@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SAVE_STRATEGIES } from '@/views/DataManagement/config/saveStrategies.js';
 
-const ADMIN = { userId: 'admin-uuid', userName: 'admin' };
-
 describe('data admin save strategies（DB 约束对齐）', () => {
   it('photoAlbums：可写字段齐全（原来没有策略，点保存直接报「暂不支持」）', async () => {
     const payload = await SAVE_STRATEGIES.photoAlbums({
@@ -34,38 +32,8 @@ describe('data admin save strategies（DB 约束对齐）', () => {
     expect(payload.target_user_id).toBe('user-1');
   });
 
-  it('blockWallItems：note 新建补齐 author_id/author_username/item_type/color', async () => {
-    const payload = await SAVE_STRATEGIES.blockWallItems({
-      editingItem: { content: '你好', item_type: 'note' },
-      ...ADMIN,
-    });
-    expect(payload).toMatchObject({
-      author_id: 'admin-uuid',
-      author_username: 'admin',
-      item_type: 'note',
-      content: '你好',
-      color: 'butter',
-    });
-  });
-
-  it('blockWallItems：photo 新建给出明确提示（后台没有宽高采集）', async () => {
-    await expect(
-      SAVE_STRATEGIES.blockWallItems({
-        editingItem: { item_type: 'photo', image_url: 'https://x/y.webp' },
-        ...ADMIN,
-      }),
-    ).rejects.toThrow(/图片方块请在用户端发布/);
-  });
-
-  it('blockWallItems：类型不可改（note ↔ photo 会撞 CHECK）', async () => {
-    await expect(
-      SAVE_STRATEGIES.blockWallItems({
-        editingItem: { item_type: 'note', content: 'x' },
-        originalItem: { item_type: 'photo' },
-        ...ADMIN,
-      }),
-    ).rejects.toThrow(/类型不可修改/);
-  });
+  // 'blockWallItems' 三个用例已随方块墙退场删除（2026-10-19）：
+  // 管理面板 tab 与 SAVE_STRATEGIES.blockWallItems 均已移除。
 
   it('bohCreatorShows：author_id + 合法平台 + 非空描述', async () => {
     const payload = await SAVE_STRATEGIES.bohCreatorShows({
