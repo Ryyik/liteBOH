@@ -154,6 +154,23 @@ jobs:
         working-directory: android-twa
         run: bubblewrap update --skipVersionUpgrade
 
+      # androidbrowserhelper 2.7.x 要求 minSdk 24（Android 7.0），而 bubblewrap 生成
+      # 的工程模板仍是 minSdkVersion 21 ⇒ manifest merger 直接失败
+      # （2026-10-19 实测：10-05 还绿，两周后同配置 CI 红 —— 纯依赖漂移，与代码无关）。
+      # TWA 在 API 21-23 本就只能退回 Custom Tabs，抬到 24 无功能损失。
+      - name: Bump minSdkVersion to 24 (androidbrowserhelper 2.7.x requirement)
+        working-directory: android-twa
+        run: |
+          if grep -q 'minSdkVersion 24' app/build.gradle; then
+            echo "已是 minSdkVersion 24，无需修改"
+          elif grep -q 'minSdkVersion' app/build.gradle; then
+            sed -i 's/minSdkVersion [0-9]*/minSdkVersion 24/' app/build.gradle
+            grep -n 'minSdkVersion' app/build.gradle
+          else
+            echo "::error::app/build.gradle 里没找到 minSdkVersion —— bubblewrap 模板可能变了，请人工核对"
+            exit 1
+          fi
+
       - name: Build signed APK
         working-directory: android-twa
         env:
