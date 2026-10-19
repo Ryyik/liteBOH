@@ -1,7 +1,7 @@
 {
   "note": "必读面字节棘轮基线。只许下调；瘦身后跑 npm run check:doc-truth:update。",
   "files": {
-    "AGENTS.md": 47972,
+    "AGENTS.md": 47970,
     "docs/AI-ENV.md": 9600
   }
 }
