@@ -683,6 +683,16 @@ export const useAuthStore = defineStore(
           userInfo.id = String(u.id || '');
           userInfo.email = String(u.email || '');
           ensureSessionHeartbeat();
+          /* 2026-10-17（全面审查 P2-9）：**所有**「会话被采纳」的路径都要重绑浏览器生命周期监听。
+             报障：同标签页「登出 → 再登录」后，visibilitychange / online / pagehide 监听永久丢失
+             —— `resetState()` 会 removeEventListener 并复位 `browserLifecycleBound`，而此前只有
+             `initLoginState`（启动时跑一次）会绑定，login / loginWithPasskey 都不重绑。
+             后果静默：切走页面不再立即补写 last_active_at（只剩 2min 心跳）、`last_online_day`
+             游标不推进（长离线「你离开了 N 天」与推送窗口算错）、断网恢复不同步。
+             放在这里而不是两个 login 里各写一遍：令牌登录（verifyOtp/recovery）、OAuth 回跳、
+             初始化恢复会话都会经过 updateLocalState ⇒ 一处覆盖全部入口；函数自带
+             `browserLifecycleBound` 幂等守卫，重复调用无副作用。 */
+          ensureBrowserLifecycleSync();
 
           if (!userInfo.username) {
             const meta = u.user_metadata as Record<string, unknown> | undefined;
@@ -1240,7 +1250,24 @@ export const useAuthStore = defineStore(
         const { error } = await supabase.from('profiles').update(dbUpdates).eq('id', userInfo.id);
 
         if (error) {
-          return { success: false, message: error.message, code: error.code };
+          /* 2026-10-17（全面审查 P3-9）：postgrest 的 error.message 可能携带约束名 /
+             schema 细节（如 `duplicate key value violates unique constraint
+             "profiles_username_key"`），此前原样进 toast 给用户看。归一化成
+             用户能懂的话，原文进 logger（保留可诊断性），code 照旧透传给调用方分支。 */
+          logger.warn('auth-store', '更新资料失败', error);
+          const friendlyMessages: Record<string, string> = {
+            '23505': '这个用户名已经被占用，换一个试试。',
+            '23514': '提交的内容不符合要求，请检查后重试。',
+            '22P02': '提交的内容格式不正确，请检查后重试。',
+            '42501': '没有权限执行该操作，请重新登录后再试。',
+          };
+          return {
+            success: false,
+            message:
+              friendlyMessages[String(error.code || '').toUpperCase()] ||
+              '资料保存失败，请稍后重试。',
+            code: error.code,
+          };
         }
 
         const { data: refreshedProfile, error: refreshError } = await supabase

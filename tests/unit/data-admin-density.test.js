@@ -60,9 +60,15 @@ describe('data admin editing flow', () => {
     expect(view).toContain('toast-action');
   });
 
-  it('expands collapsed sidebar on hover and persists preference', () => {
+  it('narrow/short-landscape renders sidebar as drawer instead of hover-expand', () => {
+    // 2026-10-19 行为变更：窄屏/矮横屏侧栏抽屉化（与 DataAdmin computeMobileView 判据对齐），
+    // 旧的 .is-collapsed:hover 悬停展开被有意移除 —— 触摸设备没有 hover。
     const sidebar = read('src/views/DataManagement/components/AdminSidebar.vue');
-    expect(sidebar).toContain('.is-collapsed:hover');
+    expect(sidebar).toContain(
+      '(max-width: 768px), (orientation: landscape) and (max-height: 500px)',
+    );
+    expect(sidebar).toContain('transform: translateX(-100%)');
+    expect(sidebar).toContain('.g-sidebar.open');
     const view = read('src/views/DataManagement/DataAdmin.vue');
     expect(view).toContain('dm-sidebar-collapsed');
   });

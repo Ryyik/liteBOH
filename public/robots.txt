@@ -1,0 +1,17 @@
+# robots.txt —— Block of Home（2026-10-17 全面审查 P1-4 补齐）
+#
+# ⚠️ 站点是 hash 路由（/#/about）：路径部分永远是 `/`，所以**不要**在这里写
+#    `Disallow: /admin/` 之类的规则 —— 它匹配不到任何东西，只会让人误以为
+#    后台已被排除。真正要挡的私有区域靠路由守卫（requiresAdmin）与 RLS。
+#
+# 想让「后台 / 个人空间不收录」：只能靠页面级 <meta name="robots" content="noindex">
+# 或预渲染时按路由下发，hash 路由下 robots.txt 帮不上忙。
+
+User-agent: *
+Allow: /
+
+# 静态资源目录没必要抓，省爬虫预算
+Disallow: /assets/
+Disallow: /demo-album/
+
+Sitemap: https://www.blockofhome.cn/sitemap.xml

@@ -1152,246 +1152,6 @@
   color: var(--apple-text-secondary);
 }
 
-/* Composer card - clean and minimal */
-.composer-card {
-  background: var(--apple-bg);
-  border-radius: var(--radius-xl);
-  padding: 28px;
-  border: 1px solid var(--apple-border);
-  box-shadow: var(--shadow-md);
-}
-
-.composer-topline {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.section-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--apple-text-tertiary);
-  margin-bottom: 8px;
-}
-
-.composer-topline h3 {
-  margin: 0;
-  font-size: 22px;
-  line-height: 1.2;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--apple-text);
-}
-
-.composer-intro {
-  margin: 8px 0 0;
-  max-width: 32ch;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--apple-text-secondary);
-}
-
-.composer-meta {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--apple-text-secondary);
-  letter-spacing: 0.01em;
-  padding: 8px 12px;
-  border-radius: var(--radius-full);
-  background: var(--apple-bg-secondary);
-}
-
-.editor-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.editor-ribbon {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.editor-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-full);
-  background: var(--apple-bg-secondary);
-  color: var(--apple-text-secondary);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.editor-chip.strong {
-  color: var(--apple-text);
-  background: var(--apple-gray);
-}
-
-/* Editor page - clean paper style */
-.editor-page {
-  position: relative;
-  padding: 20px 24px 24px;
-  border-radius: var(--radius-lg);
-  background: var(--apple-bg-tertiary);
-  border: 1px solid var(--apple-border-light);
-}
-
-.editor-page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.editor-page-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: var(--apple-text-tertiary);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.editor-page-status {
-  color: var(--apple-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.editor-divider {
-  height: 1px;
-  margin: 14px 0 6px;
-  background: var(--apple-border);
-}
-
-/* Input fields - clean */
-.title-input,
-.text-input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: var(--apple-text);
-  border-radius: 0;
-  padding: 0;
-  font-family: inherit;
-  font-size: 14px;
-  transition: color 0.2s ease;
-}
-
-.title-input {
-  font-size: 24px;
-  line-height: 1.2;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin-bottom: 0;
-}
-
-.title-input::placeholder,
-.text-input::placeholder {
-  color: var(--apple-text-tertiary);
-  font-weight: 400;
-}
-
-.title-input:focus,
-.text-input:focus {
-  outline: none;
-}
-
-.text-input {
-  min-height: 200px;
-  resize: vertical;
-  line-height: 1.7;
-  font-size: 15px;
-  padding-top: 8px;
-}
-
-/* Toolbar - minimal */
-.composer-toolbar {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
-  border-radius: var(--radius-lg);
-  background: var(--apple-bg-secondary);
-}
-
-.mood-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.mood-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 12px;
-  border-radius: var(--radius-full);
-  background: var(--apple-bg);
-  border: 1px solid var(--apple-border-light);
-  color: var(--apple-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.mood-pill:hover {
-  border-color: var(--apple-gray);
-  color: var(--apple-text);
-}
-
-.mood-pill.active {
-  background: var(--apple-text);
-  border-color: var(--apple-text);
-  color: #ffffff;
-}
-
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.hidden-file-input {
-  display: none;
-}
-
-/* Upload area - clean grid */
-.upload-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--apple-border-light);
-}
-
-.upload-card {
-  position: relative;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  aspect-ratio: 1 / 1;
-  background: var(--apple-bg-secondary);
-  border: 1px solid var(--apple-border-light);
-}
-
 .upload-thumb,
 .card-cover,
 .detail-image {
@@ -1399,42 +1159,6 @@
   height: 100%;
   object-fit: cover;
   display: block;
-}
-
-.remove-image-btn {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: rgba(0, 0, 0, 0.6);
-  color: #ffffff;
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.2s ease;
-}
-
-.remove-image-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-}
-
-.composer-hint {
-  margin: 16px 0 0;
-  font-size: 12px;
-  color: var(--apple-text-secondary);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.composer-hint-sep {
-  opacity: 0.4;
 }
 
 .cloud-refresh-indicator {
@@ -2255,14 +1979,6 @@
      顶部不应留带；关闭按钮自己负责避让安全区。 */
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
 
 .detail-modal {
   width: 100%;
@@ -2294,16 +2010,6 @@
   background: var(--apple-text-tertiary);
 }
 
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
 
 .detail-close {
   /* fixed（相对视口）而不是 absolute（相对弹窗内容）：弹窗是滚动容器，
@@ -2518,10 +2224,6 @@
   .hero-copy h2 {
     font-size: 28px;
   }
-
-  .editor-page {
-    padding: 18px 20px 20px;
-  }
 }
 
 @media (max-width: 1024px) and (orientation: portrait) {
@@ -2687,36 +2389,6 @@
     flex-direction: column;
   }
 
-  .composer-card {
-    padding: 22px;
-  }
-
-  .composer-topline {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .composer-meta {
-    align-self: flex-start;
-  }
-
-  .editor-page-head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .text-input {
-    min-height: 160px;
-  }
-
-  .composer-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .toolbar-actions {
-    justify-content: flex-end;
-  }
 
   .share-token-row {
     flex-direction: column;
@@ -2919,78 +2591,6 @@
     line-height: 1.5;
   }
 
-  /* Composer - mobile optimized */
-  .composer-card {
-    padding: 20px;
-    border-radius: var(--radius-lg);
-  }
-
-  .composer-topline {
-    gap: 12px;
-  }
-
-  .composer-topline h3 {
-    font-size: 20px;
-  }
-
-  .composer-intro {
-    font-size: 13px;
-  }
-
-  .editor-ribbon {
-    gap: 6px;
-  }
-
-  .editor-chip {
-    min-height: 24px;
-    padding: 0 8px;
-    font-size: 10px;
-  }
-
-  .editor-page {
-    padding: 16px;
-    border-radius: var(--radius-md);
-  }
-
-  .editor-page-head {
-    gap: 8px;
-  }
-
-  .editor-page-meta {
-    font-size: 10px;
-  }
-
-  .title-input {
-    font-size: 20px;
-  }
-
-  .text-input {
-    min-height: 120px;
-    font-size: 15px;
-    line-height: 1.6;
-  }
-
-  /* Toolbar - mobile optimized */
-  .composer-toolbar {
-    padding: 12px;
-    gap: 12px;
-  }
-
-  .mood-row {
-    gap: 6px;
-  }
-
-  .mood-pill {
-    padding: 6px 10px;
-    font-size: 11px;
-  }
-
-  .toolbar-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
   .secondary-btn,
   .primary-btn {
     width: 100%;
@@ -3123,84 +2723,6 @@
   .detail-image {
     max-height: 60vh;
   }
-}
-
-/* 上传进度条样式 */
-.upload-progress-bar {
-  margin: 16px 0;
-  padding: 16px;
-  background: var(--apple-bg-secondary);
-  border-radius: var(--radius-md);
-}
-
-.upload-progress-track {
-  width: 100%;
-  height: 6px;
-  background: var(--apple-gray);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.upload-progress-fill {
-  height: 100%;
-  background: var(--apple-blue);
-  border-radius: var(--radius-full);
-  transition: width 0.3s ease;
-}
-
-.upload-progress-text {
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--apple-text-secondary);
-  text-align: center;
-}
-
-/* 上传失败提示样式 */
-.upload-failed-notice {
-  margin: 16px 0;
-  padding: 16px;
-  background: rgba(255, 59, 48, 0.08);
-  border: 1px solid rgba(255, 59, 48, 0.2);
-  border-radius: var(--radius-md);
-}
-
-.upload-failed-notice p {
-  font-size: 14px;
-  color: #ff3b30;
-  margin-bottom: 8px;
-}
-
-.upload-failed-notice ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 12px 0;
-}
-
-.upload-failed-notice li {
-  font-size: 13px;
-  color: var(--apple-text-secondary);
-  padding: 4px 0;
-}
-
-.upload-failed-notice button {
-  margin-top: 4px;
-}
-
-/* 上传取消按钮样式 */
-.upload-cancel-btn {
-  margin-left: 8px;
-  font-size: 13px;
-}
-
-.retry-btn {
-  margin-left: 8px;
-  background: rgba(255, 149, 0, 0.1);
-  border-color: rgba(255, 149, 0, 0.3);
-  color: #ff9500;
-}
-
-.retry-btn:hover {
-  background: rgba(255, 149, 0, 0.2);
 }
 
 /* ============ 存储记账：完整存储条在设置 tab（CloudStorageBar 组件自带样式）；
@@ -3528,31 +3050,6 @@
   margin: 0;
 }
 
-/* ---- 发布浮层 ---- */
-.composer-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 11200;
-  background: var(--apple-bg);
-  animation: fadeIn 0.2s ease;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 48px 16px;
-  overflow-y: auto;
-}
-
-.composer-panel {
-  position: relative;
-  width: min(680px, 100%);
-  max-height: none;
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.composer-panel .composer-topline {
-  padding-right: 48px;
-}
-
 /* ---- FAB ---- */
 .gallery-fab {
   position: fixed;
@@ -3737,18 +3234,6 @@
     bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   }
 
-  .composer-overlay {
-    padding: 16px 12px;
-    align-items: stretch;
-  }
-
-  .composer-panel {
-    width: 100%;
-  }
-
-  .composer-panel .composer-topline {
-    padding-right: 44px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3888,5 +3373,736 @@
   .album-tile-grid.is-settling {
     animation-duration: 0.001ms;
     animation-iteration-count: 1;
+  }
+}
+
+/* ================================================================
+   2026-10-18 发布面板重构（按钮 12 → 4 · 液态玻璃 · 横竖屏通吃）
+   ================================================================
+   为什么整段重写而不是改旧规则：
+     · 旧实现是「Apple 备忘录纸感」——不透明白底全屏 + 浅灰纸面 editor-page +
+       英文小标（CREATE ENTRY / PERSONAL MEMO / Memo Layout），与本页其余部分
+       （底栏、设置卡、分享卡都走 `.liquid-glass`）不是同一套语汇；
+     · 旧布局把「情绪 9 胶囊 + 4 个工具按钮」全量平铺，竖屏 117px、横屏直接把
+       发布按钮顶到视口外（844×390 实测面板高 892px、发布按钮 y=818）。
+
+   三条硬约束（改动时别破）：
+     ① 材质**只**来自全局 `.liquid-glass`（唯一允许裸 backdrop-filter 的地方），
+        本文件不写 background / backdrop-filter。选择器统一写 `.composer-panel.liquid-glass`
+        两段式 —— 单类 `.composer-panel` 与 `.liquid-glass` 特异性相同(0,1,0)，
+        谁后加载谁赢，是不可依赖的；
+     ② 颜色一律走 `--liquid-*`（tokens.css 里已按 [data-theme] 翻转）+ 本页 `--apple-*`，
+        因此**不需要**再写 `[data-theme='dark']` 覆盖块 —— 整页只有这一块区域是暗色安全的；
+     ③ 高度上限必须同时扣 `--kb-inset`（键盘）与 `env(safe-area-inset-bottom)`，
+        否则 iOS 软键盘弹起时底栏被盖住、点不到「发布」。
+   ================================================================ */
+
+.composer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 11200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px) + var(--kb-inset, 0px));
+  /* 错误提示用的危险色。这里只定义一次，下面用 color-mix 派生浓度，
+     不把 #ff3b30 散落到每条规则里（本文件原有 .danger-btn 也有三处重复字面量）。 */
+  --cp-danger: #ff3b30;
+
+  /* 遮罩在亮/暗两套主题下都用同一档深色：暗色下只是把深色页面再压暗一档，
+     因此不需要主题分支，也就不必往 `[data-theme='dark']` 块里塞裸色值（暗色棘轮）。 */
+  background: rgba(15, 23, 42, 0.24);
+}
+
+.composer-panel.liquid-glass {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  /* 比基础玻璃更实一档：基础档是 0.72 白，压在遮罩之上会透出灰、读作「灰卡」；
+     0.84 档仍是半透明（backdrop-filter 不动），但能明确浮在遮罩之上。
+     这里写的是**token**而不是色值 —— 暗色仍由 tokens.css 自动翻转。 */
+  background: var(--liquid-bg-strong);
+  /* dvh 而不是 vh：iOS 地址栏收放时 vh 不跟着变；再扣掉键盘与安全区 */
+  max-height: calc(100dvh - 24px - env(safe-area-inset-bottom, 0px) - var(--kb-inset, 0px));
+  overflow: hidden;
+  will-change: transform;
+}
+
+/* ---- 头 ---- */
+.composer-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 20px 10px;
+}
+
+.composer-head-text {
+  min-width: 0;
+}
+
+.composer-head h3 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--liquid-text-primary);
+}
+
+.composer-sub {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--liquid-text-secondary);
+}
+
+.composer-close {
+  flex: none;
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--liquid-radius-pill, 999px);
+  border: 1px solid var(--liquid-border-hairline);
+  background: var(--liquid-bg-strong);
+  color: var(--liquid-text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast, 180ms) ease,
+    color var(--duration-fast, 180ms) ease;
+}
+
+.composer-close:hover {
+  background: var(--liquid-bg-strong);
+  color: var(--liquid-text-primary);
+}
+
+/* ---- 正文区（唯一滚动容器）---- */
+.composer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 20px 10px;
+}
+
+/* 子元素一律不参与 flex 收缩：`.composer-body` 是滚动容器，内容超高时应当
+   **整块滚**，而不是把 textarea 压扁（flex 列 + 隐式 shrink 会把内容静默裁在框内）。 */
+.composer-body > * {
+  flex: none;
+}
+
+.composer-title-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1.35;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--liquid-text-primary);
+}
+
+.composer-title-input::placeholder {
+  color: var(--liquid-text-tertiary);
+  font-weight: 600;
+}
+
+/* 高度由 composables/useAutoGrowTextarea.js 写内联 px，上限**只**声明在这里
+   （JS 读 getComputedStyle 取用，不写第二份像素值）。
+   40vh / 32vh：短横屏下让面板整体仍能装进视口，超出部分在框内滚动。 */
+.composer-text-input {
+  width: 100%;
+  min-height: 88px;
+  max-height: 40vh;
+  resize: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--liquid-text-primary);
+}
+
+.composer-title-input:focus,
+.composer-text-input:focus {
+  outline: none;
+}
+
+.composer-text-input::placeholder {
+  color: var(--liquid-text-tertiary);
+}
+
+.composer-counter {
+  margin: -4px 0 0;
+  align-self: flex-end;
+  font-size: 11px;
+  color: var(--liquid-text-tertiary);
+}
+
+/* ---- 心情抽屉 ---- */
+.mood-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  border-radius: var(--liquid-radius-md, 16px);
+  background: var(--liquid-bg-nested);
+}
+
+.mood-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 11px;
+  border-radius: var(--liquid-radius-pill, 999px);
+  border: 1px solid transparent;
+  /* 比面板再深一档：面板已是 0.84 白，胶囊若也用 0.84 白会完全融进去（只剩文字） */
+  background: color-mix(in srgb, var(--liquid-text-primary) 7%, transparent);
+  color: var(--liquid-text-secondary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast, 180ms) ease,
+    color var(--duration-fast, 180ms) ease;
+}
+
+.mood-chip:hover {
+  color: var(--liquid-text-primary);
+  background: color-mix(in srgb, var(--liquid-text-primary) 11%, transparent);
+}
+
+.mood-chip.active {
+  background: var(--liquid-text-primary);
+  color: var(--liquid-bg);
+  font-weight: 600;
+}
+
+/* ---- 已选图片（横向滚动，不换行）---- */
+.upload-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.upload-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.upload-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 76px;
+  height: 76px;
+  border-radius: var(--liquid-radius-md, 16px);
+  overflow: hidden;
+  background: var(--liquid-bg-nested);
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: rgba(15, 23, 42, 0.62);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.remove-image-btn:hover {
+  background: rgba(15, 23, 42, 0.82);
+}
+
+/* ---- 上传进度 / 失败（瞬时状态，不是常驻按钮）---- */
+.composer-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--liquid-text-secondary);
+}
+
+.composer-status-track {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: var(--liquid-bg-nested);
+  overflow: hidden;
+}
+
+.composer-status-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--apple-blue);
+  transition: width 200ms linear;
+}
+
+.composer-status-text {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.composer-text-btn {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--apple-blue);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.composer-text-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- 底栏：常驻，不参与滚动 ---- */
+.composer-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--liquid-border-hairline);
+}
+
+/* 文件选择器的真实入口在底栏里，视觉上必须完全消失（否则会渲染出
+   「选择文件 / 未选择任何文件」那段浏览器原生文案，把底栏挤掉）。 */
+.hidden-file-input {
+  display: none;
+}
+
+.composer-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--liquid-radius-pill, 999px);
+  border: 1px solid var(--liquid-border-hairline);
+  background: var(--liquid-bg-strong);
+  color: var(--liquid-text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast, 180ms) ease,
+    color var(--duration-fast, 180ms) ease,
+    border-color var(--duration-fast, 180ms) ease;
+}
+
+.composer-tool:hover:not(:disabled) {
+  background: var(--liquid-bg-strong);
+  color: var(--liquid-text-primary);
+}
+
+.composer-tool:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.composer-tool.is-on {
+  color: var(--apple-blue);
+  border-color: color-mix(in srgb, var(--apple-blue) 34%, transparent);
+  background: color-mix(in srgb, var(--apple-blue) 10%, transparent);
+}
+
+.composer-tool-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: var(--apple-blue);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.composer-submit {
+  margin-left: auto;
+  height: 38px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: var(--apple-blue);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast, 180ms) ease,
+    transform var(--duration-press, 160ms) ease;
+}
+
+.composer-submit:hover:not(:disabled) {
+  background: var(--apple-blue-hover);
+}
+
+.composer-submit:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.composer-submit:disabled {
+  /* 玻璃底上的 42% 白几乎看不见，禁用态必须换成「压暗一档」的填充才读得出来 */
+  background: color-mix(in srgb, var(--liquid-text-primary) 9%, transparent);
+  color: var(--liquid-text-tertiary);
+  cursor: not-allowed;
+}
+
+/* ---- 进出场 ---- */
+.cloud-composer-enter-active {
+  animation: cloudComposerScrimIn 200ms ease both;
+}
+
+.cloud-composer-leave-active {
+  animation: cloudComposerScrimOut 160ms ease both;
+}
+
+.cloud-composer-enter-active .composer-panel {
+  animation: cloudComposerRise 320ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+.cloud-composer-leave-active .composer-panel {
+  animation: cloudComposerFall 180ms var(--ease-in-out, cubic-bezier(0.77, 0, 0.175, 1)) both;
+}
+
+@keyframes cloudComposerScrimIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes cloudComposerScrimOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes cloudComposerRise {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes cloudComposerFall {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(16px) scale(0.99);
+  }
+}
+
+/* ---- 响应式：宽屏居中对话框 / 短横屏压缩纵向留白 ---- */
+@media (min-width: 900px) {
+  .composer-overlay {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .composer-panel.liquid-glass {
+    width: min(720px, 100%);
+    max-height: min(760px, calc(100dvh - 48px));
+  }
+
+  .composer-head {
+    padding: 22px 24px 10px;
+  }
+
+  .composer-body {
+    padding: 4px 24px 10px;
+  }
+
+  .composer-foot {
+    padding: 12px 24px;
+  }
+}
+
+/* 横屏手机（844×390 这类）：纵向预算只有 390px，
+   这里把头部副标题、正文上限、底栏内边距一起收，保证「发布」始终在视口内。 */
+@media (max-height: 560px) {
+  .composer-head {
+    padding: 12px 16px 6px;
+  }
+
+  .composer-head h3 {
+    font-size: 17px;
+  }
+
+  .composer-sub {
+    display: none;
+  }
+
+  .composer-body {
+    padding: 0 16px 6px;
+    gap: 6px;
+  }
+
+  .composer-text-input {
+    max-height: 32vh;
+    min-height: 64px;
+  }
+
+  .composer-foot {
+    padding: 8px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-composer-enter-active,
+  .cloud-composer-leave-active,
+  .cloud-composer-enter-active .composer-panel,
+  .cloud-composer-leave-active .composer-panel {
+    animation-duration: 0.001ms;
+    animation-iteration-count: 1;
+  }
+}
+
+/* ================================================================
+   2026-10-18 补充：失败原因 + 全场开合过渡
+   ================================================================
+   为什么要把过渡单列一节：用户口径「加入一些过渡动画，不要太生硬，
+   任何内容打开和关闭的时候」。本轮只给**一个元素动**的部位加过渡
+   （面板 / 心情抽屉 / 图片条 / 状态行 / 提示条 / 缩略图淡入），
+   不做逐格错峰 —— 2026-10-02 相册网格的性能报障就是因为 26 格
+   各自跑 FLIP + 淡入，滚动中持续测量布局导致掉帧。
+
+   时长/曲线一律走 tokens.css 的 --duration-* / --ease-*，不写第二组值。
+   每个过渡都带 @media (prefers-reduced-motion: reduce) 兜底（见本节末尾）。
+   ================================================================ */
+
+/* ---- 上传失败：把原因写出来 ---- */
+.composer-status.is-error {
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: var(--liquid-radius-md, 16px);
+  background: color-mix(in srgb, var(--cp-danger) 7%, transparent);
+  /* 错误行是「内容」而不是徽标：失败时它可能占两行，需要能跟着 .composer-body 滚 */
+  width: 100%;
+}
+
+.composer-failed {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.composer-failed-title {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--liquid-text-primary);
+}
+
+.composer-failed-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.composer-failed-list li {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.composer-failed-name {
+  color: var(--liquid-text-primary);
+  font-weight: 550;
+  word-break: break-all;
+}
+
+.composer-failed-name::after {
+  content: ' · ';
+  color: var(--liquid-text-tertiary);
+}
+
+/* 原因用次级色但不缩到看不见：限流文案（"图片上传过于频繁…"）通常 6~14 字，
+   和文件名同色会让一行里看不出主次，太浅又等于没写 —— 取次级色 + 600 字重。 */
+.composer-failed-reason {
+  color: var(--liquid-text-secondary);
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.composer-failed-more {
+  color: var(--liquid-text-tertiary);
+}
+
+/* ---- 心情抽屉：高度 + 淡入 ---- */
+.cp-tray-enter-active,
+.cp-tray-leave-active {
+  transition:
+    opacity var(--duration-fast, 180ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform var(--duration-fast, 180ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  /* 高度不能写 transition：auto→auto 之间没有可插值的中间值。
+     这里用 max-height 关键帧做「展开/收起」，上限 260px 大于抽屉的真实高度上限
+     （9 个胶囊最密排布约 150px；窄屏折 4 行仍不到 200px）。 */
+  overflow: hidden;
+}
+
+.cp-tray-enter-from,
+.cp-tray-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.cp-tray-enter-active {
+  animation: cpTrayHeightIn var(--duration-base, 240ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+.cp-tray-leave-active {
+  animation: cpTrayHeightOut var(--duration-fast, 180ms) var(--ease-in-out, cubic-bezier(0.77, 0, 0.175, 1)) both;
+}
+
+@keyframes cpTrayHeightIn {
+  from {
+    max-height: 0;
+  }
+  to {
+    max-height: 260px;
+  }
+}
+
+@keyframes cpTrayHeightOut {
+  from {
+    max-height: 260px;
+  }
+  to {
+    max-height: 0;
+  }
+}
+
+/* ---- 图片条：整条淡入 + 轻微上浮 ---- */
+.cp-strip-enter-active,
+.cp-strip-leave-active {
+  transition:
+    opacity var(--duration-base, 240ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform var(--duration-base, 240ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.cp-strip-enter-from,
+.cp-strip-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+/* ---- 单张缩略图：淡入 + 轻微放大（不参与布局动画）---- */
+.cp-thumb-enter-active,
+.cp-thumb-leave-active {
+  transition:
+    opacity var(--duration-base, 240ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform var(--duration-base, 240ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.cp-thumb-enter-from,
+.cp-thumb-leave-to {
+  opacity: 0;
+  transform: scale(0.86);
+}
+
+/* ---- 状态行（上传进度 / 失败 / 顶部提示条）：高度 + 淡入 ---- */
+.cp-status-enter-active,
+.cp-status-leave-active {
+  transition:
+    opacity var(--duration-fast, 180ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform var(--duration-fast, 180ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  overflow: hidden;
+}
+
+.cp-status-enter-from,
+.cp-status-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.cp-status-enter-active {
+  animation: cpStatusHeightIn var(--duration-base, 240ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+.cp-status-leave-active {
+  animation: cpStatusHeightOut var(--duration-fast, 180ms) var(--ease-in-out, cubic-bezier(0.77, 0, 0.175, 1)) both;
+}
+
+@keyframes cpStatusHeightIn {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 220px;
+    opacity: 1;
+  }
+}
+
+@keyframes cpStatusHeightOut {
+  from {
+    max-height: 220px;
+    opacity: 1;
+  }
+  to {
+    max-height: 0;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-tray-enter-active,
+  .cp-tray-leave-active,
+  .cp-strip-enter-active,
+  .cp-strip-leave-active,
+  .cp-thumb-enter-active,
+  .cp-thumb-leave-active,
+  .cp-status-enter-active,
+  .cp-status-leave-active {
+    animation-duration: 0.001ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.001ms;
   }
 }

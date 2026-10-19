@@ -2184,7 +2184,22 @@
 
 /* ─── 竖屏端（≤767 portrait）─── */
 @media (max-width: 767px) and (orientation: portrait) {
-  /* 文字 tab 横向滚动已由 .ah-segment-tabs 基础样式承担 */
+  /* 2026-10-17（P3-5）：7 席在 390 宽下已经挤满（再增一席即溢出），横向滚动又没有
+     任何渐隐提示 ⇒ 改成 **wrap 两行**（3 资产 + 4 服务，按分组自然断行）。
+     分组分隔线（第 4 席 ::before）是单行布局的产物，换行后改由行断点表达，隐藏之。
+     席位数增删时同步检查这里与上方 nth-child(4) 的分组视觉。 */
+  .ah-hub-card .ah-segment-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    gap: 4px 18px;
+    padding-bottom: 6px;
+  }
+  .ah-hub-card .ah-segment-tabs :deep(.segment-tab:nth-child(4)) {
+    margin-left: 0;
+  }
+  .ah-hub-card .ah-segment-tabs :deep(.segment-tab:nth-child(4))::before {
+    display: none;
+  }
 }
 
 .ah-sponsor-section {

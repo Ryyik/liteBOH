@@ -5,6 +5,23 @@ import { logger } from './logger.js';
    生产行为不变；但单测可以用 vi.stubEnv 在不重置模块的情况下驱动真行为。 */
 const getMonitoringEndpoint = () => import.meta.env.VITE_MONITORING_ENDPOINT;
 
+/* ── URL 脱敏（2026-10-17，全面审查 P1-6）─────────────────────────────────
+   背景：邮箱验证 / 重置密码回跳链接带明文一次性令牌（/?token_hash=…&type=…，
+   见 useSignupEmailConfirmation.js / ResetPassword）——ResetPassword 要等 verify
+   成功回调才 replaceState 清 URL，而 verify 是异步的。这个窗口期内任何
+   runtime_error / unhandledrejection / web-vitals beacon 都会把 href 原样发出去，
+   等于把「可直接 verifyOtp 建会话」的令牌交给监控端点。
+   口径：**宁可过度脱敏**——命中敏感参数名一律 <redacted>，search 与 hash 两段都查
+   （Supabase implicit flow 的令牌在 #access_token=… hash 里）。
+   实现注意：正则只用 ES5 语法（参数前必须紧跟 ?&# 之一），**不要用 lookbehind**——
+   旧 Safari 不支持，而这里是模块顶层字面量，解析失败 = 整站白屏。 */
+const SENSITIVE_URL_PARAM_RE =
+  /([?&#](?:token_hash|access_token|refresh_token|id_token|error_description|code|state)=)[^&\s"']+/g;
+
+export function redactSensitiveParams(input) {
+  return String(input ?? '').replace(SENSITIVE_URL_PARAM_RE, '$1<redacted>');
+}
+
 function sendMetric(payload) {
   const endpoint = getMonitoringEndpoint();
   if (!endpoint || typeof navigator === 'undefined') return;
@@ -12,7 +29,7 @@ function sendMetric(payload) {
     const body = JSON.stringify({
       ...payload,
       ts: Date.now(),
-      url: window.location.href,
+      url: redactSensitiveParams(window.location.href),
       ua: navigator.userAgent,
     });
     navigator.sendBeacon(endpoint, body);
@@ -49,7 +66,9 @@ export function reportEvent(type, payload = {}) {
 const reportedUnknownRoutes = new Set();
 
 export function reportUnknownRoute(fullPath) {
-  const path = String(fullPath || '').slice(0, 200);
+  // fullPath 可能携带敏感 query（hash 路由下 token 也会出现在路由 query 里），
+  // 与 sendMetric 的 url 字段同一套脱敏口径（2026-10-17 P1-6）
+  const path = redactSensitiveParams(String(fullPath || '').slice(0, 200));
   if (!path || reportedUnknownRoutes.has(path)) return false;
   reportedUnknownRoutes.add(path);
   return reportEvent('unknown_route', { path });

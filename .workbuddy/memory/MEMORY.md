@@ -93,6 +93,16 @@
 - ⚠️ `.badge` 在 `1fr` 网格列默认 stretch ⇒ 要 `justify-self:start`。
 - ⚠️ 切 tab 只切 class 不同步 `hidden` ⇒ `.panel.is-on{display:block}` 压过 `[hidden]`，两面板同时显示。
 - ⚠️ `--muted-foreground:#7f8d9f` 在白底只有 3.38:1（< AA 4.5）⇒ 达标值 `#5a6577`(5.41) / 暗色 `#a8b0bd`(7.49)。
+- ⚠️ **`position:fixed` 会被祖先 `backdrop-filter`/`filter`/`transform` 劫持成「相对该祖先定位」**
+  （规范行为，不是 bug）。admin `.management-section` 带 `backdrop-filter: blur(18px)` ⇒ 遮罩 `inset:0`
+  实测只铺到 1117×878 @(292,131)。修法 = `Teleport` 出去，宿主选**页根**（`.data-management-page`）而不是
+  `body` —— 页级 token（`--card/--foreground/--radius/--spacing`）挂在页根上，挂 body 全丢。
+  护栏 `probe-admin-dialogs`(7)。
+- ⚠️ 组件内写 `:focus-visible` 想覆盖 `layout.css` 的 `.bohai-page :focus-visible` 时，**特异性打平**
+  （全局那条编译后带 `[data-v-*]`，同为 0,3,0 且更靠后）⇒ 静默失效（实测 offset 仍 2px）。
+  用双写伪类 `.x:focus-visible:focus-visible`(0,4,0)，比依赖祖先结构稳（岛形态也生效）。
+- ⚠️ 模态框底色用 `--card-solid` 不用 `--card`：后者是 62% 半透明（液态玻璃），底下是表格正文时
+  字段标签会和背后文字叠在一起。
 
 ## 路由 / 交互 / 单源
 
@@ -116,3 +126,7 @@
 - 跨表同名字段语义真源 `src/config/field-semantics.ts`（`lab_ai_model_configs.model_id` 存的是
   `bohai_model_configs.mode_id`）。守卫 `tests/unit/field-semantics.test.js`。
 - ⚠️ 探针 `page.evaluate(fn)` **只序列化函数体** ⇒ 闭包依赖一律作为**参数**传入。
+- ⚠️ 发帖 FAB 是**双宿主**：首页 `/` 与 UserSpace 的「内容」tab（`?tab=community`，无 tab 参数也算）；
+  竖屏下内嵌 PostComposer 是 `v-if="!isMobileComposerMode"` **不渲染**，FAB 是唯一发帖入口 ——
+  **别按「只属于首页」把它收回去**（2026-10-06 c19a35dc 这么收过，导致「我的→内容」竖屏零入口）。
+  护栏 `probe-user-space-ia` 两条（挂载 + `closest` 遮挡）。

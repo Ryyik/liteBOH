@@ -2,6 +2,7 @@
   <header class="g-topbar">
     <div class="g-topbar-left">
       <button
+        v-if="canToggleSidebar"
         type="button"
         class="g-icon-btn round is-ghost"
         :aria-label="isSidebarOpen ? '折叠侧栏' : '展开侧栏'"
@@ -162,6 +163,8 @@ const props = defineProps({
   searchValue: { type: String, default: '' },
   isRefreshing: { type: Boolean, default: false },
   isSidebarOpen: { type: Boolean, default: false },
+  /** 侧栏开关按钮显隐：桌面端侧栏已恒全宽（折叠态 2026-10-18 下线），只有移动端抽屉需要它 */
+  canToggleSidebar: { type: Boolean, default: true },
   canCreate: { type: Boolean, default: true },
   theme: { type: String, default: 'light' },
   /** 当前登录用户名（真实头像/用户菜单用） */

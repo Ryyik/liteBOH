@@ -2328,6 +2328,114 @@
   flex-shrink: 0;
 }
 
+/* 批量模式：input 换成 textarea（2026-10-18），高度随 rows=4 走 */
+.quick-fact-textarea {
+  height: auto;
+  min-height: 96px;
+  padding: 8px 12px;
+  line-height: 1.6;
+  resize: vertical;
+  font-family: inherit;
+}
+
+/* 论坛事实卡补扫条（2026-10-18）：进度文案 + 补扫/停止按钮 */
+.fm-catchup-bar {
+  align-items: center;
+}
+
+.fm-catchup-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* JSONL 知识库导入面板（2026-10-18）：挂在速记条下方 */
+.kb-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card, #fff);
+}
+
+.kb-import-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kb-import-field {
+  flex: 1;
+  min-width: 180px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card, #fff);
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.kb-import-field:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.kb-import-file-btn {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.kb-import-file-btn input[type='file'] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.kb-import-jsonl {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card, #fff);
+  color: var(--foreground);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.kb-import-jsonl:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.kb-import-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kb-import-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--dm-text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 768px) {
   .quick-fact-bar {
     flex-wrap: wrap;

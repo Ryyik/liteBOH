@@ -37,6 +37,11 @@ export const tabs = [
   { id: 'activities', label: '活动管理', icon: '🎉', module: 'operations' },
   { id: 'postReward', label: '发帖有奖', icon: '🎁', module: 'operations' },
   { id: 'coreMemories', label: '官方事实', icon: '📚', module: 'operations' },
+  // BOHAI 对话「自动记忆沉淀」的表（boh_ai_shared_memories，用户维度）此前只有
+  // 用户空间 /user-space/shared-memories 能看自己的，管理员在面板里完全不可见（2026-10-18）。
+  { id: 'aiMemories', label: 'AI 沉淀记忆', icon: '🧠', module: 'ai-config' },
+  // 凌晨 pg_cron 从公开帖抽的事实卡（boh_ai_forum_memories，boh-ai-forum-memory 产出）
+  { id: 'forumMemories', label: '论坛事实卡', icon: '🗂️', module: 'ai-config' },
   { id: 'bohCreatorShows', label: '创作者展示', icon: '🎬', module: 'operations' },
   { id: 'birthdayEvents', label: '生日活动', icon: '🎂', module: 'operations' },
   { id: 'birthdayWishes', label: '生日祝福', icon: '💌', module: 'operations' },
@@ -223,8 +228,18 @@ export const tabModules = [
     icon: Sparkles,
     section: 'data',
     defaultTab: 'keys-models',
-    tabIds: ['keys-models', 'bohaiModels', 'ai-quota', 'moderation-model', 'lab-ai-model'],
-    description: 'API Key、免费模型库与各场景模型配置',
+    // aiMemories：AI 沉淀记忆是用户维度数据，归 AI 配置模块（admin-only）而非运营
+    // forumMemories：凌晨 pg_cron 产出的论坛事实卡，同为 AI 数据面
+    tabIds: [
+      'keys-models',
+      'bohaiModels',
+      'aiMemories',
+      'forumMemories',
+      'ai-quota',
+      'moderation-model',
+      'lab-ai-model',
+    ],
+    description: 'API Key、免费模型库、AI 沉淀记忆、论坛事实卡与各场景模型配置',
   },
   {
     id: 'logs',
@@ -309,6 +324,10 @@ export const TABS_ACTIONS = {
   'api-keys': ['view', 'create', 'edit', 'delete'],
   freemodels: ['view', 'create', 'edit', 'delete'],
   bohaiModels: ['view', 'create', 'edit', 'delete'],
+  // AI 沉淀记忆：管理员只能查看与归档/恢复（status），不能替用户改内容、不开放删除
+  aiMemories: ['view', 'edit'],
+  // 论坛事实卡：同口径 —— 查看与归档/恢复；补扫按钮由 canEdit 控制
+  forumMemories: ['view', 'edit'],
   'ai-quota': ['view', 'edit'],
   aiWebSearchLog: ['view'],
   apiKeyAuditLogs: ['view'],

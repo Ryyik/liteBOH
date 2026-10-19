@@ -26,6 +26,28 @@
  *
  * 已接入 `.github/workflows/ci.yml` 的 `quality` job（**CI 有网络**，能跑真 audit）。
  * 本地跑需要网络；拿不到结果时**告警 + exit 0**（不阻断本地开发）。
+ *
+ * ## 2026-10-17 清账（P1-7）：high 3 → 0，基线同时下调
+ *
+ * - **`image-size`（high，经 pptxgenjs）已修**：`package.json` 加
+ *   `overrides.image-size = ^2.0.4`（上游 pptxgenjs 4.0.1 仍锁 `^1.2.1`，官方修复只有
+ *   「降级到 4.0.0」，而 4.0.0 也用 image-size 1.x —— npm 那个 fix 只是把 **pptxgenjs
+ *   这条**移出漏洞区间，真正的 `image-size` 还在）。
+ *   安全性论证：pptxgenjs 的 `browser` 字段把 `image-size` 映射成 `false`，它的三个
+ *   dist 产物（cjs/es/bundle）里**都没有 image-size 的解析器代码**（grep `icns`/`heif` = 0），
+ *   构建产物同样查不到 ⇒ 该 DoS 面在我们的浏览器侧**不可达**，override 只影响 Node 侧
+ *   （本仓无 Node 侧用法）。改完 `node scripts/.../ppt-smoke`（带图片生成 pptx）实测
+ *   产物字节一致（45526B，PK 头正常）。
+ * - **`brace-expansion`（high，dev-only，eslint→minimatch@3）已修**：`npm update brace-expansion`
+ *   → 1.1.15 → 1.1.21（在 minimatch@3 的 `^1.1.7` 内，无 override）。
+ * - **`sprintf-js`（moderate ×5）不可修**：GitHub 公告 `GHSA-hp3w-g68c-fv3c` 的
+ *   `vulnerable_version_range = "<= 1.1.3"`、`first_patched_version = null`
+ *   —— 上游没有修复版。唯一「修法」是把 tfjs 降到 2.1.0（脱离 argparse），荒谬。
+ *   可达性：格式串来自 argparse 内部（非用户输入），触发的是 `sprintf('%<巨大精度>d')`
+ *   这类 DoS ⇒ **接受**，基线保留 5。
+ * - **`esbuild`（low）接受**：`0.27.3–0.28.0` 的「Windows 上 dev server 任意文件读」，
+ *   仅 Windows + 仅开发服务器；修复版 0.28.1 超出 vite 7 的 `^0.27.0`，为它升 vite
+ *   不值。基线保留 1。
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';

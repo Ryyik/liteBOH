@@ -137,12 +137,15 @@ const onSetTagFilter = (tag) => {
   <div class="forum-toolbar">
     <div class="toolbar-search-wrapper">
       <Search class="toolbar-search-icon" :size="18" :stroke-width="2" />
+      <!-- 2026-10-17（P3-3）：placeholder 原文「搜索帖子、作者，或输入 #标签 筛选...」在 390 竖屏
+           被「问 BOHAI」胶囊挤到截断且无省略号 —— 竖屏没有独立文案的机制，全局缩短一档。
+           ⚠️ 注释只能放在元素外：Vue 模板的开始标签里不允许出现注释。 -->
       <input
         ref="searchInputRef"
         type="text"
         class="toolbar-search-input"
         :class="{ 'with-tag-chip': selectedTagFilter }"
-        placeholder="搜索帖子、作者，或输入 #标签 筛选..."
+        placeholder="搜索帖子、作者或 #标签…"
         :value="searchQuery"
         @input="onSearchInput"
         @keyup.enter="onSearchSubmit"

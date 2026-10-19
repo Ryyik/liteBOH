@@ -993,3 +993,16 @@
 @keyframes bottomNavFadeInReduced {
   from { opacity: 0; }
 }
+
+/* ── 消息中心选择模式（plans/028）：手机横屏把底栏让给贴底动作条 ───────────
+   390 高的视口里，动作条若浮在底栏上方会同时压住列表行与底栏胶囊（实测 bar 330..390
+   与 nav 292..370 相交 40px，而 nav 的 z-index 1000 还盖在条上）。
+   选择期间本来也不该切 tab（切走就丢选择）⇒ 横屏下把底栏整体下沉收起。
+   竖屏不动：动作条仍在底栏上方 88px，视觉与手感维持原样。 */
+@media (orientation: landscape) and (max-height: 540px) {
+  body.boh-messages-selecting .bottom-nav-glass {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(calc(100% + 40px)) scaleX(var(--bottom-nav-collapse-scale));
+  }
+}

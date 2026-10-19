@@ -1,8 +1,5 @@
 <template>
-  <aside
-    :class="['g-sidebar', { open: isOpen, 'is-collapsed': collapsed }]"
-    :aria-label="'网站管理导航'"
-  >
+  <aside :class="['g-sidebar', { open: isOpen }]" :aria-label="'网站管理导航'">
     <!-- Brand：点击回到概览 -->
     <button type="button" class="g-sidebar-brand is-clickable" title="回到站点概览" @click="goHome">
       <div class="g-sidebar-brand-mark" aria-hidden="true">B</div>
@@ -111,8 +108,6 @@ const props = defineProps({
   /** 当前角色无权访问的模块 id（置灰禁用，不断层隐藏，便于审计） */
   deniedIds: { type: Array, default: () => [] },
   isOpen: { type: Boolean, required: true },
-  /** 桌面端折叠为图标栏（移动端抽屉不受影响） */
-  collapsed: { type: Boolean, default: false },
   searchQuery: { type: String, default: '' },
   hasUnmoderated: { type: Boolean, default: false },
 });
@@ -459,88 +454,12 @@ const goHome = () => {
   flex: 0 0 6px;
 }
 
-/* Collapsed (desktop icon rail) */
-.g-sidebar.is-collapsed {
-  width: 64px;
-  flex-basis: 64px;
-  padding-left: calc(var(--spacing) * 2);
-  padding-right: calc(var(--spacing) * 2);
-}
-.g-sidebar.is-collapsed .g-sidebar-brand-copy,
-.g-sidebar.is-collapsed .g-sidebar-search,
-.g-sidebar.is-collapsed .g-sidebar-search-status,
-.g-sidebar.is-collapsed .g-sidebar-group-label,
-.g-sidebar.is-collapsed .g-nav-label,
-.g-sidebar.is-collapsed .g-nav-dot,
-.g-sidebar.is-collapsed .g-nav-lock,
-.g-sidebar.is-collapsed .g-sidebar-quick-label,
-.g-sidebar.is-collapsed .g-sidebar-foot span:last-child {
-  display: none;
-}
-.g-sidebar.is-collapsed .g-sidebar-brand {
-  justify-content: center;
-  padding-bottom: calc(var(--spacing) * 2);
-}
-.g-sidebar.is-collapsed .g-nav-btn {
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
-}
-.g-sidebar.is-collapsed .g-sidebar-quick {
-  justify-content: center;
-}
-.g-sidebar.is-collapsed .g-sidebar-foot {
-  justify-content: center;
-}
-
-/* 折叠态悬停浮层展开（桌面端）：悬停 150ms 后恢复全宽，无需点顶栏按钮 */
-@media (min-width: 769px) {
-  .g-sidebar.is-collapsed:hover {
-    width: var(--dm-sidebar-width);
-    flex-basis: var(--dm-sidebar-width);
-    padding-left: calc(var(--spacing) * 4);
-    padding-right: calc(var(--spacing) * 4);
-    transition-delay: 0.15s;
-    box-shadow: 12px 0 32px -16px rgba(0, 0, 0, 0.25);
-  }
-  .g-sidebar.is-collapsed:hover .g-sidebar-brand-copy,
-  .g-sidebar.is-collapsed:hover .g-sidebar-search,
-  .g-sidebar.is-collapsed:hover .g-sidebar-search-status,
-  .g-sidebar.is-collapsed:hover .g-sidebar-group-label,
-  .g-sidebar.is-collapsed:hover .g-nav-label,
-  .g-sidebar.is-collapsed:hover .g-nav-dot,
-  .g-sidebar.is-collapsed:hover .g-nav-lock,
-  .g-sidebar.is-collapsed:hover .g-sidebar-quick-label,
-  .g-sidebar.is-collapsed:hover .g-sidebar-foot span:last-child {
-    display: revert;
-    transition-delay: 0.15s;
-  }
-  .g-sidebar.is-collapsed:hover .g-sidebar-brand {
-    justify-content: flex-start;
-  }
-  .g-sidebar.is-collapsed:hover .g-nav-btn {
-    justify-content: flex-start;
-    padding-left: calc(var(--spacing) * 3);
-    padding-right: calc(var(--spacing) * 3);
-  }
-  .g-sidebar.is-collapsed:hover .g-sidebar-quick {
-    justify-content: flex-start;
-  }
-  .g-sidebar.is-collapsed:hover .g-sidebar-foot {
-    justify-content: flex-start;
-  }
-}
-
 /* Responsive */
 @media (max-width: 1024px) {
   .g-sidebar {
     width: 220px;
     flex-basis: 220px;
     padding: calc(var(--spacing) * 3);
-  }
-  .g-sidebar.is-collapsed {
-    width: 64px;
-    flex-basis: 64px;
   }
 }
 

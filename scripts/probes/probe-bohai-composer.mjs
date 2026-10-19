@@ -468,21 +468,35 @@ const openPanel = async (page, scope = '') => {
   await page.fill(SEL.input, '探针：验证用量圆钮');
   await page.locator(SEL.send).click();
   await page.waitForSelector(SEL.usage, { timeout: 15000 });
-  await page.waitForTimeout(2200); // 等 fetchTodayQuota（发送后 1.5s）吃到 mock 值
 
-  const orbShape = await page.evaluate((sel) => {
-    const el = document.querySelector(sel);
-    if (!el) return null;
-    const ring = el.querySelector('i');
-    return {
-      hasRing: !!ring,
-      pct: el.querySelector('b')?.textContent.trim() || '',
-      warn: el.classList.contains('is-warn'),
-    };
-  }, SEL.usage);
+  /* ⚠️ 圆钮**渲染**和「额度压力分档」是两条时间线，不能读一次就断言：
+       · `.boh-usage` 的 `v-if` 只看 `messages.length > 0` ⇒ 发送后立刻出现；
+       · `is-warn` 来自 `quotaLevelClass`，它依赖 `todayTokenUsage`，而这个值只有
+         `fetchTodayQuota()` 落地后才有 —— 那条链是「流结束（isThinking true→false）
+         + setTimeout 1500ms + quota-status 请求返回」。
+     2026-10-17 之前这里写死 `waitForTimeout(2200)`，实测 warn 要到 ~3.4s 才挂上
+     （流失败后引擎有多次重试才把 isThinking 放下），于是 A10 **稳定红**、
+     报障详情是「pct 0% / warn false」—— 看着像配额链路坏了，其实是探针读太早。
+     改成轮询到出现为止（上限 9s），读的是同一个 DOM 事实，只是不再赌固定时长。 */
+  let orbShape = null;
+  for (let attempt = 0; attempt < 36; attempt += 1) {
+    orbShape = await page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const ring = el.querySelector('i');
+      return {
+        hasRing: !!ring,
+        // 圆钮上的数字是「对话上下文」占比（空对话≈0%），额度压力只体现在 class 上
+        pct: el.querySelector('b')?.textContent.trim() || '',
+        warn: el.classList.contains('is-warn'),
+      };
+    }, SEL.usage);
+    if (orbShape?.warn) break;
+    await page.waitForTimeout(250);
+  }
   check(
     'A10 用量圆钮 = 环 + 百分比数字，且额度 88% 时挂 is-warn',
-    !!orbShape && orbShape.hasRing && /%$/.test(orbShape.pct) && orbShape.warn,
+    !!orbShape && orbShape.hasRing && /^\d+(\.\d+)?%$/.test(orbShape.pct) && orbShape.warn,
     JSON.stringify(orbShape),
   );
 
@@ -714,6 +728,42 @@ const openPanel = async (page, scope = '') => {
 
   await page.screenshot({ path: `${OUT}/bohai-composer-phone.png` });
   check('B6 竖屏零 pageerror', errors.errors.length === 0, errors.errors.slice(0, 3).join(' | '));
+
+  // ── B7 竖屏设置抽屉内容可滚动（2026-10-17 P0-1 回归锁）──
+  // 竖屏抽屉转纵向 flex 后，`.ai-settings-main` 若缺 `min-height: 0` 会被内容撑高，
+  // body（flex:1 + min-height:0 + overflow-y:auto）拿不到受限高度 ⇒ 整条滚动链断裂、
+  // 「外观 / 用量与订阅 / 呼出方式 / 数据」四个分区不可达（2026-10-13 报告 A1，
+  // 2026-10-17 复测 body 2918/2918 卡死后已修）。断言抓「可滚」这一行为事实。
+  // 竖屏没有用量圆钮（.boh-usage 只在桌面档渲染），走账号浮层的「设置」入口
+  // （与 2026-10-17 手工复测同一通道）。用 DOM click 避免遮挡命中检查。
+  const settingsOpened = await page.evaluate(() => {
+    const btns = [...document.querySelectorAll('button, [role="button"]')];
+    const b =
+      btns.find((x) => /设置/.test(x.textContent || '') && x.offsetParent !== null) ||
+      btns.find((x) => /设置/.test(x.textContent || ''));
+    if (!b) return false;
+    b.click();
+    return true;
+  });
+  await page.waitForSelector('.ai-settings-drawer', { timeout: 8000 });
+  await page.waitForTimeout(600);
+  const drawerScroll = await page.evaluate(() => {
+    const body = document.querySelector('.ai-settings-body');
+    if (!body) return null;
+    const before = body.scrollTop;
+    body.scrollTop = 300;
+    const scrolled = body.scrollTop;
+    body.scrollTop = before;
+    return { sh: body.scrollHeight, ch: body.clientHeight, scrolled: scrolled > before };
+  });
+  check(
+    'B7 竖屏设置抽屉内容可滚动（P0-1 回归锁）',
+    settingsOpened === true &&
+      !!drawerScroll &&
+      drawerScroll.sh > drawerScroll.ch &&
+      drawerScroll.scrolled,
+    `opened=${settingsOpened} ${JSON.stringify(drawerScroll)}`,
+  );
   await ctx.close();
 }
 

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { useTierMap } from '@/composables/useTierMap.js';
@@ -70,6 +70,43 @@ const formatDate = formatSmartTime;
 // replyContent（切换回复对象 / 发送成功清空 / 取消），只绑 @input 的实现在这些路径上不会收缩。
 const { textareaRef: replyTextareaRef } = useAutoGrowTextarea({
   value: () => props.replyContent,
+});
+
+/* ── 长帖省略号判定（2026-10-17 全面审查 P2-4）──────────────────────────────
+   症状：`.post-text-v2` 由 CSS `max-height`（5 行）截断，而「...」是否出现由
+   ForumMain 的 `isBodyPreviewOverflowLikely` 按**字数/行数估算**决定 —— 两套判据
+   不同源：估算说「不超」但实际折行更多时，文字被静默切断在句中、连省略号都没有
+   （实测有 ch=67/sh=90 的卡片）。
+   修法：判定改为 **scrollHeight > clientHeight**，与 CSS 同一条约束源。
+   实现：ResizeObserver 管「容器变宽/变窄、展开收起」这些盒子尺寸变化；
+   watch 管「内容变了但盒子没变」的场景（RO 对 max-height 钳住的元素不触发）。
+   `+1` 容差吸收亚像素舍入（zoom/缩放下 scrollHeight 可能比 clientHeight 大 1px 却没有真溢出）。 */
+const bodyTextEl = ref(null);
+const bodyOverflowing = ref(false);
+let bodyResizeObserver = null;
+
+const measureBodyOverflow = () => {
+  const el = bodyTextEl.value;
+  bodyOverflowing.value = Boolean(el && el.scrollHeight > el.clientHeight + 1);
+};
+
+watch(
+  () => [props.post?.id, props.post?.displayBody],
+  () => nextTick(measureBodyOverflow),
+  { immediate: true },
+);
+
+onMounted(() => {
+  if (typeof ResizeObserver === 'function' && bodyTextEl.value) {
+    bodyResizeObserver = new ResizeObserver(measureBodyOverflow);
+    bodyResizeObserver.observe(bodyTextEl.value);
+  }
+  nextTick(measureBodyOverflow);
+});
+
+onBeforeUnmount(() => {
+  bodyResizeObserver?.disconnect();
+  bodyResizeObserver = null;
 });
 
 // 转发帖引用框：原帖标题/摘录（原帖数据由 ForumMain ensureQuotedPostsForReposts 回源注入）
@@ -497,7 +534,9 @@ watch(
         class="search-highlight-snippet"
         v-html="renderSearchExcerpt(post.search_excerpt)"
       ></p>
-      <p class="post-text-v2" :class="{ 'is-overflowing': post.isBodyOverflowLikely }">
+      <!-- ⚠️ is-overflowing 由本组件实测 scrollHeight>clientHeight 决定（P2-4），
+           别改回 ForumMain 的字数估算 —— 那套判据与 CSS 的 5 行 max-height 不同源。 -->
+      <p ref="bodyTextEl" class="post-text-v2" :class="{ 'is-overflowing': bodyOverflowing }">
         {{ post.displayBody }}
       </p>
       <!-- 转发帖引用框：转发文字在上，原帖信息框在下，点击进原帖详情 -->

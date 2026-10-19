@@ -22,6 +22,8 @@ import fs from 'node:fs';
 //   C 空内容时点「内容」→ 不打扰（无确认框）、直接关会话（当前 RED）
 //   D 会话开着时点「搜索」→ 会话也先被收掉（当前 RED）；且动作真的执行（搜索框拿到焦点）
 //   F UserSpace 宿主（同 /#/user-space?tab=community，左栏是一份组件、两个宿主）同一契约
+//   G 会话**没开** + 本地留着草稿 → 点「内容」/「我的」不许弹「保存草稿」（2026-10-18 报障；
+//     closeMobileComposer 缺 isMobileComposerOpen 守卫 ⇒ 每次导航都被当成「正在离开编辑器」）
 //   E 全程零 pageerror；且每次关会话后 overlay 必须真的不在 DOM（不能只靠透明度）
 //
 // 前置：Vite dev server 已启动（默认 http://[::1]:5173，可用 BASE 覆盖）
@@ -130,6 +132,8 @@ const snapshot = (page) =>
          所以额外抓一个只由 .active 产生的视觉通道：光晕 box-shadow。 */
       composeItemShadow: composeItem ? getComputedStyle(composeItem).boxShadow : '',
       contentItemActive: Boolean(contentItem?.classList.contains('active')),
+      activeTab:
+        document.querySelector('.userspace-rail-item.active')?.getAttribute('data-tab') || '',
       confirmExists: Boolean(confirm),
       confirmTitle: confirm?.querySelector('h3')?.textContent?.trim() || '',
       confirmButtons: Array.from(document.querySelectorAll('.forum-confirm-btn')).map((el) =>
@@ -331,6 +335,77 @@ try {
     check('F5 UserSpace：选「不保存」后会话关掉（不留遮罩）', fClosed, `overlay=${!fClosed}`);
     await page2.screenshot({ path: `${OUT}/F-userspace-session.png` });
     await ctx2.close();
+  }
+
+  // ---------------- G：会话**没开** + 本地留着草稿 → 点导航不许弹「保存草稿」 ----------------
+  /* 2026-10-18 用户报障（截图为证）：点左栏「内容」/底栏「我的」无故弹「保存草稿」，
+     而编辑器根本没打开过。真因是 closeMobileComposer 只判 hasUnsavedChanges()，
+     而 restorePostDraft() 在 mount / 登录 / 换账号时会把本地或云端草稿回填进 newPost
+     （设计如此，好让下次打开编辑器接着写）⇒「编辑器里有字」被当成了「用户正在离开编辑器」。
+     本组正是原探针的覆盖洞：A–F 全都先点「发布」把会话打开，从没测过「会话关着 + 有草稿」。
+     反证：删掉 closeMobileComposer 开头的 `if (!isMobileComposerOpen.value) return;` → G2/G3 必红。 */
+  {
+    console.log('\n--- G 会话未开但本地有草稿（2026-10-18 报障）---');
+    const uid = 'a1b2c3d4-0000-4000-8000-000000000003';
+    const draftKey = `boh_forum_post_draft_${uid}`;
+    const ctx3 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await ctx3.addInitScript(
+      ({ key }) => {
+        try {
+          localStorage.setItem('boh-theme', 'light');
+          localStorage.setItem('boh-home-gate-passed', String(Date.now()));
+          localStorage.setItem(
+            key,
+            JSON.stringify({
+              title: '',
+              content: '探针：上次没写完的草稿',
+              tag: 'daily',
+              savedAt: Date.now() - 1000,
+            }),
+          );
+        } catch {
+          /* ignore */
+        }
+      },
+      { key: draftKey },
+    );
+    const page3 = await ctx3.newPage();
+    page3.on('pageerror', (e) => errors.push(`[draft-gate] ${String(e.message).slice(0, 160)}`));
+    await page3.goto(`${BASE}/#/user-space?tab=community`, { waitUntil: 'domcontentloaded' });
+    await injectAuth(page3);
+    await page3.waitForSelector('.forum-section-shell', { timeout: 20000 });
+    await page3.waitForTimeout(2500);
+    const g0 = await snapshot(page3);
+    const seeded = await page3.evaluate((k) => localStorage.getItem(k), draftKey);
+    check(
+      'G1 前置：草稿已回填本地、但发布会话是关的',
+      !g0.overlayExists && Boolean(seeded),
+      `overlay=${g0.overlayExists} draft=${String(seeded).slice(0, 24)}`,
+    );
+    await clickRail(page3, '.userspace-rail-item[data-tab="community"]');
+    await page3.waitForTimeout(900);
+    const g1 = await snapshot(page3);
+    check(
+      'G2 会话没开时点「内容」不弹「保存草稿」（不打扰）',
+      !g1.confirmExists,
+      `confirm=${g1.confirmExists} title=${g1.confirmTitle}`,
+    );
+    await clickRail(page3, '.userspace-rail-item[data-tab="posts"]');
+    await page3.waitForTimeout(900);
+    const g2 = await snapshot(page3);
+    check(
+      'G3 会话没开时点「我的」既不弹确认、导航也真的走',
+      !g2.confirmExists && g2.activeTab === 'posts',
+      `confirm=${g2.confirmExists} activeTab=${g2.activeTab}`,
+    );
+    const draftKept = await page3.evaluate((k) => localStorage.getItem(k), draftKey);
+    check(
+      'G4 导航没有吞掉草稿（还在，下次打开编辑器能接着写）',
+      Boolean(draftKept),
+      String(draftKept).slice(0, 40),
+    );
+    await page3.screenshot({ path: `${OUT}/G-draft-no-confirm.png` });
+    await ctx3.close();
   }
 
   check('E1 全程零 JS 运行时错误', errors.length === 0, errors.slice(0, 3).join(' | '));

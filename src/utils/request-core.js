@@ -228,8 +228,34 @@ export function normalizeDbError(error, fallbackMessage = '请求失败') {
     return { message: error, code: 'APP_ERROR', details: null, hint: null };
   }
   const rawMessage = String(error.message || fallbackMessage);
-  // RLS 拦截封禁/禁言用户时的友好提示
   const errorCode = String(error.code || '').toUpperCase();
+
+  /* ── 会话过期先于 RLS 判定（2026-10-17 全面审查 P2-8）─────────────────────
+     症状：`/overview` 在未登录 / 会话过期时提示「您的账号已被封禁或禁言」。
+     根因：会话失效时 PostgREST 也回 **42501**（匿名角色没有策略），旧代码把
+     「42501 / row-level security」一律当成封禁 —— 真实用户被严重误导。
+     判据：JWT 失效有自己的一组信号（PGRST301/PGRST302、401、jwt expired…），
+     这些必须先判；**剩下的** 42501 才按「封禁/禁言」解释。
+     ⚠️ 顺序不能反：先判 RLS 的话，会话过期永远进不到这一支。 */
+  const isAuthExpired =
+    errorCode === 'PGRST301' ||
+    errorCode === 'PGRST302' ||
+    Number(error.status) === 401 ||
+    /jwt expired/i.test(rawMessage) ||
+    /invalid jwt/i.test(rawMessage) ||
+    /jwt is expired/i.test(rawMessage) ||
+    /missing sub claim/i.test(rawMessage) ||
+    /auth session missing/i.test(rawMessage);
+  if (isAuthExpired) {
+    return {
+      message: '登录已过期，请重新登录。',
+      code: 'AUTH_EXPIRED',
+      details: null,
+      hint: error.hint || null,
+    };
+  }
+
+  // RLS 拦截封禁/禁言用户时的友好提示
   const isRlsViolation =
     errorCode === '42501' ||
     /row-level security policy/i.test(rawMessage) ||
@@ -265,6 +291,19 @@ export function normalizeDbError(error, fallbackMessage = '请求失败') {
     return {
       message: messageParts.join(':') || '点赞操作失败，请稍后再试',
       code: 'FORUM_LIKE',
+      details: ruleCode || null,
+      hint: error.hint || null,
+    };
+  }
+  /* 上传限流：`assert_cloudinary_upload_allowed` 抛的是
+     `CLOUDINARY_UPLOAD_RATE_LIMIT:<规则码>:<给人看的中文>`。
+     不剥前缀的话，用户端会看到一整串冒号分隔的英文规则码 ——
+     这正是「上传失败但不显示原因」的主要来源之一。 */
+  if (rawMessage.startsWith('CLOUDINARY_UPLOAD_RATE_LIMIT:')) {
+    const [, ruleCode, ...messageParts] = rawMessage.split(':');
+    return {
+      message: messageParts.join(':') || '图片上传过于频繁，请稍后再试',
+      code: 'CLOUDINARY_UPLOAD_RATE_LIMIT',
       details: ruleCode || null,
       hint: error.hint || null,
     };

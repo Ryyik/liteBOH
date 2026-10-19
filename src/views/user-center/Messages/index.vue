@@ -4,7 +4,7 @@
     :class="{
       'minimal-mode': minimal,
       'detail-open': selectedMessage,
-      'select-bar-open': isSelectMode && !selectedMessage,
+      'select-bar-open': isSelectMode,
     }"
     :style="{
       '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px',
@@ -219,8 +219,32 @@
       <!-- Minimal Mode Header -->
       <header v-if="minimal && isLoggedIn" class="x-header-minimal">
         <div class="x-minimal-main">
-          <div class="x-filter-bar minimal-filter-bar">
+          <div
+            class="x-filter-bar minimal-filter-bar"
+            :class="{ 'x-select-toolbar': isSelectMode }"
+          >
             <template v-if="isSelectMode">
+              <button
+                type="button"
+                class="x-select-cancel"
+                aria-label="退出选择"
+                @click="exitSelectMode"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.6"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                </svg>
+                取消
+              </button>
               <button type="button" class="x-filter-chip select-all" @click="selectAllFiltered">
                 <span class="x-checkbox" :class="{ checked: isAllFilteredSelected }">
                   <svg
@@ -253,6 +277,7 @@
                   未读
                 </button>
               </div>
+              <span class="x-select-count" aria-live="polite">{{ selectCountLabel }}</span>
             </template>
             <template v-else>
               <div class="x-filter-dropdown-wrap">
@@ -318,45 +343,15 @@
             </template>
           </div>
         </div>
-        <div class="x-header-actions-minimal">
-          <template v-if="!isSelectMode">
-            <button class="x-mark-all-btn-minimal" @click="toggleSelectMode">选择</button>
-          </template>
-          <template v-else>
-            <div class="x-filter-actions-desktop-minimal">
-              <button class="x-mark-all-btn-minimal active" @click="toggleSelectMode">完成</button>
-              <button
-                v-if="currentTab !== 'archived'"
-                class="x-mark-all-btn-minimal"
-                :disabled="selectedMessageCount === 0"
-                @click="archiveSelectedMessages"
-              >
-                归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-              </button>
-              <button
-                v-else
-                class="x-mark-all-btn-minimal"
-                :disabled="selectedMessageCount === 0"
-                @click="unarchiveSelectedMessages"
-              >
-                取消归档{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-              </button>
-              <button
-                class="x-mark-all-btn-minimal"
-                :disabled="selectedMessageCount === 0"
-                @click="markSelectedMessagesAsRead"
-              >
-                已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
-              </button>
-            </div>
-          </template>
+        <div v-if="!isSelectMode" class="x-header-actions-minimal">
+          <button class="x-mark-all-btn-minimal" @click="enterSelectMode()">选择</button>
         </div>
       </header>
 
-      <!-- 选择模式：底部操作栏（完成为主按钮靠右，批量操作靠左） -->
+      <!-- 选择模式：底部批量动作条（退出入口统一在页头「取消」，此处只放动作） -->
       <transition name="x-sab">
         <div
-          v-if="isSelectMode && !selectedMessage"
+          v-if="isSelectMode"
           class="x-select-action-bar"
           role="toolbar"
           aria-label="已选消息操作"
@@ -382,13 +377,10 @@
           <button
             type="button"
             class="x-sab-btn"
-            :disabled="selectedMessageCount === 0 && unreadTotalCount === 0"
-            @click="selectedMessageCount > 0 ? markSelectedMessagesAsRead() : markAllAsRead()"
+            :disabled="selectedMessageCount === 0"
+            @click="markSelectedMessagesAsRead"
           >
-            已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '全部' }}
-          </button>
-          <button type="button" class="x-sab-btn x-sab-primary" @click="toggleSelectMode">
-            完成
+            已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
           </button>
         </div>
       </transition>
@@ -476,6 +468,7 @@
           class="x-inbox-list"
           role="listbox"
           aria-label="消息列表"
+          :aria-multiselectable="isSelectMode ? 'true' : 'false'"
         >
           <!-- 虚拟滚动列表（当消息超过阈值时启用） -->
           <div
@@ -498,7 +491,13 @@
                   selected: selectedMessageIds.has(msg.id),
                   'active-detail': selectedMessage?.id === msg.id && !isSelectMode,
                 }"
-                @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
+                :aria-selected="isSelectMode ? selectedMessageIds.has(msg.id) : undefined"
+                @click="onItemClick(msg)"
+                @pointerdown="onItemPointerDown(msg, $event)"
+                @pointerup="cancelLongPress"
+                @pointerleave="cancelLongPress"
+                @pointercancel="cancelLongPress"
+                @contextmenu.prevent="onItemContextMenu(msg)"
                 @keydown.enter="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
                 @keydown.space.prevent="
                   isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)
@@ -589,7 +588,13 @@
                 selected: selectedMessageIds.has(msg.id),
                 'active-detail': selectedMessage?.id === msg.id && !isSelectMode,
               }"
-              @click="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
+              :aria-selected="isSelectMode ? selectedMessageIds.has(msg.id) : undefined"
+              @click="onItemClick(msg)"
+              @pointerdown="onItemPointerDown(msg, $event)"
+              @pointerup="cancelLongPress"
+              @pointerleave="cancelLongPress"
+              @pointercancel="cancelLongPress"
+              @contextmenu.prevent="onItemContextMenu(msg)"
               @keydown.enter="isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)"
               @keydown.space.prevent="
                 isSelectMode ? toggleMessageSelection(msg.id) : showDetail(msg)
@@ -982,7 +987,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, onUnmounted, reactive, nextTick } from 'vue';
+import {
+  ref,
+  computed,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  watch,
+  reactive,
+  nextTick,
+} from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import EmptyState from '@/components/ui/EmptyState.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -1894,6 +1909,7 @@ onUnmounted(() => {
   }
   window.removeEventListener('boh_unread_refresh', handleUnreadRefreshEvent);
   window.removeEventListener('resize', handleWindowResize);
+  window.removeEventListener('keydown', handleKeydown);
   void removeRealtimeChannels();
   if (loadMoreObserver) {
     loadMoreObserver.disconnect();
@@ -1904,6 +1920,7 @@ onUnmounted(() => {
     archivedLoadMoreObserver = null;
   }
   document.removeEventListener('click', closeSelectFilterDropdown);
+  syncSelectModeBodyClass(false);
 });
 
 const handleUnreadRefreshEvent = async (event) => {
@@ -1927,6 +1944,14 @@ const handleWindowResize = () => {
   if (!isTransitioning.value) {
     teleportDisabled.value = !isMobile.value;
   }
+};
+
+// 键盘：Esc 退出选择模式（桌面 / 平板接键盘）。详情抽屉不接 Esc ——
+// 里面有回复输入框，误按会连草稿一起关掉。
+const handleKeydown = (event) => {
+  if (event.key !== 'Escape' || !isSelectMode.value) return;
+  event.preventDefault();
+  exitSelectMode();
 };
 
 // Transition 生命周期钩子
@@ -1958,6 +1983,8 @@ onMounted(async () => {
   window.addEventListener('boh_unread_refresh', handleUnreadRefreshEvent);
   // 监听窗口resize事件（响应式更新isMobile）
   window.addEventListener('resize', handleWindowResize);
+  // Esc 退出选择模式
+  window.addEventListener('keydown', handleKeydown);
   // 监听全局点击事件来关闭筛选下拉框
   document.addEventListener('click', closeSelectFilterDropdown);
   await startRealtimeChannels(currentUserId.value || userInfo.value?.id);
@@ -2292,8 +2319,7 @@ const archiveSelectedMessages = async () => {
     }
 
     // 清空选择状态
-    selectedMessageIds.value = new Set();
-    isSelectMode.value = false;
+    resetSelectMode();
 
     await triggerUnreadRefresh();
 
@@ -2367,8 +2393,7 @@ const unarchiveSelectedMessages = async () => {
       closeDetail();
     }
 
-    selectedMessageIds.value = new Set();
-    isSelectMode.value = false;
+    resetSelectMode();
 
     await triggerUnreadRefresh();
 
@@ -2452,8 +2477,7 @@ const markSelectedMessagesAsRead = async () => {
   const selectedRows = messages.value.filter((message) => selectedMessageIds.value.has(message.id));
   const unreadRows = selectedRows.filter((message) => message.status === 'unread');
   if (unreadRows.length === 0) {
-    selectedMessageIds.value = new Set();
-    isSelectMode.value = false;
+    resetSelectMode();
     showFeedback('所选通知已经是已读', 'info');
     return;
   }
@@ -2486,8 +2510,7 @@ const markSelectedMessagesAsRead = async () => {
       }
     });
 
-    selectedMessageIds.value = new Set();
-    isSelectMode.value = false;
+    resetSelectMode();
     await triggerUnreadRefresh();
 
     if (failedRows.length === 0) {
@@ -2511,16 +2534,98 @@ const markSelectedMessagesAsRead = async () => {
 };
 
 // ─── 多选模式 ─────────────────────────────────────────────────────────────
+// ⚠️ 选择模式与详情面板必须互斥（plans/028，2026-10-18）：
+// ≥1024 下 onMounted 会自动打开首条详情 ⇒ `.detail-open` 常真；旧实现里底部动作条同时被
+// `v-if="isSelectMode && !selectedMessage"` 与
+// `@media (min-width:1024){ .detail-open .x-select-action-bar{display:none} }` 两道条件按死，
+// 而页头那套动作又永久 display:none ⇒ 选择模式下 0 个可点动作、也退不出去。
+// 现在：进模式即收详情，退出再恢复（移动端详情是全屏抽屉，不恢复）。
+const selectModeRestoreId = ref(null);
 
 const toggleActionsDropdown = () => {
   actionsDropdownOpen.value = !actionsDropdownOpen.value;
 };
 
-const toggleSelectMode = () => {
-  isSelectMode.value = !isSelectMode.value;
-  if (!isSelectMode.value) {
-    selectedMessageIds.value = new Set();
+const enterSelectMode = (msgId = null) => {
+  if (isSelectMode.value) return;
+  selectModeRestoreId.value = selectedMessage.value?.id || null;
+  isSelectMode.value = true;
+  if (selectedMessage.value) {
+    selectedMessage.value = null;
+    showOverlay.value = false;
   }
+  if (msgId) selectedMessageIds.value = new Set([msgId]);
+};
+
+const exitSelectMode = () => {
+  if (!isSelectMode.value) return;
+  isSelectMode.value = false;
+  selectedMessageIds.value = new Set();
+  const restoreId = selectModeRestoreId.value;
+  selectModeRestoreId.value = null;
+  if (!isMobile.value && restoreId) {
+    const row = filteredMessages.value.find((m) => m.id === restoreId);
+    if (row) selectedMessage.value = row;
+  }
+};
+
+/** 批量动作执行后的收口：不恢复详情（目标可能已被归档 / 移出当前分区） */
+const resetSelectMode = () => {
+  isSelectMode.value = false;
+  selectedMessageIds.value = new Set();
+  selectModeRestoreId.value = null;
+};
+
+const toggleSelectMode = () => (isSelectMode.value ? exitSelectMode() : enterSelectMode());
+
+const selectCountLabel = computed(() =>
+  selectedMessageCount.value > 0 ? `已选 ${selectedMessageCount.value} 条` : '未选择',
+);
+
+// 选择模式期间给 <body> 挂标记：手机横屏要把底栏让位给贴底动作条（bottom-nav.css 消费）。
+// KeepAlive 下切走 tab 不走 onUnmounted ⇒ activated / deactivated 也要同步，否则底栏会永久消失。
+const syncSelectModeBodyClass = (on) => {
+  document.body.classList.toggle('boh-messages-selecting', Boolean(on));
+};
+watch(isSelectMode, (on) => syncSelectModeBodyClass(on));
+onActivated(() => syncSelectModeBodyClass(isSelectMode.value));
+onDeactivated(() => syncSelectModeBodyClass(false));
+
+// ─── 长按 / 右键直接进选择模式（省掉「点选择 → 点行」两步） ────────────────
+const LONG_PRESS_MS = 450;
+let longPressTimer = null;
+let suppressClickUntil = 0;
+
+const cancelLongPress = () => {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+};
+
+const onItemPointerDown = (msg, event) => {
+  if (isSelectMode.value) return;
+  if (event?.pointerType === 'mouse') return;
+  cancelLongPress();
+  longPressTimer = setTimeout(() => {
+    longPressTimer = null;
+    suppressClickUntil = Date.now() + 700;
+    enterSelectMode(msg.id);
+    if (typeof navigator.vibrate === 'function') navigator.vibrate(8);
+  }, LONG_PRESS_MS);
+};
+
+const onItemContextMenu = (msg) => {
+  if (isSelectMode.value) return;
+  suppressClickUntil = Date.now() + 700;
+  enterSelectMode(msg.id);
+};
+
+const onItemClick = (msg) => {
+  // 长按 / 右键刚触发过：吞掉紧随其后的合成 click，否则会立刻把刚选中那条取消掉
+  if (Date.now() < suppressClickUntil) return;
+  if (isSelectMode.value) toggleMessageSelection(msg.id);
+  else showDetail(msg);
 };
 
 const toggleMessageSelection = (msgId) => {

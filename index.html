@@ -68,6 +68,51 @@
     <title>Block of Home</title>
 
     <!--
+      SEO / 分享预览基建（2026-10-17 全面审查 P1-4）
+      背景：此前 index.html 只有 <title>，没有 description / OG / canonical / robots ——
+      分享到微信、飞书、Discord 时一律是「一个裸链接」，搜索引擎也没有可用的摘要。
+      ⚠️ 口径与限制：
+        · 站点是 **hash 路由**（`/#/about` 这种），静态 HTML 只有一份。这里给的是
+          「整站级」元信息，不会随路由变化 —— 想让 /about、/newsroom 各自有标题和摘要，
+          需要预渲染（vite-plugin-ssg 或边缘侧渲染），那是中期项，不在本次范围内。
+        · canonical 指向站点根：hash 之后的路径对爬虫等价于同一个文档，逐个写 canonical
+          反而会被判为重复内容。
+        · og:image 暂时复用 PWA 图标（512×512，方形）。理想尺寸是 1200×630，
+          有正式分享图后替换这一行即可，其余标签不用动。
+    -->
+    <meta
+      name="description"
+      content="方块之家（Block of Home，BOH）是围绕《我的世界》的创作者社区：八周年时间线、论坛与摄影集、活动与抽奖，以及 BOH AI 助手。记录每一次开服、创作与相遇。"
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="author" content="Block of Home" />
+    <link rel="canonical" href="https://www.blockofhome.cn/" />
+
+    <!-- Open Graph（微信 / 飞书 / Discord / Telegram 的链接卡片） -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Block of Home" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="Block of Home · 方块之家" />
+    <meta
+      property="og:description"
+      content="围绕《我的世界》的创作者社区：八周年时间线、论坛与摄影集、活动与抽奖，以及 BOH AI 助手。"
+    />
+    <meta property="og:url" content="https://www.blockofhome.cn/" />
+    <meta property="og:image" content="https://www.blockofhome.cn/icons/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="Block of Home 图标" />
+
+    <!-- Twitter / X：方形图用 summary，别用 summary_large_image（会被裁成宽幅） -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Block of Home · 方块之家" />
+    <meta
+      name="twitter:description"
+      content="围绕《我的世界》的创作者社区：八周年时间线、论坛与摄影集、活动与抽奖，以及 BOH AI 助手。"
+    />
+    <meta name="twitter:image" content="https://www.blockofhome.cn/icons/icon-512.png" />
+
+    <!--
       首屏启动骨架（纯内联，零额外请求）
       背景：#app 原本是空的，应用壳（app-*.js + ui-components 等）下载执行期间，
       导航栏所在 chunk 先到就先渲染，主体区则是一片空白。这段骨架把那段窗口

@@ -2313,12 +2313,25 @@ onDeactivated(() => {
 });
 
 const isForumComposerFabVisible = computed(() => {
-  // 2026-10-05 定稿（用户口径）：FAB 只属于「内容」——只在首页 feed 分区
-  // （最新/关注/新闻/活动）露出；官方 Tab（view=official，ForumMain 被 v-if 卸载）
-  // 与底栏其它落点（我/消息/AI）一律不挂载，与 2026-09-22 首页社区化改版口径一致。
+  /* FAB 只属于「内容」——首页 feed 分区与 UserSpace 的「内容」tab 都算内容流，
+     官方/成员 tab 与底栏其它落点（我/消息/AI）一律不挂载。
+     ⚠️ 2026-10-19 修复「竖屏没有发帖入口」：c19a35dc 曾把 embedded 收成
+     `route.path === '/'`，依据是「UserSpace 不再承载社区」的旧 IA；plans/022 之后
+     UserSpace 又挂了同一份 embedded ForumMain，而模板里内嵌 PostComposer 是
+     `v-if="!isMobileComposerMode"` ⇒ 竖屏下既不渲染编辑器、FAB 又被路径挡掉，
+     整页没有任何发帖入口（横屏有内嵌编辑器所以一直没暴露）。 */
   if (!isRouteInstanceActive.value) return false;
   if (!isMobileComposerMode.value || feedMode.value !== 'posts') return false;
   if (!props.embedded) return true;
+  if (route.path === '/user-space') {
+    /* 分区壳是 v-show 常驻：其它 tab 下 ForumMain 也 mounted，只有「内容/方块」tab
+       真正可见时才露，否则会从 v-show 后面钻出第二个 + 号。
+       无 tab 参数 = 默认进方块 tab（useUserSpaceTabs initialTab='community'），同样算可见。
+       这里**不再判 view**：本实例只在 feed 分区被 v-if 挂载（ForumSectionShell），
+       能渲染就已经是「最新/关注/新闻/活动」之一。 */
+    const tab = getQueryString(route.query.tab);
+    return tab === '' || tab === 'community';
+  }
   if (route.path !== '/') return false;
   const view = getQueryString(route.query.view);
   return view === '' || isForumFeedSection(view);
@@ -2343,6 +2356,16 @@ const focusForumSearch = () => {
 
 // ✨ 新增：取消确认逻辑（询问是否保存草稿）
 const closeMobileComposer = async () => {
+  /* ⚠️ 会话没开时必须是纯 no-op（2026-10-18 用户报障：点左栏「内容」/底栏「我的」无故弹
+     「保存草稿」，而编辑器从未打开）。
+     真因：外层闸门 dismissComposerSession() 对**每一次导航**都无条件调本函数，而本函数只
+     看 hasUnsavedChanges() —— 那是「编辑器里有没有字」，不是「有没有正在编辑的会话」。
+     restorePostDraft() 在 mount / 登录 / 换账号时会把本地或云端草稿回填进 newPost（设计如此，
+     好让下次打开编辑器接着写），于是**只要存过草稿，newPost 就长期非空** ⇒ 每次点导航都被
+     当成「用户正在离开编辑器」而弹确认；选「保存」还会原样再存一次，永远解不掉。
+     同一份语义在 handleBeforeUnload 里已经写对了（`!isMobileComposerOpen.value ||` 短路），
+     这里补齐即可。会话状态真源仍是 isMobileComposerOpen，别改成看 newPost。 */
+  if (!isMobileComposerOpen.value) return;
   // 检查是否有未保存的内容
   if (hasUnsavedChanges()) {
     // 弹出确认框询问是否保存草稿
@@ -2678,9 +2701,8 @@ watch(
   },
 );
 
-// 帖子列表预览：保留用户原始排版，溢出交给 CSS 控制。
-const LIST_BODY_PREVIEW_CHAR_LIMIT = 180;
-const LIST_BODY_PREVIEW_LINE_LIMIT = 5;
+// 帖子列表预览：保留用户原始排版，溢出交给 CSS 控制（5 行 max-height）。
+// 「...」是否出现由 PostCard 实测（P2-4），这里不再做字数/行数估算。
 
 const extractPostTitle = (postOrContent) => {
   if (postOrContent && typeof postOrContent === 'object') {
@@ -2713,11 +2735,9 @@ const extractPostBody = (postOrContent) => {
   return stripLegacyTitlePrefix(String(rawContent || '').replace(/【.*?】\n?/, ''), title);
 };
 
-const isBodyPreviewOverflowLikely = (content = '') => {
-  const text = String(content || '');
-  if (text.length > LIST_BODY_PREVIEW_CHAR_LIMIT) return true;
-  return text.split(/\r\n|\r|\n/).length > LIST_BODY_PREVIEW_LINE_LIMIT;
-};
+/* `isBodyPreviewOverflowLikely` 已删除（2026-10-17 P2-4）：按字数/行数估算「会不会溢出」
+   与 CSS 的 5 行 max-height 不同源，边界处文字被静默切断在句中、连省略号都没有。
+   「...」的判定改在 PostCard 内实测 `scrollHeight > clientHeight`（与 CSS 同一条约束）。 */
 
 const getPostImages = (post) => {
   const images = Array.isArray(post?.images) ? post.images.filter((image) => image?.url) : [];
@@ -2812,7 +2832,9 @@ const prepareForumPostForDisplay = (post, index = 0) => {
       ? '转发动态'
       : extractPostTitle(preparedPost);
   preparedPost.displayBody = extractPostBody(preparedPost);
-  preparedPost.isBodyOverflowLikely = isBodyPreviewOverflowLikely(preparedPost.displayBody);
+  // ⚠️ `isBodyOverflowLikely` 已删除（2026-10-17 P2-4）：「...」是否出现改由 PostCard
+  // 实测 `scrollHeight > clientHeight`（与 CSS 的 5 行 max-height 同源）。
+  // 这里的字数/行数估算会漏判 —— 估算说「不超」但实际折行更多时，文字被静默切断在句中。
   preparedPost.tag = normalizeForumTagValue(preparedPost.tag);
   preparedPost.tagLabel = ['news', 'activity'].includes(preparedPost.post_kind)
     ? ''

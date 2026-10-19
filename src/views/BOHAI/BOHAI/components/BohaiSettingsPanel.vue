@@ -23,7 +23,13 @@
                设置不再是浮在对话上的居中抽屉，而是一个**全屏设置页** ——
                左边是设置自己的分组导航（含「返回应用」与搜索），右边是内容。
                因此打开设置时会话侧栏与全局左栏不再叠在它上面（见 BOHAIMain）。 -->
-          <aside class="ai-settings-nav" aria-label="设置分区">
+          <aside
+            ref="navEl"
+            class="ai-settings-nav"
+            :class="{ 'is-lead': navFade.lead, 'is-tail': navFade.tail }"
+            aria-label="设置分区"
+            @scroll.passive="updateNavFade"
+          >
             <button type="button" class="ai-settings-back-app" @click="close">
               <ArrowLeft :size="16" aria-hidden="true" />
               <span>返回应用</span>
@@ -1171,7 +1177,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   ArrowLeft,
@@ -1341,6 +1347,34 @@ const drawerRef = ref(null);
 const titleRef = ref(null);
 const closeBtnRef = ref(null);
 const usageCardRef = ref(null);
+
+/* ── 竖屏导航行「横滑渐隐」提示（2026-10-17 P3-4）──────────────────────────
+   ≤768 时 `.ai-settings-nav` 是横滑行，7 个分区 tab 要滑 4 项 —— 没有任何视觉提示，
+   手机上不知道右侧还有 tab。这里按 scrollLeft 实时维护 `is-lead` / `is-tail` 两个类，
+   CSS 在对应边缘画 26px mask 渐隐（试过 wrap：导航被「返回应用」挤到 194px 高，弃）。
+   仅竖屏样式消费这两个类；桌面布局不滚动、两侧类恒为 false，mask 不生效。 */
+const navEl = ref(null);
+const navFade = reactive({ lead: false, tail: false });
+const updateNavFade = () => {
+  const el = navEl.value;
+  if (!el) return;
+  const max = el.scrollWidth - el.clientWidth;
+  navFade.lead = el.scrollLeft > 2;
+  navFade.tail = el.scrollLeft < max - 2;
+};
+/* 面板常驻挂载（抽屉 v-show 控制）⇒ 只在 onMounted 量一次会在「抽屉隐藏、宽为 0」时量空。
+   打开（modelValue 变 true）与窗口尺寸变化都要重测。 */
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) nextTick(updateNavFade);
+  },
+  { immediate: true },
+);
+onMounted(() => {
+  nextTick(updateNavFade);
+  window.addEventListener('resize', updateNavFade, { passive: true });
+});
 
 const filteredNavGroups = computed(() => {
   const keyword = navQuery.value.trim().toLowerCase();
@@ -1803,6 +1837,7 @@ watch(
 onUnmounted(() => {
   focusRestore = null;
   if (scrollRaf) cancelAnimationFrame(scrollRaf);
+  window.removeEventListener('resize', updateNavFade);
 });
 </script>
 
@@ -2549,6 +2584,20 @@ onUnmounted(() => {
     flex-direction: column;
   }
 
+  /* 竖屏抽屉转纵向 flex 后，main 若缺 min-height:0 会被内容撑高，
+     body（flex:1 + min-height:0 + overflow-y:auto）拿不到受限高度 ⇒
+     整条滚动链断裂、下半部分分区不可达（2026-10-13 报告 A1 / 2026-10-17 复测确认）。
+     这一行是整条链的关键节点，别删。 */
+  .ai-settings-main {
+    min-height: 0;
+  }
+
+  /* 2026-10-17（P3-4）：7 个分区 tab 在 390 下需要横滑 4 项且无任何提示。
+     试过 wrap：因「返回应用」占掉首行宽度，列表折成 3~4 行、导航高 194px，比横滑更糟 ⇒ 弃。
+     改为**滚动渐隐提示**：`is-tail`（右侧还有）/ `is-lead`（左侧还有）由脚本按
+     scrollLeft 实时切换，mask 只在对应边缘画 26px 渐隐 —— 不占布局高度。
+     「返回应用」此前继承桌面的 `width: 100%` ⇒ 在横排里被挤成箭头宽、文字竖排折行，
+     收成与 tab 同级的紧凑 pill（这条与渐隐无关，单独成立）。 */
   .ai-settings-nav {
     width: 100%;
     flex-direction: row;
@@ -2558,6 +2607,32 @@ onUnmounted(() => {
     padding: 10px 12px;
     border-right: 0;
     border-bottom: 1px solid var(--ai-border);
+  }
+
+  .ai-settings-nav.is-tail {
+    -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent);
+    mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 26px), transparent);
+  }
+  .ai-settings-nav.is-lead {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 26px, #000 100%);
+    mask-image: linear-gradient(90deg, transparent, #000 26px, #000 100%);
+  }
+  .ai-settings-nav.is-lead.is-tail {
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent,
+      #000 26px,
+      #000 calc(100% - 26px),
+      transparent
+    );
+    mask-image: linear-gradient(90deg, transparent, #000 26px, #000 calc(100% - 26px), transparent);
+  }
+
+  /* 「返回应用」收成紧凑 pill（修复竖排折行） */
+  .ai-settings-back-app {
+    width: auto;
+    flex: none;
+    white-space: nowrap;
   }
 
   .ai-settings-nav-group,

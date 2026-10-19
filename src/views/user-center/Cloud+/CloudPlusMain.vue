@@ -505,202 +505,230 @@
               <span class="public-notes-pill-action">去管理 ›</span>
             </button>
 
-            <div v-if="isComposerOpen" class="composer-overlay" @click.self="closeComposer">
-              <section class="composer-card composer-panel">
-                <button
-                  type="button"
-                  class="detail-close composer-close"
-                  aria-label="关闭新建面板"
-                  @click="closeComposer"
+            <!-- 发布面板（2026-10-18 重构）
+                 设计口径：
+                   · 按钮从 12 个收到 4 个：关闭 / 图片 / 心情 / 发布。
+                     「心情」是折叠开关，9 个情绪胶囊只在展开时出现（竖屏曾占 3 行 117px）。
+                     装饰性 chip（Cloud+ Draft / Memo Layout / N 张图片 / N 字符）全部删除 ——
+                     其中两项与输入区计数重复，另两项是英文占位文案、不承载任何操作。
+                   · 材质走全局 `.liquid-glass`（与底栏/设置卡/论坛发帖器同一套 token），
+                     外面压一层 scrim；不再是不透明白底全屏。
+                   · 布局：竖屏底部抽屉（贴底 + 上圆角）、宽屏居中对话框；
+                     `max-height` 用 dvh 且扣掉 --kb-inset（键盘高度，全站单一真源），
+                     正文区自己滚、底栏常驻 ⇒ 横屏 844×390 下发布按钮不再跑到屏幕外。 -->
+            <Transition name="cloud-composer">
+              <div v-if="isComposerOpen" class="composer-overlay" @click.self="closeComposer">
+                <section
+                  class="composer-panel liquid-glass"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="cloud-composer-title"
                 >
-                  ×
-                </button>
-                <div class="composer-topline">
-                  <div>
-                    <span class="section-kicker">Create Entry</span>
-                    <h3>{{ composerTitle }}</h3>
-                    <p class="composer-intro">{{ composerIntro }}</p>
-                  </div>
-                  <div class="composer-meta">{{ todayDisplay }}</div>
-                </div>
-
-                <div class="editor-shell">
-                  <div class="editor-ribbon">
-                    <span class="editor-chip strong">Cloud+ Draft</span>
-                    <span class="editor-chip">Memo Layout</span>
-                    <span class="editor-chip">{{ uploadedImages.length }} 张图片</span>
-                    <span class="editor-chip">{{ draftText.trim().length }} 字符</span>
-                  </div>
-
-                  <div class="editor-page">
-                    <div class="editor-page-head">
-                      <div class="editor-page-meta">
-                        <span>Personal Memo</span>
-                        <span>{{ todayDisplay }}</span>
-                      </div>
-                      <div class="editor-page-status">
-                        {{
-                          draftMood ? `${selectedMoodMeta?.icon || ''} ${draftMood}` : '未标注情绪'
-                        }}
-                      </div>
+                  <header class="composer-head">
+                    <div class="composer-head-text">
+                      <h3 id="cloud-composer-title">发布新内容</h3>
+                      <p class="composer-sub">{{ composerSubtitle }}</p>
                     </div>
+                    <button
+                      type="button"
+                      class="composer-close"
+                      aria-label="关闭发布面板"
+                      @click="closeComposer"
+                    >
+                      <X :size="18" :stroke-width="2.2" aria-hidden="true" />
+                    </button>
+                  </header>
 
+                  <div class="composer-body">
                     <input
                       v-model.trim="draftTitle"
                       type="text"
-                      class="title-input"
+                      class="composer-title-input"
                       maxlength="120"
                       placeholder="标题"
                     />
 
-                    <div class="editor-divider"></div>
-
                     <textarea
+                      ref="draftTextareaRef"
                       v-model="draftText"
-                      class="text-input"
-                      rows="8"
-                      placeholder="记录今天的心情..."
+                      class="composer-text-input"
+                      rows="5"
+                      placeholder="记录今天的心情…"
                       @keydown.meta.enter.prevent="publishEntry"
                       @keydown.ctrl.enter.prevent="publishEntry"
-                    />
-                  </div>
+                    ></textarea>
+                    <p v-if="draftText.length" class="composer-counter">
+                      {{ draftText.length }} 字
+                    </p>
 
-                  <div class="composer-toolbar">
-                    <div class="mood-row">
-                      <button
-                        type="button"
-                        class="mood-pill clear"
-                        :class="{ active: !draftMood }"
-                        @click="draftMood = ''"
+                    <!-- 心情抽屉：默认收起，点底栏「心情」展开。用行内展开而不是绝对定位浮层 ——
+                         窄屏 + 短横屏下浮层容易被面板的 contain: paint 裁掉。
+                         开合走高度 + 透明度过渡（css 见 .cp-tray-*）：生硬地 v-if 会让
+                         一整片胶囊突然砸下来。 -->
+                    <Transition name="cp-tray">
+                      <div
+                        v-if="isMoodTrayOpen"
+                        class="mood-tray"
+                        role="radiogroup"
+                        aria-label="记录心情"
                       >
-                        不标注
-                      </button>
-                      <button
-                        v-for="mood in moodChoices"
-                        :key="mood.value"
-                        type="button"
-                        class="mood-pill"
-                        :class="{ active: draftMood === mood.value }"
-                        @click="draftMood = mood.value"
-                      >
-                        <span>{{ mood.icon }}</span>
-                        <span>{{ mood.value }}</span>
-                      </button>
-                    </div>
-
-                    <div class="toolbar-actions">
-                      <input
-                        ref="imageInputRef"
-                        type="file"
-                        class="hidden-file-input"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        multiple
-                        @change="handleImageSelection"
-                      />
-                      <button
-                        type="button"
-                        class="secondary-btn"
-                        :disabled="cloudState.upload.uploading"
-                        @click="openImagePicker"
-                      >
-                        <span v-if="cloudState.upload.uploading" class="btn-spinner"></span>
-                        {{
-                          cloudState.upload.uploading
-                            ? `上传中 ${cloudState.upload.progress}%`
-                            : '添加图片'
-                        }}
-                      </button>
-                      <button
-                        v-if="cloudState.upload.uploading"
-                        type="button"
-                        class="ghost-link upload-cancel-btn"
-                        @click="cancelUpload"
-                      >
-                        取消上传
-                      </button>
-                      <button
-                        v-if="cloudState.upload.failedImages.length"
-                        type="button"
-                        class="secondary-btn retry-btn"
-                        @click="retryFailedUploads"
-                      >
-                        重试上传 ({{ cloudState.upload.failedImages.length }})
-                      </button>
-                      <button
-                        type="button"
-                        class="primary-btn"
-                        :disabled="
-                          cloudState.publish.publishing ||
-                          (!draftText.trim() && uploadedImages.length === 0)
-                        "
-                        @click="publishEntry"
-                      >
-                        {{ cloudState.publish.publishing ? '发布中...' : publishButtonLabel }}
-                      </button>
-                    </div>
-
-                    <!-- 上传进度条 -->
-                    <div v-if="cloudState.upload.uploading" class="upload-progress-bar">
-                      <div class="upload-progress-track">
-                        <div
-                          class="upload-progress-fill"
-                          :style="{ width: `${cloudState.upload.progress}%` }"
-                        ></div>
+                        <button
+                          type="button"
+                          class="mood-chip"
+                          :class="{ active: !draftMood }"
+                          @click="draftMood = ''"
+                        >
+                          不标注
+                        </button>
+                        <button
+                          v-for="mood in moodChoices"
+                          :key="mood.value"
+                          type="button"
+                          class="mood-chip"
+                          :class="{ active: draftMood === mood.value }"
+                          :aria-checked="draftMood === mood.value"
+                          role="radio"
+                          @click="draftMood = draftMood === mood.value ? '' : mood.value"
+                        >
+                          <span aria-hidden="true">{{ mood.icon }}</span>
+                          {{ mood.value }}
+                        </button>
                       </div>
-                      <p class="upload-progress-text">
-                        正在上传 {{ cloudState.upload.currentFile || '图片' }}...
-                      </p>
-                    </div>
+                    </Transition>
 
-                    <!-- 上传失败的图片提示 -->
-                    <div
-                      v-if="cloudState.upload.failedImages.length && !cloudState.upload.uploading"
-                      class="upload-failed-notice"
-                    >
-                      <p>以下图片上传失败：</p>
-                      <ul>
-                        <li v-for="failed in cloudState.upload.failedImages" :key="failed.name">
-                          {{ failed.name }} - {{ failed.error }}
-                        </li>
-                      </ul>
-                      <button type="button" class="secondary-btn" @click="retryFailedUploads">
-                        重新上传
-                      </button>
-                    </div>
+                    <!-- 已选图片：整条横滚动。新上传进来的缩略图逐个淡入（TransitionGroup），
+                         不做过位动画 —— 「逐格错峰/FLIP」在相册网格上已被 2026-10-02 的
+                         性能报障否掉，这里只有 3~9 个小图，淡入即可。 -->
+                    <Transition name="cp-strip">
+                      <div v-if="uploadedImages.length" class="upload-strip">
+                        <TransitionGroup name="cp-thumb">
+                          <div v-for="image in uploadedImages" :key="image.url" class="upload-card">
+                            <img
+                              :src="getCloudImageDisplayUrl(image.url)"
+                              :alt="image.alt || '上传图片'"
+                              class="upload-thumb"
+                              loading="lazy"
+                            />
+                            <button
+                              type="button"
+                              class="remove-image-btn"
+                              aria-label="移除这张图片"
+                              @click="removeDraftImage(image.url)"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </TransitionGroup>
+                      </div>
+                    </Transition>
+
+                    <Transition name="cp-status">
+                      <div v-if="cloudState.upload.uploading" class="composer-status">
+                        <div class="composer-status-track" aria-hidden="true">
+                          <div
+                            class="composer-status-fill"
+                            :style="{ width: `${cloudState.upload.progress}%` }"
+                          ></div>
+                        </div>
+                        <span class="composer-status-text">
+                          {{ cloudState.upload.phase === 'compressing' ? '压缩中' : '上传中' }}
+                          {{ cloudState.upload.progress }}%
+                        </span>
+                        <button type="button" class="composer-text-btn" @click="cancelUpload">
+                          取消
+                        </button>
+                      </div>
+                    </Transition>
+
+                    <!-- 上传失败：**必须把原因写出来**。改造前这里只有「N 张图片上传失败」，
+                         真实原因（限流 / 未登录 / 目录不合法 / 网络）被丢在岛里 ——
+                         用户报障「为啥还有图片上传失败也不显示原因」即此。 -->
+                    <Transition name="cp-status">
+                      <div
+                        v-if="!cloudState.upload.uploading && cloudState.upload.failedImages.length"
+                        class="composer-status is-error"
+                        role="alert"
+                      >
+                        <div class="composer-failed">
+                          <strong class="composer-failed-title">
+                            {{ cloudState.upload.failedImages.length }} 张图片上传失败
+                          </strong>
+                          <ul class="composer-failed-list">
+                            <li v-for="failed in failedUploadItems" :key="failed.name">
+                              <span class="composer-failed-name">{{ failed.name }}</span>
+                              <span class="composer-failed-reason">{{ failed.error }}</span>
+                            </li>
+                            <li
+                              v-if="
+                                cloudState.upload.failedImages.length > failedUploadItems.length
+                              "
+                              class="composer-failed-more"
+                            >
+                              另有
+                              {{ cloudState.upload.failedImages.length - failedUploadItems.length }}
+                              张同样原因失败
+                            </li>
+                          </ul>
+                        </div>
+                        <button type="button" class="composer-text-btn" @click="retryFailedUploads">
+                          重试
+                        </button>
+                      </div>
+                    </Transition>
                   </div>
-                </div>
 
-                <div v-if="uploadedImages.length" class="upload-strip">
-                  <div v-for="image in uploadedImages" :key="image.url" class="upload-card">
-                    <img
-                      :src="getCloudImageDisplayUrl(image.url)"
-                      :alt="image.alt || '上传图片'"
-                      class="upload-thumb"
-                      loading="lazy"
+                  <footer class="composer-foot">
+                    <input
+                      ref="imageInputRef"
+                      type="file"
+                      class="hidden-file-input"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      multiple
+                      @change="handleImageSelection"
                     />
                     <button
                       type="button"
-                      class="remove-image-btn"
-                      @click="removeDraftImage(image.url)"
+                      class="composer-tool"
+                      :disabled="cloudState.upload.uploading"
+                      @click="openImagePicker"
                     >
-                      ×
+                      <ImagePlus :size="18" :stroke-width="1.9" aria-hidden="true" />
+                      <span>图片</span>
+                      <span v-if="uploadedImages.length" class="composer-tool-count">{{
+                        uploadedImages.length
+                      }}</span>
                     </button>
-                  </div>
-                </div>
+                    <button
+                      type="button"
+                      class="composer-tool"
+                      :class="{ 'is-on': Boolean(draftMood) }"
+                      :aria-expanded="isMoodTrayOpen ? 'true' : 'false'"
+                      @click="toggleMoodTray"
+                    >
+                      <Smile :size="18" :stroke-width="1.9" aria-hidden="true" />
+                      <span>{{
+                        draftMood ? `${selectedMoodMeta?.icon || ''} ${draftMood}` : '心情'
+                      }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="composer-submit"
+                      :disabled="
+                        cloudState.publish.publishing ||
+                        (!draftText.trim() && uploadedImages.length === 0)
+                      "
+                      @click="publishEntry"
+                    >
+                      {{ cloudState.publish.publishing ? '发布中…' : '发布' }}
+                    </button>
+                  </footer>
+                </section>
+              </div>
+            </Transition>
 
-                <p class="composer-hint">
-                  {{
-                    draftMood
-                      ? `当前心情：${selectedMoodMeta?.icon || ''}${draftMood}`
-                      : '可以只写文字，也可以只上传图片。'
-                  }}
-                  <span class="composer-hint-sep">/</span>
-                  Cmd/Ctrl + Enter 可直接发布
-                </p>
-              </section>
-            </div>
-
-            <div v-if="noticeText" class="notice-bar">{{ noticeText }}</div>
+            <Transition name="cp-status">
+              <div v-if="noticeText" class="notice-bar">{{ noticeText }}</div>
+            </Transition>
 
             <!-- 手势宿主：捏合改列数（仿 iOS 图库），列数经 CSS 变量下发给网格。
                  touchmove 必须是**非 passive** 才能在两指时 preventDefault 掉浏览器缩放
@@ -973,14 +1001,16 @@ import { computed, ref, watch, onMounted, onUnmounted, reactive } from 'vue';
 import { useDebounce } from '@/composables/useDebounceThrottle';
 import { storeToRefs } from 'pinia';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
-import { ChevronDown, Cloud, Search } from 'lucide-vue-next';
+import { ChevronDown, Cloud, ImagePlus, Search, Smile, X } from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import CloudStorageBar from './CloudStorageBar.vue';
+import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 import { useAuthStore } from '@/stores/auth';
 import { moodChoices, getMoodMeta } from './config.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import {
   uploadImageToCloudinary,
+  assertCloudinaryUploadAllowed,
   isCloudinaryNoteUploadConfigured,
   deleteCloudinaryAssetByToken,
   supportsCloudinaryClientDeleteToken,
@@ -1006,7 +1036,10 @@ import {
   revokeMyCloudShareToken,
   setMyCloudShareDescription,
   upsertMyCloudShareChannel,
+  CLOUD_PLUS_UPLOAD_SOURCE,
+  CLOUD_PLUS_CLOUDINARY_FOLDER,
 } from '@/utils/api/boh-cloud-api.js';
+import { normalizeDbError } from '@/utils/request-core.js';
 import { serializeCloudTextAndImages, cloudEntryDefaultTitle } from '@/utils/boh-cloud-content.js';
 import {
   computeCloudStorageAccounting,
@@ -1024,7 +1057,7 @@ import {
   createUserSpaceProfileReturnLocation,
   resolveSettingsBackLocation,
 } from '@/utils/user-space-navigation.js';
-import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { isDialogBusy, useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { showIsland } from '@/composables/useIsland.js';
 
 const router = useRouter();
@@ -1087,6 +1120,8 @@ const cloudState = reactive({
   },
   upload: {
     uploading: false,
+    // 'compressing' | 'uploading' —— 压缩与上传共用一根进度条，阶段只决定文案
+    phase: 'uploading',
     progress: 0,
     currentFile: null,
     failedImages: [],
@@ -1124,6 +1159,9 @@ const isPublishing = computed(() => cloudState.publish.publishing);
 const isUploadingImages = computed(() => cloudState.upload.uploading);
 const currentFilter = ref('all');
 const isComposerOpen = ref(false);
+/* 心情抽屉默认收起（2026-10-18）：9 个情绪胶囊常驻时在竖屏要占 3 行 117px，
+   而绝大多数条目根本不标心情 —— 收进一个开关里，用的时候才展开。 */
+const isMoodTrayOpen = ref(false);
 const isFilterPanelOpen = ref(false);
 const cloudinaryCleanupLocks = new Set();
 let uploadAttemptTimestamps = [];
@@ -1176,7 +1214,15 @@ const filterOptions = [
 ];
 
 const selectedMoodMeta = computed(() => getMoodMeta(draftMood.value));
-const todayDisplay = computed(() => formatDisplayDate(new Date()));
+
+/* 正文「多字扩展」走全站单一实现（composables/useAutoGrowTextarea.js）。
+   改造前这里是固定 `rows="8"`：写长了框内滚动、写短了留一大片空白，
+   而站内其余输入框（论坛回复 / 详情评论 / 发帖标题）早已收敛到该 composable。
+   ⚠️ 上限只声明在 CSS 的 `.composer-text-input { max-height }`，JS 不写第二份像素值；
+   传 getter 而不是 `() => unref(draftText)` —— 后者让 watcher 依赖恒为同一函数、永不触发。 */
+const { textareaRef: draftTextareaRef } = useAutoGrowTextarea({
+  value: () => draftText.value,
+});
 const cloudTab = computed(() => {
   const view = String(route.query.view || route.query.mode || '').trim();
   if (['settings', 'share'].includes(view)) return view;
@@ -1203,9 +1249,13 @@ watch(cloudTab, () => {
     isViewEntering.value = false;
   }, 320);
 });
-const composerTitle = computed(() => '发布新内容');
-const composerIntro = computed(() => '像写一页备忘录一样记录今天，让文字和图片自然排版。');
-const publishButtonLabel = computed(() => '发布到 Cloud+');
+/* 副标题只说一件用户真正会犹豫的事（要不要写标题 / 能不能只发图），
+   不再复述「像写一页备忘录一样记录今天」这类比喻文案。 */
+const composerSubtitle = computed(() =>
+  uploadedImages.value.length
+    ? '可以只发图片，标题和正文都可以留空。'
+    : '只写文字也可以，标题不是必填。',
+);
 const cloudBottomNavItems = [
   { id: 'content', label: '内容' },
   { id: 'share', label: '分享' },
@@ -1734,12 +1784,61 @@ function resetGalleryFilters() {
   currentFilter.value = 'all';
 }
 
+/* 面板里有没有「会丢的东西」——关窗/点遮罩时用它决定要不要先问一句。
+   只看用户可见的三类输入，不看上传状态（上传中的图还没进草稿，取消按钮自己会提示）。 */
+const hasComposerDraft = computed(
+  () =>
+    Boolean(draftTitle.value.trim()) ||
+    Boolean(draftText.value.trim()) ||
+    uploadedImages.value.length > 0,
+);
+
+/* 失败清单最多列 4 条（每条 = 文件名 + 真实原因）。
+   取 4 而不是全量：一次最多 9 张，全列会把正文区挤爆；零星失败时 4 条足够定位问题，
+   第 5 条起折叠成一行「另有 N 张同样原因失败」。 */
+const FAILED_LIST_LIMIT = 4;
+const failedUploadItems = computed(() =>
+  cloudState.upload.failedImages.slice(0, FAILED_LIST_LIMIT),
+);
+
 function openComposer() {
   isComposerOpen.value = true;
+  // 每次打开都从「收起」起步：上次留着的展开态会让面板一开就长一截
+  isMoodTrayOpen.value = false;
 }
 
-function closeComposer() {
+function toggleMoodTray() {
+  isMoodTrayOpen.value = !isMoodTrayOpen.value;
+}
+
+/**
+ * 关闭发布面板。
+ *
+ * 2026-10-18 之前这里是 `isComposerOpen.value = false` 一行 —— 点 × 或点遮罩，
+ * 写了一半的正文、标题、已上传的图片**全部静默丢弃**（图片还留在 Cloudinary 上成为孤儿）。
+ * 现在有内容时先问一次；`publishEntry` 成功后走的是直接置 false，不弹这一问。
+ */
+async function closeComposer() {
+  if (cloudState.publish.publishing) return;
+  if (hasComposerDraft.value) {
+    let confirmed = false;
+    try {
+      confirmed = await dialog.confirm({
+        title: '放弃这次编辑？',
+        message: '还没有发布的内容不会保留。',
+        tone: 'warning',
+        confirmText: '放弃',
+        cancelText: '继续编辑',
+      });
+    } catch (error) {
+      // 弹窗互斥（连点 × 两次）时按「用户取消」处理，不要把 rejection 冒泡成错误日志
+      if (isDialogBusy(error)) return;
+      throw error;
+    }
+    if (!confirmed) return;
+  }
   isComposerOpen.value = false;
+  isMoodTrayOpen.value = false;
 }
 
 function toggleFilterPanel() {
@@ -2502,11 +2601,30 @@ async function handleImageSelection(event) {
   cloudState.upload.uploading = true;
   cloudState.upload.progress = 0;
   const totalFiles = files.length;
-  let settledCount = 0;
   let aborted = false;
   // 按下标落位：并发下「完成顺序」≠「选图顺序」，直接 push 会让相册里的照片顺序乱掉
   const uploadedByIndex = new Array(totalFiles).fill(null);
   const failedByIndex = new Array(totalFiles).fill(null);
+
+  try {
+    // 额度预检：与论坛链路同一套做法（forum-images-api 显式 preflight + skipUploadPreflight）。
+    // Cloud+ 改造前**不传 source**，落到 'generic' 桶 —— 这个桶与装修台等路径共用限流计数，
+    // 互相挤占；而且它读的是 pending 表，Cloud+ 以前不登记 pending，等于既挤占别人又不记账。
+    await assertCloudinaryUploadAllowed({ source: CLOUD_PLUS_UPLOAD_SOURCE });
+  } catch (preflightError) {
+    cloudState.upload.uploading = false;
+    cloudState.upload.progress = 0;
+    // 整批未开始：把原因写进失败列表，用户端能看到「为什么发不出去」
+    const reason = normalizeDbError(preflightError, '图片上传暂不可用，请稍后再试');
+    cloudState.upload.failedImages = files.map((file) => ({
+      file,
+      name: file.name,
+      error: reason?.message || '图片上传暂不可用，请稍后再试',
+    }));
+    showNotice(reason?.message || '图片上传暂不可用，请稍后再试');
+    if (input) input.value = '';
+    return;
+  }
 
   // 并发池：与论坛发帖 / 影集上传同一个上限真源（cloud-upload-guard.js）。
   // 改造前是 `for (const file of files)` 纯串行，9 张图 = 9 次串行上传。
@@ -2518,6 +2636,26 @@ async function handleImageSelection(event) {
     drainResolve = resolve;
   });
 
+  // 并发池内的真实进度：**压缩占前一半、上传占后一半**。
+  // 压缩走 browser-image-compression 的 onProgress（0~100），上传走 XHR upload 事件（0~100），
+  // 各按 0.5 加权 —— 只看上传进度的话，压缩大图的那几秒进度条会一动不动，
+  // 用户分不清「在干活」还是「卡死了」。不压缩的文件压缩段直接记满 100。
+  const compressPctByIndex = new Array(totalFiles).fill(100);
+  const uploadPctByIndex = new Array(totalFiles).fill(0);
+  const syncProgress = () => {
+    const totalProgress = files.reduce(
+      (sum, _file, index) =>
+        sum + (compressPctByIndex[index] || 0) * 0.5 + (uploadPctByIndex[index] || 0) * 0.5,
+      0,
+    );
+    cloudState.upload.progress = Math.min(100, Math.round(totalProgress / totalFiles));
+    // 阶段文案：只要还有图在压缩段，就报「压缩中」，全部进入上传段才报「上传中」
+    const stillCompressing = compressPctByIndex.some(
+      (pct, index) => pct < 100 && !uploadedByIndex[index],
+    );
+    cloudState.upload.phase = stillCompressing ? 'compressing' : 'uploading';
+  };
+
   const pump = () => {
     while (activeCount < concurrency && queue.length) {
       const runJob = queue.shift();
@@ -2526,8 +2664,7 @@ async function handleImageSelection(event) {
         .catch(() => {})
         .finally(() => {
           activeCount -= 1;
-          settledCount += 1;
-          cloudState.upload.progress = Math.round((settledCount / totalFiles) * 100);
+          syncProgress();
           if (queue.length || activeCount) pump();
           else drainResolve();
         });
@@ -2545,10 +2682,59 @@ async function handleImageSelection(event) {
         cloudState.upload.currentFile = file.name;
 
         try {
-          // 传入 signal：用户点取消时真正中止在途 HTTP 上传，而不是只重置 UI 状态让请求继续跑到超时
-          const uploaded = await uploadImageToCloudinary(file, {
-            signal: uploadController.signal,
+          /* ── 压缩 / 优化：与论坛发帖、影集编辑器同一条管线（单一真源 image-compression.js）──
+             改造前 Cloud+ 是**原图直传**（只挡 10MB / 8192px / 25MP 硬限），iPhone 实拍 3~5MB
+             一张，9 张图要传 30MB+。论坛口径 `optimizeForUpload: true`：超过 2MB / 2048px 就
+             优化成 ≤2MB 的 WebP（展示端 Cloudinary 走 f_auto，源图格式无关紧要）。
+             ⚠️ 若产品哪天要求「备份保留原图」，把 optimizeForUpload 改成 false 即可 ——
+             那样只有超过硬限的图才会被压缩。 */
+          const { getImageCompressionPlan, compressImageFileToUploadLimit, formatImageFileSize } =
+            await import('@/utils/image-compression.js');
+          const plan = await getImageCompressionPlan(file, {
+            optimizeForUpload: true,
           });
+          let payload = file;
+          if (plan.shouldCompress) {
+            if (!plan.canCompress) {
+              // GIF 动图不可压缩（会丢帧），超限时给出与论坛同款的可读文案
+              throw new Error(
+                '图片超过上传限制，且当前格式不支持自动压缩，请换成 JPG、PNG 或 WebP 后重试',
+              );
+            }
+            payload = await compressImageFileToUploadLimit(file, plan, {
+              signal: uploadController.signal,
+              onProgress: (percent) => {
+                compressPctByIndex[index] = Math.max(
+                  compressPctByIndex[index],
+                  Number(percent) || 0,
+                );
+                syncProgress();
+              },
+            });
+            // 与论坛同款二次校验：压缩库偶发压不到目标体积时，宁可让用户手动压也别脏数据
+            if (Number(payload.size || 0) > Number(plan.maxSizeBytes || 0)) {
+              throw new Error(
+                `压缩后仍超过限制（${formatImageFileSize(payload.size)}），请手动压缩后再上传`,
+              );
+            }
+          }
+          compressPctByIndex[index] = 100;
+          syncProgress();
+
+          // 传入 signal：用户点取消时真正中止在途 HTTP 上传，而不是只重置 UI 状态让请求继续跑到超时
+          const uploaded = await uploadImageToCloudinary(payload, {
+            signal: uploadController.signal,
+            // 显式指定 folder / 归属标记，与论坛发帖链路对齐（见 CLOUD_PLUS_* 常量注释）
+            folder: CLOUD_PLUS_CLOUDINARY_FOLDER,
+            pendingSource: CLOUD_PLUS_UPLOAD_SOURCE,
+            // 预检已在批次开始时做过，逐图再查一次只是把并发池打成串行
+            skipUploadPreflight: true,
+            onProgress: (percent) => {
+              uploadPctByIndex[index] = Math.max(uploadPctByIndex[index], Number(percent) || 0);
+              syncProgress();
+            },
+          });
+          uploadPctByIndex[index] = 100;
           uploadedByIndex[index] = {
             url: uploaded.url,
             publicId: uploaded.publicId,
@@ -2563,10 +2749,12 @@ async function handleImageSelection(event) {
             aborted = true;
             return;
           }
-          // 记录失败的图片，提供重试选项
+          // 记录失败的图片 + **真实原因**。改造前这里把 normalizeDbError 之后的文案丢在岛里，
+          // 面板上只剩「N 张图片上传失败」—— 用户问「为什么不显示原因」，就是指这一处。
+          const reason = normalizeDbError(uploadError, '上传失败');
           failedByIndex[index] = {
             file,
-            error: uploadError?.message || '上传失败',
+            error: reason?.message || uploadError?.message || '上传失败',
             name: file.name,
           };
           logger.error('cloud-plus', `上传图片 ${file.name} 失败:`, uploadError);
@@ -2593,7 +2781,12 @@ async function handleImageSelection(event) {
     }
 
     if (cloudState.upload.failedImages.length > 0) {
-      showNotice(`${cloudState.upload.failedImages.length} 张图片上传失败，可以重新尝试上传`);
+      const firstReason = cloudState.upload.failedImages[0]?.error || '';
+      showNotice(
+        cloudState.upload.failedImages.length === 1 && firstReason
+          ? `图片上传失败：${firstReason}`
+          : `${cloudState.upload.failedImages.length} 张图片上传失败：${firstReason}`,
+      );
     }
 
     if (
@@ -2608,7 +2801,7 @@ async function handleImageSelection(event) {
     if (error.name === 'AbortError') {
       showNotice('上传已取消');
     } else {
-      showNotice(error?.message || '图片上传失败');
+      showNotice(normalizeDbError(error, '图片上传失败')?.message || '图片上传失败');
     }
   } finally {
     cloudState.upload.uploading = false;
@@ -2712,7 +2905,9 @@ async function publishEntry() {
       cloudState.content.lastFetchTime = Date.now();
     }
     showNotice('已发布到 BOH Cloud+');
+    // 发布成功直接关面板：内容已落库，不能再走 closeComposer 的「放弃编辑」确认
     isComposerOpen.value = false;
+    isMoodTrayOpen.value = false;
     void loadEntries();
   } finally {
     cloudState.publish.publishing = false;
@@ -2961,9 +3156,19 @@ watch(normalizedSharedTokenInput, (token) => {
   }
 });
 
+/* 面板打开时接管两件事：锁背景滚动 + Esc 关闭。
+   Esc 走 closeComposer（而不是直接置 false），否则草稿保护会被键盘这条路径绕过。 */
+function handleComposerKeydown(event) {
+  if (event.key !== 'Escape') return;
+  event.preventDefault();
+  void closeComposer();
+}
+
 watch(isComposerOpen, (open) => {
   if (typeof window === 'undefined') return;
   window.document.body.style.overflow = open ? 'hidden' : '';
+  if (open) window.addEventListener('keydown', handleComposerKeydown);
+  else window.removeEventListener('keydown', handleComposerKeydown);
 });
 
 const handlePageHide = () => {
@@ -2988,6 +3193,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('pagehide', handlePageHide);
+    window.removeEventListener('keydown', handleComposerKeydown);
     window.document.body.style.overflow = '';
   }
 });

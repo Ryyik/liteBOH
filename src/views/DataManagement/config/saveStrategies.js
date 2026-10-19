@@ -275,6 +275,33 @@ export const SAVE_STRATEGIES = {
     });
   },
 
+  aiMemories: async ({ editingItem }) => {
+    // 沉淀是事实记录：管理员唯一可写动作是归档/恢复（status）。
+    // content/owner/confidence 一律不收 —— 想退检索就归档，别改写用户的原话。
+    const status = String(editingItem.status || '').trim();
+    if (!['active', 'archived'].includes(status)) {
+      throw new Error('记忆状态无效（仅允许 active / archived）');
+    }
+    return pickWritableFields('aiMemories', {
+      status,
+      updated_at: new Date().toISOString(),
+    });
+  },
+
+  forumMemories: async ({ editingItem, userId }) => {
+    // 事实卡：审核状态 + 归档/恢复。归档后向量切片由 DB 触发器
+    // archive_boh_ai_knowledge_chunks_for_source 自动同步；待审核/已驳回不参与检索。
+    const status = String(editingItem.status || '').trim();
+    if (!['active', 'pending_review', 'archived', 'rejected'].includes(status)) {
+      throw new Error('事实卡状态无效（仅允许 active / pending_review / archived / rejected）');
+    }
+    return pickWritableFields('forumMemories', {
+      status,
+      updated_by: userId || null,
+      updated_at: new Date().toISOString(),
+    });
+  },
+
   bohaiModels: async ({ editingItem, userId, isEditing }) => {
     const normalizedModeId = String(editingItem.mode_id || '').trim();
     const normalizedDisplayName = String(editingItem.display_name || '').trim();

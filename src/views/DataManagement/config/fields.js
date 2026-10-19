@@ -98,6 +98,10 @@ export const TAB_WRITABLE_FIELDS = {
     'status',
     'updated_by',
   ],
+  // AI 沉淀记忆：管理员唯一可写动作是 status（归档/恢复）；内容/归属/置信度都保持原样
+  aiMemories: ['status'],
+  // 论坛事实卡：同口径；updated_by 随归档/恢复动作留痕（列允许 NULL）
+  forumMemories: ['status', 'updated_by'],
   bohaiModels: [
     'mode_id',
     'display_name',

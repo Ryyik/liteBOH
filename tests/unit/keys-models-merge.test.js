@@ -39,9 +39,13 @@ describe('密钥与模型：tab 合并的接线', () => {
     //    squeezeSource 字面量断言直接假红（多行版本 squeezed 成 `[ 'keys-models'`，
     //    单行版本是 `['keys-models'`）。按项比较对格式免疫，还更严格（顺序也被钉住）。
     const aiConfigTabIds = tabs.match(/id:\s*'ai-config'[\s\S]*?tabIds:\s*\[([^\]]*)\]/)?.[1] ?? '';
+    // 2026-10-18：aiMemories（AI 沉淀记忆）与 forumMemories（论坛事实卡）归入 ai-config
+    // 模块，合法新增成员，顺序随 tabs.js
     expect(aiConfigTabIds.match(/'[^']+'/g)).toEqual([
       "'keys-models'",
       "'bohaiModels'",
+      "'aiMemories'",
+      "'forumMemories'",
       "'ai-quota'",
       "'moderation-model'",
       "'lab-ai-model'",

@@ -247,285 +247,317 @@
     </div>
 
     <!-- ============ 密钥表单（也是「添加平台」的载体） ============ -->
-    <div v-if="keyDialog" class="g-dialog-overlay" @click.self="keyDialog = null">
-      <div class="g-dialog" role="dialog" aria-modal="true" aria-labelledby="kmKeyTitle">
-        <header class="g-dialog-head">
-          <div>
-            <div class="g-eyebrow">
-              {{
-                keyDialog.item ? '替换密钥' : overwrittenKey ? '将覆盖已有密钥' : '添加平台 / 密钥'
-              }}
+    <!-- ⚠️ 三个对话框必须 Teleport 出 `.management-section`（2026-10-17 P1-1 实测）：
+         该 section 带 `backdrop-filter` ⇒ 按规范它会成为 `position: fixed` 后代的**包含块**，
+         于是 `inset: 0` 的遮罩只铺满内容区（实测 1117×878 @ 292,131 而不是 1440×900），
+         高一点的表单（手动添加模型 h≈664）还会从视口底部溢出。
+         目标选 `.data-management-page` 而不是 `body`：页级 token（--card / --foreground /
+         --border / --radius / --spacing）都挂在页根上，挂到 body 会全部丢失
+         （ApiKeyConsole 的 discovery 弹层就因为挂 body 改用 :root 级 token）。 -->
+    <Teleport :to="dialogHost">
+      <div
+        v-if="keyDialog"
+        class="g-dialog-overlay"
+        v-dialog-focus="() => (keyDialog = null)"
+        @click.self="keyDialog = null"
+      >
+        <div class="g-dialog" role="dialog" aria-modal="true" aria-labelledby="kmKeyTitle">
+          <header class="g-dialog-head">
+            <div>
+              <div class="g-eyebrow">
+                {{
+                  keyDialog.item
+                    ? '替换密钥'
+                    : overwrittenKey
+                      ? '将覆盖已有密钥'
+                      : '添加平台 / 密钥'
+                }}
+              </div>
+              <strong id="kmKeyTitle">{{
+                keyDialog.item ? keyDialog.item.label : '新增密钥'
+              }}</strong>
             </div>
-            <strong id="kmKeyTitle">{{
-              keyDialog.item ? keyDialog.item.label : '新增密钥'
-            }}</strong>
-          </div>
-          <button
-            type="button"
-            class="g-icon-btn is-sm is-ghost"
-            @click="keyDialog = null"
-            title="关闭"
-          >
-            ×
-          </button>
-        </header>
-        <form class="g-dialog-form" @submit.prevent="submitKey">
-          <div class="g-field">
-            <label>平台</label>
-            <select
-              v-model="keyDialog.form.provider"
-              class="g-select"
-              @change="onKeyProviderChange"
+            <button
+              type="button"
+              class="g-icon-btn is-sm is-ghost"
+              @click="keyDialog = null"
+              title="关闭"
             >
-              <optgroup label="模型平台">
+              ×
+            </button>
+          </header>
+          <form class="g-dialog-form" @submit.prevent="submitKey">
+            <div class="g-field">
+              <label>平台</label>
+              <select
+                v-model="keyDialog.form.provider"
+                class="g-select"
+                @change="onKeyProviderChange"
+              >
+                <optgroup label="模型平台">
+                  <option v-for="id in modelPlatformIds" :key="id" :value="id">
+                    {{ providerLabel(id) }}
+                  </option>
+                </optgroup>
+                <optgroup label="工具服务">
+                  <option v-for="id in toolServiceIds" :key="id" :value="id">
+                    {{ providerLabel(id) }}
+                  </option>
+                </optgroup>
+              </select>
+              <span class="g-field-hint">接口地址由平台内置，不用手填。</span>
+            </div>
+            <div class="g-field">
+              <label>用途</label>
+              <select v-model="keyDialog.form.purpose" class="g-select">
+                <option
+                  v-for="p in providerPurposes(keyDialog.form.provider)"
+                  :key="p.value"
+                  :value="p.value"
+                >
+                  {{ p.label }}
+                </option>
+              </select>
+            </div>
+            <p
+              v-if="overwrittenKey"
+              class="g-notice is-warn km-overwrite"
+              data-km="overwrite-warning"
+            >
+              <span>
+                这个平台已经有「{{
+                  overwrittenKey.label ||
+                  purposeLabel(overwrittenKey.provider, overwrittenKey.purpose)
+                }}」的密钥。一个平台的一种用途只能存一个密钥，保存会<strong>替换</strong>它，旧密钥立即失效。
+              </span>
+            </p>
+            <div class="g-field">
+              <label>显示名称</label>
+              <input
+                v-model.trim="keyDialog.form.label"
+                class="g-input"
+                type="text"
+                maxlength="80"
+                placeholder="例如 SiliconFlow Chat"
+              />
+            </div>
+            <div class="g-field">
+              <label>API Key</label>
+              <input
+                v-model.trim="keyDialog.form.value"
+                class="g-input is-mono"
+                type="password"
+                autocomplete="off"
+                placeholder="粘贴密钥，提交后只保存密文与脱敏值"
+              />
+              <span v-if="keyDialog.error" class="g-field-hint km-danger">{{
+                keyDialog.error
+              }}</span>
+            </div>
+            <label v-if="isModelPlatform(keyDialog.form.provider)" class="km-check">
+              <input
+                type="checkbox"
+                v-model="keyDialog.form.fetchAfterSave"
+                :disabled="!canDiscover(keyDialog.form.provider)"
+              />
+              <span>保存后自动拉取这个平台的模型（推荐）</span>
+            </label>
+            <footer class="g-dialog-foot">
+              <button type="button" class="g-btn g-btn-ghost" @click="keyDialog = null">
+                取消
+              </button>
+              <button type="submit" class="g-btn g-btn-primary" :disabled="vault.loading.value">
+                {{ keySubmitLabel }}
+              </button>
+            </footer>
+          </form>
+        </div>
+      </div>
+
+      <!-- ============ 拉取结果勾选 ============ -->
+      <div
+        v-if="pickDialog"
+        class="g-dialog-overlay"
+        v-dialog-focus="closePickDialog"
+        @click.self="closePickDialog"
+      >
+        <div class="g-dialog" role="dialog" aria-modal="true" aria-labelledby="kmPickTitle">
+          <header class="g-dialog-head">
+            <div>
+              <div class="g-eyebrow">从平台拉取</div>
+              <strong id="kmPickTitle">{{ providerLabel(pickDialog.provider) }} 的模型</strong>
+            </div>
+            <button
+              type="button"
+              class="g-icon-btn is-sm is-ghost"
+              @click="closePickDialog"
+              title="关闭"
+            >
+              ×
+            </button>
+          </header>
+          <div class="g-dialog-form">
+            <div v-if="pickDialog.loading" class="g-empty">正在向平台拉取模型清单…</div>
+            <template v-else>
+              <p v-if="pickDialog.error" class="km-danger">{{ pickDialog.error }}</p>
+              <p v-else-if="!pickDialog.models.length" class="g-field-hint">
+                平台没有返回任何模型。可以关掉这个窗口，用「手动添加」逐个填。
+              </p>
+              <template v-else>
+                <p class="g-field-hint">
+                  拉到 {{ pickDialog.models.length }} 个，已自动勾选还没入库的。入库后是否免费由「AI
+                  额度」页的倍率决定。
+                </p>
+                <ul class="km-picks">
+                  <li
+                    v-for="m in pickDialog.models"
+                    :key="m.id"
+                    :class="['km-pick', { 'is-on': pickDialog.selected.has(m.id) }]"
+                  >
+                    <label>
+                      <input
+                        type="checkbox"
+                        :checked="pickDialog.selected.has(m.id)"
+                        @change="togglePick(m.id, $event.target.checked)"
+                      />
+                      <span class="km-pick-copy">
+                        <strong>{{ m.name || m.id }}</strong>
+                        <span class="km-mono">{{ m.id }}</span>
+                      </span>
+                    </label>
+                    <span v-if="pickDialog.existing.has(m.id)" class="g-badge is-muted"
+                      >已在库中</span
+                    >
+                  </li>
+                </ul>
+              </template>
+            </template>
+          </div>
+          <footer class="g-dialog-foot">
+            <button type="button" class="g-btn g-btn-ghost" @click="closePickDialog">取消</button>
+            <button
+              type="button"
+              class="g-btn g-btn-primary"
+              :disabled="pickDialog.importing || !pickDialog.selected.size"
+              @click="submitPick"
+            >
+              {{ pickDialog.importing ? '导入中…' : `加入 ${pickDialog.selected.size} 个模型` }}
+            </button>
+          </footer>
+        </div>
+      </div>
+
+      <!-- ============ 模型表单 ============ -->
+      <div
+        v-if="modelDialog"
+        class="g-dialog-overlay"
+        v-dialog-focus="() => (modelDialog = null)"
+        @click.self="modelDialog = null"
+      >
+        <div class="g-dialog" role="dialog" aria-modal="true" aria-labelledby="kmModelTitle">
+          <header class="g-dialog-head">
+            <div>
+              <div class="g-eyebrow">{{ modelDialog.isNew ? '新增模型' : '编辑模型' }}</div>
+              <strong id="kmModelTitle">{{ modelDialog.form.name || '手动添加' }}</strong>
+            </div>
+            <button
+              type="button"
+              class="g-icon-btn is-sm is-ghost"
+              @click="modelDialog = null"
+              title="关闭"
+            >
+              ×
+            </button>
+          </header>
+          <form class="g-dialog-form" @submit.prevent="submitModel">
+            <div class="g-field">
+              <label>平台</label>
+              <select
+                v-model="modelDialog.form.provider"
+                class="g-select"
+                @change="onModelProviderChange"
+              >
                 <option v-for="id in modelPlatformIds" :key="id" :value="id">
                   {{ providerLabel(id) }}
                 </option>
-              </optgroup>
-              <optgroup label="工具服务">
-                <option v-for="id in toolServiceIds" :key="id" :value="id">
-                  {{ providerLabel(id) }}
-                </option>
-              </optgroup>
-            </select>
-            <span class="g-field-hint">接口地址由平台内置，不用手填。</span>
-          </div>
-          <div class="g-field">
-            <label>用途</label>
-            <select v-model="keyDialog.form.purpose" class="g-select">
-              <option
-                v-for="p in providerPurposes(keyDialog.form.provider)"
-                :key="p.value"
-                :value="p.value"
-              >
-                {{ p.label }}
-              </option>
-            </select>
-          </div>
-          <p
-            v-if="overwrittenKey"
-            class="g-notice is-warn km-overwrite"
-            data-km="overwrite-warning"
-          >
-            <span>
-              这个平台已经有「{{
-                overwrittenKey.label ||
-                purposeLabel(overwrittenKey.provider, overwrittenKey.purpose)
-              }}」的密钥。一个平台的一种用途只能存一个密钥，保存会<strong>替换</strong>它，旧密钥立即失效。
-            </span>
-          </p>
-          <div class="g-field">
-            <label>显示名称</label>
-            <input
-              v-model.trim="keyDialog.form.label"
-              class="g-input"
-              type="text"
-              maxlength="80"
-              placeholder="例如 SiliconFlow Chat"
-            />
-          </div>
-          <div class="g-field">
-            <label>API Key</label>
-            <input
-              v-model.trim="keyDialog.form.value"
-              class="g-input is-mono"
-              type="password"
-              autocomplete="off"
-              placeholder="粘贴密钥，提交后只保存密文与脱敏值"
-            />
-            <span v-if="keyDialog.error" class="g-field-hint km-danger">{{ keyDialog.error }}</span>
-          </div>
-          <label v-if="isModelPlatform(keyDialog.form.provider)" class="km-check">
-            <input
-              type="checkbox"
-              v-model="keyDialog.form.fetchAfterSave"
-              :disabled="!canDiscover(keyDialog.form.provider)"
-            />
-            <span>保存后自动拉取这个平台的模型（推荐）</span>
-          </label>
-          <footer class="g-dialog-foot">
-            <button type="button" class="g-btn g-btn-ghost" @click="keyDialog = null">取消</button>
-            <button type="submit" class="g-btn g-btn-primary" :disabled="vault.loading.value">
-              {{ keySubmitLabel }}
-            </button>
-          </footer>
-        </form>
-      </div>
-    </div>
-
-    <!-- ============ 拉取结果勾选 ============ -->
-    <div v-if="pickDialog" class="g-dialog-overlay" @click.self="closePickDialog">
-      <div class="g-dialog" role="dialog" aria-modal="true" aria-labelledby="kmPickTitle">
-        <header class="g-dialog-head">
-          <div>
-            <div class="g-eyebrow">从平台拉取</div>
-            <strong id="kmPickTitle">{{ providerLabel(pickDialog.provider) }} 的模型</strong>
-          </div>
-          <button
-            type="button"
-            class="g-icon-btn is-sm is-ghost"
-            @click="closePickDialog"
-            title="关闭"
-          >
-            ×
-          </button>
-        </header>
-        <div class="g-dialog-form">
-          <div v-if="pickDialog.loading" class="g-empty">正在向平台拉取模型清单…</div>
-          <template v-else>
-            <p v-if="pickDialog.error" class="km-danger">{{ pickDialog.error }}</p>
-            <p v-else-if="!pickDialog.models.length" class="g-field-hint">
-              平台没有返回任何模型。可以关掉这个窗口，用「手动添加」逐个填。
-            </p>
-            <template v-else>
-              <p class="g-field-hint">
-                拉到 {{ pickDialog.models.length }} 个，已自动勾选还没入库的。入库后是否免费由「AI
-                额度」页的倍率决定。
-              </p>
-              <ul class="km-picks">
-                <li
-                  v-for="m in pickDialog.models"
-                  :key="m.id"
-                  :class="['km-pick', { 'is-on': pickDialog.selected.has(m.id) }]"
-                >
-                  <label>
-                    <input
-                      type="checkbox"
-                      :checked="pickDialog.selected.has(m.id)"
-                      @change="togglePick(m.id, $event.target.checked)"
-                    />
-                    <span class="km-pick-copy">
-                      <strong>{{ m.name || m.id }}</strong>
-                      <span class="km-mono">{{ m.id }}</span>
-                    </span>
-                  </label>
-                  <span v-if="pickDialog.existing.has(m.id)" class="g-badge is-muted"
-                    >已在库中</span
-                  >
-                </li>
-              </ul>
-            </template>
-          </template>
-        </div>
-        <footer class="g-dialog-foot">
-          <button type="button" class="g-btn g-btn-ghost" @click="closePickDialog">取消</button>
-          <button
-            type="button"
-            class="g-btn g-btn-primary"
-            :disabled="pickDialog.importing || !pickDialog.selected.size"
-            @click="submitPick"
-          >
-            {{ pickDialog.importing ? '导入中…' : `加入 ${pickDialog.selected.size} 个模型` }}
-          </button>
-        </footer>
-      </div>
-    </div>
-
-    <!-- ============ 模型表单 ============ -->
-    <div v-if="modelDialog" class="g-dialog-overlay" @click.self="modelDialog = null">
-      <div class="g-dialog" role="dialog" aria-modal="true" aria-labelledby="kmModelTitle">
-        <header class="g-dialog-head">
-          <div>
-            <div class="g-eyebrow">{{ modelDialog.isNew ? '新增模型' : '编辑模型' }}</div>
-            <strong id="kmModelTitle">{{ modelDialog.form.name || '手动添加' }}</strong>
-          </div>
-          <button
-            type="button"
-            class="g-icon-btn is-sm is-ghost"
-            @click="modelDialog = null"
-            title="关闭"
-          >
-            ×
-          </button>
-        </header>
-        <form class="g-dialog-form" @submit.prevent="submitModel">
-          <div class="g-field">
-            <label>平台</label>
-            <select
-              v-model="modelDialog.form.provider"
-              class="g-select"
-              @change="onModelProviderChange"
-            >
-              <option v-for="id in modelPlatformIds" :key="id" :value="id">
-                {{ providerLabel(id) }}
-              </option>
-            </select>
-            <span class="g-field-hint">接口地址与密钥由平台保存，这里不用填。</span>
-          </div>
-          <div class="g-field">
-            <label>模型 ID</label>
-            <input
-              v-model.trim="modelDialog.form.model_id"
-              class="g-input is-mono"
-              type="text"
-              required
-              placeholder="例如 Qwen/Qwen3-8B"
-              :disabled="!modelDialog.isNew"
-            />
-            <span class="g-field-hint">上游真实的模型名。已经在库中的不要再加一次。</span>
-          </div>
-          <div class="g-field">
-            <label>显示名称</label>
-            <input
-              v-model.trim="modelDialog.form.name"
-              class="g-input"
-              type="text"
-              required
-              placeholder="例如 Qwen 3 8B"
-            />
-          </div>
-          <div class="km-row">
-            <div class="g-field">
-              <label>类型</label>
-              <input
-                v-model.trim="modelDialog.form.family_label"
-                class="g-input"
-                type="text"
-                placeholder="例如 通用"
-              />
-            </div>
-            <div class="g-field">
-              <label>适用场景</label>
-              <input
-                v-model.trim="modelDialog.form.best_for"
-                class="g-input"
-                type="text"
-                placeholder="例如 多场景聊天"
-              />
-            </div>
-          </div>
-          <div class="km-row">
-            <div class="g-field">
-              <label>显示排序</label>
-              <input
-                v-model.number="modelDialog.form.sort_order"
-                class="g-input"
-                type="number"
-                min="0"
-                step="1"
-              />
-              <span class="g-field-hint">越小越靠前。</span>
-            </div>
-            <div class="g-field">
-              <label>状态</label>
-              <select v-model="modelDialog.form.is_active" class="g-select">
-                <option :value="true">启用</option>
-                <option :value="false">停用</option>
               </select>
+              <span class="g-field-hint">接口地址与密钥由平台保存，这里不用填。</span>
             </div>
-          </div>
-          <span v-if="modelDialog.error" class="g-field-hint km-danger">{{
-            modelDialog.error
-          }}</span>
-          <footer class="g-dialog-foot">
-            <button type="button" class="g-btn g-btn-ghost" @click="modelDialog = null">
-              取消
-            </button>
-            <button type="submit" class="g-btn g-btn-primary">保存</button>
-          </footer>
-        </form>
+            <div class="g-field">
+              <label>模型 ID</label>
+              <input
+                v-model.trim="modelDialog.form.model_id"
+                class="g-input is-mono"
+                type="text"
+                required
+                placeholder="例如 Qwen/Qwen3-8B"
+                :disabled="!modelDialog.isNew"
+              />
+              <span class="g-field-hint">上游真实的模型名。已经在库中的不要再加一次。</span>
+            </div>
+            <div class="g-field">
+              <label>显示名称</label>
+              <input
+                v-model.trim="modelDialog.form.name"
+                class="g-input"
+                type="text"
+                required
+                placeholder="例如 Qwen 3 8B"
+              />
+            </div>
+            <div class="km-row">
+              <div class="g-field">
+                <label>类型</label>
+                <input
+                  v-model.trim="modelDialog.form.family_label"
+                  class="g-input"
+                  type="text"
+                  placeholder="例如 通用"
+                />
+              </div>
+              <div class="g-field">
+                <label>适用场景</label>
+                <input
+                  v-model.trim="modelDialog.form.best_for"
+                  class="g-input"
+                  type="text"
+                  placeholder="例如 多场景聊天"
+                />
+              </div>
+            </div>
+            <div class="km-row">
+              <div class="g-field">
+                <label>显示排序</label>
+                <input
+                  v-model.number="modelDialog.form.sort_order"
+                  class="g-input"
+                  type="number"
+                  min="0"
+                  step="1"
+                />
+                <span class="g-field-hint">越小越靠前。</span>
+              </div>
+              <div class="g-field">
+                <label>状态</label>
+                <select v-model="modelDialog.form.is_active" class="g-select">
+                  <option :value="true">启用</option>
+                  <option :value="false">停用</option>
+                </select>
+              </div>
+            </div>
+            <span v-if="modelDialog.error" class="g-field-hint km-danger">{{
+              modelDialog.error
+            }}</span>
+            <footer class="g-dialog-foot">
+              <button type="button" class="g-btn g-btn-ghost" @click="modelDialog = null">
+                取消
+              </button>
+              <button type="submit" class="g-btn g-btn-primary">保存</button>
+            </footer>
+          </form>
+        </div>
       </div>
-    </div>
+    </Teleport>
   </section>
 </template>
 
@@ -545,7 +577,12 @@ import {
   isModelPlatform,
 } from '../composables/useKeyVault.js';
 import { useFreemodels, createEmptyFreemodel } from '../composables/useFreemodels.js';
+import { createDialogFocusTrapDirective } from '../composables/useDialogFocusTrap.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+
+/* 模态框键盘可达性（Esc / Tab 循环 / 焦点归还），三个 `.g-dialog-overlay` 共用。
+   `<script setup>` 里叫 vDialogFocus 的变量会自动注册成 `v-dialog-focus` 指令。 */
+const vDialogFocus = createDialogFocusTrapDirective();
 
 const { confirm } = useConfirmDialog();
 const vault = useKeyVault();
@@ -727,6 +764,14 @@ async function submitKey() {
 /* ---------------- 拉取勾选 ---------------- */
 const pickDialog = ref(null);
 
+/* 三个对话框的 Teleport 宿主（原因见模板里那段注释）。
+   挂载后再解析：setup 期页根可能还没进 DOM，先落 body 保证 v-if 打开时不会丢内容；
+   页根一到位就改指 `.data-management-page`，把页级 token 一并带过去。 */
+const dialogHost = ref('body');
+onMounted(() => {
+  if (document.querySelector('.data-management-page')) dialogHost.value = '.data-management-page';
+});
+
 async function openPickDialog(keyItem) {
   const provider = keyItem?.provider || activeProvider.value;
   const key =
@@ -854,6 +899,10 @@ onMounted(refreshAll);
 <style scoped>
 @import '../styles/base.css';
 @import '../styles/responsive.css';
+/* 三个对话框（添加 Key / 从平台拉取 / 手动添加模型）的 `.g-dialog*` 都在这里，
+   2026-10-17 P1-1 之前它只写在 FreemodelsConfig 的 scoped 块里 ⇒ 本页对话框
+   掉进文档流、按钮看着「没反应」。 */
+@import '../styles/dialog.css';
 
 .km-layout {
   display: grid;

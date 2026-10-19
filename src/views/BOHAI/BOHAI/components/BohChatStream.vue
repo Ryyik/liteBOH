@@ -1,8 +1,14 @@
 <template>
+  <!-- tabindex="0"：消息流是**可滚动区域**，里面没有可聚焦元素（AI 正文是纯 v-html），
+       不给它 tabindex 时键盘用户根本进不来 —— axe `scrollable-region-focusable` 报的就是这条
+       （2026-10-17 全面审查 P1-5）。role="region" + aria-label 让读屏能把它当一块可跳转区域念出来。 -->
   <div
     ref="scrollEl"
     class="boh-stream"
     :class="{ 'is-island': overlayMode }"
+    tabindex="0"
+    role="region"
+    aria-label="对话消息流"
     @scroll="emit('scroll')"
   >
     <div class="boh-stream-pad">

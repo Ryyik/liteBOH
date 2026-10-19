@@ -14,6 +14,11 @@ const SENSITIVE_KEYS = [
   'boh-admin-change-log-v1',
   'boh-admin-user-picker-cache-v1',
   'supabase.auth.token',
+  // 2026-10-17（全面审查 P2-11）：Cloud+ 最近一次使用的**共享相册令牌**。
+  // 它是 read 级凭据（拿到就能看那个相册），却存在 localStorage 且此前不在清理名单里
+  // ⇒ 同一台设备换账号后，新用户能直接复用上一任的共享链接。
+  // key 真源在 `Cloud+/CloudPlusMain.vue` 的 SHARED_TOKEN_STORAGE_KEY，两处必须一致。
+  'boh_cloud:last_shared_token',
 ];
 
 export const clearSensitiveLocalStorage = () => {

@@ -1897,10 +1897,19 @@ async function resolveRuntimeModelPolicy(
   requestedMode: string,
   tier: string,
   userId: string | null,
+  purpose = 'chat',
 ): Promise<RuntimeModelPolicy> {
   const mode = normalizeModeId(requestedMode) || 'fast';
   if (!/^[a-z0-9][a-z0-9._:-]{0,79}$/.test(mode)) {
     throw runtimeAccessError('模式 ID 格式无效。', 400, 'MODE_ID_INVALID');
+  }
+  // 审核专用模式（mode_id 以 'moderation-' 开头）只服务审核链路。
+  // 用户侧模式列表已由 list_public_bohai_modes 排除（迁移 2026101801），
+  // 但 mode 是请求体字段 —— 直连 runtime-chat 仍可伪造，所以必须在这里按 purpose 兜底：
+  // 少了这道闸门，0.1x 的审核行就是一条公开的廉价 gemini 通道。
+  // 前缀真源见 src/views/DataManagement/config/bohai-internal-modes.js。
+  if (mode.startsWith('moderation-') && purpose !== 'moderation') {
+    throw runtimeAccessError('该模式仅供内容审核使用。', 403, 'MODE_INTERNAL_ONLY');
   }
   // 用户自定义模型（BYOK）走独立解析：不去 bohai_model_configs 查、不受 tier 限制、
   // 也不走全局 vault 密钥。放在最前面 —— 这条路径与官方模式的配置来源完全不同。
@@ -2923,6 +2932,9 @@ Deno.serve(async (request) => {
         toText(body.mode, 80),
         tier,
         identity.userId,
+        // 只有审核链路会传 purpose='moderation'；普通聊天一律落到 'chat'。
+        // 审核模式的白名单判定就吃这个值（见 resolveRuntimeModelPolicy 内的 MODE_INTERNAL_ONLY）。
+        toText(body.purpose || 'chat', 60).toLowerCase(),
       );
       console.log('[vault] user auth ok, reserving token quota');
       // BYOK（用户自带 Key，2026-10-08）**不预约 BOH 额度** —— 用户口径「不扣 BOH 额度」。
@@ -3071,6 +3083,9 @@ Deno.serve(async (request) => {
         toText(body.mode, 80),
         tier,
         identity.userId,
+        // 只有审核链路会传 purpose='moderation'；普通聊天一律落到 'chat'。
+        // 审核模式的白名单判定就吃这个值（见 resolveRuntimeModelPolicy 内的 MODE_INTERNAL_ONLY）。
+        toText(body.purpose || 'chat', 60).toLowerCase(),
       );
       // BYOK（用户自带 Key，2026-10-08）**不预约 BOH 额度** —— 用户口径「不扣 BOH 额度」。
       // ⚠️ 限流不豁免：上游那次 checkRateLimitDb（每用户每分钟 10 次）照旧生效，防的是

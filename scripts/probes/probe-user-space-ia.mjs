@@ -288,13 +288,36 @@ check(
   gapState.gap >= 0 && gapState.gap <= 24,
   `gap=${gapState.gap}px`,
 );
-// FAB 归属：2026-10-05 定稿，FAB 只属于「内容」= 首页 feed 分区。
-// UserSpace 内 embedded 论坛判 route.path !== '/' → 不挂载（ForumMain.vue isForumComposerFabVisible）
-const fabVisible = await page.evaluate(() => {
+// FAB 归属：FAB 属于「内容」—— 首页 feed 分区与 UserSpace 的「内容」tab 都算内容流。
+// 2026-10-19 修复回归：c19a35dc 曾把 embedded 收成 route.path === '/'，而 UserSpace
+// 也挂同一份 embedded ForumMain ⇒ 竖屏（390×844，本探针档位）下内嵌 PostComposer 因
+// v-if="!isMobileComposerMode" 不渲染、FAB 又被路径挡掉 = 整页没有发帖入口。
+const fabState = await page.evaluate(() => {
   const fab = document.querySelector('.mobile-compose-fab.embedded-compose-fab');
-  return fab ? getComputedStyle(fab).display !== 'none' : false;
+  if (!fab) return { exists: false, visible: false, hit: null, hitSelf: false };
+  const cs = getComputedStyle(fab);
+  const rect = fab.getBoundingClientRect();
+  const visible =
+    cs.display !== 'none' && cs.visibility !== 'hidden' && fab.getClientRects().length > 0;
+  // 遮挡检测：底栏/浮层盖住的话「看得见」也点不到（FAB 是 Teleport 到 body 的 fixed 元素）
+  const hitEl = visible
+    ? document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    : null;
+  return {
+    exists: true,
+    visible,
+    rect: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width) },
+    hit: hitEl ? String(hitEl.className || hitEl.tagName) : null,
+    // 命中 FAB 内部的 <span>+</span> 也算命中自身
+    hitSelf: Boolean(hitEl && hitEl.closest('.mobile-compose-fab')),
+  };
 });
-check('UserSpace 内嵌论坛不挂发帖 FAB（FAB 只属于首页）', !fabVisible, `visible=${fabVisible}`);
+check(
+  'UserSpace 内容 tab 竖屏挂载发帖 FAB（竖屏唯一发帖入口）',
+  fabState.exists && fabState.visible,
+  JSON.stringify(fabState),
+);
+check('发帖 FAB 未被底栏/浮层遮挡（命中自身）', fabState.hitSelf, `hit=${fabState.hit}`);
 const forumPad = await page.evaluate(() => {
   const c = document.querySelector('.forum-section-feed .forum-container');
   return c ? getComputedStyle(c).paddingBottom : 'MISSING';

@@ -652,6 +652,88 @@ describe('monitoring', () => {
   });
 
   // =====================================================================
+  // URL 脱敏（2026-10-17 全面审查 P1-6：token_hash 外发泄露）
+  // =====================================================================
+  describe('URL redaction (redactSensitiveParams)', () => {
+    it('redacts token_hash in search params but keeps the rest of the URL', async () => {
+      const { redactSensitiveParams } = await import('../../src/utils/monitoring.js');
+      const out = redactSensitiveParams('https://example.com/?token_hash=SECRET123&type=recovery');
+      expect(out).toBe('https://example.com/?token_hash=<redacted>&type=recovery');
+      expect(out).not.toContain('SECRET123');
+    });
+
+    it('redacts Supabase implicit-flow tokens inside the hash fragment', async () => {
+      const { redactSensitiveParams } = await import('../../src/utils/monitoring.js');
+      const out = redactSensitiveParams(
+        'https://example.com/#access_token=ATSECRET&refresh_token=RTSECRET&expires_in=3600',
+      );
+      expect(out).toContain('access_token=<redacted>');
+      expect(out).toContain('refresh_token=<redacted>');
+      expect(out).toContain('expires_in=3600');
+      expect(out).not.toContain('ATSECRET');
+      expect(out).not.toContain('RTSECRET');
+    });
+
+    it('redacts hash-router query (token behind #/) and keeps the route path', async () => {
+      const { redactSensitiveParams } = await import('../../src/utils/monitoring.js');
+      const out = redactSensitiveParams('https://example.com/#/reset-password?token_hash=HS');
+      expect(out).toBe('https://example.com/#/reset-password?token_hash=<redacted>');
+    });
+
+    it('does not over-redact params that merely contain the keyword', async () => {
+      const { redactSensitiveParams } = await import('../../src/utils/monitoring.js');
+      // decode= / couponCode= 不应被误伤（前缀必须是 ?&#）
+      expect(redactSensitiveParams('https://e.com/?decode=1')).toBe('https://e.com/?decode=1');
+      expect(redactSensitiveParams('https://e.com/?couponCode=x')).toBe(
+        'https://e.com/?couponCode=x',
+      );
+    });
+
+    it('redacts OAuth code/state params and tolerates empty input', async () => {
+      const { redactSensitiveParams } = await import('../../src/utils/monitoring.js');
+      expect(redactSensitiveParams('https://e.com/cb?code=C9&state=S1')).toBe(
+        'https://e.com/cb?code=<redacted>&state=<redacted>',
+      );
+      expect(redactSensitiveParams('')).toBe('');
+      expect(redactSensitiveParams(null)).toBe('');
+    });
+
+    it('sendMetric redacts window.location.href before beaconing', async () => {
+      vi.stubEnv('VITE_MONITORING_ENDPOINT', 'https://telemetry.example.com/v1');
+      const mocks = createMocks();
+      mocks.mockWindow.location = {
+        href: 'https://example.com/?token_hash=TOPSECRET&type=signup',
+      };
+      mocks.stubAll();
+
+      const { initMonitoring } = await import('../../src/utils/monitoring.js');
+      initMonitoring();
+
+      mocks.errorListeners[0]({ message: 'boom', filename: 'x.js', lineno: 1, colno: 1 });
+
+      const [, body] = mocks.mockNavigator.sendBeacon.mock.calls[0];
+      const parsed = JSON.parse(body);
+      expect(parsed.url).toBe('https://example.com/?token_hash=<redacted>&type=signup');
+      expect(body).not.toContain('TOPSECRET');
+    });
+
+    it('reportUnknownRoute redacts sensitive params in the route path', async () => {
+      vi.stubEnv('VITE_MONITORING_ENDPOINT', 'https://telemetry.example.com/v1');
+      const mocks = createMocks();
+      mocks.stubAll();
+
+      const { reportUnknownRoute } = await import('../../src/utils/monitoring.js');
+      const sent = reportUnknownRoute('/#/reset-password?token_hash=LEAKME');
+
+      expect(sent).toBe(true);
+      const [, body] = mocks.mockNavigator.sendBeacon.mock.calls[0];
+      const parsed = JSON.parse(body);
+      expect(parsed.path).toBe('/#/reset-password?token_hash=<redacted>');
+      expect(body).not.toContain('LEAKME');
+    });
+  });
+
+  // =====================================================================
   // Edge cases
   // =====================================================================
   describe('edge cases', () => {

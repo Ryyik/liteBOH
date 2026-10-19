@@ -172,3 +172,54 @@ A2b hover 卡 / A4 两胶囊互斥 / A5 选模式 / A6 工具四件）
 **每条固定命令的 `action` 都必须在壳的 switch 里有对应 `case`** —— 逐条遍历 `BOH_SLASH_COMMANDS`
 去壳源码里找 `case '<action>':`。反证已做（注释掉 `case 'memory':` → 断言 FAIL 且报的正是它）。
 **新增命令时两处都要动**（真源表 + 壳里 case），单测会兜住漏掉的那处。
+
+### C-9 Cloud+ 发布面板 + 图库（2026-10-18 新增）
+
+改 `src/views/user-center/Cloud+/CloudPlusMain.vue` 的发布面板（`.composer-*`：浮层 / 情绪抽屉 /
+图片条 / 上传链路 / 草稿保护）或相册外壳：跑下面四条。
+
+| 探针 | 断言 | 覆盖 |
+| --- | --- | --- |
+| `scripts/probes/probe-cloud-composer.mjs` | **65** | 五档视口（390×844 / 844×390 / 740×320 / 1024×768 / 1440×900）的按钮数、发布按钮恒在视口内、遮罩半透明、玻璃材质、多字扩展、草稿保护、Esc、暗色、**上传链路对齐全站、失败原因上屏、开合过渡动画** |
+| `scripts/probes/probe-cloud-portrait.mjs` | 27 | 竖屏顶栏工具行（不折字/不溢出）、页头不吸顶、底栏与设置卡玻璃 |
+| `scripts/probes/probe-cloud-album.mjs` | 22 | iOS 图库式密铺（去月份分组、多图铺开、捏合切列、宽屏铺满） |
+| `scripts/probes/probe-cloud-motion.mjs` | 16 | 格子放大/缩小、详情从点中的格子放大展开并缩回、三档切换、切列落定回弹 |
+
+源码层守卫：`tests/unit/cloud-plus-upload-concurrency.test.js`（**15** 条：并发池与保序 +
+上传链路对齐 + 失败原因渲染 + 上传前压缩）、`tests/unit/cloud-album-order.test.js`（降序与列数单源）。
+
+⚠️ **六条硬约束**（改前先读，都有实测来源）：
+
+1. **常驻按钮只许 4 个**（关闭 / 图片 / 心情 / 发布），9 个情绪胶囊必须收在 `.mood-tray` 抽屉里 ——
+   改造前全量平铺：竖屏占 3 行 117px、横屏把发布按钮顶到 y=818（要滚 450px 才够得着）。
+2. **高度上限只声明在 CSS**（`.composer-text-input{max-height}` / `.composer-panel{max-height:…dvh}`），
+   JS 走 `useAutoGrowTextarea` 读 `getComputedStyle`，**不许写第二份像素值**（会把「I 正文高度不超上限」变成 `NaN` 红）。
+   面板高度必须同时扣 `--kb-inset`（键盘）与 `env(safe-area-inset-bottom)`，否则 iOS 键盘盖住底栏。
+3. **材质只用 `.composer-panel.liquid-glass` 两段式选择器 + `--liquid-*` token** ——
+   单类 `.composer-panel` 与全局 `.liquid-glass` 特异性同为 (0,1,0)，谁后加载谁赢，不可依赖；
+   遮罩用同一档深色（亮暗两套主题通用），**不写** `[data-theme='dark']` 分支（整块因此零暗色裸色值）。
+4. **关闭的三条路径（× / 点遮罩 / Esc）都必须过 `closeComposer`** 的草稿确认，绕过任一条都会静默丢正文与已上传图片。
+5. **上传链路必须与论坛发帖同一套参数**：`folder: CLOUD_PLUS_CLOUDINARY_FOLDER` +
+   `pendingSource: CLOUD_PLUS_UPLOAD_SOURCE`（真源在 `src/utils/api/boh-cloud-api.js`）+
+   `skipUploadPreflight: true`（预检整批只做一次）+ `onProgress`（真实字节进度，代替旧的「settled/total」假进度）。
+   改造前 Cloud+ 一个都不传 ⇒ source 落 'generic'（与装修台共用限流桶）、成功的图不进
+   `cloudinary_pending_uploads`（放弃发布的草稿图变孤儿）。
+6. **失败必须把真实原因渲染到面板上**（文件名 + 归一化文案，`role="alert"`）。错误先过
+   `normalizeDbError`（它已会剥 `CLOUDINARY_UPLOAD_RATE_LIMIT:<规则码>:` 前缀）——
+   不要把裸 `error.message` 直接写进失败列表。
+7. **上传前必须走压缩管线**（2026-10-19 补，与论坛/影集同一条）：动态 import
+   `image-compression.js` → `getImageCompressionPlan(file, { optimizeForUpload: true })` →
+   `shouldCompress` 时 `compressImageFileToUploadLimit`（Web Worker，输出 ≤2MB WebP）→
+   压缩后体积二次校验。⚠️ `optimizeForUpload` 白名单只有 **JPEG/WebP** —— PNG 不主动重编码
+   （2026-10-19 实测：5.5MB PNG 原样上传是**正确行为**，别当 bug 修）；GIF 动图不可压缩，
+   超限时报「请换成 JPG、PNG 或 WebP」。进度条压缩占前一半、上传占后一半
+   （`compressPctByIndex`/`uploadPctByIndex` 各 0.5 加权），阶段文案「压缩中/上传中」随压缩段切换。
+
+⚠️ **两条反证没做成（如实记录，别照错的写法改回去）**：
+- 只删 `folder:` 参数时 R 仍绿 —— `cloudinary-client` 的 `DEFAULT_FOLDER` 也是同一个目录，
+  请求体看不出区别；**能区分的是 `source`**（删 `pendingSource` → 签名网关 body 变 `{"source":"generic"}`，R 当场红）。
+- 只删 `.composer-panel` 的 `max-height` 时 B/C/D/J 仍绿 —— 新布局足够紧凑，收敛实际由
+  `.composer-body{overflow-y:auto}` + 面板 `overflow:hidden` 承担；那四条锁的是**报障现象**，不是某一条 CSS。
+
+> 📌 AGENTS.md §2 没有 Cloud+ 行：该表有**必读面字节棘轮**（`check:doc-truth`，只许降不许涨），
+> 2026-10-18 实测把这一节写进去会让文件超出基线 +2KB。维护者改这块时**从本文件进**。

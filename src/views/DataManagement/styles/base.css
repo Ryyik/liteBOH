@@ -64,8 +64,8 @@
   --sidebar-accent-legacy: var(--sidebar-accent);
 
   /* Typography */
-  --font-family: "DM Sans", ui-sans-serif, sans-serif, system-ui;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-family: 'DM Sans', ui-sans-serif, sans-serif, system-ui;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-sans: var(--font-family);
   --font-serif: var(--font-family);
 
@@ -74,7 +74,7 @@
   /* C 批 -12px：顶栏 64px（按钮 40px 上下各留 12），thead ≤240 的预算之一 */
   --dm-header-height: 64px;
   --dm-sidebar-width: 260px;
-  --dm-sidebar-width-collapsed: 84px;
+  /* --dm-sidebar-width-collapsed 已随折叠图标栏下线（2026-10-18），不再有消费者 */
   /* 语义 token（plans/027 4.3）：只引用既有站点变量，不新增主题源；
      themeManager 是唯一写入点，后台跟随全站深浅色 */
   --dm-bg-canvas: var(--background);
@@ -93,7 +93,7 @@
   min-height: 100vh;
   /* 透明液态玻璃环境光底（Google 色系淡光晕，fixed 跟随视口，玻璃面才有东西可透） */
   background:
-    radial-gradient(1100px 720px at 10% -8%, rgba(66, 133, 244, 0.10), transparent 60%),
+    radial-gradient(1100px 720px at 10% -8%, rgba(66, 133, 244, 0.1), transparent 60%),
     radial-gradient(900px 640px at 108% 12%, rgba(52, 168, 83, 0.08), transparent 58%),
     radial-gradient(880px 640px at 50% 116%, rgba(251, 188, 5, 0.07), transparent 60%),
     var(--background);
@@ -104,7 +104,7 @@
 }
 
 /* ==================== Dark Mode (data-theme="dark" / .dark) ==================== */
-.data-management-page[data-theme="dark"],
+.data-management-page[data-theme='dark'],
 .data-management-page.dark {
   --primary: #fc2c50;
   --primary-foreground: #ffffff;
@@ -240,7 +240,9 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: filter 0.15s ease, transform 0.1s ease;
+  transition:
+    filter 0.15s ease,
+    transform 0.1s ease;
   white-space: nowrap;
 }
 .publish-btn:hover {
@@ -275,7 +277,9 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: filter 0.15s ease, transform 0.1s ease;
+  transition:
+    filter 0.15s ease,
+    transform 0.1s ease;
   white-space: nowrap;
 }
 .refresh-btn:hover {
@@ -376,7 +380,9 @@
   display: flex;
   align-items: center;
   gap: calc(var(--spacing) * 6);
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 .stat-card:hover {
   border-color: var(--primary);
@@ -473,16 +479,11 @@
 }
 
 .dm-skeleton-block::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.82),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.82), transparent);
   animation: dmSkeletonShimmer 1.35s ease-in-out infinite;
 }
 
@@ -542,7 +543,7 @@
     --card: #ffffff;
     --popover: #f9f9fa;
   }
-  .data-management-page[data-theme="dark"],
+  .data-management-page[data-theme='dark'],
   .data-management-page.dark {
     --card: #1d1d1c;
     --popover: #2e2e2e;

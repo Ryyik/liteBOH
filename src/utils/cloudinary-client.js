@@ -4,23 +4,31 @@ import { supabase } from './supabase-client.js';
 import {
   CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES,
   validateCloudinaryUploadResult,
-  validateImageFileBeforeUpload
+  validateImageFileBeforeUpload,
 } from './cloud-upload-guard.js';
 
-const CLOUDINARY_CLOUD_NAME = String(import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dkqae7j1m').trim();
+const CLOUDINARY_CLOUD_NAME = String(
+  import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dkqae7j1m',
+).trim();
 const DEFAULT_UPLOAD_PRESET = String(
-  import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_UPLOAD_PRESET
-  || import.meta.env.VITE_CLOUDINARY_NOTE_UPLOAD_PRESET
-  || import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
-  || 'BOHIMG'
+  import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_UPLOAD_PRESET ||
+    import.meta.env.VITE_CLOUDINARY_NOTE_UPLOAD_PRESET ||
+    import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ||
+    'BOHIMG',
 ).trim();
 const DEFAULT_FOLDER = String(
-  import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_FOLDER
-  || import.meta.env.VITE_CLOUDINARY_NOTE_FOLDER
-  || 'boh-cloud-plus'
+  import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_FOLDER ||
+    import.meta.env.VITE_CLOUDINARY_NOTE_FOLDER ||
+    'boh-cloud-plus',
 ).trim();
-const CLOUDINARY_UPLOAD_BASE_URL = String(import.meta.env.VITE_CLOUDINARY_UPLOAD_BASE_URL || '').trim().replace(/\/+$/, '');
-const CLOUDINARY_DELIVERY_BASE_URL = String(import.meta.env.VITE_CLOUDINARY_DELIVERY_BASE_URL || 'https://cdn.blockofhome.cn').trim().replace(/\/+$/, '');
+const CLOUDINARY_UPLOAD_BASE_URL = String(import.meta.env.VITE_CLOUDINARY_UPLOAD_BASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
+const CLOUDINARY_DELIVERY_BASE_URL = String(
+  import.meta.env.VITE_CLOUDINARY_DELIVERY_BASE_URL || 'https://cdn.blockofhome.cn',
+)
+  .trim()
+  .replace(/\/+$/, '');
 
 function resolveUploadUrl(resourceType = 'image') {
   if (!CLOUDINARY_CLOUD_NAME) {
@@ -39,12 +47,18 @@ function resolveDeleteByTokenUrl() {
 }
 
 function stripFileExtension(name = '') {
-  return String(name || '').replace(/\.[^.]+$/, '').trim();
+  return String(name || '')
+    .replace(/\.[^.]+$/, '')
+    .trim();
 }
 
 // Supabase-js 的 fetch 默认无超时：预检/取 uid 若连接挂起，调用方会无限等待
 // （表现为上传按钮永久禁用、错误提示永不来）。race 一层超时兜底，孤儿请求完成后结果自然丢弃。
 const SUPABASE_PRECHECK_TIMEOUT_MS = 10000;
+// 签名网关（Edge Function）同样**没有**超时兜底：EF 不可达（网络被墙 / 冷启动卡死 / DNS 挂起）时
+// `functions.invoke` 会一直挂着，用户端表现是「上传中 0%」永远转圈、取消按钮是唯一出路。
+// 这里按预检同量级给一个上限，超时归入 unavailable（回落到无签名上传，行为与 EF 未部署一致）。
+const CLOUDINARY_SIGN_TIMEOUT_MS = 12000;
 
 function withTimeout(promise, timeoutMs, message) {
   return new Promise((resolve, reject) => {
@@ -57,7 +71,7 @@ function withTimeout(promise, timeoutMs, message) {
       (error) => {
         clearTimeout(timer);
         reject(error);
-      }
+      },
     );
   });
 }
@@ -84,22 +98,23 @@ function uploadFormDataWithProgress(url, formData, options = {}) {
       if (!event.lengthComputable || typeof options.onProgress !== 'function') return;
       options.onProgress(Math.max(0, Math.min(100, (event.loaded / event.total) * 100)));
     };
-    request.onload = () => finish(() => {
-      let data = {};
-      try {
-        data = JSON.parse(request.responseText || '{}');
-      } catch {
-        reject(new Error('Cloudinary 上传响应无效'));
-        return;
-      }
-      if (request.status < 200 || request.status >= 300) {
-        const error = new Error(data?.error?.message || 'Cloudinary 上传失败');
-        error.status = request.status;
-        reject(error);
-        return;
-      }
-      resolve(data);
-    });
+    request.onload = () =>
+      finish(() => {
+        let data = {};
+        try {
+          data = JSON.parse(request.responseText || '{}');
+        } catch {
+          reject(new Error('Cloudinary 上传响应无效'));
+          return;
+        }
+        if (request.status < 200 || request.status >= 300) {
+          const error = new Error(data?.error?.message || 'Cloudinary 上传失败');
+          error.status = request.status;
+          reject(error);
+          return;
+        }
+        resolve(data);
+      });
     request.onerror = () => finish(() => reject(new Error('Cloudinary 上传失败')));
     request.onabort = () => finish(() => reject(new Error('Cloudinary 上传超时或已取消')));
     signal?.addEventListener?.('abort', abortRequest, { once: true });
@@ -121,22 +136,28 @@ export function supportsCloudinaryClientDeleteToken(payload = {}) {
 }
 
 function normalizeCloudinaryPendingPublicIds(publicIds = []) {
-  return Array.from(new Set(
-    (Array.isArray(publicIds) ? publicIds : [publicIds])
-      .map((item) => String(item?.publicId || item?.public_id || item || '').trim())
-      .filter(Boolean)
-  ));
+  return Array.from(
+    new Set(
+      (Array.isArray(publicIds) ? publicIds : [publicIds])
+        .map((item) => String(item?.publicId || item?.public_id || item || '').trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function isMissingPendingUploadStoreError(error = {}) {
-  const code = String(error?.code || '').trim().toUpperCase();
+  const code = String(error?.code || '')
+    .trim()
+    .toUpperCase();
   const message = String(error?.message || '').toLowerCase();
-  return code === '42P01'
-    || code === 'PGRST202'
-    || code === 'PGRST205'
-    || message.includes('cloudinary_pending_uploads')
-    || message.includes('could not find the table')
-    || message.includes('could not find the function');
+  return (
+    code === '42P01' ||
+    code === 'PGRST202' ||
+    code === 'PGRST205' ||
+    message.includes('cloudinary_pending_uploads') ||
+    message.includes('could not find the table') ||
+    message.includes('could not find the function')
+  );
 }
 
 async function getCurrentSupabaseUserId() {
@@ -147,7 +168,7 @@ async function getCurrentSupabaseUserId() {
   const { data } = await withTimeout(
     supabase.auth.getUser(),
     SUPABASE_PRECHECK_TIMEOUT_MS,
-    '登录状态获取超时，请检查网络后重试'
+    '登录状态获取超时，请检查网络后重试',
   );
   cachedUserId = String(data?.user?.id || '').trim();
   cachedUserIdAt = now;
@@ -167,7 +188,9 @@ function attachAuthCacheInvalidation() {
       cachedUserIdAt = 0;
       uploadAllowCache.ts = 0;
     });
-  } catch { /* 监听失败不影响主流程 */ }
+  } catch {
+    /* 监听失败不影响主流程 */
+  }
 }
 
 // 仅测试使用：C1 缓存是模块级状态，跨用例会泄漏（userId/预检结果），
@@ -193,20 +216,26 @@ export async function registerCloudinaryPendingUpload(uploaded = {}, options = {
     // 导致 cloudinary_pending_uploads 里真假孤儿混在一起、无法安全清理。
     const claimedAt = options.claimed ? new Date().toISOString() : null;
 
-    const { error } = await supabase
-      .from('cloudinary_pending_uploads')
-      .upsert({
+    const { error } = await supabase.from('cloudinary_pending_uploads').upsert(
+      {
         user_id: userId,
         public_id: publicId,
         url: String(uploaded.url || uploaded.secure_url || '').trim(),
         resource_type: 'image',
-        source: String(options.source || 'generic').trim().slice(0, 40) || 'generic',
-        folder: String(options.folder || '').trim().slice(0, 255),
+        source:
+          String(options.source || 'generic')
+            .trim()
+            .slice(0, 40) || 'generic',
+        folder: String(options.folder || '')
+          .trim()
+          .slice(0, 255),
         claimed_at: claimedAt,
-        deleted_at: null
-      }, {
-        onConflict: 'public_id'
-      });
+        deleted_at: null,
+      },
+      {
+        onConflict: 'public_id',
+      },
+    );
 
     if (error) {
       if (isMissingPendingUploadStoreError(error)) {
@@ -216,7 +245,11 @@ export async function registerCloudinaryPendingUpload(uploaded = {}, options = {
     }
     return { ok: true, skipped: false, error: null };
   } catch (error) {
-    return { ok: false, skipped: false, error: normalizeDbError(error, 'Cloudinary 上传归属记录失败') };
+    return {
+      ok: false,
+      skipped: false,
+      error: normalizeDbError(error, 'Cloudinary 上传归属记录失败'),
+    };
   }
 }
 
@@ -226,7 +259,11 @@ export async function markCloudinaryUploadsClaimed(publicIds = []) {
 
   try {
     const userId = await getCurrentSupabaseUserId();
-    if (!userId) return { ok: false, error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }) };
+    if (!userId)
+      return {
+        ok: false,
+        error: normalizeDbError({ message: '请先登录', code: 'NOT_AUTHENTICATED' }),
+      };
 
     const { error } = await supabase
       .from('cloudinary_pending_uploads')
@@ -265,10 +302,13 @@ export async function assertCloudinaryUploadAllowed(options = {}) {
   const request = (async () => {
     const { error } = await withTimeout(
       supabase.rpc('assert_cloudinary_upload_allowed', {
-        p_source: String(options.source || 'generic').trim().slice(0, 40) || 'generic'
+        p_source:
+          String(options.source || 'generic')
+            .trim()
+            .slice(0, 40) || 'generic',
       }),
       SUPABASE_PRECHECK_TIMEOUT_MS,
-      '上传预检超时，请检查网络后重试'
+      '上传预检超时，请检查网络后重试',
     );
 
     if (!error) {
@@ -276,7 +316,12 @@ export async function assertCloudinaryUploadAllowed(options = {}) {
       return;
     }
     const message = String(error.message || '').toLowerCase();
-    if (String(error.code || '').trim().toUpperCase() === 'PGRST202' || message.includes('could not find the function')) {
+    if (
+      String(error.code || '')
+        .trim()
+        .toUpperCase() === 'PGRST202' ||
+      message.includes('could not find the function')
+    ) {
       uploadAllowCache.ts = Date.now();
       return;
     }
@@ -308,7 +353,9 @@ export function getCloudinaryDisplayUrl(url = '') {
 
 export function getCloudinaryTransformedUrl(url = '', transformation = '') {
   const safeUrl = String(url || '').trim();
-  const safeTransformation = String(transformation || '').trim().replace(/^\/+|\/+$/g, '');
+  const safeTransformation = String(transformation || '')
+    .trim()
+    .replace(/^\/+|\/+$/g, '');
   if (!safeUrl || !safeTransformation) {
     return getCloudinaryDisplayUrl(safeUrl);
   }
@@ -352,7 +399,9 @@ export function extractCloudinaryPublicIdFromUrl(url = '') {
     const uploadIndex = segments.findIndex((segment) => segment === 'upload');
     if (uploadIndex < 0) return '';
 
-    const assetSegments = segments.slice(uploadIndex + 1).filter((segment) => !/^v\d+$/.test(segment));
+    const assetSegments = segments
+      .slice(uploadIndex + 1)
+      .filter((segment) => !/^v\d+$/.test(segment));
     if (!assetSegments.length) return '';
 
     const lastSegment = assetSegments[assetSegments.length - 1] || '';
@@ -373,12 +422,20 @@ export function extractCloudinaryPublicIdFromUrl(url = '') {
  *   - blocked      → EF 明确拒绝（未登录 401 / 额度 429 / 配置缺失 5xx）。
  *                    ⚠️ 绝不静默回落：配额类拒绝若悄悄降级成无签名上传，等于把刚堵上的洞又打开。
  */
-export async function resolveCloudinaryUploadSignParams({ source = 'generic', folder = '', includeContext = true } = {}) {
+export async function resolveCloudinaryUploadSignParams({
+  source = 'generic',
+  folder = '',
+  includeContext = true,
+} = {}) {
   let response;
   try {
-    response = await supabase.functions.invoke('cloudinary-sign-upload', {
-      body: { source, folder, includeContext: includeContext !== false }
-    });
+    response = await withTimeout(
+      supabase.functions.invoke('cloudinary-sign-upload', {
+        body: { source, folder, includeContext: includeContext !== false },
+      }),
+      CLOUDINARY_SIGN_TIMEOUT_MS,
+      '签名网关连接超时，请稍后重试',
+    );
   } catch (invokeError) {
     return { mode: 'unavailable', status: 0, reason: invokeError?.message || 'invoke_failed' };
   }
@@ -407,7 +464,7 @@ export async function resolveCloudinaryUploadSignParams({ source = 'generic', fo
       signature: String(data.signature),
       params: data.params,
       apiKey: String(data.apiKey || ''),
-      cloudName: String(data.cloudName || CLOUDINARY_CLOUD_NAME)
+      cloudName: String(data.cloudName || CLOUDINARY_CLOUD_NAME),
     };
   }
 
@@ -432,12 +489,14 @@ export async function uploadImageToCloudinary(file, options = {}) {
     const folder = String(options.folder || DEFAULT_FOLDER).trim();
 
     if (!uploadPreset) {
-      throw new Error('缺少 Cloudinary 配置：请设置 VITE_CLOUDINARY_CLOUD_PLUS_UPLOAD_PRESET、VITE_CLOUDINARY_NOTE_UPLOAD_PRESET 或 VITE_CLOUDINARY_UPLOAD_PRESET');
+      throw new Error(
+        '缺少 Cloudinary 配置：请设置 VITE_CLOUDINARY_CLOUD_PLUS_UPLOAD_PRESET、VITE_CLOUDINARY_NOTE_UPLOAD_PRESET 或 VITE_CLOUDINARY_UPLOAD_PRESET',
+      );
     }
 
     if (options.skipUploadPreflight !== true) {
       await assertCloudinaryUploadAllowed({
-        source: options.pendingSource || options.source || 'generic'
+        source: options.pendingSource || options.source || 'generic',
       });
     }
 
@@ -451,7 +510,7 @@ export async function uploadImageToCloudinary(file, options = {}) {
     const signRequest = await resolveCloudinaryUploadSignParams({
       source: signSource,
       folder,
-      includeContext: true
+      includeContext: true,
     });
 
     if (signRequest.mode === 'blocked') {
@@ -476,7 +535,7 @@ export async function uploadImageToCloudinary(file, options = {}) {
           const reFetched = await resolveCloudinaryUploadSignParams({
             source: signSource,
             folder,
-            includeContext: false
+            includeContext: false,
           });
           if (reFetched.mode === 'signed') {
             params = reFetched.params;
@@ -513,7 +572,7 @@ export async function uploadImageToCloudinary(file, options = {}) {
         response = await fetch(resolveUploadUrl('image'), {
           method: 'POST',
           body: formData,
-          signal: options.signal || uploadController.signal
+          signal: options.signal || uploadController.signal,
         });
       } finally {
         clearTimeout(uploadTimeoutId);
@@ -533,7 +592,9 @@ export async function uploadImageToCloudinary(file, options = {}) {
     const isRetryableUploadError = (error) => {
       const message = String(error?.message || '');
       if (!error?.status) {
-        return /failed to fetch|network|超时|已取消/.test(message) || message === 'Cloudinary 上传失败';
+        return (
+          /failed to fetch|network|超时|已取消/.test(message) || message === 'Cloudinary 上传失败'
+        );
       }
       return error.status >= 500;
     };
@@ -564,7 +625,7 @@ export async function uploadImageToCloudinary(file, options = {}) {
     }
     validateCloudinaryUploadResult(data, {
       cloudName: CLOUDINARY_CLOUD_NAME,
-      folder: effectiveFolder
+      folder: effectiveFolder,
     });
 
     const uploaded = {
@@ -574,7 +635,7 @@ export async function uploadImageToCloudinary(file, options = {}) {
       width: Number(data.width || 0),
       height: Number(data.height || 0),
       format: String(data.format || ''),
-      originalFilename: stripFileExtension(data.original_filename || file.name)
+      originalFilename: stripFileExtension(data.original_filename || file.name),
     };
 
     const pendingSource = String(options.pendingSource || '').trim();
@@ -586,11 +647,15 @@ export async function uploadImageToCloudinary(file, options = {}) {
         source: pendingSource,
         folder,
         // 管理后台（装修台）上传的素材上传即投产：直接写 claimed_at
-        claimed: options.claimPendingUpload === true
+        claimed: options.claimPendingUpload === true,
       })
         .then((pendingResult) => {
           if (!pendingResult?.ok) {
-            logger.warn('cloudinary', '上传归属登记失败（不阻断，由兜底清理覆盖）', pendingResult?.error);
+            logger.warn(
+              'cloudinary',
+              '上传归属登记失败（不阻断，由兜底清理覆盖）',
+              pendingResult?.error,
+            );
           }
         })
         .catch((error) => logger.warn('cloudinary', '上传归属登记异常（不阻断）', error));
@@ -620,7 +685,7 @@ export async function deleteCloudinaryAssetByToken(deleteToken, options = {}) {
         method: 'POST',
         body: formData,
         keepalive: Boolean(options.keepalive),
-        signal: deleteController.signal
+        signal: deleteController.signal,
       });
     } finally {
       clearTimeout(deleteTimeoutId);
@@ -634,7 +699,7 @@ export async function deleteCloudinaryAssetByToken(deleteToken, options = {}) {
     return {
       ok: true,
       result: String(data.result || ''),
-      partial: Boolean(data.partial)
+      partial: Boolean(data.partial),
     };
   } catch (error) {
     throw normalizeDbError(error, 'Cloudinary 云端删除失败');
@@ -643,11 +708,13 @@ export async function deleteCloudinaryAssetByToken(deleteToken, options = {}) {
 
 export async function deleteCloudinaryAssetsByPublicIds(publicIds = [], options = {}) {
   try {
-    const normalizedPublicIds = Array.from(new Set(
-      (Array.isArray(publicIds) ? publicIds : [])
-        .map((item) => String(item || '').trim())
-        .filter(Boolean)
-    ));
+    const normalizedPublicIds = Array.from(
+      new Set(
+        (Array.isArray(publicIds) ? publicIds : [])
+          .map((item) => String(item || '').trim())
+          .filter(Boolean),
+      ),
+    );
 
     if (!normalizedPublicIds.length) {
       return { ok: true, data: { deleted: [], failed: [] }, error: null };
@@ -656,8 +723,8 @@ export async function deleteCloudinaryAssetsByPublicIds(publicIds = [], options 
     const { data, error } = await supabase.functions.invoke('cloudinary-delete', {
       body: {
         publicIds: normalizedPublicIds,
-        resourceType: String(options.resourceType || 'image').trim() || 'image'
-      }
+        resourceType: String(options.resourceType || 'image').trim() || 'image',
+      },
     });
 
     if (error) {
@@ -667,7 +734,12 @@ export async function deleteCloudinaryAssetsByPublicIds(publicIds = [], options 
     return {
       ok: Boolean(data?.ok),
       data: data || { deleted: [], failed: [] },
-      error: data?.ok ? null : normalizeDbError({ message: data?.message || 'Cloudinary 云端删除失败', code: data?.code || 'CLOUDINARY_DELETE_FAILED' })
+      error: data?.ok
+        ? null
+        : normalizeDbError({
+            message: data?.message || 'Cloudinary 云端删除失败',
+            code: data?.code || 'CLOUDINARY_DELETE_FAILED',
+          }),
     };
   } catch (error) {
     return { ok: false, data: null, error: normalizeDbError(error, 'Cloudinary 云端删除失败') };

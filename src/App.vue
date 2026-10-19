@@ -171,8 +171,11 @@ const checkAndStartListener = () => {
 
 // 根据当前路由为body添加对应的class
 const updateBodyClass = () => {
-  // 移除所有页面相关的class
-  document.body.className = document.body.className.replace(/page-\w+/g, '');
+  // 移除所有页面相关的class。
+  // ⚠️ 字符类必须含 `-`（2026-10-17 全面审查 P3-8）：路由名可以是多段词
+  // （如 `user-space` ⇒ `page-user-space`），旧正则 `/page-\w+/g` 只吃到 `page-user`，
+  // 残留的 `-space` 会在每次切路由时累积成垃圾类名。
+  document.body.className = document.body.className.replace(/page-[\w-]+/g, '');
 
   // 根据路由添加对应的class，确保route.name存在
   if (route.name) {

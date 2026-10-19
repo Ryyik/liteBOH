@@ -9,8 +9,8 @@ vi.mock('@/utils/logger.js', () => ({
     debug: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
-    info: vi.fn()
-  }
+    info: vi.fn(),
+  },
 }));
 
 // Mock supabase 动态导入
@@ -20,29 +20,30 @@ const mockSupabase = {
     getUser: vi.fn(),
     refreshSession: vi.fn(),
     onAuthStateChange: vi.fn(() => ({ data: { subscription: null } })),
-    signOut: vi.fn()
+    signOut: vi.fn(),
   },
   from: vi.fn(() => ({
     select: vi.fn(() => ({
       eq: vi.fn(() => ({
         maybeSingle: vi.fn(),
-        single: vi.fn()
+        single: vi.fn(),
       })),
     })),
     insert: vi.fn(),
     update: vi.fn(() => ({
-      eq: vi.fn()
-    }))
+      eq: vi.fn(),
+    })),
   })),
   rpc: vi.fn(),
-  removeChannel: vi.fn()
+  removeChannel: vi.fn(),
 };
 
 // passkey 登录相关（store 经 loadAuthApi 解构使用，mock 必须齐备）
 const mockSignInWithPasskey = vi.fn();
 const mockToPasskeyLoginMessage = vi.fn((error) => {
   const name = String(error?.name || '');
-  if (name === 'NotAllowedError') return '这台设备还没有本站的通行密钥，或验证未完成。请先用密码登录，然后在 设置 → 账户安全 中添加通行密钥。';
+  if (name === 'NotAllowedError')
+    return '这台设备还没有本站的通行密钥，或验证未完成。请先用密码登录，然后在 设置 → 账户安全 中添加通行密钥。';
   return error?.message || '通行密钥登录失败，请使用密码登录。';
 });
 
@@ -61,25 +62,25 @@ vi.mock('@/utils/auth.js', () => ({
   subscribeToNotifications: vi.fn(),
   invalidateByTags: vi.fn(),
   signInWithPasskey: mockSignInWithPasskey,
-  toPasskeyLoginMessage: mockToPasskeyLoginMessage
+  toPasskeyLoginMessage: mockToPasskeyLoginMessage,
 }));
 
 // Mock notification store
 const mockNotificationReset = vi.fn();
 vi.mock('@/stores/notifications', () => ({
-  useNotificationStore: () => ({ resetState: mockNotificationReset })
+  useNotificationStore: () => ({ resetState: mockNotificationReset }),
 }));
 
 // Mock bag store
 const mockBagReset = vi.fn();
 vi.mock('@/stores/bag', () => ({
-  useBagStore: () => ({ resetState: mockBagReset })
+  useBagStore: () => ({ resetState: mockBagReset }),
 }));
 
 // Mock products store
 const mockProductsReset = vi.fn();
 vi.mock('@/stores/products', () => ({
-  useProductsStore: () => ({ resetState: mockProductsReset })
+  useProductsStore: () => ({ resetState: mockProductsReset }),
 }));
 
 import { useAuthStore } from '@/stores/auth';
@@ -100,12 +101,12 @@ function mockLoggedInSession() {
         user: {
           id: 'user-123',
           email: 'test@example.com',
-          user_metadata: { username: 'TestUser' }
+          user_metadata: { username: 'TestUser' },
         },
-        expires_at: Math.floor(Date.now() / 1000) + 3600
-      }
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      },
     },
-    error: null
+    error: null,
   });
 
   mockSupabase.from.mockReturnValue({
@@ -124,12 +125,12 @@ function mockLoggedInSession() {
             creator_platform_ids: {},
             creator_platform_visibility: {},
             creator_platform_order: [],
-            showcase_post_ids: []
+            showcase_post_ids: [],
           },
-          error: null
-        })
-      }))
-    }))
+          error: null,
+        }),
+      })),
+    })),
   });
 }
 
@@ -283,16 +284,16 @@ describe('auth store', () => {
         data: {
           session: {
             user: { id: 'u1', email: 'test@test.com', user_metadata: {} },
-            expires_at: Math.floor(Date.now() / 1000) + 7200 // 2 hours
-          }
+            expires_at: Math.floor(Date.now() / 1000) + 7200, // 2 hours
+          },
         },
-        error: null
+        error: null,
       });
 
       // refreshSession 不应被调用
       mockSupabase.auth.refreshSession.mockResolvedValue({
         data: { session: null },
-        error: null
+        error: null,
       });
 
       await store.syncAuthState({ reason: 'test', force: false });
@@ -305,20 +306,20 @@ describe('auth store', () => {
         data: {
           session: {
             user: { id: 'u1', email: 'test@test.com', user_metadata: {} },
-            expires_at: Math.floor(Date.now() / 1000) + 60 // 1 minute left
-          }
+            expires_at: Math.floor(Date.now() / 1000) + 60, // 1 minute left
+          },
         },
-        error: null
+        error: null,
       });
 
       mockSupabase.auth.refreshSession.mockResolvedValue({
         data: {
           session: {
             user: { id: 'u1', email: 'test@test.com', user_metadata: {} },
-            expires_at: Math.floor(Date.now() / 1000) + 7200
-          }
+            expires_at: Math.floor(Date.now() / 1000) + 7200,
+          },
         },
-        error: null
+        error: null,
       });
 
       mockSupabase.from.mockReturnValue({
@@ -337,12 +338,12 @@ describe('auth store', () => {
                 creator_platform_ids: {},
                 creator_platform_visibility: {},
                 creator_platform_order: [],
-                showcase_post_ids: []
+                showcase_post_ids: [],
               },
-              error: null
-            })
-          }))
-        }))
+              error: null,
+            }),
+          })),
+        })),
       });
 
       await store.syncAuthState({ reason: 'test', force: false });
@@ -355,17 +356,17 @@ describe('auth store', () => {
     it('detects AuthSessionMissingError by code', async () => {
       mockSupabase.auth.getSession.mockResolvedValue({
         data: { session: null },
-        error: null
+        error: null,
       });
 
       mockSupabase.auth.refreshSession.mockResolvedValue({
         data: { session: null },
-        error: { code: 'AUTH_SESSION_MISSING', message: 'Auth session missing' }
+        error: { code: 'AUTH_SESSION_MISSING', message: 'Auth session missing' },
       });
 
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: null },
-        error: { code: 'AUTH_SESSION_MISSING', message: 'Auth session missing' }
+        error: { code: 'AUTH_SESSION_MISSING', message: 'Auth session missing' },
       });
 
       // syncAuthState 遇到 AUTH_SESSION_MISSING 时应调用 resetState
@@ -401,19 +402,19 @@ describe('auth store', () => {
                 creator_platform_ids: { bilibili: '12345', douyin: 'hello' },
                 creator_platform_visibility: { bilibili: 'public', douyin: 'public' },
                 creator_platform_order: ['bilibili', 'douyin'],
-                showcase_post_ids: []
+                showcase_post_ids: [],
               },
-              error: null
-            })
-          }))
+              error: null,
+            }),
+          })),
         })),
         update: vi.fn(() => ({
-          eq: vi.fn().mockResolvedValue({ error: null })
-        }))
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        })),
       });
 
       const result = await store.updateUserProfile({
-        creator_platform_ids: { bilibili: '  12345  ', douyin: 'hello', xiaohongshu: '' }
+        creator_platform_ids: { bilibili: '  12345  ', douyin: 'hello', xiaohongshu: '' },
       });
 
       expect(result.success).toBe(true);
@@ -436,7 +437,7 @@ describe('auth store', () => {
       deleteMyAccount.mockResolvedValue({
         ok: true,
         error: null,
-        data: { message: '账号已注销' }
+        data: { message: '账号已注销' },
       });
 
       store.userInfo.id = 'user-123';
@@ -463,7 +464,7 @@ describe('auth store', () => {
       const { signIn } = await import('@/utils/auth.js');
       signIn.mockResolvedValue({
         data: null,
-        error: { message: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }
+        error: { message: 'Invalid credentials', code: 'INVALID_CREDENTIALS' },
       });
 
       const result = await store.login('testuser', 'wrongpass');
@@ -476,12 +477,67 @@ describe('auth store', () => {
     it('works without extra verification/device params (BUG-U1)', async () => {
       const { signIn } = await import('@/utils/auth.js');
       signIn.mockResolvedValue({
-        data: { user: { id: 'u1', email: 't@t.com', user_metadata: { username: 't' } }, session: { user: { id: 'u1' } } },
-        error: null
+        data: {
+          user: { id: 'u1', email: 't@t.com', user_metadata: { username: 't' } },
+          session: { user: { id: 'u1' } },
+        },
+        error: null,
       });
 
       const result = await store.login('testuser', 'pass', false);
       expect(result.success).toBe(true);
+    });
+  });
+
+  // ============================================================
+  // 2026-10-17 全面审查 P2-9：登出再登录后浏览器生命周期监听永久丢失
+  //   根因：只有 initLoginState 会 ensureBrowserLifecycleSync()，而 resetState()
+  //   会 removeEventListener + 复位 browserLifecycleBound ⇒ 同标签页「登出→再登录」
+  //   之后 visibilitychange / online / pagehide 全没了（静默：切走不再补写
+  //   last_active_at、last_online_day 游标不推进、断网恢复不同步）。
+  //   修复点：updateLocalState 的登录分支统一重绑（幂等守卫在函数内部）。
+  // ============================================================
+  describe('浏览器生命周期监听（P2-9）', () => {
+    const stubBrowserGlobals = () => {
+      const added = [];
+      const removed = [];
+      vi.stubGlobal('window', {
+        addEventListener: vi.fn((type) => added.push(type)),
+        removeEventListener: vi.fn((type) => removed.push(type)),
+      });
+      vi.stubGlobal('document', { visibilityState: 'visible' });
+      return { added, removed };
+    };
+
+    const signInOk = async () => {
+      const { signIn } = await import('@/utils/auth.js');
+      signIn.mockResolvedValue({
+        data: {
+          user: { id: 'u1', email: 't@t.com', user_metadata: { username: 't' } },
+          session: { user: { id: 'u1' } },
+        },
+        error: null,
+      });
+    };
+
+    it('登出再登录后会重新绑定 visibilitychange / online / pagehide', async () => {
+      const { added, removed } = stubBrowserGlobals();
+      await signInOk();
+
+      const first = await store.login('testuser', 'pass', false);
+      expect(first.success).toBe(true);
+      expect(added).toEqual(expect.arrayContaining(['visibilitychange', 'online', 'pagehide']));
+
+      await store.resetState();
+      expect(removed).toEqual(expect.arrayContaining(['visibilitychange', 'online', 'pagehide']));
+
+      // 第二次登录：修复前这里一个监听都不会加（added 为空）⇒ 本断言必红
+      added.length = 0;
+      const second = await store.login('testuser', 'pass', false);
+      expect(second.success).toBe(true);
+      expect(added).toEqual(expect.arrayContaining(['visibilitychange', 'online', 'pagehide']));
+
+      vi.unstubAllGlobals();
     });
   });
 
@@ -491,7 +547,7 @@ describe('auth store', () => {
       const { resetPassword: mockResetPassword } = await import('@/utils/auth.js');
       mockResetPassword.mockResolvedValue({
         data: null,
-        error: { message: 'User not found' }
+        error: { message: 'User not found' },
       });
 
       const result = await store.resetPassword('nobody@test.com');
@@ -503,7 +559,7 @@ describe('auth store', () => {
       const { resetPassword: mockResetPassword } = await import('@/utils/auth.js');
       mockResetPassword.mockResolvedValue({
         data: {},
-        error: null
+        error: null,
       });
 
       const result = await store.resetPassword('test@test.com');
@@ -518,7 +574,7 @@ describe('auth store', () => {
       const { verifyPasswordRecovery: mockVerify } = await import('@/utils/auth.js');
       mockVerify.mockResolvedValue({
         data: null,
-        error: { message: 'Invalid token' }
+        error: { message: 'Invalid token' },
       });
 
       const result = await store.verifyPasswordRecovery('bad-token');
@@ -533,7 +589,7 @@ describe('auth store', () => {
       const { updatePassword: mockUpdatePass } = await import('@/utils/auth.js');
       mockUpdatePass.mockResolvedValue({
         data: {},
-        error: null
+        error: null,
       });
 
       const result = await store.updatePassword('newpass123');
@@ -585,12 +641,12 @@ describe('auth store', () => {
     it('returns false when user is not admin', async () => {
       mockSupabase.auth.getSession.mockResolvedValue({
         data: { session: null },
-        error: null
+        error: null,
       });
 
       mockSupabase.auth.getUser.mockResolvedValue({
         data: { user: null },
-        error: null
+        error: null,
       });
 
       store.userInfo.role = 'user';
@@ -630,7 +686,7 @@ describe('auth store', () => {
 const PASSKEY_USER = {
   id: 'user-123',
   email: 'test@example.com',
-  user_metadata: { username: 'TestUser' }
+  user_metadata: { username: 'TestUser' },
 };
 
 // 按查询形态路由：资料加载走 .maybeSingle()，封禁检查走 .single()。
@@ -642,14 +698,14 @@ function installProfileRouting({ banned, banReason = null, bannedUntil = null })
       eq: vi.fn(() => ({
         maybeSingle: vi.fn().mockResolvedValue({
           data: { id: 'user-123', username: 'TestUser', role: 'user' },
-          error: null
+          error: null,
         }),
         single: vi.fn().mockResolvedValue({
           data: { is_banned: banned, ban_reason: banReason, banned_until: bannedUntil },
-          error: null
-        })
-      }))
-    }))
+          error: null,
+        }),
+      })),
+    })),
   }));
 }
 
@@ -672,7 +728,7 @@ describe('auth store: loginWithPasskey', () => {
     const authApi = await import('@/utils/auth.js');
     mockSignInWithPasskey.mockResolvedValue({
       data: { session: { user: PASSKEY_USER }, user: PASSKEY_USER },
-      error: null
+      error: null,
     });
     installProfileRouting({ banned: false });
 
@@ -688,7 +744,7 @@ describe('auth store: loginWithPasskey', () => {
     const authApi = await import('@/utils/auth.js');
     mockSignInWithPasskey.mockResolvedValue({
       data: { session: { user: PASSKEY_USER }, user: PASSKEY_USER },
-      error: null
+      error: null,
     });
     installProfileRouting({ banned: true, banReason: '刷屏', bannedUntil: null });
 
@@ -704,7 +760,10 @@ describe('auth store: loginWithPasskey', () => {
   it('浏览器失败（NotAllowedError）→ 首次使用引导文案，不建立会话', async () => {
     mockSignInWithPasskey.mockResolvedValue({
       data: null,
-      error: { name: 'NotAllowedError', message: 'The operation either timed out or was not allowed.' }
+      error: {
+        name: 'NotAllowedError',
+        message: 'The operation either timed out or was not allowed.',
+      },
     });
 
     const result = await store.loginWithPasskey();
@@ -728,7 +787,7 @@ describe('auth store: loginWithPasskey', () => {
 const TOKEN_LOGIN_USER = {
   id: 'user-123',
   email: 'test@example.com',
-  user_metadata: { username: 'TestUser' }
+  user_metadata: { username: 'TestUser' },
 };
 
 function installProfileOnlyRouting() {
@@ -736,15 +795,25 @@ function installProfileOnlyRouting() {
     select: vi.fn(() => ({
       eq: vi.fn(() => ({
         maybeSingle: vi.fn().mockResolvedValue({
-          data: { id: 'user-123', username: 'TestUser', role: 'user', last_active_at: '2026-09-20T10:00:00Z' },
-          error: null
+          data: {
+            id: 'user-123',
+            username: 'TestUser',
+            role: 'user',
+            last_active_at: '2026-09-20T10:00:00Z',
+          },
+          error: null,
         }),
         single: vi.fn().mockResolvedValue({
-          data: { id: 'user-123', username: 'TestUser', role: 'user', last_active_at: '2026-09-20T10:00:00Z' },
-          error: null
-        })
-      }))
-    }))
+          data: {
+            id: 'user-123',
+            username: 'TestUser',
+            role: 'user',
+            last_active_at: '2026-09-20T10:00:00Z',
+          },
+          error: null,
+        }),
+      })),
+    })),
   }));
 }
 
@@ -773,18 +842,24 @@ describe('auth store: 登录跃迁写活跃时间', () => {
 
     expect(store.isLoggedIn).toBe(true);
     // updateOnlineStatus 是 void 异步调用（不 await），用条件等待而非固定 tick
-    await vi.waitFor(() => {
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('update_last_active_at');
-    }, { timeout: 5000 });
+    await vi.waitFor(
+      () => {
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('update_last_active_at');
+      },
+      { timeout: 5000 },
+    );
   });
 
   it('已登录态下常规刷新（TOKEN_REFRESHED/USER_UPDATED 场景）不重复写', async () => {
     installProfileOnlyRouting();
 
     await store.updateLocalState(TOKEN_LOGIN_USER, { force: true });
-    await vi.waitFor(() => {
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('update_last_active_at');
-    }, { timeout: 5000 });
+    await vi.waitFor(
+      () => {
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('update_last_active_at');
+      },
+      { timeout: 5000 },
+    );
     // 排空本用例异步尾随（refreshOverviewMarks 等）后按函数名取基准——
     // 不等 mark_overview_state：它是 void 尾随，落账时序不可靠，与被测行为无关
     await new Promise((resolve) => setImmediate(resolve));
@@ -802,17 +877,23 @@ describe('auth store: 登录跃迁写活跃时间', () => {
     installProfileOnlyRouting();
 
     await store.updateLocalState(TOKEN_LOGIN_USER, { force: true });
-    await vi.waitFor(() => {
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('update_last_active_at');
-    }, { timeout: 5000 });
+    await vi.waitFor(
+      () => {
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('update_last_active_at');
+      },
+      { timeout: 5000 },
+    );
     const updateCallsAfterFirstLogin = countUpdateCalls();
 
     await store.resetState();
     await new Promise((resolve) => setImmediate(resolve));
 
     await store.updateLocalState(TOKEN_LOGIN_USER, { force: true });
-    await vi.waitFor(() => {
-      return expect(countUpdateCalls()).toBeGreaterThan(updateCallsAfterFirstLogin);
-    }, { timeout: 5000 });
+    await vi.waitFor(
+      () => {
+        return expect(countUpdateCalls()).toBeGreaterThan(updateCallsAfterFirstLogin);
+      },
+      { timeout: 5000 },
+    );
   });
 });

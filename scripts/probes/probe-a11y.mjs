@@ -59,12 +59,63 @@ const browser = await chromium.launch();
 const current = {}; // "页面::规则::impact" -> count
 const perPage = {};
 
+/* ── 等「页面内容停止变化」再扫（2026-10-17）──────────────────────────────
+   报障：首页/论坛列表的 color-contrast 命中数在两次连跑间是 4 ↔ 26 —— feed 首屏是
+   分批插入的（虚拟滚动 + 广告位 + 懒加载图 + 字体交换），固定 `sleep(3500)` 会踩中
+   「内容刚加载一半」的中间态 ⇒ 基线计数随运气漂移，直接 `--update` 会把运气好的
+   那次锁成基线，之后天天假红。
+   判稳需要**两个条件同时成立**（缺一不可，实测各漏过一次）：
+     ① 内容签名（文档高度 + 元素数 + 图片加载进度）连续 3 次采样不变；
+     ② 网络安静：在飞请求为 0 且 ≥1.2s 没有新请求 —— feed 的 RPC 返回比 DOM 稳定
+        晚一步，只看 DOM 会在「请求已发、数据未回」的窗口里提前扫。
+   外加 `document.fonts.ready`（字体交换会改文本度量，对比度按渲染后像素算）。
+   超时也继续扫 —— 棘轮本身有容差，这里只是把「确定性」提上来。 */
+const settlePage = async (page, net, { maxMs = 25000, intervalMs = 600, quietMs = 1200 } = {}) => {
+  await page.evaluate(() => document.fonts?.ready?.catch?.(() => {}));
+  const start = Date.now();
+  let prev = '';
+  let stableCount = 0;
+  while (Date.now() - start < maxMs) {
+    const sig = await page.evaluate(() => {
+      const imgs = [...document.images];
+      return [
+        document.body?.scrollHeight || 0,
+        document.querySelectorAll('*').length,
+        `${imgs.filter((i) => i.complete).length}/${imgs.length}`,
+      ].join('|');
+    });
+    const netQuiet = net.inflight === 0 && Date.now() - net.lastActivityAt >= quietMs;
+    if (sig === prev) stableCount += 1;
+    else stableCount = 0;
+    prev = sig;
+    if (stableCount >= 2 && netQuiet) return true;
+    await page.waitForTimeout(intervalMs);
+  }
+  return false;
+};
+
 for (const p of PAGES) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
+  // 网络活动计数：feed 的 RPC 比渲染晚一步，只看 DOM 会在数据未回时提前扫
+  const net = { inflight: 0, lastActivityAt: Date.now() };
+  const bump = () => {
+    net.inflight += 1;
+    net.lastActivityAt = Date.now();
+  };
+  page.on('request', bump);
+  page.on('requestfinished', () => {
+    net.inflight = Math.max(0, net.inflight - 1);
+    net.lastActivityAt = Date.now();
+  });
+  page.on('requestfailed', () => {
+    net.inflight = Math.max(0, net.inflight - 1);
+    net.lastActivityAt = Date.now();
+  });
   try {
     await page.goto(`${BASE}/${p.hash}`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(1500);
+    const settled = await settlePage(page, net);
     const res = await new AxeBuilder({ page }).options(AXE_OPTIONS).analyze();
 
     const byRule = {};
@@ -82,6 +133,7 @@ for (const p of PAGES) {
     };
     console.log(
       `  · ${p.name.padEnd(6)} 违规规则 ${String(res.violations.length).padStart(2)} 条 / 命中节点 ${String(perPage[p.name].nodes).padStart(3)} 个` +
+        (settled ? '' : '  ⚠️ 内容未稳定（超时）') +
         (res.violations.length
           ? `  ${res.violations.map((v) => `${v.id}(${v.impact})`).join(', ')}`
           : ''),

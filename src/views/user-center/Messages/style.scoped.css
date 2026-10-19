@@ -1,6 +1,10 @@
 .x-notifications-container {
   --user-center-nav-offset: 0px;
   --user-center-page-header-height: 76px;
+  /* 选择模式底部动作条的底距（plans/028）。竖屏 = 底栏占位 95（高 75 + 底边距 20）+ 9 间隙；
+     手机横屏贴底、≥1024 无底栏 —— 两档各自覆写，别再在 JS 里算像素。
+     ⚠️ 88px 是旧值，实测会让条的下沿压住底栏胶囊 7px（探针 probe-messages-select 抓的）。 */
+  --messages-sab-offset: calc(104px + env(safe-area-inset-bottom, 0px));
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
@@ -1111,6 +1115,11 @@
   cursor: pointer;
 }
 
+/* 选择模式下悬停仍会露出单条「归档 / 标记已读」——与批量动作打架，直接收掉 */
+.x-item.is-selecting .x-quick-actions {
+  display: none;
+}
+
 .x-item.is-selecting:hover {
   background: #f0f4ff;
 }
@@ -1214,19 +1223,17 @@
   gap: 8px;
 }
 
-.x-filter-actions-desktop-minimal {
-  display: none;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ---------- 选择模式：一键已读底部操作栏（全宽度显示：选择模式下必现，横屏/桌面同享） ---------- */
+/* ---------- 选择模式：底部批量动作条 ----------
+   显隐只由 v-if="isSelectMode" 决定（plans/028：不再叠 `.detail-open` 之类的 CSS 条件，
+   否则 ≥1024 自动打开首条详情时整条被 display:none 按死）。
+   底距走 --messages-sab-offset：竖屏让开底栏、手机横屏贴底、≥1024 无底栏。
+   ⚠️ 横屏 390 高的视口里 88px 底距会把条顶到屏高 61% 处并压住列表 —— 必须分档。 */
 .x-select-action-bar {
   display: flex;
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  bottom: var(--messages-sab-offset, calc(88px + env(safe-area-inset-bottom, 0px)));
   z-index: 620;
   align-items: center;
   gap: 10px;
@@ -1237,6 +1244,72 @@
   -webkit-backdrop-filter: var(--liquid-filter-sm);
   border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
   box-shadow: var(--liquid-shadow, 0 8px 24px rgba(15, 23, 42, 0.06)), var(--liquid-highlight, inset 0 1px 0 rgba(255, 255, 255, 0.86));
+}
+
+/* ---------- 选择模式：页头单行工具条（取消 / 全选 / 范围 / 已选 N） ----------
+   不复用 .x-filter-bar 的响应式规则（601–1023 的 order:3、≤600 的 width:100% 会把
+   「全部|未读」挤到第二行并把计数顶走）⇒ 独立类 + 更高特异性锁成单行。 */
+.x-filter-bar.x-select-toolbar {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  min-width: 0;
+}
+
+.x-filter-bar.x-select-toolbar > * {
+  order: 0;
+  flex: 0 0 auto;
+}
+
+.x-filter-bar.x-select-toolbar > .x-select-status-filter {
+  order: 0;
+  width: auto;
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+/* 计数紧跟分段控件（不 margin-left:auto）—— 桌面 979px 宽时推到最右会与控件隔开半屏，
+   横屏 844 下同理；贴左与列表起点对齐更好读。 */
+.x-filter-bar.x-select-toolbar > .x-select-count {
+  margin-left: 4px;
+}
+
+.x-select-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--liquid-border);
+  border-radius: 10px;
+  /* 在 sticky 页头（堆叠上下文）内：backdrop-filter 必被裁空（§21.11）⇒ 实底 token */
+  background: var(--liquid-bg-strong);
+  color: #475467;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.x-select-cancel:hover {
+  color: #1d9bf0;
+  border-color: rgba(29, 155, 240, 0.35);
+}
+
+.x-select-cancel:active {
+  transform: scale(0.96);
+}
+
+.x-select-count {
+  font-size: 12px;
+  font-weight: 650;
+  color: #667085;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .x-sab-btn {
@@ -1281,7 +1354,26 @@
 }
 
 .x-notifications-container.select-bar-open .x-list {
-  padding-bottom: 168px;
+  /* 让位给底部动作条：竖屏 176（底栏 95 + 条 65 + 上下间隙） */
+  padding-bottom: 176px;
+}
+
+/* 手机横屏：条贴底且只有 52 高 ⇒ 168px 的让位等于屏高 43%，必须收窄 */
+@media (orientation: landscape) and (max-height: 540px) {
+  .x-notifications-container.select-bar-open .x-list {
+    padding-bottom: 76px;
+  }
+}
+
+/* ≥1024：无底栏，条离底 24 ⇒ 让位收到 96 */
+@media (min-width: 1024px) {
+  .x-notifications-container {
+    --messages-sab-offset: 24px;
+  }
+
+  .x-notifications-container.select-bar-open .x-list {
+    padding-bottom: 96px;
+  }
 }
 
 [data-theme="dark"] .x-sab-btn {
@@ -2043,8 +2135,7 @@
     gap: 6px;
   }
 
-  .x-filter-actions-desktop,
-  .x-filter-actions-desktop-minimal {
+  .x-filter-actions-desktop {
     display: none;
   }
 
@@ -2346,7 +2437,7 @@
   }
 }
 
-/* ---------- 手机横屏（矮视口）：顶隙与空态再压缩 ---------- */
+/* ---------- 手机横屏（矮视口）：顶隙、动作条、行高一起压 ---------- */
 @media (orientation: landscape) and (max-height: 540px) {
   .x-notifications-container.minimal-mode {
     padding-top: 0;
@@ -2355,6 +2446,55 @@
   .x-notifications-container.minimal-mode .x-header-minimal {
     padding: 0 12px 2px;
     margin: 0 0 2px;
+  }
+
+  /* 动作条贴底全宽：竖屏那套 88px 底距在 390 高的屏上会把条顶到屏中部，
+     并正好压住列表第二行、下沿切到底栏胶囊。 */
+  .x-notifications-container {
+    --messages-sab-offset: env(safe-area-inset-bottom, 0px);
+  }
+
+  .x-select-action-bar {
+    left: 0;
+    right: 0;
+    transform: none;
+    width: 100%;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    border-radius: 16px 16px 0 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .x-sab-enter-from,
+  .x-sab-leave-to {
+    transform: translateY(16px);
+  }
+
+  /* 行高压缩：844×390 原本一屏只看得到 2 条（行 88 + 页头 46 + 底栏 96 + 动作条 65） */
+  .x-notifications-container.minimal-mode .x-item {
+    padding: 10px 14px;
+    gap: 12px;
+  }
+
+  .x-notifications-container.minimal-mode .x-item.unread {
+    padding-left: 11px;
+  }
+
+  .x-notifications-container.minimal-mode .x-avatar,
+  .x-notifications-container.minimal-mode .x-avatar-img {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .x-notifications-container.minimal-mode .x-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .x-empty {
@@ -2471,17 +2611,15 @@
     padding: 0 20px 14px;
   }
 
-  /* ─── 横屏分栏：master panel 变窄时，选择模式按钮折叠为下拉菜单 ─── */
-  .x-notifications-container.detail-open .x-filter-actions-desktop,
-  .x-notifications-container.detail-open .x-filter-actions-desktop-minimal {
+  /* ─── 横屏分栏：master panel 变窄时，页头动作折叠为下拉菜单 ─── */
+  .x-notifications-container.detail-open .x-filter-actions-desktop {
     display: none;
   }
   .x-notifications-container.detail-open .x-select-actions-dropdown {
     display: block;
   }
-  .x-notifications-container.detail-open .x-select-action-bar {
-    display: none;
-  }
+  /* ⚠️ 这里原来有一条 `.detail-open .x-select-action-bar { display: none }`（plans/028 已删）。
+     它 + `v-if="!selectedMessage"` 把 ≥1024 的选择模式动作面按成 0 —— 显隐只由 v-if 决定。 */
 
   .x-notifications-container.detail-open .x-filter-bar {
     gap: 4px;
@@ -2642,6 +2780,21 @@
 
 [data-theme="dark"] .x-select-status-filter {
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* 选择模式工具条：取消钮与计数只需在暗色下换文字色 ——
+   底色/描边在基础规则里已经引 --liquid-bg-strong / --liquid-border（token 自动翻转）。
+   ⚠️ 这里必须写纯 token：暗色块内的颜色字面量会被 check:dark-tokens 计入棘轮。 */
+[data-theme="dark"] .x-select-cancel {
+  color: var(--liquid-text-secondary);
+}
+
+[data-theme="dark"] .x-select-cancel:hover {
+  color: var(--liquid-text-primary);
+}
+
+[data-theme="dark"] .x-select-count {
+  color: var(--liquid-text-tertiary);
 }
 
 [data-theme="dark"] .x-select-status-filter button {

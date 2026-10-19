@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  sitemap.xml —— Block of Home（2026-10-17 全面审查 P1-4 补齐）
+
+  ⚠️ 口径说明（别当成疏漏）：
+    · 站点是 **hash 路由**，`#` 之后的部分在 HTTP 语义里属于同一个文档。
+      Google 能抓但权重处理很差，百度基本不抓。这里仍然按基础 URL 枚举主要落地页，
+      是因为「有一份能提交的清单」总比没有强；真正的解法是给 /about、/newsroom
+      这类高价值公开页做预渲染（中期项，见审查报告 P1-4）。
+    · 只列**不需要登录**的公开页。个人空间 / 后台 / 带 token 的回跳页一律不列。
+    · lastmod 用发布日期而不是构建时间：全站改成构建时间会让每个 URL 每次发布都
+      「变新」，反而降低可信度。内容有实质变更时手工改这一行。
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://www.blockofhome.cn/</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.blockofhome.cn/#/about</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.blockofhome.cn/#/newsroom</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.blockofhome.cn/#/ai-intro</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.blockofhome.cn/#/albums</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://www.blockofhome.cn/#/shows</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://www.blockofhome.cn/#/boh-8-years-event</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://www.blockofhome.cn/#/join</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://www.blockofhome.cn/#/download</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>

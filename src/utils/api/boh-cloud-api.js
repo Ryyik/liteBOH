@@ -18,6 +18,22 @@ const CLOUD_COLUMNS =
 const LEGACY_NOTE_COLUMNS = 'user_id, note_date, content, mood, source, created_at, updated_at';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * Cloud+ 图片上传的服务端归属标记 —— 与论坛 `FORUM_CLOUDINARY_FOLDER` +
+ * `pendingSource: 'forum'` 同一套做法的两处真源，**别再内联第三份**。
+ *
+ * 改造前 Cloud+ 的 `uploadImageToCloudinary` 只传了 `signal`：
+ *   · folder 走 cloudinary-client 的**默认值**，改目录要动别处、且与论坛不在同一层
+ *   · 没有 pendingSource ⇒ 上传成功的图不进 `cloudinary_pending_uploads` 表，
+ *     用户放弃发布的草稿图变成**无人认领的孤儿**（论坛侧有兜底清理，Cloud+ 侧以前没有）
+ *   · 预检 source 落到 'generic' —— 这个桶与「装修台 / 其他没显式传 source 的路径」
+ *     共用一套限流计数，互相挤占
+ */
+export const CLOUD_PLUS_UPLOAD_SOURCE = 'cloud_plus';
+export const CLOUD_PLUS_CLOUDINARY_FOLDER = String(
+  import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_FOLDER || 'boh-cloud-plus',
+).trim();
+
 const ENTRY_TYPES = new Set(['text', 'image', 'mixed']);
 
 function toValidUUID(value) {

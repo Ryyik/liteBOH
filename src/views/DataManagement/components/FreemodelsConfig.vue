@@ -154,180 +154,208 @@
     </article>
 
     <!-- 编辑/添加对话框 -->
-    <div v-if="editingModel" class="g-dialog-overlay" @click.self="editingModel = null">
-      <div class="g-dialog">
-        <header class="g-dialog-head">
-          <div>
-            <div class="g-eyebrow">表单</div>
-            <strong>{{ isNewModel ? '添加模型' : '编辑模型' }}</strong>
-          </div>
-          <button
-            type="button"
-            class="g-icon-btn is-sm is-ghost"
-            @click="editingModel = null"
-            title="关闭"
-          >
-            <X :size="14" />
-          </button>
-        </header>
-        <form class="g-dialog-form" @submit.prevent="handleSave">
-          <div class="g-field">
-            <label>模型 ID</label>
-            <input
-              v-model="editingModel.model_id"
-              class="g-input is-mono"
-              type="text"
-              required
-              placeholder="例如：Qwen/Qwen3-8B"
-              :disabled="!isNewModel"
-            />
-          </div>
-          <div class="g-field">
-            <label>显示名称</label>
-            <input
-              v-model="editingModel.name"
-              class="g-input"
-              type="text"
-              required
-              placeholder="例如：Qwen 3 8B"
-            />
-          </div>
-          <div class="g-field">
-            <label>API 平台</label>
-            <select v-model="editingModel.provider" class="g-select" @change="onProviderChange">
-              <option v-for="opt in FREEMODEL_PROVIDER_OPTIONS" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
-            <span class="g-field-hint">选择模型来自哪个 API 平台</span>
-          </div>
-          <div class="g-field">
-            <label>平台显示名</label>
-            <input
-              v-model="editingModel.provider_label"
-              class="g-input"
-              type="text"
-              placeholder="留空自动填充"
-            />
-          </div>
-          <div class="g-field">
-            <label>类型</label>
-            <input
-              v-model="editingModel.family_label"
-              class="g-input"
-              type="text"
-              required
-              placeholder="例如：通用"
-            />
-          </div>
-          <div class="g-field">
-            <label>适用场景</label>
-            <input
-              v-model="editingModel.best_for"
-              class="g-input"
-              type="text"
-              required
-              placeholder="例如：多场景聊天"
-            />
-          </div>
-          <div class="g-field">
-            <label>自定义 API 地址</label>
-            <input
-              v-model="editingModel.api_base_url"
-              class="g-input is-mono"
-              type="url"
-              placeholder="留空使用平台默认地址"
-            />
-            <span class="g-field-hint">仅自定义平台需要填写，标准平台留空即可</span>
-          </div>
-          <div class="g-field">
-            <label>排序</label>
-            <input v-model.number="editingModel.sort_order" class="g-input" type="number" min="0" />
-          </div>
-          <div class="g-dialog-actions">
-            <button type="button" class="g-btn g-btn-ghost" @click="editingModel = null">
-              取消
+    <!-- ⚠️ Teleport 原因与 KeysAndModels.vue 同（2026-10-17 P1-1）：`.management-section`
+         的 backdrop-filter 会成为 fixed 后代的包含块，遮罩铺不满视口。 -->
+    <Teleport :to="dialogHost">
+      <div
+        v-if="editingModel"
+        class="g-dialog-overlay"
+        v-dialog-focus="() => (editingModel = null)"
+        @click.self="editingModel = null"
+      >
+        <div class="g-dialog" role="dialog" aria-modal="true" aria-labelledby="fmEditTitle">
+          <header class="g-dialog-head">
+            <div>
+              <div class="g-eyebrow">表单</div>
+              <strong id="fmEditTitle">{{ isNewModel ? '添加模型' : '编辑模型' }}</strong>
+            </div>
+            <button
+              type="button"
+              class="g-icon-btn is-sm is-ghost"
+              @click="editingModel = null"
+              title="关闭"
+            >
+              <X :size="14" />
             </button>
-            <button type="submit" class="g-btn g-btn-primary">
-              {{ isNewModel ? '添加' : '保存' }}
-            </button>
-          </div>
-        </form>
+          </header>
+          <form class="g-dialog-form" @submit.prevent="handleSave">
+            <div class="g-field">
+              <label>模型 ID</label>
+              <input
+                v-model="editingModel.model_id"
+                class="g-input is-mono"
+                type="text"
+                required
+                placeholder="例如：Qwen/Qwen3-8B"
+                :disabled="!isNewModel"
+              />
+            </div>
+            <div class="g-field">
+              <label>显示名称</label>
+              <input
+                v-model="editingModel.name"
+                class="g-input"
+                type="text"
+                required
+                placeholder="例如：Qwen 3 8B"
+              />
+            </div>
+            <div class="g-field">
+              <label>API 平台</label>
+              <select v-model="editingModel.provider" class="g-select" @change="onProviderChange">
+                <option
+                  v-for="opt in FREEMODEL_PROVIDER_OPTIONS"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
+                  {{ opt.label }}
+                </option>
+              </select>
+              <span class="g-field-hint">选择模型来自哪个 API 平台</span>
+            </div>
+            <div class="g-field">
+              <label>平台显示名</label>
+              <input
+                v-model="editingModel.provider_label"
+                class="g-input"
+                type="text"
+                placeholder="留空自动填充"
+              />
+            </div>
+            <div class="g-field">
+              <label>类型</label>
+              <input
+                v-model="editingModel.family_label"
+                class="g-input"
+                type="text"
+                required
+                placeholder="例如：通用"
+              />
+            </div>
+            <div class="g-field">
+              <label>适用场景</label>
+              <input
+                v-model="editingModel.best_for"
+                class="g-input"
+                type="text"
+                required
+                placeholder="例如：多场景聊天"
+              />
+            </div>
+            <div class="g-field">
+              <label>自定义 API 地址</label>
+              <input
+                v-model="editingModel.api_base_url"
+                class="g-input is-mono"
+                type="url"
+                placeholder="留空使用平台默认地址"
+              />
+              <span class="g-field-hint">仅自定义平台需要填写，标准平台留空即可</span>
+            </div>
+            <div class="g-field">
+              <label>排序</label>
+              <input
+                v-model.number="editingModel.sort_order"
+                class="g-input"
+                type="number"
+                min="0"
+              />
+            </div>
+            <div class="g-dialog-actions">
+              <button type="button" class="g-btn g-btn-ghost" @click="editingModel = null">
+                取消
+              </button>
+              <button type="submit" class="g-btn g-btn-primary">
+                {{ isNewModel ? '添加' : '保存' }}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
 
-    <!-- 批量添加对话框 -->
-    <div
-      v-if="showBatchAddDialog"
-      class="g-dialog-overlay"
-      @click.self="showBatchAddDialog = false"
-    >
-      <div class="g-dialog g-dialog-wide">
-        <header class="g-dialog-head">
-          <div>
-            <div class="g-eyebrow">表单</div>
-            <strong>批量添加模型</strong>
-          </div>
-          <button
-            type="button"
-            class="g-icon-btn is-sm is-ghost"
-            @click="showBatchAddDialog = false"
-            title="关闭"
-          >
-            <X :size="14" />
-          </button>
-        </header>
-        <form class="g-dialog-form" @submit.prevent="handleBatchAdd">
-          <div class="g-field">
-            <label>从 API Key 选择（可选）</label>
-            <select v-model="batchKeyId" class="g-select" @change="onKeySelectChange">
-              <option value="">不使用 API Key，手动选平台</option>
-              <option v-for="k in availableApiKeys" :key="k.id" :value="k.id">
-                {{ k.label || `${k.provider} ${k.purpose}` }} · {{ k.provider }}
-              </option>
-            </select>
-            <span class="g-field-hint">
-              选中后会自动填充下方平台与 API 地址（来自该 Key 的配置）
-              <span v-if="selectedKeyMeta"
-                >｜当前 Key 的 API URL：<code class="is-mono">{{
-                  selectedKeyMeta.apiUrl || '未配置'
-                }}</code></span
-              >
-            </span>
-          </div>
-          <div class="g-field">
-            <label>API 平台</label>
-            <select v-model="batchProvider" class="g-select" :disabled="!!batchKeyId">
-              <option v-for="opt in FREEMODEL_PROVIDER_OPTIONS" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
-            <span class="g-field-hint">
-              {{ batchKeyId ? '已由所选 API Key 自动锁定' : '批量添加的模型都会归属于该平台' }}
-            </span>
-          </div>
-          <div class="g-field">
-            <label>模型 ID 列表（英文逗号或换行分割）</label>
-            <textarea
-              v-model="batchModelIds"
-              class="g-textarea"
-              rows="8"
-              required
-              placeholder="例如：Qwen/Qwen3-8B, deepseek-ai/DeepSeek-R1-0528-Qwen3-8B, THUDM/GLM-Z1-9B-0414"
-            />
-            <span class="g-field-hint">自动过滤重复和已存在的模型</span>
-          </div>
-          <div class="g-dialog-actions">
-            <button type="button" class="g-btn g-btn-ghost" @click="showBatchAddDialog = false">
-              取消
+      <!-- 批量添加对话框 -->
+      <div
+        v-if="showBatchAddDialog"
+        class="g-dialog-overlay"
+        v-dialog-focus="() => (showBatchAddDialog = false)"
+        @click.self="showBatchAddDialog = false"
+      >
+        <div
+          class="g-dialog g-dialog-wide"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="fmBatchTitle"
+        >
+          <header class="g-dialog-head">
+            <div>
+              <div class="g-eyebrow">表单</div>
+              <strong id="fmBatchTitle">批量添加模型</strong>
+            </div>
+            <button
+              type="button"
+              class="g-icon-btn is-sm is-ghost"
+              @click="showBatchAddDialog = false"
+              title="关闭"
+            >
+              <X :size="14" />
             </button>
-            <button type="submit" class="g-btn g-btn-primary" :disabled="isBatchAdding">
-              {{ isBatchAdding ? '添加中...' : '批量添加' }}
-            </button>
-          </div>
-        </form>
+          </header>
+          <form class="g-dialog-form" @submit.prevent="handleBatchAdd">
+            <div class="g-field">
+              <label>从 API Key 选择（可选）</label>
+              <select v-model="batchKeyId" class="g-select" @change="onKeySelectChange">
+                <option value="">不使用 API Key，手动选平台</option>
+                <option v-for="k in availableApiKeys" :key="k.id" :value="k.id">
+                  {{ k.label || `${k.provider} ${k.purpose}` }} · {{ k.provider }}
+                </option>
+              </select>
+              <span class="g-field-hint">
+                选中后会自动填充下方平台与 API 地址（来自该 Key 的配置）
+                <span v-if="selectedKeyMeta"
+                  >｜当前 Key 的 API URL：<code class="is-mono">{{
+                    selectedKeyMeta.apiUrl || '未配置'
+                  }}</code></span
+                >
+              </span>
+            </div>
+            <div class="g-field">
+              <label>API 平台</label>
+              <select v-model="batchProvider" class="g-select" :disabled="!!batchKeyId">
+                <option
+                  v-for="opt in FREEMODEL_PROVIDER_OPTIONS"
+                  :key="opt.value"
+                  :value="opt.value"
+                >
+                  {{ opt.label }}
+                </option>
+              </select>
+              <span class="g-field-hint">
+                {{ batchKeyId ? '已由所选 API Key 自动锁定' : '批量添加的模型都会归属于该平台' }}
+              </span>
+            </div>
+            <div class="g-field">
+              <label>模型 ID 列表（英文逗号或换行分割）</label>
+              <textarea
+                v-model="batchModelIds"
+                class="g-textarea"
+                rows="8"
+                required
+                placeholder="例如：Qwen/Qwen3-8B, deepseek-ai/DeepSeek-R1-0528-Qwen3-8B, THUDM/GLM-Z1-9B-0414"
+              />
+              <span class="g-field-hint">自动过滤重复和已存在的模型</span>
+            </div>
+            <div class="g-dialog-actions">
+              <button type="button" class="g-btn g-btn-ghost" @click="showBatchAddDialog = false">
+                取消
+              </button>
+              <button type="submit" class="g-btn g-btn-primary" :disabled="isBatchAdding">
+                {{ isBatchAdding ? '添加中...' : '批量添加' }}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </Teleport>
   </section>
 </template>
 
@@ -341,6 +369,11 @@ import { listApiKeys } from '../../../utils/api/api-key-vault-api.js';
 import DashboardHero from './shared/DashboardHero.vue';
 import DashboardNotice from './shared/DashboardNotice.vue';
 import DashboardPagination from './shared/DashboardPagination.vue';
+import { createDialogFocusTrapDirective } from '../composables/useDialogFocusTrap.js';
+
+/* 模态框键盘可达性（Esc / Tab 循环 / 焦点归还），两个 `.g-dialog-overlay` 共用。
+   `<script setup>` 里叫 vDialogFocus 的变量会自动注册成 `v-dialog-focus` 指令。 */
+const vDialogFocus = createDialogFocusTrapDirective();
 
 const { confirm } = useConfirmDialog();
 
@@ -350,6 +383,10 @@ const error = ref('');
 const editingModel = ref(null);
 const isNewModel = ref(false);
 const showBatchAddDialog = ref(false);
+
+/* 两个对话框的 Teleport 宿主（原因见模板注释）：挂载后解析页根，
+   让 `--card/--foreground/--border/--radius/--spacing` 这些页级 token 跟着过去。 */
+const dialogHost = ref('body');
 const batchModelIds = ref('');
 const isBatchAdding = ref(false);
 const batchProvider = ref('siliconflow');
@@ -727,6 +764,7 @@ async function loadApiKeys() {
 }
 
 onMounted(() => {
+  if (document.querySelector('.data-management-page')) dialogHost.value = '.data-management-page';
   loadModels();
   loadApiKeys();
 });
@@ -735,6 +773,7 @@ onMounted(() => {
 <style scoped>
 @import '../styles/base.css';
 @import '../styles/responsive.css';
+@import '../styles/dialog.css';
 
 .g-freemodels-config {
   display: flex;
@@ -853,48 +892,9 @@ onMounted(() => {
   gap: calc(var(--spacing) * 1);
 }
 
-/* Dialog */
-.g-dialog-overlay {
-  position: fixed;
-  inset: 0;
-  background: color-mix(in srgb, var(--foreground) 35%, transparent);
-  display: grid;
-  place-items: center;
-  z-index: 1100;
-  padding: calc(var(--spacing) * 5);
-}
-.g-dialog {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: calc(var(--spacing) * 5);
-  width: min(440px, 100%);
-  max-height: 90vh;
-  overflow-y: auto;
-}
-.g-dialog.g-dialog-wide {
-  width: min(640px, 100%);
-}
-.g-dialog-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: calc(var(--spacing) * 3);
-  margin-bottom: calc(var(--spacing) * 4);
-}
-.g-dialog-form {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--spacing) * 3);
-}
-.g-dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: calc(var(--spacing) * 2);
-  padding-top: calc(var(--spacing) * 3);
-  border-top: 1px solid var(--border);
-  margin-top: calc(var(--spacing) * 2);
-}
+/* Dialog 样式已提到 ../styles/dialog.css（2026-10-17 P1-1）：
+   scoped 块里的 `.g-dialog*` 不会作用到 KeysAndModels.vue 的对话框，
+   于是那边三个对话框掉进文档流。别再把这几条抄回本文件的 scoped 块。 */
 .g-freemodels-dialog-subtitle {
   font-size: 0.78rem;
   color: var(--muted-foreground);

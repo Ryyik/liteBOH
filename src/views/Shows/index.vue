@@ -1,15 +1,12 @@
 <template>
   <div class="shows-page" :class="{ 'embedded-mode': embedded }">
-
     <!-- Hero Section -->
     <section class="shows-hero">
       <div class="shows-hero-container">
         <span class="shows-hero-label">BOH SHOWS</span>
-        <h1 class="shows-hero-title">
-          精彩节目
-        </h1>
+        <h1 class="shows-hero-title">精彩节目</h1>
         <p class="shows-hero-subtitle">
-          探索方块之家的精选内容，从冬眠生存到创意游戏，<br>
+          探索方块之家的精选内容，从冬眠生存到创意游戏，<br />
           每一期都是独特的方块世界体验。
         </p>
       </div>
@@ -24,7 +21,7 @@
             <span class="featured-show-season">Season 4</span>
             <h2 class="featured-show-title">冬眠生存</h2>
             <p class="featured-show-description">
-              方块之家最经典的生存系列节目，第四季已完播。<br>
+              方块之家最经典的生存系列节目，第四季已完播。<br />
               在寒冷的方块世界中，与伙伴们一起探索、建造、生存。
             </p>
             <div class="featured-show-meta">
@@ -44,22 +41,41 @@
               </div>
             </div>
             <div class="featured-show-actions">
-              <a href="https://www.bilibili.com/video/BV1gdzTBiECq/?share_source=copy_web" target="_blank"
-                class="shows-btn-primary">
+              <a
+                href="https://www.bilibili.com/video/BV1gdzTBiECq/?share_source=copy_web"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="shows-btn-primary"
+              >
                 <span>观看原片</span>
-                <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <svg
+                  class="btn-arrow"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
                   <path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </a>
-              <a href="https://www.bilibili.com/video/BV1CFziBiErz/?share_source=copy_web" target="_blank"
-                class="shows-btn-secondary">
+              <a
+                href="https://www.bilibili.com/video/BV1CFziBiErz/?share_source=copy_web"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="shows-btn-secondary"
+              >
                 观看精剪
               </a>
             </div>
           </div>
           <div class="featured-show-visual">
             <div class="featured-show-image-wrapper">
-              <img :src="getImageUrl('@/assets/images/26coffee.webp')" alt="冬眠生存" class="featured-show-image"  loading="lazy" />
+              <img
+                :src="getImageUrl('@/assets/images/26coffee.webp')"
+                alt="冬眠生存"
+                class="featured-show-image"
+                loading="lazy"
+              />
               <div class="featured-show-overlay"></div>
               <div class="featured-show-play">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -79,7 +95,14 @@
         <div class="featured-show-content">
           <div class="featured-show-visual">
             <div class="featured-show-image-wrapper">
-              <img :src="getImageUrl('@/assets/images/main1-1280.webp')" :srcset="`${getImageUrl('@/assets/images/main1-768.webp')} 768w, ${getImageUrl('@/assets/images/main1-1280.webp')} 1280w, ${getImageUrl('@/assets/images/main1-1920.webp')} 1920w`" sizes="(max-width: 1024px) 100vw, 50vw" alt="方块街" class="featured-show-image" loading="lazy" />
+              <img
+                :src="getImageUrl('@/assets/images/main1-1280.webp')"
+                :srcset="`${getImageUrl('@/assets/images/main1-768.webp')} 768w, ${getImageUrl('@/assets/images/main1-1280.webp')} 1280w, ${getImageUrl('@/assets/images/main1-1920.webp')} 1920w`"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                alt="方块街"
+                class="featured-show-image"
+                loading="lazy"
+              />
               <div class="featured-show-overlay"></div>
               <div class="featured-show-play">
                 <svg viewBox="0 0 24 24" fill="currentColor">
@@ -92,7 +115,7 @@
             <span class="featured-show-season">New Series</span>
             <h2 class="featured-show-title">方块街</h2>
             <p class="featured-show-description">
-              方块之家的商业街建设系列，打造繁华的商业街区。<br>
+              方块之家的商业街建设系列，打造繁华的商业街区。<br />
               体验城市建设的乐趣，创造属于你的方块都市。
             </p>
             <div class="featured-show-meta">
@@ -112,15 +135,29 @@
               </div>
             </div>
             <div class="featured-show-actions">
-              <a href="https://www.bilibili.com/video/BV1nj421Q7hH/?share_source=copy_web&vd_source=56d8f1dd1b26f4f6c0e9e572921f4cc0"
-                target="_blank" class="shows-btn-primary">
+              <a
+                href="https://www.bilibili.com/video/BV1nj421Q7hH/?share_source=copy_web&vd_source=56d8f1dd1b26f4f6c0e9e572921f4cc0"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="shows-btn-primary"
+              >
                 <span>立即观看</span>
-                <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <svg
+                  class="btn-arrow"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
                   <path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
               </a>
-              <a href="https://www.bilibili.com/video/BV1nj421Q7hH/?share_source=copy_web&vd_source=56d8f1dd1b26f4f6c0e9e572921f4cc0"
-                target="_blank" class="shows-btn-secondary">
+              <a
+                href="https://www.bilibili.com/video/BV1nj421Q7hH/?share_source=copy_web&vd_source=56d8f1dd1b26f4f6c0e9e572921f4cc0"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="shows-btn-secondary"
+              >
                 了解更多
               </a>
             </div>
@@ -135,10 +172,21 @@
     <section class="shows-grid-section">
       <div class="shows-grid-container">
         <div class="shows-grid">
-          <div v-for="(show, index) in shows" :key="show.id" class="show-card"
-            :style="{ '--delay': index * 100 + 'ms' }">
+          <div
+            v-for="(show, index) in shows"
+            :key="show.id"
+            class="show-card"
+            :style="{ '--delay': index * 100 + 'ms' }"
+          >
             <div class="show-card-image-wrapper">
-              <img :src="getImageUrl(show.image)" :alt="show.title" class="show-card-image" width="480" height="300" loading="lazy" />
+              <img
+                :src="getImageUrl(show.image)"
+                :alt="show.title"
+                class="show-card-image"
+                width="480"
+                height="300"
+                loading="lazy"
+              />
               <div class="show-card-overlay">
                 <div class="show-card-play">
                   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -157,10 +205,19 @@
               <h3 class="show-card-title">{{ show.title }}</h3>
               <p class="show-card-description">{{ show.description }}</p>
               <div class="show-card-footer">
-                <a :href="show.link" target="_blank" class="show-card-link">
+                <a
+                  :href="show.link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="show-card-link"
+                >
                   观看节目
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" />
+                    <path
+                      d="M5 12h14M12 5l7 7-7 7"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
                   </svg>
                 </a>
               </div>
@@ -175,9 +232,7 @@
       <div class="shows-cta-container">
         <div class="shows-cta-content">
           <h2 class="shows-cta-title">想要参与节目录制？</h2>
-          <p class="shows-cta-subtitle">
-            加入方块之家社群，与我们一起创造更多精彩内容
-          </p>
+          <p class="shows-cta-subtitle">加入方块之家社群，与我们一起创造更多精彩内容</p>
           <router-link to="/join" class="shows-cta-btn">
             加入我们
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -198,8 +253,8 @@ import { getImageUrl } from '../../utils/asset-helper.js';
 const _props = defineProps({
   embedded: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 });
 
 const shows = ref([
@@ -212,7 +267,7 @@ const shows = ref([
     image: '@/assets/images/26coffee.webp',
     link: 'https://www.bilibili.com/video/BV1gdzTBiECq/?share_source=copy_web',
     badge: '热播',
-    type: 'winter'
+    type: 'winter',
   },
   {
     id: 2,
@@ -223,7 +278,7 @@ const shows = ref([
     image: '@/assets/images/main1.webp',
     link: 'https://www.bilibili.com/video/BV1nj421Q7hH/?share_source=copy_web&vd_source=56d8f1dd1b26f4f6c0e9e572921f4cc0',
     badge: '新节目',
-    type: 'street'
+    type: 'street',
   },
   {
     id: 3,
@@ -234,8 +289,8 @@ const shows = ref([
     image: '@/assets/images/2025-newyear.webp',
     link: 'https://www.bilibili.com/video/BV1nW4y157LA/?share_source=copy_web&vd_source=56d8f1dd1b26f4f6c0e9e572921f4cc0',
     badge: '精选',
-    type: 'event'
-  }
+    type: 'event',
+  },
 ]);
 </script>
 

@@ -15,6 +15,16 @@
  *   · 写入端 ModerationModelConfig.vue 从这里取 MODERATION_*_MODE_ID；
  *   · 展示端 DataAdmin.vue 用 excludeInternalBohaiModes() 排除同前缀的行。
  * 两者同源，改名只需改这里一处。改错了 tests/unit/bohai-internal-modes.test.js 会红。
+ *
+ * ── 用户侧的三道闸门（2026-10-18 补齐，别再只改后台列表）────────────────
+ * 本文件只覆盖「后台列表」。审核行一旦被启用（status='active'），还会从另外两个口子漏出去：
+ *   ① 用户侧模式选择器：RPC list_public_bohai_modes 的 WHERE 里必须有
+ *      `mode_id not like 'moderation-%'`（迁移 2026101801）。**漏了就是
+ *      「启用审核 → 用户菜单里多出『审核·文本 0.1x』」这个报障**（0.1x 的 gemini 等于廉价通道）。
+ *   ② 直连 EF：mode 是请求体字段，绕开列表直接 POST 仍能指定它 ⇒
+ *      api-key-vault 的 resolveRuntimeModelPolicy 按 purpose 兜底（非 'moderation' 一律 403）。
+ * SQL 里没法 import 本文件，所以前缀字面量在迁移里硬编码一份；两边同步由
+ * tests/unit/bohai-internal-modes.test.js 的最后一条断言锁死（它读最后一次重建该 RPC 的迁移）。
  */
 
 export const MODERATION_TEXT_MODE_ID = 'moderation-text';

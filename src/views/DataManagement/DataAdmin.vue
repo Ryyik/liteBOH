@@ -3,7 +3,6 @@
     <div class="admin-shell">
       <AdminSidebar
         :active-module="activeModule"
-        :collapsed="isSidebarCollapsed"
         :denied-ids="deniedModuleIds"
         :has-unmoderated="moderationPendingCount > 0"
         :is-open="isAdminSidebarOpen"
@@ -25,6 +24,7 @@
       <main class="admin-main">
         <AdminHeader
           :can-create="canCreateCurrentTab && !isModerationTab"
+          :can-toggle-sidebar="isMobileView"
           :eyebrow="currentAdminPageMeta.eyebrow"
           :is-refreshing="isRefreshing"
           :is-sidebar-open="sidebarToggleOpen"
@@ -239,7 +239,7 @@
                       <span class="collection-chip-count">{{ chip.count }}</span>
                     </button>
                   </div>
-                  <span class="collection-overview-hint">当前视图 {{ currentData.length }} 条</span>
+                  <span class="collection-overview-hint">当前筛选 {{ totalRecordCount }} 条</span>
                 </section>
 
                 <!-- 原 content-toolbar 并入筛选行右侧（plans/027 阶段 1.4） -->
@@ -689,12 +689,24 @@
                   </div>
                 </div>
 
-                <!-- 官方事实速记：一句话自动归类入库（2026-10-16） -->
+                <!-- 官方事实速记：一句话自动归类入库（2026-10-16）；
+                     2026-10-18 升级：批量模式（textarea 逐行入库）+ JSONL 知识库导入入口 -->
                 <div
                   v-if="currentTab === 'coreMemories' && canCreateCurrentTab"
                   class="quick-fact-bar"
                 >
+                  <textarea
+                    v-if="quickFactBatchMode"
+                    v-model="quickFactText"
+                    class="quick-fact-input quick-fact-textarea"
+                    rows="4"
+                    placeholder="批量模式：每行一条事实，回车（或点「添加」）逐行自动归类入库&#10;如：「人物：小牛 是技术担当，运营苦力怕服务器」"
+                    aria-label="批量速记官方事实"
+                    :disabled="quickFactSaving"
+                    @keydown.enter.exact.prevent="handleQuickAddFact"
+                  ></textarea>
                   <input
+                    v-else
                     v-model="quickFactText"
                     type="text"
                     class="quick-fact-input"
@@ -705,11 +717,109 @@
                   />
                   <button
                     type="button"
+                    class="btn quick-fact-btn"
+                    :title="quickFactBatchMode ? '切回单条输入' : '切换为多行批量输入'"
+                    :disabled="quickFactSaving"
+                    @click="toggleQuickFactBatchMode"
+                  >
+                    {{ quickFactBatchMode ? '单条' : '批量' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn quick-fact-btn"
+                    :disabled="quickFactSaving"
+                    @click="kbImportOpen = !kbImportOpen"
+                  >
+                    {{ kbImportOpen ? '收起导入' : '导入 JSONL' }}
+                  </button>
+                  <button
+                    type="button"
                     class="btn btn-primary quick-fact-btn"
                     :disabled="quickFactSaving || !quickFactText.trim()"
                     @click="handleQuickAddFact"
                   >
                     {{ quickFactSaving ? '入库中…' : '添加' }}
+                  </button>
+                </div>
+
+                <!-- JSONL 知识库导入面板（boh_ai_knowledge_bases + 向量切片即时入库）。
+                     走 EF import_knowledge_base 的管理员 JWT 通道，密钥不进前端。 -->
+                <div
+                  v-if="currentTab === 'coreMemories' && canCreateCurrentTab && kbImportOpen"
+                  class="kb-import-panel"
+                >
+                  <div class="kb-import-row">
+                    <input
+                      v-model="kbImportSlug"
+                      type="text"
+                      class="kb-import-field"
+                      placeholder="知识库 slug（同 slug 重复导入会按切片覆盖更新）"
+                      aria-label="知识库 slug"
+                    />
+                    <input
+                      v-model="kbImportTitle"
+                      type="text"
+                      class="kb-import-field"
+                      placeholder="知识库名称（留空则取首个切片的 title）"
+                      aria-label="知识库名称"
+                    />
+                    <label class="btn kb-import-file-btn">
+                      选择 .jsonl 文件
+                      <input type="file" accept=".jsonl,.txt" @change="handleKbImportFile" />
+                    </label>
+                  </div>
+                  <textarea
+                    v-model="kbImportJsonl"
+                    class="kb-import-jsonl"
+                    rows="6"
+                    placeholder='或直接粘贴 JSONL：每行一个 JSON，content 必填，其余选填 ——&#10;{ "content": "这块内容会被向量化检索", "title": "切片标题", "keywords": ["关键词"] }'
+                    aria-label="JSONL 内容"
+                    :disabled="kbImporting"
+                  ></textarea>
+                  <div class="kb-import-actions">
+                    <span class="kb-import-hint">{{ kbImportHint }}</span>
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      :disabled="kbImporting || !kbImportJsonl.trim()"
+                      @click="handleKbImport"
+                    >
+                      {{ kbImporting ? '导入并向量化中…' : '导入知识库' }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- 论坛事实卡：摄取进度 + 手动补扫存量（2026-10-18）。
+                     每轮经 EF boh-ai-forum-memory（管理员 JWT 通道，110s 预算 ≤12 帖），
+                     面板侧循环直到追平；失败帖不写账本，下一轮自动重试。 -->
+                <div
+                  v-if="currentTab === 'forumMemories' && canEditCurrentTab"
+                  class="quick-fact-bar fm-catchup-bar"
+                >
+                  <span class="kb-import-hint fm-catchup-hint">{{
+                    fmCatchupLog ||
+                    `摄取进度：已扫 ${fmIngestProgress.scanned} / ${fmIngestProgress.total} 个公开帖，待补 ${fmIngestProgress.remaining}`
+                  }}</span>
+                  <button
+                    type="button"
+                    class="btn"
+                    :disabled="fmCatchupRunning || fmIngestProgress.remaining <= 0"
+                    :title="
+                      fmCatchupRunning
+                        ? '正在逐轮补扫'
+                        : '循环调用摄取任务，把所有未扫的公开帖追平到当前'
+                    "
+                    @click="handleForumMemoryCatchup"
+                  >
+                    {{ fmCatchupRunning ? `补扫中（第 ${fmCatchupRound} 轮）…` : '补扫存量' }}
+                  </button>
+                  <button
+                    v-if="fmCatchupRunning"
+                    type="button"
+                    class="btn"
+                    @click="fmCatchupStop = true"
+                  >
+                    停止
                   </button>
                 </div>
 
@@ -1867,6 +1977,8 @@ import DashboardSheet from './components/shared/DashboardSheet.vue';
 import ExportMenu from './components/shared/ExportMenu.vue';
 import { fetchAllRows } from '@/utils/api/data-admin-table-api.js';
 import { resolveEmptyState } from './composables/data-admin-empty-state.js';
+import { resolveKanbanConfig } from './composables/kanban-config.js';
+import { resolveQueryTotal } from './composables/resolve-query-total.js';
 import ShortcutHelp from './components/shared/ShortcutHelp.vue';
 import CopyCell from './components/shared/CopyCell.vue';
 import RecordPane from './components/detail/RecordPane.vue';
@@ -1878,6 +1990,7 @@ import RowActionMenu from './components/shared/RowActionMenu.vue';
 import { getImageUrl } from '../../utils/asset-helper';
 import { supabase } from '@/utils/supabase-client.js';
 import { invalidateByTags } from '@/utils/request-core.js';
+import { logoutAndReload } from '@/utils/logout-and-reload.js';
 import {
   isCloudinaryNoteUploadConfigured,
   uploadImageToCloudinary,
@@ -1952,7 +2065,13 @@ import { createFilterState } from './composables/useDataAdminFilterState.js';
 import { createMutationsCenter } from './composables/useDataAdminMutations.js';
 import { createLotteryOperationsCenter } from './composables/useLotteryOperations.js';
 import { parseQuickFact, QUICK_FACT_CATEGORY_LABELS } from './composables/quick-fact.js';
-import { createCoreMemoryRow, syncKnowledgeSources } from '@/utils/api/treehole/core-memory-api.js';
+import {
+  createCoreMemoryRow,
+  getForumMemoryIngestProgress,
+  importKnowledgeBaseByAdmin,
+  runForumMemoryIngestBatch,
+  syncKnowledgeSources,
+} from '@/utils/api/treehole/core-memory-api.js';
 import { SAVE_STRATEGIES } from './config/saveStrategies.js';
 import { setupDataAdminLifecycle } from './composables/useDataAdminLifecycle.js';
 import {
@@ -2095,24 +2214,8 @@ const setDensity = (mode) => {
 const sortKey = ref('');
 const sortOrder = ref('asc');
 const isAdminSidebarOpen = ref(false);
-// 桌面端侧栏折叠（图标栏）；移动端抽屉仍由 isAdminSidebarOpen 控制
-// 偏好持久化，悬停 150ms 浮层展开（见 AdminSidebar 样式）
-const isSidebarCollapsed = ref(
-  (() => {
-    try {
-      return localStorage.getItem('dm-sidebar-collapsed') === '1';
-    } catch {
-      return false;
-    }
-  })(),
-);
-watch(isSidebarCollapsed, (collapsed) => {
-  try {
-    localStorage.setItem('dm-sidebar-collapsed', collapsed ? '1' : '0');
-  } catch {
-    /* ignore */
-  }
-});
+// 桌面端侧栏恒全宽（折叠图标栏 + 悬停浮层展开已于 2026-10-18 按用户反馈整体下线，
+// 旧偏好键 dm-sidebar-collapsed 不再读写）；移动端抽屉仍由 isAdminSidebarOpen 控制。
 // 侧栏模块筛选关键词（仅过滤导航，不过滤表格数据）
 const sidebarSearchQuery = ref('');
 // 注：section 的解析与初始值已在 currentTab 之前完成（见上方 initialAdminSection），
@@ -2194,28 +2297,8 @@ const currentCardViewConfig = computed(() => currentConfig.value?.cardView || nu
 const hasCardView = computed(() => Boolean(currentCardViewConfig.value));
 
 // 看板配置：kanban.statusKey/statusMeta 显式 > cardView.statusKey/statusMeta > 自动推断 status select 字段
-const kanbanViewConfig = computed(() => {
-  const cfg = currentConfig.value || {};
-  if (cfg.kanban === false) return null;
-  const fieldsAll = [...(cfg.fields || []), ...(cfg.columns || [])];
-  const explicit = cfg.kanban && typeof cfg.kanban === 'object' ? cfg.kanban : null;
-  const statusField =
-    (explicit?.statusKey && fieldsAll.find((f) => f.key === explicit.statusKey)) ||
-    (cfg.cardView?.statusKey && fieldsAll.find((f) => f.key === cfg.cardView.statusKey)) ||
-    fieldsAll.find((f) => /status/i.test(f.key) && f.type === 'select' && Array.isArray(f.options));
-  if (!statusField) return null;
-  const statusMeta = { ...(cfg.cardView?.statusMeta || {}), ...(explicit?.statusMeta || {}) };
-  const rawCols = explicit?.statusMeta
-    ? Object.entries(explicit.statusMeta)
-    : (statusField.options || []).map((o) => [o.value, { label: o.label, tone: 'muted' }]);
-  const columns = rawCols.map(([value, meta]) => ({
-    value,
-    label: meta.label,
-    tone: meta.tone || 'muted',
-  }));
-  if (!columns.length) return null;
-  return { statusKey: statusField.key, columns, statusMeta };
-});
+// （解析规则单源于 composables/kanban-config.js —— 状态分布的服务端计数也走它）
+const kanbanViewConfig = computed(() => resolveKanbanConfig(currentConfig.value));
 
 // 时间线配置：timeline.dateKey/titleKey/bodyKeys 显式 > 自动推断 datetime 列 + 首文本列
 const timelineViewConfig = computed(() => {
@@ -2653,6 +2736,8 @@ const dataStore = shallowReactive({
   reviewPosts: [],
   reviewComments: [],
   coreMemories: [],
+  aiMemories: [],
+  forumMemories: [],
   bohaiModels: [],
   lotteries: [],
   lotteryEntries: [],
@@ -2888,16 +2973,86 @@ const applyCollectionStatusFilter = (value) => {
   handleFilterChange();
 };
 
+// 状态分布服务端计数（2026-10-19）：chips 原先只数「当前页」——服务端分页下永远 ≤ pageSize，
+// 磁盘上 40 条的事实卡只显示 20。现在按同一套筛选条件做 head count（不含状态筛选），
+// 按「搜索/日期/高级筛选」签名缓存；翻页不重算，改筛选才重算。
+const statusBreakdownCache = reactive({});
+const buildStatusBreakdownSignature = (tabId) =>
+  JSON.stringify({
+    tabId,
+    search: searchQuery.value,
+    dateFrom: dateFromFilter.value,
+    dateTo: dateToFilter.value,
+    rules: activeAdvancedRules.value,
+  });
+
+const fetchStatusBreakdownCounts = async (tabId) => {
+  const cfg = dataConfig[tabId];
+  const kb = resolveKanbanConfig(cfg);
+  if (!cfg?.table || !kb) return;
+  const signature = buildStatusBreakdownSignature(tabId);
+  if (statusBreakdownCache[tabId]?.signature === signature) return;
+
+  // 复用本地 fetchCount 包装（layering 棘轮：不新增 supabase.from 直连出口）
+  const buildCount = (statusValue) =>
+    fetchCount(cfg.table, (base) =>
+      applySearchAndSortUtil({
+        query: applyTabBaseFilters(base, tabId),
+        tabId,
+        keyword: searchQuery.value,
+        statusFilter: statusValue,
+        dateFrom: dateFromFilter.value,
+        dateTo: dateToFilter.value,
+        advancedRules: activeAdvancedRules.value,
+        sortKey: '',
+        sortOrder: 'asc',
+        configs: {
+          tabSearchFields: TAB_SEARCH_FIELDS,
+          statusFilterFields: STATUS_FILTER_FIELDS,
+          dateFilterFields: DATE_FILTER_FIELDS,
+          tabSortColumns: TAB_SORT_COLUMNS,
+          tabDefaultSort: TAB_DEFAULT_SORT,
+        },
+        allowedAdvancedFields: (cfg.columns || []).filter((c) => !c.virtual).map((c) => c.key),
+      }),
+    );
+
+  const results = await Promise.allSettled([
+    buildCount(''),
+    ...kb.columns.map((col) => buildCount(col.value)),
+  ]);
+  const totalResult = results[0];
+  if (totalResult.status !== 'fulfilled') return;
+
+  const byStatus = {};
+  kb.columns.forEach((col, index) => {
+    const result = results[index + 1];
+    byStatus[col.value] = result.status === 'fulfilled' ? Number(result.value) || 0 : 0;
+  });
+  statusBreakdownCache[tabId] = {
+    signature,
+    total: Number(totalResult.value) || 0,
+    byStatus,
+  };
+};
+
 // 通用状态分布（config 驱动）：有看板/状态字段的表都显示状态分布条并支持下钻筛选
 const statusBreakdownForCurrentTab = computed(() => {
   const kb = kanbanViewConfig.value;
   if (!kb) return collectionStatusBreakdown.value;
+  // 服务端全量计数优先；还没回来时回退当前页行数（首屏一瞬间）
+  const serverCounts = statusBreakdownCache[currentTab.value];
   const counts = new Map();
   let total = 0;
-  for (const row of currentData.value) {
-    total++;
-    const key = String(row?.[kb.statusKey] ?? '');
-    if (key) counts.set(key, (counts.get(key) || 0) + 1);
+  if (serverCounts) {
+    total = serverCounts.total;
+    Object.entries(serverCounts.byStatus).forEach(([key, value]) => counts.set(key, value));
+  } else {
+    for (const row of currentData.value) {
+      total++;
+      const key = String(row?.[kb.statusKey] ?? '');
+      if (key) counts.set(key, (counts.get(key) || 0) + 1);
+    }
   }
   return [
     { value: '', label: '全部', count: total, tone: 'muted', active: statusFilter.value === '' },
@@ -3298,12 +3453,15 @@ const recentActivityItems = computed(() => {
 // handleSidebarTabClick / handlePlaceholderAction 已迁移至 useDataAdminNavigation.js
 
 // 分页总数只认「当前列表查询（含筛选）的 count」；全表计数（tabTotals）不参与分页。
-// 分页总数只认「当前列表查询（含筛选）的 count」；全表计数（tabTotals）不参与分页。
-const totalRecordCount = computed(() => {
-  const queryTotal = Number(tabQueryTotals[currentTab.value]);
-  if (Number.isFinite(queryTotal)) return queryTotal;
-  return currentData.value.length || 0;
-});
+// ⚠️ 2026-10-19 修：缺 count 时**不再**退化成当前页行数（否则翻页总数就跟着页长变），
+// 回退顺序见 composables/resolve-query-total.js（查询 count → 全表计数 → 页长兜底）。
+const totalRecordCount = computed(() =>
+  resolveQueryTotal({
+    queryTotal: tabQueryTotals[currentTab.value],
+    tableTotal: getTabCount(currentTab.value),
+    rowCount: currentData.value.length,
+  }),
+);
 
 // 空状态三分支：无数据 / 筛选无结果 / 搜索无结果（plans/027 S3）。
 // 判定顺序在纯函数里锁死：先搜索后筛选（hasActiveFilters 包含 searchQuery）。
@@ -3564,6 +3722,10 @@ const getTabCount = (tabId) => {
       return tabTotals.reviewComments;
     case 'coreMemories':
       return tabTotals.coreMemories;
+    case 'aiMemories':
+      return tabTotals.aiMemories;
+    case 'forumMemories':
+      return tabTotals.forumMemories;
     case 'bohaiModels':
       return stats.totalBohaiModels;
     case 'lotteries':
@@ -4014,6 +4176,17 @@ const syncSiteContentIndex = async () => {
   }
 };
 
+// 论坛事实卡审核通过后即时同步（2026-10-19）：pending_review → active 不经过
+// DB 归档触发器（切片从未建过），只靠夜间 cron 的话审核闭环要等一天 —— 保存即补索引。
+// 仅 active 需要同步：archived/rejected 由「事实卡根本没被 sync 选中」天然退出检索。
+const syncForumMemoryIndex = async () => {
+  try {
+    await syncKnowledgeSources(['forum_memory']);
+  } catch (error) {
+    logger.warn('data-admin', '同步论坛事实卡向量索引失败:', error);
+  }
+};
+
 // sanitizeSearchTerm / buildSearchFilters / normalizeFilterValue / ALLOWED_ADVANCED_OPERATORS
 // applyAdvancedFilters / applySearchAndSort / buildSearchFiltersForKeyword / getSearchablePreviewFields
 // 已迁移至 composables/useDataAdminFilters.js
@@ -4065,8 +4238,12 @@ const getDurationLabel = (durationMs) => {
 };
 
 const updateCountsForTab = (tabId, total) => {
-  // 列表查询结果数：写入查询专用槽位，不污染全表计数 tabTotals
-  tabQueryTotals[tabId] = Math.max(0, Number(total) || 0);
+  // 列表查询结果数：写入查询专用槽位，不污染全表计数 tabTotals。
+  // ⚠️ 缺 count（undefined/null）时**不写**：写 0 会把页脚总数清零，
+  // 写 rows.length 会让总数随翻页变化（2026-10-19 报障的根因）。
+  const value = Number(total);
+  if (!Number.isFinite(value)) return;
+  tabQueryTotals[tabId] = Math.max(0, value);
 };
 
 const getTabFetchCacheKey = (tabId = currentTab.value) =>
@@ -4089,6 +4266,12 @@ const clearTabFetchCache = (tabId = '') => {
       delete tabFetchCache[key];
     }
   });
+  // 状态分布计数与列表缓存同生命周期：归档/删除/新增后必须重算，否则 chips 停在旧数
+  if (!tabId) {
+    Object.keys(statusBreakdownCache).forEach((key) => delete statusBreakdownCache[key]);
+  } else {
+    delete statusBreakdownCache[tabId];
+  }
   if (!tabId) {
     brokenCardImages.value = new Set();
   }
@@ -4099,6 +4282,9 @@ const assignTabRows = (tabId, rows, total) => {
   hasLoadedOnce.value = true;
   const nextTotal = Number.isFinite(Number(total)) ? Number(total) : rows.length;
   updateCountsForTab(tabId, nextTotal);
+  // 状态分布走服务端全量计数：挂在 assignTabRows 上 ⇒ 所有查询分支（含 users/forum 等
+  // 提前 return 的分支）都会触发；签名相同则不重算（翻页零成本）。
+  void fetchStatusBreakdownCounts(tabId);
   if (tabId === currentTab.value) {
     tabFetchCache[getTabFetchCacheKey(tabId)] = {
       rows: [...rows],
@@ -4175,6 +4361,18 @@ const fetchStats = async () => {
     } catch (error) {
       logger.warn('data-admin', '获取抽奖失败统计数量失败:', error);
     }
+    // AI 沉淀记忆 / 论坛事实卡是 2026-10-18 新增 tab，概览 RPC（admin_data_management_counts）
+    // 还没这两列 —— 沿用 lotteryFailureStats 的「RPC 之后补一枪计数」口径。
+    try {
+      setTabTotal('aiMemories', await fetchCount('boh_ai_shared_memories'));
+    } catch (error) {
+      logger.warn('data-admin', '获取 AI 沉淀记忆数量失败:', error);
+    }
+    try {
+      setTabTotal('forumMemories', await fetchCount('boh_ai_forum_memories'));
+    } catch (error) {
+      logger.warn('data-admin', '获取论坛事实卡数量失败:', error);
+    }
     return;
   }
   if (
@@ -4199,6 +4397,8 @@ const fetchStats = async () => {
     reviewPosts: fetchCount('posts', (query) => query.ilike('status', 'rejected')),
     reviewComments: fetchCount('comments', (query) => query.ilike('status', 'rejected')),
     coreMemories: fetchCount('boh_ai_core_memories'),
+    aiMemories: fetchCount('boh_ai_shared_memories'),
+    forumMemories: fetchCount('boh_ai_forum_memories'),
     // 与列表查询共用同一个排除口径，否则会出现「列表 8 行、计数 10 条」
     bohaiModels: fetchCount('bohai_model_configs', excludeInternalBohaiModes),
     lotteries: fetchCount('lotteries'),
@@ -4265,6 +4465,15 @@ const flushSensitiveUsersCache = () => {
   sensitiveUsersCacheMap.clear();
 };
 
+// tab 级基础过滤（列表查询与状态分布计数必须同源，否则 chips 与列表对不上）
+const applyTabBaseFilters = (query, tabId) => {
+  if (tabId === 'reportedPosts') return query.eq('status', 'limited');
+  if (tabId === 'reviewPosts') return query.ilike('status', 'rejected');
+  if (tabId === 'reviewComments') return query.ilike('status', 'rejected');
+  if (tabId === 'bohaiModels') return excludeInternalBohaiModes(query);
+  return query;
+};
+
 const fetchTabData = async (tabId = currentTab.value, options = {}) => {
   const cacheKey = getTabFetchCacheKey(tabId);
   const cached = options.useCache ? tabFetchCache[cacheKey] : null;
@@ -4295,18 +4504,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
     }
 
     let query = supabase.from(table).select(selectColumns, { count: 'exact' });
-
-    if (tabId === 'reportedPosts') {
-      query = query.eq('status', 'limited');
-    } else if (tabId === 'reviewPosts') {
-      query = query.ilike('status', 'rejected');
-    } else if (tabId === 'reviewComments') {
-      query = query.ilike('status', 'rejected');
-    } else if (tabId === 'bohaiModels') {
-      // 审核专用的两行（moderation-text / moderation-image）归「审核模型」页维护，
-      // 不进出这个面向用户的模式列表。口径与写入端同源（config/bohai-internal-modes.js）。
-      query = excludeInternalBohaiModes(query);
-    }
+    query = applyTabBaseFilters(query, tabId);
 
     let { data, error, count } = await paginateQuery(
       applySearchAndSortUtil({
@@ -4533,6 +4731,26 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
         };
       });
       assignTabRows(tabId, posterRows, count);
+      return;
+    }
+
+    if (tabId === 'aiMemories') {
+      // owner:owner_user_id(username) 联表拍平成 owner_username（同 subscriptions 的 profile 口径）；
+      // source / moderation_status 顺带映射成中文展示列（表列名 source_label / moderation_label）
+      const aiMemoryRows = rows.map((memory) => {
+        const { owner: rawOwner, ...restMemory } = memory;
+        const owner = normalizeJoinedObject(rawOwner);
+        const sourceLabelMap = { capture: '自动沉淀', manual: '手动' };
+        const moderationLabelMap = { approved: '通过', rejected: '已拒绝' };
+        return {
+          ...restMemory,
+          owner_username: owner.username || '-',
+          source_label: sourceLabelMap[memory.source] || memory.source || '-',
+          moderation_label:
+            moderationLabelMap[memory.moderation_status] || memory.moderation_status || '-',
+        };
+      });
+      assignTabRows(tabId, aiMemoryRows, count);
       return;
     }
 
@@ -5051,16 +5269,13 @@ watch(currentTab, (tabId) => {
   }
 });
 
-// ==================== 顶栏：折叠/搜索/通知/用户菜单 ====================
-// 桌面端折叠图标栏，移动端切换抽屉
-const sidebarToggleOpen = computed(() =>
-  isMobileView.value ? isAdminSidebarOpen.value : !isSidebarCollapsed.value,
-);
+// ==================== 顶栏：侧栏开关/搜索/通知/用户菜单 ====================
+// 桌面端侧栏恒全宽：开关按钮只在移动端渲染（AdminHeader.canToggleSidebar），
+// is-sidebar-open 传 true 让图标态判断恒定，不影响其它布局
+const sidebarToggleOpen = computed(() => (isMobileView.value ? isAdminSidebarOpen.value : true));
 const toggleSidebar = () => {
   if (isMobileView.value) {
     isAdminSidebarOpen.value = !isAdminSidebarOpen.value;
-  } else {
-    isSidebarCollapsed.value = !isSidebarCollapsed.value;
   }
 };
 
@@ -5110,13 +5325,8 @@ const quickCreateRecord = (tabId) => {
 };
 
 const handleAdminLogout = async () => {
-  try {
-    await authStore.logout();
-  } catch (error) {
-    logger.warn('data-admin', '退出登录失败:', error);
-  } finally {
-    router.push('/');
-  }
+  // 等注销落定后整页重载回首页：管理面板里的表格/缓存都是按旧会话取的
+  await logoutAndReload(authStore);
 };
 
 // ==================== 面包屑（已下线）====================
@@ -6480,6 +6690,8 @@ const saveData = async ({ keepOpen = false } = {}) => {
       if (currentTab.value === 'coreMemories') await syncCoreMemoriesIndex();
       if (currentTab.value === 'news' || currentTab.value === 'activities')
         await syncSiteContentIndex();
+      if (currentTab.value === 'forumMemories' && dataToSave.status === 'active')
+        await syncForumMemoryIndex();
       if (currentTab.value === 'bohaiModels') {
         clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
       }
@@ -6513,6 +6725,8 @@ const saveData = async ({ keepOpen = false } = {}) => {
       if (currentTab.value === 'coreMemories') await syncCoreMemoriesIndex();
       if (currentTab.value === 'news' || currentTab.value === 'activities')
         await syncSiteContentIndex();
+      if (currentTab.value === 'forumMemories' && dataToSave.status === 'active')
+        await syncForumMemoryIndex();
       if (currentTab.value === 'bohaiModels') {
         clearVaultModelCache().catch((e) => logger.warn('清除模型缓存失败:', e));
       }
@@ -6654,52 +6868,326 @@ const handleCardClick = (item) => {
   openEditModal(item);
 };
 
-// ==================== 官方事实速记（2026-10-16）====================
+// ==================== 官方事实速记（2026-10-16；2026-10-18 批量 + JSONL 导入）====================
 // 一句话入库：显式前缀/已知成员名/关键词 自动归类（解析器见 composables/quick-fact.js，
 // 纯函数有单测）。入库后同步向量索引 —— 与抽屉保存同一条铁律。
 const quickFactText = ref('');
 const quickFactSaving = ref(false);
+const quickFactBatchMode = ref(false);
+
+const toggleQuickFactBatchMode = () => {
+  quickFactBatchMode.value = !quickFactBatchMode.value;
+};
+
+/** 单行速记入库：解析 → SAVE_STRATEGIES 归一 → insert。返回 null 表示该行没法解析。 */
+const insertQuickFactLine = async (lineText, knownNames) => {
+  const parsed = parseQuickFact(lineText, { knownNames });
+  if (!parsed) return null;
+  const dataToSave = await SAVE_STRATEGIES.coreMemories({
+    editingItem: parsed,
+    isEditing: false,
+    userId: userInfo.value?.id,
+  });
+  const createdRow = await createCoreMemoryRow(dataToSave);
+  return { parsed, createdRow };
+};
+
+const getQuickFactKnownNames = () => [
+  ...new Set(
+    currentData.value
+      .filter((row) => row.category === 'member_profile')
+      .flatMap((row) =>
+        Array.isArray(row.tags) ? row.tags.map((tag) => String(tag || '').trim()) : [],
+      )
+      .filter(Boolean),
+  ),
+];
+
 const handleQuickAddFact = async () => {
-  const text = String(quickFactText.value || '').trim();
-  if (!text || quickFactSaving.value) return;
+  const raw = String(quickFactText.value || '').trim();
+  if (!raw || quickFactSaving.value) return;
   if (!canCreateCurrentTab.value) return;
   quickFactSaving.value = true;
   try {
-    const knownNames = [
-      ...new Set(
-        currentData.value
-          .filter((row) => row.category === 'member_profile')
-          .flatMap((row) =>
-            Array.isArray(row.tags) ? row.tags.map((tag) => String(tag || '').trim()) : [],
-          )
-          .filter(Boolean),
-      ),
-    ];
-    const parsed = parseQuickFact(text, { knownNames });
-    if (!parsed) return;
-    const dataToSave = await SAVE_STRATEGIES.coreMemories({
-      editingItem: parsed,
-      isEditing: false,
-      userId: userInfo.value?.id,
-    });
-    const createdRow = await createCoreMemoryRow(dataToSave);
-    await syncCoreMemoriesIndex();
-    quickFactText.value = '';
-    clearTabFetchCache('coreMemories');
-    await refreshCurrentViewAfterMutation();
-    const categoryLabel = QUICK_FACT_CATEGORY_LABELS[parsed.category] || parsed.category;
+    const knownNames = getQuickFactKnownNames();
+    // 批量模式（textarea）按行拆分；单条 input 永远只有一行，走原体验
+    const lines = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length <= 1) {
+      const inserted = await insertQuickFactLine(lines[0] || raw, knownNames);
+      if (!inserted) return;
+      const { parsed, createdRow } = inserted;
+      await syncCoreMemoriesIndex();
+      quickFactText.value = '';
+      clearTabFetchCache('coreMemories');
+      await refreshCurrentViewAfterMutation();
+      const categoryLabel = QUICK_FACT_CATEGORY_LABELS[parsed.category] || parsed.category;
+      showToast(
+        `已入库 · 归类「${categoryLabel}」· ${parsed.title}`,
+        'success',
+        createdRow && canEditCurrentTab.value
+          ? { label: '编辑', run: () => openEditModal(createdRow) }
+          : null,
+      );
+      return;
+    }
+
+    // 批量：逐行入库，失败行不中断整批；向量索引同步收口成一次
+    let savedCount = 0;
+    const failedLines = [];
+    const savedTitles = [];
+    for (const line of lines) {
+      try {
+        const inserted = await insertQuickFactLine(line, knownNames);
+        if (inserted) {
+          savedCount += 1;
+          if (savedTitles.length < 3) savedTitles.push(inserted.parsed.title);
+        } else {
+          failedLines.push(line);
+        }
+      } catch (lineError) {
+        logger.warn('data-admin', '速记批量单行入库失败:', lineError);
+        failedLines.push(line);
+      }
+    }
+
+    if (savedCount > 0) {
+      await syncCoreMemoriesIndex();
+      clearTabFetchCache('coreMemories');
+      await refreshCurrentViewAfterMutation();
+    }
+    // 失败行保留在输入框里，改完直接再点「添加」；成功的行清掉
+    quickFactText.value = failedLines.join('\n');
+    const failedPart =
+      failedLines.length > 0 ? `，失败 ${failedLines.length} 条（已留在输入框）` : '';
     showToast(
-      `已入库 · 归类「${categoryLabel}」· ${parsed.title}`,
-      'success',
-      createdRow && canEditCurrentTab.value
-        ? { label: '编辑', run: () => openEditModal(createdRow) }
-        : null,
+      savedCount > 0
+        ? `批量入库完成：成功 ${savedCount} 条${failedPart}${
+            savedCount <= 3 ? ` · ${savedTitles.join('、')}` : ''
+          }`
+        : '批量入库失败：没有一条入库成功',
+      savedCount > 0 ? 'success' : 'error',
     );
   } catch (error) {
     logger.error('data-admin', '速记入库失败:', error);
     showToast('速记入库失败: ' + buildActionErrorMessage(error, '请重试'), 'error');
   } finally {
     quickFactSaving.value = false;
+  }
+};
+
+// ==================== JSONL 知识库导入（2026-10-18）====================
+// 走 EF import_knowledge_base 的管理员 JWT 通道（BOH_AI_RETRIEVAL_SYNC_SECRET 不进前端）。
+const kbImportOpen = ref(false);
+const kbImportSlug = ref('');
+const kbImportTitle = ref('');
+const kbImportJsonl = ref('');
+const kbImporting = ref(false);
+const kbImportHint = ref('');
+
+const handleKbImportFile = async (event) => {
+  const file = event?.target?.files?.[0];
+  if (!file) return;
+  try {
+    kbImportJsonl.value = await file.text();
+    if (!kbImportSlug.value.trim()) {
+      const fromName = String(file.name || '')
+        .replace(/\.(jsonl|txt)$/i, '')
+        .replace(/[^\w-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+      if (fromName) kbImportSlug.value = fromName;
+    }
+    const lineCount = (kbImportJsonl.value.match(/\r?\n/g)?.length || 0) + 1;
+    kbImportHint.value = `已读取文件 ${file.name}（约 ${lineCount} 行）`;
+  } catch (readError) {
+    logger.error('data-admin', '读取 JSONL 文件失败:', readError);
+    showToast('读取文件失败: ' + buildActionErrorMessage(readError, '请重试'), 'error');
+  } finally {
+    if (event?.target) event.target.value = '';
+  }
+};
+
+const handleKbImport = async () => {
+  const jsonl = String(kbImportJsonl.value || '').trim();
+  if (!jsonl || kbImporting.value) return;
+  if (!isCurrentUserAdmin.value) {
+    showToast('仅管理员可导入知识库', 'error');
+    return;
+  }
+  // 轻量预检：每行必须是合法 JSON 且带 content（EF 侧会再完整校验一次）
+  const jsonlLines = jsonl
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  let parsedCount = 0;
+  for (let index = 0; index < jsonlLines.length; index += 1) {
+    try {
+      const parsedLine = JSON.parse(jsonlLines[index]);
+      if (!String(parsedLine?.content || '').trim()) {
+        kbImportHint.value = `第 ${index + 1} 行缺少 content 字段，已取消导入`;
+        showToast(`JSONL 第 ${index + 1} 行缺少 content 字段`, 'error');
+        return;
+      }
+      parsedCount += 1;
+    } catch (_parseError) {
+      kbImportHint.value = `第 ${index + 1} 行不是合法 JSON，已取消导入`;
+      showToast(`JSONL 第 ${index + 1} 行不是合法 JSON`, 'error');
+      return;
+    }
+  }
+  if (parsedCount === 0) {
+    kbImportHint.value = '没有可用切片：JSONL 为空';
+    showToast('JSONL 里没有可用切片', 'error');
+    return;
+  }
+
+  kbImporting.value = true;
+  kbImportHint.value = '';
+  try {
+    const result = await importKnowledgeBaseByAdmin({
+      slug: kbImportSlug.value.trim() || `manual_kb_${new Date().toISOString().slice(0, 10)}`,
+      title: kbImportTitle.value.trim() || 'BOH AI 知识库',
+      jsonl,
+      metadata: {
+        importedFrom: 'data-admin-ui',
+        importedAt: new Date().toISOString(),
+        format: 'jsonl',
+      },
+    });
+    const chunkCount = Number(result?.chunkCount || 0);
+    const upsertedCount = Number(result?.upsertedCount || 0);
+    kbImportHint.value = `导入成功：${chunkCount} 个切片，本次更新 ${upsertedCount} 个，向量化模型 ${result?.embeddingModel || '-'}`;
+    showToast(
+      `知识库已导入（${chunkCount} 个切片，更新 ${upsertedCount} 个），BOHAI 检索即时生效`,
+      'success',
+    );
+  } catch (error) {
+    logger.error('data-admin', '知识库导入失败:', error);
+    kbImportHint.value = '';
+    showToast('知识库导入失败: ' + buildActionErrorMessage(error, '请重试'), 'error');
+  } finally {
+    kbImporting.value = false;
+  }
+};
+
+// ==================== 论坛事实卡：摄取进度与手动补扫（2026-10-18）====================
+// 单轮预算由 EF 把守（110s / ≤12 帖），面板只负责循环与展示；失败帖不写账本，
+// 下一轮自动重试，所以「连续两轮零进展」才判停（避免个别坏帖卡死整场补扫）。
+const fmIngestProgress = reactive({ scanned: 0, total: 0, remaining: 0 });
+const fmCatchupRunning = ref(false);
+const fmCatchupStop = ref(false);
+const fmCatchupRound = ref(0);
+const fmCatchupLog = ref('');
+
+const refreshForumMemoryProgress = async () => {
+  try {
+    const progress = await getForumMemoryIngestProgress();
+    fmIngestProgress.scanned = progress.scanned;
+    fmIngestProgress.total = progress.total;
+    fmIngestProgress.remaining = progress.remaining;
+  } catch (error) {
+    // 失败**保留上一次读数**（不清零）——清零会让「待补」显示 0、按钮被误禁用，
+    // 看起来像「已经扫完了」（2026-10-19 用户报障）。
+    logger.warn('data-admin', '获取论坛事实卡摄取进度失败:', error);
+    if (!fmCatchupLog.value) {
+      fmCatchupLog.value = '摄取进度读取失败，请刷新页面重试（不影响已扫描的数据）';
+    }
+  }
+};
+
+// immediate：直接深链进 ?tab=forumMemories 时，watch 若无 immediate 永远不会触发，
+// 进度条会停在初始 0/0/0（表现同上：待补 0、按钮禁用）。
+watch(
+  currentTab,
+  (tabId) => {
+    if (tabId === 'forumMemories') void refreshForumMemoryProgress();
+  },
+  { immediate: true },
+);
+
+const handleForumMemoryCatchup = async () => {
+  if (fmCatchupRunning.value) return;
+  if (!isCurrentUserAdmin.value) {
+    showToast('仅管理员可触发补扫', 'error');
+    return;
+  }
+  fmCatchupRunning.value = true;
+  fmCatchupStop.value = false;
+  fmCatchupRound.value = 0;
+  let totalInserted = 0;
+  let totalFailed = 0;
+  let idleRounds = 0;
+  // 失败原因聚合（2026-10-19：用户要求「返回错误原因」）——EF 的 errors 形如 `<postId>:api_429`
+  const errorTally = new Map();
+  const tallyRoundErrors = (errors) => {
+    (Array.isArray(errors) ? errors : []).forEach((raw) => {
+      const text = String(raw || '').trim();
+      if (!text) return;
+      const reason = text.includes(':') ? text.split(':').slice(1).join(':') : text;
+      errorTally.set(reason, (errorTally.get(reason) || 0) + 1);
+    });
+  };
+  const formatErrorTally = () =>
+    [...errorTally.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([reason, count]) => `${reason} ×${count}`)
+      .join('、');
+  try {
+    while (!fmCatchupStop.value && fmCatchupRound.value < 30) {
+      fmCatchupRound.value += 1;
+      await refreshForumMemoryProgress();
+      if (fmIngestProgress.remaining <= 0) {
+        fmCatchupLog.value = '已追平：没有待扫的公开帖了';
+        break;
+      }
+      fmCatchupLog.value = `第 ${fmCatchupRound.value} 轮：剩余 ${fmIngestProgress.remaining} 帖待扫，请求摄取任务…`;
+      const stats = await runForumMemoryIngestBatch(12);
+      const roundScanned = Number(stats?.scanned || 0);
+      const roundSkipped = Number(stats?.skipped || 0);
+      const roundInserted = Number(stats?.inserted || 0);
+      const roundFailed = Number(stats?.failed || 0);
+      totalInserted += roundInserted;
+      totalFailed += roundFailed;
+      tallyRoundErrors(stats?.errors);
+      if (Array.isArray(stats?.errors) && stats.errors.length > 0) {
+        logger.warn('data-admin', '论坛事实卡本轮失败明细:', stats.errors);
+      }
+      const reasonText = errorTally.size > 0 ? `｜失败原因：${formatErrorTally()}` : '';
+      fmCatchupLog.value = `第 ${fmCatchupRound.value} 轮完成：扫 ${roundScanned} 帖（跳过 ${roundSkipped}），新增 ${roundInserted} 条事实卡${
+        roundFailed > 0 ? `，失败 ${roundFailed} 帖（下轮自动重试）` : ''
+      }${reasonText}`;
+      const madeProgress = roundScanned + roundSkipped > 0;
+      idleRounds = madeProgress ? 0 : idleRounds + 1;
+      if (idleRounds >= 2) {
+        fmCatchupLog.value = `连续 ${idleRounds} 轮零进展（可能有持续失败的帖子），已停止。${reasonText ? reasonText.replace('｜', '') : '可稍后重试。'}`;
+        break;
+      }
+      // 轮间冷却：连打供应商容易 429；EF 内部已有单帖重试，这里再降一次压力
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+    await refreshForumMemoryProgress();
+    clearTabFetchCache('forumMemories');
+    await refreshCurrentViewAfterMutation();
+    showToast(
+      `补扫结束：${fmCatchupRound.value} 轮，新增 ${totalInserted} 条事实卡${
+        totalFailed > 0
+          ? `（${totalFailed} 帖次失败未入账本，会自动重试：${formatErrorTally() || '原因未知'}）`
+          : ''
+      }`,
+      'success',
+    );
+  } catch (error) {
+    logger.error('data-admin', '论坛事实卡补扫失败:', error);
+    fmCatchupLog.value = '补扫中断：' + buildActionErrorMessage(error, '请稍后重试');
+    showToast('补扫失败: ' + buildActionErrorMessage(error, '请重试'), 'error');
+  } finally {
+    fmCatchupRunning.value = false;
+    fmCatchupStop.value = false;
   }
 };
 

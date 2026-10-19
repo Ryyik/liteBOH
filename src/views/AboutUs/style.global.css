@@ -605,4 +605,13 @@ html.about-scroll body {
     transition: none;
     filter: none;
   }
+  /* 2026-10-17（全面审查 P1-3）：`.timeline-entry` 的默认态是「入场前」的 0.28 透明 +
+     下移 12px，靠 JS 算 `timelineProgress` 再挂 `.reached` 才回到可读态。减弱动效时
+     JS 那边确实把 progress 钉成 1，但那是**一条 JS 依赖**：脚本没跑到（报错/被拦）时
+     整段时间线会永久停在 0.28 透明（正文实测对比度 1.45，几乎不可读）。
+     这里补一条纯 CSS 兜底：减弱动效下直接给终态，不赌 JS。 */
+  .timeline-entry {
+    opacity: 1;
+    transform: none;
+  }
 }
