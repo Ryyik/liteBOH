@@ -1,0 +1,167 @@
+{
+  "version": "2026-10-19",
+  "source": "src/data/boh-knowledge-base.jsonl",
+  "note": "人物别名 bootstrap。真源是 boh_ai_entities + boh_ai_entity_aliases；本文件用于查询侧实体链接与冷启动播种（scripts/seed-boh-entities.mjs）。新增别名先改这里，再跑播种脚本。",
+  "entities": [
+    {
+      "id": "person-yier",
+      "canonicalName": "一二",
+      "displayName": "发毕业证的一二",
+      "aliases": [
+        { "value": "发毕业证的一二", "type": "display", "confidence": 1 },
+        { "value": "翼儿", "type": "nickname", "confidence": 1 },
+        { "value": "一二", "type": "nickname", "confidence": 0.9, "ambiguous": true },
+        { "value": "胡俊杰", "type": "real_name", "confidence": 1 },
+        { "value": "hjj", "type": "initial", "confidence": 0.9 },
+        { "value": "群主", "type": "role", "confidence": 0.7, "ambiguous": true }
+      ]
+    },
+    {
+      "id": "person-liuzhenfu",
+      "canonicalName": "刘镇福",
+      "displayName": "是LF是锂铁分子",
+      "aliases": [
+        { "value": "是LF是锂铁分子", "type": "display", "confidence": 1 },
+        { "value": "笔墨", "type": "nickname", "confidence": 1, "ambiguous": true },
+        { "value": "刘镇福", "type": "real_name", "confidence": 1 },
+        { "value": "LF", "type": "nickname", "confidence": 0.9, "ambiguous": true },
+        { "value": "lzf", "type": "initial", "confidence": 0.9 }
+      ]
+    },
+    {
+      "id": "person-xiaoniu",
+      "canonicalName": "小牛",
+      "displayName": "小牛无聊",
+      "aliases": [
+        { "value": "小牛无聊", "type": "display", "confidence": 1 },
+        { "value": "小牛", "type": "nickname", "confidence": 1, "ambiguous": true }
+      ]
+    },
+    {
+      "id": "person-dinglaoshi",
+      "canonicalName": "丁老师",
+      "displayName": "丁老师",
+      "aliases": [{ "value": "丁老师", "type": "nickname", "confidence": 1 }]
+    },
+    {
+      "id": "person-end",
+      "canonicalName": "End",
+      "displayName": "叫我End～喵～",
+      "aliases": [
+        { "value": "叫我End～喵～", "type": "display", "confidence": 1 },
+        { "value": "End", "type": "nickname", "confidence": 0.9, "ambiguous": true }
+      ]
+    },
+    {
+      "id": "person-eleven",
+      "canonicalName": "Eleven",
+      "displayName": "PVP大神Eleven",
+      "aliases": [
+        { "value": "PVP大神Eleven", "type": "display", "confidence": 1 },
+        { "value": "武宇轩", "type": "real_name", "confidence": 1 },
+        { "value": "wyx", "type": "initial", "confidence": 0.9 },
+        { "value": "轩轩", "type": "nickname", "confidence": 0.9 },
+        { "value": "Eleven", "type": "nickname", "confidence": 1 }
+      ]
+    },
+    {
+      "id": "person-yufuqu",
+      "canonicalName": "雨芙蕖",
+      "displayName": "很有梗 雨芙蕖",
+      "aliases": [
+        { "value": "很有梗 雨芙蕖", "type": "display", "confidence": 1 },
+        { "value": "雨芙蕖", "type": "nickname", "confidence": 1 }
+      ]
+    },
+    {
+      "id": "person-baicheng",
+      "canonicalName": "百城小悠",
+      "displayName": "百城小悠",
+      "aliases": [
+        { "value": "百城小悠", "type": "display", "confidence": 1 },
+        { "value": "百城", "type": "nickname", "confidence": 0.9, "ambiguous": true }
+      ]
+    },
+    {
+      "id": "person-hanbao",
+      "canonicalName": "汉堡",
+      "displayName": "汉堡",
+      "aliases": [
+        { "value": "汉堡", "type": "nickname", "confidence": 0.9, "ambiguous": true },
+        { "value": "蒋龙", "type": "real_name", "confidence": 1 }
+      ]
+    },
+    {
+      "id": "person-hetun",
+      "canonicalName": "河豚",
+      "displayName": "河豚 / IzaQ",
+      "aliases": [
+        { "value": "河豚", "type": "nickname", "confidence": 0.9, "ambiguous": true },
+        { "value": "IzaQ", "type": "nickname", "confidence": 1 }
+      ]
+    },
+    {
+      "id": "person-luoqiu",
+      "canonicalName": "洛邱",
+      "displayName": "洛邱",
+      "aliases": [{ "value": "洛邱", "type": "nickname", "confidence": 1 }]
+    },
+    {
+      "id": "person-xiaofeng",
+      "canonicalName": "晓枫",
+      "displayName": "晓枫",
+      "aliases": [{ "value": "晓枫", "type": "nickname", "confidence": 1 }]
+    },
+    {
+      "id": "person-chengzi",
+      "canonicalName": "橙子",
+      "displayName": "橙子 / 86岁少奶奶出逃",
+      "aliases": [
+        { "value": "橙子", "type": "nickname", "confidence": 0.9, "ambiguous": true },
+        { "value": "86岁少奶奶出逃", "type": "nickname", "confidence": 1 }
+      ]
+    },
+    {
+      "id": "person-xiaogaogao",
+      "canonicalName": "小高糕糕",
+      "displayName": "小高糕糕",
+      "aliases": [{ "value": "小高糕糕", "type": "nickname", "confidence": 1 }]
+    },
+    {
+      "id": "person-maonu",
+      "canonicalName": "传说中的猫奴",
+      "displayName": "传说中的猫奴",
+      "aliases": [{ "value": "传说中的猫奴", "type": "nickname", "confidence": 1 }]
+    },
+    {
+      "id": "person-arisu",
+      "canonicalName": "くおんじ ありす",
+      "displayName": "くおんじ ありす",
+      "aliases": [{ "value": "くおんじ ありす", "type": "nickname", "confidence": 1 }]
+    },
+    {
+      "id": "person-ryyik",
+      "canonicalName": "ryyik",
+      "displayName": "ryyik",
+      "aliases": [{ "value": "ryyik", "type": "nickname", "confidence": 1, "legacyOnly": true }]
+    },
+    {
+      "id": "person-baiye",
+      "canonicalName": "白烨",
+      "displayName": "白烨",
+      "aliases": [{ "value": "白烨", "type": "nickname", "confidence": 1, "legacyOnly": true }]
+    },
+    {
+      "id": "person-xiaotianguang",
+      "canonicalName": "小天光",
+      "displayName": "小天光",
+      "aliases": [{ "value": "小天光", "type": "nickname", "confidence": 1, "legacyOnly": true }]
+    },
+    {
+      "id": "person-xiaoxian",
+      "canonicalName": "小仙",
+      "displayName": "小仙",
+      "aliases": [{ "value": "小仙", "type": "nickname", "confidence": 1, "legacyOnly": true }]
+    }
+  ]
+}

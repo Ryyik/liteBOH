@@ -18,6 +18,8 @@
     "build": "npm run check:views && npm run check:structure && npm run type-check && npm run compress-images && vite build",
     "build:full": "npm run build",
     "compress-images": "node scripts/compress-images.mjs",
+    "seed:boh-entities": "node scripts/seed-boh-entities.mjs",
+    "seed:boh-entities:sql": "node scripts/build-boh-entity-seed-sql.mjs",
     "preview": "vite preview",
     "env:doctor": "node scripts/env-doctor.mjs",
     "env:doctor:strict": "node scripts/env-doctor.mjs --strict",

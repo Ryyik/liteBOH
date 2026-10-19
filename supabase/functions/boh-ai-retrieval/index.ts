@@ -21,6 +21,8 @@ type KnowledgeSource = {
   title: string;
   content: string;
   metadata: Record<string, unknown>;
+  /** 人物/实体 ID；写入 boh_ai_knowledge_chunks.entity_ids，供检索按实体加权 */
+  entityIds?: string[];
 };
 
 type ExistingChunk = {
@@ -39,6 +41,9 @@ type RetrievalRow = Record<string, unknown> & {
   similarity?: number;
   combinedScore?: number;
   retrievalMethod?: string;
+  entity_ids?: string[];
+  entity_match?: boolean;
+  entityMatch?: boolean;
 };
 
 type RerankResult = {
@@ -170,6 +175,110 @@ const scoreKeywordMatch = (text: string, query: string, tokens: string[]) => {
     if (haystack.includes(token)) score += Math.min(4, Math.max(1, token.length / 2));
   }
   return score;
+};
+
+/**
+ * 实体别名（2026-10-19）：事实卡/知识库切片在摄入时把人名归一成 entity_id。
+ * 缓存 5 分钟 —— 别名表是低频变更的管理数据，不值得每条检索都回表。
+ */
+type EntityAliasEntry = {
+  entityId: string;
+  canonicalName: string;
+  normalizedAlias: string;
+  ambiguous: boolean;
+};
+
+let entityAliasCache: { at: number; entries: EntityAliasEntry[] } | null = null;
+const ENTITY_ALIAS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const normalizeEntityText = (text: string) =>
+  String(text || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\s\u3000，。！？、,.!?;；:：'"“”‘’（）()【】[\]《》<>·~～\-_/\\|]+/g, '');
+
+const normalizeEntityIds = (value: unknown) => {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map((item) => String(item || '').trim())
+        .filter((item) => /^[a-z0-9][a-z0-9-]{1,63}$/i.test(item)),
+    ),
+  ].slice(0, 8);
+};
+
+const loadEntityAliases = async (
+  client: ReturnType<typeof createServiceClient>,
+): Promise<EntityAliasEntry[]> => {
+  const now = Date.now();
+  if (entityAliasCache && now - entityAliasCache.at < ENTITY_ALIAS_CACHE_TTL_MS) {
+    return entityAliasCache.entries;
+  }
+  try {
+    const [{ data: entities, error: entityError }, { data: aliases, error: aliasError }] =
+      await Promise.all([
+        client
+          .from('boh_ai_entities')
+          .select('id, slug, canonical_name')
+          .eq('status', 'active')
+          .limit(500),
+        client
+          .from('boh_ai_entity_aliases')
+          .select('entity_id, alias, normalized_alias, is_ambiguous')
+          .limit(2000),
+      ]);
+    if (entityError || aliasError) return entityAliasCache?.entries || [];
+    const slugById = new Map(
+      (Array.isArray(entities) ? entities : []).map((row) => [
+        String(row.id),
+        toText(row.slug, 80),
+      ]),
+    );
+    const canonicalById = new Map(
+      (Array.isArray(entities) ? entities : []).map((row) => [
+        String(row.id),
+        toText(row.canonical_name, 80),
+      ]),
+    );
+    const entries = (Array.isArray(aliases) ? aliases : [])
+      .map((row) => ({
+        entityId: slugById.get(String(row.entity_id || '')) || '',
+        canonicalName: canonicalById.get(String(row.entity_id || '')) || '',
+        normalizedAlias:
+          toText(row.normalized_alias, 120) || normalizeEntityText(String(row.alias || '')),
+        ambiguous: Boolean(row.is_ambiguous),
+      }))
+      .filter((entry) => entry.entityId && entry.normalizedAlias);
+    entityAliasCache = { at: now, entries };
+    return entries;
+  } catch (_error) {
+    // 迁移未应用 / 表不存在时静默降级：检索仍可工作，只是少了实体加权。
+    return entityAliasCache?.entries || [];
+  }
+};
+
+const resolveEntityIdsFromNames = (names: unknown, entries: EntityAliasEntry[]) => {
+  const list = Array.isArray(names) ? names : [];
+  if (entries.length === 0) return [];
+  const ids = new Set<string>();
+  for (const name of list) {
+    const normalized = normalizeEntityText(String(name || ''));
+    if (!normalized) continue;
+    let best: EntityAliasEntry | null = null;
+    for (const entry of entries) {
+      const exact = entry.normalizedAlias === normalized;
+      if (entry.ambiguous && !exact) continue;
+      const contains =
+        normalized.includes(entry.normalizedAlias) || entry.normalizedAlias.includes(normalized);
+      if (!exact && !contains) continue;
+      if (!best || entry.normalizedAlias.length > best.normalizedAlias.length) {
+        best = entry;
+      }
+    }
+    if (best) ids.add(best.entityId);
+  }
+  return [...ids];
 };
 
 const createServiceClient = () => {
@@ -366,7 +475,10 @@ const upsertKnowledgeSource = async (
     chunks.map(async (content, index) => ({
       index,
       content,
-      contentHash: await sha256Hex(`${source.sourceType}:${source.sourceId}:${index}:${content}`),
+      // entityIds 进 hash：别名表更新后即使正文没变，也要重新 upsert 以刷新 entity_ids。
+      contentHash: await sha256Hex(
+        `${source.sourceType}:${source.sourceId}:${index}:${(source.entityIds || []).join(',')}:${content}`,
+      ),
     })),
   );
 
@@ -409,6 +521,7 @@ const upsertKnowledgeSource = async (
       ...source.metadata,
       totalChunks: chunks.length,
     },
+    entity_ids: source.entityIds || [],
     embedding_model: EMBEDDING_MODEL_ID,
     embedding: embeddings[position],
     status: 'active',
@@ -454,7 +567,9 @@ const upsertKnowledgeSourcesBatch = async (
       chunks.map(async (content, index) => ({
         index,
         content,
-        contentHash: await sha256Hex(`${source.sourceType}:${source.sourceId}:${index}:${content}`),
+        contentHash: await sha256Hex(
+          `${source.sourceType}:${source.sourceId}:${index}:${(source.entityIds || []).join(',')}:${content}`,
+        ),
       })),
     );
     allPrepared.push({ source, chunks, prepared });
@@ -570,6 +685,7 @@ const upsertKnowledgeSourcesBatch = async (
       ...item.source.metadata,
       totalChunks: item.totalChunks,
     },
+    entity_ids: item.source.entityIds || [],
     embedding_model: EMBEDDING_MODEL_ID,
     embedding: embeddings[position],
     status: 'active',
@@ -736,14 +852,27 @@ const importKnowledgeBase = async (
     existingByIndex.set(Number(row.chunk_index), row as ExistingChunk);
   }
 
+  const aliasEntries = await loadEntityAliases(client);
+
   const prepared = await Promise.all(
     chunks.map(async (chunk, index) => {
       const content = buildKnowledgeBaseChunkContent(chunk);
+      const explicitEntityId = toText(chunk.metadata.entityId, 80);
+      const resolvedEntityIds = resolveEntityIdsFromNames(
+        [chunk.title, ...chunk.sectionPath, ...chunk.keywords],
+        aliasEntries,
+      );
+      const entityIds = [
+        ...new Set([...(explicitEntityId ? [explicitEntityId] : []), ...resolvedEntityIds]),
+      ];
       return {
         index,
         chunk,
         content,
-        contentHash: await sha256Hex(`knowledge_base:${sourceId}:${index}:${content}`),
+        entityIds,
+        contentHash: await sha256Hex(
+          `knowledge_base:${sourceId}:${index}:${entityIds.join(',')}:${content}`,
+        ),
       };
     }),
   );
@@ -784,8 +913,10 @@ const importKnowledgeBase = async (
         priority: chunk.chunk.priority,
         knowledgeBaseSlug: slug,
         totalChunks: chunks.length,
+        peopleIds: chunk.entityIds,
         retrievalMethod: 'vector',
       },
+      entity_ids: chunk.entityIds,
       embedding_model: EMBEDDING_MODEL_ID,
       embedding: embeddings[position],
       status: 'active',
@@ -833,22 +964,51 @@ const importKnowledgeBase = async (
  * 切片正文里带上「出处帖子 + 发帖人 + 时间」，是为了让模型引用时能交代来源
  * （论坛内容属不可信外部内容，必须可溯源 —— 与 `useForumSummary` 同一口径）。
  */
+const FORUM_MEMORY_SELECT_BASE =
+  'id, source_post_id, source_post_title, source_post_author, fact, category, people, occurred_at, confidence, evidence, model, updated_at, created_at';
+
 const syncForumMemories = async (client: ReturnType<typeof createServiceClient>, limit: number) => {
-  const { data, error } = await client
+  // 新列（people_ids/support_level/evidence_*）在迁移未应用时不存在 ⇒ 先试新列，失败回退旧列。
+  // 这样 EF 可以先部署、迁移后应用，不会因为一个 select 列直接 500。
+  const extended = await client
     .from('boh_ai_forum_memories')
-    .select(
-      'id, source_post_id, source_post_title, source_post_author, fact, category, people, occurred_at, confidence, evidence, model, updated_at, created_at',
-    )
+    .select(`${FORUM_MEMORY_SELECT_BASE}, people_ids, support_level, evidence_start, evidence_end`)
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
     .limit(limit);
+
+  let data = extended.data as Record<string, any>[] | null;
+  let error = extended.error;
+  if (
+    error &&
+    /people_ids|support_level|evidence_start|evidence_end/i.test(String(error.message || ''))
+  ) {
+    const fallback = await client
+      .from('boh_ai_forum_memories')
+      .select(FORUM_MEMORY_SELECT_BASE)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(limit);
+    data = fallback.data as Record<string, any>[] | null;
+    error = fallback.error;
+  }
 
   if (error) throw error;
   const rows = Array.isArray(data) ? data : [];
   if (rows.length === 0) return 0;
 
+  const aliasEntries = await loadEntityAliases(client);
+
   const sources: KnowledgeSource[] = rows.map((row) => {
-    const people = Array.isArray(row.people) ? row.people.join('、') : '';
+    const peopleList = Array.isArray(row.people)
+      ? row.people.map((person) => toText(person, 40)).filter(Boolean)
+      : [];
+    const explicitIds = Array.isArray(row.people_ids)
+      ? row.people_ids.map((id) => String(id || '')).filter(Boolean)
+      : [];
+    const entityIds =
+      explicitIds.length > 0 ? explicitIds : resolveEntityIdsFromNames(peopleList, aliasEntries);
+    const people = peopleList.join('、');
     const title = toText(row.source_post_title, 120) || '论坛记忆';
     const postId = toText(row.source_post_id, 80);
     const content = [
@@ -857,6 +1017,7 @@ const syncForumMemories = async (client: ReturnType<typeof createServiceClient>,
       people ? `涉及成员：${people}` : '',
       row.occurred_at ? `时间：${toText(row.occurred_at, 60)}` : '',
       `出处帖子：${title}`,
+      postId ? `帖子链接：#/forum/post/${postId}` : '',
       row.source_post_author ? `发帖人：${toText(row.source_post_author, 80)}` : '',
       row.evidence ? `原文片段：${toText(row.evidence, 600)}` : '',
     ]
@@ -870,11 +1031,16 @@ const syncForumMemories = async (client: ReturnType<typeof createServiceClient>,
       visibility: 'public',
       title,
       content,
+      entityIds,
       metadata: {
         category: row.category || 'general',
-        people: Array.isArray(row.people) ? row.people : [],
+        people: peopleList,
+        peopleIds: entityIds,
         occurredAt: row.occurred_at || '',
         confidence: Number(row.confidence || 0),
+        supportLevel: row.support_level || 'unverified',
+        evidenceStart: row.evidence_start ?? null,
+        evidenceEnd: row.evidence_end ?? null,
         sourcePostId: postId,
         sourcePostUrl: postId ? `#/forum/post/${postId}` : '',
         sourcePostAuthor: row.source_post_author || '',
@@ -1096,9 +1262,15 @@ const syncCoreMemories = async (client: ReturnType<typeof createServiceClient>, 
   const rows = Array.isArray(data) ? data : [];
   if (rows.length === 0) return 0;
 
+  const aliasEntries = await loadEntityAliases(client);
+
   const sources: KnowledgeSource[] = rows.map((row) => {
     const title = toText(row.title, 120) || 'BOH 官方事实';
-    const tags = Array.isArray(row.tags) ? row.tags.join('、') : '';
+    const tagList = Array.isArray(row.tags)
+      ? row.tags.map((tag) => toText(tag, 40)).filter(Boolean)
+      : [];
+    const tags = tagList.join('、');
+    const entityIds = resolveEntityIdsFromNames([title, ...tagList], aliasEntries);
     const content = [
       `标题：${title}`,
       row.category ? `分类：${toText(row.category, 60)}` : '',
@@ -1116,9 +1288,11 @@ const syncCoreMemories = async (client: ReturnType<typeof createServiceClient>, 
       visibility: 'public',
       title,
       content,
+      entityIds,
       metadata: {
         category: row.category || 'general',
-        tags: Array.isArray(row.tags) ? row.tags : [],
+        tags: tagList,
+        peopleIds: entityIds,
         priority: Number(row.priority || 0),
         sourceLabel: row.source_label || 'BOH 官方',
         sourceUrl: row.source_url || '',
@@ -1363,36 +1537,66 @@ const buildKeywordRowsFromCloudEntries = async (
  * `chunk_index` 都取 0 —— `mergeRetrievedRows` 以 `source_type:source_id:chunk_index`
  * 为键合并向量与关键词结果，键不一致会让同一张事实卡在结果里出现两次。
  */
+const FORUM_KEYWORD_SELECT_BASE =
+  'id, source_post_id, source_post_title, source_post_author, fact, category, people, occurred_at, confidence, evidence, updated_at, created_at';
+
 const buildKeywordRowsFromForumMemories = async (
   client: ReturnType<typeof createServiceClient>,
   query: string,
   tokens: string[],
   limit: number,
+  entityIds: string[] = [],
 ) => {
-  const { data, error } = await client
+  const extended = await client
     .from('boh_ai_forum_memories')
-    .select(
-      'id, source_post_id, source_post_title, source_post_author, fact, category, people, occurred_at, confidence, evidence, updated_at, created_at',
-    )
+    .select(`${FORUM_KEYWORD_SELECT_BASE}, people_ids`)
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
     .limit(KEYWORD_CANDIDATE_LIMIT);
+
+  let data = extended.data as Record<string, any>[] | null;
+  let error = extended.error;
+  if (error && /people_ids/i.test(String(error.message || ''))) {
+    const fallback = await client
+      .from('boh_ai_forum_memories')
+      .select(FORUM_KEYWORD_SELECT_BASE)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(KEYWORD_CANDIDATE_LIMIT);
+    data = fallback.data as Record<string, any>[] | null;
+    error = fallback.error;
+  }
 
   if (error) return [];
 
   return (Array.isArray(data) ? data : [])
     .map((row) => {
-      const people = Array.isArray(row.people) ? row.people.join('、') : '';
+      const peopleList = Array.isArray(row.people)
+        ? row.people.map((person: unknown) => String(person || '')).filter(Boolean)
+        : [];
+      const people = peopleList.join('、');
       const title = toText(row.source_post_title, 120) || '论坛记忆';
       const merged = [row.fact || '', row.category || '', people, row.evidence || '', title].join(
         '\n',
       );
-      return { row, title, people, score: scoreKeywordMatch(merged, query, tokens) };
+      const rowEntityIds = Array.isArray(row.people_ids)
+        ? row.people_ids.map((id: unknown) => String(id || '')).filter(Boolean)
+        : [];
+      const entityMatch = entityIds.length > 0 && rowEntityIds.some((id) => entityIds.includes(id));
+      return {
+        row,
+        title,
+        people,
+        peopleList,
+        rowEntityIds,
+        entityMatch,
+        score: scoreKeywordMatch(merged, query, tokens) + (entityMatch ? 8 : 0),
+      };
     })
     .filter((item) => item.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
-    .map(({ row, title, people, score }) => {
+    .map(({ row, title, people, peopleList, rowEntityIds, entityMatch, score }) => {
       const postId = toText(row.source_post_id, 80);
       return {
         id: String(row.id),
@@ -1408,6 +1612,7 @@ const buildKeywordRowsFromForumMemories = async (
           people ? `涉及成员：${people}` : '',
           row.occurred_at ? `时间：${toText(row.occurred_at, 60)}` : '',
           `出处帖子：${title}`,
+          postId ? `帖子链接：#/forum/post/${postId}` : '',
           row.source_post_author ? `发帖人：${toText(row.source_post_author, 80)}` : '',
           row.evidence ? `原文片段：${toText(row.evidence, 600)}` : '',
         ]
@@ -1415,7 +1620,8 @@ const buildKeywordRowsFromForumMemories = async (
           .join('\n'),
         metadata: {
           category: row.category || 'general',
-          people: Array.isArray(row.people) ? row.people : [],
+          people: peopleList,
+          peopleIds: rowEntityIds,
           occurredAt: row.occurred_at || '',
           confidence: Number(row.confidence || 0),
           sourcePostId: postId,
@@ -1424,6 +1630,9 @@ const buildKeywordRowsFromForumMemories = async (
           updatedAt: row.updated_at || row.created_at || '',
           retrievalMethod: 'keyword',
         },
+        entity_ids: rowEntityIds,
+        entity_match: entityMatch,
+        entityMatch,
         embedding_model: '',
         updated_at: row.updated_at || row.created_at || '',
         similarity: Math.min(0.9, score / 12),
@@ -1439,18 +1648,32 @@ const buildKeywordRowsFromKnowledgeBases = async (
   query: string,
   tokens: string[],
   limit: number,
+  entityIds: string[] = [],
 ) => {
   const queryBuilder = client
     .from('boh_ai_knowledge_chunks')
     .select(
-      'id, source_type, source_id, owner_user_id, visibility, chunk_index, title, content, metadata, embedding_model, updated_at',
+      'id, source_type, source_id, owner_user_id, visibility, chunk_index, title, content, metadata, entity_ids, embedding_model, updated_at',
     )
     .eq('source_type', 'knowledge_base')
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
     .limit(KEYWORD_CANDIDATE_LIMIT);
 
-  const { data, error } = await queryBuilder;
+  let queryResult: any = await queryBuilder;
+  // 迁移未应用时 entity_ids 不存在 ⇒ 退回旧 select，关键词兜底不能因此整体失效。
+  if (queryResult.error && /entity_ids/i.test(String(queryResult.error.message || ''))) {
+    queryResult = await client
+      .from('boh_ai_knowledge_chunks')
+      .select(
+        'id, source_type, source_id, owner_user_id, visibility, chunk_index, title, content, metadata, embedding_model, updated_at',
+      )
+      .eq('source_type', 'knowledge_base')
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(KEYWORD_CANDIDATE_LIMIT);
+  }
+  const { data, error } = queryResult;
   if (error) return [];
 
   return (Array.isArray(data) ? data : [])
@@ -1461,7 +1684,12 @@ const buildKeywordRowsFromKnowledgeBases = async (
       const tags = Array.isArray(metadata.tags) ? metadata.tags.join(' ') : '';
       const sectionPath = Array.isArray(metadata.sectionPath) ? metadata.sectionPath.join(' ') : '';
       const merged = `${row.title || ''}\n${sectionPath}\n${metadata.summary || ''}\n${keywords}\n${tags}\n${row.content || ''}`;
-      const score = scoreKeywordMatch(merged, query, tokens);
+      const rowEntityIds = Array.isArray(row.entity_ids)
+        ? (row.entity_ids as unknown[]).map((id: unknown) => String(id || '')).filter(Boolean)
+        : [];
+      const entityMatch =
+        entityIds.length > 0 && rowEntityIds.some((id: string) => entityIds.includes(id));
+      const score = scoreKeywordMatch(merged, query, tokens) + (entityMatch ? 8 : 0);
       return {
         id: String(row.id),
         source_type: 'knowledge_base',
@@ -1473,8 +1701,12 @@ const buildKeywordRowsFromKnowledgeBases = async (
         content: toText(row.content, 3000),
         metadata: {
           ...metadata,
+          peopleIds: rowEntityIds,
           retrievalMethod: 'keyword',
         },
+        entity_ids: rowEntityIds,
+        entity_match: entityMatch,
+        entityMatch,
         embedding_model: row.embedding_model || '',
         updated_at: row.updated_at || '',
         similarity: Math.min(0.9, score / 14),
@@ -1493,6 +1725,7 @@ const buildKeywordFallbackRows = async (
   sourceTypes: SourceType[],
   userId: string,
   limit: number,
+  entityIds: string[] = [],
 ) => {
   const tokens = tokenizeQuery(query);
   const [coreRows, sharedRows, cloudRows, knowledgeBaseRows, forumMemoryRows] = await Promise.all([
@@ -1506,10 +1739,10 @@ const buildKeywordFallbackRows = async (
       ? buildKeywordRowsFromCloudEntries(client, userId, query, tokens, limit)
       : Promise.resolve([]),
     sourceTypes.includes('knowledge_base')
-      ? buildKeywordRowsFromKnowledgeBases(client, userId, query, tokens, limit)
+      ? buildKeywordRowsFromKnowledgeBases(client, userId, query, tokens, limit, entityIds)
       : Promise.resolve([]),
     sourceTypes.includes('forum_memory')
-      ? buildKeywordRowsFromForumMemories(client, query, tokens, limit)
+      ? buildKeywordRowsFromForumMemories(client, query, tokens, limit, entityIds)
       : Promise.resolve([]),
   ]);
 
@@ -1534,6 +1767,8 @@ const mergeRetrievedRows = (
         ...normalizeMetadata(row.metadata),
         retrievalMethod: 'vector',
       },
+      entity_match: Boolean(row.entity_match),
+      entityMatch: Boolean(row.entity_match),
       combinedScore: similarity * 100,
       retrievalMethod: 'vector',
     });
@@ -1552,6 +1787,8 @@ const mergeRetrievedRows = (
           retrievalMethod: 'hybrid',
         },
         combinedScore: Number(existing.combinedScore || 0) + keywordScore,
+        entity_match: Boolean(existing.entity_match || row.entity_match),
+        entityMatch: Boolean(existing.entityMatch || row.entityMatch),
         retrievalMethod: 'hybrid',
       });
       continue;
@@ -1658,6 +1895,7 @@ Deno.serve(async (request) => {
     if (!query) {
       return jsonResponse({ ok: false, message: 'Missing query' }, 400, origin);
     }
+    const entityIds = normalizeEntityIds(body?.entityIds);
 
     const sourceTypes = normalizeSourceTypes(body?.sourceTypes, userId);
     if (sourceTypes.length === 0) {
@@ -1705,14 +1943,26 @@ Deno.serve(async (request) => {
         throw new Error('Embedding API did not return a query vector');
       }
       embeddingModel = EMBEDDING_MODEL_ID;
-      const { data, error } = await client.rpc('match_boh_ai_knowledge_chunks', {
+      const rpcArgs = {
         p_query_embedding: queryEmbedding,
         p_match_count: candidateCount,
         p_source_types: sourceTypes,
         p_user_id: userId || null,
         p_min_similarity: Number(body?.minSimilarity || 0),
-      });
-
+        ...(entityIds.length > 0 ? { p_entity_ids: entityIds } : {}),
+      };
+      let rpcResult = await client.rpc('match_boh_ai_knowledge_chunks', rpcArgs);
+      // 迁移未应用时（旧 5 参函数）退回不带实体参数的调用：检索可用优先于实体加权。
+      if (
+        rpcResult.error &&
+        /could not find the function|does not exist|pgrst202|schema cache/i.test(
+          String(rpcResult.error.message || rpcResult.error),
+        )
+      ) {
+        const { p_entity_ids: _ignored, ...legacyArgs } = rpcArgs;
+        rpcResult = await client.rpc('match_boh_ai_knowledge_chunks', legacyArgs);
+      }
+      const { data, error } = rpcResult;
       if (error) throw error;
       vectorRows = (Array.isArray(data) ? data : []) as RetrievalRow[];
     }
@@ -1723,10 +1973,21 @@ Deno.serve(async (request) => {
       sourceTypes,
       userId,
       candidateCount,
+      entityIds,
     );
     const mergedRows = mergeRetrievedRows(vectorRows, keywordRows, candidateCount);
     const rerankResult = await callRerank(query, mergedRows);
-    const finalRows = rerankResult.rows.slice(0, matchCount);
+    // 实体命中只做小幅 tie-break（0.02）：重排已按语义相关性排序，
+    // 这里只保证「同一个人的切片」不会因为同分被挤出前 N。
+    const finalRows = rerankResult.rows
+      .map((row) => ({
+        row,
+        finalScore:
+          Number(row.rerankScore ?? row.combinedScore ?? 0) + (row.entityMatch ? 0.02 : 0),
+      }))
+      .sort((a, b) => b.finalScore - a.finalScore)
+      .slice(0, matchCount)
+      .map(({ row }) => row);
     const rerankAllowed = ALLOW_PAID_RERANK || FREE_RERANK_MODELS.has(RERANK_MODEL_ID);
 
     return jsonResponse(
@@ -1740,6 +2001,7 @@ Deno.serve(async (request) => {
           embeddingModel,
           vectorMatches: vectorRows.length,
           keywordMatches: keywordRows.length,
+          entityIds,
           rerankModel: rerankResult.used ? RERANK_MODEL_ID : '',
           rerankEnabled: RERANK_ENABLED,
           rerankAllowed,

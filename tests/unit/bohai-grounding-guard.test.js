@@ -102,4 +102,14 @@ describe('BOHAI 依据护栏（Step 5-3）', () => {
     });
     expect(g.ensureGroundedReply('有依据的回答')).toBe('有依据的回答');
   });
+
+  it('有证据但答句没引用 → shouldRepair=true（原先只在单测里引用的死代码，2026-10-19 接回运行期）', () => {
+    const g = buildGroundingGuards({
+      ...BASE,
+      groundingEvidenceRefs: ['K1'],
+      shouldEnforceGrounding: true,
+    });
+    expect(g.shouldRepairUngroundedReply('一二是一名 B 站 UP 主。')).toBe(true);
+    expect(g.shouldRepairUngroundedReply('一二是一名 B 站 UP 主。[K1]')).toBe(false);
+  });
 });

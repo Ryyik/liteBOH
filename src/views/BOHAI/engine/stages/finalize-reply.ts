@@ -12,6 +12,7 @@
  */
 import { CHAT_ERROR_MESSAGES } from '../../utils/chatErrorMessages.js';
 import { logger } from '@/utils/logger.js';
+import { buildEvidenceMap, validateAnswerGrounding } from '@/utils/grounding-verify.js';
 
 export interface FinalizeReplyDeps {
   filterThinkingContent: (text: string) => string;
@@ -19,6 +20,8 @@ export interface FinalizeReplyDeps {
   isDegenerateAssistantReply: (text: string) => boolean;
   ensureGroundedReply: (text: string) => string;
   sanitizeCommunityEvidenceClaims: (text: string) => string;
+  /** 有证据但答句没引用时返回 true（可选，缺省不启用） */
+  shouldRepairUngroundedReply?: (text: string) => boolean;
   callModelInternal: (
     modelId: string,
     prompt: string,
@@ -47,12 +50,31 @@ export interface FinalizeReplyOptions {
   recentMessages: unknown[];
   requestController: AbortController;
   generationProfile: { max_tokens?: number } & Record<string, unknown>;
+  /** 本轮内部证据上下文（`[K1] ...` 形式）；用于逐句依据校验 */
+  evidenceContext?: string;
+  /** 本轮可引用的内部证据编号（K/S/T/F/U） */
+  availableEvidenceRefs?: unknown[];
+  /** 本轮可引用的联网结果数（W1..Wn） */
+  maxSearchRef?: number;
+  /** 人物别名，用于从支持度计算里剔除人名噪声 */
+  entityAliases?: string[];
+  /** 是否启用逐句依据校验（事实题/社区题/操作题/联网时为 true） */
+  enforceGrounding?: boolean;
+}
+
+export interface GroundingReportLike {
+  checked: number;
+  unsupportedCount: number;
+  unsupported: Array<{ sentence: string; refs: string[]; ratio?: number; longest?: number }>;
+  unknownRefs: string[];
 }
 
 export interface FinalizeReplyResult {
   finalContent: string;
   /** 与「流式打字机内容」不同 ⇒ 壳需写回 UI */
   changed: boolean;
+  /** 逐句依据校验报告（未启用时为 null；供 meta 观测） */
+  groundingReport?: GroundingReportLike | null;
 }
 
 export const finalizeAssistantReply = async (
@@ -67,6 +89,11 @@ export const finalizeAssistantReply = async (
     recentMessages,
     requestController,
     generationProfile,
+    evidenceContext = '',
+    availableEvidenceRefs = [],
+    maxSearchRef = 0,
+    entityAliases = [],
+    enforceGrounding = false,
   }: FinalizeReplyOptions,
 ): Promise<FinalizeReplyResult> => {
   // 对完整内容进行二次过滤，确保所有思考内容都被过滤掉
@@ -146,11 +173,39 @@ export const finalizeAssistantReply = async (
     finalFilteredContent = deps.sanitizeCommunityEvidenceClaims(finalFilteredContent);
   }
 
+  // 2026-10-19：逐句依据校验（此前只有「零引用免责声明」，有引用就放行）。
+  // 校验放在所有文本清洗之后、返回之前，确保看到的就是要发给用户的最终文本。
+  // `shouldRepairUngroundedReply` 是原先的死代码（只有单测引用），这里接回运行期：
+  // 即便不是事实题，只要「有证据但答句没引用」，也要过一遍校验。
+  const shouldCheckGrounding =
+    enforceGrounding || Boolean(deps.shouldRepairUngroundedReply?.(finalFilteredContent));
+  let groundingReport: GroundingReportLike | null = null;
+  if (shouldCheckGrounding && finalFilteredContent) {
+    const validated = validateAnswerGrounding(finalFilteredContent, {
+      evidenceMap: buildEvidenceMap(evidenceContext),
+      availableRefs: (Array.isArray(availableEvidenceRefs) ? availableEvidenceRefs : []).map(
+        (ref) => String(ref || ''),
+      ),
+      maxSearchRef,
+      entityAliases,
+      enforce: true,
+    });
+    finalFilteredContent = validated.text;
+    groundingReport = validated.report;
+    if (groundingReport.unsupportedCount > 0) {
+      logger.warn('boh-ai', 'Grounding check found unsupported claims', {
+        unsupportedCount: groundingReport.unsupportedCount,
+        unknownRefs: groundingReport.unknownRefs,
+      });
+    }
+  }
+
   const typedVisibleContent = deps.cleanAssistantVisibleReply(
     deps.filterThinkingContent(assistantMessage),
   );
   return {
     finalContent: finalFilteredContent,
     changed: finalFilteredContent !== typedVisibleContent,
+    groundingReport,
   };
 };

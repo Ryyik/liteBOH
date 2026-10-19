@@ -93,6 +93,7 @@ import { useAgentClusterSources } from './useAgentClusterSources.js';
 import { TASK_GENERATION_PRESETS } from '../generation-params.js';
 import { NO_FABRICATION_RULE } from '../shared-rules.js';
 import { createContextBudgetTracker, CONTEXT_CATEGORIES } from '../utils/context-budget.js';
+import { getAllEntityAliases } from '@/utils/boh-entity-resolver.js';
 import {
   cleanAssistantVisibleReply,
   isDegenerateAssistantReply,
@@ -1765,17 +1766,18 @@ export function useChatEngine() {
       }
 
       // Step 5-3：依据护栏（洗无证据断言 + 无依据时追加不确定声明）已抽成 engine/stages/grounding-guard.ts
-      const { sanitizeCommunityEvidenceClaims, ensureGroundedReply } = buildGroundingGuards({
-        groundingEvidenceRefs,
-        searchResultCount,
-        enableSearch,
-        factualQuestion,
-        webSearchVerified,
-        communityNeedsEvidence,
-        bohInternalFactualQuestion,
-        psychInterviewActive,
-        shouldEnforceGrounding,
-      });
+      const { sanitizeCommunityEvidenceClaims, ensureGroundedReply, shouldRepairUngroundedReply } =
+        buildGroundingGuards({
+          groundingEvidenceRefs,
+          searchResultCount,
+          enableSearch,
+          factualQuestion,
+          webSearchVerified,
+          communityNeedsEvidence,
+          bohInternalFactualQuestion,
+          psychInterviewActive,
+          shouldEnforceGrounding,
+        });
 
       // Step 5-3：请求体装配（含速度档位偏移 + 分层压缩 + 预算日志）已抽成 engine/stages/request-body.ts
       const thinkingSpeedDeltas = THINKING_SPEED_DELTAS_BY_ID[currentThinkingSpeedId.value];
@@ -1938,6 +1940,7 @@ export function useChatEngine() {
           isDegenerateAssistantReply,
           ensureGroundedReply,
           sanitizeCommunityEvidenceClaims,
+          shouldRepairUngroundedReply,
           callModelInternal,
           getFallbackModel,
           appendPromptSection,
@@ -1955,11 +1958,24 @@ export function useChatEngine() {
           recentMessages,
           requestController,
           generationProfile,
+          // 2026-10-19：逐句依据校验的输入 —— 内部证据 + 联网证据 + 可引用编号 + 人物别名。
+          evidenceContext: [internalEvidenceContext, webEvidenceContext]
+            .filter(Boolean)
+            .join('\n\n'),
+          availableEvidenceRefs: groundingEvidenceRefs,
+          maxSearchRef: searchResultCount,
+          entityAliases: getAllEntityAliases(),
+          enforceGrounding: shouldEnforceGrounding,
         },
       );
       if (finalized.changed) {
         assistantMessage = finalized.finalContent;
         updateContent(finalized.finalContent);
+      }
+      if (finalized.groundingReport) {
+        mergeAssistantMessageMeta(sessionIndex, messageIndex, {
+          groundingReport: finalized.groundingReport,
+        });
       }
 
       nextTick(scrollToBottom);

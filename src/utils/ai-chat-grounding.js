@@ -1,4 +1,4 @@
-import { BOH_MEMBER_NAMES } from '@/views/BOHAI/composables/chat-engine-config.js';
+import { hasEntityAlias } from '@/utils/boh-entity-resolver.js';
 
 const DEFAULT_FACTUALITY_TRIGGER_KEYWORDS = [
   '是谁',
@@ -32,7 +32,7 @@ const DEFAULT_FACTUALITY_QUESTION_PATTERNS = [
 const DEFAULT_UNCERTAINTY_PATTERN =
   /(未检索到明确依据|目前无法确认|暂时无法确认|不确定|信息不足|证据不足)/;
 const BOH_INTERNAL_SOURCE_PATTERN = new RegExp(
-  `(方块之家|block of home|\\bboh\\b|boh\\s*ai|boh\\s*cloud\\+?|cloud\\+|论坛|帖子|公告|周年庆|内战|${BOH_MEMBER_NAMES}|pushplus|订阅|会员)`,
+  `(方块之家|block of home|\\bboh\\b|boh\\s*ai|boh\\s*cloud\\+?|cloud\\+|论坛|帖子|公告|周年庆|内战|pushplus|订阅|会员)`,
   'i',
 );
 const BOH_INTERNAL_FACT_PATTERN =
@@ -85,7 +85,10 @@ export const isLikelyBohInternalQuestion = (
 ) => {
   const normalized = normalizeText(text);
   if (!normalized) return false;
-  return BOH_INTERNAL_SOURCE_PATTERN.test(normalized);
+  if (BOH_INTERNAL_SOURCE_PATTERN.test(normalized)) return true;
+  // 人物别名走实体解析器：覆盖知识库里真实存在的人，同时用歧义保护挡住
+  // 「一二线城市」「橙子酱」这类非人物用法（2026-10-19）。
+  return hasEntityAlias(normalized);
 };
 
 export const isLikelyBohInternalFactualQuestion = (

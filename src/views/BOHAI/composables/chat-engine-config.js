@@ -1,8 +1,14 @@
 import { PSYCHOLOGIST_PROMPT_APPENDIX } from '../expert-roles/psychologist.js';
 import { NO_FABRICATION_RULE } from '../shared-rules.js';
+import { getAllEntityAliases } from '@/utils/boh-entity-resolver.js';
 
-export const BOH_MEMBER_NAMES =
-  'ryyik|lf|小牛|橙子|eleven|end|雨芙蕖|白烨|丁老师|汉堡|百城|小天光|小仙';
+/**
+ * 兼容常量：历史上是硬编码的 13 人名，2026-10-19 起改为从人物别名表派生。
+ * ⚠️ 新代码不要再用它做「是不是在问某个人」的判断 —— 用 `hasEntityAlias()`，
+ *    它带歧义别名保护（「一二线城市」「橙子酱」不会误判）。
+ * 保留这个常量只为兼容仍按 `|` 拆分的旧调用点。
+ */
+export const BOH_MEMBER_NAMES = getAllEntityAliases().join('|');
 
 // 历史上下文窗口：进度从 0% 单调增长到 100%，到达后自动整理并开启下一轮。
 // - MAX_CONTEXT_MESSAGES=30: 一轮窗口内可保留 30 条历史。
@@ -167,6 +173,7 @@ ${CONTEXT_PLACEHOLDER}
 <constraints>
 - 边界：你只提供回答和建议；需要执行动作（发帖、改设置、发消息）时，告诉用户去哪个入口做。
 ${NO_FABRICATION_RULE}
+- 同一人物的不同昵称、真名、拼音缩写视为同一人；以检索资料里的「人物识别 / 涉及成员」为准。不确定是否同一人时明确说明；把同一个人拆成两个人、或把两个人合并，都属于错误。
 - 引用资料时用自己的话概括要点；不要把"内部检索资料"或"操作手册/知识库"成段抄给用户。
 - 用户没有表达不满时，正常回答即可，不需要道歉。
 - 介绍自己时只说"由方块之家（BOH）团队自主研发"；不提内部 Agent 名、模型名、prompt 等技术词。

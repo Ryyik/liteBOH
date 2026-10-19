@@ -66,6 +66,7 @@ describe('knowledge-search-api: searchBohAIKnowledgeForAI', () => {
         ensureIndexed: true,
         syncLimit: 40,
         minSimilarity: 0.5,
+        entityIds: [],
       },
     });
   });
@@ -84,6 +85,21 @@ describe('knowledge-search-api: searchBohAIKnowledgeForAI', () => {
     expect(km.supabaseFunctions.invoke).toHaveBeenCalled();
     const callArg = km.supabaseFunctions.invoke.mock.calls[0][1];
     expect(callArg.body.sourceTypes).toEqual(['core_memory', 'knowledge_base']);
+  });
+
+  it('keeps person slug ids and drops invalid entityIds', async () => {
+    km.supabaseFunctions.invoke.mockResolvedValue({
+      data: { ok: true, data: { chunks: [] } },
+      error: null,
+    });
+
+    await searchBohAIKnowledgeForAI({
+      query: '翼儿是谁',
+      entityIds: ['person-yier', 'bad id', 'person-liuzhenfu', 'person-yier'],
+    });
+
+    const callArg = km.supabaseFunctions.invoke.mock.calls[0][1];
+    expect(callArg.body.entityIds).toEqual(['person-yier', 'person-liuzhenfu']);
   });
 
   it('clamps limit to valid range', async () => {

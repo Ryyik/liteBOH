@@ -87,4 +87,34 @@ describe('BOHAI 回答定稿（Step 5-3）', () => {
     await finalizeAssistantReply(deps, makeOptions());
     expect(deps.stopThinkingWhenAnswerVisible).toHaveBeenCalled();
   });
+
+  it('启用依据校验 → 张冠李戴的引用被记为 unsupported 并追加说明', async () => {
+    const deps = makeDeps();
+    const r = await finalizeAssistantReply(
+      deps,
+      makeOptions({
+        assistantMessage: '一二住在北京。[K1]',
+        evidenceContext: '[K1] 内容: 一二，浙江杭州人。',
+        availableEvidenceRefs: ['K1'],
+        entityAliases: ['一二'],
+        enforceGrounding: true,
+      }),
+    );
+    expect(r.groundingReport?.unsupportedCount).toBe(1);
+    expect(r.finalContent).toContain('1 处内容未在检索资料中找到直接依据');
+  });
+
+  it('enforceGrounding=false 但 shouldRepairUngroundedReply=true → 仍过校验', async () => {
+    const deps = makeDeps({ shouldRepairUngroundedReply: () => true });
+    const r = await finalizeAssistantReply(
+      deps,
+      makeOptions({
+        assistantMessage: '一二住在北京。[K1]',
+        evidenceContext: '[K1] 内容: 一二，浙江杭州人。',
+        availableEvidenceRefs: ['K1'],
+        entityAliases: ['一二'],
+      }),
+    );
+    expect(r.groundingReport?.unsupportedCount).toBe(1);
+  });
 });

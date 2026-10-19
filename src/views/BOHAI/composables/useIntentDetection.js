@@ -7,11 +7,11 @@
 
 import { isOperationQuestion } from '../utils/intent/rules.js';
 import { normalizeText, containsAnyKeyword, normalizePromptLine } from '../utils/text/normalize.js';
+import { hasEntityAlias } from '@/utils/boh-entity-resolver.js';
 import { normalizeActionDecisionText } from '@/utils/bohai-action-draft-intent.js';
 // normalizeActionDecisionText 仍被 isTreeholeCreateConfirm / isSharedMemorySaveConfirm 使用
 import {
   SHARED_MEMORY_TRIGGER_KEYWORDS,
-  BOH_MEMBER_NAMES,
   SITE_ACTIVITY_TRIGGER_KEYWORDS,
 } from './chat-engine-config.js';
 
@@ -23,12 +23,14 @@ export const isCommunityQuestion = (text) => {
     return false;
   }
 
-  const memberNames = BOH_MEMBER_NAMES.split('|');
+  // 2026-10-19：人物别名不再走硬编码名单 —— `hasEntityAlias` 覆盖「翼儿/胡俊杰/刘镇福」
+  // 这些知识库里真实存在、但旧 BOH_MEMBER_NAMES 漏掉的人，同时挡住「一二线城市」这类歧义。
+  if (hasEntityAlias(text)) return true;
+
   // 高频通用词（boh/mc/lol/服务器/联机/活动/成员）已移除，避免普通问题被误判为社区问题
   const communityKeywords = [
     '方块之家',
     '社区',
-    ...memberNames,
     '论坛',
     '帖子',
     '公告',
@@ -64,6 +66,11 @@ export const shouldUseMemoryContext = (text) => {
   if (!text || typeof text !== 'string') {
     return false;
   }
+
+  // 人物实体优先于「操作题」判定：
+  // 「查看翼儿的资料」既是操作口吻、又明确问某个人，人物库必须读；站点手册可以同时读。
+  // 这条是 2026-10-19 修「问人物被路由成操作题后 memory=false」的核心。
+  if (hasEntityAlias(text)) return true;
 
   if (isOperationQuestion(text)) return false;
   return isCommunityQuestion(text);

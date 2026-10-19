@@ -13,7 +13,10 @@
  *   2. 有 `needsInternalEvidence` 且零引用时，**返回固定话术**而不是原回答（避免凭印象补全 BOH 内部内容）；
  *   3. 其余分支一律**原样放行**（只可能前置一句「联网未验证」）。
  */
-import { sanitizeUnsupportedCommunityEvidenceClaims } from '@/utils/ai-chat-grounding.js';
+import {
+  sanitizeUnsupportedCommunityEvidenceClaims,
+  shouldRepairUngroundedReply,
+} from '@/utils/ai-chat-grounding.js';
 
 export interface GroundingGuardInput {
   groundingEvidenceRefs: unknown[];
@@ -40,6 +43,8 @@ export interface GroundingGuards {
   sanitizeCommunityEvidenceClaims: (reply: string) => string;
   /** 依据校验：无内部证据时追加不确定声明（不拦截回答） */
   ensureGroundedReply: (rawReply: string) => string;
+  /** 回答是否缺引用（有证据但答句没引用）—— 2026-10-19 从死代码接回运行期 */
+  shouldRepairUngroundedReply: (reply: string) => boolean;
 }
 
 export const buildGroundingGuards = ({
@@ -106,5 +111,11 @@ export const buildGroundingGuards = ({
     noInternalEvidence,
     sanitizeCommunityEvidenceClaims,
     ensureGroundedReply,
+    shouldRepairUngroundedReply: (reply: string) =>
+      shouldRepairUngroundedReply(reply, {
+        evidenceRefSet: groundingRefSet,
+        maxSearchRef: maxSearchCitationRef,
+        minRequiredCitations: 1,
+      }),
   };
 };

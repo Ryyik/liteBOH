@@ -94,6 +94,19 @@ describe('useIntentDetection: isCommunityQuestion', () => {
     expect(isCommunityQuestion('HYPIXEL')).toBe(true);
     expect(isCommunityQuestion('Minecraft')).toBe(true);
   });
+
+  it('识别知识库里真实存在的人物别名（旧硬编码名单漏掉的）', () => {
+    expect(isCommunityQuestion('翼儿是谁')).toBe(true);
+    expect(isCommunityQuestion('胡俊杰最近怎么样')).toBe(true);
+    expect(isCommunityQuestion('刘镇福是谁')).toBe(true);
+    expect(isCommunityQuestion('武宇轩最近在做什么')).toBe(true);
+  });
+
+  it('不把歧义别名当人物（一二线城市 / 橙子酱 / 汉堡包）', () => {
+    expect(isCommunityQuestion('一二线城市有哪些')).toBe(false);
+    expect(isCommunityQuestion('橙子酱怎么做')).toBe(false);
+    expect(isCommunityQuestion('汉堡包的热量')).toBe(false);
+  });
 });
 
 // ─── isCommunityCreativeRequest ───────────────────────────────────────────────
@@ -200,6 +213,13 @@ describe('useIntentDetection: shouldUseMemoryContext', () => {
   it('returns true for community questions', () => {
     expect(shouldUseMemoryContext('方块之家最近有什么活动')).toBe(true);
     expect(shouldUseMemoryContext('社区有什么公告')).toBe(true);
+  });
+
+  it('人物实体命中时压过操作题判定', () => {
+    expect(shouldUseMemoryContext('查看翼儿的资料')).toBe(true);
+    expect(shouldUseMemoryContext('翼儿是谁')).toBe(true);
+    // 歧义别名没有人物信号 ⇒ 仍是普通问题
+    expect(shouldUseMemoryContext('一二线城市有哪些')).toBe(false);
   });
 
   it('returns false for general questions that are neither operation nor community', () => {

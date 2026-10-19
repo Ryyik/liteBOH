@@ -30,12 +30,22 @@ export async function searchBohAIKnowledgeForAI({
   ensureIndexed = true,
   syncLimit = 40,
   minSimilarity = 0.18,
+  entityIds = [],
 } = {}) {
   const safeQuery = toTrimmedText(query, 220);
   const safeLimit = Number.isFinite(limit) ? Math.max(1, Math.min(24, Math.trunc(limit))) : 8;
   const safeSyncLimit = Number.isFinite(syncLimit)
     ? Math.max(1, Math.min(80, Math.trunc(syncLimit)))
     : 40;
+  const safeEntityIds = Array.isArray(entityIds)
+    ? [
+        ...new Set(
+          entityIds
+            .map((id) => String(id || '').trim())
+            .filter((id) => /^[a-z0-9][a-z0-9-]{1,63}$/i.test(id)),
+        ),
+      ].slice(0, 8)
+    : [];
   const safeSourceTypes = Array.isArray(sourceTypes)
     ? sourceTypes
         .map((item) => String(item || '').trim())
@@ -55,6 +65,7 @@ export async function searchBohAIKnowledgeForAI({
       ensureIndexed: Boolean(ensureIndexed),
       syncLimit: safeSyncLimit,
       minSimilarity,
+      entityIds: safeEntityIds,
     },
     async () => {
       const { data, error } = await supabase.functions.invoke('boh-ai-retrieval', {
@@ -66,6 +77,7 @@ export async function searchBohAIKnowledgeForAI({
           ensureIndexed: Boolean(ensureIndexed),
           syncLimit: safeSyncLimit,
           minSimilarity,
+          entityIds: safeEntityIds,
         },
       });
 
