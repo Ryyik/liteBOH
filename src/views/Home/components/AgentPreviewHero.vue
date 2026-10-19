@@ -2,14 +2,23 @@
   <section class="agent-hero" aria-label="BOH Agent Preview">
     <div class="agent-hero-content">
       <p class="agent-hero-eyebrow">BOH Agent · Preview</p>
-      <h1 class="agent-hero-title">Introducing<br>BOH Agent Preview</h1>
+      <h1 class="agent-hero-title">Introducing<br />BOH Agent Preview</h1>
       <p class="agent-hero-subtitle">强大 Pro 模型与多模态，Free 开放。</p>
 
       <div class="agent-hero-actions">
         <button type="button" class="agent-hero-button is-primary" @click="onExperienceAgent">
           <span>体验 Agent</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <line x1="5" y1="12" x2="19" y2="12"></line>
             <polyline points="12 5 19 12 12 19"></polyline>
           </svg>
@@ -20,10 +29,14 @@
 </template>
 
 <script setup>
-import { toggleHiagentChat } from "@/utils/hiagent-widget.js";
+// BOHAgent（Hiagent 外接）已于 2026-10-19 退场删除；「体验 Agent」改指 BOHAI Work
+// （/ai-chat 的 work 大模式，深链口径与导航入口一致，见 useBohShell 的 surface 解析）。
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 const onExperienceAgent = () => {
-  toggleHiagentChat();
+  router.push('/ai-chat?surface=work');
 };
 </script>
 
@@ -120,7 +133,9 @@ const onExperienceAgent = () => {
   color: #0a1030;
   background: linear-gradient(135deg, #ffffff 0%, #e8edff 100%);
   border-color: transparent;
-  box-shadow: 0 12px 40px rgba(77, 124, 255, 0.4), inset 0 1px rgba(255, 255, 255, 0.8);
+  box-shadow:
+    0 12px 40px rgba(77, 124, 255, 0.4),
+    inset 0 1px rgba(255, 255, 255, 0.8);
 }
 
 .agent-hero-button.is-primary svg {
@@ -130,7 +145,9 @@ const onExperienceAgent = () => {
 @media (hover: hover) {
   .agent-hero-button.is-primary:hover {
     transform: translateY(-2px) scale(1.015);
-    box-shadow: 0 18px 50px rgba(77, 124, 255, 0.52), inset 0 1px rgba(255, 255, 255, 0.9);
+    box-shadow:
+      0 18px 50px rgba(77, 124, 255, 0.52),
+      inset 0 1px rgba(255, 255, 255, 0.9);
   }
 
   .agent-hero-button.is-primary:hover svg {
@@ -148,8 +165,16 @@ const onExperienceAgent = () => {
 }
 
 @keyframes agentReveal {
-  from { opacity: 0; transform: translateY(26px); filter: blur(8px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
 
 @media (max-width: 768px) {

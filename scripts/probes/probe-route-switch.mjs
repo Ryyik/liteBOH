@@ -21,15 +21,37 @@ import { chromium } from 'playwright';
 const BASE = process.argv[2] || 'http://[::1]:4180';
 
 // 覆盖公开路由（不需要登录），含各类布局：全宽页 / 隐藏导航 / 长列表 / 表单页
+// （/lab 已于 2026-10-19 随实验室退场移除，兼容重定向由 compat-routes.test 锁）
 const ROUTES = [
-  '/', '/shop', '/newsroom', '/activities-wall', '/about', '/download',
-  '/mbti', '/birthday', '/join', '/history', '/ai-intro', '/boh-8-years-event',
-  '/lab', '/boh-8-years-journey', '/anniversary-cafe', '/shows',
-  '/character-book', '/gift', '/lotteries', '/user-space',
+  '/',
+  '/shop',
+  '/newsroom',
+  '/activities-wall',
+  '/about',
+  '/download',
+  '/mbti',
+  '/birthday',
+  '/join',
+  '/history',
+  '/ai-intro',
+  '/boh-8-years-event',
+  '/boh-8-years-journey',
+  '/anniversary-cafe',
+  '/shows',
+  '/character-book',
+  '/gift',
+  '/lotteries',
+  '/user-space',
 ];
 
 // 壳层组件：常驻在 #app 里，不参与「这一页是否渲染出来」的判定
-const SHELL_CLASSES = ['unified-nav', 'footer-pages', 'ai-edge-trigger', 'boh-boot', 'boh-boot-body'];
+const SHELL_CLASSES = [
+  'unified-nav',
+  'footer-pages',
+  'ai-edge-trigger',
+  'boh-boot',
+  'boh-boot-body',
+];
 
 const violations = [];
 const fail = (m) => violations.push(m);
@@ -40,7 +62,10 @@ const browser = await chromium.launch({
 });
 
 try {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    serviceWorkers: 'block',
+  });
   const page = await ctx.newPage();
 
   // 页面内 helper：避免在每个 evaluate 里重复实现（Playwright 的 evaluate 只收一个参数）
@@ -86,13 +111,18 @@ try {
     const isSameAsCurrent = currentHash === `#${r}` || currentHash === `#${r}/`;
     const beforeSig = await mainCls();
     const t0 = Date.now();
-    await page.evaluate((hash) => { window.location.hash = `#${hash}`; }, r);
+    await page.evaluate((hash) => {
+      window.location.hash = `#${hash}`;
+    }, r);
 
     let switchedAt = null;
     if (!isSameAsCurrent) {
       for (let i = 0; i < 320; i += 1) {
         const sig = await mainCls();
-        if (sig && sig !== beforeSig) { switchedAt = Date.now() - t0; break; }
+        if (sig && sig !== beforeSig) {
+          switchedAt = Date.now() - t0;
+          break;
+        }
         await page.waitForTimeout(25);
       }
     }
@@ -104,7 +134,9 @@ try {
     if (!probe.main) {
       fail(`${r} 切换后找不到有面积的主内容块 —— 页面可能没渲染出来`);
     } else if (probe.main.opacity === '0' || probe.main.visibility === 'hidden') {
-      fail(`${r} 主内容块不可见（opacity=${probe.main.opacity} visibility=${probe.main.visibility}）`);
+      fail(
+        `${r} 主内容块不可见（opacity=${probe.main.opacity} visibility=${probe.main.visibility}）`,
+      );
     }
     const realErrors = errors.filter((e) => !/CORS|ERR_FAILED|Failed to load resource/i.test(e));
     if (realErrors.length) fail(`${r} 切换过程中出现报错：${realErrors[0]}`);
@@ -120,9 +152,14 @@ try {
         (m ? `${m.tag}.${m.cls} 面积=${m.area}px² opacity=${m.opacity}` : '（无）'),
     );
   }
-  const times = rows.filter((r) => !r.sameAsCurrent && r.ms != null).map((r) => r.ms).sort((a, b) => a - b);
+  const times = rows
+    .filter((r) => !r.sameAsCurrent && r.ms != null)
+    .map((r) => r.ms)
+    .sort((a, b) => a - b);
   if (times.length) {
-    console.log(`\n导航→内容出现：中位 ${times[Math.floor(times.length / 2)]}ms / 最慢 ${times[times.length - 1]}ms（共 ${times.length} 次）`);
+    console.log(
+      `\n导航→内容出现：中位 ${times[Math.floor(times.length / 2)]}ms / 最慢 ${times[times.length - 1]}ms（共 ${times.length} 次）`,
+    );
   }
 
   await page.screenshot({ path: '/tmp/route-switch-final.png' });
