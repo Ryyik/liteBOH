@@ -9,6 +9,36 @@
   --text-2: #6e6e73;
   --text-3: #98a2b3;
   --line: #e4e7ec;
+
+  /* ── 排版阶梯（2026-10-20 Apple 化）────────────────────────────────
+   * 为什么字距要分档：字越大，字间距在视觉上越"散"，所以要收紧；
+   * 字越小（11–13px 的元信息/徽标）需要**正**字距才不糊。原先全站只有
+   * -0.01em 与 normal 两档，小字偏挤、大字不够收。
+   * 行高与字号反向：大字紧、正文松。 */
+  --track-display: -0.022em; /* 48px 页面主标题 */
+  --track-title: -0.016em;   /* 22–26px 卡片标题 */
+  --track-heading: -0.01em;  /* 18px 分区小标题 */
+  --track-body: 0;           /* 14px 正文 */
+  --track-meta: 0.01em;      /* 12px 元信息 */
+  --track-caps: 0.06em;      /* 11px 全大写徽标 */
+
+  --leading-display: 1.05;
+  --leading-title: 1.15;
+  --leading-heading: 1.3;
+  --leading-body: 1.6;
+  --leading-meta: 1.45;
+
+  /* ── 圆角阶梯：按"表面尺寸"分档，大的更圆 ──────────────────────────
+   * 原先 18px 一刀切，主卡与网格卡看起来一样重；10/12/14/16/18/20 混用也无体系。 */
+  --radius-card-lg: 28px; /* 头条主卡 */
+  --radius-card: 20px;    /* 次卡 / 网格卡 */
+  --radius-chip: 999px;
+  --radius-thumb: 12px;
+
+  /* ── 8pt 节奏 ──────────────────────────────────────────────────── */
+  --gap-grid: 24px;
+  --gap-list: 12px;
+  --pad-container: 32px;
   /* 玻璃颜色统一映射到 --liquid-* tokens，暗色自动切换；模糊值保留页面内调校 */
   --glass-bar: var(--liquid-bg-subtle);
   --glass-card: linear-gradient(180deg, var(--liquid-bg-strong), var(--liquid-bg));
@@ -22,7 +52,7 @@
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   position: relative;
   opacity: 0;
-  animation: fadeIn 0.8s forwards;
+  animation: fadeIn 0.45s var(--ease-out) forwards;
   color: var(--text-1);
   min-height: 100vh;
 }
@@ -73,19 +103,21 @@
   margin: 0 0 12px;
   color: #667085;
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: var(--track-caps);
   text-transform: uppercase;
 }
 .news-title {
   margin: 0 0 12px;
   font-size: clamp(34px, 5vw, 48px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.08;
+  /* 800 → 600：大号标题靠尺寸与字距建立层级，字重过猛会显得"喊"。
+     600 在 SF/系统字体下仍是明显的 semibold，且有正常的字重轴可用。 */
+  font-weight: 600;
+  letter-spacing: var(--track-display);
+  line-height: var(--leading-display);
   color: var(--text-1);
   opacity: 0;
-  animation: titleEnter 1.2s var(--spring) forwards;
+  animation: titleEnter 0.5s var(--ease-out) forwards;
 }
 .news-subtitle {
   margin: 0;
@@ -93,8 +125,9 @@
   font-size: 17px;
   line-height: 1.5;
   font-weight: 400;
+  letter-spacing: var(--track-body);
   opacity: 0;
-  animation: subtitleEnter 1.2s var(--spring) 0.2s forwards;
+  animation: subtitleEnter 0.5s var(--ease-out) 0.06s forwards;
 }
 .news-stats {
   display: flex;
@@ -112,15 +145,17 @@
   box-shadow: 0 4px 16px rgba(16, 24, 40, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.7);
   padding-bottom: 8px;
 }
-.news-stats strong { color: var(--text-1); font-size: 18px; font-weight: 800; }
+.news-stats strong { color: var(--text-1); font-size: 18px; font-weight: 600; letter-spacing: var(--track-heading); }
 .stats-divider { width: 1px; height: 18px; background: #d0d5dd; }
 
+/* 进场位移收敛：30px/20px 的行程配 1.2s 显得飘；0.5s 配 12px/8px 才是"落定"而不是"飞入"。
+   时长压到 0.5s 内是 Apple 的默认响应区间（0.3–0.4s 起步，允许叠加一档延迟）。 */
 @keyframes titleEnter {
-  0% { opacity: 0; transform: translateY(30px); }
+  0% { opacity: 0; transform: translateY(12px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 @keyframes subtitleEnter {
-  0% { opacity: 0; transform: translateY(20px); }
+  0% { opacity: 0; transform: translateY(8px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 @keyframes fadeIn { to { opacity: 1; } }
@@ -379,39 +414,59 @@
 /* ---------- 容器与标题节奏 ---------- */
 .news-container { max-width: 1180px; margin: 0 auto; padding: 30px 32px 96px; }
 .section-heading-row { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; }
-.section-heading-row h2 { margin: 0; font-size: 18px; line-height: 1.3; letter-spacing: -0.01em; }
+.section-heading-row h2 { margin: 0; font-size: 18px; font-weight: 600; line-height: var(--leading-heading); letter-spacing: var(--track-heading); }
 .section-rule { height: 1px; flex: 1; background: var(--line); }
 
 /* ---------- P1：真玻璃卡片 + Apple 信息层级 ---------- */
-.featured-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr); gap: 20px; margin-bottom: 44px; }
-.news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+.featured-layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr); gap: var(--gap-grid); margin-bottom: 48px; }
+.news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--gap-grid); }
 .news-card {
   background: var(--glass-card);
   -webkit-backdrop-filter: var(--news-glass-filter-sm, blur(18px));
   backdrop-filter: var(--news-glass-filter-sm, blur(18px));
   border: 1px solid rgba(255, 255, 255, 0.65);
-  border-radius: 18px;
+  /* 圆角走阶梯：默认中卡 20px，主卡由 .featured-card 覆盖成 28px。
+     卡片圆角与内部图片圆角用同一个变量驱动（见 .news-image），
+     否则父级裁切恰好掩盖了「图片自身圆角是 0」这个 bug。 */
+  --card-radius: var(--radius-card);
+  border-radius: var(--card-radius);
   overflow: hidden;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  transition: transform 400ms var(--spring), box-shadow 400ms var(--spring), border-color 250ms ease;
+  /* 时长三档：按压 120ms（必须快，否则"按了没反应"）/ hover 240ms / 落定 380ms。
+     原先 hover 400ms、图片 800ms、按钮 160ms 三处不一致，连着划过卡片会看到不同步。 */
+  transition: transform 240ms var(--ease-out), box-shadow 240ms var(--ease-out), border-color 240ms var(--ease-out);
   cursor: pointer;
   opacity: 0;
   transform: translateY(24px);
   display: flex;
   flex-direction: column;
 }
+/* 材质三层（2026-10-20）：
+   主卡 .featured-card   → blur 28 + 深阴影（上浮）
+   网格卡 .news-card     → blur 18 + 浅阴影（默认层）
+   次卡 .secondary-news-item → 不用玻璃，纯留白（"目录"不该抢戏，见下）
+   Apple 的规则是"更大的表面更厚"，三层必须能一眼看出主次。 */
 .news-card.visible { opacity: 1; transform: translateY(0); }
+
 .news-card:hover {
-  transform: translateY(-4px) scale(1.005);
+  transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.8);
   box-shadow: 0 2px 4px rgba(16, 24, 40, 0.06), 0 20px 44px rgba(16, 24, 40, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
-.news-card:active { transform: translateY(-2px) scale(0.995); }
+/* 按压反馈必须快：只压色与位移，transition 单独降到 120ms。
+   原来 :active 沿用 400ms 的 transition，按下后要 0.4s 才看得出来 = 等于没有反馈。 */
+.news-card:active {
+  transform: translateY(-1px) scale(0.994);
+  transition-duration: 120ms;
+}
 
 .news-image {
   width: 100%; height: auto; aspect-ratio: 16 / 9;
   background: linear-gradient(135deg, #eef1f5, #e2e7ee);
   position: relative; overflow: hidden;
+  /* 图片自身的圆角必须与卡片一致。原先这里没有兜底值（实测 computed 0px），
+     全靠父级 overflow:hidden 裁出来 —— 父级一改圆角，图片边缘就会露直角。 */
+  border-radius: var(--card-radius) var(--card-radius) 0 0;
 }
 .news-image-fallback {
   position: absolute; inset: 0; z-index: 0;
@@ -425,13 +480,20 @@
 .news-image-fallback.mini { font-size: 32px; }
 .news-image img { position: relative; z-index: 1; background: #eaecf0; }
 .news-image.is-empty img { display: none; }
+.featured-card {
+  --card-radius: var(--radius-card-lg);
+  /* 材质分层：主卡是"更厚的表面"—— 更强的模糊 + 更深的外阴影，读起来上浮一层 */
+  -webkit-backdrop-filter: var(--news-glass-filter, blur(28px));
+  backdrop-filter: var(--news-glass-filter, blur(28px));
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.07), 0 24px 56px rgba(16, 24, 40, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
 .featured-card .news-image { min-height: 240px; }
 .secondary-thumb.is-empty img { display: none; }
 .secondary-thumb { position: relative; }
 .secondary-thumb .news-image-fallback { border-radius: 12px; }
 .news-image img {
   width: 100%; height: 100%; object-fit: cover; display: block;
-  transition: transform 0.8s var(--spring);
+  transition: transform 380ms var(--ease-out);
 }
 .news-card:hover .news-image img { transform: scale(1.04); }
 .news-date {
@@ -467,21 +529,22 @@
 .news-title-card {
   margin: 0 0 10px;
   font-size: clamp(17px, 1.6vw, 20px);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-1);
-  line-height: 1.4;
-  letter-spacing: -0.01em;
+  line-height: var(--leading-title);
+  letter-spacing: var(--track-title);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.featured-card .news-title-card { font-size: clamp(20px, 2.4vw, 26px); line-height: 1.3; }
+.featured-card .news-title-card { font-size: clamp(20px, 2.4vw, 26px); line-height: var(--leading-title); letter-spacing: var(--track-title); }
 .news-excerpt {
   margin: 0 0 18px;
   font-size: 14px;
-  line-height: 1.65;
+  line-height: var(--leading-body);
+  letter-spacing: var(--track-body);
   color: var(--text-2);
   flex: 1;
   display: -webkit-box;
@@ -510,9 +573,28 @@
 .secondary-news-item {
   display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 14px;
   padding: 10px; align-items: center; opacity: 1; transform: none;
+  /* 材质分层（2026-10-20）：次卡是一列"目录项"，不再与主卡同用玻璃 ——
+     三处同材质会让整块区域糊成一片、主次不分。改为透明底，只在 hover 浮出一层极浅的底。 */
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-card);
+  transition: background-color 240ms var(--ease-out), border-color 240ms var(--ease-out);
 }
-.secondary-thumb { aspect-ratio: 16 / 10; overflow: hidden; border-radius: 12px; background: #eaecf0; }
-.secondary-thumb img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 600ms var(--spring); background: #eaecf0; }
+.secondary-news-item:hover {
+  background: rgba(255, 255, 255, 0.66);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+/* 暗色下 hover 必须换深色底 —— 刷白会在深底上糊成一块亮斑（2026-10-20 补） */
+html[data-theme="dark"] .secondary-news-item:hover {
+  /* 复用全站 token：--liquid-bg-nested 在明暗两套里都有定义
+     （明 rgba(255,255,255,.42) / 暗 rgba(38,38,48,.42)），不必写裸值。 */
+  background: var(--liquid-bg-nested);
+  border-color: var(--liquid-border-hairline);
+}
+.secondary-thumb { aspect-ratio: 16 / 10; overflow: hidden; border-radius: var(--radius-thumb); background: #eaecf0; }
+.secondary-thumb img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 380ms var(--ease-out); background: #eaecf0; }
 .secondary-news-item:hover .secondary-thumb img { transform: scale(1.05); }
 .secondary-copy { min-width: 0; }
 .secondary-copy .news-category { display: inline-flex; margin-bottom: 6px; font-size: 12px; }
@@ -522,7 +604,7 @@
 }
 .secondary-copy time { color: var(--text-3); font-size: 12px; }
 
-.latest-news .news-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.latest-news .news-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap-grid); }
 
 /* 骨架 */
 .news-skeleton-grid { pointer-events: none; }
@@ -728,7 +810,33 @@ html[data-theme="dark"] .secondary-copy time { color: #98989d; }
   .filter-bar, .search-wrapper, .news-card,  .filter-bar, .news-card { background: #fff; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .newsroom-page, .news-card, .news-image img, .filter-bar, .filter-indicator,  .news-card { opacity: 1 !important; transform: none !important; }
+  /* reduce ≠ 没有反馈：位移/缩放全部取消，但保留一次短 opacity 交叉淡入，
+     否则卡片会"突然出现"（尤其首屏头条），反而更跳。
+     ⚠️ 这里**不许用 !important**：`check:important-budget` 是只许下降的棘轮。
+     改用提高特异性来压过 `.news-card { opacity: 0 }`（0,1,0）——
+     下面每条都挂在 `.newsroom-page` 下（0,2,0），且本块位于源序最后。 */
+  .newsroom-page .news-card,
+  .newsroom-page .featured-card,
+  .newsroom-page .secondary-news-item,
+  .newsroom-page .news-image img,
+  .newsroom-page .filter-bar,
+  .newsroom-page .filter-indicator,
+  .newsroom-page .news-tools-shell,
+  .newsroom-page { opacity: 1; transform: none; }
+
+  .newsroom-page { animation-duration: 0.2s; }
+
+  .newsroom-page .news-card,
+  .newsroom-page .featured-card,
+  .newsroom-page .secondary-news-item,
+  .newsroom-page .news-image img {
+    transition-property: opacity, background-color, border-color, box-shadow;
+    transition-duration: 0.15s;
+  }
+
+  /* 进场关键帧在 reduce 下只保留淡入，不跑位移 */
+  .newsroom-page .news-title,
+  .newsroom-page .news-subtitle { animation: none; opacity: 1; }
 }
 
 .news-tools-shell { width: min(720px, calc(100% - 40px)); margin: 26px auto 42px; position: relative; z-index: 20; transition: margin .35s ease; }

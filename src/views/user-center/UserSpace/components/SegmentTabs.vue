@@ -142,6 +142,15 @@ onUnmounted(() => {
   transform: scale(0.96);
 }
 
+/* 键盘焦点（2026-10-20 补）：本组件此前**一条 focus 样式都没有**，
+   键盘用户 Tab 到段控时完全看不出焦点在哪。outline 用页面主色、外扩 3px，
+   且只在 :focus-visible 出现（鼠标点击不闪框）。 */
+.segment-tab:focus-visible {
+  outline: 2px solid var(--liquid-accent, #0071e3);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
 .segment-tab.active {
   color: var(--liquid-text-primary, #1d1d1f);
   font-weight: 600;

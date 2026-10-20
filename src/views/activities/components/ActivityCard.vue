@@ -80,13 +80,15 @@ const rawDate = computed(() => String(props.activity?.date ?? '').trim());
   border-radius: 24px;
   cursor: pointer;
   box-shadow: 0 2px 18px rgba(0, 0, 0, 0.04);
+  /* 与资讯流卡片同一套节奏（2026-10-20 统一）：hover 240ms / 图片 380ms。
+     原先 0.4s + 0.7s + -8px 比新闻卡片重一档，两段来回切会明显"手感不同"。 */
   transition:
-    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    transform 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    box-shadow 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .activity-card:hover {
-  transform: translateY(-8px);
+  transform: translateY(-2px);
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.12);
 }
 
@@ -102,11 +104,11 @@ const rawDate = computed(() => String(props.activity?.date ?? '').trim());
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 380ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .activity-card:hover .activity-card__img {
-  transform: scale(1.06);
+  transform: scale(1.04);
 }
 
 .activity-card__date {
