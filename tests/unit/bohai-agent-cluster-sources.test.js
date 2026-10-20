@@ -20,11 +20,12 @@ import {
 import { getMyCloudEntriesForAI } from '../../src/utils/api/boh-cloud-api.js';
 import { useAgentClusterSources } from '../../src/views/BOHAI/composables/useAgentClusterSources.js';
 
-// 开关口径与主链路 useKnowledgeRetrieval 一致：
-// 个人记忆管 cloud_entry/core_memory，社区知识管 shared_memory，两个都关则不发起向量检索。
-const makeDeps = ({ treehole = false, shared = false, userId = '' } = {}) => ({
+// 开关口径与主链路 useKnowledgeRetrieval 一致（2026-10-19 合并后）：
+// 个人记忆管 cloud_entry/core_memory，站内知识总开关（原「社区知识」）管 shared_memory，
+// 两个都关则不发起向量检索。
+const makeDeps = ({ treehole = false, knowledge = false, userId = '' } = {}) => ({
   isTreeholeMemoryEnabled: { value: treehole },
-  isSharedMemoryEnabled: { value: shared },
+  isKnowledgeBaseEnabled: { value: knowledge },
   getUserId: () => userId,
 });
 
@@ -65,9 +66,9 @@ describe('useAgentClusterSources.invokeRetriever', () => {
     expect(result.context).toContain('Cloud+ 条目内容');
   });
 
-  it('开启社区知识时追加 shared_memory 源', async () => {
+  it('开启站内知识总开关时追加 shared_memory 源', async () => {
     searchBohAIKnowledgeForAI.mockResolvedValue({ ok: true, data: { chunks: [] } });
-    const { invokeRetriever } = useAgentClusterSources(makeDeps({ shared: true }));
+    const { invokeRetriever } = useAgentClusterSources(makeDeps({ knowledge: true }));
 
     await invokeRetriever({ query: '社区里大家怎么用' });
 
@@ -88,7 +89,7 @@ describe('useAgentClusterSources.invokeRetriever', () => {
 });
 
 describe('useAgentClusterSources.invokeSharedMemory', () => {
-  it('社区知识开关关闭时不调用', async () => {
+  it('站内知识总开关关闭时不调用', async () => {
     const { invokeSharedMemory } = useAgentClusterSources(makeDeps());
 
     await invokeSharedMemory({ query: '公共记忆' });
@@ -101,7 +102,7 @@ describe('useAgentClusterSources.invokeSharedMemory', () => {
       ok: true,
       data: [{ content: '大家普遍反映签到积分周日刷新' }],
     });
-    const { invokeSharedMemory } = useAgentClusterSources(makeDeps({ shared: true }));
+    const { invokeSharedMemory } = useAgentClusterSources(makeDeps({ knowledge: true }));
 
     const result = await invokeSharedMemory({ query: '签到积分' });
 

@@ -13,8 +13,8 @@ import { logger } from '@/utils/logger.js';
 //   - invokeSharedMemory → searchSharedAIMemoriesForAI（公共记忆 RPC）
 //   - invokeCloud        → getMyCloudEntriesForAI（Cloud+ 最近条目直读）
 // 不在此处实现新的检索逻辑；用户开关口径与主链路 useKnowledgeRetrieval 保持一致：
-// 个人记忆（isTreeholeMemoryEnabled）管 cloud_entry/core_memory，社区知识（isSharedMemoryEnabled）管 shared_memory。
-// knowledge_base 在主链路被硬关闭（useModelConfig 中 isKnowledgeBaseEnabled 恒为 false），此处保持一致不检索。
+// 个人记忆（isTreeholeMemoryEnabled）管 cloud_entry/core_memory，站内知识总开关
+// （isKnowledgeBaseEnabled，2026-10-19 起已合并「社区搜索」与「社区知识」）管 shared_memory。
 
 const RAG_LIMIT = 8;
 const SHARED_MEMORY_LIMIT = 8;
@@ -36,7 +36,7 @@ const buildContext = (evidence) =>
 
 export const useAgentClusterSources = ({
   isTreeholeMemoryEnabled,
-  isSharedMemoryEnabled,
+  isKnowledgeBaseEnabled,
   getUserId,
 } = {}) => {
   const invokeRetriever = async ({ query } = {}) => {
@@ -44,9 +44,9 @@ export const useAgentClusterSources = ({
     if (!q) return { evidence: [], context: '' };
     const sourceTypes = [];
     if (isTreeholeMemoryEnabled?.value) sourceTypes.push('cloud_entry', 'core_memory');
-    if (isSharedMemoryEnabled?.value) sourceTypes.push('shared_memory');
+    if (isKnowledgeBaseEnabled?.value) sourceTypes.push('shared_memory');
     if (!sourceTypes.length) {
-      return { evidence: [], context: '', notes: ['个人记忆与社区知识开关均未开启，跳过向量检索'] };
+      return { evidence: [], context: '', notes: ['个人记忆与站内知识开关均未开启，跳过向量检索'] };
     }
     try {
       const result = await searchBohAIKnowledgeForAI({
@@ -78,7 +78,7 @@ export const useAgentClusterSources = ({
   };
 
   const invokeSharedMemory = async ({ query } = {}) => {
-    if (!isSharedMemoryEnabled?.value) return { evidence: [] };
+    if (!isKnowledgeBaseEnabled?.value) return { evidence: [] };
     const q = safeQuery(query);
     if (!q) return { evidence: [] };
     try {

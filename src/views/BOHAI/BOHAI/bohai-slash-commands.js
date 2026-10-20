@@ -43,7 +43,7 @@ export const BOH_SLASH_COMMANDS = [
     id: 'community',
     keyword: 'community',
     label: '社区搜索',
-    description: '为下一条消息查找 BOH 社区内容',
+    description: '切换站内知识总开关（官方事实 / 社区帖子 / 社区共享知识）',
     action: 'community',
   },
   {
@@ -58,18 +58,20 @@ export const BOH_SLASH_COMMANDS = [
   // ⚠️ 纪律不变：action 必须在壳里 `executeSlashCommand` 的 switch 里有对应 case ——
   //    单测 `bohai-slash-commands.test.js` 会逐条断言「每个 action 都有 case」，
   //    就是为了防「加了命令却没接线」（本次补的正是这个缺口）。
+  // 2026-10-19：`/community`（社区搜索）、`/memory`（官方记忆）、`/shared`（社区知识）
+  // 三个命令现在切换**同一个**站内知识总开关 —— 壳里三个 case 都汇到 handleKnowledgeBaseToggle。
   {
     id: 'memory',
     keyword: 'memory',
     label: '官方记忆',
-    description: '让下一条回答参考 BOH 官方事实与论坛记忆',
+    description: '切换站内知识总开关（官方事实 / 社区帖子 / 社区共享知识）',
     action: 'memory',
   },
   {
     id: 'shared',
     keyword: 'shared',
     label: '社区知识',
-    description: '让下一条回答参考社区共享内容',
+    description: '切换站内知识总开关（官方事实 / 社区帖子 / 社区共享知识）',
     action: 'shared',
   },
   {

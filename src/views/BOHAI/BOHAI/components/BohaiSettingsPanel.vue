@@ -463,7 +463,9 @@
                     >
                       <div class="ai-settings-label-stack">
                         <span class="ai-settings-label">官方记忆</span>
-                        <span class="ai-settings-desc">允许回答引用 BOH 官方事实与知识库</span>
+                        <span class="ai-settings-desc"
+                          >允许回答引用 BOH 官方事实、社区帖子与社区共享知识</span
+                        >
                       </div>
                       <div class="ai-settings-row-right">
                         <span
@@ -497,26 +499,6 @@
                       <div class="ai-settings-row-right">
                         <span
                           :class="['ai-settings-switch', { enabled: isTreeholeMemoryEnabled }]"
-                        ></span>
-                      </div>
-                    </div>
-
-                    <div
-                      class="ai-settings-row clickable"
-                      role="switch"
-                      tabindex="0"
-                      :aria-checked="isSharedMemoryEnabled"
-                      @click="$emit('toggleSharedMemory')"
-                      @keydown.enter.prevent="$emit('toggleSharedMemory')"
-                      @keydown.space.prevent="$emit('toggleSharedMemory')"
-                    >
-                      <div class="ai-settings-label-stack">
-                        <span class="ai-settings-label">社区知识</span>
-                        <span class="ai-settings-desc">允许回答参考社区共享内容</span>
-                      </div>
-                      <div class="ai-settings-row-right">
-                        <span
-                          :class="['ai-settings-switch', { enabled: isSharedMemoryEnabled }]"
                         ></span>
                       </div>
                     </div>
@@ -1246,7 +1228,6 @@ const props = defineProps({
   currentResponseStyleId: { type: String, default: '' },
   responseStyleOptions: { type: Array, default: () => [] },
   isTreeholeMemoryEnabled: { type: Boolean, default: false },
-  isSharedMemoryEnabled: { type: Boolean, default: false },
   isKnowledgeBaseEnabled: { type: Boolean, default: true },
   isTreeholeMemoryToggling: { type: Boolean, default: false },
   memoryStatusText: { type: String, default: '' },
@@ -1261,7 +1242,6 @@ const emit = defineEmits([
   'selectMode',
   'selectResponseStyle',
   'toggleTreeholeMemory',
-  'toggleSharedMemory',
   'toggleKnowledgeBase',
   'clearCurrentChat',
   'exportChatData',

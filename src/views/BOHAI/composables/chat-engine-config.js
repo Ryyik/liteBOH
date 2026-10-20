@@ -102,7 +102,8 @@ export const LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY = 'boh_ai_treehole_sync_ena
 export const RESPONSE_STYLE_SETTING_KEY = 'boh_ai_response_style_v1';
 export const THINKING_SPEED_SETTING_KEY = 'boh_ai_thinking_speed_v1';
 export const PLAN_MODE_SETTING_KEY = 'boh_ai_plan_mode_enabled_v1';
-export const SHARED_MEMORY_SETTING_KEY = 'boh_ai_shared_memory_enabled_v1';
+// 2026-10-19：「社区知识」开关并入站内知识总开关（`KNOWLEDGE_BASE_SETTING_KEY`），
+// 故 `SHARED_MEMORY_SETTING_KEY`（boh_ai_shared_memory_enabled_v1）已无写入/读取点，退役。
 export const KNOWLEDGE_BASE_SETTING_KEY = 'boh_ai_knowledge_base_enabled_v1';
 export const MODE_SETTING_KEY = 'boh_ai_mode_v1';
 export const MEMORY_CAPTURE_STATUS_TIMEOUT_MS = 12000;

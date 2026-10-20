@@ -7,7 +7,6 @@ import {
   RESPONSE_STYLE_SETTING_KEY,
   RESPONSE_STYLE_OPTIONS,
   PLAN_MODE_SETTING_KEY,
-  SHARED_MEMORY_SETTING_KEY,
   KNOWLEDGE_BASE_SETTING_KEY,
   MODE_SETTING_KEY,
   THINKING_SPEED_SETTING_KEY,
@@ -75,7 +74,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   // ─── Feature toggle refs ───────────────────────────────────────────────────────
 
   const isSearching = ref(false);
-  const isForumSearchEnabled = ref(false);
 
   const isMemoryCaptureEnabled = ref(false);
 
@@ -90,12 +88,15 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   const isPlanModeEnabled = ref(false);
 
-  const isSharedMemoryEnabled = ref(readBooleanSetting(SHARED_MEMORY_SETTING_KEY, false));
-
-  // 云端官方事实库（`boh_ai_core_memories`）开关。默认**开**：
-  // 内容是维护者手写的社区事实，属于产品自带知识，关掉只会让 AI 答不出自己的事。
-  // ⚠️ 2026-10-16 前这里是 `ref(false)` 且 `persistKnowledgeBaseSetting` 恒写 '0'
-  //    —— 硬编码关闭导致「官方事实 + 知识库」两条检索源从未生效（线上 28 条事实一条没被用过）。
+  // 站内知识总开关（2026-10-19 合并）：原先「官方记忆」（本开关）、「社区搜索」
+  // （`isForumSearchEnabled`）、「社区知识」（`isSharedMemoryEnabled`）是三个独立开关，
+  // 现合并为**一个**持久化偏好，沿用「官方记忆」这个名字。ON ⇒ 官方事实/知识库/论坛记忆 +
+  // 社区帖子 + AI 公共记忆每条消息必查（见 knowledge-plan-switches.js）；OFF ⇒ 全关。
+  //
+  // 默认**开**：内容是维护者手写的社区事实 + 站内公开内容，属于产品自带知识，
+  // 关掉只会让 AI 答不出自己的事。⚠️ 2026-10-16 前这里是 `ref(false)` 且
+  // `persistKnowledgeBaseSetting` 恒写 '0' —— 硬编码关闭导致「官方事实 + 知识库」
+  // 两条检索源从未生效（线上 28 条事实一条没被用过）。
   const isKnowledgeBaseEnabled = ref(readBooleanSetting(KNOWLEDGE_BASE_SETTING_KEY, true));
 
   // ─── Style state ───────────────────────────────────────────────────────────────
@@ -226,11 +227,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     localStorage.removeItem(LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY);
   };
 
-  const persistSharedMemorySetting = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(SHARED_MEMORY_SETTING_KEY, isSharedMemoryEnabled.value ? '1' : '0');
-  };
-
   const persistKnowledgeBaseSetting = () => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(KNOWLEDGE_BASE_SETTING_KEY, isKnowledgeBaseEnabled.value ? '1' : '0');
@@ -245,12 +241,10 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
     // Feature toggles
     isSearching,
-    isForumSearchEnabled,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,
     isPlanModeEnabled,
-    isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
 
     // Style state
@@ -276,7 +270,6 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
     persistPlanModeSetting,
     persistMemoryCaptureSetting,
     persistTreeholeMemorySetting,
-    persistSharedMemorySetting,
     persistKnowledgeBaseSetting,
   };
 }

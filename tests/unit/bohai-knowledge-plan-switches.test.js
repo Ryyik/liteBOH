@@ -13,7 +13,11 @@ const read = (path) => readFileSync(resolve(root, path), 'utf8');
 // 官方记忆开关语义守卫（2026-10-17 用户报告：「官方记忆开着，第二次问 AI 就不从记忆库找了」）。
 // 旧行为：开关只能"关"（off ⇒ memory/siteGuide 强制 false），"开"时仍由
 // shouldUseMemoryContext 的关键词路由决定 ⇒ 第二问措辞没命中就静默跳过。
-// 新语义：开关 ON = 显式用户意图，官方记忆每条消息必查（压过路由）；OFF 维持强制关闭。
+// 新语义：开关 ON = 显式用户意图，站内知识每条消息必查（压过路由）；OFF 维持强制关闭。
+//
+// 2026-10-19 合并：原「官方记忆」「社区搜索」「社区知识」三个开关合并为一个 ——
+// 故 ON 时 memory（官方事实/知识库/论坛记忆）、forum（社区帖子）、sharedMemory（AI 公共记忆）
+// 三者一并强制必查。
 // 反证：把 knowledge-plan-switches.js 里 ON 分支的 `next.memory = true` 改成 false → 第 2 条必红。
 
 describe('知识源开关 → 检索计划（applyKnowledgeSourceSwitches）', () => {
@@ -27,29 +31,30 @@ describe('知识源开关 → 检索计划（applyKnowledgeSourceSwitches）', (
     activities: true,
   };
 
-  it('开关 ON：memory 强制必查，压过路由的 false', () => {
+  it('开关 ON：memory / forum / sharedMemory 强制必查，压过路由的 false', () => {
     const next = applyKnowledgeSourceSwitches(routedPlan, { knowledgeBaseEnabled: true });
     expect(next.memory).toBe(true);
+    expect(next.forum).toBe(true);
+    expect(next.sharedMemory).toBe(true);
   });
 
-  it('开关 ON：不越权改别的源（siteGuide 等保持路由判定）', () => {
+  it('开关 ON：不越权改其余源（siteGuide / treehole / userPrivate / activities 保持路由判定）', () => {
     const next = applyKnowledgeSourceSwitches(routedPlan, { knowledgeBaseEnabled: true });
     expect(next.siteGuide).toBe(false);
-    expect(next.sharedMemory).toBe(true);
     expect(next.activities).toBe(true);
     expect(next.treehole).toBe(false);
     expect(next.userPrivate).toBe(false);
-    expect(next.forum).toBe(false);
   });
 
-  it('开关 OFF：memory 与 siteGuide 强制关闭（原语义不变）', () => {
+  it('开关 OFF：memory / siteGuide / forum / sharedMemory 强制关闭', () => {
     const next = applyKnowledgeSourceSwitches(
-      { ...routedPlan, memory: true, siteGuide: true },
+      { ...routedPlan, memory: true, siteGuide: true, forum: true, sharedMemory: true },
       { knowledgeBaseEnabled: false },
     );
     expect(next.memory).toBe(false);
     expect(next.siteGuide).toBe(false);
-    expect(next.sharedMemory).toBe(true);
+    expect(next.forum).toBe(false);
+    expect(next.sharedMemory).toBe(false);
   });
 
   it('不原地修改传入计划（调用方可安全复用原对象）', () => {

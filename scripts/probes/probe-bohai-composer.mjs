@@ -2,7 +2,7 @@
  * probe-bohai-composer.mjs — BOH AI 输入区（composer）探针
  *
  * 背景：2026-10-08（plans/025 v2 · Step 6-4）输入区整体重绘为 `BohComposer.vue`：
- *   模式胶囊 + 浮层面板（模型清单 / 工具四件）+ 用量圆钮与浮层 + 斜杠菜单
+ *   模式胶囊 + 浮层面板（模型清单 / 工具两件）+ 用量圆钮与浮层 + 斜杠菜单
  *   + 圆形发送键（底部「内容由 AI 生成」说明已于 2026-10-13 按用户口径删除）。
  * 旧版的三行面板 + 左右二级菜单结构已随旧 DOM 删除，断言随之改锁新落点。
  *
@@ -306,9 +306,9 @@ const openPanel = async (page, scope = '') => {
   );
   check(
     'A4 两颗胶囊互斥：开工具菜单后模型面板收起',
-    exclusivity.modelClosed && exclusivity.toolsOpen && exclusivity.toolCount === 3,
-    // ⚠️ 2026-10-16：3 = BOH Health 下线后的现行件数（社区搜索 / 个人 Cloud+ / 心理分析）。
-    //    本次之前是 4（含健康分析）—— Health 下线提交只摘了 A8，漏了这里和 A6。
+    exclusivity.modelClosed && exclusivity.toolsOpen && exclusivity.toolCount === 2,
+    // ⚠️ 2026-10-19：2 = 「社区搜索」并入官方记忆总开关后下线，工具只剩（个人 Cloud+ / 心理分析）。
+    //    此前 3（社区搜索 / 个人 Cloud+ / 心理分析）、更早 4（含健康分析）。
     JSON.stringify(exclusivity),
   );
   await page.keyboard.press('Escape');
@@ -347,8 +347,9 @@ const openPanel = async (page, scope = '') => {
     check('A5 选完模式 → 面板收起 + 模型胶囊更新', false, '只有一个模式可选，无法测切换');
   }
 
-  // A6 工具菜单（第三颗胶囊）：三件齐全，且不收浮层（用户常接着改第二项）。
-  // ⚠️ 2026-10-16：BOH Health 下线后由四件变三件（原断言还在找「健康分析」⇒ 假红）。
+  // A6 工具菜单（第三颗胶囊）：两件齐全，且不收浮层（用户常接着改第二项）。
+  // ⚠️ 2026-10-19：「社区搜索」并入官方记忆总开关后下线 ⇒ 由三件变两件
+  //     （原断言还在找「社区搜索」⇒ 假红）。
   await page.locator(SEL.toolsPill).first().click();
   await page.waitForTimeout(260);
   const toolNames = await page.evaluate(
@@ -363,10 +364,10 @@ const openPanel = async (page, scope = '') => {
     },
     [SEL.toolsMenu, SEL.tool],
   );
-  const wantTools = ['社区搜索', '个人 Cloud+', '心理分析'];
+  const wantTools = ['个人 Cloud+', '心理分析'];
   const missing = wantTools.filter((n) => !toolNames.names.includes(n));
   check(
-    'A6 工具胶囊 → 三件工具齐全',
+    'A6 工具胶囊 → 两件工具齐全',
     toolNames.open && missing.length === 0 && toolNames.names.length === wantTools.length,
     `缺 ${missing.join('/') || '无'}；实得 ${toolNames.names.join(' / ')}`,
   );

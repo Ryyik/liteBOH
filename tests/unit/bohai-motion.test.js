@@ -14,8 +14,8 @@ import { squeezeSource } from '../helpers/source.js';
 // ⚠️ 三条本仓硬约束（断言就在锁它们）：
 //   1. **用 `var(--boh-dur-*)`**，不写死毫秒 —— `layout.css` 在 reduce 下把这些令牌
 //      归零，写死就等于绕过降级；
-//   2. **不新增 `@keyframes`** —— 本仓把「关键帧 3 处 / 无限循环 2 条」当不变量
-//      （`boh-search-shimmer` / `boh-search-fade` / `boh-spin`），用 transition 就够；
+//   2. **不新增 `@keyframes`** —— 本仓把「关键帧总数」当不变量（当前 4 处 / 无限循环 2 条，
+//      清单见下方关键帧不变量那条断言），新动画优先用 transition；
 //   3. `@property` 必须在**非 scoped** 的令牌文件里注册（全局注册，且未注册的自定义
 //      属性不可插值 ⇒ `transition: --boh-ring-p` 会空转）。
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,11 +128,19 @@ describe('两条硬约束（改这四处时别踩）', () => {
     }
   });
 
-  it('⭐ 关键帧不变量：BOHAI 仍是 3 处（新增动画请用 transition）', () => {
+  it('⭐ 关键帧不变量：BOHAI 仍是 4 处（新增动画请用 transition）', () => {
+    // 现行 4 处（2026-10-20 按实况对齐；此前断言写 3 却实测 4，长期是红的）：
+    //   1. boh-spin              boh-work.css    工作台步骤点的无限旋转（唯一用 transition 表达不了的一类）
+    //   2. boh-search-shimmer    boh-stream.css  「网页搜索 / 正在思考」的流光
+    //   3. boh-activity-swap-in  boh-stream.css  动作行换字的一次性淡入（2026-10-19，见下方注释为何不用 Transition）
+    //   4. boh-activity-icon-in  boh-stream.css  同上，图标侧的一次性入场
+    // 变更史：`boh-search-fade`（网页标题轮换）已于 2026-10-19 被 `boh-activity-swap-in` 取代
+    //        （08ad8476 删 1 增 2，净 +1 ⇒ 3 → 4）。
+    // ⚠️ 数的是**声明处**，所以「删一个就得改这个数字」；新增关键帧前先问能不能用 transition。
     const total = walk(BOHAI).reduce(
       (sum, file) => sum + (read(file).match(/@keyframes\s/g) || []).length,
       0,
     );
-    expect(total).toBe(3);
+    expect(total).toBe(4);
   });
 });

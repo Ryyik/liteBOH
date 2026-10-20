@@ -234,16 +234,6 @@
                     <button
                       type="button"
                       class="boh-mm-tool"
-                      :class="{ 'is-on': tools.forum }"
-                      :aria-pressed="tools.forum"
-                      @click="emit('toggle-tool', 'forum')"
-                    >
-                      <Search :size="16" aria-hidden="true" />
-                      <span><strong>社区搜索</strong><small>查找 BOH 社区内容</small></span>
-                    </button>
-                    <button
-                      type="button"
-                      class="boh-mm-tool"
                       :class="{ 'is-on': tools.cloud }"
                       :aria-pressed="tools.cloud"
                       @click="emit('toggle-tool', 'cloud')"
@@ -428,7 +418,6 @@ import {
   FileText,
   Globe,
   Pencil,
-  Search,
   SlidersHorizontal,
   Sparkles,
   Square,
@@ -465,7 +454,7 @@ const props = defineProps({
   modesLoading: { type: Boolean, default: false },
   currentMode: { type: Object, default: () => ({ name: '' }) },
   currentModeId: { type: String, default: '' },
-  tools: { type: Object, default: () => ({ forum: false, cloud: false }) },
+  tools: { type: Object, default: () => ({ cloud: false }) },
   /** 已开启的「下一条消息」开关（斜杠命令应用后的 tag 反馈；状态真源在壳，这里只渲染） */
   activeFlags: { type: Array, default: () => [] },
   attachedContext: { type: Object, default: null },

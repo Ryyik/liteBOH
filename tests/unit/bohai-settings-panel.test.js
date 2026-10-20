@@ -173,7 +173,7 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
       'currentResponseStyleId',
       'responseStyleOptions',
       'isTreeholeMemoryEnabled',
-      'isSharedMemoryEnabled',
+      'isKnowledgeBaseEnabled',
       'isTreeholeMemoryToggling',
       'memoryStatusText',
       'resolvedTheme',
@@ -190,7 +190,7 @@ describe('BohaiSettingsPanel 组件结构验证', () => {
       'selectMode',
       'selectResponseStyle',
       'toggleTreeholeMemory',
-      'toggleSharedMemory',
+      'toggleKnowledgeBase',
       'clearCurrentChat',
       'exportChatData',
       'clearAllChatData',
@@ -265,7 +265,7 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
       ':current-response-style-id',
       ':response-style-options',
       ':is-treehole-memory-enabled',
-      ':is-shared-memory-enabled',
+      ':is-knowledge-base-enabled',
       ':is-treehole-memory-toggling',
       ':memory-status-text',
       ':resolved-theme',
@@ -281,7 +281,7 @@ describe('BOHAIMain.vue 引用 BohaiSettingsPanel 验证', () => {
       '@select-mode',
       '@select-response-style',
       '@toggle-treehole-memory',
-      '@toggle-shared-memory',
+      '@toggle-knowledge-base',
       '@clear-current-chat',
       '@export-chat-data',
       '@clear-all-chat-data',
@@ -398,12 +398,16 @@ describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
     expect(content).toContain('getAbortMessage(');
   });
 
-  it('新对话不会覆盖用户保存的默认响应模式和社区知识设置', () => {
+  it('新对话不会覆盖用户保存的默认响应模式和站内知识开关', () => {
     const content = readChatEngine();
     const startNewChatBlock =
       content.match(/const startNewChat = \(\) => \{[\s\S]*?\n  \};/)?.[0] || '';
     expect(startNewChatBlock).not.toContain('currentModeId.value = BOH_DEFAULT_MODE_ID');
-    expect(startNewChatBlock).not.toContain('isSharedMemoryEnabled.value = false');
+    // 站内知识总开关（官方记忆，2026-10-19 已合并「社区搜索」与「社区知识」）是持久化偏好，
+    // 新对话不许把它重置。断言前先剥注释 —— 块里的说明文字本身就含这些标识符。
+    const codeOnly = stripComments(startNewChatBlock);
+    expect(codeOnly).not.toContain('isKnowledgeBaseEnabled.value = false');
+    expect(codeOnly).not.toContain('isForumSearchEnabled.value = false');
   });
 
   it('记忆设置使用布尔值持久化', () => {
@@ -411,6 +415,8 @@ describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
     // 拆过，CI 直接红 —— 与 9-27 那次同一类问题）。**源码格式敏感的断言必须空白宽容。**
     // 归一走 helpers/source.js 的共享实现（此前这里内联过一份 `replace(/\s+/g,'')`，
     // 两份归一 = 两份真源，已收敛）。
+    // 2026-10-19：站内知识总开关（原「官方记忆」）沿用 KNOWLEDGE_BASE_SETTING_KEY 持久化，
+    // 已退役的 SHARED_MEMORY_SETTING_KEY 不再有写入点。
     const flat = flattenSource(readFileSync(modelConfigPath, 'utf-8'));
     expect(flat).toContain(
       flattenSource(
@@ -419,7 +425,7 @@ describe('useChatEngine.js 引用 chatErrorMessages 验证', () => {
     );
     expect(flat).toContain(
       flattenSource(
-        "localStorage.setItem(SHARED_MEMORY_SETTING_KEY,isSharedMemoryEnabled.value?'1':'0'",
+        "localStorage.setItem(KNOWLEDGE_BASE_SETTING_KEY,isKnowledgeBaseEnabled.value?'1':'0'",
       ),
     );
   });

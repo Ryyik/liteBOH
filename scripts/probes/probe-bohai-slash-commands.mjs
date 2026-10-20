@@ -156,6 +156,35 @@ const injectAuth = async (page) => {
 /** 只有「带 payload.messages 的请求」才算模型调用（quota-status 等不算） */
 const chatCount = (chatReqs) => chatReqs.filter((r) => r?.payload?.messages).length;
 
+/**
+ * 轮询等待「模型调用到达且连发停止」（2026-10-19）。
+ *
+ * 为什么不用固定 waitForTimeout(1400)：官方记忆开关合并了论坛搜索与社区知识后，
+ * **每条消息**固定跑三路站内检索（论坛 getPosts + 官方/公共记忆两次向量检索），
+ * 检索完才会发 chat 请求。探针环境这些调用打到真 supabase（401 / CORS / QUIC 慢失败），
+ * 实测 chat 在点击后 ~2.7s 才到 —— 固定 1400ms 必假红。与仓纪律一致：禁固定 tick。
+ *
+ * 为什么「到第一个就返回」也不够：探针 mock 对 chat 回 ok:false ⇒ 引擎毫秒级连发 3 次
+ * （重试链），只等第一个会把第 2、3 个漏进**下一条断言的窗口**（A3 曾因此误计成 2）。
+ * ⇒ 等到计数 1s 无增长再返回。
+ */
+const waitForChatRequest = async (chatReqs, timeoutMs = 15000) => {
+  const QUIET_MS = 1000;
+  const deadline = Date.now() + timeoutMs;
+  let seen = 0;
+  let lastChange = Date.now();
+  while (Date.now() < deadline) {
+    const count = chatReqs.filter((r) => r?.payload?.messages).length;
+    if (count !== seen) {
+      seen = count;
+      lastChange = Date.now();
+    }
+    if (seen > 0 && Date.now() - lastChange >= QUIET_MS) return true;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return false;
+};
+
 /** 取「送进模型的最后一条 user 消息」的 <task> 段（BOH 的 prompt 装配格式） */
 const lastTaskSegment = (chatReqs) => {
   const hit = chatReqs.find((r) => r?.payload?.messages);
@@ -290,7 +319,7 @@ const flagsOf = (page) =>
   await page.waitForTimeout(400);
   const a2Menu = await isSlashMenuOpen(page);
   await page.keyboard.press('Enter');
-  await page.waitForTimeout(1400);
+  await waitForChatRequest(chatReqs);
   const a2Task = lastTaskSegment(chatReqs);
   check(
     'A2 带参数 /cloud 剥掉命令字（送进模型的 <task> 不含 "/cloud"）',
@@ -323,7 +352,7 @@ const flagsOf = (page) =>
   await page.fill(SEL.input, '路径是 /user-space?tab=posts 怎么走');
   await page.waitForTimeout(400);
   await page.keyboard.press('Enter');
-  await page.waitForTimeout(1400);
+  await waitForChatRequest(chatReqs);
   const a4Task = lastTaskSegment(chatReqs);
   check(
     'A4 非命令输入的 "/" 不被误判（含 "/" 的普通消息正常发出）',
@@ -385,13 +414,14 @@ const flagsOf = (page) =>
   );
 
   // ── B2 触屏 + 带参数：菜单必关（含空格）⇒ 同样只能靠发送键，必须剥前缀 ──
+  //    （合并开关后每条消息跑三路站内检索，chat 请求用轮询等 —— 见 waitForChatRequest）
   chatReqs.length = 0;
   await page.fill(SEL.input, '');
   await page.waitForTimeout(300);
   await page.fill(SEL.input, '/cloud 素材盘点成表格');
   await page.waitForTimeout(400);
   await page.locator(SEL.send).click();
-  await page.waitForTimeout(1400);
+  await waitForChatRequest(chatReqs);
   const b2Task = lastTaskSegment(chatReqs);
   check(
     'B2 触屏：带参数命令剥掉命令字',
