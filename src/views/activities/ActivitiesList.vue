@@ -31,6 +31,21 @@
       </button>
     </header>
 
+    <!-- 报名反馈的内联条（2026-10-20）：活动段常驻搜索岛，导航岛无法再插一次性通知
+         （persistent 卡会让新通知永久排队）⇒ 反馈走页面内，3.2s 自动消失。 -->
+    <Transition name="activity-feedback">
+      <p
+        v-if="signupFeedback"
+        :key="signupFeedback.id"
+        class="activities-feedback"
+        :data-tone="signupFeedback.tone"
+        role="status"
+        aria-live="polite"
+      >
+        {{ signupFeedback.text }}
+      </p>
+    </Transition>
+
     <!-- ① 顶部活动报名卡（数据源 activity_campaigns，与下方历史区互不相干） -->
     <ActivitySignupSection
       v-if="showCampaigns"
@@ -134,6 +149,7 @@ const {
   loading: campaignLoading,
   loadOngoingCampaigns,
   signupCampaign,
+  signupFeedback,
 } = useCampaigns();
 
 // ===== 历史活动（activities，按月分组）=====
@@ -386,6 +402,65 @@ html[data-theme='dark'] .activity-admin-publish-btn:hover {
   .activities-timeline {
     --activity-rail-gutter: 20px;
     padding: 0 20px;
+  }
+}
+
+/* ---- 报名反馈内联条（2026-10-20）----
+   不占导航槽位：导航岛在活动段被常驻搜索卡占着，一次性通知会被永久排队。 */
+.activities-feedback {
+  max-width: 1320px;
+  margin: 0 auto 18px;
+  padding: 10px 16px;
+  width: fit-content;
+  border-radius: var(--radius-chip, 999px);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-1, #1d1d1f);
+  /* 不写裸值：底色/边框都复用全站 token，明暗两套自带定义 */
+  background: var(--liquid-bg-strong);
+  border: 1px solid var(--liquid-border-hairline);
+  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.1);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+}
+.activities-feedback[data-tone='success'] {
+  color: #057857;
+}
+.activities-feedback[data-tone='warning'] {
+  color: #b84212;
+}
+.activities-feedback[data-tone='info'] {
+  color: #1d62d4;
+}
+/* 暗色下不再按 tone 分色：深蓝/深绿在深底上对比度不足，而为一条提示新增
+   三个语义 token 不值得（token 块是全站共用的）。改用 --text-1 —— 它随主题切换，
+   暗色下是近白，能保证可读；语义区分交给文案本身（「报名成功」/「报名失败」）。
+   ⚠️ 不要在这里写新的裸色值：check:dark-tokens:strict 是只许降的棘轮。 */
+html[data-theme='dark'] .activities-feedback {
+  color: var(--text-1);
+}
+
+.activity-feedback-enter-active,
+.activity-feedback-leave-active {
+  transition:
+    opacity 200ms var(--ease-out, ease-out),
+    transform 200ms var(--ease-out, ease-out);
+}
+.activity-feedback-enter-from,
+.activity-feedback-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-feedback-enter-active,
+  .activity-feedback-leave-active {
+    transition-duration: 1ms;
+  }
+  .activity-feedback-enter-from,
+  .activity-feedback-leave-to {
+    transform: none;
   }
 }
 

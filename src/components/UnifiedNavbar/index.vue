@@ -576,6 +576,14 @@ const normalizeNavStatus = (payload = {}) => {
     query: payload.query || '',
     filter: payload.filter || 'all',
     options: payload.options || [],
+    // 2026-10-20：结构化分组（废掉按下标切片的旧契约）。
+    // ⚠️ 这里是**白名单式重建** —— 新字段不写进本函数就等于没传下去
+    // （本次报障「点了筛选一片空白」的直接成因：Newsroom 传了 groups，
+    //  但 normalizeNavStatus 只放行 options，卡片拿到的 groups 永远是 undefined）。
+    groups: Array.isArray(payload.groups) ? payload.groups : [],
+    searchPlaceholder: payload.searchPlaceholder || '',
+    searchLabel: payload.searchLabel || '',
+    filterLabel: payload.filterLabel || '',
     onSearch: payload.onSearch,
     onFilter: payload.onFilter,
     persistent: Boolean(payload.persistent),

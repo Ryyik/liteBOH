@@ -751,18 +751,46 @@ const feedIslandItem = () => ({
     }),
 });
 
+const activityIslandItem = () => ({
+  kind: 'news-tools',
+  title: '活动',
+  message: '搜索与筛选',
+  icon: 'search',
+  persistent: true,
+  query: searchQuery.value,
+  filter: activityFilter.value,
+  groups: [
+    {
+      label: '',
+      items: [
+        { label: '全部活动', value: 'all' },
+        { label: '报名中', value: 'campaign' },
+        { label: '往期', value: 'past' },
+      ],
+    },
+  ],
+  searchPlaceholder: '搜索活动标题、地点...',
+  searchLabel: '搜索活动',
+  filterLabel: '筛选活动',
+  onSearch: (query) =>
+    router.push({
+      path: '/newsroom',
+      query: { ...route.query, ...(query ? { q: query } : { q: undefined }) },
+    }),
+  onFilter: (filter) =>
+    router.push({
+      path: '/newsroom',
+      query: { ...route.query, ...(filter !== 'all' ? { filter } : { filter: undefined }) },
+    }),
+});
+
 const notifyIsland = () => {
-  // 活动段**不注册**搜索岛：导航岛是「同一时刻只展示一张卡」的仲裁模型
-  // （UnifiedNavbar 的 handleGlobalNavStatus：status 卡已可见 ⇒ 新通知入队），
-  // 而 persistent 的搜索岛不会自己收起 ⇒ 活动段的报名反馈（请先登录 / 报名成功 /
-  // 报名失败）会被永久排队，用户什么都看不到。
-  // 活动段的搜索/筛选本来就作用在往期列表上，且面板自身有可用的空态文案，
-  // 所以这里主动让位给一次性通知，是更符合语义的取舍。
-  if (activeSegment.value === 'activities') {
-    showIsland.preempt();
-    return;
-  }
-  showIsland.notify(feedIslandItem());
+  // 两段都注册搜索岛（2026-10-20 定稿）。
+  // 曾经因为「persistent 搜索岛会让报名反馈永久排队」而让活动段主动 preempt 让位，
+  // 代价是活动段没有搜索/筛选 —— 那是用功能缺失换一条提示，划不来。
+  // 现在报名反馈改走页面内联条（ActivitiesList 的 .activities-feedback），
+  // 不再与导航岛竞争槽位，所以活动段可以放心常驻搜索岛。
+  showIsland.notify(activeSegment.value === 'activities' ? activityIslandItem() : feedIslandItem());
 };
 
 onMounted(async () => {

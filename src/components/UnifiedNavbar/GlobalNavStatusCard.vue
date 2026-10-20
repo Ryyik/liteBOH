@@ -21,6 +21,11 @@
           v-model="newsQuery"
           class="news-tools-input"
           type="search"
+          name="boh-content-search"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
           :placeholder="item.searchPlaceholder || '搜索新闻、节目、作者...'"
           :aria-label="item.searchLabel || '搜索新闻与节目'"
           @keydown.enter="submitNewsSearch"
@@ -47,7 +52,13 @@
         >
           <SlidersHorizontal :size="17" aria-hidden="true" />
         </button>
-        <div v-if="newsFilterOpen" class="news-tools-options" role="listbox" aria-label="筛选内容">
+        <div
+          v-if="newsFilterOpen"
+          ref="optionsPanel"
+          class="news-tools-options"
+          role="listbox"
+          aria-label="筛选内容"
+        >
           <!-- 2026-10-20：改为按 groups 渲染。旧实现用 slice(0,3)/slice(3,7)/slice(7) 按下标切片，
                「活动」段的选项一加进来就会落进「节目分类」组 —— 下标契约已废。
                仍兼容旧的扁平 options（无 groups 时按 3/4/N 切），避免其他调用点一次全改。 -->
@@ -131,6 +142,9 @@ const props = defineProps({
 
 const emit = defineEmits(['action', 'after-leave', 'resize']);
 const card = ref(null);
+/** 筛选面板（绝对定位在卡片下方，需单独计入 surface 高度） */
+const optionsPanel = ref(null);
+const PANEL_BOTTOM_GAP = 12;
 const newsQuery = ref(props.item?.query || '');
 const newsFilter = ref(props.item?.filter || 'all');
 const newsFilterOpen = ref(false);
@@ -222,7 +236,21 @@ const cardStyle = computed(() => ({
 }));
 
 const reportHeight = () => {
-  const height = card.value?.getBoundingClientRect().height;
+  const cardEl = card.value;
+  if (!cardEl) return;
+  let height = cardEl.getBoundingClientRect().height;
+  // 2026-10-20：筛选面板是**绝对定位**在卡片下方的，不参与卡片自身高度 ⇒
+  // ResizeObserver 观察不到它，导航 surface 只按卡片高度撑开，面板整个落在
+  // surface 之外被裁掉（用户报障「点了筛选看不到内容」）。
+  // 这里把展开中的面板高度一并计入，surface 才会跟着变高。
+  const panel = optionsPanel.value;
+  if (panel) {
+    const panelRect = panel.getBoundingClientRect();
+    const cardRect = cardEl.getBoundingClientRect();
+    // 面板顶部相对卡片顶部的偏移 + 面板自身高度 + 底部留白
+    const extra = Math.max(0, panelRect.height + (panelRect.top - cardRect.top) + PANEL_BOTTOM_GAP);
+    height = Math.max(height, extra);
+  }
   if (height) emit('resize', height);
 };
 
@@ -236,6 +264,7 @@ onMounted(async () => {
   reportHeight();
   resizeObserver = new ResizeObserver(reportHeight);
   if (card.value) resizeObserver.observe(card.value);
+  if (optionsPanel.value) resizeObserver.observe(optionsPanel.value);
 });
 
 onBeforeUnmount(() => resizeObserver?.disconnect());
@@ -268,6 +297,21 @@ watch(
     reportHeight();
   },
 );
+
+// 筛选面板开合必须重新上报高度：面板是绝对定位、不撑卡片，
+// v-if 切换后 DOM 才出现 ⇒ 必须 await nextTick 再量，否则量到 null 不生效。
+watch(newsFilterOpen, async (open) => {
+  await nextTick();
+  reportHeight();
+  // 面板内部内容变化（切到「更多分类」）也要跟着变高
+  if (resizeObserver && optionsPanel.value?.parentElement) {
+    resizeObserver.disconnect();
+    resizeObserver = new ResizeObserver(reportHeight);
+    if (card.value) resizeObserver.observe(card.value);
+    if (optionsPanel.value) resizeObserver.observe(optionsPanel.value);
+  }
+  void open;
+});
 </script>
 
 <style scoped>

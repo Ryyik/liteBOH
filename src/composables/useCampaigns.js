@@ -76,9 +76,29 @@ export const useCampaigns = () => {
     }
   };
 
+  /**
+   * 报名反馈的**页面内联**副本（2026-10-20）。
+   *
+   * 为什么需要它：活动段现在常驻一个 persistent 的搜索/筛选岛，而导航岛的仲裁规则是
+   * 「status 卡已可见 ⇒ 新通知入队」⇒ `showIsland.notify` 的报名提示会被永久排队。
+   * 但报名提示又不能没有，搜索/筛选也不能砍 ⇒ 提示改走页面内联条（不占导航槽位），
+   * 岛通知保留给「从活动段之外触发」的场景。
+   */
+  const signupFeedback = ref(null);
+  let feedbackTimer = null;
+  const pushSignupFeedback = (tone, text) => {
+    if (feedbackTimer) clearTimeout(feedbackTimer);
+    signupFeedback.value = { tone, text, id: Date.now() };
+    feedbackTimer = setTimeout(() => {
+      signupFeedback.value = null;
+      feedbackTimer = null;
+    }, 3200);
+  };
+
   const signupCampaign = async (camp) => {
     const uid = authStore.userInfo?.id;
     if (!authStore.isLoggedIn || !uid) {
+      pushSignupFeedback('info', '请先登录后再报名活动');
       showIsland.notify({ title: '请先登录', message: '登录后即可报名活动', icon: 'info' });
       return;
     }
@@ -89,6 +109,12 @@ export const useCampaigns = () => {
       const res = await signupCampaignEntry(camp.id, uid);
       if (!res.ok) {
         const duplicated = String(res.error?.code || '') === '23505';
+        pushSignupFeedback(
+          duplicated ? 'info' : 'warning',
+          duplicated
+            ? '你已报名过啦，无需重复报名'
+            : `报名失败：${res.error?.message || '请稍后重试'}`,
+        );
         showIsland.notify({
           title: duplicated ? '你已报名过啦' : '报名失败',
           message: duplicated ? '无需重复报名' : res.error?.message || '请稍后重试',
@@ -98,6 +124,7 @@ export const useCampaigns = () => {
         return;
       }
       camp.signedUp = true;
+      pushSignupFeedback('success', `报名成功：已在「${camp.title}」为你登记`);
       showIsland.notify({
         title: '报名成功',
         message: `已在「${camp.title}」为你登记`,
@@ -108,5 +135,5 @@ export const useCampaigns = () => {
     }
   };
 
-  return { campaigns, loading, loadOngoingCampaigns, signupCampaign };
+  return { campaigns, loading, loadOngoingCampaigns, signupCampaign, signupFeedback };
 };
