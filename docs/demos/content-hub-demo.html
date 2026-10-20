@@ -1,0 +1,2004 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>BOH 资讯 · 三页合并方案演示</title>
+<style>
+/* ============================================================
+   演示页：活动 + 新闻 + 节目 合并为一个「资讯」页
+   顶栏对齐 UnifiedNavbar 真实形态：悬浮胶囊 + 岛扩展卡（搜索/筛选）
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --liquid-bg: rgba(255, 255, 255, 0.72);
+  --liquid-border: rgba(255, 255, 255, 0.65);
+  --liquid-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --liquid-filter-sm: blur(18px) saturate(180%) brightness(1.02);
+
+  --bg: #f5f5f7;
+  --glow-1: rgba(226, 232, 240, 0.65);
+  --glow-2: rgba(254, 243, 222, 0.55);
+  --card: #ffffff;
+  --text: #1d1d1f;
+  --text-2: #667085;
+  --text-3: #8d99a8;
+  --line: rgba(15, 23, 42, 0.08);
+  --line-strong: rgba(15, 23, 42, 0.14);
+  --accent: #0071e3;
+  --accent-2: #0a84ff;
+  --accent-soft: rgba(0, 113, 227, 0.1);
+  --warm: #ba7517;
+  --warm-soft: rgba(186, 117, 23, 0.12);
+  --good: #1d9e75;
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 10px 28px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 28px 64px rgba(15, 23, 42, 0.16);
+  --radius: 22px;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --nav-space: 176px;
+}
+
+[data-theme="dark"] {
+  --liquid-bg: rgba(20, 27, 37, 0.9);
+  --liquid-border: rgba(220, 235, 255, 0.16);
+  --liquid-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+  --bg: #0d0f14;
+  --glow-1: rgba(38, 52, 74, 0.45);
+  --glow-2: rgba(64, 50, 30, 0.34);
+  --card: #161a22;
+  --text: #f5f5f7;
+  --text-2: #a1a1a6;
+  --text-3: #7d8794;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --accent: #0a84ff;
+  --accent-2: #409cff;
+  --accent-soft: rgba(10, 132, 255, 0.16);
+  --warm: #ef9f27;
+  --warm-soft: rgba(239, 159, 39, 0.16);
+  --glass-strong: rgba(22, 26, 34, 0.9);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(0, 0, 0, 0.34);
+  --shadow-lg: 0 28px 64px rgba(0, 0, 0, 0.55);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(circle at 16% 0%, var(--glow-1), transparent 44%),
+    radial-gradient(circle at 86% 6%, var(--glow-2), transparent 40%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg) 100%);
+  background-attachment: fixed;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+[hidden] { display: none !important; }
+
+button { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* ============================================================
+   顶栏：悬浮胶囊 860×58 + 从底部延伸的工具岛（搜索 / 筛选）
+   真实实现见 components/UnifiedNavbar/style.scoped.css 与
+   GlobalNavStatusCard.vue 的 .is-news-tools 分支
+   ============================================================ */
+.nav-shell {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 40;
+  height: 150px;
+  pointer-events: none;
+}
+
+.nav-surface {
+  position: relative;
+  width: min(860px, calc(100% - 24px));
+  height: 136px;
+  margin: 0 auto;
+  transform: translateY(10px);
+  border: 1px solid var(--liquid-border);
+  border-radius: 30px;
+  background: var(--liquid-bg);
+  box-shadow: var(--liquid-shadow-sm);
+  pointer-events: auto;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.nav-container {
+  height: 58px;
+  padding: 0 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #1a1a1a;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.nav-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.nav-logo-icon img { width: 100%; height: 100%; object-fit: contain; }
+
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-menu li { position: relative; }
+
+.nav-menu a {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #1a1a1a;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.nav-menu a.is-active { font-weight: 700; }
+
+/* 社区下拉：有界悬浮卡（对齐真实 .nav-submenu：860 宽 / 18 圆角 / 0.82 白底 + 模糊） */
+.nav-submenu {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  width: 300px;
+  margin: 0;
+  padding: 10px;
+  list-style: none;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  backdrop-filter: var(--liquid-filter-sm);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 6px);
+  transition: opacity 0.18s ease, transform 0.18s var(--ease);
+}
+
+.nav-menu li:hover .nav-submenu,
+.nav-menu li:focus-within .nav-submenu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.nav-submenu a {
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.nav-submenu a:hover { background: rgba(120, 130, 145, 0.12); color: var(--text); }
+.nav-submenu a.is-current { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+
+.nav-user { display: flex; align-items: center; gap: 8px; }
+
+.nav-icon-btn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.nav-icon-btn:hover { background: rgba(120, 130, 145, 0.14); }
+.nav-icon-btn svg { width: 17px; height: 17px; }
+
+.nav-login-btn {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid rgba(0, 0, 0, 0.22);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.nav-login-btn:hover { background: rgba(120, 130, 145, 0.12); }
+
+/* ---- 岛扩展卡：搜索 + 筛选 ---- */
+.nav-tools {
+  position: absolute;
+  top: 65px;
+  left: 7px;
+  right: 7px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 64px;
+  padding: 13px 15px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.46);
+  border-radius: 24px;
+  color: #1e2938;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.3));
+  box-shadow:
+    0 14px 32px rgba(29, 41, 56, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  backdrop-filter: var(--liquid-filter-sm);
+}
+
+.tools-icon { flex: 0 0 auto; color: #64748b; width: 17px; height: 17px; }
+
+.tools-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  color: #1d1d1f;
+}
+
+.tools-input::placeholder { color: #98a2b3; }
+
+.tools-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #64748b;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.tools-clear:hover { background: rgba(15, 23, 42, 0.08); }
+
+/* 触发器 = 带当前值的下拉（不是图标按钮）：一眼看出「现在筛的是什么」 */
+.tools-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 9px 0 12px;
+  border: 1px solid rgba(100, 116, 139, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.tools-filter:hover { background: #fff; color: #1d1d1f; }
+.tools-filter.is-open { background: #fff; color: #1d1d1f; border-color: rgba(100, 116, 139, 0.34); }
+
+/* 有筛选生效 = 实心黑（对齐真实 .news-tools-filter.active） */
+.tools-filter.is-active { color: #fff; background: #1d1d1f; border-color: #1d1d1f; }
+
+.tools-filter .chev {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  transition: transform 0.2s var(--ease);
+}
+
+.tools-filter.is-open .chev { transform: rotate(180deg); }
+
+.tools-divider { width: 1px; height: 24px; background: rgba(100, 116, 139, 0.2); }
+
+/* 下拉列表：竖向、分组、选中项打勾（替代原来的 chips 网格） */
+.tools-options {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 8px;
+  z-index: 3;
+  width: 268px;
+  max-height: min(480px, 66vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  backdrop-filter: var(--liquid-filter-sm);
+  transform-origin: top right;
+  animation: opt-in 0.18s var(--ease) both;
+}
+
+@keyframes opt-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.opt-group + .opt-group {
+  margin-top: 4px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(100, 116, 139, 0.14);
+}
+
+.opt-label {
+  display: block;
+  padding: 6px 10px 4px;
+  color: #98a2b3;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.tools-options button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.tools-options button:hover { background: rgba(15, 23, 42, 0.05); }
+
+.tools-options button.is-selected {
+  color: var(--accent);
+  font-weight: 700;
+  background: var(--accent-soft);
+}
+
+.opt-check {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.is-selected .opt-check { opacity: 1; transform: none; }
+
+/* 暗色 */
+[data-theme="dark"] .nav-logo,
+[data-theme="dark"] .nav-menu a,
+[data-theme="dark"] .nav-icon-btn,
+[data-theme="dark"] .nav-login-btn { color: #f5f5f7; }
+
+[data-theme="dark"] .nav-login-btn { border-color: rgba(255, 255, 255, 0.24); }
+
+[data-theme="dark"] .nav-submenu {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(28, 28, 30, 0.92);
+}
+
+[data-theme="dark"] .nav-tools {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(135deg, rgba(40, 49, 64, 0.72), rgba(28, 34, 44, 0.5));
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .tools-input { color: #f5f5f7; }
+
+[data-theme="dark"] .tools-filter {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .tools-filter:hover,
+[data-theme="dark"] .tools-filter.is-open {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f5f5f7;
+}
+
+[data-theme="dark"] .tools-filter.is-active {
+  color: #111;
+  background: #f5f5f7;
+  border-color: #f5f5f7;
+}
+
+[data-theme="dark"] .tools-options {
+  border-color: rgba(255, 255, 255, 0.16);
+  /* 暗色下不能再用接近页面底色的 rgba(28,28,30)：与 #0d0f14 几乎同色，面板会「隐形」 */
+  background: rgba(38, 43, 52, 0.98);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .opt-group + .opt-group { border-top-color: rgba(255, 255, 255, 0.1); }
+[data-theme="dark"] .opt-label { color: #7d8794; }
+
+[data-theme="dark"] .tools-options button { color: #cbd5e1; }
+[data-theme="dark"] .tools-options button:hover { background: rgba(255, 255, 255, 0.07); }
+[data-theme="dark"] .tools-options button.is-selected {
+  color: var(--accent-2);
+  background: var(--accent-soft);
+}
+
+/* ============ 页头 ============ */
+.page-head {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--nav-space) 32px 26px;
+}
+
+.kicker {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.page-head h1 {
+  margin: 0 0 12px;
+  font-size: clamp(38px, 6vw, 54px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 700px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.head-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  padding: 7px 13px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.head-hint i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* ============ 段控 ============ */
+.tabs-bar {
+  position: sticky;
+  top: 12px;
+  z-index: 30;
+  padding: 4px 0 8px;
+  background: transparent;
+  transition: background-color 0.22s ease, box-shadow 0.22s ease;
+}
+
+.tabs-bar.is-stuck {
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.tabs {
+  display: flex;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.tabs-inner { position: relative; display: inline-flex; gap: 4px; }
+
+.tab {
+  height: 44px;
+  padding: 0 15px;
+  border: 0;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.tab:hover { color: var(--text); }
+.tab.is-active { color: var(--text); font-weight: 600; }
+
+.tab-indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 0;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: transform 0.32s var(--ease), width 0.32s var(--ease);
+}
+
+/* ============ 主体 ============ */
+.main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 32px 120px;
+}
+
+.seg.is-in { animation: seg-in 0.34s var(--ease) both; }
+
+@keyframes seg-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 当前筛选态提示（页内只留一行文字，不再有 chips 行） */
+.filter-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 18px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.filter-note b { color: var(--accent); font-weight: 650; }
+.filter-note button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ============ 头条卡 ============ */
+.featured {
+  display: grid;
+  grid-template-columns: 1.08fr 1fr;
+  margin-bottom: 26px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.3s var(--ease), box-shadow 0.3s ease;
+}
+
+.featured:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+.featured-media {
+  position: relative;
+  min-height: 340px;
+  background: linear-gradient(135deg, #dbeafe, #f5e6c8);
+}
+
+.featured-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.featured-body {
+  padding: 38px 38px 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+}
+
+.featured-body h2 {
+  margin: 0;
+  font-size: clamp(24px, 2.4vw, 31px);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.22;
+}
+
+.excerpt { margin: 0; font-size: 15px; line-height: 1.68; color: var(--text-2); }
+
+/* ============ 通用卡片 ============ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(296px, 1fr));
+  gap: 22px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.28s var(--ease), box-shadow 0.28s ease;
+}
+
+.card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+.card:active { transform: translateY(-1px) scale(0.995); }
+
+.thumb {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: linear-gradient(135deg, #e0e7f1, #f3e7d2);
+  overflow: hidden;
+}
+
+[data-theme="dark"] .thumb { background: linear-gradient(135deg, #1c2330, #2a2318); }
+
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s var(--ease); }
+.card:hover .thumb img { transform: scale(1.045); }
+
+.date-pill {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(16, 20, 28, 0.44);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.24);
+}
+
+.play svg { width: 20px; height: 20px; margin-left: 2px; fill: #101418; }
+
+.card-body {
+  padding: 18px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  flex: 1;
+}
+
+.cat { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--accent); }
+.cat.is-show { color: var(--warm); }
+
+.card-body h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+
+.card-body p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.avatar {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.meta-row .read { margin-left: auto; color: var(--accent); font-weight: 600; }
+
+.empty {
+  padding: 56px 20px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+/* ============ 活动段 ============ */
+.section-head { display: flex; align-items: baseline; gap: 12px; margin: 4px 0 16px; }
+.section-head h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+.section-head span { font-size: 12.5px; color: var(--text-3); }
+
+.campaign-wrap {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 18px;
+  margin-bottom: 38px;
+}
+
+.campaign-main {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+
+.campaign-copy { padding: 30px 30px 28px; display: flex; flex-direction: column; gap: 12px; }
+
+.stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--good);
+  background: rgba(29, 158, 117, 0.12);
+}
+
+.stage i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--good);
+  animation: pulse 1.9s ease-in-out infinite;
+}
+
+.stage.is-soon { color: var(--warm); background: var(--warm-soft); }
+.stage.is-soon i { background: var(--warm); animation: none; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.78); }
+}
+
+.campaign-copy h3 { margin: 0; font-size: 25px; font-weight: 750; letter-spacing: -0.02em; }
+.campaign-copy > p { margin: 0; font-size: 14px; line-height: 1.62; color: var(--text-2); }
+
+.facts {
+  display: grid;
+  gap: 9px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+
+.facts div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.facts span { font-size: 11.5px; color: var(--text-3); }
+.facts strong { font-size: 13.5px; font-weight: 650; }
+
+.btn-primary {
+  align-self: flex-start;
+  margin-top: 8px;
+  height: 42px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+
+.btn-primary:hover { background: var(--accent-2); transform: translateY(-1px); }
+.btn-primary:active { transform: scale(0.97); }
+
+.campaign-media { position: relative; min-height: 100%; background: linear-gradient(150deg, #cfe0f5, #f0dfc6); }
+.campaign-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.campaign-side { display: grid; gap: 18px; }
+
+.side-card {
+  display: grid;
+  grid-template-columns: 104px 1fr;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.24s var(--ease), box-shadow 0.24s ease;
+}
+
+.side-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+.side-media { background: linear-gradient(140deg, #dfe8f5, #f2e4cd); }
+.side-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.side-copy { padding: 16px 18px; display: flex; flex-direction: column; gap: 7px; justify-content: center; }
+.side-copy h4 { margin: 0; font-size: 15px; font-weight: 650; }
+.side-copy p { margin: 0; font-size: 12.5px; color: var(--text-2); }
+
+/* 月份轨道 */
+.rail { margin-bottom: 34px; }
+.rail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.rail-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+
+.rail-head span {
+  font-size: 11.5px;
+  color: var(--text-3);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(120, 130, 145, 0.12);
+}
+
+.rail-track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 4px 2px 10px;
+  margin: 0 -2px;
+}
+
+.rail-track::-webkit-scrollbar { display: none; }
+
+.act-card {
+  flex: 0 0 auto;
+  width: clamp(238px, 30vw, 296px);
+  scroll-snap-align: start;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.24s var(--ease), box-shadow 0.24s ease;
+}
+
+.act-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+.act-thumb { position: relative; aspect-ratio: 16 / 10; background: linear-gradient(135deg, #e3e9f3, #f4e8d4); }
+.act-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.act-body { padding: 14px 16px 18px; }
+.act-body h4 { margin: 0 0 6px; font-size: 15px; font-weight: 650; }
+.act-body p { margin: 0; font-size: 12.5px; color: var(--text-2); }
+
+/* ============ 详情岛 ============ */
+.detail-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(16, 20, 28, 0.32);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.26s ease;
+}
+
+.detail-layer.is-open { opacity: 1; pointer-events: auto; }
+
+.detail-card {
+  position: fixed;
+  top: 156px;
+  left: 50%;
+  width: min(760px, 92vw);
+  max-height: min(74vh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 26px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  transform: translate(-50%, -14px) scale(0.975);
+  opacity: 0;
+  transition: transform 0.34s var(--ease), opacity 0.26s ease;
+}
+
+.detail-layer.is-open .detail-card { transform: translate(-50%, 0) scale(1); opacity: 1; }
+
+.detail-hero { position: relative; height: 250px; background: linear-gradient(135deg, #dbeafe, #f5e6c8); }
+.detail-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.detail-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(16, 20, 28, 0.45);
+  color: #fff;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.detail-close:hover { background: rgba(16, 20, 28, 0.66); }
+
+.detail-body { padding: 26px 34px 34px; }
+.detail-body h2 { margin: 10px 0 14px; font-size: 27px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.25; }
+
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+
+.detail-body p { margin: 16px 0 0; font-size: 15px; line-height: 1.78; color: var(--text-2); }
+
+.detail-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 22px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+/* ============ 演示控制条 ============ */
+.demo-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  z-index: 60;
+  /* ⚠️ 不能用 left:50% + translateX(-50%)：固定定位的可用宽度会只剩视口一半 */
+  width: fit-content;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: 94vw;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+  backdrop-filter: saturate(180%) blur(22px);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  font-size: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.demo-tag {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.demo-group { display: flex; align-items: center; gap: 5px; }
+.demo-label { color: var(--text-3); margin-right: 3px; white-space: nowrap; }
+
+.mini {
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.16s ease;
+}
+
+.mini:hover { background: rgba(120, 130, 145, 0.14); color: var(--text); }
+
+.mini.is-active {
+  background: var(--accent-soft);
+  border-color: rgba(0, 113, 227, 0.28);
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.demo-divider { width: 1px; height: 18px; background: var(--line-strong); }
+
+/* ============ 响应式 ============ */
+@media (max-width: 900px) {
+  .nav-menu { display: none; }
+  .nav-container { padding: 0 24px; }
+  .nav-logo { font-size: 17px; gap: 9px; }
+  .nav-logo-icon { width: 26px; height: 26px; }
+  .featured { grid-template-columns: 1fr; }
+  .featured-media { min-height: 230px; }
+  .featured-body { padding: 26px 24px 28px; }
+  .campaign-wrap { grid-template-columns: 1fr; }
+  .campaign-main { grid-template-columns: 1fr; }
+  .campaign-media { min-height: 190px; order: -1; }
+  .campaign-side { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  :root { --nav-space: 168px; }
+  .page-head { padding: var(--nav-space) 20px 18px; }
+  .main { padding: 18px 20px 140px; }
+  .tabs { padding: 0 20px; }
+  .subtitle { font-size: 15px; }
+  .grid { grid-template-columns: 1fr; }
+  .detail-card { top: 150px; }
+  .detail-body { padding: 22px 22px 28px; }
+  .detail-body h2 { font-size: 22px; }
+  .demo-bar { gap: 6px; padding: 7px 9px; border-radius: 18px; }
+  .demo-label, .demo-tag { display: none; }
+  .mini { height: 26px; padding: 0 9px; font-size: 12px; }
+  .demo-divider { display: none; }
+  .tools-input { font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="nav-shell">
+  <div class="nav-surface" id="navSurface">
+    <div class="nav-container">
+      <a class="nav-logo" href="#" aria-label="方块之家首页">
+        <span class="nav-logo-icon"><img src="../../src/assets/images/favicon.webp" alt=""></span>
+        <span>方块之家</span>
+      </a>
+
+      <ul class="nav-menu">
+        <li><a href="#">首页</a></li>
+        <li>
+          <a href="#" class="is-active" aria-haspopup="true">社区</a>
+          <ul class="nav-submenu">
+            <li><a href="#">智能概览</a></li>
+            <li><a href="#" class="is-current" id="navCurrent">资讯</a></li>
+            <li><a href="#">论坛</a></li>
+            <li><a href="#">摄影集</a></li>
+            <li><a href="#">抽奖</a></li>
+          </ul>
+        </li>
+        <li><a href="#">探索</a></li>
+        <li><a href="#">服务</a></li>
+        <li><a href="#">关于</a></li>
+      </ul>
+
+      <div class="nav-user">
+        <button class="nav-icon-btn" id="navSearchBtn" type="button" aria-label="搜索">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="M20 20l-3.6-3.6"></path>
+          </svg>
+        </button>
+        <button class="nav-icon-btn" id="themeBtn" type="button" aria-label="切换深浅色">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="4.2"></circle>
+            <path d="M12 2.4v2.2M12 19.4v2.2M4.2 12H2M22 12h-2.2M5.6 5.6L4 4M20 20l-1.6-1.6M18.4 5.6L20 4M4 20l1.6-1.6"></path>
+          </svg>
+        </button>
+        <button class="nav-login-btn" type="button">登录</button>
+      </div>
+    </div>
+
+    <div class="nav-tools" id="navTools">
+      <svg class="tools-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="M20 20l-3.6-3.6"></path>
+      </svg>
+      <input class="tools-input" id="navQuery" type="search" placeholder="搜索新闻、节目、作者..." aria-label="搜索内容">
+      <button class="tools-clear" id="toolsClear" type="button" aria-label="清除搜索" hidden>×</button>
+      <span class="tools-divider" aria-hidden="true"></span>
+      <button class="tools-filter" id="toolsFilter" type="button" aria-haspopup="listbox" aria-label="筛选内容" aria-expanded="false">
+        <span id="filterLabel">全部内容</span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 9l6 6 6-6"></path>
+        </svg>
+      </button>
+      <div class="tools-options" id="toolsOptions" role="listbox" aria-label="筛选内容" hidden></div>
+    </div>
+  </div>
+</div>
+
+<header class="page-head">
+  <p class="kicker" id="kicker">BOH 新闻社 · BOH SHOWS</p>
+  <h1 id="pageTitle">资讯</h1>
+  <p class="subtitle" id="pageSub">新闻、活动、节目，都在这一页 —— 读、参与、看，三种消费方式不再各占一个入口。</p>
+  <span class="head-hint"><i aria-hidden="true"></i>搜索与筛选都在顶部那个岛里，页内不再有筛选条</span>
+</header>
+
+<div class="tabs-bar" id="tabsBar">
+  <div class="tabs">
+    <div class="tabs-inner" id="tabsInner">
+      <span class="tab-indicator" id="tabIndicator" aria-hidden="true"></span>
+    </div>
+  </div>
+</div>
+
+<main class="main">
+  <section class="seg" id="seg-feed" aria-label="资讯流">
+    <div class="filter-note" id="filterNote" hidden></div>
+    <div id="featuredHost"></div>
+    <div class="grid" id="feedGrid"></div>
+    <div class="empty" id="feedEmpty" hidden>没有匹配的内容，试试清掉筛选或换个关键词。</div>
+  </section>
+
+  <section class="seg" id="seg-shows" aria-label="节目" hidden>
+    <div class="section-head"><h2>全部节目</h2><span>BOH SHOWS · 与资讯流同一份数据</span></div>
+    <div class="grid" id="showsGrid"></div>
+    <div class="empty" id="showsEmpty" hidden>没有匹配的节目。</div>
+  </section>
+
+  <section class="seg" id="seg-events" aria-label="活动" hidden>
+    <div class="campaign-wrap" id="campaignWrap">
+      <article class="campaign-main">
+        <div class="campaign-copy">
+          <span class="stage"><i aria-hidden="true"></i>报名中</span>
+          <h3>万圣节方块夜</h3>
+          <p>换上最离谱的皮肤，在午夜的主城绕一圈。报名即领限定南瓜头，现场还有隐藏彩蛋。</p>
+          <div class="facts">
+            <div><span>活动时间</span><strong>10月31日 20:00</strong></div>
+            <div><span>报名截止</span><strong>10月28日 23:59</strong></div>
+            <div><span>已报名</span><strong>128 / 200</strong></div>
+          </div>
+          <button class="btn-primary" type="button">立即报名</button>
+        </div>
+        <div class="campaign-media">
+          <img src="../../src/assets/images/26wanxia.webp" alt="" onerror="this.style.display='none'">
+        </div>
+      </article>
+      <div class="campaign-side">
+        <article class="side-card" data-detail="a2">
+          <div class="side-media"><img src="../../src/assets/images/blockofhomepage.webp" alt="" onerror="this.style.display='none'"></div>
+          <div class="side-copy">
+            <span class="cat">报名中</span>
+            <h4>建筑接力赛 第三季</h4>
+            <p>10月25日截止 · 已报名 46 队</p>
+          </div>
+        </article>
+        <article class="side-card" data-detail="a3">
+          <div class="side-media"><img src="../../src/assets/images/26hezhaocamera.webp" alt="" onerror="this.style.display='none'"></div>
+          <div class="side-copy">
+            <span class="cat" style="color:var(--warm)">即将开始</span>
+            <h4>光影摄影征集</h4>
+            <p>11月1日开启 · 主题「秋天的方块」</p>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <div id="pastWrap">
+      <div class="section-head"><h2>往期活动</h2><span>数据源 activities · 按月归档</span></div>
+      <div id="railsHost"></div>
+      <div class="empty" id="pastEmpty" hidden>没有匹配的往期活动。</div>
+    </div>
+  </section>
+</main>
+
+<div class="detail-layer" id="detailLayer" role="dialog" aria-modal="true" aria-labelledby="detailTitle" hidden>
+  <div class="detail-card" id="detailCard">
+    <div class="detail-hero">
+      <img id="detailImg" alt="" onerror="this.style.display='none'">
+      <button class="detail-close" id="detailClose" type="button" aria-label="关闭">✕</button>
+    </div>
+    <div class="detail-body">
+      <span class="cat" id="detailCat"></span>
+      <h2 id="detailTitle"></h2>
+      <div class="detail-meta" id="detailMeta"></div>
+      <div id="detailBody"></div>
+      <a class="detail-link" id="detailLink" href="#" hidden>立即观看</a>
+    </div>
+  </div>
+</div>
+
+<div class="demo-bar" role="group" aria-label="演示控制">
+  <span class="demo-tag">DEMO</span>
+  <div class="demo-group">
+    <span class="demo-label">叫法</span>
+    <button class="mini is-active" type="button" data-name="资讯">资讯</button>
+    <button class="mini" type="button" data-name="动态">动态</button>
+    <button class="mini" type="button" data-name="BOH 频道">BOH 频道</button>
+  </div>
+  <span class="demo-divider" aria-hidden="true"></span>
+  <div class="demo-group">
+    <span class="demo-label">形态</span>
+    <button class="mini is-active" type="button" data-mode="merge">两段</button>
+    <button class="mini" type="button" data-mode="split">三分段</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 数据（演示用假数据，形状对齐真实表：news / activities / campaigns）
+// ============================================================
+const IMG = (name) => '../../src/assets/images/' + name;
+
+const ITEMS = [
+  {
+    id: 'n1', kind: 'news', cat: '官方通知', date: '2026-10-18',
+    title: '八周年主视觉上线，方块之家进入 Beta 6',
+    excerpt: '新的主视觉把「家」放回了画面中央：一张长桌、八把椅子、一整墙的合影。Beta 6 的界面与它同一套语言。',
+    author: '方块之家编辑部', img: '26hezhao1.webp', featured: true,
+    body: [
+      '八周年的主视觉今天正式上线。这一次我们没有做倒计时，也没有做烟花，而是把过去八年里最有代表性的一张合影重新修了一遍，放大挂在了首页。',
+      'Beta 6 的界面语言与这张图保持一致：更少的边框、更暖的中性色、以及随处可见的「一块一块垒起来」的节奏感。你会在资讯流、活动页、节目页里反复看到同一套卡片形态。',
+      '接下来两周会陆续放出八周年的活动排期与限定内容，全部收在这一页里，不再分散到三个入口。'
+    ]
+  },
+  {
+    id: 'n2', kind: 'news', cat: '更新日志', date: '2026-10-16',
+    title: '十月更新：横屏左栏、消息中心选择模式',
+    excerpt: '横屏左栏补齐了「更多」浮层，消息中心支持长按进入选择模式，两处都修掉了窄屏下被裁切的老问题。',
+    author: '方块之家编辑部', img: 'main2.webp',
+    body: [
+      '横屏左栏的「更多」浮层此前在 88px 窄栏下会被滚动容器裁到只剩 68px，深色模式与退出登录的文案都只露出第一个字。现在浮层与滚动容器平级，窄栏下向右越出栏位。',
+      '消息中心新增选择模式：长按或右键任意一条即可进入，支持批量已读、批量归档。选择模式与详情互斥，不会再出现两个面板同时打开的情况。'
+    ]
+  },
+  {
+    id: 's1', kind: 'show', cat: '生存挑战', date: '2026-10-12',
+    title: '冬眠生存 第四季 · 完播',
+    excerpt: '方块之家最经典的生存系列，第四季已完播。寒冷的方块世界里，与伙伴们一起探索、建造、活下来。',
+    author: 'BOH 节目组', img: '26coffee.webp', episodes: '第四季 · 完播',
+    link: 'https://www.bilibili.com/video/BV1gdzTBiECq/',
+    body: [
+      '第四季从一场暴雪开始。零下二十度的第一夜，所有人挤在一间四格宽的木屋里，靠一盏火把撑到天亮。',
+      '这一季我们把镜头更多地留给了「一起做事」的瞬间：合建一座桥、分一锅汤、在雪地里找回家的路。'
+    ]
+  },
+  {
+    id: 'n3', kind: 'news', cat: '活动公告', date: '2026-10-09',
+    title: '秋季建筑大赛开始征集',
+    excerpt: '主题「一座能住人的塔」。允许组队，最多三人，作品需在活动服务器内完成并保留到评选结束。',
+    author: '活动组', img: 'main3.webp',
+    body: [
+      '今年的秋季建筑大赛主题是「一座能住人的塔」——不追求高度，追求住得下去：要有床、有光、有能坐下来吃饭的地方。',
+      '征集截止到 10 月 26 日，评选分「完成度」「可居住性」「创意」三项，结果会在活动页与论坛同步公布。'
+    ]
+  },
+  {
+    id: 's2', kind: 'show', cat: '模拟建设', date: '2026-10-05',
+    title: '方块街 第 12 期：商业街落成',
+    excerpt: '历时三个月，方块街的第一段商业街终于开张。这一期从空地说到开业剪彩。',
+    author: 'BOH 节目组', img: 'main1-1280.webp', episodes: '第 12 期',
+    link: 'https://www.bilibili.com/video/BV1nj421Q7hH/',
+    body: [
+      '商业街从一块空地开始，先是面包店，然后是书店、花店、修表铺。每一间都有人认领，每一间都有自己的招牌。',
+      '这一期记录了从选址、铺路到开业剪彩的全过程，也记录了中途拆掉重建的那面墙。'
+    ]
+  },
+  {
+    id: 'n4', kind: 'news', cat: '官方通知', date: '2026-09-28',
+    title: '社区守则 2.0 生效',
+    excerpt: '主要变化有三处：明确了搬运他人作品的标注方式、补充了 AI 生成内容的声明要求、把举报处理时限写进了守则。',
+    author: '社区运营', img: 'blockschool.webp',
+    body: [
+      '守则 2.0 不增加新的禁止项，只把过去靠「惯例」运行的部分写清楚。',
+      '最常被问到的一条是搬运：转载他人作品需要同时标注原作者与原始链接，二次创作需获得授权。另一条是 AI 生成内容：发布时请声明，不要冒充实拍。'
+    ]
+  },
+  {
+    id: 's3', kind: 'show', cat: '特别活动', date: '2026-09-20',
+    title: '新年活动 2025 · 年度特辑',
+    excerpt: '把一整年的活动剪成四十分钟：谁在雪地里迷路，谁在屋顶上放了第一支烟花。',
+    author: 'BOH 节目组', img: '2025-newyear.webp', episodes: '年度特辑',
+    link: 'https://www.bilibili.com/video/BV1nW4y157LA/',
+    body: [
+      '这是一期回看。素材来自过去十二个月里所有公开活动的录屏，剪掉了重复，留下了笑场。',
+      '如果你只打算看一段，从 22 分开始——那是跨年那一晚，所有人站在主城最高的塔上等零点。'
+    ]
+  },
+  {
+    id: 'n5', kind: 'news', cat: '社区动态', date: '2026-09-15',
+    title: '创作者激励计划开放申请',
+    excerpt: '面向持续产出建筑、红石、剧情内容的创作者，提供云空间、素材授权与首页推荐位。',
+    author: '社区运营', img: 'BOHcloud.webp',
+    body: [
+      '激励计划今年进入第三期，名额从 20 位扩到 40 位。申请不要求粉丝量，只看过去半年是否有稳定的作品产出。',
+      '入选后可以获得 Cloud+ 空间扩容、官方素材授权，以及作品在资讯流里的推荐位。'
+    ]
+  }
+];
+
+const PAST = [
+  {
+    month: '2026-10', label: '2026年10月',
+    items: [{ title: '八周年庆典', date: '10月3日', img: '26hezhao2.webp', desc: '主城长桌 · 128 人到场' }]
+  },
+  {
+    month: '2026-09', label: '2026年9月',
+    items: [
+      { title: '夏末生存挑战', date: '9月20日', img: '2025sleep.webp', desc: '七天限时 · 12 支队伍' },
+      { title: '红石课堂 第四讲', date: '9月6日', img: 'blockschool.webp', desc: '从与门到计数器' }
+    ]
+  },
+  {
+    month: '2026-08', label: '2026年8月',
+    items: [
+      { title: '方块音乐会', date: '8月16日', img: 'bingo.webp', desc: '音符盒合奏 · 9 首曲目' },
+      { title: '夏日建筑赛', date: '8月2日', img: 'main2.webp', desc: '主题「水边小屋」' }
+    ]
+  },
+  {
+    month: '2026-07', label: '2026年7月',
+    items: [{ title: '云上咖啡店开业', date: '7月19日', img: '26coffee2.webp', desc: '限时菜单 · 三款特调' }]
+  }
+];
+
+const ACTIVITY_DETAIL = {
+  a2: {
+    cat: '报名中', title: '建筑接力赛 第三季', img: 'blockofhomepage.webp',
+    meta: ['报名截止 10月25日', '已报名 46 队', '每队最多 3 人'],
+    body: ['每队拿到同一块地形，限时 48 小时接力建造——但下一棒只能看到上一棒留下的截图，看不到存档。', '评分看「整体感」而不是「单体完成度」，所以沟通比技术重要。']
+  },
+  a3: {
+    cat: '即将开始', title: '光影摄影征集', img: '26hezhaocamera.webp',
+    meta: ['11月1日开启', '主题「秋天的方块」', '每人限投 3 张'],
+    body: ['不限题材，只要画面里有一块是方块搭的。允许使用光影包，需在说明里注明。', '入选作品会进摄影集，并在资讯流的节目段做一期特辑。']
+  }
+};
+
+const NEWS_CATS = ['官方通知', '更新日志', '活动公告', '社区动态'];
+const SHOW_CATS = ['生存挑战', '模拟建设', '特别活动'];
+
+// ============================================================
+// 状态
+// ============================================================
+const state = {
+  name: '资讯',
+  mode: 'merge',
+  seg: 'feed',
+  filter: 'all',
+  query: '',
+  menuOpen: false
+};
+
+const NAMES = {
+  '资讯': { kicker: 'BOH 新闻社 · BOH SHOWS', sub: '新闻、活动、节目，都在这一页 —— 读、参与、看，三种消费方式不再各占一个入口。' },
+  '动态': { kicker: 'BOH 官方动态', sub: '官方发布了什么，一页看完。时间倒序，最新的永远在最上面。' },
+  'BOH 频道': { kicker: 'BOH CHANNEL', sub: '新闻频道 · 活动频道 · 节目频道 —— 三个频道，一个落点。' }
+};
+
+const el = {
+  tabsInner: document.getElementById('tabsInner'),
+  indicator: document.getElementById('tabIndicator'),
+  feed: document.getElementById('seg-feed'),
+  shows: document.getElementById('seg-shows'),
+  events: document.getElementById('seg-events'),
+  featuredHost: document.getElementById('featuredHost'),
+  feedGrid: document.getElementById('feedGrid'),
+  feedEmpty: document.getElementById('feedEmpty'),
+  showsGrid: document.getElementById('showsGrid'),
+  showsEmpty: document.getElementById('showsEmpty'),
+  railsHost: document.getElementById('railsHost'),
+  pastEmpty: document.getElementById('pastEmpty'),
+  campaignWrap: document.getElementById('campaignWrap'),
+  filterNote: document.getElementById('filterNote'),
+  pageTitle: document.getElementById('pageTitle'),
+  kicker: document.getElementById('kicker'),
+  sub: document.getElementById('pageSub'),
+  navCurrent: document.getElementById('navCurrent'),
+  query: document.getElementById('navQuery'),
+  clear: document.getElementById('toolsClear'),
+  filterBtn: document.getElementById('toolsFilter'),
+  filterLabel: document.getElementById('filterLabel'),
+  options: document.getElementById('toolsOptions')
+};
+
+// ============================================================
+// 工具
+// ============================================================
+const fmtDate = (iso) => {
+  const [, m, d] = iso.split('-');
+  return Number(m) + '月' + Number(d) + '日';
+};
+
+const imgTag = (name) =>
+  '<img src="' + IMG(name) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
+
+const playIcon =
+  '<span class="play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></span>';
+
+// ============================================================
+// 段控
+// ============================================================
+function tabsForMode() {
+  return state.mode === 'merge'
+    ? [{ id: 'feed', label: '资讯流' }, { id: 'events', label: '活动' }]
+    : [{ id: 'feed', label: '新闻' }, { id: 'events', label: '活动' }, { id: 'shows', label: '节目' }];
+}
+
+function renderTabs() {
+  const tabs = tabsForMode();
+  if (!tabs.some((t) => t.id === state.seg)) state.seg = 'feed';
+
+  el.tabsInner.querySelectorAll('.tab').forEach((node) => node.remove());
+
+  tabs.forEach((tab) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tab' + (tab.id === state.seg ? ' is-active' : '');
+    btn.textContent = tab.label;
+    btn.dataset.seg = tab.id;
+    btn.addEventListener('click', () => {
+      state.seg = tab.id;
+      state.filter = 'all';
+      closeMenu();
+      renderTabs();
+      renderAll();
+    });
+    el.tabsInner.appendChild(btn);
+  });
+
+  requestAnimationFrame(moveIndicator);
+}
+
+function moveIndicator() {
+  const active = el.tabsInner.querySelector('.tab.is-active');
+  if (!active) return;
+  el.indicator.style.width = active.offsetWidth + 'px';
+  el.indicator.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+}
+
+function renderSegments() {
+  const map = { feed: el.feed, shows: el.shows, events: el.events };
+  Object.keys(map).forEach((key) => {
+    const node = map[key];
+    node.hidden = state.seg !== key;
+    if (!node.hidden) {
+      node.classList.remove('is-in');
+      void node.offsetWidth;
+      node.classList.add('is-in');
+    }
+  });
+  moveIndicator();
+}
+
+// ============================================================
+// 岛上的筛选：选项集合按段切换
+// ============================================================
+function filterSpec() {
+  if (state.seg === 'events') {
+    return {
+      primary: [
+        { v: 'all', l: '全部活动' },
+        { v: 'campaign', l: '报名中' },
+        { v: 'past', l: '往期' }
+      ],
+      cats: []
+    };
+  }
+
+  if (state.seg === 'shows') {
+    return {
+      primary: [{ v: 'all', l: '全部节目' }],
+      cats: [{ label: '节目分类', items: SHOW_CATS.map((c) => ({ v: 'show:' + c, l: c })) }]
+    };
+  }
+
+  if (state.mode === 'split') {
+    return {
+      primary: [{ v: 'all', l: '全部新闻' }],
+      cats: [{ label: '新闻分类', items: NEWS_CATS.map((c) => ({ v: 'news:' + c, l: c })) }]
+    };
+  }
+
+  return {
+    primary: [
+      { v: 'all', l: '全部内容' },
+      { v: 'news', l: '只看新闻' },
+      { v: 'show', l: '只看节目' }
+    ],
+    cats: [
+      { label: '新闻分类', items: NEWS_CATS.map((c) => ({ v: 'news:' + c, l: c })) },
+      { label: '节目分类', items: SHOW_CATS.map((c) => ({ v: 'show:' + c, l: c })) }
+    ]
+  };
+}
+
+function optionRow(o) {
+  const sel = state.filter === o.v;
+  return '<button type="button" role="option" data-filter="' + o.v + '"' +
+    (sel ? ' class="is-selected" aria-selected="true"' : ' aria-selected="false"') + '>' +
+    '<span>' + o.l + '</span>' +
+    '<svg class="opt-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>' +
+    '</button>';
+}
+
+function optionGroup(label, items) {
+  if (!items.length) return '';
+  return '<div class="opt-group">' +
+    (label ? '<span class="opt-label">' + label + '</span>' : '') +
+    items.map(optionRow).join('') +
+    '</div>';
+}
+
+function renderOptions() {
+  const spec = filterSpec();
+
+  // 触发器上始终显示「当前筛的是什么」——切换结果不用点开才知道
+  el.filterLabel.textContent = filterLabel() || '全部';
+  el.filterBtn.classList.toggle('is-active', state.filter !== 'all');
+  el.filterBtn.classList.toggle('is-open', state.menuOpen);
+  el.filterBtn.setAttribute('aria-expanded', state.menuOpen ? 'true' : 'false');
+
+  if (!state.menuOpen) {
+    el.options.hidden = true;
+    return;
+  }
+
+  let html = optionGroup('类型', spec.primary);
+  spec.cats.forEach((group) => { html += optionGroup(group.label, group.items); });
+  el.options.innerHTML = html;
+  el.options.hidden = false;
+
+  // 分类多到要滚动时，把选中项带进可视区；已经在视野里就一格都不滚
+  // （无条件设 scrollTop 会把分组标题顶出面板，看起来像被裁掉一截）
+  const sel = el.options.querySelector('.is-selected');
+  if (sel) {
+    const top = sel.offsetTop;
+    const bottom = top + sel.offsetHeight;
+    const viewTop = el.options.scrollTop;
+    const viewBottom = viewTop + el.options.clientHeight;
+    if (top < viewTop) el.options.scrollTop = Math.max(0, top - 6);
+    else if (bottom > viewBottom) el.options.scrollTop = bottom - el.options.clientHeight + 6;
+  }
+}
+
+function closeMenu() {
+  state.menuOpen = false;
+  renderOptions();
+}
+
+function filterLabel() {
+  const spec = filterSpec();
+  const all = spec.primary.concat(...spec.cats.map((g) => g.items));
+  const hit = all.find((o) => o.v === state.filter);
+  return hit ? hit.l : '';
+}
+
+// ============================================================
+// 过滤
+// ============================================================
+function matchFilter(item) {
+  const f = state.filter;
+  if (!f || f === 'all') return true;
+  if (f === 'news') return item.kind === 'news';
+  if (f === 'show') return item.kind === 'show';
+  const [kind, cat] = f.split(':');
+  return item.kind === kind && item.cat === cat;
+}
+
+function matchQuery(text) {
+  const q = state.query.trim().toLowerCase();
+  if (!q) return true;
+  return String(text).toLowerCase().includes(q);
+}
+
+function itemMatches(item) {
+  return matchFilter(item) && matchQuery(item.title + ' ' + item.excerpt + ' ' + item.author);
+}
+
+// ============================================================
+// 资讯流
+// ============================================================
+function visibleItems() {
+  let list = ITEMS.slice();
+  if (state.mode === 'split') list = list.filter((i) => i.kind === 'news');
+  return list.filter(itemMatches).sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+function cardHtml(item) {
+  const isShow = item.kind === 'show';
+  return (
+    '<article class="card" data-detail="' + item.id + '" tabindex="0" role="button">' +
+      '<div class="thumb">' + imgTag(item.img) + (isShow ? playIcon : '') +
+        '<span class="date-pill">' + fmtDate(item.date) + '</span></div>' +
+      '<div class="card-body">' +
+        '<span class="cat' + (isShow ? ' is-show' : '') + '">' +
+          (isShow ? '节目 · ' + item.cat : item.cat) + '</span>' +
+        '<h3>' + item.title + '</h3>' +
+        '<p>' + item.excerpt + '</p>' +
+        '<div class="meta-row">' +
+          '<span class="avatar">' + (isShow ? '节' : item.author.slice(0, 1)) + '</span>' +
+          '<span>' + item.author + '</span>' +
+          '<span class="read">' + (isShow ? '立即观看 ↗' : '阅读全文 →') + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</article>'
+  );
+}
+
+function renderFeed() {
+  const list = visibleItems();
+  const featured = list.find((i) => i.featured) || list[0];
+  const rest = list.filter((i) => i !== featured);
+
+  if (featured) {
+    el.featuredHost.innerHTML =
+      '<article class="featured" data-detail="' + featured.id + '" tabindex="0" role="button">' +
+        '<div class="featured-media">' + imgTag(featured.img) +
+          '<span class="date-pill">' + fmtDate(featured.date) + '</span></div>' +
+        '<div class="featured-body">' +
+          '<span class="cat' + (featured.kind === 'show' ? ' is-show' : '') + '">' +
+            (featured.kind === 'show' ? '节目 · ' + featured.cat : featured.cat) + '</span>' +
+          '<h2>' + featured.title + '</h2>' +
+          '<p class="excerpt">' + featured.excerpt + '</p>' +
+          '<div class="meta-row">' +
+            '<span class="avatar">' + (featured.kind === 'show' ? '节' : featured.author.slice(0, 1)) + '</span>' +
+            '<span>' + featured.author + '</span>' +
+            '<span class="read">' + (featured.kind === 'show' ? '立即观看 ↗' : '阅读全文 →') + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</article>';
+  } else {
+    el.featuredHost.innerHTML = '';
+  }
+
+  el.feedGrid.innerHTML = rest.map(cardHtml).join('');
+  el.feedEmpty.hidden = list.length > 0;
+}
+
+function renderShows() {
+  const shows = ITEMS.filter((i) => i.kind === 'show').filter(itemMatches);
+  el.showsGrid.innerHTML = shows.map(cardHtml).join('');
+  el.showsEmpty.hidden = shows.length > 0;
+}
+
+// ============================================================
+// 活动段
+// ============================================================
+function renderEvents() {
+  const f = state.filter;
+  const showCampaigns = f === 'all' || f === 'campaign';
+  const showPast = f === 'all' || f === 'past';
+
+  el.campaignWrap.hidden = !showCampaigns;
+
+  let shown = 0;
+  el.railsHost.innerHTML = showPast
+    ? PAST.map((group) => {
+        const items = group.items.filter((a) => matchQuery(a.title + ' ' + a.desc));
+        if (!items.length) return '';
+        shown += items.length;
+        return '<div class="rail">' +
+          '<div class="rail-head"><h3>' + group.label + '</h3><span>' + items.length + ' 场</span></div>' +
+          '<div class="rail-track">' +
+            items.map((a) =>
+              '<article class="act-card" tabindex="0" role="button" data-detail="past">' +
+                '<div class="act-thumb">' + imgTag(a.img) +
+                  '<span class="date-pill">' + a.date + '</span></div>' +
+                '<div class="act-body"><h4>' + a.title + '</h4><p>' + a.desc + '</p></div>' +
+              '</article>'
+            ).join('') +
+          '</div>' +
+        '</div>';
+      }).join('')
+    : '';
+
+  el.pastEmpty.hidden = !showPast || shown > 0;
+  document.getElementById('pastWrap').hidden = !showPast;
+}
+
+// ============================================================
+// 页内提示（筛选态只留一行字）
+// ============================================================
+function renderNote() {
+  const parts = [];
+  if (state.filter !== 'all') parts.push('已筛选：<b>' + filterLabel() + '</b>');
+  if (state.query.trim()) parts.push('搜索：<b>' + state.query.trim() + '</b>');
+
+  if (!parts.length) {
+    el.filterNote.hidden = true;
+    el.filterNote.innerHTML = '';
+    return;
+  }
+
+  el.filterNote.hidden = false;
+  el.filterNote.innerHTML =
+    '<span>' + parts.join(' · ') + '</span>' +
+    '<button type="button" id="resetFilter">清除</button>';
+}
+
+// ============================================================
+// 详情岛
+// ============================================================
+const layer = document.getElementById('detailLayer');
+const detailImg = document.getElementById('detailImg');
+const detailCat = document.getElementById('detailCat');
+const detailTitle = document.getElementById('detailTitle');
+const detailMeta = document.getElementById('detailMeta');
+const detailBody = document.getElementById('detailBody');
+const detailLink = document.getElementById('detailLink');
+let lastFocus = null;
+
+function openDetail(id) {
+  let data = null;
+
+  if (id === 'past') {
+    data = {
+      cat: '往期活动', title: '活动回顾', img: '',
+      meta: ['按月归档', '点击任意活动查看详情'],
+      body: ['这里演示的是往期活动的详情形态：与新闻一致，都走导航栏延伸岛，不再各自实现一套模态框。']
+    };
+  } else if (ACTIVITY_DETAIL[id]) {
+    data = ACTIVITY_DETAIL[id];
+  } else {
+    const item = ITEMS.find((i) => i.id === id);
+    if (!item) return;
+    data = {
+      cat: item.kind === 'show' ? '节目 · ' + item.cat : item.cat,
+      title: item.title, img: item.img,
+      meta: [fmtDate(item.date), item.author, item.episodes || '阅读约 3 分钟'],
+      body: item.body, link: item.link
+    };
+  }
+
+  detailCat.textContent = data.cat;
+  detailCat.className = 'cat' + (String(data.cat).indexOf('节目') === 0 ? ' is-show' : '');
+  detailTitle.textContent = data.title;
+  detailMeta.innerHTML = (data.meta || []).map((m) => '<span>' + m + '</span>').join('');
+  detailBody.innerHTML = (data.body || []).map((p) => '<p>' + p + '</p>').join('');
+
+  if (data.img) {
+    detailImg.src = IMG(data.img);
+    detailImg.style.display = '';
+  } else {
+    detailImg.style.display = 'none';
+  }
+
+  if (data.link) {
+    detailLink.href = data.link;
+    detailLink.textContent = '在 B 站观看 ↗';
+    detailLink.hidden = false;
+  } else {
+    detailLink.hidden = true;
+  }
+
+  lastFocus = document.activeElement;
+  layer.hidden = false;
+  requestAnimationFrame(() => layer.classList.add('is-open'));
+  document.getElementById('detailCard').scrollTop = 0;
+  document.getElementById('detailClose').focus();
+}
+
+function closeDetail() {
+  layer.classList.remove('is-open');
+  setTimeout(() => { layer.hidden = true; }, 260);
+  if (lastFocus && lastFocus.focus) lastFocus.focus();
+}
+
+// ============================================================
+// 统一渲染
+// ============================================================
+function renderAll() {
+  renderOptions();
+  renderNote();
+  renderFeed();
+  renderShows();
+  renderEvents();
+  renderSegments();
+}
+
+// ============================================================
+// 事件
+// ============================================================
+document.addEventListener('click', (e) => {
+  // 岛的筛选项
+  const opt = e.target.closest('[data-filter]');
+  if (opt) {
+    state.filter = opt.dataset.filter;
+    // 与真实实现一致：选中即收起（GlobalNavStatusCard.selectNewsFilter）
+    state.menuOpen = false;
+    renderAll();
+    return;
+  }
+
+  if (e.target.closest('#resetFilter')) {
+    state.filter = 'all';
+    state.query = '';
+    el.query.value = '';
+    el.clear.hidden = true;
+    renderAll();
+    return;
+  }
+
+  if (e.target.closest('#toolsFilter')) {
+    state.menuOpen = !state.menuOpen;
+    renderOptions();
+    return;
+  }
+
+  // 点空白处收起筛选面板
+  if (state.menuOpen && !e.target.closest('#navTools')) {
+    state.menuOpen = false;
+    renderOptions();
+  }
+
+  const trigger = e.target.closest('[data-detail]');
+  if (trigger) {
+    openDetail(trigger.dataset.detail);
+    return;
+  }
+
+  if (e.target.closest('#detailClose')) closeDetail();
+  if (e.target === layer) closeDetail();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (layer.classList.contains('is-open')) { closeDetail(); return; }
+    if (state.menuOpen) { closeMenu(); return; }
+  }
+  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement?.dataset?.detail) {
+    e.preventDefault();
+    openDetail(document.activeElement.dataset.detail);
+  }
+});
+
+// 岛内搜索
+el.query.addEventListener('input', () => {
+  state.query = el.query.value;
+  el.clear.hidden = !state.query;
+  renderAll();
+});
+
+el.clear.addEventListener('click', () => {
+  el.query.value = '';
+  state.query = '';
+  el.clear.hidden = true;
+  renderAll();
+  el.query.focus();
+});
+
+document.getElementById('navSearchBtn').addEventListener('click', () => el.query.focus());
+
+// ============================================================
+// 命名 / 形态切换
+// ============================================================
+function applyName(name) {
+  state.name = name;
+  el.pageTitle.textContent = name;
+  el.kicker.textContent = NAMES[name].kicker;
+  el.sub.textContent = NAMES[name].sub;
+  el.navCurrent.textContent = name;
+  document.title = name + ' · BOH 三页合并演示';
+}
+
+document.querySelectorAll('[data-name]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-name]').forEach((b) => b.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    applyName(btn.dataset.name);
+  });
+});
+
+document.querySelectorAll('[data-mode]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-mode]').forEach((b) => b.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    state.mode = btn.dataset.mode;
+    state.seg = 'feed';
+    state.filter = 'all';
+    closeMenu();
+    renderTabs();
+    renderAll();
+  });
+});
+
+// 深浅色
+document.getElementById('themeBtn').addEventListener('click', () => {
+  document.documentElement.dataset.theme =
+    document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+});
+
+// ============================================================
+// 段控吸附态 + 初始化
+// ============================================================
+const tabsBar = document.getElementById('tabsBar');
+const syncTabsStuck = () => {
+  tabsBar.classList.toggle('is-stuck', tabsBar.getBoundingClientRect().top <= 13);
+};
+window.addEventListener('scroll', syncTabsStuck, { passive: true });
+
+applyName('资讯');
+renderTabs();
+renderAll();
+syncTabsStuck();
+
+window.addEventListener('resize', () => { moveIndicator(); syncTabsStuck(); });
+window.addEventListener('load', moveIndicator);
+</script>
+</body>
+</html>

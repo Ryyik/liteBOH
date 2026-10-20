@@ -506,7 +506,8 @@ export const SITE_SEARCH_SOURCES: SiteSearchSource[] = [
         title: String(row.title || row.slug || '未命名活动'),
         excerpt: buildLocalExcerpt(row.description || '', query),
         meta: String(row.stage || ''),
-        route: '/activities-wall',
+        // 2026-10-20：/activities-wall 退场，活动成为资讯页的一段
+        route: '/newsroom?tab=activities',
         badge: '活动',
       }));
     },
@@ -524,7 +525,8 @@ export const SITE_SEARCH_SOURCES: SiteSearchSource[] = [
         title: String(row.title || '未命名节目'),
         excerpt: buildLocalExcerpt(row.description || '', query),
         meta: String(row.author_username || ''),
-        route: '/shows',
+        // 2026-10-20：/shows 退场，节目已混排进资讯流 ⇒ 落到「只看节目」筛选态
+        route: '/newsroom?filter=show:all',
         badge: '节目',
       }));
     },

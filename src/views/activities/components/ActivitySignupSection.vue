@@ -11,40 +11,40 @@
  *
  * 首张卡为主卡（放大突出），其余进次卡横滑轨道。
  */
-import { computed } from "vue";
-import EmptyState from "@/components/ui/EmptyState.vue";
-import { CAMPAIGN_STAGE_LABELS } from "@/composables/useCampaigns.js";
+import { computed } from 'vue';
+import EmptyState from '@/components/ui/EmptyState.vue';
+import { CAMPAIGN_STAGE_LABELS } from '@/composables/useCampaigns.js';
 
 const props = defineProps({
   campaigns: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
-  isLoggedIn: { type: Boolean, default: false }
+  isLoggedIn: { type: Boolean, default: false },
 });
 
-defineEmits(["signup"]);
+defineEmits(['signup']);
 
 const primary = computed(() => props.campaigns[0] || null);
 const secondary = computed(() => props.campaigns.slice(1));
 
-const stageLabel = (stage) => CAMPAIGN_STAGE_LABELS[stage] || stage || "";
+const stageLabel = (stage) => CAMPAIGN_STAGE_LABELS[stage] || stage || '';
 
 const formatWindow = (camp) => {
   const fmt = (iso) => {
-    if (!iso) return "";
+    if (!iso) return '';
     const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return "";
+    if (Number.isNaN(date.getTime())) return '';
     return `${date.getMonth() + 1}.${date.getDate()}`;
   };
   const start = fmt(camp?.startAt || camp?.signupStartAt);
   const end = fmt(camp?.endAt || camp?.signupEndAt);
-  if (!start && !end) return "";
-  return `${start || "…"} - ${end || "…"}`;
+  if (!start && !end) return '';
+  return `${start || '…'} - ${end || '…'}`;
 };
 
 const buttonLabel = (camp) => {
-  if (camp?.signedUp) return "已报名";
-  if (camp?.signingUp) return "报名中…";
-  return "立即报名";
+  if (camp?.signedUp) return '已报名';
+  if (camp?.signingUp) return '报名中…';
+  return '立即报名';
 };
 </script>
 
@@ -65,8 +65,12 @@ const buttonLabel = (camp) => {
       <article class="signup-hero liquid-glass" :data-stage="primary.stage">
         <div class="signup-hero__main">
           <div class="signup-hero__top">
-            <span class="signup-stage-chip" :data-stage="primary.stage">{{ stageLabel(primary.stage) }}</span>
-            <span v-if="formatWindow(primary)" class="signup-window">{{ formatWindow(primary) }}</span>
+            <span class="signup-stage-chip" :data-stage="primary.stage">{{
+              stageLabel(primary.stage)
+            }}</span>
+            <span v-if="formatWindow(primary)" class="signup-window">{{
+              formatWindow(primary)
+            }}</span>
           </div>
           <h3 class="signup-hero__title">{{ primary.title }}</h3>
           <p v-if="primary.description" class="signup-hero__desc">{{ primary.description }}</p>
@@ -87,7 +91,9 @@ const buttonLabel = (camp) => {
       <div v-if="secondary.length" class="signup-more">
         <article v-for="camp in secondary" :key="camp.id" class="signup-card liquid-glass">
           <div class="signup-card__top">
-            <span class="signup-stage-chip" :data-stage="camp.stage">{{ stageLabel(camp.stage) }}</span>
+            <span class="signup-stage-chip" :data-stage="camp.stage">{{
+              stageLabel(camp.stage)
+            }}</span>
             <span v-if="formatWindow(camp)" class="signup-window">{{ formatWindow(camp) }}</span>
           </div>
           <h3 class="signup-card__title">{{ camp.title }}</h3>
@@ -153,7 +159,9 @@ const buttonLabel = (camp) => {
   box-shadow: 0 10px 34px rgba(0, 113, 227, 0.08);
 }
 
-.signup-hero__main { min-width: 0; }
+.signup-hero__main {
+  min-width: 0;
+}
 
 .signup-hero__top {
   display: flex;
@@ -210,7 +218,9 @@ const buttonLabel = (camp) => {
   padding-inline: 8px;
 }
 
-.signup-more::-webkit-scrollbar { display: none; }
+.signup-more::-webkit-scrollbar {
+  display: none;
+}
 
 .signup-card {
   display: flex;
@@ -261,8 +271,14 @@ const buttonLabel = (camp) => {
   white-space: nowrap;
 }
 
-.signup-stage-chip[data-stage="judging"] { color: #854f0b; background: rgba(250, 238, 218, 0.9); }
-.signup-stage-chip[data-stage="result"] { color: #3b6d11; background: rgba(234, 243, 222, 0.9); }
+.signup-stage-chip[data-stage='judging'] {
+  color: #854f0b;
+  background: rgba(250, 238, 218, 0.9);
+}
+.signup-stage-chip[data-stage='result'] {
+  color: #3b6d11;
+  background: rgba(234, 243, 222, 0.9);
+}
 
 .signup-window {
   font-size: 12px;
@@ -282,7 +298,10 @@ const buttonLabel = (camp) => {
   color: #ffffff;
   background: #0071e3;
   cursor: pointer;
-  transition: transform 0.16s ease, background-color 0.16s ease, opacity 0.16s ease;
+  transition:
+    transform 0.16s ease,
+    background-color 0.16s ease,
+    opacity 0.16s ease;
 }
 
 .signup-btn--sm {
@@ -293,10 +312,21 @@ const buttonLabel = (camp) => {
   font-size: 13px;
 }
 
-.signup-btn:hover:not(:disabled) { background: #0077ed; transform: translateY(-1px); }
-.signup-btn:active:not(:disabled) { transform: scale(0.97); }
-.signup-btn:disabled { opacity: 0.55; cursor: default; }
-.signup-btn:focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
+.signup-btn:hover:not(:disabled) {
+  background: #0077ed;
+  transform: translateY(-1px);
+}
+.signup-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.signup-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.signup-btn:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 2px;
+}
 
 /* ---- 骨架 ---- */
 .signup-hero--skeleton {
@@ -311,12 +341,45 @@ const buttonLabel = (camp) => {
   background: #edf0f4;
 }
 
-.signup-skeleton-bar--chip { width: 76px; height: 24px; border-radius: 999px; }
-.signup-skeleton-bar--title { width: 42%; height: 26px; }
-.signup-skeleton-bar--line { width: 68%; height: 14px; border-radius: 999px; }
+.signup-skeleton-bar--chip {
+  width: 76px;
+  height: 24px;
+  border-radius: 999px;
+}
+.signup-skeleton-bar--title {
+  width: 42%;
+  height: 26px;
+}
+.signup-skeleton-bar--line {
+  width: 68%;
+  height: 14px;
+  border-radius: 999px;
+}
+
+/* 空态收窄（2026-10-20 内容页合并）：
+   本区并入 /newsroom 后，空态与「最新头条」上下相接 —— 默认 96px 插画块 + compact
+   的 32px 内衬在首屏占掉近半屏（实测截图），而 activity_campaigns 长期 0 行
+   （见文件头），用户几乎永远看到这个空态。只在本组件内收窄，不动全局 EmptyState
+   （那是其它页面共用的观感基线）。 */
+.signup-section :deep(.empty-state--compact) {
+  padding: 20px 20px 18px;
+}
+.signup-section :deep(.empty-state__art) {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 10px;
+  border-radius: 20px;
+}
+.signup-section :deep(.empty-state__art svg) {
+  width: 40px;
+  height: 40px;
+}
 
 @media (max-width: 768px) {
-  .signup-section { padding: 0 20px; margin-bottom: 30px; }
+  .signup-section {
+    padding: 0 20px;
+    margin-bottom: 30px;
+  }
 
   .signup-hero {
     flex-direction: column;
@@ -325,36 +388,80 @@ const buttonLabel = (camp) => {
     padding: 20px;
   }
 
-  .signup-hero__title { font-size: 20px; }
-  .signup-hero__action { align-items: stretch; }
-  .signup-btn { width: 100%; min-width: 0; }
-  .signup-card { width: clamp(200px, 74%, 280px); }
+  .signup-hero__title {
+    font-size: 20px;
+  }
+  .signup-hero__action {
+    align-items: stretch;
+  }
+  .signup-btn {
+    width: 100%;
+    min-width: 0;
+  }
+  .signup-card {
+    width: clamp(200px, 74%, 280px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .signup-btn { transition: none; }
-  .signup-btn:hover:not(:disabled) { transform: none; }
+  .signup-btn {
+    transition: none;
+  }
+  .signup-btn:hover:not(:disabled) {
+    transform: none;
+  }
 }
 
-html[data-theme="dark"] .signup-section__title { color: #f5f5f7; }
-html[data-theme="dark"] .signup-section__hint { color: #6e6e73; }
+html[data-theme='dark'] .signup-section__title {
+  color: #f5f5f7;
+}
+html[data-theme='dark'] .signup-section__hint {
+  color: #6e6e73;
+}
 
-html[data-theme="dark"] .signup-hero {
+html[data-theme='dark'] .signup-hero {
   background: rgba(28, 28, 30, 0.62);
   border-color: rgba(10, 132, 255, 0.22);
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35);
 }
 
-html[data-theme="dark"] .signup-hero__title { color: #f5f5f7; }
-html[data-theme="dark"] .signup-hero__desc { color: #a1a1a6; }
-html[data-theme="dark"] .signup-hero__note { color: #6e6e73; }
-html[data-theme="dark"] .signup-card { background: rgba(44, 44, 46, 0.72); }
-html[data-theme="dark"] .signup-card__title { color: #f5f5f7; }
-html[data-theme="dark"] .signup-card__desc { color: #a1a1a6; }
-html[data-theme="dark"] .signup-window { color: #98989d; }
-html[data-theme="dark"] .signup-stage-chip { color: #6cb2ff; background: rgba(10, 132, 255, 0.16); }
-html[data-theme="dark"] .signup-stage-chip[data-stage="judging"] { color: #ffd60a; background: rgba(255, 214, 10, 0.12); }
-html[data-theme="dark"] .signup-stage-chip[data-stage="result"] { color: #32d74b; background: rgba(50, 215, 75, 0.12); }
-html[data-theme="dark"] .signup-btn { background: #0a84ff; }
-html[data-theme="dark"] .signup-skeleton-bar { background: #1a1e26; }
+html[data-theme='dark'] .signup-hero__title {
+  color: #f5f5f7;
+}
+html[data-theme='dark'] .signup-hero__desc {
+  color: #a1a1a6;
+}
+html[data-theme='dark'] .signup-hero__note {
+  color: #6e6e73;
+}
+html[data-theme='dark'] .signup-card {
+  background: rgba(44, 44, 46, 0.72);
+}
+html[data-theme='dark'] .signup-card__title {
+  color: #f5f5f7;
+}
+html[data-theme='dark'] .signup-card__desc {
+  color: #a1a1a6;
+}
+html[data-theme='dark'] .signup-window {
+  color: #98989d;
+}
+html[data-theme='dark'] .signup-stage-chip {
+  color: #6cb2ff;
+  background: rgba(10, 132, 255, 0.16);
+}
+html[data-theme='dark'] .signup-stage-chip[data-stage='judging'] {
+  color: #ffd60a;
+  background: rgba(255, 214, 10, 0.12);
+}
+html[data-theme='dark'] .signup-stage-chip[data-stage='result'] {
+  color: #32d74b;
+  background: rgba(50, 215, 75, 0.12);
+}
+html[data-theme='dark'] .signup-btn {
+  background: #0a84ff;
+}
+html[data-theme='dark'] .signup-skeleton-bar {
+  background: #1a1e26;
+}
 </style>

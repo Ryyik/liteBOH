@@ -40,6 +40,35 @@
   text-align: left;
 }
 .news-header-copy { min-width: 0; }
+
+/* ---------- 段控（2026-10-20 内容页合并）---------- */
+/* SegmentTabs 的顶部避让默认读 --userspace-nav-h + safe-area，那是给 UserSpace 的。
+   这里页头（.news-header）已经吃掉了 --nav-h 的避让，段控只需要一点呼吸 ⇒ 显式压到 8px。
+   ⚠️ 不能再加 --nav-h 的避让，否则段控会被顶进导航岛下方。 */
+.news-segment-tabs {
+  --segment-tabs-inset: 8px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-bottom: 4px;
+  /* SegmentTabs 内部是 `justify-content: center`（UserSpace 的居中观感）。
+     本页页头与内容都是左对齐，段控居中会显得悬空 ⇒ 这里只把「文字」推到左侧对齐线，
+     下划线指示条仍由组件自己按 item 位置计算，不受影响。
+     1180 容器 + 32 内衬 = 与 .news-header 的 copy 左缘对齐。 */
+  padding-left: 32px;
+  padding-right: 32px;
+  justify-content: flex-start;
+}
+.news-segment-tabs :deep(.segment-tabs) {
+  justify-content: flex-start;
+}
+
+/* 活动段容器：与资讯流容器同样居中；左右留白由活动面板的 --activity-rail-gutter 管 */
+.news-activities-pane {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 8px 0 96px;
+}
+
 .news-kicker {
   margin: 0 0 12px;
   color: #667085;

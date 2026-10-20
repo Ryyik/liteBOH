@@ -112,15 +112,46 @@ describe('compat route registry（兼容层唯一登记处）', () => {
 
   it('命名跳转保持：BlockWall / Activities 仍可按 name 解析（name 兜底保留）', () => {
     expect(findCompat('/block-wall').name).toBe('BlockWall');
-    // 方块墙 2026-10-19 退场：/block-wall 落纯活动页，?tab=wall 不复存在
+    // 方块墙 2026-10-19 退场 → 活动段；2026-10-20 内容页合并后再落到资讯页的活动段
     expect(findCompat('/block-wall').redirect({ query: { tab: 'wall' } })).toEqual({
-      path: '/activities-wall',
+      path: '/newsroom',
+      query: { tab: 'activities' },
     });
     expect(findCompat('/activities').name).toBe('Activities');
     expect(findCompat('/activities').children.map((child) => child.name)).toEqual([
       'ActivitiesPhotoWall',
       'ActivitiesList',
     ]);
+  });
+
+  it('内容页合并（2026-10-20）：活动与节目旧路径落「资讯」页对应段', () => {
+    // /activities-wall 独立页退场 ⇒ 活动成为 /newsroom 的一段
+    expect(findCompat('/activities-wall').redirect({ query: {} })).toEqual({
+      path: '/newsroom',
+      query: { tab: 'activities' },
+    });
+    // 旧活动深链（含子路径）同样落活动段，query 透传
+    expect(findCompat('/activities').redirect({ query: { from: 'x' } })).toEqual({
+      path: '/newsroom',
+      query: { from: 'x', tab: 'activities' },
+    });
+    const activityChildren = findCompat('/activities').children;
+    expect(
+      activityChildren.find((c) => c.name === 'ActivitiesList').redirect({ query: {} }),
+    ).toEqual({
+      path: '/newsroom',
+      query: { tab: 'activities' },
+    });
+    expect(
+      activityChildren.find((c) => c.name === 'ActivitiesPhotoWall').redirect({ query: {} }),
+    ).toEqual({ path: '/newsroom', query: { tab: 'activities' } });
+
+    // /shows 退场 ⇒ 节目已在资讯流里，落到「只看节目」筛选态
+    expect(findCompat('/shows').name).toBe('Shows');
+    expect(findCompat('/shows').redirect({ query: {} })).toEqual({
+      path: '/newsroom',
+      query: { filter: 'show:all' },
+    });
   });
 
   it('实验室退场：/lab 重定向到 BOHAI Work（2026-10-19）', () => {

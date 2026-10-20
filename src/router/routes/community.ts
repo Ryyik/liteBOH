@@ -10,6 +10,8 @@ export const communityRoutes: RouteRecordRaw[] = [
     meta: { requiresLogin: true },
   },
   {
+    // 资讯页（2026-10-20 内容页合并）：新闻 + 节目混排（?tab=feed 默认）+ 活动（?tab=activities）。
+    // 原 /activities-wall 独立页已收编进本页活动段，旧路径的重定向登记在 compat.ts。
     path: '/newsroom',
     name: 'Newsroom',
     component: () => import('../../views/Newsroom/index.vue'),
@@ -21,12 +23,9 @@ export const communityRoutes: RouteRecordRaw[] = [
     name: 'NewsDetail',
     component: () => import('../../views/Newsroom/NewsDetailPage.vue'),
   },
-  {
-    // 活动页（原「活动&方块墙」组合页，2026-10-19 方块墙退场后收编为纯活动页）
-    path: '/activities-wall',
-    name: 'ActivitiesWall',
-    component: () => import('../../views/ActivitiesWall/index.vue'),
-  },
+  // ⚠️ /activities-wall 已于 2026-10-20「内容页合并」退场 → /newsroom?tab=activities。
+  // 重定向**只能**登记在 routes/compat.ts：本文件只放真页面，
+  // compat-routes.test.js 会断言「各真页面路由文件里不再有 redirect 条目」。
   {
     path: '/lotteries',
     name: 'CommunityLotteries',

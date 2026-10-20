@@ -25,7 +25,7 @@ export const SITE_OPERATION_MEMORY = `
 - 礼物与地址: /user-space/gifts
 - 订阅计划: /user-space/subscriptions；积分与资产: /user-space?tab=posts&view=assets
 - Pushplus 推送设置: /user-space/pushplus-settings
-- 节目: /shows；/newsroom 的“新闻&节目”信息流里也混排精选节目
+- 资讯（新闻 + 节目 + 活动同页）: /newsroom（分段：?tab=activities 是活动）；节目筛选态加 ?filter=show:all
 - 登录: /login
 
 [用户高频操作]
@@ -45,9 +45,9 @@ export const SITE_OPERATION_MEMORY = `
    - 路径 A: /ai-chat
    - 路径 B: 底栏“AI”席（全站任意页面均可直达）
 
-4) 如何进入节目
-   - 路径 A: /shows
-   - 路径 B: /newsroom（“新闻&节目”信息流，节目与新闻混排）
+4) 如何进入节目 / 活动
+   - 节目: /newsroom?filter=show:all（资讯流筛到「只看节目」，页面底部还有创作者投稿节目）
+   - 活动: /newsroom?tab=activities（报名中的活动在最上方，往期按月份归档）
 
 5) 如何查看我的常用功能
    - /user-space “我”页：空间（动态）/ 资产（装扮、积分、订阅、订单、抽奖）/ 印象

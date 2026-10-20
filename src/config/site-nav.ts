@@ -34,9 +34,10 @@ export const SITE_NAV_ITEMS: SiteNavNode[] = [
     label: '社区',
     children: [
       { name: 'smart-overview', path: '/overview', label: '智能概览' },
-      { name: 'news-shows', path: '/newsroom', label: '新闻&节目' },
+      // 2026-10-20 内容页合并：原「新闻&节目」+「活动」两项并为一页「资讯」
+      // （/newsroom?tab=activities 是活动段；/activities-wall 已退场，见 compat.ts）
+      { name: 'newsroom', path: '/newsroom', label: '资讯' },
       { name: 'forum', path: '/?view=latest', label: '论坛' },
-      { name: 'activities-wall', path: '/activities-wall', label: '活动' },
       { name: 'photo-albums', path: '/albums', label: '摄影集' },
       { name: 'lotteries', path: '/lotteries', label: '抽奖' },
     ],

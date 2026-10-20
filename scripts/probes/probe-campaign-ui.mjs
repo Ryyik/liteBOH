@@ -62,7 +62,7 @@ await pageA.route('**/rest/v1/activity_campaigns*', async (route) => {
   });
 });
 
-await pageA.goto(BASE + '/#/activities-wall', { waitUntil: 'domcontentloaded' });
+await pageA.goto(BASE + '/#/newsroom?tab=activities', { waitUntil: 'domcontentloaded' });
 await pageA
   .locator('.signup-hero')
   .first()
@@ -103,7 +103,7 @@ await pageA.close();
 // ================= 场景 B：真实数据（报名区终态：主卡或空态）+ 月份分组 =================
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 watchErrors(page);
-await page.goto(BASE + '/#/activities-wall', { waitUntil: 'domcontentloaded' });
+await page.goto(BASE + '/#/newsroom?tab=activities', { waitUntil: 'domcontentloaded' });
 // 报名区（campaigns）与月份轨道（activities）是两条独立的异步链，
 // 只等其中一条会让另一条还在 loading 时就被断言 —— 分别等各自的终态。
 await page
@@ -275,7 +275,7 @@ await pageD.route('**/rest/v1/activities*', async (route) => {
   await route.continue();
 });
 
-await pageD.goto(BASE + '/#/activities-wall', { waitUntil: 'domcontentloaded' });
+await pageD.goto(BASE + '/#/newsroom?tab=activities', { waitUntil: 'domcontentloaded' });
 await pageD.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
   timeout: 30000,
 });

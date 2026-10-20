@@ -148,29 +148,45 @@ export const compatRoutes: RouteRecordRaw[] = [
     }),
   },
   {
-    // 旧活动页深链兼容：全部导向组合页的活动面板
+    // 旧活动页深链兼容：全部导向「资讯」页的活动段（2026-10-20 内容页合并后
+    // /activities-wall 独立页退场，活动成为 /newsroom 的一个段）。
     path: '/activities',
     name: 'Activities',
-    redirect: (to: any) => ({ path: '/activities-wall', query: { ...to.query } }),
+    redirect: (to: any) => ({ path: '/newsroom', query: { ...to.query, tab: 'activities' } }),
     children: [
       {
         path: 'photo-wall',
         name: 'ActivitiesPhotoWall',
-        redirect: (to: any) => ({ path: '/activities-wall', query: { ...to.query } }),
+        redirect: (to: any) => ({ path: '/newsroom', query: { ...to.query, tab: 'activities' } }),
       },
       {
         path: 'list',
         name: 'ActivitiesList',
-        redirect: (to: any) => ({ path: '/activities-wall', query: { ...to.query } }),
+        redirect: (to: any) => ({ path: '/newsroom', query: { ...to.query, tab: 'activities' } }),
       },
     ],
   },
   {
-    // 旧方块墙深链兼容。⚠️ name 供命名跳转兜底（原 CommunityTab 入口已随功能退场删除，
-    // 保留 name 以防存量命名引用）；方块墙 2026-10-19 退场后落纯活动页（?tab=wall 不复存在）。
+    // 活动墙退场兼容（2026-10-20 内容页合并）：/activities-wall → 资讯页活动段。
+    // 引入 2026-10-20 · 到期 2027-04-30（沿用 IA 类改造 6 个月生命期）。
+    path: '/activities-wall',
+    name: 'ActivitiesWall',
+    redirect: (to: any) => ({ path: '/newsroom', query: { ...to.query, tab: 'activities' } }),
+  },
+  {
+    // 方块墙深链兼容（2026-10-19 方块墙退场）：落到活动段（内容已并入资讯页）。
+    // ⚠️ name 供命名跳转兜底；?tab=wall 不复存在。
     path: '/block-wall',
     name: 'BlockWall',
-    redirect: () => ({ path: '/activities-wall' }),
+    redirect: (to: any) => ({ path: '/newsroom', query: { ...to.query, tab: 'activities' } }),
+  },
+  {
+    // 节目页退场兼容（2026-10-20 内容页合并）：节目已混排进资讯流，
+    // 创作者投稿（CreatorShowsPanel）挂在资讯流的「节目」筛选态下。
+    // 引入 2026-10-20 · 到期 2027-04-30
+    path: '/shows',
+    name: 'Shows',
+    redirect: (to: any) => ({ path: '/newsroom', query: { ...to.query, filter: 'show:all' } }),
   },
   {
     // 实验室退场兼容（2026-10-19）：/lab → BOHAI Work（/ai-chat 的 work 大模式）。

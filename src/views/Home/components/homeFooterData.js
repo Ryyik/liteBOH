@@ -15,7 +15,7 @@ export const footerColumns = [
       { label: '首页', to: '/' },
       { label: '商店', to: '/shop' },
       { label: '好礼', to: '/gift' },
-      { label: '节目', to: '/shows' },
+      { label: '节目', to: '/newsroom?filter=show:all' },
       { label: 'MBTI', to: '/mbti' },
       { label: 'BOH AI', to: '/ai-chat' },
     ],

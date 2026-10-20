@@ -123,7 +123,7 @@ const EXTRA_LABELS = {
   '/gift': '新年好礼',
   '/boh-8-years-event': '八周年活动',
   '/join': '加入我们',
-  '/shows': '精彩节目',
+  '/shows': '精彩节目（已并入资讯）',
   '/forum/post/:id': '帖子详情',
   '/profile/:username': '用户主页',
   '/news/:id': '新闻详情',

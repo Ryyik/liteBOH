@@ -98,11 +98,6 @@ export const publicRoutes: RouteRecordRaw[] = [
     component: () => import('../../views/BOHApp/index.vue'),
   },
   {
-    path: '/shows',
-    name: 'Shows',
-    component: () => import('../../views/Shows/index.vue'),
-  },
-  {
     path: '/character-book',
     name: 'CharacterBook',
     component: () => import('../../views/CharacterBook/index.vue'),

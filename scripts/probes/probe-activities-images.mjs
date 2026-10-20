@@ -1,5 +1,6 @@
 /**
- * probe-activities-images.mjs —— 活动页（/activities-wall 活动 tab）封面图可用性探针
+ * probe-activities-images.mjs —— 活动段（/newsroom?tab=activities）封面图可用性探针
+ * 2026-10-20 内容页合并：/activities-wall 退场，活动成为资讯页的一段。
  *
  * 背景（2026-09-29）：activities.image 混存两种形态——
  *   ① `@/assets/images/xxx.webp`（本地别名，id 1~15）
@@ -41,7 +42,7 @@ page.on('requestfailed', (req) => {
     failedRequests.push(`${req.url()} <- ${req.failure()?.errorText || ''}`);
 });
 
-await page.goto(`${BASE}/#/activities-wall`, { waitUntil: 'domcontentloaded' });
+await page.goto(`${BASE}/#/newsroom?tab=activities`, { waitUntil: 'domcontentloaded' });
 // 等卡片渲染（数据来自 Supabase，给足往返时间）
 await page.waitForSelector('.activity-card__img', { timeout: 20000 });
 // 懒加载图需要滚动才会请求

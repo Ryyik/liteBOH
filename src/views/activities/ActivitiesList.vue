@@ -1,7 +1,8 @@
 <template>
   <div class="activities-list-page">
-    <!-- 页头（对齐 Newsroom 设计语言：kicker + 左对齐大标题 + 右下角动作区） -->
-    <header class="activities-header">
+    <!-- 页头（2026-10-20 内容页合并后：默认不再渲染 —— 页头由宿主 Newsroom 统一提供。
+         保留 showHeader 开关是为了「将来若还有独立活动页」时能一处复用，而不是再抄一份页头。） -->
+    <header v-if="showHeader" class="activities-header">
       <div class="activities-header-copy">
         <p class="page-kicker">方块之家 · BOH EVENTS</p>
         <h1 class="page-title-text">活动列表</h1>
@@ -32,6 +33,7 @@
 
     <!-- ① 顶部活动报名卡（数据源 activity_campaigns，与下方历史区互不相干） -->
     <ActivitySignupSection
+      v-if="showCampaigns"
       :campaigns="campaigns"
       :loading="campaignLoading"
       :is-logged-in="authStore.isLoggedIn"
@@ -39,7 +41,7 @@
     />
 
     <!-- ② 按月份分组的历史活动，每月一条横向滚动轨道 -->
-    <div class="activities-timeline">
+    <div v-if="showPast" class="activities-timeline">
       <div v-if="activitiesLoading" class="activities-skeleton" aria-hidden="true">
         <div v-for="n in 3" :key="`sk-${n}`" class="activities-skeleton__group">
           <div class="activities-skeleton__head"></div>
@@ -47,9 +49,9 @@
         </div>
       </div>
 
-      <template v-else-if="groups.length || undated.length">
+      <template v-else-if="visibleGroups.length || visibleUndated.length">
         <ActivityMonthRail
-          v-for="group in groups"
+          v-for="group in visibleGroups"
           :key="group.monthKey"
           :month-label="group.monthLabel"
           :month-key="group.monthKey"
@@ -58,10 +60,10 @@
         />
         <!-- 日期无法解析的记录不丢弃，单独成组垫底 -->
         <ActivityMonthRail
-          v-if="undated.length"
+          v-if="visibleUndated.length"
           month-label="未排期"
           month-key="undated"
-          :items="undated"
+          :items="visibleUndated"
           @open="openDetail"
         />
       </template>
@@ -69,12 +71,14 @@
       <EmptyState
         v-else
         variant="inbox"
-        title="还没有活动记录"
-        description="往期活动会按月份归档在这里。"
+        :title="searchQuery ? '没有匹配的活动' : '还没有活动记录'"
+        :description="searchQuery ? '换个关键词试试。' : '往期活动会按月份归档在这里。'"
       />
     </div>
 
-    <!-- 管理员投稿活动（可选「新建报名活动」或「新建活动」） -->
+    <!-- 管理员投稿活动（可选「新建报名活动」或「新建活动」）
+         2026-10-20 合并后按钮可能在宿主页头（Newsroom），但弹窗与发布链路只有这一处：
+         宿主通过 ref 调 openPublish()，别在宿主里再写第二份。 -->
     <AdminContentPublishModal
       :visible="showPublishModal"
       type="activity"
@@ -104,10 +108,25 @@ import { showIsland } from '@/composables/useIsland.js';
 import ActivitySignupSection from './components/ActivitySignupSection.vue';
 import ActivityMonthRail from './components/ActivityMonthRail.vue';
 
+const props = defineProps({
+  /** 是否渲染自身页头。2026-10-20 起宿主 Newsroom 统一提供页头 ⇒ 默认 false */
+  showHeader: { type: Boolean, default: false },
+  /** 筛选值域：all | campaign（只看报名中）| past（只看往期） */
+  filter: { type: String, default: 'all' },
+  /** 搜索词（筛选往期标题/描述；报名卡不参与搜索） */
+  searchQuery: { type: String, default: '' },
+});
+
 const authStore = useAuthStore();
 const { isAdmin } = storeToRefs(authStore);
 const showPublishModal = ref(false);
 const remountWallIsland = inject('remountWallIsland', null);
+
+/** 供宿主页头的「投稿活动」按钮调用（发布链路只有本组件这一份） */
+const openPublish = () => {
+  showPublishModal.value = true;
+};
+defineExpose({ openPublish });
 
 // ===== 报名区（activity_campaigns）=====
 const {
@@ -120,6 +139,28 @@ const {
 // ===== 历史活动（activities，按月分组）=====
 const groups = computed(() => groupedActivities.value);
 const undated = computed(() => undatedActivities.value);
+
+// ===== 两段的可见性由 filter 决定（filter 真源在宿主，经 query 派生）=====
+const showCampaigns = computed(() => props.filter !== 'past');
+const showPast = computed(() => props.filter !== 'campaign');
+
+// 搜索与筛选叠加：搜索只作用于往期（报名卡是「有就显示」的一整块，无法逐条过滤）
+const matchesQuery = (activity) => {
+  const q = String(props.searchQuery || '')
+    .trim()
+    .toLowerCase();
+  if (!q) return true;
+  return [activity?.title, activity?.description, activity?.location]
+    .filter(Boolean)
+    .some((field) => String(field).toLowerCase().includes(q));
+};
+
+const visibleGroups = computed(() =>
+  groups.value
+    .map((group) => ({ ...group, items: group.items.filter(matchesQuery) }))
+    .filter((group) => group.items.length),
+);
+const visibleUndated = computed(() => undated.value.filter(matchesQuery));
 
 // 详情灵动岛：详情以导航栏延伸卡呈现（替代页面内模态框）
 let detailIsland = null;
@@ -159,10 +200,13 @@ const onPublished = (payload) => {
   else loadActivities();
 };
 
-// 全局导航是 position:fixed，其实际高度（灵动岛卡展开后会变高）与声明值不一致。
-// 实测导航真实高度写回页面根节点 --nav-h，页头 padding-top 用它做吸顶避让（Newsroom 先例）。
+// 导航高度避让（2026-10-20 合并时收敛）：
+// 本组件原先自己测一遍 --nav-h，而宿主 Newsroom 也测一遍 —— 同一件事测两遍。
+// 现在由宿主（Newsroom 的 syncNavHeight）统一写 --nav-h，子面板一律读它；
+// 仅当本组件脱离 Newsroom 独立挂载（showHeader=true，即未来若还有独立活动页）时才自测。
 let navResizeObserver = null;
 const syncNavHeight = () => {
+  if (!props.showHeader) return;
   const nav = document.getElementById('unified-nav-container');
   const page = document.querySelector('.activities-list-page');
   if (!nav || !page) return;
@@ -171,12 +215,13 @@ const syncNavHeight = () => {
 };
 
 onMounted(async () => {
-  document.body.classList.add('is-loaded');
   syncNavHeight();
-  const nav = document.getElementById('unified-nav-container');
-  if (nav && typeof ResizeObserver !== 'undefined') {
-    navResizeObserver = new ResizeObserver(syncNavHeight);
-    navResizeObserver.observe(nav);
+  if (props.showHeader) {
+    const nav = document.getElementById('unified-nav-container');
+    if (nav && typeof ResizeObserver !== 'undefined') {
+      navResizeObserver = new ResizeObserver(syncNavHeight);
+      navResizeObserver.observe(nav);
+    }
   }
   await loadActivities();
   loadOngoingCampaigns();
@@ -255,11 +300,14 @@ html[data-theme='dark'] .activity-admin-publish-btn:hover {
   background: #0a84ff;
 }
 
-/* 页面基础样式 */
+/* 面板基础样式
+   2026-10-20 合并：本组件现在是 Newsroom 里的**子面板**，不再是独立页面 ⇒
+   · 去掉 `background: #ffffff` 与 `min-height: 100vh`（否则会在宿主页里刷出整屏白底、
+     把 Newsroom 的页面背景盖掉）；
+   · 不再自声明 `--nav-h`（由宿主统一写，见 script 里 syncNavHeight 的注释）；
+   · 保留字体与文字色的兜底，因为它仍可能被别处单独引用。 */
 .activities-list-page {
-  --nav-h: var(--bohai-standalone-nav-height, 64px);
   width: 100%;
-  background: #ffffff;
   font-family:
     'Inter',
     -apple-system,
@@ -269,7 +317,6 @@ html[data-theme='dark'] .activity-admin-publish-btn:hover {
     Helvetica,
     Arial,
     sans-serif;
-  min-height: 100vh;
   color: #1d1d1f;
 }
 
@@ -343,8 +390,9 @@ html[data-theme='dark'] .activity-admin-publish-btn:hover {
 }
 
 /* ---- 暗色主题 ---- */
+/* 背景色随 2026-10-20 合并一起去掉：宿主 Newsroom 已有自己的暗色底，
+   子面板再刷一层 #0d0f14 会把宿主的底色盖掉。 */
 html[data-theme='dark'] .activities-list-page {
-  background: #0d0f14;
   color: #f5f5f7;
 }
 html[data-theme='dark'] .page-kicker {

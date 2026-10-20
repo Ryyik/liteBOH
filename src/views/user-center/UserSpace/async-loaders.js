@@ -6,11 +6,9 @@ import { reportEvent } from '@/utils/monitoring.js';
 
 const forumComponentLoader = () => import('@/views/Forum/ForumMain.vue');
 const messagesComponentLoader = () => import('@/views/user-center/Messages/index.vue');
-const showsComponentLoader = () => import('@/views/Shows/index.vue');
 const bohaiComponentLoader = () => import('@/views/BOHAI/BOHAI/BOHAIMain.vue');
 let forumPreloadPromise = null;
 let messagesPreloadPromise = null;
-let showsPreloadPromise = null;
 let bohaiPreloadPromise = null;
 let forumPreloadIdleId = null;
 let forumPreloadTimeoutId = null;
@@ -43,15 +41,6 @@ export const preloadMessagesComponent = () => {
     });
   }
   return messagesPreloadPromise;
-};
-export const preloadShowsComponent = () => {
-  if (!showsPreloadPromise) {
-    showsPreloadPromise = showsComponentLoader().catch(() => {
-      showsPreloadPromise = null;
-      return null;
-    });
-  }
-  return showsPreloadPromise;
 };
 export const preloadBOHAIComponent = () => {
   if (!bohaiPreloadPromise) {
@@ -285,9 +274,8 @@ export const AsyncForum = defineAsyncComponent({
   },
 });
 
-/* 「节目」与「消息」分区：与 AsyncCommunity/AsyncForum 同一套兜底约定
+/* 「消息」分区：与 AsyncCommunity/AsyncForum 同一套兜底约定
    （失败退避重试 + 上报 + 错误卡），统一走 createPanelAsync 工厂，不再裸简写。 */
-export const AsyncShows = createPanelAsync(showsComponentLoader, { label: 'AsyncShows' });
 export const AsyncMessages = createPanelAsync(messagesComponentLoader, { label: 'AsyncMessages' });
 
 const AsyncBOHAIError = {
