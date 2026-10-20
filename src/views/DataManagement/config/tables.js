@@ -1182,8 +1182,10 @@ export const dataConfig = {
     table: 'bohai_model_configs',
     columns: [
       { key: 'sort_order', label: '排序', type: 'number' },
-      { key: 'display_name', label: '模式名', maxLength: 18 },
-      { key: 'mode_id', label: '模式ID', maxLength: 18 },
+      { key: 'display_name', label: '显示名', maxLength: 18 },
+      // 2026-10-20（plans/030）：mode_id 已退化为内部主键（用户只看 display_name），
+      // 但仍不可改 —— 它是 ai_quota_log.mode 的关联键与审核行的隔离前缀。
+      { key: 'mode_id', label: '内部ID', maxLength: 18 },
       { key: 'provider_label', label: '供应商', type: 'badge' },
       { key: 'model_id', label: '模型ID', maxLength: 30 },
       { key: 'capability', label: '能力', type: 'badge' },
@@ -1205,11 +1207,15 @@ export const dataConfig = {
       },
       {
         key: 'mode_id',
-        label: '模式ID',
+        label: '内部ID',
         type: 'text',
         required: true,
         maxLength: 64,
-        placeholder: '例如：fast / pro / multimodal / plan / agent-cluster',
+        placeholder: '小写英文/数字，例如：balance / gemini / fast',
+        // 2026-10-20（plans/030）：原 placeholder 列的是 pro / multimodal / plan /
+        // agent-cluster —— 那批模式早已不在线上（现役 6 模型 + 3 策略）。
+        // 提示语必须跟着数据走，否则管理员会照着填一个查不到的模式。
+        hint: '用户看不到它，只用于内部关联与计费日志；创建后不建议再改。',
         group: 'basic',
       },
       {

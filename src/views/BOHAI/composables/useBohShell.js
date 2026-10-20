@@ -42,6 +42,7 @@ import {
 } from '../BOHAI/bohai-slash-commands.js';
 import { logger } from '@/utils/logger.js';
 import { getAiQuotaStatus } from '@/utils/api/api-key-runtime-api.js';
+import { showIsland } from '@/composables/useIsland.js';
 import { resolveAiQuotaDisplay } from '@/utils/ai-quota-display.js';
 import { TIER_DISPLAY_LABELS } from '@/utils/subscription-benefits.js';
 import { themeManager } from '@/utils/theme-manager.js';
@@ -204,22 +205,55 @@ export function useBohShell(props, emit) {
     workPanelOpen.value = !workPanelOpen.value;
   };
 
+  // ⚠️ 2026-10-20（plans/030）：游客可见范围与回落模式的**唯一真源**就在这一处。
+  //   · 列表：游客只看到 'fast'（GLM4）。它的倍率 0.0x ⇒ 游客零成本，
+  //     限制靠 checkRateLimitDb 的次数，而不是 token 额度（0.0x 扣不到额度）。
+  //   · 回落：'fast' 与 chat-engine-config.js 的 BOH_GUEST_FALLBACK_MODE_ID 同值。
+  //     ⚠️ 别在这里改成 'balance' —— 它是 min_tier='free'，游客选中后发消息会被 EF 拒绝。
+  //     ⚠️ 也别在这里 import 那个常量并另立一份判断，否则又多一个真源。
+  const GUEST_MODE_ID = 'fast';
+
+  /**
+   * 策略行的 mode_id 集合（2026-10-20，plans/030 §3.1）。
+   *
+   * ⚠️ 这是**前端唯一**知道"哪些行是策略"的地方：BohComposer 只读 `mode.strategy`
+   *    这个布尔标记，不自己维护一份 id 列表。策略改名 = 改这里一处。
+   * ⚠️ 若将来把策略表独立出去（方案 §6.2 的 strategy_candidates），这里要换成
+   *    "该行有 strategy_candidates" 之类的结构判据，而不是继续加 id。
+   */
+  const STRATEGY_MODE_IDS = new Set(['cost', 'balance', 'intelligence']);
+
+  /**
+   * 给列表行补上 UI 需要的派生标记（都只读，不改原对象）：
+   *   · strategy —— 策略行，用于列表里的分隔线
+   *   · locked   —— 当前用户无权选（游客看到非 guest 档），用于置灰 + 提示
+   *
+   * ⚠️ `locked` 在这里算，而不是让 BohComposer 收一个 isLoggedIn prop ——
+   *    BOHAIMain.vue 有 400 行上限（tests/unit/bohai-shell-structure.test.js 锁死），
+   *    每多一个 prop 就多一行接线。把判断收在壳里，视图层只消费标记。
+   * ⚠️ locked 只是体验层：真正的闸门在 EF 的 resolveRuntimeModelPolicy。
+   */
+  const decorateChatModes = (list = [], { isLoggedIn = false } = {}) =>
+    list.map((mode) => ({
+      ...mode,
+      strategy: STRATEGY_MODE_IDS.has(mode.id),
+      locked: !isLoggedIn && String(mode.minTier || 'free').toLowerCase() !== 'guest',
+    }));
+
   const filteredChatModes = computed(() => {
     if (!authStore.isLoggedIn) {
-      return chatModes.value.filter((m) => m.id === 'fast');
+      // 游客：**只列出 GLM4 之外的全部行**，靠 locked 标记置灰，而不是过滤掉 ——
+      // 用户口径是「其他给游客展示但是灰掉不可选」。
+      return decorateChatModes(chatModes.value, { isLoggedIn: false });
     }
-    return chatModes.value;
+    return decorateChatModes(chatModes.value, { isLoggedIn: true });
   });
 
-  watch(
-    () => authStore.isLoggedIn,
-    (loggedIn) => {
-      if (!loggedIn && currentModeId.value !== 'fast') {
-        currentModeId.value = 'fast';
-      }
-      fetchTodayQuota();
-    },
-  );
+  // ⚠️ 登录态 watch **不在这里**（2026-10-20 修复）：它要读写 `currentModeId`，
+  //    而那是 `useChatEngine()` 的返回值，在第 420 行才解构。放在这里 + `immediate`
+  //    会在初始化期命中 TDZ（实测：ReferenceError: Cannot access 'currentModeId'
+  //    before initialization → 整页渲染被全局边界捕获 → BOHAI 空白、探针全红）。
+  //    现已移到 `useChatEngine()` 解构之后，见下方「登录态校正」段。
   const confirmState = reactive({
     show: false,
     type: 'warning',
@@ -413,6 +447,24 @@ export function useBohShell(props, emit) {
     memoryCaptureTip,
     syncSessionsIfStale,
   } = useChatEngine();
+
+  /* ── 登录态校正（2026-10-20，plans/030）────────────────────────────────────
+     默认模式已从 'fast' 改成 'balance'，但 balance 的 min_tier='free' ——
+     游客无权使用。所以必须在这里把游客拉回 GLM4。
+     ⚠️ `immediate: true` 是必需的：它只影响"无 localStorage"的新访客；
+        没有立即执行的话，游客首访会一直挂着 balance，直到手动登出/登录一次。
+     ⚠️ 位置必须**在 useChatEngine() 解构之后** —— 上面的 currentModeId / fetchTodayQuota
+        都来自它，提前引用会 TDZ（这条踩过，见上方注释）。 */
+  watch(
+    () => authStore.isLoggedIn,
+    (loggedIn) => {
+      if (!loggedIn && currentModeId.value !== GUEST_MODE_ID) {
+        currentModeId.value = GUEST_MODE_ID;
+      }
+      fetchTodayQuota();
+    },
+    { immediate: true },
+  );
 
   /**
    * `/ai-chat` 进了 `<KeepAlive>`（2026-10-11，为了「切页不掐流」）。
@@ -1462,6 +1514,14 @@ export function useBohShell(props, emit) {
       return;
     }
 
+    // 2026-10-20（plans/030 §3.4）：游客点锁定行 ⇒ 不切换，只提示登录。
+    // 判据与列表置灰同源（decorateChatModes 的 locked），避免"灰了却能选中"。
+    // ⚠️ 放在 currentModeId 赋值之前 —— 否则会先切过去再弹提示，用户以为选上了。
+    if (!authStore.isLoggedIn && String(mode.minTier || 'free').toLowerCase() !== 'guest') {
+      handleLockedMode({ mode });
+      return;
+    }
+
     currentModeId.value = modeId;
     persistModeSetting();
     const multiplierHint =
@@ -1477,6 +1537,38 @@ export function useBohShell(props, emit) {
       durationMs: 3600,
     });
   };
+
+  /**
+   * 游客点了锁定行（2026-10-20，plans/030 §3.4）。
+   *
+   * 产品口径：游客只能用 GLM4；其余行可见但灰掉，点击提示"登录后可用"。
+   * 这里**只提示、不切换**：切换会让用户以为选中了，发消息时才被 EF 拒绝，
+   * 那种"选了却不能用"的体验比直接拒绝更糟。
+   *
+   * ⚠️ 提示走灵动岛（与 selectMode 同一通道），不新开 toast 体系。
+   * ⚠️ 真正的闸门仍只在 EF 的 resolveRuntimeModelPolicy —— 这里是体验层。
+   */
+  // 用 function 声明而不是 const：selectMode（定义在上方）会调用它，
+  // 函数声明有提升，不依赖"用户点击时早已初始化"这层隐含时序。
+  function handleLockedMode({ mode } = {}) {
+    if (authStore.isLoggedIn) return; // 已登录不该走到这里（前端已放开）
+    const openLogin = () => {
+      authStore.showLoginModal = true;
+    };
+    // ⚠️ 必须走 showIsland.notify()，不能用 emit('island-message')：
+    //    BOHAIIsland 的 onIslandMessage 只消费 type==='thinking' / 'empty'，
+    //    其它 type 会**静默丢弃**（selectMode 那条 'notification' 实际就不弹出，
+    //    是既有问题，不在本次范围）。用户空间用的是 showIsland.notify()，那才是真能弹的通道。
+    const ok = showIsland.notify({
+      title: `${mode?.name || '该模型'} 需登录后使用`,
+      message: '登录后即可解锁全部模型与每日额度',
+      icon: 'ai',
+      onAction: openLogin,
+      durationMs: 5200,
+    });
+    // 无 navbar 宿主（如独立页某些形态）时兜底，别让"点了没反应"重演
+    if (!ok) openLogin();
+  }
 
   // 外部种子提问（论坛问BOHAI等）指定的默认模型：静默切换，不弹模式通知。
   // 与 selectMode 的差异仅在无 UI 反馈 —— 岛刚被打开，用户没动过模式菜单。
@@ -2322,6 +2414,7 @@ export function useBohShell(props, emit) {
     handleAttachPage,
     startPsychAnalysis,
     selectMode,
+    handleLockedMode,
     executeSlashCommand,
     clearAttachedContext,
     handleManualCompress,

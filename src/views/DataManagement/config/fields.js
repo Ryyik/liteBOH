@@ -255,10 +255,6 @@ export const SUBSCRIPTION_PLAN_OPTIONS = [
   { value: 'pro', label: 'Pro' },
   { value: 'max', label: 'Max' },
   { value: 'ultra', label: 'Ultra' },
-  { value: 'coding-lite', label: 'Coding Lite（¥5/月）' },
-  { value: 'coding-plus', label: 'Coding Plus（¥12/月）' },
-  { value: 'coding-pro', label: 'Coding Pro（¥20/月）' },
-  { value: 'coding-ultra', label: 'Coding Ultra（¥35/月）' },
 ];
 
 export const SUBSCRIPTION_PLAN_NAMES = SUBSCRIPTION_PLAN_OPTIONS.reduce((map, item) => {
@@ -318,25 +314,28 @@ export const BOHAI_MODEL_STATUS_OPTIONS = [
   { value: 'disabled', label: '停用（disabled）' },
 ];
 
+/* 2026-10-20（plans/030 §3.4）：档位门槛已收敛为**两种实际语义** ——
+   guest = 游客也能用（只有 GLM4），free 及以上 = 登录即可用。
+   plus/pro/max/ultra 仍保留在合法值域里（DB 约束同款），但当前**没有任何行在用**：
+   若把某行设成它们，游客与免费用户都会被 EF 拦掉，等于把该模型变成付费专属。
+   ⚠️ 改这里的词表要同步迁移 2026102003 的 check 约束，否则后台能选到 DB 会拒绝的值。 */
 export const BOHAI_MODEL_MIN_TIER_OPTIONS = [
-  { value: 'guest', label: '游客（guest）' },
-  { value: 'free', label: 'Free' },
-  { value: 'plus', label: 'Plus' },
-  { value: 'pro', label: 'Pro' },
-  { value: 'max', label: 'Max' },
-  { value: 'ultra', label: 'Ultra' },
-  { value: 'coding-lite', label: 'Coding Lite（附加包）' },
-  { value: 'coding-plus', label: 'Coding Plus（附加包）' },
-  { value: 'coding-pro', label: 'Coding Pro（附加包）' },
-  { value: 'coding-ultra', label: 'Coding Ultra（附加包）' },
+  { value: 'guest', label: '游客可用（guest）' },
+  { value: 'free', label: '登录可用（free）' },
+  { value: 'plus', label: 'Plus 专属' },
+  { value: 'pro', label: 'Pro 专属' },
+  { value: 'max', label: 'Max 专属' },
+  { value: 'ultra', label: 'Ultra 专属' },
 ];
 
+/* 图标只影响列表里的 LeadingIcon，与模式语义无关 —— 括号里原本写的是
+   已退场的模式名（Fast/Pro/多模态/Plan/Agent），容易被读成"这个图标配那个模式"。 */
 export const BOHAI_MODEL_ICON_OPTIONS = [
-  { value: 'zap', label: '闪电（Fast）' },
-  { value: 'sparkles', label: '星光（Pro）' },
-  { value: 'image', label: '图像（多模态）' },
-  { value: 'list-checks', label: '清单（Plan）' },
-  { value: 'users', label: '协作（Agent）' },
+  { value: 'zap', label: '闪电' },
+  { value: 'sparkles', label: '星光' },
+  { value: 'image', label: '图像' },
+  { value: 'list-checks', label: '清单' },
+  { value: 'users', label: '协作' },
 ];
 
 export const LOTTERY_STATUS_OPTIONS = [

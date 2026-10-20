@@ -41,25 +41,37 @@
         <!-- 斜杠命令：锚承载定位（无 z-index），玻璃与面板做兄弟（§21.7 采样根）；
              回滚 = 删锚 + 玻璃两层。 -->
         <div v-if="slashOpen" class="boh-slash-anchor">
-          <BohGlassRefract :radius="12" />
+          <!-- 2026-10-20：材质改为**面板自带**的方块之家标准液态玻璃
+               （`--glass-bg` / `--glass-filter-sm`，见 CSS 同名注释）——
+               不再挂 `BohGlassRefract` 覆盖层。两层玻璃叠在一起会让底下的
+               backdrop-filter 采样重复，观感发灰。 -->
           <div class="boh-slash" role="listbox" aria-label="快捷命令">
-            <button
-              v-for="(command, commandIndex) in slashCommands"
-              :key="command.id"
-              type="button"
-              class="boh-slash-item"
-              :class="{ 'is-current': slashActiveIndex === commandIndex }"
-              role="option"
-              :aria-selected="slashActiveIndex === commandIndex"
-              @mouseenter="emit('update:slashActiveIndex', commandIndex)"
-              @mousedown.prevent="emit('run-slash-command', command)"
-            >
-              <span class="boh-slash-cmd">/{{ command.keyword }}</span>
-              <span class="boh-slash-copy">
-                <strong>{{ command.label }}</strong>
-                <small>{{ command.description }}</small>
-              </span>
-            </button>
+            <!-- 2026-10-20 布局改版（用户口径：参考「分组标题 + 双列行」那种感觉）：
+                 分组标题（灰色的组名）+ 每行「图标 名称 关键词 …… 右侧描述」。
+                 ⚠️ 分组不是视觉分组，是**数据分组**：`group` 字段来自
+                    `bohai-slash-commands.js`（单一真源），这里只做归并，
+                    不许在模板里写死组名 —— 那样新增命令会悄悄落进错组。
+                 ⚠️ `commandIndex` 仍是**全局序号**（跨组连续），因为它要和
+                    `slashActiveIndex` 对齐；分组只影响渲染，不影响键盘上下选。 -->
+            <template v-for="(group, groupIndex) in slashGroups" :key="`g-${group.name}`">
+              <div v-if="groupIndex > 0" class="boh-slash-divider" aria-hidden="true"></div>
+              <p class="boh-slash-group">{{ group.name }}</p>
+              <button
+                v-for="item in group.items"
+                :key="item.command.id"
+                type="button"
+                class="boh-slash-item"
+                :class="{ 'is-current': slashActiveIndex === item.index }"
+                role="option"
+                :aria-selected="slashActiveIndex === item.index"
+                @mouseenter="emit('update:slashActiveIndex', item.index)"
+                @mousedown.prevent="emit('run-slash-command', item.command)"
+              >
+                <span class="boh-slash-cmd">/{{ item.command.keyword }}</span>
+                <span class="boh-slash-label">{{ item.command.label }}</span>
+                <span class="boh-slash-desc">{{ item.command.description }}</span>
+              </button>
+            </template>
             <div v-if="slashCommands.length === 0" class="boh-slash-empty">没有匹配的命令</div>
           </div>
         </div>
@@ -111,7 +123,7 @@
 
             <div class="boh-menu-anchor">
               <!-- 折射玻璃（v-if 与菜单同开同关；材质由它提供，CSS 六消费者段已让位） -->
-              <BohGlassRefract v-if="activeMenu === 'model'" :radius="12" />
+              <BohGlassRefract v-if="activeMenu === 'model'" :radius="12" frosted />
               <Transition name="boh-pop">
                 <div
                   v-show="activeMenu === 'model'"
@@ -131,31 +143,76 @@
                     </div>
                     <div v-else-if="modes.length === 0" class="boh-mm-empty">暂无可用模式</div>
                     <div v-else class="boh-mm-rows">
-                      <div
-                        v-for="mode in modes"
-                        :key="mode.id"
-                        class="boh-mm-row"
-                        @mouseenter="onModeRowEnter($event, mode)"
-                        @mouseleave="scheduleCloseModeDetail()"
-                      >
-                        <button
-                          type="button"
-                          class="boh-mm-item"
-                          :class="{ 'is-on': currentModeId === mode.id }"
-                          :data-mode-id="mode.id"
-                          :aria-current="currentModeId === mode.id"
-                          :title="mode.tagline || mode.description || ''"
-                          @click="pickMode(mode.id)"
+                      <template v-for="(mode, index) in modes" :key="mode.id">
+                        <!-- 2026-10-20（plans/030 §3.6）：单一列表，不分组。
+                             策略行（sort_order=10）排在模型行（sort_order=100）之前，
+                             两者交界处插一条 1px 分隔线 —— 不分组 ≠ 不加分隔，
+                             没有它用户会困惑「Cost 和 GLM4Flash 有什么区别」。 -->
+                        <div
+                          v-if="
+                            index > 0 && isStrategyRow(mode) !== isStrategyRow(modes[index - 1])
+                          "
+                          class="boh-mm-divider"
+                          role="separator"
+                          aria-hidden="true"
+                        ></div>
+                        <div
+                          class="boh-mm-row"
+                          @mouseenter="onModeRowEnter($event, mode)"
+                          @mouseleave="scheduleCloseModeDetail()"
                         >
-                          <span class="boh-mm-name">{{ mode.name }}</span>
-                          <span
-                            class="boh-mm-rate"
-                            :class="{ 'is-free': isFreeMode(mode) || mode.byok }"
-                            >{{ formatModeRateLabel(mode) }}</span
+                          <button
+                            type="button"
+                            class="boh-mm-item"
+                            :class="{
+                              'is-on': currentModeId === mode.id,
+                              'is-locked': isModeLocked(mode),
+                            }"
+                            :data-mode-id="mode.id"
+                            :aria-current="currentModeId === mode.id"
+                            :aria-disabled="isModeLocked(mode) ? 'true' : undefined"
+                            :title="
+                              isModeLocked(mode)
+                                ? '登录后可使用'
+                                : mode.tagline || mode.description || ''
+                            "
+                            @click="handleModeClick(mode, $event)"
                           >
-                          <Check :size="15" aria-hidden="true" />
-                        </button>
-                      </div>
+                            <!-- 策略行带副标题（plans/030 §3.6）：用户看「Cost」不知道
+                                 它和下面「GLM4Flash 0.5x」有什么区别，一句话说清定位。
+                                 模型行不显示副标题 —— 名字本身就是模型名，再加描述是噪声。 -->
+                            <span class="boh-mm-text">
+                              <!-- 锁是**名字的后缀**，不是独立一列（2026-10-20 二改）。
+                                   初版把它当第 4 个 flex 子项，被 space-between 挤到
+                                   名字与倍率之间的空档里 —— 看起来像浮在行中间，
+                                   既不像"这个名字被锁了"，也抢了倍率的视线。
+                                   现在收进名字行内、紧跟名字之后，读作「Balance 🔒」。 -->
+                              <span class="boh-mm-name-line">
+                                <span class="boh-mm-name">{{ mode.name }}</span>
+                                <Lock
+                                  v-if="isModeLocked(mode)"
+                                  :size="12"
+                                  class="boh-mm-lock"
+                                  aria-hidden="true"
+                                />
+                              </span>
+                              <span v-if="isStrategyRow(mode) && mode.tagline" class="boh-mm-sub">{{
+                                mode.tagline
+                              }}</span>
+                            </span>
+                            <!-- ⚠️ 倍率位**始终存在**，锁定行也一样（2026-10-20 修正）：
+                                 原先锁定行用 `.boh-mm-lock` 顶替倍率位，会让
+                                 probe-bohai-composer 的 A2a「每行都有倍率」当场红 ——
+                                 而那是既有契约（倍率是可比信息，不该因置灰而消失）。 -->
+                            <span
+                              class="boh-mm-rate"
+                              :class="{ 'is-free': isFreeMode(mode) || mode.byok }"
+                              >{{ formatModeRateLabel(mode) }}</span
+                            >
+                            <Check :size="15" class="boh-mm-chevron" aria-hidden="true" />
+                          </button>
+                        </div>
+                      </template>
                     </div>
                     <button type="button" class="boh-mm-custom" @click="emit('open-settings')">
                       <Pencil :size="15" aria-hidden="true" />
@@ -174,7 +231,7 @@
                 :class="{ 'is-flipped': hoverFlipped }"
                 :style="{ top: `${hoverTop}px` }"
               >
-                <BohGlassRefract :radius="12" />
+                <BohGlassRefract :radius="12" frosted />
                 <div
                   ref="hoverDetailEl"
                   class="boh-mm-detail"
@@ -222,7 +279,7 @@
             </button>
             <div class="boh-menu-anchor">
               <!-- 折射玻璃（同模型菜单） -->
-              <BohGlassRefract v-if="activeMenu === 'tools'" :radius="12" />
+              <BohGlassRefract v-if="activeMenu === 'tools'" :radius="12" frosted />
               <Transition name="boh-pop">
                 <div
                   v-show="activeMenu === 'tools'"
@@ -297,7 +354,7 @@
                  锚必须**无 z-index**，否则堆叠上下文会裁掉玻璃的背板采样（§21.7「采样根」硬约束）。
                  回滚 = 删锚 + 玻璃两层。 -->
             <div class="boh-usage-anchor">
-              <BohGlassRefract v-if="usagePopOpen" :radius="12" />
+              <BohGlassRefract v-if="usagePopOpen" :radius="12" frosted />
               <Transition name="boh-pop">
                 <div
                   v-show="usagePopOpen"
@@ -417,6 +474,7 @@ import {
   Cloud,
   FileText,
   Globe,
+  Lock,
   Pencil,
   SlidersHorizontal,
   Sparkles,
@@ -574,6 +632,56 @@ const requestAttachPage = () => {
 const pickMode = (modeId) => {
   emit('select-mode', modeId);
   closePanel();
+};
+
+/* ── 策略行识别（plans/030 §3.6）───────────────────────────────────────────
+   判据是 `mode.strategy === true`（由壳按 mode_id ∈ {cost,balance,intelligence}
+   标记，**不在本组件里硬编码三个 id** —— 那样策略改名就得来这里再改一遍）。
+   ⚠️ 别改成按 sort_order 判断：sort_order 是排序实现，不是语义标记。 */
+const isStrategyRow = (mode) => Boolean(mode?.strategy);
+
+/* ── 游客锁定（plans/030 §3.4）───────────────────────────────────────────
+   游客只能选 GLM4（id 'fast'，倍率 0.0x ⇒ 零成本）。
+   判据用 minTier：'guest' = 游客可用，其余 = 登录后可用。
+   ⚠️ 这里刻意不判断"付费档够不够" —— plans/030 已把选型门槛收敛成
+      guest / free 两种，plus 以上不再用作 min_tier。 */
+// 判据来自壳层的 `mode.locked`（由 useBohShell 的 decorateChatModes 计算）。
+// 本组件不自己判断登录态 / min_tier —— 那会变成第二份真源，且要为它多接一个 prop
+// （BOHAIMain.vue 有 400 行上限，见 tests/unit/bohai-shell-structure.test.js）。
+/**
+ * 斜杠菜单的分组视图：把扁平的 `slashCommands` 按 `command.group` 归并。
+ *
+ * ⚠️ `index` 必须是**扁平序号**（跨组连续）—— 它要和壳里的 `slashActiveIndex`
+ *    对齐（上下键跨组移动时序号连续）。这里重排成嵌套结构只是**渲染形态**，
+ *    `index` 一律取自扁平数组的位置，不能改用「组内序号」。
+ * ⚠️ 组顺序 = 首次出现顺序（不排序）：命令表的书写顺序就是产品的推荐顺序，
+ *    在这里再 sort 一次等于多一份真源。
+ * ⚠️ 没有 `group` 的项归入「其他」兜底 —— 新增命令忘了写 group 时，
+ *    它会出现在末尾而不是静默消失。
+ */
+const slashGroups = computed(() => {
+  const list = Array.isArray(props.slashCommands) ? props.slashCommands : [];
+  const order = [];
+  const buckets = new Map();
+  list.forEach((command, index) => {
+    const name = String(command?.group || '其他');
+    if (!buckets.has(name)) {
+      buckets.set(name, []);
+      order.push(name);
+    }
+    buckets.get(name).push({ command, index });
+  });
+  return order.map((name) => ({ name, items: buckets.get(name) }));
+});
+
+const isModeLocked = (mode) => Boolean(mode?.locked);
+
+const handleModeClick = (mode) => {
+  // 锁定行也走 select-mode：拦截与提示统一由壳的 selectMode 负责（它知道登录态、
+  // 能发灵动岛）。在这里 return 掉而不 emit，会让壳无法区分"点了禁用项"与"没点"，
+  // 也就没法给出"登录后可用"的反馈 —— 而 BOHAIMain 又不能再加一条 @locked-mode 接线
+  // （400 行上限）。所以：**一律 emit，由壳决定放行还是提示**。
+  pickMode(mode.id);
 };
 
 const onModeRowEnter = (event, mode) => {

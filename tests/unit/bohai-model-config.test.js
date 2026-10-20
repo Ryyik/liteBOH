@@ -1,16 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
   BOH_DEFAULT_MODE_ID,
+  BOH_GUEST_FALLBACK_MODE_ID,
   BOH_AUTO_MODE_ID,
   GENERATION_PROFILE_BY_MODE,
   PLAN_MODE_SETTING_KEY,
   RESPONSE_STYLE_OPTIONS,
-  RESPONSE_STYLE_SETTING_KEY
+  RESPONSE_STYLE_SETTING_KEY,
 } from '../../src/views/BOHAI/composables/chat-engine-config.js';
 
 describe('BOH AI config (static definitions only)', () => {
   it('exposes mode ID constants', () => {
-    expect(BOH_DEFAULT_MODE_ID).toBe('fast');
+    // 2026-10-20（plans/030）：默认从 'fast' 改成 'balance' —— 列表已重组为
+    // 「3 策略 + 6 模型」，登录用户的默认选中项是策略 balance。
+    expect(BOH_DEFAULT_MODE_ID).toBe('balance');
+    // 游客回落目标必须仍是 fast（GLM4）：balance 的 min_tier='free'，
+    // 游客选中后发消息会被 EF 拒绝。两者**必须不同**，这条断言就是防它们被改成同一个。
+    expect(BOH_GUEST_FALLBACK_MODE_ID).toBe('fast');
+    expect(BOH_GUEST_FALLBACK_MODE_ID).not.toBe(BOH_DEFAULT_MODE_ID);
     expect(BOH_AUTO_MODE_ID).toBe('auto');
   });
 
@@ -21,17 +28,23 @@ describe('BOH AI config (static definitions only)', () => {
     expect(typeof GENERATION_PROFILE_BY_MODE.plan).toBe('object');
     expect(typeof GENERATION_PROFILE_BY_MODE['agent-cluster']).toBe('object');
     expect(GENERATION_PROFILE_BY_MODE.auto).toBeUndefined();
-    expect(GENERATION_PROFILE_BY_MODE.pro.max_tokens).toBeGreaterThan(GENERATION_PROFILE_BY_MODE.fast.max_tokens);
+    expect(GENERATION_PROFILE_BY_MODE.pro.max_tokens).toBeGreaterThan(
+      GENERATION_PROFILE_BY_MODE.fast.max_tokens,
+    );
   });
 
   it('exposes selectable BOH AI response styles', () => {
     const ids = RESPONSE_STYLE_OPTIONS.map((item) => item.id);
     expect(RESPONSE_STYLE_SETTING_KEY).toBe('boh_ai_response_style_v1');
     expect(ids).toEqual(['default', 'socratic', 'psychologist', 'crisp']);
-    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'default')?.promptAppendix).toContain('可靠、自然的朋友兼助手');
+    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'default')?.promptAppendix).toContain(
+      '可靠、自然的朋友兼助手',
+    );
     // promptAppendix 文案会随运营迭代调整，风格标识断言 name 字段更稳健
     expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'socratic')?.name).toBe('苏格拉底');
-    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'psychologist')?.name).toBe('心理专家');
+    expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'psychologist')?.name).toBe(
+      '心理专家',
+    );
     expect(RESPONSE_STYLE_OPTIONS.find((item) => item.id === 'crisp')?.name).toBe('高冷干练');
   });
 

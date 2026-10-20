@@ -73,39 +73,7 @@ export const resetAllAiQuotas = async () => {
   return data;
 };
 
-const CODING_PACK_CODES = ['coding-lite', 'coding-plus', 'coding-pro', 'coding-ultra'];
-
-// Coding 附加包价格（服务端取价真源）。面板改这里，订阅页购买即时生效。
-export const getCodingPackPrices = async () => {
-  const { data, error } = await supabase
-    .from('subscription_plan_prices')
-    .select('plan_code, billing_cycle, points_cost, duration_months, is_active')
-    .in('plan_code', CODING_PACK_CODES)
-    .order('plan_code');
-  if (error) throw error;
-  return data || [];
-};
-
-export const saveCodingPackPrices = async (packs = []) => {
-  const rows = [];
-  for (const pack of packs) {
-    for (const cycle of ['monthly', 'yearly']) {
-      const row = pack.cycles[cycle];
-      if (!row) continue;
-      rows.push({
-        plan_code: pack.plan_code,
-        billing_cycle: cycle,
-        points_cost: Number(row.points_cost),
-        duration_months: Number(row.duration_months),
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      });
-    }
-  }
-  if (!rows.length) return { ok: true };
-  const { error } = await supabase
-    .from('subscription_plan_prices')
-    .upsert(rows, { onConflict: 'plan_code,billing_cycle' });
-  if (error) throw error;
-  return { ok: true };
-};
+/* 2026-10-20：Coding 附加包价格读写接口随附加包下线删除（plans/030 §5）。
+   删除：CODING_PACK_CODES / getCodingPackPrices / saveCodingPackPrices。
+   数据侧：subscription_plan_prices 的 coding-* 已置 is_active=false（迁移 2026102003），
+   行保留，仍可通过通用订阅查询读到；如需恢复写入能力，从 git 历史取实现。 */

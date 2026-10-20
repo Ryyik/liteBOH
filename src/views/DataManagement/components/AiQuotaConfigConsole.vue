@@ -154,71 +154,8 @@
         </div>
       </section>
 
-      <section v-if="packs.length" class="quota-panel">
-        <div class="quota-panel-heading">
-          <div>
-            <h3>Coding 附加包价格（积分）</h3>
-            <p>订阅页自助购买按此价服务端扣费，改动即时生效。附加包与主订阅共存，同档续费顺延。</p>
-          </div>
-        </div>
-        <div class="quota-table-wrap">
-          <table class="quota-table">
-            <thead>
-              <tr>
-                <th>包</th>
-                <th>月付（积分）</th>
-                <th>月付时长（月）</th>
-                <th>年付（积分）</th>
-                <th>年付时长（月）</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="pack in packs" :key="pack.plan_code">
-                <td>
-                  <strong>{{ pack.label }}</strong> <code>{{ pack.plan_code }}</code>
-                </td>
-                <td>
-                  <input
-                    v-model.number="pack.cycles.monthly.points_cost"
-                    class="pack-input"
-                    type="number"
-                    min="0"
-                    step="1"
-                  />
-                </td>
-                <td>
-                  <input
-                    v-model.number="pack.cycles.monthly.duration_months"
-                    class="pack-input"
-                    type="number"
-                    min="1"
-                    step="1"
-                  />
-                </td>
-                <td>
-                  <input
-                    v-model.number="pack.cycles.yearly.points_cost"
-                    class="pack-input"
-                    type="number"
-                    min="0"
-                    step="1"
-                  />
-                </td>
-                <td>
-                  <input
-                    v-model.number="pack.cycles.yearly.duration_months"
-                    class="pack-input"
-                    type="number"
-                    min="1"
-                    step="1"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
+      <!-- 2026-10-20：Coding 附加包价格面板下线（plans/030 §5）。
+           恢复请从 git 历史取模板。 -->
       <section class="quota-danger-panel">
         <div>
           <h3>重置所有用户额度</h3>
@@ -241,10 +178,8 @@ import { RefreshCw, RotateCcw, Save } from 'lucide-vue-next';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import {
   getAiQuotaAdminConfig,
-  getCodingPackPrices,
   resetAllAiQuotas,
   saveAiQuotaAdminConfig,
-  saveCodingPackPrices,
 } from '@/utils/api/ai-quota-admin-api.js';
 import { clearVaultModelCache } from '@/utils/api/api-key-runtime-api.js';
 
@@ -255,13 +190,7 @@ const resetting = ref(false);
 const modes = ref([]);
 const tiers = ref([]);
 const pricing = ref({ enabled: false, rate_tokens_per_point: 1000000, daily_points_burn_cap: 20 });
-const packs = ref([]);
-const PACK_LABELS = {
-  'coding-lite': 'Coding Lite',
-  'coding-plus': 'Coding Plus',
-  'coding-pro': 'Coding Pro',
-  'coding-ultra': 'Coding Ultra',
-};
+/* 2026-10-20：packs / PACK_LABELS 随 Coding 附加包下线删除（plans/030 §5）。 */
 const message = ref('');
 const messageTone = ref('success');
 const TIER_LABELS = {
@@ -279,23 +208,6 @@ const tierLabel = (tier) => TIER_LABELS[String(tier).toLowerCase()] || tier;
 const notify = (text, tone = 'success') => {
   message.value = text;
   messageTone.value = tone;
-};
-
-const toPackRows = (rows) => {
-  const byCode = new Map();
-  for (const row of rows) {
-    if (!byCode.has(row.plan_code))
-      byCode.set(row.plan_code, {
-        plan_code: row.plan_code,
-        label: PACK_LABELS[row.plan_code] || row.plan_code,
-        cycles: {},
-      });
-    byCode.get(row.plan_code).cycles[row.billing_cycle] = {
-      points_cost: Number(row.points_cost),
-      duration_months: Number(row.duration_months),
-    };
-  }
-  return [...byCode.values()];
 };
 
 const loadConfig = async () => {
@@ -321,10 +233,6 @@ const loadConfig = async () => {
         daily_points_burn_cap: Number(data.pricing.daily_points_burn_cap),
       };
     }
-    // 价格表在迁移未应用时不可读，降级为隐藏该面板而不是阻塞整页
-    packs.value = await getCodingPackPrices()
-      .then(toPackRows)
-      .catch(() => []);
     message.value = '';
   } catch (error) {
     notify(error?.message || '读取 AI 额度配置失败', 'error');
@@ -377,21 +285,6 @@ const validate = () => {
     Number(pricing.value.daily_points_burn_cap) < 1
   )
     return '日消耗上限必须是不小于 1 的整数';
-  if (
-    packs.value.some((pack) =>
-      ['monthly', 'yearly'].some((cycle) => {
-        const row = pack.cycles[cycle];
-        return (
-          !row ||
-          !Number.isInteger(Number(row.points_cost)) ||
-          Number(row.points_cost) < 0 ||
-          !Number.isInteger(Number(row.duration_months)) ||
-          Number(row.duration_months) < 1
-        );
-      }),
-    )
-  )
-    return '附加包价格与时长必须是不小于 0 / 1 的整数';
   return '';
 };
 
@@ -405,7 +298,6 @@ const saveConfig = async () => {
       modes: modes.value,
       pricing: pricing.value,
     });
-    if (packs.value.length) await saveCodingPackPrices(packs.value);
     // 让 Edge Function 的内存缓存（模型倍率 / 额度策略 / 积分开关）立即失效
     clearVaultModelCache().catch(() => undefined);
     notify('AI 额度与积分策略已保存，运行时缓存已即时刷新。');

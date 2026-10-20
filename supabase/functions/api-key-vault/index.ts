@@ -2,6 +2,48 @@ import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 
+/* ── 游客每日对话次数上限（2026-10-20 用户口径：「游客直接按次限额，一天 10 次对话」）──
+   为什么按**次数**而不是 token：游客只能用 `fast`（GLM4，quota_multiplier = 0.00），
+   `billed = ceil(tokens × 0) = 0` ⇒ `ai_quota_config.guest` 那 30000 token 的日额度
+   **永远不会被消耗**，等于没有约束。真正的成本约束只能是「请求次数」。
+   窗口用**北京时间自然日**（不是滑动 24h）——「一天 10 次」在用户理解里是
+   「今天用完了，明天 0 点重置」，滑动窗口会变成「随时可能突然恢复一次」。
+   key 带日期戳 ⇒ 跨天自动换 key，旧 key 由 `check_rate_limit` 的过期清理回收。 */
+const GUEST_DAILY_CHAT_LIMIT = 10;
+
+/**
+ * 游客每日对话次数闸门。
+ * @returns `{ ok: true }`（已登录用户**恒放行**，不计数）或
+ *          `{ ok: false, count, limit }`（游客用满当日配额）
+ *
+ * ⚠️ 已登录用户不走这条：他们有 `ai_quota_config` 的日 token 额度（free 50000 起），
+ *    那套已经把「用多少」管住了；再叠一层次数限制会让付费用户莫名撞墙。
+ * ⚠️ fail-open：`checkRateLimitDb` 在 DB 异常时返回 ok（见 _shared/rate-limiter.ts）。
+ *    这里**沿用**该语义，不另写一套 —— 限流器故障不该把游客挡在门外。
+ * ⚠️ 计数 key 带日期 ⇒ 跨天自动换新桶；旧桶由 check_rate_limit 的过期清理回收，
+ *    不需要额外的清理任务。
+ */
+const checkGuestDailyLimit = async (identity: {
+  userId: string | null;
+  ipAddress: string | null;
+}) => {
+  if (identity.userId) return { ok: true as const };
+  const day = getBeijingDayKey();
+  const gate = await checkRateLimitDb(
+    `ai_chat_guest_day:${day}:${identity.ipAddress || 'unknown'}`,
+    GUEST_DAILY_CHAT_LIMIT,
+    86_400,
+  );
+  return gate.ok ? { ok: true as const } : { ok: false as const, limit: GUEST_DAILY_CHAT_LIMIT };
+};
+
+/** 北京时间的自然日字符串（YYYY-MM-DD）。EF 运行在 UTC，必须显式换算。 */
+const getBeijingDayKey = (now = new Date()) => {
+  // +08:00 固定偏移（中国无夏令时），比依赖 ICU 时区名的 toLocaleDateString 更稳。
+  const beijing = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  return beijing.toISOString().slice(0, 10);
+};
+
 type VaultRow = {
   id: string;
   provider: string;
@@ -1386,11 +1428,9 @@ const runMeteredWebSearch = async ({
       origin,
     );
   }
-  let dailyLimit = (await getQuotaPolicy(client, tier)).webSearchLimit;
-  if (dailyLimit !== -1) {
-    const bonuses = sumCodingBonuses(await resolveUserPlans(client, userId));
-    dailyLimit += bonuses.webSearchBonus;
-  }
+  // 2026-10-20：Coding 附加包的联网搜索加成随包下线（plans/030 §5），
+  // 额度只剩 ai_quota_config.web_search_daily_limit 一个来源。
+  const dailyLimit = (await getQuotaPolicy(client, tier)).webSearchLimit;
   if (dailyLimit === 0) {
     return jsonResponse(
       { ok: false, code: 'SEARCH_DAILY_LIMIT', message: '当前订阅暂不支持联网搜索。' },
@@ -1631,18 +1671,6 @@ const WEB_SEARCH_DAILY_LIMIT_FALLBACKS: Record<string, number> = {
   ultra: 240,
 };
 
-// BOH AI Coding 附加包额度加成：与订阅页 CODING_PACKS 文案一致，按 active 订阅叠加。
-// ⚠️ 2026-10-02：随档位额度（ai_quota_config.daily_token_limit）一起 ÷2，
-//    保持包相对基础额度的占比不变（coding-lite 对 pro：250k/1M = 25%，与改动前 500k/2M 一致）。
-//    改这里**必须同时改** src/utils/subscription-benefits.js 的 CODING_PACKS 展示值，
-//    否则会出现「页面说 +25 万、实际加 +50 万」。
-const CODING_PLAN_BONUSES: Record<string, { tokenBonus: number; webSearchBonus: number }> = {
-  'coding-lite': { tokenBonus: 250_000, webSearchBonus: 10 },
-  'coding-plus': { tokenBonus: 750_000, webSearchBonus: 30 },
-  'coding-pro': { tokenBonus: 1_500_000, webSearchBonus: 60 },
-  'coding-ultra': { tokenBonus: 3_000_000, webSearchBonus: 120 },
-};
-
 const SUBSCRIPTION_PLAN_ALIASES: Record<string, string> = {
   'boh-ai-plus': 'plus',
   'boh-plus': 'plus',
@@ -1656,36 +1684,6 @@ const normalizeSubscriptionPlanCode = (planCode: unknown): string => {
     .trim()
     .toLowerCase();
   return SUBSCRIPTION_PLAN_ALIASES[normalized] || normalized;
-};
-
-const sumCodingBonuses = (plans: Set<string>): { tokenBonus: number; webSearchBonus: number } => {
-  let tokenBonus = 0;
-  let webSearchBonus = 0;
-  for (const code of plans) {
-    const bonus = CODING_PLAN_BONUSES[code];
-    if (bonus) {
-      tokenBonus += bonus.tokenBonus;
-      webSearchBonus += bonus.webSearchBonus;
-    }
-  }
-  return { tokenBonus, webSearchBonus };
-};
-
-// Coding 附加包档位：用于 min_tier 为 coding 计划码时的模式访问门槛校验。
-const CODING_PLAN_RANK: Record<string, number> = {
-  'coding-lite': 1,
-  'coding-plus': 2,
-  'coding-pro': 3,
-  'coding-ultra': 4,
-};
-
-const getCodingPlanRank = (plans: Set<string>): number => {
-  let rank = 0;
-  for (const code of plans) {
-    const r = CODING_PLAN_RANK[code];
-    if (r !== undefined && r > rank) rank = r;
-  }
-  return rank;
 };
 
 // Model mode IDs are billing classes, independent from the user's subscription tier.
@@ -1946,18 +1944,15 @@ async function resolveRuntimeModelPolicy(
   // 这个意图**根本没生效**（空值仍得到 ''），档位闸门会静默跳过。
   // 改成显式兜底，语义与注释意图一致。
   const minTier = (toText(data.min_tier) || 'free').toLowerCase();
-  const codingRank = CODING_PLAN_RANK[minTier];
-  if (codingRank !== undefined) {
-    if (getCodingPlanRank(await resolveUserPlans(client, userId)) < codingRank) {
-      throw runtimeAccessError(
-        '当前订阅暂不支持此 Coding 模式，请订阅对应的 Coding 附加包后重试。',
-      );
-    }
-  } else {
-    const requiredTier = normalizeTier(minTier);
-    if (!tierAllows(tier, requiredTier)) {
-      throw runtimeAccessError('当前订阅暂不支持此模式，请升级后重试。');
-    }
+  // 2026-10-20：Coding 附加包下线后，min_tier 不再有 coding-* 合法值（迁移 2026102003
+  // 已把约束收窄到 guest/free/plus/pro/max/ultra），原先「先判 codingRank、否则判 tierAllows」
+  // 的二分支合并成一条。语义也收敛为：guest = 游客可用，其余 = 登录即用。
+  //
+  // ⚠️ 保留 tierAllows 而不是直接放行 —— 它仍是服务端唯一能拦住游客越级选模式的闸门
+  //    （前端灰态只是体验层，`mode` 是请求体字段，可被直连伪造）。
+  const requiredTier = normalizeTier(minTier);
+  if (!tierAllows(tier, requiredTier)) {
+    throw runtimeAccessError('当前订阅暂不支持此模式，请升级后重试。');
   }
 
   // 同上：第二参是长度上限，不是兜底值；兜底改用显式 `||`。
@@ -2193,10 +2188,15 @@ async function logTokenUsage(
     // 积分结算必须先于 settle_ai_token_quota：后者会把预约置为 settled，
     // 而 settle_ai_points 只认 pending。积分结算只记实结值、不改 status。
     if (quota.billedViaPoints) {
+      // ⚠️ 2026-10-20（迁移 2026102004）：**不再传 p_multiplier**。
+      // 原实现把 EF 算出的倍率当外部入参交给 DB，而 settle_ai_points 直接用它
+      // 折算 billed —— 一旦有人能构造 reservation，传 0 就能零成本消耗。
+      // 现在函数内部改走 `get_ai_mode_token_multiplier(p_mode)` 自读，
+      // 与 settle_ai_token_quota 同一真源。p_mode 仍要传：它既是倍率查询键，
+      // 也进账单 remark，两处同源才不会出现「记 A 模式、按 B 倍率扣」。
       const { error: pointsError } = await client.rpc('settle_ai_points', {
         p_reservation_id: quota.reservationId,
         p_total_tokens: usage.totalTokens,
-        p_multiplier: quotaMultiplier,
         p_model: String(payload.model || ''),
         p_mode: String(body.mode || ''),
       });
@@ -2351,11 +2351,8 @@ async function checkTokenQuota(
   }
 
   const policy = await getQuotaPolicy(client, tier);
-  let tokenLimit = policy.tokenLimit;
-  if (userId && tokenLimit !== -1) {
-    const bonuses = sumCodingBonuses(await resolveUserPlans(client, userId));
-    tokenLimit += bonuses.tokenBonus;
-  }
+  // 2026-10-20：附加包加成下线，额度只剩档位自身（plans/030 §5）。
+  const tokenLimit = policy.tokenLimit;
   const usedTokens = tokenLimit === -1 ? 0 : await countTodayTokenUsage(client, userId, ipAddress);
   const remainingTokens = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - usedTokens);
   return {
@@ -2389,17 +2386,12 @@ async function handleQuotaStatus(client: ReturnType<typeof createServiceClient>,
   const tier = await resolveUserTier(client, userId);
   const policy = await getQuotaPolicy(client, tier);
   const pricing = await getPricingConfig(client);
-  let tokenLimit = policy.tokenLimit;
-  let webSearchLimit = policy.webSearchLimit;
-  // 附加包加成单独留一份：前端 2026-10-08 起用「档位基础额度 = 100%、附加包把满量程推到
-  // 100% + 包%」的百分比口径，只返回合并后的 tokenLimit 是拆不出这两个分量的。
-  let bonusTokens = 0;
-  if (userId) {
-    const bonuses = sumCodingBonuses(await resolveUserPlans(client, userId));
-    bonusTokens = bonuses.tokenBonus;
-    if (tokenLimit !== -1) tokenLimit += bonuses.tokenBonus;
-    if (webSearchLimit !== -1) webSearchLimit += bonuses.webSearchBonus;
-  }
+  const tokenLimit = policy.tokenLimit;
+  const webSearchLimit = policy.webSearchLimit;
+  // 2026-10-20：附加包下线后不再有额度加成，但仍返回 bonusTokens: 0 ——
+  // 前端 ai-quota-display.js 与该字段是契约关系（它按「基础额度 + 加成」算百分比），
+  // 直接删字段会让前端读到 undefined。**保留 0 比删字段安全**。
+  const bonusTokens = 0;
   const usedTokens = tokenLimit === -1 ? 0 : await countTodayTokenUsage(client, userId, ipAddress);
   const remainingTokens = tokenLimit === -1 ? -1 : Math.max(0, tokenLimit - usedTokens);
   const webSearchUsed = webSearchLimit === -1 ? 0 : await countTodayWebSearchUsage(client, userId);
@@ -2903,6 +2895,9 @@ Deno.serve(async (request) => {
       const identity = await resolveRuntimeIdentity(request, client);
       // M-6 修复：服务端短期速率限制（每用户每分钟 10 次），防止客户端限流被绕过
       const rateKey = `ai_chat_rt:${identity.userId || `guest:${identity.ipAddress}`}`;
+      // 游客每日次数上限（见 GUEST_DAILY_CHAT_LIMIT 的注释）：与分钟级限流**并列**，
+      // 不是替代 —— 前者防「一整天慢慢刷」，后者防「一分钟内猛刷」。
+      const guestGate = await checkGuestDailyLimit(identity);
       // 与 runtime-chat-stream 同一处理：限流与额度并行，policy 保持在限流之后。
       // 详见 runtime-chat-stream 分支的注释（plans/024 §P1-3）。
       // P1-5: 复用 identity 避免重复 auth.getUser 往返
@@ -2921,6 +2916,21 @@ Deno.serve(async (request) => {
             status: 429,
             code: 'RATE_LIMITED',
             message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。`,
+          },
+          429,
+          origin,
+        );
+      }
+      // 游客每日次数闸门：与分钟级限流并列（前者防整天慢刷、后者防一分钟猛刷）。
+      // ⚠️ code 用独立的 `GUEST_DAILY_LIMIT`，让前端能区分「等一下」和「明天再来」——
+      //    两个都是 429，但文案与可操作建议完全不同。
+      if (!guestGate.ok) {
+        return jsonResponse(
+          {
+            ok: false,
+            status: 429,
+            code: 'GUEST_DAILY_LIMIT',
+            message: `游客每天可对话 ${guestGate.limit} 次，今天已用完。登录后即可继续，并解锁全部模型与每日额度。`,
           },
           429,
           origin,
@@ -3049,6 +3059,9 @@ Deno.serve(async (request) => {
       const identity = await resolveRuntimeIdentity(request, client);
       // M-6 修复：服务端短期速率限制（每用户每分钟 10 次）
       const rateKey = `ai_chat_rt:${identity.userId || `guest:${identity.ipAddress}`}`;
+      // 游客每日次数上限（见 GUEST_DAILY_CHAT_LIMIT 的注释）：与分钟级限流**并列**，
+      // 不是替代 —— 前者防「一整天慢慢刷」，后者防「一分钟内猛刷」。
+      const guestGate = await checkGuestDailyLimit(identity);
       // 首 token 延迟优化（plans/024 §P1-3）：限流与额度查询互不依赖（都只吃 identity），
       // 并行发出，把两次串行 DB 往返压成一次。
       //
@@ -3072,6 +3085,21 @@ Deno.serve(async (request) => {
             status: 429,
             code: 'RATE_LIMITED',
             message: `请求过于频繁，请 ${rate.retryAfter} 秒后再试。`,
+          },
+          429,
+          origin,
+        );
+      }
+      // 游客每日次数闸门：与分钟级限流并列（前者防整天慢刷、后者防一分钟猛刷）。
+      // ⚠️ code 用独立的 `GUEST_DAILY_LIMIT`，让前端能区分「等一下」和「明天再来」——
+      //    两个都是 429，但文案与可操作建议完全不同。
+      if (!guestGate.ok) {
+        return jsonResponse(
+          {
+            ok: false,
+            status: 429,
+            code: 'GUEST_DAILY_LIMIT',
+            message: `游客每天可对话 ${guestGate.limit} 次，今天已用完。登录后即可继续，并解锁全部模型与每日额度。`,
           },
           429,
           origin,

@@ -2,7 +2,7 @@
   <div class="boh-glass-under" aria-hidden="true" :style="rootStyle">
     <LiquidGlass
       mode="standard"
-      :displacement-scale="props.displacementScale"
+      :displacement-scale="effectiveDisplacementScale"
       :blur-amount="effectiveBlurAmount"
       :saturation="SPEC.saturation"
       :aberration-intensity="SPEC.aberrationIntensity"
@@ -53,6 +53,18 @@ const props = defineProps({
   blurAmount: { type: Number, default: LIQUID_GLASS_SPEC.blurAmount },
   /** 位移强度 */
   displacementScale: { type: Number, default: LIQUID_GLASS_SPEC.displacementScale },
+  /**
+   * 磨砂（frosted）档 —— 2026-10-20 用户口径区分两种材质：
+   *   · 折射（默认，`frosted: false`）：位移 + 模糊，玻璃会"扭曲"背后的内容；
+   *   · 磨砂（`frosted: true`）：**只留模糊、位移归零**，背后内容被均匀糊开但不扭曲。
+   * ⚠️ 磨砂**只关位移**，不动 `blurAmount` / 白膜 —— 模糊度仍归全站那档倍数管
+   *    （`useGlassBlur`），白膜仍走 spec 的 0.1；任一处另起一份都会让"用户调模糊度"
+   *    只生效一半（§21.12 的坑）。
+   * ⚠️ 实现是 displacementScale=0 而**不是**换 `mode`：组件只有
+   *    standard/polar/prominent/shader 四种，没有"磨砂"档，
+   *    而这四种都带位移；关掉位移才是用户要的那个观感。
+   */
+  frosted: { type: Boolean, default: false },
 });
 
 /** 供模板引用的官方样貌常量（饱和 / 色差 / 弹性不做 props，全站一个口径） */
@@ -63,6 +75,9 @@ const SPEC = LIQUID_GLASS_SPEC;
    （唯一写入者 `useGlassBlur`）。两处各写一份 = 用户调了模糊度只有一半玻璃跟着变。 */
 const { blurScale } = useGlassBlur();
 const effectiveBlurAmount = computed(() => props.blurAmount * blurScale.value);
+
+/* 磨砂 = 位移归零。⚠️ 别把 `blurAmount` 也一起改：模糊仍吃全站倍数（见 props 注释）。 */
+const effectiveDisplacementScale = computed(() => (props.frosted ? 0 : props.displacementScale));
 
 /* 圆角：宿主可用 `--glass-refract-radius` 覆写 —— 顶栏岛会在 100px（常态胶囊）/
    30px（岛展开）之间 morph，而 `radius` 是 Number prop；让 CSS 变量接管，

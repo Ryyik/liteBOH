@@ -347,10 +347,9 @@ export const SAVE_STRATEGIES = {
       'pro',
       'max',
       'ultra',
-      'coding-lite',
-      'coding-plus',
-      'coding-pro',
-      'coding-ultra',
+      // 2026-10-20：coding-* 随 Coding 附加包下线一并移除（迁移 2026102003
+      // 已把 DB 的 min_tier 约束收窄到同一组值）。两处必须同步，
+      // 否则后台能选到一个 DB 会拒绝的值，报错发生在保存时而不是编辑时。
     ]);
     if (!allowedMinTiers.has(normalizedMinTier)) throw new Error('最低订阅档位无效');
     if (

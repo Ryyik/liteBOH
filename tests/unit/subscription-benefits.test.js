@@ -12,7 +12,6 @@ import {
   TIER_NICKNAME_COLORS,
   resolveCloudBenefitFromPlanCodes,
   resolveCloudBenefitFromSubscriptions,
-  resolvePackQuotaPercent,
 } from '../../src/utils/subscription-benefits.js';
 
 describe('subscription Cloud+ benefits', () => {
@@ -120,10 +119,13 @@ describe('plan benefit showcase single source (订阅页卡片与对比表共用
      · 附加包百分比 = 包加成 ÷ 档位基础额度，取整到 5%。
    自己当天用了多少的百分比在 utils/ai-quota-display.js（另一把尺子，分母是自身档位）。 */
 describe('AI 额度百分比口径（界面不再展示 Token 绝对值）', () => {
-  it('档位百分比以最低付费档为基准：Plus 100% / Pro 250% / Max 625% / Ultra 1250%，free 无额度', () => {
+  it('档位百分比以最低付费档为基准：free 13% / Plus 100% / Pro 250% / Max 625% / Ultra 1250%', () => {
     expect(PLAN_AI_TOKEN_BASELINE_TIER).toBe('plus');
+    // 2026-10-20（plans/030 §3.3）：free 额度 0 → 50000 ⇒ 由「—」变成 13%
+    // （50000 / 400000 = 12.5%，Math.round 后为 13）。
+    // 这是**有意的展示变化**：免费档现在真有每日额度，不再是"无额度、纯积分"。
     expect(PLAN_AI_TOKEN_PERCENTS).toEqual({
-      free: '—',
+      free: '13%',
       plus: '100%',
       pro: '250%',
       max: '625%',
@@ -141,23 +143,7 @@ describe('AI 额度百分比口径（界面不再展示 Token 绝对值）', () 
     }
   });
 
-  it('附加包百分比 = 包加成 ÷ 档位基础额度，取整到 5%', () => {
-    // coding-lite +25 万：对 Plus(40 万) 62.5% → 65%；对 Pro(100 万) = 25%
-    expect(resolvePackQuotaPercent('coding-lite', 'plus')).toBe(65);
-    expect(resolvePackQuotaPercent('coding-lite', 'pro')).toBe(25);
-    // coding-plus +75 万：对 Plus 187.5% → 190%
-    expect(resolvePackQuotaPercent('coding-plus', 'plus')).toBe(190);
-    // free 档基础额度为 0 ⇒ 包即全部额度，返回 null（不是 0，也不是 Infinity）
-    expect(resolvePackQuotaPercent('coding-lite', 'free')).toBeNull();
-    // 未知包同样 null，不抛错（订阅页会把整张包卡片列表渲染出来）
-    expect(resolvePackQuotaPercent('coding-nonexistent', 'plus')).toBeNull();
-  });
-
-  it('附加包百分比一律落在 5% 的整数倍上（用户口径要「150%」这类整数）', () => {
-    ['plus', 'pro', 'max', 'ultra'].forEach((tier) => {
-      ['coding-lite', 'coding-plus', 'coding-pro', 'coding-ultra'].forEach((pack) => {
-        expect(resolvePackQuotaPercent(pack, tier) % 5).toBe(0);
-      });
-    });
-  });
+  // 2026-10-20：Coding 附加包整体下线（plans/030 §5），
+  // 原先锁 resolvePackQuotaPercent 的两条用例随源一起删除。
+  // 若恢复附加包，断言应一并恢复（口径：包加成 ÷ 档位基础额度，取整到 5% 的倍数）。
 });

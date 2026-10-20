@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue';
 import {
   BOH_DEFAULT_MODE_ID,
+  BOH_GUEST_FALLBACK_MODE_ID,
   MEMORY_CAPTURE_SETTING_KEY,
   TREEHOLE_MEMORY_SYNC_SETTING_KEY,
   LEGACY_TREEHOLE_MEMORY_SYNC_SETTING_KEY,
@@ -41,8 +42,16 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
 
   // ─── Mode state ────────────────────────────────────────────────────────────────
 
-  // 当前模式 - 默认 Fast（极速响应）。4 模式之间不自动切换；
-  // 用户主动选择什么就走什么（语义：Fast=极速 / Pro=质量 / Plan=超级高质量 / Agent=工作）。
+  // 当前选中项。2026-10-20 起列表是「3 个策略 + 6 个模型」的混合列表，
+  // 选中项的语义只剩"这次用哪一行"，不再有"模式之间自动切换"的概念。
+  //
+  // ⚠️ 默认值分两条路：
+  //   · 登录用户 / 无 localStorage ⇒ BOH_DEFAULT_MODE_ID（'balance'）
+  //   · 未登录（游客）           ⇒ BOH_GUEST_FALLBACK_MODE_ID（'fast' / GLM4）
+  //   游客不能落在 balance 上 —— 它的 min_tier='free'，选中会在发消息时被 EF 拒绝。
+  //   这里读不到登录态（本 composable 不依赖 authStore，避免循环依赖 + 单测负担），
+  //   所以只处理"无 localStorage"这一半；**登录态变化时的校正由 useBohShell 的 watch 负责**
+  //   （它已有 `!loggedIn && currentModeId !== 'fast'` 那条，本次补上 immediate）。
   const resolveInitialModeId = () => {
     if (typeof window === 'undefined') return BOH_DEFAULT_MODE_ID;
     try {
@@ -57,13 +66,21 @@ export function useModelConfig({ availableModels = [], chatModes = [] } = {}) {
   const currentMode = computed(
     () =>
       getChatModes().find((m) => m.id === currentModeId.value) ||
-      getChatModes()[0] || {
-        id: BOH_DEFAULT_MODE_ID,
-        name: 'Fast',
-        tagline: '极速响应',
-        description: '轻量模型，秒回',
-        model: 'fast',
-      },
+      getChatModes()[0] ||
+        // ⚠️ 兜底对象只在「模式表还没加载 / 加载失败」时出现（实测症状：pill 显示
+        //    "Fast" 但菜单是"暂无可用模式"）。2026-10-20 修正了它的三重自相矛盾：
+        //    原先是 id=BOH_DEFAULT_MODE_ID('balance') 却 name='Fast'、model='fast' ——
+        //    同一个对象里三个标识各说各话，用户看到的名字与真正会调用的模型对不上。
+        //    现在 id/name/model 一律指向**游客回落模式**（GLM4），因为能走到这条兜底的
+        //    绝大多数是"加载失败"的会话，此时给一个游客可用的值最不容易出错；
+        //    登录用户若加载成功会立刻被真实列表覆盖，不会停在这里。
+        {
+          id: BOH_GUEST_FALLBACK_MODE_ID,
+          name: 'GLM4',
+          tagline: '轻量模型',
+          description: '轻量模型，响应快',
+          model: BOH_GUEST_FALLBACK_MODE_ID,
+        },
   );
   const currentModelId = computed(() => currentMode.value.model);
   const currentModel = computed(

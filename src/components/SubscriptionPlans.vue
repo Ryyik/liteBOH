@@ -222,41 +222,8 @@
     </section>
 
     <!-- Coding 附加包（Token Plan 包）：与主订阅共存，积分购买 -->
-    <section class="packs" aria-labelledby="packs-title">
-      <p class="kicker center reveal">Token Plan</p>
-      <h2 id="packs-title" class="section-title center reveal">Coding 附加包</h2>
-      <p class="section-sub center reveal">
-        在任意方案上叠加每日 AI 额度与联网搜索次数，按积分购买，与主订阅同时生效。
-      </p>
-      <div class="pack-grid">
-        <article v-for="pack in codingPacks" :key="pack.code" class="liquid-glass pack-card reveal">
-          <h3>{{ pack.name }}</h3>
-          <!-- 2026-10-08：从 ' +25 万 Token / 天 ' 改成百分比（基准 = Plus 档基础额度，
-               与档位对比行同一把尺子）。包是独立售卖的，实际占比随用户档位不同，
-               个人化数字在 AI 页的用量卡里按自己的档位算。 -->
-          <p class="pack-bonus">{{ formatPackQuotaPercent(pack.code) }}</p>
-          <p class="pack-web">联网搜索 +{{ pack.webSearchBonus }} 次 / 天</p>
-          <div class="pack-price">
-            <strong>{{ pack.monthlyPrice }}</strong>
-            <span>积分 / 月</span>
-          </div>
-          <button
-            class="subscribe pack-buy"
-            :class="{ active: activePackCodes.includes(pack.code) }"
-            :disabled="isSubmitting || submittingPack === pack.code"
-            @click="handleBuyPack(pack)"
-          >
-            {{
-              submittingPack === pack.code
-                ? '开通中…'
-                : activePackCodes.includes(pack.code)
-                  ? '已开通 · 再购顺延'
-                  : '积分购买'
-            }}
-          </button>
-        </article>
-      </div>
-    </section>
+    <!-- 2026-10-20：Coding 附加包区块整体下线（plans/030 §5）。
+       恢复请从 git 历史取模板，不要凭记忆重写。 -->
 
     <!-- 对比表 -->
     <section class="comparison" aria-labelledby="comparison-title">
@@ -505,18 +472,15 @@ import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import {
   getMySubscriptions,
-  subscribeCodingPackWithPoints,
   subscribeWithPoints,
   startSubscriptionTrial,
 } from '@/utils/api/subscription-api.js';
 import { clearUserTierCache } from '@/utils/api/api-key-runtime-api.js';
 import { showIsland } from '@/composables/useIsland.js';
-import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import SubscriptionNavIsland from '@/components/SubscriptionNavIsland.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
 import { logger } from '@/utils/logger.js';
 import {
-  CODING_PACKS,
   PLAN_AI_POINT_MULTIPLIERS,
   PLAN_AI_TOKEN_LIMITS,
   PLAN_AI_TOKEN_PERCENTS,
@@ -526,8 +490,6 @@ import {
   PLAN_PHOTO_ALBUM_EXPORTS,
   PLAN_PHOTO_ALBUM_PHOTOS,
   TIER_NICKNAME_COLORS,
-  formatPackQuotaPercent,
-  normalizeSubscriptionPlanCode,
 } from '@/utils/subscription-benefits.js';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 
@@ -1041,61 +1003,9 @@ const closeAllModals = () => {
   confirmPlan.value = null;
 };
 
-/* ===== Coding 附加包（Token Plan 包）=====
-   与主订阅共存：价格服务端取价（subscription_plan_prices，面板可改），
-   展示价 CODING_PACKS.monthlyPrice 仅作卡片文案，实际扣费以 RPC 返回为准。 */
-const codingPacks = CODING_PACKS;
-const submittingPack = ref('');
-const activePackCodes = computed(() =>
-  Object.values(activeSubscriptions.value)
-    .map((s) => normalizeSubscriptionPlanCode(s?.planCode || ''))
-    .filter((code) => code.startsWith('coding-')),
-);
-const handleBuyPack = async (pack) => {
-  if (isSubmitting.value || submittingPack.value) return;
-  if (!authStore.isLoggedIn || !userInfo.value?.id) {
-    authStore.showLoginModal = true;
-    return;
-  }
-  const { confirm } = useConfirmDialog();
-  const accepted = await confirm({
-    title: `购买 ${pack.name}？`,
-    message: `将扣除 ${pack.monthlyPrice} 积分开通一个月（服务端按现价计费）。与当前订阅同时生效，同档有效期内购买将顺延续费。`,
-    confirmText: '确认购买',
-    cancelText: '再想想',
-  });
-  if (!accepted) return;
-  submittingPack.value = pack.code;
-  try {
-    const result = await subscribeCodingPackWithPoints({
-      planCode: pack.code,
-      billingCycle: BILLING_MONTHLY,
-      metadata: { source: 'user-center/subscription', kind: 'coding_pack' },
-    });
-    if (!result.ok) {
-      const code = result.error?.code || result.data?.message;
-      const fallback =
-        code === 'INSUFFICIENT_POINTS' ? '积分不足，请先签到或兑换积分' : '请稍后重试';
-      notify('购买失败', result.error?.message || result.data?.message || fallback, 'warning');
-      return;
-    }
-    const points = Number(result.data?.currentPoints ?? currentPoints.value);
-    currentPoints.value = points;
-    authStore.$patch({ userInfo: { ...authStore.userInfo, points } });
-    await loadMySubscriptions();
-    clearUserTierCache().catch(() => undefined);
-    notify(
-      result.data?.action === 'renew' ? `${pack.name} 已顺延续费` : `${pack.name} 已开通`,
-      result.data?.action === 'renew' ? '生效期与原有效期无缝衔接' : '每日加成即刻生效',
-      'success',
-    );
-  } catch (error) {
-    logger.error('subscription', '附加包购买失败:', error);
-    notify('购买失败', '请稍后重试', 'warning');
-  } finally {
-    submittingPack.value = '';
-  }
-};
+/* 2026-10-20：Coding 附加包购买链路整体下线（plans/030 §5）。
+   删除：codingPacks / submittingPack / activePackCodes / handleBuyPack。
+   恢复请从 git 历史取实现，不要凭记忆重写。 */
 
 /* ===== 吸顶条融入灵动导航栏 =====
    工具条不再自身 sticky：被导航栏吞没时，把「周期切换 + 当前订阅 + 积分/充值」

@@ -45,6 +45,9 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
      **free 的 daily_token_limit 一直是 0**（无 token 额度，纯走积分兜底），
      那个「20 万」从上线起就没对应过任何东西，属既存展示错误。
      对齐口径：与 ai_pricing_config.rate_tokens_per_point 一起决定「1 积分能买多少」。
+     ⚠️ 2026-10-20（plans/030 §3.3）：`free` 从 0 改成 **5 万** —— 注册即有免费量，
+     用完才走积分兜底。DB 侧同步见迁移 2026102003。改后 `free` 在对比表里由
+     「—」变成「13%」（Plus=100% 那把尺子）—— **这是有意的展示变化，不是回归**。
      ⚠️ 2026-10-08 口径变更（用户口径「不再展示你还有多少 token，只用百分比」）：
      界面**不再展示绝对 Token 数**。`PLAN_AI_TOKEN_LIMITS` 保留为**绝对值底数** ——
      它既是档位百分比的推导来源，也是附加包百分比的分母；界面一律读
@@ -57,7 +60,7 @@ export const PLAN_CLOUD_IMAGE_LIMITS = {
      按「连续未中奖场次」累计、中奖清零、达标后兑保底礼；Free 不计保底（null）。
      真实阈值以数据库 RPC 为准，此处为展示口径，改动需与 PityIslandCard 阈值文案同步核对。 */
 export const PLAN_AI_TOKEN_LIMITS = {
-  free: 0,
+  free: 50000,
   plus: 400000,
   pro: 1000000,
   max: 2500000,
@@ -109,77 +112,19 @@ export const PLAN_AI_POINT_MULTIPLIERS = {
   ultra: 0.8,
 };
 
-/* Coding 附加包（Token Plan 包）：`tokenBonus` 是**数值**，与 ai-key-vault
-   CODING_PLAN_BONUSES 逐个对齐（tests/unit/ai-coding-pack-bonus-parity.test.js 守），
-   积分价格以 subscription_plan_prices 服务端取价为准（面板可改），此处仅展示。
-   free 档没有每日额度，包的每日加成即其全部「日额度」。
-   ⚠️ 2026-10-02：tokenBonus 随档位额度一起 ÷2（+50/150/300/600 万 → +25/75/150/300 万），
-   目的是**保持包相对基础额度的占比不变**（coding-lite 对 pro：250k/1M = 25%，与改动前 500k/2M 一致）。
-   改这里**必须同时改** Edge Function 的 CODING_PLAN_BONUSES 并重新部署 ——
-   只改展示会出现「页面说 +25 万、实际加 +50 万」，比不改更糟。
-   注意：倍率同时降了 10 倍，所以包的实际可用量（actual tokens）仍然比改动前多约 5 倍 ——
-   这是「降额度 + 提可用量」的连带效果，不是 bug。
-   ⚠️ 2026-10-08：字段从展示字符串（' +25 万 Token / 天 '）改成**数值** —— 界面不再展示
-   Token 数，改成百分比就必须能参与计算，字符串得先解析才能用（旧做法是把口径漏进正则）。 */
-export const CODING_PACKS = [
-  {
-    code: 'coding-lite',
-    name: 'Coding Lite',
-    tokenBonus: 250000,
-    webSearchBonus: 10,
-    monthlyPrice: 10,
-  },
-  {
-    code: 'coding-plus',
-    name: 'Coding Plus',
-    tokenBonus: 750000,
-    webSearchBonus: 30,
-    monthlyPrice: 34,
-  },
-  {
-    code: 'coding-pro',
-    name: 'Coding Pro',
-    tokenBonus: 1500000,
-    webSearchBonus: 60,
-    monthlyPrice: 68,
-  },
-  {
-    code: 'coding-ultra',
-    name: 'Coding Ultra',
-    tokenBonus: 3000000,
-    webSearchBonus: 120,
-    monthlyPrice: 135,
-  },
-];
+/* ⚠️ 2026-10-20：Coding 附加包整体下线（plans/030 §5）。
+   删除的导出：CODING_PACKS / PACK_QUOTA_PERCENT_STEP / resolvePackQuotaPercent /
+   formatPackQuotaPercent —— 连带删除 tests/unit/ai-coding-pack-bonus-parity.test.js
+   （它锁的正是「本文件的 tokenBonus」与「EF 的 CODING_PLAN_BONUSES」两处一致，源已不存在）。
 
-/* 附加包百分比的取整步长：用户口径要「150% 以此类推」这种整数字，5% 一档最耐看。 */
-export const PACK_QUOTA_PERCENT_STEP = 5;
+   为什么删（plans/030 §1）：一个 plan_code 同时承担两个正交职责 ——
+   「每天多 N 万 token」的额度加成（加法）与「能不能用某些模型」的准入阶梯（比较）。
+   两者共用同一标识符，导致 min_tier 出现两套合法值域、两个查找表、一个必须
+   前后端逐字对齐的数值。现在准入收敛为 guest/free 两种，额度加成随包消失。
 
-/**
- * 附加包相对**某档位基础额度**的百分比（取整到 5%）。
- *
- * ⚠️ 包是独立售卖的，同一个包在不同档位占比天然不同：coding-lite 对 Plus = 62.5%
- *    （取整 65%）、对 Pro = 25%。订阅页对访客也可见、没有「当前档位」⇒ 一律用
- *    **基准档 Plus** 折算，与档位对比行同一把尺子；AI 页里则用用户自己的档位，
- *   由 `quota-status` 返回的 baseTokenLimit/bonusTokens 直接算出，不查这张表。
- *
- * free 档基础额度为 0（包就是它的全部额度）⇒ 返回 `null`，调用方按「以包为全部」展示。
- */
-export function resolvePackQuotaPercent(packCode, tierCode = PLAN_AI_TOKEN_BASELINE_TIER) {
-  const pack = CODING_PACKS.find((item) => item.code === packCode);
-  if (!pack) return null;
-  const baseTokens = Number(PLAN_AI_TOKEN_LIMITS[normalizeSubscriptionPlanCode(tierCode)] || 0);
-  if (!(baseTokens > 0)) return null;
-  const step = PACK_QUOTA_PERCENT_STEP;
-  return Math.max(step, Math.round(((pack.tokenBonus / baseTokens) * 100) / step) * step);
-}
-
-/** 附加包卡片上的额度文案：'额度 +60%'（基础额度为 0 的档位 ⇒ '按包额度'） */
-export function formatPackQuotaPercent(packCode, tierCode = PLAN_AI_TOKEN_BASELINE_TIER) {
-  const percent = resolvePackQuotaPercent(packCode, tierCode);
-  return percent === null ? '按包额度' : `额度 +${percent}%`;
-}
-
+   DB 侧：subscription_plan_prices 的 coding-* 置 is_active=false（迁移 2026102003），
+   行保留以留审计痕迹；购买 RPC 的 EXECUTE 已 revoke。
+   若要恢复：优先从 git 历史取这段定义，而不是凭记忆重写。 */
 /** 实验室（/lab）已于 2026-10-19 退场：PLAN_LAB_QUOTAS 展示口径同步删除；
  *  配额 enforcement（TIER_QUOTA_MAP，composables/useLabQuota.js）保留待 BOHAI Work 接管。 */
 

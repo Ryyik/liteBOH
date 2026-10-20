@@ -451,11 +451,17 @@ export const ROUTING_HISTORY_FACT_PATTERN =
 export const ACTION_POST_TRIGGER_PATTERN =
   /(发帖|发个帖|发(?:一条|一篇|个)?.{0,8}帖子|发布.{0,8}帖子|论坛发帖|论坛发布|论坛发布文案|起草.{0,12}(论坛|社区|帖子|发布文案)|写.{0,12}(论坛|社区|帖子|发布文案)|生成.{0,12}(论坛|社区|帖子|发布文案)|整理.{0,12}(论坛|社区|帖子|发布文案))/;
 
-// 模式 ID 常量（2026-06-08 重新对齐产品语义）：
-//   - Fast   = 极速响应
-//   - Pro    = 质量（Qwen 旗舰通用）
-//   - Plan   = 超级高质量（DeepSeek-R1 推理）
-//   - Agent  = 工作（多 worker 集群）
-//   - auto   = 历史保留，运行时已不再使用；新会话默认走 'fast'。
-export const BOH_DEFAULT_MODE_ID = 'fast';
+// 模式 ID 常量。
+//
+// 2026-10-20（plans/030）：产品层从「模式」改成「策略 + 模型」两层，
+// 本常量只表示**登录用户的新会话默认选中哪一行**，不再代表"默认模型"。
+//   - balance = 默认策略（质量与消耗的平衡档）
+//   - guest   = 游客回落目标，见 useBohShell 的 authStore.isLoggedIn watch
+//   - auto    = 历史保留，运行时已不再使用（2026-06-08 移除；plans/030 D1 明确不恢复）
+//
+// ⚠️ 改成 'balance' 只影响**新用户 / 新设备**：`resolveInitialModeId` 优先读
+//    localStorage('boh_ai_mode_v1')，老用户存过的模式仍然生效。
+// ⚠️ 游客不能用 balance（其 min_tier='free'），必须由壳层回落到 GLM4 —— 见 useBohShell。
+export const BOH_DEFAULT_MODE_ID = 'balance';
+export const BOH_GUEST_FALLBACK_MODE_ID = 'fast';
 export const BOH_AUTO_MODE_ID = 'auto';

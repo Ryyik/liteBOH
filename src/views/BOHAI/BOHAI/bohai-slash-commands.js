@@ -34,48 +34,40 @@ const normalizeSlash = (raw) => String(raw ?? '').replace(/／/g, '/');
 export const BOH_SLASH_COMMANDS = [
   {
     id: 'web',
+    group: '检索',
     keyword: 'web',
     label: '联网搜索',
     description: '为下一条消息获取最新网络信息',
     action: 'web',
   },
   {
-    id: 'community',
-    keyword: 'community',
-    label: '社区搜索',
-    description: '切换站内知识总开关（官方事实 / 社区帖子 / 社区共享知识）',
-    action: 'community',
-  },
-  {
     id: 'cloud',
+    group: '检索',
     keyword: 'cloud',
     label: '个人 Cloud+',
-    description: '允许下一条回答参考你的 Cloud+ 内容',
+    // 2026-10-20 用户口径：不是「下一条」——Cloud+ 是会话级开关，开了就一直生效。
+    // 旧文案「允许下一条回答参考」会让人以为发一条就自动关掉（实际不会）。
+    description: '允许 AI 参考你的云空间内容',
     action: 'cloud',
   },
-  // 2026-10-16 补：这两个开关原本只有设置面板入口、没有斜杠命令
-  // （`/web` `/community` `/cloud` 三个同族开关都有；`/health` 随健康功能整体下线）。
-  // ⚠️ 纪律不变：action 必须在壳里 `executeSlashCommand` 的 switch 里有对应 case ——
-  //    单测 `bohai-slash-commands.test.js` 会逐条断言「每个 action 都有 case」，
-  //    就是为了防「加了命令却没接线」（本次补的正是这个缺口）。
-  // 2026-10-19：`/community`（社区搜索）、`/memory`（官方记忆）、`/shared`（社区知识）
-  // 三个命令现在切换**同一个**站内知识总开关 —— 壳里三个 case 都汇到 handleKnowledgeBaseToggle。
+  // ⚠️ 2026-10-20 用户口径：「你这检索一堆重复啊，直接保留一个 memory 开启 BOHAI 社区知识库」。
+  //    `/community`（社区搜索）/ `/memory`（官方记忆）/ `/shared`（社区知识）三个命令
+  //    自 2026-10-19 起就**切换同一个**站内知识总开关（壳里三个 case 全汇到
+  //    `handleKnowledgeBaseToggle`）—— 一个开关配三个入口，是纯重复。
+  //    现只保留 `/memory` 作为唯一入口，另外两个从命令表移除。
+  //    ⚠️ 壳里的 `case 'community'` / `case 'shared'` **保留**：老用户手打
+  //       `/community` 仍应生效（命令表决定菜单显示，解析器还认旧关键字）。
   {
     id: 'memory',
+    group: '检索',
     keyword: 'memory',
-    label: '官方记忆',
-    description: '切换站内知识总开关（官方事实 / 社区帖子 / 社区共享知识）',
+    label: 'BOHAI 社区知识库',
+    description: '开启后可检索官方事实、社区帖子与社区共享知识',
     action: 'memory',
   },
   {
-    id: 'shared',
-    keyword: 'shared',
-    label: '社区知识',
-    description: '切换站内知识总开关（官方事实 / 社区帖子 / 社区共享知识）',
-    action: 'shared',
-  },
-  {
     id: 'chat',
+    group: '对话',
     keyword: 'chat',
     label: 'Chat 形态',
     description: '切回对话形态',
@@ -84,6 +76,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'work',
+    group: '对话',
     keyword: 'work',
     label: 'Work 形态',
     description: '切到工作形态，产物落在右侧工作台',
@@ -92,6 +85,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'new',
+    group: '对话',
     keyword: 'new',
     label: '新对话',
     description: '开启一个全新会话',
@@ -99,6 +93,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'temp',
+    group: '对话',
     keyword: 'temp',
     label: '临时对话',
     description: '开启一个不写入长期记忆的临时会话',
@@ -106,6 +101,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'model',
+    group: '模型',
     keyword: 'model',
     label: '切换对话模式',
     description: '用法：/model 模式名，例如 /model 深度思考',
@@ -113,6 +109,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'clear',
+    group: '会话',
     keyword: 'clear',
     label: '清除当前对话',
     description: '清空当前会话（会二次确认）',
@@ -120,6 +117,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'settings',
+    group: '设置',
     keyword: 'settings',
     label: '打开设置',
     description: '打开 BOHAI 设置面板',
@@ -127,6 +125,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'usage',
+    group: '设置',
     keyword: 'usage',
     label: '用量详情',
     description: '打开设置并定位到用量卡',
@@ -134,6 +133,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'compress',
+    group: '会话',
     keyword: 'compress',
     label: '整理上下文',
     description: '把较早的对话压成摘要，释放上下文预算',
@@ -141,6 +141,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'stop',
+    group: '会话',
     keyword: 'stop',
     label: '停止生成',
     description: '停止当前正在生成的回答',
@@ -148,6 +149,7 @@ export const BOH_SLASH_COMMANDS = [
   },
   {
     id: 'help',
+    group: '设置',
     keyword: 'help',
     label: '查看全部命令',
     description: '列出所有可用的斜杠命令',
@@ -155,36 +157,28 @@ export const BOH_SLASH_COMMANDS = [
   },
 ];
 
-/** 固定命令的关键字集合（构造菜单时用来给动态模式项让路，见下） */
-const FIXED_KEYWORDS = new Set(BOH_SLASH_COMMANDS.map((command) => command.keyword));
-
-/** 模式名 → slug（`深度思考` 保持原样；`Deep Think` → `deep-think`） */
-const modeKeywordOf = (mode) =>
-  String(mode?.name || mode?.id || '')
-    .toLowerCase()
-    .replace(/\s+/g, '-');
-
 /**
- * 菜单项构造：固定命令 + 动态对话模式。
+ * 菜单项构造。
  *
- * ⚠️ **固定命令优先**：模式关键字由模式名 slug 而来，若某个模式恰好叫
- * 「stop」/「new」/「chat」… 就会与固定命令**撞名**（解析器里固定命令先命中，
- * 用户敲 `/stop` 得到的是「停止生成」而不是「切模式」）。这种模式项**直接跳过**，
- * 否则菜单里会出现两条 `/stop`，且第二条永远点不出预期效果。
+ * ⚠️ 2026-10-20 用户口径：「/模型名这种不要」。
+ *    原先这里会把每个对话模式（含策略 Cost/Balance/Intelligence 与全部模型）
+ *    翻译成一条 `/cost`、`/glm4flash`… 命令 —— 菜单里混进十几条同名同构的项。
+ *    现在模式切换只走 UI 胶囊（底行「GLM4 ⌄」那颗），斜杠菜单不再镜像它。
+ *    `/model <模式名>` 这条命令仍在（见 BOH_SLASH_COMMANDS），它带参数，
+ *    是「一个入口」，不是「每个模式一条命令」。
+ * ⚠️ `chatModes` 形参**保留**：调用方签名不变，将来若要恢复按需（例如给
+ *    `/model` 做补全建议）不必再改签名。
  */
 export const buildSlashMenuItems = ({ chatModes = [] } = {}) => {
-  const modeItems = (Array.isArray(chatModes) ? chatModes : [])
-    .map((mode) => ({
-      id: `mode-${mode?.id}`,
-      keyword: modeKeywordOf(mode),
-      label: `切换到 ${mode?.name || mode?.id}`,
-      description: mode?.tagline || '更改当前响应模式',
-      action: 'mode',
-      modeId: mode?.id,
-    }))
-    .filter((item) => item.keyword && !FIXED_KEYWORDS.has(item.keyword));
-
-  return [...BOH_SLASH_COMMANDS, ...modeItems];
+  // ⚠️ 2026-10-20 用户口径：「/模型名这种不要」。
+  //    原先每个对话模式（含策略 Cost/Balance/Intelligence 与全部模型）都会被翻译成
+  //    一条 `/cost`、`/glm4flash`… 命令 —— 菜单里混进十几条同名同构的项，
+  //    「检索」那组的重复问题在「模型」组更严重。
+  //    现在模式切换只走 UI 胶囊（底行「GLM4 ⌄」那颗），斜杠菜单不再镜像它。
+  //    ⚠️ `chatModes` 形参**保留**：调用方签名不变（壳传了就传了），
+  //       且将来若要恢复按需（例如 `/model` 后面跟参数）不必再改签名。
+  void chatModes;
+  return [...BOH_SLASH_COMMANDS];
 };
 
 /**
@@ -236,6 +230,23 @@ export const filterSlashItems = (items, query) => {
  * @param {{ commands?: Array }} [options] 命令清单（壳传入 `buildSlashMenuItems` 的结果，
  *        以便把动态模式项也纳入解析；缺省只用固定命令）
  */
+/**
+ * 旧关键字别名（2026-10-20 检索组去重时补）。
+ *
+ * `/community` 与 `/shared` 从菜单移除（三者本就切换同一个站内知识总开关），
+ * 但**老用户的手不会跟着改** —— 手打 `/shared` 得到「未知命令」是体验断层。
+ * 这里把旧关键字映射到保留下来的那条命令（`/memory`）。
+ *
+ * ⚠️ 别名只影响**解析**，不进菜单：`buildSlashMenuItems` 仍只返回 `BOH_SLASH_COMMANDS`，
+ *    所以菜单里不会出现三个同义项（用户口径要的正是这个）。
+ * ⚠️ 别名表不要扩张成"任意历史命令" —— 每多一条都是一份要长期维护的兼容债。
+ *    加之前先问：这个关键字有没有被真实用户用过（`ai_quota_log` 之类能查则查）。
+ */
+const LEGACY_KEYWORD_ALIASES = Object.freeze({
+  community: 'memory',
+  shared: 'memory',
+});
+
 export const parseSlashInput = (raw, { commands = BOH_SLASH_COMMANDS } = {}) => {
   const original = String(raw ?? '');
   const value = normalizeSlash(original);
@@ -249,9 +260,11 @@ export const parseSlashInput = (raw, { commands = BOH_SLASH_COMMANDS } = {}) => 
   const keyword = (matched?.[1] || '').toLowerCase();
   const args = (matched?.[2] || '').trim();
 
-  const command = (Array.isArray(commands) ? commands : []).find(
-    (item) => String(item?.keyword || '').toLowerCase() === keyword,
-  );
+  const list = Array.isArray(commands) ? commands : [];
+  const normalize = (v) => String(v || '').toLowerCase();
+  // 先按菜单里的关键字找；找不到再查旧关键字别名（别名指向现役命令的 keyword）
+  const lookup = LEGACY_KEYWORD_ALIASES[keyword] || keyword;
+  const command = list.find((item) => normalize(item?.keyword) === lookup);
 
   if (!command) return { ...base, kind: 'unknown', keyword, args };
   return { ...base, kind: 'command', keyword, args, command };

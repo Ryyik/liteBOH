@@ -33,12 +33,24 @@ const GLOBAL_TOKENS = 'src/styles/common/tokens.css';
 const COMPOSER_VUE = 'src/views/BOHAI/BOHAI/components/BohComposer.vue';
 
 describe('BOHAI 液态玻璃：哪些面上了玻璃', () => {
-  it('斜杠 / hover 详情卡升级折射级（§21.8 线 1 收尾）：锚无 z-index，模糊级组清零', () => {
+  it('斜杠 / hover 详情卡：锚无 z-index；斜杠改自带标准玻璃，详情卡仍走折射', () => {
     /* 剥 CSS 注释再断言：注释里合法地写着「无 z-index 锚」这类词（messages-glass 同款教训）；
        负向断言用「声明作用域」正则 —— @supports 查询条件里合法地含 "backdrop-filter:"，裸词必误伤 */
     const css = squeezeSource(String(read(COMPOSER)).replace(/\/\*[\s\S]*?\*\//g, ' '));
-    // ① 模糊级材质组不回来：composer css 不应再有任何 backdrop-filter **声明**
-    expect(css).not.toMatch(/[{;]\s*backdrop-filter\s*:/);
+    // ① 2026-10-20 变更：`.boh-slash` 从「折射组件覆盖层」改成**自带**方块之家标准液态玻璃
+    //    （`--glass-bg` + `--glass-filter-sm`，与论坛同款）⇒ 本文件**允许**出现一条
+    //    backdrop-filter 声明，且它必须是玻璃 token，不许是裸 blur。
+    //    仍然禁止的是「散落的模糊级材质组」（旧写法 `blur(20px) saturate(180%)` 攒在多个面板上）。
+    const backdropDecls = css.match(/[{;]\s*backdrop-filter\s*:\s*([^;}]+)/g) || [];
+    expect(
+      backdropDecls.length,
+      'backdrop-filter 声明数（只允许斜杠菜单那一条）',
+    ).toBeLessThanOrEqual(2);
+    for (const decl of backdropDecls) {
+      expect(decl, 'backdrop-filter 必须走 --glass-filter-sm token，不许裸 blur').toContain(
+        'var(--glass-filter-sm',
+      );
+    }
     // ② 两个锚存在且无 z-index（§21.7 采样根：锚不许建堆叠上下文）
     for (const anchor of ['.boh-slash-anchor', '.boh-mm-detail-anchor']) {
       const rule = css.match(new RegExp(`${anchor.replace(/\./g, '\\.')},?\\s*\\{[^}]*\\}`));
@@ -46,14 +58,26 @@ describe('BOHAI 液态玻璃：哪些面上了玻璃', () => {
       expect(anchorRule, `${anchor} 规则存在`).not.toBe('');
       expect(anchorRule, `${anchor} 不得带 z-index`).not.toMatch(/z-index/);
     }
-    // ③ @supports 撤实底名单包含两者（不支持 backdrop-filter 时落回基座实底 --boh-bg-page）
-    expect(css).toContain(squeezeSource('.boh-slash, .boh-mm-detail { background: transparent; }'));
-    // ④ 模板：两个锚各挂一枚玻璃；实例数 = 6（门禁 REFRACT_INSTANCE_BUDGET 上限，别再加）
+    // ③ 2026-10-20：`.boh-slash` **已移出**撤实底名单（它现在自带玻璃，再撤就成浮字）；
+    //    `.boh-mm-detail` 仍走折射组件，保留透明。
+    expect(css).toContain(squeezeSource('.boh-mm-detail { background: transparent; }'));
+    expect(css).not.toContain(
+      squeezeSource('.boh-slash, .boh-mm-detail { background: transparent; }'),
+    );
+    // ④ 实例数 6 → **5**（2026-10-20：斜杠菜单不再挂折射组件，改自带标准玻璃）。
+    //    门禁 `scripts/check-liquid-glass.mjs` 的 REFRACT_INSTANCE_BUDGET 仍是 6 上限，
+    //    实际降到 5 —— 上限不动、实际值下降，属于好方向，不需要改预算。
     const source = read(COMPOSER_VUE);
     const template = squeezeSource(source.slice(0, source.indexOf('<script setup>')));
     expect(template).toContain('<div v-if="slashOpen" class="boh-slash-anchor">');
     expect(template).toContain('class="boh-mm-detail-anchor"');
-    expect((template.match(/<BohGlassRefract/g) || []).length).toBe(6);
+    expect((template.match(/<BohGlassRefract/g) || []).length).toBe(5);
+    // 斜杠锚里**不许**再有玻璃组件（两层玻璃会把 backdrop 采样做两遍、观感发灰）
+    const slashAnchor = template.slice(
+      template.indexOf('class="boh-slash-anchor"'),
+      template.indexOf('class="boh-slash"'),
+    );
+    expect(slashAnchor).not.toContain('<BohGlassRefract');
   });
 
   it('输入框 / 模型 / 工具 / 用量浮层升级为**折射级**（§21.7；用量浮层见 §21.10）', () => {
@@ -78,7 +102,13 @@ describe('BOHAI 液态玻璃：哪些面上了玻璃', () => {
     const tplSource = read(COMPOSER_VUE);
     const tpl = squeezeSource(tplSource.slice(0, tplSource.indexOf('<script setup>')));
     expect(tpl).toContain(squeezeSource('<div class="boh-usage-anchor">'));
-    expect(tpl).toContain(squeezeSource('<BohGlassRefract v-if="usagePopOpen" :radius="12" />'));
+    // 2026-10-20：五处弹层（模型 / 工具 / hover 详情 / 斜杠 / 用量）改**磨砂**档
+    // （`frosted` = 位移归零、只留模糊），输入框本体保持折射。
+    // 断言同步：用量浮层这条从「无 frosted」升级为「必须带 frosted」——
+    // 它锁的是"用量浮层也上了玻璃"，材质档位变了但契约仍在。
+    expect(tpl).toContain(
+      squeezeSource('<BohGlassRefract v-if="usagePopOpen" :radius="12" frosted />'),
+    );
     // ③ 玻璃组件本体关键约束：standard 模式（免 worker）/ 弹性恒 0 / 百分比尺寸 / 白膜走令牌链
     //    ⚠️ §21.11：组件已从 BOHAI 域**升到 `src/components/ui/`**（站点级共享）
     const glass = read('src/components/ui/BohGlassRefract.vue');

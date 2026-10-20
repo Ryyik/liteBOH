@@ -73,37 +73,26 @@ describe('parseSlashInput · 六类解析契约', () => {
     expect(r.text).toBe('/foo');
   });
 
-  it('动态模式项也能被解析（命令清单由壳传入）', () => {
+  it('动态模式项**不再生成**（2026-10-20 用户口径「/模型名这种不要」）', () => {
+    // 模式切换只走底行胶囊；斜杠菜单不再镜像每个模式名。
     const items = buildSlashMenuItems({ chatModes: [{ id: 'think', name: 'Deep Think' }] });
-    const r = parseSlashInput('/deep-think 帮我规划', { commands: items });
+    expect(items.some((i) => i.modeId === 'think')).toBe(false);
+    expect(items.map((i) => i.keyword)).not.toContain('deep-think');
+    // /model 命令本身仍在（它带参数，是"一个入口"而不是"每个模式一条"）
+    const r = parseSlashInput('/model deep-think', { commands: items });
     expect(r.kind).toBe('command');
     expect(r.command.action).toBe('mode');
-    expect(r.command.modeId).toBe('think');
-    expect(r.args).toBe('帮我规划');
+    expect(r.args).toBe('deep-think');
   });
 });
 
-describe('buildSlashMenuItems · 固定命令优先', () => {
-  it('固定命令永远在列，且模式项拼在后面', () => {
+describe('buildSlashMenuItems · 只返回固定命令', () => {
+  it('清单恒等于固定命令表（模式项已整体移除）', () => {
     const items = buildSlashMenuItems({ chatModes: [{ id: 'pro', name: 'Pro' }] });
-    // ⚠️ 不能用「action !== 'mode'」来数固定命令：固定项里的 `/model` 本身 action 就是 'mode'
-    expect(items.length).toBe(BOH_SLASH_COMMANDS.length + 1);
-    expect(items.slice(0, BOH_SLASH_COMMANDS.length)).toEqual(BOH_SLASH_COMMANDS);
-    expect(items.at(-1)).toMatchObject({ action: 'mode', modeId: 'pro' });
-  });
-
-  it('模式名撞固定命令时跳过该模式项（否则 /stop 会有两条）', () => {
-    const items = buildSlashMenuItems({
-      chatModes: [
-        { id: 'x', name: 'stop' },
-        { id: 'y', name: 'Pro' },
-      ],
-    });
-    const stops = items.filter((i) => i.keyword === 'stop');
-    expect(stops).toHaveLength(1);
-    expect(stops[0].action).toBe('stop');
-    expect(items.some((i) => i.modeId === 'y')).toBe(true);
-    expect(items.some((i) => i.modeId === 'x')).toBe(false);
+    expect(items.length).toBe(BOH_SLASH_COMMANDS.length);
+    expect(items).toEqual(BOH_SLASH_COMMANDS);
+    // 传不传 chatModes 都得同一个结果
+    expect(buildSlashMenuItems()).toEqual(items);
   });
 
   it('缺省 chatModes 不报错', () => {
@@ -112,14 +101,19 @@ describe('buildSlashMenuItems · 固定命令优先', () => {
 });
 
 describe('命令清单 ↔ 壳里分派的不变量（2026-10-16 补）', () => {
-  it('/memory 与 /shared 可解析，且指向对应 action', () => {
+  it('/memory 可解析；/shared 与 /community 从菜单移除但**旧关键字仍可解析**', () => {
     const memory = parseSlashInput('/memory');
     expect(memory.kind).toBe('command');
     expect(memory.command.action).toBe('memory');
 
-    const shared = parseSlashInput('/shared');
-    expect(shared.kind).toBe('command');
-    expect(shared.command.action).toBe('shared');
+    // 2026-10-20：三者本就切换同一个站内知识总开关，菜单只留 /memory。
+    // ⚠️ 但**解析器**要认旧关键字 —— 老用户手打 /shared 不能突然变成「未知命令」。
+    //    这条依赖壳里保留 case 'shared' / case 'community'（见下一条断言）。
+    const legacy = ['/shared', '/community'];
+    for (const raw of legacy) {
+      const r = parseSlashInput(raw);
+      expect(r.kind, `${raw} 仍应被解析为命令`).toBe('command');
+    }
   });
 
   it('每条固定命令的 action 在壳里都有对应 case', () => {
@@ -134,13 +128,16 @@ describe('命令清单 ↔ 壳里分派的不变量（2026-10-16 补）', () => 
     }
   });
 
-  it('两个新命令在菜单与 /help 文案里都出现', () => {
+  it('检索组去重后只剩 /web /cloud /memory（一条命令一个入口）', () => {
     const items = buildSlashMenuItems();
     const keywords = items.map((item) => item.keyword);
     expect(keywords).toContain('memory');
-    expect(keywords).toContain('shared');
+    // 重复入口已移除
+    expect(keywords).not.toContain('shared');
+    expect(keywords).not.toContain('community');
+    // /help 文案与菜单同源（都从 BOH_SLASH_COMMANDS 生成）
     expect(formatSlashHelp()).toContain('/memory');
-    expect(formatSlashHelp()).toContain('/shared');
+    expect(formatSlashHelp()).not.toContain('/shared');
   });
 });
 

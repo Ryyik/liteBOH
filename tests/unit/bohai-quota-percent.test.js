@@ -40,8 +40,11 @@ describe('resolveTierQuotaPercent：Plus = 100% 这把尺子的数值真源', ()
     expect(resolveTierQuotaPercent('ultra')).toBe(1250);
   });
 
-  it('free / guest / 空值 / 未知档 ⇒ null（没有 token 额度或没有订阅，不许硬套一把尺子）', () => {
-    expect(resolveTierQuotaPercent('free')).toBeNull();
+  it('guest / 空值 / 未知档 ⇒ null（没有 token 额度或没有订阅，不许硬套一把尺子）', () => {
+    // 2026-10-20（plans/030 §3.3）：free 额度 0 → 50000，它**不再是 null** ——
+    // 注册用户现在真有每日额度，50000/400000 = 12.5% → Math.round 后 13。
+    // guest 仍然 null：游客没有额度行以外的任何东西（且只走 0.0x 的 GLM4）。
+    expect(resolveTierQuotaPercent('free')).toBe(13);
     expect(resolveTierQuotaPercent('guest')).toBeNull();
     expect(resolveTierQuotaPercent('')).toBeNull();
     expect(resolveTierQuotaPercent(undefined)).toBeNull();
@@ -129,9 +132,12 @@ describe('resolveAiQuotaDisplay：档位百分比 × 用量占比，主指标是
     expect(d.remainingLabel).toBe('90%');
   });
 
-  it('free 档基础额度为 0 且有包 ⇒ 包即全部额度，量程回到 100%（不是 200%）', () => {
+  // 2026-10-20（plans/030 §3.3）：free 额度从 0 改成 50000 ⇒ 它不再走「基础额度为 0」这条
+  // 降级分支。改用 guest：它没有 token 额度（`resolveTierQuotaPercent` ⇒ null），
+  // 正是本用例要覆盖的「只有包/没有档位额度」形态。
+  it('档位没有基础额度且有包 ⇒ 包即全部额度，量程回到 100%（不是 200%）', () => {
     const d = resolveAiQuotaDisplay({
-      tier: 'free',
+      tier: 'guest',
       usedTokens: 25000,
       baseTokenLimit: 0,
       bonusTokens: PACK_LITE,
@@ -244,10 +250,12 @@ describe('百分比口径的源码守卫：三个页面都不再自算 Token 数
   it('订阅页改用档位百分比，不再引用已删除的 PLAN_AI_TOKENS', () => {
     const src = squeezeSource(read(PLANS));
     expect(src).toContain('PLAN_AI_TOKEN_PERCENTS');
-    expect(src).toContain('formatPackQuotaPercent');
     expect(src).not.toContain('PLAN_AI_TOKENS');
-    // 附加包卡片不再直接渲染 Token 数字（字段已改成数值）
-    expect(src).not.toContain('{{ pack.tokenBonus }}');
+    // 2026-10-20（plans/030 §5）：Coding 附加包下线 ⇒ 订阅页不再有包卡片，
+    // 原先的 formatPackQuotaPercent / pack.tokenBonus 两条断言随源一起删除。
+    // 恢复附加包时这两条必须一并恢复（它们锁的是"包文案不许自己算百分比"）。
+    expect(src).not.toContain('formatPackQuotaPercent');
+    expect(src).not.toContain('CODING_PACKS');
   });
 
   it('Edge Function 的 quota-status 返回基础额度与包加成两个分量', () => {
@@ -255,7 +263,10 @@ describe('百分比口径的源码守卫：三个页面都不再自算 Token 数
     // 少这两个字段，前端就只能降级成「量程永远 100%」，包区段永不显示。
     const src = squeezeSource(read(VAULT));
     expect(src).toContain('baseTokenLimit:');
+    // 2026-10-20（plans/030 §5）：附加包下线后 bonusTokens 恒为 0，但**字段必须保留** ——
+    // 前端 ai-quota-display.js 按「基础额度 + 加成」算百分比，删字段会让它读到 undefined。
+    // 因此断言从 `let bonusTokens = 0;` 改成 `const bonusTokens = 0;`（声明方式随不可变性收窄）。
     expect(src).toContain('bonusTokens,');
-    expect(src).toContain('let bonusTokens = 0;');
+    expect(src).toContain('const bonusTokens = 0;');
   });
 });
