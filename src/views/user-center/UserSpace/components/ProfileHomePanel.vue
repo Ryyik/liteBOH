@@ -1464,9 +1464,18 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   width: 100%;
   margin: 0;
   overflow: hidden;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--stroke);
   border-radius: 14px;
-  background: #ffffff;
+  /* ⚠️ 底色必须走 token，不能写死 #ffffff。
+     这一块是 scoped 的（[data-v-*] 让特异性 +1），会**压过**全局
+     `.user-space-page[data-theme='dark'] .profile-post-card` 那条暗色覆盖 ——
+     2026-10-19 用户报障「暗色下卡片还是白的、白底白字看不见」就是这里：
+     底色写死白，而标题/摘要用的是 --text-primary/--text-secondary（暗色下接近纯白）。
+     用 --surface-elevated 而不是 --surface：外层 .profile-content-panel 已经是 --surface，
+     同色会让卡片在暗色下糊进面板；亮色两者都是 #ffffff ⇒ 视觉零变化。
+     ⚠️ 不要再给暗色单写一条覆盖 —— scoped 特异性同样会让它需要 !important，
+        而 tokens 已经有唯一真源。 */
+  background: var(--surface-elevated);
   cursor: pointer;
   transform: none;
   transition:

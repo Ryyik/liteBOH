@@ -585,7 +585,7 @@
 
 .profile-showcase-section {
   padding: 20px 40px 12px;
-  border-bottom: 1px solid #eff3f4;
+  border-bottom: 1px solid var(--stroke);
   background: linear-gradient(180deg, rgba(29, 155, 240, 0.04), rgba(29, 155, 240, 0.01));
 }
 
@@ -601,18 +601,18 @@
   margin: 0;
   font-size: 18px;
   font-weight: 800;
-  color: #0f1419;
+  color: var(--text-primary);
 }
 
 .showcase-header span {
-  color: #536471;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
 
 .showcase-empty-tip {
   margin: 0 0 4px;
-  color: #536471;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -623,9 +623,9 @@
 }
 
 .showcase-item {
-  border: 1px solid #d8e3ed;
+  border: 1px solid var(--stroke);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface-elevated);
   padding: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -648,12 +648,12 @@
   margin: 0;
   font-size: 15px;
   font-weight: 800;
-  color: #0f1419;
+  color: var(--text-primary);
 }
 
 .showcase-item p {
   margin: 0;
-  color: #536471;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.5;
   display: -webkit-box;
@@ -663,10 +663,10 @@
 }
 
 .showcase-unpin-btn {
-  border: 1px solid #d7e1e8;
+  border: 1px solid var(--stroke);
   border-radius: 999px;
-  background: #fff;
-  color: #536471;
+  background: var(--surface);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
   padding: 4px 10px;
@@ -3481,6 +3481,15 @@
 
 .profile-page[data-theme="dark"] .profile-service-icon.bg-blue { background: rgba(59,130,246,0.12); color: #60a5fa; }
 .profile-page[data-theme="dark"] .profile-service-icon.bg-teal { background: rgba(20,184,166,0.12); color: #2dd4bf; }
+
+/* 分段点分隔符：亮色是深色 18% 透明，暗色下等于隐形（对比度 1:1）。
+   「我」页那条在 profile-base.css:803，这里补「他人空间」这一份 ——
+   两个宿主同一元素，缺一边就会出现「我的空间看得见、别人主页看不见」。
+   ⚠️ 用 var(--text-muted)（该页暗色 #71717a，在 #181a20 上 3.6:1）而不是写裸 rgba：
+   后者会被 check:dark-tokens:strict 记成新增裸值，当场被门禁拦下。 */
+.profile-page[data-theme="dark"] .profile-hero-stats .stat-dot {
+  color: var(--text-muted);
+}
 .profile-page[data-theme="dark"] .profile-service-icon.bg-purple { background: rgba(168,85,247,0.12); color: #c084fc; }
 .profile-page[data-theme="dark"] .profile-service-icon.bg-pink { background: rgba(244,63,94,0.12); color: #fb7185; }
 

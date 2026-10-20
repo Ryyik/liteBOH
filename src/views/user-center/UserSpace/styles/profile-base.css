@@ -1633,7 +1633,13 @@
 }
 
 .profile-note-public-badge {
-  color: #0f766e;
+  /* ⚠️ 别写回裸色 #0f766e：这个徽标在「我」页与「他人空间」两个宿主的暗色卡片上
+     （#252532 / #1a1a24）只有 2.3~2.6:1，字直接糊掉（2026-10-19 与帖子卡白底一起报障）。
+     这里用「teal 基色 × --text-primary」做 color-mix：亮色下 --text-primary=#1d1d1f，
+     混合结果**精确等于原 #0f766e**（亮色零视觉变化）；暗色下它变成 #f5f5f7，
+     混出 #50b7af（暗卡片上 6.3:1）。一个声明同时跟两个宿主、两套主题走，
+     不要在 themes/*.css 里再写一份暗色覆盖。 */
+  color: color-mix(in srgb, #099c90 70%, var(--text-primary, #1d1d1f));
   background: rgba(20, 184, 166, 0.12);
   border-radius: 999px;
   padding: 1px 8px;
@@ -1668,7 +1674,9 @@
 }
 
 .profile-note-action-btn.danger {
-  color: #b91c1c;
+  /* 同 .profile-note-public-badge：亮色下混合结果精确等于原 #b91c1c（零视觉变化），
+     暗色下变 #fa5d5d（暗卡片上 4.9:1）。原裸色在暗色卡片上只有 2.67:1。 */
+  color: color-mix(in srgb, #fc1c1b 70%, var(--text-primary, #1d1d1f));
   border-color: rgba(185, 28, 28, 0.25);
 }
 
