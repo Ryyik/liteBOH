@@ -38,6 +38,8 @@ export interface KnowledgeResultLike {
     connectorId?: string;
     total?: number;
     metadata?: { posts?: unknown[] };
+    /** 活动行（2026-10-19）：论坛连接器带回的「正在读取《…》」标题 */
+    activityPostTitle?: string;
   }>;
   retrievalTrace?: unknown;
   treeholeTotal?: number;
@@ -63,6 +65,8 @@ export interface RetrievalStageDeps {
     query: string,
     options: Record<string, unknown>,
   ) => Promise<KnowledgeResultLike>;
+  /** 论坛连接器读完即回调标题（活动行「正在读取《…》」点名用，2026-10-19） */
+  onCommunityPostResolved?: (title: string) => void;
   isLatestForumSummaryQuery: (query: string) => boolean;
   // ── meta ──
   mergeAssistantMessageMeta: (
@@ -74,7 +78,14 @@ export interface RetrievalStageDeps {
   webSearchDisabledNoticeShownFor: Set<number>;
   // ── 响应式 ref ──
   communitySearchActive: { value: boolean };
-  isForumSearchEnabled: { value: boolean };
+  // 活动行（2026-10-19）：本轮社区检索**实际**进行中 + 点名的帖子标题。
+  // 只在消息流那一行里消费，不参与提示词 / 证据链。
+  communityActivity: {
+    value: { active: boolean; postTitle: string };
+  };
+  // 站内知识总开关（官方记忆，2026-10-19 起合并了论坛搜索/社区知识）：
+  // 它开 = 社区检索参与本轮，故「正在搜索社区」的进度预览也由它驱动。
+  isKnowledgeBaseEnabled: { value: boolean };
   isSearching: { value: boolean };
   // ── 本轮请求控制器（用于派生子 signal）──
   requestController: AbortController;
@@ -145,9 +156,18 @@ export const runRetrievalStage = async (
   // 注意：上一版只把 routingPreview.plan 置 false —— 那只是给进度文案用的预览，
   // 真正执行检索的是下面的 buildAutoKnowledgeContext，它内部会重算一次 plan，
   // 所以健康/社区证据照样注入了。这是接线探针抓出来的 bug。
+  // ── 活动行（2026-10-19 用户口径「始终只显示一个动作」）─────────────────────────
+  // `communityActivity`：本轮社区检索**实际**进行中（含点名的帖子标题）。
+  // ⚠️ 与 `communitySearchActive` 的区别：后者是「意图/开关预览」，在检索开始前就置真、
+  //    且挂到整轮结束；前者在连接器结果回来后才定，且 `active` 取「真正执行了社区检索」。
+  //    活动行用它判断「现在轮到社区这一行了吗」，避免开关 ON 而路由没查论坛时谎报。
+  // ⚠️ 心理访谈是封闭域：**两处都要清** —— `communitySearchActive`（意图/预览）与
+  //    `communityActivity`（活动行实况）是两条独立的线，只清一条会留下「访谈里还在读社区」
+  //    的错觉（2026-10-19 改版时这里只清了后者，漏了前者，已修）。
   if (psychInterviewActive) {
     // 访谈期间社区/联网搜索一律不参与，UI 也不显示「正在搜索…」
     deps.communitySearchActive.value = false;
+    deps.communityActivity.value = { active: false, postTitle: '' };
   }
   const knowledgePromise: Promise<KnowledgeResultLike> = psychInterviewActive
     ? Promise.resolve({
@@ -164,12 +184,19 @@ export const runRetrievalStage = async (
       })
     : (async () => {
         deps.communitySearchActive.value = Boolean(
-          deps.communityNeedsEvidence || deps.isForumSearchEnabled.value,
+          deps.communityNeedsEvidence || deps.isKnowledgeBaseEnabled.value,
         );
+        // 社区这一席先按「意图」置位：知识检索与联网搜索是**并行**的，网页那边可能更早结束，
+        // 那时社区还在读 —— 这一行必须已经在场，否则会空一段。
+        deps.communityActivity.value = {
+          active: deps.communitySearchActive.value,
+          postTitle: '',
+        };
         try {
           deps.markGenerationProgress('正在判断需要查看哪些 BOH 资料...');
           const routingPreview = deps.resolveKnowledgeRoutingPlan(routingQueryText);
-          if (deps.isForumSearchEnabled.value) {
+          // 总开关 ON ⇒ 预览里把 forum 也点亮（真正的计划由 buildAutoKnowledgeContext 重算）。
+          if (deps.isKnowledgeBaseEnabled.value) {
             routingPreview.plan.forum = true;
           }
           // 心理访谈是封闭域：关掉全部站内检索与联网。
@@ -197,6 +224,12 @@ export const runRetrievalStage = async (
             contextText,
           } = await deps.buildAutoKnowledgeContext(routingQueryText, {
             forceTreehole: Boolean(autoDecision?.shouldReferenceCloud),
+            // 论坛连接器一读完就点名（不等全部连接器 settled —— 那时社区阶段已经过去）
+            onCommunityPostResolved: (title: string) => {
+              if (typeof deps.onCommunityPostResolved === 'function') {
+                deps.onCommunityPostResolved(title);
+              }
+            },
           });
           return {
             ok: true,
@@ -237,6 +270,14 @@ export const runRetrievalStage = async (
       const forumConnectorResult = successfulConnectorResults.find(
         (item) => item?.connectorId === BOHAI_CONNECTOR_IDS.forum,
       );
+      // 活动行：社区检索**到此结束** ⇒ `active` 归 false（把这一行让给后面「正在思考」），
+      // 标题留着，供「刚读完的是哪一篇」在展开面/审计里复看。
+      // ⚠️ 别在这里按 `retrievalPlan.forum` 重新置 active：那只是「查过没有」，
+      //   不是「还在查」——开关 ON 时它恒为 true，会让这一行整轮压住后面所有阶段。
+      deps.communityActivity.value = {
+        active: false,
+        postTitle: String(forumConnectorResult?.activityPostTitle || '').trim(),
+      };
       if (
         deps.isLatestForumSummaryQuery(routingQueryText) &&
         Array.isArray(forumConnectorResult?.metadata?.posts)

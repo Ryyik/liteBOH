@@ -48,39 +48,75 @@
              一行「[logo] BOH AI + 删除键」，现整行去掉，回复直接以正文开头（纯文字流）。
              删除键并入底部操作行（与复制/赞同同排），语义更贴切：它本来就是消息操作。 -->
         <template v-else>
-          <div v-if="webActive(idx, msg) || communityActive(idx, msg)" class="boh-search-status">
-            <!-- 联网搜索：**纯文本活动行**（2026-10-08 用户口径，参考 Grok 的活动列表 ——
-                 不要卡片框）。检索在途：「网页搜索」四字配流动光效；结果一到位立即轮换展示
-                 网页标题（搜索是单请求一次性返回，到达即「实时」）。默认折叠，
-             点行展开全部网页（纯文本行，可点出原文）。⚠️ 不用 aria-live：标题 2.4s 一换会刷屏读屏。 -->
-            <div
-              v-if="webActive(idx, msg)"
-              class="boh-search-row is-web"
-              role="group"
-              aria-label="Web Searching"
-            >
+          <!-- ── 活动行（2026-10-19 用户口径「始终只显示一个动作」）────────────────
+               「正在思考 / 连接社区记忆 / 联网搜索」原来是**三块各自挂载、各自卸下**的节点，
+               观感就是同一组流光在两行之间闪。现在合并成**一条**行：此刻展示哪个动作
+               由 `boh-activity.js` 的唯一真源算出（`activityStage`），模板里没有第二处判断。
+               · 图标位 / 字号 / 单行截断在行内保持不动 —— 切换是**行内文字**交叉淡入
+                 （旧行淡出上浮、新行淡入），整行不重建，所以不会把消息流顶得抖一下；
+               · 展开面随阶段走：网页搜索/网页检索 → 网页清单；正在思考 → 推理原文；
+                 社区读取 → 无可展开内容（于是不出箭头，点了不会没反应）；
+               · ⚠️ 不用 aria-live：网页标题 2.4s 一换会刷屏读屏。阶段名由 `aria-label` 给。 -->
+          <div
+            v-if="activityStage && activityStage !== 'answering'"
+            class="boh-search-status"
+            :data-activity="activityStage"
+            role="group"
+            :aria-label="activityAriaLabel"
+          >
+            <div class="boh-search-row is-web">
+              <span class="boh-search-ico-slot">
+                <component
+                  :is="activityIcon"
+                  :key="`ico:${activityStage}`"
+                  :size="13"
+                  class="boh-search-ico is-swap-in"
+                  aria-hidden="true"
+                />
+              </span>
+              <!-- ⚠️ 这里**只能用同一个标签**（button），不可展开时用 `disabled` 表达。
+                   别写 `v-if="活动可展开"` + `v-else` 的 button/span 双分支：分支切换会把
+                   `<Transition>` 整个换掉，正在离场的那一帧变成孤儿节点（实测停在
+                   `leave-active leave-to`、文本永久挡住新文案）。 -->
               <button
                 type="button"
                 class="boh-search-head"
-                :aria-expanded="webSearchExpanded"
-                :title="webSearchExpanded ? '收起网页列表' : '展开网页列表'"
-                @click="webSearchExpanded = !webSearchExpanded"
+                :class="{ 'is-static': !activityExpandable }"
+                :disabled="!activityExpandable"
+                :aria-expanded="activityExpandable ? activityExpanded : undefined"
+                :aria-controls="activityExpandable ? activityPanelId : undefined"
+                :title="activityTitleTip"
+                @click="toggleActivity"
               >
-                <Globe :size="13" class="boh-search-ico" aria-hidden="true" />
-                <span
-                  :key="webSearchRotateIndex"
-                  class="boh-search-line"
-                  :class="{ 'is-shimmer': webSearchActive }"
-                  >{{ webSearchLine }}</span
-                >
+                <!-- 切换动画用「按 key 重挂 + 一次性 keyframes」而不是 <Transition>：
+                     Vue 的 Transition 在 `mode="out-in"` 下遇到**同一 tick 内连续换 key**
+                     （搜索在途 → 结果到位 → 首 token 这几个状态可能连拍）会把离开中的节点留成
+                     孤儿（实测停在 `leave-active leave-to`、文本永久挡住新文案）。
+                     一次性 keyframes 自带收尾（`animation-fill-mode: both` 之外不留中间态），
+                     即使连续重挂也只是重放，不会留下残影。 -->
+                <!-- 两层：外层只负责「进场」(opacity/transform)，内层只负责「流光」
+                     (background-clip: text)。两者都要写 `animation`，同一元素上会互相覆盖。 -->
+                <span :key="activityLineKey" class="boh-search-line is-swap-in">
+                  <span class="boh-search-text" :class="{ 'is-shimmer': activityShimmer }">{{
+                    activityLine
+                  }}</span>
+                </span>
                 <ChevronDown
+                  v-if="activityExpandable"
                   :size="14"
                   class="boh-search-chevron"
-                  :class="{ 'is-open': webSearchExpanded }"
+                  :class="{ 'is-open': activityExpanded }"
                   aria-hidden="true"
                 />
               </button>
-              <ul v-show="webSearchExpanded" class="boh-search-pages">
+
+              <!-- 展开面：网页清单（纯文本行，无框无底；可点出原文） -->
+              <ul
+                v-if="activitySurface === 'web'"
+                v-show="activityExpanded"
+                :id="activityPanelId"
+                class="boh-search-pages"
+              >
                 <li
                   v-for="(page, pageIndex) in webSearchResults"
                   :key="page.url || `page-${pageIndex}`"
@@ -98,16 +134,6 @@
                   <em v-if="hostOf(page.url)" aria-hidden="true">{{ hostOf(page.url) }}</em>
                 </li>
               </ul>
-            </div>
-            <div
-              v-if="communityActive(idx, msg)"
-              class="boh-search-row"
-              role="status"
-              aria-live="polite"
-              aria-label="Community Searching"
-            >
-              <MessagesSquare :size="13" class="boh-search-ico" aria-hidden="true" />
-              <span class="boh-search-line">正在读取近日帖子</span>
             </div>
           </div>
 
@@ -261,28 +287,23 @@
             </div>
           </div>
 
-          <!-- 推理过程（2026-10-10 用户口径）：思考态是**纯文本「正在思考」**（不是黑点），
-               默认收起，点击展开看推理原文；生成结束后标题变「思考过程」。
+          <!-- 推理过程（2026-10-10 用户口径「纯文本、默认收起、点击展开推理原文」）
+               2026-10-19 合并：思考中的「正在思考」**不再单独成行** —— 它就是活动行
+               在 `thinking` 阶段的样子（阶段由 `boh-activity.js` 算），这里的推理块
+               退化为那条行下的**展开面**（与网页清单同一套 `is-head` 按钮/面板模式）。
+               · 生成结束后「思考过程」仍常驻可展开（`hasReasoning`）；
+               · 活动行处于网页/社区阶段时，展开面让位（一次只展开一个，不会有两条清单）。
                ⚠️ 正文用 v-show（不是 v-if）—— v-if 会重建节点，滚动位置与探针读取都会抖。 -->
           <div
-            v-if="showReasoningRow(idx, msg)"
-            class="boh-reason"
-            :class="{ 'is-live': isReasoningLive(idx) }"
+            v-if="showReasoningPanel(idx, msg)"
+            class="boh-reason is-panel"
+            :class="{ 'is-live': activityStage === 'thinking' }"
+            :id="reasoningPanelId(idx)"
           >
-            <button
-              v-if="reasoningOf(msg)"
-              type="button"
-              class="boh-reason-head"
-              :aria-expanded="reasoningOpen.has(idx)"
-              @click="toggleReasoning(idx)"
+            <div
+              v-show="activityStage === 'thinking' || reasoningOpen.has(idx)"
+              class="boh-reason-body"
             >
-              <ChevronRight :size="14" class="boh-reason-caret" aria-hidden="true" />
-              <span>{{ isReasoningLive(idx) ? '正在思考' : '思考过程' }}</span>
-            </button>
-            <div v-else class="boh-reason-head is-static" aria-live="polite">
-              <span>正在思考</span>
-            </div>
-            <div v-show="reasoningOpen.has(idx)" class="boh-reason-body">
               {{ reasoningOf(msg) }}
             </div>
           </div>
@@ -391,12 +412,11 @@ import {
   AlertCircle,
   CheckCircle2,
   ChevronDown,
-  ChevronRight,
   Circle,
   Copy,
   Globe,
   LoaderCircle,
-  MessagesSquare,
+  MessageSquareText,
   MoreHorizontal,
   RotateCcw,
   Square,
@@ -407,6 +427,13 @@ import {
 import BohEmptyState from './BohEmptyState.vue';
 import { renderMarkdown } from './boh-markdown.js';
 import { sourcePrefix } from './boh-sources.js';
+import {
+  BOH_ACTIVITY_SURFACE,
+  canExpandActivity,
+  formatCommunityActivityLine,
+  resolveActivityLine,
+  resolveBohActivityStage,
+} from './boh-activity.js';
 import { formatBohAIRetrievalTraceSummary } from '@/utils/bohai-observability.js';
 
 /**
@@ -435,6 +462,13 @@ const props = defineProps({
   /** 本轮联网搜索命中的网页（{title, url}）—— 真源在 useWebSearchLifecycle，壳透传 */
   webSearchResults: { type: Array, default: () => [] },
   communitySearchActive: { type: Boolean, default: false },
+  /**
+   * 活动行用的社区检索实况：`{ active, postTitle }`。
+   * 与上面的 `communitySearchActive`（开关/意图预览）**不同源** —— 那个在检索前就置真、
+   * 且挂到整轮结束；这个由 retrieval stage 在连接器结果回来后写，`postTitle` 是
+   * 「正在读取《…》」点名用的那一篇。真源：`engine/stages/retrieval.ts`。
+   */
+  communityActivity: { type: Object, default: () => ({ active: false, postTitle: '' }) },
   /** 任务 / 计划面板模型；`visible:false` 时不渲染 */
   planCard: { type: Object, default: null },
   /** 内联追问 `{ question, options, messageIndex }` */
@@ -486,30 +520,13 @@ const lastAssistantIndex = computed(() => {
 
 /* ── 纯展示计算（原壳里同名逻辑，逐字保留口径） ── */
 
-/* 联网搜索面板的可见窗口 = **整轮生成**（isLoading）：搜索在途时显示检索文案，
-   结果一到位立即轮换标题 —— 若只挂在 webSearchActive（请求在途）上，标题出现的
-   那一刻面板就消失了，轮换根本看不见。上一条 assistant 消息才显示。 */
-const webActive = (index, message) =>
-  (props.webSearchActive || props.webSearchResults.length > 0) &&
-  props.isLoading &&
-  index === props.messages.length - 1 &&
-  message?.role === 'assistant';
-
-const communityActive = (index, message) =>
-  props.communitySearchActive &&
-  props.isThinking &&
-  index === props.messages.length - 1 &&
-  message?.role === 'assistant';
-
-/* ── 推理过程块（2026-10-10 用户口径）─────────────────────────────
-   · **思考态 = 纯文本「正在思考」**（黑点已退役）；
-   · 默认收起，点击展开看推理原文；生成结束后标题变「思考过程」；
-   · 展开态是**纯 UI 状态**，留在本组件（与 `webSearchExpanded` 同口径），不进壳。
-   ⚠️ 数据源 `msg.reasoning` 由生成管线分流而来（useGenerationPipeline 的
-      `getThinkingReasoning` → useChatEngine 的 `updateReasoning`），
-      修复前那段文字是被**丢弃**的。 */
+/* ── 展开态（纯 UI 状态，留在本组件）：网页清单 / 推理原文 ──
+   ⚠️ 声明必须在下面 `activityExpanded` 之前（computed 求值会先碰到它们）。
+   2026-10-19 起两者共用同一条活动行，所以「同一时刻只能展开一个」。 */
+const webSearchExpanded = ref(false);
+const webSearchRotateIndex = ref(0);
 const reasoningOpen = ref(new Set());
-const reasoningOf = (message) => String(message?.reasoning || '');
+const reasoningPanelId = (index) => `boh-reason-${index}`;
 const toggleReasoning = (index) => {
   const next = new Set(reasoningOpen.value);
   if (next.has(index)) next.delete(index);
@@ -517,23 +534,162 @@ const toggleReasoning = (index) => {
   reasoningOpen.value = next;
 };
 
-/* 生成中（思考 + 流式回复）＝ 标题「正在思考」；否则「思考过程」。
-   门控与旧黑点一致：联网搜索在途时不出这一行（搜索面板自己在报状态）。 */
-const isReasoningLive = (index) =>
-  (props.isThinking || props.isLoading) &&
-  !props.webSearchActive &&
-  index === props.messages.length - 1;
+/* ── 活动行（2026-10-19）：三块状态 → **唯一一个**正在进行的动作 ──────────────
+   判断逻辑全部在 `boh-activity.js`（纯函数，带单测），这里只提供输入与派生展示。 */
 
-/** 有推理内容就常驻（生成结束后仍可展开）；没有时只在生成中显示「正在思考」 */
-const showReasoningRow = (index, message) => isReasoningLive(index) || !!reasoningOf(message);
+/** 本轮社区检索实况（`{ active, postTitle }`，retrieval stage 写） */
+const communityLive = computed(() => ({
+  active: Boolean(props.communityActivity?.active),
+  postTitle: String(props.communityActivity?.postTitle || ''),
+}));
+
+/** 社区这一行点名的那一篇（retrieval stage 从论坛连接器取到的标题）。 */
+const communityPostTitle = computed(() => communityLive.value.postTitle);
+
+/* 活动行只在**最后一条 AI 消息**上出现；历史消息里不重复播报。 */
+const isActivityHost = computed(() => {
+  const last = props.messages[props.messages.length - 1];
+  return Boolean(last && last.message?.role === 'assistant');
+});
+
+/* 「网页标题露过脸了没」—— 结果到位那一刻记一次。
+   为什么需要这个计数：`web-results`（展示标题）和 `thinking`（模型推理）同属
+   「还没开口」那一段，纯靠优先级排序必然让另一个整段消失（实测两种排法都踩过）。
+   所以在这一段里**先露一拍标题，再进思考**。计数只在本轮内有效，`isLoading` 落下就清零。 */
+const webTitleRevealed = ref(false);
+let revealTimer = 0;
+/* 标题**至少**露这么久再切走。不是给探针留窗口 —— 是真的需要：
+   结果一到就切「正在思考」时，用户只看到标题闪了一下（甚至一帧都没看清），
+   那比不展示更糟。
+   ⚠️ 这是**交互节奏**（JS 计时器），不在 `tokens.css` 的 CSS 时长管辖范围内 ——
+      那条纪律管的是 CSS 里不许写字面时长；同类的既有先例是本文件的标题轮换 `2400`。
+      两者都只服务这一行，别在别处再抄一遍数字。 */
+const WEB_TITLE_DWELL_MS = 900;
+/* 标题轮换周期（原有行为，2026-10-08 起就是 2400ms）。 */
+const WEB_TITLE_ROTATE_MS = 2400;
+
+watch(
+  () => [props.webSearchResults.length, props.webSearchActive, props.isLoading],
+  ([total, active, loading]) => {
+    clearTimeout(revealTimer);
+    if (!loading) {
+      webTitleRevealed.value = false;
+      return;
+    }
+    // 搜索还在途（`webSearchActive`）：那时展示的是「网页搜索」，不是标题
+    if (active || Number(total) <= 0) return;
+    if (webTitleRevealed.value) return;
+    revealTimer = setTimeout(() => {
+      webTitleRevealed.value = true;
+    }, WEB_TITLE_DWELL_MS);
+  },
+  { immediate: true },
+);
+
+const activityStage = computed(() => {
+  if (!isActivityHost.value) return '';
+  return resolveBohActivityStage({
+    isThinking: props.isThinking,
+    isLoading: props.isLoading,
+    webSearchActive: props.webSearchActive,
+    webSearchResultCount: props.webSearchResults.length,
+    communitySearchActive: communityLive.value.active,
+    webTitleRevealed: webTitleRevealed.value,
+  });
+});
+
+/** 展开面归属：'web'（网页清单）/ 'reason'（推理原文）/ ''（不可展开） */
+const activitySurface = computed(() => BOH_ACTIVITY_SURFACE[activityStage.value] || '');
+
+/** 当前展开的网页清单 / 推理原文 —— 一次只允许一个展开面（网页与推理共用这条行）。 */
+const activityExpanded = computed(() =>
+  activitySurface.value === 'web'
+    ? webSearchExpanded.value
+    : reasoningOpen.value.has(lastAssistantIndex.value),
+);
+
+const activityPanelId = computed(() =>
+  activitySurface.value === 'web' ? 'boh-activity-web' : reasoningPanelId(lastAssistantIndex.value),
+);
+
+const toggleActivity = () => {
+  if (activitySurface.value === 'web') {
+    webSearchExpanded.value = !webSearchExpanded.value;
+    return;
+  }
+  if (activitySurface.value === 'reason') toggleReasoning(lastAssistantIndex.value);
+};
+
+/** 图标随阶段换（Globe / 对话气泡），**图标位宽度固定** ⇒ 换图标时整行不横向跳。 */
+const activityIcon = computed(() => (activitySurface.value === 'web' ? Globe : MessageSquareText));
+
+/** 流光亮带**只跑一个**：网页搜索在途 + 正在思考（2026-10-08 / 10-10 两条口径合流）。 */
+const activityShimmer = computed(
+  () => activityStage.value === 'web-searching' || activityStage.value === 'thinking',
+);
+
+/** 行内文案：网页两阶段轮换标题；社区阶段点名帖子；思考阶段固定「正在思考」。 */
+const activityLine = computed(() => {
+  const stage = activityStage.value;
+  if (stage === 'community') return formatCommunityActivityLine(communityPostTitle.value);
+  if (stage === 'web-searching' || stage === 'web-results') {
+    return resolveActivityLine(stage, webSearchLine.value);
+  }
+  return resolveActivityLine(stage);
+});
+
+/** 交叉淡入的重放键：换阶段、或网页标题轮换到下一拍，都要重放一次。 */
+const activityLineKey = computed(() => {
+  const stage = activityStage.value;
+  if (stage === 'web-searching' || stage === 'web-results') {
+    return `${stage}:${webSearchRotateIndex.value}`;
+  }
+  return `${stage}:${activityLine.value}`;
+});
+
+/** 读屏用：整个活动行的语义标签（阶段名，不带 2.4s 一轮的网页标题，避免刷屏） */
+const activityAriaLabel = computed(
+  () => `BOH 当前动作：${resolveActivityLine(activityStage.value)}`,
+);
+
+const activityTitleTip = computed(() => {
+  if (activitySurface.value === 'web')
+    return activityExpanded.value ? '收起网页列表' : '展开网页列表';
+  if (activitySurface.value === 'reason') {
+    return activityExpanded.value ? '收起思考过程' : '展开思考过程';
+  }
+  return '';
+});
+
+/* 推理正文串一次（函数声明在下面 —— 调用时已初始化，不是 TDZ） */
+const lastMessageReasoning = computed(() =>
+  reasoningOf(props.messages[props.messages.length - 1]?.message),
+);
+
+const activityExpandable = computed(() =>
+  canExpandActivity(activityStage.value, {
+    webPageCount: props.webSearchResults.length,
+    hasReasoning: Boolean(lastMessageReasoning.value),
+  }),
+);
+
+/* ── 推理过程块（2026-10-10 用户口径，2026-10-19 合并为活动行的展开面）──────────
+   · 思考态 = 活动行 `thinking` 阶段的文案（纯文本，黑点已退役）；
+   · 展开态是**纯 UI 状态**，留在本组件（与 `webSearchExpanded` 同口径），不进壳。
+   ⚠️ 数据源 `msg.reasoning` 由生成管线分流而来（useGenerationPipeline 的
+      `getThinkingReasoning` → useChatEngine 的 `updateReasoning`）。
+   ⚠️ 推理正文用 **`v-show`** 不用 `v-if` —— v-if 会重建节点，滚动位置与探针读取都会抖。 */
+const reasoningOf = (message) => String(message?.reasoning || '');
+
+/** 底下的推理面板：有推理内容才挂（生成结束后仍常驻可展开）；活动行在思考阶段时展开。 */
+const showReasoningPanel = (index, message) =>
+  Boolean(reasoningOf(message)) && index === props.messages.length - 1;
 
 /** 整轮生成忙（含搜索期）—— 操作行在忙时隐藏（否则流式回复中黑点和操作行同时出现）。 */
 const isGenerationBusy = (index) =>
   (props.isThinking || props.isLoading) && index === props.messages.length - 1;
 
-/* ── 联网搜索：标题轮换 + 折叠 ── */
-const webSearchExpanded = ref(false);
-const webSearchRotateIndex = ref(0);
+/* ── 联网搜索：标题轮换（折叠态见文件上半部分的「展开态」块） ── */
 let rotateTimer = null;
 
 const stopTitleRotation = () => {
@@ -548,7 +704,7 @@ const startTitleRotation = () => {
   rotateTimer = setInterval(() => {
     const total = props.webSearchResults.length;
     if (total > 1) webSearchRotateIndex.value = (webSearchRotateIndex.value + 1) % total;
-  }, 2400);
+  }, WEB_TITLE_ROTATE_MS);
 };
 
 watch(
@@ -562,7 +718,10 @@ watch(
   { immediate: true },
 );
 
-onUnmounted(stopTitleRotation);
+onUnmounted(() => {
+  stopTitleRotation();
+  clearTimeout(revealTimer);
+});
 
 const hostOf = (url) => {
   try {

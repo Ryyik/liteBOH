@@ -203,6 +203,9 @@ export function useChatEngine() {
       search: searchWebForPrompt,
     });
   const communitySearchActive = ref(false);
+  // 活动行（2026-10-19）：社区检索实际进行中 + 点名的帖子标题（「正在读取《标题》」）。
+  // 由 retrieval stage 写、消息流读；与 `communitySearchActive`（开关/意图预览）不同源。
+  const communityActivity = ref({ active: false, postTitle: '' });
 
   // scrollToBottom getter — 允许 useConversationManager 在 scrollToBottom
   // 定义完成后按需引用，而不要求 composable 在创建时就拿到函数引用。
@@ -347,12 +350,10 @@ export function useChatEngine() {
     currentModelId,
     currentModel,
     isSearching,
-    isForumSearchEnabled,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,
     isPlanModeEnabled,
-    isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     currentResponseStyleId,
     currentResponseStyle,
@@ -368,7 +369,6 @@ export function useChatEngine() {
     persistModeSetting,
     persistMemoryCaptureSetting,
     persistTreeholeMemorySetting,
-    persistSharedMemorySetting,
     persistKnowledgeBaseSetting,
   } = useModelConfig({ availableModels: runtimeAvailableModels, chatModes: runtimeChatModes });
 
@@ -519,8 +519,6 @@ export function useChatEngine() {
     isLoggedIn,
     userInfo,
     isTreeholeMemoryEnabled,
-    isForumSearchEnabled,
-    isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     treeholeMemoryCache,
     sharedMemoryCache,
@@ -538,10 +536,11 @@ export function useChatEngine() {
   });
 
   // Agent 集群数据源：RetrieverAgent / MemoryAgent 的检索与记忆能力依赖这里传入的
-  // connector；开关口径（个人记忆/社区知识）与主链路 useKnowledgeRetrieval 保持一致。
+  // connector；开关口径与主链路 useKnowledgeRetrieval 保持一致 —— 站内知识总开关
+  // （isKnowledgeBaseEnabled，2026-10-19 起已合并论坛搜索与社区知识）驱动 shared_memory。
   const clusterSources = useAgentClusterSources({
     isTreeholeMemoryEnabled,
-    isSharedMemoryEnabled,
+    isKnowledgeBaseEnabled,
     getUserId: () => userInfo.value?.id || '',
   });
   // --------------------------------------------------------------
@@ -701,11 +700,12 @@ export function useChatEngine() {
   const startNewChat = () => {
     _startNewChat();
     isSearching.value = false;
-    isForumSearchEnabled.value = false;
     // ⚠️ 这里**不要**再重置 isKnowledgeBaseEnabled —— 它是持久化的用户偏好
     //（localStorage `boh_ai_knowledge_base_enabled_v1`，默认开），不是 per-session 状态。
     // 2026-10-16 实测：原先这行把它强制置 false ⇒ 每次「新对话」都悄悄关掉官方记忆检索，
     // 而 localStorage 仍是 1 ⇒ 刷新后打开、新开会话后关闭，用户完全看不出为什么。
+    // 2026-10-19：论坛搜索/社区知识已并入本开关，故也**不再**有 `isForumSearchEnabled.value = false`
+    // 那行（旧的是 per-session 开关，合并后同样属于持久化偏好）。
   };
 
   const stopGeneration = () => {
@@ -1462,7 +1462,12 @@ export function useChatEngine() {
           updateAssistantActionNotes,
           webSearchDisabledNoticeShownFor,
           communitySearchActive,
-          isForumSearchEnabled,
+          communityActivity,
+          // 论坛连接器读完即点名（活动行「正在读取《标题》」）
+          onCommunityPostResolved: (title) => {
+            communityActivity.value = { ...communityActivity.value, postTitle: title };
+          },
+          isKnowledgeBaseEnabled,
           isSearching,
           requestController,
           communityNeedsEvidence,
@@ -2014,6 +2019,7 @@ export function useChatEngine() {
     } finally {
       clearTimeout(generationTimeoutTimer);
       communitySearchActive.value = false;
+      communityActivity.value = { active: false, postTitle: '' };
       isStreamingGeneration.value = false;
       cleanupGenerationState(sessionIndex, requestController);
       scheduleSaveSessions();
@@ -2033,6 +2039,7 @@ export function useChatEngine() {
     }
     resetWebSearchLifecycle();
     communitySearchActive.value = false;
+    communityActivity.value = { active: false, postTitle: '' };
   });
 
   return {
@@ -2053,12 +2060,11 @@ export function useChatEngine() {
     webSearchActive,
     webSearchResults,
     communitySearchActive,
-    isForumSearchEnabled,
+    communityActivity,
     isMemoryCaptureEnabled,
     isTreeholeMemoryEnabled,
     isTreeholeMemoryToggling,
     isPlanModeEnabled,
-    isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     agentClusterState,
     resetAgentClusterState,
@@ -2094,7 +2100,6 @@ export function useChatEngine() {
     setResponseStyle,
     setThinkingSpeed,
     persistModeSetting,
-    persistSharedMemorySetting,
     persistKnowledgeBaseSetting,
     activeActionDraft,
     updatePendingPostDraftFromUI,

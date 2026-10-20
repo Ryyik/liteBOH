@@ -380,10 +380,9 @@ export function useBohShell(props, emit) {
     webSearchActive,
     webSearchResults,
     communitySearchActive,
-    isForumSearchEnabled,
+    communityActivity,
     isTreeholeMemoryEnabled,
     isPlanModeEnabled,
-    isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     rateLimitMessage,
     chatModes,
@@ -408,7 +407,6 @@ export function useBohShell(props, emit) {
     setResponseStyle,
     responseStyleOptions,
     persistModeSetting,
-    persistSharedMemorySetting,
     persistKnowledgeBaseSetting,
     toggleTreeholeMemory,
     isTreeholeMemoryToggling,
@@ -535,36 +533,23 @@ export function useBohShell(props, emit) {
   const memorySettingsStatus = computed(() => {
     const liveStatus = String(memoryCaptureTip.value || '');
     if (/请先登录|登录后可/.test(liveStatus)) return liveStatus;
-    return `官方记忆${isKnowledgeBaseEnabled.value ? '已开启' : '已关闭'}；个人记忆${isTreeholeMemoryEnabled.value ? '已开启' : '已关闭'}；社区知识${isSharedMemoryEnabled.value ? '已开启' : '已关闭'}。`;
+    return `官方记忆${isKnowledgeBaseEnabled.value ? '已开启' : '已关闭'}；个人记忆${isTreeholeMemoryEnabled.value ? '已开启' : '已关闭'}。`;
   });
 
   const handleTreeholeMemoryToggle = async () => {
     await toggleTreeholeMemory();
   };
 
-  const handleSharedMemoryToggle = () => {
-    isSharedMemoryEnabled.value = !isSharedMemoryEnabled.value;
-    persistSharedMemorySetting();
-    emitIslandMessage({
-      title: isSharedMemoryEnabled.value ? '社区知识已开启' : '社区知识已关闭',
-      message: isSharedMemoryEnabled.value
-        ? '回答可检索社区共享知识'
-        : '回答将不再读取社区共享知识',
-      icon: 'ai',
-      type: 'notification',
-      actionLabel: '知道了',
-      durationMs: 3200,
-    });
-  };
-
+  // 站内知识总开关（2026-10-19 合并）：官方记忆 / 社区搜索 / 社区知识 现在共用一个状态，
+  // 故只剩这一个切换函数 —— 斜杠命令 `/memory` `/community` `/shared` 都汇到这里。
   const handleKnowledgeBaseToggle = () => {
     isKnowledgeBaseEnabled.value = !isKnowledgeBaseEnabled.value;
     persistKnowledgeBaseSetting();
     emitIslandMessage({
       title: isKnowledgeBaseEnabled.value ? '官方记忆已开启' : '官方记忆已关闭',
       message: isKnowledgeBaseEnabled.value
-        ? '回答可检索 BOH 官方事实与知识库'
-        : '回答将不再读取 BOH 官方事实',
+        ? '回答可检索 BOH 官方事实、社区帖子与社区共享知识'
+        : '回答将不再读取站内知识',
       icon: 'ai',
       type: 'notification',
       actionLabel: '知道了',
@@ -1030,7 +1015,7 @@ export function useBohShell(props, emit) {
         .slice(0, 4)
         .join('、')}。`;
     }
-    if (isSearching.value || isForumSearchEnabled.value || isTreeholeMemoryEnabled.value) {
+    if (isSearching.value || isKnowledgeBaseEnabled.value || isTreeholeMemoryEnabled.value) {
       return '已开启检索/参考能力，生成时会优先使用可获得的资料。';
     }
     return '当前主要依据本轮对话；需要事实核实时会标注不确定或提示补充资料。';
@@ -1508,13 +1493,9 @@ export function useBohShell(props, emit) {
     isSearching.value = !isSearching.value;
   };
 
-  const toggleForumSearch = () => {
-    isForumSearchEnabled.value = !isForumSearchEnabled.value;
-  };
-
-  /** 面板「高级」工具的统一入口（`BohComposer` 只发 kind） */
+  /** 工具菜单的统一入口（`BohComposer` 只发 kind）。
+      2026-10-19：「社区搜索」按钮已随三合一开关下线，工具菜单只剩「个人 Cloud+」一项。 */
   const toggleTool = (kind) => {
-    if (kind === 'forum') toggleForumSearch();
     if (kind === 'cloud') handleTreeholeMemoryToggle();
   };
 
@@ -1524,13 +1505,15 @@ export function useBohShell(props, emit) {
    * 空输入框按 Backspace。
    * ⚠️ 复用各开关**已有**的切换函数（含提示语与持久化）—— 别在这里重写第二套关闭逻辑；
    *    切完把焦点还给输入框（「删完还能继续打字」）。
+   * 2026-10-19 合并：community / memory / shared 三枚 chip 现共用「官方记忆」一枚，
+   * 故三者都汇到 handleKnowledgeBaseToggle（保留下面的分支只为兼容旧 id）。
    */
   const toggleComposerFlag = (id) => {
     if (id === 'web') toggleSearch();
-    else if (id === 'community') toggleTool('forum');
     else if (id === 'cloud') toggleTool('cloud');
+    else if (id === 'community') handleKnowledgeBaseToggle();
     else if (id === 'memory') handleKnowledgeBaseToggle();
-    else if (id === 'shared') handleSharedMemoryToggle();
+    else if (id === 'shared') handleKnowledgeBaseToggle();
     focusComposer();
   };
 
@@ -1586,17 +1569,17 @@ export function useBohShell(props, emit) {
    * 「下一条消息」开关的 tag 反馈（2026-10-16 用户口径：斜杠命令应用后，输入框里要带着
    * 一个 tag（如「官方记忆」），用户可以继续打字）。
    *
-   * 状态五件套在这里 → tag；**标签文案直接取命令表**（`BOH_SLASH_COMMANDS`，单一真源，
-   * 别在别处再抄一份）；顺序天然 = 命令表顺序（web / community / cloud / memory / shared）。
+   * 状态表在这里 → tag；**标签文案直接取命令表**（`BOH_SLASH_COMMANDS`，单一真源，
+   * 别在别处再抄一份）。
+   * 2026-10-19 合并：官方记忆 / 社区搜索 / 社区知识 现在是**一个**开关 ⇒ 只出「官方记忆」一枚
+   * chip（`memory`），不再分别出 community / shared 两枚。
    * ⚠️ 只读展示：改状态仍走设置面板 / 斜杠命令，别把 tag 做成第二套开关入口。
    */
   const activeComposerFlags = computed(() => {
     const stateById = {
       web: isSearching.value,
-      community: isForumSearchEnabled.value,
       cloud: isTreeholeMemoryEnabled.value,
       memory: isKnowledgeBaseEnabled.value,
-      shared: isSharedMemoryEnabled.value,
     };
     return BOH_SLASH_COMMANDS.filter((command) => stateById[command.id]).map((command) => ({
       id: command.id,
@@ -1623,8 +1606,17 @@ export function useBohShell(props, emit) {
       case 'web':
         isSearching.value = true;
         break;
+      // 2026-10-19 合并：/community（社区搜索）、/memory（官方记忆）、/shared（社区知识）
+      // 三个同族命令现在都切换**同一个**站内知识总开关 —— 复用 handleKnowledgeBaseToggle
+      //（岛提示在该函数里发，此处不再重复发一条）。保留下三个 case 是因为命令表里仍有这三条。
       case 'community':
-        isForumSearchEnabled.value = true;
+        handleKnowledgeBaseToggle();
+        break;
+      case 'memory':
+        handleKnowledgeBaseToggle();
+        break;
+      case 'shared':
+        handleKnowledgeBaseToggle();
         break;
       case 'cloud':
         if (isTreeholeMemoryEnabled.value) {
@@ -1639,14 +1631,6 @@ export function useBohShell(props, emit) {
         } else {
           await handleTreeholeMemoryToggle();
         }
-        break;
-      // 2026-10-16 补：与设置面板的两个开关一一对应，复用它们各自的切换函数
-      // （岛提示也在那两个函数里发，此处不再重复发一条）
-      case 'memory':
-        handleKnowledgeBaseToggle();
-        break;
-      case 'shared':
-        handleSharedMemoryToggle();
         break;
       case 'surface':
         setSurface(command.surface);
@@ -1898,8 +1882,8 @@ export function useBohShell(props, emit) {
       : '问点什么，或输入 / 使用命令';
   });
 
+  // 2026-10-19 合并：工具菜单只剩「个人 Cloud+」（原「社区搜索」按钮随三合一开关下线）。
   const composerTools = computed(() => ({
-    forum: Boolean(isForumSearchEnabled.value),
     cloud: Boolean(isTreeholeMemoryEnabled.value),
   }));
 
@@ -2285,6 +2269,7 @@ export function useBohShell(props, emit) {
     webSearchActive,
     webSearchResults,
     communitySearchActive,
+    communityActivity,
     planCard,
     activeInlineQuestion,
     aiQuestionAnswer,
@@ -2349,12 +2334,10 @@ export function useBohShell(props, emit) {
     setResponseStyle,
     responseStyleOptions,
     isTreeholeMemoryEnabled,
-    isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     isTreeholeMemoryToggling,
     memorySettingsStatus,
     handleTreeholeMemoryToggle,
-    handleSharedMemoryToggle,
     handleKnowledgeBaseToggle,
     clearCurrentChat,
     exportChatData,

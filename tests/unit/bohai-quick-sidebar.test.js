@@ -169,12 +169,21 @@ describe('BOH AI motion system', () => {
     expect(streamCss).toContain('.boh-reason-body');
     const streamSrc = squeezeSource(readFileSync(streamPath, 'utf8'));
     expect(streamSrc).not.toContain('class="boh-thinking-dot"');
-    expect(streamSrc).toContain('class="boh-reason"');
-    // 2026-10-10 二次（用户「思考也改成流光」）：流光定义**单源**，两个选择器共用同一组属性；
-    // 思考那处挂 `…head span` 而不是 `…head` —— 挂 head 会让 caret 一起 `color: transparent` 而消失。
-    expect(streamCss).toContain(
-      '.boh-search-line.is-shimmer, .boh-reason.is-live .boh-reason-head span',
-    );
+    // 2026-10-19 活动行改版：推理块并入活动行成为展开面 ⇒ 类名变为 `boh-reason is-panel`
+    expect(streamSrc).toContain('class="boh-reason is-panel"');
+    // 2026-10-10 二次（用户「思考也改成流光」）+ 2026-10-19 活动行合流：
+    // 流光挂在活动行的**内层文字节点** `.boh-search-text`（外层 `.boh-search-line` 负责
+    // 截断 + 进场动画）—— 两层是因为「进场 keyframes」和「流光 keyframes」都要写
+    // `animation`，同一元素上会互相覆盖。
+    expect(streamCss).toContain('.boh-search-text.is-shimmer');
+    // ⚠️ 流光**只许有一条**：`boh-search-text` 的 is-shimmer 由 `activityShimmer` 门控，
+    // 而「网页搜索在途」与「正在思考」现在是**同一个阶段机**里的两个互斥取值。
+    expect(streamSrc).toContain("'is-shimmer': activityShimmer");
+    expect(streamSrc).not.toContain("'is-shimmer': webSearchActive");
+    // 一次性进场动画（不用 <Transition>：out-in 遇到同 tick 连拍换 key 会把离开中的节点
+    // 留成孤儿，实测会永久停在 `leave-active leave-to`、旧文字压住新文字）。
+    expect(streamCss).toContain('@keyframes boh-activity-swap-in');
+    expect(streamCss).toContain('.boh-search-line.is-swap-in');
     // 降级：reduced-motion 下 `--boh-dur-bob` 被归零，亮带停位 ⇒ 必须恢复实色，
     // 否则 `color: transparent` 会让这两处状态文字**直接看不见**。
     expect(streamCss).toMatch(
@@ -231,35 +240,41 @@ describe('BOH AI motion system', () => {
     );
   });
 
-  it('renders Community Searching with the Web Searching animation contract', () => {
+  it('活动行：三态合一（网页/社区/思考），社区文案来自 boh-activity 单源', () => {
     const main = squeezeSource(readFileSync(mainPath, 'utf8'));
     const engine = squeezeSource(readFileSync(enginePath, 'utf8'));
     const stream = squeezeSource(readFileSync(streamPath, 'utf8'));
     const streamCss = squeezeSource(readFileSync(streamCssPath, 'utf8'));
-    expect(stream).toContain('Community Searching');
-    expect(stream).toContain('aria-label="Web Searching"');
-    expect(stream).toContain('aria-label="Community Searching"');
-    // 2026-10-08 二次改版（参考 Grok）：纯文本活动行 —— 「网页搜索」四字 + 流动光效，
-    // 卡片框与滑动进度条（.boh-search-pill / .boh-search-track）整体退役
-    expect(stream).toContain('正在读取近日帖子');
+    // 2026-10-19 活动行改版：三块状态行（联网 / 社区 / 思考）合并为**一条**，
+    // 「此刻显示哪个」由 boh-activity.js 的优先级表算出，aria-label 变为动态阶段名。
+    expect(stream).not.toContain('Community Searching');
+    expect(stream).not.toContain('aria-label="Web Searching"');
+    expect(stream).toContain(':aria-label="activityAriaLabel"');
+    expect(stream).toContain(':data-activity="activityStage"');
+    // 社区这一行的文案单源在 boh-activity.js（旧字面量不许再出现在视图里）
+    expect(stream).toContain("from './boh-activity.js'");
+    expect(stream).toContain('formatCommunityActivityLine(communityPostTitle.value)');
+    expect(stream).not.toContain('正在读取近日帖子');
     expect(streamCss).toContain('@keyframes boh-search-shimmer');
     expect(streamCss).not.toContain('boh-search-pill');
     expect(streamCss).not.toContain('boh-search-track');
-    // 状态源仍在引擎侧（`webSearchActive` / `communitySearchActive` 由壳透传给消息流）
+    // 状态源仍在引擎侧（`webSearchActive` / `communitySearchActive` / 活动行实况由壳透传）
     expect(main).toContain(':web-search-active="webSearchActive"');
     expect(main).toContain(':community-search-active="communitySearchActive"');
+    expect(main).toContain(':community-activity="communityActivity"');
     // prettier 会把 `Boolean(` 后的实参断到下一行，压成单空格后是 `Boolean( communityNeeds…`
     // （`(` 后多一个空格），还原不掉 → 这处必须用「全空白移除」归一。详见 helpers/source.js。
     //
     // Step 5-2：这段随「检索主体」搬进 engine/stages/retrieval.ts ⇒ 守卫改指新文件；
     // 同时保留一条「壳仍接线」断言（引擎里必须调用该 stage）。
+    // 2026-10-19 合并：社区预览由站内知识总开关（isKnowledgeBaseEnabled）驱动。
     const retrievalStage = flattenSource(readFileSync(retrievalStagePath, 'utf8'));
     expect(retrievalStage).toContain(
       flattenSource(
-        'deps.communitySearchActive.value = Boolean(deps.communityNeedsEvidence || deps.isForumSearchEnabled.value)',
+        'deps.communitySearchActive.value = Boolean(deps.communityNeedsEvidence || deps.isKnowledgeBaseEnabled.value)',
       ),
     );
-    expect(retrievalStage).toContain(flattenSource('deps.communitySearchActive.value = false'));
+    expect(retrievalStage).toContain(flattenSource('deps.communityActivity.value = {'));
     expect(engine).toContain('runRetrievalStage(');
   });
 
@@ -273,30 +288,27 @@ describe('BOH AI motion system', () => {
     expect(engine).toContain('webSearchResults');
     expect(main).toContain(':web-search-results="webSearchResults"');
     // 面板：折叠头 + 展开清单 + 轮换行（淡入动画挂在 :key 重放上）；
-    // 2026-10-08 三次改版：纯文本行 + 检索期流光（.is-shimmer），不再有卡片框
+    // 2026-10-08 三次改版：纯文本行 + 检索期流光（.is-shimmer），不再有卡片框。
+    // 2026-10-19 活动行改版：流光改由 activityShimmer（网页在途 + 正在思考两阶段）驱动。
     expect(stream).toContain('class="boh-search-head"');
     expect(stream).toContain('boh-search-pages');
     expect(stream).toContain('boh-search-line');
-    expect(stream).toContain("'is-shimmer': webSearchActive");
-    expect(streamCss).toContain('@keyframes boh-search-fade');
+    expect(stream).toContain("'is-shimmer': activityShimmer");
+    // 2026-10-19 活动行改版：轮换淡入从 `@keyframes boh-search-fade`（移除）换成
+    // 「按 key 重挂 + 一次性 keyframes」（`boh-activity-swap-in`），整行不重建。
+    expect(streamCss).not.toContain('@keyframes boh-search-fade');
+    expect(streamCss).toContain('@keyframes boh-activity-swap-in');
     expect(streamCss).toMatch(/\.boh-search-line\s*\{[^}]*text-overflow:\s*ellipsis/);
 
-    // 思考行的分相门控（2026-10-08 口径不变，只是「黑点」换成了「正在思考」文本行）：
-    // 联网搜索在途必须**不出**这一行；思考（isThinking）与回复（isLoading，流式期
-    // isThinking 已翻 false）都要出。
-    // ⚠️ communitySearchActive 不进门控 —— 它挂到整轮结束，进门控会让社区类问题整轮无提示。
-    const reasonGuard = stream.match(/const isReasoningLive = \(index\) =>[\s\S]*?;/) || [];
-    expect(reasonGuard[0]).toContain('props.isThinking || props.isLoading');
-    expect(reasonGuard[0]).toContain('!props.webSearchActive');
+    // 思考行的分相门控（2026-10-08 口径「联网搜索在途不出思考」不变）：
+    // 2026-10-19 起由 boh-activity.js 的**优先级表**保证 —— web-searching 恒排在 thinking
+    // 之前，行为断言锁在 bohai-activity.test.js；这里锁「视图确实以它为唯一真源」，
+    // 且输入带上网页结果数（web-results 阶段靠它分相）。
+    expect(stream).toContain('resolveBohActivityStage({');
+    expect(stream).toContain('webSearchResults.length');
     // 操作行跟着「整轮忙」走：忙（含搜索期）不渲染，避免流式期黑点与操作行同屏
     const busyGuard = stream.match(/const isGenerationBusy = \(index\) =>[\s\S]*?;/) || [];
     expect(busyGuard[0]).toContain('props.isThinking || props.isLoading');
-
-    // 面板可见窗口挂**整轮生成**（isLoading）：只挂 webSearchActive 的话，标题出现的
-    // 那一刻（请求返回）面板就消失，轮换根本看不见。
-    const webGuard = stream.match(/const webActive = \(index, message\) =>[\s\S]*?;/) || [];
-    expect(webGuard[0]).toContain('props.isLoading');
-    expect(webGuard[0]).toContain('props.webSearchResults.length > 0');
   });
 
   it('renders a stateful task panel with progress and recovery controls', () => {

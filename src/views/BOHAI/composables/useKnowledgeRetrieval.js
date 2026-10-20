@@ -98,8 +98,6 @@ import {
  * @param {import('vue').Ref<boolean>} deps.isLoggedIn
  * @param {import('vue').Ref<Object>} deps.userInfo
  * @param {import('vue').Ref<boolean>} deps.isTreeholeMemoryEnabled
- * @param {import('vue').Ref<boolean>} deps.isForumSearchEnabled
- * @param {import('vue').Ref<boolean>} deps.isSharedMemoryEnabled
  * @param {import('vue').Ref<boolean>} deps.isKnowledgeBaseEnabled
  * @param {Object} deps.treeholeMemoryCache
  * @param {Object} deps.sharedMemoryCache
@@ -120,8 +118,6 @@ export function useKnowledgeRetrieval(deps) {
     isLoggedIn,
     userInfo,
     isTreeholeMemoryEnabled,
-    isForumSearchEnabled,
-    isSharedMemoryEnabled,
     isKnowledgeBaseEnabled,
     treeholeMemoryCache,
     sharedMemoryCache,
@@ -763,10 +759,15 @@ export function useKnowledgeRetrieval(deps) {
           : rankForumPostsByQuery(recentSource, queryText);
       const selectedPosts = rankedPosts.slice(0, FORUM_MAX_POSTS);
       let postsWithImage = 0;
+      // 「正在读取《帖子标题》」的标题源（2026-10-19 用户口径）：
+      // 取本轮选中帖子里**发布最新**的那一篇（并列时取排序更靠前者）。时间在 `describeAction`
+      // 里看不到，所以在这里定好、作为连接器结果字段透传。
+      let activityPostTitle = '';
       const forumContext = selectedPosts
         .map((post, index) => {
           const parsed = getPostTitleAndBody(post);
           const title = parsed.title || '无标题';
+          if (!activityPostTitle && title !== '无标题') activityPostTitle = title;
           const author = normalizePromptLine(post?.author_username, 40) || '未知作者';
           const authorIdLabel =
             author === '未知作者' ? '未知作者' : `@${author.replace(/^@+/, '')}`;
@@ -834,6 +835,9 @@ export function useKnowledgeRetrieval(deps) {
         evidenceRefs: selectedPosts.map((_, index) => `F${index + 1}`),
         labels: [`社区帖子(${selectedPosts.length}条)`],
         confidence: selectedPosts.length > 0 ? 0.86 : 0,
+        // 活动行点名用（`retrieval.ts` 读它，经连接器 normalize 原样透传）。
+        // 只放一个标题字符串，不要把整条帖子记录塞进来 —— 那是几 KB 的正文。
+        activityPostTitle,
         metadata: {
           sortMode,
           tagFilter,
@@ -1166,6 +1170,11 @@ export function useKnowledgeRetrieval(deps) {
   // 读取连接器
   // ============================================================
 
+  /* 活动行点名回调（2026-10-19）：`buildAutoKnowledgeContext` 每轮把回调挂在这里，
+     论坛连接器读完即可回调标题。⚠️ 必须是 composable 作用域（不是 `createReadConnectors`
+     的参数作用域）—— 那个函数看不见本轮的回调。 */
+  let _onCommunityPostResolved = null;
+
   const createReadConnectors = ({ memoryEntities = [], memoryEntityIds = [] } = {}) =>
     createReadConnectorsFromRegistry({
       getTreeholeContext,
@@ -1176,7 +1185,17 @@ export function useKnowledgeRetrieval(deps) {
           entityIds: memoryEntityIds,
         }),
       getSiteGuideContext,
-      getForumContext,
+      // 活动行点名（2026-10-19）：论坛连接器一读完就把标题交出去，
+      // 让「正在读取《标题》」能在**检索还在途时**就显示真标题，
+      // 而不是等 7 个连接器全部 settled 后才拿到（那时社区阶段已经结束了）。
+      getForumContext: async (text) => {
+        const result = await getForumContext(text);
+        const title = String(result?.activityPostTitle || '').trim();
+        if (title && typeof _onCommunityPostResolved === 'function') {
+          _onCommunityPostResolved(title);
+        }
+        return result;
+      },
       getUserPrivateContext,
       getActivitiesContext,
     });
@@ -1184,7 +1203,13 @@ export function useKnowledgeRetrieval(deps) {
   // 自动知识上下文构建
   // ============================================================
 
-  const buildAutoKnowledgeContext = async (queryText, { forceTreehole = false } = {}) => {
+  const buildAutoKnowledgeContext = async (
+    queryText,
+    { forceTreehole = false, onCommunityPostResolved = null } = {},
+  ) => {
+    // 本轮的点名回调（只在消息流活动行里用；null 时等于没有）
+    _onCommunityPostResolved =
+      typeof onCommunityPostResolved === 'function' ? onCommunityPostResolved : null;
     const routingDecision = resolveKnowledgeRoutingPlan(queryText);
     const retrievalPlan = routingDecision.plan;
     const resolvedEntities = Array.isArray(routingDecision.entities)
@@ -1197,15 +1222,9 @@ export function useKnowledgeRetrieval(deps) {
     if (forceTreehole && isLoggedIn.value && userInfo.value?.id && isTreeholeMemoryEnabled.value) {
       retrievalPlan.treehole = true;
     }
-    if (isForumSearchEnabled.value) {
-      retrievalPlan.forum = true;
-    }
-    // 统一开关过滤：未开启的知识源强制关闭；官方记忆开关 ON ⇒ 每条消息必查
-    //（2026-10-17 用户报告：旧逻辑里开关只能"关"，"开"时仍由关键词路由决定 ⇒
-    // 第二问措辞没命中就静默跳过。开关是显式意图，压过路由 —— 见 knowledge-plan-switches.js）
-    if (!isSharedMemoryEnabled.value) {
-      retrievalPlan.sharedMemory = false;
-    }
+    // 站内知识总开关（官方记忆开关，2026-10-19 起合并了论坛搜索与社区知识）：
+    // ON ⇒ memory/forum/sharedMemory 每条消息必查（显式意图压过路由）；OFF ⇒ 一并关闭。
+    // 语义真源在 knowledge-plan-switches.js，这里只应用 —— 别再写第二份论坛/公共记忆判断。
     Object.assign(
       retrievalPlan,
       applyKnowledgeSourceSwitches(retrievalPlan, {

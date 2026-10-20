@@ -275,6 +275,7 @@ export const normalizeConnectorReadResult = (connector = {}, rawResult = null) =
     confidence: 0,
     // 空串 = 该源没有可用的最新时间 ⇒ ranking 不施加时间惩罚（缺失 ≠ 过期）
     latestAt: '',
+    activityPostTitle: '',
     evidenceRefs: [],
     metadata: {},
   };
@@ -327,6 +328,11 @@ export const normalizeConnectorReadResult = (connector = {}, rawResult = null) =
     labels,
     confidence,
     latestAt,
+    // 活动行点名用的标题（2026-10-19「正在读取《帖子标题》」）：
+    // 只有论坛连接器会给，其余源是空串 —— 空串即「本来就没有可点名的标题」，
+    // 不是「取数失败」（后者走 `error`）。
+    activityPostTitle:
+      typeof rawResult.activityPostTitle === 'string' ? rawResult.activityPostTitle.trim() : '',
     evidenceRefs:
       explicitEvidenceRefs.length > 0 ? explicitEvidenceRefs : extractCitationIdsFromText(context),
     metadata:
@@ -421,6 +427,7 @@ const runBohAIReadConnectorsCore = async ({
       labels: [],
       confidence: 0,
       evidenceRefs: [],
+      activityPostTitle: '',
       metadata: {},
       error: result.reason,
     };

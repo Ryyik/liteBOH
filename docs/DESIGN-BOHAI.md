@@ -182,13 +182,20 @@
 - **只有两个时长**：`150ms`（`--boh-dur-fast`，悬停/颜色/描边）与 `200ms`（`--boh-dur-med`，抽屉/展开/淡入）。
 - **唯一缓动**：`cubic-bezier(0.4, 0, 0.2, 1)`（`--boh-ease`）。
 - **CSS 里不许写字面时长**（时长唯一真源 = 令牌）。
-- **关键帧动画一共三处声明、其中两条循环**（2026-10-10 复核，判据见下）：
-  ① 流光 `boh-search-shimmer`（`--boh-dur-bob` = `1.1s`，`linear`，`infinite`）——**两个消费者共用一组定义**
-     （`.boh-search-line.is-shimmer, .boh-reason.is-live .boh-reason-head span`）：联网在途的「网页搜索」与思考中的「正在思考」；
+- **关键帧动画一共三处声明、其中两条循环**（2026-10-19 复核，判据见下）：
+  ① 流光 `boh-search-shimmer`（`--boh-dur-bob` = **`1.8s`**，`linear`，`infinite`）——**单源定义**
+     （`.boh-search-text.is-shimmer, .boh-reason.is-live .boh-search-text`）；
+     2026-10-19 起「网页搜索在途」与「正在思考」是**同一条活动行**的两个互斥阶段
+     （见 §2.4.1），所以**任何时刻全屏只有一条光带**（改版前是两个节点各挂一次，同屏两条在闪）；
      该选择器组自带 `prefers-reduced-motion` 兜底（恢复实色），否则降级时 `color: transparent` 会让文字看不见；
   ② 集群/工作台进度转圈 `boh-spin`（`--boh-dur-spin` = `0.9s`，`linear`，`infinite`）；
-  ③ 搜索标题轮换淡入 `boh-search-fade`（`260ms` `ease`，**一次性**，每次换标题重放）。
-  > 判据：`grep -n "@keyframes\|animation:" src/views/BOHAI/` → 3 + 3（BOH AI 模块内）。
+  ③ 活动行文字进场 `boh-activity-swap-in`（`--boh-dur-fast` = `150ms`，`both`，**一次性**，
+     按 `:key` 重挂时重放；图标另有 `boh-activity-icon-in` 只做缩放不位移）。
+     原「搜索标题轮换淡入 `boh-search-fade`」已于 2026-10-19 移除（标题轮换并入同一套进场）。
+  > 判据：`grep -rn "@keyframes" src/views/BOHAI/`（2026-10-19 实测 4 条：上面三条 + 图标那条）。
+  > ⚠️ **不要用 `<Transition mode="out-in">` 做这一行的切换**：同一 tick 内连续换 key
+  > （搜索在途 → 结果到位 → 首 token 可能连拍）会把离开中的节点留成孤儿，实测永久停在
+  > `leave-active leave-to`、旧文字压住新文字。用「按 key 重挂 + 一次性 keyframes」。
   > ⚠️ **思考圆点已于 2026-10-10 退役**（**取代** 2026-10-08 的「思考状态依旧保持旧版圆点」口径）：
   > 用户拍板「思考状态就是纯文本『正在思考』，默认收起，点击可展开」⇒ `.boh-thinking-dot` 与
   > `@keyframes boh-thinking-breath` **整段删除**，等待动作改为**一行可展开的文字**（`.boh-reason`），
@@ -196,6 +203,27 @@
   > （退役时漏的尾巴；要「呼吸感」请复用 `--boh-dur-bob`，不要新开一条时长真源）。
   > **不要**换成 Demo 预览件里的三点打字动画：等待动作与输出格式属「不变项」
   > （同 `plans/023` 的原话「AI 的等待动作和输出的格式不变」）。
+
+#### 2.4.1 活动行：始终只显示一个动作（2026-10-19）
+
+用户口径：「正在思考 / 连接社区记忆 / 联网搜索是同样的光效闪动切换，
+**始终显示一个动作**（当前正在进行的那个），然后会有切换。」
+
+- 三块独立节点（联网搜索行 / 「正在读取近日帖子」/ 「正在思考」）合并为**一条**活动行
+  `.boh-search-status[data-activity]`。阶段机器是**纯函数**，唯一真源
+  `src/views/BOHAI/BOHAI/components/boh-activity.js`（`resolveBohActivityStage`），
+  单测 `tests/unit/bohai-activity.test.js` 锁优先级。
+- 阶段顺序（后者不会盖前者）：`web-searching` → `community` → `thinking` → `answering`；
+  `web-results` 占「还没开口、标题还没露过脸」那一拍（靠 `webTitleRevealed` 计数**每轮只露一次**，
+  之后再进 `thinking`）——纯优先级排序会让其中一个整段消失，这一点有单测钉住。
+- 展开面随阶段走：`web-*` → 网页清单；`thinking` → 推理原文；`community`/`answering` → 无（不出箭头）。
+- 社区一行点名称谓：「正在读取《帖子标题》」（2026-10-19 用户口径），标题来自论坛连接器
+  `activityPostTitle`（`list_forum_posts` RPC 结果的**最新一篇**），读完即通过
+  `onCommunityPostResolved` 回调上报 —— 不等 7 个连接器全部 settled。
+
+> **判据**：`node scripts/probes/probe-bohai-search-status.mjs`（14 条，A4c 逐帧采样断言
+> 「任何一拍都只有一条活动行」；三条反证已做：去掉社区优先级 / 去掉帖名 / 注入第二条 row，
+> 分别让 A11、A11、A4c 变红）。
 - **必须尊重 `prefers-reduced-motion: reduce`**（预览件已内置降级）。
 - ⚠️ `animation-fill-mode: both` 会让该属性从此不可过渡，离场必须走关键帧（仓库既有坑）。
 

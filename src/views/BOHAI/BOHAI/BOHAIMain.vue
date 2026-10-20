@@ -106,6 +106,7 @@
           :web-search-active="webSearchActive"
           :web-search-results="webSearchResults"
           :community-search-active="communitySearchActive"
+          :community-activity="communityActivity"
           :plan-card="planCard"
           :inline-question="activeInlineQuestion"
           v-model:inline-answer="aiQuestionAnswer"
@@ -205,7 +206,6 @@
       :current-response-style-id="currentResponseStyleId"
       :response-style-options="responseStyleOptions"
       :is-treehole-memory-enabled="isTreeholeMemoryEnabled"
-      :is-shared-memory-enabled="isSharedMemoryEnabled"
       :is-knowledge-base-enabled="isKnowledgeBaseEnabled"
       :is-treehole-memory-toggling="isTreeholeMemoryToggling"
       :memory-status-text="memorySettingsStatus"
@@ -213,7 +213,6 @@
       @select-mode="selectMode"
       @select-response-style="setResponseStyle"
       @toggle-treehole-memory="handleTreeholeMemoryToggle"
-      @toggle-shared-memory="handleSharedMemoryToggle"
       @toggle-knowledge-base="handleKnowledgeBaseToggle"
       @clear-current-chat="clearCurrentChat"
       @export-chat-data="exportChatData"
@@ -300,6 +299,7 @@ const {
   webSearchActive,
   webSearchResults,
   communitySearchActive,
+  communityActivity,
   planCard,
   activeInlineQuestion,
   aiQuestionAnswer,
@@ -363,13 +363,11 @@ const {
   setResponseStyle,
   responseStyleOptions,
   isTreeholeMemoryEnabled,
-  isSharedMemoryEnabled,
   isKnowledgeBaseEnabled,
   activeComposerFlags,
   isTreeholeMemoryToggling,
   memorySettingsStatus,
   handleTreeholeMemoryToggle,
-  handleSharedMemoryToggle,
   handleKnowledgeBaseToggle,
   clearCurrentChat,
   exportChatData,
