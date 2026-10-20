@@ -127,6 +127,10 @@ export async function uploadApprovedForumImage(file, moderation = {}, options = 
       data: normalizeForumImage({
         ...uploaded,
         moderationStatus: APPROVED_STATUS,
+        // 审核来源必须与裁决同源：云端命中写 'gemini'，本地兜底写 'local_fallback*'。
+        // 此前这里不传，normalizeForumImage 回落到 'client_nsfwjs' ⇒ 云端结果落库时
+        // 也被标成本地（2026-10-20 实测 128 张图同一值，来源维度无信息量）。
+        moderationSource: moderation.source || 'client_nsfwjs',
         moderationScore: moderation.score || 0,
         moderationReason: moderation.reason || 'NSFWJS 预筛通过',
       }),

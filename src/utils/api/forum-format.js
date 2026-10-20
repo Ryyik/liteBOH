@@ -285,6 +285,14 @@ export function normalizeForumImage(image = {}, { variant = 'detail' } = {}) {
       .toLowerCase(),
     moderationStatus:
       String(image.moderationStatus || image.moderation_status || 'approved').trim() || 'approved',
+    // 审核来源：云端命中（gemini）/ 本地兜底（local_fallback*）/ 历史遗留（client_nsfwjs）。
+    // 2026-10-20 前论坛链路**从不携带**这个字段，服务端又硬编码 'client_nsfwjs'
+    // ⇒ 云端成功也标成本地，来源维度完全失去信息量（实测 128 张图全同一值）。
+    // 真源见 image-moderation-pipeline.js 的 source 取值；落库白名单由
+    // forum_post_images_moderation_source_check 约束（新增值需配套迁移）。
+    moderationSource: String(
+      image.moderationSource || image.moderation_source || 'client_nsfwjs',
+    ).trim(),
     moderationScore: Number(image.moderationScore ?? image.moderation_score ?? 0) || 0,
     moderationReason: String(image.moderationReason || image.moderation_reason || '').trim(),
     sortOrder: Number(image.sortOrder ?? image.sort_order ?? 0) || 0,
@@ -320,6 +328,8 @@ export function toForumImageRpcPayload(images = []) {
     height: image.height,
     format: image.format,
     moderationStatus: image.moderationStatus || 'approved',
+    // 服务端只做白名单校验，不再写死来源（迁移 2026102004）
+    moderationSource: image.moderationSource || 'client_nsfwjs',
     moderationScore: image.moderationScore || 0,
     moderationReason: image.moderationReason || '',
   }));

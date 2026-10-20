@@ -36,36 +36,98 @@ const CLOUD_RETRY_DELAY_MS = 250;
 // 移动端必然 OOM/卡死。收敛成 2 路：多花一点时间换峰值内存。
 const DECODE_CONCURRENCY = 2;
 
-// 冷却时长：不可达（网络/超时/上游故障/限流）60s；配额耗尽 300s。
+// 冷却时长：不可达（网络/超时/上游故障/限流）60s 起步；配额耗尽 300s。
 // 冷却期内直接走本地兜底，避免多图上传每张都等满超时。
 const COOLDOWN_UNREACHABLE_MS = 60000;
 const COOLDOWN_QUOTA_MS = 300000;
+// 指数退避上限：连续故障时冷却不会无限增长，避免「一次故障 → 半小时都用不上云端」。
+// 60s → 120s → 240s → 300s（封顶）。
+const COOLDOWN_MAX_MS = 300000;
+
+/* ── 「偶发失败」与「服务真的挂了」必须分开（2026-10-20）──────────────────────
+ *
+ * 旧行为：任意一次失败立刻冻结全局 60s（见下方 markCloudModerationUnreachable 的历史实现）。
+ * 后果（线上实测 2026-10-20）：4 张图的帖子第 1 张超时 ⇒ 后 3 张连云端都不问，
+ * 直接走本地；近 30 天 30 张图云端实际生效 0 张。
+ *
+ * 但「一次失败就不该信云端」这个直觉本身是错的：实测 6 次调用 4 次成功（67%），
+ * 失败是**零星**的，不是持续挂机。用单点失败去推断整体健康度，等于把抖动当故障。
+ *
+ * 新口径 —— 错误预算：
+ *   ① 单次失败只记数，**不影响下一张**（下一张照常问云端）；
+ *   ② 连续失败达到 FAILURE_THRESHOLD 才冻结，说明「这不像抖动了」；
+ *   ③ 任意一次成功立即清零计数并解除冷却（成功是最强的健康信号）；
+ *   ④ 连续故障时按 60s → 120s → 240s 指数退避（封顶 5 分钟），避免长时间失联。
+ *
+ * 代价（明确接受）：云端真挂时，本批前 N 张会各自等满超时（N = 阈值）。
+ * 换来的是：**偶发失败不再误伤同批其余图片**，且用户等待总时长下降（旧行为下
+ * 每张都要走一遍本地兜底，反而更慢）。
+ */
+const FAILURE_THRESHOLD = 3;
 
 // 面板/排错时用来看冷却原因
 let cloudCooldownUntil = 0;
 let cloudCooldownReason = '';
+// 连续失败计数（成功即清零）。用于区分「抖动」与「故障」。
+let consecutiveFailures = 0;
+// 连续故障期数（每次真正进入冷却 +1），仅用于指数退避。
+let cooldownStreak = 0;
 
 export function isCloudModerationCoolingDown(now = Date.now()) {
   return now < cloudCooldownUntil;
 }
 
+/**
+ * 记录一次云端失败。
+ *
+ * ⚠️ 与旧版的语义差异（这是本次改造的核心）：
+ * 旧版「调用即冻结」；新版「连续 FAILURE_THRESHOLD 次才冻结」。
+ * 单次失败只累加计数并返回 false（未进入冷却），调用方据此**继续**让下一张问云端。
+ *
+ * @param {number} cooldownMs 基础冷却时长（进入冷却时按 streak 做指数退避）
+ * @param {string} reason     冷却原因（写进日志/面板）
+ * @returns {{ cooling: boolean, failures: number }} cooling=true 表示本次确实进入了冷却
+ */
 export function markCloudModerationUnreachable(cooldownMs, reason = '') {
-  const until = Date.now() + Math.max(1000, Number(cooldownMs) || COOLDOWN_UNREACHABLE_MS);
+  const base = Math.max(1000, Number(cooldownMs) || COOLDOWN_UNREACHABLE_MS);
+  consecutiveFailures += 1;
+
+  // 未达阈值：只记账，不冻结。下一张照常问云端。
+  if (consecutiveFailures < FAILURE_THRESHOLD) {
+    logger.warn('image-moderation-pipeline', '云端审核单次失败（未达冻结阈值，下一张继续尝试）', {
+      reason: String(reason || '').slice(0, 80),
+      consecutiveFailures,
+      threshold: FAILURE_THRESHOLD,
+    });
+    return { cooling: false, failures: consecutiveFailures };
+  }
+
+  // 达到阈值：进入冷却，并按连续故障期数做指数退避。
+  cooldownStreak += 1;
+  const backoff = Math.min(COOLDOWN_MAX_MS, base * 2 ** (cooldownStreak - 1));
+  const until = Date.now() + backoff;
   if (until > cloudCooldownUntil) {
     cloudCooldownUntil = until;
     cloudCooldownReason = String(reason || '').slice(0, 80);
     // 只有真的把冷却**延长**了才记日志：同一次失败会先由 attemptCloudVerdict 标记、
     // 再由调用方的 handleUnreachable 收口，这里不设条件就会打两条一模一样的 warn。
-    logger.warn('image-moderation-pipeline', '云端审核不可达，进入冷却', {
+    logger.warn('image-moderation-pipeline', '云端审核连续失败达阈值，进入冷却', {
       reason: cloudCooldownReason,
+      consecutiveFailures,
+      cooldownStreak,
+      cooldownMs: backoff,
       cooldownUntil: new Date(cloudCooldownUntil).toISOString(),
     });
   }
+  return { cooling: true, failures: consecutiveFailures };
 }
 
 export function markCloudModerationSuccess() {
+  // 成功是最强的健康信号：清冷却 + 清连续失败计数 + 退避期数归零。
   cloudCooldownUntil = 0;
   cloudCooldownReason = '';
+  consecutiveFailures = 0;
+  cooldownStreak = 0;
 }
 
 export function getCloudModerationCooldownState() {
@@ -73,6 +135,10 @@ export function getCloudModerationCooldownState() {
     coolingDown: isCloudModerationCoolingDown(),
     cooldownUntil: cloudCooldownUntil || null,
     reason: cloudCooldownReason,
+    // 连续失败计数与阈值：面板/探针用它判断「是抖动还是故障」。
+    consecutiveFailures,
+    failureThreshold: FAILURE_THRESHOLD,
+    cooldownStreak,
   };
 }
 
@@ -352,17 +418,13 @@ async function attemptCloudVerdict(dataUrls, { timeoutMs, signal }) {
   };
   const classified = classifyCloudFailure(failure);
 
-  // 「首次失败即冷却」（2026-10-04）：可重试类（upstream / bad_response）此前要等**第二次**
-  // 也失败才进冷却，于是多图批次里第 2..N 张各自都要再赔两轮超时。
-  // 现在第一次失败就先把冷却立起来（后续张直接走本地兜底），本次重试照旧 ——
-  // 若重试成功，调用方的 markCloudModerationSuccess() 会把冷却清掉，不误伤。
-  // `cooldownMarked` 用来告诉 handleUnreachable「已经标过了」，避免它再标一次
-  // （markCloudModerationUnreachable 的 until 是按当前时刻算的，重复调用一定会「延长」并再打一条日志）。
-  let cooldownMarked = false;
-  if (classified.cooldownMs > 0) {
-    markCloudModerationUnreachable(classified.cooldownMs, `image:${classified.kind}`);
-    cooldownMarked = true;
-  }
+  // ⚠️ 2026-10-20 改造：这里**不再**立即冻结冷却。
+  //
+  // 旧实现（2026-10-04「首次失败即冷却」）在此处直接 markCloudModerationUnreachable，
+  // 于是多图批次里第 1 张一次超时就把全局 60s 冷却立起来，后 3 张连云端都不问
+  // —— 线上实测「1 次云端调用 + 4 张本地兜底」的成因。
+  // 现在改为：**记账下沉到最终判定之后**（重试完再记，避免一次失败被算两次），
+  // 由 markCloudModerationUnreachable 内部按连续失败数决定是否真的冻结。
 
   if (isRetryableFailureKind(classified.kind)) {
     await new Promise((resolve) => setTimeout(resolve, CLOUD_RETRY_DELAY_MS));
@@ -379,7 +441,6 @@ async function attemptCloudVerdict(dataUrls, { timeoutMs, signal }) {
         ...failure,
         kind: secondClassified.kind,
         cooldownMs: secondClassified.cooldownMs,
-        cooldownMarked,
       },
     };
   }
@@ -389,14 +450,19 @@ async function attemptCloudVerdict(dataUrls, { timeoutMs, signal }) {
       ...failure,
       kind: classified.kind,
       cooldownMs: classified.cooldownMs,
-      cooldownMarked,
     },
   };
 }
 
+/**
+ * 失败收口：**唯一的失败记账入口**（单图/批量两条路径都走这里）。
+ *
+ * 2026-10-20 起，是否冻结冷却由 markCloudModerationUnreachable 内部按连续失败数决定；
+ * 本函数只负责「把这次失败记上」，不再假设「失败就等于冻结」。
+ *
+ * @returns {string} 失败类型（给调用方打日志用）
+ */
 function handleUnreachable(failure) {
-  // 已经在 attemptCloudVerdict 里标过冷却（首次失败即冷却）—— 这里只收口 kind，不重复标
-  if (failure?.cooldownMarked) return failure?.kind || 'bad_response';
   if (failure?.cooldownMs > 0) {
     markCloudModerationUnreachable(failure.cooldownMs, `image:${failure.kind}`);
   } else {

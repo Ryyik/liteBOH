@@ -26,6 +26,7 @@ import {
   moderateImagesWithFallback,
   isCloudModerationCoolingDown,
   markCloudModerationSuccess,
+  markCloudModerationUnreachable,
   getCloudModerationCooldownState,
 } from '../../src/utils/image-moderation-pipeline.js';
 
@@ -117,7 +118,11 @@ describe('image-moderation-pipeline（云端优先、本地兜底）', () => {
 
     expect(result.status).toBe('approved');
     expect(result.source).toBe('local_fallback_borderline');
-    expect(isCloudModerationCoolingDown()).toBe(true);
+    // 2026-10-20 语义变更：单次超时**不再**冻结冷却。
+    // 旧断言是 `toBe(true)`（首次失败即冷却）；现在要连续 3 次才冻结，单次失败只记账
+    // —— 否则 4 张图的帖子第 1 张超时会让后 3 张连云端都不问（线上实测的「1 次云端 + 4 张本地」）。
+    expect(isCloudModerationCoolingDown()).toBe(false);
+    expect(getCloudModerationCooldownState().consecutiveFailures).toBe(1);
   });
 
   it('still blocks high-confidence local rejections while in fallback', async () => {
@@ -155,7 +160,7 @@ describe('image-moderation-pipeline（云端优先、本地兜底）', () => {
     expect(isCloudModerationCoolingDown()).toBe(false);
   });
 
-  it('skips cloud calls entirely while cooling down', async () => {
+  it('连续失败达阈值才冻结；冻结后不再打云端（错误预算）', async () => {
     testMocks.callVaultSiliconChat.mockResolvedValue(
       cloudFail({ code: 'API_KEY_RUNTIME_TIMEOUT' }),
     );
@@ -166,13 +171,72 @@ describe('image-moderation-pipeline（云端优先、本地兜底）', () => {
       scores: {},
     });
 
+    // 第 1、2 次失败：只记账，不冻结，每张都照常问云端
     await moderateImageWithFallback(new File([], 'first.jpg'));
-    expect(isCloudModerationCoolingDown()).toBe(true);
+    expect(isCloudModerationCoolingDown()).toBe(false);
+    await moderateImageWithFallback(new File([], 'second.jpg'));
+    expect(isCloudModerationCoolingDown()).toBe(false);
+    expect(testMocks.callVaultSiliconChat).toHaveBeenCalledTimes(2);
 
-    const second = await moderateImageWithFallback(new File([], 'second.jpg'));
-    expect(second.source).toBe('local_fallback');
-    expect(testMocks.callVaultSiliconChat).toHaveBeenCalledTimes(1);
+    // 第 3 次失败：达到阈值 → 冻结
+    const third = await moderateImageWithFallback(new File([], 'third.jpg'));
+    expect(third.source).toBe('local_fallback');
+    expect(isCloudModerationCoolingDown()).toBe(true);
+    expect(testMocks.callVaultSiliconChat).toHaveBeenCalledTimes(3);
+
+    // 冻结期内：第 4 张不再打云端
+    const fourth = await moderateImageWithFallback(new File([], 'fourth.jpg'));
+    expect(fourth.source).toBe('local_fallback');
+    expect(testMocks.callVaultSiliconChat).toHaveBeenCalledTimes(3);
     expect(getCloudModerationCooldownState().coolingDown).toBe(true);
+  });
+
+  it('一次失败不再拖垮同批：4 张图里只挂 1 张，其余 3 张仍走云端', async () => {
+    // 这是本次改造要守住的**核心行为**，直接对应线上事故：
+    // 旧行为下第 1 张超时 ⇒ 后 3 张连云端都不问 ⇒ 「1 次云端调用 + 4 张本地兜底」。
+    testMocks.moderateForumImageFile.mockResolvedValue({
+      status: 'approved',
+      score: 0.05,
+      reason: '通过',
+      scores: {},
+    });
+    testMocks.callVaultSiliconChat
+      .mockResolvedValueOnce(cloudFail({ code: 'API_KEY_RUNTIME_TIMEOUT' }))
+      .mockResolvedValue(cloudOk('{"status":"approved","confidence":0.1}'));
+
+    const results = [];
+    for (let i = 0; i < 4; i += 1) {
+      results.push(await moderateImageWithFallback(new File([], `img-${i}.jpg`)));
+    }
+
+    // 第 1 张本地兜底，后 3 张全部拿到云端裁决
+    expect(results[0].source).toBe('local_fallback');
+    expect(results.slice(1).every((r) => r.source === 'gemini')).toBe(true);
+    expect(testMocks.callVaultSiliconChat).toHaveBeenCalledTimes(4);
+    // 云端成功后计数清零，不残留
+    expect(getCloudModerationCooldownState().consecutiveFailures).toBe(0);
+  });
+
+  it('任意一次成功都会清零连续失败计数（成功是最强健康信号）', async () => {
+    testMocks.moderateForumImageFile.mockResolvedValue({
+      status: 'approved',
+      score: 0.05,
+      reason: '通过',
+      scores: {},
+    });
+    testMocks.callVaultSiliconChat
+      .mockResolvedValueOnce(cloudFail({ code: 'API_KEY_RUNTIME_TIMEOUT' }))
+      .mockResolvedValueOnce(cloudFail({ code: 'API_KEY_RUNTIME_TIMEOUT' }))
+      .mockResolvedValue(cloudOk('{"status":"approved","confidence":0.1}'));
+
+    await moderateImageWithFallback(new File([], 'a.jpg'));
+    await moderateImageWithFallback(new File([], 'b.jpg'));
+    expect(getCloudModerationCooldownState().consecutiveFailures).toBe(2);
+
+    const third = await moderateImageWithFallback(new File([], 'c.jpg'));
+    expect(third.source).toBe('gemini');
+    expect(getCloudModerationCooldownState().consecutiveFailures).toBe(0);
+    expect(isCloudModerationCoolingDown()).toBe(false);
   });
 
   it('maps batch results per image and retries nothing on success', async () => {
@@ -283,20 +347,28 @@ describe('image-moderation-pipeline（2026-10-04 超时 / 冷却 / 编码并发�
     expect(testMocks.callVaultSiliconChat.mock.calls[1][0].timeoutMs).toBe(12000);
   });
 
-  it('可重试类失败：重试照旧（2 次），冷却建立后第 2 张不再打云端', async () => {
-    // ⚠️ 这条是**契约锁**（锁「重试一次 + 冷却后跳过云端」），不是「首次 vs 第二次」的时机证明
-    // —— 见本 describe 头部的反向对照记录。
+  it('可重试类失败：本次重试一次，且单次失败不冻结（下一张仍打云端）', async () => {
+    // ⚠️ 契约锁，含两层：
+    //   ① 「upstream 失败仍重试一次」—— 这是 2026-10-04 的既有口径，没被本次改造动过；
+    //   ② 「单次失败后第 2 张仍打云端」—— 2026-10-20 错误预算改造的**新增**口径。
+    //      旧断言是「冷却建立后第 2 张不再打云端」，那正是要修掉的整批降级行为。
     testMocks.callVaultSiliconChat.mockResolvedValue(
       cloudFail({ status: 503, message: '上游故障' }),
     );
+    testMocks.moderateForumImageFile.mockResolvedValue({
+      status: 'approved',
+      score: 0.05,
+      reason: '通过',
+      scores: {},
+    });
 
     const first = await moderateImageWithFallback(new File([], 'a.jpg'));
     expect(first.source).toBe('local_fallback');
     expect(testMocks.callVaultSiliconChat).toHaveBeenCalledTimes(2); // 本次仍重试一次
-    expect(isCloudModerationCoolingDown()).toBe(true);
+    expect(isCloudModerationCoolingDown()).toBe(false); // 单次失败不冻结
 
     await moderateImageWithFallback(new File([], 'b.jpg'));
-    expect(testMocks.callVaultSiliconChat).toHaveBeenCalledTimes(2); // 冷却期内不再打云端
+    expect(testMocks.callVaultSiliconChat).toHaveBeenCalledTimes(4); // 第 2 张仍打云端（2 次重试）
   });
 
   it('重试成功时冷却被清掉（首次失败即冷却不误伤）', async () => {
@@ -363,5 +435,37 @@ describe('image-moderation-pipeline（2026-10-04 超时 / 冷却 / 编码并发�
     ]);
 
     expect(results.map((item) => item.status)).toEqual(['rejected', 'approved', 'approved']);
+  });
+
+  it('连续故障时冷却按 60s → 120s → 240s 指数退避，并封顶 5 分钟', async () => {
+    // 退避的意义：真挂机时不要每 60s 就重试一次并把用户拖进超时；
+    // 但也不能无限增长（否则一次故障 = 半小时用不上云端），故封顶 COOLDOWN_MAX_MS。
+    // 反向对照：把 `base * 2 ** (cooldownStreak - 1)` 改回 `base` → 第 2/3 段相等，本条红。
+    //
+    // ⚠️ 用 fake timers 做「时间旅行」：这条要验证的是**多轮故障之间的退避递增**，
+    // 靠 sleep 无法在单测里跨越 60s+，且会把整套测试拖慢。
+    vi.useFakeTimers();
+    try {
+      const durations = [];
+      for (let round = 0; round < 4; round += 1) {
+        // 每轮打满阈值（3 次失败）→ 冻结一次
+        for (let i = 0; i < 3; i += 1) {
+          markCloudModerationUnreachable(60000, 'backoff-test');
+        }
+        const state = getCloudModerationCooldownState();
+        durations.push(Math.round(((state.cooldownUntil || 0) - Date.now()) / 1000));
+        // 时间旅行到冷却结束之后，但**不清** consecutiveFailures / cooldownStreak
+        vi.advanceTimersByTime(400000);
+      }
+
+      // 期望 60 / 120 / 240 / 300（封顶 5 分钟）
+      expect(durations[0]).toBeGreaterThanOrEqual(59);
+      expect(durations[1]).toBeGreaterThanOrEqual(119);
+      expect(durations[2]).toBeGreaterThanOrEqual(239);
+      expect(durations[3]).toBeGreaterThanOrEqual(299);
+    } finally {
+      vi.useRealTimers();
+      markCloudModerationSuccess();
+    }
   });
 });
