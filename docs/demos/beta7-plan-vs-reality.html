@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Beta7 计划 vs 现状 · plans/029 差异看板</title>
+<style>
+:root{
+  --bg:#f6f6f8; --card:rgba(255,255,255,.72); --card-solid:#fff;
+  --line:rgba(0,0,0,.09); --line2:rgba(0,0,0,.055);
+  --tx:#1d1d1f; --tx2:#57575e; --tx3:#8b8b93; --tx4:#a8a8b0;
+  --ok:#1d9a5a; --warn:#c47f10; --bad:#d1342f; --info:#0a68d8; --idle:#8b8b93;
+  --accent:#0071e3; --glass:rgba(255,255,255,.62);
+  --r:14px; --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#000; --card:rgba(28,28,30,.62); --card-solid:#1c1c1e;
+  --line:rgba(255,255,255,.13); --line2:rgba(255,255,255,.07);
+  --tx:#f5f5f7; --tx2:#c7c7cc; --tx3:#8e8e93; --tx4:#6e6e73;
+  --ok:#30d158; --warn:#ff9f0a; --bad:#ff453a; --info:#0a84ff; --idle:#8e8e93;
+  --accent:#0a84ff; --glass:rgba(28,28,30,.6);
+  --shadow:0 1px 2px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.4);
+}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{margin:0;background:var(--bg);color:var(--tx);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;padding-bottom:80px}
+
+/* header */
+header{position:sticky;top:0;z-index:50;background:var(--glass);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--line2)}
+.hd{max-width:1320px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+h1{font-size:17px;margin:0;font-weight:650;letter-spacing:-.01em;white-space:nowrap}
+.sub{font-size:12px;color:var(--tx3)}
+nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+nav::-webkit-scrollbar{display:none}
+nav a{font-size:12.5px;color:var(--tx2);text-decoration:none;padding:5px 10px;border-radius:8px;white-space:nowrap}
+nav a:hover{background:var(--line2);color:var(--tx)}
+nav a.on{background:var(--accent);color:#fff;font-weight:600}
+
+.wrap{max-width:1320px;margin:0 auto;padding:0 24px}
+section{padding:44px 0 8px;scroll-margin-top:70px}
+h2{font-size:22px;font-weight:700;margin:0 0 6px;letter-spacing:-.02em;display:flex;align-items:center;gap:10px}
+h2 .n{font-size:12px;font-weight:600;color:var(--tx3);background:var(--line2);
+  padding:3px 9px;border-radius:20px;letter-spacing:0}
+.lead{color:var(--tx2);font-size:14px;margin:0 0 22px;max-width:82ch}
+
+.card{background:var(--card);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
+  border:1px solid var(--line2);border-radius:var(--r);box-shadow:var(--shadow);padding:20px;margin-bottom:14px}
+.card h3{font-size:15px;margin:0 0 14px;font-weight:650;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+
+/* meters */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--card-solid);border:1px solid var(--line2);border-radius:12px;padding:15px 17px}
+.kpi .v{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:12px;color:var(--tx3);margin-top:3px}
+.kpi .d{font-size:11px;color:var(--tx4);margin-top:5px;padding-top:5px;border-top:1px solid var(--line2)}
+
+.meter{height:9px;background:var(--line2);border-radius:5px;overflow:hidden;margin:9px 0 7px}
+.meter i{display:block;height:100%;border-radius:5px;background:var(--idle)}
+.row{display:grid;grid-template-columns:132px 1fr 52px;gap:14px;align-items:center;padding:9px 0}
+.row+.row{border-top:1px solid var(--line2)}
+.row .nm{font-size:13px;font-weight:550}
+.row .nm small{display:block;font-weight:400;color:var(--tx3);font-size:11px;margin-top:1px}
+.row .pc{text-align:right;font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-weight:600;color:var(--tx3);font-size:11px;text-transform:uppercase;
+  letter-spacing:.05em;padding:0 10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.c{text-align:center;white-space:nowrap}
+code{font:11.5px/1.5 ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+  background:var(--line2);padding:1.5px 5px;border-radius:4px;color:var(--tx2);white-space:nowrap}
+.cmd{display:block;font:11px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tx3);
+  background:var(--line2);padding:7px 9px;border-radius:6px;margin-top:4px;
+  white-space:pre-wrap;word-break:break-all}
+.pill{display:inline-block;font-size:10.5px;font-weight:650;padding:2px 8px;border-radius:20px;white-space:nowrap;letter-spacing:.02em}
+.pill.ok{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.pill.bad{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)}
+.pill.info{background:color-mix(in srgb,var(--info) 14%,transparent);color:var(--info)}
+.pill.idle{background:var(--line2);color:var(--tx3)}
+.pill.sm{font-size:10px;padding:1px 7px}
+.mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+.dim{color:var(--tx3)}
+.note{border-left:3px solid var(--warn);background:color-mix(in srgb,var(--warn) 7%,transparent);
+  padding:12px 15px;border-radius:0 8px 8px 0;margin:12px 0;font-size:12.5px;color:var(--tx2)}
+.note.bad{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 7%,transparent)}
+.note.ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 7%,transparent)}
+.note.info{border-color:var(--info);background:color-mix(in srgb,var(--info) 7%,transparent)}
+.note b{color:var(--tx);font-weight:650}
+ul.t{margin:8px 0;padding-left:18px;font-size:12.5px;color:var(--tx2)}
+ul.t li{margin:4px 0}
+
+/* dependency graph */
+.graph{display:grid;gap:10px;grid-template-columns:1fr;margin:6px 0}
+.node{border:1px solid var(--line);border-radius:11px;padding:13px 15px;background:var(--card-solid);position:relative}
+.node .t{font-weight:650;font-size:13.5px;margin-bottom:3px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.node .d{font-size:12px;color:var(--tx3)}
+.node.done{border-left:3px solid var(--ok)}
+.node.part{border-left:3px solid var(--warn)}
+.node.zero{border-left:3px solid var(--bad)}
+.node.orth{border-left:3px solid var(--info)}
+.arrow{text-align:center;color:var(--tx4);font-size:17px;line-height:1;padding:1px 0}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:760px){.g2{grid-template-columns:1fr}.row{grid-template-columns:104px 1fr 46px}}
+footer{max-width:1320px;margin:50px auto 0;padding:24px;border-top:1px solid var(--line2);
+  color:var(--tx3);font-size:11.5px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd">
+    <h1>Beta7 计划 vs 现状</h1>
+    <span class="sub">plans/029 · 2026-10-19 四轮实测</span>
+    <nav id="nav">
+      <a href="#s1" class="on">总览</a>
+      <a href="#s2">HIG 15 检查点</a>
+      <a href="#s3">D1–D8 无障碍</a>
+      <a href="#s4">Liquid Glass</a>
+      <a href="#s5">Apple 结构对照</a>
+      <a href="#s6">论坛推演</a>
+      <a href="#s7">AI 推演</a>
+      <a href="#s8">阶段</a>
+      <a href="#s9">13 决策</a>
+      <a href="#s10">17 探针 15 门禁</a>
+      <a href="#s11">风险</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ══════════ 1 总览 ══════════ -->
+<section id="s1">
+  <h2>总览 <span class="n">为什么 Beta7 不是「再美化一层」</span></h2>
+  <p class="lead">「往 APP 推」被拆成四件互不相同的事。横向是依赖链 —— 壳不动，栈无处挂；栈不动，可感知的东西无处落。</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="v">85%</div><div class="l">① 视觉像 APP</div><div class="d">已完成 · 边际收益≈0</div></div>
+    <div class="kpi"><div class="v">30%</div><div class="l">② 交互像 APP</div><div class="d">手势四件套全空</div></div>
+    <div class="kpi"><div class="v">15%</div><div class="l">③ 架构像 APP</div><div class="d">4 左栏 + 3 底栏并存</div></div>
+    <div class="kpi"><div class="v">10%</div><div class="l">④ 可用像 APP</div><div class="d">D1–D8 全部待建</div></div>
+  </div>
+
+  <div class="card">
+    <h3>四维度完成度</h3>
+    <div class="row"><div class="nm">① 视觉<small>卡片/圆角/浮岛/胶囊底栏</small></div>
+      <div><div class="meter"><i style="width:85%;background:var(--ok)"></i></div><span class="dim mono">单看截图可放进任何 iOS APP 截图堆</span></div><div class="pc">85%</div></div>
+    <div class="row"><div class="nm">② 交互<small>返回·手势·转场·下拉刷新·键盘</small></div>
+      <div><div class="meter"><i style="width:30%;background:var(--warn)"></i></div><span class="dim mono">B3 手势：返回/下滑/下拉/长按 —— 全空</span></div><div class="pc">30%</div></div>
+    <div class="row"><div class="nm">③ 架构<small>壳固定·内容压栈·单栈返回</small></div>
+      <div><div class="meter"><i style="width:15%;background:var(--bad)"></i></div><span class="dim mono">详情 62% 只有浮层、无 URL，刷新即丢</span></div><div class="pc">15%</div></div>
+    <div class="row"><div class="nm">④ 可用<small>触控·焦点·读屏·减少动效·恢复</small></div>
+      <div><div class="meter"><i style="width:10%;background:var(--bad)"></i></div><span class="dim mono">热区 34×39、toast 无播报、0 skip-link</span></div><div class="pc">10%</div></div>
+  </div>
+
+  <div class="graph">
+    <div class="node done"><div class="t">① 视觉 85% <span class="pill ok sm">封顶</span></div>
+      <div class="d">最贵的一格已经花完。再投入的边际收益接近零。</div></div>
+    <div class="arrow">↓</div>
+    <div class="g2">
+      <div class="node part"><div class="t">② 交互 30% <span class="pill warn sm">进行中</span></div><div class="d">依赖 ③ 的壳先落地</div></div>
+      <div class="node zero"><div class="t">③ 架构 15% <span class="pill bad sm">近乎为零</span></div><div class="d">主线 A/B 的全部工作量在此</div></div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="node zero"><div class="t">④ 可用 10% <span class="pill bad sm">D1–D8</span></div>
+      <div class="d">需要「能感知 / 能访问 / 能恢复」三个能力同时在场</div></div>
+    <div class="arrow">↓</div>
+    <div class="node orth"><div class="t">内容层 26% <span class="pill info sm">正交 · 阶段 6</span></div>
+      <div class="d">壳/栈/面/感一样都不解决。不可插队，但 DB 侧可并行</div></div>
+  </div>
+
+  <div class="note bad"><b>结论：</b>Beta7 的全部风险集中在「② 依赖 ③，而 ③ 几乎为零」这一格。
+  继续做 ① 是无效功；而 ③ 的产物是 AppShell —— 它当前<b>一个文件都不存在</b>。</div>
+</section>
+
+<!-- ══════════ 2 HIG ══════════ -->
+<section id="s2">
+  <h2>HIG 落地检查点 <span class="n">15 项 · 通过 1 项</span></h2>
+  <p class="lead">Apple HIG 的检查点逐条落到 BOH。每行的现状都能用判据命令原样重跑 —— 没有判据的数字无法被证伪。</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="v" style="color:var(--ok)">1</div><div class="l">✅ 已达标</div><div class="d">权限纪律</div></div>
+    <div class="kpi"><div class="v" style="color:var(--warn)">5</div><div class="l">⚠️ 有基础不达标</div><div class="d">改造量小</div></div>
+    <div class="kpi"><div class="v" style="color:var(--bad)">9</div><div class="l">❌ 零基础</div><div class="d">需新建能力</div></div>
+    <div class="kpi"><div class="v">7%</div><div class="l">通过率</div><div class="d">1 / 15</div></div>
+  </div>
+
+  <div class="card">
+    <h3>逐条对照 <span class="pill idle sm">2026-10-19 实测</span></h3>
+    <table>
+      <thead><tr><th style="width:44px">层</th><th style="width:150px">检查点</th><th style="width:44px">状态</th><th>实测现状</th><th style="width:150px">落点</th></tr></thead>
+      <tbody>
+        <tr><td>结构</td><td>H1 控制/内容分离</td><td class="c"><span class="pill bad">❌</span></td>
+          <td>46 处 <code>.liquid-glass</code>，<b>22 处在内容容器（48%）</b>；消息列表 <code>.x-inbox-list</code>、帖子卡 <code>.post-card-v2.glass-panel</code>、对比表格全铺玻璃</td>
+          <td>决策 6 + <code>check:glass-on-content</code></td></tr>
+        <tr><td>结构</td><td>H2 平台惯例</td><td class="c"><span class="pill bad">❌</span></td>
+          <td><b>4 份左栏 + 3 份底栏</b>（含商城第 4 套）；5 处 <code>router.push(固定落点)</code> 当返回</td>
+          <td>A1 / A5 / B2</td></tr>
+        <tr><td>结构</td><td>H3 圆角同心</td><td class="c"><span class="pill bad">❌</span></td>
+          <td>实测 12 对嵌套：<b>2 组合规 / 2 组容差内 / 8 组违规</b>；<code>--liquid-radius-*</code> 采用率 8.1%，<code>--inset</code> 硬编码 16px 绕开真源</td>
+          <td>C1 + <code>probe-concentric-radius</code></td></tr>
+        <tr><td>结构</td><td>H4 连续自适应</td><td class="c"><span class="pill bad">❌</span></td>
+          <td><b><code>@media</code> 656 处 / 184 文件，<code>@container</code> 0 处</b>；<code>max-width</code> 在 media 内 39 个不同值</td>
+          <td>A5 + <code>probe-responsive-parity</code></td></tr>
+        <tr><td>感知</td><td>P1 字号可跟随</td><td class="c"><span class="pill bad">❌</span></td>
+          <td><b>97 种字号取值</b>，3,545 处声明（px 3,252 / rem 143），<b>0 个 <code>--font-size-*</code></b></td>
+          <td>C1 / C3</td></tr>
+        <tr><td>感知</td><td>P2 图标有名字</td><td class="c"><span class="pill warn">⚠️</span></td>
+          <td>226 个零文本 <code>&lt;button&gt;</code>，其中<b>真·无任何可访问名 14 个</b>（用户端 6 / 后台 8）</td>
+          <td>D4 + <code>check:icon-label</code></td></tr>
+        <tr><td>感知</td><td>P3 四种偏好</td><td class="c"><span class="pill bad">❌</span></td>
+          <td><code>forced-colors</code> <b>0 处</b>；<code>prefers-contrast</code> 仅 3 处；<b>4 处裸 <code>prefers-color-scheme</code> 会覆盖用户显式选的亮色</b>（其一带 <code>!important</code>）</td>
+          <td>D5 + <code>check:scheme-bypass</code></td></tr>
+        <tr><td>行为</td><td>B1 可供性</td><td class="c"><span class="pill warn">⚠️</span></td>
+          <td>热区实测偏小：<code>.segment-tab</code> <b>34×39</b>、<code>.nav-login-btn</code> 40×24、<code>.nav-hamburger</code> 36×36；另有 <b>67 处 / 41 文件</b>非语义点击靶</td>
+          <td>D4 / D6</td></tr>
+        <tr><td>行为</td><td>B2 知道发生什么</td><td class="c"><span class="pill bad">❌</span></td>
+          <td><code>aria-busy</code> 仅 8 处 / 6 文件，<code>aria-live</code> 26 处 / 19 文件；<b>全局 toast 通道（<code>App.vue:427-439</code>）无 <code>role</code>/<code>aria-live</code></b>；<code>aria-atomic</code> 0 处</td>
+          <td>D3 / D8</td></tr>
+        <tr><td>行为</td><td>B3 错误可恢复</td><td class="c"><span class="pill warn">⚠️</span></td>
+          <td>✅ 强项：<code>重试</code> 331 处 / 100 文件，<code>GlobalErrorBoundary</code> 已正确播报<br>❌ 缺口：<b><code>navigator.onLine</code> 全仓 0 处</b>，仅 2 个 <code>online</code> 监听、无离线态</td>
+          <td>D3 / D8</td></tr>
+        <tr><td>包容</td><td>I1 模态焦点</td><td class="c"><span class="pill warn">⚠️</span></td>
+          <td><b>39 处 <code>&lt;Teleport to="body"&gt;</code> 分散 28 文件</b>；焦点陷阱<b>只覆盖 2 / 39</b>；<code>inert</code> 仅 2 文件 5 处</td>
+          <td>D2</td></tr>
+        <tr><td>包容</td><td>I2 权限纪律</td><td class="c"><span class="pill ok">✅</span></td>
+          <td><b>全仓最强的无障碍相邻行为</b>：推送权限延后到真实手势（<code>AccountBindPrompt/index.vue:11,17,226</code> 记录「无 transient activation 会静默失败」）、iPad UA 防误弹（<code>push-api.js:65</code>）、剪贴板拒绝后特性检测兜底（<code>PushplusSettings/index.vue:498</code>）</td>
+          <td>已做对 · 勿动</td></tr>
+        <tr><td>包容</td><td>I3 键盘可达</td><td class="c"><span class="pill bad">❌</span></td>
+          <td><b>全仓 0 个 skip-link</b>；<b>67 处非语义点击靶键盘完全不可达</b>；roving tabindex 在 3 处各写各的，无共享 composable</td>
+          <td>D6</td></tr>
+        <tr><td>工艺</td><td>C1 无目的动效</td><td class="c"><span class="pill warn">⚠️</span></td>
+          <td><code>transition: all</code> 158 处 / 37 文件；<code>position: fixed</code> 154 处 / 88 文件</td>
+          <td>C4 + <code>check:z-index</code></td></tr>
+        <tr><td>工艺</td><td>C2 空间层级转场</td><td class="c"><span class="pill bad">❌</span></td>
+          <td><b>全空</b>：无 push/pop 转场、无 sheet 下滑关闭、无下拉刷新、无长按菜单</td>
+          <td>阶段 3</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note ok"><b>值得注意：</b>唯一达标的那行（I2 权限纪律）恰好是 §2.2 八原则里最容易被当成口号的那条 ——
+  说明 HIG 原则不是套话，它确实命中了本仓<b>已经做得最好的地方</b>。</div>
+
+  <div class="card">
+    <h3>结构性证据 · Hierarchy 违规 10 处</h3>
+    <table>
+      <thead><tr><th>file:line</th><th>选择器</th><th>包住什么</th><th style="width:60px">严重度</th></tr></thead>
+      <tbody>
+        <tr><td><code>Forum/styles/base.css:123</code></td><td><code>.post-card-v2.glass-panel</code></td><td><b>论坛信息流帖子卡</b></td><td class="c"><span class="pill bad">🔴</span></td></tr>
+        <tr><td><code>Forum/styles/feed.css:364</code></td><td><code>.post-card-v2</code></td><td>同上（含正文渐隐 <code>:1065</code>）</td><td class="c"><span class="pill bad">🔴</span></td></tr>
+        <tr><td><code>PostDetail/style.scoped.css:181-187</code></td><td><code>.x-main-column</code></td><td><b>帖子详情整个主列</b></td><td class="c"><span class="pill bad">🔴</span></td></tr>
+        <tr><td><code>Messages/style.scoped.css:1722-1731</code></td><td><code>.x-inbox-list</code></td><td><b>整条消息列表</b></td><td class="c"><span class="pill bad">🔴</span></td></tr>
+        <tr><td><code>Messages/style.scoped.css:541-550</code></td><td><code>.source-content</code></td><td>消息正文</td><td class="c"><span class="pill bad">🔴</span></td></tr>
+        <tr><td><code>SubscriptionPlans.vue:272</code></td><td><code>.table-scroll liquid-glass</code></td><td><b>对比表格</b></td><td class="c"><span class="pill bad">🔴</span></td></tr>
+        <tr><td><code>Download/index.vue:202,206</code></td><td><code>.answer-block liquid-glass</code></td><td><b>教程正文</b></td><td class="c"><span class="pill bad">🔴</span></td></tr>
+        <tr><td><code>CloudStorageBar.vue:2</code></td><td><code>.storage-bar-card</code></td><td>配额数据面板</td><td class="c"><span class="pill warn">🟠</span></td></tr>
+        <tr><td><code>PostDetail/style.scoped.css:598,643,679</code></td><td>图片 meta/导航/指示点</td><td>媒体容器</td><td class="c"><span class="pill warn">🟠</span></td></tr>
+        <tr><td><code>Messages/style.scoped.css:394,458</code></td><td>详情面板/用户卡</td><td>消息详情</td><td class="c"><span class="pill warn">🟠</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note info"><b>⭐ 本仓已经做对过一次：</b><code>PostDetail/style.scoped.css:1344-1351</code> 在<b>竖屏</b>把 <code>.x-main-column</code> 的玻璃全摘了
+  （<code>background:transparent</code> + <code>backdrop-filter:none</code>），注释写「竖屏连续内容：主帖与评论去掉玻璃卡分段」。
+  <b>但横屏保留玻璃</b> —— 而裁决表写的是「阅读型一律禁止玻璃」。<b>⇒ 横屏正在违反本计划自己刚定的规则，而没人写下这件事。</b></div>
+</section>
+
+<!-- ══════════ 3 D1-D8 ══════════ -->
+<section id="s3">
+  <h2>主线 D · 可感知/可访问/可恢复 <span class="n">D1–D8</span></h2>
+  <p class="lead">回答一个问题：上面三层做完之后，一个用读屏的人、一个手指不精准的人、一个开了「减少动态效果」的人，<b>能不能完整使用 BOH？</b>
+  现在的答案是「不能」。</p>
+
+  <div class="card">
+    <table>
+      <thead><tr><th style="width:36px">#</th><th style="width:150px">缺口</th><th>现状（实测）</th><th style="width:118px">体量</th><th style="width:56px">阶段</th></tr></thead>
+      <tbody>
+        <tr><td><b>D1</b></td><td>无障碍基线覆盖面</td>
+          <td>axe 基线 <b>72 处 serious 对比度</b>（首页 26 / 论坛 26 / 关于 18 / 摄影集 1 / AI 1），但<b>只覆盖 5 个公开页</b> —— 交互最密的消息/商城/用户空间/BOHAI设置/发帖编辑器都不在扫描范围</td>
+          <td><span class="pill warn">M</span></td><td class="c mono">1.5</td></tr>
+        <tr><td><b>D2</b></td><td>焦点与模态协议</td>
+          <td>39 处 Teleport / 28 文件；<b>焦点陷阱只覆盖 2/39</b>；<code>CommonAlertModal</code> 无 <code>role=alertdialog</code>、无 <code>aria-modal</code>、无焦点管理</td>
+          <td><span class="pill warn">M</span></td><td class="c mono">2.5</td></tr>
+        <tr><td><b>D3</b></td><td>三态统一</td>
+          <td><code>skeleton</code> 1,117 处（视觉不缺），但语义几乎为零：<code>aria-busy</code> 8 / <code>aria-live</code> 26 ⇒ <b>点「加载更多」后读屏听不到任何变化</b></td>
+          <td><span class="pill warn">M</span></td><td class="c mono">1.5</td></tr>
+        <tr><td><b>D4</b></td><td>触控热区与可访问名</td>
+          <td>热区实测 34×39 / 40×24 / 36×36 全低于 44×44；226 个零文本按钮、14 个真·无名；<b>缺全局 <code>.sr-only</code></b>（只有 Cloud+ 的 scoped 版本）</td>
+          <td><span class="pill ok">S</span></td><td class="c mono">0</td></tr>
+        <tr><td><b>D5</b></td><td>四种偏好降级</td>
+          <td>✅ reduce-motion 已做对（<code>animations.css:1028</code>）；⚠️ <code>prefers-reduced-transparency</code> 已有 10 文件但无防回退门禁；❌ <code>forced-colors</code> 0 处、<code>outline:none</code> 122 处；<b>4 处 <code>prefers-color-scheme</code> 漏网</b></td>
+          <td><span class="pill warn">M</span></td><td class="c mono">3</td></tr>
+        <tr><td><b>D6</b></td><td>键盘可达 / 切换控制</td>
+          <td><b>0 个 skip-link</b>；67 处非语义点击靶键盘不可达；roving tabindex 3 处各写各的。<b>纯键盘 / Switch Control 用户到不了全部交互元素</b></td>
+          <td><span class="pill warn">M</span></td><td class="c mono">2.5</td></tr>
+        <tr><td><b>D7</b></td><td>表单控件命名</td>
+          <td><b>160 处 / 42 文件无任何命名关联</b>（40%），其中 77 处仅靠 placeholder；<code>&lt;label for&gt;</code> 仅 28 处，集中在注册/引导页 —— <b>论坛/资料/Cloud+/整个后台都没做</b></td>
+          <td><span class="pill bad">L</span></td><td class="c mono">5</td></tr>
+        <tr><td><b>D8</b></td><td>全局反馈与断网态</td>
+          <td><b>全局 toast 无 <code>role</code>/<code>aria-live</code></b>（读屏完全听不到）；<b><code>navigator.onLine</code> 全仓 0 处</b>，无离线态；<code>aria-atomic</code> 0 处</td>
+          <td><span class="pill ok">S</span></td><td class="c mono">0 / 1.5</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>D6 新增证据 · 键盘不可达靶（部分）</h3>
+    <table><thead><tr><th style="width:280px">file:line</th><th>元素</th></tr></thead><tbody>
+      <tr><td><code>App.vue:428</code></td><td><code>&lt;div class="welcome-toast" @click&gt;</code> —— toast 容器本身可点关闭</td></tr>
+      <tr><td><code>CommonAlertModal.vue:4,5</code></td><td>遮罩 + 弹层（<code>@click.self</code> ⇒ Esc 是唯一键盘出路）</td></tr>
+      <tr><td><code>FollowListModal.vue:21</code></td><td><code>.follow-list-item</code></td></tr>
+      <tr><td><code>AddressManager.vue:157</code></td><td>地址项点击</td></tr>
+      <tr><td class="dim mono">…另 63 处 / 共 41 文件</td><td class="dim">判据：<code>git grep -E '&lt;(div|span|li|p|i)[^>]*@click' -- 'src/**/*.vue' | grep -v 'role=' | wc -l</code></td></tr>
+    </tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>D7 新增证据 · 无命名表单控件（高风险路径）</h3>
+    <table><thead><tr><th style="width:300px">file:line</th><th>控件</th><th style="width:60px">风险</th></tr></thead><tbody>
+      <tr><td><code>Forum/components/PostComposer.vue:655,677</code></td><td>帖子标题 + 正文</td><td class="c"><span class="pill bad">发帖主路径</span></td></tr>
+      <tr><td><code>PostDetail/PostDetailMain.vue:2549,2936</code></td><td>两条回复输入框</td><td class="c"><span class="pill bad">高频</span></td></tr>
+      <tr><td><code>Messages/index.vue:845</code></td><td>消息回复框</td><td class="c"><span class="pill bad">高频</span></td></tr>
+      <tr><td><code>Profile/components/ProfileEditModal.vue:36-98</code></td><td>昵称/简介/加入日期/生日/创作者可见性</td><td class="c"><span class="pill warn">资料</span></td></tr>
+      <tr><td><code>AccountSecurity/index.vue:327,339</code></td><td>注销确认关键词 + 密码</td><td class="c"><span class="pill bad">不可逆</span></td></tr>
+      <tr><td><code>Cloud+/CloudPlusMain.vue:543,551</code></td><td>云端条目标题 + 正文</td><td class="c"><span class="pill warn">中</span></td></tr>
+      <tr><td><code>DataManagement/KeysAndModels.vue:292-542</code></td><td>10 个控件全 placeholder-only</td><td class="c"><span class="pill idle">后台</span></td></tr>
+    </tbody></table>
+  </div>
+
+  <div class="note info"><b>方法论留档（两次同一种毛病的不同形态）：</b>
+  ① D2 初稿写「0 个 focus-trap 实现」—— 错因是 grep 了代码库<b>从未用过的名字</b> <code>useFocusTrap</code>，「搜不到」被读成「不存在」；实际 <code>useDialogFocusTrap.js</code> 98 行完整实现。
+  ② §2.8 初稿用 <code>git grep 'accepted'</code> 判「无采纳答案」—— 实测 8 处全是 <code>confirm()</code> 返回值；换「采纳」又撞上「会话被采纳」。
+  <b>⇒ 最终判据改用 schema 层</b>：<code>grep -rn 'create table.*comments' supabase/migrations/ -A 25 | grep -icE 'is_|accepted|solution|resolved|best'</code> → <b>0</b>。
+  两条都是 <code>AGENTS.md</code> §2「别 grep 文本数，会串」的教科书案例。</div>
+</section>
+
+<!-- ══════════ 4 Glass ══════════ -->
+<section id="s4">
+  <h2>Liquid Glass 治理原则 <span class="n">Hierarchy / Harmony / Consistency</span></h2>
+
+  <div class="g2">
+    <div class="card">
+      <h3>Hierarchy <span class="pill bad">48% 违规</span></h3>
+      <div class="row"><div class="nm">控制层<small>导航/浮层/弹窗/岛</small></div>
+        <div><div class="meter"><i style="width:52%;background:var(--ok)"></i></div><span class="dim mono">24 处 · 现状不变</span></div><div class="pc">24</div></div>
+      <div class="row"><div class="nm">展示型内容<small>营销/定价/活动封面</small></div>
+        <div><div class="meter"><i style="width:30%;background:var(--warn)"></i></div><span class="dim mono">玻璃只做外框，文字块须落实底</span></div><div class="pc">11</div></div>
+      <div class="row"><div class="nm">阅读型内容<small>帖子/评论/表格/媒体</small></div>
+        <div><div class="meter"><i style="width:48%;background:var(--bad)"></i></div><span class="dim mono">应一律实底</span></div><div class="pc">11</div></div>
+      <div class="note bad" style="margin-bottom:0"><b>裁决必须显式裁定横屏</b>：PostDetail 竖屏已摘玻璃、横屏保留 ⇒ 横屏现状正在违反裁决表自己写的规则。</div>
+    </div>
+
+    <div class="card">
+      <h3>Harmony · 同心圆角 12 对实测</h3>
+      <div class="row"><div class="nm">✅ 合规</div><div><div class="meter"><i style="width:17%;background:var(--ok)"></i></div><span class="dim mono">side-rail（唯一真正同心的样本）· filter-tab · ActivityCard</span></div><div class="pc">2</div></div>
+      <div class="row"><div class="nm">⚠️ 容差内</div><div><div class="meter"><i style="width:17%;background:var(--warn)"></i></div><span class="dim mono">Δ=2，在 ±2px 容差内</span></div><div class="pc">2</div></div>
+      <div class="row"><div class="nm">❌ 违规</div><div><div class="meter"><i style="width:67%;background:var(--bad)"></i></div><span class="dim mono">典型：<b>padding ≥ radius</b> ⇒ 同心几何结构上不可能</span></div><div class="pc">8</div></div>
+      <div class="note ok" style="margin-bottom:0"><b>关键证据：</b><code>side-rail.css:39</code> 那对是本仓<b>自己写对的</b>（Δ=0）⇒
+      裁决可以写成「向 side-rail 看齐」，而不是「按 Apple 的说法改」。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>违反 Hierarchy 最典型的 4 对</h3>
+    <table><thead><tr><th>外层</th><th style="width:56px">R</th><th style="width:56px">P</th><th>内层</th><th style="width:56px">R</th><th style="width:64px">应为</th><th style="width:56px">Δ</th><th style="width:52px">判定</th></tr></thead><tbody>
+      <tr><td><code>GlobalErrorBoundary.vue:3</code></td><td class="mono">16</td><td class="mono">28</td><td><code>:167 .geb-btn</code></td><td class="mono">999</td><td class="mono">0</td><td class="mono">—</td><td class="c"><span class="pill bad">❌</span></td></tr>
+      <tr><td><code>PhotoAlbums/index.vue:158</code></td><td class="mono">24</td><td class="mono">0</td><td><code>:1092 .pa-field</code></td><td class="mono">12</td><td class="mono">4</td><td class="mono">8</td><td class="c"><span class="pill bad">❌</span></td></tr>
+      <tr><td><code>Download/index.vue:54</code></td><td class="mono">28</td><td class="mono">32</td><td><code>:62 .version-glass</code></td><td class="mono">16</td><td class="mono">0</td><td class="mono">16</td><td class="c"><span class="pill bad">❌</span></td></tr>
+      <tr><td><code>SubscriptionPlans.vue:64</code></td><td class="mono">22</td><td class="mono">10</td><td><code>:67 .seg</code></td><td class="mono">980</td><td class="mono">12</td><td class="mono">968</td><td class="c"><span class="pill bad">❌</span></td></tr>
+      <tr style="background:color-mix(in srgb,var(--ok) 7%,transparent)"><td><code>side-rail.css:39</code></td><td class="mono">24</td><td class="mono">10</td><td><code>:240 .userspace-rail-item</code></td><td class="mono">14</td><td class="mono">14</td><td class="mono"><b>0</b></td><td class="c"><span class="pill ok">✅</span></td></tr>
+    </tbody></table>
+  </div>
+
+  <div class="note bad"><b>⚠️ <code>check:liquid-glass</code> 抓不到上面任何一条。</b>
+  该门禁（<code>scripts/check-liquid-glass.mjs</code>，73 行，<code>verify</code> 与 <code>build:ci</code> 均在跑，当前 exit 0）是 <b>CSS 文本字面量匹配器</b> ——
+  不解析选择器、不解析 DOM 位置、无「内容 vs 外壳」概念。三个盲区：① 只拦 <code>blur(≥14px)</code>，<code>blur(6px)</code> 畅通无阻；② 只匹配裸 <code>blur(NNpx)</code>，全部 <code>var(--liquid-filter*)</code> 消费者不可见；③ <b>无棘轮无白名单</b>，任何新增内容卡玻璃都能通过。
+  <b>⇒ <code>check:glass-on-content</code> 是全新工作，不是扩展既有门禁。</b></div>
+</section>
+
+<!-- ══════════ 5 Apple 结构 ══════════ -->
+<section id="s5">
+  <h2>Apple 五张脸 → 12 条结构对照 <span class="n">对齐度 26%</span></h2>
+  <p class="lead">来源：Apple Developer Forums 官方规则页 / apple.com/apple-intelligence 官方页 / PCC 发布 / App Store 编辑团队访谈 / 2026-06 Ars·Verge。</p>
+
+  <div class="card">
+    <table>
+      <thead><tr><th style="width:190px">Apple 可迁移结构</th><th style="width:180px">BOH 现状</th><th style="width:120px">对齐度</th><th>备注</th></tr></thead>
+      <tbody>
+        <tr><td>Library / 我的收藏是一级席位</td><td><span class="pill bad">收藏(帖) 0 处</span></td>
+          <td><div class="meter"><i style="width:0%"></i></div></td><td class="dim">「我」页在，但帖子收藏不存在</td></tr>
+        <tr><td>署名策展 vs 无名算法</td><td><span class="pill warn">3 套策展 1 套有署名</span></td>
+          <td><div class="meter"><i style="width:30%;background:var(--warn)"></i></div></td><td class="dim">周报有 <code>reason</code> 无作者</td></tr>
+        <tr><td>Top Charts = 唯一社交信号</td><td><span class="pill bad">无单指标榜单</span></td>
+          <td><div class="meter"><i style="width:0%"></i></div></td><td class="dim"><code>hot_score</code> 三项混合</td></tr>
+        <tr><td>论坛单位 = 问题→采纳答案</td><td><span class="pill bad">comments 表 0 字段</span></td>
+          <td><div class="meter"><i style="width:0%"></i></div></td><td class="dim">4 标签仅 1 个是提问</td></tr>
+        <tr><td>权力来自「被采纳」非「被关注」</td><td><span class="pill bad">粉丝数 = 权力</span></td>
+          <td><div class="meter"><i style="width:0%"></i></div></td><td class="dim"><code>ProfileMain.vue:354-356</code> 可点击统计芯片</td></tr>
+        <tr><td>发帖范围围栏</td><td><span class="pill bad">标签无落地页</span></td>
+          <td><div class="meter"><i style="width:0%"></i></div></td><td class="dim">路由已作孤儿删除（<code>user-space.ts:9-10</code>）</td></tr>
+        <tr><td>员工/官方身份在论坛可见</td><td><span class="pill bad">论坛内 0 处</span></td>
+          <td><div class="meter"><i style="width:0%"></i></div></td><td class="dim">两套策展都长在论坛外</td></tr>
+        <tr style="background:color-mix(in srgb,var(--ok) 6%,transparent)"><td>搜索优先于发帖</td><td><span class="pill ok">三处搜索入口</span></td>
+          <td><div class="meter"><i style="width:100%;background:var(--ok)"></i></div></td><td class="dim">岛 + 全局 + 论坛内</td></tr>
+        <tr style="background:color-mix(in srgb,var(--ok) 6%,transparent)"><td>评论不按赞排序</td><td><span class="pill ok">严格时间序</span></td>
+          <td><div class="meter"><i style="width:100%;background:var(--ok)"></i></div></td><td class="dim">Apple 同款，勿动</td></tr>
+        <tr><td>AI 来源公开披露</td><td><span class="pill bad">prompt 明令不透露</span></td>
+          <td><div class="meter"><i style="width:0%"></i></div></td><td class="dim">实际走第三方云</td></tr>
+        <tr><td>AI 是一层，不是一席</td><td><span class="pill warn">占席 + 17 slash</span></td>
+          <td><div class="meter"><i style="width:30%;background:var(--warn)"></i></div></td><td class="dim">Apple Music 五席无 AI</td></tr>
+        <tr><td>社区被托管（有人排期）</td><td><span class="pill warn">hero 有排期</span></td>
+          <td><div class="meter"><i style="width:50%;background:var(--warn)"></i></div></td><td class="dim">但只驱动 splash gate</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note info"><b>⚠️ 修正一个常见误读：</b>不少资料把 Apple 描述成「从不透露底层模型」，那是 2024–2025 的印象。
+  <b>2026 年的 Apple 恰恰相反</b> —— 官网首页首句即「With ChatGPT from OpenAI integrated into Siri」，AFM 3 Core 是与 Google 共同开发的 Gemini 系模型（2026-06 Ars Technica）。
+  它把「谁做的」当成<b>信任资产</b>，而不是要藏起来的东西。</div>
+</section>
+
+<!-- ══════════ 6 论坛 ══════════ -->
+<section id="s6">
+  <h2>推演一 · 如果 Apple 做论坛</h2>
+  <div class="note info"><b>结论先行：</b>Apple 的论坛不是社交产品，是 <b>Q&amp;A 产品</b>。而 BOH 的论坛是<b>混合体</b>（作品展示 + 讨论 + 提问共用一套模板）。
+  ⇒ 直接照搬会失败。正确动作是<b>给混合体里的其中一类补上 Q&amp;A 语义</b>，而不是把整个论坛改造成 Q&amp;A。</div>
+
+  <div class="card">
+    <h3>四个机制落地评估</h3>
+    <table><thead><tr><th style="width:180px">Apple 机制</th><th style="width:190px">BOH 现状</th><th style="width:60px">可行性</th><th style="width:60px">工作量</th><th>说明</th></tr></thead><tbody>
+      <tr><td><b>Accepted Answer</b><br><span class="dim" style="font-size:11px">楼主标记采纳</span></td>
+        <td><span class="pill bad">0</span> 无字段、无 UI；评论仅按时间升/降序（<code>comment-api.js:125,154</code>）</td>
+        <td class="c"><span class="pill ok">✅ 高</span></td><td class="c"><span class="pill warn">M</span></td>
+        <td>语义清晰、<b>权限天然</b>（仅楼主可标）、<b>零运营依赖</b>。需 schema <code>is_accepted</code> + 详情页置顶渲染 + 列表徽章</td></tr>
+      <tr><td><b>Apple Recommended</b><br><span class="dim" style="font-size:11px">官方标记推荐</span></td>
+        <td><span class="pill bad">0</span> 论坛内无任何官方身份</td>
+        <td class="c"><span class="pill warn">⚠️</span></td><td class="c"><span class="pill ok">S</span></td>
+        <td>技术易、<b>运营贵</b>。需要有人每天真的在看 —— <b>没有运营承诺的空徽章比不做更伤</b></td></tr>
+      <tr><td><b>发帖前置审批</b></td>
+        <td><span class="pill warn">部分已有</span> 内容审核链路存在，但不是发帖前闸门</td>
+        <td class="c"><span class="pill warn">⚠️</span></td><td class="c"><span class="pill warn">S~M</span></td>
+        <td>会拖慢首发体感</td></tr>
+      <tr><td><b>范围围栏</b><br><span class="dim" style="font-size:11px">标签落地页</span></td>
+        <td><span class="pill bad">0</span> 4 标签仅下拉筛选，无路由、无落地页</td>
+        <td class="c"><span class="pill ok">✅ 高</span></td><td class="c"><span class="pill warn">M</span></td>
+        <td>标签路由 + 落地页 + 每标签一段编辑说明</td></tr>
+    </tbody></table>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <h3>结构差异 ① · 权力结构相反</h3>
+      <p style="font-size:13px;color:var(--tx2);margin:0 0 12px">Apple 论坛里，一个人的地位来自<b>「他的答案有没有被采纳 / 被官方推荐」</b> —— <b>能力是被承认的</b>。<br>
+      BOH 里，一个人的地位来自<b>粉丝数</b>这个可点击的统计芯片（<code>ProfileMain.vue:354-356</code>）。</p>
+      <div class="note bad" style="margin:0">这不是审美问题：<b>它决定了什么样的行为被奖励。</b>粉丝数奖励「被认识」，采纳答案奖励「有用」。</div>
+    </div>
+    <div class="card">
+      <h3>结构差异 ② · hot_score 是假榜单</h3>
+      <span class="cmd">like × 1.0 + comment × 1.5
++ greatest(0, 48 − age_h) / 24</span>
+      <ul class="t">
+        <li><b>评论权重 1.5× 于赞</b> —— 等于把「吵架」定价成「好看」</li>
+        <li><b>48h 硬崖</b> —— 超过两天，recency 归零，只剩互动量</li>
+        <li><b>全局加权和，不是个性化</b> —— 所有人看到的「最热」完全相同</li>
+        <li><b>无法按赞单独排序</b> —— 榜单根本不存在，只有混合分</li>
+      </ul>
+      <div class="note ok" style="margin:0">Apple 的 Top Charts 是<b>单指标降序</b>、有名字、有时效。⇒ 建议降级为命名榜单「本周热门」，默认排序回归纯时间序。<b>决策 13。</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>BOH 已做对、不该动的部分 <span class="pill ok">Apple 同样没有</span></h3>
+    <ul class="t">
+      <li>评论<b>严格按时间序</b>，从不按赞排序（<code>comment-api.js:125</code>）—— 与 Apple「不做互动排序」一致</li>
+      <li>关注关系<b>服务端复验</b>，不信任客户端数组（<code>2026092702_forum_list_single_impl.sql:105-114</code>）—— Apple「发帖需验证身份」的精神同款</li>
+      <li>搜索是真入口（岛 + 全局 + 论坛内三处），符合「搜索优先于发帖」</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ══════════ 7 AI ══════════ -->
+<section id="s7">
+  <h2>推演二 · 如果 Apple 做 AI 工具</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th style="width:130px">维度</th><th style="width:290px">Apple（2026）</th><th>BOH 现状</th><th style="width:52px">状态</th></tr></thead>
+      <tbody>
+        <tr><td><b>模型来源披露</b></td>
+          <td>✅ 官网首页即「With ChatGPT from OpenAI integrated into Siri」；AFM 3 Core 与 Google 共同开发并公开命名</td>
+          <td>❌ <span class="cmd" style="margin-top:6px">不要提及任何第三方公司（如 OpenAI / Anthropic / Google /
+Amazon / 阿里 / 字节等）或底层模型名称，即便用户追问也不透露。
+—— chat-engine-config.js:159</span></td><td class="c"><span class="pill bad">❌</span></td></tr>
+        <tr><td><b>实际推理发生地</b></td>
+          <td>PCC（Apple 自建 + 第三方模型），协议层可验证 + 有可导出报告</td>
+          <td>SiliconFlow / 智谱云端，经 api-key-vault 代理（<code>bohai-model-client.js:68-73</code>）。密钥不落浏览器，但<b>对话文本与私有检索上下文确实发给第三方</b></td><td class="c"><span class="pill warn">⚠️</span></td></tr>
+        <tr><td><b>透明度 UI</b></td>
+          <td>✅ Apple Intelligence Report，可选时长、可导出文件</td>
+          <td>❌ <b>0 处</b>。<code>DataPrivacyPanel.vue</code>（81 行）唯一可操作项是「公共记忆管理」</td><td class="c"><span class="pill bad">❌</span></td></tr>
+        <tr><td><b>形态</b></td>
+          <td>系统层工具 + Siri AI app。命题是 <b>「no need to jump between tools」</b></td>
+          <td>⚠️ <b>底栏第三席是 <code>fullPage</code> 目的地</b>（<code>bottom-nav.ts:47</code>），另配 17 条 slash command</td><td class="c"><span class="pill warn">⚠️</span></td></tr>
+        <tr><td><b>命名依据</b></td>
+          <td>按<b>能力</b>（Siri / Writing Tools / Summarize）</td>
+          <td>按<b>性能档</b>：极速响应 / 质量 / 超级高质量（<code>2026061002_bohai_model_configs.sql:98-101</code>）</td><td class="c"><span class="pill warn">⚠️</span></td></tr>
+        <tr><td><b>人格</b></td>
+          <td>明确去人格化</td>
+          <td>4 种回答风格含「苏格拉底」「心理专家」（<code>chat-engine-config.js:321-372</code>）</td><td class="c"><span class="pill warn">⚠️</span></td></tr>
+        <tr><td><b>工作产物</b></td>
+          <td>Writing Tools / 摘要 / Image Playground 都有明确产物</td>
+          <td>⚠️ Work 的 <code>artifacts</code> <b>源码注释写明恒为空</b>，generators 尚未接入（<code>BohWorkPanel.vue:72-74</code>）</td><td class="c"><span class="pill warn">⚠️</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note bad"><b>⚠️ 与 §2.2 第 3 条原则（Responsibility · 保持透明）的正面冲突</b><br>
+  提示词把「是谁做的」列为<b>禁止回答项</b>，而实际推理确实发生在第三方云服务。<br><br>
+  <b>本轮口径（2026-10-19 用户裁定）：只记录事实，暂不修改 prompt。</b><code>chat-engine-config.js:159</code> 本轮不动，本节仅作冲突留档（决策 11）。</div>
+
+  <div class="note"><b>但必须诚实说明这个裁定的代价：</b>它会让 §2.2 的 Responsibility 一栏<b>长期挂着一条已知的未兑现承诺</b>。<br>
+  若最终不披露，诚实的做法不是「什么都不做」，而是<b>把这条原则在 §2.2 表里的措辞改成它实际能兑现的范围</b> —— 即「对产品<b>功能</b>透明、对<b>底层实现</b>不承诺」。<b>不修改原则，改的是原则的表述边界。</b>（决策 11 的 C 选项）</div>
+
+  <div class="card">
+    <h3>关于「AI 该不该占一个底栏席位」</h3>
+    <p style="font-size:13px;color:var(--tx2);margin:0 0 12px">
+    Apple Music 的五席全是<b>内容形态</b>（Library / For You / Browse / Radio / Search），AI 不在其中。
+    按同一逻辑，BOH 的 <code>内容 / 消息 / AI / 我</code> 里，<b>AI 是工具而非内容形态</b>。<br><br>
+    <b>但这条不能照抄</b> —— Apple 有系统级 AI 可依附，BOH 是独立网页 APP 没有系统层，AI 若不占席位就没有一级入口。</p>
+    <ul class="t">
+      <li><b>A 保持现状</b>：AI 占一席，作为 AI 产品的一级入口</li>
+      <li><b>B 降级为岛</b>：AI 收回灵动岛，底栏换成一个内容形态（如「发现」）</li>
+      <li><b>C 混合（建议）</b>：底栏留席，但同时把岛做成真正的跨页入口 —— 既承认 BOH 没有系统层可依附，也承认「AI 是一层」这个方向</li>
+    </ul>
+    <div class="note info" style="margin-bottom:0">列为<b>决策 12</b>。</div>
+  </div>
+</section>
+
+<!-- ══════════ 8 阶段 ══════════ -->
+<section id="s8">
+  <h2>阶段划分 <span class="n">0 → 6 · 按依赖非按时间</span></h2>
+  <div class="card">
+    <table><thead><tr><th style="width:52px">阶段</th><th style="width:130px">名称</th><th>内容</th><th style="width:48px">体量</th><th style="width:70px">前置</th></tr></thead><tbody>
+      <tr><td><b>0</b></td><td>地基</td><td>四把尺子令牌 + AppShell 骨架 + 安全区 + <code>--safe-*</code><br><span class="dim">内部顺序：①令牌 ②安全区 ③<b>全局 .sr-only</b> ④D4 热区+命名 ⑤<b>toast 加 role=status</b> ⑥壳先接 ActivitiesWall+Shop ⑦再接 Home/UserSpace</span></td><td class="c"><span class="pill bad">L</span></td><td class="dim">—</td></tr>
+      <tr><td><b>1</b></td><td>导航重写</td><td>顶栏保浮岛补 safe-area（A2 已拍板）+ 底栏进壳 + rail 进壳 + 首屏 chrome 收敛</td><td class="c"><span class="pill bad">L</span></td><td class="dim">0</td></tr>
+      <tr><td><b>1.5</b></td><td>感知并行</td><td>D1 无障碍扩面 + D3 三态 + <b>D8 toast/断网</b> + D4 热区命名</td><td class="c"><span class="pill warn">M</span></td><td class="dim">0</td></tr>
+      <tr><td><b>2</b></td><td>栈协议</td><td><code>openSurface</code> + <code>goBack</code> + 详情补 URL + 全屏层接 history</td><td class="c"><span class="pill bad">L</span></td><td class="dim">1</td></tr>
+      <tr><td><b>2.5</b></td><td>焦点协议</td><td>D2 <code>useModalLayer</code> 全量迁移 + <b>D6 skip-link / 键盘可达</b>（不依赖阶段 2，可并行）</td><td class="c"><span class="pill warn">M</span></td><td class="dim">2</td></tr>
+      <tr><td><b>3</b></td><td>原生感</td><td>转场（push/pop）+ 下滑关闭 + 下拉刷新 + 长按菜单 + D5 偏好降级（含 4 处 scheme 漏网）</td><td class="c"><span class="pill warn">M</span></td><td class="dim">2</td></tr>
+      <tr><td><b>4</b></td><td>桌面衍生</td><td>rail 三态 + 双栏详情统一 + 手机横屏补位</td><td class="c"><span class="pill warn">M</span></td><td class="dim">1</td></tr>
+      <tr><td><b>5</b></td><td>收口</td><td>暗色收敛（C2）+ 删页脚 + <b>D7 表单命名</b>（160 处）+ 探针补齐 + 门禁上线</td><td class="c"><span class="pill warn">M</span></td><td class="dim">1–4</td></tr>
+      <tr style="background:color-mix(in srgb,var(--info) 6%,transparent)"><td><b>6</b></td><td><b>内容层</b><br><span class="dim" style="font-size:11px">独立立项</span></td>
+        <td>决策 9 策展接回「官方」tab + 决策 10 Accepted Answer + 决策 13 <code>hot_score</code> 降级 + 决策 12 AI 席位</td>
+        <td class="c"><span class="pill warn">M~L</span></td><td class="dim">0 + 5</td></tr>
+    </tbody></table>
+  </div>
+  <div class="note info"><b>⚠️ 阶段 6 必须与阶段 1–5 分开排期</b>，两条理由缺一不可：<br>
+  ① <b>正交</b> —— §2.8/§2.9 全属内容模型与产品形态，壳/栈/面/感<b>一样都不解决</b>。塞进阶段 1 会让主线 A 被内容决策反复打断。<br>
+  ② <b>需前置资产</b> —— 策展接回 feed 要复用 C1 的令牌（否则新策展位又是一处无旋钮硬编码），hot_score 降级要复用 §12 门禁体系（否则新榜单没棘轮保护）。<br>
+  <b>但 DB 侧准备（schema、迁移）与前端解耦，可以提前并行。</b></div>
+</section>
+
+<!-- ══════════ 9 决策 ══════════ -->
+<section id="s9">
+  <h2>需要拍板的 13 个决策 <span class="n">已拍 1 · 待拍 12</span></h2>
+  <div class="card">
+    <table><thead><tr><th style="width:30px">#</th><th style="width:150px">决策</th><th>选项</th><th style="width:130px">建议</th><th>理由</th></tr></thead><tbody>
+      <tr style="background:color-mix(in srgb,var(--ok) 7%,transparent)"><td>1</td><td>竖屏顶栏形态</td><td>通栏 / <b>保留浮岛</b></td><td><span class="pill ok">✅ 已拍板 2026-10-19</span></td><td class="dim">用户明确要悬浮胶囊；safe-area 走 A2 折中解</td></tr>
+      <tr><td>2</td><td>底栏席位</td><td>4 / 5</td><td><b>5</b>（内容/活动/AI/消息/我）</td><td class="dim">活动现在埋在分区 tab 里，是站内第二重心；4 席挤不下</td></tr>
+      <tr><td>3</td><td>详情默认呈现</td><td>sheet 优先 / push 优先</td><td>可分享的 push，其余 sheet</td><td class="dim">保证刷新与分享，同时保留轻快感</td></tr>
+      <tr><td>4</td><td>桌面端定位</td><td>壳的 rail / 独立桌面体验</td><td>壳的 rail 形态</td><td class="dim">一份代码一套心智；独立体验让每次改动做两遍</td></tr>
+      <tr><td>5</td><td>是否上 Capacitor / 原生壳</td><td>上 / 不上</td><td><b>不上</b></td><td class="dim">PWA + TWA 已就绪；重做推送/支付/审核成本远超收益</td></tr>
+      <tr><td>6</td><td><b>液态玻璃边界</b></td><td>A 严守 HIG / B 品牌优先 / C 分区</td><td><b>C</b>，且<b>必须显式裁定横屏</b></td>
+        <td class="dim">⚠️ PostDetail 竖屏已摘玻璃、横屏保留 ⇒ 横屏现状正在违反本计划自己刚定的规则</td></tr>
+      <tr><td>7</td><td>正文字号基准</td><td>15px / 14px / 保持 13px</td><td><b>A 15px</b> + 12px 元信息</td><td class="dim">Apple Body 是 17pt；代价是部分卡片要重排（用 probe-text-zoom 兜底）</td></tr>
+      <tr><td>8</td><td><b>无障碍是否作为发布阻断项</b></td><td>A 是 / B 否</td><td><b>A</b></td>
+        <td class="dim">唯一的治理决策。一旦定为不阻断，D 主线会永远排在功能后面。阻断范围收窄为「新增违规为 0」</td></tr>
+      <tr><td>9</td><td>策展接回 feed</td><td>A 周报精选带署名进「官方」tab / B 进 feed 顶部 / C 维持现状</td><td><b>A</b></td>
+        <td class="dim">已有的两套策展都长在错误的地方：A 最便宜（周报已有 <code>reason</code> 字段）。<b>B 与 C4 首屏收敛直接冲突</b></td></tr>
+      <tr><td>10</td><td>论坛是否引入 Q&amp;A 语义</td><td>A Accepted Answer / B 加官方推荐徽章 / C 两者 / D 不做</td><td><b>A</b>，B 视运营人力</td>
+        <td class="dim">A 零运营依赖、能立刻改变「什么样的行为被奖励」。<b>B 需要有人每天真的在看</b></td></tr>
+      <tr><td>11</td><td>AI 来源披露口径</td><td>A 如实披露 / B 只加 UI 不动 prompt / C 维持并改原则表述边界</td><td><b>本轮 C</b>（只记录事实）</td>
+        <td class="dim">实际推理在第三方云，prompt 明令不提。与原则 3 方向相反。<b>若最终不披露，C 是唯一诚实的选项</b></td></tr>
+      <tr><td>12</td><td>AI 是否该占底栏一席</td><td>A 保持 / B 降级为岛 / C 混合</td><td><b>C</b></td>
+        <td class="dim">Apple 五席无 AI，但 Apple 有系统层可依附而 BOH 没有。B 会牺牲可达性</td></tr>
+      <tr><td>13</td><td><code>hot_score</code> 去留</td><td>A 降级为命名榜单「本周热门」/ B 改单指标 / C 维持</td><td><b>A</b></td>
+        <td class="dim">三处结构问题：评论权重 1.5×、48h 硬崖、全局加和非个性化。且无法按赞排序 —— 榜单不存在</td></tr>
+    </tbody></table>
+  </div>
+  <div class="note"><b>建议的拍板顺序：</b>先拍 <b>13 + 9</b>（<code>hot_score</code> 降级 + 策展接回 feed）—— 两者都只改排序与一个 tab，DB 侧可立刻并行，UI 侧等阶段 0。
+  <b>决策 11 需单独评估</b>（改 prompt 的回归面），不要混在形态改造里做。</div>
+</section>
+
+<!-- ══════════ 10 探针门禁 ══════════ -->
+<section id="s10">
+  <h2>验收资产 <span class="n">17 探针 + 15 门禁 · 全部待建</span></h2>
+  <div class="card">
+    <h3>新增探针 <span class="pill idle">0 个已存在</span></h3>
+    <table><thead><tr><th style="width:210px">探针</th><th>断言要点</th></tr></thead><tbody>
+      <tr><td><code>probe-app-shell.mjs</code></td><td>切 tab 时导航 DOM <b>不重建</b>（MutationObserver 计数）；壳是唯一滚动容器</td></tr>
+      <tr><td><code>probe-safe-area.mjs</code></td><td>模拟 <code>safe-area-inset-*</code> 非 0 时，顶栏不进入状态栏区、底栏不进入手势区</td></tr>
+      <tr><td><code>probe-back-stack.mjs</code></td><td>发帖编辑器/购物袋/图片查看器打开时按返回 → <b>只关层不退页</b>；<code>history.length</code> 不增长</td></tr>
+      <tr><td><code>probe-sheet-gesture.mjs</code></td><td>下滑超阈值关闭；未达阈值回弹；关闭后焦点回触发元素</td></tr>
+      <tr><td><code>probe-responsive-parity.mjs</code></td><td>390 / 834 / 1440 三档下<b>头部组件 class 序列必须一致</b>（允许少列，不允许换组件）</td></tr>
+      <tr><td><code>probe-touch-target.mjs</code></td><td>命中区 ≥44×44（含 <code>::after</code> 扩区，<code>elementFromPoint</code> 实测）；间隙 ≥8px；主操作 ≥48×48</td></tr>
+      <tr><td><code>probe-focus-trap.mjs</code></td><td>模态打开后连按 12 次 Tab 不逃出；背景 <code>inert</code>；Esc 关闭；焦点回触发元素</td></tr>
+      <tr><td><code>probe-state-trio.mjs</code></td><td>加载中有 <code>aria-busy</code>、空态有主行动、失败有重试按钮且可点通</td></tr>
+      <tr><td><code>probe-text-zoom.mjs</code></td><td>浏览器字号 200% 下正文不截断、按钮文字不溢出、底栏不重叠</td></tr>
+      <tr><td><code>probe-reduce-motion.mjs</code></td><td><code>reduce</code> 下无位移/缩放，但状态切换仍有可感知 opacity 过渡</td></tr>
+      <tr><td><code>probe-concentric-radius.mjs</code></td><td><code>inner = outer − padding</code>（±2px）。<b>基线按 §2.6 实测取</b>：只对违规组棘轮，否则一上线就红</td></tr>
+      <tr><td><code>probe-keyboard-reach.mjs</code></td><td>可见 skip-link 且回车后焦点落到 <code>&lt;main&gt;</code>；前 40 次 Tab 覆盖 ≥90% 可见交互元素</td></tr>
+      <tr><td><code>probe-form-label.mjs</code></td><td>发帖 / 回复 / 改资料 / 注销四条路径上，焦点到控件时读屏名非空</td></tr>
+      <tr><td><code>probe-aria-live.mjs</code></td><td>①toast 后 live region <b>完整</b>变化（<code>aria-atomic</code>）；②断网出现提示、恢复自动消失</td></tr>
+      <tr><td><code>probe-ranked-signal.mjs</code></td><td>「本周热门」有<b>名字与时效标注</b>，默认 feed 为纯时间序</td></tr>
+      <tr><td><code>probe-curation-feed.mjs</code></td><td>「官方」tab 每条精选都带<b>署名与理由</b>，<code>reason</code> 非空</td></tr>
+      <tr><td><code>probe-glass-hierarchy.mjs</code></td><td>阅读型容器计算样式 <code>backdrop-filter</code> 必须为 <code>none</code>。<b>横竖屏都测</b></td></tr>
+    </tbody></table>
+  </div>
+
+  <div class="card">
+    <h3>新增门禁 <span class="pill idle">全部带 fixture 待写</span></h3>
+    <table><thead><tr><th style="width:210px">门禁</th><th>规则</th><th style="width:100px">基线</th></tr></thead><tbody>
+      <tr><td><code>check:app-shell</code></td><td><code>src/views/**</code> 内禁止 <code>position:fixed</code> 的导航/底栏</td><td class="dim">白名单</td></tr>
+      <tr><td><code>check:z-index</code></td><td>只允许 <code>var(--z-*)</code>，禁止裸数字</td><td class="dim mono">92 种取值</td></tr>
+      <tr><td><code>check:font-size</code></td><td>新增/修改文件禁止裸 px 字号</td><td class="dim mono">97 种取值</td></tr>
+      <tr><td><code>check:no-footer</code></td><td>新页面禁止挂页脚</td><td class="dim">—</td></tr>
+      <tr><td><code>check:glass-on-content</code></td><td>解析模板 <code>class="…liquid-glass…"</code>，回溯祖先链，命中阅读型选择器即红。<b>全新工作，非扩展既有门禁</b></td><td class="dim mono">种子 22 处</td></tr>
+      <tr><td><code>check:icon-label</code></td><td>纯图标 <code>&lt;button&gt;</code> 必须有 <code>aria-label</code>/<code>aria-labelledby</code></td><td class="dim mono">14 处</td></tr>
+      <tr><td><code>check:state-trio</code></td><td>含异步列表的新页面必须有 loading + empty + error 三态</td><td class="dim">—</td></tr>
+      <tr><td><code>check:focus-outline</code></td><td><code>outline: none/0</code> 必须同时给 <code>:focus-visible</code> 替代</td><td class="dim mono">122 处</td></tr>
+      <tr><td><code>check:form-label</code></td><td>表单控件须有 <code>&lt;label for&gt;</code> / 包裹式 <code>&lt;label&gt;</code> / <code>aria-label</code>；<b><code>placeholder</code> 不算</b></td><td class="dim mono">160 处 / 42 文件</td></tr>
+      <tr><td><code>check:click-ability</code></td><td><code>div/span/li/p/i</code> 带 <code>@click</code> 必须有 <code>role</code> + <code>tabindex</code> + 键处理器</td><td class="dim mono">67 处 / 41 文件</td></tr>
+      <tr><td><code>check:scheme-bypass</code></td><td>全仓禁止裸 <code>@media (prefers-color-scheme: dark)</code>。先升 <code>probe-dark-admin-theme.mjs:205</code> 的守卫范围</td><td class="dim mono">4 处漏网</td></tr>
+      <tr><td><code>check:glass-pref-degrade</code></td><td>已落地 <code>prefers-reduced-transparency</code> 的 10 处不得回退</td><td class="dim mono">10 文件</td></tr>
+      <tr><td><code>check:live-atomic</code></td><td>新增 <code>aria-live</code> 必须同时写 <code>aria-atomic</code></td><td class="dim mono">26 处为 0</td></tr>
+      <tr><td><code>check:curation-authored</code></td><td>进入信息流的精选必须带<b>署名</b>；无署名 AI 精选不得直接进 feed</td><td class="dim">决策 9</td></tr>
+      <tr><td><code>check:accepted-answer</code></td><td>「提问」类帖子渲染采纳态时必须同时渲染「已解决」徽章与采纳人入口</td><td class="dim">决策 10</td></tr>
+    </tbody></table>
+  </div>
+
+  <div class="note bad"><b>⚠️ 本次新增 15 条门禁的额外风险：</b><code>AGENTS.md</code> §2 已明载本仓出过两次「门禁永远绿」的前科
+  （<code>check-project-structure</code> 只过滤 <code>.js</code>；<code>check:dark-tokens</code> 跑在观察模式）。
+  <b>⇒ 每条的 fixture 都要选「真实存量违规样本」而不是玩具样本</b>，否则测的是门禁自己的正则，不是产品。<br>
+  <code>check:glass-on-content</code> 与 <code>check:click-ability</code> 需结构化解析，<b>不要手搓模板切分器</b>（<code>audit:coupling</code> 曾因手搓边界出错两次）。</div>
+</section>
+
+<!-- ══════════ 11 风险 ══════════ -->
+<section id="s11">
+  <h2>主要风险 <span class="n">11 项 · 3 项为新增</span></h2>
+  <div class="card">
+    <table><thead><tr><th style="width:180px">风险</th><th style="width:230px">触发点</th><th>缓解</th></tr></thead><tbody>
+      <tr><td>Home 开场画被打断</td><td><code>Home/style.scoped.css:75-101</code> 依赖满屏 <code>fixed</code> + <code>touch-action:none</code></td><td>Home <b>最后</b>接壳；先 ActivitiesWall / Shop 验证</td></tr>
+      <tr><td>顶栏改造撞 <code>!important</code> 墙</td><td><code>vendor/unified-nav.css</code> 145 处</td><td>✅ <b>已解除</b>（拍板保留浮岛，只调偏移量）</td></tr>
+      <tr><td>探针集体红</td><td>现有 5 个探针 166+ 断言锚定当前几何</td><td>先建新基线；红不代表回归</td></tr>
+      <tr><td>第 4 套底栏被遗忘</td><td><code>Shop/index.vue:298</code> 的 <code>.shop-bottom-nav</code></td><td>阶段 1 直接删掉，商城并入全局五席</td></tr>
+      <tr><td>键盘适配三套并存</td><td><code>--kb-inset</code> / <code>--pd-dock-inset</code> / <code>--boh-visual-height</code></td><td>阶段 2 收敛为一套</td></tr>
+      <tr><td>焦点协议接漏</td><td>39 个 Teleport 分散 28 文件</td><td>不做「逐个补」，做<b>统一收口</b>：先建 <code>useModalLayer</code>，再用门禁禁止裸 Teleport</td></tr>
+      <tr><td>玻璃实底化削弱品牌</td><td>决策 6 选 C 后阅读型内容失去玻璃质感</td><td>先在论坛列表 + 帖子详情 A/B；保留外框玻璃，只把文字块做实底</td></tr>
+      <tr><td>15px 正文导致溢出</td><td>3,252 处 px 字号背后是硬编码高度</td><td>只改正文/标题类；用 <code>probe-text-zoom</code> 与 200% 字号兜底</td></tr>
+      <tr><td>热区扩到 44 撑高列表</td><td>论坛卡片行高、底栏间距</td><td>用 <code>::after</code> 扩热区而非改元素尺寸</td></tr>
+      <tr><td>无障碍被功能插队</td><td>决策 8 若选「不阻断」</td><td>建议选 A，阻断范围只卡「新增违规为 0」</td></tr>
+      <tr style="background:color-mix(in srgb,var(--bad) 5%,transparent)"><td><b>决策 6 不裁定横屏</b></td><td>PostDetail 竖屏摘玻璃、横屏保留</td><td>决策 6 必须显式覆盖横屏，并写进 <code>probe-glass-hierarchy</code> 断点矩阵</td></tr>
+      <tr style="background:color-mix(in srgb,var(--warn) 5%,transparent)"><td><b>§2.8/§2.9 被当形态插队</b></td><td>阶段 6 与 1–5 依赖不同、性质不同</td><td>已在 §9 强制拆分；DB 侧可并行，UI 侧必须等阶段 0/5</td></tr>
+      <tr style="background:color-mix(in srgb,var(--warn) 5%,transparent)"><td><b>「官方推荐」做成空壳</b></td><td>决策 10 的 B 需要有人每天真的在看</td><td>本轮只做 A（零运营依赖）；B 必须先有运营承诺才排期</td></tr>
+      <tr style="background:color-mix(in srgb,var(--bad) 5%,transparent)"><td><b>Responsibility 挂空头承诺</b></td><td>决策 11 本轮裁定「只记录事实」</td><td>若最终不披露，唯一诚实的收口是改原则的<b>表述边界</b>，而不是删掉原则</td></tr>
+      <tr style="background:color-mix(in srgb,var(--bad) 5%,transparent)"><td><b>新门禁本身是假绿</b></td><td>本次要新增 15 条；本仓已有两次前科</td><td>每条先放<b>真实存量违规样本</b>并跑 <code>check:gates-self-test</code></td></tr>
+      <tr style="background:color-mix(in srgb,var(--warn) 5%,transparent)"><td><b>本文数字可能已被推翻</b></td><td>§2.5 全表基于 2026-10-19 静态计数</td><td>每行给了判据命令；改任一维度后<b>当场重跑并更正本文</b></td></tr>
+    </tbody></table>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <b>plans/029-beta7-app-shell.md</b> · 973 行 · 2026-10-19 四轮实测<br>
+  数据口径：静态计数用 <code>git grep … -- src</code>（<code>rg</code> 本机未安装）；渲染数据为 Playwright 390×844 本地 dev 实测。<br>
+  <b>所有数字均带判据命令，可原样重跑。</b>发现与实测不符时以实测为准 —— 见 AGENTS.md §3。
+</footer>
+
+<script>
+const secs=[...document.querySelectorAll('section')];
+const links=[...document.querySelectorAll('#nav a')];
+const io=new IntersectionObserver(es=>{
+  es.forEach(e=>{if(e.isIntersecting){
+    links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id));
+  }});
+},{rootMargin:'-70px 0px -70% 0px'});
+secs.forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

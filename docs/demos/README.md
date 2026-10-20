@@ -16,6 +16,11 @@
 
 - `boh-fenjing-demo.html`（BOH分镜原型）· `demo-bohai-glass-refract.html` · `demo-wxperia-liquid.html`
   —— 原在仓库根，随全量入库迁到这里（单文件零依赖，直接打开可用）。
+- `boot-timeout-fallback-demo.html` · `demo-data-admin-cf-layout.html`
+- **`beta7-plan-vs-reality.html`**（2026-10-19 新增）—— Beta7 计划 vs 现状差异看板。
+  数据全部来自 `plans/029-beta7-app-shell.md` 的四轮实测（§2.5 HIG 15 检查点 / §2.6 Glass 实测 /
+  §2.7–2.9 Apple 五张脸对照 / D1–D8 / 7 阶段 / 13 决策 / 17 探针 15 门禁 / 11 风险）。
+  **每个数字都带判据命令，可原样重跑。** 单文件零依赖，含 `prefers-color-scheme` 适配。
 
 ## 放什么
 

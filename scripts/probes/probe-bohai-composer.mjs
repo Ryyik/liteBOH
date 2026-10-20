@@ -416,8 +416,10 @@ const openPanel = async (page, scope = '') => {
       w: Math.round(r.width),
       top: Math.round(r.top),
       right: Math.round(r.right),
-      // `left: 10px` 的参照是输入框的 padding box ⇒ 加上外壳 1px 边框，实测恒 11
+      // 2026-10-20 改版：菜单与输入框**等宽**（left/right 各外扩 1px 抵掉边框）
+      // ⇒ 左偏移恒 0，宽度恒等于 `.boh-composer` 的宽。
       leftOffset: Math.round(r.left - composer.left),
+      composerW: Math.round(composer.width),
       itemH: Math.round(Math.max(...heights) * 10) / 10,
       rows: items.length,
       // ⚠️ 「无滚动条」只能读 CSS 属性，**不能量布局宽度**：headless Chrome 是 overlay 滚动条，
@@ -427,11 +429,13 @@ const openPanel = async (page, scope = '') => {
     };
   }, SEL.slash);
   check(
-    'A8b 斜杠菜单几何（宽 420 左对齐 / 行高 <48 / 顶端不越出视口 / 无滚动条）',
+    'A8b 斜杠菜单几何（与输入框等宽 / 行高 36-48 / 顶端不越出 / 无滚动条）',
     !!slashGeo &&
-      slashGeo.w === 420 &&
-      slashGeo.leftOffset >= 10 &&
-      slashGeo.leftOffset <= 12 &&
+      // 2026-10-20 用户口径：「直接在输入框上方显示，与输入框等宽」——
+      // 判据从「定宽 420 + 左偏 11」改成「宽度 == 输入框宽度、左缘对齐」。
+      // ⚠️ 留 2px 容差：menu 的 left/right 各外扩 1px 抵边框，四舍五入后可能差 1。
+      Math.abs(slashGeo.w - slashGeo.composerW) <= 2 &&
+      Math.abs(slashGeo.leftOffset) <= 2 &&
       slashGeo.itemH >= 36 &&
       slashGeo.itemH < 48 &&
       slashGeo.top >= 0 &&
