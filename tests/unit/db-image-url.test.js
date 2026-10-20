@@ -18,9 +18,15 @@ const {
   resolveDbCardImage,
   resolveDbDetailImage,
   resolveDbPointsCardImage,
+  resolveDbCloudTileImage,
+  resolveDbCloudTileLqip,
+  resolveDbCloudCoverImage,
   DB_CARD_IMAGE_TRANSFORM,
   DB_DETAIL_IMAGE_TRANSFORM,
   DB_POINTS_CARD_IMAGE_TRANSFORM,
+  DB_CLOUD_TILE_IMAGE_TRANSFORM,
+  DB_CLOUD_TILE_LQIP_TRANSFORM,
+  DB_CLOUD_COVER_IMAGE_TRANSFORM,
 } = await import('../../src/utils/db-image-url.js');
 
 const CLOUDINARY_PNG =
@@ -146,6 +152,60 @@ describe('db-image-url', () => {
     it('空值 → 空串（卡面据此退回占位，不渲染空 src）', () => {
       expect(resolveDbPointsCardImage('')).toBe('');
       expect(resolveDbPointsCardImage(null)).toBe('');
+    });
+  });
+
+  // 2026-10-19：Cloud+ 相册滚动「总是闪白 + 顿挫」。根因是格子直接拉原图
+  // （`getCloudinaryDisplayUrl` 只换主机不换尺寸），实测单张 1,108,821 B → 加缩略变换 17,977 B。
+  // 下面几条把「格子必须走缩略档 + LQIP、封面只压不裁」锁死；改回直通立刻变红。
+  describe('Cloud+ 相册格子档（缩略图 + LQIP）', () => {
+    it('格子走 400px 方形缩略档，且不残留 res.cloudinary.com', () => {
+      const out = resolveDbCloudTileImage(CLOUDINARY_PNG);
+      expect(out).toContain(DB_CLOUD_TILE_IMAGE_TRANSFORM);
+      expect(out).not.toContain('res.cloudinary.com');
+      expect(out.endsWith('abc.png')).toBe(true);
+    });
+
+    it('反证：格子档必须是方形裁切（c_fill + h），与卡面档的 c_limit 明确区分', () => {
+      expect(DB_CLOUD_TILE_IMAGE_TRANSFORM).toContain('c_fill');
+      expect(DB_CLOUD_TILE_IMAGE_TRANSFORM).toContain('w_400');
+      expect(DB_CLOUD_TILE_IMAGE_TRANSFORM).toContain('h_400');
+      expect(DB_CLOUD_TILE_IMAGE_TRANSFORM).not.toBe(DB_CARD_IMAGE_TRANSFORM);
+    });
+
+    it('LQIP 走 32px + e_blur 极模糊档', () => {
+      const out = resolveDbCloudTileLqip(CLOUDINARY_PNG);
+      expect(out).toContain(DB_CLOUD_TILE_LQIP_TRANSFORM);
+      expect(out).toContain('e_blur:1500');
+      expect(DB_CLOUD_TILE_LQIP_TRANSFORM).not.toBe(DB_CLOUD_TILE_IMAGE_TRANSFORM);
+    });
+
+    it('LQIP 只对 Cloudinary 原图地址生成；其余一律空串（不给本地/blob/外链白发一次请求）', () => {
+      expect(resolveDbCloudTileLqip('https://cdn.example.com/mycloud/image/upload/v1/a.png')).toBe(
+        '',
+      );
+      expect(resolveDbCloudTileLqip('https://example.org/photo.webp')).toBe('');
+      expect(resolveDbCloudTileLqip('data:image/png;base64,iVBORw0KGgo=')).toBe('');
+      expect(resolveDbCloudTileLqip('')).toBe('');
+      expect(resolveDbCloudTileLqip('@/assets/images/2022-7-4years.webp')).toBe('');
+    });
+
+    it('封面档只压不裁（c_limit），避免裁切改变卡片几何', () => {
+      const out = resolveDbCloudCoverImage(CLOUDINARY_PNG);
+      expect(out).toContain(DB_CLOUD_COVER_IMAGE_TRANSFORM);
+      expect(DB_CLOUD_COVER_IMAGE_TRANSFORM).toContain('c_limit');
+      expect(DB_CLOUD_COVER_IMAGE_TRANSFORM).not.toContain('c_fill');
+    });
+
+    it('幂等：格子/封面档二次解析不重复插入变换段', () => {
+      for (const [once, again] of [
+        [resolveDbCloudTileImage, (u) => resolveDbCloudTileImage(u)],
+        [resolveDbCloudCoverImage, (u) => resolveDbCloudCoverImage(u)],
+      ]) {
+        const first = once(CLOUDINARY_JPG);
+        expect(again(first)).toBe(first);
+      }
+      expect(resolveDbCloudTileImage(CLOUDINARY_JPG).match(/c_fill/g)?.length).toBe(1);
     });
   });
 });

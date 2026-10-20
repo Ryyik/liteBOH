@@ -48,6 +48,34 @@ export const DB_DETAIL_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1600';
 export const DB_POINTS_CARD_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1280';
 
 /**
+ * Cloud+ 相册格子（图库密铺 /「一张图一格」）。
+ *
+ * 为什么必须单独一档：格子是 78px（竖屏 5 列）~ 200px（宽屏）的方块，而 Cloud+ 落库的是
+ * 上传返回的**原图 `secure_url`**（无任何变换），格子此前直接用 `getCloudinaryDisplayUrl`
+ * —— 那只是把主机改成自建 CDN，不做尺寸/格式变换。结果是「78px 的格子拉 1200px 的原图」。
+ * 实测（2026-10-19，`curl -s -o /dev/null -w '%{size_download}'`，资产
+ * `dkqae7j1m/image/upload/v1786894948/boh-points-cards/m6walmpg0whumxmpe4hv.png`）：
+ *   原图 1,108,821 B / image/png　→　加本变换后 17,977 B / image/jpeg（约 1/62）。
+ * 症状即报障的「相册滚动总是闪白、不流畅」：每格都要下+解码一张百万像素位图。
+ *
+ * `c_fill` 方形与格子的 `aspect-ratio: 1/1` + `object-fit: cover` 同口径；
+ * `w_400` 的依据：竖屏 5 列格宽约 78px、宽屏档格宽上限约 200px，2x 屏下 400 有富余。
+ */
+export const DB_CLOUD_TILE_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_fill,w_400,h_400';
+
+/**
+ * Cloud+ 相册格子的 LQIP（模糊小图占位）。
+ *
+ * 与论坛列表同口径（见 utils/api/forum-format.js 的 `FORUM_LIST_LQIP_TRANSFORM`）：
+ * 把一张 32px + `e_blur:1500` 的极模糊图铺在格子底下，原图淡入时就不会从「一块近白」
+ * 里蹦出来 —— 闪白的观感主要来自**占位色是近白**，而不是加载速度本身。
+ */
+export const DB_CLOUD_TILE_LQIP_TRANSFORM = 'f_auto,q_1,c_fill,w_32,h_32,e_blur:1500';
+
+/** Cloud+ 条目封面（分享档的卡片列表）。保留原始比例，只压不裁，避免裁切改变卡片几何 */
+export const DB_CLOUD_COVER_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_800';
+
+/**
  * 解析数据库图片地址为可直接进 `<img src>` 的 URL。
  * @param {string} rawUrl 数据库原始值（`@/assets/...` / 绝对 http(s) / data: / 空）
  * @param {string} [transform] Cloudinary 变换串；留空则只做 CDN 改写不做尺寸变换
@@ -75,3 +103,32 @@ export const resolveDbDetailImage = (rawUrl) =>
 /** 方块积分卡卡面（自定义皮肤；blank / cats 皮肤不走这里） */
 export const resolveDbPointsCardImage = (rawUrl) =>
   resolveDbImageUrl(rawUrl, DB_POINTS_CARD_IMAGE_TRANSFORM);
+
+/** Cloudinary **原图**地址判定。变换段只能插在 `res.cloudinary.com` 的 `/image/upload/` 之后，
+    其余形态（已是自建 CDN 的地址、外链、`@/assets` 本地资源、`data:` / `blob:`）都不该走这层。 */
+function isCloudinaryUploadUrl(rawUrl) {
+  const safe = String(rawUrl || '').trim();
+  if (!safe) return false;
+  try {
+    const parsed = new URL(safe);
+    return (
+      parsed.protocol === 'https:' &&
+      parsed.hostname === 'res.cloudinary.com' &&
+      parsed.pathname.includes('/image/upload/')
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Cloud+ 相册格子图 */
+export const resolveDbCloudTileImage = (rawUrl) =>
+  resolveDbImageUrl(rawUrl, DB_CLOUD_TILE_IMAGE_TRANSFORM);
+
+/** Cloud+ 相册格子占位（LQIP）。非 Cloudinary 地址返回空串 —— 不给本地/blob 图白发一次请求 */
+export const resolveDbCloudTileLqip = (rawUrl) =>
+  isCloudinaryUploadUrl(rawUrl) ? resolveDbImageUrl(rawUrl, DB_CLOUD_TILE_LQIP_TRANSFORM) : '';
+
+/** Cloud+ 条目封面（分享档卡片） */
+export const resolveDbCloudCoverImage = (rawUrl) =>
+  resolveDbImageUrl(rawUrl, DB_CLOUD_COVER_IMAGE_TRANSFORM);

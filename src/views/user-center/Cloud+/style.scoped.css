@@ -31,6 +31,71 @@
   --radius-full: 9999px;
   --user-center-back-color: var(--apple-text);
   --user-center-back-hover-bg: var(--apple-bg-secondary);
+
+  /* ---- 暗色适配用的派生变量（2026-10-19）----
+     亮色默认值 = 各处原来的裸字面量（亮色渲染逐字节不变）；
+     暗色在下方 [data-theme='dark'] 块里整组重映射到 --boh-* token。
+     把字面量收进**亮色**变量块、暗色只写 var()/color-mix，是 check:dark-tokens
+     棘轮（暗色块内裸色值只许下降）下唯一合规的写法。 */
+  --apple-glass-bar: rgba(255, 255, 255, 0.72); /* 顶栏 / 可见性按钮的玻璃底 */
+  --apple-glass-input: rgba(255, 255, 255, 0.82); /* 输入框 / 底部导航的玻璃底 */
+  --apple-glass-panel: rgba(255, 255, 255, 0.92); /* 频道区渐变的白色终点 */
+  --apple-glass-badge: rgba(255, 255, 255, 0.85); /* entry-badge 玻璃底 */
+  --apple-nav-border: rgba(255, 255, 255, 0.7); /* 底部导航的亮色描边 */
+  --apple-sheen: rgba(255, 255, 255, 0.65); /* 内侧高光 / shimmer 扫光 */
+  --apple-text-hover: #3a3a3c; /* 深色实底按钮的 hover（is-active-share） */
+  --apple-red: #ff3b30;
+  --apple-warning-hue: #9a6700;
+  --apple-warning-text: var(--apple-warning-hue);
+  --apple-error-hue: #c2410c;
+  --apple-error-text: var(--apple-error-hue);
+  --apple-shimmer-a: rgba(229, 231, 235, 0.9);
+  --apple-shimmer-b: rgba(243, 244, 246, 1);
+  --apple-shimmer-sweep: var(--apple-sheen);
+  --apple-shimmer-base-a: #f4f5f7;
+  --apple-shimmer-base-b: #e9edf2;
+}
+
+/* ---- 暗色重映射（2026-10-19）----
+   本块只写 var() 引用与 color-mix 派生，**一个裸色值都不写**：
+   check:dark-tokens 棘轮对暗色块内的裸色值只许下降。token 真源：
+   · --boh-*：themes/dark-mode.css 的 [data-theme="dark"] 块
+   · --apple-text 等先在本块重映射，后面的 color-mix 引用的是**暗色后**的值
+   页面里所有「白色底 / 深色字 / 白玻璃」在本文其余各处已换成上面的变量，
+   因此主题切换时整页自动翻转，不需要再写任何组件级 [data-theme] 覆盖。 */
+[data-theme='dark'] .cloud-page {
+  --apple-bg: var(--boh-page-bg, var(--boh-bg-primary));
+  --apple-bg-secondary: var(--boh-bg-secondary);
+  --apple-bg-tertiary: var(--boh-bg-tertiary);
+  --apple-text: var(--boh-text-primary);
+  --apple-text-secondary: var(--boh-text-secondary);
+  --apple-text-tertiary: var(--boh-text-tertiary);
+  --apple-blue: var(--boh-brand-blue);
+  --apple-blue-hover: var(--boh-brand-blue);
+  --apple-gray: color-mix(in srgb, var(--apple-text) 18%, var(--apple-bg));
+  --apple-border: var(--boh-border-primary);
+  --apple-border-light: var(--boh-divider);
+  --apple-red: var(--boh-brand-red);
+  --apple-text-hover: color-mix(in srgb, var(--apple-text) 78%, var(--apple-bg));
+  --apple-warning-text: color-mix(in srgb, var(--apple-warning-hue) 45%, var(--apple-text));
+  --apple-error-text: color-mix(in srgb, var(--apple-error-hue) 55%, var(--apple-text));
+  --shadow-sm: var(--boh-shadow-sm);
+  --shadow-md: var(--boh-shadow-md);
+  --shadow-lg: var(--boh-shadow-lg);
+  --shadow-xl: var(--boh-shadow-lg);
+  /* 玻璃 / 半透明面：暗色统一走全局玻璃 token（tokens.css 已按主题翻转） */
+  --apple-glass-bar: var(--boh-glass-bg);
+  --apple-glass-input: var(--boh-glass-bg);
+  --apple-glass-panel: var(--boh-glass-bg);
+  --apple-glass-badge: var(--boh-glass-bg);
+  --apple-nav-border: var(--boh-glass-border);
+  --apple-sheen: color-mix(in srgb, var(--boh-text-primary) 8%, transparent);
+  /* 骨架 shimmer：暗色下用「文字色兑底色」派生同款灰阶 */
+  --apple-shimmer-a: color-mix(in srgb, var(--apple-text) 8%, var(--apple-bg-secondary));
+  --apple-shimmer-b: color-mix(in srgb, var(--apple-text) 13%, var(--apple-bg-secondary));
+  --apple-shimmer-sweep: var(--apple-sheen);
+  --apple-shimmer-base-a: color-mix(in srgb, var(--apple-text) 6%, var(--apple-bg-secondary));
+  --apple-shimmer-base-b: color-mix(in srgb, var(--apple-text) 10%, var(--apple-bg-secondary));
 }
 
 * {
@@ -85,7 +150,7 @@
   position: sticky;
   top: var(--cloud-nav-offset);
   z-index: 100;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--apple-glass-bar);
   backdrop-filter: var(--liquid-filter);
   border-bottom: 1px solid var(--apple-border-light);
 }
@@ -221,21 +286,11 @@
   margin: 0;
 }
 
-/* ---- 暗色下的兼容（2026-10-01）----
-   ⚠️ 前提（已实测）：Cloud+ **整页没有任何暗色适配** —— `.cloud-page` 把 --apple-* 全套
-   硬编码成亮色，本文件里 `[data-theme="dark"]` 出现 0 次。所以暗色主题下这一页本来就是
-   「亮页面」（连带一个既有缺陷：顶栏标题被 UserCenterPageHeader 的暗色规则改成白字，
-   落在白底上不可见）。
-   因此玻璃卡在暗色下**不能**跟着 --liquid-* 切到暗色值 —— 那会变成「亮页面里嵌一张深灰卡」，
-   比不做玻璃更糟（实测截图确认）。这里让它在暗色下退回页面自己的实色底，与其余部分一致。
-   正解是给 Cloud+ 补一整套暗色 token（含顶栏），属独立一轮的范围。 */
-[data-theme='dark'] .sidebar-card.liquid-glass {
-  background: var(--apple-bg-secondary);
-  border: 1px solid var(--apple-border-light);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: none;
-}
+/* ---- 暗色下的玻璃卡（2026-10-19 更新）----
+   旧版这里有一块 [data-theme='dark'] 兜底：把玻璃强制退回实色底 —— 因为当时整页
+   还是亮色（--apple-* 无暗色映射），玻璃跟着 --liquid-* 切暗会变成「亮页面嵌深灰卡」。
+   现在整页已在文件头部完成暗色重映射，页面底/文字都随主题翻转，玻璃卡直接走
+   全局 `.liquid-glass` 的暗色 token（tokens.css），不再需要任何覆盖块。 */
 
 .card-label {
   font-size: 11px;
@@ -520,7 +575,7 @@
   padding: 12px 14px;
   border-radius: var(--radius-md);
   border: 1px solid var(--apple-border);
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--apple-glass-input);
   color: var(--apple-text);
   font-size: 13px;
   line-height: 1.5;
@@ -559,7 +614,7 @@
 .share-visibility-btn {
   border: 1px solid var(--apple-border);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--apple-glass-bar);
   color: var(--apple-text-secondary);
   font-size: 12px;
   font-weight: 700;
@@ -579,7 +634,8 @@
 .share-visibility-btn.active {
   border-color: var(--apple-text);
   background: var(--apple-text);
-  color: #ffffff;
+  /* 反色按钮：文字必须跟底色对调（暗色下底变浅、文字要变深），不能写死 white */
+  color: var(--apple-bg);
 }
 
 .share-visibility-btn:disabled {
@@ -638,11 +694,11 @@
 }
 
 .share-action-btn.is-active-share {
-  background: #1d1d1f;
+  background: var(--apple-text);
 }
 
 .share-action-btn.is-active-share:hover:not(:disabled) {
-  background: #3a3a3c;
+  background: var(--apple-text-hover);
 }
 
 .share-copy-btn,
@@ -653,7 +709,7 @@
 
 .share-error-text {
   margin-top: 12px;
-  color: #c2410c;
+  color: var(--apple-error-text);
 }
 
 .share-status-skeleton {
@@ -740,7 +796,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  /* 反色底（--apple-text）上的文字必须跟着反色，暗色下才不会白底白字 */
+  color: var(--apple-bg);
   background: var(--apple-text);
   font-size: 13px;
   font-weight: 700;
@@ -787,7 +844,7 @@
   padding: 24px;
   border-radius: var(--radius-xl);
   border: 1px solid rgba(0, 113, 227, 0.12);
-  background: linear-gradient(180deg, rgba(0, 113, 227, 0.04) 0%, rgba(255, 255, 255, 0.92) 100%);
+  background: linear-gradient(180deg, rgba(0, 113, 227, 0.04) 0%, var(--apple-glass-panel) 100%);
 }
 
 .shared-channel-banner {
@@ -895,7 +952,8 @@
 .filter-pill.active {
   background: var(--apple-text);
   border-color: var(--apple-text);
-  color: #ffffff;
+  /* 反色：见 .share-visibility-btn.active 的说明 */
+  color: var(--apple-bg);
 }
 
 .filter-count {
@@ -903,13 +961,13 @@
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 10px;
-  background: rgba(0, 0, 0, 0.06);
+  background: color-mix(in srgb, var(--apple-text) 6%, transparent);
   color: var(--apple-text-secondary);
 }
 
 .filter-pill.active .filter-count {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--apple-bg) 20%, transparent);
+  color: var(--apple-bg);
 }
 
 /* Tips list - minimal */
@@ -1076,13 +1134,13 @@
   padding: 8px 14px;
   border-radius: var(--radius-full);
   background: transparent;
-  color: #ff3b30;
-  border: 1px solid rgba(255, 59, 48, 0.3);
+  color: var(--apple-red);
+  border: 1px solid color-mix(in srgb, var(--apple-red) 30%, transparent);
   font-size: 12px;
 }
 
 .danger-btn:hover {
-  background: rgba(255, 59, 48, 0.05);
+  background: color-mix(in srgb, var(--apple-red) 5%, transparent);
 }
 
 .ghost-link {
@@ -1174,7 +1232,7 @@
   height: 2px;
   border-radius: var(--radius-full);
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.06);
+  background: color-mix(in srgb, var(--apple-text) 6%, transparent);
 }
 
 .cloud-refresh-bar {
@@ -1265,9 +1323,9 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--apple-nav-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--apple-glass-input);
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
   backdrop-filter: var(--liquid-filter);
   -webkit-backdrop-filter: var(--liquid-filter);
@@ -1290,9 +1348,9 @@
 }
 
 .cloud-bottom-nav-item.active {
-  background: rgba(0, 0, 0, 0.08);
+  background: color-mix(in srgb, var(--apple-text) 8%, transparent);
   color: var(--apple-text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  box-shadow: inset 0 1px 0 var(--apple-sheen);
 }
 
 .cloud-bottom-nav-item:focus {
@@ -1301,8 +1359,8 @@
 
 .cloud-bottom-nav-item:focus-visible {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.65),
-    0 0 0 2px rgba(0, 0, 0, 0.12);
+    inset 0 1px 0 var(--apple-sheen),
+    0 0 0 2px color-mix(in srgb, var(--apple-text) 12%, transparent);
 }
 
 /* Notice bar - subtle */
@@ -1323,8 +1381,8 @@
   gap: 14px;
   padding: 12px 16px;
   border-radius: var(--radius-md);
-  background: rgba(110, 110, 115, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: color-mix(in srgb, var(--apple-text-secondary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--apple-text) 6%, transparent);
   color: var(--apple-text-secondary);
   font-size: 13px;
   line-height: 1.5;
@@ -1333,7 +1391,7 @@
 .gallery-inline-feedback.warning {
   background: rgba(255, 159, 10, 0.08);
   border-color: rgba(255, 159, 10, 0.16);
-  color: #9a6700;
+  color: var(--apple-warning-text);
 }
 
 .feedback-action {
@@ -1371,7 +1429,8 @@
 .filter-chip.active {
   background: var(--apple-text);
   border-color: var(--apple-text);
-  color: #ffffff;
+  /* 反色：见 .share-visibility-btn.active 的说明 */
+  color: var(--apple-bg);
 }
 
 .chip-count {
@@ -1379,11 +1438,11 @@
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.06);
+  background: color-mix(in srgb, var(--apple-text) 6%, transparent);
 }
 
 .filter-chip.active .chip-count {
-  background: rgba(255, 255, 255, 0.2);
+  background: color-mix(in srgb, var(--apple-bg) 20%, transparent);
 }
 
 .section-heading {
@@ -1652,9 +1711,9 @@
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    rgba(229, 231, 235, 0.9) 0%,
-    rgba(243, 244, 246, 1) 48%,
-    rgba(229, 231, 235, 0.9) 100%
+    var(--apple-shimmer-a) 0%,
+    var(--apple-shimmer-b) 48%,
+    var(--apple-shimmer-a) 100%
   );
   background-size: 200% 100%;
   animation: cloudSkeletonShimmer 1.35s ease-in-out infinite;
@@ -1778,8 +1837,8 @@
   inset: 0;
   z-index: 0;
   background:
-    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent),
-    linear-gradient(135deg, #f4f5f7, #e9edf2);
+    linear-gradient(90deg, transparent, var(--apple-shimmer-sweep), transparent),
+    linear-gradient(135deg, var(--apple-shimmer-base-a), var(--apple-shimmer-base-b));
   background-size:
     180% 100%,
     100% 100%;
@@ -1860,9 +1919,9 @@
 }
 
 .entry-badge {
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--apple-glass-badge);
   color: var(--apple-text);
-  border: 0.5px solid rgba(0, 0, 0, 0.06);
+  border: 0.5px solid color-mix(in srgb, var(--apple-text) 6%, transparent);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
@@ -2925,6 +2984,10 @@
   border-radius: 0;
   overflow: hidden;
   background: var(--apple-bg-secondary);
+  /* LQIP 占位：模板把 Cloudinary 的 32px 模糊图写进 background-image，铺在 <img> 之下。
+     之前格子只有一块 `--apple-bg-secondary`（近白）当占位，原图淡入时就是一次「闪白」。 */
+  background-size: cover;
+  background-position: center;
   cursor: pointer;
   /* 2026-10-03 动效（放大 / 缩小）：本体缩放 + 投影一起过渡。
      圆角刻意保持 0 —— 相册是「画面」不是「卡片」，动效不该换语汇。 */
@@ -3406,9 +3469,9 @@
   justify-content: center;
   padding: 12px;
   padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px) + var(--kb-inset, 0px));
-  /* 错误提示用的危险色。这里只定义一次，下面用 color-mix 派生浓度，
-     不把 #ff3b30 散落到每条规则里（本文件原有 .danger-btn 也有三处重复字面量）。 */
-  --cp-danger: #ff3b30;
+  /* 错误提示用的危险色。这里只定义一次，下面用 color-mix 派生浓度。
+     走 --apple-red 变量而不是字面量：亮色 = #ff3b30，暗色由重映射块翻到 --boh-brand-red。 */
+  --cp-danger: var(--apple-red);
 
   /* 遮罩在亮/暗两套主题下都用同一档深色：暗色下只是把深色页面再压暗一档，
      因此不需要主题分支，也就不必往 `[data-theme='dark']` 块里塞裸色值（暗色棘轮）。 */

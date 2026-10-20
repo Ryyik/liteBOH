@@ -431,7 +431,7 @@
                 >
                   <div v-if="entry.coverImageUrl" class="card-visual">
                     <img
-                      :src="getCloudImageDisplayUrl(entry.coverImageUrl)"
+                      :src="resolveDbCloudCoverImage(entry.coverImageUrl)"
                       :alt="entry.title || 'Cloud cover'"
                       class="card-cover cloud-loading-image"
                       loading="eager"
@@ -823,11 +823,12 @@
                     :key="tile.key"
                     class="gallery-tile"
                     :class="`tile-${tile.entry.entryType}`"
+                    :style="tile.lqipUrl ? { backgroundImage: `url(${tile.lqipUrl})` } : undefined"
                     @click="openEntry(tile.entry, 'mine', $event)"
                   >
                     <template v-if="tile.imageUrl">
                       <img
-                        :src="getCloudImageDisplayUrl(tile.imageUrl)"
+                        :src="tile.displayUrl"
                         :alt="tile.entry.title || 'Cloud cover'"
                         class="tile-cover cloud-loading-image"
                         loading="lazy"
@@ -976,7 +977,7 @@
               <p v-if="block.type === 'text'" class="detail-text">{{ block.text }}</p>
               <figure v-else class="detail-image-wrap">
                 <img
-                  :src="getCloudImageDisplayUrl(block.url)"
+                  :src="resolveDbDetailImage(block.url)"
                   :alt="block.alt || 'BOH Cloud 图片'"
                   class="detail-image cloud-loading-image"
                   decoding="async"
@@ -1018,6 +1019,15 @@ import {
   extractCloudinaryPublicIdFromUrl,
   getCloudinaryDisplayUrl,
 } from '@/utils/cloudinary-client.js';
+/* 相册格子的图走 db-image-url 的 Cloud+ 档变换（缩略图 + LQIP 占位）。
+   此前格子用的是 `getCloudinaryDisplayUrl` —— 那只换主机不换尺寸，等于让 78px 的格子
+   拉 1200px 的原图，是「滚动闪白 + 顿挫」的根因。详见 utils/db-image-url.js 的注释。 */
+import {
+  resolveDbCloudCoverImage,
+  resolveDbCloudTileImage,
+  resolveDbCloudTileLqip,
+  resolveDbDetailImage,
+} from '@/utils/db-image-url.js';
 import {
   CLOUD_UPLOAD_BURST_LIMIT,
   CLOUD_UPLOAD_BURST_WINDOW_MS,
@@ -1438,12 +1448,24 @@ const albumTiles = computed(() =>
   visibleFilteredEntries.value.flatMap((entry) => {
     const images = collectEntryImageUrls(entry);
     if (!images.length) {
-      return [{ key: `${entry.id}::paper`, entry, imageUrl: '', isFirstOfEntry: true }];
+      return [
+        {
+          key: `${entry.id}::paper`,
+          entry,
+          imageUrl: '',
+          displayUrl: '',
+          lqipUrl: '',
+          isFirstOfEntry: true,
+        },
+      ];
     }
     return images.map((imageUrl, index) => ({
       key: `${entry.id}::${index}`,
       entry,
       imageUrl,
+      // 缩略图（400px 方形）+ LQIP 占位：格子只有 78~200px，拉原图既慢又闪
+      displayUrl: resolveDbCloudTileImage(imageUrl),
+      lqipUrl: resolveDbCloudTileLqip(imageUrl),
       isFirstOfEntry: index === 0,
     }));
   }),
@@ -1517,12 +1539,15 @@ try {
 
 let lastAlbumSectionWidth = 0;
 
-function measureAutoAlbumColumns() {
-  const width = albumSectionRef.value?.clientWidth || window.innerWidth || 0;
+function measureAutoAlbumColumns(observedWidth) {
+  // ResizeObserver 回调里**直接用**它给的 contentRect.width，不要回头读 clientWidth ——
+  // 读 clientWidth 会 flush 一次同步布局（这正是本函数注释里要避免的那次抖动；
+  // 旧写法把读宽度写在早退判断**之前**，早退其实没挡住这次 flush）。
+  // window.resize 那条路径没有观测值（回调首参是 Event，Number(Event) = NaN），才回落去读。
+  const width =
+    Number(observedWidth) || albumSectionRef.value?.clientWidth || window.innerWidth || 0;
   if (!width) return;
-  // ResizeObserver 观察的是整个 section：图片陆续加载会让**高度**不断变化，
-  // 但列数只跟**宽度**有关。不做这个早退的话，首屏每加载一张图就强制同步布局一次
-  // （回调查 clientWidth 会 flush），30 张图 = 30 次布局抖动，滚动时就是肉眼可见的顿挫。
+  // 列数只跟**宽度**有关：高度变化（图片陆续加载）不该重算
   if (width === lastAlbumSectionWidth) return;
   lastAlbumSectionWidth = width;
   autoAlbumColumns.value =
@@ -1568,7 +1593,9 @@ function observeAlbumSection(section) {
 
   measureAutoAlbumColumns();
   if (typeof ResizeObserver !== 'undefined') {
-    albumResizeObserver = new ResizeObserver(measureAutoAlbumColumns);
+    albumResizeObserver = new ResizeObserver((entries) =>
+      measureAutoAlbumColumns(entries?.[0]?.contentRect?.width),
+    );
     albumResizeObserver.observe(section);
   }
 }

@@ -79,22 +79,14 @@ defineEmits(['jump-private', 'manage-public']);
 <style scoped>
 /* 材质（背景/边框/圆角/阴影/backdrop-filter）**全部交给 .liquid-glass**，
    本组件只保留排版。原来那层「蓝→白」渐变实底 + 自绘边框会盖掉玻璃，
-   与设置页另两张卡也不是同一种材质（2026-10-01 统一为液态玻璃）。 */
+   与设置页另两张卡也不是同一种材质（2026-10-01 统一为液态玻璃）。
+   暗色：父级 .cloud-page 已于 2026-10-19 完成暗色变量重映射（见 style.scoped.css），
+   玻璃直接走全局 .liquid-glass 的暗色 token，不再需要退实色底的兜底块。 */
 .storage-bar-card {
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-/* 暗色兼容：Cloud+ 整页没有暗色适配（父级 .cloud-page 硬编码亮色 token），
-   所以这里不能让玻璃跟着主题切暗 —— 见 style.scoped.css 里同款注释。 */
-[data-theme='dark'] .storage-bar-card.liquid-glass {
-  background: var(--apple-bg-secondary);
-  border: 1px solid var(--apple-border-light);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  box-shadow: none;
 }
 
 .storage-bar-head {
@@ -124,7 +116,7 @@ defineEmits(['jump-private', 'manage-public']);
 
 .storage-bar-overflow {
   font-size: 12px;
-  color: #ff3b30;
+  color: var(--apple-red);
 }
 
 .storage-bar-track {
