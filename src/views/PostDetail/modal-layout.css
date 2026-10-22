@@ -23,7 +23,10 @@
   display: flex;
   flex-direction: column;
   max-width: none;
-  padding: 16px;
+  /* 2026-10-22 对齐小红书：媒体满出血（贴面板左/上/下边），外层不再留 16px 内衬。
+     信息列的内衬改由 .pd-modal-info 自己承担（见下方 padding），
+     否则无图帖的正文会直接贴到面板边缘。 */
+  padding: 0;
   /* 历史样式 margin: 0 auto 在 flex 容器中会吸收剩余空间 → 容器收缩成内容宽并居中（无图帖内容挤在中间的根因） */
   margin: 0;
 }
@@ -41,7 +44,8 @@
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 18px;
+  /* 满出血形态下媒体要贴到信息列边缘，列间距改由信息列左内衬承担（参考实测 24px） */
+  gap: 0;
 }
 
 .post-detail-page--modal .pd-modal-body--has-media {
@@ -88,10 +92,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  /* 2026-10-22 对齐小红书：媒体满出血，圆角/描边统一由面板的 overflow:hidden 裁切，
+     媒体自身不再套 12px 圆角与 hairline（否则面板边缘会露出一圈白衬）。 */
+  border-radius: 0;
   overflow: hidden;
   background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
-  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  border: none;
 }
 
 .post-detail-page--modal .pd-media-stage {
@@ -110,7 +116,8 @@
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  border-radius: 12px;
+  /* 满出血形态：图片圆角由面板裁切，自身不套圆角（否则图片与面板之间会露白缝）。 */
+  border-radius: 0;
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -137,7 +144,9 @@
   cursor: pointer;
   backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
   -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
-  transition: background var(--duration-fast, 180ms) ease, color var(--duration-fast, 180ms) ease;
+  transition:
+    background var(--duration-fast, 180ms) ease,
+    color var(--duration-fast, 180ms) ease;
 }
 
 .post-detail-page--modal .pd-media-nav:hover {
@@ -178,7 +187,9 @@
   background: var(--liquid-text-tertiary, #8b9098);
   opacity: 0.45;
   cursor: pointer;
-  transition: opacity var(--duration-fast, 180ms) ease, transform var(--duration-fast, 180ms) ease;
+  transition:
+    opacity var(--duration-fast, 180ms) ease,
+    transform var(--duration-fast, 180ms) ease;
 }
 
 .post-detail-page--modal .pd-media-dot.active {
@@ -191,12 +202,19 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* 媒体满出血后，外层 16px 内衬已取消 —— 信息列自己承担左右内衬，
+     否则无图帖正文会贴到面板边缘。参考实测：文本左缘距媒体列 ~24px。 */
+  padding: 0 24px;
 }
 
-/* 作者行固定条：不随评论区滚动；顶部 48px 让位右上关闭钮，底部 hairline 与滚动内容分隔 */
+/* 作者行固定条：不随评论区滚动；底部 hairline 与滚动内容分隔。
+   2026-10-22：媒体满出血后外层 16px 内衬取消，但**不能**把顶部内衬一并收干净 ——
+   关闭钮固定在面板右上（top:14/right:14，34px 高），作者行右侧还有「关注」+「…」，
+   实测压到 20px 内衬时 closeOverlapsMenu=true（真实遮挡，点不到菜单）。
+   48px 是原值且已实测不遮挡，保留。 */
 .post-detail-page--modal .pd-author-row {
   flex: none;
-  padding: 48px 8px 12px 2px;
+  padding: 48px 0 12px;
   border-bottom: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
   margin-bottom: 10px;
 }
@@ -206,7 +224,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2px 8px 12px 2px;
+  padding: 2px 0 12px;
 }
 
 .post-detail-page--modal .pd-author-row {
@@ -221,6 +239,35 @@
   cursor: pointer;
 }
 
+/* P1-9 元信息行：时间与地点**同一行**、同色同重（2026-10-22 对齐小红书）
+   参考实测：「2天前 广东」是连在一起的一整行浅灰（最暗像素 185,185,185 ≈ #b9b9b9）；
+   我方原为「时间 14px/600/#687386，与 📍地点各自成行」，色重与排布都不同。
+   做法（纯 CSS、不动 DOM）：把 .author-meta 由 column 改成可换行 flex，
+   作者名 flex:0 0 100% 独占第一行 ⇒ 时间与地点自然落到第二行并横向贴合。
+   只在弹窗态覆盖：竖屏整页的 .author-meta 在窄屏本就 display:none（时间由 .pd-author-bar 承接）。 */
+.post-detail-page--modal .pd-author-row .author-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0;
+}
+
+.post-detail-page--modal .pd-author-row .author-meta .author-name {
+  flex: 0 0 100%;
+}
+
+.post-detail-page--modal .pd-author-row .post-time,
+.post-detail-page--modal .pd-author-row .post-location-tag {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--detail-muted-soft, #b9b9b9);
+}
+
+.post-detail-page--modal .pd-author-row .post-location-tag {
+  margin-left: 6px;
+}
+
 .post-detail-page--modal .pd-follow-btn {
   padding: 7px 18px;
   border: 1px solid transparent;
@@ -230,7 +277,9 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background var(--duration-fast, 180ms) ease, color var(--duration-fast, 180ms) ease,
+  transition:
+    background var(--duration-fast, 180ms) ease,
+    color var(--duration-fast, 180ms) ease,
     border-color var(--duration-fast, 180ms) ease;
 }
 
@@ -249,12 +298,24 @@
   opacity: 0.6;
 }
 
+/* 标题：20px → 18px（2026-10-22 对齐小红书）
+   判据：同视口 972×734 逐元素墨高比 —— 参考 17.0 / 我方 19.5 = 0.87，即偏大约 12%。
+   注意 .pd-title 只在弹窗分支渲染（PostDetailMain:2452），整页模式用 .post-detail-title，互不影响。 */
 .post-detail-page--modal .pd-title {
   margin: 12px 0 6px;
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1.4;
   font-weight: 500;
   color: var(--detail-ink, #111827);
+}
+
+/* 正文：弹窗态固定 15px（2026-10-22 对齐小红书，墨高比 0.88）
+   ⚠️ 基类 .content-text 是 clamp(17px,1.28vw,19px) 且**整页模式共用**，不能改基类；
+   更不能只改 clamp 上限 —— 该函数在 972 宽取的是**下限 17px**（1440 取 18.43、≥1600 才到上限 19），
+   只动上限对 972 宽的弹窗完全无效。故这里用弹窗前缀直接给固定值覆盖。 */
+.post-detail-page--modal .content-text {
+  font-size: 15px;
+  line-height: 1.75;
 }
 
 .post-detail-page--modal .pd-comments-head {
@@ -282,6 +343,84 @@
   background: transparent;
   border: none;
   box-shadow: none;
+}
+
+/* ══ 评论区对齐小红书（2026-10-22）══════════════════════════════════════════
+   ⚠️ 这三条**必须**带 :deep()：.x-comments-section / .comment-item-x / .child-reply-item
+   都定义在 CommentThread.vue 内部，而本文件是由 <style scoped> 的 @import 引入的
+   （PostDetailMain.vue:3192）。不加 :deep() 会被编译成 `.xxx[data-v-父]`，
+   永远匹配不到子组件节点 —— 样式写了、页面没变、也不报错（第一版补丁就这么静默失效过）。
+   ⚠️ 全部挂在 .post-detail-page--modal 下：CommentThread 同时服务弹窗态与竖屏整页态
+   （PostDetailMain.vue:2503 / 2883），不带前缀会连带改掉竖屏详情页。 */
+
+/* P1-6 评论左缘对齐标题：评论头像与标题同一条左基线（参考实测两者都是 518.0）。
+   成因实测：内缩 20px 里 18px 来自 .x-comments-section 的 padding、2px 来自评论项自身 padding。
+   （对照实验：把 section padding 注成 0 后 avatar.x 由 541.7 → 523.7） */
+.post-detail-page--modal .pd-comment-thread :deep(.x-comments-section) {
+  padding: 0;
+}
+
+.post-detail-page--modal .pd-comment-thread :deep(.comment-item-x) {
+  padding-left: 0;
+  padding-right: 0;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+/* P1-7 评论操作行：图标 + 数字，去掉「赞 / 回复」文字标签
+   参考实测：每组宽 23.5、组间距 14.5、纯图标+数字（「♡ 6」「💬 3」）。
+   做法：模板侧只加了 .comment-action-label 钩子类（增量、无行为变化），
+   这里在弹窗态隐藏它；竖屏整页不加这条 ⇒ 标签照常显示（移动端更需要文字提示）。 */
+.post-detail-page--modal .pd-comment-thread :deep(.comment-actions) {
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.post-detail-page--modal .pd-comment-thread :deep(.comment-like-btn),
+.post-detail-page--modal .pd-comment-thread :deep(.comment-reply-btn-mini) {
+  gap: 5px;
+  font-size: 12px;
+  padding: 0;
+}
+
+.post-detail-page--modal .pd-comment-thread :deep(.comment-action-label) {
+  display: none;
+}
+
+.post-detail-page--modal .pd-comment-thread :deep(.comment-like-count),
+.post-detail-page--modal .pd-comment-thread :deep(.comment-reply-count) {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--detail-muted, #687386);
+}
+
+/* 弹窗态才显示回复数（基类里默认 display:none，竖屏文案保持「回复」不带数字） */
+.post-detail-page--modal .pd-comment-thread :deep(.comment-reply-count) {
+  display: inline;
+}
+
+/* P1-8 楼中楼：子回复头像 32px → 24px，缩进与父评论文字列同基线（参考实测 24.0）。
+   展开链接由蓝改为灰（参考最暗像素 (85,85,85) = #555555）。 */
+.post-detail-page--modal .pd-comment-thread :deep(.child-reply-item) {
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.post-detail-page--modal .pd-comment-thread :deep(.child-reply-item .mini-avatar.small) {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+}
+
+.post-detail-page--modal .pd-comment-thread :deep(.child-expand-link) {
+  color: var(--detail-muted, #555);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* P1-8 附带：子回复正文字号收一档，与顶层评论的 12px 操作行协调 */
+.post-detail-page--modal .pd-comment-thread :deep(.child-reply-content) {
+  font-size: 14px;
 }
 
 /* ── 底部操作栏（横屏弹窗内嵌 + 整页 fixed 两用，类名共享） ── */
@@ -343,7 +482,9 @@
      textarea 的 scrollHeight 会把「自身当前高度」算进去，展开↔还原时过渡中途量到的是
      半途高度（实测 77px），被 useAutoGrowTextarea 原样写回成 inline 高度 ⇒ 框永久停在
      77px，D 断言「清空后回落到初始值」红。高度必须瞬时切换，只让颜色/圆角过渡。 */
-  transition: border-color var(--duration-fast, 180ms) ease, background var(--duration-fast, 180ms) ease,
+  transition:
+    border-color var(--duration-fast, 180ms) ease,
+    background var(--duration-fast, 180ms) ease,
     border-radius var(--duration-fast, 180ms) ease;
 }
 
@@ -391,7 +532,7 @@
 .pd-action-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .pd-action-btn {
@@ -406,7 +547,26 @@
   background: transparent;
   color: var(--liquid-text-secondary, #6e6e73);
   cursor: pointer;
-  transition: color var(--duration-fast, 180ms) ease, background var(--duration-fast, 180ms) ease;
+  transition:
+    color var(--duration-fast, 180ms) ease,
+    background var(--duration-fast, 180ms) ease;
+}
+
+/* ── 弹窗态动作条：图标与数字**同一行**（2026-10-22 对齐小红书）──────────────
+   参考实测：心形/星星/气泡与数字都在同一条基线上（y 671.5~690），图标≈20px、无文字标签。
+   我方原为 column 布局（数字堆在图标下方），实测行心差 17.6px。
+   只在弹窗容器内覆盖，整页态（.pd-actionbar--page）仍走上面的 column / 下方 ≤1024 的 row 档。 */
+.post-detail-page--modal .pd-action-btn {
+  flex-direction: row;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 8px;
+}
+
+.post-detail-page--modal .pd-action-btn .action-svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
 }
 
 /* 竖屏整页底栏：图标+文字横排（Threads 式） */

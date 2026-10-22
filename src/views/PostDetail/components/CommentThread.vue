@@ -350,7 +350,7 @@ const onReplyInput = (event) => {
                   :fill="reply.isLiked ? 'currentColor' : 'none'"
                   aria-hidden="true"
                 />
-                <span>赞</span>
+                <span class="comment-action-label">赞</span>
                 <span v-if="Number(reply.like_count) > 0" class="comment-like-count">{{
                   reply.like_count
                 }}</span>
@@ -367,7 +367,12 @@ const onReplyInput = (event) => {
                 "
               >
                 <Reply :size="14" :stroke-width="1.8" aria-hidden="true" />
-                回复
+                <span class="comment-action-label">回复</span>
+                <span
+                  v-if="Number(childReplyStateMap[reply.id]?.totalCount || 0) > 0"
+                  class="comment-reply-count"
+                  >{{ childReplyStateMap[reply.id].totalCount }}</span
+                >
               </button>
             </div>
 
@@ -1417,6 +1422,14 @@ const onReplyInput = (event) => {
 }
 
 .comment-like-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 回复数只在「图标+数字」形态下有意义（弹窗态），默认隐藏。
+   2026-10-22：竖屏整页保留「回复」文字标签，不该多出一个数字（否则文案变成「回复 3」）。
+   弹窗态由 modal-layout.css 的 `.post-detail-page--modal :deep(.comment-reply-count)` 打开。 */
+.comment-reply-count {
+  display: none;
   font-variant-numeric: tabular-nums;
 }
 
