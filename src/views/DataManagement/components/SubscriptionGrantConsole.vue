@@ -1629,4 +1629,11 @@ onMounted(() => {
 .grant-pagination {
   padding-inline: 14px;
 }
+/* 2026-10-22（W3）：竖屏发放表单 4 列 → 2 列（scoped，全局口径覆盖不到）。
+   字段有输入框，2 列下每个仍有 ~170px，够放「YYYY-MM-DD」这类占位。 */
+@media (max-width: 767px) {
+  .grant-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 </style>

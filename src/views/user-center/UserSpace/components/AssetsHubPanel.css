@@ -145,6 +145,13 @@
   padding: 10px 2px 2px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* 2026-10-22（W2）：7 席在 390 下刚好塞满（概览/装扮/积分/订阅/订单/抽奖/赞助），
+     再增一项即溢出。而 `overflow-x: auto` 横滑**没有「右边还有」的任何提示** ——
+     用户不知道能滑，第 5 席之后等于不存在。右缘 20px 渐隐是最小成本的提示。
+     刻意不做「滚到头就消失」：那要 `animation-timeline: scroll()`，兼容性还不稳；
+     常驻渐隐在这个密度下不会误伤内容（末席右侧本来就有留白）。 */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
 }
 
 /* tab 分组（2026-10-15）：前 3 席 = 资产（概览/装扮/积分），后 4 席 = 服务（订阅/订单/抽奖/赞助）。

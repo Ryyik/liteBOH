@@ -1669,4 +1669,12 @@ onUnmounted(() => {
     padding-right: calc(var(--spacing) * 3);
   }
 }
+/* 2026-10-22（W3）：竖屏统计卡 4 列 → 2 列。
+   ⚠️ 必须在这里改：本组件的 style 是 scoped，编译后选择器带 `[data-v-*]`，
+   `responsive.css` 里的全局口径（.stats-section 那组）覆盖不到它。 */
+@media (max-width: 767px) {
+  .g-api-key-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 </style>

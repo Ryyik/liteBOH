@@ -1685,6 +1685,25 @@
   .tabs-header {
     gap: 12px;
   }
+
+  /* 2026-10-22（W3）：统计卡 4 列 → 2 列。
+     390 视口减两侧留白约 358px，4 列含 gap 后每列 ~80px —— 「活跃 Key / 总调用 /
+     失败率」这种「数值 + 标签」在这个宽度必然折成两行或溢出。2×2 比 1×4 省一半纵向空间。
+     ⚠️ 只改**全局**这三处；`.g-api-key-summary` / `.lotteries-metrics` / `.g-freemodels-summary`
+     / `.grant-fields` 是各 .vue 的 scoped 样式，编译后带 `[data-v-*]`，全局覆盖不到，
+     必须在各自组件里改。 */
+  .stats-section,
+  .table-mini-stats,
+  .overview-status-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* 7 天柱状图：7 根柱子是**图表刻度**，不是卡片网格 —— 降列会破坏「一天一根」的语义。
+     给它最小列宽 + 横向滚动，保留完整 7 根，避免柱子被压成 45px 竖条。 */
+  .g-bar-grid {
+    grid-template-columns: repeat(7, minmax(40px, 1fr));
+    overflow-x: auto;
+  }
 }
 
 @media (max-width: 600px) {
