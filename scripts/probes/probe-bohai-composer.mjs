@@ -387,7 +387,11 @@ const openPanel = async (page, scope = '') => {
   await page.locator(SEL.webToggle).first().click();
   await page.waitForTimeout(200);
 
-  // A8 斜杠菜单：输入 `/` 唤起，含 4 条基础命令
+  // A8 斜杠菜单：输入 `/` 唤起，含基础命令
+  // 2026-10-22：原断言期望 `/web /community /cloud`，但 `/community` 已于 2026-10-19 并入
+  // `/memory`（真源 `bohai-slash-commands.js`，现役 14 条里没有 community）⇒ 这条是**陈旧断言**，
+  // 一直红着，会把新探针的失败掩盖成"又是那条已知红"。plans/031 §5 要求顺手修掉，此处改指
+  // `/memory`；`/web` `/cloud` 仍在真源里，保留。
   await page.fill(SEL.input, '/');
   await page.waitForTimeout(320);
   const slashCmds = await page.evaluate((sel) => {
@@ -396,9 +400,9 @@ const openPanel = async (page, scope = '') => {
     return [...el.querySelectorAll('.boh-slash-cmd')].map((n) => n.textContent.trim());
   }, SEL.slash);
   check(
-    'A8 斜杠菜单（/web /community /cloud）',
+    'A8 斜杠菜单（/web /cloud /memory）',
     Array.isArray(slashCmds) &&
-      ['/web', '/community', '/cloud'].every((c) => slashCmds.includes(c)),
+      ['/web', '/cloud', '/memory'].every((c) => slashCmds.includes(c)),
     (slashCmds || []).join(' '),
   );
 

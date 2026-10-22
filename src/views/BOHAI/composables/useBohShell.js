@@ -1623,12 +1623,13 @@ export function useBohShell(props, emit) {
     if (currentResponseStyleId.value !== 'psychologist') {
       setResponseStyle('psychologist');
     }
-    // 访谈是「多规则 + 精细追问」的任务，轻量模型跟不上这套协议（实测 fast 会退化成问卷）。
-    // 能升就升；未登录时 pro 不在可选列表里，保持原样不报错。
-    const strongerMode = chatModes.value?.find((item) => item.id === 'pro');
-    if (strongerMode && currentModeId.value === 'fast') {
-      selectMode('pro');
-    }
+    // ⚠️ 2026-10-22 删掉一段**永不生效**的「升档」分支（plans/031 S0 ⑤）：
+    //    原代码 `chatModes.find(item => item.id === 'pro')` 后 `selectMode('pro')`。
+    //    但 `pro` 从来不是 mode_id —— 2026-10-20 起对应行是 `gemini`（plans/030 §3.2
+    //    只改 display_name、mode_id 保持原样），更早也没有过 'pro' 行 ⇒ find 恒 undefined，
+    //    整个 if 是死的。删掉与保留的运行时行为**完全一致**（心理分析仍停在当前档）。
+    //    若将来真要「访谈用更强模型」，应指策略档 `balance`（默认档）或 `intelligence`，
+    //    而不是复活一个不存在的 id —— 那会让 `selectMode` 静默 return，看起来像没生效。
     const session = chatSessions[currentSessionIndex.value];
     const hasHistory = (session?.messages?.length || 0) > 0;
     if (hasHistory) return;

@@ -1,7 +1,9 @@
 # 030 · BOH AI 模型体系重构：策略三档 + 模型直选 + 删 Coding 包
 
-- **状态**：DRAFT（2026-10-20 出方案，待实施）
-- **日期**：2026-10-20
+- **状态**：**阶段 1 / 2 / 3 / 6 已落地**（2026-10-20 数据 + 前端；**2026-10-22 阶段 6 自动挑选已上线**，
+  含 §6.2 的三处修订，见该节末尾「落地修订」）。阶段 4 的灰态/分隔线已随 10-20 批次落地；
+  阶段 5 的倍率验证见 `docs/未完成任务清单.md` 2026-10-22 条。
+- **日期**：2026-10-20（阶段 6 修订 2026-10-22）
 - **触发**：用户口径「模型不再分模式，直接显示模型名；搭配 Cost / Balance / Intelligence 三档策略；Coding plan 下线」
 - **影响面**：`bohai_model_configs` / `ai_quota_config` / `subscription_plan_prices`、`api-key-vault` EF、BOHAI 前端选择器、订阅页
 - **关联**：`docs/2026-10-02-BOHAI模型倍率与积分制度审查.md`（历史倍率口径，**本文已覆盖其结论**）、`plans/024`（延迟治理，`preferAccuracyModel` 相关）
@@ -244,6 +246,39 @@ if (Array.isArray(row.strategy_candidates) && row.strategy_candidates.length) {
 ```
 
 ⚠️ 此时 `policy.mode` 仍是策略的 `mode_id`，所以 `settle_ai_token_quota` 与 `get_ai_mode_token_multiplier` 都按**策略行**查倍率 ⇒ 预扣与结算自动一致。
+
+### 6.3 落地修订（2026-10-22 实施时改掉的三处）
+
+上面 §6.2 的片段**不能照抄**。实际落地的版本改了三点，理由都是"避免第二份真源 / 避免安全面"：
+
+| # | 原方案 | 落地版 | 为什么 |
+| --- | --- | --- | --- |
+| ① | jsonb 里存 `{provider, model_id, api_url, max_tokens}` | **只存 `{mode_id, weight}`**，其余回查 `bohai_model_configs` | 存整份配置 = 第二份模型配置真源（改表不生效）；且 jsonb 是后台自由文本，填个任意 URL 就能把全站请求发出去（SSRF 面）。只存 mode_id 后，候选行天然带 provider / min_tier / status，EF 可以照常过白名单与 tier 闸门 |
+| ② | 池子里没有 `weight` | 加 `weight` | §3.1 的 70/30、65/35、40/40/20 需要权重；没有它 `pickBySeed` 只能等概率 |
+| ③ | 直接返回 `target.*` | 候选行**重新过** `PROVIDER_OPTIONS` + `tierAllows`，采样参数也取候选行 | 策略行的 min_tier 只覆盖策略自己，候选行的档位可能更高；采样参数沿用策略行现在恰好一致（都是 0.18/0.72/0.05），但那是巧合，将来单模型调温度会静默失配 |
+
+另外两条实现口径：
+- **种子** = `北京日期 + userId + 策略 mode_id`（EF 侧 `beijingDateKey()` + `hashSeed()`，不落库）。同一用户同一天同一策略恒定。
+  已知限制：EF 每轮重算日期 ⇒ 会话跨北京时间 0 点继续聊会换模型。概率极低且扣费不变（倍率按策略行），故不引入会话标识参数。
+- **`strategy_candidates` 刻意不进 `list_public_bohai_modes`** —— 池子一旦下发，用户能算出"今天会落到哪个模型"，「随机」退化成「可预测」。
+
+### 6.4 定价口径修订（2026-10-22）
+
+§3.1 的定价依据是「池期望值 ± 小额让利」，落地时发现三个档的折扣方向不一致
+（用「池内最强模型」折算：cost **9 折** / balance **73 折** / intelligence **70 折**）——
+这正是用户看不懂「为什么 Balance 比 GLMZ1Flash 便宜 36%」的根源。
+
+**统一改成「池内最强 × 0.7」**（迁移 `2026102201`）：
+
+| 策略 | 池内最强 | 新价 | 原价 | 用户能自证的说法 |
+| --- | ---: | ---: | ---: | --- |
+| cost | 0.50 (GLM4Flash) | **0.35** | 0.45 | 比直接选 GLM4Flash 便宜 30% |
+| balance | 1.50 (GLMZ1Flash) | **1.05** | 1.10 | 比直接选 GLMZ1Flash 便宜 30% |
+| intelligence | 3.00 (Gemini3.8Flash) | **2.10** | 2.10 | 比直接选 Gemini3.8Flash 便宜 30% |
+
+⚠️ `quota_multiplier` 是**计价**不是**成本**。别把「定价 vs 池期望」当盈亏线 ——
+平台赚的是「积分售价 − 上游 token 成本」，倍率只是把 token 换算成积分的系数。
+
 
 ---
 

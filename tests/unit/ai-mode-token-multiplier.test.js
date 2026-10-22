@@ -21,7 +21,11 @@ describe('BOH AI mode token multipliers', () => {
     const vault = readFileSync(vaultPath, 'utf8');
     const migration = readFileSync(migrationPath, 'utf8');
     expect(vault).toContain("toText(mode, 80).toLowerCase()");
-    expect(vault).toContain(".ilike('mode_id', mode)");
+    // 2026-10-22：查询体抽到 `loadModelConfigRow(client, modeId)`（策略候选要走同一份缓存），
+    // 参数名从 `mode` 变成 `modeId`。断言放宽成两者都接受，但仍锁住「必须走 ilike」——
+    // 改成 `.eq('mode_id', ...)` 会当场红（mode_id 大小写混用：Air / Code / Ultra / 38Flash
+    // vs fast / gemini，见 plans/030 D10）。
+    expect(vault).toMatch(/\.ilike\('mode_id',\s*mode(Id)?\)/);
     expect(migration).toContain("lower(trim(coalesce(p_mode, '')))" );
   });
 

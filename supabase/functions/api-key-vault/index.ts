@@ -1606,6 +1606,126 @@ const USER_TIER_CACHE = new Map<string, { promise: Promise<string[]>; fetchedAt:
 type ModelConfigRow = Record<string, unknown> & { min_tier?: string };
 const MODEL_CONFIG_CACHE = new Map<string, { row: ModelConfigRow; fetchedAt: number }>();
 
+/* ── 策略行：候选池的解析与加权挑选（2026-10-22，plans/030 阶段 6）──────────────
+   数据形状：`bohai_model_configs.strategy_candidates = [{mode_id, weight}, ...]`
+   ⚠️ 池子里**只存 mode_id**，不存 provider/model_id/api_url —— 那些一律回查本表。
+      理由见迁移 `2026102201` 的文件头：存两份就是第二份真源，且 jsonb 自由文本
+      能当 SSRF 跳板（填个任意 URL 就把全站请求发出去）。
+   ⚠️ 本函数对候选行**重新过 tier 闸门与 provider 白名单** —— 策略行的 min_tier 只覆盖
+      策略自己，候选行的档位可能更高（现在是 free，将来会变），不能让 free 用户
+      被分到 pro 档模型上。 */
+
+type StrategyCandidate = { modeId: string; weight: number };
+
+/** 北京日期键（YYYY-MM-DD）。策略挑选的种子组成部分 —— 同一天同一用户恒定。 */
+const beijingDateKey = (now: Date = new Date()): string => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value || '';
+  return `${pick('year')}-${pick('month')}-${pick('day')}`;
+};
+
+/** djb2：把任意字符串压成 32 位无符号整数。同输入恒同输出（不依赖 Math.random）。 */
+const hashSeed = (input: string): number => {
+  let hash = 5381;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = ((hash << 5) + hash + input.charCodeAt(index)) >>> 0;
+  }
+  return hash >>> 0;
+};
+
+const parseStrategyCandidates = (raw: unknown): StrategyCandidate[] => {
+  if (!Array.isArray(raw)) return [];
+  const parsed: StrategyCandidate[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    const modeId = toText(record.mode_id, 80);
+    const weight = Number(record.weight);
+    // 非法项**跳过而不是抛错**：后台手工编辑 jsonb 时填错一项，
+    // 不应该让整个策略不可用（退化成"少一个候选"是可接受的降级）。
+    if (!modeId || !Number.isFinite(weight) || weight <= 0) continue;
+    parsed.push({ modeId, weight: Math.min(weight, 10_000) });
+  }
+  return parsed;
+};
+
+/** 按 mode_id 查一行配置（走同一个 5 分钟缓存，不额外增加 DB 压力）。 */
+async function loadModelConfigRow(
+  client: ReturnType<typeof createServiceClient>,
+  modeId: string,
+): Promise<ModelConfigRow | null> {
+  const cacheKey = modeId.toLowerCase();
+  const cached = MODEL_CONFIG_CACHE.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < RUNTIME_CACHE_TTL_MS) {
+    return cached.row;
+  }
+  const { data, error } = await client
+    .from('bohai_model_configs')
+    .select(
+      'mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier, strategy_candidates',
+    )
+    .ilike('mode_id', modeId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (error || !data) {
+    MODEL_CONFIG_CACHE.delete(cacheKey);
+    return null;
+  }
+  const row = data as ModelConfigRow;
+  MODEL_CONFIG_CACHE.set(cacheKey, { row, fetchedAt: Date.now() });
+  return row;
+}
+
+/**
+ * 从策略行的候选池里挑一个模型行。
+ * 返回 null 表示「不该走策略分支」（池子为空 / 候选全部不可用）⇒ 调用方退回固定绑定。
+ */
+async function resolveStrategyCandidate(
+  client: ReturnType<typeof createServiceClient>,
+  strategyRow: ModelConfigRow,
+  tier: string,
+  seedKey: string,
+): Promise<ModelConfigRow | null> {
+  const candidates = parseStrategyCandidates(strategyRow.strategy_candidates);
+  if (candidates.length === 0) return null;
+
+  const loaded = await Promise.all(
+    candidates.map((candidate) => loadModelConfigRow(client, candidate.modeId)),
+  );
+  const weights = new Map(
+    candidates.map((candidate) => [candidate.modeId.toLowerCase(), candidate.weight]),
+  );
+
+  const pool = loaded
+    .filter((row): row is ModelConfigRow => !!row)
+    .filter((row) => {
+      const minTier = (toText(row.min_tier) || 'free').toLowerCase();
+      return tierAllows(tier, normalizeTier(minTier));
+    })
+    .map((row) => ({
+      row,
+      weight: weights.get(String(row.mode_id || '').toLowerCase()) ?? 1,
+    }));
+
+  if (pool.length === 0) return null;
+
+  const total = pool.reduce((sum, item) => sum + item.weight, 0);
+  if (total <= 0) return pool[0].row;
+
+  let cursor = hashSeed(seedKey) % total;
+  for (const item of pool) {
+    if (cursor < item.weight) return item.row;
+    cursor -= item.weight;
+  }
+  return pool[pool.length - 1].row;
+}
+
+
 type TokenUsage = {
   promptTokens: number;
   completionTokens: number;
@@ -1916,27 +2036,12 @@ async function resolveRuntimeModelPolicy(
   }
   // 5 分钟内存缓存：模式配置是低频变更的元数据，缓存原始行数据。
   // tier 检查仍每次执行，确保用户降级后立即被拦截。
-  const cacheKey = mode.toLowerCase();
-  const cached = MODEL_CONFIG_CACHE.get(cacheKey);
-  let data: ModelConfigRow | null = null;
-  if (cached && Date.now() - cached.fetchedAt < RUNTIME_CACHE_TTL_MS) {
-    data = cached.row;
-  } else {
-    const { data: dbData, error } = await client
-      .from('bohai_model_configs')
-      .select(
-        'mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier',
-      )
-      .ilike('mode_id', mode)
-      .eq('status', 'active')
-      .maybeSingle();
-    if (error || !dbData) {
-      // 缓存未命中且 DB 查询失败，清理可能存在的旧缓存避免脏数据。
-      MODEL_CONFIG_CACHE.delete(cacheKey);
-      throw runtimeAccessError('当前模式暂不可用，请重新选择。', 400, 'MODE_UNAVAILABLE');
-    }
-    data = dbData as ModelConfigRow;
-    MODEL_CONFIG_CACHE.set(cacheKey, { row: data, fetchedAt: Date.now() });
+  // 2026-10-22：查询体抽到 `loadModelConfigRow()` —— 策略候选也要走同一份缓存，
+  // 两边各写一份 SELECT 迟早会漏列（这次就差点漏掉 strategy_candidates，
+  // 漏了的表现是「迁移加了列、EF 永远读到 undefined、看起来像没生效」）。
+  const data = await loadModelConfigRow(client, mode);
+  if (!data) {
+    throw runtimeAccessError('当前模式暂不可用，请重新选择。', 400, 'MODE_UNAVAILABLE');
   }
 
   // 2026-10-16：原先写 `toText(data.min_tier, 'free')` —— toText 第二参是**长度上限（number）**，
@@ -1960,6 +2065,54 @@ async function resolveRuntimeModelPolicy(
   if (!PROVIDER_OPTIONS.has(provider) || provider === 'tavily') {
     throw runtimeAccessError('当前模式配置无效，请联系管理员。', 500, 'MODE_CONFIG_INVALID');
   }
+
+  // ── 策略行：按天加权挑一个候选模型（2026-10-22，plans/030 阶段 6）──────────────
+  // 种子 = 北京日期 + 用户 + 策略 mode_id ⇒ 同一用户同一天同一策略恒定，跨天/换用户才重掷。
+  // 不落库、无状态；`strategy_candidates` 为空的行（= 普通模型行）在这里直接返回 null。
+  //
+  // ⚠️ 游客走不到这里：策略行 min_tier = 'free'，游客在上面那条 tierAllows 就被拦了。
+  //    若将来对游客开放策略行，**必须把 IP 纳入种子**（plans/030 §3.5）——
+  //    否则所有游客当天会落到同一个模型。
+  // ⚠️ `quotaMultiplier` 取的是**策略行**的倍率，不是候选行的 —— 这是「策略独立定价」的核心，
+  //    也是预扣（reserveTokenQuota）与结算（settle_ai_token_quota）能自动一致的原因。
+  // ⚠️ 已知限制：EF 每轮都重算日期 ⇒ 会话跨北京时间 0 点继续聊时会换模型。
+  //    概率极低（深夜 23:59 聊到 00:01），且倍率按策略行固定、扣费不变，故不额外引入
+  //    会话标识参数（那要改 4 处前端传参，收益不抵）。
+  const strategySeedKey = [
+    beijingDateKey(),
+    userId || 'anonymous',
+    normalizeModeId(String(data.mode_id || '')),
+  ].join(':');
+  const pickedCandidate = await resolveStrategyCandidate(client, data, tier, strategySeedKey);
+  if (pickedCandidate) {
+    const pickedProvider = (toText(pickedCandidate.provider) || provider).toLowerCase();
+    // 候选行同样要过 provider 白名单 —— 不能因为它是"后台配置的候选"就跳过（那是 SSRF 面）。
+    if (PROVIDER_OPTIONS.has(pickedProvider) && pickedProvider !== 'tavily') {
+      // 采样参数也取候选行的：沿用策略行的 0.18 现在恰好一致，但那是巧合 ——
+      // 将来某个模型单独调温度时，沿用旧值会静默失配（没有任何断言能抓到）。
+      return {
+        mode: normalizeModeId(String(data.mode_id || '')),
+        provider: pickedProvider,
+        modelId: toText(pickedCandidate.model_id, 120),
+        apiUrl: toText(pickedCandidate.api_url, 240),
+        maxTokens: clampInt(pickedCandidate.max_tokens, 1200, 1, 4096),
+        temperature: Number(pickedCandidate.temperature ?? data.temperature ?? 0.2),
+        topP: Number(pickedCandidate.top_p ?? data.top_p ?? 0.75),
+        frequencyPenalty: Number(
+          pickedCandidate.frequency_penalty ?? data.frequency_penalty ?? 0.06,
+        ),
+        quotaMultiplier: normalizeQuotaMultiplier(data.quota_multiplier, data.mode_id),
+      };
+    }
+    // 候选行配置非法 ⇒ 静默退回策略行自己的固定绑定。
+    // 一个候选坏了不该让整个策略不可用（用户侧表现为「今天用回固定那个模型」）。
+    console.warn('[vault] strategy candidate provider invalid, fallback to pinned model', {
+      strategy: data.mode_id,
+      candidate: pickedCandidate.mode_id,
+      provider: pickedProvider,
+    });
+  }
+
   return {
     mode: normalizeModeId(String(data.mode_id || '')),
     provider,

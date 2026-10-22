@@ -129,13 +129,12 @@
    断点（壳级）—— 档位表见 DESIGN §3.1
    ══════════════════════════════════════════════════════════════ */
 
-/* 窄竖屏：三个浮层都要完整落在视口内；hover 详情卡不挂 ——
-   触屏本来就没有 hover，竖屏也没有并排空间。模型行仍可直接选择。 */
-@media (orientation: portrait) {
-  .boh-mm-detail {
-    display: none;
-  }
-}
+/* ⚠️ 2026-10-22：竖屏「hover 详情卡不挂」那条 `@media (orientation: portrait)` 规则
+   **已迁到 `components/styles/boh-composer.css`**（plans/031 §2.5 / S0 ②）——
+   本文件 scoped 到 BOHAIMain，选择器带 `[data-v-main]`，够不到 BohComposer 模板内部的
+   那张详情卡，原规则是**死规则**（实测竖屏仍挂出、只露 17px 边）。别在这边加回来。
+   （本注释刻意不写那个类名：`tests/unit/bohai-glass-surfaces.test.js` 有一条负向断言，
+     要求本文件里**不出现**该类名 —— 写了就会被自己的注释满足。） */
 
 /* 小手机 ≤480：浮动按钮贴边收窄 + 两个选择面板不超出视口 */
 @media (max-width: 480px) {

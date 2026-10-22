@@ -7,7 +7,9 @@
 
 .boh-composer-wrap {
   flex: none;
-  padding: 6px 16px calc(12px + var(--boh-sab, 0px));
+  /* 2026-10-22：原为 `calc(12px + var(--boh-sab, 0px))` —— `--boh-sab` 全仓**零定义**
+     （Grep 只有这一处消费），fallback 恒 0 ⇒ 等价于 12px，删掉幻影令牌（plans/031 S0 ⑤）。 */
+  padding: 6px 16px 12px;
   /* 空态（壳在 `.boh-main` 上挂 `is-empty`）：整组「虚影字 + 输入框」垂直居中，
      这里吃掉剩余空间的**另一半**（另一半在 `.boh-stream` 的 `margin-top: auto`）。
      ⚠️ 两边必须各占一半 —— 两处都写成 `margin: auto` 会把空间对半分到两者**之间**，
@@ -429,10 +431,12 @@
     left: 12px;
     right: 12px;
     width: auto;
-    /* 竖屏顶部安全边：44dvh 面板 + 胶囊位置偶尔仍会贴到视口上沿
-       （实测 390×844 时 top=39，第一行被状态栏区域压住）。
-       这里把锚的**最大高度**再压一档，等于给顶部留白 —— 不改 bottom，胶囊对齐不变。 */
-    max-height: calc(100dvh - 140px);
+    /* 2026-10-22 删除一条**永不生效**的规则（plans/031 评审 C4）：
+       原为 `max-height: calc(100dvh - 140px)`，注释声称「把锚的最大高度压一档 = 给顶部留白」。
+       实测不成立：锚是 height:auto 的绝对定位盒子，子元素 `.boh-mode-menu` 自带
+       `max-height: min(44dvh, 360px)`，要触发父级这条 clamp 需 `100dvh-140 < 44dvh`
+       ⇒ 视口高 < 250px（不存在）。锚本身也没有背景/边框 ⇒ 即便 clamp 生效也看不见"留白"。
+       真正的顶部让位靠的是子元素那条 44dvh —— 别再在这里加第二条高度约束。 */
   }
 }
 
@@ -785,6 +789,19 @@
 .boh-mm-detail-use:disabled {
   color: var(--boh-text-3);
   cursor: default;
+}
+
+/* 竖屏不挂 hover 详情卡（2026-10-22 从 `styles/layout.css` 迁入，plans/031 §2.5）。
+   ⚠️ 原规则写在 `layout.css` 里是**死规则**：那个文件 scoped 到 `BOHAIMain`（选择器带
+      `[data-v-main]`），而 `.boh-mm-detail` 在 `BohComposer` 模板内部、只带 `[data-v-composer]`
+      ⇒ 一条都没命中。实测竖屏 hover 后卡片仍挂出，且 `left=-215 / right=17`
+      —— 整卡在视口左侧之外、只露 17px 的一条玻璃边，比不显示更糟。
+   ⚠️ 触屏本来就没有 hover；竖屏也没有并排空间（卡是向右展开的）。
+      模型行仍可直接点选，详情信息在桌面形态保留。 */
+@media (orientation: portrait) {
+  .boh-mm-detail {
+    display: none;
+  }
 }
 
 /* 工具菜单内衬（2026-10-11 起「高级」四工具独立成浮层，这层只做内边距） */
@@ -1239,10 +1256,17 @@
 
 /* 触屏（无 hover）⇒ 把命中区补回 44px：紧凑档行高 ≈43.8px，鼠标够用，手指点选偏小。
    判据用 `hover: none` 而不是宽度断点（照 `boh-stream.css` 的 `@media (hover: none)` 口径：
-   平板横屏 ≥1024 也可能是触屏，两者不是一回事）。 */
+   平板横屏 ≥1024 也可能是触屏，两者不是一回事）。
+   2026-10-22（plans/031 §2.6 / S0 ①）：原规则**只覆盖 `.boh-slash-item`**，模型行实测 41px
+   —— 竖屏切模式的主路径恰好就是这一排，漏在这里等于最该达标的那一排不达标。
+   取 48px（HIG 44 + 触摸误差）；策略行有两行文字天然 ≥55px，不受影响。 */
 @media (hover: none) {
   .boh-slash-item {
     min-height: 44px;
+  }
+
+  .boh-mm-item {
+    min-height: 48px;
   }
 }
 
