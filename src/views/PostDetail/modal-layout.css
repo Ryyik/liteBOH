@@ -48,8 +48,18 @@
   gap: 0;
 }
 
+/* 左栏自适应（2026-10-22，用户口径 Q1/Q2/Q3）
+   媒体列宽由宿主按当前图片比例算出写进 --pd-media-col（380~660px）；
+   信息列固定 460px（= --pd-info-col），保证文案与评论区宽度恒定。
+   变量缺失时回落到原来的 1.12fr / minmax(340px,1fr)，即 JS 未就绪时视觉不变。
+
+   ⚠️ 过渡必须同时覆盖 grid-template-columns —— 只给面板加 width 过渡的话，
+   面板在变宽、里面的列却瞬间跳位，会出现「框在动画、内容不跟」的割裂感。 */
 .post-detail-page--modal .pd-modal-body--has-media {
-  grid-template-columns: minmax(0, 1.12fr) minmax(340px, 1fr);
+  grid-template-columns:
+    var(--pd-media-col, minmax(0, 1.12fr))
+    var(--pd-info-col, minmax(340px, 1fr));
+  transition: grid-template-columns 520ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* 加载骨架撑满弹窗面板（列比例与正文布局对齐） */

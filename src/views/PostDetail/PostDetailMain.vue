@@ -67,7 +67,7 @@ const props = defineProps({
   postIdOverride: { type: [String, Number], default: '' },
   modalMode: { type: Boolean, default: false },
 });
-const emit = defineEmits(['close', 'open-post']);
+const emit = defineEmits(['close', 'open-post', 'media-ratio']);
 
 const postId = computed(() => String(props.postIdOverride || route.params.id || ''));
 
@@ -338,6 +338,66 @@ const detailImageKey = computed(() =>
   ).trim(),
 );
 const hasMultipleDetailImages = computed(() => detailImages.value.length > 1);
+
+/* ── 媒体比例上报（2026-10-22 左栏自适应）────────────────────────────────
+   用途：弹窗宿主按当前图片的宽高比调整「媒体列宽 + 面板总宽」。
+   为什么要上报而不是让宿主自己算：图片列表只有这里知道（弹窗内还会切图）。
+
+   数据来源两级，先便宜后准确：
+   ① 优先用 DB 里的 width/height（forum_post_images 表就有，实测覆盖率 100% 的量级），
+      好处是**图片还没下载完就能定布局**，不会先按错比例闪一下再跳；
+   ② DB 没有时才退回 naturalWidth/naturalHeight（图片 onload 后由下面 watch 补发）。
+   比例做安全夹紧：0.3 ~ 3.0。极端长图/全景图否则会把面板撑到不可用。 */
+const MIN_MEDIA_RATIO = 0.3;
+const MAX_MEDIA_RATIO = 3;
+const clampMediaRatio = (ratio) => {
+  const n = Number(ratio);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(MAX_MEDIA_RATIO, Math.max(MIN_MEDIA_RATIO, n));
+};
+
+const currentMediaRatio = computed(() => {
+  const img = currentDetailImage.value;
+  if (!img) return null;
+  const fromDb = clampMediaRatio(Number(img.width) / Number(img.height));
+  if (fromDb) return fromDb;
+  const loaded = loadedMediaRatio.value; // 由 onload 写入
+  return clampMediaRatio(loaded);
+});
+
+// 图片实际加载后量到的比例（只在 DB 缺 width/height 时才会被用到）
+const loadedMediaRatio = ref(null);
+
+// 当前图变了 ⇒ 清掉上一张量到的比例，避免拿旧值定新图
+watch(detailImageKey, () => {
+  loadedMediaRatio.value = null;
+  emitMediaRatio();
+});
+
+const emitMediaRatio = () => {
+  if (!props.modalMode) return;
+  emit('media-ratio', currentMediaRatio.value);
+};
+
+// DB 数据到位 / 切图 / 图片加载完成 —— 任一变化都把比例同步给宿主
+watch(currentMediaRatio, (ratio) => {
+  if (props.modalMode) emit('media-ratio', ratio);
+});
+onMounted(() => {
+  // 首帧可能已经拿到 DB 宽高（fetch 快于 mount），补发一次
+  emitMediaRatio();
+});
+
+// 图片 onload：量真实尺寸，作为 DB 缺值时的兜底
+const captureMediaRatio = (event) => {
+  const el = event?.target;
+  if (!el?.naturalWidth || !el?.naturalHeight) return;
+  const r = clampMediaRatio(el.naturalWidth / el.naturalHeight);
+  if (r && r !== loadedMediaRatio.value) {
+    loadedMediaRatio.value = r;
+    if (props.modalMode) emit('media-ratio', r);
+  }
+};
 
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value;
@@ -2347,7 +2407,10 @@ const handleChangeCommentSortMode = async (mode) => {
                     :class="{ 'is-loaded': isDetailImageLoaded(detailImageKey) }"
                     :width="currentDetailImage.width || undefined"
                     :height="currentDetailImage.height || undefined"
-                    @load="markDetailImageLoaded(detailImageKey)"
+                    @load="
+                      markDetailImageLoaded(detailImageKey);
+                      captureMediaRatio($event);
+                    "
                     @error="markDetailImageFailed(detailImageKey)"
                   />
                 </button>
@@ -2717,16 +2780,6 @@ const handleChangeCommentSortMode = async (mode) => {
                         @load="markDetailImageLoaded(detailImageKey)"
                         @error="markDetailImageFailed(detailImageKey)"
                       />
-                      <span
-                        v-if="
-                          currentDetailImage.width &&
-                          currentDetailImage.height &&
-                          !isDetailImageFailed(detailImageKey)
-                        "
-                        class="post-detail-image-meta"
-                      >
-                        {{ currentDetailImage.width }} × {{ currentDetailImage.height }}
-                      </span>
                     </button>
                   </transition>
                   <button

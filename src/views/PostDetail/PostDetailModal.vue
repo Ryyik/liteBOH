@@ -9,7 +9,7 @@
  *   BohaiSidebar 底层(2147482100/2200)，让位图片查看器(2147483000)与全局弹窗(2147483647)。
  *   编辑器等 fixed 子层在 panel 的 stacking context 内自然置顶，无需改其 z-index。
  */
-import { defineAsyncComponent, h } from 'vue';
+import { computed, defineAsyncComponent, h, ref } from 'vue';
 import { usePostDetailModal } from '@/composables/usePostDetailModal.js';
 import { recoverDynamicImportFailure } from '@/utils/vite-preload-recovery.js';
 import { forceCleanAndReload } from '@/utils/version-checker.js';
@@ -64,6 +64,72 @@ const { isOpen, postId, close, open } = usePostDetailModal();
 
 const handleClose = (options) => close(options);
 const handleOpenPost = (id) => open(id, { replace: true });
+
+/* ── 左栏随图比例自适应（2026-10-22，用户定稿口径）────────────────────────
+   口径（用户 2026-10-22 拍板）：
+     · Q1 信息列固定 **460px**（文案与评论区宽度恒定，不随图抖动）；
+     · Q2 宽图时**面板真的变宽**，上限维持 1120px；
+     · Q3 多图切换时**实时变**，配「慢速优雅」过渡。
+
+   几何推导（关键）：媒体列的高度是固定的（= 面板高 − 内衬），
+   所以媒体列的宽度可以由图片比例直接反推：媒体列宽 = 媒体列高 × 图片宽高比。
+   面板宽 = 媒体列宽 + 信息列 460 + 两侧内衬。
+
+   三条夹紧，缺一不可：
+   ① 媒体列下限 380px —— 再窄，左右导航箭头与底部圆点无处安放；
+   ② 媒体列上限 = 面板上限 1120 − 信息列 460 = 660px ——
+      横图时吃满后剩余交给 contain 成左右留白，这是**有意的**：
+      面板再宽正文行长会失控；
+   ③ 面板下限 760px —— 没有图 / 比例未知时的安全值。
+
+   ⚠️ 比例未知（无图帖、或图还没量出来）时一律回落到 760px 的单栏形态，
+   否则会按 media-ratio=null 算出个非法宽度，面板瞬间塌掉。 */
+const PANEL_MAX = 1120;
+const PANEL_MIN = 760;
+const INFO_COL = 460;
+const MEDIA_MIN = 380;
+/* 媒体列上限要按**视口**算，不能按面板上限算。
+   实测教训（2026-10-22）：先写死 PANEL_MAX 1120 ⇒ MEDIA_MAX 660，
+   而 130 张真实图的比例中位数是 0.75、p90 是 1.50，媒体列高约 850
+   ⇒ 1:1 图需要 850px 宽，被 660 夹掉 190px，左右各留一条白边。
+   也就是说「宽图左栏多长出来」的效果被上限吃掉了，与用户口径相反。
+   改为：媒体列上限 = 视口可用宽 − 内衬 − 信息列，面板上限同步放到「视口可用宽」
+   （见 panelMaxWidth）—— 两者必须同一来源，否则列宽相加会超过面板自身。 */
+const PANEL_GUTTER = 48; // overlay 的 padding: 24px × 2
+
+// null = 无图 / 未知比例 ⇒ 走单栏，不加宽
+const mediaRatio = ref(null);
+
+const handleMediaRatio = (ratio) => {
+  mediaRatio.value = Number.isFinite(Number(ratio)) && Number(ratio) > 0 ? Number(ratio) : null;
+};
+
+// 视口可用宽（overlay 有 24px 内衬）—— 面板与媒体列的真实上限都从这里派生
+const panelMaxWidth = computed(() => {
+  if (typeof window === 'undefined') return PANEL_MAX;
+  return Math.max(PANEL_MAX, window.innerWidth - PANEL_GUTTER);
+});
+
+// 媒体列高：与 .pd-modal-panel 的 height: min(880px, 100vh−48px) 保持一致地推算
+const mediaColHeight = computed(() => {
+  if (typeof window === 'undefined') return 850;
+  return Math.max(320, Math.min(880, window.innerHeight - PANEL_GUTTER));
+});
+
+// 媒体列宽：比例 × 列高，夹在 [380, 视口可用宽 − 信息列]
+const mediaColWidth = computed(() => {
+  const r = mediaRatio.value;
+  if (!r) return null;
+  const maxCol = Math.max(MEDIA_MIN, panelMaxWidth.value - INFO_COL);
+  return Math.round(Math.min(maxCol, Math.max(MEDIA_MIN, mediaColHeight.value * r)));
+});
+
+// 面板宽度 = 媒体列宽 + 信息列；无比例（无图/未知）时回落单栏最小宽
+const panelWidth = computed(() => {
+  const col = mediaColWidth.value;
+  if (!col) return PANEL_MIN;
+  return Math.min(panelMaxWidth.value, Math.max(PANEL_MIN, col + INFO_COL));
+});
 </script>
 
 <template>
@@ -72,6 +138,12 @@ const handleOpenPost = (id) => open(id, { replace: true });
       <div v-if="isOpen" class="pd-modal-overlay" @click="handleClose()">
         <div
           class="pd-modal-panel"
+          :class="{ 'is-ratio-adaptive': mediaRatio !== null }"
+          :style="{
+            '--pd-panel-width': panelWidth + 'px',
+            '--pd-media-col': mediaColWidth ? mediaColWidth + 'px' : null,
+            '--pd-info-col': INFO_COL + 'px',
+          }"
           role="dialog"
           aria-modal="true"
           aria-label="帖子详情"
@@ -94,6 +166,7 @@ const handleOpenPost = (id) => open(id, { replace: true });
               modal-mode
               @close="handleClose"
               @open-post="handleOpenPost"
+              @media-ratio="handleMediaRatio"
             />
           </div>
         </div>
@@ -118,7 +191,12 @@ const handleOpenPost = (id) => open(id, { replace: true });
 
 .pd-modal-panel {
   position: relative;
-  width: min(1120px, calc(100vw - 48px));
+  /* 宽度真源：由 JS（PostDetailModal 的 panelWidth）算出并写进 --pd-panel-width；
+     回退值保持原行为 min(1120px, 100vw−48px)，所以 JS 没算出来时视觉不变。 */
+  width: min(var(--pd-panel-width, 1120px), calc(100vw - 48px));
+  /* 慢速优雅过渡（用户 2026-10-22 口径）：切图时面板/媒体列平滑改宽。
+     只过渡 width 与 grid-template-columns —— 别写 all，否则背景/阴影也会跟着动。 */
+  transition: width 520ms cubic-bezier(0.22, 1, 0.36, 1);
   height: min(880px, calc(100vh - 48px));
   display: flex;
   flex-direction: column;

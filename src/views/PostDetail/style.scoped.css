@@ -598,24 +598,6 @@
   transform: translateY(4px) scale(0.99);
 }
 
-.post-detail-image-meta {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  min-height: 26px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 9px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.54);
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1;
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-}
-
 /* ✨ 新增：图片加载失败占位符样式 */
 .post-detail-image-failed-placeholder {
   width: 100%;
