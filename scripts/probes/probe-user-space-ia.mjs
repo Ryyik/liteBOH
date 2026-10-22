@@ -244,11 +244,13 @@ check(
 check('内容 tab 为默认激活', (await activeTab()) === '内容');
 
 let seg = await segState();
-// 六席文案集合 = src/config/forum-sections.ts FORUM_SECTION_ITEMS（官方居首、印象已移出）
+// 五席文案（2026-10-22）：「新闻」「活动」两席合并为「资讯」跳转入口，
+// 见 ForumSectionShell 的 sectionTabs —— 注意它会**过滤掉** FORUM_SECTION_ITEMS 里的 news/activity，
+// 所以这里不能直接拿 FORUM_SECTION_ITEMS 当期望值。
 check(
-  '论坛文字页签六席（官方/最新/关注/新闻/活动/成员）',
+  '论坛文字页签五席（官方/最新/关注/资讯/成员）',
   seg.exists &&
-    JSON.stringify(seg.labels) === JSON.stringify(['官方', '最新', '关注', '新闻', '活动', '成员']),
+    JSON.stringify(seg.labels) === JSON.stringify(['官方', '最新', '关注', '资讯', '成员']),
   (seg.labels || []).join('/'),
 );
 check('当前档 = 最新（论坛默认流，FORUM_DEFAULT_SECTION）', seg.active === '最新');

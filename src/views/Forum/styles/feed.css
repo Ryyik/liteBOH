@@ -1357,3 +1357,19 @@
   opacity: 0;
   transform: translateY(-6px);
 }
+
+/* 结果计数 / 分页提示（2026-10-22）
+   ⚠️ 这一类原先**没有任何样式**（全仓只有模板里那一个 `.forum-search-count`）⇒
+   它继承 body 的 16px 深色正文，在卡片流上方读起来像一句「标题」，
+   用户报「这个字很突兀」。改成 12px + 降透明度 + 居中，退成一条状态说明。
+   颜色刻意用 opacity 而不是新色值：这样亮/暗两套主题自动跟随，
+   也不会给 `check:dark-tokens` 的棘轮添一笔。 */
+.forum-search-count {
+  margin: 4px 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+  letter-spacing: 0.01em;
+  opacity: 0.55;
+  user-select: none;
+}
