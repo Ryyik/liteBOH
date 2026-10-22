@@ -645,16 +645,28 @@ await page.waitForTimeout(400);
 const sabState = await page.evaluate(() => {
   const bar = document.querySelector('.x-select-action-bar');
   if (!bar) return { exists: false };
-  const primary = bar.querySelector('.x-sab-primary');
+  const btns = Array.from(bar.querySelectorAll('.x-sab-btn'));
   return {
     exists: true,
     visible: getComputedStyle(bar).display !== 'none',
-    primaryText: primary ? primary.textContent.trim() : 'MISSING',
-    disabled: primary ? primary.disabled : true,
+    btns: btns.map((b) => b.textContent.trim().replace(/\s+/g, ' ')),
+    disabled: btns.map((b) => b.disabled),
   };
 });
 check('选择后出现一键已读操作栏', sabState.exists && sabState.visible);
-check('操作栏主按钮文案（完成）', (sabState.primaryText || '') === '完成', sabState.primaryText);
+/* 2026-10-22 订正：原断言查 `.x-sab-primary` 的文案必须等于「完成」—— 那个类名
+   只剩 CSS 死规则，模板里从来没有（`Messages/index.vue:351` 注释写明「退出入口
+   统一在页头取消，此处只放动作」）。于是这条从 10-19 起一直是红的、只是没人跑。
+   换成查真实的 `.x-sab-btn` 列表：两个动作（归档 / 已读）+ 未选中时全禁用。
+   判据仍然有牙 —— 操作栏空壳、按钮丢失、或禁用态失效都会红。 */
+check(
+  '操作栏含归档/已读两个动作（未选中时禁用）',
+  (sabState.btns || []).length === 2 &&
+    /^归档/.test(sabState.btns[0] || '') &&
+    /^已读/.test(sabState.btns[1] || '') &&
+    (sabState.disabled || []).every(Boolean),
+  `${(sabState.btns || []).join(' | ')} disabled=${JSON.stringify(sabState.disabled)}`,
+);
 await page.screenshot({ path: 'debug-screenshots/ia-messages-select-bar.png' });
 await page.evaluate(() => {
   const btn = document.querySelector('.x-select-action-bar .x-sab-btn');
@@ -1254,16 +1266,36 @@ const landBarPre = await landBar.evaluate(() => ({
 console.log('  [10b pre]', JSON.stringify(landBarPre));
 const landBarState = await landBar.evaluate(() => {
   const bar = document.querySelector('.x-select-action-bar');
-  const inline = document.querySelector('.x-filter-actions-desktop-minimal');
+  /* 真实类名是 `.x-filter-actions-desktop`（`.x-filter-actions-desktop-minimal`
+     在模板与 CSS 里都不存在 —— 原断言查的正是后者，所以永远 ABSENT、永远红）。 */
+  const inline = document.querySelector('.x-filter-actions-desktop');
+  const btns = bar ? Array.from(bar.querySelectorAll('.x-sab-btn')) : [];
   return {
     bar: bar ? getComputedStyle(bar).display : 'ABSENT',
-    primary: bar?.querySelector('.x-sab-primary')?.textContent.trim() || 'MISSING',
+    btns: btns.map((b) => b.textContent.trim().replace(/\s+/g, ' ')),
+    disabled: btns.map((b) => b.disabled),
     inline: inline ? getComputedStyle(inline).display : 'ABSENT',
   };
 });
 check('横屏选择后操作栏出现（1180px）', landBarState.bar === 'flex', landBarState.bar);
-check('横屏操作栏主按钮（完成）', landBarState.primary === '完成', landBarState.primary);
-check('横屏顶部重复行已隐藏', landBarState.inline === 'none', landBarState.inline);
+/* 2026-10-22 订正：同 §6b —— 原断言查 `.x-sab-primary` 的「完成」，那个类不存在。 */
+check(
+  '横屏操作栏含归档/已读两个动作（未选中时禁用）',
+  landBarState.btns.length === 2 &&
+    /^归档/.test(landBarState.btns[0] || '') &&
+    /^已读/.test(landBarState.btns[1] || '') &&
+    landBarState.disabled.every(Boolean),
+  `${landBarState.btns.join(' | ')} disabled=${JSON.stringify(landBarState.disabled)}`,
+);
+/* 「隐藏」有两种合法形态：`.x-filter-actions-desktop` 是**桌面版顶部操作组**
+   （完成 / 归档 / 已读），选择模式下模板直接不渲染它 ⇒ ABSENT。
+   原断言只认 `display:none`，把「不渲染」判成失败，属于判据太窄。
+   现在两者都算通过；只有「元素在场且可见」才红 —— 那才是真的重复入口。 */
+check(
+  '横屏顶部重复行已隐藏（不渲染或 display:none）',
+  landBarState.inline === 'ABSENT' || landBarState.inline === 'none',
+  landBarState.inline,
+);
 await landBar.screenshot({ path: 'debug-screenshots/ia-landscape-select-bar.png' });
 await landBar.close();
 
