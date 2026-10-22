@@ -1346,6 +1346,69 @@ check(
 await deskPage.screenshot({ path: 'debug-screenshots/ia-desktop-seg-tabs.png' });
 await deskPage.close();
 
+// ---------- 12. 竖屏通栏化（2026-10-22） ----------
+/* 锁住「我的 · 空间」竖屏 edge-to-edge 的产物：圆角归零 + 左右贴边 + 统计行 4 等分。
+   为什么需要：这批改动此前**只有肉眼验收**，而 ProfileHomePanel 首版曾因 scoped 特异性
+   被后面的基础规则反超而静默失效（封面仍 120px、统计行仍缩进 24px）—— 那次没有任何
+   断言能发现，只能靠人盯。 */
+const portraitPage = await context.newPage();
+await portraitPage.setViewportSize({ width: 390, height: 844 });
+await portraitPage.goto(`${BASE}/#/user-space?tab=posts`, { waitUntil: 'domcontentloaded' });
+await portraitPage
+  .waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 })
+  .catch(() => {});
+for (let i = 0; i < 6; i += 1) {
+  await portraitPage
+    .evaluate(() => {
+      const pinia = document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia;
+      if (!pinia?.state?.value?.auth) return;
+      pinia.state.value.auth.isLoggedIn = true;
+      pinia.state.value.auth.userInfo = {
+        id: 'probe-ia-user',
+        username: 'probe_rui',
+        role: 'user',
+        points: 1024,
+      };
+    })
+    .catch(() => {});
+  await portraitPage.waitForTimeout(400);
+}
+await portraitPage
+  .waitForSelector('.profile-home-shell .profile-hero-panel', { timeout: 20000 })
+  .catch(() => {});
+const portraitFlush = await portraitPage.evaluate(() => {
+  const panel = document.querySelector('.profile-home-shell > .profile-hero-panel');
+  const stats = document.querySelector('.profile-home-shell .profile-hero-stats');
+  if (!panel) return { found: false };
+  const cs = getComputedStyle(panel);
+  const r = panel.getBoundingClientRect();
+  const cols = stats
+    ? getComputedStyle(stats)
+        .gridTemplateColumns.split(/\s+/)
+        .filter((x) => x && x !== 'none')
+    : [];
+  return {
+    found: true,
+    radius: cs.borderTopLeftRadius,
+    left: Math.round(r.left),
+    right: Math.round(window.innerWidth - r.right),
+    cols: cols.length,
+  };
+});
+check(
+  '竖屏空间段：身份卡通栏（圆角 0）',
+  portraitFlush.found && portraitFlush.radius === '0px',
+  portraitFlush.found ? portraitFlush.radius : '面板未渲染',
+);
+check(
+  '竖屏空间段：身份卡左右贴边（≤1px）',
+  portraitFlush.found && portraitFlush.left <= 1 && portraitFlush.right <= 1,
+  portraitFlush.found ? `left=${portraitFlush.left} right=${portraitFlush.right}` : 'n/a',
+);
+check('竖屏空间段：统计行 4 等分', portraitFlush.cols === 4, `cols=${portraitFlush.cols}`);
+await portraitPage.screenshot({ path: 'debug-screenshots/ia-portrait-fullwidth.png' });
+await portraitPage.close();
+
 // ---------- 汇总 ----------
 check('零 pageerror（明色主流程）', errors.length === 0, errors.join(' | ').slice(0, 120));
 
