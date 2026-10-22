@@ -420,30 +420,34 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
 
 /* ---------- 指标条 ---------- */
 .heatmap-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 14px;
+  /* 2026-10-22：4 张卡片（2×2）占地约 160px，把热力图挤到首屏之外。
+     改成一行内联的「标签 + 数值」，高度降到 ~20px，热力图位置整体上移。
+     ⚠️ 热力图本身（CELL_SIZE 12 / CELL_GAP 3）**一个像素都不动** —— 用户明确要求保留尺寸。 */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-bottom: 12px;
 }
 
 .heatmap-metric {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 9px 10px;
-  border-radius: 12px;
-  background: var(--surface-soft, rgba(15, 23, 42, 0.035));
+  flex-direction: row;
+  align-items: baseline;
+  gap: 5px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
 }
 
 .heatmap-metric-label {
   color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 650;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .heatmap-metric-value {
   color: var(--text-primary);
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1.2;
 }
@@ -627,8 +631,10 @@ html[data-theme='dark'] .heatmap-cell.is-active:hover {
     padding: 12px 14px 10px;
   }
 
+  /* 2026-10-22：原 `grid-template-columns: repeat(2, minmax(0,1fr))` 是 2×2 卡片时代的
+     竖屏降列。现在 .heatmap-metrics 已是 flex 换行，这条对它无效，删掉免得下次误读。 */
   .heatmap-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 16px;
   }
 
   .heatmap-foot {

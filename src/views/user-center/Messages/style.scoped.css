@@ -825,7 +825,9 @@
   cursor: pointer;
   padding: 0 16px;
   min-height: 36px;
-  border-radius: 12px;
+  /* 2026-10-22：12px → 全圆角 pill。36px 高配 12px 圆角在视觉上偏「方框」，
+     与相邻的筛选 chip 一起看像两个直角标签；999px 才是胶囊该有的形态。 */
+  border-radius: 999px;
   transition: all 0.18s ease;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1059,7 +1061,8 @@
   padding: 0 16px;
   /* 在 sticky 页头（堆叠上下文）内：backdrop-filter 必被裁空（§21.11）⇒ 实底 token */
   border: 1px solid var(--liquid-border);
-  border-radius: 12px;
+  /* 2026-10-22：12px → 全圆角 pill（与「选择」按钮同口径，见 .x-mark-all-btn-minimal） */
+  border-radius: 999px;
   background: var(--liquid-bg-strong);
   color: #475467;
   font: inherit;
@@ -2125,13 +2128,17 @@
   }
 
   /* minimal 模式（uspace 嵌入态）的 sticky 头自带 `padding: 12px`，
-     不归零它，下面的筛选条永远缩在 12px 里；筛选条自己补 16px 给 chips 留呼吸。 */
+     不归零它，下面的筛选条永远缩在 12px 里。
+     ⚠️ 2026-10-22 修正：**左右不能归零**。原写法 `padding: 0` 把左右也清了，
+     于是「全部 / 选择」两个胶囊直接贴到屏幕边缘（截图实测 x=0）—— 通栏只该去掉
+     「外层页边距」，按钮本身仍需 16px 内缩。上下 0 + 左右 16px 才是对的口径。 */
   .x-header-minimal {
-    padding: 0;
+    padding: 0 16px;
   }
 
+  /* 上面已经给了 16px，这里只补上边距，左右归零免得变成 32px */
   .minimal-filter-bar {
-    padding: 8px 16px 0;
+    padding: 8px 0 0;
   }
 
   /* 消息流的真容器是 .x-inbox-list（单一液态玻璃连续面板），
@@ -2427,10 +2434,12 @@
   }
 
   /* 竖屏全宽（2026-10-22）：这条是 600 块里最后生效的一条（特异性与 767 块相同、
-     源序更后），原 `padding: 8px 12px 8px` 让筛选条缩在 12px 里。归零后由
-     .minimal-filter-bar 自己补 16px 给 chips 留呼吸。 */
+     源序更后）。
+     ⚠️ 2026-10-22 二次修正：原写 `padding: 0`，把左右也清了 —— 结果「全部 / 选择」
+     两个胶囊直接贴屏幕边缘（实测 chip.left=0、sel.right=0），比改之前更难看。
+     通栏只该去掉**外层页边距**，按钮自身仍需 16px 内缩。 */
   .x-header-minimal {
-    padding: 0;
+    padding: 0 16px;
   }
 
   .x-mark-all-btn-minimal {
