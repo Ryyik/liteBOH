@@ -164,8 +164,14 @@
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+  backdrop-filter: var(
+    --liquid-filter-sm,
+    blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate))
+  );
+  -webkit-backdrop-filter: var(
+    --liquid-filter-sm,
+    blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate))
+  );
   transition:
     background var(--duration-fast, 180ms) ease,
     color var(--duration-fast, 180ms) ease;
@@ -196,8 +202,14 @@
   border-radius: var(--liquid-radius-pill, 999px);
   background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
   border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+  backdrop-filter: var(
+    --liquid-filter-sm,
+    blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate))
+  );
+  -webkit-backdrop-filter: var(
+    --liquid-filter-sm,
+    blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate))
+  );
 }
 
 .post-detail-page--modal .pd-media-dot {
@@ -379,7 +391,7 @@
   border: none;
   box-shadow: none;
   /* 2026-10-22 补漏：只清 background/border/shadow 是不够的 ——
-     .glass-panel 基础类还挂着 backdrop-filter: blur(28px) saturate(1.8) brightness(1.02)。
+     .glass-panel 基础类还挂着它自己的 backdrop-filter（大半径模糊 + 饱和 + 提亮）。
      背景虽透明，这层滤镜仍会把底下的面板「提亮 + 加饱和」，
      在灰色面板上就渲染出一块比周围更白的圆角矩形（用户报「评论区白色块很别扭」）。
      玻璃容器既然已经去底，滤镜必须一起去掉，否则它是纯视觉噪声 + 每帧 GPU 开销。 */
@@ -501,8 +513,14 @@
   padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
   background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
   border-top: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
-  backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
-  -webkit-backdrop-filter: var(--liquid-filter-sm, blur(18px) saturate(180%));
+  backdrop-filter: var(
+    --liquid-filter-sm,
+    blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate))
+  );
+  -webkit-backdrop-filter: var(
+    --liquid-filter-sm,
+    blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate))
+  );
 }
 
 /* 评论输入框：自动增高 textarea（2026-10-01 由单行 input 改）
