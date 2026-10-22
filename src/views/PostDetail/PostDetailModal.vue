@@ -84,7 +84,6 @@ const handleOpenPost = (id) => open(id, { replace: true });
 
    ⚠️ 比例未知（无图帖、或图还没量出来）时一律回落到 760px 的单栏形态，
    否则会按 media-ratio=null 算出个非法宽度，面板瞬间塌掉。 */
-const PANEL_MAX = 1120; // 仅 SSR/无 window 时的历史兜底值；实际上限看 PANEL_HARD_MAX
 const PANEL_MIN = 760;
 const INFO_COL = 460;
 const MEDIA_MIN = 380;
