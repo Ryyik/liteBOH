@@ -1406,6 +1406,60 @@ check(
   portraitFlush.found ? `left=${portraitFlush.left} right=${portraitFlush.right}` : 'n/a',
 );
 check('竖屏空间段：统计行 4 等分', portraitFlush.cols === 4, `cols=${portraitFlush.cols}`);
+
+/* 另两段的口径（2026-10-22）：
+   · 印象段与空间段同为 edge-to-edge
+   · 资产段**刻意**保留 16px 卡片边距（工具型网格，贴边会把 tab 与统计卡挤到屏幕边缘）
+   这两条一起锁，是为了防「统一全宽」的下一轮改动把资产段也拉平 —— 那时应该有人先想清楚，
+   而不是被一条静默的 CSS 改掉。 */
+const segFlush = async (label) => {
+  await portraitPage
+    .evaluate((text) => {
+      const b = [...document.querySelectorAll('.segment-tab')].find(
+        (x) => x.textContent.trim() === text,
+      );
+      b?.click();
+    }, label)
+    .catch(() => {});
+  await portraitPage.waitForTimeout(2600);
+  return portraitPage.evaluate(() => {
+    const vis = (el) => {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+      const r = el.getBoundingClientRect();
+      return r.width > 20 && r.height > 8;
+    };
+    const roots = [...document.querySelectorAll('.profile-page-content')].filter(vis);
+    const root = roots[0];
+    if (!root) return { found: false };
+    const first = [...root.children].find(vis);
+    if (!first) return { found: false };
+    const r = first.getBoundingClientRect();
+    return {
+      found: true,
+      left: Math.round(r.left),
+      right: Math.round(window.innerWidth - r.right),
+      radius: getComputedStyle(first).borderTopLeftRadius,
+    };
+  });
+};
+
+const portraitImp = await segFlush('印象');
+check(
+  '竖屏印象段：贴边（≤1px）+ 方角',
+  portraitImp.found && portraitImp.left <= 1 && portraitImp.right <= 1,
+  portraitImp.found ? `left=${portraitImp.left} right=${portraitImp.right}` : '未渲染',
+);
+
+const portraitAssets = await segFlush('资产');
+check(
+  '竖屏资产段：保留 16px 卡片边距（反向锁）',
+  portraitAssets.found &&
+    Math.abs(portraitAssets.left - 16) <= 1 &&
+    Math.abs(portraitAssets.right - 16) <= 1,
+  portraitAssets.found ? `left=${portraitAssets.left} right=${portraitAssets.right}` : '未渲染',
+);
+
 await portraitPage.screenshot({ path: 'debug-screenshots/ia-portrait-fullwidth.png' });
 await portraitPage.close();
 
