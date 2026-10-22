@@ -14,6 +14,67 @@
   padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
 }
 
+/* ── 竖屏整页版进场（2026-10-22） ──────────────────────────────────
+   现状：弹窗态有 <Transition name="pd-modal">，但**竖屏整页版没有任何开关过渡** ——
+   App.vue 刻意没有路由级 <Transition>（那里的注释记录了「过渡类名从未被加上」的
+   实测结论），所以整页详情是从列表直接「硬切」进来的。
+
+   不碰 App.vue 那个已知失败的机制，改为在详情页自己的根元素上进/出场：
+
+   · **进场**用 CSS animation 而非 transition，因为它不依赖父级挂类，
+     元素一插入就播，不受路由时序影响（这正是 App.vue 那套失败的原因）；
+   · 用 `--pd-enter-from` 承接方向：从哪个列表点进来，就从那个方向滑入
+     （默认自下方 10px，列表在下方时观感是「页面升起来」）；
+   · 只作用在**非弹窗态**（:not(.post-detail-page--modal)）——
+     弹窗有自己的 .pd-modal-* 过渡，绝不能叠加两套；
+   · 260ms + --ease-out，与弹窗进场同族曲线，横竖屏观感一致；
+   · reduced-motion 下只保留极短淡入。 */
+@keyframes pd-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--pd-enter-from, 10px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 离场：往下沉一点 + 淡出（与进场反向，读起来是「页面退回去」）。
+   时长 220ms 比进场 260ms 略快 —— 关闭不耐等，与横屏弹窗同一口径。 */
+@keyframes pd-page-leave {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(var(--pd-leave-to, 8px)) scale(0.99);
+  }
+}
+
+.post-detail-page:not(.post-detail-page--modal) {
+  animation: pd-page-enter 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+/* ⚠️ 离场用单独的 animation 名**覆盖**进场，不能两个并列：
+   进场带了 `both` fill-mode，会把 opacity/transform 锁在终态，
+   不覆盖的话离场关键帧根本抢不过它（这是 fill-mode:both 的已知副作用，
+   本仓 AGENTS.md §3 也记着这条）。覆盖写法 = 换 animation，不是叠加。 */
+.post-detail-page.is-page-leaving:not(.post-detail-page--modal) {
+  animation: pd-page-leave 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-detail-page:not(.post-detail-page--modal) {
+    animation: pd-page-enter 120ms linear both;
+  }
+  .post-detail-page.is-page-leaving:not(.post-detail-page--modal) {
+    animation: pd-page-leave 100ms linear both;
+  }
+}
+
 .post-detail-page[data-anniversary-skin="active"] {
   --detail-ink: #292c26;
   --detail-muted: #666b5e;

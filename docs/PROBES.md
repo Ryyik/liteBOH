@@ -148,7 +148,19 @@
 大图查看器打开时让位、带修饰键的组合不接管。
 2026-10-22 反证：把箭头分支改成 `return` → A/C 当场 FAIL。
 
-`probe-post-detail-modal-xhs.mjs` | — | **横屏帖子详情弹窗「小红书对齐」度量器（8 项，2026-10-22 新增）**：面板实白 / 媒体满出血 / 媒体无自身圆角 / 动作条图标与数字同行 / 标题 18px / 正文 15px / 评论头像对齐标题 / 子回复头像 24px。**默认永远 exit 0**（只打「现值-目标-达标」表），`--assert` 才判定。视口固定 972×734（= 参考截图视口），**换视口会因 `clamp()` 取不同值而假红**（实测 `.content-text` 在 972 取下限 17px、1440 取 18.43px、≥1600 取上限 19px）。基线 **0/8**，注入改动后 **8/8**（反证已做）。⚠️ 必读坑：`modal-layout.css` 由 `<style scoped>` 的 `@import` 引入，指向子组件类名（`CommentThread.vue` 的 `.x-comments-section` / `.comment-item-x` / `.child-reply-item`）的规则**必须写 `:deep()`**，否则 scoped 编译成 `.xxx[data-v-父]` 永不匹配、样式静默失效（第一版补丁即踩此坑，探针照样 FAIL）。只读 DOM 计算值、不截图 ⇒ 证明「度量到位」而非「看起来一样」 |
+### `probe-post-detail-transition.mjs`（6 项，详情页开关过渡，2026-10-22）
+
+用户口径「从帖子列表打开和关闭都要有灵动优雅的过渡，横竖屏都要」。两套机制不同，分别验：
+A 横屏打开遮罩/面板错拍（面板 380ms > 遮罩 200ms） / B 横屏关闭离场**不缩小**（`scale(1.008)` 微胀，缩回小盒子是廉价感） / C 横屏进场有位移、离场无位移 / D 竖屏整页进场 animation 在跑 / E 竖屏离场挂 `.is-page-leaving` **且导航最终成功** / F 整页动画不叠加到弹窗态。
+2026-10-22 反证：把离场守卫改成直接 `return true` → **E 当场 FAIL（5/6）**。
+⚠️ 两个必读坑：① 进场/离场类由 Vue 在动画窗口内临时挂载，**超时再读会拿到 `none`（假红）**，统一在 80–150ms 窗口内读；② 本机到 Supabase 间歇性超时（实测同一查询 1449ms → 8001ms abort → 398ms 正常），详情取不到会渲染「帖子已失效」空态 ⇒ A–C 直接注入 DOM + 复用真实 scoped id，不依赖 DB。
+
+### `probe-post-detail-refresh-restore.mjs`（5 项，刷新保留弹窗，2026-10-22）
+
+F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 / C 竖屏整页刷新不被弹窗抢走 / D 关闭后刷新不再自动弹 / E 无 `history.state` 标记的直链不强行弹窗（分享链接保持整页）。
+反证：去掉 `App.vue` 的跳过条件 → A 当场 FAIL。⚠️ 关键坑：只把 `isOpen` 置真会出现**两棵详情树**（`pageCount=2`），关掉弹窗后旧版整页详情露出 —— 必须同时让 RouterView 跳过整页组件，且该跳过标志**只在刷新还原时为真**（写成「弹窗开着就跳过」会把正常点开的详情变成「帖子已失效」空态）。
+
+| `probe-post-detail-modal-xhs.mjs` | — | **横屏帖子详情弹窗「小红书对齐」度量器（8 项，2026-10-22 新增）**：面板实白 / 媒体满出血 / 媒体无自身圆角 / 动作条图标与数字同行 / 标题 18px / 正文 15px / 评论头像对齐标题 / 子回复头像 24px。**默认永远 exit 0**（只打「现值-目标-达标」表），`--assert` 才判定。视口固定 972×734（= 参考截图视口），**换视口会因 `clamp()` 取不同值而假红**（实测 `.content-text` 在 972 取下限 17px、1440 取 18.43px、≥1600 取上限 19px）。基线 **0/8**，注入改动后 **8/8**（反证已做）。⚠️ 必读坑：`modal-layout.css` 由 `<style scoped>` 的 `@import` 引入，指向子组件类名（`CommentThread.vue` 的 `.x-comments-section` / `.comment-item-x` / `.child-reply-item`）的规则**必须写 `:deep()`**，否则 scoped 编译成 `.xxx[data-v-父]` 永不匹配、样式静默失效（第一版补丁即踩此坑，探针照样 FAIL）。只读 DOM 计算值、不截图 ⇒ 证明「度量到位」而非「看起来一样」 |
 | `probe-reply-autogrow.mjs` | — | **评论/回复输入框「多字扩展」（19 断言，2026-09-30 新增 / 2026-10-01 场景 B 改回 A–D / 2026-10-19 删场景 D：伙伴印象页退场）**：竖屏 390×844，场景 A 打在用户空间内嵌论坛的卡片内联回复框（`PostCard` 的 `.reply-textarea-v2`）：A 空内容高度 = `rows` 撑出的高度且无内部滚动 / B 逐行加内容高度单调不减且未到上限时 `scrollHeight ≤ clientHeight + 1` / C 超上限后停在上限并框内滚动 / D 清空后回落 / E 父组件改写内容（同卡切嵌套回复，`replyContent` 被 `buildReplyDraft` 换成 `@user `）后必须回落。**E 是 `:value` 受控写法下唯一会命中 `watch(value)` 的真实路径**，只绑 `@input` 的实现不会收缩；前 6 张卡都没回复时记 SKIP 不记红。另有 F「键盘遮挡」仅测量上报（`plans/021` §8：先测再改）。场景 B（**2026-10-01 起已从绊线改回 A–D 断言**）：详情页底部评论输入已由单行 `input.pd-reply-input` 换成自动增高 `<textarea rows="1">`（产品口径「输入时自动扩充、输入完成自动收回」），所以它现在跑「形态 + A–D」共 5 条；`rows` 与内嵌 `.reply-textarea-x` 不渲染两条保留。⚠️ 两条口径坑：① 上限比较必须用 `offsetHeight` —— CSS `max-height` 约束 border-box，`clientHeight` 扣掉 1px 边框后会恒差 1~2px；② 该框只有 ~107px 宽，一行中文折两行，第 2 个采样点就触顶，故该场景 `minBelowCap: 1`（不变量是「存在一段无内部滚动的增长区间」，采样计数只是强度）。**反证已做**：`git checkout`/本地替换撤掉详情页接线后 B/C 红（高度恒为 42，即报障原状）；`git checkout -- src/views/Forum/components/PostCard.vue` 撤掉卡片接线后 B/C/E 红（高度恒为 85）。需先起本地 dev（默认 `http://[::1]:5173`，可用 `BASE` 覆盖） |
 
 ### 活动 / 方块墙 / 内容运营（4）

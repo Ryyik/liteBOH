@@ -336,15 +336,41 @@ const panelWidth = computed(() => {
   }
 }
 
-/* 过渡：淡入 + 轻微上浮缩放 */
-.pd-modal-enter-active,
-.pd-modal-leave-active {
-  transition: opacity var(--duration-base, 240ms) ease;
+/* ── 开关过渡（2026-10-22 重做） ──────────────────────────────────────
+   原来只有「淡入 + translateY(20px) scale(0.975)」，三处不够：
+   ① 透明度与位移共用 `ease`，进出场节拍一样，离场显得拖；
+   ② scale(0.975) 在 1040px 面板上是 ~26px 的缩放摆动，肉眼像整块弹一下，
+      而不是「浮起来」；
+   ③ 遮罩与面板同时淡出，没有主次。
+
+   现在的做法（对齐 iOS modal 的呼吸感）：
+   · **入场分两层错拍**：遮罩 200ms 先压暗，面板 380ms 稍慢跟进 ——
+     眼睛先看到背景被压下去，再看到面板升起来，有层次；
+   · **位移用 --ease-out**（快出慢收，Tailwind 那档 expo-out 的近似），
+     缩放只给 0.985 且从 12px 起 —— 大幅缩小换成「几乎不缩、只上浮」，
+     观感是升起而非弹跳；
+   · **离场更快更浅（260ms）**：关闭不耐等，这是 iOS 的普遍做法
+     （进 > 出的时长比约为 1.5:1）；离场不再缩小，改为 scale(1.008) 微胀后散开，
+     避免「缩回小盒子」那种廉价感；遮罩同步加速淡出。
+   · 全部走 opacity/transform（合成层），不触发重排。 */
+.pd-modal-enter-active {
+  transition: opacity 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
-.pd-modal-enter-active .pd-modal-panel,
+.pd-modal-leave-active {
+  transition: opacity 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.pd-modal-enter-active .pd-modal-panel {
+  transition:
+    transform 380ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    opacity 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
 .pd-modal-leave-active .pd-modal-panel {
-  transition: transform 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    opacity 180ms linear;
 }
 
 .pd-modal-enter-from,
@@ -352,9 +378,14 @@ const panelWidth = computed(() => {
   opacity: 0;
 }
 
-.pd-modal-enter-from .pd-modal-panel,
+.pd-modal-enter-from .pd-modal-panel {
+  opacity: 0;
+  transform: translateY(12px) scale(0.985);
+}
+
 .pd-modal-leave-to .pd-modal-panel {
-  transform: translateY(20px) scale(0.975);
+  opacity: 0;
+  transform: scale(1.008);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -362,7 +393,11 @@ const panelWidth = computed(() => {
   .pd-modal-leave-active,
   .pd-modal-enter-active .pd-modal-panel,
   .pd-modal-leave-active .pd-modal-panel {
-    transition: none;
+    transition: opacity 120ms linear;
+  }
+  .pd-modal-enter-from .pd-modal-panel,
+  .pd-modal-leave-to .pd-modal-panel {
+    transform: none;
   }
 }
 </style>

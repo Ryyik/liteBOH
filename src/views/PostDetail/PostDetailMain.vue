@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { getImageUrl } from '@/utils/asset-helper.js';
@@ -1488,6 +1488,56 @@ onMounted(() => {
   });
   isNarrowDetail.value = isNarrowDetailViewport();
   window.addEventListener('keydown', handleDetailKeydown);
+});
+
+/* ── 竖屏整页版**离场**过渡（2026-10-22） ─────────────────────────────
+   进场上一条 CSS animation 已解决（元素插入即播，不依赖父级挂类）。
+   离场是另一码事：Vue 卸载节点后元素就没了，CSS 无从播放，必须先把导航
+   **推迟一帧再放行**。
+
+   为什么不给 App.vue 加路由级 <Transition>：那里已有实测结论 ——
+   过渡类名从未被加上（MutationObserver + rAF 两种独立探测一致），
+   所以只能在本组件内部用导航守卫解决。
+
+   机制：onBeforeRouteLeave 返回 Promise，等动画跑完再 resolve。
+   · 覆盖全部退出路径：goBack 的 router.back()、两处 router.replace()，
+     以及浏览器后退按钮 —— 它们都要过路由守卫，这是唯一收口点；
+   · `let leaving = false` 防重入：守卫在 promise 期间若被再次触发
+     （用户连点后退），必须直接放行，否则会形成等待自己的死锁；
+   · 只在该组件是**整页版**（非弹窗）时启用 —— 弹窗由 .pd-modal-* 过渡负责，
+     叠加会导致两套动画同时跑；
+   · 留出 --pd-leave-ms 给 CSS 与 JS 共享时长，避免两处写死不一致；
+   · prefers-reduced-motion 直接放行，不做无意义的等待。 */
+let leaving = false;
+onBeforeRouteLeave(() => {
+  if (props.modalMode) return true; // 弹窗态：由 PostDetailModal 的过渡接管
+  if (typeof window === 'undefined') return true;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return true;
+  if (leaving) return true; // 防重入：已在离场中，不要再等一轮
+
+  const rootEl = detailPageRoot.value;
+  if (!rootEl) return true;
+
+  leaving = true;
+  rootEl.classList.add('is-page-leaving');
+  return new Promise((resolve) => {
+    const done = () => {
+      rootEl.classList.remove('is-page-leaving');
+      leaving = false;
+      resolve(true);
+    };
+    // 兜底超时：即便 transitionend 因元素被隐藏/reduced-motion 等原因没触发，
+    // 也绝不能把用户卡在详情页里（宁可动画不完整，也不能导航失效）。
+    const timer = setTimeout(done, 320);
+    rootEl.addEventListener(
+      'animationend',
+      () => {
+        clearTimeout(timer);
+        done();
+      },
+      { once: true },
+    );
+  });
 });
 
 onUnmounted(() => {
