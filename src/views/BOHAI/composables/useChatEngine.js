@@ -1865,6 +1865,12 @@ export function useChatEngine() {
           payload: requestBody,
           state: streamState,
           idleTimerRef: streamIdleTimerRef,
+          // 只用于判断「要不要先按住开头等判定」（GLM-Z1 系的思考只有闭合标签）。
+          // 前端拿不到上游真实模型名（EF 在服务端抽策略候选），故给 displayName + mode_id
+          // 两个提示；宁可多认 —— 误认只多等一次判定，漏认会让思考先闪进正文。
+          modelHint: `${generationModel.name || ''} ${generationModel.id || ''} ${
+            activeModeId || ''
+          }`,
         },
       );
       let assistantMessage = streamState.assistantMessage;

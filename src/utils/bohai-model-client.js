@@ -1,5 +1,6 @@
 import { CONNECTOR_TIMEOUT_MS, SILICON_CLOUD_CHAT_URL } from './bohai-constants.js';
 import { callVaultSiliconChat } from './api/api-key-runtime-api.js';
+import { stripPairedReasoningBlocks } from './reasoning-tags.js';
 
 const ZHIPU_CHAT_API_URL =
   import.meta.env.VITE_ZHIPU_CHAT_URL || 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
@@ -37,10 +38,9 @@ export const extractBohAIJsonObject = (text = '') => {
   const raw = String(text || '').trim();
   if (!raw) return null;
 
-  const withoutThinking = raw
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
-    .trim();
+  // 只剥**成对**标签（标签名单单源在 reasoning-tags.js）。这里刻意不用
+  // `stripReasoningBlocks`：它会「只有开口就删到结尾」，而 JSON 提取器要保留正文本身。
+  const withoutThinking = stripPairedReasoningBlocks(raw).trim();
   const fenced = withoutThinking.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced?.[1] || withoutThinking;
   const start = candidate.indexOf('{');

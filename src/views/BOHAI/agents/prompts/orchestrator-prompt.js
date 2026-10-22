@@ -1,4 +1,5 @@
 import { AGENT_AGENT_ROLES } from '../core/agent-events.js';
+import { stripPairedReasoningBlocks } from '@/utils/reasoning-tags.js';
 
 export const ORCHESTRATOR_SYSTEM_PROMPT = `<role>
 你是 BOH AI 集群的编排者（Orchestrator），负责把用户请求拆解成可并行执行的子任务。
@@ -95,7 +96,9 @@ export const buildOrchestratorUserPrompt = ({
 
 export const parseOrchestratorPlan = (rawText) => {
   if (!rawText || typeof rawText !== 'string') return null;
-  const stripped = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  // 只剥**成对**标签（名单单源在 reasoning-tags.js）。不能用 stripReasoningBlocks：
+  // 它「只有开口就删到结尾」，会把 plan 的 JSON 后半段一起删掉，解析静默返回 null。
+  const stripped = stripPairedReasoningBlocks(rawText).trim();
   if (!stripped) return null;
   const fenced = stripped.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced?.[1] || stripped;

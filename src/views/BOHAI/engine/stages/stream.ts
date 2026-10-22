@@ -41,7 +41,7 @@ export interface StreamStageDeps {
   callVaultSiliconChatStream: (input: Record<string, unknown>) => Promise<{
     body: ReadableStream<Uint8Array>;
   }>;
-  createThinkingState: () => unknown;
+  createThinkingState: (hint?: string) => unknown;
   createSseLineParser: (onPayload: (payload: string) => void) => SseLineParserLike;
   filterThinkingContentStream: (content: string, state: unknown) => string;
   flushThinkingBuffer: (state: unknown) => string;
@@ -65,6 +65,12 @@ export interface StreamStageOptions {
   provider: string;
   purpose: string;
   mode: string;
+  /**
+   * 模型提示（displayName / mode_id）—— 只用来判断「这个模型要不要先按住开头等判定」
+   * （GLM-Z1 系的思考只有闭合标签，见 `src/utils/reasoning-tags.js` 文件头）。
+   * 真实上游模型名在服务端定，前端只能给这个启发式提示；不影响任何可见文本。
+   */
+  modelHint?: string;
   apiUrl: string;
   timeoutMs: number;
   signal: AbortSignal;
@@ -79,6 +85,7 @@ export const runStreamStage = async (
     provider,
     purpose,
     mode,
+    modelHint,
     apiUrl,
     timeoutMs,
     signal,
@@ -88,7 +95,7 @@ export const runStreamStage = async (
   }: StreamStageOptions,
 ): Promise<void> => {
   // 创建流专用的思考过滤状态
-  const thinkingState = deps.createThinkingState();
+  const thinkingState = deps.createThinkingState(modelHint);
 
   const response = await deps.callVaultSiliconChatStream({
     provider,
@@ -139,6 +146,9 @@ export const runStreamStage = async (
   const sseParser = deps.createSseLineParser((payloadChunk) => {
     try {
       const data = JSON.parse(payloadChunk);
+      // 真实模型名 / 「思考走独立字段」只在上游报文里（前端拿到的是 boh:<mode_id>）——
+      // 前导暂存的判定与解除都依赖它，见 createThinkingState 的 notePayload。
+      (thinkingState as { notePayload?: (d?: unknown) => unknown }).notePayload?.(data);
       const delta = data.choices?.[0]?.delta || {};
       const rawContent = delta.content || '';
 
@@ -148,6 +158,7 @@ export const runStreamStage = async (
         const filteredContent = deps.filterThinkingContentStream(content, thinkingState);
         pushReasoning();
         if (filteredContent && filteredContent !== '[object Object]') {
+          (thinkingState as { noteEmitted?: (t?: string) => void }).noteEmitted?.(filteredContent);
           if (state.shouldRepairDegenerateStream) {
             return;
           }

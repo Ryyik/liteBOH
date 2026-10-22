@@ -20,6 +20,14 @@ import {
   callVaultSiliconChat,
   callVaultSiliconChatStream,
 } from '@/utils/api/api-key-runtime-api.js';
+import {
+  PARTIAL_THINK_CLOSE_RE,
+  PARTIAL_THINK_OPEN_RE,
+  REASONING_CLOSE_RE,
+  REASONING_OPEN_RE,
+  isLikelyBareCloseReasoningModel,
+  stripReasoningBlocks,
+} from '@/utils/reasoning-tags.js';
 
 // Default timeout for model calls (ms)
 const MODEL_CALL_TIMEOUT_MS = 30_000;
@@ -292,9 +300,11 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     return String(value);
   };
 
-  // 不完整的 `</think…` 尾巴（分块边界把闭合标签切开）—— 必须留在缓冲区里等下一块拼回来。
-  // 单源：思考块内的推理分流与下面的「潜在标签结尾」检测共用同一条规则。
-  const PARTIAL_THINK_CLOSE_RE = /<\/(?:t(?:h(?:i(?:n(?:k(?:i(?:n(?:g)?)?)?)?)?)?)?)?$/i;
+  // 前导暂存（leading hold）的两个上限。
+  // 只在「裸闭合家族」（GLM-Z1 系）上启用，见 createThinkingState 的注释。
+  // 超限就放行 —— 宁可回到修复前的行为（思考闪一下），也不要把整段正文扣住不出。
+  const LEADING_HOLD_MAX_CHARS = 4000;
+  const LEADING_HOLD_MAX_MS = 6000;
 
   // 修复状态残留：将thinking状态改为函数级而非模块级
   // 创建thinking状态管理器，确保每次调用独立
@@ -306,15 +316,50 @@ export function useGenerationPipeline({ availableModels, abortController, curren
   //   ⚠️ 正文输出**一个字符都不变** —— 只是不再丢，不是新增可见文本。
   //   ⚠️ `reset()` **不清 reasoning**：它属于「这一轮生成」，不属于解析状态；
   //      解析状态会在一轮里被 flush 多次，清掉就把前面的推理丢了。
-  const createThinkingState = () => {
+  //
+  // 2026-10-22（用户报障「Z1 也有推理把思考过程泄露」）：加**前导暂存**。
+  //   Z1 系的思考形如 `思考……</think>答案`（开口标签由对话模板替它说了，见
+  //   `src/utils/reasoning-tags.js` 文件头）。闭合标签到手之前，我们在字面上无法
+  //   区分「这是思考」和「这是答案的开头」—— 已经吐进正文的字**收不回来**
+  //   （stage 是 `assistantMessage += 过滤结果`）。所以对这类模型先把**开头**按住，
+  //   等判定出来再决定去正文还是去推理。
+  //   ⚠️ 三个「立刻放行」的出口，缺任何一个都会把正文扣住（比泄漏更糟）：
+  //      ① 见到开/闭标签 → 判定完成；
+  //      ② 上游给了 `reasoning_content`/`reasoning` ⇒ 思考走独立字段，content 是干净正文；
+  //      ③ 超时/超长（LEADING_HOLD_*）⇒ 放弃判定，按修复前行为放行。
+  //   ⚠️ 只对**裸闭合家族**启用（`isLikelyBareCloseReasoningModel`）：开标签家族
+  //      （`<think>` 打头）本来就靠开标签分流，按住开头纯属白等。
+  // 参数接受两种形态：字符串（= 模型提示）或 `{ modelHint }`。
+  // 字符串形态是为了兼容既有调用点 —— 它们原本就是无参调用，改签名不该波及调用方。
+  const createThinkingState = (options = {}) => {
+    const modelHint = typeof options === 'string' ? options : options?.modelHint || '';
     let inThinkingBlock = false;
     let thinkingBuffer = '';
     let reasoning = '';
+    // 前导暂存：leadingHold 为真时，进来的字先攒在 heldText 里，一个都不吐。
+    // ⚠️ `initialHold` 要单独记：`reset()` 是**每轮流开始时**被调的（callModelStream 建完
+    //    状态立刻 reset），如果 reset 把 leadingHold 清成 false，Z1 的按住就永远不生效。
+    const initialHold = isLikelyBareCloseReasoningModel(modelHint);
+    let leadingHold = initialHold;
+    let heldText = '';
+    let holdStartedAt = 0;
+    let upstreamModel = '';
+    let emittedChars = 0;
+    // 上游是否把思考放进了独立字段（Zhipu 的 `delta.reasoning_content`、OpenRouter 的
+    // `delta.reasoning`）—— 只要有，content 里就没有思考，前导暂存立刻收工。
+    let reasoningSeparated = false;
+
+    const isBareCloseFamily = () =>
+      isLikelyBareCloseReasoningModel(upstreamModel) || isLikelyBareCloseReasoningModel(modelHint);
 
     return {
       reset: () => {
         inThinkingBlock = false;
         thinkingBuffer = '';
+        // 回到「这一轮开始」的样子：提示命中的模型仍然要按住开头等判定。
+        leadingHold = initialHold && !reasoningSeparated;
+        heldText = '';
+        holdStartedAt = 0;
       },
       getState: () => ({ inThinkingBlock, thinkingBuffer }),
       setState: (state) => {
@@ -326,44 +371,123 @@ export function useGenerationPipeline({ availableModels, abortController, curren
         if (next) reasoning += next;
       },
       getReasoning: () => reasoning,
+
+      // ── 前导暂存（2026-10-22）────────────────────────────────────────
+      isLeadingHoldActive: () => leadingHold,
+      getHeldText: () => heldText,
+      appendHeld: (text) => {
+        if (!text) return;
+        if (!holdStartedAt) holdStartedAt = Date.now();
+        heldText += text;
+      },
+      startLeadingHold: () => {
+        leadingHold = true;
+        heldText = '';
+        holdStartedAt = Date.now();
+      },
+      endLeadingHold: () => {
+        leadingHold = false;
+      },
+      takeHeldText: () => {
+        const text = heldText;
+        heldText = '';
+        leadingHold = false;
+        holdStartedAt = 0;
+        return text;
+      },
+      /**
+       * 每个上游 SSE payload 都过一遍（只读观测，不产生可见文本）：
+       * ① 记下真实模型名（前端拿不到它 —— 策略行的模型由 Edge Function 在服务端抽）；
+       * ② 发现 `reasoning_content` / `reasoning` ⇒ 思考不在 content 里，暂存没必要。
+       */
+      notePayload: (data) => {
+        const delta = data?.choices?.[0]?.delta || {};
+        const message = data?.choices?.[0]?.message || {};
+        const modelName = String(data?.model || data?.choices?.[0]?.model || '');
+        if (modelName && !upstreamModel) {
+          upstreamModel = modelName;
+          // 首块常带 `model` 而 content 为空 ⇒ 还来得及按住。
+          // ⚠️ 只在「一个可见字符都没吐过」时才允许**中途启用**，否则已经吐出去的
+          //    正文收不回来，这时再按住只会让用户等到一个不完整的开头。
+          if (emittedChars === 0 && isBareCloseFamily()) leadingHold = true;
+        }
+        if (
+          delta.reasoning_content ||
+          delta.reasoning ||
+          message.reasoning_content ||
+          message.reasoning ||
+          // Gemini 代理把思考签名放在这里（cloudflare/gemini-proxy/README.md §3）
+          delta.extra_content ||
+          message.extra_content
+        ) {
+          reasoningSeparated = true;
+          // content 干净 ⇒ 不按住（攒着的字当正文放行）
+          leadingHold = false;
+        }
+        return 'keep';
+      },
+      /** 记一笔「已经吐出过内容」—— 中途启用前导暂存的前提是它仍为 0。 */
+      noteEmitted: (text) => {
+        emittedChars += String(text || '').length;
+      },
+      /** 超限判定：超时或超长就放弃判定（回到修复前行为）。 */
+      isLeadingHoldExpired: () =>
+        Boolean(holdStartedAt) &&
+        (heldText.length > LEADING_HOLD_MAX_CHARS ||
+          Date.now() - holdStartedAt > LEADING_HOLD_MAX_MS),
     };
   };
 
   // 非流式文本的思考内容过滤（后处理）
+  // 标签名单与「裸闭合」规则都在 `src/utils/reasoning-tags.js`（唯一真源），
+  // 这里只保留中文标记清洗与空行收敛这些**与标签无关**的收尾。
   const filterThinkingContent = (content) => {
     if (!content) return '';
-    let filtered = content;
+    let filtered = String(content);
 
     let previousFiltered;
     do {
       previousFiltered = filtered;
 
-      // 1. 过滤完整的 思考 标签（think / thinking）
-      filtered = filtered.replace(/<think[^>]*>[\s\S]*?<\/think>/gi, '');
-      filtered = filtered.replace(/<think[^>]*>[\s\S]*$/gi, '');
-      filtered = filtered.replace(/^[\s\S]*<\/think>/gi, '');
-      filtered = filtered.replace(/<\/?think[^>]*>/gi, '');
-      filtered = filtered.replace(/<thinking[^>]*>[\s\S]*?<\/thinking>/gi, '');
-      filtered = filtered.replace(/<thinking[^>]*>[\s\S]*$/gi, '');
-      filtered = filtered.replace(/^[\s\S]*<\/thinking>/gi, '');
-      filtered = filtered.replace(/<\/?thinking[^>]*>/gi, '');
+      // 1. 剥掉思考标签（成对 / 只有开口 / 只有闭合 / 孤立，四种形态）
+      filtered = stripReasoningBlocks(filtered);
 
-      // 5. 过滤中文思考标记
+      // 2. 过滤中文思考标记（无标签渠道的兜底；只作用于非流式，理由见下）
       filtered = filtered.replace(/\*\*思考\*\*[\s\S]*?(?=\*\*回答\*\*|$)/g, '');
       filtered = filtered.replace(/思考过程[\s\S]*?(?=回答|$)/g, '');
     } while (previousFiltered !== filtered);
 
-    // 6. 去除多余空行
+    // 3. 去除多余空行
     filtered = filtered.replace(/\n{3,}/g, '\n\n');
 
     return filtered.trim();
   };
 
   // 流式处理时的思考内容过滤（带状态跟踪）
+  //
+  // ⚠️ 两条与「正文一个字符都不许变」直接相关的纪律：
+  //   ① **不能**把上面的中文标记规则搬到流式：那些规则是「见到 `思考过程` 就删到 `回答`」，
+  //      流式下只要正文里出现「思考过程」四个字就会开始吞字，而流式无法回滚已吐出的正文。
+  //   ② 分块会把标签切成两半 ⇒ 半截标签必须留在缓冲区等下一块（PARTIAL_* 两条正则）。
   const filterThinkingContentStream = (chunk, thinkingState) => {
+    const state = thinkingState;
+
+    // ── 前导暂存：判定完成前，一个字都不吐 ───────────────────────────
+    if (state.isLeadingHoldActive?.()) {
+      if (chunk) state.appendHeld(chunk);
+      const held = state.getHeldText();
+      const settled =
+        REASONING_OPEN_RE.test(held) || REASONING_CLOSE_RE.test(held) || state.isLeadingHoldExpired();
+      if (!settled) return '';
+      // 判定完成（或放弃）：把攒下的字交给下面的常态逻辑重新处理一遍。
+      // 交给它而不是就地处理，是为了让「裸闭合 = 前面全是思考」这条规则只有一份实现。
+      state.takeHeldText();
+      state.setState({ inThinkingBlock: false, thinkingBuffer: '' });
+      return filterThinkingContentStream(held, state);
+    }
+
     if (!chunk) return '';
 
-    const state = thinkingState;
     const { inThinkingBlock, thinkingBuffer } = state.getState();
     let newBuffer = thinkingBuffer + chunk;
     let output = '';
@@ -371,57 +495,68 @@ export function useGenerationPipeline({ availableModels, abortController, curren
 
     while (true) {
       if (newInThinkingBlock) {
-        const endMatch = newBuffer.match(/<\/(?:think|thinking)>/i);
+        const endMatch = newBuffer.match(REASONING_CLOSE_RE);
         if (endMatch) {
           newBuffer = newBuffer.slice(endMatch.index + endMatch[0].length);
           newInThinkingBlock = false;
           continue;
-        } else {
-          // 这一整段都是推理内容（修复前在这里被**丢弃**）。分块可能把闭合标签切开 ⇒
-          // 把不完整的 `</think…` 尾巴留在缓冲区等下一块拼回来，其余归推理。
-          const partial = newBuffer.match(PARTIAL_THINK_CLOSE_RE);
-          state.appendReasoning(partial ? newBuffer.slice(0, partial.index) : newBuffer);
-          state.setState({
-            inThinkingBlock: newInThinkingBlock,
-            thinkingBuffer: partial ? partial[0] : '',
-          });
-          return output;
         }
+        // 这一整段都是推理内容（修复前在这里被**丢弃**）。分块可能把闭合标签切开 ⇒
+        // 把不完整的 `</think…` 尾巴留在缓冲区等下一块拼回来，其余归推理。
+        const partial = newBuffer.match(PARTIAL_THINK_CLOSE_RE);
+        state.appendReasoning(partial ? newBuffer.slice(0, partial.index) : newBuffer);
+        state.setState({
+          inThinkingBlock: newInThinkingBlock,
+          thinkingBuffer: partial ? partial[0] : '',
+        });
+        return output;
       }
 
-      const startMatch = newBuffer.match(/<(?:think|thinking)[^>]*>/i);
+      const startMatch = newBuffer.match(REASONING_OPEN_RE);
+      // ★ 裸闭合（Z1 形态）：**闭合之前全是思考**，且优先级高于开标签匹配 ——
+      //   两者同时出现时，谁在前谁定界（见下一条判断）。
+      const bareCloseMatch = newBuffer.match(REASONING_CLOSE_RE);
+      if (bareCloseMatch && (!startMatch || bareCloseMatch.index < startMatch.index)) {
+        state.appendReasoning(newBuffer.slice(0, bareCloseMatch.index));
+        newBuffer = newBuffer.slice(bareCloseMatch.index + bareCloseMatch[0].length);
+        continue;
+      }
+
       if (startMatch) {
         const beforeThink = newBuffer.slice(0, startMatch.index);
         const afterThink = newBuffer.slice(startMatch.index + startMatch[0].length);
 
-        const endMatch = afterThink.match(/<\/(?:think|thinking)>/i);
+        const endMatch = afterThink.match(REASONING_CLOSE_RE);
         if (endMatch) {
           // 同一块里的完整 `<think>…</think>`：中间就是推理内容（修复前丢弃）
           state.appendReasoning(afterThink.slice(0, endMatch.index));
           output += beforeThink;
           newBuffer = afterThink.slice(endMatch.index + endMatch[0].length);
           continue;
-        } else {
-          newInThinkingBlock = true;
-          output += beforeThink;
-          const partial = afterThink.match(PARTIAL_THINK_CLOSE_RE);
-          state.appendReasoning(partial ? afterThink.slice(0, partial.index) : afterThink);
-          state.setState({
-            inThinkingBlock: newInThinkingBlock,
-            thinkingBuffer: partial ? partial[0] : '',
-          });
-          return output;
         }
+        newInThinkingBlock = true;
+        output += beforeThink;
+        const partial = afterThink.match(PARTIAL_THINK_CLOSE_RE);
+        state.appendReasoning(partial ? afterThink.slice(0, partial.index) : afterThink);
+        state.setState({
+          inThinkingBlock: newInThinkingBlock,
+          thinkingBuffer: partial ? partial[0] : '',
+        });
+        return output;
       }
 
       break;
     }
 
-    // 检测不完整标签结尾（与思考块内的分流共用同一条正则）
-    const potentialTagMatch = newBuffer.match(PARTIAL_THINK_CLOSE_RE);
-    if (potentialTagMatch) {
-      output += newBuffer.slice(0, potentialTagMatch.index);
-      state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: potentialTagMatch[0] });
+    // 检测不完整标签结尾：闭合（`</thi`）、开口（`<thi`）、以及孤零零的 `<` / `</`。
+    // 三者都必须留到下一块 —— 提前吐出去就是「标签被拆成两半」的漏洞来源。
+    const partialClose = newBuffer.match(PARTIAL_THINK_CLOSE_RE);
+    const partialOpen = partialClose ? null : newBuffer.match(PARTIAL_THINK_OPEN_RE);
+    const dangling = partialClose || partialOpen ? null : newBuffer.match(/(<\/?)$/);
+    const pendingTag = partialClose || partialOpen || dangling;
+    if (pendingTag) {
+      output += newBuffer.slice(0, pendingTag.index);
+      state.setState({ inThinkingBlock: newInThinkingBlock, thinkingBuffer: pendingTag[0] });
       return output;
     }
 
@@ -433,6 +568,17 @@ export function useGenerationPipeline({ availableModels, abortController, curren
   // 流式处理结束时刷新缓冲区
   const flushThinkingBuffer = (thinkingState) => {
     const state = thinkingState;
+    // 前导暂存到 EOF 还没判定：交给常态逻辑再跑一遍 —— 没有闭合标签 ⇒ 它是正文；
+    // 有闭合标签 ⇒ 前面的归推理。绝不在这里直接当正文吐（那正是这次要修的漏洞）。
+    if (state.isLeadingHoldActive?.()) {
+      const held = state.takeHeldText();
+      if (!held) {
+        state.reset();
+        return '';
+      }
+      const visible = filterThinkingContentStream(held, state);
+      return visible + flushThinkingBuffer(state);
+    }
     const { inThinkingBlock, thinkingBuffer } = state.getState();
     if (inThinkingBlock) {
       // 流在思考块里结束：残留内容（可能是不完整的闭合标签）也归**推理**，
@@ -442,7 +588,8 @@ export function useGenerationPipeline({ availableModels, abortController, curren
       return '';
     }
     state.reset();
-    return thinkingBuffer;
+    // 缓冲区里只剩半截标签（EOF 时拼不回来了）⇒ 半截标签本身不是正文，丢掉。
+    return thinkingBuffer.replace(PARTIAL_THINK_CLOSE_RE, '').replace(PARTIAL_THINK_OPEN_RE, '');
   };
 
   /** 取本轮累积的推理内容（渲染层「思考过程」块的数据源） */
@@ -470,7 +617,9 @@ export function useGenerationPipeline({ availableModels, abortController, curren
     if (!model) throw new Error(`Model ${modelId} not found`);
 
     // 修复状态残留：每次调用创建独立的thinking状态
-    const thinkingState = createThinkingState();
+    // `model.name` / `model.id` 只用于「要不要先按住开头等判定」的启发式
+    // （GLM-Z1 系的思考只有闭合标签），不影响任何可见文本。
+    const thinkingState = createThinkingState(`${model.name || ''} ${model.id || ''}`);
     thinkingState.reset();
 
     const resolvedOptions = {
@@ -513,6 +662,9 @@ export function useGenerationPipeline({ availableModels, abortController, curren
       const sseParser = createSseLineParser((payload) => {
         try {
           const data = JSON.parse(payload);
+          // 真实模型名 / 「思考走独立字段」只有上游报文里才有（前端拿到的是 boh:<mode_id>），
+          // 前导暂存的解除条件依赖它 —— 见 createThinkingState 的 notePayload。
+          thinkingState.notePayload?.(data);
           const delta = data.choices?.[0]?.delta || {};
           const rawContent = delta.content || '';
 
@@ -520,6 +672,7 @@ export function useGenerationPipeline({ availableModels, abortController, curren
             const content = safeChunkToString(rawContent);
             const filteredContent = filterThinkingContentStream(content, thinkingState);
             if (filteredContent && filteredContent !== '[object Object]') {
+              thinkingState.noteEmitted?.(filteredContent);
               finalText += filteredContent;
               if (typeof onChunk === 'function') onChunk(filteredContent);
             }
