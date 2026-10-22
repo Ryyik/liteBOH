@@ -1,6 +1,12 @@
 <template>
   <div key="profile-impressions" class="profile-subpage-shell">
-    <UserCenterPageHeader title="我的印象" back-label="返回我的" max-width="1200px" :show-back="showBack" @back="$emit('back')" />
+    <UserCenterPageHeader
+      title="我的印象"
+      back-label="返回我的"
+      max-width="1200px"
+      :show-back="showBack"
+      @back="$emit('back')"
+    />
 
     <div class="profile-subpage-body">
       <!-- 加载骨架：与卡片同构的玻璃占位 -->
@@ -19,30 +25,51 @@
       <template v-else-if="impressions.length">
         <p class="profile-impressions-subtitle">
           <Sparkles :size="14" :stroke-width="2" aria-hidden="true" />
-          <span><strong>{{ impressions.length }}</strong> 位伙伴写下了对你的印象</span>
+          <span
+            ><strong>{{ impressions.length }}</strong> 位伙伴写下了对你的印象</span
+          >
         </p>
 
         <div class="profile-impressions-grid">
-          <article v-for="(imp, index) in impressions" :key="imp.id" class="profile-impression-card"
-            :style="{ '--stagger-delay': `${Math.min(index, 8) * 55}ms` }">
+          <article
+            v-for="(imp, index) in impressions"
+            :key="imp.id"
+            class="profile-impression-card"
+            :style="{ '--stagger-delay': `${Math.min(index, 8) * 55}ms` }"
+          >
             <span class="impression-quote-mark" aria-hidden="true">"</span>
             <p class="impression-content">{{ imp.content }}</p>
             <div class="impression-foot">
               <div class="impression-author">
                 <span class="impression-avatar" aria-hidden="true">
-                  <img v-if="getAvatarUrl(imp.author?.avatar_url, 'sm')" :src="getAvatarUrl(imp.author?.avatar_url, 'sm')"
-                    :alt="`${imp.author?.username || '匿名伙伴'} 的头像`" loading="lazy" />
+                  <img
+                    v-if="getAvatarUrl(imp.author?.avatar_url, 'sm')"
+                    :src="getAvatarUrl(imp.author?.avatar_url, 'sm')"
+                    :alt="`${imp.author?.username || '匿名伙伴'} 的头像`"
+                    loading="lazy"
+                  />
                   <i v-else>{{ (imp.author?.username || '匿').charAt(0).toUpperCase() }}</i>
                 </span>
                 <span class="impression-author-meta">
-                  <span class="impression-author-name">@{{ imp.author?.username || '匿名伙伴' }}</span>
-                  <span v-if="formatImpressionDate(imp.created_at)" class="impression-date">{{ formatImpressionDate(imp.created_at) }}</span>
+                  <span class="impression-author-name"
+                    >@{{ imp.author?.username || '匿名伙伴' }}</span
+                  >
+                  <span v-if="formatImpressionDate(imp.created_at)" class="impression-date">{{
+                    formatImpressionDate(imp.created_at)
+                  }}</span>
                 </span>
               </div>
-              <button type="button" class="impression-remove-btn"
+              <button
+                type="button"
+                class="impression-remove-btn"
                 :class="{ armed: armedDeleteId === imp.id }"
-                :aria-label="armedDeleteId === imp.id ? `确认移除「${truncateImpression(imp.content)}」` : `移除「${truncateImpression(imp.content)}」`"
-                @click="onRemoveClick(imp)">
+                :aria-label="
+                  armedDeleteId === imp.id
+                    ? `确认移除「${truncateImpression(imp.content)}」`
+                    : `移除「${truncateImpression(imp.content)}」`
+                "
+                @click="onRemoveClick(imp)"
+              >
                 <template v-if="armedDeleteId === imp.id">
                   <Check :size="13" :stroke-width="2.6" aria-hidden="true" />
                   <span>确认移除</span>
@@ -57,10 +84,20 @@
 
         <!-- 分页加载更多（P0-4：印象改服务端分页后提供增量入口） -->
         <div v-if="hasMore" class="impressions-load-more">
-          <button type="button" class="impression-load-more-btn" :disabled="isLoadingMore"
-            :aria-busy="isLoadingMore" @click="$emit('load-more-impressions')">
+          <button
+            type="button"
+            class="impression-load-more-btn"
+            :disabled="isLoadingMore"
+            :aria-busy="isLoadingMore"
+            @click="$emit('load-more-impressions')"
+          >
             <template v-if="isLoadingMore">
-              <Loader2 :size="15" :stroke-width="2.2" class="load-more-spinner" aria-hidden="true" />
+              <Loader2
+                :size="15"
+                :stroke-width="2.2"
+                class="load-more-spinner"
+                aria-hidden="true"
+              />
               <span>加载中…</span>
             </template>
             <template v-else>
@@ -70,7 +107,12 @@
         </div>
       </template>
 
-      <EmptyState v-else variant="inbox" title="暂无他人印象" description="社区伙伴写给你的印象会显示在这里。" />
+      <EmptyState
+        v-else
+        variant="inbox"
+        title="暂无他人印象"
+        description="社区伙伴写给你的印象会显示在这里。"
+      />
     </div>
   </div>
 </template>
@@ -85,31 +127,27 @@ import { getAvatarUrl } from '@/utils/avatar.js';
 defineProps({
   showBack: {
     type: Boolean,
-    default: true
+    default: true,
   },
   isImpressionsLoading: {
     type: Boolean,
-    default: false
+    default: false,
   },
   impressions: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   hasMore: {
     type: Boolean,
-    default: false
+    default: false,
   },
   isLoadingMore: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 });
 
-const emit = defineEmits([
-  'back',
-  'delete-impression',
-  'load-more-impressions'
-]);
+const emit = defineEmits(['back', 'delete-impression', 'load-more-impressions']);
 
 // 两步移除：先点出确认态，再点才真的删（误触保护），2.6s 未确认自动收回
 const ARMED_RESET_MS = 2600;
@@ -205,7 +243,9 @@ const formatImpressionDate = (createdAt) => {
   -webkit-backdrop-filter: var(--liquid-filter-sm);
   box-shadow: var(--liquid-shadow), var(--liquid-inner-highlight);
   overflow: hidden;
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
   animation: impression-card-in 280ms cubic-bezier(0.23, 1, 0.32, 1) both;
   animation-delay: var(--stagger-delay, 0ms);
 }
@@ -213,7 +253,10 @@ const formatImpressionDate = (createdAt) => {
 @media (hover: hover) and (pointer: fine) {
   .profile-impression-card:hover {
     transform: translateY(-2px);
-    box-shadow: var(--liquid-shadow), 0 12px 28px rgba(15, 23, 42, 0.07), var(--liquid-inner-highlight);
+    box-shadow:
+      var(--liquid-shadow),
+      0 12px 28px rgba(15, 23, 42, 0.07),
+      var(--liquid-inner-highlight);
   }
 }
 
@@ -335,7 +378,10 @@ const formatImpressionDate = (createdAt) => {
   font-size: 12px;
   font-weight: 750;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .impression-remove-btn:hover {
@@ -373,10 +419,12 @@ const formatImpressionDate = (createdAt) => {
 .impression-skeleton-line {
   height: 13px;
   border-radius: 7px;
-  background: linear-gradient(100deg,
-      color-mix(in srgb, var(--text-secondary) 10%, transparent) 32%,
-      color-mix(in srgb, var(--text-secondary) 18%, transparent) 50%,
-      color-mix(in srgb, var(--text-secondary) 10%, transparent) 68%);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--text-secondary) 10%, transparent) 32%,
+    color-mix(in srgb, var(--text-secondary) 18%, transparent) 50%,
+    color-mix(in srgb, var(--text-secondary) 10%, transparent) 68%
+  );
   background-size: 240% 100%;
   animation: impression-shimmer 1.5s linear infinite;
 }
@@ -411,10 +459,12 @@ const formatImpressionDate = (createdAt) => {
   height: 30px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: linear-gradient(100deg,
-      color-mix(in srgb, var(--text-secondary) 10%, transparent) 32%,
-      color-mix(in srgb, var(--text-secondary) 18%, transparent) 50%,
-      color-mix(in srgb, var(--text-secondary) 10%, transparent) 68%);
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--text-secondary) 10%, transparent) 32%,
+    color-mix(in srgb, var(--text-secondary) 18%, transparent) 50%,
+    color-mix(in srgb, var(--text-secondary) 10%, transparent) 68%
+  );
   background-size: 240% 100%;
   animation: impression-shimmer 1.5s linear infinite;
 }
@@ -456,7 +506,10 @@ const formatImpressionDate = (createdAt) => {
   font-size: 13.5px;
   font-weight: 650;
   cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    opacity 0.18s ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -489,6 +542,22 @@ const formatImpressionDate = (createdAt) => {
 @media (max-width: 768px) {
   .profile-impressions-grid {
     grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  /* 竖屏全宽（2026-10-22）：与「我·空间」段同一套语言 ——
+     卡片退化为通栏分隔线列表，靠页面底色缝分区，不再是有左右留白的浮起卡片。
+     卡片内 padding 18px 保留，文字不贴屏幕边。 */
+  .profile-impression-card {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    box-shadow: none;
+  }
+
+  /* 副标题是胶囊，贴边后会顶到屏幕左缘，单独补内边距 */
+  .profile-impressions-subtitle {
+    margin-left: 16px;
   }
 }
 

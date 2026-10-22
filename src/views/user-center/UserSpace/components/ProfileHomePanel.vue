@@ -964,9 +964,150 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 }
 
 @media (max-width: 767px) {
+  /* ================================================================
+     竖屏全宽（2026-10-22）
+     设计语言：内容 edge-to-edge，区块方角、无边框、无投影，
+     靠 8px 页面底色缝 + 1px 分隔线分区；所有「窄卡」排版在这里重排
+     （· 分隔的统计行、给编辑按钮留的 150px 右留白、居中小卡、圆角卡片流）。
+     ⚠️ 两个必须遵守的写法：
+     1) 规则写在这个 scoped 块里 —— 本文件选择器编译后是 `.x[data-v-*]`，
+        特异性高于 responsive-integrations.css 的同名全局规则（写全局看不到效果，已实测）；
+     2) 每条都带 `.profile-home-shell` 前缀 —— 本块位于基础规则**之前**，
+        同特异性下会被后面的基础规则反超（首版就是这么静默失效的：封面仍 120px、
+        统计行仍缩进 24px、编辑按钮仍是小胶囊）。前缀把它提到 (0,2,0)，稳定生效。
+     ================================================================ */
   .profile-home-shell {
     padding: 0 0 0;
-    gap: 12px;
+    gap: 8px;
+  }
+
+  .profile-home-shell > .profile-hero-panel,
+  .profile-home-shell > .profile-activity-heatmap,
+  .profile-home-shell > .profile-points-card-section,
+  .profile-home-shell > .profile-service-panel,
+  .profile-home-shell > .profile-content-panel {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    box-shadow: none;
+  }
+
+  /* 父容器 padding 归零后，hero 的负边距会把它推出视口 —— 显式归零。 */
+  .profile-home-shell > .profile-hero-panel {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  /* ── 封面：120 → 176px 换沉浸感；头像叠压加深 ─────────────── */
+  .profile-home-shell .profile-cover-band {
+    height: 176px;
+  }
+
+  .profile-home-shell .profile-hero-body {
+    padding: 0 16px 16px;
+    margin-top: -34px;
+    gap: 14px;
+  }
+
+  .profile-home-shell .profile-hero-avatar .apple-avatar {
+    width: 88px;
+    height: 88px;
+    border-width: 3px;
+  }
+
+  /* 宽屏给「编辑资料」胶囊留的 150px 右留白，在 390 下会把名字挤成两行。
+     copy 基础是 flex row（名字/徽章同行），竖屏改 column 才能让按钮独占一行、
+     否则 width:100% 在 row 里只是内容宽（实测仍是 140px 的小胶囊）。 */
+  .profile-home-shell .profile-hero-copy {
+    padding-top: 38px;
+    padding-right: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* 编辑资料：绝对定位小胶囊 → 通栏主动作按钮。
+     要同时压掉三条既有约束，否则按钮永远只有 140px：
+       · responsive-integrations.css 的 `max-width: 140px`
+       · 基础规则的 `align-self: flex-start`
+       · 基础 `.profile-hero-copy` 是 flex row（已在上方改 column） */
+  .profile-home-shell .profile-edit-btn {
+    position: static;
+    width: 100%;
+    max-width: none;
+    align-self: stretch;
+    margin-top: 14px;
+    min-height: 40px;
+    border-radius: 12px;
+    box-shadow: none;
+  }
+
+  /* ── 统计行：`发帖 · 积分 · 粉丝 · 关注` → 4 等分通栏 + 竖分隔线 ── */
+  .profile-home-shell .profile-hero-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--stroke);
+  }
+
+  .profile-home-shell .profile-hero-stats .stat-dot {
+    display: none;
+  }
+
+  .profile-home-shell .profile-hero-stats .stat-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 60px;
+    padding: 10px 4px;
+    border-left: 1px solid var(--stroke);
+  }
+
+  .profile-home-shell .profile-hero-stats .stat-chip:first-child {
+    border-left: 0;
+  }
+
+  .profile-home-shell .profile-hero-stats .stat-chip-num {
+    font-size: 17px;
+    font-weight: 900;
+  }
+
+  .profile-home-shell .profile-hero-stats .stat-chip-label {
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  /* 骨架期只有一个 span，让它横跨 4 格，避免加载完成时行高跳变 */
+  .profile-home-shell .profile-hero-stats .stat-skeleton {
+    grid-column: 1 / -1;
+  }
+
+  /* ── 积分卡：去掉 420 上限，卡面吃满内容宽 ─────────────────── */
+  .profile-home-shell .profile-points-card-wrap .points-card {
+    max-width: none;
+  }
+
+  /* ── 内容列表：圆角卡片流 → 通栏分隔线列表 ─────────────────── */
+  .profile-home-shell .profile-post-grid {
+    gap: 0;
+    padding-inline: 0;
+  }
+
+  .profile-home-shell .profile-post-card {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-bottom: 1px solid var(--stroke);
+  }
+
+  .profile-home-shell .profile-post-card:hover {
+    box-shadow: none;
+  }
+
+  .profile-home-shell .profile-post-card:last-child {
+    border-bottom: 0;
   }
 }
 
@@ -1419,7 +1560,7 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   .profile-post-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
-    padding-inline: 6px;
+    padding-inline: 0;
   }
 
   .profile-post-cover {

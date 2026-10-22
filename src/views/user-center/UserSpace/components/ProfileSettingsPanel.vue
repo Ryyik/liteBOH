@@ -753,6 +753,17 @@ const runEntry = (entry) => {
   border-radius: var(--liquid-radius-md);
 }
 
+/* 竖屏全宽（2026-10-22）：搜索框贴边，圆角与左右边框会让它在通栏时被切出弧形 */
+@media (max-width: 767px) {
+  .gs-search {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    box-shadow: none;
+    padding: 0 16px;
+  }
+}
+
 .gs-search-icon {
   flex-shrink: 0;
   display: inline-flex;

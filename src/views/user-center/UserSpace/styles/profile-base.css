@@ -32,6 +32,17 @@
   .profile-page-content.assets-active {
     padding: 0 10px 0;
   }
+
+  /* 竖屏贴边（2026-10-22）：个人空间「我」页内容铺满视口，不再留页面左右边距。
+     「空间 / 印象 / 设置」三段是单列内容流，贴边即全宽；
+     「资产」段是网格布局（7 个二级 tab + 智能概览多列），贴边会把卡片压到无内边距，
+     所以这里刻意**不放行 assets-host**，要改得单独评估网格。 */
+  .content-home-host .profile-page-content,
+  .content-impressions-host .profile-page-content,
+  .settings-shell .profile-page-content {
+    padding-left: 0;
+    padding-right: 0;
+  }
 }
 
 .login-prompt {

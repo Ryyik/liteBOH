@@ -621,6 +621,29 @@
   }
 }
 
+/* ---------- 竖屏全宽（2026-10-22）----------
+   与「我·空间」「印象」两段同一套语言：iOS grouped list 的卡片退化为
+   通栏分隔线列表（方角、去左右边框、去投影），分组标题与行内容各自留 16px。
+   ⚠️ 每条都带 `.settings-shell` 前缀 —— 本文件被 5 个设置类页面共用，
+   全局改 `.gs-rows` 会把独立路由的设置页（/user-space/settings/version 等）
+   也一起拉平，那些页面的父容器仍是 20px 边距，贴边后会错位。 */
+@media (max-width: 767px) {
+  .settings-shell .glass-settings {
+    gap: 14px;
+  }
+
+  .settings-shell .gs-group-title {
+    padding: 0 16px 7px;
+  }
+
+  .settings-shell .gs-rows {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    box-shadow: none;
+  }
+}
+
 /* ---------- 手机横屏（矮视口）：压缩纵向节奏 ---------- */
 @media (orientation: landscape) and (max-height: 520px) {
   .settings-page-container {

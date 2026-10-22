@@ -2113,6 +2113,53 @@
     min-height: 36px;
   }
 
+  /* ── 竖屏全宽（2026-10-22）──────────────────────────────────────
+     与「我·空间 / 印象 / 设置」同一套语言：sticky 筛选头与消息项都贴边，
+     卡片流 → 通栏分隔线列表（方角、去左右边框、去投影）。
+     行内 padding 沿用下方 600 块的 14px，文字不贴屏幕边。
+     ⚠️ 只改几何，不动 background —— `.x-item` 的 `#fff` 是写死的（暗色下会白底），
+     那是既有问题，不在这轮顺手改，免得和暗色令牌收敛搅在一起。 */
+  .x-header {
+    margin: 0 0 12px;
+    border-radius: 0;
+  }
+
+  /* minimal 模式（uspace 嵌入态）的 sticky 头自带 `padding: 12px`，
+     不归零它，下面的筛选条永远缩在 12px 里；筛选条自己补 16px 给 chips 留呼吸。 */
+  .x-header-minimal {
+    padding: 0;
+  }
+
+  .minimal-filter-bar {
+    padding: 8px 16px 0;
+  }
+
+  /* 消息流的真容器是 .x-inbox-list（单一液态玻璃连续面板），
+     它自带 `margin: 0 8px` + 20px 圆角 —— 不压掉它，前面几处都白改。 */
+  .x-inbox-list {
+    margin: 0;
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    box-shadow: none;
+  }
+
+  .x-list,
+  .minimal-mode .x-list {
+    padding: 0 0 12px;
+  }
+
+  .x-item {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    box-shadow: none;
+    border-bottom: 1px solid var(--liquid-border);
+  }
+
+  .x-list {
+    gap: 0;
+  }
 }
 
 /* Tablet landscape / small laptop (600px - 1023px): prevent button text wrapping */
@@ -2379,8 +2426,11 @@
     border-width: 1.5px;
   }
 
+  /* 竖屏全宽（2026-10-22）：这条是 600 块里最后生效的一条（特异性与 767 块相同、
+     源序更后），原 `padding: 8px 12px 8px` 让筛选条缩在 12px 里。归零后由
+     .minimal-filter-bar 自己补 16px 给 chips 留呼吸。 */
   .x-header-minimal {
-    padding: 8px 12px 8px;
+    padding: 0;
   }
 
   .x-mark-all-btn-minimal {
@@ -2389,8 +2439,10 @@
     min-height: 36px;
   }
 
+  /* 竖屏全宽（2026-10-22）：原 `padding: 0 8px 12px` 保留 8px 左右边距，
+     与贴边后的 .x-inbox-list / .x-item 冲突，归零后由行内 padding 承担文字留白。 */
   .minimal-mode .x-list {
-    padding: 0 8px 12px;
+    padding: 0 0 12px;
   }
 
   .notification-actions {
@@ -2443,8 +2495,10 @@
     padding-top: 0;
   }
 
+  /* 竖屏全宽（2026-10-22）：原 `padding: 0 12px 2px` 让筛选条缩在 12px 里，
+     归零后由 .minimal-filter-bar 自己补 16px 给 chips 留呼吸。 */
   .x-notifications-container.minimal-mode .x-header-minimal {
-    padding: 0 12px 2px;
+    padding: 0;
     margin: 0 0 2px;
   }
 
