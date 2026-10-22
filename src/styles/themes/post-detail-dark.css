@@ -667,3 +667,57 @@ html[data-theme='dark'] .post-detail-page--modal .pd-comment-thread.x-side-conte
   border: none !important;
   box-shadow: none !important;
 }
+
+/* ============================================================
+   dark audit 2026-10-22 —— 「…」帖子操作菜单（编辑 / 删除 / 举报）
+   ============================================================
+   用户报障（截图）：暗色下这个菜单是**纯白卡片 + 深色字**，在深色页面上
+   像贴上去一块白纸，且与周围的玻璃材质完全不搭。
+
+   成因：style.scoped.css 里 .post-menu-panel / .post-menu-item 全套硬编码
+   浅色值 —— `rgba(255,255,255,0.96)` 底、`#1d1d1f` 字、hover `#f5f5f7`。
+   这套在亮色下合理，暗色下没人接 ⇒ 白底白卡。
+
+   做法：改用主题 token，让浅/暗共用同一组语义（浅色下渲染结果与原来几乎一致，
+   `--liquid-bg-strong` 亮色是 rgba(255,255,255,0.84)，比原来的 0.96 略透一点，
+   但叠在玻璃弹窗上反而更协调）。
+   ⚠️ 危险/警告两色**保留原色值**（#d70015 / #8a5a00 是语义色，暗色下同样可读），
+   只补一个暗色下更柔和的底 —— 亮色红底 10% 在深色上几乎看不见。
+   ⚠️ 特异性：PostDetailMain 是异步 chunk，scoped 自带 [data-v-*]，
+   故统一用 html[data-theme] 前缀提一级（见本文件 578 行的说明）。 */
+
+html[data-theme='dark'] .post-detail-page .post-menu-trigger {
+  background: var(--liquid-bg-subtle);
+  color: var(--liquid-text-secondary);
+}
+
+html[data-theme='dark'] .post-detail-page .post-menu-trigger:hover,
+html[data-theme='dark'] .post-detail-page .post-menu-trigger.active {
+  background: var(--liquid-border);
+}
+
+html[data-theme='dark'] .post-detail-page .post-menu-panel {
+  background: var(--liquid-bg-strong);
+  border-color: var(--liquid-border);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.5);
+}
+
+html[data-theme='dark'] .post-detail-page .post-menu-item {
+  color: var(--liquid-text-primary);
+}
+
+html[data-theme='dark'] .post-detail-page .post-menu-item:hover {
+  background: var(--liquid-border);
+}
+
+html[data-theme='dark'] .post-detail-page .post-menu-item.danger {
+  color: var(--boh-danger);
+}
+
+html[data-theme='dark'] .post-detail-page .post-menu-item.danger:hover {
+  background: var(--boh-danger-soft);
+}
+
+html[data-theme='dark'] .post-detail-page .post-menu-item.warning {
+  color: var(--boh-warning);
+}

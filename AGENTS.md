@@ -6,7 +6,7 @@
 ## 0. 项目一句话
 
 Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH」，迭代代号 Beta 2.5 / Beta 6。
-`src/` 563 个源文件（.vue/.js/.ts），259 个脚本（`scripts/*.mjs` 57 + `scripts/probes/*.mjs` 202），248 个单元测试文件。
+`src/` 564 个源文件（.vue/.js/.ts），260 个脚本（`scripts/*.mjs` 57 + `scripts/probes/*.mjs` 203），248 个单元测试文件。
 （2026-10-20 随活动页与节目页并入 /newsroom 退场下调；这三个数由 `npm run check:doc-truth` 实时对账，写错/过时会被 verify 拦下——别手改估计值。）
 
 三条最高纲领：
@@ -20,7 +20,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | 优先级 | 读什么 | 什么时候 |
 | --- | --- | --- |
 | 必读 | 本文件 | 每次 |
-| **必读** | **`docs/AI-ENV.md`**（环境坑 10 条 + **并行会话纪律** + 开工三步） | **开工前**，或任何"命令行为很怪"的时候。2026-10-15 从按需通道提上来的 —— 里面的规则**每次会话都会踩**，只放按需通道等于每条都要重新踩一遍才生效 |
+| **必读** | **`docs/AI-ENV.md`**（环境坑 10 条 + **并行会话纪律** + 开工三步） | **开工前**，或任何"命令行为很怪"的时候。2026-10-15 提上来的：里面每条规则**每次会话都会踩** |
 | 按需 | `docs/gate-matrix.md` | 改了某块代码要查「该跑哪个探针」的**事故级坑记录**时（AGENTS.md §2 该行会写「见 C-n」）；也放着门禁自证纪律与 CI/DB 两道线上门禁的细节 |
 | 按需 | `PROJECT_MANUAL.md` 第 6 节（AI 修改指南）、第 8 节（表结构） | 改数据层或首次接手模块 |
 | 按需 | `docs/PROBES.md` | 需要跑浏览器探针自证时 |
@@ -90,7 +90,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | **BOH AI 切页不掐流**（改 `/ai-chat` 的 `meta.keepAlive`、会话落盘、灵动岛） | `node scripts/probes/probe-bohai-keepalive-stream.mjs`（**5 条**）+ `node --env-file=.env scripts/probes/…` 之外**不要**用真模型。⚠️ 它的慢流是 `addInitScript` 注入的 fetch 包装重放 SSE（`route.fulfill` 一次性给完 ⇒ 假绿），**且必须接住 abort 信号**，否则去掉 keepAlive 照样 PASS；改判据前先做反证。⚠️ 加 keepAlive 后页面实例与灵动岛**两个引擎共存**、共用 `boh_chat_sessions`，写入冲突由 `createBohAISessionWriteGuard` 挡住（改它要跑 `tests/unit/bohai-chat-session-store.test.js` 与 `use-conversation-manager.test.js`） |
 | **BOHAI 层级**（动 `.boh-sidebar` / 浮层 / 全局 chrome 的 z-index） | `tests/unit/bohai-sidebar-layer.test.js`（锁**相对关系**：对话管理 < 临时浮层 < 全局 chrome < 全屏设置页）。实测判据用交叠点 `document.elementFromPoint`，不是肉眼看 || **BOH AI 生成参数**（改 temperature / max_tokens / top_p 等调参，或新增 LLM 调用点） | 已在 verify 链内跑 `check:bohai-params`（严格门禁，禁止在真源表之外内联字面量）。真源两张表：`src/views/BOHAI/generation-params.js`（按任务语义）与 `chat-engine-config.js` 的 `GENERATION_PROFILE_BY_MODE`（按对话模式）。改真源表的值属于**行为变更**：跑 `npm run probe:ai-panels` 并人眼复核对话质量 |
 | **BOH AI 斜杠命令**（改 `/` 命令表、命令解析、或**新增任何「用户发出这条输入」的入口**） | `node scripts/probes/probe-bohai-slash-commands.mjs`（7）；单测 `tests/unit/bohai-slash-commands.test.js`（21）。⚠️ 四条必读坑 + 一条不变量（**每个 action 都要在壳的 switch 里有 case**）→ `docs/gate-matrix.md` C-3。**底线：新增入口只许汇到 `handleSend` / `executeSlashCommand`，不许再写第三处 `startsWith('/')`** |
-| **BOH AI 推理过程块**（改思考态、推理内容的分流或渲染） | `node scripts/probes/probe-bohai-search-status.mjs`（12，含 A4b reduced-motion 模拟 + A9/A10 展开往返）。2026-10-10 用户口径：**思考态 = 纯文本「正在思考」**（旧呼吸圆点 `.boh-thinking-dot` 与其 keyframes 已整段删除）、**默认收起**、点击展开看推理原文。⚠️ 三条硬约束：① 推理原文由 `useGenerationPipeline` 的 `createThinkingState` / `filterThinkingContentStream` **分流**累积（`getThinkingReasoning`），壳用 `updateReasoning` 落到 `message.reasoning` —— **正文一个字符都不许变**（A7 的 `reasoningLeaked` 就是这条判据）；② 推理块用 `v-show` 不用 `v-if`（节点常驻，否则滚动位置与探针读取会抖）；③ 分块可能把 `</think>` 切开 ⇒ 不完整的尾巴必须留在 `thinkingBuffer` 等下一块拼回（`PARTIAL_THINK_CLOSE_RE` 单源），流在思考块内结束的残留归推理、**绝不能当正文吐出**。单测 `tests/unit/bohai-reasoning-capture.test.js`（5）+ `bohai-stream-stage.test.js` 的四条接线断言。④ **思考中（`.is-live`）的「正在思考」走流光**（用户 2026-10-10 二次口径「思考也改成流光」）：**复用**「网页搜索」那一组流光定义（`.boh-search-line.is-shimmer, .boh-reason.is-live .boh-reason-head span` 共用一组属性，**别抄第二份**）—— 但必须挂 `…head span` 而不是 `…head`（挂 head 会让 caret 一起 `color: transparent` 而消失）；同组还带 `prefers-reduced-motion` 兜底恢复实色（否则 `--boh-dur-bob` 归零后亮带停位、文字直接看不见）。探针 **12/12**（A4 断流光在、A4b 真模拟 reduced-motion 断恢复实色、A7 断生成结束后流光收掉） |
+| **BOH AI 推理过程块**（改思考态、推理内容的分流或渲染） | `node scripts/probes/probe-bohai-search-status.mjs`（14，含 A4b reduced-motion + A9/A10 展开往返）。2026-10-10 口径：**思考态 = 纯文本「正在思考」**（旧呼吸圆点已整段删除）、**默认收起**、点击展开看推理原文。⚠️ 四条硬约束：① 推理原文由 `createThinkingState` / `filterThinkingContentStream` 分流累积（`getThinkingReasoning`），壳用 `updateReasoning` 落到 `message.reasoning` —— **正文一个字符都不许变**（A7 的 `reasoningLeaked`）；② 推理块用 `v-show` 不用 `v-if`（节点常驻）；③ 分块会切开标签 ⇒ 半截 `</thi` / `<thi` 留在 `thinkingBuffer` 等拼回（`PARTIAL_THINK_*` 单源），流在块内结束的残留归推理、**绝不能当正文吐出**；④ **标签名单与「裸闭合」只在 `src/utils/reasoning-tags.js`**，两个过滤器都从那儿引 —— 以前四处各写一份且只认开口，造成「非流式正常、流式泄漏」（Z1 的 `思考…</think>答案` 整段进正文，2026-10-22 用户报障）。⚠️ 裸闭合**必须配前导暂存**：已吐出的字收不回来，故只对 Z1 系按住开头等判定，并有超时/超长兜底（普通正文绝不能被扣住）。⚠️ 要提取 JSON 的调用方只能用 `stripPairedReasoningBlocks`（完整版「只有开口就删到结尾」会吃掉 JSON 后半段、静默返回 null）。单测 `bohai-reasoning-capture.test.js`（18）+ `bohai-reasoning-tags.test.js`（28）。⑤ 思考中（`.is-live`）的「正在思考」走流光：**复用**「网页搜索」那组定义（`.boh-search-line.is-shimmer, .boh-reason.is-live .boh-reason-head span`），**别抄第二份** —— 必须挂 `…head span` 而非 `…head`（否则 caret 一起透明消失）；同组带 `prefers-reduced-motion` 兜底恢复实色。探针 **14/14** |
 | 数据管理面板列定义 | `npm run audit:dm-columns` |
 | `vite.config.js` 依赖别名 / optimizeDeps | `node scripts/probes/probe-vite-dep-scan.mjs`（6） |
 | 权限策略 / 归档 SQL | `npm run security:anon-check`（棘轮，红了说明新增了 anon EXECUTE） |
@@ -169,7 +169,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 - **CSS 审计**（只读，不删除）：`npm run audit:css`（约 10s）。两个子报告：
   - `audit:css:duplication` —— 共享 partial 被多处 scoped `@import` 的重复体量。口径：**体积 × (被 .vue 导入次数 − 1)**。⚠️ 别去数产物里的选择器，各 partial 前缀不同极易漏（曾把 443KB 漏成 24KB）；也别按 basename 匹配（全仓一堆同名 `style.scoped.css`，会得出「被 17 个文件导入」这种假结果）。
   - `audit:css:orphans` —— 孤儿类名。分三桶：**确定孤儿** / **疑似孤儿**（只被别的 CSS 引用）/ **待确认过渡类**（形如 `*-enter-active` 但没找到 `<transition name="…">`，可能是动态 `:name`，别直接删）。已规避四类假阳性：scoped 定义方=使用方、声明值被误当选择器、动态拼名、Vue 运行时过渡类。
-  - ⚠️ 它**只报告**。删 CSS 必须配视觉回归，这个工具不提供那个能力。
+  - ⚠️ 它**只报告**；删 CSS 需视觉回归。
 - **重构验证协议**：`docs/重构验证协议.md`。拆组件 / 搬代码 / 外置 CSS 这类"不改行为"的重构，**只跑 verify 不够** —— 这类失效是静默的（没报错、没测试红，只是样式不生效或事件没人接）。协议给了 L1–L6 六层，每层都写明**能力与盲区**。
   - 核心自动化工具：`npm run compare:builds -- <改动前产物目录> <改动后产物目录>`。做四件事：总字节 / 文件级差异（**会归一文件名里的内容哈希**，否则每次重建都被报成"全部新增"）/ 变化 CSS 的**声明级逐条比对**（剥 `[data-v-*]` + 归一 8 位 scope 哈希）/ **CSS scope id ↔ JS scope id 配对**（L3 证明不了这一层，而它不配对 = 样式静默不生效）。
   - 用法：改动前 `mv dist-check /tmp/dist-before && npx vite build --outDir dist-check`；改动后再构建，然后 `npm run compare:builds -- /tmp/dist-before dist-check`。

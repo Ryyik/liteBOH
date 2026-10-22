@@ -708,3 +708,21 @@
 .pd-actionbar.is-expanded .pd-reply-send {
   margin-left: auto;
 }
+
+/* ── 弹窗态放开「…」操作菜单的裁剪（2026-10-22） ──────────────────────
+   用户报障（截图）：暗色下点「…」，弹出的菜单被切掉下半截，
+   「删除 / 举报」只露出一部分。
+
+   根因：style.scoped.css 给 `.post-detail-page .x-post-card` 写了
+   `overflow: hidden`（原本是为了裁装饰猫与图片圆角）。菜单是绝对定位的
+   `.post-menu-panel`，向下弹出时会越出这张卡片的 padding box ⇒ 被裁。
+   实测裁剪者确实是 `.x-post-card`（沿祖先链扫 overflow，命中的就是它）。
+
+   弹窗态可以安全放开：媒体区 `.pd-media-stage-wrap` 自己已有
+   `overflow: hidden`，满出血与圆角照旧由它裁；装饰猫
+   `.detail-post-decor-cat` 是 absolute 定位但只在 `isHomeCatActive` 时才渲染，
+   且不依赖父级裁剪。
+   ⚠️ 只改弹窗态（前缀 .post-detail-page--modal），竖屏整页版保持原样。 */
+.post-detail-page--modal .x-post-card {
+  overflow: visible;
+}

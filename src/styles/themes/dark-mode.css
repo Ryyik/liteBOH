@@ -46,7 +46,14 @@
   /* 页面底色（暖炭色）——对应 tokens.css :root 的 --boh-page-bg。
      刻意不复用 --boh-bg-primary（那个被大量面板/卡片消费，改它会波及全站）。 */
   --boh-page-bg: #16120e;
-  
+
+  /* 语义色（暗色档）——2026-10-22 新增。浅色档在 tokens.css :root 里是
+     #d70015（删除）/ #8a5a00（举报/警告），这两个在深色底上对比度不足，
+     故单独给暗色档更亮的值。真源在这里，消费方一律 var() 引用，不要写裸值。 */
+  --boh-danger: #ff6961;
+  --boh-danger-soft: rgba(255, 105, 97, 0.16);
+  --boh-warning: #d9a94a;
+
   --boh-text-primary: #f5f5f7;
   --boh-text-secondary: #b8c2cf;
   --boh-text-tertiary: #8d99a8;

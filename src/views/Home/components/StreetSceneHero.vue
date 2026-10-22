@@ -379,7 +379,10 @@ onBeforeUnmount(() => {
    纯白底 + 居中红 logo + 黑字。像素 logo 放大用 pixelated 保棱角；
    尺寸用 svh 而非 vw —— 横竖屏切换时 logo 永远完整居中、不溢出不变形。 */
 .street-hero.on-brand {
-  background-color: #ffffff;
+  /* 2026-10-22 暗色修复：这里是「无街景图」时的整块兜底底色，原来硬编码 #ffffff。
+     暗色主题下横屏首页顶部会露出一整片纯白（用户截图报障）。
+     改走页面底色 token —— 浅色解析仍是 #fff（渲染结果与原来一致），暗色自动跟随。 */
+  background-color: var(--boh-page-bg, #ffffff);
 }
 
 .street-hero-brand {
@@ -388,7 +391,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #ffffff;
+  /* 2026-10-22 暗色修复：原来硬编码 #ffffff，暗色主题下这块「无街景图兜底背景」
+     会变成一整片纯白，横屏首页顶部看起来像漏了一块白。
+     改走页面底色 token —— 浅色仍是 #fff（与原来完全一致），暗色自动跟随。 */
+  background-color: var(--boh-page-bg, #ffffff);
 }
 
 .street-hero-brand-logo {
