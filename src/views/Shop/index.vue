@@ -39,6 +39,13 @@
     </header>
 
     <main class="shop-main">
+      <!-- 降级提示（2026-10-22）：store 在请求失败时会回退静态商品数据，页面照常渲染，
+           但原先**不告诉用户**——弱网下 8s 后看到的是一份内置清单，用户会当成实时价格。
+           ⚠️ 只在「有兜底数据可看」时提示；完全没有数据时由下面的骨架/空态负责。 -->
+      <p v-if="fetchError && allProducts.length > 0" class="shop-offline-hint" role="status">
+        当前展示的是内置商品数据，可能不是最新；网络恢复后刷新即可看到实时价格。
+      </p>
+
       <section
         v-if="isFetchingProducts && allProducts.length === 0"
         class="catalog-grid"
@@ -612,7 +619,7 @@ const productsStore = useProductsStore();
 const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 const { userInfo } = authStore;
 const { shoppingBag } = storeToRefs(bagStore);
-const { productsData, isFetchingProducts } = storeToRefs(productsStore);
+const { productsData, isFetchingProducts, fetchError } = storeToRefs(productsStore);
 const { addToBag, updateBagItemQuantity, clearBag } = bagStore;
 
 const activeNavId = ref('for-you');

@@ -304,15 +304,28 @@
   gap: 16px;
 }
 .ah-skeleton {
-  background: linear-gradient(
+  /* 2026-10-22：三条骨架里只有 `.ah-skeleton` 自己有底色 ——
+     `.ah-skeleton-line` / `.ah-skeleton-icon` 只声明了尺寸，模板里也没有 `ah-skeleton` 类，
+     于是它们是**全透明**的（实测 computed background 为 rgba(0,0,0,0)）。
+     结果是「切到资产 → 一块大白卡，没有任何加载动画」（用户报障）。
+     底色收成变量，由子元素继承，别再各写一份渐变。 */
+  --ah-skeleton-fill: linear-gradient(
     90deg,
     rgba(15, 23, 42, 0.06) 25%,
     rgba(15, 23, 42, 0.03) 50%,
     rgba(15, 23, 42, 0.06) 75%
   );
+  background-image: var(--ah-skeleton-fill);
   background-size: 200% 100%;
   animation: ah-shimmer 1.2s infinite linear;
   border-radius: 14px;
+}
+/* 骨架里的「行」与「图标」必须自己吃一条底色，否则不可见。 */
+.ah-skeleton-line,
+.ah-skeleton-icon {
+  background-image: var(--ah-skeleton-fill);
+  background-size: 200% 100%;
+  animation: ah-shimmer 1.2s infinite linear;
 }
 .ah-skeleton-focus {
   display: flex;
@@ -321,7 +334,10 @@
   padding: 16px;
   min-height: 112px;
   border: 0.5px solid rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.52);
+  /* ⚠️ 原为 `background: rgba(255,255,255,0.52)` —— **简写**会把 .ah-skeleton 的
+     shimmer 渐变整个重置成纯色，于是这块也是白底白卡。改成 background-color
+     只叠白膜，渐变保留。 */
+  background-color: rgba(255, 255, 255, 0.45);
   backdrop-filter: var(--liquid-filter-sm);
 }
 .ah-skeleton-focus .ah-skeleton-icon {
@@ -373,12 +389,14 @@
   }
 }
 .user-space-page[data-theme='dark'] .ah-skeleton {
-  background: linear-gradient(
+  /* 暗色只换填充变量 —— 子元素（line / icon）读同一个变量，自动跟随。 */
+  --ah-skeleton-fill: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.08) 25%,
     rgba(255, 255, 255, 0.04) 50%,
     rgba(255, 255, 255, 0.08) 75%
   );
+  background-image: var(--ah-skeleton-fill);
   background-size: 200% 100%;
 }
 

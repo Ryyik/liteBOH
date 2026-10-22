@@ -419,11 +419,14 @@ const formatImpressionDate = (createdAt) => {
 .impression-skeleton-line {
   height: 13px;
   border-radius: 7px;
+  /* 2026-10-22：10% / 18% 的对比度约 1.1:1 —— 390px 竖屏上肉眼几乎看不到，
+     用户的观感是「切到印象一片空白，没有加载动画」。提到 16% / 26% 后是可辨的
+     浅灰占位，仍远低于正文对比度，不会抢视线。 */
   background: linear-gradient(
     100deg,
-    color-mix(in srgb, var(--text-secondary) 10%, transparent) 32%,
-    color-mix(in srgb, var(--text-secondary) 18%, transparent) 50%,
-    color-mix(in srgb, var(--text-secondary) 10%, transparent) 68%
+    color-mix(in srgb, var(--text-secondary) 16%, transparent) 32%,
+    color-mix(in srgb, var(--text-secondary) 26%, transparent) 50%,
+    color-mix(in srgb, var(--text-secondary) 16%, transparent) 68%
   );
   background-size: 240% 100%;
   animation: impression-shimmer 1.5s linear infinite;
@@ -459,11 +462,12 @@ const formatImpressionDate = (createdAt) => {
   height: 30px;
   border-radius: 50%;
   flex-shrink: 0;
+  /* 同 .impression-skeleton-line：16% / 26% 才在白卡上看得见 */
   background: linear-gradient(
     100deg,
-    color-mix(in srgb, var(--text-secondary) 10%, transparent) 32%,
-    color-mix(in srgb, var(--text-secondary) 18%, transparent) 50%,
-    color-mix(in srgb, var(--text-secondary) 10%, transparent) 68%
+    color-mix(in srgb, var(--text-secondary) 16%, transparent) 32%,
+    color-mix(in srgb, var(--text-secondary) 26%, transparent) 50%,
+    color-mix(in srgb, var(--text-secondary) 16%, transparent) 68%
   );
   background-size: 240% 100%;
   animation: impression-shimmer 1.5s linear infinite;
