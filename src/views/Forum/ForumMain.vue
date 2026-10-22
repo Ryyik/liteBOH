@@ -12,7 +12,17 @@ import {
   triggerRef,
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowUpRight, BookOpen, Newspaper, Sparkles, X } from 'lucide-vue-next';
+import {
+  ArrowUpRight,
+  BookOpen,
+  CloudOff,
+  Inbox,
+  Newspaper,
+  RotateCw,
+  SearchX,
+  Sparkles,
+  X,
+} from 'lucide-vue-next';
 import PostComposer from './components/PostComposer.vue';
 import PostCard from './components/PostCard.vue';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
@@ -62,6 +72,7 @@ import {
   preloadForumImageModeration,
   getForumPostImages,
   fetchQuotedPostsByIds,
+  matchesForumContentKind,
 } from '../../utils/api/forum-api.js';
 import { uploadApprovedForumImageQueued } from '../../utils/api/forum-api.js';
 import { showIsland } from '@/composables/useIsland.js';
@@ -360,7 +371,8 @@ const applyForumReturnStateFilters = (state = {}) => {
   const savedContentType = String(state.selectedContentType || '')
     .trim()
     .toLowerCase();
-  selectedContentType.value = ['news', 'activity', 'post'].includes(savedContentType)
+  // 'info' 也要收：资讯分区切走再回来时，快照里的 contentType 不能被打回 ''
+  selectedContentType.value = ['info', 'news', 'activity', 'post'].includes(savedContentType)
     ? savedContentType
     : '';
   feedMode.value = 'posts';
@@ -2864,13 +2876,10 @@ const prepareForumPosts = (posts = [], startIndex = 0) =>
               : /^【活动】/.test(String(post?.content || ''))
                 ? 'activity'
                 : 'unknown');
-          // 「论坛」= 普通帖 + 用户转发（repost），与服务端 p_kind_filter 语义一致
-          return (
-            !selectedContentType.value ||
-            (selectedContentType.value === 'post'
-              ? kind === 'post' || kind === 'unknown' || kind === 'repost'
-              : kind === selectedContentType.value)
-          );
+          /* 「论坛」= 普通帖 + 用户转发（repost）、「资讯」= 官方新闻 + 活动 ——
+             口径统一在 post-api 的 matchesForumContentKind，别在这里再写一份
+             （2026-10-22 就是这里只写了精确匹配，把资讯过滤成了空列表）。 */
+          return matchesForumContentKind(kind, selectedContentType.value);
         })
         .map((post, index) => prepareForumPostForDisplay(post, startIndex + index))
     : [];
@@ -4105,8 +4114,26 @@ const setContentType = (type = '') => {
   fetchForumData();
 };
 
-const CONTENT_TYPE_LABELS = { news: '新闻', activity: '活动', post: '论坛' };
+const CONTENT_TYPE_LABELS = { info: '资讯', news: '新闻', activity: '活动', post: '论坛' };
 const contentTypeLabel = computed(() => CONTENT_TYPE_LABELS[selectedContentType.value] || '');
+
+/* 筛选态空列表的文案：把「什么条件下没有内容」说清楚。
+   2026-10-22 之前这里拼的是 `「${contentTypeLabel}」`，而 'info'（资讯）不在标签表里
+   ⇒ 界面上出现过「没有找到「」相关的内容」这种空括号。 */
+const emptyFilterTitle = computed(() => {
+  const tagLabel = selectedTagFilter.value ? getForumTagLabel(selectedTagFilter.value) : '';
+  if (contentTypeLabel.value && tagLabel)
+    return `「${contentTypeLabel.value} · ${tagLabel}」还没有内容`;
+  if (contentTypeLabel.value) return `「${contentTypeLabel.value}」暂时还没有内容`;
+  if (tagLabel) return `「${tagLabel}」下还没有内容`;
+  return '没有符合条件的内容';
+});
+
+const emptyFilterDesc = computed(() => {
+  if (selectedContentType.value === 'info') return '官方发布新闻或活动后，会同步出现在这里';
+  if (selectedTagFilter.value) return '换个标签，或回到全部内容看看';
+  return '换个筛选条件试试';
+});
 
 const handleDeleteComment = async (comment, post) => {
   if (!comment?.id || !post?.id) return;
@@ -4693,14 +4720,43 @@ const openPostDetail = (postId) => {
             </div>
 
             <div v-else class="posts-list stagger-list">
-              <div v-if="forumData.length === 0" class="empty-state glass-panel">
-                <HomeCatMascot v-if="isHomeCatActive" type="decor" size="lg" decorative />
-                <span class="empty-icon">🔍</span>
-                <p v-if="forumLoadError" class="forum-load-error">{{ forumLoadError }}</p>
-                <!-- 有关键词却没结果：给两条出路（换说法问 BOHAI / 退回全部），
+              <div v-if="forumData.length === 0" class="empty-state glass-panel forum-empty">
+                <!-- 2026-10-22 重做：原来是一个 emoji + 一句裸奔的 16px 正文（还被 emoji 挤到左对齐），
+                     读起来像页面报错。现在统一成「图标砖 + 标题 + 说明 + 可选动作」的空态。 -->
+                <div class="forum-empty-icon" :class="{ 'is-error': Boolean(forumLoadError) }">
+                  <CloudOff
+                    v-if="forumLoadError"
+                    :size="23"
+                    :stroke-width="1.7"
+                    aria-hidden="true"
+                  />
+                  <SearchX
+                    v-else-if="searchKeyword.trim()"
+                    :size="23"
+                    :stroke-width="1.7"
+                    aria-hidden="true"
+                  />
+                  <Inbox v-else :size="23" :stroke-width="1.7" aria-hidden="true" />
+                </div>
+
+                <template v-if="forumLoadError">
+                  <p class="forum-empty-title">内容没加载出来</p>
+                  <p class="forum-empty-desc is-error">{{ forumLoadError }}</p>
+                  <button
+                    type="button"
+                    class="empty-action-btn is-primary"
+                    @click="fetchForumData()"
+                  >
+                    <RotateCw :size="14" :stroke-width="2.2" aria-hidden="true" />
+                    <span>重试</span>
+                  </button>
+                </template>
+
+                <!-- 有关键词却没结果：给两条出路（问 BOHAI / 退回全部），
                      而不是只丢一句「换个条件试试」让用户自己想办法 -->
                 <template v-else-if="searchKeyword.trim()">
-                  <p>没有找到「{{ searchKeyword }}」相关的内容</p>
+                  <p class="forum-empty-title">没有找到「{{ searchKeyword }}」相关内容</p>
+                  <p class="forum-empty-desc">试试更短的关键词，或让 BOHAI 在论坛里找一遍</p>
                   <div class="empty-state-actions">
                     <button
                       type="button"
@@ -4708,7 +4764,7 @@ const openPostDetail = (postId) => {
                       :disabled="isAiSearchLoading"
                       @click="askBohai"
                     >
-                      <Sparkles :size="15" :stroke-width="2" aria-hidden="true" />
+                      <Sparkles :size="14" :stroke-width="2" aria-hidden="true" />
                       <span>问 BOHAI</span>
                     </button>
                     <button type="button" class="empty-action-btn" @click="clearSearchInput">
@@ -4724,13 +4780,24 @@ const openPostDetail = (postId) => {
                     换个词试试「{{ historySuggestion }}」
                   </button>
                 </template>
-                <p v-else-if="selectedTagFilter || selectedContentType">
-                  没有找到{{ selectedContentType ? `「${contentTypeLabel}」` : ''
-                  }}{{
-                    selectedTagFilter ? `「${getForumTagLabel(selectedTagFilter)}」` : ''
-                  }}相关的内容，换个筛选条件试试
-                </p>
-                <p v-else>这里空空如也，快来发布第一条动态吧！</p>
+
+                <template v-else-if="selectedTagFilter || selectedContentType">
+                  <p class="forum-empty-title">{{ emptyFilterTitle }}</p>
+                  <p class="forum-empty-desc">{{ emptyFilterDesc }}</p>
+                </template>
+
+                <template v-else>
+                  <p class="forum-empty-title">这里还没有内容</p>
+                  <p class="forum-empty-desc">发第一条动态，让这里热闹起来</p>
+                  <button
+                    type="button"
+                    class="empty-action-btn is-primary"
+                    @click="openMobileComposer()"
+                  >
+                    <span>去发帖</span>
+                    <ArrowUpRight :size="14" :stroke-width="2.2" aria-hidden="true" />
+                  </button>
+                </template>
               </div>
 
               <div

@@ -521,6 +521,24 @@ const rowKind = (row) =>
       ? 'activity'
       : 'post');
 
+/* 行内容类型是否命中当前筛选（客户端二次过滤 / 展示层共用同一口径）。
+   空 = 不过滤；'post' = 普通帖 + 转发 + 未知；'info' = 官方新闻 + 活动；
+   其余按精确匹配。
+   ⚠️ 2026-10-22 的事故：ForumMain 的 prepareForumPosts 只写了精确匹配，
+   'info' 与 'news'/'activity' 都不相等 ⇒ **数据取回来 10 行、界面却显示空态**
+   （取数、筛选、渲染三段各自都「看起来没问题」，只有拼起来才断）。
+   抽成纯函数 + 单测是唯一能锁住它的办法。 */
+export const matchesForumContentKind = (kind, selected) => {
+  const k = String(kind || '').trim() || 'unknown';
+  const s = String(selected || '')
+    .trim()
+    .toLowerCase();
+  if (!s) return true;
+  if (s === 'post') return k === 'post' || k === 'unknown' || k === 'repost';
+  if (s === 'info') return k === 'news' || k === 'activity';
+  return k === s;
+};
+
 // 内容类型筛选规范化：'' 全部；'post' 论坛（含转发）；'news' / 'activity' 官方卡；
 // 'info' = 官方「资讯」，即 news + activity 两类一起（2026-10-22 论坛把两席并成一席）。
 // 返回 { kindFilter: RPC 参数值, kindValues: post_kind IN 列表, clientOnly: 需在客户端补过滤 }。

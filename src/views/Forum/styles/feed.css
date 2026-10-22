@@ -1373,3 +1373,140 @@
    按用户要求移除（位置在卡片流正上方，无论怎么调都像多余的说明）。
    若将来真要恢复这类提示，请重新设计位置（例如贴底栏或并入工具栏），
    不要放回信息流顶部。 */
+
+/* ============================================================
+   空态 / 无结果（2026-10-22 重做）
+   旧版是「一个 emoji + 一句裸 <p>」：全仓没有一条 .empty-state 样式，
+   于是它继承 body 的 16px 深色正文、靠左堆叠，看着像页面报错。
+   现在是「图标砖 + 标题 + 说明 + 可选动作」的居中空态。
+   ⚠️ 选择器统一挂 .forum-empty 前缀：本文件同时被 PostCard 引入，
+      裸写 .empty-action-btn 会外溢到「我的」等页面的同名类。
+   ============================================================ */
+.forum-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 42px 22px 38px;
+  text-align: center;
+}
+
+.forum-empty .forum-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 8px;
+  border-radius: 18px;
+  color: var(--liquid-text-tertiary);
+  background: color-mix(in srgb, var(--liquid-text-primary) 5%, transparent);
+}
+
+/* 错误态只抬高一级文字色，不引入红色：红/绿在不同主题下都要单独调，
+   而这两处本来靠图标（CloudOff）+ 文案就足够区分。 */
+.forum-empty .forum-empty-icon.is-error {
+  color: var(--liquid-text-secondary);
+}
+
+.forum-empty .forum-empty-title {
+  max-width: 100%;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  color: var(--liquid-text-primary);
+}
+
+.forum-empty .forum-empty-desc {
+  max-width: 300px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  text-wrap: pretty;
+  color: var(--liquid-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.forum-empty .forum-empty-desc.is-error {
+  color: var(--liquid-text-primary);
+  font-weight: 600;
+}
+
+.forum-empty .empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.forum-empty .empty-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  margin-top: 12px;
+  padding: 0 16px;
+  border: 1px solid var(--liquid-border-hairline);
+  border-radius: 999px;
+  background: var(--liquid-bg-strong);
+  color: var(--liquid-text-primary);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.15s ease;
+}
+
+.forum-empty .empty-state-actions .empty-action-btn {
+  margin-top: 0;
+}
+
+.forum-empty .empty-action-btn:hover {
+  background: color-mix(in srgb, var(--liquid-text-primary) 5%, var(--liquid-bg-strong));
+  transform: translateY(-1px);
+}
+
+.forum-empty .empty-action-btn:active {
+  transform: scale(0.97);
+}
+
+.forum-empty .empty-action-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+
+.forum-empty .empty-action-btn.is-primary {
+  border-color: transparent;
+  background: #0071e3;
+  color: #ffffff;
+}
+
+.forum-empty .empty-action-btn.is-primary:hover {
+  background: #0077ed;
+}
+
+.forum-empty .empty-history-hint {
+  margin-top: 10px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--liquid-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.forum-empty .empty-history-hint:hover {
+  background: color-mix(in srgb, var(--liquid-text-primary) 6%, transparent);
+  color: var(--liquid-text-primary);
+}
+

@@ -298,12 +298,6 @@
   letter-spacing: -0.01em;
 }
 
-.forum-load-error {
-  color: #c62828;
-  font-weight: 600;
-  word-break: break-word;
-}
-
 /* 懒加载提示样式 */
 .loading-more {
   display: flex;

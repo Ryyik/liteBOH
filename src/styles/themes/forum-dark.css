@@ -522,10 +522,6 @@
    加载与空状态
    ============================================ */
 
-.forum-page[data-theme='dark'] .forum-load-error {
-  color: #ff5252;
-}
-
 .forum-page[data-theme='dark'] .loading-more {
   background: #1e1e2a;
   border: 1px solid rgba(255, 255, 255, 0.08);

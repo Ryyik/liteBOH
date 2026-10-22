@@ -17,6 +17,8 @@ export {
   getWeeklyCheckinStatus,
   submitWeeklyCheckin,
   claimPostPublishReward,
+  normalizeForumKindFilter,
+  matchesForumContentKind,
 } from './forum/post-api.js';
 
 export {
