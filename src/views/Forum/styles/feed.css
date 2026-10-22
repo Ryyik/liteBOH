@@ -629,6 +629,17 @@
   margin: 16px -24px 18px -10px;
 }
 
+/* 单图帖：不要那个不对称 margin（2026-10-22）
+   上面那组负 margin 是**给多图横滑设计的** —— 左边留 14px 呼吸、右边贴边让
+   下一张露出来，制造「还能往右滑」的暗示。单图没有下一张，贴着右边就变成
+   「图片整体偏右 14px」（用户报「单图帖子图片不居中」）。
+   `.is-single` 已经把缩略图设成 width:100%，这里把它左右都抵掉卡片 padding，
+   让单图真正通栏、左右对称。 */
+.image-post-strip-wrap:has(> .image-post-strip.is-single) {
+  margin-left: -24px;
+  margin-right: -24px;
+}
+
 .image-post-strip {
   position: relative;
   display: flex;

@@ -1425,6 +1425,14 @@
     margin: 12px -16px 14px -2px;
   }
 
+  /* 单图帖：覆盖上面的不对称 margin（2026-10-22）
+     那组值是给多图横滑的「露下一张」用的；单图贴右缘 = 整体偏右 14px。
+     单图改成左右都抵掉 16px 卡片内边距 ⇒ 通栏且对称。 */
+  .image-post-strip-wrap:has(> .image-post-strip.is-single) {
+    margin-left: -16px;
+    margin-right: -16px;
+  }
+
   .image-post-strip {
     gap: 8px;
   }
