@@ -63,6 +63,16 @@ export const isStyleLinkApplied = (link) => {
   }
 };
 
+/** vite dev 专用：动态 CSS 以 `<style data-vite-dev-id="/src/.../xxx.css">` 注入（无 link）。
+    按 dev 侧文件名后缀判存 —— 只在调用方传了 devStyleIds 时才走这一路。 */
+export const hasDevStyleTag = (endsWith, doc) => {
+  const target = resolveDoc(doc);
+  if (!target?.querySelectorAll || !endsWith) return false;
+  return [...target.querySelectorAll('style[data-vite-dev-id]')].some((tag) =>
+    String(tag.getAttribute('data-vite-dev-id') || '').endsWith(endsWith),
+  );
+};
+
 /** 在文档里找出第一条匹配该正则的 stylesheet link（找不到返回 null） */
 export const findStyleLink = (matcher, doc) => {
   const target = resolveDoc(doc);
@@ -184,9 +194,15 @@ export const createBoundedRepairLoop = ({
 /**
  * 页面级门面：把「判活 + 修一轮 + 退避重试」按一组 matchers 绑成一个对象。
  * 调用方只需要关心 `repairNow()` / `schedule()` / `reset()` / `stop()`。
+ *
+ * @param {string[]} [devStyleIds] vite dev 下动态 CSS 不走 <link>，而是
+ *   `<style data-vite-dev-id="/src/.../xxx.css">` 注入 —— prod 的哈希文件名
+ *   matcher 永远匹配不到它 ⇒ 判活恒 false（消费方只能靠超时兜底，实测恒等 1s）。
+ *   传一组 dev 侧的文件名后缀（如 'profile-base.css'），判活时并入检查。
  */
 export const createStyleSheetGuard = ({
   matchers,
+  devStyleIds,
   delays,
   isActive = () => true,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -208,12 +224,20 @@ export const createStyleSheetGuard = ({
     clearTimer,
   });
 
+  const areApplied = () =>
+    matchers.every((m, index) => {
+      if (isStyleLinkApplied(findStyleLink(m, options.doc))) return true;
+      const devId = devStyleIds?.[index];
+      return devId ? hasDevStyleTag(devId, options.doc) : false;
+    });
+
   return {
     /** 同步判活（只查不修）：所有目标样式是否都已真实生效。
         ⚠️ 不能用 `repairNow() === 0` 代替 —— 「仍坏的数量为 0」也可能是
         「link 还没被首次 import 建出来」（那时压根没有坏 link 可修），
-        两者在「冷启动、样式尚未注入」这一档上会得出相反结论。 */
-    areApplied: () => matchers.every((m) => isStyleLinkApplied(findStyleLink(m, options.doc))),
+        两者在「冷启动、样式尚未注入」这一档上会得出相反结论。
+        dev 下再并入 `<style data-vite-dev-id>` 检查（见 createStyleSheetGuard 的 devStyleIds）。 */
+    areApplied: () => areApplied(),
     /** 立刻修一轮，返回仍坏的数量（首次 import 尚未建出 link 时恒为 0） */
     repairNow: () => repairStyleLinks(matchers, options),
     /** 排入退避重试（幂等：已有计时器时不动） */

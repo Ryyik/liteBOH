@@ -457,8 +457,16 @@ import SegmentTabs from './components/SegmentTabs.vue';
 import ForumSectionShell from './components/ForumSectionShell.vue';
 // 发布会话闸门（左栏切落点前先收会话 + 「发布」选中态）：与首页 `/` 共用一份实现
 import { useForumComposerSession } from './composables/useForumComposerSession.js';
+// 身份卡骨架（2026-10-22）：ProfileHomePanel 是异步 chunk，此前没有 loadingComponent ——
+// 首次从图库点「我」时，分段 tab 在、下面一片白。骨架按真卡结构占位，完成时不重排。
+import ProfileHomeSkeleton from './components/ProfileHomeSkeleton.vue';
 const ProfileHomePanel = createPanelAsync(() => import('./components/ProfileHomePanel.vue'), {
   label: 'ProfileHomePanel',
+  loadingComponent: ProfileHomeSkeleton,
+  /* delay 归零：这一块此前是「无声空白」的重灾区（用户报障「点我一片白」），
+     骨架闪几帧远好于空白 —— 默认的 120ms 延迟是为「大概率瞬间就绪」的面板设计的，
+     身份卡 chunk + 三份 profile 样式在冷路径上明显超过 120ms。 */
+  delay: 0,
 });
 const AvatarCropModal = createPanelAsync(() => import('@/components/AvatarCropModal.vue'), {
   label: 'AvatarCropModal',

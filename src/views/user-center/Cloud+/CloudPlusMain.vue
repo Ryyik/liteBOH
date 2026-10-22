@@ -919,6 +919,7 @@
       :nav-indicator-style="bottomNavIndicatorStyle"
       :has-unread-messages="hasUnreadMessages"
       :unread-count="unreadCount"
+      @preload-tab="preloadUserSpaceForNav"
       @nav-click="handleBottomNavClick"
     />
 
@@ -1087,6 +1088,7 @@ import { showIsland } from '@/composables/useIsland.js';
    SegmentTabs 从 UserSpace/components 跨目录引用有先例（Newsroom/index.vue:319 同样这么引）。 */
 import SegmentTabs from '@/views/user-center/UserSpace/components/SegmentTabs.vue';
 import UserSpaceBottomNav from '@/views/user-center/UserSpace/components/UserSpaceBottomNav.vue';
+import { preloadProfileStyles } from '@/views/user-center/UserSpace/async-loaders.js';
 import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
 import { getNotificationStoreRef } from '@/stores/notification-loader';
 
@@ -2108,6 +2110,21 @@ const bottomNavIndicatorStyle = computed(() => {
 const notificationStoreRef = getNotificationStoreRef();
 const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
 const hasUnreadMessages = computed(() => unreadCount.value > 0);
+
+/* 底栏预热（2026-10-22）：底栏的 pointerenter / focus 会 emit `preload-tab`，
+   我页此前没有接 —— 首次从图库点「我」要现拉 路由 chunk + 身份卡 chunk + 三份
+   profile 样式，期间分段 tab 在、内容一片白。预热之后点击基本即时落位；
+   只在悬停/聚焦时触发（不点就不付这笔成本），Promise 缓存保证只拉一次。 */
+let userSpacePreloadPromise = null;
+const preloadUserSpaceForNav = () => {
+  if (userSpacePreloadPromise) return userSpacePreloadPromise;
+  userSpacePreloadPromise = Promise.all([
+    import('@/views/user-center/UserSpace/index.vue'),
+    import('@/views/user-center/UserSpace/components/ProfileHomePanel.vue'),
+    preloadProfileStyles(),
+  ]).catch(() => {});
+  return userSpacePreloadPromise;
+};
 
 /* 切走前必须先把编辑器收干净。两条「走不了」的分支都靠 isComposerOpen 判断：
    · 有草稿时 closeComposer 会弹「放弃这次编辑？」—— 用户选「继续编辑」⇒ 它 return，flag 仍为 true；
@@ -3271,6 +3288,19 @@ const handlePageHide = () => {
 
 onBeforeRouteLeave(() => {
   void cleanupDraftUploads({ silent: true, keepalive: true });
+});
+
+/* 空闲预热（2026-10-22）：悬停预热只在 pointerenter 时触发，用户**直接点**（手机上
+   没有 hover）就完全不预热 ⇒ 首次点「我」仍是 白板→骨架→内容。挂载后空闲时预热一次，
+   把 路由 chunk / 身份卡 chunk / 三份 profile 样式 都提前拉好，点击即可即时落位。
+   idle 兜底 2s：不支持 requestIdleCallback 的环境（旧 Safari）也不至于永不预热。 */
+onMounted(() => {
+  const warm = () => preloadUserSpaceForNav();
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(warm, { timeout: 2000 });
+  } else {
+    window.setTimeout(warm, 2000);
+  }
 });
 
 onMounted(() => {

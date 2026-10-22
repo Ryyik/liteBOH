@@ -100,6 +100,11 @@ let profileStylesPromise = null;
 
 const profileStyleGuard = createStyleSheetGuard({
   matchers: PROFILE_STYLE_MATCHERS,
+  /* dev 侧判活（2026-10-22）：vite dev 的动态 CSS 是 <style data-vite-dev-id> 注入，
+     prod 的哈希文件名 matcher 永远匹配不到 ⇒ 冷启动进「我」页时判活恒 false，
+     就绪门只能等 1000ms 超时兜底 —— 用户看到的就是「tab 在、内容白板一秒」。
+     传 dev 文件名后缀后，dev 下样式一注入即放行（prod 行为不变，走 link 判活）。 */
+  devStyleIds: ['profile-base.css', 'profile-panels.css', 'responsive-integrations.css'],
   delays: PROFILE_STYLE_REPAIR_DELAYS,
   isActive: () => isUserSpaceMounted,
   /* 只有「退避预算用尽、样式仍然缺」才上报：这一档是真·带病运行，

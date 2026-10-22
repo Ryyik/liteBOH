@@ -5,7 +5,7 @@
     :class="{
       'is-hidden': navHidden,
       'is-entering': isEntering,
-      'ai-overlay-open': aiOverlayOpen
+      'ai-overlay-open': aiOverlayOpen,
     }"
     :style="{ '--bottom-nav-enter-duration': `${enterDurationMs}ms` }"
   >
@@ -20,7 +20,13 @@
         @focus="$emit('preload-tab', item.id)"
         @click.stop="handleNavClick(item.id)"
       >
-        <component :is="item.icon" class="nav-icon" :size="18" :stroke-width="1.9" aria-hidden="true" />
+        <component
+          :is="item.icon"
+          class="nav-icon"
+          :size="18"
+          :stroke-width="1.9"
+          aria-hidden="true"
+        />
         <span class="nav-label">{{ item.label }}</span>
         <div v-if="item.id === 'messages' && hasUnreadMessages" class="unread-badge">
           {{ unreadCount > 99 ? '99+' : unreadCount }}
@@ -48,54 +54,80 @@ const BOTTOM_NAV_ENTER_MS = 760;
 const isEntering = ref(true);
 let enterTimer = null;
 
+/* 会话级「入场只播一次」闩锁（2026-10-22）：底栏在 首页 / 我 / 图库 三处**各自挂一份**，
+   跨路由切换 = 旧实例卸载 + 新实例挂载。没有这个闩锁，每次切图库/回我都会把 760ms
+   滑入重播一遍 —— 用户原话「底部导航栏又重新刷新了一下」。
+   首次挂载（含首页 gate 揭示）保持原行为：从挂载时刻起算时长，与改动前完全一致。
+
+   ⚠️ 闩锁挂 window 而不是模块级变量：dev 下本组件会被两条 import 路径
+   （UserSpaceMain 的相对路径 / Cloud+ 的 @ 别名）解析成**两个模块实例**，
+   模块级变量各记各的、等于没锁（实测 flag 两次都是 false）。window 恰好就是
+   「本次会话」的天然单例。 */
+let hasPlayedEnterThisSession = () => {
+  if (typeof window === 'undefined') return false;
+  return window.__bohBottomNavHasEntered === true;
+};
+const markEnterPlayed = () => {
+  if (typeof window !== 'undefined') window.__bohBottomNavHasEntered = true;
+};
+
 const emit = defineEmits(['preload-tab', 'nav-click']);
 
 const props = defineProps({
   visible: {
     type: Boolean,
-    default: true
+    default: true,
   },
   hidden: {
     type: Boolean,
-    default: false
+    default: false,
   },
   navItems: {
     type: Array,
-    required: true
+    required: true,
   },
   currentTab: {
     type: String,
-    required: true
+    required: true,
   },
   aiOverlayOpen: {
     type: Boolean,
-    default: false
+    default: false,
   },
   hasUnreadMessages: {
     type: Boolean,
-    default: false
+    default: false,
   },
   unreadCount: {
     type: Number,
-    default: 0
+    default: 0,
   },
   navIndicatorStyle: {
     type: Object,
-    default: () => ({})
+    default: () => ({}),
   },
   /* 入场滑入时长（ms）。<= 0 表示用内置默认 760 ——「本页常显」场景（UserSpace）。
      首页是「开场画退场后底栏才浮现」，需要比默认更慢，由调用方传值。 */
   enterDuration: {
     type: Number,
-    default: 0
-  }
+    default: 0,
+  },
 });
 
-const enterDurationMs = computed(() => (props.enterDuration > 0 ? props.enterDuration : BOTTOM_NAV_ENTER_MS));
+const enterDurationMs = computed(() =>
+  props.enterDuration > 0 ? props.enterDuration : BOTTOM_NAV_ENTER_MS,
+);
 
 const navHidden = computed(() => props.hidden || isKeyboardOpen.value);
 
 onMounted(() => {
+  /* 已播过就不再播：直接落到终态（无 keyframes ⇒ 无位移，视觉上是「原地就在」，
+     而不是从屏幕外再滑一遍）。 */
+  if (hasPlayedEnterThisSession()) {
+    isEntering.value = false;
+    return;
+  }
+  markEnterPlayed();
   enterTimer = window.setTimeout(() => {
     enterTimer = null;
     isEntering.value = false;
