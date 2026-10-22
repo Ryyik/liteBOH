@@ -781,6 +781,47 @@ const onReplyInput = (event) => {
   transition: background-color 0.2s;
 }
 
+/* 子回复出现时淡入上浮（2026-10-22）—— 原来点「展开 N 条回复」子项是瞬间冒出来的，
+   内容区突然长高一截，没有任何桥接。这里用 @starting-style 做纯 CSS 进场：
+   元素第一次渲染时取 starting-style 的值（透明、上移 4px），随后过渡到落定态。
+   · 只用 opacity + transform（合成层属性，不触发重排）；
+   · 200ms 用 --ease-out，符合「偶尔触发」这一档的预算（UI < 300ms）；
+   · 第 2、3 项各延后 30ms，形成轻微错落 —— 只给前 3 项，再多会拖慢阅读；
+   · prefers-reduced-motion 下整体关掉。 */
+.child-reply-item {
+  transition:
+    background-color 0.2s,
+    opacity var(--duration-tooltip, 200ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform var(--duration-tooltip, 200ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@starting-style {
+  .child-reply-item {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.child-reply-item:nth-child(2) {
+  transition-delay: 30ms;
+}
+
+.child-reply-item:nth-child(3) {
+  transition-delay: 60ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .child-reply-item {
+    transition: background-color 0.2s;
+  }
+  @starting-style {
+    .child-reply-item {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
 .child-reply-item:hover {
   background: transparent;
 }

@@ -683,6 +683,13 @@
    展开形态：输入框独占一行并抬高最小高度；点赞/评论/分享组让位；发送键落到第二行右端。
    高度契约不变：上限仍是上面的 max-height（132px），由 useAutoGrowTextarea 读取，
    这里只动 min-height，不引入第二份像素真源。 */
+/* 展开/收起：`flex-wrap` 从 nowrap→wrap 是离散属性，**不可过渡**，
+   高度又因为 useAutoGrowTextarea 的回写契约不能过渡，
+   且操作组是 display:none（display 也不可过渡，动画根本播不出来）。
+   ⇒ 这个形态切换在现有结构下**没有安全的过渡通道**，
+   2026-10-22 实测确认（加 min-height 过渡会让 D 断言红：清空后卡 78px、应为 40px）。
+   真要让它顺滑，得改 useAutoGrowTextarea 的测量方式或在展开时改用
+   clip-path/transform 模拟高度 —— 属于结构性改动，不在本轮范围。 */
 .pd-actionbar.is-expanded {
   flex-wrap: wrap;
   align-items: flex-end;

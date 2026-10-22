@@ -84,7 +84,7 @@ const handleOpenPost = (id) => open(id, { replace: true });
 
    ⚠️ 比例未知（无图帖、或图还没量出来）时一律回落到 760px 的单栏形态，
    否则会按 media-ratio=null 算出个非法宽度，面板瞬间塌掉。 */
-const PANEL_MAX = 1120;
+const PANEL_MAX = 1120; // 仅 SSR/无 window 时的历史兜底值；实际上限看 PANEL_HARD_MAX
 const PANEL_MIN = 760;
 const INFO_COL = 460;
 const MEDIA_MIN = 380;
@@ -96,6 +96,11 @@ const MEDIA_MIN = 380;
    改为：媒体列上限 = 视口可用宽 − 内衬 − 信息列，面板上限同步放到「视口可用宽」
    （见 panelMaxWidth）—— 两者必须同一来源，否则列宽相加会超过面板自身。 */
 const PANEL_GUTTER = 48; // overlay 的 padding: 24px × 2
+/* 面板绝对上限（2026-10-22 用户二次口径「不要太特别宽，比参考例图再宽一点点」）
+   参考图实测：972 视口下面板 902.5px。这里取 1040 ≈ 比参考宽 15%，
+   既兑现「比参考宽一点点」，又不会在大屏上撑成整屏。
+   ⚠️ 与媒体列上限是同一来源：媒体列最多 = 1040 − 460 = 580。 */
+const PANEL_HARD_MAX = 1040;
 
 // null = 无图 / 未知比例 ⇒ 走单栏，不加宽
 const mediaRatio = ref(null);
@@ -105,9 +110,12 @@ const handleMediaRatio = (ratio) => {
 };
 
 // 视口可用宽（overlay 有 24px 内衬）—— 面板与媒体列的真实上限都从这里派生
+// 同时受 PANEL_HARD_MAX（1040）与视口夹紧：小屏跟随屏宽，大屏不再无限变宽。
 const panelMaxWidth = computed(() => {
-  if (typeof window === 'undefined') return PANEL_MAX;
-  return Math.max(PANEL_MAX, window.innerWidth - PANEL_GUTTER);
+  const available =
+    typeof window === 'undefined' ? PANEL_HARD_MAX : window.innerWidth - PANEL_GUTTER;
+  // 取「视口可用宽」与「硬上限 1040」的较小者，再保证不低于单栏最小宽
+  return Math.max(PANEL_MIN, Math.min(PANEL_HARD_MAX, available));
 });
 
 // 媒体列高：与 .pd-modal-panel 的 height: min(880px, 100vh−48px) 保持一致地推算
