@@ -106,7 +106,7 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(4500);
 await page.evaluate(() => {
-  const item = [...document.querySelectorAll('.cloud-bottom-nav-item')].find(
+  const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find(
     (b) => b.textContent.trim() === '内容',
   );
   item?.click();
@@ -234,7 +234,7 @@ check('退场结束后弹窗已移除', closed);
 
 // ── ③ 切换：tab 过渡 + 捏合落定 ────────────────────────────────
 await page.evaluate(() => {
-  const item = [...document.querySelectorAll('.cloud-bottom-nav-item')].find(
+  const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find(
     (b) => b.textContent.trim() === '设置',
   );
   item?.click();
@@ -254,7 +254,7 @@ check(
 
 // 回到内容档，再捏合切列
 await page.evaluate(() => {
-  const item = [...document.querySelectorAll('.cloud-bottom-nav-item')].find(
+  const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find(
     (b) => b.textContent.trim() === '内容',
   );
   item?.click();

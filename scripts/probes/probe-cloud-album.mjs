@@ -128,7 +128,7 @@ for (const vp of [
   });
   await page.waitForTimeout(4500);
   await page.evaluate(() => {
-    const item = [...document.querySelectorAll('.cloud-bottom-nav-item')].find(
+    const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find(
       (b) => b.textContent.trim() === '内容',
     );
     item?.click();

@@ -11,6 +11,19 @@
          980px 居中会让两侧各空一大块）；设置页 / 分享页仍是窄栏居中，保持文字可读性。 -->
     <div class="cloud-shell" :class="{ 'is-gallery': cloudTab === 'content' }">
       <main class="cloud-main" :class="{ 'is-view-entering': isViewEntering }">
+        <!-- 视图切换（2026-10-22 从底部胶囊上移到这里）：Cloud+ 成为全站底栏第五席后，
+             底部那套位置要让给全局底栏（UserSpaceBottomNav），否则同屏两套底栏。
+             内容/分享/设置本来就是**同一页面的三个视图**（靠 ?view= 切），不是跨模块导航
+             ⇒ 归位成页面内 SegmentTabs，与「我」页三段、Newsroom 同一套组件。
+             探针按 `.cloud-segment-tabs .segment-tab` 定位（`.segment-tab` 全站多处，必须带作用域）。 -->
+        <SegmentTabs
+          class="cloud-segment-tabs"
+          :sections="cloudTabSections"
+          :model-value="cloudTab"
+          aria-label="Cloud+ 视图"
+          @update:model-value="switchCloudTab"
+        />
+
         <header v-if="cloudTab === 'content'" class="cloud-header gallery-header">
           <div class="gallery-title-block">
             <h2>图库</h2>
@@ -895,18 +908,19 @@
       ＋
     </button>
 
-    <nav class="cloud-bottom-nav" aria-label="Cloud+ 页面导航">
-      <button
-        v-for="item in cloudBottomNavItems"
-        :key="item.id"
-        type="button"
-        class="cloud-bottom-nav-item"
-        :class="{ active: cloudTab === item.id }"
-        @click="switchCloudTab(item.id)"
-      >
-        {{ item.label }}
-      </button>
-    </nav>
+    <!-- 全站底栏（2026-10-22 接入）：Cloud+ 自己是第五席「图库」，
+         页面内必须能看到底栏才切得走（原来这里是 Cloud+ 私有的三席胶囊，已上移成 SegmentTabs）。
+         接线与 Home/index.vue:81-93 同一份：同一 store 的未读数、同一份 BOTTOM_NAV_ITEMS。
+         bottom-nav.css 由 UserSpaceBottomNav.vue 自己的 <style src> 带进来，这里不用再引。 -->
+    <UserSpaceBottomNav
+      :visible="true"
+      :nav-items="BOTTOM_NAV_ITEMS"
+      current-tab="cloud"
+      :nav-indicator-style="bottomNavIndicatorStyle"
+      :has-unread-messages="hasUnreadMessages"
+      :unread-count="unreadCount"
+      @nav-click="handleBottomNavClick"
+    />
 
     <!-- 2026-10-03 动效：详情是**放大展开 / 缩回**的进出场（Transition 挂 .detail-overlay），
          transform-origin 由 openEntry 写入的 --detail-origin-x/y 决定 = 点中的那一格中心。
@@ -1069,6 +1083,12 @@ import {
 } from '@/utils/user-space-navigation.js';
 import { isDialogBusy, useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { showIsland } from '@/composables/useIsland.js';
+/* 2026-10-22：Cloud+ 接入全站底栏第五席。
+   SegmentTabs 从 UserSpace/components 跨目录引用有先例（Newsroom/index.vue:319 同样这么引）。 */
+import SegmentTabs from '@/views/user-center/UserSpace/components/SegmentTabs.vue';
+import UserSpaceBottomNav from '@/views/user-center/UserSpace/components/UserSpaceBottomNav.vue';
+import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
+import { getNotificationStoreRef } from '@/stores/notification-loader';
 
 const router = useRouter();
 const route = useRoute();
@@ -1266,7 +1286,10 @@ const composerSubtitle = computed(() =>
     ? '可以只发图片，标题和正文都可以留空。'
     : '只写文字也可以，标题不是必填。',
 );
-const cloudBottomNavItems = [
+/* 视图分段（2026-10-22）：原 `cloudBottomNavItems`（底部 fixed 胶囊的三席）改为页面内
+   SegmentTabs 的 sections。三个 id 与 ?view= 取值一一对应，`switchCloudTab` 原样接
+   SegmentTabs 的 `update:modelValue` —— 路由机制没变，只是切换控件从底部搬到顶部。 */
+const cloudTabSections = [
   { id: 'content', label: '内容' },
   { id: 'share', label: '分享' },
   { id: 'settings', label: '设置' },
@@ -2063,6 +2086,50 @@ function switchCloudTab(tabId) {
       view: safeTab,
     },
   });
+}
+
+/* ---- 全站底栏（2026-10-22 接入） ---- */
+
+// Cloud+ 自己是第五席「图库」：选中态恒指向本席，不随 ?view= 变化（view 是页内分段，不是导航）
+const activeBottomNavId = 'cloud';
+const bottomNavIndicatorStyle = computed(() => {
+  const index = Math.max(
+    0,
+    BOTTOM_NAV_ITEMS.findIndex((item) => item.id === activeBottomNavId),
+  );
+  return {
+    '--active-nav-index': index,
+    '--active-nav-center': `${((index + 0.5) / BOTTOM_NAV_ITEMS.length) * 100}%`,
+    '--nav-count': BOTTOM_NAV_ITEMS.length,
+  };
+});
+
+// 未读徽标：与首页 / UserSpace 底栏读同一个 store，三处数字必然一致
+const notificationStoreRef = getNotificationStoreRef();
+const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
+const hasUnreadMessages = computed(() => unreadCount.value > 0);
+
+/* 切走前必须先把编辑器收干净。两条「走不了」的分支都靠 isComposerOpen 判断：
+   · 有草稿时 closeComposer 会弹「放弃这次编辑？」—— 用户选「继续编辑」⇒ 它 return，flag 仍为 true；
+   · 发布中（cloudState.publish.publishing）closeComposer 直接 return ⇒ flag 仍为 true。
+   此时若照旧导航，正在写的内容会被静默丢弃、已上传图片变成 Cloudinary 孤儿（closeComposer 头注释记的就是这事）。 */
+async function handleBottomNavClick(itemId) {
+  const item = BOTTOM_NAV_ITEMS.find((entry) => entry.id === itemId);
+  if (!item) return;
+  if (isComposerOpen.value) {
+    await closeComposer();
+    if (isComposerOpen.value) return;
+  }
+  if (route.path === item.route) {
+    // 再点一次当前席：iOS 惯例是回该模块的根视图。图库的根 = 内容视图，已在内容就回顶。
+    if (itemId === 'cloud' && cloudTab.value !== 'content') {
+      switchCloudTab('content');
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    return;
+  }
+  router.push(item.route);
 }
 
 function applyCloudPlusRouteView() {

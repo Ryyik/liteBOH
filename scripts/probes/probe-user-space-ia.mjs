@@ -237,8 +237,8 @@ await page
 
 const labels = await navLabels();
 check(
-  '底栏四席文案（内容/消息/AI/我）',
-  JSON.stringify(labels) === JSON.stringify(['内容', '消息', 'AI', '我']),
+  '底栏五席文案（内容/消息/AI/图库/我）',
+  JSON.stringify(labels) === JSON.stringify(['内容', '消息', 'AI', '图库', '我']),
   labels.join('/'),
 );
 check('内容 tab 为默认激活', (await activeTab()) === '内容');
@@ -958,13 +958,17 @@ check('内容与左栏有呼吸间距（≥20px）', landRail.gutter >= 20, `gut
 await landPage.screenshot({ path: 'debug-screenshots/ia-landscape-fullwidth.png' });
 // ---------- 10c. 横屏左栏按钮组 ----------
 const railButtons = await landPage.evaluate(() => ({
-  // 四席 = 内容/消息/AI/我（src/config/bottom-nav.ts，2026-09-30 收敛）
+  // 五席 = 内容/消息/AI/图库/我（src/config/bottom-nav.ts，2026-10-22 补第五席「图库」）
   main: document.querySelectorAll('.userspace-rail-group [data-tab]').length,
   actions: Array.from(document.querySelectorAll('[data-rail-action]')).map(
     (el) => el.dataset.railAction,
   ),
 }));
-check('左栏主导航 4 项（内容/消息/AI/我）', railButtons.main === 4, `main=${railButtons.main}`);
+check(
+  '左栏主导航 5 项（内容/消息/AI/图库/我）',
+  railButtons.main === 5,
+  `main=${railButtons.main}`,
+);
 check(
   '左栏便捷组齐全（发布/搜索）',
   ['compose', 'search'].every((id) => railButtons.actions.includes(id)),

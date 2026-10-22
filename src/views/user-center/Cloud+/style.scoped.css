@@ -1312,55 +1312,36 @@
   align-items: start;
 }
 
-.cloud-bottom-nav {
-  position: fixed;
-  left: 50%;
-  bottom: max(14px, env(safe-area-inset-bottom, 0px));
-  z-index: 9000;
-  width: min(86vw, 460px);
-  min-height: 60px;
-  padding: 6px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  border: 1px solid var(--apple-nav-border);
-  border-radius: 999px;
-  background: var(--apple-glass-input);
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  transform: translateX(-50%);
+/* ---- 视图分段（2026-10-22）----
+   替代原来的底部 fixed 三席胶囊（.cloud-bottom-nav 已删，底部让给全站底栏第五席「图库」）。
+   SegmentTabs 是全站共享组件，这里只做两件事：① 归零顶部避让；② 把 --liquid-* 桥到 --apple-*。 */
+.cloud-segment-tabs {
+  /* ⚠️ SegmentTabs 的默认避让是 calc(var(--userspace-nav-h, 84px) + safe-area + 4px) ——
+     那是给 UserSpace 的**固定导航岛**留的。Cloud+ 用的是文档流里的 UserCenterPageHeader，
+     不消费那个变量 ⇒ 不覆盖就会在页面顶部凭空多出 84px 空白。
+     Newsroom 踩过同一个坑（views/Newsroom/style.scoped.css:78 同款处理）。 */
+  --segment-tabs-inset: 0px;
+  /* ⚠️ 令牌必须桥接：SegmentTabs 内部读 --liquid-text-primary / --liquid-text-secondary /
+     --liquid-accent，而它们的 fallback 是**亮色值**（#1d1d1f / #6e6e73）。
+     Cloud+ 走的是 --apple-* 体系，暗色由 html[data-theme='dark'] .cloud-page 覆盖，
+     **不定义 --liquid-*** ⇒ 不桥接的话暗色下就是深灰字压深底，肉眼看不见。
+     tests/unit/cloud-dark-adaptation.test.js 就是为这类问题建的。 */
+  --liquid-text-primary: var(--apple-text);
+  --liquid-text-secondary: var(--apple-text-secondary);
+  --liquid-accent: var(--apple-blue);
 }
 
-.cloud-bottom-nav-item {
-  border: 0;
-  outline: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--apple-text-secondary);
-  font-size: 15px;
-  font-weight: 650;
-  cursor: pointer;
-  transition:
-    background-color 0.18s ease,
-    color 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.cloud-bottom-nav-item.active {
-  background: color-mix(in srgb, var(--apple-text) 8%, transparent);
-  color: var(--apple-text);
-  box-shadow: inset 0 1px 0 var(--apple-sheen);
-}
-
-.cloud-bottom-nav-item:focus {
-  outline: none;
-}
-
-.cloud-bottom-nav-item:focus-visible {
-  box-shadow:
-    inset 0 1px 0 var(--apple-sheen),
-    0 0 0 2px color-mix(in srgb, var(--apple-text) 12%, transparent);
+/* 内容区左对齐：共享组件默认是 UserSpace 的居中观感，这里跟页面其它标题左缘对齐。
+   ⚠️ 不能用 `.cloud-segment-tabs :deep(.segment-tabs)` —— 父组件传的 class 是**合并到
+   SegmentTabs 的根元素**上的（根元素本身就是 `.segment-tabs`），两者是**同一个元素**、
+   不是祖先-后代 ⇒ 后代选择器匹配不到任何东西（首版就是踩了这个，左对齐与 padding 全没生效）。
+   要压过组件内的 `.segment-tabs` 规则，靠多一级祖先把特异性提到 0,3,0（组件内是 0,2,0）。 */
+.cloud-main .cloud-segment-tabs {
+  justify-content: flex-start;
+  gap: 22px;
+  /* padding 一并归零：组件自带的 @media (max-width:480px) 会加 14px 左右内缩，
+     那是给居中观感配的，这里要压掉。 */
+  padding: 0 0 2px;
 }
 
 /* Notice bar - subtle */
@@ -2509,22 +2490,6 @@
 
   .cloud-mode-action {
     width: 100%;
-  }
-
-  .cloud-bottom-nav {
-    min-height: 56px;
-    left: 24px;
-    right: 24px;
-    bottom: max(18px, env(safe-area-inset-bottom, 0px));
-    width: auto;
-    padding: 6px;
-    transform: none;
-  }
-
-  .cloud-bottom-nav-item {
-    min-height: 44px;
-    font-size: 14px;
-    font-weight: 650;
   }
 
   .cloud-settings-page,

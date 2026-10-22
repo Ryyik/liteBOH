@@ -118,7 +118,7 @@ const openCloudGallery = async (page) => {
   if (!entered) return { ok: false, why: '设置页里没找到 Cloud+ 入口' };
   await page.waitForTimeout(5000);
   const switched = await page.evaluate(() => {
-    const item = [...document.querySelectorAll('.cloud-bottom-nav-item')].find((b) =>
+    const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find((b) =>
       /内容/.test(b.textContent || ''),
     );
     if (!item) return false;

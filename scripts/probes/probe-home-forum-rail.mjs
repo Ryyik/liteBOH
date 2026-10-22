@@ -156,9 +156,13 @@ try {
       `rail=${m.rail ? m.rail.w : 'ABSENT'} var=${m.railW}`,
     );
     check('A2 左栏 fixed（长文档流下不被拉满整页）', m.railPosition === 'fixed', m.railPosition);
+    /* 2026-10-22 修正：这条期望值还停在 2026-09-30 收席**之前**的四席
+       （方块/我的/资产/消息/设置），收席后就一直是红的、只是没人跑这个探针。
+       同时补上「更多」—— 它也是 .userspace-rail-item，旧文案漏在账外。
+       当前真源 = src/config/bottom-nav.ts（内容/消息/AI/图库/我）+ 便捷组（发布/搜索）+ 工具组（首页）+ 更多。 */
     check(
-      'A3 左栏条目与 UserSpace 同源（5 主 + 发布/搜索 + 首页）',
-      m.railItems.join('/') === '方块/我的/资产/消息/设置/发布/搜索/首页',
+      'A3 左栏条目与 UserSpace 同源（5 主 + 发布/搜索 + 首页 + 更多）',
+      m.railItems.join('/') === '内容/消息/AI/图库/我/发布/搜索/首页/更多',
       m.railItems.join('/'),
     );
 

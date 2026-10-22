@@ -85,13 +85,26 @@ describe('Cloud+ 暗色适配（变量重映射）', () => {
     expect(light).toContain('--apple-text: #1d1d1f');
   });
 
-  it('关键面已换变量：顶栏玻璃底 / 底部导航 / 骨架 shimmer / 危险按钮', () => {
+  it('关键面已换变量：顶栏玻璃底 / 骨架 shimmer / 危险按钮', () => {
     expect(extractRule(CSS, '.cloud-back-header {')).toContain('var(--apple-glass-bar)');
-    const nav = extractRule(CSS, '.cloud-bottom-nav {');
-    expect(nav).toContain('var(--apple-glass-input)');
-    expect(nav).toContain('var(--apple-nav-border)');
     expect(extractRule(CSS, '.skeleton-block {')).toContain('var(--apple-shimmer-a)');
     expect(extractRule(CSS, '.danger-btn {')).toContain('var(--apple-red)');
+  });
+
+  it('Cloud+ 不再自带底部导航（2026-10-22 起让给全站底栏第五席）', () => {
+    /* 断言用**规则块**而不是「文件里不含 cloud-bottom-nav」：
+       1316 行的说明注释里还留着这个类名（记录它已被删），按字面量断言会被自己的注释满足。
+       真正要锁的是「没有这个规则块」—— 否则 Cloud+ 与全站底栏会同屏两套。 */
+    expect(extractRule(CSS, '.cloud-bottom-nav {')).toBeNull();
+    expect(extractRule(CSS, '.cloud-bottom-nav-item {')).toBeNull();
+
+    /* 视图分段改由共享 SegmentTabs 承担，两件事缺一即出问题：
+       ① 顶部避让归零 —— 默认值读 --userspace-nav-h(84px)，Cloud+ 不消费该变量，会凭空多 84px 空白；
+       ② --liquid-* 桥接到 --apple-* —— SegmentTabs 的 fallback 是亮色值，暗色下不桥接就是暗底深字。 */
+    const tabs = extractRule(CSS, '.cloud-segment-tabs {');
+    expect(tabs).toContain('--segment-tabs-inset: 0px');
+    expect(tabs).toContain('--liquid-text-primary: var(--apple-text)');
+    expect(tabs).toContain('--liquid-text-secondary: var(--apple-text-secondary)');
   });
 
   it('反色按钮的文字必须跟底色对调（暗色下不允许 white-on-white）', () => {

@@ -163,7 +163,14 @@ const measure = (page) =>
     m.badgePos === 'ABSENT' ? 'SKIP-able：本档无未读消息' : m.badgePos,
   );
   check('B6 退出登录不在左栏一级导航里', m.railLogout === false, String(m.railLogout));
-  check('B6 左栏条目收敛为 8 项（5 主 + 2 便捷 + 首页）', m.railItems === 8, m.railItems + ' 项');
+  /* 2026-10-22：底栏补第五席「图库」⇒ 左栏同源变 9 项。
+     注意文案里必须带上「更多」—— 它也是 .userspace-rail-item 的一员（原本文案只写
+     「5 主 + 2 便捷 + 首页」= 8，把「更多」漏在账外，是这次对账才发现的）。 */
+  check(
+    'B6 左栏条目收敛为 9 项（5 主 + 发布/搜索 + 首页 + 更多）',
+    m.railItems === 9,
+    m.railItems + ' 项',
+  );
   check(
     'C2 顶部导航与内容区同心',
     m.navCenter !== null && Math.abs(m.navCenter - m.tabCenter) <= 2,

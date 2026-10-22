@@ -88,14 +88,17 @@ const openCloudGallery = async (page) => {
 
   await page.waitForTimeout(5000);
   const switched = await page.evaluate(() => {
-    const item = [...document.querySelectorAll('.cloud-bottom-nav-item')].find((b) =>
+    /* 2026-10-22：视图切换从底部胶囊（.cloud-bottom-nav-item）上移到页面内 SegmentTabs。
+       选择器必须带 .cloud-segment-tabs 作用域 —— .segment-tab 是全站共享组件的类名，
+       UserSpace / Newsroom 页面里也有，裸选择器会点错。 */
+    const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find((b) =>
       /内容/.test(b.textContent || ''),
     );
     if (!item) return false;
     item.click();
     return true;
   });
-  if (!switched) return { ok: false, why: 'Cloud+ 底栏没有「内容」分页' };
+  if (!switched) return { ok: false, why: 'Cloud+ 顶部没有「内容」分段' };
 
   try {
     await page.waitForSelector('#cloud-search', { timeout: 15000 });
@@ -132,7 +135,9 @@ const readHeader = () =>
       return h ? getComputedStyle(h).position : null;
     })(),
     bottomNavFilter: (() => {
-      const n = q('.cloud-bottom-nav');
+      /* 2026-10-22：Cloud+ 不再自带底栏，底部换成全站底栏（.bottom-nav-glass）。
+         断言意图不变 —— 底栏这一层必须是液态玻璃，别被改成实色。 */
+      const n = q('.bottom-nav-glass');
       return n ? getComputedStyle(n).backdropFilter || getComputedStyle(n).webkitBackdropFilter : null;
     })(),
   };
@@ -200,7 +205,7 @@ try {
       `position=${r.headerPosition}`,
     );
 
-    // G 底栏仍是液态玻璃（Cloud+ 仅存的显形玻璃面之一，别被误改成实色）
+    // G 底栏仍是液态玻璃（2026-10-22 起这是**全站底栏**，Cloud+ 只是它的宿主页之一）
     check(
       p('G 底部导航保持液态玻璃（backdrop-filter 含 blur）'),
       typeof r.bottomNavFilter === 'string' && /blur/.test(r.bottomNavFilter),
@@ -217,7 +222,7 @@ try {
     //        —— 那正是改版前踩到的坑：blur 生效但底色仍被压）
     //      · 卡片与存储条**圆角一致**（都来自 --liquid-radius-lg；被 scoped 的 --radius-lg 压回去就红）
     await page.evaluate(() => {
-      const item = [...document.querySelectorAll('.cloud-bottom-nav-item')].find(
+      const item = [...document.querySelectorAll('.cloud-segment-tabs .segment-tab')].find(
         (b) => b.textContent.trim() === '设置',
       );
       item?.click();
