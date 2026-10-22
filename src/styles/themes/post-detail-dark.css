@@ -152,18 +152,33 @@ html[data-theme='dark'] .post-detail-page--modal {
   color: #a1a1aa !important;
 }
 
-/* 子回复 */
+/* 子回复
+   ⚠️ 2026-10-22 修复「异常黑块」（用户截图）：原来给 .child-reply-item 铺了
+   `background: #1a1a25` 实心深底 + 1px 浅描边。问题是**弹窗态的评论区是透明的**
+   （见本文件 665 行刻意设成 transparent，避免深色弹窗里浮出一块玻璃卡），
+   于是这个实心深块直接叠在深色弹窗上 ⇒ 看起来就是一大块比周围更黑的方块，
+   边缘还有一圈描边，正是用户报的「异常黑块」。
+
+   正确做法：子回复与评论区保持**同一层材质**（透明），靠左侧竖线 + 缩进表达层级，
+   不用「给个更深的底」—— 那条路子只在浅色下成立（浅色时 #f5f5f7 底是"比白更灰"，
+   在深色里翻过来就变成"比黑更黑"，方向是反的）。
+   hover 仍给一层极轻的白光，保证可交互性可感知。 */
 .post-detail-page[data-theme='dark'] .child-replies-wrap {
   border-left-color: rgba(255, 255, 255, 0.08);
 }
 
 .post-detail-page[data-theme='dark'] .child-reply-item {
-  background: #1a1a25;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: transparent;
+  border: none;
 }
 
 .post-detail-page[data-theme='dark'] .child-reply-item:hover {
-  background: #222230;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* 高亮（跳转到某条子回复时）：保留可辨识的强调，但不回到实心深底 */
+.post-detail-page[data-theme='dark'] .child-reply-item.is-highlighted {
+  background: rgba(59, 130, 246, 0.1);
 }
 
 /* 评论操作按钮 */

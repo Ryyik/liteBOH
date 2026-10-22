@@ -1,11 +1,11 @@
 {
-  "total": 2515,
+  "total": 2514,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 186,
     "src/styles/themes/user-space-dark.css": 153,
     "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 149,
-    "src/styles/themes/post-detail-dark.css": 121,
+    "src/styles/themes/post-detail-dark.css": 120,
     "src/views/user-center/Messages/style.scoped.css": 106,
     "src/views/Newsroom/style.scoped.css": 103,
     "src/views/user-center/UserSpace/styles/shell-community.css": 90,
