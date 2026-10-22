@@ -96,7 +96,10 @@
      媒体自身不再套 12px 圆角与 hairline（否则面板边缘会露出一圈白衬）。 */
   border-radius: 0;
   overflow: hidden;
-  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
+  /* contain 会在少数竖长图上下留白。底色从「半透明白」改成中性浅灰，
+     让留白读起来是「相框」而不是「漏白/没加载出来」；
+     再用 hairline 之外的内阴影压一下边界，视觉上把图片「装」进画框。 */
+  background: var(--media-mat, #f2f3f5);
   border: none;
 }
 
@@ -112,10 +115,19 @@
   cursor: zoom-in;
 }
 
+/* 媒体适配：保持 contain（**不裁切**）—— 2026-10-22 决策依据（130 张真实图实测）
+   容器比例 487.5/684 = 0.713，forum_post_images 的 width/height 实测：
+     · 若用 cover：中位裁切 21.1%，且 **40% 的图会被裁掉 35% 以上**；
+     · 若用 contain：中位留白 0%，**86% 的图（方图/横图）完全没有留白**。
+   即：cover 会真实切坏四成图片的内容（截图、带字图尤其明显），
+   而 contain 只在少数竖长图（比例 < 0.713）上留白 —— 留白是安全失败，裁切是内容损失。
+   故保留 contain，只把背景色改成中性，让留白看起来是「画框」而不是「漏白」。
+   ⚠️ 不要为了「铺满」改 cover：那是对用户内容的破坏，不是样式微调。 */
 .post-detail-page--modal .pd-media-img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  object-position: center;
   /* 满出血形态：图片圆角由面板裁切，自身不套圆角（否则图片与面板之间会露白缝）。 */
   border-radius: 0;
   opacity: 0;
@@ -256,6 +268,25 @@
   flex: 0 0 100%;
 }
 
+/* 作者头像 48→32px、名字 16→15px（2026-10-22 对齐小红书）
+   参考实测：头像直径 32px（竖直范围 53.5..85.0），距面板顶 30.5px；
+   名字墨高 14.0px（含 p/y 下伸）⇒ 字号≈14.7px，我方原 16px 偏大。
+   .author-avatar 基类是 48px（style.scoped.css:321），这里只在弹窗态收小。 */
+.post-detail-page--modal .pd-author-row .author-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+}
+
+.post-detail-page--modal .pd-author-row .author-avatar .avatar-image {
+  border-radius: 999px;
+}
+
+.post-detail-page--modal .pd-author-row .author-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .post-detail-page--modal .pd-author-row .post-time,
 .post-detail-page--modal .pd-author-row .post-location-tag {
   font-size: 12px;
@@ -268,13 +299,17 @@
   margin-left: 6px;
 }
 
+/* 关注按钮：黑底实心 → 红描边空心（2026-10-22 对齐小红书）
+   参考实测：96×40、红色描边（红像素 bbox 96×40）、文字与描边同为玫红、底色透明。
+   我方原为 65×40.7 黑底白字实心块，形态完全不同。 */
 .post-detail-page--modal .pd-follow-btn {
-  padding: 7px 18px;
-  border: 1px solid transparent;
+  min-width: 96px;
+  padding: 8px 26px;
+  border: 1px solid var(--detail-accent, #e0483f);
   border-radius: var(--liquid-radius-pill, 999px);
-  background: var(--liquid-text-primary, #1d1d1f);
-  color: #fff;
-  font-size: 13px;
+  background: transparent;
+  color: var(--detail-accent, #e0483f);
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition:
@@ -284,12 +319,13 @@
 }
 
 .post-detail-page--modal .pd-follow-btn:hover:not(:disabled) {
-  opacity: 0.88;
+  background: color-mix(in srgb, var(--detail-accent, #e0483f) 8%, transparent);
 }
 
+/* 已关注：灰描边灰字（与未关注的红色拉开） */
 .post-detail-page--modal .pd-follow-btn.is-following {
   background: transparent;
-  border-color: var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  border-color: var(--liquid-border-hairline, rgba(15, 23, 42, 0.14));
   color: var(--liquid-text-secondary, #6e6e73);
 }
 
@@ -332,6 +368,13 @@
   background: transparent;
   border: none;
   box-shadow: none;
+  /* 2026-10-22 补漏：只清 background/border/shadow 是不够的 ——
+     .glass-panel 基础类还挂着 backdrop-filter: blur(28px) saturate(1.8) brightness(1.02)。
+     背景虽透明，这层滤镜仍会把底下的面板「提亮 + 加饱和」，
+     在灰色面板上就渲染出一块比周围更白的圆角矩形（用户报「评论区白色块很别扭」）。
+     玻璃容器既然已经去底，滤镜必须一起去掉，否则它是纯视觉噪声 + 每帧 GPU 开销。 */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   padding: 0;
 }
 

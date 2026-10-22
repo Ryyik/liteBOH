@@ -629,15 +629,16 @@
   margin: 16px -24px 18px -10px;
 }
 
-/* 单图帖：不要那个不对称 margin（2026-10-22）
-   上面那组负 margin 是**给多图横滑设计的** —— 左边留 14px 呼吸、右边贴边让
-   下一张露出来，制造「还能往右滑」的暗示。单图没有下一张，贴着右边就变成
-   「图片整体偏右 14px」（用户报「单图帖子图片不居中」）。
-   `.is-single` 已经把缩略图设成 width:100%，这里把它左右都抵掉卡片 padding，
-   让单图真正通栏、左右对称。 */
+/* 单图帖：**保留卡片内衬，不通栏**（2026-10-22 用户口径）
+   多图的负 margin 是给横滑设计的（左缝呼吸 + 右缘贴边露下一张）。
+   单图没有「下一张」，贴边纯属副作用：既失去呼吸，又让图片顶到卡片圆角外面。
+   口径（用户 2026-10-22 明确）：**单图不能这样设计，多图才可以贴边**。
+   故这里把左右负 margin 归零 —— 单图落在卡片 padding 内（竖屏 16px / 横屏 24px），
+   左右对称、四角留白，与卡片圆角协调。
+   判据：node scripts/probes/probe-feed-image-gutter.mjs --assert */
 .image-post-strip-wrap:has(> .image-post-strip.is-single) {
-  margin-left: -24px;
-  margin-right: -24px;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .image-post-strip {

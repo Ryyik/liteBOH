@@ -374,6 +374,41 @@ const closeDetailImageViewer = () => {
   isDetailImageViewerOpen.value = false;
 };
 
+/**
+ * 详情页键盘操作：← / → 切换图片（2026-10-22）
+ * Esc 关闭弹窗由 usePostDetailModal 的全局 keydown 负责，这里只管图片切换（不重复接管 Esc）。
+ *
+ * 三条必须避开的坑：
+ * ① 焦点在输入框 / textarea / contenteditable 里时不能抢方向键 ——
+ *    评论框里按左右是移光标，抢走就没法编辑了。
+ * ② 大图查看器（ImageViewer）打开时它自己有键盘处理，这里必须让位，
+ *    否则一次按键会把底下那张也翻掉，关掉查看器后位置莫名其妙变了。
+ * ③ 带修饰键（⌘/Ctrl/Alt/Shift）的组合不接管，那是浏览器/系统的快捷键。
+ * 另外只在本页真正处于"详情可见"状态时响应：弹窗态要求 isOpen，
+ * 整页态没有弹窗覆盖，两者任一成立即可。
+ */
+const isEditableTarget = (el) => {
+  if (!el) return false;
+  const tag = String(el.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+  return Boolean(el.isContentEditable);
+};
+
+const handleDetailKeydown = (event) => {
+  if (event.defaultPrevented) return;
+  if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+  if (isEditableTarget(event.target)) return;
+  if (isDetailImageViewerOpen.value) return;
+  if (detailImages.value.length <= 1) return;
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    showPrevDetailImage();
+  } else if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    showNextDetailImage();
+  }
+};
+
 const triggerLikePulse = () => {
   isLikePulsing.value = true;
   if (likePulseTimer) clearTimeout(likePulseTimer);
@@ -1392,11 +1427,13 @@ onMounted(() => {
     isNarrowDetail.value = matches;
   });
   isNarrowDetail.value = isNarrowDetailViewport();
+  window.addEventListener('keydown', handleDetailKeydown);
 });
 
 onUnmounted(() => {
   themeManager.removeListener(handleThemeChange);
   document.removeEventListener('click', handleDocumentClick);
+  window.removeEventListener('keydown', handleDetailKeydown);
   releaseEditPortraitWatch?.();
   releaseEditPortraitWatch = null;
   if (dockViewportHandler && window.visualViewport) {

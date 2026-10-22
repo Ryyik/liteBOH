@@ -1419,12 +1419,15 @@
     margin: 12px -16px 14px -2px;
   }
 
-  /* 单图帖：覆盖上面的不对称 margin（2026-10-22）
-     那组值是给多图横滑的「露下一张」用的；单图贴右缘 = 整体偏右 14px。
-     单图改成左右都抵掉 16px 卡片内边距 ⇒ 通栏且对称。 */
+  /* 单图帖：**保留 16px 卡片内衬，不通栏**（2026-10-22 用户口径）
+     上面那组负 margin 是给多图横滑的「露下一张」用的。
+     单图没有下一张，抵掉内衬只会让图片顶到卡片边上 —— 用户明确要求「单图不能这样，
+     多图才可以贴边」。故左右归零，图片落在 padding 内。
+     ⚠️ 这条必须和 feed.css 的同名规则**同步改**：两处都会命中竖屏的单图帖，
+     只改 feed.css 时竖屏实测仍是 1px（本文件在窄屏媒体查询里，优先级更高）。 */
   .image-post-strip-wrap:has(> .image-post-strip.is-single) {
-    margin-left: -16px;
-    margin-right: -16px;
+    margin-left: 0;
+    margin-right: 0;
   }
 
   .image-post-strip {
