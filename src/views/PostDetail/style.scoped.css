@@ -6,10 +6,11 @@
   --detail-soft: rgba(255, 255, 255, 0.72);
   min-height: 100vh;
   padding-top: var(--user-center-nav-offset);
-  background-color: #f7f8fb;
-  background-image:
-    radial-gradient(at 12% 0%, rgba(42, 131, 218, 0.055) 0px, transparent 42%),
-    radial-gradient(at 100% 6%, rgba(122, 161, 255, 0.035) 0px, transparent 46%);
+  /* 页底走全站真源 --boh-page-bg（浅色 #ffffff / 暗色 #16120e），与 body 同色。
+     2026-10-22：原先硬编码 #f7f8fb + 两段蓝色径向渐变，与全站纯白底有色差
+     （实测 ΔE 2.88，暗色 #0a0a0f 对暖炭底 ΔE 5.63）。渐变是第三个色偏源 ——
+     暖炭底上叠蓝光晕会发紫，且让「纯白」永远成立不了。别再写回来。 */
+  background-color: var(--boh-page-bg, #ffffff);
   padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
 }
 

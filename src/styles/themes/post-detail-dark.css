@@ -4,14 +4,13 @@
  * ============================================
  */
 
-/* 页面基础 - 使用更高优先级覆盖 scoped CSS */
-.post-detail-page[data-theme='dark'],
-[data-theme='dark'] .post-detail-page {
-  background-color: #0a0a0f !important;
-  background-image:
-    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(255, 82, 82, 0.05) 0px, transparent 50%) !important;
-}
+/* 页面基础：**不在这里写页底**。
+   2026-10-22 起页底由 style.scoped.css 的 var(--boh-page-bg) 统一决定
+   （浅色 #ffffff / 暗色 #16120e），与 body 同色。
+   原先这里写死 #0a0a0f !important + 蓝/红径向渐变 —— #0a0a0f 是面板色
+   --boh-bg-primary 的字面量，而全站页底真源是暖炭 #16120e（dark-mode.css:48），
+   实测 ΔE 5.63、亮度差 2 倍 ⇒ 从论坛列表点进详情会整页色温跳变（用户报的「色差」）。
+   ⚠️ 别再写回来：这里任何实底 + !important 都会盖掉 --boh-page-bg。 */
 
 /* ============================================
    X 风格布局（2026-10-15 横竖屏口径对齐）
@@ -24,7 +23,7 @@
    ============================================ */
 
 /* 弹窗宿主（横屏）内页面保持透明：玻璃质感由弹窗面板（--liquid-bg-strong）提供，
-   镜像 modal-layout.css 浅色口径；否则下面的 #0a0a0f 实底会盖掉面板玻璃 */
+   镜像 modal-layout.css 浅色口径（面板玻璃要能透出下面的遮罩，不能有实底） */
 html[data-theme='dark'] .post-detail-page--modal {
   background-color: transparent !important;
   background-image: none !important;
