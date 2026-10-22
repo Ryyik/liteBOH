@@ -2669,7 +2669,11 @@ watch(
   () => props.externalFeed,
   (val) => {
     const nextFollowing = val === 'following';
-    const nextKind = val === 'news' || val === 'activity' ? val : '';
+    /* 2026-10-22：论坛把「新闻」「活动」并成「资讯」一席 ⇒ news 分区现在要**同时**
+       展示两类官方内容，所以映射到 kindFilter 'info'（= news + activity，
+       见 post-api 的 normalizeForumKindFilter）。activity 分区保留原映射，
+       让旧深链 `?view=activity` 仍可用。 */
+    const nextKind = val === 'news' ? 'info' : val === 'activity' ? 'activity' : '';
     if (nextFollowing && !isLoggedIn.value) return; // 与 setFeedMode 一致：关注流需登录
     if (showFollowingOnly.value === nextFollowing && selectedContentType.value === nextKind) return;
     showFollowingOnly.value = nextFollowing;
@@ -4308,20 +4312,11 @@ const historySuggestion = computed(
   () => searchHistory.value.find((item) => item !== searchKeyword.value.trim()) || '',
 );
 
-/* 结果计数：只在「有关键词 / 有筛选」时有意义。
-   RPC 只回 has_more、不回首总数，所以还有下一页时只能说「前 N 条」——
-   写成精确总数就是编的。 */
-const searchResultLabel = computed(() => {
-  const hasFilter = Boolean(
-    searchKeyword.value.trim() ||
-    selectedTagFilter.value ||
-    selectedContentType.value ||
-    showFollowingOnly.value,
-  );
-  if (!hasFilter || isLoading.value || forumData.value.length === 0) return '';
-  const count = forumData.value.length;
-  return hasMoreData.value ? `已显示前 ${count} 条，继续下拉可加载更多` : `共 ${count} 条结果`;
-});
+/* 结果计数提示：2026-10-22 按用户要求**整条去掉**。
+   原先它在搜索/筛选态渲染「已显示前 N 条，继续下拉可加载更多 / 共 N 条结果」，
+   位置在卡片流正上方，无论怎么调字号都像一句多余的说明。列表底部本来就有
+   加载更多的手感（下拉即出），这句属于重复表达。
+   ⚠️ 别再以「提升可发现性」为由加回来 —— 用户明确要求去掉。 */
 
 // 统一搜索入口（提交按钮 / 回车 / 输入防抖共用）：解析 #标签 + 剔除记号后入库检索
 const applySearchFromInput = ({ remember = false } = {}) => {
@@ -4663,10 +4658,7 @@ const openPostDetail = (postId) => {
             <!-- 最近搜索面板不在这里：它在 ForumToolbar 内部贴着搜索框展开
                  （放信息流顶部会被手机底栏压住，且与输入框隔着一个发帖框）。 -->
 
-            <!-- 结果计数：搜索 / 筛选态才有意义（RPC 不回总数，有下一页时说「前 N 条」） -->
-            <div v-if="searchResultLabel" class="forum-search-count" aria-live="polite">
-              {{ searchResultLabel }}
-            </div>
+            <!-- 结果计数：2026-10-22 按用户要求整条移除（理由见 script 里那段注释） -->
 
             <!-- 骨架屏加载状态 -->
             <div v-if="isLoading" class="skeleton-feed">

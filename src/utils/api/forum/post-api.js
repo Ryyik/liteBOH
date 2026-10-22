@@ -512,8 +512,18 @@ async function enrichWeeklyCheckinStatusFallback(status, userId = null) {
   };
 }
 
-// 内容类型筛选规范化：'' 全部；'post' 论坛（含转发）；'news' / 'activity' 官方卡。
-// 返回 { kindFilter: RPC 参数值, kindValues: 直查路径的 post_kind IN 列表 }。
+/* 一行内容属于哪类：优先 `post_kind` 字段；老数据没有该字段时按内容前缀兜底。 */
+const rowKind = (row) =>
+  String(row?.post_kind || '').trim() ||
+  (/^【新闻】/.test(String(row?.content || ''))
+    ? 'news'
+    : /^【活动】/.test(String(row?.content || ''))
+      ? 'activity'
+      : 'post');
+
+// 内容类型筛选规范化：'' 全部；'post' 论坛（含转发）；'news' / 'activity' 官方卡；
+// 'info' = 官方「资讯」，即 news + activity 两类一起（2026-10-22 论坛把两席并成一席）。
+// 返回 { kindFilter: RPC 参数值, kindValues: post_kind IN 列表, clientOnly: 需在客户端补过滤 }。
 export const normalizeForumKindFilter = (raw) => {
   const kind = String(raw || '')
     .trim()
@@ -521,6 +531,12 @@ export const normalizeForumKindFilter = (raw) => {
   if (kind === 'news') return { kindFilter: 'news', kindValues: ['news'] };
   if (kind === 'activity') return { kindFilter: 'activity', kindValues: ['activity'] };
   if (kind === 'post') return { kindFilter: 'post', kindValues: ['post', 'repost'] };
+  /* 'info' 没有对应的 RPC 参数值（`list_forum_posts.p_kind_filter` 是 text、只认单值），
+     所以**不传服务端过滤**，改为拉回来后按 kindValues 在客户端筛。
+     ⚠️ 代价：服务端按 p_limit 分页后再筛，单页会比别的分区少（见下方 overfetch 补偿）。 */
+  if (kind === 'info') {
+    return { kindFilter: null, kindValues: ['news', 'activity'], clientOnly: true };
+  }
   return { kindFilter: null, kindValues: null };
 };
 
@@ -532,7 +548,7 @@ export async function getPosts(userId = null, pagination = {}) {
   const sortMode = normalizeSortMode(pagination.sortMode || pagination.sort || 'latest');
   const searchQuery = String(pagination.searchQuery || '').trim();
   const tagFilter = normalizeForumTag(pagination.tag || pagination.tagFilter || '');
-  const { kindFilter, kindValues } = normalizeForumKindFilter(
+  const { kindFilter, kindValues, clientOnly } = normalizeForumKindFilter(
     pagination.kindFilter || pagination.contentType || '',
   );
   const includeUnapprovedForAuthor = Boolean(pagination.includeUnapprovedForAuthor);
@@ -667,6 +683,13 @@ export async function getPosts(userId = null, pagination = {}) {
         }
         rpcData = legacyRows;
         rpcError = legacyResult.error;
+      }
+
+      /* 'info'（资讯 = news + activity）在 RPC 侧没有单值参数 ⇒ 服务端不过滤，
+         这里按 kindValues 补筛。代价是单页可能少于 p_limit：官方内容本身不多，
+         实测可接受；若将来量大了，应该给 RPC 加「多值 kind」支持而不是放大 limit。 */
+      if (clientOnly && Array.isArray(rpcData)) {
+        rpcData = rpcData.filter((row) => kindValues.includes(rowKind(row)));
       }
 
       if (rpcError) {

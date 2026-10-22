@@ -293,17 +293,10 @@ try {
     await page.fill('.forum-page .toolbar-search-input', '关键词');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(900);
-    const countText = await page
-      .locator('.forum-search-count')
-      .first()
-      .innerText()
-      .catch(() => '');
-    check('H1 有结果时显示结果计数', /条/.test(countText), countText || '(无计数元素)');
-    check(
-      'H2 计数不谎报精确总数（has_more=false 才说「共」）',
-      countText.includes('共') || countText.includes('前'),
-      countText,
-    );
+    const countEls = await page.locator('.forum-search-count').count();
+    /* 2026-10-22：结果计数提示按用户要求**整条删除**（原 H1/H2 断言它存在且措辞正确）。
+       现在改成反向锁：任何情况下都不该再出现 —— 防止有人以「提升可发现性」为由加回来。 */
+    check('H1 搜索态不渲染结果计数（2026-10-22 已移除）', countEls === 0, `count=${countEls}`);
     check('Z3 零 JS 运行时错误', errors.length === 0, errors.slice(0, 2).join(' | '));
     await context.close();
   }

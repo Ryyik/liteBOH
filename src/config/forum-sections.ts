@@ -35,12 +35,22 @@ export const FORUM_SECTION_ITEMS: ForumSectionItem[] = [
   { id: 'official', label: '官方' },
   { id: 'latest', label: '最新' },
   { id: 'following', label: '关注' },
-  { id: 'news', label: '新闻' },
-  { id: 'activity', label: '活动' },
+  /* 2026-10-22：「新闻」「活动」两席合并为「资讯」——
+     **指的是论坛里官方的新闻 + 活动内容**，不是跳去 /newsroom 资讯页。
+     id 沿用 'news'（旧深链 `?view=news` 不改），ForumMain 收到 news 分区时
+     映射成 kindFilter 'info' 同时拉两类，见 ForumMain 的 externalFeed watch。
+     activity 席已撤（不再显示），但 id 仍在 FORUM_SECTION_IDS 里 ⇒
+     旧链接 `?view=activity` 仍能渲染活动流，不会 404。 */
+  { id: 'news', label: '资讯' },
   { id: 'members', label: '成员' },
 ];
 
-export const FORUM_SECTION_IDS: ForumSectionId[] = FORUM_SECTION_ITEMS.map((item) => item.id);
+/* ⚠️ 不再严格等于 items.map(id)：activity 已从展示列表撤掉，但保留为合法 view
+   （旧深链兼容）。别为了「好看」把它从 ids 里删掉，那会让老链接落到默认分区。 */
+export const FORUM_SECTION_IDS: ForumSectionId[] = [
+  ...FORUM_SECTION_ITEMS.map((item) => item.id),
+  'activity',
+];
 
 /** 默认分区：官方仅排序居首，默认落点仍为最新 */
 export const FORUM_DEFAULT_SECTION: ForumSectionId = 'latest';

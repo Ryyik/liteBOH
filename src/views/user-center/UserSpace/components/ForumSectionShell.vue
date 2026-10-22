@@ -1,7 +1,7 @@
 <template>
   <div class="forum-section-shell" :class="{ 'feed-switching': feedSwitchPulse }">
     <SegmentTabs
-      :sections="sectionTabs"
+      :sections="FORUM_SECTION_ITEMS"
       :model-value="section"
       aria-label="方块分区"
       @update:model-value="selectSection"
@@ -56,7 +56,6 @@
 
    过渡动画复用既有的 userspace-tab-in/out 体系（由外层页面提供类名）。 */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import SegmentTabs from './SegmentTabs.vue';
 import { AsyncCommunity, AsyncForum } from '../async-loaders.js';
 import {
@@ -66,26 +65,6 @@ import {
   resolveExternalFeed,
   resolveForumSection,
 } from '@/config/forum-sections';
-
-const router = useRouter();
-
-/* 2026-10-22：论坛把「新闻」「活动」两席合并成「资讯」。
-   ⚠️ 它**不是一个分区**，而是一个跳转入口 —— `/newsroom` 已在 c0d407f3 里把
-   「活动 / 新闻 / 节目」收在同一页，这里只是把论坛的入口也收到那一处，不再造第二个页面。
-
-   刻意不进 `FORUM_SECTION_ITEMS`：那会让 `?view=newsroom` 成为合法 view，
-   而本组件没有对应渲染分支 ⇒ 整页空白（同类事故见 forum-sections.ts 里 `impressions` 的注释）。
-   所以用「展示用 tab 列表」单独拼一份，合法 view 集合保持原样（旧深链 `?view=news` /
-   `?view=activity` 仍然可用，只是不再有 tab 高亮）。 */
-const NEWSROOM_TAB_ID = 'newsroom';
-const BOARD_TABS = FORUM_SECTION_ITEMS.filter(
-  (item) => item.id !== 'news' && item.id !== 'activity',
-);
-const sectionTabs = [
-  ...BOARD_TABS.slice(0, 3),
-  { id: NEWSROOM_TAB_ID, label: '资讯' },
-  ...BOARD_TABS.slice(3),
-];
 
 const props = defineProps({
   /** 当前分区（v-model:section） */
@@ -125,11 +104,6 @@ const pulseFeed = () => {
 // 分区副作用
 // ============================================
 const selectSection = (next) => {
-  /* 「资讯」是跳转入口，不是分区：直接去已合并好的 /newsroom，不改 section */
-  if (next === NEWSROOM_TAB_ID) {
-    router.push('/newsroom');
-    return;
-  }
   const target = resolveForumSection(next);
   if (target === section.value) return;
   emit('update:section', target);
