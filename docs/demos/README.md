@@ -21,6 +21,19 @@
   数据全部来自 `plans/029-beta7-app-shell.md` 的四轮实测（§2.5 HIG 15 检查点 / §2.6 Glass 实测 /
   §2.7–2.9 Apple 五张脸对照 / D1–D8 / 7 阶段 / 13 决策 / 17 探针 15 门禁 / 11 风险）。
   **每个数字都带判据命令，可原样重跑。** 单文件零依赖，含 `prefers-color-scheme` 适配。
+- **`bohai-portrait-audit.mjs`**（2026-10-21 新增）—— BOHAI 竖屏模式选择体检脚本，A–I 九组
+  （四档菜单几何 / 触屏热区 / 竖屏 hover 卡 / 软键盘 / Esc / 游客锁态 / 设置页口径 / RPC 失败态 / 岛形态）。
+  **刻意不做断言** ⇒ 它是诊断脚本不是探针，所以放这里、不进 `scripts/probes/` 的探针计数
+  （`AGENTS.md` 的「198 个 probes」由 `check:doc-truth` 按 `git ls-tree HEAD` 对账，加进去要同步改文档）。
+  方案落地后应转成带断言的 `scripts/probes/probe-bohai-mode-sheet.mjs`（见 `plans/031` §5）。
+  ⚠️ 它跑真实 RPC（不 mock 模式表）：实测 RPC 0.6–9.6s 抖动，脚本已用「等骨架消失 + 行出现」重试，
+  但偶发单节数据缺失时会在日志里打 `⚠️ 模式菜单未在 36s 内出现行`，不是脚本坏了。
+- **`portrait-adaptive-audit.mjs`**（2026-10-22 新增）—— 竖屏「全宽布局 + 加载提示」体检脚本，
+  22 个页面 × 两个场景（正常网络量宽度 / 只延迟 `/rest/v1/**` 与 `/rpc/**` 15s 量加载指示）。
+  同样**不做断言** ⇒ 诊断脚本，不进探针计数。产出 `debug-screenshots/portrait-adaptive-<日期>/`。
+  ⚠️ 真值来源是 pinia 注入的伪会话，`getCurrentUser()` 为 null ⇒ 依赖真实会话的页面
+  （消息/概览/资产/礼物/咖啡馆）慢网结论**不可信**，只采信公开页与代码层证据。
+  结论见 `docs/2026-10-22-竖屏全宽与加载提示洞察.md`；修复后应补 `check()` 断言再迁进 `scripts/probes/`。
 
 ## 放什么
 
