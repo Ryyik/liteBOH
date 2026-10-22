@@ -133,13 +133,34 @@ try {
     if (s.userInfo) Object.assign(s.userInfo, { username: 'probe_user', role: 'user' });
   });
 
-  // 直接驱动全局单例（与列表点击同一条链路），绕开滚动/可见性干扰
-  await page.evaluate(async (id) => {
-    const mod = await import('/src/composables/usePostDetailModal.js');
-    mod.usePostDetailModal().open(id);
-  }, POST);
-
-  await page.waitForSelector('.pd-modal-overlay', { timeout: 20000 });
+  // 直接驱动全局单例（与列表点击同一条链路），绕开滚动/可见性干扰。
+  //
+  // ⚠️ 2026-10-22 起加了「内容就绪」重试：本机到 Supabase 会间歇性超时
+  // （实测同一查询 1449ms 成功 → 8001ms 被 8s 阈值 abort → 之后 398ms 正常），
+  // 详情取不到时组件会渲染「帖子已失效」空态，量出来的字号/头像全是 null 的**假红**。
+  // 所以这里以「.pd-modal-media 或 .pd-title 真的出现」为准，最多重开 3 次。
+  let contentReady = false;
+  for (let attempt = 0; attempt < 3 && !contentReady; attempt += 1) {
+    if (attempt > 0) {
+      // 关掉上一次的空态弹窗再重开
+      await page.evaluate(() => {
+        document.querySelector('.pd-modal-close')?.click();
+      });
+      await page.waitForTimeout(1200);
+    }
+    await page.evaluate(async (id) => {
+      const mod = await import('/src/composables/usePostDetailModal.js');
+      mod.usePostDetailModal().open(id);
+    }, POST);
+    await page.waitForSelector('.pd-modal-overlay', { timeout: 20000 });
+    contentReady = await page
+      .waitForSelector('.pd-title, .pd-modal-media', { timeout: 22000 })
+      .then(() => true)
+      .catch(() => false);
+  }
+  if (!contentReady) {
+    console.log('⚠️ 详情内容三次都没加载出来（本机网络超时），以下读数为空态的假红');
+  }
   await page.waitForTimeout(2600);
 
   // 展开楼中楼，否则 .child-reply-item 不存在（子回复默认只露 1 条，且可能未加载）

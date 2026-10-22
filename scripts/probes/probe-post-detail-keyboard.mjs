@@ -49,12 +49,26 @@ async function openModal(page, postId) {
     m.usePostDetailModal().open(id);
   }, postId);
   await page.waitForSelector('.pd-modal-overlay', { timeout: 20000 });
-  await page.waitForTimeout(5000);
+  // 内容就绪重试：本机网络间歇超时会让详情渲染成「帖子已失效」空态，
+  // 此时量到的 switch 目标全为 null 的假红。等 .pd-title 出现，最多重开 3 次。
+  for (let i = 0; i < 3; i += 1) {
+    const ready = await page
+      .waitForSelector('.pd-title, .pd-modal-media', { timeout: 18000 })
+      .then(() => true)
+      .catch(() => false);
+    if (ready) break;
+    await page.evaluate(() => document.querySelector('.pd-modal-close')?.click());
+    await page.waitForTimeout(1200);
+    await page.evaluate(async (id) => {
+      const m = await import('/src/composables/usePostDetailModal.js');
+      m.usePostDetailModal().open(id);
+    }, postId);
+    await page.waitForSelector('.pd-modal-overlay', { timeout: 20000 });
+  }
+  await page.waitForTimeout(1200);
   // 诊断：等图片真正渲染出来，别用固定等待赌它（早期版本 5s 有时不够，
   // 拿到 null 于是 A/C 假红）。等不到就算超时，由断言显式报出来。
-  await page
-    .waitForSelector('.pd-modal-media img', { timeout: 15000 })
-    .catch(() => {});
+  await page.waitForSelector('.pd-modal-media img', { timeout: 15000 }).catch(() => {});
 }
 
 // 判据以 <img> 的 src 为准（实测类名是 .pd-media-dot / .pd-media-dot.active，
@@ -77,24 +91,42 @@ const run = async () => {
     const ctx = await browser.newContext({ viewport: { width: 972, height: 734 } });
     const page = await ctx.newPage();
     await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => !!document.querySelector('#app')?.__vue_app__, { timeout: 30000 });
-    const picked = await page.evaluate(async () => {
-      const m = await import('/src/utils/supabase-client.js');
-      const sb = m.supabase || m.default;
-      const { data } = await sb.from('forum_post_images').select('post_id').limit(200);
-      const counts = new Map();
-      (data || []).forEach((r) => counts.set(r.post_id, (counts.get(r.post_id) || 0) + 1));
-      const multi = [...counts.entries()].filter(([, n]) => n > 1).map(([id, n]) => ({ id, n }));
-      return { multi };
+    await page.waitForFunction(() => !!document.querySelector('#app')?.__vue_app__, {
+      timeout: 30000,
     });
-    multiId = picked.multi[0]?.id || null;
+    // DB 查询要重试：本机网络间歇超时会让这次查询拿到空数组，
+    // 表现成「未找到多图帖」的假红（实测同源查询 1449ms → 8001ms abort → 398ms 正常）
+    let multiCandidates = [];
+    for (let i = 0; i < 5 && !multiCandidates.length; i += 1) {
+      await page.waitForTimeout(1500);
+      multiCandidates = await page.evaluate(async () => {
+        const m = await import('/src/utils/supabase-client.js');
+        const sb = m.supabase || m.default;
+        try {
+          const { data } = await sb.from('forum_post_images').select('post_id').limit(200);
+          const counts = new Map();
+          (data || []).forEach((r) => counts.set(r.post_id, (counts.get(r.post_id) || 0) + 1));
+          return [...counts.entries()].filter(([, n]) => n > 1).map(([id]) => id);
+        } catch {
+          return [];
+        }
+      });
+    }
+    multiId = multiCandidates[0] || null;
     // 单图帖：任意帖里没有多图的那条
-    singleId = await page.evaluate(async (exclude) => {
-      const m = await import('/src/utils/supabase-client.js');
-      const sb = m.supabase || m.default;
-      const { data } = await sb.from('posts').select('id').eq('status', 'approved').limit(40);
-      return (data || []).map((r) => r.id).find((id) => id !== exclude) || null;
-    }, multiId);
+    for (let i = 0; i < 5 && !singleId; i += 1) {
+      await page.waitForTimeout(1200);
+      singleId = await page.evaluate(async (exclude) => {
+        const m = await import('/src/utils/supabase-client.js');
+        const sb = m.supabase || m.default;
+        try {
+          const { data } = await sb.from('posts').select('id').eq('status', 'approved').limit(40);
+          return (data || []).map((r) => r.id).find((id) => id !== exclude) || null;
+        } catch {
+          return null;
+        }
+      }, multiId);
+    }
     await ctx.close();
   }
 
@@ -102,7 +134,10 @@ const run = async () => {
 
   // ── A：方向键切图 ─────────────────────────────────────────
   if (multiId) {
-    const ctx = await browser.newContext({ viewport: { width: 972, height: 734 }, deviceScaleFactor: 2 });
+    const ctx = await browser.newContext({
+      viewport: { width: 972, height: 734 },
+      deviceScaleFactor: 2,
+    });
     const page = await ctx.newPage();
     await openModal(page, multiId);
     const before = await currentIndex(page);
@@ -114,8 +149,11 @@ const run = async () => {
     const afterLeft = await currentIndex(page);
     const movedRight = afterRight.src !== before.src;
     const movedBack = afterLeft.src === before.src;
-    rec('A. →/← 切换图片', movedRight && movedBack,
-      `初始 ${String(before.src).slice(-18)} → 右 ${String(afterRight.src).slice(-18)} → 左 ${String(afterLeft.src).slice(-18)}`);
+    rec(
+      'A. →/← 切换图片',
+      movedRight && movedBack,
+      `初始 ${String(before.src).slice(-18)} → 右 ${String(afterRight.src).slice(-18)} → 左 ${String(afterLeft.src).slice(-18)}`,
+    );
 
     // ── C：输入框聚焦时不切图 ───────────────────────────────
     const input = await page.$('.pd-reply-input');
@@ -125,8 +163,11 @@ const run = async () => {
       await page.keyboard.press('ArrowRight');
       await page.waitForTimeout(600);
       const afterType = await currentIndex(page);
-      rec('C. 输入框聚焦时方向键不切图', afterType.src === beforeType.src,
-        `聚焦前后 src ${afterType.src === beforeType.src ? '一致' : '被切换（误伤）'}`);
+      rec(
+        'C. 输入框聚焦时方向键不切图',
+        afterType.src === beforeType.src,
+        `聚焦前后 src ${afterType.src === beforeType.src ? '一致' : '被切换（误伤）'}`,
+      );
       await page.keyboard.press('Escape'); // 失焦/关弹窗
       await page.waitForTimeout(400);
     } else {
@@ -146,8 +187,11 @@ const run = async () => {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(900);
     const stillOpen = await page.$('.pd-modal-overlay');
-    rec('E. Esc 关闭弹窗', Boolean(open1) && !stillOpen,
-      `关闭前存在=${Boolean(open1)} 关闭后仍在=${Boolean(stillOpen)}`);
+    rec(
+      'E. Esc 关闭弹窗',
+      Boolean(open1) && !stillOpen,
+      `关闭前存在=${Boolean(open1)} 关闭后仍在=${Boolean(stillOpen)}`,
+    );
     await ctx.close();
   }
 
@@ -163,8 +207,11 @@ const run = async () => {
     await page.keyboard.press('ArrowLeft');
     await page.waitForTimeout(700);
     const after = await currentIndex(page);
-    rec('B. 单图/无图帖方向键安全', errs.length === 0 && after.src === before.src,
-      `报错 ${errs.length} 条；src 变化=${after.src !== before.src}`);
+    rec(
+      'B. 单图/无图帖方向键安全',
+      errs.length === 0 && after.src === before.src,
+      `报错 ${errs.length} 条；src 变化=${after.src !== before.src}`,
+    );
     await ctx.close();
   }
 

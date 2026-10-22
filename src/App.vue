@@ -27,6 +27,10 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import PWAUpdateToast from '@/components/PWAUpdateToast/index.vue';
 import PostDetailModal from './views/PostDetail/PostDetailModal.vue';
 import {
+  restorePostDetailModalFromHistory,
+  usePostDetailModal,
+} from './composables/usePostDetailModal.js';
+import {
   useGlobalAiPreferences,
   matchesGlobalAiShortcut,
 } from '@/composables/useGlobalAiPreferences.js';
@@ -34,6 +38,9 @@ import { consumeEmailConfirmationRedirect } from '@/composables/useSignupEmailCo
 
 const route = useRoute();
 const router = useRouter();
+// 弹窗是否正在独占详情内容（刷新还原后为真）。见 usePostDetailModal 的注释：
+// 此时路由名仍是 PostDetail，必须跳过整页详情组件，否则会渲染第二棵详情树。
+const { isModalOwningDetail } = usePostDetailModal();
 const authStore = useAuthStore();
 
 // ============================================
@@ -315,6 +322,9 @@ const handleConfirmDialogUpdateVisible = (v) => {
 
 onMounted(() => {
   window.addEventListener('keydown', handleGlobalAiKeydown);
+  // 刷新后还原帖子详情弹窗（2026-10-22）：横屏下按 F5 不再掉回旧版整页详情。
+  // 判据与边界都收在 composable 里（唯一真源），这里只负责在壳挂载后触发一次。
+  restorePostDetailModalFromHistory();
 });
 
 onUnmounted(() => {
@@ -450,7 +460,20 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
           <KeepAlive>
             <component v-if="activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.name" />
           </KeepAlive>
-          <component v-if="!activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.path" />
+          <!--
+            刷新还原弹窗时（isModalOwningDetail=true）跳过整页详情组件：
+            路由名仍是 PostDetail，照渲染会得到「弹窗 + 整页详情」两棵树同时在跑
+            （实测 pageCount=2），关掉弹窗后旧版整页详情会露出来 —— 就是用户报的
+            「刷新后进了远古详情页」。跳过后只有弹窗那一棵，历史与深链不受影响。
+          -->
+          <component
+            v-if="
+              !activeRoute.meta?.keepAlive &&
+              !(isModalOwningDetail && activeRoute.name === 'PostDetail')
+            "
+            :is="Component"
+            :key="activeRoute.path"
+          />
         </RouterView>
       </template>
       <template #fallback>

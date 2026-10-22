@@ -45,7 +45,9 @@ const run = async () => {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => !!document.querySelector('#app')?.__vue_app__, { timeout: 30000 });
+  await page.waitForFunction(() => !!document.querySelector('#app')?.__vue_app__, {
+    timeout: 30000,
+  });
   await page.waitForTimeout(2400);
   await page.evaluate(() => {
     const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
@@ -58,11 +60,31 @@ const run = async () => {
     m.usePostDetailModal().open(id);
   }, POST);
   await page.waitForSelector('.pd-modal-overlay', { timeout: 20000 });
-  await page.waitForTimeout(6000);
+  // 内容就绪重试：本机网络间歇超时会让详情渲染成「帖子已失效」空态，
+  // 此时测不到 .pd-title 的元素尺寸 → 假红。等它出现，最多重开 3 次。
+  for (let i = 0; i < 3; i += 1) {
+    const ready = await page
+      .waitForSelector('.pd-title, .pd-modal-media', { timeout: 18000 })
+      .then(() => true)
+      .catch(() => false);
+    if (ready) break;
+    await page.evaluate(() => document.querySelector('.pd-modal-close')?.click());
+    await page.waitForTimeout(1200);
+    await page.evaluate(async (id) => {
+      const m = await import('/src/composables/usePostDetailModal.js');
+      m.usePostDetailModal().open(id);
+    }, POST);
+    await page.waitForSelector('.pd-modal-overlay', { timeout: 20000 });
+  }
+  await page.waitForTimeout(1200);
 
   // G. 像素数字徽标已移除
   const badge = await page.$('.post-detail-image-meta');
-  rec('G. 不再显示图片像素数字', !badge, badge ? '仍存在 .post-detail-image-meta' : '模板与样式均已移除');
+  rec(
+    'G. 不再显示图片像素数字',
+    !badge,
+    badge ? '仍存在 .post-detail-image-meta' : '模板与样式均已移除',
+  );
 
   // F. 过渡存在（在面板上读 transition-duration）
   const trans = await page.evaluate(() => {
@@ -109,7 +131,11 @@ const run = async () => {
     infos.push(g.infoCol);
   }
   const infoOk = infos.every((v) => Math.abs(v - INFO_COL) <= 2);
-  rec('A. 信息列恒为 460px（不随图抖动）', infoOk, `各档实测 ${infos.map((v) => v.toFixed(0)).join(' / ')}`);
+  rec(
+    'A. 信息列恒为 460px（不随图抖动）',
+    infoOk,
+    `各档实测 ${infos.map((v) => v.toFixed(0)).join(' / ')}`,
+  );
 
   // B. 宽图吃满媒体列上限（面板硬上限 1040 − 信息列 460 = 580）
   // ⚠️ 判据在 2026-10-22 变过一次，旧结论已作废：
