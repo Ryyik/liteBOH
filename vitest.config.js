@@ -24,6 +24,14 @@ export default defineConfig({
     // 经验两条：① 「限流失效」不会报错，只会让最重的用例偶发红；② summary 的
     // 「N workers spawned」数的是**隔离体**（每文件一个），不是并发数 —— 别拿它当限流证据。
     maxWorkers: 2,
+    // ⚠️ 2026-10-23 实测：想靠 `isolate: false` 省掉「每文件重启 worker」的开销，**这条路在本仓走不通**。
+    // 背景数字：全量 250 文件在 M4/16GB 上 maxWorkers:2 要 132s，其中 250 个隔离体各花 ~1.64s 启动
+    // （vitest 自己报的 ~66s），把 maxWorkers 提到 6 也只从 132s → 111s（瓶颈是隔离开销不是并行度）。
+    // 于是试了 --no-isolate：**248 / 250 个文件直接红**，报错集中在 tests/integration/*，
+    // 表现为 `TypeError: Cannot read properties of undefined (reading 'select')` —— 上一个文件里
+    // 建好的 supabase client mock 被下一个文件当成已被拆除。单文件跑 --no-isolate 是绿的，
+    // 说明不是配置错，是**这套测试的 mock 生命周期依赖「每文件一个干净模块图」**。
+    // 结论：隔离是刚需，别再试 isolate:false / 减小 worker 启动开销这条线；要提速只能减少文件数或单文件耗时。
     // 兜底：万一哪天换了更强的机器或者加了更重的用例，先给宽裕的余量，
     // 而不是在每个重用例里各写一份硬编码时长。
     testTimeout: 45000,

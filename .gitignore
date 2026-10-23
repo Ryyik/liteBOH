@@ -109,3 +109,8 @@ __pycache__/
 coding_memory/
 prompt_attachment/
 repro-import-tmp.mjs
+
+# ── Serena（MCP 代码检索）的本地索引（2026-10-23） ────────────────────────
+# 内含 81MB 的 LSP 符号缓存（.serena/cache/，rebuild 一次约 60s）与
+# 本机项目注册表 project.local.yml（含绝对路径）⇒ 纯本机产物，随时可重建，不入库。
+.serena/

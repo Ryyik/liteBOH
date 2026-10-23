@@ -6,11 +6,16 @@
  * 但**只会涨** —— 2026-10-15 实测 757 个文件。它不影响 git、也不影响 AI 上下文，
  * 只吃磁盘，所以一直没人管。这个脚本给它一个保留窗口。
  *
+ * 2026-10-23 修正：原实现只扫**顶层平铺**文件，而实测 1276 个里有 293 个在 26 个子目录
+ * （`portrait-adaptive-2026-10-22/` 单目录 34MB），等于轮转对它们完全没生效。
+ * 现在递归收集文件；**目录永远不删**（只可能留空），"递归删"仍然不是这个脚本会做的事。
+ *
  * 安全设计（默认什么都不删）：
  *   · **默认 dry-run**：只报告，不删。要真删必须显式 `--apply`。
  *   · `--keep-days=N`（默认 7）：按 **mtime** 保留最近 N 天。
  *   · `--max-delete=N`（默认 200）：单次删除上限。超了**直接拒绝执行**、不删半个 ——
  *     一个 bug 不该演成"把目录清空了"。要清更多就分批跑。
+ *   · 删除按 **mtime 从老到新**，分批时先清最该清的。
  *
  * 用法：
  *   node scripts/clean-screenshots.mjs                      # dry-run，看会删多少
@@ -46,36 +51,42 @@ if (!Number.isFinite(KEEP_DAYS) || KEEP_DAYS < 0) {
 
 const cutoff = Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000;
 
-// 只用 readdirSync 平铺：这个目录是平的（探针都写文件、不建子目录）。
-// 真出现子目录时明确报出来，别静默漏掉或递归删 —— 递归删是不可逆的那一步。
-const entries = readdirSync(DIR, { withFileTypes: true });
-const subdirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
-const files = entries.filter((e) => e.isFile());
+// 递归收集**文件**（目录不收集、也永不删除）。见文件头 2026-10-23 那条修正。
+const files = [];
+const walk = (dir) => {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const abs = join(dir, e.name);
+    if (e.isDirectory()) walk(abs);
+    else if (e.isFile()) files.push(abs);
+  }
+};
+walk(DIR);
 
 let totalBytes = 0;
 const stale = [];
 let newest = 0;
 let oldest = Infinity;
+let inSubdir = 0;
 
-for (const f of files) {
-  const abs = join(DIR, f.name);
+for (const abs of files) {
   const st = statSync(abs);
+  const rel = abs.slice(DIR.length + 1);
   totalBytes += st.size;
   newest = Math.max(newest, st.mtimeMs);
   oldest = Math.min(oldest, st.mtimeMs);
-  if (st.mtimeMs < cutoff) stale.push({ name: f.name, size: st.size });
+  if (rel.includes('/')) inSubdir += 1;
+  if (st.mtimeMs < cutoff) stale.push({ rel, abs, size: st.size, mtimeMs: st.mtimeMs });
 }
+// 最老的先删：分批清理时，先清最该清的，而不是随机清一批。
+stale.sort((a, b) => a.mtimeMs - b.mtimeMs);
 
 const mb = (n) => `${(n / 1024 / 1024).toFixed(1)}MB`;
 const day = (ms) => (ms === Infinity || ms === 0 ? '—' : new Date(ms).toISOString().slice(0, 10));
 
 console.log(`[clean:screenshots] debug-screenshots/：${files.length} 个文件 / ${mb(totalBytes)}`);
+console.log(`  其中 ${inSubdir} 个在子目录里（本轮转已覆盖）`);
 console.log(`  时间跨度：${day(oldest)} → ${day(newest)}`);
 console.log(`  保留窗口：${KEEP_DAYS} 天（cutoff ${new Date(cutoff).toISOString().slice(0, 10)}）`);
-if (subdirs.length) {
-  console.log(`  ⚠️ 发现 ${subdirs.length} 个子目录（本脚本不递归处理，请人工确认）：`);
-  for (const d of subdirs.slice(0, 20)) console.log(`     ${d}/`);
-}
 
 const staleBytes = stale.reduce((a, s) => a + s.size, 0);
 console.log(`\n  超出窗口：${stale.length} 个 / ${mb(staleBytes)}`);
@@ -95,7 +106,7 @@ if (stale.length > MAX_DELETE) {
 
 if (!APPLY) {
   console.log('\n（dry-run：没有删除任何文件。确认无误后加 --apply）');
-  for (const s of stale.slice(0, 10)) console.log(`   ${s.name}  ${mb(s.size)}`);
+  for (const s of stale.slice(0, 10)) console.log(`   ${s.rel}  ${mb(s.size)}`);
   if (stale.length > 10) console.log(`   …另有 ${stale.length - 10} 个`);
   process.exit(0);
 }
@@ -105,11 +116,11 @@ let removedBytes = 0;
 const failed = [];
 for (const s of stale) {
   try {
-    rmSync(join(DIR, s.name), { force: true });
+    rmSync(s.abs, { force: true });
     removed += 1;
     removedBytes += s.size;
   } catch (err) {
-    failed.push(`${s.name}: ${err.message}`);
+    failed.push(`${s.rel}: ${err.message}`);
   }
 }
 
@@ -120,5 +131,5 @@ if (failed.length) {
   process.exit(1);
 }
 console.log(
-  `   剩余 ${readdirSync(DIR).length} 个文件。要直接跑的话：npm run clean:screenshots -- --keep-days=${KEEP_DAYS} --apply`,
+  `   剩余 ${files.length - removed} 个文件（目录未删，空目录请人工清理）。要直接跑的话：npm run clean:screenshots -- --keep-days=${KEEP_DAYS} --apply`,
 );

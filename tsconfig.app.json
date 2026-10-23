@@ -14,6 +14,11 @@
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,
+    // 2026-10-23：本地 type-check 冷跑 24s，每次都全量重算。开增量后第二次起只重查改动文件。
+    // tsBuildInfoFile 落在 node_modules/.tmp 里 ⇒ 已被 gitignore 覆盖，不新增入库产物；
+    // CI 上没有缓存 = 退化成全量，行为与之前完全一致（不会因为缺缓存而漏检）。
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "paths": {
       "@/*": ["./src/*"],
       "@components/*": ["./src/components/*"],
