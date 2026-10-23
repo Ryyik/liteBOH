@@ -155,6 +155,19 @@ A 横屏打开遮罩/面板错拍（面板 380ms > 遮罩 200ms） / B 横屏关
 2026-10-22 反证：把离场守卫改成直接 `return true` → **E 当场 FAIL（5/6）**。
 ⚠️ 两个必读坑：① 进场/离场类由 Vue 在动画窗口内临时挂载，**超时再读会拿到 `none`（假红）**，统一在 80–150ms 窗口内读；② 本机到 Supabase 间歇性超时（实测同一查询 1449ms → 8001ms abort → 398ms 正常），详情取不到会渲染「帖子已失效」空态 ⇒ A–C 直接注入 DOM + 复用真实 scoped id，不依赖 DB。
 
+### `probe-post-detail-portrait-dock.mjs`（5 项，竖屏底部操作栏真的贴屏幕底，2026-10-23）
+
+用户报障「竖屏的操作栏应该固定在屏幕底部」。**不是没写 `position:fixed`**（那三条规则一直都在），
+而是被祖先的 `transform` 破坏了包含块：进场动画当时写 `animation: … both`，`fill-mode: both` 让
+transform 在动画结束后被永久保留（计算值仍是 `matrix(1,0,0,1,0,0)`）⇒ `position:fixed` 的包含块
+从视口换成 `.post-detail-page` ⇒ 底栏贴到根元素底边（实测 `top:1618px`、距视口底 **−835px**）。
+修法是 fill-mode 改 `backwards`（结束后不留 transform）。
+
+判据：A 底栏 `position:fixed` / B 底边 == 视口底（容差 2px）/ C 滚动后仍贴底 / D 落定后根元素 `transform:none` / E 进场动画仍播放。
+2026-10-23 反证：把 fill-mode 改回 `both` → **B/C/D 当场 FAIL（1/5）**。
+⚠️ 两个必读坑：① D 必须等动画落定后读（太早读到中间帧是假红）；② E 必须"等元素出现后 rAF 连采、取第一个 opacity<1 的样本"——
+固定 `waitForTimeout(110)` 后读一次会因路由异步挂载时机而读到 null（实测抖动出现过 4/5）。
+
 ### `probe-post-detail-refresh-restore.mjs`（5 项，刷新保留弹窗，2026-10-22）
 
 F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 / C 竖屏整页刷新不被弹窗抢走 / D 关闭后刷新不再自动弹 / E 无 `history.state` 标记的直链不强行弹窗（分享链接保持整页）。

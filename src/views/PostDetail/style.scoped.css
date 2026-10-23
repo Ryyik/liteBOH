@@ -53,8 +53,18 @@
   }
 }
 
+/* ⚠️ fill-mode 必须是 backwards，**不能是 both**（2026-10-23 实测事故）
+   `both` 会让 transform 在动画结束后被**永久保留**在终态（即便值是 `none`，
+   计算值仍是 matrix(1,0,0,1,0,0)）。而「祖先有 transform」会把 position:fixed
+   的包含块从视口换成那个祖先 —— 直接后果：
+   竖屏底部操作栏 .pd-actionbar--page（position:fixed; bottom:0）不再贴屏幕底，
+   而是贴到 .post-detail-page 的底边，实测被推到 top:1618px、
+   距视口底 -835px，用户看到的就是「操作栏不在底部」。
+   证据：把 animation 置 none 后，底栏立刻从 rectBottom=1679 回到 844（=视口高）。
+   backwards 只在动画开始前应用 from 值，结束后**不留** transform，
+   进场观感完全一致，且不再污染 fixed 的包含块。 */
 .post-detail-page:not(.post-detail-page--modal) {
-  animation: pd-page-enter 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation: pd-page-enter 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) backwards;
 }
 
 /* ⚠️ 离场用单独的 animation 名**覆盖**进场，不能两个并列：
@@ -62,16 +72,16 @@
    不覆盖的话离场关键帧根本抢不过它（这是 fill-mode:both 的已知副作用，
    本仓 AGENTS.md §3 也记着这条）。覆盖写法 = 换 animation，不是叠加。 */
 .post-detail-page.is-page-leaving:not(.post-detail-page--modal) {
-  animation: pd-page-leave 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation: pd-page-leave 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) forwards;
   pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .post-detail-page:not(.post-detail-page--modal) {
-    animation: pd-page-enter 120ms linear both;
+    animation: pd-page-enter 120ms linear backwards;
   }
   .post-detail-page.is-page-leaving:not(.post-detail-page--modal) {
-    animation: pd-page-leave 100ms linear both;
+    animation: pd-page-leave 100ms linear forwards;
   }
 }
 
