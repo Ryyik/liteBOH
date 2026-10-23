@@ -438,7 +438,9 @@
    这里在弹窗态隐藏它；竖屏整页不加这条 ⇒ 标签照常显示（移动端更需要文字提示）。 */
 .post-detail-page--modal .pd-comment-thread :deep(.comment-actions) {
   gap: 14px;
-  margin-top: 6px;
+  /* 2026-10-23：时间与操作已合并进 .comment-foot 同一行，这里再给 margin-top
+     会把操作行往下顶、与左侧时间错开基线 —— 必须归零。 */
+  margin-top: 0;
 }
 
 .post-detail-page--modal .pd-comment-thread :deep(.comment-like-btn),

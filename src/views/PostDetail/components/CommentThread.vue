@@ -65,6 +65,26 @@ const formatDate = formatSmartTime;
 
 const { fetchUserTier, fetchUserTiersBatch, getNicknameClass } = useUserTier();
 
+/* ⚠️ 定义顺序是硬约束：useTierMap 的 watch 带 immediate，在 setup 期间就会**同步**调用
+   idsGetter（→ collectCommentAuthorIds → getChildReplyState）。若 getChildReplyState
+   写在它下面（const 的 TDZ），setup 直接抛 ReferenceError —— dev 下 Vue 会 rethrow，
+   整个评论区渲染成空白；prod 下只 console.error，表现为「等级配色不生效」。
+   所以 getChildReplyState 必须先定义，别再把它挪回 useTierMap 之后。 */
+const getChildReplyState = (parentId) => {
+  const key = String(parentId || '');
+  return (
+    props.childRepliesMap[key] || {
+      items: [],
+      totalCount: 0,
+      fullLoaded: false,
+      page: 1,
+      hasMore: false,
+      isLoading: false,
+      expanded: false,
+    }
+  );
+};
+
 const collectCommentAuthorIds = (comments) => {
   const ids = new Set();
   (comments || []).forEach((c) => {
@@ -83,21 +103,6 @@ const commentTierMap = useTierMap(
   fetchUserTier,
   fetchUserTiersBatch,
 );
-
-const getChildReplyState = (parentId) => {
-  const key = String(parentId || '');
-  return (
-    props.childRepliesMap[key] || {
-      items: [],
-      totalCount: 0,
-      fullLoaded: false,
-      page: 1,
-      hasMore: false,
-      isLoading: false,
-      expanded: false,
-    }
-  );
-};
 
 const getVisibleChildReplies = (parentId) => {
   const state = getChildReplyState(parentId);
@@ -333,47 +338,50 @@ const onReplyInput = (event) => {
             <div class="comment-content">
               <p class="comment-text">{{ reply.content }}</p>
             </div>
-            <div class="comment-meta-line">
+            <!-- 时间与操作合并成一行（2026-10-23）：原先「时间一行 + 操作一行」占两行，
+                 时间夹在正文与操作之间像一条孤立灰线，用户报「评论看不到时间」。
+                 现在左时间 / 右操作同一行，既是小红书式标准排版，也省掉每条评论一整行高度。 -->
+            <div class="comment-foot">
               <span class="comment-date">{{ formatDate(reply.created_at) }}</span>
-            </div>
-            <div class="comment-actions">
-              <button
-                class="comment-like-btn"
-                :class="{ 'is-liked': reply.isLiked }"
-                :disabled="reply.isLikeSubmitting"
-                :aria-label="reply.isLiked ? '取消点赞' : '点赞'"
-                @click="$emit('toggle-comment-like', { comment: reply })"
-              >
-                <Heart
-                  :size="14"
-                  :stroke-width="1.8"
-                  :fill="reply.isLiked ? 'currentColor' : 'none'"
-                  aria-hidden="true"
-                />
-                <span class="comment-action-label">赞</span>
-                <span v-if="Number(reply.like_count) > 0" class="comment-like-count">{{
-                  reply.like_count
-                }}</span>
-              </button>
-              <button
-                class="comment-reply-btn-mini"
-                @click="
-                  $emit('reply', {
-                    targetId: reply.id,
-                    username: reply.author_username,
-                    content: reply.content,
-                    rootAuthorUsername: reply.author_username,
-                  })
-                "
-              >
-                <Reply :size="14" :stroke-width="1.8" aria-hidden="true" />
-                <span class="comment-action-label">回复</span>
-                <span
-                  v-if="Number(childReplyStateMap[reply.id]?.totalCount || 0) > 0"
-                  class="comment-reply-count"
-                  >{{ childReplyStateMap[reply.id].totalCount }}</span
+              <div class="comment-actions">
+                <button
+                  class="comment-like-btn"
+                  :class="{ 'is-liked': reply.isLiked }"
+                  :disabled="reply.isLikeSubmitting"
+                  :aria-label="reply.isLiked ? '取消点赞' : '点赞'"
+                  @click="$emit('toggle-comment-like', { comment: reply })"
                 >
-              </button>
+                  <Heart
+                    :size="14"
+                    :stroke-width="1.8"
+                    :fill="reply.isLiked ? 'currentColor' : 'none'"
+                    aria-hidden="true"
+                  />
+                  <span class="comment-action-label">赞</span>
+                  <span v-if="Number(reply.like_count) > 0" class="comment-like-count">{{
+                    reply.like_count
+                  }}</span>
+                </button>
+                <button
+                  class="comment-reply-btn-mini"
+                  @click="
+                    $emit('reply', {
+                      targetId: reply.id,
+                      username: reply.author_username,
+                      content: reply.content,
+                      rootAuthorUsername: reply.author_username,
+                    })
+                  "
+                >
+                  <Reply :size="14" :stroke-width="1.8" aria-hidden="true" />
+                  <span class="comment-action-label">回复</span>
+                  <span
+                    v-if="Number(childReplyStateMap[reply.id]?.totalCount || 0) > 0"
+                    class="comment-reply-count"
+                    >{{ childReplyStateMap[reply.id].totalCount }}</span
+                  >
+                </button>
+              </div>
             </div>
 
             <div
@@ -463,41 +471,43 @@ const onReplyInput = (event) => {
                   <div class="comment-content">
                     <p class="child-reply-content">{{ child.content }}</p>
                   </div>
-                  <div class="comment-meta-line">
+                  <div class="comment-foot">
                     <span class="comment-date">{{ formatDate(child.created_at) }}</span>
-                  </div>
-                  <div class="comment-actions">
-                    <button
-                      class="comment-like-btn"
-                      :class="{ 'is-liked': child.isLiked }"
-                      :disabled="child.isLikeSubmitting"
-                      :aria-label="child.isLiked ? '取消点赞' : '点赞'"
-                      @click="$emit('toggle-comment-like', { comment: child, parentId: reply.id })"
-                    >
-                      <Heart
-                        :size="14"
-                        :stroke-width="1.8"
-                        :fill="child.isLiked ? 'currentColor' : 'none'"
-                        aria-hidden="true"
-                      />
-                      <span>赞</span>
-                      <span v-if="Number(child.like_count) > 0" class="comment-like-count">{{
-                        child.like_count
-                      }}</span>
-                    </button>
-                    <button
-                      class="comment-reply-btn-mini"
-                      @click="
-                        $emit('reply', {
-                          targetId: reply.id,
-                          username: child.author_username,
-                          content: child.content,
-                          rootAuthorUsername: reply.author_username,
-                        })
-                      "
-                    >
-                      回复
-                    </button>
+                    <div class="comment-actions">
+                      <button
+                        class="comment-like-btn"
+                        :class="{ 'is-liked': child.isLiked }"
+                        :disabled="child.isLikeSubmitting"
+                        :aria-label="child.isLiked ? '取消点赞' : '点赞'"
+                        @click="
+                          $emit('toggle-comment-like', { comment: child, parentId: reply.id })
+                        "
+                      >
+                        <Heart
+                          :size="14"
+                          :stroke-width="1.8"
+                          :fill="child.isLiked ? 'currentColor' : 'none'"
+                          aria-hidden="true"
+                        />
+                        <span>赞</span>
+                        <span v-if="Number(child.like_count) > 0" class="comment-like-count">{{
+                          child.like_count
+                        }}</span>
+                      </button>
+                      <button
+                        class="comment-reply-btn-mini"
+                        @click="
+                          $emit('reply', {
+                            targetId: reply.id,
+                            username: child.author_username,
+                            content: child.content,
+                            rootAuthorUsername: reply.author_username,
+                          })
+                        "
+                      >
+                        回复
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1057,8 +1067,11 @@ const onReplyInput = (event) => {
 
 .comment-date {
   font-size: 12px;
-  color: #86868b;
+  /* 2026-10-23：原来的 #86868b 在玻璃底上几乎融进背景（用户报「看不到时间」），
+     改用与操作行同一档的 --detail-muted，暗色主题仍由 post-detail-dark.css 覆盖。 */
+  color: var(--detail-muted, #687386);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .comment-content {
@@ -1423,17 +1436,23 @@ const onReplyInput = (event) => {
   background: rgba(15, 23, 42, 0.05);
 }
 
-.comment-meta-line {
+/* 时间 + 操作合并成一行（2026-10-23）：
+   原先时间独占一个 meta 行、操作再占一行，中间夹一条孤零零的灰字，
+   既像「没有时间」又多吃掉一条评论一整行高度（约 21px × 条数）。
+   现在左时间 / 右操作同一行 —— 与小红书、Threads 的评论底栏一致。 */
+.comment-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
 }
 
 .comment-actions {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-top: 2px;
+  margin-top: 0;
 }
 
 .comment-like-btn {
