@@ -89,8 +89,15 @@ const head = git(['rev-parse', '--short', 'HEAD']).trim();
 console.log(`[prepush] 对 HEAD ${head} 建干净检出（工作区与索引不受影响）：${path.basename(wt)}`);
 git(['worktree', 'add', '--detach', wt, 'HEAD']);
 
-if (FULL) {
-  // lint/type-check/test 需要依赖；symlink 让 worktree 复用本机的 node_modules
+/* node_modules 软链：**所有**会跑依赖的门禁都需要它，不能只在 FULL 分支建。
+   ⚠️ 2026-10-23 实测 bug：原来这段在 `if (FULL)` 里，而 quick 档的门禁列表
+   却包含 `lint`（见上方 gates 定义）⇒ quick 档里 eslint 找不到依赖，
+   必然红，且错误信息是「（未提取到错误行）」让人无从下手。
+   表现就是**推送永远被拦**、提示「这些红来自提交树」误导人去改源码，
+   而真实原因是钩子自己没装依赖。修法：只要这批门禁里有需要依赖的，就建软链。 */
+const NEEDS_DEPS = new Set(['lint', 'type-check', 'test']);
+if (gates.some((name) => NEEDS_DEPS.has(name))) {
+  // symlink 让 worktree 复用本机的 node_modules（不重复 npm ci）
   symlinkSync(path.join(ROOT, 'node_modules'), path.join(wt, 'node_modules'), 'dir');
 }
 
