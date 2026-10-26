@@ -127,7 +127,9 @@ postImages = ref([]); postLocation = ref(null);
 isSubmitting; isUploadingPostImage; postImageUploadStatus;
 isMobileComposerMode/isMobileComposerOpen; showPostImageSourceMenu;
 postCooldownUntil = ref(0);  // 冷却时间戳
-savedPostDraft = ref(null); postDraftVersions; postDraftSaveTimer; postDraftRestoreSeq;
+savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
+// 草稿**只有一份**（2026-10-26 产品定稿）：云端 forum_post_drafts 为准，本地 localStorage 只是缓存。
+// 没有"草稿列表/历史版本"——清空内容或退出选「不保存」= 删除这份草稿。别再引入多版本。
 ```
 
 冷却系统：`startActionCooldown(target, seconds)` 支持 `post / reply / imageUpload` 三种；`ensureCooldownTimer` 每秒 tick，三个都归零后自毁。发帖成功后 `startActionCooldown('post', 8)`（8 秒）；图片上传限流错误也会触发 imageUpload 冷却（`applyImageUploadRateLimitCooldown`）。

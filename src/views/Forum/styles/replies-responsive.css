@@ -780,49 +780,6 @@
   padding: 5px 9px;
 }
 
-.mobile-draft-version-list {
-  margin-top: 12px;
-  display: grid;
-  gap: 8px;
-  max-height: 180px;
-  overflow: auto;
-}
-
-.mobile-draft-version-item {
-  min-height: 46px;
-  border: 1px solid #eff3f4;
-  border-radius: 14px;
-  background: #ffffff;
-  color: #0f1419;
-  padding: 8px 10px;
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  text-align: left;
-  cursor: pointer;
-}
-
-.mobile-draft-version-item span {
-  color: #536471;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.mobile-draft-version-item strong {
-  min-width: 0;
-  color: #0f1419;
-  font-size: 13px;
-  font-weight: 850;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mobile-draft-version-item:hover {
-  background: #f7f9f9;
-}
-
 .mobile-draft-actions {
   display: grid;
   grid-template-columns: 1fr 0.8fr 1fr;

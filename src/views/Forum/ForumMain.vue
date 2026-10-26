@@ -32,7 +32,11 @@ import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
 import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
 import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';
-import { useForumPostDraftStorage } from './composables/useForumPostDraftStorage.js';
+import {
+  useForumPostDraftStorage,
+  FORUM_POST_DRAFT_CHANGE_EVENT,
+  isDraftInSyncWithEditor,
+} from './composables/useForumPostDraftStorage.js';
 import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
 import { useActiveAds } from './composables/useActiveAds.js';
 import { useUserTier } from '@/composables/useUserTier.js';
@@ -118,7 +122,6 @@ import {
   FORUM_LIST_IMAGE_TRANSFORM_SM,
   FORUM_LIST_LQIP_TRANSFORM,
   FORUM_POST_DRAFT_PREFIX,
-  FORUM_POST_DRAFT_VERSION_LIMIT,
   FORUM_POST_IMAGE_MAX_COUNT,
   FORUM_TAG_MAP,
   FORUM_TAG_OPTIONS,
@@ -1367,26 +1370,66 @@ let postDraftSyncQueue = Promise.resolve(null);
 // let autoSaveDraftTimer = null;
 let postDraftRestoreSeq = 0;
 const {
-  postDraftVersions,
-  normalizeDraftPayload,
   readDraftClearedAt,
   clearDraftClearedMarker,
   readPostDraft,
   writeLocalPostDraft,
-  readPostDraftVersions,
-  writePostDraftVersions,
-  rememberPostDraftVersion,
 } = useForumPostDraftStorage({
   getUserId: () => userInfo.id,
   normalizeTag: normalizeForumTagValue,
   prefix: FORUM_POST_DRAFT_PREFIX,
-  versionLimit: FORUM_POST_DRAFT_VERSION_LIMIT,
   logger,
 });
 
 const refreshPostDraftState = () => {
   savedPostDraft.value = readPostDraft();
-  postDraftVersions.value = readPostDraftVersions();
+};
+
+/* ===== 草稿跨实例同步（2026-10-26）=====
+   为什么需要：首页 `/` 没有 keepAlive（离开即销毁、回来重建），UserSpace 是 keepAlive
+   路由且分区壳 v-show 常驻 ⇒ 同一时刻可能存在**两个** ForumMain 实例，共享同一个
+   localStorage key，却各持一份 newPost 副本。没有同步通道时：
+     · A 实例发布/清空后，B 实例的编辑器仍留着旧稿 ⇒ 切回去像"内容复活"，点「保存草稿」
+       还会把旧稿写回去覆盖 A 的新草稿；
+     · 反之 A 保存草稿后 B 也看不到。
+   ⚠️ 不能用 `storage` 事件：同一标签页内的写入不触发自己的 storage 事件，而两个宿主
+   实例恰好都在同一个 tab 里 ⇒ 必须走同标签页广播（事件名见 storage 模块）。 */
+const draftHostId = `draft-host-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+
+/** 编辑器内容是否与某份草稿一致（= 没有未保存的改动）。判据实现与测试在 storage 模块，
+ *  这里只做「从响应式状态取值」的适配 —— 别在本文件再抄一份判断逻辑。 */
+const draftMatchesEditor = (draft) =>
+  isDraftInSyncWithEditor({
+    draft,
+    title: newPost.value.title,
+    content: newPost.value.content,
+    hasImages: postImages.value.length > 0,
+  });
+
+/** 编辑器里有「刷新/离开会丢」的内容 —— 比 hasUnsavedChanges() 多一层「是否已落草稿」，
+ *  所以竖屏会话和桌面内嵌编辑器都能用它判断（见 handleBeforeUnload）。 */
+const isEditorDirty = () => !draftMatchesEditor(savedPostDraft.value);
+
+const notifyDraftChange = (reason = 'save') => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent(FORUM_POST_DRAFT_CHANGE_EVENT, {
+      detail: { hostId: draftHostId, reason, draft: readPostDraft() },
+    }),
+  );
+};
+
+const applyExternalDraftChange = (event) => {
+  const detail = event?.detail;
+  if (!detail || detail.hostId === draftHostId) return;
+  const incoming = detail.draft || null;
+  // 编辑中（内容已偏离上一份已知草稿）就**只刷新草稿快照**，不动编辑器 ——
+  // 否则会把用户正在打的字清掉。
+  const editorFollowingDraft = draftMatchesEditor(savedPostDraft.value);
+  savedPostDraft.value = incoming;
+  if (!editorFollowingDraft) return;
+  newPost.value = { title: incoming?.title || '', content: incoming?.content || '' };
+  selectedPostTag.value = incoming?.tag || 'daily';
 };
 
 const savePostDraftToDatabase = (draft) => {
@@ -1435,7 +1478,7 @@ const schedulePostDraftDatabaseSync = (draft) => {
   }, 900);
 };
 
-const restorePostDraft = async () => {
+const restorePostDraft = async ({ preserveLocalEdits = false } = {}) => {
   // Phase 4（plans/023）：Cloud+「转为帖子」预填期间跳过恢复 —— 否则旧草稿会把
   // 用户刚选好的图覆盖掉。预填是一次性的（读后即删），抑制只作用于当前会话。
   try {
@@ -1446,12 +1489,16 @@ const restorePostDraft = async () => {
   const restoreSeq = ++postDraftRestoreSeq;
   const localDraft = readPostDraft();
   const localClearedAt = readDraftClearedAt();
-  postDraftVersions.value = readPostDraftVersions();
+  /* preserveLocalEdits：KeepAlive 唤醒 / 重新打开编辑器时的恢复，**不得**覆盖用户尚未
+     保存的输入（与下面远端分支的 editorSnapshot 校验同一语义）。挂载/换账号仍走默认
+     的「本地草稿优先回填」，否则做不到"下次打开接着写"。 */
+  const canOverwriteEditor = !preserveLocalEdits || draftMatchesEditor(savedPostDraft.value);
   savedPostDraft.value = localDraft;
-  if (localDraft) {
+  if (localDraft && canOverwriteEditor) {
     newPost.value = { title: localDraft.title, content: localDraft.content };
     selectedPostTag.value = localDraft.tag;
   }
+  notifyDraftChange('restore');
 
   const editorSnapshot = {
     title: String(newPost.value.title || ''),
@@ -1498,8 +1545,11 @@ const restorePostDraft = async () => {
 
     savedPostDraft.value = remoteDraft;
     writeLocalPostDraft(remoteDraft);
-    newPost.value = { title: remoteDraft.title, content: remoteDraft.content };
-    selectedPostTag.value = remoteDraft.tag;
+    if (canOverwriteEditor) {
+      newPost.value = { title: remoteDraft.title, content: remoteDraft.content };
+      selectedPostTag.value = remoteDraft.tag;
+    }
+    notifyDraftChange('restore-remote');
   } catch (error) {
     logger.warn('forum', '恢复发帖草稿失败:', error);
   }
@@ -1512,18 +1562,27 @@ const persistPostDraft = () => {
     const tag = normalizeForumTagValue(selectedPostTag.value) || 'daily';
     const hasContent = Boolean(title.trim() || content.trim());
     if (!hasContent) {
+      /* 草稿结构只有 title/content/tag，图片存不进去 ⇒ 「只有图片、没有文字」时
+         **不能**把已有草稿清掉：此前这条分支会 writeLocalPostDraft(null)，表现为
+         用户点「保存草稿」反而把草稿删了（按钮文案与行为完全相反）。
+         保留原草稿并直接返回，由 saveMobileDraft 负责给用户提示。 */
+      if (postImages.value.length) {
+        logger.debug('forum', '仅有图片、无文字：草稿不可保存，保留已有草稿');
+        return;
+      }
       writeLocalPostDraft(null);
       savedPostDraft.value = null;
       schedulePostDraftDatabaseSync(null);
       lastAutoSaveTime.value = null;
+      notifyDraftChange('clear');
       return;
     }
     const draft = { title, content, tag, savedAt: Date.now() };
     writeLocalPostDraft(draft);
     savedPostDraft.value = draft;
-    rememberPostDraftVersion(draft);
     schedulePostDraftDatabaseSync(draft);
     lastAutoSaveTime.value = draft.savedAt;
+    notifyDraftChange('save');
   } catch (error) {
     logger.warn('forum', '保存发帖草稿失败:', error);
   }
@@ -1566,7 +1625,11 @@ const handleBeforeUnload = (e) => {
     e.returnValue = '有内容正在发送，离开将中断发送';
     return e.returnValue;
   }
-  if (!isMobileComposerOpen.value || !hasUnsavedChanges()) return;
+  /* 判据是 isEditorDirty()（编辑器内容 ≠ 已保存草稿），**不**再短路在
+     `!isMobileComposerOpen` 上：桌面内嵌编辑器的会话恒为关，此前永远拿不到刷新保护
+     ⇒ 宽屏写半天一刷新全丢、连提示都没有。而"内容已落草稿"时它返回 false，
+     不会出现"只是回填了草稿也弹提示"的误报。 */
+  if (!isEditorDirty()) return;
 
   e.preventDefault();
   e.returnValue = '编辑内容尚未保存，是否保存为草稿？';
@@ -1587,7 +1650,7 @@ const clearPostDraft = () => {
     writeLocalPostDraft(null);
     savedPostDraft.value = null;
     lastAutoSaveTime.value = null;
-    writePostDraftVersions([]);
+    notifyDraftChange('clear');
     return savePostDraftToDatabase(null);
   } catch (error) {
     logger.warn('forum', '清理发帖草稿失败:', error);
@@ -1605,7 +1668,7 @@ const formatDraftSavedTime = (savedAt = 0) => {
 
 const draftPreviewText = computed(() => {
   const draft = savedPostDraft.value;
-  if (!draft) return '还没有保存的草稿';
+  if (!draft) return '云端还没有草稿';
   return draft.title || draft.content || '未命名草稿';
 });
 
@@ -1617,6 +1680,11 @@ const openMobileDraftPanel = async () => {
   // 打开面板不触发自动保存（已改为手动保存，保存在 saveDraftManually 里）
   refreshPostDraftState();
   isMobileDraftPanelOpen.value = true;
+  /* 打开即展示**云端那份**：先用本地缓存渲染（不等网络），再走一次正常的草稿对账
+     （restorePostDraft 的 savedAt 合并逻辑：云端更新则覆盖本地，本地更新则推上云）。
+     单草稿模型下这里没有"列表"要拉，只有这一份。 */
+  await restorePostDraft({ preserveLocalEdits: true });
+  if (isMobileDraftPanelOpen.value) refreshPostDraftState();
 };
 
 const closeMobileDraftPanel = () => {
@@ -1624,6 +1692,21 @@ const closeMobileDraftPanel = () => {
 };
 
 const saveMobileDraft = async () => {
+  /* 只有图片、没有文字时草稿存不下任何东西 —— 必须**明确告知**并停下，
+     不能让流程继续走到 savePostDraftToDatabase：那条链路在没有草稿时相当于
+     "删除云端草稿"，用户却以为刚保存成功。 */
+  const onlyImages =
+    !String(newPost.value.title || '').trim() &&
+    !String(newPost.value.content || '').trim() &&
+    postImages.value.length > 0;
+  if (onlyImages) {
+    showModal(
+      'warning',
+      '草稿未保存',
+      '草稿只保存标题和正文，图片无法存入草稿。请补一句文字再保存，或直接发布。',
+    );
+    return;
+  }
   persistPostDraft(); // 手动保存时调用
   clearPostDraftSaveTimer();
   const draftToSync = savedPostDraft.value;
@@ -1640,19 +1723,8 @@ const restoreMobileDraft = () => {
   closeMobileDraftPanel();
 };
 
-const restorePostDraftVersion = (draft) => {
-  const normalizedDraft = normalizeDraftPayload(draft);
-  if (!normalizedDraft) return;
-  savedPostDraft.value = normalizedDraft;
-  newPost.value = { title: normalizedDraft.title, content: normalizedDraft.content };
-  selectedPostTag.value = normalizedDraft.tag;
-  writeLocalPostDraft(normalizedDraft);
-  closeMobileDraftPanel();
-};
-
 const clearMobileDraft = () => {
   void clearPostDraft();
-  writePostDraftVersions([]);
   newPost.value = { title: '', content: '' };
   selectedPostTag.value = 'daily';
   closeMobileDraftPanel();
@@ -2352,6 +2424,9 @@ const isForumComposerFabVisible = computed(() => {
 const openMobileComposer = () => {
   feedMode.value = 'posts';
   closePostImageSourceMenu();
+  /* 打开编辑器时按最新草稿对一次账（兜住"另一个宿主刚保存/清空"的情况）。
+     preserveLocalEdits：横→竖切换时桌面内嵌编辑器可能留有未保存内容，不能覆盖。 */
+  void restorePostDraft({ preserveLocalEdits: true });
   isMobileComposerOpen.value = true;
 };
 
@@ -2403,6 +2478,13 @@ const closeMobileComposer = async () => {
       clearPostImages({ cleanup: true });
       logger.debug('forum', '用户选择不保存草稿并关闭编辑器');
     }
+  } else if (savedPostDraft.value) {
+    /* 内容为空但仍有旧草稿 = 用户进编辑器后把字全删了再关。此前这里直接跳过整个
+       分支，本地/云端草稿原样留着 ⇒ 下次挂载 restorePostDraft 又把它填回编辑器
+       （用户："我明明删了，怎么又回来了"）。删除意图必须落盘。
+       只在"确实有旧草稿"时清，避免空编辑器关一次就多发一次删除请求。 */
+    void clearPostDraft();
+    logger.debug('forum', '内容已清空：同步删除残留草稿');
   }
 
   closePostImageSourceMenu();
@@ -2517,6 +2599,8 @@ onMounted(() => {
   window.addEventListener('boh:forum-post-updated', handleForumPostUpdated);
   // ✨ 新增：beforeunload事件监听（刷新页面时提示保存草稿）
   window.addEventListener('beforeunload', handleBeforeUnload);
+  // 草稿跨实例同步：另一个宿主实例保存/清空草稿时，本实例跟着收敛（见 draftHostId 区块）
+  window.addEventListener(FORUM_POST_DRAFT_CHANGE_EVENT, applyExternalDraftChange);
 
   void initializeForumData();
   setupForumLoadMoreObserver();
@@ -2537,6 +2621,9 @@ onActivated(() => {
     clearForumReturnState(getForumReturnKey());
   }
   updateMobileStatus();
+  /* KeepAlive 唤醒时补一次草稿对账：本实例可能是几分钟前的副本，期间首页实例或
+     另一个宿主已经改过/清过草稿。preserveLocalEdits 保证不覆盖用户尚未保存的输入。 */
+  void restorePostDraft({ preserveLocalEdits: true });
   setupForumLoadMoreObserver();
   setupForumWindowObserverOnce();
   if (
@@ -2590,6 +2677,7 @@ onUnmounted(() => {
   window.removeEventListener('boh:forum-post-updated', handleForumPostUpdated);
   // ✨ 新增：移除beforeunload事件监听
   window.removeEventListener('beforeunload', handleBeforeUnload);
+  window.removeEventListener(FORUM_POST_DRAFT_CHANGE_EVENT, applyExternalDraftChange);
   if (resizeRafId) {
     cancelAnimationFrame(resizeRafId);
     resizeRafId = null;
@@ -2626,6 +2714,23 @@ watch(isMobileComposerOpen, (isOpen) => {
   emit('composer-state', isOpen);
 });
 
+/** 换账号 / 登出时清掉内存里的编辑器副本。
+ *  ⚠️ 只清内存，**不**调 clearPostDraft —— 那会把上一个账号的云端草稿真删掉。
+ *  为什么必须清：restorePostDraft 在新账号名下读不到草稿时**不覆盖** newPost
+ *  （设计如此，否则"什么都没有"会把编辑器清空），于是上一个账号的草稿会留在编辑器里，
+ *  被下一个账号看到、甚至以新账号身份发出去。 */
+const resetComposerEditorForAccountSwitch = () => {
+  postDraftRestoreSeq += 1; // 让在飞的恢复请求失效，别把旧账号的草稿回填进来
+  clearPostDraftSaveTimer();
+  newPost.value = { title: '', content: '' };
+  selectedPostTag.value = 'daily';
+  postLocation.value = null;
+  postImages.value = [];
+  postImageUploadStatus.value = '';
+  savedPostDraft.value = null;
+  lastAutoSaveTime.value = null;
+};
+
 watch(isLoggedIn, (loggedIn) => {
   if (postDraftSaveTimer) {
     clearTimeout(postDraftSaveTimer);
@@ -2640,6 +2745,7 @@ watch(isLoggedIn, (loggedIn) => {
   void discardDraftPostImages({ silent: true });
   weeklyCheckinStatus.value = createDefaultWeeklyCheckinStatus();
   feedMode.value = 'posts';
+  resetComposerEditorForAccountSwitch();
   restorePostDraft();
 });
 
@@ -2652,6 +2758,7 @@ watch(
     }
     if (previousUserId && previousUserId !== userId) {
       void discardDraftPostImages({ silent: true });
+      resetComposerEditorForAccountSwitch();
     }
     if (isLoggedIn.value && userId) {
       loadWeeklyCheckinStatus();
@@ -3702,7 +3809,8 @@ const handlePost = async () => {
   writeLocalPostDraft(null);
   savedPostDraft.value = null;
   lastAutoSaveTime.value = null;
-  writePostDraftVersions([]);
+  // 发布成功即清草稿：必须广播，否则另一个宿主实例的编辑器里还留着刚发出去的那篇
+  notifyDraftChange('clear');
   void savePostDraftToDatabase(null);
   // 清空编辑器图片状态（不触发云端删除，因队列已接管；localPreviewUrl 留给队列）
   postImages.value = [];
@@ -5276,7 +5384,7 @@ const openPostDetail = (postId) => {
                       {{
                         savedPostDraft
                           ? `${formatDraftSavedTime(savedPostDraft.savedAt)} 保存`
-                          : '当前没有保存的草稿'
+                          : '云端还没有草稿'
                       }}
                     </p>
                   </div>
@@ -5294,22 +5402,6 @@ const openPostDetail = (postId) => {
                     savedDraftTagLabel
                   }}</span>
                   <p>{{ draftPreviewText }}</p>
-                </div>
-                <div
-                  v-if="postDraftVersions.length"
-                  class="mobile-draft-version-list"
-                  aria-label="草稿历史版本"
-                >
-                  <button
-                    v-for="draft in postDraftVersions"
-                    :key="draft.savedAt"
-                    type="button"
-                    class="mobile-draft-version-item"
-                    @click="restorePostDraftVersion(draft)"
-                  >
-                    <span>{{ formatDraftSavedTime(draft.savedAt) }}</span>
-                    <strong>{{ draft.title || draft.content || '未命名草稿' }}</strong>
-                  </button>
                 </div>
                 <div class="mobile-draft-actions">
                   <button
@@ -5412,7 +5504,7 @@ const openPostDetail = (postId) => {
                   {{
                     savedPostDraft
                       ? `${formatDraftSavedTime(savedPostDraft.savedAt)} 保存`
-                      : '当前没有保存的草稿'
+                      : '云端还没有草稿'
                   }}
                 </p>
               </div>
@@ -5428,22 +5520,6 @@ const openPostDetail = (postId) => {
             <div class="mobile-draft-preview" :class="{ empty: !savedPostDraft }">
               <span v-if="savedPostDraft" class="mobile-draft-tag">{{ savedDraftTagLabel }}</span>
               <p>{{ draftPreviewText }}</p>
-            </div>
-            <div
-              v-if="postDraftVersions.length"
-              class="mobile-draft-version-list"
-              aria-label="草稿历史版本"
-            >
-              <button
-                v-for="draft in postDraftVersions"
-                :key="draft.savedAt"
-                type="button"
-                class="mobile-draft-version-item"
-                @click="restorePostDraftVersion(draft)"
-              >
-                <span>{{ formatDraftSavedTime(draft.savedAt) }}</span>
-                <strong>{{ draft.title || draft.content || '未命名草稿' }}</strong>
-              </button>
             </div>
             <div class="mobile-draft-actions">
               <button type="button" class="mobile-draft-action secondary" @click="saveMobileDraft">

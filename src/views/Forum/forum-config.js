@@ -2,8 +2,9 @@ export const POSTS_PER_PAGE = 10;
 export const LIST_REPLY_PREVIEW_COUNT = 3;
 export const WEEKLY_CHECKIN_REWARD_POINTS = 5;
 export const FORUM_POST_IMAGE_MAX_COUNT = 6;
+/* 草稿只有一份（2026-10-26 产品定稿）：云端 `forum_post_drafts` 为准，本地只是缓存。
+   多版本草稿（版本上限 / 历史列表 / 版本恢复）已整体移除，别再引入版本类常量。 */
 export const FORUM_POST_DRAFT_PREFIX = 'boh_forum_post_draft';
-export const FORUM_POST_DRAFT_VERSION_LIMIT = 5;
 export const SEARCH_DEBOUNCE_MS = 350;
 /* 图片转换档位单源（2026-09-27）：这 5 个常量曾在 utils/api/forum-format.js（数据层，
    真正在拼 URL 的地方）和本文件各写一份 —— 改一处忘另一处是迟早的事（LQIP 那次就差点分叉）。
