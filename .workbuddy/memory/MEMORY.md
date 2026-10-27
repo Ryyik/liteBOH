@@ -54,7 +54,11 @@
   `maxForks: 2` 在 vitest 5 是未知选项被**静默忽略**（正名 `maxWorkers`，睡眠探针实验定案）+ src 双读合并单遍。
   **留下的通用教训：未知配置项静默忽略，「限流失效」的唯一表现是最重用例偶发红；
   summary 的「N workers spawned」数的是隔离体不是并发数，别拿它当限流证据。**（详见 vitest.config.js 注释）
-- 新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则 `check:gates-self-test` 列未覆盖；棘轮 baseline 只许下调。
+- 新增门禁必须在 `scripts/lib/gate-fixtures.mjs` 加样本，否则 `check:gates-self-test` 列未覆盖；棘轮 baseline 只许下调 ——
+  **上调＝凭空造余量**：注入样本（暗色样本只有 +1）落在余量内 ⇒ 棘轮不再判红 ⇒ 自检当场报「假绿嫌疑」
+  （2026-10-27 实证：dark-tokens 误写 2518 / 实测 2465，余量 53 把这道门禁废掉）。
+- ⚠️ **`check:gates-self-test` 刻意不在 `verify` 主链**（`docs/AI-ENV.md`「勿进主链」）⇒ **verify 绿 ≠ prepush 绿**。
+  动过棘轮基线的一律跑 `npm run prepush`（它跑在 HEAD 干净检出上，故修正必须先提交才会变绿）。
 - ⚠️ `check:layering` 棘轮盯**三类出口**（`supabase.from` / `rpc` / `functions.invoke`），不只 from ——
   视图加一个 `functions.invoke` 也会红（2026-10-17 实证两连红）；收口到 `src/utils/api/*` 后**必须
   `--update` 同步下调基线**，否则 gates-self-test 注入样本落在基线内 ⇒ 假绿被自检当场抓（实证）。
