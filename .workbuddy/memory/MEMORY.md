@@ -71,6 +71,8 @@
 
 - `:root` 禁进 scoped @import；全局变量唯一入口 `glass-aliases.css`；动效/玻璃单源 `tokens.css`；
   暗色真源 `theme-manager.js`；scoped 特异性 +1。
+- ⚠️ **竖屏/媒体查询覆盖必须放文件末尾**：同特异性下后写的赢 ⇒ 写在基础规则（如 `.ah-btn{height:36px}`）
+  之前的 `@media(max-width:767px){.ah-btn{height:40px}}` **静默失效**（2026-10-27 实测量出来仍 36px）。
 - ⚠️ 液态玻璃三铁律：材质单源 `liquid-glass.css` 只挂基础类（≤768px 强制关 backdrop 变体）；
   scoped 让位写 `:not(.liquid-glass)`；白底玻璃需 `.cloud-page::before` 环境光 + 父级 `isolation:isolate`；色值走 color-mix。
 - ⚠️ 玻璃底图**必须放面板背后**（进 `backdrop-filter`）；放面板自身 `background-image` 不经过模糊
@@ -98,6 +100,10 @@
   实测只铺到 1117×878 @(292,131)。修法 = `Teleport` 出去，宿主选**页根**（`.data-management-page`）而不是
   `body` —— 页级 token（`--card/--foreground/--radius/--spacing`）挂在页根上，挂 body 全丢。
   护栏 `probe-admin-dialogs`(7)。
+  ⚠️ **单位矩阵同样算**：`animation: … both` 收尾后 computed 仍是 `matrix(1,0,0,1,0,0)`（≠ none）⇒
+  资产页 .ah-page / .tab-page 都是这个形态，充值弹窗遮罩 1440×900 只剩 1131×600 @(275,0)。
+  **Teleport 到 body 后暗色覆盖的前缀必须从 `.user-space-page[data-theme=dark]` 改成 `html[data-theme=dark]`**
+  （节点已不在页根里）。护栏 `probe-user-space-ia` 的「遮罩铺满视口」三条。
 - ⚠️ 组件内写 `:focus-visible` 想覆盖 `layout.css` 的 `.bohai-page :focus-visible` 时，**特异性打平**
   （全局那条编译后带 `[data-v-*]`，同为 0,3,0 且更靠后）⇒ 静默失效（实测 offset 仍 2px）。
   用双写伪类 `.x:focus-visible:focus-visible`(0,4,0)，比依赖祖先结构稳（岛形态也生效）。
