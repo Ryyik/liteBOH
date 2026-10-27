@@ -107,11 +107,13 @@ describe('BOH AI 整页横屏左栏（2026-10-03，防「切到 AI 左栏就没�
     expect(read(BOHAI_SIDEBAR)).toContain('<Teleport to="body">');
   });
 
-  it('左栏动作分发到已有 handler（发布 / 搜索 / 主题 / 首页 / 退出）', () => {
+  it('左栏动作分发到已有 handler（发布 / 资产 / 主题 / 首页 / 退出）', () => {
     const code = scriptSection(read(SHELL));
     expect(code).toContain('handleRailNavClick');
     expect(code).toContain('handleRailAction');
-    for (const action of ['compose', 'search', 'theme', 'home', 'logout']) {
+    // 2026-10-26 全站便捷区收敛为「发布 / 资产」：搜索席换成资产席
+    //（搜索入口仍在导航岛与论坛页内，左栏不再重复一份）
+    for (const action of ['compose', 'assets', 'theme', 'home', 'logout']) {
       expect(code, `缺少 ${action} 分支`).toContain(`case '${action}'`);
     }
   });

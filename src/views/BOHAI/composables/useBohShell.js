@@ -89,9 +89,13 @@ export function useBohShell(props, emit) {
   const handleRailAction = async (actionId) => {
     switch (actionId) {
       case 'compose':
-      case 'search':
-        // 发布 / 搜索的宿主是论坛（挂在首页）→ 带意图跳到首页论坛区，与 UserSpace / 他人空间同口径
+        // 发布的宿主是论坛（挂在首页）→ 带意图跳到首页论坛区，与 UserSpace / 他人空间同口径
         router.push({ path: '/', query: { view: 'latest', [actionId]: '1' } });
+        break;
+      case 'assets':
+        /* 2026-10-26：左栏便捷区全站收敛为「发布 / 资产」，资产是所有宿主都有的全局
+           个人入口 —— 直接落到「我」页的资产 tab（不会变成没 handler 的死按钮）。 */
+        router.push('/user-space?tab=assets');
         break;
       case 'theme':
         // themeManager 内部派发 theme-changed，本组件的 handleThemeChange 已监听并同步 ref
