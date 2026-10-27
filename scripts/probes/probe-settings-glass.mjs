@@ -1,6 +1,6 @@
 // 探针：设置子页液态玻璃统一验证
-// - settings 主页（含绑定邮箱行）
-// - pushplus / account-security / data-export / data-management
+// - settings 主页（含登录邮箱行）
+// - pushplus / 账户与隐私（设置右栏内嵌）/ data-export / data-management
 // - 明暗双主题 + 手机横竖屏
 // 运行：node probe-settings-glass.mjs（dev 5173 需已启动）
 import { chromium } from 'playwright';
@@ -230,12 +230,19 @@ for (const theme of ['light', 'dark']) {
   await injectLogin(page);
   await shot(page, `设置主页-${theme}`, `settings-home-${theme}.png`);
   // 验证邮箱行
-  const emailRow = await page.getByText('绑定邮箱').count();
+  const emailRow = await page.getByText('登录邮箱').count();
   const emailValue = await page.getByText('ryyik@bohrite.example.com').count();
   console.log(
-    `[settings-home-${theme}] 绑定邮箱行: ${emailRow > 0 ? 'OK' : 'MISSING'}, 邮箱值: ${emailValue > 0 ? 'OK' : 'MISSING'}`,
+    `[settings-home-${theme}] 登录邮箱行: ${emailRow > 0 ? 'OK' : 'MISSING'}, 邮箱值: ${emailValue > 0 ? 'OK' : 'MISSING'}`,
   );
-  if (theme === 'light') await assertSettingsCardAndSearch(page);
+  // ⚠️ 骨架断言（圆角 16 / 组间留白 ≥20）只在「非竖屏通栏」宽度成立 ——
+  // settings-glass.css 的 @media (max-width:767px) 刻意把卡片拍平：radius 0、gap 14。
+  // 420 竖屏截图照常拍，量骨架前把视口放宽到 800（仍 <1024 且竖屏 ⇒ 不进两栏）。
+  if (theme === 'light') {
+    await page.setViewportSize({ width: 800, height: 900 });
+    await page.waitForTimeout(500);
+    await assertSettingsCardAndSearch(page);
+  }
   await context.close();
 }
 
@@ -268,16 +275,24 @@ for (const theme of ['light', 'dark']) {
   await context.close();
 }
 
-// ---------- 4. 账户安全页（明暗） ----------
+// ---------- 4. 账户与隐私（2026-10-26 起在设置页右栏内展开，不再独立开页） ----------
+// ⚠️ 判据换成右栏返回条 `.gs-inline-back`（旧页头已撤）：子页开着时它必须存在且可点。
 for (const theme of ['light', 'dark']) {
   const { context, page } = await newPage({ theme });
-  await loginThenGo(page, '#/user-space/account-security?from=userspace-settings');
-  await shot(page, `账户安全-${theme}`, `account-security-${theme}.png`);
+  await loginThenGo(page, '#/user-space?tab=settings&view=account-security');
+  await shot(page, `账户与隐私-更换邮箱-${theme}`, `account-security-${theme}.png`);
+  const inlineTitle = await page.locator('.gs-inline-title').innerText().catch(() => '');
+  const backCount = await page.locator('.gs-inline-back').count();
+  console.log(
+    `[account-security-${theme}] 右栏子页标题: ${inlineTitle || 'MISSING'} / 返回条: ${backCount ? 'OK' : 'MISSING'}`,
+  );
   await hitTestBack(page, `account-security-${theme}`);
-  // 进入修改密码面板截图
+  // 返回条 → 分组列表，再点「修改密码」进改密面板
+  await page.locator('.gs-inline-back').first().click();
+  await page.waitForTimeout(500);
   await page.getByText('修改密码').first().click();
-  await page.waitForTimeout(600);
-  await shot(page, `账户安全-改密面板-${theme}`, `account-security-password-${theme}.png`);
+  await page.waitForTimeout(700);
+  await shot(page, `账户与隐私-改密面板-${theme}`, `account-security-password-${theme}.png`);
   await context.close();
 }
 

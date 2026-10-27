@@ -114,8 +114,9 @@
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
-| `probe-composer-chips.mjs` | — | composer 工具 chips 探针：横屏（UserSpace 社区 tab → 左栏「发布」→ 全屏发布会话） |
-| `probe-composer-publish-dedupe.mjs` | — | 探针：发布会话底部整条工具栏去重（只保留上方顶栏 取消 / 草稿 / 发布） |
+| `probe-composer-chips.mjs` | — | composer 统一动作栏探针：横屏（UserSpace 社区 tab → 左栏「发布」→ 发布会话），验证标签 / 图片 / 智能整理 / 更多同排、标签菜单可用、第二发布出口与旧 chips 不再出现；含「内嵌编辑器已删除」反证 |
+| `probe-composer-publish-dedupe.mjs` | — | 探针：发布会话出口去重（顶栏只保留取消 / 发布；横屏隐藏取消；内部动作栏保留图片 / 标签 / 智能整理 / 更多） |
+| `probe-composer-motion.mjs` | — | 竖屏发布会话进出场：FAB 打开时以按钮中心放大、关闭时缩回同一点；读 100ms 中间帧的实际 `scale` / `transform-origin` / opacity，并含横屏即时切换反证 + reduced-motion 兜底 |
 | `probe-composer-publish-fix.mjs` | — | 发帖修复验证探针（对应提交 a180938 引入的三个回归）： |
 | `probe-desktop-composer.mjs` | — | 桌面端发帖编辑器回归：标题 textarea 化后布局无变形 |
 | `probe-forum-content-tabs.mjs` | — | 探针：社区段控新增 新闻/活动 页签（用户空间 → 社区）+ 筛选栏只留排序/标签 |
@@ -216,7 +217,7 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-profile-info-row.mjs` | — | probe-profile-info-row.mjs — 他人主页「积分卡 + 用户信息」横屏并排验证 |
 | `probe-profile-rail.mjs` | — | 探针：他人空间（/profile/:username）横屏同体系分栏验收（2026-09-19） |
 | `probe-reset-password-liquid.mjs` | — | 探针：重置密码页 liquid 改造验证（亮/暗两态截图） |
-| `probe-user-space-ia.mjs` | — | 探针：用户空间 IA 回归（91 断言，2026-10 收口版：底栏四席 / 论坛六席 / 我页三段 / ?tab=assets 旧深链回落 / 左栏 4 项 / 暗色 / 手机横屏；BASE 可传 dev server 地址，默认 localhost:5173） |
+| `probe-user-space-ia.mjs` | — | 探针：用户空间 IA 回归（126 断言，2026-10-27 版：底栏四席 / 论坛六席 / 我页单一主页 / 资产独立 tab（?tab=assets + ?panel= 四视图）/ 资产首页不被顶部导航岛遮挡 / 充值弹窗遮罩铺满 / 无模糊 / 焦点入弹窗 / Esc 可关 / 竖屏触摸目标（主按钮 ≥40、文字链 ≥32）/ 赞助子页可进入/可返回且页头不被岛遮挡 / 左栏 4 项 / 暗色 / 手机横屏（底栏形态 + 触摸目标 + 弹窗完整落在 390 高视口内 + 二维码可扫）/ 旋转不刷新即切两栏与单栏；BASE 可传 dev server 地址，默认 localhost:5173） |
 | `probe-user-space-perf.mjs` | — | 探针：User Space 系统性性能审查 v2（索引切阶段 + 定时器堆栈归因） |
 | `probe-userspace-pages.mjs` | `npm run probe:userspace-pages` | probe-userspace-pages.mjs — UserSpace **全页面**切换审计（逐页，不抽样） |
 | `probe-userspace-switch.mjs` | `npm run probe:userspace-switch` | probe-userspace-switch.mjs — UserSpace 分区切换流畅度实测 |

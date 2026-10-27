@@ -41,8 +41,13 @@ const injectLogin = async (targetPage) => {
       { timeout: 15000 },
     )
     .catch(() => {});
-  // auth 异步初始化可能晚于注入把状态洗回未登录——重试锚定
-  for (let i = 0; i < 6; i += 1) {
+  // auth 异步初始化可能晚于注入把状态洗回未登录——重试锚定。
+  // ⚠️ 单次 450ms 读回**不够**：supabase 的 checkAuth 落地时机不保证，实测
+  // 注入后 450ms 读回 true、再晚一点被洗回 false。冷加载深链用例的表现就是
+  // 「tab / panel 都对，但页面停在 login-prompt，资产面板根本不挂载（view=NONE）」。
+  // 所以要求**连续两次**读回 true 才认账。
+  let stable = 0;
+  for (let i = 0; i < 8; i += 1) {
     await p.evaluate(() => {
       const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;
       pinia.state.value.auth.isLoggedIn = true;
@@ -58,7 +63,21 @@ const injectLogin = async (targetPage) => {
       const pinia = document.querySelector('#app')?.__vue_app__?.config.globalProperties.$pinia;
       return !!pinia && pinia.state.value.auth.isLoggedIn === true;
     });
-    if (stillIn) return;
+    stable = stillIn ? stable + 1 : 0;
+    if (stable >= 2) break;
+  }
+  if (stable >= 2) {
+    // 已稳定登录：等真实根元素出现即可返回（后面的补锚定循环仍保留作兜底）
+    await p
+      .waitForFunction(() => !!document.querySelector('.user-space-page'), null, { timeout: 20000 })
+      .catch(() => {});
+    const survived = await p
+      .evaluate(() => {
+        const pinia = document.querySelector('#app')?.__vue_app__?.config.globalProperties.$pinia;
+        return !!pinia && pinia.state.value.auth.isLoggedIn === true;
+      })
+      .catch(() => false);
+    if (survived) return;
   }
   // 登录态就绪 ≠ 页面就绪：index.html 的启动骨架要等 Vue mount + 路由 chunk 到位才清，
   // 此时断言会读到「什么都没有」。等真实的 userspace 根元素出现再返回。
@@ -102,6 +121,46 @@ const ensureLoggedIn = async () => {
   await injectLogin(page);
   return false;
 };
+
+/**
+ * 「等登录后才有的元素 / 补注入」交替循环。
+ *
+ * 为什么需要：冷加载用例的流程是 `goto → 注入登录 → 等面板挂载`。但 dev server
+ * 里别的 agent 正在改 src 时，vite 偶发模块失败会命中 index.html 内联的 recovery
+ * 分支（带 ?forceUpdate=true 重定向）→ **整页重载、注入的登录态清零**。
+ * 那时单纯 waitForSelector 只能干等到超时，报出来的是「面板没挂载」，
+ * 看起来像资产页坏了，实际是探针自保没做好 —— 归因成本极高。
+ * 这里把两者交替：等 1.2s 不到就补一次注入，直到总超时。找到就立刻返回。
+ */
+const waitForAuthed = async (targetPage, selector, timeoutMs = 20000) => {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      await targetPage.waitForSelector(selector, { timeout: 1200 });
+      return true;
+    } catch {
+      await targetPage
+        .evaluate(() => {
+          const pinia =
+            document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia;
+          const auth = pinia?.state?.value?.auth;
+          if (!auth) return;
+          auth.isLoggedIn = true;
+          if (!auth.userInfo) {
+            auth.userInfo = {
+              id: 'probe-ia-user',
+              username: 'probe_rui',
+              role: 'user',
+              points: 1024,
+            };
+          }
+        })
+        .catch(() => {});
+    }
+  }
+  return false;
+};
+const ASSETS_READY = '.content-assets-host .profile-page-content > *:not(.login-prompt)';
 
 const navLabels = () =>
   page.evaluate(() =>
@@ -155,32 +214,9 @@ const activeTab = () =>
     const el = document.querySelector('.bottom-nav-glass .nav-item.active .nav-label');
     return el ? el.textContent.trim() : 'NONE';
   });
-// 条件等待：**第一个可见**页签组的文案 == 期望。
-// 必须要求「第一个」而不是「任意一个」：.tab-page 是 absolute 叠放层，切 tab 时
-// 离场页面的页签短期内仍可见、且可能排在更前。用 some() 会立刻命中离场组。
-const waitForSeg = async (expected, timeout = 12000) => {
-  const want = JSON.stringify(expected);
-  try {
-    await page.waitForFunction(
-      (w) => {
-        const groups = Array.from(document.querySelectorAll('.segment-tabs')).filter(
-          (t) => t.offsetParent !== null,
-        );
-        if (!groups.length) return false;
-        const firstLabels = JSON.stringify(
-          Array.from(groups[0].querySelectorAll('.segment-tab')).map((b) => b.textContent.trim()),
-        );
-        return firstLabels === w;
-      },
-      want,
-      { timeout },
-    );
-    await page.waitForTimeout(400); // 命中后再给离场动画收尾，避免 segState 抓到过渡态
-    return true;
-  } catch {
-    return false;
-  }
-};
+// ⚠️ 已删 `waitForSeg`：它等的是「我」页那套 空间/资产/印象 段控，
+// 段控随 2026-10-26 IA 合并整体退场后本探针不再需要它。
+// 论坛的六席页签仍用 clickSeg + 下面这个 segState 逐条断言。
 // 并发开发环境自保：别的 agent 正在改 src 时，vite 偶发会把 <vite-error-overlay>
 // 盖在页面上拦截一切 pointer 事件（实测 Playwright click 全卡死在该浮层上）。
 // 每次动作 click 前清一遍；浮层是 vite 的调试 UI，清掉不影响被测页面状态。
@@ -290,10 +326,7 @@ check(
   gapState.gap >= 0 && gapState.gap <= 24,
   `gap=${gapState.gap}px`,
 );
-// FAB 归属：FAB 属于「内容」—— 首页 feed 分区与 UserSpace 的「内容」tab 都算内容流。
-// 2026-10-19 修复回归：c19a35dc 曾把 embedded 收成 route.path === '/'，而 UserSpace
-// 也挂同一份 embedded ForumMain ⇒ 竖屏（390×844，本探针档位）下内嵌 PostComposer 因
-// v-if="!isMobileComposerMode" 不渲染、FAB 又被路径挡掉 = 整页没有发帖入口。
+// FAB 归属：内嵌发帖器已废弃，FAB 是 feed 页唯一常驻发帖入口。
 const fabState = await page.evaluate(() => {
   const fab = document.querySelector('.mobile-compose-fab.embedded-compose-fab');
   if (!fab) return { exists: false, visible: false, hit: null, hitSelf: false };
@@ -384,72 +417,123 @@ check(
   }),
 );
 
-// ---------- 4. 我 tab：空间 / 资产 / 印象三段 ----------
+// ---------- 4. 我 tab：单一主页（2026-10-26 起无分段）+ 资产独立 tab ----------
+// ⚠️ 本段原先锁「我页三段（空间/资产/印象）」与段控几何。2026-10-26 的 IA 重做把
+// 资产提升为**独立 tab**、我页收成单一主页（ProfileHomePanel），段控与
+// `.profile-service-row` 均已不存在 —— 断言改为锁新结构，别把旧结构写回来。
 await clickNav('我');
-const mineSegReady = await waitForSeg(['空间', '资产', '印象']);
-seg = await segState();
+await page.waitForTimeout(1200);
+const mineState = await page.evaluate(() => {
+  const visibleSegs = Array.from(document.querySelectorAll('.segment-tabs')).filter(
+    (t) => t.offsetParent !== null,
+  );
+  return {
+    homeShell: !!document.querySelector('.content-home-host .profile-home-shell'),
+    segGroups: visibleSegs.map((t) =>
+      Array.from(t.querySelectorAll('.segment-tab')).map((b) => b.textContent.trim()),
+    ),
+  };
+});
 check(
-  '我页签三段（空间/资产/印象）',
-  mineSegReady &&
-    seg.exists &&
-    JSON.stringify(seg.labels) === JSON.stringify(['空间', '资产', '印象']),
-  `ready=${mineSegReady} ${(seg.labels || []).join('/')}`,
+  '我 tab 渲染单一主页（不再有空间/资产/印象段控）',
+  mineState.homeShell && mineState.segGroups.length === 0,
+  `home=${mineState.homeShell} segs=${JSON.stringify(mineState.segGroups)}`,
 );
 check(
-  '我当前档 = 空间（身份卡）',
-  seg.active === '空间' &&
-    (await page.evaluate(() => {
-      const host = document.querySelector('.content-home-host .profile-page-content');
-      return host && !host.querySelector('.login-prompt') && host.children.length > 0;
-    })),
+  '资产不在底栏席（独立 tab，靠入口与深链进入）',
+  !(await navLabels()).includes('资产'),
+  `nav=${(await navLabels()).join('/')}`,
 );
+check('资产段底栏高亮仍落「我」', (await activeTab()) === '我');
 const contentGap = await page.evaluate(() => {
   const host = document.querySelector('.content-home-host');
   if (!host) return -1;
-  const cs = getComputedStyle(host);
-  return parseFloat(cs.paddingTop);
+  return parseFloat(getComputedStyle(host).paddingTop);
 });
 check('空间档页签下间距收紧（≤16px）', contentGap >= 0 && contentGap <= 16, `pt=${contentGap}px`);
-await page.screenshot({ path: 'debug-screenshots/ia-content-home.png' });
 
-// 资产段：AssetsHubPanel 原样内嵌于我页（首次访问后保持挂载）
-await clickSeg('资产');
-let assetsPanelOk = false;
-try {
-  await page.waitForSelector('.content-assets-host .profile-page-content > *:not(.login-prompt)', {
-    timeout: 20000,
-  });
-  assetsPanelOk = true;
-} catch {}
-const assetsSegState = await segState();
-// 资产已降为我页分段：不再有独立 tab-page.assets-shell；页级页签只剩「我」页自己的
-// 空间/资产/印象一组（AssetsHubPanel 自带的 .ah-segment-tabs 在 posts tab 内、非 tab-page 直接子级）
+// 资产页：独立 tab（?tab=assets），宿主 = .content-assets-host
+await page.goto('about:blank');
+await page.goto(`${BASE}/#/user-space?tab=assets`, { waitUntil: 'domcontentloaded' });
+await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+  timeout: 20000,
+});
+await ensureLoggedIn();
+const assetsPanelOk = await waitForAuthed(page, ASSETS_READY, 25000);
+await page.waitForTimeout(800);
 const assetsState = await page.evaluate(() => ({
+  // 2026-10-26 IA 合并后资产是**独立 tab**（currentTab === 'assets'，有自己的
+  // .tab-page.assets-shell），不再是「我」页里的 embedded 分段 ——
+  // 旧断言锁的 `!standaloneAssetsTab` 正好和现状相反，已按新结构改成正向断言。
   standaloneAssetsTab: !!document.querySelector('.tab-page.assets-shell'),
   pageSegLabels: Array.from(document.querySelectorAll('.tab-page > .segment-tabs'))
     .filter((t) => t.offsetParent !== null)
     .map((t) => Array.from(t.querySelectorAll('.segment-tab')).map((b) => b.textContent.trim())),
 }));
 check(
-  '切资产段 → AssetsHubPanel 渲染（embedded 于我页）',
-  assetsPanelOk &&
-    assetsSegState.active === '资产' &&
-    !assetsState.standaloneAssetsTab &&
-    assetsState.pageSegLabels.length === 1 &&
-    JSON.stringify(assetsState.pageSegLabels[0]) === JSON.stringify(['空间', '资产', '印象']),
-  `panel=${assetsPanelOk} active=${assetsSegState.active} standalone=${assetsState.standaloneAssetsTab} pageSegs=${JSON.stringify(assetsState.pageSegLabels)}`,
+  '?tab=assets 落独立资产 tab（有自己的 tab-page 壳，且无页级段控）',
+  assetsPanelOk && assetsState.standaloneAssetsTab && assetsState.pageSegLabels.length === 0,
+  `panel=${assetsPanelOk} standalone=${assetsState.standaloneAssetsTab} pageSegs=${JSON.stringify(assetsState.pageSegLabels)}`,
 );
-check('资产段底栏高亮仍落「我」（资产不再是底栏席）', (await activeTab()) === '我');
-const backHidden = await page.evaluate(() => {
-  const btn = document.querySelector('.assets-shell .user-center-back-button');
-  return !btn || btn.offsetParent === null;
-});
-check('资产首屏返回按钮已取消', backHidden);
+
+/* ---------- 4a. 资产页结构：一屏首页 + 三个二级页（2026-10-26 重做） ----------
+   ⚠️ 旧断言锁的是七段页签（`.ah-segment-tabs .segment-tab.active`）与「切页签 → ?panel=」，
+   那套 DOM 已随重做整体删除（概览 / 抽奖 / 赞助 / 订阅四个页签并入首页）。
+   新结构：
+     · 首页 = `.ah-home` 下四张 `.ah-panel`（钱包 / 会员 / 装扮 / 待办）+ 一行外链；
+     · 二级页 = `.ah-subpage` + `.ah-subpage-bar`（返回条 + 标题）；
+     · 视图值域 home / decor / orders / points，二级页**不跳路由**。 */
+const assetsView = () =>
+  page.evaluate(() => {
+    if (document.querySelector('.ah-home')) return 'home';
+    if (document.querySelector('.ah-decor')) return 'decor';
+    if (document.querySelector('.ah-fulfillment-section')) return 'orders';
+    if (document.querySelector('.ah-points-subpage')) return 'points';
+    return 'NONE';
+  });
+const homeCardCount = () =>
+  page.evaluate(() => document.querySelectorAll('.ah-home .ah-panel').length);
+const backBarVisible = () =>
+  page.evaluate(() => {
+    const bar = document.querySelector('.ah-subpage-bar');
+    return !!bar && bar.offsetParent !== null;
+  });
+check(
+  '资产首页：四张卡 + 不出现二级页壳（默认档）',
+  (await assetsView()) === 'home' && (await homeCardCount()) === 4 && !(await backBarVisible()),
+  `view=${await assetsView()} cards=${await homeCardCount()} backBar=${await backBarVisible()}`,
+);
+
+/* 顶部避让（用户明确要求「避开顶部导航栏」）：
+   摘要条必须整个落在导航岛（.unified-nav-surface，fixed）下沿之外。
+   只量「岛下沿 ≤ 摘要条上沿」，不量固定像素 —— 岛高度随状态卡变、也随断点变。 */
+const navClearance = async () => {
+  await page.waitForTimeout(250);
+  return page.evaluate(() => {
+    const surface = document.querySelector('.unified-nav-surface');
+    const summary = document.querySelector('.ah-summary');
+    if (!surface || !summary) return { ok: false, reason: 'missing' };
+    const s = surface.getBoundingClientRect();
+    const a = summary.getBoundingClientRect();
+    return {
+      ok: a.top >= s.bottom,
+      navBottom: Math.round(s.bottom),
+      summaryTop: Math.round(a.top),
+      gap: Math.round(a.top - s.bottom),
+    };
+  });
+};
+const clearance = await navClearance();
+check(
+  '资产首页不被顶部导航岛遮挡（摘要条在岛下沿之外）',
+  clearance.ok,
+  `navBottom=${clearance.navBottom} summaryTop=${clearance.summaryTop} gap=${clearance.gap}`,
+);
 await page.screenshot({ path: 'debug-screenshots/ia-content-assets.png' });
 
-// ---------- 4b. 资产段内层面板进 URL（?panel=，2026-10-15 机制包） ----------
-// 面板值域真源 = AssetsHubPanel.betaTabIds；URL 写入唯一出口 = 组件 tab-change → 宿主。
-// 覆盖：内层切换写 URL / 默认档省略 / 切走清除 / 切回归默认 / 服务行直达 / 两种深链直达。
+// ---------- 4b. 资产内层进 URL（?panel=） ----------
+// 视图值域真源 = AssetsHubPanel 的 VIEW_IDS + LEGACY_VIEW_MAP；URL 写入唯一出口 =
+// 组件 view-change → 宿主。覆盖：入口写 URL / 返回条清除 / 切走清除 / 深链与旧值。
 const readPanelQuery = () =>
   page.evaluate(() => {
     const q = new URLSearchParams(location.hash.split('?')[1] || '');
@@ -470,143 +554,291 @@ const waitForPanel = async (expected, timeout = 6000) => {
     return false;
   }
 };
-const clickAssetsTab = (label) =>
-  page.evaluate((text) => {
-    // 限定资产内层段控（.ah-segment-tabs），与外层「我」页段控（空间/资产/印象）区分
-    const tabs = document.querySelector('.ah-segment-tabs');
-    const hit = tabs
-      ? Array.from(tabs.querySelectorAll('.segment-tab')).find((b) => b.textContent.trim() === text)
-      : null;
-    hit?.click();
-    return !!hit;
-  }, label);
-const assetsActiveTab = () =>
-  page.evaluate(() => {
-    const active = document.querySelector('.ah-segment-tabs .segment-tab.active');
-    return active ? active.textContent.trim() : 'NONE';
-  });
+const clickIn = (selector) =>
+  page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    el?.click();
+    return !!el;
+  }, selector);
 
-// A. 内层切换 → URL 写 panel 并跟随更新
-await clickAssetsTab('积分');
+// A. 摘要条余额 → 积分明细（原先要先进「积分」页签，现在余额本身就是入口）
+const pointsEntryClicked = await clickIn('.ah-summary-points');
 const pointsPanelOk = await waitForPanel('points');
 await page.waitForTimeout(400);
 check(
-  '资产内层切「积分」→ URL 写 ?panel=points',
-  pointsPanelOk && (await assetsActiveTab()) === '积分',
-  `active=${await assetsActiveTab()} panel=${(await readPanelQuery()).panel}`,
+  '摘要条余额 → 积分明细（?panel=points，二级页出返回条）',
+  pointsEntryClicked &&
+    pointsPanelOk &&
+    (await assetsView()) === 'points' &&
+    (await backBarVisible()),
+  `clicked=${pointsEntryClicked} view=${await assetsView()} panel=${(await readPanelQuery()).panel} backBar=${await backBarVisible()}`,
 );
-await clickAssetsTab('抽奖');
-const lotteryPanelOk = await waitForPanel('lottery');
-await page.waitForTimeout(400);
-check(
-  '资产内层切「抽奖」→ URL 跟随 ?panel=lottery',
-  lotteryPanelOk && (await assetsActiveTab()) === '抽奖',
-  `active=${await assetsActiveTab()} panel=${(await readPanelQuery()).panel}`,
-);
-// B. 切回默认档「概览」→ panel 从 URL 移除（与 view 的默认值省略同口径）
-await clickAssetsTab('概览');
+
+// B. 返回条「资产」→ 回首页，panel 从 URL 移除（默认档省略）
+const backClicked = await clickIn('.ah-subpage-bar .ah-back');
 const panelCleared = await waitForPanel('');
 await page.waitForTimeout(400);
 check(
-  '资产内层切回「概览」→ URL 移除 panel（默认档省略）',
-  panelCleared && (await assetsActiveTab()) === '概览',
-  `active=${await assetsActiveTab()}`,
+  '二级页返回条 → 回首页且 URL 移除 panel（默认档省略）',
+  backClicked && panelCleared && (await assetsView()) === 'home',
+  `clicked=${backClicked} view=${await assetsView()} panel=${(await readPanelQuery()).panel}`,
 );
 
-// C. 切走资产段 → panel 清除；切回 → 面板归默认（不保留上次档，与设置分段同口径）
-await clickSeg('印象');
-await page.waitForTimeout(700);
-check('切离资产段 → URL 移除 panel', String((await readPanelQuery()).panel || '') === '');
-await clickSeg('资产');
+// C. 装扮卡「换装」→ 装扮二级页
+const decorClicked = await clickIn('.ah-decor-card .ah-btn');
+const decorPanelOk = await waitForPanel('decor');
+await page.waitForTimeout(400);
+check(
+  '首页装扮卡「换装」→ 装扮二级页（?panel=decor）',
+  decorClicked && decorPanelOk && (await assetsView()) === 'decor',
+  `clicked=${decorClicked} view=${await assetsView()} panel=${(await readPanelQuery()).panel}`,
+);
+// 回到首页，供后续用例从同一个基线出发
+await clickIn('.ah-subpage-bar .ah-back');
+await waitForPanel('');
+await page.waitForTimeout(400);
+
+// D. 切到「内容」tab → panel 清除；再回资产 → 归默认首页（不保留上次视图）
+await clickNav('内容');
 await page.waitForTimeout(900);
-check(
-  '切回资产段 → 面板归默认「概览」',
-  (await assetsActiveTab()) === '概览',
-  `active=${await assetsActiveTab()}`,
-);
-
-// D. 空间段服务面板「资产中心」行 → 直达资产段·积分
-//    （2026-10-15 行文案由「方块积分」改名「资产中心」——入口承载七类功能，旧名不副实；
-//      定位兼配两种文案，避免文案再变时探针假红）
-await clickSeg('空间');
-await page.waitForTimeout(700);
-const serviceRowClicked = await page.evaluate(() => {
-  const rows = Array.from(document.querySelectorAll('.profile-service-row'));
-  const hit = rows.find(
-    (r) => r.textContent.includes('资产中心') || r.textContent.includes('方块积分'),
-  );
-  hit?.click();
-  return !!hit;
+check('切离资产 tab → URL 移除 panel', String((await readPanelQuery()).panel || '') === '');
+await page.goto(`${BASE}/#/user-space?tab=assets`, { waitUntil: 'domcontentloaded' });
+await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+  timeout: 20000,
 });
-const servicePanelOk = await waitForPanel('points');
-await page.waitForTimeout(600);
-check(
-  '空间段「资产中心」行 → 直达资产段·积分（?panel=points）',
-  serviceRowClicked && servicePanelOk && (await assetsActiveTab()) === '积分',
-  `clicked=${serviceRowClicked} active=${await assetsActiveTab()}`,
-);
+await ensureLoggedIn();
+await page.waitForSelector('.ah-page', { timeout: 20000 });
+await page.waitForTimeout(900);
+check('回到资产 → 视图归默认首页', (await assetsView()) === 'home', `view=${await assetsView()}`);
 
-// E. 冷加载深链：?tab=posts&view=assets&panel=subscription 直达订阅
+// E. 冷加载深链 ?panel=decor 直达装扮二级页
 await page.goto('about:blank');
-await page.goto(`${BASE}/#/user-space?tab=posts&view=assets&panel=subscription`, {
+await page.goto(`${BASE}/#/user-space?tab=assets&panel=decor`, {
   waitUntil: 'domcontentloaded',
 });
 await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
   timeout: 20000,
 });
-await injectLogin(page);
-let deepPanelOk = false;
-try {
-  await page.waitForSelector('.content-assets-host .profile-page-content > *:not(.login-prompt)', {
-    timeout: 20000,
-  });
-  deepPanelOk = true;
-} catch {}
-await page.waitForTimeout(700);
+await ensureLoggedIn();
+const deepPanelOk = await waitForAuthed(page, ASSETS_READY, 25000);
+await page.waitForTimeout(900);
 check(
-  '冷加载 ?view=assets&panel=subscription 直达订阅面板',
-  deepPanelOk && (await assetsActiveTab()) === '订阅',
-  `panel=${deepPanelOk} active=${await assetsActiveTab()}`,
+  '冷加载 ?tab=assets&panel=decor 直达装扮二级页',
+  deepPanelOk && (await assetsView()) === 'decor' && (await backBarVisible()),
+  `panel=${deepPanelOk} view=${await assetsView()}`,
 );
 
-// F. 旧深链 ?tab=assets&panel=points（历史 tab 形态 + 面板组合）→ 落资产段并直达积分
+// F. 旧值深链 ?panel=subscription：订阅页签已并入首页 ⇒ 归一为首页并把 panel 从 URL 抹掉
+//    （旧值的唯一真源在组件 LEGACY_VIEW_MAP，宿主不复制一份）
 await page.goto('about:blank');
-await page.goto(`${BASE}/#/user-space?tab=assets&panel=points`, { waitUntil: 'domcontentloaded' });
+await page.goto(`${BASE}/#/user-space?tab=assets&panel=subscription`, {
+  waitUntil: 'domcontentloaded',
+});
 await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
   timeout: 20000,
 });
-await injectLogin(page);
-let legacyPanelOk2 = false;
-try {
-  await page.waitForSelector('.content-assets-host .profile-page-content > *:not(.login-prompt)', {
-    timeout: 20000,
-  });
-  legacyPanelOk2 = true;
-} catch {}
+await ensureLoggedIn();
+const legacyViewOk = await waitForAuthed(page, ASSETS_READY, 25000);
+await page.waitForTimeout(900);
+check(
+  '旧深链 ?panel=subscription 归一为首页，URL 不再保留已删页签',
+  legacyViewOk && (await assetsView()) === 'home' && !(await readPanelQuery()).panel,
+  `view=${await assetsView()} panel=${(await readPanelQuery()).panel}`,
+);
+
+// G. 旧 tab 形态深链 ?tab=posts&view=assets&panel=points → 落到资产 tab 并直达积分明细
+await page.goto('about:blank');
+await page.goto(`${BASE}/#/user-space?tab=posts&view=assets&panel=points`, {
+  waitUntil: 'domcontentloaded',
+});
+await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+  timeout: 20000,
+});
+await ensureLoggedIn();
+const legacyPanelOk2 = await waitForAuthed(page, ASSETS_READY, 25000);
 await page.waitForTimeout(900);
 const legacyPanelQuery = await readPanelQuery();
 check(
-  '旧深链 ?tab=assets&panel=points 落资产段并直达积分（URL 回写 tab=posts&view=assets&panel=points）',
+  '旧深链 ?tab=posts&view=assets&panel=points 归一为 ?tab=assets&panel=points 并直达积分',
   legacyPanelOk2 &&
-    (await assetsActiveTab()) === '积分' &&
-    legacyPanelQuery.tab === 'posts' &&
-    legacyPanelQuery.view === 'assets' &&
+    (await assetsView()) === 'points' &&
+    legacyPanelQuery.tab === 'assets' &&
     legacyPanelQuery.panel === 'points',
-  `active=${await assetsActiveTab()} tab=${legacyPanelQuery.tab} view=${legacyPanelQuery.view} panel=${legacyPanelQuery.panel}`,
+  `view=${await assetsView()} tab=${legacyPanelQuery.tab} panel=${legacyPanelQuery.panel}`,
 );
-// ⚠️ 本组结束时页面停在资产段·积分面板；下方「印象段」用例以 clickSeg('印象') 接力，基线不受影响。
 
-// 印象段：原论坛第 7 席，2026-10-01 搬入我页第三分段
-await clickSeg('印象');
+// 印象：2026-10-26 从「我页第三段控」下调为**空间页内容面板的第三个 tab**
+// （段控整体退场，同一屏三层导航压成一层内容 tab）。
+// 深链形态 ?tab=posts&view=impressions，宿主把它翻成 profileContentTab='impressions'。
+// ⚠️ 必须点在底栏「我」席（posts）上：`.profile-content-tabs` 在「内容」tab 里
+// 并不渲染，点隐藏的那份不会切换任何状态（实测 clicked=true / mounted=false）。
+await clickNav('我');
+await page.waitForTimeout(1200);
+const impressionsTabClicked = await page.evaluate(() => {
+  const tabs = Array.from(document.querySelectorAll('.profile-content-tabs .profile-content-tab'));
+  const hit = tabs.find((b) => b.textContent.trim().includes('印象'));
+  hit?.click();
+  return !!hit;
+});
 let impressionsOk = false;
 try {
-  await page.waitForSelector('.content-impressions-host .profile-page-content > *', {
+  await page.waitForSelector('.profile-content-impressions .profile-impressions-section', {
     timeout: 20000,
   });
-  impressionsOk = true;
+  // 可见性也要断言：tab-page 是叠放层，隐藏页里的区块同样在 DOM 里
+  impressionsOk = await page.evaluate(() => {
+    const el = document.querySelector('.profile-content-impressions .profile-impressions-section');
+    return !!el && el.offsetParent !== null;
+  });
 } catch {}
-check('切印象段 → 印象面板挂载（我页第三分段）', impressionsOk);
+check(
+  '内容面板「印象」tab → 印象区块挂载（原第三段控，现降为内容 tab）',
+  impressionsTabClicked && impressionsOk,
+  `clicked=${impressionsTabClicked} mounted=${impressionsOk}`,
+);
 await page.screenshot({ path: 'debug-screenshots/ia-content-impressions.png' });
+
+// ---------- 5b. 资产：充值弹窗遮罩 + 赞助子页（2026-10-26 修复回归） ----------
+// 两条都是「回退即复发」的样式级故障，症状还都容易被误归因（一个是
+// 「弹窗没盖住页面」，一个是「赞助页一片纯白」），所以锁几何与挂载，不锁「存在性」。
+// ⚠️ 资产**不在底栏席位里**（底栏只有 内容/消息/AI/图库/我），必须冷加载进来。
+// 别用 clickNav('资产') —— 它找不到项就静默不点，然后 `mountedTabs` 里残留的
+// 隐藏面板会让后面的 .ah-btn / .ah-links 选择器「命中但不可见」，
+// 于是弹窗仍能打开、赞助却点不动：一条断言全绿、一条全红的假象。
+await page.goto('about:blank');
+await page.goto(`${BASE}/#/user-space?tab=assets`, { waitUntil: 'domcontentloaded' });
+await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+  timeout: 20000,
+});
+await ensureLoggedIn();
+await waitForAuthed(page, '.ah-page', 25000);
+await page.waitForTimeout(900);
+
+// ① 充值弹窗：遮罩必须铺满视口、且在顶层、且没有背景模糊。
+//    曾经 `position: fixed` 被祖先 transform 劫持成「相对该祖先定位」——
+//    `.ah-page` 与宿主 `.tab-page` 的入场动画收尾都留下 `matrix(1,0,0,1,0,0)`，
+//    单位矩阵也算非 none。实测 1440×900：遮罩只剩 1131×600 @(275,0)，
+//    右侧与底部整条露底。修法是 Teleport 到 body（不是调 z-index）。
+await page.evaluate(() => {
+  [...document.querySelectorAll('.ah-btn')].find((b) => /充值/.test(b.textContent))?.click();
+});
+let rechargeGeo = null;
+try {
+  await page.waitForSelector('.ah-qr-overlay', { timeout: 8000 });
+  await page.waitForTimeout(400);
+  rechargeGeo = await page.evaluate(() => {
+    const ov = document.querySelector('.ah-qr-overlay');
+    const r = ov.getBoundingClientRect();
+    const cs = getComputedStyle(ov);
+    const hit = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      return !!el && `${el.className}`.includes('ah-qr-overlay');
+    };
+    return {
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      top: Math.round(r.top),
+      left: Math.round(r.left),
+      vw: innerWidth,
+      vh: innerHeight,
+      filter: cs.backdropFilter || cs.webkitBackdropFilter,
+      // 取 40px 内缩：两侧各有一条 16px 宽的 AI 边缘手势热区
+      // （.ai-edge-trigger，#z-index 2147483645），它永远在一切之上，量角落会误判。
+      corners: [hit(40, 40), hit(innerWidth - 40, 40), hit(40, innerHeight - 40)],
+      teleported: ov.parentElement === document.body,
+      // aria-modal 的模态要把焦点移进来，否则 Tab 会先跑到背后的页面上
+      focusIsClose: !!document.activeElement?.classList?.contains('ah-qr-close'),
+    };
+  });
+} catch {}
+check(
+  '充值弹窗遮罩铺满视口（Teleport 到 body，不被祖先 transform 劫持）',
+  !!rechargeGeo &&
+    rechargeGeo.teleported &&
+    Math.abs(rechargeGeo.w - rechargeGeo.vw) <= 2 &&
+    Math.abs(rechargeGeo.h - rechargeGeo.vh) <= 2,
+  rechargeGeo
+    ? `${rechargeGeo.w}x${rechargeGeo.h}@(${rechargeGeo.left},${rechargeGeo.top}) vs ${rechargeGeo.vw}x${rechargeGeo.vh}`
+    : '弹窗未出现',
+);
+check(
+  '充值弹窗无背景模糊（用户要求：不要 blur）',
+  !!rechargeGeo && (rechargeGeo.filter === 'none' || rechargeGeo.filter === ''),
+  rechargeGeo ? rechargeGeo.filter : 'n/a',
+);
+check(
+  '充值弹窗遮罩在顶层（三角命中自身）',
+  !!rechargeGeo && rechargeGeo.corners.every(Boolean),
+  rechargeGeo ? JSON.stringify(rechargeGeo.corners) : 'n/a',
+);
+check(
+  '充值弹窗打开后焦点移入弹窗（aria-modal 语义）',
+  !!rechargeGeo && rechargeGeo.focusIsClose,
+  rechargeGeo ? `focus=${rechargeGeo.focusIsClose}` : 'n/a',
+);
+await page.screenshot({ path: 'debug-screenshots/ia-assets-recharge.png' });
+
+// 模态必须能键盘退出（2026-10-27 实测缺口：Esc 原本无效，只能点关闭按钮或遮罩）。
+// 遮罩 Teleport 到 body，键盘监听只能挂 document —— 挂在组件根上收不到。
+await page.keyboard.press('Escape');
+await page.waitForTimeout(450);
+const escClosed = await page.evaluate(() => !document.querySelector('.ah-qr-overlay'));
+check('充值弹窗可按 Esc 关闭（模态键盘出口）', escClosed);
+if (!escClosed) {
+  await page.evaluate(() => document.querySelector('.ah-qr-close')?.click());
+  await page.waitForTimeout(400);
+}
+
+// ② 赞助子页：hub ↔ sponsor 的档位切换**不能**用 `<transition mode="out-in">`。
+//    实测 out-in 在这里会永久卡死（离场元素移除后 isLeaving 不复位），
+//    之后只渲染一个注释节点 —— 用户看到的是「点『赞助方块之家』后整页纯白」。
+await page.evaluate(() => {
+  [...document.querySelectorAll('.ah-links button')]
+    .find((b) => /赞助/.test(b.textContent))
+    ?.click();
+});
+let sponsorOk = false;
+try {
+  await page.waitForSelector('.sponsor-hero', { timeout: 15000 });
+  sponsorOk = true;
+} catch {}
+await page.waitForTimeout(600);
+const sponsorGeo = await page.evaluate(() => {
+  const surf = document.querySelector('.unified-nav-surface');
+  const header = document.querySelector('.profile-subpage-shell > *:first-child');
+  const hr = header ? header.getBoundingClientRect() : null;
+  return {
+    headerTop: hr ? Math.round(hr.top) : -1,
+    navBottom: surf ? Math.round(surf.getBoundingClientRect().bottom) : -1,
+    overflow: document.documentElement.scrollWidth - window.innerWidth,
+  };
+});
+check('赞助子页可进入（hub → sponsor 档位切换不卡死）', sponsorOk, `mounted=${sponsorOk}`);
+check(
+  '赞助子页页头不被顶部导航岛遮挡（页头顶边 > 岛下沿）',
+  sponsorOk && sponsorGeo.headerTop > sponsorGeo.navBottom,
+  `headerTop=${sponsorGeo.headerTop} navBottom=${sponsorGeo.navBottom}`,
+);
+check('赞助子页无横向溢出', sponsorGeo.overflow <= 0, `overflow=${sponsorGeo.overflow}`);
+await page.screenshot({ path: 'debug-screenshots/ia-assets-sponsor.png' });
+
+// 返回：页头那颗 back 按钮必须能退回首页。
+// 同一个 out-in 卡死也会表现成「进了赞助就退不回来」——只断言「能进」不够。
+await page.evaluate(() => {
+  const header = document.querySelector('.profile-subpage-shell > *:first-child');
+  header?.querySelector('button')?.click();
+});
+await page.waitForTimeout(800);
+const backHome = await page.evaluate(() => ({
+  hub: document.querySelectorAll('.ah-page').length,
+  cards: document.querySelectorAll('.ah-home .ah-panel').length,
+  sponsor: document.querySelectorAll('.sponsor-hero').length,
+}));
+check(
+  '赞助子页返回 → 回资产首页且四张卡都在',
+  backHome.hub === 1 && backHome.cards === 4 && backHome.sponsor === 0,
+  `hub=${backHome.hub} cards=${backHome.cards} sponsor=${backHome.sponsor}`,
+);
 
 // ---------- 6. 消息 tab：只剩通知收件箱（AI 段已移出为底栏全屏席） ----------
 await clickNav('消息');
@@ -735,33 +967,26 @@ await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, nu
 await page.waitForTimeout(1100);
 check('旧 /user-space/posts 重定向到内容 tab（论坛语义）', (await activeTab()) === '内容');
 
-// 旧深链 ?tab=assets：tab 回落 posts、分段落「资产」；URL 被 setSectionRoute 回写为
-// tab=posts&view=assets（分段值必须进 URL，否则刷新即丢失）。
-// ⚠️ 必须**冷加载**验证：rawRequestedTab 是 setup 期常量，hash 导航（同文档）不会重算它，
-// 只有全新文档加载才会走到 resolveSectionFromRoute 的 assets 回落分支。
+// ?tab=assets：2026-10-26 起是**一等公民 tab**（不再是「我」页里的分段）。
+// 这条锁的是「别再退回旧语义」：URL 必须原样保留 tab=assets，不能被改写成
+// tab=posts&view=assets（那套分段回写已随段控一起删除）；底栏仍高亮「我」。
 await page.goto('about:blank');
 await page.goto(`${BASE}/#/user-space?tab=assets`, { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
   timeout: 20000,
 });
 await injectLogin(page);
-let deepAssetsOk = false;
-try {
-  await page.waitForSelector('.content-assets-host .profile-page-content > *:not(.login-prompt)', {
-    timeout: 20000,
-  });
-  deepAssetsOk = true;
-} catch {}
+const deepAssetsOk = await waitForAuthed(page, ASSETS_READY, 25000);
 const deepAssetsUrl = await page.evaluate(() => {
   const q = new URLSearchParams(location.hash.split('?')[1] || '');
   return { tab: q.get('tab'), view: q.get('view') };
 });
 check(
-  '旧 ?tab=assets 深链落我页资产段（URL 回写 tab=posts&view=assets）',
+  '冷加载 ?tab=assets 保持 tab=assets（不回写旧分段形态 tab=posts&view=assets）',
   deepAssetsOk &&
     (await activeTab()) === '我' &&
-    deepAssetsUrl.tab === 'posts' &&
-    deepAssetsUrl.view === 'assets',
+    deepAssetsUrl.tab === 'assets' &&
+    !deepAssetsUrl.view,
   `panel=${deepAssetsOk} active=${await activeTab()} tab=${deepAssetsUrl.tab} view=${deepAssetsUrl.view}`,
 );
 
@@ -984,8 +1209,12 @@ check(
   `main=${railButtons.main}`,
 );
 check(
-  '左栏便捷组齐全（发布/搜索）',
-  ['compose', 'search'].every((id) => railButtons.actions.includes(id)),
+  // 2026-10-26：左栏是**全局导航**，便捷区固定为「发布 / 资产」两项。
+  // 搜索已下线该席位（它归论坛自身顶栏 / `?search=1` 深链）——同一个左栏在
+  // 不同宿主里变来变去会被用户读成 bug，见 UserSpaceSideRail 的 DEFAULT_QUICK_ACTIONS。
+  '左栏便捷组齐全（发布/资产）',
+  ['compose', 'assets'].every((id) => railButtons.actions.includes(id)) &&
+    !railButtons.actions.includes('search'),
   railButtons.actions.join(','),
 );
 check(
@@ -1080,8 +1309,12 @@ if (composerOpened) {
     const o = overlay ? overlay.getBoundingClientRect() : null;
     const s = section ? section.getBoundingClientRect() : null;
     const railItem = document.querySelector('.userspace-rail-item');
-    const mobileTools = document.querySelector('.mobile-post-image-toolbar');
-    const scrollBox = document.querySelector('.mobile-composer-scroll');
+    const actionBar = document.querySelector('.composer-actions');
+    // 滚动面：2026-10-26 结构调整后，`.mobile-composer-scroll` 退化为
+    // 「把卡片头/正文/底栏拉满剩余高度」的 flex 壳（overflow: hidden），
+    // 真正滚动的是它内部的 `.composer-content-scroll`（overflow-y: auto）。
+    // 旧断言量前者自然恒为 hidden —— 那是断言跟着实现跑偏，不是回归。
+    const scrollBox = document.querySelector('.mobile-composer-overlay .composer-content-scroll');
     // 会话内那个「＋ 添加图片」大方框（不是内嵌编辑器里的同名实例）
     const addMore = Array.from(document.querySelectorAll('.post-image-add-more-card')).find((el) =>
       el.closest('.mobile-composer-overlay'),
@@ -1099,7 +1332,7 @@ if (composerOpened) {
       railVisible: rail ? getComputedStyle(rail).display !== 'none' : false,
       railFirstItemY: railItem ? Math.round(railItem.getBoundingClientRect().y) : -1,
       checkinDisplay: checkin ? getComputedStyle(checkin).display : 'ABSENT',
-      mobileToolsDisplay: mobileTools ? getComputedStyle(mobileTools).display : 'ABSENT',
+      actionBarDisplay: actionBar ? getComputedStyle(actionBar).display : 'ABSENT',
       embeddedComposerDisplay: embeddedComposer
         ? getComputedStyle(embeddedComposer).display
         : 'ABSENT',
@@ -1124,9 +1357,9 @@ if (composerOpened) {
   // 负向断言统一口径：元素「不存在」与「display:none」都算已移除（并发迭代中两种形态都出现过）
   const removed = (v) => v === 'none' || v === 'ABSENT';
   check(
-    '会话内已移除移动端工具横条（标签只剩一套）',
-    removed(composerState.mobileToolsDisplay),
-    composerState.mobileToolsDisplay,
+    '会话内统一动作栏可见（标签 / 图片 / 智能整理 / 更多）',
+    composerState.actionBarDisplay !== 'none' && composerState.actionBarDisplay !== 'ABSENT',
+    composerState.actionBarDisplay,
   );
   check(
     '开发布会话时左栏不上移（前后位置一致）',
@@ -1140,7 +1373,7 @@ if (composerOpened) {
   );
   check(
     '社区内嵌发帖编辑器已删除（发布会话取代）',
-    removed(composerState.embeddedComposerDisplay),
+    composerState.embeddedComposerDisplay === 'ABSENT',
     composerState.embeddedComposerDisplay,
   );
   // 用户要求：发帖页不要「整个界面滚动」→ 会话层不滚（顶栏钉住），只有内容区自己滚
@@ -1173,23 +1406,38 @@ if (composerOpened) {
   await landPage.waitForTimeout(700);
 }
 
-// 搜索 → 聚焦论坛工具栏搜索框
-await safeClick(landPage, '[data-rail-action="search"]');
+// 搜索 → 聚焦论坛工具栏搜索框。
+// ⚠️ 早先这里是点左栏 `[data-rail-action="search"]`；该席位已删除 ——
+// 左栏是**全局导航**，便捷区只剩「发布 / 资产」（见 UserSpaceSideRail 的
+// DEFAULT_QUICK_ACTIONS 注释：同一个左栏在不同宿主里变来变去会被读成 bug）。
+// 搜索回到论坛自身顶栏（另有 `?search=1` 深链），所以这里先进「内容」tab
+// 让论坛真正可见，再点搜索框本身 —— 验的是「论坛搜索框可聚焦 + 几何达标」。
+// ⚠️ 必须用 `:visible` 定位：.tab-page 是叠放层，未激活 tab 里的 ForumToolbar
+// 同样在 DOM 里（v-show 隐藏），裸选择器会命中隐藏那份，动作 click 超时。
+await safeClick(landPage, '.userspace-rail-item[data-tab="community"]');
+await landPage.waitForTimeout(1100);
 let searchFocused = false;
 try {
+  await landPage
+    .locator('.forum-page .toolbar-search-input:visible')
+    .first()
+    .click({ timeout: 12000 });
   await landPage.waitForFunction(
     () => document.activeElement?.classList?.contains('toolbar-search-input'),
     null,
-    { timeout: 12000 },
+    { timeout: 8000 },
   );
   searchFocused = true;
 } catch {}
-check('点「搜索」聚焦论坛搜索框', searchFocused);
+check('论坛搜索框可聚焦（左栏「搜索」席位已下线，搜索归论坛顶栏）', searchFocused);
 
 // 搜索框几何（用户明确要求：横屏加高 + 提示居中 + 跨栏独占一行）。
 // 只验「存在」会漏掉样式裸奔，这里量真实几何
 const landSearch = await landPage.evaluate(() => {
-  const input = document.querySelector('.forum-page .toolbar-search-input');
+  // 同上：只量可见那份，隐藏 tab 的输入框宽高恒为 0
+  const input = Array.from(document.querySelectorAll('.forum-page .toolbar-search-input')).find(
+    (el) => el.offsetParent !== null,
+  );
   if (!input) return null;
   const cs = getComputedStyle(input);
   const r = input.getBoundingClientRect();
@@ -1384,17 +1632,19 @@ const portraitFlush = await portraitPage.evaluate(() => {
   if (!panel) return { found: false };
   const cs = getComputedStyle(panel);
   const r = panel.getBoundingClientRect();
-  const cols = stats
-    ? getComputedStyle(stats)
-        .gridTemplateColumns.split(/\s+/)
-        .filter((x) => x && x !== 'none')
-    : [];
+  // 2026-10-26：统计从「4 格等分网格」改成参考产品的「纯文本一行」——
+  // 只有 3 项（粉丝 / 关注 / 发帖），无分隔、无胶囊底，所以不再量
+  // grid-template-columns（那会恒为 none ⇒ cols=0 的假红）。改为量
+  // 项数 + 是否真的排在同一行（offsetTop 只有一个取值）。
+  const items = stats ? [...stats.querySelectorAll('.stat-text')] : [];
+  const tops = items.map((el) => Math.round(el.getBoundingClientRect().top));
   return {
     found: true,
     radius: cs.borderTopLeftRadius,
     left: Math.round(r.left),
     right: Math.round(window.innerWidth - r.right),
-    cols: cols.length,
+    statCount: items.length,
+    statRows: new Set(tops).size,
   };
 });
 check(
@@ -1407,63 +1657,274 @@ check(
   portraitFlush.found && portraitFlush.left <= 1 && portraitFlush.right <= 1,
   portraitFlush.found ? `left=${portraitFlush.left} right=${portraitFlush.right}` : 'n/a',
 );
-check('竖屏空间段：统计行 4 等分', portraitFlush.cols === 4, `cols=${portraitFlush.cols}`);
-
-/* 另两段的口径（2026-10-22）：
-   · 印象段与空间段同为 edge-to-edge
-   · 资产段**刻意**保留 16px 卡片边距（工具型网格，贴边会把 tab 与统计卡挤到屏幕边缘）
-   这两条一起锁，是为了防「统一全宽」的下一轮改动把资产段也拉平 —— 那时应该有人先想清楚，
-   而不是被一条静默的 CSS 改掉。 */
-const segFlush = async (label) => {
-  await portraitPage
-    .evaluate((text) => {
-      const b = [...document.querySelectorAll('.segment-tab')].find(
-        (x) => x.textContent.trim() === text,
-      );
-      b?.click();
-    }, label)
-    .catch(() => {});
-  await portraitPage.waitForTimeout(2600);
-  return portraitPage.evaluate(() => {
-    const vis = (el) => {
-      const cs = getComputedStyle(el);
-      if (cs.display === 'none' || cs.visibility === 'hidden') return false;
-      const r = el.getBoundingClientRect();
-      return r.width > 20 && r.height > 8;
-    };
-    const roots = [...document.querySelectorAll('.profile-page-content')].filter(vis);
-    const root = roots[0];
-    if (!root) return { found: false };
-    const first = [...root.children].find(vis);
-    if (!first) return { found: false };
-    const r = first.getBoundingClientRect();
-    return {
-      found: true,
-      left: Math.round(r.left),
-      right: Math.round(window.innerWidth - r.right),
-      radius: getComputedStyle(first).borderTopLeftRadius,
-    };
-  });
-};
-
-const portraitImp = await segFlush('印象');
 check(
-  '竖屏印象段：贴边（≤1px）+ 方角',
-  portraitImp.found && portraitImp.left <= 1 && portraitImp.right <= 1,
-  portraitImp.found ? `left=${portraitImp.left} right=${portraitImp.right}` : '未渲染',
+  '竖屏空间段：统计行 3 项同排（纯文本流，不再 4 等分网格）',
+  portraitFlush.statCount === 3 && portraitFlush.statRows === 1,
+  `items=${portraitFlush.statCount} rows=${portraitFlush.statRows}`,
 );
 
-const portraitAssets = await segFlush('资产');
+/* 另两档的口径（2026-10-26 重写）：
+   · 印象 = 「我」页内容面板的第三个 tab（作品 / 回复 / 印象），与空间段同为 edge-to-edge；
+   · 资产 = **独立 tab**，刻意保留 16px 卡片边距（工具型网格，见
+     profile-base.css 的 `.profile-page-content.assets-active`）。
+   ⚠️ 旧版靠 `segFlush('印象'/'资产')` 点段控 —— 段控已随 IA 合并整体删除。
+   找不到按钮时它什么都点不到，却仍会量到「我」页首个可见块并**报绿**（假绿）。
+   现在每档先断言目标块真的挂载，再量边距；找不到元素直接 fail。 */
+const clickContentTab = async (label) => {
+  const clicked = await portraitPage
+    .evaluate((text) => {
+      const btn = [...document.querySelectorAll('.profile-content-tabs .profile-content-tab')].find(
+        (b) => b.textContent.trim().includes(text),
+      );
+      btn?.click();
+      return !!btn;
+    }, label)
+    .catch(() => false);
+  await portraitPage.waitForTimeout(1400);
+  return clicked;
+};
+
+const impTabClicked = await clickContentTab('印象');
+const portraitImp = await portraitPage.evaluate(() => {
+  const section = document.querySelector('.profile-home-shell .profile-impressions-section');
+  if (!section) return { found: false };
+  const r = section.getBoundingClientRect();
+  return {
+    found: true,
+    left: Math.round(r.left),
+    right: Math.round(window.innerWidth - r.right),
+  };
+});
 check(
-  '竖屏资产段：保留 16px 卡片边距（反向锁）',
+  '竖屏印象 tab：贴边（≤1px）+ 方角',
+  impTabClicked && portraitImp.found && portraitImp.left <= 1 && portraitImp.right <= 1,
+  `clicked=${impTabClicked} ${
+    portraitImp.found ? `left=${portraitImp.left} right=${portraitImp.right}` : '未渲染'
+  }`,
+);
+
+// 资产：独立 tab，冷加载进入（不再有「资产」段控可点）
+await portraitPage.goto(`${BASE}/#/user-space?tab=assets`, { waitUntil: 'domcontentloaded' });
+await portraitPage
+  .waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 })
+  .catch(() => {});
+for (let i = 0; i < 6; i += 1) {
+  await portraitPage
+    .evaluate(() => {
+      const pinia = document.querySelector('#app')?.__vue_app__?.config?.globalProperties?.$pinia;
+      if (!pinia?.state?.value?.auth) return;
+      pinia.state.value.auth.isLoggedIn = true;
+      pinia.state.value.auth.userInfo = {
+        id: 'probe-ia-user',
+        username: 'probe_rui',
+        role: 'user',
+        points: 1024,
+      };
+    })
+    .catch(() => {});
+  await portraitPage.waitForTimeout(400);
+}
+await waitForAuthed(portraitPage, '.tab-page.assets-shell .ah-page', 20000);
+const portraitAssets = await portraitPage.evaluate(() => {
+  const page = document.querySelector('.tab-page.assets-shell .ah-page');
+  if (!page) return { found: false };
+  const r = page.getBoundingClientRect();
+  return {
+    found: true,
+    left: Math.round(r.left),
+    right: Math.round(window.innerWidth - r.right),
+  };
+});
+check(
+  '竖屏资产页：保留 16px 卡片边距（反向锁，工具型网格不贴边）',
   portraitAssets.found &&
     Math.abs(portraitAssets.left - 16) <= 1 &&
     Math.abs(portraitAssets.right - 16) <= 1,
   portraitAssets.found ? `left=${portraitAssets.left} right=${portraitAssets.right}` : '未渲染',
 );
 
+// 竖屏触摸目标（2026-10-27 实测缺口：主按钮 36px、「全部明细」只有 23px 高）。
+// 主按钮按 Apple HIG 40 下限；纯文字链给 32 的命中区（WCAG 2.5.8 的下限只有 24）。
+// ⚠️ 规则必须写在 CSS 文件末尾 —— `.ah-btn{height:36px}` 在同特异性下靠后覆盖，写在前面会静默失效。
+const portraitTargets = await portraitPage.evaluate(() => {
+  const bad = [];
+  document.querySelectorAll('.tab-page.assets-shell .ah-page button').forEach((el) => {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8) return;
+    const need = el.classList.contains('ah-link-btn') ? 32 : 40;
+    if (r.height + 0.5 < need || r.width < 32) {
+      bad.push({
+        text: el.textContent.trim().slice(0, 8),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        need,
+      });
+    }
+  });
+  return bad;
+});
+check(
+  '竖屏资产页触摸目标达标（主按钮 ≥40 / 文字链 ≥32）',
+  portraitTargets.length === 0,
+  portraitTargets.length ? JSON.stringify(portraitTargets.slice(0, 4)) : '全部达标',
+);
+
 await portraitPage.screenshot({ path: 'debug-screenshots/ia-portrait-fullwidth.png' });
 await portraitPage.close();
+
+// ---------- 手机横屏 844×390（2026-10-27）----------
+// 横屏是独立形态，不是竖屏的缩放：宽 844 越过 max-width:767 那批触摸规则，
+// 高只剩 390 又撑不开常规弹窗。两个缺口都在这一档暴露过 ——
+// 按钮仍是 36px、充值弹窗 436px 把二维码底部 19px 与 UID 整行切到屏外（扫码直接失败）。
+const landscapePage = await context.newPage();
+await landscapePage.setViewportSize({ width: 844, height: 390 });
+await landscapePage.goto(`${BASE}/#/user-space?tab=assets`, { waitUntil: 'domcontentloaded' });
+await injectLogin(landscapePage);
+await waitForAuthed(landscapePage, '.tab-page.assets-shell .ah-page', 20000);
+// 首启公告（5.6s）期间岛是展开态（130px），会盖住摘要条并使点击落到浮层上
+await landscapePage
+  .waitForFunction(
+    () => {
+      const el = document.querySelector('.unified-nav-surface');
+      return !el || el.getBoundingClientRect().height < 100;
+    },
+    null,
+    { timeout: 9000 },
+  )
+  .catch(() => {});
+
+const landscapeNav = await landscapePage.evaluate(() => {
+  const shown = (el) =>
+    !!el && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 2;
+  return {
+    bar: shown(document.querySelector('.bottom-nav-glass')),
+    rail: shown(document.querySelector('.userspace-rail')),
+  };
+});
+check('横屏手机用底部胶囊、不渲染左栏', landscapeNav.bar && !landscapeNav.rail, JSON.stringify(landscapeNav));
+
+const landscapeTargets = await landscapePage.evaluate(() => {
+  const bad = [];
+  document.querySelectorAll('.tab-page.assets-shell .ah-page button').forEach((el) => {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') return;
+    const r = el.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8) return;
+    const need = el.classList.contains('ah-link-btn') ? 32 : 40;
+    if (r.height + 0.5 < need || r.width < 32) {
+      bad.push({ text: el.textContent.trim().slice(0, 8), w: Math.round(r.width), h: Math.round(r.height) });
+    }
+  });
+  return bad;
+});
+check(
+  '横屏手机触摸目标达标（主按钮 ≥40 / 文字链 ≥32）',
+  landscapeTargets.length === 0,
+  landscapeTargets.length ? JSON.stringify(landscapeTargets.slice(0, 4)) : '全部达标',
+);
+
+await landscapePage
+  .locator('.tab-page.assets-shell .ah-btn', { hasText: '充值积分' })
+  .first()
+  .click({ timeout: 8000 })
+  .catch(() => {});
+await landscapePage.waitForTimeout(600);
+const landscapeModal = await landscapePage.evaluate(() => {
+  const box = (el) => {
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { top: Math.round(r.top), bottom: Math.round(r.bottom), h: Math.round(r.height) };
+  };
+  const card = box(document.querySelector('.ah-qr-modal'));
+  const qr = box(document.querySelector('.ah-recharge-qr'));
+  const close = box(document.querySelector('.ah-qr-close'));
+  const vh = window.innerHeight;
+  return {
+    open: !!document.querySelector('.ah-qr-overlay'),
+    card,
+    qr,
+    close,
+    vh,
+    cardFits: !!card && card.top >= 0 && card.bottom <= vh,
+    qrFits: !!qr && qr.top >= 0 && qr.bottom <= vh,
+    closeFits: !!close && close.top >= 0 && close.bottom <= vh && close.h >= 32,
+  };
+});
+check('横屏手机充值弹窗能打开', landscapeModal.open);
+check(
+  '横屏手机弹窗完整落在视口内（不留半截要盲滚）',
+  landscapeModal.cardFits,
+  landscapeModal.card ? `卡片 ${landscapeModal.card.h}px / 视口 ${landscapeModal.vh}px` : 'n/a',
+);
+check(
+  '横屏手机二维码完整可见（能扫）',
+  landscapeModal.qrFits,
+  landscapeModal.qr ? `h=${landscapeModal.qr.h} bottom=${landscapeModal.qr.bottom}` : 'n/a',
+);
+check(
+  '横屏手机关闭按钮可点（≥32 且在视口内）',
+  landscapeModal.closeFits,
+  landscapeModal.close ? `h=${landscapeModal.close.h}` : 'n/a',
+);
+await landscapePage.keyboard.press('Escape');
+await landscapePage.waitForTimeout(400);
+check('横屏手机 Esc 可关充值弹窗', await landscapePage.evaluate(() => !document.querySelector('.ah-qr-overlay')));
+await landscapePage.screenshot({ path: 'debug-screenshots/ia-landscape-assets.png' });
+await landscapePage.close();
+
+// ---------- 旋转（不刷新页面）----------
+// 断点 (orientation:landscape)+(min-width:1024)+(min-height:600) 同时驱动
+// 「设置两栏」与「左栏收窄」。若 matchMedia 的 change 监听丢了，转屏后布局会僵在原形态。
+const rotatePage = await context.newPage();
+await rotatePage.setViewportSize({ width: 768, height: 1024 });
+await rotatePage.goto(`${BASE}/#/user-space?tab=settings`, { waitUntil: 'domcontentloaded' });
+await injectLogin(rotatePage);
+await waitForAuthed(rotatePage, '.glass-settings', 20000);
+// ⚠️ 左栏在竖屏仍留在 DOM 里（display:none），必须按可见性判断，
+// 只写 !!querySelector 会把竖屏也判成「有左栏」。
+const railVisible = () =>
+  rotatePage.evaluate(() => {
+    const el = document.querySelector('.userspace-rail');
+    return !!el && getComputedStyle(el).display !== 'none' && el.offsetHeight > 10;
+  });
+const rotPortrait = {
+  nav: await rotatePage.evaluate(() => !!document.querySelector('.gs-nav')),
+  compact: await rotatePage.evaluate(() => document.body.classList.contains('is-rail-compact')),
+  rail: await railVisible(),
+};
+check('旋转前 768×1024 竖屏：设置单栏、无左栏', !rotPortrait.nav && !rotPortrait.rail, JSON.stringify(rotPortrait));
+
+await rotatePage.setViewportSize({ width: 1024, height: 768 });
+await rotatePage.waitForTimeout(700);
+const rotLandscape = {
+  nav: await rotatePage.evaluate(() => !!document.querySelector('.gs-nav')),
+  compact: await rotatePage.evaluate(() => document.body.classList.contains('is-rail-compact')),
+  rail: await railVisible(),
+  groups: await rotatePage.evaluate(
+    () => [...document.querySelectorAll('.gs-group')].filter((el) => el.offsetHeight > 0).length,
+  ),
+};
+check(
+  '转横屏后自动切两栏（左目录 + 右详情 + 左栏收窄）',
+  rotLandscape.nav && rotLandscape.rail && rotLandscape.compact,
+  JSON.stringify(rotLandscape),
+);
+
+await rotatePage.setViewportSize({ width: 768, height: 1024 });
+await rotatePage.waitForTimeout(700);
+const rotBack = await rotatePage.evaluate(() => ({
+  nav: !!document.querySelector('.gs-nav'),
+  compact: document.body.classList.contains('is-rail-compact'),
+  groups: [...document.querySelectorAll('.gs-group')].filter((el) => el.offsetHeight > 0).length,
+}));
+check(
+  '转回竖屏后自动收成单栏（全组展开）',
+  !rotBack.nav && !rotBack.compact && rotBack.groups >= 3,
+  JSON.stringify(rotBack),
+);
+await rotatePage.close();
 
 // ---------- 汇总 ----------
 check('零 pageerror（明色主流程）', errors.length === 0, errors.join(' | ').slice(0, 120));
