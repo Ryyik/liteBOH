@@ -5,6 +5,9 @@
     <div class="boh-composer-anchor">
       <BohGlassRefract :radius="20" />
       <div ref="composerEl" class="boh-composer">
+        <!-- 生成在途的边界光束（2026-10-25）：唯一的彩色元素，语义 = 「系统还在跑、可以打断」。
+             必须是**第一个子元素**且不包 wrapper —— 理由见 BohBeam.vue / boh-beam.css 文件头。 -->
+        <BohBeam :active="isLoading" />
         <!-- 附加的页面上下文（原 `.context-chip-row`） -->
         <div v-if="attachedContext" class="boh-ctx">
           <button
@@ -485,6 +488,7 @@ import { formatModeRateLabel, isFreeMode } from '@/views/BOHAI/utils/mode-rate-l
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 
 import BohGlassRefract from '@/components/ui/BohGlassRefract.vue';
+import BohBeam from './BohBeam.vue';
 
 /**
  * BohComposer.vue — 输入区（plans/025 v2 · Step 6-4）

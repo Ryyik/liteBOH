@@ -149,6 +149,47 @@
      接线硬约束（§21.7）：玻璃祖先链上不得有**堆叠上下文**（isolation/opacity/filter/
         transform）——`.boh-main` 的 `z-index: 1` 已因此让位（layout.css）。 */
 
+  /* ── 边界光束（border beam，2026-10-25 用户口径「我要的就是一样的彩色光效」）──────
+     ⚠️ **这是全仓唯一的彩色例外**。DESIGN §0.1 第 1 条是「黑白灰，无彩色 accent」，
+        本组令牌是用户明确拍板的破例项：只允许**生成在途**时出现（BohBeam 的 `active`），
+        静态界面里出现彩虹边框 = 违反设计语言。
+     ⚠️ 九个色值**逐字照抄** `border-beam-vue` 的 `colorful` 调色板（位置/尺寸写在下游
+        `boh-beam.css`，那里只写位置不写色值），否则「一样」就无从对账。
+     色相环上按调色板顺序编号，**不要重排**：`c1..c9` 与 CSS 里的 `radial-gradient` 一一对应。 */
+  --boh-beam-c1: rgb(255, 50, 100);
+  --boh-beam-c2: rgb(40, 140, 255);
+  --boh-beam-c3: rgb(50, 200, 80);
+  --boh-beam-c4: rgb(30, 185, 170);
+  --boh-beam-c5: rgb(100, 70, 255);
+  --boh-beam-c6: rgb(40, 140, 255);
+  --boh-beam-c7: rgb(255, 120, 40);
+  --boh-beam-c8: rgb(240, 50, 180);
+  --boh-beam-c9: rgb(180, 40, 240);
+
+  /* 行进高光：**四档 alpha 对称展开**（a→b→c→peak→c→b→a），位置写在 boh-beam.css。
+     ⚠️ 这里**刻意只保留白阶**（原组件 `dark` 主题那一套），浅色主题也用同一套 ——
+        原组件给浅色配的是**黑阶**（峰值 rgba(0,0,0,.55)），那是为「小尺寸浅色卡」设计的；
+        BOHAI 输入框是 880px 宽、纯白底，黑阶会把彩虹压成一道灰痕（实测截图对比）。
+        白阶叠加只提亮不压暗，彩虹才留得住颜色 —— 这是本仓唯一一处**有意偏离**原组件的地方。 */
+  --boh-beam-hi-a: rgba(255, 255, 255, 0.1);
+  --boh-beam-hi-b: rgba(255, 255, 255, 0.3);
+  --boh-beam-hi-c: rgba(255, 255, 255, 0.6);
+  --boh-beam-hi-p: rgba(255, 255, 255, 0.75);
+
+  /* 描边层整体不透明度：原组件浅 0.33 / 暗 0.48。浅色下 1px 环在白底上会被吃掉，
+     提到 0.9 才读得出「一圈彩色光」；暗色沿用原值。 */
+  --boh-beam-stroke-o-light: 0.9;
+  --boh-beam-stroke-o-dark: 0.48;
+  --boh-beam-stroke-o: var(--boh-beam-stroke-o-light);
+
+  /* 外发光（bloom）与内投影：原组件同样是成对定义、按主题切换。 */
+  --boh-beam-bloom-light: rgba(0, 0, 0, 0.6);
+  --boh-beam-bloom-dark: rgba(255, 255, 255, 0.85);
+  --boh-beam-bloom: var(--boh-beam-bloom-light);
+  --boh-beam-shadow-light: rgba(0, 0, 0, 0.14);
+  --boh-beam-shadow-dark: rgba(255, 255, 255, 0.27);
+  --boh-beam-shadow: var(--boh-beam-shadow-light);
+
   /* ── 布局常量 ── */
   /* 左栏宽度真源是**全局**的 `--userspace-rail-w`（`UserSpace/styles/landscape-rail.css`，
      AI 页 `body.page-aichat` 恒 88）。BOHAI 自己那份**同义的左栏令牌**已于 2026-10-12 删除 ——
@@ -196,6 +237,17 @@
   initial-value: 0;
 }
 
+/* `--boh-beam-angle` 注册为**可插值的角度**（2026-10-25）：边界光束靠 `conic-gradient(from …)`
+   转圈，未注册的自定义属性**不可插值** ⇒ `@keyframes` 里写 `from { --boh-beam-angle: 0deg }`
+   会变成瞬间跳变而不是匀速旋转。
+   ⚠️ `inherits: true` 是**必须的**：真正画光带的是 `.boh-beam` 的 `::before` / `::after`
+   伪元素，它们只能通过继承拿到这个角度；写成 false 则两层全静止（且不报错）。 */
+@property --boh-beam-angle {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+
 /* 暗色：**只切语义别名**，且只用 var()（见文件头纪律 1） */
 :root[data-boh-theme='dark'] {
   --boh-bg-page: var(--boh-gray-900);
@@ -229,5 +281,9 @@
   --boh-glass-bg: var(--boh-glass-bg-dark);
   --boh-glass-border: var(--boh-glass-border-dark);
   --boh-glass-highlight: var(--boh-glass-highlight-dark);
+  /* 边界光束：只切别名（纪律 1：暗色块零字面量）；九个彩虹色**不跟主题变** */
+  --boh-beam-stroke-o: var(--boh-beam-stroke-o-dark);
+  --boh-beam-bloom: var(--boh-beam-bloom-dark);
+  --boh-beam-shadow: var(--boh-beam-shadow-dark);
   /* 折射级白膜：**不在这里切** —— 见文件末尾的 `.bohai-page` 作用域块（§21.11）。 */
 }

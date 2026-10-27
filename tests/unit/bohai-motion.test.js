@@ -128,19 +128,23 @@ describe('两条硬约束（改这四处时别踩）', () => {
     }
   });
 
-  it('⭐ 关键帧不变量：BOHAI 仍是 4 处（新增动画请用 transition）', () => {
-    // 现行 4 处（2026-10-20 按实况对齐；此前断言写 3 却实测 4，长期是红的）：
+  it('⭐ 关键帧不变量：BOHAI 仍是 5 处（新增动画请用 transition）', () => {
+    // 现行 5 处（2026-10-25 按实况对齐；此前断言写 3 却实测 4，长期是红的）：
     //   1. boh-spin              boh-work.css    工作台步骤点的无限旋转（唯一用 transition 表达不了的一类）
     //   2. boh-search-shimmer    boh-stream.css  「网页搜索 / 正在思考」的流光
     //   3. boh-activity-swap-in  boh-stream.css  动作行换字的一次性淡入（2026-10-19，见下方注释为何不用 Transition）
     //   4. boh-activity-icon-in  boh-stream.css  同上，图标侧的一次性入场
+    //   5. boh-beam-spin         boh-beam.css    输入框生成在途的边界光束旋转（2026-10-25）
     // 变更史：`boh-search-fade`（网页标题轮换）已于 2026-10-19 被 `boh-activity-swap-in` 取代
-    //        （08ad8476 删 1 增 2，净 +1 ⇒ 3 → 4）。
+    //        （08ad8476 删 1 增 2，净 +1 ⇒ 3 → 4）；2026-10-25 加边界光束 ⇒ 4 → 5。
+    //        ⚠️ 第 5 条同样过不了「能不能用 transition」那一问 —— 旋转角度要**无限循环**，
+    //        transition 没有 `infinite`，只能走关键帧。它是**条件性**的（只在 `is-active` 时 running），
+    //        不是常驻循环，这一点与第 1、2 条不同。
     // ⚠️ 数的是**声明处**，所以「删一个就得改这个数字」；新增关键帧前先问能不能用 transition。
     const total = walk(BOHAI).reduce(
       (sum, file) => sum + (read(file).match(/@keyframes\s/g) || []).length,
       0,
     );
-    expect(total).toBe(4);
+    expect(total).toBe(5);
   });
 });

@@ -182,7 +182,7 @@
 - **只有两个时长**：`150ms`（`--boh-dur-fast`，悬停/颜色/描边）与 `200ms`（`--boh-dur-med`，抽屉/展开/淡入）。
 - **唯一缓动**：`cubic-bezier(0.4, 0, 0.2, 1)`（`--boh-ease`）。
 - **CSS 里不许写字面时长**（时长唯一真源 = 令牌）。
-- **关键帧动画一共三处声明、其中两条循环**（2026-10-19 复核，判据见下）：
+- **关键帧动画一共五处声明、其中三条循环**（2026-10-25 复核，判据见下）：
   ① 流光 `boh-search-shimmer`（`--boh-dur-bob` = **`1.8s`**，`linear`，`infinite`）——**单源定义**
      （`.boh-search-text.is-shimmer, .boh-reason.is-live .boh-search-text`）；
      2026-10-19 起「网页搜索在途」与「正在思考」是**同一条活动行**的两个互斥阶段
@@ -192,7 +192,14 @@
   ③ 活动行文字进场 `boh-activity-swap-in`（`--boh-dur-fast` = `150ms`，`both`，**一次性**，
      按 `:key` 重挂时重放；图标另有 `boh-activity-icon-in` 只做缩放不位移）。
      原「搜索标题轮换淡入 `boh-search-fade`」已于 2026-10-19 移除（标题轮换并入同一套进场）。
-  > 判据：`grep -rn "@keyframes" src/views/BOHAI/`（2026-10-19 实测 4 条：上面三条 + 图标那条）。
+  ④ 输入框边界光束 `boh-beam-spin`（`--boh-dur-bob` = **`1.8s`**，`linear`，`infinite`，2026-10-25）。
+     **条件性循环**：只在 `BohBeam` 的 `is-active`（= 壳的 `isLoading`）时 `running`，其余时间
+     `animation-play-state: paused` ⇒ 不占一个常驻合成层。角度只能靠关键帧（`transition` 没有
+     `infinite`），这是 §2.4「新增动画先问能不能用 transition」的**例外**，已登记。
+     ⚠️ 它同时是 §0.1「无彩色 accent」的**唯一例外** —— 用户 2026-10-25 明确要求保留原组件的
+     彩色光带（口径原话「我要的就是一样的彩色光效」）。**只允许表达「正在生成/执行」**，
+     不得下沉为选中态、悬停态或装饰；九个色值单源在 `tokens.css` 的 `--boh-beam-c1..c9`。
+  > 判据：`grep -rn "@keyframes" src/views/BOHAI/`（2026-10-25 实测 5 条：上面三条 + 图标那条 + 光束那条）。
   > ⚠️ **不要用 `<Transition mode="out-in">` 做这一行的切换**：同一 tick 内连续换 key
   > （搜索在途 → 结果到位 → 首 token 可能连拍）会把离开中的节点留成孤儿，实测永久停在
   > `leave-active leave-to`、旧文字压住新文字。用「按 key 重挂 + 一次性 keyframes」。
