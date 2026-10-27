@@ -6,7 +6,7 @@
 ## 0. 项目一句话
 
 Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH」，迭代代号 Beta 2.5 / Beta 6。
-`src/` 569 个源文件（.vue/.js/.ts），265 个脚本（`scripts/*.mjs` 57 + `scripts/probes/*.mjs` 208），255 个单元测试文件。
+`src/` 569 个源文件（.vue/.js/.ts），265 个脚本（`scripts/*.mjs` 57 + `scripts/probes/*.mjs` 208），256 个单元测试文件。
 （2026-10-20 随活动页与节目页并入 /newsroom 退场下调；这三个数由 `npm run check:doc-truth` 实时对账，写错/过时会被 verify 拦下——别手改估计值。）
 
 三条最高纲领：
@@ -99,6 +99,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 | SW 预缓存改动上线前（**专项，没进自动化链**） | `npm run check:sw-upgrade`（对比 `dist` 与 `dist-check` 两份产物，CI 上没有 `dist-check` 所以只能在本地跑）；`npm run check:route-css-runtime` 还要先手工起 `npx vite preview --outDir dist-check --port 4180 --strictPort`，它是独立起服务的浏览器验收 |
 | **首屏 / 加载性能**（改图片管线、SW 预缓存、首屏请求收敛之后） | `node scripts/probes/probe-perf-baseline.mjs`（4 断言；只读打线上冷首访 + 产物闭包 + DB RTT，**不进 verify 主链**；`--json` 落盘做前后对照。基线与口径源自 `docs/2026-09-29-加载速度与提速全面评测报告.md`） |
 | RPC / 触发器静默失败 | 审计表取 code → `DO` 块分步复现 → 修完把 `sqlstate` 落进审计 message |
+| **邮件链路保活**（`mail-keepalive` EF / cron 调度 / 21 天阈值） | `npm run mail:verify` + `npm run mail:health`（需 Management API token，**刻意不进 verify**）。三条硬规则 + 2026-10-27 事故记录 → `docs/gate-matrix.md` C-4 |
 
 其余探针见 `docs/PROBES.md`。
 

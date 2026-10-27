@@ -223,3 +223,47 @@ A2b hover 卡 / A4 两胶囊互斥 / A5 选模式 / A6 工具四件）
 
 > 📌 AGENTS.md §2 没有 Cloud+ 行：该表有**必读面字节棘轮**（`check:doc-truth`，只许降不许涨），
 > 2026-10-18 实测把这一节写进去会让文件超出基线 +2KB。维护者改这块时**从本文件进**。
+
+### C-4 邮件链路保活（Brevo 90 天回收）
+
+改 `supabase/functions/mail-keepalive/index.ts`、`scripts/mail-keepalive-ops.mjs`、
+`scripts/lib/mail-keepalive-policy.mjs`（阈值 / 告警文案 / 调度）时跑：
+
+```bash
+npm run mail:verify   # 表 / RLS / 两条 cron / 命令里的阈值与告警（只读）
+npm run mail:health   # 一条命令回答「还活着吗」，异常 exit 1
+```
+
+两者都需要 Management API access token（`scripts/lib/supabase-admin-api.mjs`），
+**刻意不进 `verify`**：CI 没有这个 token，接进去只会永远降级跳过（= 假门禁）。
+
+**事故（2026-10-27 复盘）**：旧设计是 pg_cron **每月 8 号固定发一封**。上线 19 天后实测
+`cron.job_run_details` 里 **0 条执行记录**（首次排期 2026-11-08），底账 9 行里只有 1 行真成功
+（且是手工 `--trigger` 打出来的）。也就是说「保活到底有没有生效」在第一个月里**无从验证**；
+更糟的是——若那唯一一次失败（token 漂移 / EF 未部署 / 瞬时网络），下次机会要等 30 天，
+而 Brevo 的回收窗口只有 90 天。**固定日历把「重试机会」也一起固定成了 3 次/年。**
+
+**现设计**：`boh_mail_keepalive_watchdog`（`0 1 * * *` 每日）+ `boh_mail_keepalive_monthly`（兜底）。
+
+1. **巡检命令带阈值条件**：`where coalesce((select max(triggered_at) from mail_keepalive_log where ok), to_timestamp(0)) < now() - interval '21 days'`。
+   无 FROM 的 `select … where <false>` ⇒ 零行 ⇒ `net.http_post` **根本不被求值**（健康时不发信）。
+   改阈值只许改 `KEEPALIVE_STALE_DAYS`，命令文本由 `buildWatchdogCommand()` 生成，别手改云端。
+2. **自愈**：失败不消耗排期，第二天自动重试 ⇒ 90 天窗口内有 ~90 次机会。21 天 = 窗口的 1/4.3，
+   允许连败 4 次仍不破线。
+3. **`--cron` 轮换 token 必须同时重写两条 job**（脚本里已经这么做）。只换一边 ⇒ 巡检天天 401，
+   而那正是「静默失败」的典型形态：job 每天成功执行、底账里全是 `UNAUTHORIZED_TOKEN`。
+4. **告警不依赖「邮件通」这个前提**：连续 2 次真实尝试失败 ⇒ 往 `profiles.role='admin'` 写一条
+   `type='system'` 站内信，`notifications` 上的 `trg_notifications_enqueue_web_push` 触发器
+   自动排一条浏览器推送。去重窗口 20h（`ALERT_DEDUPE_HOURS`）。
+5. **「真实尝试」用 `recipient <> ''` 区分**：EF 鉴权失败时写的是 `recipient: ''`。
+   外部扫描器拿 anon key 打端点会留这种行——不排除的话，告警会被陌生扫描刷出来
+   （实测 2026-10-27 底账 3 次真实尝试 / 8 条鉴权失败留痕）。
+6. **200 ≠ 送达**：`/auth/v1/recover` 防枚举，不存在的邮箱也返回 `200 {}`。
+   底账里的 200 只证明「请求被接受、进了发信流程」；最终证据是收件箱 / Brevo 后台送达记录。
+   （SMTP 真挂时 GoTrue 会同步返回 5xx，所以 200 **不是**完全无约束的信号。）
+
+⚠️ **已实测的两条**（反证也做了，别按「看起来更严谨」的写法改回去）：
+- 命令体是**多语句**（`net.http_post` + `insert into notifications`）。2026-10-27 用一次性 job 实测
+  `cron.job_run_details.status = succeeded`、`return_message = INSERT 0 0` ⇒ pg_cron 的 `SPI_execute`
+  确实执行多语句，不需要包 `DO $$`。
+- 告警分支的「插一次 + 再插一次」在事务内实测 `first=1 second=1` ⇒ 去重生效；回滚后底账/通知零残留。

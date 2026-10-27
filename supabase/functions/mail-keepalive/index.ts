@@ -6,9 +6,9 @@ import { createServiceClient } from '../_shared/supabase.ts';
  *
  * 背景：Supabase 的 SMTP 走 Brevo 免费档（smtp-relay.brevo.com:587，2026-09-22 接入），
  * 用于注册确认 / 密码重置等认证邮件。Brevo 的 SMTP key **90 天不活跃会被回收**，
- * 一旦回收，认证邮件全链路哑火。本函数由 pg_cron 每月触发一次（见迁移
- * 2026100801_mail_keepalive.sql），用一封真实的密码重置邮件打穿
- * Supabase → Brevo SMTP → 收件箱 全链路，刷新活跃窗口。
+ * 一旦回收，认证邮件全链路哑火。本函数由 pg_cron 触发（见迁移
+ * 2026100801_mail_keepalive.sql；2026-10-27 起为「每日巡检 + 每月兜底」两条），
+ * 用一封真实的密码重置邮件打穿 Supabase → Brevo SMTP → 收件箱 全链路，刷新活跃窗口。
  *
  * 注册模式与 scripts/register-forum-weekly-report-cron.sql（论坛周报）一致：
  *   pg_cron → net.http_post → 本函数（Authorization: Bearer <service_role_key>）。

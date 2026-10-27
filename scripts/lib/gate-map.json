@@ -153,6 +153,16 @@
       "note": "类型检查走 CI 的 deno-check.yml（阻断）；本地已可装 deno 预验（2026-10-16 实测，见 docs/AI-ENV.md #10）"
     },
     {
+      "glob": "scripts/lib/mail-keepalive-policy.mjs",
+      "run": ["npm run mail:verify", "npm run mail:health"],
+      "why": "邮件保活的阈值/告警口径唯一真源；改了必须回读云端（巡检是否在册、命令里的阈值是否同步）"
+    },
+    {
+      "glob": "scripts/mail-keepalive-ops.mjs",
+      "run": ["npm run mail:verify", "npm run mail:health"],
+      "why": "保活运维脚本（需 Management API token，刻意不进 verify）"
+    },
+    {
       "glob": "package.json",
       "run": ["npm run check:gates-self-test"],
       "why": "改了 scripts/门禁清单就自证一遍"

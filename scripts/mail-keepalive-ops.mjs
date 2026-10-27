@@ -11,8 +11,10 @@
  *   --deploy   部署/更新 Edge Function（Management API，连 _shared 依赖一起传）
  *   --secret   写 EF secret MAIL_KEEPALIVE_RECIPIENT（upsert，幂等）
  *   --apply    应用迁移（单事务 + 手写 schema_migrations 台账 + notify pgrst，幂等）
- *   --cron     注册/替换 pg_cron 每月任务（service key 从 /secrets 读取后烘焙进命令文本，幂等）
- *   --verify   验证表/RLS/policy/revoke/cron job/台账（只读）
+ *   --cron     轮换 token + 注册/替换 pg_cron 任务（固定月度心跳 **和** 每日巡检，幂等）
+ *   --watchdog 只重注册每日巡检任务（复用 cron 命令里已有的 token，不轮换）
+ *   --verify   验证表/RLS/policy/revoke/两个 cron job/台账（只读）
+ *   --health   健康判定（只读，异常 exit 1）：上次成功距今、连续失败数、巡检是否在册
  *   --trigger  手动调一次 EF（真实发一封保活邮件）并查最新底账行
  *   --negative 反证：错误凭证必须 401 且底账不增行（证明鉴权有牙）
  *
@@ -29,6 +31,16 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readAccessToken, readProjectRef, runQuery } from './lib/supabase-admin-api.mjs';
+import {
+  buildWatchdogScheduleSql,
+  evaluateKeepaliveHealth,
+  extractTokenFromCommand,
+  KEEPALIVE_ALERT_AFTER_FAILURES,
+  KEEPALIVE_STALE_DAYS,
+  MONTHLY_JOB_NAME,
+  WATCHDOG_JOB_NAME,
+  WATCHDOG_SCHEDULE,
+} from './lib/mail-keepalive-policy.mjs';
 
 const ROOT = process.cwd();
 const REF = readProjectRef(ROOT);
@@ -36,7 +48,7 @@ const TOKEN = readAccessToken();
 const RECIPIENT = String(process.env.MAIL_KEEPALIVE_RECIPIENT || 'ryyik1217@gmail.com').trim();
 const VERSION = '2026100801';
 const NAME = '2026100801_mail_keepalive';
-const JOB_NAME = 'boh_mail_keepalive_monthly';
+const JOB_NAME = MONTHLY_JOB_NAME;
 const FN_SLUG = 'mail-keepalive';
 const FN_DIR = join(ROOT, 'supabase', 'functions', FN_SLUG);
 const MIGRATION_FILE = join(ROOT, 'supabase', 'migrations', `${VERSION}_mail_keepalive.sql`);
@@ -96,12 +108,22 @@ const fnUrl = () => `https://${REF}.supabase.co/functions/v1/${FN_SLUG}`;
  * 从 cron job 命令文本提取保活 token —— cron 命令就是 token 的**单一真源**
  * （--cron 同时写 EF secret 与烘焙进这里，两侧必然一致）。
  * ⚠️ 不从 GET /secrets 读：实测（2026-10-08）读回值与写入值不一致（ebae62e0 ≠ 7b6dc005）。
+ *
+ * 巡检 job 与月度心跳 job 用的是**同一个** token（--cron 一起写），所以两个都查，
+ * 任一命中即可 —— 避免「只删了其中一个 job」时运维以为 token 丢了。
  */
 const readTokenFromCronJob = async () => {
-  const r = await sql(`select command from cron.job where jobname = '${JOB_NAME}'`);
-  const cmd = r.ok ? String(r.rows[0]?.command || '') : '';
-  const m = cmd.match(/'Authorization',\s*'Bearer ([0-9a-f]{64})'/);
-  return m ? m[1] : '';
+  const r = await sql(
+    `select jobname, command from cron.job
+      where jobname in ('${JOB_NAME}', '${WATCHDOG_JOB_NAME}')
+      order by case when jobname = '${WATCHDOG_JOB_NAME}' then 0 else 1 end`,
+  );
+  if (!r.ok) return '';
+  for (const row of r.rows) {
+    const token = extractTokenFromCommand(row.command);
+    if (token) return token;
+  }
+  return '';
 };
 
 // ---------------------------------------------------------------- --deploy
@@ -262,6 +284,85 @@ select cron.schedule(
 commit;`;
   const applied = await sql(cronSql, false);
   check('C1 cron job 已写入（幂等替换同名）', applied.ok, applied.ok ? '' : applied.error);
+
+  // 巡检 job 与心跳 job 共用同一个 token ⇒ 轮换必须两边一起换。
+  // （否则「--cron 轮换后巡检还揣着旧 token」会天天 401，而那正是要消灭的静默失败。）
+  const watchdogSql = buildWatchdogScheduleSql({ ref: REF, token: keepaliveToken });
+  const watchdogApplied = await sql(watchdogSql, false);
+  check(
+    'C2 每日巡检 job 已写入（与心跳同一 token，含 21 天阈值与失败告警）',
+    watchdogApplied.ok,
+    watchdogApplied.ok ? WATCHDOG_SCHEDULE : watchdogApplied.error,
+  );
+}
+
+// ---------------------------------------------------------------- --watchdog
+// 只重注册巡检 job，**不轮换 token**（token 从现有 cron 命令里读）。
+// 用途：调阈值 / 改告警文案 / 巡检 job 被误删后的单点修复。
+if (WANT('--watchdog')) {
+  console.log('== 注册/替换每日巡检 job（复用现有 token）==');
+  const token = await readTokenFromCronJob();
+  check('W0 从 cron 命令提取 token', Boolean(token), `token=${fingerprint(token)}`);
+  if (!token) {
+    console.error('提取不到 token ⇒ 先跑 --cron（会同时生成 token 并写两侧）。');
+    process.exit(2);
+  }
+  const applied = await sql(buildWatchdogScheduleSql({ ref: REF, token }), false);
+  check('W1 巡检 job 已写入（幂等替换同名）', applied.ok, applied.ok ? '' : applied.error);
+  if (!applied.ok) process.exit(2);
+  const state = await sql(
+    `select schedule, active from cron.job where jobname = '${WATCHDOG_JOB_NAME}'`,
+  );
+  const row = state.ok ? state.rows[0] : null;
+  check(
+    `W2 巡检在册且 active（${WATCHDOG_SCHEDULE}）`,
+    Boolean(row) && row.active === true && row.schedule === WATCHDOG_SCHEDULE,
+    row ? `schedule=${row.schedule} active=${row.active}` : '未找到',
+  );
+}
+
+// ---------------------------------------------------------------- --health
+// 一条命令回答「保活到底还活着吗」。退出码即结论（异常 1），方便挂到任何自动化上。
+if (WANT('--health')) {
+  console.log('== 健康判定（只读）==');
+  const state = await sql(`
+    select
+      (select max(triggered_at) from public.mail_keepalive_log where ok) as last_ok_at,
+      (select count(*)::int from (
+         select ok from public.mail_keepalive_log
+          where recipient <> '' order by id desc limit ${KEEPALIVE_ALERT_AFTER_FAILURES}
+       ) t where t.ok is false) as recent_failures,
+      (select count(*)::int from public.mail_keepalive_log where recipient <> '') as real_attempts,
+      (select count(*)::int from public.mail_keepalive_log where recipient = '') as unauthorized_probes,
+      (select count(*)::int from cron.job
+        where jobname = '${WATCHDOG_JOB_NAME}' and active and schedule = '${WATCHDOG_SCHEDULE}') as watchdog_ok,
+      (select count(*)::int from cron.job
+        where jobname = '${JOB_NAME}' and active) as heartbeat_ok`);
+  if (!state.ok) {
+    check('H0 状态查询失败', false, state.error);
+    process.exit(2);
+  }
+  const s = state.rows[0] || {};
+  const verdict = evaluateKeepaliveHealth({
+    lastOkAt: s.last_ok_at || null,
+    recentFailures: s.recent_failures,
+  });
+  console.log(`  上次成功：${s.last_ok_at || '(从未)'}`);
+  console.log(
+    `  距今：${verdict.ageDays === null ? '—' : `${verdict.ageDays.toFixed(1)} 天`}（阈值 ${KEEPALIVE_STALE_DAYS} 天）`,
+  );
+  console.log(`  真实尝试 / 鉴权失败留痕：${s.real_attempts} / ${s.unauthorized_probes}`);
+  console.log(`  最近 ${KEEPALIVE_ALERT_AFTER_FAILURES} 次尝试中失败：${s.recent_failures}`);
+  console.log(
+    `  巡检 job / 心跳 job：${s.watchdog_ok ? '在册' : '缺失'} / ${s.heartbeat_ok ? '在册' : '缺失'}`,
+  );
+  check(`H1 保活健康（status=${verdict.status}）`, verdict.ok, verdict.reasons.join('；'));
+  check(
+    `H2 每日巡检 job 在册且调度 = ${WATCHDOG_SCHEDULE}`,
+    Number(s.watchdog_ok) === 1,
+    Number(s.watchdog_ok) === 1 ? '' : '缺失或调度被改 ⇒ 跑 --watchdog',
+  );
+  check('H3 固定心跳 job 在册（兜底通道）', Number(s.heartbeat_ok) === 1);
 }
 
 // ---------------------------------------------------------------- --verify
@@ -278,6 +379,9 @@ if (WANT('--verify')) {
       has_table_privilege('authenticated', 'public.mail_keepalive_log', 'SELECT') as auth_select,
       (select count(*) from cron.job where jobname = '${JOB_NAME}' and active) as cron_jobs,
       (select schedule from cron.job where jobname = '${JOB_NAME}') as cron_schedule,
+      (select count(*) from cron.job where jobname = '${WATCHDOG_JOB_NAME}' and active) as watchdog_jobs,
+      (select schedule from cron.job where jobname = '${WATCHDOG_JOB_NAME}') as watchdog_schedule,
+      (select command from cron.job where jobname = '${WATCHDOG_JOB_NAME}') as watchdog_command,
       (select count(*) from supabase_migrations.schema_migrations where version = '${VERSION}') as ledger_rows`);
   if (!state.ok) {
     check('V0 状态查询失败', false, state.error);
@@ -303,6 +407,28 @@ if (WANT('--verify')) {
     String(s.cron_schedule),
   );
   check('V6 schema_migrations 台账有行', Number(s.ledger_rows) >= 1);
+
+  // 巡检 job：这是「保活能自愈」的唯一保障 —— 缺了就等于退回「失败了要等 30 天」。
+  check(
+    `V8 每日巡检 job 在册且调度 = ${WATCHDOG_SCHEDULE}`,
+    Number(s.watchdog_jobs) === 1 && s.watchdog_schedule === WATCHDOG_SCHEDULE,
+    `jobs=${s.watchdog_jobs} schedule=${s.watchdog_schedule}`,
+  );
+  const watchdogCommand = String(s.watchdog_command || '');
+  check(
+    `V9 巡检命令带 ${KEEPALIVE_STALE_DAYS} 天阈值（距上次成功不足阈值时不发信）`,
+    watchdogCommand.includes(`interval '${KEEPALIVE_STALE_DAYS} days'`) &&
+      watchdogCommand.includes('where coalesce'),
+    watchdogCommand.includes(`interval '${KEEPALIVE_STALE_DAYS} days'`) ? '' : '阈值条件缺失',
+  );
+  check(
+    'V10 巡检命令带连续失败告警（写管理员站内信 → 触发器自动排浏览器推送）',
+    watchdogCommand.includes("p.role = 'admin'") && watchdogCommand.includes('【邮件保活】'),
+  );
+  check(
+    'V11 巡检命令里的 token 与心跳 job 同源（都是 64 位十六进制）',
+    /'Bearer [0-9a-f]{64}'/.test(watchdogCommand),
+  );
 
   const advisors = await sql(`
     select c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -531,5 +657,5 @@ if (passed.length + failed.length > 0) {
   process.exit(failed.length ? 1 : 0);
 }
 console.log(
-  '（未选择任何子命令：--deploy / --secret / --apply / --verify / --trigger / --negative）',
+  '（未选择任何子命令：--deploy / --secret / --apply / --cron / --watchdog / --verify / --health / --trigger / --negative）',
 );
