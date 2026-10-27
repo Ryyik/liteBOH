@@ -1,5 +1,5 @@
 {
-  "total": 627,
+  "total": 625,
   "files": {
     "src/App.vue": 1,
     "src/components/AiEdgeTrigger.vue": 2,
@@ -33,7 +33,6 @@
     "src/views/Forum/ForumMain.vue": 1,
     "src/views/Forum/styles/anniversary.css": 48,
     "src/views/Forum/styles/base.css": 2,
-    "src/views/Forum/styles/composer.css": 2,
     "src/views/Forum/styles/drawers-skeletons.css": 48,
     "src/views/Forum/styles/feed.css": 14,
     "src/views/Forum/styles/replies-responsive.css": 3,

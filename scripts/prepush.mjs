@@ -95,8 +95,13 @@ git(['worktree', 'add', '--detach', wt, 'HEAD']);
    必然红，且错误信息是「（未提取到错误行）」让人无从下手。
    表现就是**推送永远被拦**、提示「这些红来自提交树」误导人去改源码，
    而真实原因是钩子自己没装依赖。修法：只要这批门禁里有需要依赖的，就建软链。 */
-const NEEDS_DEPS = new Set(['lint', 'type-check', 'test']);
-if (gates.some((name) => NEEDS_DEPS.has(name))) {
+const NEEDS_DEPS = new Set(['lint', 'type-check', 'test', 'build:ci']);
+// ⚠️ 2026-10-23 实测 bug（同款第二次踩）：`--full` 的四项**不在 `gates` 里**，
+// 是在下面 122 行单独一个循环跑的 ⇒ 只判断 `gates.some(...)` 时条件永远为假，
+// 软链根本不建，于是 --full 必然四项全红（`Cannot find package 'eslint-plugin-vue'`、
+// `Cannot find type definition file for 'vite/client'`），而提示语还误导人去改源码。
+// 修法：FULL 档无条件建软链 —— 全量档本来就全都要依赖。
+if (FULL || gates.some((name) => NEEDS_DEPS.has(name))) {
   // symlink 让 worktree 复用本机的 node_modules（不重复 npm ci）
   symlinkSync(path.join(ROOT, 'node_modules'), path.join(wt, 'node_modules'), 'dir');
 }

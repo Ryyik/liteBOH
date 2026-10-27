@@ -1,8 +1,8 @@
 {
-  "total": 2514,
+  "total": 2518,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
-    "src/styles/themes/forum-dark.css": 186,
+    "src/styles/themes/forum-dark.css": 178,
     "src/styles/themes/user-space-dark.css": 153,
     "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 149,
     "src/styles/themes/post-detail-dark.css": 120,
@@ -10,8 +10,8 @@
     "src/views/Newsroom/style.scoped.css": 103,
     "src/views/user-center/UserSpace/styles/shell-community.css": 90,
     "src/styles/themes/messages-dark.css": 79,
+    "src/styles/themes/dark-mode.css": 70,
     "src/components/UnifiedNavbar/style.scoped.css": 67,
-    "src/styles/themes/dark-mode.css": 61,
     "src/components/UnifiedNavbar/GlobalSearchIsland.vue": 50,
     "src/views/DataManagement/styles/base.css": 50,
     "src/views/user-center/UserSpace/components/AvatarFrameGrid.vue": 49,
@@ -75,6 +75,7 @@
     "src/views/Home/components/Beta6RenewalHero.vue": 3,
     "src/views/user-center/UserSpace/components/SettingToggle.vue": 3,
     "src/views/user-center/UserSpace/components/side-rail.css": 3,
+    "src/views/user-center/UserSpace/styles/profile-panels.css": 3,
     "src/components/GlobalErrorBoundary.vue": 2,
     "src/views/Login/style.scoped.css": 2,
     "src/views/Shop/ShopAccountPage.vue": 2,
@@ -85,5 +86,5 @@
     "src/views/DataManagement/components/EditDrawer.vue": 1,
     "src/views/PhotoAlbums/index.vue": 1
   },
-  "updatedAt": "2026-10-22"
+  "updatedAt": "2026-10-26"
 }
