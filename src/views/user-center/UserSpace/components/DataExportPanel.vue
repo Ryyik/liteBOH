@@ -1,6 +1,13 @@
 <template>
-  <div class="profile-subpage-shell">
-    <UserCenterPageHeader title="导出我的数据" back-label="返回设置" max-width="1200px" @back="$emit('back')" />
+  <!-- inline（2026-10-26）：作为设置页右栏的子页渲染时不画自己的页头/外壳，退回设置由设置壳负责 -->
+  <div class="profile-subpage-shell" :class="{ 'is-inline': inline }">
+    <UserCenterPageHeader
+      v-if="!inline"
+      title="导出我的数据"
+      back-label="返回设置"
+      max-width="1200px"
+      @back="$emit('back')"
+    />
 
     <div class="profile-subpage-body">
       <!-- 液态玻璃连续面板（与设置主页同一设计体系） -->
@@ -122,6 +129,11 @@ import {
   getExportDownloadUrl,
   getExportStatus
 } from '@/utils/api/user-data-export-api';
+
+defineProps({
+  /** 内嵌进设置页右栏（不画自己的页头） */
+  inline: { type: Boolean, default: false },
+});
 
 defineEmits(['back']);
 

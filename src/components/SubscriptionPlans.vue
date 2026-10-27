@@ -431,6 +431,7 @@
             @click.stop
           >
             <button
+              ref="rechargeCloseRef"
               class="recharge-close"
               type="button"
               aria-label="关闭充值积分"
@@ -513,6 +514,25 @@ const isLoadingSubscriptions = ref(false);
 const showModal = ref(false);
 const showConfirmModal = ref(false);
 const showRechargeModal = ref(false);
+/** 充值弹窗关闭按钮：打开时焦点移入（role="dialog" + aria-modal 的语义要求） */
+const rechargeCloseRef = ref(null);
+let rechargePrevFocus = null;
+/** 模态必须能键盘退出（2026-10-27 实测：Esc 原本无效）。遮罩已 Teleport 到 body，监听挂 document。 */
+const handleRechargeKeydown = (event) => {
+  if (event.key === 'Escape' && showRechargeModal.value) showRechargeModal.value = false;
+};
+watch(showRechargeModal, (open) => {
+  if (open) {
+    rechargePrevFocus = document.activeElement;
+    document.addEventListener('keydown', handleRechargeKeydown);
+    void nextTick(() => rechargeCloseRef.value?.focus?.());
+    return;
+  }
+  document.removeEventListener('keydown', handleRechargeKeydown);
+  if (rechargePrevFocus?.isConnected) rechargePrevFocus.focus?.();
+  rechargePrevFocus = null;
+});
+onUnmounted(() => document.removeEventListener('keydown', handleRechargeKeydown));
 const currentService = ref(null);
 const confirmPlan = ref(null);
 const openFaqIndex = ref(0);
@@ -2138,14 +2158,25 @@ onUnmounted(() => {
 
 .recharge-overlay {
   position: fixed;
-  z-index: 1000;
+  /* 高于导航岛（#unified-nav-container = 9999），否则弹窗顶部被岛压住 */
+  z-index: 10000;
   inset: 0;
   display: grid;
-  place-items: center;
+  /* ⚠️ longhand 而非 place-items:center：align-items:center 在内容高于容器时
+     会顶出上边界（负 top），滚不到 ⇒ 上半截永久丢失。`safe center` 放不下时
+     退化为 start，配合 overflow-y:auto 才滚得到全部。与资产页 .ah-qr-overlay 同口径。 */
+  align-items: center;
+  /* 旧引擎（Safari < 15.4）不认 safe 关键字会整条丢弃 ⇒ 先用普通 center 兜底 */
+  align-items: safe center;
+  justify-items: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
-  background: rgba(225, 232, 242, 0.14);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
+  /* 用户要求充值弹窗「不要有模糊」⇒ 与资产页那一份（AssetsHubPanel 的
+     .ah-qr-overlay）保持同一口径：实色压暗，不用 backdrop-filter。 */
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .recharge-sheet {
   position: relative;
@@ -2154,7 +2185,8 @@ onUnmounted(() => {
   width: min(100%, 340px);
   padding: 28px 26px 24px;
   border-radius: 28px;
-  background: rgba(255, 255, 255, 0.88);
+  /* 不透明底：0.88 白在深色正文上仍会透，且没有模糊掩盖就更容易看出叠影 */
+  background: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow:
     0 24px 65px rgba(31, 41, 55, 0.13),
@@ -2187,7 +2219,10 @@ onUnmounted(() => {
 .recharge-sheet p {
   max-width: 270px;
   margin: 0;
-  color: var(--muted);
+  /* ⚠️ 不能用 var(--muted)：弹窗被 Teleport 到 body，`--muted` 只声明在本组件
+     根（.apple-pricing）上，脱离后解析失败 → color 变「无效值」→ 继承 body，
+     浅色下就是纯黑正文。写死色值，暗色另有一条覆盖。 */
+  color: #68727b;
   font-size: 12.5px;
   line-height: 1.6;
 }
@@ -2230,6 +2265,39 @@ onUnmounted(() => {
 .recharge-modal-leave-to .recharge-sheet {
   opacity: 0;
   transform: translateY(10px) scale(0.97);
+}
+
+/* 充值弹窗的暗色覆盖
+   ⚠️ 前缀必须是 `html[data-theme='dark']` 而不是文件里其余那 30 多条裸
+   `[data-theme='dark']` —— 这份弹窗是 `Teleport to="body"` 出去的，
+   既不在 `.apple-pricing` 里（页级 token 全丢），也**不在** `.user-space-page`
+   里，因此只能挂 html。同理这里全部写死色值，不引任何局部变量。 */
+html[data-theme='dark'] .recharge-overlay {
+  /* 暗底本身对比低，30% 的黑遮不住背后的卡片边界 */
+  background: rgba(0, 0, 0, 0.62);
+}
+html[data-theme='dark'] .recharge-sheet {
+  background: #1c1e24;
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #f4f7f8;
+}
+html[data-theme='dark'] .recharge-sheet h2 {
+  color: #f4f7f8;
+}
+html[data-theme='dark'] .recharge-sheet p {
+  /* #68727b 在 #1c1e24 上约 3.1:1，正文读不清 */
+  color: #a8b0bd;
+}
+html[data-theme='dark'] .recharge-kicker {
+  /* #2563eb 在 #1c1e24 上不达标 */
+  color: #6cb0ff;
+}
+html[data-theme='dark'] .recharge-uid {
+  color: #9aa3ae;
+}
+html[data-theme='dark'] .recharge-close {
+  background: rgba(255, 255, 255, 0.1);
+  color: #c3c9d2;
 }
 
 /* 深色：新类全映射 */
@@ -2328,8 +2396,12 @@ onUnmounted(() => {
 [data-theme='dark'] .modal-overlay {
   background: rgba(10, 10, 14, 0.6);
 }
+[data-theme='dark'] .recharge-overlay {
+  background: rgba(0, 0, 0, 0.62);
+}
 [data-theme='dark'] .recharge-sheet {
-  background: rgba(30, 30, 34, 0.92);
+  /* 与资产页弹窗同口径：不透明深色（原 rgba(30,30,34,.92)） */
+  background: #1e1e22;
   border-color: rgba(255, 255, 255, 0.12);
 }
 [data-theme='dark'] .recharge-qr-frame {
@@ -2901,6 +2973,47 @@ a:focus-visible {
 @media (max-width: 560px) {
   .pack-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ─── 矮视口（手机横屏）下的充值弹窗紧凑版（2026-10-27 实测）───
+   844×390：常规版卡片约 430px > 视口 390px，二维码底部被切、UID 在屏外，
+   扫码直接失败。遮罩已改可滚动兜底，但二维码这种「要一眼扫全」的内容不该让
+   用户滚，所以在矮视口直接压到放得下：二维码 200 → 148。 */
+@media (max-height: 560px) {
+  .recharge-overlay {
+    padding: 16px 20px;
+  }
+  .recharge-sheet {
+    padding: 18px 22px 14px;
+    border-radius: 22px;
+  }
+  .recharge-sheet h2 {
+    margin: 3px 0 5px;
+    font-size: 18px;
+  }
+  .recharge-sheet p {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  .recharge-qr-frame {
+    margin: 10px 0 8px;
+    padding: 8px;
+    border-radius: 16px;
+  }
+  .recharge-qr-frame img {
+    width: 148px;
+    height: 148px;
+  }
+}
+
+/* 关闭按钮 30 → 36：竖屏 / 矮视口 / 真机触屏都是手指操作（与资产页同口径） */
+@media (max-width: 767px), (max-height: 560px), (hover: none) and (pointer: coarse) {
+  .recharge-close {
+    top: 10px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
   }
 }
 </style>

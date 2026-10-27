@@ -130,7 +130,7 @@ const EXTRA_LABELS = {
   '/albums/:id': '影集阅读',
   '/studio/albums/:id': '影集编辑',
   '/user-space/albums': '我的影集',
-  '/user-space/account-security': '账号安全',
+  '/user-space/account-security': '账号安全（已并入设置·账户与隐私）',
   '/user-space/note': '云笔记 Cloud+',
   '/user-space/shared-memories': '共享记忆',
   '/user-space/pushplus-settings': '推送设置',

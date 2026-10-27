@@ -908,6 +908,23 @@
       ＋
     </button>
 
+    <!-- 横屏左栏（2026-10-26）：图库补齐「左右栏布局」，与「我」/ 首页 / 他人空间 / BOH
+         共用同一份组件与同一份 navItems 单源，current-tab 传 'cloud' —— 进图库后左栏仍高亮
+         「图库」席。embedded（内嵌进「我」页的面板）不挂：那时宿主自己已经有一条左栏。
+         可见性与让位规则在 landscape-rail.css 的 body.page-bohcloudplus 段。 -->
+    <UserSpaceSideRail
+      v-if="!isDesktopEmbed"
+      :nav-items="BOTTOM_NAV_ITEMS"
+      current-tab="cloud"
+      :has-unread-messages="hasUnreadMessages"
+      :unread-count="unreadCount"
+      :current-theme="currentTheme"
+      :is-logged-in="isLoggedIn"
+      @preload-tab="preloadUserSpaceForNav"
+      @nav-click="handleBottomNavClick"
+      @action="handleRailAction"
+    />
+
     <!-- 全站底栏（2026-10-22 接入）：Cloud+ 自己是第五席「图库」，
          页面内必须能看到底栏才切得走（原来这里是 Cloud+ 私有的三席胶囊，已上移成 SegmentTabs）。
          接线与 Home/index.vue:81-93 同一份：同一 store 的未读数、同一份 BOTTOM_NAV_ITEMS。
@@ -1088,9 +1105,13 @@ import { showIsland } from '@/composables/useIsland.js';
    SegmentTabs 从 UserSpace/components 跨目录引用有先例（Newsroom/index.vue:319 同样这么引）。 */
 import SegmentTabs from '@/views/user-center/UserSpace/components/SegmentTabs.vue';
 import UserSpaceBottomNav from '@/views/user-center/UserSpace/components/UserSpaceBottomNav.vue';
+/* 横屏左栏（2026-10-26）：图库补齐左右栏布局，与「我」/首页/他人空间/BOH 用同一份组件 */
+import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpaceSideRail.vue';
 import { preloadProfileStyles } from '@/views/user-center/UserSpace/async-loaders.js';
 import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
 import { getNotificationStoreRef } from '@/stores/notification-loader';
+import { themeManager } from '@/utils/theme-manager.js';
+import { logoutAndReload } from '@/utils/logout-and-reload.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -1107,6 +1128,13 @@ const props = defineProps({
 const isDesktopEmbed = computed(
   () => props.embedded || String(route.query.embed || '') === 'desktop',
 );
+
+/* 左栏「更多」菜单要按当前主题显示「深色 / 浅色模式」，所以这里跟一份只读的主题态。
+   ⚠️ 监听的是 themeManager 派发的 window 事件（全站唯一真源），不是在本地改属性。 */
+const currentTheme = ref(themeManager.getTheme());
+const handleThemeChanged = () => {
+  currentTheme.value = themeManager.getTheme();
+};
 const imageInputRef = ref(null);
 const albumSectionRef = ref(null);
 const entries = ref([]);
@@ -2147,6 +2175,30 @@ async function handleBottomNavClick(itemId) {
     return;
   }
   router.push(item.route);
+}
+
+/* 横屏左栏的动作分发（2026-10-26）。与 Home / ProfileMain / UserSpaceMain 同一套 id：
+   发布 / 资产 / 主题 / 首页 / 退出登录。图库自己没有发布器 ⇒ 发布走首页的 ?compose=1 深链。 */
+async function handleRailAction(actionId) {
+  switch (actionId) {
+    case 'compose':
+      router.push({ path: '/', query: { view: 'latest', compose: '1' } });
+      break;
+    case 'assets':
+      router.push('/user-space?tab=assets');
+      break;
+    case 'theme':
+      themeManager.toggle();
+      break;
+    case 'home':
+      router.push('/');
+      break;
+    case 'logout':
+      await logoutAndReload(authStore);
+      break;
+    default:
+      break;
+  }
 }
 
 function applyCloudPlusRouteView() {
@@ -3311,6 +3363,7 @@ onMounted(() => {
       sharedTokenInput.value = cachedToken;
     }
     window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('theme-changed', handleThemeChanged);
   }
 });
 
@@ -3318,6 +3371,7 @@ onUnmounted(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('pagehide', handlePageHide);
     window.removeEventListener('keydown', handleComposerKeydown);
+    window.removeEventListener('theme-changed', handleThemeChanged);
     window.document.body.style.overflow = '';
   }
 });
@@ -3334,3 +3388,7 @@ watch(
 <style scoped>
 @import './style.scoped.css';
 </style>
+
+<!-- 左栏的定位 / 内容让位 / 条目状态色（body.page-bohcloudplus 段）。
+     ⚠️ 必须非 scoped：它按 body 级 page class 命中，scoped 的 data-v 会把它废掉。 -->
+<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>

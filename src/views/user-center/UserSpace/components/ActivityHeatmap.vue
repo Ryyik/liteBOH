@@ -1,6 +1,5 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import EmptyState from '@/components/ui/EmptyState.vue';
 
 /**
  * ActivityHeatmap — 个人活跃热力图（GitHub 贡献图同款）
@@ -24,7 +23,14 @@ const props = defineProps({
   isOwner: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['switch-tab']);
+/**
+ * 2026-10-26：事件名从 switch-tab 改为 compose。
+ * 原来 emit('switch-tab','posts') 在「我」页里是**死事件** —— 父层接的是
+ * UserSpaceMain.switchTab，而它首句 `if (currentTab.value === tabId) return;`
+ * 在本页恒成立（组件本来就渲染在 posts 页内）⇒ 点「去发帖」什么都不发生。
+ * 现在只申请「打开发帖会话」，由父层转给 handleRailAction('compose')。
+ */
+const emit = defineEmits(['compose']);
 
 const CELL_SIZE = 12;
 const CELL_GAP = 3;
@@ -129,16 +135,11 @@ const totalCount = computed(() => {
   return (Number(source.total_posts) || 0) + (Number(source.total_comments) || 0);
 });
 
-const metrics = computed(() => {
-  const source = props.payload;
-  if (!source) return [];
-  return [
-    { label: '发帖', value: Number(source.total_posts) || 0 },
-    { label: '回复', value: Number(source.total_comments) || 0 },
-    { label: '活跃天数', value: Number(source.active_days) || 0 },
-    { label: '最长连续', value: `${Number(source.max_streak) || 0} 天` },
-  ];
-});
+/** 2026-10-26 精简：原来 4 个指标（发帖/回复/活跃天数/最长连续）占一整行，
+    现在只留「活跃天数」并进标题行右侧 —— 发帖与回复数在内容面板的 tab 计数里已有，
+    最长连续是锦上添花，不值那一行高度。
+    ⚠️ 格子尺寸（CELL_SIZE/CELL_GAP）按 2026-10-22 的明确要求**不动**。 */
+const activeDays = computed(() => Number(props.payload?.active_days) || 0);
 
 const hasData = computed(() => days.value.length > 0 && totalCount.value > 0);
 
@@ -237,7 +238,9 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
         </svg>
         活跃轨迹
       </span>
-      <span class="heatmap-total">过去一年 {{ totalCount }} 次</span>
+      <span class="heatmap-total">
+        过去一年 {{ totalCount }} 次<template v-if="activeDays"> · 活跃 {{ activeDays }} 天</template>
+      </span>
     </div>
 
     <div v-if="loading" class="heatmap-loading" aria-label="正在加载活跃数据">
@@ -246,13 +249,6 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
     </div>
 
     <template v-else-if="hasData">
-      <div class="heatmap-metrics">
-        <div v-for="item in metrics" :key="item.label" class="heatmap-metric">
-          <span class="heatmap-metric-label">{{ item.label }}</span>
-          <strong class="heatmap-metric-value">{{ item.value }}</strong>
-        </div>
-      </div>
-
       <div ref="scrollRef" class="heatmap-scroll">
         <div ref="canvasRef" class="heatmap-canvas">
           <div class="heatmap-months" aria-hidden="true">
@@ -309,19 +305,22 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
           <i class="heatmap-swatch is-level-4"></i>
           多
         </span>
-        <span class="heatmap-hint">向左横滑查看更早 · 按 {{ timezoneLabel }} 计日</span>
       </div>
     </template>
 
-    <EmptyState
-      v-else
-      compact
-      variant="spark"
-      :title="emptyState.title"
-      :description="emptyState.description"
-      :action-text="emptyState.actionText"
-      @action="emit('switch-tab', 'posts')"
-    />
+    <!-- 空态（2026-10-26 精简）：原先是 EmptyState 的 spark 卡（图标 + 标题 + 两行说明 + 按钮），
+         空账号占掉近 200px，比有数据时还高。压成一行：一句陈述 + 一个文字按钮。 -->
+    <div v-else class="heatmap-empty">
+      <span class="heatmap-empty-text">{{ emptyState.title }}</span>
+      <button
+        v-if="emptyState.actionText"
+        type="button"
+        class="heatmap-empty-action"
+        @click="emit('compose')"
+      >
+        {{ emptyState.actionText }}
+      </button>
+    </div>
   </section>
 </template>
 
@@ -332,6 +331,10 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
   width: 100%;
   min-width: 0;
   overflow: hidden;
+  /* 2026-10-26：横屏与积分卡并排且等高（父级 grid stretch）——
+     这里用列向 flex 让图例落到卡片底部，否则矮的那张卡底部会空一大块。 */
+  display: flex;
+  flex-direction: column;
   padding: 14px 16px 12px;
   border: 1px solid var(--stroke);
   border-radius: 20px;
@@ -355,7 +358,6 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
 }
 
 /* 骨架 → 数据到达：轻浮入（v-else 分支重挂载时自动播放一次） */
-.heatmap-metrics,
 .heatmap-scroll {
   animation: userspace-panel-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
@@ -419,37 +421,36 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
 }
 
 /* ---------- 指标条 ---------- */
-.heatmap-metrics {
-  /* 2026-10-22：4 张卡片（2×2）占地约 160px，把热力图挤到首屏之外。
-     改成一行内联的「标签 + 数值」，高度降到 ~20px，热力图位置整体上移。
-     ⚠️ 热力图本身（CELL_SIZE 12 / CELL_GAP 3）**一个像素都不动** —— 用户明确要求保留尺寸。 */
+/* 2026-10-26：整块移除（4 个指标改为标题行右侧的「活跃 N 天」）。 */
+
+/* ---------- 空态（一行） ---------- */
+.heatmap-empty {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 6px 20px;
-  margin-bottom: 12px;
-}
-
-.heatmap-metric {
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 5px;
-  padding: 0;
-  border-radius: 0;
-  background: none;
-}
-
-.heatmap-metric-label {
+  gap: 8px 10px;
+  padding: 4px 0 2px;
   color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
 }
 
-.heatmap-metric-value {
-  color: var(--text-primary);
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.2;
+.heatmap-empty-text {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.heatmap-empty-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary, #0071e3);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.heatmap-empty-action:hover {
+  text-decoration: underline;
 }
 
 /* ---------- 网格 ---------- */
@@ -572,7 +573,9 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 10px;
+  /* 卡片被父级 grid 拉高时，图例贴底（见根节点 flex 注释） */
+  margin-top: auto;
+  padding-top: 10px;
   font-size: 11px;
   color: var(--text-secondary);
 }
@@ -605,9 +608,8 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
   background: var(--boh-heat-4);
 }
 
-.heatmap-hint {
-  font-weight: 650;
-}
+/* 2026-10-26：.heatmap-hint（「向左横滑查看更早 · 按 Asia/Shanghai 计日」）随行删掉 ——
+   移动端它是常驻噪音，横滑手势本身可发现，时区口径属实现细节不上界面。 */
 
 /* 暗色覆写挂在 html[data-theme] 上而非某个宿主：本组件同时在「我的空间」(.user-space-page)
    与「他人主页」(.profile-page) 使用，两者都有自己的 data-theme，写成全局单一源才不会漏一侧。
@@ -631,12 +633,6 @@ html[data-theme='dark'] .heatmap-cell.is-active:hover {
     padding: 12px 14px 10px;
   }
 
-  /* 2026-10-22：原 `grid-template-columns: repeat(2, minmax(0,1fr))` 是 2×2 卡片时代的
-     竖屏降列。现在 .heatmap-metrics 已是 flex 换行，这条对它无效，删掉免得下次误读。 */
-  .heatmap-metrics {
-    gap: 6px 16px;
-  }
-
   .heatmap-foot {
     flex-direction: column;
     align-items: flex-start;
@@ -649,7 +645,6 @@ html[data-theme='dark'] .heatmap-cell.is-active:hover {
     animation-duration: 1ms;
   }
 
-  .heatmap-metrics,
   .heatmap-scroll {
     animation: none;
   }

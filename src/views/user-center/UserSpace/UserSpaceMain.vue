@@ -60,23 +60,20 @@
       </ForumSectionShell>
     </div>
 
-    <!-- 我页：身份卡 + 三段（空间 / 资产 / 印象）（2026-10-01 plans/022 §4.2 收口）
-         段控真源 = CONTENT_SECTION_ITEMS；「资产」与「印象」原先分别是底栏席位与论坛第 7 席，
-         现在都下沉到这里 —— 用户报障「资产 tab 没有出现」的成因就是上一次只撤了底栏席位、
-         没把下面这段补上（半成品中间态）。 -->
+    <!-- 我页（2026-10-26 结构合并 · 段控退场）
+         ⚠️ 这里**没有段控**了：原来的「空间 | 资产 | 印象」三档已拆解 ——
+           · 空间 = 本页全部内容（身份卡 + 热力图 + 积分卡 + 资产入口 + 内容面板）
+           · 资产 = 提升为独立 tab（currentTab === 'assets'，见 messages 页之前）
+           · 印象 = 空间页内容面板的第三个 tab（作品 / 回复 / 印象）
+         依据：同一屏里三层导航（底栏 → 段控 → 内容 tab）是这次精简的主要病灶，
+         参考小红书个人主页只保留一层文字页签。 -->
     <div
       v-show="currentTab === 'posts' || leavingTab === 'posts'"
       :ref="(el) => setTabPageRef('posts', el)"
       class="tab-page content-shell"
       :class="{ 'is-leaving': leavingTab === 'posts' }"
     >
-      <SegmentTabs
-        :sections="CONTENT_SECTION_ITEMS"
-        v-model="contentSection"
-        aria-label="我页分段"
-      />
       <div
-        v-show="contentSection === 'home'"
         class="profile-tab profile-home-active content-home-host"
         :data-styles-ready="profileStylesReady ? 'true' : 'false'"
       >
@@ -97,11 +94,13 @@
             :is-uploading-profile-background="isUploadingProfileBackground"
             :stats="userStats"
             :is-stats-loading="dataState.stats.loading"
-            :cloud-plus-usage-text="cloudPlusUsageText"
             :heatmap="activityHeatmap"
             :is-heatmap-loading="dataState.heatmap.loading"
-            :cloud-plus-usage-meter-style="cloudPlusUsageMeterStyle"
-            :subscription-summary-text="subscriptionSummaryText"
+            :impressions="profileImpressions"
+            :impressions-loading="impressionsLoading"
+            :impressions-has-more="impressionsHasMore"
+            :is-loading-more-impressions="isLoadingMoreImpressions"
+            :requested-content-tab="profileContentTab"
             :is-content-loading="dataState.profile.loading"
             :posts="profilePosts"
             :public-notes="publicCloudNotes"
@@ -111,106 +110,102 @@
             @settings="openProfileSettings"
             @avatar-click="handleAvatarClick"
             @background-click="handleProfileBackgroundClick"
-            @view-impressions="openProfileImpressions"
+            @compose="openProfileComposer"
             @sponsor="openSponsorPage"
             @data-management="openProfileDataManagement"
             @cloud-plus="openCloudPlusArea"
-            @assets="openAssetsPointsPanel"
-            @photo-albums="openPhotoAlbums"
+            @open-assets="openAssetsHub"
             @post-click="openProfilePost"
             @switch-tab="switchTab"
             @load-more="loadMoreProfilePosts"
             @note-open="openProfileCloudNote"
             @note-set-private="setProfileCloudNotePrivate"
             @note-delete="deleteProfileCloudNote"
+            @delete-impression="handleDeleteImpression"
+            @load-more-impressions="loadMoreImpressions"
+            @content-tab-change="profileContentTab = $event"
           />
         </div>
       </div>
+    </div>
 
-      <!-- 资产分段：AssetsHubPanel 原样 + 赞助
-           「首次访问后保持挂载」由本段的 assetsSegmentVisited 闩锁提供，与其余分段的 v-show
-           语义对齐：没访问过就不挂载（不为它提前付费），访问过一次就复用（切回零重建、零取数）。
-           直接改成裸 v-show 是错的 —— 那会让 AssetsHubPanel 在进入 UserSpace 时就挂载并跑
-           onMounted 取数（fetchUserTier / products / 抽奖 / 订阅）。
-           内层档位（AssetsHubPanel ↔ SponsorPanel）保持原有 <transition out-in> + v-if 不变。 -->
-      <div
-        v-if="assetsSegmentVisited"
-        v-show="contentSection === 'assets'"
-        class="profile-tab assets-shell content-assets-host"
-      >
-        <div v-if="!isLoggedIn" class="login-prompt">
-          <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
-          <h3 class="login-prompt-title">登录以查看我的</h3>
-          <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
-          <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
-        </div>
-        <div
-          v-else
-          class="profile-page-content"
-          :class="{ 'assets-active': assetsSection === 'hub' }"
-        >
-          <transition name="profile-panel-fade" mode="out-in">
-            <AssetsHubPanel
-              v-if="assetsSection === 'hub'"
-              key="assets-hub"
-              :show-back="false"
-              :initial-tab="assetsInitialTab"
-              :points-card-presets="pointsCardPresets"
-              :is-points-card-presets-loading="isPointsCardPresetsLoading"
-              :points-card-preset-capacity="pointsCardPresetQuota.capacity"
-              :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
-              :points-card-cats-unlocked="isPointsCardCatsUnlocked"
-              :is-redeeming-points-card-cats="isRedeemingPointsCardCats"
-              @back="switchTab('posts')"
-              @upload-points-card="handlePointsCardClick"
-              @set-points-card-skin="setPointsCardSkin"
-              @select-points-card-preset="selectPointsCardPreset"
-              @delete-points-card-preset="deletePointsCardPreset"
-              @redeem-points-card-cats="redeemPointsCardCats"
-              @load-points-card-data="loadPointsCardData"
-              @sponsor="openSponsorPage"
-              @tab-change="handleAssetsPanelChange"
-            />
-            <SponsorPanel
-              v-else
-              key="assets-sponsor"
-              :is-home-cat-active="isHomeCatActive"
-              :sponsor-methods="sponsorMethods"
-              :sponsor-method="sponsorMethod"
-              :sponsor-status-text="sponsorStatusText"
-              :sponsor-qr-visible="sponsorQrVisible"
-              :sponsor-qr-load-failed="sponsorQrLoadFailed"
-              :sponsor-qr-loading="sponsorQrLoading"
-              :sponsor-qr-image-url="sponsorQrImageUrl"
-              :sponsor-cat-burst-key="sponsorCatBurstKey"
-              @back="backToAssetsHub"
-              @start-flow="startSponsorFlow"
-              @select-method="selectSponsorMethod"
-              @show-qr="showSponsorQr"
-              @qr-load="handleSponsorQrLoad"
-              @qr-error="handleSponsorQrError"
-            />
-          </transition>
-        </div>
+    <!-- 资产（2026-10-26：从「我」页的分段提升为**独立 tab**）
+         为什么不留在主页：主页已经有「空间」的全部内容，再叠一个资产分段就等于
+         同一屏里两层页签（底栏 → 段控 → 内容 tab）；小红书式个人主页只留一层。
+         现在「我」页 = 纯个人主页，资产是它旁边的一页，从主页「资产 ›」一行进入。
+         ⚠️ 挂载闩锁仍走 mountedTabs.assets（useUserSpaceTabs 的 ensureTabMounted 提供）——
+         不要改成裸 v-show：那会让 AssetsHubPanel 在进入 UserSpace 时就挂载并跑
+         onMounted 取数（fetchUserTier / products / 抽奖 / 订阅）。
+         内层档位（AssetsHubPanel ↔ SponsorPanel）用裸 v-if 直接切换 ——
+         **不要**再包 <transition mode="out-in">：离场元素移除后 isLeaving 不复位，
+         之后只渲染注释节点，内容区一片空白（浅色下就是整页纯白）。 -->
+    <div
+      v-if="mountedTabs.assets"
+      v-show="currentTab === 'assets' || leavingTab === 'assets'"
+      :ref="(el) => setTabPageRef('assets', el)"
+      class="tab-page profile-tab assets-shell content-assets-host"
+      :class="{ 'is-leaving': leavingTab === 'assets' }"
+    >
+      <div v-if="!isLoggedIn" class="login-prompt">
+        <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
+        <h3 class="login-prompt-title">登录以查看我的</h3>
+        <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
+        <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
       </div>
-
-      <!-- 印象分段：原论坛第 7 席，2026-10-01 搬到这里（plans/022 §4.5）。
-           取数与删除的单源都在 composables/useProfileImpressions.js，
-           本文件只负责「什么时候挂载」—— 同样是首次访问后闩锁。 -->
       <div
-        v-if="impressionsSegmentVisited"
-        v-show="contentSection === 'impressions'"
-        class="profile-tab content-impressions-host"
+        v-else
+        class="profile-page-content"
+        :class="{ 'assets-active': assetsSection === 'hub' }"
       >
-        <div v-if="!isLoggedIn" class="login-prompt">
-          <User class="login-prompt-icon" :size="34" :stroke-width="1.7" aria-hidden="true" />
-          <h3 class="login-prompt-title">登录以查看我的</h3>
-          <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
-          <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
-        </div>
-        <div v-else class="profile-page-content">
-          <ProfileImpressionsSection />
-        </div>
+        <!-- ⚠️ 内层档位（hub ↔ sponsor）**刻意不用 `<transition mode="out-in">`**。
+             2026-10-26 实测：out-in 在这里会永久卡死 —— 离场元素
+             （AssetsHubPanel 的 `.ah-page`）从 DOM 移除后 `isLeaving` 不复位，
+             新分支（SponsorPanel）永远只渲染一个注释节点。用户表现是「点
+             『赞助方块之家』后内容区一片纯白」（报障原话「赞助页面是纯白的」），
+             而直接把 assetsSection 初值设成 sponsor 冷加载却完全正常 ——
+             所以别去查 SponsorPanel 自己的样式，问题在切换机制。
+             已排除：`:duration`、离场元素自身的入场 animation、异步组件挂载失败
+             （模块 41ms 就能 import）。
+             入场动效由 `.profile-subpage-shell` 自带的 `userspace-subpage-in`
+             负责：两个面板都带这个类，切来切去都有 260ms 淡入，不缺动效。 -->
+        <AssetsHubPanel
+          v-if="assetsSection === 'hub'"
+          key="assets-hub"
+          :initial-view="assetsInitialView"
+          :points-card-presets="pointsCardPresets"
+          :is-points-card-presets-loading="isPointsCardPresetsLoading"
+          :points-card-preset-capacity="pointsCardPresetQuota.capacity"
+          :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
+          :points-card-cats-unlocked="isPointsCardCatsUnlocked"
+          :is-redeeming-points-card-cats="isRedeemingPointsCardCats"
+          @upload-points-card="handlePointsCardClick"
+          @set-points-card-skin="setPointsCardSkin"
+          @select-points-card-preset="selectPointsCardPreset"
+          @delete-points-card-preset="deletePointsCardPreset"
+          @redeem-points-card-cats="redeemPointsCardCats"
+          @load-points-card-data="loadPointsCardData"
+          @sponsor="openSponsorPage"
+          @view-change="handleAssetsViewChange"
+        />
+        <SponsorPanel
+          v-else
+          key="assets-sponsor"
+          :is-home-cat-active="isHomeCatActive"
+          :sponsor-methods="sponsorMethods"
+          :sponsor-method="sponsorMethod"
+          :sponsor-status-text="sponsorStatusText"
+          :sponsor-qr-visible="sponsorQrVisible"
+          :sponsor-qr-load-failed="sponsorQrLoadFailed"
+          :sponsor-qr-loading="sponsorQrLoading"
+          :sponsor-qr-image-url="sponsorQrImageUrl"
+          :sponsor-cat-burst-key="sponsorCatBurstKey"
+          @back="backToAssetsHub"
+          @start-flow="startSponsorFlow"
+          @select-method="selectSponsorMethod"
+          @show-qr="showSponsorQr"
+          @qr-load="handleSponsorQrLoad"
+          @qr-error="handleSponsorQrError"
+        />
       </div>
     </div>
 
@@ -265,25 +260,48 @@
       </div>
       <div v-else class="profile-page-content">
         <transition name="profile-panel-fade" mode="out-in">
+          <!-- 设置主页与「个人信息」**共用同一个面板实例**（2026-10-26 用户纠偏：
+               「不单独开一页，还是在右栏变换」）：
+               面板内部的右栏有三态（编辑 / 搜索 / 分组），个人信息由 #inline-edit 插槽塞进去，
+               于是两栏下左目录始终在、搜索框不下线，切分类即离开编辑态。
+               key 固定 —— 换 key 会重建面板，左栏分类选中态与搜索词都会丢。 -->
+          <!-- 设置壳只有一份，右栏换内容（2026-10-26 二次改造「所有子页都用左右栏」）：
+               主页 / 个人信息 / 导出我的数据 / 数据与隐私 / 账户安全表单
+               全在这一个面板的右栏里切换，左目录常驻、不再整页替换、不再另开路由页。
+               面板内部右栏四态（编辑 / 搜索 / 子页 / 分组），个人信息与子页各走一个插槽。
+               key 固定 —— 换 key 会重建面板，左栏分类选中态与搜索词都会丢。 -->
           <ProfileSettingsPanel
-            v-if="settingsSection === 'home'"
-            key="settings-home"
+            key="settings-shell"
             :show-back="true"
             :user-email="userInfo?.email || ''"
             :pushplus-status-text="pushplusStatusText"
             :cloud-plus-usage-text="cloudPlusUsageText"
-            :subscription-summary-text="subscriptionSummaryText"
             :data-privacy-status-text="dataPrivacyStatusText"
             :theme-display-text="themeDisplayText"
             :is-home-cat-active="isHomeCatActive"
             :current-theme="currentTheme"
             :hide-online-status="hideOnlineStatus"
             :hide-follow-data="hideFollowData"
+            :two-pane="isSettingsTwoPane"
+            :avatar-url="avatarUrl"
+            :username="userInfo?.username || ''"
+            :bio="userInfo?.bio || ''"
+            :edit-open="settingsSection === 'edit-profile'"
+            :inline-panel="settingsInlinePanel"
+            :inline-panel-title="settingsInlinePanelTitle"
+            :inline-panel-section="settingsInlinePanelSection"
             @back="switchTab('posts')"
+            @close-panel="backToProfileSettings"
+            @change-avatar="handleAvatarClick"
+            @open-avatar-frames="openAvatarFrameModal"
+            @open-edit-profile="openEditProfileModal"
+            @close-edit="closeEditProfileModal"
             @open-theme="openThemeModal"
+            @open-assets="openAssetsHub()"
+            @open-photo-albums="openPhotoAlbums"
             @open-cloud="openCloudPlusArea"
             @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
-            @open-security="router.push('/user-space/account-security?from=userspace-settings')"
+            @open-security="openAccountSecurityPanel"
             @open-version-settings="router.push('/user-space/settings/version')"
             @open-data="openProfileDataManagement"
             @open-data-management="openProfileDataManagement"
@@ -291,53 +309,63 @@
             @logout="handleLogout"
             @toggle-hide-online="toggleHideOnlineStatus"
             @toggle-hide-follow-data="toggleHideFollowData"
-          />
+          >
+            <!-- 个人信息：右栏内就地展开（不再整页替换，所以不套 v-memo —— 头像缩略图、
+                 昵称、简介都要实时跟 props 走） -->
+            <template #inline-edit>
+              <EditProfilePanel
+                inline
+                :avatar-url="avatarUrl"
+                :username="editProfileForm.username"
+                :bio="editProfileForm.bio"
+                :join-year="editProfileForm.joinYear"
+                :join-month="editProfileForm.joinMonth"
+                :join-day="editProfileForm.joinDay"
+                :birth-month="editProfileForm.birthMonth"
+                :birth-day="editProfileForm.birthDay"
+                :join-date-years="joinDateYears"
+                :months="months"
+                :days-for-edit-join-date="daysForEditJoinDate"
+                :days-for-edit-profile="daysForEditProfile"
+                :is-submitting-profile-edit="isSubmittingProfileEdit"
+                @close="closeEditProfileModal"
+                @avatar-click="handleAvatarClick"
+                @open-avatar-frames="openAvatarFrameModal"
+                @save="submitEditProfile"
+                @update-username="editProfileForm.username = $event"
+                @update-bio="editProfileForm.bio = $event"
+                @update-join-year="editProfileForm.joinYear = $event"
+                @update-join-month="editProfileForm.joinMonth = $event"
+                @update-join-day="editProfileForm.joinDay = $event"
+                @update-birth-month="editProfileForm.birthMonth = $event"
+                @update-birth-day="editProfileForm.birthDay = $event"
+              />
+            </template>
 
-          <EditProfilePanel
-            v-else-if="settingsSection === 'edit-profile'"
-            key="settings-edit"
-            v-memo="[settingsSection]"
-            :avatar-url="avatarUrl"
-            :username="editProfileForm.username"
-            :bio="editProfileForm.bio"
-            :join-year="editProfileForm.joinYear"
-            :join-month="editProfileForm.joinMonth"
-            :join-day="editProfileForm.joinDay"
-            :birth-month="editProfileForm.birthMonth"
-            :birth-day="editProfileForm.birthDay"
-            :join-date-years="joinDateYears"
-            :months="months"
-            :days-for-edit-join-date="daysForEditJoinDate"
-            :days-for-edit-profile="daysForEditProfile"
-            :is-submitting-profile-edit="isSubmittingProfileEdit"
-            @close="closeEditProfileModal"
-            @avatar-click="handleAvatarClick"
-            @open-avatar-frames="openAvatarFrameModal"
-            @save="submitEditProfile"
-            @update-username="editProfileForm.username = $event"
-            @update-bio="editProfileForm.bio = $event"
-            @update-join-year="editProfileForm.joinYear = $event"
-            @update-join-month="editProfileForm.joinMonth = $event"
-            @update-join-day="editProfileForm.joinDay = $event"
-            @update-birth-month="editProfileForm.birthMonth = $event"
-            @update-birth-day="editProfileForm.birthDay = $event"
-          />
-
-          <DataExportPanel
-            v-else-if="settingsSection === 'data-export'"
-            key="settings-data-export"
-            v-memo="[settingsSection]"
-            @back="backToProfileSettings"
-          />
-
-          <DataPrivacyPanel
-            v-else
-            key="settings-data-management"
-            v-memo="[settingsSection, isAdmin]"
-            :is-admin="isAdmin"
-            @back="backToProfileSettings"
-            @navigate="handleDataPrivacyNavigate"
-          />
+            <!-- 子页（2026-10-26）：导出 / 数据与隐私 / 账户安全表单都在右栏，
+                 左目录常驻、不再整页替换。v-if 保留 —— DataExportPanel 里有
+                 导出进度轮询，常驻会变成后台轮询。 -->
+            <template #inline-panel>
+              <DataExportPanel
+                v-if="settingsSection === 'data-export'"
+                inline
+                @back="backToProfileSettings"
+              />
+              <DataPrivacyPanel
+                v-else-if="settingsSection === 'data-management'"
+                inline
+                :is-admin="isAdmin"
+                @back="backToProfileSettings"
+                @navigate="handleDataPrivacyNavigate"
+              />
+              <AccountSecurityPanel
+                v-else-if="settingsSection === 'account-security'"
+                inline
+                :initial-panel="settingsSecurityPanel"
+                @back="backToProfileSettings"
+              />
+            </template>
+          </ProfileSettingsPanel>
         </transition>
       </div>
     </div>
@@ -358,8 +386,9 @@
       @action="handleRailAction"
     />
 
+    <!-- 底栏：个人信息已经不占整页（改成设置页右栏内就地展开），
+         原先「编辑资料时隐藏底栏」的条件随之失效 —— 留着会把底栏从竖屏设置页抽走。 -->
     <UserSpaceBottomNav
-      :visible="!(currentTab === 'settings' && settingsSection === 'edit-profile')"
       :hidden="isBottomNavHidden"
       :ai-overlay-open="isAiOverlayOpen"
       :nav-items="navItems"
@@ -424,6 +453,7 @@ import {
   computed,
   nextTick,
   onActivated,
+  onDeactivated,
   onMounted,
   onUnmounted,
   reactive,
@@ -452,7 +482,6 @@ import {
 import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 import UserSpaceSideRail from './components/UserSpaceSideRail.vue';
-import SegmentTabs from './components/SegmentTabs.vue';
 // 方块（论坛）分区壳：与首页 `/` 下滑直达共用同一份（2026-09-23 单源）
 import ForumSectionShell from './components/ForumSectionShell.vue';
 // 发布会话闸门（左栏切落点前先收会话 + 「发布」选中态）：与首页 `/` 共用一份实现
@@ -496,14 +525,17 @@ const DataPrivacyPanel = createPanelAsync(() => import('./components/DataPrivacy
 const DataExportPanel = createPanelAsync(() => import('./components/DataExportPanel.vue'), {
   label: 'DataExportPanel',
 });
+// 2026-10-26：账户安全从独立路由页收进设置壳的右栏（不单独另开一页），
+// 表单实现仍是同一个组件，独立路由已改为重定向到设置页。
+const AccountSecurityPanel = createPanelAsync(
+  () => import('./components/AccountSecurityPanel.vue'),
+  { label: 'AccountSecurityPanel' },
+);
 const AssetsHubPanel = createPanelAsync(() => import('./components/AssetsHubPanel.vue'), {
   label: 'AssetsHubPanel',
 });
-// 「我」页第三分段（印象）：数据层单源在 composables/useProfileImpressions.js
-const ProfileImpressionsSection = createPanelAsync(
-  () => import('./components/ProfileImpressionsSection.vue'),
-  { label: 'ProfileImpressionsSection' },
-);
+// 2026-10-26：ProfileImpressionsSection 不再由本层异步挂载 —— 印象降为空间页内容面板的
+// 一个 tab，由 ProfileHomePanel 静态引入（同 chunk，少一次动态请求）。
 import ThemeModal from './components/ThemeModal.vue';
 import NotificationSuggestIsland from '@/components/UnifiedNavbar/NotificationSuggestIsland.vue';
 import { showIsland, islandTaskView } from '@/composables/useIsland.js';
@@ -515,6 +547,8 @@ import {
 import { isForumLandscape } from '@/utils/forum-viewport.js';
 import { openForumPost } from '@/composables/usePostDetailModal.js';
 import { createMemoryTtlCache } from './composables/useMemoryTtlCache.js';
+// 印象数据单源（2026-10-26 IA 融合第二刀：实例上提到本层，摘要行与分段共用）
+import { useProfileImpressions } from './composables/useProfileImpressions.js';
 import { useScrollDirectionHide } from './composables/useScrollDirectionHide.js';
 import {
   USER_SPACE_VALID_TABS,
@@ -539,6 +573,10 @@ import {
   waitForProfileStyles,
 } from './async-loaders.js';
 import { FORUM_DEFAULT_SECTION, isForumFeedSection, isForumSection } from '@/config/forum-sections';
+import {
+  normalizeAccountSecurityPanel,
+  resolveAccountSecurityPanelTitle,
+} from '@/config/account-security-panels.js';
 import { supabase } from '@/utils/supabase-client.js';
 import {
   getPostsByUsername,
@@ -588,13 +626,16 @@ const refreshUnreadCount = async () => {
   await notificationStore.refreshUnreadCount();
 };
 
-// 资产段内层面板的「内存镜像」：真源是 URL ?panel=，这里同时是向 AssetsHubPanel
-// 传 initial-tab 的通道（组件侧有 normalize，值域单一真源在组件）。
-const assetsInitialTab = ref('');
+// 资产段内层视图的「内存镜像」：真源是 URL ?panel=，这里同时是向 AssetsHubPanel
+// 传 initial-view 的通道（组件侧有 normalize，值域单一真源在组件）。
+// ⚠️ 必须以 route 的当前值作为**初值**：面板只在挂载时读一次 props，
+// 若像早先那样从 '' 起步、等 switchTab 再回读 URL，组件会先按 home 挂载并 emit
+// 「home」，宿主随即把 panel 从 URL 里删掉 —— 实测表现就是「?panel=decor 冷加载落首页」。
+const assetsInitialView = ref(String(route.query.panel || '').trim());
 // openAssetsHub 显式跳转的意图闩锁（null = 无意图）：URL 写入是异步的，落段 watch
 // 若立刻回读 URL 会被「尚未落地」的旧值覆盖（服务行直达被冲回概览的成因）。
 // 消费顺序：下次 contentSection 落 'assets' 时优先采信本值，随后置空。
-let pendingAssetsPanel = null;
+let pendingAssetsView = null;
 const TAB_LEAVE_CLEAR_DELAY_MS = 340;
 let userSpaceWarmupTimeoutId = null;
 // ✅ 性能优化：使用 markRaw 标记静态配置，避免不必要的响应式追踪
@@ -685,9 +726,11 @@ const { isSwiping: isEdgeSwiping, edgeIndicatorVisible } = useEdgeSwipeGesture({
 const bottomNavIndicatorStyle = computed(() => navIndicatorStyle.value);
 const validTabs = USER_SPACE_VALID_TABS;
 // 旧 tab 语义映射（profile=我的→内容、ai→消息、shows→内容）
-// 2026-10-01：`assets` 也并进来 —— 它已从「独立 tab」降为「我」页的「资产」分段，
-// 底栏席位早在本轮之前就撤了。落点由 `?view=assets` 表达（见 resolveSectionFromRoute）。
-const LEGACY_TAB_MAP = { profile: 'posts', ai: 'messages', shows: 'posts', assets: 'posts' };
+// ⚠️ 2026-10-26：**`assets` 必须从这里删掉** —— 它已经重新成为合法 tab（独立资产页）。
+// 留着它会把 `?tab=assets` 映射回 `posts`，表现为「点资产进不去 / 闪回主页」：
+// switchTab('assets') 写完 URL 后，route watch 又按映射把 tab 判成 posts 弹回去。
+// 现存映射只剩三个真正的旧值：profile / ai / shows。
+const LEGACY_TAB_MAP = { profile: 'posts', ai: 'messages', shows: 'posts' };
 
 /**
  * 旧 tab 值 → 现行 tab 值。**三个入口必须走同一份**：
@@ -748,28 +791,56 @@ const pageRootRef = ref(null);
 // 方块（论坛）分区：六席（官方/最新/关注/新闻/活动/成员）单源在
 // @/config/forum-sections，默认落点仍是「最新」；分区壳本体见 ForumSectionShell.vue
 const communitySection = ref(FORUM_DEFAULT_SECTION);
-const contentSection = ref('home');
 const messagesSection = ref('inbox');
 const settingsSection = ref('home');
 const assetsSection = ref('hub');
-// 「我」页三段：空间 / 资产 / 印象（2026-10-01 收口）
-const CONTENT_SECTIONS = ['home', 'assets', 'impressions'];
 const MESSAGES_SECTIONS = ['inbox'];
-const SETTINGS_SECTIONS = ['home', 'edit-profile', 'data-management', 'data-export'];
-const CONTENT_SECTION_ITEMS = [
-  { id: 'home', label: '空间' },
-  { id: 'assets', label: '资产' },
-  { id: 'impressions', label: '印象' },
+const SETTINGS_SECTIONS = [
+  'home',
+  'edit-profile',
+  'data-management',
+  'data-export',
+  'account-security',
 ];
+/** 账户与隐私的子面板（2026-10-26 起全部在设置页右栏内展开，不再跳独立路由页）。
+    只存内存、不进 URL：`?panel=` 已属资产页语义，混用会互相清参。 */
+const settingsSecurityPanel = ref('email');
+/** 右栏子页 id（空 = 分组列表）；标题与归属分类见下面两个 computed */
+const settingsInlinePanel = computed(() =>
+  ['data-export', 'data-management', 'account-security'].includes(settingsSection.value)
+    ? settingsSection.value
+    : '',
+);
+const SETTINGS_INLINE_TITLES = {
+  'data-export': '导出我的数据',
+  'data-management': '数据与隐私',
+};
+const settingsInlinePanelTitle = computed(() => {
+  if (!settingsInlinePanel.value) return '';
+  if (settingsInlinePanel.value === 'account-security') {
+    return resolveAccountSecurityPanelTitle(settingsSecurityPanel.value);
+  }
+  return SETTINGS_INLINE_TITLES[settingsInlinePanel.value] || '';
+});
+/** 子页打开时左目录高亮它所属的分组（2026-10-26 三分组后不再全属「账户与隐私」）：
+    更换邮箱挂在「账户」的「登录邮箱」行上 ⇒ 高亮账户；改密 / 通行密钥 / 注销与两个数据页 ⇒ 账户与隐私 */
+const settingsInlinePanelSection = computed(() => {
+  if (!settingsInlinePanel.value) return '';
+  const isEmailPanel =
+    settingsInlinePanel.value === 'account-security' && settingsSecurityPanel.value === 'email';
+  return isEmailPanel ? 'account' : 'privacy';
+});
+/**
+ * 空间页内容面板的当前 tab（作品 / 回复 / 印象）。
+ * 受控 prop 传进 ProfileHomePanel —— 印象不再是独立分段/页，而是这一层的 tab，
+ * 所以「跳转到印象」必须能跨组件驱动它（旧深链 ?view=impressions、其他入口都走这里）。
+ */
+const profileContentTab = ref('posts');
 const SECTION_DEFAULTS = {
   community: 'latest',
-  posts: 'home',
   messages: 'inbox',
   settings: 'home',
 };
-// 分段惰性挂载闩锁：没访问过的分段不挂载（不为它提前付费），访问过就复用（切回零重建）
-const assetsSegmentVisited = ref(false);
-const impressionsSegmentVisited = ref(false);
 let pendingSectionTab = null;
 const tabTransitionDirection = ref('');
 const leavingTab = ref(null);
@@ -861,12 +932,17 @@ const resolveSectionFromRoute = () => {
   if (currentTab.value === 'community') {
     if (isForumSection(requestedView)) communitySection.value = requestedView;
   } else if (currentTab.value === 'posts') {
-    // 旧深链 `?tab=assets`（资产曾是底栏席位）：没有显式 view 时落到「资产」分段，
-    // 而不是默认的「空间」—— 否则老链接会把用户送到错误的分段。
-    if (!requestedView && rawRequestedTab === 'assets') contentSection.value = 'assets';
-    else if (CONTENT_SECTIONS.includes(requestedView)) contentSection.value = requestedView;
-    // ?panel= → 资产段内层面板（覆盖「同段 URL 变化」：前进/后退、深链直达）
-    syncAssetsPanelFromRoute();
+    // 2026-10-26：空间页不再有分段，旧链接全部按「新落点」兜住 ——
+    //   · ?tab=assets / ?view=assets  → 资产已是独立 tab，直接切过去
+    //   · ?view=impressions            → 空间页内容面板的印象 tab
+    if (requestedView === 'assets' || (!requestedView && rawRequestedTab === 'assets')) {
+      switchTab('assets');
+      return;
+    }
+    if (requestedView === 'impressions') profileContentTab.value = 'impressions';
+  } else if (currentTab.value === 'assets') {
+    // ?panel= → 资产内层面板（覆盖「同 tab URL 变化」：前进/后退、深链直达）
+    syncAssetsViewFromRoute();
   } else if (currentTab.value === 'messages') {
     if (MESSAGES_SECTIONS.includes(requestedView)) messagesSection.value = requestedView;
   } else if (currentTab.value === 'settings') {
@@ -882,6 +958,11 @@ const resolveSectionFromRoute = () => {
     if (settingsSection.value === 'edit-profile') {
       prepareEditProfileForm();
     }
+    // ?view=account-security 只是「打开账户与隐私子页」的深链，开哪一屏不进 URL（见内存态注释）
+    if (settingsSection.value === 'account-security') {
+      settingsSecurityPanel.value =
+        normalizeAccountSecurityPanel(settingsSecurityPanel.value) || 'email';
+    }
   }
 };
 
@@ -894,43 +975,44 @@ const openSettingsPanelFromRoute = async () => {
 };
 
 /** tab → 分区内存单源：URL 的 view 一律由这里推导，别再各写一套。
-    ⚠️ `assets` 不是 tab 了（是「我」页的分段），别再往这张表里加 —— 它的内层分两层：
-    hub 内的 7 档面板走 URL `?panel=`（见 applyAssetsPanelToQuery，2026-10-15）；
-    外层档位（hub ↔ sponsor）仍是纯内存态（`assetsSection`），不入 URL ——
-    `view` 参数已被「分段」占用，这也正是面板参数另起 `panel` 名的原因。 */
+    ⚠️ 2026-10-26 起 `posts` 不在表里（空间页已无分段）。
+    `assets` 是**独立 tab**而不是分段：hub 内的视图（home/decor/orders/points）走 URL
+    `?panel=`（见 applyAssetsViewToQuery）；外层档位（hub ↔ sponsor）仍是纯内存态
+    （`assetsSection`），不入 URL —— 参数另起 `panel` 名的原因就在这里。 */
 const SECTION_REFS = {
   community: communitySection,
-  posts: contentSection,
   messages: messagesSection,
   settings: settingsSection,
 };
 
-/* ---------- 资产段内层面板（?panel=，2026-10-15）----------
-   「我」页资产段的内层 = AssetsHubPanel 七个 tab（概览/装扮/积分/订阅/订单/抽奖/赞助）。
-   面板值域真源在 AssetsHubPanel.betaTabIds（含旧值映射与非法回落），宿主只负责 URL 搬运：
-   写入从 assetsInitialTab（面板镜像）读，读取落回 assetsInitialTab（经 initial-tab 传组件）。
-   `panel` 仅在「posts + view=assets」下有效；其余分段/切 tab 一律清除（不产生悬挂参数）。 */
+/* ---------- 资产内层视图（?panel=，2026-10-15；2026-10-26 重做为四视图）----------
+   资产页的内层 = AssetsHubPanel 的 home / decor / orders / points 四个视图。
+   值域真源在 AssetsHubPanel 的 VIEW_IDS + LEGACY_VIEW_MAP（含旧值映射与非法回落），
+   宿主只负责 URL 搬运：写入从 assetsInitialView（视图镜像）读，
+   读取落回 assetsInitialView（经 initial-view 传组件）。
+   `panel` 仅在 `?tab=assets` 下有效；其余 tab 一律清除（不产生悬挂参数）。 */
 
-/** 内存面板 → query.panel（默认档 overview 省略；非资产段一律清除） */
-const applyAssetsPanelToQuery = (nextQuery) => {
-  const isAssets = nextQuery.tab === 'posts' && String(nextQuery.view || '') === 'assets';
-  const panel = isAssets ? String(assetsInitialTab.value || '').trim() : '';
-  if (panel && panel !== 'overview') nextQuery.panel = panel;
+/** 内存视图 → query.panel（默认档 home 省略；非资产页一律清除） */
+const applyAssetsViewToQuery = (nextQuery) => {
+  const isAssets = nextQuery.tab === 'assets';
+  const panel = isAssets ? String(assetsInitialView.value || '').trim() : '';
+  if (panel && panel !== 'home') nextQuery.panel = panel;
   else delete nextQuery.panel;
   return nextQuery;
 };
 
-/** URL ?panel= → 内存面板镜像（仅在「我页·资产段」生效；无值即归默认）。 */
-const syncAssetsPanelFromRoute = () => {
-  if (currentTab.value !== 'posts' || contentSection.value !== 'assets') return;
-  assetsInitialTab.value = String(route.query.panel || '').trim();
+/** URL ?panel= → 内存视图镜像（仅在资产页生效；无值即归默认）。 */
+const syncAssetsViewFromRoute = () => {
+  if (currentTab.value !== 'assets') return;
+  assetsInitialView.value = String(route.query.panel || '').trim();
 };
 
-/** 内层面板切换 → 写 URL（组件 tab-change 的唯一响应点；非资产段 / 同值不写）。 */
-const handleAssetsPanelChange = (panel) => {
-  assetsInitialTab.value = panel === 'overview' ? '' : String(panel || '');
-  if (currentTab.value !== 'posts' || contentSection.value !== 'assets') return;
-  const nextQuery = applyAssetsPanelToQuery({ ...route.query, tab: 'posts', view: 'assets' });
+/** 内层视图切换 → 写 URL（组件 view-change 的唯一响应点；非资产页 / 同值不写）。 */
+const handleAssetsViewChange = (view) => {
+  const next = String(view || '').trim();
+  assetsInitialView.value = next === 'home' ? '' : next;
+  if (currentTab.value !== 'assets') return;
+  const nextQuery = applyAssetsViewToQuery({ ...route.query, tab: 'assets' });
   if (String(nextQuery.panel || '') === String(route.query.panel || '')) return;
   router.replace({ query: nextQuery });
 };
@@ -952,12 +1034,12 @@ const setSectionRoute = (tabId, section) => {
   } else {
     nextQuery.view = section;
   }
-  router.replace({ query: applyAssetsPanelToQuery(nextQuery) });
+  router.replace({ query: applyAssetsViewToQuery(nextQuery) });
 };
 
 const jumpWithSection = (tabId, section) => {
+  // posts 没有分区了（2026-10-26）：传进来的 section 直接忽略，只负责切 tab
   if (tabId === 'community') communitySection.value = section;
-  else if (tabId === 'posts') contentSection.value = section;
   else if (tabId === 'messages') messagesSection.value = section;
   else if (tabId === 'settings') settingsSection.value = section;
   pendingSectionTab = tabId;
@@ -967,28 +1049,6 @@ const jumpWithSection = (tabId, section) => {
     setSectionRoute(tabId, section);
   }
 };
-
-/** 「我」页分段的惰性挂载闩锁 + URL 回写（分段值必须进 URL，否则刷新即丢失） */
-watch(contentSection, (next) => {
-  if (next === 'assets') {
-    assetsSegmentVisited.value = true;
-    if (pendingAssetsPanel !== null) {
-      // openAssetsHub 的显式意图优先于 URL（此刻 URL 的写入可能尚未落地，
-      // 回读会拿到旧值；见 pendingAssetsPanel 声明处注释）
-      assetsInitialTab.value = pendingAssetsPanel;
-      pendingAssetsPanel = null;
-    } else {
-      // 段控切回 / 深链首落：面板恢复自 URL（无 panel 即归默认）——
-      // 「切走再切回」不保留上次内层面板，与设置分段的「切回回 home」同口径
-      syncAssetsPanelFromRoute();
-    }
-  } else {
-    // 离开资产段：闩锁若未消费即视为跳转流产（同 tick 内被连续切段合并的场景）
-    pendingAssetsPanel = null;
-    if (next === 'impressions') impressionsSegmentVisited.value = true;
-  }
-  if (currentTab.value === 'posts') setSectionRoute('posts', next);
-});
 
 const handleCommunitySwitchTab = (tabId) => {
   // shows 段已并入内容页签重构（空间/Cloud+），节目中心落点回「我的 · 空间」
@@ -1494,12 +1554,8 @@ const cloudPlusUsageText = computed(() => {
   if (!cloudPlusUsage.loaded) return '未检查';
   return `已使用 ${cloudPlusUsage.used}/${cloudPlusUsage.limit}`;
 });
-const cloudPlusUsageMeterStyle = computed(() => {
-  const limit = Math.max(1, Number(cloudPlusUsage.limit || DEFAULT_CLOUD_IMAGE_LIMIT));
-  const used = Math.max(0, Number(cloudPlusUsage.used || 0));
-  const percent = Math.min(100, Math.round((used / limit) * 100));
-  return { width: `${percent}%` };
-});
+// 2026-10-26：cloudPlusUsageMeterStyle 随主页「服务」段一起删掉了 ——
+// 用量条现在只在 Cloud+ 页与设置页出现，主页不再有它的消费点。
 let userSpaceSummaryInflight = null;
 let summaryRpcUnavailable = false;
 
@@ -1563,14 +1619,9 @@ const fetchAggregatedUserSpaceSummary = async ({ force = false } = {}) => {
   }
   return loaded;
 };
-const subscriptionSummaryText = computed(() => {
-  if (dataState.cloud.loading) return '正在同步权益';
-  if (!cloudPlusUsage.loaded) return '查看积分与额度';
-  if (Number(cloudPlusUsage.limit || 0) > DEFAULT_CLOUD_IMAGE_LIMIT) {
-    return `Cloud 额度 ${cloudPlusUsage.limit}`;
-  }
-  return '基础权益';
-});
+// 2026-10-26：subscriptionSummaryText 已删除 —— 它是「Cloud 额度 N」那行文案的唯一来源，
+// 随主页资产行一起退场（用户要求额度不显示在主页）。额度口径现在只在
+// 设置页的 cloudPlusUsageText 与 Cloud+ 页出现。
 let latestUnreadNavStatusAt = 0;
 let hasScheduledGlobalNavOnboardingNotice = false;
 const GLOBAL_NAV_ONBOARDING_NOTICE_VERSION = 'v2';
@@ -1583,11 +1634,9 @@ const showTopNavStatus = (payload = {}) => {
   });
 };
 
-const isBottomNavForceVisible = computed(
-  () =>
-    isAiOverlayOpen.value ||
-    (currentTab.value === 'settings' && settingsSection.value === 'edit-profile'),
-);
+/* 原先「编辑资料页强制显示底栏」的口径随内联编辑一起作废（见模板注释）：
+   现在只剩 AI 浮层需要强制底栏在场。 */
+const isBottomNavForceVisible = computed(() => isAiOverlayOpen.value);
 const { hidden: isBottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDirectionHide({
   forceVisible: isBottomNavForceVisible,
 });
@@ -1888,42 +1937,56 @@ const openSponsorPage = () => {
   sponsorQrLoadFailed.value = false;
   sponsorQrLoading.value = false;
   sponsorCatBurstKey.value += 1;
-  // 赞助是「资产」分段的外层档位（hub ↔ sponsor，纯内存态不入 URL）：先落到资产段再切外层。
+  // 赞助是「资产」页的外层档位（hub ↔ sponsor，纯内存态不入 URL）：先落到资产页再切外层。
   // 进入时不动 ?panel=（保留 hub 的记忆），SponsorPanel 返回时据此恢复离开前的内层面板。
-  assetsSegmentVisited.value = true;
   assetsSection.value = 'sponsor';
-  jumpWithSection('posts', 'assets');
+  switchTab('assets');
 };
 
 const openPhotoAlbums = () => {
-  router.push('/user-space/albums');
+  // from=userspace-settings：摄影集是独立路由页，自带「返回设置」按钮，靠这个参数决定落点
+  router.push('/user-space/albums?from=userspace-settings');
 };
 
-/** 资产段入口：值域归一交给 AssetsHubPanel.normalizeInitialTab（单一真源，含旧值映射与
-    非法回落）—— 旧实现的白名单（含已废弃 cards/addresses）已删除，面板名单不再有第二份。
-    显式意图走 pendingAssetsPanel 闩锁，避免落段 watch 回读未落地的 URL 把意图冲掉。 */
-const openAssetsHub = (initialTab = '') => {
-  const raw = String(initialTab || '').trim();
-  const panel = raw === 'overview' ? '' : raw;
-  assetsSegmentVisited.value = true;
+/** 资产页入口（2026-10-26：资产从「我」页分段提升为独立 tab）。
+    值域归一交给 AssetsHubPanel 的 normalizeView（单一真源，含旧值映射与非法回落）：
+    home / decor / orders / points 之外的值，以及 overview / cards / gifts 等旧值都在组件侧归一。
+    显式意图走 pendingAssetsView 闩锁，避免切页时回读未落地的 URL 把意图冲掉。
+    ⚠️ 三个入口共用本函数：设置页「资产」行、我页积分卡本身、我页「设置卡面」。
+    后两者 emit('open-assets', 'cards')，`cards → decor` 由面板侧归一 ——
+    2026-10-26 提升 tab 时漏了宿主这条监听，两个按钮静默变成死键（点击无任何反馈）。 */
+const openAssetsHub = (initialView = '') => {
+  const raw = String(initialView || '').trim();
+  const panel = raw === 'home' ? '' : raw;
   assetsSection.value = 'hub';
-  assetsInitialTab.value = panel;
-  pendingAssetsPanel = panel;
-  jumpWithSection('posts', 'assets');
+  assetsInitialView.value = panel;
+  pendingAssetsView = panel;
+  switchTab('assets');
 };
-
-/** 空间段服务面板「方块积分」行：直达资产段·积分面板（原为只到概览） */
-const openAssetsPointsPanel = () => openAssetsHub('points');
 
 const backToAssetsHub = () => {
   assetsSection.value = 'hub';
-  // 回到进入外层前的内层面板（URL ?panel= 是记忆源）；无 panel 即归默认。
+  // 回到进入外层前的内层视图（URL ?panel= 是记忆源）；无 panel 即归默认。
   // SponsorPanel 期间 AssetsHubPanel 被 v-if 卸载，重挂载时按本值归一（normalize 在组件侧）。
-  assetsInitialTab.value = String(route.query.panel || '').trim();
+  assetsInitialView.value = String(route.query.panel || '').trim();
 };
 
 const openProfileDataManagement = () => {
   jumpWithSection('settings', 'data-management');
+};
+
+/**
+ * 账户与隐私表单的唯一入口（2026-10-26）。
+ *
+ * 设置页把原「账户安全」子页的四项（更换邮箱 / 修改密码 / 通行密钥 / 注销账号）拆成了行，
+ * 点击直接落在设置壳**右栏**的表单上 —— 不再跳 `/user-space/account-security` 独立页
+ * （「所有子页都用左右栏，不单独另开一页」）。表单实现仍只有 AccountSecurityPanel 一份，
+ * 这里只负责记下「开哪一屏」并切到 account-security 子页。
+ * panel 走白名单归一，未知值回落「更换邮箱」。
+ */
+const openAccountSecurityPanel = (panel) => {
+  settingsSecurityPanel.value = normalizeAccountSecurityPanel(panel) || 'email';
+  jumpWithSection('settings', 'account-security');
 };
 
 const openProfileDataExport = () => {
@@ -1945,10 +2008,47 @@ const backToProfileSettings = () => {
   void fetchCloudPlusUsage();
 };
 
-const openProfileImpressions = () => {
-  // 取数由 ProfileImpressionsSection 在挂载时自行触发（单源：composables/useProfileImpressions.js）
-  jumpWithSection('posts', 'impressions');
+/**
+ * 「去发帖」类 CTA 的唯一真源：复用横屏左栏「发布」那条链路（等分区壳就绪再开会话）。
+ *
+ * 2026-10-26 之前，主页三处空态 CTA（热力图 / 作品 / 草稿）都是 emit('switch-tab','posts')，
+ * 而它们本来就渲染在 posts 页内部、父层接的 switchTab 首句 `if (currentTab === tabId) return`
+ * 恒成立 ⇒ 三处全是死按钮。现在统一走这里，全页只留热力图空态一处 CTA。
+ */
+const openProfileComposer = () => {
+  void handleRailAction('compose');
 };
+
+/**
+ * 「我」页印象数据：唯一实例由本层持有（2026-10-26 IA 融合 · 第二刀）。
+ *
+ * 之前取数在 ProfileImpressionsSection 内部（组件自持）；主页加了印象摘要行后
+ * 出现两个消费方，而 useProfileImpressions 的缓存/节流是**实例级**的 ——
+ * 两边各调一次就是同一屏两次请求。故上提到本层：分段与摘要行都从这儿取，
+ * 数据层单源仍是 composables/useProfileImpressions.js。
+ */
+const {
+  profileImpressions,
+  impressionsLoading,
+  impressionsHasMore,
+  isLoadingMoreImpressions,
+  fetchImpressions,
+  loadMoreImpressions,
+  handleDeleteImpression,
+  dispose: disposeImpressions,
+} = useProfileImpressions({
+  notify: (type, title, message) => showAlert(type, title, message),
+});
+
+// 进「我」页就把印象取回来（摘要行要显示条数）。composable 自带 60s TTL 缓存与
+// 5s 重入节流，重复触发不会变成重复请求。
+watch(
+  () => currentTab.value,
+  (tab) => {
+    if (tab === 'posts') void fetchImpressions();
+  },
+  { immediate: true },
+);
 
 const selectSponsorMethod = (methodId) => {
   sponsorMethod.value = methodId;
@@ -2376,7 +2476,7 @@ const syncUserSpaceTabRoute = (tabId) => {
     nextQuery.section = 'notifications';
   }
   // 资产段内层面板：仅在「posts + view=assets」保留，其余一并清除
-  applyAssetsPanelToQuery(nextQuery);
+  applyAssetsViewToQuery(nextQuery);
 
   const currentRouteTab = String(route.query.tab || '');
   const currentSection = String(route.query.section || '');
@@ -2411,14 +2511,39 @@ const handleBottomNavClick = (tabId) => {
 const switchTab = (tabId) => {
   const nextTab = resolveAccessibleTab(tabId, { promptLogin: true });
   if (nextTab !== tabId) return;
-  if (currentTab.value === tabId) return;
+
+  // 已在目标 tab：资产页还要处理「同一页再点某个内层入口」（如「积分明细」）——
+  // 只应用面板意图，不走切页动画。
+  if (currentTab.value === tabId) {
+    if (tabId === 'assets' && pendingAssetsView !== null) {
+      assetsSection.value = 'hub';
+      assetsInitialView.value = pendingAssetsView;
+      pendingAssetsView = null;
+    }
+    return;
+  }
+
   updateTabTransitionDirection(tabId);
+
+  // ⚠️ 资产内层面板必须在 ensureTabMounted **之前**归位：
+  // AssetsHubPanel 在挂载时读一次 initial-view，晚于挂载设置会拿到上一轮的旧值 ——
+  // 2026-10-26 实测表现就是「?tab=assets&panel=decor 冷加载落到首页」。
+  if (tabId === 'assets') {
+    if (pendingAssetsView !== null) {
+      assetsInitialView.value = pendingAssetsView;
+      pendingAssetsView = null;
+    } else {
+      syncAssetsViewFromRoute();
+    }
+  }
+
   ensureTabMounted(tabId);
   const previousTab = currentTab.value;
   saveTabScrollPosition(previousTab);
   if (pendingSectionTab !== tabId) {
     communitySection.value = SECTION_DEFAULTS.community;
-    contentSection.value = SECTION_DEFAULTS.posts;
+    // 内容面板的 tab 也是纯内存态：切走再回来回「作品」
+    profileContentTab.value = 'posts';
     messagesSection.value = SECTION_DEFAULTS.messages;
     // 资产的内层档位（hub / sponsor）是纯内存态，回默认值即可，没有 SECTION_DEFAULTS 条目
     assetsSection.value = 'hub';
@@ -2480,6 +2605,53 @@ const waitForForumView = async (methodName, timeoutMs = 4000) => {
    （dismissComposerSession 来自 composables/useForumComposerSession.js，与首页共用）。
    无改动内容时直接关；有内容时由论坛弹「保存草稿」确认，用户选完再继续。 */
 
+/* ---------- 设置页横屏两栏（2026-10-26） ----------
+   断点与左栏自己的可见性**同一条件**（side-rail.css 首个 @media）：
+   landscape + ≥1024 + 高 ≥600。两件事共用这一个布尔：
+     · 设置面板切左右两栏（左目录 + 右详情）
+     · 左导航栏切缩小态（88px 图标栏，body 上挂 .is-rail-compact）
+   为什么两件事必须同时发生：1280 屏上 240px 宽栏 + 208px 目录后，详情只剩 800
+   出头，行内「标签 + 描述 + 值」会挤成两行；左栏一收窄，右区多出 152px。
+   ⚠️ body class 而不是页面元素 class：--userspace-rail-w 挂在 body 上，
+   而它的消费方有 .tab-page（left/width）、.unified-nav-surface（居中偏移）等，
+   都在页面根之外 —— 挂 .user-space-page 它们一个都收不到。 */
+const settingsWideMq =
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(orientation: landscape) and (min-width: 1024px) and (min-height: 600px)')
+    : null;
+const isSettingsWideViewport = ref(settingsWideMq ? settingsWideMq.matches : false);
+const onSettingsWideChange = (event) => {
+  isSettingsWideViewport.value = event.matches;
+};
+const isSettingsTwoPane = computed(
+  () => isSettingsWideViewport.value && currentTab.value === 'settings',
+);
+
+watch(
+  isSettingsTwoPane,
+  (next) => {
+    document.body.classList.toggle('is-rail-compact', next);
+  },
+  { immediate: true },
+);
+
+/* ⚠️ 这个页面可能被 keep-alive 缓存（见下方 onActivated）：缓存后导航离开**不会**触发
+   onUnmounted，body 上的 .is-rail-compact 会留在首页 / 他人空间上，把它们的 240px 宽栏
+   一起压成 88px。所以离开（deactivated）要摘、回来（activated）要按当前 tab 重挂。
+   为什么不能只靠 onUnmounted：那只在真正销毁时跑。 */
+onDeactivated(() => {
+  document.body.classList.remove('is-rail-compact');
+});
+
+onActivated(() => {
+  document.body.classList.toggle('is-rail-compact', isSettingsTwoPane.value);
+});
+
+/**
+ * 横屏左栏的便捷区已收敛到组件内的单源（发布 / 资产，2026-10-26 用户口径：
+ * 「为啥我有时候还是会看到搜索，点击别的之后就会变成资产」）——
+ * 这里不再传 `quick-actions`，避免同一条左栏在不同页面显示不同入口。
+ */
 const handleRailAction = async (actionId) => {
   // 「发布」本身就是打开这个会话，其余动作都先收掉它
   if (actionId !== 'compose') await dismissComposerSession();
@@ -2489,11 +2661,10 @@ const handleRailAction = async (actionId) => {
       view?.openComposer();
       break;
     }
-    case 'search': {
-      const view = await waitForForumView('focusSearch');
-      view?.focusSearch();
+    case 'assets':
+      // 资产页从「我」页的分段提升为独立 tab（2026-10-26）——这里与设置页入口同一条路
+      openAssetsHub();
       break;
-    }
     case 'theme':
       // 主题弹窗的 .modal-overlay / .modal-card 样式来自 profile-panels.css，
       // 而它是按需动态加载的（初始 tab 为 posts/assets/settings 才预载）。
@@ -3295,6 +3466,15 @@ onMounted(() => {
   }
   setUserSpaceMountedForPreload(true);
   document.body.classList.add('is-loaded');
+  // 设置页两栏的断点监听：进页时按当前视口补一次，之后跟随横竖屏切换
+  if (settingsWideMq) {
+    if (typeof settingsWideMq.addEventListener === 'function') {
+      settingsWideMq.addEventListener('change', onSettingsWideChange);
+    } else {
+      settingsWideMq.addListener(onSettingsWideChange);
+    }
+    onSettingsWideChange(settingsWideMq);
+  }
   // 初始化主题
   const initialTheme = themeManager.getTheme();
   userSpacePageEl = document.querySelector('.user-space-page');
@@ -3437,6 +3617,17 @@ watch(currentTab, (newTab, oldTab) => {
 
 onUnmounted(() => {
   closeSuggestIsland(); // 建议岛是全局导航槽位，页面卸载必须收（项目规则）
+  if (settingsWideMq) {
+    if (typeof settingsWideMq.removeEventListener === 'function') {
+      settingsWideMq.removeEventListener('change', onSettingsWideChange);
+    } else {
+      settingsWideMq.removeListener(onSettingsWideChange);
+    }
+  }
+  // body 级 class 必须在这里摘：它改的是全局 --userspace-rail-w，
+  // 留着会让首页 / 他人空间的左栏也停在缩小态
+  document.body.classList.remove('is-rail-compact');
+  disposeImpressions(); // 印象实例的 AbortController / 缓存（2026-10-26 上提到本层）
   saveTabScrollPosition(currentTab.value);
   setUserSpaceMountedForPreload(false);
   if (navIslandResizeObserver) {

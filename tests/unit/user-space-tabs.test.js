@@ -62,17 +62,26 @@ describe('UserSpaceMain 把 mountedTabs 闩锁接到模板上', () => {
     );
   });
 
-  it('latches the 资产 / 印象 分段 with a「访问过」闩锁 instead of bare v-show', () => {
-    // 2026-10-01（plans/022 §4.2）：assets 从「独立 tab」降为「我」页的分段，
-    // 所以它不再出现在上面的 tab 闩锁里，但**闩锁语义必须保留** ——
-    // 分段若是裸 v-show，AssetsHubPanel 会在进入 UserSpace 时就挂载并跑 onMounted 取数
-    // （fetchUserTier / products / 抽奖 / 订阅），正是当初给 tab 加闩锁要防的那件事。
-    for (const seg of ['assets', 'impressions']) {
-      expect(mainSource).toMatch(new RegExp(`v-if="${seg}SegmentVisited"`));
-      expect(mainSource).toMatch(new RegExp(`v-show="contentSection === '${seg}'"`));
-      // 反向：分段绝不能退回「按 currentTab 判定的独立 tab-page」
-      expect(mainSource).not.toMatch(new RegExp(`v-if="currentTab === '${seg}'`));
-    }
+  it('资产 tab 走「访问过」闩锁，不退回裸 v-show', () => {
+    // 2026-10-26：资产从「我」页分段**还原为独立 tab**（?tab=assets，底栏无席位），
+    // 所以它回到上面的 tab 闩锁体系里；闩锁语义不变 ——
+    // 分段/独立页若是裸 v-show，AssetsHubPanel 会在进入 UserSpace 首帧就挂载并跑
+    // onMounted 取数（fetchUserTier / products / 抽奖 / 订阅），正是当初加闩锁要防的事。
+    expect(mainSource).toMatch(/v-if="mountedTabs\.assets"/);
+    expect(mainSource).toMatch(/v-show="currentTab === 'assets'/);
+  });
+
+  it('印象降为「我」页内容 tab，数据由父层单实例供给（切走不重取）', () => {
+    // 2026-10-26：段控压成一层（底栏 → 内容 tab），印象不再是「我」页段控的第三段。
+    // 它由 activeContentTab 驱动，但**数据不在这里取**：impressions 来自父层
+    // useProfileImpressions 的单实例缓存，本组件只透传 props ⇒ 来回切不重复请求。
+    const homeSource = readFileSync(
+      resolve(root, 'src/views/user-center/UserSpace/components/ProfileHomePanel.vue'),
+      'utf8',
+    );
+    expect(homeSource).toMatch(/v-else-if="activeContentTab === 'impressions'"/);
+    expect(homeSource).toContain(':impressions="impressions"');
+    expect(homeSource).toContain('@load-more-impressions="$emit(\'load-more-impressions\')"');
   });
 
   it('keeps the other sections on plain v-show', () => {
@@ -89,8 +98,12 @@ describe('UserSpaceMain 把 mountedTabs 闩锁接到模板上', () => {
     // 闩锁只能加在外层 tab-page。内层档位若一并常驻，DataExportPanel 的
     // pollTimer（setInterval 轮询导出进度）就会变成后台常驻轮询。
     // 内层必须继续由 settingsSection 驱动 v-if / v-else-if。
-    expect(mainSource).toMatch(/v-if="settingsSection === 'home'"/);
-    expect(mainSource).toMatch(/v-else-if="settingsSection === 'data-export'"/);
+    // ⚠️ 2026-10-26 四组收敛为「账户与隐私 / 内容与存储 / 通用 / 账户」后，
+    // home 档由 ProfileSettingsPanel 自己按 active-section 渲染，不再有独立的
+    // `settingsSection === 'home'` 分支；这里只锁「内层档位仍是条件渲染」这一契约。
+    expect(mainSource).toMatch(/v-if="settingsSection === 'data-export'"/);
+    expect(mainSource).toMatch(/v-else-if="settingsSection === 'data-management'"/);
+    expect(mainSource).toMatch(/v-else-if="settingsSection === 'account-security'"/);
     expect(mainSource).not.toMatch(/mountedTabs\.(data-export|edit-profile|data-management)/);
   });
 });

@@ -1,7 +1,26 @@
 <template>
-  <div class="settings-page account-security-page"
-    :style="{ '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px', paddingTop: isFromUserSpace ? '0px' : '72px' }">
-    <UserCenterPageHeader v-if="isFromUserSpace" title="账户安全" max-width="680px" @back="handleHeaderBack" />
+  <!-- 账户安全面板（2026-10-26 内嵌化）
+       原先是一个独立路由页（/user-space/account-security）自带宽页头与返回；
+       现在作为设置页右栏的一个子页渲染（inline），页头/返回交给设置壳，本组件只画内容。
+       `inline=false` 仍保留 —— 独立路由已改成重定向，这个分支只用于兜底渲染。 -->
+  <div
+    class="settings-page account-security-page"
+    :class="{ 'is-inline': inline }"
+    :style="
+      inline
+        ? {}
+        : {
+            '--user-center-nav-offset': isFromUserSpace ? '0px' : '72px',
+            paddingTop: isFromUserSpace ? '0px' : '72px',
+          }
+    "
+  >
+    <UserCenterPageHeader
+      v-if="isFromUserSpace && !inline"
+      :title="headerTitle"
+      max-width="680px"
+      @back="handleHeaderBack"
+    />
 
     <div class="settings-page-container">
       <Transition name="security-panel" mode="out-in">
@@ -122,7 +141,7 @@
               </div>
 
               <div class="gs-actions sec-actions">
-                <button class="gs-btn ghost" :disabled="isUpdatingEmail" @click="backToMenu">返回</button>
+                <button class="gs-btn ghost" :disabled="isUpdatingEmail" @click="backFromPanel">返回</button>
                 <button class="gs-btn primary" :disabled="isUpdatingEmail" @click="submitEmailChange">
                   {{ isUpdatingEmail ? '提交中...' : '发送确认邮件' }}
                 </button>
@@ -200,7 +219,7 @@
               </div>
 
               <div class="gs-actions sec-actions">
-                <button class="gs-btn ghost" :disabled="isUpdatingPassword" @click="backToMenu">返回</button>
+                <button class="gs-btn ghost" :disabled="isUpdatingPassword" @click="backFromPanel">返回</button>
                 <button class="gs-btn primary" :disabled="isUpdatingPassword" @click="submitPasswordChange">
                   {{ isUpdatingPassword ? '修改中...' : '确认修改密码' }}
                 </button>
@@ -269,7 +288,7 @@
 
           <section class="gs-group">
             <div class="gs-actions sec-actions">
-              <button class="gs-btn ghost" @click="backToMenu">返回</button>
+              <button class="gs-btn ghost" @click="backFromPanel">返回</button>
               <button class="gs-btn primary" :disabled="isRegisteringPasskey" @click="addPasskey">
                 {{ isRegisteringPasskey ? '请在设备上完成验证…' : '添加通行密钥' }}
               </button>
@@ -347,7 +366,7 @@
               </div>
 
               <div class="gs-actions sec-actions">
-                <button class="gs-btn ghost" :disabled="isDeletingAccount" @click="backToMenu">返回</button>
+                <button class="gs-btn ghost" :disabled="isDeletingAccount" @click="backFromPanel">返回</button>
                 <button v-if="deleteAccountStep < 3" class="gs-btn danger" :disabled="isDeletingAccount"
                   @click="goDeleteAccountNextStep">
                   {{ deleteAccountStep === 1 ? '继续' : '下一步' }}
@@ -368,7 +387,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { AlertCircle, CheckCircle2, ChevronRight, Fingerprint, Info, KeyRound, Keyboard, Lock, Mail, ShieldCheck, TriangleAlert } from 'lucide-vue-next';
@@ -386,10 +405,32 @@ import {
   updateUserEmail
 } from '@/utils/api/auth-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
+import {
+  normalizeAccountSecurityPanel,
+  resolveAccountSecurityPanelTitle,
+} from '@/config/account-security-panels.js';
 import { PASSWORD_MIN_LENGTH, validateCurrentPassword, validatePassword } from '@/utils/auth-validation.js';
 import { logger } from '@/utils/logger.js';
 
 const DELETE_ACCOUNT_CONFIRM_TEXT = '确认注销';
+
+/**
+ * 内嵌形态（2026-10-26）：设置页把它塞进右栏，页头与「返回」由设置壳负责，
+ * 本组件只画面板内容并 `emit('back')`。
+ * initialPanel 由宿主给（email / password / passkey / delete），换值就地换屏。
+ */
+const props = defineProps({
+  inline: {
+    type: Boolean,
+    default: false,
+  },
+  initialPanel: {
+    type: String,
+    default: '',
+  },
+});
+
+const emit = defineEmits(['back']);
 
 const router = useRouter();
 const route = useRoute();
@@ -556,20 +597,58 @@ const showAlert = (type, title, message) => {
 };
 
 const goBack = () => {
+  // 内嵌形态：不跳路由，交回设置壳（收起右栏子页，回到「账户与隐私」分组）
+  if (props.inline) {
+    emit('back');
+    return;
+  }
   router.push(resolveSettingsBackLocation(route));
 };
 
+/* 标题跟着当前面板走（2026-10-26）：设置页把四项拆成行后直落进来，
+   顶上还写「账户安全」会让人以为自己仍在一层菜单里。
+   标题表单一真源在 config/account-security-panels.js（宿主也用它）。
+   内嵌形态下标题由设置壳展示（inlinePanelTitle），这里只服务独立渲染的兜底分支。 */
+const headerTitle = computed(() => resolveAccountSecurityPanelTitle(activePanel.value));
+
+/**
+ * 入口面板。内嵌时由宿主 prop（initialPanel）给，独立渲染时由 `?panel=` 给；
+ * 为空或不认识 ⇒ 停在菜单。
+ */
+const entryPanel = ref('');
+
+const isBusy = () =>
+  isDeletingAccount.value || isUpdatingPassword.value || isUpdatingEmail.value;
+
+const backToMenu = () => {
+  if (isBusy()) return;
+  activePanel.value = 'menu';
+};
+
+const backFromPanel = () => {
+  if (isBusy()) return;
+  // 内嵌 / 深链进来都没有「菜单」这一层：直接回设置
+  if (props.inline || entryPanel.value) {
+    goBack();
+    return;
+  }
+  activePanel.value = 'menu';
+};
+
+const openPanelById = (panel) => {
+  if (panel === 'email') openChangeEmailPanel();
+  else if (panel === 'password') openChangePasswordPanel();
+  else if (panel === 'passkey') openPasskeyPanel();
+  else if (panel === 'delete') openDeleteAccountPanel();
+  else activePanel.value = 'menu';
+};
+
 const handleHeaderBack = () => {
-  if (activePanel.value !== 'menu') {
+  if (activePanel.value !== 'menu' && !entryPanel.value) {
     backToMenu();
     return;
   }
   goBack();
-};
-
-const backToMenu = () => {
-  if (isDeletingAccount.value || isUpdatingPassword.value || isUpdatingEmail.value) return;
-  activePanel.value = 'menu';
 };
 
 const resetPasswordForm = () => {
@@ -777,6 +856,16 @@ const confirmDeleteAccount = async () => {
   }
 };
 
+/** 面板 id 白名单归一（脏值一律回菜单，别把未知值塞进 activePanel） */
+const normalizePanelId = (value) => normalizeAccountSecurityPanel(value);
+
+/** 落到具体面板。内嵌读 prop、独立渲染读 ?panel=；两处都走这一个函数 */
+const applyEntryPanel = (rawPanel) => {
+  const next = normalizePanelId(rawPanel);
+  entryPanel.value = next;
+  openPanelById(next);
+};
+
 onMounted(async () => {
   if (!isLoggedIn.value) {
     authStore.showLoginModal = true;
@@ -791,14 +880,48 @@ onMounted(async () => {
   resetPasswordForm();
   resetEmailForm();
   resetDeleteAccountState();
+  applyEntryPanel(props.inline ? props.initialPanel : route.query.panel);
 });
+
+// 内嵌：宿主换 initialPanel（设置页连点两行）时实例被复用，不重挂载也要换屏
+watch(
+  () => props.initialPanel,
+  (panel) => {
+    if (!props.inline || !isLoggedIn.value) return;
+    if (activePanel.value !== 'menu' && isBusy()) return;
+    applyEntryPanel(panel);
+  },
+);
+
+// 独立渲染：同一路由内换 ?panel= 时同理
+watch(
+  () => route.query.panel,
+  () => {
+    if (props.inline || !isLoggedIn.value) return;
+    if (activePanel.value !== 'menu' && isBusy()) return;
+    applyEntryPanel(route.query.panel);
+  },
+);
 </script>
 
 <style scoped>
-@import '../UserSpace/styles/settings-glass.css';
+@import '../styles/settings-glass.css';
 
 .account-security-page .settings-page-container {
   padding-bottom: 60px;
+}
+
+/* 内嵌形态（2026-10-26）：右栏里没有自己的页头，也不该带「独立页壳」的东西 ——
+   `.settings-page` 的 100dvh 高度 + 灰蓝渐变背景会把右栏染成一块大玻璃板，
+   680px 居中容器又让表单比相邻分组卡片窄一截。这两样在内嵌时全部清掉。 */
+.account-security-page.is-inline {
+  min-height: 0;
+  background: transparent;
+}
+
+.account-security-page.is-inline .settings-page-container {
+  max-width: none;
+  padding: 0;
 }
 
 /* ---------- 表单块 ---------- */

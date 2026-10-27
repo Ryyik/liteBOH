@@ -78,7 +78,8 @@
                 >{{ tierDisplayName }}</span
               >
             </div>
-            <p class="profile-handle">@{{ displayName || 'user' }}</p>
+            <!-- 2026-10-26：`@昵称` 行删除 —— 它和上一行的昵称完全重复（BOH 没有独立 handle），
+                 既占一行高度又是技术味最重的一行。 -->
             <div class="profile-bio-wrap">
               <p
                 ref="bioRef"
@@ -96,58 +97,52 @@
                 {{ bioExpanded ? '收起' : '全文' }}
               </button>
             </div>
+          <div
+            class="profile-stats profile-hero-stats profile-stats-compact"
+            :class="{ 'is-loading': isStatsLoading }"
+          >
+            <template v-if="isStatsLoading">
+              <span class="stat-skeleton stat-skeleton-line"></span>
+            </template>
+            <template v-else>
+              <!-- 2026-10-26（参考小红书的纯数据流）：三个统计是一行**无分隔**的纯文本 ——
+                   不再有圆点、边框、胶囊底。数字加粗、标签灰、紧邻排列。
+                   顺序按参考产品的习惯：关注 → 粉丝 → 发帖。 -->
+              <button type="button" class="stat-text" @click="openFollowList('followers')">
+                <strong class="stat-text-num">{{ stats.followers || 0 }}</strong>
+                <span class="stat-text-label">粉丝</span>
+              </button>
+              <button type="button" class="stat-text" @click="openFollowList('following')">
+                <strong class="stat-text-num">{{ stats.following || 0 }}</strong>
+                <span class="stat-text-label">关注</span>
+              </button>
+              <button type="button" class="stat-text" @click="$emit('switch-tab', 'posts')">
+                <strong class="stat-text-num">{{ stats.posts || 0 }}</strong>
+                <span class="stat-text-label">发帖</span>
+              </button>
+            </template>
+          </div>
             <button type="button" class="profile-edit-btn" @click="$emit('edit-profile')">
               编辑资料
             </button>
           </div>
         </div>
 
-        <div
-          class="profile-stats profile-hero-stats profile-stats-compact"
-          :class="{ 'is-loading': isStatsLoading }"
-        >
-          <template v-if="isStatsLoading">
-            <span class="stat-skeleton stat-skeleton-line"></span>
-          </template>
-          <template v-else>
-            <button type="button" class="stat-chip" @click="$emit('switch-tab', 'posts')">
-              <span class="stat-chip-num">{{ stats.posts || 0 }}</span>
-              <span class="stat-chip-label">发帖</span>
-            </button>
-            <span class="stat-dot" aria-hidden="true">·</span>
-            <span class="stat-chip stat-chip-static">
-              <span class="stat-chip-num">{{ formatPoints(stats.points) || '0' }}</span>
-              <span class="stat-chip-label">积分</span>
-            </span>
-            <span class="stat-dot" aria-hidden="true">·</span>
-            <button
-              type="button"
-              class="stat-chip clickable-follow-stat"
-              @click="openFollowList('followers')"
-            >
-              <span class="stat-chip-num">{{ stats.followers || 0 }}</span>
-              <span class="stat-chip-label">粉丝</span>
-            </button>
-            <span class="stat-dot" aria-hidden="true">·</span>
-            <button
-              type="button"
-              class="stat-chip clickable-follow-stat"
-              @click="openFollowList('following')"
-            >
-              <span class="stat-chip-num">{{ stats.following || 0 }}</span>
-              <span class="stat-chip-label">关注</span>
-            </button>
-          </template>
-        </div>
       </div>
     </section>
 
-    <ActivityHeatmap
-      :payload="heatmap"
-      :loading="isHeatmapLoading"
-      @switch-tab="$emit('switch-tab', $event)"
-    />
+    <!-- 2026-10-26 结构合并：印象摘要行整块移除。
+         印象已成为下方内容面板的一个 tab（作品 / 回复 / 印象），
+         保留摘要行就是同一目的地的第二个入口 —— 与「一个目的地一个入口」冲突。
+         社交证明的内容价值由 tab 上的计数承担，点开即完整网格。 -->
+    <ActivityHeatmap :payload="heatmap" :loading="isHeatmapLoading" @compose="$emit('compose')" />
 
+    <!-- 方块积分卡（2026-10-26 做小）：
+         原来是一张 200px+ 的大卡面 + 标题行 + 一行操作说明。做小三件事：
+         ① 传 compact（PointsCard 内置变体：2.08 aspect、26px 数字）；
+         ② 删卡面下方的操作说明（点卡即设置，说明是常驻噪音）；
+         ③ 删标题行里的 tier 角标 —— Hero 的 tier-badge 已显示同一个档位。
+         卡面本身保留：它是玩家向的「门面资产」，只是不再吃半屏。 -->
     <section class="profile-points-card-section is-own" aria-label="方块积分卡">
       <div class="profile-points-card-head">
         <span class="profile-points-card-kicker">
@@ -166,13 +161,6 @@
             <line x1="2" y1="10" x2="22" y2="10" />
           </svg>
           方块积分卡
-          <span
-            v-if="tierDisplayName"
-            class="tier-badge"
-            :class="`tier-${tierCode}`"
-            style="margin-left: 4px; height: 18px; font-size: 9px; padding: 0 7px"
-            >{{ tierDisplayName }}</span
-          >
         </span>
         <button type="button" class="profile-points-card-action" @click="handlePointsCardClick">
           设置卡面
@@ -198,89 +186,23 @@
           :tier-label="tierDisplayName || 'BOH'"
           :skin="pointsCardSkin"
           :image-url="pointsCardImageUrl"
+          compact
           interactive
           @click="handlePointsCardClick"
         />
       </div>
-      <p class="profile-points-card-hint">点击卡面去设置空白/小猫或自定义卡面</p>
     </section>
 
-    <section class="profile-service-panel" aria-label="服务">
-      <div class="profile-section-heading">
-        <span>服务</span>
-      </div>
+    <!-- 2026-10-26（用户定稿）：「资产」与「摄影集」两个入口也收进**设置页**，
+         主页不再保留这一块。至此主页只剩四块：身份卡 / 活跃轨迹 / 积分卡 / 内容面板。
+         理由：两者都是月频以下的工具型入口，放在个人主页等于用主页空间做导航；
+         资产页本身仍是独立 tab（从设置的「资产」行进入，内层七个 tab 一个不少）。
+         ⚠️ 摄影集是 /user-space/albums，设置页那一行是它唯一的常用入口 ——
+            改设置页时不要把那一行当死代码清掉。 -->
 
-      <button type="button" class="profile-service-row" @click="$emit('cloud-plus', 'content')">
-        <span class="profile-service-icon bg-teal">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
-            <path d="M8 9h8"></path>
-          </svg>
-        </span>
-        <span class="profile-service-body">
-          <strong>Cloud+</strong>
-          <small class="profile-service-hint">{{ cloudPlusUsageText }}</small>
-        </span>
-        <span class="profile-service-meter"><span :style="cloudPlusUsageMeterStyle"></span></span>
-        <span class="profile-action-chevron">›</span>
-      </button>
-
-      <button type="button" class="profile-service-row" @click="$emit('assets')">
-        <span class="profile-service-icon bg-yellow">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path>
-            <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path>
-            <path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path>
-          </svg>
-        </span>
-        <span class="profile-service-body">
-          <!-- 2026-10-15 改名「资产中心」：该入口实际承载积分/装扮/订阅/订单/抽奖/赞助七类功能，
-               旧名「方块积分」名不副实（与 AssetsHubPanel 页头同步改）。 -->
-          <strong>资产中心</strong>
-          <small class="profile-service-hint"
-            >{{ formatPoints(stats.points) || '0' }} 积分 · {{ subscriptionSummaryText }}</small
-          >
-        </span>
-        <span class="profile-action-chevron">›</span>
-      </button>
-
-      <button type="button" class="profile-service-row" @click="$emit('photo-albums')">
-        <span class="profile-service-icon bg-pink">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path
-              d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
-            ></path>
-            <circle cx="12" cy="13" r="3"></circle>
-          </svg>
-        </span>
-        <span class="profile-service-body">
-          <strong>摄影集</strong>
-          <small class="profile-service-hint">上传照片自动排版，装帧一本可翻阅、可带走的影集</small>
-        </span>
-        <span class="profile-action-chevron">›</span>
-      </button>
-    </section>
+    <!-- 2026-10-26 结构合并：原「服务」段（Cloud+ / 摄影集两行）整段移除。
+         Cloud+ 的底栏已有「图库」席（bottom-nav.ts 的 /user-space/note），
+         摄影集入口移入资产段；为一个两行的列表单开一段标题是纯层级浪费。 -->
 
     <section class="profile-content-panel">
       <div class="profile-content-tabs" role="tablist" aria-label="我的内容">
@@ -338,21 +260,50 @@
           <article
             v-if="item.kind === 'post'"
             class="profile-post-card"
-            :class="{ 'text-only': !getProfilePostCover(item.post) }"
+            :class="{ 'text-only': !postCover(item.post) }"
             @click="$emit('post-click', item.post.id)"
           >
-            <div v-if="getProfilePostCover(item.post)" class="profile-post-cover">
+            <div
+              v-if="postCover(item.post)"
+              class="profile-post-cover"
+              :class="{ 'is-multi': postImageCount(item.post) > 1 }"
+            >
+              <!-- @error 兜底（2026-10-26 修「配图一直裂开」）：封面 URL 失效时
+                   （云端图被删/过期/旧 @/assets 引用）把该 URL 记进 brokenCovers，
+                   卡片当轮就退回纯文字排版 —— 不再留一个破图图标 + 一大块空白。 -->
               <img
-                v-if="getProfilePostCover(item.post)"
-                :src="getProfilePostCover(item.post)"
+                :src="postCover(item.post)"
                 :alt="getProfilePostTitle(item.post)"
                 loading="lazy"
                 decoding="async"
+                @error="markCoverBroken(postCover(item.post))"
               />
+              <!-- 多图角标：右下角「共 N 张」。叠层感由 .is-multi 的 box-shadow 造（见样式），
+                   不额外画 DOM 图层 —— 多层缩略图要真实渲染就得复制 img，列表里不值。 -->
+              <span v-if="postImageCount(item.post) > 1" class="profile-post-multi-count">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="7" y="3" width="14" height="14" rx="2" />
+                  <path d="M3 7v12a2 2 0 0 0 2 2h12" />
+                </svg>
+                {{ postImageCount(item.post) }}
+              </span>
             </div>
             <div class="profile-post-copy">
               <h3>{{ getProfilePostTitle(item.post) }}</h3>
-              <p>{{ getProfilePostSummary(item.post) }}</p>
+              <!-- 纯文字帖补正文摘录（2026-10-26）：只有标题时这张卡比图片卡矮一半，
+                   在四列纵向流里就是一块悬空的白色残片。三行摘录把它撑成正常卡片高度，
+                   同时让人不必点进去就知道这条在讲什么。图片卡不加（会重复封面信息）。 -->
+              <p v-if="!postCover(item.post)" class="profile-post-excerpt">
+                {{ postExcerpt(item.post) }}
+              </p>
               <div class="profile-post-meta">
                 <span>{{ formatProfilePostDate(item.post) }}</span>
                 <span>{{ item.post.like_count || 0 }}赞</span>
@@ -366,16 +317,17 @@
             class="profile-post-card profile-note-card"
             :class="[
               `note-cover-theme-${item.card.coverTheme}`,
-              { 'text-only': !item.card.coverImageUrl },
+              { 'text-only': !noteCover(item.card) },
             ]"
             @click="$emit('note-open', item.card.entry)"
           >
-            <div v-if="item.card.coverImageUrl" class="profile-post-cover">
+            <div v-if="noteCover(item.card)" class="profile-post-cover">
               <img
-                :src="resolveDbCardImage(item.card.coverImageUrl)"
+                :src="noteCover(item.card)"
                 :alt="noteDisplayTitle(item.card)"
                 loading="lazy"
                 decoding="async"
+                @error="markCoverBroken(noteCover(item.card))"
               />
             </div>
             <div v-else class="profile-note-text-cover" aria-hidden="true">
@@ -384,7 +336,6 @@
             </div>
             <div class="profile-post-copy">
               <h3>{{ noteDisplayTitle(item.card) }}</h3>
-              <p>{{ item.card.summary || '暂无文字预览' }}</p>
               <div class="profile-post-meta">
                 <span>{{ formatProfilePostDate({ created_at: item.card.dateValue }) }}</span>
                 <span v-if="item.card.imageCount">{{ item.card.imageCount }} 图</span>
@@ -422,7 +373,7 @@
       <div v-else-if="activeContentTab === 'posts'" class="profile-content-empty">
         <h3>还没有作品</h3>
         <p>发布的帖子和公开的 Cloud+ 笔记都会出现在这里。</p>
-        <button type="button" @click="$emit('switch-tab', 'posts')">去发帖</button>
+        <button type="button" @click="$emit('compose')">去发帖</button>
       </div>
 
       <div
@@ -451,37 +402,24 @@
       <div v-else-if="activeContentTab === 'replies'" class="profile-content-empty">
         <h3>还没有回复</h3>
         <p>参与讨论后，回复会集中出现在这里。</p>
-        <button type="button" @click="$emit('switch-tab', 'posts')">去看看帖子</button>
+        <button type="button" @click="$emit('switch-tab', 'community')">去社区看看</button>
       </div>
 
-      <div
-        v-else-if="activeContentTab === 'drafts' && !draftsLoaded"
-        class="profile-forum-skeleton-feed"
-        aria-hidden="true"
-      >
-        <div v-for="item in 2" :key="`draft-skeleton-${item}`" class="profile-forum-skeleton-card">
-          <div class="profile-forum-skeleton-line long profile-forum-skeleton-item"></div>
-          <div class="profile-forum-skeleton-line medium profile-forum-skeleton-item"></div>
-        </div>
-      </div>
-      <div v-else-if="activeContentTab === 'drafts' && drafts.length" class="profile-draft-list">
-        <button
-          v-for="draft in drafts"
-          :key="draft.savedAt"
-          type="button"
-          class="profile-draft-item"
-          @click="$emit('switch-tab', 'posts')"
-        >
-          <span class="profile-draft-badge">草稿</span>
-          <strong>{{ draft.title || '未命名帖子' }}</strong>
-          <p>{{ getDraftSummary(draft) }}</p>
-          <small>{{ formatProfilePostDate({ created_at: draft.savedAt }) }}</small>
-        </button>
-      </div>
-      <div v-else-if="activeContentTab === 'drafts'" class="profile-content-empty">
-        <h3>没有未完成的草稿</h3>
-        <p>论坛编辑器中保存的帖子草稿会显示在这里。</p>
-        <button type="button" @click="$emit('switch-tab', 'posts')">开始写帖子</button>
+      <!-- 印象（2026-10-26：接替原「草稿」席）：
+           草稿 tab 删掉 —— 单草稿模型下草稿只有一份，且它本来就只在编辑器里出现
+           （2026-10-26 云端单草稿定稿），在主页列一份列表等于给同一个对象开第二扇门。
+           印象从「段控第三段」降到这里，段控随之压成两段（空间 | 资产）。
+           数据仍由父层唯一实例提供（useProfileImpressions 的缓存是实例级的），
+           本组件只透传 props / 事件。 -->
+      <div v-else-if="activeContentTab === 'impressions'" class="profile-content-impressions">
+        <ProfileImpressionsSection
+          :impressions="impressions"
+          :loading="impressionsLoading"
+          :has-more="impressionsHasMore"
+          :is-loading-more="isLoadingMoreImpressions"
+          @delete-impression="$emit('delete-impression', $event)"
+          @load-more-impressions="$emit('load-more-impressions')"
+        />
       </div>
     </section>
 
@@ -502,10 +440,11 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, reactive, ref, watch, onMounted } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
 import PointsCard from './PointsCard.vue';
 import ActivityHeatmap from './ActivityHeatmap.vue';
+import ProfileImpressionsSection from './ProfileImpressionsSection.vue';
 import {
   getCommentsByUsername,
   getFollowers,
@@ -535,8 +474,6 @@ const activeContentTab = ref('posts');
 const replies = ref([]);
 const repliesLoading = ref(false);
 const repliesLoaded = ref(false);
-const drafts = ref([]);
-const draftsLoaded = ref(false);
 const contentTabs = computed(() => {
   const hasValidStatsCount = Number.isFinite(props.stats?.posts);
   const postsLoading = hasValidStatsCount
@@ -551,12 +488,17 @@ const contentTabs = computed(() => {
   const worksCount = postsLoading ? null : (postsCount ?? 0) + publicNotesCount.value;
   const repliesLoadingState = repliesLoading.value || (!repliesLoaded.value && !!profileId.value);
   const repliesCount = repliesLoadingState ? null : replies.value.length;
-  const draftsLoadingState = !draftsLoaded.value;
-  const draftsCount = draftsLoadingState ? null : drafts.value.length;
+  // 第三席「印象」接替原「草稿」（2026-10-26）：草稿在单草稿模型下只有一份、
+  // 且只在编辑器里出现，列成列表没有意义；印象是社交证明，值得常驻一席。
   return [
     { id: 'posts', label: '作品', count: worksCount, loading: postsLoading },
     { id: 'replies', label: '回复', count: repliesCount, loading: repliesLoadingState },
-    { id: 'drafts', label: '草稿', count: draftsCount, loading: draftsLoadingState },
+    {
+      id: 'impressions',
+      label: '印象',
+      count: props.impressionsLoading ? null : impressionCount.value,
+      loading: props.impressionsLoading,
+    },
   ];
 });
 
@@ -650,17 +592,40 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  cloudPlusUsageText: {
-    type: String,
-    default: '',
-  },
-  cloudPlusUsageMeterStyle: {
-    type: Object,
-    default: () => ({}),
-  },
+  /* 2026-10-26：「服务」段删除后，cloudPlusUsageText / cloudPlusUsageMeterStyle
+     在主页已无消费点（Cloud+ 用量在底栏「图库」页与设置页各自展示），prop 一并移除。 */
   subscriptionSummaryText: {
     type: String,
     default: '',
+  },
+  /** 印象列表（2026-10-26：父层持有的唯一实例，印象 tab 直接消费） */
+  impressions: {
+    type: Array,
+    default: () => [],
+  },
+  impressionsLoading: {
+    type: Boolean,
+    default: false,
+  },
+  /** 印象 tab：还有更多可增量加载（父层 useProfileImpressions 的状态） */
+  impressionsHasMore: {
+    type: Boolean,
+    default: false,
+  },
+  /** 印象 tab：增量加载中 */
+  isLoadingMoreImpressions: {
+    type: Boolean,
+    default: false,
+  },
+  /**
+   * 受控的内容面板 tab（'posts' | 'replies' | 'impressions'）。
+   * 2026-10-26：印象从「分段」降为「tab」后，跨组件驱动它的唯一通道就是这个 prop
+   * （旧深链 ?view=impressions 走这儿）。配合 content-tab-change 事件做双向同步，
+   * 否则用户手动切走之后，父层再设同一个值不会触发 watch（值未变）。
+   */
+  requestedContentTab: {
+    type: String,
+    default: 'posts',
   },
   isContentLoading: {
     type: Boolean,
@@ -717,8 +682,13 @@ const emit = defineEmits([
   'settings',
   'avatar-click',
   'background-click',
-  'view-impressions',
-  'assets',
+  /** 打开发帖编辑器（2026-10-26：原先三处空态 emit('switch-tab','posts')，
+   *  而父子关系是「已在 posts 页内」，switchTab 首句就 return ⇒ 点了没反应。
+   *  改为直接请求父层打开发帖会话。 */
+  'compose',
+  /** 打开资产面板的某个子页（'points' / 'subscription' / 'fulfillment' / 'lottery' / 'sponsor'）。
+   *  2026-10-26：原先是 emit('assets') 无参数直落积分面板，现由「资产入口卡」按入口分流。 */
+  'open-assets',
   'data-management',
   'cloud-plus',
   'photo-albums',
@@ -728,6 +698,11 @@ const emit = defineEmits([
   'note-open',
   'note-set-private',
   'note-delete',
+  /** 印象 tab 的删除 / 增量加载，由父层唯一实例执行（同 props 的 impressions） */
+  'delete-impression',
+  'load-more-impressions',
+  /** 内容面板 tab 变化 → 父层同步 profileContentTab（受控 prop 的双向通道） */
+  'content-tab-change',
 ]);
 
 const displayName = computed(() => props.profile.username || '未登录');
@@ -753,6 +728,13 @@ watch(
 const displayInitial = computed(() => (props.profile.username || 'U').charAt(0).toUpperCase());
 const isAdmin = computed(() => props.profile.role === 'admin');
 
+/* ── 印象（2026-10-26：从「摘要行」改为内容面板的一个 tab）──
+   数据仍来自父层持有的唯一实例（useProfileImpressions 的缓存/节流是实例级），
+   这里只算 tab 上的计数，不自己取数。 */
+const impressionCount = computed(() =>
+  Array.isArray(props.impressions) ? props.impressions.length : 0,
+);
+
 const pointsCardPoints = computed(() => Number(props.profile.points ?? props.stats?.points ?? 0));
 const pointsCardSkin = computed(() => {
   const raw = props.profile.pointsCardSkin ?? props.profile.points_card_skin ?? 'blank';
@@ -762,7 +744,10 @@ const pointsCardImageUrl = computed(() =>
   String(props.profile.pointsCardImageUrl ?? props.profile.points_card_image_url ?? '').trim(),
 );
 const handlePointsCardClick = () => {
-  emit('assets', 'cards');
+  // 2026-10-26 修：原先是 emit('assets', 'cards') —— 父层只监听 @open-assets，
+  // 这个事件名从未有人接，「设置卡面」在主页是死按钮（点了什么都不发生）。
+  // 'cards' 由 AssetsHubPanel.normalizeInitialTab 兼容映射到「装扮」tab（:998-1000）。
+  emit('open-assets', 'cards');
 };
 
 const profileBio = computed(() => {
@@ -783,13 +768,6 @@ onMounted(() => {
     bioHasOverflow.value = bioRef.value.scrollHeight > bioRef.value.clientHeight;
   }
 });
-
-const formatPoints = (points) => {
-  if (!points || points === 0) return '0';
-  if (points >= 10000) return (points / 10000).toFixed(1) + 'w';
-  if (points >= 1000) return (points / 1000).toFixed(1) + 'k';
-  return String(points);
-};
 
 const normalizeProfileText = (value, fallback = '') => {
   const safeValue = String(value || '').trim();
@@ -831,41 +809,60 @@ const getProfilePostTitle = (post = {}) => {
   return normalizeProfileText(post.title, '无标题');
 };
 
-const getProfilePostSummary = (post = {}) => {
-  const clip = (text) => (text.length > 46 ? `${text.slice(0, 46)}...` : text);
-  // 转发帖：小字摘要展示对方的帖子内容（带作者标记）。
-  // 纯标题原帖剥掉【】后正文为空，回退用其标题；原帖不可见时不重复转发文字。
-  if (post.post_kind === 'repost') {
-    const quoted = getQuotedPost(post);
-    const rawQuoted = normalizeProfileText(quoted?.body || quoted?.content, '');
-    const stripped = rawQuoted.replace(/【.*?】\n?/, '').trim();
-    const quotedTitle =
-      normalizeProfileText(quoted?.title, '') || (rawQuoted.match(/【(.*?)】/)?.[1] ?? '');
-    const quotedBody = stripped || quotedTitle;
-    const author = normalizeProfileText(quoted?.author_username, '');
-    if (quotedBody) return clip(`${author ? `@${author}：` : ''}${quotedBody}`);
-    const own = normalizeProfileText(post.body || post.content, '');
-    return own ? '🔁 转发的帖子' : '转发动态';
-  }
-  const body = normalizeProfileText(post.body || post.content, '');
-  return body ? clip(body) : '暂无正文';
+// 2026-10-26：作品卡不显示摘要（图片卡的信息由封面承担），**纯文字帖例外** ——
+// 只有标题的无图卡比图片卡矮一半，在四列纵向流里会露出一块空洞。
+// 摘录截到 90 字（CSS 再按 3 行裁切），只服务无图卡，见模板里的 v-if。
+const postExcerpt = (post = {}) => {
+  const text = normalizeProfileText(post.content || post.body, '');
+  if (!text) return '';
+  return text.length > 90 ? `${text.slice(0, 90)}…` : text;
 };
 
 const getProfilePostCover = (post = {}) => {
   const images = Array.isArray(post.images) ? post.images : [];
   const firstImage = images[0] || null;
+  // 2026-10-26：images 可能是「字符串数组」（老数据 / 详情页写回的形态），
+  // 只读 firstImage.url 会得到 undefined ⇒ 封面静默丢失。两种形态都要认。
   const imageCover = String(
-    firstImage?.url || firstImage?.thumbUrl || firstImage?.originalUrl || '',
+    typeof firstImage === 'string'
+      ? firstImage
+      : firstImage?.url || firstImage?.thumbUrl || firstImage?.originalUrl || '',
   ).trim();
   if (imageCover) return imageCover;
+  // 老数据的 @/assets 引用要先解析，否则 <img src="@/assets/..."> 必裂
   const ownCover = String(post.cover_image_url || '').trim();
-  if (ownCover) return ownCover;
+  if (ownCover) return resolveStoredCoverUrl(ownCover) || ownCover;
   // 转发帖本身无图：借用被引用原帖的封面（老数据 @/assets 引用先解析）
   if (post.post_kind === 'repost') {
     const quotedCover = String(getQuotedPost(post)?.cover_image_url || '').trim();
     if (quotedCover) return resolveStoredCoverUrl(quotedCover) || quotedCover;
   }
   return '';
+};
+
+/* 封面加载失败兜底（2026-10-26）
+   症状：作品卡左上角一个破图图标 + 一大块占位空白（因为 aspect-ratio 已经把高度撑开）。
+   根因是 URL 本身失效（云端图被删 / CDN 域名不可达 / 旧路径），前端拿不到资源。
+   处理：失败的 URL 进 brokenCovers，取值函数立刻返回空 ⇒ 卡片当轮退回纯文字排版。
+   Set 存 URL 而不是卡片 id：同一条坏链在多张卡之间也能一次记住。 */
+const brokenCovers = reactive(new Set());
+const markCoverBroken = (url) => {
+  if (url) brokenCovers.add(url);
+};
+const postCover = (post) => {
+  const url = getProfilePostCover(post);
+  return url && !brokenCovers.has(url) ? url : '';
+};
+const noteCover = (card = {}) => {
+  const url = resolveDbCardImage(card.coverImageUrl) || '';
+  return url && !brokenCovers.has(url) ? url : '';
+};
+
+/** 多图张数（2026-10-26）：兼容 images 是「对象数组」与「字符串数组」两种存量形态。 */
+const postImageCount = (post = {}) => {
+  const images = Array.isArray(post.images) ? post.images : [];
+  if (images.length) return images.length;
+  return Number(post.image_count || 0) || 0;
 };
 
 const formatProfilePostDate = (post = {}) => {
@@ -884,10 +881,6 @@ const getReplySummary = (reply = {}) => {
   const content = normalizeProfileText(reply.content, '暂无回复内容');
   return content.length > 80 ? `${content.slice(0, 80)}...` : content;
 };
-const getDraftSummary = (draft = {}) => {
-  const content = normalizeProfileText(draft.content, '尚未填写正文');
-  return content.length > 72 ? `${content.slice(0, 72)}...` : content;
-};
 
 const loadReplies = async () => {
   const username = String(props.profile.username || '').trim();
@@ -900,37 +893,6 @@ const loadReplies = async () => {
   repliesLoading.value = false;
 };
 
-const readDrafts = () => {
-  const userId = String(props.profile.id || 'guest').trim() || 'guest';
-  const keys = [`boh_forum_post_draft_${userId}`, `boh_forum_post_draft_${userId}_versions`];
-  const collected = [];
-  keys.forEach((key) => {
-    try {
-      const parsed = JSON.parse(
-        localStorage.getItem(key) || (key.endsWith('_versions') ? '[]' : 'null'),
-      );
-      const rows = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
-      rows.forEach((draft) => {
-        if (!draft || (!String(draft.title || '').trim() && !String(draft.content || '').trim()))
-          return;
-        collected.push({ ...draft, savedAt: Number(draft.savedAt || Date.now()) });
-      });
-    } catch {
-      // Ignore malformed legacy drafts.
-    }
-  });
-  const unique = new Map();
-  collected
-    .sort((a, b) => b.savedAt - a.savedAt)
-    .forEach((draft) => unique.set(draft.savedAt, draft));
-  drafts.value = [...unique.values()].slice(0, 10);
-  draftsLoaded.value = true;
-};
-
-const handleDraftStorage = (event) => {
-  if (String(event.key || '').startsWith('boh_forum_post_draft_')) readDrafts();
-};
-
 watch(
   profileId,
   () => {
@@ -938,29 +900,48 @@ watch(
     repliesLoaded.value = false;
     repliesLoading.value = false;
     if (profileId.value) void loadReplies();
-    readDrafts();
   },
   { immediate: true },
 );
 
 watch(activeContentTab, (tab) => {
+  // 同步回父层：受控 prop 的值必须跟着实际 tab 走，否则「切走再从此入口进」不触发 watch
+  emit('content-tab-change', tab);
   if (tab === 'replies' && !repliesLoading.value && !repliesLoaded.value) {
     void loadReplies();
   }
 });
 
-onMounted(() => window.addEventListener('storage', handleDraftStorage));
-onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
+/** 父层请求切 tab（旧深链 ?view=impressions / 其他入口）：单向驱动，不回声 */
+watch(
+  () => props.requestedContentTab,
+  (tab) => {
+    if (!tab || tab === activeContentTab.value) return;
+    activeContentTab.value = tab;
+  },
+);
 </script>
 
 <style scoped>
 .profile-home-shell {
-  width: min(100%, 980px);
+  /* 2026-10-26 横屏全宽：不再压在 980px ——
+     参考产品的个人主页是「内容区吃满可用宽度」，980 在 1440 上会留出两条大空白。 */
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
   padding: 0 0 calc(var(--userspace-bottom-nav-offset, 80px) + 28px);
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* 横屏（≥768）单独顶部栏位（2026-10-26 用户要求）：
+   内容从导航岛下方开始，不与岛重叠 —— 与竖屏「封面贴顶、岛浮在上面」相反。
+   两种取向并存是有意的：竖屏靠沉浸感，横屏靠可读性与左右分栏。 */
+@media (min-width: 768px) {
+  .profile-home-shell {
+    padding-top: calc(var(--userspace-nav-h, 78px) + 12px);
+  }
 }
 
 @media (max-width: 767px) {
@@ -984,12 +965,18 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   .profile-home-shell > .profile-hero-panel,
   .profile-home-shell > .profile-activity-heatmap,
   .profile-home-shell > .profile-points-card-section,
-  .profile-home-shell > .profile-service-panel,
   .profile-home-shell > .profile-content-panel {
     border-radius: 0;
     border-left-width: 0;
     border-right-width: 0;
     box-shadow: none;
+  }
+
+  /* 顶部贴顶（2026-10-26 用户要求）：不再给导航岛让出一条空白带 ——
+     封面背景从 y=0 起铺、导航岛浮在它上面。上边框因此也要去掉，
+     否则页顶会留一条 1px 的线，反而把「压在上面」的观感破坏掉。 */
+  .profile-home-shell > .profile-hero-panel {
+    border-top-width: 0;
   }
 
   /* 父容器 padding 归零后，hero 的负边距会把它推出视口 —— 显式归零。 */
@@ -998,14 +985,16 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
     margin-right: 0;
   }
 
-  /* ── 封面：120 → 176px 换沉浸感；头像叠压加深 ─────────────── */
+  /* ── 封面：200px + 导航岛高度（2026-10-26 顶部贴顶 + 多露背景）───────────
+     封面从页顶 y=0 铺起，导航岛压在它上面；多出来的 nav-h 让头像与名字
+     落回岛下方，不会真的被盖住。--userspace-nav-h 由宿主 ResizeObserver 实测写入。 */
   .profile-home-shell .profile-cover-band {
-    height: 176px;
+    height: calc(200px + var(--userspace-nav-h, 78px));
   }
 
   .profile-home-shell .profile-hero-body {
     padding: 0 16px 16px;
-    margin-top: -34px;
+    margin-top: -28px;
     gap: 14px;
   }
 
@@ -1025,58 +1014,56 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
     align-items: stretch;
   }
 
-  /* 编辑资料：绝对定位小胶囊 → 通栏主动作按钮。
-     要同时压掉三条既有约束，否则按钮永远只有 140px：
-       · responsive-integrations.css 的 `max-width: 140px`
-       · 基础规则的 `align-self: flex-start`
+  /* 编辑资料（2026-10-26 竖屏缩小）：不再是通栏主动作按钮，回到小胶囊 ——
+     通栏黑块是旧版最重的视觉元素，主角应该是头像和昵称。
+     要同时压掉三条既有约束，否则按钮永远只有 140px 或被迫全宽：
+       · responsive-integrations.css 的 `max-width: 140px`（这里显式 max-width: none）
+       · 基础规则的 `align-self: flex-start`（保持，让它左对齐不拉伸）
        · 基础 `.profile-hero-copy` 是 flex row（已在上方改 column） */
   .profile-home-shell .profile-edit-btn {
     position: static;
-    width: 100%;
+    width: auto;
     max-width: none;
-    align-self: stretch;
-    margin-top: 14px;
-    min-height: 40px;
-    border-radius: 12px;
+    align-self: flex-start;
+    margin-top: 10px;
+    min-height: 30px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
     box-shadow: none;
   }
 
-  /* ── 统计行：`发帖 · 积分 · 粉丝 · 关注` → 4 等分通栏 + 竖分隔线 ── */
+  /* ── 统计行（2026-10-26 纯数据流）：一行无分隔的纯文本，不要分割线、不要圆点、
+        不要等分格子。数字加粗、标签灰、彼此紧邻 —— 与参考产品的数据行一致。 */
   .profile-home-shell .profile-hero-stats {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    margin: 0;
-    padding: 0;
-    border-top: 1px solid var(--stroke);
-  }
-
-  .profile-home-shell .profile-hero-stats .stat-dot {
-    display: none;
-  }
-
-  .profile-home-shell .profile-hero-stats .stat-chip {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    min-height: 60px;
-    padding: 10px 4px;
-    border-left: 1px solid var(--stroke);
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin: 0;
+    padding: 10px 0 0;
+    border-top: 0;
   }
 
-  .profile-home-shell .profile-hero-stats .stat-chip:first-child {
-    border-left: 0;
+  .profile-home-shell .profile-hero-stats .stat-text {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
   }
 
-  .profile-home-shell .profile-hero-stats .stat-chip-num {
-    font-size: 17px;
-    font-weight: 900;
-  }
-
-  .profile-home-shell .profile-hero-stats .stat-chip-label {
-    font-size: 11px;
+  .profile-home-shell .profile-hero-stats .stat-text-num {
+    font-size: 16px;
     font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .profile-home-shell .profile-hero-stats .stat-text-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
   }
 
   /* 骨架期只有一个 span，让它横跨 4 格，避免加载完成时行高跳变 */
@@ -1089,25 +1076,13 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
     max-width: none;
   }
 
-  /* ── 内容列表：圆角卡片流 → 通栏分隔线列表 ─────────────────── */
-  .profile-home-shell .profile-post-grid {
-    gap: 0;
-    padding-inline: 0;
-  }
-
-  .profile-home-shell .profile-post-card {
-    border-radius: 0;
-    border-left-width: 0;
-    border-right-width: 0;
-    border-bottom: 1px solid var(--stroke);
-  }
+  /* ── 内容列表：2026-10-26 一度改成「通栏分隔线列表」（gap:0 / 无边距 / 每张卡一条下边框），
+        当天下班前定稿为**四列错位图墙**，那三条随之作废 —— 留着会压过下面的网格定义
+        （这两条带 .profile-home-shell 前缀，特异性 0,2,0 > 网格块的 0,1,0，
+         表现为「四列完全贴在一起、还没有左右边距」）。网格几何见文件末尾的竖屏块。 */
 
   .profile-home-shell .profile-post-card:hover {
     box-shadow: none;
-  }
-
-  .profile-home-shell .profile-post-card:last-child {
-    border-bottom: 0;
   }
 }
 
@@ -1366,26 +1341,30 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   right: 0;
   bottom: 0;
   margin-top: 14px;
-  min-height: 38px;
-  padding: 0 18px;
-  border: 0;
+  min-height: 34px;
+  padding: 0 16px;
+  /* 2026-10-26（参考小红书的减重）：原来是 #1d1d1f 实心黑底 + 投影，
+     一块纯黑 pill 成了整页最重的色块，压过了昵称与内容本身。
+     改成描边次要按钮：入口不变、位置不变，只是不再抢视觉重心。 */
+  border: 1px solid var(--stroke);
   border-radius: 999px;
-  background: #1d1d1f;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 800;
+  background: var(--surface-2, rgba(29, 29, 31, 0.05));
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  box-shadow: none;
   transition:
     transform 160ms var(--ease-out),
-    box-shadow 180ms var(--ease-out),
-    background-color 180ms ease;
+    background-color 180ms ease,
+    border-color 180ms ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .profile-edit-btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18);
+    background: var(--surface-3, rgba(29, 29, 31, 0.09));
+    border-color: var(--stroke-strong, var(--stroke));
   }
 }
 
@@ -1398,97 +1377,8 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   padding-top: 18px;
 }
 
-.profile-service-panel {
-  overflow: hidden;
-  border: 1px solid var(--stroke);
-  border-radius: 20px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) 60ms both;
-}
-
-.profile-service-row {
-  width: 100%;
-  min-height: 52px;
-  padding: 8px 16px;
-  border: 0;
-  background: transparent;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.16s ease;
-}
-
-.profile-service-row:hover {
-  background: rgba(15, 23, 42, 0.035);
-}
-
-.profile-service-row:active {
-  background: rgba(15, 23, 42, 0.06);
-}
-
-.profile-service-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-}
-
-.profile-service-icon svg {
-  width: 17px;
-  height: 17px;
-}
-
-.profile-service-body {
-  min-width: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 2px;
-  text-align: left;
-}
-
-.profile-service-body strong {
-  font-size: 14px;
-  font-weight: 900;
-  color: var(--text-primary);
-  white-space: nowrap;
-}
-
-.profile-service-hint {
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 650;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-service-meter {
-  width: 60px;
-  height: 5px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.08);
-  overflow: hidden;
-  flex: 0 0 auto;
-}
-
-.profile-service-meter span {
-  display: block;
-  height: 100%;
-  min-width: 5px;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #14b8a6, #2563eb);
-  transition: width 280ms var(--ease-out);
-}
+/* 2026-10-26：原「服务」段（Cloud+ / 摄影集两行）已删除 —— 摄影集并入资产卡第二行，
+   Cloud+ 由底栏「图库」席与设置页承担。对应的 .profile-service* 样式整块移除。 */
 
 .profile-section-heading {
   display: flex;
@@ -1530,50 +1420,67 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) 120ms both;
 }
 
+/* 作品网格（2026-10-26 参考个人主页的双列/多列）
+   桌面：auto-fill 196px（980 宽容器约 4 列）；竖屏：固定 2 列，gap 收到 10px。
+   封面统一 3:4 竖向 —— 图片是主体，标题只占两行。 */
 .profile-post-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 16px;
+  /* 2026-10-26：横屏也要内边距 —— 之前卡片贴到内容区边缘，
+     与上方页签、下方「加载更多」的缩进不一致，看着像溢出。 */
+  padding-inline: 20px;
 }
 
 @media (max-width: 767px) {
+  /* 竖屏单列（2026-10-26 定稿）。四列是**横屏**的要求 —— 竖屏保持单列多次确认过：
+     双列/四列在 390 宽下每格只剩 87px 宽，标题必被截成两字加省略号。 */
   .profile-post-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-    padding-inline: 4px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 16px;
+    /* 24px：单列时图片很容易「通栏糊满整屏」，收进来才有卡片感 */
+    padding-inline: 24px;
   }
 
   .profile-post-copy {
-    padding: 10px;
+    padding: 8px 2px 0;
   }
 
   .profile-post-copy h3 {
     font-size: 14px;
   }
 
-  .profile-post-cover {
-    min-height: 120px;
-  }
-}
-
-@media (max-width: 767px) and (orientation: portrait) {
-  .profile-post-grid {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    padding-inline: 0;
+  /* 竖屏页签：**不吸顶**（2026-10-26 撤回了当天上午的 sticky）。
+     实测问题：sticky 条在滚动时把上下两张卡切成两半，条带两侧还露出卡片边角，
+     看起来像布局错位。页签回到普通流，与内容一起滚动。左内边距与网格 24px 对齐。 */
+  .profile-home-shell .profile-content-tabs {
+    position: static;
+    margin: 0 0 10px;
+    padding: 8px 24px 10px;
+    background: transparent;
   }
 
-  .profile-post-cover {
-    aspect-ratio: 16 / 10;
+  /* 单列封面：横向 16:10 + 限高 220px（390 屏下 3:4 竖图会占掉大半屏）。
+     ⚠️ 必须带 .profile-home-shell 前缀：基础 .profile-post-cover 在本文件**靠后**，
+     scoped 后同特异性 ⇒ 源序在后的会赢（这条被压掉过一次）。 */
+  .profile-home-shell .profile-post-cover {
     min-height: 0;
+    max-height: 220px;
+    aspect-ratio: 16 / 10;
   }
 }
 
 .profile-load-more-wrap {
+  /* 2026-10-26：两处都必须跨列 —— 它在 .profile-post-grid（grid）里是**一个单元格**，
+     只写 justify-content: center 会让按钮在那个格里居中（等于靠左偏一点），
+     看起来就是「加载更多不居中」。 */
+  grid-column: 1 / -1;
   column-span: all;
   display: flex;
   justify-content: center;
-  padding: 16px 0 8px;
+  width: 100%;
+  padding: 18px 0 10px;
 }
 
 .profile-load-more-btn {
@@ -1605,23 +1512,17 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   width: 100%;
   margin: 0;
   overflow: hidden;
-  border: 1px solid var(--stroke);
-  border-radius: 14px;
-  /* ⚠️ 底色必须走 token，不能写死 #ffffff。
-     这一块是 scoped 的（[data-v-*] 让特异性 +1），会**压过**全局
-     `.user-space-page[data-theme='dark'] .profile-post-card` 那条暗色覆盖 ——
-     2026-10-19 用户报障「暗色下卡片还是白的、白底白字看不见」就是这里：
-     底色写死白，而标题/摘要用的是 --text-primary/--text-secondary（暗色下接近纯白）。
-     用 --surface-elevated 而不是 --surface：外层 .profile-content-panel 已经是 --surface，
-     同色会让卡片在暗色下糊进面板；亮色两者都是 #ffffff ⇒ 视觉零变化。
-     ⚠️ 不要再给暗色单写一条覆盖 —— scoped 特异性同样会让它需要 !important，
-        而 tokens 已经有唯一真源。 */
-  background: var(--surface-elevated);
+  /* 2026-10-26（极简 / 参考个人主页）：卡片壳退场 —— 不再有描边、圆角容器与投影，
+     版权归属交给封面自己的圆角。文字直接落在页面底色上。
+     这样整页只剩「图 + 两行字」两件事，也和「整页无卡片容器」的口径一致。
+     ⚠️ 底色仍保留（--surface-elevated）—— 无图文字的卡片需要有底，否则
+        暗色下标题会浮在页面底色上、与相邻卡片糊在一起。 */
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
   transform: none;
-  transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease;
+  transition: opacity 0.16s ease;
   animation: profile-post-card-in 260ms ease-out both;
 }
 
@@ -1636,13 +1537,26 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   }
 }
 
-.profile-post-card:hover {
-  border-color: rgba(15, 23, 42, 0.12);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.11);
+/* 2026-10-26：作品卡 hover 效果**整体移除**（用户定稿）。
+   试过两版都不对：整卡 opacity（卡片无壳后是一个劣质方块闪动）、
+   封面 img 缩放（大图在移动端本来就靠手势，hover 没有意义且会抖）。
+   作品卡只保留 cursor: pointer。
+   ⚠️ 但**光删本文件的 hover 不够**：profile-base.css 里还留着卡片壳时代的
+   `.profile-post-card:hover { box-shadow; transform: translateY(-2px) }`，
+   而本页的卡片壳已经退场（border:0 / background:transparent / border-radius:0）——
+   阴影画在一个没有圆角的透明方框上，就是横屏看到的那块「很丑的矩形」
+   （竖屏之所以没有，只是竖屏媒体块里顺带压了 box-shadow）。
+   这条必须与全局规则对撞：scoped 后特异性 0,4,0 > 全局 0,2,0。 */
+.profile-home-shell .profile-post-card:hover {
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
 }
 
 .profile-post-card.text-only {
   min-height: auto;
+  background: var(--surface-elevated);
+  border-radius: 14px;
 }
 
 .profile-post-card.text-only .profile-post-copy {
@@ -1662,7 +1576,10 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 
 .profile-post-cover {
   position: relative;
-  aspect-ratio: 4 / 5;
+  /* 3:4 竖向封面（2026-10-26）：图片是卡片主体，标题只占两行。
+     圆角搬到这里 —— 卡片壳已去掉，视觉边界由封面自身承担。 */
+  aspect-ratio: 3 / 4;
+  border-radius: 12px;
   background: #eef2f7;
   display: flex;
   align-items: center;
@@ -1671,6 +1588,42 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   font-size: 42px;
   font-weight: 900;
   overflow: hidden;
+}
+
+/* 多图卡片（2026-10-26）：右下偏移出两层「纸边」，看起来像压着好几张图。
+   用 box-shadow 而不是真实图层：列表里复制缩略图不值，视觉暗示够了。
+   同时留出 6px 右/下内边距，避免叠层被相邻卡片盖住。 */
+.profile-post-cover.is-multi {
+  margin-right: 6px;
+  margin-bottom: 6px;
+  box-shadow:
+    3px 3px 0 0 rgba(15, 23, 42, 0.1),
+    3px 3px 0 1px var(--surface-elevated, #fff),
+    6px 6px 0 0 rgba(15, 23, 42, 0.05),
+    6px 6px 0 1px var(--surface-elevated, #fff);
+}
+
+.profile-post-multi-count {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.42);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.profile-post-multi-count svg {
+  width: 11px;
+  height: 11px;
 }
 
 .profile-post-cover img {
@@ -1689,32 +1642,39 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 }
 
 .profile-post-copy {
-  padding: 12px;
+  padding: 8px 2px 0;
 }
 
+/* 标题两行截断（2026-10-26）：参考产品的卡片标题最多两行，超出省略 —— 
+   卡片高度靠封面统一，文字区不再是「摘要 + 元信息」四行。 */
 .profile-post-copy h3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   margin: 0;
   color: var(--text-primary);
-  font-size: 15px;
-  line-height: 1.35;
-  font-weight: 800;
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
 }
 
 .profile-post-copy p {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.45;
 }
 
 .profile-post-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--text-tertiary, #8a8a8a);
+  font-size: 11.5px;
+  font-weight: 500;
 }
 
 .profile-content-empty {
@@ -1758,17 +1718,13 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   background: linear-gradient(135deg, rgba(49, 46, 129, 0.45), rgba(24, 24, 27, 0.92));
 }
 
-/* 最终响应式覆盖：避免竖屏图片重新回到高纵向比例 */
-@media (max-width: 767px) and (orientation: portrait) {
-  .profile-post-cover,
-  .profile-post-card:nth-child(3n + 1) .profile-post-cover,
-  .profile-post-card:nth-child(4n + 2) .profile-post-cover,
-  .profile-post-card:nth-child(5n + 3) .profile-post-cover {
-    aspect-ratio: 3 / 2;
-    min-height: 0;
-    max-height: 240px;
-  }
-}
+/* 封面比例的分工（2026-10-26 收口）：
+   · 竖屏（≤767px，单列）→ 16:10 + 限高 220px，声明在文件上方「竖屏单列」那块；
+   · 横屏 → 3:2（下面这条 `orientation: landscape`），四列墙上 200~280px 的格子
+     配 3:2 的比例最整齐。
+   原先这里还有一条 `@media (max-width:767px) and (orientation:portrait)` 把所有封面
+   压成 3:2 —— 那是单列时代的规则，会和上面竖屏那块打架（同特异性、源序在后就赢），已删除。
+   ⚠️ 竖屏的任何封面覆盖都要带 `.profile-home-shell` 前缀，否则会被本文件靠后的基础规则压掉。 */
 
 @media (orientation: landscape) {
   .profile-points-card-section {
@@ -1786,12 +1742,15 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
   }
 }
 
-/* 宽屏：积分卡与服务并排，内容区继续占满整行 */
+/* 宽屏：活跃轨迹与积分卡并排，内容区继续占满整行 */
 @media (min-width: 768px) and (orientation: landscape) {
   .profile-home-shell {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
+    /* 2026-10-26：从 start 改 stretch —— 用 start 时两列各按自身内容高度，
+       活跃轨迹（内容少）比积分卡矮一截，底边参差不齐。stretch 让两卡等高，
+       热力图内部靠 heatmap-foot 的 margin-top:auto 把图例压到底部（见组件样式）。 */
+    align-items: stretch;
     gap: 18px;
   }
 
@@ -1800,12 +1759,85 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
     grid-column: 1 / -1;
   }
 
-  .profile-home-shell > .profile-points-card-section,
-  .profile-home-shell > .profile-service-panel {
+  /* 两列内的卡片吃满行高，底边才能真的对齐 */
+  .profile-home-shell > .profile-activity-heatmap,
+  .profile-home-shell > .profile-points-card-section {
+    height: 100%;
+  }
+
+  /* 2026-10-26：印象摘要行与「服务」段已删除，资产卡是两行通栏（.is-inline），
+     所以只剩积分卡与内容面板需要在桌面双栏里控制占位。 */
+  .profile-home-shell > .profile-points-card-section {
     width: 100%;
     max-width: none;
     align-self: stretch;
     box-sizing: border-box;
+  }
+
+  /* 横屏作品墙：四列，**按行读**（2026-10-26 定稿）。
+     ⚠️ 曾试过 CSS columns 的纵向流（每列从上往下堆，短卡后面立刻接下一张）——
+        洞确实没了，但日期顺序变成「先向下、再下一列」，用户明确说横着看更舒服 ⇒ 回退。
+     现在用 grid，代价是「同一行里最矮的那张下方会留白」，用下面 .text-only 的
+     `align-self: stretch` 补：纯文字卡撑满整行高度，白卡正好填住那块洞，
+     行内仍是第 1/2/3/4 条，日期顺序从左到右。
+     · 4 列；列距 14 / 行距 8（18→12→8 分三步收的）；
+     · 错位（4n+2/3/4 = 14/28/8）保留：四列等高会像表格，轻微参差才有瀑布感；
+     ⚠️ `align-items: start` 必须写：默认 stretch 会把 margin-top 的错位吃掉。 */
+  .profile-home-shell .profile-post-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    gap: 8px 14px;
+  }
+
+  .profile-post-card:nth-child(4n + 2) {
+    margin-top: 14px;
+  }
+
+  .profile-post-card:nth-child(4n + 3) {
+    margin-top: 28px;
+  }
+
+  .profile-post-card:nth-child(4n + 4) {
+    margin-top: 8px;
+  }
+
+  /* 纯文字卡：标题 + 三行正文 + 元信息贴底，卡片撑满整行高度。
+     ① 撑满（align-self: stretch）—— 不撑的话它比图片卡矮 50~100px，
+        同一行下方就是一块空洞，后面的图也顶不上来（grid 的行高由最高的那张决定）；
+     ② 元信息 margin-top: auto —— 文字少时把「10-26 / 12赞 / 3评」压到卡底，
+        与相邻图片卡的元信息大致同一水平线，看起来是一排而不是一堆。 */
+  .profile-home-shell .profile-post-card.text-only {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .profile-home-shell .profile-post-card.text-only .profile-post-copy {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+  }
+
+  .profile-home-shell .profile-post-card.text-only .profile-post-copy h3 {
+    font-size: 15px;
+  }
+
+  .profile-home-shell .profile-post-card.text-only .profile-post-copy p {
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .profile-home-shell .profile-post-card.text-only .profile-post-meta {
+    margin-top: auto;
+    padding-top: 8px;
+  }
+
+  /* 页签左内边距与作品墙（20px）对齐：之前页签贴内容区左缘、墙缩进 20px，
+     滚动时看起来像没对齐。 */
+  .profile-home-shell .profile-content-tabs {
+    padding-inline: 20px;
   }
 }
 
@@ -1860,7 +1892,6 @@ onUnmounted(() => window.removeEventListener('storage', handleDraftStorage));
 
 @media (prefers-reduced-motion: reduce) {
   .profile-hero-panel,
-  .profile-service-panel,
   .profile-content-panel {
     animation-duration: 1ms;
     animation-delay: 0ms;

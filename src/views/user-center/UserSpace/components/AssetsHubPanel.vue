@@ -1,899 +1,580 @@
 <template>
-  <div class="profile-subpage-shell">
-    <UserCenterPageHeader
-      title="资产中心"
-      back-label="返回我的"
-      max-width="1200px"
-      :show-back="showBack"
-      @back="$emit('back')"
-    />
+  <!-- ⚠️ 2026-10-26 重做：**七段页签全部删除**（概览/装扮/积分/订阅/订单/抽奖/赞助）。
+       判断依据：七个对象不在同一量级 —— 其中四个（概览、积分管理、抽奖、赞助）
+       只是首页内容的重复入口，于是每个页签都填不满一屏，只能靠留白和装饰性标题撑高度。
+       现在是「一屏首页 + 三个二级页」，二级页在本页内切换、不跳路由。 -->
+  <div class="profile-subpage-shell ah-page">
+    <!-- 摘要条：全页唯一常驻信息（身份 + 会员状态 + 余额），点余额进明细。
+         原来的顶卡把「头像 + UID + 积分 + 七段页签」叠成一块，现在只留前三样。 -->
+    <header class="ah-summary">
+      <FramedAvatar
+        :src="avatarUrl"
+        :initial="displayInitial"
+        :size="40"
+        alt="头像"
+        :frame-url="avatarFrame.url"
+        :ring="avatarFrame.url ? '' : avatarFrame.ring"
+        :frame-scale="avatarFrame.scale || 0"
+      />
+      <div class="ah-summary-id">
+        <div class="ah-summary-name-row">
+          <span class="ah-summary-name">{{ displayName }}</span>
+          <span v-if="tierCode" class="tier-badge" :class="`tier-${tierCode}`">{{
+            tierDisplayName
+          }}</span>
+        </div>
+        <span class="ah-summary-meta">{{ summaryMetaText }}</span>
+      </div>
+      <button
+        type="button"
+        class="ah-summary-points"
+        aria-label="查看积分明细"
+        @click="openView('points')"
+      >
+        <span>积分</span>
+        <strong>{{ pointsDisplay }}</strong>
+        <ChevronRight :size="15" :stroke-width="2" aria-hidden="true" />
+      </button>
+    </header>
 
-    <div class="profile-subpage-body">
-      <nav class="ah-hub-card is-refract">
-        <!-- 折射级液态玻璃（覆盖层，同 BohComposer 口径）：inset:0 垫在内容之下、
-             pointer-events:none；自体 backdrop-filter/厚背景已撤（见 AssetsHubPanel.css 注释）。 -->
-        <BohGlassRefract class="ah-hub-refract" :radius="26" />
-        <div class="ah-top-row">
-          <div class="ah-user-left">
-            <FramedAvatar
-              :src="avatarUrl"
-              :initial="displayInitial"
-              :size="52"
-              alt="头像"
-              :frame-url="avatarFrame.url"
-              :ring="avatarFrame.url ? '' : avatarFrame.ring"
-              :frame-scale="avatarFrame.scale || 0"
-            />
-            <div class="ah-user-info">
-              <div class="ah-name-row">
-                <span class="ah-username">{{ displayName }}</span>
-                <span v-if="tierCode" class="tier-badge" :class="`tier-${tierCode}`">{{
-                  tierDisplayName
-                }}</span>
-              </div>
-              <span class="ah-uid">UID · {{ uidShort }}</span>
-            </div>
-          </div>
+    <!-- ═══ 首页 ═══ -->
+    <div v-if="view === 'home'" class="ah-home">
+      <section class="ah-panel ah-wallet" aria-label="积分余额">
+        <div class="ah-panel-head">
+          <span>积分余额</span>
+          <button type="button" class="ah-link-btn" @click="openView('points')">全部明细</button>
+        </div>
+        <div class="ah-wallet-value">{{ pointsDisplay }}</div>
+        <p class="ah-wallet-note">{{ walletNote }}</p>
+        <div class="ah-wallet-actions">
+          <button type="button" class="ah-btn is-primary" @click="isRechargeOpen = true">
+            充值积分
+          </button>
+          <button type="button" class="ah-btn" @click="goToShop">去商城兑换</button>
+        </div>
+        <div v-if="recentLedger.length" class="ah-wallet-recent">
+          <button
+            v-for="item in recentLedger"
+            :key="item.key"
+            type="button"
+            class="ah-wallet-row"
+            @click="openView('points')"
+          >
+            <span class="ah-wallet-row-title"
+              >{{ item.title }}<small v-if="item.remark">{{ item.remark }}</small></span
+            >
+            <span
+              class="ah-wallet-amount"
+              :class="{ negative: item.amount < 0, zero: item.amount === 0 }"
+              >{{ item.amount > 0 ? '+' : '' }}{{ item.amount }}</span
+            >
+          </button>
+        </div>
+      </section>
 
-          <!-- 积分常驻（2026-10-15）：原 v-if 在概览页隐藏 —— 概览反而看不到余额，
-               同页元素忽现忽隐；概览里的 PointsCard 是卡面展示，与顶栏余额不构成重复。 -->
-          <div class="ah-points-block">
-            <div class="ah-points-icon-wrap">
-              <Coins :size="18" :stroke-width="1.7" />
-            </div>
-            <div class="ah-points-meta">
-              <span class="ah-points-label">当前积分</span>
-              <span class="ah-points-value">{{ pointsDisplay }}</span>
-            </div>
-          </div>
+      <section class="ah-panel ah-member" aria-label="会员">
+        <div class="ah-panel-head">
+          <span>会员</span>
+          <button type="button" class="ah-link-btn" @click="togglePlans">
+            {{ planButtonText }}
+          </button>
+        </div>
+        <div class="ah-member-name">
+          {{ subscriptionDisplayName }}
+          <span class="ah-member-state" :class="{ 'is-free': !activeSubscription }">{{
+            activeSubscription ? '生效中' : '免费版'
+          }}</span>
+        </div>
+        <p class="ah-member-expiry">{{ subscriptionExpiryText }}</p>
+        <div class="ah-member-chips">
+          <span>Cloud+ {{ cloudImageLimit }} 张</span>
+          <span v-if="activeSubscription">{{
+            activeSubscription.billingCycle === 'yearly' ? '年度订阅' : '月度订阅'
+          }}</span>
+          <span v-if="annualGiftLabel">{{ annualGiftLabel }}</span>
         </div>
 
-        <SegmentTabs
-          class="ah-segment-tabs"
-          :sections="hubSections"
-          v-model="activeTabModel"
-          aria-label="资产中心分区"
-        />
-      </nav>
-
-      <Transition name="ah-panel" mode="out-in">
-        <section v-if="activeTab === 'overview'" key="overview" class="ah-section ah-overview">
-          <header class="ah-overview-heading">
-            <div>
-              <span>智能概览</span>
-              <h2>{{ overviewTitle }}</h2>
-              <p>{{ overviewSubtitle }}</p>
-            </div>
-            <span v-if="overviewLoading" class="ah-overview-updating">正在更新</span>
-            <button
-              v-else-if="overviewHasErrors"
-              type="button"
-              class="ah-overview-retry"
-              @click="retryOverviewIssues"
-            >
-              部分动态未更新
-            </button>
-          </header>
-
-          <div v-if="overviewLoading" class="ah-overview-skeleton" aria-hidden="true">
-            <div class="ah-skeleton ah-skeleton-focus">
-              <div class="ah-skeleton-icon"></div>
-              <div class="ah-skeleton-lines">
-                <div class="ah-skeleton-line w-24"></div>
-                <div class="ah-skeleton-line w-60"></div>
-                <div class="ah-skeleton-line w-80"></div>
-              </div>
-            </div>
-            <div class="ah-skeleton ah-skeleton-points-card is-centered"></div>
-            <div class="ah-skeleton ah-skeleton-timeline"></div>
+        <div v-if="pityStatus" class="ah-pity" :class="{ 'is-due': pityStatus.isDue }">
+          <div class="ah-pity-head">
+            <span>抽奖保底</span><strong>{{ pityProgressLabel }}</strong>
           </div>
-          <template v-else>
+          <div
+            v-if="pityStatus.eligible"
+            class="ah-pity-track"
+            role="progressbar"
+            aria-label="连续未中奖进度"
+            :aria-valuenow="pityStatus.consecutiveLosses"
+            :aria-valuemin="0"
+            :aria-valuemax="pityStatus.threshold"
+          >
+            <div class="ah-pity-fill" :style="{ width: `${pityProgressPercent}%` }"></div>
+          </div>
+          <p>{{ pityProgressDescription }}</p>
+        </div>
+      </section>
+
+      <!-- 方案对比不塞进会员卡：SubscriptionPlans 是整页组件（hero + 对比表），
+           半栏里会挤成一条。展开时独占一行，位置就贴在会员卡下面。 -->
+      <section v-if="showPlanComparison" class="ah-plans" aria-label="会员方案">
+        <SubscriptionPlans />
+      </section>
+
+      <section class="ah-panel ah-decor-card" aria-label="装扮">
+        <div class="ah-panel-head">
+          <span>装扮</span>
+          <button type="button" class="ah-link-btn" @click="openView('decor')">管理</button>
+        </div>
+        <div class="ah-decor-preview">
+          <FramedAvatar
+            :src="avatarUrl"
+            :initial="displayInitial"
+            :size="46"
+            alt="当前装扮"
+            :frame-url="avatarFrame.url"
+            :ring="avatarFrame.url ? '' : avatarFrame.ring"
+            :frame-scale="avatarFrame.scale || 0"
+          />
+          <div class="ah-decor-copy">
+            <strong>{{ frameStatusText }}</strong>
+            <span>积分卡面 · {{ skinLabel }}</span>
+          </div>
+          <button type="button" class="ah-btn" @click="openView('decor')">换装</button>
+        </div>
+      </section>
+
+      <section class="ah-panel ah-todo" aria-label="待办">
+        <div class="ah-panel-head">
+          <span>待办</span>
+          <span v-if="todoItems.length" class="ah-todo-count">{{ todoItems.length }}</span>
+        </div>
+        <div v-if="todoItems.length" class="ah-todo-list">
+          <button
+            v-for="item in todoItems"
+            :key="item.id"
+            type="button"
+            class="ah-todo-item"
+            @click="handleTodo(item)"
+          >
+            <span class="ah-todo-icon" :class="`tone-${item.tone}`">
+              <component :is="item.icon" :size="16" :stroke-width="1.8" aria-hidden="true" />
+            </span>
+            <span class="ah-todo-copy">
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.detail }}</small>
+            </span>
+            <ChevronRight :size="15" :stroke-width="2" aria-hidden="true" />
+          </button>
+        </div>
+        <p v-else class="ah-todo-empty">
+          <Check :size="15" :stroke-width="2.3" aria-hidden="true" /> 账户一切就绪，没有待处理事项
+        </p>
+      </section>
+
+      <!-- 两个外链入口（2026-10-26）：抽奖与赞助原先各占一个页签，实际都是「跳出去」的动作，
+           不值得和积分余额平级。收成一行文字。 -->
+      <nav class="ah-links" aria-label="更多入口">
+        <button type="button" @click="goToLotteries">
+          <span class="ah-links-label">
+            <Ticket :size="16" :stroke-width="1.8" aria-hidden="true" /> 社区抽奖
+          </span>
+          <span class="ah-links-side"
+            >去看看<ChevronRight :size="14" :stroke-width="2" aria-hidden="true"
+          /></span>
+        </button>
+        <button type="button" @click="$emit('sponsor')">
+          <span class="ah-links-label">
+            <Heart :size="16" :stroke-width="1.8" aria-hidden="true" /> 赞助方块之家
+          </span>
+          <span class="ah-links-side"
+            >支持社区<ChevronRight :size="14" :stroke-width="2" aria-hidden="true"
+          /></span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- ═══ 二级页（本页内切换，不跳路由） ═══ -->
+    <section v-else class="ah-subpage" :class="`is-${view}`">
+      <div class="ah-subpage-bar">
+        <button type="button" class="ah-back" @click="openView('home')">
+          <ChevronLeft :size="17" :stroke-width="2" aria-hidden="true" /> 资产
+        </button>
+        <span class="ah-subpage-title">{{ subpageTitle }}</span>
+        <button
+          v-if="view === 'orders'"
+          type="button"
+          class="ah-icon-command"
+          title="刷新礼物与订单"
+          aria-label="刷新礼物与订单"
+          @click="refreshFulfillment"
+        >
+          <RefreshCw :size="17" :stroke-width="2" aria-hidden="true" />
+        </button>
+      </div>
+
+      <!-- 装扮：头像框 + 积分卡面（原「装扮」页签内容，去掉自己的标题） -->
+      <div v-if="view === 'decor'" class="ah-decor">
+        <AvatarFrameGrid :avatar-url="avatarUrl" :tier-code="tierCode" @unlock="openPlans" />
+
+        <div class="ah-decor-subhead">
+          <h3>积分卡面</h3>
+          <p>选择空白卡、全员小猫主题，或上传自己的卡面。</p>
+        </div>
+        <div class="ah-cards-panel">
+          <PointsCard
+            :points="userPoints"
+            :username="displayName"
+            :tier-label="tierDisplayName || 'BOH'"
+            :skin="userInfo?.pointsCardSkin"
+            :image-url="userInfo?.pointsCardImageUrl"
+            show-sponsor-action
+            @sponsor="$emit('sponsor')"
+          />
+          <div class="ah-skin-grid" aria-label="积分卡皮肤">
             <button
               type="button"
-              class="ah-smart-focus"
-              :class="`tone-${primaryInsight.tone}`"
-              @click="handleSmartAction(primaryInsight.action)"
+              class="ah-skin-option"
+              :class="{ active: userInfo?.pointsCardSkin === 'blank' }"
+              @click="$emit('set-points-card-skin', 'blank')"
             >
-              <span class="ah-smart-focus-icon"
-                ><component
-                  :is="primaryInsight.icon"
-                  :size="22"
-                  :stroke-width="1.8"
-                  aria-hidden="true"
-              /></span>
-              <span class="ah-smart-focus-copy">
-                <span>{{ primaryInsight.kicker }}</span>
-                <strong>{{ primaryInsight.title }}</strong>
-                <small>{{ primaryInsight.detail }}</small>
-              </span>
-              <span class="ah-smart-focus-action">
-                {{ primaryInsight.actionLabel }}
-                <ChevronRight :size="17" :stroke-width="2" aria-hidden="true" />
-              </span>
+              <span class="ah-skin-preview is-blank"><Coins :size="18" :stroke-width="1.8" /></span
+              ><strong>空白卡</strong><small>默认样式</small>
             </button>
-
-            <div class="ah-overview-points-wrap">
-              <PointsCard
-                class="ah-overview-points-card"
-                :points="userPoints"
-                :username="displayName"
-                :tier-label="tierDisplayName || 'BOH'"
-                :skin="userInfo?.pointsCardSkin"
-                :image-url="userInfo?.pointsCardImageUrl"
-                interactive
-                :show-sponsor-action="false"
-                @click="activateTab('decor')"
-              />
-            </div>
-
-            <div class="ah-smart-columns ah-single-timeline">
-              <section class="ah-smart-section" aria-label="最近动态">
-                <div class="ah-smart-section-head">
-                  <div>
-                    <span>最近动态</span>
-                    <strong>刚刚发生</strong>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="查看积分明细"
-                    title="查看积分明细"
-                    @click="activateTab('points')"
-                  >
-                    <ChevronRight :size="17" :stroke-width="2" aria-hidden="true" />
-                  </button>
-                </div>
-                <div v-if="recentActivities.length" class="ah-smart-timeline">
-                  <button
-                    v-for="item in recentActivities"
-                    :key="item.id"
-                    type="button"
-                    class="ah-smart-activity"
-                    @click="handleSmartAction(item.action)"
-                  >
-                    <span class="ah-smart-activity-time">{{ item.timeLabel }}</span>
-                    <span class="ah-smart-activity-marker" :class="`tone-${item.tone}`"></span>
-                    <span class="ah-smart-activity-copy">
-                      <strong>{{ item.title }}</strong>
-                      <small>{{ item.detail }}</small>
-                    </span>
-                    <ChevronRight :size="15" :stroke-width="2" aria-hidden="true" />
-                  </button>
-                </div>
-                <div v-else class="ah-smart-quiet">暂时没有新的账户动态</div>
-              </section>
-
-              <section class="ah-smart-section" aria-label="接下来">
-                <div class="ah-smart-section-head">
-                  <div>
-                    <span>接下来</span>
-                    <strong>{{ upcomingItems.length ? '值得留意' : '无需处理' }}</strong>
-                  </div>
-                </div>
-                <div v-if="upcomingItems.length" class="ah-smart-next-list">
-                  <button
-                    v-for="item in upcomingItems"
-                    :key="item.id"
-                    type="button"
-                    class="ah-smart-next"
-                    :class="`tone-${item.tone}`"
-                    @click="handleSmartAction(item.action)"
-                  >
-                    <span class="ah-smart-next-icon"
-                      ><component :is="item.icon" :size="18" :stroke-width="1.8" aria-hidden="true"
-                    /></span>
-                    <span class="ah-smart-next-copy">
-                      <strong>{{ item.title }}</strong>
-                      <span>{{ item.detail }}</span>
-                    </span>
-                    <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
-                  </button>
-                </div>
-                <div v-else class="ah-smart-ready">
-                  <Check :size="18" :stroke-width="2.3" aria-hidden="true" />
-                  <div><strong>账户一切就绪</strong><span>没有即将到期或需要补充的信息</span></div>
-                </div>
-              </section>
-            </div>
-          </template>
-        </section>
-
-        <section
-          v-else-if="activeTab === 'points'"
-          key="points"
-          class="ah-section ah-points-section"
-        >
-          <template v-if="pointsView === 'actions'">
-            <header class="ah-points-heading">
-              <span>方块积分</span>
-              <h2>管理你的积分</h2>
-              <p>充值补充积分，或查看每一笔积分变动。</p>
-            </header>
-            <div class="ah-points-action-grid">
-              <button
-                type="button"
-                class="ah-points-action-card is-recharge"
-                @click="isRechargeOpen = true"
+            <button
+              type="button"
+              class="ah-skin-option is-cats-skin"
+              :class="{ active: pointsCardCatsUnlocked && userInfo?.pointsCardSkin === 'cats' }"
+              :disabled="isRedeemingPointsCardCats"
+              @click="handleCatsSkinClick"
+            >
+              <span class="ah-skin-preview is-cats"
+                ><img v-for="cat in catSkinPreviewAssets" :key="cat.id" :src="cat.src" alt=""
+              /></span>
+              <strong>全员小猫</strong
+              ><small>{{
+                isRedeemingPointsCardCats
+                  ? '兑换中'
+                  : pointsCardCatsUnlocked
+                    ? '已兑换'
+                    : '3 积分兑换'
+              }}</small>
+            </button>
+            <button
+              type="button"
+              class="ah-skin-option"
+              :disabled="isPointsCardPresetQuotaLoading || !canAddPointsCardPreset"
+              @click="$emit('upload-points-card')"
+            >
+              <span class="ah-skin-preview is-custom"
+                ><ImagePlus :size="18" :stroke-width="1.8" /></span
+              ><strong>添加卡面</strong>
+              <!-- 禁用必须给原因：满员时原样只写「上传并裁切」，用户不知道为什么点不动 -->
+              <small v-if="isPointsCardPresetQuotaLoading">检查额度…</small>
+              <small v-else-if="!canAddPointsCardPreset"
+                >{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} · 删除后可加</small
               >
-                <span class="ah-points-action-icon"
-                  ><Coins :size="23" :stroke-width="1.8" aria-hidden="true"
-                /></span>
-                <span class="ah-points-action-copy"
-                  ><strong>充值积分</strong><small>扫码联系管理员充值</small></span
+              <small v-else>上传并裁切</small>
+            </button>
+          </div>
+
+          <section class="ah-card-presets" aria-label="自定义卡面预设">
+            <div class="ah-card-presets-heading">
+              <span>自定义预设</span>
+              <small v-if="!isPointsCardPresetsLoading"
+                >{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} 张</small
+              >
+            </div>
+            <div v-if="isPointsCardPresetsLoading" class="ah-card-preset-grid" aria-hidden="true">
+              <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-preset"></div>
+            </div>
+            <div v-else-if="pointsCardPresets.length" class="ah-card-preset-grid">
+              <article
+                v-for="preset in pointsCardPresets"
+                :key="preset.id"
+                class="ah-card-preset"
+                :class="{
+                  active:
+                    userInfo?.pointsCardSkin === 'custom' &&
+                    userInfo?.pointsCardImageUrl === preset.imageUrl,
+                }"
+              >
+                <button
+                  type="button"
+                  class="ah-card-preset-select"
+                  :aria-label="'使用自定义卡面预设'"
+                  @click="$emit('select-points-card-preset', preset.id)"
                 >
-                <ChevronRight :size="19" :stroke-width="2" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                class="ah-points-action-card is-detail"
-                @click="openPointsDetail"
-              >
-                <span class="ah-points-action-icon"
-                  ><ScrollText :size="23" :stroke-width="1.8" aria-hidden="true"
-                /></span>
-                <span class="ah-points-action-copy"
-                  ><strong>积分获取明细</strong><small>查看签到、发放与兑换记录</small></span
+                  <img :src="pointsCardPresetThumb(preset)" alt="自定义卡面预设" loading="lazy" />
+                  <span>自定义卡面</span>
+                </button>
+                <button
+                  type="button"
+                  class="ah-card-preset-delete"
+                  aria-label="删除此自定义卡面预设"
+                  title="删除此预设"
+                  @click="$emit('delete-points-card-preset', preset.id)"
                 >
-                <ChevronRight :size="19" :stroke-width="2" aria-hidden="true" />
-              </button>
+                  <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
+                </button>
+              </article>
             </div>
-          </template>
+            <div v-else class="ah-card-presets-empty">暂无自定义预设</div>
+            <p v-if="!isPointsCardPresetsLoading" class="ah-card-presets-retention">
+              未启用的卡面超过 90 天会自动清理
+            </p>
+          </section>
+        </div>
+      </div>
 
-          <template v-else>
-            <header class="ah-points-detail-heading">
-              <button
-                type="button"
-                class="ah-points-back"
-                aria-label="返回积分管理"
-                @click="pointsView = 'actions'"
-              >
-                <ChevronRight :size="18" :stroke-width="2" aria-hidden="true" />
-              </button>
-              <div>
-                <span>积分记录</span>
-                <h2>积分获取明细</h2>
+      <!-- 订单与地址：原来的「订单」页签，去掉自己的页头（返回条已说明这是哪一页） -->
+      <div v-else-if="view === 'orders'" class="ah-fulfillment-section">
+        <article v-if="currentGift" class="ah-gift-card ah-current-gift-card">
+          <header class="ah-gift-header">
+            <span class="ah-gift-eyebrow"
+              ><Gift :size="14" :stroke-width="2" aria-hidden="true" />进行中的礼物</span
+            ><span class="ah-gift-header-date">更新于 {{ giftStatusDate }}</span>
+          </header>
+          <div class="ah-gift-overview">
+            <div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }">
+              <img
+                v-if="currentGift.gift_image"
+                :src="currentGift.gift_image"
+                :alt="currentGift.gift_content"
+                loading="lazy"
+              /><Gift v-else :size="30" :stroke-width="1.6" aria-hidden="true" />
+            </div>
+            <div class="ah-gift-headinfo">
+              <div class="ah-gift-headtop">
+                <h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3>
+                <span class="ah-gift-badge" :class="currentGift.gift_status">{{
+                  getGiftStatusLabel(currentGift.gift_status)
+                }}</span>
               </div>
-              <div class="ah-points-total">
-                <span>当前积分</span><strong>{{ pointsDisplay }}</strong>
+              <div class="ah-gift-headsub">
+                <span v-if="currentGift.gift_price" class="ah-gift-amount"
+                  >RMB {{ currentGift.gift_price }}</span
+                ><span v-if="currentGift.gift_no" class="ah-gift-history-no">{{
+                  currentGift.gift_no
+                }}</span>
               </div>
-            </header>
-            <div class="ah-points-filter" role="tablist" aria-label="积分明细时间筛选">
+            </div>
+          </div>
+          <div class="ah-gift-status-panel" :class="currentGift.gift_status">
+            <div class="ah-gift-status-icon">
+              <PackageCheck :size="19" :stroke-width="1.8" aria-hidden="true" />
+            </div>
+            <div class="ah-gift-status-copy">
+              <strong>{{ giftStatusHeadline }}</strong>
+              <p>{{ giftStatusDesc }}</p>
+            </div>
+          </div>
+        </article>
+
+        <section class="ah-fulfillment-records" aria-label="礼物与订单记录">
+          <header class="ah-fulfillment-records-head">
+            <div>
+              <span>记录</span>
+              <h3>礼物与订单记录</h3>
+            </div>
+            <div class="ah-record-filter" role="tablist" aria-label="记录筛选">
               <button
-                v-for="filter in pointsDetailFilters"
+                v-for="filter in fulfillmentFilters"
                 :key="filter.id"
                 type="button"
                 role="tab"
-                :aria-selected="pointsDetailFilter === filter.id"
-                :class="{ active: pointsDetailFilter === filter.id }"
-                @click="pointsDetailFilter = filter.id"
+                :aria-selected="recordFilter === filter.id"
+                :class="{ active: recordFilter === filter.id }"
+                @click="recordFilter = filter.id"
               >
                 {{ filter.label }}
               </button>
             </div>
-            <div v-if="ledgerLoading" class="ah-order-skeleton">
-              <div v-for="n in 4" :key="n" class="ah-skeleton-block" />
-            </div>
-            <div v-else-if="ledgerError" class="ah-empty-state">
-              <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
-              <h3>积分明细暂时无法加载</h3>
-              <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="retryLedger">
-                重试
-              </button>
-            </div>
-            <div v-else-if="ledger.length === 0" class="ah-empty-state">
-              <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
-              <h3>暂无积分明细</h3>
-              <p>周签到、管理员发放与商城订单都会记录在这里</p>
-            </div>
-            <div v-else-if="filteredLedger.length === 0" class="ah-empty-state">
-              <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
-              <h3>这个时间段暂无记录</h3>
-              <p>试试选择更长的时间范围</p>
-            </div>
-            <div v-else class="ah-ledger">
-              <section v-for="group in ledgerGroups" :key="group.label" class="ah-ledger-group">
-                <h2>{{ group.label }}</h2>
-                <div class="ah-ledger-list">
-                  <article v-for="item in group.items" :key="item.key" class="ah-ledger-item">
-                    <div class="ah-ledger-icon" :class="`tone-${item.tone}`">
-                      <component :is="item.icon" :size="17" :stroke-width="1.8" />
-                    </div>
-                    <div class="ah-ledger-main">
-                      <span class="ah-ledger-title">{{ item.title }}</span
-                      ><span v-if="item.remark" class="ah-ledger-remark">{{ item.remark }}</span>
-                    </div>
-                    <div class="ah-ledger-right">
-                      <span
-                        class="ah-ledger-amount"
-                        :class="{ negative: item.amount < 0, zero: item.amount === 0 }"
-                        >{{ item.amount >= 0 ? '+' : '' }}{{ item.amount }}</span
-                      ><span class="ah-ledger-date">{{ formatDate(item.time) }}</span>
-                    </div>
-                  </article>
-                </div>
-              </section>
-            </div>
-          </template>
-
-          <Transition name="ah-qr-modal"
-            ><div v-if="isRechargeOpen" class="ah-qr-overlay" @click.self="isRechargeOpen = false">
-              <section
-                class="ah-qr-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="recharge-points-title"
-              >
-                <button
-                  type="button"
-                  class="ah-qr-close"
-                  aria-label="关闭充值积分"
-                  @click="isRechargeOpen = false"
-                >
-                  <X :size="17" :stroke-width="2" aria-hidden="true" /></button
-                ><span class="ah-qr-kicker">充值积分</span>
-                <h2 id="recharge-points-title">扫码联系管理员</h2>
-                <p>请使用微信扫描收款码，备注你的 UID，管理员确认后将为你充值积分。</p>
-                <div class="ah-qr-frame">
-                  <img :src="sponsorQrImage" alt="积分充值收款二维码" class="ah-recharge-qr" />
-                </div>
-                <span class="ah-qr-uid">UID · {{ uidShort }}</span>
-              </section>
-            </div></Transition
-          >
-        </section>
-
-        <section v-else-if="activeTab === 'subscription'" key="subscription" class="ah-section">
-          <div v-if="subscriptionLoading" class="ah-order-skeleton">
-            <div class="ah-skeleton-block" />
-          </div>
-          <template v-else>
-            <article class="ah-membership-card" :class="{ 'is-free': !activeSubscription }">
-              <div class="ah-membership-card-top">
-                <span>当前会员</span>
-                <span class="ah-membership-status">{{
-                  activeSubscription ? '生效中' : '免费版'
-                }}</span>
-              </div>
-              <h2>{{ subscriptionDisplayName }}</h2>
-              <p>{{ subscriptionExpiryText }}</p>
-              <div class="ah-membership-meta">
-                <span>Cloud+ {{ cloudImageLimit }} 张</span>
-                <span>{{
-                  activeSubscription?.billingCycle === 'yearly'
-                    ? '年度订阅'
-                    : activeSubscription
-                      ? '月度订阅'
-                      : '基础额度'
-                }}</span>
-                <span v-if="annualGiftLabel">{{ annualGiftLabel }}</span>
-              </div>
-              <section
-                class="ah-pity-progress"
-                :class="{ 'is-due': pityStatus?.isDue, 'is-unavailable': !pityStatus?.eligible }"
-                aria-label="抽奖保底进度"
-              >
-                <div class="ah-pity-progress-head">
-                  <span>抽奖保底进度</span><strong>{{ pityProgressLabel }}</strong>
-                </div>
-                <div
-                  v-if="pityStatus?.eligible"
-                  class="ah-pity-progress-track"
-                  role="progressbar"
-                  aria-label="连续未中奖进度"
-                  :aria-valuenow="pityStatus.consecutiveLosses"
-                  :aria-valuemin="0"
-                  :aria-valuemax="pityStatus.threshold"
-                >
-                  <div
-                    class="ah-pity-progress-fill"
-                    :style="{ width: `${pityProgressPercent}%` }"
-                  ></div>
-                </div>
-                <p>{{ pityProgressDescription }}</p>
-              </section>
-              <button
-                type="button"
-                class="ah-shop-btn"
-                @click="showPlanComparison = !showPlanComparison"
-              >
-                {{
-                  showPlanComparison ? '收起方案' : activeSubscription ? '更改方案' : '选择会员方案'
-                }}
-                <ChevronRight :size="16" :stroke-width="2" aria-hidden="true" />
-              </button>
-            </article>
-            <SubscriptionPlans v-if="showPlanComparison" />
-          </template>
-        </section>
-
-        <section
-          v-else-if="activeTab === 'fulfillment'"
-          key="fulfillment"
-          class="ah-section ah-fulfillment-section"
-        >
-          <header class="ah-fulfillment-heading">
-            <div>
-              <span>服务</span>
-              <h2>订单</h2>
-              <p>礼物履约、商城兑换记录与收货地址都在这里。</p>
-            </div>
-            <button
-              type="button"
-              class="ah-icon-command"
-              title="刷新礼物与订单"
-              aria-label="刷新礼物与订单"
-              @click="refreshFulfillment"
-            >
-              <RefreshCw :size="17" :stroke-width="2" aria-hidden="true" />
-            </button>
           </header>
+          <div v-if="giftsLoading && ordersLoading" class="ah-order-skeleton">
+            <div v-for="n in 3" :key="n" class="ah-skeleton-block" />
+          </div>
+          <div v-else-if="visibleFulfillmentRecords.length" class="ah-fulfillment-record-list">
+            <article
+              v-for="record in visibleFulfillmentRecords"
+              :key="record.id"
+              class="ah-fulfillment-record"
+            >
+              <span class="ah-fulfillment-record-icon" :class="record.type"
+                ><Gift
+                  v-if="record.type === 'gift'"
+                  :size="17"
+                  :stroke-width="1.8"
+                  aria-hidden="true" /><Package
+                  v-else
+                  :size="17"
+                  :stroke-width="1.8"
+                  aria-hidden="true"
+              /></span>
+              <div class="ah-fulfillment-record-copy">
+                <strong>{{ record.title }}</strong
+                ><span>{{ record.detail }}</span>
+              </div>
+              <div class="ah-fulfillment-record-side">
+                <span>{{ formatDateShort(record.time) }}</span
+                ><span
+                  v-if="record.type === 'gift'"
+                  class="ah-gift-badge is-flat"
+                  :class="record.status"
+                  >{{ getGiftStatusLabel(record.status) }}</span
+                ><span v-else class="ah-fulfillment-record-points">-{{ record.points }} 积分</span>
+              </div>
+            </article>
+          </div>
+          <div v-else class="ah-empty-state">
+            <div class="ah-empty-icon"><Package :size="26" :stroke-width="1.5" /></div>
+            <h3>
+              {{
+                recordFilter === 'gifts'
+                  ? '还没有历史礼物'
+                  : recordFilter === 'orders'
+                    ? '还没有商城订单'
+                    : '还没有礼物或订单记录'
+              }}
+            </h3>
+            <p v-if="recordFilter !== 'gifts'">商城兑换与已归档礼物会出现在这里。</p>
+          </div>
+          <p v-if="giftsError || ordersError" class="ah-fulfillment-partial-error">
+            部分记录暂时无法更新，刷新后重试。
+          </p>
+        </section>
 
-          <article v-if="currentGift" class="ah-gift-card ah-current-gift-card">
-            <header class="ah-gift-header">
-              <span class="ah-gift-eyebrow"
-                ><Gift :size="14" :stroke-width="2" aria-hidden="true" />进行中的礼物</span
-              ><span class="ah-gift-header-date">更新于 {{ giftStatusDate }}</span>
-            </header>
-            <div class="ah-gift-overview">
-              <div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }">
-                <img
-                  v-if="currentGift.gift_image"
-                  :src="currentGift.gift_image"
-                  :alt="currentGift.gift_content"
-                  loading="lazy"
-                /><Gift v-else :size="30" :stroke-width="1.6" aria-hidden="true" />
-              </div>
-              <div class="ah-gift-headinfo">
-                <div class="ah-gift-headtop">
-                  <h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3>
-                  <span class="ah-gift-badge" :class="currentGift.gift_status">{{
-                    getGiftStatusLabel(currentGift.gift_status)
-                  }}</span>
-                </div>
-                <div class="ah-gift-headsub">
-                  <span v-if="currentGift.gift_price" class="ah-gift-amount"
-                    >RMB {{ currentGift.gift_price }}</span
-                  ><span v-if="currentGift.gift_no" class="ah-gift-history-no">{{
-                    currentGift.gift_no
-                  }}</span>
-                </div>
-              </div>
-            </div>
-            <div class="ah-gift-status-panel" :class="currentGift.gift_status">
-              <div class="ah-gift-status-icon">
-                <PackageCheck :size="19" :stroke-width="1.8" aria-hidden="true" />
-              </div>
-              <div class="ah-gift-status-copy">
-                <strong>{{ giftStatusHeadline }}</strong>
-                <p>{{ giftStatusDesc }}</p>
-              </div>
-            </div>
-          </article>
+        <section class="ah-fulfillment-address" aria-label="收货地址">
+          <div class="ah-fulfillment-address-head">
+            <span>收货地址</span>
+            <h3>管理你的收货地址</h3>
+            <p>礼物与实物兑换寄送时使用，建议至少保留一个有效地址。</p>
+          </div>
+          <AddressManager variant="glass" :show-header="false" />
+        </section>
+      </div>
 
-          <section class="ah-fulfillment-records" aria-label="礼物与订单记录">
-            <header class="ah-fulfillment-records-head">
-              <div>
-                <span>记录</span>
-                <h3>礼物与订单记录</h3>
-              </div>
-              <div class="ah-record-filter" role="tablist" aria-label="记录筛选">
-                <button
-                  v-for="filter in fulfillmentFilters"
-                  :key="filter.id"
-                  type="button"
-                  role="tab"
-                  :aria-selected="recordFilter === filter.id"
-                  :class="{ active: recordFilter === filter.id }"
-                  @click="recordFilter = filter.id"
-                >
-                  {{ filter.label }}
-                </button>
-              </div>
-            </header>
-            <div v-if="giftsLoading && ordersLoading" class="ah-order-skeleton">
-              <div v-for="n in 3" :key="n" class="ah-skeleton-block" />
-            </div>
-            <div v-else-if="visibleFulfillmentRecords.length" class="ah-fulfillment-record-list">
-              <article
-                v-for="record in visibleFulfillmentRecords"
-                :key="record.id"
-                class="ah-fulfillment-record"
-              >
-                <span class="ah-fulfillment-record-icon" :class="record.type"
-                  ><Gift
-                    v-if="record.type === 'gift'"
-                    :size="17"
-                    :stroke-width="1.8"
-                    aria-hidden="true" /><Package
-                    v-else
-                    :size="17"
-                    :stroke-width="1.8"
-                    aria-hidden="true"
-                /></span>
-                <div class="ah-fulfillment-record-copy">
-                  <strong>{{ record.title }}</strong
-                  ><span>{{ record.detail }}</span>
+      <!-- 积分明细：原来「积分」页签的下半段（两张操作卡已上移到首页钱包卡） -->
+      <div v-else-if="view === 'points'" class="ah-points-subpage">
+        <div class="ah-points-summary">
+          <div>
+            <span>当前积分</span>
+            <strong>{{ pointsDisplay }}</strong>
+          </div>
+          <button type="button" class="ah-btn" @click="isRechargeOpen = true">充值积分</button>
+        </div>
+        <div class="ah-points-filter" role="tablist" aria-label="积分明细时间筛选">
+          <button
+            v-for="filter in pointsDetailFilters"
+            :key="filter.id"
+            type="button"
+            role="tab"
+            :aria-selected="pointsDetailFilter === filter.id"
+            :class="{ active: pointsDetailFilter === filter.id }"
+            @click="pointsDetailFilter = filter.id"
+          >
+            {{ filter.label }}
+          </button>
+        </div>
+        <div v-if="ledgerLoading" class="ah-order-skeleton">
+          <div v-for="n in 4" :key="n" class="ah-skeleton-block" />
+        </div>
+        <div v-else-if="ledgerError" class="ah-empty-state">
+          <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
+          <h3>积分明细暂时无法加载</h3>
+          <button type="button" class="ah-shop-btn ah-shop-btn-ghost" @click="retryLedger">
+            重试
+          </button>
+        </div>
+        <div v-else-if="ledger.length === 0" class="ah-empty-state">
+          <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
+          <h3>暂无积分明细</h3>
+          <p>周签到、管理员发放与商城订单都会记录在这里</p>
+        </div>
+        <div v-else-if="filteredLedger.length === 0" class="ah-empty-state">
+          <div class="ah-empty-icon"><ScrollText :size="26" :stroke-width="1.5" /></div>
+          <h3>这个时间段暂无记录</h3>
+          <p>试试选择更长的时间范围</p>
+        </div>
+        <div v-else class="ah-ledger">
+          <section v-for="group in ledgerGroups" :key="group.label" class="ah-ledger-group">
+            <h2>{{ group.label }}</h2>
+            <div class="ah-ledger-list">
+              <article v-for="item in group.items" :key="item.key" class="ah-ledger-item">
+                <div class="ah-ledger-icon" :class="`tone-${item.tone}`">
+                  <component :is="item.icon" :size="17" :stroke-width="1.8" />
                 </div>
-                <div class="ah-fulfillment-record-side">
-                  <span>{{ formatDateShort(record.time) }}</span
-                  ><span
-                    v-if="record.type === 'gift'"
-                    class="ah-gift-badge is-flat"
-                    :class="record.status"
-                    >{{ getGiftStatusLabel(record.status) }}</span
-                  ><span v-else class="ah-fulfillment-record-points"
-                    >-{{ record.points }} 积分</span
-                  >
+                <div class="ah-ledger-main">
+                  <span class="ah-ledger-title">{{ item.title }}</span
+                  ><span v-if="item.remark" class="ah-ledger-remark">{{ item.remark }}</span>
+                </div>
+                <div class="ah-ledger-right">
+                  <span
+                    class="ah-ledger-amount"
+                    :class="{ negative: item.amount < 0, zero: item.amount === 0 }"
+                    >{{ item.amount >= 0 ? '+' : '' }}{{ item.amount }}</span
+                  ><span class="ah-ledger-date">{{ formatDate(item.time) }}</span>
                 </div>
               </article>
             </div>
-            <div v-else class="ah-empty-state">
-              <div class="ah-empty-icon"><Package :size="26" :stroke-width="1.5" /></div>
-              <h3>
-                {{
-                  recordFilter === 'gifts'
-                    ? '还没有历史礼物'
-                    : recordFilter === 'orders'
-                      ? '还没有商城订单'
-                      : '还没有礼物或订单记录'
-                }}
-              </h3>
-              <p v-if="recordFilter !== 'gifts'">商城兑换与已归档礼物会出现在这里。</p>
-            </div>
-            <p v-if="giftsError || ordersError" class="ah-fulfillment-partial-error">
-              部分记录暂时无法更新，刷新后重试。
-            </p>
           </section>
+        </div>
+      </div>
+    </section>
 
-          <section class="ah-fulfillment-address" aria-label="收货地址">
-            <div class="ah-fulfillment-address-head">
-              <span>收货地址</span>
-              <h3>管理你的收货地址</h3>
-              <p>礼物与实物兑换寄送时使用，建议至少保留一个有效地址。</p>
-            </div>
-            <AddressManager variant="glass" :show-header="false" />
-          </section>
-        </section>
-
-        <!-- 旧「订单 / 礼物 / 地址」独立 tab 已并入 fulfillment（2026-09 tab 合并），深链经 normalizeInitialTab 映射 -->
-
-        <section
-          v-else-if="activeTab === 'lottery'"
-          key="lottery"
-          class="ah-section ah-lottery-section"
-        >
-          <div class="ah-lottery-hero">
-            <div class="ah-lottery-hero-icon">
-              <Ticket :size="22" :stroke-width="1.8" aria-hidden="true" />
-            </div>
-            <div>
-              <span>社区抽奖</span>
-              <h2>参与抽奖，赢取方块好礼</h2>
-              <p>免费报名，中奖可获奖品与积分回馈。订阅会员可累计保底进度。</p>
-            </div>
-            <button
-              type="button"
-              class="ah-lottery-hero-action"
-              @click="router.push('/lotteries').catch(() => {})"
-            >
-              查看全部
-            </button>
-          </div>
-          <div
-            v-if="pityStatus"
-            class="ah-lottery-pity-inline"
-            :class="{ 'is-due': pityStatus.isDue, 'is-unavailable': !pityStatus.eligible }"
+    <!-- 充值二维码（首页与积分明细的「充值」共用）
+         ⚠️ **必须 Teleport 到 body**：遮罩是 `position: fixed`，而它的祖先
+         （`.ah-page` 与宿主 `.tab-page`）都带着入场动画收尾留下的
+         `transform: matrix(1,0,0,1,0,0)` —— 即使矩阵是单位矩阵，`transform != none`
+         也会让 fixed 改成「相对该祖先定位」（规范行为，不是 bug）。
+         实测 1440×900：遮罩只有 1131×600 @(275,0)，右侧与底部整条露出背景，
+         用户读到的就是「弹窗没盖住页面」。
+         Teleport 出去之后暗色覆盖**不能再用** `.user-space-page[data-theme='dark']`
+         前缀（节点已不在页根里），必须换 `html[data-theme='dark']`。 -->
+    <Teleport to="body">
+      <Transition name="ah-qr-modal">
+        <div v-if="isRechargeOpen" class="ah-qr-overlay" @click.self="isRechargeOpen = false">
+          <section
+            class="ah-qr-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="recharge-points-title"
           >
-            <div class="ah-lottery-pity-head">
-              <span>保底进度</span><strong>{{ pityProgressLabel }}</strong>
-            </div>
-            <div v-if="pityStatus.eligible" class="ah-lottery-pity-track">
-              <div class="ah-lottery-pity-fill" :style="{ width: `${pityProgressPercent}%` }"></div>
-            </div>
-            <p>{{ pityProgressDescription }}</p>
-          </div>
-          <div v-if="lotteryLoading" class="ah-lottery-skeleton">
-            <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-lottery"></div>
-          </div>
-          <div v-else-if="lotteryError" class="ah-empty-state">
-            <div class="ah-empty-icon"><Ticket :size="26" :stroke-width="1.5" /></div>
-            <h3>抽奖加载失败</h3>
-            <p>{{ lotteryError }}</p>
             <button
+              ref="rechargeCloseRef"
               type="button"
-              class="ah-shop-btn ah-shop-btn-ghost"
-              @click="loadLotteries(true)"
+              class="ah-qr-close"
+              aria-label="关闭充值积分"
+              @click="isRechargeOpen = false"
             >
-              重试
+              <X :size="17" :stroke-width="2" aria-hidden="true" />
             </button>
-          </div>
-          <div v-else-if="!lotteries.length" class="ah-empty-state">
-            <div class="ah-empty-icon"><Ticket :size="26" :stroke-width="1.5" /></div>
-            <h3>暂无进行中的抽奖</h3>
-            <p>社区抽奖会不定期开启，请稍后再来或查看历史</p>
-            <button
-              type="button"
-              class="ah-shop-btn ah-shop-btn-ghost"
-              @click="router.push('/lotteries').catch(() => {})"
-            >
-              去抽奖页看看
-            </button>
-          </div>
-          <div v-else class="ah-lottery-grid">
-            <article
-              v-for="item in lotteries"
-              :key="item.id"
-              class="ah-lottery-card"
-              :class="`status-${item.status}`"
-            >
-              <div v-if="item.cover_image_url" class="ah-lottery-cover">
-                <img :src="item.cover_image_url" :alt="item.title" loading="lazy" />
-              </div>
-              <div v-else class="ah-lottery-cover is-empty">
-                <Ticket :size="28" :stroke-width="1.6" />
-              </div>
-              <div class="ah-lottery-body">
-                <div class="ah-lottery-top">
-                  <span class="ah-lottery-status" :class="item.status">{{
-                    getLotteryStatusLabel(item.status)
-                  }}</span
-                  ><span v-if="item.current_user_entry_id" class="ah-lottery-joined">已报名</span
-                  ><span v-if="item.pity_mode === 'eligible'" class="ah-lottery-pity-badge"
-                    >保底</span
-                  >
-                </div>
-                <h3 :title="item.title">{{ item.title || '未命名抽奖' }}</h3>
-                <p class="ah-lottery-prize" :title="item.prize_title">
-                  奖品：{{ item.prize_title || '—' }}
-                </p>
-                <div class="ah-lottery-meta">
-                  <span>{{ item.entry_count || 0 }}人已报名</span
-                  ><span>开奖 {{ formatLotteryDrawAt(item.draw_at) }}</span>
-                </div>
-                <div class="ah-lottery-actions">
-                  <button
-                    v-if="item.status === 'open' && !item.current_user_entry_id"
-                    type="button"
-                    class="ah-shop-btn ah-lottery-join"
-                    :disabled="joiningLotteryId === item.id"
-                    @click="handleJoinLottery(item)"
-                  >
-                    {{ joiningLotteryId === item.id ? '报名中' : '立即报名' }}
-                  </button>
-                  <button
-                    v-else-if="item.current_user_entry_id"
-                    type="button"
-                    class="ah-shop-btn ah-lottery-joined-btn"
-                    disabled
-                  >
-                    已报名 #{{ item.current_user_entry_number || '-' }}
-                  </button>
-                  <button
-                    v-else
-                    type="button"
-                    class="ah-shop-btn ah-shop-btn-ghost"
-                    @click="router.push('/lotteries').catch(() => {})"
-                  >
-                    查看详情
-                  </button>
-                  <button
-                    type="button"
-                    class="ah-lottery-link"
-                    @click="
-                      router
-                        .push(`/lotteries?lottery=${encodeURIComponent(item.id)}`)
-                        .catch(() => {})
-                    "
-                  >
-                    详情
-                  </button>
-                </div>
-              </div>
-            </article>
-          </div>
-          <div class="ah-lottery-foot">
-            <p>抽奖免费参与，保底仅对会员计入。祝你好运。</p>
-            <button
-              type="button"
-              class="ah-shop-btn ah-shop-btn-ghost"
-              @click="router.push('/lotteries').catch(() => {})"
-            >
-              前往抽奖页
-            </button>
-          </div>
-        </section>
-
-        <section
-          v-else-if="activeTab === 'sponsor'"
-          key="sponsor"
-          class="ah-section ah-sponsor-section"
-        >
-          <div class="ah-sponsor-hero">
-            <div class="ah-sponsor-hero-icon">
-              <Heart :size="22" :stroke-width="1.8" aria-hidden="true" />
+            <span class="ah-qr-kicker">充值积分</span>
+            <h2 id="recharge-points-title">扫码联系管理员</h2>
+            <p>请使用微信扫描收款码，备注你的 UID，管理员确认后将为你充值积分。</p>
+            <div class="ah-qr-frame">
+              <img :src="sponsorQrImage" alt="积分充值收款二维码" class="ah-recharge-qr" />
             </div>
-            <div>
-              <span>支持社区</span>
-              <h2>赞助方块之家</h2>
-              <p>你的每一份支持，都让社区的方块更温暖。赞助款将用于服务器与活动奖品。</p>
-            </div>
-          </div>
-          <div class="ah-sponsor-grid">
-            <article class="ah-sponsor-card">
-              <h3><span class="ah-sponsor-badge">推荐</span> 微信赞赏</h3>
-              <p>扫码赞赏，金额随心。赞助后可在积分卡展示赞助标识。</p>
-              <div class="ah-sponsor-qr-wrap">
-                <img :src="sponsorQrImage" alt="微信赞赏码" loading="lazy" />
-              </div>
-              <small>长按保存 · 微信扫码</small>
-            </article>
-            <article class="ah-sponsor-card is-muted">
-              <h3>支付宝</h3>
-              <p>暂未开通，敬请期待。</p>
-              <div class="ah-sponsor-qr-wrap is-placeholder">
-                <span>—</span>
-              </div>
-              <small>后续开放</small>
-            </article>
-          </div>
-          <div class="ah-sponsor-foot">
-            <p>赞助属自愿行为，不与抽奖保底、积分权益挂钩。感谢每一位支持者。</p>
-            <button
-              type="button"
-              class="ah-shop-btn ah-shop-btn-ghost"
-              @click="activateTab('overview')"
-            >
-              返回概览
-            </button>
-          </div>
-        </section>
-
-        <section v-else-if="activeTab === 'decor'" key="decor" class="ah-section ah-decor">
-          <header class="ah-overview-heading">
-            <div>
-              <span>个性化</span>
-              <h2>装扮</h2>
-              <p>选择你的头像框，佩戴后全站头像同步展示。更多装扮类型陆续上线。</p>
-            </div>
-          </header>
-          <AvatarFrameGrid
-            :avatar-url="avatarUrl"
-            :tier-code="tierCode"
-            @unlock="activateTab('subscription')"
-          />
-
-          <div class="ah-decor-subhead">
-            <h3>积分卡面</h3>
-            <p>选择空白卡、全员小猫主题，或上传自己的卡面。</p>
-          </div>
-          <div class="ah-cards-panel">
-            <PointsCard
-              :points="userPoints"
-              :username="displayName"
-              :tier-label="tierDisplayName || 'BOH'"
-              :skin="userInfo?.pointsCardSkin"
-              :image-url="userInfo?.pointsCardImageUrl"
-              show-sponsor-action
-              @sponsor="$emit('sponsor')"
-            />
-            <div class="ah-skin-grid" aria-label="积分卡皮肤">
-              <button
-                type="button"
-                class="ah-skin-option"
-                :class="{ active: userInfo?.pointsCardSkin === 'blank' }"
-                @click="$emit('set-points-card-skin', 'blank')"
-              >
-                <span class="ah-skin-preview is-blank"
-                  ><Coins :size="18" :stroke-width="1.8" /></span
-                ><strong>空白卡</strong><small>默认样式</small>
-              </button>
-              <button
-                type="button"
-                class="ah-skin-option is-cats-skin"
-                :class="{ active: pointsCardCatsUnlocked && userInfo?.pointsCardSkin === 'cats' }"
-                :disabled="isRedeemingPointsCardCats"
-                @click="handleCatsSkinClick"
-              >
-                <span class="ah-skin-preview is-cats"
-                  ><img
-                    v-for="cat in catSkinPreviewAssets"
-                    :key="cat.id"
-                    :src="cat.src"
-                    alt="" /></span
-                ><strong>全员小猫</strong
-                ><small>{{
-                  isRedeemingPointsCardCats
-                    ? '兑换中'
-                    : pointsCardCatsUnlocked
-                      ? '已兑换'
-                      : '3 积分兑换'
-                }}</small>
-              </button>
-              <button
-                type="button"
-                class="ah-skin-option"
-                :disabled="isPointsCardPresetQuotaLoading || !canAddPointsCardPreset"
-                @click="$emit('upload-points-card')"
-              >
-                <span class="ah-skin-preview is-custom"
-                  ><ImagePlus :size="18" :stroke-width="1.8" /></span
-                ><strong>添加卡面</strong>
-                <!-- 禁用必须给原因（2026-10-15）：满员时原样只写「上传并裁切」，用户不知道为什么点不动 -->
-                <small v-if="isPointsCardPresetQuotaLoading">检查额度…</small>
-                <small v-else-if="!canAddPointsCardPreset"
-                  >{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} ·
-                  删除后可加</small
-                >
-                <small v-else>上传并裁切</small>
-              </button>
-            </div>
-
-            <section class="ah-card-presets" aria-label="自定义卡面预设">
-              <div class="ah-card-presets-heading">
-                <span>自定义预设</span>
-                <small v-if="!isPointsCardPresetsLoading"
-                  >{{ pointsCardPresets.length }} / {{ pointsCardPresetCapacity }} 张</small
-                >
-              </div>
-              <div v-if="isPointsCardPresetsLoading" class="ah-card-preset-grid" aria-hidden="true">
-                <div v-for="n in 3" :key="n" class="ah-skeleton ah-skeleton-preset"></div>
-              </div>
-              <div v-else-if="pointsCardPresets.length" class="ah-card-preset-grid">
-                <article
-                  v-for="preset in pointsCardPresets"
-                  :key="preset.id"
-                  class="ah-card-preset"
-                  :class="{
-                    active:
-                      userInfo?.pointsCardSkin === 'custom' &&
-                      userInfo?.pointsCardImageUrl === preset.imageUrl,
-                  }"
-                >
-                  <button
-                    type="button"
-                    class="ah-card-preset-select"
-                    :aria-label="'使用自定义卡面预设'"
-                    @click="$emit('select-points-card-preset', preset.id)"
-                  >
-                    <img :src="pointsCardPresetThumb(preset)" alt="自定义卡面预设" loading="lazy" />
-                    <span>自定义卡面</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="ah-card-preset-delete"
-                    aria-label="删除此自定义卡面预设"
-                    title="删除此预设"
-                    @click="$emit('delete-points-card-preset', preset.id)"
-                  >
-                    <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
-                  </button>
-                </article>
-              </div>
-              <div v-else class="ah-card-presets-empty">暂无自定义预设</div>
-              <p v-if="!isPointsCardPresetsLoading" class="ah-card-presets-retention">
-                未启用的卡面超过 90 天会自动清理
-              </p>
-            </section>
-          </div>
-        </section>
+            <span class="ah-qr-uid">UID · {{ uidShort }}</span>
+          </section>
+        </div>
       </Transition>
-    </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
   CalendarCheck,
   Check,
+  ChevronLeft,
   ChevronRight,
   Coins,
   Crown,
   Gift,
   Heart,
   ImagePlus,
-  LayoutDashboard,
   MapPin,
   Package,
   PackageCheck,
@@ -904,34 +585,26 @@ import {
   Sparkles,
   Ticket,
   Trash2,
-  Trophy,
   X,
 } from 'lucide-vue-next';
-import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
 import AddressManager from '@/components/AddressManager.vue';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
-import { useProductsStore } from '@/stores/products';
 import { supabase } from '@/utils/supabase-client.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import { logger } from '@/utils/logger.js';
 import { getMyLotteryPityStatus, getMySubscriptions } from '@/utils/api/subscription-api.js';
-import { getCommunityLotteries, joinCommunityLottery } from '@/utils/api/lottery-api.js';
-import { showIsland } from '@/composables/useIsland.js';
 import PointsCard from './PointsCard.vue';
-import SegmentTabs from './SegmentTabs.vue';
 import AvatarFrameGrid from './AvatarFrameGrid.vue';
-import BohGlassRefract from '@/components/ui/BohGlassRefract.vue';
 import FramedAvatar from './FramedAvatar.vue';
 import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 import { HOME_CAT_ASSETS } from '@/utils/home-cat-theme.js';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 
 const emit = defineEmits([
-  'back',
   'upload-points-card',
   'set-points-card-skin',
   'select-points-card-preset',
@@ -939,14 +612,13 @@ const emit = defineEmits([
   'redeem-points-card-cats',
   'sponsor',
   'load-points-card-data',
-  // 面板切换统一上报（含 onMounted 的初始档）：宿主据此把 ?panel= 写进 URL。
-  // 值域保证 = betaTabIds（activateTab 有守卫），宿主无需再校验。
-  'tab-change',
+  // 视图切换统一上报（含 onMounted 的初始档）：宿主据此把 ?panel= 写进 URL。
+  // 值域保证 = VIEW_IDS（openView 有归一），宿主无需再校验。
+  'view-change',
 ]);
 
 const props = defineProps({
-  showBack: { type: Boolean, default: true },
-  initialTab: { type: String, default: '' },
+  initialView: { type: String, default: '' },
   pointsCardPresets: { type: Array, default: () => [] },
   isPointsCardPresetsLoading: { type: Boolean, default: false },
   pointsCardPresetCapacity: { type: Number, default: 3 },
@@ -958,8 +630,6 @@ const props = defineProps({
 const router = useRouter();
 const authStore = useAuthStore();
 const { userInfo } = storeToRefs(authStore);
-const productsStore = useProductsStore();
-const { productsData } = storeToRefs(productsStore);
 
 const { fetchUserTier, getUserTierCode } = useUserTier();
 const tierCode = ref('');
@@ -984,49 +654,41 @@ const handleCatsSkinClick = () => {
   emit('redeem-points-card-cats');
 };
 
-const betaTabIds = new Set([
-  'overview',
-  'decor',
-  'points',
-  'subscription',
-  'fulfillment',
-  'lottery',
-  'sponsor',
-]);
-const normalizeInitialTab = () => {
-  let tab = String(props.initialTab || '');
-  // 旧 tab 入口兼容映射：orders/gifts/addresses → fulfillment；cards → decor（2026-09 tab 合并）
-  if (['orders', 'gifts', 'addresses'].includes(tab)) tab = 'fulfillment';
-  if (tab === 'cards') tab = 'decor';
-  return betaTabIds.has(tab) ? tab : 'overview';
-};
-const activeTab = ref(normalizeInitialTab());
-// 2026-09-11 起换 SegmentTabs 纯文字单行平铺；icon 字段保留备用，当前不渲染。
-// 2026-10-15 分组口径：**前 3 席 = 资产**（概览/装扮/积分），**后 4 席 = 服务**
-// （订阅/订单/抽奖/赞助）。SegmentTabs 是共享组件、不渲染 group 字段 ——
-// 分组视觉由 AssetsHubPanel.css 对 .segment-tab:nth-child(4) 画分隔线表达，改席位数要同步。
-const tabGroups = computed(() => [
-  { id: 'overview', label: '概览', icon: LayoutDashboard },
-  { id: 'decor', label: '装扮', icon: ImagePlus },
-  { id: 'points', label: '积分', icon: ScrollText },
-  { id: 'subscription', label: '订阅', icon: Crown },
-  { id: 'fulfillment', label: '订单', icon: Package },
-  { id: 'lottery', label: '抽奖', icon: Ticket },
-  { id: 'sponsor', label: '赞助', icon: Heart },
-]);
-const hubSections = computed(() => tabGroups.value.map(({ id, label }) => ({ id, label })));
+/* ---------- 视图（2026-10-26 重做：七段页签全部删除） ----------
+   只剩「一屏首页 + 三个二级页」。删除的依据：七个页签里有四个（概览 / 积分管理 /
+   抽奖 / 赞助）并不承载独立内容 —— 概览就是首页，积分管理只有两张入口卡，
+   抽奖与赞助是「跳出去」的动作。留着它们的结果是每个页签都填不满一屏。
 
-const activeTabModel = computed({
-  get: () => activeTab.value,
-  set: (tabId) => activateTab(tabId),
-});
+   值域与旧值映射放在这里（单一真源），宿主只透传 URL 的 ?panel=：
+     · overview / lottery / sponsor / subscription → home（订阅方案改为首页内联展开）
+     · cards → decor（我页积分卡的「设置卡面」按钮仍发这个旧值）
+     · gifts / addresses / fulfillment → orders */
+const VIEW_IDS = new Set(['home', 'decor', 'orders', 'points']);
+const LEGACY_VIEW_MAP = {
+  overview: 'home',
+  subscription: 'home',
+  lottery: 'home',
+  sponsor: 'home',
+  cards: 'decor',
+  fulfillment: 'orders',
+  gifts: 'orders',
+  addresses: 'orders',
+};
+const normalizeView = (value) => {
+  const raw = String(value || '').trim();
+  const mapped = LEGACY_VIEW_MAP[raw] || raw;
+  return VIEW_IDS.has(mapped) ? mapped : 'home';
+};
+const view = ref(normalizeView(props.initialView));
+const SUBPAGE_TITLES = { decor: '装扮', orders: '订单与地址', points: '积分明细' };
+const subpageTitle = computed(() => SUBPAGE_TITLES[view.value] || '');
 
 const avatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').trim());
 const displayName = computed(() => String(userInfo.value?.username || '').trim() || '未命名用户');
 const displayInitial = computed(() => displayName.value.charAt(0).toUpperCase());
 const uidShort = computed(() => String(userInfo.value?.id || '').slice(0, 8));
 
-// 顶卡头像戴框：状态单源 useAvatarFrame（装扮 tab 换框时此处实时同步）
+// 顶卡头像戴框：状态单源 useAvatarFrame（装扮页换框时此处实时同步）
 const { effectiveFrame: avatarFrame } = useAvatarFrame(tierCode);
 
 const ordersLoading = ref(false);
@@ -1037,8 +699,31 @@ const ledgerLoading = ref(false);
 const ledgerLoaded = ref(false);
 const ledgerError = ref('');
 const ledger = ref([]);
-const pointsView = ref('actions');
 const isRechargeOpen = ref(false);
+/** 充值弹窗的关闭按钮：打开时把焦点移进来（role="dialog" + aria-modal 的语义要求） */
+const rechargeCloseRef = ref(null);
+/**
+ * 模态必须能键盘退出（2026-10-27 实测缺口：Esc 原本无效，只能点关闭按钮或遮罩）。
+ * 监听挂 document 而不是组件根 —— 遮罩已 Teleport 到 body，键盘事件不经过组件 DOM。
+ */
+let rechargePrevFocus = null;
+const handleRechargeKeydown = (event) => {
+  if (event.key !== 'Escape' || !isRechargeOpen.value) return;
+  isRechargeOpen.value = false;
+};
+watch(isRechargeOpen, (open) => {
+  if (open) {
+    rechargePrevFocus = document.activeElement;
+    document.addEventListener('keydown', handleRechargeKeydown);
+    void nextTick(() => rechargeCloseRef.value?.focus?.());
+    return;
+  }
+  document.removeEventListener('keydown', handleRechargeKeydown);
+  // 关闭后焦点归还触发按钮；节点已卸载（切去赞助子页）时跳过
+  if (rechargePrevFocus?.isConnected) rechargePrevFocus.focus?.();
+  rechargePrevFocus = null;
+});
+onBeforeUnmount(() => document.removeEventListener('keydown', handleRechargeKeydown));
 const pointsDetailFilter = ref('week');
 const pointsDetailFilters = [
   { id: 'week', label: '一周' },
@@ -1050,9 +735,6 @@ const activeSubscription = ref(null);
 const annualGiftSubscription = ref(null);
 const pityStatus = ref(null);
 const showPlanComparison = ref(false);
-// The initial overview load is started from onMounted. Starting in the loading
-// state would make that first call return early and leave the panel stuck.
-const overviewLoading = ref(false);
 const addressCount = ref(0);
 
 const userPoints = computed(() => Number(userInfo.value?.points) || 0);
@@ -1104,53 +786,20 @@ const pityProgressDescription = computed(() => {
   return `连续参与计入活动但未获奖 ${pityStatus.value.consecutiveLosses} 场，还差 ${pityStatus.value.remainingLosses} 场进入保底。`;
 });
 
-const availableProducts = computed(() =>
-  Array.isArray(productsData.value) ? productsData.value : [],
-);
-const redeemableProducts = computed(() =>
-  availableProducts.value
-    .filter(
-      (product) =>
-        product.is_active !== false &&
-        product.is_purchasable !== false &&
-        product.payment_mode !== 'rmb_only' &&
-        Number(product.points_cost) > 0 &&
-        Number(product.stock) !== 0 &&
-        Number(product.points_cost) <= userPoints.value,
-    )
-    .sort((a, b) => Number(a.points_cost) - Number(b.points_cost)),
-);
-
-const nextRewardProduct = computed(
-  () =>
-    availableProducts.value
-      .filter(
-        (product) =>
-          product.is_active !== false &&
-          product.is_purchasable !== false &&
-          product.payment_mode !== 'rmb_only' &&
-          Number(product.points_cost) > userPoints.value &&
-          Number(product.stock) !== 0,
-      )
-      .sort((a, b) => Number(a.points_cost) - Number(b.points_cost))[0] || null,
-);
-
 const recentPointsNet = computed(() =>
   ledger.value
     .filter((item) => isWithinDays(item.time, 30))
     .reduce((sum, item) => sum + (Number(item.amount) || 0), 0),
 );
 
-const pointsContextText = computed(() => {
+/* 首页钱包卡的一行说明。原先这里挂着一整套「可兑换 N 件 / 距下一件还差 X 积分」的
+   商品推荐，为它单个功能要拉一次 products 表 —— 商品推荐属于商城，不属于资产页。
+   现在只讲余额本身：近 30 天净变化，拿不到明细就不写。 */
+const walletNote = computed(() => {
+  if (!ledgerLoaded.value && ledgerLoading.value) return '正在读取积分变动';
   if (recentPointsNet.value !== 0)
-    return `近 30 天净变化 ${recentPointsNet.value > 0 ? '+' : ''}${recentPointsNet.value}`;
-  if (redeemableProducts.value.length > 0)
-    return `当前可兑换 ${redeemableProducts.value.length} 件商品`;
-  if (nextRewardProduct.value) {
-    const gap = Number(nextRewardProduct.value.points_cost) - userPoints.value;
-    return `距离 ${nextRewardProduct.value.title} 还差 ${gap} 积分`;
-  }
-  return '积分可用于商城兑换';
+    return `近 30 天 ${recentPointsNet.value > 0 ? '+' : ''}${recentPointsNet.value}`;
+  return '积分可用于商城兑换与卡面解锁';
 });
 
 const filteredLedger = computed(() => {
@@ -1179,10 +828,10 @@ const ledgerGroups = computed(() => {
     .map(([label, items]) => ({ label, items }));
 });
 
-const openPointsDetail = () => {
-  pointsView.value = 'detail';
-  void loadLedger();
-};
+/* 首页钱包卡顺带列出最近三笔（明细页是完整列表）：
+   用户的第一个问题永远是「怎么少了/多了」，一行变动比一句「查看明细」有用。 */
+const recentLedger = computed(() => ledger.value.slice(0, 3));
+
 const retryLedger = () => {
   ledgerLoaded.value = false;
   void loadLedger();
@@ -1447,136 +1096,31 @@ const loadSubscription = async () => {
   }
 };
 
-const activateTab = (tabId) => {
-  if (!betaTabIds.has(tabId)) return;
-  activeTab.value = tabId;
-  // 面板切换统一上报宿主（URL ?panel= 的唯一写入源）：内部切换 / 外部驱动 / 挂载初始档都汇到这里。
-  // 宿主端有「与 URL 同值即忽略」守卫，清理链（resolve → 本组件）不构成循环。
-  emit('tab-change', tabId);
-  if (tabId === 'overview') void loadOverview();
-  if (tabId === 'decor') emit('load-points-card-data');
-  if (tabId === 'points') void loadLedger();
-  if (tabId === 'subscription') void loadSubscription();
-  if (tabId === 'lottery') void loadLotteries();
-  if (tabId === 'fulfillment') {
+/* 视图切换：内部点击 / 外部驱动（?panel=）/ 挂载初始化都汇到这里。
+   每个视图自己负责取数；取数函数都带 loaded 闩锁，重复进入不重复请求。 */
+const openView = (next) => {
+  const target = normalizeView(next);
+  view.value = target;
+  // 上报宿主（URL ?panel= 的唯一写入源）。宿主端有「与 URL 同值即忽略」守卫，不构成循环。
+  emit('view-change', target);
+  if (target === 'home') void loadHome();
+  if (target === 'decor') emit('load-points-card-data');
+  if (target === 'orders') {
     void loadOrders();
     void loadGifts();
   }
+  if (target === 'points') void loadLedger();
 };
 
-// 外部驱动：宿主从 URL ?panel= 派生初始档后经 initial-tab 传入。组件保活期间
-// （v-if assetsSegmentVisited 闩锁）props 变化必须生效，否则「深链直达 / 从空间段
-// 服务行跳转」只在首访有效。归一化（旧值映射 + 非法回落）继续走 normalizeInitialTab ——
-// 面板值域单一真源仍在本组件，宿主只透传。
+// 外部驱动：宿主从 URL ?panel= 派生后经 initial-view 传入。组件保活期间 props 变化必须生效，
+// 否则「深链直达 / 设置页资产行跳转」只在首访有效。归一化仍走 normalizeView（本组件是值域单一真源）。
 watch(
-  () => props.initialTab,
+  () => props.initialView,
   () => {
-    const next = normalizeInitialTab();
-    if (next !== activeTab.value) activateTab(next);
+    const next = normalizeView(props.initialView);
+    if (next !== view.value) openView(next);
   },
 );
-
-// ─── 抽奖数据（独立小分页） ───
-const lotteryLoading = ref(false);
-const lotteryLoaded = ref(false);
-const lotteryError = ref('');
-const lotteries = ref([]);
-const joiningLotteryId = ref('');
-const _originShowToast = (msg, type = 'info') => {
-  try {
-    window.dispatchEvent(new CustomEvent('app-toast', { detail: { message: msg, type } }));
-  } catch {
-    /* dispatchEvent 在事件对象构造失败等极端情况下会抛。提示只是锦上添花，失败静默。 */
-  }
-  logger.info('lottery-tab', `${type}: ${msg}`);
-};
-const showToast = (msg, type = 'info') => {
-  const text = String(msg || '');
-  const iconMap = { success: 'success', error: 'warning', info: 'notification' };
-  const icon = iconMap[type] || 'notification';
-  let title = text;
-  let message = '';
-  if (text === '已报名，无需重复') {
-    title = '已报名';
-    message = '该抽奖已报名无需重复';
-  } else if (text === '报名成功') {
-    title = '报名成功';
-    message = '已获得本期抽奖资格';
-  } else if (text === '报名失败' || text.includes('报名失败')) {
-    title = '报名失败';
-    message = text.replace(/^报名失败[:：]?\s*/, '') || '请稍后重试';
-  } else if (text.length > 24) {
-    title = text.slice(0, 24);
-    message = text.slice(24);
-  }
-  let ok = false;
-  try {
-    ok = showIsland.notify({ title, message, icon, durationMs: icon === 'warning' ? 3600 : 3200 });
-  } catch {
-    ok = false;
-  }
-  if (ok) return;
-  return (
-    _originShowToast(msg ? `${title} ${message}`.trim() : title, type) ||
-    _originShowToast(text, type)
-  );
-};
-const loadLotteries = async (force = false) => {
-  if (lotteryLoading.value) return;
-  if (lotteryLoaded.value && !force) return;
-  lotteryLoading.value = true;
-  lotteryError.value = '';
-  try {
-    const { data, error } = await getCommunityLotteries();
-    if (error) throw error;
-    lotteries.value = Array.isArray(data) ? data : [];
-    lotteryLoaded.value = true;
-  } catch (e) {
-    lotteryError.value = e?.message || '加载失败';
-    logger.warn('lottery-tab', '加载抽奖失败:', e);
-  } finally {
-    lotteryLoading.value = false;
-  }
-};
-const handleJoinLottery = async (lottery) => {
-  if (!lottery?.id || joiningLotteryId.value) return;
-  if (lottery.current_user_entry_id) {
-    showToast('已报名，无需重复', 'info');
-    return;
-  }
-  joiningLotteryId.value = lottery.id;
-  try {
-    const { data, error } = await joinCommunityLottery(lottery.id);
-    if (error) throw error;
-    if (data && data.ok === false) throw new Error(data.message || '报名失败');
-    showToast('报名成功', 'success');
-    await loadLotteries(true);
-    await loadLotteryPityStatus();
-  } catch (e) {
-    showToast(e?.message || '报名失败', 'error');
-  } finally {
-    joiningLotteryId.value = '';
-  }
-};
-const loadLotteryPityStatus = async () => {
-  try {
-    const { data } = await getMyLotteryPityStatus();
-    if (data) pityStatus.value = data;
-  } catch (error) {
-    /* 请求失败时不阻断面板：保底进度是辅助信息，拿不到就不显示。
-       2026-09-28 补 logger.warn：这条原本是**静默失败**（排查「保底数字不见了」时的盲点）。
-       同文件 1416 行处同一类失败早就在记日志了，这里不记属于自相矛盾。 */
-    logger.warn('assets-hub', '加载抽奖保底进度失败（面板不显示保底数字）:', error);
-  }
-};
-const getLotteryStatusLabel = (s) =>
-  ({ open: '报名中', drawn: '已开奖', closed: '已结束' })[String(s || '')] || String(s || '');
-const formatLotteryDrawAt = (v) => {
-  if (!v) return '待定';
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return '待定';
-  return `${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
 
 // ─── 礼物数据 ───
 const giftsLoading = ref(false);
@@ -1619,364 +1163,6 @@ const visibleFulfillmentRecords = computed(() =>
     ? fulfillmentRecords.value
     : fulfillmentRecords.value.filter((record) => record.type === recordFilter.value.slice(0, -1)),
 );
-
-const recentOrder = computed(
-  () => orders.value.find((order) => isWithinDays(order.created_at, 30)) || null,
-);
-const overviewHasErrors = computed(() =>
-  Boolean(giftsError.value || ordersError.value || ledgerError.value),
-);
-
-const formatRelativeDay = (dateValue) => {
-  const timestamp = Date.parse(dateValue || '');
-  if (!Number.isFinite(timestamp)) return '最近';
-  const date = new Date(timestamp);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  const days = Math.round((today - target) / 86400000);
-  if (days <= 0) return '今天';
-  if (days === 1) return '昨天';
-  if (days < 7) return `${days} 天前`;
-  return `${date.getMonth() + 1}/${date.getDate()}`;
-};
-
-const getOverviewTimestamp = (value) => {
-  const timestamp = Date.parse(value || '');
-  return Number.isFinite(timestamp) ? timestamp : 0;
-};
-
-const overviewCandidates = computed(() => {
-  const candidates = [];
-  const gift = currentGift.value;
-  const giftTime = gift?.updated_at || gift?.created_at || '';
-
-  if (gift && addressCount.value === 0) {
-    const giftAlreadyShipped = gift.gift_status === 'shipped';
-    candidates.push({
-      id: `gift-address-${gift.id}`,
-      priority: 100,
-      tone: 'red',
-      icon: MapPin,
-      kicker: '需要处理',
-      title: '补充礼物收货地址',
-      detail: giftAlreadyShipped
-        ? '礼物已寄出，请尽快补充地址以便后续服务联系。'
-        : '礼物寄送前需要一个有效地址，补充后才能准确安排。',
-      action: 'fulfillment',
-      actionLabel: '添加地址',
-      activityIds: [`gift-${gift.id}`],
-      time: giftTime,
-      showAsUpcoming: false,
-    });
-  } else if (gift?.gift_status === 'shipped') {
-    candidates.push({
-      id: `gift-shipped-${gift.id}`,
-      priority: 90,
-      tone: 'orange',
-      icon: PackageCheck,
-      kicker: '当前最重要',
-      title: '你的礼物已经寄出',
-      detail: gift.gift_no ? `快递单号 ${gift.gift_no}` : '请留意快递信息或取货通知。',
-      action: 'gifts',
-      actionLabel: '查看礼物',
-      activityIds: [`gift-${gift.id}`],
-      time: giftTime,
-      showAsUpcoming: false,
-    });
-  } else if (gift) {
-    candidates.push({
-      id: `gift-${gift.id}`,
-      priority: 58,
-      tone: 'blue',
-      icon: Gift,
-      kicker: '礼物动态',
-      title: giftStatusHeadline.value,
-      detail: giftStatusDesc.value,
-      action: 'gifts',
-      actionLabel: '查看详情',
-      activityIds: [`gift-${gift.id}`],
-      time: giftTime,
-      showAsUpcoming: false,
-    });
-  }
-
-  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 30) {
-    const isUrgent = subscriptionExpiryDays.value <= 7;
-    candidates.push({
-      id: 'subscription-expiry',
-      priority: isUrgent ? 85 : 68,
-      tone: isUrgent ? 'red' : 'orange',
-      icon: Crown,
-      kicker: isUrgent ? '即将到期' : '值得留意',
-      title: `会员还有 ${subscriptionExpiryDays.value} 天到期`,
-      detail: '查看当前方案和可选会员权益，提前决定是否续订。',
-      action: 'subscription',
-      actionLabel: '管理会员',
-      activityIds: [],
-      time: activeSubscription.value?.expiresAt || '',
-      showAsUpcoming: true,
-    });
-  }
-
-  if (recentOrder.value) {
-    candidates.push({
-      id: `order-${recentOrder.value.id}`,
-      priority: 46,
-      tone: 'blue',
-      icon: Package,
-      kicker: '最近订单',
-      title: `已兑换 ${recentOrder.value.item_count} 件商品`,
-      detail: `${formatRelativeDay(recentOrder.value.created_at)}使用 ${recentOrder.value.total_points} 积分完成兑换。`,
-      action: 'orders',
-      actionLabel: '查看订单',
-      activityIds: [`order-${recentOrder.value.id}`],
-      time: recentOrder.value.created_at,
-      showAsUpcoming: false,
-    });
-  }
-
-  if (redeemableProducts.value.length > 0) {
-    candidates.push({
-      id: 'redeemable-products',
-      priority: 30,
-      tone: 'green',
-      icon: ShoppingBag,
-      kicker: '可立即使用',
-      title: `你现在可以兑换 ${redeemableProducts.value.length} 件商品`,
-      detail: `从 ${redeemableProducts.value[0].title} 开始，最低需要 ${redeemableProducts.value[0].points_cost} 积分。`,
-      action: 'shop',
-      actionLabel: '去兑换',
-      activityIds: [],
-      time: '',
-      showAsUpcoming: false,
-    });
-  }
-
-  if (pityStatus.value?.eligible) {
-    const remaining = Number(pityStatus.value.remainingLosses || 0);
-    const isDue = Boolean(pityStatus.value.isDue);
-    if (isDue) {
-      candidates.push({
-        id: 'pity-due',
-        priority: 88,
-        tone: 'gold',
-        icon: Trophy,
-        kicker: '保底就绪',
-        title: '下一次保底活动可兑现',
-        detail: `已连续 ${pityStatus.value.consecutiveLosses}/${pityStatus.value.threshold} 场未中奖，参与计入并兑现的活动即可获得保底礼。`,
-        action: 'lottery',
-        actionLabel: '去抽奖',
-        activityIds: [],
-        time: pityStatus.value.updatedAt || '',
-        showAsUpcoming: true,
-      });
-    } else if (remaining > 0 && remaining <= 3) {
-      candidates.push({
-        id: 'pity-near',
-        priority: 75,
-        tone: 'blue',
-        icon: Ticket,
-        kicker: '保底临近',
-        title: `还差 ${remaining} 场进入保底`,
-        detail: `连续 ${pityStatus.value.consecutiveLosses}/${pityStatus.value.threshold} 场未中奖，当前 ${pityStatus.value.consecutiveLosses} 场。`,
-        action: 'lottery',
-        actionLabel: '查看抽奖',
-        activityIds: [],
-        time: pityStatus.value.updatedAt || '',
-        showAsUpcoming: true,
-      });
-    }
-  }
-
-  if (!candidates.some((c) => c.action === 'lottery')) {
-    candidates.push({
-      id: 'lottery-general',
-      priority: 35,
-      tone: 'blue',
-      icon: Ticket,
-      kicker: '社区抽奖',
-      title: '查看进行中的社区抽奖',
-      detail: '参与可计入保底，免费报名，中奖可获奖品与积分回馈。',
-      action: 'lottery',
-      actionLabel: '去抽奖',
-      activityIds: [],
-      time: '',
-      showAsUpcoming: true,
-    });
-  }
-
-  if (recentPointsNet.value < -15) {
-    candidates.push({
-      id: 'points-trend-down',
-      priority: 52,
-      tone: 'orange',
-      icon: ScrollText,
-      kicker: '积分动态',
-      title: `近30天净消耗 ${Math.abs(recentPointsNet.value)} 积分`,
-      detail: '查看明细了解去向，抽奖参与未来可获返奖。',
-      action: 'points',
-      actionLabel: '查看明细',
-      activityIds: [],
-      time: '',
-      showAsUpcoming: true,
-    });
-  }
-
-  return candidates.sort(
-    (a, b) =>
-      b.priority - a.priority || getOverviewTimestamp(b.time) - getOverviewTimestamp(a.time),
-  );
-});
-
-const primaryInsight = computed(() => {
-  if (overviewLoading.value) {
-    return {
-      id: 'loading',
-      tone: 'neutral',
-      icon: LayoutDashboard,
-      kicker: '正在更新',
-      title: '整理你的账户动态',
-      detail: '正在同步礼物、订单、积分和会员状态。',
-      action: 'overview',
-      actionLabel: '请稍候',
-      activityIds: [],
-      priority: 0,
-    };
-  }
-  return (
-    overviewCandidates.value[0] || {
-      id: 'all-clear',
-      tone: 'neutral',
-      icon: Check,
-      kicker: '账户状态',
-      title: '账户一切就绪',
-      detail: pointsContextText.value,
-      action: 'points',
-      actionLabel: '查看明细',
-      activityIds: [],
-      priority: 0,
-    }
-  );
-});
-
-const overviewTitle = computed(() => {
-  if (overviewLoading.value) return '正在整理账户动态';
-  if (primaryInsight.value.priority >= 80) return '优先处理这件事';
-  if (primaryInsight.value.id.startsWith('gift-') || primaryInsight.value.id.startsWith('order-'))
-    return '最近有新的账户动态';
-  if (primaryInsight.value.id === 'redeemable-products') return '你的积分现在可以使用';
-  return '账户状态良好';
-});
-const overviewSubtitle = computed(() => {
-  if (overviewLoading.value) return '正在整理你的账户动态';
-  if (overviewHasErrors.value) return '部分信息暂未更新，其余内容仍可正常查看';
-  return '已按紧急程度、时效和可操作性完成排序';
-});
-
-const recentActivities = computed(() => {
-  const focusActivityIds = new Set(primaryInsight.value.activityIds || []);
-  const activities = [];
-  if (currentGift.value) {
-    activities.push({
-      id: `gift-${currentGift.value.id}`,
-      time: currentGift.value.updated_at || currentGift.value.created_at,
-      tone: currentGift.value.gift_status === 'shipped' ? 'orange' : 'blue',
-      title: getGiftStatusLabel(currentGift.value.gift_status),
-      detail: currentGift.value.gift_content || '当前礼物状态已更新',
-      action: 'gifts',
-    });
-  }
-  fulfillmentRecords.value.slice(0, 3).forEach((record) =>
-    activities.push({
-      id: record.id,
-      time: record.time,
-      tone: record.type === 'gift' ? (record.status === 'shipped' ? 'orange' : 'blue') : 'blue',
-      title: record.type === 'gift' ? getGiftStatusLabel(record.status) : '商城订单',
-      detail:
-        record.type === 'gift'
-          ? record.title || '礼物状态已更新'
-          : `${record.title.replace('商城订单 · ', '')} · -${record.points} 积分`,
-      action: record.type === 'gift' ? 'gifts' : 'orders',
-    }),
-  );
-  ledger.value
-    .filter((item) => !String(item.key).startsWith('order-'))
-    .slice(0, 3)
-    .forEach((item) =>
-      activities.push({
-        id: item.key,
-        time: item.time,
-        tone: item.tone,
-        title: item.title,
-        detail: `${item.remark || '积分变动'}${item.amount ? ` · ${item.amount > 0 ? '+' : ''}${item.amount}` : ''}`,
-        action: 'points',
-      }),
-    );
-  const seenIds = new Set();
-  return activities
-    .filter((item) => !focusActivityIds.has(item.id))
-    .filter((item) => Number.isFinite(Date.parse(item.time || '')))
-    .sort((a, b) => Date.parse(b.time) - Date.parse(a.time))
-    .filter((item) => {
-      if (seenIds.has(item.id)) return false;
-      seenIds.add(item.id);
-      return true;
-    })
-    .slice(0, 3)
-    .map((item) => ({ ...item, timeLabel: formatRelativeDay(item.time) }));
-});
-
-const upcomingItems = computed(() => {
-  const seenActions = new Set([primaryInsight.value.action]);
-  const secondaryItems = overviewCandidates.value
-    .filter((item) => item.showAsUpcoming && item.id !== primaryInsight.value.id)
-    .filter((item) => {
-      if (seenActions.has(item.action)) return false;
-      seenActions.add(item.action);
-      return true;
-    })
-    .map((item) => ({
-      id: item.id,
-      tone: item.tone,
-      icon: item.icon,
-      title: item.title,
-      detail: item.detail,
-      action: item.action,
-    }));
-  if (!secondaryItems.length && !redeemableProducts.value.length && nextRewardProduct.value) {
-    const gap = Number(nextRewardProduct.value.points_cost) - userPoints.value;
-    secondaryItems.push({
-      id: 'next-reward',
-      tone: 'blue',
-      icon: Coins,
-      title: `再获得 ${gap} 积分`,
-      detail: `即可兑换 ${nextRewardProduct.value.title}`,
-      action: 'points',
-    });
-  }
-  return secondaryItems.slice(0, 2);
-});
-
-const handleSmartAction = (action) => {
-  if (action === 'shop') {
-    goToShop();
-    return;
-  }
-  if (action === 'lottery') {
-    router.push('/lotteries').catch(() => {});
-    return;
-  }
-  activateTab(['orders', 'gifts'].includes(action) ? 'fulfillment' : action || 'overview');
-};
-
-const retryOverviewIssues = () => {
-  if (giftsError.value) giftsLoaded.value = false;
-  if (ordersError.value) ordersLoaded.value = false;
-  if (ledgerError.value) ledgerLoaded.value = false;
-  if (ledgerError.value) void loadLedger();
-  if (giftsError.value || ordersError.value) void loadOverview();
-};
 
 const getGiftStatusLabel = (s) => {
   const map = {
@@ -2126,24 +1312,124 @@ const refreshFulfillment = () => {
   void loadGifts();
 };
 
-const loadOverview = async () => {
-  if (overviewLoading.value) return;
-  overviewLoading.value = true;
-  try {
-    await Promise.all([
-      loadSubscription(),
-      loadOrders(),
-      loadGifts(),
-      productsStore.fetchProducts(),
-    ]);
-  } finally {
-    overviewLoading.value = false;
+/* ═══ 首页派生数据（2026-10-26） ═══
+   摘要条 + 四张卡各取所需，不再合成「智能洞察」。原来那套引擎（候选池 → 排序 →
+   主洞察 → 最近动态 → 接下来）产出的是三段话术，用户要的只是余额、会员、待办。 */
+
+/** 摘要条副标题：会员状态一句话（悬空时给免费版口径） */
+const summaryMetaText = computed(() => {
+  if (subscriptionLoading.value) return '正在读取会员状态';
+  if (!activeSubscription.value) return '基础账户 · 随时可开通会员';
+  const expiresAt = new Date(activeSubscription.value.expiresAt || '');
+  if (Number.isNaN(expiresAt.getTime())) return '会员生效中';
+  return `会员至 ${expiresAt.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}`;
+});
+
+const frameStatusText = computed(() => (avatarFrame.value?.url ? '已佩戴头像框' : '未佩戴头像框'));
+const SKIN_LABELS = { blank: '空白卡', cats: '全员小猫', custom: '自定义卡面' };
+const skinLabel = computed(() => SKIN_LABELS[userInfo.value?.pointsCardSkin] || '空白卡');
+const planButtonText = computed(() => {
+  if (showPlanComparison.value) return '收起方案';
+  return activeSubscription.value ? '更改方案' : '选择方案';
+});
+const togglePlans = () => {
+  showPlanComparison.value = !showPlanComparison.value;
+};
+/** 装扮页「解锁」统一回到首页并展开方案（原先跳「订阅」页签） */
+const openPlans = () => {
+  openView('home');
+  showPlanComparison.value = true;
+};
+
+/** 待办：只收「需要你动手」的四件事，按紧迫度排。上限 3 条，多了就不是待办而是报表。 */
+const todoItems = computed(() => {
+  const items = [];
+  const gift = currentGift.value;
+  const giftTime = gift?.updated_at || gift?.created_at || '';
+
+  if (gift && addressCount.value === 0) {
+    items.push({
+      id: `gift-address-${gift.id}`,
+      tone: 'warn',
+      icon: MapPin,
+      title: '补充礼物收货地址',
+      detail:
+        gift.gift_status === 'shipped'
+          ? '礼物已寄出，补充地址便于后续联系'
+          : '礼物寄送前需要一个有效地址',
+      target: 'orders',
+      time: giftTime,
+      priority: 100,
+    });
+  } else if (gift && gift.gift_status === 'shipped') {
+    items.push({
+      id: `gift-shipped-${gift.id}`,
+      tone: 'warn',
+      icon: PackageCheck,
+      title: '礼物已寄出',
+      detail: gift.gift_no ? `快递单号 ${gift.gift_no}` : '请留意快递信息或取货通知',
+      target: 'orders',
+      time: giftTime,
+      priority: 80,
+    });
   }
+
+  if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 30) {
+    const days = subscriptionExpiryDays.value;
+    items.push({
+      id: 'subscription-expiry',
+      tone: days <= 7 ? 'warn' : 'info',
+      icon: Crown,
+      title: days <= 0 ? '会员今天到期' : `会员还有 ${days} 天到期`,
+      detail: '选择续订方案，避免额度回落',
+      target: 'plans',
+      time: activeSubscription.value?.expiresAt || '',
+      priority: days <= 7 ? 90 : 60,
+    });
+  }
+
+  if (pityStatus.value?.isDue) {
+    items.push({
+      id: 'pity-due',
+      tone: 'info',
+      icon: Ticket,
+      title: '抽奖保底可兑现',
+      detail: '下一次计入保底的活动即可领取保底礼',
+      target: 'lotteries',
+      time: pityStatus.value.updatedAt || '',
+      priority: 70,
+    });
+  }
+
+  return items.sort((a, b) => b.priority - a.priority).slice(0, 3);
+});
+
+const handleTodo = (item) => {
+  if (item.target === 'plans') {
+    openPlans();
+    return;
+  }
+  if (item.target === 'lotteries') {
+    goToLotteries();
+    return;
+  }
+  openView(item.target);
+};
+
+const goToLotteries = () => {
+  router.push('/lotteries').catch(() => {});
+};
+
+/* 首页取数：会员 + 订单 + 礼物 + 积分明细。
+   2026-10-26 起不再拉 products（商品推荐属商城）与抽奖列表（属 /lotteries），
+   资产首页不为它们各付一次请求。 */
+const loadHome = async () => {
+  await Promise.all([loadSubscription(), loadOrders(), loadGifts(), loadLedger()]);
 };
 
 onMounted(() => {
   void loadTier();
-  activateTab(activeTab.value);
+  openView(view.value);
 });
 </script>
 

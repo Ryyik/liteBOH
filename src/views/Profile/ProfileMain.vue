@@ -1450,10 +1450,14 @@ const handleRailNavClick = (itemId) => {
 const handleRailAction = async (actionId) => {
   switch (actionId) {
     case 'compose':
-    case 'search':
-      // 发布 / 搜索的宿主是论坛，而论坛 2026-09-22 起挂在首页 → 带意图跳到首页论坛区，
-      // 由首页把 ?compose=1 / ?search=1 转交给 ForumMain（他人空间没有论坛实例）
+      // 发布的宿主是论坛，而论坛 2026-09-22 起挂在首页 → 带意图跳到首页论坛区，
+      // 由首页把 ?compose=1 转交给 ForumMain（他人空间没有论坛实例）
       router.push({ path: '/', query: { view: 'latest', [actionId]: '1' } });
+      break;
+    case 'assets':
+      /* 2026-10-26：左栏便捷区全站收敛为「发布 / 资产」。他人空间没有资产页，
+         资产是全局个人入口 ⇒ 直接跳「我」页的资产 tab（与其它宿主同一条落点）。 */
+      router.push('/user-space?tab=assets');
       break;
     case 'theme':
       // applyTheme 内部派发 theme-changed，onThemeChanged 已监听并同步 ref

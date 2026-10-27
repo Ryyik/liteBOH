@@ -347,8 +347,10 @@ const handleRailAction = async (actionId) => {
     case 'compose':
       await callForumShell('openComposer');
       break;
-    case 'search':
-      await callForumShell('focusSearch');
+    case 'assets':
+      /* 2026-10-26：左栏便捷区全站收敛为「发布 / 资产」。首页没有资产页，
+         资产是全局个人入口 ⇒ 落到「我」页的资产 tab（与其它宿主同一条落点）。 */
+      router.push('/user-space?tab=assets');
       break;
     case 'theme':
       // 主题弹窗的 .modal-overlay / .modal-card 样式来自按需加载的 profile-panels.css，

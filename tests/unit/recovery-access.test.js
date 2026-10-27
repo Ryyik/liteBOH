@@ -40,7 +40,8 @@ const fnBody = (code, name) => {
 };
 
 const RESET_VIEW = 'src/views/ResetPassword/index.vue';
-const ACCOUNT_VIEW = 'src/views/user-center/AccountSecurity/index.vue';
+// 2026-10-26 账户安全并入设置「账户与隐私」⇒ 组件搬到 UserSpace/components
+const ACCOUNT_VIEW = 'src/views/user-center/UserSpace/components/AccountSecurityPanel.vue';
 const LOGIN_VIEW = 'src/views/Login/index.vue';
 const PANEL_VIEW = 'src/views/Login/TokenLoginPanel.vue';
 

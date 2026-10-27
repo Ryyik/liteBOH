@@ -9,7 +9,7 @@
     }"
     :style="{ '--bottom-nav-enter-duration': `${enterDurationMs}ms` }"
   >
-    <div class="nav-items" :style="navIndicatorStyle">
+    <div class="nav-items" :style="resolvedNavIndicatorStyle">
       <button
         v-for="item in navItems"
         :key="item.id"
@@ -37,13 +37,29 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import {
+  computed,
+  nextTick,
+  onActivated,
+  onBeforeUnmount,
+  onDeactivated,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
+import { useRoute } from 'vue-router';
 import { useKeyboardInset } from '@/composables/useKeyboardInset.js';
+import {
+  beginBottomNavHandoff,
+  consumeBottomNavHandoff,
+  refreshBottomNavHandoff,
+} from '@/views/user-center/UserSpace/composables/bottom-nav-motion.js';
 
 /* 键盘态隐藏（2026-09-24）：iOS 上 position:fixed 元素锚定布局视口，软键盘弹起时
    底栏不会消失、浮在键盘上方压住输入区。useKeyboardInset 不传 target = 纯判据、不写变量；
    与滚动隐藏取 OR —— 键盘收起后自动回到原有滚动状态。 */
 const { isKeyboardOpen } = useKeyboardInset();
+const route = useRoute();
 
 /* 入场动画（2026-09-23 加，2026-09-24 调慢调柔）：底栏首次出现时从下方缓慢滑入 ——
    首页下滑进入论坛、UserSpace 首次进入都走这里。用 keyframes 而非 transition：
@@ -120,9 +136,104 @@ const enterDurationMs = computed(() =>
 
 const navHidden = computed(() => props.hidden || isKeyboardOpen.value);
 
+/* ── 选中态位移（2026-10-26）─────────────────────────────────────────────
+   displayIndex 是「指示器此刻停在哪」，activeIndex 是「它应该去哪」。
+   同页切换由 watch 一帧内把 displayIndex 追到 activeIndex，CSS 负责滑动；
+   跨页切换则在 setup / onActivated 消费一次接力状态：先以来源席为起点，
+   下一帧再交给真实选中席，避免新底栏直接在终点挂载。 */
+const activeIndex = computed(() => {
+  const found = props.navItems.findIndex((item) => item.id === props.currentTab);
+  return Math.max(0, found);
+});
+
+const initialHandoff = consumeBottomNavHandoff({
+  toId: props.currentTab,
+  navCount: props.navItems.length,
+});
+
+const displayIndex = ref(initialHandoff ? initialHandoff.fromIndex : activeIndex.value);
+const indicatorDurationMs = ref(320);
+const suppressIndicatorTransition = ref(false);
+
+const durationForDistance = (distance) => {
+  if (distance <= 1) return 320;
+  if (distance === 2) return 380;
+  return 440;
+};
+
+let handoffRaf = 0;
+
+const cancelHandoffRaf = () => {
+  if (handoffRaf) {
+    cancelAnimationFrame(handoffRaf);
+    handoffRaf = 0;
+  }
+};
+
+const moveToActiveIndex = () => {
+  cancelHandoffRaf();
+  const distance = Math.abs(activeIndex.value - displayIndex.value);
+  if (distance === 0) return;
+  indicatorDurationMs.value = durationForDistance(distance);
+  handoffRaf = requestAnimationFrame(() => {
+    handoffRaf = 0;
+    displayIndex.value = activeIndex.value;
+  });
+};
+
+/* KeepAlive 的实例在重新激活时不会重跑 setup。先无动画对齐到来源席，
+   再走一次正常的滑入；两帧之间保留「先定位、后移动」的边界。 */
+const replayActivatedHandoff = async (handoff) => {
+  if (handoff.fromIndex === activeIndex.value) return;
+  cancelHandoffRaf();
+  suppressIndicatorTransition.value = true;
+  displayIndex.value = handoff.fromIndex;
+  await nextTick();
+  requestAnimationFrame(() => {
+    suppressIndicatorTransition.value = false;
+    moveToActiveIndex();
+  });
+};
+
+const applyActivatedHandoff = () => {
+  const handoff = consumeBottomNavHandoff({
+    toId: props.currentTab,
+    navCount: props.navItems.length,
+  });
+  if (!handoff) return;
+  void replayActivatedHandoff(handoff);
+};
+
+watch(activeIndex, (next) => {
+  if (suppressIndicatorTransition.value) {
+    displayIndex.value = next;
+    return;
+  }
+  const distance = Math.abs(next - displayIndex.value);
+  if (distance === 0) return;
+  indicatorDurationMs.value = durationForDistance(distance);
+  displayIndex.value = next;
+});
+
+const resolvedNavIndicatorStyle = computed(() => ({
+  ...props.navIndicatorStyle,
+  '--active-nav-index': displayIndex.value,
+  '--nav-indicator-duration': `${suppressIndicatorTransition.value ? 0 : indicatorDurationMs.value}ms`,
+}));
+
+/* 源实例停用 / 卸载时刷新接力时间：点击到真正导航之间可能隔着草稿确认。 */
+let pendingNavigation = null;
+
+const refreshPendingHandoff = () => {
+  if (!pendingNavigation) return;
+  refreshBottomNavHandoff(pendingNavigation);
+};
+
 onMounted(() => {
   /* 已播过就不再播：直接落到终态（无 keyframes ⇒ 无位移，视觉上是「原地就在」，
      而不是从屏幕外再滑一遍）。 */
+  if (initialHandoff) moveToActiveIndex();
+
   if (hasPlayedEnterThisSession()) {
     isEntering.value = false;
     return;
@@ -134,7 +245,22 @@ onMounted(() => {
   }, enterDurationMs.value);
 });
 
+let hasShownOnce = false;
+
+onActivated(() => {
+  /* 首次挂载也会触发 onActivated：该次交给 onMounted，避免同一接力被消费两次。 */
+  if (!hasShownOnce) {
+    hasShownOnce = true;
+    return;
+  }
+  applyActivatedHandoff();
+});
+
+onDeactivated(refreshPendingHandoff);
+
 onBeforeUnmount(() => {
+  cancelHandoffRaf();
+  refreshPendingHandoff();
   if (enterTimer) {
     window.clearTimeout(enterTimer);
     enterTimer = null;
@@ -142,6 +268,21 @@ onBeforeUnmount(() => {
 });
 
 const handleNavClick = (itemId) => {
+  const fromId = props.currentTab;
+  const target = props.navItems.find((item) => item.id === itemId);
+  const targetPath = String(target?.route || '').split('?')[0];
+  const leavesCurrentPage = Boolean(targetPath && targetPath !== route.path);
+  if (fromId !== itemId && leavesCurrentPage) {
+    pendingNavigation = { fromId, toId: itemId };
+    beginBottomNavHandoff({
+      fromId,
+      toId: itemId,
+      fromIndex: activeIndex.value,
+      navCount: props.navItems.length,
+    });
+  } else {
+    pendingNavigation = null;
+  }
   emit('nav-click', itemId);
 };
 </script>

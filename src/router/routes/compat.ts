@@ -14,13 +14,15 @@ import { resolveForumSection } from '../../config/forum-sections';
  *   · 改动本文件的验收：单测 tests/unit/compat-routes.test.js（折叠覆盖 + 落点对照）
  *     + 全量 verify。
  *
- * 现行清单（19 条 = 2 参数化 + 17 直条）：
+ * 现行清单（20 条 = 2 参数化 + 18 直条）：
  *   · 旧用户中心 /user-center/*（引入 ≤2026-06）：12 条折叠为 2 条（见下方分节）
  *   · 旧用户空间深链（引入 2026-09-30，tab 语义迁移）：8 条
  *   · Beta 6 退场（引入 2026-09-27）：/forum、/activities(×3)、/block-wall、/tutorial
  *   · 实验室退场（引入 2026-10-19）：/lab → BOHAI Work
  *
  * 变更史：
+ *   2026-10-26 新增 1 条：/user-space/account-security（独立页收进设置右栏）→
+ *     /user-space?tab=settings&view=account-security
  *   2026-10-19 新增 1 条：/user-space/partners（孤儿页）收编 → 论坛「成员」分区
  *   2026-10-19 新增 1 条：/lab（实验室功能退场）→ /ai-chat?surface=work；
  *     同日 /block-wall 落点修正（方块墙退场，?tab=wall 不复存在）。
@@ -131,6 +133,15 @@ export const compatRoutes: RouteRecordRaw[] = [
   {
     path: '/user-space/partners',
     redirect: toForumMembers,
+  },
+
+  {
+    // 账户安全退场兼容（2026-10-26）：独立路由页收进「设置 → 账户与隐私」右栏，
+    // 不再单独开页 ⇒ 老链接/历史文案（「设置 → 账户安全」）一律落到设置页的对应子页。
+    // 引入 2026-10-26 · 到期 2027-04-30（IA 类改造 6 个月生命期）
+    path: '/user-space/account-security',
+    name: 'AccountSecurity',
+    redirect: toUserSpace({ tab: 'settings', view: 'account-security' }),
   },
 
   // ═══ Beta 6 退场（2026-09-27）═══════════════════════════════════════════

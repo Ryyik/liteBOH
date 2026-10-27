@@ -157,36 +157,11 @@
      「编辑器挤在左边、右边空一片」。结构一行不动，只调宽度与居中 */
   /* 顶栏是 overlay（flex column）的直接子项：用 align-self 居中，不能用 margin:auto
      —— flex 子项的 auto margin 会吸收剩余空间，把宽度收缩成内容宽（实测只剩 187px） */
-  /* 全宽布局（用户要求）：不限宽、不居中，内容铺满右区 */
+  /* 会话顶栏与内容铺满右区；正文动作栏在内部限宽，避免横屏一行拉得太散 */
   body.page-userspace .mobile-composer-overlay .mobile-composer-bar {
     box-sizing: border-box;
   }
 
-  /* 会话内移动端圆按钮横条已移除 —— 收敛为 composer.css 的通用规则
-     （.mobile-composer-overlay .mobile-post-image-toolbar，全宽度生效），
-     此处不再保留 UserSpace 专属版本 */
-
-  /* 去掉图片区那个「＋ 添加图片」大方框（用户要求）。
-     这里刻意不写规则：composer.css 的 `.editor-card .post-image-add-more-card
-     { display: none + 感叹号 important }` 语义上就该在横屏生效，只是被同文件后面那条
-     无条件 `display: flex + 感叹号 important` 否掉了 —— 已按注释原意把「保留」限定到竖屏。
-     页面级再加一条感叹号 important 才能压住它，会顶破 important 棘轮基线，故不这么做。
-     （注释避免写出该字面量：check-important-budget 是纯文本匹配，连注释一起算） */
-
-  /* 会话内不显示周签到面板（用户明确不要这个模块） */
-  body.page-userspace .mobile-composer-overlay .weekly-checkin-panel,
-  body.page-home .mobile-composer-overlay .weekly-checkin-panel {
-    display: none;
-  }
-
-  /* 内嵌发帖编辑器：发布会话（左栏「发布」）已取代它，删除以免同屏两个发布入口。
-     仅在分栏区间生效 —— 768–1023 这类中间尺寸没有左栏「发布」按钮，
-     内嵌编辑器是那里的唯一入口，必须保留。
-     首页论坛层同理：左栏「发布」在，内嵌编辑器就不要了 */
-  .user-space-page .forum-page.embedded-mode .forum-left-column > .post-creation-section,
-  body.page-home .home-forum-stage .forum-page.embedded-mode .forum-left-column > .post-creation-section {
-    display: none;
-  }
 }
 
 @keyframes userspace-tab-enter {
@@ -204,6 +179,18 @@
   }
 
   /* 右区 ≥1040px：发布会话保持全宽（不再放宽限宽档） */
+}
+
+/* 设置页横屏 → 左栏进入缩小态（2026-10-26）。
+   宽度变量在这里改：它同时被 .tab-page 的 left/width、导航岛居中偏移
+   （.unified-nav-surface 的 left: rail/2）、发布会话左边界消费 —— 一处改全都跟着走。
+   形态（图标/文字/发布按钮/角标）在 components/side-rail.css 里改，
+   两处用同一个判据 body.page-userspace.is-rail-compact，别各写一套条件。
+   特异性 0,3,0 > 上面宽档的 0,2,0，所以不管文件顺序都赢。 */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  body.page-userspace.is-rail-compact {
+    --userspace-rail-w: 88px;
+  }
 }
 
 /* ================================================================
@@ -338,6 +325,62 @@
     --userspace-rail-w: 240px;
   }
 }
+
+/* ================================================================
+   图库 / BOH Cloud+（/user-space/note → body.page-bohcloudplus）横屏左栏
+   ================================================================
+   2026-10-26 用户口径：「让图库也是左右栏布局」。图库是底栏第五席的全屏落点，
+   之前它是唯一一条没有左栏的主页面 —— 从「我」点图库，整条导航就消失了。
+   挂的是同一份 UserSpaceSideRail + 同一份 navItems（单源），current-tab='cloud'。
+
+     · 断点 / 栏宽档位与 side-rail.css 完全一致（88 → ≥1280 的 240）
+     · Cloud+ 是普通长文档流（.cloud-page min-height:100vh + body 滚动），
+       故 rail 必须 fixed —— absolute 会被拉成整个文档高，品牌位与工具组随页面滚走
+     · 内容让位走 .cloud-page 的 padding-left：整页右移，.cloud-shell 的
+       `max-width + margin:auto` 自动在**剩下的宽度**里居中，不需要改它
+     · --rail-* 条目状态底色：Cloud+ 没有 .user-space-page / .profile-page 祖先，
+       照首页的做法在 body 上补挂一份（亮 + 暗）
+   ================================================================ */
+
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  body.page-bohcloudplus {
+    --userspace-rail-w: 88px;
+    --rail-item-bg-hover: rgba(15, 23, 42, 0.05);
+    --rail-item-bg-active: rgba(15, 23, 42, 0.07);
+    --rail-pill-bg: rgba(15, 23, 42, 0.075);
+  }
+
+  body.page-bohcloudplus .userspace-rail.liquid-glass {
+    position: fixed;
+  }
+
+  body.page-bohcloudplus .cloud-page {
+    padding-left: var(--userspace-rail-w);
+  }
+
+  /* 顶部导航以内容区居中（与 UserSpace / 首页同一条杠杆） */
+  body.page-bohcloudplus .unified-nav-surface {
+    left: calc(var(--userspace-rail-w, 88px) / 2);
+  }
+
+  /* 详情浮层是 inset:0 的满屏层，同样要避开左栏，否则左栏压在它上面且遮住返回区 */
+  body.page-bohcloudplus .detail-overlay {
+    left: var(--userspace-rail-w);
+  }
+}
+
+@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
+  body.page-bohcloudplus {
+    --userspace-rail-w: 240px;
+  }
+}
+
+html[data-theme='dark'] body.page-bohcloudplus {
+  --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
+  --rail-item-bg-active: rgba(255, 255, 255, 0.12);
+  --rail-pill-bg: rgba(255, 255, 255, 0.12);
+}
+
 
 /* ================================================================
    BOH AI 整页（/ai-chat → body.page-aichat）横屏同体系左栏

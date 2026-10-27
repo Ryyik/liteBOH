@@ -15,6 +15,16 @@
   }
 }
 
+/* 设置页灰画布（2026-10-26 收口）：iOS 式「白卡片压灰底」的画布从面板内部搬到这里 ——
+   整条 tab-page 铺底色，天然覆盖到底部内边距，不会再出现「画布比内容短一截」。
+   ⚠️ 原先由 ProfileSettingsPanel 的 `.profile-subpage-shell::before` 画，且用
+   `bottom: -100dvh` 强行撑到视口底 —— 竖屏下文档才是滚动容器，那 100dvh 的溢出
+   把 body 的 scrollHeight 顶高一整屏 ⇒ body 自己变成第二个滚动容器（两根滚动条），
+   并且内容结束后多出一屏空白（即「底部异常空隙」）。别再往画布上加负 bottom。 */
+.settings-shell {
+  background: var(--boh-bg-secondary, #f5f5f7);
+}
+
 .profile-page-content {
   flex: 1;
   padding: 0 20px 24px;
@@ -275,49 +285,72 @@
 }
 
 .profile-content-panel {
-  overflow: hidden;
-  border: 1px solid var(--stroke);
-  border-radius: 20px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  /* 2026-10-26（极简）：去掉卡片壳（边框 / 底色 / 投影）——
+     内容是作品网格本身，外面再套一层 rounded-20 容器就是「卡片里的卡片」。
+     参考的个人主页整页无卡片容器，靠留白与网格分块。 */
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) 120ms both;
 }
 
+/* 页签（2026-10-26 极简 + 吸顶）：不再三等分 + 下边框 + 毛玻璃条，
+   改成一行左对齐的纯文字；选中态是「浅灰胶囊 + 深色字」，未选中是纯文字灰。
+   吸顶（用户要求「页签在内容流上面」）：滚动时它要留在内容流上方，
+   否则滑过第一屏就再也看不到切段入口。
+   top 用导航岛实测高度 —— 页顶已不再给岛留空白，sticky 到 0 会被岛压住。 */
+/* 页签（2026-10-26 极简）：不再三等分 + 下边框 + 毛玻璃条，
+   改成一行左对齐的纯文字；选中态是「浅灰胶囊 + 深色字」，未选中是纯文字灰。
+   吸顶**只在竖屏**（见 ProfileHomePanel 的 767 断点）：
+   横屏是双栏网格、页签在内容流上方本来就一直在视野里，吸顶反而会压在作品图上。 */
 .profile-content-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  background: rgba(255, 255, 255, 0.92);
-  border-bottom: 1px solid var(--stroke);
-  backdrop-filter: var(--glass-blur-sm, blur(12px));
-  -webkit-backdrop-filter: var(--glass-blur-sm, blur(12px));
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 4px;
+  padding: 6px 0 10px;
+  background: transparent;
+  border-bottom: 0;
 }
 
 .profile-content-tab {
   position: relative;
-  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 13px;
   border: 0;
+  border-radius: 999px;
   background: transparent;
-  color: var(--text-secondary);
-  font-size: 15px;
-  font-weight: 800;
+  color: var(--text-tertiary, #8a8a8a);
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
 }
 
 .profile-content-tab.active {
+  background: rgba(15, 23, 42, 0.06);
   color: var(--text-primary);
+  font-weight: 600;
 }
 
+/* 下划线选中态退场（2026-10-26）：胶囊底已经承担选中语义，再叠一条红条是双重强调 */
 .profile-content-tab.active::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  width: 28px;
-  height: 3px;
-  border-radius: 999px;
-  background: #ff2d55;
-  transform: translateX(-50%);
-  animation: profile-tab-underline 220ms var(--ease-out);
+  content: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .profile-content-tab:not(.active):hover {
+    background: rgba(15, 23, 42, 0.035);
+    color: var(--text-primary);
+  }
 }
 
 .profile-content-count {
@@ -417,216 +450,6 @@
     opacity: 1;
     transform: translateX(-50%) scaleX(1);
   }
-}
-
-.profile-edit-page-shell {
-  width: min(100%, 720px);
-  margin: 0 auto;
-  padding: 0 0 96px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  animation: userspace-subpage-in 260ms var(--ease-out) both;
-}
-
-.profile-edit-page-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 4px 2px 2px;
-}
-
-.profile-edit-page-card {
-  overflow: hidden;
-  border: 1px solid var(--stroke);
-  border-radius: 20px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.profile-edit-page-hero {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 22px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0)), #ffffff;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.profile-edit-page-avatar .apple-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.14);
-}
-
-.profile-edit-avatar-badge {
-  position: absolute;
-  right: -4px;
-  bottom: -4px;
-  width: 30px;
-  height: 30px;
-  border: 3px solid var(--surface);
-  border-radius: 999px;
-  background: #1d1d1f;
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.22);
-}
-
-.profile-edit-avatar-badge svg {
-  width: 15px;
-  height: 15px;
-}
-
-.profile-edit-page-copy {
-  min-width: 0;
-}
-
-.profile-edit-page-copy h3,
-.profile-edit-page-copy p {
-  margin: 0;
-}
-
-.profile-edit-page-copy h3 {
-  color: var(--text-primary);
-  font-size: 20px;
-  line-height: 1.25;
-  font-weight: 900;
-}
-
-.profile-edit-page-copy p {
-  margin-top: 5px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.profile-edit-avatar-action {
-  margin-top: 12px;
-  min-height: 34px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.08);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.profile-edit-avatar-action:hover {
-  background: rgba(15, 23, 42, 0.12);
-}
-
-.profile-edit-page-form {
-  margin: 0;
-  padding: 22px;
-  gap: 18px;
-}
-
-.profile-edit-page-actions {
-  position: sticky;
-  bottom: 18px;
-  z-index: 20;
-  display: grid;
-  grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
-  gap: 10px;
-  padding: 10px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.14);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-}
-
-.profile-edit-cancel-btn,
-.profile-edit-save-btn {
-  min-height: 44px;
-  border: 0;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.profile-edit-cancel-btn {
-  background: rgba(15, 23, 42, 0.06);
-  color: var(--text-primary);
-}
-
-.profile-edit-save-btn {
-  background: #1d1d1f;
-  color: #ffffff;
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
-}
-
-.profile-edit-save-btn:disabled {
-  opacity: 0.62;
-  cursor: not-allowed;
-}
-
-.edit-profile-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-top: 18px;
-}
-
-.edit-profile-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 800;
-  text-align: left;
-}
-
-.edit-profile-textarea {
-  width: 100%;
-  min-height: 96px;
-  resize: vertical;
-  padding: 12px 14px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 14px;
-  background: #ffffff;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.5;
-  outline: none;
-}
-
-.edit-profile-textarea:focus {
-  border-color: rgba(37, 99, 235, 0.45);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.11);
-}
-
-.birthday-selector.compact {
-  margin: 0;
-}
-
-.profile-date-selector {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  width: 100%;
-}
-
-.profile-date-selector.birthday-selector {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.profile-date-select {
-  width: 100%;
-  min-width: 0;
 }
 
 .profile-post-copy p {
@@ -847,53 +670,6 @@
   background: linear-gradient(135deg, rgba(49, 46, 129, 0.45), rgba(24, 24, 27, 0.92));
 }
 
-.user-space-page[data-theme='dark'] .edit-profile-textarea {
-  background: rgba(24, 24, 27, 0.92);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.user-space-page[data-theme='dark'] .profile-edit-page-card,
-.user-space-page[data-theme='dark'] .profile-edit-page-hero {
-  background: rgba(24, 24, 27, 0.92);
-}
-
-.user-space-page[data-theme='dark'] .profile-edit-page-hero {
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.user-space-page[data-theme='dark'] .profile-edit-page-actions {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(24, 24, 27, 0.78);
-}
-
-.user-space-page[data-theme='dark'] .profile-edit-cancel-btn {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
-}
-
-.user-space-page[data-theme='dark'] .profile-edit-save-btn {
-  background: #f8fafc;
-  color: #111827;
-}
-
-.user-space-page[data-theme='dark'] .profile-edit-avatar-badge {
-  border-color: rgba(24, 24, 27, 0.92);
-  background: #f8fafc;
-  color: #111827;
-}
-
-.user-space-page[data-theme='dark'] .profile-edit-avatar-action {
-  background: rgba(255, 255, 255, 0.08);
-  color: #f8fafc;
-}
-
-.user-space-page[data-theme='dark'] .profile-date-select {
-  border-color: rgba(255, 255, 255, 0.1);
-  background-color: rgba(24, 24, 27, 0.92);
-  background-image:
-    linear-gradient(135deg, rgba(24, 24, 27, 0.92), rgba(39, 39, 42, 0.92)),
-    url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M7 10l5 5 5-5' stroke='%23cbd5e1' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-}
 
 .profile-subpage-shell {
   width: 100%;
@@ -1029,8 +805,9 @@
   grid-template-columns: auto 1fr;
   gap: 20px;
   align-items: start;
-  padding: 0 24px 18px;
-  margin-top: -44px;
+  padding: 0 24px 14px;
+  /* 2026-10-26：-44 → -26。整体下移，让封面多露一截（与此处封面加高配套）。 */
+  margin-top: -26px;
 }
 
 .profile-hero-avatar {
@@ -1187,8 +964,11 @@
 }
 
 .profile-hero-stats {
-  margin: 0 24px 20px;
-  padding-top: 18px;
+  /* 2026-10-26：数据行从卡片底部搬进身份信息块（DOM 已在 .profile-hero-copy 内）——
+     左对齐、紧贴 bio，不再是一条居中横在卡底的独立分区。 */
+  margin: 4px 0 0;
+  padding-top: 0;
+  justify-content: flex-start;
 }
 
 .profile-bio-wrap {
@@ -1253,7 +1033,9 @@
   position: relative;
   display: block;
   width: 100%;
-  height: 148px;
+  /* 2026-10-26：148 → 188px。用户要求「留出更多空间看到背景图」——
+     头像组只压住封面下沿一小截，其余全是背景。 */
+  height: 188px;
   padding: 0;
   border: 0;
   border-radius: 0;

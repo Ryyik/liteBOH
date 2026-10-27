@@ -32,6 +32,8 @@
           class="userspace-rail-item"
           :class="{ active: currentTab === item.id }"
           :aria-current="currentTab === item.id ? 'page' : undefined"
+          :aria-label="item.label"
+          :title="item.label"
           :data-tab="item.id"
           @pointerenter="$emit('preload-tab', item.id)"
           @focus="$emit('preload-tab', item.id)"
@@ -55,12 +57,14 @@
 
       <nav class="userspace-rail-group" aria-label="便捷操作">
         <button
-          v-for="action in QUICK_ACTIONS"
+          v-for="action in quickActionItems"
           :key="action.id"
           type="button"
           class="userspace-rail-item"
           :class="{ active: activeAction === action.id }"
           :aria-current="activeAction === action.id ? 'true' : undefined"
+          :aria-label="action.label"
+          :title="action.label"
           :data-rail-action="action.id"
           @click.stop="$emit('action', action.id)"
         >
@@ -82,6 +86,8 @@
           type="button"
           class="userspace-rail-item"
           data-rail-action="home"
+          aria-label="首页"
+          title="首页"
           @click.stop="$emit('action', 'home')"
         >
           <House class="userspace-rail-icon" :size="18" :stroke-width="1.9" aria-hidden="true" />
@@ -160,12 +166,24 @@
 // · 主导航沿用 UserSpaceBottomNav 的同一份 navItems 与同一套点击事件
 // · 便捷/工具区的动作统一走 action 事件，由 UserSpaceMain 分发到已有 handler
 // 可见性由 side-rail.css 的媒体查询决定（默认 display:none），不新增任何状态或请求
-import { House, LogOut, Moon, PenLine, Search, Sun } from 'lucide-vue-next';
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { House, LogOut, Moon, PenLine, Sun, Wallet } from 'lucide-vue-next';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-const QUICK_ACTIONS = [
+/**
+ * 便捷区：**全站一份，发布 / 资产**（2026-10-26 用户纠偏后收敛）。
+ *
+ * 原先这里是「发布 / 搜索」，且允许宿主用 `quick-actions` 覆盖 —— 「我的」页传了
+ * 「发布 / 资产」，于是同一个左栏在首页/他人空间/BOH 主区显示「搜索」、进「我」页
+ * 又变成「资产」。用户读成 bug（「为啥我有时候还是会看到搜索，点击别的之后就会变成资产」）。
+ *
+ * 现在：左栏是**全局导航**，位置固定、内容也固定 —— 两个入口在所有宿主里一致：
+ *   · 发布 → 有本地发布器的宿主自己开；没有的（他人空间 / 图库）走 `/?compose=1` 深链
+ *   · 资产 → `/user-space?tab=assets`（全局可达，不会变成死按钮）
+ * 搜索不再占左栏席位：它是论坛的能力，论坛自己的顶栏/`?search=1` 深链仍在。
+ */
+const DEFAULT_QUICK_ACTIONS = [
   { id: 'compose', label: '发布', icon: PenLine },
-  { id: 'search', label: '搜索', icon: Search },
+  { id: 'assets', label: '资产', icon: Wallet },
 ];
 
 const emit = defineEmits(['preload-tab', 'nav-click', 'action']);
@@ -205,6 +223,14 @@ const props = defineProps({
     default: false,
   },
 });
+
+/**
+ * ⚠️ 默认值**不能**写在 defineProps 里（`default: () => DEFAULT_QUICK_ACTIONS`）——
+ * `<script setup>` 的 defineProps 会被提升到 setup 之外，引用本地常量直接编译失败
+ * （实测整页 500：`defineProps() cannot reference locally declared variables`）。
+ * 所以常量只在 setup 内使用，模板读 computed。
+ */
+const quickActionItems = computed(() => DEFAULT_QUICK_ACTIONS);
 
 /* 滑动玻璃胶囊指示器：nav group 内 absolute（z0 在条目文字之下），
    offsetTop/offsetHeight 定位——随内容流天然跟随内层滚动，无需 scroll 监听；

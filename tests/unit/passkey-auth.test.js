@@ -258,7 +258,8 @@ describe('passkey 接入源码守卫', () => {
   });
 
   it('设置面板：菜单行与注册/删除均为能力门控 + 两次点击删除确认', async () => {
-    const code = squeezeSource(await read('views/user-center/AccountSecurity/index.vue'));
+    // 2026-10-26 账户安全并入设置「账户与隐私」⇒ 组件搬到 UserSpace/components
+    const code = squeezeSource(await read('views/user-center/UserSpace/components/AccountSecurityPanel.vue'));
     expect(code).toContain('v-if="passkeySupported" type="button" class="gs-row"');
     expect(code).toContain('openPasskeyPanel');
     expect(code).toContain('registerPasskey()');

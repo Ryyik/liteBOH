@@ -1,6 +1,13 @@
 <template>
-  <div class="profile-subpage-shell">
-    <UserCenterPageHeader title="数据与隐私" back-label="返回设置" max-width="1200px" @back="$emit('back')" />
+  <!-- inline（2026-10-26）：作为设置页右栏的子页渲染时不画自己的页头/外壳 -->
+  <div class="profile-subpage-shell" :class="{ 'is-inline': inline }">
+    <UserCenterPageHeader
+      v-if="!inline"
+      title="数据与隐私"
+      back-label="返回设置"
+      max-width="1200px"
+      @back="$emit('back')"
+    />
 
     <div class="profile-subpage-body">
       <!-- 液态玻璃连续面板（与设置主页同一设计体系） -->
@@ -38,7 +45,7 @@
         <section class="gs-group">
           <div class="privacy-note-wrap">
             <p class="gs-note">
-              隐藏在线状态与隐藏关注数据等隐私开关，可在「设置」主页的数据与隐私分组中调整。
+              隐藏在线状态与隐藏关注数据等隐私开关，可在「账户与隐私」分组的上一级列表中调整。
             </p>
           </div>
         </section>
@@ -74,7 +81,9 @@ import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { ChevronRight, Database, Wrench } from 'lucide-vue-next';
 
 defineProps({
-  isAdmin: { type: Boolean, default: false }
+  isAdmin: { type: Boolean, default: false },
+  /** 内嵌进设置页右栏（不画自己的页头） */
+  inline: { type: Boolean, default: false },
 });
 
 defineEmits(['back', 'navigate']);

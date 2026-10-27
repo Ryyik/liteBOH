@@ -1,197 +1,17 @@
-/* ─── 用户 + 积分 + Tab 合并大卡片 ───
-   2026-10-15 本文件原有两处 .ah-hub-card 定义（此处 + 「账户导航与概览」区），后者静默覆盖
-   前者 —— 改样式时极易改错地方。现合并为**单处**，最终生效值全部落在这里。 */
-.ah-hub-card {
-  --ah-ease: cubic-bezier(0.32, 0.72, 0, 1);
-  /* 折射级液态玻璃宿主（2026-10-15，同 BohComposer 口径）：
-     1) position:relative 接管玻璃包含块职责（原 transform: translateZ(0) 已撤 ——
-        玻璃祖先链禁堆叠上下文，§21.7）；
-     2) 自体 backdrop-filter 与厚白膜已撤：backdrop-filter 会把本卡片变成子玻璃的
-        Backdrop Root（白上白事故机制，档案见 liquid-glass-spec.js 文件头）；
-     3) 官方样貌三要素 B「轮廓常在」：border 与 box-shadow 必须保留，任何撤除都是事故。 */
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  padding: 18px 20px 14px;
-  border-radius: 26px;
-  background: rgba(255, 255, 255, 0.62);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  border: 0.5px solid rgba(255, 255, 255, 0.78);
-  box-shadow:
-    0 22px 52px rgba(15, 23, 42, 0.11),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  width: 100%;
-  max-width: 980px;
-  margin: 0 auto;
-}
+/* ═══════════════════════════════════════════════════════════════════════
+   资产面板样式（2026-10-26 重做：一屏首页 + 三个二级页）
 
-/* 折射接线态（is-refract 由模板挂 BohGlassRefract 时同步挂上）：
-   白膜与磨砂交给折射层（tint α 单源 tokens.css --refract-alpha），本卡只留轮廓。 */
-.ah-hub-card.is-refract {
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-/* 内容层抬到玻璃之上：同堆叠上下文内定位元素按 DOM 顺序绘制，玻璃在 DOM 首位垫底 */
-.ah-hub-card.is-refract > * {
-  position: relative;
-}
-.ah-hub-card.is-refract > .ah-hub-refract {
-  position: absolute;
-}
+   ⚠️ 本文件 2026-10-26 按「模板仍在引用的类」整份重建过一次：
+   七段页签删除后，概览引擎 / 抽奖 / 赞助 / 顶卡四块的 447 条规则已无任何
+   引用者，与其逐条补丁不如从原始文件重新生成（663 → 195 条）。
+   **新增区块一律追加到文件末尾**，不要再往中间插 —— 中段是「装扮 / 记录 /
+   地址」三个二级页的既有样式。
 
-/* 顶部行：用户信息（左）+ 当前积分（右，同一行） */
-.ah-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 16px;
-}
-.ah-user-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-.ah-user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.ah-name-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-.ah-username {
-  font-size: 19px;
-  font-weight: 800;
-  color: #1d1d1f;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ah-uid {
-  font-size: 11px;
-  font-weight: 600;
-  color: #8e8e93;
-  letter-spacing: 0.06em;
-}
-.ah-name-row .tier-badge.tier-free {
-  background: rgba(142, 142, 147, 0.1);
-  color: #8e8e93;
-}
-.user-space-page[data-theme='dark'] .ah-name-row .tier-badge.tier-free {
-  background: rgba(255, 255, 255, 0.1);
-  color: #a1a1aa;
-}
+   结构：`.ah-summary` 摘要条（常驻）+ `.ah-home`（四卡 + 外链行）
+        + `.ah-subpage`（返回条 + 装扮 / 订单与地址 / 积分明细）
+   ═══════════════════════════════════════════════════════════════════════ */
 
-/* 当前积分（右侧胶囊） */
-.ah-points-block {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(0, 113, 227, 0.06);
-  border: 1px solid rgba(0, 113, 227, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  flex-shrink: 0;
-  animation: ah-materialize 200ms var(--ah-ease) both;
-}
-.ah-points-icon-wrap {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #0071e3;
-  background: rgba(0, 113, 227, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
-  flex-shrink: 0;
-  transition: transform 180ms var(--ah-ease);
-}
-.ah-points-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-.ah-points-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #8e8e93;
-  line-height: 1;
-}
-.ah-points-value {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #1d1d1f;
-  line-height: 1;
-}
-
-/* Tab 区 · SegmentTabs 纯文字单行（覆盖组件默认的吸顶 inset 与居中布局） */
-.ah-hub-card .ah-segment-tabs {
-  justify-content: flex-start;
-  gap: 20px;
-  padding: 10px 2px 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  /* 2026-10-22（W2）：7 席在 390 下刚好塞满（概览/装扮/积分/订阅/订单/抽奖/赞助），
-     再增一项即溢出。而 `overflow-x: auto` 横滑**没有「右边还有」的任何提示** ——
-     用户不知道能滑，第 5 席之后等于不存在。右缘 20px 渐隐是最小成本的提示。
-     刻意不做「滚到头就消失」：那要 `animation-timeline: scroll()`，兼容性还不稳；
-     常驻渐隐在这个密度下不会误伤内容（末席右侧本来就有留白）。 */
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
-}
-
-/* tab 分组（2026-10-15）：前 3 席 = 资产（概览/装扮/积分），后 4 席 = 服务（订阅/订单/抽奖/赞助）。
-   SegmentTabs 是共享组件、不渲染 group 字段 —— 分组视觉用第 4 席前的分隔线 + 组间间距表达。
-   ⚠️ 席位数若增删，这里的 nth-child(4) 与 AssetsHubPanel.vue tabGroups 注释要同步改。 */
-.ah-hub-card .ah-segment-tabs :deep(.segment-tab:nth-child(4)) {
-  margin-left: 14px;
-}
-.ah-hub-card .ah-segment-tabs :deep(.segment-tab:nth-child(4))::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: -9px;
-  width: 1px;
-  height: 14px;
-  transform: translateY(-50%);
-  background: rgba(15, 23, 42, 0.16);
-}
-.user-space-page[data-theme='dark']
-  .ah-hub-card
-  .ah-segment-tabs
-  :deep(.segment-tab:nth-child(4))::before {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.ah-hub-card .ah-segment-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.ah-hub-card .ah-segment-tabs :deep(.segment-tab) {
-  flex-shrink: 0;
-  font-size: 13px;
-  padding-bottom: 8px;
-}
-
-.ah-hub-card .ah-segment-tabs :deep(.segment-tab.active) {
-  font-size: 14px;
-}
-
-/* ─── 装扮 tab：头像框 + 积分卡面（2026-09 tab 合并）─── */
+/* ─── 装扮页：头像框 + 积分卡面 ─── */
 .ah-decor {
   display: flex;
   flex-direction: column;
@@ -279,37 +99,6 @@
 }
 
 /* ─── Section 通用 + 骨架 ─── */
-.ah-section {
-  transform-origin: 50% 0;
-  min-height: 240px;
-}
-.ah-panel-enter-active {
-  transition:
-    opacity 260ms cubic-bezier(0.32, 0.72, 0, 1),
-    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
-    filter 220ms ease;
-}
-.ah-panel-leave-active {
-  transition:
-    opacity 140ms ease,
-    transform 180ms ease,
-    filter 140ms ease;
-}
-.ah-panel-enter-from {
-  opacity: 0;
-  transform: translateY(10px) scale(0.985);
-  filter: blur(4px);
-}
-.ah-panel-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.99);
-  filter: blur(2px);
-}
-
-.ah-overview-skeleton {
-  display: grid;
-  gap: 16px;
-}
 .ah-skeleton {
   /* 2026-10-22：三条骨架里只有 `.ah-skeleton` 自己有底色 ——
      `.ah-skeleton-line` / `.ah-skeleton-icon` 只声明了尺寸，模板里也没有 `ah-skeleton` 类，
@@ -328,61 +117,6 @@
   border-radius: 14px;
 }
 /* 骨架里的「行」与「图标」必须自己吃一条底色，否则不可见。 */
-.ah-skeleton-line,
-.ah-skeleton-icon {
-  background-image: var(--ah-skeleton-fill);
-  background-size: 200% 100%;
-  animation: ah-shimmer 1.2s infinite linear;
-}
-.ah-skeleton-focus {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  padding: 16px;
-  min-height: 112px;
-  border: 0.5px solid rgba(255, 255, 255, 0.6);
-  /* ⚠️ 原为 `background: rgba(255,255,255,0.52)` —— **简写**会把 .ah-skeleton 的
-     shimmer 渐变整个重置成纯色，于是这块也是白底白卡。改成 background-color
-     只叠白膜，渐变保留。 */
-  background-color: rgba(255, 255, 255, 0.45);
-  backdrop-filter: var(--liquid-filter-sm);
-}
-.ah-skeleton-focus .ah-skeleton-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-.ah-skeleton-lines {
-  flex: 1;
-  display: grid;
-  gap: 8px;
-}
-.ah-skeleton-line {
-  height: 12px;
-  border-radius: 6px;
-}
-.ah-skeleton-line.w-24 {
-  width: 24%;
-}
-.ah-skeleton-line.w-60 {
-  width: 60%;
-}
-.ah-skeleton-line.w-80 {
-  width: 80%;
-}
-.ah-skeleton-points-card {
-  height: 168px;
-  border-radius: 18px;
-}
-.ah-skeleton-card-sm {
-  height: 128px;
-  border-radius: 16px;
-}
-.ah-skeleton-column {
-  height: 220px;
-  border-radius: 16px;
-}
 .ah-skeleton-preset {
   height: 132px;
   border-radius: 14px;
@@ -420,385 +154,6 @@
 
 /* ─── 账户导航与概览 ───
    2026-10-15：原第二处 .ah-hub-card 覆盖定义已并入文件顶部单源（防静默覆盖，见顶注）。 */
-.ah-overview {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.ah-overview-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 4px 2px 0;
-}
-.ah-overview-heading > div {
-  min-width: 0;
-}
-.ah-overview-heading span:first-child {
-  color: #6e6e73;
-  font-size: 12px;
-  font-weight: 650;
-}
-.ah-overview-heading h2 {
-  margin: 3px 0 0;
-  color: #1d1d1f;
-  font-size: 22px;
-  font-weight: 750;
-  line-height: 1.15;
-}
-.ah-overview-heading p {
-  max-width: 620px;
-  margin: 5px 0 0;
-  color: #747b86;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.ah-overview-updating {
-  flex: 0 0 auto;
-  color: #6e6e73;
-  font-size: 11px;
-  font-weight: 600;
-}
-.ah-overview-retry {
-  flex: 0 0 auto;
-  padding: 7px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.48);
-  color: #64748b;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 650;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
-  transition:
-    background-color 150ms ease,
-    color 150ms ease,
-    transform 150ms ease;
-}
-.ah-overview-retry:hover {
-  background: rgba(0, 113, 227, 0.1);
-  color: #0071e3;
-}
-.ah-overview-retry:active {
-  transform: scale(0.97);
-}
-
-.ah-smart-focus {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  min-height: 112px;
-  padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 24px;
-  /* ⚠️ 必须用 backwards 而非 both：ah-materialize 的末帧含 transform，
-     `both`（含 forwards）会让动画结束后仍持续应用末帧值，而 CSS 动画声明的
-     优先级高于普通作者声明 —— 会把本元素的 transform 永久锁死，导致下方
-     `.ah-smart-focus:hover { transform: translateY(-3px) }` 与
-     `.ah-smart-focus:active { transform: scale(0.99) }` 全部失效。 */
-  animation: ah-materialize 260ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
-  background: rgba(255, 255, 255, 0.56);
-  backdrop-filter: var(--liquid-filter-lg);
-  -webkit-backdrop-filter: var(--liquid-filter-lg);
-  box-shadow:
-    0 22px 46px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  color: #1d1d1f;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    transform 190ms var(--ah-ease),
-    box-shadow 190ms ease,
-    background-color 190ms ease;
-}
-.ah-smart-focus-icon {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  border-radius: 17px;
-  background: rgba(0, 113, 227, 0.11);
-  color: #0071e3;
-}
-.ah-smart-focus-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 3px;
-}
-.ah-smart-focus-copy > span {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-}
-.ah-smart-focus-copy strong {
-  color: #1d1d1f;
-  font-size: 18px;
-  font-weight: 780;
-  line-height: 1.25;
-}
-.ah-smart-focus-copy small {
-  color: #6e6e73;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.ah-smart-focus-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: #0071e3;
-  font-size: 12px;
-  font-weight: 720;
-  white-space: nowrap;
-}
-.ah-smart-focus-icon,
-.ah-smart-focus-action svg {
-  transition: transform 180ms var(--ah-ease);
-}
-.ah-smart-focus.tone-orange {
-  border-color: rgba(253, 186, 116, 0.52);
-  background: rgba(255, 247, 237, 0.62);
-}
-.ah-smart-focus.tone-orange .ah-smart-focus-icon {
-  background: rgba(217, 119, 6, 0.12);
-  color: #b45309;
-}
-.ah-smart-focus.tone-red {
-  border-color: rgba(253, 164, 175, 0.55);
-  background: rgba(255, 241, 242, 0.62);
-}
-.ah-smart-focus.tone-red .ah-smart-focus-icon {
-  background: rgba(225, 29, 72, 0.1);
-  color: #e11d48;
-}
-.ah-smart-focus.tone-green {
-  border-color: rgba(134, 239, 172, 0.52);
-  background: rgba(240, 253, 244, 0.62);
-}
-.ah-smart-focus.tone-green .ah-smart-focus-icon {
-  background: rgba(34, 197, 94, 0.11);
-  color: #16a34a;
-}
-.ah-smart-focus.tone-blue {
-  border-color: rgba(191, 219, 254, 0.62);
-  background: rgba(239, 246, 255, 0.64);
-}
-.ah-smart-focus.tone-blue .ah-smart-focus-icon {
-  background: rgba(0, 113, 227, 0.11);
-  color: #0071e3;
-}
-.ah-smart-focus.tone-gold {
-  border-color: rgba(251, 191, 36, 0.5);
-  background: rgba(255, 251, 235, 0.66);
-}
-.ah-smart-focus.tone-gold .ah-smart-focus-icon {
-  background: rgba(180, 83, 9, 0.12);
-  color: #b7791f;
-}
-.ah-smart-focus.tone-neutral {
-  border-color: rgba(226, 232, 240, 0.9);
-  background: rgba(248, 250, 252, 0.62);
-}
-.ah-smart-focus.tone-neutral .ah-smart-focus-icon {
-  background: rgba(100, 116, 139, 0.12);
-  color: #475569;
-}
-.ah-smart-focus:active {
-  transform: scale(0.99);
-}
-.ah-smart-focus:disabled {
-  cursor: default;
-  opacity: 0.78;
-}
-.ah-overview {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  max-width: 760px;
-  width: 100%;
-  margin: 0 auto;
-}
-.ah-overview-points-wrap {
-  display: flex;
-  justify-content: center;
-  margin: 0 auto;
-  width: 100%;
-  max-width: 360px;
-}
-.ah-overview-points-wrap .ah-overview-points-card {
-  width: 100%;
-}
-.ah-overview-insights {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-.ah-overview-points-card {
-  min-width: 0;
-  align-self: start;
-}
-.ah-smart-columns.ah-single-timeline {
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-.ah-skeleton-points-card.is-centered {
-  max-width: 360px;
-  margin: 0 auto;
-}
-.ah-skeleton-timeline {
-  height: 180px;
-  border-radius: 16px;
-}
-@media (orientation: landscape) and (min-width: 768px) {
-  /* 大屏放宽：与抽奖/赞助的 landscape 860 档同节奏 */
-  .ah-overview {
-    max-width: 860px;
-  }
-  .ah-overview-points-wrap {
-    justify-content: flex-start;
-    margin: 0;
-    max-width: 400px;
-  }
-  .ah-skeleton-points-card.is-centered {
-    margin: 0;
-  }
-  /* 桌面端：最近动态 / 接下来 并排，消掉整页单列的空旷感 */
-  .ah-smart-columns.ah-single-timeline {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
-  }
-}
-.ah-overview-primary,
-.ah-overview-membership,
-.ah-membership-card {
-  border: 0.5px solid rgba(255, 255, 255, 0.62);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.58);
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
-}
-.ah-overview-primary {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  min-height: 164px;
-  align-items: start;
-  gap: 14px;
-  padding: 20px;
-  overflow: hidden;
-  background: rgba(236, 246, 255, 0.72);
-  border-color: rgba(191, 219, 254, 0.8);
-  transition:
-    transform 190ms var(--ah-ease),
-    box-shadow 190ms ease,
-    background-color 190ms ease;
-}
-.ah-overview-card-icon {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border-radius: 14px;
-  flex: 0 0 auto;
-}
-.ah-overview-card-icon.is-blue {
-  background: rgba(0, 113, 227, 0.12);
-  color: #0071e3;
-}
-.ah-overview-card-icon.is-gold {
-  background: rgba(217, 119, 6, 0.12);
-  color: #b45309;
-}
-.ah-overview-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-}
-.ah-overview-kicker {
-  color: #3567a9;
-  font-size: 12px;
-  font-weight: 700;
-}
-.ah-overview-copy strong {
-  color: #123b70;
-  font-size: 34px;
-  font-weight: 800;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.ah-overview-copy > span:last-child {
-  color: #4b6b91;
-  font-size: 12px;
-  line-height: 1.45;
-}
-.ah-overview-link {
-  align-self: end;
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  gap: 2px;
-  padding: 7px 0;
-  border: 0;
-  background: transparent;
-  color: #0071e3;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-  transition:
-    color 150ms ease,
-    transform 150ms ease;
-}
-.ah-overview-link svg {
-  transition: transform 170ms var(--ah-ease);
-}
-.ah-overview-link:active {
-  transform: scale(0.97);
-}
-.ah-overview-membership {
-  display: flex;
-  min-height: 164px;
-  align-items: center;
-  gap: 12px;
-  padding: 20px;
-  transition:
-    transform 190ms var(--ah-ease),
-    box-shadow 190ms ease,
-    background-color 190ms ease;
-}
-.ah-overview-membership > div:nth-child(2) {
-  min-width: 0;
-  flex: 1;
-}
-.ah-overview-membership span {
-  color: #78808d;
-  font-size: 11px;
-  font-weight: 650;
-}
-.ah-overview-membership strong {
-  display: block;
-  margin-top: 3px;
-  color: #1d1d1f;
-  font-size: 18px;
-  font-weight: 750;
-}
-.ah-overview-membership p {
-  margin: 4px 0 0;
-  overflow: hidden;
-  color: #6e6e73;
-  font-size: 12px;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ah-overview-membership.is-expiring {
-  background: rgba(255, 247, 237, 0.74);
-  border-color: rgba(253, 186, 116, 0.55);
-}
 .ah-icon-command {
   display: grid;
   width: 36px;
@@ -821,318 +176,6 @@
 }
 .ah-icon-command:active {
   transform: scale(0.95);
-}
-.ah-smart-columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
-  gap: 12px;
-}
-.ah-smart-section {
-  min-width: 0;
-  padding: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.46);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow:
-    0 16px 34px rgba(15, 23, 42, 0.075),
-    inset 0 1px 0 rgba(255, 255, 255, 0.84);
-}
-.ah-smart-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.ah-smart-section-head > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.ah-smart-section-head span {
-  color: #7b8491;
-  font-size: 10px;
-  font-weight: 700;
-}
-.ah-smart-section-head strong {
-  color: #1d1d1f;
-  font-size: 14px;
-  font-weight: 760;
-}
-.ah-smart-section-head button {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.54);
-  color: #64748b;
-  cursor: pointer;
-  transition:
-    transform 150ms var(--ah-ease),
-    background-color 150ms ease;
-}
-.ah-smart-timeline,
-.ah-smart-next-list {
-  display: flex;
-  flex-direction: column;
-}
-.ah-smart-activity {
-  display: grid;
-  grid-template-columns: 52px 10px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  padding: 9px 0;
-  border: 0;
-  border-top: 1px solid rgba(15, 23, 42, 0.07);
-  background: transparent;
-  color: #1d1d1f;
-  cursor: pointer;
-  text-align: left;
-}
-.ah-smart-activity:first-child {
-  border-top: 0;
-}
-.ah-smart-activity-time {
-  color: #8a919c;
-  font-size: 10px;
-  font-weight: 650;
-}
-.ah-smart-activity-marker {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #0071e3;
-  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.09);
-}
-.ah-smart-activity-marker.tone-orange {
-  background: #d97706;
-  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.09);
-}
-.ah-smart-activity-marker.tone-green {
-  background: #16a34a;
-  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.09);
-}
-.ah-smart-activity-marker.tone-gray {
-  background: #8e8e93;
-  box-shadow: 0 0 0 4px rgba(142, 142, 147, 0.09);
-}
-.ah-smart-activity-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-.ah-smart-activity-copy strong {
-  overflow: hidden;
-  color: #1d1d1f;
-  font-size: 12px;
-  font-weight: 720;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ah-smart-activity-copy small {
-  overflow: hidden;
-  color: #737b87;
-  font-size: 10.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ah-smart-activity > svg {
-  color: #a0a6af;
-  transition: transform 170ms var(--ah-ease);
-}
-.ah-smart-next {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 11px 0;
-  border: 0;
-  border-top: 1px solid rgba(15, 23, 42, 0.07);
-  background: transparent;
-  color: #1d1d1f;
-  cursor: pointer;
-  text-align: left;
-}
-.ah-smart-next:first-child {
-  border-top: 0;
-}
-.ah-smart-next-icon {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 12px;
-  background: rgba(0, 113, 227, 0.1);
-  color: #0071e3;
-  transition: transform 170ms var(--ah-ease);
-}
-.ah-smart-next.tone-orange .ah-smart-next-icon {
-  background: rgba(217, 119, 6, 0.11);
-  color: #b45309;
-}
-.ah-smart-next.tone-red .ah-smart-next-icon {
-  background: rgba(225, 29, 72, 0.09);
-  color: #e11d48;
-}
-.ah-smart-next.tone-green .ah-smart-next-icon {
-  background: rgba(22, 163, 74, 0.1);
-  color: #16a34a;
-}
-.ah-smart-next-copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-.ah-smart-next-copy strong {
-  color: #1d1d1f;
-  font-size: 12px;
-  font-weight: 720;
-}
-.ah-smart-next-copy span {
-  overflow: hidden;
-  color: #737b87;
-  font-size: 10.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ah-smart-next > svg {
-  color: #a0a6af;
-  transition: transform 170ms var(--ah-ease);
-}
-.ah-smart-ready {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-height: 72px;
-  color: #16a34a;
-}
-.ah-smart-ready > svg {
-  flex: 0 0 auto;
-}
-.ah-smart-ready > div {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-.ah-smart-ready strong {
-  color: #1d1d1f;
-  font-size: 12px;
-  font-weight: 730;
-}
-.ah-smart-ready span,
-.ah-smart-quiet {
-  color: #7b8491;
-  font-size: 10.5px;
-  line-height: 1.45;
-}
-.ah-smart-quiet {
-  min-height: 72px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-}
-
-.ah-membership-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 22px;
-}
-.ah-membership-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #78808d;
-  font-size: 12px;
-  font-weight: 700;
-}
-.ah-membership-status {
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #ecfdf3;
-  color: #15803d;
-  font-size: 11px;
-}
-.ah-membership-card.is-free .ah-membership-status {
-  background: #f3f4f6;
-  color: #6b7280;
-}
-.ah-membership-card h2 {
-  margin: 0;
-  color: #1d1d1f;
-  font-size: 26px;
-  font-weight: 800;
-}
-.ah-membership-card p {
-  margin: -5px 0 0;
-  color: #6e6e73;
-  font-size: 13px;
-}
-.ah-membership-meta {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.ah-membership-meta span {
-  padding: 6px 10px;
-  border-radius: 11px;
-  background: rgba(243, 244, 246, 0.72);
-  color: #4b5563;
-  font-size: 11px;
-  font-weight: 650;
-}
-.ah-pity-progress {
-  display: grid;
-  gap: 8px;
-  padding-top: 2px;
-}
-.ah-pity-progress-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: #4b5563;
-  font-size: 12px;
-  font-weight: 700;
-}
-.ah-pity-progress-head strong {
-  color: #1d1d1f;
-  font-weight: 800;
-}
-.ah-pity-progress-track {
-  height: 6px;
-  overflow: hidden;
-  background: #e5e7eb;
-  border-radius: 3px;
-}
-.ah-pity-progress-fill {
-  height: 100%;
-  min-width: 0;
-  background: #17803d;
-  transition: width 240ms ease;
-}
-.ah-pity-progress p {
-  margin: 0;
-  color: #6e6e73;
-  font-size: 12px;
-  line-height: 1.55;
-}
-.ah-pity-progress.is-due .ah-pity-progress-fill {
-  background: #b7791f;
-}
-.ah-pity-progress.is-due .ah-pity-progress-head strong {
-  color: #9a6700;
-}
-.ah-pity-progress.is-unavailable .ah-pity-progress-head strong {
-  color: #6b7280;
 }
 
 /* ─── 记录列表 ─── */
@@ -1299,42 +342,6 @@
 }
 
 /* ─── 商城 ─── */
-.ah-shop-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.ah-shop-stats {
-  display: flex;
-  gap: 12px;
-}
-.ah-shop-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 22px 16px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  box-shadow:
-    0 16px 34px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
-}
-.ah-shop-stat-value {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #1d1d1f;
-}
-.ah-shop-stat-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #8e8e93;
-}
 .ah-shop-btn {
   display: flex;
   align-items: center;
@@ -1510,12 +517,6 @@
   flex-shrink: 0;
   white-space: nowrap;
 }
-.ah-gift-badge-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
 .ah-gift-badge.preparing {
   background: rgba(142, 142, 147, 0.12);
   color: #8e8e93;
@@ -1535,9 +536,6 @@
 .ah-gift-badge.is-flat {
   font-size: 10.5px;
   padding: 3px 8px;
-}
-.ah-gift-badge.is-flat .ah-gift-badge-dot {
-  display: none;
 }
 .ah-gift-headsub {
   display: flex;
@@ -1642,50 +640,13 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .ah-points-block:hover .ah-points-icon-wrap {
-    transform: rotate(-5deg) scale(1.06);
-  }
-  .ah-overview-primary:hover,
-  .ah-overview-membership:hover {
-    transform: translateY(-3px);
-    box-shadow:
-      0 26px 48px rgba(15, 23, 42, 0.13),
-      inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  }
-  .ah-overview-link:hover {
-    color: #005bb8;
-  }
   .ah-icon-command:hover {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(15, 23, 42, 0.18);
   }
-  .ah-overview-link:hover svg,
   .ah-icon-command:hover svg,
   .ah-shop-btn:hover svg {
     transform: translateX(3px);
-  }
-  .ah-smart-focus:hover {
-    transform: translateY(-3px);
-    box-shadow:
-      0 28px 54px rgba(15, 23, 42, 0.14),
-      inset 0 1px 0 rgba(255, 255, 255, 0.94);
-  }
-  .ah-smart-focus:hover .ah-smart-focus-icon,
-  .ah-smart-next:hover .ah-smart-next-icon {
-    transform: scale(1.06);
-  }
-  .ah-smart-focus:hover .ah-smart-focus-action svg,
-  .ah-smart-activity:hover > svg,
-  .ah-smart-next:hover > svg,
-  .ah-smart-section-head button:hover svg {
-    transform: translateX(3px);
-  }
-  .ah-smart-activity:hover,
-  .ah-smart-next:hover {
-    background: rgba(255, 255, 255, 0.34);
-  }
-  .ah-smart-section-head button:hover {
-    background: rgba(255, 255, 255, 0.82);
   }
   .ah-ledger-item:hover .ah-ledger-icon {
     transform: scale(1.06);
@@ -1710,35 +671,12 @@
 }
 
 /* ─── 深色模式 ─── */
-.user-space-page[data-theme='dark'] .ah-hub-card {
-  background: rgba(24, 26, 32, 0.62);
-  border-color: rgba(255, 255, 255, 0.13);
-  box-shadow:
-    0 24px 54px rgba(0, 0, 0, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
 /* 暗色折射态：白膜 RGB 由 --refract-tint-rgb-dark（tokens.css）在折射层内自动翻转，
    本卡同样只留轮廓；reduced-transparency 回退段会把实心背景加回来。 */
-.user-space-page[data-theme='dark'] .ah-hub-card.is-refract {
-  background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-.user-space-page[data-theme='dark'] .ah-points-block {
-  background: rgba(41, 151, 255, 0.1);
-  border-color: rgba(41, 151, 255, 0.16);
-}
-.user-space-page[data-theme='dark'] .ah-username,
-.user-space-page[data-theme='dark'] .ah-points-value,
 .user-space-page[data-theme='dark'] .ah-ledger-title {
   color: #f5f7fa;
 }
-.user-space-page[data-theme='dark'] .ah-uid,
-.user-space-page[data-theme='dark'] .ah-points-label {
-  color: #8b8e96;
-}
 .user-space-page[data-theme='dark'] .ah-empty-state,
-.user-space-page[data-theme='dark'] .ah-shop-stat,
 .user-space-page[data-theme='dark'] .ah-ledger-item,
 .user-space-page[data-theme='dark'] .ah-gift-card,
 .user-space-page[data-theme='dark'] .ah-skeleton-block {
@@ -1749,13 +687,11 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .user-space-page[data-theme='dark'] .ah-empty-state h3,
-.user-space-page[data-theme='dark'] .ah-shop-stat-value,
 .user-space-page[data-theme='dark'] .ah-gift-headinfo h3,
 .user-space-page[data-theme='dark'] .ah-gift-status-copy strong {
   color: #f5f7fa;
 }
 .user-space-page[data-theme='dark'] .ah-empty-state p,
-.user-space-page[data-theme='dark'] .ah-shop-stat-label,
 .user-space-page[data-theme='dark'] .ah-ledger-remark,
 .user-space-page[data-theme='dark'] .ah-ledger-date,
 .user-space-page[data-theme='dark'] .ah-gift-header-date,
@@ -1785,101 +721,12 @@
 .user-space-page[data-theme='dark'] .ah-shop-btn-ghost:hover {
   background: rgba(41, 151, 255, 0.26);
 }
-.user-space-page[data-theme='dark'] .ah-overview-membership span,
-.user-space-page[data-theme='dark'] .ah-overview-membership p,
-.user-space-page[data-theme='dark'] .ah-membership-card-top,
-.user-space-page[data-theme='dark'] .ah-membership-card p,
 .user-space-page[data-theme='dark'] .ah-ledger-group h2 {
   color: #a7acb5;
 }
 .user-space-page[data-theme='dark'] .ah-ledger-list,
 .user-space-page[data-theme='dark'] .ah-ledger-item {
   border-color: rgba(255, 255, 255, 0.12);
-}
-.user-space-page[data-theme='dark'] .ah-overview-primary {
-  background: rgba(0, 113, 227, 0.17);
-  border-color: rgba(96, 165, 250, 0.26);
-}
-.user-space-page[data-theme='dark'] .ah-overview-copy strong {
-  color: #e7f1ff;
-}
-.user-space-page[data-theme='dark'] .ah-overview-copy > span:last-child,
-.user-space-page[data-theme='dark'] .ah-overview-kicker {
-  color: #a9cbff;
-}
-.user-space-page[data-theme='dark'] .ah-overview-membership,
-.user-space-page[data-theme='dark'] .ah-membership-card {
-  background: rgba(24, 26, 32, 0.72);
-  border-color: rgba(255, 255, 255, 0.12);
-}
-.user-space-page[data-theme='dark'] .ah-overview-heading h2 {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-overview-heading span:first-child,
-.user-space-page[data-theme='dark'] .ah-overview-updating {
-  color: #a7acb5;
-}
-.user-space-page[data-theme='dark'] .ah-overview-retry {
-  background: rgba(255, 255, 255, 0.07);
-  color: #a7acb5;
-}
-.user-space-page[data-theme='dark'] .ah-overview-membership.is-expiring {
-  background: rgba(180, 83, 9, 0.17);
-  border-color: rgba(251, 146, 60, 0.3);
-}
-.user-space-page[data-theme='dark'] .ah-overview-membership strong,
-.user-space-page[data-theme='dark'] .ah-membership-card h2 {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-smart-focus,
-.user-space-page[data-theme='dark'] .ah-smart-section {
-  background: rgba(24, 26, 32, 0.58);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow:
-    0 20px 44px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
-}
-.user-space-page[data-theme='dark'] .ah-smart-focus.tone-orange {
-  background: rgba(180, 83, 9, 0.17);
-  border-color: rgba(251, 146, 60, 0.28);
-}
-.user-space-page[data-theme='dark'] .ah-smart-focus.tone-red {
-  background: rgba(190, 24, 93, 0.15);
-  border-color: rgba(251, 113, 133, 0.28);
-}
-.user-space-page[data-theme='dark'] .ah-smart-focus.tone-green {
-  background: rgba(22, 101, 52, 0.17);
-  border-color: rgba(74, 222, 128, 0.25);
-}
-.user-space-page[data-theme='dark'] .ah-smart-focus-copy strong,
-.user-space-page[data-theme='dark'] .ah-smart-section-head strong,
-.user-space-page[data-theme='dark'] .ah-smart-activity-copy strong,
-.user-space-page[data-theme='dark'] .ah-smart-next-copy strong,
-.user-space-page[data-theme='dark'] .ah-smart-ready strong {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-smart-focus-copy > span,
-.user-space-page[data-theme='dark'] .ah-smart-focus-copy small,
-.user-space-page[data-theme='dark'] .ah-smart-section-head span,
-.user-space-page[data-theme='dark'] .ah-smart-activity-time,
-.user-space-page[data-theme='dark'] .ah-smart-activity-copy small,
-.user-space-page[data-theme='dark'] .ah-smart-next-copy span,
-.user-space-page[data-theme='dark'] .ah-smart-ready span,
-.user-space-page[data-theme='dark'] .ah-smart-quiet {
-  color: #a7acb5;
-}
-.user-space-page[data-theme='dark'] .ah-smart-activity,
-.user-space-page[data-theme='dark'] .ah-smart-next {
-  border-top-color: rgba(255, 255, 255, 0.09);
-}
-.user-space-page[data-theme='dark'] .ah-smart-section-head button {
-  background: rgba(255, 255, 255, 0.07);
-  color: #a7acb5;
-}
-.user-space-page[data-theme='dark'] .ah-smart-activity:hover,
-.user-space-page[data-theme='dark'] .ah-smart-next:hover,
-.user-space-page[data-theme='dark'] .ah-smart-section-head button:hover {
-  background: rgba(255, 255, 255, 0.08);
 }
 .user-space-page[data-theme='dark'] .ah-icon-command {
   background: rgba(255, 255, 255, 0.06);
@@ -1896,256 +743,9 @@
     0 16px 34px rgba(0, 0, 0, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
-.user-space-page[data-theme='dark'] .ah-membership-meta span {
-  background: rgba(255, 255, 255, 0.08);
-  color: #c5cad2;
-}
-.user-space-page[data-theme='dark'] .ah-pity-progress-head {
-  color: #c5cad2;
-}
-.user-space-page[data-theme='dark'] .ah-pity-progress-head strong {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-pity-progress-track {
-  background: rgba(255, 255, 255, 0.12);
-}
-.user-space-page[data-theme='dark'] .ah-pity-progress p {
-  color: #aeb6c2;
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-hero {
-  background: linear-gradient(135deg, rgba(45, 28, 32, 0.72), rgba(28, 30, 36, 0.68));
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-hero h2 {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-hero p {
-  color: #a1a1aa;
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-hero span {
-  color: #fb7185;
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-hero-icon {
-  background: linear-gradient(135deg, rgba(225, 29, 72, 0.18), rgba(225, 29, 72, 0.28));
-  color: #fb7185;
-  border-color: rgba(251, 113, 133, 0.18);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-card {
-  background: rgba(28, 30, 36, 0.62);
-  border-color: rgba(255, 255, 255, 0.09);
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-card h3 {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-card p {
-  color: #a1a1aa;
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-card small {
-  color: #8b8e96;
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-qr-wrap {
-  background: #ffffff;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-qr-wrap.is-placeholder {
-  background: rgba(255, 255, 255, 0.04);
-  color: #6b7280;
-  border-color: rgba(255, 255, 255, 0.1);
-}
-.user-space-page[data-theme='dark'] .ah-sponsor-foot p {
-  color: #8b8e96;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-hero {
-  background: linear-gradient(135deg, rgba(30, 38, 64, 0.72), rgba(28, 30, 36, 0.68));
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow:
-    0 16px 36px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
-}
-.user-space-page[data-theme='dark'] .ah-lottery-hero h2 {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-hero p {
-  color: #a1a1aa;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-hero span {
-  color: #2997ff;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-hero-icon {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(37, 99, 235, 0.28));
-  color: #2997ff;
-  border-color: rgba(147, 197, 253, 0.18);
-}
-.user-space-page[data-theme='dark'] .ah-lottery-pity-inline {
-  background: rgba(28, 30, 36, 0.58);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-.user-space-page[data-theme='dark'] .ah-lottery-pity-inline p {
-  color: #a1a1aa;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-pity-head {
-  color: #a1a1aa;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-pity-head strong {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-card {
-  background: rgba(28, 30, 36, 0.62);
-  border-color: rgba(255, 255, 255, 0.09);
-}
-.user-space-page[data-theme='dark'] .ah-lottery-body h3 {
-  color: #f5f7fa;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-prize {
-  color: #2997ff;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-meta {
-  color: #8b8e96;
-}
-.user-space-page[data-theme='dark'] .ah-lottery-foot p {
-  color: #8b8e96;
-}
 
 /* ─── 响应式 ─── */
 @media (max-width: 767px) {
-  .ah-hub-card {
-    max-width: none;
-    border-radius: 20px;
-    padding: 14px 14px 10px;
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
-  }
-  .ah-top-row {
-    gap: 8px;
-    padding-bottom: 12px;
-  }
-  .ah-user-left {
-    gap: 10px;
-  }
-  .ah-username {
-    font-size: 17px;
-    letter-spacing: -0.02em;
-  }
-  .ah-name-row {
-    gap: 5px;
-  }
-  .ah-points-block {
-    gap: 8px;
-    padding: 6px 10px;
-    border-radius: 999px;
-  }
-  .ah-points-icon-wrap {
-    width: 26px;
-    height: 26px;
-  }
-  .ah-points-label {
-    display: none;
-  }
-  .ah-points-value {
-    font-size: 18px;
-    font-variant-numeric: tabular-nums;
-  }
-  .ah-overview {
-    display: grid;
-    gap: 16px;
-  }
-  .ah-overview-heading {
-    align-items: flex-start;
-    gap: 8px;
-  }
-  .ah-overview-heading h2 {
-    font-size: 20px;
-    line-height: 1.2;
-  }
-  .ah-overview-heading p {
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .ah-overview-summary.has-points-card {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  .ah-overview-points-card {
-    order: -1;
-  }
-  .ah-overview-insights,
-  .ah-overview-summary.has-points-card .ah-overview-insights {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .ah-smart-focus {
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) auto;
-    min-height: 0;
-    gap: 12px;
-    padding: 14px 14px;
-    border-radius: 16px;
-    align-items: center;
-  }
-  .ah-smart-focus-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-  }
-  .ah-smart-focus-copy {
-    gap: 2px;
-  }
-  .ah-smart-focus-copy strong {
-    font-size: 15.5px;
-    line-height: 1.3;
-  }
-  .ah-smart-focus-copy small {
-    font-size: 12px;
-    line-height: 1.4;
-  }
-  .ah-smart-focus-action {
-    grid-column: 3;
-    justify-self: end;
-    align-self: center;
-    font-size: 12.5px;
-  }
-  .ah-smart-columns {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-  .ah-smart-section {
-    padding: 14px;
-    border-radius: 16px;
-    border: 0.5px solid rgba(255, 255, 255, 0.62);
-    background: rgba(255, 255, 255, 0.56);
-    backdrop-filter: var(--liquid-filter-sm);
-    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
-  }
-  .ah-smart-section-head {
-    margin-bottom: 10px;
-  }
-  .ah-overview-primary {
-    min-height: 128px;
-    padding: 16px;
-    border-radius: 16px;
-  }
-  .ah-overview-copy strong {
-    font-size: 28px;
-    letter-spacing: -0.02em;
-  }
-  .ah-overview-copy > span:last-child {
-    font-size: 12px;
-  }
-  .ah-overview-membership {
-    padding: 14px 14px;
-    min-height: 128px;
-    border-radius: 16px;
-  }
-  .ah-membership-card {
-    padding: 16px;
-    border-radius: 16px;
-  }
   .ah-ledger-item {
     padding: 10px 2px;
     gap: 10px;
@@ -2176,9 +776,6 @@
   .ah-empty-state {
     padding: 36px 18px;
   }
-  .ah-shop-stat {
-    padding: 18px 12px;
-  }
   .ah-gift-header {
     padding: 11px 14px;
   }
@@ -2208,916 +805,17 @@
 }
 
 /* ─── 竖屏端（≤767 portrait）─── */
-@media (max-width: 767px) and (orientation: portrait) {
-  /* 2026-10-17（P3-5）：7 席在 390 宽下已经挤满（再增一席即溢出），横向滚动又没有
-     任何渐隐提示 ⇒ 改成 **wrap 两行**（3 资产 + 4 服务，按分组自然断行）。
-     分组分隔线（第 4 席 ::before）是单行布局的产物，换行后改由行断点表达，隐藏之。
-     席位数增删时同步检查这里与上方 nth-child(4) 的分组视觉。 */
-  .ah-hub-card .ah-segment-tabs {
-    flex-wrap: wrap;
-    overflow-x: visible;
-    gap: 4px 18px;
-    padding-bottom: 6px;
-  }
-  .ah-hub-card .ah-segment-tabs :deep(.segment-tab:nth-child(4)) {
-    margin-left: 0;
-  }
-  .ah-hub-card .ah-segment-tabs :deep(.segment-tab:nth-child(4))::before {
-    display: none;
-  }
-}
-
-.ah-sponsor-section {
-  display: grid;
-  gap: 18px;
-  max-width: 700px;
-  width: 100%;
-  margin: 0 auto;
-  align-self: center;
-  justify-items: stretch;
-  animation: ah-materialize 260ms var(--ah-ease) both;
-}
-.ah-sponsor-hero {
-  position: relative;
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  padding: 22px 20px;
-  border: 0.5px solid rgba(255, 255, 255, 0.78);
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(255, 241, 242, 0.92) 0%, rgba(255, 255, 255, 0.74) 100%);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow:
-    0 16px 36px rgba(225, 29, 72, 0.07),
-    0 6px 16px rgba(15, 23, 42, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
-  overflow: hidden;
-}
-.ah-sponsor-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(520px 200px at 18% 0%, rgba(225, 29, 72, 0.07), transparent 68%),
-    radial-gradient(360px 180px at 92% 100%, rgba(244, 114, 182, 0.07), transparent 70%);
-  pointer-events: none;
-}
-.ah-sponsor-hero-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, #ffffff 0%, #ffe4e6 100%);
-  color: #e11d48;
-  flex-shrink: 0;
-  box-shadow:
-    0 8px 20px rgba(225, 29, 72, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-  border: 0.5px solid rgba(225, 29, 72, 0.14);
-  position: relative;
-  z-index: 1;
-}
-.ah-sponsor-hero > div {
-  position: relative;
-  z-index: 1;
-  min-width: 0;
-}
-.ah-sponsor-hero h2 {
-  margin: 3px 0 4px;
-  font-size: 19px;
-  font-weight: 850;
-  color: #1d1d1f;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
-}
-.ah-sponsor-hero p {
-  margin: 0;
-  font-size: 13px;
-  color: #6e6e73;
-  line-height: 1.65;
-  font-weight: 500;
-}
-.ah-sponsor-hero span {
-  font-size: 11px;
-  font-weight: 750;
-  color: #e11d48;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.ah-sponsor-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-.ah-sponsor-card {
-  position: relative;
-  padding: 18px 16px 16px;
-  border: 0.5px solid rgba(255, 255, 255, 0.74);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.68);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow:
-    0 10px 28px rgba(15, 23, 42, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  transition:
-    transform 180ms var(--ah-ease),
-    box-shadow 180ms ease,
-    border-color 180ms ease,
-    background-color 180ms ease;
-  overflow: hidden;
-}
-.ah-sponsor-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 18px;
-  background: radial-gradient(340px 140px at 50% 0%, rgba(255, 255, 255, 0.58), transparent 72%);
-  pointer-events: none;
-}
-@media (hover: hover) and (pointer: fine) {
-  .ah-sponsor-card:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      0 16px 36px rgba(15, 23, 42, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.98);
-    border-color: rgba(255, 255, 255, 0.86);
-  }
-  .ah-sponsor-card.is-muted:hover {
-    transform: none;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
-  }
-}
-.ah-sponsor-card.is-muted {
-  opacity: 0.72;
-}
-.ah-sponsor-card h3 {
-  position: relative;
-  z-index: 1;
-  margin: 0;
-  font-size: 14.5px;
-  font-weight: 800;
-  color: #1d1d1f;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  letter-spacing: -0.01em;
-}
-.ah-sponsor-badge {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.02em;
-  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.28);
-}
-.ah-sponsor-card p {
-  position: relative;
-  z-index: 1;
-  margin: 9px 0 0;
-  font-size: 12.5px;
-  color: #6e6e73;
-  line-height: 1.65;
-}
-.ah-sponsor-qr-wrap {
-  position: relative;
-  z-index: 1;
-  margin: 16px 0 12px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: none;
-  transition: transform 180ms var(--ah-ease);
-}
-@media (hover: hover) and (pointer: fine) {
-  .ah-sponsor-card:hover .ah-sponsor-qr-wrap {
-    transform: scale(1.02);
-  }
-}
-.ah-sponsor-qr-wrap img {
-  width: 100%;
-  max-width: 280px;
-  height: auto;
-  object-fit: contain;
-  display: block;
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-}
-.ah-sponsor-qr-wrap.is-placeholder {
-  height: auto;
-  min-height: 240px;
-  aspect-ratio: 1 / 1;
-  padding: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.03), rgba(15, 23, 42, 0.02));
-  color: #a1a1aa;
-  font-size: 28px;
-  font-weight: 500;
-  border: 1px dashed rgba(15, 23, 42, 0.1);
-  border-radius: 14px;
-  box-shadow: none;
-}
-.ah-sponsor-card small {
-  position: relative;
-  z-index: 1;
-  display: block;
-  text-align: center;
-  font-size: 11px;
-  color: #8e8e93;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-.ah-sponsor-foot {
-  display: grid;
-  gap: 14px;
-  padding: 10px 4px 4px;
-  justify-items: center;
-  text-align: center;
-}
-.ah-sponsor-foot p {
-  margin: 0;
-  font-size: 12px;
-  color: #8e8e93;
-  line-height: 1.65;
-  max-width: 520px;
-}
-.ah-sponsor-foot .ah-shop-btn {
-  justify-self: center;
-  min-width: 136px;
-  height: 38px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 750;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
-}
-@media (max-width: 560px) {
-  .ah-sponsor-section {
-    gap: 14px;
-  }
-  .ah-sponsor-hero {
-    padding: 18px 16px;
-    gap: 12px;
-    border-radius: 18px;
-  }
-  .ah-sponsor-hero-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-  }
-  .ah-sponsor-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .ah-sponsor-card {
-    padding: 16px;
-    border-radius: 16px;
-  }
-  .ah-sponsor-qr-wrap {
-    padding: 0;
-  }
-  .ah-sponsor-qr-wrap img {
-    width: 100%;
-    max-width: 260px;
-    height: auto;
-  }
-  .ah-sponsor-qr-wrap.is-placeholder {
-    min-height: 220px;
-    height: auto;
-  }
-}
 
 /* ─── 抽奖 独立分页（居中） ─── */
-.ah-lottery-section {
-  display: grid;
-  gap: 18px;
-  max-width: 700px;
-  width: 100%;
-  margin: 0 auto;
-  align-self: center;
-  animation: ah-materialize 260ms var(--ah-ease) both;
-}
-.ah-lottery-hero {
-  position: relative;
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  padding: 22px 20px;
-  border: 0.5px solid rgba(255, 255, 255, 0.78);
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.74));
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow:
-    0 16px 36px rgba(37, 99, 235, 0.07),
-    0 6px 16px rgba(15, 23, 42, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.96);
-  overflow: hidden;
-}
-.ah-lottery-hero::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(520px 200px at 18% 0%, rgba(37, 99, 235, 0.07), transparent 68%),
-    radial-gradient(360px 180px at 92% 100%, rgba(14, 165, 233, 0.06), transparent 70%);
-  pointer-events: none;
-}
-.ah-lottery-hero-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, #ffffff 0%, #dbeafe 100%);
-  color: #0071e3;
-  flex-shrink: 0;
-  box-shadow:
-    0 8px 20px rgba(37, 99, 235, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 1);
-  border: 0.5px solid rgba(37, 99, 235, 0.14);
-  position: relative;
-  z-index: 1;
-}
-.ah-lottery-hero > div {
-  position: relative;
-  z-index: 1;
-  min-width: 0;
-  flex: 1;
-}
-.ah-lottery-hero h2 {
-  margin: 3px 0 4px;
-  font-size: 19px;
-  font-weight: 850;
-  color: #1d1d1f;
-  letter-spacing: -0.025em;
-  line-height: 1.2;
-}
-.ah-lottery-hero p {
-  margin: 0;
-  font-size: 13px;
-  color: #6e6e73;
-  line-height: 1.65;
-  font-weight: 500;
-}
-.ah-lottery-hero span {
-  font-size: 11px;
-  font-weight: 750;
-  color: #0071e3;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.ah-lottery-hero-action {
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 0.5px solid rgba(37, 99, 235, 0.18);
-  background: rgba(255, 255, 255, 0.82);
-  color: #0071e3;
-  font-size: 12px;
-  font-weight: 750;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
-  transition:
-    transform 150ms var(--ah-ease),
-    background 150ms ease;
-}
-@media (hover: hover) and (pointer: fine) {
-  .ah-lottery-hero-action:hover {
-    background: #fff;
-    transform: translateY(-1px);
-  }
-}
-.ah-lottery-hero-action:active {
-  transform: scale(0.98);
-}
-.ah-lottery-pity-inline {
-  display: grid;
-  gap: 8px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  border: 0.5px solid rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.58);
-  backdrop-filter: var(--liquid-filter-sm);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
-}
-.ah-lottery-pity-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #4b5563;
-}
-.ah-lottery-pity-head strong {
-  color: #1d1d1f;
-  font-weight: 800;
-}
-.ah-lottery-pity-track {
-  height: 6px;
-  overflow: hidden;
-  background: #e5e7eb;
-  border-radius: 999px;
-}
-.ah-lottery-pity-fill {
-  height: 100%;
-  background: #0071e3;
-  transition: width 240ms ease;
-}
-.ah-lottery-pity-inline.is-due .ah-lottery-pity-fill {
-  background: #b7791f;
-}
-.ah-lottery-pity-inline.is-due .ah-lottery-pity-head strong {
-  color: #9a6700;
-}
-.ah-lottery-pity-inline.is-unavailable .ah-lottery-pity-head strong {
-  color: #6b7280;
-}
-.ah-lottery-pity-inline p {
-  margin: 0;
-  font-size: 12px;
-  color: #6e6e73;
-  line-height: 1.5;
-}
-.ah-lottery-skeleton {
-  display: grid;
-  gap: 12px;
-}
-.ah-skeleton-lottery {
-  height: 132px;
-  border-radius: 16px;
-}
-.ah-lottery-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-.ah-lottery-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 18px;
-  border: 0.5px solid rgba(255, 255, 255, 0.74);
-  background: rgba(255, 255, 255, 0.68);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow:
-    0 10px 28px rgba(15, 23, 42, 0.07),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  transition:
-    transform 180ms var(--ah-ease),
-    box-shadow 180ms ease;
-}
-@media (hover: hover) and (pointer: fine) {
-  .ah-lottery-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.1);
-  }
-}
-.ah-lottery-cover {
-  height: 132px;
-  background: linear-gradient(135deg, #dbeafe, #f3e8ff);
-  display: grid;
-  place-items: center;
-  color: #0071e3;
-  overflow: hidden;
-}
-.ah-lottery-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.ah-lottery-cover.is-empty {
-  background: linear-gradient(135deg, #e0f2fe, #f5f3ff);
-}
-.ah-lottery-body {
-  display: grid;
-  gap: 8px;
-  padding: 14px 14px 12px;
-  flex: 1;
-}
-.ah-lottery-top {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.ah-lottery-status {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 750;
-  background: rgba(37, 99, 235, 0.12);
-  color: #0071e3;
-}
-.ah-lottery-status.drawn {
-  background: rgba(52, 199, 89, 0.12);
-  color: #15803d;
-}
-.ah-lottery-status.closed {
-  background: rgba(142, 142, 147, 0.12);
-  color: #6b7280;
-}
-.ah-lottery-joined {
-  display: inline-flex;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: #dcfce7;
-  color: #15803d;
-  font-size: 11px;
-  font-weight: 700;
-}
-.ah-lottery-pity-badge {
-  display: inline-flex;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 750;
-  box-shadow: 0 3px 8px rgba(217, 119, 6, 0.24);
-}
-.ah-lottery-body h3 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 800;
-  color: #1d1d1f;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ah-lottery-prize {
-  margin: 0;
-  font-size: 12.5px;
-  color: #0071e3;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ah-lottery-meta {
-  display: flex;
-  gap: 10px;
-  font-size: 11px;
-  color: #8e8e93;
-  font-weight: 600;
-}
-.ah-lottery-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: 2px;
-}
-.ah-lottery-join {
-  flex: 1;
-  min-height: 36px;
-  font-size: 13px;
-}
-.ah-lottery-joined-btn {
-  flex: 1;
-  min-height: 36px;
-  background: rgba(22, 163, 74, 0.1) !important;
-  color: #15803d !important;
-  box-shadow: none !important;
-  cursor: default;
-}
-.ah-lottery-link {
-  min-height: 36px;
-  padding: 0 12px;
-  border: none;
-  background: transparent;
-  color: #6b7280;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.ah-lottery-link:hover {
-  color: #1d1d1f;
-}
-.ah-lottery-foot {
-  display: grid;
-  gap: 12px;
-  justify-items: center;
-  text-align: center;
-  padding: 8px 4px 0;
-}
-.ah-lottery-foot p {
-  margin: 0;
-  font-size: 12px;
-  color: #8e8e93;
-}
-@media (max-width: 560px) {
-  .ah-lottery-section {
-    gap: 14px;
-  }
-  .ah-lottery-hero {
-    padding: 18px 16px;
-    gap: 12px;
-    border-radius: 18px;
-    flex-wrap: wrap;
-  }
-  .ah-lottery-hero-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-  }
-  .ah-lottery-hero-action {
-    width: 100%;
-    justify-content: center;
-  }
-  .ah-lottery-grid {
-    grid-template-columns: 1fr;
-  }
-  .ah-lottery-cover {
-    height: 148px;
-  }
-}
 
 /* 已结束/已开奖卡片降权：视觉让位给进行中的抽奖 */
-.ah-lottery-card.status-closed,
-.ah-lottery-card.status-drawn,
-.ah-lottery-card.status-ended {
-  opacity: 0.74;
-}
-.ah-lottery-card.status-closed .ah-lottery-cover img,
-.ah-lottery-card.status-drawn .ah-lottery-cover img,
-.ah-lottery-card.status-ended .ah-lottery-cover img {
-  filter: saturate(0.78) brightness(0.96);
-}
-.ah-lottery-card.status-closed:hover,
-.ah-lottery-card.status-drawn:hover,
-.ah-lottery-card.status-ended:hover {
-  opacity: 0.9;
-}
 
 /* ─── 赞助 竖屏精细化 ─── */
-@media (orientation: portrait) and (max-width: 560px) {
-  .ah-sponsor-section {
-    gap: 16px;
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-  .ah-sponsor-hero {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 20px 16px;
-    gap: 10px;
-  }
-  .ah-sponsor-hero > div {
-    text-align: center;
-  }
-  .ah-sponsor-hero p {
-    text-align: center;
-  }
-  .ah-sponsor-card {
-    text-align: center;
-  }
-  .ah-sponsor-card h3 {
-    justify-content: center;
-  }
-  .ah-sponsor-card p {
-    text-align: center;
-  }
-  .ah-sponsor-qr-wrap img {
-    max-width: 280px;
-  }
-  .ah-lottery-section {
-    gap: 16px;
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-  .ah-lottery-hero {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 20px 16px;
-    gap: 10px;
-  }
-  .ah-lottery-hero > div {
-    text-align: center;
-  }
-  .ah-lottery-hero p {
-    text-align: center;
-  }
-  .ah-lottery-hero-action {
-    width: 100%;
-  }
-  .ah-lottery-grid {
-    grid-template-columns: 1fr;
-  }
-}
-@media (orientation: portrait) and (min-width: 561px) and (max-width: 768px) {
-  .ah-sponsor-section {
-    max-width: 640px;
-  }
-  .ah-sponsor-grid {
-    grid-template-columns: 1fr;
-  }
-  .ah-lottery-section {
-    max-width: 640px;
-  }
-  .ah-lottery-grid {
-    grid-template-columns: 1fr;
-  }
-}
 
 /* ─── 赞助 横屏精细化 ─── */
-@media (orientation: landscape) and (max-height: 600px) {
-  .ah-sponsor-section {
-    max-width: 860px;
-    gap: 12px;
-  }
-  .ah-sponsor-hero {
-    padding: 14px 16px;
-    gap: 12px;
-    border-radius: 16px;
-  }
-  .ah-sponsor-hero-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-  }
-  .ah-sponsor-hero h2 {
-    font-size: 16px;
-  }
-  .ah-sponsor-hero p {
-    font-size: 12px;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .ah-sponsor-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-  .ah-sponsor-card {
-    padding: 14px;
-  }
-  .ah-sponsor-qr-wrap {
-    margin: 8px 0 8px;
-  }
-  .ah-sponsor-qr-wrap img {
-    max-width: min(220px, 38vh);
-  }
-  .ah-sponsor-qr-wrap.is-placeholder {
-    min-height: min(220px, 38vh);
-  }
-  .ah-sponsor-foot {
-    gap: 8px;
-    padding: 6px 0 0;
-  }
-  .ah-sponsor-foot p {
-    font-size: 11px;
-  }
-  .ah-lottery-section {
-    max-width: 860px;
-    gap: 12px;
-  }
-  .ah-lottery-hero {
-    padding: 14px 16px;
-    gap: 12px;
-    border-radius: 16px;
-  }
-  .ah-lottery-hero-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-  }
-  .ah-lottery-hero h2 {
-    font-size: 16px;
-  }
-  .ah-lottery-hero p {
-    font-size: 12px;
-    line-height: 1.4;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .ah-lottery-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-  .ah-lottery-card {
-    border-radius: 16px;
-  }
-  .ah-lottery-cover {
-    height: 110px;
-  }
-  .ah-lottery-foot {
-    gap: 8px;
-    padding: 6px 0 0;
-  }
-}
-@media (orientation: landscape) and (max-height: 500px) {
-  .ah-sponsor-hero p {
-    display: none;
-  }
-  .ah-sponsor-card p {
-    display: none;
-  }
-  .ah-sponsor-card small {
-    display: none;
-  }
-  .ah-sponsor-qr-wrap {
-    margin: 6px 0 4px;
-  }
-  .ah-lottery-hero p {
-    display: none;
-  }
-  .ah-lottery-prize {
-    display: none;
-  }
-  .ah-lottery-meta {
-    display: none;
-  }
-}
-
-@media (max-height: 560px) and (orientation: landscape) {
-  .ah-hub-card {
-    padding: 13px 16px 10px;
-  }
-  .ah-top-row {
-    padding-bottom: 10px;
-  }
-  .ah-overview {
-    gap: 10px;
-  }
-  .ah-overview-heading {
-    padding-top: 0;
-  }
-  .ah-overview-heading h2 {
-    font-size: 19px;
-  }
-  .ah-overview-summary.has-points-card {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  }
-  .ah-overview-insights {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .ah-overview-summary.has-points-card .ah-overview-insights {
-    grid-template-columns: 1fr;
-  }
-  .ah-overview-primary,
-  .ah-overview-membership {
-    min-height: 118px;
-    padding: 14px;
-  }
-  .ah-smart-focus {
-    min-height: 92px;
-    padding: 14px;
-  }
-  .ah-smart-columns {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .ah-smart-section {
-    padding: 14px;
-  }
-}
 
 @media (prefers-reduced-transparency: reduce) {
   /* 折射玻璃同回退（2026-10-15）：用户要求降透明度时藏玻璃层、恢复实心卡面 */
-  .ah-hub-card.is-refract .ah-hub-refract {
-    display: none;
-  }
-  .ah-hub-card.is-refract {
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-  .user-space-page[data-theme='dark'] .ah-hub-card.is-refract {
-    background: #1c1e24;
-  }
-  .ah-hub-card,
-  .ah-smart-focus,
-  .ah-smart-section,
-  .ah-overview-primary,
-  .ah-overview-membership,
-  .ah-membership-card,
   .ah-empty-state,
   .ah-ledger-item,
   .ah-gift-card,
@@ -3126,11 +824,6 @@
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
-  .user-space-page[data-theme='dark'] .ah-hub-card,
-  .user-space-page[data-theme='dark'] .ah-smart-focus,
-  .user-space-page[data-theme='dark'] .ah-smart-section,
-  .user-space-page[data-theme='dark'] .ah-overview-membership,
-  .user-space-page[data-theme='dark'] .ah-membership-card,
   .user-space-page[data-theme='dark'] .ah-empty-state,
   .user-space-page[data-theme='dark'] .ah-ledger-item,
   .user-space-page[data-theme='dark'] .ah-gift-card,
@@ -3141,155 +834,6 @@
 
 /* 窄屏（≤768px）折射回退（2026-10-15）：与 liquid-glass.css「移动端仅保留外层玻璃」
    同口径 —— 藏折射组件、恢复 CSS 玻璃（外层模糊一层，不再叠加离屏纹理）。 */
-@media (max-width: 768px) {
-  .ah-hub-card.is-refract .ah-hub-refract {
-    display: none;
-  }
-  .ah-hub-card.is-refract {
-    background: rgba(255, 255, 255, 0.62);
-    backdrop-filter: var(--liquid-filter);
-    -webkit-backdrop-filter: var(--liquid-filter);
-  }
-  .user-space-page[data-theme='dark'] .ah-hub-card.is-refract {
-    background: rgba(24, 26, 32, 0.62);
-  }
-}
-
-.ah-points-section {
-  display: grid;
-  gap: 18px;
-  max-width: 760px;
-  width: 100%;
-  margin: 0 auto;
-}
-.ah-points-heading {
-  padding: 4px 2px 0;
-}
-.ah-points-heading > span,
-.ah-points-detail-heading span {
-  color: #6e6e73;
-  font-size: 12px;
-  font-weight: 700;
-}
-.ah-points-heading h2,
-.ah-points-detail-heading h2 {
-  margin: 4px 0 6px;
-  color: #1d1d1f;
-  font-size: 22px;
-  font-weight: 780;
-}
-.ah-points-heading p {
-  margin: 0;
-  color: #747b86;
-  font-size: 13px;
-}
-.ah-points-action-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-.ah-points-action-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 13px;
-  min-height: 132px;
-  padding: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 22px;
-  color: #1d1d1f;
-  text-align: left;
-  cursor: pointer;
-  box-shadow:
-    0 18px 38px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
-  transition:
-    transform 180ms var(--ah-ease),
-    box-shadow 180ms ease;
-}
-@media (hover: hover) and (pointer: fine) {
-  .ah-points-action-card:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      0 24px 46px rgba(15, 23, 42, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.92);
-  }
-}
-.ah-points-action-card:active {
-  transform: scale(0.985);
-}
-.ah-points-action-card.is-recharge {
-  background: rgba(239, 246, 255, 0.72);
-  border-color: rgba(191, 219, 254, 0.82);
-}
-.ah-points-action-card.is-detail {
-  background: rgba(240, 253, 244, 0.68);
-  border-color: rgba(187, 247, 208, 0.82);
-}
-.ah-points-action-icon {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  border-radius: 16px;
-  background: rgba(37, 99, 235, 0.12);
-  color: #0071e3;
-}
-.is-detail .ah-points-action-icon {
-  background: rgba(22, 163, 74, 0.12);
-  color: #16a34a;
-}
-.ah-points-action-copy {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-}
-.ah-points-action-copy strong {
-  font-size: 16px;
-  font-weight: 780;
-}
-.ah-points-action-copy small {
-  color: #68727b;
-  font-size: 12px;
-  line-height: 1.4;
-}
-.ah-points-action-card > svg {
-  color: #7b8491;
-  transition: transform 170ms var(--ah-ease);
-}
-.ah-points-detail-heading {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-}
-.ah-points-back {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.6);
-  color: #64748b;
-  cursor: pointer;
-  transform: rotate(180deg);
-}
-.ah-points-total {
-  display: grid;
-  justify-items: end;
-  gap: 2px;
-}
-.ah-points-total span {
-  font-size: 11px;
-  font-weight: 650;
-}
-.ah-points-total strong {
-  color: #1d1d1f;
-  font-size: 25px;
-  line-height: 1;
-}
 .ah-points-filter {
   display: inline-flex;
   width: fit-content;
@@ -3318,14 +862,31 @@
 }
 .ah-qr-overlay {
   position: fixed;
-  z-index: 1000;
+  /* ⚠️ 必须高于导航岛：#unified-nav-container 的 z-index 是 9999
+     （styles/vendor/unified-nav.css）。原来这里写 1000，弹窗顶部被岛压住 ——
+     390×844 竖屏实测标题「扫码联系管理员」整行落在岛下面。 */
+  z-index: 10000;
   inset: 0;
   display: grid;
-  place-items: center;
+  /* ⚠️ 用 longhand 而不是 place-items:center：`align-items: center` 在**内容比
+     容器高**时会把卡片顶出上边界（负 top），而这部分滚不到 ⇒ 上半截永久丢失。
+     `safe center` 在放不下时退化为 start，配合 overflow-y:auto 就能滚到全部内容。
+     手机横屏 844×390 实测：卡片 436px > 视口 390px，二维码底部 19px 与 UID 整行都在屏外。 */
+  align-items: center;
+  /* 不支持 safe 关键字的旧引擎（Safari < 15.4）会整条丢弃上面那行之外的声明，
+     所以先给普通 center 兜底，再让支持 safe 的引擎覆盖。 */
+  align-items: safe center;
+  justify-items: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
-  background: rgba(225, 232, 242, 0.14);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
+  /* 用户明确要求「充值积分的弹窗不要有模糊」⇒ 遮罩不用 backdrop-filter。
+     原来靠 `rgba(225,232,242,.14)` + blur(28px) 制造层次，去掉模糊后那点
+     14% 的浅灰几乎看不见底，所以改成实色压暗 —— 遮罩的职责是「把背景推远」，
+     这件事用不透明色做比磨砂更干净，也不吃 GPU。 */
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .ah-qr-modal {
   position: relative;
@@ -3335,9 +896,10 @@
   padding: 30px 28px 25px;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 30px;
-  background: rgba(255, 255, 255, 0.66);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
+  /* 卡片同理：去模糊后底下的内容本来就被遮罩压住了，半透明只会让
+     背景字块透进正文（面板 .66 白在深色正文上仍剩约 30% 可见度）。
+     用不透明底一次解决可读性。 */
+  background: #ffffff;
   box-shadow:
     0 24px 65px rgba(31, 41, 55, 0.13),
     0 2px 8px rgba(31, 41, 55, 0.04),
@@ -3431,58 +993,38 @@
   opacity: 0;
   transform: translateY(10px) scale(0.97);
 }
-.user-space-page[data-theme='dark'] .ah-points-heading h2,
-.user-space-page[data-theme='dark'] .ah-points-detail-heading h2,
-.user-space-page[data-theme='dark'] .ah-points-total strong,
-.user-space-page[data-theme='dark'] .ah-points-action-card,
-.user-space-page[data-theme='dark'] .ah-qr-modal h2 {
+html[data-theme='dark'] .ah-qr-modal h2 {
   color: #f4f7f8;
 }
-.user-space-page[data-theme='dark'] .ah-points-action-card.is-recharge {
-  background: rgba(30, 58, 95, 0.56);
-}
-.user-space-page[data-theme='dark'] .ah-points-action-card.is-detail {
-  background: rgba(22, 75, 55, 0.5);
-}
-.user-space-page[data-theme='dark'] .ah-points-filter button.active,
-.user-space-page[data-theme='dark'] .ah-points-back {
+.user-space-page[data-theme='dark'] .ah-points-filter button.active {
   background: rgba(255, 255, 255, 0.14);
   color: #f4f7f8;
 }
-.user-space-page[data-theme='dark'] .ah-qr-modal {
-  background: rgba(28, 30, 36, 0.95);
+html[data-theme='dark'] .ah-qr-overlay {
+  /* 暗色下用更深的实色，比亮色那层压得更狠：暗底本身对比低，
+     30% 的黑遮不住背后的卡片边界。 */
+  background: rgba(0, 0, 0, 0.62);
 }
-@media (max-width: 560px) {
-  .ah-points-action-grid {
-    grid-template-columns: 1fr;
-  }
-  .ah-points-action-card {
-    min-height: 104px;
-    padding: 16px;
-  }
-  .ah-points-detail-heading h2 {
-    font-size: 19px;
-  }
-  .ah-points-total strong {
-    font-size: 21px;
-  }
+html[data-theme='dark'] .ah-qr-modal {
+  /* 去模糊后卡片改成**不透明**深色（原 rgba(28,30,36,.95)）：0.95 在深底上
+     和 1.0 几乎没差别，却仍然会把背后字块透进正文。 */
+  background: #1c1e24;
+  border-color: rgba(255, 255, 255, 0.14);
 }
-.ah-fulfillment-heading span {
-  color: #377f76;
-  font-size: 12px;
-  font-weight: 760;
+html[data-theme='dark'] .ah-qr-kicker {
+  /* #0071e3 在 #1c1e24 上只有 2.9:1，不达标；提亮到 5.1:1 */
+  color: #6cb0ff;
 }
-.ah-fulfillment-heading h2 {
-  margin: 5px 0 6px;
-  color: #1d1d1f;
-  font-size: 22px;
-  letter-spacing: 0;
+html[data-theme='dark'] .ah-qr-modal p {
+  /* 原色 #68727b 在 #1c1e24 上约 3.1:1，正文读不清 */
+  color: #a8b0bd;
 }
-.ah-fulfillment-heading p {
-  margin: 0;
-  color: #68727b;
-  font-size: 13px;
-  line-height: 1.6;
+html[data-theme='dark'] .ah-qr-uid {
+  color: #9aa3ae;
+}
+html[data-theme='dark'] .ah-qr-close {
+  background: rgba(255, 255, 255, 0.1);
+  color: #c3c9d2;
 }
 .ah-skin-grid {
   display: grid;
@@ -3574,7 +1116,6 @@
   font-size: 11px;
   font-weight: 650;
 }
-.ah-card-presets-loading,
 .ah-card-presets-empty {
   min-height: 76px;
   display: grid;
@@ -3795,57 +1336,19 @@
   color: #b45309;
   font-size: 12px;
 }
-.ah-fusion-block {
-  padding: 15px;
-  border: 1px solid rgba(18, 38, 50, 0.1);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.58);
-}
-.ah-fusion-block-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  color: #1d1d1f;
-  font-weight: 760;
-}
-.ah-fusion-block-head > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-.ah-fusion-block-head button,
-.ah-inline-empty button {
-  border: 0;
-  background: transparent;
-  color: #23796c;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-.ah-inline-empty {
-  padding: 16px 4px;
-  color: #74808a;
-  font-size: 13px;
-}
-.user-space-page[data-theme='dark'] .ah-fulfillment-heading h2,
 .user-space-page[data-theme='dark'] .ah-fulfillment-records-head h3,
 .user-space-page[data-theme='dark'] .ah-fulfillment-record-copy strong,
 .user-space-page[data-theme='dark'] .ah-skin-option,
 .user-space-page[data-theme='dark'] .ah-card-presets-heading,
-.user-space-page[data-theme='dark'] .ah-card-preset-select,
-.user-space-page[data-theme='dark'] .ah-fusion-block-head {
+.user-space-page[data-theme='dark'] .ah-card-preset-select {
   color: #f4f7f8;
 }
 .ah-skin-option,
-.ah-card-preset,
-.ah-fusion-block {
+.ah-card-preset {
   background: rgba(255, 255, 255, 0.58);
 }
 .user-space-page[data-theme='dark'] .ah-skin-option,
 .user-space-page[data-theme='dark'] .ah-card-preset,
-.user-space-page[data-theme='dark'] .ah-fusion-block,
 .user-space-page[data-theme='dark'] .ah-fulfillment-records {
   background: rgba(28, 30, 36, 0.72);
   border-color: rgba(255, 255, 255, 0.1);
@@ -3864,7 +1367,6 @@
 .user-space-page[data-theme='dark'] .ah-fulfillment-record + .ah-fulfillment-record {
   border-top-color: rgba(255, 255, 255, 0.09);
 }
-.user-space-page[data-theme='dark'] .ah-card-presets-loading,
 .user-space-page[data-theme='dark'] .ah-card-presets-empty {
   border-color: rgba(255, 255, 255, 0.18);
   color: #a7acb5;
@@ -3902,29 +1404,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ah-panel-enter-active,
-  .ah-panel-leave-active {
-    transition: opacity 120ms ease !important;
-  }
-  .ah-panel-enter-from,
-  .ah-panel-leave-to {
-    filter: none !important;
-    transform: none !important;
-  }
-  .ah-section,
-  .ah-points-block,
   .ah-gift-thumb,
   .ah-gift-status-icon,
   .ah-gift-card,
-  .ah-smart-focus,
-  .ah-smart-focus-icon,
-  .ah-smart-focus-action svg,
-  .ah-smart-section-head button,
-  .ah-smart-activity,
-  .ah-smart-activity > svg,
-  .ah-smart-next,
-  .ah-smart-next-icon,
-  .ah-smart-next > svg,
   .ah-icon-command,
   .ah-ledger-item {
     animation: none !important;
@@ -3937,12 +1419,977 @@
 
   /* 无需 !important：本块位于文件末尾，与上方 @media (hover: hover) 内的同名
      hover 规则特异性相同而源序更后，天然胜出。（!important 棘轮门禁禁止新增） */
-  .ah-lottery-hero-action:hover,
-  .ah-lottery-card:hover,
-  .ah-points-action-card:hover,
-  .ah-points-action-card:active,
-  .ah-sponsor-card:hover,
-  .ah-sponsor-card:hover .ah-sponsor-qr-wrap {
-    transform: none;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   首页（2026-10-26）：摘要条 + 钱包 / 会员 / 装扮 / 待办 四卡 + 外链行
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.ah-page {
+  /* ⚠️ 缓动单源必须由根节点声明：原定义挂在被删掉的顶卡 `.ah-hub-card` 上，
+     删卡后 `var(--ah-ease)` 全部解析失败 —— 表现为**全文件过渡静默失效**
+     （computed 变 `all 0s`，控制台不报错）。改这里即可让所有过渡恢复。 */
+  --ah-ease: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* .profile-subpage-shell 给的是 20px（各二级页之间留白）；
+     资产首页是卡片堆叠，间距收一点更像一屏 */
+  gap: 14px;
+
+  /* 顶部避让：资产页从第一屏就开始堆卡片，而导航岛是 `position: fixed` 浮层
+     （#unified-nav-container）。不避让时摘要条与钱包卡直接压在岛下面 ——
+     实测 390×844 竖屏：岛可见底边 ≈78px，摘要条顶边 = 0，整条被盖住；
+     1440×900 横屏同理只差 12px。
+     高度取宿主 ResizeObserver 实测写入的 --userspace-nav-h（**岛收起态**高度：
+     展开的 AI 岛 / 搜索结果 / 状态卡都是悬浮层，按设计不该推内容），
+     再叠 safe-area 与 10px 呼吸位。与 messages 分段顶隙同一口径。
+     ⚠️ 竖屏也要避：这里不是首页封面那种「刻意压在岛下」的沉浸排版，
+     卡片被盖住就没法读。 */
+  padding-top: calc(var(--userspace-nav-h, 78px) + env(safe-area-inset-top, 0px) + 10px);
+}
+
+/* ─── 摘要条：全页唯一常驻信息 ─── */
+.ah-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 12px 30px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.ah-summary-id {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ah-summary-name-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.ah-summary-name {
+  overflow: hidden;
+  color: #1d1d1f;
+  font-size: 15px;
+  font-weight: 760;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-summary-meta {
+  overflow: hidden;
+  color: #747b86;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 余额收进摘要条：原先顶卡 / 概览卡 / 装扮卡 / 积分页各显示一次 */
+.ah-summary-points {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 0 8px 0 11px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #1d1d1f;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--ah-ease),
+    transform 160ms var(--ah-ease);
+}
+
+.ah-summary-points span {
+  color: #68727b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ah-summary-points strong {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.ah-summary-points svg {
+  color: #8a929c;
+}
+
+/* ─── 首页栅格：两列（窄屏单列） ─── */
+.ah-home {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+/* ─── 面板通用 ─── */
+.ah-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 14px 16px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow:
+    0 16px 34px rgba(15, 23, 42, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.ah-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 22px;
+  color: #68727b;
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0.02em;
+}
+
+.ah-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #0071e3;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 150ms var(--ah-ease);
+}
+
+/* ─── 按钮：首页与二级页共用 ─── */
+.ah-btn {
+  display: inline-flex;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 15px;
+  border: 0.5px solid rgba(15, 23, 42, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--ah-ease),
+    transform 160ms var(--ah-ease);
+}
+
+.ah-btn.is-primary {
+  border-color: transparent;
+  background: #1d1d1f;
+  color: #fff;
+}
+
+/* ─── 钱包卡 ─── */
+.ah-wallet-value {
+  margin-top: 8px;
+  color: #1d1d1f;
+  font-size: 32px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.ah-wallet-note {
+  margin: 4px 0 0;
+  color: #747b86;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ah-wallet-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ah-wallet-recent {
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+  padding-top: 4px;
+  border-top: 0.5px solid rgba(15, 23, 42, 0.08);
+}
+
+.ah-wallet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ah-wallet-row + .ah-wallet-row {
+  border-top: 0.5px solid rgba(15, 23, 42, 0.06);
+}
+
+.ah-wallet-row-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-wallet-row-title small {
+  overflow: hidden;
+  color: #8a929c;
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+
+/* 与积分明细页同口径：#34c759 / #ff3b30（见上方 .ah-ledger-amount） */
+.ah-wallet-amount {
+  flex-shrink: 0;
+  color: #34c759;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 780;
+}
+
+.ah-wallet-amount.negative {
+  color: #ff3b30;
+}
+
+.ah-wallet-amount.zero {
+  color: #8e8e93;
+  font-weight: 600;
+}
+
+/* ─── 会员卡 ─── */
+.ah-member-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  color: #1d1d1f;
+  font-size: 17px;
+  font-weight: 780;
+  letter-spacing: -0.01em;
+}
+
+.ah-member-state {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(52, 199, 89, 0.15);
+  color: #1f8a4c;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.ah-member-state.is-free {
+  background: rgba(15, 23, 42, 0.07);
+  color: #68727b;
+}
+
+.ah-member-expiry {
+  margin: 6px 0 0;
+  color: #68727b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ah-member-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ah-member-chips span {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.05);
+  color: #5a6577;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+/* 抽奖保底：原先在「订阅」与「抽奖」两页各出现一次，现在只挂在会员卡里 */
+.ah-pity {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.ah-pity.is-due {
+  background: rgba(217, 119, 6, 0.1);
+}
+
+.ah-pity-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #68727b;
+  font-size: 12px;
+}
+
+.ah-pity-head strong {
+  color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+}
+
+.ah-pity-track {
+  height: 6px;
+  margin: 8px 0 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.1);
+}
+
+.ah-pity-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f5a623, #d97706);
+  transition: width 260ms var(--ah-ease);
+}
+
+.ah-pity p {
+  margin: 0;
+  color: #747b86;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ─── 装扮卡（首页缩略） ─── */
+.ah-decor-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.ah-decor-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ah-decor-copy strong {
+  overflow: hidden;
+  color: #1d1d1f;
+  font-size: 14px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-decor-copy span {
+  overflow: hidden;
+  color: #747b86;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── 待办卡 ─── */
+.ah-todo-count {
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: #68727b;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.ah-todo-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+}
+
+.ah-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ah-todo-item + .ah-todo-item {
+  border-top: 0.5px solid rgba(15, 23, 42, 0.06);
+}
+
+.ah-todo-icon {
+  display: grid;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #5a6577;
+}
+
+.ah-todo-icon.tone-warn {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+
+.ah-todo-icon.tone-info {
+  background: rgba(0, 113, 227, 0.12);
+  color: #0071e3;
+}
+
+.ah-todo-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ah-todo-copy strong {
+  overflow: hidden;
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-todo-copy small {
+  overflow: hidden;
+  color: #747b86;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-todo-item > svg {
+  flex-shrink: 0;
+  color: #b6bcc4;
+}
+
+.ah-todo-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 2px;
+  color: #68727b;
+  font-size: 12px;
+}
+
+.ah-todo-empty svg {
+  flex-shrink: 0;
+  color: #34c759;
+}
+
+/* ─── 外链行（社区抽奖 / 赞助）：原先各占一个页签，实际都是「跳出去」 ─── */
+.ah-links {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.ah-links button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ah-links button + button {
+  border-left: 0.5px solid rgba(15, 23, 42, 0.08);
+}
+
+.ah-links-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #1d1d1f;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ah-links-label svg {
+  color: #68727b;
+}
+
+.ah-links-side {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 1px;
+  color: #8a929c;
+  font-size: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   二级页：返回条 + 积分明细
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.ah-subpage {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ah-subpage-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+/* 返回条与它下面的内容同宽：装扮 / 订单两页的内容是居中的窄列（620 / 720），
+   返回条若撑满整行会看起来与内容脱节（实测装扮页：条 1131px 宽、内容 620px 居中，
+   刷新按钮甩到离内容 400px 外）。积分明细是通栏内容，保持通栏。 */
+.ah-subpage.is-decor .ah-subpage-bar {
+  width: 100%;
+  max-width: 620px;
+  margin-inline: auto;
+}
+
+.ah-subpage.is-orders .ah-subpage-bar {
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.ah-back {
+  display: inline-flex;
+  height: 32px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 0 11px 0 6px;
+  border: 0.5px solid rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 160ms var(--ah-ease);
+}
+
+.ah-subpage-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #1d1d1f;
+  font-size: 15px;
+  font-weight: 760;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 积分明细页：余额摘要 + 时间段筛选（筛选条样式沿用上方 .ah-points-filter） */
+.ah-points-subpage {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ah-points-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 15px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow:
+    0 12px 28px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.ah-points-summary > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ah-points-summary span {
+  color: #68727b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ah-points-summary strong {
+  color: #1d1d1f;
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+/* ─── 悬停（触屏不触发，避免 hover 样式粘手） ─── */
+@media (hover: hover) and (pointer: fine) {
+  .ah-summary-points:hover {
+    background: rgba(15, 23, 42, 0.1);
+  }
+
+  .ah-btn:hover {
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .ah-btn.is-primary:hover {
+    background: #000;
+  }
+
+  .ah-link-btn:hover {
+    color: #0059b3;
+  }
+
+  .ah-wallet-row:hover .ah-wallet-row-title {
+    color: #000;
+  }
+
+  .ah-todo-item:hover .ah-todo-copy strong {
+    color: #000;
+  }
+
+  .ah-links button:hover {
+    background: rgba(255, 255, 255, 0.42);
+  }
+
+  .ah-back:hover {
+    background: rgba(255, 255, 255, 0.92);
+  }
+}
+
+/* ─── 暗色 ─── */
+.user-space-page[data-theme='dark'] .ah-summary,
+.user-space-page[data-theme='dark'] .ah-panel,
+.user-space-page[data-theme='dark'] .ah-points-summary {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(24, 26, 32, 0.55);
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.user-space-page[data-theme='dark'] .ah-links {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(24, 26, 32, 0.5);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+}
+
+.user-space-page[data-theme='dark'] .ah-links button + button {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.user-space-page[data-theme='dark'] .ah-summary-name,
+.user-space-page[data-theme='dark'] .ah-summary-points,
+.user-space-page[data-theme='dark'] .ah-wallet-value,
+.user-space-page[data-theme='dark'] .ah-wallet-row-title,
+.user-space-page[data-theme='dark'] .ah-member-name,
+.user-space-page[data-theme='dark'] .ah-pity-head strong,
+.user-space-page[data-theme='dark'] .ah-decor-copy strong,
+.user-space-page[data-theme='dark'] .ah-todo-copy strong,
+.user-space-page[data-theme='dark'] .ah-links-label,
+.user-space-page[data-theme='dark'] .ah-subpage-title,
+.user-space-page[data-theme='dark'] .ah-points-summary strong {
+  color: #f5f5f7;
+}
+
+.user-space-page[data-theme='dark'] .ah-summary-meta,
+.user-space-page[data-theme='dark'] .ah-wallet-note,
+.user-space-page[data-theme='dark'] .ah-member-expiry,
+.user-space-page[data-theme='dark'] .ah-pity p,
+.user-space-page[data-theme='dark'] .ah-decor-copy span,
+.user-space-page[data-theme='dark'] .ah-todo-copy small,
+.user-space-page[data-theme='dark'] .ah-todo-empty,
+.user-space-page[data-theme='dark'] .ah-links-side,
+.user-space-page[data-theme='dark'] .ah-points-summary span {
+  color: #a1a1a6;
+}
+
+.user-space-page[data-theme='dark'] .ah-panel-head,
+.user-space-page[data-theme='dark'] .ah-pity-head {
+  color: #8b8e96;
+}
+
+.user-space-page[data-theme='dark'] .ah-summary-points {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.user-space-page[data-theme='dark'] .ah-summary-points span {
+  color: #a1a1a6;
+}
+
+.user-space-page[data-theme='dark'] .ah-btn {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  color: #f5f5f7;
+}
+
+.user-space-page[data-theme='dark'] .ah-btn.is-primary {
+  border-color: transparent;
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+
+.user-space-page[data-theme='dark'] .ah-pity {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.user-space-page[data-theme='dark'] .ah-pity.is-due {
+  background: rgba(217, 119, 6, 0.2);
+}
+
+.user-space-page[data-theme='dark'] .ah-pity-track {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.user-space-page[data-theme='dark'] .ah-member-chips span,
+.user-space-page[data-theme='dark'] .ah-todo-count {
+  background: rgba(255, 255, 255, 0.08);
+  color: #a1a1a6;
+}
+
+.user-space-page[data-theme='dark'] .ah-member-state {
+  background: rgba(52, 199, 89, 0.2);
+  color: #63d98a;
+}
+
+.user-space-page[data-theme='dark'] .ah-member-state.is-free {
+  background: rgba(255, 255, 255, 0.08);
+  color: #a1a1a6;
+}
+
+.user-space-page[data-theme='dark'] .ah-todo-icon {
+  background: rgba(255, 255, 255, 0.08);
+  color: #a1a1a6;
+}
+
+.user-space-page[data-theme='dark'] .ah-todo-icon.tone-warn {
+  background: rgba(217, 119, 6, 0.22);
+  color: #ffb340;
+}
+
+.user-space-page[data-theme='dark'] .ah-todo-icon.tone-info {
+  background: rgba(41, 151, 255, 0.2);
+  color: #2997ff;
+}
+
+.user-space-page[data-theme='dark'] .ah-back {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  color: #f5f5f7;
+}
+
+/* ─── 窄屏：单列，摘要条收紧 ─── */
+@media (max-width: 767px) {
+  /* 竖屏底部还有胶囊底栏（fixed）。shell 只给 32px，最后一行外链会被压在底栏下面 ——
+     与 ProfileHomePanel 同口径：吃 --userspace-bottom-nav-offset（横屏侧栏档为 8px，
+     竖屏回落 80px）+ safe-area。 */
+  .ah-page {
+    padding-bottom: calc(
+      var(--userspace-bottom-nav-offset, 80px) + env(safe-area-inset-bottom, 0px) + 40px
+    );
+  }
+
+  .ah-home {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .ah-panel {
+    padding: 13px 14px 14px;
+    border-radius: 20px;
+  }
+
+  .ah-wallet-value {
+    font-size: 28px;
+  }
+
+  .ah-summary {
+    padding: 10px 12px;
+    border-radius: 18px;
+  }
+
+  .ah-summary-points {
+    height: 32px;
+    padding: 0 7px 0 10px;
+  }
+
+  .ah-links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ah-links button + button {
+    border-top: 0.5px solid rgba(15, 23, 42, 0.08);
+    border-left: 0;
+  }
+
+  .user-space-page[data-theme='dark'] .ah-links button + button {
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .user-space-page[data-theme='dark'] .ah-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .user-space-page[data-theme='dark'] .ah-btn.is-primary:hover {
+    background: #fff;
+  }
+
+  .user-space-page[data-theme='dark'] .ah-links button:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .user-space-page[data-theme='dark'] .ah-back:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ah-summary-points,
+  .ah-btn,
+  .ah-back,
+  .ah-pity-fill {
+    transition: none;
+  }
+}
+
+/* 方案对比展开区：独占整行（SubscriptionPlans 是整页组件，塞进半栏会挤成一条） */
+.ah-plans {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  border-radius: 22px;
+}
+
+/* ─── 竖屏 / 矮视口触摸目标（2026-10-27 实测修正）───
+   必须放在文件末尾：`.ah-btn { height: 36px }` 在 1571 行、`.ah-link-btn { padding: 0 }`
+   在 1560 行，同特异性下后写的赢 —— 写在前面会被静默压掉（首版就踩了这个）。
+   主按钮按 Apple HIG 40 下限；纯文字链给 32 的命中区（WCAG 2.5.8 的下限只有 24）。
+   文字链用对称负 margin 抵消 padding，文字位置不动，否则右移 6px 会顶出卡片边界。
+   ⚠️ 只写 max-width 会漏掉**手机横屏**：844×390 宽 844 > 767 不命中，实测按钮仍是
+   36 / 文字链 23。横屏矮视口同样是手指操作，所以并列一条 max-height。 */
+@media (max-width: 767px), (max-height: 560px) {
+  .ah-btn {
+    height: 40px;
+  }
+  .ah-summary-points {
+    min-height: 40px;
+  }
+  .ah-link-btn {
+    min-height: 32px;
+    margin: 0 -6px;
+    padding: 0 6px;
+  }
+  /* 关闭按钮原 30px：桌面鼠标够用（WCAG 2.5.8 下限 24），手指偏紧。
+     竖屏 / 矮视口统一提到 36，位置同步内收避免压住标题行。 */
+  .ah-qr-close {
+    top: 10px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* 真机平板 / 触屏笔电：端口宽度可能 > 767（如 768×1024），上面那条不命中，
+   但同样是手指 —— 按指针类型补一条。Playwright 默认 hover:hover 不触发，
+   属真机兜底而非测试覆盖项。 */
+@media (hover: none) and (pointer: coarse) {
+  .ah-qr-close {
+    top: 10px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* ─── 矮视口下的充值弹窗紧凑版（2026-10-27 实测）───
+   手机横屏 844×390：常规版卡片 436px > 视口 390px，二维码底部 19px 被切、
+   UID 整行在屏外 —— 扫码直接失败。遮罩已改可滚动兜底，但二维码这类
+   「一眼要扫全」的内容不该让用户滚，所以在矮视口直接压到能放下的尺寸：
+   二维码 204 → 148（148px 在手臂距离仍可扫），上下留白同步收紧，实测总高约 344。 */
+@media (max-height: 560px) {
+  .ah-qr-overlay {
+    padding: 16px 20px;
+  }
+  .ah-qr-modal {
+    padding: 18px 22px 14px;
+    border-radius: 22px;
+  }
+  .ah-qr-modal h2 {
+    margin: 3px 0 5px;
+    font-size: 18px;
+  }
+  .ah-qr-modal p {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  .ah-qr-frame {
+    margin: 10px 0 8px;
+    padding: 8px;
+    border-radius: 16px;
+  }
+  .ah-recharge-qr {
+    width: 148px;
+    height: 148px;
   }
 }

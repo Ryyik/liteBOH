@@ -1758,3 +1758,74 @@
     transform: none;
   }
 }
+
+/* ══ 资产 / 摄影集（2026-10-26 结构合并）════════════════════════════
+   原「资产四宫格（订阅/订单/抽奖/赞助）+ 积分明细链接」与「服务段（Cloud+ / 摄影集）」
+   合并成一张两行紧凑卡。
+   刻意**不画卡片容器**：主页已经有 7 个 rounded-20 容器，再叠一层框就是「卡片里的卡片」，
+   而且四格里三格在多数账号是空占位。靠行高与分隔线分区即可 ——
+   与参考的个人主页（整页无卡片、靠留白分块）一致。 */
+.profile-assets-card.is-inline {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.profile-assets-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--stroke);
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.16s ease;
+}
+
+.profile-assets-row:last-child {
+  border-bottom: 0;
+}
+
+.profile-assets-row:hover {
+  background: rgba(0, 113, 227, 0.04);
+}
+
+.profile-assets-row:active {
+  background: rgba(0, 113, 227, 0.08);
+}
+
+.profile-assets-title {
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.profile-assets-note {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.user-space-page[data-theme='dark'] .profile-assets-row:hover {
+  background: rgba(120, 128, 148, 0.16);
+}
+
+/* 2026-10-26：印象摘要行（.profile-impression-bar*）整块删除 ——
+   印象改为内容面板的第三个 tab，主页不再保留第二个入口。 */
+

@@ -141,7 +141,16 @@
     );
 }
 
+/* 2026-10-26：独立全屏模式要把页头推到**全局导航岛下方**。
+   原先 --cloud-nav-offset 恒为 0，页头（返回 + 居中标题 BOH Cloud+）从 y=0 起排，
+   而导航岛是 position:fixed 浮在文档上（实测 410–1270 / y 10–68，状态卡展开到 147）
+   ⇒ 标题正好落在岛体中间，被整块盖住（1440×900 实测 title 中心 x=840 落在岛内）。
+   偏移直接吃 --userspace-nav-h：那是导航岛的实测高度（Home / 我页的 ResizeObserver 写入），
+   本页直开时回落 78px —— 与首页 hero 的 padding-top 同一口径，不再引入第二套魔法数字。
+   只挂在 .with-topbar（= !isDesktopEmbed）：嵌在「我」页里的那份没有导航岛，
+   补了反而是一道空档。 */
 .cloud-page.with-topbar {
+  --cloud-nav-offset: var(--userspace-nav-h, 78px);
   padding-top: var(--cloud-nav-offset);
 }
 

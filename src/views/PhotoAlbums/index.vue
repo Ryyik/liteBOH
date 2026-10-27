@@ -1,6 +1,16 @@
 <template>
   <div class="photo-albums-page">
     <main class="pa-main">
+      <!-- 返回设置（2026-10-26）：摄影集的常用入口在「我的 → 设置 → 摄影集」，
+           但本页是独立路由（/user-space/albums），不在 UserSpace 的 tab 壳里 ——
+           底栏与左栏都不存在，之前进来就是一个没有出口的死页。
+           落点由 from 决定（单源 utils/user-space-navigation.js），
+           直链进入时兜底回设置，而不是把人丢回首页。 -->
+      <button type="button" class="pa-back-btn" @click="goBack">
+        <ChevronLeft :size="16" :stroke-width="2.2" aria-hidden="true" />
+        返回设置
+      </button>
+
       <header class="pa-header">
         <div class="pa-heading">
           <span class="pa-kicker"
@@ -235,9 +245,10 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   Camera,
+  ChevronLeft,
   Images,
   ImagePlus,
   PlayCircle,
@@ -267,9 +278,20 @@ import {
 } from '@/utils/image-compression.js';
 import { uploadImageToCloudinary } from '@/utils/cloudinary-client.js';
 import { normalizeDbError } from '@/utils/request-core.js';
+import {
+  createUserSpaceSettingsReturnLocation,
+  resolveSettingsBackLocation,
+} from '@/utils/user-space-navigation.js';
 
 const router = useRouter();
+const route = useRoute();
 const { confirm } = useConfirmDialog();
+
+/** 返回设置：from 值域与其它设置子页共用同一份解析（utils/user-space-navigation.js）。
+    兜底显式给「设置」而不是默认的「我的」—— 摄影集永远是从设置进来的子页。 */
+const goBack = () => {
+  router.push(resolveSettingsBackLocation(route, createUserSpaceSettingsReturnLocation()));
+};
 
 const albums = ref([]);
 const isLoading = ref(true);
@@ -606,6 +628,34 @@ onMounted(loadAlbums);
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+/* 返回按钮（2026-10-26）：与页头同一条左基线，造型取「描边胶囊」而不是实心按钮 ——
+   它是出口，不是本页的主操作（主操作是右侧「新建影集」）。 */
+.pa-back-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 10px -6px;
+  padding: 6px 12px 6px 8px;
+  border: 1px solid var(--stroke, rgba(15, 23, 42, 0.1));
+  border-radius: 999px;
+  background: var(--surface, #ffffff);
+  color: var(--text-primary, #1d1d1f);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.pa-back-btn:hover {
+  border-color: var(--stroke-strong, rgba(15, 23, 42, 0.2));
+  background: var(--surface-soft, #f8fafc);
 }
 
 .pa-kicker {

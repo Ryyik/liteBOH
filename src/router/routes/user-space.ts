@@ -36,12 +36,6 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     meta: { ...userSpaceMeta },
   },
   {
-    path: '/user-space/account-security',
-    name: 'AccountSecurity',
-    component: () => import('../../views/user-center/AccountSecurity/index.vue'),
-    meta: { ...userSpaceMeta },
-  },
-  {
     path: '/user-space/note',
     name: 'BOHCloudPlus',
     component: () => import('../../views/user-center/Cloud+/index.vue'),

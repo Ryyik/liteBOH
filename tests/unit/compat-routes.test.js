@@ -159,4 +159,19 @@ describe('compat route registry（兼容层唯一登记处）', () => {
     // 字符串形式 redirect：route 记录上是属性不是函数
     expect(findCompat('/lab').redirect).toBe('/ai-chat?surface=work');
   });
+
+  it('账户安全收进设置右栏（2026-10-26）：独立页退场 → 设置页的账户与隐私子页', () => {
+    const security = findCompat('/user-space/account-security');
+    // name 保留：历史命名跳转（含 docs 里的「设置 → 账户安全」引导）仍能解析
+    expect(security.name).toBe('AccountSecurity');
+    expect(security.redirect({ query: {} })).toEqual({
+      path: '/user-space',
+      query: { tab: 'settings', view: 'account-security' },
+    });
+    // query 透传：旧参数（from=userspace-settings / from=cloud-settings）不能丢
+    expect(security.redirect({ query: { from: 'userspace-settings' } })).toEqual({
+      path: '/user-space',
+      query: { from: 'userspace-settings', tab: 'settings', view: 'account-security' },
+    });
+  });
 });

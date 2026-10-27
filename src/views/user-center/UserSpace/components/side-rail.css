@@ -230,11 +230,13 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 0;
     width: 100%;
     min-height: 56px;
     /* 8 → 6：给 label 12 → 13 的放大腾预算 —— 1100×800 的内容预算是
-       800 − 150(顶部避让) − 16(底距) = 634px，条目自然高每 +1px 全栏 +10px */
+       800 − 150(顶部避让) − 16(底距) = 634px，条目自然高每 +1px 全栏 +10px
+       ⚠️ 2026-10-26 起窄栏不再显示文字（见下方 .userspace-rail-label），
+       这个预算只剩图标与点击区在用 */
     padding: 6px 2px;
     border: 0;
     border-radius: 14px;
@@ -355,6 +357,12 @@
   }
 
   .userspace-rail-label {
+    /* 2026-10-26 用户口径：缩小态**只留图标**（对齐点开 BOHAI 时的左栏）。
+       原先窄栏是「图标 + 13px 文字」上下排，既不是图标栏也不如宽栏可读 ——
+       现在窄栏/缩小态统一成纯图标；文字改由宽栏档（≥1280）恢复。
+       ⚠️ 文字 display:none 后按钮会失去可访问名 ⇒ 模板里每个按钮都补了
+       aria-label / title（见 UserSpaceSideRail.vue）。 */
+    display: none;
     max-width: 100%;
     font-size: 13px;
     /* 收行高：body 的 1.9 会把窄栏条目（图标上文字下）顶到 61px，
@@ -433,6 +441,8 @@
   }
 
   .userspace-rail-label {
+    /* 宽栏档把窄栏隐藏的文字恢复出来（窄栏/缩小态只留图标） */
+    display: block;
     font-size: 16px;
   }
 
@@ -591,4 +601,83 @@ body.page-aichat .userspace-rail-brand-mark {
 /* 缩小态不显示品牌文字（用户 2026-10-08 口径）—— AI 页左栏恒 88px，永远算缩小态 */
 body.page-aichat .userspace-rail-brand-name {
   display: none;
+}
+
+/* ══ 缩小态（2026-10-26）：设置页横屏时左栏收成 88px 图标栏 ══════════════
+   为什么需要：设置页自己要用左右两栏（目录 + 详情）。1280 屏上 240px 宽栏
+   再加 208px 目录，详情只剩 800 出头，「标签 + 描述 + 值」会挤成两行。
+   收成图标栏后右区多出 152px，且左栏与「设置目录」形成两级窄导航、不抢戏。
+   触发真源：UserSpaceMain 在「settings tab + 横屏够宽」时给 body 加
+   .is-rail-compact（与 twoPane 同一个 computed，只判一次）。
+
+   ⚠️ 2026-10-26 用户口径：「缩小态只保留一种，就是侧边只有图标」。
+   所以下面只补**窄栏档（88px）与宽栏档的差异项**（左右内边距 / 图标尺寸 /
+   发布按钮形态 / 角标定位 / 品牌位），文字一律 display:none ——
+   与 BOHAI 左栏同一种形态，不再有「图标 + 13px 文字」的第三种样式。
+   档位是按**视口**判的、与栏宽变量无关：只改 --userspace-rail-w 会把 240px
+   的宽栏内容硬塞进 88px，所以形态必须在这里显式改回来。 */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  body.page-userspace.is-rail-compact .userspace-rail.liquid-glass {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  body.page-userspace.is-rail-compact .userspace-rail-item {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    min-height: 56px;
+    padding: 6px 2px;
+  }
+
+  body.page-userspace.is-rail-compact .userspace-rail-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* 宽栏档把文字恢复出来了，缩小态必须再关掉（同特异性下靠本块更靠后） */
+  body.page-userspace.is-rail-compact .userspace-rail-label {
+    display: none;
+  }
+
+  /* 发布回到 40px 圆形按钮（宽栏档是通栏胶囊） */
+  body.page-userspace.is-rail-compact .userspace-rail-item[data-rail-action='compose'] {
+    width: 40px;
+    min-height: 40px;
+    margin: 4px auto;
+    padding: 0;
+    gap: 0;
+  }
+
+  body.page-userspace.is-rail-compact
+    .userspace-rail-item[data-rail-action='compose']
+    .userspace-rail-label {
+    display: none;
+  }
+
+  /* 角标回到图标右上角（宽栏档是行尾内联） */
+  body.page-userspace.is-rail-compact .userspace-rail-badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    margin-left: 0;
+  }
+
+  body.page-userspace.is-rail-compact .userspace-rail-brand {
+    justify-content: center;
+    top: 34px;
+    left: 10px;
+    right: 10px;
+    gap: 8px;
+  }
+
+  body.page-userspace.is-rail-compact .userspace-rail-brand-name {
+    display: none;
+  }
+
+  body.page-userspace.is-rail-compact .userspace-rail-brand-mark {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
 }
