@@ -2,7 +2,7 @@
 
 > 目的：把发帖编辑器的完整上下文一次性讲清，供其他 AI / 新会话直接使用，无需重新检索代码库。
 > 项目：BOHLITEBeta2.5（Vue 3 + Vite + Pinia + Supabase，hash 路由）
-> 基于代码版本：2026-09-09 前后（行号会漂移，定位一律以函数名/类名为准）
+> 基于代码版本：2026-10-26（行号会漂移，定位一律以函数名/类名为准）
 
 ---
 
@@ -10,11 +10,13 @@
 
 | 文件 | 行数 | 职责 |
 |---|---|---|
-| `src/views/Forum/components/PostComposer.vue` | ~1490 | **纯展示组件**（受控组件）。无业务状态，所有数据经 props 进、emits 出 |
-| `src/views/Forum/styles/composer.css` | ~1860 | 编辑器主样式（被 PostComposer 的 scoped `@import` 引入） |
-| `src/views/Forum/ForumMain.vue` | ~4535 | **编排层**。全部业务状态与事件处理在这里：图片管线、发布队列、草稿、冷却、周签到 |
+| `src/views/Forum/components/PostComposer.vue` | ~1800 | **纯展示组件**（受控组件）。无业务状态，所有数据经 props 进、emits 出 |
+| `src/views/Forum/styles/composer.css` | ~1365 | 编辑器主样式（被 PostComposer 的 scoped `@import` 引入） |
+| `src/views/Forum/ForumMain.vue` | ~5600 | **编排层**。全部业务状态与事件处理在这里：图片管线、发布队列、草稿、冷却、发布会话 |
+| `src/views/Forum/composables/useForumPostPolish.js` | — | 智能整理状态机（生成 / 收口 / 应用 / 撤销），文字流光时长也从这里注入 CSS |
+| `src/views/Forum/styles/post-polish-sweep.css` | — | 标题/正文的逐字流光、状态行与 reduced-motion 兜底 |
 | `src/stores/forumPublishQueue.js` | ~82 | Pinia store：即发即走发布队列（state 机：queued/uploading/publishing/success/failed） |
-| `src/views/Forum/composables/useForumPostDraftStorage.js` | ~130 | 草稿 localStorage 读写（按用户隔离 + 版本历史 + cleared_at 标记） |
+| `src/views/Forum/composables/useForumPostDraftStorage.js` | ~130 | 单份草稿的 localStorage 读写（按用户隔离 + cleared_at 标记；遗留多版本 key 会被清理） |
 | `src/views/Forum/forum-config.js` | 常量 | `FORUM_POST_IMAGE_MAX_COUNT = 6`、`FORUM_TAG_OPTIONS`、`FORUM_TAG_MAP` |
 | `src/utils/api/forum/post-api.js` | ~1677 | `createPost` / `createPostWithImages`（发帖 RPC 封装）、草稿云端 CRUD、`updatePost` |
 | `src/utils/api/forum-images-api.js` | ~190 | 图片上传/检测/删除：`moderateForumImage`、`uploadApprovedForumImageQueued`（3 路并发）、`deleteUploadedForumImage` |
@@ -22,10 +24,10 @@
 | `src/utils/cloudinary-client.js` | ~530 | Cloudinary 上传/删除/pending 登记（`uploadImageToCloudinary`、`assertCloudinaryUploadAllowed`） |
 | `src/utils/forum-image-moderation.js` | — | NSFW 检测（动态 import，WebGL classify，模型可预载） |
 | `src/utils/content-moderation.js` | ~540 | 文本关键词预检（`runKeywordPrecheck`，scene: forum_post） |
-| `src/views/PostDetail/PostDetailMain.vue` | ~2000+ | **第三个挂载实例**：编辑已有帖子（`edit-mode`） |
+| `src/views/PostDetail/PostDetailMain.vue` | ~3500 | **编辑帖子宿主**：编辑已有帖子（`edit-mode`） |
 
-回归探针（项目根目录，Playwright + chrome channel，必须加 `args:['--no-proxy-server']`）：
-`probe-mobile-composer.mjs`、`probe-desktop-composer.mjs`、`probe-composer-dark.mjs`、`probe-composer-publish-fix.mjs`
+回归探针（`scripts/probes/`，Playwright + chrome channel，必须加 `args:['--no-proxy-server']`）：
+`probe-composer-publish-dedupe.mjs`（出口去重 + 三档宿主）、`probe-composer-chips.mjs`（统一动作栏 + 旧结构反证）、`probe-forum-viewport.mjs`（横竖屏矩阵 / 旋转保活）、`probe-forum-polish-sweep.mjs`（文字流光明暗两档）。
 
 ---
 
@@ -50,57 +52,50 @@
 | `postLocation` | Object/null | **v-model:postLocation** `{name, cityName, districtName, precision, lat, lng}` |
 | `postImages` | Array | 图片对象数组（结构见 §7.1） |
 | `isSubmitting` / `isUploadingPostImage` | Boolean | 提交中 / 图片处理中（合成 `isPostBusy`，busy 时禁用一切图片操作） |
-| `postImageUploadStatus` | String | 图片处理进度文案（面板底部一行字+伪进度条） |
+| `postImageUploadStatus` | String | 图片处理状态文案（选图→发布保持安静，仅卡顿/失败时出现） |
 | `postCooldownSeconds` | Number | 发布冷却倒计时（按钮变「Ns 后发布」） |
 | `maxPostImages` | Number = 6 | 图片上限（来自 `FORUM_POST_IMAGE_MAX_COUNT`） |
 | `mentionUsers` | Array | @ 候选（父级 `forumMentionUsers`，组件内去重归一取前 24，过滤输入取前 6） |
-| `weeklyCheckin*` 五个 | — | 周签到面板（状态/进度文案/七日圆点/提示/loading/submitting） |
 | `forumTagOptions` | Array | 标签选项 `{value,label}`（来自 FORUM_TAG_OPTIONS） |
-| `showPostImageSourceMenu` | Boolean | 遗留 prop（图片来源菜单已由更多菜单取代，仅保留兼容） |
-| `isMobileComposer` | Boolean | 竖屏模式开关：切换 mobile 设置列表/底部工具栏/竖屏文案 |
+| `isMobileComposer` | Boolean | 发布会话模式：切换竖屏文案、拍照入口与全屏排版 |
 | `isHomeCatTheme` | Boolean | 家猫主题（左下角装饰猫 HomeCatMascot，内容≥80 字或有图时 `is-awake`） |
-| `autoSaveDraftLabel` | String | 「已自动保存 HH:MM」提示文案 |
-| `editMode` | Boolean | 编辑模式（PostDetail 用）：问候语变「编辑帖子」、隐藏签到面板/草稿/更多菜单、显示关闭按钮 emit `close` |
+| `editMode` | Boolean | 编辑模式（PostDetail 用）：问候语变「编辑帖子」、隐藏更多菜单、显示关闭按钮 emit `close` |
 | `existingImages` | Array | 编辑模式的既有图片（当前实际由 editPostImages 走 postImages 传入，此 prop 兜底） |
 
-### 3.2 Emits（18 个）
+### 3.2 Emits
 
 `submit`、`close`（编辑模式关闭）、`login`、
 `update:newPost` / `update:selectedPostTag` / `update:postLocation`（v-model 三件套，注意 update:newPost 是**整对象展开替换**），
-`toggle-image-source-menu`（遗留）、`request-image-picker`、`request-camera`、
+`request-image-picker`、`request-camera`、
 `image-selection`（payload `{files, event}`）、`remove-image(image, index)`、`retry-image(image, index)`、
 `reorder-image({fromIndex, toIndex})`、`clear-images({cleanup: true})`（cleanup=true 时父级会云端删除）、
-`weekly-checkin`、`open-draft`、`save-draft`
-
 **关键模式**：`request-image-picker` / `request-camera` 传的是一个**回调函数** `() => fileInput.click()`。因为 `<input type=file>` 在 PostComposer 内部（两个隐藏 input：相册 `multiple`、拍照 `capture="environment"`），但「是否允许选图」（冷却/上限/busy 校验）在父级。父级校验通过后执行回调，change 事件再 emit `image-selection` 回去。
 
 ### 3.3 组件内部逻辑块（都在 PostComposer 里，纯 UI 层）
 
-1. **标题自动增高**：标题是 `textarea rows=1`（非 input，为了可换行），`autoResizeTitle()` 高度 = `min(scrollHeight, 132px)`；`TITLE_MAX_LENGTH = 50`，input 时 slice 截断 + 右下角 `n/50` 计数（满额变红 `is-near-limit`）。
+1. **标题自动增高**：标题是 `textarea rows=1`（非 input，为了可换行），高度由 `composables/useAutoGrowTextarea.js` 统一维护；上限只声明在 CSS `max-height: 132px`，JS 通过 `getComputedStyle` 读取。`TITLE_MAX_LENGTH = 50`，input 时 slice 截断 + 右下角 `n/50` 计数（满额变红 `is-near-limit`）。
 2. **@ 提及**：正文 `input/keyup/click/focus` 时 `updateMentionState` 用正则 `/(^|\s)@([\u4e00-\u9fa5\w.-]{0,24})$/u` 检测光标前的 @ 前缀 → 弹 `.composer-mention-menu`（绝对定位在输入区左下）；点击候选 `insertMention` 用 `replaceContentRange` 替换区间并在 nextTick 恢复光标。更多菜单里也有「提及用户」= 在文末插入 `@`。
 3. **图片网格交互**：
    - 预览：点图片 → `previewImage` → Teleport 大图灯箱（z-index 220200）。
    - 拖拽排序：HTML5 dragstart/dragenter/drop（仅 `canReorderImage` = 无 uploadStatus 或 approved/staged 可拖；busy 时禁用）。
    - 按钮排序：每张图左下角 ArrowLeft/ArrowRight 一对按钮（无障碍冗余）。
    - **状态徽章设计意图（重要）**：上传/优化/检测过程**不在图片上显示任何加载态**（真实进度由灵动岛统一展示）；只有 `uploadStatus === 'failed'` 才显示红色 badge + 重试按钮。
-   - 「添加图片」方框卡（`post-image-add-more-card`）：横屏 CSS 隐藏（避免与工具栏 0/6 入口重复），仅竖屏显示。
+   - 「添加图片」方框卡（`post-image-add-more-card`）已停用：动作栏的「图片」是唯一入口。模板里保留节点是为详情编辑的既有网格布局兜底，发布态由 CSS 隐藏。
 4. **位置功能（组件内自包含，不经过父级状态机，直接 v-model:postLocation 写回）**：
    - 数据源 Nominatim（OpenStreetMap）：`throttledNominatimFetch` 强制 1100ms 间隔 + Map 缓存 10 分钟（注意缓存返回 `res.clone()`）。
    - GPS 定位：`navigator.geolocation` → 逆地理 `zoom=13&accept-language=zh`，解析出 cityName（正则 `/市$/` 兜底 display_name）与 districtName；emit 的 precision 恒为 `'city'`（产品拍板只到城市级）。
    - 搜索：300ms debounce，`limit=5`，结果取 display_name 反转后「含市的后三段」做 shortName。
    - 面板：Teleport，桌面居中 360px 卡，≤899px 变底部上拉（`border-radius 32px 32px 0 0` + safe-area-inset-bottom）。
    - 已选位置在编辑器内显示为蓝色横条 `.post-location-bar`，可移除。
-5. **更多菜单（MoreMenu）**：`handleMoreButtonClick` 记录按钮 rect → Teleport 面板。定位逻辑：窄屏（≤899）从底部弹出；正常屏在按钮上方、右缘对齐，`Math.max/min` 收进视口；打开期间监听 window scroll/resize 重定位（onUnmounted 清理）。菜单项：草稿、提及用户、添加/更换位置、拍照（仅移动端）。z-index：overlay 220100 / panel 220101。
-6. **预览模式**：`isPreviewMode` 切换正文 textarea ↔ 只读渲染卡（保留换行 `white-space: pre-wrap`）；竖屏/桌面各有 Eye 工具按钮，无内容时禁用。
-7. **竖屏设置列表**（`mobile-composer-setting-list`）：iOS Inset Grouped 风格三行——位置/草稿/标签，图标是纯色圆角 chip（位置 #34c759 绿、草稿 #ff9500 橙、标签 #0071e3 蓝，白图标无渐变）。
-8. **工具栏双份**：竖屏 `.mobile-post-image-toolbar`（Hash/Eye/Image/More 图标钮）与桌面 `.desktop-post-tools`（玻璃胶囊，含标签下拉、预览、图片 n/6、保存草稿、更多），由 CSS 按断点显示其一。标签下拉两个（mobile-tag-menu / desktop-tag-menu）共用 `showMobileTagMenu` 状态。
-9. **周签到面板**：编辑器 footer 左侧（仅非编辑模式），骨架屏 loading → 进度文案 + 七日圆点（today 描边 / signed 实心）+ 签到按钮（已签禁用变灰）。
-10. **冷却显示**：发布按钮 label 由 `submitButtonLabel` 控制——编辑模式「保存修改/保存中…」、冷却「Ns 后发布」、否则「发布」；`isSubmitting` 时按钮内出白色 mini-spinner。
-11. **编辑模式**：头部问候换「编辑帖子/修改你的分享，记得保存～」，出现 X 关闭按钮（hover 旋转 90°），隐藏签到/草稿/更多。
+5. **更多菜单（MoreMenu）**：`handleMoreButtonClick` 记录按钮 rect → Teleport 面板。定位逻辑：窄屏（≤900）从底部弹出；正常屏在按钮上方、右缘对齐，`Math.max/min` 收进视口；打开期间监听 window scroll/resize 重定位（onUnmounted 清理）。菜单项：提及用户、添加/更换位置、拍照（仅发布会话）。z-index：overlay 220100 / panel 220101。
+6. **统一动作栏**：`.composer-actions` 一行四席——标签（下拉）/ 图片（相册多选）/ 智能整理 / 更多。更多菜单只收纳提及用户、位置与拍照；不再有手动草稿面板、旧 chips 行、双工具条或预览模式。
+7. **智能整理**：生成期间直接在标题/正文 textarea 的字形上跑文字流光（`.is-polishing`，`background-clip: text`），落点后直接替换并给「撤销」；没有覆盖层、预览面板或二次确认。
+8. **冷却显示**：发布按钮 label 由 `submitButtonLabel` 控制——编辑模式「保存修改/保存中…」、冷却「Ns 后发布」、否则「发布」；`isSubmitting` 时按钮内出白色 mini-spinner。发布会话里内部 `.post-btn` 恒隐藏，顶栏「发布」是唯一出口。
+9. **编辑模式**：头部问候换「编辑帖子/修改你的分享，记得保存～」，出现 X 关闭按钮（hover 旋转 90°），隐藏更多菜单。
 
 ### 3.4 样式体系要点
 
-- 两个 `<style scoped>` 块：第一个 `@import '../styles/composer.css'` + `replies-responsive.css`；第二个是后加的局部样式（添加图片卡、保存草稿按钮、位置面板、更多菜单、动画）。
+- 三个样式入口：`composer.css` + `replies-responsive.css`（scoped 共享层）、`post-polish-sweep.css`（全局文字流光/状态行）、组件尾部私有 scoped 块（位置面板、更多菜单、动画）。
 - **液态玻璃 token 全走 `--liquid-*`**（`--liquid-bg/border/radius-lg/filter/highlight/shadow/blur/saturate/text-primary/...`），fallback 值内联。`.editor-card` = blur 28px + saturate 180% + 双层阴影 + 内高光，支持 `corner-shape: squircle` 渐进增强；`@supports not (backdrop-filter)` 与 `.boh-perf-lite` 各有降级。
 - **字体栈铁律**：`.editor-card` 显式声明 `-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", ...` 并让 input/textarea/button `inherit`——因为 Teleport 弹层不在 `.forum-page` 内，表单元素会回落到浏览器默认等宽字体（历史 bug）。
 - `:deep()` 只在 SFC scoped 有效；全局 css 一律平铺后代选择器（如 `.editor-card .post-image-add-more-card`）。
@@ -108,12 +103,20 @@
 
 ---
 
-## 4. 三个挂载实例（同一组件三种壳）
+## 4. 两个宿主、一个发帖会话
 
-1. **桌面/横屏内嵌**（ForumMain 模板 ~4010 行）：`v-if="!isMobileComposerMode"`，直接嵌在论坛左栏顶部。
-2. **竖屏全屏 overlay**（ForumMain 模板 ~4276 行）：Teleport 到 body 的 `.mobile-composer-overlay`，自带顶栏（取消/草稿/发布——**竖屏下 PostComposer 内部 footer 被 CSS 隐藏，发布按钮由顶栏承担**）+ 草稿面板 + `.mobile-composer-scroll` 包 PostComposer（传 `is-mobile-composer`）。由 FAB（`.mobile-compose-fab`）唤起 `openMobileComposer`。
-   - **模式判定**：`isMobileComposerMode = width <= 1024 && height >= width`（PORTRAIT_COMPOSER_BREAKPOINT=1024，看的是**宽高比**不是像素宽度）；从竖屏切回横屏时若 overlay 开着会自动关闭。
-3. **编辑已有帖子**（PostDetailMain.vue ~1811 行）：`<PostComposer edit-mode>`，v-model 绑 `editNewPost/editSelectedPostTag/editPostImages`；竖屏时同样出现 `post-edit-bar` 顶栏承担保存；提交走 `submitEditPost`（updatePost + updateForumPostImages），不是发帖队列。
+**新帖只有两个入口，二者都打开同一个 ForumMain 发布会话：**
+
+1. **横屏分栏**：左栏「发布」（`[data-rail-action="compose"]`）→ `ForumSectionShell.openComposer()` → `ForumMain.openMobileComposer()`。会话 Teleport 到 body，但只覆盖右区（`left = 左栏宽`），左栏保持可见；切落点前由 `useForumComposerSession.dismissComposerSession()` 先收会话。
+2. **竖屏 / 无分栏**：FAB `.mobile-compose-fab` → 同一 `openMobileComposer()`，会话铺满视口。900×700 这类横屏但无分栏的尺寸也由 FAB 承担。
+
+**会话顶栏**：竖屏为 `取消 / 发布`，横屏分栏只显示 `发布`（左栏仍是退出上下文）；`取消` 走 `closeMobileComposer`（有未保存内容时弹「保存草稿」），发布走 `handlePost`。**内嵌发帖编辑器已废弃并从 ForumMain 模板删除**，页面里不应再出现 `.forum-left-column > .post-creation-section`。
+
+**旋转**：会话不再因横竖屏切换而关闭，内容与滚动锁保持；只在内部重排为横屏右区/竖屏全屏。
+
+**进出场**：竖屏以触发 FAB 的中心为 `transform-origin`，从 `scale(0.08)` 放大成整页 / 关闭时缩回按钮（`.mobile-composer-enter-active` / `leave-active`，380ms emphasized 曲线，opacity 180ms 辅助）；横屏分栏保持即时切换。FAB 中心由 `captureMobileComposerOrigin()` 在开关时实测并注入 `--mobile-composer-origin`，不在 CSS 写死右下角（安全区 / embedded 抬升 / 旋转都会变）。⚠️ overlay 是 `<Transition>` 根节点，禁止再给它写 `transform: none !important` —— 旧的「立即上屏」规则只应落在 `.mobile-composer-section` 与 `.editor-card` 上；`probe-composer-motion.mjs` 读动画中间帧守住这条。
+
+**编辑已有帖子**（PostDetailMain.vue）：`<PostComposer edit-mode>`，v-model 绑 `editNewPost/editSelectedPostTag/editPostImages`；竖屏同样出现 `post-edit-bar` 顶栏承担保存；提交走 `submitEditPost`（updatePost + updateForumPostImages），不是发帖队列。`PostComposer` 保留正是为这个宿主与新帖会话。
 
 ---
 
@@ -125,7 +128,7 @@
 newPost = ref({title:'', content:''}); selectedPostTag = ref('daily');
 postImages = ref([]); postLocation = ref(null);
 isSubmitting; isUploadingPostImage; postImageUploadStatus;
-isMobileComposerMode/isMobileComposerOpen; showPostImageSourceMenu;
+isMobileComposerOpen; // 新帖发布会话唯一开关（横屏左栏 / FAB 共用）
 postCooldownUntil = ref(0);  // 冷却时间戳
 savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
 // 草稿**只有一份**（2026-10-26 产品定稿）：云端 forum_post_drafts 为准，本地 localStorage 只是缓存。
@@ -223,20 +226,20 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
 
 ## 8. 草稿系统
 
-- **双层存储**：localStorage（`useForumPostDraftStorage`，key = `forum_post_draft_{uid}`，按用户隔离；另有 `_versions` 版本历史（限 versionLimit 条）与 `_cleared_at` 清空标记——用于防止「远端旧草稿回填已清空的编辑器」）+ 云端（`savePostDraftToDatabase` → `upsertForumPostDraft` / `deleteForumPostDraft`，防抖 `schedulePostDraftDatabaseSync`）。
-- **保存时机（拍板）**：已从自动保存改为**手动保存**（定时器代码已注释删除）。入口：桌面工具栏「保存草稿」按钮（emit save-draft → `saveMobileDraft`）、竖屏草稿面板「保存当前」、关闭竖屏编辑器时确认弹窗（`closeMobileComposer` → `requestConfirm('保存草稿')`）。`autoSaveDraftLabel` 显示「已自动保存 HH:MM」（文案沿用）。
+- **双层存储**：localStorage（`useForumPostDraftStorage`，key = `forum_post_draft_{uid}`，按用户隔离；带 `_cleared_at` 清空标记，防止「远端旧草稿回填已清空的编辑器」）+ 云端（`savePostDraftToDatabase` → `upsertForumPostDraft` / `deleteForumPostDraft`，防抖 `schedulePostDraftDatabaseSync`）。
+- **保存时机（拍板）**：没有固定的自动保存定时器，也不在输入时静默写草稿；编辑器内**不显示**「已自动保存 HH:MM」。保留的路径只有三条：打开发布会话时 `restorePostDraft({ preserveLocalEdits: true })` 恢复、关闭会话时 `closeMobileComposer` → `requestConfirm('保存草稿')` 后走 `persistPostDraft`、发布成功后全链路清空。**手动草稿面板已移除**（`open-draft` / `save-draft` / `saveMobileDraft` 都不得回流）。
 - `restorePostDraft`：恢复草稿时会比较 `postDraftRestoreSeq` 序号防竞态（恢复请求返回前编辑器已被清空则丢弃）。
 - `beforeunload`：有在途发布任务 →「有内容正在发送」；竖屏编辑器开着且有未保存内容 →「是否保存为草稿」。
-- 发布成功后草稿全链路清空（本地+版本+云端）。
+- 发布成功后草稿全链路清空（本地 + 云端）。
 
 ---
 
 ## 9. 其他子系统速览
 
-- **周签到**：`handleWeeklyCheckin`（~2943 行）→ `submitWeeklyCheckin()`；面板在编辑器 footer 内（内嵌紧凑版），另有独立 `WeeklyCheckinCalendar` 弹窗。注意 weekly-checkin 相关状态也在 ForumMain。
+- **周签到**：`handleWeeklyCheckin` → `submitWeeklyCheckin()`；入口在 `ForumToolbar`，结果看独立 `WeeklyCheckinCalendar` 弹窗。编辑器内不再嵌周签到面板。
 - **mentionUsers 来源**：`forumMentionUsers` computed（~452 行），从当前加载的帖子/评论作者归一而来。
-- **FAB 可见性**：竖屏模式且 feedMode==='posts'；embedded 时还要求路由是 `/user-space?tab=community`（论坛真实入口，`/forum` 已 redirect）。
-- **postImageSourceMenu**：遗留 UI，现由「更多菜单」承担拍照/相册入口。
+- **FAB 可见性**：所有 feed 视口下、`feedMode==='posts'` 时显示（内嵌发帖器退场后 FAB 不再限竖屏）；embedded 时还要求路由是 `/user-space?tab=community`（论坛真实入口，`/forum` 已 redirect）。
+- **图片来源**：动作栏「图片」直接开相册多选；「更多」里的「拍照」仅发布会话（`isMobileComposer`）显示。旧的 `postImageSourceMenu` 状态与监听已删除。
 
 ---
 
@@ -251,7 +254,7 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
 7. **幂等发帖 RPC**（create_forum_post_with_images_idempotent + p_submission_id）是防重复发帖的关键，降级链不可删。
 8. **`:deep()` 只在 SFC scoped 有效**，抽到全局 css 会静默失效。
 9. `Edit` 工具可能静默丢改动：重要编辑写后重读校验。
-10. 竖屏判定是 `width<=1024 && height>=width`（宽高比），不是像素断点——横屏 iPad/折叠屏走桌面内嵌布局。
+10. **发帖入口只剩两处、共用一场会话**：横屏分栏的左栏「发布」，其余 feed 视口用 FAB。不要再把 `PostComposer` 内嵌回 `.forum-left-column`；那会同时产生两个编辑状态与第二个发布出口（`probe-composer-publish-dedupe` / `probe-composer-chips` 会红）。竖屏判定仍是 `width<=1024 && height>=width`，但它只影响编辑弹层排版，不再作为「是否有内嵌编辑器」的开关。
 11. 伪装登录探针注意：`auth.userInfo` 是 reactive({})，须 `Object.assign` 原地改；Playwright launch 必须加 `args:['--no-proxy-server']`。
 12. 视觉拍板：纯白圆角玻璃禁渐变；主色 #0071e3；`!important` 有预算门禁（scripts/check-important-budget.mjs，基线见 important-budget.json），新增样式避免滥用。
 
@@ -259,7 +262,7 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
 
 ## 11. 一次「选 3 张图 + 打字 + 点发布」的完整时序（把上面串起来）
 
-1. FAB/桌面工具栏 → 父级校验 → 回调触发隐藏 input → `image-selection` → `handlePostImageSelection`。
+1. FAB / 左栏「发布」→ 发布会话 → 动作栏「图片」→ 父级校验 → 回调触发隐藏 input → `image-selection` → `handlePostImageSelection`。
 2. 3 个 pending 占位进网格（本地 blob 预览，无任何加载圈）。
 3. 300ms 后预热管线启动：图 1/2 压缩并行（2 路）→ 检测串行链逐张 → 各自进入 3 路上传队列；模型预载与首张压缩同时开始。
 4. 用户继续打字（mention 菜单、字数统计、标题自动增高均为纯前端）。

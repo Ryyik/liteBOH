@@ -45,11 +45,7 @@ import { getImageUrl } from '@/utils/asset-helper.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { ensureNotificationStore } from '@/stores/notification-loader';
-import {
-  isForumLandscape,
-  isForumPortraitComposer,
-  onForumPortraitComposerChange,
-} from '@/utils/forum-viewport.js';
+import { isForumLandscape } from '@/utils/forum-viewport.js';
 import { isForumFeedSection } from '@/config/forum-sections';
 import { openForumPost } from '@/composables/usePostDetailModal.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
@@ -1341,19 +1337,34 @@ const editFailedPublish = (queueId) => {
       scheduleDraftImagePipeline(img, idx, postImages.value.length);
     }
   });
-  // 打开编辑器（移动端）
-  if (isMobileComposerMode.value) {
-    isMobileComposerOpen.value = true;
-  }
+  // 草稿恢复后，发布会话由外层显式打开（FAB / 左栏「发布」）。
 };
 const isForumImageViewerOpen = ref(false);
 const forumImageViewerImages = ref([]);
 const forumImageViewerIndex = ref(0);
-const showPostImageSourceMenu = ref(false);
-// 竖屏编辑器形态：单源判据初始化，变化由 onForumPortraitComposerChange 订阅驱动（见下方 updateMobileStatus 区块）
-const isMobileComposerMode = ref(typeof window !== 'undefined' ? isForumPortraitComposer() : false);
+// 发布会话是发帖唯一入口：横屏左栏「发布」、窄屏 FAB、帖子详情编辑复用同一套组件。
 const isMobileComposerOpen = ref(false);
-const isMobileDraftPanelOpen = ref(false);
+/* 竖屏发布会话的缩放起点：从 FAB 的真实中心出发，关闭时缩回同一点。
+   CSS 只消费这个变量，不在样式里写死右下角坐标（安全区 / embedded 抬升 / 旋转都会变）。 */
+const mobileComposerTransformOrigin = ref('100% 100%');
+/** 把 DOMRect 归一成 CSS transform-origin；FAB 必须真实渲染过（宽高为 0 时放弃）。 */
+const resolveFabTransformOrigin = (rect) => {
+  if (!rect || !(rect.width > 0) || !(rect.height > 0)) return null;
+  return `${rect.left + rect.width / 2}px ${rect.top + rect.height / 2}px`;
+};
+
+const captureMobileComposerOrigin = () => {
+  if (typeof document === 'undefined') return;
+  const fab = document.querySelector('.mobile-compose-fab');
+  if (!fab) return;
+  const origin = resolveFabTransformOrigin(fab.getBoundingClientRect());
+  if (origin) mobileComposerTransformOrigin.value = origin;
+};
+
+const releaseMobileComposerOrigin = () => {
+  mobileComposerTransformOrigin.value = '100% 100%';
+};
+
 const savedPostDraft = ref(null);
 const postImageCleanupLocks = new Set();
 const cooldownNow = ref(Date.now());
@@ -1366,7 +1377,7 @@ let forumFetchAbortController = null;
 let searchDebounceTimer = null;
 let postDraftSaveTimer = null;
 let postDraftSyncQueue = Promise.resolve(null);
-// ✨ 移除：autoSaveDraftTimer定时器（改为手动保存）
+// 草稿没有固定的自动保存定时器：仅在打开会话时对账、关闭确认保存、发布后清理。
 // let autoSaveDraftTimer = null;
 let postDraftRestoreSeq = 0;
 const {
@@ -1380,10 +1391,6 @@ const {
   prefix: FORUM_POST_DRAFT_PREFIX,
   logger,
 });
-
-const refreshPostDraftState = () => {
-  savedPostDraft.value = readPostDraft();
-};
 
 /* ===== 草稿跨实例同步（2026-10-26）=====
    为什么需要：首页 `/` 没有 keepAlive（离开即销毁、回来重建），UserSpace 是 keepAlive
@@ -1407,7 +1414,7 @@ const draftMatchesEditor = (draft) =>
   });
 
 /** 编辑器里有「刷新/离开会丢」的内容 —— 比 hasUnsavedChanges() 多一层「是否已落草稿」，
- *  所以竖屏会话和桌面内嵌编辑器都能用它判断（见 handleBeforeUnload）。 */
+ *  发布会话与新帖宿主共用同一判据（见 handleBeforeUnload）。 */
 const isEditorDirty = () => !draftMatchesEditor(savedPostDraft.value);
 
 const notifyDraftChange = (reason = 'save') => {
@@ -1565,7 +1572,7 @@ const persistPostDraft = () => {
       /* 草稿结构只有 title/content/tag，图片存不进去 ⇒ 「只有图片、没有文字」时
          **不能**把已有草稿清掉：此前这条分支会 writeLocalPostDraft(null)，表现为
          用户点「保存草稿」反而把草稿删了（按钮文案与行为完全相反）。
-         保留原草稿并直接返回，由 saveMobileDraft 负责给用户提示。 */
+         保留原草稿并直接返回；发布/关闭确认链会给出对应提示。 */
       if (postImages.value.length) {
         logger.debug('forum', '仅有图片、无文字：草稿不可保存，保留已有草稿');
         return;
@@ -1573,7 +1580,6 @@ const persistPostDraft = () => {
       writeLocalPostDraft(null);
       savedPostDraft.value = null;
       schedulePostDraftDatabaseSync(null);
-      lastAutoSaveTime.value = null;
       notifyDraftChange('clear');
       return;
     }
@@ -1581,29 +1587,16 @@ const persistPostDraft = () => {
     writeLocalPostDraft(draft);
     savedPostDraft.value = draft;
     schedulePostDraftDatabaseSync(draft);
-    lastAutoSaveTime.value = draft.savedAt;
     notifyDraftChange('save');
   } catch (error) {
     logger.warn('forum', '保存发帖草稿失败:', error);
   }
 };
 
-const lastAutoSaveTime = ref(null);
+/* 发布会话不再在编辑器内部显示「已自动保存 HH:mm」—— 手动草稿面板已移除，
+   保存反馈只来自关闭确认链的成功 toast，不再持有一份无人读取的时间状态。 */
 
-const formatAutoSaveTime = (timestamp) => {
-  if (!timestamp) return '';
-  return new Date(timestamp).toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-const autoSaveDraftLabel = computed(() => {
-  if (!lastAutoSaveTime.value) return '';
-  return `已自动保存 ${formatAutoSaveTime(lastAutoSaveTime.value)}`;
-});
-
-// ✨ 移除：clearAutoSaveDraftTimer和startAutoSaveDraftTimer函数（改为手动保存）
+// 固定间隔的自动保存定时器已移除；草稿只在明确的保存/清理路径落盘。
 // const clearAutoSaveDraftTimer = () => { ... };
 // const startAutoSaveDraftTimer = () => { ... };
 
@@ -1626,7 +1619,7 @@ const handleBeforeUnload = (e) => {
     return e.returnValue;
   }
   /* 判据是 isEditorDirty()（编辑器内容 ≠ 已保存草稿），**不**再短路在
-     `!isMobileComposerOpen` 上：桌面内嵌编辑器的会话恒为关，此前永远拿不到刷新保护
+     `!isMobileComposerOpen` 上：发布会话未打开时直接放行，此前永远拿不到刷新保护
      ⇒ 宽屏写半天一刷新全丢、连提示都没有。而"内容已落草稿"时它返回 false，
      不会出现"只是回填了草稿也弹提示"的误报。 */
   if (!isEditorDirty()) return;
@@ -1649,85 +1642,12 @@ const clearPostDraft = () => {
     // clearAutoSaveDraftTimer();
     writeLocalPostDraft(null);
     savedPostDraft.value = null;
-    lastAutoSaveTime.value = null;
     notifyDraftChange('clear');
     return savePostDraftToDatabase(null);
   } catch (error) {
     logger.warn('forum', '清理发帖草稿失败:', error);
     return Promise.resolve(null);
   }
-};
-
-const formatDraftSavedTime = (savedAt = 0) => {
-  if (!savedAt) return '尚未保存';
-  return new Date(savedAt).toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-const draftPreviewText = computed(() => {
-  const draft = savedPostDraft.value;
-  if (!draft) return '云端还没有草稿';
-  return draft.title || draft.content || '未命名草稿';
-});
-
-const savedDraftTagLabel = computed(
-  () => getForumTagLabel(savedPostDraft.value?.tag || '') || '#日常',
-);
-
-const openMobileDraftPanel = async () => {
-  // 打开面板不触发自动保存（已改为手动保存，保存在 saveDraftManually 里）
-  refreshPostDraftState();
-  isMobileDraftPanelOpen.value = true;
-  /* 打开即展示**云端那份**：先用本地缓存渲染（不等网络），再走一次正常的草稿对账
-     （restorePostDraft 的 savedAt 合并逻辑：云端更新则覆盖本地，本地更新则推上云）。
-     单草稿模型下这里没有"列表"要拉，只有这一份。 */
-  await restorePostDraft({ preserveLocalEdits: true });
-  if (isMobileDraftPanelOpen.value) refreshPostDraftState();
-};
-
-const closeMobileDraftPanel = () => {
-  isMobileDraftPanelOpen.value = false;
-};
-
-const saveMobileDraft = async () => {
-  /* 只有图片、没有文字时草稿存不下任何东西 —— 必须**明确告知**并停下，
-     不能让流程继续走到 savePostDraftToDatabase：那条链路在没有草稿时相当于
-     "删除云端草稿"，用户却以为刚保存成功。 */
-  const onlyImages =
-    !String(newPost.value.title || '').trim() &&
-    !String(newPost.value.content || '').trim() &&
-    postImages.value.length > 0;
-  if (onlyImages) {
-    showModal(
-      'warning',
-      '草稿未保存',
-      '草稿只保存标题和正文，图片无法存入草稿。请补一句文字再保存，或直接发布。',
-    );
-    return;
-  }
-  persistPostDraft(); // 手动保存时调用
-  clearPostDraftSaveTimer();
-  const draftToSync = savedPostDraft.value;
-  const syncedDraft = await savePostDraftToDatabase(draftToSync);
-  if (syncedDraft && savedPostDraft.value === draftToSync) {
-    savedPostDraft.value = syncedDraft;
-    writeLocalPostDraft(syncedDraft);
-  }
-  refreshPostDraftState();
-};
-
-const restoreMobileDraft = () => {
-  restorePostDraft();
-  closeMobileDraftPanel();
-};
-
-const clearMobileDraft = () => {
-  void clearPostDraft();
-  newPost.value = { title: '', content: '' };
-  selectedPostTag.value = 'daily';
-  closeMobileDraftPanel();
 };
 
 const getCooldownSeconds = (until) =>
@@ -1830,21 +1750,8 @@ const ensureCanAddPostImage = () => {
   return true;
 };
 
-const togglePostImageSourceMenu = () => {
-  if (!ensureCanAddPostImage()) {
-    showPostImageSourceMenu.value = false;
-    return;
-  }
-  showPostImageSourceMenu.value = !showPostImageSourceMenu.value;
-};
-
-const closePostImageSourceMenu = () => {
-  showPostImageSourceMenu.value = false;
-};
-
 const openPostImagePicker = (triggerPicker) => {
   if (!ensureCanAddPostImage()) return;
-  showPostImageSourceMenu.value = false;
   if (typeof triggerPicker === 'function') {
     triggerPicker();
   }
@@ -1852,7 +1759,6 @@ const openPostImagePicker = (triggerPicker) => {
 
 const openPostCamera = (triggerCamera) => {
   if (!ensureCanAddPostImage()) return;
-  showPostImageSourceMenu.value = false;
   if (typeof triggerCamera === 'function') {
     triggerCamera();
   }
@@ -2353,35 +2259,8 @@ const updateMobileStatus = () => {
   });
 };
 
-// 离开竖屏编辑器（旋转/尺寸切换）时的安全关闭：
-// 不再直接置 isMobileComposerOpen=false（会绕过 closeMobileComposer 的保存确认链，
-// 且退出后 beforeunload 不再拦截），改为静默落草稿再关闭，不弹确认框。
-const leaveMobileComposerForViewportSwitch = () => {
-  if (hasUnsavedChanges()) {
-    persistPostDraft();
-    clearPostDraftSaveTimer();
-    void savePostDraftToDatabase(savedPostDraft.value);
-    logger.debug('forum', '视口切换：已静默保存发帖草稿');
-  }
-  closePostImageSourceMenu();
-  closeMobileDraftPanel();
-  isMobileComposerOpen.value = false;
-};
-
-// 竖屏编辑器形态切换（单源 matchMedia 驱动，旋转/窗口尺寸变化均会触发）
-let releaseComposerModeWatch = null;
-const handleComposerModeChange = (matches) => {
-  const prevComposerMode = isMobileComposerMode.value;
-  isMobileComposerMode.value = matches;
-  // 从竖屏编辑器切换到桌面形态时关闭全屏编辑器，防止横屏出现竖屏样式的编辑器
-  if (prevComposerMode && !matches && isMobileComposerOpen.value) {
-    leaveMobileComposerForViewportSwitch();
-  }
-};
-
 if (typeof window !== 'undefined') {
   updateMobileStatus();
-  releaseComposerModeWatch = onForumPortraitComposerChange(handleComposerModeChange);
 }
 
 // KeepAlive 失活守卫：UserSpace 是 keepAlive 路由，切到底栏其它 tab 后本组件（连同
@@ -2399,13 +2278,10 @@ onDeactivated(() => {
 const isForumComposerFabVisible = computed(() => {
   /* FAB 只属于「内容」——首页 feed 分区与 UserSpace 的「内容」tab 都算内容流，
      官方/成员 tab 与底栏其它落点（我/消息/AI）一律不挂载。
-     ⚠️ 2026-10-19 修复「竖屏没有发帖入口」：c19a35dc 曾把 embedded 收成
-     `route.path === '/'`，依据是「UserSpace 不再承载社区」的旧 IA；plans/022 之后
-     UserSpace 又挂了同一份 embedded ForumMain，而模板里内嵌 PostComposer 是
-     `v-if="!isMobileComposerMode"` ⇒ 竖屏下既不渲染编辑器、FAB 又被路径挡掉，
-     整页没有任何发帖入口（横屏有内嵌编辑器所以一直没暴露）。 */
+     2026-10-26：内嵌发帖器已废弃，FAB 是 feed 页唯一常驻发帖入口。
+     横屏分栏另有左栏「发布」；两者都打同一场发布会话，不产生两套编辑状态。 */
   if (!isRouteInstanceActive.value) return false;
-  if (!isMobileComposerMode.value || feedMode.value !== 'posts') return false;
+  if (feedMode.value !== 'posts') return false;
   if (!props.embedded) return true;
   if (route.path === '/user-space') {
     /* 分区壳是 v-show 常驻：其它 tab 下 ForumMain 也 mounted，只有「内容/方块」tab
@@ -2423,9 +2299,10 @@ const isForumComposerFabVisible = computed(() => {
 
 const openMobileComposer = () => {
   feedMode.value = 'posts';
-  closePostImageSourceMenu();
+  // 先拍 FAB 中心，再开 v-if；overlay 的 transform-origin 才能锚定到触发按钮。
+  captureMobileComposerOrigin();
   /* 打开编辑器时按最新草稿对一次账（兜住"另一个宿主刚保存/清空"的情况）。
-     preserveLocalEdits：横→竖切换时桌面内嵌编辑器可能留有未保存内容，不能覆盖。 */
+     preserveLocalEdits：另一个标签页/实例可能已经改过草稿，不能覆盖当前内存稿。 */
   void restorePostDraft({ preserveLocalEdits: true });
   isMobileComposerOpen.value = true;
 };
@@ -2487,8 +2364,8 @@ const closeMobileComposer = async () => {
     logger.debug('forum', '内容已清空：同步删除残留草稿');
   }
 
-  closePostImageSourceMenu();
-  closeMobileDraftPanel();
+  // 关闭前重新量一次：确认弹窗期间可能旋转、FAB 的 embedded 抬升也可能变化。
+  captureMobileComposerOrigin();
   isMobileComposerOpen.value = false;
 };
 
@@ -2588,11 +2465,10 @@ onMounted(() => {
     showAnniversaryBg.value = true;
   }
   restorePostDraft();
-  // ✨ 移除：startAutoSaveDraftTimer()调用（改为手动保存）
+  // 不再启动固定间隔的自动保存定时器；挂载时只恢复草稿。
   // startAutoSaveDraftTimer();
   window.addEventListener('resize', updateMobileStatus);
   window.addEventListener('orientationchange', updateMobileStatus);
-  document.addEventListener('click', closePostImageSourceMenu);
   // 监听刷新请求事件（从导航栏点击"我的方块"时触发）
   window.addEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
   window.addEventListener('boh:forum-post-deleted', handleForumPostDeleted);
@@ -2652,7 +2528,6 @@ onDeactivated(() => {
     clearInterval(cooldownTimer);
     cooldownTimer = null;
   }
-  closePostImageSourceMenu();
   document.body.style.overflow = '';
 });
 
@@ -2668,8 +2543,6 @@ onUnmounted(() => {
   // clearAutoSaveDraftTimer();
   forumFetchAbortController?.abort?.();
   forumFetchAbortController = null;
-  releaseComposerModeWatch?.();
-  releaseComposerModeWatch = null;
   window.removeEventListener('resize', updateMobileStatus);
   window.removeEventListener('orientationchange', updateMobileStatus);
   window.removeEventListener('boh_forum_refresh_request', handleForumRefreshRequest);
@@ -2682,7 +2555,6 @@ onUnmounted(() => {
     cancelAnimationFrame(resizeRafId);
     resizeRafId = null;
   }
-  document.removeEventListener('click', closePostImageSourceMenu);
   document.body.style.overflow = '';
   void discardDraftPostImages({ silent: true });
   if (searchDebounceTimer) {
@@ -2728,7 +2600,6 @@ const resetComposerEditorForAccountSwitch = () => {
   postImages.value = [];
   postImageUploadStatus.value = '';
   savedPostDraft.value = null;
-  lastAutoSaveTime.value = null;
 };
 
 watch(isLoggedIn, (loggedIn) => {
@@ -2767,7 +2638,7 @@ watch(
   },
 );
 
-// ✨ 移除：watch自动保存草稿（改为手动保存）
+// 不再按输入 watch 自动保存草稿；恢复、关闭确认与发布清理是仅有的草稿路径。
 // watch(
 //   () => [newPost.value.title, newPost.value.content, selectedPostTag.value],
 //   () => {
@@ -3173,13 +3044,6 @@ const ensureQuotedPostsForReposts = async () => {
   }
 };
 
-const weeklyCheckinProgressText = computed(() => {
-  const points = WEEKLY_CHECKIN_REWARD_POINTS;
-  return weeklyCheckinStatus.value.hasSignedThisWeek
-    ? `本周已签 +${points} 积分`
-    : `本周未签 +${points} 积分`;
-});
-
 const checkinCalendarDays = computed(() => {
   const sourceDate = weeklyCheckinStatus.value.currentWeekStart
     ? new Date(weeklyCheckinStatus.value.currentWeekStart)
@@ -3208,14 +3072,6 @@ const checkinCalendarDays = computed(() => {
     };
   });
 });
-
-const weeklyCheckinWeekDots = computed(() =>
-  checkinCalendarDays.value.map((day) => ({
-    key: day.key,
-    today: day.isToday,
-    signed: day.isSigned,
-  })),
-);
 
 const weeklyCheckinNextCheckin = computed(() => {
   const sourceDate = weeklyCheckinStatus.value.currentWeekStart
@@ -3248,16 +3104,6 @@ const openWeeklyCheckinCalendar = () => {
 const closeWeeklyCheckinCalendar = () => {
   isWeeklyCheckinCalendarOpen.value = false;
 };
-
-const weeklyCheckinHintText = computed(() => {
-  if (!isLoggedIn.value) {
-    return `登录后每周可签到一次，签到可得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
-  }
-  if (weeklyCheckinStatus.value.hasSignedThisWeek) {
-    return `本周已签到 +${WEEKLY_CHECKIN_REWARD_POINTS} 积分，下周再来`;
-  }
-  return `本周签到可得 +${WEEKLY_CHECKIN_REWARD_POINTS} 积分，每周一刷新`;
-});
 
 const loadWeeklyCheckinStatus = async () => {
   if (!isLoggedIn.value) {
@@ -3808,7 +3654,6 @@ const handlePost = async () => {
   }
   writeLocalPostDraft(null);
   savedPostDraft.value = null;
-  lastAutoSaveTime.value = null;
   // 发布成功即清草稿：必须广播，否则另一个宿主实例的编辑器里还留着刚发出去的那篇
   notifyDraftChange('clear');
   void savePostDraftToDatabase(null);
@@ -3816,9 +3661,8 @@ const handlePost = async () => {
   postImages.value = [];
   postImageUploadStatus.value = '';
   // 关闭移动端编辑器（无二次确认，因已入队）
-  showPostImageSourceMenu.value = false;
-  isMobileDraftPanelOpen.value = false;
   if (isMobileComposerOpen.value) {
+    captureMobileComposerOrigin();
     isMobileComposerOpen.value = false;
     document.body.style.overflow = '';
   }
@@ -4703,47 +4547,8 @@ const openPostDetail = (postId) => {
           @set-tag-filter="setTagFilter"
         />
 
-        <!-- 左侧：发帖和列表 -->
+        <!-- 列表：发帖统一走发布会话（左栏「发布」/ FAB），页面内不再内嵌编辑器 -->
         <div class="forum-left-column">
-          <PostComposer
-            v-if="!isMobileComposerMode"
-            v-model:new-post="newPost"
-            v-model:selected-post-tag="selectedPostTag"
-            v-model:post-location="postLocation"
-            :is-logged-in="isLoggedIn"
-            :user-info="userInfo"
-            :post-images="postImages"
-            :is-submitting="isSubmitting"
-            :is-uploading-post-image="isUploadingPostImage"
-            :post-image-upload-status="postImageUploadStatus"
-            :post-cooldown-seconds="postCooldownSeconds"
-            :weekly-checkin-status="weeklyCheckinStatus"
-            :weekly-checkin-progress-text="weeklyCheckinProgressText"
-            :weekly-checkin-week-dots="weeklyCheckinWeekDots"
-            :weekly-checkin-hint-text="weeklyCheckinHintText"
-            :is-weekly-checkin-loading="isWeeklyCheckinLoading"
-            :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting"
-            :forum-tag-options="FORUM_TAG_OPTIONS"
-            :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
-            :mention-users="forumMentionUsers"
-            :is-home-cat-theme="isHomeCatActive"
-            :show-post-image-source-menu="showPostImageSourceMenu"
-            :auto-save-draft-label="autoSaveDraftLabel"
-            @submit="handlePost"
-            @login="showLoginModal = true"
-            @toggle-image-source-menu="togglePostImageSourceMenu"
-            @request-image-picker="openPostImagePicker"
-            @request-camera="openPostCamera"
-            @image-selection="handlePostImageSelection"
-            @remove-image="removePostImage"
-            @retry-image="retryPostImageUpload"
-            @reorder-image="reorderPostImage"
-            @clear-images="clearPostImages"
-            @weekly-checkin="handleWeeklyCheckin"
-            @open-draft="openMobileDraftPanel"
-            @save-draft="saveMobileDraft"
-          />
-
           <!-- 发布进度：已迁移到统一任务岛（useIsland 调度中心 showIsland.task），由发布队列 watcher 驱动 -->
 
           <!-- 帖子列表 -->
@@ -5345,8 +5150,12 @@ const openPostDetail = (postId) => {
     </Teleport>
 
     <Teleport to="body">
-      <Transition name="mobile-composer">
-        <div v-if="isMobileComposerOpen" class="mobile-composer-overlay">
+      <Transition name="mobile-composer" @after-leave="releaseMobileComposerOrigin">
+        <div
+          v-if="isMobileComposerOpen"
+          class="mobile-composer-overlay"
+          :style="{ '--mobile-composer-origin': mobileComposerTransformOrigin }"
+        >
           <div class="mobile-composer-bar">
             <button
               type="button"
@@ -5355,9 +5164,6 @@ const openPostDetail = (postId) => {
               @click="closeMobileComposer"
             >
               取消
-            </button>
-            <button type="button" class="mobile-composer-draft-btn" @click="openMobileDraftPanel">
-              草稿
             </button>
             <button
               type="button"
@@ -5370,67 +5176,6 @@ const openPostDetail = (postId) => {
               }}</span>
             </button>
           </div>
-          <Transition name="mobile-draft-panel">
-            <div
-              v-if="isMobileDraftPanelOpen"
-              class="mobile-draft-panel-overlay"
-              @click="closeMobileDraftPanel"
-            >
-              <section class="mobile-draft-panel" aria-label="发帖草稿" @click.stop>
-                <div class="mobile-draft-panel-header">
-                  <div>
-                    <h3>草稿</h3>
-                    <p>
-                      {{
-                        savedPostDraft
-                          ? `${formatDraftSavedTime(savedPostDraft.savedAt)} 保存`
-                          : '云端还没有草稿'
-                      }}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    class="mobile-draft-close-btn"
-                    aria-label="关闭草稿面板"
-                    @click="closeMobileDraftPanel"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div class="mobile-draft-preview" :class="{ empty: !savedPostDraft }">
-                  <span v-if="savedPostDraft" class="mobile-draft-tag">{{
-                    savedDraftTagLabel
-                  }}</span>
-                  <p>{{ draftPreviewText }}</p>
-                </div>
-                <div class="mobile-draft-actions">
-                  <button
-                    type="button"
-                    class="mobile-draft-action secondary"
-                    @click="saveMobileDraft"
-                  >
-                    保存当前
-                  </button>
-                  <button
-                    type="button"
-                    class="mobile-draft-action secondary"
-                    :disabled="!savedPostDraft"
-                    @click="clearMobileDraft"
-                  >
-                    清空
-                  </button>
-                  <button
-                    type="button"
-                    class="mobile-draft-action primary"
-                    :disabled="!savedPostDraft"
-                    @click="restoreMobileDraft"
-                  >
-                    恢复
-                  </button>
-                </div>
-              </section>
-            </div>
-          </Transition>
           <div class="mobile-composer-scroll">
             <PostComposer
               v-model:new-post="newPost"
@@ -5443,21 +5188,13 @@ const openPostDetail = (postId) => {
               :is-uploading-post-image="isUploadingPostImage"
               :post-image-upload-status="postImageUploadStatus"
               :post-cooldown-seconds="postCooldownSeconds"
-              :weekly-checkin-status="weeklyCheckinStatus"
-              :weekly-checkin-progress-text="weeklyCheckinProgressText"
-              :weekly-checkin-week-dots="weeklyCheckinWeekDots"
-              :weekly-checkin-hint-text="weeklyCheckinHintText"
-              :is-weekly-checkin-loading="isWeeklyCheckinLoading"
-              :is-weekly-checkin-submitting="isWeeklyCheckinSubmitting"
               :forum-tag-options="FORUM_TAG_OPTIONS"
               :max-post-images="FORUM_POST_IMAGE_MAX_COUNT"
               :mention-users="forumMentionUsers"
               :is-home-cat-theme="isHomeCatActive"
-              :show-post-image-source-menu="showPostImageSourceMenu"
               is-mobile-composer
               @submit="handlePost"
               @login="showLoginModal = true"
-              @toggle-image-source-menu="togglePostImageSourceMenu"
               @request-image-picker="openPostImagePicker"
               @request-camera="openPostCamera"
               @image-selection="handlePostImageSelection"
@@ -5465,9 +5202,6 @@ const openPostDetail = (postId) => {
               @retry-image="retryPostImageUpload"
               @reorder-image="reorderPostImage"
               @clear-images="clearPostImages"
-              @weekly-checkin="handleWeeklyCheckin"
-              @open-draft="openMobileDraftPanel"
-              @save-draft="saveMobileDraft"
             />
           </div>
         </div>
@@ -5488,64 +5222,6 @@ const openPostDetail = (postId) => {
       @close="closeWeeklyCheckinCalendar"
       @checkin="handleWeeklyCheckin"
     />
-
-    <Teleport to="body">
-      <Transition name="mobile-draft-panel">
-        <div
-          v-if="isMobileDraftPanelOpen && !isMobileComposerOpen"
-          class="mobile-draft-panel-overlay desktop-draft-panel-overlay"
-          @click="closeMobileDraftPanel"
-        >
-          <section class="mobile-draft-panel" aria-label="发帖草稿" @click.stop>
-            <div class="mobile-draft-panel-header">
-              <div>
-                <h3>草稿</h3>
-                <p>
-                  {{
-                    savedPostDraft
-                      ? `${formatDraftSavedTime(savedPostDraft.savedAt)} 保存`
-                      : '云端还没有草稿'
-                  }}
-                </p>
-              </div>
-              <button
-                type="button"
-                class="mobile-draft-close-btn"
-                aria-label="关闭草稿面板"
-                @click="closeMobileDraftPanel"
-              >
-                ×
-              </button>
-            </div>
-            <div class="mobile-draft-preview" :class="{ empty: !savedPostDraft }">
-              <span v-if="savedPostDraft" class="mobile-draft-tag">{{ savedDraftTagLabel }}</span>
-              <p>{{ draftPreviewText }}</p>
-            </div>
-            <div class="mobile-draft-actions">
-              <button type="button" class="mobile-draft-action secondary" @click="saveMobileDraft">
-                保存当前
-              </button>
-              <button
-                type="button"
-                class="mobile-draft-action secondary"
-                :disabled="!savedPostDraft"
-                @click="clearMobileDraft"
-              >
-                清空
-              </button>
-              <button
-                type="button"
-                class="mobile-draft-action primary"
-                :disabled="!savedPostDraft"
-                @click="restoreMobileDraft"
-              >
-                恢复
-              </button>
-            </div>
-          </section>
-        </div>
-      </Transition>
-    </Teleport>
 
     <ForumImageViewer
       v-model:open="isForumImageViewerOpen"

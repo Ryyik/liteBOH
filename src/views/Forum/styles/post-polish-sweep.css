@@ -1,0 +1,250 @@
+/**
+ * post-polish-sweep.css —— 「智能整理」的**文字流光**（2026-10-26 第五轮）
+ *
+ * ── 用户口径（原话，按时间顺序）────────────────────────────────────────
+ *   「这个UI有点丑，能不能改成我给你的demo页里面的横光效试试」
+ *   「或者删除光效，改成文字黑白流动」
+ *   「我想要的是文字的流动呼吸感，而不是一个光扫过去」
+ *
+ * → 第五轮用户口径（原话）：「直接改成文字流光（整理的时候）」。
+ *   定稿：**流光落在文字本身上**，不再用覆盖层去冲淡文字。
+ *   处理期间文字保持可读，只是颜色沿一个横向亮带缓慢移动；落点后立刻
+ *   恢复正常文字颜色，完成态不再额外扫一次。
+ *
+ * ── 为什么第二版（四边彩色光环）丑 —— 记下来，别再改回去 ──────────────
+ * 不是配色问题，是**给一个没有框的地方画了框**。
+ * 标题框与正文框都是 `border: none` / `background: transparent` /
+ * `border-radius: 0` 的无框自由排版（见 composer.css「无框自由排版」那一段）。
+ * 给它们套一圈 2.5px 九色环 + 白色行进高光 + 外发光，等于凭空造出一个霓虹
+ * 边框 —— 越亮越假。
+ *
+ * ── 为什么第三版（一道横向扫光带）也不行 —— 同样是结构问题 ─────────────
+ * 带子有**可辨认的边缘**，边缘一进画面，读到的就是「一个东西从上面经过」，
+ * 那是「扫描 / 加载」的语义，不是「文字在呼吸」。用户的原话就是这个意思。
+ * 改带宽、改缓动、改颜色都救不了 —— 只要还是一条带，它就是个物体。
+ *
+ * ── 这一版：流光写在文字绘制属性上 ────────────────────────────────────
+ *   · `background-image` 是**文字色 → 高光色 → 文字色** 的横向渐变，
+ *     `background-clip: text` 让渐变的亮带直接作用在字形上；
+ *   · `background-position` 从 100% 走到 0%，所以是「一道亮带扫过文字」；
+ *   · ⚠️ 渐变图比文字区宽 20%，百分比定位必须落在 0%–100% 之间。
+ *     之前写成 180% → -80% 时，整张渐变图大部分时间被移到 textarea 外；
+ *     `background-clip: text` 又把字抽成透明，于是没有背景可绘的字直接
+ *     露出白底 —— 这就是「整理时文字变成全白」的真正根因，不是亮度调太高。
+ *   · 亮带本身没有可辨认的边缘（渐变两端回到原文字色），不会像进度条；
+ *   · 颜色全部来自既有亮/暗文字 token，**不引入彩色**，仍符合 BOHAI 的黑白语言。
+ *
+ *   ⚠️ 处理中只挂 `.is-polishing`（running 与 settling 共用）。JS 落点换字时
+ *      同一拍把类摘掉，流光随之消失；不再有独立的收口/淡出层。
+ *
+ * ⚠️ `-webkit-text-fill-color: transparent` 是 `background-clip: text` 生效的
+ *    必要搭档；正因为它是透明的，**reduce-motion 下必须立刻复位**，
+ *    否则文字会直接消失。降级块里两者一起复位。
+ */
+
+/* ⚠️ 时长真源：JS 的 `POLISH_SETTLE_MS` / `POLISH_EXIT_MS` 是唯一真源，
+   组件把它们注入到同一行 `style` 上覆盖 —— 两处各写一个数必然漂移，
+   所以这里不是「复制」，只是「JS 没绑上时」的兜底，仍然必须同值。
+   文字流光的周期没有 JS 消费者，故只在本文件保留一处。 */
+.composer-post-body,
+.composer-post-title {
+  --post-polish-settle: 600ms;
+  /* 一次亮带完整扫过文字的时长。2.2s ——
+     文字流光一旦快过 ~1.6s 就会读成「加载条经过」，失去「在思考」的质感。 */
+  --post-polish-flow: 2200ms;
+  --post-polish-exit: 200ms;
+}
+
+/* ── 流光的文字色阶（亮/暗）────────────────────────────────────────────
+   ⚠️ **为什么写在 `:root` 而不是 `.composer-post-body` 上**（试过，不行）：
+      暗色档在 `[data-theme="dark"]` 里覆盖，而它作用在 `<html>` 上。
+      如果把亮色值声明在 `.composer-post-body`（`<html>` 的后代），那个声明
+      会**盖住**从 `<html>` 继承来的暗色值 —— CSS 变量是「后代自己的声明
+      优先于继承值」，不是「后加载优先」。症状是暗色下仍用 0.8 的白，
+      在深底上糊成一块白雾，而亮色下一切正常，极难归因。
+      放 `:root` 才是和暗色档**同一个元素**，才谈得上覆盖。
+
+   ⚠️ **为什么暗色档不写在 `dark-mode.css` 而写在这里**：
+      那个文件是按需加载的，与这里的加载先后不确定；两个文件各写一条
+      `:root` 级规则，谁赢取决于顺序 —— 这种「看运气」的覆盖迟早出事。
+      写在同一个文件里、并用 `:root[data-theme='dark']` 提高特异性
+      （(0,2,0) > (0,1,0)），结果就与顺序无关。
+
+   亮色：以深色字为底，亮带用**更浅但仍低于 90% 黑**的灰阶（不是纯白 ——
+   纯白扫过既会读成「消失」，也会在字形边缘产生 255 的过曝像素）；
+   暗色：深底上「把字提亮」几乎没有色差（#f5f5f7 → #fff 只差 3%），实测像素
+   均值完全不动，等于没有效果。故暗色要反着来：**暗带负责对比**、亮带只负责
+   峰顶。最暗处仍用 `--liquid-text-secondary`（深底对比度约 6:1），始终可读。
+
+   ⚠️ 2026-10-26 用户报障「文字会变成全白」有两层成因：
+      ① 处理态若同时设置不透明底色，底色也会被 `background-clip: text`
+         裁进字形 ⇒ 底色必须是 `transparent`；
+      ② 渐变图的百分比位移超出可覆盖区间时，整张图会被移出元素，
+         透明填充的字没有背景可绘，同样露出白底 ⇒ 位移必须留在
+         0%–100%。两层都修了；亮带峰值也压在灰阶，不使用纯白。 */
+:root {
+  --post-polish-ink: var(--liquid-text-primary);
+  /* ⚠️ 亮色只做「深墨 → 中灰 → 深墨」，峰值不再靠近白。白底的抗锯齿
+     边缘会把任何接近白的字形推成 255；灰阶上限留在 tertiary 一侧。 */
+  --post-polish-low: color-mix(in srgb, var(--liquid-text-primary) 74%, var(--liquid-text-tertiary));
+  --post-polish-shine: var(--liquid-text-tertiary, #8b9098);
+}
+
+:root[data-theme='dark'] {
+  --post-polish-ink: var(--liquid-text-primary);
+  --post-polish-low: color-mix(in srgb, var(--liquid-text-primary) 58%, var(--liquid-text-secondary));
+  --post-polish-shine: var(--liquid-text-secondary, #a1a1aa);
+}
+
+/* ── 流光本体：直接画在 textarea 的文字上 ───────────────────────────────
+   `.is-polishing` 由组件挂到 `.post-title-input` 与 `.post-content-input`
+   （不再有覆盖层 DOM）。
+
+   ⚠️ `background-clip: text` 需要 `-webkit-text-fill-color: transparent`。
+      两者必须成对出现：少了后者，渐变会被压在默认文字色下面，完全看不见；
+      只有后者没有前者，文字又会直接消失。 */
+.post-title-input.is-polishing,
+.post-content-input.is-polishing {
+  /* ⚠️ 必须是透明：`background-clip: text` 会把底色也裁进字形，
+     不透明主题底（尤其浅色白底）会直接变成一整段白字。 */
+  background-color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    var(--post-polish-ink) 0%,
+    var(--post-polish-ink) 38%,
+    var(--post-polish-low) 46%,
+    var(--post-polish-shine) 50%,
+    var(--post-polish-low) 54%,
+    var(--post-polish-ink) 62%,
+    var(--post-polish-ink) 100%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  /* 220% 宽的图在 100% 时左移 1.2 个容器宽，仍然完整覆盖文字；
+     动画走到 0% 时右缘覆盖到 2.2 个容器宽，同样完整覆盖。
+     两端都覆盖是文字始终可读的前提，别再把百分比写到区间外。 */
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: post-polish-text-flow var(--post-polish-flow) linear infinite;
+}
+
+/* 落点：JS 在同一拍把文字替换掉；完成后组件立即摘掉 `is-polishing`，
+   文字回到正常 `color`。这里不用额外的淡出层 —— 用户看到的是
+   「亮带还在走，字变了，亮带同时消失」。 */
+.post-title-input.is-polishing:focus,
+.post-content-input.is-polishing:focus {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+@keyframes post-polish-text-flow {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+
+/* 呼吸光场 / 完成扫光 / 收口层已整体下线（2026-10-26 第五轮）：
+   用户明确「直接改成文字流光」，这些覆盖层不再有任何消费者。
+   保留它们会让下一个人以为还有第三条光效通道，故整段删除。 */
+
+/* ── 状态行 ─────────────────────────────────────────────────────────────
+   生成中 / 快好了 / 已应用（带撤销）/ 出错 共用一行。 */
+.composer-polish-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--liquid-text-secondary, #6e6e73);
+}
+
+.composer-polish-status.is-running {
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+.composer-polish-undo {
+  margin-left: 2px;
+  padding: 2px 10px;
+  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
+  border-radius: var(--liquid-radius-pill, 999px);
+  background: transparent;
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color var(--duration-fast, 180ms) ease;
+}
+
+.composer-polish-undo:hover {
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
+}
+
+.composer-polish-error-text {
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+/* 状态行的星标**不转**（2026-10-26 用户口径「我不要旋转的正在整理」）：
+   文字流光已经承担了「还在处理」的全部表达，图标再转就是两个动效在抢注意力，
+   而且转圈的星标自带「加载中」的廉价感。图标保留、静止即可。 */
+
+/* ── 降级一：系统级 reduce-motion ───────────────────────────────────────
+   这里**不是**「全关」，而是「把流光换成一层静止的文字色」：
+     · `background-clip: text` + 透明填充在降级下必须一起复位，否则文字直接消失；
+     · 但处理态仍要可感知 —— 用低对比度的灰色文字表示「正在处理」；
+     · 落点等待归零 ⇒ 落点与状态切换同帧完成，逻辑链不受影响
+       （JS 那边用的是同一个数，所以降级是**一致的**，不会出现
+       「等 600ms 但没动画」）。
+*/
+@media (prefers-reduced-motion: reduce) {
+  .composer-post-body,
+  .composer-post-title {
+    --post-polish-settle: 1ms;
+    --post-polish-exit: 1ms;
+  }
+
+  .post-title-input.is-polishing,
+  .post-content-input.is-polishing {
+    animation: none;
+    background-color: transparent;
+    background-image: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    -webkit-text-fill-color: currentColor;
+    color: var(--liquid-text-tertiary, #8b9098);
+  }
+}
+
+/* ── 降级二：站点级「减少动效」开关（设置写根元素 .reduce-motion）──────── */
+.reduce-motion .composer-post-body,
+.reduce-motion .composer-post-title {
+  --post-polish-settle: 1ms;
+  --post-polish-exit: 1ms;
+}
+
+.reduce-motion .post-title-input.is-polishing,
+.reduce-motion .post-content-input.is-polishing {
+  animation: none;
+  background-color: transparent;
+  background-image: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-text-fill-color: currentColor;
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+
+/* 整理期间去掉焦点框：`dark-mode.css` 给所有 `[data-theme="dark"] textarea:focus`
+   加了蓝色外发光（box-shadow + border-color），它会跟流光叠在一起。
+   ⚠️ 这里只清**焦点框**，不动文字/底色。 */
+.post-title-input.is-polishing:focus,
+.post-content-input.is-polishing:focus {
+  outline: none;
+  box-shadow: none;
+}

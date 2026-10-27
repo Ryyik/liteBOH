@@ -11,18 +11,16 @@ import fs from 'node:fs';
 //   VP5/VP6  裂缝带专项：1000×1300 / 1000×800 —— 旧 993 档会给出「两栏布局 + 移动编辑器」
 //            的错位组合，修复后两侧一致收敛到单栏
 //   B1-B3    分流边界：1000×800 点卡 → 整页路由；1024×600 点卡 → 弹窗 + router 未跳
-//   C1-C5    竖屏编辑器旋转保护：390×844 打开 overlay 填内容 → 旋到 844×390 →
-//            overlay 关闭 + 内容转入内嵌编辑器 + localStorage 草稿落盘 + body 滚动解锁
-//   D1       横屏镜像对：强制在横屏打开发布会话（chip 行仅存在于 overlay），
-//            断言 chip 可见、网格大卡片隐藏（恰好一个发图入口）
-//   D2       竖屏镜像对：overlay 内网格大卡片可见、chip 隐藏（在 C 组页面顺带断言）
+//   C1-C5    发布会话旋转连续性：390×844 打开 overlay 填内容 → 旋到 844×390 →
+//            overlay 仍在 + 内容不丢 + body 继续锁滚动
+//   D1       横屏发布会话只覆盖右区，且动作栏可用
 //
 // 前置：Vite dev server 已启动（默认 http://[::1]:5173，可用 BASE 覆盖）
 // 运行：node scripts/probes/probe-forum-viewport.mjs
 //
 // counter-proof（手动）：
 //   1) base.css 两栏档 1024 改回 993 / 单列档 1023 改回 992 → VP5/VP6 必红
-//   2) ForumMain.leaveMobileComposerForViewportSwitch 内落草稿代码去掉 → C3 必红
+//   2) 发布会话是跨横竖屏唯一发帖宿主，旋转不应再强制关闭它
 // =====================================================================
 const BASE = process.env.BASE || 'http://[::1]:5173';
 const OUT = 'debug-screenshots';
@@ -116,7 +114,8 @@ const viewportState = () => {
   };
 };
 
-// 期望矩阵：landscape / portraitComposer / twoCol（CSS 两栏档）/ fab（= portraitComposer 的 UI 投影）
+// 期望矩阵：landscape / portraitComposer / twoCol（CSS 两栏档）/ fab
+// 2026-10-26：内嵌发帖器废弃后 FAB 是 feed 页唯一常驻入口，所有档位都应显示。
 const MATRIX = [
   { w: 1280, h: 800, landscape: true, portrait: false, twoCol: true, tag: '横屏标准档' },
   { w: 1024, h: 600, landscape: true, portrait: false, twoCol: true, tag: '单源下限 1024×600' },
@@ -163,9 +162,9 @@ const run = async () => {
       && s.landscape === m.landscape
       && s.portraitComposer === m.portrait
       && s.twoCol === m.twoCol
-      && s.fabVisible === m.portrait;
+      && s.fabVisible === true;
     check(`VP${i + 1} ${m.w}×${m.h} ${m.tag}`, ok,
-      `landscape=${s?.landscape}(期望${m.landscape}) portrait=${s?.portraitComposer}(期望${m.portrait}) twoCol=${s?.twoCol}(期望${m.twoCol}) fab=${s?.fabVisible}(期望${m.portrait})`);
+      `landscape=${s?.landscape}(期望${m.landscape}) portrait=${s?.portraitComposer}(期望${m.portrait}) twoCol=${s?.twoCol}(期望${m.twoCol}) fab=${s?.fabVisible}(期望true)`);
   }
   await page.screenshot({ path: `${OUT}/vp-matrix-last-390x844.png` }).catch(() => {});
   await ctx.close();
@@ -213,7 +212,7 @@ const run = async () => {
   }
   await ctxB.close();
 
-  // ============ 组 C：竖屏编辑器旋转保护 + D2 镜像对竖屏侧 ============
+  // ============ 组 C：发布会话旋转连续性 ============
   const ctxC = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const pageC = await ctxC.newPage();
   pageC.setDefaultTimeout(10000);
@@ -224,13 +223,21 @@ const run = async () => {
     await pageC.waitForSelector('.mobile-compose-fab', { state: 'visible', timeout: 10000 });
     await pageC.locator('.mobile-compose-fab').click();
     await pageC.waitForSelector('.mobile-composer-overlay', { state: 'visible', timeout: 10000 });
+    // 竖屏有 360ms 的整页进场动画：几何必须在 transitionend 后再量，
+    // 否则 getBoundingClientRect 会带着 translateY 中间值（实测 footer 会被量到 1688px）。
+    await pageC.waitForFunction(() => {
+      const overlay = document.querySelector('.mobile-composer-overlay');
+      if (!overlay) return false;
+      const transform = getComputedStyle(overlay).transform;
+      return transform === 'none' || /matrix\(1, 0, 0, 1, 0, 0\)/.test(transform);
+    }, null, { timeout: 3000 }).catch(() => {});
     const c1 = await pageC.evaluate(() => ({
       done: Boolean(document.querySelector('.mobile-composer-overlay')),
       overflow: document.body.style.overflow
     }));
     check('C1 390×844 FAB → 竖屏全屏编辑器打开 + body 滚动锁', c1.done && c1.overflow === 'hidden', `overflow="${c1.overflow}"`);
 
-    // D2 镜像对竖屏侧：overlay 内网格大卡片可见 / 横屏 chip 隐藏
+    // D2 竖屏动作栏：图片 / 智能整理 / 更多都存在，旧大卡片不再出现
     const d2 = await pageC.evaluate(() => {
       const visible = (sel, root = document) => Array.from(root.querySelectorAll(sel)).some((el) => {
         const s = getComputedStyle(el);
@@ -238,49 +245,128 @@ const run = async () => {
       });
       const overlay = document.querySelector('.mobile-composer-overlay');
       return {
-        cardVisible: overlay ? visible('.post-image-add-more-card', overlay) : false,
-        chipVisible: overlay ? visible('.mobile-composer-chip--image', overlay) : false
+        actionBarVisible: overlay ? visible('.composer-actions', overlay) : false,
+        imageActionVisible: overlay ? visible('.composer-actions .composer-action-btn[aria-label*="相册选择图片"]', overlay) : false,
+        addCardVisible: overlay ? visible('.post-image-add-more-card', overlay) : false
       };
     });
-    check('D2 竖屏镜像对：overlay 内发图大卡片可见、chip 隐藏',
-      d2.cardVisible && !d2.chipVisible, JSON.stringify(d2));
+    check('D2 竖屏动作栏：图片入口可见、旧大卡片已删除',
+      d2.actionBarVisible && d2.imageActionVisible && !d2.addCardVisible, JSON.stringify(d2));
+
+    /* D3 竖屏几何：动作栏是卡片的 flex 末端，必须贴着视口底部；
+       外层与正文只能有一个滚动面，且滚动条不可见。
+       容差 28px = 卡片 12px 下内衬 + 1px 边框 + 调度误差；不允许出现
+       旧版那种「胶囊离底部一大截」的空洞。 */
+    const d3 = await pageC.evaluate(() => {
+      const overlay = document.querySelector('.mobile-composer-overlay');
+      const scroll = overlay?.querySelector('.mobile-composer-scroll');
+      const content = overlay?.querySelector('.composer-content-scroll');
+      const footer = overlay?.querySelector('.editor-footer');
+      const actions = overlay?.querySelector('.composer-actions');
+      if (!overlay || !scroll || !content || !footer || !actions) return { done: false };
+      const vh = window.innerHeight;
+      const fr = footer.getBoundingClientRect();
+      const ar = actions.getBoundingClientRect();
+      const sr = scroll.getBoundingClientRect();
+      const cr = content.getBoundingClientRect();
+      const buttons = Array.from(actions.querySelectorAll('.composer-action-btn'));
+      const overflows = buttons
+        .map((btn) => {
+          const r = btn.getBoundingClientRect();
+          return { left: Math.round(r.left), right: Math.round(r.right), w: Math.round(r.width) };
+        })
+        .filter((r) => r.left < 0 || r.right > window.innerWidth || r.w <= 0);
+      const scrollStyle = getComputedStyle(scroll);
+      const contentStyle = getComputedStyle(content);
+      return {
+        done: true,
+        footerBottom: Math.round(fr.bottom),
+        actionsBottom: Math.round(ar.bottom),
+        viewportBottom: Math.round(vh),
+        footerGap: Math.round(vh - fr.bottom),
+        scrollOverflowY: scrollStyle.overflowY,
+        contentOverflowY: contentStyle.overflowY,
+        scrollClientH: scroll.clientHeight,
+        scrollScrollH: scroll.scrollHeight,
+        contentScrollH: content.scrollHeight,
+        contentClientH: content.clientHeight,
+        contentWithinScroll: cr.bottom <= sr.bottom + 1,
+        buttonCount: buttons.length,
+        overflows,
+      };
+    });
+    check('D3 竖屏底栏贴底且四按钮不溢出',
+      d3.done && d3.footerGap >= -1 && d3.footerGap <= 28 && d3.buttonCount === 4 && d3.overflows.length === 0,
+      JSON.stringify(d3));
+    check('D4 竖屏只有正文层可滚动（无第二层滚动条、无可见 scrollbar）',
+      d3.done && d3.scrollOverflowY === 'hidden' && ['auto', 'scroll'].includes(d3.contentOverflowY) &&
+        d3.scrollClientH >= d3.contentClientH - 1 && d3.contentWithinScroll,
+      JSON.stringify(d3));
+
+    // D5 长文：内容层真的滚起来之后，动作栏仍必须贴在视口底部，
+    //    不能跟着正文一起滚走（这是上一版「胶囊离底部很大空隙」的复现场景）。
+    await pageC.fill(
+      '.mobile-composer-overlay .post-content-input',
+      Array.from({ length: 28 }, (_, i) => `PROBE-LONG-${i + 1} 这一段用于让正文超出可视高度。`).join('\n\n'),
+    );
+    // 自动增高走 requestAnimationFrame；等内容层真的产生溢出，而不是用固定 sleep 猜。
+    await pageC.waitForFunction(() => {
+      const content = document.querySelector('.mobile-composer-overlay .composer-content-scroll');
+      return Boolean(content && content.scrollHeight > content.clientHeight + 8);
+    }, null, { timeout: 5000 });
+    const d5 = await pageC.evaluate(() => {
+      const footer = document.querySelector('.mobile-composer-overlay .editor-footer');
+      const content = document.querySelector('.mobile-composer-overlay .composer-content-scroll');
+      if (!footer || !content) return { done: false };
+      content.scrollTop = content.scrollHeight;
+      const fr = footer.getBoundingClientRect();
+      return {
+        done: true,
+        scrollTop: Math.round(content.scrollTop),
+        scrollable: content.scrollHeight > content.clientHeight + 8,
+        footerGap: Math.round(window.innerHeight - fr.bottom),
+        footerVisible: fr.top >= 0 && fr.bottom <= window.innerHeight + 1,
+      };
+    });
+    check('D5 长文滚动后动作栏仍贴底且可见',
+      d5.done && d5.scrollable && d5.scrollTop > 0 && d5.footerVisible &&
+        d5.footerGap >= -1 && d5.footerGap <= 28,
+      JSON.stringify(d5));
 
     await pageC.fill('.mobile-composer-overlay .post-content-input', DRAFT_TEXT);
-    await pageC.waitForTimeout(400);
+    await pageC.waitForTimeout(600);
     const c2 = await pageC.evaluate(() => ({
       value: document.querySelector('.mobile-composer-overlay .post-content-input')?.value || ''
     }));
     check('C2 编辑器内容已写入（旋转前）', c2.value.includes('PROBE-VP-DRAFT-7f3a'), `len=${c2.value.length}`);
 
-    // 旋转 → 844×390（portraitComposer true→false，触发离开竖屏编辑器）
+    // 旋转 → 844×390：会话保持打开，内容不能丢
     await pageC.setViewportSize({ width: 844, height: 390 });
     const c3 = await waitForInPage(pageC, () => {
       const overlay = document.querySelector('.mobile-composer-overlay');
-      const inline = document.querySelector('.forum-left-column .post-content-input');
+      const input = document.querySelector('.mobile-composer-overlay .post-content-input');
       return {
-        done: !overlay,
-        overlayGone: !overlay,
-        inlineValue: inline ? inline.value : null,
+        done: Boolean(overlay),
+        overlayAlive: Boolean(overlay),
+        overlayLeft: overlay ? Math.round(overlay.getBoundingClientRect().left) : -1,
+        overlayW: overlay ? Math.round(overlay.getBoundingClientRect().width) : -1,
+        value: input ? input.value : null,
         overflow: document.body.style.overflow
       };
     }, { timeout: 10000 });
-    check('C3 旋转后 overlay 关闭（不残留竖屏样式编辑器）', Boolean(c3?.overlayGone));
-    check('C4 内容转入横屏内嵌编辑器（newPost 未丢）',
-      String(c3?.inlineValue || '').includes('PROBE-VP-DRAFT-7f3a'), `inline="${String(c3?.inlineValue || '').slice(0, 24)}…"`);
-    check('C5 旋转关闭前静默落草稿到 localStorage（旧实现直接关会丢）',
-      await pageC.evaluate((text) => Object.keys(localStorage)
-        .map((k) => localStorage.getItem(k) || '')
-        .some((v) => v.includes(text)), 'PROBE-VP-DRAFT-7f3a'));
-    check('C6 body 滚动锁解除', c3?.overflow === '', `overflow="${c3?.overflow}"`);
+    check('C3 旋转后发布会话仍打开（横竖屏共用同一宿主）', Boolean(c3?.overlayAlive),
+      `left=${c3?.overlayLeft} w=${c3?.overlayW}`);
+    check('C4 旋转后编辑器内容未丢',
+      String(c3?.value || '').includes('PROBE-VP-DRAFT-7f3a'), `value="${String(c3?.value || '').slice(0, 24)}…"`);
+    check('C5 旋转后仍锁 body 滚动（会话未关闭）', c3?.overflow === 'hidden', `overflow="${c3?.overflow}"`);
     await pageC.screenshot({ path: `${OUT}/vp-rotate-after-844x390.png` }).catch(() => {});
   } catch (err) {
-    check('C1-C6 竖屏编辑器旋转保护', false, err.message.split('\n')[0]);
+    check('C1-C5 发布会话旋转连续性', false, err.message.split('\n')[0]);
   }
   await ctxC.close();
 
-  // ============ 组 D：横屏镜像对（强制在横屏打开发布会话，验证 chip 档与卡片档互斥） ============
-  // chip 行 v-if="isMobileComposer" 只存在于 overlay/mobile-composer-section 场景；
-  // 常规路径下横屏 overlay 会被旋转逻辑关闭（C3），这里用组件实例强制打开以覆盖该防御性规则。
+  // ============ 组 D：横屏发布会话几何 ============
+  // 这里用组件实例直接置开，避免依赖左栏挂载时机。
   const ctxD = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const pageD = await ctxD.newPage();
   pageD.setDefaultTimeout(10000);
@@ -295,9 +381,8 @@ const run = async () => {
   }, open);
 
   try {
-    // 1280×800 分栏档下社区 tab 内嵌编辑器按设计整体隐藏（landscape-rail.css：发布会话替代），
-    // 这里只需 DOM 附加（后续用实例强制开 overlay）
-    await pageD.waitForSelector('.forum-left-column .editor-card', { state: 'attached', timeout: 15000 });
+    // 1280×800 分栏档没有内嵌编辑器；实例强制开 overlay 后只验右区几何与动作栏。
+    await pageD.waitForSelector('.forum-left-column', { state: 'attached', timeout: 15000 });
     const forced = await setComposerOpen(true);
     if (!forced) throw new Error('未找到 ForumMain 实例（__vueParentComponent 链）');
     await pageD.waitForSelector('.mobile-composer-overlay', { state: 'visible', timeout: 10000 });
@@ -310,15 +395,16 @@ const run = async () => {
       const overlay = document.querySelector('.mobile-composer-overlay');
       return {
         hasOverlay: Boolean(overlay),
-        chipVisible: overlay ? visible('.mobile-composer-chip--image', overlay) : false,
-        gridCardVisible: overlay ? visible('.post-image-add-more-card', overlay) : false
+        actionBarVisible: overlay ? visible('.composer-actions', overlay) : false,
+        overlayLeft: overlay ? Math.round(overlay.getBoundingClientRect().left) : -1,
+        overlayRight: overlay ? Math.round(overlay.getBoundingClientRect().right) : -1
       };
     });
-    check('D1 横屏镜像对（强制 overlay）：chip 可见、网格大卡片隐藏（恰好一个发图入口）',
-      d1.hasOverlay && d1.chipVisible && !d1.gridCardVisible, JSON.stringify(d1));
+    check('D1 横屏发布会话：动作栏可见 + 覆盖到视口右边',
+      d1.hasOverlay && d1.actionBarVisible && d1.overlayRight === 1280, JSON.stringify(d1));
     await setComposerOpen(false).catch(() => {});
   } catch (err) {
-    check('D1 横屏镜像对（强制 overlay）', false, err.message.split('\n')[0]);
+    check('D1 横屏发布会话几何', false, err.message.split('\n')[0]);
   }
   await ctxD.close();
 

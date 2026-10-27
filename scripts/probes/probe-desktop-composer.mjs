@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 
-// 桌面端发帖编辑器回归：标题 textarea 化后布局无变形
+// 桌面端发布会话回归：标题 textarea 化后布局无变形
 const browser = await chromium.launch({ channel: 'chrome' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
@@ -18,17 +18,20 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(800);
 
-const card = page.locator('.post-creation-section .editor-card').first();
+await page.waitForSelector('.forum-page .mobile-compose-fab', { timeout: 20000 });
+await page.click('.forum-page .mobile-compose-fab');
+await page.waitForSelector('.mobile-composer-overlay', { state: 'visible', timeout: 8000 });
+const card = page.locator('.mobile-composer-overlay .editor-card').first();
 await card.scrollIntoViewIfNeeded().catch(() => {});
 await page.waitForTimeout(400);
 
-await page.fill('.post-creation-section .post-title-input', '桌面端标题换行验证：这一段比较长的标题应当自动换行而不是横向溢出');
-await page.fill('.post-creation-section .post-content-input', '桌面正文内容验证。');
+await page.fill('.mobile-composer-overlay .post-title-input', '桌面端标题换行验证：这一段比较长的标题应当自动换行而不是横向溢出');
+await page.fill('.mobile-composer-overlay .post-content-input', '桌面正文内容验证。');
 await page.waitForTimeout(400);
 
 const m = await page.evaluate(() => {
-  const t = document.querySelector('.post-creation-section .post-title-input');
-  const c = document.querySelector('.post-creation-section .post-content-input');
+  const t = document.querySelector('.mobile-composer-overlay .post-title-input');
+  const c = document.querySelector('.mobile-composer-overlay .post-content-input');
   const g = t.closest('.input-group').getBoundingClientRect();
   const tr = t.getBoundingClientRect();
   return {
@@ -37,7 +40,7 @@ const m = await page.evaluate(() => {
     titleW: Math.round(tr.width),
     titleH: Math.round(tr.height),
     contentW: Math.round(c.getBoundingClientRect().width),
-    counter: document.querySelector('.post-creation-section .composer-title-count')?.textContent.trim() || null
+    counter: document.querySelector('.mobile-composer-overlay .composer-title-count')?.textContent.trim() || null
   };
 });
 console.log('desktop metrics:', JSON.stringify(m));

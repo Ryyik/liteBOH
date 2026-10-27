@@ -113,9 +113,6 @@ const measure = (page) =>
     const rail = document.querySelector('.userspace-rail');
     const tabs = document.querySelector('.forum-section-shell .segment-tabs');
     const nav = document.querySelector('.unified-nav-surface');
-    const composer = document.querySelector(
-      '.forum-page .forum-left-column > .post-creation-section',
-    );
     return {
       viewport: { w: innerWidth, h: innerHeight },
       bodyClass: document.body.className,
@@ -136,7 +133,8 @@ const measure = (page) =>
       htmlTheme: document.documentElement.getAttribute('data-theme'),
       indicatorBg: getComputedStyle(document.querySelector('.userspace-rail-indicator'))
         .backgroundColor,
-      inlineComposer: box(composer),
+      // 2026-10-26 内嵌发帖器已废弃：页面里不该再有这块 DOM，量到就是回潮
+      inlineComposer: box(document.querySelector('.forum-page .forum-left-column > .post-creation-section')),
       // 底栏槽位是 display:contents，自身 rect 恒为 0×0 —— 要量它里面真正的底栏
       bottomNav: box(document.querySelector('.home-bottom-nav-slot .bottom-nav-glass')),
       mobileComposeFab: box(document.querySelector('.forum-page .mobile-compose-fab')),
@@ -184,8 +182,8 @@ try {
     );
 
     check(
-      'C1 内嵌发帖编辑器在横屏隐藏（发布已收到左栏）',
-      m.inlineComposer && m.inlineComposer.hidden,
+      'C1 内嵌发帖编辑器已移除（发布只走左栏会话）',
+      !m.inlineComposer,
       JSON.stringify(m.inlineComposer),
     );
     check('C2 底栏在横屏关掉', !m.bottomNav || m.bottomNav.hidden, JSON.stringify(m.bottomNav));

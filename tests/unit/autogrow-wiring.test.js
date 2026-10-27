@@ -73,6 +73,12 @@ describe('阶段 3：PostComposer 标题框收敛', () => {
     const css = read('src/views/Forum/styles/composer.css');
     expect(css).toMatch(/\.post-title-input\s*\{[^}]*max-height:\s*132px/);
   });
+
+  it('正文同样接入单源自动增高（长文不能困在固定 textarea 内）', () => {
+    const code = codeOf(rel);
+    expect(code).toContain('useAutoGrowTextarea({value:()=>props.newPost.content})');
+    expect(code).not.toMatch(/postContentInputRef\s*=\s*ref\(null\)/);
+  });
 });
 
 // 2026-10-19：原「阶段 3：Lab 输入框收敛」describe 块随实验室（/lab）退场删除 ——

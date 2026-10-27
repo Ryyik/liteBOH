@@ -18,6 +18,10 @@ import { describe, expect, it } from 'vitest';
 import { scriptSection, squeezeSource, stripComments } from '../helpers/source.js';
 
 const FORUM_MAIN = new URL('../../src/views/Forum/ForumMain.vue', import.meta.url);
+const REPLIES_RESPONSIVE = new URL(
+  '../../src/views/Forum/styles/replies-responsive.css',
+  import.meta.url,
+);
 const DRAFT_STORAGE = new URL(
   '../../src/views/Forum/composables/useForumPostDraftStorage.js',
   import.meta.url,
@@ -36,6 +40,42 @@ const sliceFromDeclaration = (code, declaration, length) => {
 };
 
 describe('forum post draft cross-host sync wiring', () => {
+  it('keeps the composer bar to cancel / publish, with landscape cancel hidden', async () => {
+    const vue = await readFile(FORUM_MAIN, 'utf8');
+    const css = await readFile(REPLIES_RESPONSIVE, 'utf8');
+    expect(vue).not.toContain('mobile-composer-title');
+    expect(vue).not.toMatch(/>\s*新帖\s*</);
+    expect(css).not.toContain('.mobile-composer-title');
+    const landscapeBlock = css.match(
+      /@media \(orientation: landscape\) and \(min-width: 1024px\) and \(min-height: 600px\) \{[\s\S]*?\n\}/,
+    )?.[0] || '';
+    expect(landscapeBlock).toContain('.mobile-composer-overlay .mobile-composer-back');
+    expect(landscapeBlock).toContain('display: none');
+  });
+
+  it('keeps the portrait composer enter/leave motion on the overlay (never cancelled by !important)', async () => {
+    const css = await readFile(REPLIES_RESPONSIVE, 'utf8');
+    const overlayHardReset = css.slice(
+      css.indexOf('The full-screen composer content must be painted immediately'),
+      css.indexOf('/* 圆角液态玻璃悬浮顶栏 */'),
+    );
+    // 根节点是 Vue <Transition> 的载体：这里不能再写 transform/opacity 的 !important，
+    // 否则 enter/leave 的整页上推会被静默压成瞬跳（2026-10-26 用户报障）。
+    expect(overlayHardReset).toContain('.mobile-composer-section,');
+    expect(overlayHardReset).not.toMatch(/\.mobile-composer-overlay\s*,/);
+    const motionBlock = css.match(
+      /\.mobile-composer-enter-from,[\s\S]*?\.mobile-composer-leave-from \{[\s\S]*?\n\}/,
+    )?.[0] || '';
+    expect(motionBlock).toContain('scale(0.08)');
+    expect(motionBlock).toContain('scale(1)');
+    expect(css).toContain('transform-origin: var(--mobile-composer-origin, 100% 100%)');
+    expect(css).toContain('transform 380ms var(--ease-emphasized');
+    const vue = await readFile(FORUM_MAIN, 'utf8');
+    expect(vue).toContain('resolveFabTransformOrigin(fab.getBoundingClientRect())');
+    expect(vue).toContain("'--mobile-composer-origin': mobileComposerTransformOrigin");
+    expect(vue).toContain('@after-leave="releaseMobileComposerOrigin"');
+  });
+
   it('subscribes and unsubscribes the same listener (no leak), and ignores its own echo', async () => {
     const code = await readCode(FORUM_MAIN);
     const subscribe = squeezeSource(
@@ -59,11 +99,26 @@ describe('forum post draft cross-host sync wiring', () => {
     expect(countOf(code, "notifyDraftChange('restore")).toBeGreaterThanOrEqual(2);
   });
 
-  it('opens the draft panel against the cloud copy, not just the local cache', async () => {
+  it('keeps automatic restore + close confirmation, but no manual draft panel', async () => {
+    const raw = await readFile(FORUM_MAIN, 'utf8');
     const code = await readCode(FORUM_MAIN);
-    const body = sliceFromDeclaration(code, 'const openMobileDraftPanel =', 900);
-    // 打开面板必须做一次草稿对账（savedAt 合并），否则换设备/清过缓存时面板是假空
+    const body = sliceFromDeclaration(code, 'const openMobileComposer =', 900);
+    // 打开会话时仍按最新草稿对一次账，否则换设备/清过缓存时回填是旧稿
     expect(body).toContain(squeezeSource('restorePostDraft({ preserveLocalEdits: true })'));
+    // 关闭会话仍必须走保存确认链（底层草稿能力保留）
+    expect(code).toContain('const closeMobileComposer =');
+    expect(code).toContain(squeezeSource("title: '保存草稿'"));
+    // 手动草稿面板是重复入口，已删除；任何一项回流都说明旧 UI 被重新接上
+    for (const forbidden of [
+      'isMobileDraftPanelOpen',
+      'openMobileDraftPanel',
+      'saveMobileDraft',
+      'mobile-draft-panel',
+      'open-draft',
+      'save-draft',
+    ]) {
+      expect(raw, `手动草稿面板残留：${forbidden}`).not.toContain(forbidden);
+    }
   });
 
   it('beforeunload warns for desktop editors too (no mobile-session short circuit)', async () => {

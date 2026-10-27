@@ -86,36 +86,32 @@ const report = (name, items, minCount = 1) => {
   await browser.close();
 }
 
-/* ---------- 2) 横屏 844x390：内联发帖器 ---------- */
+/* ---------- 2) 横屏 844x390：发布会话 ---------- */
 {
   const { browser, page, errors } = await launch({ width: 844, height: 390 });
   await openCommunity(page);
   await injectLogin(page);
-  const hasInlineComposer = await page.waitForSelector('.post-creation-section .user-avatar', { timeout: 8000 }).then(() => true).catch(() => false);
-  if (hasInlineComposer) {
-    await page.waitForTimeout(400);
-    report('横屏内联发帖器 .user-avatar 圆形', await circleAudit(page, '.post-creation-section .user-avatar'));
-    await page.screenshot({ path: `${OUT}/avatar-circle-landscape-composer.png` });
-  } else {
-    console.log('SKIP  横屏内联发帖器未渲染');
-  }
+  await page.waitForSelector('.mobile-compose-fab', { timeout: 8000 });
+  await page.click('.mobile-compose-fab');
+  await page.waitForSelector('.mobile-composer-overlay .mobile-composer-section .user-avatar', { timeout: 8000 });
+  await page.waitForTimeout(400);
+  report('横屏发布会话 .user-avatar 圆形', await circleAudit(page, '.mobile-composer-overlay .mobile-composer-section .user-avatar'));
+  await page.screenshot({ path: `${OUT}/avatar-circle-landscape-composer.png` });
   check('横屏无 JS 错误', errors.length === 0, errors.join(' | '));
   await browser.close();
 }
 
-/* ---------- 3) 桌面 1280x900：内联发帖器（截图1场景） ---------- */
+/* ---------- 3) 桌面 1280x900：发布会话 ---------- */
 {
   const { browser, page, errors } = await launch({ width: 1280, height: 900 });
   await openCommunity(page);
   await injectLogin(page);
-  const hasInlineComposer = await page.waitForSelector('.post-creation-section .user-avatar', { timeout: 8000 }).then(() => true).catch(() => false);
-  if (hasInlineComposer) {
-    await page.waitForTimeout(400);
-    report('桌面内联发帖器 .user-avatar 圆形', await circleAudit(page, '.post-creation-section .user-avatar'));
-    await page.screenshot({ path: `${OUT}/avatar-circle-desktop-composer.png` });
-  } else {
-    console.log('SKIP  桌面内联发帖器未渲染');
-  }
+  await page.waitForSelector('.mobile-compose-fab', { timeout: 8000 });
+  await page.click('.mobile-compose-fab');
+  await page.waitForSelector('.mobile-composer-overlay .mobile-composer-section .user-avatar', { timeout: 8000 });
+  await page.waitForTimeout(400);
+  report('桌面发布会话 .user-avatar 圆形', await circleAudit(page, '.mobile-composer-overlay .mobile-composer-section .user-avatar'));
+  await page.screenshot({ path: `${OUT}/avatar-circle-desktop-composer.png` });
   check('桌面无 JS 错误', errors.length === 0, errors.join(' | '));
   await browser.close();
 }

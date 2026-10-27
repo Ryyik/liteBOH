@@ -1,13 +1,10 @@
 <script setup>
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
-import GlassPillButton from '@/components/ui/GlassPillButton.vue';
 import {
   ArrowLeft,
   ArrowRight,
   AtSign,
   Camera,
-  Eye,
-  FileText,
   GripVertical,
   Hash,
   Image as ImageIcon,
@@ -15,10 +12,18 @@ import {
   MoreHorizontal,
   Plus,
   RefreshCcw,
+  Sparkles,
   X,
 } from 'lucide-vue-next';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
+import { FORUM_POST_TITLE_MAX_LENGTH } from '../forum-config.js';
+import {
+  useForumPostPolish,
+  POLISH_SETTLE_MS,
+  POLISH_EXIT_MS,
+} from '../composables/useForumPostPolish.js';
+import { POST_POLISH_MAX_INPUT_CHARS } from '../composables/post-polish.js';
 
 const props = defineProps({
   isLoggedIn: { type: Boolean, default: false },
@@ -33,17 +38,9 @@ const props = defineProps({
   postCooldownSeconds: { type: Number, default: 0 },
   maxPostImages: { type: Number, default: 6 },
   mentionUsers: { type: Array, default: () => [] },
-  weeklyCheckinStatus: { type: Object, default: () => ({}) },
-  weeklyCheckinProgressText: { type: String, default: '' },
-  weeklyCheckinWeekDots: { type: Array, default: () => [] },
-  weeklyCheckinHintText: { type: String, default: '' },
-  isWeeklyCheckinLoading: { type: Boolean, default: false },
-  isWeeklyCheckinSubmitting: { type: Boolean, default: false },
   forumTagOptions: { type: Array, default: () => [] },
-  showPostImageSourceMenu: { type: Boolean, default: false },
   isMobileComposer: { type: Boolean, default: false },
   isHomeCatTheme: { type: Boolean, default: false },
-  autoSaveDraftLabel: { type: String, default: '' },
   editMode: { type: Boolean, default: false },
   existingImages: { type: Array, default: () => [] },
 });
@@ -55,7 +52,6 @@ const emit = defineEmits([
   'update:newPost',
   'update:selectedPostTag',
   'update:postLocation',
-  'toggle-image-source-menu',
   'request-image-picker',
   'request-camera',
   'image-selection',
@@ -63,15 +59,14 @@ const emit = defineEmits([
   'retry-image',
   'reorder-image',
   'clear-images',
-  'weekly-checkin',
-  'open-draft',
-  'save-draft', // ✨ 新增：保存草稿事件
 ]);
 
 const isEditMode = computed(() => Boolean(props.editMode));
 
-/* 标题上限：与主流社区一致，防止超长标题撑破排版 */
-const TITLE_MAX_LENGTH = 50;
+/* 标题上限：与主流社区一致，防止超长标题撑破排版。
+   2026-10-25 提为单源（原先是本文件局部常量）—— 「智能整理」要对模型下同一个
+   上限，两处各写一份 50 迟早错位（模型按一个值生成、输入框按另一个值截断）。 */
+const TITLE_MAX_LENGTH = FORUM_POST_TITLE_MAX_LENGTH;
 
 // 标题「多字扩展」：单一真源 composables/useAutoGrowTextarea.js（2026-10-13 收敛自研
 // autoResizeTitle）。上限 132px 由 composer.css 的 `.post-title-input { max-height }`
@@ -88,14 +83,13 @@ const handleTitleInput = (event) => {
   event.target.value = value;
   updateTitle(value);
 };
-const editorGreetingLabel = computed(() =>
-  isEditMode.value ? '编辑帖子' : `你好，${props.userInfo.username || '朋友'}！`,
-);
+/* 编辑器头部只用真实用户名，不再显示「你好，X！」的招呼句 —— 发布会话顶栏已经
+   说明当前动作是「新帖」，头部重复问候只会多占一行。 */
+const editorDisplayName = computed(() => props.userInfo.username || '朋友');
+const editorGreetingLabel = computed(() => (isEditMode.value ? '编辑帖子' : editorDisplayName.value));
 const editorPromptLabel = computed(() =>
   isEditMode.value ? '修改你的分享，记得保存～' : '今天想和大家分享什么？',
 );
-/* 竖屏发帖器头像行使用纯用户名 */
-const editorDisplayName = computed(() => props.userInfo.username || '朋友');
 const submitButtonLabel = computed(() => {
   if (isEditMode.value) return isPostBusy.value ? '保存中…' : '保存修改';
   if (props.postCooldownSeconds > 0) return `${props.postCooldownSeconds}s 后发布`;
@@ -104,7 +98,14 @@ const submitButtonLabel = computed(() => {
 
 const postImageInputRef = ref(null);
 const postCameraInputRef = ref(null);
-const postContentInputRef = ref(null);
+
+/* 正文「多字扩展」：与标题共用同一条真源（composables/useAutoGrowTextarea.js）。
+   没有它时，竖屏发布会话里的长文会在 textarea 内部滚动，而外层内容层又
+   因此永远没有溢出 —— 看起来像「正文框卡住不动」，动作栏虽然贴底，
+   但正文没有随内容增长。上限住 CSS，JS 不写第二份像素值。 */
+const { textareaRef: postContentInputRef } = useAutoGrowTextarea({
+  value: () => props.newPost.content,
+});
 
 /* 标题是单行字段：Enter（非 IME 组合中）直接跳到正文，与 enterkeyhint="next" 一致。
    必须判 isComposing —— 中文输入法确认候选词的回车不能被拦。 */
@@ -122,7 +123,6 @@ const morePanelPosition = ref({ top: 100, left: 16 });
 const moreButtonRect = ref(null);
 const draggedImageIndex = ref(null);
 const dragOverImageIndex = ref(null);
-const isPreviewMode = ref(false);
 const mentionQuery = ref('');
 const showMentionMenu = ref(false);
 const mentionStartIndex = ref(-1);
@@ -210,6 +210,88 @@ const updateContent = (value) => {
   emit('update:newPost', { ...props.newPost, content: value });
 };
 
+/* ── 智能整理（2026-10-26）────────────────────────────────────────────
+   入口在编辑器统一动作栏的「智能整理」，
+   **不经过 AI 岛**：竖屏发布会话是全屏独占层（z-index 100000，见
+   styles/replies-responsive.css:529），而岛宿在导航栏（9999），在这个场景下
+   既看不见也不该抢焦点。
+
+   生成期间光效直接打在标题/正文上；生成完成后**直接替换**并给一个「撤销」，
+   不弹预览、不再要求二次确认（2026-10-25 用户定稿，推翻了上一版的预览面板）。
+   安全网从「先预览」换成了「可撤销」，所以撤销链的可靠性是这里的第一约束。 */
+const {
+  errorMessage: polishError,
+  isRunning: isPolishing,
+  isSettling: isPolishSettling,
+  isBusy: isBusyPolishing,
+  isApplied: polishApplied,
+  canPolish,
+  isOverLimit: isPolishOverLimit,
+  polish,
+  undo: undoPolish,
+  dismissUndo,
+} = useForumPostPolish({
+  onApplied: ({ title, content }) => {
+    // 应用期标记：这次写入会在下面那个 watch 里引起回调，
+    // 必须让它知道「这是 AI 写的，别当成用户自己动过」（否则撤销入口刚出现就被关掉）。
+    applyingPolish = true;
+    emit('update:newPost', { ...props.newPost, title, content });
+    nextTick(() => {
+      applyingPolish = false;
+    });
+  },
+});
+
+/**
+ * 把 JS 侧的时长**注入** CSS。
+ *
+ * ⚠️ 这是「同一个数只有一份」的实现方式：CSS 里写的值是兜底，真实值从这里来。
+ *    两边各写一个常量是这类动效最常见的漂移点 —— 改了一处忘了另一处，
+ *    症状是「文字流光还没落点就换了」（或反过来），而没有任何报错。
+ */
+const polishSweepStyle = computed(() => ({
+  '--post-polish-settle': `${POLISH_SETTLE_MS}ms`,
+  '--post-polish-exit': `${POLISH_EXIT_MS}ms`,
+}));
+
+const canStartPolish = computed(() => canPolish(props.newPost));
+const polishTooLong = computed(() => isPolishOverLimit(props.newPost));
+
+/* 超长提示只在用户**真的点了**之后才出现：一进来就挂着一条「暂不支持」是噪音。
+   这里用独立 ref，不复用 status —— status 是调用状态机，塞进「被挡住」会污染它。 */
+const polishBlockedNotice = ref('');
+
+/** 应用期标记，见上方 onApplied 的注释。 */
+let applyingPolish = false;
+
+const startPolish = () => {
+  polishBlockedNotice.value = '';
+  if (!canStartPolish.value) {
+    // 超长：明确说原因。静默截断会导致结果丢掉后半篇文章 —— 那比不给整理更糟。
+    if (polishTooLong.value) {
+      polishBlockedNotice.value = `正文超过 ${POST_POLISH_MAX_INPUT_CHARS} 字，暂不支持一键整理。`;
+    }
+    return;
+  }
+  polish(props.newPost);
+};
+
+const handleUndoPolish = () => {
+  polishBlockedNotice.value = '';
+  undoPolish();
+};
+
+// 用户自己继续编辑 ⇒ 「撤销」不再指向一次干净的替换，收起入口。
+// ⚠️ 必须跳过 AI 自己那次写入（applyingPolish），否则整个撤销功能在应用瞬间就失效了。
+watch(
+  () => [props.newPost.title, props.newPost.content],
+  () => {
+    polishBlockedNotice.value = '';
+    if (applyingPolish) return;
+    if (polishApplied.value) dismissUndo();
+  },
+);
+
 const replaceContentRange = (start, end, replacement, nextCursor = start + replacement.length) => {
   const content = String(props.newPost.content || '');
   updateContent(`${content.slice(0, start)}${replacement}${content.slice(end)}`);
@@ -267,9 +349,6 @@ const handleTagSelect = (tag) => {
 
 const handleSubmit = () => emit('submit');
 const handleLogin = () => emit('login');
-const handleWeeklyCheckin = () => emit('weekly-checkin');
-const handleDraftOpen = () => emit('open-draft');
-
 const handleImagePickerRequest = () => {
   emit('request-image-picker', () => postImageInputRef.value?.click?.());
 };
@@ -609,7 +688,8 @@ onUnmounted(() => {
     :class="{ 'mobile-composer-section': isMobileComposer }"
   >
     <div v-if="isLoggedIn" class="editor-card glass-panel">
-      <div class="editor-header">
+      <div class="composer-content-scroll">
+        <div class="editor-header">
         <div class="user-avatar">
           <img
             v-if="userInfo.avatarUrl"
@@ -626,7 +706,6 @@ onUnmounted(() => {
           <span class="user-greeting">
             <span class="greeting-full">{{ editorGreetingLabel }}</span>
             <span class="greeting-name">{{ editorDisplayName }}</span>
-            <span class="visibility-badge">公开</span>
           </span>
           <span class="editor-prompt">{{ editorPromptLabel }}</span>
         </div>
@@ -651,7 +730,7 @@ onUnmounted(() => {
         decorative
       />
 
-      <div class="input-group post-title-input-group">
+      <div class="input-group post-title-input-group composer-post-title">
         <textarea
           :value="newPost.title"
           ref="postTitleInputRef"
@@ -660,6 +739,10 @@ onUnmounted(() => {
           enterkeyhint="next"
           :placeholder="isEditMode ? '修改标题' : isMobileComposer ? '标题' : '起个响亮的标题...'"
           class="post-title-input"
+          :class="{ 'is-polishing': isBusyPolishing }"
+          :style="polishSweepStyle"
+          :readonly="isBusyPolishing"
+          :aria-busy="isBusyPolishing ? 'true' : 'false'"
           @keydown="handleTitleKeydown"
           @input="handleTitleInput"
         ></textarea>
@@ -672,28 +755,24 @@ onUnmounted(() => {
         </span>
       </div>
 
-      <div class="input-group post-body-input-group">
+      <div class="input-group post-body-input-group composer-post-body">
         <div class="composer-body-shell">
           <textarea
-            v-if="!isPreviewMode"
             ref="postContentInputRef"
             :value="newPost.content"
             :placeholder="isMobileComposer ? '有什么新鲜事？' : '正文内容...'"
             class="post-content-input"
+            :class="{ 'is-polishing': isBusyPolishing }"
+            :style="polishSweepStyle"
+            :readonly="isBusyPolishing"
+            :aria-busy="isBusyPolishing ? 'true' : 'false'"
             rows="3"
             @input="handleContentInput"
             @keyup="updateMentionState"
             @click="updateMentionState"
             @focus="updateMentionState"
           ></textarea>
-          <div v-else class="composer-post-preview">
-            <h3 v-if="newPost.title">{{ newPost.title }}</h3>
-            <p v-if="String(newPost.content || '').trim()" class="composer-preview-body">
-              {{ newPost.content }}
-            </p>
-            <p v-else class="composer-preview-empty">正文还没有内容</p>
-          </div>
-          <div v-if="!isPreviewMode && contentCharCount > 0" class="composer-char-count">
+          <div v-if="contentCharCount > 0" class="composer-char-count">
             {{ contentCharCount }} 字
           </div>
           <div v-if="showMentionMenu && mentionSuggestions.length" class="composer-mention-menu">
@@ -710,17 +789,39 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="post-tag-selector" role="radiogroup" aria-label="帖子标签">
-        <button
-          v-for="tag in forumTagOptions"
-          :key="tag.value"
-          type="button"
-          class="post-tag-option"
-          :class="{ active: selectedPostTag === tag.value }"
-          @click="handleTagSelect(tag.value)"
-        >
-          {{ tag.label }}
-        </button>
+      <!-- 智能整理的状态行：生成中 / 收口中 / 已应用（可撤销）/ 出错 / 被挡住。
+           流光直接画在标题与正文的文字上（`.is-polishing`），
+           这里只承担**文案与撤销入口** —— 不再有预览面板（2026-10-25 用户定稿）。
+
+           ⚠️「快好了」（`isPolishSettling`）这一支不能省：落点之前改写成「已整理」
+              是**撒谎**（字还没换），而继续写「正在整理…」又没告诉用户已到最后一步。
+              文案在这里承担「即将完成」的告知，撤销按钮则**只**在真正写回后出现。 -->
+      <div
+        v-if="isBusyPolishing || polishApplied || polishError || polishBlockedNotice"
+        class="composer-polish-status"
+        :class="{ 'is-running': isBusyPolishing, 'is-applied': polishApplied }"
+        role="status"
+        aria-live="polite"
+      >
+        <template v-if="isPolishSettling">
+          <Sparkles :size="14" :stroke-width="2.2" aria-hidden="true" />
+          <span>快好了，正在收尾…</span>
+        </template>
+        <template v-else-if="isPolishing">
+          <Sparkles :size="14" :stroke-width="2.2" aria-hidden="true" />
+          <span>正在智能整理…</span>
+        </template>
+        <template v-else-if="polishApplied">
+          <Sparkles :size="14" :stroke-width="2.2" aria-hidden="true" />
+          <span>已智能整理</span>
+          <button type="button" class="composer-polish-undo" @click="handleUndoPolish">撤销</button>
+        </template>
+        <template v-else-if="polishError">
+          <span class="composer-polish-error-text">{{ polishError }}</span>
+        </template>
+        <template v-else>
+          <span class="composer-polish-error-text">{{ polishBlockedNotice }}</span>
+        </template>
       </div>
 
       <input
@@ -864,206 +965,47 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div v-if="isMobileComposer" class="mobile-composer-chip-row">
-        <button
-          type="button"
-          class="mobile-composer-chip"
-          :class="{ 'is-active': postLocation }"
-          @click.stop="handleLocationClick"
-        >
-          <MapPin :size="15" :stroke-width="1.8" aria-hidden="true" />
-          <span>位置</span>
-          <strong v-if="postLocation">{{ postLocation.name }}</strong>
-        </button>
-        <button
-          type="button"
-          class="mobile-composer-chip"
-          :class="{ 'is-active': Boolean(selectedTagLabel) }"
-          :aria-expanded="showMobileTagMenu"
-          @click.stop="showMobileTagMenu = !showMobileTagMenu"
-        >
-          <Hash :size="15" :stroke-width="1.8" aria-hidden="true" />
-          <span>标签</span>
-          <strong v-if="selectedTagLabel">#{{ selectedTagLabel }}</strong>
-        </button>
-        <!-- 图片 chip：只在「网格内 ＋添加图片 大卡片被隐藏」的电脑/平板横屏显示
-             （条件见 composer.css 的 .mobile-composer-chip--image，与卡片互为镜像） -->
-        <button
-          type="button"
-          class="mobile-composer-chip mobile-composer-chip--image"
-          :disabled="isPostBusy || postImages.length >= maxPostImages"
-          :aria-label="`添加图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
-          @click.stop="handleImagePickerRequest"
-        >
-          <ImageIcon :size="15" :stroke-width="1.8" aria-hidden="true" />
-          <span>图片</span>
-          <strong>{{ postImages.length }}/{{ maxPostImages }}</strong>
-        </button>
-        <button type="button" class="mobile-composer-chip" @click.stop="handleDraftOpen">
-          <FileText :size="15" :stroke-width="1.8" aria-hidden="true" />
-          <span>草稿</span>
-          <strong v-if="autoSaveDraftLabel">{{ autoSaveDraftLabel }}</strong>
-        </button>
-      </div>
-
-      <div
-        v-if="isMobileComposer && showMobileTagMenu"
-        class="mobile-composer-setting-menu"
-        role="menu"
-        aria-label="选择帖子标签"
-      >
-        <button
-          v-for="tag in forumTagOptions"
-          :key="tag.value"
-          type="button"
-          class="mobile-composer-setting-menu-item"
-          :class="{ active: selectedPostTag === tag.value }"
-          role="menuitemradio"
-          :aria-checked="selectedPostTag === tag.value"
-          @click="handleTagSelect(tag.value)"
-        >
-          {{ tag.label }}
-        </button>
-      </div>
-
-      <div class="mobile-post-image-toolbar">
-        <div class="mobile-post-tool-group" @click.stop>
-          <div class="mobile-tag-tool-wrap">
-            <button
-              type="button"
-              class="mobile-post-tool-btn mobile-tag-tool-btn"
-              :class="{ active: showMobileTagMenu }"
-              aria-label="选择帖子标签"
-              :aria-expanded="showMobileTagMenu"
-              @click="showMobileTagMenu = !showMobileTagMenu"
-            >
-              <Hash :size="23" :stroke-width="2" aria-hidden="true" />
-            </button>
-            <div v-if="showMobileTagMenu" class="mobile-tag-menu">
-              <button
-                v-for="tag in forumTagOptions"
-                :key="tag.value"
-                type="button"
-                class="mobile-tag-menu-item"
-                :class="{ active: selectedPostTag === tag.value }"
-                @click="handleTagSelect(tag.value)"
-              >
-                {{ tag.label }}
-              </button>
-            </div>
-          </div>
+        <div v-if="postLocation" class="post-location-bar">
+          <MapPin :size="14" :stroke-width="2" />
+          <span class="post-location-text">{{ postLocation.name }}</span>
           <button
             type="button"
-            class="mobile-post-tool-btn mobile-preview-tool-btn"
-            :class="{ active: isPreviewMode }"
-            :disabled="!hasPostContent"
-            :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
-            @click="isPreviewMode = !isPreviewMode"
+            class="post-location-bar-remove"
+            aria-label="移除位置"
+            @click="removeLocation"
           >
-            <Eye :size="23" :stroke-width="2" aria-hidden="true" />
+            ×
           </button>
-          <button
-            type="button"
-            class="mobile-post-tool-btn"
-            :class="{ 'is-full': postImages.length >= maxPostImages }"
-            :disabled="isPostBusy || postImages.length >= maxPostImages"
-            :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
-            @click="handleImagePickerRequest"
-          >
-            <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
-          </button>
-          <div class="mobile-more-tool-wrap" v-if="!isEditMode">
-            <button
-              type="button"
-              class="mobile-post-tool-btn mobile-more-tool-btn"
-              :class="{ active: showMoreMenu }"
-              aria-label="更多选项"
-              :aria-expanded="showMoreMenu"
-              @click="handleMoreButtonClick"
-            >
-              <MoreHorizontal :size="23" :stroke-width="2" aria-hidden="true" />
-            </button>
-          </div>
         </div>
-      </div>
-
-      <div v-if="postLocation" class="post-location-bar">
-        <MapPin :size="14" :stroke-width="2" />
-        <span class="post-location-text">{{ postLocation.name }}</span>
-        <button
-          type="button"
-          class="post-location-bar-remove"
-          aria-label="移除位置"
-          @click="removeLocation"
-        >
-          ×
-        </button>
       </div>
 
       <div class="editor-footer">
-        <div v-if="autoSaveDraftLabel" class="auto-save-hint">{{ autoSaveDraftLabel }}</div>
-        <div v-if="!isEditMode" class="editor-tools weekly-checkin-panel inline-checkin-panel">
-          <div
-            v-if="isWeeklyCheckinLoading"
-            class="weekly-checkin-status weekly-checkin-status-skeleton"
-            aria-label="正在加载周签到状态"
-          >
-            <span class="checkin-skeleton-title skeleton-item"></span>
-            <span class="checkin-skeleton-line skeleton-item"></span>
-          </div>
-          <div v-else class="weekly-checkin-status">
-            <span class="tool-hint">周签到：{{ weeklyCheckinProgressText }}</span>
-            <div class="checkin-week-dots" aria-hidden="true">
-              <span
-                v-for="dot in weeklyCheckinWeekDots"
-                :key="dot.key"
-                class="checkin-week-dot"
-                :class="{ today: dot.today, signed: dot.signed }"
-              ></span>
-            </div>
-            <span class="checkin-hint">{{ weeklyCheckinHintText }}</span>
-          </div>
-          <button
-            class="weekly-checkin-btn"
-            :class="{ 'is-done': weeklyCheckinStatus.hasSignedThisWeek }"
-            @click="handleWeeklyCheckin"
-            :disabled="
-              isWeeklyCheckinLoading ||
-              isWeeklyCheckinSubmitting ||
-              weeklyCheckinStatus.hasSignedThisWeek
-            "
-          >
-            <span
-              v-if="isWeeklyCheckinLoading"
-              class="checkin-skeleton-button-label skeleton-item"
-            ></span>
-            <span v-else-if="isWeeklyCheckinSubmitting">签到中...</span>
-            <span v-else>{{
-              weeklyCheckinStatus.hasSignedThisWeek ? '本周已签到' : '每周签到'
-            }}</span>
-          </button>
+        <div class="composer-action-meta">
+          <span v-if="!isEditMode" class="composer-action-tip">试试智能整理，把草稿梳理得更清楚</span>
         </div>
         <div class="editor-submit-group">
-          <div class="desktop-post-tools" @click.stop>
-            <div class="desktop-tag-tool-wrap">
+          <div class="composer-actions" @click.stop>
+            <div class="composer-tag-wrap">
               <button
                 type="button"
-                class="desktop-post-tool-btn desktop-tag-tool-btn"
+                class="composer-action-btn"
                 :class="{ active: showMobileTagMenu }"
                 aria-label="选择帖子标签"
                 :aria-expanded="showMobileTagMenu"
                 @click="showMobileTagMenu = !showMobileTagMenu"
               >
-                <Hash :size="22" :stroke-width="2" aria-hidden="true" />
-                <span>{{ selectedTagLabel }}</span>
+                <Hash :size="19" :stroke-width="2" aria-hidden="true" />
+                <span>{{ selectedTagLabel || '标签' }}</span>
               </button>
-              <div v-if="showMobileTagMenu" class="desktop-tag-menu">
+              <div v-if="showMobileTagMenu" class="composer-tag-menu" role="menu" aria-label="选择帖子标签">
                 <button
                   v-for="tag in forumTagOptions"
                   :key="tag.value"
                   type="button"
-                  class="desktop-tag-menu-item"
+                  class="composer-tag-menu-item"
                   :class="{ active: selectedPostTag === tag.value }"
+                  role="menuitemradio"
+                  :aria-checked="selectedPostTag === tag.value"
                   @click="handleTagSelect(tag.value)"
                 >
                   {{ tag.label }}
@@ -1072,47 +1014,36 @@ onUnmounted(() => {
             </div>
             <button
               type="button"
-              class="desktop-post-tool-btn desktop-preview-tool-btn"
-              :class="{ active: isPreviewMode }"
-              :disabled="!hasPostContent"
-              :aria-label="isPreviewMode ? '返回编辑' : '预览帖子'"
-              @click="isPreviewMode = !isPreviewMode"
-            >
-              <Eye :size="22" :stroke-width="2" aria-hidden="true" />
-              <span>{{ isPreviewMode ? '编辑' : '预览' }}</span>
-            </button>
-            <button
-              type="button"
-              class="desktop-post-tool-btn"
+              class="composer-action-btn"
               :class="{ 'is-full': postImages.length >= maxPostImages }"
               :disabled="isPostBusy || postImages.length >= maxPostImages"
               :aria-label="`从相册选择图片，已添加 ${postImages.length} 张，最多 ${maxPostImages} 张`"
               @click="handleImagePickerRequest"
             >
-              <ImageIcon :size="23" :stroke-width="1.8" aria-hidden="true" />
-              <span class="desktop-image-count">{{ postImages.length }}/{{ maxPostImages }}</span>
+              <ImageIcon :size="19" :stroke-width="1.8" aria-hidden="true" />
+              <span>图片</span>
+              <span v-if="postImages.length" class="composer-action-count">{{ postImages.length }}</span>
             </button>
-            <!-- ✨ 横屏保存草稿按钮：形态收敛到 ui/GlassPillButton.vue -->
-            <GlassPillButton
-              v-if="!isEditMode"
-              class="desktop-save-draft-btn"
-              :disabled="!hasPostContent || isPostBusy"
-              :aria-label="`保存当前编辑内容为草稿`"
-              @click="emit('save-draft')"
+            <button
+              type="button"
+              class="composer-action-btn composer-polish-action"
+              :disabled="isPostBusy || isBusyPolishing || !hasPostContent"
+              :aria-label="isBusyPolishing ? '正在整理' : '智能整理标题和正文'"
+              @click="startPolish"
             >
-              <FileText :size="22" :stroke-width="2" aria-hidden="true" />
-              <span>保存草稿</span>
-            </GlassPillButton>
-            <div v-if="!isEditMode" class="desktop-more-tool-wrap">
+              <Sparkles :size="19" :stroke-width="2" aria-hidden="true" />
+              <span>{{ isBusyPolishing ? '整理中' : '智能整理' }}</span>
+            </button>
+            <div v-if="!isEditMode" class="composer-more-wrap">
               <button
                 type="button"
-                class="desktop-post-tool-btn desktop-more-tool-btn"
+                class="composer-action-btn composer-more-btn"
                 :class="{ active: showMoreMenu }"
                 aria-label="更多选项"
                 :aria-expanded="showMoreMenu"
                 @click="handleMoreButtonClick"
               >
-                <MoreHorizontal :size="22" :stroke-width="2" aria-hidden="true" />
+                <MoreHorizontal :size="19" :stroke-width="2" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -1165,17 +1096,6 @@ onUnmounted(() => {
               </button>
             </div>
             <div class="more-menu-list">
-              <button
-                type="button"
-                class="more-menu-item"
-                @click="
-                  handleDraftOpen();
-                  showMoreMenu = false;
-                "
-              >
-                <FileText :size="18" :stroke-width="2" aria-hidden="true" />
-                <span class="more-menu-label">草稿</span>
-              </button>
               <button
                 type="button"
                 class="more-menu-item"
@@ -1333,6 +1253,13 @@ onUnmounted(() => {
 @import '../styles/replies-responsive.css';
 </style>
 
+<style>
+/* 「智能整理」的文字流光 + 状态行 —— 非 scoped 的理由见文件头（无 @property 依赖，
+   但保持与 ForumMain 的共享层一致：这些类名同时出现在 PostComposer 与
+   PostDetail 的编辑弹层里，scoped 会给它们各加一套 [data-v] 前缀）。 */
+@import '../styles/post-polish-sweep.css';
+</style>
+
 <style scoped>
 /* 组件私有样式：仅 PostComposer 模板使用（与上一块共享层刻意分块） */
 /* 图片占位入口：液态玻璃 — 统一走 --liquid-* token，主色与全站一致（iOS 蓝） */
@@ -1387,24 +1314,6 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--liquid-text-tertiary, #8b9098);
   line-height: 1.2;
-}
-
-/* 横屏保存草稿按钮 — 液态玻璃 token + 蓝色描边，保持克制 */
-/* 保存草稿按钮形态已收敛到 ui/GlassPillButton.vue（玻璃底/内高光/hover 上浮由组件承担）；
-   保留业务差异：与同排透明工具按钮一致的紧凑胶囊 + 蓝描边蓝字。
-   前缀 .editor-submit-group 提特异性，稳压组件内同名属性 */
-.editor-submit-group .desktop-save-draft-btn {
-  min-height: 36px;
-  padding: 0 14px;
-  border-radius: var(--liquid-radius-pill, 999px);
-  border-color: rgba(0, 113, 227, 0.18);
-  color: var(--apple-blue, #0071e3);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.editor-submit-group .desktop-save-draft-btn:hover:not(:disabled) {
-  border-color: rgba(0, 113, 227, 0.32);
 }
 
 /* 位置选择面板 */
@@ -1716,6 +1625,19 @@ onUnmounted(() => {
   overflow: hidden;
   contain: paint;
   isolation: isolate;
+  transform-origin: bottom right;
+  animation: composer-more-panel-in 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@keyframes composer-more-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* 移动端面板更宽 */
@@ -1724,6 +1646,7 @@ onUnmounted(() => {
     width: calc(100vw - 24px);
     padding: 16px;
     border-radius: 20px;
+    transform-origin: bottom center;
   }
 
   .more-menu-list {
@@ -1793,13 +1716,17 @@ onUnmounted(() => {
   color: #1d1d1f;
   cursor: pointer;
   transition:
-    background-color 0.2s,
-    transform 0.2s;
+    background-color var(--duration-fast, 180ms) ease,
+    transform 220ms var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
 }
 
 .more-menu-item:hover {
   background: rgba(0, 0, 0, 0.08);
   transform: translateY(-2px);
+}
+
+.more-menu-item:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .more-menu-item:disabled {

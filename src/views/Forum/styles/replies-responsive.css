@@ -551,7 +551,9 @@
   background: #ffffff;
   color: var(--liquid-text-primary, #0f1419);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro SC", "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", "Helvetica Neue", sans-serif;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kb-inset, 0px));
+  /* 安全区由底部动作栏自己补（只在 editor-footer 的 padding-bottom 出现一次）；
+     overlay 只管键盘抬升，避免两者相加后把胶囊顶得离底部一大截。 */
+  padding-bottom: var(--kb-inset, 0px);
   transform: translateZ(0);
 }
 
@@ -573,10 +575,12 @@
   border-color: rgba(255, 255, 255, 0.14);
 }
 
-/* The full-screen composer must be painted immediately. It inherits the
-   feed's fade-in class, whose opacity: 0 can otherwise survive until scroll
-   triggers a browser repaint on mobile. */
-.mobile-composer-overlay,
+/* The full-screen composer content must be painted immediately: it inherits
+   the feed's fade-in class, whose opacity: 0 can otherwise survive until
+   scroll triggers a browser repaint on mobile.
+   ⚠️ Do not put `transform: none !important` on the overlay itself — the
+   overlay is the Vue <Transition> root for the portrait enter/leave motion,
+   and that rule would silently cancel the full-screen slide. */
 .mobile-composer-section,
 .mobile-composer-section .editor-card {
   opacity: 1 !important;
@@ -593,7 +597,8 @@
   margin: 10px 10px 0;
   padding: env(safe-area-inset-top) 12px 0;
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  /* 左侧取消、右侧发布。标题文案已下线，不再保留中间的空栅格。 */
+  grid-template-columns: 1fr auto;
   gap: 12px;
   align-items: center;
   border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
@@ -602,24 +607,6 @@
   box-shadow: var(--liquid-highlight, inset 0 1px 0 rgba(255,255,255,0.86)), var(--liquid-shadow-sm, 0 8px 24px rgba(15,23,42,0.06));
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
-}
-
-.mobile-composer-draft-btn {
-  margin: 0;
-  border: none;
-  background: transparent;
-  text-align: right;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0;
-  color: var(--apple-blue, #0071e3);
-  cursor: pointer;
-  padding: 10px 0;
-  line-height: 1;
-}
-
-.mobile-composer-draft-btn:active {
-  opacity: 0.62;
 }
 
 .mobile-composer-back {
@@ -646,13 +633,13 @@
   height: 40px;
   border: none;
   border-radius: 999px;
-  background: var(--apple-blue, #0071e3);
+  background: var(--liquid-text-primary, #0f1419);
   color: #ffffff;
   font-size: 16px;
   font-weight: 700;
   padding: 0 18px;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(0, 113, 227, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 16px rgba(15, 20, 25, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.16);
   transition: transform 0.2s, opacity 0.2s, box-shadow 0.2s;
 }
 
@@ -670,198 +657,127 @@
   z-index: 1;
 }
 
+/* 横屏发布会话（有左侧分栏时）不再显示「取消」：分栏左栏仍是退出上下文，
+   顶栏只保留右端的发布主操作。 */
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .mobile-composer-overlay .mobile-composer-back {
+    display: none;
+  }
+
+  .mobile-composer-overlay .mobile-composer-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .mobile-composer-overlay .mobile-composer-submit {
+    grid-column: 2;
+  }
+}
+
 .mobile-composer-scroll {
   position: relative;
   z-index: 1;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  padding: 0 0 env(safe-area-inset-bottom);
+  /* 发布会话只有一层滚动面：正文区。外层只负责把卡片的头/正文/底栏
+     拉满顶栏以下的剩余高度，自己不再滚动 —— 两层 overflow 会让动作栏
+     跟着内容一起进入滚动流，长文时看起来像「掉到屏幕外面」。 */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  /* 安全区由 overlay 的 padding-bottom 统一承担；这里再补一次会把
+     底栏和屏幕底部多推出一段空隙。 */
+  padding: 0;
   background: transparent;
   -webkit-overflow-scrolling: touch;
 }
 
-.mobile-draft-panel-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200100;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(15, 20, 25, 0.22);
-  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+.mobile-composer-scroll::-webkit-scrollbar {
+  display: none;
 }
 
-.mobile-draft-panel {
-  width: min(100%, 520px);
-  border-radius: 24px;
-  background: var(--liquid-bg-strong, rgba(255, 255, 255, 0.84));
-  color: var(--liquid-text-primary, #0f1419);
-  border: 1px solid var(--liquid-border, rgba(255, 255, 255, 0.65));
-  box-shadow: 0 -18px 48px rgba(15, 20, 25, 0.18), var(--liquid-highlight-subtle);
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  padding: 18px;
-}
-
-.mobile-draft-panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-}
-
-.mobile-draft-panel-header h3 {
-  margin: 0 0 4px;
-  font-size: 20px;
-  font-weight: 850;
-  letter-spacing: 0;
-}
-
-.mobile-draft-panel-header p {
-  margin: 0;
-  color: #536471;
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.mobile-draft-close-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 999px;
-  background: #eff3f4;
-  color: #0f1419;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.mobile-draft-preview {
-  min-height: 82px;
-  border-radius: 18px;
-  background: #f7f9f9;
-  border: 1px solid #eff3f4;
-  padding: 14px;
+/* 卡片的 flex 链：scroll → section → editor-card。
+   每一层都必须显式 min-height: 0，否则子项的 min-content 会把它撑高，
+   footer 就被顶到内容末尾而不是视口底部。 */
+.mobile-composer-scroll > .mobile-composer-section {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
-.mobile-draft-preview.empty {
-  justify-content: center;
+.mobile-composer-scroll > .mobile-composer-section > .editor-card,
+.mobile-composer-scroll > .mobile-composer-section > .login-prompt-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.mobile-draft-preview p {
-  margin: 0;
-  color: #0f1419;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  overflow-wrap: anywhere;
+/* 发布会话里只有正文区滚动：header / 标题 / 正文 / 图片都在这一层，
+   动作栏是它的兄弟节点。隐藏滚动条，但保留可滚动能力。 */
+.mobile-composer-overlay .composer-content-scroll {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding-bottom: 12px;
 }
 
-.mobile-draft-preview.empty p {
-  color: #536471;
+.mobile-composer-overlay .composer-content-scroll::-webkit-scrollbar {
+  display: none;
 }
 
-.mobile-draft-tag {
-  width: fit-content;
-  border-radius: 999px;
-  background: #0f1419;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  padding: 5px 9px;
-}
+/* 竖屏发布会话进出：以触发它的 FAB 中心为原点放大成整页 / 缩回按钮。
+   横屏分栏有独立的右区几何，保持原来的即时切换（见 landscape-rail.css）。
 
-.mobile-draft-actions {
-  display: grid;
-  grid-template-columns: 1fr 0.8fr 1fr;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.mobile-draft-action {
-  min-height: 44px;
-  border: none;
-  border-radius: 999px;
-  font-size: 15px;
-  font-weight: 850;
-  cursor: pointer;
-  transition: transform 0.2s, opacity 0.2s, background-color 0.2s;
-}
-
-.mobile-draft-action:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.mobile-draft-action:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
-}
-
-.mobile-draft-action.primary {
-  background: #0f1419;
-  color: #ffffff;
-}
-
-.mobile-draft-action.secondary {
-  background: #eff3f4;
-  color: #0f1419;
-}
-
-.mobile-draft-panel-enter-active,
-.mobile-draft-panel-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.mobile-draft-panel-enter-active .mobile-draft-panel,
-.mobile-draft-panel-leave-active .mobile-draft-panel {
-  transition: transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.mobile-draft-panel-enter-from,
-.mobile-draft-panel-leave-to {
-  opacity: 0;
-}
-
-.mobile-draft-panel-enter-from .mobile-draft-panel,
-.mobile-draft-panel-leave-to .mobile-draft-panel {
-  opacity: 0;
-  transform: translateY(18px);
-}
-
-@media (min-width: 769px) {
-  .desktop-draft-panel-overlay {
-    align-items: center;
-    padding: 32px;
-  }
-
-  .desktop-draft-panel-overlay .mobile-draft-panel {
-    transform: translateY(0);
-  }
-
-  .mobile-draft-panel-enter-from.desktop-draft-panel-overlay .mobile-draft-panel,
-  .mobile-draft-panel-leave-to.desktop-draft-panel-overlay .mobile-draft-panel {
-    transform: translateY(10px) scale(0.98);
-  }
+   ⚠️ 动画契约：
+     ① 只有 overlay 自己的 transform 可以动，内容层不要再叠第二段位移；
+     ② 离场必须保留实体节点直到过渡结束 —— `v-if` + <Transition> 已保证；
+     ③ reduced-motion 由 animations.css 的全局 100ms 兜底，不另写媒体查询，
+        否则会出现「系统降级后反而完全没有反馈」；
+     ④ transform-origin 由 ForumMain 量 FAB 中心后注入，禁止在 CSS 写死右下角
+        （安全区 / embedded 抬升 / 旋转变换后都会错位）。 */
+.mobile-composer-overlay {
+  transform-origin: var(--mobile-composer-origin, 100% 100%);
 }
 
 .mobile-composer-enter-active,
 .mobile-composer-leave-active {
-  transition: transform 0.34s var(--ease-drawer), opacity 0.24s var(--ease-out);
+  will-change: transform, opacity;
+  transition:
+    transform 380ms var(--ease-emphasized, cubic-bezier(0.16, 1, 0.3, 1)),
+    opacity 180ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .mobile-composer-enter-from,
 .mobile-composer-leave-to {
   opacity: 0;
-  transform: translateY(42px);
+  transform: scale(0.08);
+}
+
+.mobile-composer-enter-to,
+.mobile-composer-leave-from {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  .mobile-composer-enter-active,
+  .mobile-composer-leave-active {
+    transition: none;
+  }
+
+  .mobile-composer-enter-from,
+  .mobile-composer-leave-to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Mobile Adjustments */
@@ -931,12 +847,12 @@
   /* 竖屏全宽自由排版 — 外卡去玻璃化，文字全宽，仅底部设置组保留 iOS26 液态玻璃 */
   .mobile-composer-section .editor-card {
     flex: 1;
-    min-height: calc(100dvh - 64px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 12px;
     margin: 0;
-    padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+    padding: 16px 16px 0;
     border-radius: 0;
     border: none;
     overflow: visible;
@@ -949,6 +865,14 @@
     max-width: 100%;
     box-sizing: border-box;
     overscroll-behavior: contain;
+  }
+
+  .mobile-composer-section .composer-content-scroll {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
   }
 
   .mobile-composer-section .composer-theme-cat {
@@ -986,37 +910,51 @@
     }
   }
 
-  .mobile-composer-section .composer-preview-toolbar {
-    display: none;
-  }
-
   .mobile-composer-section .post-body-input-group {
     display: flex;
+    flex: 1 1 auto;
     width: 100%;
     min-height: 0;
+    /* 不再做第二层滚动：正文随内容区整体滚动，输入框自身撑到完整高度。 */
+    overflow: visible;
   }
 
   /* 关键修复：shell 是 flex 子项，不显式撑满会被 shrink-to-fit 挤成 textarea 默认 cols 宽度 */
   .mobile-composer-section .composer-body-shell {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     width: 100%;
     min-width: 0;
   }
 
   .mobile-composer-section .post-content-input {
-    flex: 1;
-    min-height: 42vh;
+    /* 高度由内容驱动（useAutoGrowTextarea），外层内容层是唯一滚动面。
+       这里给下限而不是写死高度：空稿保留舒适的起写区，长文继续长高。 */
+    min-height: 34vh;
     width: 100%;
+    resize: none;
+    overflow: visible;
+    scrollbar-width: none;
   }
 
-  .mobile-composer-section .post-tag-selector {
+  .mobile-composer-section .post-content-input::-webkit-scrollbar {
     display: none;
   }
 
   .mobile-composer-section .editor-footer {
     grid-column: 1 / -1;
-    margin-top: 0;
-    display: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    flex: 0 0 auto;
+    z-index: 12;
+    /* 负 margin 只抵消卡片左右内衬，不越过底部内衬；
+       底部安全区只在这里补一次，避免与 overlay 的 padding 叠加。 */
+    margin: 0 -16px;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--liquid-border-hairline, rgba(15,23,42,0.06));
+    background: var(--liquid-bg, rgba(255,255,255,0.72));
+    backdrop-filter: var(--liquid-filter-sm);
+    -webkit-backdrop-filter: var(--liquid-filter-sm);
   }
 
   .mobile-composer-section .editor-header {
@@ -1033,10 +971,9 @@
     min-width: 0;
   }
 
-  /* 竖屏问候行：纯用户名 + 公开徽标 */
+  /* 竖屏问候行：纯用户名 */
   .mobile-composer-section .greeting-full { display: none; }
   .mobile-composer-section .greeting-name { display: inline; }
-  .mobile-composer-section .visibility-badge { display: inline-flex; align-items: center; }
 
   .mobile-composer-section .user-avatar {
     width: 44px;
@@ -1059,7 +996,8 @@
     padding: 6px 0;
     line-height: 1.35;
     color: var(--liquid-text-primary, #1d1d1f);
-    background: transparent;
+    /* 未整理时保持透明；整理态的实色底由 `.is-polishing` 单独给。 */
+    background-color: transparent;
     border: none;
     border-radius: 0;
     backdrop-filter: none;
@@ -1079,7 +1017,8 @@
     line-height: 1.65;
     padding: 6px 0 28px;
     color: var(--liquid-text-primary, #0f1419);
-    background: transparent;
+    /* 只清底色，保留 `.is-polishing` 的文字渐变。 */
+    background-color: transparent;
     border: none;
     border-radius: 0;
     backdrop-filter: none;
@@ -1112,155 +1051,42 @@
     border: 0;
   }
 
-  .mobile-composer-section .post-image-add-more-card {
-    width: 112px;
-    max-width: 112px;
-    border-radius: 20px;
+  .mobile-composer-section .post-btn {
+    display: none;
   }
 
-  .mobile-composer-section .mobile-composer-chip-row {
-    margin-top: 16px;
+  .mobile-composer-section .composer-action-meta {
+    display: none;
+  }
+
+  .mobile-composer-section .composer-actions {
+    display: flex;
+    width: 100%;
+    gap: 2px;
+  }
+
+  .mobile-composer-section .composer-action-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 38px;
+    padding: 0 8px;
+    font-size: 12.5px;
+  }
+
+  .mobile-composer-section .composer-action-btn > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-composer-section .editor-submit-group {
+    display: block;
     width: 100%;
   }
 
-  .mobile-composer-section .mobile-composer-setting-menu {
-    margin: 6px 0 8px;
-  }
-
-  .mobile-composer-section .mobile-post-image-toolbar {
-    display: none;
-  }
-
-  .mobile-composer-section .mobile-post-tool-group {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
-  .mobile-composer-section .mobile-tag-tool-wrap {
-    position: relative;
-    display: inline-flex;
-  }
-
-.mobile-composer-section .mobile-post-tool-btn {
-    width: 44px;
-    height: 44px;
-    border: none;
-    border-radius: 999px;
-    background: transparent;
-    color: #0f1419;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background-color 0.2s, color 0.2s, opacity 0.2s, transform 0.2s;
-  }
-
-  .mobile-composer-section .mobile-post-tool-btn:active:not(:disabled) {
-    transform: scale(0.94);
-    background: rgba(15, 20, 25, 0.08);
-  }
-
-  .mobile-composer-section .mobile-post-tool-btn.active {
-    background: transparent;
-    color: #0f1419;
-  }
-
-  .mobile-composer-section .mobile-post-tool-btn:disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
-  }
-
-  .mobile-composer-section .mobile-tag-tool-btn {
-    width: auto;
-    min-width: 48px;
-    padding: 0 12px;
-    gap: 4px;
-    font-weight: 800;
-  }
-
-  .mobile-composer-section .mobile-tag-tool-btn.active {
-    background: rgba(15, 20, 25, 0.08);
-  }
-
-  .mobile-composer-section .mobile-tag-tool-btn span {
-    font-size: 13px;
-    line-height: 1;
-  }
-
-  .mobile-composer-section .mobile-tag-menu {
-    position: absolute;
+  .mobile-composer-section .composer-tag-menu {
+    right: auto;
     left: 0;
-    bottom: calc(100% + 12px);
-    z-index: 5;
-    width: 188px;
-    padding: 8px;
-    border-radius: 18px;
-    border: 1px solid var(--liquid-border, rgba(255,255,255,0.65));
-    background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
-    backdrop-filter: var(--glass-filter, blur(28px));
-    -webkit-backdrop-filter: var(--glass-filter, blur(28px));
-    box-shadow: 0 18px 44px rgba(15, 20, 25, 0.14), var(--liquid-highlight-subtle);
-    display: grid;
-    gap: 6px;
-  }
-
-  .mobile-composer-section .mobile-tag-menu-item {
-    min-height: 42px;
-    border: none;
-    border-radius: 13px;
-    background: transparent;
-    color: #0f1419;
-    font-size: 15px;
-    font-weight: 800;
-    text-align: left;
-    padding: 0 12px;
-  }
-
-  .mobile-composer-section .mobile-tag-menu-item.active {
-    background: #0f1419;
-    color: #ffffff;
-  }
-
-  .mobile-composer-section .forum-image-add-btn {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
-    border-radius: 999px;
-    background: #0f1419;
-    color: #ffffff;
-    border: none;
-    box-shadow: 0 10px 24px rgba(15, 20, 25, 0.18);
-  }
-
-  .mobile-composer-section .forum-image-add-icon {
-    font-size: 23px;
-    line-height: 1;
-  }
-
-  .mobile-composer-section .forum-image-add-count {
-    display: none;
-  }
-
-  .mobile-composer-section .post-tag-option {
-    flex: 0 0 auto;
-    background: #ffffff;
-    color: #0f1419;
-    border: 1px solid #d8d8dc;
-    min-height: 44px;
-    padding: 0 20px;
-    font-size: 16px;
-  }
-
-  .mobile-composer-section .post-tag-option.active {
-    background: #0f1419;
-    color: #ffffff;
-    box-shadow: none;
-  }
-
-  .mobile-composer-section .post-btn {
-    display: none;
+    width: min(220px, calc(100vw - 32px));
   }
 
   .editor-header {
@@ -1289,43 +1115,12 @@
     gap: 12px;
   }
 
-  .editor-tools {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .checkin-hint {
-    max-width: 100%;
-  }
-
-  .weekly-checkin-btn,
-  .forum-image-tool-btn,
   .post-btn {
     width: 100%;
   }
 
   .editor-submit-group {
     width: 100%;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .desktop-post-image-btn {
-    display: none;
-  }
-
-  .mobile-post-image-toolbar {
-    display: block;
-    margin-top: 14px;
-  }
-
-  .mobile-post-image-btn {
-    width: auto;
-  }
-
-  .forum-image-add-btn {
-    width: auto;
   }
 
   .post-image-preview-grid {
@@ -1586,144 +1381,15 @@
     filter: drop-shadow(0 16px 24px rgba(124, 96, 61, 0.12));
   }
 
-  .inline-checkin-panel {
-    display: none;
-  }
-
-  .mobile-composer-section .inline-checkin-panel {
-    display: flex;
-  }
-
   .mobile-composer-section .post-body-input-group {
-    min-height: 34vh;
+    min-height: 0;
   }
 
   .mobile-composer-section .post-content-input {
-    min-height: 38vh;
+    min-height: 34vh;
+    overflow: visible;
   }
 
-  .mobile-post-image-toolbar {
-    display: block;
-    margin-top: 14px;
-  }
-
-  .mobile-post-image-btn {
-    width: auto;
-  }
-
-  .weekly-checkin-standalone-section {
-    display: block;
-    margin-top: 12px;
-  }
-
-  .weekly-checkin-mobile-card {
-    display: block;
-    position: relative;
-    overflow: hidden;
-    border-radius: 20px;
-    padding: 14px;
-    border: 1px solid rgba(22, 122, 60, 0.18);
-    background: linear-gradient(160deg, #fbfffc 0%, #f1fbf4 100%);
-    box-shadow: 0 10px 20px rgba(29, 94, 58, 0.1);
-    isolation: isolate;
-  }
-
-  .weekly-checkin-mobile-card::before,
-  .weekly-checkin-mobile-card::after {
-    display: none;
-  }
-
-  .weekly-checkin-mobile-card .weekly-checkin-panel {
-    position: relative;
-    z-index: 1;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .weekly-checkin-mobile-card .weekly-checkin-status {
-    min-width: 0;
-    gap: 7px;
-  }
-
-  .weekly-checkin-mobile-card .weekly-checkin-status-skeleton {
-    min-width: 0;
-  }
-
-  .weekly-checkin-mobile-card .checkin-skeleton-title {
-    width: 152px;
-    height: 18px;
-  }
-
-  .weekly-checkin-mobile-card .checkin-skeleton-progress {
-    display: block;
-    width: 100%;
-    height: 8px;
-    border-radius: 999px;
-  }
-
-  .weekly-checkin-mobile-card .checkin-skeleton-line {
-    width: 78%;
-    max-width: 100%;
-    height: 15px;
-  }
-
-  .weekly-checkin-mobile-card .tool-hint {
-    color: #1b3b2a;
-    font-size: 14px;
-    font-weight: 700;
-  }
-
-  .weekly-checkin-mobile-card .checkin-hint {
-    max-width: 100%;
-    color: #456a53;
-    line-height: 1.45;
-  }
-
-  .weekly-checkin-mobile-card .checkin-progress-track {
-    display: block;
-    position: relative;
-    height: 8px;
-    border-radius: 999px;
-    background: #d8efdf;
-    overflow: hidden;
-  }
-
-  .weekly-checkin-mobile-card .checkin-progress-fill {
-    height: 100%;
-    width: 0;
-    border-radius: inherit;
-    transition: width 0.28s ease;
-    background: linear-gradient(90deg, #37c871 0%, #2aa75d 100%);
-    box-shadow: 0 0 10px rgba(42, 167, 93, 0.35);
-  }
-
-  .weekly-checkin-mobile-card .checkin-progress-track.signed {
-    box-shadow: inset 0 0 0 1px rgba(42, 167, 93, 0.35);
-  }
-
-  .weekly-checkin-mobile-card .weekly-checkin-btn {
-    width: 100%;
-    min-height: 46px;
-    border-radius: 14px;
-    border: none;
-    color: #ffffff;
-    font-weight: 800;
-    background: linear-gradient(90deg, #2ebd69 0%, #249f58 100%);
-    box-shadow: 0 10px 18px rgba(42, 167, 93, 0.26);
-  }
-
-  .weekly-checkin-mobile-card .weekly-checkin-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 14px 24px rgba(42, 167, 93, 0.32);
-  }
-
-  .weekly-checkin-mobile-card .weekly-checkin-btn:disabled,
-  .weekly-checkin-mobile-card .weekly-checkin-btn.is-done {
-    background: rgba(232, 237, 244, 0.85);
-    color: #425161;
-    box-shadow: none;
-  }
 }
 
 @media (max-width: 420px) and (orientation: portrait) {
@@ -1759,12 +1425,4 @@
     padding-right: 7px;
   }
 
-  .weekly-checkin-mobile-card .weekly-checkin-panel {
-    gap: 10px;
-  }
-
-  .weekly-checkin-mobile-card {
-    border-radius: 18px;
-    padding: 12px;
-  }
 }

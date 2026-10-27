@@ -2,6 +2,11 @@ export const POSTS_PER_PAGE = 10;
 export const LIST_REPLY_PREVIEW_COUNT = 3;
 export const WEEKLY_CHECKIN_REWARD_POINTS = 5;
 export const FORUM_POST_IMAGE_MAX_COUNT = 6;
+/* 标题上限（2026-10-25 提为单源）：原先是 PostComposer.vue 里的局部常量 `TITLE_MAX_LENGTH`。
+   「智能整理」要对模型下同一个上限（`composables/post-polish.js`），局部常量会让
+   两处各写一份 50 —— 改一处忘另一处就是「模型按 50 生成、输入框按 64 截断」这类错位。
+   与主流社区一致，防止超长标题撑破排版。 */
+export const FORUM_POST_TITLE_MAX_LENGTH = 50;
 /* 草稿只有一份（2026-10-26 产品定稿）：云端 `forum_post_drafts` 为准，本地只是缓存。
    多版本草稿（版本上限 / 历史列表 / 版本恢复）已整体移除，别再引入版本类常量。 */
 export const FORUM_POST_DRAFT_PREFIX = 'boh_forum_post_draft';

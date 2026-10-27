@@ -239,7 +239,6 @@
 .forum-page[data-ui-style="flat"] .hot-tags-card,
 .forum-page[data-ui-style="flat"] .feed-header-v2,
 .forum-page[data-ui-style="flat"] .post-card-v2,
-.forum-page[data-ui-style="flat"] .weekly-checkin-mobile-card,
 .forum-page[data-ui-style="flat"] .checkin-calendar-modal {
   background: #ffffff !important;
   border-color: rgba(15, 23, 42, 0.1) !important;
@@ -250,8 +249,8 @@
 
 .forum-page[data-ui-style="flat"] .search-input,
 .forum-page[data-ui-style="flat"] .reply-textarea-v2,
-.forum-page[data-ui-style="flat"] .post-title-input,
-.forum-page[data-ui-style="flat"] .post-content-input,
+.forum-page[data-ui-style="flat"] .post-title-input:not(.is-polishing),
+.forum-page[data-ui-style="flat"] .post-content-input:not(.is-polishing),
 .forum-page[data-ui-style="flat"] .filter-btn-v2,
 .forum-page[data-ui-style="flat"] .tag-filter-btn,
 .forum-page[data-ui-style="flat"] .ai-search-status {
@@ -324,7 +323,6 @@
 .forum-page[data-theme="home-cat"] .hot-tags-card,
 .forum-page[data-theme="home-cat"] .feed-header-v2,
 .forum-page[data-theme="home-cat"] .post-card-v2,
-.forum-page[data-theme="home-cat"] .weekly-checkin-mobile-card,
 .forum-page[data-theme="home-cat"] .checkin-calendar-modal {
   background: rgba(255, 255, 255, 0.82) !important;
   border-color: rgba(232, 222, 209, 0.95) !important;
@@ -354,8 +352,8 @@
 
 .forum-page[data-theme="home-cat"] .search-input,
 .forum-page[data-theme="home-cat"] .reply-textarea-v2,
-.forum-page[data-theme="home-cat"] .post-title-input,
-.forum-page[data-theme="home-cat"] .post-content-input,
+.forum-page[data-theme="home-cat"] .post-title-input:not(.is-polishing),
+.forum-page[data-theme="home-cat"] .post-content-input:not(.is-polishing),
 .forum-page[data-theme="home-cat"] .filter-btn-v2,
 .forum-page[data-theme="home-cat"] .tag-filter-btn,
 .forum-page[data-theme="home-cat"] .ai-search-status {
@@ -461,7 +459,6 @@
 .forum-page[data-theme="dark"][data-ui-style="flat"] .hot-tags-card,
 .forum-page[data-theme="dark"][data-ui-style="flat"] .feed-header-v2,
 .forum-page[data-theme="dark"][data-ui-style="flat"] .post-card-v2,
-.forum-page[data-theme="dark"][data-ui-style="flat"] .weekly-checkin-mobile-card,
 .forum-page[data-theme="dark"][data-ui-style="flat"] .checkin-calendar-modal {
   background: #1a1a24 !important;
   border-color: rgba(255, 255, 255, 0.11) !important;
@@ -472,8 +469,8 @@
 
 .forum-page[data-theme="dark"][data-ui-style="flat"] .search-input,
 .forum-page[data-theme="dark"][data-ui-style="flat"] .reply-textarea-v2,
-.forum-page[data-theme="dark"][data-ui-style="flat"] .post-title-input,
-.forum-page[data-theme="dark"][data-ui-style="flat"] .post-content-input,
+.forum-page[data-theme="dark"][data-ui-style="flat"] .post-title-input:not(.is-polishing),
+.forum-page[data-theme="dark"][data-ui-style="flat"] .post-content-input:not(.is-polishing),
 .forum-page[data-theme="dark"][data-ui-style="flat"] .filter-btn-v2,
 .forum-page[data-theme="dark"][data-ui-style="flat"] .tag-filter-btn,
 .forum-page[data-theme="dark"][data-ui-style="flat"] .ai-search-status {
@@ -594,10 +591,10 @@
     -webkit-backdrop-filter: none !important;
   }
 
-  .forum-page[data-ui-style="flat"] .mobile-composer-section .post-title-input,
-  .forum-page[data-ui-style="flat"] .mobile-composer-section .post-content-input,
-  .forum-page .mobile-composer-section .post-title-input,
-  .forum-page .mobile-composer-section .post-content-input {
+  .forum-page[data-ui-style="flat"] .mobile-composer-section .post-title-input:not(.is-polishing),
+  .forum-page[data-ui-style="flat"] .mobile-composer-section .post-content-input:not(.is-polishing),
+  .forum-page .mobile-composer-section .post-title-input:not(.is-polishing),
+  .forum-page .mobile-composer-section .post-content-input:not(.is-polishing) {
     background: transparent !important;
   }
 }

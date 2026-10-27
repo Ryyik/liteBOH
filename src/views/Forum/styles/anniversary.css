@@ -155,7 +155,6 @@
 .forum-page[data-anniversary-skin="active"] .hot-tags-card,
 .forum-page[data-anniversary-skin="active"] .feed-header-v2,
 .forum-page[data-anniversary-skin="active"] .post-card-v2,
-.forum-page[data-anniversary-skin="active"] .weekly-checkin-mobile-card,
 .forum-page[data-anniversary-skin="active"] .forum-toolbar {
   border: 1px solid var(--mc-line) !important;
   border-radius: 6px !important;

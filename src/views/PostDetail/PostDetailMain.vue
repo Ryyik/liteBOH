@@ -146,7 +146,7 @@ const editRemovedExistingIds = ref(new Set());
 const isEditSubmitting = ref(false);
 const isEditUploadingPostImage = ref(false);
 const editImageUploadStatus = ref('');
-// 竖屏编辑器形态：单源判据（与 ForumMain 的 isMobileComposerMode 同源），变化由订阅驱动
+// 竖屏编辑器形态：单源判据（与论坛的竖屏发布排版同源），变化由订阅驱动
 const isEditPortrait = ref(typeof window !== 'undefined' ? isForumPortraitComposer() : false);
 
 /**

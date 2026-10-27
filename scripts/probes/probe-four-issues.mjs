@@ -107,7 +107,7 @@ const visible = `(el) => {
   const home = await page.evaluate(() => ({
     hash: location.hash,
     editShell: Boolean(document.querySelector('.profile-edit-page-shell')),
-    settingsHome: /绑定邮箱|外观与浏览/.test(document.body.innerText)
+    settingsHome: /登录邮箱|账户与隐私/.test(document.body.innerText)
   }));
   check('A3 设置 tab 默认落设置首页（分区分级不被粘住）', !home.editShell && home.settingsHome, JSON.stringify(home));
   check('A 无 JS 错误', errors.length === 0, errors.join(' | '));

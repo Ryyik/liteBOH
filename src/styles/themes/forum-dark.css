@@ -74,7 +74,14 @@
 .forum-page[data-theme='dark'] .post-title-input,
 [data-theme='dark'] .forum-page .post-title-input {
   color: #ffffff !important;
-  background: transparent !important;
+  /* ⚠️ 必须写 background-color，不能写 background 简写：
+     「智能整理」的文字流光在 `.post-title-input.is-polishing` 上用
+     background-image + background-clip: text 绘制字形，简写会连同
+     background-image / background-clip 一起重置。又因为这里是 !important，
+     流光规则即使特异性更高也只能拿到 `background-image: none`。
+     症状不是「暗色下没动画」，而是文字被 -webkit-text-fill-color: transparent
+     抽空、整段几乎不可见。 */
+  background-color: transparent !important;
   border-color: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -89,7 +96,8 @@
 .forum-page[data-theme='dark'] .post-content-input,
 [data-theme='dark'] .forum-page .post-content-input {
   color: #e4e4e8 !important;
-  background: transparent !important;
+  /* 同标题：只清底色，保留文字流光的 background-image。 */
+  background-color: transparent !important;
   border-color: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -104,7 +112,7 @@
 [data-theme='dark'] .forum-page .post-title-input:focus,
 .forum-page[data-theme='dark'] .post-content-input:focus,
 [data-theme='dark'] .forum-page .post-content-input:focus {
-  background: transparent !important;
+  background-color: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
 }
@@ -143,8 +151,24 @@
   background: rgba(40, 40, 52, 0.84) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
-.forum-page[data-theme='dark'] .desktop-post-tools,
-[data-theme='dark'] .forum-page .desktop-post-tools {
+/* AI 整理（2026-10-26 第五轮）：流光直接画在 `.post-title-input.is-polishing` /
+   `.post-content-input.is-polishing` 的字形上。暗色档的三档文字色在
+   `post-polish-sweep.css` 的 `:root[data-theme='dark']` 中统一定义；
+   本文件只保留工具按钮的选中态，并确保通用 textarea 规则带
+   `:not(.is-polishing)` 放行口，不重置流光的 `background-image` / `background-clip`。
+   ⚠️ 选择器必须用 `:root[data-theme='dark']` 前缀，不能像上面几条那样写
+   `[data-theme='dark'] .forum-page …`：竖屏发布会话被 Teleport 到 **body**
+   （实测祖先链 overlay → body → html，中间没有任何 `.forum-page`），
+   而 `data-theme` 只挂在 `html` 上 ⇒ 带 `.forum-page` 的选择器一个都匹配不上。 */
+/* 处理态底色必须是透明。`background-clip: text` 会把 background-color
+   也一起裁进字形 —— 这里若填实色，重绘时会直接得到一整段实色文字。
+   渐变的兜底交给 post-polish-sweep.css 的灰阶色阶，不靠底色。 */
+:root[data-theme='dark'] .post-title-input.is-polishing,
+:root[data-theme='dark'] .post-content-input.is-polishing {
+  background-color: transparent !important;
+}
+
+:root[data-theme='dark'] .composer-actions {
   background: rgba(40, 40, 52, 0.58) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
@@ -322,19 +346,6 @@
 [data-theme='dark'] .forum-page .search-input:focus {
   border-color: rgba(59, 130, 246, 0.5) !important;
   box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15) !important;
-}
-
-.forum-page[data-theme='dark'] .post-tag-option,
-[data-theme='dark'] .forum-page .post-tag-option {
-  background: #2a2a3a !important;
-  color: #a1a1aa !important;
-  border-color: rgba(255, 255, 255, 0.08) !important;
-}
-
-.forum-page[data-theme='dark'] .post-tag-option.active,
-[data-theme='dark'] .forum-page .post-tag-option.active {
-  background: #ffffff !important;
-  color: #0d0d12 !important;
 }
 
 .forum-page[data-theme='dark'] .post-card-tag,
@@ -606,15 +617,6 @@
   color: #f2f5f8 !important;
 }
 
-/* composer 工具 chips 激活态：发布会话 overlay 被 Teleport 到 body，
-   继承不到 .forum-page 级变量 → 用本选择器直接命中 chip 覆盖类内默认值
-   （特异性 (0,2,1) > composer.css 编译后的 .mobile-composer-chip[data-v-x] (0,2,0)，无需 important） */
-[data-theme='dark'] button.mobile-composer-chip {
-  --chip-active-bg: rgba(98, 176, 255, 0.16);
-  --chip-active-border: rgba(98, 176, 255, 0.42);
-  --chip-active-text: #62b0ff;
-}
-
 /* GlassPillButton（ui/GlassPillButton.vue）暗色材质：组件亮色为默认，
    变量在组件内经 var(--glass-pill-*) 引用，这里按主题覆盖；
    html 级选择器同时覆盖论坛页与 Teleport 到 body 的发布会话 */
@@ -643,7 +645,7 @@
 }
 
 [data-theme='dark'] .forum-page input,
-[data-theme='dark'] .forum-page textarea,
+[data-theme='dark'] .forum-page textarea:not(.is-polishing),
 [data-theme='dark'] .forum-page select {
   background: rgba(32, 43, 56, 0.96) !important;
   color: #f2f5f8 !important;

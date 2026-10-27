@@ -34,6 +34,22 @@
   
   --boh-glass-bg: rgba(255, 255, 255, 0.75);
   --boh-glass-border: rgba(0, 0, 0, 0.05);
+
+  /* ── 发帖「AI 整理」文字流光（2026-10-26 第五轮）────────────────────────
+     用户口径：第二版四边彩色光环「有点丑」→「改成文字黑白流动」→
+     「直接改成文字流光（整理的时候）」。
+
+     ⚠️ 这里**不再有**那 13 条 BOHAI 彩光别名（九色 + 四档高光），也不再有两档
+        光晕变量。彩环整体下线，别名留着只会让下一个人以为「彩光还在，只是没启用」。
+        （BOHAI 自己的 `--boh-beam-*` 不动 —— 那是输入框边界光束，另一件事。）
+        ⚠️ 本注释**不复述**那批被下线的变量名：单测里有一条否定断言查的就是
+        「这些名字不许再出现」，注释里写一遍就会把它自己满足掉 —— 那是本仓
+        踩过的假绿，别再踩。
+
+     ⚠️ **亮/暗两档都不在这里**：三档文字色写在 `post-polish-sweep.css` 的
+        `:root` / `:root[data-theme='dark']` 里。理由：这个文件按需加载，
+        两个文件各写一条 `:root` 级规则，谁赢取决于加载顺序 —— 那种「看运气」
+        的覆盖迟早出事。 */
 }
 
 /* 深色模式覆盖 */
@@ -74,6 +90,29 @@
   
   --boh-glass-bg: rgba(30, 30, 40, 0.75);
   --boh-glass-border: rgba(255, 255, 255, 0.08);
+
+  /* AI 整理结果面板（2026-10-25，发帖编辑器的 .composer-polish-panel / .composer-polish-apply）。
+     亮色档在 forum-dark.css 里是「淡灰填充 + 灰描边」——白底上必须靠中性灰立轮廓，
+     玻璃那套白半透明在编辑器白卡上等于隐形（liquid-glass-spec.js 文件头两次事故）。
+     暗色档反向取值，由 forum-dark.css 的暗色规则 var() 引用，不写裸值。 */
+  --boh-surface-subtle: rgba(255, 255, 255, 0.08);
+  --boh-surface-subtle-border: rgba(255, 255, 255, 0.14);
+
+  /* 流光边框的暗色档（post-polish-beam.css）。这组值对应 demo 的原生环境（深色底），
+     亮芯是纯白、外晕偏冷紫；亮色档不需要 token（同一个渐变在白底上要压暗，
+     那组值直接写在该文件的默认规则里 —— 它不是「暗色补充」而是「亮色专用」）。
+     ⚠️ 五个色标必须一起改：它们是同一条 conic 渐变上的位置相关色，
+        单独调一个会让亮芯与缓坡脱节。 */
+  --boh-beam-fade-1: rgba(120, 160, 255, 0.08);
+  --boh-beam-fade-2: rgba(140, 170, 255, 0.3);
+  --boh-beam-rise: rgba(160, 150, 255, 0.6);
+  --boh-beam-near-core: rgba(210, 200, 255, 0.92);
+  --boh-beam-core: rgba(255, 255, 255, 1);
+  --boh-beam-ring-1: rgba(110, 150, 255, 0.5);
+  --boh-beam-ring-2: rgba(150, 120, 255, 0.45);
+
+  /* 发帖「AI 整理」文字流光的暗色档 —— **不在这里**，见 `:root` 那段最后一条注释
+     （写在 `post-polish-sweep.css` 的 `:root[data-theme='dark']` 里）。 */
 }
 
 /* Keep framework tokens in sync with the runtime theme. A number of pages use
