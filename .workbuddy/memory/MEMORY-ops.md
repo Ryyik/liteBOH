@@ -2,7 +2,7 @@
 > 主文件是 `MEMORY.md`（常驻注入）。本册按需读取 —— 动 Supabase/EF/CI/Cloud+/图片列/游戏 时先读这里。
 
 ## Supabase / 网络
-- ref `nplnlefdwfgtyimfkyih`；SMTP 走 Brevo（smtp-relay.brevo.com:587；key 90 天不活跃回收，探活 `POST /auth/v1/recover` 期待 200+`{}`；保活＝mail-keepalive EF + 每月 pg_cron，运维单点 `scripts/mail-keepalive-ops.mjs`）。
+- ref `nplnlefdwfgtyimfkyih`；SMTP 走 Brevo（smtp-relay.brevo.com:587；key 90 天不活跃回收，探活 `POST /auth/v1/recover` 期待 200+`{}`；保活＝mail-keepalive EF + 每日巡检/每月兜底两条 pg_cron，运维单点 `scripts/mail-keepalive-ops.mjs`）。
 - ⚠️ EF 部署：① **CLI（2026-10-16 实证）**：`supabase functions deploy <slug> --use-api` 本机可用（无 config.toml 也行，靠 `supabase/.temp/project-ref`）；部署前先 `functions download <slug>` + diff 校验部署面（plans/024 纪律）。② admin-API 路线见下条。`/secrets` GET 读回值 ≠ EF env。
 - ⚠️ 本机→`*.supabase.co` **直连不通**（沙箱代理 TLS reset + 直连 reset；浏览器 / `api.supabase.com` / `api.siliconflow.cn` 均通）⇒ 触发 EF 与端到端冒烟走 **Management API + pg_net**：`select net.http_post(url:=…, body:=…::jsonb, headers:=…::jsonb, timeout_milliseconds:=120000)` → 轮询 `net._http_response where id=<request_id>`（status_code 非空即回）。**`x-` 头经 headers JSONB 实测可过**（`x-retrieval-sync-secret`，sync+search 双验证）—— 旧注记「x- 头过不了 pg_net→EF」不成立；若丢头先查 `net._http_response.error_msg`。
 - 检索链路密钥（2026-10-16 已设）：`SILICON_CLOUD_API_KEY` + `BOH_AI_RETRIEVAL_SYNC_SECRET`（`boh-ai-forum-memory` 读同一把）；`boh-ai-retrieval` v33 = 提交树（重排默认 `BAAI/bge-reranker-v2-m3`）。
@@ -34,12 +34,23 @@
 - 护栏：probe:cafe-layout(21)、probe:cafe-mechanics(30+)、cafe-steps(23)、cafe-cat(13)、cafe-round(9)。
 
 ## 邮件链路保活（Brevo SMTP key 90 天不活跃会回收）
-- 真源：`supabase/functions/mail-keepalive` + pg_cron `boh_mail_keepalive_monthly`（**jobid 24**，`0 1 8 * *` = 每月 8 号 01:00 UTC），
-  运维/验证走 `scripts/mail-keepalive-ops.mjs`（`--verify` 只读 8 项、`--trigger` 真发一封）。
-- ⚠️ **cron 不在迁移里注册**（`2026100801_mail_keepalive.sql` 只建表），靠 `--cron` 把 service key 与 token 烘焙进命令文本
-  ⇒ token 轮换后**必须重跑 `--cron`**，否则自动执行静默 401。
-- ⚠️ `cron.job_run_details` 为空 **≠ 任务坏了**：排期是每月 8 号，10-08 注册 ⇒ 首次自动执行 11-08；先看排期再判死。
+- 真源：`supabase/functions/mail-keepalive` + **两条** pg_cron（2026-10-27 改）：
+  · `boh_mail_keepalive_watchdog`（`0 1 * * *` 每日，**主通道**）：命令里带
+    `where coalesce(max(triggered_at) where ok, epoch) < now() - interval '21 days'`
+    ⇒ 健康时不发信、失败次日自愈重试；90 天窗口 ≈ 90 次机会。
+  · `boh_mail_keepalive_monthly`（`0 1 8 * *`，**jobid 24**，兜底）：巡检命令被写坏时日历仍响一次。
+  口径常量 + SQL 生成器单源 `scripts/lib/mail-keepalive-policy.mjs`（`KEEPALIVE_STALE_DAYS=21`）。
+- 运维：`npm run mail:verify`（12 项只读）/ `npm run mail:health`（异常 exit 1）/ `npm run mail:watchdog`（只重注册巡检，不轮换）。
+- ⚠️ **cron 不在迁移里注册**（`2026100801_mail_keepalive.sql` 只建表），靠 `--cron` 把 token 烘焙进命令文本
+  ⇒ token 轮换后**必须重跑 `--cron`**（它现在会**同时**重写两条 job）；只换一边 ⇒ 巡检天天 401。
+- ⚠️ **固定日历不够**（2026-10-27 事故）：月度 job 上线 19 天 `cron.job_run_details` **0 条**（首排期 11-08），
+  底账 9 行只 1 行真成功（手工打的）。「有没有生效」无从验证 = 比坏更危险。
+- ⚠️ **告警不依赖邮件**：连败 2 次「真实尝试」⇒ 写 `profiles.role='admin'` 的 `type='system'` 站内信，
+  `notifications` 的 `trg_notifications_enqueue_web_push` 自动排浏览器推送（去重 20h）。
+  「真实尝试」用 `recipient <> ''` 区分 —— 鉴权失败留痕的 recipient 是空串（外部扫描器打的，别算成失败）。
+- ✅ 已实测：pg_cron 的 `SPI_execute` **确实执行多语句命令**（`status=succeeded` / `return_message=INSERT 0 0`），
+  不需要包 `DO $$`；阈值压 0 天真跑一次 → 底账 ok=true/200。
 - ⚠️ **本机 DNS 解析不到 `*.supabase.co`**（HTTP 000 / ECONNRESET，`api.supabase.com` 正常）⇒ 不能本地直调 EF；
-  端到端验证的做法：建**一次性 pg_cron 任务**（`to_char(now()+interval '2 minutes','MI HH24 DD MM')||' *'`，复用 job 24 的命令原文，
-  具体日期而非 `* * * * *` 兜底），跑完 `cron.unschedule`。2026-10-27 实测通过：底账 HTTP 200 / ok=true。
+  端到端验证的做法：建**一次性 pg_cron 任务**（`to_char(now()+interval '2 minutes','MI HH24 DD MM')||' *'`，
+  复用 job 命令原文，具体日期而非 `* * * * *` 兜底），跑完 `cron.unschedule`。
 - WorkBuddy 侧的「邮件链路保活体检」自动化**已不存在**（记录停在 2026-10-01，automation list 为空），别再指望它兜底。
