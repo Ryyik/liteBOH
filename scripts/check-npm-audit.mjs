@@ -15,6 +15,7 @@
  * ## 用法
  *
  *   node scripts/check-npm-audit.mjs              # 对比基线，任一档位数量上升即 exit 1
+ *   node scripts/check-npm-audit.mjs --advisory   # 同上判定，但只告警不阻断（exit 0）
  *   node scripts/check-npm-audit.mjs --update     # 以当前状态重写基线（降完依赖后用）
  *   node scripts/check-npm-audit.mjs --from-json <path>   # 回放一份已保存的 npm audit --json 报告
  *
@@ -26,6 +27,23 @@
  *
  * 已接入 `.github/workflows/ci.yml` 的 `quality` job（**CI 有网络**，能跑真 audit）。
  * 本地跑需要网络；拿不到结果时**告警 + exit 0**（不阻断本地开发）。
+ *
+ * ## 为什么分成「严格档 / 告警档」（2026-10-27 加）
+ *
+ * 这道门禁的判据不是本仓代码，而是 **npm 公告库**：同一份 lock，昨天绿、今天红。
+ * 2026-10-27 实证 —— 三条新公告（fast-uri / esbuild / serialize-javascript）同时发布，
+ * 把一次与依赖毫无关系的推送卡红，`main` 一直红到有人手动升包为止。
+ *
+ * 这类失败有两个特征，决定了不能一律阻断：
+ *   1. **与推送内容无关**：改一行 CSS 也会红，作者无从下手，久了就学会无视（比没门禁更糟）；
+ *   2. **必然周期性复发**：本仓 800+ 个包，任何一天都可能有新公告。
+ *
+ * 所以分两档（决策在 ci.yml，不在本脚本）：
+ *   · **严格档**：本次推送动了 `package.json` / `package-lock.json` ⇒ 谁动依赖谁清账，必须红；
+ *   · **告警档**：没动依赖 ⇒ `--advisory`，只在 Actions 里打 annotation + step summary，不阻断；
+ *     新公告由**每日定时审计**（`.github/workflows/audit-scheduled.yml`）兜底并开 issue。
+ *
+ * 净效果：**「新增漏洞」这件事仍然一定会被发现，但不再阻塞无关工作**。
  *
  * ## 2026-10-17 清账（P1-7）：high 3 → 0，基线同时下调
  *
@@ -50,8 +68,9 @@
  *   不值。基线保留 1。
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { decideScope, SCOPE_ADVISORY } from './lib/audit-scope.mjs';
 
 const ROOT = process.cwd();
 const BASELINE_FILE = join(ROOT, 'scripts', 'npm-audit-baseline.json');
@@ -62,11 +81,53 @@ const readFlag = (name) => {
   return i === -1 ? '' : String(argv[i + 1] || '');
 };
 const UPDATE = argv.includes('--update');
-const REPORT_PATH =
-  readFlag('--from-json') || String(process.env.BOH_NPM_AUDIT_REPORT || '').trim();
+// 告警档：判定逻辑完全相同，只是「有新增」时不阻断（见文件头「严格档 / 告警档」）。
+const ADVISORY_FLAG = argv.includes('--advisory');
+// CI 档：由「本次推送有没有动依赖清单」自己决定严格还是告警（判定在 lib/audit-scope.mjs）。
+const CI_SCOPE = argv.includes('--ci-scope');
+
+/** GitHub compare 的 files 上限；达到即视为截断。 */
+const CI_MAX_FILES = 300;
 
 const LEVELS = ['critical', 'high', 'moderate', 'low'];
 const warn = (...a) => console.warn(...a);
+
+/** 读 CI 环境（compare API 服务端比对，不需要本地 git 历史 —— 本仓 .git 有 480MB，不能全量 fetch）。 */
+const resolveCiScope = () => {
+  const base = String(process.env.BASE_SHA || '').trim();
+  const head = String(process.env.GITHUB_SHA || '').trim();
+  const repo = String(process.env.GITHUB_REPOSITORY || '').trim();
+  const ZERO = '0'.repeat(40);
+  if (!base || base === ZERO || !head || !repo) {
+    warn(
+      '[security:audit] ⚠️ --ci-scope：拿不到 BASE_SHA / GITHUB_SHA / GITHUB_REPOSITORY ⇒ 告警档（由每日定时审计兜底）。',
+    );
+    return SCOPE_ADVISORY;
+  }
+  try {
+    const raw = execFileSync('gh', ['api', `repos/${repo}/compare/${base}...${head}`], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const files = (JSON.parse(raw).files || []).map((f) => f.filename);
+    const truncated = files.length >= CI_MAX_FILES;
+    const scope = decideScope(files, { truncated });
+    console.log(
+      `[security:audit] 变更域：${files.length} 个文件${truncated ? '（列表已截断，按严格处理）' : ''}` +
+        ` ⇒ ${scope === SCOPE_ADVISORY ? '告警档（未改动依赖清单）' : '严格档（改动了依赖清单）'}`,
+    );
+    return scope;
+  } catch {
+    warn(
+      '[security:audit] ⚠️ --ci-scope：gh compare 不可用（无网络 / 权限）⇒ 告警档（由每日定时审计兜底）。',
+    );
+    return SCOPE_ADVISORY;
+  }
+};
+
+const ADVISORY = CI_SCOPE ? resolveCiScope() === SCOPE_ADVISORY : ADVISORY_FLAG;
+const REPORT_PATH =
+  readFlag('--from-json') || String(process.env.BOH_NPM_AUDIT_REPORT || '').trim();
 
 const countByLevel = (report) => {
   const v = report?.metadata?.vulnerabilities || {};
@@ -162,8 +223,47 @@ if (!regressions.length) {
 
 console.error(`\n[security:audit] ❌ 依赖漏洞新增：`);
 for (const r of regressions) console.error(`      ${r.level}: ${r.base} → ${r.now}`);
-console.error(
-  '\n  先试 `npm audit fix`（非 force）；修完跑 `npm run security:audit:update` 下调基线。',
-);
-console.error('  ⚠️ `npm audit fix --force` 是破坏性升级，必须单独一次提交并跑全量 verify。');
+
+const FIX_HINTS = [
+  '  先试 `npm audit fix`（非 force）；修完跑 `npm run security:audit:update` 下调基线。',
+  '  ⚠️ `npm audit fix --force` 是破坏性升级，必须单独一次提交并跑全量 verify。',
+];
+
+// 告警档：不阻断，但必须在 Actions 里留下可见痕迹（annotation + step summary），
+// 否则「静默变黄」和「静默变绿」是同一种病 —— 本仓在 check:dark-tokens 上吃过这个亏。
+if (ADVISORY) {
+  for (const line of FIX_HINTS) console.error(line);
+  const oneLine = regressions.map((r) => `${r.level} ${r.base}→${r.now}`).join('；');
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    console.error(
+      `::warning title=Dependency audit（告警档，未阻断）::依赖漏洞新增：${oneLine}。详情见本步骤 Summary。`,
+    );
+  }
+  const summaryPath = String(process.env.GITHUB_STEP_SUMMARY || '').trim();
+  if (summaryPath) {
+    const rows = regressions
+      .map((r) => `| ${r.level} | ${r.base} | ${r.now} | ❌ 新增 |`)
+      .join('\n');
+    appendFileSync(
+      summaryPath,
+      [
+        '',
+        '### ⚠️ 依赖漏洞棘轮：告警档（本次未改动依赖清单，故不阻断）',
+        '',
+        '| 级别 | 基线 | 当前 | 判定 |',
+        '|---|---|---|---|',
+        rows,
+        '',
+        '这类新增通常来自 npm 新发布的公告，与本次改动无关。',
+        '跟踪与清账由每日定时审计（`.github/workflows/audit-scheduled.yml`）负责：',
+        '它跑严格档，判红会自动开 issue。空档期跑 `npm audit fix` 升包后再 `security:audit:update` 下调基线。',
+        '',
+      ].join('\n'),
+    );
+  }
+  console.warn('\n[security:audit] ⚠️ 告警档：本次未改动依赖清单，不做阻断。');
+  process.exit(0);
+}
+
+for (const line of FIX_HINTS) console.error(line);
 process.exit(1);

@@ -16,6 +16,10 @@ concurrency:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    # 审计步骤要调 `gh api .../compare` 判定变更域 ⇒ 显式要 contents: read，
+    # 不依赖仓库级的默认 token 权限（默认收紧过一次，踩了就是静默降级成告警档）。
+    permissions:
+      contents: read
     env:
       # VITE_* 是前端构建期常量，跑不掉：缺了的话 build / type-check 拿到空串，
       # check:first-paint 与依赖扫描的结果会失真。url 和 anon key 本身就是可公开的
@@ -41,11 +45,22 @@ jobs:
 
       - name: Dependency audit (ratchet)
         # 2026-10-04 新增：依赖漏洞**棘轮**（scripts/check-npm-audit.mjs）。
-        # 为什么不用 `npm audit --audit-level=high` 直接卡阈值：当前还剩 3 个 high 需要
-        # `npm audit fix --force`（破坏性升级）才能修，卡阈值会**永远红** ——
+        # 为什么不用 `npm audit --audit-level=high` 直接卡阈值：卡阈值会**永远红** ——
         # 红久了就没人看了，比没有门禁更糟。所以沿用本仓棘轮套路：存量锁死、只许降不许升。
         # 基线在 scripts/npm-audit-baseline.json；降完依赖跑 `npm run security:audit:update` 下调。
-        run: npm run security:audit
+        #
+        # 2026-10-27 起改为**按变更域分档**（判定在 scripts/lib/audit-scope.mjs，有单测）：
+        #   · 本次推送改了 package.json / package-lock.json ⇒ 严格档，谁动依赖谁清账；
+        #   · 没改 ⇒ 告警档，只打 annotation + step summary，**不阻断**。
+        # 起因：这条门禁的判据是 npm 公告库，不是本仓代码 —— 同一份 lock 昨天绿、今天红。
+        # 10-27 三条新公告（fast-uri / esbuild / serialize-javascript）把一次纯 CSS 推送卡红，
+        # main 一直红到有人手动升包。这类失败与作者改动无关，一律阻断只会教人无视门禁。
+        # 新公告的跟踪由 .github/workflows/audit-scheduled.yml 兜底（每日严格档 + 自动开 issue）。
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PR 事件没有 event.before，用基分支 sha；push 事件反过来。缺值时脚本降为告警档。
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: npm run security:audit:ci
 
       - name: Lint
         run: npm run lint

@@ -6,7 +6,7 @@
 ## 0. 项目一句话
 
 Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH」，迭代代号 Beta 2.5 / Beta 6。
-`src/` 569 个源文件（.vue/.js/.ts），265 个脚本（`scripts/*.mjs` 57 + `scripts/probes/*.mjs` 208），254 个单元测试文件。
+`src/` 569 个源文件（.vue/.js/.ts），265 个脚本（`scripts/*.mjs` 57 + `scripts/probes/*.mjs` 208），255 个单元测试文件。
 （2026-10-20 随活动页与节目页并入 /newsroom 退场下调；这三个数由 `npm run check:doc-truth` 实时对账，写错/过时会被 verify 拦下——别手改估计值。）
 
 三条最高纲领：
@@ -47,7 +47,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 
 > ⭐ **CI 侧四件**：CodeQL（`security-extended`，每周一定时跑）、Dependabot（minor/patch 分组、**major 一律人工**）、
 > `deno check`（**2026-10-13 起为阻断门禁** —— 不许把 `continue-on-error` 加回来）、
-> `security:audit`（依赖漏洞棘轮，基线 `scripts/npm-audit-baseline.json`，降完跑 `security:audit:update`）。
+> `security:audit`（依赖漏洞棘轮；**改依赖清单才阻断、否则告警**，新公告由每日定时审计开 issue 兜底）。
 > 四者的取舍与侦察依据 → `docs/gate-matrix.md` §A 与 `docs/2026-10-04-GitHub开源可引入方案调研.md` §8。
 
 > ⚠️ **`verify` 绿 ≠ 干净**：`npm run lint` 带 `--max-warnings`（**现为 90**，以 `package.json` 现值为准；

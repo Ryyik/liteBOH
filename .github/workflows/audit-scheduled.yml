@@ -1,0 +1,95 @@
+name: Dependency Audit (scheduled)
+
+# 每日严格依赖审计 —— 与 ci.yml 的分工：
+#
+#   ci.yml 的审计按**变更域**分档（改了依赖清单才阻断），因为 npm 公告是外部时间线，
+#   不能让它卡住无关改动。代价是：某天冒出来的新公告，在下一次改依赖之前不会把 main 判红。
+#   本工作流就是那个兜底 —— 每天跑一次严格档，把「有新公告」变成一条 issue。
+#
+# 为什么不把它塞进 ci.yml：那样又会变成「每次推送都阻断」，正是要解决的问题。
+# 定时任务红了不会挡住任何人，但 GitHub 会给仓库所有者发失败通知，且下面的步骤会开 issue。
+
+on:
+  schedule:
+    # 01:00 UTC = 09:00 CST。避开整点（GitHub 的调度在整点最拥堵，常延迟十几分钟）。
+    - cron: '7 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# 定时任务不并发；手动触发同理。
+concurrency:
+  group: audit-scheduled
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: 严格审计（判红则开/更新 issue，并让本次运行失败）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          TITLE="依赖漏洞棘轮判红（新公告）"
+
+          npm run security:audit > audit.log 2>&1
+          code=$?
+          cat audit.log
+
+          find_issue() {
+            gh issue list --state open --search "$TITLE in:title" --json number \
+              --jq '.[0].number // empty'
+          }
+
+          if [ "$code" -ne 0 ]; then
+            {
+              echo "每日定时依赖审计（**严格档**）判红。"
+              echo
+              echo "这类失败通常来自 **npm 新发布的公告**，与本地改动无关 —— 同一份 lock 昨天绿、今天红。"
+              echo "它不再阻塞任何推送（ci.yml 已按变更域分档），所以需要在这里跟踪。"
+              echo
+              echo "- 运行记录：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              echo "- 提交：\`${GITHUB_SHA}\`"
+              echo
+              echo '```'
+              tail -40 audit.log
+              echo '```'
+              echo
+              echo "处置：\`npm audit fix\`（**非 force**）→ \`npm run security:audit:update\` 下调基线 → 单独一次提交。"
+              echo "\`npm audit fix --force\` 是破坏性升级，必须单独提交并跑全量 \`npm run verify\`。"
+              echo
+              echo "若确认不可修（上游无修复版）或可达性为零，走基线登记，并在 \`scripts/check-npm-audit.mjs\` 头部写清理由。"
+            } > issue-body.md
+
+            num=$(find_issue)
+            if [ -n "$num" ]; then
+              # 用「更新正文」而不是「追加评论」：漏洞不修就会天天红，
+              # 评论会堆成几十条噪声，而正文始终是当前状态。
+              # 通知渠道靠 GitHub 对定时任务失败的邮件通知（不依赖评论）。
+              gh issue edit "$num" --body-file issue-body.md
+            else
+              gh issue create --title "$TITLE" --body-file issue-body.md
+            fi
+            exit "$code"
+          fi
+
+          # 恢复干净后自动关掉还开着的追踪 issue，避免留一条陈旧待办。
+          num=$(find_issue)
+          if [ -n "$num" ]; then
+            gh issue close "$num" --comment "每日定时审计已重新通过（0 新增），自动关闭。"
+          fi

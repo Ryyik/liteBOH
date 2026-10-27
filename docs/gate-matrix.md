@@ -56,7 +56,7 @@
 > | **CodeQL** | `.github/workflows/codeql.yml` | 本仓是 **public** ⇒ 免费。此前**零 SAST**。用 `security-extended`；每周一定时跑（新规则 × 存量代码）。 |
 > | **Dependabot** | `.github/dependabot.yml` | 此前无依赖自动更新。minor/patch 分组、**major 一律人工**、限 5 个 PR。 |
 > | **`deno check`** | `.github/workflows/deno-check.yml` | 补上「沙箱没有 deno ⇒ 改 EF 只能人工 review」这个缺口 —— **本地装不了 deno，但 CI 能装**（2026-10-16 复核：本地已可装 —— dl.deno.land 直下解压即用，推送前可本地预验 EF；原「本地装不了」结论作废）。✅ **2026-10-13 转正为阻断门禁**：观察档（`continue-on-error: true`）在 main 上连续跑绿（run 37759043572 / 37754022262 均 success），该行已删；现在任一 EF 类型检查失败即红。若转正后冒出既有类型错，逐条修或加 baseline，**不许把 `continue-on-error` 加回来**。 |
-> | **`security:audit`** | `scripts/check-npm-audit.mjs` + ci.yml | 依赖漏洞**棘轮**。不用 `--audit-level=high` 是因为当前还剩 3 个 high 需 `--force` 才能修，卡阈值会永远红。基线 `scripts/npm-audit-baseline.json`，降完跑 `npm run security:audit:update`。有自证 fixture。 |
+> | **`security:audit`** | `scripts/check-npm-audit.mjs` + ci.yml | 依赖漏洞**棘轮**。不用 `--audit-level=high` 是因为卡阈值会永远红。基线 `scripts/npm-audit-baseline.json`（2026-10-27 已清到全档 0），降完跑 `npm run security:audit:update`。有自证 fixture。**2026-10-27 起按变更域分档**（判定在 `scripts/lib/audit-scope.mjs`，单测 `tests/unit/dependency-audit-scope.test.js`）：推送改了 `package.json` / `package-lock.json` 才走严格档，否则 `--advisory` 只打 annotation + step summary、不阻断 —— 因为这门的判据是 npm 公告库（外部时间线），同一份 lock 昨天绿今天红，一律阻断只会教人无视门禁。新公告由 `.github/workflows/audit-scheduled.yml`（每日 09:07 严格档）兜底，判红自动开 issue、恢复后自动关闭。 |
 >
 > 侦察依据与取舍见 `docs/2026-10-04-GitHub开源可引入方案调研.md` §8。
 
