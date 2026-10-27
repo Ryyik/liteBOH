@@ -32,3 +32,14 @@
 - ⚠️ **只在终态出现的空指针单测抓不到**（`createStepState(null)`）⇒ 靠 E2E 探针 +「撤掉修复确认重现」。
 - ⚠️ E2E 判据：`doneCount` 在订单移除时重置为 0（`2→0` 假失败）⇒ 用 `activeStepIndex`；场景互相污染 ⇒ 每场景独立开页 + 调试钩子 `window.__cafeDebug.forceDrink(id)`（DEV 门控）。
 - 护栏：probe:cafe-layout(21)、probe:cafe-mechanics(30+)、cafe-steps(23)、cafe-cat(13)、cafe-round(9)。
+
+## 邮件链路保活（Brevo SMTP key 90 天不活跃会回收）
+- 真源：`supabase/functions/mail-keepalive` + pg_cron `boh_mail_keepalive_monthly`（**jobid 24**，`0 1 8 * *` = 每月 8 号 01:00 UTC），
+  运维/验证走 `scripts/mail-keepalive-ops.mjs`（`--verify` 只读 8 项、`--trigger` 真发一封）。
+- ⚠️ **cron 不在迁移里注册**（`2026100801_mail_keepalive.sql` 只建表），靠 `--cron` 把 service key 与 token 烘焙进命令文本
+  ⇒ token 轮换后**必须重跑 `--cron`**，否则自动执行静默 401。
+- ⚠️ `cron.job_run_details` 为空 **≠ 任务坏了**：排期是每月 8 号，10-08 注册 ⇒ 首次自动执行 11-08；先看排期再判死。
+- ⚠️ **本机 DNS 解析不到 `*.supabase.co`**（HTTP 000 / ECONNRESET，`api.supabase.com` 正常）⇒ 不能本地直调 EF；
+  端到端验证的做法：建**一次性 pg_cron 任务**（`to_char(now()+interval '2 minutes','MI HH24 DD MM')||' *'`，复用 job 24 的命令原文，
+  具体日期而非 `* * * * *` 兜底），跑完 `cron.unschedule`。2026-10-27 实测通过：底账 HTTP 200 / ok=true。
+- WorkBuddy 侧的「邮件链路保活体检」自动化**已不存在**（记录停在 2026-10-01，automation list 为空），别再指望它兜底。

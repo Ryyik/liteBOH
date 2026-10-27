@@ -59,6 +59,9 @@
   （2026-10-27 实证：dark-tokens 误写 2518 / 实测 2465，余量 53 把这道门禁废掉）。
 - ⚠️ **`check:gates-self-test` 刻意不在 `verify` 主链**（`docs/AI-ENV.md`「勿进主链」）⇒ **verify 绿 ≠ prepush 绿**。
   动过棘轮基线的一律跑 `npm run prepush`（它跑在 HEAD 干净检出上，故修正必须先提交才会变绿）。
+- `security:audit` **按变更域分档**（判定纯函数 `scripts/lib/audit-scope.mjs`）：改了 `package.json`/lock 才阻断，
+  否则 `--advisory` 只告警 —— 判据是 npm 公告库这种**外部时间线**（同一份 lock 昨天绿今天红），一律阻断只会教人无视门禁。
+  新公告由 `.github/workflows/audit-scheduled.yml`（每日 09:07 严格档）开 issue 兜底。护栏 `dependency-audit-scope.test.js`。
 - ⚠️ `check:layering` 棘轮盯**三类出口**（`supabase.from` / `rpc` / `functions.invoke`），不只 from ——
   视图加一个 `functions.invoke` 也会红（2026-10-17 实证两连红）；收口到 `src/utils/api/*` 后**必须
   `--update` 同步下调基线**，否则 gates-self-test 注入样本落在基线内 ⇒ 假绿被自检当场抓（实证）。
