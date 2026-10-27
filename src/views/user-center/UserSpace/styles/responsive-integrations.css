@@ -915,7 +915,11 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 14px !important;
-    margin-top: -28px;
+    /* 2026-10-27：「头像探进封面的深度」。负边距与文案列的 padding-top
+       **必须由这同一个变量算出来** —— 两者一旦脱钩，昵称/签名就会浮到封面图上
+       （demo 里出现过的那个 bug）。改这里不用改别处。 */
+    --hero-cover-overlap: 28px;
+    margin-top: calc(var(--hero-cover-overlap) * -1);
     padding: 0 16px 16px;
   }
 
@@ -934,13 +938,28 @@
   }
 
   .profile-hero-copy {
+    /* ⚠️ `padding-top` 是「文字不飘到封面上」的唯一保障，所以它不能写死像素。
+       文案列的内容顶 = body 顶 + padding-top，而 body 顶已经被提升到封面底边
+       **之上** `--hero-cover-overlap` 那么多 ⇒ 并排布局下 padding-top 必须 ≥ overlap。
+       默认 10px = 改动前的原值，给「头像在上、文案在下」的堆叠布局（/profile 他人主页）
+       原样保留；「我的」页在下面那条 .user-space-page 规则里换成 overlap + 8。 */
+    --hero-copy-top: 10px;
     width: 100%;
     min-width: 0;
-    padding: 10px 0 0 !important;
+    padding: var(--hero-copy-top) 0 0 !important;
     text-align: left !important;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  /* 「我的」页竖屏：头像与文案并排（2026-10-27 定稿），文案列必须避开封面。
+     ⚠️ 这条**不能省**：少写就是把昵称/签名送回封面图上。
+     同文件 .profile-hero-body 里定义的 --hero-cover-overlap 是唯一真源。 */
+  .user-space-page .profile-hero-copy {
+    --hero-copy-top: calc(var(--hero-cover-overlap, 28px) + 8px);
+    flex: 1 1 auto;
+    width: auto;
   }
 
   .profile-hero-name-row,

@@ -21,6 +21,14 @@ const props = defineProps({
   timezoneLabel: { type: String, default: 'Asia/Shanghai' },
   /** 是否本人视角。访客视角隐藏「去发帖」入口 —— 他人的空间没有可跳的发帖 tab */
   isOwner: { type: Boolean, default: true },
+  /**
+   * 2026-10-27：内嵌模式 —— 组件被放进弹窗（ProfileHomePanel 的活跃轨迹弹窗）时传 true。
+   * 做两件事：① 去掉自身卡片外壳（边框/圆角/底色/投影/内边距/入场动画），
+   * 否则会和弹窗外壳套成双层；② 隐藏自带标题行，标题由宿主提供 ——
+   * 留着就是「活跃轨迹 / 过去一年 N 次」在弹窗里出现两遍。
+   * 主页那一行按钮本身不渲染本组件，所以默认 false 的那条路径不受影响。
+   */
+  embedded: { type: Boolean, default: false },
 });
 
 /**
@@ -219,8 +227,8 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
 </script>
 
 <template>
-  <section class="profile-activity-heatmap" aria-label="活跃轨迹">
-    <div class="heatmap-head">
+  <section class="profile-activity-heatmap" :class="{ 'is-embedded': embedded }" aria-label="活跃轨迹">
+    <div v-if="!embedded" class="heatmap-head">
       <span class="heatmap-kicker">
         <svg
           width="15"
@@ -343,6 +351,17 @@ const tipText = computed(() => (hovered.value ? cellTitle(hovered.value) : ''));
      跨页复用必须取全局单一源的 --liquid-shadow-sm。 */
   box-shadow: var(--liquid-shadow-sm);
   animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) 60ms both;
+}
+
+/* 内嵌（弹窗里）—— 外壳由宿主提供，这里只留图本体。
+   注意不能用 `.is-embedded` 覆盖 padding 之外的东西去改尺寸：格子尺寸是 2026-10-22 的定稿。 */
+.profile-activity-heatmap.is-embedded {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
 }
 
 @keyframes userspace-panel-in {

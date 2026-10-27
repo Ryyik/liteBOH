@@ -135,7 +135,52 @@
          印象已成为下方内容面板的一个 tab（作品 / 回复 / 印象），
          保留摘要行就是同一目的地的第二个入口 —— 与「一个目的地一个入口」冲突。
          社交证明的内容价值由 tab 上的计数承担，点开即完整网格。 -->
-    <ActivityHeatmap :payload="heatmap" :loading="isHeatmapLoading" @compose="$emit('compose')" />
+    <!-- 活跃轨迹（2026-10-27 用户定稿）：从常驻卡片（约 202px）压成**一行按钮**（48px），
+         点开在弹窗里看完整图。省下的 154px 全部还给首屏内容。
+         · 数据源不变：还是 heatmap 这一个 payload，弹窗里复用的也是 ActivityHeatmap 本身
+           （embedded 变体只去外壳与重复标题，点阵/图例/空态逻辑全在组件里）。
+         · 形状是按钮不是「卡片 + 箭头」：整块可点，语义与键盘可达性都由原生 button 承担。 -->
+    <button
+      type="button"
+      class="profile-activity-trigger"
+      :class="{ 'is-loading': isHeatmapLoading }"
+      :aria-label="activityTriggerLabel"
+      @click="openHeatmapSheet"
+    >
+      <span class="profile-activity-trigger-icon" aria-hidden="true">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.9"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="3" y="4" width="18" height="17" rx="3" />
+          <path d="M8 2v4M16 2v4M3 10h18" />
+        </svg>
+      </span>
+      <span class="profile-activity-trigger-label">活跃轨迹</span>
+      <span class="profile-activity-trigger-value">{{
+        isHeatmapLoading ? '' : activityTriggerValue
+      }}</span>
+      <svg
+        class="profile-activity-trigger-chevron"
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M9 6l6 6-6 6" />
+      </svg>
+    </button>
 
     <!-- 方块积分卡（2026-10-26 做小）：
          原来是一张 200px+ 的大卡面 + 标题行 + 一行操作说明。做小三件事：
@@ -436,11 +481,68 @@
       @load-more="loadFollowListMore"
       @unfollow="handleUnfollow"
     />
+
+    <!-- 活跃轨迹弹窗（2026-10-27）
+         ⚠️ **必须 Teleport 到 body**：遮罩是 position: fixed，而祖先 `.profile-hero-panel`
+         与页根 `.user-space-page` 都带入场动画收尾留下的 `transform: matrix(...)`
+         （单位矩阵也算 transform ≠ none）⇒ fixed 会被改成「相对该祖先定位」，遮罩只铺到
+         那一块。这是资产页充值弹窗踩过的同一个坑（AssetsHubPanel.vue:523 有完整记录）。
+         Teleport 之后暗色覆盖不能再用 `.user-space-page[data-theme='dark']` 前缀
+         （节点已不在页根里），必须写 `html[data-theme='dark']`。 -->
+    <Teleport to="body">
+      <Transition name="profile-heatmap-sheet">
+        <div
+          v-if="isHeatmapSheetOpen"
+          class="profile-heatmap-overlay"
+          @click.self="closeHeatmapSheet"
+        >
+          <section
+            class="profile-heatmap-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-heatmap-sheet-title"
+          >
+            <header class="profile-heatmap-sheet-head">
+              <div class="profile-heatmap-sheet-titles">
+                <h2 id="profile-heatmap-sheet-title">活跃轨迹</h2>
+                <p>{{ activitySheetSubtitle }}</p>
+              </div>
+              <button
+                ref="heatmapCloseRef"
+                type="button"
+                class="profile-heatmap-sheet-close"
+                aria-label="关闭活跃轨迹"
+                @click="closeHeatmapSheet"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </header>
+            <ActivityHeatmap
+              embedded
+              :payload="heatmap"
+              :loading="isHeatmapLoading"
+              @compose="handleHeatmapCompose"
+            />
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted } from 'vue';
+import { computed, reactive, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
 import PointsCard from './PointsCard.vue';
 import ActivityHeatmap from './ActivityHeatmap.vue';
@@ -707,6 +809,77 @@ const emit = defineEmits([
 
 const displayName = computed(() => props.profile.username || '未登录');
 
+/* ── 活跃轨迹：一行按钮 + 弹窗（2026-10-27）─────────────────────────
+   原来热力图是常驻卡片（约 202px）。现在主页只留一行 48px 的入口，
+   完整图（点阵 / 图例 / 空态 / 去发帖）全部搬进弹窗，组件本身不变。
+   数字口径与 ActivityHeatmap 内部一致：active_days 是「有活动的天数」，
+   total 是发帖 + 回复的次数 —— 两处各算一遍会漂，所以这里只做展示用，
+   真正的统计仍以组件内 computed 为准（弹窗里显示的也是组件自己那份）。 */
+const heatmapActiveDays = computed(() => Number(props.heatmap?.active_days) || 0);
+const heatmapTotalCount = computed(
+  () => (Number(props.heatmap?.total_posts) || 0) + (Number(props.heatmap?.total_comments) || 0),
+);
+
+const activityTriggerValue = computed(() => {
+  if (!heatmapActiveDays.value && !heatmapTotalCount.value) return '还没有留下足迹';
+  return `活跃 ${heatmapActiveDays.value} 天`;
+});
+
+const activityTriggerLabel = computed(() =>
+  props.isHeatmapLoading ? '活跃轨迹，正在加载' : `活跃轨迹，${activityTriggerValue.value}，点击查看完整图`,
+);
+
+const activitySheetSubtitle = computed(() => {
+  if (props.isHeatmapLoading) return '正在加载…';
+  if (!heatmapActiveDays.value && !heatmapTotalCount.value) return '还没有留下足迹';
+  return `过去一年 ${heatmapTotalCount.value} 次 · 活跃 ${heatmapActiveDays.value} 天`;
+});
+
+const isHeatmapSheetOpen = ref(false);
+const heatmapCloseRef = ref(null);
+
+const openHeatmapSheet = () => {
+  isHeatmapSheetOpen.value = true;
+  // 焦点移到关闭钮：键盘/读屏用户打开弹窗后要有落点，否则 Tab 会从页首开始走。
+  nextTick(() => heatmapCloseRef.value?.focus?.());
+};
+
+const closeHeatmapSheet = () => {
+  isHeatmapSheetOpen.value = false;
+};
+
+/** 弹窗里的「去发帖」：先关弹窗再交给父层 —— 留一个盖着遮罩的编辑器等于没反应。 */
+const handleHeatmapCompose = () => {
+  closeHeatmapSheet();
+  emit('compose');
+};
+
+const handleHeatmapSheetKeydown = (event) => {
+  if (event.key === 'Escape') closeHeatmapSheet();
+};
+
+/**
+ * 弹窗打开期间锁背景滚动。
+ * ⚠️ 遮罩已 Teleport 到 body，键盘事件不经过本组件 DOM ⇒ 监听必须挂 document。
+ * overflow 锁挂在 <html> 上（class 由全局规则处理，scoped 选择器命不中 html）。
+ */
+watch(isHeatmapSheetOpen, (open) => {
+  if (typeof document === 'undefined') return;
+  if (open) {
+    document.addEventListener('keydown', handleHeatmapSheetKeydown);
+    document.documentElement.classList.add('profile-sheet-lock');
+  } else {
+    document.removeEventListener('keydown', handleHeatmapSheetKeydown);
+    document.documentElement.classList.remove('profile-sheet-lock');
+  }
+});
+
+onBeforeUnmount(() => {
+  if (typeof document === 'undefined') return;
+  document.removeEventListener('keydown', handleHeatmapSheetKeydown);
+  document.documentElement.classList.remove('profile-sheet-lock');
+});
+
 const profileId = computed(() => props.profile.id || '');
 const { fetchUserTier, getNicknameClass, getUserTierCode } = useUserTier();
 const nicknameClass = ref('');
@@ -963,7 +1136,7 @@ watch(
   }
 
   .profile-home-shell > .profile-hero-panel,
-  .profile-home-shell > .profile-activity-heatmap,
+  .profile-home-shell > .profile-activity-trigger,
   .profile-home-shell > .profile-points-card-section,
   .profile-home-shell > .profile-content-panel {
     border-radius: 0;
@@ -992,10 +1165,27 @@ watch(
     height: calc(200px + var(--userspace-nav-h, 78px));
   }
 
+  /* ── 资料卡：头像与文案**并排**（2026-10-27 用户定稿）───────────────────
+     原来竖屏是 column（头像独占一行 88px + 文案一行），资料卡实测 520px。
+     并排后头像与昵称共用一行，收掉约 88px，同时数据行不再被挤成独立一块。
+
+     ⚠️⚠️ 三条铁律，改这里之前先读：
+     ① `--hero-cover-overlap` = 头像探进封面的深度，**负边距与文案列的
+        padding-top 由同一个变量算**。两者一脱钩，昵称/签名就浮到封面图上
+        （用户明确指出的那个 bug）。文案列那条在 responsive-integrations.css
+        的 `.user-space-page .profile-hero-copy`，读的就是本行定义的变量。
+     ② 负边距必须写在这里，不能只写在 responsive-integrations.css ——
+        本组件基础规则里有一条 `.profile-hero-body { margin-top: -36px }`，
+        它与全局那条**同特异性且加载更晚**，会静默反超（实测：变量写了 28，
+        实际生效的仍是 36，昵称因此正好贴在封面底线上、零间隙）。
+     ③ gap 不写：全局那条 `gap: 14px !important` 恒定胜出，本文件的
+        !important 预算基线是 0（check:important-budget），不许为它新增。 */
   .profile-home-shell .profile-hero-body {
-    padding: 0 16px 16px;
-    margin-top: -28px;
-    gap: 14px;
+    --hero-cover-overlap: 28px;
+    flex-direction: row;
+    align-items: flex-start;
+    margin-top: calc(var(--hero-cover-overlap) * -1);
+    padding: 0 16px 14px;
   }
 
   .profile-home-shell .profile-hero-avatar .apple-avatar {
@@ -1008,10 +1198,15 @@ watch(
      copy 基础是 flex row（名字/徽章同行），竖屏改 column 才能让按钮独占一行、
      否则 width:100% 在 row 里只是内容宽（实测仍是 140px 的小胶囊）。 */
   .profile-home-shell .profile-hero-copy {
-    padding-top: 38px;
     padding-right: 0;
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* 竖屏缩一下名字与签名之间的空隙：并排后文案列变窄，原来的 8px 在
+     22px 名字下面显得断开。 */
+  .profile-home-shell .profile-bio-wrap {
+    margin-top: 6px;
   }
 
   /* 编辑资料（2026-10-26 竖屏缩小）：不再是通栏主动作按钮，回到小胶囊 ——
@@ -1025,7 +1220,7 @@ watch(
     width: auto;
     max-width: none;
     align-self: flex-start;
-    margin-top: 10px;
+    margin-top: 8px;
     min-height: 30px;
     padding: 0 14px;
     border-radius: 999px;
@@ -1039,6 +1234,11 @@ watch(
     display: flex;
     align-items: baseline;
     flex-wrap: wrap;
+    /* ⚠️ 必须显式写 flex-start（2026-10-27 实测补）：元素同时挂着 .profile-stats
+       和 .profile-hero-stats，前者在 profile-panels.css 里是 `justify-content: center`
+       且加载更晚 ⇒ 不加这条，三个数字会居中飘在文案列中间
+       （用户报的「数据被单独居中」就是这个来源）。 */
+    justify-content: flex-start;
     gap: 14px;
     margin: 0;
     padding: 10px 0 0;
@@ -1375,6 +1575,266 @@ watch(
 .profile-hero-stats {
   margin: 0 24px 22px;
   padding-top: 18px;
+}
+
+/* 数据行：与昵称同一左边界（2026-10-27，全断点统一）。
+   ⚠️ 为什么必须带 `.profile-home-shell` 前缀：这个元素同时挂着 `.profile-stats`，
+   而后者在 profile-panels.css 里写着 `justify-content: center`，加载顺序更晚、
+   特异性相同 ⇒ 会把 profile-base.css 那条 `justify-content: flex-start` 静默压掉。
+   实测横屏 844 下三个数字居中在文案列中间（statBtn 339 / 昵称 159），
+   正是用户说的「数据被单独居中」。
+   margin 归零同理：基础规则里的 24px 左右缩进会让数据行比昵称右移 24px。 */
+.profile-home-shell .profile-hero-stats {
+  justify-content: flex-start;
+  margin: 0;
+}
+
+/* ── 活跃轨迹：一行按钮（2026-10-27 定稿）────────────────────────────
+   原来这里是一张常驻的热力图卡（标题行 + 53 周点阵 + 图例，约 202px）。
+   压成一行 48px 的入口后，首屏多出 150px+ 给内容 —— 这是用户明确要的那笔账。
+   形状是 button（整块可点、原生键盘可达），右侧显示「活跃 N 天」，
+   点开在弹窗里看完整点阵。 */
+.profile-activity-trigger {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  /* 48px 是「与 32px 图标行同一档触控带」的下限值，别再往下压：
+     竖屏 390 下它紧贴封面，压到 44 以下会和资料卡的编辑按钮挤成一片。 */
+  min-height: 48px;
+  margin: 0;
+  padding: 0 16px;
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    transform 160ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .profile-activity-trigger:hover {
+    background: var(--surface-2, rgba(29, 29, 31, 0.035));
+  }
+}
+
+.profile-activity-trigger:active {
+  transform: scale(0.995);
+}
+
+.profile-activity-trigger-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-primary);
+}
+
+.profile-activity-trigger-label {
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* margin-left:auto 把「数字 + 箭头」推到右端 —— 加载中数字为空时也不会塌成左边一坨 */
+.profile-activity-trigger-value {
+  margin-left: auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-activity-trigger.is-loading .profile-activity-trigger-value {
+  width: 64px;
+  height: 10px;
+  border-radius: 4px;
+  /* 骨架条用 color-mix 叠 --text-primary，而不是写死 rgba(15,23,42,…)：
+     亮色下是 6%/12% 的深灰、暗色下自动变浅灰。写死的话暗色主题里
+     这条近乎不可见（深灰压深底），而且暗色块每多写一个裸色都要记棘轮账。 */
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--text-primary) 6%, transparent) 25%,
+    color-mix(in srgb, var(--text-primary) 12%, transparent) 50%,
+    color-mix(in srgb, var(--text-primary) 6%, transparent) 75%
+  );
+  background-size: 200% 100%;
+  animation: profile-trigger-shimmer 1.4s linear infinite;
+}
+
+@keyframes profile-trigger-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.profile-activity-trigger-chevron {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  display: block;
+}
+
+/* ── 活跃轨迹弹窗（2026-10-27）─────────────────────────────────────
+   ⚠️ 这段样式作用在 Teleport 到 body 的节点上（见模板注释）。因此：
+   ① 选择器**不能**带 `.profile-home-shell` 之类页内祖先 —— 节点已经不在那棵树里；
+   ② 页级 token（--surface / --stroke / --text-primary …）只定义在 `.user-space-page` 上，
+      body 下取不到 ⇒ 下面显式把宿主变量映射到全局 --liquid-* 全家桶，
+      弹窗里的 ActivityHeatmap 才拿得到颜色（它内部读的就是这套页级变量）；
+   ③ 暗色覆盖必须写 `html[data-theme='dark']`，不能写 `.user-space-page[data-theme=dark]`。 */
+.profile-heatmap-overlay {
+  position: fixed;
+  inset: 0;
+  /* #unified-nav-container 是 9999（styles/vendor/unified-nav.css），必须比它高，
+     否则弹窗顶部会被导航岛压住 —— 资产页充值弹窗踩过这个坑。 */
+  z-index: 10000;
+  display: grid;
+  /* safe center：内容比视口高时退化为 start，配合 overflow-y:auto 才能滚到首行；
+     纯 center 会把上半截顶成负 top，那部分永远滚不出来（手机横屏 844×390 实测）。 */
+  align-items: center;
+  align-items: safe center;
+  justify-items: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.profile-heatmap-sheet {
+  /* 页级变量 → 全局 token 的桥（见上方 ②） */
+  --text-primary: var(--liquid-text-primary);
+  --text-secondary: var(--liquid-text-secondary);
+  --text-tertiary: var(--liquid-text-tertiary);
+  --stroke: var(--liquid-border, rgba(15, 23, 42, 0.1));
+  --surface: #ffffff;
+  --surface-2: rgba(29, 29, 31, 0.05);
+  /* ⚠️ 宽度必须用 `max-width` + `box-sizing: border-box`，不能用 `width: min(100%, 560px)`：
+     实测 390 视口下 min() 那条被内容（817px 的点阵滚动区）压过，卡片按 560 撑开、
+     左右各被裁 85px。grid item 的 min-width: auto 会认内容宽 —— max-width 才能硬限住。 */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 560px;
+  min-width: 0;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--liquid-border, rgba(15, 23, 42, 0.1));
+  border-radius: 22px;
+  /* 实色而不是半透明玻璃：卡面底下就是点阵与图例，
+     62% 半透明会让背后的页面文字透进标题（记忆里「模态框用 --card-solid」那条的来源）。 */
+  background: #ffffff;
+  box-shadow: var(--liquid-shadow-overlay, 0 24px 80px rgba(15, 23, 42, 0.14));
+  text-align: left;
+}
+
+.profile-heatmap-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.profile-heatmap-sheet-titles {
+  min-width: 0;
+}
+
+.profile-heatmap-sheet-titles h2 {
+  margin: 0;
+  color: var(--liquid-text-primary);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.profile-heatmap-sheet-titles p {
+  margin: 4px 0 0;
+  color: var(--liquid-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.profile-heatmap-sheet-close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--liquid-text-secondary);
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .profile-heatmap-sheet-close:hover {
+    /* color-mix 而不是写死 rgba：亮色下是 12% 黑、暗色下是 12% 白，
+       一个规则覆盖两个主题，也不用再补一条 `html[data-theme='dark']` 覆盖块
+       （暗色块里的裸色会被 check:dark-tokens 的棘轮记账）。 */
+    background: color-mix(in srgb, var(--liquid-text-primary) 12%, transparent);
+  }
+}
+
+.profile-heatmap-sheet-enter-active,
+.profile-heatmap-sheet-leave-active {
+  transition: opacity 180ms ease;
+}
+
+.profile-heatmap-sheet-enter-active .profile-heatmap-sheet,
+.profile-heatmap-sheet-leave-active .profile-heatmap-sheet {
+  transition:
+    transform 220ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 180ms ease;
+}
+
+.profile-heatmap-sheet-enter-from,
+.profile-heatmap-sheet-leave-to {
+  opacity: 0;
+}
+
+.profile-heatmap-sheet-enter-from .profile-heatmap-sheet,
+.profile-heatmap-sheet-leave-to .profile-heatmap-sheet {
+  opacity: 0;
+  transform: translateY(14px) scale(0.985);
+}
+
+html[data-theme='dark'] .profile-heatmap-overlay {
+  /* 暗色遮罩用 --liquid-bg-overlay 的暗色档：暗底对比低，亮色那层 34% 压不住卡片边界。 */
+  background: var(--liquid-bg-overlay);
+}
+
+html[data-theme='dark'] .profile-heatmap-sheet {
+  /* 暗色卡面走深玻璃 token，不在这里写第二组裸色 ——
+     check:dark-tokens 的棘轮只降不升，暗色块里每多一个字面量都要记账。
+     0.84 的深玻璃叠在 0.68 的遮罩 + 6px 模糊之上，透出的背景亮度已可忽略。 */
+  --surface: var(--liquid-bg-strong);
+  --surface-2: var(--liquid-bg-nested);
+  background: var(--liquid-bg-strong);
+  border-color: var(--liquid-border);
+}
+
+/* 弹窗期间的背景滚动锁：锁挂在 <html> 上。scoped 选择器命不中 html（它没有 data-v 属性），
+   必须用 :global 透出去，否则这条规则编译后永远不匹配。 */
+:global(html.profile-sheet-lock) {
+  overflow: hidden;
 }
 
 /* 2026-10-26：原「服务」段（Cloud+ / 摄影集两行）已删除 —— 摄影集并入资产卡第二行，
@@ -1754,15 +2214,14 @@ watch(
     gap: 18px;
   }
 
+  /* 2026-10-27：热力图从 202px 的卡片变成 48px 的一行按钮后，**并排失去意义** ——
+     并排那一行的高度由积分卡（约 250px）决定，左边的按钮只占 48px，下面空 200px。
+     改成一行通栏反而更省：48 + 250 = 298 才到内容区，且左侧不再有空洞。
+     积分卡仍走下面的 `.profile-points-card-section`（通栏 + 居中 430px 上限）。 */
   .profile-home-shell > .profile-hero-panel,
+  .profile-home-shell > .profile-activity-trigger,
   .profile-home-shell > .profile-content-panel {
     grid-column: 1 / -1;
-  }
-
-  /* 两列内的卡片吃满行高，底边才能真的对齐 */
-  .profile-home-shell > .profile-activity-heatmap,
-  .profile-home-shell > .profile-points-card-section {
-    height: 100%;
   }
 
   /* 2026-10-26：印象摘要行与「服务」段已删除，资产卡是两行通栏（.is-inline），
