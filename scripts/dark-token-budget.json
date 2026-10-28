@@ -1,5 +1,5 @@
 {
-  "total": 2465,
+  "total": 2462,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
@@ -62,7 +62,6 @@
     "src/views/Home/components/Beta6IslandCard.vue": 8,
     "src/views/activities/components/ActivityCard.vue": 8,
     "src/views/user-center/UserSpace/components/ProfileHomePanel.vue": 8,
-    "src/views/user-center/UserSpace/components/EditProfilePanel.vue": 7,
     "src/views/user-center/UserSpace/components/PointsCard.vue": 7,
     "src/components/UserCenterBackButton.vue": 6,
     "src/views/Home/components/HomeArchiveSection.vue": 6,
@@ -72,6 +71,7 @@
     "src/components/ui/EmptyState.vue": 4,
     "src/views/Forum/styles/replies-responsive.css": 4,
     "src/views/user-center/UserSpace/components/ActivityHeatmap.vue": 4,
+    "src/views/user-center/UserSpace/components/EditProfilePanel.vue": 4,
     "src/views/Home/components/Beta6RenewalHero.vue": 3,
     "src/views/user-center/UserSpace/components/SettingToggle.vue": 3,
     "src/views/user-center/UserSpace/components/side-rail.css": 3,
@@ -88,5 +88,5 @@
     "src/views/PhotoAlbums/index.vue": 1,
     "src/views/user-center/UserSpace/styles/profile-panels.css": 1
   },
-  "updatedAt": "2026-10-27"
+  "updatedAt": "2026-10-28"
 }
