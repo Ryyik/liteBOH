@@ -20,6 +20,8 @@ const emit = defineEmits(['close', 'update:open']);
 const IMAGE_VIEWER_MIN_ZOOM = 0.5;
 const IMAGE_VIEWER_MAX_ZOOM = 4;
 const IMAGE_VIEWER_ZOOM_STEP = 0.25;
+// 空白处点击关闭：按下到抬起的位移超过这个像素数就当成「拖拽平移」，不关闭
+const IMAGE_VIEWER_CLICK_SLOP = 8;
 
 const isLoading = ref(false);
 const currentIndex = ref(0);
@@ -27,6 +29,9 @@ const zoom = ref(1);
 const pan = ref({ x: 0, y: 0 });
 const isPanning = ref(false);
 let panStart = { x: 0, y: 0 };
+// 本次指针按下的起点，以及按下时是否落在图片上（区分「点空白关闭」与「拖拽平移」）
+let pointerDownAt = { x: 0, y: 0 };
+let pointerDownOnImage = false;
 
 const currentImage = computed(() => props.images[currentIndex.value] || null);
 
@@ -124,6 +129,11 @@ function handleWheel(event) {
 }
 
 function startPan(event) {
+  pointerDownAt = {
+    x: Number(event?.clientX || 0),
+    y: Number(event?.clientY || 0)
+  };
+  pointerDownOnImage = Boolean(event?.target?.closest?.('.forum-image-viewer-img'));
   if (zoom.value <= 1) return;
   isPanning.value = true;
   event?.currentTarget?.setPointerCapture?.(event.pointerId);
@@ -145,6 +155,21 @@ function stopPan(event) {
   if (!isPanning.value) return;
   isPanning.value = false;
   event?.currentTarget?.releasePointerCapture?.(event.pointerId);
+}
+
+// 点击图片外的空白处关闭大图。
+// 注意 stage 铺满整个遮罩（width/height 100%），所以遮罩上的 @click.self 永远收不到
+// 空白点击 —— 必须由 stage 自己判定：目标是 stage 本身（不是 img）、按下也落在空白、
+// 且按下到抬起的位移在阈值内（缩放后的拖拽平移不算点击）。
+function handleStageClick(event) {
+  if (event.target !== event.currentTarget) return;
+  if (pointerDownOnImage) return;
+  const moved = Math.hypot(
+    Number(event?.clientX || 0) - pointerDownAt.x,
+    Number(event?.clientY || 0) - pointerDownAt.y
+  );
+  if (moved > IMAGE_VIEWER_CLICK_SLOP) return;
+  close();
 }
 
 function handleImageLoad() {
@@ -270,6 +295,7 @@ onUnmounted(() => {
         </button>
         <div class="forum-image-viewer-stage"
           :class="{ 'is-zoomed': zoom > 1, 'is-panning': isPanning }"
+          @click="handleStageClick"
           @wheel.prevent="handleWheel"
           @pointerdown="startPan"
           @pointermove="movePan"
@@ -426,6 +452,11 @@ onUnmounted(() => {
   width: 52px;
   height: 52px;
   transform: translateY(-50%);
+  /* 「上一张」在 DOM 里排在 stage 之前：stage 是 position: relative 且铺满遮罩，
+     同级定位元素按源序绘制 ⇒ 不给 z-index 的话左箭头会被 stage 里的图片整个盖住
+     （表现为翻到宽图后左箭头消失、点不到）。close/toolbar 早就各自带了 z-index，
+     只有 nav 漏了，别删这条。 */
+  z-index: 2;
 }
 
 .forum-image-viewer-nav.prev {
@@ -489,14 +520,79 @@ onUnmounted(() => {
   }
 }
 
-.forum-image-viewer-fade-enter-active,
+/* ── 开合动效（2026-10-28）─────────────────────────────────────
+   家族口径照 plans/017（弹层入场 scale+微位移、退场更快更轻）与 Cloud+ 详情弹窗：
+   遮罩淡入 + 图片 0.92 → 1 浮起落定 + 控件晚一拍淡入。
+
+   ⚠️ 遮罩 / 图片 / 控件三段**时长刻意都对齐 260ms**：Vue 只读 Transition **根元素**的
+   transition 时长来决定何时摘掉 `*-enter-active`，子元素比根长就会被截断在根那一刻
+   （--ease-out 前置，截断点通常已走完 90%+ 所以看不出来 —— 但没必要依赖这个巧合）。
+   控件那段的「延迟 + 时长」必须等于根时长（60 + 200 = 260），否则 opacity 会被砍成半透明跳变。
+   改时长就三段一起改。 */
+
+.forum-image-viewer-fade-enter-active {
+  transition: opacity 260ms var(--ease-out);
+}
+
 .forum-image-viewer-fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity 180ms var(--ease-out);
+  /* ⚠️ 刻意不抄 Cloud+ 的 `pointer-events: none`：退场这 180ms 里若让点击穿透，
+     连点第二下会落到下面的帖子卡片缩略图上、把大图又打开一次。
+     留在原地吃点击，第二次点只会重复触发 close()，是幂等的。 */
 }
 
 .forum-image-viewer-fade-enter-from,
 .forum-image-viewer-fade-leave-to {
   opacity: 0;
+}
+
+/* 图片层：入场浮起落定（缩放交给 stage —— img 自己的 transform 被平移/缩放的内联样式占着，
+   在 img 上写 transition/animation 会跟 `translate3d(pan) scale(zoom)` 打架） */
+.forum-image-viewer-fade-enter-active .forum-image-viewer-stage {
+  transition: transform 260ms var(--ease-out);
+}
+
+.forum-image-viewer-fade-leave-active .forum-image-viewer-stage {
+  /* 与 Cloud+ cloudDetailZoomOut 同一条曲线（ease-in：起步慢、收尾快，读作「被抽走」） */
+  transition: transform 180ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+.forum-image-viewer-fade-enter-from .forum-image-viewer-stage {
+  transform: scale(0.92) translateY(8px);
+}
+
+.forum-image-viewer-fade-leave-to .forum-image-viewer-stage {
+  transform: scale(0.96);
+}
+
+/* 控件（关闭 / 工具条 / 翻页箭头 / 计数）：晚 60ms 淡入，退场不拖尾
+   （只动 opacity，不碰 transform —— nav 的 transform 要留给 `translateY(-50%)` 居中与 hover 放大） */
+.forum-image-viewer-fade-enter-active .forum-image-viewer-close,
+.forum-image-viewer-fade-enter-active .forum-image-viewer-toolbar,
+.forum-image-viewer-fade-enter-active .forum-image-viewer-nav,
+.forum-image-viewer-fade-enter-active .forum-image-viewer-count {
+  transition: opacity 200ms var(--ease-out) 60ms;
+}
+
+.forum-image-viewer-fade-enter-from .forum-image-viewer-close,
+.forum-image-viewer-fade-enter-from .forum-image-viewer-toolbar,
+.forum-image-viewer-fade-enter-from .forum-image-viewer-nav,
+.forum-image-viewer-fade-enter-from .forum-image-viewer-count {
+  opacity: 0;
+}
+
+/* reduce-motion：按 plans/003 口径「保留 opacity 反馈、砍位移与缩放」。
+   全局基线（styles/common/animations.css）只把 transition 压到 100ms，位移仍在 ⇒ 这里显式砍掉。 */
+@media (prefers-reduced-motion: reduce) {
+  .forum-image-viewer-fade-enter-active .forum-image-viewer-stage,
+  .forum-image-viewer-fade-leave-active .forum-image-viewer-stage {
+    transition: none;
+  }
+
+  .forum-image-viewer-fade-enter-from .forum-image-viewer-stage,
+  .forum-image-viewer-fade-leave-to .forum-image-viewer-stage {
+    transform: none;
+  }
 }
 
 @media (max-width: 768px) {

@@ -17,6 +17,7 @@
 | 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
 | 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
+| **帖子列表大图浏览**（翻页左箭头不被 stage/图片盖住；点空白关闭、点图片不关闭、拖拽不误关；开合动效逐帧采样 + reduce 口径） | `probe-forum-image-viewer.mjs` | 27 |
 | **帖子详情弹窗 chunk 加载失败兜底**（部署窗口期旧入口 import 旧 chunk 404：错误态出现、不再无声空白、DEV 不强刷、正常路径内容完整渲染） | `probe-pd-modal-chunk-fail.mjs` | 12 |
 | 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 19 |
 | **移动端发帖选图反馈口径**（选图→发布保持安静、4s 卡顿观察器一次性提示、blob 首帧 / 无 lazy、徽章仅 failed；入口在首页 `/#/`，`/#/forum` 已被 IA 改版重定向） | `probe-composer-image-stall.mjs` | 6 |
@@ -110,10 +111,11 @@
 | `probe-rail-more-menu.mjs` | — | 探针：横屏左栏「更多」（主题 / 退出登录）浮层可见性。回归对象：浮层挂在 `overflow-x: hidden` 的 `.userspace-rail-scroll` 内 → 88px 窄栏下被裁到 68px（「深色模式」只剩「深」），240px 宽栏恰好不暴露。六档：UserSpace 窄栏 / UserSpace 宽栏 / AI 页 88px / 首页 fixed 左栏 / 1024×600 矮窗 / **反证自检**（把浮层运行时搬回滚动容器 ⇒ 测量必须报出 widthLoss > 0，防断言空转）。⚠️ 「不被祖先裁」≠「看得见」：窄栏下浮层要向右越出 88px 栏压到内容区上，故断言同时做 `elementFromPoint` 遮挡检测 |
 | `probe-share-island.mjs` | — | （无头部说明） |
 
-### 论坛 / 帖子 / 发布器（16）
+### 论坛 / 帖子 / 发布器（17）
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
+| `probe-forum-image-viewer.mjs` | — | 探针：帖子列表大图浏览（2026-10-28）。锁三件事：① **翻页左箭头不能被 stage 盖住** —— `.forum-image-viewer` 子元素顺序是 close / toolbar / prev / stage / next / count，stage 是 `position: relative` 且铺满遮罩，同级定位元素按源序绘制 ⇒ prev 排在 stage 之前、又没带 z-index，会被 stage 里的 img 整个盖住（用户报障「翻页后左箭头消失、点不到返回」；close=2 / toolbar=1 各自有 z-index 所以只有左箭头出事）。断言用 `elementFromPoint` 抓**视觉命中**，不是抓 class；② **点空白关闭** —— 遮罩的 `@click.self` 收不到空白点击（stage 铺满遮罩），必须由 stage 自己判 target + 按下落点 + 位移阈值。⚠️ 反证已实测：撤 `z-index: 2` → A2/A4/A5 红（命中 `IMG.forum-image-viewer-img`）；撤 `@click="handleStageClick"` → B1/B4 红。默认竖屏 390×844，宽屏档用 `VIEWPORT=1440x900 node scripts/probes/probe-forum-image-viewer.mjs`（两档均 27 PASS）。C 组是**开合动效**：用 rAF 逐帧采 stage 的 `scale` / 根 `opacity` / 关闭钮 `opacity`（动效只存在几百毫秒，固定时刻读会踩空），断言「从 0.92 浮起 → 落定 1」「控件有 opacity=0 的延迟帧」「退场有中间帧 + 轻微缩回 + 结束后卸载」；D 组切 `emulateMedia({ reducedMotion: 'reduce' })`，断言 scale 恒为 1（砍位移）但仍存在中间透明度帧（保留反馈，plans/003 口径）。⚠️ 反证已实测：撤入场 `scale(0.92)` + 撤控件 `enter-from{opacity:0}` → C1/C4/C6 红，其余照常绿 |
 | `probe-composer-chips.mjs` | — | composer 统一动作栏探针：横屏（UserSpace 社区 tab → 左栏「发布」→ 发布会话），验证标签 / 图片 / 智能整理 / 更多同排、标签菜单可用、第二发布出口与旧 chips 不再出现；含「内嵌编辑器已删除」反证 |
 | `probe-composer-publish-dedupe.mjs` | — | 探针：发布会话出口去重（顶栏只保留取消 / 发布；横屏隐藏取消；内部动作栏保留图片 / 标签 / 智能整理 / 更多） |
 | `probe-composer-motion.mjs` | — | 竖屏发布会话进出场：FAB 打开时以按钮中心放大、关闭时缩回同一点；读 100ms 中间帧的实际 `scale` / `transform-origin` / opacity，并含横屏即时切换反证 + reduced-motion 兜底 |
