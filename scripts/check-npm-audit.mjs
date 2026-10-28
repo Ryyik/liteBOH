@@ -66,6 +66,30 @@
  * - **`esbuild`（low）接受**：`0.27.3–0.28.0` 的「Windows 上 dev server 任意文件读」，
  *   仅 Windows + 仅开发服务器；修复版 0.28.1 超出 vite 7 的 `^0.27.0`，为它升 vite
  *   不值。基线保留 1。
+ * ## 2026-10-28 登记：workbox 链 4 个 low（不可修 + 构建期不可达，基线 0 → 4）
+ *
+ * 这批是**每日定时审计首次跑就抓到**的，正是那条兜底链存在的意义（ci.yml 的告警档不会红）。
+ * 依赖链（`package-lock.json` 实测，四层全是 `dev: true`）：
+ *
+ *     vite-plugin-pwa@1.3.0 → workbox-build@7.4.1
+ *       → @rollup/plugin-node-resolve@16.0.3 → deepmerge@4.3.1
+ *
+ * 根因公告 `GHSA-gcqx-w48m-w2h4`（deepmerge 的 `mergeObject()` 允许对返回对象做原型污染），
+ * 区间 `>=4.2.0 <=4.3.1`、**`fixAvailable: null`** —— 4.3.1 已是该包当前最高版，
+ * 上游没有修复版，`npm audit fix`（非 force）动不了；`--force` 才能升，
+ * 那是把 vite-plugin-pwa 连锅端的破坏性升级。
+ *
+ * 可达性（实证，不是推断）：`grep -rl deepmerge dist/static/js/` **零命中** ⇒ 不进运行时产物；
+ * 它只在 workbox-build **构建期**生成 service worker 时被调用，输入是本仓 `vite.config.*`
+ * 里写死的配置对象，**不经用户输入**。⇒ 浏览器侧攻击面为零。
+ * 等 vite-plugin-pwa 把 workbox 升到带修复的版本后，`npm run security:audit:update` 下调基线。
+ *
+ * ## 2026-10-28 同日修掉的假绿（比上面那 4 个 low 严重得多）
+ *
+ * 同日排查时本地跑出「0 漏洞 ✅ 通过」，与 CI 的 4 个 low 冲突。真因是
+ * `npm audit` 的 quick 端点退役、返回 400，而错误响应也是合法 JSON ⇒ 旧代码
+ * `raw.includes('{')` 就当成报告 ⇒ 从缺字段里读出全 0 ⇒ 打印「通过」。
+ * 详见 `isValidReport` 的注释。**门禁最危险的形态不是红，是绿得没有依据。**
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -129,6 +153,40 @@ const ADVISORY = CI_SCOPE ? resolveCiScope() === SCOPE_ADVISORY : ADVISORY_FLAG;
 const REPORT_PATH =
   readFlag('--from-json') || String(process.env.BOH_NPM_AUDIT_REPORT || '').trim();
 
+/**
+ * 报告合法性判据 —— 单一真源。
+ *
+ * 2026-10-28 实证（**假绿事故**）：npm 的 `/security/audits/quick` 端点退役后返回 **400**，
+ * stdout 仍是一份**合法 JSON**（`{ "message": "400 Bad Request - POST .../audits/quick ..." }`）。
+ * 旧代码只判 `raw.includes('{')` 就当成报告 ⇒ `countByLevel` 从缺字段里读出一堆 0
+ * ⇒ 打印「✅ 通过：依赖漏洞未新增」。
+ *
+ * 表现是最坏的一种：**本地静默假绿、CI 判红**（CI 的 npm 走可用端点，真实结果是 4 个 low）。
+ * 我按本地结果判断「0 漏洞」，跑去查网络、查公告，全查错了方向 ——
+ * 判据必须是「有 `metadata.vulnerabilities` 对象」，不是「输出里有花括号」。
+ */
+const isValidReport = (r) =>
+  Boolean(
+    r &&
+    typeof r === 'object' &&
+    r.metadata &&
+    typeof r.metadata.vulnerabilities === 'object' &&
+    r.metadata.vulnerabilities !== null,
+  );
+
+/** 把「拿不到报告」翻译成人能看懂的原因 —— 否则下一次还得从零 recon。 */
+const describeBadReport = (raw) => {
+  const s = String(raw || '');
+  if (/security\/audits\/quick/.test(s) && /400|retired|Bad Request/i.test(s)) {
+    return 'npm 的 audit quick 端点已退役（服务端返回 400）⇒ 需要 npm 11+（它走 bulk advisory 端点）';
+  }
+  if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|audit endpoint returned an error/i.test(s)) {
+    return 'registry 不可达（无网络 / 代理 / 限流）';
+  }
+  if (!s.trim()) return 'npm audit 没有任何输出';
+  return 'npm audit 的输出不是合法审计报告';
+};
+
 const countByLevel = (report) => {
   const v = report?.metadata?.vulnerabilities || {};
   const out = {};
@@ -144,6 +202,7 @@ const directAdvisories = (report) =>
 
 let report;
 let source;
+let badRaw = '';
 if (REPORT_PATH) {
   if (!existsSync(REPORT_PATH)) {
     warn(`[security:audit] ❌ --from-json 指定的文件不存在：${REPORT_PATH}`);
@@ -151,25 +210,53 @@ if (REPORT_PATH) {
   }
   report = JSON.parse(readFileSync(REPORT_PATH, 'utf-8'));
   source = `报告回放 ${REPORT_PATH}`;
+  // 回放入口是自证通道（check:gates-self-test 靠它注入已知漏洞），不接受「读不懂的报告」，
+  // 否则一次格式漂移就能让自检在「0 漏洞」上静默通过。
+  if (!isValidReport(report)) {
+    warn(`[security:audit] ❌ --from-json 的报告缺少 metadata.vulnerabilities：${REPORT_PATH}`);
+    process.exit(1);
+  }
 } else {
+  // `npm audit` 有漏洞时退出码非 0，所以要读 stdout 而不是靠退出码。
+  // 注意：失败路径同样会往 stdout 写 JSON，必须过 isValidReport 才算数（见该函数注释）。
+  let raw = '';
   try {
-    // `npm audit` 有漏洞时退出码非 0，所以要读 stdout 而不是靠退出码
-    const raw = execFileSync('npm', ['audit', '--json'], {
+    raw = execFileSync('npm', ['audit', '--json'], {
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-    report = JSON.parse(raw);
-    source = 'npm audit --json';
   } catch (e) {
-    const raw = String(e.stdout || '');
-    if (raw.includes('{')) {
-      report = JSON.parse(raw);
-      source = 'npm audit --json';
-    } else {
-      warn('[security:audit] ⚠️ 跳过：拿不到 npm audit 结果（无网络 / registry 不可达）。');
-      process.exit(0);
-    }
+    raw = String(e.stdout || '');
   }
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = null;
+  }
+  if (isValidReport(parsed)) {
+    report = parsed;
+    source = 'npm audit --json';
+  } else {
+    badRaw = raw;
+  }
+}
+
+const IS_CI = process.env.GITHUB_ACTIONS === 'true';
+
+if (!report) {
+  const why = describeBadReport(badRaw);
+  warn(`[security:audit] ❌ 审计没能执行：${why}`);
+  if (badRaw.trim()) {
+    warn(`  原始输出（前 3 行）：${badRaw.trim().split('\n').slice(0, 3).join(' / ')}`);
+  }
+  if (IS_CI && !ADVISORY) {
+    // 严格档宁可红也不能静默通过：这道门禁是「每日兜底」，静默放行等于它不存在。
+    warn('[security:audit] ❌ 严格档判红（审计没能执行 ≠ 0 漏洞）。');
+    process.exit(1);
+  }
+  warn('[security:audit] ⚠️ 告警档 / 本地不阻断，但**这次什么都没验成** —— 不是「通过」。');
+  process.exit(0);
 }
 
 const current = countByLevel(report);
