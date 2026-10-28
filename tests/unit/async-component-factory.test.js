@@ -10,13 +10,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const captured = [];
 const reportEvent = vi.fn();
+const recoverDynamicImportFailure = vi.fn(() => true);
 
 vi.mock('vue', () => ({
   defineAsyncComponent: (config) => {
     captured.push(config);
     return { __asyncConfig: config };
   },
-  // 工厂用 h 造错误卡；这里给个能反映结构的假实现
+  // 工厂用 h 造失败态；这里给个能反映结构的假实现
   h: (type, props, children) => ({ type, props, children }),
 }));
 
@@ -24,11 +25,28 @@ vi.mock('../../src/utils/monitoring.js', () => ({
   reportEvent: (...args) => reportEvent(...args),
 }));
 
+// 失败兜底现在会主动发起「强刷自愈」（部署窗口期只有它能救），单测里必须隔离掉
+vi.mock('../../src/utils/vite-preload-recovery.js', () => ({
+  recoverDynamicImportFailure: () => recoverDynamicImportFailure(),
+}));
+
 const { createPanelAsync } = await import('../../src/utils/async-component.js');
+
+/** 把 h() 假结构里的文本抽出来 —— 断言「用户到底看到了什么字」 */
+const collectText = (node) => {
+  if (node == null) return '';
+  if (typeof node === 'string') return node;
+  if (Array.isArray(node)) return node.map(collectText).join('');
+  return collectText(node.children);
+};
+
+/** 跑一遍 errorComponent 的 setup()，拿到它真正会渲染的 vnode 树 */
+const renderFallback = (config) => config.errorComponent.setup()();
 
 beforeEach(() => {
   captured.length = 0;
   reportEvent.mockClear();
+  recoverDynamicImportFailure.mockClear();
 });
 
 afterEach(() => {
@@ -45,9 +63,22 @@ describe('createPanelAsync', () => {
     expect(captured[0].timeout).toBe(20000);
   });
 
-  it('默认挂错误卡（替代裸简写的无声空白），自定义 errorComponent 可覆盖它', () => {
+  it('默认兜底是「继续显示加载态」而不是错误卡（2026-10-27 用户定稿），自定义可覆盖', () => {
     createPanelAsync(() => Promise.resolve({}), { label: 'A' });
     expect(captured[0].errorComponent).toBeTruthy();
+
+    // 真实渲染树：有「正在加载」，绝不能出现「加载失败 / 请检查网络」那套说法
+    const tree = renderFallback(captured[0]);
+    const text = collectText(tree);
+    expect(text).toContain('正在加载');
+    expect(text).not.toContain('加载失败');
+    expect(text).not.toContain('请检查网络');
+    // 反面证据：老的错误卡是一圈虚线（border: 1px dashed currentColor）—— 撤掉视觉就必须一起红
+    expect(tree.props.style.border).toBeUndefined();
+    // 三个点还在（用户要的就是这个动画；点了 class 才能吃到 index.html 的内联 keyframes）
+    const dots = tree.children[0];
+    expect(dots.props.class).toContain('boh-boot-dots');
+    expect(dots.children).toHaveLength(3);
 
     const custom = { name: 'CustomError' };
     createPanelAsync(() => Promise.resolve({}), { label: 'B', errorComponent: custom });
@@ -74,7 +105,7 @@ describe('createPanelAsync', () => {
     expect(fail).not.toHaveBeenCalled();
   });
 
-  it('onError 超过重试次数：上报 async_component_failure 并 fail（闭包保留 label）', () => {
+  it('onError 超过重试次数：上报 + 发起恢复 + fail（闭包保留 label）', () => {
     vi.useFakeTimers();
     createPanelAsync(() => Promise.resolve({}), { label: 'GiveUp' });
     const { onError } = captured[0];
@@ -86,7 +117,18 @@ describe('createPanelAsync', () => {
 
     expect(retry).not.toHaveBeenCalled();
     expect(reportEvent).toHaveBeenCalledWith('async_component_failure', { label: 'GiveUp' });
+    // 放弃之前必须先给恢复链一次机会（部署窗口期的唯一出口）；漏了它页面就会永远转圈
+    expect(recoverDynamicImportFailure).toHaveBeenCalledTimes(1);
     expect(fail).toHaveBeenCalledTimes(1);
+  });
+
+  it('重试阶段不发起恢复（别在瞬时抖动时清缓存）', () => {
+    vi.useFakeTimers();
+    createPanelAsync(() => Promise.resolve({}), { label: 'RetryOnly' });
+    const { onError } = captured[0];
+    onError(new Error('boom'), vi.fn(), vi.fn(), 1);
+    vi.runAllTimers();
+    expect(recoverDynamicImportFailure).not.toHaveBeenCalled();
   });
 
   it('retries 可配置：retries:0 时首次失败即上报并放弃', () => {

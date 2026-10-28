@@ -4,6 +4,7 @@ import { createPanelAsync } from '@/utils/async-component.js';
 import { useRoute, useRouter } from 'vue-router';
 import Footer from './components/Footer.vue';
 import { isGlobalNavbarVisible } from '@/utils/global-navbar-visibility.js';
+import { shouldMarkBootReady } from '@/utils/boot-readiness.js';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
 import GlobalErrorBoundary from '@/components/GlobalErrorBoundary.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -74,6 +75,18 @@ router
   .catch(() => {
     // 导航失败（如路由 chunk 拿不到）：保持加载态，交给下面的超时提示
   });
+
+// 兜底：isReady() 只描述**首次**导航，且被 reject 后永不再 resolve。
+// 首屏 chunk 一旦失败（部署窗口期旧 hash 404 最常见），后面哪怕用户再导航成功、
+// 内容已经渲染出来，这块 60vh 的启动态也会一直挂着 —— 只能死等 10s 超时。
+// 判据在 utils/boot-readiness.js（单一真源，含「必须判 failure」的理由）。
+router.afterEach((to, from, failure) => {
+  if (!shouldMarkBootReady(failure, bootReady.value)) return;
+  bootReady.value = true;
+  // 内容已经在下面了，「加载超时」这张卡此时是错的；一并撤掉
+  bootTimedOut.value = false;
+  window.clearTimeout(bootTimeoutId);
+});
 
 // 10s 超时先自救再报错：引导卡死最常见的原因是「本机旧构建撞上新部署」
 // （旧 index.html 引用的 hash chunk 已被删除）。拉 version.json 就能判定 ——
