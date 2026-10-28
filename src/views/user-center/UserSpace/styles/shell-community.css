@@ -10,7 +10,12 @@
   --userspace-messages-top-inset: max(68px, calc(var(--userspace-nav-h, 78px) + env(safe-area-inset-top, 0px) + 4px));
   --userspace-community-bottom-inset: 108px;
   --userspace-community-inline-padding: clamp(16px, 3vw, 48px);
-  --bg: #f5f5f7;
+  /* 2026-10-27（用户定稿）：整页底色由 #f5f5f7 改成**纯白** ——
+     「我的」是一个内容页，不是一个装在灰盒子里的面板。灰底曾经承担
+     「衬托白色卡片」的职责，但代价是整页永远隔着一层灰，卡片边界靠
+     底色反差而不是自己的描边。改成纯白后层次改由 1px 描边 + 阴影表达
+     （Apple 那边也是这么做的）。暗色主题在下方单独覆盖，不受影响。 */
+  --bg: #ffffff;
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
   --text-muted: #86868b;

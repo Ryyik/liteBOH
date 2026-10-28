@@ -1626,6 +1626,19 @@ for (let i = 0; i < 6; i += 1) {
 await portraitPage
   .waitForSelector('.profile-home-shell .profile-hero-panel', { timeout: 20000 })
   .catch(() => {});
+/* ⚠️ 主题复位（2026-10-27 实测踩到）：
+   上面第 9 段用 `darkPage.addInitScript` 往 localStorage 写了 boh-theme=dark，
+   而 **localStorage 是 context 级共享的** ⇒ 同一 context 里的竖屏页也跟着变暗色。
+   不复位的话，「整页底色纯白」这条会量到 rgb(13,13,18) 并以「探针污染」的名义假红。
+   （同理：任何在 context 里切换过主题的探针，量亮色读数前都要先复位。） */
+await portraitPage.evaluate(() => {
+  try {
+    localStorage.removeItem('boh-theme');
+  } catch {}
+  document.documentElement.setAttribute('data-theme', 'light');
+  document.querySelector('.user-space-page')?.setAttribute('data-theme', 'light');
+});
+await portraitPage.waitForTimeout(400);
 const portraitFlush = await portraitPage.evaluate(() => {
   const panel = document.querySelector('.profile-home-shell > .profile-hero-panel');
   const stats = document.querySelector('.profile-home-shell .profile-hero-stats');
@@ -1638,6 +1651,18 @@ const portraitFlush = await portraitPage.evaluate(() => {
   // 项数 + 是否真的排在同一行（offsetTop 只有一个取值）。
   const items = stats ? [...stats.querySelectorAll('.stat-text')] : [];
   const tops = items.map((el) => Math.round(el.getBoundingClientRect().top));
+  /* 2026-10-27 三条新增口径（用户定稿）：
+     ① 整页底色纯白（原来是 #f5f5f7 的灰盒）；
+     ② 「编辑资料 / 活跃轨迹」那一行必须与昵称共用左边界；
+     ③ 活跃轨迹胶囊上不许再出现天数。
+     ⚠️ 每条都取不到元素时置 null 并让断言 fail —— 找不到就当通过是假绿。 */
+  const pageEl = document.querySelector('.user-space-page');
+  const nameEl = document.querySelector(
+    '.profile-home-shell .profile-hero-copy .profile-name, .profile-home-shell .profile-hero-copy h1, .profile-home-shell .profile-hero-name',
+  );
+  const actionsEl = document.querySelector('.profile-home-shell .profile-hero-actions');
+  const pillEl = document.querySelector('.profile-home-shell .profile-activity-trigger');
+  const leftOf = (el) => (el ? Math.round(el.getBoundingClientRect().left) : null);
   return {
     found: true,
     radius: cs.borderTopLeftRadius,
@@ -1645,6 +1670,10 @@ const portraitFlush = await portraitPage.evaluate(() => {
     right: Math.round(window.innerWidth - r.right),
     statCount: items.length,
     statRows: new Set(tops).size,
+    pageBg: pageEl ? getComputedStyle(pageEl).backgroundColor : null,
+    nameLeft: leftOf(nameEl),
+    actionsLeft: leftOf(actionsEl),
+    pillText: pillEl ? (pillEl.innerText || '').replace(/\s+/g, ' ').trim() : null,
   };
 });
 check(
@@ -1661,6 +1690,27 @@ check(
   '竖屏空间段：统计行 3 项同排（纯文本流，不再 4 等分网格）',
   portraitFlush.statCount === 3 && portraitFlush.statRows === 1,
   `items=${portraitFlush.statCount} rows=${portraitFlush.statRows}`,
+);
+check(
+  '竖屏空间段：整页底色纯白（2026-10-27 定稿，不再是 #f5f5f7 灰盒）',
+  portraitFlush.pageBg === 'rgb(255, 255, 255)',
+  portraitFlush.pageBg || '页面根未渲染',
+);
+check(
+  '竖屏空间段：主操作行与昵称同一左边界（编辑资料 / 活跃轨迹）',
+  portraitFlush.nameLeft !== null &&
+    portraitFlush.actionsLeft !== null &&
+    Math.abs(portraitFlush.actionsLeft - portraitFlush.nameLeft) <= 1,
+  portraitFlush.nameLeft === null
+    ? '昵称元素未找到'
+    : portraitFlush.actionsLeft === null
+      ? '主操作行未找到'
+      : `nameLeft=${portraitFlush.nameLeft} actionsLeft=${portraitFlush.actionsLeft}`,
+);
+check(
+  '竖屏空间段：活跃轨迹胶囊只显示标题（不显示天数）',
+  portraitFlush.pillText === '活跃轨迹',
+  portraitFlush.pillText === null ? '胶囊未找到' : `text="${portraitFlush.pillText}"`,
 );
 
 /* 另两档的口径（2026-10-26 重写）：

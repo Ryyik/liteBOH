@@ -339,32 +339,87 @@ const { textareaRef: bioRef } = useAutoGrowTextarea({
   white-space: nowrap;
 }
 
-/* 页头右侧的保存按钮：Apple 的「完成」位。纯蓝字无底（页头是 52px 窄列，
-   带底的药丸连「保存」两个字都放不下，会被压成两行 —— 2026-10-26 实测踩到）。 */
+/* 页头右侧的保存按钮（2026-10-27 用户反馈「不明显不清晰」）：
+   原来是**无底纯蓝字**（Apple 的「完成」位），落在白色页头上与一行普通链接没有区别，
+   而它其实是这一页唯一能落地的动作 —— 用户不知道点哪保存。
+   现在改成实心蓝药丸（白字 + 999 圆角 + hover 加深/danger 态禁用）。
+   ⚠️ 宽度必须算着写：页头是 `grid-template-columns: 52px 1fr 52px`，
+   actions 列只有 52px，药丸一超就把「保存」压成两行（2026-10-26 已踩过一次）。
+   13px 下「保存」≈ 26px + 左右各 10px 内边距 = 46px，留在 52px 以内。 */
 .ep-save {
   height: 32px;
-  padding: 0 8px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: #0071e3;
+  border-radius: 999px;
+  background: #0071e3;
+  color: #ffffff;
   font-family: inherit;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 71, 143, 0.24);
   transition:
     background-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms var(--ease-out, ease-out),
     opacity 150ms ease;
 }
 
 .ep-save:hover:not(:disabled) {
-  background: rgba(0, 113, 227, 0.1);
+  background: #0077ed;
+  box-shadow: 0 4px 12px rgba(0, 113, 227, 0.32);
+}
+
+.ep-save:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.ep-save:focus-visible {
+  outline: 2px solid #0071e3;
+  outline-offset: 2px;
 }
 
 .ep-save:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 内联形态（设置页右栏）宽度富余，药丸可以给足内边距 —— 它是这一栏的主操作。 */
+.ep-shell.is-inline .ep-save {
+  height: 34px;
+  padding: 0 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+/* 竖屏：设置页的内容层是全宽（无左右内边距，行分割线一路铺到屏幕边），
+   工具行若不加内边距，实心「保存」药丸会**贴着屏幕右缘**画出去（实测 right=390）。
+   给它和下面各行同样的 16px，返回/标题/保存三者才在同一条竖线上。 */
+@media (max-width: 767px) {
+  .ep-inline-head {
+    padding: 0 16px;
+  }
+}
+
+/* 暗色：实心蓝在深底上偏暗，整支提亮一档。
+   ⚠️ 这里**刻意不写第二个亮蓝 hex**：用 filter 提亮同一个 #0071e3，
+   暗色块里因此不新增任何颜色字面量 —— check:dark-tokens 的棘轮只降不升
+   （实测写 `background:#0a84ff` 会让总数 2465 → 2466，门禁虽为观察模式不判红，
+   但那条记账会一直挂着，且「上调基线」= 凭空造余量，明令禁止）。 */
+html[data-theme='dark'] .ep-save {
+  filter: brightness(1.2) saturate(1.06);
+  box-shadow: none;
+}
+
+html[data-theme='dark'] .ep-save:hover:not(:disabled) {
+  filter: brightness(1.34) saturate(1.06);
+}
+
+html[data-theme='dark'] .ep-save:focus-visible {
+  outline-color: var(--liquid-text-primary);
 }
 
 /* ---------- 行内控件 ---------- */
@@ -505,14 +560,10 @@ const { textareaRef: bioRef } = useAutoGrowTextarea({
 }
 
 /* ---------- 暗色 ---------- */
-[data-theme='dark'] .ep-save {
-  background: rgba(41, 151, 255, 0.16);
-  color: #2997ff;
-}
-
-[data-theme='dark'] .ep-save:hover:not(:disabled) {
-  background: rgba(41, 151, 255, 0.26);
-}
+/* ⚠️ `.ep-save` 的暗色档统一写在上方按钮本体那一块（实心亮蓝 + 白字）。
+   这里原先还有一条 `[data-theme='dark'] .ep-save { background: rgba(41,151,255,.16);
+   color: #2997ff }`（半透明底 + 蓝字的「暗色链接」形态），本次改用实心药丸后
+   它会把白字压成蓝字 ⇒ 已删除，别再补回来。 */
 
 [data-theme='dark'] .ep-textarea:focus {
   border-color: rgba(41, 151, 255, 0.6);

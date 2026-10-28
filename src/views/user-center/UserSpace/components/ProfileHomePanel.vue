@@ -122,9 +122,25 @@
               </button>
             </template>
           </div>
-            <button type="button" class="profile-edit-btn" @click="$emit('edit-profile')">
-              编辑资料
-            </button>
+            <!-- 主操作行（2026-10-27 定稿）：编辑资料 + 活跃轨迹，并排两枚胶囊。
+                 · 编辑资料是**实心主按钮** —— 原来是无底浅灰胶囊，用户反馈「不明显不清晰」；
+                 · 活跃轨迹原来在资料卡下面独占一条 48px 通栏，现在收成这里的一枚次按钮胶囊，
+                   同时省掉资料卡与积分卡之间的那一整行。
+                 · flex-wrap 必须留：390 屏文案列只有 256px，两枚胶囊并排 ≈ 221px；
+                   320 屏（186px）会折行，折行比被压扁/竖排字可读。
+                 2026-10-27 第二次抽：胶囊 + 弹窗收进 ActivityHeatmapLauncher ——
+                 他人空间要把同一套入口同步过去，两处各写一份弹窗等于留两份会漂的副本。 -->
+            <div class="profile-hero-actions">
+              <button type="button" class="profile-edit-btn" @click="$emit('edit-profile')">
+                编辑资料
+              </button>
+              <ActivityHeatmapLauncher
+                :payload="heatmap"
+                :loading="isHeatmapLoading"
+                :is-owner="true"
+                @compose="$emit('compose')"
+              />
+            </div>
           </div>
         </div>
 
@@ -135,95 +151,21 @@
          印象已成为下方内容面板的一个 tab（作品 / 回复 / 印象），
          保留摘要行就是同一目的地的第二个入口 —— 与「一个目的地一个入口」冲突。
          社交证明的内容价值由 tab 上的计数承担，点开即完整网格。 -->
-    <!-- 活跃轨迹（2026-10-27 用户定稿）：从常驻卡片（约 202px）压成**一行按钮**（48px），
-         点开在弹窗里看完整图。省下的 154px 全部还给首屏内容。
-         · 数据源不变：还是 heatmap 这一个 payload，弹窗里复用的也是 ActivityHeatmap 本身
-           （embedded 变体只去外壳与重复标题，点阵/图例/空态逻辑全在组件里）。
-         · 形状是按钮不是「卡片 + 箭头」：整块可点，语义与键盘可达性都由原生 button 承担。 -->
-    <button
-      type="button"
-      class="profile-activity-trigger"
-      :class="{ 'is-loading': isHeatmapLoading }"
-      :aria-label="activityTriggerLabel"
-      @click="openHeatmapSheet"
-    >
-      <span class="profile-activity-trigger-icon" aria-hidden="true">
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.9"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <rect x="3" y="4" width="18" height="17" rx="3" />
-          <path d="M8 2v4M16 2v4M3 10h18" />
-        </svg>
-      </span>
-      <span class="profile-activity-trigger-label">活跃轨迹</span>
-      <span class="profile-activity-trigger-value">{{
-        isHeatmapLoading ? '' : activityTriggerValue
-      }}</span>
-      <svg
-        class="profile-activity-trigger-chevron"
-        width="12"
-        height="12"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.4"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M9 6l6 6-6 6" />
-      </svg>
-    </button>
 
     <!-- 方块积分卡（2026-10-26 做小）：
          原来是一张 200px+ 的大卡面 + 标题行 + 一行操作说明。做小三件事：
          ① 传 compact（PointsCard 内置变体：2.08 aspect、26px 数字）；
          ② 删卡面下方的操作说明（点卡即设置，说明是常驻噪音）；
          ③ 删标题行里的 tier 角标 —— Hero 的 tier-badge 已显示同一个档位。
-         卡面本身保留：它是玩家向的「门面资产」，只是不再吃半屏。 -->
+         卡面本身保留：它是玩家向的「门面资产」，只是不再吃半屏。
+         2026-10-27（用户定稿，第二次收）：**外壳与标题行整条去掉** ——
+         原来是一张白色圆角壳（边框 + 20px 圆角 + 16px 内边距）套着卡面，
+         再配「方块积分卡 / 设置卡面 ›」一行标题，等于三层框套一个卡。
+         现在只留卡面本身：白壳撤掉（透明、无边框、无圆角、无内边距），
+         标题行也撤掉（卡面自己就写着「方块积分」）；
+         「设置卡面」那个按钮一并删除 —— 整张卡面就是入口，点哪都能进设置
+         （见下方 PointsCard 的 interactive + @click，title 与 aria-label 都写明了）。 -->
     <section class="profile-points-card-section is-own" aria-label="方块积分卡">
-      <div class="profile-points-card-head">
-        <span class="profile-points-card-kicker">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.9"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <rect x="2" y="5" width="20" height="14" rx="2" />
-            <line x1="2" y1="10" x2="22" y2="10" />
-          </svg>
-          方块积分卡
-        </span>
-        <button type="button" class="profile-points-card-action" @click="handlePointsCardClick">
-          设置卡面
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
-      </div>
       <div class="profile-points-card-wrap">
         <PointsCard
           :points="pointsCardPoints"
@@ -233,6 +175,7 @@
           :image-url="pointsCardImageUrl"
           compact
           interactive
+          title="点击设置卡面"
           @click="handlePointsCardClick"
         />
       </div>
@@ -482,70 +425,14 @@
       @unfollow="handleUnfollow"
     />
 
-    <!-- 活跃轨迹弹窗（2026-10-27）
-         ⚠️ **必须 Teleport 到 body**：遮罩是 position: fixed，而祖先 `.profile-hero-panel`
-         与页根 `.user-space-page` 都带入场动画收尾留下的 `transform: matrix(...)`
-         （单位矩阵也算 transform ≠ none）⇒ fixed 会被改成「相对该祖先定位」，遮罩只铺到
-         那一块。这是资产页充值弹窗踩过的同一个坑（AssetsHubPanel.vue:523 有完整记录）。
-         Teleport 之后暗色覆盖不能再用 `.user-space-page[data-theme='dark']` 前缀
-         （节点已不在页根里），必须写 `html[data-theme='dark']`。 -->
-    <Teleport to="body">
-      <Transition name="profile-heatmap-sheet">
-        <div
-          v-if="isHeatmapSheetOpen"
-          class="profile-heatmap-overlay"
-          @click.self="closeHeatmapSheet"
-        >
-          <section
-            class="profile-heatmap-sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="profile-heatmap-sheet-title"
-          >
-            <header class="profile-heatmap-sheet-head">
-              <div class="profile-heatmap-sheet-titles">
-                <h2 id="profile-heatmap-sheet-title">活跃轨迹</h2>
-                <p>{{ activitySheetSubtitle }}</p>
-              </div>
-              <button
-                ref="heatmapCloseRef"
-                type="button"
-                class="profile-heatmap-sheet-close"
-                aria-label="关闭活跃轨迹"
-                @click="closeHeatmapSheet"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.2"
-                  stroke-linecap="round"
-                  aria-hidden="true"
-                >
-                  <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
-              </button>
-            </header>
-            <ActivityHeatmap
-              embedded
-              :payload="heatmap"
-              :loading="isHeatmapLoading"
-              @compose="handleHeatmapCompose"
-            />
-          </section>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { computed, reactive, ref, watch, onMounted } from 'vue';
 import FollowListModal from '@/components/FollowListModal.vue';
 import PointsCard from './PointsCard.vue';
-import ActivityHeatmap from './ActivityHeatmap.vue';
+import ActivityHeatmapLauncher from './ActivityHeatmapLauncher.vue';
 import ProfileImpressionsSection from './ProfileImpressionsSection.vue';
 import {
   getCommentsByUsername,
@@ -809,76 +696,9 @@ const emit = defineEmits([
 
 const displayName = computed(() => props.profile.username || '未登录');
 
-/* ── 活跃轨迹：一行按钮 + 弹窗（2026-10-27）─────────────────────────
-   原来热力图是常驻卡片（约 202px）。现在主页只留一行 48px 的入口，
-   完整图（点阵 / 图例 / 空态 / 去发帖）全部搬进弹窗，组件本身不变。
-   数字口径与 ActivityHeatmap 内部一致：active_days 是「有活动的天数」，
-   total 是发帖 + 回复的次数 —— 两处各算一遍会漂，所以这里只做展示用，
-   真正的统计仍以组件内 computed 为准（弹窗里显示的也是组件自己那份）。 */
-const heatmapActiveDays = computed(() => Number(props.heatmap?.active_days) || 0);
-const heatmapTotalCount = computed(
-  () => (Number(props.heatmap?.total_posts) || 0) + (Number(props.heatmap?.total_comments) || 0),
-);
-
-const activityTriggerValue = computed(() => {
-  if (!heatmapActiveDays.value && !heatmapTotalCount.value) return '还没有留下足迹';
-  return `活跃 ${heatmapActiveDays.value} 天`;
-});
-
-const activityTriggerLabel = computed(() =>
-  props.isHeatmapLoading ? '活跃轨迹，正在加载' : `活跃轨迹，${activityTriggerValue.value}，点击查看完整图`,
-);
-
-const activitySheetSubtitle = computed(() => {
-  if (props.isHeatmapLoading) return '正在加载…';
-  if (!heatmapActiveDays.value && !heatmapTotalCount.value) return '还没有留下足迹';
-  return `过去一年 ${heatmapTotalCount.value} 次 · 活跃 ${heatmapActiveDays.value} 天`;
-});
-
-const isHeatmapSheetOpen = ref(false);
-const heatmapCloseRef = ref(null);
-
-const openHeatmapSheet = () => {
-  isHeatmapSheetOpen.value = true;
-  // 焦点移到关闭钮：键盘/读屏用户打开弹窗后要有落点，否则 Tab 会从页首开始走。
-  nextTick(() => heatmapCloseRef.value?.focus?.());
-};
-
-const closeHeatmapSheet = () => {
-  isHeatmapSheetOpen.value = false;
-};
-
-/** 弹窗里的「去发帖」：先关弹窗再交给父层 —— 留一个盖着遮罩的编辑器等于没反应。 */
-const handleHeatmapCompose = () => {
-  closeHeatmapSheet();
-  emit('compose');
-};
-
-const handleHeatmapSheetKeydown = (event) => {
-  if (event.key === 'Escape') closeHeatmapSheet();
-};
-
-/**
- * 弹窗打开期间锁背景滚动。
- * ⚠️ 遮罩已 Teleport 到 body，键盘事件不经过本组件 DOM ⇒ 监听必须挂 document。
- * overflow 锁挂在 <html> 上（class 由全局规则处理，scoped 选择器命不中 html）。
- */
-watch(isHeatmapSheetOpen, (open) => {
-  if (typeof document === 'undefined') return;
-  if (open) {
-    document.addEventListener('keydown', handleHeatmapSheetKeydown);
-    document.documentElement.classList.add('profile-sheet-lock');
-  } else {
-    document.removeEventListener('keydown', handleHeatmapSheetKeydown);
-    document.documentElement.classList.remove('profile-sheet-lock');
-  }
-});
-
-onBeforeUnmount(() => {
-  if (typeof document === 'undefined') return;
-  document.removeEventListener('keydown', handleHeatmapSheetKeydown);
-  document.documentElement.classList.remove('profile-sheet-lock');
-});
+/* 活跃轨迹的按钮 + 弹窗逻辑（2026-10-27）已收进 ActivityHeatmapLauncher：
+   —— 他人空间要把同一套入口同步过去，弹窗的焦点管理 / 滚动锁 / 暗色桥接
+   两处各写一份，就是给未来留两份会漂的副本。这里只负责把 payload 传下去。 */
 
 const profileId = computed(() => props.profile.id || '');
 const { fetchUserTier, getNicknameClass, getUserTierCode } = useUserTier();
@@ -1136,7 +956,6 @@ watch(
   }
 
   .profile-home-shell > .profile-hero-panel,
-  .profile-home-shell > .profile-activity-trigger,
   .profile-home-shell > .profile-points-card-section,
   .profile-home-shell > .profile-content-panel {
     border-radius: 0;
@@ -1209,21 +1028,17 @@ watch(
     margin-top: 6px;
   }
 
-  /* 编辑资料（2026-10-26 竖屏缩小）：不再是通栏主动作按钮，回到小胶囊 ——
-     通栏黑块是旧版最重的视觉元素，主角应该是头像和昵称。
-     要同时压掉三条既有约束，否则按钮永远只有 140px 或被迫全宽：
-       · responsive-integrations.css 的 `max-width: 140px`（这里显式 max-width: none）
-       · 基础规则的 `align-self: flex-start`（保持，让它左对齐不拉伸）
-       · 基础 `.profile-hero-copy` 是 flex row（已在上方改 column） */
+  /* 主操作行（2026-10-27）：竖屏收紧上边距，与数据行之间不再留 14px。 */
+  .profile-home-shell .profile-hero-actions {
+    margin-top: 10px;
+    gap: 8px;
+  }
+
+  /* 竖屏两枚胶囊都压到 32px 高、12.5px 字：文案列窄，32/13 会先把行折成两行。
+     高度必须**两枚一致** —— 不同高会破坏同一行里的中线（见上方 margin 归零那条）。 */
   .profile-home-shell .profile-edit-btn {
-    position: static;
-    width: auto;
-    max-width: none;
-    align-self: flex-start;
-    margin-top: 8px;
-    min-height: 30px;
+    min-height: 32px;
     padding: 0 14px;
-    border-radius: 999px;
     font-size: 12.5px;
     box-shadow: none;
   }
@@ -1536,40 +1351,78 @@ watch(
   color: var(--text-primary);
 }
 
-.profile-edit-btn {
-  position: absolute;
-  right: 0;
-  bottom: 0;
+/* ── 主操作行：编辑资料 + 活跃轨迹（2026-10-27 定稿）────────────────────
+   键盘/读屏视角它们是一组并列的操作，所以用一个 flex 行包起来。
+   ⚠️ 走**正常流**而不是绝对定位：2026-10-26 的单按钮版本是 `position:absolute;
+   right:0; bottom:0`，一个 78px 宽的胶囊贴在右下角不挡谁；现在一排两枚（≈221px），
+   绝对定位会压到数据行（同一个 bottom 锚点）。落地成流式行后，它与昵称、数据行
+   共用同一条左边界 —— 和「数据不要单独居中」是同一个要求。 */
+.profile-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin-top: 14px;
-  min-height: 34px;
+}
+
+/* 子项外边距归零（2026-10-27 实测补）：
+   `responsive-integrations.css` 在这个断点给 .profile-edit-btn 挂着
+   `margin-top: 10px`（它还兼职「单按钮绝对定位」那个旧形态），
+   进 flex 行后这条 margin 会把「编辑资料」的 margin-box 撑到 40px，
+   在 align-items:center 下被推到行底 —— 实测同一行里编辑资料 t=420、
+   活跃轨迹 t=414，两枚胶囊上下错开 6px，看着就是「没对齐」。
+   ⚠️ 只写 `.profile-edit-btn`：活跃轨迹已是子组件（ActivityHeatmapLauncher），
+   而**多根组件（button + Teleport）不会继承父组件的 scopeId**，
+   父级 `> .profile-activity-trigger` 编译后带 [data-v-父] 却命中不到它。
+   它自己的 margin 归零写在组件内部（那边是自身作用域，一定生效）。 */
+.profile-hero-actions > .profile-edit-btn {
+  margin: 0;
+}
+
+/* 编辑资料（2026-10-27 用户反馈「不明显不清晰」）：
+   2026-10-26 曾把它降级成「无底浅灰胶囊」，实测在白资料卡上几乎与背景同色——
+   一枚按钮看起来像一行说明文字。现在改回**实心主按钮**：深底浅字、白字加粗、
+   1px 同色描边（防高对比模式下只剩一块色块）＋ 极轻投影。
+   它是「我的」页唯一的主操作，重一点是对的；重量的控制交给尺寸（32px）而不是颜色。 */
+.profile-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
   padding: 0 16px;
-  /* 2026-10-26（参考小红书的减重）：原来是 #1d1d1f 实心黑底 + 投影，
-     一块纯黑 pill 成了整页最重的色块，压过了昵称与内容本身。
-     改成描边次要按钮：入口不变、位置不变，只是不再抢视觉重心。 */
-  border: 1px solid var(--stroke);
+  border: 1px solid var(--liquid-text-primary, #1d1d1f);
   border-radius: 999px;
-  background: var(--surface-2, rgba(29, 29, 31, 0.05));
-  color: var(--text-primary);
+  background: var(--liquid-text-primary, #1d1d1f);
+  /* 暗色下 --liquid-text-primary 变浅 ⇒ 文字必须跟着反色，否则白字压浅底看不见。
+     --boh-bg-primary 是主题里唯一天然反向的底色（亮 #fff / 暗 #0a0a0f），
+     正好当「实心按钮上的字色」用。 */
+  color: var(--boh-bg-primary, #ffffff);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
   cursor: pointer;
-  box-shadow: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
   transition:
     transform 160ms var(--ease-out),
-    background-color 180ms ease,
-    border-color 180ms ease;
+    opacity 180ms ease,
+    box-shadow 180ms ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .profile-edit-btn:hover {
     transform: translateY(-1px);
-    background: var(--surface-3, rgba(29, 29, 31, 0.09));
-    border-color: var(--stroke-strong, var(--stroke));
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
   }
 }
 
 .profile-edit-btn:active {
   transform: scale(0.98);
+}
+
+.profile-edit-btn:focus-visible {
+  outline: 2px solid var(--liquid-text-primary, #1d1d1f);
+  outline-offset: 2px;
 }
 
 .profile-hero-stats {
@@ -1589,252 +1442,65 @@ watch(
   margin: 0;
 }
 
-/* ── 活跃轨迹：一行按钮（2026-10-27 定稿）────────────────────────────
-   原来这里是一张常驻的热力图卡（标题行 + 53 周点阵 + 图例，约 202px）。
-   压成一行 48px 的入口后，首屏多出 150px+ 给内容 —— 这是用户明确要的那笔账。
-   形状是 button（整块可点、原生键盘可达），右侧显示「活跃 N 天」，
-   点开在弹窗里看完整点阵。 */
-.profile-activity-trigger {
-  appearance: none;
-  -webkit-appearance: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-  /* 48px 是「与 32px 图标行同一档触控带」的下限值，别再往下压：
-     竖屏 390 下它紧贴封面，压到 44 以下会和资料卡的编辑按钮挤成一片。 */
-  min-height: 48px;
-  margin: 0;
-  padding: 0 16px;
-  border: 1px solid var(--stroke);
-  border-radius: 16px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color 160ms ease,
-    transform 160ms var(--ease-out);
-}
 
-@media (hover: hover) and (pointer: fine) {
-  .profile-activity-trigger:hover {
-    background: var(--surface-2, rgba(29, 29, 31, 0.035));
-  }
-}
-
-.profile-activity-trigger:active {
-  transform: scale(0.995);
-}
-
-.profile-activity-trigger-icon {
-  display: inline-flex;
-  flex: 0 0 auto;
-  color: var(--text-primary);
-}
-
-.profile-activity-trigger-label {
-  flex: 0 0 auto;
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-
-/* margin-left:auto 把「数字 + 箭头」推到右端 —— 加载中数字为空时也不会塌成左边一坨 */
-.profile-activity-trigger-value {
-  margin-left: auto;
-  min-width: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.profile-activity-trigger.is-loading .profile-activity-trigger-value {
-  width: 64px;
-  height: 10px;
-  border-radius: 4px;
-  /* 骨架条用 color-mix 叠 --text-primary，而不是写死 rgba(15,23,42,…)：
-     亮色下是 6%/12% 的深灰、暗色下自动变浅灰。写死的话暗色主题里
-     这条近乎不可见（深灰压深底），而且暗色块每多写一个裸色都要记棘轮账。 */
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--text-primary) 6%, transparent) 25%,
-    color-mix(in srgb, var(--text-primary) 12%, transparent) 50%,
-    color-mix(in srgb, var(--text-primary) 6%, transparent) 75%
-  );
-  background-size: 200% 100%;
-  animation: profile-trigger-shimmer 1.4s linear infinite;
-}
-
-@keyframes profile-trigger-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-
-  to {
-    background-position: -200% 0;
-  }
-}
-
-.profile-activity-trigger-chevron {
-  flex: 0 0 auto;
-  color: var(--text-tertiary);
-  display: block;
-}
-
-/* ── 活跃轨迹弹窗（2026-10-27）─────────────────────────────────────
-   ⚠️ 这段样式作用在 Teleport 到 body 的节点上（见模板注释）。因此：
-   ① 选择器**不能**带 `.profile-home-shell` 之类页内祖先 —— 节点已经不在那棵树里；
-   ② 页级 token（--surface / --stroke / --text-primary …）只定义在 `.user-space-page` 上，
-      body 下取不到 ⇒ 下面显式把宿主变量映射到全局 --liquid-* 全家桶，
-      弹窗里的 ActivityHeatmap 才拿得到颜色（它内部读的就是这套页级变量）；
-   ③ 暗色覆盖必须写 `html[data-theme='dark']`，不能写 `.user-space-page[data-theme=dark]`。 */
-.profile-heatmap-overlay {
-  position: fixed;
-  inset: 0;
-  /* #unified-nav-container 是 9999（styles/vendor/unified-nav.css），必须比它高，
-     否则弹窗顶部会被导航岛压住 —— 资产页充值弹窗踩过这个坑。 */
-  z-index: 10000;
-  display: grid;
-  /* safe center：内容比视口高时退化为 start，配合 overflow-y:auto 才能滚到首行；
-     纯 center 会把上半截顶成负 top，那部分永远滚不出来（手机横屏 844×390 实测）。 */
-  align-items: center;
-  align-items: safe center;
-  justify-items: center;
-  padding: 24px 16px;
-  overflow-y: auto;
-  background: rgba(15, 23, 42, 0.34);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.profile-heatmap-sheet {
-  /* 页级变量 → 全局 token 的桥（见上方 ②） */
-  --text-primary: var(--liquid-text-primary);
-  --text-secondary: var(--liquid-text-secondary);
-  --text-tertiary: var(--liquid-text-tertiary);
-  --stroke: var(--liquid-border, rgba(15, 23, 42, 0.1));
-  --surface: #ffffff;
-  --surface-2: rgba(29, 29, 31, 0.05);
-  /* ⚠️ 宽度必须用 `max-width` + `box-sizing: border-box`，不能用 `width: min(100%, 560px)`：
-     实测 390 视口下 min() 那条被内容（817px 的点阵滚动区）压过，卡片按 560 撑开、
-     左右各被裁 85px。grid item 的 min-width: auto 会认内容宽 —— max-width 才能硬限住。 */
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 560px;
-  min-width: 0;
-  padding: 18px 18px 16px;
-  border: 1px solid var(--liquid-border, rgba(15, 23, 42, 0.1));
-  border-radius: 22px;
-  /* 实色而不是半透明玻璃：卡面底下就是点阵与图例，
-     62% 半透明会让背后的页面文字透进标题（记忆里「模态框用 --card-solid」那条的来源）。 */
-  background: #ffffff;
-  box-shadow: var(--liquid-shadow-overlay, 0 24px 80px rgba(15, 23, 42, 0.14));
-  text-align: left;
-}
-
-.profile-heatmap-sheet-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.profile-heatmap-sheet-titles {
-  min-width: 0;
-}
-
-.profile-heatmap-sheet-titles h2 {
-  margin: 0;
-  color: var(--liquid-text-primary);
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-
-.profile-heatmap-sheet-titles p {
-  margin: 4px 0 0;
-  color: var(--liquid-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.profile-heatmap-sheet-close {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
+/* ── 积分卡：去掉白色外壳（2026-10-27 用户定稿）──────────────────────────
+   原来是「白色圆角壳（边框 + 20px 圆角 + 16px 内边距 + 投影）套着卡面」，
+   再加一行「方块积分卡 / 设置卡面 ›」标题 —— 三层框套一个卡，视觉上卡面像是被装裱的展品。
+   现在外壳归零：透明、无边框、无圆角、无内边距、无投影、无入场动画，
+   卡面自己就是这一块的全部内容（它本来就写着「方块积分」）。
+   ⚠️ 必须带 `.profile-home-shell` 前缀：这条要压的是 profile-base.css 里的
+   `.profile-points-card-section`（0,1,0）以及它的暗色覆盖 —— 前缀把它提到 (0,2,0)。
+   `overflow: visible` 是配套的：原规则是 hidden，卡面 focus-visible 的 outline
+   会被裁掉一半。 */
+.profile-home-shell .profile-points-card-section {
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: var(--surface-2);
-  color: var(--liquid-text-secondary);
-  cursor: pointer;
-  transition: background-color 160ms ease;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  gap: 0;
+  animation: none;
 }
 
-@media (hover: hover) and (pointer: fine) {
-  .profile-heatmap-sheet-close:hover {
-    /* color-mix 而不是写死 rgba：亮色下是 12% 黑、暗色下是 12% 白，
-       一个规则覆盖两个主题，也不用再补一条 `html[data-theme='dark']` 覆盖块
-       （暗色块里的裸色会被 check:dark-tokens 的棘轮记账）。 */
-    background: color-mix(in srgb, var(--liquid-text-primary) 12%, transparent);
+/* 外壳撤掉后卡面自己就是这一块的全部内容 —— 位置按「展品」摆：水平居中。
+   （左侧留 16px 内边距、右侧一大片空地的那一版实测很失衡：宽屏下它像一张
+   没人认领的卡片贴在页边。居中后左右留白对称，留白才读成「呼吸」。） */
+.profile-home-shell .profile-points-card-wrap {
+  justify-content: center;
+}
+
+/* 竖屏：卡面自己带 14px 圆角，通栏贴边会变成「一条圆角毯子」。
+   补回原先白壳那 16px 内边距（白壳撤了，内边距的活要有人接）。
+   ⚠️ 这条必须写在本段之后：与上方 base 规则同特异性，源序在前会被压掉。 */
+@media (max-width: 767px) {
+  .profile-home-shell .profile-points-card-section {
+    padding: 0 16px;
   }
 }
 
-.profile-heatmap-sheet-enter-active,
-.profile-heatmap-sheet-leave-active {
-  transition: opacity 180ms ease;
+/* 点击即设置（2026-10-27）：标题行里那个「设置卡面 ›」按钮已删，
+   整张卡面就是入口。这里补两件小事，让「可点」这件事在视觉上成立：
+   ① hover 时给卡面一圈极淡的主色描边（不改变尺寸，避免抖动）；
+   ② 光标 pointer + 触控态轻微下沉（PointsCard 自带 is-interactive 的 hover/active）。 */
+@media (hover: hover) and (pointer: fine) {
+  .profile-home-shell .profile-points-card-wrap .points-card.is-interactive {
+    outline: 1.5px solid transparent;
+    outline-offset: 3px;
+    transition:
+      outline-color 180ms ease,
+      transform 160ms var(--ease-out),
+      box-shadow 160ms var(--ease-out);
+  }
+
+  .profile-home-shell .profile-points-card-wrap .points-card.is-interactive:hover {
+    outline-color: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 22%, transparent);
+  }
 }
 
-.profile-heatmap-sheet-enter-active .profile-heatmap-sheet,
-.profile-heatmap-sheet-leave-active .profile-heatmap-sheet {
-  transition:
-    transform 220ms cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 180ms ease;
-}
-
-.profile-heatmap-sheet-enter-from,
-.profile-heatmap-sheet-leave-to {
-  opacity: 0;
-}
-
-.profile-heatmap-sheet-enter-from .profile-heatmap-sheet,
-.profile-heatmap-sheet-leave-to .profile-heatmap-sheet {
-  opacity: 0;
-  transform: translateY(14px) scale(0.985);
-}
-
-html[data-theme='dark'] .profile-heatmap-overlay {
-  /* 暗色遮罩用 --liquid-bg-overlay 的暗色档：暗底对比低，亮色那层 34% 压不住卡片边界。 */
-  background: var(--liquid-bg-overlay);
-}
-
-html[data-theme='dark'] .profile-heatmap-sheet {
-  /* 暗色卡面走深玻璃 token，不在这里写第二组裸色 ——
-     check:dark-tokens 的棘轮只降不升，暗色块里每多一个字面量都要记账。
-     0.84 的深玻璃叠在 0.68 的遮罩 + 6px 模糊之上，透出的背景亮度已可忽略。 */
-  --surface: var(--liquid-bg-strong);
-  --surface-2: var(--liquid-bg-nested);
-  background: var(--liquid-bg-strong);
-  border-color: var(--liquid-border);
-}
-
-/* 弹窗期间的背景滚动锁：锁挂在 <html> 上。scoped 选择器命不中 html（它没有 data-v 属性），
-   必须用 :global 透出去，否则这条规则编译后永远不匹配。 */
-:global(html.profile-sheet-lock) {
-  overflow: hidden;
+.profile-home-shell .profile-points-card-wrap .points-card.is-interactive:focus-visible {
+  outline: 2px solid var(--liquid-text-primary, #1d1d1f);
+  outline-offset: 3px;
 }
 
 /* 2026-10-26：原「服务」段（Cloud+ / 摄影集两行）已删除 —— 摄影集并入资产卡第二行，
@@ -2214,23 +1880,28 @@ html[data-theme='dark'] .profile-heatmap-sheet {
     gap: 18px;
   }
 
-  /* 2026-10-27：热力图从 202px 的卡片变成 48px 的一行按钮后，**并排失去意义** ——
-     并排那一行的高度由积分卡（约 250px）决定，左边的按钮只占 48px，下面空 200px。
-     改成一行通栏反而更省：48 + 250 = 298 才到内容区，且左侧不再有空洞。
-     积分卡仍走下面的 `.profile-points-card-section`（通栏 + 居中 430px 上限）。 */
+  /* 2026-10-27：活跃轨迹（48px 通栏）与积分卡并排的那一版已经作废 ——
+     活跃轨迹收进资料卡成为胶囊，这里只剩 hero 与内容面板需要通栏。
+     积分卡外壳撤掉后只剩一张卡面，独占半列会留下另一半空洞 ⇒ 同样通栏，
+     卡面本身靠左（见 `.profile-points-card-wrap`）。 */
   .profile-home-shell > .profile-hero-panel,
-  .profile-home-shell > .profile-activity-trigger,
   .profile-home-shell > .profile-content-panel {
     grid-column: 1 / -1;
   }
 
-  /* 2026-10-26：印象摘要行与「服务」段已删除，资产卡是两行通栏（.is-inline），
-     所以只剩积分卡与内容面板需要在桌面双栏里控制占位。 */
   .profile-home-shell > .profile-points-card-section {
+    grid-column: 1 / -1;
     width: 100%;
     max-width: none;
-    align-self: stretch;
+    align-self: start;
     box-sizing: border-box;
+  }
+
+  /* 宽屏卡面放大（2026-10-27）：368px 放在 1130px 的通栏行里实测「一张小卡浮在中间」，
+     两侧各空 380px。卡面本身是玩家向的门面资产，宽屏下值得有存在感 ——
+     上限提到 520（比例不变，仍居中）。 */
+  .profile-home-shell .profile-points-card-wrap .points-card.is-compact {
+    max-width: 520px;
   }
 
   /* 横屏作品墙：四列，**按行读**（2026-10-26 定稿）。

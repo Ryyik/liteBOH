@@ -336,6 +336,15 @@
               >
                 关注
               </button>
+              <!-- 活跃轨迹（2026-10-27 与「我的」页同步）：
+                   原来是资料卡下面一张常驻热力图卡（约 200px），现在收成这里的一枚
+                   次按钮胶囊，完整点阵搬进弹窗。组件与「我的」页共用同一个
+                   ActivityHeatmapLauncher —— 弹窗的焦点管理 / 滚动锁 / 暗色桥接只有一份。 -->
+              <ActivityHeatmapLauncher
+                :payload="activityHeatmap"
+                :loading="isHeatmapLoading"
+                :is-owner="isOwnProfile"
+              />
             </div>
           </div>
         </div>
@@ -362,12 +371,6 @@
           </button>
         </div>
       </section>
-
-      <ActivityHeatmap
-        :payload="activityHeatmap"
-        :loading="isHeatmapLoading"
-        :is-owner="isOwnProfile"
-      />
 
       <!-- 横屏（≥1024）时积分卡与用户信息并排一行；窄屏 display:contents 布局隐形，节奏不变 -->
       <div class="profile-info-row">
@@ -1038,7 +1041,7 @@ import { getAvatarUrl } from '@/utils/avatar.js';
 import ProfileEditModal from './components/ProfileEditModal.vue';
 import PostCreateModal from './components/PostCreateModal.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
-import ActivityHeatmap from '@/views/user-center/UserSpace/components/ActivityHeatmap.vue';
+import ActivityHeatmapLauncher from '@/views/user-center/UserSpace/components/ActivityHeatmapLauncher.vue';
 import { supabase } from '@/utils/supabase-client.js';
 import {
   prepareAvatarUpload,

@@ -1,5 +1,5 @@
 .profile-page {
-  --bg: #f5f5f7;
+  --bg: #ffffff;
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
   --text-tertiary: #86868b;
@@ -1967,10 +1967,13 @@
 }
 
 /* Public profile refresh: align with the "我的" page visual system */
+/* 2026-10-27（用户定稿「同步更新他人空间」）：底色与「我的」页一起改成**纯白**。
+   原来这里是「#f6f8fb + 顶部一层蓝色径向渐变」—— 灰蓝底是为了衬托白色卡片，
+   代价是整页隔着一层颜色；纯白之后层次交给卡片自己的 1px 描边 + 阴影。
+   ⚠️ 渐变必须一起删：只改 --bg 不动 background 的话，那层 rgba(59,130,246,.08)
+   仍然铺在顶上，测出来还是 rgb(246,248,251)。 */
 .profile-page {
-  background:
-    radial-gradient(1000px 320px at 50% -120px, rgba(59, 130, 246, 0.08), transparent 60%),
-    #f6f8fb;
+  background: #ffffff;
 }
 
 .profile-container {
@@ -2958,33 +2961,38 @@
   box-shadow: 0 14px 32px rgba(15,23,42,0.18), 0 0 0 1px rgba(255,255,255,0.6) inset;
 }
 
-/* 统计区：居中、带分割线、悬浮感 */
+/* 统计行（2026-10-27 与「我的」页同步）：
+   原来是「居中 + 每项 flex:1 等分 + 圆点分隔」—— 四个数字均匀铺满整宽，
+   读起来是一条独立的居中横条，跟上面的昵称、签名不在同一条左边界上。
+   改成纯文本流：不伸缩、靠左、只用 gap 分隔（圆点在模板里保留，这里隐藏）。
+   padding 左右 24px 与 `.profile-hero-body` 的内边距同值 ⇒ 与头像左边缘齐。 */
 .profile-hero-stats {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0;
-  margin: 0 24px 22px;
-  padding: 16px 0 0;
-  border-top: 1px solid rgba(15,23,42,0.06);
+  justify-content: flex-start;
+  gap: 14px;
+  margin: 0;
+  padding: 16px 24px 18px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
 
 .profile-hero-stats .stat-chip {
-  flex: 1;
-  justify-content: center;
-  padding: 6px 8px;
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  padding: 6px 0;
   border-radius: 10px;
-  transition: background 0.16s ease, transform 0.16s ease;
+  transition:
+    background 0.16s ease,
+    transform 0.16s ease;
 }
 
 .profile-hero-stats .stat-chip:hover {
-  background: rgba(15,23,42,0.04);
+  background: rgba(15, 23, 42, 0.04);
   color: var(--text-primary);
 }
 
 .profile-hero-stats .stat-dot {
-  color: rgba(15,23,42,0.18);
-  padding: 0 2px;
+  display: none;
 }
 
 /* 服务面板：统一图标背景与文案层级 */
@@ -3509,10 +3517,19 @@
     height: 112px;
   }
 
+  /* 2026-10-27（用户定稿「同步更新他人空间」）：身份区从「头像一行、文案一行」
+     改成**头像与文案并排**，与「我的」页同一形态 —— 竖屏下这一改省掉约 60px，
+     首屏能多露出一块内容。
+     ⚠️ 封面避让只有一个真源 `--hero-cover-overlap`：负边距与文案列的 padding-top
+     都由它算。两者一旦各写一个数（这里是 -32px / padding-top:0），
+     文案就会浮到封面上（「我的」页踩过，实测 nameGap=0px 昵称正贴封面底线）。 */
   .profile-hero-body {
-    margin-top: -32px;
+    --hero-cover-overlap: 28px;
+    flex-direction: row;
+    align-items: flex-start;
+    margin-top: calc(var(--hero-cover-overlap) * -1);
     padding: 0 16px 16px;
-    gap: 14px;
+    gap: 12px;
   }
 
   .profile-hero-avatar .apple-avatar {
@@ -3522,17 +3539,39 @@
   }
 
   .profile-hero-copy {
-    padding-top: 0;
+    /* 头像探进封面 N px ⇒ 文案列起点必须在封面底边之下，再留 8px 呼吸。
+       ⚠️ 必须改**变量**而不是 padding-top：responsive-integrations.css 里有一条
+       `.profile-hero-copy { padding: var(--hero-copy-top) 0 0 !important }`
+       （!important），直接写 padding-top 会被它压掉 —— 实测昵称 t=181 而封面底边
+       199，文字整整压进封面 18px，正是用户反复强调不能出现的「飘上去」。 */
+    --hero-copy-top: calc(var(--hero-cover-overlap, 28px) + 8px);
     gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .profile-hero-actions {
     gap: 8px;
   }
 
+  /* 数据行：与昵称同一左边界（2026-10-27，同「我的」页）
+     原来是 `justify-content: center` + 每项 flex:1 等分 ⇒ 四个数字均匀铺满整宽，
+     看起来像一条单独的居中横条。改成纯文本流：不伸缩、靠左、只用 gap 分隔。 */
   .profile-hero-stats {
-    margin: 0 16px 16px;
-    padding-top: 14px;
+    justify-content: flex-start;
+    margin: 0;
+    padding: 12px 16px 14px;
+    gap: 14px;
+  }
+
+  .profile-hero-stats .stat-chip {
+    flex: 0 0 auto;
+  }
+
+  /* 「我的」页的数据行是纯文本无分隔点（2026-10-26 定稿），这里同步去掉圆点 ——
+     留着就是同一种数据在两张页面上两种形态。 */
+  .profile-hero-stats .stat-dot {
+    display: none;
   }
 
   .profile-tabs {
