@@ -44,11 +44,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # ⚠️ 必须 set +e：Actions 的 run 默认是 `bash -e {0}`，脚本里的 `set -uo pipefail`
+          # 只加不减、不会关掉 -e。2026-10-28 首次运行实证 —— `npm run security:audit`
+          # 一返回非 0，shell 当场退出，下面 `code=$?` / `cat audit.log` / 开 issue 全都没跑，
+          # 用户只收到一封「Process completed with exit code 1」，日志里没有任何审计输出，
+          # 连追踪 issue 都没开。「失败但查不出原因」比门禁本身红更糟。
+          set +e
           set -uo pipefail
           TITLE="依赖漏洞棘轮判红（新公告）"
 
           npm run security:audit > audit.log 2>&1
           code=$?
+          # 全量打到 stdout（不只塞进 issue body 的 tail -40）：Actions 日志是排查的第一现场。
           cat audit.log
 
           find_issue() {
