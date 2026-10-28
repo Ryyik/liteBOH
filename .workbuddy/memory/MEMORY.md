@@ -47,7 +47,9 @@
 - ⚠️ **基线校准（一切 --update）必须在提交树口径上做**：脏工作区的读数含未提交的清理/新增，本地/CI 会差（实测同 commit 2701 vs 2706）。
 - ⚠️ doc-truth 计数口径 = `git ls-tree HEAD`（提交树恒定）；文件系统口径随「谁在改什么」漂移。
 - `npm run session:start` ＝ 开工三步并一条（env:doctor + verify:fast）。
-- 推 github：SSH over 443 间歇抖动（`core.sshCommand` 已配 ConnectTimeout=15），失败重试 1~2 次即通；确认远端用 `gh api repos/…/git/refs/heads/main`。
+- 推 github：`Connection closed by <fake-ip> port 443` **不是抖动**，是 `IPQoS=lowdelay` 被丢包
+  ⇒ `~/.ssh/config` 加 `IPQoS none`（2026-10-28 定案，别再靠重试；HTTPS 走本机被 TLS 阻断）。
+  确认远端用 `gh api repos/…/git/refs/heads/main`。
 - lint 带 `--max-warnings` 棘轮（**以 package.json 现值为准**，2026-10-15 = 116）⇒ 报绿必须同时报警告条数
   （口径 `eslint . -f json`）；计数归零才翻 error；上调必走 commit message。**红了用 `npm run lint:delta` 归因。**
 - ✅ ~~满载跑 verify 偶发 `project-structure.test.js` 45s 超时~~ **已修（2026-10-15）**：根因是

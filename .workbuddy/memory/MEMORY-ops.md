@@ -13,6 +13,15 @@
 ## GitHub CI
 - ⚠️ Dependabot 触发的 workflow 读不到 repository secrets（须 `gh secret list --app dependabot` 另配一套）；改 secrets 后要 `gh run rerun` 才验得到。
 - ⚠️ `git push` SIGTERM(137) ≠ 失败 → 先 `git ls-remote origin main`。
+- ⚠️ **`Connection closed by <fake-ip> port 443` = `IPQoS=lowdelay` 被中间设备丢包**（2026-10-28 定案，
+  别再当「网络抖动」靠重试）：症状是 `ssh -T` 认证能过、443 TCP 也可连，一传数据就断，重试 6 次全败。
+  修法是 `~/.ssh/config` 的 `Host github.com` 段加 `IPQoS none` ⇒ 一次就通。
+  HTTPS 走 `github.com:443` 在本机**被 TLS 阻断**（`SSL_ERROR_SYSCALL`），只有 `ssh.github.com:443` 可用。
+- ⚠️ **Actions 的 `run:` 默认是 `bash -e {0}`**：脚本里写 `set -uo pipefail` **不会**关掉 `-e`
+  ⇒ 任何被判红的命令一失败就整段退出，`code=$?` / 日志输出 / 开 issue 全都不执行，
+  表现是「只收到 exit code 1，零诊断信息」。要读子命令退出码必须**先 `set +e`**（2026-10-28 实证）。
+- ⚠️ **schedule 的通知时间不能按 cron 反推**：`7 1 * * *` 实测 started_at 是 `06:48Z`（延迟 5h41m），
+  查「为什么现在才通知」要看 `gh run view <id>` 的 started_at，别去改 cron。
 
 ## Cloud+（plans/023）
 - 私密备份库：对外只有 token 分享/转帖子；底账(source='forum')禁单独删/公开；发帖→`backupPostImagesToCloud` 建底账（best-effort）；删帖删备份＝DB cascade。
