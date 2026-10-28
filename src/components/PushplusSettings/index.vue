@@ -63,6 +63,36 @@
         </div>
       </section>
 
+      <!-- 关注的人邮件通知：服务端发信到账号绑定邮箱，与上面两条通道互相独立 -->
+      <section class="gs-group">
+        <div class="gs-group-title">邮件通知</div>
+        <div class="gs-rows">
+          <div class="gs-row">
+            <span class="gs-icon" :class="mailEnabled ? 'is-green' : 'is-blue'">
+              <Mail :size="16" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">关注的人邮件通知</span>
+              <span class="gs-desc">{{ mailEnabled ? '关注的人发帖、回复你时，发邮件到你绑定的邮箱' : '开启后，关注的人发帖和回复你都会发邮件提醒' }}</span>
+            </span>
+            <span class="gs-side">
+              <SettingToggle :model-value="mailEnabled" :disabled="isMailBusy || !mailLoaded"
+                label="关注的人邮件通知" @update:model-value="handleMailToggle" />
+            </span>
+          </div>
+
+          <div v-if="mailEnabled" class="gs-row is-static">
+            <span class="gs-icon is-blue">
+              <Clock :size="16" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">减少打扰</span>
+              <span class="gs-desc">同一个人 30 分钟内只提醒一次；邮件带正文摘要和配图</span>
+            </span>
+          </div>
+        </div>
+      </section>
+
       <!-- 推送状态 -->
       <section class="gs-group">
         <div class="gs-group-title">推送状态</div>
@@ -214,7 +244,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue';
-import { AlertCircle, Bell, BellOff, BellRing, CheckCircle2, HelpCircle, Heart, HeartHandshake, Inbox, Info, Lock, MessageCircle, Shield, Smartphone, Sparkles } from 'lucide-vue-next';
+import { AlertCircle, Bell, BellOff, BellRing, CheckCircle2, Clock, HelpCircle, Heart, HeartHandshake, Inbox, Info, Lock, Mail, MessageCircle, Shield, Smartphone, Sparkles } from 'lucide-vue-next';
 import SettingToggle from '@/views/user-center/UserSpace/components/SettingToggle.vue';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -230,6 +260,7 @@ import {
   disablePush,
   sendTestPush
 } from '@/utils/api/push-api.js';
+import { getFollowMailEnabled, toggleFollowMail } from '@/utils/api/mail-notify-api.js';
 
 const authStore = useAuthStore();
 
@@ -323,6 +354,47 @@ const testWebPush = async () => {
     showMessage(error?.message || '发送失败', 'error');
   } finally {
     isPushBusy.value = false;
+  }
+};
+
+// ---------- 关注的人邮件通知 ----------
+// 第三条独立通道：服务端发信（Brevo）到账号绑定邮箱，不需要任何第三方账号。
+// 真源是 profiles.follow_mail_enabled；服务端每次发信前都会重查，所以关掉立刻生效。
+const mailEnabled = ref(false);
+const mailLoaded = ref(false);
+const isMailBusy = ref(false);
+
+const loadMailSetting = async () => {
+  const userId = authStore.userInfo?.id;
+  if (!userId) {
+    mailLoaded.value = true;
+    return;
+  }
+  try {
+    const { enabled: current } = await getFollowMailEnabled(userId);
+    mailEnabled.value = current;
+  } catch (_error) {
+    // 读取失败不该影响设置页其它通道的显示
+  } finally {
+    mailLoaded.value = true;
+  }
+};
+
+const handleMailToggle = async (value) => {
+  if (isMailBusy.value) return;
+  const userId = authStore.userInfo?.id;
+  if (!userId) {
+    showMessage('请先登录', 'error');
+    return;
+  }
+  isMailBusy.value = true;
+  try {
+    const result = await toggleFollowMail(userId, value);
+    if (result.success) mailEnabled.value = Boolean(value);
+    showMessage(result.message, result.success ? 'success' : 'error');
+  } finally {
+    isMailBusy.value = false;
+    await loadMailSetting();
   }
 };
 
@@ -498,6 +570,7 @@ onMounted(() => {
   canUseClipboard.value = Boolean(navigator.clipboard?.readText);
   loadSettings();
   loadPushStatus();
+  loadMailSetting();
 });
 
 onUnmounted(() => {
