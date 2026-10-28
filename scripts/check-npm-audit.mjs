@@ -75,9 +75,15 @@
  *       → @rollup/plugin-node-resolve@16.0.3 → deepmerge@4.3.1
  *
  * 根因公告 `GHSA-gcqx-w48m-w2h4`（deepmerge 的 `mergeObject()` 允许对返回对象做原型污染），
- * 区间 `>=4.2.0 <=4.3.1`、**`fixAvailable: null`** —— 4.3.1 已是该包当前最高版，
- * 上游没有修复版，`npm audit fix`（非 force）动不了；`--force` 才能升，
- * 那是把 vite-plugin-pwa 连锅端的破坏性升级。
+ * 区间 `>=4.2.0 <=4.3.1`。**advisory 层 `fixAvailable: null`** —— 4.3.1 既是区间上界、
+ * 也是该包当前最高发布版，上游没有补丁版。
+ *
+ * ⚠️ 但 npm 在**每个受影响包**上仍给出一个 fixAvailable：
+ *    `{ name: 'vite-plugin-pwa', version: '0.2.1', isSemVerMajor: true }`
+ *    —— 唯一「修复」是把插件从 1.3.0 **退回** 0.x（2021 年的线），PWA 功能整体报废。
+ *    `npm audit fix` 因 isSemVerMajor 拒绝执行（所以「非 force 修不了」）；
+ *    `npm audit fix --force` 会真降级 —— 那不是修复，是拆掉 PWA。
+ *    判据：看 fixAvailable 的 **version 方向**，别只看它是不是 null。
  *
  * 可达性（实证，不是推断）：`grep -rl deepmerge dist/static/js/` **零命中** ⇒ 不进运行时产物；
  * 它只在 workbox-build **构建期**生成 service worker 时被调用，输入是本仓 `vite.config.*`
