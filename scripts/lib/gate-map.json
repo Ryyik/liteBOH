@@ -171,6 +171,16 @@
       "glob": "scripts/lib/gate-fixtures.mjs",
       "run": ["npm run check:gates-self-test"],
       "why": "改了样本就全量自证"
+    },
+    {
+      "glob": "src/views/Forum/components/CheckinRewardStage.vue",
+      "run": ["node scripts/probes/probe-checkin-reward-stage.mjs"],
+      "why": "签到 3D 舞台：旧弹窗下线 / 资源就绪先于起播 / 卡面真旋转 / 已签重播 / 横竖屏布局（改 ForumMain 签到链路同样要跑）"
+    },
+    {
+      "glob": "src/utils/points-card-assets.js",
+      "run": ["npx vitest run tests/unit/points-card-assets.test.js"],
+      "why": "卡面资源收集与预取（decode/缓存/超时降级）的唯一真源"
     }
   ]
 }

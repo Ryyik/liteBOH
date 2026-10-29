@@ -324,10 +324,7 @@
 
 .forum-page[data-anniversary-skin="active"] :deep(.login-trigger-btn),
 .forum-page[data-anniversary-skin="active"] :deep(.post-btn),
-.forum-page[data-anniversary-skin="active"] :deep(.weekly-checkin-btn),
-.forum-page[data-anniversary-skin="active"] :deep(.calendar-submit-btn),
-.forum-page[data-anniversary-skin="active"] :deep(.submit-reply-btn-v2),
-.forum-page[data-anniversary-skin="active"] :deep(.checkin-submit-btn) {
+.forum-page[data-anniversary-skin="active"] :deep(.submit-reply-btn-v2) {
   border: 1px solid var(--mc-moss-dark) !important;
   border-radius: 4px !important;
   color: #fffdf0 !important;
@@ -345,9 +342,6 @@
   .filter-tag-btn,
   .login-trigger-btn,
   .post-btn,
-  .weekly-checkin-btn,
-  .calendar-submit-btn,
-  .checkin-submit-btn,
   .submit-reply-btn-v2,
   .cancel-reply-btn-v2,
   .hot-tag-item,
@@ -366,9 +360,6 @@
   .filter-tag-btn,
   .login-trigger-btn,
   .post-btn,
-  .weekly-checkin-btn,
-  .calendar-submit-btn,
-  .checkin-submit-btn,
   .submit-reply-btn-v2,
   .cancel-reply-btn-v2,
   .hot-tag-item,

@@ -30,7 +30,7 @@ import ShareIsland from '@/components/UnifiedNavbar/ShareIsland.vue';
 import AdSlot from './components/AdSlot.vue';
 import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
-import WeeklyCheckinCalendar from './components/WeeklyCheckinCalendar.vue';
+import CheckinRewardStage from './components/CheckinRewardStage.vue';
 import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';
 import {
   useForumPostDraftStorage,
@@ -42,6 +42,7 @@ import { useActiveAds } from './composables/useActiveAds.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { getAvatarUrl } from '@/utils/avatar.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
+import { preloadPointsCardAssets } from '@/utils/points-card-assets.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { ensureNotificationStore } from '@/stores/notification-loader';
@@ -125,7 +126,6 @@ import {
   LIST_REPLY_PREVIEW_COUNT,
   POSTS_PER_PAGE,
   SEARCH_DEBOUNCE_MS,
-  WEEKLY_CHECKIN_REWARD_POINTS,
 } from './forum-config.js';
 import { applyPoints, readPoints } from './forum-points.js';
 import { getBohAIModelStatus } from '@/utils/bohai-model-client.js';
@@ -499,7 +499,16 @@ const forumMentionUsers = computed(() => {
 // 本周签到 / 问BOHAI 状态
 const isWeeklyCheckinLoading = ref(false);
 const isWeeklyCheckinSubmitting = ref(false);
-const isWeeklyCheckinCalendarOpen = ref(false);
+/* 签到成功舞台（卡面 3D）。open 为 true 时组件才挂载 —— 挂载即起播，
+   所以「资源就绪」必须在把它置 true **之前**完成（见 handleCheckinClick）。 */
+const checkinReward = ref({
+  open: false,
+  pointsAfter: 0,
+  awardAmount: 0,
+  /* true = 「再看一遍」重播：文案换成已签到，不显示到账数字 */
+  alreadySigned: false,
+  assetsReady: true,
+});
 const isAiSearchLoading = ref(false);
 const aiSearchHint = ref('');
 
@@ -516,24 +525,6 @@ const createDefaultWeeklyCheckinStatus = () => ({
   currentWeekStart: null,
 });
 const weeklyCheckinStatus = ref(createDefaultWeeklyCheckinStatus());
-
-// 当前轮内已连续周数（到 cycleSize 即触发奖励并重置，故上限为 cycleSize - 1）。
-// 上游缺失 cycleProgress 时从连签周数推导；定义曾在 5ee30b0c 重构中被误删，此处恢复。
-const getWeeklyCheckinCycleProgress = (status) => {
-  const cycleSize = Math.max(1, Number(status?.cycleSize || 4));
-  const explicitProgress = Number(status?.cycleProgress);
-  if (Number.isFinite(explicitProgress)) {
-    return Math.min(Math.max(0, explicitProgress), cycleSize - 1);
-  }
-  const normalizedStreak = Math.max(0, Number(status?.currentStreak || status?.streakTotal || 0));
-  return normalizedStreak === 0 ? 0 : ((normalizedStreak - 1) % cycleSize) + 1;
-};
-const weeklyCheckinCardPoints = computed(() => {
-  // 注意不能写 Number(status.currentPoints)：Number(null) === 0，
-  // 会把「状态里没有余额」当成余额 0，卡片就显示 0 而不是回落到 userInfo。
-  const statusPoints = readPoints(weeklyCheckinStatus.value.currentPoints);
-  return statusPoints !== null ? statusPoints : Number(userInfo.points) || 0;
-});
 
 const newPost = ref({ title: '', content: '' });
 const selectedPostTag = ref('daily');
@@ -3386,65 +3377,52 @@ const ensureQuotedPostsForReposts = async () => {
   }
 };
 
-const checkinCalendarDays = computed(() => {
-  const sourceDate = weeklyCheckinStatus.value.currentWeekStart
-    ? new Date(weeklyCheckinStatus.value.currentWeekStart)
-    : new Date();
-  const start = Number.isNaN(sourceDate.getTime()) ? new Date() : sourceDate;
-  start.setHours(0, 0, 0, 0);
-  const day = start.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  start.setDate(start.getDate() + mondayOffset);
+/**
+ * 「再看一遍」：已签到用户再点签到时的重播。
+ * 不提交、不弹提示岛 —— 直接把同一套舞台重播，文案换成「已签到」。
+ * 这是用户明确要的（2026-10-29）：卡面旋转是彩蛋，不该一周只能看一次。
+ */
+const replayCheckinStage = async () => {
+  if (checkinReward.value.open) return;
+  // 资源走同一个 preload：命中模块级缓存时几乎瞬时，没命中也不会白屏（超时降级 blank）
+  const assets = await preloadPointsCardAssets({
+    skin: userInfo.pointsCardSkin || 'blank',
+    imageUrl: userInfo.pointsCardImageUrl || '',
+  }).catch(() => ({ ready: false, failed: [], timedOut: false }));
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const signedIndex = weeklyCheckinStatus.value.hasSignedThisWeek
-    ? Math.max(0, Math.min(6, Math.floor((today.getTime() - start.getTime()) / 86400000)))
-    : -1;
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return {
-      key: date.toISOString(),
-      label: ['一', '二', '三', '四', '五', '六', '日'][index],
-      day: date.getDate(),
-      isToday: date.getTime() === today.getTime(),
-      isSigned: index === signedIndex,
-    };
-  });
-});
-
-const weeklyCheckinNextCheckin = computed(() => {
-  const sourceDate = weeklyCheckinStatus.value.currentWeekStart
-    ? new Date(weeklyCheckinStatus.value.currentWeekStart)
-    : new Date();
-  const monday = Number.isNaN(sourceDate.getTime()) ? new Date() : sourceDate;
-  const nextMonday = new Date(monday);
-  nextMonday.setHours(0, 0, 0, 0);
-  nextMonday.setDate(nextMonday.getDate() + 7);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Math.max(0, Math.round((nextMonday.getTime() - today.getTime()) / 86400000));
-  return {
-    dateText: `${nextMonday.getMonth() + 1}.${nextMonday.getDate()}`,
-    days,
+  checkinReward.value = {
+    open: true,
+    pointsAfter:
+      readPoints(weeklyCheckinStatus.value.currentPoints) ?? (Number(userInfo.points) || 0),
+    awardAmount: 0,
+    alreadySigned: true,
+    assetsReady: assets.ready,
   };
-});
+};
 
-const openWeeklyCheckinCalendar = () => {
+/**
+ * 签到入口（2026-10-29 起一步到位）：点按钮即提交，不再开面板。
+ * 已签 → 走 replayCheckinStage（重播舞台，文案「已签到」）；未登录 → 登录弹窗。
+ */
+const handleCheckinClick = () => {
   if (!isLoggedIn.value) {
     showLoginModal.value = true;
     return;
   }
-  isWeeklyCheckinCalendarOpen.value = true;
-  // 打开即重取：若上次状态加载失败（网络/超时），本地会停留在「未签到」，
-  // 用户点下去只会撞到后端的 ALREADY_SIGNED_THIS_WEEK。这里用后端真值自愈。
-  void loadWeeklyCheckinStatus();
+  if (isWeeklyCheckinSubmitting.value) return;
+
+  if (weeklyCheckinStatus.value.hasSignedThisWeek) {
+    void replayCheckinStage();
+    return;
+  }
+
+  // 状态可能因上次加载失败而停在「未签到」，顺手自愈一次（失败不阻塞本次提交）
+  if (!isWeeklyCheckinLoading.value) void loadWeeklyCheckinStatus();
+  void handleWeeklyCheckin();
 };
 
-const closeWeeklyCheckinCalendar = () => {
-  isWeeklyCheckinCalendarOpen.value = false;
+const closeCheckinReward = () => {
+  checkinReward.value = { ...checkinReward.value, open: false };
 };
 
 const loadWeeklyCheckinStatus = async () => {
@@ -3480,19 +3458,17 @@ const loadWeeklyCheckinStatus = async () => {
 };
 
 const handleWeeklyCheckin = async () => {
-  if (!isLoggedIn.value) {
-    showLoginModal.value = true;
-    return;
-  }
-  if (isWeeklyCheckinLoading.value || isWeeklyCheckinSubmitting.value) return;
-
-  if (weeklyCheckinStatus.value.hasSignedThisWeek) {
-    showModal('warning', '本周已签到', '每周仅可签到一次，请下周再来');
-    return;
-  }
+  if (isWeeklyCheckinSubmitting.value) return;
 
   isWeeklyCheckinSubmitting.value = true;
   try {
+    // 卡面预取与提交**并行**：等 RPC 回来再开始下图片等于白等一个 RTT。
+    // preload 自身永不 reject；再兜一层，任何注入实现抛错都不能吞掉「签到成功」。
+    const assetsPromise = preloadPointsCardAssets({
+      skin: userInfo.pointsCardSkin || 'blank',
+      imageUrl: userInfo.pointsCardImageUrl || '',
+    }).catch(() => ({ ready: false, failed: [], timedOut: false }));
+
     const { ok, data, error, alreadySigned } = await submitWeeklyCheckin();
     if (!ok || error || !data) {
       // 「本周已签」不是失败，是后端明确告知该行已存在。
@@ -3500,10 +3476,17 @@ const handleWeeklyCheckin = async () => {
       // 却拿不到积分（2026-09-29 线上事故：签到可以一直签到 + 余额被清零）。
       if (alreadySigned || data?.alreadySigned) {
         weeklyCheckinStatus.value = { ...weeklyCheckinStatus.value, hasSignedThisWeek: true };
-        closeWeeklyCheckinCalendar();
         // 尽力把余额同步回真值；这一步失败也不影响上面「已签到」的判定
         void loadWeeklyCheckinStatus();
-        showModal('warning', '本周已签到', '每周仅可签到一次，请下周再来');
+        // 不弹提示岛：既然用户点的是签到，就给他看舞台（已签到版），和「再看一遍」同一套反馈
+        const assets = await assetsPromise;
+        checkinReward.value = {
+          open: true,
+          pointsAfter: readPoints(data?.currentPoints) ?? (Number(userInfo.points) || 0),
+          awardAmount: 0,
+          alreadySigned: true,
+          assetsReady: assets.ready,
+        };
         return;
       }
       throw error || new Error('签到失败，请稍后重试');
@@ -3516,26 +3499,24 @@ const handleWeeklyCheckin = async () => {
 
     applyPoints(userInfo, data.currentPoints);
 
-    let successMessage;
-    if (Number(data.pointsAwarded || 0) > 0) {
-      successMessage = `已完成 ${data.cycleSize || 4} 周连签，获得 ${data.pointsAwarded} 积分奖励！下一轮进度 ${data.cycleProgress || 0} / ${data.cycleSize || 4}`;
-      emitProfileSync({
-        userId: userInfo.id,
-        username: userInfo.username,
-        reason: 'weekly_checkin_reward',
-      });
-    } else {
-      successMessage = `本周签到完成，当前本轮连续 ${getWeeklyCheckinCycleProgress(data)} / ${data.cycleSize || 4} 周，再连续 ${data.nextRewardIn} 周可得 ${WEEKLY_CHECKIN_REWARD_POINTS} 积分`;
-      emitProfileSync({
-        userId: userInfo.id,
-        username: userInfo.username,
-        reason: 'weekly_checkin',
-      });
-    }
+    // 只有卡面「可绘制」后才允许起播（preload 内部等的是 decode，不是 onload）。
+    // 预算 1.5s；超时 / 失败 → assets.ready=false，舞台降级成 blank 卡面，动画照播。
+    const assets = await assetsPromise;
 
-    closeWeeklyCheckinCalendar();
-    await nextTick();
-    showCheckinSuccessIsland(successMessage);
+    const awarded = Number(data.pointsAwarded || 0);
+    emitProfileSync({
+      userId: userInfo.id,
+      username: userInfo.username,
+      reason: awarded > 0 ? 'weekly_checkin_reward' : 'weekly_checkin',
+    });
+
+    checkinReward.value = {
+      open: true,
+      pointsAfter: readPoints(data.currentPoints) ?? (Number(userInfo.points) || 0),
+      awardAmount: awarded,
+      alreadySigned: false,
+      assetsReady: assets.ready,
+    };
   } catch (error) {
     logger.error('forum', '周签到失败:', error);
     showModal('error', '签到失败', error?.message || '请稍后重试');
@@ -3758,19 +3739,6 @@ const showEmbeddedSuccessIsland = (payload = {}) => {
   if (!props.embedded) return false;
   emit('island-message', payload);
   return true;
-};
-
-const showCheckinSuccessIsland = (message) => {
-  const payload = {
-    title: '签到成功',
-    message,
-    icon: 'success',
-    durationMs: 3600,
-    at: Date.now(),
-  };
-
-  if (showEmbeddedSuccessIsland(payload)) return true;
-  return showIsland.notify(payload);
 };
 
 const closeConfirm = (confirmed = false) => {
@@ -4887,7 +4855,7 @@ const openPostDetail = (postId) => {
           @search-blur="onSearchBlur"
           @apply-history-keyword="applyHistoryKeyword"
           @clear-search-history="clearSearchHistory"
-          @open-weekly-checkin="openWeeklyCheckinCalendar"
+          @open-weekly-checkin="handleCheckinClick"
           @set-sort-mode="setSortMode"
           @set-tag-filter="setTagFilter"
         />
@@ -5553,20 +5521,21 @@ const openPostDetail = (postId) => {
       </Transition>
     </Teleport>
 
-    <WeeklyCheckinCalendar
-      v-model:open="isWeeklyCheckinCalendarOpen"
-      :status="weeklyCheckinStatus"
-      :calendar-days="checkinCalendarDays"
-      :next-checkin="weeklyCheckinNextCheckin"
-      :loading="isWeeklyCheckinLoading"
-      :submitting="isWeeklyCheckinSubmitting"
-      :card-points="weeklyCheckinCardPoints"
-      :card-username="userInfo.username || '未命名用户'"
-      :card-skin="userInfo.pointsCardSkin || 'blank'"
-      :card-image-url="userInfo.pointsCardImageUrl || ''"
-      @close="closeWeeklyCheckinCalendar"
-      @checkin="handleWeeklyCheckin"
-    />
+    <!-- 签到成功舞台：卡面 3D 旋转 + 极简到账提示（替代原「每周签到」弹窗）。
+         v-if 而不是 v-show —— 组件挂载即起播，资源就绪的判断在派发前已完成 -->
+    <Teleport to="body">
+      <CheckinRewardStage
+        v-if="checkinReward.open"
+        :points-after="checkinReward.pointsAfter"
+        :award-amount="checkinReward.awardAmount"
+        :already-signed="checkinReward.alreadySigned"
+        :assets-ready="checkinReward.assetsReady"
+        :username="userInfo.username || '未命名用户'"
+        :skin="userInfo.pointsCardSkin || 'blank'"
+        :image-url="userInfo.pointsCardImageUrl || ''"
+        @dismiss="closeCheckinReward"
+      />
+    </Teleport>
 
     <ForumImageViewer
       v-model:open="isForumImageViewerOpen"

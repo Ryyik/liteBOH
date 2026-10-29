@@ -20,8 +20,9 @@
       v-if="resolvedSkin === 'custom' && imageUrl"
       class="points-card-custom-image"
       :src="resolvedImageUrl"
+      :loading="eager ? 'eager' : 'lazy'"
+      :fetchpriority="eager ? 'high' : undefined"
       alt=""
-      loading="lazy"
     />
     <template v-else-if="resolvedSkin === 'cats'">
       <span class="points-card-cat-stage" aria-hidden="true">
@@ -30,8 +31,8 @@
           :key="cat.id"
           class="points-card-cat"
           :src="cat.src"
+          :loading="eager ? 'eager' : 'lazy'"
           alt=""
-          loading="lazy"
         />
       </span>
     </template>
@@ -80,6 +81,9 @@ const props = defineProps({
   interactive: { type: Boolean, default: false },
   compact: { type: Boolean, default: false },
   showSponsorAction: { type: Boolean, default: false },
+  /* 签到 3D 舞台用：卡面图必须在起播前进入请求队列。
+     `loading="lazy"` 会把请求推迟到布局之后，旋转第一帧就可能是空框。 */
+  eager: { type: Boolean, default: false },
 });
 
 defineEmits(['click', 'sponsor']);
