@@ -112,11 +112,26 @@ describe('图片异步复审：worker 契约', () => {
     expect(worker).toContain('processImageRecheck');
   });
 
-  it('图片模型未配置时必须跳过，绝不借用文本模型去审图', () => {
-    // 反面：把 `if (!imageApiUrl || !imageApiKey || !imageModelId)` 去掉，
-    // 就会用文本模型请求图片 → 返回「看不懂但说通过」的假绿。
-    expect(worker).toContain(squeezeSource('if (!imageApiUrl || !imageApiKey || !imageModelId) {'));
+  it('图片审核链必须与现有链路同源：读 bohai_model_configs 的 moderation-image 行', () => {
+    // 反面：写死 model_id 或另建 MODERATION_IMAGE_MODEL_ID —— 会出现「发帖时由 3.5-flash-lite
+    // 放行、6 分钟后另一个模型撤下」的两套口径。主行改模型/降级顺序时，这里必须自动跟随。
+    expect(worker).toContain("'moderation-image'");
+    expect(worker).toContain("from('bohai_model_configs')");
+    expect(worker).toContain('fallback_mode_ids');
+    // 只断言「不读取」，而不是「全文不出现该串」—— 注释里解释「为什么不建它」时会出现这个名字。
+    expect(worker).not.toContain(squeezeSource("Deno.env.get('MODERATION_IMAGE_MODEL_ID')"));
+  });
+
+  it('没有审核密钥时必须跳过，绝不借用文本模型去审图', () => {
+    // 反面：把 `if (!imageApiKey)` 去掉，就会用文本模型请求图片
+    // → 返回「看不懂但说通过」的假绿。
+    expect(worker).toContain(squeezeSource('if (!imageApiKey) {'));
     expect(worker).toContain("'image_moderation_not_configured'");
+  });
+
+  it('单跳失败继续下一跳，全链失败才抛错重试（不默认 approved）', () => {
+    expect(worker).toContain(squeezeSource('图片复审全部模型失败'));
+    expect(worker).toContain(squeezeSource('审核链缺少 moderation-image 行'));
   });
 
   it('解析不出裁决时抛错重试，不默认 approved', () => {

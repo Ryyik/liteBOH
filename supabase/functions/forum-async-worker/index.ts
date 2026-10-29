@@ -20,16 +20,15 @@ const moderationModel = String(
   Deno.env.get('MODERATION_MODEL_ID') || 'Qwen/Qwen2.5-7B-Instruct',
 ).trim();
 const requestTimeoutMs = 12000;
-// 图片复审走独立的视觉模型配置：文本链用的 Qwen2.5-7B-Instruct 不认图，
-// 若回落到它会得到「看不懂图但硬答 approved」的假绿 —— 比不审更危险。
-// 因此**没有单独配置时宁可跳过**（图片保持 pending 可见），绝不借用文本模型。
-const imageApiUrl = String(
-  Deno.env.get('MODERATION_IMAGE_API_URL') || Deno.env.get('MODERATION_API_URL') || '',
-).trim();
+// 图片复审复用**同一条审核链**：模型 / 端点 / 参数全部从 bohai_model_configs 的
+// moderation-image 行读取（与 api-key-vault 的 runtime-chat 查同一张表），这里只保留密钥。
+// ⚠️ 刻意**不建** MODERATION_IMAGE_MODEL_ID 这类独立配置：那会出现「发帖时由 3.5-flash-lite
+//    放行、6 分钟后另一个模型撤下」的两套口径，用户会觉得莫名其妙。
+// ⚠️ 文本链的 Qwen2.5-7B-Instruct 不认图，回落到它会得到「看不懂图但硬答 approved」的
+//    假绿 —— 比不审更危险。所以缺密钥时**宁可跳过**（图保持可见），绝不借用文本模型。
 const imageApiKey = String(
   Deno.env.get('MODERATION_IMAGE_API_KEY') || Deno.env.get('MODERATION_API_KEY') || '',
 ).trim();
-const imageModelId = String(Deno.env.get('MODERATION_IMAGE_MODEL_ID') || '').trim();
 const imageRequestTimeoutMs = 20000;
 const brevoApiKey = String(Deno.env.get('BREVO_API_KEY') || '').trim();
 const mailSenderEmail = String(
@@ -168,15 +167,76 @@ const parseImageVerdict = (raw: string): ImageVerdict | null => {
   return null;
 };
 
-const moderateImageUrl = async (url: string): Promise<ImageVerdict> => {
+type ModerationHop = {
+  modeId: string;
+  modelId: string;
+  apiUrl: string;
+  maxTokens: number;
+  temperature: number;
+};
+
+/** 审核图片链的入口行。降级顺序由该行的 fallback_mode_ids 声明（与 vault 一致）。 */
+const MODERATION_IMAGE_MODE = 'moderation-image';
+
+/**
+ * 从 bohai_model_configs 读出图片审核链（最多 3 跳）。
+ *
+ * 这是「与现有审核链同源」的落点：不复制模型名、不新建 env，只按主行 + 它声明的
+ * fallback_mode_ids 排序。主行改了模型/降级顺序，这里自动跟随，不需要第二次改动。
+ */
+const loadModerationImageChain = async (client: SupabaseClient): Promise<ModerationHop[]> => {
+  const { data, error } = await client
+    .from('bohai_model_configs')
+    .select('mode_id, model_id, api_url, max_tokens, temperature, fallback_mode_ids')
+    .like('mode_id', 'moderation-image%')
+    .eq('status', 'active');
+  if (error) throw error;
+
+  const rows = (data || []) as Array<Record<string, unknown>>;
+  const byId = new Map(rows.map((row) => [String(row.mode_id || ''), row]));
+  const hops: ModerationHop[] = [];
+  const seen = new Set<string>();
+
+  const push = (modeId: string) => {
+    if (!modeId || seen.has(modeId)) return;
+    const row = byId.get(modeId);
+    if (!row) return;
+    const apiUrl = String(row.api_url || '').trim();
+    const modelId = String(row.model_id || '').trim();
+    // 缺端点或缺模型的行走不了。硬发只会得到一个 404 假失败，
+    // 不如直接跳过 —— 真正的「全链都不可用」由调用方抛错重试。
+    if (!apiUrl || !modelId) return;
+    seen.add(modeId);
+    hops.push({
+      modeId,
+      modelId,
+      apiUrl,
+      maxTokens: Number(row.max_tokens) > 0 ? Number(row.max_tokens) : 256,
+      temperature: Number.isFinite(Number(row.temperature)) ? Number(row.temperature) : 0.1,
+    });
+  };
+
+  push(MODERATION_IMAGE_MODE);
+  const primary = byId.get(MODERATION_IMAGE_MODE);
+  const declared = Array.isArray(primary?.fallback_mode_ids)
+    ? (primary?.fallback_mode_ids as unknown[])
+    : [];
+  // 顺序真源 = 主行声明的降级链；其余同前缀行只作兜底，绝不打乱已声明的顺序。
+  for (const id of declared) push(String(id || ''));
+  for (const row of rows) push(String(row.mode_id || ''));
+
+  return hops.slice(0, 3);
+};
+
+const requestImageVerdict = async (hop: ModerationHop, url: string): Promise<ImageVerdict> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), imageRequestTimeoutMs);
   try {
-    const response = await fetch(imageApiUrl, {
+    const response = await fetch(hop.apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${imageApiKey}` },
       body: JSON.stringify({
-        model: imageModelId,
+        model: hop.modelId,
         messages: [
           { role: 'system', content: IMAGE_REVIEW_PROMPT },
           {
@@ -188,8 +248,8 @@ const moderateImageUrl = async (url: string): Promise<ImageVerdict> => {
           },
         ],
         stream: false,
-        temperature: 0,
-        max_tokens: 200,
+        temperature: hop.temperature,
+        max_tokens: hop.maxTokens,
       }),
       signal: controller.signal,
     });
@@ -203,6 +263,23 @@ const moderateImageUrl = async (url: string): Promise<ImageVerdict> => {
   } finally {
     clearTimeout(timeoutId);
   }
+};
+
+const moderateImageUrl = async (client: SupabaseClient, url: string): Promise<ImageVerdict> => {
+  const hops = await loadModerationImageChain(client);
+  // 链为空说明审核配置缺失：抛错让它进重试（job 记录里留着原因），
+  // 比「静默跳过」更容易被运维看到。
+  if (hops.length === 0) throw new Error('审核链缺少 moderation-image 行');
+  const failures: string[] = [];
+  for (const hop of hops) {
+    try {
+      return await requestImageVerdict(hop, url);
+    } catch (error) {
+      // 单跳失败只记录，继续下一跳 —— 与客户端/ vault 的降级语义一致。
+      failures.push(`${hop.modelId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  throw new Error(`图片复审全部模型失败（${failures.join('；')}）`);
 };
 
 const notifyImageRejected = async (
@@ -290,8 +367,8 @@ const notifyImageRejected = async (
 };
 
 const processImageRecheck = async (client: SupabaseClient, job: Job) => {
-  if (!imageApiUrl || !imageApiKey || !imageModelId) {
-    // 配置缺失时**不重试**：配置不会在重试窗口内出现，重试只会把 job 拖成 failed，
+  if (!imageApiKey) {
+    // 没有审核密钥时**不重试**：配置不会在重试窗口内出现，重试只会把 job 拖成 failed，
     // 反而掩盖真实原因。图片保持 pending（可见），等配置补齐后再入队即可。
     return { skipped: 'image_moderation_not_configured', rechecked: 0, rejected: 0 };
   }
@@ -316,7 +393,7 @@ const processImageRecheck = async (client: SupabaseClient, job: Job) => {
   let rejected = 0;
   // 串行：上游是限流敏感的付费接口，且单帖最多 6 张，串行的绝对延迟可接受。
   for (const image of pending) {
-    const verdict = await moderateImageUrl(String(image.url || ''));
+    const verdict = await moderateImageUrl(client, String(image.url || ''));
     const { data: applied } = await client.rpc('apply_forum_image_recheck_verdict', {
       p_image_id: image.id,
       p_verdict: verdict.status,
