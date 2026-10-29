@@ -60,6 +60,44 @@ const AsyncPanelSilent = {
   },
 };
 
+/* 应答型浮层的失败态：固定在视口底部的一条提示，**不进文档流**。
+   为什么不能沿用前两种：
+     · AsyncPanelQuiet —— 它是文档流里的 88px 块；LoginView 是 v-if 显隐的模态，
+       失败时 errorComponent 顶替整个组件 ⇒ 那块占位会裸露在页面底部（上面说的报障）。
+     · AsyncPanelSilent —— 用户**刚点了「登录」**，什么都不出现等于零反馈，
+       且 30s 恢复冷却期内再点也不会有任何变化（2026-10-29 审查 P3-2）。
+   position: fixed 同时满足「不占文档流」与「用户看得见」；恢复链会在后台强刷。 */
+export const AsyncPanelNotice = {
+  name: 'AsyncPanelNotice',
+  setup() {
+    return () =>
+      h(
+        'div',
+        {
+          class: 'async-panel-notice',
+          role: 'alert',
+          'aria-live': 'assertive',
+          style: {
+            position: 'fixed',
+            left: '50%',
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)',
+            transform: 'translateX(-50%)',
+            zIndex: '3000',
+            maxWidth: 'calc(100vw - 32px)',
+            padding: '10px 16px',
+            borderRadius: '999px',
+            background: 'rgba(17, 24, 39, 0.92)',
+            color: '#fff',
+            fontSize: '13px',
+            lineHeight: '1.4',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.24)',
+          },
+        },
+        '登录组件加载失败，正在恢复…',
+      );
+  },
+};
+
 const AsyncPanelQuiet = {
   name: 'AsyncPanelQuiet',
   setup() {

@@ -165,13 +165,23 @@ describe('图片异步复审：worker 契约', () => {
 
   it('跑不完的图不能丢：job 退回 pending 续做，而不是标记完成', () => {
     // 反面：直接 complete 会把 job 标成 succeeded，剩余图永远停在 pending。
-    expect(worker).toContain(squeezeSource("status: 'deferred'"));
+    // 2026-10-29 重构后这段抽成了 runClaimedJob，返回值从单值 'deferred' 变成
+    // 三态（租约还在 = deferred / 已被别的 worker 接管 = lease_lost），两种都表示
+    // 「没跑完、不许 complete」，所以断言按语义写，不锁字面量。
+    expect(worker).toMatch(/status:\s*stillMine\s*\?\s*'deferred'\s*:\s*'lease_lost'/);
     expect(worker).toContain(squeezeSource("status: 'pending',"));
+    // 退回 pending 的那一段**不能**顺手 complete —— 锚点换成这段 update 的唯一特征行
+    //（status: 'pending' 全文件只出现一次）。
+    const releaseStart = worker.indexOf(squeezeSource("status: 'pending',"));
+    const releaseEnd = worker.indexOf(".select('id')", releaseStart);
+    expect(releaseStart).toBeGreaterThan(-1);
+    expect(releaseEnd).toBeGreaterThan(releaseStart);
+    expect(worker.slice(releaseStart, releaseEnd)).not.toContain('complete_forum_async_job');
     // 无限重排的护栏：连续 3 轮没跑完就交回失败通道退避。
     expect(worker).toContain(squeezeSource('if (job.attempt_count >= 3)'));
   });
 
-  it('cron 通道单次最多处理 2 个（3 个 × 45s 会撞 150s 墙钟）', () => {
+  it('cron 通道单次最多处理 2 个（3 个 × 单 job 最坏 54s 会撞 150s 墙钟）', () => {
     expect(worker).toContain(squeezeSource('for (let i = 0; i < 2; i += 1)'));
   });
 });

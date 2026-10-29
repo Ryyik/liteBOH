@@ -172,10 +172,11 @@ export async function toggleFollowMail(userId, enabled) {
   }
   try {
     const next = Boolean(enabled);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .update({ follow_mail_enabled: next })
-      .eq('id', userId);
+      .eq('id', userId)
+      .select('id');
 
     if (error) {
       logger.error('mail-notify-api', '保存关注邮件开关失败', error);
@@ -184,6 +185,13 @@ export async function toggleFollowMail(userId, enabled) {
         message: '设置保存失败，请稍后重试',
         error: normalizeDbError(error),
       };
+    }
+
+    /* PostgREST 在 RLS 挡掉时返回 200 + 0 行、**不报错** ⇒ 不核对行数就会把
+       「什么都没改」当成保存成功（2026-10-29 审查 P3-1，与 deleteForumPostDraft 同类）。 */
+    if (!Array.isArray(data) || data.length === 0) {
+      logger.error('mail-notify-api', '保存关注邮件开关未命中任何行', { userId });
+      return { success: false, message: '设置未保存，请刷新页面后重试', error: null };
     }
 
     return {
@@ -244,10 +252,11 @@ export async function toggleModerationMail(userId, enabled) {
   }
   try {
     const next = Boolean(enabled);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .update({ moderation_mail_enabled: next })
-      .eq('id', userId);
+      .eq('id', userId)
+      .select('id');
 
     if (error) {
       logger.error('mail-notify-api', '保存审核邮件开关失败', error);
@@ -256,6 +265,12 @@ export async function toggleModerationMail(userId, enabled) {
         message: '设置保存失败，请稍后重试',
         error: normalizeDbError(error),
       };
+    }
+
+    // 同上：RLS 挡掉时是 200 + 0 行，必须核对行数（审查 P3-1）。
+    if (!Array.isArray(data) || data.length === 0) {
+      logger.error('mail-notify-api', '保存审核邮件开关未命中任何行', { userId });
+      return { success: false, message: '设置未保存，请刷新页面后重试', error: null };
     }
 
     return {

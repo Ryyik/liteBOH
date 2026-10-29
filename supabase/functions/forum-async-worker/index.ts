@@ -34,11 +34,18 @@ const imageRequestTimeoutMs = 12000;
 // 单跳 12s 覆盖实测波动；**每张图最多试 2 跳**（见 moderateImageUrl），
 // 否则 6 张图 × 3 跳 × 12s = 216s，必然撞 Edge Function 墙钟。
 const imageChainMaxHops = 2;
-// 单个 job 的时间预算。cron 一轮最多 2 个 job ⇒ 90s + 启动开销，留在 150s 墙钟内。
-// 超预算的图不丢：job 回退成 pending，下一轮 cron 接着做。
-const imageRecheckBudgetMs = 45000;
+// 单个 job 的时间预算。超预算的图不丢：job 回退成 pending，下一轮 cron 接着做。
+// ⚠️ 预算只在**每批开始前**检查，最后一批仍可能跑满 imageChainMaxHops ×
+//    imageRequestTimeoutMs = 24s ⇒ 单 job 最坏 30 + 24 = 54s。
+//    必须 < JOB_LOCK_SECONDS，否则锁在处理中途过期、被另一个 worker 重复认领。
+//    （2026-10-29 审查 P1-3：原值 45s 与锁 45s 相等，最坏 69s > 45s）
+// cron 一轮最多 2 个 job ⇒ 108s + 启动开销，留在 150s 墙钟内。
+const imageRecheckBudgetMs = 30000;
 // 并发 2：上游是按次计费且限流的代理，2 路并发既能摊平延迟，也不会打爆网关。
 const imageRecheckConcurrency = 2;
+// claim 的租约（claim_forum_async_jobs 内部 clamp 到 [15,120]）。
+// 取值必须严格大于「单 job 最坏耗时」＝ imageRecheckBudgetMs + 24s = 54s。
+const JOB_LOCK_SECONDS = 90;
 const brevoApiKey = String(Deno.env.get('BREVO_API_KEY') || '').trim();
 const mailSenderEmail = String(
   Deno.env.get('MAIL_SENDER_EMAIL') || 'noreply@blockofhome.cn',
@@ -61,6 +68,15 @@ const createServiceClient = () =>
   createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
+
+// RPC 还不存在（迁移未应用）时 PostgREST 返回 404 + PGRST202 / PG 42883。
+// 这里只用于「新增 RPC 的灰度窗口」：缺函数不代表业务失败，降级到 cron 兜底即可。
+const isMissingFunctionError = (error: { code?: string; message?: string } | null) => {
+  if (!error) return false;
+  const code = String(error.code || '');
+  if (code === 'PGRST202' || code === '42883') return true;
+  return /could not find the function|does not exist/i.test(String(error.message || ''));
+};
 
 const localReject = (content: string) => {
   const patterns = [
@@ -479,16 +495,9 @@ const processPostModeration = async (client: SupabaseClient, job: Job) => {
   return { status: result.status, reason: result.reason };
 };
 
-const processOne = async (client: SupabaseClient) => {
-  const { data: jobs, error: claimError } = await client.rpc('claim_forum_async_jobs', {
-    p_limit: 1,
-    p_worker_id: workerId,
-    p_lock_seconds: 45,
-  });
-  if (claimError) throw claimError;
-  const job = (Array.isArray(jobs) ? jobs[0] : null) as Job | null;
-  if (!job) return { claimed: 0 };
-
+// 跑「一条已经归属本 worker 的 job」：cron 通道由 claim 认领，用户通道由
+// claim_forum_async_jobs_typed 认领，两边共用这段完成/退回/退避逻辑。
+const runClaimedJob = async (client: SupabaseClient, job: Job) => {
   try {
     const result =
       job.job_type === 'image_recheck'
@@ -498,23 +507,34 @@ const processOne = async (client: SupabaseClient) => {
     // **不能**再调 complete —— 那会把 job 标成 succeeded，剩下的图永远停在 pending。
     const deferred = Number((result as { deferred?: number })?.deferred || 0);
     if (deferred > 0) {
-      await client
+      // ⚠️ 这里**不写 attempt_count**：claim 已经把它 +1 了，再 +1 会导致
+      //    max_attempts=4 实际只剩 2 轮、退避整体错档（2026-10-29 审查 P1-1）。
+      // ⚠️ 必须带 worker_id + status 守卫：锁过期后 job 可能已被别的 worker 接手，
+      //    无守卫的 update 会把对方刚完成的 job 打回 pending（审查 P1-3）。
+      const { data: released, error: releaseError } = await client
         .from('forum_async_jobs')
         .update({
           status: 'pending',
-          attempt_count: job.attempt_count + 1,
           run_after: new Date(Date.now() + 60_000).toISOString(),
           locked_until: null,
           worker_id: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', job.id);
+        .eq('id', job.id)
+        .eq('worker_id', workerId)
+        .eq('status', 'running')
+        .select('id');
+      if (releaseError) throw releaseError;
+      const stillMine = Array.isArray(released) && released.length > 0;
       return {
         claimed: 1,
         jobId: job.id,
         jobType: job.job_type,
         postId: job.post_id,
-        status: 'deferred',
+        // 租约已被别人接管：本轮的裁决仍然落库了，但 job 的归属已不属于我们，
+        // 不要声称 deferred（否则会误判「下次还是我做」）。
+        status: stillMine ? 'deferred' : 'lease_lost',
+        workerId,
         ...result,
       };
     }
@@ -526,7 +546,8 @@ const processOne = async (client: SupabaseClient) => {
     return { claimed: 1, jobId: job.id, jobType: job.job_type, postId: job.post_id, ...result };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    // 退避：图片复审按 1/5/15 分钟（30s→60s→300s→900s），文本审核保持 30s。
+    // 退避：图片复审 1/5/15 分钟。attempt_count 由 claim 递增（首轮 = 1），故索引是
+    // [60, 300, 900]，与 max_attempts=4 对齐。文本审核保持 30s。
     // 复审是「事后撤」，晚几分钟比误撤安全得多。
     const retrySeconds =
       job.job_type === 'image_recheck' ? ([60, 300, 900][job.attempt_count - 1] ?? 900) : 30;
@@ -544,6 +565,42 @@ const processOne = async (client: SupabaseClient) => {
       status: 'retrying',
     };
   }
+};
+
+// cron 通道：认领队列里的任意一条（含 image_recheck）。
+const processOne = async (client: SupabaseClient) => {
+  const { data: jobs, error: claimError } = await client.rpc('claim_forum_async_jobs', {
+    p_limit: 1,
+    p_worker_id: workerId,
+    p_lock_seconds: JOB_LOCK_SECONDS,
+  });
+  if (claimError) throw claimError;
+  const job = (Array.isArray(jobs) ? jobs[0] : null) as Job | null;
+  if (!job) return { claimed: 0 };
+  return runClaimedJob(client, job);
+};
+
+// 用户通道：**只**认领调用者刚入队的那一条 post_moderation。
+// 之前直接用 processOne 会以 service_role 认领队列里的**任意** job —— 任何登录用户
+// 反复「enqueue image_recheck + 调本 EF」就能把图片复审变成额度放大器
+//（每 job 最多 30s 的视觉模型多跳调用，2026-10-29 审查 P2-2）。
+const processEnqueuedPostModeration = async (client: SupabaseClient, postId: string) => {
+  const { data: jobs, error: claimError } = await client.rpc('claim_forum_async_jobs_typed', {
+    p_job_types: ['post_moderation'],
+    // 优先命中「我刚发的这条」；队列里没有它时再退回最老的一条（与改造前同序）。
+    p_prefer_post_id: postId,
+    p_limit: 1,
+    p_worker_id: workerId,
+    p_lock_seconds: JOB_LOCK_SECONDS,
+  });
+  if (claimError) {
+    // 迁移未应用（灰度窗口）：降级为「只入队」，cron 会在 5 分钟内接手。
+    if (isMissingFunctionError(claimError)) return { claimed: 0, skipped: 'rpc_missing' };
+    throw claimError;
+  }
+  const job = (Array.isArray(jobs) ? jobs[0] : null) as Job | null;
+  if (!job) return { claimed: 0 };
+  return runClaimedJob(client, job);
 };
 
 Deno.serve(async (request) => {
@@ -609,7 +666,9 @@ Deno.serve(async (request) => {
         500,
         origin,
       );
-    EdgeRuntime.waitUntil(processOne(client).catch(() => undefined));
+    // 用户通道只跑本贴的 post_moderation（见 processEnqueuedPostModeration 注释），
+    // 不再用 service_role 认领队列里的任意 job。
+    EdgeRuntime.waitUntil(processEnqueuedPostModeration(client, postId).catch(() => undefined));
     return jsonResponse(
       { ok: true, jobId, status: 'queued', message: '已提交，后台处理中' },
       202,
@@ -620,9 +679,10 @@ Deno.serve(async (request) => {
   // cron 通道：一次多捞几个。
   // 原来只处理 1 个，而 cron 是 */5 —— 5 分钟内进来 3 个待复审帖就要 15 分钟才排完，
   // 与「最坏 6 分钟给裁决」的承诺矛盾。
-  // 上限从 3 收到 2（2026-10-29 实测后调整）：图片复审单个 job 预算 45s，
-  // 3 个就是 135s，加上启动开销会撞 Edge Function 的 150s 墙钟，整个请求被截断
-  // 反而一个 job 都提交不了。2 个 = 90s，留足余量；积压由下一轮 cron 继续消化。
+  // 上限从 3 收到 2（2026-10-29 实测后调整）：图片复审单 job 最坏
+  // imageRecheckBudgetMs + 24s = 54s，3 个就是 162s，加上启动开销会撞 Edge Function
+  // 的 150s 墙钟，整个请求被截断反而一个 job 都提交不了。2 个 = 108s，留足余量；
+  // 积压由下一轮 cron 继续消化。
   const results: Array<Record<string, unknown>> = [];
   for (let i = 0; i < 2; i += 1) {
     const one = await processOne(client).catch((error) => ({

@@ -1,6 +1,6 @@
 <script setup>
 import { watch, onMounted, onUnmounted, ref, computed } from 'vue';
-import { createPanelAsync } from '@/utils/async-component.js';
+import { createPanelAsync, AsyncPanelNotice } from '@/utils/async-component.js';
 import { useRoute, useRouter } from 'vue-router';
 import Footer from './components/Footer.vue';
 import { isGlobalNavbarVisible } from '@/utils/global-navbar-visibility.js';
@@ -193,10 +193,12 @@ const handleBoundaryRecover = () => {
 const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
 const notificationStoreRef = getNotificationStoreRef();
-// 全局登录模态框（弹窗型浮层：失败静默，走恢复链强刷，不在文档流留占位）
+// 全局登录模态框：**应答型**浮层 —— 用户点了「登录」才出现，所以失败时不能静默
+// （静默 = 点了没反应，30s 恢复冷却期内再点也没变化）。用固定定位的提示条，
+// 既不进文档流（避免 2026-10-29 的「页面底部冒出加载块」），又给了可见反馈。
 const LoginView = createPanelAsync(() => import('./views/Login/index.vue'), {
   label: 'LoginView',
-  silent: true,
+  errorComponent: AsyncPanelNotice,
 });
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
 
