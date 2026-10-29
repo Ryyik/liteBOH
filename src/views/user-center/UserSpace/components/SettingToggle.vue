@@ -7,13 +7,23 @@
     :aria-checked="modelValue ? 'true' : 'false'"
     :aria-label="label"
     :disabled="disabled"
-    @click="emit('update:modelValue', !modelValue)"
+    @click.stop="emit('update:modelValue', !modelValue)"
   >
     <span class="setting-toggle-knob"></span>
   </button>
 </template>
 
 <script setup>
+/**
+ * 通用开关。
+ *
+ * ⚠️ click 必须 `.stop`（2026-10-29 修）：设置主页把开关套在 `<button class="gs-row">` 里，
+ *    且两者都绑了同一个切换动作。不阻止冒泡时点一次开关会触发两次
+ *    （toggle 自己的 update:modelValue + 外层 button 的 click）⇒ 两次切换互相抵消，
+ *    表现就是「开关点了没反应」。这类「看着像后端/权限问题、其实是双触发」的坑，
+ *    排查顺序应该是：先看事件是否冒泡两次，再怀疑权限。
+ *    在 div 容器里用（如 PushplusSettings）加 .stop 无副作用。
+ */
 defineProps({
   modelValue: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
