@@ -1,6 +1,10 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@negrel/http-ece@0.7.0": "0.7.0",
+    "jsr:@negrel/webpush@0.5.0": "0.5.0",
+    "jsr:@std/bytes@1": "1.0.6",
+    "jsr:@std/encoding@1": "1.0.11",
     "npm:@axe-core/playwright@^4.13.0": "4.14.0_playwright-core@1.64.1",
     "npm:@playwright/test@^1.62.1": "1.64.1",
     "npm:@supabase/supabase-js@2.116.0": "2.116.0",
@@ -13,12 +17,13 @@
     "npm:@vueuse/motion@^3.0.3": "3.0.3_vue@3.5.44_typescript@6.0.3",
     "npm:@wxperia/liquid-glass-vue@^1.0.9": "1.0.9_typescript@6.0.3",
     "npm:acorn@^8.16.0": "8.19.0",
+    "npm:altcha-lib@1.4.1": "1.4.1",
     "npm:altcha@^3.0.3": "3.4.0",
     "npm:browser-image-compression@^2.0.2": "2.0.2",
     "npm:canvas-confetti@^1.9.4": "1.9.4",
     "npm:cssnano@^8.0.2": "8.0.10_postcss@8.5.30",
     "npm:docx@^9.7.1": "9.12.0",
-    "npm:dompurify@^3.3.3": "3.4.17",
+    "npm:dompurify@^3.4.17": "3.4.17",
     "npm:esbuild@~0.25.2": "0.25.12",
     "npm:eslint-config-prettier@^10.1.8": "10.1.8_eslint@9.39.5",
     "npm:eslint-plugin-vue@^10.5.1": "10.11.1_@typescript-eslint+parser@8.71.2_eslint@9.39.5_vue-eslint-parser@10.4.1_typescript@6.0.3",
@@ -43,12 +48,35 @@
     "npm:typescript-eslint@^8.61.0": "8.71.2_eslint@9.39.5_typescript@6.0.3",
     "npm:typescript@^6.0.2": "6.0.3",
     "npm:vite-plugin-pwa@^1.3.0": "1.3.0_vite@7.3.7_workbox-build@7.4.1_workbox-window@7.4.1_@types+node@25.9.9_terser@5.51.2",
-    "npm:vite@^7.2.4": "7.3.7_@types+node@25.9.9_terser@5.51.2",
+    "npm:vite@^7.3.7": "7.3.7_@types+node@25.9.9_terser@5.51.2",
     "npm:vitest@^5.0.4": "5.0.5_@types+node@25.9.9_vite@7.3.7",
     "npm:vue-advanced-cropper@^2.8.9": "2.8.9_vue@3.5.44_typescript@6.0.3",
     "npm:vue-router@^4.6.4": "4.6.4_vue@3.5.44_typescript@6.0.3",
     "npm:vue-tsc@^3.2.6": "3.3.13_typescript@6.0.3",
     "npm:vue@^3.5.24": "3.5.44_typescript@6.0.3"
+  },
+  "jsr": {
+    "@negrel/http-ece@0.7.0": {
+      "integrity": "068e61ba6f52da5454051a283cc19621607f8dd6e74d55c01bb365b8c6644076",
+      "dependencies": [
+        "jsr:@std/bytes",
+        "jsr:@std/encoding"
+      ]
+    },
+    "@negrel/webpush@0.5.0": {
+      "integrity": "919ed5bf4d676923667c5278093f36ffb2efe7fe2f155b6d32723ea3b73fa693",
+      "dependencies": [
+        "jsr:@negrel/http-ece",
+        "jsr:@std/bytes",
+        "jsr:@std/encoding"
+      ]
+    },
+    "@std/bytes@1.0.6": {
+      "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
+    },
+    "@std/encoding@1.0.11": {
+      "integrity": "e7cef2f0b3153bccc17431e7c864a1de03a4b6d9647389c43e08aaa775d37385"
+    }
   },
   "npm": {
     "@apideck/better-ajv-errors@0.3.7_ajv@8.20.0": {
@@ -2143,6 +2171,9 @@
     },
     "alien-signals@3.2.1": {
       "integrity": "sha512-I8FjmltrfnDFoZedi5CG8DghVYNhzb/Ijluz7tCSJH0xpd0484Kowhbb1XDYOxfJpU1p5wnM2X54dA+IfGyD1g=="
+    },
+    "altcha-lib@1.4.1": {
+      "integrity": "sha512-MAXP9tkQOA2SE9Gwoe3LAcZbcDpp3XzYc5GDVej/y3eMNaFG/eVnRY1/7SGFW0RPsViEjPf+hi5eANjuZrH1xA=="
     },
     "altcha@3.4.0": {
       "integrity": "sha512-KsKrInFLlxkM8LcVpIjtM4h/U3nHCiohFzAae0DfGDSz45eWZB9hbhNBtlRBZV/Xvw6K7195X2Hhs254QC33bA==",
@@ -5426,7 +5457,7 @@
         "npm:canvas-confetti@^1.9.4",
         "npm:cssnano@^8.0.2",
         "npm:docx@^9.7.1",
-        "npm:dompurify@^3.3.3",
+        "npm:dompurify@^3.4.17",
         "npm:esbuild@~0.25.2",
         "npm:eslint-config-prettier@^10.1.8",
         "npm:eslint-plugin-vue@^10.5.1",
@@ -5450,7 +5481,7 @@
         "npm:typescript-eslint@^8.61.0",
         "npm:typescript@^6.0.2",
         "npm:vite-plugin-pwa@^1.3.0",
-        "npm:vite@^7.2.4",
+        "npm:vite@^7.3.7",
         "npm:vitest@^5.0.4",
         "npm:vue-advanced-cropper@^2.8.9",
         "npm:vue-router@^4.6.4",

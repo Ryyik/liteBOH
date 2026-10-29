@@ -149,8 +149,8 @@
     },
     {
       "glob": "supabase/functions/**",
-      "run": [],
-      "note": "类型检查走 CI 的 deno-check.yml（阻断）；本地已可装 deno 预验（2026-10-16 实测，见 docs/AI-ENV.md #10）"
+      "run": ["npm run check:ef"],
+      "why": "类型检查走 CI 的 deno-check.yml（阻断）；本地 `npm run check:ef` 预验。⚠️ esbuild 只删类型不查类型 —— 2026-10-29 实测漏过一个「调用点取失败分支专有字段」的联合类型错，只有 deno check 能拦"
     },
     {
       "glob": "scripts/lib/mail-keepalive-policy.mjs",

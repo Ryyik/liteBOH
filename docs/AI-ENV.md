@@ -65,7 +65,7 @@ git status --porcelain | wc -l   # 工作区有多脏（并行会话判断依据
 | 7 | Playwright 与外层代理冲突 | 必须 `channel:'chrome'` + `--proxy-server=direct:// --proxy-bypass-list=*` | `env:doctor` 提示代理变量 |
 | 8 | macOS 无 `timeout`、BSD `find` 有/无 `-newermt` 因版本而异 | 别在脚本里用 `timeout`；用 `git ls-files` 替代时间过滤 | `env:doctor` 实测探测 |
 | 9 | `lint-staged` 卷进无关未暂存文件 | 提交后核对 `git show --stat HEAD`（见 §2） | ❌ 记在这里 |
-| 10 | ~~**deno 本地装不了**~~（2026-10-16 复核：可装） | `deno check` 本地可预验 EF（dl.deno.land 直下）；CI 门禁照旧 | ❌ |
+| 10 | **deno 不在 PATH**（装了也 command not found） | `npm run check:ef` 自动找 `~/.deno/bin/deno`。别再拿 esbuild 顶替 | `check:ef` |
 
 > ⚠️ **一条最重要的"本机事实"**：你 shell 里的 `grep` / `sed` / `find` 是 **WorkBuddy CLI 的
 > toybox shim**（`command -v` 会指到 `brokered-bin/codebuddy-toybox-dispatch`），**既不是 BSD

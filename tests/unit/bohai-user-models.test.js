@@ -118,10 +118,10 @@ describe('自定义模型：EF 侧的四道硬约束（源码守卫）', () => {
   it('BYOK 不走全局 vault 密钥，且不扣 BOH 额度', () => {
     expect(ef).toContain('const resolveChatSecret');
     expect(ef).toContain('if (policy.byok)');
-    // 两处聊天函数都要经过 resolveChatSecret（否则 BYOK 会去 vault 查一个不存在的 provider）
-    expect(ef.match(/await resolveChatSecret\(client, provider, purpose, policy\)/g)?.length).toBe(
-      2,
-    );
+    // 两处聊天函数都要经过 resolveChatSecret（否则 BYOK 会去 vault 查一个不存在的 provider）。
+    // 第四参名字不锁死：2026-10-29 降级链改造后，流式那处传的是链上的当前跳（candidate），
+    // 不是主模型（policy）。锁的是「两处都走同一个密解析入口」这条不变量，不是变量名。
+    expect(ef.match(/await resolveChatSecret\(client, provider, purpose, \w+\)/g)?.length).toBe(2);
     // 额度：BYOK 不预约、不记账，但限流照旧（限流在 action 分支里，不在记账函数里）
     expect(ef).toContain('if (quota.byok) return;');
     expect(ef).toContain('let quota: TokenQuota = policy.byok');

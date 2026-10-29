@@ -1073,6 +1073,22 @@ const resolveActiveSecret = async (
   }
 };
 
+/**
+ * 超时口径：`body.timeoutMs` 是**整条降级链的总预算**，不是每跳各拿一份（2026-10-29）。
+ *
+ * 旧写法在循环里每跳都 `AbortSignal.timeout(clampInt(body.timeoutMs, 30000, 3000, 120000))`
+ * —— 3 跳就等于最多 3 倍预算。但客户端是用**同一个值**包住整次调用的
+ * （`api-key-runtime-api.js` 里 `AbortSignal.timeout(timeoutMs)` 罩住 `fetch`）：
+ * 一旦走到第 2 跳，服务端还在跑上游、客户端早已 abort ⇒ 白调上游、白扣额度，
+ * 前端只拿到一个超时错误，还会被 `classifyCloudFailure` 记成「云端不可达」触发冷却。
+ *
+ * 新口径：**按剩余预算发请求**；剩余不够一次有意义的调用就不再换模型。
+ * 客户端预算的下限是 3000（见 clampInt），单图图片审核给的是 6000
+ * （`image-moderation-pipeline.js` 的 CLOUD_TIMEOUT_MS），因此在实测
+ * 2.8s / 3.6s / 4.3s 的三跳链上，通常是「第 1 跳成功」或「第 1 跳快速失败 + 第 2 跳成功」，
+ * 与客户端 6s 的预算天然对齐。
+ */
+const MIN_HOP_TIMEOUT_MS = 1200;
 const clampInt = (value: unknown, fallback: number, min: number, max: number) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -1119,48 +1135,132 @@ const buildChatKeyInfo = (row: VaultRow | null, policy: RuntimeModelPolicy) =>
         readonly: true,
       };
 
+/**
+ * 非流式补全，带**模型降级链**（2026-10-29）。
+ *
+ * policies[0] 是主模型，后面依次是 fallback_mode_ids 解析出来的降级目标。
+ * 逐跳尝试，直到拿到 ok 或遇到「换模型也没用」的错误（见 shouldFallbackToNextModel）。
+ *
+ * ⚠️ 额度预约在调用方（用主模型的 maxTokens / quotaMultiplier）只做**一次**，本函数重试
+ *    不会重复预约；因此降级链上各行的 max_tokens / quota_multiplier 必须保持一致，
+ *    否则会出现「按主模型预约、按备模型结算」的偏差。
+ */
 const runtimeChatCompletion = async (
   client: ReturnType<typeof createServiceClient>,
   body: Record<string, unknown>,
-  policy: RuntimeModelPolicy,
-) => {
-  const provider = policy.provider;
+  policies: RuntimeModelPolicy[],
+): Promise<RuntimeChatOutcome> => {
   const purpose = 'chat';
-  const { row, apiKey } = await resolveChatSecret(client, provider, purpose, policy);
-  let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
-  if (provider === 'zhipu') {
-    defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-  } else if (provider === 'openrouter') {
-    defaultApiUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  }
-  // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
-  // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
-  const apiUrl = validateRuntimeApiUrl(policy.apiUrl, defaultApiUrl);
-  const payload = buildRuntimePayload(body, policy, false);
+  // 整条降级链共用一份预算（语义见 MIN_HOP_TIMEOUT_MS）
+  const chainBudgetMs = clampInt(body.timeoutMs, 30000, 3000, 120000);
+  const chainStartedAt = Date.now();
+  // 用哨兵初始化而不是 `| null`：`policies` 恒非空，但类型上 TS 不知道，
+  // 返回 null 会让调用点的 `result.ok` 变成 possibly-null 报错。
+  let lastResult: RuntimeChatFailure = {
+    ok: false,
+    status: 0,
+    message: '模型服务不可用。',
+    data: null,
+    keyInfo: null,
+    policy: policies[0],
+    fallbackFrom: '',
+  };
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(clampInt(body.timeoutMs, 30000, 3000, 120000)),
-  });
+  for (let index = 0; index < policies.length; index += 1) {
+    // 剩余预算：见 MIN_HOP_TIMEOUT_MS 处的说明（每跳共用一份，不各自拿满）
+    const remainingMs = chainBudgetMs - (Date.now() - chainStartedAt);
+    // 预算见底时再打一跳只会被客户端 abort（纯浪费额度与日志），直接用上一跳结果收口。
+    if (index > 0 && remainingMs < MIN_HOP_TIMEOUT_MS) {
+      console.warn('[vault] fallback budget exhausted, stop retrying', {
+        budget: chainBudgetMs,
+        usedMs: Date.now() - chainStartedAt,
+        triedHops: index,
+      });
+      break;
+    }
+    const policy = policies[index];
+    const provider = policy.provider;
+    // 密钥查找沿用一个历史口径：purpose 硬编码 'chat'（审核与聊天共用同一把 provider key）。
+    const { row, apiKey } = await resolveChatSecret(client, provider, purpose, policy);
+    let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
+    if (provider === 'zhipu') {
+      defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+    } else if (provider === 'openrouter') {
+      defaultApiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+    }
+    // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
+    // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
+    const apiUrl = validateRuntimeApiUrl(policy.apiUrl, defaultApiUrl);
+    const payload = buildRuntimePayload(body, policy, false);
+    const fallbackFrom = index > 0 ? policies[0].mode : '';
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
+    let response: Response;
+    try {
+      response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(Math.max(MIN_HOP_TIMEOUT_MS, remainingMs)),
+      });
+    } catch (error) {
+      // 网络异常 / 超时：此前直接抛给上层变成 500。现在收敛成结构化的 failed，
+      // 这样还有下一跳时能继续试（换模型有时就是换了一条能用通的路径）。
+      lastResult = {
+        ok: false,
+        status: 0,
+        message: error instanceof Error ? error.message : '模型请求异常',
+        data: null,
+        keyInfo: buildChatKeyInfo(row, policy),
+        policy,
+        fallbackFrom,
+      };
+      if (index + 1 < policies.length) {
+        console.warn('[vault] model call threw, trying fallback', {
+          mode: policy.mode,
+          next: policies[index + 1].mode,
+        });
+        continue;
+      }
+      return lastResult;
+    }
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      lastResult = {
+        ok: false,
+        status: response.status,
+        message: String(
+          data?.error?.message || data?.message || `${provider} 请求失败：${response.status}`,
+        ),
+        data,
+        keyInfo: buildChatKeyInfo(row, policy),
+        policy,
+        fallbackFrom,
+      };
+      if (index + 1 < policies.length && shouldFallbackToNextModel(response.status)) {
+        console.warn('[vault] model failed, trying fallback', {
+          mode: policy.mode,
+          status: response.status,
+          next: policies[index + 1].mode,
+        });
+        continue;
+      }
+      return lastResult;
+    }
     return {
-      ok: false,
+      ok: true,
       status: response.status,
-      message: String(
-        data?.error?.message || data?.message || `${provider} 请求失败：${response.status}`,
-      ),
       data,
       keyInfo: buildChatKeyInfo(row, policy),
+      policy,
+      fallbackFrom,
     };
   }
-  return { ok: true, status: response.status, data, keyInfo: buildChatKeyInfo(row, policy) };
+
+  return lastResult;
 };
 
 const runtimeChatCompletionStream = async (
@@ -1168,11 +1268,14 @@ const runtimeChatCompletionStream = async (
   body: Record<string, unknown>,
   origin: string | null,
   quota: TokenQuota,
-  policy: RuntimeModelPolicy,
+  policies: RuntimeModelPolicy[],
 ) => {
-  const provider = policy.provider;
   const purpose = 'chat';
-  const { row, apiKey } = await resolveChatSecret(client, provider, purpose, policy);
+  // 整条降级链共用一份预算（语义见 MIN_HOP_TIMEOUT_MS）。流式拿到 response 后就 break，
+  // 因此这里的预算实际只约束「建连 + 建连前的失败重试」，不会压缩后续流的读取时长
+  // （除非第 1 跳就把预算耗尽，那本来也该放弃）。
+  const chainBudgetMs = clampInt(body.timeoutMs, 30000, 3000, 120000);
+  const chainStartedAt = Date.now();
 
   const streamHeaders = {
     ...buildCorsHeaders(origin),
@@ -1181,60 +1284,148 @@ const runtimeChatCompletionStream = async (
     'X-Accel-Buffering': 'no',
   };
 
-  let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
-  if (provider === 'zhipu') {
-    defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-  } else if (provider === 'openrouter') {
-    defaultApiUrl = 'https://openrouter.ai/api/v1/chat/completions';
-  }
-  // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
-  // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
-  const apiUrl = validateRuntimeApiUrl(policy.apiUrl, defaultApiUrl);
-  const payload = {
-    ...buildRuntimePayload(body, policy, true),
-    // ⚠️ BYOK 也要跳过 stream_options：用户端点多半是 OpenAI 兼容的**中转站/自建反代**，
-    //    未必认识这个字段（不认识就 400，用户只会看到「模型请求失败」）。
-    //    代价是拿不到上游 usage —— 但 BYOK 本来就不记账，用量精度无所谓。
-    ...(provider === 'zhipu' || policy.byok
-      ? {}
-      : {
-          stream_options: {
-            ...toMetadata(toMetadata(body.payload).stream_options),
-            include_usage: true,
-          },
-        }),
-  };
+  // ── 模型降级链（2026-10-29）────────────────────────────────────────────────
+  // 逐跳尝试，**只在还没往客户端写任何字节时**降级（这里是打开流之前，安全）。
+  // 一旦开始转发（ReadableStream 启动）就不再换模型 —— 那会把两段不同的回复拼在一起。
+  let policy: RuntimeModelPolicy = policies[0];
+  let row: VaultRow | null = null;
+  let response: Response | null = null;
+  let lastStatus = 0;
+  let lastMessage = '';
+  let fallbackFrom = '';
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(clampInt(body.timeoutMs, 30000, 3000, 120000)),
+  for (let index = 0; index < policies.length; index += 1) {
+    const remainingMs = chainBudgetMs - (Date.now() - chainStartedAt);
+    if (index > 0 && remainingMs < MIN_HOP_TIMEOUT_MS) {
+      console.warn('[vault] stream fallback budget exhausted, stop retrying', {
+        budget: chainBudgetMs,
+        usedMs: Date.now() - chainStartedAt,
+        triedHops: index,
+      });
+      break;
+    }
+    const candidate = policies[index];
+    const provider = candidate.provider;
+    const secret = await resolveChatSecret(client, provider, purpose, candidate);
+
+    let defaultApiUrl = 'https://api.siliconflow.cn/v1/chat/completions';
+    if (provider === 'zhipu') {
+      defaultApiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+    } else if (provider === 'openrouter') {
+      defaultApiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+    }
+    // 安全修复 C-3：对 body.apiUrl（用户可篡改）和 metadata.apiUrl 均做 SSRF 校验，
+    // 非法 URL（私有 IP/localhost/非 http 协议）回退到安全默认值。
+    const apiUrl = validateRuntimeApiUrl(candidate.apiUrl, defaultApiUrl);
+    const payload = {
+      ...buildRuntimePayload(body, candidate, true),
+      // ⚠️ BYOK 也要跳过 stream_options：用户端点多半是 OpenAI 兼容的**中转站/自建反代**，
+      //    未必认识这个字段（不认识就 400，用户只会看到「模型请求失败」）。
+      //    代价是拿不到上游 usage —— 但 BYOK 本来就不记账，用量精度无所谓。
+      ...(provider === 'zhipu' || candidate.byok
+        ? {}
+        : {
+            stream_options: {
+              ...toMetadata(toMetadata(body.payload).stream_options),
+              include_usage: true,
+            },
+          }),
+    };
+
+    let attempt: Response | null = null;
+    try {
+      attempt = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          Authorization: `Bearer ${secret.apiKey}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(Math.max(MIN_HOP_TIMEOUT_MS, remainingMs)),
+      });
+    } catch (error) {
+      lastStatus = 0;
+      lastMessage = error instanceof Error ? error.message : '模型请求异常';
+      row = secret.row;
+      if (index + 1 < policies.length) {
+        console.warn('[vault] stream call threw, trying fallback', {
+          mode: candidate.mode,
+          next: policies[index + 1].mode,
+        });
+        continue;
+      }
+      await releaseTokenReservation(client, quota).catch(() => undefined);
+      return new Response(
+        `event: error\ndata: ${JSON.stringify({ ok: false, status: 0, message: lastMessage, keyInfo: buildChatKeyInfo(secret.row, candidate) })}\n\n`,
+        { status: 502, headers: streamHeaders },
+      );
+    }
+
+    if (!attempt.ok || !attempt.body) {
+      lastStatus = attempt.status;
+      if (attempt.ok) {
+        lastMessage = '模型服务未返回可读流。';
+      } else {
+        const text = await attempt.text().catch(() => '');
+        lastMessage = text.slice(0, 500) || `${provider} 流式请求失败：${attempt.status}`;
+      }
+      row = secret.row;
+      if (index + 1 < policies.length && shouldFallbackToNextModel(attempt.status)) {
+        console.warn('[vault] stream model failed, trying fallback', {
+          mode: candidate.mode,
+          status: attempt.status,
+          next: policies[index + 1].mode,
+        });
+        continue;
+      }
+      await releaseTokenReservation(client, quota).catch(() => undefined);
+      return new Response(
+        `event: error\ndata: ${JSON.stringify({ ok: false, status: attempt.status, message: lastMessage, keyInfo: buildChatKeyInfo(secret.row, candidate) })}\n\n`,
+        { status: 502, headers: streamHeaders },
+      );
+    }
+
+    policy = candidate;
+    row = secret.row;
+    response = attempt;
+    fallbackFrom = index > 0 ? policies[0].mode : '';
+    if (fallbackFrom) {
+      console.warn('[vault] stream served by fallback model', {
+        primary: fallbackFrom,
+        served: candidate.mode,
+      });
+    }
+    break;
+  }
+
+  if (!response || !response.body) {
+    await releaseTokenReservation(client, quota).catch(() => undefined);
+    return new Response(
+      `event: error\ndata: ${JSON.stringify({ ok: false, status: lastStatus, message: lastMessage || '模型服务不可用。', keyInfo: row ? buildChatKeyInfo(row, policies[0]) : null })}\n\n`,
+      { status: 502, headers: streamHeaders },
+    );
+  }
+
+  // 收窄成 const：`response` 是 let（链上会被重赋值），在 ReadableStream 的闭包里
+  // TS 不会保留非空收窄，直接用会报 possibly null。
+  const upstreamResponse: Response = response;
+  const upstreamBody = upstreamResponse.body;
+  if (!upstreamBody) {
+    await releaseTokenReservation(client, quota).catch(() => undefined);
+    return new Response(
+      `event: error\ndata: ${JSON.stringify({ ok: false, status: lastStatus, message: lastMessage || '模型服务未返回可读流。', keyInfo: row ? buildChatKeyInfo(row, policies[0]) : null })}\n\n`,
+      { status: 502, headers: streamHeaders },
+    );
+  }
+
+  const keyInfoPayload = JSON.stringify({
+    ok: true,
+    keyInfo: buildChatKeyInfo(row, policy),
+    // 前端/探针据此判断「这一跳是不是降级来的」，避免远端在悄悄降级却没人知道
+    model: policy.mode,
+    fallbackFrom: fallbackFrom || undefined,
   });
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    const message = text.slice(0, 500) || `${provider} 流式请求失败：${response.status}`;
-    await releaseTokenReservation(client, quota).catch(() => undefined);
-    return new Response(
-      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message, keyInfo: buildChatKeyInfo(row, policy) })}\n\n`,
-      { status: 502, headers: streamHeaders },
-    );
-  }
-
-  if (!response.body) {
-    await releaseTokenReservation(client, quota).catch(() => undefined);
-    return new Response(
-      `event: error\ndata: ${JSON.stringify({ ok: false, status: response.status, message: '模型服务未返回可读流。', keyInfo: buildChatKeyInfo(row, policy) })}\n\n`,
-      { status: 502, headers: streamHeaders },
-    );
-  }
-
-  const keyInfoPayload = JSON.stringify({ ok: true, keyInfo: buildChatKeyInfo(row, policy) });
   const metaEvent = `event: meta\ndata: ${keyInfoPayload}\n\n`;
   const metaEncoder = new TextEncoder();
   let metaFlushed = false;
@@ -1272,14 +1463,22 @@ const runtimeChatCompletionStream = async (
     usageSettled = true;
     inspectUsageLines(usageDecoder.decode(), true);
     const usage = normalizeTokenUsage(upstreamUsage, body, streamedText);
-    await logTokenUsage(client, quota, body, usage, status, policy.quotaMultiplier);
+    // 记账按**实际服务的那一跳**归类（降级时 body.mode 仍是主模型）
+    await logTokenUsage(
+      client,
+      quota,
+      { ...body, mode: policy.mode },
+      usage,
+      status,
+      policy.quotaMultiplier,
+    );
   };
 
   const proxiedStream = new ReadableStream({
     async start(controller) {
       controller.enqueue(metaEncoder.encode(metaEvent));
       metaFlushed = true;
-      const reader = response.body!.getReader();
+      const reader = upstreamBody.getReader();
       const pump = async () => {
         try {
           while (true) {
@@ -1311,7 +1510,7 @@ const runtimeChatCompletionStream = async (
     },
     async cancel(reason) {
       try {
-        await response.body?.cancel?.(reason);
+        await upstreamBody.cancel?.(reason);
       } catch (_e) {
         /* ignore */
       }
@@ -1667,7 +1866,7 @@ async function loadModelConfigRow(
   const { data, error } = await client
     .from('bohai_model_configs')
     .select(
-      'mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier, strategy_candidates',
+      'mode_id, provider, model_id, api_url, max_tokens, temperature, top_p, frequency_penalty, quota_multiplier, status, min_tier, strategy_candidates, fallback_mode_ids',
     )
     .ilike('mode_id', modeId)
     .eq('status', 'active')
@@ -1725,7 +1924,6 @@ async function resolveStrategyCandidate(
   return pool[pool.length - 1].row;
 }
 
-
 type TokenUsage = {
   promptTokens: number;
   completionTokens: number;
@@ -1772,6 +1970,35 @@ type RuntimeModelPolicy = {
   apiKey?: string;
   keyLabel?: string;
 };
+
+/**
+ * `runtimeChatCompletion` 的返回契约。刻意用**字面量 `ok` 判别联合**，而不是
+ * 「一个类型 + `message?: string`」：
+ *  - 语义上只有失败跳才有 `message`（成功跳塞个空串会让读代码的人以为成功也可能带错因）；
+ *  - 类型上必须让调用点能收窄 —— 若两边都声明成 `ok: boolean`，TS 无法判别，
+ *    `result.ok ? '' : result.message` 里的 `result.message` 会直接报「属性不存在」
+ *    （2026-10-29 `deno check` 实测抓到，此前只有 esbuild 语法检查，查不出这类问题）。
+ */
+type RuntimeChatSuccess = {
+  ok: true;
+  status: number;
+  data: unknown;
+  keyInfo: unknown;
+  policy: RuntimeModelPolicy;
+  fallbackFrom: string;
+};
+
+type RuntimeChatFailure = {
+  ok: false;
+  status: number;
+  message: string;
+  data: unknown;
+  keyInfo: unknown;
+  policy: RuntimeModelPolicy;
+  fallbackFrom: string;
+};
+
+type RuntimeChatOutcome = RuntimeChatSuccess | RuntimeChatFailure;
 
 const TIER_RANK: Record<string, number> = {
   guest: 0,
@@ -2124,6 +2351,87 @@ async function resolveRuntimeModelPolicy(
     frequencyPenalty: Number(data.frequency_penalty ?? 0.06),
     quotaMultiplier: normalizeQuotaMultiplier(data.quota_multiplier, data.mode_id),
   };
+}
+
+/** 链长上限：再长只会推迟失败，不会更可靠（与迁移里的 check 约束同值）。 */
+const FALLBACK_CHAIN_MAX = 3;
+
+/**
+ * 解析降级链列 `fallback_mode_ids`（jsonb 数组）。
+ * 与 strategy_candidates 同一套容错口径：**非法项跳过而不是抛错** —— 后台手工编辑 jsonb
+ * 填错一项，不该让整个模式不可用（退化成"少一跳"是可接受的降级）。
+ * 只收 mode_id 字符串：provider / model_id / api_url 一律回查本表，jsonb 里不放 URL（SSRF 面）。
+ */
+const parseFallbackModeIds = (raw: unknown): string[] => {
+  if (!Array.isArray(raw)) return [];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const modeId = toText(item, 80).toLowerCase();
+    if (!modeId || seen.has(modeId)) continue;
+    seen.add(modeId);
+    ids.push(modeId);
+    if (ids.length >= FALLBACK_CHAIN_MAX) break;
+  }
+  return ids;
+};
+
+/**
+ * 该不该换下一个模型重试。
+ *
+ * 判据是「换一个模型**可能**不一样」：
+ *   · 0（网络异常/超时）：换；
+ *   · 400 / 422：**要换** —— 这里改过一次判断，记下来别改回去：
+ *       直觉是"400 = 我们的请求体不合法，换谁都一样，只会把同一个错误犯三遍"。
+ *       但审核链这个场景里 payload 由 buildRuntimePayload 统一构造、Worker 还会再清洗一遍
+ *       OpenAI 专有字段，**我们这边的形状是稳定的**；剩下的 400 绝大多数是
+ *       「这个模型不吃这种输入」（多模态能力差异、参数白名单差异）。
+ *       实测场景：主模型若不吃 image_url，400 不重试就等于整条降级链失效。
+ *       代价是 payload 真写错时会连打 3 次 —— 三次都是快速失败，且**不消耗上游 token**。
+ *   · 403 / 404：模型下线、项目无权访问 → 必须换；
+ *   · 408 / 429：超时 / 该模型被限流 → 换（限流常常按模型算）；
+ *   · 5xx：上游故障 → 换。
+ *
+ * **不换**：401（密钥问题）—— 链上共用同一把 key，换模型救不了，只会白等三次。
+ */
+const shouldFallbackToNextModel = (status: number) => {
+  if (status === 0) return true;
+  if (status === 401) return false;
+  return true;
+};
+
+/**
+ * 解析「主模型 + 降级链」的候选策略数组（第一个永远是主模型）。
+ *
+ * ⚠️ 与 strategy_candidates 的语义区别：那个是「按北京日期 + 用户加权轮换」的负载分摊
+ *    （今天用谁），本函数是「挂了换谁」的**顺序**降级（不掷骰子）。
+ * ⚠️ 降级项解析失败（模式被停用 / provider 非法 / tier 变低）只跳过，不影响主模型 ——
+ *    管理员把某一跳配错，最坏结果是少一跳兜底，不能变成"整个审核不可用"。
+ */
+async function resolveRuntimePolicyChain(
+  client: ReturnType<typeof createServiceClient>,
+  requestedMode: string,
+  tier: string,
+  userId: string | null,
+  purpose = 'chat',
+): Promise<RuntimeModelPolicy[]> {
+  const primary = await resolveRuntimeModelPolicy(client, requestedMode, tier, userId, purpose);
+  const chain: RuntimeModelPolicy[] = [primary];
+  const primaryRow = await loadModelConfigRow(client, primary.mode);
+  const fallbackIds = parseFallbackModeIds(primaryRow?.fallback_mode_ids);
+  for (const modeId of fallbackIds) {
+    if (chain.some((item) => item.mode.toLowerCase() === modeId)) continue; // 自指/环
+    try {
+      chain.push(await resolveRuntimeModelPolicy(client, modeId, tier, userId, purpose));
+    } catch (error) {
+      console.warn('[vault] fallback mode skipped', {
+        primary: primary.mode,
+        fallback: modeId,
+        message: error instanceof Error ? error.message : String(error ?? ''),
+      });
+    }
+  }
+  return chain;
 }
 
 const buildRuntimePayload = (
@@ -3090,7 +3398,7 @@ Deno.serve(async (request) => {
         );
       }
       const tier = identity.tier;
-      const policy = await resolveRuntimeModelPolicy(
+      const policies = await resolveRuntimePolicyChain(
         client,
         toText(body.mode, 80),
         tier,
@@ -3099,6 +3407,8 @@ Deno.serve(async (request) => {
         // 审核模式的白名单判定就吃这个值（见 resolveRuntimeModelPolicy 内的 MODE_INTERNAL_ONLY）。
         toText(body.purpose || 'chat', 60).toLowerCase(),
       );
+      // 首个是主模型：额度预约/计费口径仍以它为准（降级链各行必须同 max_tokens 与倍率）。
+      const policy = policies[0];
       console.log('[vault] user auth ok, reserving token quota');
       // BYOK（用户自带 Key，2026-10-08）**不预约 BOH 额度** —— 用户口径「不扣 BOH 额度」。
       // ⚠️ 限流不豁免：上游那次 checkRateLimitDb（每用户每分钟 10 次）照旧生效，防的是
@@ -3175,24 +3485,32 @@ Deno.serve(async (request) => {
       console.log('[vault] calling runtimeChatCompletion');
       let result;
       try {
-        result = await runtimeChatCompletion(client, body, policy);
+        result = await runtimeChatCompletion(client, body, policies);
         if (result.ok) {
+          // 记账用**实际服务的那一跳**（降级时会与主模型不同）：model 只影响日志归类，
+          // 倍率取实际行 —— 链上各行倍率约定相同，取谁都一致，但不该用主模型硬套。
+          const servedPolicy = result.policy || policy;
+          const servedBody = {
+            ...body,
+            mode: servedPolicy.mode,
+            payload: buildRuntimePayload(body, servedPolicy, false),
+          };
           const responseData = (result.data || {}) as Record<string, unknown>;
           const choices = Array.isArray(responseData.choices) ? responseData.choices : [];
           const firstChoice = (choices[0] || {}) as Record<string, unknown>;
           const message = (firstChoice.message || {}) as Record<string, unknown>;
           const usage = normalizeTokenUsage(
             responseData.usage as Record<string, unknown> | undefined,
-            { ...body, mode: policy.mode, payload: buildRuntimePayload(body, policy, false) },
+            servedBody,
             String(message.content || ''),
           );
           await logTokenUsage(
             client,
             quota,
-            { ...body, mode: policy.mode, payload: buildRuntimePayload(body, policy, false) },
+            servedBody,
             usage,
             'success',
-            policy.quotaMultiplier,
+            servedPolicy.quotaMultiplier,
           );
         } else {
           await releaseTokenReservation(client, quota);
@@ -3201,10 +3519,13 @@ Deno.serve(async (request) => {
         await releaseTokenReservation(client, quota).catch(() => undefined);
         throw error;
       }
+      // 日志必须带**实际服务的那一跳**：降级发生时 result.policy 已不是主模型，
+      // 只打 ok/failed 会让「云端其实在降级跑」这件事在日志里完全隐身。
       console.log(
         '[vault] runtimeChatCompletion result:',
-        result.ok ? 'ok' : 'failed',
-        result.message || '',
+        result.ok
+          ? `ok (${result.policy.mode}${result.fallbackFrom ? ` ← ${result.fallbackFrom}` : ''})`
+          : `failed (${result.policy.mode}) ${result.message || ''}`,
       );
       return jsonResponse(result, result.ok ? 200 : 502, origin);
     }
@@ -3259,7 +3580,7 @@ Deno.serve(async (request) => {
         );
       }
       const tier = identity.tier;
-      const policy = await resolveRuntimeModelPolicy(
+      const policies = await resolveRuntimePolicyChain(
         client,
         toText(body.mode, 80),
         tier,
@@ -3268,6 +3589,8 @@ Deno.serve(async (request) => {
         // 审核模式的白名单判定就吃这个值（见 resolveRuntimeModelPolicy 内的 MODE_INTERNAL_ONLY）。
         toText(body.purpose || 'chat', 60).toLowerCase(),
       );
+      // 首个是主模型：额度预约/计费口径仍以它为准（降级链各行必须同 max_tokens 与倍率）。
+      const policy = policies[0];
       // BYOK（用户自带 Key，2026-10-08）**不预约 BOH 额度** —— 用户口径「不扣 BOH 额度」。
       // ⚠️ 限流不豁免：上游那次 checkRateLimitDb（每用户每分钟 10 次）照旧生效，防的是
       //    脚本刷自己的端点把 EF 打满，与「谁付钱」无关。
@@ -3347,7 +3670,7 @@ Deno.serve(async (request) => {
           { ...body, mode: policy.mode, payload: buildRuntimePayload(body, policy, true) },
           origin,
           quota,
-          policy,
+          policies,
         );
       } catch (error) {
         await releaseTokenReservation(client, quota).catch(() => undefined);
