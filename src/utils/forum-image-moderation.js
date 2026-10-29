@@ -1,7 +1,23 @@
 // 模型本地化（B1）：tfjs/nsfwjs 走 npm 静态依赖，权重由 nsfwjs 包内动态 import 加载
 // （dist/models/*.min.js，Vite 自动拆为按需 chunk，同源 + hash 文件名永久缓存）。
 // 彻底移除 jsdelivr CDN 动态脚本加载——此前 CDN 偶发 >20s 且失败率高，是首图审核卡顿的主因。
+//
+// ⚠️ 2026-10-29 起**优先走自托管二进制资产**（见下方 resolveNsfwModelAssetUrl）：
+//    nsfwjs 包内只有「权重内联成 base64 的 3.49MB JS」这一种形态，浏览器必须先下载、
+//    再当 JS 解析（单行 349 万字符）、再 base64 解码，全部在主线程 —— 这是
+//    「预热卡输入」与「兜底初始化 30s 超时」的主要成本。scripts/build-nsfw-model-assets.mjs
+//    把同一份权重转成 model.json + .bin（字节级相同，判定结果不变），走 tf 原生
+//    loadLayersModel：只下载 + 解码 ArrayBuffer，不经过 JS 解析。
+//    JS 包路径**保留为兜底**：资产缺失/损坏（旧产物、包升级后缓存错配）时自动退回，
+//    代价只是慢回去，不会让审核失效。
+import { logger } from './logger.js';
+
 const DEFAULT_MODEL_NAME = 'MobileNetV2';
+// 自托管资产目录（相对站点根，由 document.baseURI 解析 ⇒ 兼容 base:'./' 的子路径部署）
+const NSFW_MODEL_ASSET_PATH = 'models/nsfw/mobilenet_v2/model.json';
+// 资产通道自己的预算：比 JS 兜底短，命中 404/损坏时快速转入兜底，
+// 别让「资产坏了」变成「用户多等一倍」。
+const NSFW_MODEL_ASSET_TIMEOUT_MS = 12000;
 
 const NSFW_REJECT_THRESHOLD = 0.75;
 const NSFW_REVIEW_THRESHOLD = 0.45;
@@ -20,7 +36,9 @@ let modelPromise = null;
 // 静默窗口出现后再推理，保证输入全程不掉帧（最多等 800ms 防饿死）。
 let lastUserInputAt = 0;
 if (typeof document !== 'undefined') {
-  const markUserInput = () => { lastUserInputAt = Date.now(); };
+  const markUserInput = () => {
+    lastUserInputAt = Date.now();
+  };
   document.addEventListener('input', markUserInput, { capture: true, passive: true });
   document.addEventListener('keydown', markUserInput, { capture: true, passive: true });
 }
@@ -58,15 +76,69 @@ function withTimeout(promise, timeoutMs, message) {
   });
 }
 
+// 自托管资产 URL：用 document.baseURI 解析（vite base 是 './'，硬编码 '/models/...'
+// 在子路径部署下会 404）。拿不到 baseURI（非浏览器环境）时返回 ''，直接走 JS 兜底。
+function resolveNsfwModelAssetUrl() {
+  try {
+    if (typeof document === 'undefined' || !document.baseURI) return '';
+    return new URL(NSFW_MODEL_ASSET_PATH, document.baseURI).href;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 加载模型：**二进制资产优先，JS 包兜底**。
+ *
+ * 两条路径必须都保留：
+ *  · 只有资产路径时，旧产物/缓存错配会让审核整体失效（宁可慢，不可瘫）；
+ *  · 只有 JS 路径时，3.49MB base64 JS 的主线程解析省不掉（本函数存在的理由）。
+ *
+ * 预算口径：整次加载共用一个 deadline（MODEL_INIT_TIMEOUT_MS），资产通道先吃掉
+ * 至多 NSFW_MODEL_ASSET_TIMEOUT_MS，兜底只拿**剩余**时间 —— 避免「资产超时 12s
+ * + 兜底 30s = 42s」这种比改前更慢的形态。
+ */
+async function loadNsfwModelWithAssetFallback(nsfwjs, modelName) {
+  const deadline = Date.now() + MODEL_INIT_TIMEOUT_MS;
+  // 只有默认模型有自托管资产；VITE_NSFWJS_MODEL_NAME 指向 Mid/Inception 时
+  // 目录并不存在（权重也被 nsfwjsTreeShakePlugin 裁掉了），问了也是 404。
+  const assetUrl = modelName === DEFAULT_MODEL_NAME ? resolveNsfwModelAssetUrl() : '';
+
+  if (assetUrl) {
+    try {
+      return await withTimeout(
+        nsfwjs.load(assetUrl),
+        Math.min(NSFW_MODEL_ASSET_TIMEOUT_MS, MODEL_INIT_TIMEOUT_MS),
+        '图片安全检测模型初始化超时（自托管资产）',
+      );
+    } catch (error) {
+      logger.warn('forum-image-moderation', '自托管模型资产加载失败，回退 nsfwjs 内置 JS 包', {
+        assetUrl,
+        message: error?.message,
+      });
+    }
+  }
+
+  const remainingMs = Math.max(3000, deadline - Date.now());
+  return withTimeout(
+    nsfwjs.load(modelName),
+    remainingMs,
+    '图片安全检测模型初始化超时，请刷新页面后重试',
+  );
+}
+
 async function getNsfwModel() {
   if (!modelPromise) {
     modelPromise = (async () => {
-      const modelName = String(import.meta.env?.VITE_NSFWJS_MODEL_NAME || DEFAULT_MODEL_NAME).trim() || DEFAULT_MODEL_NAME;
+      const modelName =
+        String(import.meta.env?.VITE_NSFWJS_MODEL_NAME || DEFAULT_MODEL_NAME).trim() ||
+        DEFAULT_MODEL_NAME;
       // 运行时与权重全部来自 npm 包：tfjs 负责注册 WebGL backend，
-      // nsfwjs.load(name) 内部按 DEFAULT_MODELS 注册表动态 import 包内权重 chunk。
+      // nsfwjs.load() 要么读自托管二进制资产，要么按 DEFAULT_MODELS 注册表
+      // 动态 import 包内权重 chunk（见 loadNsfwModelWithAssetFallback）。
       const [tfModule, nsfwjsModule] = await Promise.all([
         import('@tensorflow/tfjs'),
-        import('nsfwjs')
+        import('nsfwjs'),
       ]);
       const tf = tfModule?.enableProdMode ? tfModule : tfModule?.default;
       if (typeof tf?.enableProdMode === 'function') {
@@ -76,11 +148,7 @@ async function getNsfwModel() {
       if (!nsfwjs || typeof nsfwjs.load !== 'function') {
         throw new Error('图片安全检测模块初始化失败');
       }
-      return withTimeout(
-        nsfwjs.load(modelName),
-        MODEL_INIT_TIMEOUT_MS,
-        '图片安全检测模型初始化超时，请刷新页面后重试'
-      );
+      return loadNsfwModelWithAssetFallback(nsfwjs, modelName);
     })();
   }
 
@@ -88,16 +156,18 @@ async function getNsfwModel() {
     return await modelPromise;
   } catch (error) {
     modelPromise = null;
-    throw new Error(String(error?.message || '').trim() || '图片安全检测模型初始化失败，请刷新后重试');
+    throw new Error(
+      String(error?.message || '').trim() || '图片安全检测模型初始化失败，请刷新后重试',
+    );
   }
 }
 
 function createImageElement(file) {
   if (
-    typeof Image === 'undefined'
-    || typeof URL === 'undefined'
-    || typeof URL.createObjectURL !== 'function'
-    || typeof URL.revokeObjectURL !== 'function'
+    typeof Image === 'undefined' ||
+    typeof URL === 'undefined' ||
+    typeof URL.createObjectURL !== 'function' ||
+    typeof URL.revokeObjectURL !== 'function'
   ) {
     return Promise.reject(new Error('当前浏览器不支持图片安全检测'));
   }
@@ -157,9 +227,9 @@ export function classifyNsfwPredictions(predictions = []) {
     (Array.isArray(predictions) ? predictions : [])
       .map((item) => [
         String(item?.className || '').trim(),
-        Math.max(0, Math.min(1, Number(item?.probability || 0)))
+        Math.max(0, Math.min(1, Number(item?.probability || 0))),
       ])
-      .filter(([key]) => key)
+      .filter(([key]) => key),
   );
 
   const porn = scores.Porn || 0;
@@ -169,12 +239,16 @@ export function classifyNsfwPredictions(predictions = []) {
   const neutral = scores.Neutral || 0;
   const risk = porn + hentai + sexy * 0.45;
 
-  if (porn >= NSFW_SINGLE_CLASS_REJECT_THRESHOLD || hentai >= NSFW_SINGLE_CLASS_REJECT_THRESHOLD || risk >= NSFW_REJECT_THRESHOLD) {
+  if (
+    porn >= NSFW_SINGLE_CLASS_REJECT_THRESHOLD ||
+    hentai >= NSFW_SINGLE_CLASS_REJECT_THRESHOLD ||
+    risk >= NSFW_REJECT_THRESHOLD
+  ) {
     return {
       status: 'rejected',
       score: risk,
       reason: '图片疑似包含不适宜公开发布的内容',
-      scores
+      scores,
     };
   }
 
@@ -183,7 +257,7 @@ export function classifyNsfwPredictions(predictions = []) {
       status: 'needs_review',
       score: risk,
       reason: '图片安全检测结果不够明确，请换一张更清晰、低风险的图片',
-      scores
+      scores,
     };
   }
 
@@ -191,7 +265,7 @@ export function classifyNsfwPredictions(predictions = []) {
     status: 'approved',
     score: Math.max(risk, drawing * 0.05, neutral * 0.02),
     reason: '通过',
-    scores
+    scores,
   };
 }
 
@@ -226,7 +300,11 @@ async function runForumImageModeration(file) {
   try {
     surface = createModerationSurface(image);
   } finally {
-    try { image.src = ''; } catch { /* ignore */ }
+    try {
+      image.src = '';
+    } catch {
+      /* ignore */
+    }
     URL.revokeObjectURL(objectUrl);
   }
 
@@ -237,7 +315,9 @@ async function runForumImageModeration(file) {
     // TFJS WebGL backend 不支持并发 classify，必须串行化避免 GPU 崩溃
     const prev = classifyMutex;
     let release;
-    classifyMutex = new Promise((resolve) => { release = resolve; });
+    classifyMutex = new Promise((resolve) => {
+      release = resolve;
+    });
     await prev;
 
     if (classifyBlockedError) {
@@ -255,7 +335,7 @@ async function runForumImageModeration(file) {
       const predictions = await withTimeout(
         classificationPromise,
         IMAGE_CLASSIFY_TIMEOUT_MS,
-        '图片安全检测超时，请稍后重试或换一张图片'
+        '图片安全检测超时，请稍后重试或换一张图片',
       );
       return classifyNsfwPredictions(predictions);
     } catch (error) {
@@ -278,7 +358,10 @@ async function runForumImageModeration(file) {
           modelPromise = null;
         })
         .finally(() => {
-          if (watchdogId) { clearTimeout(watchdogId); watchdogId = null; }
+          if (watchdogId) {
+            clearTimeout(watchdogId);
+            watchdogId = null;
+          }
           classifyBlockedError = null;
           if (surface) {
             surface.width = 1;

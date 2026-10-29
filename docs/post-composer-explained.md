@@ -253,6 +253,15 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
   最坏只付一波。守卫：`image-moderation-pipeline.test.js`（超时契约）+
   `bohai-model-fallback-chain.test.js`（每跳按剩余预算）。
 - `preloadForumImageModeration`：模型预载（选图时 `scheduleForumImageModerationPreload({immediate:true})` 调用，与压缩并行）。
+- **本地模型改走自托管二进制（2026-10-29）**：nsfwjs 只分发「权重内联成 base64 的 3.49MB JS」，
+  浏览器要下载 → 当 JS 解析（单行 349 万字符）→ base64 解码，全在主线程 —— 这是「预热卡输入」
+  与「兜底初始化 30s 超时」的主要成本。`scripts/build-nsfw-model-assets.mjs` 把**同一份权重**
+  转成 `public/models/nsfw/mobilenet_v2/{model.json,group1-shard1of1.bin}`（2.50MB / gzip 1.99MB），
+  加载走 `tf.loadLayersModel(url)`，不再经过 JS 解析。**精度不变**：.bin 就是那串 base64 的解码结果，
+  浏览器实测两条路径 5 个类概率**逐位相同**；初始化耗时实测 14.1s → 6.4s（headless SwiftShader，
+  只看相对量）。JS 包路径保留为兜底（资产缺失/升级后缓存错配时自动退回，不报错、只是慢回去），
+  资产是生成物不入库（`public/models/` 已 gitignore），build / build:ci / predev 前置自动生成。
+  守卫：`tests/unit/nsfw-model-asset.test.js`（产物结构 / 字节一致 / 接线 / 不入库）。
 - `uploadApprovedForumImage`：`assertCloudinaryUploadAllowed({source:'forum'})` → `uploadImageToCloudinary(file, {folder: FORUM_CLOUDINARY_FOLDER, pendingSource:'forum', skipUploadPreflight:true, onProgress, signal})`。
 - 并发队列：`uploadQueue` + `MAX_CONCURRENT_UPLOADS = 3`，**仅网络层并发**（压缩/检测已在调用方控并发）。
 

@@ -408,9 +408,12 @@ export const UNTESTABLE = [
     why: '构建转换步骤而非门禁：没有「违规」可注入，sharp 抛错会自然非零退出；幂等性由「连跑两次第二次全跳过、产物字节不变」自证（2026-09-29 实测）',
   },
   { gate: 'check:bundle-size', why: '读 dist/ 产物，需先构建' },
+  {
+    gate: 'nsfw:assets',
+    why: '构建生成步骤而非判定门禁：从 node_modules 里的 base64 权重切出 .bin/.json，没有「违规」可注入；产物正确性由 tests/unit/nsfw-model-asset.test.js 的字节一致断言锁住（2026-10-29）',
+  },
   { gate: 'check:route-css-runtime', why: '要起 preview 服务 + 浏览器，属手工专项' },
   { gate: 'check:sw-upgrade', why: '要 dist 与 dist-check 双产物对比，属手工专项' },
   { gate: 'lint / type-check / test', why: '本身即测试套件，红不红由用例决定，无需造样本' },
   { gate: '各类 probe:*', why: '要浏览器环境（Playwright），样本即测试用例本身' },
-
 ];

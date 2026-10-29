@@ -9,6 +9,10 @@ lerna-debug.log*
 
 node_modules
 dist
+# 生成物：NSFW 模型自托管二进制资产（由 scripts/build-nsfw-model-assets.mjs 从
+# node_modules/nsfwjs 生成，build / build:ci / dev 前置自动跑）。不要入库：
+# 2.6MB 二进制可以随时重建，入库只会让仓库变大且升级包时必须记得重新生成。
+public/models/
 # 探针对比用的第二份构建产物（probe-boot-perf.mjs 依赖，见 probe 脚本注释）
 dist-check
 dist-ssr

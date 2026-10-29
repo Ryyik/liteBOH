@@ -402,6 +402,21 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+          {
+            // 2026-10-29：自托管模型资产（model.json + 权重 .bin）。
+            // 走 CacheFirst 的原因与上面那条不同 —— 这两个文件名**没有 hash**（tf 按
+            // model.json 所在目录解析 paths，改名会破坏配对），所以「内容不变」不是靠
+            // URL 保证的，而是靠它只在 nsfwjs 升级时重新生成。
+            // 万一升级后旧缓存错配（新 model.json + 旧 .bin），tf 解码时会因字节长度
+            // 不匹配抛错 ⇒ forum-image-moderation.js 自动退回 JS 包路径，不会静默出错。
+            urlPattern: /\/models\/nsfw\/.+\.(bin|json)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'nsfw-model-assets',
+              expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 90 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
         ],
       },
       // ⚠️ 图标必须走 scripts/generate-app-icons.mjs 的产物，不要再指向 favicon.png：
