@@ -117,6 +117,7 @@ import {
   FORUM_LIST_IMAGE_TRANSFORM_MD,
   FORUM_LIST_IMAGE_TRANSFORM_SM,
   FORUM_LIST_LQIP_TRANSFORM,
+  FORUM_UPLOAD_IMAGE_OPTIMIZE_OPTIONS,
   FORUM_POST_DRAFT_PREFIX,
   FORUM_POST_IMAGE_MAX_COUNT,
   FORUM_TAG_MAP,
@@ -636,7 +637,11 @@ watch(
       });
     }
   },
-  { deep: true },
+  // immediate：队列存在 Pinia 里（跨组件实例存活），而「常驻岛」是组件内状态。
+  // 发帖途中切走路由 / 切 tab 回来，本组件重建 ⇒ 不会再有 items 变化去触发这条 watch
+  // ⇒ 在途的帖既看不见进度、也点不到「重试 / 取消」，用户视角就是「发帖卡住了、没反应」。
+  // 挂载时按当前队列补一次同步（active 为 null 时只是一次空跑）。
+  { deep: true, immediate: true },
 );
 onUnmounted(() => {
   publishTaskHandle?.close();
@@ -717,8 +722,17 @@ const updateOptimisticPost = (queueId, patch = {}) => {
   if (idx < 0) return;
   const cur = forumData.value[idx];
   const next = { ...cur, ...patch, _queueId: queueId };
-  // 若传了 queueItem 整体则重建 allImages 失败标记
-  if (patch._publishState || patch._progress !== undefined || patch._failType !== undefined) {
+  // 只有「状态 / 失败信息 / 失败图序号」变化才需要重建图片块。
+  // 进度 tick 每 300ms 一次（processPublishImagesForQueue 的 progressTicker），
+  // 若一并 rebuild 就要重跑 buildOptimisticPost + 整列替换 + triggerRef，
+  // 长列表下每次 tick 都是一次全量 diff —— 这是发布过程中肉眼可见的卡顿来源。
+  // 重建不是纯性能开销而是有语义的：allImages 只取 localPreviewUrl（blob），
+  // 上传完成不会改变它，所以跳过进度 tick 的重建不影响画面。
+  if (
+    patch._publishState !== undefined ||
+    patch._failType !== undefined ||
+    patch._failedImageIndex !== undefined
+  ) {
     const q = publishQueueStore.items.find((i) => i.id === queueId);
     if (q) {
       const rebuilt = buildOptimisticPost(q);
@@ -862,6 +876,47 @@ async function backupPostImagesToCloud(realPost, images, queueItem) {
   }
 }
 
+/* 图片管线的停滞看门狗。
+   `entry.promise` 自己不会 reject（失败也在内部吞掉后返回 entry），唯一的坏情况是它
+   **永远不 settle** —— 压缩线程卡住、检测模型加载挂住、上传请求被系统挂起。那时
+   runPublishQueue 就永久停在下面那个 await 上：岛一直显示"发送中"、进度不动、
+   没有任何按钮可点，后面排队的帖子也一起冻死（用户报障"发帖卡住"的典型形态）。
+   判据用「进度连续 90s 没前进」而不是总时长：真实进度每 300ms 被聚合读一次，
+   只要字节还在走就不会误杀慢网；完全不动才判失败，且失败是**可重试**的网络类错误。 */
+const PIPELINE_STALL_IDLE_MS = 90000;
+const awaitPipelineSettled = (entry, { uploadId } = {}) =>
+  new Promise((resolve, reject) => {
+    let lastProgress = Math.max(0, Number(entry.progress || 0));
+    let lastMovedAt = Date.now();
+    const poll = setInterval(() => {
+      const now = Date.now();
+      const progress = Math.max(0, Number(entry.progress || 0));
+      if (progress > lastProgress + 0.0001) {
+        lastProgress = progress;
+        lastMovedAt = now;
+        return;
+      }
+      if (now - lastMovedAt < PIPELINE_STALL_IDLE_MS) return;
+      clearInterval(poll);
+      // 卡死的管线必须从 map 里摘掉，否则重试会被「已存在」挡回去、复用同一条死 promise
+      if (uploadId) cancelDraftImagePipeline(uploadId);
+      const error = new Error('图片处理长时间无响应，请重试');
+      error.code = 'IMAGE_UPLOAD_FAILED';
+      error.failType = 'network';
+      reject(error);
+    }, 5000);
+    Promise.resolve(entry.promise).then(
+      (value) => {
+        clearInterval(poll);
+        resolve(value);
+      },
+      (error) => {
+        clearInterval(poll);
+        reject(error);
+      },
+    );
+  });
+
 const processPublishImagesForQueue = async (queueItem, signal) => {
   // 全部已就绪（预热已完成）：直接返回
   const allApproved =
@@ -879,7 +934,14 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
   );
   const total = pending.length;
   publishQueueStore.setProgress(queueItem.id, 2);
+  // 进度写回要「只在整数百分比真的变了」时做：ticker 每 300ms 一次，
+  // 管线卡住/匀速阶段常常算出同一个值 —— 同值也写就会白白替换 forumData 整列
+  // （乐观卡在父模板里内联渲染，百分比一变就重渲染整列可见卡片）。
+  let lastRenderedProgress = -1;
   const setProg = (v) => {
+    const rounded = Math.round(Number(v) || 0);
+    if (rounded === lastRenderedProgress) return;
+    lastRenderedProgress = rounded;
     publishQueueStore.setProgress(queueItem.id, v);
     updateOptimisticPost(queueItem.id, { _progress: v });
   };
@@ -982,12 +1044,22 @@ const processPublishImagesForQueue = async (queueItem, signal) => {
         };
         break;
       }
+      let stallError = null;
       try {
-        await entry.promise;
-      } catch {
-        // 失败态已在管线内记录，下面统一归因
+        await awaitPipelineSettled(entry, { uploadId: img.uploadId });
+      } catch (error) {
+        // 管线自身失败时错误已在 entry.error 里，这里只有看门狗会 reject
+        stallError = error;
       }
       if (signal?.aborted) throw Object.assign(new Error('已取消'), { code: 'PUBLISH_CANCELLED' });
+      if (stallError) {
+        pipelineError = {
+          img,
+          failIdx: imgFailIdx >= 0 ? imgFailIdx : idx,
+          error: stallError,
+        };
+        break;
+      }
       if (entry.cancelled) {
         pipelineError = {
           img,
@@ -1117,10 +1189,10 @@ const runPublishQueue = async () => {
         // 刷新周报但不整页重拉（避免覆盖刚插入的帖子）；后台静默刷新快照
         void loadForumWeeklyReport();
         persistForumFeedSnapshot();
-        // 成功后短暂保留再移除队列项
-        await new Promise((r) => setTimeout(r, 900));
-        publishQueueStore.removeItem(next.id);
+        // 成功后短暂保留队列项给常驻岛收尾（900ms），但**不要 await**：
+        // 那会把队列里排队的下一篇一起冻住 900ms（连发两帖时第二篇凭空慢近 1 秒）。
         publishAbortControllers.delete(next.id);
+        setTimeout(() => publishQueueStore.removeItem(next.id), 900);
       } catch (error) {
         publishAbortControllers.delete(next.id);
         if (error?.code === 'PUBLISH_CANCELLED' || controller.signal.aborted) {
@@ -1163,6 +1235,16 @@ const runPublishQueue = async () => {
     publishWorkerRunning = false;
   }
 };
+// 队列存在 Pinia 里（跨组件实例存活），但 worker 的「单飞锁」publishWorkerRunning 是实例级的：
+// 发帖途中切走路由再回来（keep-alive 被回收 / 重新 mount），新实例不会自动接手，
+// queued 的帖就永久躺在队列里 —— 岛上看不到、也没有任何按钮能救。
+// 只在「没有在途任务」时接手：uploading / publishing 由旧实例的 promise 链自然收尾，
+// 两个实例同时取任务会并发发帖。
+onMounted(() => {
+  const items = publishQueueStore.items;
+  if (items.some((i) => ['uploading', 'publishing'].includes(i.state))) return;
+  if (items.some((i) => i.state === 'queued')) void runPublishQueue();
+});
 const retryPublish = async (queueId) => {
   const item = publishQueueStore.items.find((i) => i.id === queueId);
   if (!item) return;
@@ -1331,6 +1413,11 @@ const editFailedPublish = (queueId) => {
   postImageUploadStatus.value = '';
   publishQueueStore.removeItem(queueId);
   removeOptimisticPost(queueId);
+  // 失败会中断整条队列（runPublishQueue 的 catch 走 break 等用户处置）。把内容交还编辑器
+  // 就等于「这条处置完了」，必须把 worker 拉起来 —— 否则后面排着的帖永远停在 queued：
+  // 常驻岛一直显示「已提交，后台处理中」、进度不动、也没有任何可点的失败入口（2026-10-29 实读）。
+  // retry / fix / cancel 三条路径都已各自拉起，只有 edit 这条漏了。
+  if (publishQueueStore.items.some((i) => i.state === 'queued')) void runPublishQueue();
   // 未完成的图重启预热管线（回到编辑器期间继续后台处理，再次发布时接近秒发）
   postImages.value.forEach((img, idx) => {
     if (img?.file && img.uploadStatus !== 'approved') {
@@ -1383,8 +1470,13 @@ let postDraftRestoreSeq = 0;
 const {
   readDraftClearedAt,
   clearDraftClearedMarker,
+  readDraftPendingPush,
+  markDraftPendingPush,
+  clearDraftPendingPush,
   readPostDraft,
   writeLocalPostDraft,
+  readAutoSaveDraft,
+  writeAutoSaveDraft,
 } = useForumPostDraftStorage({
   getUserId: () => userInfo.id,
   normalizeTag: normalizeForumTagValue,
@@ -1403,19 +1495,37 @@ const {
    实例恰好都在同一个 tab 里 ⇒ 必须走同标签页广播（事件名见 storage 模块）。 */
 const draftHostId = `draft-host-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 
+/** 编辑器里**能写进草稿**的图片 = 已上传完成的持久 URL。
+ *  只有 blob 预览的图刷新后必然失效，写进暂存只会让"恢复了"变成一张打不开的灰块。 */
+const getEditorPersistableImageUrls = () =>
+  postImages.value
+    .map((img) => String(img?.uploadedUrl || '').trim())
+    .filter(Boolean)
+    .slice(0, FORUM_POST_IMAGE_MAX_COUNT);
+
+/** 有图还在上传/检测中 ⇒ 刷新必丢，必须算「未保存」。 */
+const hasUnpersistedPostImages = () =>
+  postImages.value.some((img) => !String(img?.uploadedUrl || '').trim());
+
 /** 编辑器内容是否与某份草稿一致（= 没有未保存的改动）。判据实现与测试在 storage 模块，
  *  这里只做「从响应式状态取值」的适配 —— 别在本文件再抄一份判断逻辑。 */
-const draftMatchesEditor = (draft) =>
-  isDraftInSyncWithEditor({
+const draftMatchesEditor = (draft) => {
+  if (hasUnpersistedPostImages()) return false;
+  return isDraftInSyncWithEditor({
     draft,
     title: newPost.value.title,
     content: newPost.value.content,
     hasImages: postImages.value.length > 0,
+    imageUrls: getEditorPersistableImageUrls(),
   });
+};
 
 /** 编辑器里有「刷新/离开会丢」的内容 —— 比 hasUnsavedChanges() 多一层「是否已落草稿」，
- *  发布会话与新帖宿主共用同一判据（见 handleBeforeUnload）。 */
-const isEditorDirty = () => !draftMatchesEditor(savedPostDraft.value);
+ *  发布会话与新帖宿主共用同一判据（见 handleBeforeUnload）。
+ *  2026-10-29：实时暂存也算「已落盘」—— 它就是为了让刷新不丢，落进暂存后再弹
+ *  「是否保存草稿」只会教用户无视提示（真正会丢的只剩"图还在上传中"那条）。 */
+const isEditorDirty = () =>
+  !draftMatchesEditor(savedPostDraft.value) && !draftMatchesEditor(readAutoSaveDraft());
 
 const notifyDraftChange = (reason = 'save') => {
   if (typeof window === 'undefined') return;
@@ -1430,6 +1540,20 @@ const applyExternalDraftChange = (event) => {
   const detail = event?.detail;
   if (!detail || detail.hostId === draftHostId) return;
   const incoming = detail.draft || null;
+  /* 对方明确清空了草稿 ⇒ 本实例**在飞**的恢复请求必须立刻失效。否则它会把
+     "删除前读到的 localDraft" 当成较新的一份回写云端，僵尸草稿正是这么复活的
+     （2026-10-29 事故：删掉「啊」后 updated_at 每次都被刷新回同一段文字）。 */
+  if (!incoming) {
+    postDraftRestoreSeq += 1;
+    /* 还要掐掉本实例**待写**的实时暂存：另一个实例已经清了草稿，本实例若还有
+       400ms 防抖没触发，它会在删除之后把同一段内容写回暂存 key —— 下次打开
+       编辑器又被"恢复"，用户看到的就是"删了又冒出来"。 */
+    if (autoSaveDraftTimer) {
+      clearTimeout(autoSaveDraftTimer);
+      autoSaveDraftTimer = null;
+    }
+    autoSaveDraftSignature = '';
+  }
   // 编辑中（内容已偏离上一份已知草稿）就**只刷新草稿快照**，不动编辑器 ——
   // 否则会把用户正在打的字清掉。
   const editorFollowingDraft = draftMatchesEditor(savedPostDraft.value);
@@ -1450,14 +1574,29 @@ const savePostDraftToDatabase = (draft) => {
       if (!draft) {
         const result = await deleteForumPostDraft(userId);
         if (!result.ok) throw result.error;
-        clearDraftClearedMarker(userId);
+        /* 删除成功 ⇒ 本机不再有"待同步"的改动（本地副本已一起删掉）。
+           不清这个标记，下次任何一次保存都会被误判成"本地领先云端"而继续回写。 */
+        clearDraftPendingPush(userId);
+        /* ⚠️ 删除成功后**不清**「已清空」墓碑（2026-10-29 僵尸草稿事故）。
+           清了墓碑 = 忘了"用户明确删过"这件事，任何仍持旧副本的代码路径（典型：另一个
+           宿主实例正在 await 的 restorePostDraft，读到的 localDraft 还是删除前的值）
+           都能把同一段文字重新 upsert 回来，且每写一次都会刷新 updated_at —— 用户看到
+           的就是"删了又回来、怎么删都删不掉"。
+           墓碑只在新草稿真正写成功后清（见下面 upsert 分支），语义才闭合。 */
+        return null;
+      }
+      /* 写入前的墓碑守卫 —— 全部云端写入的唯一出口就在这一处，所以只在这里判一次：
+         比"用户最后一次明确清空"更旧的草稿是陈旧副本，不许复活。用户主动保存时
+         savedAt = Date.now()，必然大于墓碑，不受影响。 */
+      if (Number(draft.savedAt || 0) <= readDraftClearedAt(userId)) {
+        logger.debug('forum', '跳过陈旧草稿的云端回写（用户已明确清空过）');
         return null;
       }
       const result = await upsertForumPostDraft(userId, draft);
       if (!result.ok) throw result.error;
-      if (Number(draft.savedAt || 0) > readDraftClearedAt(userId)) {
-        clearDraftClearedMarker(userId);
-      }
+      clearDraftClearedMarker(userId);
+      // 本地改动已落到云端 ⇒ 不再"待同步"，这是唯一清标记的地方（下载成功即事实）
+      clearDraftPendingPush(userId);
       return result.data;
     } catch (error) {
       logger.warn('forum', '同步发帖草稿失败:', error);
@@ -1485,6 +1624,99 @@ const schedulePostDraftDatabaseSync = (draft) => {
   }, 900);
 };
 
+/* ===== 实时暂存（2026-10-29）：刷新 / 崩溃 / 误关标签页不丢内容与图片 =====
+   为什么需要：草稿只在「关闭时点保存」才落盘，编辑期间没有任何副本 ⇒ 手滑刷新、
+   渲染进程崩溃、手机切后台被杀，写的字和已上传的图一起消失（用户报障）。
+   做法：编辑器开着时把当前状态 debounce 写进本机 key（`<prefix>_<uid>_autosave`），
+   恢复时与正式草稿取"较新的那份"，图片按**已上传的持久 URL** 一起回来。
+   它**不是**第二份草稿：不进云端、不进任何"草稿列表"，用户明确删除草稿时一起清。
+   ⚠️ 只在编辑器开着时写：两个宿主实例同时写同一个 key 会互相覆盖，而且编辑器关掉后
+      内容应该已经"被用户处理过"（保存/丢弃/已发布），不该再留副本。 */
+let autoSaveDraftTimer = null;
+let autoSaveDraftSignature = '';
+
+const getEditorAutoSaveSignature = () =>
+  JSON.stringify([
+    String(newPost.value.title || ''),
+    String(newPost.value.content || ''),
+    normalizeForumTagValue(selectedPostTag.value) || 'daily',
+    getEditorPersistableImageUrls(),
+  ]);
+
+const buildEditorAutoSaveDraft = () => {
+  const title = String(newPost.value.title || '');
+  const content = String(newPost.value.content || '');
+  const tag = normalizeForumTagValue(selectedPostTag.value) || 'daily';
+  const images = getEditorPersistableImageUrls().map((url) => ({ url }));
+  if (!title.trim() && !content.trim() && !images.length) return null;
+  const savedAt = Date.now();
+  return images.length
+    ? { title, content, tag, savedAt, images }
+    : { title, content, tag, savedAt };
+};
+
+const writeAutoSaveNow = () => {
+  autoSaveDraftSignature = getEditorAutoSaveSignature();
+  writeAutoSaveDraft(buildEditorAutoSaveDraft());
+};
+
+/** 同步落盘：pagehide / beforeunload 里调 —— 那里不允许 await，debounce 也来不及跑。 */
+const flushAutoSaveDraft = () => {
+  if (autoSaveDraftTimer) {
+    clearTimeout(autoSaveDraftTimer);
+    autoSaveDraftTimer = null;
+  }
+  writeAutoSaveNow();
+};
+
+const scheduleAutoSaveDraft = () => {
+  if (autoSaveDraftTimer) clearTimeout(autoSaveDraftTimer);
+  autoSaveDraftTimer = setTimeout(() => {
+    autoSaveDraftTimer = null;
+    // 签名没变就别重写：输入法把同一个字反复提交、或 watch 因图片状态抖动触发时，
+    // 每次写都会 new Date() 换 savedAt，白白让后面"取较新一份"的判断失真。
+    if (getEditorAutoSaveSignature() === autoSaveDraftSignature) return;
+    writeAutoSaveNow();
+  }, 400);
+};
+
+const clearAutoSaveDraft = () => {
+  if (autoSaveDraftTimer) {
+    clearTimeout(autoSaveDraftTimer);
+    autoSaveDraftTimer = null;
+  }
+  autoSaveDraftSignature = '';
+  writeAutoSaveDraft(null);
+};
+
+/** 把暂存里的图片回填进编辑器。只在编辑器**一张图都没有**时补 ——
+ *  已有图 = 活会话（用户刚选的、或正在上传的），拿暂存去比对替换只会把新选的图洗掉，
+ *  而暂存的图本来也只是"上次的内容"，用户的新选择永远优先。 */
+const restoreDraftImages = (images) => {
+  const urls = (Array.isArray(images) ? images : [])
+    .map((image) => String(image?.url || '').trim())
+    .filter(Boolean)
+    .slice(0, FORUM_POST_IMAGE_MAX_COUNT);
+  if (!urls.length || postImages.value.length) return;
+  postImages.value = urls.map((url, index) => ({
+    uploadId: `draft-recover-${index}`,
+    url,
+    uploadedUrl: url,
+    uploadStatus: 'approved',
+    uploadStatusLabel: '已就绪',
+    localPreviewUrl: '',
+    file: null,
+    sortOrder: index,
+  }));
+};
+
+const applyDraftToEditor = (draft, { withImages = false } = {}) => {
+  if (!draft) return;
+  newPost.value = { title: draft.title || '', content: draft.content || '' };
+  selectedPostTag.value = draft.tag || 'daily';
+  if (withImages) restoreDraftImages(draft.images);
+};
+
 const restorePostDraft = async ({ preserveLocalEdits = false } = {}) => {
   // Phase 4（plans/023）：Cloud+「转为帖子」预填期间跳过恢复 —— 否则旧草稿会把
   // 用户刚选好的图覆盖掉。预填是一次性的（读后即删），抑制只作用于当前会话。
@@ -1495,16 +1727,21 @@ const restorePostDraft = async ({ preserveLocalEdits = false } = {}) => {
   }
   const restoreSeq = ++postDraftRestoreSeq;
   const localDraft = readPostDraft();
+  const autoSavedDraft = readAutoSaveDraft();
   const localClearedAt = readDraftClearedAt();
   /* preserveLocalEdits：KeepAlive 唤醒 / 重新打开编辑器时的恢复，**不得**覆盖用户尚未
      保存的输入（与下面远端分支的 editorSnapshot 校验同一语义）。挂载/换账号仍走默认
      的「本地草稿优先回填」，否则做不到"下次打开接着写"。 */
   const canOverwriteEditor = !preserveLocalEdits || draftMatchesEditor(savedPostDraft.value);
+  /* 本机两份副本取**较新**的那份：实时暂存写得更频繁、还能带图 ⇒ 通常它就是用户最后
+     看到的内容；正式草稿在此基础上兜跨设备。 */
+  const localBest =
+    autoSavedDraft &&
+    (!localDraft || Number(autoSavedDraft.savedAt || 0) >= Number(localDraft.savedAt || 0))
+      ? autoSavedDraft
+      : localDraft;
   savedPostDraft.value = localDraft;
-  if (localDraft && canOverwriteEditor) {
-    newPost.value = { title: localDraft.title, content: localDraft.content };
-    selectedPostTag.value = localDraft.tag;
-  }
+  if (localBest && canOverwriteEditor) applyDraftToEditor(localBest, { withImages: true });
   notifyDraftChange('restore');
 
   const editorSnapshot = {
@@ -1529,11 +1766,21 @@ const restorePostDraft = async ({ preserveLocalEdits = false } = {}) => {
     if (!result.ok) throw result.error;
 
     const remoteDraft = result.data;
+    /* 「本机能不能覆盖云端」的唯一判据：本机是否真的有一份**没同步成功的**改动。
+       以前是 s(savedAt) 比大小猜 —— 那只说明"本机这份看起来更新"，不说明"云端欠它一次写入"。
+       猜错的代价就是僵尸草稿：云端被别的设备删掉后，任何一台还留着旧副本的设备都会在
+       "云端查不到"这一支里把它推回去。 */
+    const canPushLocal = readDraftPendingPush() > 0;
     if (!remoteDraft) {
-      if (localDraft) {
-        void savePostDraftToDatabase(localDraft);
-      } else {
-        clearDraftClearedMarker(userId);
+      /* 云端没有草稿（要么从没有过，要么被别处删掉了）。
+         只有本机确实有待同步改动时才回写 —— 否则云端是权威，本机这份只是历史遗迹，
+         留在编辑器里给用户看即可，**不许**推上去复活它（2026-10-29 跨设备僵尸草稿）。 */
+      if (
+        canPushLocal &&
+        localBest &&
+        (String(localBest.title || '').trim() || String(localBest.content || '').trim())
+      ) {
+        void savePostDraftToDatabase(localBest);
       }
       return;
     }
@@ -1545,17 +1792,19 @@ const restorePostDraft = async ({ preserveLocalEdits = false } = {}) => {
       return;
     }
 
-    if (localDraft && Number(localDraft.savedAt || 0) > Number(remoteDraft.savedAt || 0)) {
-      void savePostDraftToDatabase(localDraft);
+    if (localBest && Number(localBest.savedAt || 0) > Number(remoteDraft.savedAt || 0)) {
+      /* 本机内容更新：编辑器在上面已经回填过本机那份，这里不动编辑器。
+         只在「确实有待同步改动」时才推云端 —— 否则（典型：只是本机暂存比云端新）
+         推上去等于用没被用户确认过的内容覆盖云端草稿。 */
+      if (canPushLocal) void savePostDraftToDatabase(localBest);
       return;
     }
 
     savedPostDraft.value = remoteDraft;
     writeLocalPostDraft(remoteDraft);
-    if (canOverwriteEditor) {
-      newPost.value = { title: remoteDraft.title, content: remoteDraft.content };
-      selectedPostTag.value = remoteDraft.tag;
-    }
+    /* 云端草稿没有图片列 ⇒ 这里只回填文字，图片保留编辑器/暂存里已有的那些
+       （否则刚恢复的图会被"云端没有图"清掉）。 */
+    if (canOverwriteEditor) applyDraftToEditor(remoteDraft);
     notifyDraftChange('restore-remote');
   } catch (error) {
     logger.warn('forum', '恢复发帖草稿失败:', error);
@@ -1579,12 +1828,17 @@ const persistPostDraft = () => {
       }
       writeLocalPostDraft(null);
       savedPostDraft.value = null;
+      clearAutoSaveDraft();
       schedulePostDraftDatabaseSync(null);
       notifyDraftChange('clear');
       return;
     }
     const draft = { title, content, tag, savedAt: Date.now() };
     writeLocalPostDraft(draft);
+    /* 本地已领先云端 ⇒ 打上「待同步」标记。写盘和置标记都发生在**云端写成功之前**，
+       所以哪怕页面在这一刻被关掉（900ms 防抖没跑完），下次打开也知道"这份本机内容
+       欠云端一次写入"，该推就推；反之没有这个标记就永远不许推（见 restorePostDraft）。 */
+    markDraftPendingPush();
     savedPostDraft.value = draft;
     schedulePostDraftDatabaseSync(draft);
     notifyDraftChange('save');
@@ -1610,6 +1864,9 @@ const hasUnsavedChanges = () => {
 
 // ✨ 新增：beforeunload事件处理（刷新页面时提示保存草稿 + 队列发送中提示）
 const handleBeforeUnload = (e) => {
+  /* 先把最后一点输入同步落进本机暂存（debounce 可能还没到）。这一步没有任何
+     网络请求，纯 localStorage 写入，可以在卸载钩子里安全执行。 */
+  if (isMobileComposerOpen.value) flushAutoSaveDraft();
   const hasPendingPublish = publishQueueStore.items.some((i) =>
     ['queued', 'uploading', 'publishing'].includes(i.state),
   );
@@ -1642,6 +1899,9 @@ const clearPostDraft = () => {
     // clearAutoSaveDraftTimer();
     writeLocalPostDraft(null);
     savedPostDraft.value = null;
+    /* 实时暂存跟着一起清（2026-10-29）：清草稿的语义是"这份内容我不要了"，只清正式
+       草稿而留着暂存，下次打开编辑器又会被原样恢复回来 —— 用户看到的就是"删不掉"。 */
+    clearAutoSaveDraft();
     notifyDraftChange('clear');
     return savePostDraftToDatabase(null);
   } catch (error) {
@@ -1913,12 +2173,44 @@ const retryPostImageUpload = async (image, index) => {
   }
 };
 
-// ===== 边选边传：选图后立刻后台预热「压缩 → 检测(全局串行) → 上传(网络层并发)」 =====
+// ===== 边选边传：选图后立刻后台预热「压缩(2 路) → 检测(3 路) → 上传(3 路)」 =====
 // 用户打字期间图片往往已传完，点发布时只需等待剩余部分 + 一次发帖 RPC，感知接近秒发。
 // 取消发帖/移除图片时中断对应预热；已传完但未发帖的图由 cloudinary_pending_uploads 兜底清理。
 const DRAFT_PIPELINE_FAILED = 'DRAFT_IMAGE_PIPELINE_FAILED';
 const draftImagePipelines = new Map(); // uploadId -> { state, file, moderation, data, error, promise, signal, controller, cleanupPending, cancelled }
-let draftPipelineChain = Promise.resolve(); // 检测锁：仅检测（WebGL classify）串行，避免移动端 GPU/内存并发崩溃
+// 检测并发池：**云端审核是纯网络请求**（fetch，无 WebGL、无共享可变状态），本地兜底的
+// classify 由 forum-image-moderation.js 的 `classifyMutex` 全局互斥（TFJS WebGL 不支持
+// 并发 classify）⇒ 放开到多路是安全的：云端真并发、本地自动排队。
+//
+// ⚠️ 3 路的来历与边界：
+//  · 上限不能放开到「全部图一起上」：一次 6 张并发打 6 个请求，网络抖一下就会在**同一瞬间**
+//    凑满 image-moderation-pipeline 的连续失败阈值（3 次）⇒ 云端被冻结 60s，整批转本地从宽
+//    判定。这是并发把「抖动」放大成「故障」，所以 pipeline 侧同步加了 burst 合并计数。
+//    3 路时一个抖动最多贡献 1 次（合并后），阈值仍需要 3 个独立波次才触发。
+//  · 与上传并发（cloud-upload-guard 的 3 路）取同一数量级：两者都不占 CPU，是网络等待。
+//  · 影集那条路（share-moderation / useAlbumEditor）审的是**原图 4032px**（解码位图约 65MB/张），
+//    所以那边必须保持 DECODE_CONCURRENCY=2。论坛审的是压缩后的 1600px（约 10MB/张），
+//    3 路峰值约 30MB，安全 —— **别把这里的数字直接抄到影集**。
+const MODERATION_CONCURRENCY = 3;
+let activeModerations = 0;
+const moderationWaitQueue = [];
+const acquireModerationSlot = () =>
+  new Promise((resolve) => {
+    if (activeModerations < MODERATION_CONCURRENCY) {
+      activeModerations += 1;
+      resolve();
+      return;
+    }
+    moderationWaitQueue.push(resolve);
+  });
+const releaseModerationSlot = () => {
+  activeModerations -= 1;
+  const next = moderationWaitQueue.shift();
+  if (next) {
+    activeModerations += 1;
+    next();
+  }
+};
 let draftPipelineDebounceTimer = null; // D2：选图预热 300ms debounce
 
 // A2 压缩并发池：压缩跑在 browser-image-compression 的 Web Worker 里，天然可并行；
@@ -2001,36 +2293,48 @@ const scheduleDraftImagePipeline = (img, index, total) => {
       releaseCompressionSlot();
     }
   })();
-  // 阶段一 B：检测挂在全局串行链末尾（WebGL classify 不并发）；链任务内先等本张压缩完成——
-  // 压缩与上一张的检测重叠执行，多图总耗时 ≈ max(压缩流水, 检测串行和) 而非两者相加
-  const preparePromise = draftPipelineChain.then(async () => {
-    if (entry.cancelled) throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
+  // 阶段一 B：检测进 MODERATION_CONCURRENCY 路并发池；池任务内先等本张压缩完成——
+  // 压缩与上一张的检测重叠执行，多图总耗时 ≈ max(压缩流水, 检测并发批次数 × 单次检测)。
+  //
+  // 2026-10-29：这里此前是一条**全局串行链**（`draftPipelineChain`），注释理由是
+  // 「WebGL classify 不并发」。但那个约束只对**本地兜底**成立，而本地 classify 早已由
+  // forum-image-moderation.js 的 `classifyMutex`（模块级互斥）串起来 ⇒ 外层链对本地是
+  // 双重保险，对**云端**则是纯排队。云端走 fetch，不碰 WebGL、不共享可变状态，本可并发。
+  // 串行的代价实测：每张图自己的 CPU 成本只有「224px 编码 17ms + 本地 classify 33ms」，
+  // 其余全在等云端 RTT（单张 0.8~2.5s，超时 2.5s）⇒ 6 张串行 = 6 次 RTT 相加。
+  const preparePromise = (async () => {
+    await acquireModerationSlot();
     try {
-      entry.file = await compressionPromise;
-      entry.moderation = await moderateForumImage(entry.file);
-      if (entry.moderation?.status !== 'approved') {
-        const err = new Error(entry.moderation?.reason || '图片未通过安全检测');
-        err.code = 'BETA5_IMAGE_PIPELINE_FAILED';
-        throw err;
+      if (entry.cancelled)
+        throw Object.assign(new Error('已取消'), { code: DRAFT_PIPELINE_FAILED });
+      try {
+        entry.file = await compressionPromise;
+        entry.moderation = await moderateForumImage(entry.file);
+        if (entry.moderation?.status !== 'approved') {
+          const err = new Error(entry.moderation?.reason || '图片未通过安全检测');
+          err.code = 'BETA5_IMAGE_PIPELINE_FAILED';
+          throw err;
+        }
+        entry.progress = 0.5; // 检测完成，进入上传
+      } catch (error) {
+        if (!entry.cancelled && error?.code !== DRAFT_PIPELINE_FAILED) {
+          entry.state = 'failed';
+          entry.error = error;
+          updatePendingPostImage(uploadId, {
+            uploadStatus: 'failed',
+            uploadStatusLabel: '处理失败',
+            uploadError: error?.message || '图片处理失败',
+          });
+          maybeSettleStallHint();
+        }
+        throw error;
       }
-      entry.progress = 0.5; // 检测完成，进入上传
-    } catch (error) {
-      if (!entry.cancelled && error?.code !== DRAFT_PIPELINE_FAILED) {
-        entry.state = 'failed';
-        entry.error = error;
-        updatePendingPostImage(uploadId, {
-          uploadStatus: 'failed',
-          uploadStatusLabel: '处理失败',
-          uploadError: error?.message || '图片处理失败',
-        });
-        maybeSettleStallHint();
-      }
-      throw error;
+    } finally {
+      // 成功/失败/取消都释放槽位：一个坏图不能把池子占死（否则整批检测永久停摆）
+      releaseModerationSlot();
     }
-  });
-  // 链式推进：无论本张成功/失败/取消，都让下一张的检测继续（压缩不受链约束）
-  draftPipelineChain = preparePromise.catch(() => {});
-  // 阶段二：上传进入全局并发队列（仅网络层并发），不占串行链，不阻塞下一张的压缩/检测
+  })();
+  // 阶段二：上传进入全局并发队列（仅网络层并发），不占检测池，不阻塞下一张的压缩/检测
   entry.promise = preparePromise.then(async () => {
     if (entry.cancelled) return entry;
     const uploadPromise = uploadApprovedForumImageQueued(entry.file, entry.moderation, {
@@ -2122,7 +2426,9 @@ const prepareForumImageForUpload = async (
 ) => {
   const { compressImageFileToUploadLimit, formatImageFileSize, getImageCompressionPlan } =
     await import('@/utils/image-compression.js');
-  const plan = await getImageCompressionPlan(file, { optimizeForUpload: true });
+  // 档位来自 forum-format 的单源常量（≤ 详情展示上限 1600）：超出的像素任何界面都不会加载，
+  // 上传它们只换来更长的上行与更高的 Cloudinary 存储/流量，见常量处的实测数据。
+  const plan = await getImageCompressionPlan(file, FORUM_UPLOAD_IMAGE_OPTIMIZE_OPTIONS);
   if (!plan.shouldCompress) return file;
 
   if (!plan.canCompress) {
@@ -2175,6 +2481,10 @@ const removePostImage = async (image, index) => {
   if (postImageUploadStatus.value === IMAGE_STALL_HINT) postImageUploadStatus.value = '';
   // 正在上传中的预热让其自然完成并登记 pending（云端兜底清理），不再走云端删除避免竞态
   if (pipeline?.cleanupPending) return;
+  /* 从实时暂存恢复回来的图只有 URL，没有 deleteToken / publicId / originalUrl ——
+     云端删除需要凭据，拿 URL 硬删只会报"图片清理失败"（用户只是想去掉一张图）。
+     没有凭据就只在本机移除，云端那份交给 Cloudinary 的 pending 清理兜底。 */
+  if (!image?.deleteToken && !image?.publicId && !image?.originalUrl) return;
   await cleanupUploadedForumImage(image, { silent: false });
 };
 
@@ -2347,7 +2657,7 @@ const closeMobileComposer = async () => {
       await savePostDraftToDatabase(savedPostDraft.value);
       logger.debug('forum', '用户选择保存草稿并关闭编辑器');
     } else {
-      // “不保存”不仅要清空编辑器，也要删除本地和云端的旧草稿。
+      // “不保存”不仅要清空编辑器，也要删除本地和云端的旧草稿（含实时暂存 —— 见 clearPostDraft）。
       void clearPostDraft();
       newPost.value = { title: '', content: '' };
       selectedPostTag.value = 'daily';
@@ -2355,11 +2665,11 @@ const closeMobileComposer = async () => {
       clearPostImages({ cleanup: true });
       logger.debug('forum', '用户选择不保存草稿并关闭编辑器');
     }
-  } else if (savedPostDraft.value) {
+  } else if (savedPostDraft.value || readAutoSaveDraft()) {
     /* 内容为空但仍有旧草稿 = 用户进编辑器后把字全删了再关。此前这里直接跳过整个
        分支，本地/云端草稿原样留着 ⇒ 下次挂载 restorePostDraft 又把它填回编辑器
        （用户："我明明删了，怎么又回来了"）。删除意图必须落盘。
-       只在"确实有旧草稿"时清，避免空编辑器关一次就多发一次删除请求。 */
+       只清正式草稿会漏掉"只有暂存、没有草稿"的情形，所以两者都要看。 */
     void clearPostDraft();
     logger.debug('forum', '内容已清空：同步删除残留草稿');
   }
@@ -2475,6 +2785,8 @@ onMounted(() => {
   window.addEventListener('boh:forum-post-updated', handleForumPostUpdated);
   // ✨ 新增：beforeunload事件监听（刷新页面时提示保存草稿）
   window.addEventListener('beforeunload', handleBeforeUnload);
+  // 刷新 / 关闭 / 切后台被杀：同步落一次实时暂存（beforeunload 在移动端不一定来）
+  window.addEventListener('pagehide', handleComposerPageHide);
   // 草稿跨实例同步：另一个宿主实例保存/清空草稿时，本实例跟着收敛（见 draftHostId 区块）
   window.addEventListener(FORUM_POST_DRAFT_CHANGE_EVENT, applyExternalDraftChange);
 
@@ -2550,6 +2862,7 @@ onUnmounted(() => {
   window.removeEventListener('boh:forum-post-updated', handleForumPostUpdated);
   // ✨ 新增：移除beforeunload事件监听
   window.removeEventListener('beforeunload', handleBeforeUnload);
+  window.removeEventListener('pagehide', handleComposerPageHide);
   window.removeEventListener(FORUM_POST_DRAFT_CHANGE_EVENT, applyExternalDraftChange);
   if (resizeRafId) {
     cancelAnimationFrame(resizeRafId);
@@ -2585,6 +2898,30 @@ watch(isMobileComposerOpen, (isOpen) => {
   // 会话开关外报：外层左栏据此做「发布」选中态 + 切落点前先收会话
   emit('composer-state', isOpen);
 });
+
+/* 实时暂存触发器（2026-10-29）：编辑器开着时把输入与**已上传**图片 debounce 写本机。
+   ⚠️ 逐项 getter，别写 `() => [...]` 里塞对象/数组：那会每次求值都换引用，
+   一次打字触发 N 次写盘（同 useForumVirtualFeed 那条注释的坑）。 */
+watch(
+  [
+    () => String(newPost.value.title || ''),
+    () => String(newPost.value.content || ''),
+    () => normalizeForumTagValue(selectedPostTag.value) || 'daily',
+    () => getEditorPersistableImageUrls().join('\u0000'),
+  ],
+  () => {
+    if (!isMobileComposerOpen.value) return;
+    scheduleAutoSaveDraft();
+  },
+);
+
+/* pagehide 而不是只在 beforeunload：iOS Safari / 微信 WebView 常直接杀进程，
+   beforeunload 不一定触发，pagehide 是这里唯一靠得住的时机。
+   只 flush、不去动云端 —— 卸载阶段任何 await 都不会被等。 */
+const handleComposerPageHide = () => {
+  if (!isMobileComposerOpen.value) return;
+  flushAutoSaveDraft();
+};
 
 /** 换账号 / 登出时清掉内存里的编辑器副本。
  *  ⚠️ 只清内存，**不**调 clearPostDraft —— 那会把上一个账号的云端草稿真删掉。
@@ -2646,8 +2983,13 @@ watch(
 //   }
 // );
 
+/* ⚠️ 必须逐项 watch，不能写 `() => [ ... ]`：getter 每次求值都返回新数组，
+   依赖里又含 `forumData.value`（shallowRef）⇒ 发布进度每 300ms 换一次数组引用
+   就会触发一次回调，把虚拟列表的 IntersectionObserver 重建一遍（详见
+   useForumVirtualFeed 里 visibleForumPostSignature 的注释）。逐项 watch 之后，
+   进度 tick 不改 length ⇒ 不再触发。 */
 watch(
-  () => [forumData.value.length, feedMode.value, hasMoreData.value, isLoading.value],
+  [() => forumData.value.length, feedMode, hasMoreData, isLoading],
   () => {
     setupForumWindowObserverOnce();
   },
@@ -3654,6 +3996,9 @@ const handlePost = async () => {
   }
   writeLocalPostDraft(null);
   savedPostDraft.value = null;
+  // 已进入发布队列 ⇒ 实时暂存必须一起清：否则下次打开编辑器会把刚发出去的内容
+  // 当成"未保存的稿"再恢复一遍（用户会以为发重了）。
+  clearAutoSaveDraft();
   // 发布成功即清草稿：必须广播，否则另一个宿主实例的编辑器里还留着刚发出去的那篇
   notifyDraftChange('clear');
   void savePostDraftToDatabase(null);

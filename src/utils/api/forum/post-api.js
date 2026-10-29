@@ -168,9 +168,13 @@ async function resolvePostAuthorIdentity(authorId, authorUsername) {
   let safeAuthorUsername = String(authorUsername || '').trim();
 
   try {
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (!authError && authData?.user?.id) {
-      const authUser = authData.user;
+    // 用 getSession() 而不是 getUser()：getUser() **每次**都打一次 /auth/v1/user，
+    // 而它位于发帖的关键路径上（insert/RPC 之前），弱网下白付 100~300ms。
+    // getSession() 读本地会话即可拿到 user（仅 token 临近过期时才刷新一次）；
+    // 真正的权限校验发生在服务端（RLS 认的是请求里的 JWT），两者取 userId 等价。
+    const { data: sessionData } = await supabase.auth.getSession();
+    const authUser = sessionData?.session?.user;
+    if (authUser?.id) {
       const authUserId = String(authUser.id || '').trim();
       if (authUserId) {
         // 统一以当前会话用户为准，避免本地状态滞后导致 RLS 拒绝。
@@ -1298,10 +1302,37 @@ export async function deleteForumPostDraft(userId) {
     };
   }
 
-  const { error } = await supabase.from('forum_post_drafts').delete().eq('user_id', safeUserId);
+  /* 删除必须**核对影响行数**：PostgREST 的 delete 被 RLS 挡掉时**不报错**，只是
+     0 行受影响 ⇒ 旧实现照样返回 ok:true，界面提示"已删除"，草稿却还在库里，
+     下次打开原样回来（"删不掉的草稿"最隐蔽的一种形态）。 */
+  const { data, error } = await supabase
+    .from('forum_post_drafts')
+    .delete()
+    .eq('user_id', safeUserId)
+    .select('user_id');
 
   if (error) {
     return { ok: false, data: null, error: normalizeDbError(error) };
+  }
+
+  if (Array.isArray(data) && data.length === 0) {
+    // 0 行有两种可能：本来就没有草稿（正常），或行还在但被策略挡住（真失败）。
+    // 只在后者报错，避免"没有草稿时删一次"被误判成失败。
+    const { data: remaining, error: probeError } = await supabase
+      .from('forum_post_drafts')
+      .select('user_id')
+      .eq('user_id', safeUserId)
+      .maybeSingle();
+    if (!probeError && remaining) {
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({
+          code: 'DRAFT_DELETE_NO_ROWS',
+          message: '草稿未能删除，请重试',
+        }),
+      };
+    }
   }
 
   return { ok: true, data: null, error: null };

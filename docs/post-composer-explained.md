@@ -16,7 +16,7 @@
 | `src/views/Forum/composables/useForumPostPolish.js` | — | 智能整理状态机（生成 / 收口 / 应用 / 撤销），文字流光时长也从这里注入 CSS |
 | `src/views/Forum/styles/post-polish-sweep.css` | — | 标题/正文的逐字流光、状态行与 reduced-motion 兜底 |
 | `src/stores/forumPublishQueue.js` | ~82 | Pinia store：即发即走发布队列（state 机：queued/uploading/publishing/success/failed） |
-| `src/views/Forum/composables/useForumPostDraftStorage.js` | ~130 | 单份草稿的 localStorage 读写（按用户隔离 + cleared_at 标记；遗留多版本 key 会被清理） |
+| `src/views/Forum/composables/useForumPostDraftStorage.js` | ~220 | 单份草稿的 localStorage 读写（按用户隔离 + cleared_at 标记；遗留多版本 key 会被清理）+ 实时暂存（`_autosave`，可带已上传图片 URL） |
 | `src/views/Forum/forum-config.js` | 常量 | `FORUM_POST_IMAGE_MAX_COUNT = 6`、`FORUM_TAG_OPTIONS`、`FORUM_TAG_MAP` |
 | `src/utils/api/forum/post-api.js` | ~1677 | `createPost` / `createPostWithImages`（发帖 RPC 封装）、草稿云端 CRUD、`updatePost` |
 | `src/utils/api/forum-images-api.js` | ~190 | 图片上传/检测/删除：`moderateForumImage`、`uploadApprovedForumImageQueued`（3 路并发）、`deleteUploadedForumImage` |
@@ -28,6 +28,7 @@
 
 回归探针（`scripts/probes/`，Playwright + chrome channel，必须加 `args:['--no-proxy-server']`）：
 `probe-composer-publish-dedupe.mjs`（出口去重 + 三档宿主）、`probe-composer-chips.mjs`（统一动作栏 + 旧结构反证）、`probe-forum-viewport.mjs`（横竖屏矩阵 / 旋转保活）、`probe-forum-polish-sweep.mjs`（文字流光明暗两档）。
+性能实测见 §12：`probe-publish-tick-cost.mjs`（observer 重建单位成本）、`probe-publish-tick-breakdown.mjs`（每 tick 成本拆解）。
 
 ---
 
@@ -200,9 +201,14 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
 三段式，核心目标：**用户打字期间图片后台传完，点发布接近秒发**。
 
 - **压缩**（2 路并发池 `COMPRESSION_CONCURRENCY`，`navigator.deviceMemory < 4` 降 1 路）：跑在 browser-image-compression 的 Web Worker。进度 0→0.35。
-- **检测**（全局串行链 `draftPipelineChain`，WebGL classify 不并发——防移动端 GPU/内存崩溃）：链任务内先 await 本张压缩 → `moderateForumImage`（NSFWJS）→ 非 approved 直接 fail。压缩与上一张的检测重叠，多图总耗时 ≈ max(压缩流水, 检测串行和)。进度 0.35→0.5。quiet 模式**不写中间状态到编辑器**。
+- **检测**（3 路并发池 `MODERATION_CONCURRENCY`，2026-10-29 从「全局串行链」改来）：池任务内先 await 本张压缩 → `moderateForumImage`（云优先 + 本地兜底）→ 非 approved 直接 fail。进度 0.35→0.5。quiet 模式**不写中间状态到编辑器**。
+  - **为什么敢并发**：云端审核是纯 fetch（无 WebGL、无共享可变状态），而本地兜底的 `classify` 由 `forum-image-moderation.js` 的 `classifyMutex` 模块级互斥 ⇒ 旧链对本地是双重保险、对云端是纯排队。
+  - **为什么只开 3 路**：一次 6 张全并发，一场 300ms 网络抖动会让在飞的请求**同一瞬间**全部失败，一步凑满连续失败阈值 ⇒ 云端冻结 60s ⇒ 整批转本地**从宽**判定。所以 pipeline 侧同步把失败改按**波次**记（`cloudInFlight`：还有别的请求在飞就并进本波），3 路时一次抖动只算 1 次。
+  - **本地兜底**：`image-moderation-pipeline.js` 的 `localFallbackChain` **强制单并发**（不止 classify，连整文件解码也串起来）。移动端批量本地审核会崩是已被用户实测过的事故，所以在 pipeline 层兜住 —— 调用方开了几路都落到一个一个来。
+  - **实测成本**（1600px 输入，Chrome M4）：224px 编码 17ms/张、本地 classify 稳态 33ms/张（首张含模型初始化 690ms）⇒ 串行的代价几乎全是云端 RTT，**不是**本地 CPU。
 - **上传**（`uploadApprovedForumImageQueued` → forum-images-api 全局 3 路并发队列 `uploadQueue`）：进度 0.5→1.0；成功 `updatePendingPostImage(uploadId, {...result.data, uploadStatus:'approved', uploadStatusLabel:'已就绪', file})`。
-- `entry.promise` 是全链 promise，发布 worker await 它；`.catch(()=>{})` 兜底吞掉（发布路径统一消费错误）。
+- `entry.promise` 是全链 promise，发布 worker 通过 `awaitPipelineSettled(entry, {uploadId})` 等它（**不再裸 await**）：`entry.promise` 失败会自己吞错，唯一的坏形态是**永不 settle**（压缩卡住 / 检测模型加载挂住 / 上传被系统挂起），那时 worker 永久停在 await 上——岛显示「发送中」、进度不动、没有按钮可点，后面排队的帖也一起冻死。看门狗按「进度连续 90s 没前进」判失败（真实进度每 300ms 被聚合读一次，字节还在走就不会误杀慢网），失败时顺手 `cancelDraftImagePipeline` 把死管线从 map 摘掉（否则重试被「已存在」挡回去、直接复用同一条死 promise），并归类为**可重试**的网络错误。
+- 上传超时口径（`cloudinary-client.js` 的 `uploadFormDataWithProgress`）：**空闲 30s（每有字节前进就重置）+ 总上限 180s**。原来的「整个上传固定 30s」是总时长超时，移动网络传 2MB 稍差一点就必失败，而连接真正挂死时也要等满 30s。
 
 ### 7.3 取消/删除语义（精细，易踩坑）
 
@@ -213,11 +219,39 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
 ### 7.4 压缩层（image-compression.js）
 
 - `getImageCompressionPlan`：判超限（maxSizeBytes / maxDimension / maxPixels，来自 cloud-upload-guard）+ 主动优化（optimizeForUpload=true 时 JPEG/WebP 超 2MB 或边长超 2048 就压）。PNG（不可有损优化）若超限且不可压则报错换格式。
+  ⚠️ 论坛发帖**不用**这两个全局默认值，而是显式传 `FORUM_UPLOAD_IMAGE_OPTIMIZE_OPTIONS`
+  （1600 / 0.9MB，见 `forum-format.js` 与 §12.3）：全局默认是给影集/云盘等「下载后可另存原图」的入口用的。
 - `compressImageFileToUploadLimit`：**统一输出 WebP**（展示端 Cloudinary f_auto，源格式无关紧要）；**分桶首轮质量**（≥8MB→0.78，≥4MB→0.82，否则 0.85）+ maxIteration 4 —— 大图压缩耗时 -30~50%（A1 调优）。压缩后仍超限则报错。
 
 ### 7.5 上传/检测层（forum-images-api.js）
 
 - `moderateForumImage`：先 validateForumImageFile（仅 PNG/JPG/WebP，GIF 拒绝；大小上限 FORUM_IMAGE_MAX_SIZE_MB）→ 动态 import 检测模块。
+- **服务端降级链（2026-10-29）**：云端失败不再「一次就落到本地」。`bohai_model_configs.fallback_mode_ids`
+  存一串 mode_id，`api-key-vault` 的 `resolveRuntimePolicyChain` 逐跳重试（0/400/403/404/408/429/5xx 都换，
+  **401 不换**——链上共用一把 key，换模型救不了）。当前链（2026-10-29 实测定序）：
+  `gemini-3.5-flash-lite` → `gemini-3.5-flash` → `gemini-3.6-flash`。
+  ⚠️ 这条链挡的是「某个模型不可用 / 被限流」；**挡不住** Worker 或那把 Gemini key 挂掉（三者共用同一出口），
+  那类故障仍然直接落本地。降级时 meta 事件会带 `model` / `fallbackFrom`，别再让它静默降级。
+- ⚠️ **选型口径是「实测可用 + 最快」，不是「版本号最新」**（2026-10-29 踩了两次）。端到端实测
+  （EF → Worker → Gemini，224px 真实送审尺寸，各 2 次）：
+
+  | 模型 | 文本 | 带图 | 中位延迟 |
+  |---|---|---|---|
+  | `gemini-3.5-flash-lite` | ✅ | ✅ | **2.8s** |
+  | `gemini-3.5-flash` | ✅ | ✅ | 3.6s |
+  | `gemini-3.6-flash` | ✅ | ✅ | 4.3s |
+  | `gemini-3.8-flash` | ❌ 503 / 30s 超时 | ❌ | — |
+
+  `gemini-3.8-flash` **纯文本就挂**（与带不带图无关），写进配置前必须先跑一次真请求；
+  守卫在 `tests/unit/bohai-model-fallback-chain.test.js` 的 `VERIFIED_MODELS` 白名单里。
+- ✅ **已解（2026-10-29）**：客户端 `CLOUD_TIMEOUT_MS` 2500 → **6000**，服务端降级链改成
+  「整条链共用一份预算」而不是每跳各拿满额。2500 比最快一跳 2.8s 还短 ⇒ 在此之前
+  图片云端审核**从未真正生效过**（每次都在客户端先超时，回落本地 nsfwjs 从宽判定）。
+  6000 覆盖「第 1 跳成功 2.8s」与「第 1 跳快速失败 + 第 2 跳 3.6s ≈ 3.9s」；
+  两个慢跳全串行（≈6.4s）会超时回落本地 —— **刻意接受**。
+  代价：真不可达时单批等待 2.5s → 6s，但论坛侧 3 路并发 + 连续失败 3 次即冷却，
+  最坏只付一波。守卫：`image-moderation-pipeline.test.js`（超时契约）+
+  `bohai-model-fallback-chain.test.js`（每跳按剩余预算）。
 - `preloadForumImageModeration`：模型预载（选图时 `scheduleForumImageModerationPreload({immediate:true})` 调用，与压缩并行）。
 - `uploadApprovedForumImage`：`assertCloudinaryUploadAllowed({source:'forum'})` → `uploadImageToCloudinary(file, {folder: FORUM_CLOUDINARY_FOLDER, pendingSource:'forum', skipUploadPreflight:true, onProgress, signal})`。
 - 并发队列：`uploadQueue` + `MAX_CONCURRENT_UPLOADS = 3`，**仅网络层并发**（压缩/检测已在调用方控并发）。
@@ -227,10 +261,14 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
 ## 8. 草稿系统
 
 - **双层存储**：localStorage（`useForumPostDraftStorage`，key = `forum_post_draft_{uid}`，按用户隔离；带 `_cleared_at` 清空标记，防止「远端旧草稿回填已清空的编辑器」）+ 云端（`savePostDraftToDatabase` → `upsertForumPostDraft` / `deleteForumPostDraft`，防抖 `schedulePostDraftDatabaseSync`）。
-- **保存时机（拍板）**：没有固定的自动保存定时器，也不在输入时静默写草稿；编辑器内**不显示**「已自动保存 HH:MM」。保留的路径只有三条：打开发布会话时 `restorePostDraft({ preserveLocalEdits: true })` 恢复、关闭会话时 `closeMobileComposer` → `requestConfirm('保存草稿')` 后走 `persistPostDraft`、发布成功后全链路清空。**手动草稿面板已移除**（`open-draft` / `save-draft` / `saveMobileDraft` 都不得回流）。
+- **实时暂存（2026-10-29）**：第二条命，不是第二份草稿。key = `forum_post_draft_{uid}_autosave`，编辑器开着时 debounce 400ms 写、`pagehide` / `beforeunload` 同步 flush；内容是编辑器当前状态的**本机镜像**（含已上传图片的持久 URL，`blob:` 一律丢弃）。不进云端、不出现在任何「草稿列表」，只为「刷新 / 崩溃 / 误关标签页」兜底。恢复时与正式草稿取 `savedAt` 较新的一份；用户明确删除草稿（关闭选「不保存」/ 清空后关闭 / 发布成功）时一起清掉。
+- **保存时机（拍板）**：**正式草稿**没有固定的自动保存定时器，也不在输入时静默写云端；编辑器内**不显示**「已自动保存 HH:MM」。保留的路径只有三条：打开发布会话时 `restorePostDraft({ preserveLocalEdits: true })` 恢复、关闭会话时 `closeMobileComposer` → `requestConfirm('保存草稿')` 后走 `persistPostDraft`、发布成功后全链路清空。**手动草稿面板已移除**（`open-draft` / `save-draft` / `saveMobileDraft` 都不得回流）。
+- **墓碑纪律（2026-10-29 僵尸草稿事故）**：`_cleared_at` **只在新草稿 upsert 成功后**清。删除成功后清墓碑 = 忘掉「用户明确删过」，任何仍持旧副本的路径（典型：另一个宿主实例正在 `await` 的 `restorePostDraft`，读到的是删除前的 `localDraft`）都能把同一段文字写回云端并刷新 `updated_at`，用户看到的就是「删了又回来、怎么删都删不掉」。`savePostDraftToDatabase` 是**唯一**云端写入出口，`draft.savedAt <= cleared_at` 一律拒写；`applyExternalDraftChange` 收到 clear 时 `postDraftRestoreSeq += 1` 让本实例在飞的恢复失效，并掐掉待写的 `autoSaveDraftTimer`（否则 400ms 防抖在删除之后才落盘，下次打开又恢复回来）。守卫：`tests/unit/forum-post-draft-autosave-guard.test.js`。
+- **跨设备闸门（2026-10-29 第二轮）**：`_cleared_at` 是本机的，挡不住「另一台设备删了、这台还留着旧副本」。所以再加一条事实标记 `forum_post_draft_{uid}_pending_push`：**只有它存在时，本机才被允许把草稿覆盖到云端**。置位点在 `persistPostDraft`（用户主动保存 = 本地确实领先云端）；清除点只有两处 —— 这次改动真的写进云端之后，或用户删掉草稿之后（`writeLocalPostDraft(null)` 在存储层单点清）。于是「云端查不到草稿 + 本机没有该标记」⇒ 云端是被别处删过的，本机副本只留在本地给用户看，**绝不回写**。别再退回「比较 `savedAt` 谁更晚就推」——那只说明本机这份看起来更新，不说明云端欠它一次写入。
+- **删除必须核对影响行数**：`deleteForumPostDraft` 的 `delete()` 带 `.select('user_id')`。PostgREST 被 RLS 挡掉时**不报错**，只是 0 行受影响 —— 旧实现照样返回 `ok:true`，界面提示「已删除」而库里还在，是最隐蔽的一种「删不掉」。
 - `restorePostDraft`：恢复草稿时会比较 `postDraftRestoreSeq` 序号防竞态（恢复请求返回前编辑器已被清空则丢弃）。
-- `beforeunload`：有在途发布任务 →「有内容正在发送」；竖屏编辑器开着且有未保存内容 →「是否保存为草稿」。
-- 发布成功后草稿全链路清空（本地 + 云端）。
+- `beforeunload`：有在途发布任务 →「有内容正在发送」；竖屏编辑器开着且有未保存内容 →「是否保存为草稿」。内容已落进实时暂存后再弹这条只会教用户无视提示，所以 `isEditorDirty()` 把暂存也算「已落盘」。
+- 发布成功后草稿全链路清空（本地 + 云端 + 暂存）。
 
 ---
 
@@ -269,3 +307,74 @@ savedPostDraft = ref(null); postDraftSaveTimer; postDraftRestoreSeq;
 5. 点发布 → `handlePost` 守卫 → 快照+指纹 → 入队 → 乐观卡置顶 → 编辑器瞬间清空 → 8s 冷却。
 6. worker 取任务：等剩余管线完成（快则 0ms）→ `createPost` 幂等 RPC → 关键词预检 → 落库 → 乐观卡换真实卡 → XP/积分奖励/周报刷新。
 7. 任一环失败：任务岛常驻 + 失败归因（moderation→移除该图重试 / network→重试），队列中断等操作；期间 beforeunload 有拦截提示。
+
+---
+
+## 12. 性能实测（2026-10-29）—— 别凭感觉归因
+
+### 12.1 测量工具
+
+| 工具 | 测什么 | 命令 |
+|---|---|---|
+| `tests/unit/forum-feed-observer-churn.test.js` | **确定性计数**：一次发布过程中的 observer 重建次数（真实 composable，不读源码字符串） | `npx vitest run tests/unit/forum-feed-observer-churn.test.js` |
+| `scripts/probes/probe-publish-tick-cost.mjs` | 真实 Chromium 里「一次 observer 重建」的耗时 | `node scripts/probes/probe-publish-tick-cost.mjs` |
+| `scripts/probes/probe-publish-tick-breakdown.mjs` | 真实组件实例上拆解每 tick 的 A/B 成本 | `node scripts/probes/probe-publish-tick-breakdown.mjs` |
+
+探针前置：`npm run dev`；本机 dev 只监听 IPv6 回环，`PROBE_BASE` 用 `http://[::1]:5173`
+（`127.0.0.1` 连不上）。断点测量靠 `<script setup>` 在 dev 下暴露的 `setupState`，
+生产构建不可用 —— 所以这是**开发机构建下的量级参照**，不是线上指标。
+
+### 12.2 实测数字（50 帖 / 虚拟化开启 / 可见 30 卡 / Chrome on M4）
+
+| 项 | 值 | 说明 |
+|---|---|---|
+| A 整列替换 + 重渲染 | mean **0.298ms** / p95 0.5ms | `forumData` 换数组 → Vue 重渲染可见窗口。**新旧实现都要付** |
+| B `buildOptimisticPost`（6 图） | mean **0.011ms** / p95 0.1ms | 旧实现每 tick 都做；新实现只在状态变化时做 |
+| C observer 重建（50 节点） | mean **0.014ms** / p95 0.1ms | 旧实现每 tick 都做；新实现 0 |
+| 每 tick 净节省 | ≈ **0.025ms** | B + C |
+| 20s 带图发布（67 tick）总计 | ≈ **1ms** | 摊到 20 秒里完全不可感知 |
+
+**结论（重要，别回退认知）**：进度 tick 这条路径**不是**「发帖卡」的主因。
+2026-10-29 早期把它判成「每 300ms 整页重绘 = 卡顿来源」是**错的**，已被上述测量推翻；
+相关改动（跳过进度 tick 的图片块重建、签名式 observer 重建）保留是因为它们**语义正确且零成本**，
+但要清楚它们带来的是 **~1ms/次发布**，不是体验级提升。
+
+### 12.3 真正影响「发帖慢/不稳」的项（这些才是量级）
+
+1. **上传字节数**（决定性，2026-10-29 已收档）。先纠正一个错误估算：此前写的「6 张 × 目标 2MB
+   ≈ 12MB」是拿 **2MB 上限**当实际值，压缩其实一直在跑。真实 2048 档照片单张约 380~620KB
+   （取决于内容，见下），6 张 **2.5~3.6MB 量级**，不是 12MB。
+   真正的浪费在展示侧上限：列表 `w_720`、详情 `w_1600`，而 `ForumImageViewer` 的取图顺序是
+   `[detailUrl, originalUrl, ...]` 且 `detailUrl` 恒存在 ⇒ **originalUrl 永不被下载**。
+   也就是说 2048 档多出来的那些像素，任何界面都不会加载。
+   现改为 `FORUM_UPLOAD_IMAGE_MAX_DIMENSION=1600` / `targetSizeMB=0.9`
+   （`utils/api/forum-format.js` 单源，论坛侧显式传入，不动全局 2048 默认以免牵连影集/云盘）：
+   **实测（真实管线，2026-10-29）**：在 vite dev 里直接调 `getImageCompressionPlan` +
+   `compressImageFileToUploadLimit`（不是 canvas 近似），三个 4032px 样本：
+   照片样本 2048 档 379KB/256ms → 1600 档 249KB/205ms（**−34%**），另两样本 −27% / −26%。
+   **体积降幅 −26%~−34%**，不是纯面积比的 −39%。**压缩耗时基本持平**（205~269 vs 222~264ms，
+   属噪声 —— Web Worker 启动与库质量迭代是固定成本）。
+   ⚠️ 只有**相对降幅**是可靠的：绝对体积强依赖内容（同一张 4032 壁纸 55KB、照片 379KB、细节更多的
+   手机原片可能 600KB+），所以别把某次样本的 KB 数写成通则。
+   收益随上行带宽放大：1Mbps 省 ~8s、2Mbps 省 ~5s、50Mbps 基本无感 —— 它只压了发帖关键路径
+   里「上传」一段的 30%，**不是「卡」的解药**（审核 RTT 与上传物理下限仍在）。
+   **画质零损失（有实测，不是断言）**：同一张 4032×3024 照片，两条路径最终展示尺寸都是
+   1600×1200，可直接逐像素比 —— 旧路径（→2048→WebP→再缩 1600）PSNR **39.70dB** / 平均像素差 1.78，
+   新路径（→1600 一步到位）PSNR **39.67dB** / 平均像素差 1.88，**差 0.03dB ＝ 噪声级**。
+   也没有「少一次重采样所以更清晰」这回事，两条路径打平。
+   ⚠️ 边界：这条前提**依赖「没有查看原图/下载入口」**（当前属实，`ForumImageViewer` 只取 detailUrl）。
+   将来若加下载原图、或把 `FORUM_DETAIL_IMAGE_TRANSFORM` 提到 2048，则**此前的 1600 帖子补不回来**，
+   历史帖清晰度天花板锁在 1600。
+   ⚠️ 不变量：上传档位必须 ≤ 详情展示宽度，只有先调大 `FORUM_DETAIL_IMAGE_TRANSFORM`
+   才允许调大上传档。护栏 `tests/unit/forum-upload-image-tier.test.js`（撤掉传参 / 改回 2048 均红）。
+   ⚠️ 未处理：PNG 走不了有损优化，4032px 截图仍原样上传（属同类冗余，需单独拍板要不要转 WebP）。
+
+2. **队头阻塞 900ms**（已修）：成功后 `await 900ms` 保留队列项会把后续排队的帖冻住；
+   改成 `setTimeout` 后连发两帖不再凭空慢近 1 秒。
+3. **每次发帖一次 `/auth/v1/user` 往返**（已修）：`createPost` 取 userId 从 `getUser()`
+   改为 `getSession()`（RLS 认 JWT，取 userId 等价），省掉关键路径上一个网络往返。
+4. **上传超时口径**（已修，稳定性）：XHR 从「整个上传固定 30s」改成「空闲 30s + 总上限 180s」。
+   移动网络 2MB @ 100KB/s 需 20s+，旧口径稍差一点就必失败；而且真挂死要干等满 30s。
+5. **图片管线看门狗**（已修，稳定性）：`entry.promise` 有不 settle 的最坏形态（压缩/模型挂住），
+   旧实现会让发布 worker 永久停在 `await`、后续队列一起冻死。现在按「90s 无进度前进」判失败
+   并把死管线从 map 摘掉（不摘的话重试会复用同一条死 promise）。

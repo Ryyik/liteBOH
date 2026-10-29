@@ -36,6 +36,8 @@ function makeCountQuery(result) {
 function makeDeleteQuery(result) {
   const q = {
     eq: vi.fn(() => q),
+    // delete 必须能接 select（用来拿影响行数，否则 RLS 静默挡掉也判成功）
+    select: vi.fn(() => Promise.resolve(result)),
     then: (resolve) => Promise.resolve(result).then(resolve),
   };
   return q;
@@ -56,7 +58,9 @@ describe('forum-post-api: getPostsCount', () => {
   });
 
   it('handles error', async () => {
-    fm.supabaseFrom.mockReturnValue(makeCountQuery({ data: null, error: { message: 'DB error' }, count: null }));
+    fm.supabaseFrom.mockReturnValue(
+      makeCountQuery({ data: null, error: { message: 'DB error' }, count: null }),
+    );
 
     const result = await getPostsCount();
     expect(result.ok).toBe(false);
@@ -80,10 +84,17 @@ describe('forum-post-api: getForumPostDraft', () => {
     fm.supabaseFrom.mockReturnValue({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
-          maybeSingle: vi.fn(() => Promise.resolve({
-            data: { title: 'Draft Title', content: 'Draft content', tag: 'server', updated_at: '2024-06-15' },
-            error: null,
-          })),
+          maybeSingle: vi.fn(() =>
+            Promise.resolve({
+              data: {
+                title: 'Draft Title',
+                content: 'Draft content',
+                tag: 'server',
+                updated_at: '2024-06-15',
+              },
+              error: null,
+            }),
+          ),
         })),
       })),
     });
@@ -131,15 +142,26 @@ describe('forum-post-api: upsertForumPostDraft', () => {
     fm.supabaseFrom.mockReturnValue({
       upsert: vi.fn(() => ({
         select: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({
-            data: { title: 'New Draft', content: 'New content', tag: 'discussion', updated_at: '2024-06-15' },
-            error: null,
-          })),
+          single: vi.fn(() =>
+            Promise.resolve({
+              data: {
+                title: 'New Draft',
+                content: 'New content',
+                tag: 'discussion',
+                updated_at: '2024-06-15',
+              },
+              error: null,
+            }),
+          ),
         })),
       })),
     });
 
-    const result = await upsertForumPostDraft('u1', { title: 'New Draft', content: 'New content', tag: 'discussion' });
+    const result = await upsertForumPostDraft('u1', {
+      title: 'New Draft',
+      content: 'New content',
+      tag: 'discussion',
+    });
     expect(result.ok).toBe(true);
     expect(result.data.title).toBe('New Draft');
   });
@@ -157,7 +179,43 @@ describe('forum-post-api: deleteForumPostDraft', () => {
   });
 
   it('deletes draft successfully', async () => {
-    fm.supabaseFrom.mockReturnValue({ delete: vi.fn(() => makeDeleteQuery({ error: null })) });
+    fm.supabaseFrom.mockReturnValue({
+      delete: vi.fn(() => makeDeleteQuery({ data: [{ user_id: 'u1' }], error: null })),
+    });
+    const result = await deleteForumPostDraft('u1');
+    expect(result.ok).toBe(true);
+  });
+
+  it('reports failure when the delete silently hit 0 rows (RLS blocked)', async () => {
+    /* PostgREST 被 RLS 挡掉时**不报错**，只是 0 行受影响。旧实现照样返回 ok:true，
+       界面提示"已删除"而库里还在 —— 用户看到的就是"删了又回来"。
+       这里回放那次形态：delete 0 行 + 复查发现行还在 ⇒ 必须报错。 */
+    fm.supabaseFrom
+      .mockReturnValueOnce({ delete: vi.fn(() => makeDeleteQuery({ data: [], error: null })) })
+      .mockReturnValueOnce({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(() => Promise.resolve({ data: { user_id: 'u1' }, error: null })),
+          })),
+        })),
+      });
+
+    const result = await deleteForumPostDraft('u1');
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe('DRAFT_DELETE_NO_ROWS');
+  });
+
+  it('treats "nothing to delete" as success (no draft existed)', async () => {
+    fm.supabaseFrom
+      .mockReturnValueOnce({ delete: vi.fn(() => makeDeleteQuery({ data: [], error: null })) })
+      .mockReturnValueOnce({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          })),
+        })),
+      });
+
     const result = await deleteForumPostDraft('u1');
     expect(result.ok).toBe(true);
   });
@@ -171,7 +229,13 @@ describe('forum-post-api: getWeeklyCheckinStatus', () => {
 
   it('returns RPC result normalized', async () => {
     fm.supabaseRpc.mockResolvedValue({
-      data: { streak_total: 3, has_signed_this_week: false, points_awarded: 0, current_points: 500, message: '' },
+      data: {
+        streak_total: 3,
+        has_signed_this_week: false,
+        points_awarded: 0,
+        current_points: 500,
+        message: '',
+      },
       error: null,
     });
 
@@ -203,7 +267,13 @@ describe('forum-post-api: submitWeeklyCheckin', () => {
 
   it('submits checkin via RPC', async () => {
     fm.supabaseRpc.mockResolvedValue({
-      data: { ok: true, streak_total: 4, has_signed_this_week: true, points_awarded: 10, current_points: 510 },
+      data: {
+        ok: true,
+        streak_total: 4,
+        has_signed_this_week: true,
+        points_awarded: 10,
+        current_points: 510,
+      },
       error: null,
     });
 

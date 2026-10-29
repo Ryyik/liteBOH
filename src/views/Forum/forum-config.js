@@ -20,6 +20,8 @@ export {
   FORUM_LIST_IMAGE_TRANSFORM_MD,
   FORUM_LIST_LQIP_TRANSFORM,
   FORUM_DETAIL_IMAGE_TRANSFORM,
+  FORUM_UPLOAD_IMAGE_MAX_DIMENSION,
+  FORUM_UPLOAD_IMAGE_OPTIMIZE_OPTIONS,
 } from '@/utils/api/forum-format.js';
 export const FORUM_TAG_OPTIONS = [
   { value: 'server', label: '#服务器' },

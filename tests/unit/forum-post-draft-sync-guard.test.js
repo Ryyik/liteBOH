@@ -46,9 +46,10 @@ describe('forum post draft cross-host sync wiring', () => {
     expect(vue).not.toContain('mobile-composer-title');
     expect(vue).not.toMatch(/>\s*新帖\s*</);
     expect(css).not.toContain('.mobile-composer-title');
-    const landscapeBlock = css.match(
-      /@media \(orientation: landscape\) and \(min-width: 1024px\) and \(min-height: 600px\) \{[\s\S]*?\n\}/,
-    )?.[0] || '';
+    const landscapeBlock =
+      css.match(
+        /@media \(orientation: landscape\) and \(min-width: 1024px\) and \(min-height: 600px\) \{[\s\S]*?\n\}/,
+      )?.[0] || '';
     expect(landscapeBlock).toContain('.mobile-composer-overlay .mobile-composer-back');
     expect(landscapeBlock).toContain('display: none');
   });
@@ -63,9 +64,10 @@ describe('forum post draft cross-host sync wiring', () => {
     // 否则 enter/leave 的整页上推会被静默压成瞬跳（2026-10-26 用户报障）。
     expect(overlayHardReset).toContain('.mobile-composer-section,');
     expect(overlayHardReset).not.toMatch(/\.mobile-composer-overlay\s*,/);
-    const motionBlock = css.match(
-      /\.mobile-composer-enter-from,[\s\S]*?\.mobile-composer-leave-from \{[\s\S]*?\n\}/,
-    )?.[0] || '';
+    const motionBlock =
+      css.match(
+        /\.mobile-composer-enter-from,[\s\S]*?\.mobile-composer-leave-from \{[\s\S]*?\n\}/,
+      )?.[0] || '';
     expect(motionBlock).toContain('scale(0.08)');
     expect(motionBlock).toContain('scale(1)');
     expect(css).toContain('transform-origin: var(--mobile-composer-origin, 100% 100%)');
@@ -155,7 +157,10 @@ describe('forum post draft cross-host sync wiring', () => {
     const body = sliceFromDeclaration(code, 'const closeMobileComposer =', 2400);
     // 内容为空 + 仍有旧草稿 ⇒ 用户是"删光了再走"，删除意图必须落盘，
     // 否则下次挂载 restorePostDraft 又把草稿填回来（"我明明删了"）。
-    expect(body).toContain(squeezeSource('} else if (savedPostDraft.value) {'));
+    // 2026-10-29：判据扩成「草稿 或 实时暂存」——只有暂存、没有正式草稿时也必须清
+    // （否则刷新后被暂存原样恢复回来，是"删不掉"的第二种形态）。断言按前缀宽容。
+    expect(body).toContain(squeezeSource('} else if (savedPostDraft.value'));
+    expect(body).toContain('readAutoSaveDraft()');
     expect(body).toContain(squeezeSource('void clearPostDraft();'));
   });
 

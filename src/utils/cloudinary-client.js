@@ -79,14 +79,34 @@ function withTimeout(promise, timeoutMs, message) {
 function uploadFormDataWithProgress(url, formData, options = {}) {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    const timeoutId = window.setTimeout(() => request.abort(), 30000);
+    /* 超时口径（2026-10-29 改）：原来是「整个上传固定 30s」——那是**总时长**超时，
+       不是卡住检测。移动网络上传 2MB 在 100KB/s 下要 20s 上下，稍微差一点就必然
+       超时失败，而进度条可能才走到 60%；反过来，连接彻底挂死时也照样要等满 30s。
+       改成「**空闲**超时 30s（每有字节前进就重置）+ 总上限 180s」：只要还在传就不
+       判超时，一旦完全不动 30s 立刻失败 ⇒ 慢网成功率提高、卡死反馈更快。 */
+    const IDLE_TIMEOUT_MS = 30000;
+    const HARD_TIMEOUT_MS = 180000;
+    const startedAt = Date.now();
+    let idleTimer = null;
+    const armIdleTimer = () => {
+      if (idleTimer) window.clearTimeout(idleTimer);
+      const remainingHard = HARD_TIMEOUT_MS - (Date.now() - startedAt);
+      if (remainingHard <= 0) {
+        request.abort();
+        return;
+      }
+      idleTimer = window.setTimeout(
+        () => request.abort(),
+        Math.min(IDLE_TIMEOUT_MS, remainingHard),
+      );
+    };
     const signal = options.signal;
     let settled = false;
 
     const finish = (callback) => {
       if (settled) return;
       settled = true;
-      window.clearTimeout(timeoutId);
+      if (idleTimer) window.clearTimeout(idleTimer);
       signal?.removeEventListener?.('abort', abortRequest);
       callback();
     };
@@ -95,6 +115,8 @@ function uploadFormDataWithProgress(url, formData, options = {}) {
     request.open('POST', url, true);
     request.responseType = 'text';
     request.upload.onprogress = (event) => {
+      // 有字节前进就重置空闲计时：慢但活着的上传不该被总时长砍掉
+      armIdleTimer();
       if (!event.lengthComputable || typeof options.onProgress !== 'function') return;
       options.onProgress(Math.max(0, Math.min(100, (event.loaded / event.total) * 100)));
     };
@@ -123,6 +145,8 @@ function uploadFormDataWithProgress(url, formData, options = {}) {
       return;
     }
     options.onProgress?.(0);
+    // 起手就上表：TCP/TLS 阶段完全没有 progress 事件，不先计时的话"连不上"会永远挂着。
+    armIdleTimer();
     request.send(formData);
   });
 }

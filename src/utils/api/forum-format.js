@@ -24,6 +24,37 @@ export const FORUM_LIST_IMAGE_TRANSFORM_MD = 'f_auto,q_auto:good,c_fill,w_540,h_
    同批还把「静默超时就撤转圈」的兜底加在了 feed.css 的 .image-post-thumb-shell::before 上。 */
 export const FORUM_LIST_LQIP_TRANSFORM = 'f_auto,q_1,c_fill,w_32,h_24,e_blur:1500';
 export const FORUM_DETAIL_IMAGE_TRANSFORM = 'f_auto,q_auto:good,c_limit,w_1600';
+/* 上传侧压缩档位（2026-10-29 定案）：**必须 ≤ 展示上限，且默认贴着上限**。
+   展示侧真正会加载的最大宽度就是上面那个 w_1600 ——
+   列表走 w_720、详情走 w_1600，而 ForumImageViewer 的取图顺序是
+   `[detailUrl, originalUrl, url, thumbUrl]`，detailUrl 恒存在 ⇒ originalUrl **永不被下载**。
+   所以上传端长边超过 1600 的部分是「死像素」：只付上行时间、只占 Cloudinary 存储与出图流量，
+   用户在任何界面都看不到一个像素。
+   实测（2026-10-29，**真实管线**：vite dev 里直接调 getImageCompressionPlan +
+   compressImageFileToUploadLimit，三个 4032px 样本）：
+     2048 档 379KB / 256ms → 1600 档 249KB / 205ms（照片样本，体积 −34%）；
+     另两个壁纸样本 −27% / −26%。**体积降幅 −26%~−34%**（不是纯面积比的 −39%，WebP 有编码非线性）。
+   ⚠️ **压缩耗时基本持平**（205~269ms vs 222~264ms，属噪声）：Web Worker 启动 + 库质量迭代是
+      固定成本，把省下的编码时间吃掉了。别把「像素少了 39%」直接写成「压缩快了一倍」——
+      早先按单次 canvas 编码读数写成「200→100ms」，实测被打回。
+   ✅ **清晰度实测（同一 4032×3024 照片，最终展示尺寸都是 1600×1200，故可直接对比）**：
+        旧路径（→2048→WebP→再缩 1600）PSNR 39.70dB / 平均像素差 1.78
+        新路径（→1600 一步到位）        PSNR 39.67dB / 平均像素差 1.88
+      差 0.03dB ＝ 噪声级（PSNR 差 1dB 肉眼都难辨）。也**没有**「少一次重采样所以更清晰」
+      这回事 —— 两条路径打平。结论：砍掉的是死像素，不是画质。
+   6 张上行量级 2.5~3.6MB（强依赖内容 —— 同一张 4032 壁纸压完 55KB，照片 379KB），
+   能确定的是**相对降幅 −26%~−34%**；别把某次样本的 KB 数当通则。
+   收益随上行带宽放大：1Mbps 省 ~8s、2Mbps 省 ~5s、50Mbps 基本无感。它只压了发帖关键路径里
+   「上传」一段的约 30%，**不是「卡」的解药**（审核 RTT 与上行物理下限仍在）。
+   ⚠️ 动这里必须同时看 FORUM_DETAIL_IMAGE_TRANSFORM：只有先把详情上限调大，才允许同步调大；
+      反过来单独调大这里＝白付带宽。 */
+export const FORUM_UPLOAD_IMAGE_MAX_DIMENSION = 1600;
+export const FORUM_UPLOAD_IMAGE_TARGET_SIZE_MB = 0.9;
+export const FORUM_UPLOAD_IMAGE_OPTIMIZE_OPTIONS = Object.freeze({
+  optimizeForUpload: true,
+  optimizedMaxDimension: FORUM_UPLOAD_IMAGE_MAX_DIMENSION,
+  optimizedTargetSizeMB: FORUM_UPLOAD_IMAGE_TARGET_SIZE_MB,
+});
 export const FORUM_CLOUDINARY_FOLDER = String(
   import.meta.env.VITE_CLOUDINARY_FORUM_FOLDER ||
     `${String(import.meta.env.VITE_CLOUDINARY_CLOUD_PLUS_FOLDER || 'boh-cloud-plus').replace(/\/+$/, '')}/forum`,
