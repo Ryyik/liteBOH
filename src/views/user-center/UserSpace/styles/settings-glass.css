@@ -239,6 +239,35 @@
   color: #98989d;
 }
 
+/* ---------- 订阅徽章 / 展开选项（2026-10-29，邮件通知提醒频率） ---------- */
+.gs-badge-max {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #8a5b00;
+  background: rgba(255, 214, 10, 0.18);
+}
+
+[data-theme='dark'] .gs-badge-max {
+  color: #ffd60a;
+  background: rgba(255, 214, 10, 0.14);
+}
+
+/* 「提醒频率」展开出的选项行：比主行浅一档（左侧留出从属关系的视觉缩进），
+   点选后由勾图标 + 绿色表达选中态，不靠背景 */
+.gs-mail-freq-option {
+  padding-left: calc(var(--gs-row-pad-x, 18px) + 14px);
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
+}
+
+/* 展开态的行尾箭头转向下（rows 的 overflow:hidden 不会裁到旋转） */
+.gs-chevron.is-expanded {
+  transform: rotate(90deg);
+}
+
 /* ---------- 文本 ---------- */
 .gs-text {
   flex: 1 1 auto;

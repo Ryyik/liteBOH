@@ -283,6 +283,9 @@
             :hide-online-status="hideOnlineStatus"
             :hide-follow-data="hideFollowData"
             :follow-mail-enabled="followMailEnabled"
+            :follow-mail-window="followMailWindow"
+            :follow-mail-can-realtime="followMailCanRealtime"
+            :follow-mail-digest="followMailDigest"
             :two-pane="isSettingsTwoPane"
             :avatar-url="avatarUrl"
             :username="userInfo?.username || ''"
@@ -311,6 +314,8 @@
             @toggle-hide-online="toggleHideOnlineStatus"
             @toggle-hide-follow-data="toggleHideFollowData"
             @toggle-follow-mail="toggleFollowMailSetting"
+            @choose-mail-window="chooseFollowMailWindow"
+            @choose-mail-digest="chooseFollowMailDigest"
           >
             <!-- 个人信息：右栏内就地展开（不再整页替换，所以不套 v-memo —— 头像缩略图、
                  昵称、简介都要实时跟 props 走） -->
@@ -590,9 +595,13 @@ import FollowListModal from '@/components/FollowListModal.vue';
 import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 // 关注的人邮件通知（2026-10-29）：开关真源是 profiles.follow_mail_enabled。
 // 不走 authStore.updateUserProfile —— 那是字段白名单式的，为一个开关去改 store 不划算。
+// 窗口与实时权益走 RPC（boh_get_follow_mail_prefs / boh_set_follow_mail_window）：
+// 实时档（15min）是 Max+ 订阅权益，服务端强校验，前端不自己判。
 import {
-  getFollowMailEnabled,
+  getFollowMailPrefs,
   toggleFollowMail as saveFollowMailSetting,
+  saveFollowMailWindow as saveFollowMailWindowApi,
+  saveFollowMailDigest as saveFollowMailDigestApi,
 } from '@/utils/api/mail-notify-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import { getMyUserSpaceSummary } from '@/utils/api/user-space-api.js';
@@ -2653,9 +2662,9 @@ onDeactivated(() => {
 
 onActivated(() => {
   document.body.classList.toggle('is-rail-compact', isSettingsTwoPane.value);
-  // 邮件开关的真源在服务端（可能被另一台设备改过），每次激活重读一次；
-  // 只查一列、走一次轻量请求，代价远小于「显示成旧状态」。
-  loadFollowMailEnabled();
+  // 邮件偏好（开关 + 窗口 + 实时权益）真源在服务端，每次激活重读一次；
+  // 一条 RPC，代价远小于「显示成旧状态」。
+  loadFollowMailPrefs();
 });
 
 /**
@@ -2721,16 +2730,54 @@ const toggleHideFollowData = async () => {
    成功不弹提示：开关自身的视觉变化就是反馈，多一个 toast 反而吵。
    失败必须弹 —— 否则又是「点了没反应」那种报障。 */
 const followMailEnabled = ref(false);
+const followMailWindow = ref(60);
+const followMailCanRealtime = ref(false);
+const followMailDigest = ref(false);
 
-const loadFollowMailEnabled = async () => {
-  const uid = userInfo.value?.id;
-  if (!uid) return;
+/* 一次 RPC 拿全：开关 + 窗口 + 实时权益 + 投递方式（boh_get_follow_mail_prefs）。
+   ⚠️ 未登录必须直接返回：RPC 的 execute 只授给 authenticated（anon 被显式 revoke，
+      匿名不该读到任何偏好），不判就调会报 42501。 */
+const loadFollowMailPrefs = async () => {
+  if (!userInfo.value?.id) return;
   try {
-    const { enabled } = await getFollowMailEnabled(uid);
+    const { enabled, windowMinutes, canRealtime, digest } = await getFollowMailPrefs();
     followMailEnabled.value = enabled;
+    followMailWindow.value = windowMinutes;
+    followMailCanRealtime.value = canRealtime;
+    followMailDigest.value = digest;
   } catch (_error) {
-    // 读失败保持「关」（与数据库默认值一致，是安全的一侧）
+    // 读失败保持默认值
   }
+};
+
+/* 选择提醒频率。权益校验在服务端：无 Max+ 选 15 会收到 MAX_ONLY_REQUIRED，
+   这里转成「提示 + 跳订阅页」的引导（对订阅转化比单纯置灰更好）。 */
+const chooseFollowMailWindow = async (windowMinutes) => {
+  if (windowMinutes === followMailWindow.value) return;
+  const result = await saveFollowMailWindowApi(windowMinutes);
+  if (result.success) {
+    followMailWindow.value = result.windowMinutes || windowMinutes;
+    // 保存 15 成功 = 服务端确认了权益（本地权益缓存可能过期，以服务端为准）
+    if (windowMinutes === 15) followMailCanRealtime.value = true;
+    return;
+  }
+  if (result.maxOnlyRequired) {
+    showTopNavStatus({ title: '实时提醒需要 Max 订阅', icon: 'warning' });
+    router.push('/user-space/subscriptions');
+    return;
+  }
+  showTopNavStatus({ title: result.message || '更新失败，请重试', icon: 'warning' });
+};
+
+/* 投递方式（及时 / 聚合）无权益门槛，直接保存。 */
+const chooseFollowMailDigest = async (digest) => {
+  if (digest === followMailDigest.value) return;
+  const result = await saveFollowMailDigestApi(digest);
+  if (result.success) {
+    followMailDigest.value = Boolean(result.digest);
+    return;
+  }
+  showTopNavStatus({ title: result.message || '更新失败，请重试', icon: 'warning' });
 };
 
 const toggleFollowMailSetting = async () => {

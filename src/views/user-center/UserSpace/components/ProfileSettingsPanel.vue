@@ -1,12 +1,28 @@
 <template>
   <div key="profile-settings" class="profile-subpage-shell">
+    <!-- 页头：钻取时标题变分类名、返回按钮隐藏（返回职责交给悬浮钮，见下方 .gs-floating-back）。
+         页头本身随内容滚走 —— 竖屏钻取时不出现任何吸顶横条。 -->
     <UserCenterPageHeader
-      title="设置"
-      back-label="返回我的"
+      :title="headerTitle"
+      :back-label="headerBackLabel"
       max-width="1200px"
-      :show-back="showBack"
-      @back="$emit('back')"
+      :show-back="headerShowBack"
+      @back="handleHeaderBack"
     />
+
+    <!-- 竖屏钻取的悬浮返回钮（2026-10-29，用户定稿）：
+         不加横条、没有背景色，position: fixed 固定在屏幕左上、不随内容滚动。
+         看起来就像一枚裸露的「‹ 设置」，但它一直在那里 —— 这是和上一版
+         （吸顶横条）最大的差别：横条太重，这颗钮什么都没有。 -->
+    <button
+      v-if="isDrilldown"
+      type="button"
+      class="gs-floating-back"
+      @click="exitSection"
+    >
+      <ChevronLeft :size="19" :stroke-width="2" aria-hidden="true" />
+      <span>设置</span>
+    </button>
 
     <div class="profile-subpage-body">
       <HomeCatMascot
@@ -22,9 +38,11 @@
            卡片本体是 .gs-rows，分组标题移到卡片外上方，组间靠留白分隔。
            骨架规则在 styles/settings-glass.css（5 个设置类页面共用）。 -->
       <div ref="panelRootRef" class="glass-settings" :class="{ 'is-two-pane': twoPane }">
-        <!-- 左栏（仅横屏两栏时可见）：搜索 + 分类目录。竖屏下这个 div 只包着搜索框，
-             视觉与改造前一致（.gs-aside 在非两栏时不产生任何布局差异）。 -->
-        <div class="gs-aside">
+      <!-- 左栏（仅横屏两栏时可见）：搜索 + 分类目录。竖屏下这个 div 只包着搜索框，
+           视觉与改造前一致（.gs-aside 在非两栏时不产生任何布局差异）。
+           2026-10-29：单栏时只在「菜单视图」渲染 —— 子页 / 分类页 / 编辑态都不带搜索框，
+           搜索是「设置主页」的能力，不是每个下级页面的。 -->
+      <div v-if="twoPane || isMenuView" class="gs-aside">
           <!-- 设置搜索：索引覆盖本页所有行 + 各子页入口，命中后直接执行入口动作 -->
           <div class="gs-search" role="search">
             <span class="gs-search-icon"
@@ -85,7 +103,7 @@
           </nav>
         </div>
 
-        <div class="gs-main">
+        <div class="gs-main" :class="'is-direction-' + paneDirection">
           <!-- 右栏内容三态（2026-10-26）：
                ① editOpen → 个人信息就地展开（宿主经由 #inline-edit 插槽塞进来）；
                ② 搜索中  → 命中结果；
@@ -228,16 +246,6 @@
           </template>
 
           <template v-else>
-            <!-- 单栏钻取的返回条（双栏不需要：左目录一直看得见）。
-                 复用 gs-inline-bar，与「导出数据 / 账户安全」子页同一条视觉。 -->
-            <div v-if="!twoPane && singlePaneSection" class="gs-inline-bar">
-              <button type="button" class="gs-inline-back" @click="exitSection">
-                <ChevronLeft :size="17" :stroke-width="2.2" aria-hidden="true" />
-                <span>设置</span>
-              </button>
-              <h2 class="gs-inline-title">{{ sectionLabel(singlePaneSection) }}</h2>
-            </div>
-
             <!-- 身份卡（2026-10-26 Apple 账户页形态）
                ⚠️ 只在「账户」分类出现（showIdentityCard）：两栏下切到别的分类它就该消失，
                不是一条钉在所有分类上方的横幅。
@@ -537,6 +545,106 @@
                     />
                   </span>
                 </button>
+
+                <!-- 提醒频率：点行展开两个选项。权益校验在服务端 RPC（boh_set_follow_mail_window），
+                     无 Max+ 选「实时」会收到 MAX_ONLY_REQUIRED，宿主弹订阅引导。 -->
+                <button type="button" class="gs-row" @click="toggleMailExpanded('freq')">
+                  <span class="gs-icon is-blue">
+                    <Clock :size="16" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="gs-text">
+                    <span class="gs-label">提醒频率</span>
+                    <span class="gs-desc">同一个人的动作多久合并成一封</span>
+                  </span>
+                  <span class="gs-side">
+                    <span class="gs-value">{{ mailWindowLabel }}</span>
+                    <ChevronRight
+                      class="gs-chevron"
+                      :class="{ 'is-expanded': mailExpandedGroup === 'freq' }"
+                      :size="16"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
+                <template v-if="mailExpandedGroup === 'freq'">
+                  <button
+                    v-for="option in MAIL_WINDOW_OPTIONS"
+                    :key="option.value"
+                    type="button"
+                    class="gs-row gs-mail-freq-option"
+                    @click="$emit('choose-mail-window', option.value)"
+                  >
+                    <span
+                      class="gs-icon"
+                      :class="followMailWindow === option.value ? 'is-green' : 'is-gray'"
+                    >
+                      <Check
+                        v-if="followMailWindow === option.value"
+                        :size="16"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <Clock v-else :size="16" :stroke-width="2" aria-hidden="true" />
+                    </span>
+                    <span class="gs-text">
+                      <span class="gs-label">{{ option.label }}</span>
+                      <span class="gs-desc">{{ option.desc }}</span>
+                    </span>
+                    <span v-if="option.maxOnly" class="gs-side">
+                      <span class="gs-badge-max">Max+ Only</span>
+                    </span>
+                  </button>
+                </template>
+
+                <!-- 投递方式：及时（首条即发）vs 聚合（窗口结束发一封全摘要，可能延迟）。
+                     无权益门槛 —— 聚合是省心，及时是快，各取所需。 -->
+                <button type="button" class="gs-row" @click="toggleMailExpanded('delivery')">
+                  <span class="gs-icon is-indigo">
+                    <Inbox :size="16" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="gs-text">
+                    <span class="gs-label">投递方式</span>
+                    <span class="gs-desc">多动作时怎么送进你的邮箱</span>
+                  </span>
+                  <span class="gs-side">
+                    <span class="gs-value">{{ mailDigestLabel }}</span>
+                    <ChevronRight
+                      class="gs-chevron"
+                      :class="{ 'is-expanded': mailExpandedGroup === 'delivery' }"
+                      :size="16"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
+                <template v-if="mailExpandedGroup === 'delivery'">
+                  <button
+                    v-for="option in MAIL_DIGEST_OPTIONS"
+                    :key="String(option.value)"
+                    type="button"
+                    class="gs-row gs-mail-freq-option"
+                    @click="$emit('choose-mail-digest', option.value)"
+                  >
+                    <span
+                      class="gs-icon"
+                      :class="followMailDigest === option.value ? 'is-green' : 'is-gray'"
+                    >
+                      <Check
+                        v-if="followMailDigest === option.value"
+                        :size="16"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <Inbox v-else :size="16" :stroke-width="2" aria-hidden="true" />
+                    </span>
+                    <span class="gs-text">
+                      <span class="gs-label">{{ option.label }}</span>
+                      <span class="gs-desc">{{ option.desc }}</span>
+                    </span>
+                  </button>
+                </template>
+
                 <button type="button" class="gs-row" @click="$emit('open-pushplus')">
                   <span class="gs-icon is-blue">
                     <Bell :size="16" :stroke-width="2" aria-hidden="true" />
@@ -731,11 +839,13 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Copy,
   Database,
   EyeOff,
   Fingerprint,
   Images,
+  Inbox,
   Info,
   KeyRound,
   LogOut,
@@ -842,6 +952,24 @@ const props = defineProps({
     default: false,
   },
   /**
+   * 去重窗口（分钟）：15 = 实时（Max+ Only），60 = 标准。真源 profiles.follow_mail_window_minutes，
+   * 写入只经 boh_set_follow_mail_window RPC（服务端做 Max+ 校验），本组件只展示与转发。
+   */
+  followMailWindow: {
+    type: Number,
+    default: 60,
+  },
+  /** 当前用户是否有实时档权益（max/ultra 订阅且未过期）。判定在服务端 RPC，前端只消费。 */
+  followMailCanRealtime: {
+    type: Boolean,
+    default: false,
+  },
+  /** 投递方式：false = 及时（首条即发），true = 聚合摘要（窗口结束发一封全的，可能有延迟）。 */
+  followMailDigest: {
+    type: Boolean,
+    default: false,
+  },
+  /**
    * 横屏两栏（2026-10-26）：宿主判定「横屏且够宽」才置 true。
    * 断点判断只放在 UserSpaceMain 一处（它同时负责把左栏切到缩小态），
    * 本组件只认结果 —— 组件内不再写第二份 matchMedia。
@@ -921,6 +1049,10 @@ const emit = defineEmits([
   'toggle-hide-follow-data',
   /** 2026-10-29：关注的人邮件通知开关（真源 profiles.follow_mail_enabled，读写留在宿主） */
   'toggle-follow-mail',
+  /** 2026-10-29：选择去重窗口（15 = 实时 Max+，60 = 标准）。权益校验在服务端 RPC。 */
+  'choose-mail-window',
+  /** 2026-10-29：选择投递方式（false = 及时，true = 聚合摘要）。无权益门槛。 */
+  'choose-mail-digest',
 ]);
 
 /* ---------- 身份卡（2026-10-26 Apple 账户页形态） ----------
@@ -979,6 +1111,12 @@ const panelRootRef = ref(null);
    钻取后首页只有 5 个分类，目标一眼可见。
    状态空串 = 分类列表；非空 = 正在看那个分类。双栏下不使用本状态。 */
 const singlePaneSection = ref('');
+/**
+ * 钻取方向（2026-10-29 第二版）：进入 = forward（新内容从右滑入），
+ * 返回 = back（从左滑回）。iOS push/pop 的方向记忆 —— 没有方向感的淡入
+ * 用户读不出「我是在前进还是后退」，这也是第一版动画显得不够优雅的主因。
+ */
+const paneDirection = ref('forward');
 const isMenuView = computed(() => !props.twoPane && !singlePaneSection.value);
 
 /** 分类列表里不重复出现「账户」—— 顶部那条账户行就是它 */
@@ -1003,17 +1141,73 @@ const sectionDesc = (id) => SECTION_DESC[id] || '';
 const sectionIconClass = (id) => SECTION_ICON_CLASS[id] || 'is-gray';
 const sectionLabel = (id) => SETTINGS_SECTIONS.find((item) => item.id === id)?.label || '';
 
-const enterSection = (id) => {
-  singlePaneSection.value = id;
-  // 同步 activeSection：双栏高亮、搜索结果归属都读它，两边口径不能分叉
-  activeSection.value = id;
+/* 切分类 / 返回列表时把滚动位置归零。
+   不重置的话，从列表底部点进一组会停在半空 —— 这是「点进去很突兀」的一半原因
+   （另一半是没有过渡动效，见 style 段的 gsPaneIn）。 */
+const resetPaneScroll = () => {
   requestAnimationFrame(() => {
-    panelRootRef.value?.scrollIntoView?.({ block: 'start', behavior: 'auto' });
+    const root = panelRootRef.value;
+    if (!root) return;
+    // 滚动容器是宿主的 .tab-page（不是 window），所以优先找它
+    const scroller = root.closest('.tab-page');
+    if (scroller && typeof scroller.scrollTo === 'function') {
+      scroller.scrollTo({ top: 0, behavior: 'auto' });
+      return;
+    }
+    root.scrollIntoView?.({ block: 'start', behavior: 'auto' });
   });
 };
 
+const enterSection = (id) => {
+  paneDirection.value = 'forward';
+  singlePaneSection.value = id;
+  // 同步 activeSection：双栏高亮、搜索结果归属都读它，两边口径不能分叉
+  activeSection.value = id;
+  resetPaneScroll();
+};
+
 const exitSection = () => {
+  paneDirection.value = 'back';
   singlePaneSection.value = '';
+  resetPaneScroll();
+};
+
+/* ---------- 邮件通知提醒频率（2026-10-29） ----------
+   15 = 实时（同一人 15 分钟内合并成一封，Max+ Only 订阅权益），60 = 标准（1 小时）。
+   选项点击只 emit，权益校验在服务端 RPC（boh_set_follow_mail_window），
+   无权益时宿主会弹订阅引导 —— 面板不自己判权益（user_subscriptions 不归它管）。 */
+const MAIL_WINDOW_OPTIONS = [
+  { value: 15, label: '实时提醒', desc: '15 分钟内的动作合并成一封', maxOnly: true },
+  { value: 60, label: '标准提醒', desc: '1 小时内的动作合并成一封', maxOnly: false },
+];
+const mailWindowLabel = computed(() =>
+  props.followMailWindow === 15 ? '15 分钟' : '1 小时',
+);
+
+/* 投递方式（2026-10-29 第二轮）：及时 = 首条即发（同窗后续丢弃），
+   聚合 = 窗口结束发一封全摘要（可能有窗口长度的延迟）。无权益门槛。 */
+const MAIL_DIGEST_OPTIONS = [
+  { value: false, label: '及时通知', desc: '首条动作立刻发送，其余动作不重复提醒' },
+  { value: true, label: '聚合摘要', desc: '窗口内全部动作合并成一封，可能有延迟' },
+];
+const mailDigestLabel = computed(() => (props.followMailDigest ? '聚合摘要' : '及时通知'));
+const mailExpandedGroup = ref('');
+const toggleMailExpanded = (group) => {
+  mailExpandedGroup.value = mailExpandedGroup.value === group ? '' : group;
+};
+
+/* 竖屏钻取：标题 = 分类名；页头的返回按钮隐藏（两处返回会重叠），
+   返回职责完全交给悬浮钮（.gs-floating-back）—— 用户定稿「不加横条、没背景色、
+   固定在屏幕」。 */
+const isDrilldown = computed(() => !props.twoPane && Boolean(singlePaneSection.value));
+const headerTitle = computed(() => (isDrilldown.value ? sectionLabel(singlePaneSection.value) : '设置'));
+const headerShowBack = computed(() => props.showBack && !isDrilldown.value);
+const handleHeaderBack = () => {
+  if (isDrilldown.value) {
+    exitSection();
+    return;
+  }
+  emit('back');
 };
 
 /** 双栏 ↔ 单栏切换时清掉钻取态，否则窗口变宽后残留一个看不见的「当前分类」 */
@@ -1046,8 +1240,13 @@ const inlineBackLabel = computed(() => {
  * 两栏下切到「外观与浏览」等分类时必须一起消失（对齐 macOS 系统设置：账户页才有大头像区）。
  * 单栏（竖屏 / 窄窗）本来就没有分类概念、8 组全量展开，身份卡按 iOS 设置的做法待在列表最前，
  * 此时恒显示；搜索态另由模板的 isSearching 收掉。
+ *
+ * 2026-10-29 去掉 `!twoPane ||`：那是「单栏平铺」时代的逻辑 —— 所有分组挤在一页，
+ * 身份卡自然该在顶部。现在单栏是钻取式（分类列表 → 点进去只看一组），
+ * 身份卡属于「账户」这一组的**内容**，钻到通知 / 隐私里还带着它就成了每个子分页
+ * 都顶着一头像昵称 —— 正是用户报的那种「每个子分页都出现」。
  */
-const showIdentityCard = computed(() => !props.twoPane || activeSection.value === 'account');
+const showIdentityCard = computed(() => activeSection.value === 'account');
 
 /** 切分类后回到顶部 —— 滚动容器是宿主的 .tab-page（不是 window），取最近的祖先 */
 const selectSection = (id) => {
@@ -1377,6 +1576,39 @@ const runEntry = (entry) => {
   padding-top: var(--userspace-nav-h, 78px);
 }
 
+/* 竖屏钻取的悬浮返回钮（2026-10-29，用户定稿） ----------
+   「不加横条、没有背景色、固定在屏幕上（fixed）」—— 不随内容滚动。
+   与被放弃的两版的差别：
+     · 吸顶横条（不透明底 + 发丝线）：视觉太重，整条压在内容上
+     · 半透明渐变淡出（2026-10-01 被砍）：滚过去的行没淡干净，露白条
+   现在：什么都不带，就是「‹ 设置」两个字浮在那里。
+   ⚠️ fixed 相对**视口**：导航岛也是视口内的 fixed 浮层，top 必须用 --userspace-nav-h
+      才能落在岛下方，写小了会撞岛。
+   ⚠️ 钻取时页头的返回按钮已隐藏（headerShowBack=false），否则两处返回重叠。
+   ⚠️ 无背景 = 滚动到图标密集区时文字会与内容重叠 —— 这是「不要背景」的必然代价，
+      先按用户要求做，观感不行再补一层极淡的毛玻璃圆片。 */
+.gs-floating-back {
+  position: fixed;
+  top: calc(var(--userspace-nav-h, 78px) + env(safe-area-inset-top, 0px) + 12px);
+  left: 14px;
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 12px 6px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gs-floating-back:active {
+  opacity: 0.5;
+}
+
 /* ---------- 设置搜索 ---------- */
 .gs-search {
   position: relative;
@@ -1511,6 +1743,71 @@ const runEntry = (entry) => {
   display: flex;
   flex-direction: column;
   gap: 26px;
+}
+
+/* 单栏钻取动效（2026-10-29 第二版：方向化 + 错峰） ----------
+   第一版是无方向淡入，用户读不出「我是在前进还是后退」，所以显得不够优雅。
+   现在照 iOS push/pop 的方向记忆：
+     · 进入（forward）= 从右滑入 32px —— 新内容「来自你点的那一侧」
+     · 返回（back）   = 从左滑回 24px —— 幅度略小，返回比前进更轻
+   缓动用 iOS 导航曲线 cubic-bezier(0.32, 0.72, 0, 1)：先快后长尾，比 ease-out 从容。
+   多张卡片按 45ms/张错峰进场 —— 「依次浮现」比「一坨同时弹出来」优雅得多。
+   为什么仍是 CSS animation 而不是 <Transition>：分支是 v-if / v-else-if，切换时元素
+   本来就是新建的，animation 自动播放；Transition 必须包一层 div，会打断 .gs-main
+   的 flex gap（组间 26px 全靠它）。
+   ⚠️ 双栏切分类不会重播：那边是 v-show（isGroupVisible），元素没重建。 */
+.gs-main.is-direction-forward > section,
+.gs-main.is-direction-forward > .gs-identity {
+  animation: gsPaneForward 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.gs-main.is-direction-back > section,
+.gs-main.is-direction-back > .gs-identity {
+  animation: gsPaneBack 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/* 错峰：首张立即，其后每张 +45ms（下标从第 2 个子元素起算） */
+.gs-main.is-direction-forward > *:nth-child(2),
+.gs-main.is-direction-back > *:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.gs-main.is-direction-forward > *:nth-child(3),
+.gs-main.is-direction-back > *:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+@keyframes gsPaneForward {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes gsPaneBack {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-main.is-direction-forward > section,
+  .gs-main.is-direction-forward > .gs-identity,
+  .gs-main.is-direction-back > section,
+  .gs-main.is-direction-back > .gs-identity {
+    animation: none;
+  }
 }
 
 /* ---------- 右栏子页返回条（2026-10-26）
