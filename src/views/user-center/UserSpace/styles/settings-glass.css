@@ -141,48 +141,102 @@
   background: transparent;
 }
 
-/* ---------- 图标 ---------- */
+/* ---------- 图标（2026-10-29：去色块，只留线条） ----------
+   原设计是 30×30 圆角矩形 + 135° 渐变底 + 白色图标（iOS 设置风格）。
+   改成纯线条后：**没有底、没有圆角**，图标本身着色 —— 视觉噪音少一半，
+   行内文字成为唯一焦点。
+
+   ⚠️ 颜色类（is-blue / is-red …）全部保留，语义不变，只是从 background 换成 color：
+      · 危险项（注销账号 / 退出登录）靠 is-red 仍然可辨，别为了「统一灰」把它删了
+      · 8 个色值都取自原渐变的**浅底可读端**（原来靠白字压在深底上，现在反过来了）
+   ⚠️ 容器仍保持 30px（--gs-icon-size）不变：行高、左对齐、与文字的基线关系全部沿用，
+      只把 svg 从 16 放大到 18 让线条更饱满。改容器尺寸会波及 5 个设置页的行高。
+   ⚠️ stroke-width 用 CSS 覆盖模板里的 :stroke-width="2"（CSS 优先于 SVG presentation
+      attribute），所以 23 处模板不用动。1.75 在 18px 下比 2 更细腻。 */
 .gs-icon {
   flex-shrink: 0;
   width: var(--gs-icon-size, 30px);
   height: var(--gs-icon-size, 30px);
-  border-radius: 8px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--gs-icon-tint, #6e6e73);
+}
+
+.gs-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.75;
 }
 
 .gs-icon.is-yellow {
-  background: linear-gradient(135deg, #ffd60a, #ff9f0a);
+  color: #c77700;
 }
 
 .gs-icon.is-purple {
-  background: linear-gradient(135deg, #bf5af2, #8e44ec);
+  color: #a544d6;
 }
 
 .gs-icon.is-blue {
-  background: linear-gradient(135deg, #0a84ff, #0066cc);
+  color: #0071e3;
 }
 
 .gs-icon.is-teal {
-  background: linear-gradient(135deg, #64d2ff, #30b0c7);
+  color: #1d9ba8;
 }
 
 .gs-icon.is-indigo {
-  background: linear-gradient(135deg, #5e5ce6, #3634a3);
+  color: #5e5ce6;
 }
 
 .gs-icon.is-red {
-  background: linear-gradient(135deg, #ff453a, #d70015);
+  color: #e0301e;
 }
 
 .gs-icon.is-green {
-  background: linear-gradient(135deg, #30d158, #1a9e45);
+  color: #1a9e45;
 }
 
 .gs-icon.is-gray {
-  background: linear-gradient(135deg, #8e8e93, #5c5c62);
+  color: #6e6e73;
+}
+
+/* 暗色：线条直接压在深底上，必须提亮。取原渐变的亮端（与上面亮色正好相反），
+   indigo / blue 不提亮会在 #1c1c1e 上糊成一团。 */
+[data-theme='dark'] .gs-icon {
+  color: #98989d;
+}
+
+[data-theme='dark'] .gs-icon.is-yellow {
+  color: #ffd60a;
+}
+
+[data-theme='dark'] .gs-icon.is-purple {
+  color: #bf5af2;
+}
+
+[data-theme='dark'] .gs-icon.is-blue {
+  color: #2997ff;
+}
+
+[data-theme='dark'] .gs-icon.is-teal {
+  color: #64d2ff;
+}
+
+[data-theme='dark'] .gs-icon.is-indigo {
+  color: #7d7aff;
+}
+
+[data-theme='dark'] .gs-icon.is-red {
+  color: #ff6961;
+}
+
+[data-theme='dark'] .gs-icon.is-green {
+  color: #30d158;
+}
+
+[data-theme='dark'] .gs-icon.is-gray {
+  color: #98989d;
 }
 
 /* ---------- 文本 ---------- */

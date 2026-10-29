@@ -282,6 +282,7 @@
             :current-theme="currentTheme"
             :hide-online-status="hideOnlineStatus"
             :hide-follow-data="hideFollowData"
+            :follow-mail-enabled="followMailEnabled"
             :two-pane="isSettingsTwoPane"
             :avatar-url="avatarUrl"
             :username="userInfo?.username || ''"
@@ -309,6 +310,7 @@
             @logout="handleLogout"
             @toggle-hide-online="toggleHideOnlineStatus"
             @toggle-hide-follow-data="toggleHideFollowData"
+            @toggle-follow-mail="toggleFollowMailSetting"
           >
             <!-- 个人信息：右栏内就地展开（不再整页替换，所以不套 v-memo —— 头像缩略图、
                  昵称、简介都要实时跟 props 走） -->
@@ -586,6 +588,12 @@ import {
 } from '@/utils/api/profile-api.js';
 import FollowListModal from '@/components/FollowListModal.vue';
 import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
+// 关注的人邮件通知（2026-10-29）：开关真源是 profiles.follow_mail_enabled。
+// 不走 authStore.updateUserProfile —— 那是字段白名单式的，为一个开关去改 store 不划算。
+import {
+  getFollowMailEnabled,
+  toggleFollowMail as saveFollowMailSetting,
+} from '@/utils/api/mail-notify-api.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
 import { getMyUserSpaceSummary } from '@/utils/api/user-space-api.js';
 import { logger } from '@/utils/logger.js';
@@ -2645,6 +2653,9 @@ onDeactivated(() => {
 
 onActivated(() => {
   document.body.classList.toggle('is-rail-compact', isSettingsTwoPane.value);
+  // 邮件开关的真源在服务端（可能被另一台设备改过），每次激活重读一次；
+  // 只查一列、走一次轻量请求，代价远小于「显示成旧状态」。
+  loadFollowMailEnabled();
 });
 
 /**
@@ -2698,6 +2709,42 @@ const toggleHideFollowData = async () => {
   });
   if (!success) {
     showTopNavStatus({ title: '更新失败，请重试', icon: 'warning' });
+  }
+};
+
+/* ── 关注的人邮件通知（2026-10-29）────────────────────────────────
+   与 hide-online / hide-follow 的区别：那两个走 authStore.updateUserProfile，
+   而它是**字段白名单式**的（逐个 if 检查），里面没有 follow_mail_enabled。
+   为一个开关去扩 store 的映射面不划算，且邮件偏好将来会长（聚合频率、免打扰时段），
+   所以走独立 API 层（mail-notify-api.js），状态存本地 ref。
+
+   成功不弹提示：开关自身的视觉变化就是反馈，多一个 toast 反而吵。
+   失败必须弹 —— 否则又是「点了没反应」那种报障。 */
+const followMailEnabled = ref(false);
+
+const loadFollowMailEnabled = async () => {
+  const uid = userInfo.value?.id;
+  if (!uid) return;
+  try {
+    const { enabled } = await getFollowMailEnabled(uid);
+    followMailEnabled.value = enabled;
+  } catch (_error) {
+    // 读失败保持「关」（与数据库默认值一致，是安全的一侧）
+  }
+};
+
+const toggleFollowMailSetting = async () => {
+  const uid = userInfo.value?.id;
+  if (!uid) {
+    showTopNavStatus({ title: '请先登录', icon: 'warning' });
+    return;
+  }
+  const next = !followMailEnabled.value;
+  const result = await saveFollowMailSetting(uid, next);
+  if (result.success) {
+    followMailEnabled.value = next;
+  } else {
+    showTopNavStatus({ title: result.message || '更新失败，请重试', icon: 'warning' });
   }
 };
 

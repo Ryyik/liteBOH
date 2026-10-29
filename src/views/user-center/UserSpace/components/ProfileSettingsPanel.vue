@@ -440,6 +440,54 @@
               </div>
             </section>
 
+            <!-- 通知（2026-10-29 新增）
+                 原状：通知相关全藏在「Pushplus 推送」这个子页里，主页只有一行叫
+                 「Pushplus 推送」的入口 —— 用户想开「关注的人邮件通知」，
+                 看名字根本不会想到点它。这是「找不到」的真实原因，不是布局问题。
+                 现在：最高频的邮件开关直接摆到主页（点整行或点开关都行），
+                 其余渠道（应用内 / 微信）留在子页，入口改名「通知设置」。 -->
+            <section v-show="isGroupVisible('notify')" class="gs-group">
+              <div class="gs-group-title">通知</div>
+              <div class="gs-rows">
+                <button type="button" class="gs-row" @click="$emit('toggle-follow-mail')">
+                  <span class="gs-icon" :class="followMailEnabled ? 'is-green' : 'is-blue'">
+                    <Mail :size="16" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="gs-text">
+                    <span class="gs-label">关注的人邮件通知</span>
+                    <span class="gs-desc"
+                      >关注的人发帖或回复你时，发邮件到你绑定的邮箱（同一人 30 分钟一封）</span
+                    >
+                  </span>
+                  <span class="gs-side">
+                    <SettingToggle
+                      :model-value="followMailEnabled"
+                      label="关注的人邮件通知"
+                      @update:model-value="$emit('toggle-follow-mail')"
+                    />
+                  </span>
+                </button>
+                <button type="button" class="gs-row" @click="$emit('open-pushplus')">
+                  <span class="gs-icon is-blue">
+                    <Bell :size="16" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="gs-text">
+                    <span class="gs-label">通知设置</span>
+                    <span class="gs-desc">应用内通知、微信推送，以及各渠道详细配置</span>
+                  </span>
+                  <span class="gs-side">
+                    <span class="gs-value">{{ pushplusStatusText }}</span>
+                    <ChevronRight
+                      class="gs-chevron"
+                      :size="16"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
+              </div>
+            </section>
+
             <!-- 内容与存储（2026-10-26 三改）
                原「我的内容」+ 单行分组「Cloud+」合并：资产花钱、摄影集成册、Cloud+ 存东西，
                三行说的是同一件事 —— 你名下有什么。单行 Cloud+ 独占一个目录项不划算。
@@ -502,10 +550,10 @@
               </div>
             </section>
 
-            <!-- 通用（2026-10-26 三改）
+            <!-- 通用（2026-10-26 三改；2026-10-29 推送迁出）
                原「外观与浏览」（2 行）+「通知」（1 行）各自占一个目录项，左栏 7 项里三项是短组。
-               主题与开场画 = App 长什么样；推送与版本 = App 怎么提醒你、多新。合成 4 行一组，
-               左栏目录从 7 项收到 4 项。 -->
+               2026-10-29 起「Pushplus 推送」升级成独立的「通知」分类（入口改名「通知设置」），
+               本组只剩「App 长什么样 + 多新」：主题 / 开场画 / 版本。 -->
             <section v-show="isGroupVisible('general')" class="gs-group">
               <div class="gs-group-title">通用</div>
               <div class="gs-rows">
@@ -545,24 +593,6 @@
                     <span class="gs-desc">清除「已看过」标记，回到首屏再看一次</span>
                   </span>
                   <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('open-pushplus')">
-                  <span class="gs-icon is-blue">
-                    <Bell :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">Pushplus 推送</span>
-                    <span class="gs-desc">离线时通过微信接收消息</span>
-                  </span>
-                  <span class="gs-side">
-                    <span class="gs-value">{{ pushplusStatusText }}</span>
                     <ChevronRight
                       class="gs-chevron"
                       :size="16"
@@ -732,6 +762,16 @@ const props = defineProps({
     default: false,
   },
   /**
+   * 「关注的人邮件通知」开关状态（2026-10-29）。
+   * 真源是 profiles.follow_mail_enabled，读写都在宿主（UserSpaceMain）——
+   * 本组件是纯展示 + 转发 emit，不自己发请求，与 hideOnlineStatus 同一模式。
+   * 默认 false：数据库默认也是 false，未登录 / 读失败时显示「关」是安全的一侧。
+   */
+  followMailEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  /**
    * 横屏两栏（2026-10-26）：宿主判定「横屏且够宽」才置 true。
    * 断点判断只放在 UserSpaceMain 一处（它同时负责把左栏切到缩小态），
    * 本组件只认结果 —— 组件内不再写第二份 matchMedia。
@@ -809,6 +849,8 @@ const emit = defineEmits([
   'logout',
   'toggle-hide-online',
   'toggle-hide-follow-data',
+  /** 2026-10-29：关注的人邮件通知开关（真源 profiles.follow_mail_enabled，读写留在宿主） */
+  'toggle-follow-mail',
 ]);
 
 /* ---------- 身份卡（2026-10-26 Apple 账户页形态） ----------
@@ -849,6 +891,10 @@ onMounted(async () => {
         排序代替再加一层目录。 */
 const SETTINGS_SECTIONS = [
   { id: 'account', label: '账户', icon: Mail },
+  /* 2026-10-29 新增：通知从「通用」里独立出来。
+     原先通知相关只有一行叫「Pushplus 推送」，用户找「邮件通知」不会想到点它 ——
+     分类目录里给出「通知」这一席，是让用户「按目的找」而不是「按名字猜」。 */
+  { id: 'notify', label: '通知', icon: Bell },
   { id: 'privacy', label: '账户与隐私', icon: Shield },
   { id: 'content', label: '内容与存储', icon: Wallet },
   { id: 'general', label: '通用', icon: Info },
@@ -1036,15 +1082,29 @@ const SETTINGS_ENTRIES = [
     run: () => emit('open-security', 'passkey'),
   },
   {
-    id: 'pushplus',
-    group: '通用',
-    label: 'Pushplus 推送',
-    desc: '离线时通过微信接收消息',
-    keywords: '推送 通知 微信 pushplus 提醒 离线',
+    /* 2026-10-29：原 id='pushplus' / label='Pushplus 推送' → 改成分组「通知」下的「通知设置」。
+       keywords 里刻意塞满同义词：用户搜「通知」「推送」「提醒」「微信」「邮件」都该命中，
+       而不是只有记住「Pushplus」这个名字的人找得到。 */
+    id: 'notify-settings',
+    group: '通知',
+    label: '通知设置',
+    desc: '应用内通知、微信推送，以及各渠道详细配置',
+    keywords: '通知 推送 提醒 消息 微信 pushplus 应用内 浏览器 离线 邮件 设置 notify push',
     icon: Bell,
     iconClass: 'is-blue',
     value: () => props.pushplusStatusText,
     run: () => emit('open-pushplus'),
+  },
+  {
+    id: 'follow-mail',
+    group: '通知',
+    label: '关注的人邮件通知',
+    desc: '关注的人发帖或回复你时，发邮件到你绑定的邮箱（同一人 30 分钟一封）',
+    keywords: '邮件 邮箱 通知 提醒 关注 特别关注 发帖 回复 mail email notify follow',
+    icon: Mail,
+    iconClass: 'is-green',
+    toggle: true,
+    run: () => emit('toggle-follow-mail'),
   },
   {
     id: 'hide-online',
@@ -1155,8 +1215,13 @@ const entryIconClass = (entry) => {
   return entry.iconClass;
 };
 
-const entryToggleValue = (entry) =>
-  entry.id === 'hide-online' ? props.hideOnlineStatus : props.hideFollowData;
+/* 搜索结果的开关取哪个值 —— 新增 toggle 类条目时**必须**在这里补一行，
+   否则会静默落到 hideFollowData 上（搜「邮件」看到的却是「隐藏关注数据」的开关状态）。 */
+const entryToggleValue = (entry) => {
+  if (entry.id === 'hide-online') return props.hideOnlineStatus;
+  if (entry.id === 'follow-mail') return props.followMailEnabled;
+  return props.hideFollowData;
+};
 
 /* 执行后清空搜索：复制邮箱这类动作留在本页，清空即可回到原列表；
    跳转类动作清空与否用户都看不到。 */
@@ -1285,6 +1350,22 @@ const runEntry = (entry) => {
 
 .gs-aside {
   min-width: 0;
+}
+
+/* 单栏（竖屏 / 窄屏）搜索框吸顶（2026-10-29）
+   原状 sticky 只写在 .is-two-pane .gs-aside 上 —— 竖屏时搜索框在页面最顶上，
+   滚过就再也找不到，15 个条目只能硬滚。这是「找不到」在竖屏下的那一半原因。
+   ⚠️ 吸顶必须自带不透明底 + 模糊：否则下面的卡片会从搜索框底下透出来，看着像重影。
+   ⚠️ top 用 --userspace-nav-h 而不是 0：滚动容器是宿主的 .tab-page，
+      顶部还有导航岛，写 0 会被压在岛下面（与双栏那条同一口径）。 */
+.glass-settings:not(.is-two-pane) .gs-aside {
+  position: sticky;
+  top: calc(var(--userspace-nav-h, 78px) + 8px);
+  z-index: 4;
+  padding: 8px 0 10px;
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.72));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 /* 左栏吸顶：设置页整体在宿主的 .tab-page 里滚动（不是 window），
