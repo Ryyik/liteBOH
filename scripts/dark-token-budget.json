@@ -1,5 +1,5 @@
 {
-  "total": 2462,
+  "total": 2471,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
@@ -21,10 +21,10 @@
     "src/components/UnifiedNavbar/ShareIsland.vue": 42,
     "src/styles/themes/user-center-dark.css": 42,
     "src/views/CommunityLotteries/style.scoped.css": 38,
+    "src/views/user-center/UserSpace/styles/settings-glass.css": 38,
     "src/views/CommunityLotteries/PityIslandCard.vue": 37,
     "src/components/AdminContentPublishModal.vue": 34,
     "src/views/AlertStyleEditor/style.scoped.css": 32,
-    "src/views/user-center/UserSpace/styles/settings-glass.css": 29,
     "src/views/user-center/UserSpace/components/bottom-nav.css": 27,
     "src/components/UnifiedNavbar/ContentDetailIsland.vue": 25,
     "src/styles/common/tokens.css": 25,
@@ -88,5 +88,5 @@
     "src/views/PhotoAlbums/index.vue": 1,
     "src/views/user-center/UserSpace/styles/profile-panels.css": 1
   },
-  "updatedAt": "2026-10-28"
+  "updatedAt": "2026-10-29"
 }
