@@ -14,6 +14,7 @@ import {
   FORUM_CLOUDINARY_FOLDER,
   FORUM_IMAGE_MAX_SIZE_BYTES,
   FORUM_IMAGE_MAX_SIZE_MB,
+  PENDING_REVIEW_STATUS,
   normalizeForumImage,
   normalizeForumImageUploadError,
   normalizeForumImages,
@@ -108,7 +109,11 @@ export async function moderateForumImages(files) {
 export async function uploadApprovedForumImage(file, moderation = {}, options = {}) {
   try {
     validateForumImageFile(file);
-    if (moderation.status !== APPROVED_STATUS) {
+    // pending_review：云端不可达 + 本地模型未就绪 ⇒ 放行，但要求后台复审。
+    // 落库的 moderation_status 仍是 approved（否则图片立刻不可见，与「放行后立即可见」相反），
+    // 待复审信息由 needsRecheck 带出，发帖成功后写 forum_post_images.recheck_status。
+    const needsRecheck = moderation.status === PENDING_REVIEW_STATUS;
+    if (moderation.status !== APPROVED_STATUS && !needsRecheck) {
       throw new Error(moderation.reason || '图片未通过安全检测');
     }
 
@@ -133,6 +138,7 @@ export async function uploadApprovedForumImage(file, moderation = {}, options = 
         moderationSource: moderation.source || 'client_nsfwjs',
         moderationScore: moderation.score || 0,
         moderationReason: moderation.reason || 'NSFWJS 预筛通过',
+        needsRecheck,
       }),
       error: null,
       moderation,

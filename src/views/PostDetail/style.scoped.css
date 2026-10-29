@@ -434,6 +434,15 @@
   font-weight: 600;
 }
 
+/* 「已编辑 · 时间」（2026-10-29）：跟在发帖时间后面，字号/字重都要弱一档，
+   否则两段时间看起来同等重要，读者会分不清哪个是发布时间。 */
+.post-edited-tag {
+  font-size: 12.5px;
+  color: var(--detail-muted);
+  font-weight: 500;
+  opacity: 0.78;
+}
+
 .post-menu-wrap {
   position: relative;
   flex: 0 0 auto;
@@ -1582,6 +1591,20 @@
   font-weight: 600;
   line-height: 1.2;
   color: var(--detail-muted, #687386);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 窄屏身份条上的「已编辑」：空间极窄（一行塞名字+时间+编辑标记），
+   必须允许收缩省略，否则会把作者名挤掉。 */
+.pd-author-bar-edited {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--detail-muted, #687386);
+  opacity: 0.78;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

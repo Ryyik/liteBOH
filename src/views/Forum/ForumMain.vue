@@ -71,6 +71,9 @@ import {
   deleteForumPostDraft,
   moderateForumImage,
   preloadForumImageModeration,
+  markForumImagesPendingRecheck,
+  enqueueForumImageRecheck,
+  PENDING_REVIEW_STATUS,
   getForumPostImages,
   fetchQuotedPostsByIds,
   matchesForumContentKind,
@@ -1149,6 +1152,18 @@ const runPublishQueue = async () => {
         replaceOptimisticWithReal(next.id, realPost);
         // Phase 2（plans/023）：图片自动备份到 Cloud+ 底账（best-effort，不阻塞发帖）
         void backupPostImagesToCloud(realPost, finalImages, next);
+        // 两级审核都没能裁决的图：标记待复审 + 入队（服务端约 6 分钟内给裁决）。
+        // best-effort —— 此刻图已经可见，这里失败只意味着「这一轮没被复审」，
+        // 不该让用户看到发布失败。
+        void (async () => {
+          const recheckPublicIds = (finalImages || [])
+            .filter((img) => img?.needsRecheck)
+            .map((img) => String(img?.publicId || '').trim())
+            .filter(Boolean);
+          if (recheckPublicIds.length === 0) return;
+          await markForumImagesPendingRecheck(realPost.id, recheckPublicIds);
+          await enqueueForumImageRecheck(realPost.id, 30);
+        })().catch((err) => logger.warn('forum', '图片复审入队失败:', err));
         // 经验与奖励
         void addExperience(supabase, next.authorId, XP_REWARDS.POST).catch((err) =>
           logger.error('forum', '经验值增加失败:', err),
@@ -2301,7 +2316,10 @@ const scheduleDraftImagePipeline = (img, index, total) => {
       try {
         entry.file = await compressionPromise;
         entry.moderation = await moderateForumImage(entry.file);
-        if (entry.moderation?.status !== 'approved') {
+        // pending_review：云端不可达 + 本地模型未就绪 ⇒ 放行并转后台复审（2026-10-29）。
+        // 只有明确的 rejected 才拦人。
+        const moderationStatus = entry.moderation?.status;
+        if (moderationStatus !== 'approved' && moderationStatus !== PENDING_REVIEW_STATUS) {
           const err = new Error(entry.moderation?.reason || '图片未通过安全检测');
           err.code = 'BETA5_IMAGE_PIPELINE_FAILED';
           throw err;

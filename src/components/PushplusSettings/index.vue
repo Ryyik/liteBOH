@@ -33,11 +33,17 @@
               </span>
               <span class="gs-text">
                 <span class="gs-label">{{ pushEnabled ? '通知已开启' : '开启浏览器通知' }}</span>
-                <span class="gs-desc">{{ pushEnabled ? '有新消息时在设备上提醒你' : pushHint }}</span>
+                <span class="gs-desc">{{
+                  pushEnabled ? '有新消息时在设备上提醒你' : pushHint
+                }}</span>
               </span>
               <span class="gs-side">
-                <SettingToggle :model-value="pushEnabled" :disabled="isPushBusy || !pushStatus.configured"
-                  label="应用内通知" @update:model-value="handlePushToggle" />
+                <SettingToggle
+                  :model-value="pushEnabled"
+                  :disabled="isPushBusy || !pushStatus.configured"
+                  label="应用内通知"
+                  @update:model-value="handlePushToggle"
+                />
               </span>
             </div>
 
@@ -73,11 +79,19 @@
             </span>
             <span class="gs-text">
               <span class="gs-label">关注的人邮件通知</span>
-              <span class="gs-desc">{{ mailEnabled ? '关注的人发帖、回复你时，发邮件到你绑定的邮箱' : '开启后，关注的人发帖和回复你都会发邮件提醒' }}</span>
+              <span class="gs-desc">{{
+                mailEnabled
+                  ? '关注的人发帖、回复你时，发邮件到你绑定的邮箱'
+                  : '开启后，关注的人发帖和回复你都会发邮件提醒'
+              }}</span>
             </span>
             <span class="gs-side">
-              <SettingToggle :model-value="mailEnabled" :disabled="isMailBusy || !mailLoaded"
-                label="关注的人邮件通知" @update:model-value="handleMailToggle" />
+              <SettingToggle
+                :model-value="mailEnabled"
+                :disabled="isMailBusy || !mailLoaded"
+                label="关注的人邮件通知"
+                @update:model-value="handleMailToggle"
+              />
             </span>
           </div>
 
@@ -88,6 +102,34 @@
             <span class="gs-text">
               <span class="gs-label">减少打扰</span>
               <span class="gs-desc">同一个人 30 分钟内只提醒一次；邮件带正文摘要和配图</span>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 审核结果邮件：只在「图片被复审撤下」时发，与上面的关注邮件互相独立 -->
+      <section class="gs-group">
+        <div class="gs-group-title">审核通知</div>
+        <div class="gs-rows">
+          <div class="gs-row">
+            <span class="gs-icon" :class="moderationMailEnabled ? 'is-green' : 'is-blue'">
+              <Shield :size="16" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">审核结果邮件</span>
+              <span class="gs-desc">{{
+                moderationMailEnabled
+                  ? '图片未通过复审被移除时，发邮件到你的绑定邮箱'
+                  : '开启后，内容未通过复审会发邮件提醒（不常发生）'
+              }}</span>
+            </span>
+            <span class="gs-side">
+              <SettingToggle
+                :model-value="moderationMailEnabled"
+                :disabled="isModerationMailBusy || !moderationMailLoaded"
+                label="审核结果邮件"
+                @update:model-value="handleModerationMailToggle"
+              />
             </span>
           </div>
         </div>
@@ -114,11 +156,17 @@
             </span>
             <span class="gs-text">
               <span class="gs-label">{{ enabled ? '推送服务已启用' : '推送服务已暂停' }}</span>
-              <span class="gs-desc">{{ enabled ? '离线时将通过微信接收消息' : '已暂停离线推送功能' }}</span>
+              <span class="gs-desc">{{
+                enabled ? '离线时将通过微信接收消息' : '已暂停离线推送功能'
+              }}</span>
             </span>
             <span class="gs-side">
-              <SettingToggle :model-value="enabled" :disabled="isLoading" label="离线消息推送"
-                @update:model-value="handleToggleUpdate" />
+              <SettingToggle
+                :model-value="enabled"
+                :disabled="isLoading"
+                label="离线消息推送"
+                @update:model-value="handleToggleUpdate"
+              />
             </span>
           </div>
         </div>
@@ -132,7 +180,8 @@
             <span class="gs-icon is-green">
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path
-                  d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.27-.027-.407-.03zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.969-.982z" />
+                  d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.27-.027-.407-.03zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.969-.982z"
+                />
               </svg>
             </span>
             <span class="gs-text">
@@ -149,8 +198,15 @@
 
           <div class="pp-form">
             <div class="pp-form-head">
-              <label class="gs-field-label" for="pp-token-input">{{ hasToken ? '当前 Token' : '手动输入 Token' }}</label>
-              <a href="http://www.pushplus.plus/push1.html" target="_blank" rel="noopener noreferrer" class="pp-help-link">
+              <label class="gs-field-label" for="pp-token-input">{{
+                hasToken ? '当前 Token' : '手动输入 Token'
+              }}</label>
+              <a
+                href="http://www.pushplus.plus/push1.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="pp-help-link"
+              >
                 <HelpCircle :size="14" :stroke-width="2" aria-hidden="true" />
                 {{ hasToken ? '如何获取？' : '查看教程' }}
               </a>
@@ -160,15 +216,32 @@
               <span class="gs-input-icon">
                 <Lock :size="15" :stroke-width="2" aria-hidden="true" />
               </span>
-              <input id="pp-token-input" v-model="tokenInput" type="text"
-                :placeholder="hasToken ? '••••••••••••••••' : '请输入你的 Pushplus Token'" class="gs-input"
-                :disabled="isLoading" autocomplete="off" spellcheck="false">
-              <button v-if="canUseClipboard && !hasToken" class="gs-input-action" :disabled="isLoading"
-                title="从剪贴板粘贴 Token" @click="pasteToken">
+              <input
+                id="pp-token-input"
+                v-model="tokenInput"
+                type="text"
+                :placeholder="hasToken ? '••••••••••••••••' : '请输入你的 Pushplus Token'"
+                class="gs-input"
+                :disabled="isLoading"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <button
+                v-if="canUseClipboard && !hasToken"
+                class="gs-input-action"
+                :disabled="isLoading"
+                title="从剪贴板粘贴 Token"
+                @click="pasteToken"
+              >
                 粘贴
               </button>
-              <button v-if="hasToken" class="gs-input-action is-clear" :disabled="isLoading" title="清除配置"
-                @click="clearToken">
+              <button
+                v-if="hasToken"
+                class="gs-input-action is-clear"
+                :disabled="isLoading"
+                title="清除配置"
+                @click="clearToken"
+              >
                 清除
               </button>
             </div>
@@ -179,13 +252,21 @@
             </p>
 
             <div class="gs-actions">
-              <button class="gs-btn primary" :disabled="isLoading || !tokenInput.trim() || tokenInput.includes('****')"
-                @click="saveToken">
+              <button
+                class="gs-btn primary"
+                :disabled="isLoading || !tokenInput.trim() || tokenInput.includes('****')"
+                @click="saveToken"
+              >
                 <span v-if="isLoading" class="gs-spinner"></span>
                 <template v-else>{{ hasToken ? '更新 Token' : '保存并验证' }}</template>
               </button>
 
-              <button v-if="hasToken && enabled" class="gs-btn ghost" :disabled="isLoading" @click="testPush">
+              <button
+                v-if="hasToken && enabled"
+                class="gs-btn ghost"
+                :disabled="isLoading"
+                @click="testPush"
+              >
                 发送测试消息
               </button>
             </div>
@@ -213,8 +294,18 @@
         <section v-if="message" class="gs-group">
           <div class="pp-banner-wrap">
             <div class="gs-banner" :class="messageType">
-              <CheckCircle2 v-if="messageType === 'success'" :size="16" :stroke-width="2" aria-hidden="true" />
-              <AlertCircle v-else-if="messageType === 'error'" :size="16" :stroke-width="2" aria-hidden="true" />
+              <CheckCircle2
+                v-if="messageType === 'success'"
+                :size="16"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
+              <AlertCircle
+                v-else-if="messageType === 'error'"
+                :size="16"
+                :stroke-width="2"
+                aria-hidden="true"
+              />
               <Info v-else :size="16" :stroke-width="2" aria-hidden="true" />
               <span>{{ message }}</span>
             </div>
@@ -225,14 +316,29 @@
 
     <!-- 清除确认弹层 -->
     <transition name="pp-fade">
-      <div v-if="showClearConfirm" class="pp-confirm-overlay" @click.self="showClearConfirm = false">
+      <div
+        v-if="showClearConfirm"
+        class="pp-confirm-overlay"
+        @click.self="showClearConfirm = false"
+      >
         <div class="pp-confirm-card">
           <div class="pp-confirm-icon">!</div>
           <h4>清除 Pushplus 配置？</h4>
           <p>清除后将无法接收离线微信推送，可随时重新绑定 Token。</p>
           <div class="pp-confirm-actions">
-            <button type="button" class="gs-btn ghost pp-confirm-btn" @click="showClearConfirm = false">取消</button>
-            <button type="button" class="gs-btn danger pp-confirm-btn" :disabled="isLoading" @click="confirmClearToken">
+            <button
+              type="button"
+              class="gs-btn ghost pp-confirm-btn"
+              @click="showClearConfirm = false"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              class="gs-btn danger pp-confirm-btn"
+              :disabled="isLoading"
+              @click="confirmClearToken"
+            >
               {{ isLoading ? '清除中...' : '确认清除' }}
             </button>
           </div>
@@ -244,23 +350,41 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, markRaw } from 'vue';
-import { AlertCircle, Bell, BellOff, BellRing, CheckCircle2, Clock, HelpCircle, Heart, HeartHandshake, Inbox, Info, Lock, Mail, MessageCircle, Shield, Smartphone, Sparkles } from 'lucide-vue-next';
+import {
+  AlertCircle,
+  Bell,
+  BellOff,
+  BellRing,
+  CheckCircle2,
+  Clock,
+  HelpCircle,
+  Heart,
+  HeartHandshake,
+  Inbox,
+  Info,
+  Lock,
+  Mail,
+  MessageCircle,
+  Shield,
+  Smartphone,
+  Sparkles,
+} from 'lucide-vue-next';
 import SettingToggle from '@/views/user-center/UserSpace/components/SettingToggle.vue';
 import { useAuthStore } from '@/stores/auth';
 import {
   getPushplusSettings,
   updatePushplusToken,
   togglePushplusEnabled,
-  deletePushplusToken
+  deletePushplusToken,
 } from '@/utils/api/pushplus-api.js';
 import { sendPushplusMessage } from '@/utils/pushplus.js';
+import { getPushStatus, enablePush, disablePush, sendTestPush } from '@/utils/api/push-api.js';
 import {
-  getPushStatus,
-  enablePush,
-  disablePush,
-  sendTestPush
-} from '@/utils/api/push-api.js';
-import { getFollowMailEnabled, toggleFollowMail } from '@/utils/api/mail-notify-api.js';
+  getFollowMailEnabled,
+  getModerationMailEnabled,
+  toggleFollowMail,
+  toggleModerationMail,
+} from '@/utils/api/mail-notify-api.js';
 
 const authStore = useAuthStore();
 
@@ -268,7 +392,7 @@ const NOTIFY_TYPES = [
   { label: '帖子被点赞', icon: markRaw(Heart), tone: 'is-red' },
   { label: '收到新评论', icon: markRaw(MessageCircle), tone: 'is-blue' },
   { label: '收到新印象', icon: markRaw(Sparkles), tone: 'is-purple' },
-  { label: '收到站内互动通知', icon: markRaw(Inbox), tone: 'is-indigo' }
+  { label: '收到站内互动通知', icon: markRaw(Inbox), tone: 'is-indigo' },
 ];
 
 const tokenInput = ref('');
@@ -294,7 +418,7 @@ const pushStatus = ref({
   configured: false,
   permission: 'default',
   enabled: false,
-  endpoint: ''
+  endpoint: '',
 });
 const pushEnabled = computed(() => Boolean(pushStatus.value.enabled));
 
@@ -349,7 +473,10 @@ const testWebPush = async () => {
   isPushBusy.value = true;
   try {
     const result = await sendTestPush();
-    showMessage(result.ok ? '测试通知已发送，请查看设备通知' : (result.message || '发送失败'), result.ok ? 'success' : 'error');
+    showMessage(
+      result.ok ? '测试通知已发送，请查看设备通知' : result.message || '发送失败',
+      result.ok ? 'success' : 'error',
+    );
   } catch (error) {
     showMessage(error?.message || '发送失败', 'error');
   } finally {
@@ -395,6 +522,48 @@ const handleMailToggle = async (value) => {
   } finally {
     isMailBusy.value = false;
     await loadMailSetting();
+  }
+};
+
+// ---------- 审核结果邮件通知 ----------
+// 与上面的「关注的人邮件」是两个独立开关：一个是社交动态摘要，一个是
+// 「你的内容被处置了」的账号级通知。合并会让用户为了收处置通知而被迫收摘要。
+// 真源是 profiles.moderation_mail_enabled，服务端发信前重查，关掉立刻生效。
+const moderationMailEnabled = ref(false);
+const moderationMailLoaded = ref(false);
+const isModerationMailBusy = ref(false);
+
+const loadModerationMailSetting = async () => {
+  const userId = authStore.userInfo?.id;
+  if (!userId) {
+    moderationMailLoaded.value = true;
+    return;
+  }
+  try {
+    const { enabled: current } = await getModerationMailEnabled(userId);
+    moderationMailEnabled.value = current;
+  } catch (_error) {
+    // 读取失败不该影响设置页其它通道的显示
+  } finally {
+    moderationMailLoaded.value = true;
+  }
+};
+
+const handleModerationMailToggle = async (value) => {
+  if (isModerationMailBusy.value) return;
+  const userId = authStore.userInfo?.id;
+  if (!userId) {
+    showMessage('请先登录', 'error');
+    return;
+  }
+  isModerationMailBusy.value = true;
+  try {
+    const result = await toggleModerationMail(userId, value);
+    if (result.success) moderationMailEnabled.value = Boolean(value);
+    showMessage(result.message, result.success ? 'success' : 'error');
+  } finally {
+    isModerationMailBusy.value = false;
+    await loadModerationMailSetting();
   }
 };
 
@@ -553,7 +722,7 @@ const testPush = async () => {
       originalToken.value,
       '🔔 方块之家 - 测试消息',
       '<div style="padding: 20px; text-align: center;"><h3>✅ 测试成功！</h3><p>您的离线推送功能正常工作。</p></div>',
-      'html'
+      'html',
     );
 
     if (result.success) {
@@ -571,6 +740,7 @@ onMounted(() => {
   loadSettings();
   loadPushStatus();
   loadMailSetting();
+  loadModerationMailSetting();
 });
 
 onUnmounted(() => {
@@ -651,7 +821,9 @@ onUnmounted(() => {
   font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
 }
 
 .pp-follow-btn:hover {
@@ -738,7 +910,9 @@ onUnmounted(() => {
 /* ---------- 过渡 ---------- */
 .pp-fade-enter-active,
 .pp-fade-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
 }
 
 .pp-fade-enter-from,
@@ -748,34 +922,34 @@ onUnmounted(() => {
 }
 
 /* ---------- 暗色补充 ---------- */
-[data-theme="dark"] .pp-help-link {
+[data-theme='dark'] .pp-help-link {
   color: #2997ff;
 }
 
-[data-theme="dark"] .pp-help-link:hover {
+[data-theme='dark'] .pp-help-link:hover {
   color: #66b5ff;
 }
 
-[data-theme="dark"] .gs-input-wrap.has-token {
+[data-theme='dark'] .gs-input-wrap.has-token {
   background: rgba(48, 209, 88, 0.1);
   border-color: rgba(48, 209, 88, 0.3);
 }
 
-[data-theme="dark"] .gs-input-action.is-clear {
+[data-theme='dark'] .gs-input-action.is-clear {
   background: rgba(255, 105, 97, 0.14);
   color: #ff8b85;
 }
 
-[data-theme="dark"] .pp-confirm-icon {
+[data-theme='dark'] .pp-confirm-icon {
   background: rgba(255, 105, 97, 0.16);
   color: #ff6961;
 }
 
-[data-theme="dark"] .pp-confirm-card h4 {
+[data-theme='dark'] .pp-confirm-card h4 {
   color: #f4f6f8;
 }
 
-[data-theme="dark"] .pp-confirm-card p {
+[data-theme='dark'] .pp-confirm-card p {
   color: #a7afba;
 }
 

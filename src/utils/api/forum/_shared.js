@@ -7,7 +7,36 @@ export function isMissingRpcFunctionError(error, functionName) {
   if (!error) return false;
   if (String(error.code || '') === 'PGRST202') return true;
   const message = String(error.message || '').toLowerCase();
-  return message.includes('could not find the function') && message.includes(String(functionName || '').toLowerCase());
+  return (
+    message.includes('could not find the function') &&
+    message.includes(String(functionName || '').toLowerCase())
+  );
+}
+
+/**
+ * 「写入的列还不存在」判定 —— 给「前端已上线、迁移未 apply」这个窗口用。
+ *
+ * 为什么需要：前端是 CI 自动部署，迁移要人工 apply，两者顺序不可控。
+ * 2026-10-29 新增 posts.edited_at 时，若前端先上线，updatePost 会带一个不存在的列
+ * → PostgREST 直接 400 ⇒ **编辑帖子整体失败**。有这条判定就能降级重试（少个标记而已）。
+ *
+ * 三种形态都要认（PostgREST 不同版本报法不同）：
+ *   · 42703            PostgreSQL undefined_column
+ *   · PGRST204         PostgREST「could not find the 'x' column ... in the schema cache」
+ *   · 文案匹配         兜底，覆盖网关改写过的 message
+ */
+export function isMissingColumnError(error, columnName) {
+  if (!error) return false;
+  const code = String(error.code || '');
+  if (code === '42703' || code === 'PGRST204') return true;
+  const message = String(error.message || '').toLowerCase();
+  const column = String(columnName || '').toLowerCase();
+  const mentionsMissing =
+    message.includes('does not exist') ||
+    message.includes('not found') ||
+    message.includes('schema cache');
+  if (!mentionsMissing) return false;
+  return column ? message.includes(column) : message.includes('column');
 }
 
 // —— 转发原帖批量回源（论坛列表引用框 / 个人空间帖子网格共用，真相源单一） ——
@@ -16,9 +45,11 @@ export function isMissingRpcFunctionError(error, functionName) {
 const quotedPostCache = new Map();
 
 export async function fetchQuotedPostsByIds(ids = []) {
-  const allIds = [...new Set((Array.isArray(ids) ? ids : [])
-    .map((id) => String(id || '').trim())
-    .filter(Boolean))];
+  const allIds = [
+    ...new Set(
+      (Array.isArray(ids) ? ids : []).map((id) => String(id || '').trim()).filter(Boolean),
+    ),
+  ];
   const missing = allIds.filter((id) => !quotedPostCache.has(id));
 
   if (missing.length) {
@@ -34,7 +65,9 @@ export async function fetchQuotedPostsByIds(ids = []) {
         quotedPostCache.set(row.id, row);
         found.add(row.id);
       });
-      missing.forEach((id) => { if (!found.has(id)) quotedPostCache.set(id, null); });
+      missing.forEach((id) => {
+        if (!found.has(id)) quotedPostCache.set(id, null);
+      });
     } catch (error) {
       logger.warn('forum-api', '转发原帖批量回源失败（引用展示降级）', { ids: missing, error });
       return new Map();
@@ -58,7 +91,7 @@ export async function writeAsyncModerationLog(targetId, targetType, moderationRe
     targetId,
     targetType,
     result: moderationResult,
-    moderatorId: null
+    moderatorId: null,
   });
 }
 
@@ -66,7 +99,7 @@ export async function ensureModerationNotification({
   recipientId,
   type,
   postId = null,
-  commentId = null
+  commentId = null,
 } = {}) {
   const safeRecipientId = String(recipientId || '').trim();
   const safeType = String(type || '').trim();
@@ -95,7 +128,7 @@ export async function ensureModerationNotification({
         type: safeType,
         postId: safePostId || null,
         commentId: safeCommentId || null,
-        error: existingError
+        error: existingError,
       });
     } else if (Array.isArray(existingRows) && existingRows.length > 0) {
       return;
@@ -112,7 +145,7 @@ export async function ensureModerationNotification({
         type: safeType,
         postId: safePostId || null,
         commentId: safeCommentId || null,
-        error: result.error
+        error: result.error,
       });
     }
   } catch (error) {
@@ -121,16 +154,12 @@ export async function ensureModerationNotification({
       type: safeType,
       postId: safePostId || null,
       commentId: safeCommentId || null,
-      error
+      error,
     });
   }
 }
 
-export async function notifyPostAuthorForComment({
-  postId,
-  senderId,
-  commentId
-} = {}) {
+export async function notifyPostAuthorForComment({ postId, senderId, commentId } = {}) {
   const safePostId = String(postId || '').trim();
   const safeSenderId = String(senderId || '').trim();
   const safeCommentId = String(commentId || '').trim();
@@ -152,14 +181,14 @@ export async function notifyPostAuthorForComment({
       sender_id: safeSenderId,
       type: 'comment',
       post_id: safePostId,
-      comment_id: safeCommentId
+      comment_id: safeCommentId,
     });
     if (!pushResult?.success) {
       logger.warn('forum-api', '评论 Pushplus 推送未发送', {
         reason: pushResult?.message || 'unknown',
         postId: safePostId,
         commentId: safeCommentId,
-        recipientId: postInfo.author_id
+        recipientId: postInfo.author_id,
       });
     }
   } catch (pushError) {
@@ -167,10 +196,7 @@ export async function notifyPostAuthorForComment({
   }
 }
 
-export async function notifyPostAuthorForLike({
-  postId,
-  senderId
-} = {}) {
+export async function notifyPostAuthorForLike({ postId, senderId } = {}) {
   const safePostId = String(postId || '').trim();
   const safeSenderId = String(senderId || '').trim();
   if (!safePostId || !safeSenderId) return;
@@ -190,13 +216,13 @@ export async function notifyPostAuthorForLike({
       recipient_id: postInfo.author_id,
       sender_id: safeSenderId,
       type: 'like',
-      post_id: safePostId
+      post_id: safePostId,
     });
     if (!pushResult?.success) {
       logger.warn('forum-api', '点赞 Pushplus 推送未发送', {
         reason: pushResult?.message || 'unknown',
         postId: safePostId,
-        recipientId: postInfo.author_id
+        recipientId: postInfo.author_id,
       });
     }
   } catch (pushError) {
@@ -206,10 +232,7 @@ export async function notifyPostAuthorForLike({
 
 // 转发推送：通知行由 create_forum_quote_repost RPC 落库（migration 2026091101），
 // 这里只负责 Pushplus 推送（与 like/comment 同模式）
-export async function notifyPostAuthorForRepost({
-  postId,
-  senderId
-} = {}) {
+export async function notifyPostAuthorForRepost({ postId, senderId } = {}) {
   const safePostId = String(postId || '').trim();
   const safeSenderId = String(senderId || '').trim();
   if (!safePostId || !safeSenderId) return;
@@ -229,13 +252,13 @@ export async function notifyPostAuthorForRepost({
       recipient_id: postInfo.author_id,
       sender_id: safeSenderId,
       type: 'repost',
-      post_id: safePostId
+      post_id: safePostId,
     });
     if (!pushResult?.success) {
       logger.warn('forum-api', '转发 Pushplus 推送未发送', {
         reason: pushResult?.message || 'unknown',
         postId: safePostId,
-        recipientId: postInfo.author_id
+        recipientId: postInfo.author_id,
       });
     }
   } catch (pushError) {

@@ -521,3 +521,69 @@ describe('image-moderation-pipeline（2026-10-04 超时 / 冷却 / 编码并发�
     }
   });
 });
+
+/**
+ * 2026-10-29：两级审核都不可用时**不再阻断发布**。
+ *
+ * 事故现场：云端超时 + 本地 nsfwjs 30s 初始化超时 ⇒ 用户看到
+ * 「图片安全检测模型初始化超时，请刷新页面后重试」，帖子发不出去。
+ * 现在改为 pending_review：放行可见，由 forum-async-worker 的 image_recheck
+ * 在约 6 分钟内给出真实裁决，拒绝则撤图并通知。
+ *
+ * 这一组测试守的是「放行条件必须严格」：只有**模型没就绪**才放行，
+ * 图片本身解析失败、本地明确判 rejected 都必须保持原行为。
+ */
+describe('image-moderation-pipeline（两级都不可用 ⇒ 放行待复审）', () => {
+  beforeEach(() => {
+    testMocks.callVaultSiliconChat.mockReset();
+    testMocks.moderateForumImageFile.mockReset();
+    testMocks.createImageElementForModeration.mockReset();
+    testMocks.createModerationSurfaceForModeration.mockReset();
+    mockEncoding();
+    // 清掉上一条用例可能留下的冷却，保证每次都会真的去问云端
+    markCloudModerationSuccess();
+  });
+
+  const modelNotReady = () => {
+    const error = new Error('图片安全检测模型初始化超时，请刷新页面后重试');
+    error.code = 'IMAGE_MODERATION_UNAVAILABLE';
+    return error;
+  };
+
+  it('云端不可达 + 本地模型未就绪 ⇒ 返回 pending_review，不抛错', async () => {
+    testMocks.callVaultSiliconChat.mockResolvedValue(
+      cloudFail({ code: 'UPSTREAM_ERROR', status: 503, message: 'upstream 503' }),
+    );
+    testMocks.moderateForumImageFile.mockRejectedValue(modelNotReady());
+
+    const result = await moderateImageWithFallback(new File([], 'a.jpg'));
+
+    expect(result.status).toBe('pending_review');
+    expect(result.source).toBe('pending_server_review');
+    // 反面对照：把 isLocalModelUnavailableError 的 message 判定删掉（只看 code）
+    // ⇒ 下面第二条用例的坏图也会被放行，那条会红。
+  });
+
+  it('图片本身无法解析时仍然抛错 —— 不能被「放行」逻辑顺手吞掉', async () => {
+    testMocks.callVaultSiliconChat.mockResolvedValue(cloudFail({ status: 503 }));
+    const brokenImage = new Error('图片尺寸无效，请换一张图片');
+    // 关键：同样带 IMAGE_MODERATION_UNAVAILABLE，只能靠文案区分
+    brokenImage.code = 'IMAGE_MODERATION_UNAVAILABLE';
+    testMocks.moderateForumImageFile.mockRejectedValue(brokenImage);
+
+    await expect(moderateImageWithFallback(new File([], 'b.jpg'))).rejects.toThrow('图片尺寸无效');
+  });
+
+  it('本地明确判 rejected 时仍然是 rejected（放行只针对「没裁决」）', async () => {
+    testMocks.callVaultSiliconChat.mockResolvedValue(cloudFail({ status: 503 }));
+    testMocks.moderateForumImageFile.mockResolvedValue({
+      status: 'rejected',
+      score: 0.93,
+      reason: '本地检测拦截',
+    });
+
+    const result = await moderateImageWithFallback(new File([], 'c.jpg'));
+
+    expect(result.status).toBe('rejected');
+  });
+});

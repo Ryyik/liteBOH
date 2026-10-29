@@ -95,7 +95,11 @@ export async function saveFollowMailDigest(digest) {
 
     if (error) {
       logger.error('mail-notify-api', '保存投递方式失败', error);
-      return { success: false, message: '设置保存失败，请稍后重试', error: normalizeDbError(error) };
+      return {
+        success: false,
+        message: '设置保存失败，请稍后重试',
+        error: normalizeDbError(error),
+      };
     }
 
     const next = Boolean(data);
@@ -137,7 +141,11 @@ export async function saveFollowMailWindow(windowMinutes) {
         };
       }
       logger.error('mail-notify-api', '保存提醒频率失败', error);
-      return { success: false, message: '设置保存失败，请稍后重试', error: normalizeDbError(error) };
+      return {
+        success: false,
+        message: '设置保存失败，请稍后重试',
+        error: normalizeDbError(error),
+      };
     }
 
     return {
@@ -171,7 +179,11 @@ export async function toggleFollowMail(userId, enabled) {
 
     if (error) {
       logger.error('mail-notify-api', '保存关注邮件开关失败', error);
-      return { success: false, message: '设置保存失败，请稍后重试', error: normalizeDbError(error) };
+      return {
+        success: false,
+        message: '设置保存失败，请稍后重试',
+        error: normalizeDbError(error),
+      };
     }
 
     return {
@@ -181,6 +193,78 @@ export async function toggleFollowMail(userId, enabled) {
     };
   } catch (error) {
     logger.error('mail-notify-api', '保存关注邮件开关异常', error);
+    return {
+      success: false,
+      message: '设置保存失败，请稍后重试',
+      error: normalizeDbError(error),
+    };
+  }
+}
+
+/* ───────────────── 审核结果邮件（2026-10-29）─────────────────
+   与关注邮件**完全独立**的一个开关（profiles.moderation_mail_enabled）：
+   一个是社交动态摘要，一个是「你的内容被处置了」的账号级通知。
+   混在一起等于让用户想收处置通知就必须连关注摘要一起收。
+   列级 UPDATE 授权见迁移 2026102908。 */
+
+/**
+ * 读取当前用户是否开启「审核结果」邮件通知。
+ * @param {string} userId
+ * @returns {Promise<{enabled: boolean, error: Error|null}>}
+ */
+export async function getModerationMailEnabled(userId) {
+  if (!userId) return { enabled: false, error: null };
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('moderation_mail_enabled')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      logger.error('mail-notify-api', '读取审核邮件开关失败', error);
+      return { enabled: false, error: normalizeDbError(error) };
+    }
+    return { enabled: Boolean(data?.moderation_mail_enabled), error: null };
+  } catch (error) {
+    logger.error('mail-notify-api', '读取审核邮件开关异常', error);
+    return { enabled: false, error: normalizeDbError(error) };
+  }
+}
+
+/**
+ * 切换「审核结果」邮件通知开关。
+ * @param {string} userId
+ * @param {boolean} enabled
+ * @returns {Promise<{success: boolean, message: string, error: Error|null}>}
+ */
+export async function toggleModerationMail(userId, enabled) {
+  if (!userId) {
+    return { success: false, message: '请先登录', error: null };
+  }
+  try {
+    const next = Boolean(enabled);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ moderation_mail_enabled: next })
+      .eq('id', userId);
+
+    if (error) {
+      logger.error('mail-notify-api', '保存审核邮件开关失败', error);
+      return {
+        success: false,
+        message: '设置保存失败，请稍后重试',
+        error: normalizeDbError(error),
+      };
+    }
+
+    return {
+      success: true,
+      message: next ? '已开启：图片审核未通过时会发邮件到你的邮箱' : '已关闭审核结果邮件通知',
+      error: null,
+    };
+  } catch (error) {
+    logger.error('mail-notify-api', '保存审核邮件开关异常', error);
     return {
       success: false,
       message: '设置保存失败，请稍后重试',

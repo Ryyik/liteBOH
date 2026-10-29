@@ -36,6 +36,7 @@ import {
 } from '../forum-format.js';
 import { getForumPostImages } from '../forum-images-api.js';
 import {
+  isMissingColumnError,
   isMissingRpcFunctionError,
   writeAsyncModerationLog,
   ensureModerationNotification,
@@ -1630,6 +1631,7 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
 
   const postParts = splitPostContent(safeContent, safeTitle, safeTitle ? safeBody : '');
   const currentStatus = normalizeContentStatus(post.status, APPROVED_STATUS);
+  const now = new Date().toISOString();
   const updateData = {
     content: safeContent,
     title: postParts.title,
@@ -1637,9 +1639,25 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
     // Client-provided roles must never promote content. Admin moderation uses
     // a server-side RPC; ordinary edits preserve the current status.
     status: currentStatus,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
+    // 界面「已编辑 · 时间」的唯一数据源（2026-10-29）。
+    // 与 updated_at 分开：updated_at 还会被状态流转/统计类更新改写，
+    // 用它做「已编辑」标记会让大量从未编辑过的帖子也冒出编辑标记。
+    edited_at: now,
   };
-  const { error: updateError } = await supabase.from('posts').update(updateData).eq('id', postId);
+  let { error: updateError } = await supabase.from('posts').update(updateData).eq('id', postId);
+
+  // 迁移 2026102908 未应用时 edited_at 列不存在（PostgREST 报 42703 / undefined_column）。
+  // 前端是 CI 自动部署、迁移要人工 apply，顺序不可控 ⇒ **不能让编辑功能为此挂掉**。
+  // 去掉该字段重试一次：编辑照常保存，只是这次没有「已编辑」标记。
+  if (updateError && isMissingColumnError(updateError, 'edited_at')) {
+    logger.warn(
+      'forum-api',
+      'posts.edited_at 列不存在，降级为不写编辑标记（请应用迁移 2026102908）',
+    );
+    const { edited_at: _ignored, ...fallbackData } = updateData;
+    ({ error: updateError } = await supabase.from('posts').update(fallbackData).eq('id', postId));
+  }
 
   if (updateError) {
     logger.error('forum-api', '更新帖子失败', updateError);
@@ -1718,6 +1736,68 @@ export async function updateForumPostImages(postId, images = []) {
   } catch (error) {
     logger.error('forum-api', '更新帖子图片异常', error);
     return { ok: false, data: null, error: normalizeDbError(error) };
+  }
+}
+
+/**
+ * 标记「两级审核都没裁决就放行」的图片为待后台复审。
+ *
+ * 为什么单独一步而不是随发帖一起写：create_forum_post_with_images 以线上
+ * pg_get_functiondef 为基线维护（300+ 行），为一个附加标记去重写它风险远大于收益。
+ *
+ * 调用时机：发帖/编辑成功后。失败不阻塞发布（图已经可见），只记日志。
+ */
+export async function markForumImagesPendingRecheck(postId, publicIds = []) {
+  const safePostId = String(postId || '').trim();
+  const ids = (Array.isArray(publicIds) ? publicIds : [])
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+  if (!safePostId) return { ok: false, count: 0, error: null };
+
+  try {
+    const { data, error } = await supabase.rpc('mark_forum_images_pending_recheck', {
+      p_post_id: safePostId,
+      p_public_ids: ids,
+    });
+    if (error) {
+      // 迁移未部署属于预期内的降级场景：不打扰用户，只是这次没有复审
+      if (!isMissingRpcFunctionError(error, 'mark_forum_images_pending_recheck')) {
+        logger.warn('forum-api', '标记图片待复审失败', { postId: safePostId, error });
+      }
+      return { ok: false, count: 0, error: normalizeDbError(error) };
+    }
+    return { ok: true, count: Number(data || 0), error: null };
+  } catch (error) {
+    logger.warn('forum-api', '标记图片待复审异常', { postId: safePostId, error });
+    return { ok: false, count: 0, error: normalizeDbError(error) };
+  }
+}
+
+/**
+ * 入队图片异步复审（服务端 forum-async-worker 处理，约 6 分钟内给裁决）。
+ *
+ * 与 markForumImagesPendingRecheck 分开调用：标记是「哪些图要复审」，
+ * 入队是「什么时候复审」。两者任一失败都不该阻断发布 —— 图片此刻已可见，
+ * 最坏结果只是这张图这一轮没被复审。
+ */
+export async function enqueueForumImageRecheck(postId, delaySeconds = 30) {
+  const safePostId = String(postId || '').trim();
+  if (!safePostId) return { ok: false, jobId: null, error: null };
+  try {
+    const { data, error } = await supabase.rpc('enqueue_forum_image_recheck', {
+      p_post_id: safePostId,
+      p_delay_seconds: Math.max(0, Math.min(3600, Number(delaySeconds) || 0)),
+    });
+    if (error) {
+      if (!isMissingRpcFunctionError(error, 'enqueue_forum_image_recheck')) {
+        logger.warn('forum-api', '图片复审入队失败', { postId: safePostId, error });
+      }
+      return { ok: false, jobId: null, error: normalizeDbError(error) };
+    }
+    return { ok: true, jobId: data || null, error: null };
+  } catch (error) {
+    logger.warn('forum-api', '图片复审入队异常', { postId: safePostId, error });
+    return { ok: false, jobId: null, error: normalizeDbError(error) };
   }
 }
 

@@ -4,6 +4,11 @@ import { resolveDbImageUrl } from '../db-image-url.js';
 
 export const APPROVED_STATUS = 'approved';
 export const REJECTED_STATUS = 'rejected';
+/* 两级审核都没给出有效裁决时的中间态（2026-10-29）：
+   云端不可达 + 本地模型未就绪 ⇒ 放行可见，由服务端 image_recheck 在约 6 分钟内复审。
+   ⚠️ 它**不是** moderation_status 的取值（落库仍是 approved，否则图片立刻不可见），
+   只在本地上传管线内部传递，落库时转成 forum_post_images.recheck_status='pending'。 */
+export const PENDING_REVIEW_STATUS = 'pending_review';
 export const ALLOWED_CONTENT_STATUS = new Set([APPROVED_STATUS, REJECTED_STATUS]);
 export const ALLOWED_FORUM_TAGS = new Set(['server', 'activity', 'daily', 'question']);
 export const DEFAULT_FORUM_TAG = 'daily';
@@ -327,6 +332,10 @@ export function normalizeForumImage(image = {}, { variant = 'detail' } = {}) {
     moderationScore: Number(image.moderationScore ?? image.moderation_score ?? 0) || 0,
     moderationReason: String(image.moderationReason || image.moderation_reason || '').trim(),
     sortOrder: Number(image.sortOrder ?? image.sort_order ?? 0) || 0,
+    /* 客户端内部标记：这张图是「两级审核都没裁决就放行」的，发布成功后要把它的
+       forum_post_images.recheck_status 置 pending，交给后台复审。
+       刻意不进数据库字段白名单（服务端 RPC 不读它），只在本机管线里传递。 */
+    needsRecheck: Boolean(image.needsRecheck ?? image.needs_recheck),
   };
 
   if (isList) {

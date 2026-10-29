@@ -1032,6 +1032,8 @@ import {
   POST_REPORT_LIMITED_NOTIFICATION_TYPE,
   COMMENT_REJECTED_NOTICE_TEXT,
   COMMENT_REJECTED_NOTIFICATION_TYPE,
+  POST_IMAGE_REJECTED_NOTICE_TEXT,
+  POST_IMAGE_REJECTED_NOTIFICATION_TYPE,
   canRetryModerationNotificationBySet,
   loadRetriedNotificationIdSet,
   markRetriedNotificationId,
@@ -2875,6 +2877,7 @@ const getTypeLabel = (type) => {
     follow: '关注了你',
     impression: '给你印象',
     [POST_REJECTED_NOTIFICATION_TYPE]: '审查通知',
+    [POST_IMAGE_REJECTED_NOTIFICATION_TYPE]: '审查通知',
     [COMMENT_REJECTED_NOTIFICATION_TYPE]: '审查通知',
     [LOTTERY_WIN_NOTIFICATION_TYPE]: '中奖通知',
     [SUBSCRIPTION_NOTIFICATION_TYPE]: '订阅通知',
@@ -2892,6 +2895,7 @@ const getNotificationTypeLabel = (type) => {
     follow: '关注通知',
     impression: '印象通知',
     [POST_REJECTED_NOTIFICATION_TYPE]: '发帖审查',
+    [POST_IMAGE_REJECTED_NOTIFICATION_TYPE]: '图片审查',
     [POST_REPORT_LIMITED_NOTIFICATION_TYPE]: '举报处理',
     [COMMENT_REJECTED_NOTIFICATION_TYPE]: '评论审查',
     [LOTTERY_WIN_NOTIFICATION_TYPE]: '中奖通知',
@@ -2915,6 +2919,8 @@ const getNotificationTitle = (notification) => {
       return `${notification.sender?.username || '有人'} 对你发表了印象`;
     case POST_REJECTED_NOTIFICATION_TYPE:
       return '发帖审查未通过';
+    case POST_IMAGE_REJECTED_NOTIFICATION_TYPE:
+      return '图片未通过复审';
     case POST_REPORT_LIMITED_NOTIFICATION_TYPE:
       return '帖子已设为仅自己可见';
     case COMMENT_REJECTED_NOTIFICATION_TYPE:
@@ -2945,6 +2951,9 @@ const getNotificationPreview = (notification) => {
   }
   if (notification.type === POST_REJECTED_NOTIFICATION_TYPE) {
     return notification.content || POST_REJECTED_NOTICE_TEXT;
+  }
+  if (notification.type === POST_IMAGE_REJECTED_NOTIFICATION_TYPE) {
+    return notification.content || POST_IMAGE_REJECTED_NOTICE_TEXT;
   }
   if (notification.type === POST_REPORT_LIMITED_NOTIFICATION_TYPE) {
     return notification.content || POST_REPORT_LIMITED_NOTICE_TEXT;
@@ -3002,6 +3011,9 @@ const getNotificationContent = (notification) => {
   }
   if (notification.type === POST_REJECTED_NOTIFICATION_TYPE) {
     return notification.content || POST_REJECTED_NOTICE_TEXT;
+  }
+  if (notification.type === POST_IMAGE_REJECTED_NOTIFICATION_TYPE) {
+    return notification.content || POST_IMAGE_REJECTED_NOTICE_TEXT;
   }
   if (notification.type === POST_REPORT_LIMITED_NOTIFICATION_TYPE) {
     return notification.content || POST_REPORT_LIMITED_NOTICE_TEXT;

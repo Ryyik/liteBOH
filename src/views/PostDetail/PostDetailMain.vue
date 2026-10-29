@@ -27,6 +27,8 @@ import {
   getForumPostImages,
   updatePost,
   updateForumPostImages,
+  markForumImagesPendingRecheck,
+  enqueueForumImageRecheck,
 } from '../../utils/api/forum-api.js';
 import { uploadForumImage } from '../../utils/api/forum-images-api.js';
 import DOMPurify from '@/utils/dompurify.js';
@@ -2111,6 +2113,19 @@ const submitEditPost = async () => {
       logger.warn('post-detail', '帖子图片同步失败', imgResult.error);
     }
 
+    // 编辑时新加的图若撞上「云端不可达 + 本地模型未就绪」，同样是放行 + 待复审。
+    // best-effort：失败只意味着这轮没复审，不该让用户看到保存失败。
+    const recheckPublicIds = editPostImages.value
+      .filter((image) => image?.needsRecheck && !image?.isExisting)
+      .map((image) => String(image?.publicId || '').trim())
+      .filter(Boolean);
+    if (recheckPublicIds.length > 0) {
+      void (async () => {
+        await markForumImagesPendingRecheck(post.value.id, recheckPublicIds);
+        await enqueueForumImageRecheck(post.value.id, 30);
+      })().catch((err) => logger.warn('post-detail', '图片复审入队失败', err));
+    }
+
     // 标签回写（updatePost 不处理 tag）
     const currentTag = normalizeForumTag(post.value.tag);
     if (editSelectedPostTag.value && editSelectedPostTag.value !== currentTag) {
@@ -2349,6 +2364,9 @@ const handleChangeCommentSortMode = async (mode) => {
             }}</span>
             <!-- 窄屏内容区作者行被精简（.author-meta 隐藏），发帖时间只能在这里露头 -->
             <span class="pd-author-bar-time">{{ formatDate(post.created_at) }}</span>
+            <span v-if="post.edited_at" class="pd-author-bar-edited"
+              >已编辑 {{ formatDate(post.edited_at) }}</span
+            >
           </span>
         </div>
         <button
@@ -2535,6 +2553,9 @@ const handleChangeCommentSortMode = async (mode) => {
                     >@{{ post.author_username }}</span
                   >
                   <span class="post-time">{{ formatDate(post.created_at) }}</span>
+                  <span v-if="post.edited_at" class="post-edited-tag"
+                    >已编辑 {{ formatDate(post.edited_at) }}</span
+                  >
                   <span v-if="post.location_name" class="post-location-tag"
                     >📍 {{ post.location_name }}</span
                   >
@@ -2908,6 +2929,9 @@ const handleChangeCommentSortMode = async (mode) => {
                       >@{{ post.author_username }}</span
                     >
                     <span class="post-time">{{ formatDate(post.created_at) }}</span>
+                    <span v-if="post.edited_at" class="post-edited-tag"
+                      >已编辑 {{ formatDate(post.edited_at) }}</span
+                    >
                     <span v-if="post.location_name" class="post-location-tag"
                       >📍 {{ post.location_name }}</span
                     >

@@ -449,8 +449,43 @@ async function localFallbackModerate(file) {
   }
 }
 
+/**
+ * 本地检测「模型没就绪」与「图片本身有问题」都带 IMAGE_MODERATION_UNAVAILABLE，
+ * 但两者的正确处置完全相反：前者应放行+后台复审，后者必须让用户换图。
+ * 因此只能按文案精确区分，**绝不能只看 code**。
+ *
+ * 反例（必须继续抛错）：图片尺寸无效 / 无法创建图片安全检测画布 / 不支持图片安全检测。
+ */
+function isLocalModelUnavailableError(error) {
+  const code = String(error?.code || '');
+  if (code !== 'IMAGE_MODERATION_TIMEOUT' && code !== 'IMAGE_MODERATION_UNAVAILABLE') {
+    return false;
+  }
+  const message = String(error?.message || '');
+  return /检测模型|模型初始化|初始化超时|初始化失败|模块初始化/.test(message);
+}
+
 async function runLocalFallbackModerate(file) {
-  const localResult = await moderateForumImageFile(file);
+  let localResult;
+  try {
+    localResult = await moderateForumImageFile(file);
+  } catch (error) {
+    if (!isLocalModelUnavailableError(error)) throw error;
+    // 2026-10-29 产品决策：云端不可达 + 本地未就绪时**不再阻断发布**。
+    // 此前这里把 30s 初始化超时直接抛给用户（"图片安全检测模型初始化超时"），
+    // 结果是两级都不可用时用户彻底发不出帖。现在改为放行 + 后台复审，
+    // 由 forum-async-worker 的 image_recheck 任务在约 6 分钟内给出真实裁决。
+    logger.warn('image-moderation-pipeline', '本地兜底模型未就绪，放行并转后台复审', {
+      code: error?.code,
+      message: error?.message,
+    });
+    return {
+      status: 'pending_review',
+      score: 0,
+      reason: '云端审核暂不可用，本地检测未就绪，已放行并提交后台复审',
+      source: 'pending_server_review',
+    };
+  }
   if (localResult?.status === 'rejected') {
     return {
       status: 'rejected',

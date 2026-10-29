@@ -13,6 +13,8 @@ export {
   getUserPosts,
   updatePost,
   updateForumPostImages,
+  markForumImagesPendingRecheck,
+  enqueueForumImageRecheck,
   retryPostModeration,
   getWeeklyCheckinStatus,
   submitWeeklyCheckin,
@@ -41,7 +43,7 @@ export {
 } from './forum/forum-interaction-api.js';
 
 // Preserve original re-exports
-export { normalizeForumTag } from './forum-format.js';
+export { normalizeForumTag, PENDING_REVIEW_STATUS } from './forum-format.js';
 export {
   getLatestForumWeeklyReport,
   generateForumWeeklyReport,
