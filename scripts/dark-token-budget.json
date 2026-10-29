@@ -1,5 +1,5 @@
 {
-  "total": 2471,
+  "total": 2473,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
@@ -20,8 +20,8 @@
     "src/views/DataManagement/styles/responsive.css": 44,
     "src/components/UnifiedNavbar/ShareIsland.vue": 42,
     "src/styles/themes/user-center-dark.css": 42,
+    "src/views/user-center/UserSpace/styles/settings-glass.css": 40,
     "src/views/CommunityLotteries/style.scoped.css": 38,
-    "src/views/user-center/UserSpace/styles/settings-glass.css": 38,
     "src/views/CommunityLotteries/PityIslandCard.vue": 37,
     "src/components/AdminContentPublishModal.vue": 34,
     "src/views/AlertStyleEditor/style.scoped.css": 32,
