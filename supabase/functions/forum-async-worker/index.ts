@@ -29,7 +29,16 @@ const requestTimeoutMs = 12000;
 const imageApiKey = String(
   Deno.env.get('MODERATION_IMAGE_API_KEY') || Deno.env.get('MODERATION_API_KEY') || '',
 ).trim();
-const imageRequestTimeoutMs = 20000;
+const imageRequestTimeoutMs = 12000;
+// 实测（2026-10-29，同一张线上图）：主模型 9.3s、fb1 9.1~15.1s、fb2 11.9s。
+// 单跳 12s 覆盖实测波动；**每张图最多试 2 跳**（见 moderateImageUrl），
+// 否则 6 张图 × 3 跳 × 12s = 216s，必然撞 Edge Function 墙钟。
+const imageChainMaxHops = 2;
+// 单个 job 的时间预算。cron 一轮最多 2 个 job ⇒ 90s + 启动开销，留在 150s 墙钟内。
+// 超预算的图不丢：job 回退成 pending，下一轮 cron 接着做。
+const imageRecheckBudgetMs = 45000;
+// 并发 2：上游是按次计费且限流的代理，2 路并发既能摊平延迟，也不会打爆网关。
+const imageRecheckConcurrency = 2;
 const brevoApiKey = String(Deno.env.get('BREVO_API_KEY') || '').trim();
 const mailSenderEmail = String(
   Deno.env.get('MAIL_SENDER_EMAIL') || 'noreply@blockofhome.cn',
@@ -271,7 +280,9 @@ const moderateImageUrl = async (client: SupabaseClient, url: string): Promise<Im
   // 比「静默跳过」更容易被运维看到。
   if (hops.length === 0) throw new Error('审核链缺少 moderation-image 行');
   const failures: string[] = [];
-  for (const hop of hops) {
+  // 只试前 2 跳：第 3 跳留给下一轮重试。全链都不可用时本来也拿不到裁决，
+  // 与其在一个 job 里耗满 3 跳墙钟，不如把机会留给下一次执行。
+  for (const hop of hops.slice(0, imageChainMaxHops)) {
     try {
       return await requestImageVerdict(hop, url);
     } catch (error) {
@@ -390,23 +401,61 @@ const processImageRecheck = async (client: SupabaseClient, job: Job) => {
     .eq('id', job.post_id)
     .maybeSingle<{ title: string | null }>();
 
+  const startedAt = Date.now();
   let rejected = 0;
-  // 串行：上游是限流敏感的付费接口，且单帖最多 6 张，串行的绝对延迟可接受。
-  for (const image of pending) {
-    const verdict = await moderateImageUrl(client, String(image.url || ''));
-    const { data: applied } = await client.rpc('apply_forum_image_recheck_verdict', {
-      p_image_id: image.id,
-      p_verdict: verdict.status,
-      p_score: verdict.score,
-      p_reason: verdict.reason,
-    });
-    if (applied === true && verdict.status === 'rejected') rejected += 1;
+  let processed = 0;
+  let deferred = 0;
+
+  // 分批并发（不是全串行）：实测单张 9~15s，6 张串行必然超出单个 job 的预算。
+  for (let i = 0; i < pending.length; i += imageRecheckConcurrency) {
+    if (Date.now() - startedAt > imageRecheckBudgetMs) {
+      deferred = pending.length - i;
+      break;
+    }
+    const batch = pending.slice(i, i + imageRecheckConcurrency);
+    // 单图失败不拖垮整批：它保持 pending，计入 deferred 交给下一轮。
+    const results = await Promise.all(
+      batch.map(async (image) => {
+        try {
+          return { image, verdict: await moderateImageUrl(client, String(image.url || '')) };
+        } catch (error) {
+          return {
+            image,
+            verdict: null,
+            error: error instanceof Error ? error.message : String(error),
+          };
+        }
+      }),
+    );
+
+    for (const item of results) {
+      if (!item.verdict) {
+        deferred += 1;
+        continue;
+      }
+      const { data: applied } = await client.rpc('apply_forum_image_recheck_verdict', {
+        p_image_id: item.image.id,
+        p_verdict: item.verdict.status,
+        p_score: item.verdict.score,
+        p_reason: item.verdict.reason,
+      });
+      processed += 1;
+      if (applied === true && item.verdict.status === 'rejected') rejected += 1;
+    }
   }
 
   if (rejected > 0) {
     await notifyImageRejected(client, job, String(post?.title || ''), rejected);
   }
-  return { rechecked: pending.length, rejected };
+  if (deferred > 0) {
+    // 连续 3 轮都跑不完（或某张图始终拿不到裁决）⇒ 交回失败通道退避，
+    // 否则会变成「每 5 分钟无限重排」的隐形死循环，且用户永远收不到结论。
+    if (job.attempt_count >= 3) {
+      throw new Error(`图片复审未完成（剩余 ${deferred} 张），已重试 ${job.attempt_count} 次`);
+    }
+    return { rechecked: processed, rejected, deferred };
+  }
+  return { rechecked: processed, rejected };
 };
 
 const processPostModeration = async (client: SupabaseClient, job: Job) => {
@@ -445,6 +494,30 @@ const processOne = async (client: SupabaseClient) => {
       job.job_type === 'image_recheck'
         ? await processImageRecheck(client, job)
         : await processPostModeration(client, job);
+    // 有图没跑完（预算用尽 / 单图拿不到裁决）：把 job 退回 pending，60s 后续做。
+    // **不能**再调 complete —— 那会把 job 标成 succeeded，剩下的图永远停在 pending。
+    const deferred = Number((result as { deferred?: number })?.deferred || 0);
+    if (deferred > 0) {
+      await client
+        .from('forum_async_jobs')
+        .update({
+          status: 'pending',
+          attempt_count: job.attempt_count + 1,
+          run_after: new Date(Date.now() + 60_000).toISOString(),
+          locked_until: null,
+          worker_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', job.id);
+      return {
+        claimed: 1,
+        jobId: job.id,
+        jobType: job.job_type,
+        postId: job.post_id,
+        status: 'deferred',
+        ...result,
+      };
+    }
     await client.rpc('complete_forum_async_job', {
       p_job_id: job.id,
       p_worker_id: workerId,
@@ -546,10 +619,12 @@ Deno.serve(async (request) => {
 
   // cron 通道：一次多捞几个。
   // 原来只处理 1 个，而 cron 是 */5 —— 5 分钟内进来 3 个待复审帖就要 15 分钟才排完，
-  // 与「最坏 6 分钟给裁决」的承诺矛盾。上限 3 是 RPC 允许的最大值，
-  // 也是 3 × 20s 图片超时 ≈ 60s 的执行时间预算上限。
+  // 与「最坏 6 分钟给裁决」的承诺矛盾。
+  // 上限从 3 收到 2（2026-10-29 实测后调整）：图片复审单个 job 预算 45s，
+  // 3 个就是 135s，加上启动开销会撞 Edge Function 的 150s 墙钟，整个请求被截断
+  // 反而一个 job 都提交不了。2 个 = 90s，留足余量；积压由下一轮 cron 继续消化。
   const results: Array<Record<string, unknown>> = [];
-  for (let i = 0; i < 3; i += 1) {
+  for (let i = 0; i < 2; i += 1) {
     const one = await processOne(client).catch((error) => ({
       claimed: 0,
       error: error instanceof Error ? error.message : String(error),

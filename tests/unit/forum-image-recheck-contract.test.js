@@ -148,7 +148,7 @@ describe('图片异步复审：worker 契约', () => {
     // 反面：直接 `if (verdict.status === 'rejected') rejected += 1` —— 若 RPC 因为是
     // 幂等空转（图已被处理）返回 false，就会给用户发一封「图被撤了」但其实没撤的邮件。
     expect(worker).toContain(
-      squeezeSource("if (applied === true && verdict.status === 'rejected') rejected += 1;"),
+      squeezeSource("if (applied === true && item.verdict.status === 'rejected') rejected += 1;"),
     );
   });
 
@@ -156,8 +156,23 @@ describe('图片异步复审：worker 契约', () => {
     expect(worker).toContain("eq('type', 'post_image_rejected')");
   });
 
-  it('cron 通道单次最多处理 3 个（5 分钟一轮 × 1 个会突破 6 分钟承诺）', () => {
-    expect(worker).toContain(squeezeSource('for (let i = 0; i < 3; i += 1)'));
+  it('单图只试 2 跳，且单跳超时按实测收紧（否则 6 张图会撞 Edge 墙钟）', () => {
+    // 实测 2026-10-29：主模型 9.3s / fb1 9.1~15.1s / fb2 11.9s。
+    // 6 张 × 3 跳 × 20s = 360s，远超 150s 的运行时上限 ⇒ 必须有上限。
+    expect(worker).toContain(squeezeSource('const imageRequestTimeoutMs = 12000;'));
+    expect(worker).toContain(squeezeSource('hops.slice(0, imageChainMaxHops)'));
+  });
+
+  it('跑不完的图不能丢：job 退回 pending 续做，而不是标记完成', () => {
+    // 反面：直接 complete 会把 job 标成 succeeded，剩余图永远停在 pending。
+    expect(worker).toContain(squeezeSource("status: 'deferred'"));
+    expect(worker).toContain(squeezeSource("status: 'pending',"));
+    // 无限重排的护栏：连续 3 轮没跑完就交回失败通道退避。
+    expect(worker).toContain(squeezeSource('if (job.attempt_count >= 3)'));
+  });
+
+  it('cron 通道单次最多处理 2 个（3 个 × 45s 会撞 150s 墙钟）', () => {
+    expect(worker).toContain(squeezeSource('for (let i = 0; i < 2; i += 1)'));
   });
 });
 
