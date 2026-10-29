@@ -167,7 +167,77 @@
             <slot name="inline-panel"></slot>
           </template>
 
+          <!-- 单栏菜单视图（2026-10-29）：竖屏首页只列分类，点进去才看某一组的内容。
+               与横屏左目录同一心智（账户行在最上、其余分类跟在后面），只是把「左右分栏」
+               换成「上下钻取」。搜索不受影响 —— 搜索仍全局命中，命中即执行。 -->
+          <template v-else-if="isMenuView">
+            <section class="gs-group">
+              <div class="gs-rows">
+                <button type="button" class="gs-row" @click="enterSection('account')">
+                  <FramedAvatar
+                    class="gs-menu-avatar"
+                    :src="avatarUrl"
+                    :initial="avatarInitial"
+                    :size="30"
+                    :frame-url="frameUrl"
+                    :frame-scale="frameScale"
+                  />
+                  <span class="gs-text">
+                    <span class="gs-label">{{ username || '未设置昵称' }}</span>
+                    <span class="gs-desc">{{ userEmail || '未绑定邮箱' }}</span>
+                  </span>
+                  <span class="gs-side">
+                    <ChevronRight
+                      class="gs-chevron"
+                      :size="16"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
+              </div>
+            </section>
+
+            <section class="gs-group">
+              <div class="gs-rows">
+                <button
+                  v-for="item in menuSections"
+                  :key="item.id"
+                  type="button"
+                  class="gs-row"
+                  @click="enterSection(item.id)"
+                >
+                  <span class="gs-icon" :class="sectionIconClass(item.id)">
+                    <component :is="item.icon" :size="16" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="gs-text">
+                    <span class="gs-label">{{ item.label }}</span>
+                    <span class="gs-desc">{{ sectionDesc(item.id) }}</span>
+                  </span>
+                  <span class="gs-side">
+                    <ChevronRight
+                      class="gs-chevron"
+                      :size="16"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
+              </div>
+            </section>
+          </template>
+
           <template v-else>
+            <!-- 单栏钻取的返回条（双栏不需要：左目录一直看得见）。
+                 复用 gs-inline-bar，与「导出数据 / 账户安全」子页同一条视觉。 -->
+            <div v-if="!twoPane && singlePaneSection" class="gs-inline-bar">
+              <button type="button" class="gs-inline-back" @click="exitSection">
+                <ChevronLeft :size="17" :stroke-width="2.2" aria-hidden="true" />
+                <span>设置</span>
+              </button>
+              <h2 class="gs-inline-title">{{ sectionLabel(singlePaneSection) }}</h2>
+            </div>
+
             <!-- 身份卡（2026-10-26 Apple 账户页形态）
                ⚠️ 只在「账户」分类出现（showIdentityCard）：两栏下切到别的分类它就该消失，
                不是一条钉在所有分类上方的横幅。
@@ -902,8 +972,63 @@ const SETTINGS_SECTIONS = [
 const activeSection = ref('account');
 const panelRootRef = ref(null);
 
-/** 单栏：全显示；两栏：只显示当前分类 */
-const isGroupVisible = (id) => !props.twoPane || activeSection.value === id;
+/* ---------- 单栏钻取（2026-10-29） ----------
+   竖屏不再把所有分组平铺：改成「分类列表 → 点进去只看一组」，
+   与横屏双栏同一个心智（左目录 + 右内容），只是把左右换成上下。
+   为什么值得做：平铺时 15 个条目要滚 2~3 屏，用户找「邮件通知」得先滚到「通用」；
+   钻取后首页只有 5 个分类，目标一眼可见。
+   状态空串 = 分类列表；非空 = 正在看那个分类。双栏下不使用本状态。 */
+const singlePaneSection = ref('');
+const isMenuView = computed(() => !props.twoPane && !singlePaneSection.value);
+
+/** 分类列表里不重复出现「账户」—— 顶部那条账户行就是它 */
+const menuSections = computed(() => SETTINGS_SECTIONS.filter((item) => item.id !== 'account'));
+
+/** 分类副标题：让用户在列表页就知道这组里有什么，不用点进去试 */
+const SECTION_DESC = {
+  account: '头像、昵称、登录邮箱',
+  notify: '邮件通知、微信推送',
+  privacy: '密码、通行密钥、隐私与数据',
+  content: '资产、摄影集、Cloud 空间',
+  general: '主题、开场画、版本',
+};
+const SECTION_ICON_CLASS = {
+  account: 'is-blue',
+  notify: 'is-green',
+  privacy: 'is-indigo',
+  content: 'is-teal',
+  general: 'is-yellow',
+};
+const sectionDesc = (id) => SECTION_DESC[id] || '';
+const sectionIconClass = (id) => SECTION_ICON_CLASS[id] || 'is-gray';
+const sectionLabel = (id) => SETTINGS_SECTIONS.find((item) => item.id === id)?.label || '';
+
+const enterSection = (id) => {
+  singlePaneSection.value = id;
+  // 同步 activeSection：双栏高亮、搜索结果归属都读它，两边口径不能分叉
+  activeSection.value = id;
+  requestAnimationFrame(() => {
+    panelRootRef.value?.scrollIntoView?.({ block: 'start', behavior: 'auto' });
+  });
+};
+
+const exitSection = () => {
+  singlePaneSection.value = '';
+};
+
+/** 双栏 ↔ 单栏切换时清掉钻取态，否则窗口变宽后残留一个看不见的「当前分类」 */
+watch(
+  () => props.twoPane,
+  (two) => {
+    if (two) singlePaneSection.value = '';
+  },
+);
+
+/** 单栏：菜单视图下不显示任何组；进入某组后只显示该组。双栏：只显示当前分类。 */
+const isGroupVisible = (id) => {
+  if (props.twoPane) return activeSection.value === id;
+  return Boolean(singlePaneSection.value) && singlePaneSection.value === id;
+};
 
 /** 左目录高亮：子页打开时跟着子页归属走（否则目录看起来「什么都没选」） */
 const navActiveSection = computed(() =>
