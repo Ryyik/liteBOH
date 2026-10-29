@@ -504,8 +504,11 @@ const ProfileHomePanel = createPanelAsync(() => import('./components/ProfileHome
      身份卡 chunk + 三份 profile 样式在冷路径上明显超过 120ms。 */
   delay: 0,
 });
+// 弹窗型浮层（头像裁剪 / 头像框选择）：失败静默（silent），不在文档流留「正在加载…」
+// 占位 —— 恢复链强刷是出口；与 App.vue 四个浮层同一纪律（2026-10-29 加载块报障）。
 const AvatarCropModal = createPanelAsync(() => import('@/components/AvatarCropModal.vue'), {
   label: 'AvatarCropModal',
+  silent: true,
 });
 // 官方分区舞台（英雄区 + 各周年弹窗）：只在切到「官方」时才请求，不进 UserSpace 主 chunk
 const AsyncOfficialHeroStage = createPanelAsync(
@@ -521,7 +524,7 @@ const EditProfilePanel = createPanelAsync(() => import('./components/EditProfile
 });
 const AvatarFramePickerModal = createPanelAsync(
   () => import('./components/AvatarFramePickerModal.vue'),
-  { label: 'AvatarFramePickerModal' },
+  { label: 'AvatarFramePickerModal', silent: true },
 );
 const SponsorPanel = createPanelAsync(() => import('./components/SponsorPanel.vue'), {
   label: 'SponsorPanel',

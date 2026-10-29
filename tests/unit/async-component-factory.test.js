@@ -85,6 +85,60 @@ describe('createPanelAsync', () => {
     expect(captured[1].errorComponent).toBe(custom);
   });
 
+  it('silent: true 时失败兜底是「什么都不渲染」（浮层 / 触发器专用，2026-10-29）', () => {
+    createPanelAsync(() => Promise.resolve({}), { label: 'Overlay', silent: true });
+    expect(captured[0].errorComponent.name).toBe('AsyncPanelSilent');
+    // 真实渲染树就是 null —— 文档流里不留任何「正在加载…」占位。
+    // 背景：App.vue 常驻三浮层（AiEdgeTrigger/AdminConfirmModal/AccountBindPrompt）
+    // 曾走默认 AsyncPanelQuiet，部署窗口期 chunk 失败后每页底部裸露三块加载占位
+    // （用户报障「更新完第一次进网页很多加载中」的根因）。
+    expect(renderFallback(captured[0])).toBeNull();
+
+    // 显式 errorComponent 仍然优先于 silent（显式选择不被 silent 覆盖）
+    const custom = { name: 'CustomError' };
+    createPanelAsync(() => Promise.resolve({}), {
+      label: 'C',
+      silent: true,
+      errorComponent: custom,
+    });
+    expect(captured[1].errorComponent).toBe(custom);
+  });
+
+  it('默认（未传 silent）仍是「继续显示加载态」——内容型面板行为不变', () => {
+    createPanelAsync(() => Promise.resolve({}), { label: 'Content' });
+    expect(captured[0].errorComponent.name).toBe('AsyncPanelQuiet');
+    expect(collectText(renderFallback(captured[0]))).toContain('正在加载');
+  });
+
+  it('源码守卫：浮层 / 触发器型面板必须传 silent: true（部署窗口期不再裸露加载块）', async () => {
+    const { readFileSync } = await import('fs');
+    const { resolve } = await import('path');
+    const root = resolve(import.meta.dirname, '../..');
+    const read = (p) => readFileSync(resolve(root, p), 'utf-8');
+
+    // App.vue 四个常驻 / 按需浮层（silent 或显式 errorComponent 都算有失败态主见）
+    const app = read('src/App.vue');
+    for (const label of ['AiEdgeTrigger', 'AdminConfirmModal', 'AccountBindPrompt', 'LoginView']) {
+      const pattern = new RegExp(`label: '${label}',\\s*(?:silent: true|errorComponent)`);
+      expect({ file: 'App.vue', label, hit: pattern.test(app) }).toMatchObject({
+        file: 'App.vue',
+        label,
+        hit: true,
+      });
+    }
+
+    // UserSpaceMain 的两个弹窗型面板
+    const userspace = read('src/views/user-center/UserSpace/UserSpaceMain.vue');
+    for (const label of ['AvatarCropModal', 'AvatarFramePickerModal']) {
+      const pattern = new RegExp(`label: '${label}',\\s*silent: true`);
+      expect({ file: 'UserSpaceMain.vue', label, hit: pattern.test(userspace) }).toMatchObject({
+        file: 'UserSpaceMain.vue',
+        label,
+        hit: true,
+      });
+    }
+  });
+
   it('onError 在前两次失败时退避重试（不 fail、不上报）', () => {
     vi.useFakeTimers();
     createPanelAsync(() => Promise.resolve({}), { label: 'Retry' });

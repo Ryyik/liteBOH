@@ -13,16 +13,23 @@ import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notif
 import { logger } from '@/utils/logger.js';
 import { recoverIfStaleBuild } from '@/utils/version-checker.js';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
+/* 下面四个都是「隐形直到被调用」的浮层 / 触发器：chunk 失败时**必须静默**
+   （silent: true，什么都不渲染）—— 它们常驻模板，若走默认的 AsyncPanelQuiet，
+   部署窗口期一失败就会在每页底部裸露三块「正在加载…」文档流占位
+   （2026-10-29 用户报障「更新完第一次进网页很多加载中」的根因）。
+   失败出口交给 onError 里的恢复链强刷，上报照常。 */
 const AiEdgeTrigger = createPanelAsync(() => import('@/components/AiEdgeTrigger.vue'), {
   label: 'AiEdgeTrigger',
+  silent: true,
 });
 const AdminConfirmModal = createPanelAsync(() => import('@/components/AdminConfirmModal.vue'), {
   label: 'AdminConfirmModal',
+  silent: true,
 });
 // 账户绑定引导（通行密钥 + 消息通知）：异步加载，不进首屏壳；自身判定何时该弹
 const AccountBindPrompt = createPanelAsync(
   () => import('@/components/AccountBindPrompt/index.vue'),
-  { label: 'AccountBindPrompt' },
+  { label: 'AccountBindPrompt', silent: true },
 );
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import PWAUpdateToast from '@/components/PWAUpdateToast/index.vue';
@@ -186,7 +193,11 @@ const handleBoundaryRecover = () => {
 const { showLoginModal, isLoggedIn, isInitialized } = storeToRefs(authStore);
 const userInfo = authStore.userInfo;
 const notificationStoreRef = getNotificationStoreRef();
-const LoginView = createPanelAsync(() => import('./views/Login/index.vue'), { label: 'LoginView' });
+// 全局登录模态框（弹窗型浮层：失败静默，走恢复链强刷，不在文档流留占位）
+const LoginView = createPanelAsync(() => import('./views/Login/index.vue'), {
+  label: 'LoginView',
+  silent: true,
+});
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
 
 const {

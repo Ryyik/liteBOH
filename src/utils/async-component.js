@@ -21,6 +21,8 @@
  *
  * 存量已有等价实现的旧写法（async-loaders.js 的 AsyncCommunity / AsyncForum /
  * AsyncBOHAI）保留各自业务差异（loadingComponent / timeout），新增一律走本工厂。
+ * 浮层 / 触发器型面板（弹窗、边缘触发区等「隐形直到被调用」的组件）必须传
+ * `silent: true` —— 它们失败后不该在文档流里留加载占位，见 AsyncPanelSilent。
  * 门禁 `check:async-component-fallback` 会拦住新增的裸写法。
  */
 import { defineAsyncComponent, h } from 'vue';
@@ -40,6 +42,22 @@ const dotStyle = {
   borderRadius: '50%',
   background: 'currentColor',
   opacity: '0.35',
+};
+
+/* 浮层 / 触发器型面板的失败态：**什么都不渲染**（silent: true）。
+   AiEdgeTrigger / AdminConfirmModal / AccountBindPrompt / LoginView / 头像类弹窗
+   这类组件「隐形直到被调用」，平时靠内部状态隐藏；一旦 chunk 失败，errorComponent
+   会把**整个组件**替换掉 —— 内部隐藏逻辑随之消失，下面那块 88px 的
+   「三个点 + 正在加载…」就会以文档流形态裸露在页面内容后面
+   （2026-10-29 用户报障「更新完第一次进网页冒出很多加载中」：实测每页固定 3 块 =
+   App.vue 常驻三连 + 当前页内容面板，四块竖排就是截图里的样子）。
+   浮层失败的正确出口是恢复链（onError 里的 recoverDynamicImportFailure 强刷），
+   不是给一块永不兑现的加载占位 —— 恢复照常发起、上报照常发，只是不再画出来。 */
+const AsyncPanelSilent = {
+  name: 'AsyncPanelSilent',
+  setup() {
+    return () => null;
+  },
 };
 
 const AsyncPanelQuiet = {
@@ -90,6 +108,8 @@ const AsyncPanelQuiet = {
  * @param {number} [options.delay] 显示 loading 前的延迟
  * @param {number} [options.timeout] 超时（触发 onError）
  * @param {number} [options.retries] 退避重试次数
+ * @param {boolean} [options.silent] 失败时什么都不渲染（浮层 / 触发器型面板专用，
+ *                                   见 AsyncPanelSilent 上方的说明）；内容型面板不要用
  * @param {object} [options.loadingComponent] 自定义 loading
  * @param {object} [options.errorComponent] 自定义失败兜底（默认 = 继续显示加载态）
  */
@@ -99,6 +119,7 @@ export const createPanelAsync = (loader, options = {}) => {
     delay = DEFAULT_DELAY,
     timeout = DEFAULT_TIMEOUT,
     retries = DEFAULT_RETRIES,
+    silent = false,
     loadingComponent,
     errorComponent,
   } = options;
@@ -108,7 +129,7 @@ export const createPanelAsync = (loader, options = {}) => {
     delay,
     timeout,
     loadingComponent,
-    errorComponent: errorComponent || AsyncPanelQuiet,
+    errorComponent: errorComponent || (silent ? AsyncPanelSilent : AsyncPanelQuiet),
     onError(error, retry, fail, attempts) {
       if (attempts <= retries) {
         setTimeout(() => retry(), attempts * 300);
