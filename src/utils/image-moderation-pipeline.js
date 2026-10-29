@@ -20,17 +20,34 @@ import {
 } from './forum-image-moderation.js';
 
 const MODERATION_IMAGE_MODE = 'moderation-image';
-// 单图云端审核超时。2026-10-04 从 8000 收到 2500：多图批次里「云端不可达」的代价
-// 是 **逐张** 累加的（超时 + 重试延迟 + 再超时），8s 时最坏单张 16.25s、10 张 ~160s。
-// 2.5s 覆盖了正常 224px 单图的响应窗口（实测级 0.8~2.5s）；超时后走本地 nsfwjs 兜底，
-// 而兜底本身是**从宽**判定（只有 ≥0.75 才拦），所以宁可早退也不拖着整批。
-const CLOUD_TIMEOUT_MS = 2500;
+// 单图云端审核超时。
+//
+// ⚠️ 2026-10-29 从 2500 **抬到 6000**。这不是回滚 10-04 的提速，而是修一个当时没算到的死结：
+//    服务端 moderation-image 有降级链（3.5-flash-lite → 3.5-flash → 3.6-flash），
+//    实测单跳耗时 **2.8s / 3.6s / 4.3s**（EF → Worker → Gemini，224px 图，2026-10-29 实测）。
+//    2500 < 最快一跳 2.8s ⇒ **客户端永远先超时**，云端审核在图片路径上 100% 不生效，
+//    全部静默回落本地**从宽**判定（只有 ≥0.75 才拦）。也就是说 10-04 之后所有
+//    「云端审核降级链/模型排序」的优化在图片上都跑不到，被这一个常量吃掉了。
+//
+// 6000 的取值依据（覆盖的是真实路径，不是拍脑袋的余量）：
+//   · 第 1 跳就成功          ≈ 2.8s  ✅ 覆盖
+//   · 第 1 跳快速失败 + 第 2 跳 ≈ 0.3 + 3.6 = 3.9s  ✅ 覆盖
+//   · 两个慢跳全串行          ≈ 2.8 + 3.6 = 6.4s  ❌ 超时回落本地（**刻意接受**）
+// 多出来的约 1.6s 是给网络抖动的，不是给第三跳的。
+//
+// 代价（明确接受）：云端真不可达时，单批等待从 2.5s 变 6s。但
+//   ① 论坛侧审核是 3 路并发（见 ForumMain 的 MODERATION_CONCURRENCY），一批只付一次；
+//   ② 连续失败 3 次（≈一波）即进冷却，之后整批直接走本地，不会每张都等满 6s。
+// 反向对照：把 6000 改回 2500 → `image-moderation-pipeline.test.js` 的超时契约条红。
+const CLOUD_TIMEOUT_MS = 6000;
 // 批量云端审核超时：与单图**解耦**。此前写的是 `CLOUD_TIMEOUT_MS + 4000`，
 // 一旦下调单图超时就会把批量也一起压到 6.5s —— 而 `share-moderation.js` 是把
 // **整集照片（最多 60 张）**一次丢进批量入口的，6.5s 必然全超时 → 整组回落本地。
 // 所以批量给一个独立、显式的大值；调用方（影集上传）自己分块控制单次张数。
 const CLOUD_BATCH_TIMEOUT_MS = 12000;
 const CLOUD_RETRY_DELAY_MS = 250;
+// 重试的最小可用预算：剩余低于这个数就干脆不重试（发了也大概率被 abort）。
+const MIN_RETRY_TIMEOUT_MS = 1200;
 // 「每项解码一张全分辨率原图」的并发上限 —— 云端编码与本地兜底共用。
 // 此前两处都是 `Promise.all` 全量并发：分享前复审最多 60 张，等于同时解码 60 张原图，
 // 移动端必然 OOM/卡死。收敛成 2 路：多花一点时间换峰值内存。
@@ -65,6 +82,27 @@ const COOLDOWN_MAX_MS = 300000;
  */
 const FAILURE_THRESHOLD = 3;
 
+/* ── 并发审核下的「连续失败」必须按**波次**记，不能按调用次数（2026-10-29）────────
+ *
+ * 上面那套错误预算的前提是「调用是串行排队的一次一次」。2026-10-29 起论坛预热把
+ * 云端审核放开到 3 路并发（纯网络请求，无 WebGL 副作用），这个前提就破了：
+ *
+ *   一次 300ms 的网络抖动会让**在飞的 3 个请求同一瞬间失败** ⇒ 计数一步跳到 3
+ *   ⇒ 直接冻结云端 60s ⇒ 整批图全部转本地**从宽**判定。
+ *   串行时同一场抖动最多打死 1 个请求（另两个还没发出）—— 这就是并发把「抖动」
+ *   放大成「故障」的路径。
+ *
+ * 口径：**同一波次只记一次**。判据用「在飞请求数」而不是时间窗口 ——
+ * 时间窗口会把**串行**路径上的快速失败（如 429 在 50ms 内返回、连续 3 张）
+ * 也并成一次，那等于把阈值废掉；只有在飞的并发才是「同一场事故」。
+ *
+ * 实现：`attemptCloudVerdict` 进出各维护一次计数；失败记账时若此刻**还有别的请求在飞**，
+ * 说明这不是这一波的最后一声，不计数；最后一个失败的（在飞数归零）代表整波 +1。
+ * 串行时每次失败都看到在飞数 0 ⇒ 行为与改造前完全一致。
+ */
+let cloudInFlight = 0;
+let lastFailureAt = 0;
+
 // 面板/排错时用来看冷却原因
 let cloudCooldownUntil = 0;
 let cloudCooldownReason = '';
@@ -90,7 +128,12 @@ export function isCloudModerationCoolingDown(now = Date.now()) {
  */
 export function markCloudModerationUnreachable(cooldownMs, reason = '') {
   const base = Math.max(1000, Number(cooldownMs) || COOLDOWN_UNREACHABLE_MS);
-  consecutiveFailures += 1;
+  const now = Date.now();
+  // 同一波次（并发请求同时失败）只算一次事故，见 cloudInFlight 处的说明。
+  const mergedIntoBurst = cloudInFlight > 0;
+  const sinceLastFailureMs = lastFailureAt > 0 ? now - lastFailureAt : null;
+  lastFailureAt = now;
+  if (!mergedIntoBurst) consecutiveFailures += 1;
 
   // 未达阈值：只记账，不冻结。下一张照常问云端。
   if (consecutiveFailures < FAILURE_THRESHOLD) {
@@ -98,6 +141,8 @@ export function markCloudModerationUnreachable(cooldownMs, reason = '') {
       reason: String(reason || '').slice(0, 80),
       consecutiveFailures,
       threshold: FAILURE_THRESHOLD,
+      mergedIntoBurst,
+      sinceLastFailureMs,
     });
     return { cooling: false, failures: consecutiveFailures };
   }
@@ -123,11 +168,13 @@ export function markCloudModerationUnreachable(cooldownMs, reason = '') {
 }
 
 export function markCloudModerationSuccess() {
-  // 成功是最强的健康信号：清冷却 + 清连续失败计数 + 退避期数归零。
+  // 成功是最强的健康信号：清冷却 + 清连续失败计数 + 退避期数归零 + 清波次时间戳
+  // （不清 time stamp 会让「成功后立刻又失败」被误并进上一波次）。
   cloudCooldownUntil = 0;
   cloudCooldownReason = '';
   consecutiveFailures = 0;
   cooldownStreak = 0;
+  lastFailureAt = 0;
 }
 
 export function getCloudModerationCooldownState() {
@@ -374,7 +421,35 @@ async function callCloudImageModeration(dataUrls, { timeoutMs = CLOUD_TIMEOUT_MS
 }
 
 // 本地兜底：宽放行。仅 rejected 拦截；needs_review 视为放行（标记待抽查）。
+//
+// ⚠️ **本地兜底强制单并发**（2026-10-29）。
+// 实测教训：本地 nsfwjs 批量并发在移动端会崩 —— 整组解码全分辨率位图 + WebGL classify
+// 叠加，峰值内存和 GPU 队列一起爆。此前靠 ForumMain 的一条全局串行链顺带挡住了，
+// 但那条链同时把**云端**串成了 6 次 RTT 相加，所以拆开：云端放开并发（纯网络，无副作用），
+// 本地在**这一层**兜住单并发。
+//
+// 放在这一层而不是调用方，是因为调用方无法预知「这次会不会降级到本地」：3 路并发进
+// moderateImageWithFallback 时，可能三张同时云端失败、同时降级 —— 按入口并发数判断
+// 会漏。这里的互斥对**所有**入口生效（论坛预热、影集分享复审、强制 local 调试开关）。
+let localFallbackChain = Promise.resolve();
+
 async function localFallbackModerate(file) {
+  // 排队取锁：先接住上一位的 promise，再把自己的 release 挂上去。
+  const prev = localFallbackChain;
+  let release;
+  localFallbackChain = new Promise((resolve) => {
+    release = resolve;
+  });
+  await prev;
+  try {
+    return await runLocalFallbackModerate(file);
+  } finally {
+    // 无论成功/抛错都放锁：一张坏图不能把后面的图永久卡在队列里
+    release();
+  }
+}
+
+async function runLocalFallbackModerate(file) {
   const localResult = await moderateForumImageFile(file);
   if (localResult?.status === 'rejected') {
     return {
@@ -408,6 +483,25 @@ function isRetryableFailureKind(kind) {
 }
 
 async function attemptCloudVerdict(dataUrls, { timeoutMs, signal }) {
+  // 在飞计数：失败记账用它判断「这一声是不是本波的最后一声」（见 cloudInFlight 注释）。
+  // 包住整个 attempt（含重试）—— 重试是同一次事故的延续，不该被算成第二波。
+  cloudInFlight += 1;
+  try {
+    return await runCloudAttempt(dataUrls, { timeoutMs, signal });
+  } finally {
+    cloudInFlight -= 1;
+  }
+}
+
+async function runCloudAttempt(dataUrls, { timeoutMs, signal }) {
+  // 本次 attempt 的**总预算**（含下面最多一次的重试）。2026-10-29 加：
+  // 此前重试直接复用完整 timeoutMs ⇒ 最坏 6s + 250ms + 6s = 12.25s，
+  // 而「云端不可达」时用户就是白白多看一倍等待。现在重试用**剩余预算**：
+  //   第一次吃满 6s 才失败 ⇒ 剩余约 0 ⇒ 不重试（总 6s）
+  //   第一次 0.3s 快速 503 ⇒ 剩余 5.7s ⇒ 重试（总 ≈ 6.25s）
+  // 于是上限回到「一个预算 + 一次重试延迟」，与服务端「一条链共用一份预算」同口径。
+  const budgetMs = Math.max(1000, Number(timeoutMs) || CLOUD_TIMEOUT_MS);
+  const deadline = Date.now() + budgetMs;
   const first = await callCloudImageModeration(dataUrls, { timeoutMs, signal });
   if (first?.ok) return { ok: true, data: first.data, keyInfo: first.keyInfo || null };
 
@@ -428,7 +522,15 @@ async function attemptCloudVerdict(dataUrls, { timeoutMs, signal }) {
 
   if (isRetryableFailureKind(classified.kind)) {
     await new Promise((resolve) => setTimeout(resolve, CLOUD_RETRY_DELAY_MS));
-    const second = await callCloudImageModeration(dataUrls, { timeoutMs, signal });
+    const remainingMs = deadline - Date.now();
+    if (remainingMs < MIN_RETRY_TIMEOUT_MS) {
+      // 预算见底：再发一次只会把「不可达」拖成两倍等待（且客户端可能已经放弃）
+      return {
+        ok: false,
+        failure: { ...failure, kind: classified.kind, cooldownMs: classified.cooldownMs },
+      };
+    }
+    const second = await callCloudImageModeration(dataUrls, { timeoutMs: remainingMs, signal });
     if (second?.ok) return { ok: true, data: second.data, keyInfo: second.keyInfo || null };
     const secondClassified = classifyCloudFailure({
       code: second?.error?.code,

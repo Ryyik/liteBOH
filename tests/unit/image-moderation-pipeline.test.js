@@ -308,7 +308,11 @@ describe('image-moderation-pipeline（云端优先、本地兜底）', () => {
  *   而重试失败后 `handleUnreachable` 照样会把冷却立起来，终态完全一致。
  *   保留这次改动只是因为「不可达一经观察到就立即冷却」语义更正确、
  *   且在审核将来若改并发时才有意义；**不要**拿它当提速项汇报。
- *   真正有牙的是超时 2500 / 批量 12000（解耦）/ 编码并发 ≤2 这三条。
+ *   真正有牙的是超时 6000 / 批量 12000（解耦）/ 编码并发 ≤2 这三条。
+ *
+ * ⚠️ 2026-10-29 单图超时 **2500 → 6000**：服务端降级链实测单跳 2.8/3.6/4.3s，
+ *    2500 比最快的第 1 跳还短 ⇒ 客户端永远先超时，云端审核在图片路径上从未真正生效过。
+ *    详见 `src/utils/image-moderation-pipeline.js` 的 CLOUD_TIMEOUT_MS 注释。
  */
 describe('image-moderation-pipeline（2026-10-04 超时 / 冷却 / 编码并发）', () => {
   beforeEach(() => {
@@ -324,15 +328,18 @@ describe('image-moderation-pipeline（2026-10-04 超时 / 冷却 / 编码并发�
     markCloudModerationSuccess();
   });
 
-  it('单图超时 2500ms、批量超时 12000ms，两者**解耦**', async () => {
+  it('单图超时 6000ms、批量超时 12000ms，两者**解耦**', async () => {
     // 解耦是刻意的：share-moderation.js 把整集（最多 60 张）一次丢进批量入口，
-    // 批量超时若跟着单图一起降到 6.5s，那一路必然整组超时回落本地。
-    // 反向对照：把单图改回 8000 → 第一条红；把批量改回 `CLOUD_TIMEOUT_MS + 4000` → 第二条红。
+    // 批量超时若跟着单图一起改，那一路必然整组超时回落本地。
+    // 反向对照：把单图改成 2500 → 第一条红；把批量改成 `CLOUD_TIMEOUT_MS + 4000`（=10000，
+    // 跟着单图走）→ 第二条红。
+    // ⚠️ 单图 6000 的下界是硬约束，别按「越小越快」调回去：服务端降级链最快一跳实测 2.8s，
+    //    客户端预算必须大于它，否则云端审核永远拿不到结果（2026-10-29 定案）。
     testMocks.callVaultSiliconChat.mockResolvedValue(
       cloudOk('{"status":"approved","confidence":0.1}'),
     );
     await moderateImageWithFallback(new File([], 'a.jpg'));
-    expect(testMocks.callVaultSiliconChat.mock.calls[0][0].timeoutMs).toBe(2500);
+    expect(testMocks.callVaultSiliconChat.mock.calls[0][0].timeoutMs).toBe(6000);
 
     testMocks.callVaultSiliconChat.mockResolvedValue(
       cloudOk(
@@ -345,6 +352,51 @@ describe('image-moderation-pipeline（2026-10-04 超时 / 冷却 / 编码并发�
       new File([], 'd.jpg'),
     ]);
     expect(testMocks.callVaultSiliconChat.mock.calls[1][0].timeoutMs).toBe(12000);
+  });
+
+  /**
+   * 重试必须吃**剩余预算**（2026-10-29）。
+   *
+   * 旧写法重试时又传一份完整 timeoutMs ⇒ 最坏 6s + 250ms + 6s = 12.25s。
+   * 而「云端不可达」正是重试最容易触发的场景 —— 等于让用户白等一倍。
+   * 用 Date.now 打桩而不是真等（真等要 5.9s，测试会慢到没人愿意跑）。
+   */
+  it('重试用剩余预算：第一次就吃满预算时不再重试（否则总等待翻倍）', async () => {
+    let now = 1_000_000;
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      testMocks.callVaultSiliconChat.mockImplementation(async () => {
+        now += 5900; // 模拟第一次几乎吃满 6000 的预算
+        return cloudFail({ status: 503, message: '上游故障' });
+      });
+      const result = await moderateImageWithFallback(new File([], 'a.jpg'));
+      expect(String(result.source)).toMatch(/^local_fallback/);
+      // 预算不够重试（剩余 100ms < 1200ms 下限）⇒ 只打了一次云端
+      expect(testMocks.callVaultSiliconChat.mock.calls.length).toBe(1);
+    } finally {
+      spy.mockRestore();
+      markCloudModerationSuccess();
+    }
+  });
+
+  it('快速失败仍会重试，且第二次只拿剩余预算（远小于完整超时）', async () => {
+    let now = 1_000_000;
+    const spy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      testMocks.callVaultSiliconChat.mockImplementation(async () => {
+        now += 300; // 快速 503
+        return cloudFail({ status: 503, message: '上游故障' });
+      });
+      await moderateImageWithFallback(new File([], 'a.jpg'));
+      const calls = testMocks.callVaultSiliconChat.mock.calls;
+      expect(calls.length).toBe(2);
+      // 第二次拿到的是 6000 - 300 = 5700 左右，绝不能再是一份完整的 6000
+      expect(calls[1][0].timeoutMs).toBeLessThan(6000);
+      expect(calls[1][0].timeoutMs).toBeGreaterThan(5000);
+    } finally {
+      spy.mockRestore();
+      markCloudModerationSuccess();
+    }
   });
 
   it('可重试类失败：本次重试一次，且单次失败不冻结（下一张仍打云端）', async () => {
