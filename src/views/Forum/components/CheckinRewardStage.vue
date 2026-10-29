@@ -183,10 +183,13 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   /* 浅色页面上 0.34 的深遮罩算下来底色仍接近 #b9bdc0，白字对比度不到 2:1。
-     0.62 + blur 才能把「白底白字」救回来（实测约 7:1），也让背景帖子真正退场。 */
+     0.62 + blur 才能把「白底白字」救回来（实测约 7:1），也让背景帖子真正退场。
+     ⚠️ 模糊走 `--liquid-filter-sm`（轻档材质），不要写死像素半径：
+     材质单源在 `styles/common/tokens.css`，`check:liquid-glass` 会把手写的
+     backdrop blur 判成第二材质源（2026-10-29 实测被它拦下一次推送）。 */
   background: rgba(10, 16, 22, 0.62);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
 .checkin-stage-body {
