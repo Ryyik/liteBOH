@@ -190,13 +190,16 @@ const loadMailEntry = async (
 const FONT_STACK =
   "-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif";
 
-/** 发帖=蓝系、回复=绿系：头像底色与按钮同源，扫一眼即知动作类型 */
-const TONE = {
+/** 发帖=蓝系、回复=绿系：头像底色与按钮同源，扫一眼即知动作类型。
+ *  ⚠️ 显式 Record<MailKind, …>：写成字面量对象再拿 string 索引会触发 TS7053（CI deno check 阻断过一次）。 */
+type MailKind = 'follow_post' | 'follow_reply';
+
+const TONE: Record<MailKind, { avatarBg: string; avatarColor: string; button: string }> = {
   follow_post: { avatarBg: '#E6F1FB', avatarColor: '#185FA5', button: '#2f6fed' },
   follow_reply: { avatarBg: '#E1F5EE', avatarColor: '#0F6E56', button: '#0f9d58' },
-} as const;
+};
 
-const avatarBlock = (senderName: string, kind: string, size: number) => {
+const avatarBlock = (senderName: string, kind: MailKind, size: number) => {
   const tone = TONE[kind] || TONE.follow_post;
   const initial = escapeHtml([...senderName][0] || '方');
   return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${tone.avatarBg};color:${tone.avatarColor};display:inline-flex;align-items:center;justify-content:center;font-size:${Math.round(size * 0.4)}px;font-weight:500;">${initial}</div>`;
