@@ -5,11 +5,6 @@
 }
 
 /* Landscape mode on mobile and tablet - ensure no overlap */
-@media (orientation: landscape) {
-  .hot-tags-card {
-    z-index: 20;
-  }
-}
 
 /* Landscape mode on small screens - adjust layout */
 @media (max-width: 1024px) and (orientation: landscape) {
@@ -173,12 +168,6 @@
 }
 
 /* 骨架屏加载更多 */
-.skeleton-loading-more {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 20px 0;
-}
 
 /* 移动端骨架屏适配 */
 @media (max-width: 768px) {
@@ -390,7 +379,6 @@
   display: none;
 }
 
-.forum-confirm-cat,
 .forum-confirm-cat-img {
   display: none;
 }
