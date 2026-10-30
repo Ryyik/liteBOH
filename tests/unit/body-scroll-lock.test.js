@@ -113,6 +113,32 @@ describe('acquireBodyScrollLock 引用计数（P3-1）', () => {
     expect(style.overflow).toBe('hidden');
   });
 
+  /* 2026-10-30 复审：全站还有 41 处直写会**无条件清零**（UnifiedNavbar 四处、
+     usePostDetailModal 等）。若本模块不看归属就写回 savedOverflow，会出现反向事故：
+     acquire 时恰好是别人的 'hidden' ⇒ 对方关闭时清成 '' ⇒ 我们 release 又把 'hidden'
+     写回 ⇒ 之后整站不能滚动，且再没有任何组件会去清它。
+     下面这条在旧实现下必然失败（旧实现会写回 'hidden'）。 */
+  it('外部直写清零后，release 不得把 savedOverflow 写回（防整站永久锁死）', () => {
+    style.overflow = 'hidden'; // 别的模块已经上锁
+    const release = lock('forum');
+
+    style.overflow = ''; // 外部无条件清零（存量直写派的典型写法）
+
+    release();
+
+    expect(style.overflow).toBe(''); // 旧实现这里是 'hidden'
+    expect(getBodyScrollLockCount()).toBe(0);
+  });
+
+  it('外部改成了别的值时也不覆盖它', () => {
+    const release = lock('forum');
+    style.overflow = 'auto'; // 外部按自己的口径接管
+
+    release();
+
+    expect(style.overflow).toBe('auto');
+  });
+
   it('无 document 环境（SSR）返回空函数且不抛错', () => {
     delete globalThis.document;
 

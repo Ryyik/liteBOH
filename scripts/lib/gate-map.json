@@ -68,9 +68,11 @@
         "node scripts/probes/probe-composer-session-gate.mjs",
         "node scripts/probes/probe-composer-image-stall.mjs",
         "node scripts/probes/probe-forum-search.mjs",
+        "node scripts/probes/probe-forum-virtual-jump.mjs",
+        "node scripts/probes/probe-forum-polish-sweep.mjs",
         "node scripts/probes/probe-weekly-checkin-points.mjs"
       ],
-      "why": "发布会话闸门（双宿主）+ 选图反馈口径 + 论坛搜索 RPC + 周签到"
+      "why": "发布会话闸门（双宿主）+ 选图反馈口径 + 论坛搜索 RPC + 虚拟列表跳跃兜底 + 智能整理流光 + 周签到"
     },
     {
       "glob": "src/views/PostDetail/**",

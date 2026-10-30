@@ -1172,7 +1172,9 @@ describe('deleteComment', () => {
     expect(result.error).toBe('没有权限删除此评论');
   });
 
-  it('falls back to a plain user when the profile lookup fails', async () => {
+  it('profile 查询失败时不谎称「没有权限」，给可重试文案（2026-10-30 P3-2 复核）', async () => {
+    // 权威角色查不到（网络/列权限）：管理员会被本地拦下 —— 这没错，
+    // 但错误文案不能是「没有权限」，否则用户按提示去申诉权限，真实原因却是网络。
     getUserMock.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
     fromMock.mockImplementation((table) => {
       if (table === 'profiles') {
@@ -1201,7 +1203,8 @@ describe('deleteComment', () => {
     const result = await deleteComment('c1', 'user-1', 'admin');
 
     expect(result.ok).toBe(false);
-    expect(result.error).toBe('没有权限删除此评论');
+    expect(result.error).toBe('网络异常，暂时无法校验权限，请稍后重试');
+    expect(result.error).not.toContain('没有权限');
   });
 
   it('deletes comment via supabase', async () => {

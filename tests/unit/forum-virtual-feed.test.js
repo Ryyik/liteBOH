@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 import {
   resolveWindowIndexFromScroll,
@@ -89,5 +89,76 @@ describe('resolveWindowIndexFromScroll', () => {
     });
     expect(Number.isFinite(index)).toBe(true);
     expect(index).toBe(0);
+  });
+});
+
+/* 2026-10-30 复审：`setupForumWindowObserver` 在 `await nextTick()` 之后才动手，
+   却漏了 `forumWindowObserverAborted` 守卫（同文件的 `setupForumLoadMoreObserver` 有，
+   注释还写着「与 window observer 的守卫对称」—— 实际不对称）。
+   卸载发生在 await 挂起期间 ⇒ 卸载后仍给 window 补一条**永不释放**的 scroll 监听，
+   并且会继续操作已销毁组件的 ref。
+   第一条用例在旧实现下 add=1 / remove=0，必然失败。 */
+describe('setupForumWindowObserver 卸载竞态', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const installEnvironment = () => {
+    const bucket = { added: [], removed: [] };
+    vi.stubGlobal('window', {
+      innerHeight: 844,
+      getComputedStyle: () => ({ overflowY: 'visible' }),
+      addEventListener: (type, fn) => {
+        if (type === 'scroll') bucket.added.push(fn);
+      },
+      removeEventListener: (type, fn) => {
+        if (type === 'scroll') bucket.removed.push(fn);
+      },
+    });
+    // 真实页里 document 一定有；这里只要 querySelectorAll 能返回空集合
+    vi.stubGlobal('document', { body: {}, querySelectorAll: () => [] });
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    return bucket;
+  };
+
+  const makeFeed = () =>
+    useForumVirtualFeed({
+      feedMode: ref('posts'),
+      forumData: ref(Array.from({ length: 60 }, (_, index) => ({ id: index }))),
+      forumPageRef: ref(null),
+      loadMoreSentinelRef: ref(null),
+      isLoading: ref(false),
+      isLoadingMore: ref(false),
+      hasMoreData: ref(false),
+      getScrollContainer: () => null,
+      onLoadMore: () => {},
+    });
+
+  it('await nextTick 期间 stop()：不得再挂 scroll 监听', async () => {
+    const bucket = installEnvironment();
+    const feed = makeFeed();
+
+    const pending = feed.setupForumWindowObserver();
+    feed.stop(); // 模拟组件卸载，恰好发生在 await 挂起期间
+    await pending;
+
+    expect(bucket.added).toHaveLength(0);
+  });
+
+  it('正常挂载挂 1 条、stop() 时摘掉（守卫不能把正常路径也挡掉）', async () => {
+    const bucket = installEnvironment();
+    const feed = makeFeed();
+
+    await feed.setupForumWindowObserver();
+    expect(bucket.added).toHaveLength(1);
+
+    feed.stop();
+    expect(bucket.removed).toHaveLength(1);
   });
 });

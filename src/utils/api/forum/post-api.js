@@ -70,7 +70,7 @@ const FALLBACK_STATUS_FILTER = 'status.is.null,status.eq.approved';
    ⚠️ 这条串此前在 4 个分支里各有「有/无登录态」两份，共 8 处逐字重复；加一个字段要改 8 处，
    漏一处就是「列表有、用户主页没有」这类只在特定入口复现的 bug。
    ⚠️ 唯一差异是 `user_likes:likes!left(user_id)`：无登录态时不查（省一次 join）。
-   守卫见 `tests/unit/forum-select-single-source.test.js`（只允许在本文件出现一次）。 */
+   守卫见 `tests/unit/forum-post-select-single-source.test.js`（只允许在本文件出现一次）。 */
 const POST_LIST_SELECT_LIKES_FIELD = 'user_likes:likes!left(user_id)';
 const POST_LIST_SELECT_FIELDS = [
   '*',
@@ -1286,7 +1286,13 @@ export async function deletePost(postId, userId, _userRole) {
 
   const actor = await resolveAuthoritativeForumActor(userId);
   if (!canMutateForumContent(actor, post.author_id)) {
-    return { ok: false, success: false, error: '没有权限删除此帖子' };
+    // roleResolved=false ⇒ 是「没查到身份」而不是「查到了但不够权限」。
+    // 这时给「没有权限」是错层提示：管理员弱网下会被本地拦住却看到权限文案。
+    return {
+      ok: false,
+      success: false,
+      error: actor.roleResolved ? '没有权限删除此帖子' : '网络异常，暂时无法校验权限，请稍后重试',
+    };
   }
 
   const { error: deleteError } = await supabase.from('posts').delete().eq('id', safePostId);
@@ -1510,7 +1516,11 @@ export async function updatePost(postId, content, userId, _userRole, title = '')
 
   const actor = await resolveAuthoritativeForumActor(userId);
   if (!canMutateForumContent(actor, post.author_id)) {
-    return { ok: false, success: false, error: '没有权限编辑此帖子' };
+    return {
+      ok: false,
+      success: false,
+      error: actor.roleResolved ? '没有权限编辑此帖子' : '网络异常，暂时无法校验权限，请稍后重试',
+    };
   }
 
   const moderationInput = buildPostModerationInput(safeContent);

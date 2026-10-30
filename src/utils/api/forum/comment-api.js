@@ -420,7 +420,12 @@ export async function deleteComment(commentId, userId, _userRole) {
 
   const actor = await resolveAuthoritativeForumActor(userId);
   if (!canMutateForumContent(actor, comment.author_id)) {
-    return { ok: false, success: false, error: '没有权限删除此评论' };
+    // roleResolved=false ⇒「没查到身份」而非「查到了但不够权限」，别谎称没有权限
+    return {
+      ok: false,
+      success: false,
+      error: actor.roleResolved ? '没有权限删除此评论' : '网络异常，暂时无法校验权限，请稍后重试',
+    };
   }
 
   const { error: deleteError } = await supabase.from('comments').delete().eq('id', commentId);

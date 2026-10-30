@@ -204,7 +204,10 @@ describe('forum-api integration: deletePost', () => {
     vi.clearAllMocks();
     clearRequestCache();
     // clearAllMocks 不清实现 ⇒ 显式回到「未登录」，避免上一条用例的登录态渗进来
-    fm.authGetUser.mockResolvedValue(undefined);
+    // ⚠️ 用真实的「无会话」形状（`{ user: null }`）而不是 `undefined`：
+    // supabase.auth.getUser() 不会返回 undefined，而 undefined 会走 catch 分支，
+    // 被判定成「没查到身份」——那是网络异常，不是未登录（2026-10-30 修正）。
+    fm.authGetUser.mockResolvedValue({ data: { user: null }, error: null });
   });
 
   it('rejects when post not found', async () => {
@@ -321,6 +324,9 @@ describe('forum-api integration: comments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearRequestCache();
+    // clearAllMocks 不清实现 ⇒ 显式回到「未登录」，否则会继承上一条用例的登录态
+    // （2026-10-30：不重置时 deleteComment 会走「查不到角色」分支，得到可重试文案）
+    fm.authGetUser.mockResolvedValue({ data: { user: null }, error: null });
   });
 
   it('getComments returns approved comments', async () => {

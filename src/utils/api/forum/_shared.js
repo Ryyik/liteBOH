@@ -18,9 +18,22 @@ export function toNonNegativeNumber(value, fallback = 0) {
   return Number.isFinite(n) ? Math.max(0, n) : fallback;
 }
 
-/** 同 `toNonNegativeNumber`，但下界是 1（page / pageSize / limit 用）。 */
+/**
+ * 同 `toNonNegativeNumber`，但下界是 1，且**取整**（函数名就是承诺：page / pageSize / limit
+ * 最终都进 PostgREST 的 `.range()` 或 RPC 的 `p_page`，那里只接受整数）。
+ *
+ * ⚠️ `0 / null / '' / false / 负数` 一律视为「没传」，走 fallback —— 不能夹到 1：
+ * 它们是 falsy（或根本不存在负页码），旧实现 `Math.max(1, Number(v || fallback))`
+ * 走的就是 fallback；换成「有限数就夹 ≥1」后 `pageSize: 0` 会从「默认 10 条」静默变成
+ * 「1 条」，列表页只剩一条、还看不出报错（2026-10-30 复核实测）。
+ */
 export function toPositiveInt(value, fallback = 1) {
-  return Math.max(1, toNonNegativeNumber(value, fallback));
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) {
+    const safeFallback = Math.floor(Number(fallback));
+    return Number.isFinite(safeFallback) && safeFallback >= 1 ? safeFallback : 1;
+  }
+  return Math.floor(n);
 }
 
 export function isMissingRpcFunctionError(error, functionName) {
@@ -98,6 +111,17 @@ export async function fetchQuotedPostsByIds(ids = []) {
   ];
   const missing = allIds.filter((id) => !quotedPostCache.has(id));
 
+  // ⚠️ 结果必须由「本次命中的数据」直接构建，**不能**写完缓存再回读：
+  // 缓存是有界 LRU（上限 200），单批要查的 id 超过上限时，最早写入的条目会在回读前
+  // 被自己挤掉 ⇒ 那几个 id 静默消失、引用框空白，而且下次渲染还会再发一次请求。
+  // 先收已命中的（含「确认查不到」的 null），再补本次抓到的。
+  const result = new Map();
+  allIds.forEach((id) => {
+    const cached = readQuotedPostCache(id);
+    // undefined = 未命中；null = 命中但确认查不到（两者都要区分）
+    if (cached !== undefined) result.set(id, cached);
+  });
+
   if (missing.length) {
     try {
       const { data, error } = await supabase
@@ -109,23 +133,23 @@ export async function fetchQuotedPostsByIds(ids = []) {
       const found = new Set();
       rows.forEach((row) => {
         rememberQuotedPost(row.id, row);
+        result.set(row.id, row);
         found.add(row.id);
       });
       missing.forEach((id) => {
-        if (!found.has(id)) rememberQuotedPost(id, null);
+        if (!found.has(id)) {
+          rememberQuotedPost(id, null);
+          result.set(id, null);
+        }
       });
     } catch (error) {
       logger.warn('forum-api', '转发原帖批量回源失败（引用展示降级）', { ids: missing, error });
-      return new Map();
+      // 降级不丢已命中的：回源失败时把缓存里那部分照常返回，
+      // 否则「本来能显示的引用框」会因为一次网络抖动整块变空。
+      return result;
     }
   }
 
-  const result = new Map();
-  allIds.forEach((id) => {
-    const cached = readQuotedPostCache(id);
-    // undefined = 未命中；null = 命中但确认查不到（两者都要区分）
-    if (cached !== undefined) result.set(id, cached);
-  });
   return result;
 }
 
@@ -302,16 +326,34 @@ export async function notifyPostAuthorForRepost({ postId, senderId } = {}) {
  * 等于「客户端自称 admin 就先按 admin 判权限」。真门仍是 RLS（42501），所以这不是
  * 越权漏洞，但它让错误发生在错误的层：用户看到「删除失败」而不是「没有权限」。
  *
- * 代价（已知并接受）：profiles 查询失败/离线时，真 admin 也会被本地拦一次，
- * 看到「没有权限」。这种情况下的正确行为就是不放行 —— 宁可多一次 42501 兜底。
+ * ⚠️ `roleResolved` 告诉调用方「角色到底知不知道」：
+ * 查不到 profiles（网络/离线/列权限）时它是 false，此时**非作者**的请求会被本地拦下；
+ * 若调用方不区分，管理员就会看到「没有权限删除此帖子」—— 真实原因是网络。
+ * 所以 3 个调用点都按 `!roleResolved` 改回可重试文案（2026-10-30 复核修正）。
+ * 作者本人不受影响：回退保留了调用方传入的 userId，本人判定先命中。
  */
 export async function resolveAuthoritativeForumActor(fallbackUserId = '') {
-  const fallback = { userId: String(fallbackUserId || '').trim(), role: '' };
+  const fallback = {
+    userId: String(fallbackUserId || '').trim(),
+    role: '',
+    roleResolved: false,
+  };
   try {
     if (!supabase.auth?.getUser) return fallback;
     const { data: authData, error: authError } = await supabase.auth.getUser();
     const userId = String(authData?.user?.id || '').trim();
-    if (authError || !userId) return fallback;
+    if (!userId) {
+      // 「没有会话」是**确定结论**（角色就是无），别报成网络异常。
+      // 只有「报错且不是会话缺失」才算没查到身份 ⇒ roleResolved=false。
+      const missingSession =
+        !authError ||
+        authError.name === 'AuthSessionMissingError' ||
+        Number(authError.status) === 401;
+      if (!missingSession) return fallback;
+      // 保留调用方 userId：作者本人判定照旧生效（真门仍是 RLS），与旧行为一致
+      return { userId: fallback.userId, role: '', roleResolved: true };
+    }
+    if (authError) return fallback;
     const profileQuery = supabase.from('profiles').select('role').eq('id', userId);
     if (typeof profileQuery?.maybeSingle !== 'function') return fallback;
     const { data: profile, error: profileError } = await profileQuery.maybeSingle();
@@ -324,7 +366,7 @@ export async function resolveAuthoritativeForumActor(fallbackUserId = '') {
     ) {
       return fallback;
     }
-    return { userId, role: String(profile?.role || '').trim() };
+    return { userId, role: String(profile?.role || '').trim(), roleResolved: true };
   } catch (_error) {
     return fallback;
   }

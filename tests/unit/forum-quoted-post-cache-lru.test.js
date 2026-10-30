@@ -117,4 +117,39 @@ describe('quotedPostCache LRU 上限（P3-3）', () => {
     expect(getCachedQuotedPost('')).toBeNull();
     expect(getCachedQuotedPost(null)).toBeNull();
   });
+
+  /* ── 2026-10-30 复审补的两条 ────────────────────────────────────────────
+     旧实现是「先把本次结果写进有界 LRU，再从同一个 LRU 回读」。
+     上限 200 < 单批 201 ⇒ 最先写入的那条在回读前被自己挤掉，静默消失。
+     这两条在旧实现下必然失败（返回 200 / 返回空 Map），是修复有效的证明。 */
+
+  it('单批超过上限（201）时一条都不能丢', async () => {
+    const { fetchQuotedPostsByIds } = await freshShared();
+    const batch = ids(0, 201);
+    mockPostsTable(batch.map((id) => ({ id, title: `T${id}` })));
+
+    const map = await fetchQuotedPostsByIds(batch);
+
+    expect(map.size).toBe(201);
+    expect(map.has('p0')).toBe(true); // 旧实现这里 false（被自己淘汰）
+    expect(map.has('p200')).toBe(true);
+  });
+
+  it('回源失败时保留已命中的缓存，只丢掉没查到的', async () => {
+    const { fetchQuotedPostsByIds } = await freshShared();
+    mockPostsTable([{ id: 'cached1', title: 'ok' }]);
+    await fetchQuotedPostsByIds(['cached1']);
+
+    fm.fromMock.mockReturnValue({
+      select: () => ({
+        in: () => Promise.resolve({ data: null, error: new Error('offline') }),
+      }),
+    });
+
+    const degraded = await fetchQuotedPostsByIds(['cached1', 'newone']);
+
+    // 旧实现 catch 里直接 `return new Map()` ⇒ 连已缓存的也一起丢，引用框整块空白
+    expect(degraded.get('cached1')).toMatchObject({ id: 'cached1', title: 'ok' });
+    expect(degraded.has('newone')).toBe(false);
+  });
 });

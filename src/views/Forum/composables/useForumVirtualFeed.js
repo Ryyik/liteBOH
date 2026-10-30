@@ -221,6 +221,10 @@ export function useForumVirtualFeed({
   const setupForumWindowObserver = async () => {
     if (typeof window === 'undefined') return;
     await nextTick();
+    // stop() 可能发生在 nextTick 挂起期间：卸载后不得再挂 scroll 兜底、也不得重建 observer。
+    // 少了这条守卫，卸载后 attachScrollFallback 会给 window 补一个**永不释放**的 scroll 监听
+    // （2026-10-30 复核实测：add=1 / remove=0）。与 setupForumLoadMoreObserver 的守卫对称。
+    if (forumWindowObserverAborted) return;
     cleanupForumWindowObserver();
     // 兜底监听跟窗口同在：不虚拟化时它自己 detach（见 attachScrollFallback 内的分支）
     attachScrollFallback();

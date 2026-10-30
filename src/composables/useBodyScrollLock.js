@@ -10,6 +10,9 @@
  *  1. **引用计数**：第一个 acquire 才真正上锁，最后一个 release 才真正解锁；
  *  2. **保存原值**：解锁时恢复 acquire 前的值，而不是硬写 `''` ——
  *     静态 CSS 里给 `body` 设过 `overflow` 的页面不会被重置；
+ *     **但只在「锁还是自己设的 hidden」时才恢复**：全站还有 40+ 处直写会无条件清零/改值，
+ *     一旦被外人改过就说明现在不归自己管，此时再写回原值会把页面永久锁死
+ *     （acquire 时恰好是别人的 hidden ⇒ release 把 hidden 写回，之后没人再清）。
  *  3. **release 幂等**：同一个 release 函数调两次只减一次；
  *     传进来的 owner 只用于调试识别，不参与去重（两次 acquire 就是两份锁）。
  *
@@ -61,7 +64,12 @@ export function acquireBodyScrollLock(owner = 'anonymous') {
     released = true;
     holders.delete(token);
     if (holders.size === 0) {
-      document.body.style.overflow = savedOverflow;
+      // 归属校验：只有「当前值仍是本模块设的 hidden」才还原。
+      // 若期间被外部直写改过（清零 / 改成别的值），说明锁已经不在我们手上，
+      // 这时写回 savedOverflow 可能把别人刚解开的页面重新锁死（且再无人清）。
+      if (document.body.style.overflow === 'hidden') {
+        document.body.style.overflow = savedOverflow;
+      }
     }
   };
 }
