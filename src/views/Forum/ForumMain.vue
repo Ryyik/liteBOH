@@ -39,6 +39,7 @@ import {
 } from './composables/useForumPostDraftStorage.js';
 import { useForumVirtualFeed } from './composables/useForumVirtualFeed.js';
 import { useForumDraftImagePipelines } from './composables/useForumDraftImagePipelines.js';
+import { useForumFeedQuery } from './composables/useForumFeedQuery.js';
 import { useForumPublishQueue } from './composables/useForumPublishQueue.js';
 import { useActiveAds } from './composables/useActiveAds.js';
 import { useUserTier } from '@/composables/useUserTier.js';
@@ -119,7 +120,6 @@ import {
   FORUM_TAG_OPTIONS,
   LIST_REPLY_PREVIEW_COUNT,
   POSTS_PER_PAGE,
-  SEARCH_DEBOUNCE_MS,
 } from './forum-config.js';
 import { applyPoints, readPoints } from './forum-points.js';
 import { getBohAIModelStatus } from '@/utils/bohai-model-client.js';
@@ -603,7 +603,6 @@ const imageUploadCooldownUntil = ref(0);
 let cooldownTimer = null;
 let forumFetchSeq = 0;
 let forumFetchAbortController = null;
-let searchDebounceTimer = null;
 let postDraftSaveTimer = null;
 let postDraftSyncQueue = Promise.resolve(null);
 // 草稿没有固定的自动保存定时器：仅在打开会话时对账、关闭确认保存、发布后清理。
@@ -1454,10 +1453,7 @@ onUnmounted(() => {
   }
   document.body.style.overflow = '';
   void discardDraftPostImages({ silent: true });
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = null;
-  }
+  cancelPendingSearch();
   if (postDraftSaveTimer) {
     clearTimeout(postDraftSaveTimer);
     postDraftSaveTimer = null;
@@ -2937,60 +2933,43 @@ const handleToggleLike = async (post) => {
   }
 };
 
-const setSortMode = (mode) => {
-  feedMode.value = 'posts';
-  sortMode.value = mode;
-  fetchForumData();
-};
-
-const setFeedMode = (mode) => {
-  if (mode === 'following' && !isLoggedIn.value) return;
-  const newVal = mode === 'following';
-  if (showFollowingOnly.value === newVal) return;
-  showFollowingOnly.value = newVal;
-  feedMode.value = 'posts';
-  fetchForumData();
-};
-
-const setTagFilter = (tag = '') => {
-  const normalizedTag = normalizeForumTagValue(tag);
-  // 下拉显式选择优先：清掉输入中的 #记号，防止后续防抖解析把选择覆盖回记号里的标签
-  if (searchQuery.value.includes('#')) {
-    searchQuery.value = stripTagTokens(searchQuery.value);
-  }
-  if (selectedTagFilter.value === normalizedTag) return;
-  selectedTagFilter.value = normalizedTag;
-  feedMode.value = 'posts';
-  fetchForumData();
-};
-
-const setContentType = (type = '') => {
-  const next = ['news', 'activity', 'post'].includes(type) ? type : '';
-  if (selectedContentType.value === next) return;
-  selectedContentType.value = next;
-  feedMode.value = 'posts';
-  fetchForumData();
-};
-
-const CONTENT_TYPE_LABELS = { info: '资讯', news: '新闻', activity: '活动', post: '论坛' };
-const contentTypeLabel = computed(() => CONTENT_TYPE_LABELS[selectedContentType.value] || '');
-
-/* 筛选态空列表的文案：把「什么条件下没有内容」说清楚。
-   2026-10-22 之前这里拼的是 `「${contentTypeLabel}」`，而 'info'（资讯）不在标签表里
-   ⇒ 界面上出现过「没有找到「」相关的内容」这种空括号。 */
-const emptyFilterTitle = computed(() => {
-  const tagLabel = selectedTagFilter.value ? getForumTagLabel(selectedTagFilter.value) : '';
-  if (contentTypeLabel.value && tagLabel)
-    return `「${contentTypeLabel.value} · ${tagLabel}」还没有内容`;
-  if (contentTypeLabel.value) return `「${contentTypeLabel.value}」暂时还没有内容`;
-  if (tagLabel) return `「${tagLabel}」下还没有内容`;
-  return '没有符合条件的内容';
-});
-
-const emptyFilterDesc = computed(() => {
-  if (selectedContentType.value === 'info') return '官方发布新闻或活动后，会同步出现在这里';
-  if (selectedTagFilter.value) return '换个标签，或回到全部内容看看';
-  return '换个筛选条件试试';
+// ===== 查询条件层（外搬，见 composables/useForumFeedQuery.js）=====
+// 就地挂载而不是挪到 setup 尾部：注入项（fetchForumData / focusForumSearch / isLoggedIn /
+// 标签归一）都在本行之上声明完毕；挪到尾部会让下方 askBohai 里的 stripTagTokens 变成
+// 「先用后声明」。状态 ref 仍归宿主（虚拟列表接线要先用到它们），这里只拿引用。
+const {
+  setSortMode,
+  setFeedMode,
+  setTagFilter,
+  setContentType,
+  clearTagFilter,
+  emptyFilterTitle,
+  emptyFilterDesc,
+  searchHistory,
+  showSearchHistory,
+  onSearchFocus,
+  onSearchBlur,
+  applyHistoryKeyword,
+  historySuggestion,
+  clearSearchHistory,
+  handleSearch,
+  clearSearchInput,
+  stripTagTokens,
+  deriveTagFilterFromInput,
+  cancelPendingSearch,
+} = useForumFeedQuery({
+  searchQuery,
+  searchKeyword,
+  selectedTagFilter,
+  selectedContentType,
+  sortMode,
+  feedMode,
+  showFollowingOnly,
+  isLoggedIn,
+  fetchForumData,
+  normalizeForumTagValue,
+  getForumTagLabel,
+  focusForumSearch,
 });
 
 const handleDeleteComment = async (comment, post) => {
@@ -3082,197 +3061,6 @@ const submitQuoteRepost = async () => {
   await fetchForumData(false, { background: true });
 };
 
-// ─── #标签筛选语法：搜索框内输入 #服务器 / #question 等，即解析为标签筛选 ───
-// 归一化单个 #记号 → 标签 value（支持英文 value 与中文标签名，大小写不敏感）
-const resolveTagTokenValue = (token = '') => {
-  const normalized = String(token || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^#/, '');
-  if (!normalized) return '';
-  const option = FORUM_TAG_OPTIONS.find(
-    (tag) => tag.value === normalized || tag.label.slice(1).toLowerCase() === normalized,
-  );
-  return option ? option.value : '';
-};
-
-// 从输入中剔除全部 #记号（含裸 #），得到真正入库搜索的关键词
-const stripTagTokens = (raw = '') =>
-  String(raw || '')
-    .replace(/#[^\s#]*/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-// 从输入解析标签筛选：返回 null 表示输入不含 #记号（不干预现有筛选状态）；
-// 返回 '' 表示有记号但未匹配任何标签（视为清除）；否则返回标签 value
-const deriveTagFilterFromInput = (raw = '') => {
-  const text = String(raw || '');
-  if (!text.includes('#')) return null;
-  const tokens = [...text.matchAll(/#([^\s#]+)/g)];
-  if (!tokens.length) return '';
-  for (const token of tokens) {
-    const value = resolveTagTokenValue(token[1]);
-    if (value) return value;
-  }
-  return '';
-};
-
-// ============================================
-// 搜索体验（2026-09-27）
-// ============================================
-/* 四件事：
-   1. 最小长度保护：中文输入「树洞」会先经过「树」这个中间态，旧实现每敲一个字
-      都打一次全表查询。这里把**单字符**的自动检索防抖拉长（多字符仍走
-      SEARCH_DEBOUNCE_MS）；显式提交（回车 / 搜索按钮）完全不受限 ——
-      用户确实想搜单字时依然可以。
-   2. 最近搜索：只在**显式提交**时记录（不记录输入中间态），localStorage 去重限量；
-      聚焦且输入为空时展开，点一下即回填检索。
-   3. 结果计数：搜索/筛选态下给出命中条数，避免「搜完不知道有几条」。
-   4. ⌘K / Ctrl+K 聚焦搜索框。 */
-const isSearchFocused = ref(false);
-const searchHistory = ref([]);
-
-const SEARCH_HISTORY_KEY = 'boh-forum-search-history';
-const SEARCH_HISTORY_MAX = 6;
-const SINGLE_CHAR_SEARCH_DELAY_MS = 900;
-
-const readSearchHistory = () => {
-  try {
-    const raw = window.localStorage.getItem(SEARCH_HISTORY_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((item) => typeof item === 'string' && item.trim())
-      .slice(0, SEARCH_HISTORY_MAX);
-  } catch {
-    // 隐私模式 / 存储被禁：历史退化为「本次会话有效」
-    return [];
-  }
-};
-
-const persistSearchHistory = () => {
-  try {
-    window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory.value));
-  } catch {
-    // 存不住就算了，不影响检索
-  }
-};
-
-const rememberSearchKeyword = (keyword) => {
-  const value = String(keyword || '').trim();
-  if (!value) return;
-  searchHistory.value = [value, ...searchHistory.value.filter((item) => item !== value)].slice(
-    0,
-    SEARCH_HISTORY_MAX,
-  );
-  persistSearchHistory();
-};
-
-const clearSearchHistory = () => {
-  searchHistory.value = [];
-  persistSearchHistory();
-};
-
-const showSearchHistory = computed(
-  () => isSearchFocused.value && !searchQuery.value.trim() && searchHistory.value.length > 0,
-);
-
-const onSearchFocus = () => {
-  isSearchFocused.value = true;
-};
-
-const onSearchBlur = () => {
-  isSearchFocused.value = false;
-};
-
-const applyHistoryKeyword = (keyword) => {
-  // 面板是否收起由 showSearchHistory 自己判断（回填后输入框有内容 → 自动收起），
-  // 不在这里手工置 isSearchFocused —— 聚焦态只能由 focus / blur 两个事件驱动。
-  searchQuery.value = keyword;
-  applySearchFromInput({ remember: true });
-};
-
-// 无结果时的「换个词试试」：取最近搜索里第一条与当前词不同的，避免建议等于现词
-const historySuggestion = computed(
-  () => searchHistory.value.find((item) => item !== searchKeyword.value.trim()) || '',
-);
-
-/* 结果计数提示：2026-10-22 按用户要求**整条去掉**。
-   原先它在搜索/筛选态渲染「已显示前 N 条，继续下拉可加载更多 / 共 N 条结果」，
-   位置在卡片流正上方，无论怎么调字号都像一句多余的说明。列表底部本来就有
-   加载更多的手感（下拉即出），这句属于重复表达。
-   ⚠️ 别再以「提升可发现性」为由加回来 —— 用户明确要求去掉。 */
-
-// 统一搜索入口（提交按钮 / 回车 / 输入防抖共用）：解析 #标签 + 剔除记号后入库检索
-const applySearchFromInput = ({ remember = false } = {}) => {
-  const rawInput = String(searchQuery.value || '');
-  const derivedTag = deriveTagFilterFromInput(rawInput);
-  const keyword = stripTagTokens(rawInput);
-  const tagChanged = derivedTag !== null && derivedTag !== selectedTagFilter.value;
-  if (tagChanged) selectedTagFilter.value = derivedTag;
-  // 记历史放在「是否与上次相同」判断之前：重复搜同一个词也算一次使用，该提到最前
-  if (remember) rememberSearchKeyword(keyword);
-  if (keyword === searchKeyword.value && !tagChanged) return;
-  searchKeyword.value = keyword;
-  feedMode.value = 'posts';
-  fetchForumData();
-};
-
-const handleSearch = () => {
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = null;
-  }
-  /* ⚠️ 不要在这里置 isSearchFocused = false：回车 / 点搜索按钮都不会让输入框失焦，
-     DOM 焦点还在框里，而内部状态被置 false 之后就再也收不到新的 focus 事件 ——
-     用户接着清空输入，最近搜索面板就永远不展开（本探针 D3 正是抓到这个）。
-     面板显示与否由 showSearchHistory 单点判断（空输入 + 聚焦），无需手工干预。 */
-  applySearchFromInput({ remember: true });
-};
-
-// 清除搜索词：关键词与输入框一起清，但**不碰标签筛选** —— 那是另一个意图
-const clearSearchInput = () => {
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = null;
-  }
-  if (searchQuery.value) searchQuery.value = '';
-  if (!searchKeyword.value) return;
-  searchKeyword.value = '';
-  feedMode.value = 'posts';
-  fetchForumData();
-};
-
-/* ⌘K / Ctrl+K 聚焦搜索框：列表滚了很久时不必再回顶部点输入框。
-   复用既有的 focusForumSearch（文件上半部）—— 它已经处理了 scrollIntoView + focus，
-   不另起一套 DOM 查询/聚焦实现。 */
-const handleSearchHotkey = (event) => {
-  if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
-  if (String(event.key).toLowerCase() !== 'k') return;
-  event.preventDefault();
-  focusForumSearch();
-};
-
-onMounted(() => {
-  searchHistory.value = readSearchHistory();
-  window.addEventListener('keydown', handleSearchHotkey);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleSearchHotkey);
-});
-
-// 清除标签筛选（chip × / 「全部标签」）：同时清掉输入里的 #记号，避免下次输入又被解析回来
-const clearTagFilter = () => {
-  if (searchQuery.value.includes('#')) {
-    searchQuery.value = stripTagTokens(searchQuery.value);
-  }
-  if (selectedTagFilter.value === '') return;
-  selectedTagFilter.value = '';
-  feedMode.value = 'posts';
-  fetchForumData();
-};
-
 // 问 BOHAI：先在论坛库中检索相关内容，再把问题 + 检索结果交给顶部导航栏 AI 岛回复。
 // 检索本身不消耗额度；岛内回答走用户 AI 额度，默认使用 Fast 模型（mode: 'fast'）。
 const askBohai = async () => {
@@ -3286,10 +3074,7 @@ const askBohai = async () => {
     aiSearchHint.value = 'BOHAI 模型暂未配置，暂时无法回答。';
     return;
   }
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = null;
-  }
+  cancelPendingSearch();
 
   isAiSearchLoading.value = true;
   aiSearchHint.value = 'BOHAI 正在检索论坛相关内容...';
@@ -3354,23 +3139,6 @@ const askBohai = async () => {
     }, 240);
   }
 };
-
-watch(searchQuery, () => {
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = null;
-  }
-  /* 单字符滞回：中文输入「树洞」会先经过「树」这个中间态。
-     给单字符一个更长的防抖窗口 —— 多数字会在窗口内补进来，于是只发一次请求；
-     真停在单字上（或从多字删到单字）也照样检索，只是慢一点。
-     这比「单字直接不检索」少了「删到剩一个字、列表却不更新」的违和感。 */
-  const pendingKeyword = stripTagTokens(String(searchQuery.value || '')).trim();
-  const delay = pendingKeyword.length === 1 ? SINGLE_CHAR_SEARCH_DELAY_MS : SEARCH_DEBOUNCE_MS;
-  searchDebounceTimer = setTimeout(() => {
-    searchDebounceTimer = null;
-    applySearchFromInput();
-  }, delay);
-});
 
 const openPostDetail = (postId) => {
   // 横屏（含桌面）：单源分流进详情弹窗，列表原地保留，无需 return state
