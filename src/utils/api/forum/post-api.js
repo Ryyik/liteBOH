@@ -807,29 +807,6 @@ export async function getPosts(userId = null, pagination = {}) {
   );
 }
 
-export async function getPostsCount(userId = null, { countMode = 'planned' } = {}) {
-  const statusFilter = 'status.is.null,status.eq.approved';
-  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode)
-    ? countMode
-    : 'planned';
-
-  const { data, error, ok } = await executeRead(
-    'posts.getPostsCount',
-    { userId, countMode: safeCountMode },
-    async () => {
-      const { count, error } = await supabase
-        .from('posts')
-        .select('id', { count: safeCountMode, head: true })
-        .or(statusFilter);
-      if (error) return { data: { count: 0 }, error };
-      return { data: { count: count || 0 }, error: null };
-    },
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 },
-  );
-
-  return { ok, count: data?.count || 0, data, error };
-}
-
 export async function getForumTagStats() {
   const { data, error, ok } = await executeRead(
     'posts.getForumTagStats',

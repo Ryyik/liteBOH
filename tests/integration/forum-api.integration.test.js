@@ -37,7 +37,6 @@ import {
   updatePost,
   getPosts,
   getUserPosts,
-  getPostsCount,
   getForumTagStats,
   getWeeklyCheckinStatus,
   submitWeeklyCheckin,
@@ -262,20 +261,6 @@ describe('forum-api integration: getPosts', () => {
 
     const result = await getPosts(null, { page: 1, pageSize: 10 });
     expect(result.data).toHaveLength(0);
-  });
-});
-
-describe('forum-api integration: getPostsCount', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    clearRequestCache();
-  });
-
-  it('returns post count', async () => {
-    fm.fromMock.mockReturnValue(makeQuery({ data: null, count: 42, error: null }));
-    const result = await getPostsCount();
-    expect(result.ok).toBe(true);
-    expect(result.count).toBe(42);
   });
 });
 

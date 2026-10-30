@@ -84,7 +84,6 @@ export function toPasskeyRegisterMessage(error: unknown): string;
 
 // --- Forum API ---
 export function getPosts(params?: Record<string, unknown>): Promise<AuthApiResult>;
-export function getPostsCount(params?: Record<string, unknown>): Promise<AuthApiResult>;
 export function createPost(data: Record<string, unknown>): Promise<AuthApiResult>;
 export function getComments(postId: string): Promise<AuthApiResult>;
 export function createComment(data: Record<string, unknown>): Promise<AuthApiResult>;

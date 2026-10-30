@@ -17,22 +17,12 @@ vi.mock('../../src/utils/supabase-client.js', () => ({
 import { clearRequestCache } from '../../src/utils/request-core.js';
 import {
   getPosts,
-  getPostsCount,
   getForumPostDraft,
   upsertForumPostDraft,
   deleteForumPostDraft,
   getWeeklyCheckinStatus,
   submitWeeklyCheckin,
 } from '../../src/utils/api/forum/post-api.js';
-
-function makeCountQuery(result) {
-  const q = {
-    select: vi.fn(() => q),
-    or: vi.fn(() => q),
-    then: (resolve) => Promise.resolve(result).then(resolve),
-  };
-  return q;
-}
 
 function makeDeleteQuery(result) {
   const q = {
@@ -88,31 +78,6 @@ describe('forum-post-api: 分页入参归一（NaN 不得进查询）', () => {
     await getPosts(null, { page: 3, pageSize: 10, offset: 'abc' });
 
     expect(range).toHaveBeenCalledWith(20, expect.any(Number));
-  });
-});
-
-describe('forum-post-api: getPostsCount', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    clearRequestCache();
-  });
-
-  it('returns count from database', async () => {
-    fm.supabaseFrom.mockReturnValue(makeCountQuery({ data: null, error: null, count: 42 }));
-
-    const result = await getPostsCount();
-    expect(result.ok).toBe(true);
-    expect(result.count).toBe(42);
-  });
-
-  it('handles error', async () => {
-    fm.supabaseFrom.mockReturnValue(
-      makeCountQuery({ data: null, error: { message: 'DB error' }, count: null }),
-    );
-
-    const result = await getPostsCount();
-    expect(result.ok).toBe(false);
-    expect(result.count).toBe(0);
   });
 });
 

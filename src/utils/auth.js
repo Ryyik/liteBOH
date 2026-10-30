@@ -31,7 +31,6 @@ export {
 
 export {
   getPosts,
-  getPostsCount,
   createPost,
   getComments,
   createComment,

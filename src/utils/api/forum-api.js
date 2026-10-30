@@ -1,7 +1,6 @@
 // Re-export from sub-modules — all call-sites import from '@/utils/api/forum-api.js' unchanged.
 export {
   getPosts,
-  getPostsCount,
   getForumTagStats,
   getPostEngagementStats,
   createPostWithImages,
