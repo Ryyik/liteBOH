@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeForumImages, toForumImageRpcPayload } from '../../src/utils/api/forum-format.js';
+import {
+  normalizeForumImages,
+  toForumImageRpcPayload,
+  splitPostContent,
+  stripLegacyPostTitlePrefix,
+} from '../../src/utils/api/forum-format.js';
+import {
+  splitForumPostContent,
+  stripLegacyTitlePrefix,
+} from '../../src/utils/forum-post-format.js';
 
 // 构造测试用的 forum image 数据
 function makeImage(overrides = {}) {
@@ -146,5 +155,62 @@ describe('审核来源贯通（moderationSource）', () => {
       makeImage({ url: 'https://res.cloudinary.com/demo/image/upload/c.jpg' }),
     ]);
     expect(payload[0]).toHaveProperty('moderationSource', 'client_nsfwjs');
+  });
+});
+
+/* ── 单源等价性（2026-10-30 P2-3）────────────────────────────────────────
+   `forum-format.splitPostContent` 曾是 `forum-post-format.splitForumPostContent` 的
+   逐行等价副本，各自被不同的调用链使用。合并后这里保留名字做委托 ——
+   本组用例就是「委托没有改变行为」的证据：任何输入下两者必须完全相同。
+   反证方式：把委托改回旧实现（或改坏任一分支），下面的矩阵会立刻不一致。 */
+describe('splitPostContent 与单源 splitForumPostContent 等价', () => {
+  const cases = [
+    '',
+    '   ',
+    '普通文本',
+    '【标题】',
+    '【标题】\n正文',
+    '【标题】\n正文\n第二段',
+    '【标题】正文无换行',
+    '【】空标题',
+    '【 空格标题 】\n正文',
+    '正文中间【求助】还有字',
+    '【标题】\n【标题】重复前缀',
+  ];
+
+  it('content-only 输入逐字等价', () => {
+    for (const input of cases) {
+      expect(splitPostContent(input), `input=${JSON.stringify(input)}`).toEqual(
+        splitForumPostContent(input),
+      );
+    }
+  });
+
+  it('显式 title/body 输入逐字等价', () => {
+    const combos = [
+      ['', '显式标题', ''],
+      ['', '', '显式正文'],
+      ['【X】\n正文', 'X', ''],
+      ['【X】\n正文', 'X', '【X】\n正文'],
+      ['原文', 'T', '【T】\n带前缀正文'],
+    ];
+    for (const [content, title, body] of combos) {
+      expect(splitPostContent(content, title, body), `combo=${JSON.stringify([content, title, body])}`).toEqual(
+        splitForumPostContent(content, title, body),
+      );
+    }
+  });
+
+  it('stripLegacyPostTitlePrefix 与单源同名函数等价', () => {
+    const cases2 = [
+      ['', ''],
+      ['正文', ''],
+      ['【标题】正文', '标题'],
+      ['【标题】正文', '别的标题'],
+      ['【 标题 】 正文', '标题'],
+    ];
+    for (const [body, title] of cases2) {
+      expect(stripLegacyPostTitlePrefix(body, title)).toBe(stripLegacyTitlePrefix(body, title));
+    }
   });
 });

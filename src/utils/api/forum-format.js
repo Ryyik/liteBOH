@@ -1,6 +1,12 @@
 import { getCloudinaryTransformedUrl } from '../cloudinary-client.js';
 import { normalizeDbError } from '../request-core.js';
 import { resolveDbImageUrl } from '../db-image-url.js';
+// 标题/正文拆分只有一份实现（`src/utils/forum-post-format.js`）。这里保留导出名做**委托**，
+// 不删名字 —— post-api 与既有测试都按 `splitPostContent` 引，改名会把调用面一起拖进来。
+import {
+  splitForumPostContent,
+  stripLegacyTitlePrefix,
+} from '../forum-post-format.js';
 
 export const APPROVED_STATUS = 'approved';
 export const REJECTED_STATUS = 'rejected';
@@ -153,45 +159,21 @@ export function buildCommentModerationInput(content) {
   return `正文：${safeContent}`;
 }
 
+/**
+ * 帖子内容 → { title, body }。
+ *
+ * ⚠️ 实现已上收到 `src/utils/forum-post-format.js`（2026-10-30 P2-3）：
+ * 这里与 `splitForumPostContent` 曾是**逐行等价的两份实现**，分别被
+ * `post-api` / `PostDetailMain` 与 `profile-api` / `notifications-api` / `Messages` 使用，
+ * 形成「同一个数据契约、两条调用链」。保留本名做委托，避免改动调用面。
+ */
 export function splitPostContent(content, title = '', body = '') {
-  const explicitTitle = String(title || '').trim();
-  const explicitBody = String(body || '').trim();
-  if (explicitTitle || explicitBody) {
-    return {
-      title: explicitTitle || '无标题',
-      body: stripLegacyPostTitlePrefix(explicitBody, explicitTitle),
-    };
-  }
-
-  const raw = String(content || '').trim();
-  if (!raw) {
-    return { title: '无标题', body: '' };
-  }
-
-  const titleMatch = raw.match(/^【(.*?)】\n?([\s\S]*)$/);
-  if (!titleMatch) {
-    return { title: '无标题', body: raw };
-  }
-
-  return {
-    title: String(titleMatch[1] || '').trim() || '无标题',
-    body: stripLegacyPostTitlePrefix(
-      String(titleMatch[2] || '').trim(),
-      String(titleMatch[1] || '').trim(),
-    ),
-  };
+  return splitForumPostContent(content, title, body);
 }
 
+/** 兼容名：`stripLegacyPostTitlePrefix` → 单源 `stripLegacyTitlePrefix`。 */
 export function stripLegacyPostTitlePrefix(body = '', title = '') {
-  const safeBody = String(body || '').trim();
-  const safeTitle = String(title || '').trim();
-  if (!safeBody) return '';
-  if (!safeTitle) {
-    return safeBody.replace(/^【[^】]+】\s*/, '');
-  }
-  const titlePattern = safeTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const legacyPattern = new RegExp(`^【\\s*${titlePattern}\\s*】\\s*`);
-  return safeBody.replace(legacyPattern, '');
+  return stripLegacyTitlePrefix(body, title);
 }
 
 /**
