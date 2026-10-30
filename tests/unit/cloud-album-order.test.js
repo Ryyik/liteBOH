@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { squeezeSource, scriptSection, stripComments } from '../helpers/source.js';
+import { readPublishChainSource } from '../helpers/forum-publish-chain.js';
 
 const root = resolve(import.meta.dirname, '../..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
@@ -10,7 +11,10 @@ const apiCode = () => squeezeSource(stripComments(read('src/utils/api/boh-cloud-
 // .vue 必须先取 <script> 区再剥注释：模板里的 `accept="image/*"` 会与远处的 `*/` 错配
 const viewCode = () =>
   stripComments(scriptSection(read('src/views/user-center/Cloud+/CloudPlusMain.vue')));
-const forumCode = () => stripComments(scriptSection(read('src/views/Forum/ForumMain.vue')));
+// 发帖侧：Cloud+ 备份（Phase 2）与「转为帖子」预填（Phase 4）分居两处 ——
+// 备份函数随发布链路搬到 useForumPublishQueue.js（2026-10-30），预填仍在 ForumMain。
+// 用并集读，别把守卫钉死在某一个文件上（搬家 ≠ 契约破坏）。
+const forumCode = () => stripComments(readPublishChainSource());
 
 describe('Cloud+ 相册排序与形态（2026-10-02 定稿，防回退）', () => {
   it('listMyCloudEntries 按内容日期降序排（而不是 updated_at）', () => {

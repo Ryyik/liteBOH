@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { squeezeSource } from '../helpers/source.js';
+import { readPublishChainSource } from '../helpers/forum-publish-chain.js';
 
 /**
  * 图片异步复审 + 帖子「已编辑」标记的契约守卫（2026-10-29）
@@ -205,7 +206,8 @@ describe('图片异步复审：客户端放行接线', () => {
   });
 
   it('发帖成功后标记待复审并入队（best-effort，失败不阻断发布）', () => {
-    const forum = squeezeSource(read('src/views/Forum/ForumMain.vue'));
+    // 这段接线随发布链路搬到 useForumPublishQueue.js（2026-10-30），读并集而不是钉死宿主
+    const forum = squeezeSource(readPublishChainSource());
     expect(forum).toContain('markForumImagesPendingRecheck');
     expect(forum).toContain('enqueueForumImageRecheck');
   });

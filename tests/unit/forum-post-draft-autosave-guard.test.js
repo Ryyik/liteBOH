@@ -23,6 +23,10 @@ import { describe, expect, it } from 'vitest';
 import { scriptSection, squeezeSource, stripComments } from '../helpers/source.js';
 
 const FORUM_MAIN = new URL('../../src/views/Forum/ForumMain.vue', import.meta.url);
+const PUBLISH_QUEUE = new URL(
+  '../../src/views/Forum/composables/useForumPublishQueue.js',
+  import.meta.url,
+);
 const DRAFT_STORAGE = new URL(
   '../../src/views/Forum/composables/useForumPostDraftStorage.js',
   import.meta.url,
@@ -229,7 +233,10 @@ describe('cross-device zombie draft gate (_pending_push)', () => {
  */
 describe('publish pipeline stall watchdog', () => {
   it('waits on the watchdog wrapper, not the raw pipeline promise', async () => {
-    const code = await readCode(FORUM_MAIN);
+    // 看门狗与 processPublishImagesForQueue 随发布链路搬到
+    // composables/useForumPublishQueue.js（2026-10-30）。断言对象跟着搬，
+    // 免得「切片取不到 → 找不到声明」直接红，或者更糟：改成跳过而假绿。
+    const code = await readCode(PUBLISH_QUEUE);
     const body = sliceFromDeclaration(code, 'const processPublishImagesForQueue =', 9000);
     expect(body).toContain('awaitPipelineSettled(entry');
     // 裸 await entry.promise 会绕过看门狗（同类泄漏点只允许 0 处）
