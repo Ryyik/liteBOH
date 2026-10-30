@@ -66,6 +66,26 @@ const buildFallbackSearchOr = (rawKeyword) => {
 };
 const FALLBACK_STATUS_FILTER = 'status.is.null,status.eq.approved';
 
+/* 帖子列表查询的列串 —— 唯一真源。
+   ⚠️ 这条串此前在 4 个分支里各有「有/无登录态」两份，共 8 处逐字重复；加一个字段要改 8 处，
+   漏一处就是「列表有、用户主页没有」这类只在特定入口复现的 bug。
+   ⚠️ 唯一差异是 `user_likes:likes!left(user_id)`：无登录态时不查（省一次 join）。
+   守卫见 `tests/unit/forum-select-single-source.test.js`（只允许在本文件出现一次）。 */
+const POST_LIST_SELECT_LIKES_FIELD = 'user_likes:likes!left(user_id)';
+const POST_LIST_SELECT_FIELDS = [
+  '*',
+  'comments:comments(count)',
+  'likes_count:likes(count)',
+  POST_LIST_SELECT_LIKES_FIELD,
+  'author:author_id(avatar_url, avatar_frame_url, is_banned)',
+  'forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)',
+];
+/** 有登录态时带点赞态字段，无登录态时剔除。 */
+const postListSelect = (withLikes) =>
+  POST_LIST_SELECT_FIELDS.filter(
+    (field) => withLikes || field !== POST_LIST_SELECT_LIKES_FIELD,
+  ).join(',');
+
 const ALLOWED_SORT_MODE = new Set(['latest', 'hottest']);
 const POST_ASYNC_MODERATION_TIMEOUT_MS = 45000;
 const POST_REJECTED_NOTIFICATION_TYPE = 'post_rejected';
@@ -143,7 +163,6 @@ function resolveFallbackUsernameFromAuthUser(user = null) {
   }
   return '';
 }
-
 
 async function resolvePostAuthorIdentity(authorId, authorUsername) {
   let safeAuthorId = String(authorId || '').trim();
@@ -585,25 +604,7 @@ export async function getPosts(userId = null, pagination = {}) {
     async () => {
       if (useCursorMode) {
         const statusFilter = 'status.is.null,status.eq.approved';
-        let query;
-        if (userId) {
-          query = supabase.from('posts').select(`
-              *,
-              comments:comments(count),
-              likes_count:likes(count),
-              user_likes:likes!left(user_id),
-              author:author_id(avatar_url, avatar_frame_url, is_banned),
-              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
-            `);
-        } else {
-          query = supabase.from('posts').select(`
-              *,
-              comments:comments(count),
-              likes_count:likes(count),
-              author:author_id(avatar_url, avatar_frame_url, is_banned),
-              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
-            `);
-        }
+        let query = supabase.from('posts').select(postListSelect(Boolean(userId)));
 
         query = query
           .or(statusFilter)
@@ -692,25 +693,7 @@ export async function getPosts(userId = null, pagination = {}) {
         logger.warn('forum-api', fallbackReason, rpcError);
 
         const statusFilter = 'status.is.null,status.eq.approved';
-        let query;
-        if (userId) {
-          query = supabase.from('posts').select(`
-              *,
-              comments:comments(count),
-              likes_count:likes(count),
-              user_likes:likes!left(user_id),
-              author:author_id(avatar_url, avatar_frame_url, is_banned),
-              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
-            `);
-        } else {
-          query = supabase.from('posts').select(`
-              *,
-              comments:comments(count),
-              likes_count:likes(count),
-              author:author_id(avatar_url, avatar_frame_url, is_banned),
-              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
-            `);
-        }
+        let query = supabase.from('posts').select(postListSelect(Boolean(userId)));
 
         // 降级路径也要带上搜索词（旧行为：搜索被静默忽略 → 「搜了没反应」）
         query = query.or(statusFilter);
@@ -1372,25 +1355,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
     },
     async () => {
       if (useCursorMode) {
-        let query;
-        if (currentUserId) {
-          query = supabase.from('posts').select(`
-              *,
-              comments:comments(count),
-              likes_count:likes(count),
-              user_likes:likes!left(user_id),
-              author:author_id(avatar_url, avatar_frame_url, is_banned),
-              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
-            `);
-        } else {
-          query = supabase.from('posts').select(`
-              *,
-              comments:comments(count),
-              likes_count:likes(count),
-              author:author_id(avatar_url, avatar_frame_url, is_banned),
-              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
-            `);
-        }
+        let query = supabase.from('posts').select(postListSelect(Boolean(currentUserId)));
 
         query = query
           .eq('author_id', targetUserId)
@@ -1459,25 +1424,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
           : 'list_forum_posts RPC 调用失败，用户帖子查询回退旧逻辑';
         logger.warn('forum-api', fallbackReason, rpcError);
 
-        let query;
-        if (currentUserId) {
-          query = supabase.from('posts').select(`
-              *,
-              comments:comments(count),
-              likes_count:likes(count),
-              user_likes:likes!left(user_id),
-              author:author_id(avatar_url, avatar_frame_url, is_banned),
-              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
-            `);
-        } else {
-          query = supabase.from('posts').select(`
-              *,
-              comments:comments(count),
-              likes_count:likes(count),
-              author:author_id(avatar_url, avatar_frame_url, is_banned),
-              forum_post_images(id,url,public_id,width,height,format,sort_order,moderation_status)
-            `);
-        }
+        let query = supabase.from('posts').select(postListSelect(Boolean(currentUserId)));
 
         /* 降级路径也要带搜索词（.or 是追加语义，两个条件由 PostgREST 按 AND 组合） */
         if (!(
