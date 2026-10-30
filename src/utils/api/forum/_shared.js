@@ -179,11 +179,38 @@ export async function ensureModerationNotification({
   }
 }
 
-export async function notifyPostAuthorForComment({ postId, senderId, commentId } = {}) {
+/* ─────────────────────────────────────────────────────────────────────────
+   给帖子作者发 Pushplus 推送 —— 单源（2026-10-30 P2-1d）
+
+   此前 comment / like / repost 各有一份 37 行的复制粘贴，差异只有 4 处：
+   `type`、两处日志文案、comment 多一个 `comment_id`。
+   合并的边界就卡在这 4 处：**文案按 type 查表，不做统一** —— 合并成一句
+   「推送未发送」会让排障时分不清是哪条链在响（这三个函数的日志是唯一线索）。
+
+   调用面零改动：三个导出名与签名都保留，内部委托。
+   等价性由 `tests/unit/forum-notify-post-author.test.js`（22 条）锁死 ——
+   它先对三份副本全绿，再对合并后的实现全绿，这才是等价而不是「看着一样」。
+
+   ⚠️ 转发（repost）的**通知行**由 `create_forum_quote_repost` RPC 落库
+   （migration 2026091101），这里只负责 Pushplus 推送 —— 别以为合并时漏了写通知。
+   ───────────────────────────────────────────────────────────────────────── */
+
+const POST_AUTHOR_PUSH_KINDS = {
+  comment: { label: '评论', requiresCommentId: true },
+  like: { label: '点赞', requiresCommentId: false },
+  repost: { label: '转发', requiresCommentId: false },
+};
+
+async function notifyPostAuthorByPush({ type, postId, senderId, commentId } = {}) {
+  const kind = POST_AUTHOR_PUSH_KINDS[type];
+  // 不认识的 type 一律不推送：旧实现没有这个入口，合并后有了，得自己兜住
+  if (!kind) return;
+
   const safePostId = String(postId || '').trim();
   const safeSenderId = String(senderId || '').trim();
   const safeCommentId = String(commentId || '').trim();
-  if (!safePostId || !safeSenderId || !safeCommentId) return;
+  if (!safePostId || !safeSenderId) return;
+  if (kind.requiresCommentId && !safeCommentId) return;
 
   try {
     const { data: postInfo, error: postError } = await supabase
@@ -196,94 +223,39 @@ export async function notifyPostAuthorForComment({ postId, senderId, commentId }
       return;
     }
 
-    const pushResult = await sendPushplusForNotification({
+    const pushPayload = {
       recipient_id: postInfo.author_id,
       sender_id: safeSenderId,
-      type: 'comment',
+      type,
       post_id: safePostId,
-      comment_id: safeCommentId,
-    });
+    };
+    if (kind.requiresCommentId) pushPayload.comment_id = safeCommentId;
+
+    const pushResult = await sendPushplusForNotification(pushPayload);
     if (!pushResult?.success) {
-      logger.warn('forum-api', '评论 Pushplus 推送未发送', {
+      const warnPayload = {
         reason: pushResult?.message || 'unknown',
         postId: safePostId,
-        commentId: safeCommentId,
-        recipientId: postInfo.author_id,
-      });
+      };
+      if (kind.requiresCommentId) warnPayload.commentId = safeCommentId;
+      warnPayload.recipientId = postInfo.author_id;
+      logger.warn('forum-api', `${kind.label} Pushplus 推送未发送`, warnPayload);
     }
   } catch (pushError) {
-    logger.warn('forum-api', '评论 Pushplus 推送失败(静默)', pushError);
+    logger.warn('forum-api', `${kind.label} Pushplus 推送失败(静默)`, pushError);
   }
+}
+
+export async function notifyPostAuthorForComment({ postId, senderId, commentId } = {}) {
+  return notifyPostAuthorByPush({ type: 'comment', postId, senderId, commentId });
 }
 
 export async function notifyPostAuthorForLike({ postId, senderId } = {}) {
-  const safePostId = String(postId || '').trim();
-  const safeSenderId = String(senderId || '').trim();
-  if (!safePostId || !safeSenderId) return;
-
-  try {
-    const { data: postInfo, error: postError } = await supabase
-      .from('posts')
-      .select('author_id')
-      .eq('id', safePostId)
-      .single();
-
-    if (postError || !postInfo?.author_id || postInfo.author_id === safeSenderId) {
-      return;
-    }
-
-    const pushResult = await sendPushplusForNotification({
-      recipient_id: postInfo.author_id,
-      sender_id: safeSenderId,
-      type: 'like',
-      post_id: safePostId,
-    });
-    if (!pushResult?.success) {
-      logger.warn('forum-api', '点赞 Pushplus 推送未发送', {
-        reason: pushResult?.message || 'unknown',
-        postId: safePostId,
-        recipientId: postInfo.author_id,
-      });
-    }
-  } catch (pushError) {
-    logger.warn('forum-api', '点赞 Pushplus 推送失败(静默)', pushError);
-  }
+  return notifyPostAuthorByPush({ type: 'like', postId, senderId });
 }
 
-// 转发推送：通知行由 create_forum_quote_repost RPC 落库（migration 2026091101），
-// 这里只负责 Pushplus 推送（与 like/comment 同模式）
 export async function notifyPostAuthorForRepost({ postId, senderId } = {}) {
-  const safePostId = String(postId || '').trim();
-  const safeSenderId = String(senderId || '').trim();
-  if (!safePostId || !safeSenderId) return;
-
-  try {
-    const { data: postInfo, error: postError } = await supabase
-      .from('posts')
-      .select('author_id')
-      .eq('id', safePostId)
-      .single();
-
-    if (postError || !postInfo?.author_id || postInfo.author_id === safeSenderId) {
-      return;
-    }
-
-    const pushResult = await sendPushplusForNotification({
-      recipient_id: postInfo.author_id,
-      sender_id: safeSenderId,
-      type: 'repost',
-      post_id: safePostId,
-    });
-    if (!pushResult?.success) {
-      logger.warn('forum-api', '转发 Pushplus 推送未发送', {
-        reason: pushResult?.message || 'unknown',
-        postId: safePostId,
-        recipientId: postInfo.author_id,
-      });
-    }
-  } catch (pushError) {
-    logger.warn('forum-api', '转发 Pushplus 推送失败(静默)', pushError);
-  }
+  return notifyPostAuthorByPush({ type: 'repost', postId, senderId });
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
