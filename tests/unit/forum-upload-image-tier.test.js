@@ -7,7 +7,9 @@ import {
   FORUM_UPLOAD_IMAGE_TARGET_SIZE_MB,
 } from '../../src/utils/api/forum-format.js';
 import { getImageCompressionPlan } from '../../src/utils/image-compression.js';
+import { readFileSync } from 'node:fs';
 import { scriptSection, squeezeSource, stripComments } from '../helpers/source.js';
+import { readImagePipelineSource } from '../helpers/forum-image-pipeline.js';
 
 /**
  * 论坛上传档位守卫（2026-10-29）。
@@ -79,14 +81,14 @@ describe('forum upload image tier: 单一不变量', () => {
   });
 });
 
-describe('forum upload image tier: ForumMain 接线', () => {
-  it('prepareForumImageForUpload 用论坛档位常量，不写裸 optimizeForUpload', async () => {
-    const raw = await import('node:fs/promises').then((fs) =>
-      fs.readFile(new URL('../../src/views/Forum/ForumMain.vue', import.meta.url), 'utf8'),
-    );
-    const code = squeezeSource(stripComments(scriptSection(raw)));
+describe('forum upload image tier: 图片管线接线', () => {
+  it('prepareForumImageForUpload 用论坛档位常量，不写裸 optimizeForUpload', () => {
+    // 2026-10-30：函数已随图片管线外搬到 composables/useForumDraftImagePipelines.js，
+    // 断言主体改为读两文件并集（见 helpers/forum-image-pipeline.js）；断言内容一字未改。
+    const code = squeezeSource(stripComments(readImagePipelineSource()));
 
     const start = code.indexOf('const prepareForumImageForUpload');
+    // 起点找不到就直接红：切片落空时下面的 toContain 会变成对空串断言 ⇒ 假绿
     expect(start).toBeGreaterThan(0);
     const body = code.slice(start, start + 1600);
 
@@ -94,5 +96,16 @@ describe('forum upload image tier: ForumMain 接线', () => {
     expect(body).toContain('FORUM_UPLOAD_IMAGE_OPTIMIZE_OPTIONS');
     // 反向：裸对象会静默落回 image-compression 的全局默认 2048
     expect(body).not.toContain('{ optimizeForUpload: true }');
+  });
+
+  it('宿主不得留第二份 prepareForumImageForUpload（两份实现 = 档位可以各自漂移）', () => {
+    const host = squeezeSource(
+      stripComments(
+        scriptSection(
+          readFileSync(new URL('../../src/views/Forum/ForumMain.vue', import.meta.url), 'utf8'),
+        ),
+      ),
+    );
+    expect(host).not.toContain('const prepareForumImageForUpload');
   });
 });
