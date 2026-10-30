@@ -5,6 +5,8 @@ import {
   getForumPostTitle,
   getForumPostBody,
   getForumPostExcerpt,
+  extractDisplayPostTitle,
+  extractDisplayPostBody,
 } from '../../src/utils/forum-post-format.js';
 
 describe('splitForumPostContent', () => {
@@ -117,5 +119,41 @@ describe('getForumPostExcerpt', () => {
   it('returns excerpt from object input', () => {
     const excerpt = getForumPostExcerpt({ content: '【标题】\n正文' });
     expect(excerpt).toBe('正文');
+  });
+});
+/* ── 展示口径（宽松）────────────────────────────────────────────────────
+   这两个函数是 ForumMain / PostDetailMain 里两份逐字副本上收来的（2026-10-30 P2-3）。
+   用例按**原实现的行为**写，不是按「应该怎样」写 —— 它们的作用是锁住可见输出不变。 */
+describe('extractDisplayPostTitle / extractDisplayPostBody（展示口径）', () => {
+  it('显式 title 优先', () => {
+    expect(extractDisplayPostTitle({ title: '显式', content: '【正文标题】\n内容' })).toBe('显式');
+  });
+
+  it('从行首【】取标题并剥掉正文里的前缀', () => {
+    expect(extractDisplayPostTitle('【我的标题】\n正文第一行')).toBe('我的标题');
+    expect(extractDisplayPostBody('【我的标题】\n正文第一行')).toBe('正文第一行');
+  });
+
+  it('⚠️ 宽松：正文中间出现的【】也会被当标题（与数据契约不同，这是既有展示行为）', () => {
+    const text = '前面一堆话然后【求助】后面还有内容';
+    expect(extractDisplayPostTitle(text)).toBe('求助');
+    // 数据契约要求锚定行首 ⇒ 它给出的是「无标题」
+    expect(splitForumPostContent(text).title).toBe('无标题');
+  });
+
+  it('没有【】时回落「无标题」，正文原样', () => {
+    expect(extractDisplayPostTitle('普通文本')).toBe('无标题');
+    expect(extractDisplayPostBody('普通文本')).toBe('普通文本');
+  });
+
+  it('显式 body 优先于 content，并清掉残留前缀', () => {
+    expect(extractDisplayPostBody({ title: 'T', body: '【T】\n正文' })).toBe('正文');
+  });
+
+  it('空输入不炸', () => {
+    expect(extractDisplayPostTitle('')).toBe('无标题');
+    expect(extractDisplayPostBody('')).toBe('');
+    expect(extractDisplayPostTitle(null)).toBe('无标题');
+    expect(extractDisplayPostBody(undefined)).toBe('');
   });
 });

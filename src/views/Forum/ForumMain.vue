@@ -46,6 +46,11 @@ import { useUserTier } from '@/composables/useUserTier.js';
 import { getAvatarUrl } from '@/utils/avatar.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
 import { preloadPointsCardAssets } from '@/utils/points-card-assets.js';
+// 展示口径的标题/正文（单源；别名保持调用点不变）
+import {
+  extractDisplayPostBody as extractPostBody,
+  extractDisplayPostTitle as extractPostTitle,
+} from '@/utils/forum-post-format.js';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { ensureNotificationStore } from '@/stores/notification-loader';
@@ -1620,36 +1625,10 @@ watch(
 // 帖子列表预览：保留用户原始排版，溢出交给 CSS 控制（5 行 max-height）。
 // 「...」是否出现由 PostCard 实测（P2-4），这里不再做字数/行数估算。
 
-const extractPostTitle = (postOrContent) => {
-  if (postOrContent && typeof postOrContent === 'object') {
-    const explicitTitle = String(postOrContent.title || '').trim();
-    if (explicitTitle) return explicitTitle;
-  }
-  const rawContent =
-    postOrContent && typeof postOrContent === 'object' ? postOrContent.content : postOrContent;
-  const safeContent = String(rawContent || '').trim();
-  return safeContent.match(/【(.*?)】/)?.[1] || '无标题';
-};
-
-const stripLegacyTitlePrefix = (body = '', title = '') => {
-  const safeBody = String(body || '').trim();
-  const safeTitle = String(title || '').trim();
-  if (!safeBody) return '';
-  if (!safeTitle) return safeBody.replace(/^【[^】]+】\s*/, '');
-  const titlePattern = safeTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return safeBody.replace(new RegExp(`^【\\s*${titlePattern}\\s*】\\s*`), '');
-};
-
-const extractPostBody = (postOrContent) => {
-  const title = extractPostTitle(postOrContent);
-  if (postOrContent && typeof postOrContent === 'object') {
-    const explicitBody = String(postOrContent.body || '').trim();
-    if (explicitBody) return stripLegacyTitlePrefix(explicitBody, title);
-    postOrContent = postOrContent.content;
-  }
-  const rawContent = postOrContent;
-  return stripLegacyTitlePrefix(String(rawContent || '').replace(/【.*?】\n?/, ''), title);
-};
+/* 标题/正文提取：单源在 `@/utils/forum-post-format.js` 的 `extractDisplayPostTitle/Body`
+   （2026-10-30 P2-3 收口；此前 ForumMain 与 PostDetailMain 各有一份逐字副本）。
+   注意那是**展示口径**（宽松，任意位置 `【…】` 都算标题），与写库用的锚定契约不同，
+   别拿 `splitForumPostContent` 替换。 */
 
 /* `isBodyPreviewOverflowLikely` 已删除（2026-10-17 P2-4）：按字数/行数估算「会不会溢出」
    与 CSS 的 5 行 max-height 不同源，边界处文字被静默切断在句中、连省略号都没有。

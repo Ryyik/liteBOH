@@ -42,6 +42,11 @@ import {
 import { supabase } from '../../utils/supabase-client.js';
 import { formatSmartTime } from '../../utils/time.js';
 import { logger } from '@/utils/logger.js';
+// 展示口径的标题/正文（单源；别名保持调用点不变）
+import {
+  extractDisplayPostBody as extractPostBody,
+  extractDisplayPostTitle as extractPostTitle,
+} from '@/utils/forum-post-format.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import {
@@ -218,33 +223,8 @@ const modalMascotSrc = computed(() => {
 // 内容折叠相关
 const isExpanded = ref(false);
 const CONTENT_LIMIT = 500;
-const extractPostTitle = (postOrContent) => {
-  if (postOrContent && typeof postOrContent === 'object') {
-    const explicitTitle = String(postOrContent.title || '').trim();
-    if (explicitTitle) return explicitTitle;
-    postOrContent = postOrContent.content;
-  }
-  const rawContent = postOrContent;
-  const safeContent = String(rawContent || '').trim();
-  return safeContent.match(/【(.*?)】/)?.[1] || '无标题';
-};
-const stripLegacyTitlePrefix = (body = '', title = '') => {
-  const safeBody = String(body || '').trim();
-  const safeTitle = String(title || '').trim();
-  if (!safeBody) return '';
-  if (!safeTitle) return safeBody.replace(/^【[^】]+】\s*/, '');
-  const titlePattern = safeTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return safeBody.replace(new RegExp(`^【\\s*${titlePattern}\\s*】\\s*`), '');
-};
-const extractPostBody = (postOrContent) => {
-  const title = extractPostTitle(postOrContent);
-  if (postOrContent && typeof postOrContent === 'object') {
-    const explicitBody = String(postOrContent.body || '').trim();
-    if (explicitBody) return stripLegacyTitlePrefix(explicitBody, title);
-    postOrContent = postOrContent.content;
-  }
-  return stripLegacyTitlePrefix(String(postOrContent || '').replace(/【.*?】\n?/, ''), title);
-};
+/* 标题/正文提取：单源在 `@/utils/forum-post-format.js`（2026-10-30 P2-3 收口）。
+   那是**展示口径**（宽松），与写库用的锚定契约 `splitForumPostContent` 故意不同。 */
 
 const isContentLong = computed(() => {
   if (!post.value) return false;
