@@ -313,7 +313,9 @@
   border-color: rgba(245, 245, 247, 0.45);
 }
 
-@media (orientation: portrait) and (max-width: 768px) {
+/* 竖屏 mini 条：边界 699。700–768（iPad mini 744 起）走完整导航，
+   与 unified-nav.css 的 max-width: 699px 保持一致。 */
+@media (orientation: portrait) and (max-width: 699px) {
   .unified-nav-surface {
     height: 60px;
     --global-nav-rest-height: 60px;
@@ -934,7 +936,7 @@
   z-index: 3;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 699px) {
   .unified-nav-surface.has-status-card.has-bohai-island,
   .unified-nav-surface.has-task-card.has-bohai-island,
   .unified-nav-surface.has-custom-card.has-bohai-island,

@@ -203,9 +203,25 @@
   display: contents;
 }
 
-@media (min-width: 768px), (orientation: landscape) {
+/* 边界 700：700–1023 竖屏（iPad mini 744 / iPad 768 起）已是完整顶部导航形态，
+   首页不再挂底栏，与 820/834 一致；≤699 才由底栏承担主导航。
+   边界必须与 unified-nav.css 的 max-width: 699px 同源，否则会出现
+   「744 顶部完整导航 + 底部又挂一条」的双导航。 */
+@media (min-width: 700px), (orientation: landscape) {
   .home-bottom-nav-slot {
     display: none;
+  }
+}
+
+/* 折叠屏展开态 / 横屏窄档（2026-10-29）：上面那条按「横屏 = 桌面」关掉了整槽，
+   但 769–1023 这段既没有桌面顶部导航的完整版、也没有 ≥1024 的横向左栏
+   ⇒ 939×664（Pura X Max 展开）/ 951×585（iPhone Duo 内屏横）实测是
+   **整页零导航**。这里把槽位重新打开，底栏自身在该档变成贴右竖向胶囊
+   （见 bottom-nav.css 末尾「Duo 式竖向胶囊」）。
+   边界与那边完全一致：≤1023 才开，≥1024 仍然交给左栏。 */
+@media (orientation: landscape) and (max-width: 1023px) {
+  .home-bottom-nav-slot {
+    display: contents;
   }
 }
 

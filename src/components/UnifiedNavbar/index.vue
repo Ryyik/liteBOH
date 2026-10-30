@@ -1093,7 +1093,9 @@ watch(
 // 岛组件零改动。
 // ============================================
 
-const portraitMiniQuery = window.matchMedia('(orientation: portrait) and (max-width: 768px)');
+// 边界 699：700–768 已是完整导航形态（iPad mini 744 起），不再走竖屏 mini 条。
+// 改这里必须同步 unified-nav.css 的 max-width: 699px 三处与下方 innerWidth 判据。
+const portraitMiniQuery = window.matchMedia('(orientation: portrait) and (max-width: 699px)');
 const navMini = ref(portraitMiniQuery.matches);
 const handlePortraitMiniChange = (event) => {
   navMini.value = event.matches;
@@ -1395,15 +1397,15 @@ const checkUnreadMessages = async () => {
 
 /**
  * 处理窗口大小变化
- * 当屏幕宽度大于768px时，关闭移动端菜单
+ * 当屏幕宽度大于699px时，关闭移动端菜单
  * 确保在竖屏模式下页面可以正常滚动
  */
 const handleResize = () => {
   if (resizeRafId) return;
   resizeRafId = requestAnimationFrame(() => {
     resizeRafId = null;
-    // 当屏幕宽度大于768px时，关闭移动端菜单
-    if (window.innerWidth > 768 && isMobileMenuOpen.value) {
+    // 当屏幕宽度大于699px时，关闭移动端菜单（边界与 unified-nav.css 的 max-width: 699px 对齐）
+    if (window.innerWidth > 699 && isMobileMenuOpen.value) {
       isMobileMenuOpen.value = false;
     }
   });

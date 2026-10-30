@@ -1,0 +1,153 @@
+/**
+ * 折叠屏 / 横屏窄档的「右侧导航胶囊」内容让位（2026-10-29）
+ *
+ * 配套：components/UserSpace/components/bottom-nav.css 里把底栏改成
+ * 贴右竖向胶囊的那一段。本文件只负责「内容怎么让开它」，不碰胶囊自身。
+ *
+ * 设计依据（Apple《Design for iPhone Duo》）：
+ *   控制区移到右侧后，左侧留给内容，并且要保持「手机式的竖屏矩形」
+ *   —— 原文：creating an uninterrupted area for its content to its left,
+ *   comparable to the area on an iPhone with more traditional display proportions.
+ *   ⇒ 所以这里做两件事：
+ *     ① 右边留出 --fold-nav-gutter，内容不被胶囊压住；
+ *     ② 主栏 max-width 收到 600px 并居中，宽屏下是「竖屏矩形」而不是拉伸铺满。
+ *   939×664 实测：改前主栏 939px（一张帖子卡横跨整屏、图片列各 400px）；
+ *   改后 600px 居中、右边 88px 归胶囊，读起来与 390 竖屏同构。
+ *
+ * 生效区间与胶囊完全一致（两处必须是同一个条件，改一处就要同步另一处）：
+ *   (orientation: landscape) and (max-width: 1023px)
+ * ⇒ 竖屏零命中；≥1024 交给已有的 UserSpaceSideRail + landscape-rail.css。
+ *
+ * 回滚：删掉本文件 + main.js 里那一行 import + bottom-nav.css 末尾三段
+ *      「Duo 式竖向胶囊」，即完整回滚，原有规则一行未改。
+ *
+ * ⚠️ --fold-nav-* 变量真源在 bottom-nav.css 的那段 @media 里（挂在 html 上）——
+ *    那里是唯一写数字的地方，本文件只消费，不重复定义，避免两处不同步。
+ */
+
+@media (orientation: landscape) and (max-width: 1023px) {
+  /* ── ① 右侧让位 ──────────────────────────────────────────────
+     每个宿主只改一个「最外层容器」，内部布局一律不动：
+     让位交给容器 padding，页面自己的 max-width + margin auto 会在
+     剩下的宽度里重新居中（与 landscape-rail.css 用 padding-left 的做法同构）。 */
+
+  /* 首页（论坛层在 `.home-forum-stage` 内，白底仍满宽） */
+  body.page-home .home-forum-stage {
+    padding-right: var(--fold-nav-gutter, 88px);
+  }
+
+  /* UserSpace：`.tab-page` 是 absolute 全屏叠放层，只改宽度，left/top/height 不动
+     （滚动位置记忆与 tab 切换动效都依赖后者） */
+  .user-space-page .tab-page {
+    width: calc(100% - var(--fold-nav-gutter, 88px));
+  }
+
+  /* 图库 / BOH Cloud+ */
+  body.page-bohcloudplus .cloud-page {
+    padding-right: var(--fold-nav-gutter, 88px);
+  }
+
+  /* 他人空间 */
+  body.page-userprofile .profile-page {
+    padding-right: var(--fold-nav-gutter, 88px);
+  }
+
+  /* BOH AI 整页：整页右移，聊天区 / 输入区 / ☰ 按钮（absolute 在 .bohai-container 内）
+     全部自动跟着走，不需要逐个子元素改 */
+  body.page-aichat .bohai-page {
+    padding-right: var(--fold-nav-gutter, 88px);
+  }
+
+  /* ── ② 主栏收成「手机比例的竖屏矩形」 ────────────────────────
+     600px 的取值：390 竖屏的正文宽约 350–390，600 是「展开后多出来的空间
+     用来让图片更舒服，但一行字不至于长到需要转头」的上界；
+     再宽就与设计稿里「iPhone 比例的内容区」脱节。
+     ⚠️ 必须 min(100%, …)：窄窗（如 594 横屏）内容宽 506，裸写 600 会溢出。 */
+  body.page-home .forum-container,
+  body.page-userspace .forum-container,
+  body.page-userspace .tab-page .page-content,
+  body.page-userspace .tab-page .profile-page-content,
+  body.page-userspace .tab-page .x-notifications-container.minimal-mode,
+  body.page-userprofile .profile-page-content,
+  body.page-bohcloudplus .cloud-shell {
+    max-width: min(100%, 600px);
+    margin-inline: auto;
+  }
+
+  /* 内嵌论坛的帖子栅格：宽屏原本两栏各 400px，收到 600 后单栏才不挤 */
+  body.page-home .forum-main-grid,
+  body.page-userspace .forum-main-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* ── ③ 底部留白回收 ──────────────────────────────────────────
+     原值（140 / 100px）都是给贴底胶囊留的；胶囊已经不在底部，这部分
+     在 368 高的屏上等于「滚到底还要空一屏的 38%」。收到 32px 与
+     landscape-rail.css 横屏档同值。 */
+  body.page-home .forum-container,
+  body.page-userspace .tab-page .page-content {
+    padding-bottom: 32px;
+  }
+
+  /* 顶部导航居中见文件末尾的「桌面版导航档」——
+     那里带 min-width: 769，不能塞在本块里，原因写在那段注释。 */
+
+  /* ── ④ 右缘 AI 触发条 ────────────────────────────────────────
+     `.ai-edge-trigger` 是 top:0/bottom:0 的固定右缘滑动条（16px 热区，
+     z-index 2147483645）。胶囊贴右后两者在横向重叠 6px（胶囊右边距 10 < 热区 16）。
+     ❌ 不能把热区整体左移来避让：707×354 实测左移 88px 后正好压在顶部导航的
+        汉堡按钮上（`#nav-hamburger` 热区落在 603..619），`.ai-edge-zone` 拦截
+        pointer 事件 ⇒ probe-nav-mobile-menu 点击超时。整个右侧必须保留给「右上角
+        按钮 + 右缘胶囊」这两件事，把热区往里塞等于把两者都堵死。
+     ✅ 拆成两条互不干扰的规则：
+        ① 热区留在右边缘，只把 z-index 降到 900（低于胶囊的 1000）——
+           胶囊画在它上面，6px 重叠区的点击归胶囊；页面内容仍低于它，右缘滑动照旧。
+        ② 只把唯一有视觉的「从右侧滑出 BOH AI」教学条左移到胶囊左侧。
+     ⚠️ 特异性：scoped 编译后是 `.ai-edge-trigger.side-right[data-v-*]`（0,3,0），
+        全局侧只能靠 #app 这个 id（1,2,0）赢 —— 项目已有同类先例。 */
+  #app .ai-edge-trigger.side-right {
+    z-index: 900;
+  }
+
+  #app .ai-edge-trigger.side-right .ai-edge-tutorial {
+    right: calc(var(--fold-nav-gutter, 88px) + 12px);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   桌面版顶部导航档（≥769）：让顶部导航以**内容区**居中而不是整页居中
+   ══════════════════════════════════════════════════════════════════════
+   内容右移了 gutter 并居中，它的中心比视口中心左移 gutter/2；而
+   `.unified-nav-surface` 靠 `margin: 0 auto` + `max-width: min(860px, 100%-24px)`
+   在满宽容器里居中，基准是整页 ⇒ 939×664 下导航条比内容列偏右 44px。
+
+   ⚠️ 2026-10-30 修「左移把 logo 挤出屏外」：
+      原写法只有 `left: -gutter/2`，但 surface 宽度已接近满宽（769 下 745、
+      794 下 770、939 下 860），再左移 44 就直接越界 —— 实测
+      `.nav-logo` 的 left 在 769/794 是 **-11px**、900 下 -3px，被裁掉一截。
+      正解是**同时**给宽度加上限：宽度先收进「扣掉 gutter 的盒子」，
+      此时居中留白的余量 ≥ (gutter+24)/2 = 56 > gutter/2 = 44，左移就不再越界。
+      改后实测 769/794 logo left = 33（原 -11），939 nav 中心 425 = 内容列中心 425。
+   ⚠️ 为什么不给 `#unified-nav-container` 加 padding-right：被 UnifiedNavbar
+      scoped 的 `padding: 0 !important` 压掉（landscape-rail.css 里已记过这个坑，
+      实测 padding 仍算出 0px）。所以杠杆只能是 surface 自己的 left。
+   ⚠️ max-width 那条必须带 `#unified-nav-container`：基础值
+      `min(860px, calc(100% - 24px))` 由 scoped 的
+      `#unified-nav-container .unified-nav-surface`(1,1,0) 声明，
+      只用 `body.page-x .unified-nav-surface`(0,2,1) 会输。
+
+   ⚠️ 为什么必须单开一档 min-width: 769：
+      ≤768 时顶部导航是**满宽汉堡胶囊**，给它左移/收窄只会把二级菜单挤出视口
+      —— 707×354 实测菜单 `left = -31`（probe-nav-mobile-menu 的 F 项直接红）。
+      所以「居中」这件事只对桌面版导航成立。
+   ══════════════════════════════════════════════════════════════════════ */
+@media (orientation: landscape) and (min-width: 769px) and (max-width: 1023px) {
+  body.page-home #unified-nav-container .unified-nav-surface,
+  body.page-userspace #unified-nav-container .unified-nav-surface,
+  body.page-userprofile #unified-nav-container .unified-nav-surface,
+  body.page-bohcloudplus #unified-nav-container .unified-nav-surface,
+  body.page-aichat #unified-nav-container .unified-nav-surface {
+    max-width: min(860px, calc(100% - 24px - var(--fold-nav-gutter, 88px)));
+    left: calc(var(--fold-nav-gutter, 88px) / -2);
+  }
+}

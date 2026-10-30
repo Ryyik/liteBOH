@@ -1070,9 +1070,12 @@ const mlandLayout = await mlandPage.evaluate(() => {
   const rail = document.querySelector('.userspace-rail');
   const bar = document.querySelector('.bottom-nav-glass');
   const shell = document.querySelector('.tab-page');
+  const barRect = bar ? bar.getBoundingClientRect() : null;
   return {
     railHidden: !rail || getComputedStyle(rail).display === 'none',
     barShown: bar ? getComputedStyle(bar).display !== 'none' : false,
+    barW: barRect ? Math.round(barRect.width) : 0,
+    barH: barRect ? Math.round(barRect.height) : 0,
     left: shell ? Math.round(shell.getBoundingClientRect().left) : -1,
     width: shell ? Math.round(shell.getBoundingClientRect().width) : -1,
     innerWidth: window.innerWidth,
@@ -1080,12 +1083,25 @@ const mlandLayout = await mlandPage.evaluate(() => {
 });
 check('手机横屏（844×420）不进分栏：左栏隐藏', mlandLayout.railHidden);
 check('手机横屏保持底栏可见', mlandLayout.barShown);
+// ⚠️ 2026-10-30 口径变更（不是放松断言，是意图变了）：
+//   原先这条是「内容全宽、不让位」。2026-10-29 引入「Duo 式右侧竖向胶囊」后，
+//   生效区间 (orientation: landscape) and (max-width: 1023px) 把手机横屏也包含进来 ——
+//   420 高时贴底胶囊要吃掉 60–72px（约 17% 纵向空间），右侧竖条更划算，也与 Duo
+//   「控制区移到右侧、左侧留内容」一致（docs/2026-10-30-iPad适配调查.md）。
+//   所以现在**应当**让位：内容宽 = 内宽 − gutter(88)，左缘仍为 0
+//   （让位走宽度/右 padding，绝不挪 left —— 那会破坏 tab 切换与滚动位置记忆）。
+//   同时把「底栏确实变成竖向条」钉住，避免以后有人只把内容让位改了、胶囊却还是横的。
 check(
-  '手机横屏内容区未让位（left=0 且全宽）',
-  mlandLayout.left === 0 && mlandLayout.width === mlandLayout.innerWidth,
+  '手机横屏内容让位右缘（宽 = 内宽 − 88）',
+  mlandLayout.left === 0 && Math.abs(mlandLayout.innerWidth - mlandLayout.width - 88) <= 1,
   `left=${mlandLayout.left} width=${mlandLayout.width} inner=${mlandLayout.innerWidth}`,
 );
-await mlandPage.screenshot({ path: 'debug-screenshots/ia-mobile-landscape-unchanged.png' });
+check(
+  '手机横屏底栏为贴右竖向条（h > w）',
+  mlandLayout.barH > mlandLayout.barW && mlandLayout.barW > 0,
+  `w=${mlandLayout.barW} h=${mlandLayout.barH}`,
+);
+await mlandPage.screenshot({ path: 'debug-screenshots/ia-mobile-landscape-rail.png' });
 await mlandPage.close();
 
 // ---------- 10. 横屏全宽 ----------

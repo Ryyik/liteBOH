@@ -430,7 +430,9 @@ body.page-aichat.nav-orb-transitioning .bohai-page:not(.embedded-mode):not(.over
   }
 }
 
-@media (orientation: portrait) and (max-width: 768px) {
+/* 边界 699：700–768 的导航已是完整形态（高度取基础 64/72），
+   这个变量镜像导航高度，必须同源，否则 AI 页会在 700–768 出现高度对不上。 */
+@media (orientation: portrait) and (max-width: 699px) {
   body.page-aichat {
     --bohai-standalone-nav-height: 60px;
   }

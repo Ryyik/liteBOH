@@ -44,6 +44,9 @@ import './styles/layouts/footer.css';
 import './styles/pages/globalpage.css';
 import './styles/pages/homepages.css';
 import './styles/pages/section__header.css';
+/* 折叠屏展开态 / 横屏窄档：右侧竖向导航胶囊的内容让位（2026-10-29）。
+   配套 bottom-nav.css 末尾的「Duo 式竖向胶囊」段，两者生效区间必须一致。 */
+import './styles/fold-nav-rail.css';
 import './style.css';
 
 // ============================================

@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>BOHLITE 更新 · 2026.10.29</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23000'/%3E%3Ctext x='16' y='22' font-family='-apple-system,PingFang SC,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E" />
+<meta name="description" content="BOHLITE 10 月更新：发帖、审核、通知、签到、设置，全线重做。" />
+<style>
+  :root {
+    --ink: #1d1d1f;
+    --muted: #6e6e73;
+    --line: #d2d2d7;
+    --bg: #ffffff;
+    --bg-soft: #f5f5f7;
+    --dark: #000000;
+    --dark-soft: #0a0a0a;
+    --accent: #0071e3;
+    --maxw: 1000px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro SC", "SF Pro Text",
+      "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ── 顶部导航 ─────────────────────────────── */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 24px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .nav__brand {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+  }
+
+  .nav__meta {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* ── 英雄区 ───────────────────────────────── */
+  .hero {
+    position: relative;
+    background: var(--dark);
+    color: #f5f5f7;
+    padding: 96px 24px 120px;
+    overflow: hidden;
+  }
+
+  .hero::after {
+    content: "";
+    position: absolute;
+    left: -20%;
+    right: -20%;
+    bottom: -2px;
+    height: 62%;
+    background: radial-gradient(ellipse at 50% 108%, rgba(0, 113, 227, 0.38), transparent 66%);
+    pointer-events: none;
+  }
+
+  .hero__inner {
+    position: relative;
+    z-index: 1;
+    max-width: var(--maxw);
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    margin: 0 0 20px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #86868b;
+  }
+
+  .hero h1 {
+    margin: 0;
+    font-size: clamp(40px, 8.4vw, 92px);
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+    font-weight: 700;
+  }
+
+  .hero h1 em {
+    font-style: normal;
+    background: linear-gradient(100deg, #6ea8ff 0%, #a78bfa 55%, #f472b6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hero__sub {
+    margin: 28px 0 0;
+    max-width: 620px;
+    font-size: clamp(17px, 2.2vw, 21px);
+    line-height: 1.55;
+    color: #a1a1a6;
+    letter-spacing: 0.01em;
+  }
+
+  .hero__date {
+    margin: 40px 0 0;
+    font-size: 13px;
+    color: #6e6e73;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── 章节 ─────────────────────────────────── */
+  section { padding: 104px 24px; }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; }
+
+  .soft { background: var(--bg-soft); }
+
+  .dark {
+    background: var(--dark-soft);
+    color: #f5f5f7;
+  }
+
+  .kicker {
+    margin: 0 0 16px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+  }
+
+  .dark .kicker { color: #6ea8ff; }
+
+  h2 {
+    margin: 0;
+    font-size: clamp(32px, 5.4vw, 60px);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+
+  .lede {
+    margin: 22px 0 0;
+    max-width: 660px;
+    font-size: clamp(16px, 1.9vw, 19px);
+    line-height: 1.65;
+    color: var(--muted);
+  }
+
+  .dark .lede { color: #a1a1a6; }
+
+  /* 特性网格 */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 40px 48px;
+    margin-top: 64px;
+  }
+
+  .item h3 {
+    margin: 0 0 10px;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .item p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  .dark .item p { color: #86868b; }
+
+  .item .tag {
+    display: inline-block;
+    margin-bottom: 12px;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  .dark .item .tag {
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #86868b;
+  }
+
+  /* ── 数字墙 ───────────────────────────────── */
+  .figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 56px 40px;
+    margin-top: 72px;
+  }
+
+  .figure .n {
+    display: block;
+    font-size: clamp(44px, 8vw, 84px);
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    background: linear-gradient(180deg, #ffffff 0%, #8e8e93 130%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .figure .n small {
+    font-size: 0.42em;
+    letter-spacing: 0;
+    font-weight: 600;
+  }
+
+  .figure .cap {
+    display: block;
+    margin-top: 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #86868b;
+  }
+
+  /* ── 收尾 ─────────────────────────────────── */
+  .closing {
+    background: var(--dark);
+    color: #f5f5f7;
+    text-align: center;
+    padding: 120px 24px 96px;
+  }
+
+  .closing h2 {
+    font-size: clamp(36px, 6.4vw, 72px);
+  }
+
+  .closing p {
+    margin: 24px auto 0;
+    max-width: 560px;
+    font-size: 17px;
+    line-height: 1.7;
+    color: #a1a1a6;
+  }
+
+  .pill {
+    display: inline-block;
+    margin-top: 40px;
+    padding: 14px 30px;
+    border-radius: 999px;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  footer {
+    background: var(--dark);
+    color: #6e6e73;
+    padding: 0 24px 56px;
+    text-align: center;
+  }
+
+  footer p {
+    margin: 0 auto;
+    max-width: 720px;
+    font-size: 12px;
+    line-height: 1.9;
+    letter-spacing: 0.02em;
+  }
+
+  footer .rule {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    max-width: var(--maxw);
+    margin: 0 auto 32px;
+  }
+
+  /* ── 入场动画 ─────────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(26px);
+    transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .reveal.is-in { opacity: 1; transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .reveal { opacity: 1; transform: none; transition: none; }
+  }
+
+  @media print {
+    .reveal { opacity: 1 !important; transform: none !important; }
+  }
+
+  @media (max-width: 560px) {
+    section { padding: 76px 20px; }
+    .hero { padding: 72px 20px 88px; }
+    .grid { gap: 32px; margin-top: 48px; }
+    .figures { gap: 44px; margin-top: 56px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav__brand">BOHLITE</span>
+  <span class="nav__meta">2026 年 10 月更新</span>
+</nav>
+
+<header class="hero">
+  <div class="hero__inner">
+    <p class="eyebrow">October Update</p>
+    <h1>把时间，<br />留给<em>创作</em>本身。</h1>
+    <p class="hero__sub">
+      从按下「发布」的那一秒，到图片审核的最后一毫秒。
+      这一次，我们把整条链路重做了一遍。
+    </p>
+    <p class="hero__date">2026.10.29 · 已上线</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <p class="kicker reveal">发帖</p>
+    <h2 class="reveal">写下去，<br />别停下来。</h2>
+    <p class="lede reveal">
+      灵感不该被网络、刷新和误触打断。现在，它不会了。
+    </p>
+
+    <div class="grid">
+      <div class="item reveal">
+        <span class="tag">实时暂存</span>
+        <h3>每一个字，本机都留着</h3>
+        <p>输入即保存。刷新、崩溃、误关标签页——再打开，正文和图片都还在原位。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">发布队列</span>
+        <h3>90 秒没有进展，我们接手</h3>
+        <p>上传停滞会被自动判定并接管，恢复后继续发。重启页面也不丢队列。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">图片</span>
+        <h3>更小，看不出更小</h3>
+        <p>上限调整为 1600 像素。六张图的体积下降约三成，画质差异肉眼不可辨。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">响应</span>
+        <h3>快了 100 到 300 毫秒</h3>
+        <p>发布关键路径去掉一次多余的身份往返。感知很轻，次数多了就不轻。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="soft">
+  <div class="wrap">
+    <p class="kicker reveal">安全</p>
+    <h2 class="reveal">看不见的地方，<br />也在守着。</h2>
+    <p class="lede reveal">
+      审核不该成为发帖的等待。我们把它挪到了你看不见的地方。
+    </p>
+
+    <div class="grid">
+      <div class="item reveal">
+        <span class="tag">两级审核</span>
+        <h3>云端先看，本地再看</h3>
+        <p>云端判定超时放宽到 6 秒，仍不确定时由本地模型兜底。两边都拿不准，就先放行。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">后台复审</span>
+        <h3>约 6 分钟，给一个结论</h3>
+        <p>放行的图片进入异步复审队列。若判定违规，帖子会自动下线并通知你——不用一直等。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">降级链</span>
+        <h3>主模型不可用，就换下一条</h3>
+        <p>整条链共用一份时间预算，逐跳重试。你只感知到「有结果」，而不是「超时」。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">稳定性</span>
+        <h3>失败有退路，不留残局</h3>
+        <p>复审没跑完的图会重新排队，最长追到 14 天。不会有一张图永远停在「待处理」。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="dark">
+  <div class="wrap">
+    <p class="kicker reveal">数字</p>
+    <h2 class="reveal">四个数字，<br />一次更新。</h2>
+
+    <div class="figures">
+      <div class="figure reveal">
+        <span class="n">6.43<small>s</small></span>
+        <span class="cap">首图模型就绪时间<br />原来需要 14.06 秒</span>
+      </div>
+      <div class="figure reveal">
+        <span class="n">−30<small>%</small></span>
+        <span class="cap">图片上传体积<br />画质差异不可辨</span>
+      </div>
+      <div class="figure reveal">
+        <span class="n">6<small>分钟</small></span>
+        <span class="cap">后台复审给出结论<br />不再无限期等待</span>
+      </div>
+      <div class="figure reveal">
+        <span class="n">+5</span>
+        <span class="cap">每周签到积分<br />固定发放，不看连签</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="kicker reveal">通知</p>
+    <h2 class="reveal">通知，<br />按你的节奏来。</h2>
+    <p class="lede reveal">
+      有人想第一时间知道，有人想一天看一次。现在，两种都对。
+    </p>
+
+    <div class="grid">
+      <div class="item reveal">
+        <span class="tag">频率</span>
+        <h3>实时 15 分钟，或标准 1 小时</h3>
+        <p>实时窗口为 Max 与 Ultra 订阅专享，服务端校验权益；标准窗口对所有人生效。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">投递</span>
+        <h3>及时一封，或攒成一封</h3>
+        <p>及时模式首条即发；聚合模式把同一窗口的动作攒成一份摘要，一封看完。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">模板</span>
+        <h3>三种形态，各司其职</h3>
+        <p>摘要、单条回复、聚合摘要各有版式。信息密度不同，排版也不该一样。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">开关</span>
+        <h3>点了，就真的生效</h3>
+        <p>设置写入会核对结果。保存失败不再显示「已开启」，不会再出现刷新后弹回原状。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="soft">
+  <div class="wrap">
+    <p class="kicker reveal">体验</p>
+    <h2 class="reveal">细节，<br />也是设计。</h2>
+
+    <div class="grid">
+      <div class="item reveal">
+        <span class="tag">签到</span>
+        <h3>值得被看见的一次翻面</h3>
+        <p>签到改成 3D 卡面舞台：翻面、落定、显示到账积分。已经签过，也可以再看一遍。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">设置</span>
+        <h3>竖屏，一层就够</h3>
+        <p>改成「分类列表 → 点进去看一组」。不再把所有开关堆在同一屏。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">编辑</span>
+        <h3>改过，就写清楚</h3>
+        <p>帖子与详情页会标注编辑时间。内容的变化，应该看得见。</p>
+      </div>
+      <div class="item reveal">
+        <span class="tag">加载</span>
+        <h3>不再有四个「正在加载」</h3>
+        <p>浮层型组件失败时静默退场，不在页面底部留下占位块。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="closing">
+  <h2 class="reveal">还有更多。</h2>
+  <p class="reveal">
+    一百多处细节打磨，藏在每一次滚动、每一次点击里。
+    它们不会出现在公告里，但你会感觉到。
+  </p>
+  <span class="pill reveal">更新已上线</span>
+</section>
+
+<footer>
+  <div class="rule"></div>
+  <p>
+    BOHLITE · 2026 年 10 月更新 · 2026.10.29<br />
+    本次更新通过 3,475 项自动化测试与 4 条持续集成流水线校验后发布。
+  </p>
+</footer>
+
+<script>
+  (function () {
+    var items = document.querySelectorAll('.reveal');
+    if (!('IntersectionObserver' in window)) {
+      items.forEach(function (el) { el.classList.add('is-in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-in');
+        io.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -12% 0px', threshold: 0.12 });
+    items.forEach(function (el) { io.observe(el); });
+  })();
+</script>
+
+</body>
+</html>

@@ -132,7 +132,7 @@
 @keyframes bottomNavSlideIn {
   /* ⚠️ 只动独立 translate 属性，绝不能动 transform ——
      底栏有两套水平定位方案：桌面 left:50% + translateX(-50%)，
-     移动（<768px）left:16px/right:16px 拉伸式（transform 只有 scaleX）。
+     移动（≤699px）left:16px/right:16px 拉伸式（transform 只有 scaleX）。
      2026-09-24 修：旧 keyframes 在 transform 里写死 translateX(-50%)，
      移动端上等于多平移半个身位（-195px），动画结束摘类瞬间猛跳回正 ——
      这就是「底栏浮现位置偏移」。独立 translate 与 transform 互不覆盖，两套方案通吃。 */
@@ -918,7 +918,10 @@
   }
 }
 
-@media (min-width: 768px) and (max-width: 1024px) {
+/* 平板块：700–1024。边界 768 → 700（2026-10-30）：iPad mini 744 归入这里，
+   底栏是小胶囊（nav-items 自然宽 + 居中），而不是手机档那条被 left/right:16 拉满
+   704px 的横条。三档必须首尾相接（699 | 700–1024 | 1025），漏一档就会掉回基础定位。 */
+@media (min-width: 700px) and (max-width: 1024px) {
   .bottom-nav-glass {
     bottom: 20px;
   }
@@ -934,7 +937,10 @@
   }
 }
 
-@media (max-width: 767px) {
+/* 手机档：≤699（原 767）。这一档才把底栏拉满（left/right:16），
+   所以边界必须卡在「拉满不丑」的宽度上 —— 704px 的横条在 744 屏上是 94.6% 铺满，
+   单项 138px 而图标仍 17px，看着像手机 UI 放大（见 docs/2026-10-30-iPad适配调查.md）。 */
+@media (max-width: 699px) {
   .bottom-nav-glass {
     bottom: 16px;
     left: 16px;
@@ -958,7 +964,7 @@
   }
 }
 
-@media (max-width: 767px) and (orientation: portrait) {
+@media (max-width: 699px) and (orientation: portrait) {
   .bottom-nav-glass {
     bottom: 20px;
     left: 20px;
@@ -1026,5 +1032,171 @@
     pointer-events: none;
     transform: translateX(-50%) translateY(calc(100% + 40px))
       scaleX(var(--bottom-nav-collapse-scale));
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Duo 式「贴右侧的竖向导航胶囊」（折叠屏展开态 / 横屏窄高视口）
+   ══════════════════════════════════════════════════════════════════════
+   依据 Apple《Design for iPhone Duo》原文：
+     「Buttons and controls that normally sit at the top and bottom move to
+       the right side of the display in order to maximize vertical space…
+       This new space on the side houses the app controls. This includes the
+       tab bar… creating an uninterrupted area for its content to its left,
+       comparable to the area on an iPhone with more traditional display
+       proportions.」
+   ⇒ 横屏把底栏从「贴底横胶囊」变成「贴右竖胶囊」：内容在左保持手机比例，
+     右侧窄条归导航。368/585/664 这几个高度里，贴底胶囊要吃掉 60~72px
+     （594×368 实测占掉 20% 屏高、首屏只剩作者名），竖条则完全不吃高度。
+
+   生效区间刻意与左栏互补，两套永不共存：
+     · orientation: landscape  —— 竖屏不命中（Duo 展开竖屏仍是底部标签栏）
+     · max-width: 1023px       —— ≥1024 交给已有的 UserSpaceSideRail
+   ⇒ 939（Pura X Max 展开）/ 951（Duo 内屏横）/ 794（Z Fold 7）三档，
+     正好是原来「桌面导航 + 手机内容」断点裂缝里的那三档。
+
+   ⚠️ 只改定位与排布，不碰材质：底色 / 滤镜 / 描边 / 暗色仍由基类与
+   tokens 决定，所以暗色、无滤镜降级、.boh-perf-lite 省电档自动跟随。
+   ⚠️ 尺寸变量给同目录外的新文件（styles/fold-nav-rail.css）共用，
+   栏宽与内容让位必须同源，别在那边再写一遍 88px。
+   ══════════════════════════════════════════════════════════════════════ */
+@media (orientation: landscape) and (max-width: 1023px) {
+  html {
+    /* 胶囊本体宽 / 与视口右边缘的间距 / 内容让位总量（= 宽 + 间距 + 呼吸） */
+    --fold-nav-w: 70px;
+    --fold-nav-gap: 10px;
+    --fold-nav-gutter: 88px;
+    /* 单项高度：52 是「图标 19 + 标签 11px」舒适档，矮窗在文件末尾降级 */
+    --fold-nav-item-h: 52px;
+  }
+
+  .bottom-nav-glass {
+    --bottom-nav-shell-padding: 6px;
+    /* 定位从「贴底居中」换成「贴右垂直居中」。
+       竖屏的 left:50% + translateX(-50%) 必须一起撤掉，否则两者叠加会右移半身位 */
+    top: 50%;
+    bottom: auto;
+    left: auto;
+    right: max(var(--fold-nav-gap), env(safe-area-inset-right, 0px));
+    transform: translateY(-50%) scale(var(--bottom-nav-collapse-scale));
+    transform-origin: center;
+    /* 横排时宽度由 5 列内容撑开；竖排内容只有 40 出头，不给宽度会瘦成一条火柴盒
+       （实测 48px，点击区太窄）。宽度真源 --fold-nav-w 与内容让位同源 */
+    width: var(--fold-nav-w);
+    box-sizing: border-box;
+    /* 999px 胶囊在竖排下会变成「胶囊套胶囊」，改成圆角矩形 */
+    border-radius: 26px;
+    clip-path: inset(0 0 0 0 round 26px);
+  }
+
+  /* 排布：5 列 → 5 行。用固定行高而不是 1fr ——
+     1fr 依赖容器高度，容器高度又由行高决定，是循环依赖；固定行高让
+     指示器的 1/5 步进有确定的像素基准 */
+  .nav-items {
+    grid-template-columns: none;
+    grid-auto-flow: row;
+    grid-auto-rows: var(--fold-nav-item-h);
+    max-width: none;
+  }
+
+  /* 选中指示器：横向的「宽 1/5 + translateX」改成「高 1/5 + translateY」。
+     步长 = 自身高 + 8（与上下各 4px 内缩互补），5 步正好铺满 */
+  .nav-items::before {
+    top: 4px;
+    bottom: auto;
+    left: 4px;
+    right: 4px;
+    width: auto;
+    height: calc(100% / var(--nav-count) - 8px);
+    transform: translateY(calc(var(--active-nav-index, 0) * (100% + 8px)));
+  }
+
+  /* 横排时是「图标在上、文字在下、左右 padding 14」，竖排只需收窄横向 */
+  .nav-item {
+    min-width: 0;
+    min-height: 0;
+    padding: 4px 6px;
+  }
+
+  .nav-icon {
+    width: 19px;
+    height: 19px;
+  }
+
+  .nav-label {
+    font-size: 11px;
+  }
+
+  /* 选中态图标：横向是 translateY(-3px)（往上给文字让位），
+     竖排下方向不变但会顶到上一项，改成纯放大 */
+  .nav-item.active .nav-icon {
+    transform: scale(1.12);
+  }
+
+  .nav-item.active .nav-label {
+    transform: none;
+  }
+
+  /* 隐藏态：横向是左右向中收拢，竖排要改成上下向中收拢 */
+  .bottom-nav-glass.is-hidden {
+    clip-path: inset(50% 0 50% 0 round 26px);
+  }
+
+  /* 入场：横向是「从下方浮上来」，竖排从右侧滑入才符合方位 */
+  .bottom-nav-glass.is-entering {
+    animation-name: bottomNavSlideInFromRight;
+  }
+
+  /* ⚠️ 消息选择态必须在这里再写一遍，不能靠文件顺序：
+     末尾那条是 `body.boh-messages-selecting .bottom-nav-glass`（0,2,0），
+     本块的选择器只有 0,1,0，特异性输了就永远不生效。
+     收起方向也从「往下沉」改成「滑出右边缘」。 */
+  body.boh-messages-selecting .bottom-nav-glass {
+    transform: translateY(-50%) translateX(calc(100% + 32px))
+      scale(var(--bottom-nav-collapse-scale));
+  }
+}
+
+@keyframes bottomNavSlideInFromRight {
+  from {
+    translate: 40px 0;
+    opacity: 0;
+  }
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
+}
+
+/* 矮窗降级：368（Duo 外屏横）/ 390（手机横）这类高度里，52×5 + 12 = 272 的竖条
+   居中后上沿只到 48px，会压住 78px 的顶部导航胶囊 ⇒ 按高度分两档收紧。
+   两档的判据是「272/2 > 顶栏高」与「232/2 > 顶栏高」反推出来的，不是拍的。 */
+@media (orientation: landscape) and (max-width: 1023px) and (max-height: 520px) {
+  html {
+    --fold-nav-item-h: 44px;
+  }
+
+  .nav-icon {
+    width: 17px;
+    height: 17px;
+  }
+
+  .nav-label {
+    font-size: 10px;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 1023px) and (max-height: 430px) {
+  html {
+    --fold-nav-item-h: 38px;
+  }
+
+  .nav-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .nav-label {
+    font-size: 9px;
   }
 }

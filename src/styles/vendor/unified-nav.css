@@ -1030,8 +1030,14 @@
   }
 }
 
-/* 移动设备 (< 768px) */
-@media (max-width: 768px) {
+/* 手机（< 700px）
+   ⚠️ 2026-10-30：边界 768 → 699（配合 iPad mini 归入平板档）。
+   744 实测装得下完整导航（logo + 5 链接 + 搜索 + 登录，scrollWidth 正好 744，
+   零溢出，见 docs/2026-10-30-iPad适配调查.md 的实验）。旧边界让 744/768 落进
+   「汉堡胶囊 + 704px 拉满底栏」的手机形态，与 820/834 的完整导航割裂。
+   改边界时必须同步：本文件 3 处、UnifiedNavbar/index.vue 的 portraitMiniQuery
+   与 innerWidth 判据、style.scoped.css 2 处、bottom-nav.css 三档、首页底栏槽位。 */
+@media (max-width: 699px) {
   .unified-nav .nav-menu {
     display: none;
   }
@@ -1567,8 +1573,10 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
   color: #333 !important;
 }
 
-/* 竖屏模式优化 - 解决Chrome地址栏导致的内容遮挡问题 */
-@media (orientation: portrait) and (max-width: 768px) {
+/* 竖屏模式优化 - 解决Chrome地址栏导致的内容遮挡问题
+   边界 699 的理由同上方「手机（< 700px）」块：700–768 现在是完整导航形态，
+   不套手机的高度/内边距/登录按钮压缩。 */
+@media (orientation: portrait) and (max-width: 699px) {
   .unified-nav {
     height: 60px;
   }
@@ -1641,7 +1649,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
     max-height: calc(var(--real-vh, 1vh) * 100 - 64px);
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 699px) {
     .unified-nav .nav-menu-mobile {
       height: calc(var(--real-vh, 1vh) * 100 - 58px);
       max-height: calc(var(--real-vh, 1vh) * 100 - 58px);
@@ -1655,7 +1663,7 @@ body.page-shop-user .unified-nav .nav-dropdown-item {
     }
   }
 
-  @media (orientation: portrait) and (max-width: 768px) {
+  @media (orientation: portrait) and (max-width: 699px) {
     .unified-nav .nav-menu-mobile {
       height: calc(var(--real-vh, 1vh) * 100 - 60px);
       max-height: calc(var(--real-vh, 1vh) * 100 - 60px);

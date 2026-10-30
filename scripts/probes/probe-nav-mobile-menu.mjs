@@ -44,7 +44,7 @@ import { chromium } from 'playwright';
 //   L 三级态：点开分组项后「分组返回条」真的出现（先扫一级项，找到含分组项的那一支）
 //   M 三级态：三级内容从**分组面板顶部**开始（空洞 ≤1px）—— 若有隐藏兄弟仍占位就会撑大
 //   N 三级态：最后一个可见项不被卡片裁掉
-//   A–F 另在**窄横屏档**（707×354）各跑一遍：那一档走 vendor 的
+//   A–F 另在**窄横屏档**（667×375）各跑一遍：那一档走 vendor 的
 //     `top: calc(10px + var(--global-nav-rest-height, 58px))`，与竖屏不是同一套几何
 //
 // 反证（改完必须自己先跑一遍，确认它真的会红）：
@@ -395,9 +395,14 @@ for (const width of WIDTHS) {
 // 里（style.scoped.css:296 起），所以窄横屏走的是**另一套几何**：菜单定位仍由 vendor 的
 // `top: calc(10px + var(--global-nav-rest-height, 58px))` 决定，子菜单容器仍是 absolute
 // 覆盖式（靠主菜单撑高，故竖屏那条 display:none 不能套用到这一档）。
-// 此前这一档**零断言**，只有 unified-nav.css 注释里一句手验（707×354 实测接缝 1px）。
+// 此前这一档**零断言**，只有 unified-nav.css 注释里一句手验（原档 707×354 实测接缝 1px）。
 // 这里只断言与档位无关的三类不变量：接缝 / 投影 / 横向不出视口。
-const LANDSCAPE = [{ tag: '707x354 窄横屏', width: 707, height: 354 }];
+// ⚠️ 2026-10-30：档位 707×354 → 667×375。手机/平板边界从 768 下移到 700
+//    （iPad mini 744 归入平板档，见 docs/2026-10-30-iPad适配调查.md），707 已属于
+//    **桌面导航**形态，汉堡根本不渲染 ⇒ 原档位会让整段窄横屏断言被跳过（探针报
+//    「该档不在移动端形态，断言无意义」）。667×375 是 iPhone SE 横屏，仍在手机档内，
+//    仍然走 vendor 那套 landscape 几何，覆盖目的不变。
+const LANDSCAPE = [{ tag: '667x375 窄横屏', width: 667, height: 375 }];
 
 for (const lc of LANDSCAPE) {
   const ctx = await browser.newContext({

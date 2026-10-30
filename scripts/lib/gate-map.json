@@ -29,9 +29,10 @@
       "glob": "src/components/UnifiedNavbar/**",
       "run": [
         "node scripts/probes/probe-global-search.mjs",
-        "node scripts/probes/probe-nav-mobile-menu.mjs"
+        "node scripts/probes/probe-nav-mobile-menu.mjs",
+        "node scripts/probes/probe-responsive-tiers.mjs"
       ],
-      "why": "可见性/灵动岛/搜索 + 竖屏菜单几何"
+      "why": "可见性/灵动岛/搜索 + 竖屏菜单几何 + 手机/平板形态分档（portraitMiniQuery 的 699 边界）"
     },
     {
       "glob": "src/utils/global-navbar-visibility.js",
@@ -143,7 +144,11 @@
       "run": [],
       "note": "check:dark-tokens:strict 已在 verify 内（棘轮）"
     },
-    { "glob": "src/utils/api/**", "run": [], "note": "check:layering 已在 verify 内（棘轮）" },
+    {
+      "glob": "src/utils/api/**",
+      "run": [],
+      "note": "check:layering 已在 verify 内（棘轮）"
+    },
     {
       "glob": "supabase/migrations/**",
       "run": [],
@@ -183,6 +188,32 @@
       "glob": "src/utils/points-card-assets.js",
       "run": ["npx vitest run tests/unit/points-card-assets.test.js"],
       "why": "卡面资源收集与预取（decode/缓存/超时降级）的唯一真源"
+    },
+    {
+      "glob": "src/styles/fold-nav-rail.css",
+      "run": ["node scripts/probes/probe-fold-nav-rail.mjs"],
+      "why": "折叠屏展开态的内容让位：胶囊贴右 / 不压内容 / 内容列 ≤620 / 右缘 AI 触发条让位"
+    },
+    {
+      "glob": "src/views/user-center/UserSpace/components/bottom-nav.css",
+      "run": [
+        "node scripts/probes/probe-fold-nav-rail.mjs",
+        "node scripts/probes/probe-responsive-tiers.mjs"
+      ],
+      "why": "底栏「贴右竖向胶囊」与内容让位同源（--fold-nav-w / --fold-nav-gutter）；三档边界 699|700–1024|1025 见 probe-responsive-tiers"
+    },
+    {
+      "glob": "src/styles/vendor/unified-nav.css",
+      "run": ["node scripts/probes/probe-responsive-tiers.mjs"],
+      "why": "手机/平板边界（max-width:699/700）是导航形态的唯一开关，四份判据必须同源（css 3 处 + index.vue 2 处）"
+    },
+    {
+      "glob": "src/views/Home/style.scoped.css",
+      "run": [
+        "node scripts/probes/probe-responsive-tiers.mjs",
+        "node scripts/probes/probe-fold-nav-rail.mjs"
+      ],
+      "why": "首页底栏槽位的边界必须与导航边界同源（700），否则会出现「顶部完整导航 + 底部又挂一条」"
     }
   ]
 }

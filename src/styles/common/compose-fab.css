@@ -51,3 +51,18 @@
   bottom: calc(144px + env(safe-area-inset-bottom, 0px));
   z-index: 1200;
 }
+
+/* 折叠屏展开态 / 横屏窄档（2026-10-29）：底栏改成贴右竖向胶囊
+   （见 components/UserSpace/components/bottom-nav.css 末尾），
+   FAB 若仍在 right:18px 就直接压在胶囊上（03-duo-outer-landscape 实测两处可点区重叠）。
+   整体左移到胶囊左侧；底栏已不在底部，「抬到 144px 避让底栏」这条也随之取消。
+   --fold-nav-gutter 真源在 bottom-nav.css，未命中该档时变量不存在 ⇒ 走 fallback，竖屏零变化。
+   ⚠️ 特异性必须带 .embedded-compose-fab（0,2,0）：上面那条也是 0,2,0，
+      只靠文件顺序在 @import 被内联时会变得不确定。 */
+@media (orientation: landscape) and (max-width: 1023px) {
+  .mobile-compose-fab,
+  .mobile-compose-fab.embedded-compose-fab {
+    right: calc(var(--fold-nav-gutter, 88px) + 6px);
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+}
