@@ -46,8 +46,9 @@ import { useUserTier } from '@/composables/useUserTier.js';
 import { getAvatarUrl } from '@/utils/avatar.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
 import { preloadPointsCardAssets } from '@/utils/points-card-assets.js';
-// 展示口径的标题/正文（单源；别名保持调用点不变）
+// 展示口径的标题/正文 + 内容类型派生（均单源；别名保持调用点不变）
 import {
+  deriveForumPostKind,
   extractDisplayPostBody as extractPostBody,
   extractDisplayPostTitle as extractPostTitle,
 } from '@/utils/forum-post-format.js';
@@ -1748,13 +1749,9 @@ const prepareForumPosts = (posts = [], startIndex = 0) =>
   Array.isArray(posts)
     ? posts
         .filter((post) => {
-          const kind =
-            post?.post_kind ||
-            (/^【新闻】/.test(String(post?.content || ''))
-              ? 'news'
-              : /^【活动】/.test(String(post?.content || ''))
-                ? 'activity'
-                : 'unknown');
+          // 类型派生单源（P2-2）。视图层兜底是 'unknown'，与数据层的 'post' 不同 ——
+          // 这是历史口径，别统一（matchesForumContentKind 把两者都归进「普通帖」）。
+          const kind = deriveForumPostKind(post, { fallback: 'unknown' });
           /* 「论坛」= 普通帖 + 用户转发（repost）、「资讯」= 官方新闻 + 活动 ——
              口径统一在 post-api 的 matchesForumContentKind，别在这里再写一份
              （2026-10-22 就是这里只写了精确匹配，把资讯过滤成了空列表）。 */
@@ -1796,16 +1793,12 @@ const hydrateOfficialPostKinds = async (posts = []) => {
     ...post,
     post_kind:
       metadata.get(post.id)?.post_kind ||
-      post.post_kind ||
-      (/^【新闻】/.test(String(post.content || ''))
-        ? 'news'
-        : /^【活动】/.test(String(post.content || ''))
-          ? 'activity'
-          : newsByTitle.has(String(post.title || '').trim())
-            ? 'news'
-            : activityByTitle.has(String(post.title || '').trim())
-              ? 'activity'
-              : 'unknown'),
+      // 派生单源（P2-2）：这里比列表链路多一层「按标题去官方目录认」的兜底，
+      // 通过 titleIndex 传入，而不是再写一份前缀判断。
+      deriveForumPostKind(post, {
+        fallback: 'unknown',
+        titleIndex: { newsByTitle, activityByTitle },
+      }),
     cover_image_url:
       post.cover_image_url ||
       metadata.get(post.id)?.cover_image_url ||

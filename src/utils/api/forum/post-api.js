@@ -34,6 +34,8 @@ import {
   splitPostContent,
   toForumImageRpcPayload,
 } from '../forum-format.js';
+// 内容类型派生单源（P2-2）
+import { deriveForumPostKind } from '../../forum-post-format.js';
 import { getForumPostImages } from '../forum-images-api.js';
 import {
   isMissingColumnError,
@@ -521,14 +523,10 @@ async function enrichWeeklyCheckinStatusFallback(status, userId = null) {
   };
 }
 
-/* 一行内容属于哪类：优先 `post_kind` 字段；老数据没有该字段时按内容前缀兜底。 */
-const rowKind = (row) =>
-  String(row?.post_kind || '').trim() ||
-  (/^【新闻】/.test(String(row?.content || ''))
-    ? 'news'
-    : /^【活动】/.test(String(row?.content || ''))
-      ? 'activity'
-      : 'post');
+/* 一行内容属于哪类：单源在 `utils/forum-post-format.js` 的 deriveForumPostKind
+   （2026-10-30 P2-2 收口；此前本文件内就有两份、全仓共 4 份，且兜底值已漂移）。
+   数据层兜底是 'post'（视图层是 'unknown'，别统一 —— 见单源函数注释）。 */
+const rowKind = (row) => deriveForumPostKind(row);
 
 /* 行内容类型是否命中当前筛选（客户端二次过滤 / 展示层共用同一口径）。
    空 = 不过滤；'post' = 普通帖 + 转发 + 未知；'info' = 官方新闻 + 活动；
@@ -697,15 +695,8 @@ export async function getPosts(userId = null, pagination = {}) {
           legacyRows = legacyRows.filter((row) => matchesForumTagFilter(row?.tag, tagFilter));
         }
         if (kindValues && Array.isArray(legacyRows)) {
-          const kindOfRow = (row) =>
-            String(row?.post_kind || '').trim() ||
-            (/^【新闻】/.test(String(row?.content || ''))
-              ? 'news'
-              : /^【活动】/.test(String(row?.content || ''))
-                ? 'activity'
-                : 'post');
           legacyRows = legacyRows.filter(
-            (row) => kindOfRow(row) && kindValues.includes(kindOfRow(row)),
+            (row) => rowKind(row) && kindValues.includes(rowKind(row)),
           );
         }
         rpcData = legacyRows;

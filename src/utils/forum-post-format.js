@@ -102,3 +102,44 @@ export function extractDisplayPostBody(postOrContent) {
   }
   return stripLegacyTitlePrefix(String(source || '').replace(/【.*?】\n?/, ''), title);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   内容类型派生 —— 单源（2026-10-30 P2-2）
+
+   这段逻辑曾被复制 4 份：post-api 的 `rowKind`、post-api 旧 RPC 降级分支里的
+   `kindOfRow`、ForumMain 的 `prepareForumPosts`、ForumMain 的 `hydrateOfficialPostKinds`。
+   而且**已经漂移**：数据层两处兜底是 'post'，视图层两处是 'unknown'。
+   当前不出事只因为 `matchesForumContentKind` 把两者都归进「普通帖」，但
+   `hydrateOfficialPostKinds` 会把这个值写回 `post_kind` ⇒ 同一条老数据经
+   「列表接口」与「详情页/官方目录补全」两条链路，落库值可能是 post 或 unknown。
+
+   所以兜底值**做成显式参数**，不统一成其中一个（统一哪个都是在改数据）。
+   ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * 一行内容属于哪类。
+ * @param {object} row 帖子行（读 `post_kind` / `content` / `title`）
+ * @param {object} [options]
+ * @param {string} [options.fallback='post'] 都判不出来时的兜底值
+ *   （数据层用 'post'，视图层用 'unknown' —— 历史口径不同，别改）
+ * @param {{newsByTitle?: Set<string>, activityByTitle?: Set<string>}} [options.titleIndex]
+ *   官方目录索引：老数据没有 `post_kind` 也没有 `【新闻】/【活动】` 前缀时，
+ *   按标题去官方目录里认（仅详情页/列表补全链路用）
+ */
+export function deriveForumPostKind(row, options = {}) {
+  const { fallback = 'post', titleIndex = null } = options;
+  const explicit = String(row?.post_kind || '').trim();
+  if (explicit) return explicit;
+
+  const content = String(row?.content || '');
+  if (/^【新闻】/.test(content)) return 'news';
+  if (/^【活动】/.test(content)) return 'activity';
+
+  if (titleIndex) {
+    const title = String(row?.title || '').trim();
+    if (titleIndex.newsByTitle?.has?.(title)) return 'news';
+    if (titleIndex.activityByTitle?.has?.(title)) return 'activity';
+  }
+
+  return fallback;
+}
