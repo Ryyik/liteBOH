@@ -46,17 +46,23 @@ import {
   getComments,
   deleteComment,
 } from '../../src/utils/api/forum/comment-api.js';
-import {
-  toggleLike,
-  reportPost,
-} from '../../src/utils/api/forum/forum-interaction-api.js';
+import { toggleLike, reportPost } from '../../src/utils/api/forum/forum-interaction-api.js';
 
 function makeQuery(result, calls = []) {
   const q = {
     select: vi.fn(() => q),
-    eq: vi.fn((col, val) => { calls.push({ method: 'eq', col, val }); return q; }),
-    or: vi.fn((expr) => { calls.push({ method: 'or', expr }); return q; }),
-    is: vi.fn((col, val) => { calls.push({ method: 'is', col, val }); return q; }),
+    eq: vi.fn((col, val) => {
+      calls.push({ method: 'eq', col, val });
+      return q;
+    }),
+    or: vi.fn((expr) => {
+      calls.push({ method: 'or', expr });
+      return q;
+    }),
+    is: vi.fn((col, val) => {
+      calls.push({ method: 'is', col, val });
+      return q;
+    }),
     order: vi.fn(() => q),
     limit: vi.fn(() => q),
     range: vi.fn(() => q),
@@ -83,7 +89,10 @@ describe('forum-api integration: createPost', () => {
   });
 
   it('rejects empty content', async () => {
-    fm.authGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'test@test.com', user_metadata: { username: 'author' } } }, error: null });
+    fm.authGetUser.mockResolvedValue({
+      data: { user: { id: 'u1', email: 'test@test.com', user_metadata: { username: 'author' } } },
+      error: null,
+    });
     const result = await createPost('', 'u1', 'author');
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('EMPTY_POST_CONTENT');
@@ -121,13 +130,23 @@ describe('forum-api integration: createPostWithImages', () => {
   });
 
   it('rejects too many images', async () => {
-    const tooManyImages = Array.from({ length: 7 }, (_, i) => ({ id: `img-${i}`, url: `url-${i}` }));
+    const tooManyImages = Array.from({ length: 7 }, (_, i) => ({
+      id: `img-${i}`,
+      url: `url-${i}`,
+    }));
     fm.authGetUser.mockResolvedValue({
       data: { user: { id: 'u1', user_metadata: { username: 'author' } } },
       error: null,
     });
 
-    const result = await createPostWithImages('正文', 'u1', 'author', 'approved', '标题', tooManyImages);
+    const result = await createPostWithImages(
+      '正文',
+      'u1',
+      'author',
+      'approved',
+      '标题',
+      tooManyImages,
+    );
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('FORUM_IMAGE_LIMIT');
   });
@@ -143,7 +162,9 @@ describe('forum-api integration: createPostWithImages', () => {
       error: null,
     });
 
-    const result = await createPostWithImages('正文', 'u1', 'author', 'approved', '标题', [{ url: 'https://img.url', public_id: 'pub-1' }]);
+    const result = await createPostWithImages('正文', 'u1', 'author', 'approved', '标题', [
+      { url: 'https://img.url', public_id: 'pub-1' },
+    ]);
     expect(result.ok).toBe(true);
     expect(fm.rpcMock).toHaveBeenCalledWith('create_forum_post_with_images', expect.any(Object));
   });
@@ -167,13 +188,13 @@ describe('forum-api integration: createPostWithImages', () => {
       [{ url: 'https://img.url', public_id: 'pub-1' }],
       '',
       null,
-      { submissionId: 'b3eacb6a-1b8e-4cf5-8fd4-7140e0252e89' }
+      { submissionId: 'b3eacb6a-1b8e-4cf5-8fd4-7140e0252e89' },
     );
 
     expect(result.ok).toBe(true);
     expect(fm.rpcMock).toHaveBeenCalledWith(
       'create_forum_post_with_images_idempotent',
-      expect.objectContaining({ p_submission_id: 'b3eacb6a-1b8e-4cf5-8fd4-7140e0252e89' })
+      expect.objectContaining({ p_submission_id: 'b3eacb6a-1b8e-4cf5-8fd4-7140e0252e89' }),
     );
   });
 });
@@ -182,6 +203,8 @@ describe('forum-api integration: deletePost', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearRequestCache();
+    // clearAllMocks 不清实现 ⇒ 显式回到「未登录」，避免上一条用例的登录态渗进来
+    fm.authGetUser.mockResolvedValue(undefined);
   });
 
   it('rejects when post not found', async () => {
@@ -202,17 +225,21 @@ describe('forum-api integration: deletePost', () => {
   });
 
   it('admin can delete any post', async () => {
+    // P2-6：权威角色来自 profiles，不再信任调用方传的第三个参数
+    fm.authGetUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+
     const calls = [];
     const selectQuery = makeQuery({ data: { author_id: 'other_user' }, error: null }, calls);
-    // Mock chain: select → eq → single → then
-    fm.fromMock.mockReturnValue(selectQuery);
-
+    const profilesQuery = makeQuery({ data: { role: 'admin' }, error: null });
+    const imagesQuery = makeQuery({ data: [], error: null });
     const deleteQuery = makeQuery({ data: null, error: null });
-    // Second from() call for delete
-    fm.fromMock
-      .mockReturnValueOnce(selectQuery)  // first: select post
-      .mockReturnValueOnce(makeQuery({ data: [], error: null }))  // getForumPostImages
-      .mockReturnValueOnce(deleteQuery);  // delete
+
+    // profiles 走旁路拦截，其余表按「select post → images → delete」顺序出队
+    const queue = [selectQuery, imagesQuery, deleteQuery];
+    fm.fromMock.mockImplementation((table) => {
+      if (table === 'profiles') return profilesQuery;
+      return queue.shift() ?? deleteQuery;
+    });
 
     const result = await deletePost('post-1', 'u1', 'admin');
     expect(result.ok).toBe(true);
@@ -235,7 +262,9 @@ describe('forum-api integration: getPosts', () => {
           comment_count: 1,
           like_count: 2,
           is_liked: true,
-          replies: [{ id: 'c1', content: 'Nice', author_username: 'reader', author_avatar_url: null }],
+          replies: [
+            { id: 'c1', content: 'Nice', author_username: 'reader', author_avatar_url: null },
+          ],
           replies_has_more: false,
           author_username: 'author1',
           author_avatar_url: null,
@@ -256,7 +285,10 @@ describe('forum-api integration: getPosts', () => {
   });
 
   it('returns empty array on error', async () => {
-    fm.rpcMock.mockResolvedValue({ data: null, error: { message: 'RPC failed', code: 'PGRST202' } });
+    fm.rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: 'RPC failed', code: 'PGRST202' },
+    });
     fm.fromMock.mockReturnValue(makeQuery({ data: [], error: { message: 'table error' } }));
 
     const result = await getPosts(null, { page: 1, pageSize: 10 });
@@ -272,7 +304,10 @@ describe('forum-api integration: getForumTagStats', () => {
 
   it('returns tag stats from RPC', async () => {
     fm.rpcMock.mockResolvedValue({
-      data: [{ tag: 'tech', post_count: 10 }, { tag: 'life', post_count: 5 }],
+      data: [
+        { tag: 'tech', post_count: 10 },
+        { tag: 'life', post_count: 5 },
+      ],
       error: null,
     });
 
@@ -289,10 +324,12 @@ describe('forum-api integration: comments', () => {
   });
 
   it('getComments returns approved comments', async () => {
-    fm.fromMock.mockReturnValue(makeQuery({
-      data: [{ id: 'c1', content: 'Nice post', author_id: 'u2', author: { avatar_url: null } }],
-      error: null,
-    }));
+    fm.fromMock.mockReturnValue(
+      makeQuery({
+        data: [{ id: 'c1', content: 'Nice post', author_id: 'u2', author: { avatar_url: null } }],
+        error: null,
+      }),
+    );
 
     const result = await getComments('post-1', 'u1');
     expect(result.ok).toBe(true);
@@ -306,10 +343,12 @@ describe('forum-api integration: comments', () => {
   });
 
   it('createComment succeeds with valid content', async () => {
-    fm.fromMock.mockReturnValue(makeQuery({
-      data: [{ id: 'c1', content: 'Great post', status: 'approved' }],
-      error: null,
-    }));
+    fm.fromMock.mockReturnValue(
+      makeQuery({
+        data: [{ id: 'c1', content: 'Great post', status: 'approved' }],
+        error: null,
+      }),
+    );
 
     const result = await createComment('post-1', 'Great post', 'u1', 'author');
     expect(result.ok).toBe(true);
@@ -317,10 +356,12 @@ describe('forum-api integration: comments', () => {
   });
 
   it('deleteComment requires permission', async () => {
-    fm.fromMock.mockReturnValue(makeQuery({
-      data: { author_id: 'other_user', status: 'approved' },
-      error: null,
-    }));
+    fm.fromMock.mockReturnValue(
+      makeQuery({
+        data: { author_id: 'other_user', status: 'approved' },
+        error: null,
+      }),
+    );
 
     const result = await deleteComment('c1', 'u1', 'user');
     expect(result.ok).toBe(false);
@@ -353,16 +394,20 @@ describe('forum-api integration: toggleLike', () => {
     });
 
     // Fallback: check existing like
-    fm.fromMock.mockReturnValue(makeQuery({
-      data: null,
-      error: { message: 'Not found', code: 'PGRST116' },
-    }));
+    fm.fromMock.mockReturnValue(
+      makeQuery({
+        data: null,
+        error: { message: 'Not found', code: 'PGRST116' },
+      }),
+    );
 
     // Fallback: insert new like
-    fm.fromMock.mockReturnValue(makeQuery({
-      data: null,
-      error: null,
-    }));
+    fm.fromMock.mockReturnValue(
+      makeQuery({
+        data: null,
+        error: null,
+      }),
+    );
 
     const result = await toggleLike('post-1', 'u1');
     // Should fall through to manual insert
@@ -384,7 +429,14 @@ describe('forum-api integration: reportPost', () => {
 
   it('reports post via RPC', async () => {
     fm.rpcMock.mockResolvedValue({
-      data: { ok: true, reportId: 'r1', reportCount: 1, threshold: 3, limited: false, message: '举报已提交' },
+      data: {
+        ok: true,
+        reportId: 'r1',
+        reportCount: 1,
+        threshold: 3,
+        limited: false,
+        message: '举报已提交',
+      },
       error: null,
     });
 
@@ -436,15 +488,17 @@ describe('forum-api integration: getUserPosts', () => {
 
   it('returns user posts', async () => {
     fm.rpcMock.mockResolvedValue({
-      data: [{
-        id: 'p1',
-        title: 'My Post',
-        author_id: 'u1',
-        is_liked: true,
-        replies: [],
-        replies_has_more: false,
-        has_more: false,
-      }],
+      data: [
+        {
+          id: 'p1',
+          title: 'My Post',
+          author_id: 'u1',
+          is_liked: true,
+          replies: [],
+          replies_has_more: false,
+          has_more: false,
+        },
+      ],
       error: null,
     });
 
@@ -470,10 +524,12 @@ describe('forum-api integration: updatePost', () => {
   });
 
   it('rejects if post not found', async () => {
-    fm.fromMock.mockReturnValue(makeQuery({
-      data: null,
-      error: { message: 'Not found' },
-    }));
+    fm.fromMock.mockReturnValue(
+      makeQuery({
+        data: null,
+        error: { message: 'Not found' },
+      }),
+    );
 
     const result = await updatePost('post-1', 'updated content', 'u1', 'user', 'Updated Title');
     expect(result.ok).toBe(false);

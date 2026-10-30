@@ -285,3 +285,59 @@ export async function notifyPostAuthorForRepost({ postId, senderId } = {}) {
     logger.warn('forum-api', '转发 Pushplus 推送失败(静默)', pushError);
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   身份/权限 —— 单源（2026-10-30 P2-1c）
+
+   本函数此前在 `post-api.js` 与 `comment-api.js` 各有一份（逻辑一致、文案不同）。
+   搬到这里的原因不只是去重：它的 **fallback 语义**是权限判定的关键，
+   两份副本各改各的等于埋雷（见 P2-6）。
+   ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * 取「权威身份」：以服务端 `auth.getUser()` 为准，角色以 `profiles.role` 为准。
+ *
+ * ⚠️ 回退语义（2026-10-30 P2-6 起）：拿不到 profiles 时**只回退 userId，不回退 role**。
+ * 旧实现会把调用方传进来的 `userRole`（本地状态、可能来自旧登录态）当成真实角色，
+ * 等于「客户端自称 admin 就先按 admin 判权限」。真门仍是 RLS（42501），所以这不是
+ * 越权漏洞，但它让错误发生在错误的层：用户看到「删除失败」而不是「没有权限」。
+ *
+ * 代价（已知并接受）：profiles 查询失败/离线时，真 admin 也会被本地拦一次，
+ * 看到「没有权限」。这种情况下的正确行为就是不放行 —— 宁可多一次 42501 兜底。
+ */
+export async function resolveAuthoritativeForumActor(fallbackUserId = '') {
+  const fallback = { userId: String(fallbackUserId || '').trim(), role: '' };
+  try {
+    if (!supabase.auth?.getUser) return fallback;
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const userId = String(authData?.user?.id || '').trim();
+    if (authError || !userId) return fallback;
+    const profileQuery = supabase.from('profiles').select('role').eq('id', userId);
+    if (typeof profileQuery?.maybeSingle !== 'function') return fallback;
+    const { data: profile, error: profileError } = await profileQuery.maybeSingle();
+    // 离线/单测 mock 下 profile 可能缺字段：缺 role 就当普通用户，别拿客户端声明顶上
+    if (
+      profileError ||
+      profile === undefined ||
+      profile === null ||
+      !Object.prototype.hasOwnProperty.call(profile, 'role')
+    ) {
+      return fallback;
+    }
+    return { userId, role: String(profile?.role || '').trim() };
+  } catch (_error) {
+    return fallback;
+  }
+}
+
+/**
+ * 是否有权修改（删除/编辑）某条内容：作者本人，或 admin/superadmin。
+ * 只做判定，不决定错误文案与返回形状 —— 4 个调用点的错误结构与文案各不相同，
+ * 强行合并会改用户看到的提示。
+ */
+export function canMutateForumContent(actor, authorId) {
+  const selfId = String(actor?.userId || '').trim();
+  const ownerId = String(authorId || '').trim();
+  if (selfId && ownerId && selfId === ownerId) return true;
+  return ['admin', 'superadmin'].includes(String(actor?.role || '').trim());
+}

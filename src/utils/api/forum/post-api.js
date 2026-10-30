@@ -38,8 +38,10 @@ import {
 import { deriveForumPostKind } from '../../forum-post-format.js';
 import { getForumPostImages } from '../forum-images-api.js';
 import {
+  canMutateForumContent,
   isMissingColumnError,
   isMissingRpcFunctionError,
+  resolveAuthoritativeForumActor,
   toNonNegativeNumber,
   toPositiveInt,
   writeAsyncModerationLog,
@@ -142,33 +144,6 @@ function resolveFallbackUsernameFromAuthUser(user = null) {
   return '';
 }
 
-async function resolveAuthoritativeForumActor(fallbackUserId = '', fallbackRole = '') {
-  const fallback = {
-    userId: String(fallbackUserId || '').trim(),
-    role: String(fallbackRole || '').trim(),
-  };
-  try {
-    if (!supabase.auth?.getUser) return fallback;
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    const userId = String(authData?.user?.id || '').trim();
-    if (authError || !userId) return fallback;
-    const profileQuery = supabase.from('profiles').select('role').eq('id', userId);
-    if (typeof profileQuery?.maybeSingle !== 'function') return fallback;
-    const { data: profile, error: profileError } = await profileQuery.maybeSingle();
-    // Keep compatibility with offline/unit mocks; production Supabase always
-    // returns a profile row or an explicit error here.
-    if (
-      profileError ||
-      profile === undefined ||
-      profile === null ||
-      !Object.prototype.hasOwnProperty.call(profile, 'role')
-    )
-      return fallback;
-    return { userId, role: String(profile?.role || '').trim() };
-  } catch (_error) {
-    return fallback;
-  }
-}
 
 async function resolvePostAuthorIdentity(authorId, authorUsername) {
   let safeAuthorId = String(authorId || '').trim();
@@ -1311,7 +1286,7 @@ export async function deleteForumPostDraft(userId) {
   return { ok: true, data: null, error: null };
 }
 
-export async function deletePost(postId, userId, userRole) {
+export async function deletePost(postId, userId, _userRole) {
   const safePostId = String(postId || '').trim();
   if (!safePostId) {
     return { ok: false, success: false, error: '帖子不存在' };
@@ -1326,8 +1301,8 @@ export async function deletePost(postId, userId, userRole) {
     return { ok: false, success: false, error: '帖子不存在' };
   }
 
-  const actor = await resolveAuthoritativeForumActor(userId, userRole);
-  if (post.author_id !== actor.userId && !['admin', 'superadmin'].includes(actor.role)) {
+  const actor = await resolveAuthoritativeForumActor(userId);
+  if (!canMutateForumContent(actor, post.author_id)) {
     return { ok: false, success: false, error: '没有权限删除此帖子' };
   }
 
@@ -1567,7 +1542,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
   );
 }
 
-export async function updatePost(postId, content, userId, userRole, title = '') {
+export async function updatePost(postId, content, userId, _userRole, title = '') {
   const safeTitle = String(title || '').trim();
   const safeBody = String(content || '').trim();
   const safeContent = safeTitle ? `【${safeTitle}】\n${safeBody}` : safeBody;
@@ -1586,8 +1561,8 @@ export async function updatePost(postId, content, userId, userRole, title = '') 
     return { ok: false, success: false, error: '帖子不存在' };
   }
 
-  const actor = await resolveAuthoritativeForumActor(userId, userRole);
-  if (post.author_id !== actor.userId && !['admin', 'superadmin'].includes(actor.role)) {
+  const actor = await resolveAuthoritativeForumActor(userId);
+  if (!canMutateForumContent(actor, post.author_id)) {
     return { ok: false, success: false, error: '没有权限编辑此帖子' };
   }
 
@@ -1793,7 +1768,12 @@ export async function retryPostModeration(postId, userId) {
     };
   }
 
-  if (post.author_id !== userId) {
+  // 与 deletePost / updatePost 一致：身份以服务端为准，不信调用方传的 userId。
+  // ⚠️ 但这里**不能**用 canMutateForumContent（不认角色）：下面那次 update 仍然按
+  // `.eq('author_id', userId)` 收口，把管理员放进来只会得到「更新 0 行 + 返回 ok:true」
+  // 的假成功 —— 比直接拒绝更糟。要开管理员能力，得连 update 的收口一起改。
+  const actor = await resolveAuthoritativeForumActor(userId);
+  if (!actor.userId || String(post.author_id || '') !== actor.userId) {
     return {
       ok: false,
       resultStatus: null,

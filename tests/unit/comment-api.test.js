@@ -20,9 +20,11 @@ const {
   mockWriteAsyncModerationLog,
   mockEnsureModerationNotification,
   mockNotifyPostAuthorForComment,
+  getUserMock,
 } = vi.hoisted(() => {
   const fromMock = vi.fn();
   const rpcMock = vi.fn();
+  const getUserMock = vi.fn(async () => ({ data: { user: null }, error: null }));
   const mockNormalizeDbError = vi.fn((error) => {
     if (!error) return null;
     if (typeof error === 'string')
@@ -73,6 +75,7 @@ const {
   return {
     fromMock,
     rpcMock,
+    getUserMock,
     mockNormalizeDbError,
     mockInvalidateByTags,
     mockExecuteRead,
@@ -97,6 +100,9 @@ vi.mock('../../src/utils/supabase-client.js', () => ({
   supabase: {
     from: fromMock,
     rpc: rpcMock,
+    // 权限判定会先问 auth.getUser()（权威身份）。默认返回「未登录」⇒ 回退到入参 userId，
+    // 这样「作者本人」用例不依赖 profiles mock；管理员用例自己覆写。
+    auth: { getUser: getUserMock },
   },
 }));
 
@@ -146,6 +152,9 @@ vi.mock('../../src/utils/api/forum/_shared.js', async (importOriginal) => {
   return {
     toPositiveInt: actual.toPositiveInt,
     toNonNegativeNumber: actual.toNonNegativeNumber,
+    // 权限判定同样用真实实现：桩掉它，「profile 查不到时按普通用户处理」这条就测不出来了
+    resolveAuthoritativeForumActor: actual.resolveAuthoritativeForumActor,
+    canMutateForumContent: actual.canMutateForumContent,
     isMissingRpcFunctionError: mockIsMissingRpcFunctionError,
     writeAsyncModerationLog: mockWriteAsyncModerationLog,
     ensureModerationNotification: mockEnsureModerationNotification,
@@ -1058,13 +1067,57 @@ describe('createComment', () => {
 // ============================================================
 // deleteComment
 // ============================================================
+/**
+ * deleteComment 现在先查 profiles 拿权威角色（P2-6：不信调用方传的 role），
+ * 所以 from() 必须按「表名 + 操作」分派，不能再用 mockReturnValueOnce 排队：
+ * 排队顺序一变，profiles 查询就会吃掉 delete 那条，测试会以
+ * 「Cannot read properties of null (reading 'author_id')」的形式假红。
+ */
+function mockDeleteCommentTables({
+  comment = null,
+  commentError = null,
+  deleteError = null,
+  profile = null,
+  calls = [],
+} = {}) {
+  let op = 'select';
+  const commentsQuery = {
+    select: vi.fn(() => {
+      op = 'select';
+      return commentsQuery;
+    }),
+    eq: vi.fn((col, val) => {
+      calls.push({ method: 'eq', col, val });
+      return commentsQuery;
+    }),
+    single: vi.fn(() => commentsQuery),
+    maybeSingle: vi.fn(() => commentsQuery),
+    delete: vi.fn(() => {
+      op = 'delete';
+      calls.push({ method: 'delete' });
+      return commentsQuery;
+    }),
+    then: (resolve) =>
+      Promise.resolve(
+        op === 'delete'
+          ? { data: null, error: deleteError }
+          : { data: comment, error: commentError },
+      ).then(resolve),
+  };
+  const profilesQuery = makeQuery({ data: profile, error: null });
+  fromMock.mockImplementation((table) => (table === 'profiles' ? profilesQuery : commentsQuery));
+  return { commentsQuery, profilesQuery };
+}
+
 describe('deleteComment', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks 只清调用记录、不清实现 ⇒ 每条用例显式回到「未登录」
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
   });
 
   it('checks comment exists', async () => {
-    fromMock.mockReturnValue(makeQuery({ data: null, error: { message: 'Not found' } }));
+    mockDeleteCommentTables({ comment: null, commentError: { message: 'Not found' } });
 
     const result = await deleteComment('c1', 'user-1', 'user');
 
@@ -1074,12 +1127,7 @@ describe('deleteComment', () => {
   });
 
   it('checks ownership: author_id must match userId', async () => {
-    fromMock.mockReturnValue(
-      makeQuery({
-        data: { author_id: 'other-user', status: 'approved' },
-        error: null,
-      }),
-    );
+    mockDeleteCommentTables({ comment: { author_id: 'other-user', status: 'approved' } });
 
     const result = await deleteComment('c1', 'user-1', 'user');
 
@@ -1089,14 +1137,12 @@ describe('deleteComment', () => {
   });
 
   it('allows admin to delete any comment regardless of author_id', async () => {
-    const calls = [];
-    const selectQuery = makeQuery(
-      { data: { author_id: 'other-user', status: 'approved' }, error: null },
-      calls,
-    );
-    const deleteQuery = makeQuery({ data: null, error: null });
-
-    fromMock.mockReturnValueOnce(selectQuery).mockReturnValueOnce(deleteQuery);
+    // 权威角色来自 profiles，不是调用方传的第三个参数
+    getUserMock.mockResolvedValue({ data: { user: { id: 'admin-user' } }, error: null });
+    mockDeleteCommentTables({
+      comment: { author_id: 'other-user', status: 'approved' },
+      profile: { role: 'admin' },
+    });
 
     const result = await deleteComment('c1', 'admin-user', 'admin');
 
@@ -1106,13 +1152,7 @@ describe('deleteComment', () => {
   });
 
   it('allows comment author to delete their own comment', async () => {
-    const selectQuery = makeQuery({
-      data: { author_id: 'user-1', status: 'approved' },
-      error: null,
-    });
-    const deleteQuery = makeQuery({ data: null, error: null });
-
-    fromMock.mockReturnValueOnce(selectQuery).mockReturnValueOnce(deleteQuery);
+    mockDeleteCommentTables({ comment: { author_id: 'user-1', status: 'approved' } });
 
     const result = await deleteComment('c1', 'user-1', 'user');
 
@@ -1121,34 +1161,68 @@ describe('deleteComment', () => {
     expect(result.error).toBeNull();
   });
 
-  it('deletes comment via supabase', async () => {
-    const selectQuery = makeQuery({
-      data: { author_id: 'user-1', status: 'approved' },
-      error: null,
-    });
-    const calls = [];
-    const deleteQuery = makeQuery({ data: null, error: null }, calls);
+  // -- P2-6：权限只认权威来源 --
+  it('ignores the role argument supplied by the caller', async () => {
+    // 未登录 ⇒ 回退到入参 userId，但**不回退 role** ⇒ 客户端自称 admin 无效
+    mockDeleteCommentTables({ comment: { author_id: 'other-user', status: 'approved' } });
 
-    fromMock.mockReturnValueOnce(selectQuery).mockReturnValueOnce(deleteQuery);
+    const result = await deleteComment('c1', 'user-1', 'admin');
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('没有权限删除此评论');
+  });
+
+  it('falls back to a plain user when the profile lookup fails', async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+    fromMock.mockImplementation((table) => {
+      if (table === 'profiles') {
+        const failing = {
+          select: vi.fn(() => failing),
+          eq: vi.fn(() => failing),
+          maybeSingle: vi.fn(() => failing),
+          then: (resolve) =>
+            Promise.resolve({ data: null, error: { message: 'permission denied' } }).then(resolve),
+        };
+        return failing;
+      }
+      const commentsQuery = {
+        select: vi.fn(() => commentsQuery),
+        eq: vi.fn(() => commentsQuery),
+        single: vi.fn(() => commentsQuery),
+        then: (resolve) =>
+          Promise.resolve({
+            data: { author_id: 'other-user', status: 'approved' },
+            error: null,
+          }).then(resolve),
+      };
+      return commentsQuery;
+    });
+
+    const result = await deleteComment('c1', 'user-1', 'admin');
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('没有权限删除此评论');
+  });
+
+  it('deletes comment via supabase', async () => {
+    const calls = [];
+    mockDeleteCommentTables({ comment: { author_id: 'user-1', status: 'approved' }, calls });
 
     const result = await deleteComment('c-delete', 'user-1', 'user');
 
     expect(result.ok).toBe(true);
 
-    const deleteCall = calls.find((c) => c.method === 'delete');
-    expect(deleteCall).toBeDefined();
+    const deleteIndex = calls.findIndex((c) => c.method === 'delete');
+    expect(deleteIndex).toBeGreaterThan(-1);
 
-    const eqCall = calls.find((c) => c.method === 'eq' && c.col === 'id');
+    // 只看 delete 之后的 eq —— 前面 SELECT 也带 eq('id', …)，混着找会让这条断言永远为真
+    const eqCall = calls.slice(deleteIndex).find((c) => c.method === 'eq' && c.col === 'id');
     expect(eqCall).toBeDefined();
     expect(eqCall.val).toBe('c-delete');
   });
 
   it('invalidates cache tags after successful delete', async () => {
-    fromMock
-      .mockReturnValueOnce(
-        makeQuery({ data: { author_id: 'user-1', status: 'approved' }, error: null }),
-      )
-      .mockReturnValueOnce(makeQuery({ data: null, error: null }));
+    mockDeleteCommentTables({ comment: { author_id: 'user-1', status: 'approved' } });
 
     await deleteComment('c1', 'user-1', 'user');
 
@@ -1156,7 +1230,7 @@ describe('deleteComment', () => {
   });
 
   it('does not invalidate cache when comment not found', async () => {
-    fromMock.mockReturnValue(makeQuery({ data: null, error: { message: 'Not found' } }));
+    mockDeleteCommentTables({ comment: null, commentError: { message: 'Not found' } });
 
     await deleteComment('c1', 'user-1', 'user');
 
@@ -1164,9 +1238,7 @@ describe('deleteComment', () => {
   });
 
   it('does not invalidate cache when permission denied', async () => {
-    fromMock.mockReturnValue(
-      makeQuery({ data: { author_id: 'other-user', status: 'approved' }, error: null }),
-    );
+    mockDeleteCommentTables({ comment: { author_id: 'other-user', status: 'approved' } });
 
     await deleteComment('c1', 'user-1', 'user');
 
@@ -1174,16 +1246,10 @@ describe('deleteComment', () => {
   });
 
   it('returns error when delete fails', async () => {
-    fromMock
-      .mockReturnValueOnce(
-        makeQuery({ data: { author_id: 'user-1', status: 'approved' }, error: null }),
-      )
-      .mockReturnValueOnce(
-        makeQuery({
-          data: null,
-          error: { message: 'Delete constraint violation' },
-        }),
-      );
+    mockDeleteCommentTables({
+      comment: { author_id: 'user-1', status: 'approved' },
+      deleteError: { message: 'Delete constraint violation' },
+    });
 
     const result = await deleteComment('c1', 'user-1', 'user');
 
@@ -1194,11 +1260,10 @@ describe('deleteComment', () => {
   });
 
   it('does not invalidate cache when delete fails', async () => {
-    fromMock
-      .mockReturnValueOnce(
-        makeQuery({ data: { author_id: 'user-1', status: 'approved' }, error: null }),
-      )
-      .mockReturnValueOnce(makeQuery({ data: null, error: { message: 'Delete failed' } }));
+    mockDeleteCommentTables({
+      comment: { author_id: 'user-1', status: 'approved' },
+      deleteError: { message: 'Delete failed' },
+    });
 
     await deleteComment('c1', 'user-1', 'user');
 
