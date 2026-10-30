@@ -3,6 +3,26 @@ import { logger } from '../../logger.js';
 import { createNotification, sendPushplusForNotification } from '../notifications-api.js';
 import { writeModerationAuditLog } from '../../unified-content-moderation.js';
 
+/**
+ * 把「可能非法」的数值入参归一成非负数（转不了就用 fallback）。
+ *
+ * ⚠️ 为什么不能用 `Math.max(0, Number(x))` 代替：`Number('abc')` 是 `NaN`，而
+ * **`Math.max(0, NaN) === NaN`**（不是 0）—— 夹逼对 NaN 是恒等传播，不是兜底。
+ * 深链 `?page=abc` / 外部组件传字符串就是最近的触发面：`NaN` 会一路流进
+ * `.range(NaN, NaN)` 或 RPC 的 `p_page: NaN`，表现为 400 或静默空列表。
+ *
+ * 语义：能转成有限数就夹到 ≥0（**不取整**，不在这里偷偷改口径）；否则用 fallback。
+ */
+export function toNonNegativeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, n) : fallback;
+}
+
+/** 同 `toNonNegativeNumber`，但下界是 1（page / pageSize / limit 用）。 */
+export function toPositiveInt(value, fallback = 1) {
+  return Math.max(1, toNonNegativeNumber(value, fallback));
+}
+
 export function isMissingRpcFunctionError(error, functionName) {
   if (!error) return false;
   if (String(error.code || '') === 'PGRST202') return true;

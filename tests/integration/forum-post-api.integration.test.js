@@ -16,6 +16,7 @@ vi.mock('../../src/utils/supabase-client.js', () => ({
 
 import { clearRequestCache } from '../../src/utils/request-core.js';
 import {
+  getPosts,
   getPostsCount,
   getForumPostDraft,
   upsertForumPostDraft,
@@ -42,6 +43,53 @@ function makeDeleteQuery(result) {
   };
   return q;
 }
+
+describe('forum-post-api: 分页入参归一（NaN 不得进查询）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clearRequestCache();
+  });
+
+  it('page 是非法字符串时按第 1 页发 RPC，而不是把 NaN 传下去', async () => {
+    // 回归背景：旧实现是 `Math.max(1, Number(pagination.page || 1))`，
+    // 而 Math.max(1, NaN) === NaN ⇒ p_page: NaN。深链 ?page=abc 是最近的触发面。
+    fm.supabaseRpc.mockResolvedValue({ data: [], error: null });
+
+    const result = await getPosts(null, { page: 'abc' });
+
+    expect(result.ok).toBe(true);
+    expect(fm.supabaseRpc).toHaveBeenCalledWith(
+      'list_forum_posts',
+      expect.objectContaining({ p_page: 1 }),
+    );
+  });
+
+  // ⚠️ 不测 pageSize：它在 getPosts 里会被下游的 `Math.max(1, Number(pageSize || 10))` 兜住
+  // （NaN 是 falsy ⇒ 直接回落 10），旧实现下断言照样绿 ⇒ 那是没牙断言，宁可不写。
+
+  it('offset 非法时回落到「按页码算出的偏移」，不退化成 0（0 会静默变第一页）', async () => {
+    // 走直查分支（cursorMode 关闭 + RPC 不可用）才会用到 offset；
+    // 这里断言 RPC 的 p_page 不被 offset 影响，同时用直查分支断言 .range 收到整数。
+    fm.supabaseRpc.mockResolvedValue({
+      data: null,
+      error: { code: 'PGRST202', message: 'Could not find the function list_forum_posts' },
+    });
+    const range = vi.fn(() => ({ then: (r) => Promise.resolve({ data: [], error: null }).then(r) }));
+    const q = {
+      select: vi.fn(() => q),
+      or: vi.fn(() => q),
+      order: vi.fn(() => q),
+      limit: vi.fn(() => q),
+      range,
+      then: (r) => Promise.resolve({ data: [], error: null }).then(r),
+    };
+    fm.supabaseFrom.mockReturnValue(q);
+
+    await getPosts(null, { page: 3, pageSize: 10, offset: 'abc' });
+
+    expect(range).toHaveBeenCalledWith(20, expect.any(Number));
+  });
+});
 
 describe('forum-post-api: getPostsCount', () => {
   beforeEach(() => {

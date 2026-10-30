@@ -140,12 +140,18 @@ vi.mock('../../src/utils/api/forum-format.js', () => ({
 // ============================================================
 // Mock: _shared
 // ============================================================
-vi.mock('../../src/utils/api/forum/_shared.js', () => ({
-  isMissingRpcFunctionError: mockIsMissingRpcFunctionError,
-  writeAsyncModerationLog: mockWriteAsyncModerationLog,
-  ensureModerationNotification: mockEnsureModerationNotification,
-  notifyPostAuthorForComment: mockNotifyPostAuthorForComment,
-}));
+vi.mock('../../src/utils/api/forum/_shared.js', async (importOriginal) => {
+  // 分页归一是**纯函数**，用真实实现而不是假桩 —— 桩成常量会让「NaN 不进查询」这类断言失去意义。
+  const actual = await importOriginal();
+  return {
+    toPositiveInt: actual.toPositiveInt,
+    toNonNegativeNumber: actual.toNonNegativeNumber,
+    isMissingRpcFunctionError: mockIsMissingRpcFunctionError,
+    writeAsyncModerationLog: mockWriteAsyncModerationLog,
+    ensureModerationNotification: mockEnsureModerationNotification,
+    notifyPostAuthorForComment: mockNotifyPostAuthorForComment,
+  };
+});
 
 // ============================================================
 // Imports

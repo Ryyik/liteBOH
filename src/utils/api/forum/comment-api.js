@@ -17,6 +17,7 @@ import {
 } from '../forum-format.js';
 import {
   isMissingRpcFunctionError,
+  toPositiveInt,
   writeAsyncModerationLog,
   ensureModerationNotification,
   notifyPostAuthorForComment
@@ -123,8 +124,10 @@ export async function getComments(postId, currentUserId = null, options = {}) {
   const parentId = options.parentId;
   const topLevelOnly = Boolean(options.topLevelOnly);
   const normalizedOrder = String(options.order || 'asc').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
-  const page = Math.max(1, Number(options.page || 1));
-  const pageSize = Math.min(100, Math.max(1, Number(options.pageSize || 20)));
+  const page = toPositiveInt(options.page, 1);
+  const pageSize = Math.min(100, toPositiveInt(options.pageSize, 20));
+  // 注意：hasPagination 仍按**原始入参**判定（`?page=abc` 时 Number() 是 NaN ⇒ 不分页），
+  // 这是既有行为，不在本次归一里改动 —— 改了会让「非法 page」从「不分页」变成「第 1 页」。
   const hasPagination = Number.isFinite(Number(options.page)) || Number.isFinite(Number(options.pageSize));
   const offset = (page - 1) * pageSize;
   const limit = pageSize + 1;
@@ -181,8 +184,8 @@ export async function getComments(postId, currentUserId = null, options = {}) {
 export async function getCommentThreadReplies(postId, rootCommentId, currentUserId = null, options = {}) {
   const safePostId = String(postId || '').trim();
   const safeRootCommentId = String(rootCommentId || '').trim();
-  const page = Math.max(1, Number(options.page || 1));
-  const pageSize = Math.min(100, Math.max(1, Number(options.pageSize || 50)));
+  const page = toPositiveInt(options.page, 1);
+  const pageSize = Math.min(100, toPositiveInt(options.pageSize, 50));
 
   if (!safePostId || !safeRootCommentId) {
     return { ok: false, data: [], hasMore: false, error: normalizeDbError({ message: '评论参数不完整' }) };

@@ -38,6 +38,8 @@ import { getForumPostImages } from '../forum-images-api.js';
 import {
   isMissingColumnError,
   isMissingRpcFunctionError,
+  toNonNegativeNumber,
+  toPositiveInt,
   writeAsyncModerationLog,
   ensureModerationNotification,
 } from './_shared.js';
@@ -65,13 +67,15 @@ const POST_ASYNC_MODERATION_TIMEOUT_MS = 45000;
 const POST_REJECTED_NOTIFICATION_TYPE = 'post_rejected';
 
 function normalizePagination(pagination = {}) {
-  const page = Math.max(1, Number(pagination.page || 1));
-  const pageSize = Math.max(1, Number(pagination.pageSize || 10));
-  const offset = Math.max(
-    0,
-    Number(pagination.offset !== undefined ? pagination.offset : (page - 1) * pageSize),
+  const page = toPositiveInt(pagination.page, 1);
+  const pageSize = toPositiveInt(pagination.pageSize, 10);
+  // offset 才是真正进 .range() 的参数：它同样会被 NaN 传染（Math.max(0, NaN) === NaN），
+  // 非法时回落到「按页码算出来的偏移」，而不是 0（回 0 会静默变成第一页）。
+  const offset = toNonNegativeNumber(
+    pagination.offset !== undefined ? pagination.offset : (page - 1) * pageSize,
+    (page - 1) * pageSize,
   );
-  const limit = Math.max(1, Number(pagination.limit || pageSize));
+  const limit = toPositiveInt(pagination.limit, pageSize);
   return { page, pageSize, offset, limit };
 }
 
