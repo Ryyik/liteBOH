@@ -26,6 +26,10 @@
 - 竖屏视觉巡检修真源：`scripts/probes/probe-portrait-visual-audit.mjs`（390×844 多档截图 + DOM 诊断 + axe 对比度，`--only=` 可筛）；
   2026-10-13 报告 `docs/2026-10-13-竖屏视觉检查报告.md`（含三个待修 P0-P1）。
 - 改完必反证；**探针漂移 ＝ 抖动，不是回归**（先单跑一遍那个用例再下结论）。
+- 🔴 **`grep` 是 shim（`brokered-bin/grep`）：带 `\|` 的双模式会静默返回空**（不报错、exit 1，
+  和「真的没有」长得一样）。2026-10-30 实证：`grep -n "onUnmounted\|onDeactivated"` 空，
+  单模式命中 3 处 ⇒ 据此误判「论坛目录没有 onUnmounted」。**交互式检索一律用 Grep 工具
+  （rg 语法，alternation 写 `|`）**；`check:shell-grep` 只守脚本文件，守不住终端命令。
 
 ## 提交
 
