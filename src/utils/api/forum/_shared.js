@@ -62,7 +62,33 @@ export function isMissingColumnError(error, columnName) {
 // —— 转发原帖批量回源（论坛列表引用框 / 个人空间帖子网格共用，真相源单一） ——
 // 转发帖只存转发留言，原帖靠 repost_of_post_id 引用；会话级缓存，
 // 查不到（limited 非本人/rejected/删除）也缓存 null 防重复查询。
+//
+// 2026-10-30 P3-3：此前是裸 Map，**无上限、无淘汰、会话级存活** —— 长会话里翻得越久
+// 记得越多，且永远不释放。加 LRU 上限 200（一个论坛列表页最多 10~20 条转发帖，
+// 200 足够覆盖「来回翻几页」的热集）。
+// ⚠️ 不用「超限就 clear()」：null 条目是**刻意**缓存的（防重复查询），整表清空会让
+// 已确认查不到的 id 重新发请求，反而制造流量。按插入顺序淘汰最旧的一条即可。
+const QUOTED_POST_CACHE_MAX = 200;
 const quotedPostCache = new Map();
+
+/** 写缓存并维持 LRU 顺序（命中的键先摘下再重插，保证排到队尾）。 */
+const rememberQuotedPost = (key, value) => {
+  if (quotedPostCache.has(key)) quotedPostCache.delete(key);
+  quotedPostCache.set(key, value);
+  while (quotedPostCache.size > QUOTED_POST_CACHE_MAX) {
+    const oldest = quotedPostCache.keys().next().value;
+    quotedPostCache.delete(oldest);
+  }
+};
+
+/** 读缓存并刷新 LRU 顺序；未命中返回 undefined（注意与「命中且值为 null」区分）。 */
+const readQuotedPostCache = (key) => {
+  if (!quotedPostCache.has(key)) return undefined;
+  const value = quotedPostCache.get(key);
+  quotedPostCache.delete(key);
+  quotedPostCache.set(key, value);
+  return value;
+};
 
 export async function fetchQuotedPostsByIds(ids = []) {
   const allIds = [
@@ -82,11 +108,11 @@ export async function fetchQuotedPostsByIds(ids = []) {
       const rows = Array.isArray(data) ? data : [];
       const found = new Set();
       rows.forEach((row) => {
-        quotedPostCache.set(row.id, row);
+        rememberQuotedPost(row.id, row);
         found.add(row.id);
       });
       missing.forEach((id) => {
-        if (!found.has(id)) quotedPostCache.set(id, null);
+        if (!found.has(id)) rememberQuotedPost(id, null);
       });
     } catch (error) {
       logger.warn('forum-api', '转发原帖批量回源失败（引用展示降级）', { ids: missing, error });
@@ -96,14 +122,16 @@ export async function fetchQuotedPostsByIds(ids = []) {
 
   const result = new Map();
   allIds.forEach((id) => {
-    if (quotedPostCache.has(id)) result.set(id, quotedPostCache.get(id));
+    const cached = readQuotedPostCache(id);
+    // undefined = 未命中；null = 命中但确认查不到（两者都要区分）
+    if (cached !== undefined) result.set(id, cached);
   });
   return result;
 }
 
 export function getCachedQuotedPost(id) {
   const key = String(id || '').trim();
-  return key && quotedPostCache.has(key) ? quotedPostCache.get(key) : null;
+  return key ? (readQuotedPostCache(key) ?? null) : null;
 }
 
 export async function writeAsyncModerationLog(targetId, targetType, moderationResult = {}) {

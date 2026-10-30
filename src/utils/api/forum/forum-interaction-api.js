@@ -10,6 +10,23 @@ import {
   notifyPostAuthorForRepost
 } from './_shared.js';
 
+/**
+ * 切换帖子点赞状态。
+ *
+ * 两条通道：
+ *  1. `toggle_forum_like` RPC（主通道）—— 原子切换，返回**准确** like_count；
+ *  2. RPC 缺失时的 check-then-delete/insert 降级通道 —— 拿不到准确计数。
+ *
+ * ⚠️ `data.likeCount` 的 null 语义（2026-10-30 P3-9 登记，此前只有口头约定）：
+ *  - **`number`** = 服务端给了准确计数，调用方应直接采用；
+ *  - **`null`** = 本轮没有准确计数（降级通道、或 23505 归一），调用方**必须**
+ *    沿用本地乐观值，**不得**写成 0 —— `Number(null || 0)` 会把「未知」渲染成「零赞」。
+ * 三处消费点目前都做了判空，改这里的返回形状前先看它们。
+ *
+ * @param {string} postId
+ * @param {string} userId
+ * @returns {Promise<{ok: boolean, action: 'liked'|'unliked'|null, data?: {likeCount: number|null, isLiked: boolean}, error: any}>}
+ */
 export async function toggleLike(postId, userId) {
   try {
     const { data: rpcData, error: rpcError } = await supabase.rpc('toggle_forum_like', {
@@ -69,6 +86,22 @@ export async function toggleLike(postId, userId) {
     const { error: insertError } = await supabase
       .from('likes')
       .insert([{ post_id: postId, user_id: userId }]);
+
+    // 2026-10-30 P3-9：23505 = likes 的唯一约束冲突（post_id + user_id）。
+    // 走到这里说明「check 时没有、insert 时已有」—— 典型成因是双击或弱网重试：
+    // 两个请求都通过了上面的 check，第一个插入成功，第二个撞约束。
+    // 此时**目标状态已经达成**（用户想要的就是「已点赞」），不该报失败 ——
+    // 旧实现返回 ok:false，UI 弹「点赞失败」，而数据库里点赞其实成功了。
+    // 不重复 invalidate / 不发通知：真正插入成功的那个请求已经做过这两件事，
+    // 再做一次只会让作者收两条推送。
+    if (insertError?.code === '23505') {
+      return {
+        ok: true,
+        action: 'liked',
+        data: { likeCount: null, isLiked: true },
+        error: null
+      };
+    }
 
     if (!insertError) {
       invalidateByTags(['likes', 'posts', 'notifications']);
