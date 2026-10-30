@@ -769,9 +769,9 @@ export function useForumPublishQueue(deps) {
       _failType: null,
       _progress: Math.max(8, Number(item.progress || 0) - 12),
     });
-    // 隐藏失败提示，乐观卡回到发送中
-    const elFailMsg = document.querySelector(`[data-queue-failmsg="${queueId}"]`);
-    if (elFailMsg) elFailMsg.style.display = 'none';
+    // 失败提示无需手动隐藏：上面已把 _publishState 改回 'queued'，模板上的
+    // v-if="item.post._publishState === 'failed'" 随之卸载该节点（2026-10-30 P3-10，
+    // 原先这里用 document.querySelector 直改子组件 DOM，既绕开响应式又是一层冗余补丁）。
     // 重试由常驻岛环恢复为发送态
     void runPublishQueue();
   };

@@ -613,7 +613,18 @@ export function useForumDraftImagePipelines(deps) {
   // clearImageStallWatch() 是「跨文件的隐式约定」，搬走后最容易漏（漏了就是
   // 卸载后再弹一次底部提示，指向一个已销毁的编辑器）。
   // 必须写在这里（clearImageStallWatch 声明之后）：中途注册会 TDZ。
-  onUnmounted(clearImageStallWatch);
+  //
+  // 2026-10-30 P3-2：`draftPipelineDebounceTimer` 是同一个坑 —— 它也是本模块私有的
+  // 定时器（选图预热 300ms debounce），此前只在 clearAllDraftImagePipelines() 里清，
+  // 而那条路径只在「清空发帖器图片」时走，**组件卸载不走**。于是 300ms 内离开页面
+  // 会让回调在已销毁的编辑器上再跑一次（读 postImages / 发上传请求）。
+  onUnmounted(() => {
+    clearImageStallWatch();
+    if (draftPipelineDebounceTimer) {
+      clearTimeout(draftPipelineDebounceTimer);
+      draftPipelineDebounceTimer = null;
+    }
+  });
 
   return {
     // 模板 / 宿主动作

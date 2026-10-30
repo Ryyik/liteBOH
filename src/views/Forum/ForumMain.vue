@@ -57,6 +57,7 @@ import { storeToRefs } from 'pinia';
 import { ensureNotificationStore } from '@/stores/notification-loader';
 import { isForumLandscape } from '@/utils/forum-viewport.js';
 import { isForumFeedSection } from '@/config/forum-sections';
+import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 import { openForumPost } from '@/composables/usePostDetailModal.js';
 import CommonAlertModal from '../../components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
@@ -1415,6 +1416,25 @@ onActivated(() => {
   }
 });
 
+// ⚠️ 定义必须放在 onDeactivated 之前：两处生命周期收尾都要调用它。
+/* 发帖器会话期间的 body 滚动锁 —— 走引用计数单源（2026-10-30 P3-1）。
+   此前这里直写 `document.body.style.overflow`，且 onDeactivated / onUnmounted /
+   提交后关闭三处都**无条件清零**：只要论坛先离场，就会把还在场的浮层
+   （图片查看器、别的弹窗）的锁一起清掉 ⇒ 蒙层背后能滚（滚动穿透）。
+   现在改成「只释放自己那一把」，别人的锁由别人自己放。 */
+let composerScrollLockRelease = null;
+const releaseComposerScrollLock = () => {
+  composerScrollLockRelease?.();
+  composerScrollLockRelease = null;
+};
+const syncComposerScrollLock = (isOpen) => {
+  if (isOpen) {
+    composerScrollLockRelease ??= acquireBodyScrollLock('forum-composer');
+  } else {
+    releaseComposerScrollLock();
+  }
+};
+
 onDeactivated(() => {
   if (!props.embedded) return;
   cancelIdleReplyPrefetch();
@@ -1429,7 +1449,7 @@ onDeactivated(() => {
     clearInterval(cooldownTimer);
     cooldownTimer = null;
   }
-  document.body.style.overflow = '';
+  releaseComposerScrollLock();
 });
 
 onUnmounted(() => {
@@ -1457,7 +1477,7 @@ onUnmounted(() => {
     cancelAnimationFrame(resizeRafId);
     resizeRafId = null;
   }
-  document.body.style.overflow = '';
+  releaseComposerScrollLock();
   void discardDraftPostImages({ silent: true });
   cancelPendingSearch();
   if (postDraftSaveTimer) {
@@ -1477,8 +1497,9 @@ onUnmounted(() => {
   closeConfirm(false);
 });
 
+
 watch(isMobileComposerOpen, (isOpen) => {
-  document.body.style.overflow = isOpen ? 'hidden' : '';
+  syncComposerScrollLock(isOpen);
   // 用户打开编辑器即为发图意图信号，移动端此时才开始预载检测模型
   if (isOpen) scheduleForumImageModerationPreload({ immediate: true });
   // 会话开关外报：外层左栏据此做「发布」选中态 + 切落点前先收会话
@@ -2538,7 +2559,7 @@ const handlePost = async () => {
   if (isMobileComposerOpen.value) {
     captureMobileComposerOrigin();
     isMobileComposerOpen.value = false;
-    document.body.style.overflow = '';
+    releaseComposerScrollLock();
   }
   await nextTick();
   // 即发即走：不走瞬时岛，靠统一任务岛常驻（Airdrop 同款，带堆叠缩略图直到成功）

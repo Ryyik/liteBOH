@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 import {
   ChevronLeft,
   ChevronRight,
@@ -247,11 +248,20 @@ watch(() => props.images, (next, prev) => {
   currentIndex.value = at >= 0 ? at : Math.min(currentIndex.value, next.length - 1);
 });
 
+/* body 滚动锁走引用计数单源（2026-10-30 P3-1）。原先是直写 overflow：
+   论坛主页面在 onDeactivated / onUnmounted 里无条件清零，查看器开着时一旦论坛先离场，
+   锁就被清掉 ⇒ 查看器背后还能滚。现在两边各持各的锁，互不干扰。 */
+let scrollLockRelease = null;
+const releaseViewerScrollLock = () => {
+  scrollLockRelease?.();
+  scrollLockRelease = null;
+};
+
 watch(() => props.open, (isOpen) => {
   if (isOpen) {
-    document.body.style.overflow = 'hidden';
+    scrollLockRelease ??= acquireBodyScrollLock('forum-image-viewer');
   } else {
-    document.body.style.overflow = '';
+    releaseViewerScrollLock();
   }
 });
 
@@ -261,7 +271,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown);
-  document.body.style.overflow = '';
+  releaseViewerScrollLock();
 });
 </script>
 
