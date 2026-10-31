@@ -99,18 +99,16 @@
         汉堡按钮上（`#nav-hamburger` 热区落在 603..619），`.ai-edge-zone` 拦截
         pointer 事件 ⇒ probe-nav-mobile-menu 点击超时。整个右侧必须保留给「右上角
         按钮 + 右缘胶囊」这两件事，把热区往里塞等于把两者都堵死。
-     ✅ 拆成两条互不干扰的规则：
-        ① 热区留在右边缘，只把 z-index 降到 900（低于胶囊的 1000）——
-           胶囊画在它上面，6px 重叠区的点击归胶囊；页面内容仍低于它，右缘滑动照旧。
-        ② 只把唯一有视觉的「从右侧滑出 BOH AI」教学条左移到胶囊左侧。
+     ✅ 解法：热区留在右边缘，只把 z-index 降到 900（低于胶囊的 1000）——
+        胶囊画在它上面，6px 重叠区的点击归胶囊；页面内容仍低于它，右缘滑动照旧。
      ⚠️ 特异性：scoped 编译后是 `.ai-edge-trigger.side-right[data-v-*]`（0,3,0），
-        全局侧只能靠 #app 这个 id（1,2,0）赢 —— 项目已有同类先例。 */
+        全局侧只能靠 #app 这个 id（1,2,0）赢 —— 项目已有同类先例。
+     ⚠️ 2026-10-31 起这里不再有第二条规则：原本还要把「从右侧滑出 BOH AI」教学条
+        左移到胶囊左侧，那条气泡（`.ai-edge-tutorial`）已按产品要求整体下线，
+        AiEdgeTrigger.vue 里连 `tutorialVisible` 和那个 keyframes 一起删了。
+        **热区本身必须留着** —— 它是移动端唯一能滑出 BOH AI 的手势入口。 */
   #app .ai-edge-trigger.side-right {
     z-index: 900;
-  }
-
-  #app .ai-edge-trigger.side-right .ai-edge-tutorial {
-    right: calc(var(--fold-nav-gutter, 88px) + 12px);
   }
 }
 

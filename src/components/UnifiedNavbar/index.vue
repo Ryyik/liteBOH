@@ -470,6 +470,12 @@ import {
   islandCustomSlot,
 } from '@/composables/useIsland.js';
 import { logoutAndReload } from '@/utils/logout-and-reload.js';
+import {
+  admitIslandNotification,
+  islandNotifyGapMs,
+  noteIslandNotificationShown,
+  pushWithIslandQueueCap,
+} from '@/utils/island-notify-policy.js';
 
 const authStore = useAuthStore();
 const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authStore);
@@ -519,6 +525,8 @@ const navStatusCardHeight = ref(58);
 const customCardHeight = ref(0);
 const navStatusQueue = [];
 let navStatusDismissTimer = null;
+// 相邻两条通知之间的间隔定时器（策略见 utils/island-notify-policy.js）
+let navStatusGapTimer = null;
 
 // ============================================
 // 灵动岛统一仲裁（useIsland 调度中心）
@@ -536,9 +544,16 @@ const statusCardItem = computed(() => {
 });
 
 const clearNavStatusDismissTimer = () => {
-  if (!navStatusDismissTimer) return;
-  clearTimeout(navStatusDismissTimer);
-  navStatusDismissTimer = null;
+  // ⚠️ 两个定时器必须一起清：只清 dismiss 而漏掉 gap，会让「已经排到队首的那条」
+  // 在 preempt / 搜索面板打开之后仍然冒出来，盖住刚打开的面板。
+  if (navStatusDismissTimer) {
+    clearTimeout(navStatusDismissTimer);
+    navStatusDismissTimer = null;
+  }
+  if (navStatusGapTimer) {
+    clearTimeout(navStatusGapTimer);
+    navStatusGapTimer = null;
+  }
 };
 
 const normalizeNavStatus = (payload = {}) => {
@@ -594,12 +609,24 @@ const presentNavStatus = (item) => {
   clearNavStatusDismissTimer();
   navStatusCardHeight.value = 58;
   navStatus.value = item;
+  noteIslandNotificationShown(item);
   if (item.persistent) return;
   navStatusDismissTimer = setTimeout(() => {
+    navStatusDismissTimer = null;
     // 队列非空时无缝接管（不先置 visible=false）：若先摘 has-status-card，
     // leave 动画期间展开态缺席 → mini 形态会启动回缩又被下一条拉回，出现半收闪断（plans/009 §3-1）
     const next = navStatusQueue.shift();
     if (next) {
+      // 间隔闸门：不清卡、只延后换字 —— 既保住上面的「无缝」，又给用户读完上一条的时间。
+      // 若改成「先退场留白再播」，就会把 plans/009 §3-1 修掉的半收闪断重新引回来。
+      const gap = islandNotifyGapMs();
+      if (gap > 0) {
+        navStatusGapTimer = setTimeout(() => {
+          navStatusGapTimer = null;
+          presentNavStatus(next);
+        }, gap);
+        return;
+      }
       presentNavStatus(next);
       return;
     }
@@ -610,13 +637,25 @@ const presentNavStatus = (item) => {
 const flushNavStatusQueue = () => {
   if (navStatus.value.visible || isTaskCardShown.value || isBohaiIslandOpen.value) return;
   const next = navStatusQueue.shift();
-  if (next) presentNavStatus(next);
+  if (!next) return;
+  const gap = islandNotifyGapMs();
+  if (gap > 0) {
+    navStatusGapTimer = setTimeout(() => {
+      navStatusGapTimer = null;
+      presentNavStatus(next);
+    }, gap);
+    return;
+  }
+  presentNavStatus(next);
 };
 
 const handleGlobalNavStatus = (event) => {
   const item = normalizeNavStatus(event?.detail || {});
-  if (navStatus.value.visible || isTaskCardShown.value || isBohaiIslandOpen.value) {
-    navStatusQueue.push(item);
+  const busy = navStatus.value.visible || isTaskCardShown.value || isBohaiIslandOpen.value;
+  const verdict = admitIslandNotification(item, { busy, queueLength: navStatusQueue.length });
+  if (!verdict.admit) return;
+  if (busy) {
+    pushWithIslandQueueCap(navStatusQueue, item);
     return;
   }
   presentNavStatus(item);

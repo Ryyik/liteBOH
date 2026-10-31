@@ -1643,8 +1643,6 @@ const fetchAggregatedUserSpaceSummary = async ({ force = false } = {}) => {
 // 随主页资产行一起退场（用户要求额度不显示在主页）。额度口径现在只在
 // 设置页的 cloudPlusUsageText 与 Cloud+ 页出现。
 let latestUnreadNavStatusAt = 0;
-let hasScheduledGlobalNavOnboardingNotice = false;
-const GLOBAL_NAV_ONBOARDING_NOTICE_VERSION = 'v2';
 
 const showTopNavStatus = (payload = {}) => {
   const actionTab = String(payload.actionTab || '').trim();
@@ -1661,45 +1659,11 @@ const { hidden: isBottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDi
   forceVisible: isBottomNavForceVisible,
 });
 
-const getGlobalNavOnboardingNoticeKey = () => {
-  const userId = String(userInfo.value?.id || 'guest').trim() || 'guest';
-  return `boh-global-nav-onboarding-${GLOBAL_NAV_ONBOARDING_NOTICE_VERSION}-${userId}`;
-};
-
-const hasSeenGlobalNavOnboardingNotice = () => {
-  try {
-    return localStorage.getItem(getGlobalNavOnboardingNoticeKey()) === '1';
-  } catch (error) {
-    logger.warn('user-space', '读取顶部导航栏状态引导失败:', error);
-    return false;
-  }
-};
-
-const markGlobalNavOnboardingNoticeSeen = () => {
-  try {
-    localStorage.setItem(getGlobalNavOnboardingNoticeKey(), '1');
-  } catch (error) {
-    logger.warn('user-space', '写入顶部导航栏状态引导失败:', error);
-  }
-};
-
-const maybeShowGlobalNavOnboardingNotice = async () => {
-  if (hasScheduledGlobalNavOnboardingNotice) return;
-  if (!isInitialized.value) return;
-  if (hasSeenGlobalNavOnboardingNotice()) return;
-
-  hasScheduledGlobalNavOnboardingNotice = true;
-  await nextTick();
-
-  showTopNavStatus({
-    title: '顶部动态导航已启用',
-    message: '重要状态会在这里显示',
-    icon: 'notification',
-    type: 'notification',
-    durationMs: 5600,
-  });
-  markGlobalNavOnboardingNoticeSeen();
-};
+/* 2026-10-31 下线：顶部动态导航引导（「顶部动态导航已启用」卡）连同
+   getGlobalNavOnboardingNoticeKey / hasSeen / markSeen / maybeShow 四个函数一起删除。
+   它按 `boh-global-nav-onboarding-v2-<uid>` 永久去重，但升一次版本号就全员重弹；
+   且把导航岛从 78px 撑到 130px（390×844 下「空间」tab 整块落进岛内）。
+   岛本身会被真实通知（未读、发帖进度）带出来，不需要一条教学卡。 */
 
 const buildUnreadIslandMessage = (_detail = {}) => {
   const totalUnread = Number(unreadCount.value) || 0;
@@ -3484,7 +3448,6 @@ watch(
 
     // 处理初始化完成
     if (isReady && !oldVal?.isReady) {
-      void maybeShowGlobalNavOnboardingNotice();
       if (isLoggedIn.value && userId) {
         void fetchUserStats();
       }
@@ -3610,7 +3573,6 @@ onMounted(() => {
       void fetchCloudPlusUsage();
     }
   }
-  void maybeShowGlobalNavOnboardingNotice();
   // 消息页自身会在加载列表后同步未读数，避免首屏并发重复读取 notifications。
   if (isLoggedIn.value && currentTab.value !== 'messages') {
     void refreshUnreadCount();
