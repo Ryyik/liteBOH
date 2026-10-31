@@ -50,6 +50,10 @@ src/config/users.config.js
 # 探针/诊断产物（截图与 JSON 扫描结果，均为可再生的运行时输出）
 debug-screenshots/
 output/
+# 2026-10-31：探针截图目录统一不入库。判据是仓库现状 —— 97 个探针写 debug-screenshots/
+# （本地已 386MB），docs/probe-shots 只有「竖屏图片胶片条」一个探针在用，且截图会随每次
+# UI 改动失效：入库只得到一堆会过时的 1MB PNG，review 时又没法在 diff 里看。
+docs/probe-shots/
 # Playwright / vitest 运行产物（截图、trace、报告，均可再生）
 test-results/
 playwright-test-results/
