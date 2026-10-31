@@ -55,7 +55,24 @@ describe('PostDetailModal：关闭必须缩回列表卡片', () => {
   });
 
   it('退场时长取自 --motion-morph-out（与详情整页返程同一个 token）', () => {
-    expect(modalScript).toContain("motionMs('--motion-morph-out', 460)");
+    expect(modalScript).toContain("motionMs('--motion-morph-out', 340)");
+  });
+
+  /* 2026-10-31 用户报障「横屏弹窗关闭动画要加上」。形变其实一直在跑，但
+     `transition-property: width` 让 `.pd-modal-leave-to` 的 opacity:0 瞬间生效，
+     实测 t=43ms 面板已经 op=0.00 ⇒ 全程在全透明里收缩。
+     两条一起守：透明度必须是独立的 linear 动画（offset 才是墙钟时间）；transform 钉平。 */
+  it('退场透明度是独立的 linear 动画（塞进 ease-morph 的关键帧会被前载曲线跨过）', () => {
+    // ⚠️ 断言按「关键帧对象 + 属性」写，不写格式化敏感的连续子串（prettier 会把参数拆行）
+    expect(modalScript).toMatch(/\{\s*opacity: 1,\s*offset: 0\.78\s*\}/);
+    expect(modalScript).toMatch(/easing: 'linear'/);
+    // clip 与 opacity 两条都要 keepFinal，否则 cancel 的瞬间一个回弹、一个亮回来
+    expect((modalScript.match(/keepFinal: true/g) || []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('形变期间把面板 transform 钉成 none（leave-to 的 scale(1.008) 会瞬间生效）', () => {
+    expect(modalScript).toContain("el.style.transform = 'none'");
+    expect(modalScript).toContain("el.style.transform = ''");
   });
 
   it('走窗口 clip-path，不再用 FLIP 矩形变形（2026-10-31 三改）', () => {

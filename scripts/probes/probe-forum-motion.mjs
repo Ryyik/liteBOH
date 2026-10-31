@@ -305,7 +305,11 @@ try {
       }
       return null;
     });
-    check('B1 详情容器有窗口形变动画', Boolean(first), first ? `dur=${first.dur}` : '120 帧内没等到');
+    check(
+      'B1 详情容器有窗口形变动画',
+      Boolean(first),
+      first ? `dur=${first.dur}` : '120 帧内没等到',
+    );
     check(
       'B1b 形变在导航那一刻起跑（≤400ms，不等数据）',
       Number(first?.startedIn) <= 400,
@@ -322,8 +326,8 @@ try {
       `depth=${first?.depth}`,
     );
     check(
-      'B4 形变时长走 --motion-morph-in（620，窗口方案放慢后的值）',
-      Number(first?.dur) === 620,
+      'B4 形变时长走 --motion-morph-in（标准档 460）',
+      Number(first?.dur) === 460,
       `dur=${first?.dur}`,
     );
     check(
@@ -450,6 +454,171 @@ try {
       Number(reduced.anims || 0) === 0,
       `anims=${reduced.anims}`,
     );
+    await page.close();
+  }
+
+  /* ───────────────── E 横屏弹窗：关闭也要看得见 ---
+     ⚠️ 这一组是 2026-10-31 用户报障「横屏的弹窗关闭动画还是要加上」的反证。
+     当时形变其实一直在跑（clip 从全开收到卡片，逐帧都对），但**面板 43ms 就
+     opacity 0.00** —— `transition-property: width`（防 CSS 过渡压掉形变）的副作用
+     是 `.pd-modal-leave-to` 的 opacity:0 瞬间生效，于是整段收缩在全透明里跑，
+     用户只看到遮罩淡出。所以判据不能是「有没有 clip 动画」（当时也有），
+     必须是「收缩中段面板还看得见」＋「末帧落在卡片上」。 */
+  console.log('\n--- E 横屏弹窗：窗口展开 / 收回 ---');
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(3000);
+    const cardRect = await page.evaluate(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 60; i += 1) {
+        const c = document.querySelector('.post-card-v2');
+        if (c) {
+          c.scrollIntoView({ block: 'center' });
+          await sleep(300);
+          const b = c.getBoundingClientRect();
+          window.__card = {
+            left: Math.round(b.left),
+            top: Math.round(b.top),
+            width: Math.round(b.width),
+            height: Math.round(b.height),
+          };
+          c.click();
+          return window.__card;
+        }
+        await sleep(200);
+      }
+      return null;
+    });
+    check('E0 横屏点卡片开弹窗', Boolean(cardRect), JSON.stringify(cardRect));
+    const opened = await page
+      .waitForSelector('.pd-modal-panel', { timeout: 10000 })
+      .then(() => true)
+      .catch(() => false);
+    check('E1 弹窗面板出现', opened, opened ? '' : '10s 内没有 .pd-modal-panel');
+
+    if (opened) {
+      const entry = await page.evaluate(async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        for (let i = 0; i < 90; i += 1) {
+          const p = document.querySelector('.pd-modal-panel');
+          const anim = (p ? p.getAnimations() : []).find((a) =>
+            (a.effect?.getKeyframes?.() || []).some((f) => f.clipPath),
+          );
+          if (anim) {
+            const b = p.getBoundingClientRect();
+            return {
+              dur: anim.effect.getTiming().duration,
+              clipStart: String(anim.effect.getKeyframes()[0]?.clipPath || ''),
+              box: { left: b.left, top: b.top, width: b.width, height: b.height },
+            };
+          }
+          await sleep(16);
+        }
+        return null;
+      });
+      check(
+        'E2 入场有窗口形变动画（--motion-morph-in-near 380）',
+        Boolean(entry),
+        entry ? `dur=${entry.dur}` : '没等到',
+      );
+      check('E2b 入场时长是短距离档 380', Number(entry?.dur) === 380, `dur=${entry?.dur}`);
+      /* 起点夹紧说明：卡片左缘可能落在面板左缘之外（面板此时还是 760 宽，
+         卡片 232 在 260 外面）⇒ inset 不能为负，只能贴面板边界。所以容差给 40。 */
+      if (entry) {
+        check(
+          'E2c 入场起点贴着卡片（夹紧容差 ±40）',
+          near(clipRect(entry.box, entry.clipStart), cardRect, 40),
+          `${JSON.stringify(clipRect(entry.box, entry.clipStart))} vs ${JSON.stringify(cardRect)}`,
+        );
+      }
+      await page.waitForTimeout(1200);
+
+      const closing = await page.evaluate(async () => {
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        const parse = (box, clip) => {
+          const m = /inset\(([^)]*)\)/.exec(String(clip || ''));
+          if (!m || !box) return null;
+          const nums = m[1]
+            .replace(/\bround\b[\s\S]*$/, '')
+            .trim()
+            .split(/\s+/)
+            .map((v) => Number.parseFloat(v))
+            .filter((v) => Number.isFinite(v));
+          if (!nums.length) return null;
+          const p =
+            nums.length === 1
+              ? [nums[0], nums[0], nums[0], nums[0]]
+              : nums.length === 2
+                ? [nums[0], nums[1], nums[0], nums[1]]
+                : nums.length === 3
+                  ? [nums[0], nums[1], nums[2], nums[1]]
+                  : nums;
+          return {
+            left: Math.round(box.left + p[3]),
+            top: Math.round(box.top + p[0]),
+            width: Math.round(box.width - p[3] - p[1]),
+            height: Math.round(box.height - p[0] - p[2]),
+          };
+        };
+        const out = [];
+        const t0 = performance.now();
+        document.querySelector('.pd-modal-close').click();
+        for (let i = 0; i < 24; i += 1) {
+          const p = document.querySelector('.pd-modal-panel');
+          if (!p) {
+            out.push({ t: Math.round(performance.now() - t0), gone: true });
+            if (i > 4) break;
+          } else {
+            const cs = getComputedStyle(p);
+            const b = p.getBoundingClientRect();
+            out.push({
+              t: Math.round(performance.now() - t0),
+              gone: false,
+              op: Number(cs.opacity),
+              window: parse(b, cs.clipPath),
+              dur: (
+                p
+                  .getAnimations()
+                  .find((a) => (a.effect?.getKeyframes?.() || []).some((f) => f.clipPath))
+                  ?.effect?.getTiming?.() || {}
+              ).duration,
+            });
+          }
+          await sleep(20);
+        }
+        return {
+          samples: out,
+          leftover: document.querySelectorAll('.boh-morph-ghost, .boh-morph-layer').length,
+        };
+      });
+
+      const live = closing.samples.filter((s) => !s.gone);
+      const mid = live.find((s) => s.t >= 150 && s.t <= 260);
+      check(
+        'E3 收缩中段面板**还看得见**（2026-10-31 报障：43ms 就 op=0，等于没动画）',
+        Boolean(mid) && mid.op >= 0.55,
+        mid ? `t=${mid.t}ms op=${mid.op}` : '没采到 150–260ms 的帧',
+      );
+      check(
+        'E4 退场时长走 --motion-morph-out（标准档 340）',
+        live.some((s) => Number(s.dur) === 340),
+        `durs=${[...new Set(live.map((s) => s.dur))].join(',')}`,
+      );
+      /* 末帧窗口必须落在卡片上：窗口方案下元素的 rect 恒定，唯一能验的就是 clip 反推值 */
+      const last = live[live.length - 1];
+      check(
+        'E5 末帧窗口落在入口那张卡的矩形上（±16px）',
+        near(last?.window, cardRect, 16),
+        `${JSON.stringify(last?.window)} vs ${JSON.stringify(cardRect)}`,
+      );
+      check('E6 关闭后不留 morph 层残留', closing.leftover === 0, `leftover=${closing.leftover}`);
+      const removed = await page
+        .waitForSelector('.pd-modal-panel', { state: 'detached', timeout: 4000 })
+        .then(() => true)
+        .catch(() => false);
+      check('E7 关闭后弹窗节点被摘除', removed, removed ? '' : '4s 内还在');
+    }
     await page.close();
   }
 } catch (error) {

@@ -156,7 +156,7 @@ let entryOriginRect = null;
      · 窗口：`clip-path: inset()` 从卡片矩形长到全屏 —— 内容**全程不缩放**；
      · 纵深：内容从 `--morph-depth`(1.12) 收回到 1，以卡片中心为原点。
    窗口面积连续变化，不存在旧版「几何跑完内容还没亮」的时钟错位，
-   所以时长可以按用户口径放慢到 620ms。 */
+   所以时长可以按标准档（460ms）给，不必再为「一闪而过」退回慢速档。 */
 const playDetailEntryMorph = async () => {
   // 弹窗态由 PostDetailModal 对**面板**做形变；这里再动就是两层形变
   if (props.modalMode) return;
@@ -175,7 +175,7 @@ const playDetailEntryMorph = async () => {
   // 卡片已经盖满目标（同尺寸 / 无位移）就没必要演一遍，否则是一次无意义的「抽搐」
   if (!win) return;
 
-  const duration = motionMs('--motion-morph-in', 620);
+  const duration = motionMs('--motion-morph-in', 460);
   const easing = motionEase('--ease-morph');
   const depth = motionNum('--morph-depth', 1.12);
 

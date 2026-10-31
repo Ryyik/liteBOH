@@ -65,12 +65,21 @@ describe('收起时长：恒快于展开', () => {
 describe('节奏档：tokens.css 与消费方的兜底值必须同档', () => {
   const tokens = read('src/styles/common/tokens.css');
 
-  it('形变 ladder（2026-10-31 三改：改窗口展开后按用户口径放慢）', () => {
-    expect(tokens).toMatch(/--motion-morph-in:\s*620ms/);
-    expect(tokens).toMatch(/--motion-morph-in-near:\s*520ms/);
-    expect(tokens).toMatch(/--motion-morph-out:\s*460ms/);
+  it('形变 ladder（2026-10-31 四改：用户「还是标准速度吧」⇒ 460/380/340）', () => {
+    expect(tokens).toMatch(/--motion-morph-in:\s*460ms/);
+    expect(tokens).toMatch(/--motion-morph-in-near:\s*380ms/);
+    expect(tokens).toMatch(/--motion-morph-out:\s*340ms/);
     expect(tokens).toMatch(/--motion-enter:\s*320ms/);
     expect(tokens).toMatch(/--motion-exit:\s*240ms/);
+  });
+
+  it('消费方的兜底值必须与 token 同档（不同档会在 CSS 没加载时跳档）', () => {
+    const main = read('src/views/PostDetail/PostDetailMain.vue');
+    const modal = read('src/views/PostDetail/PostDetailModal.vue');
+    expect(main).toContain("motionMs('--motion-morph-in', 460)");
+    expect(main).toContain("motionMs('--motion-morph-out', 340)");
+    expect(modal).toContain("motionMs('--motion-morph-out', 340)");
+    expect(modal).toContain("motionMs('--motion-morph-in-near', 380)");
   });
 
   it('纵深 token 已声明且在安全区间（>1 才有纵深，>1.16 会裁出断层）', () => {

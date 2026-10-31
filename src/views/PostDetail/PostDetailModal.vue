@@ -122,11 +122,20 @@ const playPanelMorph = async (direction) => {
      恢复交给调用方（进场动画结束后置空，退场元素随即被移除）。 */
   const restoreTransition = () => {
     el.style.transitionProperty = '';
+    el.style.transform = '';
   };
   el.style.transitionProperty = 'width';
+  /* ⚠️ transform 同样要钉成 none（2026-10-31 实测）。`transition-property: width` 的
+     副作用是 enter-from/leave-to 里那两条件奏位移变成**瞬间**生效：
+       · leave-to `scale(1.008)` ⇒ 面板立刻变成 1032×758，末帧窗口落不到卡片上（偏 8px）；
+       · enter-from `translateY(12px) scale(.985)` ⇒ 起点比卡片高 12px。
+     窗口方案里面板自己不该动，动的是裁剪窗口，所以直接钉平。 */
+  el.style.transform = 'none';
 
   const duration =
-    direction === 'in' ? motionMs('--motion-morph-in-near', 520) : motionMs('--motion-morph-out', 460);
+    direction === 'in'
+      ? motionMs('--motion-morph-in-near', 380)
+      : motionMs('--motion-morph-out', 340);
   const easing = motionEase('--ease-morph');
   const depth = motionNum('--morph-depth', 1.12);
 
@@ -163,10 +172,24 @@ const playPanelMorph = async (direction) => {
     el.style.clipPath = '';
     restoreTransition();
   } else {
-    // 退场保留终态：cancel 的瞬间面板会弹回全屏，紧接着才淡出（P1 事故原样）
+    /* 退场保留终态：cancel 的瞬间面板会弹回全屏，紧接着才淡出（P1 事故原样） */
     void animateMorph(el, [{ clipPath: insetOpen(radiusTo) }, { clipPath: win.value }], {
       duration,
       easing,
+      keepFinal: true,
+    });
+    /* ⚠️ 透明度必须是**独立一条 linear 动画**（2026-10-31 修，这是「关闭没有动画」的真因）。
+       上面把 transition-property 收成 width（防 CSS 过渡压掉形变）的副作用是
+       `.pd-modal-leave-to` 的 `opacity: 0` 瞬间生效 —— 实测 t=43ms 面板 opacity 已 0.00，
+       于是「窗口收到卡片」这 340ms 全程在**全透明**里跑，用户只看得到遮罩淡出。
+
+       也不能把 opacity 塞进上面那条的关键帧：曲线是**前载**的（--ease-morph 在
+       45% 墙钟时间已走完 79% 进度），`offset: 0.78` 实际会被跨过在 ~53% 的时间点，
+       后两成行程又变回全透明 —— 窗口还没落到卡片上就消失了。
+       linear 的 offset 才是墙钟时间：前 78%（265ms）完全可见，最后 1/5 交给底下那张卡。 */
+    void animateMorph(el, [{ opacity: 1 }, { opacity: 1, offset: 0.78 }, { opacity: 0 }], {
+      duration,
+      easing: 'linear',
       keepFinal: true,
     });
   }
@@ -475,10 +498,9 @@ const panelWidth = computed(() => {
 }
 
 .pd-modal-leave-active {
-  /* 退场时长同时是**节点摘除时刻**：面板的收回形变 460ms（--motion-morph-out）
-     必须短于它，否则末帧被截断（2026-10-31 从 260 → 360 → 500，
-     两次都是跟着 --motion-morph-out 走）。 */
-  transition: opacity 500ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  /* 退场时长同时是**节点摘除时刻**：面板的收回形变 340ms（--motion-morph-out）
+     必须短于它，否则末帧被截断（2026-10-31 从 260 → 360 → 500 → 随标准档回 360）。 */
+  transition: opacity 360ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .pd-modal-enter-active .pd-modal-panel {
