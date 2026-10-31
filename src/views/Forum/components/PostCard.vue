@@ -92,16 +92,35 @@ const settleOnce = () => {
   };
 };
 
-/* 重挂载守卫（2026-10-31 实测抓到）：
-   帖子卡在虚拟列表里会随窗口滑动**卸载再挂载**，而展开态是父组件的
-   `expandedPostIds` / `activeReplyTarget` 记着的 ⇒ 重新挂载时元素一插入就是展开态，
-   `@enter` 照样会跑一遍 —— 用户看到的是「滚回来评论区又长了一次」。
-   判据：**setup 时就已经是展开态** ⇒ 这次 enter 是"复现"，不是"用户刚点的"，直接放行。
-   只在实例内记一次，所以"收起再展开"仍然有动画。 */
-let skipRepliesEnter = props.isExpanded;
-let skipReplyEnter = Boolean(
-  props.activeReplyTarget && props.activeReplyTarget.postId === props.post.id,
+/* 什么时候该播展开动画：**只认「挂载之后状态被翻成展开」**。
+ *
+ * 不能拿「setup 时的 props.isExpanded」当判据（2026-10-31 实测证伪）：两个
+ * `<transition>` 都没有 `appear`，初始渲染时 `v-if` 已为真 Vue 根本不调 `@enter`
+ * （实测重挂载后 `getAnimations()` = 0）。于是那个快照标志在挂载时**没有任何机会
+ * 被消费**，只会留着把用户真正的第一次展开静音 —— 实测：滚出虚拟窗口再滚回来
+ * （卡片重挂载、仍展开）→ 收起 → 展开，`anims=0`、25ms 高度已是终值。
+ *
+ * 真正需要静默的是另一种 enter：`post.replies` 由 `loadPostReplyPreview` 异步填充，
+ * 展开时若评论还没到，`v-if` 会在**数据到达那一刻**才翻真 —— 那是一次没有用户动作的
+ * enter，重播动画就是「评论区自己冒出来」。
+ *
+ * 所以判据改成状态翻转：`false → true` 才算用户动作；挂载复现、异步到达都放行。 */
+let animateRepliesEnter = false;
+let animateReplyEnter = false;
+
+const replyTargetPostId = computed(() =>
+  props.activeReplyTarget ? String(props.activeReplyTarget.postId || '') : '',
 );
+
+watch(
+  () => Boolean(props.isExpanded),
+  (next, prev) => {
+    if (next && !prev) animateRepliesEnter = true;
+  },
+);
+watch(replyTargetPostId, (next) => {
+  if (next === String(props.post.id || '')) animateReplyEnter = true;
+});
 
 const playOnce = (el, keyframes, options, onSettled) => {
   const finish = settleOnce();
@@ -118,11 +137,11 @@ const playOnce = (el, keyframes, options, onSettled) => {
 };
 
 const onRepliesEnter = (el, done) => {
-  if (skipRepliesEnter) {
-    skipRepliesEnter = false;
+  if (!animateRepliesEnter) {
     done();
     return;
   }
+  animateRepliesEnter = false;
   const height = Math.max(0, el.scrollHeight);
   el.style.overflow = 'hidden';
   playOnce(
@@ -156,11 +175,11 @@ const onRepliesLeave = (el, done) => {
 };
 
 const onReplyEnter = (el, done) => {
-  if (skipReplyEnter) {
-    skipReplyEnter = false;
+  if (!animateReplyEnter) {
     done();
     return;
   }
+  animateReplyEnter = false;
   // 原点 = 那个「回复」按钮的横向中心（它在本组件 actions-right 里）
   const rect = el.getBoundingClientRect();
   const button = el.parentElement?.querySelector('.reply-btn-v2');
@@ -590,7 +609,6 @@ watch(
             }"
             :aria-label="`查看${post.displayTitle}第 ${index + 1} 张大图`"
             :disabled="isImageFailed(image.url)"
-            :data-image-url="image.url"
             @click.stop="emit('open-image-viewer', post, index, $event)"
           >
             <!-- 图片加载失败时显示占位图标 -->

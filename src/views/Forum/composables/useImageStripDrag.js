@@ -240,6 +240,10 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
     // 不让 TransitionGroup 的 move 过渡和这段 FLIP 打架（两套一起跑就是「抖一下再滑」）
     liftedEl.classList.add('is-settling');
     void nextTick().then(() => {
+      // 重排期间节点可能已被替换（拖的是上传中的项、父组件换了 key）。
+      // 脱离文档的元素量出来是 0×0，直接算会得到一个巨大的位移，
+      // 再对死节点跑 320ms 动画 —— 看不见、也不报错，只是 FLIP 静默失效。
+      if (!liftedEl.isConnected) return;
       const toRect = liftedEl.getBoundingClientRect();
       const dx = fromRect.left - toRect.left;
       const dy = fromRect.top - toRect.top;
@@ -247,11 +251,18 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
         liftedEl.classList.remove('is-settling');
         return;
       }
-      const animation = liftedEl.animate(
-        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
-        { duration: 320, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' },
-      );
       const settle = () => liftedEl.classList.remove('is-settling');
+      let animation;
+      try {
+        animation = liftedEl.animate(
+          [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
+          { duration: 320, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' },
+        );
+      } catch {
+        // 不支持 WAAPI：直接落到新槽位，别把 is-settling 留在元素上
+        settle();
+        return;
+      }
       animation.finished.then(settle, settle);
     });
   };

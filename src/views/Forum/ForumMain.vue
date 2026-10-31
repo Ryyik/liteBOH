@@ -208,10 +208,35 @@ const uiAnimationTimers = new Map();
    时序必须挂在**数据到位**那一刻，不能挂在关键词变化上：关键词一变就播，
    播的还是上一批结果的动画，然后内容才换，等于把两件事拆开了。
    所以：关键词变了只挂起一个待播标记，等 forumData 落地再播。
-   `is-feed-entering` 只对首屏可见卡片生效，滚动挂载的新卡片不受影响。 */
+
+   ⚠️ 这个标记是「一次性许可」，必须保证三种情况下被撤掉，否则会挂到下一次列表赋值上
+   （翻页追加 / 乐观插入 / 换排序），表现为「什么都没搜，整屏却又入场了一次」：
+   ① 请求失败 —— 错误分支不写 forumData，标记会永远留着；
+   ② 从详情返回 —— `applyForumReturnStateFilters` 也会写 searchKeyword，那不是搜索；
+   ③ 请求被取消/超时 —— 干脆给一个安全窗口，超时即撤。 */
+const FEED_SWAP_ARM_MS = 3000;
 const feedEntering = ref(false);
 let pendingFeedSwap = false;
 let feedEnterTimer = null;
+let feedSwapArmTimer = null;
+
+const disarmFeedSwap = () => {
+  pendingFeedSwap = false;
+  if (feedSwapArmTimer) {
+    clearTimeout(feedSwapArmTimer);
+    feedSwapArmTimer = null;
+  }
+};
+
+const armFeedSwap = () => {
+  pendingFeedSwap = true;
+  if (feedSwapArmTimer) clearTimeout(feedSwapArmTimer);
+  // 安全窗口：足够慢网跑到数据落地，又短到不会误伤下一次翻页
+  feedSwapArmTimer = setTimeout(disarmFeedSwap, FEED_SWAP_ARM_MS);
+};
+
+/** 恢复返回态时的关键词赋值不算「用户搜索」，不挂起动画。 */
+let suppressFeedSwapArm = false;
 
 const playFeedSwap = () => {
   if (prefersReducedMotion()) return;
@@ -229,12 +254,13 @@ const playFeedSwap = () => {
 
 watch(searchKeyword, (next, prev) => {
   if (String(next || '').trim() === String(prev || '').trim()) return;
-  pendingFeedSwap = true;
+  if (suppressFeedSwapArm) return;
+  armFeedSwap();
 });
 
 watch(forumData, () => {
   if (!pendingFeedSwap) return;
-  pendingFeedSwap = false;
+  disarmFeedSwap();
   playFeedSwap();
 });
 const forumWeeklyReport = ref(null);
@@ -401,6 +427,9 @@ const buildForumReturnState = (postId = '') => ({
 });
 
 const applyForumReturnStateFilters = (state = {}) => {
+  // 这一路上的关键词赋值是「恢复」，不是用户搜索：不挂起结果入场动画，
+  // 否则「带着关键词去详情再返回」会给整屏播一次入场（2026-10-31 复核发现）。
+  suppressFeedSwapArm = true;
   viewMode.value = state.viewMode === 'my' ? 'my' : 'all';
   sortMode.value = normalizeForumSortMode(state.sortMode, 'latest');
   searchQuery.value = String(state.searchQuery ?? state.searchKeyword ?? '');
@@ -414,6 +443,10 @@ const applyForumReturnStateFilters = (state = {}) => {
     ? savedContentType
     : '';
   feedMode.value = 'posts';
+  // watcher 走 pre 队列，在同一轮 flush 里就消费掉了；nextTick 必定晚于它
+  void nextTick().then(() => {
+    suppressFeedSwapArm = false;
+  });
 };
 
 const restoreForumScrollPosition = async (state = {}) => {
@@ -2269,6 +2302,8 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
     } else {
       const errorMessage = String(dataResult?.error?.message || '论坛数据加载失败，请稍后重试');
       forumLoadError.value = errorMessage;
+      // 错误分支不写 forumData ⇒ 待播标记没人消费，撤掉，否则会挂到下一次翻页上
+      disarmFeedSwap();
       logger.error('forum', '加载论坛数据返回错误:', dataResult?.error || dataResult);
       hasMoreData.value = false;
     }
@@ -2288,6 +2323,7 @@ const fetchForumData = async (isLoadMore = false, { background = false } = {}) =
     if (requestSeq !== forumFetchSeq) return;
     logger.error('forum', '加载论坛数据失败:', err);
     forumLoadError.value = String(err?.message || '论坛数据加载失败，请稍后重试');
+    disarmFeedSwap();
     hasMoreData.value = false;
   } finally {
     if (forumFetchAbortController === abortController) {

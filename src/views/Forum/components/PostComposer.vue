@@ -857,7 +857,7 @@ onUnmounted(() => {
             <TransitionGroup name="composer-image">
               <div
                 v-for="(image, index) in postImages"
-                :key="image.publicId || image.uploadId || image.url"
+                :key="image.uploadId || image.url"
                 class="post-image-preview-item"
                 :class="{ 'is-failed': image.uploadStatus === 'failed' }"
                 :data-image-index="index"

@@ -24,6 +24,33 @@ const VIEWPORT_TOLERANCE = 0.2;
 /** key -> { rect, el, at, vw, vh } */
 const origins = new Map();
 
+/**
+ * 条目上限。每条 entry 都持有触发元素的引用（`peekOrigin` 要现量位置），
+ * 一旦某条路径只 peek 不 clear（横屏弹窗、reduce-motion、两个图片查看器都是），
+ * 这个 Map 就会随使用一直长 —— 桌面浏览几十篇就是几十棵卸载后的卡片子树被留住。
+ * 所以给一个硬上限 + 采集时顺手淘汰。
+ */
+const ORIGIN_MAX_ENTRIES = 40;
+
+/** 采集时顺手清理：过期条目先删，再把「元素已卸载」条目里那份 DOM 引用摘掉。 */
+function pruneOrigins(now = Date.now()) {
+  for (const [key, entry] of origins) {
+    if (now - entry.at > ORIGIN_TTL) {
+      origins.delete(key);
+      continue;
+    }
+    // 元素一旦脱离文档就再也不可能被「现量」了，peek 会退回存下来的 rect；
+    // 与其留着一棵卸载子树，不如把引用摘掉 —— 行为完全等价，只是不再持有内存。
+    if (entry.el && entry.el.isConnected === false) entry.el = null;
+  }
+  if (origins.size <= ORIGIN_MAX_ENTRIES) return;
+  // 超限按采集时间从旧到新淘汰（Map 的插入序不保证＝时间序，重采同 key 不会前移）
+  const byAge = [...origins.entries()].sort((a, b) => a[1].at - b[1].at);
+  for (let i = 0; i < byAge.length - ORIGIN_MAX_ENTRIES; i += 1) {
+    origins.delete(byAge[i][0]);
+  }
+}
+
 const isNum = (value) => Number.isFinite(Number(value));
 
 /** 元素当前是否还能量（在文档里、有尺寸）。 */
@@ -64,14 +91,19 @@ export function captureOrigin(key, el, { radius = 0 } = {}) {
   if (!safeKey || !isMeasurable(el)) return null;
   const rect = normalizeRect(el.getBoundingClientRect());
   if (!rect) return null;
-  origins.set(safeKey, {
+  const entry = {
     rect: { ...rect, radius: Math.max(0, Number(radius) || 0) },
     el,
     at: Date.now(),
     vw: typeof window === 'undefined' ? 0 : window.innerWidth,
     vh: typeof window === 'undefined' ? 0 : window.innerHeight,
-  });
-  return origins.get(safeKey).rect;
+  };
+  origins.set(safeKey, entry);
+  // ⚠️ 必须**写在 set 之后**：放前面时判的是「插入前」的 size，稳态会停在上限 +1
+  // （40 上限实测留下 41 条，是 2026-10-31 单测抓到的）。
+  pruneOrigins();
+  // 直接返回本地这份，不回查 Map —— 极端情况下它可能刚被淘汰掉
+  return entry.rect;
 }
 
 /**
@@ -117,11 +149,6 @@ export function peekOrigin(key, { maxAge = ORIGIN_TTL, matchPrefix = false } = {
 /** 消费后清理（返回时用完即删，避免同一 origin 被下一次导航复用）。 */
 export function clearOrigin(key) {
   origins.delete(String(key || '').trim());
-}
-
-/** 测试与调试用：清空全部。 */
-export function resetOrigins() {
-  origins.clear();
 }
 
 /**
@@ -201,17 +228,4 @@ export function animateMorph(
   } catch {
     return Promise.resolve(false);
   }
-}
-
-/** 元素是否处于可见状态（用于返回时判断目标卡片还在不在视野里）。 */
-export function isRectVisible(rect, margin = 0) {
-  if (!rect || typeof window === 'undefined') return false;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  return (
-    rect.bottom > -margin &&
-    rect.top < vh + margin &&
-    rect.right > -margin &&
-    rect.left < vw + margin
-  );
 }

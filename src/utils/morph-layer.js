@@ -148,9 +148,3 @@ export function playCollapseMorph(sourceEl, targetRect, { duration = 480 } = {})
     },
   );
 }
-
-/** 测试/应急：清掉可能残留的层（例如上一次动画被打断）。 */
-export function resetMorphLayer() {
-  if (typeof document === 'undefined') return;
-  document.querySelectorAll(`.${LAYER_CLASS}`).forEach((node) => node.remove());
-}
