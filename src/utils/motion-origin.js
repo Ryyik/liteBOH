@@ -152,7 +152,73 @@ export function clearOrigin(key) {
 }
 
 /**
+ * 计算「窗口从 source 长到 target」的 clip-path 起点（2026-10-31，iOS 口径）。
+ *
+ * 为什么不再用 FLIP 缩放（`flipFromRect`）：
+ *   卡片 `370×104` 拉成 `390×800` 时 `sx≈0.95 / sy≈0.13`，动画中途出现的是一块
+ *   **又扁又长的矩形** —— 既不是卡片也不是页面，观感是「橡皮筋扯长」。
+ *   iOS 打开 App 从来不做这种非等比变形：内容一直是最终尺寸，变的只是一个从
+ *   图标位置长到全屏的**裁剪窗口**。所以这里算的是 `inset()` 四边，不是 scale。
+ *
+ * 附带三个好处：
+ *   ① 内容不参与缩放 ⇒ 文字不会在途中被压扁/糊掉；
+ *   ② 不再需要 `flipRadius` 的圆角反算（`round` 直接写卡片的圆角）；
+ *   ③ 退场窗口收回卡片大小就自然露出卡片，不需要额外的「落点提示」。
+ *
+ * @param {{left:number,top:number,width:number,height:number}} source 入口卡片矩形（视口坐标）
+ * @param {{left:number,top:number,width:number,height:number}} target 目标元素矩形（视口坐标）
+ * @param {{radius?:number}} [options] 起点圆角（用卡片自身的圆角，不是反算值）
+ * @returns {{top:number,right:number,bottom:number,left:number,radius:number,value:string}|null}
+ *          四边都贴到 0（源覆盖了整个目标）时返回 null —— 调用方降级为淡入
+ */
+export function insetFromRect(source, target, { radius = 0 } = {}) {
+  if (!source || !target) return null;
+  const sw = Number(source.width) || 0;
+  const sh = Number(source.height) || 0;
+  const tw = Number(target.width) || 0;
+  const th = Number(target.height) || 0;
+  if (sw < 1 || sh < 1 || tw < 1 || th < 1) return null;
+
+  const sLeft = Number(source.left) || 0;
+  const sTop = Number(source.top) || 0;
+  const tLeft = Number(target.left) || 0;
+  const tTop = Number(target.top) || 0;
+  // 源可能有一部分落在目标外面（横屏弹窗居中、卡片在左栏外侧），负数一律夹到 0，
+  // 让窗口贴着目标边缘展开 —— 不夹会算出非法 inset（负值等于放大）。
+  const top = Math.max(0, sTop - tTop);
+  const left = Math.max(0, sLeft - tLeft);
+  const right = Math.max(0, tLeft + tw - (sLeft + sw));
+  const bottom = Math.max(0, tTop + th - (sTop + sh));
+  // 四边都贴边＝源已经盖满目标，没有任何「展开」可演
+  if (top < 2 && right < 2 && bottom < 2 && left < 2) return null;
+
+  const r = Math.max(0, Number(radius) || 0);
+  return {
+    top,
+    right,
+    bottom,
+    left,
+    radius: r,
+    value: `inset(${top.toFixed(2)}px ${right.toFixed(2)}px ${bottom.toFixed(2)}px ${left.toFixed(2)}px round ${r.toFixed(2)}px)`,
+  };
+}
+
+/**
+ * 窗口「完全打开」的终点值。横屏面板自身有 24px 圆角，终点不能写死 0 ——
+ * 否则窗口在最后一帧把面板的圆角削成直角，会有一帧可见的跳变。
+ * @param {number} [radius]
+ */
+export function insetOpen(radius = 0) {
+  const r = Math.max(0, Number(radius) || 0);
+  return `inset(0px 0px 0px 0px round ${r.toFixed(2)}px)`;
+}
+
+/**
  * 计算「从 source 落到 target」的 FLIP 变换。
+ *
+ * ⚠️ 2026-10-31 起**详情页/弹窗不再用它**（改用上面的 `insetFromRect` 窗口展开）。
+ * 仍在使用的是两个图片查看器：缩略图 → 大图是等比的小范围放大，没有「非等比
+ * 拉扯」问题，FLIP 在那里是对的。
  *
  * `transform-origin` 必须是 `0 0`：写成 `50% 50%` 时 `translate` 与 `scale`
  * 的组合会额外偏移 `(source.width - target.width) / 2`，起点对不上卡片。

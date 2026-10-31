@@ -3,19 +3,19 @@ import { chromium } from 'playwright';
 /* 探针：论坛 / 详情的「从哪来、回哪去」空间连续性（plans/035，2026-10-31）
    覆盖四组：
      A 图片查看器：从缩略图 rect 起 → 落定 → 关闭缩回 → 无残留
-     B 详情入场：卡片 rect → 正文卡形变入场 → transform 归零
+     B 详情入场：卡片 rect → 窗口 clip-path 展开 + 内容纵深 → clip 归零
      C 返程：克隆层出现 → 收尾后节点全部移除 → 列表回来
      D reduce-motion：形变全部跳过（不能只剩「慢」，也就是不能只剩等待）
 
    ⚠️ 三条断言口径（写过一次就别改回「看起来有动画」）：
-     ① **首帧矩形必须与来源矩形对上（误差 < 12px）**。只断言「有 animation」
-        是没牙的 —— transform-origin 写错（默认 50% 50%）时动画照样在跑，
-        只是起点整体偏 (S.w - T.w)/2，肉眼要盯很久才发现。
-     ② **落定后必须是 `transform: none`**。`fill: both` 会留下
-        `matrix(1,0,0,1,0,0)`，那和 none 在 CSS 层不是一回事（fixed 子元素的
-        包含块照样被劫持）。
+     ① **首帧窗口必须与来源矩形对上（误差 < 12px）**。只断言「有 animation」
+        是没牙的 —— 2026-10-31 之前用 FLIP 时，transform-origin 写错（默认 50% 50%）
+        动画照样在跑，只是起点整体偏 (S.w - T.w)/2，肉眼要盯很久才发现。
+        现在是窗口方案，首帧信息在 `clip-path: inset(...)` 里，要换算回矩形。
+     ② **落定后 clip-path 必须清空**。留着 `inset(0px 0px 0px 0px round 0px)`
+        会创建绘制裁剪层，后代的浮层（编辑器、下拉）会被裁掉且查不出原因。
      ③ **返回后 morph 层的节点必须为 0**。留在 body 上的克隆看不见、但会吃掉
-       后续「点到了哪里」的判断。 */
+        后续「点到了哪里」的判断。 */
 
 const BASE = process.env.BASE || 'http://[::1]:5173';
 const OUT = 'debug-screenshots';
@@ -50,6 +50,39 @@ const near = (a, b, tol = TOLERANCE) =>
   Math.abs(a.top - b.top) <= tol &&
   Math.abs(a.width - b.width) <= tol * 2 &&
   Math.abs(a.height - b.height) <= tol * 2;
+
+/* 把 `clip-path: inset(...)` 换算回视口矩形。
+   窗口方案下元素自身的 rect 永远是全尺寸，所以「起点在哪」只能从 clip 值反推 ——
+   这是 B2 / C2b 两条断言的可执行依据。
+
+   ⚠️ 必须支持 1–4 个值：浏览器会把 `inset(a b c b)` 归一成 `inset(a b c)`
+   （左右相等时省略第四个），只按 4 个值解析会得到 null —— 表现为「断言失败但
+   形变其实完全正确」（2026-10-31 实测踩到，B2/C2b 双双假红）。 */
+const expandInset = (parts) => {
+  if (parts.length === 1) return [parts[0], parts[0], parts[0], parts[0]];
+  if (parts.length === 2) return [parts[0], parts[1], parts[0], parts[1]];
+  if (parts.length === 3) return [parts[0], parts[1], parts[2], parts[1]];
+  return [parts[0], parts[1], parts[2], parts[3]];
+};
+
+const clipRect = (box, clip) => {
+  const m = /inset\(([^)]*)\)/.exec(String(clip || ''));
+  if (!m || !box) return null;
+  const nums = m[1]
+    .replace(/\bround\b[\s\S]*$/, '')
+    .trim()
+    .split(/\s+/)
+    .map((v) => Number.parseFloat(v))
+    .filter((v) => Number.isFinite(v));
+  if (!nums.length) return null;
+  const [t, r, b, l] = expandInset(nums);
+  return {
+    left: Math.round(box.left + l),
+    top: Math.round(box.top + t),
+    width: Math.round(box.width - l - r),
+    height: Math.round(box.height - t - b),
+  };
+};
 
 try {
   /* ───────────────── A 图片查看器 ───────────────── */
@@ -230,76 +263,92 @@ try {
       for (let i = 0; i < 120; i += 1) {
         const el = document.querySelector('.detail-container');
         if (el && el.getAnimations().length) {
-          const anim = el.getAnimations()[0];
-          const kf = anim.effect.getKeyframes();
+          const anims = el.getAnimations();
+          // 窗口那条是带 clipPath 的；同一元素上可能还有别的，按关键帧挑
+          const anim =
+            anims.find((a) => {
+              const k = a.effect?.getKeyframes?.() || [];
+              return k.some((f) => f.clipPath);
+            }) || anims[0];
+          const kf = anim.effect?.getKeyframes?.() || [];
           const b = el.getBoundingClientRect();
+          const windowDur = anim.effect?.getTiming?.().duration;
+          /* 纵深层：`.detail-content` 上**起始 scale > 1** 的那条。
+             不能按 duration 匹配（它上面还挂着 CSS 的 fade-in-up，时长可能撞上），
+             也不能取 [0]（CSS animation 与 WAAPI 的返回顺序不保证）。
+
+             ⚠️ WAAPI 的 `getKeyframes()` 对 `transform` **不一定**序列化成
+             `matrix(...)`：实测 Chrome 原样返回 `"scale(1.12)"`，只写 matrix
+             正则会得到 depth=0（假红）。两个都要认。 */
+          const inner = el.firstElementChild;
+          let depth = 0;
+          for (const a of inner ? inner.getAnimations() : []) {
+            const k = a.effect?.getKeyframes?.() || [];
+            const raw = String(k[0]?.transform || '');
+            const mm = /matrix\(([-\d.]+),/.exec(raw) || /scale\(\s*([-\d.]+)/.exec(raw);
+            if (mm && Number(mm[1]) > 1.001) {
+              depth = Number(mm[1]);
+              break;
+            }
+          }
           return {
             startedIn: Math.round(performance.now() - t0),
-            dur: anim.effect.getTiming().duration,
-            origin: kf[0].transformOrigin,
-            // 入场关键帧里 opacity 到 1 的拐点：0.45 是旧值（亮起来时已长完了）
-            // ⚠️ getKeyframes() 的 opacity 是**字符串**（"1"），必须 Number 再比
-            opOffset: kf.find((k) => Number(k.opacity) === 1)?.offset,
+            dur: windowDur,
+            clipStart: String(kf[0]?.clipPath || ''),
+            depth,
             // 首帧时是否还在加载：这是「先出界面、再出骨架」的可执行证据
             skeletonAtStart: Boolean(document.querySelector('.post-detail-skeleton')),
-            rect: {
-              left: Math.round(b.left),
-              top: Math.round(b.top),
-              width: Math.round(b.width),
-              height: Math.round(b.height),
-            },
+            box: { left: b.left, top: b.top, width: b.width, height: b.height },
           };
         }
         await sleep(16);
       }
       return null;
     });
-    check('B1 详情容器有形变动画', Boolean(first), first ? `dur=${first.dur}` : '120 帧内没等到');
+    check('B1 详情容器有窗口形变动画', Boolean(first), first ? `dur=${first.dur}` : '120 帧内没等到');
     check(
       'B1b 形变在导航那一刻起跑（≤400ms，不等数据）',
       Number(first?.startedIn) <= 400,
       `startedIn=${first?.startedIn}ms`,
     );
     check(
-      'B2 起点与卡片 rect 对齐（±12px）',
-      near(first?.rect, cardRect),
-      `${JSON.stringify(first?.rect)} vs ${JSON.stringify(cardRect)}`,
+      'B2 窗口起点与卡片 rect 对齐（±12px）',
+      near(clipRect(first?.box, first?.clipStart), cardRect),
+      `${JSON.stringify(clipRect(first?.box, first?.clipStart))} vs ${JSON.stringify(cardRect)}`,
     );
     check(
-      'B3 transform-origin 为 0 0',
-      String(first?.origin || '').replace(/\s/g, '') === '0px0px',
-      String(first?.origin),
+      'B3 纵深起点在 1.05–1.20 之间（--morph-depth）',
+      Number(first?.depth) > 1.05 && Number(first?.depth) < 1.2,
+      `depth=${first?.depth}`,
     );
     check(
-      'B4 形变时长走 --motion-morph-in（标准档 460）',
-      Number(first?.dur) === 460,
+      'B4 形变时长走 --motion-morph-in（620，窗口方案放慢后的值）',
+      Number(first?.dur) === 620,
       `dur=${first?.dur}`,
     );
-    /* 时钟同步守卫（2026-10-31「一闪而过」的根因）：几何与透明度必须同钟。
-       旧值 0.45 配 --ease-drawer 时，45% 时间点几何已走完 94% ⇒ 用户只看到
-       最后 6% 的位移。现在要求拐点 = 0.2（曲线由单测锁）。 */
     check(
-      'B4b 入场不透明度拐点 = 0.2（时钟同步，不许回潮 0.45）',
-      Math.abs(Number(first?.opOffset) - 0.2) < 0.001,
-      `opOffset=${first?.opOffset}`,
+      'B4b 首帧窗口不是全屏（inset 至少一边 > 2px）',
+      Boolean(first?.clipStart) && !/^inset\(0(px)? 0(px)? 0(px)? 0(px)?/.test(first.clipStart),
+      first?.clipStart,
     );
 
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(1200);
     const settled = await page.evaluate(() => {
       const el = document.querySelector('.detail-container');
       if (!el) return null;
+      const cs = getComputedStyle(el);
       return {
-        transform: getComputedStyle(el).transform,
-        inline: el.style.transform,
+        clip: cs.clipPath,
+        inlineClip: el.style.clipPath,
         anims: el.getAnimations().length,
       };
     });
     check(
-      'B5 落定后 transform 是 none（不是 matrix(1,0,0,1,0,0)）',
-      settled?.transform === 'none',
-      String(settled?.transform),
+      'B5 落定后 clip-path 是 none（不是 inset(0px 0px 0px 0px)）',
+      settled?.clip === 'none',
+      String(settled?.clip),
     );
-    check('B6 落定后内联 transform 已清空', !settled?.inline, String(settled?.inline));
+    check('B6 落定后内联 clip-path 已清空', !settled?.inlineClip, String(settled?.inlineClip));
     check('B7 落定后无运行中动画', settled?.anims === 0, `anims=${settled?.anims}`);
     await page.screenshot({ path: `${OUT}/probe-forum-motion-detail.png` }).catch(() => {});
 
@@ -312,13 +361,17 @@ try {
         const ghost = document.querySelector('.boh-morph-ghost');
         if (ghost) {
           const b = ghost.getBoundingClientRect();
-          const anim = ghost.getAnimations()[0];
+          const anims = ghost.getAnimations();
+          // 收缩那条带 clipPath（另一条是 opacity），不能取 [0] 撞运气
+          const anim = anims.find((a) => {
+            const k = a.effect?.getKeyframes?.() || [];
+            return k.some((f) => f.clipPath);
+          });
           const kf = anim ? anim.effect.getKeyframes() : [];
-          const last = kf.length ? String(kf[kf.length - 1].transform || '') : '';
           return {
             seen: true,
-            anims: ghost.getAnimations().length,
-            end: last,
+            anims: anims.length,
+            end: kf.length ? String(kf[kf.length - 1].clipPath || '') : '',
             box: { left: b.left, top: b.top, width: b.width, height: b.height },
             rect: {
               left: Math.round(b.left),
@@ -337,28 +390,19 @@ try {
       ghostSeen.seen === true,
       JSON.stringify(ghostSeen.rect || null),
     );
-    check('C2 克隆层有一条形变动画', Number(ghostSeen.anims) >= 1, `anims=${ghostSeen.anims}`);
+    check(
+      'C2 克隆层有窗口收缩 + 淡出两条动画',
+      Number(ghostSeen.anims) >= 2,
+      `anims=${ghostSeen.anims}`,
+    );
     /* C2b 是最关键的一条：末帧落点必须回到**入口那张卡**的矩形。
-       只断言「有收缩动画」是没牙的 —— 收错地方一样在动。 */
-    {
-      const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)\s*scale\(([-\d.]+),\s*([-\d.]+)\)/.exec(
-        ghostSeen.end || '',
-      );
-      const landed =
-        m && ghostSeen.box
-          ? {
-              left: Math.round(ghostSeen.box.left + Number(m[1])),
-              top: Math.round(ghostSeen.box.top + Number(m[2])),
-              width: Math.round(ghostSeen.box.width * Number(m[3])),
-              height: Math.round(ghostSeen.box.height * Number(m[4])),
-            }
-          : null;
-      check(
-        'C2b 末帧落在入口那张卡的矩形上（±16px）',
-        near(landed, cardRect, 16),
-        `${JSON.stringify(landed)} vs ${JSON.stringify(cardRect)}`,
-      );
-    }
+       只断言「有收缩动画」是没牙的 —— 收错地方一样在动。
+       窗口方案的末帧信息在 `clip-path: inset(...)` 里，换算回视口矩形再比。 */
+    check(
+      'C2b 末帧窗口落在入口那张卡的矩形上（±16px）',
+      near(clipRect(ghostSeen.box, ghostSeen.end), cardRect, 16),
+      `${JSON.stringify(clipRect(ghostSeen.box, ghostSeen.end))} vs ${JSON.stringify(cardRect)}`,
+    );
     await page.waitForTimeout(1000);
     const after = await page.evaluate(() => ({
       ghost: document.querySelectorAll('.boh-morph-ghost').length,

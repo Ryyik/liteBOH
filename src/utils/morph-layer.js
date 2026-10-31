@@ -20,6 +20,8 @@
  *     克隆节点会吃掉后续所有「点到了哪里」的判断，而且看不见、查不出来。
  */
 
+import { insetFromRect, insetOpen } from './motion-origin.js';
+
 const LAYER_CLASS = 'boh-morph-layer';
 const GHOST_CLASS = 'boh-morph-ghost';
 
@@ -106,38 +108,38 @@ export function playCollapseMorph(sourceEl, targetRect, { duration = 480 } = {})
     return Promise.resolve(false);
   }
 
-  /* 用**非等比**缩放到目标矩形：等比只能缩到 0.98（卡片和正文卡宽度接近），
-     肉眼几乎不动，等于没有「收进去」。非等比会把字压扁，所以透明度必须
-     在后半段就压下去 —— 下面那条 opacity 在 30%→100% 走完，压扁最狠的几帧
-     本来就只剩 0.3 以下。曲线走 ease-in（起步慢、收尾快），「被抽走」的手感。 */
-  const sx = Math.min(1, targetRect.width / box.width);
-  const sy = Math.min(1, targetRect.height / box.height);
-  const dx = targetRect.left - box.left;
-  const dy = targetRect.top - box.top;
+  /* 窗口收缩（2026-10-31 改，iOS 口径）：克隆**保持全尺寸**，用 clip-path 的
+     `inset()` 把它裁到卡片矩形 —— 内容一帧都不缩放，所以文字不会被压扁，
+     也不需要靠「提前压掉透明度」来掩盖变形（旧 FLIP 版本必须在 30% 就把
+     opacity 压到 1 以下，正是为了遮丑）。
+
+     窗口面积随时间连续变化，末段贴到卡片边缘时还看得清，观感是「这一页被
+     收进那一格」；旧版非等比缩放则是「一块矩形被抽走」，中途是扁长的怪物形状。 */
+  const win = insetFromRect(targetRect, box, { radius: targetRect.radius || 12 });
   const canAnimate = typeof ghost.animate === 'function';
-  if (!canAnimate) {
+  if (!win || !canAnimate) {
     cleanup();
     return Promise.resolve(false);
   }
 
-  const animation = ghost.animate(
-    [
-      { transform: 'none', opacity: 1 },
-      { opacity: 1, offset: 0.3 },
-      {
-        transform: `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`,
-        opacity: 0,
-      },
-    ],
-    {
-      duration: Math.max(80, Number(duration) || 480),
-      easing: 'cubic-bezier(0.4, 0, 1, 1)',
-      fill: 'both',
-    },
-  );
+  const ms = Math.max(80, Number(duration) || 480);
+  /* 曲线用 --ease-morph（起步快、末段缓）而不是 ease-in：
+     收缩要「贴到卡片上」，末段必须慢下来，否则最后一截是瞬移，
+     看起来像「收到一半突然消失」。 */
+  const clipA = ghost.animate([{ clipPath: insetOpen(0) }, { clipPath: win.value }], {
+    duration: ms,
+    easing: 'cubic-bezier(0.3, 0.12, 0.15, 1)',
+    fill: 'both',
+  });
+  // 透明度只在最后 30% 掉：窗口边缘已经和卡片重合，此时淡出才是「交接」而不是「遮丑」
+  ghost.animate([{ opacity: 1 }, { opacity: 1, offset: 0.7 }, { opacity: 0 }], {
+    duration: ms,
+    easing: 'linear',
+    fill: 'both',
+  });
 
   // 约束④：三条收尾路径都清理
-  return animation.finished.then(
+  return clipA.finished.then(
     () => {
       cleanup();
       return true;

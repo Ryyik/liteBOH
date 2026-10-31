@@ -14,11 +14,11 @@ import { usePostDetailModal } from '@/composables/usePostDetailModal.js';
 import {
   animateMorph,
   canMorph,
-  flipFromRect,
-  flipRadius,
+  insetFromRect,
+  insetOpen,
   peekOrigin,
 } from '@/utils/motion-origin.js';
-import { motionEase, motionMs } from '@/utils/motion.js';
+import { motionEase, motionMs, motionNum } from '@/utils/motion.js';
 import { recoverDynamicImportFailure } from '@/utils/vite-preload-recovery.js';
 import { forceCleanAndReload } from '@/utils/version-checker.js';
 
@@ -76,14 +76,18 @@ const { isOpen, postId, close, open } = usePostDetailModal();
 const handleClose = (options) => close(options);
 const handleOpenPost = (id) => open(id, { replace: true });
 
-/* ── 从卡片长出来 / 收回去（plans/035 §L4 P4）──────────────────────────
+/* ── 从卡片「推开」/ 收回（plans/035 §L4 P4 / §16）─────────────────────
    横屏弹窗的起点同样是列表卡片，终点是 `.pd-modal-panel`。
    两段式：进场只按**面板当前**矩形算形变，图片比例（media-ratio）到达后
    面板还会走既有的 520ms 变宽过渡 —— 这里不等网络，否则入场被拖住。
 
    ⚠️ 形变只能挂在 panel 上，不能挂 `.pd-modal-overlay`：overlay 是 fixed 铺满，
    而且它是 Vue <Transition> 的根，动它会和 enter/leave 的类名打架。
-   面板自身的 `translateY(12px) scale(.985)` 会被 WAAPI 覆盖，这正是我们要的。 */
+
+   ⚠️ 2026-10-31 改口径：不再是 FLIP 矩形变形，改成 **窗口 clip-path + 内容纵深**
+   （与竖屏整页同一套，见 motion-origin.js 的 insetFromRect）。面板 `1024×752`
+   被卡片 `667×644` 拉伸时 sx/sy 差得不算离谱，但「矩形变形」和竖屏的观感是
+   两套东西 —— 用户要的是同一件事：从点开的那一格推开。 */
 const panelRef = ref(null);
 const panelOriginKey = () => `post-detail:${String(postId.value || '')}`;
 
@@ -94,16 +98,15 @@ const playPanelMorph = async (direction) => {
   await nextTick();
   /* ⚠️ 退场时 `panelRef.value` 已经是 null（2026-10-31 实测，这正是「关闭不缩回」的真因）：
      v-if 翻假的瞬间 Vue 就解绑模板 ref，即使节点被 <Transition> 的 leave 留着继续淡出。
-     所以这里必须回落到 DOM 查询 —— 那 340ms 里节点确实还在文档里，量得到矩形。 */
+     所以这里必须回落到 DOM 查询 —— 那 460ms 里节点确实还在文档里，量得到矩形。 */
   const el = panelRef.value || document.querySelector('.pd-modal-panel');
   if (!el) return false;
   const box = el.getBoundingClientRect();
   if (!box.width || !box.height) return false;
   const target = { left: box.left, top: box.top, width: box.width, height: box.height };
-  const flip = flipFromRect(source, target);
-  if (Math.abs(flip.sx - 1) < 0.03 && Math.abs(flip.sy - 1) < 0.03) return false;
-  const radiusFrom = flipRadius(source.radius || 20, flip.sx, flip.sy, 20);
-  const radiusTo = getComputedStyle(el).borderRadius || '24px';
+  const win = insetFromRect(source, target, { radius: source.radius || 12 });
+  if (!win) return false;
+  const radiusTo = Number.parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
 
   /* ⚠️ 形变期间必须把面板的 `transition-property` 收成只剩 width（2026-10-31 修）。
      起因：关闭时「面板原地微缩 + 淡出」，没有缩回卡片。
@@ -111,9 +114,9 @@ const playPanelMorph = async (direction) => {
      而 Vue 的 enter/leave 类会给面板挂 `transition: transform … / opacity …`：
        · leave-active 面板 transition: transform 340ms + leave-to 的 scale(1.008)
          ⇒ 起跑后 rAF 一加 leave-to，transition 就从当前值走向 scale(1.008)，
-           把 340ms 的 WAAPI 形变整段压掉（元素宽度实测全程 ~1000px 不动）；
+           把 WAAPI 形变整段压掉（元素宽度实测全程 ~1000px 不动）；
        · enter-active 同理（380ms），进场只是「碰巧」因为 transition 起点取到了
-         形变第一帧的值，看起来像在长，实际圆角与不透明度都没参与。
+           形变第一帧的值，看起来像在长，实际圆角与不透明度都没参与。
      只留 width：面板宽度那条 520ms 的「随图变宽」过渡照常工作，
      transform / opacity 的过渡被摘掉，WAAPI 成为唯一真源。
      恢复交给调用方（进场动画结束后置空，退场元素随即被移除）。 */
@@ -122,48 +125,50 @@ const playPanelMorph = async (direction) => {
   };
   el.style.transitionProperty = 'width';
 
+  const duration =
+    direction === 'in' ? motionMs('--motion-morph-in-near', 520) : motionMs('--motion-morph-out', 460);
+  const easing = motionEase('--ease-morph');
+  const depth = motionNum('--morph-depth', 1.12);
+
+  /* 纵深挂在 `.pd-modal-scroll`（面板的内容层）上，原点取卡片中心 ——
+     用默认的 50% 50% 会让放大从面板中心发散，方向与「从这一格推开」相反。 */
+  const inner = el.querySelector('.pd-modal-scroll');
+  const origin = `${(source.left + source.width / 2 - box.left).toFixed(1)}px ${(source.top + source.height / 2 - box.top).toFixed(1)}px`;
+  const depthFrames =
+    direction === 'in'
+      ? [
+          { transform: `scale(${depth.toFixed(3)})`, transformOrigin: origin },
+          { transform: 'scale(1)', transformOrigin: origin },
+        ]
+      : [
+          { transform: 'scale(1)', transformOrigin: origin },
+          { transform: `scale(${depth.toFixed(3)})`, transformOrigin: origin },
+        ];
+  if (inner && depth > 1.001) {
+    void animateMorph(inner, depthFrames, {
+      duration,
+      easing,
+      // 退场同样要保留终态，否则 cancel 的瞬间内容「弹回」1.0
+      keepFinal: direction === 'out',
+    });
+  }
+
   if (direction === 'in') {
-    await animateMorph(
-      el,
-      [
-        {
-          transform: flip.transform,
-          transformOrigin: '0 0',
-          borderRadius: `${radiusFrom}px`,
-          opacity: 0,
-        },
-        // 同 PostDetailMain：0.45 会让「亮起来时已经长完了」，见那边的注释
-        { opacity: 1, offset: 0.2 },
-        { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
-      ],
-      {
-        duration: motionMs('--motion-morph-in-near', 380),
-        easing: motionEase('--ease-morph'),
-      },
-    );
+    // 先钉住起始帧：nextTick 与 animate() 之间跨帧会露出全尺寸的一帧
+    el.style.clipPath = win.value;
+    await animateMorph(el, [{ clipPath: win.value }, { clipPath: insetOpen(radiusTo) }], {
+      duration,
+      easing,
+    });
+    el.style.clipPath = '';
     restoreTransition();
   } else {
-    // 退场比进场短：Vue 在 leave 过渡结束时就摘节点（面板那条是 360ms），
-    // 340ms 必须在它之前落地，否则末帧被截断。
-    void animateMorph(
-      el,
-      [
-        { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
-        { opacity: 0.7, offset: 0.7 },
-        {
-          transform: flip.transform,
-          transformOrigin: '0 0',
-          borderRadius: `${radiusFrom}px`,
-          opacity: 0,
-        },
-      ],
-      {
-        duration: motionMs('--motion-morph-out', 340),
-        easing: motionEase('--ease-morph'),
-        // 退场必须保留终态：否则 cancel 的瞬间面板弹回原尺寸，紧接着才淡出
-        keepFinal: true,
-      },
-    );
+    // 退场保留终态：cancel 的瞬间面板会弹回全屏，紧接着才淡出（P1 事故原样）
+    void animateMorph(el, [{ clipPath: insetOpen(radiusTo) }, { clipPath: win.value }], {
+      duration,
+      easing,
+      keepFinal: true,
+    });
   }
   return true;
 };
@@ -470,9 +475,10 @@ const panelWidth = computed(() => {
 }
 
 .pd-modal-leave-active {
-  /* 退场时长同时是**节点摘除时刻**：面板的缩回形变 340ms（--motion-morph-out）
-     必须短于它，否则末帧被截断（2026-10-31 从 260 提到 360）。 */
-  transition: opacity 360ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  /* 退场时长同时是**节点摘除时刻**：面板的收回形变 460ms（--motion-morph-out）
+     必须短于它，否则末帧被截断（2026-10-31 从 260 → 360 → 500，
+     两次都是跟着 --motion-morph-out 走）。 */
+  transition: opacity 500ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .pd-modal-enter-active .pd-modal-panel {

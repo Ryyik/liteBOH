@@ -9,11 +9,11 @@ import {
   canMorph,
   captureOrigin,
   clearOrigin,
-  flipFromRect,
-  flipRadius,
+  insetFromRect,
+  insetOpen,
   peekOrigin,
 } from '@/utils/motion-origin.js';
-import { motionEase, motionMs } from '@/utils/motion.js';
+import { motionEase, motionMs, motionNum } from '@/utils/motion.js';
 import { playCollapseMorph } from '@/utils/morph-layer.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { Check, Heart, Image as ImageIcon, MessageCircle, Share2 } from 'lucide-vue-next';
@@ -135,20 +135,28 @@ const detailContainerRef = ref(null);
    否则返回时「回哪去」这件事就没了依据。 */
 let entryOriginRect = null;
 
-/* ── 入场形变：从列表卡片长成整页（plans/035 §L4 P2）────────────────────
+/* ── 入场形变：从列表卡片「推开」成整页（plans/035 §L4 P2 / §16）─────────
    ⚠️ 形变**必须发生在导航那一刻**，不能等数据。旧实现挂在 `watch(isLoading)`
    上，顺序变成「骨架屏整页闪一下 → 数据到了才演形变」，观感就是
    「一闪而过，然后内容才出来」，完全不符合「从列表弹出」。
 
    现在形变目标是 `.detail-container`（骨架屏与正文都在它里面），所以：
-     t=0    卡片位置的一张空页框开始长大
-     ~160ms 骨架屏在已经张开的页框里淡入（用户看到的顺序：界面 → 骨架屏）
-     数据到达 正文在页框里淡入，**不再演第二次形变**
+     t=0    卡片位置的一扇窗口开始张开
+     ~160ms 骨架屏在已经张开的窗口里淡入（用户看到的顺序：界面 → 骨架屏）
+     数据到达 正文在窗口里淡入，**不再演第二次形变**
 
    ⚠️ 只能挂 `.detail-container`，不能挂 `.post-detail-page`：底栏
    `.pd-actionbar--page` 是页根的兄弟节点且 `position: fixed`，祖先一旦带
    transform，包含块会被换掉（仓库踩过的事故）。`.detail-container` 里没有
-   fixed 后代，安全。 */
+   fixed 后代，安全。
+
+   ⚠️ 2026-10-31 改口径：**不再是 FLIP 矩形变形**。旧做法把卡片 370×104 直接
+   缩放到 390×800（sx≈0.95 / sy≈0.13），动画中途是一块被纵向拉长七倍的矩形，
+   观感是「橡皮筋扯长」而不是「从这一格打开」。现在改成两层：
+     · 窗口：`clip-path: inset()` 从卡片矩形长到全屏 —— 内容**全程不缩放**；
+     · 纵深：内容从 `--morph-depth`(1.12) 收回到 1，以卡片中心为原点。
+   窗口面积连续变化，不存在旧版「几何跑完内容还没亮」的时钟错位，
+   所以时长可以按用户口径放慢到 620ms。 */
 const playDetailEntryMorph = async () => {
   // 弹窗态由 PostDetailModal 对**面板**做形变；这里再动就是两层形变
   if (props.modalMode) return;
@@ -162,40 +170,41 @@ const playDetailEntryMorph = async () => {
   await nextTick();
   const box = el.getBoundingClientRect();
   if (!box.width || !box.height) return;
-  const flip = flipFromRect(source, {
-    left: box.left,
-    top: box.top,
-    width: box.width,
-    height: box.height,
+  const target = { left: box.left, top: box.top, width: box.width, height: box.height };
+  const win = insetFromRect(source, target, { radius: source.radius || 16 });
+  // 卡片已经盖满目标（同尺寸 / 无位移）就没必要演一遍，否则是一次无意义的「抽搐」
+  if (!win) return;
+
+  const duration = motionMs('--motion-morph-in', 620);
+  const easing = motionEase('--ease-morph');
+  const depth = motionNum('--morph-depth', 1.12);
+
+  /* 纵深挂在 `.detail-content`（`.detail-container` 的唯一子元素）上。
+     原点取**卡片中心**（相对 content 的坐标系）：用默认的 50% 50% 会让放大
+     从页面中心发散，跟「从这一格推开」的方向正好相反。 */
+  const inner = el.firstElementChild;
+  const ox = source.left + source.width / 2 - box.left;
+  const oy = source.top + source.height / 2 - box.top;
+  if (inner && depth > 1.001) {
+    const origin = `${ox.toFixed(1)}px ${oy.toFixed(1)}px`;
+    void animateMorph(
+      inner,
+      [
+        { transform: `scale(${depth.toFixed(3)})`, transformOrigin: origin },
+        { transform: 'scale(1)', transformOrigin: origin },
+      ],
+      { duration, easing },
+    );
+  }
+
+  /* 先把起始帧钉到内联样式上：`nextTick` 与 `animate()` 之间若跨了帧，
+     会露出全尺寸的一帧（表现为「闪一下才开始」）。收尾时清空。 */
+  el.style.clipPath = win.value;
+  await animateMorph(el, [{ clipPath: win.value }, { clipPath: insetOpen(0) }], {
+    duration,
+    easing,
   });
-  // 已经在原位（同尺寸）就没必要演一遍，否则是一次无意义的「抽搐」
-  if (Math.abs(flip.sx - 1) < 0.03 && Math.abs(flip.sy - 1) < 0.03) return;
-  const radiusFrom = flipRadius(source.radius || 20, flip.sx, flip.sy, 20);
-  const radiusTo = getComputedStyle(el).borderRadius || '20px';
-  await animateMorph(
-    el,
-    [
-      {
-        transform: flip.transform,
-        transformOrigin: '0 0',
-        borderRadius: `${radiusFrom}px`,
-        opacity: 0,
-      },
-      /* ⚠️ 这个拐点是「有没有过渡感」的开关，不是随手填的 0.45（旧值）。
-         旧值配合 --ease-drawer 的实测：45% 时间点几何已走完 **94%**，
-         而内容 45% 才亮到 1.0 ⇒ 用户看到的是「骨架消失 → 卡片已经长好 →
-         最后 6% 微动」，观感就是「一闪而过」。
-         现在曲线换成 --ease-morph（峰值在 30–45%），内容在 20% 就亮满
-         （此时几何约 30%、scaleY≈0.63），剩下 80% 的时间走 70% 的位移。 */
-      { opacity: 1, offset: 0.2 },
-      { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
-    ],
-    {
-      duration: motionMs('--motion-morph-in', 460),
-      easing: motionEase('--ease-morph'),
-    },
-  );
-  el.style.transform = '';
+  el.style.clipPath = '';
 };
 
 const isReplySubmitting = ref(false);

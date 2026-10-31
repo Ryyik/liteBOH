@@ -91,6 +91,19 @@ export function motionEase(name, fallback = 'ease') {
 }
 
 /**
+ * 读 `tokens.css` 里的**无量纲**动效参数（如纵深缩放 `--morph-depth: 1.10`）。
+ * 与 `motionMs` 同一条纪律：数值只声明在 CSS，JS 侧不写第二份。
+ * @param {string} name
+ * @param {number} fallback 读不到时的兜底
+ */
+export function motionNum(name, fallback = 1) {
+  if (typeof document === 'undefined') return fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
+  const parsed = Number.parseFloat(String(raw || '').trim());
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
  * 评论区展开时长：内容越高走得越久（局部块 200–460ms 档，标准速）。
  * 公式 `130 + h × 0.36`：120px 的短评 ≈ 200ms（下沿封顶），900px 的长评 ≈ 454ms。
  */

@@ -606,3 +606,98 @@ feed 页唯一常驻入口」）。但 `landscape + ≥1024 + ≥600` 这档左�
 - `probe-forum-viewport.mjs` 的期望矩阵加了 `fab` 列：`landscape=true` 的两档
   `fab=false`，其余（1280×500 / 932×430 / 1000×800 / 各竖屏档）仍是 `true`。
 - `probe-desktop-composer.mjs` 改为点左栏 `[data-rail-action="compose"]`（FAB 兜底）。
+
+---
+
+## 16. 第六轮（2026-10-31）：从「矩形变形」改成「窗口展开 + 纵深」
+
+### 用户反馈
+
+> 「横竖屏感觉都不够体现出是从你点开的地方回去的感觉（回缩）」
+> 「我不是想要那种上下同时缩小然后回去的感觉，我是想要 iOS 打开 APP 的那种感觉」
+> 「那就做窗口和纵深，然后可以过渡慢一点，纵深深一点」「横竖屏都做」
+
+### 前五轮错在哪
+
+前五轮做的都是 **Android shared-element 那套 FLIP**：把卡片 `370×104` 直接
+`scale` 成 `390×800`（`sx≈0.95 / sy≈0.13`）。动画中途出现的是一块**又扁又长的
+矩形** —— 既不是卡片也不是页面，观感是「橡皮筋扯长」。无论把曲线、透明度拐点、
+触发时机怎么调，那个中间态都在，所以怎么调都不像 iOS。
+
+**iOS 从来不做非等比矩形变形**。它做的是：内容一直是最终尺寸、全程不变形，
+变的只是一个从图标位置长到全屏的**裁剪窗口**。
+
+### 新口径
+
+| | 旧（FLIP） | 新（窗口） |
+|---|---|---|
+| 变的属性 | `transform: translate + scale(sx,sy)` | `clip-path: inset()` |
+| 内容 | 被非等比拉伸 | 全屏尺寸，**一帧都不缩放** |
+| 圆角 | 需要 `flipRadius` 反算 `radius/max(sx,sy)` | 直接写卡片的 `round` |
+| 落点 | 缩回后还要淡出交接 | 窗口收回卡片大小即自然露出卡片 |
+| 纵深 | 无 | 内容 `scale(1.12 → 1)`，原点 = 卡片中心 |
+
+新增两个纯函数（`utils/motion-origin.js`）：
+
+- `insetFromRect(source, target, { radius })` → `{top,right,bottom,left,radius,value}`
+- `insetOpen(radius)` → `inset(0px 0px 0px 0px round Npx)`
+
+`flipFromRect` / `flipRadius` **保留**：两个图片查看器还在用（缩略图 → 大图是
+等比小范围放大，没有非等比拉扯问题）。
+
+### 三个连带好处
+
+1. `flipRadius` 那套圆角反算在详情链路上整个消失；
+2. 退场不需要「落点占位」方案 —— 窗口收回卡片大小，卡片本来就在下面；
+3. 内容不会糊：缩放变形会把文字拉成一团，裁剪窗口不会。
+
+### 节奏与纵深（用户口径「慢一点、深一点」）
+
+```
+--motion-morph-in       460 → 620ms
+--motion-morph-in-near  380 → 520ms
+--motion-morph-out      340 → 460ms
+--morph-depth           新增 1.12
+.pd-modal-leave-active  360 → 500ms（它同时是节点摘除时刻）
+```
+
+**为什么这次敢放慢**：旧版「一闪而过」的根因是**时钟错位** —— `--ease-drawer`
+在 45% 时间点已走完 94% 位移，而内容 45% 才亮满。窗口方案里窗口面积是随时间
+**连续**变化的，不存在「几何跑完内容还没亮」，所以放慢不会重演那个问题。
+曲线仍用 `--ease-morph`（峰值 30–45%），不要换回 drawer。
+
+### 实测
+
+竖屏 390×844（`probe-forum-motion` 25/25）：
+
+```
+B1  dur=620   B1b 起跑 44ms（不等数据）
+B2  窗口起点 {4,184,381,476} == 卡片 {4,184,381,476}
+B3  纵深 1.12  B5 落定 clip-path: none  B7 anims=0
+C2b 末帧窗口 {4,184,381,476} == 卡片
+```
+
+横屏 1280×800（卡片 `667×644 @232,78`，面板落定后 `1032×752 @124,24`）：
+
+```
+入场 clip inset(36.03px 115.78px 60.37px 0px round 20px)  dur=520  depth=1.12
+退场 clip inset(53.67px 253.48px 54.01px 104px round 20px)  dur=460  fill=forwards
+     落点 {228,75,675,650} ≈ 卡片 {232,78,667,644}
+```
+
+⚠️ **入场起点会窄 28px，这是夹紧的结果、不是 bug**：卡片左边缘 `232` 在面板
+左边缘 `260` 外面，而 `clip-path: inset()` 不接受负值（负值等于放大）。所以窗口
+只能贴着面板边界张开。1280 宽屏上 28px ≈ 2.2%，肉眼不可辨；退场不受影响
+（方向相反，卡片在面板内部算出来就是正数）。
+
+### 守卫
+
+- 新增 `tests/unit/motion-inset-window.test.js`（9 条纯函数）：四边算法 / 两位小数 /
+  源在目标外夹 0 / 源盖满目标返回 null / 2px 阈值 / 非法输入不抛错。
+- `motion-duration.test.js`：ladder 改 620/520/460 + `--morph-depth` 区间 +
+  「FLIP 不许回潮」（断言 `not.toMatch(/flipFromRect/)`）。
+- `postdetail-modal-morph-guard.test.js`：新增窗口 / 纵深 / `keepFinal` 三条。
+- `probe-forum-motion.mjs` 的 B/C 段改成解析 `clip-path` 换算矩形。
+  ⚠️ 两个解析坑：① 浏览器把 `inset(a b c b)` 归一成 `inset(a b c)`，只认 4 个值会
+  得到 null（B2/C2b 假红）；② WAAPI 的 `getKeyframes()` 对 transform **不一定**
+  序列化成 `matrix`，实测返回 `"scale(1.12)"`，只写 matrix 正则会得到 depth=0。

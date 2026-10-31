@@ -55,7 +55,25 @@ describe('PostDetailModal：关闭必须缩回列表卡片', () => {
   });
 
   it('退场时长取自 --motion-morph-out（与详情整页返程同一个 token）', () => {
-    expect(modalScript).toContain("motionMs('--motion-morph-out', 340)");
+    expect(modalScript).toContain("motionMs('--motion-morph-out', 460)");
+  });
+
+  it('走窗口 clip-path，不再用 FLIP 矩形变形（2026-10-31 三改）', () => {
+    expect(modalScript).toContain('insetFromRect(source, target');
+    expect(modalScript).toContain('clipPath: win.value');
+    // 旧口径：370×104 → 390×800 的非等比缩放，中途是一块被拉长的矩形
+    expect(modalScript).not.toContain('flipFromRect');
+    expect(modalScript).not.toContain('flipRadius');
+  });
+
+  it('纵深挂在面板内容层上，原点取卡片中心（默认 50% 会从面板中心发散）', () => {
+    expect(modalScript).toContain("el.querySelector('.pd-modal-scroll')");
+    expect(modalScript).toContain("motionNum('--morph-depth'");
+    expect(modalScript).toContain('source.left + source.width / 2 - box.left');
+  });
+
+  it('退场形变必须 keepFinal：cancel 的瞬间面板会弹回全屏', () => {
+    expect(modalScript).toContain('keepFinal: true');
   });
 
   it('leave 过渡时长必须长于形变时长，否则末帧被节点摘除截断', () => {

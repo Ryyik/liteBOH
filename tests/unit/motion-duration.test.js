@@ -8,7 +8,9 @@ import { collapseDuration, expandDuration } from '../../src/utils/motion.js';
 // （scripts/probes/probe-forum-motion.mjs 断言"短评/长评耗时差 ≥90ms"）。
 //
 // 2026-10-31 二改：整体节奏由「慢速」档降到**标准**档
-// （用户原话「动画速度都改成标准吧」），档位随 tokens.css 的 --motion-* 同步。
+// （用户原话「动画速度都改成标准吧」）。
+// 2026-10-31 三改：形变改成「窗口 clip-path 展开 + 内容纵深」后，旧版
+// 「几何跑完内容还没亮」的时钟错位不复存在，按用户口径整体放慢到 620/520/460。
 
 const root = resolve(import.meta.dirname, '../..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
@@ -63,22 +65,33 @@ describe('收起时长：恒快于展开', () => {
 describe('节奏档：tokens.css 与消费方的兜底值必须同档', () => {
   const tokens = read('src/styles/common/tokens.css');
 
-  it('标准档 ladder（慢速档 640/480 不许回潮）', () => {
-    expect(tokens).toMatch(/--motion-morph-in:\s*460ms/);
-    expect(tokens).toMatch(/--motion-morph-in-near:\s*380ms/);
-    expect(tokens).toMatch(/--motion-morph-out:\s*340ms/);
+  it('形变 ladder（2026-10-31 三改：改窗口展开后按用户口径放慢）', () => {
+    expect(tokens).toMatch(/--motion-morph-in:\s*620ms/);
+    expect(tokens).toMatch(/--motion-morph-in-near:\s*520ms/);
+    expect(tokens).toMatch(/--motion-morph-out:\s*460ms/);
     expect(tokens).toMatch(/--motion-enter:\s*320ms/);
     expect(tokens).toMatch(/--motion-exit:\s*240ms/);
+  });
+
+  it('纵深 token 已声明且在安全区间（>1 才有纵深，>1.16 会裁出断层）', () => {
+    const depth = Number(/--morph-depth:\s*([\d.]+)/.exec(tokens)?.[1] || 0);
+    expect(depth).toBeGreaterThan(1);
+    expect(depth).toBeLessThanOrEqual(1.16);
   });
 
   it('形变专用曲线 --ease-morph 已声明（drawer 曲线会让入场"一闪而过"）', () => {
     expect(tokens).toMatch(/--ease-morph:\s*cubic-bezier\(0\.3,\s*0\.12,\s*0\.15,\s*1\)/);
   });
 
-  it('详情入场的拐点必须是 0.2（0.45 = 亮起来时已长完了）', () => {
+  it('详情入场走窗口 clip-path + 纵深，FLIP 非等比变形不许回潮', () => {
     const main = read('src/views/PostDetail/PostDetailMain.vue');
-    expect(main).toMatch(/\{ opacity: 1, offset: 0\.2 \}/);
+    expect(main).toMatch(/insetFromRect\(source, target/);
+    expect(main).toMatch(/clipPath: win\.value/);
+    expect(main).toMatch(/motionNum\('--morph-depth'/);
     expect(main).toMatch(/motionEase\('--ease-morph'\)/);
+    // 旧口径（370×104 直接缩放到 390×800，纵向拉七倍）已经废弃
+    expect(main).not.toMatch(/flipFromRect/);
+    expect(main).not.toMatch(/flipRadius/);
   });
 });
 
