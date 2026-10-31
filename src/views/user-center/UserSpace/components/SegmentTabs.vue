@@ -13,7 +13,12 @@
     >
       {{ s.label }}
     </button>
-    <span class="segment-tab-indicator" :style="indicatorStyle" aria-hidden="true"></span>
+    <span
+      class="segment-tab-indicator"
+      :class="{ 'is-animatable': animatable }"
+      :style="indicatorStyle"
+      aria-hidden="true"
+    ></span>
   </div>
 </template>
 
@@ -42,6 +47,18 @@ defineEmits(['update:modelValue']);
 const tabsRef = ref(null);
 const itemRefs = ref([]);
 const indicator = ref({ x: 0, w: 0, ready: false });
+/* ⚠️ 首次落位**不能**播过渡（2026-10-31 修「返回时指示器从官方滑到最新」）。
+ *
+ * 病灶：指示器初值是 `{ x: 0, w: 0 }`，而 `.segment-tab-indicator` 上写着
+ * `transition: transform 300ms …`。于是首帧渲染在 x=0（= 第一席「官方」），
+ * `measure()` 拿到「最新」的 offsetLeft 后改写 → 浏览器照规矩补间 300ms。
+ * 用户看到的是「一条下划线从官方划到最新」，而且只在**重挂载**时出现
+ * （从详情页返回、切页签回来），读起来就像「页面被重新加载了一遍」。
+ *
+ * 做法：只在**用户真的切换**（下面的 watch(modelValue)）时才放开过渡；
+ * 其余的测量（首帧 / ResizeObserver / 字体就绪）一律瞬移落位。
+ * 反过来「等 ready 后再 rAF 放开」不行 —— 字体就绪那次仍然会滑一下。 */
+const animatable = ref(false);
 
 const setItemRef = (el) => {
   if (el) itemRefs.value.push(el);
@@ -64,6 +81,8 @@ const indicatorStyle = computed(() => ({
 watch(
   () => props.modelValue,
   () => {
+    // 只有这一条路径代表「用户切了分区」，滑动反馈是想要的
+    animatable.value = true;
     void measure();
   },
 );
@@ -164,6 +183,12 @@ onUnmounted(() => {
   height: 3px;
   border-radius: 2px;
   background: var(--liquid-text-primary, #1d1d1f);
+  /* 默认**无过渡**：首帧/重挂载/字体就绪这些非用户触发的测量必须瞬移落位，
+     否则会看到下划线从第一席「官方」滑到当前席（见 script 里 animatable 的注释）。 */
+  transition: none;
+}
+
+.segment-tab-indicator.is-animatable {
   transition:
     transform 300ms cubic-bezier(0.3, 1.15, 0.35, 1),
     width 300ms cubic-bezier(0.3, 1.15, 0.35, 1);

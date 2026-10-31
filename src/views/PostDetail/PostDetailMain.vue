@@ -15,6 +15,8 @@ import {
 } from '@/utils/motion-origin.js';
 import { motionEase, motionMs, motionNum } from '@/utils/motion.js';
 import { playCollapseMorph } from '@/utils/morph-layer.js';
+import { mountPageSnapshot } from '@/utils/page-snapshot.js';
+import { markDetailReturning } from '@/utils/detail-return-flag.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { Check, Heart, Image as ImageIcon, MessageCircle, Share2 } from 'lucide-vue-next';
 import UserCenterPageHeader from '../../components/UserCenterPageHeader.vue';
@@ -117,18 +119,19 @@ const authorFrame = computed(() =>
 );
 const isLoading = ref(true);
 
-/* ── 入场形变：从列表卡片长成详情（plans/035 §L2）────────────────────
+/* ── 入场形变：从列表卡片长成详情（plans/035 §L2 / §16）──────────────
    为什么是「容器形变 + 内容淡入」而不是纯 FLIP：详情取数是异步的，
    首帧只有骨架；等数据到了再算终态矩形，才能保证起点落在卡片上。
    形变期间内容 opacity 从 0 起（offset 0.45 到 1）—— 非等比缩放下文字
    会被拉伸，但那几帧它本来就看不见。
 
-   ⚠️ 只形变 `.x-post-card`（正文卡），**绝不能**包到 `.post-detail-page` 上：
+   ⚠️ 形变目标是 `.detail-container`，**绝不能**包到 `.post-detail-page` 上：
    页根里的底栏是 `position: fixed`，祖先一旦带 transform，包含块就被换成
-   那个祖先（规范行为），底栏会被一起缩放、推飞。这是仓库里踩过的坑。 */
-const articleRef = ref(null);
+   那个祖先（规范行为），底栏会被一起缩放、推飞。这是仓库里踩过的坑。
+   返程（playCollapseMorph）克隆的也是同一个盒子，进出两边同一口径。 */
 /* 入场形变的目标：骨架屏与正文的共同祖先（见 playDetailEntryMorph 的注释）。
-   它不含 fixed 后代，所以带 transform 不会换掉底栏的包含块。 */
+   它不含 fixed 后代，所以带 transform 不会换掉底栏的包含块；返程收缩克隆的
+   也是它 —— 进出必须同一个盒子，否则会出现「进去从 y=0 张开、出来只从 y=80 收起」。 */
 const detailContainerRef = ref(null);
 /* 入口那张卡的矩形，留给返程用（plans/035 §L3）。
    `clearOrigin` 会把 map 里的条目删掉（避免被下一次导航复用），所以这里必须留一份，
@@ -167,7 +170,11 @@ const playDetailEntryMorph = async () => {
   if (!source) return;
   clearOrigin(key);
   entryOriginRect = { ...source };
-  await nextTick();
+  /* ⚠️ 这里**不许**再插 `await nextTick()`（2026-10-31 三次报障）：
+     插了以后「挂载 → 首帧绘制」之间没有任何裁剪，实测 open-150 那一帧是
+     **全屏大小的骨架**（整页未裁、也没有窗口和投影），读起来就是闪一下。
+     onMounted 里 DOM 已插入，`getBoundingClientRect` 直接可量（一次同步回流，
+     代价远小于闪一帧）。函数体在第一个 `await` 之前全部同步执行。 */
   const box = el.getBoundingClientRect();
   if (!box.width || !box.height) return;
   const target = { left: box.left, top: box.top, width: box.width, height: box.height };
@@ -178,6 +185,14 @@ const playDetailEntryMorph = async () => {
   const duration = motionMs('--motion-morph-in', 460);
   const easing = motionEase('--ease-morph');
   const depth = motionNum('--morph-depth', 1.12);
+  // `detailPageRoot` 在下方声明（第 238 行左右），这里只在 onMounted 之后才被调用，
+  // 早已初始化完成 —— 不是 TDZ 隐患，但别把它挪到模块顶层同步执行。
+  const rootEl = detailPageRoot.value;
+
+  /* 先把「窗口」定住，再谈动画：clipPath 与 veil 必须在**同一帧**落 DOM，
+     否则第一帧看到的是全尺寸页面。 */
+  rootEl?.classList.add('is-morph-veil');
+  el.style.clipPath = win.value;
 
   /* 纵深挂在 `.detail-content`（`.detail-container` 的唯一子元素）上。
      原点取**卡片中心**（相对 content 的坐标系）：用默认的 50% 50% 会让放大
@@ -197,14 +212,22 @@ const playDetailEntryMorph = async () => {
     );
   }
 
-  /* 先把起始帧钉到内联样式上：`nextTick` 与 `animate()` 之间若跨了帧，
-     会露出全尺寸的一帧（表现为「闪一下才开始」）。收尾时清空。 */
-  el.style.clipPath = win.value;
-  await animateMorph(el, [{ clipPath: win.value }, { clipPath: insetOpen(0) }], {
-    duration,
-    easing,
-  });
-  el.style.clipPath = '';
+  /* 窗口要**看得见**，不能是一块白底上的白窗口（2026-10-31 修「打开闪屏」）：
+     `is-morph-veil` 只在这一段存在：页根铺一层极淡压暗 + 给 `.detail-container`
+     垫页底/投影，于是「一小扇详情窗口在放大」这一步才有边界可看
+     （CSS 见 style.scoped.css 末尾）。veil 与 clipPath 已在上面同步落好了。 */
+  try {
+    await animateMorph(el, [{ clipPath: win.value }, { clipPath: insetOpen(0) }], {
+      duration,
+      easing,
+    });
+  } finally {
+    el.style.clipPath = '';
+    /* ⚠️ 只摘 veil，**绝不能**连 `is-morph-entry` 一起摘：`animation` 规则被移除
+       又加回来时动画会从 0 重新创建，摘掉那一刻整页会再淡入一次 —— 这正是
+       「还是会有那种页面被重新挂载一样的闪」（2026-10-31 二次报障）。 */
+    rootEl?.classList.remove('is-morph-veil');
+  }
 };
 
 const isReplySubmitting = ref(false);
@@ -1558,8 +1581,18 @@ const fetchPostDetail = async () => {
 onMounted(() => {
   currentTheme.value = themeManager.getTheme();
   themeManager.addListener(handleThemeChange);
-  // 入场形变在**导航那一刻**起跑（不等数据），见 playDetailEntryMorph 的注释
-  void nextTick().then(playDetailEntryMorph);
+  /* 页根的 `pd-page-enter` 是 260ms 且 `fill: backwards`（从 opacity 0 起）——
+     晚一帧再关就等于白闪一帧，所以这里**同步**挂 `is-morph-entry`，不等任何
+     `nextTick`。没有入口矩形（深链 / 刷新直接进）就不挂，保留原有整页淡入。
+     ⚠️ 这个类**永久不摘**，理由见 style.scoped.css 末尾那段注释。 */
+  if (!props.modalMode) {
+    const hasOrigin = Boolean(peekOrigin(`post-detail:${postId.value}`));
+    if (hasOrigin) detailPageRoot.value?.classList.add('is-morph-entry');
+  }
+  /* 入场形变在**导航那一刻**起跑（不等数据），而且必须**同步**跑：
+     函数体在第一个 `await` 之前会把 clipPath / veil 落到 DOM 上，
+     晚一帧就等于把「全尺寸骨架」闪一下（实测 open-150 那一帧）。 */
+  void playDetailEntryMorph();
   fetchPostDetail();
   document.addEventListener('click', handleDocumentClick);
   releaseEditPortraitWatch = onForumPortraitComposerChange((matches) => {
@@ -1621,9 +1654,42 @@ onBeforeRouteLeave((to) => {
      点作者会去 UserProfile —— 那些目的地根本没有「入口那张卡」，照旧收缩就是
      「这一页折进了一个不存在的位置」。判据是目的路由是不是列表宿主（首页 / 用户中心）。 */
   if (entryOriginRect && LIST_ROUTE_NAMES.has(String(to?.name || ''))) {
-    void playCollapseMorph(articleRef.value, entryOriginRect, {
-      duration: motionMs('--motion-morph-out', 340),
-    });
+    /* 克隆的**必须是 `.detail-container`**，与入场窗口的终点同一个盒子 ——
+       入场是「这个盒子从卡片矩形张开」，返程是「这个盒子收回到卡片矩形」，
+       两边同一口径才不会出现「进去时从 y=0 张开、出来时只从 y=80 收起」的错位。
+
+       以前克隆的是正文卡 `.x-post-card`，它同时带 `.glass-panel`，在页面上靠
+       `.post-detail-page .x-post-card { background: transparent; border-radius: 0 }`
+       覆盖成「无底直角」；克隆挂到 body 下后祖先选择器不再命中，于是整块塌成
+       白玻璃（rgba(255,255,255,.8) + 24px 圆角 + 阴影）—— 这就是用户看到的
+       「返回时一块异常白色区块」。现在由 morph-layer 建一层页面根的样式上下文壳，
+       并显式垫上页面底色，观感才回到「这一页被收进那一格」。 */
+    const ghostSource = detailContainerRef.value;
+    const pageBg = getComputedStyle(rootEl).backgroundColor;
+    /* 先把「刚才那张列表」的快照铺到最底下（点击时就采好的，见 page-snapshot.js）：
+       返回时列表是**重新挂载**的，实测 400ms 时 feed 里 0 张卡、1–2s 才换成真卡片。
+       这段时间正好和收缩重叠，不盖就是「窗口在缩、背后一片白」。
+       垫层会自己盯着真列表 —— 卡片一出现就摘掉，交接看不出来。 */
+    mountPageSnapshot();
+    if (ghostSource) {
+      void playCollapseMorph(ghostSource, entryOriginRect, {
+        duration: motionMs('--motion-morph-out', 340),
+        context: rootEl,
+        backdrop: pageBg,
+      });
+    }
+
+    /* 返回列表期间，列表绝不能重播自己的入场动画（2026-10-31 修「关闭闪屏」）。
+       病灶：列表组件是重新挂载的，`.post-card-v2` 每次都从 `opacity: 0` 播
+       forumPostCardEnter（420ms + 最多 360ms 交错延迟），而这 300ms 正好是
+       克隆窗口收缩、背后**应该**已经露出卡片的那段时间 —— 两者撞上就是「白底上
+       一扇窗口在缩，缩完才闪出一批卡片」。
+       做法：在 `<html>` 上挂一次性标记，列表侧 CSS 命中后跳过入场（见
+       `Forum/styles/feed.css` 与 `UserSpace/styles/shell-community.css`）。
+       ⚠️ **自摘时刻的起算点是「列表挂载」而不是这里**（原来是 900ms 硬定时器，
+       实测会 re-seek 回动画中间帧 → 用户报的「列表整个像刷新了一样抖了一下」）。
+       细节与实测数据见 `utils/detail-return-flag.js` 文件头。 */
+    markDetailReturning();
   }
   rootEl.classList.add('is-page-leaving');
   return new Promise((resolve) => {
@@ -2908,7 +2974,6 @@ const handleChangeCommentSortMode = async (mode) => {
         <div v-else class="post-x-layout">
           <div class="x-main-column">
             <article
-              ref="articleRef"
               class="x-post-card glass-panel"
               :class="{
                 'tier-plus': authorTierCode === 'plus',

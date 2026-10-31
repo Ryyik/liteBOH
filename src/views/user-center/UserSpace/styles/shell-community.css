@@ -287,6 +287,61 @@
   z-index: 1;
 }
 
+/* ---------- 「切 tab 不重播入场」（2026-10-31）----------
+   报障原文：「底部导航栏来回切的时候会有闪白，或看起来像刷新了一下」。
+   实测（390×844 / CDP screencast 逐帧）：从「我」切到「内容」后约 200ms 内
+   near-white 像素占比 39% → 95%，之后才回落。白的是**内容不是背景**：
+   本文件的 tab 淡入（240ms，opacity 0→1）+ feed.css 的 forumPostCardEnter
+   （420ms，同样从 0 起、按 --post-appear-delay 交错）叠在纯白页底上 = 空屏。
+   入场动画属于「挂载」不属于「显示」；判据由 UserSpaceMain 的 armTabNoReplay
+   决定，命中时页根**永久**挂 .tab-no-replay（直到本页实例卸载）。
+   ⚠️ 别做成「挂一段时间再摘」：摘掉的那一刻 animation 规则被重新加上，动画会
+   从 0 重新创建，实测挂 640ms 后摘、500ms 处卡片又掉回 opacity 0.86 ——
+   白帧没消掉，只是往后挪了。
+   ⚠️ 也不要图省事写成 `.tab-no-replay * { animation: none }`：实测会把消息 tab 的
+   加载态和胶囊指示器一起掐掉，切过去停在空白，比原问题更糟。 */
+.user-space-page.tab-no-replay .posts-feed,
+.user-space-page.tab-no-replay .forum-virtual-post,
+.user-space-page.tab-no-replay .stagger-list > *,
+.user-space-page.tab-no-replay .post-card,
+.user-space-page.tab-no-replay .post-card-v2,
+.user-space-page.tab-no-replay .profile-post-card,
+.user-space-page.tab-no-replay .profile-hero-panel,
+.user-space-page.tab-no-replay .profile-content-panel,
+.user-space-page.tab-no-replay .profile-service-panel,
+.user-space-page.tab-no-replay .message-row {
+  /* ⚠️ 用「时长归零」而不是 `animation: none`：`Forum/styles/base.css` 的
+     `.fade-in-up` 把 `opacity: 0` 写进了基础规则、靠动画 fill 抬到 1，
+     禁用动画会让它整块消失（2026-10-31 在快照垫层上实证过）。归零＝直接到终帧。 */
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+}
+
+/* tab 容器本身的淡入只在竖屏手机（底栏形态）跳过：桌面的方向位移是有意义的
+   空间提示，而且桌面内容切换不靠这条淡入来遮白。 */
+@media (max-width: 768px) {
+  .user-space-page.tab-no-replay .tab-page {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
+/* ---------- 从详情页返回：「内容」tab 也不重播入场（2026-10-31）----------
+   与上面 .tab-no-replay 同因，只是触发源不同：这里是详情页离场时给 `<html>`
+   打了 `data-boh-detail-returning`（自摘时刻见 `utils/detail-return-flag.js`：
+   **列表挂载 + 1400ms**，不是固定 900ms）。用户中心是「点帖子→详情→
+   返回」的主路径之一，若漏掉这段，返回时会先白 300ms 再亮起卡片。
+   ⚠️ 只在竖屏跳过 tab 淡入，理由同上（桌面方向位移是有意义的空间提示）。 */
+html[data-boh-detail-returning] .user-space-page .tab-page,
+html[data-boh-detail-returning] .user-space-page .posts-feed,
+html[data-boh-detail-returning] .user-space-page .post-card-v2,
+html[data-boh-detail-returning] .user-space-page .profile-hero-panel,
+html[data-boh-detail-returning] .user-space-page .profile-content-panel,
+html[data-boh-detail-returning] .user-space-page .profile-service-panel {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+}
+
 /* ⚠️ reduced-motion 基线统一放在**本文件末尾**（见文件最后一块）。
    reduce 规则与目标动画规则同特异性时靠源序取胜：写在这里会被文件后半段的
    动画规则（.skeleton-line:477、forum-card-in:533、.expand-* 等）反超而失效。 */

@@ -1323,3 +1323,60 @@
     opacity: 1;
   }
 }
+
+/* ══ 从详情页返回列表：不重播任何入场动画（2026-10-31）════════════════
+   用户报障两连：「回缩关闭的时候应该能看到列表内容了」→ 修完又报
+   「返回的时候还是会让列表整个像刷新了一样短暂的抖了一下」。
+
+   实测（`scripts/probes/_tmp-flash-frames.mjs` + `_tmp-close-timeline.mjs`）三条叠加：
+     ① `.post-card-v2` 一挂载就从 opacity 0 播 forumPostCardEnter（420ms，
+        `--post-appear-delay` 最多再叠 360ms）；
+     ② `.posts-feed` 自带 `fade-in-up`（1s、`translateY(30px) → 0`）——
+        **整块列表往上抬 30px**，这就是用户说的「抖了一下」；
+     ③ 返回目的地不固定（首页 / 用户中心 / 个人页），必须用 `html[...]` 前缀
+        才盖得全，挂容器类一定会漏。
+
+   ⚠️ 标记的**自摘时刻**由 `utils/detail-return-flag.js` 管（列表挂载 + 1400ms），
+   不要在这里或详情页里另设固定定时器：摘早了会把 `animation-duration` 从 0s
+   改回 1s，浏览器按「已过时间 / 新时长」把动画 re-seek 到中间帧 ——
+   实测摘在 900ms 时 `.posts-feed` 被拉回 `fadeInUp` 的 85%（`translateY` 0→1.1px、
+   `opacity` 1→0.963，再花 330ms 爬回），正是用户报的「列表像刷新了一样抖一下」。
+   改到「列表挂载 + 1400ms」后实测 Δtop=0 / Δopacity=0。
+
+   ⚠️⚠️ **不能写 `animation: none !important`**：`Forum/styles/base.css` 里
+   `.fade-in-up { animation: … forwards; opacity: 0; transform: translateY(30px) }`
+   —— 可见性是由动画的 fill 撑住的，禁用动画 = 退回 opacity 0 = 整块列表消失。
+   正确做法是让动画**立刻跑到终点**（时长/延迟归零、保留 fill），终帧就是「已在位」。
+   同一条纪律在 `utils/page-snapshot.js` 与 `utils/morph-layer.js` 里各记了一份。 */
+html[data-boh-detail-returning] .posts-feed,
+html[data-boh-detail-returning] .posts-list,
+html[data-boh-detail-returning] .forum-virtual-post,
+html[data-boh-detail-returning] .stagger-list > *,
+html[data-boh-detail-returning] .post-card,
+html[data-boh-detail-returning] .post-card-v2,
+html[data-boh-detail-returning] .posts-feed.is-feed-entering .post-card-v2,
+html[data-boh-detail-returning] .forum-empty {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+}
+
+/* ══ 底栏切回「内容」：整页重挂也不重播入场（2026-10-31）══════════════
+   与上面 data-boh-detail-returning 同因不同源：底栏「内容 / 我 / 图库」是
+   三个独立路由，来回切 = ForumMain 整页重挂，`.posts-feed` 的 fade-in-up
+   （1s、还带 inline `animation-delay: 0.2s`）和卡片 forumPostCardEnter 又
+   从 opacity 0 重播 —— 用户报障「切到我的页面还是白屏」的对称面
+   （我→内容 同样白）。ForumMain 挂载时若属应用内导航
+   （`history.state.back` 有值）会打 `data-boh-nav-returning`，卸载时摘掉。
+   冷加载（back 为 null）不打标记，首次进场动画保留。
+   ⚠️ 同一条纪律：**时长归零**而不是 `animation: none`（见上段注释）。 */
+html[data-boh-nav-returning] .posts-feed,
+html[data-boh-nav-returning] .posts-list,
+html[data-boh-nav-returning] .forum-virtual-post,
+html[data-boh-nav-returning] .stagger-list > *,
+html[data-boh-nav-returning] .post-card,
+html[data-boh-nav-returning] .post-card-v2,
+html[data-boh-nav-returning] .posts-feed.is-feed-entering .post-card-v2,
+html[data-boh-nav-returning] .forum-empty {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+}

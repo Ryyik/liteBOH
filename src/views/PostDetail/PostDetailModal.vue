@@ -135,8 +135,11 @@ const playPanelMorph = async (direction) => {
   const duration =
     direction === 'in'
       ? motionMs('--motion-morph-in-near', 380)
-      : motionMs('--motion-morph-out', 340);
-  const easing = motionEase('--ease-morph');
+      : motionMs('--motion-morph-out', 360);
+  /* 进 / 出**不同曲线**：入场用 --ease-morph（峰值压到 30–45%，全程都有可见运动），
+     退场用 --ease-morph-out（前载，立刻响应 + 末段轻贴）—— 与竖屏整页返程同口径，
+     理由见 tokens.css 那两条注释（入场用前载曲线会变成「一闪而过」）。 */
+  const easing = motionEase(direction === 'in' ? '--ease-morph' : '--ease-morph-out');
   const depth = motionNum('--morph-depth', 1.12);
 
   /* 纵深挂在 `.pd-modal-scroll`（面板的内容层）上，原点取卡片中心 ——
@@ -183,15 +186,35 @@ const playPanelMorph = async (direction) => {
        `.pd-modal-leave-to` 的 `opacity: 0` 瞬间生效 —— 实测 t=43ms 面板 opacity 已 0.00，
        于是「窗口收到卡片」这 340ms 全程在**全透明**里跑，用户只看得到遮罩淡出。
 
-       也不能把 opacity 塞进上面那条的关键帧：曲线是**前载**的（--ease-morph 在
-       45% 墙钟时间已走完 79% 进度），`offset: 0.78` 实际会被跨过在 ~53% 的时间点，
-       后两成行程又变回全透明 —— 窗口还没落到卡片上就消失了。
-       linear 的 offset 才是墙钟时间：前 78%（265ms）完全可见，最后 1/5 交给底下那张卡。 */
-    void animateMorph(el, [{ opacity: 1 }, { opacity: 1, offset: 0.78 }, { opacity: 0 }], {
-      duration,
-      easing: 'linear',
-      keepFinal: true,
-    });
+       也不能把 opacity 塞进上面那条的关键帧：几何走的是**前载**曲线（返程
+       --ease-morph-out 在 45% 墙钟时间已走完 94%），关键帧 offset 会被几何进度
+       带偏 —— 同一个 offset 在不同曲线上落到完全不同的「窗口大小」上。
+       linear 的 offset 才是墙钟时间，所以这里按**时间**排淡出窗口。
+
+       淡出窗口（2026-10-31 用户「快回到原本列表大小的时候该窗口应该已经要渐隐
+       消失了」）：**0.25 起淡、0.65 归零**，与竖屏返程（`morph-layer.js`）同一组值。
+         · offset 0.25 ⇒ 几何 ~84%，窗口还明显大于卡片 → 这时才开始变淡；
+         · offset 0.65 ⇒ 几何 ~97.5%，基本等于卡片 → 这时已完全透明。
+       旧值（0.78 起淡、1.0 归零）等于「前 78% 全亮、窗口已经跟卡片一样大了才
+       开始消失」，正是用户看到的「一块亮窗口一路贴到卡片上」。
+
+       ⚠️⚠️ **末帧必须显式 `offset: 1`**：WAAPI 对「末关键帧没有 offset 1」的
+       关键帧列表会自动追加一个隐式帧，取元素的 underlying value（opacity 1）
+       ⇒ 淡出到 0.65 之后会**反弹回不透明**（实测 200ms 0.005 → 260ms 0.92）。 */
+    void animateMorph(
+      el,
+      [
+        { opacity: 1 },
+        { opacity: 1, offset: 0.25 },
+        { opacity: 0, offset: 0.65 },
+        { opacity: 0, offset: 1 },
+      ],
+      {
+        duration,
+        easing: 'linear',
+        keepFinal: true,
+      },
+    );
   }
   return true;
 };

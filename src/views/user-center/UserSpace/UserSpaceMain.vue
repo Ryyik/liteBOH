@@ -5,6 +5,8 @@
     :class="{
       'tab-transition-forward': tabTransitionDirection === 'forward',
       'tab-transition-back': tabTransitionDirection === 'back',
+      // 切回已显示过的 tab：跳过入场动画（否则每次切回来都从 opacity 0 重放一遍 = 闪白）
+      'tab-no-replay': tabNoReplay,
       'edge-swipe-active': isEdgeSwiping,
       'community-tab-active': currentTab === 'community' && !isForumFeedSection(communitySection),
     }"
@@ -868,6 +870,43 @@ const { currentTab, navIndicatorStyle, ensureTabMounted, mountedTabs } = useUser
   navItems,
   initialUserSpaceTab,
 );
+
+/* ── 「切 tab 不重播入场」（2026-10-31）──────────────────────────────────
+   用户报障：「底部导航栏来回切的时候会有闪白，或看起来像刷新了一下」。
+   实测（390×844，CDP screencast 逐帧）：从「我」切到「内容」后约 200ms 内
+   near-white 像素占比 39% → 95%，之后才回落。白的是**内容，不是背景**：
+   `.tab-page` 淡入 240ms（opacity 0→1）、帖子卡 forumPostCardEnter 420ms
+   交错（同样从 0 起），叠在纯白页底上就是一段空屏。
+   判据：**入场动画属于「挂载」，不属于「显示」**。
+     · 目标 tab 已经挂载过（v-show 的三个主 tab 恒真）= 这次只是显示，
+       跳过入场，切过去就是「已经在那儿」；
+     · 资产 / 设置是 v-if 懒挂载，首次打开仍保留入场 —— 那一次确实是新内容进场；
+     · 整个页面是会话内第二次进入（底栏「内容 / 我 / 图库」是三个独立路由，
+       来回切等于整页重挂）时，挂载那一刻的入场也一并跳过。
+       闩锁挂 window 而不是模块变量（与底栏入场闩锁同一套口径：dev 下同一组件
+       可能被两条 import 路径解析成两个模块实例，模块变量各记各的等于没锁）。
+   命中后页根**永久**挂 `.tab-no-replay`（直到本页实例卸载），CSS 见
+   styles/shell-community.css 同名段落。
+   ⚠️ 别做成「挂 640ms 后摘」：摘掉的那一刻动画会被重新创建、从 opacity 0 重播，
+   实测 500ms 处卡片又掉回 0.86 —— 白帧没消掉，只是往后挪了。
+   ⚠️ 也别改成 `.tab-no-replay * { animation: none }`：会把消息 tab 的加载态
+   和胶囊指示器一起掐掉，切过去直接停在空白，比原问题更糟。 */
+const tabNoReplay = ref(false);
+const armTabNoReplay = () => {
+  tabNoReplay.value = true;
+};
+
+if (typeof window !== 'undefined') {
+  if (window.__bohUserSpaceTabReplayed === true) armTabNoReplay();
+  window.__bohUserSpaceTabReplayed = true;
+  /* 会话内**第一次**进 user-space 也要分两种（2026-10-31 用户报障「切到我的页面
+     还是白屏」实测补的洞）：底栏切过来属于应用内导航（history.state.back 有值，
+     因为「内容 / 我 / 图库」是独立路由，切换等于整页重挂），入场动画在白底上
+     从 opacity 0 重播一遍，观感就是白屏 —— 跳过；只有冷加载（直接刷新 /
+     首次打开落在 user-space，back 为 null）才保留入场，那一次才是真正意义的
+     「页面进场」。必须放在 setup 同步执行：晚一个 tick 类名就和首帧错开。 */
+  if (window.history?.state?.back) armTabNoReplay();
+}
 
 const getTabOrderIndex = (tabId) => {
   const index = navItems.findIndex((item) => item.id === tabId);
@@ -2509,6 +2548,16 @@ const switchTab = (tabId) => {
 
   updateTabTransitionDirection(tabId);
 
+  /* 判据：目标 tab 已经挂载过 ⇒ 这次只是「显示」，不是「挂载」——跳过入场。
+     community / posts / messages 三个主 tab 是 v-show 常驻（mountedTabs 只反映
+     assets / settings 这两个 v-if 懒挂载位），页面加载时它们的入场动画已经
+     在隐藏状态里「播」过一遍了，切过来再看一遍纯属闪白。
+     必须写在 `currentTab.value = tabId` 之前：类名要和 v-show 的显隐在同一帧
+     落到 DOM 上，晚一帧入场动画就先跑起来了（实测白帧依旧）。
+     详见上方 armTabNoReplay 的注释。 */
+  const isLazyMountTab = tabId === 'assets' || tabId === 'settings';
+  if (!isLazyMountTab || mountedTabs[tabId]) armTabNoReplay();
+
   // ⚠️ 资产内层面板必须在 ensureTabMounted **之前**归位：
   // AssetsHubPanel 在挂载时读一次 initial-view，晚于挂载设置会拿到上一轮的旧值 ——
   // 2026-10-26 实测表现就是「?tab=assets&panel=decor 冷加载落到首页」。
@@ -3713,6 +3762,8 @@ onUnmounted(() => {
     clearTimeout(clearLeavingTabTimer);
     clearLeavingTabTimer = null;
   }
+  // ⚠️ 这里原本清 `replayGuardTimer`，但守卫已改成「永久挂载直到本页卸载」
+  // （见 tabNoReplay 注释：定时摘类会让动画从 0 重播），故不再有计时器可清。
   // 移除主题变化监听
   themeManager.removeListener(handleThemeChange);
 });

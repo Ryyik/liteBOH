@@ -2212,3 +2212,59 @@
     width: 100%;
   }
 }
+
+/* ══ 入场形变的「窗口」口径（2026-10-31）══════════════════════════════
+   用户报障：「打开的时候就应该已经能看到一小部分详情窗口在放大了」
+   → 修完后追加报障「还是会有那种页面被重新挂载一样的闪」。
+
+   实测（`scripts/probes/_tmp-morph-frames.mjs`）第一版现象：open-30 的截图是
+   **一整片白** + 顶部一行「‹ 加载中…」，虽然 `clip-path` 确实在按卡片矩形张开。
+   两个原因叠在一起，缺一不可：
+    ① 页根自己还在播 `pd-page-enter`（260ms，`fill: backwards` 从 opacity 0 起）
+       ⇒ t=0 时整页透明，剪出来的窗口里空无一物；
+    ② `.detail-container` 自身**没有底色**，它平时靠页根的 `--boh-page-bg` 透出来，
+       剪小之后窗口区域和白页底同色 ⇒ 没有边界。
+
+   ⚠️⚠️ 所以类必须拆成**两个**，一个永久、一个临时 —— 这是第二次报障的根因：
+   `animation` 规则一旦被移除又加回来，动画会**从 0 重新创建**（本仓
+   `tab-no-replay` 那一段踩的是同一个坑）。第一版把整组写在 `.is-morph-in` 上、
+   形变结束就摘掉 ⇒ 摘掉那一刻 `pd-page-enter` 与 `.detail-content` 的
+   `fadeInUp` 双双复活，页面在打开完成后**又整页淡入一次**，读起来就是
+   「页面被重新挂载了一下」。
+
+   · `.is-morph-entry` —— **永久**（到本页卸载为止），只负责「不许播入场」；
+   · `.is-morph-veil`  —— 形变期间，负责「窗口看得见」（压暗 + 垫底 + 投影），
+     结束后摘掉，页面回到原底色。
+
+   ⚠️ `.is-morph-entry` 必须 `:not(.is-page-leaving)`：离场时根元素要播
+   `pd-page-leave`，同特异性下按源序本组会赢、把离场淡出吃掉。
+   ⚠️ 特异性必须 ≥ `.post-detail-page:not(.post-detail-page--modal)`（0,2,0），
+   本组 (0,3,0)/(0,4,0) 并写在文件末尾，顺序与特异性双保险。 */
+.post-detail-page.is-morph-entry:not(.post-detail-page--modal):not(.is-page-leaving) {
+  animation: none;
+}
+
+.post-detail-page.is-morph-entry:not(.post-detail-page--modal) .detail-content {
+  animation: none;
+}
+
+.post-detail-page.is-morph-veil:not(.post-detail-page--modal) {
+  background-color: transparent;
+}
+
+.post-detail-page.is-morph-veil:not(.post-detail-page--modal)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-color: var(--boh-page-bg, #ffffff);
+  background-image: linear-gradient(rgba(15, 23, 42, 0.1), rgba(15, 23, 42, 0.1));
+  pointer-events: none;
+}
+
+.post-detail-page.is-morph-veil:not(.post-detail-page--modal) .detail-container {
+  position: relative;
+  z-index: 1;
+  background-color: var(--boh-page-bg, #ffffff);
+  box-shadow: 0 30px 90px rgba(15, 23, 42, 0.24);
+}

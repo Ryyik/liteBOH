@@ -31,6 +31,15 @@ const check = (name, ok, detail = '') => {
   results.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`);
 };
 
+/* `rgb(…)/rgba(…)/color(srgb …)` 都取 alpha；无 alpha 段视为不透明。
+   用于 C1c：白玻璃 rgba(255,255,255,.8) 与页底 rgb(255,255,255) 的可判定差异只有 alpha。 */
+const alphaOf = (color) => {
+  const m = String(color || '').match(/rgba?\(([^)]+)\)/);
+  if (!m) return 1;
+  const parts = m[1].split(/[,\s/]+/).filter(Boolean);
+  return parts.length >= 4 ? Number(parts[3]) : 1;
+};
+
 const browser = await chromium.launch({
   channel: 'chrome',
   headless: true,
@@ -41,6 +50,9 @@ const newPage = async (opts = {}) => {
   const page = await browser.newPage({ viewport: PORTRAIT, ...opts });
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2600);
+  /* 硬等 2600ms 不够：实测后端慢的时候首卡到 6s 才出现，A0/B0 会假红
+     （「feed 里没有图片帖」其实只是还没加载完）。等卡片，等不到再交给断言报错。 */
+  await page.waitForSelector('.post-card-v2', { timeout: 20000 }).catch(() => {});
   return page;
 };
 
@@ -325,9 +337,18 @@ try {
       Number(first?.depth) > 1.05 && Number(first?.depth) < 1.2,
       `depth=${first?.depth}`,
     );
+    /* 时长断言必须读 token，不能写死毫秒 —— 否则「调慢过渡」这种纯产品决策会把
+       探针打红，而探针该守的是「走的是同一颗 token」，不是那顆 token 的数值。 */
+    const tokenIn = await page.evaluate(() =>
+      Math.round(
+        parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--motion-morph-in'),
+        ) || 0,
+      ),
+    );
     check(
-      'B4 形变时长走 --motion-morph-in（标准档 460）',
-      Number(first?.dur) === 460,
+      `B4 形变时长走 --motion-morph-in（= ${tokenIn}ms）`,
+      Number(first?.dur) === tokenIn,
       `dur=${first?.dur}`,
     );
     check(
@@ -365,6 +386,7 @@ try {
         const ghost = document.querySelector('.boh-morph-ghost');
         if (ghost) {
           const b = ghost.getBoundingClientRect();
+          const cs = getComputedStyle(ghost);
           const anims = ghost.getAnimations();
           // 收缩那条带 clipPath（另一条是 opacity），不能取 [0] 撞运气
           const anim = anims.find((a) => {
@@ -383,6 +405,13 @@ try {
               width: Math.round(b.width),
               height: Math.round(b.height),
             },
+            // 「异常白色区块」的三条判据（2026-10-31 用户报障）
+            bg: cs.backgroundColor,
+            radius: cs.borderTopLeftRadius,
+            shadow: cs.boxShadow,
+            // 样式上下文壳：没有它，克隆会回落到 .glass-panel 的白玻璃
+            inContext: Boolean(ghost.parentElement?.classList.contains('boh-morph-context')),
+            viewportWidth: window.innerWidth,
           };
         }
         await sleep(16);
@@ -398,6 +427,36 @@ try {
       'C2 克隆层有窗口收缩 + 淡出两条动画',
       Number(ghostSeen.anims) >= 2,
       `anims=${ghostSeen.anims}`,
+    );
+    /* C1b–C1e：「返回时一块异常白色区块」的四条判据（2026-10-31 用户报障）。
+       真因不是收缩位置，而是**克隆脱离了页面根的样式上下文**：正文卡同时带
+       `.glass-panel`，页面上靠 `.post-detail-page .x-post-card { background: transparent;
+       border-radius: 0 }` 覆盖成「无底直角无影」，克隆挂到 body 下后那条祖先选择器
+       不再命中 ⇒ 回落到白玻璃（实测 rgba(255,255,255,.8) + 24px 圆角 + 阴影），
+       于是「这一页收进那一格」变成「一块白色圆角面板压在列表上缩下去」。
+       现在由 morph-layer 建一层页面根的「样式上下文壳」，并显式垫页面底色。 */
+    check(
+      'C1b 克隆挂在 .boh-morph-context 壳里（脱离页面根就会塌成白玻璃）',
+      ghostSeen.inContext === true,
+      `inContext=${ghostSeen.inContext}`,
+    );
+    check(
+      'C1c 克隆底色是不透明页底（不是 rgba(255,255,255,.8) 玻璃）',
+      alphaOf(ghostSeen.bg) >= 0.99,
+      String(ghostSeen.bg),
+    );
+    check(
+      'C1d 克隆无圆角 / 无阴影（详情页口径，不是玻璃卡口径）',
+      ghostSeen.radius === '0px' && ghostSeen.shadow === 'none',
+      `r=${ghostSeen.radius} shadow=${ghostSeen.shadow}`,
+    );
+    check(
+      'C1e 窗口与视口同宽且从顶端起（克隆 .detail-container，与入场终点同一盒子）',
+      Boolean(ghostSeen.rect) &&
+        ghostSeen.rect.left === 0 &&
+        ghostSeen.rect.top === 0 &&
+        Math.abs(ghostSeen.rect.width - ghostSeen.viewportWidth) <= 1,
+      `${JSON.stringify(ghostSeen.rect)} vw=${ghostSeen.viewportWidth}`,
     );
     /* C2b 是最关键的一条：末帧落点必须回到**入口那张卡**的矩形。
        只断言「有收缩动画」是没牙的 —— 收错地方一样在动。
@@ -468,7 +527,11 @@ try {
   {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(3000);
+    /* 只等 3000ms 不够：实测首卡要 6s 才出，且启动期页面会自跳转一两次
+       （NAV @2.1s / 2.7s），这段时间里点下去的 click 会被丢掉 —— E0 有卡片矩形、
+       E1 却等不到面板。等卡片出现再点。 */
+    await page.waitForSelector('.post-card-v2', { timeout: 25000 }).catch(() => {});
+    await page.waitForTimeout(600);
     const cardRect = await page.evaluate(async () => {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       for (let i = 0; i < 60; i += 1) {
@@ -517,12 +580,23 @@ try {
         }
         return null;
       });
+      const tokenNear = await page.evaluate(() =>
+        Math.round(
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue('--motion-morph-in-near'),
+          ) || 0,
+        ),
+      );
       check(
-        'E2 入场有窗口形变动画（--motion-morph-in-near 380）',
+        `E2 入场有窗口形变动画（--motion-morph-in-near = ${tokenNear}ms）`,
         Boolean(entry),
         entry ? `dur=${entry.dur}` : '没等到',
       );
-      check('E2b 入场时长是短距离档 380', Number(entry?.dur) === 380, `dur=${entry?.dur}`);
+      check(
+        'E2b 入场时长走 --motion-morph-in-near',
+        Number(entry?.dur) === tokenNear,
+        `dur=${entry?.dur} 期望 ${tokenNear}`,
+      );
       /* 起点夹紧说明：卡片左缘可能落在面板左缘之外（面板此时还是 760 宽，
          卡片 232 在 260 外面）⇒ inset 不能为负，只能贴面板边界。所以容差给 40。 */
       if (entry) {
@@ -594,16 +668,41 @@ try {
       });
 
       const live = closing.samples.filter((s) => !s.gone);
-      const mid = live.find((s) => s.t >= 150 && s.t <= 260);
+      const tokenOut = await page.evaluate(() =>
+        Math.round(
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue('--motion-morph-out'),
+          ) || 0,
+        ),
+      );
+      /* E3/E3b 拆成「前段可见」+「行程结束前已淡完」两条（2026-10-31 改）。
+         旧口径是「t∈150–260ms 时 op ≥ 0.55」，它守的是「别一上来就全透明」这个
+         **反证**，但把时刻写死了：用户随后要求「快回到原本列表大小的时候该窗口
+         应该已经要渐隐消失了」，淡出窗口整体前移，那条 150–260ms 的采样点正好落在
+         **应该淡掉**的区间里 —— 守的是旧观感，不是意图。 */
+      const early = live.find((s) => s.t <= 100);
       check(
-        'E3 收缩中段面板**还看得见**（2026-10-31 报障：43ms 就 op=0，等于没动画）',
-        Boolean(mid) && mid.op >= 0.55,
-        mid ? `t=${mid.t}ms op=${mid.op}` : '没采到 150–260ms 的帧',
+        'E3 收缩前段窗口还是实心的（2026-10-31 报障：43ms 就 op=0，等于没动画）',
+        Boolean(early) && early.op >= 0.8,
+        early ? `t=${early.t}ms op=${early.op}` : '没采到 ≤100ms 的帧',
+      );
+      /* 为什么不按「窗口高度 vs 卡片高度」判：横屏弹窗的几何差只有 758→644，
+         前载曲线在 45% 时间点就走完 94%，任何「还差 5%」的时刻窗口只大 2–3px ——
+         比值判据在那条路径上必然假红。这里改判**影子的存活时间**：
+         渐隐必须在前 72% 的总时长内结束，最后一段留给列表本身。
+         （竖屏返程同一组关键帧 offset，见 morph-layer.js。） */
+      const lastVisible = [...live].reverse().find((s) => s.op > 0.05);
+      check(
+        'E3b 窗口的渐隐在行程结束前就完成（最后一段交给列表，不是贴住卡片才消失）',
+        Boolean(lastVisible) && lastVisible.t <= tokenOut * 0.72,
+        lastVisible
+          ? `最后可见帧 t=${lastVisible.t}ms / 总时长 ${tokenOut}ms（上限 ${Math.round(tokenOut * 0.72)}ms）`
+          : '没采到可见帧',
       );
       check(
-        'E4 退场时长走 --motion-morph-out（标准档 340）',
-        live.some((s) => Number(s.dur) === 340),
-        `durs=${[...new Set(live.map((s) => s.dur))].join(',')}`,
+        `E4 退场时长走 --motion-morph-out（= ${tokenOut}ms）`,
+        live.some((s) => Number(s.dur) === tokenOut),
+        `durs=${[...new Set(live.map((s) => s.dur))].join(',')} 期望含 ${tokenOut}`,
       );
       /* 末帧窗口必须落在卡片上：窗口方案下元素的 rect 恒定，唯一能验的就是 clip 反推值 */
       const last = live[live.length - 1];

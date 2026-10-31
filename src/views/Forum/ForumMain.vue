@@ -109,6 +109,7 @@ import {
   getForumImageKey,
 } from '@/utils/forum-helpers.js';
 import { captureOrigin } from '@/utils/motion-origin.js';
+import { capturePageSnapshot } from '@/utils/page-snapshot.js';
 import { prefersReducedMotion } from '@/utils/motion.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
@@ -147,6 +148,18 @@ const props = defineProps({
 // 必须知道它开没开 —— 一是切换落点前要先收掉，二是左栏「发布」项的选中态。
 // 真源只有本文件的 isMobileComposerOpen，外层一律经 ForumSectionShell 透传，别自己推。
 const emit = defineEmits(['island-message', 'composer-state']);
+
+/* ── 底栏切回「内容」：整页重挂不重播入场（2026-10-31）────────────────
+   底栏「内容 / 我 / 图库」是独立路由，来回切 = 本组件整页重挂，
+   `.posts-feed` 的 fade-in-up（1s + inline delay 0.2s）和卡片入场从 opacity 0
+   重播一遍 —— 与用户报障「切到我的页面还是白屏」（UserSpaceMain 的
+   tab-no-replay）同因的对称面。判据与那边一致：`history.state.back` 有值
+   = 应用内导航（底栏切换 / 详情返回），跳过入场；冷加载（back 为 null）
+   保留首次进场。CSS 见 styles/feed.css 末尾 `data-boh-nav-returning` 段。
+   ⚠️ 必须 setup 同步打标（类名要赶在首帧绘制前），onUnmounted 摘掉。 */
+if (typeof window !== 'undefined' && window.history?.state?.back) {
+  document.documentElement.dataset.bohNavReturning = '1';
+}
 
 const router = useRouter();
 const route = useRoute();
@@ -1562,6 +1575,8 @@ onUnmounted(() => {
   }
   releaseComposerScrollLock();
   void discardDraftPostImages({ silent: true });
+  // 摘掉 setup 里打的「应用内导航返回」标记（见上方 setup 注释），别泄漏给下一个页面
+  delete document.documentElement.dataset.bohNavReturning;
   cancelPendingSearch();
   if (postDraftSaveTimer) {
     clearTimeout(postDraftSaveTimer);
@@ -3242,6 +3257,11 @@ const openPostDetail = (postId, event) => {
   }
   const returnKey = props.embedded ? 'user-space' : 'forum';
   saveForumReturnState(returnKey, buildForumReturnState(postId));
+  /* 竖屏整页详情会**卸载列表**，返回时列表要重新挂载 + 取数，中间有一段
+     「页头/底栏在、正文区全白」的空档（实测返回后 400ms 截图 feed 里 0 张卡）。
+     这里趁列表还活着拍一张整页快照，返回时铺在收缩层下方把那段空档盖住 ——
+     见 utils/page-snapshot.js。横屏走弹窗、列表原地保留，不需要快照。 */
+  capturePageSnapshot();
   const query = props.embedded
     ? { from: 'user-space', tab: 'community', returnKey }
     : { from: 'forum', returnKey };
