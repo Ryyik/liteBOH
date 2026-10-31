@@ -123,7 +123,9 @@ describe('buildHalloweenSceneSvg', () => {
   });
 
   it('宽度随容器比例变化，并被夹在上下限内', () => {
-    expect(buildHalloweenSceneSvg({ width: 40 })).toContain('viewBox="0 0 126 212"');
+    /* 下限 90 而不是 126：390×844 的窄屏按比例算出来是 98 格，
+       卡到 126 会被 preserveAspectRatio="none" 横向拉伸（南瓜变扁）。 */
+    expect(buildHalloweenSceneSvg({ width: 40 })).toContain('viewBox="0 0 90 212"');
     expect(buildHalloweenSceneSvg({ width: 9999 })).toContain('viewBox="0 0 460 212"');
     expect(buildHalloweenSceneSvg({ width: 212 })).toContain('viewBox="0 0 212 212"');
   });
