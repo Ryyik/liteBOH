@@ -18,7 +18,7 @@ import {
   flipRadius,
   peekOrigin,
 } from '@/utils/motion-origin.js';
-import { motionMs } from '@/utils/motion.js';
+import { motionEase, motionMs } from '@/utils/motion.js';
 import { recoverDynamicImportFailure } from '@/utils/vite-preload-recovery.js';
 import { forceCleanAndReload } from '@/utils/version-checker.js';
 
@@ -70,11 +70,10 @@ const PostDetailMain = defineAsyncComponent({
 
 const { isOpen, postId, close, open } = usePostDetailModal();
 
-const handleClose = (options) => {
-  // 有入口矩形就先缩回卡片（与 CSS 退场并行，不额外延长关闭时间）
-  if (isOpen.value) void playPanelMorph('out');
-  close(options);
-};
+/* 关闭一律只调 close()，形变交给下面的 isOpen watcher —— 关闭有五条路径
+   （遮罩 / 关闭钮 / 详情内 @close / Esc / 浏览器后退），只有前三条经过本组件，
+   在 handleClose 里挂形变会让 Esc 与后退「只剩淡出」。 */
+const handleClose = (options) => close(options);
 const handleOpenPost = (id) => open(id, { replace: true });
 
 /* ── 从卡片长出来 / 收回去（plans/035 §L4 P4）──────────────────────────
@@ -93,7 +92,10 @@ const playPanelMorph = async (direction) => {
   const source = peekOrigin(panelOriginKey());
   if (!source) return false;
   await nextTick();
-  const el = panelRef.value;
+  /* ⚠️ 退场时 `panelRef.value` 已经是 null（2026-10-31 实测，这正是「关闭不缩回」的真因）：
+     v-if 翻假的瞬间 Vue 就解绑模板 ref，即使节点被 <Transition> 的 leave 留着继续淡出。
+     所以这里必须回落到 DOM 查询 —— 那 340ms 里节点确实还在文档里，量得到矩形。 */
+  const el = panelRef.value || document.querySelector('.pd-modal-panel');
   if (!el) return false;
   const box = el.getBoundingClientRect();
   if (!box.width || !box.height) return false;
@@ -102,6 +104,23 @@ const playPanelMorph = async (direction) => {
   if (Math.abs(flip.sx - 1) < 0.03 && Math.abs(flip.sy - 1) < 0.03) return false;
   const radiusFrom = flipRadius(source.radius || 20, flip.sx, flip.sy, 20);
   const radiusTo = getComputedStyle(el).borderRadius || '24px';
+
+  /* ⚠️ 形变期间必须把面板的 `transition-property` 收成只剩 width（2026-10-31 修）。
+     起因：关闭时「面板原地微缩 + 淡出」，没有缩回卡片。
+     真因是**级联顺序**：CSS Cascade 里 transitions 是最后一档（高于 animations），
+     而 Vue 的 enter/leave 类会给面板挂 `transition: transform … / opacity …`：
+       · leave-active 面板 transition: transform 260ms + leave-to 的 scale(1.008)
+         ⇒ 起跑后 rAF 一加 leave-to，transition 就从当前值走向 scale(1.008)，
+           把 340ms 的 WAAPI 形变整段压掉（元素宽度实测全程 ~1000px 不动）；
+       · enter-active 同理（380ms），进场只是「碰巧」因为 transition 起点取到了
+         形变第一帧的值，看起来像在长，实际圆角与不透明度都没参与。
+     只留 width：面板宽度那条 520ms 的「随图变宽」过渡照常工作，
+     transform / opacity 的过渡被摘掉，WAAPI 成为唯一真源。
+     恢复交给调用方（进场动画结束后置空，退场元素随即被移除）。 */
+  const restoreTransition = () => {
+    el.style.transitionProperty = '';
+  };
+  el.style.transitionProperty = 'width';
 
   if (direction === 'in') {
     await animateMorph(
@@ -113,14 +132,19 @@ const playPanelMorph = async (direction) => {
           borderRadius: `${radiusFrom}px`,
           opacity: 0,
         },
-        { opacity: 1, offset: 0.45 },
+        // 同 PostDetailMain：0.45 会让「亮起来时已经长完了」，见那边的注释
+        { opacity: 1, offset: 0.2 },
         { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
       ],
-      { duration: motionMs('--motion-morph-in-near', 480) },
+      {
+        duration: motionMs('--motion-morph-in-near', 380),
+        easing: motionEase('--ease-morph'),
+      },
     );
+    restoreTransition();
   } else {
-    // 退场比进场短：Vue 在 leave 过渡结束时就摘节点（面板那条是 420ms），
-    // 我们的 360ms 必须在它之前落地，否则末帧被截断。
+    // 退场比进场短：Vue 在 leave 过渡结束时就摘节点（面板那条是 360ms），
+    // 340ms 必须在它之前落地，否则末帧被截断。
     void animateMorph(
       el,
       [
@@ -134,8 +158,8 @@ const playPanelMorph = async (direction) => {
         },
       ],
       {
-        duration: motionMs('--motion-exit', 360),
-        easing: 'cubic-bezier(0.4, 0, 1, 1)',
+        duration: motionMs('--motion-morph-out', 340),
+        easing: motionEase('--ease-morph'),
         // 退场必须保留终态：否则 cancel 的瞬间面板弹回原尺寸，紧接着才淡出
         keepFinal: true,
       },
@@ -144,8 +168,11 @@ const playPanelMorph = async (direction) => {
   return true;
 };
 
+/* 两个方向都挂在这里：close() 的所有入口（含 Esc / popstate）都能缩回卡片。
+   flush 用默认 'pre' —— 回调跑在渲染前，元素还在 DOM 里，peekOrigin 量得到卡片；
+   playPanelMorph 内部再 await nextTick() 等到 leave 类挂上、尺寸稳定后再动。 */
 watch(isOpen, (open) => {
-  if (open) void playPanelMorph('in');
+  void playPanelMorph(open ? 'in' : 'out');
 });
 
 /* ── 左栏随图比例自适应（2026-10-22，用户定稿口径）────────────────────────
@@ -432,16 +459,20 @@ const panelWidth = computed(() => {
    · **位移用 --ease-out**（快出慢收，Tailwind 那档 expo-out 的近似），
      缩放只给 0.985 且从 12px 起 —— 大幅缩小换成「几乎不缩、只上浮」，
      观感是升起而非弹跳；
-   · **离场更快更浅（260ms）**：关闭不耐等，这是 iOS 的普遍做法
-     （进 > 出的时长比约为 1.5:1）；离场不再缩小，改为 scale(1.008) 微胀后散开，
-     避免「缩回小盒子」那种廉价感；遮罩同步加速淡出。
+   · **离场更快更浅**：关闭不耐等（进 > 出的时长比约 1.5:1）。
+     有来源矩形时面板缩回列表卡片（`--motion-morph-out` 340ms，WAAPI 接管，
+     见 playPanelMorph），遮罩 360ms 同步淡出；
+     **没有**来源矩形（Esc 从地址栏直接进、刷新还原、reduce 档）才走 CSS 兜底：
+     scale(1.008) 微胀后散开，避免「缩回小盒子」那种廉价感。
    · 全部走 opacity/transform（合成层），不触发重排。 */
 .pd-modal-enter-active {
   transition: opacity 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .pd-modal-leave-active {
-  transition: opacity 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  /* 退场时长同时是**节点摘除时刻**：面板的缩回形变 340ms（--motion-morph-out）
+     必须短于它，否则末帧被截断（2026-10-31 从 260 提到 360）。 */
+  transition: opacity 360ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .pd-modal-enter-active .pd-modal-panel {
@@ -451,9 +482,11 @@ const panelWidth = computed(() => {
 }
 
 .pd-modal-leave-active .pd-modal-panel {
+  /* 只在「没有来源矩形、形变跳过」时生效（形变期间 JS 会把 transition-property
+     收成 width，见 playPanelMorph 的注释）。时长同样短于根节点的 360ms。 */
   transition:
-    transform 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
-    opacity 180ms linear;
+    transform 340ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    opacity 300ms linear;
 }
 
 .pd-modal-enter-from,

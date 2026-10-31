@@ -13,7 +13,7 @@ import {
   flipRadius,
   peekOrigin,
 } from '@/utils/motion-origin.js';
-import { motionMs } from '@/utils/motion.js';
+import { motionEase, motionMs } from '@/utils/motion.js';
 import { playCollapseMorph } from '@/utils/morph-layer.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { Check, Heart, Image as ImageIcon, MessageCircle, Share2 } from 'lucide-vue-next';
@@ -127,15 +127,32 @@ const isLoading = ref(true);
    页根里的底栏是 `position: fixed`，祖先一旦带 transform，包含块就被换成
    那个祖先（规范行为），底栏会被一起缩放、推飞。这是仓库里踩过的坑。 */
 const articleRef = ref(null);
+/* 入场形变的目标：骨架屏与正文的共同祖先（见 playDetailEntryMorph 的注释）。
+   它不含 fixed 后代，所以带 transform 不会换掉底栏的包含块。 */
+const detailContainerRef = ref(null);
 /* 入口那张卡的矩形，留给返程用（plans/035 §L3）。
    `clearOrigin` 会把 map 里的条目删掉（避免被下一次导航复用），所以这里必须留一份，
    否则返回时「回哪去」这件事就没了依据。 */
 let entryOriginRect = null;
 
+/* ── 入场形变：从列表卡片长成整页（plans/035 §L4 P2）────────────────────
+   ⚠️ 形变**必须发生在导航那一刻**，不能等数据。旧实现挂在 `watch(isLoading)`
+   上，顺序变成「骨架屏整页闪一下 → 数据到了才演形变」，观感就是
+   「一闪而过，然后内容才出来」，完全不符合「从列表弹出」。
+
+   现在形变目标是 `.detail-container`（骨架屏与正文都在它里面），所以：
+     t=0    卡片位置的一张空页框开始长大
+     ~160ms 骨架屏在已经张开的页框里淡入（用户看到的顺序：界面 → 骨架屏）
+     数据到达 正文在页框里淡入，**不再演第二次形变**
+
+   ⚠️ 只能挂 `.detail-container`，不能挂 `.post-detail-page`：底栏
+   `.pd-actionbar--page` 是页根的兄弟节点且 `position: fixed`，祖先一旦带
+   transform，包含块会被换掉（仓库踩过的事故）。`.detail-container` 里没有
+   fixed 后代，安全。 */
 const playDetailEntryMorph = async () => {
-  // 弹窗态由 PostDetailModal 对**面板**做形变；这里再动正文卡就是两层形变
+  // 弹窗态由 PostDetailModal 对**面板**做形变；这里再动就是两层形变
   if (props.modalMode) return;
-  const el = articleRef.value;
+  const el = detailContainerRef.value;
   if (!el || !canMorph()) return;
   const key = `post-detail:${postId.value}`;
   const source = peekOrigin(key);
@@ -154,7 +171,6 @@ const playDetailEntryMorph = async () => {
   // 已经在原位（同尺寸）就没必要演一遍，否则是一次无意义的「抽搐」
   if (Math.abs(flip.sx - 1) < 0.03 && Math.abs(flip.sy - 1) < 0.03) return;
   const radiusFrom = flipRadius(source.radius || 20, flip.sx, flip.sy, 20);
-  // 终态圆角读元素自身（glass-panel 各档不同），写死一个数字会在收尾瞬间跳一下
   const radiusTo = getComputedStyle(el).borderRadius || '20px';
   await animateMorph(
     el,
@@ -165,19 +181,22 @@ const playDetailEntryMorph = async () => {
         borderRadius: `${radiusFrom}px`,
         opacity: 0,
       },
-      { opacity: 1, offset: 0.45 },
+      /* ⚠️ 这个拐点是「有没有过渡感」的开关，不是随手填的 0.45（旧值）。
+         旧值配合 --ease-drawer 的实测：45% 时间点几何已走完 **94%**，
+         而内容 45% 才亮到 1.0 ⇒ 用户看到的是「骨架消失 → 卡片已经长好 →
+         最后 6% 微动」，观感就是「一闪而过」。
+         现在曲线换成 --ease-morph（峰值在 30–45%），内容在 20% 就亮满
+         （此时几何约 30%、scaleY≈0.63），剩下 80% 的时间走 70% 的位移。 */
+      { opacity: 1, offset: 0.2 },
       { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
     ],
-    { duration: motionMs('--motion-morph-in', 640) },
+    {
+      duration: motionMs('--motion-morph-in', 460),
+      easing: motionEase('--ease-morph'),
+    },
   );
-  // fill:both 会留下 matrix(...)，动画本身已被 cancel；这里再兜一次
   el.style.transform = '';
 };
-
-watch(isLoading, (loading) => {
-  if (loading) return;
-  void nextTick().then(playDetailEntryMorph);
-});
 
 const isReplySubmitting = ref(false);
 const isLikeSubmitting = ref(false);
@@ -1530,6 +1549,8 @@ const fetchPostDetail = async () => {
 onMounted(() => {
   currentTheme.value = themeManager.getTheme();
   themeManager.addListener(handleThemeChange);
+  // 入场形变在**导航那一刻**起跑（不等数据），见 playDetailEntryMorph 的注释
+  void nextTick().then(playDetailEntryMorph);
   fetchPostDetail();
   document.addEventListener('click', handleDocumentClick);
   releaseEditPortraitWatch = onForumPortraitComposerChange((matches) => {
@@ -1592,7 +1613,7 @@ onBeforeRouteLeave((to) => {
      「这一页折进了一个不存在的位置」。判据是目的路由是不是列表宿主（首页 / 用户中心）。 */
   if (entryOriginRect && LIST_ROUTE_NAMES.has(String(to?.name || ''))) {
     void playCollapseMorph(articleRef.value, entryOriginRect, {
-      duration: motionMs('--motion-morph-out', 480),
+      duration: motionMs('--motion-morph-out', 340),
     });
   }
   rootEl.classList.add('is-page-leaving');
@@ -2457,7 +2478,7 @@ const handleChangeCommentSortMode = async (mode) => {
       <span v-else class="pd-author-bar-name pd-author-bar-name--loading">加载中…</span>
     </div>
 
-    <div class="detail-container">
+    <div ref="detailContainerRef" class="detail-container">
       <main class="detail-content fade-in-up" style="animation-delay: 0.1s">
         <div v-if="isLoading" class="post-detail-skeleton" aria-hidden="true">
           <div class="post-skeleton-main glass-panel">

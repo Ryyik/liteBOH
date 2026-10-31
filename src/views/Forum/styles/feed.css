@@ -1039,7 +1039,7 @@
 .share-btn-v2.is-copy-success svg path {
   stroke-dasharray: 30;
   stroke-dashoffset: 30;
-  animation: shareCheckDraw 480ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) forwards;
+  animation: shareCheckDraw 360ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) forwards;
 }
 
 @keyframes shareCheckDraw {
@@ -1102,12 +1102,12 @@
 
 .is-liked .action-svg-v2,
 .action-item-v2.is-pulsing .action-svg-v2 {
-  animation: heartBeat 0.56s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  animation: heartBeat 0.42s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   transform-origin: center;
 }
 
 .action-item-v2.is-pulsing .action-count-v2 {
-  animation: actionCountPop 0.6s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  animation: actionCountPop 0.44s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .like-btn-v2 {
@@ -1128,7 +1128,7 @@
   border-radius: 50%;
   border: 1.5px solid currentColor;
   pointer-events: none;
-  animation: likeRipple 680ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation: likeRipple 520ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
 /* 评论区展开/收起已改为 **JS 驱动**（PostCard.vue 的 `:css="false"` + WAAPI）：
@@ -1307,12 +1307,12 @@
 }
 
 .posts-feed.is-feed-entering .post-card-v2:not(.is-new-post) {
-  animation: forumFeedSwapIn 480ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation: forumFeedSwapIn 360ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
   animation-delay: var(--post-appear-delay, 0ms);
 }
 
 .posts-feed.is-feed-entering .forum-empty {
-  animation: forumFeedSwapIn 420ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation: forumFeedSwapIn 320ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
 /* reduce-motion：保留结果「已变化」的最低限度提示（只淡入，不位移） */

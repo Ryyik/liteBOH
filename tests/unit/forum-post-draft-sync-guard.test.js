@@ -71,12 +71,18 @@ describe('forum post draft cross-host sync wiring', () => {
     expect(motionBlock).toContain('scale(0.08)');
     expect(motionBlock).toContain('scale(1)');
     expect(css).toContain('transform-origin: var(--mobile-composer-origin, 100% 100%)');
-    /* 慢速档（plans/035 §L5，2026-10-31 拍板）：380ms / --ease-emphasized
-       → 520ms / --ease-drawer。这里不再钉死具体毫秒数，改为钉「契约」：
-       进场形变必须 ≥480ms 且走 drawer 曲线 —— 否则下次调参又要来改这条守卫。 */
+    /* 节奏档（plans/035 §L5）：380ms/--ease-emphasized → 慢速 520ms
+       → 2026-10-31 降回**标准**档 420ms / --ease-drawer。这里不钉死毫秒数，
+       改为钉「契约」：进场形变必须 ≥360ms 且走 drawer 曲线，
+       且**必须慢于**同文件的退场（进 > 出，关闭不耐等）。 */
     const enterBlock = css.match(/\.mobile-composer-enter-active \{[\s\S]*?\n\}/)?.[0] || '';
+    const leaveBlock = css.match(/\.mobile-composer-leave-active \{[\s\S]*?\n\}/)?.[0] || '';
     expect(enterBlock).toMatch(/transform\s+\d+ms\s+var\(--ease-drawer/);
-    expect(Number(/transform\s+(\d+)ms/.exec(enterBlock)?.[1] || 0)).toBeGreaterThanOrEqual(480);
+    const enterMs = Number(/transform\s+(\d+)ms/.exec(enterBlock)?.[1] || 0);
+    const leaveMs = Number(/transform\s+(\d+)ms/.exec(leaveBlock)?.[1] || 0);
+    expect(enterMs).toBeGreaterThanOrEqual(360);
+    expect(leaveMs).toBeGreaterThan(0);
+    expect(enterMs).toBeGreaterThan(leaveMs);
     const vue = await readFile(FORUM_MAIN, 'utf8');
     expect(vue).toContain('resolveFabTransformOrigin(fab.getBoundingClientRect())');
     expect(vue).toContain("'--mobile-composer-origin': mobileComposerTransformOrigin");

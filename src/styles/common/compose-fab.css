@@ -12,6 +12,12 @@
  * ⚠️ 2026-10-19 补回 UserSpace 宿主：竖屏下内嵌 PostComposer 是 v-if="!isMobileComposerMode"
  * 不渲染，FAB 是唯一发帖入口 —— 只判 route.path === '/' 会让「我的 → 内容」彻底没有发帖按钮。
  * 2026-10-05 用户定稿；口径变更见 ForumMain.vue 该 computed 上的注释。
+ * ⚠️ 2026-10-31：横屏（landscape + ≥1024 + ≥600）**整个不挂载**（用户报障「横屏为什么挂了个
+ *   发帖悬浮按钮」）—— 该档位左栏有「发布」项，右下角再浮一个 + 号在桌面版式里是多余的
+ *   移动端残留。判据在 ForumMain 的 isForumComposerFabVisible，不在本文件用 CSS 藏
+ *   （不挂载比 display:none 干净：不留可聚焦节点、不参与遮挡判定）。
+ *   下面那条 ≤1023 的横屏规则仍然有效：手机横屏 / 折叠屏展开时左栏是 display:none，
+ *   FAB 是唯一发帖入口。
  */
 .mobile-compose-fab {
   position: fixed;

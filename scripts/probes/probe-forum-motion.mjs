@@ -221,17 +221,27 @@ try {
     });
     check('B0 找到帖子卡片并进入详情', Boolean(cardRect), JSON.stringify(cardRect));
 
+    /* 形变必须**在导航那一刻**起跑，不能等数据（2026-10-31 用户反馈：
+       「竖屏就是一闪然后才打开内容出现动画」—— 旧实现挂在 watch(isLoading)
+       上，顺序成了「骨架屏整页闪一下 → 数据到了才演形变」）。 */
     const first = await page.evaluate(async () => {
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const t0 = performance.now();
       for (let i = 0; i < 120; i += 1) {
-        const el = document.querySelector('.x-post-card');
+        const el = document.querySelector('.detail-container');
         if (el && el.getAnimations().length) {
           const anim = el.getAnimations()[0];
           const kf = anim.effect.getKeyframes();
           const b = el.getBoundingClientRect();
           return {
+            startedIn: Math.round(performance.now() - t0),
             dur: anim.effect.getTiming().duration,
             origin: kf[0].transformOrigin,
+            // 入场关键帧里 opacity 到 1 的拐点：0.45 是旧值（亮起来时已长完了）
+            // ⚠️ getKeyframes() 的 opacity 是**字符串**（"1"），必须 Number 再比
+            opOffset: kf.find((k) => Number(k.opacity) === 1)?.offset,
+            // 首帧时是否还在加载：这是「先出界面、再出骨架」的可执行证据
+            skeletonAtStart: Boolean(document.querySelector('.post-detail-skeleton')),
             rect: {
               left: Math.round(b.left),
               top: Math.round(b.top),
@@ -244,7 +254,12 @@ try {
       }
       return null;
     });
-    check('B1 详情正文卡有形变动画', Boolean(first), first ? `dur=${first.dur}` : '120 帧内没等到');
+    check('B1 详情容器有形变动画', Boolean(first), first ? `dur=${first.dur}` : '120 帧内没等到');
+    check(
+      'B1b 形变在导航那一刻起跑（≤400ms，不等数据）',
+      Number(first?.startedIn) <= 400,
+      `startedIn=${first?.startedIn}ms`,
+    );
     check(
       'B2 起点与卡片 rect 对齐（±12px）',
       near(first?.rect, cardRect),
@@ -256,14 +271,22 @@ try {
       String(first?.origin),
     );
     check(
-      'B4 形变时长走 --motion-morph-in（640）',
-      Number(first?.dur) === 640,
+      'B4 形变时长走 --motion-morph-in（标准档 460）',
+      Number(first?.dur) === 460,
       `dur=${first?.dur}`,
+    );
+    /* 时钟同步守卫（2026-10-31「一闪而过」的根因）：几何与透明度必须同钟。
+       旧值 0.45 配 --ease-drawer 时，45% 时间点几何已走完 94% ⇒ 用户只看到
+       最后 6% 的位移。现在要求拐点 = 0.2（曲线由单测锁）。 */
+    check(
+      'B4b 入场不透明度拐点 = 0.2（时钟同步，不许回潮 0.45）',
+      Math.abs(Number(first?.opOffset) - 0.2) < 0.001,
+      `opOffset=${first?.opOffset}`,
     );
 
     await page.waitForTimeout(900);
     const settled = await page.evaluate(() => {
-      const el = document.querySelector('.x-post-card');
+      const el = document.querySelector('.detail-container');
       if (!el) return null;
       return {
         transform: getComputedStyle(el).transform,

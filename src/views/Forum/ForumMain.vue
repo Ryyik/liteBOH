@@ -1221,11 +1221,18 @@ const isMobile = ref(
   typeof window !== 'undefined' ? window.innerWidth <= MOBILE_BREAKPOINT : false,
 );
 let resizeRafId = null;
+/* 横屏判据的**响应式**版本（2026-10-31）：`isForumLandscape()` 是时点函数，
+   直接塞进 computed 不会随旋屏 / 拖窗重算 —— FAB 就会在转回竖屏后仍然不出现。
+   刷新点复用已有的 resize / orientationchange 通道（updateMobileStatus，同一帧内
+   只跑一次 rAF），判据本身仍取自 forum-viewport.js 的单源 query，不另写 matchMedia。 */
+const isLandscapeViewport = ref(isForumLandscape());
+
 const updateMobileStatus = () => {
   if (resizeRafId) return;
   resizeRafId = requestAnimationFrame(() => {
     resizeRafId = null;
     isMobile.value = window.innerWidth <= MOBILE_BREAKPOINT;
+    isLandscapeViewport.value = isForumLandscape();
   });
 };
 
@@ -1248,9 +1255,15 @@ onDeactivated(() => {
 const isForumComposerFabVisible = computed(() => {
   /* FAB 只属于「内容」——首页 feed 分区与 UserSpace 的「内容」tab 都算内容流，
      官方/成员 tab 与底栏其它落点（我/消息/AI）一律不挂载。
-     2026-10-26：内嵌发帖器已废弃，FAB 是 feed 页唯一常驻发帖入口。
+     2026-10-26：内嵌发帖器已废弃，FAB 是窄屏 feed 页唯一常驻发帖入口。
      横屏分栏另有左栏「发布」；两者都打同一场发布会话，不产生两套编辑状态。 */
   if (!isRouteInstanceActive.value) return false;
+  /* 横屏（landscape + ≥1024 + ≥600）不挂 FAB（2026-10-31 用户报障「横屏为什么挂了个发帖悬浮按钮」）。
+     该档位有 UserSpaceSideRail 的「发布」项（与 FAB 同一场发布会话），
+     右下角再浮一个 + 号在桌面版式里就是纯多余的移动端残留。
+     ⚠️ 判据必须与左栏可见性**同一组**（side-rail.css 首个 @media，单源 utils/forum-viewport.js）：
+     手机横屏 / 折叠屏展开（<1024）左栏是 display:none，那里 FAB 仍是唯一发帖入口，不能一起砍。 */
+  if (isLandscapeViewport.value) return false;
   if (feedMode.value !== 'posts') return false;
   if (!props.embedded) return true;
   if (route.path === '/user-space') {
@@ -2963,7 +2976,7 @@ const handleToggleLike = async (post) => {
   // ① 乐观更新：点击瞬间翻转 isLiked、like_count±1 并触发心跳，感知延迟归零（不等 RPC）
   post.isLiked = !prevLiked;
   post.like_count = optimisticAction === 'liked' ? prevCount + 1 : Math.max(0, prevCount - 1);
-  addUiMarker(likePulsePostIds, post.id, 1900, 'like-pulse');
+  addUiMarker(likePulsePostIds, post.id, 1400, 'like-pulse');
   triggerRef(forumData);
 
   // 失败回滚：两个字段一起还原回点击前的值
@@ -3103,9 +3116,9 @@ const sharePost = (post) => {
     },
     onCopied: () => {
       // 同步点亮卡片上的「已复制」状态。
-      // 1500 → 2000ms（plans/035 慢速档）：勾号现在是描边画出来的（480ms），
-      // 画完还要留一段"看得见"的停留，否则动画刚结束状态就消失了。
-      addUiMarker(shareCopiedPostIds, post.id, 2000, 'share-copied');
+      // 标准速（plans/035 §L5）：勾号描边 360ms，画完留一段"看得见"的停留，
+      // 否则动画刚结束状态就消失了。
+      addUiMarker(shareCopiedPostIds, post.id, 1600, 'share-copied');
     },
     onClose: () => {
       // × / Esc / 成功自动关闭都走这里：必须真正清掉岛槽位，仅置空句柄岛不会消失

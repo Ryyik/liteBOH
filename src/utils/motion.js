@@ -79,12 +79,24 @@ export function motionMs(name, fallback = DEFAULT_MS) {
 }
 
 /**
- * 评论区展开时长：内容越高走得越久（局部块 240–600ms 档）。
- * 公式 `150 + h × 0.42`：120px 的短评 ≈ 240ms（下沿封顶），900px 的长评 ≈ 528ms。
+ * 读 `tokens.css` 里的缓动曲线（`--ease-*` / `--ease-morph`）。
+ * 曲线和时长一样只声明在 CSS：`animateMorph` 的 easing 参数若在 JS 里再写一份，
+ * 改 CSS 就只改到一半（论坛与 UserSpace 各拿一条不同曲线的老账就是这么来的）。
+ */
+export function motionEase(name, fallback = 'ease') {
+  if (typeof document === 'undefined') return fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name);
+  const value = String(raw || '').trim();
+  return value || fallback;
+}
+
+/**
+ * 评论区展开时长：内容越高走得越久（局部块 200–460ms 档，标准速）。
+ * 公式 `130 + h × 0.36`：120px 的短评 ≈ 200ms（下沿封顶），900px 的长评 ≈ 454ms。
  */
 export function expandDuration(heightPx) {
   const h = Math.max(0, Number(heightPx) || 0);
-  return Math.round(capMotion(clamp(150 + h * 0.42, 240, 600)));
+  return Math.round(capMotion(clamp(130 + h * 0.36, 200, 460)));
 }
 
 /**
@@ -93,5 +105,5 @@ export function expandDuration(heightPx) {
  */
 export function collapseDuration(heightPx) {
   const h = Math.max(0, Number(heightPx) || 0);
-  return Math.round(capMotion(clamp(120 + h * 0.3, 180, 420)));
+  return Math.round(capMotion(clamp(100 + h * 0.24, 150, 320)));
 }

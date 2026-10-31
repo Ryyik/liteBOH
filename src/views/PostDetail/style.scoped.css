@@ -1159,6 +1159,10 @@
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.85fr);
   gap: 28px;
   align-items: stretch;
+  /* 骨架不单独淡入，也不延迟：入场形变在导航那一刻就跑（见 PostDetailMain
+     playDetailEntryMorph），骨架随页框**一起**从卡片位置长大 —— 它就是
+     「正在打开的界面」。实测加 140ms 延迟反而制造一段白屏（白底上无框可看），
+     2026-10-31 撤回。容器自身的 opacity 拐点（0.2）负责防「闪现」。 */
 }
 
 .detail-skeleton-block {

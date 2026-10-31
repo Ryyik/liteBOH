@@ -5,25 +5,28 @@ import { collapseDuration, expandDuration } from '../../src/utils/motion.js';
 
 // plans/035 §4 L4：评论区展开/收起的时长必须**跟着内容高度走**。
 // 这里锁三件纯函数性质 + 一条源码守卫，真实布局交给探针
-// （scripts/probes/probe-forum-motion.mjs 断言"短评/长评耗时差 ≥120ms"）。
+// （scripts/probes/probe-forum-motion.mjs 断言"短评/长评耗时差 ≥90ms"）。
+//
+// 2026-10-31 二改：整体节奏由「慢速」档降到**标准**档
+// （用户原话「动画速度都改成标准吧」），档位随 tokens.css 的 --motion-* 同步。
 
 const root = resolve(import.meta.dirname, '../..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
 
 describe('展开时长：跟着高度走', () => {
-  it('短评取档位下沿 240ms —— 不再因为"目标 1200px"在 37ms 内冲完', () => {
-    expect(expandDuration(0)).toBe(240);
-    expect(expandDuration(60)).toBe(240);
-    expect(expandDuration(120)).toBe(240);
+  it('短评取档位下沿 200ms —— 不再因为"目标 1200px"在 37ms 内冲完', () => {
+    expect(expandDuration(0)).toBe(200);
+    expect(expandDuration(60)).toBe(200);
+    expect(expandDuration(120)).toBe(200);
   });
 
-  it('长评按 150 + h×0.42 递增（900px → 528ms）', () => {
-    expect(expandDuration(900)).toBe(528);
+  it('长评按 130 + h×0.36 递增（900px → 454ms）', () => {
+    expect(expandDuration(900)).toBe(454);
   });
 
-  it('上沿封顶 600ms：再长的楼中楼也不无限拖', () => {
-    expect(expandDuration(2000)).toBe(600);
-    expect(expandDuration(99999)).toBe(600);
+  it('上沿封顶 460ms：再长的楼中楼也不无限拖', () => {
+    expect(expandDuration(2000)).toBe(460);
+    expect(expandDuration(99999)).toBe(460);
   });
 
   it('单调不减：内容越高走得越久', () => {
@@ -33,14 +36,14 @@ describe('展开时长：跟着高度走', () => {
       expect(durations[i]).toBeGreaterThanOrEqual(durations[i - 1]);
     }
     // 首尾必须真的拉开差距，否则"按高度算"就是空话
-    expect(durations[durations.length - 1] - durations[0]).toBeGreaterThanOrEqual(300);
+    expect(durations[durations.length - 1] - durations[0]).toBeGreaterThanOrEqual(220);
   });
 
   it('异常输入不炸：负数 / NaN / 非数字一律归到下沿', () => {
-    expect(expandDuration(-100)).toBe(240);
-    expect(expandDuration(Number.NaN)).toBe(240);
-    expect(expandDuration('abc')).toBe(240);
-    expect(expandDuration(null)).toBe(240);
+    expect(expandDuration(-100)).toBe(200);
+    expect(expandDuration(Number.NaN)).toBe(200);
+    expect(expandDuration('abc')).toBe(200);
+    expect(expandDuration(null)).toBe(200);
   });
 });
 
@@ -51,9 +54,31 @@ describe('收起时长：恒快于展开', () => {
     }
   });
 
-  it('上沿 420ms / 下沿 180ms', () => {
-    expect(collapseDuration(0)).toBe(180);
-    expect(collapseDuration(99999)).toBe(420);
+  it('上沿 320ms / 下沿 150ms', () => {
+    expect(collapseDuration(0)).toBe(150);
+    expect(collapseDuration(99999)).toBe(320);
+  });
+});
+
+describe('节奏档：tokens.css 与消费方的兜底值必须同档', () => {
+  const tokens = read('src/styles/common/tokens.css');
+
+  it('标准档 ladder（慢速档 640/480 不许回潮）', () => {
+    expect(tokens).toMatch(/--motion-morph-in:\s*460ms/);
+    expect(tokens).toMatch(/--motion-morph-in-near:\s*380ms/);
+    expect(tokens).toMatch(/--motion-morph-out:\s*340ms/);
+    expect(tokens).toMatch(/--motion-enter:\s*320ms/);
+    expect(tokens).toMatch(/--motion-exit:\s*240ms/);
+  });
+
+  it('形变专用曲线 --ease-morph 已声明（drawer 曲线会让入场"一闪而过"）', () => {
+    expect(tokens).toMatch(/--ease-morph:\s*cubic-bezier\(0\.3,\s*0\.12,\s*0\.15,\s*1\)/);
+  });
+
+  it('详情入场的拐点必须是 0.2（0.45 = 亮起来时已长完了）', () => {
+    const main = read('src/views/PostDetail/PostDetailMain.vue');
+    expect(main).toMatch(/\{ opacity: 1, offset: 0\.2 \}/);
+    expect(main).toMatch(/motionEase\('--ease-morph'\)/);
   });
 });
 

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
-import { motionMs } from '@/utils/motion.js';
+import { motionEase, motionMs } from '@/utils/motion.js';
 import {
   animateMorph,
   canMorph,
@@ -178,10 +178,10 @@ const playEnterMorph = async () => {
         borderRadius: `${radiusFrom}px`,
         opacity: 0,
       },
-      { opacity: 1, offset: 0.45 },
+      { opacity: 1, offset: 0.2 },
       { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
     ],
-    { duration: motionMs('--motion-enter', 480) },
+    { duration: motionMs('--motion-enter', 320), easing: motionEase('--ease-morph') },
   );
   morphPhase.value = '';
 };
@@ -225,7 +225,7 @@ function close() {
       },
     ],
     {
-      duration: motionMs('--motion-exit', 360),
+      duration: motionMs('--motion-exit', 240),
       easing: 'cubic-bezier(0.4, 0, 1, 1)',
       // 退场必须保留终态：否则 cancel 的瞬间图片弹回全屏，紧接着才淡出
       keepFinal: true,

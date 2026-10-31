@@ -115,17 +115,21 @@ const viewportState = () => {
 };
 
 // 期望矩阵：landscape / portraitComposer / twoCol（CSS 两栏档）/ fab
-// 2026-10-26：内嵌发帖器废弃后 FAB 是 feed 页唯一常驻入口，所有档位都应显示。
+// 2026-10-26：内嵌发帖器废弃后 FAB 是窄屏 feed 页唯一常驻入口。
+// 2026-10-31：横屏（landscape + ≥1024 + ≥600）**不再挂 FAB** —— 该档位左栏有「发布」，
+//   右下角再浮一个 + 号是多余的移动端残留（用户报障）。判据与左栏可见性同组，
+//   所以只有 landscape=true 的两档 fab=false，其余（含 1280×500 宽矮横屏、
+//   932×430 手机横屏、1000×800 裂缝带）左栏都是 display:none，FAB 必须还在。
 const MATRIX = [
-  { w: 1280, h: 800, landscape: true, portrait: false, twoCol: true, tag: '横屏标准档' },
-  { w: 1024, h: 600, landscape: true, portrait: false, twoCol: true, tag: '单源下限 1024×600' },
-  { w: 1280, h: 500, landscape: false, portrait: false, twoCol: true, tag: '宽矮横屏（高<600 不命中弹窗）' },
-  { w: 1024, h: 1366, landscape: false, portrait: true, twoCol: true, tag: 'iPad Pro 竖屏（1024 整点重叠：两栏+移动编辑器，设计值）' },
-  { w: 1000, h: 1300, landscape: false, portrait: true, twoCol: false, tag: '裂缝带-竖屏（旧 993 档会误判两栏）' },
-  { w: 1000, h: 800, landscape: false, portrait: false, twoCol: false, tag: '裂缝带-横屏（旧 993 档会误判两栏）' },
-  { w: 834, h: 1112, landscape: false, portrait: true, twoCol: false, tag: '平板竖屏' },
-  { w: 932, h: 430, landscape: false, portrait: false, twoCol: false, tag: '手机横屏（<1024 走竖屏逻辑）' },
-  { w: 390, h: 844, landscape: false, portrait: true, twoCol: false, tag: '手机竖屏' }
+  { w: 1280, h: 800, landscape: true, portrait: false, twoCol: true, fab: false, tag: '横屏标准档' },
+  { w: 1024, h: 600, landscape: true, portrait: false, twoCol: true, fab: false, tag: '单源下限 1024×600' },
+  { w: 1280, h: 500, landscape: false, portrait: false, twoCol: true, fab: true, tag: '宽矮横屏（高<600 不命中弹窗）' },
+  { w: 1024, h: 1366, landscape: false, portrait: true, twoCol: true, fab: true, tag: 'iPad Pro 竖屏（1024 整点重叠：两栏+移动编辑器，设计值）' },
+  { w: 1000, h: 1300, landscape: false, portrait: true, twoCol: false, fab: true, tag: '裂缝带-竖屏（旧 993 档会误判两栏）' },
+  { w: 1000, h: 800, landscape: false, portrait: false, twoCol: false, fab: true, tag: '裂缝带-横屏（旧 993 档会误判两栏）' },
+  { w: 834, h: 1112, landscape: false, portrait: true, twoCol: false, fab: true, tag: '平板竖屏' },
+  { w: 932, h: 430, landscape: false, portrait: false, twoCol: false, fab: true, tag: '手机横屏（<1024 走竖屏逻辑）' },
+  { w: 390, h: 844, landscape: false, portrait: true, twoCol: false, fab: true, tag: '手机竖屏' }
 ];
 
 const waitForInPage = async (page, fn, { timeout = 15000, interval = 200 } = {}) => {
@@ -162,9 +166,9 @@ const run = async () => {
       && s.landscape === m.landscape
       && s.portraitComposer === m.portrait
       && s.twoCol === m.twoCol
-      && s.fabVisible === true;
+      && s.fabVisible === m.fab;
     check(`VP${i + 1} ${m.w}×${m.h} ${m.tag}`, ok,
-      `landscape=${s?.landscape}(期望${m.landscape}) portrait=${s?.portraitComposer}(期望${m.portrait}) twoCol=${s?.twoCol}(期望${m.twoCol}) fab=${s?.fabVisible}(期望true)`);
+      `landscape=${s?.landscape}(期望${m.landscape}) portrait=${s?.portraitComposer}(期望${m.portrait}) twoCol=${s?.twoCol}(期望${m.twoCol}) fab=${s?.fabVisible}(期望${m.fab})`);
   }
   await page.screenshot({ path: `${OUT}/vp-matrix-last-390x844.png` }).catch(() => {});
   await ctx.close();

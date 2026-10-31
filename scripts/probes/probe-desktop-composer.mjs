@@ -18,8 +18,15 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(800);
 
-await page.waitForSelector('.forum-page .mobile-compose-fab', { timeout: 20000 });
-await page.click('.forum-page .mobile-compose-fab');
+/* 2026-10-31：横屏 ≥1024 不再挂 .mobile-compose-fab（左栏「发布」是唯一入口），
+   所以这里点左栏的发布项；FAB 兜底只为兼容「横屏判据未命中的宽矮窗口」。 */
+const railCompose = page.locator('[data-rail-action="compose"]');
+if (await railCompose.count()) {
+  await railCompose.first().click();
+} else {
+  await page.waitForSelector('.forum-page .mobile-compose-fab', { timeout: 20000 });
+  await page.click('.forum-page .mobile-compose-fab');
+}
 await page.waitForSelector('.mobile-composer-overlay', { state: 'visible', timeout: 8000 });
 const card = page.locator('.mobile-composer-overlay .editor-card').first();
 await card.scrollIntoViewIfNeeded().catch(() => {});

@@ -549,21 +549,20 @@
   transform-origin: var(--mobile-composer-origin, 100% 100%);
 }
 
-/* 慢速档（plans/035 §L5）：形变放慢到 520ms，但**不是**把 380 直接乘 1.5 ——
-   同时把曲线从 emphasized 换成 drawer（收得住），否则更长的时长会读成「软塌」。
-   退场 420ms 比进场快一档：关闭不耐等。 */
+/* 标准速（plans/035 §L5，2026-10-31 由慢速 520ms 降回 420ms）：曲线保留 drawer
+   （收得住），退场 340ms 比进场快一档：关闭不耐等。 */
 .mobile-composer-enter-active {
   will-change: transform, opacity;
   transition:
-    transform 520ms var(--ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)),
-    opacity 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+    transform 420ms var(--ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)),
+    opacity 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .mobile-composer-leave-active {
   will-change: transform, opacity;
   transition:
-    transform 420ms var(--ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)),
-    opacity 180ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+    transform 340ms var(--ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)),
+    opacity 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .mobile-composer-enter-from,

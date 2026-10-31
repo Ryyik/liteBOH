@@ -459,3 +459,150 @@ npm run verify            ✅
 - 详情返程目前只在**竖屏整页**形态生效；横屏弹窗的返场用面板 WAAPI 收缩，若列表已滚走则落点会偏。
 - `AGENTS.md §2` 的新探针行 + 源文件/脚本数**必须与提交同一笔**改（`doc-truth` 口径是 `git ls-tree HEAD`，
   未提交时改文档会当场红）。
+
+---
+
+## 14. 第四轮（2026-10-31）：节奏降为标准档 + 修「一闪而过」的真正根因
+
+### 用户反馈
+
+1. 「动画速度都改成标准吧」→ 慢速档（640/480/480/360）整体降档。
+2. 「竖屏打开帖子还是一闪而过，没有过渡出现的感觉；是不是骨架屏优先了？」
+
+### 真正的根因（不是时长，是时钟错位 + 触发时机）
+
+逐帧实测（390×844，卡片 rect (4,184,381,476)，`--motion-morph-in` 640ms）：
+
+| 时刻 | 几何进度 | 不透明度 |
+|---|---|---|
+| 604ms（首帧） | 0%（正好是卡片矩形） | **0.00** |
+| 722ms | **86%**（高 625px，终值 1007px） | 才到 1.00 |
+| 1262ms | 100% | 1.00 |
+
+两条独立病灶叠加：
+
+- **时钟错位**：`--ease-drawer`（0.32,0.72,0,1）在 45% 时间点已走完 **94%** 位移，
+  而内容 `opacity: 1` 的拐点也在 45% ⇒ 亮起来的时候已经长完了，用户只看到最后 6%。
+- **触发时机**：形变挂在 `watch(isLoading)` 上，**数据到了才起跑**；用户点开先看到
+  整页骨架屏（约 600ms），然后才是形变 —— 顺序完全反了，这就是「一闪然后才打开」。
+
+### 修法（三者是一组，缺一回潮）
+
+1. **曲线**：新增 `--ease-morph: cubic-bezier(0.3, 0.12, 0.15, 1)`（速度峰值压到 30–45%
+   区间，实测 0.15→0.18 / 0.45→0.79 / 0.6→0.91，全程可见运动）。之前「不要建
+   --ease-morph（与 drawer 同值）」的结论作废 —— 现在值不同，且它就是防闪现的关键。
+2. **拐点**：入场关键帧 `opacity: 1` 从 offset 0.45 提前到 **0.2**（此时几何约 30%，
+   scaleY≈0.63），剩下 80% 的时间走 70% 的位移。曲线经 `motionEase()` 读 CSS，
+   JS 不写第二份。
+3. **时机**：形变目标从 `.x-post-card` 改成 `.detail-container`（骨架屏与正文的共同
+   祖先，**不含 fixed 后代**，底栏是页根兄弟节点），触发点移到 `onMounted` ——
+   导航那一刻就长，骨架屏跟着页框一起长大。实测 `startedIn=45ms`。
+   - 连带发现：给骨架屏单独加 140ms 延迟淡入会制造一段**白屏**（白底上无框可看），
+     已撤回 —— 骨架随页框一起长才是对的。
+
+### 标准档 ladder（tokens.css）
+
+```
+--motion-morph-in: 460ms   （慢速 640）
+--motion-morph-in-near: 380ms （慢速 480）
+--motion-morph-out: 340ms  （慢速 480）
+--motion-enter: 320ms      （慢速 480）
+--motion-exit: 240ms       （慢速 360）
+--motion-stagger: 55ms / max 6
+```
+
+局部块公式同步：展开 `130 + h×0.36`（200–460，原 150+h×0.42 → 240–600）、
+收起 `100 + h×0.24`（150–320）。CSS 反馈类：heartBeat 0.56→0.42s、
+actionCountPop 0.6→0.44s、likeRipple 680→520ms、shareCheckDraw 480→360ms、
+forumFeedSwapIn 480→360ms；竖屏发布会话 520→420ms / 退 420→340ms；
+分享点亮 2000→1600ms、点赞脉冲 1900→1400ms。
+
+### 自证
+
+```
+probe-forum-motion   25/25 PASS（新增 B1b「≤400ms 起跑」与 B4b「拐点=0.2」）
+npm run verify       ✅（3595 passed）
+帧序列实测：110ms 高 559 → 300ms 915 → 520ms 落定 979，骨架随页框一起长
+```
+
+### 守卫
+
+- `motion-duration.test.js` 锁标准档 ladder + `--ease-morph` 存在 + 入场拐点 0.2。
+- `forum-post-draft-sync-guard.test.js` 改为钉契约：进场 ≥360ms 走 drawer 且**必须慢于退场**。
+- 探针 B1b（导航 45ms 内起跑）+ B4b（拐点 0.2）——回潮任意一条都会红。
+
+---
+
+## 15. 第五轮（2026-10-31）：横屏弹窗关闭缩回列表 + 删掉横屏发帖 FAB
+
+### 用户反馈
+
+> 「横屏详情弹窗关闭的时候要缩回帖子列表的感觉，然后为什么横屏挂了一个发帖悬浮按钮？删除吧」
+
+### ① 关闭不缩回：三个真因叠在一起（全部实测确认）
+
+复现环境 1280×800（`landscape + ≥1024 + ≥600`），卡片 `667×644 @232,356`，
+面板 `1024×752 @128,24`。修复前关闭全程采样：
+
+| 时刻 | 面板宽 | 不透明度 | `getAnimations()` |
+|---|---|---|---|
+| 19ms | 1024 | 1.00 | 0 |
+| 120ms | 1030 | 0.78 | **2**（两条 CSS transition） |
+| 341ms | 1032 | 0.06 | 2 |
+
+面板**只涨了 8px（leave-to 的 `scale(1.008)`）然后淡出**，WAAPI 形变一条都没跑。
+
+1. **模板 ref 在退场时已是 null（决定性）**。`v-if` 翻假的瞬间 Vue 就解绑 `panelRef`，
+   哪怕节点还被 `<Transition>` 的 leave 留着继续淡出 ⇒ `playPanelMorph('out')`
+   在 `await nextTick()` 之后拿到 `null` 直接 `return false`。
+   **这条从 P4 落地起就一直如此**（`handleClose` 里先起形变、`close()` 紧接着翻 v-if，
+   `nextTick` 一定晚于解绑）—— 所以横屏弹窗其实从来没有缩回过，只是没人逐帧量过。
+2. **transitions 在级联里压过 animations**。Vue 的 enter/leave 类会给面板挂
+   `transition: transform …`，而 CSS Cascade 里 transitions 是最后一档 ⇒ 起跑后
+   rAF 一加 `leave-to` 的 `scale(1.008)`，transition 就把形变整段压掉。
+3. **形变只挂在 `handleClose`**。关闭有五条路径（遮罩 / 关闭钮 / 详情内 `@close` /
+   Esc / 浏览器后退），后两条完全不经过它 ⇒ 即使修好 ①②，Esc 与后退仍然只剩淡出。
+
+### 修法（三条一组）
+
+- `playPanelMorph` 取元素改成 `panelRef.value || document.querySelector('.pd-modal-panel')`
+  —— leave 的那 340ms 里节点确实还在文档里。
+- 形变期间 `el.style.transitionProperty = 'width'`：摘掉 transform / opacity 的过渡，
+  **只留 width**（面板随图变宽那条 520ms 过渡照常），进场动画结束后置空恢复。
+- 形变改由 `watch(isOpen)` 驱动（两个方向都挂），`handleClose` 退回纯 `close()`。
+- 退场时长改用 `--motion-morph-out`（340ms，与详情整页返程同一个 token），
+  `.pd-modal-leave-active` 的 260ms 提到 **360ms** —— 它同时是节点摘除时刻，
+  必须长于形变，否则末帧被截断。
+
+### 修复后实测（同一环境）
+
+```
+关闭 16ms  1024×752 @128,24   tp=width   anims=1（只剩 WAAPI）
+关闭 120ms  829×693 @185,205
+关闭 340ms  667×645 @232,355   ← 卡片 667×644 @232,356
+入场 20ms   677×654 @226,338   ← 起点咬住卡片
+Esc 关闭 340ms 667×645 @232,355（与点关闭钮同一结果）
+```
+
+### ② 横屏删掉发帖 FAB
+
+`.mobile-compose-fab` 原本在**所有**档位都挂（2026-10-26「内嵌发帖器废弃后 FAB 是
+feed 页唯一常驻入口」）。但 `landscape + ≥1024 + ≥600` 这档左栏
+（`UserSpaceSideRail`）本来就有「发布」项，右下角再浮一个 + 号是纯移动端残留。
+
+- `isForumComposerFabVisible` 里加 `if (isLandscapeViewport.value) return false;`。
+- `isLandscapeViewport` 是**响应式**的（`isForumLandscape()` 是时点函数，直接塞进
+  computed 不会随旋屏重算），刷新点复用已有的 resize / orientationchange 通道
+  （`updateMobileStatus` 的同一帧 rAF），不新增监听、不另写 matchMedia。
+- **判据必须与左栏可见性同组**：手机横屏 932×430、折叠屏展开、1280×500（高<600）
+  这几档左栏是 `display:none`，FAB 仍是唯一发帖入口 —— 实测这三档 `fab=true` 保留。
+
+### 守卫
+
+- 新增 `tests/unit/postdetail-modal-morph-guard.test.js`（8 条）：两方向走 watcher /
+  `handleClose` 不再起形变 / DOM 回落 / `transition-property` 收窄 / 用
+  `--motion-morph-out` / leave 时长 > 形变时长 / 横屏 FAB 早退 / 判据响应式。
+  已做单点反证（撤掉 DOM 回落那条 → 恰好那一条变红）。
+- `probe-forum-viewport.mjs` 的期望矩阵加了 `fab` 列：`landscape=true` 的两档
+  `fab=false`，其余（1280×500 / 932×430 / 1000×800 / 各竖屏档）仍是 `true`。
+- `probe-desktop-composer.mjs` 改为点左栏 `[data-rail-action="compose"]`（FAB 兜底）。
