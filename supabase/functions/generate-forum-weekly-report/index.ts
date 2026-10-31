@@ -119,6 +119,11 @@ const isAdminRequest = async (request: Request) => {
   const token = bearer(request);
   if (!token) return false;
   if (serviceRoleKey && token === serviceRoleKey) return true;
+  // cron 通道：pg_cron 命令从 vault.decrypted_secrets 取 push_dispatch_key 做 Bearer
+  // （与 push-send / follow-mail-send / boh-ai-forum-memory 同一套投递凭证约定）。
+  // ⚠️ 必须在请求处理内读 env：模块顶层读会被复用的 isolate 缓存，改 secret 会「看起来没生效」。
+  const dispatchKey = String(Deno.env.get('BOH_PUSH_DISPATCH_KEY') || '').trim();
+  if (dispatchKey && token === dispatchKey) return true;
   const { data } = await client.auth.getUser(token).catch(() => ({ data: null }));
   const userId = String(data?.user?.id || '').trim();
   if (!userId) return false;
