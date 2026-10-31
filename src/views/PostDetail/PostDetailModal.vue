@@ -134,7 +134,7 @@ const playPanelMorph = async (direction) => {
 
   const duration =
     direction === 'in'
-      ? motionMs('--motion-morph-in-near', 380)
+      ? motionMs('--motion-morph-in-near', 480)
       : motionMs('--motion-morph-out', 360);
   /* 进 / 出**不同曲线**：入场用 --ease-morph（峰值压到 30–45%，全程都有可见运动），
      退场用 --ease-morph-out（前载，立刻响应 + 末段轻贴）—— 与竖屏整页返程同口径，
@@ -521,9 +521,13 @@ const panelWidth = computed(() => {
 }
 
 .pd-modal-leave-active {
-  /* 退场时长同时是**节点摘除时刻**：面板的收回形变 340ms（--motion-morph-out）
-     必须短于它，否则末帧被截断（2026-10-31 从 260 → 360 → 500 → 随标准档回 360）。 */
-  transition: opacity 360ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  /* 退场时长同时是**节点摘除时刻**：面板的收回形变（--motion-morph-out）
+     必须短于它，否则末帧被截断（2026-10-31 从 260 → 360 → 500 → 360）。
+     ⚠️ 2026-10-31 五改：`--motion-morph-out` 降到 360ms 后，这里的 360ms
+     与它**相等** ⇒ 形变刚跑完节点就被摘，末帧没有落脚处（守卫测试实测
+     `leave > morphOut` 失败）。留 60ms 余量：形变 360ms 走完，遮罩再淡 60ms
+     收尾，观感上就是「缩回去之后暗场退掉」，而不是硬切。 */
+  transition: opacity 420ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
 
 .pd-modal-enter-active .pd-modal-panel {

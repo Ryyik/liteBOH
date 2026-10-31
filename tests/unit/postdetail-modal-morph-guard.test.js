@@ -55,7 +55,12 @@ describe('PostDetailModal：关闭必须缩回列表卡片', () => {
   });
 
   it('退场时长取自 --motion-morph-out（与详情整页返程同一个 token）', () => {
-    expect(modalScript).toContain("motionMs('--motion-morph-out', 340)");
+    const outMs = Number(
+      /--motion-morph-out:\s*(\d+)ms/.exec(read('src/styles/common/tokens.css'))?.[1] || 0,
+    );
+    expect(outMs).toBeGreaterThan(0);
+    // 守「兜底值等于 token 当前值」而不是锁死 340 —— 调档只改 tokens.css
+    expect(modalScript).toContain(`motionMs('--motion-morph-out', ${outMs})`);
   });
 
   /* 2026-10-31 用户报障「横屏弹窗关闭动画要加上」。形变其实一直在跑，但
@@ -64,7 +69,16 @@ describe('PostDetailModal：关闭必须缩回列表卡片', () => {
      两条一起守：透明度必须是独立的 linear 动画（offset 才是墙钟时间）；transform 钉平。 */
   it('退场透明度是独立的 linear 动画（塞进 ease-morph 的关键帧会被前载曲线跨过）', () => {
     // ⚠️ 断言按「关键帧对象 + 属性」写，不写格式化敏感的连续子串（prettier 会把参数拆行）
-    expect(modalScript).toMatch(/\{\s*opacity: 1,\s*offset: 0\.78\s*\}/);
+    // ⚠️ 也不锁死具体 offset（旧口径写死 0.78）：淡出窗口随观感调（本轮
+    //    0.25 起淡 / 0.65 归零，要求「几何接近卡片之前就淡完」），
+    //    这里守「起淡点在 0.1–0.8 之间」这条语义区间。
+    const fadeStart = /\{\s*opacity: 1,\s*offset: (0\.\d+)\s*\}/.exec(modalScript);
+    expect(fadeStart).toBeTruthy();
+    expect(Number(fadeStart[1])).toBeGreaterThan(0.1);
+    expect(Number(fadeStart[1])).toBeLessThan(0.8);
+    // 显式终帧：WAAPI 末帧缺 offset:1 会隐式回落 underlying value
+    // （2026-10-31 实测：淡到 0.005 后又反弹回 0.92）
+    expect(modalScript).toMatch(/\{\s*opacity: 0,\s*offset: 0\.\d+\s*\}/);
     expect(modalScript).toMatch(/easing: 'linear'/);
     // clip 与 opacity 两条都要 keepFinal，否则 cancel 的瞬间一个回弹、一个亮回来
     expect((modalScript.match(/keepFinal: true/g) || []).length).toBeGreaterThanOrEqual(2);

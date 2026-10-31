@@ -3404,10 +3404,17 @@ const {
           <!-- 发布进度：已迁移到统一任务岛（useIsland 调度中心 showIsland.task），由发布队列 watcher 驱动 -->
 
           <!-- 帖子列表 -->
+          <!-- ⚠️ delay 走 CSS 变量而不是写死 0.2s（2026-10-31）：
+               写死 inline 值时，返回 / tab 切换要跳过入场就必须用 !important
+               才盖得住 inline（!important 棘轮门禁不许新增）。
+               改成引用 feed-enter-delay 变量后，返回侧只需把变量设为 0s，
+               靠继承生效 —— 零 !important。
+               ⚠️ 注释里不能写连续两个短横线（HTML 注释的非法序列），
+               会直接让本 SFC 编译 500，所以这里只写变量名不写 var() 写法。 -->
           <section
             class="posts-feed fade-in-up"
             :class="{ 'is-feed-entering': feedEntering }"
-            style="animation-delay: 0.2s"
+            style="animation-delay: var(--feed-enter-delay, 0.2s)"
           >
             <div v-if="!externalFeed" class="feed-mode-tabs">
               <button

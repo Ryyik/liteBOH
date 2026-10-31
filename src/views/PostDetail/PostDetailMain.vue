@@ -182,7 +182,7 @@ const playDetailEntryMorph = async () => {
   // 卡片已经盖满目标（同尺寸 / 无位移）就没必要演一遍，否则是一次无意义的「抽搐」
   if (!win) return;
 
-  const duration = motionMs('--motion-morph-in', 460);
+  const duration = motionMs('--motion-morph-in', 620);
   const easing = motionEase('--ease-morph');
   const depth = motionNum('--morph-depth', 1.12);
   // `detailPageRoot` 在下方声明（第 238 行左右），这里只在 onMounted 之后才被调用，
@@ -1673,7 +1673,7 @@ onBeforeRouteLeave((to) => {
     mountPageSnapshot();
     if (ghostSource) {
       void playCollapseMorph(ghostSource, entryOriginRect, {
-        duration: motionMs('--motion-morph-out', 340),
+        duration: motionMs('--motion-morph-out', 360),
         context: rootEl,
         backdrop: pageBg,
       });

@@ -1347,7 +1347,28 @@
    `.fade-in-up { animation: … forwards; opacity: 0; transform: translateY(30px) }`
    —— 可见性是由动画的 fill 撑住的，禁用动画 = 退回 opacity 0 = 整块列表消失。
    正确做法是让动画**立刻跑到终点**（时长/延迟归零、保留 fill），终帧就是「已在位」。
-   同一条纪律在 `utils/page-snapshot.js` 与 `utils/morph-layer.js` 里各记了一份。 */
+   同一条纪律在 `utils/page-snapshot.js` 与 `utils/morph-layer.js` 里各记了一份。
+
+   ⚠️ 这里**没有一处 `!important`**（`!important` 棘轮门禁不许新增）：
+   · `animation-delay` 对 `.posts-feed` 本来要盖 inline 的 `0.2s` —— 已把 inline 改成
+     `var(--feed-enter-delay, 0.2s)`（`ForumMain.vue`），这里在 `<html>` 上把变量压成
+     0s，靠继承生效，不需要去盖 inline；
+   · `animation-duration` 靠特异性赢：`html[data-…]` 前缀自带 1 attr + 1 class，
+     而唯一的强竞争方 `.posts-feed.is-feed-entering .post-card-v2:not(.is-new-post)`
+     是 4 个 class —— 已由下面显式列出的 `.is-feed-entering` 变体盖过。
+
+   🔴 **变量不能挂在裸 `html[data-…]` 上**（2026-10-31 实测踩坑）：本文件经
+   `ForumMain.vue` 的 `<style scoped>` 引入，Vue 会给选择器的**最后一个简单选择器**
+   补 `[data-v-xxx]` —— 写成 `html[data-boh-detail-returning]` 直接挂变量，会编译成
+   `html[data-boh-detail-returning][data-v-xxx]`，而 `<html>` 上没有 data-v 属性，
+   **规则永远不匹配**（实测 computed `--feed-enter-delay` 恒为空、inline 一直取
+   fallback 0.2s，列表白 200ms）。挂到 `.posts-feed` 上则编译成
+   `html[data-…] .posts-feed[data-v-xxx]`，元素自带 data-v ⇒ 正常命中。 */
+html[data-boh-detail-returning] .posts-feed,
+html[data-boh-nav-returning] .posts-feed {
+  --feed-enter-delay: 0s;
+}
+
 html[data-boh-detail-returning] .posts-feed,
 html[data-boh-detail-returning] .posts-list,
 html[data-boh-detail-returning] .forum-virtual-post,
@@ -1355,9 +1376,10 @@ html[data-boh-detail-returning] .stagger-list > *,
 html[data-boh-detail-returning] .post-card,
 html[data-boh-detail-returning] .post-card-v2,
 html[data-boh-detail-returning] .posts-feed.is-feed-entering .post-card-v2,
+html[data-boh-detail-returning] .posts-feed.is-feed-entering .forum-empty,
 html[data-boh-detail-returning] .forum-empty {
-  animation-duration: 0s !important;
-  animation-delay: 0s !important;
+  animation-duration: 0s;
+  animation-delay: 0s;
 }
 
 /* ══ 底栏切回「内容」：整页重挂也不重播入场（2026-10-31）══════════════
@@ -1376,7 +1398,8 @@ html[data-boh-nav-returning] .stagger-list > *,
 html[data-boh-nav-returning] .post-card,
 html[data-boh-nav-returning] .post-card-v2,
 html[data-boh-nav-returning] .posts-feed.is-feed-entering .post-card-v2,
+html[data-boh-nav-returning] .posts-feed.is-feed-entering .forum-empty,
 html[data-boh-nav-returning] .forum-empty {
-  animation-duration: 0s !important;
-  animation-delay: 0s !important;
+  animation-duration: 0s;
+  animation-delay: 0s;
 }

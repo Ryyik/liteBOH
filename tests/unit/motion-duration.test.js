@@ -64,22 +64,37 @@ describe('收起时长：恒快于展开', () => {
 
 describe('节奏档：tokens.css 与消费方的兜底值必须同档', () => {
   const tokens = read('src/styles/common/tokens.css');
+  const tokenMs = (name) => Number(new RegExp(`${name}:\\s*(\\d+)ms`).exec(tokens)?.[1] || 0);
 
-  it('形变 ladder（2026-10-31 四改：用户「还是标准速度吧」⇒ 460/380/340）', () => {
-    expect(tokens).toMatch(/--motion-morph-in:\s*460ms/);
-    expect(tokens).toMatch(/--motion-morph-in-near:\s*380ms/);
-    expect(tokens).toMatch(/--motion-morph-out:\s*340ms/);
-    expect(tokens).toMatch(/--motion-enter:\s*320ms/);
-    expect(tokens).toMatch(/--motion-exit:\s*240ms/);
+  /* 2026-10-31 六改：**不再锁死具体毫秒数**。
+     旧口径写死 460/380/340，结果用户每调一次速度就要改测试 —— 测试守的是
+     「上一次的观感」，不是「这条链路是自洽的」。改为守三条关系：
+       ① 三档都真实声明且为正；
+       ② 跨屏入场 ≥ 短距入场 ≥ 返程（返程必须最快，关闭不耐等）；
+       ③ 消费方兜底值**等于 token 当前值**（CSS 没加载时不跳档）。
+     数值本身由 tokens.css 单一真源决定，探针 probe-forum-motion 直接读 token 断言。 */
+  it('形变 ladder 三档已声明且递增关系正确（in ≥ in-near ≥ out）', () => {
+    const inMs = tokenMs('--motion-morph-in');
+    const nearMs = tokenMs('--motion-morph-in-near');
+    const outMs = tokenMs('--motion-morph-out');
+    expect(inMs).toBeGreaterThan(0);
+    expect(nearMs).toBeGreaterThan(0);
+    expect(outMs).toBeGreaterThan(0);
+    expect(inMs).toBeGreaterThanOrEqual(nearMs);
+    expect(nearMs).toBeGreaterThanOrEqual(outMs);
+    expect(tokenMs('--motion-enter')).toBeGreaterThan(0);
+    expect(tokenMs('--motion-exit')).toBeGreaterThan(0);
   });
 
   it('消费方的兜底值必须与 token 同档（不同档会在 CSS 没加载时跳档）', () => {
     const main = read('src/views/PostDetail/PostDetailMain.vue');
     const modal = read('src/views/PostDetail/PostDetailModal.vue');
-    expect(main).toContain("motionMs('--motion-morph-in', 460)");
-    expect(main).toContain("motionMs('--motion-morph-out', 340)");
-    expect(modal).toContain("motionMs('--motion-morph-out', 340)");
-    expect(modal).toContain("motionMs('--motion-morph-in-near', 380)");
+    expect(main).toContain(`motionMs('--motion-morph-in', ${tokenMs('--motion-morph-in')})`);
+    expect(main).toContain(`motionMs('--motion-morph-out', ${tokenMs('--motion-morph-out')})`);
+    expect(modal).toContain(`motionMs('--motion-morph-out', ${tokenMs('--motion-morph-out')})`);
+    expect(modal).toContain(
+      `motionMs('--motion-morph-in-near', ${tokenMs('--motion-morph-in-near')})`,
+    );
   });
 
   it('纵深 token 已声明且在安全区间（>1 才有纵深，>1.16 会裁出断层）', () => {

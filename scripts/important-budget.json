@@ -1,5 +1,5 @@
 {
-  "total": 625,
+  "total": 619,
   "files": {
     "src/App.vue": 1,
     "src/components/AiEdgeTrigger.vue": 2,
@@ -48,7 +48,7 @@
     "src/views/ShopConsole/style.css": 3,
     "src/views/user-center/Cloud+/style.scoped.css": 3,
     "src/views/user-center/Messages/style.scoped.css": 5,
-    "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 9,
+    "src/views/user-center/UserSpace/components/AssetsHubPanel.css": 3,
     "src/views/user-center/UserSpace/components/bottom-nav.css": 4,
     "src/views/user-center/UserSpace/styles/profile-panels.css": 7,
     "src/views/user-center/UserSpace/styles/responsive-integrations.css": 14,

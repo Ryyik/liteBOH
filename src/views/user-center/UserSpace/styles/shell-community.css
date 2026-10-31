@@ -300,11 +300,22 @@
    白帧没消掉，只是往后挪了。
    ⚠️ 也不要图省事写成 `.tab-no-replay * { animation: none }`：实测会把消息 tab 的
    加载态和胶囊指示器一起掐掉，切过去停在空白，比原问题更糟。 */
+/* ⚠️ 这里必须**同时**把 `--feed-enter-delay` 压成 0s（2026-10-31 实测）：
+   `.posts-feed` 的 inline 是 `animation-delay: var(--feed-enter-delay, 0.2s)`，
+   只归零 `animation-duration` 的话，delay 仍取 fallback 的 0.2s —— 动画「立即完成
+   但 200ms 后才开始」，元素在这 200ms 里停在基础规则 `opacity: 0;
+   translateY(30px)`（实测 +150ms 时 feedOp=0 / feedTY=30px），等于白闪一下。
+   变量归零靠继承生效，不需要 `!important`。 */
+.user-space-page.tab-no-replay {
+  --feed-enter-delay: 0s;
+}
+
 .user-space-page.tab-no-replay .posts-feed,
 .user-space-page.tab-no-replay .forum-virtual-post,
 .user-space-page.tab-no-replay .stagger-list > *,
 .user-space-page.tab-no-replay .post-card,
 .user-space-page.tab-no-replay .post-card-v2,
+.user-space-page.tab-no-replay .posts-feed.is-feed-entering .post-card-v2,
 .user-space-page.tab-no-replay .profile-post-card,
 .user-space-page.tab-no-replay .profile-hero-panel,
 .user-space-page.tab-no-replay .profile-content-panel,
@@ -312,17 +323,23 @@
 .user-space-page.tab-no-replay .message-row {
   /* ⚠️ 用「时长归零」而不是 `animation: none`：`Forum/styles/base.css` 的
      `.fade-in-up` 把 `opacity: 0` 写进了基础规则、靠动画 fill 抬到 1，
-     禁用动画会让它整块消失（2026-10-31 在快照垫层上实证过）。归零＝直接到终帧。 */
-  animation-duration: 0s !important;
-  animation-delay: 0s !important;
+     禁用动画会让它整块消失（2026-10-31 在快照垫层上实证过）。归零＝直接到终帧。
+
+     ⚠️ 也不写 `!important`（棘轮门禁不许新增）：`.tab-no-replay` 挂在页根上，
+     选择器自带 2 个 class，卡片那条 `.posts-feed.is-feed-entering
+     .post-card-v2:not(.is-new-post)` 是 4 个 class —— 所以显式补一条
+     `.posts-feed.is-feed-entering .post-card-v2` 变体（同样 4 个 class，
+     且本文件在 feed.css 之后加载）。 */
+  animation-duration: 0s;
+  animation-delay: 0s;
 }
 
 /* tab 容器本身的淡入只在竖屏手机（底栏形态）跳过：桌面的方向位移是有意义的
    空间提示，而且桌面内容切换不靠这条淡入来遮白。 */
 @media (max-width: 768px) {
   .user-space-page.tab-no-replay .tab-page {
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
+    animation-duration: 0s;
+    animation-delay: 0s;
   }
 }
 
@@ -335,11 +352,12 @@
 html[data-boh-detail-returning] .user-space-page .tab-page,
 html[data-boh-detail-returning] .user-space-page .posts-feed,
 html[data-boh-detail-returning] .user-space-page .post-card-v2,
+html[data-boh-detail-returning] .user-space-page .posts-feed.is-feed-entering .post-card-v2,
 html[data-boh-detail-returning] .user-space-page .profile-hero-panel,
 html[data-boh-detail-returning] .user-space-page .profile-content-panel,
 html[data-boh-detail-returning] .user-space-page .profile-service-panel {
-  animation-duration: 0s !important;
-  animation-delay: 0s !important;
+  animation-duration: 0s;
+  animation-delay: 0s;
 }
 
 /* ⚠️ reduced-motion 基线统一放在**本文件末尾**（见文件最后一块）。
