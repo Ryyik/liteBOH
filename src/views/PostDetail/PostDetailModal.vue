@@ -109,7 +109,7 @@ const playPanelMorph = async (direction) => {
      起因：关闭时「面板原地微缩 + 淡出」，没有缩回卡片。
      真因是**级联顺序**：CSS Cascade 里 transitions 是最后一档（高于 animations），
      而 Vue 的 enter/leave 类会给面板挂 `transition: transform … / opacity …`：
-       · leave-active 面板 transition: transform 260ms + leave-to 的 scale(1.008)
+       · leave-active 面板 transition: transform 340ms + leave-to 的 scale(1.008)
          ⇒ 起跑后 rAF 一加 leave-to，transition 就从当前值走向 scale(1.008)，
            把 340ms 的 WAAPI 形变整段压掉（元素宽度实测全程 ~1000px 不动）；
        · enter-active 同理（380ms），进场只是「碰巧」因为 transition 起点取到了
