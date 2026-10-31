@@ -79,6 +79,10 @@
           <LayoutIcon :size="18" />
           <span><strong>首页装修</strong><small>英雄区发布</small></span>
         </button>
+        <button type="button" class="g-quick-cell wide" @click="goToGateConsole">
+          <MoonIcon :size="18" />
+          <span><strong>开屏管理</strong><small>开场画文案、按钮与抽奖绑定</small></span>
+        </button>
         <button type="button" class="g-quick-cell" @click="$emit('quick-create', 'lotteries')">
           <GiftIcon :size="18" />
           <span><strong>发起抽奖</strong><small>新建抽奖</small></span>
@@ -341,6 +345,7 @@ import {
   RefreshCw,
   Store as StoreIcon,
   Layout as LayoutIcon,
+  Moon as MoonIcon,
 } from 'lucide-vue-next';
 import {
   getSupabaseProjectStatus,
@@ -374,6 +379,10 @@ const goToShopConsole = () => {
 
 const goToHeroConsole = () => {
   router.push('/admin/hero-console').catch(() => {});
+};
+
+const goToGateConsole = () => {
+  router.push('/admin/gate-console').catch(() => {});
 };
 
 // 指挥舱：待办分流（有数置顶 / 归零折叠）与 KPI 下钻映射
@@ -1018,6 +1027,9 @@ watch(
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: calc(var(--spacing) * 3);
+}
+.g-quick-cell.wide {
+  grid-column: 1 / -1;
 }
 .g-quick-cell {
   display: flex;

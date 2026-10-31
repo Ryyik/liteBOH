@@ -52,6 +52,14 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavbar: true },
   },
   {
+    // 开屏控制台（2026-10-31）：活动期开屏的内容与 CTA 绑定都在这里改，不用发版。
+    // 与 HeroConsole 分开：那边管的是「首页英雄区流」，这边管的是「入场浮层」。
+    path: '/admin/gate-console',
+    name: 'GateConsole',
+    component: () => import('../../views/GateConsole/index.vue'),
+    meta: { requiresAdmin: true, hideNavbar: true },
+  },
+  {
     path: '/admin/avatar-console',
     name: 'AvatarConsole',
     component: () => import('../../views/AvatarConsole/index.vue'),

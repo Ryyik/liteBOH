@@ -28,13 +28,17 @@
     <div
       v-if="!gateDismissed"
       class="home-gate"
-      @wheel="handleWheel"
-      @touchstart="handleTouchStart"
-      @touchmove="handleTouchMove"
-      @touchend="handleTouchEnd"
-      @touchcancel="handleTouchEnd"
+      @wheel="handleGateWheel"
+      @touchstart="handleGateTouchStart"
+      @touchmove="handleGateTouchMove"
+      @touchend="handleGateTouchEnd"
+      @touchcancel="handleGateTouchEnd"
     >
-      <StreetSceneHero :hero="streetSceneHero" />
+      <!-- 开屏形态二选一：
+           ① home_gate_config 生效中且主题不是 default → 活动版（像素场景 + 可配文案 + CTA）
+           ② 其余情况 → 现有的街景/品牌兜底（红苹果 + 时段问候），一行都不改 -->
+      <GateSceneHero v-if="gateSceneActive" :config="gateConfig" @cta="handleGateCta" />
+      <StreetSceneHero v-else :hero="streetSceneHero" />
       <!-- 键盘 / 读屏用户的等价入口：视觉隐藏、聚焦时可见（一次触发即完成） -->
       <button class="home-gate-enter" type="button" @click="commitGate">进入方块论坛</button>
     </div>
@@ -119,6 +123,13 @@ import { createPanelAsync } from '@/utils/async-component.js';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import StreetSceneHero from './components/StreetSceneHero.vue';
+import GateSceneHero from './components/GateSceneHero.vue';
+import {
+  fetchGateConfig,
+  isGateConfigActive,
+  readGateConfigCache,
+  resolveGateCtaTarget,
+} from '@/utils/api/gate-config-api.js';
 import HomeFooter from './components/HomeFooter.vue';
 import { useGatePull } from './composables/useGatePull.js';
 import ForumSectionShell from '@/views/user-center/UserSpace/components/ForumSectionShell.vue';
@@ -177,6 +188,56 @@ const {
   mounted: mountGatePull,
   unmounted: unmountGatePull,
 } = useGatePull();
+
+// ============================================
+// 活动版开屏（home_gate_config）
+// ============================================
+/* 数据源是 DB 单行表，管理台在 /admin/gate-console。
+   首帧必须同步决定渲染哪种开屏，所以先用 localStorage 缓存（与 gate-passed 同性质），
+   网络回来后再覆盖。没有缓存 / 表不存在 / 网络失败 → 一律回落现有默认开屏。 */
+const gateConfig = ref(readGateConfigCache());
+const gateSceneActive = computed(() => isGateConfigActive(gateConfig.value));
+const gateCtaTarget = computed(() => resolveGateCtaTarget(gateConfig.value));
+
+/* CTA 是浮层里唯一的可点区域：手势必须跳过它，否则点按钮会被当成上滑起手，
+   touchend 的回弹补间会和 commit 补间抢同一个 rAF（按钮点了没反应）。 */
+let gateCtaTouch = false;
+const isGateCtaTarget = (event) => Boolean(event?.target?.closest?.('[data-gate-cta]'));
+
+const handleGateWheel = (event) => {
+  if (isGateCtaTarget(event)) return;
+  handleWheel(event);
+};
+
+const handleGateTouchStart = (event) => {
+  gateCtaTouch = isGateCtaTarget(event);
+  if (gateCtaTouch) return;
+  handleTouchStart(event);
+};
+
+const handleGateTouchMove = (event) => {
+  if (gateCtaTouch) return;
+  handleTouchMove(event);
+};
+
+const handleGateTouchEnd = () => {
+  if (gateCtaTouch) {
+    gateCtaTouch = false;
+    return;
+  }
+  handleTouchEnd();
+};
+
+const handleGateCta = () => {
+  const target = gateCtaTarget.value;
+  if (!target) return;
+  /* 顺序不能反：先 commit（写「已通过」标记 + 收浮层），再导航。
+     浮层是 Home 内的 fixed 覆盖层，直接 push 会让它跟着 Home 一起卸载，
+     观感上就是硬切 —— 这正是想要的结果，不要改成「等动画播完再跳」。 */
+  commitGate();
+  if (target.to) router.push(target.to).catch(() => {});
+  else if (target.href) window.open(target.href, '_blank', 'noopener');
+};
 
 // ============================================
 // 智能概览灵动岛：唯一自动触发点 =「进入论坛」（首屏解锁落定）
@@ -464,6 +525,15 @@ onMounted(async () => {
   } catch {
     // 静默失败：动态英雄区是增量，表不存在时仅返回空数组
   }
+
+  /* 活动版开屏配置：与英雄区并行、互不依赖。
+     失败（表还没建 / 断网）时保持缓存值或 null，也就是走默认开屏 —— 不能因为
+     后台配置拉不到就让首屏白屏。 */
+  fetchGateConfig()
+    .then(({ data }) => {
+      if (data) gateConfig.value = data;
+    })
+    .catch(() => {});
 });
 
 onBeforeUnmount(() => {

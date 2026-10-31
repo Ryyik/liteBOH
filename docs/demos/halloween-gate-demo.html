@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>万圣夜抽奖开屏 · 像素版 demo</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:#F2F0EC;color:#17130E;
+    font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    padding:28px 16px 40px;min-height:100vh;
+  }
+  .head{width:378px;display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px}
+  .head h1{font-size:14px;font-weight:600;margin:0;letter-spacing:.01em}
+  .head p{font-size:12px;color:#8A8378;margin:4px 0 0;line-height:1.5}
+  .read{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#8A8378;background:#E9E5DE;padding:3px 8px;border-radius:6px}
+
+  .frame{
+    --p:0;--fp:0;
+    position:relative;width:378px;height:636px;border-radius:22px;overflow:hidden;
+    background:#F4F2EE;box-shadow:0 18px 50px rgba(30,20,10,.16),0 0 0 .5px rgba(0,0,0,.10);
+    touch-action:none;user-select:none;-webkit-user-select:none;
+  }
+
+  /* ---------- 底下那层「桌面」 ---------- */
+  .desk{position:absolute;inset:0;background:#F4F2EE;padding:22px 16px;display:flex;flex-direction:column;gap:9px;
+        transform:scale(calc(1 + (1 - var(--fp)) * .02))}
+  .d-nav{height:32px;border-radius:16px;background:#fff;border:.5px solid #E6E2DB;display:flex;align-items:center;padding:0 12px;flex:none}
+  .d-nav i{display:block;width:58px;height:8px;border-radius:4px;background:#E2DED6}
+  .d-tabs{display:flex;gap:7px;margin:4px 0 2px;flex:none}
+  .d-tabs i{height:9px;flex:1;border-radius:5px;background:#E6E2DB}
+  .d-tabs i.on{background:#FF7A1A}
+  .d-card{background:#fff;border:.5px solid #EBE7E0;border-radius:12px;padding:11px;display:flex;gap:10px;height:74px;flex:none}
+  .d-card.tall{height:92px}
+  .d-card>div{flex:1}
+  .d-av{width:28px;height:28px;border-radius:50%;background:#F0ECE4;flex:none}
+  .d-card b{display:block;width:52%;height:9px;border-radius:4px;background:#E6E2DB;margin-bottom:8px}
+  .d-card u{display:block;width:88%;height:7px;border-radius:4px;background:#EFEBE3;margin-bottom:6px}
+  .d-card u.w2{width:62%}
+
+  /* ---------- 开场浮层：跟手进度派生（与线上同一条公式） ---------- */
+  .gate{
+    position:absolute;inset:0;overflow:hidden;cursor:grab;
+    transform:translateY(calc(var(--p) * -42%)) scale(calc(1 - var(--p) * .1));
+    border-radius:calc(var(--p) * 32px);
+    opacity:clamp(0,calc((1 - var(--p)) * 5),1);
+    will-change:transform,opacity,border-radius;
+  }
+  .gate:active{cursor:grabbing}
+  .scene{position:absolute;inset:0}
+  .scene svg{display:block;width:100%;height:100%}
+
+  /* 星星闪烁 / 火星上升：都走 steps，保持「像素在跳」而不是平滑淡入 */
+  .tw{animation:tw 3.6s steps(1,end) infinite}
+  @keyframes tw{0%,100%{opacity:.18}50%{opacity:.95}}
+  .ember{animation:rise 9s steps(14,end) infinite}
+  @keyframes rise{
+    0%{transform:translateY(0);opacity:0}
+    12%{opacity:.9}
+    100%{transform:translateY(-46px);opacity:0}
+  }
+  .flapA{animation:flapA .42s steps(1,end) infinite}
+  .flapB{animation:flapB .42s steps(1,end) infinite}
+  @keyframes flapA{0%,49.9%{opacity:1}50%,100%{opacity:0}}
+  @keyframes flapB{0%,49.9%{opacity:0}50%,100%{opacity:1}}
+  .drift{animation:drift 52s steps(60,end) infinite}
+  @keyframes drift{0%{transform:translateX(0)}100%{transform:translateX(18px)}}
+  .float{animation:float 7.5s steps(1,end) infinite}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+
+  /* ---------- 文案 ---------- */
+  .copy{position:absolute;left:26px;right:26px;top:56px}
+  .eb{
+    font-size:10px;letter-spacing:.28em;color:#E9A15C;margin:0 0 16px;
+    text-shadow:2px 2px 0 rgba(0,0,0,.45);
+  }
+  .tt{
+    font-size:33px;font-weight:700;line-height:1.3;letter-spacing:.10em;
+    color:#FFF1DC;margin:0;text-shadow:3px 3px 0 rgba(12,4,18,.62);
+  }
+  .rule{display:flex;gap:4px;margin:18px 0 12px}
+  .rule i{display:block;width:6px;height:6px;background:#E9A15C}
+  .rule i:nth-child(2){opacity:.55}
+  .rule i:nth-child(3){opacity:.28}
+  .sb{font-size:11px;line-height:1.7;letter-spacing:.06em;color:rgba(255,241,220,.66);margin:0}
+
+  /* ---------- 主 CTA：切角像素按钮 ---------- */
+  .cta{
+    position:absolute;left:26px;bottom:86px;height:48px;padding:0 26px;
+    display:inline-flex;align-items:center;gap:12px;border:0;cursor:pointer;
+    font-family:inherit;font-size:14px;font-weight:700;letter-spacing:.10em;color:#2B1505;
+    background:#FFB35C;
+    clip-path:polygon(8px 0,calc(100% - 8px) 0,calc(100% - 8px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 8px) calc(100% - 4px),calc(100% - 8px) 100%,8px 100%,8px calc(100% - 4px),0 calc(100% - 4px),0 4px,8px 4px);
+    filter:drop-shadow(4px 4px 0 rgba(8,2,14,.55));
+    transition:transform .12s steps(2,end);
+  }
+  .cta:active{transform:translate(2px,2px)}
+  .cta span{font-size:15px;letter-spacing:0}
+  .cta::after{content:'';position:absolute;left:0;right:0;top:0;height:4px;background:rgba(255,255,255,.32)}
+
+  .hint{
+    position:absolute;left:0;right:0;bottom:40px;display:flex;justify-content:center;align-items:center;gap:7px;
+    font-size:11px;letter-spacing:.10em;color:rgba(255,241,220,.58);cursor:pointer;
+    opacity:calc(1 - var(--p) * 2.2);
+  }
+  .ar{display:inline-block;animation:br 2s steps(2,end) infinite}
+  @keyframes br{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(3px);opacity:1}}
+
+  /* ---------- 默认形态（活动结束后换回来） ---------- */
+  .df{position:absolute;inset:0;background:#fff;display:none;align-items:center;justify-content:center}
+  .df img{height:170px;width:auto;image-rendering:pixelated}
+  .df .tt{position:absolute;left:26px;top:56px;font-size:25px;color:#17130E;text-shadow:none;letter-spacing:.02em;font-weight:600}
+  .df-only{display:none}
+  .gate[data-v="df"] .scene,.gate[data-v="df"] .cta,.gate[data-v="df"] .copy{display:none}
+  .gate[data-v="df"] .df{display:flex}
+  .gate[data-v="df"] .hw-only{display:none}
+  .gate[data-v="df"] .df-only{display:inline}
+  .gate[data-v="df"] .hint{color:#52483C}
+
+  /* ---------- 抽奖详情（模拟路由跳转后的页面） ---------- */
+  .raffle{
+    position:absolute;inset:0;background:#FBF9F6;padding:20px 18px 26px;display:flex;flex-direction:column;
+    transform:translateY(100%);transition:transform .44s cubic-bezier(.23,1,.32,1);
+  }
+  .raffle.on{transform:none}
+  .r-top{display:flex;align-items:center;gap:12px;flex:none}
+  .r-back{font-size:16px;color:#6B6560;cursor:pointer;padding:2px 8px 2px 2px}
+  .r-title{font-size:14px;font-weight:600;color:#17130E}
+  .r-hero{margin:22px 0 18px;padding:22px 18px;border-radius:16px;background:#1A0D22;color:#FFF1DC;flex:none;position:relative;overflow:hidden}
+  .r-hero::after{content:'';position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,140,50,.16)}
+  .r-k{font-size:11px;letter-spacing:.16em;color:#E9A15C;margin:0 0 10px}
+  .r-big{font-size:23px;font-weight:700;margin:0 0 10px;letter-spacing:.06em}
+  .r-meta{font-size:11px;color:rgba(255,241,220,.5);margin:0}
+  .r-list{display:flex;flex-direction:column;gap:9px;flex:1}
+  .r-item{display:flex;align-items:center;gap:11px;background:#fff;border:.5px solid #EBE7E0;border-radius:12px;padding:11px 12px}
+  .r-ic{width:26px;height:26px;border-radius:8px;background:#FDF0E2;color:#C4691F;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none}
+  .r-item b{display:block;font-size:13px;font-weight:600;color:#17130E}
+  .r-item u{display:block;font-size:11px;color:#9A938B;text-decoration:none;margin-top:2px}
+  .r-n{font-size:12px;color:#C4691F;margin-left:auto}
+  .r-note{margin-top:18px;padding:14px 2px 0;border-top:.5px solid #E8E3DB}
+  .r-note p{font-size:11px;line-height:1.9;color:#9A938B;margin:0}
+  .r-cta{margin-top:14px;height:48px;background:#FFB35C;color:#2B1505;font-size:14px;font-weight:700;letter-spacing:.06em;
+    display:flex;align-items:center;justify-content:center;flex:none;
+    clip-path:polygon(8px 0,calc(100% - 8px) 0,calc(100% - 8px) 4px,100% 4px,100% calc(100% - 4px),calc(100% - 8px) calc(100% - 4px),calc(100% - 8px) 100%,8px 100%,8px calc(100% - 4px),0 calc(100% - 4px),0 4px,8px 4px)}
+
+  /* ---------- 底部控制 ---------- */
+  .foot{width:378px;display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+  .seg{display:flex;gap:6px}
+  .seg button{
+    font-family:inherit;font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer;
+    border:.5px solid rgba(0,0,0,.14);background:transparent;color:#6B6560;
+  }
+  .seg button.on{background:#1A0D22;color:#FFF1DC;border-color:#1A0D22}
+  .foot .rp{font-family:inherit;font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer;border:.5px solid rgba(0,0,0,.14);background:transparent;color:#6B6560}
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1>万圣夜抽奖开屏 · 像素版</h1>
+      <p>点上滑拖动揭开浮层；点「参加抽奖」看跳转</p>
+    </div>
+    <code class="read" id="read">p 0.00</code>
+  </div>
+
+  <div class="frame" id="frame">
+    <div class="desk">
+      <div class="d-nav"><i></i></div>
+      <div class="d-tabs"><i class="on"></i><i></i><i></i><i></i></div>
+      <div class="d-card"><span class="d-av"></span><div><b></b><u></u></div></div>
+      <div class="d-card"><span class="d-av"></span><div><b></b><u></u></div></div>
+      <div class="d-card tall"><span class="d-av"></span><div><b></b><u></u><u class="w2"></u></div></div>
+    </div>
+
+    <div class="gate" id="gate" data-v="hw">
+      <div class="scene" id="scene"></div>
+
+      <div class="df">
+        <img src="./public/icons/icon-512.png" alt="">
+        <p class="tt">晚上好，欢迎回到方块街</p>
+      </div>
+
+      <div class="copy">
+        <p class="eb">HALLOWEEN · 2026.10.31</p>
+        <p class="tt">南瓜灯下</p>
+        <p class="tt">抽一份糖</p>
+        <div class="rule"><i></i><i></i><i></i></div>
+        <p class="sb">方块街万圣夜限定抽奖 · 10.31 – 11.02</p>
+      </div>
+
+      <button class="cta" id="cta" type="button">参加抽奖<span>→</span></button>
+
+      <div class="hint" id="hint">
+        <span class="hw-only">或上滑进入方块街</span>
+        <span class="df-only">往下逛逛</span>
+        <span class="ar">↓</span>
+      </div>
+    </div>
+
+    <div class="raffle" id="raffle">
+      <div class="r-top"><span class="r-back" id="rback">←</span><span class="r-title">万圣夜糖果盒</span></div>
+      <div class="r-hero">
+        <p class="r-k">限定抽奖 · 剩 2 天</p>
+        <p class="r-big">今晚开 3 份大奖</p>
+        <p class="r-meta">已有 1,204 人参与</p>
+      </div>
+      <div class="r-list">
+        <div class="r-item"><span class="r-ic">1</span><div><b>南瓜灯头像框</b><u>限定 30 天</u></div><span class="r-n">×3</span></div>
+        <div class="r-item"><span class="r-ic">2</span><div><b>积分 500</b><u>直接到账</u></div><span class="r-n">×20</span></div>
+        <div class="r-item"><span class="r-ic">3</span><div><b>万圣夜徽章</b><u>永久收藏</u></div><span class="r-n">×200</span></div>
+      </div>
+      <div class="r-note">
+        <p>· 每日 20:00 开奖，中奖结果站内信通知</p>
+        <p>· 糖果券可通过发帖 / 回帖获得，每日上限 3 张</p>
+        <p>· 同一账号每个奖项限中一次</p>
+      </div>
+      <div class="r-cta">立即参与 · 消耗 1 张糖果券</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="seg">
+      <button class="on" data-v="hw" type="button">万圣夜</button>
+      <button data-v="df" type="button">当前默认</button>
+    </div>
+    <button class="rp" id="rp" type="button">重播</button>
+  </div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* =====================================================================
+     像素场景：整个画面是一张 126×212 的像素画布，每个「像素」= 3 CSS px。
+     所有坐标都是整数格，shape-rendering=crispEdges ⇒ 放大后边缘绝对干净。
+     ===================================================================== */
+  var W = 126, H = 212;
+
+  var C = {
+    ink:'#07040D',
+    body:['#3F1204','#6B2206','#96330A','#C24A0E','#E86A17','#FF8C33','#FFAE5E'],
+    hole:'#FFF6D8', rim:'#FFC97D',
+    stem:'#4F6B33', stem2:'#33471F',
+    townF:'#1A0F26', townN:'#0B0614',
+    win:'#FFB86B', winD:'#6B4A2E',
+    moon:'#FFF6E2', moon2:'#EFDDAE', moon3:'#CFB384',
+  };
+
+  var parts = [];
+
+  function rect(x,y,w,h,f,extra){
+    parts.push('<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+f+'"'+(extra||'')+'/>');
+  }
+
+  /* 确定性随机（截图对比用，避免每次刷新星星位置都变） */
+  var seed = 20261031;
+  function rnd(){
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  }
+  function ri(a,b){ return a + Math.floor(rnd() * (b - a + 1)); }
+
+  /* ---------- 1. 天空：硬分段渐变（像素画的「色带」，不是平滑渐变） ---------- */
+  var skyStops = [
+    [0.00,'#07040D'],[0.05,'#0B0714'],[0.145,'#120A1C'],[0.25,'#1A0E27'],
+    [0.36,'#241230'],[0.46,'#30163A'],[0.54,'#3D1A3F'],[0.60,'#4E2140'],
+    [0.66,'#5C2740'],[0.75,'#6E3441'],[0.86,'#7A3A48'],[1.00,'#8C4449']
+  ];
+  var grad = '<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">';
+  for (var i=0;i<skyStops.length;i++){
+    var f = skyStops[i][0], col = skyStops[i][1];
+    grad += '<stop offset="'+f+'" stop-color="'+col+'"/>';
+    if (i < skyStops.length-1) grad += '<stop offset="'+skyStops[i+1][0]+'" stop-color="'+col+'"/>';
+  }
+  grad += '</linearGradient></defs>';
+  parts.push(grad);
+  rect(0,0,W,152,'url(#sky)');
+
+  /* ---------- 2. 星星：1×1 与十字两种，全部 steps 闪烁 ---------- */
+  var starSeed = 777;
+  function srnd(){ starSeed = (starSeed*1103515245+12345) % 2147483648; return starSeed/2147483648; }
+  for (var s=0;s<52;s++){
+    var sx = Math.floor(srnd()*W), sy = Math.floor(4 + srnd()*74);
+    var dxm = sx-101, dym = sy-33;
+    if (dxm*dxm+dym*dym < 190) continue;
+    var delay = (srnd()*4).toFixed(2);
+    if (srnd() > 0.82){
+      rect(sx-1,sy,3,1,'#CFC3E0',' class="tw" style="animation-delay:'+delay+'s"');
+      rect(sx,sy-1,1,3,'#CFC3E0',' class="tw" style="animation-delay:'+delay+'s"');
+    } else {
+      rect(sx,sy,1,1, srnd()>.5?'#E6DEF2':'#9E93B8', ' class="tw" style="animation-delay:'+delay+'s"');
+    }
+  }
+
+  /* ---------- 3. 月亮：像素圆 + 环形光晕（多圈、每圈只加一点点，避免看到硬边） ---------- */
+  var MX = 101, MY = 33, MR = 9;
+  for (var ring=7; ring>=1; ring--){
+    var rr = MR + ring*2.6;
+    var cells = '';
+    for (var yy=-Math.ceil(rr); yy<=Math.ceil(rr); yy++){
+      for (var xx=-Math.ceil(rr); xx<=Math.ceil(rr); xx++){
+        if (xx*xx+yy*yy <= rr*rr) cells += '<rect x="'+(MX+xx)+'" y="'+(MY+yy)+'" width="1" height="1" fill="rgba(255,226,170,0.012)"/>';
+      }
+    }
+    parts.push(cells);
+  }
+  var moonCells = '';
+  for (var my=-MR; my<=MR; my++){
+    for (var mx=-MR; mx<=MR; mx++){
+      var d2 = mx*mx+my*my;
+      if (d2 > MR*MR) continue;
+      var col = C.moon2;
+      if (mx < -2 && my < 1) col = C.moon;
+      if (d2 > (MR-2)*(MR-2)) col = C.moon3;
+      var craters = [[2,-3],[3,-3],[2,-2],[-4,3],[-3,3],[-4,4],[-1,-5],[-2,5],[4,1],[3,2]];
+      for (var cr=0; cr<craters.length; cr++){
+        if (mx===craters[cr][0] && my===craters[cr][1]) col = C.moon3;
+      }
+      moonCells += '<rect x="'+(MX+mx)+'" y="'+(MY+my)+'" width="1" height="1" fill="'+col+'"/>';
+    }
+  }
+  parts.push(moonCells);
+
+  /* ---------- 4. 云：像素块 + 缓慢横移 ---------- */
+  var CLOUD = [
+    '...####.......',
+    '..######..###.',
+    '.#############',
+    '..###########.'
+  ];
+  function cloud(ox,oy,alpha,delay){
+    var g = '<g class="drift" style="animation-delay:'+delay+'s">';
+    for (var cy=0;cy<CLOUD.length;cy++){
+      for (var cx=0;cx<CLOUD[cy].length;cx++){
+        if (CLOUD[cy][cx] === '#') g += '<rect x="'+(ox+cx)+'" y="'+(oy+cy)+'" width="1" height="1" fill="rgba(128,86,152,'+alpha+')"/>';
+      }
+    }
+    parts.push(g+'</g>');
+  }
+  cloud(64,66,0.22,0);
+  cloud(14,74,0.15,6);
+
+  /* ---------- 5. 远/近两层城镇剪影 ---------- */
+  function town(baseY, list, color, winColor, winChance){
+    for (var b=0;b<list.length;b++){
+      var x = list[b][0], w = list[b][1], h = list[b][2], roof = list[b][3] || 0;
+      rect(x, baseY-h, w, h, color);
+      if (roof === 1){ rect(x+1, baseY-h-1, w-2, 1, color); rect(x+3, baseY-h-2, w-6, 1, color); }
+      if (roof === 2){ rect(x+Math.floor(w/2)-1, baseY-h-3, 2, 3, color); }
+      if (roof === 3){ rect(x+Math.floor(w/2), baseY-h-4, 1, 4, color); }
+      for (var wy = baseY-h+3; wy < baseY-2; wy += 3){
+        for (var wx = x+2; wx < x+w-1; wx += 3){
+          if (srnd() > winChance) continue;
+          rect(wx, wy, 1, 1, winColor);
+        }
+      }
+    }
+  }
+  town(150, [
+    [0,10,9,1],[11,8,15,0],[20,12,7,0],[33,9,17,2],[43,11,10,0],[55,8,19,0],
+    [64,12,8,0],[77,9,14,1],[87,11,7,0],[99,8,16,3],[108,10,9,0],[119,7,13,1]
+  ], C.townF, C.winD, 0.16);
+
+  town(156, [
+    [-3,13,11,1],[11,10,18,0],[22,13,9,0],[36,11,21,2],[48,14,13,0],[63,10,23,0],
+    [74,13,10,1],[88,11,19,0],[100,14,12,0],[115,12,17,3]
+  ], C.townN, C.win, 0.13);
+
+  /* ---------- 6. 地面：安静的暗部 + 少量明确的前景元素 ---------- */
+  rect(0,150,W,3,'#2A1F36');
+  rect(0,153,W,9,'#1A1226');
+  rect(0,162,W,12,'#120C1C');
+  rect(0,174,W,H-174,'#0A0614');
+  for (var k=0;k<44;k++){
+    var kx = Math.floor(srnd()*W), ky = 164 + Math.floor(srnd()*36);
+    rect(kx,ky, srnd()>.6?2:1, 1, '#171122');
+  }
+  /* 贴地薄雾：只留很淡的几十个点，密了就变成噪点 */
+  for (var mf=0; mf<26; mf++){
+    rect(Math.floor(srnd()*W), 151 + Math.floor(srnd()*5), 1, 1, 'rgba(150,110,190,0.13)');
+  }
+
+  /* 墓园剪影（右侧） */
+  var TOMB = [[86,168,7,11],[95,173,6,8],[104,164,9,14],[116,171,6,9]];
+  for (var tb=0; tb<TOMB.length; tb++){
+    var tx = TOMB[tb][0], ty = TOMB[tb][1], tw = TOMB[tb][2], th = TOMB[tb][3];
+    rect(tx,ty,tw,th,'#151022');
+    rect(tx,ty,tw,1,'#2A2040');
+    if (tb === 2){ rect(tx+3,ty-4,2,4,'#151022'); rect(tx+2,ty-2,4,1,'#151022'); }
+  }
+
+  /* 左侧矮栅栏 */
+  for (var fp=0; fp<32; fp+=6){
+    rect(fp+1, 152, 1, 10, '#0A0512');
+  }
+  rect(0,153,33,1,'#0A0512');
+  rect(0,158,33,1,'#0A0512');
+
+  /* 地面上两只小南瓜 */
+  function miniPumpkin(cx,cy){
+    rect(cx-3,cy,7,5,'#B8430D');
+    rect(cx-3,cy-1,7,1,'#E86A17');
+    rect(cx-2,cy-3,2,2,'#4F6B33');
+    rect(cx-2,cy+1,2,1,'#FFD08A');
+    rect(cx+1,cy+1,2,1,'#FFD08A');
+    rect(cx-1,cy+3,3,1,'#8E3009');
+    for (var mg=0; mg<6; mg++){
+      rect(cx-4+mg, cy+5, 1, 1, 'rgba(255,150,70,0.10)');
+    }
+  }
+  miniPumpkin(17,186);
+  miniPumpkin(109,188);
+
+  /* 最前景：贴底的草丛剪影，把画面底边压住 */
+  for (var gg=0; gg<W; gg+=1){
+    if (srnd() > 0.55) continue;
+    var gh = 1 + Math.floor(srnd()*3);
+    rect(gg, H-gh, 1, gh, '#050209');
+    if (srnd() > 0.86) rect(gg, H-gh-3, 1, 3, '#050209');
+  }
+
+  /* ---------- 7. 主角：南瓜灯 ---------- */
+  var PCX = 63, PCY = 112;
+
+  /* 光晕：多圈阶跃椭圆，每圈只叠一点点 —— 圈数够多时看不到硬边，但仍是「像素的圈」 */
+  for (var gl=8; gl>=1; gl--){
+    var rx = 28 + gl*5, ry = 24 + gl*4.2;
+    var e = '';
+    for (var ey=-ry; ey<=ry; ey++){
+      for (var ex=-rx; ex<=rx; ex++){
+        if ((ex*ex)/(rx*rx) + (ey*ey)/(ry*ry) <= 1){
+          e += '<rect x="'+(PCX+ex)+'" y="'+(PCY+ey)+'" width="1" height="1" fill="rgba(255,132,44,0.010)"/>';
+        }
+      }
+    }
+    parts.push(e);
+  }
+
+  /* 地面暖光：用稀疏像素做溢光。整块半透明椭圆会在深色地面上看起来像一块脏斑 */
+  for (var sp=0; sp<150; sp++){
+    var spx = PCX - 34 + Math.floor(srnd()*68);
+    var spy = 150 + Math.floor(srnd()*15);
+    if (srnd() < Math.abs(spx-PCX)/40) continue;
+    rect(spx, spy, 1, 1, 'rgba(255,150,70,0.16)');
+  }
+
+  /* 体积：三瓣椭圆的并集当作高度场，再用有限差分求法线做明暗 */
+  var RX = 28.5, RY = 24.5, LOBES = [-13, 0, 13], LRX = 15.5;
+  function field(x,y){
+    var best = -9;
+    for (var i=0;i<3;i++){
+      var cx = LOBES[i];
+      var f = 1 - Math.pow((x-cx)/LRX,2) - Math.pow(y/RY,2);
+      if (f > best) best = f;
+    }
+    return best;
+  }
+  var shade = {};       /* "x,y" -> 0..6 */
+  var face = {};        /* "x,y" -> true（镂空） */
+  var bodyCells = [];
+
+  /* 光从左上偏前来一点：太正面会显得平，太侧又会丢掉体积 */
+  var LIGHT = (function(){ var x=-0.60, y=-0.60, z=0.53, l=Math.sqrt(x*x+y*y+z*z); return [x/l, y/l, z/l]; })();
+
+  for (var by=-Math.ceil(RY); by<=Math.ceil(RY); by++){
+    for (var bx=-Math.ceil(RX); bx<=Math.ceil(RX); bx++){
+      var fv = field(bx,by);
+      if (fv <= 0.002) continue;
+
+      /* 关键：用「所属那一瓣」自己的椭球法线。并集高度场的导数在中段几乎是平的，
+         照那样算出来整颗瓜只有一个色阶 —— 这是第一版看着像贴纸的原因。 */
+      var bestF = -9, lobe = 0;
+      for (var li=0; li<3; li++){
+        var cf = 1 - Math.pow((bx-LOBES[li])/LRX,2) - Math.pow(by/RY,2);
+        if (cf > bestF){ bestF = cf; lobe = LOBES[li]; }
+      }
+      var u = (bx-lobe)/LRX, v = by/RY;
+      var nz = Math.sqrt(Math.max(0.04, 1-u*u-v*v));
+      var lam = u*LIGHT[0] + v*LIGHT[1] + nz*LIGHT[2];
+
+      var t = (lam + 0.80) / 1.75;
+      var v7 = t*7;
+      var idx = Math.floor(v7);
+      if (v7 - idx > 0.74 && ((bx+by) & 1)) idx += 1;   /* 色阶交界做 1px 棋盘抖动 */
+
+      if (Math.abs(Math.abs(bx)-7.5) < 1.5) idx -= 1;    /* 瓣缝 */
+      if (fv < 0.06) idx = 0;                            /* 外轮廓压暗 */
+      idx = Math.max(0, Math.min(6, idx));
+      shade[bx+','+by] = idx;
+      bodyCells.push([bx,by]);
+    }
+  }
+
+  /* 脸：两只三角眼 + 一张带两颗牙的咧嘴 */
+  var EYE = [[-10,-19,-8],[-9,-18,-8],[-8,-17,-8],[-7,-16,-8],[-6,-15,-8],[-5,-14,-8],[-4,-13,-8],[-3,-12,-8]];
+  for (var r=0;r<EYE.length;r++){
+    var ey2 = EYE[r][0], x1 = EYE[r][1], x2 = EYE[r][2];
+    for (var xx2=x1; xx2<=x2; xx2++){ face[xx2+','+ey2] = true; face[(-xx2)+','+ey2] = true; }
+  }
+  for (var fx=-17; fx<=17; fx++){
+    var bottom = 15 - 0.022*fx*fx;
+    var top = bottom - 5;
+    for (var fy=Math.ceil(top); fy<=Math.floor(bottom); fy++){
+      if (Math.abs(fx) >= 3 && Math.abs(fx) <= 4) continue;   /* 两颗牙 */
+      face[fx+','+fy] = true;
+    }
+  }
+
+  /* 先铺身体，再挖脸，再给镂空边缘补一圈高光 */
+  var holeSet = {}, bodySet = {};
+  for (var bc=0; bc<bodyCells.length; bc++){
+    var p = bodyCells[bc];
+    if (face[p[0]+','+p[1]]) holeSet[p[0]+','+p[1]] = true;
+    else bodySet[p[0]+','+p[1]] = true;
+  }
+  function hasHole(x,y){ return !!holeSet[x+','+y]; }
+
+  var bodySvg = '';
+  for (var bi=0; bi<bodyCells.length; bi++){
+    var bx3 = bodyCells[bi][0], by3 = bodyCells[bi][1], key = bx3+','+by3;
+    if (holeSet[key]) continue;
+    var idx2 = shade[key];
+    if (hasHole(bx3+1,by3)||hasHole(bx3-1,by3)||hasHole(bx3,by3+1)||hasHole(bx3,by3-1)) idx2 = 6;
+    bodySvg += '<rect x="'+(PCX+bx3)+'" y="'+(PCY+by3)+'" width="1" height="1" fill="'+C.body[idx2]+'"/>';
+  }
+  var holeSvg = '';
+  for (var hk in holeSet){
+    var hp = hk.split(',');
+    var hxx = +hp[0], hyy = +hp[1];
+    /* 镂空底部压一档暖色：让洞有厚度，而不是一块平白 */
+    var hcol = bodySet[hxx+','+(hyy+1)] ? '#FFD79A' : C.hole;
+    holeSvg += '<rect x="'+(PCX+hxx)+'" y="'+(PCY+hyy)+'" width="1" height="1" fill="'+hcol+'"/>';
+  }
+  /* 紧贴轮廓外的一圈暖像素：像素画的「发光」靠边缘亮像素，不靠模糊 */
+  var outline = {};
+  var NB = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (var oi=0; oi<bodyCells.length; oi++){
+    for (var ni=0; ni<4; ni++){
+      var nk = (bodyCells[oi][0]+NB[ni][0])+','+(bodyCells[oi][1]+NB[ni][1]);
+      if (!bodySet[nk]) outline[nk] = true;
+    }
+  }
+  var outlineSvg = '';
+  for (var ok in outline){
+    var op = ok.split(',');
+    outlineSvg += '<rect x="'+(PCX+ +op[0])+'" y="'+(PCY+ +op[1])+'" width="1" height="1" fill="rgba(255,150,60,0.34)"/>';
+  }
+  parts.push(outlineSvg, bodySvg, holeSvg);
+
+  /* 瓜蒂 */
+  for (var sy2=-27; sy2<=-23; sy2++){
+    for (var sx2=2; sx2<=5; sx2++){
+      rect(PCX+sx2, PCY+sy2, 1, 1, sx2<4 ? C.stem : C.stem2);
+    }
+  }
+  rect(PCX+2, PCY-28, 2, 1, C.stem);
+  rect(PCX+6, PCY-26, 1, 2, C.stem2);
+
+  /* ---------- 8. 蝙蝠（两帧扇翅，17×7 像素） ---------- */
+  var BAT_A = [
+    '.#.............#.',
+    '###...........###',
+    '.####.......####.',
+    '..#####...#####..',
+    '...###########...',
+    '.....#######.....',
+    '.......###.......'
+  ];
+  var BAT_B = [
+    '.......###.......',
+    '.....#######.....',
+    '...###########...',
+    '..#####...#####..',
+    '.####.......####.',
+    '###...........###',
+    '.#.............#.'
+  ];
+  function bat(ox,oy,delay){
+    var g = '', g2 = '';
+    for (var by2=0;by2<BAT_A.length;by2++){
+      for (var bx2=0;bx2<BAT_A[by2].length;bx2++){
+        if (BAT_A[by2][bx2]==='#') g += '<rect x="'+(ox+bx2)+'" y="'+(oy+by2)+'" width="1" height="1" fill="#08040E"/>';
+        if (BAT_B[by2][bx2]==='#') g2 += '<rect x="'+(ox+bx2)+'" y="'+(oy+by2)+'" width="1" height="1" fill="#08040E"/>';
+      }
+    }
+    parts.push('<g class="flapA" style="animation-delay:'+delay+'s">'+g+'</g>');
+    parts.push('<g class="flapB" style="animation-delay:'+delay+'s">'+g2+'</g>');
+  }
+  bat(79,20,0);
+
+  /* ---------- 9. 火星 ---------- */
+  for (var em=0; em<9; em++){
+    var ex2 = PCX - 30 + Math.floor(srnd()*60);
+    var ey3 = 138 + Math.floor(srnd()*10);
+    var delay2 = (srnd()*9).toFixed(2);
+    var sz = srnd() > 0.6 ? 2 : 1;
+    rect(ex2, ey3, sz, sz, '#FFC27A', ' class="ember" style="animation-delay:'+delay2+'s;animation-duration:'+(7+srnd()*6).toFixed(1)+'s"');
+  }
+
+  /* ---------- 10. 整体：暗角 ---------- */
+  parts.push('<defs><radialGradient id="vig" cx="50%" cy="46%" r="72%">'+
+    '<stop offset="45%" stop-color="rgba(0,0,0,0)"/>'+
+    '<stop offset="100%" stop-color="rgba(4,1,8,.62)"/>'+
+    '</radialGradient></defs>');
+  rect(0,0,W,H,'url(#vig)');
+
+  document.getElementById('scene').innerHTML =
+    '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" shape-rendering="crispEdges" preserveAspectRatio="none">'+
+    parts.join('')+'</svg>';
+
+  /* =====================================================================
+     跟手进度：与线上 useGatePull 同一套公式（1.2 屏行程 / 0.08 提交阈值）
+     ===================================================================== */
+  var frame = document.getElementById('frame'),
+      gate  = document.getElementById('gate'),
+      read  = document.getElementById('read'),
+      hint  = document.getElementById('hint'),
+      cta   = document.getElementById('cta'),
+      raffle= document.getElementById('raffle');
+
+  var p = 0, drag = false, sy = 0, raf = 0, idle = 0;
+
+  function apply(v){
+    p = Math.max(0, Math.min(1, v));
+    frame.style.setProperty('--p', p.toFixed(4));
+    frame.style.setProperty('--fp', Math.max(0, Math.min(1, (p - .02) / .98)).toFixed(4));
+    read.textContent = 'p ' + p.toFixed(2);
+    gate.style.pointerEvents = p >= .999 ? 'none' : '';
+  }
+  function ease(t){ return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t); }
+  function tween(to, ms, cb){
+    cancelAnimationFrame(raf);
+    var from = p, t0 = performance.now();
+    if (!ms){ apply(to); if (cb) cb(); return; }
+    (function step(now){
+      var t = Math.min(1, (now - t0) / ms);
+      apply(from + (to - from) * ease(t));
+      if (t < 1) raf = requestAnimationFrame(step);
+      else if (cb) cb();
+    })(t0);
+  }
+  function commit(ms, cb){ if (p >= .999){ if (cb) cb(); return; } tween(1, ms || 900, cb); }
+  function release(){ if (p >= .08) commit(900); else tween(0, 420); }
+
+  gate.addEventListener('pointerdown', function(e){
+    if (p >= .999) return;
+    if (e.target.closest('.cta')) return;
+    drag = true; sy = e.clientY;
+    try { gate.setPointerCapture(e.pointerId); } catch(err){}
+  });
+  gate.addEventListener('pointermove', function(e){
+    if (!drag) return;
+    apply((sy - e.clientY) / (frame.clientHeight * 1.2));
+  });
+  gate.addEventListener('pointerup', function(){ if (drag){ drag = false; release(); } });
+  gate.addEventListener('pointercancel', function(){ if (drag){ drag = false; release(); } });
+  gate.addEventListener('wheel', function(e){
+    if (p >= .999) return;
+    e.preventDefault();
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    apply(p + e.deltaY / (frame.clientHeight * 1.2));
+    clearTimeout(idle);
+    idle = setTimeout(release, 160);
+  }, { passive:false });
+
+  hint.addEventListener('click', function(e){ e.stopPropagation(); commit(900); });
+
+  cta.addEventListener('click', function(e){
+    e.stopPropagation();
+    commit(520, function(){ raffle.classList.add('on'); });
+  });
+
+  document.getElementById('rback').addEventListener('click', function(){
+    raffle.classList.remove('on');
+    setTimeout(function(){ tween(0, 0); }, 240);
+  });
+  document.getElementById('rp').addEventListener('click', function(){
+    raffle.classList.remove('on');
+    tween(0, 0);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function(b){
+    b.addEventListener('click', function(){
+      Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      gate.setAttribute('data-v', b.getAttribute('data-v'));
+    });
+  });
+})();
+</script>
+</body>
+</html>
