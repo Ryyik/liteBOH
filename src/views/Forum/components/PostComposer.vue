@@ -24,6 +24,7 @@ import {
   POLISH_EXIT_MS,
 } from '../composables/useForumPostPolish.js';
 import { POST_POLISH_MAX_INPUT_CHARS } from '../composables/post-polish.js';
+import { useImageStripDrag } from '../composables/useImageStripDrag.js';
 
 const props = defineProps({
   isLoggedIn: { type: Boolean, default: false },
@@ -86,7 +87,9 @@ const handleTitleInput = (event) => {
 /* 编辑器头部只用真实用户名，不再显示「你好，X！」的招呼句 —— 发布会话顶栏已经
    说明当前动作是「新帖」，头部重复问候只会多占一行。 */
 const editorDisplayName = computed(() => props.userInfo.username || '朋友');
-const editorGreetingLabel = computed(() => (isEditMode.value ? '编辑帖子' : editorDisplayName.value));
+const editorGreetingLabel = computed(() =>
+  isEditMode.value ? '编辑帖子' : editorDisplayName.value,
+);
 const editorPromptLabel = computed(() =>
   isEditMode.value ? '修改你的分享，记得保存～' : '今天想和大家分享什么？',
 );
@@ -103,9 +106,18 @@ const postCameraInputRef = ref(null);
    没有它时，竖屏发布会话里的长文会在 textarea 内部滚动，而外层内容层又
    因此永远没有溢出 —— 看起来像「正文框卡住不动」，动作栏虽然贴底，
    但正文没有随内容增长。上限住 CSS，JS 不写第二份像素值。 */
-const { textareaRef: postContentInputRef } = useAutoGrowTextarea({
+const { textareaRef: postContentInputRef, resize: resizePostContent } = useAutoGrowTextarea({
   value: () => props.newPost.content,
 });
+
+/* 有无图片会改正文起写区的下限（竖屏 CSS：`.has-images .post-content-input`
+   34vh → 10vh，见 replies-responsive.css）。下限只由 CSS 决定，但自动增高把
+   像素高度写在 inline style 上 —— 下限变小后 inline 高度**不会自己回缩**，
+   实测仍是 287px，等于这条让位规则完全没生效。所以图片数变化时重算一次。 */
+watch(
+  () => props.postImages.length,
+  () => resizePostContent(),
+);
 
 /* 标题是单行字段：Enter（非 IME 组合中）直接跳到正文，与 enterkeyhint="next" 一致。
    必须判 isComposing —— 中文输入法确认候选词的回车不能被拦。 */
@@ -121,8 +133,6 @@ const showMoreMenu = ref(false);
 const morePanelRef = ref(null);
 const morePanelPosition = ref({ top: 100, left: 16 });
 const moreButtonRect = ref(null);
-const draggedImageIndex = ref(null);
-const dragOverImageIndex = ref(null);
 const mentionQuery = ref('');
 const showMentionMenu = ref(false);
 const mentionStartIndex = ref(-1);
@@ -374,35 +384,21 @@ const requestImageReorder = (fromIndex, toIndex) => {
   emit('reorder-image', { fromIndex: from, toIndex: to });
 };
 
-const handleImageDragStart = (index, event) => {
-  if (isPostBusy.value) {
-    event?.preventDefault?.();
-    return;
-  }
-  draggedImageIndex.value = index;
-  if (event?.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', String(index));
-  }
-};
-
-const handleImageDrop = (index, event) => {
-  event?.preventDefault?.();
-  const fromIndex = draggedImageIndex.value ?? Number(event?.dataTransfer?.getData('text/plain'));
-  draggedImageIndex.value = null;
-  dragOverImageIndex.value = null;
-  requestImageReorder(fromIndex, index);
-};
-
-const handleImageDragEnd = () => {
-  draggedImageIndex.value = null;
-  dragOverImageIndex.value = null;
-};
-
-const handleImageDragEnter = (index) => {
-  if (draggedImageIndex.value === null || draggedImageIndex.value === index) return;
-  dragOverImageIndex.value = index;
-};
+/* 图片排序（2026-10-30）：拖动的主实现搬到 useImageStripDrag ——
+   HTML5 dnd（draggable/dragstart/dragover/drop）在触屏上**不触发**，
+   竖屏用户此前只能点卡片左下角两个 26px 的箭头。
+   现在：整张卡片是拖动热区（不再是那个小把手），触屏长按 300ms 拾起、
+   鼠标移动 4px 即拖；箭头按钮仅保留在 hover 设备上（键盘可达性）。 */
+const {
+  stripRef: imageStripRef,
+  isReordering: isImageReordering,
+  handlePointerDown: handleImageStripPointerDown,
+  handleStripClick: handleImageStripClick,
+} = useImageStripDrag({
+  canDragIndex: (index) => canReorderImage(props.postImages[index]),
+  isLocked: () => isPostBusy.value,
+  onReorder: requestImageReorder,
+});
 
 const openImagePreview = (image) => {
   if (!image?.url) return;
@@ -690,280 +686,289 @@ onUnmounted(() => {
     <div v-if="isLoggedIn" class="editor-card glass-panel">
       <div class="composer-content-scroll">
         <div class="editor-header">
-        <div class="user-avatar">
-          <img
-            v-if="userInfo.avatarUrl"
-            :src="userInfo.avatarUrl"
-            alt="用户头像"
-            class="avatar-image"
-            loading="lazy"
-          />
-          <span v-else>{{
-            userInfo.username ? userInfo.username.charAt(0).toUpperCase() : 'U'
-          }}</span>
+          <div class="user-avatar">
+            <img
+              v-if="userInfo.avatarUrl"
+              :src="userInfo.avatarUrl"
+              alt="用户头像"
+              class="avatar-image"
+              loading="lazy"
+            />
+            <span v-else>{{
+              userInfo.username ? userInfo.username.charAt(0).toUpperCase() : 'U'
+            }}</span>
+          </div>
+          <div class="user-info-text">
+            <span class="user-greeting">
+              <span class="greeting-full">{{ editorGreetingLabel }}</span>
+              <span class="greeting-name">{{ editorDisplayName }}</span>
+            </span>
+            <span class="editor-prompt">{{ editorPromptLabel }}</span>
+          </div>
+          <button
+            v-if="isEditMode"
+            type="button"
+            class="editor-close-btn"
+            aria-label="关闭编辑"
+            @click="emit('close')"
+          >
+            <X :size="20" :stroke-width="2.2" aria-hidden="true" />
+          </button>
         </div>
-        <div class="user-info-text">
-          <span class="user-greeting">
-            <span class="greeting-full">{{ editorGreetingLabel }}</span>
-            <span class="greeting-name">{{ editorDisplayName }}</span>
-          </span>
-          <span class="editor-prompt">{{ editorPromptLabel }}</span>
-        </div>
-        <button
-          v-if="isEditMode"
-          type="button"
-          class="editor-close-btn"
-          aria-label="关闭编辑"
-          @click="emit('close')"
-        >
-          <X :size="20" :stroke-width="2.2" aria-hidden="true" />
-        </button>
-      </div>
-      <HomeCatMascot
-        v-if="isHomeCatTheme"
-        class="composer-theme-cat"
-        :class="{ 'is-awake': isComposerCatAwake }"
-        :type="isPostBusy ? 'uploading' : 'decor'"
-        :pool="isPostBusy ? '' : 'background'"
-        :seed="composerCatSeed"
-        size="lg"
-        decorative
-      />
+        <HomeCatMascot
+          v-if="isHomeCatTheme"
+          class="composer-theme-cat"
+          :class="{ 'is-awake': isComposerCatAwake }"
+          :type="isPostBusy ? 'uploading' : 'decor'"
+          :pool="isPostBusy ? '' : 'background'"
+          :seed="composerCatSeed"
+          size="lg"
+          decorative
+        />
 
-      <div class="input-group post-title-input-group composer-post-title">
-        <textarea
-          :value="newPost.title"
-          ref="postTitleInputRef"
-          rows="1"
-          :maxlength="TITLE_MAX_LENGTH"
-          enterkeyhint="next"
-          :placeholder="isEditMode ? '修改标题' : isMobileComposer ? '标题' : '起个响亮的标题...'"
-          class="post-title-input"
-          :class="{ 'is-polishing': isBusyPolishing }"
-          :style="polishSweepStyle"
-          :readonly="isBusyPolishing"
-          :aria-busy="isBusyPolishing ? 'true' : 'false'"
-          @keydown="handleTitleKeydown"
-          @input="handleTitleInput"
-        ></textarea>
-        <span
-          v-if="titleCharCount > 0"
-          class="composer-title-count"
-          :class="{ 'is-near-limit': titleCharCount >= TITLE_MAX_LENGTH }"
-        >
-          {{ titleCharCount }}/{{ TITLE_MAX_LENGTH }}
-        </span>
-      </div>
-
-      <div class="input-group post-body-input-group composer-post-body">
-        <div class="composer-body-shell">
+        <div class="input-group post-title-input-group composer-post-title">
           <textarea
-            ref="postContentInputRef"
-            :value="newPost.content"
-            :placeholder="isMobileComposer ? '有什么新鲜事？' : '正文内容...'"
-            class="post-content-input"
+            :value="newPost.title"
+            ref="postTitleInputRef"
+            rows="1"
+            :maxlength="TITLE_MAX_LENGTH"
+            enterkeyhint="next"
+            :placeholder="isEditMode ? '修改标题' : isMobileComposer ? '标题' : '起个响亮的标题...'"
+            class="post-title-input"
             :class="{ 'is-polishing': isBusyPolishing }"
             :style="polishSweepStyle"
             :readonly="isBusyPolishing"
             :aria-busy="isBusyPolishing ? 'true' : 'false'"
-            rows="3"
-            @input="handleContentInput"
-            @keyup="updateMentionState"
-            @click="updateMentionState"
-            @focus="updateMentionState"
+            @keydown="handleTitleKeydown"
+            @input="handleTitleInput"
           ></textarea>
-          <div v-if="contentCharCount > 0" class="composer-char-count">
-            {{ contentCharCount }} 字
-          </div>
-          <div v-if="showMentionMenu && mentionSuggestions.length" class="composer-mention-menu">
-            <button
-              v-for="username in mentionSuggestions"
-              :key="username"
-              type="button"
-              class="composer-mention-item"
-              @click="insertMention(username)"
-            >
-              @{{ username }}
-            </button>
+          <span
+            v-if="titleCharCount > 0"
+            class="composer-title-count"
+            :class="{ 'is-near-limit': titleCharCount >= TITLE_MAX_LENGTH }"
+          >
+            {{ titleCharCount }}/{{ TITLE_MAX_LENGTH }}
+          </span>
+        </div>
+
+        <div
+          class="input-group post-body-input-group composer-post-body"
+          :class="{ 'has-images': postImages.length > 0 }"
+        >
+          <div class="composer-body-shell">
+            <textarea
+              ref="postContentInputRef"
+              :value="newPost.content"
+              :placeholder="isMobileComposer ? '有什么新鲜事？' : '正文内容...'"
+              class="post-content-input"
+              :class="{ 'is-polishing': isBusyPolishing }"
+              :style="polishSweepStyle"
+              :readonly="isBusyPolishing"
+              :aria-busy="isBusyPolishing ? 'true' : 'false'"
+              :rows="postImages.length > 0 ? 2 : 3"
+              @input="handleContentInput"
+              @keyup="updateMentionState"
+              @click="updateMentionState"
+              @focus="updateMentionState"
+            ></textarea>
+            <div v-if="contentCharCount > 0" class="composer-char-count">
+              {{ contentCharCount }} 字
+            </div>
+            <div v-if="showMentionMenu && mentionSuggestions.length" class="composer-mention-menu">
+              <button
+                v-for="username in mentionSuggestions"
+                :key="username"
+                type="button"
+                class="composer-mention-item"
+                @click="insertMention(username)"
+              >
+                @{{ username }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- 智能整理的状态行：生成中 / 收口中 / 已应用（可撤销）/ 出错 / 被挡住。
+        <!-- 智能整理的状态行：生成中 / 收口中 / 已应用（可撤销）/ 出错 / 被挡住。
            流光直接画在标题与正文的文字上（`.is-polishing`），
            这里只承担**文案与撤销入口** —— 不再有预览面板（2026-10-25 用户定稿）。
 
            ⚠️「快好了」（`isPolishSettling`）这一支不能省：落点之前改写成「已整理」
               是**撒谎**（字还没换），而继续写「正在整理…」又没告诉用户已到最后一步。
               文案在这里承担「即将完成」的告知，撤销按钮则**只**在真正写回后出现。 -->
-      <div
-        v-if="isBusyPolishing || polishApplied || polishError || polishBlockedNotice"
-        class="composer-polish-status"
-        :class="{ 'is-running': isBusyPolishing, 'is-applied': polishApplied }"
-        role="status"
-        aria-live="polite"
-      >
-        <template v-if="isPolishSettling">
-          <Sparkles :size="14" :stroke-width="2.2" aria-hidden="true" />
-          <span>快好了，正在收尾…</span>
-        </template>
-        <template v-else-if="isPolishing">
-          <Sparkles :size="14" :stroke-width="2.2" aria-hidden="true" />
-          <span>正在智能整理…</span>
-        </template>
-        <template v-else-if="polishApplied">
-          <Sparkles :size="14" :stroke-width="2.2" aria-hidden="true" />
-          <span>已智能整理</span>
-          <button type="button" class="composer-polish-undo" @click="handleUndoPolish">撤销</button>
-        </template>
-        <template v-else-if="polishError">
-          <span class="composer-polish-error-text">{{ polishError }}</span>
-        </template>
-        <template v-else>
-          <span class="composer-polish-error-text">{{ polishBlockedNotice }}</span>
-        </template>
-      </div>
+        <div
+          v-if="isBusyPolishing || polishApplied || polishError || polishBlockedNotice"
+          class="composer-polish-status"
+          :class="{ 'is-running': isBusyPolishing, 'is-applied': polishApplied }"
+          role="status"
+          aria-live="polite"
+        >
+          <template v-if="isPolishSettling">
+            <Sparkles :size="14" :stroke-width="2.2" aria-hidden="true" />
+            <span>快好了，正在收尾…</span>
+          </template>
+          <template v-else-if="isPolishing">
+            <Sparkles :size="14" :stroke-width="2.2" aria-hidden="true" />
+            <span>正在智能整理…</span>
+          </template>
+          <template v-else-if="polishApplied">
+            <Sparkles :size="14" :stroke-width="2.2" aria-hidden="true" />
+            <span>已智能整理</span>
+            <button type="button" class="composer-polish-undo" @click="handleUndoPolish">
+              撤销
+            </button>
+          </template>
+          <template v-else-if="polishError">
+            <span class="composer-polish-error-text">{{ polishError }}</span>
+          </template>
+          <template v-else>
+            <span class="composer-polish-error-text">{{ polishBlockedNotice }}</span>
+          </template>
+        </div>
 
-      <input
-        ref="postImageInputRef"
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        multiple
-        class="post-image-input"
-        @change="handleImageChange"
-      />
-      <input
-        ref="postCameraInputRef"
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        capture="environment"
-        class="post-image-input"
-        @change="handleImageChange"
-      />
+        <input
+          ref="postImageInputRef"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          multiple
+          class="post-image-input"
+          @change="handleImageChange"
+        />
+        <input
+          ref="postCameraInputRef"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          capture="environment"
+          class="post-image-input"
+          @change="handleImageChange"
+        />
 
-      <div class="post-image-panel">
-        <div class="post-image-preview-grid">
+        <div class="post-image-panel">
+          <!-- 一行胶片条：横向滑动看全，长按整卡拖动排序（见 useImageStripDrag）。
+             指针事件绑在条带上做委托 —— 空白处按下＝横滑，卡片上按下＝可能是拖拽。
+             click 走 capture 阶段，用来吞掉"长按/拖动结束后那一次 click"（否则会顺带
+             打开全屏预览）。 -->
           <div
-            v-for="(image, index) in postImages"
-            :key="image.publicId || image.uploadId || image.url"
-            class="post-image-preview-item"
-            :class="{
-              'is-dragging': draggedImageIndex === index,
-              'is-drop-target': dragOverImageIndex === index,
-              'is-failed': image.uploadStatus === 'failed',
-            }"
-            :draggable="canReorderImage(image)"
-            @dragstart="handleImageDragStart(index, $event)"
-            @dragenter.prevent="handleImageDragEnter(index)"
-            @dragover.prevent
-            @drop="handleImageDrop(index, $event)"
-            @dragend="handleImageDragEnd"
+            ref="imageStripRef"
+            class="post-image-preview-grid"
+            :class="{ 'is-reordering': isImageReordering }"
+            @pointerdown="handleImageStripPointerDown"
+            @click.capture="handleImageStripClick"
           >
-            <button
-              v-if="image.url"
-              type="button"
-              class="post-image-preview-open"
-              :aria-label="`预览第 ${index + 1} 张图片大图`"
-              @click="openImagePreview(image)"
-            >
-              <img :src="image.url" :alt="`帖子图片 ${index + 1}`" decoding="async" />
-            </button>
-            <div v-else class="post-image-failed-placeholder">
-              <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
-              <span>{{ image.name || '图片上传失败' }}</span>
-            </div>
-            <span class="post-image-drag-handle" aria-hidden="true">
-              <GripVertical :size="15" :stroke-width="2" />
-            </span>
-            <span
-              v-if="shouldShowImageStatus(image)"
-              class="post-image-status-badge"
-              :class="getImageStatusClass(image)"
-            >
-              <span
-                v-if="getImageStatusClass(image) === 'processing'"
-                class="post-image-card-spinner"
-                aria-hidden="true"
-              ></span>
-              {{ getImageStatusLabel(image) }}
-            </span>
-            <button
-              v-if="image.uploadStatus === 'failed' && image.file"
-              type="button"
-              class="post-image-retry-btn"
-              :disabled="isPostBusy"
-              @click="emit('retry-image', image, index)"
-            >
-              <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
-              <span>重试</span>
-            </button>
             <div
-              v-if="canReorderImage(image)"
-              class="post-image-sort-actions"
-              aria-label="调整图片顺序"
+              v-for="(image, index) in postImages"
+              :key="image.publicId || image.uploadId || image.url"
+              class="post-image-preview-item"
+              :class="{ 'is-failed': image.uploadStatus === 'failed' }"
+              :data-image-index="index"
             >
               <button
+                v-if="image.url"
                 type="button"
-                class="post-image-sort-btn"
-                :disabled="isPostBusy || index === 0"
-                :aria-label="`将第 ${index + 1} 张图片前移`"
-                @click="requestImageReorder(index, index - 1)"
+                class="post-image-preview-open"
+                :aria-label="`预览第 ${index + 1} 张图片大图`"
+                @click="openImagePreview(image)"
               >
-                <ArrowLeft :size="15" :stroke-width="2.2" aria-hidden="true" />
+                <img :src="image.url" :alt="`帖子图片 ${index + 1}`" decoding="async" />
               </button>
+              <div v-else class="post-image-failed-placeholder">
+                <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
+                <span>{{ image.name || '图片上传失败' }}</span>
+              </div>
+              <span class="post-image-drag-handle" aria-hidden="true">
+                <GripVertical :size="15" :stroke-width="2" />
+              </span>
+              <span
+                v-if="shouldShowImageStatus(image)"
+                class="post-image-status-badge"
+                :class="getImageStatusClass(image)"
+              >
+                <span
+                  v-if="getImageStatusClass(image) === 'processing'"
+                  class="post-image-card-spinner"
+                  aria-hidden="true"
+                ></span>
+                {{ getImageStatusLabel(image) }}
+              </span>
+              <button
+                v-if="image.uploadStatus === 'failed' && image.file"
+                type="button"
+                class="post-image-retry-btn"
+                :disabled="isPostBusy"
+                @click="emit('retry-image', image, index)"
+              >
+                <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
+                <span>重试</span>
+              </button>
+              <div
+                v-if="canReorderImage(image)"
+                class="post-image-sort-actions"
+                aria-label="调整图片顺序"
+              >
+                <button
+                  type="button"
+                  class="post-image-sort-btn"
+                  :disabled="isPostBusy || index === 0"
+                  :aria-label="`将第 ${index + 1} 张图片前移`"
+                  @click="requestImageReorder(index, index - 1)"
+                >
+                  <ArrowLeft :size="15" :stroke-width="2.2" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  class="post-image-sort-btn"
+                  :disabled="isPostBusy || index === postImages.length - 1"
+                  :aria-label="`将第 ${index + 1} 张图片后移`"
+                  @click="requestImageReorder(index, index + 1)"
+                >
+                  <ArrowRight :size="15" :stroke-width="2.2" aria-hidden="true" />
+                </button>
+              </div>
               <button
                 type="button"
-                class="post-image-sort-btn"
-                :disabled="isPostBusy || index === postImages.length - 1"
-                :aria-label="`将第 ${index + 1} 张图片后移`"
-                @click="requestImageReorder(index, index + 1)"
+                class="post-image-remove-btn"
+                :disabled="isPostBusy"
+                @click="emit('remove-image', image, index)"
               >
-                <ArrowRight :size="15" :stroke-width="2.2" aria-hidden="true" />
+                ×
               </button>
             </div>
+
+            <!-- ✨ 新增：添加更多图片方框 -->
             <button
+              v-if="postImages.length < maxPostImages"
               type="button"
-              class="post-image-remove-btn"
+              class="post-image-add-more-card"
               :disabled="isPostBusy"
-              @click="emit('remove-image', image, index)"
+              @click="handleImagePickerRequest"
+              aria-label="添加更多图片"
             >
-              ×
+              <Plus :size="32" :stroke-width="1.5" aria-hidden="true" />
+              <span class="add-more-label">添加图片</span>
             </button>
           </div>
-
-          <!-- ✨ 新增：添加更多图片方框 -->
-          <button
-            v-if="postImages.length < maxPostImages"
-            type="button"
-            class="post-image-add-more-card"
-            :disabled="isPostBusy"
-            @click="handleImagePickerRequest"
-            aria-label="添加更多图片"
+          <div
+            v-if="postImageUploadStatus || isUploadingPostImage"
+            class="post-image-upload-status"
           >
-            <Plus :size="32" :stroke-width="1.5" aria-hidden="true" />
-            <span class="add-more-label">添加图片</span>
+            <div class="post-image-upload-status-row">
+              <HomeCatMascot v-if="isHomeCatTheme" type="uploading" size="sm" decorative />
+              <span v-if="isUploadingPostImage" class="mini-spinner"></span>
+              <span>{{ postImageUploadStatus }}</span>
+            </div>
+            <div v-if="isUploadingPostImage" class="post-image-upload-progress-bar">
+              <div class="post-image-upload-progress-fill"></div>
+            </div>
+          </div>
+          <button
+            v-if="postImages.length > 0"
+            type="button"
+            class="post-image-clear-btn"
+            :disabled="isPostBusy"
+            @click="emit('clear-images', { cleanup: true })"
+          >
+            清空图片
           </button>
         </div>
-        <div v-if="postImageUploadStatus || isUploadingPostImage" class="post-image-upload-status">
-          <div class="post-image-upload-status-row">
-            <HomeCatMascot v-if="isHomeCatTheme" type="uploading" size="sm" decorative />
-            <span v-if="isUploadingPostImage" class="mini-spinner"></span>
-            <span>{{ postImageUploadStatus }}</span>
-          </div>
-          <div v-if="isUploadingPostImage" class="post-image-upload-progress-bar">
-            <div class="post-image-upload-progress-fill"></div>
-          </div>
-        </div>
-        <button
-          v-if="postImages.length > 0"
-          type="button"
-          class="post-image-clear-btn"
-          :disabled="isPostBusy"
-          @click="emit('clear-images', { cleanup: true })"
-        >
-          清空图片
-        </button>
-      </div>
 
         <div v-if="postLocation" class="post-location-bar">
           <MapPin :size="14" :stroke-width="2" />
@@ -981,7 +986,9 @@ onUnmounted(() => {
 
       <div class="editor-footer">
         <div class="composer-action-meta">
-          <span v-if="!isEditMode" class="composer-action-tip">试试智能整理，把草稿梳理得更清楚</span>
+          <span v-if="!isEditMode" class="composer-action-tip"
+            >试试智能整理，把草稿梳理得更清楚</span
+          >
         </div>
         <div class="editor-submit-group">
           <div class="composer-actions" @click.stop>
@@ -997,7 +1004,12 @@ onUnmounted(() => {
                 <Hash :size="19" :stroke-width="2" aria-hidden="true" />
                 <span>{{ selectedTagLabel || '标签' }}</span>
               </button>
-              <div v-if="showMobileTagMenu" class="composer-tag-menu" role="menu" aria-label="选择帖子标签">
+              <div
+                v-if="showMobileTagMenu"
+                class="composer-tag-menu"
+                role="menu"
+                aria-label="选择帖子标签"
+              >
                 <button
                   v-for="tag in forumTagOptions"
                   :key="tag.value"
@@ -1022,7 +1034,9 @@ onUnmounted(() => {
             >
               <ImageIcon :size="19" :stroke-width="1.8" aria-hidden="true" />
               <span>图片</span>
-              <span v-if="postImages.length" class="composer-action-count">{{ postImages.length }}</span>
+              <span v-if="postImages.length" class="composer-action-count">{{
+                postImages.length
+              }}</span>
             </button>
             <button
               type="button"

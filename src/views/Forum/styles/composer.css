@@ -286,11 +286,36 @@
   gap: 10px;
 }
 
+/* 图片区 = **一行胶片条**（2026-10-30 定稿，替代 3/4 列网格）。
+   动机：网格从第 4 张起换行，两行会吃掉约 230px 内容高度；而竖屏发布会话
+   在键盘弹起后只有约 430px 可用，正文因此被压扁、文字溢出到图片层下面
+   （2026-10-30「文字被图片盖住」事故）。一行恒定高度把「图片多与少」的
+   高度差压到 0，横向滑动 + 长按拖动替代换行与箭头按钮。
+   ⚠️ 不要改回 grid：这里的高度恒定是正文不被压缩的前置条件之一。 */
 .post-image-preview-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(84px, 1fr));
-  gap: 12px;
-  max-width: 440px;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 100%;
+  /* 上下留白给「抬起卡片的缩放 + 阴影」，否则被 overflow 裁掉一圈 */
+  padding: 6px 2px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.post-image-preview-grid::-webkit-scrollbar {
+  display: none;
+}
+
+/* 拖动 / 手指横滑期间关掉吸附：位移由 JS 逐帧接管，吸附会把手感扯回去 */
+.post-image-preview-grid.is-reordering {
+  scroll-snap-type: none;
+  cursor: grabbing;
 }
 
 /* 只有已选图片需要占位；没有图片时不再渲染大号「＋ 添加图片」方框 ——
@@ -302,14 +327,24 @@
 
 @media (min-width: 769px) {
   .post-image-preview-grid {
-    grid-template-columns: repeat(4, minmax(84px, 1fr));
-    max-width: 620px;
+    gap: 12px;
+  }
+
+  .post-image-preview-item {
+    width: 84px;
   }
 }
 
 .post-image-preview-item {
   position: relative;
+  flex: 0 0 auto;
+  width: 84px;
   aspect-ratio: 1 / 1;
+  scroll-snap-align: start;
+  /* 纵向手势留给外层面板滚动，横向手势由 useImageStripDrag 接管
+     （pan-y 下浏览器不会把横滑判成滚动，因此也不会发 pointercancel；
+     代价是胶片条的原生横滑被禁，必须由 JS 逐帧写 scrollLeft）。 */
+  touch-action: pan-y;
   border-radius: 16px;
   overflow: hidden;
   background: var(--liquid-bg-strong, rgba(255,255,255,0.84));
@@ -319,21 +354,41 @@
   transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.post-image-preview-item.is-drop-target {
-  outline: 3px solid rgba(0, 113, 227, 0.32);
-  transform: translateY(-2px);
+/* 被拿起的卡片：位移/缩放由 JS 写 inline transform，这里只管层级与去过渡
+   （去过渡是为了跟手 —— 手指和卡片之间不能有 200ms 的拖尾） */
+.post-image-preview-item.is-lifted {
+  z-index: 6;
+  cursor: grabbing;
+  transition: none;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.3), 0 0 0 1.5px rgba(255, 255, 255, 0.92);
+}
+
+/* 长按判定期（按下 → 300ms）：轻微下压 + 把手加深。
+   这一段是长按类交互的"我收到你的输入了"回执 —— 没有它，手指按下去
+   半秒无变化，用户会以为没反应而提前抬手，然后抱怨"拖不动"。 */
+.post-image-preview-item.is-pressing {
+  transform: scale(0.955);
+  transition-duration: 120ms;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+}
+
+.post-image-preview-item.is-pressing .post-image-drag-handle {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-image-preview-item.is-pressing,
+  .post-image-preview-item.is-pressing .post-image-drag-handle {
+    transform: none;
+  }
 }
 
 .post-image-preview-item.is-failed {
   background: #fff2f0;
   border: 1px solid rgba(255, 59, 48, 0.2);
   cursor: default;
-}
-
-.post-image-preview-item.is-dragging {
-  cursor: grabbing;
-  opacity: 0.66;
-  transform: scale(0.98);
+  touch-action: auto;
 }
 
 .post-image-preview-open {
@@ -351,6 +406,11 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  /* 长按拖动的前提：iOS 会把长按图片判成"存储/拷贝"系统菜单，
+     一弹出来这 300ms 的长按就抢不到了。 */
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 .post-image-failed-placeholder {
@@ -383,6 +443,7 @@
   color: #ffffff;
   backdrop-filter: var(--glass-filter-sm, blur(18px));
   -webkit-backdrop-filter: var(--glass-filter-sm, blur(18px));
+  transition: background-color 0.12s ease, transform 0.12s ease;
 }
 
 .post-image-status-badge {
@@ -479,6 +540,16 @@
 .post-image-sort-btn:disabled {
   cursor: not-allowed;
   opacity: 0.38;
+}
+
+/* 触屏不显示箭头排序（2026-10-30）：竖屏的主交互改成「长按整卡拖动」，
+   72px 的卡片里再挤两个 26px 箭头只会带来误触，而且它们原本是竖屏下
+   **唯一**能排序的途径 —— 也就是说这根手指之前是拖不动的。桌面保留，
+   维持键盘/读屏用户的可达性。 */
+@media (hover: none), (pointer: coarse) {
+  .post-image-sort-actions {
+    display: none;
+  }
 }
 
 .post-image-remove-btn {

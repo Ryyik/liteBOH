@@ -520,6 +520,17 @@
   padding-bottom: 12px;
 }
 
+/* 滚动面里的子项一律不许收缩（2026-10-30 事故修复）。
+   这里是**唯一滚动面**，空间不足时正确的行为是"溢出可滚"，而不是
+   "把子项压扁"。原来只有正文组带 min-height:0，于是它成了唯一的收缩
+   牺牲品：键盘弹起时被压到十几像素，而 textarea 自身仍保留 JS 写入的
+   固定高度 ⇒ 文字溢出到盒子外，被 DOM 位置更靠后的图片面板盖住
+   （用户报障："发帖文字被图片挡住"）。
+   注意 flex-shrink 默认是 1：这条不是"保险"，是这套 flex 链成立的前提。 */
+.mobile-composer-overlay .composer-content-scroll > * {
+  flex-shrink: 0;
+}
+
 .mobile-composer-overlay .composer-content-scroll::-webkit-scrollbar {
   display: none;
 }
@@ -699,7 +710,10 @@
 
   .mobile-composer-section .post-body-input-group {
     display: flex;
-    flex: 1 1 auto;
+    /* 1 0 auto（原 1 1 auto）：空稿时仍然撑满起写区，但**不允许被压缩**。
+       配合上文 `.composer-content-scroll > *` 的 flex-shrink:0 双保险 ——
+       内容超高时由滚动面滚，而不是把正文框压扁后让文字溢出。 */
+    flex: 1 0 auto;
     width: 100%;
     min-height: 0;
     /* 不再做第二层滚动：正文随内容区整体滚动，输入框自身撑到完整高度。 */
@@ -725,6 +739,18 @@
 
   .mobile-composer-section .post-content-input::-webkit-scrollbar {
     display: none;
+  }
+
+  /* 有图时正文让位（2026-10-31）：键盘弹起后内容区只有约 345px 可视高度，
+     34vh（≈287px）的起写区会把整条图片挤出视野 —— 选完图看不到图，往下滑
+     又把文字推出视野，"输入 + 图片"永远不能同屏。降到 10vh（≈85px，约 2 行）
+     后「标题 + 两行正文 + 图片条」可以一屏并存（实测图片条底部 415，
+     可视区底部 431，余 15px）。
+     ⚠️ 光调这里不够：`rows` 才是真空下限（空内容时 scrollHeight = rows 撑出的
+     固有高度），组件里同步 `:rows="postImages.length ? 2 : 3"` 才生效。
+     无图时保持 34vh 的舒适起写区，行为不变。 */
+  .mobile-composer-section .post-body-input-group.has-images .post-content-input {
+    min-height: 10vh;
   }
 
   .mobile-composer-section .editor-footer {
@@ -910,9 +936,41 @@
     width: 100%;
   }
 
+  /* 竖屏胶片条：抵消卡片内衬贴到屏幕边，第一张仍与标题左对齐；
+     露出下一张的一条边以提示可横滑（图片数不再影响内容高度）。 */
   .post-image-preview-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-inline: -16px;
+    padding: 6px 16px 10px;
     gap: 8px;
+  }
+
+  .post-image-preview-grid .post-image-preview-item {
+    width: 72px;
+    border-radius: 14px;
+  }
+
+  /* 72px 的格子里，26px 把手 + 28px 删除钮原本各占一角、中间只剩 2px，
+     看起来是两个黑圆贴在一起。缩小并分到对角的上下位：
+     把手在左下（20px）当"可拖"的暗示，× 在右上（24px）。 */
+  .post-image-preview-grid .post-image-drag-handle {
+    left: 4px;
+    top: auto;
+    bottom: 4px;
+    width: 20px;
+    height: 20px;
+  }
+
+  .post-image-preview-grid .post-image-drag-handle svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .post-image-preview-grid .post-image-remove-btn {
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    font-size: 16px;
   }
 
   .post-card-v2 {
