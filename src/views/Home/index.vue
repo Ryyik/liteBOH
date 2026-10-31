@@ -129,6 +129,7 @@ import {
   isGateConfigActive,
   readGateConfigCache,
   resolveGateCtaTarget,
+  GATE_CONFIG_FALLBACK,
 } from '@/utils/api/gate-config-api.js';
 import HomeFooter from './components/HomeFooter.vue';
 import { useGatePull } from './composables/useGatePull.js';
@@ -194,10 +195,32 @@ const {
 // ============================================
 /* 数据源是 DB 单行表，管理台在 /admin/gate-console。
    首帧必须同步决定渲染哪种开屏，所以先用 localStorage 缓存（与 gate-passed 同性质），
-   网络回来后再覆盖。没有缓存 / 表不存在 / 网络失败 → 一律回落现有默认开屏。 */
-const gateConfig = ref(readGateConfigCache());
+   网络回来后再覆盖。没有缓存 / 表不存在 / 网络失败 → 回落到活动快照（GATE_CONFIG_FALLBACK），
+   快照也过期了（活动已结束）才走现有默认开屏。
+   ⚠️ 三级而不是两级：无缓存用户（新设备 / 清了站点数据 / 换了构建指纹）直接回落 null 时，
+   首帧会播默认开屏、网络回来再切成活动版 —— 而这段时间用户往往已经上滑进站，
+   活动版的 CTA 就永远没被看见（2026-10-31 用户报障的正是这个）。 */
+const gateConfig = ref(readGateConfigCache() || GATE_CONFIG_FALLBACK);
 const gateSceneActive = computed(() => isGateConfigActive(gateConfig.value));
 const gateCtaTarget = computed(() => resolveGateCtaTarget(gateConfig.value));
+
+/* 远端配置的落点：只在「用户还没开始滑」时直接应用。
+   已经在拖 / 正在收尾时暂存，等进度回到 0 再换 —— 滑到一半把开屏图换掉是肉眼可见的突变
+   （两张画完全不同）。浮层已卸载（gateDismissed）时应用也无害，不必特判。
+   正常路径下远端值与快照一致，这里其实是个空操作；只有运营改了文案 / 主题才会走到暂存。 */
+let pendingGateConfig = null;
+const applyGateConfig = (config) => {
+  if (pullProgress.value > 0 && !gateDismissed.value) {
+    pendingGateConfig = config;
+    return;
+  }
+  gateConfig.value = config;
+};
+watch(pullProgress, (next) => {
+  if (next > 0 || !pendingGateConfig) return;
+  gateConfig.value = pendingGateConfig;
+  pendingGateConfig = null;
+});
 
 /* CTA 是浮层里唯一的可点区域：手势必须跳过它，否则点按钮会被当成上滑起手，
    touchend 的回弹补间会和 commit 补间抢同一个 rAF（按钮点了没反应）。 */
@@ -519,6 +542,19 @@ onMounted(async () => {
   // 左栏「更多」菜单的主题按钮要跟着全站主题走（真源 themeManager）
   themeManager.addListener(handleThemeChange);
 
+  /* 活动版开屏配置：与英雄区**并行**、互不依赖。
+     ⚠️ 这里曾经写成「await fetchPublished() 之后再 fetchGateConfig()」—— 而
+     fetchPublished 内部有 6s 竞速兜底（弱网 / 连接悬挂时就是等满 6s），
+     等于开屏配置要排队 6 秒才发出去，整段首屏都在播错误的开屏（2026-10-31 实测：
+     冷启动 6s 内 home_gate_config 请求根本没发出）。两者没有任何依赖，不许串行。
+     失败（表还没建 / 断网）时保持快照值，也就是继续播活动版 —— 不能因为
+     后台配置拉不到就让首屏白屏或临时降级成默认开屏。 */
+  const gateConfigTask = fetchGateConfig()
+    .then(({ data }) => {
+      if (data) applyGateConfig(data);
+    })
+    .catch(() => {});
+
   // 开场画与英雄区数据（失败不影响首屏：内部有缓存/baseline 兜底，且带超时竞速）
   try {
     await homeHeroesStore.fetchPublished();
@@ -526,14 +562,8 @@ onMounted(async () => {
     // 静默失败：动态英雄区是增量，表不存在时仅返回空数组
   }
 
-  /* 活动版开屏配置：与英雄区并行、互不依赖。
-     失败（表还没建 / 断网）时保持缓存值或 null，也就是走默认开屏 —— 不能因为
-     后台配置拉不到就让首屏白屏。 */
-  fetchGateConfig()
-    .then(({ data }) => {
-      if (data) gateConfig.value = data;
-    })
-    .catch(() => {});
+  // 只为让「首屏初始化完成」这句话真的成立；上面已经并行跑起来了
+  await gateConfigTask;
 });
 
 onBeforeUnmount(() => {

@@ -11,22 +11,16 @@
         :key="`t-${index}`"
         class="gsh-title"
         :style="titleStyle"
-      >{{ line }}</p>
-      <div v-if="titleLines.length" class="gsh-rule" aria-hidden="true">
-        <i></i><i></i><i></i>
-      </div>
+      >
+        {{ line }}
+      </p>
+      <div v-if="titleLines.length" class="gsh-rule" aria-hidden="true"><i></i><i></i><i></i></div>
       <p v-if="config.subtitle" class="gsh-sub">{{ config.subtitle }}</p>
     </div>
 
     <!-- 主 CTA：data-gate-cta 是给首页手势用的白名单标记 ——
          .home-gate 上的 pointerdown 会跳过它，否则点按钮会被当成上滑起手。 -->
-    <button
-      v-if="ctaText"
-      class="gsh-cta"
-      type="button"
-      data-gate-cta
-      @click.stop="$emit('cta')"
-    >
+    <button v-if="ctaText" class="gsh-cta" type="button" data-gate-cta @click.stop="$emit('cta')">
       {{ ctaText }}<span class="gsh-cta-ar">→</span>
     </button>
 
@@ -61,15 +55,26 @@ defineEmits(['cta']);
 /* ---------- 场景宽度自适应 ----------
    画布高度恒为 212 格，宽度按容器宽高比算 —— 竖屏 126、横屏会更宽。
    这样横屏不会把一张竖版画硬拉变形，也不会只剩中间一条。
-   只在比例变化超过 6% 时重算：重算要重新生成两千多个 rect。 */
-const aspect = ref(SCENE_MIN_WIDTH / SCENE_HEIGHT);
+   只在「换算后的格子数真的变了」时重算：重算要重新生成两千多个 rect，
+   而且 sceneSvg 走 v-html ⇒ 每次重算都是整块 2800 节点销毁重建。 */
+const clampSceneWidth = (raw) =>
+  Math.min(SCENE_MAX_WIDTH, Math.max(SCENE_MIN_WIDTH, Math.round(raw)));
+
+/* 初值按视口比例估算，不用 SCENE_MIN_WIDTH/SCENE_HEIGHT 这个「最小值」。
+   开屏层是满屏的（.home-gate 100vw×100vh），视口比例就是容器比例 ——
+   拿最小值当初值会让首帧按 90 格画一次、mounted 后再按真实宽度重画一次，
+   冷启动白掉一整帧（2026-10-31 实测：2770 → 2791，重复重建 4 次）。 */
+const initialAspect = () => {
+  if (typeof window === 'undefined') return SCENE_MIN_WIDTH / SCENE_HEIGHT;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  return w > 0 && h > 0 ? w / h : SCENE_MIN_WIDTH / SCENE_HEIGHT;
+};
+const aspect = ref(initialAspect());
 let resizeObserver = null;
 let resizeTimer = 0;
 
-const sceneWidth = computed(() => {
-  const raw = Math.round(SCENE_HEIGHT * aspect.value);
-  return Math.min(SCENE_MAX_WIDTH, Math.max(SCENE_MIN_WIDTH, raw));
-});
+const sceneWidth = computed(() => clampSceneWidth(SCENE_HEIGHT * aspect.value));
 
 const sceneSvg = computed(() => buildHalloweenSceneSvg({ width: sceneWidth.value }));
 
@@ -81,9 +86,10 @@ const measure = () => {
   const width = el.clientWidth;
   const height = el.clientHeight;
   if (!width || !height) return;
-  const next = width / height;
-  if (Math.abs(next - aspect.value) / aspect.value < 0.06) return;
-  aspect.value = next;
+  /* 死区判据用最终格子数而不是比例：比例抖了 6% 但换算后格子数没变时，
+     重算只是白白重建一遍 DOM。 */
+  if (clampSceneWidth(SCENE_HEIGHT * (width / height)) === sceneWidth.value) return;
+  aspect.value = width / height;
 };
 
 const scheduleMeasure = () => {
@@ -241,10 +247,18 @@ onBeforeUnmount(() => {
   color: #2b1505;
   background: #ffb35c;
   clip-path: polygon(
-    8px 0, calc(100% - 8px) 0, calc(100% - 8px) 4px, 100% 4px,
-    100% calc(100% - 4px), calc(100% - 8px) calc(100% - 4px),
-    calc(100% - 8px) 100%, 8px 100%, 8px calc(100% - 4px),
-    0 calc(100% - 4px), 0 4px, 8px 4px
+    8px 0,
+    calc(100% - 8px) 0,
+    calc(100% - 8px) 4px,
+    100% 4px,
+    100% calc(100% - 4px),
+    calc(100% - 8px) calc(100% - 4px),
+    calc(100% - 8px) 100%,
+    8px 100%,
+    8px calc(100% - 4px),
+    0 calc(100% - 4px),
+    0 4px,
+    8px 4px
   );
   filter: drop-shadow(4px 4px 0 rgba(8, 2, 14, 0.55));
   transition: transform 0.12s steps(2, end);

@@ -61,6 +61,37 @@ export function normalizeGateConfig(row = {}) {
   };
 }
 
+/**
+ * 首帧兜底配置 = 上线时 home_gate_config 的那一行快照。
+ *
+ * 为什么必须有它：首帧只能同步决定「播哪种开屏」，无缓存用户（新设备 / 清了站点数据 /
+ * 换了构建指纹）拿不到任何信息 ⇒ 先渲染默认开屏、网络回来再切成活动版。
+ * 而这段窗口里用户往往已经上滑进站了，活动版的 CTA（广告）就永远没被看见。
+ *
+ * 口径：
+ *   · 只做「首帧占位」，网络回来一律以 DB 为准（见 Home/index.vue 的 applyGateConfig）；
+ *   · 带完整时间窗 ⇒ 活动结束后自动失效，不需要再改代码；
+ *   · 文案与 DB 保持一致，正常路径下远端覆盖时是**同值**，不会出现文案跳变。
+ *
+ * 活动结束后可以整块删掉（届时 readGateConfigCache() 缺失也只是回到「先默认后切换」）。
+ * ⚠️ 改这里必须同步 /admin/gate-console 里的线上值，否则无缓存用户会看到旧文案。
+ */
+export const GATE_CONFIG_FALLBACK = normalizeGateConfig({
+  id: 1,
+  enabled: true,
+  theme: 'halloween',
+  eyebrow: 'HALLOWEEN · 10.31',
+  title: '万圣节，来方块街有惊喜',
+  subtitle: '万圣夜限定 · 糖果盒已备好',
+  hint_text: '或上滑进入方块街',
+  cta_text: '看看有什么惊喜',
+  cta_target_type: 'lottery',
+  cta_lottery_id: 'c81ff93d-cbdb-47f4-bc16-219c24f4523b',
+  cta_route: '',
+  starts_at: '2026-10-30T16:00:00.000Z',
+  ends_at: '2026-10-31T16:00:00.000Z',
+});
+
 /** 是否该播（enabled + 时间窗）。now 可注入，便于单测 */
 export function isGateConfigActive(config, now = Date.now()) {
   if (!config || !config.enabled) return false;

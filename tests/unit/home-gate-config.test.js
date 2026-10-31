@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
+  GATE_CONFIG_FALLBACK,
   isGateConfigActive,
   normalizeGateConfig,
   resolveGateCtaTarget,
 } from '../../src/utils/api/gate-config-api.js';
 import { buildHalloweenSceneSvg } from '../../src/views/Home/components/halloween-scene.js';
+import { flattenSource, scriptSection, stripComments } from '../helpers/source.js';
+
+const root = resolve(import.meta.dirname, '../..');
+const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
+/** 只取 script 区再剥注释：注释里会合法地复述被禁的写法，直接断言会假绿 */
+const codeOf = (rel) => flattenSource(stripComments(scriptSection(read(rel))));
 
 // ---------------------------------------------------------------------------
 // 开屏配置（home_gate_config）
@@ -95,7 +104,8 @@ describe('resolveGateCtaTarget', () => {
   });
 
   it('站内路径：只放行单个 / 开头的绝对路径', () => {
-    const route = (path) => resolveGateCtaTarget(withCta({ cta_target_type: 'route', cta_route: path }));
+    const route = (path) =>
+      resolveGateCtaTarget(withCta({ cta_target_type: 'route', cta_route: path }));
     expect(route('/newsroom?tab=activities')).toEqual({ to: '/newsroom?tab=activities' });
     expect(route('newsroom')).toBe(null);
     expect(route('//evil.example.com')).toBe(null);
@@ -105,6 +115,53 @@ describe('resolveGateCtaTarget', () => {
 
   it('不绑定任何目标时返回 null', () => {
     expect(resolveGateCtaTarget(withCta({ cta_target_type: 'none' }))).toBe(null);
+  });
+});
+
+describe('GATE_CONFIG_FALLBACK（首帧兜底快照）', () => {
+  /* 兜底存在的唯一理由：无缓存用户的首帧必须直接是活动版，否则会先播默认开屏、
+     网络回来再切 —— 而这段窗口里用户往往已经上滑进站，CTA（广告）就白做了。
+     所以这组断言锁的是「兜底本身能不能用」，不是某句文案写得好不好。 */
+
+  it('必须是「可播的活动版」，否则等于没兜底', () => {
+    expect(GATE_CONFIG_FALLBACK.enabled).toBe(true);
+    expect(GATE_CONFIG_FALLBACK.theme).not.toBe('default');
+    expect(GATE_CONFIG_FALLBACK.title).toBeTruthy();
+  });
+
+  it('CTA 必须能解析出站内落点（广告是这次兜底的全部意义）', () => {
+    const target = resolveGateCtaTarget(GATE_CONFIG_FALLBACK);
+    expect(target).toBeTruthy();
+    expect(target.to.startsWith('/')).toBe(true);
+  });
+
+  it('带完整时间窗：活动结束自动失效，不需要回来改代码', () => {
+    const start = Date.parse(GATE_CONFIG_FALLBACK.starts_at);
+    const end = Date.parse(GATE_CONFIG_FALLBACK.ends_at);
+    expect(Number.isFinite(start)).toBe(true);
+    expect(Number.isFinite(end)).toBe(true);
+    expect(end).toBeGreaterThan(start);
+    expect(isGateConfigActive(GATE_CONFIG_FALLBACK, start + 1000)).toBe(true);
+    expect(isGateConfigActive(GATE_CONFIG_FALLBACK, end)).toBe(false);
+  });
+});
+
+describe('首页开屏的接线（源码守卫）', () => {
+  it('开屏配置请求必须与英雄区并行，不许排在 await fetchPublished 之后', () => {
+    /* 真事故（2026-10-31）：曾经写成 await fetchPublished() 之后才 fetchGateConfig()，
+       而 fetchPublished 内部有 6s 竞速兜底 —— 弱网下开屏配置要排队 6 秒才发出，
+       整段首屏都在播错误的开屏。两者没有任何依赖，这条断言锁的就是「不许再串回去」。 */
+    const code = codeOf('src/views/Home/index.vue');
+    const gateAt = code.indexOf('fetchGateConfig(');
+    const heroesAt = code.indexOf('fetchPublished(');
+    expect(gateAt).toBeGreaterThan(-1);
+    expect(heroesAt).toBeGreaterThan(-1);
+    expect(gateAt).toBeLessThan(heroesAt);
+  });
+
+  it('首帧配置三级回落：缓存 → 活动快照 → 默认开屏', () => {
+    const code = codeOf('src/views/Home/index.vue');
+    expect(code).toContain(flattenSource('readGateConfigCache() || GATE_CONFIG_FALLBACK'));
   });
 });
 
