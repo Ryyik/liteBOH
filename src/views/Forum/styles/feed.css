@@ -701,9 +701,7 @@
   }
 
   .post-card-v2,
-  .image-post-thumb,
-  .expand-replies-enter-active,
-  .expand-replies-leave-active {
+  .image-post-thumb {
     transition: none !important;
   }
 
@@ -1035,59 +1033,108 @@
   border-color: rgba(52, 199, 89, 0.16);
 }
 
+/* 成功勾号"画出来"：Check 的 path 长度约 26，dasharray 给 30 留余量。
+   旧实现是直接替换图标（硬切），描边生长才读得出"链接已复制"这个动作。
+   只在 .is-copy-success 下生效 —— 未复制时是 Share2 的三段路径，加了也无害。 */
+.share-btn-v2.is-copy-success svg path {
+  stroke-dasharray: 30;
+  stroke-dashoffset: 30;
+  animation: shareCheckDraw 480ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) forwards;
+}
+
+@keyframes shareCheckDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 .is-liked .action-icon-v2 {
   color: #ff3b30;
 }
 
+/* ── 点赞反馈（plans/035 §4 L4，慢速档）──────────────────────────────
+   三处改动：
+   ① 心跳 0.4s → 0.56s，峰值 1.25 → 1.18。1.25 在整卡宽度里像"弹一下"，
+      1.18 读起来是"心跳了一下"；
+   ② 计数不再跟着一起弹到 1.22，只做 1.12 的轻微放大（数字跳得太欢会抢戏）；
+   ③ 新增从心形扩散的涟漪环 —— 这才是"从点赞这个动作本身发出来的反馈"。
+
+   ⚠️ 涟漪用 `::after` 而不是新增 DOM 节点：帖子卡在虚拟列表里会反复挂载，
+   多一个节点就多一次创建/销毁（40+ 卡时是真开销）。
+   颜色走 `currentColor`（点赞态由 .is-liked 给出），**不要**写死十六进制，
+   否则暗色/家猫皮肤下会串色，也会撞 check:dark-tokens 的裸色预算。 */
 @keyframes heartBeat {
-  0%, 100% { transform: scale(1); }
-  25% { transform: scale(1.25); }
-  50% { transform: scale(0.95); }
-  75% { transform: scale(1.1); }
-}
-
-.is-liked .action-icon-v2 {
-  animation: heartBeat 0.4s ease;
-}
-
-.is-liked .action-svg-v2 {
-  animation: heartBeat 0.4s ease;
-}
-
-.action-item-v2.is-pulsing .action-count-v2 {
-  animation: actionCountPop 0.48s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.action-item-v2.is-pulsing .action-icon-v2 {
-  animation: heartBeat 0.44s ease;
-}
-
-.action-item-v2.is-pulsing .action-svg-v2 {
-  animation: heartBeat 0.44s ease;
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  26% {
+    transform: scale(1.18);
+  }
+  55% {
+    transform: scale(0.97);
+  }
+  78% {
+    transform: scale(1.04);
+  }
 }
 
 @keyframes actionCountPop {
-  0%, 100% { transform: scale(1); }
-  35% { transform: scale(1.22); color: #ff3b30; }
-  65% { transform: scale(0.96); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  38% {
+    transform: scale(1.12);
+  }
 }
 
-.expand-replies-enter-active,
-.expand-replies-leave-active {
-  max-height: 1200px;
-  overflow: hidden;
-  transition:
-    max-height 0.34s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.24s ease,
-    transform 0.24s ease;
+@keyframes likeRipple {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.2);
+  }
 }
 
-.expand-replies-enter-from,
-.expand-replies-leave-to {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-6px);
+.is-liked .action-svg-v2,
+.action-item-v2.is-pulsing .action-svg-v2 {
+  animation: heartBeat 0.56s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  transform-origin: center;
 }
+
+.action-item-v2.is-pulsing .action-count-v2 {
+  animation: actionCountPop 0.6s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.like-btn-v2 {
+  /* 涟漪的定位基准（::after 绝对定位到心形中心） */
+  position: relative;
+}
+
+.like-btn-v2.is-pulsing::after {
+  content: '';
+  position: absolute;
+  /* 心形中心 = 按钮左 padding(9px) + 图标宽的一半(17/2) —— 别写魔法数字，
+     写死会和 .action-item-v2 的 padding 漂移（改一处忘一处）。 */
+  left: calc(9px + 8.5px);
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  pointer-events: none;
+  animation: likeRipple 680ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+/* 评论区展开/收起已改为 **JS 驱动**（PostCard.vue 的 `:css="false"` + WAAPI）：
+   时长必须按实测高度算，且收尾要无条件清掉内联的 max-height。类名方案做不到
+   逐元素定时 —— 旧实现 `max-height: 1200px` 固定 0.34s，短评 37ms 就走完了，
+   长评要 313ms，同一交互两种手感（plans/035 §2 第 9 条）。 */
 
 /* `.forum-search-count` 的样式已于 2026-10-22 删除 —— 整条结果计数提示
    按用户要求移除（位置在卡片流正上方，无论怎么调都像多余的说明）。
@@ -1230,3 +1277,44 @@
   color: var(--liquid-text-primary);
 }
 
+
+/* ── 搜索结果换批的入场编排（plans/035 §L4 第 5/6 条）──────────────
+   病灶：提交搜索后 forumData 直接换掉，列表原地「跳」成另一批内容，
+   没有任何「这是新结果」的提示 —— 读起来就是「搜完了没反应」。
+
+   做法：换批那一刻给 `.posts-feed` 挂 `is-feed-entering`（1.2s 后摘），
+   卡片播一次淡入上浮，延迟复用卡片自带的 `--post-appear-delay`（首屏
+   最多叠 6 项 × 70ms，见 ForumMain 的 stagger）。滚动挂载的新卡片
+   不带这个类，所以翻页时不会再冒一遍。
+
+   ⚠️ 特异性必须是 0,3,0 才能压过 `.post-card-v2` 自带的 forumPostCardEnter
+   （0,1,0）；`:not(.is-new-post)` 是为了不抢「新帖高光」那条双动画。 */
+@keyframes forumFeedSwapIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.posts-feed.is-feed-entering .post-card-v2:not(.is-new-post) {
+  animation: forumFeedSwapIn 480ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation-delay: var(--post-appear-delay, 0ms);
+}
+
+.posts-feed.is-feed-entering .forum-empty {
+  animation: forumFeedSwapIn 420ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+/* reduce-motion：保留结果「已变化」的最低限度提示（只淡入，不位移） */
+@media (prefers-reduced-motion: reduce) {
+  .posts-feed.is-feed-entering .post-card-v2:not(.is-new-post),
+  .posts-feed.is-feed-entering .forum-empty {
+    animation: none;
+    opacity: 1;
+  }
+}

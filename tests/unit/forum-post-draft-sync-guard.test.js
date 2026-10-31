@@ -71,7 +71,12 @@ describe('forum post draft cross-host sync wiring', () => {
     expect(motionBlock).toContain('scale(0.08)');
     expect(motionBlock).toContain('scale(1)');
     expect(css).toContain('transform-origin: var(--mobile-composer-origin, 100% 100%)');
-    expect(css).toContain('transform 380ms var(--ease-emphasized');
+    /* 慢速档（plans/035 §L5，2026-10-31 拍板）：380ms / --ease-emphasized
+       → 520ms / --ease-drawer。这里不再钉死具体毫秒数，改为钉「契约」：
+       进场形变必须 ≥480ms 且走 drawer 曲线 —— 否则下次调参又要来改这条守卫。 */
+    const enterBlock = css.match(/\.mobile-composer-enter-active \{[\s\S]*?\n\}/)?.[0] || '';
+    expect(enterBlock).toMatch(/transform\s+\d+ms\s+var\(--ease-drawer/);
+    expect(Number(/transform\s+(\d+)ms/.exec(enterBlock)?.[1] || 0)).toBeGreaterThanOrEqual(480);
     const vue = await readFile(FORUM_MAIN, 'utf8');
     expect(vue).toContain('resolveFabTransformOrigin(fab.getBoundingClientRect())');
     expect(vue).toContain("'--mobile-composer-origin': mobileComposerTransformOrigin");

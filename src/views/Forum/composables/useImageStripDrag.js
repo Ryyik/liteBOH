@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref } from 'vue';
+import { onBeforeUnmount, ref, nextTick } from 'vue';
 
 /* 发帖图片「一行胶片条」的长按拖动排序（2026-10-30）。
  *
@@ -226,11 +226,34 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
     const from = dragIndex;
     const to = dropIndex;
     const moved = commit && from >= 0 && to >= 0 && from !== to;
-    // 拖拽卡从"手指位置"回到目标格是瞬时的：让位已经把其它卡片摆到
-    // 松手后的位置，所以只有被拖这张会位移一格以内，肉眼是"落定"而非跳变。
+    /* FLIP 收尾（plans/035 §P3）：
+       松手那一刻，被拖的卡还停在「手指位置」，而数组是**松手后**才重排的。
+       旧实现 teardown() 无条件清空 inline transform，于是这张卡从手指位置
+       瞬移回旧槽位，再被列表重排推去新槽位 —— 肉眼是一跳一格。
+       这里先量下松手时的视觉位置，重排落地后把它「拉回」那个位置再 320ms 放掉。 */
+    const liftedEl = dragEl;
+    const fromRect = liftedEl ? liftedEl.getBoundingClientRect() : null;
     teardown();
     if (!moved) return;
     onReorder?.(from, to);
+    if (!liftedEl || !fromRect || typeof liftedEl.animate !== 'function') return;
+    // 不让 TransitionGroup 的 move 过渡和这段 FLIP 打架（两套一起跑就是「抖一下再滑」）
+    liftedEl.classList.add('is-settling');
+    void nextTick().then(() => {
+      const toRect = liftedEl.getBoundingClientRect();
+      const dx = fromRect.left - toRect.left;
+      const dy = fromRect.top - toRect.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
+        liftedEl.classList.remove('is-settling');
+        return;
+      }
+      const animation = liftedEl.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
+        { duration: 320, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' },
+      );
+      const settle = () => liftedEl.classList.remove('is-settling');
+      animation.finished.then(settle, settle);
+    });
   };
 
   const handlePointerMove = (event) => {

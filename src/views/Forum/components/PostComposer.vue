@@ -854,84 +854,88 @@ onUnmounted(() => {
             @pointerdown="handleImageStripPointerDown"
             @click.capture="handleImageStripClick"
           >
-            <div
-              v-for="(image, index) in postImages"
-              :key="image.publicId || image.uploadId || image.url"
-              class="post-image-preview-item"
-              :class="{ 'is-failed': image.uploadStatus === 'failed' }"
-              :data-image-index="index"
-            >
-              <button
-                v-if="image.url"
-                type="button"
-                class="post-image-preview-open"
-                :aria-label="`预览第 ${index + 1} 张图片大图`"
-                @click="openImagePreview(image)"
-              >
-                <img :src="image.url" :alt="`帖子图片 ${index + 1}`" decoding="async" />
-              </button>
-              <div v-else class="post-image-failed-placeholder">
-                <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
-                <span>{{ image.name || '图片上传失败' }}</span>
-              </div>
-              <span class="post-image-drag-handle" aria-hidden="true">
-                <GripVertical :size="15" :stroke-width="2" />
-              </span>
-              <span
-                v-if="shouldShowImageStatus(image)"
-                class="post-image-status-badge"
-                :class="getImageStatusClass(image)"
-              >
-                <span
-                  v-if="getImageStatusClass(image) === 'processing'"
-                  class="post-image-card-spinner"
-                  aria-hidden="true"
-                ></span>
-                {{ getImageStatusLabel(image) }}
-              </span>
-              <button
-                v-if="image.uploadStatus === 'failed' && image.file"
-                type="button"
-                class="post-image-retry-btn"
-                :disabled="isPostBusy"
-                @click="emit('retry-image', image, index)"
-              >
-                <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
-                <span>重试</span>
-              </button>
+            <TransitionGroup name="composer-image">
               <div
-                v-if="canReorderImage(image)"
-                class="post-image-sort-actions"
-                aria-label="调整图片顺序"
+                v-for="(image, index) in postImages"
+                :key="image.publicId || image.uploadId || image.url"
+                class="post-image-preview-item"
+                :class="{ 'is-failed': image.uploadStatus === 'failed' }"
+                :data-image-index="index"
               >
                 <button
+                  v-if="image.url"
                   type="button"
-                  class="post-image-sort-btn"
-                  :disabled="isPostBusy || index === 0"
-                  :aria-label="`将第 ${index + 1} 张图片前移`"
-                  @click="requestImageReorder(index, index - 1)"
+                  class="post-image-preview-open"
+                  :aria-label="`预览第 ${index + 1} 张图片大图`"
+                  @click="openImagePreview(image)"
                 >
-                  <ArrowLeft :size="15" :stroke-width="2.2" aria-hidden="true" />
+                  <img :src="image.url" :alt="`帖子图片 ${index + 1}`" decoding="async" />
                 </button>
+                <div v-else class="post-image-failed-placeholder">
+                  <ImageIcon :size="24" :stroke-width="1.8" aria-hidden="true" />
+                  <span>{{ image.name || '图片上传失败' }}</span>
+                </div>
+                <span class="post-image-drag-handle" aria-hidden="true">
+                  <GripVertical :size="15" :stroke-width="2" />
+                </span>
+                <Transition name="composer-badge">
+                  <span
+                    v-if="shouldShowImageStatus(image)"
+                    class="post-image-status-badge"
+                    :class="getImageStatusClass(image)"
+                  >
+                    <span
+                      v-if="getImageStatusClass(image) === 'processing'"
+                      class="post-image-card-spinner"
+                      aria-hidden="true"
+                    ></span>
+                    {{ getImageStatusLabel(image) }}
+                  </span>
+                </Transition>
+                <button
+                  v-if="image.uploadStatus === 'failed' && image.file"
+                  type="button"
+                  class="post-image-retry-btn"
+                  :disabled="isPostBusy"
+                  @click="emit('retry-image', image, index)"
+                >
+                  <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
+                  <span>重试</span>
+                </button>
+                <div
+                  v-if="canReorderImage(image)"
+                  class="post-image-sort-actions"
+                  aria-label="调整图片顺序"
+                >
+                  <button
+                    type="button"
+                    class="post-image-sort-btn"
+                    :disabled="isPostBusy || index === 0"
+                    :aria-label="`将第 ${index + 1} 张图片前移`"
+                    @click="requestImageReorder(index, index - 1)"
+                  >
+                    <ArrowLeft :size="15" :stroke-width="2.2" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    class="post-image-sort-btn"
+                    :disabled="isPostBusy || index === postImages.length - 1"
+                    :aria-label="`将第 ${index + 1} 张图片后移`"
+                    @click="requestImageReorder(index, index + 1)"
+                  >
+                    <ArrowRight :size="15" :stroke-width="2.2" aria-hidden="true" />
+                  </button>
+                </div>
                 <button
                   type="button"
-                  class="post-image-sort-btn"
-                  :disabled="isPostBusy || index === postImages.length - 1"
-                  :aria-label="`将第 ${index + 1} 张图片后移`"
-                  @click="requestImageReorder(index, index + 1)"
+                  class="post-image-remove-btn"
+                  :disabled="isPostBusy"
+                  @click="emit('remove-image', image, index)"
                 >
-                  <ArrowRight :size="15" :stroke-width="2.2" aria-hidden="true" />
+                  ×
                 </button>
               </div>
-              <button
-                type="button"
-                class="post-image-remove-btn"
-                :disabled="isPostBusy"
-                @click="emit('remove-image', image, index)"
-              >
-                ×
-              </button>
-            </div>
+            </TransitionGroup>
 
             <!-- ✨ 新增：添加更多图片方框 -->
             <button
@@ -1062,13 +1066,16 @@ onUnmounted(() => {
             </div>
           </div>
           <button
-            class="post-btn"
+            class="post-btn boh-press-sm"
             @click="handleSubmit"
             :disabled="isPostBusy || postCooldownSeconds > 0"
             :aria-busy="isPostBusy"
           >
             <span class="post-btn-label">{{ submitButtonLabel }}</span>
             <div v-if="isSubmitting" class="mini-spinner white"></div>
+            <!-- 提交中的进度弧：沿按钮边框转一圈。不放「文案替换」——
+                 文字跳变是断裂，一圈弧是「正在处理」的连续信号 -->
+            <span v-if="isSubmitting" class="post-btn-progress" aria-hidden="true"></span>
           </button>
         </div>
       </div>

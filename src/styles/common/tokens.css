@@ -4,7 +4,7 @@
  * ==============================================
  * 本文件收纳三族 token，都以 :root 全局生效（main.js 加载）：
  *
- * 1. Motion Tokens — 全站动效（--ease-* / --duration-*）
+ * 1. Motion Tokens — 全站动效（--ease-* / --duration-* / --motion-*）
  *    与 BOHAI motion-system.css 命名对齐（--bohai-motion-*），但放全局。
  *    推荐自 AUDIT.md:
  *      --ease-out: cubic-bezier(0.23, 1, 0.32, 1)
@@ -43,6 +43,29 @@
   --duration-base: 240ms;      /* dropdown / popover */
   --duration-slow: 360ms;      /* modal / drawer */
   --duration-page: 500ms;      /* 整页过渡上限 */
+
+  /* Motion Ladder — 空间形变的节奏真源（plans/035 §4 L0，2026-10-31 定稿）
+     为什么与上面的 --duration-* 分开：那组是「UI 小动效」口径（≤500ms），
+     而卡片 ↔ 详情是**跨屏空间形变**，按距离要走到 640ms；混进 --duration-page
+     会让「整页切换」和「形变」两种语义共用一个数字，后续没法单独调。
+
+     口径（用户 2026-10-31 拍板「按慢速做」）：
+       · **慢的是空间，不是响应** —— 按压/高亮/骨架仍走 --duration-press(160ms)，
+         禁止跟着 ×4。总时长越过 200ms 的"点击→看见变化"会被判成卡顿。
+       · 进 > 出（≈1.33:1）：关闭不耐等。
+       · 640 只在**跨屏**成立；卡片矮（scaleY < 2）时取 near 档，否则会"飘"。
+
+     消费方：utils/motion.js 的 motionMs() 从这里读，JS 侧不写第二份毫秒数
+     （与 useAutoGrowTextarea「上限只声明在 CSS」同一条纪律）。
+     曲线沿用 --ease-drawer（0.32,0.72,0,1）—— **不要再建 --ease-morph**，
+     同值不同名就是一次重复定义。 */
+  --motion-morph-in: 640ms;         /* 卡片 → 详情（跨屏） */
+  --motion-morph-in-near: 480ms;    /* 卡片 → 详情（短距离） */
+  --motion-morph-out: 480ms;        /* 详情 → 卡片 */
+  --motion-enter: 480ms;            /* 局部块出现：评论 / 回复框 / 图片切换 */
+  --motion-exit: 360ms;             /* 局部块消失 */
+  --motion-stagger: 70ms;           /* 列表 stagger 步长 */
+  --motion-stagger-max: 5;          /* stagger 最多叠加 5 项，第 6 项起不再加延迟 */
 
   /* Layout — 布局常量（跨组件必须一致、禁止各自写死的那类值）
      横屏登录岛：导航上半岛（导航胶囊）与登录卡片（下半岛）共用同一个宽度，

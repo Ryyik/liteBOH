@@ -123,43 +123,49 @@ const onOpenWeeklyCheckin = () => {
         @blur="onSearchBlur"
       />
       <!-- 横屏：已激活的标签筛选 chip（点 × 清除；移动端隐藏，走 #标签 语法） -->
-      <button
-        v-if="selectedTagFilter"
-        type="button"
-        class="toolbar-tag-chip"
-        :title="`清除标签筛选 ${activeTagLabel}`"
-        @click="onClearTagFilter"
-      >
-        <span class="tag-chip-label">{{ activeTagLabel }}</span>
-        <X :size="12" :stroke-width="2.4" class="tag-chip-clear" aria-hidden="true" />
-      </button>
+      <Transition name="toolbar-pop">
+        <button
+          v-if="selectedTagFilter"
+          type="button"
+          class="toolbar-tag-chip"
+          :title="`清除标签筛选 ${activeTagLabel}`"
+          @click="onClearTagFilter"
+        >
+          <span class="tag-chip-label">{{ activeTagLabel }}</span>
+          <X :size="12" :stroke-width="2.4" class="tag-chip-clear" aria-hidden="true" />
+        </button>
+      </Transition>
 
       <!-- 清除搜索词：横屏独立定位（该档位 .toolbar-search-actions 整体隐藏） -->
-      <button
-        v-if="searchQuery"
-        type="button"
-        class="toolbar-clear-btn is-hero"
-        aria-label="清除搜索"
-        title="清除搜索"
-        @click="onClearSearch"
-      >
-        <X :size="15" :stroke-width="2.6" />
-      </button>
+      <Transition name="toolbar-pop">
+        <button
+          v-if="searchQuery"
+          type="button"
+          class="toolbar-clear-btn is-hero"
+          aria-label="清除搜索"
+          title="清除搜索"
+          @click="onClearSearch"
+        >
+          <X :size="15" :stroke-width="2.6" />
+        </button>
+      </Transition>
 
       <!-- 移动端 / 平板：输入框内右侧只留「清除 + 问BOHAI」。
            搜索不再单独放放大镜钮 —— 回车即搜索（enterkeyhint=search）。 -->
       <div class="toolbar-search-actions">
         <!-- 清除按钮：只在有内容时出现（空着的时候多一个 × 只是噪音） -->
-        <button
-          v-if="searchQuery"
-          type="button"
-          class="toolbar-clear-btn"
-          aria-label="清除搜索"
-          title="清除搜索"
-          @click="onClearSearch"
-        >
-          <X :size="14" :stroke-width="2.6" />
-        </button>
+        <Transition name="toolbar-pop">
+          <button
+            v-if="searchQuery"
+            type="button"
+            class="toolbar-clear-btn"
+            aria-label="清除搜索"
+            title="清除搜索"
+            @click="onClearSearch"
+          >
+            <X :size="14" :stroke-width="2.6" />
+          </button>
+        </Transition>
         <button
           type="button"
           class="toolbar-ai-btn"
@@ -179,7 +185,11 @@ const onOpenWeeklyCheckin = () => {
         <span class="toolbar-ai-loading-text">BOHAI 检索中</span>
       </div>
     </Transition>
-    <div v-if="aiSearchHint && !isAiSearchLoading" class="toolbar-ai-hint">{{ aiSearchHint }}</div>
+    <Transition name="toolbar-ai-hint">
+      <div v-if="aiSearchHint && !isAiSearchLoading" class="toolbar-ai-hint">
+        {{ aiSearchHint }}
+      </div>
+    </Transition>
 
     <!-- 横屏 hero 底栏：签到 + 问BOHAI 在左，圆形搜索在右（移动端隐藏） -->
     <div class="toolbar-hero-bar">
@@ -206,7 +216,7 @@ const onOpenWeeklyCheckin = () => {
       </div>
       <button
         type="button"
-        class="toolbar-hero-search-btn"
+        class="toolbar-hero-search-btn boh-press-sm"
         aria-label="搜索"
         @click="onSearchSubmit"
       >
@@ -395,6 +405,55 @@ const onOpenWeeklyCheckin = () => {
   display: none;
 }
 
+/* 搜索框内的零碎控件（清除 × / 标签 chip）：出现时不该「啪」地把输入框挤一下。
+   160ms 缩放淡入，退场快 40ms（消失不耐等）。 */
+.toolbar-pop-enter-active {
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+
+.toolbar-pop-leave-active {
+  transition:
+    opacity 120ms var(--ease-out),
+    transform 120ms var(--ease-out);
+  /* 退场这 120ms 里元素还挂在 DOM 上。`is-hero` 版的清除钮是绝对定位、
+     恰好压着输入框右端 —— 留它吃点击会让「清空后立刻点输入框」落空
+     （探针 D3 正是这么点空的）。离场的节点一律不参与命中。 */
+  pointer-events: none;
+}
+
+.toolbar-pop-enter-from,
+.toolbar-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.62);
+}
+
+/* chip 从左侧推入：原点在左边才读作「贴到输入框后面」，居中缩放会像凭空冒出来 */
+.toolbar-tag-chip {
+  transform-origin: left center;
+}
+
+/* AI 提示句：紧跟在有过渡的 AI 状态条下面，一硬一软最扎眼 */
+.toolbar-ai-hint-enter-active {
+  transition:
+    opacity 320ms var(--ease-out),
+    transform 320ms var(--ease-out);
+}
+
+.toolbar-ai-hint-leave-active {
+  transition: opacity 200ms var(--ease-out);
+}
+
+.toolbar-ai-hint-enter-from {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.toolbar-ai-hint-leave-to {
+  opacity: 0;
+}
+
 /* ---------- 最近搜索（贴在搜索框下方）----------
    绝对定位而非占位：它是个浮层，不该把下面的内容顶下去 ——
    工具栏高度随断点变化（移动端换行 / 横屏 152px），占位会让 composer 与列表跳动。 */
@@ -475,17 +534,24 @@ const onOpenWeeklyCheckin = () => {
   color: #3f4a5a;
 }
 
+/* 最近搜索下拉：0.18s/−6px 太快太浅，也不像「从输入框长出来」。
+   改 0.32s + 原点贴顶 + 轻微压扁，读作「面板从搜索框下沿展开」。 */
 .toolbar-history-drop-enter-active,
 .toolbar-history-drop-leave-active {
+  transform-origin: top center;
   transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
+    opacity 320ms var(--ease-out),
+    transform 320ms var(--ease-out);
+}
+
+.toolbar-history-drop-leave-active {
+  transition-duration: 200ms;
 }
 
 .toolbar-history-drop-enter-from,
 .toolbar-history-drop-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(-4px) scaleY(0.96);
 }
 
 @media (prefers-reduced-motion: reduce) {

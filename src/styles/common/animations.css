@@ -1021,6 +1021,42 @@ button.close-btn:not(.no-press):active,
   }
 }
 
+/* ===================
+   按压基线：.boh-press / .boh-press-sm
+   =================== */
+
+/**
+ * 统一按压缩放（plans/035 §4 L4.5，2026-10-31 拍板「统一按压」）
+ *
+ * 为什么要收敛：仓库里散着 20+ 处 `:active { transform: scale(...) }`，值从 .9 到 .99
+ * 都有 —— 同一屏按两张卡，手感不一样。收敛后只有「大面」和「小控件」两档。
+ *
+ * ⚠️ 三条硬约束（踩过）：
+ *   ① 本类**刻意不写 transition**。写了就是 `transition: transform …` 单值声明，
+ *      会把目标元素自己的 transition 列表（背景/边框/阴影）整个覆盖掉 ——
+ *      等于为了让按压变平滑，把 hover 的过渡全干掉。
+ *      消费方必须自己把 `transform` 加进它原有的 transition（P1 逐个补）。
+ *   ② 只在 `:active` 生效，**不写 :hover**：鼠标滑过就缩一下是廉价感的典型来源，
+ *      而且 `feed.css` 的卡片 hover 已经改了 border/shadow，两个态会打架。
+ *   ③ 与 plans/035 的慢速放大无关：按压必须是"立刻"，慢的是空间形变。
+ *      时长取 --duration-press(160ms)，不取 --motion-*。
+ */
+.boh-press {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.boh-press:active {
+  transform: scale(0.994);
+}
+
+.boh-press-sm {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.boh-press-sm:active {
+  transform: scale(0.94);
+}
+
 /**
  * 尊重用户的动画偏好设置
  * 仅禁用 keyframes 动画（多数含 transform）；保留 100ms transition 让 opacity/color 反馈仍可感知

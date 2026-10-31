@@ -72,14 +72,28 @@
         "node scripts/probes/probe-forum-search.mjs",
         "node scripts/probes/probe-forum-virtual-jump.mjs",
         "node scripts/probes/probe-forum-polish-sweep.mjs",
-        "node scripts/probes/probe-weekly-checkin-points.mjs"
+        "node scripts/probes/probe-weekly-checkin-points.mjs",
+        "node scripts/probes/probe-forum-motion.mjs"
       ],
-      "why": "发布会话闸门（双宿主）+ 选图反馈口径 + 竖屏图片胶片条/长按拖动 + 论坛搜索 RPC + 虚拟列表跳跃兜底 + 智能整理流光 + 周签到"
+      "why": "发布会话闸门（双宿主）+ 选图反馈口径 + 竖屏图片胶片条/长按拖动 + 论坛搜索 RPC + 虚拟列表跳跃兜底 + 智能整理流光 + 周签到 + 空间连续性（来源 rect/落点）"
+    },
+    {
+      "glob": "src/utils/motion-origin.js",
+      "run": ["node scripts/probes/probe-forum-motion.mjs"],
+      "why": "来源矩形采集与 FLIP 数学的唯一真源（transform-origin 写错会静默错位）"
+    },
+    {
+      "glob": "src/utils/morph-layer.js",
+      "run": ["node scripts/probes/probe-forum-motion.mjs"],
+      "why": "返程收缩层（克隆节点必须被移除，否则吃掉后续点击判定）"
     },
     {
       "glob": "src/views/PostDetail/**",
-      "run": ["node scripts/probes/probe-reply-autogrow.mjs"],
-      "why": "详情页评论框自动增高"
+      "run": [
+        "node scripts/probes/probe-reply-autogrow.mjs",
+        "node scripts/probes/probe-forum-motion.mjs"
+      ],
+      "why": "详情页评论框自动增高 + 入场/返程空间连续性"
     },
     {
       "glob": "src/composables/useAutoGrowTextarea.js",

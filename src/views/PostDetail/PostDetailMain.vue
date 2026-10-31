@@ -4,6 +4,17 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
 import { getImageUrl } from '@/utils/asset-helper.js';
+import {
+  animateMorph,
+  canMorph,
+  captureOrigin,
+  clearOrigin,
+  flipFromRect,
+  flipRadius,
+  peekOrigin,
+} from '@/utils/motion-origin.js';
+import { motionMs } from '@/utils/motion.js';
+import { playCollapseMorph } from '@/utils/morph-layer.js';
 import { resolveFrameForAuthor } from '@/composables/useAvatarFrame.js';
 import { Check, Heart, Image as ImageIcon, MessageCircle, Share2 } from 'lucide-vue-next';
 import UserCenterPageHeader from '../../components/UserCenterPageHeader.vue';
@@ -105,6 +116,69 @@ const authorFrame = computed(() =>
     : resolveFrameForAuthor(post.value?.author_avatar_frame_url, post.value?.author_id),
 );
 const isLoading = ref(true);
+
+/* ── 入场形变：从列表卡片长成详情（plans/035 §L2）────────────────────
+   为什么是「容器形变 + 内容淡入」而不是纯 FLIP：详情取数是异步的，
+   首帧只有骨架；等数据到了再算终态矩形，才能保证起点落在卡片上。
+   形变期间内容 opacity 从 0 起（offset 0.45 到 1）—— 非等比缩放下文字
+   会被拉伸，但那几帧它本来就看不见。
+
+   ⚠️ 只形变 `.x-post-card`（正文卡），**绝不能**包到 `.post-detail-page` 上：
+   页根里的底栏是 `position: fixed`，祖先一旦带 transform，包含块就被换成
+   那个祖先（规范行为），底栏会被一起缩放、推飞。这是仓库里踩过的坑。 */
+const articleRef = ref(null);
+/* 入口那张卡的矩形，留给返程用（plans/035 §L3）。
+   `clearOrigin` 会把 map 里的条目删掉（避免被下一次导航复用），所以这里必须留一份，
+   否则返回时「回哪去」这件事就没了依据。 */
+let entryOriginRect = null;
+
+const playDetailEntryMorph = async () => {
+  // 弹窗态由 PostDetailModal 对**面板**做形变；这里再动正文卡就是两层形变
+  if (props.modalMode) return;
+  const el = articleRef.value;
+  if (!el || !canMorph()) return;
+  const key = `post-detail:${postId.value}`;
+  const source = peekOrigin(key);
+  if (!source) return;
+  clearOrigin(key);
+  entryOriginRect = { ...source };
+  await nextTick();
+  const box = el.getBoundingClientRect();
+  if (!box.width || !box.height) return;
+  const flip = flipFromRect(source, {
+    left: box.left,
+    top: box.top,
+    width: box.width,
+    height: box.height,
+  });
+  // 已经在原位（同尺寸）就没必要演一遍，否则是一次无意义的「抽搐」
+  if (Math.abs(flip.sx - 1) < 0.03 && Math.abs(flip.sy - 1) < 0.03) return;
+  const radiusFrom = flipRadius(source.radius || 20, flip.sx, flip.sy, 20);
+  // 终态圆角读元素自身（glass-panel 各档不同），写死一个数字会在收尾瞬间跳一下
+  const radiusTo = getComputedStyle(el).borderRadius || '20px';
+  await animateMorph(
+    el,
+    [
+      {
+        transform: flip.transform,
+        transformOrigin: '0 0',
+        borderRadius: `${radiusFrom}px`,
+        opacity: 0,
+      },
+      { opacity: 1, offset: 0.45 },
+      { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
+    ],
+    { duration: motionMs('--motion-morph-in', 640) },
+  );
+  // fill:both 会留下 matrix(...)，动画本身已被 cancel；这里再兜一次
+  el.style.transform = '';
+};
+
+watch(isLoading, (loading) => {
+  if (loading) return;
+  void nextTick().then(playDetailEntryMorph);
+});
+
 const isReplySubmitting = ref(false);
 const isLikeSubmitting = ref(false);
 const isReportSubmitting = ref(false);
@@ -406,9 +480,11 @@ const showNextDetailImage = () => {
   detailImageIndex.value = (detailImageIndex.value + 1) % total;
 };
 
-const openDetailImageViewer = (index = detailImageIndex.value) => {
+const openDetailImageViewer = (index = detailImageIndex.value, event) => {
   if (!detailImages.value.length) return;
   goToDetailImage(index);
+  // 采集「从哪张图点开的」：大图关闭时要缩回这张图本身（plans/035 §L4）
+  captureOrigin(`detail-image:${detailImageKey.value}`, event?.currentTarget, { radius: 12 });
   isDetailImageViewerOpen.value = true;
 };
 
@@ -1501,6 +1577,15 @@ onBeforeRouteLeave(() => {
   if (!rootEl) return true;
 
   leaving = true;
+  /* 返程收缩（plans/035 §L3）：此刻目标卡片还不存在（列表已被卸载、返回要重新挂载
+     并还原滚动），所以只能把正文卡**克隆**出去收缩 —— 克隆在 body 下，页面卸载不影响它。
+     与下面的整页淡出并行：页面壳（页头/底栏）淡掉，正文卡由克隆接住一路收成卡片。
+     没有入口矩形（深链/刷新直接进的详情）就什么都不做，保持原有淡出。 */
+  if (entryOriginRect) {
+    void playCollapseMorph(articleRef.value, entryOriginRect, {
+      duration: motionMs('--motion-morph-out', 480),
+    });
+  }
   rootEl.classList.add('is-page-leaving');
   return new Promise((resolve) => {
     const done = () => {
@@ -2435,7 +2520,7 @@ const handleChangeCommentSortMode = async (mode) => {
                     'is-failed': isDetailImageFailed(detailImageKey),
                   }"
                   :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
-                  @click="openDetailImageViewer(detailImageIndex)"
+                  @click="openDetailImageViewer(detailImageIndex, $event)"
                 >
                   <div
                     v-if="isDetailImageFailed(detailImageKey)"
@@ -2784,6 +2869,7 @@ const handleChangeCommentSortMode = async (mode) => {
         <div v-else class="post-x-layout">
           <div class="x-main-column">
             <article
+              ref="articleRef"
               class="x-post-card glass-panel"
               :class="{
                 'tier-plus': authorTierCode === 'plus',
@@ -2806,7 +2892,7 @@ const handleChangeCommentSortMode = async (mode) => {
                         'is-failed': isDetailImageFailed(detailImageKey),
                       }"
                       :aria-label="`查看${postTitle}第 ${detailImageIndex + 1} 张大图`"
-                      @click="openDetailImageViewer(detailImageIndex)"
+                      @click="openDetailImageViewer(detailImageIndex, $event)"
                     >
                       <!-- ✨ 新增：图片加载失败时显示占位符 -->
                       <div

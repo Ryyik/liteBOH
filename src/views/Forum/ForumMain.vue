@@ -108,6 +108,8 @@ import {
   getLikeErrorToast,
   getForumImageKey,
 } from '@/utils/forum-helpers.js';
+import { captureOrigin } from '@/utils/motion-origin.js';
+import { prefersReducedMotion } from '@/utils/motion.js';
 import { supabase } from '../../utils/supabase-client.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
@@ -200,6 +202,41 @@ const shareCopiedPostIds = ref(new Set());
 const loadedForumImageKeys = ref(new Set());
 const loadMoreSentinelRef = ref(null);
 const uiAnimationTimers = new Map();
+
+/* ── 搜索结果的入场编排（plans/035 §L4 第 5/6 条）──
+   现状是「提交后 forumData 直接换掉，没有任何过渡」—— 用户感觉是「搜完了没反应」。
+   时序必须挂在**数据到位**那一刻，不能挂在关键词变化上：关键词一变就播，
+   播的还是上一批结果的动画，然后内容才换，等于把两件事拆开了。
+   所以：关键词变了只挂起一个待播标记，等 forumData 落地再播。
+   `is-feed-entering` 只对首屏可见卡片生效，滚动挂载的新卡片不受影响。 */
+const feedEntering = ref(false);
+let pendingFeedSwap = false;
+let feedEnterTimer = null;
+
+const playFeedSwap = () => {
+  if (prefersReducedMotion()) return;
+  if (feedEnterTimer) clearTimeout(feedEnterTimer);
+  // 先摘再挂 + 强制一帧，才能重播同一个 animation（纯 toggle class 不会重播）
+  feedEntering.value = false;
+  requestAnimationFrame(() => {
+    feedEntering.value = true;
+    feedEnterTimer = setTimeout(() => {
+      feedEntering.value = false;
+      feedEnterTimer = null;
+    }, 1200);
+  });
+};
+
+watch(searchKeyword, (next, prev) => {
+  if (String(next || '').trim() === String(prev || '').trim()) return;
+  pendingFeedSwap = true;
+});
+
+watch(forumData, () => {
+  if (!pendingFeedSwap) return;
+  pendingFeedSwap = false;
+  playFeedSwap();
+});
 const forumWeeklyReport = ref(null);
 const isWeeklyReportLoading = ref(false);
 const isWeeklyReportOpen = ref(false);
@@ -1497,7 +1534,6 @@ onUnmounted(() => {
   closeConfirm(false);
 });
 
-
 watch(isMobileComposerOpen, (isOpen) => {
   syncComposerScrollLock(isOpen);
   // 用户打开编辑器即为发图意图信号，移动端此时才开始预载检测模型
@@ -1888,13 +1924,24 @@ const handleStripLoadMore = (post) => {
   void ensureForumPostFullImages(post);
 };
 
-const openForumImageViewer = (post, index = 0) => {
+// 大图查看器的来源前缀（plans/035 §L1）：同一帖的多张图共用一个前缀，
+// 关闭时若当前图已翻页（没有自己的 origin），仍能退回到「这一个帖子的某张缩略图」。
+const forumImageViewerOriginKey = ref('');
+
+const openForumImageViewer = (post, index = 0, event) => {
   const baseImages = (Array.isArray(post?.allImages) ? post.allImages : []).filter(
     (image) => image?.url,
   );
   if (!baseImages.length) return;
   const clickedImage =
     baseImages[Math.min(Math.max(Number(index || 0), 0), baseImages.length - 1)] || null;
+  // 采集「从哪张缩略图点开的」：必须是真正被点的那个 shell 本身，
+  // 不能取卡片（卡片跨多张图，用卡片矩形放大等于没有来处）
+  const originPrefix = `forum-image:${post?.id || ''}`;
+  forumImageViewerOriginKey.value = originPrefix;
+  captureOrigin(`${originPrefix}:${clickedImage?.url || ''}`, event?.currentTarget, {
+    radius: 12,
+  });
   forumImageViewerImages.value = baseImages;
   forumImageViewerIndex.value = resolveForumViewerStartIndex(baseImages, clickedImage);
   isForumImageViewerOpen.value = true;
@@ -3019,8 +3066,10 @@ const sharePost = (post) => {
       showLoginModal.value = true;
     },
     onCopied: () => {
-      // 同步点亮卡片上的「已复制」状态
-      addUiMarker(shareCopiedPostIds, post.id, 1500, 'share-copied');
+      // 同步点亮卡片上的「已复制」状态。
+      // 1500 → 2000ms（plans/035 慢速档）：勾号现在是描边画出来的（480ms），
+      // 画完还要留一段"看得见"的停留，否则动画刚结束状态就消失了。
+      addUiMarker(shareCopiedPostIds, post.id, 2000, 'share-copied');
     },
     onClose: () => {
       // × / Esc / 成功自动关闭都走这里：必须真正清掉岛槽位，仅置空句柄岛不会消失
@@ -3133,7 +3182,10 @@ const askBohai = async () => {
   }
 };
 
-const openPostDetail = (postId) => {
+const openPostDetail = (postId, event) => {
+  // 采集「从哪张卡点开的」：详情页首屏主卡要从这个矩形长出来（plans/035 §L1）。
+  // key 里必须带 postId —— 只存「最近一张卡」会让 A 卡点开、B 卡位置展开。
+  captureOrigin(`post-detail:${postId}`, event?.currentTarget, { radius: 20 });
   // 横屏（含桌面）：单源分流进详情弹窗，列表原地保留，无需 return state
   if (isForumLandscape()) {
     openForumPost({ router, postId });
@@ -3283,7 +3335,11 @@ const {
           <!-- 发布进度：已迁移到统一任务岛（useIsland 调度中心 showIsland.task），由发布队列 watcher 驱动 -->
 
           <!-- 帖子列表 -->
-          <section class="posts-feed fade-in-up" style="animation-delay: 0.2s">
+          <section
+            class="posts-feed fade-in-up"
+            :class="{ 'is-feed-entering': feedEntering }"
+            style="animation-delay: 0.2s"
+          >
             <div v-if="!externalFeed" class="feed-mode-tabs">
               <button
                 class="feed-mode-tab"
@@ -3959,6 +4015,7 @@ const {
       v-model:open="isForumImageViewerOpen"
       :images="forumImageViewerImages"
       :initial-index="forumImageViewerIndex"
+      :origin-key="forumImageViewerOriginKey"
       @close="closeForumImageViewer"
     />
 

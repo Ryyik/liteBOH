@@ -1,19 +1,22 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
+import { motionMs } from '@/utils/motion.js';
 import {
-  ChevronLeft,
-  ChevronRight,
-  RotateCcw,
-  X,
-  ZoomIn,
-  ZoomOut
-} from 'lucide-vue-next';
+  animateMorph,
+  canMorph,
+  flipFromRect,
+  flipRadius,
+  peekOrigin,
+} from '@/utils/motion-origin.js';
+import { ChevronLeft, ChevronRight, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
 
 const props = defineProps({
   images: { type: Array, default: () => [] },
   initialIndex: { type: Number, default: 0 },
-  open: { type: Boolean, default: false }
+  open: { type: Boolean, default: false },
+  // 来源前缀（`forum-image:<postId>`）。为空则退化为原来的居中浮起。
+  originKey: { type: String, default: '' },
 });
 
 const emit = defineEmits(['close', 'update:open']);
@@ -36,21 +39,24 @@ let pointerDownOnImage = false;
 
 const currentImage = computed(() => props.images[currentIndex.value] || null);
 
-const viewerKey = computed(() => String(
-  currentImage.value?.url
-  || currentImage.value?.detailUrl
-  || currentImage.value?.originalUrl
-  || ''
-).trim());
+const viewerKey = computed(() =>
+  String(
+    currentImage.value?.url ||
+      currentImage.value?.detailUrl ||
+      currentImage.value?.originalUrl ||
+      '',
+  ).trim(),
+);
 
 const viewerSources = computed(() => {
   const image = currentImage.value || {};
-  return Array.from(new Set([
-    image.detailUrl,
-    image.originalUrl,
-    image.url,
-    image.thumbUrl
-  ].map((url) => String(url || '').trim()).filter(Boolean)));
+  return Array.from(
+    new Set(
+      [image.detailUrl, image.originalUrl, image.url, image.thumbUrl]
+        .map((url) => String(url || '').trim())
+        .filter(Boolean),
+    ),
+  );
 });
 
 const currentUrl = computed(() => viewerSources.value[0] || '');
@@ -58,7 +64,7 @@ const currentUrl = computed(() => viewerSources.value[0] || '');
 const zoomPercent = computed(() => `${Math.round(zoom.value * 100)}%`);
 
 const viewerStyle = computed(() => ({
-  transform: `translate3d(${pan.value.x}px, ${pan.value.y}px, 0) scale(${zoom.value})`
+  transform: `translate3d(${pan.value.x}px, ${pan.value.y}px, 0) scale(${zoom.value})`,
 }));
 
 const hasMultipleImages = computed(() => props.images.length > 1);
@@ -119,9 +125,111 @@ function showNext() {
   currentIndex.value = (currentIndex.value + 1) % total;
 }
 
-function close() {
+/* ── 从缩略图起、回缩略图去（plans/035 §L4）─────────────────────────
+   两段式：容器尺寸由 img 的布局尺寸决定（`offsetWidth` 不受 transform 影响），
+   中心由 stage 的 rect 反推 —— 所以不需要等 `getBoundingClientRect` 被自己污染。
+   形变只作用在 img 上：stage 的缩放已经交给 CSS 过渡，两边同时缩会缩两次。 */
+const imgRef = ref(null);
+const stageRef = ref(null);
+const morphPhase = ref(''); // '' | 'in' | 'out'
+let enteredOnce = false;
+
+const originKeyForCurrent = () => {
+  const prefix = String(props.originKey || '').trim();
+  if (!prefix) return '';
+  const url = String(currentImage.value?.url || '').trim();
+  return url ? `${prefix}:${url}` : prefix;
+};
+
+const peekSource = () =>
+  peekOrigin(originKeyForCurrent(), { matchPrefix: true }) ||
+  (props.originKey ? peekOrigin(props.originKey, { matchPrefix: true }) : null);
+
+const measureImgRect = (img) => {
+  const stage = stageRef.value || img?.parentElement;
+  if (!img || !stage || !img.offsetWidth || !img.offsetHeight) return null;
+  const box = stage.getBoundingClientRect();
+  const width = img.offsetWidth;
+  const height = img.offsetHeight;
+  return {
+    left: box.left + (box.width - width) / 2,
+    top: box.top + (box.height - height) / 2,
+    width,
+    height,
+  };
+};
+
+const playEnterMorph = async () => {
+  const img = imgRef.value;
+  const source = peekSource();
+  if (!img || !source || !canMorph()) return;
+  const target = measureImgRect(img);
+  if (!target) return;
+  const flip = flipFromRect(source, target);
+  const radiusFrom = flipRadius(source.radius || 12, flip.sx, flip.sy, 12);
+  const radiusTo = getComputedStyle(img).borderRadius || '12px';
+  morphPhase.value = 'in';
+  await animateMorph(
+    img,
+    [
+      {
+        transform: flip.transform,
+        transformOrigin: '0 0',
+        borderRadius: `${radiusFrom}px`,
+        opacity: 0,
+      },
+      { opacity: 1, offset: 0.45 },
+      { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
+    ],
+    { duration: motionMs('--motion-enter', 480) },
+  );
+  morphPhase.value = '';
+};
+
+const finishClose = () => {
   emit('update:open', false);
   emit('close');
+};
+
+const isClosing = ref(false);
+
+function close() {
+  if (isClosing.value) return;
+  const img = imgRef.value;
+  const source = peekSource();
+  // 放大过就老实淡出：缩放后的图与缩略图的几何关系已经不是「同一个物体」
+  if (!img || !source || !canMorph() || zoom.value > 1) {
+    finishClose();
+    return;
+  }
+  const current = measureImgRect(img);
+  if (!current) {
+    finishClose();
+    return;
+  }
+  isClosing.value = true;
+  morphPhase.value = 'out';
+  const flip = flipFromRect(source, current);
+  const radiusTo = flipRadius(source.radius || 12, flip.sx, flip.sy, 12);
+  const radiusFrom = getComputedStyle(img).borderRadius || '12px';
+  void animateMorph(
+    img,
+    [
+      { transform: 'none', transformOrigin: '0 0', borderRadius: radiusFrom, opacity: 1 },
+      { opacity: 0.65, offset: 0.7 },
+      {
+        transform: flip.transform,
+        transformOrigin: '0 0',
+        borderRadius: `${radiusTo}px`,
+        opacity: 0,
+      },
+    ],
+    { duration: motionMs('--motion-exit', 360), easing: 'cubic-bezier(0.4, 0, 1, 1)' },
+  ).then(() => {
+    isClosing.value = false;
+    morphPhase.value = '';
+    finishClose();
+  });
 }
 
 function handleWheel(event) {
@@ -132,7 +240,7 @@ function handleWheel(event) {
 function startPan(event) {
   pointerDownAt = {
     x: Number(event?.clientX || 0),
-    y: Number(event?.clientY || 0)
+    y: Number(event?.clientY || 0),
   };
   pointerDownOnImage = Boolean(event?.target?.closest?.('.forum-image-viewer-img'));
   if (zoom.value <= 1) return;
@@ -140,7 +248,7 @@ function startPan(event) {
   event?.currentTarget?.setPointerCapture?.(event.pointerId);
   panStart = {
     x: Number(event?.clientX || 0) - pan.value.x,
-    y: Number(event?.clientY || 0) - pan.value.y
+    y: Number(event?.clientY || 0) - pan.value.y,
   };
 }
 
@@ -148,7 +256,7 @@ function movePan(event) {
   if (!isPanning.value || zoom.value <= 1) return;
   pan.value = {
     x: Number(event?.clientX || 0) - panStart.x,
-    y: Number(event?.clientY || 0) - panStart.y
+    y: Number(event?.clientY || 0) - panStart.y,
   };
 }
 
@@ -167,7 +275,7 @@ function handleStageClick(event) {
   if (pointerDownOnImage) return;
   const moved = Math.hypot(
     Number(event?.clientX || 0) - pointerDownAt.x,
-    Number(event?.clientY || 0) - pointerDownAt.y
+    Number(event?.clientY || 0) - pointerDownAt.y,
   );
   if (moved > IMAGE_VIEWER_CLICK_SLOP) return;
   close();
@@ -175,6 +283,11 @@ function handleStageClick(event) {
 
 function handleImageLoad() {
   isLoading.value = false;
+  // 每次打开只在第一张图上跑一次形变：翻页、补全图片都会重新 load，
+  // 那些不该再「从缩略图飞一次」
+  if (enteredOnce) return;
+  enteredOnce = true;
+  void nextTick().then(playEnterMorph);
 }
 
 function handleImageError(event) {
@@ -227,26 +340,35 @@ function handleKeydown(event) {
   }
 }
 
-watch(() => props.initialIndex, (newIndex) => {
-  resetTransform();
-  isLoading.value = true;
-  currentIndex.value = Math.min(Math.max(Number(newIndex || 0), 0), Math.max(0, props.images.length - 1));
-});
+watch(
+  () => props.initialIndex,
+  (newIndex) => {
+    resetTransform();
+    isLoading.value = true;
+    currentIndex.value = Math.min(
+      Math.max(Number(newIndex || 0), 0),
+      Math.max(0, props.images.length - 1),
+    );
+  },
+);
 
 // 打开期间图片列表可能被按需补全（列表接口只回 4 张预览，翻页前补全量）：
 // 以原图 URL 对齐，保持当前查看的图片不动，仅更新索引与总张数
-watch(() => props.images, (next, prev) => {
-  if (!Array.isArray(next) || !next.length || next === prev) return;
-  const current = Array.isArray(prev) ? prev[currentIndex.value] : null;
-  const wanted = String(current?.originalUrl || current?.url || '').trim();
-  let at = -1;
-  if (wanted) {
-    at = next.findIndex((img) => String(img?.originalUrl || img?.url || '').trim() === wanted);
-  }
-  resetTransform();
-  isLoading.value = true;
-  currentIndex.value = at >= 0 ? at : Math.min(currentIndex.value, next.length - 1);
-});
+watch(
+  () => props.images,
+  (next, prev) => {
+    if (!Array.isArray(next) || !next.length || next === prev) return;
+    const current = Array.isArray(prev) ? prev[currentIndex.value] : null;
+    const wanted = String(current?.originalUrl || current?.url || '').trim();
+    let at = -1;
+    if (wanted) {
+      at = next.findIndex((img) => String(img?.originalUrl || img?.url || '').trim() === wanted);
+    }
+    resetTransform();
+    isLoading.value = true;
+    currentIndex.value = at >= 0 ? at : Math.min(currentIndex.value, next.length - 1);
+  },
+);
 
 /* body 滚动锁走引用计数单源（2026-10-30 P3-1）。原先是直写 overflow：
    论坛主页面在 onDeactivated / onUnmounted 里无条件清零，查看器开着时一旦论坛先离场，
@@ -257,13 +379,25 @@ const releaseViewerScrollLock = () => {
   scrollLockRelease = null;
 };
 
-watch(() => props.open, (isOpen) => {
-  if (isOpen) {
-    scrollLockRelease ??= acquireBodyScrollLock('forum-image-viewer');
-  } else {
-    releaseViewerScrollLock();
-  }
-});
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) {
+      enteredOnce = false;
+      morphPhase.value = '';
+      isClosing.value = false;
+      scrollLockRelease ??= acquireBodyScrollLock('forum-image-viewer');
+      // 命中缓存时 `load` 不会再触发，必须自己补一次（否则缓存图永远不做形变）
+      nextTick(() => {
+        const img = imgRef.value;
+        if (!img || !img.complete || !img.naturalWidth) return;
+        handleImageLoad();
+      });
+    } else {
+      releaseViewerScrollLock();
+    }
+  },
+);
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
@@ -278,32 +412,59 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <transition name="forum-image-viewer-fade">
-      <div v-if="open" class="forum-image-viewer" role="dialog" aria-modal="true"
-        aria-label="查看帖子大图" @click.self="close">
-        <button type="button" class="forum-image-viewer-close" aria-label="关闭大图"
-          @click="close">
+      <div
+        v-if="open"
+        class="forum-image-viewer"
+        role="dialog"
+        aria-modal="true"
+        :class="{ 'is-morph-in': morphPhase === 'in', 'is-morph-out': morphPhase === 'out' }"
+        aria-label="查看帖子大图"
+        @click.self="close"
+      >
+        <button type="button" class="forum-image-viewer-close" aria-label="关闭大图" @click="close">
           <X :size="24" :stroke-width="2.2" aria-hidden="true" />
         </button>
         <div class="forum-image-viewer-toolbar" aria-label="大图缩放工具">
-          <button type="button" class="forum-image-viewer-tool" :disabled="zoom <= IMAGE_VIEWER_MIN_ZOOM"
-            aria-label="缩小图片" @click.stop="zoomOut">
+          <button
+            type="button"
+            class="forum-image-viewer-tool"
+            :disabled="zoom <= IMAGE_VIEWER_MIN_ZOOM"
+            aria-label="缩小图片"
+            @click.stop="zoomOut"
+          >
             <ZoomOut :size="20" :stroke-width="2" aria-hidden="true" />
           </button>
           <span class="forum-image-viewer-zoom">{{ zoomPercent }}</span>
-          <button type="button" class="forum-image-viewer-tool" :disabled="zoom >= IMAGE_VIEWER_MAX_ZOOM"
-            aria-label="放大图片" @click.stop="zoomIn">
+          <button
+            type="button"
+            class="forum-image-viewer-tool"
+            :disabled="zoom >= IMAGE_VIEWER_MAX_ZOOM"
+            aria-label="放大图片"
+            @click.stop="zoomIn"
+          >
             <ZoomIn :size="20" :stroke-width="2" aria-hidden="true" />
           </button>
-          <button type="button" class="forum-image-viewer-tool" aria-label="重置缩放"
-            @click.stop="resetTransform">
+          <button
+            type="button"
+            class="forum-image-viewer-tool"
+            aria-label="重置缩放"
+            @click.stop="resetTransform"
+          >
             <RotateCcw :size="19" :stroke-width="2" aria-hidden="true" />
           </button>
         </div>
-        <button v-if="hasMultipleImages" type="button" class="forum-image-viewer-nav prev"
-          aria-label="上一张大图" @click.stop="showPrev">
+        <button
+          v-if="hasMultipleImages"
+          type="button"
+          class="forum-image-viewer-nav prev"
+          aria-label="上一张大图"
+          @click.stop="showPrev"
+        >
           <ChevronLeft :size="34" :stroke-width="1.8" aria-hidden="true" />
         </button>
-        <div class="forum-image-viewer-stage"
+        <div
+          class="forum-image-viewer-stage"
+          ref="stageRef"
           :class="{ 'is-zoomed': zoom > 1, 'is-panning': isPanning }"
           @click="handleStageClick"
           @wheel.prevent="handleWheel"
@@ -311,17 +472,32 @@ onUnmounted(() => {
           @pointermove="movePan"
           @pointerup="stopPan"
           @pointercancel="stopPan"
-          @pointerleave="stopPan">
+          @pointerleave="stopPan"
+        >
           <div v-if="isLoading" class="forum-image-viewer-loader" aria-label="图片加载中">
             <span class="forum-image-viewer-spinner"></span>
           </div>
-          <img :key="`${viewerKey}-viewer`" class="forum-image-viewer-img" :src="currentUrl"
-            data-source-index="0" :style="viewerStyle"
-            :alt="`帖子大图 ${currentIndex + 1}`" decoding="async"
-            @load="handleImageLoad" @error="handleImageError"  loading="lazy" />
+          <img
+            :key="`${viewerKey}-viewer`"
+            ref="imgRef"
+            class="forum-image-viewer-img"
+            :src="currentUrl"
+            data-source-index="0"
+            :style="viewerStyle"
+            :alt="`帖子大图 ${currentIndex + 1}`"
+            decoding="async"
+            @load="handleImageLoad"
+            @error="handleImageError"
+            loading="lazy"
+          />
         </div>
-        <button v-if="hasMultipleImages" type="button" class="forum-image-viewer-nav next"
-          aria-label="下一张大图" @click.stop="showNext">
+        <button
+          v-if="hasMultipleImages"
+          type="button"
+          class="forum-image-viewer-nav next"
+          aria-label="下一张大图"
+          @click.stop="showNext"
+        >
           <ChevronRight :size="34" :stroke-width="1.8" aria-hidden="true" />
         </button>
         <div v-if="hasMultipleImages" class="forum-image-viewer-count">
@@ -400,7 +576,9 @@ onUnmounted(() => {
   cursor: pointer;
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
-  transition: background-color 0.18s ease, transform 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .forum-image-viewer-toolbar {
@@ -593,6 +771,22 @@ onUnmounted(() => {
 
 /* reduce-motion：按 plans/003 口径「保留 opacity 反馈、砍位移与缩放」。
    全局基线（styles/common/animations.css）只把 transition 压到 100ms，位移仍在 ⇒ 这里显式砍掉。 */
+/* ── 从缩略图起 / 回缩略图去（plans/035 §L4）──
+   走 rect morph 时 stage 的「居中浮起」必须让位：形变已经作用在 img 上，
+   stage 再缩一次就是缩两遍（观感是「图片在飞的同时还在抽一下」）。
+   特异性 0,3,0 > 上面 enter-from 那几条 0,2,0，故不依赖书写顺序。 */
+.forum-image-viewer.is-morph-in .forum-image-viewer-stage,
+.forum-image-viewer.is-morph-out .forum-image-viewer-stage {
+  transition: none;
+  transform: none;
+}
+
+/* 形变期间 img 的 transform 由 WAAPI 接管，CSS 过渡会把每一帧再插值一次 */
+.forum-image-viewer.is-morph-in .forum-image-viewer-img,
+.forum-image-viewer.is-morph-out .forum-image-viewer-img {
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .forum-image-viewer-fade-enter-active .forum-image-viewer-stage,
   .forum-image-viewer-fade-leave-active .forum-image-viewer-stage {

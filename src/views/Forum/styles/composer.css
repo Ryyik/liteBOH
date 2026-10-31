@@ -1080,3 +1080,82 @@
   background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
 }
+
+/* ── 图片条的进出与让位（plans/035 §P2-1）────────────────────────────
+   病灶：图片条是裸 v-for，选完图第一张「啪」地插进来把整条挤动一下。
+   做法：TransitionGroup + 位移过渡。`move` 只在非拖拽时启用 —— 拖拽期间
+   transform 由 useImageStripDrag 逐帧直写，再叠一条 320ms 过渡就是「拖不动」。 */
+.composer-image-enter-active {
+  transition:
+    opacity 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.composer-image-leave-active {
+  transition:
+    opacity 180ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 180ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.composer-image-enter-from,
+.composer-image-leave-to {
+  opacity: 0;
+  transform: scale(0.62);
+}
+
+.post-image-preview-grid:not(.is-reordering) .composer-image-move {
+  transition: transform 320ms var(--ease-drawer, cubic-bezier(0.32, 0.72, 0, 1));
+}
+
+/* 上传状态徽标：处理中 → 完成/失败是两次状态切换，裸 v-if 会闪一下 */
+.composer-badge-enter-active {
+  transition:
+    opacity 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.composer-badge-leave-active {
+  transition: opacity 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.composer-badge-enter-from,
+.composer-badge-leave-to {
+  opacity: 0;
+  transform: translateY(2px);
+}
+
+/* 发布按钮的进度弧：沿边框转一圈，替代「文案跳变」 */
+.post-btn-progress {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0.92) 0deg,
+    rgba(255, 255, 255, 0.35) 90deg,
+    transparent 180deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+  animation: postBtnProgressSpin 900ms linear infinite;
+}
+
+@keyframes postBtnProgressSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-btn-progress {
+    animation: none;
+    opacity: 0.5;
+  }
+}
+
+/* 松手后的 FLIP 收尾与 TransitionGroup 的 move 过渡互斥（见 useImageStripDrag.finishDrag）：
+   两套同时跑会「抖一下再滑」。 */
+.post-image-preview-grid .composer-image-move.is-settling {
+  transition: none;
+}

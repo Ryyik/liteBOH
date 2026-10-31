@@ -1,6 +1,14 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { ChevronLeft, ChevronRight, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-vue-next';
+import { motionMs } from '@/utils/motion.js';
+import {
+  animateMorph,
+  canMorph,
+  flipFromRect,
+  flipRadius,
+  peekOrigin,
+} from '@/utils/motion-origin.js';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -8,7 +16,7 @@ const props = defineProps({
   currentIndex: { type: Number, default: 0 },
   postTitle: { type: String, default: '' },
   currentImage: { type: Object, default: null },
-  imageKey: { type: String, default: '' }
+  imageKey: { type: String, default: '' },
 });
 
 const emit = defineEmits([
@@ -16,7 +24,7 @@ const emit = defineEmits([
   'navigate-prev',
   'navigate-next',
   'go-to-index',
-  'update:currentIndex'
+  'update:currentIndex',
 ]);
 
 const MIN_ZOOM = 0.5;
@@ -33,12 +41,13 @@ const hasMultipleImages = computed(() => props.images.length > 1);
 
 const currentImageViewerSources = computed(() => {
   const image = props.currentImage || {};
-  return Array.from(new Set([
-    image.detailUrl,
-    image.originalUrl,
-    image.url,
-    image.thumbUrl
-  ].map((url) => String(url || '').trim()).filter(Boolean)));
+  return Array.from(
+    new Set(
+      [image.detailUrl, image.originalUrl, image.url, image.thumbUrl]
+        .map((url) => String(url || '').trim())
+        .filter(Boolean),
+    ),
+  );
 });
 
 const currentImageLargeUrl = computed(() => currentImageViewerSources.value[0] || '');
@@ -46,7 +55,7 @@ const currentImageLargeUrl = computed(() => currentImageViewerSources.value[0] |
 const zoomPercent = computed(() => `${Math.round(zoom.value * 100)}%`);
 
 const imageStyle = computed(() => ({
-  transform: `translate3d(${pan.value.x}px, ${pan.value.y}px, 0) scale(${zoom.value})`
+  transform: `translate3d(${pan.value.x}px, ${pan.value.y}px, 0) scale(${zoom.value})`,
 }));
 
 function clampZoom(value) {
@@ -86,7 +95,7 @@ const startPan = (event) => {
   event?.currentTarget?.setPointerCapture?.(event.pointerId);
   panStart = {
     x: Number(event?.clientX || 0) - pan.value.x,
-    y: Number(event?.clientY || 0) - pan.value.y
+    y: Number(event?.clientY || 0) - pan.value.y,
   };
 };
 
@@ -94,7 +103,7 @@ const movePan = (event) => {
   if (!isPanning.value || zoom.value <= 1) return;
   pan.value = {
     x: Number(event?.clientX || 0) - panStart.x,
-    y: Number(event?.clientY || 0) - panStart.y
+    y: Number(event?.clientY || 0) - panStart.y,
   };
 };
 
@@ -122,14 +131,117 @@ const handleImageError = (event) => {
   target.src = nextSource;
 };
 
+/* ── 从缩略图起、回缩略图去（plans/035 §L4）──
+   与论坛的 ForumImageViewer 同一套：来源由点击处采集（key 前缀 `detail-image:`），
+   目标矩形由 img 的布局尺寸 + stage 的位置反推（不受自身 transform 污染）。 */
+const imgRef = ref(null);
+const stageRef = ref(null);
+const morphPhase = ref('');
+const isClosing = ref(false);
+let enteredOnce = false;
+
+const originKeyFor = () => {
+  const key = String(props.imageKey || '').trim();
+  return key ? `detail-image:${key}` : '';
+};
+
+const peekSource = () => {
+  const exact = originKeyFor();
+  return (exact ? peekOrigin(exact) : null) || peekOrigin('detail-image', { matchPrefix: true });
+};
+
+const measureImgRect = (img) => {
+  const stage = stageRef.value || img?.parentElement;
+  if (!img || !stage || !img.offsetWidth || !img.offsetHeight) return null;
+  const box = stage.getBoundingClientRect();
+  const width = img.offsetWidth;
+  const height = img.offsetHeight;
+  return {
+    left: box.left + (box.width - width) / 2,
+    top: box.top + (box.height - height) / 2,
+    width,
+    height,
+  };
+};
+
+const playEnterMorph = async () => {
+  const img = imgRef.value;
+  const source = peekSource();
+  if (!img || !source || !canMorph()) return;
+  const target = measureImgRect(img);
+  if (!target) return;
+  const flip = flipFromRect(source, target);
+  const radiusFrom = flipRadius(source.radius || 12, flip.sx, flip.sy, 12);
+  const radiusTo = getComputedStyle(img).borderRadius || '12px';
+  morphPhase.value = 'in';
+  await animateMorph(
+    img,
+    [
+      {
+        transform: flip.transform,
+        transformOrigin: '0 0',
+        borderRadius: `${radiusFrom}px`,
+        opacity: 0,
+      },
+      { opacity: 1, offset: 0.45 },
+      { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
+    ],
+    { duration: motionMs('--motion-enter', 480) },
+  );
+  morphPhase.value = '';
+};
+
+const finishClose = () => {
+  isClosing.value = false;
+  morphPhase.value = '';
+  emit('close');
+};
+
+const requestClose = () => {
+  if (isClosing.value) return;
+  const img = imgRef.value;
+  const source = peekSource();
+  if (!img || !source || !canMorph() || zoom.value > 1) {
+    emit('close');
+    return;
+  }
+  const current = measureImgRect(img);
+  if (!current) {
+    emit('close');
+    return;
+  }
+  isClosing.value = true;
+  morphPhase.value = 'out';
+  const flip = flipFromRect(source, current);
+  const radiusTo = flipRadius(source.radius || 12, flip.sx, flip.sy, 12);
+  const radiusFrom = getComputedStyle(img).borderRadius || '12px';
+  void animateMorph(
+    img,
+    [
+      { transform: 'none', transformOrigin: '0 0', borderRadius: radiusFrom, opacity: 1 },
+      { opacity: 0.65, offset: 0.7 },
+      {
+        transform: flip.transform,
+        transformOrigin: '0 0',
+        borderRadius: `${radiusTo}px`,
+        opacity: 0,
+      },
+    ],
+    { duration: motionMs('--motion-exit', 360), easing: 'cubic-bezier(0.4, 0, 1, 1)' },
+  ).then(finishClose);
+};
+
 const handleImageLoad = () => {
   isImageLoading.value = false;
+  if (enteredOnce) return;
+  enteredOnce = true;
+  void nextTick().then(playEnterMorph);
 };
 
 const handleKeydown = (event) => {
   if (!props.visible) return;
   if (event.key === 'Escape') {
-    emit('close');
+    requestClose();
     return;
   }
   if (event.key === 'ArrowLeft') {
@@ -158,23 +270,41 @@ const handleKeydown = (event) => {
   }
 };
 
-watch(() => props.visible, (isOpen) => {
-  document.body.style.overflow = isOpen ? 'hidden' : '';
-});
+watch(
+  () => props.visible,
+  (isOpen) => {
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+  },
+);
 
-watch(() => props.imageKey, () => {
-  if (props.visible) {
-    isImageLoading.value = true;
-    resetTransform();
-  }
-});
+watch(
+  () => props.imageKey,
+  () => {
+    if (props.visible) {
+      isImageLoading.value = true;
+      resetTransform();
+    }
+  },
+);
 
-watch(() => props.visible, (isOpen) => {
-  if (isOpen) {
-    resetTransform();
-    isImageLoading.value = true;
-  }
-});
+watch(
+  () => props.visible,
+  (isOpen) => {
+    if (isOpen) {
+      resetTransform();
+      isImageLoading.value = true;
+      enteredOnce = false;
+      morphPhase.value = '';
+      isClosing.value = false;
+      // 命中缓存时 `load` 不会再触发（否则缓存图永远不做形变）
+      nextTick(() => {
+        const img = imgRef.value;
+        if (!img || !img.complete || !img.naturalWidth) return;
+        handleImageLoad();
+      });
+    }
+  },
+);
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
@@ -189,49 +319,96 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <transition name="detail-viewer-fade">
-      <div v-if="visible" class="detail-image-viewer" role="dialog" aria-modal="true"
-        aria-label="查看帖子大图" @click.self="$emit('close')">
-        <button type="button" class="detail-image-viewer-close" aria-label="关闭大图"
-          @click="$emit('close')">
+      <div
+        v-if="visible"
+        class="detail-image-viewer"
+        role="dialog"
+        aria-modal="true"
+        :class="{ 'is-morph-in': morphPhase === 'in', 'is-morph-out': morphPhase === 'out' }"
+        aria-label="查看帖子大图"
+        @click.self="requestClose"
+      >
+        <button
+          type="button"
+          class="detail-image-viewer-close"
+          aria-label="关闭大图"
+          @click="requestClose"
+        >
           <X :size="24" :stroke-width="2.2" aria-hidden="true" />
         </button>
         <div class="detail-image-viewer-toolbar" aria-label="大图缩放工具">
-          <button type="button" class="detail-image-viewer-tool" :disabled="zoom <= MIN_ZOOM"
-            aria-label="缩小图片" @click.stop="zoomOut">
+          <button
+            type="button"
+            class="detail-image-viewer-tool"
+            :disabled="zoom <= MIN_ZOOM"
+            aria-label="缩小图片"
+            @click.stop="zoomOut"
+          >
             <ZoomOut :size="20" :stroke-width="2" aria-hidden="true" />
           </button>
           <span class="detail-image-viewer-zoom">{{ zoomPercent }}</span>
-          <button type="button" class="detail-image-viewer-tool" :disabled="zoom >= MAX_ZOOM"
-            aria-label="放大图片" @click.stop="zoomIn">
+          <button
+            type="button"
+            class="detail-image-viewer-tool"
+            :disabled="zoom >= MAX_ZOOM"
+            aria-label="放大图片"
+            @click.stop="zoomIn"
+          >
             <ZoomIn :size="20" :stroke-width="2" aria-hidden="true" />
           </button>
-          <button type="button" class="detail-image-viewer-tool" aria-label="重置缩放"
-            @click.stop="resetTransform">
+          <button
+            type="button"
+            class="detail-image-viewer-tool"
+            aria-label="重置缩放"
+            @click.stop="resetTransform"
+          >
             <RotateCcw :size="19" :stroke-width="2" aria-hidden="true" />
           </button>
         </div>
-        <button v-if="hasMultipleImages" type="button" class="detail-image-viewer-nav prev"
-          aria-label="上一张大图" @click.stop="$emit('navigate-prev')">
+        <button
+          v-if="hasMultipleImages"
+          type="button"
+          class="detail-image-viewer-nav prev"
+          aria-label="上一张大图"
+          @click.stop="$emit('navigate-prev')"
+        >
           <ChevronLeft :size="34" :stroke-width="1.8" aria-hidden="true" />
         </button>
-        <div class="detail-image-viewer-stage"
+        <div
+          class="detail-image-viewer-stage"
+          ref="stageRef"
           :class="{ 'is-zoomed': zoom > 1, 'is-panning': isPanning }"
           @wheel.prevent="handleWheel"
           @pointerdown="startPan"
           @pointermove="movePan"
           @pointerup="stopPan"
           @pointercancel="stopPan"
-          @pointerleave="stopPan">
+          @pointerleave="stopPan"
+        >
           <div v-if="isImageLoading" class="detail-image-viewer-loader" aria-label="图片加载中">
             <span class="detail-image-viewer-spinner"></span>
           </div>
-          <img :key="`${imageKey}-viewer`" class="detail-image-viewer-img" :src="currentImageLargeUrl"
-            data-source-index="0" :style="imageStyle"
-            :alt="`${postTitle} 大图 ${currentIndex + 1}`" decoding="async"
-            @load="handleImageLoad" @error="handleImageError"  loading="lazy" />
+          <img
+            :key="`${imageKey}-viewer`"
+            ref="imgRef"
+            class="detail-image-viewer-img"
+            :src="currentImageLargeUrl"
+            data-source-index="0"
+            :style="imageStyle"
+            :alt="`${postTitle} 大图 ${currentIndex + 1}`"
+            decoding="async"
+            @load="handleImageLoad"
+            @error="handleImageError"
+            loading="lazy"
+          />
         </div>
-        <button v-if="hasMultipleImages" type="button" class="detail-image-viewer-nav next"
-          aria-label="下一张大图" @click.stop="$emit('navigate-next')">
+        <button
+          v-if="hasMultipleImages"
+          type="button"
+          class="detail-image-viewer-nav next"
+          aria-label="下一张大图"
+          @click.stop="$emit('navigate-next')"
+        >
           <ChevronRight :size="34" :stroke-width="1.8" aria-hidden="true" />
         </button>
         <div v-if="hasMultipleImages" class="detail-image-viewer-count">
@@ -310,7 +487,9 @@ onUnmounted(() => {
   cursor: pointer;
   backdrop-filter: var(--liquid-filter-sm);
   -webkit-backdrop-filter: var(--liquid-filter-sm);
-  transition: background-color 0.18s ease, transform 0.18s ease;
+  transition:
+    background-color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .detail-image-viewer-toolbar {
@@ -444,6 +623,12 @@ onUnmounted(() => {
 .detail-viewer-fade-enter-from,
 .detail-viewer-fade-leave-to {
   opacity: 0;
+}
+
+/* 形变期间 transform 由 WAAPI 接管，CSS 过渡会把每一帧再插值一次 */
+.detail-image-viewer.is-morph-in .detail-image-viewer-img,
+.detail-image-viewer.is-morph-out .detail-image-viewer-img {
+  transition: none;
 }
 
 @media (max-width: 768px) {

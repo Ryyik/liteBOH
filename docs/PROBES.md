@@ -17,6 +17,7 @@
 | 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
 | 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
+| **论坛/详情「从哪来、回哪去」空间连续性**（图片查看器从缩略图 rect 起、关闭缩回同一张；详情正文卡从列表卡片 rect 形变入场；返程克隆层末帧落回入口卡片矩形；落定后 `transform: none`；reduce 下形变全跳过） | `probe-forum-motion.mjs` | 22 |
 | **帖子列表大图浏览**（翻页左箭头不被 stage/图片盖住；点空白关闭、点图片不关闭、拖拽不误关；开合动效逐帧采样 + reduce 口径） | `probe-forum-image-viewer.mjs` | 27 |
 | **帖子详情弹窗 chunk 加载失败兜底**（部署窗口期旧入口 import 旧 chunk 404：错误态出现、不再无声空白、DEV 不强刷、正常路径内容完整渲染） | `probe-pd-modal-chunk-fail.mjs` | 12 |
 | 评论/回复输入框「多字扩展」（竖屏不随内容长高） | `probe-reply-autogrow.mjs` | 19 |
@@ -55,6 +56,7 @@
 | `probe-datamanagement-smoke.mjs` | — | 直接请求数据管理页模块，让 vite 现场编译，验证修复后的文件无编译错误 |
 | `probe-datamanagement-validator.mjs` | — | 数据管理面板校验器回归测试：复现"新闻模板保存报 Cannot read properties of undefined (reading 'includes')" |
 | `probe-forum-search.mjs` | — | 探针：论坛搜索体验增强（清除按钮 / ⌘K 聚焦 / 最近搜索 / 结果计数 / 无结果引导），网络全程 mock |
+| `probe-forum-motion.mjs` | — | 探针：空间连续性（plans/035）—— 来源 rect 对齐 / 落点回归 / 落定 transform 归零 / 克隆层无残留 / reduce 降级 |
 | `probe-global-search.mjs` | — | 探针：全局搜索（导航栏灵动岛形态）—— plans/020-site-global-search.md |
 | `probe-home-forum-rail.mjs` | — | 探针：首页（论坛层）横屏左栏 —— 修复「换个入口进论坛，左右栏结构就没了」 |
 | `probe-home-gate-pull.mjs` | — | 探针：首页开场画「跟手拖拽」入场（2026-09-27 由阈值触发改为 progress 派生） |

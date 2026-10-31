@@ -9,8 +9,16 @@
  *   BohaiSidebar 底层(2147482100/2200)，让位图片查看器(2147483000)与全局弹窗(2147483647)。
  *   编辑器等 fixed 子层在 panel 的 stacking context 内自然置顶，无需改其 z-index。
  */
-import { computed, defineAsyncComponent, h, ref } from 'vue';
+import { computed, defineAsyncComponent, h, ref, watch, nextTick } from 'vue';
 import { usePostDetailModal } from '@/composables/usePostDetailModal.js';
+import {
+  animateMorph,
+  canMorph,
+  flipFromRect,
+  flipRadius,
+  peekOrigin,
+} from '@/utils/motion-origin.js';
+import { motionMs } from '@/utils/motion.js';
 import { recoverDynamicImportFailure } from '@/utils/vite-preload-recovery.js';
 import { forceCleanAndReload } from '@/utils/version-checker.js';
 
@@ -62,8 +70,78 @@ const PostDetailMain = defineAsyncComponent({
 
 const { isOpen, postId, close, open } = usePostDetailModal();
 
-const handleClose = (options) => close(options);
+const handleClose = (options) => {
+  // 有入口矩形就先缩回卡片（与 CSS 退场并行，不额外延长关闭时间）
+  if (isOpen.value) void playPanelMorph('out');
+  close(options);
+};
 const handleOpenPost = (id) => open(id, { replace: true });
+
+/* ── 从卡片长出来 / 收回去（plans/035 §L4 P4）──────────────────────────
+   横屏弹窗的起点同样是列表卡片，终点是 `.pd-modal-panel`。
+   两段式：进场只按**面板当前**矩形算形变，图片比例（media-ratio）到达后
+   面板还会走既有的 520ms 变宽过渡 —— 这里不等网络，否则入场被拖住。
+
+   ⚠️ 形变只能挂在 panel 上，不能挂 `.pd-modal-overlay`：overlay 是 fixed 铺满，
+   而且它是 Vue <Transition> 的根，动它会和 enter/leave 的类名打架。
+   面板自身的 `translateY(12px) scale(.985)` 会被 WAAPI 覆盖，这正是我们要的。 */
+const panelRef = ref(null);
+const panelOriginKey = () => `post-detail:${String(postId.value || '')}`;
+
+const playPanelMorph = async (direction) => {
+  if (!canMorph()) return false;
+  const source = peekOrigin(panelOriginKey());
+  if (!source) return false;
+  await nextTick();
+  const el = panelRef.value;
+  if (!el) return false;
+  const box = el.getBoundingClientRect();
+  if (!box.width || !box.height) return false;
+  const target = { left: box.left, top: box.top, width: box.width, height: box.height };
+  const flip = flipFromRect(source, target);
+  if (Math.abs(flip.sx - 1) < 0.03 && Math.abs(flip.sy - 1) < 0.03) return false;
+  const radiusFrom = flipRadius(source.radius || 20, flip.sx, flip.sy, 20);
+  const radiusTo = getComputedStyle(el).borderRadius || '24px';
+
+  if (direction === 'in') {
+    await animateMorph(
+      el,
+      [
+        {
+          transform: flip.transform,
+          transformOrigin: '0 0',
+          borderRadius: `${radiusFrom}px`,
+          opacity: 0,
+        },
+        { opacity: 1, offset: 0.45 },
+        { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
+      ],
+      { duration: motionMs('--motion-morph-in-near', 480) },
+    );
+  } else {
+    // 退场比进场短：Vue 在 leave 过渡结束时就摘节点（面板那条是 420ms），
+    // 我们的 360ms 必须在它之前落地，否则末帧被截断。
+    void animateMorph(
+      el,
+      [
+        { transform: 'none', transformOrigin: '0 0', borderRadius: radiusTo, opacity: 1 },
+        { opacity: 0.7, offset: 0.7 },
+        {
+          transform: flip.transform,
+          transformOrigin: '0 0',
+          borderRadius: `${radiusFrom}px`,
+          opacity: 0,
+        },
+      ],
+      { duration: motionMs('--motion-exit', 360), easing: 'cubic-bezier(0.4, 0, 1, 1)' },
+    );
+  }
+  return true;
+};
+
+watch(isOpen, (open) => {
+  if (open) void playPanelMorph('in');
+});
 
 /* ── 左栏随图比例自适应（2026-10-22，用户定稿口径）────────────────────────
    口径（用户 2026-10-22 拍板）：
@@ -144,6 +222,7 @@ const panelWidth = computed(() => {
     <Transition name="pd-modal">
       <div v-if="isOpen" class="pd-modal-overlay" @click="handleClose()">
         <div
+          ref="panelRef"
           class="pd-modal-panel"
           :class="{ 'is-ratio-adaptive': mediaRatio !== null }"
           :style="{

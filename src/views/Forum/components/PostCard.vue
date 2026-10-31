@@ -18,6 +18,8 @@ import { getImageUrl } from '@/utils/asset-helper.js';
 // getForumImageKey 与 ForumMain 的「写入标记」侧共用同一实现 —— 两边漂移会让
 // 图片已加载态静默失效，故收敛到 forum-helpers.js（见该函数注释）。
 import { getForumImageKey, shouldShowReplyTarget } from '@/utils/forum-helpers.js';
+// 展开/收起时长按**实测高度**算（真源见 utils/motion.js，plans/035 §4 L4）
+import { capMotion, collapseDuration, expandDuration } from '@/utils/motion.js';
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -71,6 +73,125 @@ const formatDate = formatSmartTime;
 const { textareaRef: replyTextareaRef } = useAutoGrowTextarea({
   value: () => props.replyContent,
 });
+
+/* ── 两块展开动效：`:css="false"` + WAAPI（plans/035 §4 L4）────────────────
+   为什么不用 transition 类名：
+   ① **展开时长要按实测高度算**（短评 240ms / 长评 528ms），类名只能给一个固定值；
+   ② 回复框的 `transform-origin` 要取「回复」按钮的横向位置，只能在元素插入后量。
+
+   两条都必须能**放行**：动画被 cancel（用户连点、元素被替换、页面切走）时若
+   不调用 done()，Vue 会把这次过渡挂住，元素永远停在 enter 态（表现为「点不开」）。 */
+const EASE_SOFT = 'cubic-bezier(0.32, 0.72, 0, 1)';
+
+const settleOnce = () => {
+  let settled = false;
+  return (fn) => {
+    if (settled) return;
+    settled = true;
+    fn();
+  };
+};
+
+/* 重挂载守卫（2026-10-31 实测抓到）：
+   帖子卡在虚拟列表里会随窗口滑动**卸载再挂载**，而展开态是父组件的
+   `expandedPostIds` / `activeReplyTarget` 记着的 ⇒ 重新挂载时元素一插入就是展开态，
+   `@enter` 照样会跑一遍 —— 用户看到的是「滚回来评论区又长了一次」。
+   判据：**setup 时就已经是展开态** ⇒ 这次 enter 是"复现"，不是"用户刚点的"，直接放行。
+   只在实例内记一次，所以"收起再展开"仍然有动画。 */
+let skipRepliesEnter = props.isExpanded;
+let skipReplyEnter = Boolean(
+  props.activeReplyTarget && props.activeReplyTarget.postId === props.post.id,
+);
+
+const playOnce = (el, keyframes, options, onSettled) => {
+  const finish = settleOnce();
+  const end = () => finish(onSettled);
+  try {
+    const anim = el.animate(keyframes, options);
+    anim.finished.then(end, end);
+  } catch {
+    end();
+    return;
+  }
+  // 兜底：finished 在个别环境下不触发时不至于把过渡挂死
+  window.setTimeout(end, Number(options.duration || 0) + 120);
+};
+
+const onRepliesEnter = (el, done) => {
+  if (skipRepliesEnter) {
+    skipRepliesEnter = false;
+    done();
+    return;
+  }
+  const height = Math.max(0, el.scrollHeight);
+  el.style.overflow = 'hidden';
+  playOnce(
+    el,
+    [
+      { maxHeight: '0px', opacity: 0 },
+      { maxHeight: `${height}px`, opacity: 1 },
+    ],
+    { duration: expandDuration(height), easing: EASE_SOFT },
+    () => {
+      // 收尾必须**无条件**清掉内联上限：内容一旦变高就会被永久裁在旧高度
+      el.style.overflow = '';
+      el.style.maxHeight = '';
+      done();
+    },
+  );
+};
+
+const onRepliesLeave = (el, done) => {
+  const height = Math.max(0, el.getBoundingClientRect().height);
+  el.style.overflow = 'hidden';
+  playOnce(
+    el,
+    [
+      { maxHeight: `${height}px`, opacity: 1 },
+      { maxHeight: '0px', opacity: 0 },
+    ],
+    { duration: collapseDuration(height), easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+    done,
+  );
+};
+
+const onReplyEnter = (el, done) => {
+  if (skipReplyEnter) {
+    skipReplyEnter = false;
+    done();
+    return;
+  }
+  // 原点 = 那个「回复」按钮的横向中心（它在本组件 actions-right 里）
+  const rect = el.getBoundingClientRect();
+  const button = el.parentElement?.querySelector('.reply-btn-v2');
+  const btnRect = button?.getBoundingClientRect?.();
+  const originX =
+    btnRect && rect.width
+      ? Math.min(0.94, Math.max(0.12, (btnRect.left + btnRect.width / 2 - rect.left) / rect.width))
+      : 0.86;
+  el.style.transformOrigin = `${(originX * 100).toFixed(1)}% top`;
+  playOnce(
+    el,
+    [
+      { opacity: 0, transform: 'scale(0.72, 0.42)' },
+      { opacity: 1, transform: 'none' },
+    ],
+    { duration: capMotion(340), easing: EASE_SOFT },
+    done,
+  );
+};
+
+const onReplyLeave = (el, done) => {
+  playOnce(
+    el,
+    [
+      { opacity: 1, transform: 'none' },
+      { opacity: 0, transform: 'scale(0.92, 0.7)' },
+    ],
+    { duration: capMotion(220), easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
+    done,
+  );
+};
 
 /* ── 长帖省略号判定（2026-10-17 全面审查 P2-4）──────────────────────────────
    症状：`.post-text-v2` 由 CSS `max-height`（5 行）截断，而「...」是否出现由
@@ -356,7 +477,7 @@ watch(
       'tier-ultra': authorTierCode === 'ultra',
     }"
     :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
-    @click="emit('click', post.id)"
+    @click="emit('click', post.id, $event)"
   >
     <figure
       v-if="isHomeCatActive"
@@ -469,7 +590,8 @@ watch(
             }"
             :aria-label="`查看${post.displayTitle}第 ${index + 1} 张大图`"
             :disabled="isImageFailed(image.url)"
-            @click.stop="emit('open-image-viewer', post, index)"
+            :data-image-url="image.url"
+            @click.stop="emit('open-image-viewer', post, index, $event)"
           >
             <!-- 图片加载失败时显示占位图标 -->
             <div
@@ -622,7 +744,7 @@ watch(
     </div>
 
     <!-- 回复输入 (支持多级回复) -->
-    <transition name="fade-slide">
+    <transition :css="false" @enter="onReplyEnter" @leave="onReplyLeave">
       <div
         v-if="activeReplyTarget && activeReplyTarget.postId === post.id"
         class="reply-input-section-v2"
@@ -669,7 +791,7 @@ watch(
     </transition>
 
     <!-- 回复列表 (优化多级显示) -->
-    <transition name="expand-replies">
+    <transition :css="false" @enter="onRepliesEnter" @leave="onRepliesLeave">
       <div
         v-if="isExpanded && post.replies && post.replies.length > 0"
         class="replies-list"
