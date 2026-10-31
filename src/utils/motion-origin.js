@@ -85,15 +85,20 @@ export function peekOrigin(key, { maxAge = ORIGIN_TTL, matchPrefix = false } = {
   const safeKey = String(key || '').trim();
   if (!safeKey) return null;
   let entry = origins.get(safeKey);
+  let matchedKey = entry ? safeKey : '';
   if (!entry && matchPrefix) {
     for (const [storedKey, candidate] of origins) {
       if (!storedKey.startsWith(safeKey)) continue;
-      if (!entry || candidate.at > entry.at) entry = candidate;
+      if (!entry || candidate.at > entry.at) {
+        entry = candidate;
+        matchedKey = storedKey;
+      }
     }
   }
   if (!entry) return null;
   if (Date.now() - entry.at > maxAge) {
-    origins.delete(safeKey);
+    // 前缀命中时命中项挂在**另一个 key** 上，删 safeKey 是空删 —— 过期条目会永远留着。
+    origins.delete(matchedKey || safeKey);
     return null;
   }
   if (typeof window !== 'undefined' && entry.vw && entry.vh) {
@@ -168,19 +173,29 @@ export function canMorph() {
 export function animateMorph(
   el,
   keyframes,
-  { duration = 480, easing = 'cubic-bezier(0.32, 0.72, 0, 1)', fill = 'both' } = {},
+  { duration = 480, easing = 'cubic-bezier(0.32, 0.72, 0, 1)', fill, keepFinal = false } = {},
 ) {
   if (!el || typeof el.animate !== 'function') return Promise.resolve(false);
   try {
-    const animation = el.animate(keyframes, { duration, easing, fill });
+    /* ⚠️ `keepFinal` 是给**退场**用的，必须开。
+       默认收尾会 `cancel()`（为了不让 `fill: both` 把终态留在元素上）。但退场形变的终态
+       是「缩到缩略图大小」，cancel 的瞬间元素就弹回原尺寸 —— 紧接着 Vue 的 leave 淡出
+       才刚开始。实测：不开时关闭后第 374ms 图片宽度从 185px 跳回 390px，此时遮罩
+       opacity 仍是 1.00，用户看到的就是「缩进去了，又弹回全屏，再淡出」。
+       开 `keepFinal` 后改用 `fill: 'forwards'` 且不 cancel，元素带着终态留到被移除。 */
+    const animation = el.animate(keyframes, {
+      duration,
+      easing,
+      fill: fill || (keepFinal ? 'forwards' : 'both'),
+    });
     return animation.finished
       .then(() => {
         // fill:'both' 会把手写的终态留在元素上，取消后才回到「没有 animation」的干净态
-        animation.cancel();
+        if (!keepFinal) animation.cancel();
         return true;
       })
       .catch(() => {
-        animation.cancel();
+        if (!keepFinal) animation.cancel();
         return false;
       });
   } catch {

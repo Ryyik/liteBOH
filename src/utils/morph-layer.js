@@ -23,28 +23,30 @@
 const LAYER_CLASS = 'boh-morph-layer';
 const GHOST_CLASS = 'boh-morph-ghost';
 
-/** 确保只有一个层，返回该层（复用时先清空）。 */
-function ensureLayer() {
-  let layer = document.querySelector(`.${LAYER_CLASS}`);
-  if (!layer) {
-    layer = document.createElement('div');
-    layer.className = LAYER_CLASS;
-    layer.setAttribute('aria-hidden', 'true');
-    // 约束③：整层不参与命中测试
-    layer.style.cssText = [
-      'position: fixed',
-      'inset: 0',
-      'z-index: 2147482000',
-      'pointer-events: none',
-      'overflow: hidden',
-      // layout + paint：给绝对定位的克隆一个包含块，并把超出视口的部分裁掉。
-      // ⚠️ 不要写 `contain: strict` —— 它含 size containment，会把这一层按「无内容」
-      // 定尺寸，克隆在内层就是 0×0（看不见、也查不出原因）。
-      'contain: layout paint',
-    ].join(';');
-    document.body.appendChild(layer);
-  }
-  layer.replaceChildren();
+/**
+ * 每次调用都建一个**自己的**层。
+ *
+ * ⚠️ 不要复用单例层：两次收缩重叠时（连点两次返回、或返回时又点了另一条帖子），
+ * 后来的那次会 `replaceChildren()` 清掉前一次的克隆，而前一次收尾时 `layer.remove()`
+ * 又会把**后一次还活着的那层**一起拆掉 —— 表现是第二次收缩凭空消失。
+ */
+function createLayer() {
+  const layer = document.createElement('div');
+  layer.className = LAYER_CLASS;
+  layer.setAttribute('aria-hidden', 'true');
+  // 约束③：整层不参与命中测试
+  layer.style.cssText = [
+    'position: fixed',
+    'inset: 0',
+    'z-index: 2147482000',
+    'pointer-events: none',
+    'overflow: hidden',
+    // layout + paint：给绝对定位的克隆一个包含块，并把超出视口的部分裁掉。
+    // ⚠️ 不要写 `contain: strict` —— 它含 size containment，会把这一层按「无内容」
+    // 定尺寸，克隆在内层就是 0×0（看不见、也查不出原因）。
+    'contain: layout paint',
+  ].join(';');
+  document.body.appendChild(layer);
   return layer;
 }
 
@@ -97,7 +99,7 @@ export function playCollapseMorph(sourceEl, targetRect, { duration = 480 } = {})
       'transform-origin: 0 0',
       'will-change: transform, opacity',
     ].join(';');
-    layer = ensureLayer();
+    layer = createLayer();
     layer.appendChild(ghost);
   } catch {
     cleanup();

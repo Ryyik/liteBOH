@@ -133,7 +133,12 @@ const playPanelMorph = async (direction) => {
           opacity: 0,
         },
       ],
-      { duration: motionMs('--motion-exit', 360), easing: 'cubic-bezier(0.4, 0, 1, 1)' },
+      {
+        duration: motionMs('--motion-exit', 360),
+        easing: 'cubic-bezier(0.4, 0, 1, 1)',
+        // 退场必须保留终态：否则 cancel 的瞬间面板弹回原尺寸，紧接着才淡出
+        keepFinal: true,
+      },
     );
   }
   return true;

@@ -1566,8 +1566,13 @@ onMounted(() => {
      叠加会导致两套动画同时跑；
    · 留出 --pd-leave-ms 给 CSS 与 JS 共享时长，避免两处写死不一致；
    · prefers-reduced-motion 直接放行，不做无意义的等待。 */
+/* 能承载「入口那张卡」的列表宿主路由名：首页 `/` 与用户中心 `/user-space`。
+   返程收缩只对这两个目的地生效 —— 去引用帖（PostDetail）或作者主页（UserProfile）
+   时没有卡片可落，照旧收缩会折到一个不存在的位置。 */
+const LIST_ROUTE_NAMES = new Set(['Home', 'UserSpace']);
+
 let leaving = false;
-onBeforeRouteLeave(() => {
+onBeforeRouteLeave((to) => {
   if (props.modalMode) return true; // 弹窗态：由 PostDetailModal 的过渡接管
   if (typeof window === 'undefined') return true;
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return true;
@@ -1580,8 +1585,12 @@ onBeforeRouteLeave(() => {
   /* 返程收缩（plans/035 §L3）：此刻目标卡片还不存在（列表已被卸载、返回要重新挂载
      并还原滚动），所以只能把正文卡**克隆**出去收缩 —— 克隆在 body 下，页面卸载不影响它。
      与下面的整页淡出并行：页面壳（页头/底栏）淡掉，正文卡由克隆接住一路收成卡片。
-     没有入口矩形（深链/刷新直接进的详情）就什么都不做，保持原有淡出。 */
-  if (entryOriginRect) {
+     没有入口矩形（深链/刷新直接进的详情）就什么都不做，保持原有淡出。
+
+     ⚠️ **只对「回列表」生效**。详情页不只往列表走：点引用帖会 push 另一条 PostDetail，
+     点作者会去 UserProfile —— 那些目的地根本没有「入口那张卡」，照旧收缩就是
+     「这一页折进了一个不存在的位置」。判据是目的路由是不是列表宿主（首页 / 用户中心）。 */
+  if (entryOriginRect && LIST_ROUTE_NAMES.has(String(to?.name || ''))) {
     void playCollapseMorph(articleRef.value, entryOriginRect, {
       duration: motionMs('--motion-morph-out', 480),
     });

@@ -154,6 +154,46 @@ try {
         gone.viewer === false && gone.ghost === 0,
         JSON.stringify(gone),
       );
+
+      /* A7 收尾不回弹（2026-10-31 复核实测抓到的真缺陷）：
+         形变结束时若把动画 cancel 掉，元素会瞬间弹回原尺寸，而 Vue 的 leave 淡出才刚开始
+         —— 实测关闭后第 374ms 图片宽度从 185px 跳回 390px，此时遮罩 opacity 仍是 1.00，
+         用户看到「缩进去了 → 又弹回全屏 → 再淡出」，正好抵消掉整个返程。
+         判据：**形变已结束（没有 running 动画）但遮罩仍可见（opacity > 0.3）的那些帧**，
+         图片宽度必须仍在缩略图量级。这一条只有在真跑起来时才测得出，静态断言全绿也没用。 */
+      {
+        const live = await page.evaluate(async () => {
+          const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          const thumb = document.querySelector('.post-card-v2 .image-post-thumb-shell');
+          if (!thumb) return { skip: true };
+          thumb.scrollIntoView({ block: 'center' });
+          await sleep(300);
+          const thumbWidth = Math.round(thumb.getBoundingClientRect().width);
+          thumb.click();
+          await sleep(900);
+          document.querySelector('.forum-image-viewer-close')?.click();
+          const bad = [];
+          for (let i = 0; i < 80; i += 1) {
+            await raf();
+            const img = document.querySelector('.forum-image-viewer-img');
+            const root = document.querySelector('.forum-image-viewer');
+            if (!img || !root) break;
+            const running = img.getAnimations().filter((a) => a.playState === 'running').length;
+            const rootOpacity = Number(getComputedStyle(root).opacity);
+            const width = Math.round(img.getBoundingClientRect().width);
+            if (running === 0 && rootOpacity > 0.3 && width > thumbWidth * 1.4) {
+              bad.push({ width, thumbWidth, rootOpacity: rootOpacity.toFixed(2), frame: i });
+            }
+          }
+          return { skip: false, bad };
+        });
+        check(
+          'A7 收尾不回弹（形变结束后不得弹回全尺寸再淡出）',
+          live.skip === true || live.bad.length === 0,
+          live.skip ? 'skipped' : JSON.stringify(live.bad.slice(0, 3)),
+        );
+      }
     }
     await page.screenshot({ path: `${OUT}/probe-forum-motion-viewer.png` }).catch(() => {});
     await page.close();

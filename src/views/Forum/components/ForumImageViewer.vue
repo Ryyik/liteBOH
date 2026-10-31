@@ -224,7 +224,12 @@ function close() {
         opacity: 0,
       },
     ],
-    { duration: motionMs('--motion-exit', 360), easing: 'cubic-bezier(0.4, 0, 1, 1)' },
+    {
+      duration: motionMs('--motion-exit', 360),
+      easing: 'cubic-bezier(0.4, 0, 1, 1)',
+      // 退场必须保留终态：否则 cancel 的瞬间图片弹回全屏，紧接着才淡出
+      keepFinal: true,
+    },
   ).then(() => {
     isClosing.value = false;
     morphPhase.value = '';
