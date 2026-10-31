@@ -1,9 +1,17 @@
 <template>
   <div class="gc">
     <header class="gc-head">
-      <div>
-        <h1>开屏控制台</h1>
-        <p>活动期打开、结束关掉，都不用发版。保存后用户下次进站生效（已通过过的人 24h 内不会重播）。</p>
+      <div class="gc-heading">
+        <button type="button" class="gc-back" title="返回数据管理" @click="goBackToAdmin">
+          <ChevronLeft :size="18" aria-hidden="true" />
+        </button>
+        <div>
+          <h1>开屏管理</h1>
+          <p>
+            活动期打开、结束关掉，都不用发版。保存后用户下次进站生效（已通过过的人 24h
+            内不会重播）。
+          </p>
+        </div>
       </div>
       <div class="gc-actions">
         <button type="button" class="btn" :disabled="busy" @click="load">重新读取</button>
@@ -64,7 +72,8 @@
             </label>
           </div>
           <p class="gc-hint">
-            关掉后线上立刻回到默认开屏（白底 + 红苹果 + 时段问候）。正在看的人不受影响，下次进站生效。
+            关掉后线上立刻回到默认开屏（白底 + 红苹果 +
+            时段问候）。正在看的人不受影响，下次进站生效。
           </p>
         </div>
 
@@ -108,7 +117,11 @@
           <h2>按钮</h2>
           <label class="gc-field">
             <span>按钮文字</span>
-            <input v-model="draft.cta_text" type="text" placeholder="看看有什么惊喜（留空 = 不放按钮）" />
+            <input
+              v-model="draft.cta_text"
+              type="text"
+              placeholder="看看有什么惊喜（留空 = 不放按钮）"
+            />
           </label>
           <label class="gc-field">
             <span>点击后</span>
@@ -159,6 +172,8 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { ChevronLeft } from 'lucide-vue-next';
 import GateSceneHero from '@/views/Home/components/GateSceneHero.vue';
 import {
   GATE_CTA_TYPES,
@@ -189,12 +204,19 @@ const DEFAULTS = {
   ends_at_local: '',
 };
 
+const router = useRouter();
 const draft = reactive({ ...DEFAULTS });
 const lotteries = ref([]);
 const loading = ref(false);
 const saving = ref(false);
 const busy = computed(() => loading.value || saving.value);
 const notice = ref(null);
+
+/* 独立控制台页面（路由 hideNavbar），没有管理台侧栏 ⇒ 必须自带返回入口，
+   否则进来只能靠浏览器后退。与 HeroConsole / ShopConsole 同一落点。 */
+const goBackToAdmin = () => {
+  router.push('/admin/data-management').catch(() => {});
+};
 
 /* datetime-local 与 ISO 互转：本地时区进、ISO 出（DB 是 timestamptz） */
 const pad = (value) => String(value).padStart(2, '0');
@@ -325,9 +347,7 @@ const ctaTarget = computed(() =>
 const onPreviewCta = () => {
   notice.value = {
     type: 'info',
-    text: ctaTarget.value
-      ? `线上会跳到 ${ctaTarget.value.to}`
-      : '按钮文字为空时不会渲染按钮',
+    text: ctaTarget.value ? `线上会跳到 ${ctaTarget.value.to}` : '按钮文字为空时不会渲染按钮',
   };
 };
 
@@ -415,6 +435,36 @@ onBeforeUnmount(() => {
   gap: 24px;
   flex-wrap: wrap;
   margin-bottom: 16px;
+}
+
+.gc-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.gc-back {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 0.5px solid rgba(0, 0, 0, 0.16);
+  background: #fff;
+  color: #17130e;
+  cursor: pointer;
+}
+
+.gc-back:hover {
+  background: #f2efea;
+}
+
+.gc-back:focus-visible {
+  outline: 2px solid #1a0d22;
+  outline-offset: 2px;
 }
 
 .gc-head h1 {

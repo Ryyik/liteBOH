@@ -12,6 +12,7 @@ import {
   Megaphone,
   Activity,
   Palette,
+  DoorOpen,
 } from 'lucide-vue-next';
 
 export const tabs = [
@@ -188,6 +189,17 @@ export const tabModules = [
     section: 'data',
     type: 'page',
     description: '可视化编辑首页英雄区，支持模板/预览/裁切/发布',
+  },
+  {
+    // 开屏控制台（活动版入场浮层）。此前只建了路由 /admin/gate-console，
+    // 没登记进 tabModules ⇒ 侧栏与命令面板里都找不到入口，只能手敲地址。
+    // 与「首页装修」相邻：两者都是首页视觉的可视化编辑器，一个是英雄区、一个是入场浮层。
+    id: 'gate-console',
+    label: '开屏管理',
+    icon: DoorOpen,
+    section: 'data',
+    type: 'page',
+    description: '活动期开屏的文案、按钮落点与生效时间，保存即生效，不用发版',
   },
   {
     id: 'avatar-console',
@@ -399,6 +411,18 @@ export const ADMIN_PAGE_META = {
     title: '首页装修',
     description: '可视化编辑首页英雄区，支持模板选择、实时预览、图片裁切、草稿/发布分离。',
     icon: Layout,
+  },
+  'gate-console': {
+    eyebrow: 'Gate Console',
+    title: '开屏管理',
+    description: '配置活动期开屏的文案、按钮落点与生效时间窗，保存即生效，不用发版。',
+    icon: DoorOpen,
+  },
+  'avatar-console': {
+    eyebrow: 'Avatar Console',
+    title: '头像框',
+    description: '上传 PNG、摆位并设定归属档位 / 限免 / 积分价后发布。',
+    icon: Palette,
   },
   moderation: {
     eyebrow: 'Moderation',

@@ -12,13 +12,13 @@
 export const ADMIN_ROLES = {
   ADMIN: 'admin',
   MODERATOR: 'moderator',
-  USER: 'user'
+  USER: 'user',
 };
 
 export const ROLE_LABELS = {
   admin: '管理员',
   moderator: '版主',
-  user: '普通用户'
+  user: '普通用户',
 };
 
 /** 模块可见性：未声明的模块默认仅 admin 可见（最小权限兜底）。 */
@@ -31,11 +31,13 @@ export const MODULE_ALLOWED_ROLES = {
   operations: ['admin', 'moderator'],
   'shop-console': ['admin'],
   'hero-console': ['admin'],
+  // 开屏直接决定全站首屏（含活动 CTA），写错等于把广告位弄丢，只给 admin
+  'gate-console': ['admin'],
   moderation: ['admin', 'moderator'],
   lottery: ['admin'],
   'ai-config': ['admin'],
   logs: ['admin'],
-  system: ['admin']
+  system: ['admin'],
 };
 
 /**
@@ -49,7 +51,7 @@ export const MODERATOR_ALLOWED_ACTIONS = new Set(['view', 'moderate']);
 export const SIDEBAR_SECTION_LABELS = {
   overview: '总览',
   data: '数据管理',
-  system: '系统'
+  system: '系统',
 };
 
 export const getUserRole = (userInfo) => String(userInfo?.role || '').trim() || 'user';

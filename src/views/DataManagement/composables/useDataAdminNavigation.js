@@ -31,6 +31,7 @@ const DATA_SECTION_MODULES = new Set([
   'logs',
   'shop-console',
   'hero-console',
+  'gate-console',
   'avatar-console',
 ]);
 
@@ -39,7 +40,8 @@ const DATA_SECTION_MODULES = new Set([
 // 曾经 'api-keys' 特判到 /admin/api-keys，导致同一个侧栏动作在两条代码路径下
 // 写出两种 URL（handleModuleClick 写 data-management、handleAdminNavClick 写 api-keys）。
 // /admin/api-keys 路由现仅作为**对外兼容别名**保留（旧书签可用），内部导航不再指向它。
-const ROUTE_MAP = {
+// 导出仅为单测可断言「每个 page 型模块都有落点」——漏一条的后果是点侧栏静默无反应。
+export const ROUTE_MAP = {
   overview: '/admin/data-management',
   'keys-models': '/admin/data-management',
   'api-keys': '/admin/data-management',
@@ -47,6 +49,7 @@ const ROUTE_MAP = {
   'lab-ai-model': '/admin/data-management',
   'shop-console': '/admin/shop-console',
   'hero-console': '/admin/hero-console',
+  'gate-console': '/admin/gate-console',
   'avatar-console': '/admin/avatar-console',
   data: '/admin/data-management',
   media: '/admin/data-management',
