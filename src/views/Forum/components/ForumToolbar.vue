@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { CalendarDays, Sparkles, X } from 'lucide-vue-next';
+import { CalendarDays, Search, Sparkles, X } from 'lucide-vue-next';
 import { FORUM_TAG_OPTIONS } from '../forum-config.js';
 import GlassPillButton from '@/components/ui/GlassPillButton.vue';
 
