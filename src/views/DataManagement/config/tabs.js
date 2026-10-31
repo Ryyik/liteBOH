@@ -56,6 +56,9 @@ export const tabs = [
   { id: 'moderationLogs', label: '审核日志', icon: '📝', module: 'moderation' },
   { id: 'notifications', label: '通知管理', icon: '🔔', module: 'moderation' },
   { id: 'lotteries', label: '抽奖管理', icon: '🎲', module: 'lottery' },
+  // 代报名（帮人报名）：报名名单此前只读，客服遇到「用户报名按钮报错」时无补救手段。
+  // 走 admin_join_lottery RPC 而不是直接插表，见该迁移顶部说明。
+  { id: 'lottery-join-grant', label: '帮人报名', icon: '🙋', module: 'lottery', type: 'page' },
   { id: 'lotteryFulfillments', label: '履约与通知', icon: '📦', module: 'lottery' },
   { id: 'lotteryEntries', label: '报名明细', icon: '🧾', module: 'lottery' },
   { id: 'lotteryAuditLogs', label: '运行审计', icon: '📜', module: 'lottery' },
@@ -226,12 +229,13 @@ export const tabModules = [
     defaultTab: 'lotteries',
     tabIds: [
       'lotteries',
+      'lottery-join-grant',
       'lotteryFulfillments',
       'lotteryEntries',
       'lotteryAuditLogs',
       'pity-grant',
     ],
-    description: '抽奖配置、履约与通知、报名明细、运行审计和保底中心',
+    description: '抽奖配置、代报名、履约与通知、报名明细、运行审计和保底中心',
   },
   {
     id: 'ai-config',
@@ -322,6 +326,8 @@ export const TABS_ACTIONS = {
   notifications: ['view'],
   adminAuditLogs: ['view'],
   lotteries: ['view', 'create', 'edit', 'delete', 'close'],
+  // page 型 tab：动作集只用于「能不能看到这一页」，写操作由页面内按钮自己控
+  'lottery-join-grant': ['view'],
   lotteryFulfillments: ['view', 'manage'],
   lotteryEntries: ['view'],
   lotteryDrawLogs: ['view'],

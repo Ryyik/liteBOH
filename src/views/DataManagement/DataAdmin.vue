@@ -1972,6 +1972,7 @@ import AiQuotaConfigConsole from './components/AiQuotaConfigConsole.vue';
 import PointsGrantConsole from './components/PointsGrantConsole.vue';
 import PityGrantConsole from './components/PityGrantConsole.vue';
 import SubscriptionGrantConsole from './components/SubscriptionGrantConsole.vue';
+import LotteryJoinGrant from './components/LotteryJoinGrant.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
 import ExportMenu from './components/shared/ExportMenu.vue';
@@ -2866,6 +2867,7 @@ const PAGE_TAB_COMPONENTS = {
   'points-grant': PointsGrantConsole,
   'pity-grant': PityGrantConsole,
   'subscriptions-grant': SubscriptionGrantConsole,
+  'lottery-join-grant': LotteryJoinGrant,
 };
 const currentPageComponent = computed(() => PAGE_TAB_COMPONENTS[currentTab.value] || null);
 const lotteryOpsTabs = new Set([
