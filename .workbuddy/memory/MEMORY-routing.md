@@ -72,3 +72,15 @@
   `--ease-morph`/`--ease-morph-out`；探针断言读 token 不写死数值。
   返程淡出 0.25 起淡 / 0.65 归零（linear offset = 墙钟时间，几何走前载曲线），
   探针 E3b 判「影子存活 ≤ 总时长 72%」——几何比值判据在横屏（758→644）必假红。
+- 🔴 **scoped CSS 里不能给 `html[data-…]` 直接挂变量/样式**：Vue 给选择器**最后一个简单
+  选择器**补 `[data-v-xxx]`，`html[data-boh-x] { --v: 0 }` 会变成
+  `html[data-boh-x][data-v-xxx]` —— `<html>` 没有该属性 ⇒ 规则**永不匹配**（实测 computed
+  变量恒空、inline 一直取 fallback，列表白 200ms）。挂到有 data-v 的后代上
+  （`html[data-boh-x] .posts-feed`）或 `:global()`。
+- 🔴 **HTML 注释里不能出现连续两个短横线**：`<!-- var(--x) -->` 会让整个 SFC 编译 500
+  （表现为 `Failed to fetch dynamically imported module`、整页白）。注释里只写变量名。
+- **守卫测试守关系不守数值**：写死 460/340/`offset: 0.78` 的守卫，用户每调一次速度就得改测试，
+  守的是「上一次的观感」；改成「兜底值 == token 当前值」「三档为正且 in ≥ in-near ≥ out」
+  「起淡 offset ∈ (0.1,0.8) 且有显式 0 终帧」后，反而立刻抓出兜底值跳档的真 bug。
+- **批量清理 `_tmp-*` 前先 `git ls-files` 区分已跟踪/未跟踪**：2026-10-31 通配 `mv` 误伤了
+  4 个已入库的 `_tmp-album-*` / `_tmp-immersive-debug`（`git status` 显示 ` D` 才发现）。
