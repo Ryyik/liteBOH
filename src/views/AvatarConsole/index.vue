@@ -1151,7 +1151,10 @@ onMounted(refreshList);
   gap: 14px;
   align-items: start;
 }
-@media (max-width: 1180px) {
+/* 断点按**视口**算，但本页现在左边常驻 260px 侧栏（AdminConsoleShell）⇒
+   可用宽度 = 视口 - 260。1180 是加侧栏之前的值，不改的话三列
+   （232 + 316 + gap 76）会在 1180~1440 这一段把中列挤到 200 出头（原值 1180 + 260 ≈ 1440）。 */
+@media (max-width: 1440px) {
   .afc-body {
     grid-template-columns: 1fr;
   }

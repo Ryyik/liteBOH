@@ -513,7 +513,10 @@ onBeforeUnmount(() => {
   align-items: start;
 }
 
-@media (max-width: 900px) {
+/* 断点按**视口**算，但本页现在左边常驻 260px 侧栏（AdminConsoleShell）⇒
+   可用宽度 = 视口 - 260。900 是加侧栏之前的值，不改的话 900~1160 这一段
+   会拿两列去挤一条只有 640~900 的路（原值 900 + 侧栏 260 ≈ 1160）。 */
+@media (max-width: 1160px) {
   .gc-body {
     grid-template-columns: minmax(0, 1fr);
   }
