@@ -113,3 +113,57 @@
 [data-theme="dark"] #unified-nav-container .nav-mobile-submenu a {
   color: #ffffff !important;
 }
+
+/* ⚠️ dark audit 2026-11-01：移动端二级菜单的「返回 / 大标题 / 分组入口 / 分组返回」
+   vendor 只有浅色态 #1a1a1a/#999，此前没有任何暗色覆盖 ⇒ 菜单卡
+   （rgba(18,18,26,.98)）上是黑字 —— 用户报障「部分内容是黑字然后就看不见了」
+   （复现：暗色 + 竖屏 + 汉堡菜单钻入二级，「社区」标题与「← 返回」全部隐形）。
+   vendor 这几条均不带 !important，此处靠 ID 前缀特异性 (1,2,0) 压过即可，
+   不新增 !important（check:important-budget 白名单虽豁免 themes/，但少加是好习惯）。 */
+#unified-nav-container[data-theme="dark"] .nav-mobile-back,
+[data-theme="dark"] #unified-nav-container .nav-mobile-back,
+#unified-nav-container[data-theme="dark"] .nav-mobile-submenu-heading,
+[data-theme="dark"] #unified-nav-container .nav-mobile-submenu-heading {
+  color: #f5f5f7 !important;
+}
+
+#unified-nav-container[data-theme="dark"] .nav-mobile-group-entry-label,
+[data-theme="dark"] #unified-nav-container .nav-mobile-group-entry-label {
+  color: #ffffff !important;
+}
+
+/* 分组返回是次级动线，与浅色态 #999 同层级：半透明白 */
+#unified-nav-container[data-theme="dark"] .nav-mobile-group-back,
+[data-theme="dark"] #unified-nav-container .nav-mobile-group-back {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* hover 反色坑：vendor 的 hover 底是浅灰 #f5f5f5（.nav-submenu a:hover /
+   .nav-submenu-group-title:hover / .nav-mobile-group-entry:hover /
+   .nav-mobile-group-back:hover），暗色下白字落上去瞬间隐形。
+   悬停底统一改用与 .nav-link-wrapper:hover 同一款白色浮层。 */
+#unified-nav-container[data-theme="dark"] .nav-submenu a:hover,
+[data-theme="dark"] #unified-nav-container .nav-submenu a:hover,
+#unified-nav-container[data-theme="dark"] .nav-submenu-group-title:hover,
+[data-theme="dark"] #unified-nav-container .nav-submenu-group-title:hover,
+#unified-nav-container[data-theme="dark"] .nav-mobile-group-entry:hover,
+[data-theme="dark"] #unified-nav-container .nav-mobile-group-entry:hover,
+#unified-nav-container[data-theme="dark"] .nav-mobile-group-back:hover,
+[data-theme="dark"] #unified-nav-container .nav-mobile-group-back:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* 描边坑：vendor 把 .nav-user-info 的边框钉成 #000 !important、.nav-hamburger
+   边框 #000（都无暗色覆盖）⇒ 暗色下头像胶囊与汉堡按钮的轮廓消失。
+   user-info 这条必须带 !important（vendor 是 (0,2,0)+important）；汉堡的 vendor
+   无 important，靠特异性即可，但保持同款写法以便一起调值。 */
+#unified-nav-container[data-theme="dark"] .nav-user-info,
+[data-theme="dark"] #unified-nav-container .nav-user-info {
+  border-color: rgba(245, 245, 247, 0.4) !important;
+}
+
+#unified-nav-container[data-theme="dark"] .nav-hamburger,
+[data-theme="dark"] #unified-nav-container .nav-hamburger {
+  border-color: rgba(245, 245, 247, 0.4) !important;
+}

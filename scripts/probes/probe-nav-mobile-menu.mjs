@@ -44,6 +44,12 @@ import { chromium } from 'playwright';
 //   L 三级态：点开分组项后「分组返回条」真的出现（先扫一级项，找到含分组项的那一支）
 //   M 三级态：三级内容从**分组面板顶部**开始（空洞 ≤1px）—— 若有隐藏兄弟仍占位就会撑大
 //   N 三级态：最后一个可见项不被卡片裁掉
+//   O 暗色档（390×844 + boh-theme=dark）：菜单卡必须是深底、返回条/大标题/子链接/
+//     分组入口必须是浅字 —— 2026-11-01 用户报障「部分内容是黑字然后就看不见了」：
+//     vendor 的 .nav-mobile-back / .nav-mobile-submenu-heading / .nav-mobile-group-entry-label
+//     只有 #1a1a1a 浅色态且从未有暗色覆盖，暗色菜单卡上全部隐形（修复在
+//     styles/themes/navbar-dark.css 的「dark audit 2026-11-01」块）。
+//     判据用**亮度**而非具体色值：不变量是「深底上必须是浅字」，不是某个 hex。
 //   A–F 另在**窄横屏档**（667×375）各跑一遍：那一档走 vendor 的
 //     `top: calc(10px + var(--global-nav-rest-height, 58px))`，与竖屏不是同一套几何
 //
@@ -57,6 +63,8 @@ import { chromium } from 'playwright';
 //   · 2026-09-29 新增 L/M/N 与窄横屏档时的反证，见 docs/PROBES.md 的实测记录：
 //     给 `.nav-mobile-submenu.active` 临时插一个 60px 的占位块 → M 必红（deepVoid 60）；
 //     把竖屏档卡片 `max-height` 压到内容之下 → G 必红（bottomSlack 转负）。
+//   · 2026-11-01 新增 O 组的反证：删掉 navbar-dark.css 里「dark audit 2026-11-01」
+//     整块 → O2/O3 必红（返回条/标题回到 #1a1a1a，sum=78 < 400）。
 // =====================================================================
 const BASE = process.env.BASE || 'http://[::1]:5173';
 const WIDTHS = (process.env.WIDTHS || '360,390,430').split(',').map(Number);
@@ -384,6 +392,107 @@ for (const width of WIDTHS) {
       lv3.bottomSlack !== null && lv3.bottomSlack >= 0 && lv3.overflowsViewport === false,
       `卡片底余量=${lv3.bottomSlack}px 超视口=${lv3.overflowsViewport}`,
     );
+  }
+
+  await ctx.close();
+}
+
+// ── O：暗色档（390×844，boh-theme=dark）────────────────────────────
+// 判据是亮度不变量（深底浅字），不是具体 hex —— 调色不该打破这组断言，
+// 但「黑字落回深底」这种回归一定打破。修复真源：styles/themes/navbar-dark.css。
+// rgb/rgba 字符串的 RGB 分量和（390 内外各一份：浏览器侧量色、Node 侧判定）
+const colorSum = (color) => {
+  const d =
+    String(color)
+      .match(/[\d.]+/g)
+      ?.map(Number) ?? [];
+  return (d[0] || 0) + (d[1] || 0) + (d[2] || 0);
+};
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 2,
+    colorScheme: 'dark',
+  });
+  await ctx.addInitScript(() => localStorage.setItem('boh-theme', 'dark'));
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
+  await injectAuth(page);
+  await page.waitForTimeout(600);
+
+  const tag = 'O 390px 暗色';
+  const burger = page.locator('#nav-hamburger');
+  if (!(await burger.isVisible())) {
+    check(`${tag} 汉堡可见`, false, '该档不在移动端形态，断言无意义');
+  } else {
+    await burger.click();
+    await page.waitForTimeout(1200);
+
+    // 找一个带子项的一级菜单钻入（与竖屏档同款扫法）
+    const parents = page.locator('.nav-mobile-item.has-children .nav-mobile-link');
+    const parentCount = await parents.count();
+    let opened = false;
+    for (let i = 0; i < parentCount; i++) {
+      await parents.nth(i).click();
+      await page.waitForTimeout(900);
+      if ((await page.locator('.nav-mobile-submenu-section:visible a').count()) > 0) {
+        opened = true;
+        break;
+      }
+      await page.locator('.nav-mobile-back').click();
+      await page.waitForTimeout(600);
+    }
+
+    if (!opened) {
+      check(`${tag} 二级菜单`, false, '没有找到任何带子项的一级菜单，无法验证暗色');
+    } else {
+      const m = await page.evaluate(() => {
+        const vis = (s) => {
+          const el = document.querySelector(s);
+          return el && el.getBoundingClientRect().height > 0 ? getComputedStyle(el).color : null;
+        };
+        return {
+          cardBg: getComputedStyle(document.querySelector('.nav-menu-mobile')).backgroundColor,
+          back: vis('.nav-mobile-back'),
+          heading: (() => {
+            const el = [...document.querySelectorAll('.nav-mobile-submenu-heading')].find(
+              (e) => e.getBoundingClientRect().height > 0,
+            );
+            return el ? getComputedStyle(el).color : null;
+          })(),
+          subLink: (() => {
+            // :visible 是 Playwright locator 语法，querySelector 不认 —— 手动挑「渲染中」的 section
+            const el = [...document.querySelectorAll('.nav-mobile-submenu-section a')].find(
+              (a) => a.getBoundingClientRect().height > 0,
+            );
+            return el ? getComputedStyle(el).color : null;
+          })(),
+        };
+      });
+
+      check(
+        `O1 ${tag} 菜单卡是深底`,
+        m.cardBg && colorSum(m.cardBg) < 200,
+        `bg=${m.cardBg} sum=${m.cardBg ? colorSum(m.cardBg) : 'n/a'}`,
+      );
+      check(
+        `O2 ${tag} 返回条是浅字（深底可读）`,
+        m.back && colorSum(m.back) > 400,
+        `color=${m.back} sum=${m.back ? colorSum(m.back) : 'n/a'}（回归值 #1a1a1a sum=78）`,
+      );
+      check(
+        `O3 ${tag} 二级大标题是浅字（深底可读）`,
+        m.heading && colorSum(m.heading) > 400,
+        `color=${m.heading}`,
+      );
+      check(
+        `O4 ${tag} 子链接是浅字（深底可读）`,
+        m.subLink && colorSum(m.subLink) > 400,
+        `color=${m.subLink}`,
+      );
+    }
   }
 
   await ctx.close();
