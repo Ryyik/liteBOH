@@ -24,22 +24,26 @@
  *
  * ── 棘轮语义 ─────────────────────────────────────────────────────────
  * · 总量超出 `totalBytes + toleranceBytes` ⇒ 失败
- * · 单个入口超出自己的基线 ⇒ 失败（能直接指认是谁涨的）
+ * · **只看总量，不按单文件判定** —— 分块组合跨平台不可复现（macOS 本地 13 个
+ *   入口 / Linux CI 10 个入口，总字节几乎一致，详见下方 2026-11-01 实测），
+ *   单文件基线一卡就是「本地绿、CI 红」。单文件差值只在失败时作诊断输出。
  * · 总量下降 ⇒ 只提示 `--update` 下调基线，不失败（棘轮只许往下走）
  *
- * toleranceBytes 的存在理由：gzip 输出在不同 zlib 版本/CPU 上可能有微小差异。
- * 本地 Node 与 CI 的 Node 22 之间若有几十字节漂移，硬卡会让「本地绿、CI 红」
- * 这种最难查的假红出现。默认 2KB（≈0.8%）足以吸收漂移，又拦得住真实回归
- * （这次拆掉一个岛就是 -27KB，比容差大一个数量级）。
+ * toleranceBytes 的存在理由：gzip 输出在不同 zlib 版本/CPU 上可能有微小差异，
+ * 加上上面那条分块组合差异带来的总字节浮动。本地 Node 与 CI 的 Node 22 之间
+ * 若硬卡，会让「本地绿、CI 红」这种最难查的假红出现。默认 2KB（≈0.8%）足以
+ * 吸收浮动，又拦得住真实回归（这次拆掉一个岛就是 -27KB，比容差大一个数量级）。
  *
  * 用法：
- *   node scripts/check-first-paint-budget.mjs            校验
- *   node scripts/check-first-paint-budget.mjs --update   以当前值重写基线
- *   node scripts/check-first-paint-budget.mjs --json     机读出口（供 check:ratchets）
+ *   node scripts/check-first-paint-budget.mjs                   校验
+ *   node scripts/check-first-paint-budget.mjs --update          以当前值重写基线（脏工作区会被拒）
+ *   node scripts/check-first-paint-budget.mjs --update --allow-dirty  确认无影响后强制重写
+ *   node scripts/check-first-paint-budget.mjs --json            机读出口（供 check:ratchets）
  *   DIST_DIR=dist2 node scripts/check-first-paint-budget.mjs
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 
 const ROOT = process.cwd();
@@ -160,6 +164,38 @@ if (JSON_OUT) {
 const DEFAULT_TOLERANCE = 2048;
 
 if (UPDATE || !existsSync(BASELINE_FILE)) {
+  /**
+   * 🔴 记录基线时工作区必须是干净的（对构建产物有影响的路径）。
+   *
+   * 2026-11-01 实测代价：第一次 `--update` 是在**脏工作区**上做的 —— 本仓库常有
+   * 并行会话在改 `src/`，本地 dist 里混着别人的在途改动，而 CI 构建的是提交树，
+   * 于是「本地绿、CI 红」。基线一旦这样录进去，后面每次部署都会红。
+   *
+   * 所以这里宁可拒绝：要么先提交/暂存掉改动，要么确认这些改动不影响产物后加
+   * `--allow-dirty`（会打印具体是哪些文件，方便事后追溯）。
+   */
+  const BUILD_INPUTS = ['src', 'public', 'index.html', 'vite.config.js', 'package.json'];
+  if (UPDATE && !process.argv.includes('--allow-dirty')) {
+    let dirty = '';
+    try {
+      dirty = execFileSync('git', ['status', '--porcelain', '--', ...BUILD_INPUTS], {
+        cwd: ROOT,
+        encoding: 'utf-8',
+      }).trim();
+    } catch {
+      // 不是 git 仓库 / 没有 git：跳过护栏，不让它变成新的失败点
+    }
+    if (dirty) {
+      console.error(`❌ 拒绝在脏工作区上记录首屏基线 —— 本地产物 ≠ CI 构建的提交树：`);
+      for (const line of dirty.split('\n').slice(0, 15)) console.error(`    ${line}`);
+      console.error(
+        `\n  先提交或 stash 这些改动再跑 --update。若确认它们不影响构建产物（例如只是并行会话的无关文件），` +
+          `\n  加 --allow-dirty 跳过本护栏 —— 但那样录进去的基线在 CI 上可能对不上。`,
+      );
+      process.exit(1);
+    }
+  }
+
   const payload = {
     _comment:
       '首屏入口 gzip 基线（index.html 直接引用的 JS+CSS）。只许下调；上调必须 --update 并在 commit message 说明理由。',
@@ -190,24 +226,33 @@ if (totalBytes > limit) {
   );
 }
 
-// 单文件回归：直接指认是谁涨的。新增入口不在此列 —— 它会体现在总量上，
-// 且新入口首次出现时没有基线可比，硬报会误伤「拆得更细」这类好改动。
-const grew = [];
-for (const [key, bytes] of Object.entries(files)) {
-  const base = baseline.files?.[key];
-  if (base == null) continue;
-  if (bytes > base + tolerance) {
-    grew.push(`  ${key}: ${kb(bytes)} KB > 基线 ${kb(base)} KB (+${kb(bytes - base)} KB)`);
-  }
-}
-if (grew.length) violations.push(...grew);
+/**
+ * ⚠️ 这里**刻意不按单文件判定**。2026-11-01 首次上线就被这条打红，查下来是：
+ * 同一份提交，macOS 本地构建出 13 个入口（app.js 18.0KB，auth-api / bag /
+ * useGlobalAiPreferences 各自独立），Linux CI 构建出 10 个入口（三者并进 app.js，
+ * 24.6KB），而**总字节几乎一致**（242.4 vs 241.7KB）。
+ *
+ * 也就是说「分块组合」在不同平台/环境下不可复现（项目自己的 SHELL_CHUNKS
+ * 校验在 CI 里也一直在报这三个 chunk 找不到，说明差异长期存在），
+ * 但「首屏总字节」是稳定可复现的 —— 那才是能当棘轮的指标。
+ * 按单文件卡只会制造「本地绿、CI 红」的假红。
+ *
+ * 所以单文件只作**诊断输出**（失败时打印本次 vs 基线的逐项差值），不参与判定。
+ */
+const fileDiffs = Object.entries(files)
+  .map(([key, bytes]) => ({ key, bytes, base: baseline.files?.[key] ?? null }))
+  .sort((a, b) => b.bytes - a.bytes);
 
 if (violations.length) {
   console.error(`❌ 首屏字节超出棘轮基线（首屏是最贵的字节，不得悄悄回涨）：`);
   console.error(violations.join('\n'));
-  console.error(`\n  当前入口明细：`);
-  for (const [key, bytes] of Object.entries(files).sort((a, b) => b[1] - a[1])) {
-    console.error(`    ${String(kb(bytes)).padStart(7)} KB  ${key}`);
+  console.error(`\n  本次入口明细（vs 基线，仅供定位；分块组合跨平台不可复现，不参与判定）：`);
+  for (const { key, bytes, base } of fileDiffs) {
+    const delta =
+      base == null
+        ? '（基线无此项）'
+        : `（基线 ${kb(base)}，${bytes >= base ? '+' : ''}${kb(bytes - base)}）`;
+    console.error(`    ${String(kb(bytes)).padStart(7)} KB  ${key}  ${delta}`);
   }
   console.error(
     `\n  排查方向：新增依赖是否真需要进首屏 / 能否懒加载 / manualChunks 是否把它卷进了壳 chunk。`,
