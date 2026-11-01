@@ -107,6 +107,8 @@ import {
   buildFallbackReplyPreviewOptions,
   getLikeErrorToast,
   getForumImageKey,
+  shouldRefetchReplyPreview,
+  markReplyPreviewSnapshot,
 } from '@/utils/forum-helpers.js';
 import { captureOrigin } from '@/utils/motion-origin.js';
 import { capturePageSnapshot } from '@/utils/page-snapshot.js';
@@ -2735,10 +2737,17 @@ const handlePostCardCancelReply = () => {
 
 // 返回值语义：true = 已填充（含本就有数据/已预载），false = 本次加载失败。
 // 调用方据此决定「保留展开」还是「折叠回去」（失败不留空白展开区）。
-const loadPostReplyPreview = async (post) => {
+const loadPostReplyPreview = async (post, { force = false } = {}) => {
   if (!post?.id) return true;
   const existingReplies = Array.isArray(post.replies) ? post.replies : [];
-  if (existingReplies.length > 0 || post.replies_preloaded) {
+  // ⚠️ 命中缓存的条件必须带「快照没过期」：只看 replies 非空 / replies_preloaded
+  // 会让 RPC 列表带来的初始快照永久生效 —— 之后别人的新评论、自己刚发的评论
+  // 都不再出现（计数涨了、评论看不到）。判定单源见 shouldRefetchReplyPreview。
+  const canUseCachedSnapshot =
+    !force &&
+    (existingReplies.length > 0 || post.replies_preloaded) &&
+    !shouldRefetchReplyPreview(post);
+  if (canUseCachedSnapshot) {
     post.replies = existingReplies;
     post.replies_has_more = Boolean(
       post.replies_has_more || Number(post.comment_count || 0) > existingReplies.length,
@@ -2773,6 +2782,7 @@ const loadPostReplyPreview = async (post) => {
   post.replies = Array.isArray(data) ? data : [];
   post.replies_has_more = Boolean(hasMore);
   post.replies_preloaded = true;
+  markReplyPreviewSnapshot(post);
   triggerRef(forumData);
   return true;
 };
@@ -2783,6 +2793,9 @@ const refreshPostEngagementStats = async (post) => {
   if (!statsRes.ok) return;
   post.comment_count = Number(statsRes.data?.commentCount || 0);
   post.like_count = Number(statsRes.data?.likeCount || 0);
+  // ⚠️ 这里**不要** markReplyPreviewSnapshot：计数变了但 replies 仍是旧快照，
+  // 标了就等于宣称「已同步」，下一次展开又会拿旧快照抵账。让快照计数保持旧值，
+  // shouldRefetchReplyPreview 自然会判过期并重拉。
   triggerRef(forumData);
 };
 
@@ -2796,19 +2809,24 @@ const toggleRepliesList = async (post) => {
   // 先展开再加载：点击瞬间即展开（PostCard 靠 is-expanded + _repliesLoading 渲染骨架），
   // 数据回来填充，失败/无可展示回复则折叠回去。消除等待期的零反馈。
   expandedPostIds.value.add(post.id);
-  const hasReplies = Array.isArray(post.replies) && post.replies.length > 0;
-  if (hasReplies || post.replies_preloaded) return;
+  const hasCachedReplies = Array.isArray(post.replies) && post.replies.length > 0;
+  // 快照新鲜且已有内容 ⇒ 直接展开现状；否则（从没拉过 / 期间有人评论过 / 自己刚发过）重拉
+  if (!shouldRefetchReplyPreview(post)) return;
 
-  post._repliesLoading = true;
-  triggerRef(forumData);
+  if (!hasCachedReplies) {
+    post._repliesLoading = true;
+    triggerRef(forumData);
+  }
   try {
-    const loaded = await loadPostReplyPreview(post);
-    if (!loaded || !(Array.isArray(post.replies) && post.replies.length)) {
+    await loadPostReplyPreview(post, { force: true });
+    if (!(Array.isArray(post.replies) && post.replies.length)) {
       expandedPostIds.value.delete(post.id);
     }
   } catch (error) {
     logger.warn('forum', '加载回复预览失败:', error);
-    expandedPostIds.value.delete(post.id);
+    if (!(Array.isArray(post.replies) && post.replies.length)) {
+      expandedPostIds.value.delete(post.id);
+    }
   } finally {
     post._repliesLoading = false;
     triggerRef(forumData);
@@ -2935,7 +2953,8 @@ const submitReply = async (post) => {
     if (error) throw error;
     replyContent.value = '';
     activeReplyTarget.value = null;
-    await loadPostReplyPreview(post);
+    // 刚写过评论（发送/删除）⇒ 必须绕过快照，否则卡片里看到的还是写之前的列表
+    await loadPostReplyPreview(post, { force: true });
     await refreshPostEngagementStats(post);
     expandedPostIds.value.add(post.id);
     if (
@@ -3096,7 +3115,8 @@ const handleDeleteComment = async (comment, post) => {
       username: comment.author_username,
       reason: 'comment_deleted',
     });
-    await loadPostReplyPreview(post);
+    // 刚写过评论（发送/删除）⇒ 必须绕过快照，否则卡片里看到的还是写之前的列表
+    await loadPostReplyPreview(post, { force: true });
     await refreshPostEngagementStats(post);
   } catch (error) {
     logger.error('forum', '删除评论失败:', error);

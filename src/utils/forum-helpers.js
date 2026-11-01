@@ -145,6 +145,48 @@ export function buildFallbackReplyPreviewOptions(baseOptions) {
 }
 
 /**
+ * 卡片里的「回复预览」是否需要重新拉取。
+ *
+ * ⚠️ 这是一个**会导致新评论凭空消失**的判定，别再退回「有 replies 就直接用」。
+ *
+ * 背景：列表 RPC 已经把每条帖子的顶层评论快照塞进 `replies`，并置
+ * `replies_preloaded = true`（见 post-api 的 normalizePostListRows 调用点）。
+ * 于是 `loadPostReplyPreview()` 的旧短路条件「replies 非空 或 replies_preloaded」
+ * 对**每一条** RPC 来的帖子都成立 ⇒ 只要用户不刷新整页，卡片里的评论列表永远停在
+ * 打开列表那一刻的快照上：别人新评论、自己刚发的评论都不出现（计数却涨了）。
+ * 2026-11-01 用户报障「关注的人评论了我的帖子，帖子列表与详情都看不到这条评论」即此。
+ *
+ * 判据用**快照时刻的 comment_count** 与当前 comment_count 对比，而不是
+ * `replies.length`：comment_count 统计的是「全部已通过评论」（含楼中楼），
+ * replies 只存顶层前几条，两者本来就不相等，拿长度比会永远误判为过期。
+ *
+ * @param {object} post - 帖子对象（含 replies / replies_preloaded / replies_snapshot_count / comment_count）
+ * @returns {boolean} true = 需要重新请求
+ */
+export function shouldRefetchReplyPreview(post) {
+  if (!post || !post.id) return false;
+  const hasPreview = Array.isArray(post.replies) && post.replies.length > 0;
+  // 从没成功拉过 ⇒ 必须拉
+  if (!hasPreview && !post.replies_preloaded) return true;
+  const snapshot = Number(post.replies_snapshot_count);
+  // 老对象 / 非 RPC 来源没有快照计数 ⇒ 无法判断，保持既有行为（不额外请求）
+  if (!Number.isFinite(snapshot)) return false;
+  return snapshot !== Number(post.comment_count || 0);
+}
+
+/**
+ * 记下「这份 replies 快照对应的是哪个评论数」。
+ * 每次写入 `post.replies` 之后都要调用一次，否则 shouldRefetchReplyPreview 永远判过期。
+ * @param {object} post
+ * @returns {object} 同一个 post（便于链式写法）
+ */
+export function markReplyPreviewSnapshot(post) {
+  if (!post) return post;
+  post.replies_snapshot_count = Number(post.comment_count || 0);
+  return post;
+}
+
+/**
  * 生成点赞失败时的用户提示（Bug #3 修复）
  * @param {Error|object} error - 错误对象
  * @returns {{ title: string, message: string }} 提示内容

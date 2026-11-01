@@ -733,6 +733,8 @@ export async function getPosts(userId = null, pagination = {}) {
           replies: normalizeRpcReplyPreview(row.replies),
           replies_has_more: Boolean(row.replies_has_more),
           replies_preloaded: Array.isArray(row.replies),
+          // 快照与「当时的评论数」绑定：评论数变了就说明快照过期，卡片要重拉
+          replies_snapshot_count: Number(row.comment_count || 0),
           search_excerpt: row.search_excerpt || null,
           hot_score: Number(row.hot_score || 0),
           search_rank: Number(row.search_rank || 0),
@@ -1473,6 +1475,7 @@ export async function getUserPosts(targetUserId, currentUserId = null, paginatio
           replies: normalizeRpcReplyPreview(row.replies),
           replies_has_more: Boolean(row.replies_has_more),
           replies_preloaded: Array.isArray(row.replies),
+          replies_snapshot_count: Number(row.comment_count || 0),
           search_excerpt: row.search_excerpt || null,
           hot_score: Number(row.hot_score || 0),
           search_rank: Number(row.search_rank || 0),
