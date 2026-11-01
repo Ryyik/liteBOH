@@ -86,47 +86,56 @@
             <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
             <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
           </div>
-          <ProfileHomePanel
-            v-else
-            key="content-home"
-            :profile="userInfo"
-            :avatar-url="avatarUrl"
-            :profile-background-url="profileBackgroundUrl"
-            :profile-cover-style="profileCoverStyle"
-            :is-uploading-profile-background="isUploadingProfileBackground"
-            :stats="userStats"
-            :is-stats-loading="dataState.stats.loading"
-            :heatmap="activityHeatmap"
-            :is-heatmap-loading="dataState.heatmap.loading"
-            :impressions="profileImpressions"
-            :impressions-loading="impressionsLoading"
-            :impressions-has-more="impressionsHasMore"
-            :is-loading-more-impressions="isLoadingMoreImpressions"
-            :requested-content-tab="profileContentTab"
-            :is-content-loading="dataState.profile.loading"
-            :posts="profilePosts"
-            :public-notes="publicCloudNotes"
-            :has-more-posts="hasMoreProfilePosts"
-            :is-loading-more="isLoadingMoreProfilePosts"
-            @edit-profile="openEditProfileModal"
-            @settings="openProfileSettings"
-            @avatar-click="handleAvatarClick"
-            @background-click="handleProfileBackgroundClick"
-            @compose="openProfileComposer"
-            @sponsor="openSponsorPage"
-            @data-management="openProfileDataManagement"
-            @cloud-plus="openCloudPlusArea"
-            @open-assets="openAssetsHub"
-            @post-click="openProfilePost"
-            @switch-tab="switchTab"
-            @load-more="loadMoreProfilePosts"
-            @note-open="openProfileCloudNote"
-            @note-set-private="setProfileCloudNotePrivate"
-            @note-delete="deleteProfileCloudNote"
-            @delete-impression="handleDeleteImpression"
-            @load-more-impressions="loadMoreImpressions"
-            @content-tab-change="profileContentTab = $event"
-          />
+          <template v-else>
+            <!-- 就绪门（profileStylesReady）期间面板本体被外层 .content-home-host 的
+                 visibility:hidden 盖住（无需再挂 v-show：外层已负责隐藏，实测给
+                 异步组件挂 v-show 会在一来一回切底栏时抛 insertBefore 空指针，
+                 probe-user-space-ia 直接 125→117）。骨架不依赖那三份 profile 样式
+                 （scoped 自洽），由文件尾一条 CSS 显式翻回 visible 先亮给用户 ——
+                 此前连骨架一起藏掉，冷缓存下用户看到的就是一块纯白。
+                 面板 chunk 由 createPanelAsync 自己的 loadingComponent（同一张骨架）接力。 -->
+            <ProfileHomePanel
+              key="content-home"
+              :profile="userInfo"
+              :avatar-url="avatarUrl"
+              :profile-background-url="profileBackgroundUrl"
+              :profile-cover-style="profileCoverStyle"
+              :is-uploading-profile-background="isUploadingProfileBackground"
+              :stats="userStats"
+              :is-stats-loading="dataState.stats.loading"
+              :heatmap="activityHeatmap"
+              :is-heatmap-loading="dataState.heatmap.loading"
+              :impressions="profileImpressions"
+              :impressions-loading="impressionsLoading"
+              :impressions-has-more="impressionsHasMore"
+              :is-loading-more-impressions="isLoadingMoreImpressions"
+              :requested-content-tab="profileContentTab"
+              :is-content-loading="dataState.profile.loading"
+              :posts="profilePosts"
+              :public-notes="publicCloudNotes"
+              :has-more-posts="hasMoreProfilePosts"
+              :is-loading-more="isLoadingMoreProfilePosts"
+              @edit-profile="openEditProfileModal"
+              @settings="openProfileSettings"
+              @avatar-click="handleAvatarClick"
+              @background-click="handleProfileBackgroundClick"
+              @compose="openProfileComposer"
+              @sponsor="openSponsorPage"
+              @data-management="openProfileDataManagement"
+              @cloud-plus="openCloudPlusArea"
+              @open-assets="openAssetsHub"
+              @post-click="openProfilePost"
+              @switch-tab="switchTab"
+              @load-more="loadMoreProfilePosts"
+              @note-open="openProfileCloudNote"
+              @note-set-private="setProfileCloudNotePrivate"
+              @note-delete="deleteProfileCloudNote"
+              @delete-impression="handleDeleteImpression"
+              @load-more-impressions="loadMoreImpressions"
+              @content-tab-change="profileContentTab = $event"
+            />
+            <ProfileHomeSkeleton v-if="!profileStylesReady" />
+          </template>
         </div>
       </div>
     </div>
@@ -775,7 +784,9 @@ const initialUserSpaceTab = resolveRequestedUserSpaceTab(rawRequestedTab);
 /* 冷启动直达 posts 的「就绪门」：profile 三样式就位前先不亮内容（模板 data-styles-ready），
    避免「先裸后穿」。只有 posts 分区有这层壳；assets/settings 维持原样。
    ⚠️ 超时兜底（FALLBACK_MS）不能省：样式真失败时宁可退化成「半样式可见」（现状），
-      也不能给用户一块永久空白 —— 同一个函数在 switchTab 切回 posts 时也会走。 */
+      也不能给用户一块永久空白 —— 同一个函数在 switchTab 切回 posts 时也会走。
+   ⚠️ 2026-11-01 保持 1000ms：门开着已不再白屏（骨架显式放行），没必要拉长等待；
+      改大会把「慢网下先看骨架」的时间拖长，也会让依赖 1s 就绪的探针/断言失配。 */
 const PROFILE_STYLES_READY_FALLBACK_MS = 1000;
 const profileStylesReady = ref(false);
 let profileStylesReadyFallbackTimer = null;
@@ -3900,10 +3911,19 @@ watch(unreadCount, (count) => {
 /* 冷启动直达 posts 的「就绪门」：profile 三样式就位前先不亮内容，避免「先裸后穿」。
    用 visibility 而不是 display —— 保留盒模型，内容已在 DOM 里（高度算得出来），
    切换时不会因「从 0 高度长出来」再抖一下。
-   ⚠️ 放行有两条：script 侧 1000ms 超时兜底，或 areProfileStylesApplied() 为真。
-      样式真失败时走超时分支 ⇒ 退化成「半样式可见」（现状），不会永久空白。 */
+   ⚠️ 放行有两条：script 侧超时兜底，或 areProfileStylesApplied() 为真。
+      样式真失败时走超时分支 ⇒ 退化成「半样式可见」（现状），不会永久空白。
+   ⚠️ 2026-11-01：门开着不再等于「整块纯白」。冷缓存下三份样式要走一次真实网络
+      往返，此前连骨架一起藏掉，用户看到的就是白屏一整块（报障「清缓存后切我页
+      白屏」）。骨架（.profile-home-skeleton，scoped 自洽不依赖那三份样式）和
+      游客态的 .login-prompt 现在显式放行 —— visibility 可被子元素单独翻回 visible。 */
 .content-home-host[data-styles-ready='false'] {
   visibility: hidden;
+}
+
+.content-home-host[data-styles-ready='false'] .profile-home-skeleton,
+.content-home-host[data-styles-ready='false'] .login-prompt {
+  visibility: visible;
 }
 
 .hidden-file-input {
