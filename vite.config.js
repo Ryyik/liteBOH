@@ -399,10 +399,12 @@ export default defineConfig({
         //    importScripts 到一个 404，整个 SW 装不上 → PWA 直接失效（离线全白）。
         //    要下线推送请改成空文件，不要删除。
         //
-        // ⚠️ 改 push-sw.js 本身**不会触发 SW 更新**：浏览器靠比对 sw.js 的字节判断有没有
-        //    新版本，而 push-sw.js 只是它 importScripts 进来的运行时依赖 —— sw.js 字节
-        //    不变就永远不会重新安装。所以改完推送逻辑，必须让 sw.js 也产生一次变化
-        //    （例如在此处加一行注释、或调整任一 workbox 选项）再发布。
+        // ⚠️ **构建期已改为内联**（见本文件下方 inlinePushSw 插件）：push-sw.js 的正文
+        //    会被塞进 sw.js 里替换掉这行 importScripts，只留一个 BOH-PUSH-INLINE 标记。
+        //    ⇒ 改 push-sw.js 之后 **sw.js 的字节必然变化**，浏览器据此判定有新 SW 并重装，
+        //    不需要再额外「让 sw.js 也产生一次变化」。
+        //    （2026-11-01 之前这里是运行时 importScripts，那时才需要手工制造 sw.js 差异；
+        //    这段说明当时是对的，内联上线后已反转，别再照旧描述去改。）
         importScripts: ['push-sw.js'],
         // 运行时缓存策略
         runtimeCaching: [

@@ -410,7 +410,7 @@ export const UNTESTABLE = [
   { gate: 'check:bundle-size', why: '读 dist/ 产物，需先构建' },
   {
     gate: 'check:first-paint-budget',
-    why: '读 dist/ 产物，需先构建（同 check:bundle-size）。会红已人工反向证明 4 条：总量基线调低 10KB ⇒ exit 1；单文件基线调低 20KB ⇒ exit 1 并指认 chunk；index.html 引用不存在的产物 ⇒ exit 1（不静默跳过）；dist 缺失 ⇒ exit 1 并提示先构建',
+    why: '读 dist/ 产物，需先构建（同 check:bundle-size）。会红已人工反向证明 3 条：总量基线调低 10KB ⇒ exit 1；index.html 引用不存在的产物 ⇒ exit 1（不静默跳过）；dist 缺失 ⇒ exit 1 并提示先构建。⚠️ **单文件基线调低不会变红**——该门禁刻意只卡总字节（分块组合跨平台不可复现，见脚本 230-244 行），别再把这句当反证写回来',
   },
   {
     gate: 'nsfw:assets',

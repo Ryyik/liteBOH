@@ -96,6 +96,33 @@ describe('独立控制台页的接线（路由 ↔ 侧栏 ↔ 落点 ↔ 权限�
       ).toBe(true);
     }
   });
+
+  it('控制台壳必须关掉侧栏的两个快捷按钮（它们在独立页里没有实现 = 死按钮）', () => {
+    // 真缺陷（2026-11-01 复核）：AdminSidebar 的「新增记录 / 刷新数据」emit
+    // `create-record` / `refresh-data`，实现只存在于数据管理面板（需要当前列表上下文）。
+    // 四个独立控制台页套壳后原来没传这个开关 ⇒ 点下去无反应、无提示的死按钮。
+    const shell = readFileSync(
+      resolve(
+        import.meta.dirname,
+        '../../src/views/DataManagement/components/AdminConsoleShell.vue',
+      ),
+      'utf8',
+    );
+    expect(
+      /:?show-quick-actions\s*=\s*["']false["']/.test(shell),
+      '壳必须传 show-quick-actions=false，否则四个控制台页会出现死按钮',
+    ).toBe(true);
+
+    // 侧栏侧必须真的按这个开关渲染 —— 否则壳里关的是个不存在的属性，测试会假绿
+    const sidebar = readFileSync(
+      resolve(import.meta.dirname, '../../src/views/DataManagement/components/AdminSidebar.vue'),
+      'utf8',
+    );
+    expect(
+      /v-if\s*=\s*["']showQuickActions["']/.test(sidebar),
+      '侧栏的快捷操作区必须由 showQuickActions 控制渲染',
+    ).toBe(true);
+  });
 });
 
 /**

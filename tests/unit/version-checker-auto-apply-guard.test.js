@@ -257,6 +257,96 @@ describe('version-checker 自动强刷护栏', () => {
     destroyVersionChecker();
   });
 
+  it('搜索框里的关键词不算「未提交内容」⇒ 仍然自动强刷', async () => {
+    // 真回归（2026-11-01 复核发现）：`type=search` 曾在 TEXT_INPUT_TYPES 里，而搜索框
+    // 的关键词从不自动清空 ⇒ 商城 / 四个控制台 / Cloud+ / 抽奖发放这些**页内常驻筛选框**
+    // 只要打过一次字，该页存续期间自动应用就永久退化成弹提示。
+    const search = {
+      nodeType: 1,
+      tagName: 'INPUT',
+      type: 'search',
+      value: '液态玻璃',
+      isContentEditable: false,
+    };
+    const { listeners } = stubDocument({ editables: [search] });
+    mockRemoteBuild();
+    const { initVersionChecker, destroyVersionChecker } =
+      await import('../../src/utils/version-checker.js');
+
+    initVersionChecker();
+    listeners.get('input')?.({ target: search });
+
+    await vi.waitFor(() =>
+      expect(window.location.replace).toHaveBeenCalledWith(
+        '/app/?from=test&__boh_update=remote-build#/forum',
+      ),
+    );
+    destroyVersionChecker();
+  });
+
+  it('对照：同一串关键词填进 type=text ⇒ 被拦下（证明上一条确实走到了护栏）', async () => {
+    // 没有这条对照，上面那条可能只是「input 事件根本没被处理」而假绿
+    const textInput = {
+      nodeType: 1,
+      tagName: 'INPUT',
+      type: 'text',
+      value: '液态玻璃',
+      isContentEditable: false,
+    };
+    const { listeners } = stubDocument({ editables: [textInput] });
+    mockRemoteBuild();
+    const { initVersionChecker, destroyVersionChecker } =
+      await import('../../src/utils/version-checker.js');
+
+    initVersionChecker();
+    listeners.get('input')?.({ target: textInput });
+
+    await vi.waitFor(() => expect(window.dispatchEvent).toHaveBeenCalledOnce());
+    expect(window.location.replace).not.toHaveBeenCalled();
+    destroyVersionChecker();
+  });
+
+  it('data-no-guard 是显式逃生口：即便 type=text 填了内容也不拦', async () => {
+    const filterInput = {
+      nodeType: 1,
+      tagName: 'INPUT',
+      type: 'text',
+      value: '筛选关键词',
+      isContentEditable: false,
+      hasAttribute: (name) => name === 'data-no-guard',
+    };
+    const { listeners } = stubDocument({ editables: [filterInput] });
+    mockRemoteBuild();
+    const { initVersionChecker, destroyVersionChecker } =
+      await import('../../src/utils/version-checker.js');
+
+    initVersionChecker();
+    listeners.get('input')?.({ target: filterInput });
+
+    await vi.waitFor(() =>
+      expect(window.location.replace).toHaveBeenCalledWith(
+        '/app/?from=test&__boh_update=remote-build#/forum',
+      ),
+    );
+    destroyVersionChecker();
+  });
+
+  it('destroy 时摘掉挂机降频的交互监听（否则重复初始化会叠多份 handler）', async () => {
+    const { doc } = stubDocument();
+    mockRemoteBuild();
+    const { initVersionChecker, destroyVersionChecker } =
+      await import('../../src/utils/version-checker.js');
+
+    initVersionChecker();
+    expect(doc.addEventListener).toHaveBeenCalledWith('pointerdown', expect.any(Function), true);
+    expect(doc.addEventListener).toHaveBeenCalledWith('keydown', expect.any(Function), true);
+
+    destroyVersionChecker();
+
+    expect(doc.removeEventListener).toHaveBeenCalledWith('pointerdown', expect.any(Function), true);
+    expect(doc.removeEventListener).toHaveBeenCalledWith('keydown', expect.any(Function), true);
+  });
+
   it('destroy 时摘掉 input 监听（避免重复初始化后双份追踪）', async () => {
     const { doc } = stubDocument();
     mockRemoteBuild();
@@ -268,5 +358,38 @@ describe('version-checker 自动强刷护栏', () => {
 
     expect(doc.removeEventListener).toHaveBeenCalledWith('input', expect.any(Function), true);
     expect(doc.removeEventListener).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+  });
+
+  /**
+   * 挂机降频的判定（`shouldPollNow`）。
+   *
+   * 背景：version.json 走 DYNAMIC + `?_t=` + `no-store`，每次都回源 —— 90s 一轮
+   * 等于每个前台标签页 40 次/时。挂机看板/投屏这种「开着没人碰」的必须停。
+   * 抽成纯函数就是为了这里能直接算边界，不用靠假时钟碰运气。
+   */
+  describe('挂机降频 shouldPollNow', () => {
+    const NOW = 1_800_000_000_000;
+    const FIVE_MIN = 5 * 60 * 1000;
+
+    it('刚交互过 ⇒ 轮询', async () => {
+      const { shouldPollNow } = await import('../../src/utils/version-checker.js');
+      expect(shouldPollNow(NOW - 1000, NOW, 'visible')).toBe(true);
+    });
+
+    it('边界：正好 5 分钟前交互过 ⇒ 仍轮询（用 <= 而不是 <）', async () => {
+      const { shouldPollNow } = await import('../../src/utils/version-checker.js');
+      expect(shouldPollNow(NOW - FIVE_MIN, NOW, 'visible')).toBe(true);
+      expect(shouldPollNow(NOW - FIVE_MIN - 1, NOW, 'visible')).toBe(false);
+    });
+
+    it('后台标签页一律不轮询（与交互时间无关）', async () => {
+      const { shouldPollNow } = await import('../../src/utils/version-checker.js');
+      expect(shouldPollNow(NOW - 1000, NOW, 'hidden')).toBe(false);
+    });
+
+    it('还没有任何交互记录 ⇒ 不轮询（避免 0 被当成「很久以前」而恒真）', async () => {
+      const { shouldPollNow } = await import('../../src/utils/version-checker.js');
+      expect(shouldPollNow(0, NOW, 'visible')).toBe(false);
+    });
   });
 });

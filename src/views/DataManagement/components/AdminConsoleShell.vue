@@ -6,6 +6,7 @@
       :is-open="sidebarOpen"
       :modules="modules"
       :search-query="searchQuery"
+      :show-quick-actions="false"
       @module-click="handleModuleClick"
       @denied-click="handleDeniedClick"
       @update:searchQuery="searchQuery = $event"
@@ -161,6 +162,12 @@ const handleModuleClick = (mod) => {
   /* 这四个控制台页都 hideNavbar、页内无固定头 ⇒ 侧栏必须贴顶。
      base.css 的 64px 是给「带 AdminHeader 的 data-management」用的。 */
   --dm-nav-height: 0px;
+  /* 暗色下把四个亮色页面当「一张纸」呈现时用的画布（见下方暗色块）。
+     值刻意是亮色：这四页的配色全部写死亮色，只有亮底才读得出字。
+     定义在这里而不是暗色块里，是为了让它走 token（check:dark-tokens 只盯暗色块内的
+     裸色，且 token 本就是让调色只改一处）。 */
+  --console-canvas: #ffffff;
+  --console-canvas-shadow: 0 12px 32px rgba(0, 0, 0, 0.38);
   display: flex;
   align-items: stretch;
   min-height: 100vh;
@@ -175,6 +182,41 @@ const handleModuleClick = (mod) => {
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* ── 暗色 ────────────────────────────────────────────────────────────────
+   这四个页面的内容区**零暗色适配**：配色全部写死亮色（GateConsole 的 `.gc` 是
+   #f6f4f1，Hero/Shop 是 #fff，AvatarConsole 连自己的背景都没写、只有 #1f2430
+   这种暗字），而侧栏走 base.css 的暗色 token（`--sidebar: #171717`）。
+   ⇒ 暗色下原本是「深色侧栏 + 亮块」，而 **AvatarConsole 更糟：没有背景 ⇒ 直接
+   变成暗底暗字，整页读不了**（2026-11-01 截图实测）。
+
+   本次不重做四页配色（工作量与回归面都不划算），改为把它们呈现成
+   **「深色工作区里的一张纸」**：12px 深色边 + 圆角 + 投影，并且**强制亮底**
+   —— 内容区的字色是写死的暗色，只有亮底才读得出来。`color-scheme: light`
+   是给 select / date 这类原生控件用的，否则它们会跟着系统暗色渲染成黑底。
+
+   浅色下不加任何边距 / 圆角 / 背景 —— 保持与改动前逐像素一致（探针几何也不动）。
+   ⚠️ 四页内均无 `position: sticky`，所以这里 `overflow: hidden` 安全；
+   将来谁在控制台页里加 sticky，要改成给内层元素单独加圆角。 */
+.console-shell[data-theme='dark'] .console-shell-main {
+  padding: 12px;
+  background: var(--background);
+}
+
+/* 排除汉堡按钮：它是 `position: fixed` 的窄屏把手，套上纸边会变成一块带投影的怪块 */
+.console-shell[data-theme='dark'] .console-shell-main > :deep(*:not(.console-shell-toggle)) {
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--console-canvas-shadow);
+  background: var(--console-canvas);
+  color-scheme: light;
+}
+
+/* GateConsole 是四页里唯一写死 `min-height: 100vh` 的：12px 边距会把页面顶出
+   24px 滚动条。这里只中和这一处，不设全局（其余三页按内容高度，别硬拉）。 */
+.console-shell[data-theme='dark'] .console-shell-main > :deep(.gc) {
+  min-height: calc(100vh - 24px);
 }
 
 /* z-index 三层必须分清：汉堡 1000 < 遮罩 1001 < 侧栏 1002（侧栏的 1002 写在自己组件里）。

@@ -66,8 +66,11 @@
       <p v-if="!modules.length" class="g-sidebar-empty">暂无可用模块，请刷新重试</p>
     </nav>
 
-    <!-- Quick actions -->
-    <div class="g-sidebar-quick">
+    <!-- Quick actions
+         ⚠️ 这两个按钮的语义绑定在「数据管理面板的当前列表」上（新增记录 / 刷新当前表格）。
+         独立控制台页没有列表上下文，宿主必须传 :show-quick-actions="false" ——
+         否则就是两个点了没反应、也没有提示的死按钮（2026-11-01 复核）。 -->
+    <div v-if="showQuickActions" class="g-sidebar-quick">
       <button
         type="button"
         class="g-icon-btn is-sm"
@@ -109,7 +112,17 @@ const props = defineProps({
   deniedIds: { type: Array, default: () => [] },
   isOpen: { type: Boolean, required: true },
   searchQuery: { type: String, default: '' },
+  /**
+   * 「审核」模块的小红点：待审核数量 > 0 时点亮。
+   * ⚠️ 计数来自数据管理面板自己的查询，独立控制台页（AdminConsoleShell）没有这份数据
+   * ⇒ 那四个页面上红点不会出现。它只是提示、不影响功能，别为此在壳里再拉一次统计。
+   */
   hasUnmoderated: { type: Boolean, default: false },
+  /**
+   * 是否显示「快捷操作」区（新增记录 / 刷新数据）。
+   * 两者的实现都在数据管理面板里（当前列表上下文）；没有列表的宿主传 false。
+   */
+  showQuickActions: { type: Boolean, default: true },
 });
 
 const emit = defineEmits([

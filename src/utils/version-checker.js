@@ -12,7 +12,14 @@ import { hasActiveUpload } from './upload-activity.js';
 // 比对 buildId 而非 version，确保同版本重新部署（hotfix）也能触发更新
 // ============================================
 
-const CHECK_INTERVAL = 90 * 1000; // 前台每 90 秒检查一次（后台标签页不轮询，见 interval 回调）
+const CHECK_INTERVAL = 90 * 1000; // 前台**活跃**时每 90 秒检查一次（挂机降频见 shouldPollNow）
+// 挂机降频窗口：连续这么久没有任何交互（pointerdown / keydown）就不再轮询。
+//
+// 为什么要降：version.json 走 DYNAMIC + `?_t=Date.now()` + `cache:'no-store'`，
+// 每次都要绕缓存回源 —— 90s 一轮 = **每个前台标签页 40 次/时**，挂机看板/投屏
+// 这种「开着但没人碰」的标签页纯属白烧。降频后挂机时段请求为 0，下一次交互
+// 会立刻补查一次（见 markInteraction），新鲜度和成本的折中就在这里。
+const ACTIVE_WINDOW_MS = 5 * 60 * 1000;
 // 页面隐藏超过这个时长后切回，才允许「切回即自动强刷」：短暂切走（回消息、切窗口）
 // 不打断；离开较久再回来时，页面本来就要重新进入，刷新代价最低。
 const AUTO_APPLY_AFTER_HIDDEN_MS = 30 * 1000;
@@ -26,6 +33,11 @@ const SERVICE_WORKER_UPDATE_TIMEOUT = 10_000;
 
 let intervalId = null;
 let visibilityHandler = null;
+let interactionHandler = null;
+/** 最近一次用户交互时间戳（0 = 本会话还没有交互记录） */
+let lastInteractionAt = 0;
+/** 挂机期间跳过了轮询 ⇒ 下一次交互要补查一次，否则回神后迟迟看不到新版本 */
+let idleSkipPending = false;
 let versionFetchInFlight = null;
 let automaticCheckInFlight = null;
 let currentVersion = null; // 当前语义版本（来自 meta boh-version，如 4.7.2）
@@ -52,9 +64,15 @@ let currentBuildId = null; // 当前构建指纹（来自 meta boh-build-id，�
    ============================================ */
 const dirtyEditables = new WeakSet();
 
+/**
+ * 文本型输入类型。
+ * ⚠️ **不含 `search`**：搜索框里的词是「筛选条件」，不是待提交内容 ——
+ * 收进来会让任何带常驻筛选框的页面（商城 / 四个控制台 / Cloud+ / 抽奖发放）
+ * 在页存续期间一直把自动应用降级成提示（2026-11-01 复核：临时用例实测拦住强刷）。
+ * 全站搜索面板本身是关即卸载（导航栏 v-if 渲染），不受这条影响。
+ */
 const TEXT_INPUT_TYPES = new Set([
   'text',
-  'search',
   'email',
   'url',
   'tel',
@@ -69,9 +87,15 @@ const TEXT_INPUT_TYPES = new Set([
 
 const isTextEditable = (el) => {
   if (!el || el.nodeType !== 1) return false;
+  // 显式逃生口：给「值不代表未提交内容」的输入框（筛选框、命令面板等）用
+  if (el.hasAttribute?.('data-no-guard')) return false;
   const tag = String(el.tagName || '').toUpperCase();
   if (tag === 'TEXTAREA') return true;
-  if (tag === 'INPUT') return TEXT_INPUT_TYPES.has(String(el.type || 'text').toLowerCase());
+  if (tag === 'INPUT') {
+    const type = String(el.type || 'text').toLowerCase();
+    if (type === 'search') return false;
+    return TEXT_INPUT_TYPES.has(type);
+  }
   return el.isContentEditable === true;
 };
 
@@ -383,6 +407,7 @@ export const markUpdateAvailable = (remoteVersion, remoteBuildId) => {
   pendingUpdate = { remoteVersion: remoteVersion || '', remoteBuildId: String(remoteBuildId) };
 };
 
+/** 读当前挂起的更新（无调用方：留给调试/测试读数，别按「有人用」去改签名）。 */
 export const getPendingUpdate = () => pendingUpdate;
 
 export const clearPendingUpdate = () => {
@@ -398,6 +423,12 @@ export const clearPendingUpdate = () => {
  *     落点由 hash 保留，用户感知就是「点了就到位」，只是这一次多了一次整页加载。
  * 防循环：`boh_version_reload_target` 记住本次会话已尝试过的目标 buildId
  *（沿用 shouldAutoApplyVersion 的判定，与启动时那条 autoApply 同一套护栏）。
+ *
+ * ⚠️ **这个函数是活代码，不要当死代码删**：调用方是 `src/router/index.ts` 的
+ * `router.beforeEach`（`if (applyPendingUpdateBeforeNavigation()) return next(false);`），
+ * 由 f7ce1a42（2026-10-13）接上，并带 `tests/unit/update-on-navigation.test.js`。
+ * 748ea632 的提交说明写「全仓没有任何调用方…目前是死代码」是**错的**；真正没有
+ * 调用方的只有 `getPendingUpdate`（保留给外部读数 / 测试，见该函数注释）。
  */
 export const applyPendingUpdateBeforeNavigation = () => {
   const target = pendingUpdate?.remoteBuildId;
@@ -522,6 +553,24 @@ export const checkVersion = async () => {
 };
 
 /**
+ * 本轮定时轮询该不该真的发请求。
+ *
+ * 两个否定条件：
+ *   · 页面不在前台 —— 后台标签页不轮询（回到前台由 visibilityHandler 立即补一次）；
+ *   · 连续 `ACTIVE_WINDOW_MS` 没有任何交互 —— 挂机/投屏场景不再回源，等用户
+ *     下次交互时由 markInteraction 补查（见 initVersionChecker）。
+ *
+ * 抽成纯函数是为了可测：`lastInteractionAt` 是模块级状态，直接测 interval
+ * 只能靠假时钟碰运气。
+ */
+export const shouldPollNow = (lastInteractionAt, now = Date.now(), visibilityState = 'visible') => {
+  if (visibilityState !== 'visible') return false;
+  const last = Number(lastInteractionAt) || 0;
+  if (!last) return false;
+  return now - last <= ACTIVE_WINDOW_MS;
+};
+
+/**
  * 初始化版本检测器
  * 启动定时轮询 + 页面可见性监听
  */
@@ -534,6 +583,10 @@ export const initVersionChecker = () => {
     logger.debug('version', '版本检测器已初始化，跳过重复启动');
     return;
   }
+
+  // 本会话以「刚加载」为起点算活跃：首轮 90s 检查不该因为还没点击而被跳过
+  lastInteractionAt = Date.now();
+  idleSkipPending = false;
 
   // 自动轮询检测：检测到新版本时派发 boh:update-available 事件，
   // 由 PWAUpdateToast 弹出统一对话框提示用户，不直接强制刷新
@@ -623,16 +676,34 @@ export const initVersionChecker = () => {
 
   // 定时轮询
   intervalId = setInterval(() => {
-    // 后台标签页不轮询：既省 version.json 的回源请求（它走 DYNAMIC，每次都要回源站），
-    // 也避免「页面在后台被静默刷掉」。回到前台由 visibilityHandler 立即补一次检查。
-    if (document.visibilityState !== 'visible') return;
+    // 后台标签页 / 挂机时段都不发请求：既省 version.json 的回源请求（它走 DYNAMIC，
+    // 每次都要回源站），也避免「页面在后台被静默刷掉」。回到前台由 visibilityHandler
+    // 立即补一次；挂机后回神由 markInteraction 补一次。
+    if (!shouldPollNow(lastInteractionAt, Date.now(), document.visibilityState)) {
+      idleSkipPending = true;
+      return;
+    }
     autoCheck();
   }, CHECK_INTERVAL);
+
+  // 记交互：挂机降频后，用户一碰页面就把「跳过的那次检查」补回来
+  const markInteraction = () => {
+    lastInteractionAt = Date.now();
+    if (!idleSkipPending) return;
+    idleSkipPending = false;
+    autoCheck();
+  };
+  interactionHandler = markInteraction;
+  document.addEventListener('pointerdown', interactionHandler, true);
+  document.addEventListener('keydown', interactionHandler, true);
 
   // 页面从隐藏切换回可见时立即检查；离开超过 AUTO_APPLY_AFTER_HIDDEN_MS 才允许
   // 自动强刷（短暂切走不打断），刷新由 autoCheck 内的护栏最终裁决。
   visibilityHandler = () => {
     if (document.visibilityState === 'visible') {
+      // 切回来的这一拍本身就是活跃信号，定时轮询不必再等下一个交互才恢复
+      lastInteractionAt = Date.now();
+      idleSkipPending = false;
       const awayMs = hiddenAt ? Date.now() - hiddenAt : 0;
       hiddenAt = 0;
       autoCheck({ autoApply: awayMs >= AUTO_APPLY_AFTER_HIDDEN_MS });
@@ -646,7 +717,8 @@ export const initVersionChecker = () => {
 
   logger.info(
     'version',
-    `版本检测器已启动（前台每 ${CHECK_INTERVAL / 1000} 秒检查一次，检测到新版本将弹窗提示；` +
+    `版本检测器已启动（前台活跃时每 ${CHECK_INTERVAL / 1000} 秒检查一次，` +
+      `连续 ${ACTIVE_WINDOW_MS / 60000} 分钟无交互则暂停轮询；` +
       `离开超过 ${AUTO_APPLY_AFTER_HIDDEN_MS / 1000} 秒后切回会自动应用）`,
   );
 };
@@ -663,5 +735,12 @@ export const destroyVersionChecker = () => {
     document.removeEventListener('visibilitychange', visibilityHandler);
     visibilityHandler = null;
   }
+  if (interactionHandler) {
+    document.removeEventListener('pointerdown', interactionHandler, true);
+    document.removeEventListener('keydown', interactionHandler, true);
+    interactionHandler = null;
+  }
+  lastInteractionAt = 0;
+  idleSkipPending = false;
   document.removeEventListener('input', trackEditableInput, true);
 };
