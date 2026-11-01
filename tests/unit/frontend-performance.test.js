@@ -56,10 +56,18 @@ describe('frontend performance guardrails', () => {
       'supabase-vendor',
       'ui-icons',
       'vue-utils-vendor',
-      'ui-sanitize',
     ]) {
       expect(names, `壳 chunk 名单缺少 ${required}`).toContain(required);
     }
+
+    // 2026-11-01：ui-sanitize 曾被显式要求留在名单里（当时 dompurify 是入口静态
+    // 依赖）。现在它只被三个懒加载路由引用，留在名单里等于让每个访客首次访问
+    // 多下 11KB gzip。这条反向断言的作用是：如果有人把它加回来，这里会红，
+    // 迫使对方先去跑 check:shell-precache 确认「它是否真的回到了入口 import 图」。
+    expect(
+      names,
+      'ui-sanitize 不在入口静态 import 图里，不应进壳预缓存名单（见 vite.config.js 的注释）',
+    ).not.toContain('ui-sanitize');
 
     // 入口 chunk 固定产出为 app-[hash].js，且必须与上述名单一起进 globPatterns
     expect(source).toMatch(/entryFileNames:\s*'static\/js\/app-\[hash\]\.js'/);

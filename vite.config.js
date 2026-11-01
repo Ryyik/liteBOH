@@ -6,6 +6,7 @@ import { execSync } from 'child_process';
 import { readFileSync, writeFileSync } from 'fs';
 import { visualizer } from 'rollup-plugin-visualizer';
 import cssnano from 'cssnano';
+import { resolveShellChunks } from './scripts/lib/shell-chunk-resolve.mjs';
 
 // ============================================
 // 版本指纹生成插件
@@ -113,7 +114,13 @@ const SHELL_CHUNKS = [
   'supabase-vendor',
   'ui-icons',
   'vue-utils-vendor',
-  'ui-sanitize',
+  // 2026-11-01：`ui-sanitize` 已移出本名单。它当初进名单（74a76038）是因为
+  // dompurify 属于**入口静态依赖**，却被 manualChunks 单独拆成 chunk 而漏配
+  // globPatterns —— 弱网/离线时应用壳缺模块、整站白屏。
+  // 现在 dompurify 只被 Login / Newsroom / SmartOverview 三个**懒加载路由**引用，
+  // 不在入口静态 import 图里（check:shell-precache 的断言 B 从产物反推可证），
+  // 留它只为让每个访客首次访问多下 11KB gzip。
+  // ⚠️ 若将来入口又静态引用 dompurify，断言 B 会立刻变红，届时加回本名单即可。
   // 2026-10-19：入口 import 图新增的壳依赖（auth-store → auth-api、App 全局 AI 偏好、
   // 购物袋），缺一个弱网/离线就白屏 —— 由 check:shell-precache 从产物反推兜底。
   'useGlobalAiPreferences',
@@ -157,15 +164,14 @@ function bohShellCssScopePlugin() {
     // generateBundle 早于 vite-plugin-pwa 的 generateSW，故此处算出的清单一定就绪
     generateBundle(_options, bundle) {
       const chunks = Object.values(bundle).filter((item) => item.type === 'chunk');
-      const shellJs = new Set(
-        chunks.filter((c) => c.isEntry).map((c) => c.fileName.split('/').pop()),
-      );
-      for (const name of SHELL_CHUNKS) {
-        const hit = chunks.find((c) =>
-          new RegExp(`/${name}-[A-Za-z0-9_-]+\\.js$`).test(c.fileName),
-        );
-        if (hit) shellJs.add(hit.fileName.split('/').pop());
-        else this.warn(`壳 chunk "${name}" 在产物里找不到 —— 请同步 SHELL_CHUNKS`);
+      // 归宿判定与告警分级见 scripts/lib/shell-chunk-resolve.mjs —— 那里抽成纯函数
+      // 是为了让四个分支（独立成 chunk / 并入壳 chunk / 并入非壳 chunk / 彻底没有）
+      // 都能被单测逐个反证。伪警报的代价不只是噪音：它会诱导人去删 SHELL_CHUNKS 里的
+      // 名字，而删掉之后 macOS 构建里这些模块又独立成 chunk、漏进 globPatterns → 真白屏。
+      const { shellJs, messages } = resolveShellChunks({ chunks, shellChunks: SHELL_CHUNKS });
+      for (const { level, text } of messages) {
+        if (level === 'warn') this.warn(text);
+        else this.info(text);
       }
 
       const allow = new Set();
