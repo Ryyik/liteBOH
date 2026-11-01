@@ -186,6 +186,8 @@
             aria-label="搜索全站内容"
             title="搜索（/）"
             @click.stop="toggleSearch"
+            @pointerenter="prefetchSearchPanel"
+            @focus="prefetchSearchPanel"
           >
             <Search :size="16" :stroke-width="2.2" aria-hidden="true" />
           </button>
@@ -703,7 +705,7 @@ const handleGlobalNavPreempt = () => {
 // surface（高度由下方 ResizeObserver 上报 customCardHeight），逻辑见 useGlobalSearch.js。
 // onAction：动作搜索（Spotlight 式「搜到即执行」）的执行权统一归 handleMenuAction ——
 // 闭包在调用时才解引用，规避 handleMenuAction 定义在 setup 更靠后位置的 TDZ。
-const { isSearchOpen, toggleSearch } = useGlobalSearch({
+const { isSearchOpen, toggleSearch, prefetchSearchPanel } = useGlobalSearch({
   onAction: (action) => handleMenuAction(action),
 });
 

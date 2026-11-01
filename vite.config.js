@@ -618,6 +618,31 @@ export default defineConfig({
           if (id.includes('node_modules/@supabase/supabase-js')) return 'supabase-vendor';
           if (id.includes('node_modules/lucide-vue-next')) return 'ui-icons';
           if (id.includes('node_modules/dompurify')) return 'ui-sanitize';
+          // 搜索岛**必须先于**下面的 UnifiedNavbar 通配规则处理：它由 useGlobalSearch
+          // 动态 import（懒加载），若被通配规则卷进 ui-components，首屏体积一分不减。
+          // 返回 null ⇒ 不参与手动分组，交给 Vite 按动态 import 边界拆成独立 chunk。
+          //
+          // ⚠️ 匹配必须用 `includes('/UnifiedNavbar/X.vue')`，**不能**用 `endsWith('.vue')`：
+          //    SFC 的样式子模块 id 形如 `X.vue?vue&type=style&index=0&scoped=…&lang.css`，
+          //    `endsWith('.vue')` 匹配不到它 ⇒ 样式模块落进下面的通配规则被塞回
+          //    ui-components ⇒ JS 拆出去了、CSS 还留在首屏壳里（2026-11-01 实测：
+          //    share-island 27 处 / cdi- 66 处仍留在 ui-components.css，白拆一半）。
+          //    下面的正则对脚本模块和样式模块都命中，两者才会去同一个 chunk。
+          //
+          // 只被懒加载路由页引用的岛，同样不要卷进首屏壳 chunk：
+          //   ShareIsland            ← ForumMain
+          //   ContentDetailIsland    ← Newsroom / ActivitiesList
+          //   NotificationSuggestIsland ← UserSpaceMain
+          // 它们跟随引用方 chunk，首屏少背这几份模板与样式；进这些页时才多一次请求。
+          // ⚠️ 新增岛时先确认它是否被 UnifiedNavbar/index.vue 或首屏 composable 静态引用，
+          //    是则**不要**加进这里（否则首屏会多一次往返）。
+          if (
+            /\/UnifiedNavbar\/(GlobalSearchIsland|ShareIsland|ContentDetailIsland|NotificationSuggestIsland)\.vue/.test(
+              id,
+            )
+          ) {
+            return null;
+          }
           if (id.includes('src/components/UnifiedNavbar')) return 'ui-components';
           if (id.includes('src/components/Footer.vue')) return 'ui-components';
           if (id.includes('src/stores/auth.ts')) return 'auth-store';

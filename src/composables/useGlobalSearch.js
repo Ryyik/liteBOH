@@ -2,7 +2,69 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { showIsland } from '@/composables/useIsland.js';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay.js';
-import GlobalSearchIsland from '@/components/UnifiedNavbar/GlobalSearchIsland.vue';
+import { createPanelAsync } from '@/utils/async-component.js';
+
+/**
+ * 搜索面板懒加载。
+ *
+ * 面板本身只在用户点搜索时才渲染，但它的静态依赖链
+ * （`config/site-search-sources.ts` → 论坛/资源搜索 API、图片审核流水线、
+ * 教程/MBTI/角色书等数据表）会把首屏拖重约 20KB(gzip)（实测 309→289KB）。
+ * 该数据表全仓只被 GlobalSearchIsland 引用，是干净的切点。
+ *
+ * 走统一工厂：失败退避重试 2 次 + `recoverDynamicImportFailure()` 恢复链，
+ * 与导航 surface 内既有先例（BOHAIIsland → BOHAIMain）同款。
+ *
+ * ⚠️ 不要传 `silent: true`：silent 的失败态渲染 null，而本面板占的是导航 surface
+ *    的 custom 槽位 —— surface 已因 `has-custom-card` 展开，会先冒出一条 0 高细边
+ *    再长开。传 label 走 AsyncPanelQuiet（三个点 + 正在加载…），与 AI 岛加载态一致。
+ */
+const loadSearchIsland = () => import('@/components/UnifiedNavbar/GlobalSearchIsland.vue');
+const GlobalSearchIsland = createPanelAsync(loadSearchIsland, { label: 'GlobalSearchIsland' });
+
+/**
+ * 预热面板 chunk（空闲时 / 鼠标悬停搜索按钮时调用）。
+ * 幂等：模块级标记保证同一页面会话只发起一次；失败重置标记，
+ * 真正打开时由 createPanelAsync 的重试链兜底。
+ */
+let searchPanelPrefetched = false;
+export const prefetchSearchPanel = () => {
+  if (searchPanelPrefetched) return;
+  searchPanelPrefetched = true;
+  loadSearchIsland().catch(() => {
+    searchPanelPrefetched = false;
+  });
+};
+
+/**
+ * 弱网 / 省流量模式下不主动预取。
+ *
+ * 预取是「用可能白花的流量换点开即出」。省流量模式和 2G 下这笔账是亏的：
+ * 首屏都还没稳，抢走的带宽会直接拖慢后续路由 chunk。这类网络下让用户点开时再加载
+ * （createPanelAsync 自带 loading 态），观感更诚实。
+ *
+ * ⚠️ 只拦「空闲预取」；悬停 / 聚焦触发的 prefetchSearchPanel 不拦 ——
+ *    那是用户明确的下一步动作，此时不预取才是浪费。
+ */
+const isSlowOrMeteredConnection = () => {
+  if (typeof navigator === 'undefined') return false;
+  const conn = navigator.connection;
+  if (!conn) return false;
+  if (conn.saveData === true) return true;
+  return conn.effectiveType === 'slow-2g' || conn.effectiveType === '2g';
+};
+
+/** 首屏空闲时预热：requestIdleCallback 优先，不支持则退 2.5s 定时器 */
+const scheduleSearchPanelPrefetch = () => {
+  if (typeof window === 'undefined') return;
+  if (isSlowOrMeteredConnection()) return;
+  const run = () => prefetchSearchPanel();
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(run, { timeout: 5000 });
+  } else {
+    window.setTimeout(run, 2500);
+  }
+};
 
 /**
  * 全局搜索的开关逻辑（导航栏入口 + ⌘K / Ctrl+K 快捷键）。
@@ -87,6 +149,9 @@ export function useGlobalSearch({ onAction } = {}) {
 
   onMounted(() => {
     window.addEventListener('keydown', handleShortcut);
+    // 首屏空闲即预热面板 chunk：用户真正点搜索时（绝大多数场景）已在本地，
+    // 夜间弱网下把「点开等 1s+」压缩成「点开即出」。
+    scheduleSearchPanelPrefetch();
   });
 
   onUnmounted(() => {
@@ -94,5 +159,12 @@ export function useGlobalSearch({ onAction } = {}) {
     closeSearch();
   });
 
-  return { isSearchOpen, canOpenSearch, openSearch, closeSearch, toggleSearch };
+  return {
+    isSearchOpen,
+    canOpenSearch,
+    openSearch,
+    closeSearch,
+    toggleSearch,
+    prefetchSearchPanel,
+  };
 }
