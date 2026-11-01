@@ -30,6 +30,9 @@ const COMPUTABLE = [
   { script: 'scripts/check-async-component-fallback.mjs', desc: '无失败兜底的异步组件' },
   { script: 'scripts/check-root-clean.mjs', desc: '根目录沙盒（demo/临时脚本）' },
   { script: 'scripts/check-doc-truth.mjs', desc: '必读面字节（AGENTS/AI-ENV）' },
+  // 需 dist 产物才能求值：没构建时它自己 exit 1，这里只取到空 stdout ⇒ 走下面的
+  // 「离线不可测」分支，不会把总账打成红的（汇总器恒 exit 0）。
+  { script: 'scripts/check-first-paint-budget.mjs', desc: '首屏入口 gzip 合计' },
 ];
 
 /** 离线算不出的：只读基线，并说明为什么拿不到现值 */

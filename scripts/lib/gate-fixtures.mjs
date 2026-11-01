@@ -409,6 +409,10 @@ export const UNTESTABLE = [
   },
   { gate: 'check:bundle-size', why: '读 dist/ 产物，需先构建' },
   {
+    gate: 'check:first-paint-budget',
+    why: '读 dist/ 产物，需先构建（同 check:bundle-size）。会红已人工反向证明 4 条：总量基线调低 10KB ⇒ exit 1；单文件基线调低 20KB ⇒ exit 1 并指认 chunk；index.html 引用不存在的产物 ⇒ exit 1（不静默跳过）；dist 缺失 ⇒ exit 1 并提示先构建',
+  },
+  {
     gate: 'nsfw:assets',
     why: '构建生成步骤而非判定门禁：从 node_modules 里的 base64 权重切出 .bin/.json，没有「违规」可注入；产物正确性由 tests/unit/nsfw-model-asset.test.js 的字节一致断言锁住（2026-10-29）',
   },
