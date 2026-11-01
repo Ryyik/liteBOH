@@ -14,12 +14,7 @@
          不加横条、没有背景色，position: fixed 固定在屏幕左上、不随内容滚动。
          看起来就像一枚裸露的「‹ 设置」，但它一直在那里 —— 这是和上一版
          （吸顶横条）最大的差别：横条太重，这颗钮什么都没有。 -->
-    <button
-      v-if="isDrilldown"
-      type="button"
-      class="gs-floating-back"
-      @click="exitSection"
-    >
+    <button v-if="isDrilldown" type="button" class="gs-floating-back" @click="exitSection">
       <ChevronLeft :size="19" :stroke-width="2" aria-hidden="true" />
       <span>设置</span>
     </button>
@@ -38,11 +33,11 @@
            卡片本体是 .gs-rows，分组标题移到卡片外上方，组间靠留白分隔。
            骨架规则在 styles/settings-glass.css（5 个设置类页面共用）。 -->
       <div ref="panelRootRef" class="glass-settings" :class="{ 'is-two-pane': twoPane }">
-      <!-- 左栏（仅横屏两栏时可见）：搜索 + 分类目录。竖屏下这个 div 只包着搜索框，
+        <!-- 左栏（仅横屏两栏时可见）：搜索 + 分类目录。竖屏下这个 div 只包着搜索框，
            视觉与改造前一致（.gs-aside 在非两栏时不产生任何布局差异）。
            2026-10-29：单栏时只在「菜单视图」渲染 —— 子页 / 分类页 / 编辑态都不带搜索框，
            搜索是「设置主页」的能力，不是每个下级页面的。 -->
-      <div v-if="twoPane || isMenuView" class="gs-aside">
+        <div v-if="twoPane || isMenuView" class="gs-aside">
           <!-- 设置搜索：索引覆盖本页所有行 + 各子页入口，命中后直接执行入口动作 -->
           <div class="gs-search" role="search">
             <span class="gs-search-icon"
@@ -284,12 +279,7 @@
                   @click="copyEmail"
                 >
                   <span class="gs-id-email-text">{{ emailCopied ? '已复制' : userEmail }}</span>
-                  <Check
-                    v-if="emailCopied"
-                    :size="12"
-                    :stroke-width="2.6"
-                    aria-hidden="true"
-                  />
+                  <Check v-if="emailCopied" :size="12" :stroke-width="2.6" aria-hidden="true" />
                   <Copy v-else :size="12" :stroke-width="2" aria-hidden="true" />
                 </button>
                 <p v-else class="gs-id-sub">未绑定邮箱</p>
@@ -597,8 +587,8 @@
                   </button>
                 </template>
 
-                <!-- 投递方式：及时（首条即发）vs 聚合（窗口结束发一封全摘要，可能延迟）。
-                     无权益门槛 —— 聚合是省心，及时是快，各取所需。 -->
+                <!-- 投递方式：及时与摘要（首条即时 + 窗口末补一封汇总）vs 减少干扰（窗口末只发一封）。
+                     无权益门槛 —— 减少干扰是省心，及时与摘要是快且不丢，各取所需。 -->
                 <button type="button" class="gs-row" @click="toggleMailExpanded('delivery')">
                   <span class="gs-icon is-indigo">
                     <Inbox :size="16" :stroke-width="2" aria-hidden="true" />
@@ -964,7 +954,7 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  /** 投递方式：false = 及时（首条即发），true = 聚合摘要（窗口结束发一封全的，可能有延迟）。 */
+  /** 投递方式：false = 及时与摘要（首条即时 + 窗口末汇总一封），true = 减少干扰（只有摘要）。 */
   followMailDigest: {
     type: Boolean,
     default: false,
@@ -1051,7 +1041,7 @@ const emit = defineEmits([
   'toggle-follow-mail',
   /** 2026-10-29：选择去重窗口（15 = 实时 Max+，60 = 标准）。权益校验在服务端 RPC。 */
   'choose-mail-window',
-  /** 2026-10-29：选择投递方式（false = 及时，true = 聚合摘要）。无权益门槛。 */
+  /** 2026-10-29 引入、2026-11-01 改名：选择投递方式（false = 及时与摘要，true = 减少干扰）。无权益门槛。 */
   'choose-mail-digest',
 ]);
 
@@ -1177,20 +1167,21 @@ const exitSection = () => {
    选项点击只 emit，权益校验在服务端 RPC（boh_set_follow_mail_window），
    无权益时宿主会弹订阅引导 —— 面板不自己判权益（user_subscriptions 不归它管）。 */
 const MAIL_WINDOW_OPTIONS = [
-  { value: 15, label: '实时提醒', desc: '15 分钟内的动作合并成一封', maxOnly: true },
-  { value: 60, label: '标准提醒', desc: '1 小时内的动作合并成一封', maxOnly: false },
+  { value: 15, label: '实时提醒', desc: '同一人的连续动作按 15 分钟窗口归并', maxOnly: true },
+  { value: 60, label: '标准提醒', desc: '同一人的连续动作按 1 小时窗口归并', maxOnly: false },
 ];
-const mailWindowLabel = computed(() =>
-  props.followMailWindow === 15 ? '15 分钟' : '1 小时',
-);
+const mailWindowLabel = computed(() => (props.followMailWindow === 15 ? '15 分钟' : '1 小时'));
 
-/* 投递方式（2026-10-29 第二轮）：及时 = 首条即发（同窗后续丢弃），
-   聚合 = 窗口结束发一封全摘要（可能有窗口长度的延迟）。无权益门槛。 */
+/* 投递方式（2026-11-01 改名 + 语义修正）：
+   「及时与摘要」（默认）= 首条立刻发，同窗口其余动作攒到窗口结束汇总成一封（一条都不丢）；
+   「减少干扰」= 窗口内全部动作只发一封，窗口结束才发。
+   ⚠️ 旧文案「及时通知 / 首条动作立刻发送，其余动作不重复提醒」是**说少了一半** ——
+   旧实现里「其余」既不汇总也不延迟，而是直接丢弃。别把文案改回去。无权益门槛。 */
 const MAIL_DIGEST_OPTIONS = [
-  { value: false, label: '及时通知', desc: '首条动作立刻发送，其余动作不重复提醒' },
-  { value: true, label: '聚合摘要', desc: '窗口内全部动作合并成一封，可能有延迟' },
+  { value: false, label: '及时与摘要', desc: '首条立刻发，其余动作在窗口结束时汇总成一封' },
+  { value: true, label: '减少干扰', desc: '窗口内全部动作只发一封，窗口结束才送达' },
 ];
-const mailDigestLabel = computed(() => (props.followMailDigest ? '聚合摘要' : '及时通知'));
+const mailDigestLabel = computed(() => (props.followMailDigest ? '减少干扰' : '及时与摘要'));
 const mailExpandedGroup = ref('');
 const toggleMailExpanded = (group) => {
   mailExpandedGroup.value = mailExpandedGroup.value === group ? '' : group;
@@ -1200,7 +1191,9 @@ const toggleMailExpanded = (group) => {
    返回职责完全交给悬浮钮（.gs-floating-back）—— 用户定稿「不加横条、没背景色、
    固定在屏幕」。 */
 const isDrilldown = computed(() => !props.twoPane && Boolean(singlePaneSection.value));
-const headerTitle = computed(() => (isDrilldown.value ? sectionLabel(singlePaneSection.value) : '设置'));
+const headerTitle = computed(() =>
+  isDrilldown.value ? sectionLabel(singlePaneSection.value) : '设置',
+);
 const headerShowBack = computed(() => props.showBack && !isDrilldown.value);
 const handleHeaderBack = () => {
   if (isDrilldown.value) {

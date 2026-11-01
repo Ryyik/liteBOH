@@ -83,7 +83,7 @@ export async function getFollowMailPrefs() {
 }
 
 /**
- * 保存投递方式（false = 及时，true = 聚合摘要）。无权益门槛：两种都人人可用。
+ * 保存投递方式（false = 及时与摘要，true = 减少干扰）。无权益门槛：两种都人人可用。
  * @param {boolean} digest
  * @returns {Promise<{success: boolean, message: string, digest?: boolean, error: Error|null}>}
  */
@@ -105,7 +105,7 @@ export async function saveFollowMailDigest(digest) {
     const next = Boolean(data);
     return {
       success: true,
-      message: next ? '已切换为聚合摘要' : '已切换为及时通知',
+      message: next ? '已切换为「减少干扰」' : '已切换为「及时与摘要」',
       digest: next,
       error: null,
     };
