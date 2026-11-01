@@ -11,7 +11,10 @@ import { logger } from './logger.js';
 // 比对 buildId 而非 version，确保同版本重新部署（hotfix）也能触发更新
 // ============================================
 
-const CHECK_INTERVAL = 5 * 60 * 1000; // 每 5 分钟检查一次
+const CHECK_INTERVAL = 90 * 1000; // 前台每 90 秒检查一次（后台标签页不轮询，见 interval 回调）
+// 页面隐藏超过这个时长后切回，才允许「切回即自动强刷」：短暂切走（回消息、切窗口）
+// 不打断；离开较久再回来时，页面本来就要重新进入，刷新代价最低。
+const AUTO_APPLY_AFTER_HIDDEN_MS = 30 * 1000;
 const VERSION_URL = './version.json'; // 相对路径，适配任意部署路径
 const RELOAD_TARGET_KEY = 'boh_version_reload_target';
 const UPDATE_QUERY_KEY = '__boh_update';
@@ -26,6 +29,76 @@ let versionFetchInFlight = null;
 let automaticCheckInFlight = null;
 let currentVersion = null; // 当前语义版本（来自 meta boh-version，如 4.7.2）
 let currentBuildId = null; // 当前构建指纹（来自 meta boh-build-id，用于比对）
+
+/* ============================================
+   未提交内容追踪（自动强刷的护栏）
+   ============================================
+   为什么需要：自动强刷最大的代价是丢掉用户没提交的内容。只看
+   `document.activeElement` 不够 —— 用户打完字、点了别处（滚动页面 / 切预览 /
+   点空白处收键盘）再切走标签页时，activeElement 已经回到 body，护栏直接失效。
+   那种情况下切回被强刷 = 内容凭空消失。
+
+   判据用「input 事件 + 当前值非空」标记：
+     · 程序化回填（v-model 载入已有数据、草稿恢复）**不触发** input 事件
+       ⇒ 不会把「页面本来就有内容」误判成用户输入；
+     · 用户把内容清空后标记自动撤销（值空即视为干净）；
+     · WeakSet 持有元素 ⇒ 元素销毁后自动回收，无需手工清理。
+
+   刻意**只收文本型输入**（text-like input / textarea / contenteditable）：
+   select / checkbox / file 的「值」不代表未提交内容（勾选态、筛选条件刷新后重置
+   只是小困扰，不是数据丢失），收进来会让列表页一碰筛选就永久禁用自动更新。
+   论坛发帖另有一层实时暂存（`_autosave`），这里的护栏是给没有暂存机制的表单兜底。
+   ============================================ */
+const dirtyEditables = new WeakSet();
+
+const TEXT_INPUT_TYPES = new Set([
+  'text',
+  'search',
+  'email',
+  'url',
+  'tel',
+  'password',
+  'number',
+  'date',
+  'datetime-local',
+  'month',
+  'week',
+  'time',
+]);
+
+const isTextEditable = (el) => {
+  if (!el || el.nodeType !== 1) return false;
+  const tag = String(el.tagName || '').toUpperCase();
+  if (tag === 'TEXTAREA') return true;
+  if (tag === 'INPUT') return TEXT_INPUT_TYPES.has(String(el.type || 'text').toLowerCase());
+  return el.isContentEditable === true;
+};
+
+const readEditableText = (el) => {
+  const tag = String(el.tagName || '').toUpperCase();
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return String(el.value ?? '');
+  return String(el.textContent ?? '');
+};
+
+const trackEditableInput = (event) => {
+  const el = event.target;
+  if (!isTextEditable(el)) return;
+  if (readEditableText(el).trim()) dirtyEditables.add(el);
+  else dirtyEditables.delete(el);
+};
+
+/** 页面上是否有用户填过、还没提交的内容。保守方向：误判为脏只会退化成弹提示。 */
+const hasUnsavedEditableContent = () => {
+  if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') {
+    return false;
+  }
+  const nodes = document.querySelectorAll('input, textarea, [contenteditable]');
+  for (const el of nodes) {
+    if (!dirtyEditables.has(el)) continue;
+    if (readEditableText(el).trim()) return true;
+  }
+  return false;
+};
 
 export const shouldAutoApplyVersion = (remoteBuildId, attemptedBuildId = '') => {
   const target = String(remoteBuildId || '').trim();
@@ -458,11 +531,26 @@ export const initVersionChecker = () => {
 
   // 自动轮询检测：检测到新版本时派发 boh:update-available 事件，
   // 由 PWAUpdateToast 弹出统一对话框提示用户，不直接强制刷新
+  let hiddenAt = 0; // 页面进入后台的时刻（0 = 当前可见）
   const isTypingInForm = (el) => {
     if (!el) return false;
     const tag = String(el.tagName || '').toUpperCase();
     return (
       tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true
+    );
+  };
+
+  /**
+   * 是否有正在播放的媒体：自动强刷会打断播放（尤其是用户刚切回来继续看的那一支），
+   * 这种场景一律退化成「弹提示，由用户决定何时更新」。
+   * 注意：跨域 iframe 内的播放器查不到，只能覆盖页面内 <video>/<audio>。
+   */
+  const isMediaPlaying = () => {
+    if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') {
+      return false;
+    }
+    return Array.from(document.querySelectorAll('video, audio')).some(
+      (el) => !el.paused && !el.ended,
     );
   };
 
@@ -475,10 +563,21 @@ export const initVersionChecker = () => {
         if (result.hasUpdate) {
           const attemptedTarget = readReloadTarget();
           if (autoApply && shouldAutoApplyVersion(result.remoteBuildId, attemptedTarget)) {
-            // L11 加固：用户正在输入时跳过自动强刷，保持页面可用；
-            // 后续 visibilitychange 触发的检查仍有机会完成更新
-            if (isTypingInForm(document.activeElement)) {
-              logger.info('version', '用户正在输入，跳过本次自动强刷', {
+            // 自动强刷的三道护栏，任一命中都退化成「弹提示，由用户决定何时更新」：
+            //   typing  —— 焦点还在输入框里（正在打字）
+            //   media   —— 有媒体在播（切回继续看的场景，刷了等于掐掉内容）
+            //   editing —— 用户填过内容但焦点已离开（点了别处 / 切预览），
+            //              这类没有焦点信号，只能靠 input 事件追踪兜住
+            const blockedBy = isTypingInForm(document.activeElement)
+              ? 'typing'
+              : isMediaPlaying()
+                ? 'media'
+                : hasUnsavedEditableContent()
+                  ? 'editing'
+                  : '';
+            if (blockedBy) {
+              logger.info('version', '用户正在输入/播放/有未提交内容，跳过本次自动强刷', {
+                reason: blockedBy,
                 remoteBuildId: result.remoteBuildId,
               });
             } else {
@@ -508,20 +607,31 @@ export const initVersionChecker = () => {
 
   // 定时轮询
   intervalId = setInterval(() => {
+    // 后台标签页不轮询：既省 version.json 的回源请求（它走 DYNAMIC，每次都要回源站），
+    // 也避免「页面在后台被静默刷掉」。回到前台由 visibilityHandler 立即补一次检查。
+    if (document.visibilityState !== 'visible') return;
     autoCheck();
   }, CHECK_INTERVAL);
 
-  // 页面从隐藏切换回可见时立即检查
+  // 页面从隐藏切换回可见时立即检查；离开超过 AUTO_APPLY_AFTER_HIDDEN_MS 才允许
+  // 自动强刷（短暂切走不打断），刷新由 autoCheck 内的护栏最终裁决。
   visibilityHandler = () => {
     if (document.visibilityState === 'visible') {
-      autoCheck();
+      const awayMs = hiddenAt ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+      autoCheck({ autoApply: awayMs >= AUTO_APPLY_AFTER_HIDDEN_MS });
+      return;
     }
+    hiddenAt = Date.now();
   };
   document.addEventListener('visibilitychange', visibilityHandler);
+  // 捕获阶段监听：不管中间层有没有 stopPropagation，都能记到用户真正输入过什么。
+  document.addEventListener('input', trackEditableInput, true);
 
   logger.info(
     'version',
-    `版本检测器已启动（每 ${CHECK_INTERVAL / 1000 / 60} 分钟检查一次，检测到新版本将弹窗提示）`,
+    `版本检测器已启动（前台每 ${CHECK_INTERVAL / 1000} 秒检查一次，检测到新版本将弹窗提示；` +
+      `离开超过 ${AUTO_APPLY_AFTER_HIDDEN_MS / 1000} 秒后切回会自动应用）`,
   );
 };
 
@@ -537,4 +647,5 @@ export const destroyVersionChecker = () => {
     document.removeEventListener('visibilitychange', visibilityHandler);
     visibilityHandler = null;
   }
+  document.removeEventListener('input', trackEditableInput, true);
 };

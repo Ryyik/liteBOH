@@ -3,7 +3,7 @@ import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { visualizer } from 'rollup-plugin-visualizer';
 import cssnano from 'cssnano';
 
@@ -189,6 +189,96 @@ function bohShellCssScopePlugin() {
       for (const name of allow) shellCssAllowScope.add(name);
       console.log(
         `[boh-shell-css-scope] 壳样式允许清单 ${shellCssAllowScope.size} 个：${[...shellCssAllowScope].join(', ') || '(空)'}`,
+      );
+    },
+  };
+}
+
+// ============================================
+// push-sw 内联插件
+//
+// 背景：Web Push 的 push / notificationclick 处理器只能经 workbox 的
+// `importScripts: ['push-sw.js']` 注入（generateSW 不给写自定义 SW 代码）。
+// 但 importScripts 是**运行时拉取**：受 /push-sw.js 的 HTTP 缓存支配（线上实测
+// `max-age=14400` ⇒ 改了推送逻辑最多滞后 4 小时生效），而且它不参与 SW 更新判定
+// （浏览器只比对 sw.js 的字节，sw.js 不变就永不重装）。
+//
+// 做法：构建收尾把 sw.js 里那行 `importScripts("push-sw.js")` 原地替换成文件内容
+// （IIFE 包裹，避免与 workbox 的顶层标识符撞名）。内联后推送逻辑成为 sw.js 的
+// 一部分 ⇒ 改它必然让 sw.js 字节变化 ⇒ 正常触发 SW 更新，也彻底绕开 HTTP 缓存。
+//
+// ⚠️ public/push-sw.js 文件本身**必须保留**：已装在用户机器上的旧 sw.js 仍会
+//    importScripts 它，删掉就是 404 + 整个 SW 装不上（PWA 直接失效）。
+// ============================================
+function bohInlinePushSwPlugin() {
+  let outDir = resolve('dist');
+  let root = process.cwd();
+  return {
+    name: 'boh-inline-push-sw',
+    apply: 'build',
+    // enforce: 'post' ⇒ closeBundle 排在 vite-plugin-pwa（normal）之后，
+    // 此时 sw.js 已落盘
+    enforce: 'post',
+    configResolved(config) {
+      root = config.root || root;
+      outDir = resolve(root, config.build?.outDir || 'dist');
+    },
+    async closeBundle() {
+      const swPath = resolve(outDir, 'sw.js');
+      let sw = null;
+      // vite-plugin-pwa 在 closeBundle 阶段写 sw.js，给一点落盘余量
+      for (let attempt = 0; attempt < 10 && sw === null; attempt += 1) {
+        try {
+          sw = readFileSync(swPath, 'utf-8');
+        } catch {
+          await new Promise((done) => setTimeout(done, 100));
+        }
+      }
+      // 某些构建不产出 SW（如仅做类型检查）——跳过，不算失败
+      if (sw === null) return;
+      // 幂等：同一份产物重复处理时直接退出
+      if (sw.includes('BOH-PUSH-INLINE')) return;
+
+      const pushSwPath = resolve(root, 'public/push-sw.js');
+      const pushSw = readFileSync(pushSwPath, 'utf-8');
+      // ⚠️ 不要加分号：importScripts 在 sw.js 里处于 workbox 的**逗号表达式**中
+      //    （`function(s){"use strict";importScripts("push-sw.js"),self.skipWaiting(),…`），
+      //    加 `;` 会把后面那串 `,self.skipWaiting()` 变成语法错误。
+      //    替换文本本身必须是一个「表达式」，前后都不带分号。
+      const inlined =
+        '/* BOH-PUSH-INLINE: 由 vite.config.js 从 public/push-sw.js 内联，勿手工编辑 */' +
+        `(function(){\n${pushSw}\n})()`;
+
+      const patterns = [
+        'importScripts("push-sw.js")',
+        "importScripts('push-sw.js')",
+        'importScripts("/push-sw.js")',
+        "importScripts('/push-sw.js')",
+      ];
+      const hit = patterns.find((p) => sw.includes(p));
+      if (!hit) {
+        // 刻意让构建失败：静默跳过等于悄悄退回「4 小时滞后」的旧行为，
+        // 而这条滞后只在用户报「推送改了没生效」时才会被发现。
+        throw new Error(
+          '[boh-inline-push-sw] sw.js 里找不到 importScripts("push-sw.js") —— ' +
+            'workbox 的 importScripts 选项可能已变更，请核对 VitePWA 配置后再构建。',
+        );
+      }
+
+      const next = sw.replace(hit, inlined);
+      // 内联后必须语法合法：sw.js 一旦解析失败，整个 Service Worker 装不上
+      // （离线全白 + 推送失效），而这种故障在 CI 里只能靠构建期发现。
+      // new Function 只做语法解析、不执行，适合当这道自检。
+      try {
+        new Function(next);
+      } catch (err) {
+        throw new Error(`[boh-inline-push-sw] 内联后 sw.js 语法错误：${err.message}`);
+      }
+
+      writeFileSync(swPath, next, 'utf-8');
+      console.log(
+        `[boh-inline-push-sw] push-sw.js 已内联进 sw.js（${pushSw.length} 字节）` +
+          '⇒ 推送逻辑改版随版本即时生效，不再受 HTTP 缓存滞后',
       );
     },
   };
@@ -488,6 +578,8 @@ export default defineConfig({
         ],
       },
     }),
+    // 必须排在 VitePWA 之后：closeBundle 按插件顺序执行，此时 sw.js 已生成
+    bohInlinePushSwPlugin(),
   ],
 
   // CSS 后处理：压缩（Tailwind v4 已内置 autoprefixer）
