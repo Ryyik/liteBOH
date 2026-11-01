@@ -524,7 +524,7 @@
                   <span class="gs-text">
                     <span class="gs-label">关注的人邮件通知</span>
                     <span class="gs-desc"
-                      >关注的人发帖或回复你时，发邮件到你绑定的邮箱（同一人 30 分钟一封）</span
+                      >关注的人发新帖、或评论/回复你的帖子时，发到你绑定的邮箱</span
                     >
                   </span>
                   <span class="gs-side">
@@ -544,7 +544,7 @@
                   </span>
                   <span class="gs-text">
                     <span class="gs-label">提醒频率</span>
-                    <span class="gs-desc">同一个人的动作多久合并成一封</span>
+                    <span class="gs-desc">同一个人的连续动作多久归并一次</span>
                   </span>
                   <span class="gs-side">
                     <span class="gs-value">{{ mailWindowLabel }}</span>
@@ -1416,7 +1416,7 @@ const SETTINGS_ENTRIES = [
     id: 'follow-mail',
     group: '通知',
     label: '关注的人邮件通知',
-    desc: '关注的人发帖或回复你时，发邮件到你绑定的邮箱（同一人 30 分钟一封）',
+    desc: '关注的人发新帖、或评论/回复你的帖子时，发到你绑定的邮箱',
     keywords: '邮件 邮箱 通知 提醒 关注 特别关注 发帖 回复 mail email notify follow',
     icon: Mail,
     iconClass: 'is-green',

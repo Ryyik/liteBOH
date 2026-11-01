@@ -196,7 +196,7 @@ export async function toggleFollowMail(userId, enabled) {
 
     return {
       success: true,
-      message: next ? '已开启：关注的人发帖或回复你时会发邮件' : '已关闭关注邮件通知',
+      message: next ? '已开启：关注的人发帖、评论或回复你时会发邮件' : '已关闭关注邮件通知',
       error: null,
     };
   } catch (error) {
