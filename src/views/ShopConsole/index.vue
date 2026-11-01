@@ -1,266 +1,433 @@
 <template>
-  <div class="shop-console">
-    <header class="console-toolbar">
-      <div class="toolbar-heading">
-        <button type="button" class="icon-button" title="返回数据管理" @click="goBackToAdmin">
-          <ChevronLeft :size="20" aria-hidden="true" />
-        </button>
-        <div>
-          <h1>商城管理</h1>
-          <p>{{ products.length }} 件商品<span v-if="dirtyCount"> · {{ dirtyCount }} 项未保存</span></p>
-        </div>
-      </div>
-
-      <div class="toolbar-actions">
-        <button type="button" class="icon-button" title="刷新商品" :disabled="isLoading" @click="loadProducts()">
-          <RefreshCw :size="18" :class="{ spinning: isLoading }" aria-hidden="true" />
-        </button>
-        <button type="button" class="secondary-button" @click="startNewProduct">
-          <Plus :size="17" aria-hidden="true" /> 新建商品
-        </button>
-        <button type="button" class="primary-button" :disabled="isSaving || !dirtyCount" @click="saveAll">
-          <Save :size="17" aria-hidden="true" /> {{ isSaving ? '保存中' : '保存全部' }}
-        </button>
-      </div>
-    </header>
-
-    <main class="console-layout">
-      <aside class="product-sidebar glass-panel">
-        <div class="sidebar-filters">
-          <label class="search-field">
-            <Search :size="17" aria-hidden="true" />
-            <input v-model.trim="searchQuery" type="search" placeholder="搜索商品" aria-label="搜索商品" />
-          </label>
-          <div class="filter-row">
-            <select v-model="categoryFilter" aria-label="按分类筛选">
-              <option value="all">全部分类</option>
-              <option v-for="option in categoryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-            <select v-model="statusFilter" aria-label="按状态筛选">
-              <option value="all">全部状态</option>
-              <option value="active">商城展示</option>
-              <option value="hidden">已隐藏</option>
-              <option value="unavailable">不可购买</option>
-            </select>
+  <AdminConsoleShell active-module="shop-console">
+    <div class="shop-console">
+      <header class="console-toolbar">
+        <div class="toolbar-heading">
+          <div>
+            <h1>商城管理</h1>
+            <p>
+              {{ products.length }} 件商品<span v-if="dirtyCount">
+                · {{ dirtyCount }} 项未保存</span
+              >
+            </p>
           </div>
         </div>
 
-        <div class="product-list">
+        <div class="toolbar-actions">
           <button
-            v-for="product in filteredProducts"
-            :key="product.id"
             type="button"
-            class="product-row"
-            :class="{ selected: selectedId === product.id }"
-            @click="selectProduct(product)"
+            class="icon-button"
+            title="刷新商品"
+            :disabled="isLoading"
+            @click="loadProducts()"
           >
-            <span class="row-image">
-              <img v-if="product.image" :src="resolveImage(product.image)" :alt="product.title" />
-              <ImageIcon v-else :size="20" aria-hidden="true" />
-            </span>
-            <span class="row-copy">
-              <strong>{{ product.title || '未命名商品' }}</strong>
-              <small>{{ product.category || '未分类' }} · {{ displayPoints(product) }}</small>
-            </span>
-            <span class="row-status" :class="productStatus(product).tone">{{ productStatus(product).label }}</span>
-            <span v-if="isDirty(product.id)" class="dirty-dot" title="未保存"></span>
+            <RefreshCw :size="18" :class="{ spinning: isLoading }" aria-hidden="true" />
           </button>
-
-          <div v-if="!filteredProducts.length" class="empty-list">
-            <PackageSearch :size="26" aria-hidden="true" />
-            <span>没有匹配的商品</span>
-          </div>
+          <button type="button" class="secondary-button" @click="startNewProduct">
+            <Plus :size="17" aria-hidden="true" /> 新建商品
+          </button>
+          <button
+            type="button"
+            class="primary-button"
+            :disabled="isSaving || !dirtyCount"
+            @click="saveAll"
+          >
+            <Save :size="17" aria-hidden="true" /> {{ isSaving ? '保存中' : '保存全部' }}
+          </button>
         </div>
-      </aside>
+      </header>
 
-      <template v-if="selectedProduct">
-        <section class="image-workspace glass-panel">
-          <div class="section-heading">
-            <div>
-              <span class="eyebrow">主图</span>
-              <h2>裁切与预览</h2>
+      <main class="console-layout">
+        <aside class="product-sidebar glass-panel">
+          <div class="sidebar-filters">
+            <label class="search-field">
+              <Search :size="17" aria-hidden="true" />
+              <input
+                v-model.trim="searchQuery"
+                type="search"
+                placeholder="搜索商品"
+                aria-label="搜索商品"
+              />
+            </label>
+            <div class="filter-row">
+              <select v-model="categoryFilter" aria-label="按分类筛选">
+                <option value="all">全部分类</option>
+                <option v-for="option in categoryOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <select v-model="statusFilter" aria-label="按状态筛选">
+                <option value="all">全部状态</option>
+                <option value="active">商城展示</option>
+                <option value="hidden">已隐藏</option>
+                <option value="unavailable">不可购买</option>
+              </select>
             </div>
-            <span class="ratio-badge">4:3</span>
           </div>
 
-          <div class="image-preview" :class="{ empty: !selectedProduct.image }">
-            <img v-if="selectedProduct.image" :src="resolveImage(selectedProduct.image)" :alt="selectedProduct.title || '商品图片预览'" />
-            <div v-else class="preview-placeholder">
-              <ImageIcon :size="34" aria-hidden="true" />
-              <span>上传图片后在这里预览</span>
+          <div class="product-list">
+            <button
+              v-for="product in filteredProducts"
+              :key="product.id"
+              type="button"
+              class="product-row"
+              :class="{ selected: selectedId === product.id }"
+              @click="selectProduct(product)"
+            >
+              <span class="row-image">
+                <img v-if="product.image" :src="resolveImage(product.image)" :alt="product.title" />
+                <ImageIcon v-else :size="20" aria-hidden="true" />
+              </span>
+              <span class="row-copy">
+                <strong>{{ product.title || '未命名商品' }}</strong>
+                <small>{{ product.category || '未分类' }} · {{ displayPoints(product) }}</small>
+              </span>
+              <span class="row-status" :class="productStatus(product).tone">{{
+                productStatus(product).label
+              }}</span>
+              <span v-if="isDirty(product.id)" class="dirty-dot" title="未保存"></span>
+            </button>
+
+            <div v-if="!filteredProducts.length" class="empty-list">
+              <PackageSearch :size="26" aria-hidden="true" />
+              <span>没有匹配的商品</span>
             </div>
-            <div v-if="isUploading" class="upload-overlay">
-              <LoaderCircle :size="24" class="spinning" aria-hidden="true" />
-              <span>正在上传图片</span>
-            </div>
           </div>
+        </aside>
 
-          <div class="image-actions">
-            <button type="button" class="primary-button upload-button" :disabled="isUploading" @click="openCropPicker">
-              <Crop :size="17" aria-hidden="true" /> 裁切上传
-            </button>
-            <button type="button" class="secondary-button" :disabled="isUploading" @click="openDirectUpload">
-              <Upload :size="16" aria-hidden="true" /> 直接上传
-            </button>
-            <input ref="cropInputRef" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" @change="handleCropFileSelect" />
-            <input ref="directInputRef" type="file" accept="image/png,image/jpeg,image/webp" style="display:none" @change="handleDirectFileSelect" />
-          </div>
-          <div v-if="selectedProduct.image" class="image-actions-secondary">
-            <button type="button" class="text-button" :disabled="isUploading" @click="recropImage">
-              <Crop :size="14" aria-hidden="true" /> 重新裁切
-            </button>
-            <button type="button" class="text-button is-danger" :disabled="isUploading" @click="clearImage">
-              <Trash2 :size="14" aria-hidden="true" /> 移除图片
-            </button>
-          </div>
-
-          <label class="url-field">
-            <span>图片链接</span>
-            <input v-model.trim="selectedProduct.image" type="url" placeholder="https://" @input="markDirty(selectedProduct.id)" />
-          </label>
-
-          <div class="store-card-preview">
-            <span class="eyebrow">商城卡片预览</span>
-            <div class="preview-card">
-              <div class="preview-card-media">
-                <img v-if="selectedProduct.image" :src="resolveImage(selectedProduct.image)" :alt="selectedProduct.title" />
-                <ImageIcon v-else :size="24" aria-hidden="true" />
+        <template v-if="selectedProduct">
+          <section class="image-workspace glass-panel">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">主图</span>
+                <h2>裁切与预览</h2>
               </div>
-              <strong>{{ selectedProduct.title || '商品名称' }}</strong>
-              <span>{{ displayPoints(selectedProduct) }}</span>
+              <span class="ratio-badge">4:3</span>
             </div>
-          </div>
-        </section>
 
-        <section class="editor-panel glass-panel">
-          <div class="section-heading">
-            <div>
-              <span class="eyebrow">商品信息</span>
-              <h2>{{ selectedProduct.title || '新商品' }}</h2>
-            </div>
-            <button type="button" class="danger-icon-button" title="删除商品" :disabled="isSaving" @click="deleteProduct(selectedProduct.id)">
-              <Trash2 :size="18" aria-hidden="true" />
-            </button>
-          </div>
-
-          <div class="status-settings">
-            <label class="toggle-row">
-              <span><strong>商城展示</strong><small>关闭后商品不会出现在商城</small></span>
-              <input v-model="selectedProduct.is_active" type="checkbox" @change="markDirty(selectedProduct.id)" />
-              <i aria-hidden="true"></i>
-            </label>
-            <label class="toggle-row">
-              <span><strong>允许购买</strong><small>关闭后保留价格，但用户无法加入购物袋</small></span>
-              <input v-model="selectedProduct.is_purchasable" type="checkbox" @change="markDirty(selectedProduct.id)" />
-              <i aria-hidden="true"></i>
-            </label>
-          </div>
-
-          <div class="form-grid">
-            <label class="field field-wide">
-              <span>商品名称</span>
-              <input v-model="selectedProduct.title" maxlength="60" placeholder="输入商品名称" @input="markDirty(selectedProduct.id)" />
-            </label>
-            <label class="field field-wide">
-              <span>分类</span>
-              <select v-model="selectedProduct.category" @change="markDirty(selectedProduct.id)">
-                <option v-for="option in categoryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>积分价格</span>
-              <input v-model.number="selectedProduct.points_cost" type="number" min="0" inputmode="numeric" @input="markDirty(selectedProduct.id)" />
-            </label>
-            <label class="field">
-              <span>支付方式</span>
-              <select v-model="selectedProduct.payment_mode" @change="markDirty(selectedProduct.id)">
-                <option value="points_only">纯积分</option>
-                <option value="rmb_only">纯现金</option>
-                <option value="combined">积分+现金</option>
-              </select>
-            </label>
-            <label class="field" v-if="selectedProduct.payment_mode !== 'points_only'">
-              <span>现金价格 (分)</span>
-              <input v-model.number="selectedProduct.rmb_price" type="number" min="0" inputmode="numeric" placeholder="单位：分" @input="markDirty(selectedProduct.id)" />
-            </label>
-            <label class="field">
-              <span>库存</span>
-              <input v-model.number="selectedProduct.stock" type="number" min="0" inputmode="numeric" @input="markDirty(selectedProduct.id)" />
-            </label>
-            <label class="field field-wide">
-              <span>商品描述</span>
-              <textarea v-model="selectedProduct.description" rows="4" placeholder="输入商品介绍" @input="markDirty(selectedProduct.id)"></textarea>
-            </label>
-          </div>
-
-          <div class="spec-section">
-            <div class="spec-heading">
-              <span>规格选项</span>
-              <button type="button" class="text-button" @click="addSpec"><Plus :size="15" aria-hidden="true" /> 添加规格</button>
-            </div>
-            <div v-if="selectedProduct.specifications.length" class="spec-list">
-              <div v-for="(spec, index) in selectedProduct.specifications" :key="index" class="spec-row">
-                <input v-model="spec.label" placeholder="显示名称" aria-label="规格显示名称" @input="markDirty(selectedProduct.id)" />
-                <input v-model="spec.value" placeholder="内部值" aria-label="规格内部值" @input="markDirty(selectedProduct.id)" />
-                <button type="button" class="spec-remove" title="移除规格" @click="removeSpec(index)"><X :size="16" aria-hidden="true" /></button>
+            <div class="image-preview" :class="{ empty: !selectedProduct.image }">
+              <img
+                v-if="selectedProduct.image"
+                :src="resolveImage(selectedProduct.image)"
+                :alt="selectedProduct.title || '商品图片预览'"
+              />
+              <div v-else class="preview-placeholder">
+                <ImageIcon :size="34" aria-hidden="true" />
+                <span>上传图片后在这里预览</span>
+              </div>
+              <div v-if="isUploading" class="upload-overlay">
+                <LoaderCircle :size="24" class="spinning" aria-hidden="true" />
+                <span>正在上传图片</span>
               </div>
             </div>
-            <p v-else class="spec-empty">没有规格时，购买会使用默认规格。</p>
-          </div>
 
-          <footer class="editor-footer">
-            <span>{{ isDirty(selectedProduct.id) ? '有未保存的修改' : '所有修改已保存' }}</span>
-            <button type="button" class="primary-button" :disabled="isSaving || !isDirty(selectedProduct.id)" @click="saveProduct(selectedProduct.id)">
-              <Save :size="17" aria-hidden="true" /> 保存商品
-            </button>
-          </footer>
+            <div class="image-actions">
+              <button
+                type="button"
+                class="primary-button upload-button"
+                :disabled="isUploading"
+                @click="openCropPicker"
+              >
+                <Crop :size="17" aria-hidden="true" /> 裁切上传
+              </button>
+              <button
+                type="button"
+                class="secondary-button"
+                :disabled="isUploading"
+                @click="openDirectUpload"
+              >
+                <Upload :size="16" aria-hidden="true" /> 直接上传
+              </button>
+              <input
+                ref="cropInputRef"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style="display: none"
+                @change="handleCropFileSelect"
+              />
+              <input
+                ref="directInputRef"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style="display: none"
+                @change="handleDirectFileSelect"
+              />
+            </div>
+            <div v-if="selectedProduct.image" class="image-actions-secondary">
+              <button
+                type="button"
+                class="text-button"
+                :disabled="isUploading"
+                @click="recropImage"
+              >
+                <Crop :size="14" aria-hidden="true" /> 重新裁切
+              </button>
+              <button
+                type="button"
+                class="text-button is-danger"
+                :disabled="isUploading"
+                @click="clearImage"
+              >
+                <Trash2 :size="14" aria-hidden="true" /> 移除图片
+              </button>
+            </div>
+
+            <label class="url-field">
+              <span>图片链接</span>
+              <input
+                v-model.trim="selectedProduct.image"
+                type="url"
+                placeholder="https://"
+                @input="markDirty(selectedProduct.id)"
+              />
+            </label>
+
+            <div class="store-card-preview">
+              <span class="eyebrow">商城卡片预览</span>
+              <div class="preview-card">
+                <div class="preview-card-media">
+                  <img
+                    v-if="selectedProduct.image"
+                    :src="resolveImage(selectedProduct.image)"
+                    :alt="selectedProduct.title"
+                  />
+                  <ImageIcon v-else :size="24" aria-hidden="true" />
+                </div>
+                <strong>{{ selectedProduct.title || '商品名称' }}</strong>
+                <span>{{ displayPoints(selectedProduct) }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="editor-panel glass-panel">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">商品信息</span>
+                <h2>{{ selectedProduct.title || '新商品' }}</h2>
+              </div>
+              <button
+                type="button"
+                class="danger-icon-button"
+                title="删除商品"
+                :disabled="isSaving"
+                @click="deleteProduct(selectedProduct.id)"
+              >
+                <Trash2 :size="18" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div class="status-settings">
+              <label class="toggle-row">
+                <span><strong>商城展示</strong><small>关闭后商品不会出现在商城</small></span>
+                <input
+                  v-model="selectedProduct.is_active"
+                  type="checkbox"
+                  @change="markDirty(selectedProduct.id)"
+                />
+                <i aria-hidden="true"></i>
+              </label>
+              <label class="toggle-row">
+                <span
+                  ><strong>允许购买</strong
+                  ><small>关闭后保留价格，但用户无法加入购物袋</small></span
+                >
+                <input
+                  v-model="selectedProduct.is_purchasable"
+                  type="checkbox"
+                  @change="markDirty(selectedProduct.id)"
+                />
+                <i aria-hidden="true"></i>
+              </label>
+            </div>
+
+            <div class="form-grid">
+              <label class="field field-wide">
+                <span>商品名称</span>
+                <input
+                  v-model="selectedProduct.title"
+                  maxlength="60"
+                  placeholder="输入商品名称"
+                  @input="markDirty(selectedProduct.id)"
+                />
+              </label>
+              <label class="field field-wide">
+                <span>分类</span>
+                <select v-model="selectedProduct.category" @change="markDirty(selectedProduct.id)">
+                  <option
+                    v-for="option in categoryOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+              <label class="field">
+                <span>积分价格</span>
+                <input
+                  v-model.number="selectedProduct.points_cost"
+                  type="number"
+                  min="0"
+                  inputmode="numeric"
+                  @input="markDirty(selectedProduct.id)"
+                />
+              </label>
+              <label class="field">
+                <span>支付方式</span>
+                <select
+                  v-model="selectedProduct.payment_mode"
+                  @change="markDirty(selectedProduct.id)"
+                >
+                  <option value="points_only">纯积分</option>
+                  <option value="rmb_only">纯现金</option>
+                  <option value="combined">积分+现金</option>
+                </select>
+              </label>
+              <label class="field" v-if="selectedProduct.payment_mode !== 'points_only'">
+                <span>现金价格 (分)</span>
+                <input
+                  v-model.number="selectedProduct.rmb_price"
+                  type="number"
+                  min="0"
+                  inputmode="numeric"
+                  placeholder="单位：分"
+                  @input="markDirty(selectedProduct.id)"
+                />
+              </label>
+              <label class="field">
+                <span>库存</span>
+                <input
+                  v-model.number="selectedProduct.stock"
+                  type="number"
+                  min="0"
+                  inputmode="numeric"
+                  @input="markDirty(selectedProduct.id)"
+                />
+              </label>
+              <label class="field field-wide">
+                <span>商品描述</span>
+                <textarea
+                  v-model="selectedProduct.description"
+                  rows="4"
+                  placeholder="输入商品介绍"
+                  @input="markDirty(selectedProduct.id)"
+                ></textarea>
+              </label>
+            </div>
+
+            <div class="spec-section">
+              <div class="spec-heading">
+                <span>规格选项</span>
+                <button type="button" class="text-button" @click="addSpec">
+                  <Plus :size="15" aria-hidden="true" /> 添加规格
+                </button>
+              </div>
+              <div v-if="selectedProduct.specifications.length" class="spec-list">
+                <div
+                  v-for="(spec, index) in selectedProduct.specifications"
+                  :key="index"
+                  class="spec-row"
+                >
+                  <input
+                    v-model="spec.label"
+                    placeholder="显示名称"
+                    aria-label="规格显示名称"
+                    @input="markDirty(selectedProduct.id)"
+                  />
+                  <input
+                    v-model="spec.value"
+                    placeholder="内部值"
+                    aria-label="规格内部值"
+                    @input="markDirty(selectedProduct.id)"
+                  />
+                  <button
+                    type="button"
+                    class="spec-remove"
+                    title="移除规格"
+                    @click="removeSpec(index)"
+                  >
+                    <X :size="16" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <p v-else class="spec-empty">没有规格时，购买会使用默认规格。</p>
+            </div>
+
+            <footer class="editor-footer">
+              <span>{{ isDirty(selectedProduct.id) ? '有未保存的修改' : '所有修改已保存' }}</span>
+              <button
+                type="button"
+                class="primary-button"
+                :disabled="isSaving || !isDirty(selectedProduct.id)"
+                @click="saveProduct(selectedProduct.id)"
+              >
+                <Save :size="17" aria-hidden="true" /> 保存商品
+              </button>
+            </footer>
+          </section>
+        </template>
+
+        <section v-else class="selection-empty glass-panel">
+          <PackageSearch :size="36" aria-hidden="true" />
+          <h2>选择一个商品开始编辑</h2>
+          <button type="button" class="primary-button" @click="startNewProduct">
+            <Plus :size="17" aria-hidden="true" /> 新建商品
+          </button>
         </section>
-      </template>
+      </main>
 
-      <section v-else class="selection-empty glass-panel">
-        <PackageSearch :size="36" aria-hidden="true" />
-        <h2>选择一个商品开始编辑</h2>
-        <button type="button" class="primary-button" @click="startNewProduct"><Plus :size="17" aria-hidden="true" /> 新建商品</button>
-      </section>
-    </main>
+      <AvatarCropModal
+        v-model:visible="cropVisible"
+        :image-src="cropSource"
+        :loading="isUploading"
+        title="裁切商品主图"
+        hint="拖动和缩放图片，保留商品主体"
+        sub-hint="裁切结果会按商城 4:3 比例显示"
+        :aspect-ratio="4 / 3"
+        shape="rectangle"
+        output-type="image/webp"
+        :output-quality="0.92"
+        @confirm="handleCropConfirm"
+        @cancel="releaseCropSource"
+      />
 
-    <AvatarCropModal
-      v-model:visible="cropVisible"
-      :image-src="cropSource"
-      :loading="isUploading"
-      title="裁切商品主图"
-      hint="拖动和缩放图片，保留商品主体"
-      sub-hint="裁切结果会按商城 4:3 比例显示"
-      :aspect-ratio="4 / 3"
-      shape="rectangle"
-      output-type="image/webp"
-      :output-quality="0.92"
-      @confirm="handleCropConfirm"
-      @cancel="releaseCropSource"
-    />
-
-    <div v-if="toast.show" class="console-toast" role="status">{{ toast.message }}</div>
-  </div>
+      <div v-if="toast.show" class="console-toast" role="status">{{ toast.message }}</div>
+    </div>
+  </AdminConsoleShell>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import {
-  ChevronLeft, Crop, Image as ImageIcon, LoaderCircle, PackageSearch, Plus,
-  RefreshCw, Save, Search, Trash2, Upload, X
+  Crop,
+  Image as ImageIcon,
+  LoaderCircle,
+  PackageSearch,
+  Plus,
+  RefreshCw,
+  Save,
+  Search,
+  Trash2,
+  Upload,
+  X,
 } from 'lucide-vue-next';
+import AdminConsoleShell from '@/views/DataManagement/components/AdminConsoleShell.vue';
 import AvatarCropModal from '@/components/AvatarCropModal.vue';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useAuthStore } from '@/stores/auth';
 import { getImageUrl } from '@/utils/asset-helper.js';
-import { uploadImageToCloudinary, isCloudinaryNoteUploadConfigured } from '@/utils/cloudinary-client.js';
+import {
+  uploadImageToCloudinary,
+  isCloudinaryNoteUploadConfigured,
+} from '@/utils/cloudinary-client.js';
 import { logger } from '@/utils/logger.js';
 import { supabase } from '@/utils/supabase-client';
-import { invalidateProductsCache, PRODUCT_CATEGORY_OPTIONS } from '@/views/DataManagement/config.js';
+import {
+  invalidateProductsCache,
+  PRODUCT_CATEGORY_OPTIONS,
+} from '@/views/DataManagement/config.js';
 import { useProductsStore } from '@/stores/products';
 
-const router = useRouter();
 const productsStore = useProductsStore();
 const authStore = useAuthStore();
 const dialog = useConfirmDialog();
@@ -288,9 +455,17 @@ const parseId = (value) => {
   return Number.isFinite(id) ? id : 0;
 };
 const normalizeSpecs = (value) => {
-  if (Array.isArray(value)) return value.map((item) => ({ label: String(item?.label || ''), value: String(item?.value || '') }));
+  if (Array.isArray(value))
+    return value.map((item) => ({
+      label: String(item?.label || ''),
+      value: String(item?.value || ''),
+    }));
   if (typeof value === 'string') {
-    try { return normalizeSpecs(JSON.parse(value)); } catch { return []; }
+    try {
+      return normalizeSpecs(JSON.parse(value));
+    } catch {
+      return [];
+    }
   }
   return [];
 };
@@ -302,16 +477,19 @@ const cloneProduct = (product) => ({
   description: String(product.description || ''),
   payment_mode: String(product.payment_mode || 'points_only'),
   points_cost: Math.max(0, Math.round(Number(product.points_cost) || 0)),
-  rmb_price: product.rmb_price != null ? Math.max(0, Math.round(Number(product.rmb_price) || 0)) : null,
+  rmb_price:
+    product.rmb_price != null ? Math.max(0, Math.round(Number(product.rmb_price) || 0)) : null,
   stock: Math.max(0, Math.round(Number(product.stock) || 0)),
   image: String(product.image || ''),
   specifications: normalizeSpecs(product.specifications),
   is_active: product.is_active !== false,
-  is_purchasable: product.is_purchasable !== false
+  is_purchasable: product.is_purchasable !== false,
 });
 
 const dirtyCount = computed(() => dirtyIds.size);
-const selectedProduct = computed(() => selectedId.value === null ? null : drafts[selectedId.value] || null);
+const selectedProduct = computed(() =>
+  selectedId.value === null ? null : drafts[selectedId.value] || null,
+);
 const visibleProducts = computed(() => {
   const saved = products.value.map((item) => drafts[item.id] || item);
   const unsaved = Object.values(drafts).filter((item) => item.id < 0);
@@ -320,26 +498,37 @@ const visibleProducts = computed(() => {
 const filteredProducts = computed(() => {
   const query = searchQuery.value.toLocaleLowerCase();
   return visibleProducts.value.filter((product) => {
-    const matchesQuery = !query || `${product.title} ${product.category} ${product.description}`.toLocaleLowerCase().includes(query);
-    const matchesCategory = categoryFilter.value === 'all' || product.category === categoryFilter.value;
-    const matchesStatus = statusFilter.value === 'all'
-      || (statusFilter.value === 'active' && product.is_active)
-      || (statusFilter.value === 'hidden' && !product.is_active)
-      || (statusFilter.value === 'unavailable' && !product.is_purchasable);
+    const matchesQuery =
+      !query ||
+      `${product.title} ${product.category} ${product.description}`
+        .toLocaleLowerCase()
+        .includes(query);
+    const matchesCategory =
+      categoryFilter.value === 'all' || product.category === categoryFilter.value;
+    const matchesStatus =
+      statusFilter.value === 'all' ||
+      (statusFilter.value === 'active' && product.is_active) ||
+      (statusFilter.value === 'hidden' && !product.is_active) ||
+      (statusFilter.value === 'unavailable' && !product.is_purchasable);
     return matchesQuery && matchesCategory && matchesStatus;
   });
 });
 
-const resolveImage = (path) => path?.startsWith('blob:') ? path : getImageUrl(path, { silent: true });
+const resolveImage = (path) =>
+  path?.startsWith('blob:') ? path : getImageUrl(path, { silent: true });
 const isDirty = (id) => dirtyIds.has(parseId(id));
 const markDirty = (id) => dirtyIds.add(parseId(id));
 const displayPoints = (product) => {
   if (product?.is_purchasable === false) return '不可购买';
   const mode = String(product?.payment_mode || 'points_only');
-  const pts = Number.isFinite(Number(product?.points_cost)) && Number(product?.points_cost) > 0
-    ? `${Math.round(Number(product.points_cost))} 积分` : '';
-  const rmb = Number.isFinite(Number(product?.rmb_price)) && Number(product?.rmb_price) > 0
-    ? `¥${(Number(product.rmb_price) / 100).toFixed(2)}` : '';
+  const pts =
+    Number.isFinite(Number(product?.points_cost)) && Number(product?.points_cost) > 0
+      ? `${Math.round(Number(product.points_cost))} 积分`
+      : '';
+  const rmb =
+    Number.isFinite(Number(product?.rmb_price)) && Number(product?.rmb_price) > 0
+      ? `¥${(Number(product.rmb_price) / 100).toFixed(2)}`
+      : '';
   if (mode === 'combined') return [pts, rmb].filter(Boolean).join(' + ') || '—';
   return pts || rmb || '—';
 };
@@ -353,7 +542,9 @@ const productStatus = (product) => {
 function showToast(message) {
   toast.value = { show: true, message };
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toast.value.show = false; }, 3000);
+  toastTimer = setTimeout(() => {
+    toast.value.show = false;
+  }, 3000);
 }
 function selectProduct(product) {
   const id = parseId(product);
@@ -365,8 +556,16 @@ function startNewProduct() {
   const product = cloneProduct({
     id: tempCounter,
     category: categoryOptions[0]?.value,
-    title: '', description: '', payment_mode: 'points_only', points_cost: 0, rmb_price: null, stock: 0, image: '', specifications: [],
-    is_active: true, is_purchasable: false
+    title: '',
+    description: '',
+    payment_mode: 'points_only',
+    points_cost: 0,
+    rmb_price: null,
+    stock: 0,
+    image: '',
+    specifications: [],
+    is_active: true,
+    is_purchasable: false,
   });
   drafts[tempCounter] = product;
   dirtyIds.add(tempCounter);
@@ -381,7 +580,8 @@ function removeSpec(index) {
   markDirty(selectedId.value);
 }
 function clearImage() {
-  if (selectedProduct.value.image.startsWith('blob:')) URL.revokeObjectURL(selectedProduct.value.image);
+  if (selectedProduct.value.image.startsWith('blob:'))
+    URL.revokeObjectURL(selectedProduct.value.image);
   selectedProduct.value.image = '';
   markDirty(selectedId.value);
 }
@@ -420,7 +620,7 @@ async function handleDirectFileSelect(event) {
       folder: 'boh-cloud-plus/admin-shop-console',
       pendingSource: 'shop-console',
       // 装修台素材上传即投产，直接认领，避免永久停留在未归属状态
-      claimPendingUpload: true
+      claimPendingUpload: true,
     });
     if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
     selectedProduct.value.image = uploaded.url;
@@ -470,7 +670,7 @@ async function handleCropConfirm(blob) {
       folder: 'boh-cloud-plus/admin-shop-console',
       pendingSource: 'shop-console',
       // 装修台素材上传即投产，直接认领，避免永久停留在未归属状态
-      claimPendingUpload: true
+      claimPendingUpload: true,
     });
     if (!uploaded.url) throw new Error('上传成功但未返回图片地址');
     selectedProduct.value.image = uploaded.url;
@@ -486,7 +686,8 @@ async function handleCropConfirm(blob) {
     logger.error('shop-console', '商品图片上传失败', error);
     showToast(`图片上传失败：${error?.message || '未知错误'}`);
   } finally {
-    if (localPreview && selectedProduct.value?.image !== localPreview) URL.revokeObjectURL(localPreview);
+    if (localPreview && selectedProduct.value?.image !== localPreview)
+      URL.revokeObjectURL(localPreview);
     isUploading.value = false;
   }
 }
@@ -496,10 +697,12 @@ function validateDraft(draft) {
   if (!String(draft.category || '').trim()) return '请选择商品分类';
   const mode = String(draft.payment_mode || 'points_only');
   if (mode === 'points_only' || mode === 'combined') {
-    if (!Number.isFinite(Number(draft.points_cost)) || Number(draft.points_cost) < 0) return '积分价格不能小于 0';
+    if (!Number.isFinite(Number(draft.points_cost)) || Number(draft.points_cost) < 0)
+      return '积分价格不能小于 0';
   }
   if (mode === 'rmb_only' || mode === 'combined') {
-    if (!Number.isFinite(Number(draft.rmb_price)) || Number(draft.rmb_price) <= 0) return '现金价格必须大于 0';
+    if (!Number.isFinite(Number(draft.rmb_price)) || Number(draft.rmb_price) <= 0)
+      return '现金价格必须大于 0';
   }
   if (!Number.isFinite(Number(draft.stock)) || Number(draft.stock) < 0) return '库存不能小于 0';
   return '';
@@ -512,12 +715,17 @@ const buildPayload = (draft) => {
     description: String(draft.description || '').trim(),
     payment_mode: mode,
     points_cost: Math.max(0, Math.round(Number(draft.points_cost) || 0)),
-    rmb_price: (mode === 'rmb_only' || mode === 'combined') ? Math.max(1, Math.round(Number(draft.rmb_price) || 0)) : null,
+    rmb_price:
+      mode === 'rmb_only' || mode === 'combined'
+        ? Math.max(1, Math.round(Number(draft.rmb_price) || 0))
+        : null,
     stock: Math.max(0, Math.round(Number(draft.stock) || 0)),
     image: String(draft.image || '').trim(),
-    specifications: normalizeSpecs(draft.specifications).filter((item) => item.label.trim() && item.value.trim()),
+    specifications: normalizeSpecs(draft.specifications).filter(
+      (item) => item.label.trim() && item.value.trim(),
+    ),
     is_active: draft.is_active !== false,
-    is_purchasable: draft.is_purchasable !== false
+    is_purchasable: draft.is_purchasable !== false,
   };
   return base;
 };
@@ -555,7 +763,9 @@ async function saveProduct(id) {
   } catch (error) {
     logger.error('shop-console', '保存商品失败', error);
     showToast(`保存失败：${error?.message || '未知错误'}`);
-  } finally { isSaving.value = false; }
+  } finally {
+    isSaving.value = false;
+  }
 }
 async function saveAll() {
   if (isSaving.value || !dirtyIds.size) return;
@@ -574,16 +784,20 @@ async function saveAll() {
   } catch (error) {
     logger.error('shop-console', '批量保存商品失败', error);
     showToast(`保存失败：${error?.message || '未知错误'}`);
-  } finally { isSaving.value = false; }
+  } finally {
+    isSaving.value = false;
+  }
 }
 async function deleteProduct(id) {
   const product = drafts[parseId(id)];
   if (!product) return;
-  const confirmed = await dialog.confirm({
-    title: '删除商品',
-    message: `确定删除「${product.title || '未命名商品'}」吗？此操作会立即从商城移除。`,
-    tone: 'danger'
-  }).catch(() => false);
+  const confirmed = await dialog
+    .confirm({
+      title: '删除商品',
+      message: `确定删除「${product.title || '未命名商品'}」吗？此操作会立即从商城移除。`,
+      tone: 'danger',
+    })
+    .catch(() => false);
   if (!confirmed) return;
   if (!authStore.isAdmin) return showToast('仅管理员可删除商品');
   try {
@@ -602,30 +816,39 @@ async function deleteProduct(id) {
   } catch (error) {
     logger.error('shop-console', '删除商品失败', error);
     showToast(`删除失败：${error?.message || '未知错误'}`);
-  } finally { isSaving.value = false; }
+  } finally {
+    isSaving.value = false;
+  }
 }
 async function loadProducts(preferredId = selectedId.value) {
   isLoading.value = true;
   try {
-    const { data, error } = await supabase.from('products').select('*').order('id', { ascending: true });
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('id', { ascending: true });
     if (error) throw error;
     Object.keys(drafts).forEach((key) => delete drafts[key]);
     dirtyIds.clear();
     products.value = (data || []).map(cloneProduct);
-    products.value.forEach((product) => { drafts[product.id] = cloneProduct(product); });
+    products.value.forEach((product) => {
+      drafts[product.id] = cloneProduct(product);
+    });
     const preferred = products.value.find((product) => product.id === Number(preferredId));
     selectedId.value = (preferred || products.value[0])?.id ?? null;
   } catch (error) {
     logger.error('shop-console', '加载商品失败', error);
     showToast('加载商品失败，请检查数据库连接');
-  } finally { isLoading.value = false; }
+  } finally {
+    isLoading.value = false;
+  }
 }
-function goBackToAdmin() { router.push('/admin/data-management'); }
 
 onMounted(() => loadProducts());
 onBeforeUnmount(() => {
   releaseCropSource();
-  if (selectedProduct.value?.image?.startsWith('blob:')) URL.revokeObjectURL(selectedProduct.value.image);
+  if (selectedProduct.value?.image?.startsWith('blob:'))
+    URL.revokeObjectURL(selectedProduct.value.image);
   if (toastTimer) clearTimeout(toastTimer);
 });
 </script>

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { adminRoutes } from '../../src/router/routes/admin.js';
 import { ADMIN_PAGE_META, tabModules } from '../../src/views/DataManagement/config/tabs.js';
 import { ROUTE_MAP } from '../../src/views/DataManagement/composables/useDataAdminNavigation.js';
@@ -74,4 +76,41 @@ describe('独立控制台页的接线（路由 ↔ 侧栏 ↔ 落点 ↔ 权限�
       expect(route.meta?.hideNavbar, `${route.path} 应 hideNavbar`).toBe(true);
     }
   });
+
+  it('每个控制台页都套了 AdminConsoleShell（否则进页后侧栏消失，只能退回再进）', () => {
+    // 真事故（2026-11-01）：四个控制台都是独立路由页，进去后整个侧栏消失，
+    // 想切模块只能先退回数据管理。这类缺口不报错、不白屏，只是「不好用」，
+    // 肉眼要跑一遍才感觉得到 —— 所以在这里锁死：页面必须套统一外壳。
+    for (const route of consoleRoutes) {
+      const id = route.path.replace('/admin/', '');
+      const file = routeComponentFile(route);
+      expect(file, `${route.path} 解析不到组件路径`).toBeTruthy();
+      const code = readFileSync(file, 'utf8');
+      expect(code, `${id} 没有使用 AdminConsoleShell（进页会变成没有侧栏的孤岛）`).toContain(
+        'AdminConsoleShell',
+      );
+      // 允许属性被格式化换行：用正则而不是裸 toContain
+      expect(
+        new RegExp(`active-module\\s*=\\s*["']${id}["']`).test(code),
+        `${id} 的 active-module 应等于 ${id}（否则侧栏不会高亮当前页）`,
+      ).toBe(true);
+    }
+  });
 });
+
+/**
+ * 从懒加载路由里取出组件文件路径。
+ *
+ * ⚠️ 别按 `() => import('../../views/Xxx/index.vue')` 的**源码形态**去匹配：
+ * vitest 会把动态 import 改写成 `__vite_ssr_dynamic_import__("/src/views/...")`，
+ * 源码里的相对路径到不了运行时（2026-11-01 实测踩到，报「解析不到组件路径」）。
+ * 所以只抓「任意引号包起来的 .vue 路径」，再按是否以 / 开头分两种基准解析。
+ */
+function routeComponentFile(route) {
+  const match = String(route.component).match(/["']([^"']+\.vue)["']/);
+  if (!match) return null;
+  const spec = match[1];
+  // 运行时形态是项目根绝对路径 /src/views/...；源码形态是相对 src/router/routes 的 ../../views/...
+  if (spec.startsWith('/')) return resolve(import.meta.dirname, '../..', spec.slice(1));
+  return resolve(import.meta.dirname, '../../src/router/routes', spec);
+}

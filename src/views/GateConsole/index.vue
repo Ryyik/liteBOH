@@ -1,179 +1,177 @@
 <template>
-  <div class="gc">
-    <header class="gc-head">
-      <div class="gc-heading">
-        <button type="button" class="gc-back" title="返回数据管理" @click="goBackToAdmin">
-          <ChevronLeft :size="18" aria-hidden="true" />
-        </button>
-        <div>
-          <h1>开屏管理</h1>
-          <p>
-            活动期打开、结束关掉，都不用发版。保存后用户下次进站生效（已通过过的人 24h
-            内不会重播）。
-          </p>
-        </div>
-      </div>
-      <div class="gc-actions">
-        <button type="button" class="btn" :disabled="busy" @click="load">重新读取</button>
-        <button type="button" class="btn primary" :disabled="busy || !canSave" @click="save">
-          {{ saving ? '保存中…' : '保存' }}
-        </button>
-      </div>
-    </header>
-
-    <p v-if="notice" class="gc-notice" :class="notice.type">{{ notice.text }}</p>
-
-    <div class="gc-body">
-      <!-- ═════ 左：实时预览 ═════ -->
-      <section class="gc-preview">
-        <div class="gc-preview-head">
-          <span>实时预览</span>
-          <span class="muted">{{ statusText }}</span>
-        </div>
-
-        <div
-          ref="phoneRef"
-          class="gc-phone"
-          @pointerdown="onPointerDown"
-          @pointermove="onPointerMove"
-          @pointerup="endDrag"
-          @pointercancel="endDrag"
-          @wheel.prevent="onWheel"
-        >
-          <div class="gc-desk">
-            <i class="bar"></i>
-            <i class="bar short"></i>
-            <i class="card"></i>
-            <i class="card"></i>
+  <AdminConsoleShell active-module="gate-console">
+    <div class="gc">
+      <header class="gc-head">
+        <div class="gc-heading">
+          <div>
+            <h1>开屏管理</h1>
+            <p>
+              活动期打开、结束关掉，都不用发版。保存后用户下次进站生效（已通过过的人 24h
+              内不会重播）。
+            </p>
           </div>
-          <div class="gc-gate" :style="{ '--gate-p': progress }">
-            <GateSceneHero v-if="draft.theme !== 'default'" :config="draft" @cta="onPreviewCta" />
-            <div v-else class="gc-fallback">
-              <img src="/icons/icon-512.png" alt="" />
-              <p>晚上好，欢迎回到方块街</p>
+        </div>
+        <div class="gc-actions">
+          <button type="button" class="btn" :disabled="busy" @click="load">重新读取</button>
+          <button type="button" class="btn primary" :disabled="busy || !canSave" @click="save">
+            {{ saving ? '保存中…' : '保存' }}
+          </button>
+        </div>
+      </header>
+
+      <p v-if="notice" class="gc-notice" :class="notice.type">{{ notice.text }}</p>
+
+      <div class="gc-body">
+        <!-- ═════ 左：实时预览 ═════ -->
+        <section class="gc-preview">
+          <div class="gc-preview-head">
+            <span>实时预览</span>
+            <span class="muted">{{ statusText }}</span>
+          </div>
+
+          <div
+            ref="phoneRef"
+            class="gc-phone"
+            @pointerdown="onPointerDown"
+            @pointermove="onPointerMove"
+            @pointerup="endDrag"
+            @pointercancel="endDrag"
+            @wheel.prevent="onWheel"
+          >
+            <div class="gc-desk">
+              <i class="bar"></i>
+              <i class="bar short"></i>
+              <i class="card"></i>
+              <i class="card"></i>
+            </div>
+            <div class="gc-gate" :style="{ '--gate-p': progress }">
+              <GateSceneHero v-if="draft.theme !== 'default'" :config="draft" @cta="onPreviewCta" />
+              <div v-else class="gc-fallback">
+                <img src="/icons/icon-512.png" alt="" />
+                <p>晚上好，欢迎回到方块街</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div class="gc-preview-foot">
-          <span class="muted">拖动画面看「揭开」过程</span>
-          <button type="button" class="btn sm" @click="replay">重播</button>
-        </div>
-      </section>
+          <div class="gc-preview-foot">
+            <span class="muted">拖动画面看「揭开」过程</span>
+            <button type="button" class="btn sm" @click="replay">重播</button>
+          </div>
+        </section>
 
-      <!-- ═════ 右：表单 ═════ -->
-      <section class="gc-form">
-        <div class="gc-section">
-          <div class="gc-section-head">
-            <h2>状态</h2>
-            <label class="gc-switch">
-              <input v-model="draft.enabled" type="checkbox" />
-              <span>{{ draft.enabled ? '已启用' : '已停用' }}</span>
+        <!-- ═════ 右：表单 ═════ -->
+        <section class="gc-form">
+          <div class="gc-section">
+            <div class="gc-section-head">
+              <h2>状态</h2>
+              <label class="gc-switch">
+                <input v-model="draft.enabled" type="checkbox" />
+                <span>{{ draft.enabled ? '已启用' : '已停用' }}</span>
+              </label>
+            </div>
+            <p class="gc-hint">
+              关掉后线上立刻回到默认开屏（白底 + 红苹果 +
+              时段问候）。正在看的人不受影响，下次进站生效。
+            </p>
+          </div>
+
+          <div class="gc-section">
+            <h2>生效时间</h2>
+            <div class="gc-grid2">
+              <label class="gc-field">
+                <span>开始</span>
+                <input v-model="draft.starts_at_local" type="datetime-local" />
+              </label>
+              <label class="gc-field">
+                <span>结束</span>
+                <input v-model="draft.ends_at_local" type="datetime-local" />
+              </label>
+            </div>
+            <p class="gc-hint">留空 = 不限。两个都留空时，只由上面的开关控制。</p>
+          </div>
+
+          <div class="gc-section">
+            <h2>文案</h2>
+            <label class="gc-field">
+              <span>小标（英文/日期）</span>
+              <input v-model="draft.eyebrow" type="text" placeholder="HALLOWEEN · 10.31" />
+            </label>
+            <label class="gc-field">
+              <span>主标题</span>
+              <input v-model="draft.title" type="text" placeholder="万圣节，来方块街有惊喜" />
+            </label>
+            <p class="gc-hint">主标题有逗号时在逗号后断行，字数多会自动缩字号。</p>
+            <label class="gc-field">
+              <span>副标题</span>
+              <input v-model="draft.subtitle" type="text" placeholder="万圣夜限定 · 糖果盒已备好" />
+            </label>
+            <label class="gc-field">
+              <span>底部提示</span>
+              <input v-model="draft.hint_text" type="text" placeholder="或上滑进入方块街" />
             </label>
           </div>
-          <p class="gc-hint">
-            关掉后线上立刻回到默认开屏（白底 + 红苹果 +
-            时段问候）。正在看的人不受影响，下次进站生效。
-          </p>
-        </div>
 
-        <div class="gc-section">
-          <h2>生效时间</h2>
-          <div class="gc-grid2">
+          <div class="gc-section">
+            <h2>按钮</h2>
             <label class="gc-field">
-              <span>开始</span>
-              <input v-model="draft.starts_at_local" type="datetime-local" />
+              <span>按钮文字</span>
+              <input
+                v-model="draft.cta_text"
+                type="text"
+                placeholder="看看有什么惊喜（留空 = 不放按钮）"
+              />
             </label>
             <label class="gc-field">
-              <span>结束</span>
-              <input v-model="draft.ends_at_local" type="datetime-local" />
-            </label>
-          </div>
-          <p class="gc-hint">留空 = 不限。两个都留空时，只由上面的开关控制。</p>
-        </div>
-
-        <div class="gc-section">
-          <h2>文案</h2>
-          <label class="gc-field">
-            <span>小标（英文/日期）</span>
-            <input v-model="draft.eyebrow" type="text" placeholder="HALLOWEEN · 10.31" />
-          </label>
-          <label class="gc-field">
-            <span>主标题</span>
-            <input v-model="draft.title" type="text" placeholder="万圣节，来方块街有惊喜" />
-          </label>
-          <p class="gc-hint">主标题有逗号时在逗号后断行，字数多会自动缩字号。</p>
-          <label class="gc-field">
-            <span>副标题</span>
-            <input v-model="draft.subtitle" type="text" placeholder="万圣夜限定 · 糖果盒已备好" />
-          </label>
-          <label class="gc-field">
-            <span>底部提示</span>
-            <input v-model="draft.hint_text" type="text" placeholder="或上滑进入方块街" />
-          </label>
-        </div>
-
-        <div class="gc-section">
-          <h2>按钮</h2>
-          <label class="gc-field">
-            <span>按钮文字</span>
-            <input
-              v-model="draft.cta_text"
-              type="text"
-              placeholder="看看有什么惊喜（留空 = 不放按钮）"
-            />
-          </label>
-          <label class="gc-field">
-            <span>点击后</span>
-            <select v-model="draft.cta_target_type">
-              <option v-for="option in GATE_CTA_TYPES" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
-
-          <template v-if="draft.cta_target_type === 'lottery'">
-            <label class="gc-field">
-              <span>绑定抽奖</span>
-              <select v-model="draft.cta_lottery_id">
-                <option value="">（暂不指定 · 落到抽奖列表页）</option>
-                <option v-for="item in lotteries" :key="item.id" :value="item.id">
-                  {{ item.title }} · {{ lotteryStatusText(item) }}
+              <span>点击后</span>
+              <select v-model="draft.cta_target_type">
+                <option v-for="option in GATE_CTA_TYPES" :key="option.value" :value="option.value">
+                  {{ option.label }}
                 </option>
               </select>
             </label>
-            <p class="gc-hint">
-              抽奖还没建就先留空 —— 按钮会落到 <code>/lotteries</code>，等抽奖建好再回来选。
-            </p>
-          </template>
 
-          <label v-if="draft.cta_target_type === 'route'" class="gc-field">
-            <span>站内路径</span>
-            <input v-model="draft.cta_route" type="text" placeholder="/newsroom?tab=activities" />
-          </label>
-        </div>
+            <template v-if="draft.cta_target_type === 'lottery'">
+              <label class="gc-field">
+                <span>绑定抽奖</span>
+                <select v-model="draft.cta_lottery_id">
+                  <option value="">（暂不指定 · 落到抽奖列表页）</option>
+                  <option v-for="item in lotteries" :key="item.id" :value="item.id">
+                    {{ item.title }} · {{ lotteryStatusText(item) }}
+                  </option>
+                </select>
+              </label>
+              <p class="gc-hint">
+                抽奖还没建就先留空 —— 按钮会落到 <code>/lotteries</code>，等抽奖建好再回来选。
+              </p>
+            </template>
 
-        <div class="gc-section">
-          <h2>主题</h2>
-          <label class="gc-field">
-            <span>外观</span>
-            <select v-model="draft.theme">
-              <option v-for="option in GATE_THEMES" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
-          <p class="gc-hint">选「默认开屏」等价于停用（用于确认换回来之后长什么样）。</p>
-        </div>
-      </section>
+            <label v-if="draft.cta_target_type === 'route'" class="gc-field">
+              <span>站内路径</span>
+              <input v-model="draft.cta_route" type="text" placeholder="/newsroom?tab=activities" />
+            </label>
+          </div>
+
+          <div class="gc-section">
+            <h2>主题</h2>
+            <label class="gc-field">
+              <span>外观</span>
+              <select v-model="draft.theme">
+                <option v-for="option in GATE_THEMES" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+            <p class="gc-hint">选「默认开屏」等价于停用（用于确认换回来之后长什么样）。</p>
+          </div>
+        </section>
+      </div>
     </div>
-  </div>
+  </AdminConsoleShell>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { ChevronLeft } from 'lucide-vue-next';
+import AdminConsoleShell from '@/views/DataManagement/components/AdminConsoleShell.vue';
 import GateSceneHero from '@/views/Home/components/GateSceneHero.vue';
 import {
   GATE_CTA_TYPES,
@@ -204,19 +202,12 @@ const DEFAULTS = {
   ends_at_local: '',
 };
 
-const router = useRouter();
 const draft = reactive({ ...DEFAULTS });
 const lotteries = ref([]);
 const loading = ref(false);
 const saving = ref(false);
 const busy = computed(() => loading.value || saving.value);
 const notice = ref(null);
-
-/* 独立控制台页面（路由 hideNavbar），没有管理台侧栏 ⇒ 必须自带返回入口，
-   否则进来只能靠浏览器后退。与 HeroConsole / ShopConsole 同一落点。 */
-const goBackToAdmin = () => {
-  router.push('/admin/data-management').catch(() => {});
-};
 
 /* datetime-local 与 ISO 互转：本地时区进、ISO 出（DB 是 timestamptz） */
 const pad = (value) => String(value).padStart(2, '0');
@@ -442,29 +433,6 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   gap: 12px;
   min-width: 0;
-}
-
-.gc-back {
-  flex: none;
-  width: 32px;
-  height: 32px;
-  margin-top: 2px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  border: 0.5px solid rgba(0, 0, 0, 0.16);
-  background: #fff;
-  color: #17130e;
-  cursor: pointer;
-}
-
-.gc-back:hover {
-  background: #f2efea;
-}
-
-.gc-back:focus-visible {
-  outline: 2px solid #1a0d22;
-  outline-offset: 2px;
 }
 
 .gc-head h1 {

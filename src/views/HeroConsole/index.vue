@@ -1,616 +1,772 @@
 <template>
-  <div class="hero-console">
-    <header class="console-toolbar">
-      <div class="toolbar-heading">
-        <button type="button" class="icon-button" title="返回数据管理" @click="goBackToAdmin">
-          <ChevronLeft :size="20" aria-hidden="true" />
-        </button>
-        <div>
-          <h1>首页英雄区装修</h1>
-          <p>
-            {{ heroes.length }} 个英雄区<span v-if="dirtyCount"> · {{ dirtyCount }} 项未保存</span>
-          </p>
-        </div>
-      </div>
-
-      <div class="toolbar-actions">
-        <button
-          type="button"
-          class="icon-button"
-          title="刷新"
-          :disabled="isLoading"
-          @click="loadHeroes()"
-        >
-          <RefreshCw :size="18" :class="{ spinning: isLoading }" aria-hidden="true" />
-        </button>
-        <button type="button" class="secondary-button" @click="startNewHero">
-          <Plus :size="17" aria-hidden="true" /> 新建英雄区
-        </button>
-        <button
-          type="button"
-          class="secondary-button"
-          :disabled="isSaving || !selectedHero"
-          @click="saveCurrent"
-        >
-          <Save :size="17" aria-hidden="true" /> 保存草稿
-        </button>
-        <button
-          type="button"
-          class="primary-button"
-          :disabled="isSaving || !selectedHero"
-          @click="publishCurrent"
-        >
-          <Upload :size="17" aria-hidden="true" /> {{ isSaving ? '处理中' : '发布' }}
-        </button>
-      </div>
-    </header>
-
-    <main class="console-layout">
-      <!-- 左侧：英雄区列表 -->
-      <aside class="hero-sidebar glass-panel">
-        <div class="sidebar-filters">
-          <div class="list-view-tabs" role="tablist" aria-label="列表视图">
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="listView === 'all'"
-              :class="{ active: listView === 'all' }"
-              @click="setListView('all')"
-            >
-              全部英雄区
-            </button>
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="listView === 'official'"
-              :class="{ active: listView === 'official' }"
-              @click="setListView('official')"
-            >
-              官方 tab
-            </button>
-          </div>
-          <template v-if="listView === 'all'">
-            <label class="search-field">
-              <Search :size="17" aria-hidden="true" />
-              <input
-                v-model.trim="searchQuery"
-                type="search"
-                placeholder="搜索英雄区"
-                aria-label="搜索英雄区"
-              />
-            </label>
-            <div class="filter-row">
-              <select v-model="statusFilter" aria-label="按状态筛选">
-                <option value="all">全部状态</option>
-                <option value="draft">草稿</option>
-                <option value="published">已发布</option>
-              </select>
-              <select v-model="archiveFilter" aria-label="按归档筛选">
-                <option value="all">全部</option>
-                <option value="active">首屏显示</option>
-                <option value="archived">已归档</option>
-              </select>
-            </div>
-          </template>
-        </div>
-
-        <div class="hero-list">
-          <p v-if="listView === 'official'" class="official-list-hint">
-            按 sort_order 展示官方 tab 实际排布，拖拽可调整位次
-          </p>
-
-          <!-- 官方 tab 视图用 div 承载行：button 在 Safari 上拖拽起点不稳定 -->
-          <div
-            v-for="(hero, index) in displayHeroes"
-            :key="hero.id"
-            class="hero-row"
-            :class="{
-              selected: selectedId === hero.id,
-              'is-drag-over': listView === 'official' && officialDragOverIndex === index,
-              'is-dragging': listView === 'official' && officialDragIndex === index,
-            }"
-            role="button"
-            tabindex="0"
-            :draggable="listView === 'official'"
-            @click="selectHero(hero)"
-            @keydown.enter.prevent="selectHero(hero)"
-            @keydown.space.prevent="selectHero(hero)"
-            @dragstart="onOfficialDragStart(index, $event)"
-            @dragover="onOfficialDragOver(index, $event)"
-            @dragleave="onOfficialDragLeave(index)"
-            @drop="onOfficialDrop(index, $event)"
-            @dragend="resetOfficialDrag"
-          >
-            <span class="row-thumb" :class="`thumb-${hero.template}`">
-              <img v-if="getThumbUrl(hero)" :src="getThumbUrl(hero)" :alt="hero.title" />
-              <LayoutIcon v-else :size="18" aria-hidden="true" />
-            </span>
-            <span class="row-copy">
-              <strong>{{ hero.label || hero.title || '未命名' }}</strong>
-              <small>{{ templateLabel(hero.template) }} · {{ hero.variant }}</small>
-            </span>
-            <span
-              v-if="officialRankMap.has(hero.id)"
-              class="row-rank"
-              :title="`官方 tab 位次 ${officialRankMap.get(hero.id)}`"
-            >
-              官方位次 {{ officialRankMap.get(hero.id) }}
-            </span>
-            <span class="row-status" :class="heroStatus(hero).tone">{{
-              heroStatus(hero).label
-            }}</span>
-            <span v-if="isDirty(hero.id)" class="dirty-dot" title="未保存"></span>
-          </div>
-
-          <div v-if="!displayHeroes.length" class="empty-list">
-            <LayoutIcon :size="26" aria-hidden="true" />
-            <span>{{
-              listView === 'official' ? '官方 tab 暂无已发布英雄区' : '没有匹配的英雄区'
-            }}</span>
-          </div>
-        </div>
-      </aside>
-
-      <!-- 中间：预览区 -->
-      <section v-if="selectedHero" class="preview-workspace glass-panel">
-        <div class="section-heading">
+  <AdminConsoleShell active-module="hero-console">
+    <div class="hero-console">
+      <header class="console-toolbar">
+        <div class="toolbar-heading">
           <div>
-            <span class="eyebrow">实时预览</span>
-            <h2>{{ selectedHero.label || selectedHero.title || '新英雄区' }}</h2>
-          </div>
-          <div class="preview-toolbar">
-            <div class="list-view-tabs compact" role="tablist" aria-label="预览模式">
-              <button
-                type="button"
-                role="tab"
-                :aria-selected="previewMode === 'single'"
-                :class="{ active: previewMode === 'single' }"
-                @click="previewMode = 'single'"
+            <h1>首页英雄区装修</h1>
+            <p>
+              {{ heroes.length }} 个英雄区<span v-if="dirtyCount">
+                · {{ dirtyCount }} 项未保存</span
               >
-                单条预览
-              </button>
-              <button
-                type="button"
-                role="tab"
-                :aria-selected="previewMode === 'stack'"
-                :class="{ active: previewMode === 'stack' }"
-                @click="previewMode = 'stack'"
-              >
-                官方 tab 堆叠
-              </button>
-            </div>
-            <button
-              type="button"
-              class="text-button"
-              @click="moveHero(-1)"
-              :disabled="!canMove(-1)"
-            >
-              <ArrowUp :size="14" /> 上移
-            </button>
-            <button type="button" class="text-button" @click="moveHero(1)" :disabled="!canMove(1)">
-              <ArrowDown :size="14" /> 下移
-            </button>
+            </p>
           </div>
         </div>
 
-        <!-- 官方 tab 堆叠预览：模拟首页官方分区的卡片堆叠顺序（按 sort_order） -->
-        <div v-if="previewMode === 'stack'" class="official-stack-preview">
-          <div class="official-stack-head">
-            <span class="eyebrow">官方 tab 堆叠预览</span>
-            <small>{{ officialOrder.length }} 张 · 自上而下 = 首页顺序</small>
-          </div>
-          <div class="official-stack-deck">
-            <button
-              v-for="(hero, index) in officialOrder"
-              :key="hero.id"
-              type="button"
-              class="official-stack-card"
-              :class="{ selected: selectedId === hero.id }"
-              @click="selectHero(hero)"
-            >
-              <span class="stack-thumb" :class="`thumb-${hero.template}`">
-                <img
-                  v-if="getThumbUrl(hero)"
-                  :src="getThumbUrl(hero)"
-                  :alt="hero.label || hero.title"
-                  loading="lazy"
+        <div class="toolbar-actions">
+          <button
+            type="button"
+            class="icon-button"
+            title="刷新"
+            :disabled="isLoading"
+            @click="loadHeroes()"
+          >
+            <RefreshCw :size="18" :class="{ spinning: isLoading }" aria-hidden="true" />
+          </button>
+          <button type="button" class="secondary-button" @click="startNewHero">
+            <Plus :size="17" aria-hidden="true" /> 新建英雄区
+          </button>
+          <button
+            type="button"
+            class="secondary-button"
+            :disabled="isSaving || !selectedHero"
+            @click="saveCurrent"
+          >
+            <Save :size="17" aria-hidden="true" /> 保存草稿
+          </button>
+          <button
+            type="button"
+            class="primary-button"
+            :disabled="isSaving || !selectedHero"
+            @click="publishCurrent"
+          >
+            <Upload :size="17" aria-hidden="true" /> {{ isSaving ? '处理中' : '发布' }}
+          </button>
+        </div>
+      </header>
+
+      <main class="console-layout">
+        <!-- 左侧：英雄区列表 -->
+        <aside class="hero-sidebar glass-panel">
+          <div class="sidebar-filters">
+            <div class="list-view-tabs" role="tablist" aria-label="列表视图">
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="listView === 'all'"
+                :class="{ active: listView === 'all' }"
+                @click="setListView('all')"
+              >
+                全部英雄区
+              </button>
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="listView === 'official'"
+                :class="{ active: listView === 'official' }"
+                @click="setListView('official')"
+              >
+                官方 tab
+              </button>
+            </div>
+            <template v-if="listView === 'all'">
+              <label class="search-field">
+                <Search :size="17" aria-hidden="true" />
+                <input
+                  v-model.trim="searchQuery"
+                  type="search"
+                  placeholder="搜索英雄区"
+                  aria-label="搜索英雄区"
                 />
-                <LayoutIcon v-else :size="16" aria-hidden="true" />
+              </label>
+              <div class="filter-row">
+                <select v-model="statusFilter" aria-label="按状态筛选">
+                  <option value="all">全部状态</option>
+                  <option value="draft">草稿</option>
+                  <option value="published">已发布</option>
+                </select>
+                <select v-model="archiveFilter" aria-label="按归档筛选">
+                  <option value="all">全部</option>
+                  <option value="active">首屏显示</option>
+                  <option value="archived">已归档</option>
+                </select>
+              </div>
+            </template>
+          </div>
+
+          <div class="hero-list">
+            <p v-if="listView === 'official'" class="official-list-hint">
+              按 sort_order 展示官方 tab 实际排布，拖拽可调整位次
+            </p>
+
+            <!-- 官方 tab 视图用 div 承载行：button 在 Safari 上拖拽起点不稳定 -->
+            <div
+              v-for="(hero, index) in displayHeroes"
+              :key="hero.id"
+              class="hero-row"
+              :class="{
+                selected: selectedId === hero.id,
+                'is-drag-over': listView === 'official' && officialDragOverIndex === index,
+                'is-dragging': listView === 'official' && officialDragIndex === index,
+              }"
+              role="button"
+              tabindex="0"
+              :draggable="listView === 'official'"
+              @click="selectHero(hero)"
+              @keydown.enter.prevent="selectHero(hero)"
+              @keydown.space.prevent="selectHero(hero)"
+              @dragstart="onOfficialDragStart(index, $event)"
+              @dragover="onOfficialDragOver(index, $event)"
+              @dragleave="onOfficialDragLeave(index)"
+              @drop="onOfficialDrop(index, $event)"
+              @dragend="resetOfficialDrag"
+            >
+              <span class="row-thumb" :class="`thumb-${hero.template}`">
+                <img v-if="getThumbUrl(hero)" :src="getThumbUrl(hero)" :alt="hero.title" />
+                <LayoutIcon v-else :size="18" aria-hidden="true" />
               </span>
-              <span class="stack-copy">
+              <span class="row-copy">
                 <strong>{{ hero.label || hero.title || '未命名' }}</strong>
                 <small>{{ templateLabel(hero.template) }} · {{ hero.variant }}</small>
               </span>
-              <span class="stack-rank">#{{ index + 1 }}</span>
-            </button>
-            <p v-if="!officialOrder.length" class="spec-empty">官方 tab 暂无已发布英雄区</p>
-          </div>
-        </div>
+              <span
+                v-if="officialRankMap.has(hero.id)"
+                class="row-rank"
+                :title="`官方 tab 位次 ${officialRankMap.get(hero.id)}`"
+              >
+                官方位次 {{ officialRankMap.get(hero.id) }}
+              </span>
+              <span class="row-status" :class="heroStatus(hero).tone">{{
+                heroStatus(hero).label
+              }}</span>
+              <span v-if="isDirty(hero.id)" class="dirty-dot" title="未保存"></span>
+            </div>
 
-        <template v-else>
-          <div ref="previewStage" class="preview-stage" :class="`device-${previewDevice}`">
-            <div
-              class="preview-canvas-shell"
-              :style="{
-                width: `${previewCanvas.width * previewScale}px`,
-                height: `${previewCanvas.height * previewScale}px`,
-              }"
-            >
+            <div v-if="!displayHeroes.length" class="empty-list">
+              <LayoutIcon :size="26" aria-hidden="true" />
+              <span>{{
+                listView === 'official' ? '官方 tab 暂无已发布英雄区' : '没有匹配的英雄区'
+              }}</span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- 中间：预览区 -->
+        <section v-if="selectedHero" class="preview-workspace glass-panel">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">实时预览</span>
+              <h2>{{ selectedHero.label || selectedHero.title || '新英雄区' }}</h2>
+            </div>
+            <div class="preview-toolbar">
+              <div class="list-view-tabs compact" role="tablist" aria-label="预览模式">
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="previewMode === 'single'"
+                  :class="{ active: previewMode === 'single' }"
+                  @click="previewMode = 'single'"
+                >
+                  单条预览
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="previewMode === 'stack'"
+                  :class="{ active: previewMode === 'stack' }"
+                  @click="previewMode = 'stack'"
+                >
+                  官方 tab 堆叠
+                </button>
+              </div>
+              <button
+                type="button"
+                class="text-button"
+                @click="moveHero(-1)"
+                :disabled="!canMove(-1)"
+              >
+                <ArrowUp :size="14" /> 上移
+              </button>
+              <button
+                type="button"
+                class="text-button"
+                @click="moveHero(1)"
+                :disabled="!canMove(1)"
+              >
+                <ArrowDown :size="14" /> 下移
+              </button>
+            </div>
+          </div>
+
+          <!-- 官方 tab 堆叠预览：模拟首页官方分区的卡片堆叠顺序（按 sort_order） -->
+          <div v-if="previewMode === 'stack'" class="official-stack-preview">
+            <div class="official-stack-head">
+              <span class="eyebrow">官方 tab 堆叠预览</span>
+              <small>{{ officialOrder.length }} 张 · 自上而下 = 首页顺序</small>
+            </div>
+            <div class="official-stack-deck">
+              <button
+                v-for="(hero, index) in officialOrder"
+                :key="hero.id"
+                type="button"
+                class="official-stack-card"
+                :class="{ selected: selectedId === hero.id }"
+                @click="selectHero(hero)"
+              >
+                <span class="stack-thumb" :class="`thumb-${hero.template}`">
+                  <img
+                    v-if="getThumbUrl(hero)"
+                    :src="getThumbUrl(hero)"
+                    :alt="hero.label || hero.title"
+                    loading="lazy"
+                  />
+                  <LayoutIcon v-else :size="16" aria-hidden="true" />
+                </span>
+                <span class="stack-copy">
+                  <strong>{{ hero.label || hero.title || '未命名' }}</strong>
+                  <small>{{ templateLabel(hero.template) }} · {{ hero.variant }}</small>
+                </span>
+                <span class="stack-rank">#{{ index + 1 }}</span>
+              </button>
+              <p v-if="!officialOrder.length" class="spec-empty">官方 tab 暂无已发布英雄区</p>
+            </div>
+          </div>
+
+          <template v-else>
+            <div ref="previewStage" class="preview-stage" :class="`device-${previewDevice}`">
               <div
-                class="preview-canvas"
+                class="preview-canvas-shell"
                 :style="{
-                  width: `${previewCanvas.width}px`,
-                  height: `${previewCanvas.height}px`,
-                  transform: `scale(${previewScale})`,
+                  width: `${previewCanvas.width * previewScale}px`,
+                  height: `${previewCanvas.height * previewScale}px`,
                 }"
               >
-                <!-- 首屏街景：构图与 StreetSceneHero 一致（上 22% 问候 / 下 18% 提示 / 浅 scrim） -->
                 <div
-                  v-if="isStreetScene"
-                  class="street-scene-preview"
-                  :class="{ 'is-landscape': streetSceneOrientation === 'landscape' }"
+                  class="preview-canvas"
+                  :style="{
+                    width: `${previewCanvas.width}px`,
+                    height: `${previewCanvas.height}px`,
+                    transform: `scale(${previewScale})`,
+                  }"
                 >
-                  <img
-                    class="street-scene-preview-img"
-                    :src="streetScenePreviewSrc"
-                    :alt="draftHero.aria_label || draftHero.title || '首屏街景预览'"
-                  />
-                  <div class="street-scene-preview-scrim" aria-hidden="true"></div>
-                  <div class="street-scene-preview-content">
-                    <p class="street-scene-preview-greeting">{{ previewGreeting }}</p>
-                    <p class="street-scene-preview-hint">
-                      <span>{{ previewHint }}</span
-                      ><span class="street-scene-preview-arrow">↓</span>
-                    </p>
-                  </div>
-                  <span v-if="!streetSceneHasImage" class="street-scene-preview-fallback"
-                    >未上传本方向构图，首页回落品牌图</span
+                  <!-- 首屏街景：构图与 StreetSceneHero 一致（上 22% 问候 / 下 18% 提示 / 浅 scrim） -->
+                  <div
+                    v-if="isStreetScene"
+                    class="street-scene-preview"
+                    :class="{ 'is-landscape': streetSceneOrientation === 'landscape' }"
                   >
-                </div>
-                <div v-else-if="!isBuiltin" class="preview-canvas-content">
-                  <DynamicHomeHero
-                    :hero="draftHero"
-                    :preview-device="previewDevice"
-                    @link-click="() => {}"
-                    @image-position="updatePreviewImagePosition"
-                    @content-offset="updatePreviewContentOffset"
-                  />
-                </div>
-                <div v-else class="builtin-preview-placeholder">
-                  <LayoutIcon :size="32" aria-hidden="true" />
-                  <p>内置英雄区暂不支持画布预览</p>
-                  <small>请访问首页查看实际渲染效果</small>
+                    <img
+                      class="street-scene-preview-img"
+                      :src="streetScenePreviewSrc"
+                      :alt="draftHero.aria_label || draftHero.title || '首屏街景预览'"
+                    />
+                    <div class="street-scene-preview-scrim" aria-hidden="true"></div>
+                    <div class="street-scene-preview-content">
+                      <p class="street-scene-preview-greeting">{{ previewGreeting }}</p>
+                      <p class="street-scene-preview-hint">
+                        <span>{{ previewHint }}</span
+                        ><span class="street-scene-preview-arrow">↓</span>
+                      </p>
+                    </div>
+                    <span v-if="!streetSceneHasImage" class="street-scene-preview-fallback"
+                      >未上传本方向构图，首页回落品牌图</span
+                    >
+                  </div>
+                  <div v-else-if="!isBuiltin" class="preview-canvas-content">
+                    <DynamicHomeHero
+                      :hero="draftHero"
+                      :preview-device="previewDevice"
+                      @link-click="() => {}"
+                      @image-position="updatePreviewImagePosition"
+                      @content-offset="updatePreviewContentOffset"
+                    />
+                  </div>
+                  <div v-else class="builtin-preview-placeholder">
+                    <LayoutIcon :size="32" aria-hidden="true" />
+                    <p>内置英雄区暂不支持画布预览</p>
+                    <small>请访问首页查看实际渲染效果</small>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div v-if="isStreetScene" class="preview-device-switch">
-            <button
-              type="button"
-              :class="['device-btn', { active: streetSceneOrientation === 'portrait' }]"
-              @click="setStreetSceneOrientation('portrait')"
-            >
-              竖屏 1170 × 2532
-            </button>
-            <button
-              type="button"
-              :class="['device-btn', { active: streetSceneOrientation === 'landscape' }]"
-              @click="setStreetSceneOrientation('landscape')"
-            >
-              横屏 2560 × 1440
-            </button>
-          </div>
-          <div v-else class="preview-device-switch">
-            <button
-              type="button"
-              :class="['device-btn', { active: previewDevice === 'desktop' }]"
-              @click="setPreviewDevice('desktop')"
-            >
-              桌面 1440 × 900
-            </button>
-            <button
-              type="button"
-              :class="['device-btn', { active: previewDevice === 'mobile' }]"
-              @click="setPreviewDevice('mobile')"
-            >
-              竖屏 390 × 844
-            </button>
-          </div>
-        </template>
-      </section>
-
-      <!-- 右侧：编辑面板 -->
-      <section v-if="selectedHero" class="editor-panel glass-panel">
-        <div class="section-heading">
-          <div>
-            <span class="eyebrow">英雄区配置</span>
-            <h2>{{ selectedHero.title || '新英雄区' }}</h2>
-          </div>
-          <button
-            type="button"
-            class="danger-icon-button"
-            title="删除英雄区"
-            :disabled="isSaving"
-            @click="deleteCurrent"
-          >
-            <Trash2 :size="18" aria-hidden="true" />
-          </button>
-        </div>
-
-        <div class="status-settings">
-          <label class="toggle-row">
-            <span
-              ><strong>归档到历史区</strong><small>归档后从首屏移入 Footer 历史回顾</small></span
-            >
-            <input
-              v-model="draftHero.is_archived"
-              type="checkbox"
-              @change="markDirty(selectedHero.id)"
-            />
-            <i aria-hidden="true"></i>
-          </label>
-        </div>
-
-        <!-- 内置组件只读提示 -->
-        <div v-if="isBuiltin" class="builtin-readonly-hint">
-          <Info :size="16" aria-hidden="true" />
-          <p>
-            这是内置英雄区，内容由代码组件自带，无法编辑文字/图片/按钮。你可以调整排序顺序或归档到历史区。
-          </p>
-        </div>
-
-        <div class="form-grid" v-if="!isBuiltin">
-          <label class="field">
-            <span>模板类型</span>
-            <select v-model="draftHero.template" @change="markDirty(selectedHero.id)">
-              <option value="standard">标准卡片型</option>
-              <option value="overlay">全幅图片叠加型</option>
-              <option value="split">分栏并排型</option>
-              <option value="responsive">横竖屏适配型</option>
-              <option value="showcase">设定集书页型</option>
-              <option value="street-scene">首屏街景</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>配色方案</span>
-            <select v-model="draftHero.variant" @change="markDirty(selectedHero.id)">
-              <option value="light">浅色（白底）</option>
-              <option value="dark">深色（黑底）</option>
-            </select>
-          </label>
-
-          <label class="field field-wide">
-            <span>内部标签（管理面板显示用）</span>
-            <input
-              v-model="draftHero.label"
-              type="text"
-              placeholder="如：2026秋款吉祥物"
-              @input="markDirty(selectedHero.id)"
-            />
-          </label>
-
-          <label class="field field-wide">
-            <span>无障碍标签（aria-label）</span>
-            <input
-              v-model="draftHero.aria_label"
-              type="text"
-              placeholder="如：全新吉祥物上线"
-              @input="markDirty(selectedHero.id)"
-            />
-          </label>
-
-          <label
-            class="field field-wide"
-            v-if="draftHero.template === 'overlay' || draftHero.template === 'showcase'"
-          >
-            <span>眉题（Eyebrow）</span>
-            <input
-              v-model="draftHero.eyebrow"
-              type="text"
-              placeholder="如：遇见系列"
-              @input="markDirty(selectedHero.id)"
-            />
-          </label>
-
-          <label class="field field-wide">
-            <span>主标题（支持 &lt;br&gt;）</span>
-            <textarea
-              v-model="draftHero.title"
-              rows="2"
-              placeholder="如：Halo,&lt;br&gt;新朋友来啦"
-              @input="markDirty(selectedHero.id)"
-            ></textarea>
-          </label>
-
-          <label class="field field-wide">
-            <span>副标题</span>
-            <textarea
-              v-model="draftHero.subtitle"
-              rows="2"
-              placeholder="如：2026秋款全新上线"
-              @input="markDirty(selectedHero.id)"
-            ></textarea>
-          </label>
-        </div>
-
-        <div
-          class="spec-section content-layout-section"
-          v-if="!isBuiltin && !isStreetScene && draftHero.template !== 'split'"
-        >
-          <div class="spec-heading"><span>标题文字位置</span></div>
-          <div class="layout-device-tabs" role="tablist" aria-label="标题文字位置设备设置">
-            <button
-              type="button"
-              :class="{ active: layoutDevice === 'desktop' }"
-              @click="setPreviewDevice('desktop')"
-            >
-              标题 · 桌面端
-            </button>
-            <button
-              type="button"
-              :class="{ active: layoutDevice === 'mobile' }"
-              @click="setPreviewDevice('mobile')"
-            >
-              标题 · 竖屏端
-            </button>
-          </div>
-          <label v-if="layoutDevice === 'mobile'" class="inherit-layout-row">
-            <input
-              :checked="isMobileLayoutInherited"
-              type="checkbox"
-              @change="toggleMobileLayoutInheritance($event.target.checked)"
-            />
-            <span>继承桌面端文字位置</span>
-          </label>
-          <div class="position-layout-grid" role="group" aria-label="标题文字位置">
-            <button
-              v-for="position in layoutPositions"
-              :key="`${position.align}-${position.valign}`"
-              type="button"
-              class="position-cell"
-              :class="{
-                active:
-                  contentLayout.align === position.align &&
-                  contentLayout.valign === position.valign,
-              }"
-              :title="position.label"
-              :aria-label="position.label"
-              @click="setContentPosition(position.align, position.valign)"
-            >
-              <span></span>
-            </button>
-          </div>
-          <div class="layout-control-row">
-            <label class="field">
-              <span>标题内部对齐</span>
-              <select
-                :value="contentLayout.text_align"
-                @change="setContentTextAlign($event.target.value)"
+            <div v-if="isStreetScene" class="preview-device-switch">
+              <button
+                type="button"
+                :class="['device-btn', { active: streetSceneOrientation === 'portrait' }]"
+                @click="setStreetSceneOrientation('portrait')"
               >
-                <option value="left">左对齐</option>
-                <option value="center">居中</option>
-                <option value="right">右对齐</option>
+                竖屏 1170 × 2532
+              </button>
+              <button
+                type="button"
+                :class="['device-btn', { active: streetSceneOrientation === 'landscape' }]"
+                @click="setStreetSceneOrientation('landscape')"
+              >
+                横屏 2560 × 1440
+              </button>
+            </div>
+            <div v-else class="preview-device-switch">
+              <button
+                type="button"
+                :class="['device-btn', { active: previewDevice === 'desktop' }]"
+                @click="setPreviewDevice('desktop')"
+              >
+                桌面 1440 × 900
+              </button>
+              <button
+                type="button"
+                :class="['device-btn', { active: previewDevice === 'mobile' }]"
+                @click="setPreviewDevice('mobile')"
+              >
+                竖屏 390 × 844
+              </button>
+            </div>
+          </template>
+        </section>
+
+        <!-- 右侧：编辑面板 -->
+        <section v-if="selectedHero" class="editor-panel glass-panel">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">英雄区配置</span>
+              <h2>{{ selectedHero.title || '新英雄区' }}</h2>
+            </div>
+            <button
+              type="button"
+              class="danger-icon-button"
+              title="删除英雄区"
+              :disabled="isSaving"
+              @click="deleteCurrent"
+            >
+              <Trash2 :size="18" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div class="status-settings">
+            <label class="toggle-row">
+              <span
+                ><strong>归档到历史区</strong><small>归档后从首屏移入 Footer 历史回顾</small></span
+              >
+              <input
+                v-model="draftHero.is_archived"
+                type="checkbox"
+                @change="markDirty(selectedHero.id)"
+              />
+              <i aria-hidden="true"></i>
+            </label>
+          </div>
+
+          <!-- 内置组件只读提示 -->
+          <div v-if="isBuiltin" class="builtin-readonly-hint">
+            <Info :size="16" aria-hidden="true" />
+            <p>
+              这是内置英雄区，内容由代码组件自带，无法编辑文字/图片/按钮。你可以调整排序顺序或归档到历史区。
+            </p>
+          </div>
+
+          <div class="form-grid" v-if="!isBuiltin">
+            <label class="field">
+              <span>模板类型</span>
+              <select v-model="draftHero.template" @change="markDirty(selectedHero.id)">
+                <option value="standard">标准卡片型</option>
+                <option value="overlay">全幅图片叠加型</option>
+                <option value="split">分栏并排型</option>
+                <option value="responsive">横竖屏适配型</option>
+                <option value="showcase">设定集书页型</option>
+                <option value="street-scene">首屏街景</option>
               </select>
             </label>
-            <label class="field width-control">
-              <span>最大宽度 {{ contentLayout.max_width }} px</span>
-              <input
-                type="range"
-                min="320"
-                max="1200"
-                step="20"
-                :value="contentLayout.max_width"
-                @input="setContentMaxWidth($event.target.value)"
-              />
-            </label>
-          </div>
-          <div class="layout-offset-row">
             <label class="field">
-              <span>水平偏移</span>
+              <span>配色方案</span>
+              <select v-model="draftHero.variant" @change="markDirty(selectedHero.id)">
+                <option value="light">浅色（白底）</option>
+                <option value="dark">深色（黑底）</option>
+              </select>
+            </label>
+
+            <label class="field field-wide">
+              <span>内部标签（管理面板显示用）</span>
               <input
-                type="number"
-                min="-720"
-                max="720"
-                step="1"
-                :value="contentLayout.offset_x"
-                @input="setContentOffset('x', $event.target.value)"
+                v-model="draftHero.label"
+                type="text"
+                placeholder="如：2026秋款吉祥物"
+                @input="markDirty(selectedHero.id)"
               />
             </label>
-            <label class="field">
-              <span>垂直偏移</span>
+
+            <label class="field field-wide">
+              <span>无障碍标签（aria-label）</span>
               <input
-                type="number"
-                min="-480"
-                max="480"
-                step="1"
-                :value="contentLayout.offset_y"
-                @input="setContentOffset('y', $event.target.value)"
+                v-model="draftHero.aria_label"
+                type="text"
+                placeholder="如：全新吉祥物上线"
+                @input="markDirty(selectedHero.id)"
               />
             </label>
-          </div>
-        </div>
 
-        <!-- 快捷填充：从抽奖活动选择 -->
-        <div class="spec-section quick-fill-section" v-if="!isBuiltin && !isStreetScene">
-          <div class="spec-heading">
-            <span>快捷填充</span>
-          </div>
-          <button type="button" class="text-button lottery-fill-btn" @click="openLotteryPicker">
-            <Plus :size="14" /> 从抽奖活动选择
-          </button>
-          <p class="quick-fill-hint">选择一个抽奖活动，自动填充标题、副标题、封面图和跳转按钮</p>
-        </div>
+            <label
+              class="field field-wide"
+              v-if="draftHero.template === 'overlay' || draftHero.template === 'showcase'"
+            >
+              <span>眉题（Eyebrow）</span>
+              <input
+                v-model="draftHero.eyebrow"
+                type="text"
+                placeholder="如：遇见系列"
+                @input="markDirty(selectedHero.id)"
+              />
+            </label>
 
-        <!-- 图片配置区：根据模板显示不同字段 -->
-        <div
-          class="image-section"
-          v-if="
-            !isBuiltin &&
-            !isStreetScene &&
-            draftHero.template !== 'split' &&
-            draftHero.template !== 'showcase'
-          "
-        >
-          <div class="spec-heading">
-            <span>图片配置</span>
-            <div class="spec-heading-actions">
+            <label class="field field-wide">
+              <span>主标题（支持 &lt;br&gt;）</span>
+              <textarea
+                v-model="draftHero.title"
+                rows="2"
+                placeholder="如：Halo,&lt;br&gt;新朋友来啦"
+                @input="markDirty(selectedHero.id)"
+              ></textarea>
+            </label>
+
+            <label class="field field-wide">
+              <span>副标题</span>
+              <textarea
+                v-model="draftHero.subtitle"
+                rows="2"
+                placeholder="如：2026秋款全新上线"
+                @input="markDirty(selectedHero.id)"
+              ></textarea>
+            </label>
+          </div>
+
+          <div
+            class="spec-section content-layout-section"
+            v-if="!isBuiltin && !isStreetScene && draftHero.template !== 'split'"
+          >
+            <div class="spec-heading"><span>标题文字位置</span></div>
+            <div class="layout-device-tabs" role="tablist" aria-label="标题文字位置设备设置">
               <button
                 type="button"
-                class="text-button"
-                @click="
-                  openDirectUpload(draftHero.template === 'responsive' ? 'landscape' : 'main')
-                "
-                :disabled="isUploading"
+                :class="{ active: layoutDevice === 'desktop' }"
+                @click="setPreviewDevice('desktop')"
               >
-                <Upload :size="14" /> {{ uploadButtonLabel('上传图片') }}
+                标题 · 桌面端
               </button>
               <button
                 type="button"
-                class="text-button"
-                @click="openCropper(draftHero.template === 'responsive' ? 'landscape' : 'main')"
+                :class="{ active: layoutDevice === 'mobile' }"
+                @click="setPreviewDevice('mobile')"
               >
-                <Crop :size="14" /> 裁切图片
+                标题 · 竖屏端
               </button>
+            </div>
+            <label v-if="layoutDevice === 'mobile'" class="inherit-layout-row">
+              <input
+                :checked="isMobileLayoutInherited"
+                type="checkbox"
+                @change="toggleMobileLayoutInheritance($event.target.checked)"
+              />
+              <span>继承桌面端文字位置</span>
+            </label>
+            <div class="position-layout-grid" role="group" aria-label="标题文字位置">
+              <button
+                v-for="position in layoutPositions"
+                :key="`${position.align}-${position.valign}`"
+                type="button"
+                class="position-cell"
+                :class="{
+                  active:
+                    contentLayout.align === position.align &&
+                    contentLayout.valign === position.valign,
+                }"
+                :title="position.label"
+                :aria-label="position.label"
+                @click="setContentPosition(position.align, position.valign)"
+              >
+                <span></span>
+              </button>
+            </div>
+            <div class="layout-control-row">
+              <label class="field">
+                <span>标题内部对齐</span>
+                <select
+                  :value="contentLayout.text_align"
+                  @change="setContentTextAlign($event.target.value)"
+                >
+                  <option value="left">左对齐</option>
+                  <option value="center">居中</option>
+                  <option value="right">右对齐</option>
+                </select>
+              </label>
+              <label class="field width-control">
+                <span>最大宽度 {{ contentLayout.max_width }} px</span>
+                <input
+                  type="range"
+                  min="320"
+                  max="1200"
+                  step="20"
+                  :value="contentLayout.max_width"
+                  @input="setContentMaxWidth($event.target.value)"
+                />
+              </label>
+            </div>
+            <div class="layout-offset-row">
+              <label class="field">
+                <span>水平偏移</span>
+                <input
+                  type="number"
+                  min="-720"
+                  max="720"
+                  step="1"
+                  :value="contentLayout.offset_x"
+                  @input="setContentOffset('x', $event.target.value)"
+                />
+              </label>
+              <label class="field">
+                <span>垂直偏移</span>
+                <input
+                  type="number"
+                  min="-480"
+                  max="480"
+                  step="1"
+                  :value="contentLayout.offset_y"
+                  @input="setContentOffset('y', $event.target.value)"
+                />
+              </label>
             </div>
           </div>
 
-          <!-- standard / overlay：单图 -->
-          <template v-if="draftHero.template === 'standard' || draftHero.template === 'overlay'">
-            <details open class="image-config-group">
-              <summary>桌面端</summary>
-              <label class="url-field">
-                <span>图片链接</span>
-                <input
-                  v-model="draftHero.image_config.src"
-                  type="url"
-                  placeholder="https://"
-                  @input="markDirty(selectedHero.id)"
-                />
-              </label>
-              <div class="image-position-editor">
-                <span>图片定位</span>
-                <div class="position-layout-grid compact" role="group" aria-label="桌面端图片定位">
-                  <button
-                    v-for="position in layoutPositions"
-                    :key="`desktop-${position.align}-${position.valign}`"
-                    type="button"
-                    class="position-cell"
-                    :class="{ active: imagePositionMatches('desktop', position) }"
-                    :title="position.label"
-                    :aria-label="position.label"
-                    @click="setImagePosition('desktop', position.align, position.valign)"
+          <!-- 快捷填充：从抽奖活动选择 -->
+          <div class="spec-section quick-fill-section" v-if="!isBuiltin && !isStreetScene">
+            <div class="spec-heading">
+              <span>快捷填充</span>
+            </div>
+            <button type="button" class="text-button lottery-fill-btn" @click="openLotteryPicker">
+              <Plus :size="14" /> 从抽奖活动选择
+            </button>
+            <p class="quick-fill-hint">选择一个抽奖活动，自动填充标题、副标题、封面图和跳转按钮</p>
+          </div>
+
+          <!-- 图片配置区：根据模板显示不同字段 -->
+          <div
+            class="image-section"
+            v-if="
+              !isBuiltin &&
+              !isStreetScene &&
+              draftHero.template !== 'split' &&
+              draftHero.template !== 'showcase'
+            "
+          >
+            <div class="spec-heading">
+              <span>图片配置</span>
+              <div class="spec-heading-actions">
+                <button
+                  type="button"
+                  class="text-button"
+                  @click="
+                    openDirectUpload(draftHero.template === 'responsive' ? 'landscape' : 'main')
+                  "
+                  :disabled="isUploading"
+                >
+                  <Upload :size="14" /> {{ uploadButtonLabel('上传图片') }}
+                </button>
+                <button
+                  type="button"
+                  class="text-button"
+                  @click="openCropper(draftHero.template === 'responsive' ? 'landscape' : 'main')"
+                >
+                  <Crop :size="14" /> 裁切图片
+                </button>
+              </div>
+            </div>
+
+            <!-- standard / overlay：单图 -->
+            <template v-if="draftHero.template === 'standard' || draftHero.template === 'overlay'">
+              <details open class="image-config-group">
+                <summary>桌面端</summary>
+                <label class="url-field">
+                  <span>图片链接</span>
+                  <input
+                    v-model="draftHero.image_config.src"
+                    type="url"
+                    placeholder="https://"
+                    @input="markDirty(selectedHero.id)"
+                  />
+                </label>
+                <div class="image-position-editor">
+                  <span>图片定位</span>
+                  <div
+                    class="position-layout-grid compact"
+                    role="group"
+                    aria-label="桌面端图片定位"
                   >
-                    <span></span>
+                    <button
+                      v-for="position in layoutPositions"
+                      :key="`desktop-${position.align}-${position.valign}`"
+                      type="button"
+                      class="position-cell"
+                      :class="{ active: imagePositionMatches('desktop', position) }"
+                      :title="position.label"
+                      :aria-label="position.label"
+                      @click="setImagePosition('desktop', position.align, position.valign)"
+                    >
+                      <span></span>
+                    </button>
+                  </div>
+                  <input
+                    :value="draftHero.image_config.position || ''"
+                    type="text"
+                    placeholder="高级：center 54%"
+                    @input="setImagePositionValue('desktop', $event.target.value)"
+                  />
+                </div>
+                <label class="field">
+                  <span>图片 Alt 文本</span>
+                  <input
+                    v-model="draftHero.image_config.alt"
+                    type="text"
+                    placeholder="如：吉祥物玩偶"
+                    @input="markDirty(selectedHero.id)"
+                  />
+                </label>
+              </details>
+              <details class="image-config-group">
+                <summary>竖屏端（留空继承桌面端）</summary>
+                <div class="spec-heading-actions image-group-actions">
+                  <button
+                    type="button"
+                    class="text-button"
+                    @click="openDirectUpload('mobile')"
+                    :disabled="isUploading"
+                  >
+                    <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
+                  </button>
+                  <button type="button" class="text-button" @click="openCropper('mobile')">
+                    <Crop :size="14" /> 裁切
                   </button>
                 </div>
-                <input
-                  :value="draftHero.image_config.position || ''"
-                  type="text"
-                  placeholder="高级：center 54%"
-                  @input="setImagePositionValue('desktop', $event.target.value)"
-                />
-              </div>
+                <label class="url-field"
+                  ><span>独立图片链接</span
+                  ><input
+                    v-model="draftHero.image_config.mobile_src"
+                    type="url"
+                    placeholder="留空继承桌面端"
+                    @input="markDirty(selectedHero.id)"
+                /></label>
+                <div class="image-position-editor">
+                  <span>图片定位</span>
+                  <div
+                    class="position-layout-grid compact"
+                    role="group"
+                    aria-label="竖屏端图片定位"
+                  >
+                    <button
+                      v-for="position in layoutPositions"
+                      :key="`mobile-${position.align}-${position.valign}`"
+                      type="button"
+                      class="position-cell"
+                      :class="{ active: imagePositionMatches('mobile', position) }"
+                      :title="position.label"
+                      :aria-label="position.label"
+                      @click="setImagePosition('mobile', position.align, position.valign)"
+                    >
+                      <span></span>
+                    </button>
+                  </div>
+                  <input
+                    :value="draftHero.image_config.mobile_position || ''"
+                    type="text"
+                    placeholder="高级：center 54%"
+                    @input="setImagePositionValue('mobile', $event.target.value)"
+                  />
+                </div>
+                <label class="field"
+                  ><span>填充模式</span
+                  ><select
+                    v-model="draftHero.image_config.mobile_object_fit"
+                    @change="markDirty(selectedHero.id)"
+                  >
+                    <option value="">继承默认</option>
+                    <option value="cover">cover（铺满）</option>
+                    <option value="contain">contain（完整显示）</option>
+                  </select></label
+                >
+                <label v-if="draftHero.template === 'overlay'" class="field">
+                  <span>取景缩放 {{ Math.round(mobileImageScale * 100) }}%</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="2.2"
+                    step="0.02"
+                    :value="mobileImageScale"
+                    @input="setMobileImageScale($event.target.value)"
+                  />
+                </label>
+              </details>
+            </template>
+
+            <!-- responsive：横竖屏双图 -->
+            <template v-if="draftHero.template === 'responsive'">
+              <details open class="image-config-group">
+                <summary>横屏端</summary>
+                <label class="url-field">
+                  <span>横屏图片链接（landscape）</span>
+                  <input
+                    v-model="draftHero.image_config.landscapeSrc"
+                    type="url"
+                    placeholder="https://"
+                    @input="markDirty(selectedHero.id)"
+                  />
+                </label>
+              </details>
+              <details class="image-config-group">
+                <summary>竖屏端</summary>
+                <div class="spec-heading-actions image-group-actions">
+                  <button
+                    type="button"
+                    class="text-button"
+                    @click="openDirectUpload('portrait')"
+                    :disabled="isUploading"
+                  >
+                    <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
+                  </button>
+                  <button type="button" class="text-button" @click="openCropper('portrait')">
+                    <Crop :size="14" /> 裁切
+                  </button>
+                </div>
+                <label class="url-field">
+                  <span>竖屏图片链接（portrait）</span>
+                  <input
+                    v-model="draftHero.image_config.portraitSrc"
+                    type="url"
+                    placeholder="https://"
+                    @input="markDirty(selectedHero.id)"
+                  />
+                </label>
+                <div class="image-position-editor">
+                  <span>竖屏图片定位</span>
+                  <div class="position-layout-grid compact" role="group" aria-label="竖屏图片定位">
+                    <button
+                      v-for="position in layoutPositions"
+                      :key="`portrait-${position.align}-${position.valign}`"
+                      type="button"
+                      class="position-cell"
+                      :class="{ active: imagePositionMatches('portrait', position) }"
+                      :title="position.label"
+                      :aria-label="position.label"
+                      @click="setImagePosition('portrait', position.align, position.valign)"
+                    >
+                      <span></span>
+                    </button>
+                  </div>
+                  <input
+                    :value="draftHero.image_config.portrait_position || ''"
+                    type="text"
+                    placeholder="高级：center 54%"
+                    @input="setImagePositionValue('portrait', $event.target.value)"
+                  />
+                </div>
+              </details>
               <label class="field">
                 <span>图片 Alt 文本</span>
                 <input
@@ -620,707 +776,572 @@
                   @input="markDirty(selectedHero.id)"
                 />
               </label>
-            </details>
-            <details class="image-config-group">
-              <summary>竖屏端（留空继承桌面端）</summary>
-              <div class="spec-heading-actions image-group-actions">
-                <button
-                  type="button"
-                  class="text-button"
-                  @click="openDirectUpload('mobile')"
-                  :disabled="isUploading"
-                >
-                  <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
-                </button>
-                <button type="button" class="text-button" @click="openCropper('mobile')">
-                  <Crop :size="14" /> 裁切
-                </button>
-              </div>
-              <label class="url-field"
-                ><span>独立图片链接</span
-                ><input
-                  v-model="draftHero.image_config.mobile_src"
-                  type="url"
-                  placeholder="留空继承桌面端"
-                  @input="markDirty(selectedHero.id)"
-              /></label>
-              <div class="image-position-editor">
-                <span>图片定位</span>
-                <div class="position-layout-grid compact" role="group" aria-label="竖屏端图片定位">
-                  <button
-                    v-for="position in layoutPositions"
-                    :key="`mobile-${position.align}-${position.valign}`"
-                    type="button"
-                    class="position-cell"
-                    :class="{ active: imagePositionMatches('mobile', position) }"
-                    :title="position.label"
-                    :aria-label="position.label"
-                    @click="setImagePosition('mobile', position.align, position.valign)"
-                  >
-                    <span></span>
-                  </button>
-                </div>
-                <input
-                  :value="draftHero.image_config.mobile_position || ''"
-                  type="text"
-                  placeholder="高级：center 54%"
-                  @input="setImagePositionValue('mobile', $event.target.value)"
-                />
-              </div>
-              <label class="field"
-                ><span>填充模式</span
-                ><select
-                  v-model="draftHero.image_config.mobile_object_fit"
-                  @change="markDirty(selectedHero.id)"
-                >
-                  <option value="">继承默认</option>
-                  <option value="cover">cover（铺满）</option>
-                  <option value="contain">contain（完整显示）</option>
-                </select></label
-              >
-              <label v-if="draftHero.template === 'overlay'" class="field">
-                <span>取景缩放 {{ Math.round(mobileImageScale * 100) }}%</span>
-                <input
-                  type="range"
-                  min="1"
-                  max="2.2"
-                  step="0.02"
-                  :value="mobileImageScale"
-                  @input="setMobileImageScale($event.target.value)"
-                />
-              </label>
-            </details>
-          </template>
+            </template>
+          </div>
 
-          <!-- responsive：横竖屏双图 -->
-          <template v-if="draftHero.template === 'responsive'">
+          <!-- street-scene 模板：首屏双构图（写 image_portrait / image_landscape） -->
+          <div class="image-section" v-if="!isBuiltin && isStreetScene">
+            <div class="spec-heading">
+              <span>首屏双构图</span>
+            </div>
             <details open class="image-config-group">
-              <summary>横屏端</summary>
+              <summary>竖屏构图（image_portrait）</summary>
+              <div class="spec-heading-actions image-group-actions">
+                <button
+                  type="button"
+                  class="text-button"
+                  @click="openDirectUpload('street-portrait')"
+                  :disabled="isUploading"
+                >
+                  <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
+                </button>
+              </div>
               <label class="url-field">
-                <span>横屏图片链接（landscape）</span>
+                <span>图片链接（1170 × 2532 · WebP ≤350KB）</span>
                 <input
-                  v-model="draftHero.image_config.landscapeSrc"
+                  v-model="draftHero.image_portrait"
                   type="url"
-                  placeholder="https://"
+                  placeholder="留空则回落品牌图"
                   @input="markDirty(selectedHero.id)"
                 />
               </label>
             </details>
             <details class="image-config-group">
-              <summary>竖屏端</summary>
+              <summary>横屏构图（image_landscape）</summary>
               <div class="spec-heading-actions image-group-actions">
                 <button
                   type="button"
                   class="text-button"
-                  @click="openDirectUpload('portrait')"
+                  @click="openDirectUpload('street-landscape')"
                   :disabled="isUploading"
                 >
-                  <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
-                </button>
-                <button type="button" class="text-button" @click="openCropper('portrait')">
-                  <Crop :size="14" /> 裁切
+                  <Upload :size="14" /> {{ uploadButtonLabel('上传横屏图') }}
                 </button>
               </div>
               <label class="url-field">
-                <span>竖屏图片链接（portrait）</span>
+                <span>图片链接（2560 × 1440 · WebP ≤350KB）</span>
                 <input
-                  v-model="draftHero.image_config.portraitSrc"
+                  v-model="draftHero.image_landscape"
+                  type="url"
+                  placeholder="留空则回落品牌图"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
+            </details>
+
+            <!-- 首屏文案（2026-09-24 起可配）：留空一律回落组件默认，见 StreetSceneHero.vue -->
+            <details open class="image-config-group">
+              <summary>首屏文案（问候语 / 底部提示）</summary>
+              <label class="url-field">
+                <span>问候语（{greeting} 会按访问时段替换 · 留空回落默认）</span>
+                <input
+                  v-model="draftHero.greeting_text"
+                  type="text"
+                  maxlength="60"
+                  placeholder="{greeting}，欢迎回到方块街"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
+              <label class="url-field">
+                <span>底部提示文案（留空回落「往下逛逛」，↓ 箭头固定）</span>
+                <input
+                  v-model="draftHero.hint_text"
+                  type="text"
+                  maxlength="20"
+                  placeholder="往下逛逛"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
+              <p class="quick-fill-hint">
+                填 <code>{'{greeting}'}</code> 会按访问时段变成「早上好 / 中午好 / 下午好 /
+                晚上好」； 不写占位符就是固定文案。两处都留空时与默认外观完全一致。
+              </p>
+            </details>
+
+            <p class="quick-fill-hint">
+              横竖同主题分别裁切，不要一张图硬拉两用；两个方向都留空时首页回落品牌图。
+              同一时刻只允许一条「已发布 + 未归档」的首屏街景。
+            </p>
+          </div>
+
+          <!-- split 模板：两张子卡片 -->
+          <div class="image-section" v-if="!isBuiltin && draftHero.template === 'split'">
+            <div class="spec-heading">
+              <span>分栏子卡片（左右两张）</span>
+            </div>
+            <div
+              class="split-card-editor"
+              v-for="(card, idx) in splitCardsDraft"
+              :key="`split-${idx}`"
+            >
+              <h4 class="split-card-title">卡片 {{ idx + 1 }}</h4>
+              <label class="field">
+                <span>标题</span>
+                <input
+                  v-model="card.title"
+                  type="text"
+                  placeholder="如：BOH X 小猫主题"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
+              <label class="field">
+                <span>副标题</span>
+                <input
+                  v-model="card.subtitle"
+                  type="text"
+                  placeholder="如：快来体验萌萌小猫"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
+              <label class="field">
+                <span>配色</span>
+                <select v-model="card.variant" @change="markDirty(selectedHero.id)">
+                  <option value="light">浅色</option>
+                  <option value="dark">深色</option>
+                </select>
+              </label>
+              <label class="url-field">
+                <span>图片链接</span>
+                <input
+                  v-model="card.image_config.src"
                   type="url"
                   placeholder="https://"
                   @input="markDirty(selectedHero.id)"
                 />
               </label>
               <div class="image-position-editor">
-                <span>竖屏图片定位</span>
-                <div class="position-layout-grid compact" role="group" aria-label="竖屏图片定位">
+                <span>文字位置</span>
+                <div
+                  class="position-layout-grid compact"
+                  role="group"
+                  :aria-label="`卡片 ${idx + 1} 文字位置`"
+                >
                   <button
                     v-for="position in layoutPositions"
-                    :key="`portrait-${position.align}-${position.valign}`"
+                    :key="`card-${idx}-${position.align}-${position.valign}`"
                     type="button"
                     class="position-cell"
-                    :class="{ active: imagePositionMatches('portrait', position) }"
+                    :class="{
+                      active:
+                        getCardContentLayout(card).align === position.align &&
+                        getCardContentLayout(card).valign === position.valign,
+                    }"
                     :title="position.label"
                     :aria-label="position.label"
-                    @click="setImagePosition('portrait', position.align, position.valign)"
+                    @click="setCardContentPosition(card, position.align, position.valign)"
                   >
                     <span></span>
                   </button>
                 </div>
-                <input
-                  :value="draftHero.image_config.portrait_position || ''"
-                  type="text"
-                  placeholder="高级：center 54%"
-                  @input="setImagePositionValue('portrait', $event.target.value)"
-                />
               </div>
-            </details>
-            <label class="field">
-              <span>图片 Alt 文本</span>
-              <input
-                v-model="draftHero.image_config.alt"
-                type="text"
-                placeholder="如：吉祥物玩偶"
-                @input="markDirty(selectedHero.id)"
-              />
-            </label>
-          </template>
-        </div>
-
-        <!-- street-scene 模板：首屏双构图（写 image_portrait / image_landscape） -->
-        <div class="image-section" v-if="!isBuiltin && isStreetScene">
-          <div class="spec-heading">
-            <span>首屏双构图</span>
-          </div>
-          <details open class="image-config-group">
-            <summary>竖屏构图（image_portrait）</summary>
-            <div class="spec-heading-actions image-group-actions">
-              <button
-                type="button"
-                class="text-button"
-                @click="openDirectUpload('street-portrait')"
-                :disabled="isUploading"
-              >
-                <Upload :size="14" /> {{ uploadButtonLabel('上传竖屏图') }}
-              </button>
-            </div>
-            <label class="url-field">
-              <span>图片链接（1170 × 2532 · WebP ≤350KB）</span>
-              <input
-                v-model="draftHero.image_portrait"
-                type="url"
-                placeholder="留空则回落品牌图"
-                @input="markDirty(selectedHero.id)"
-              />
-            </label>
-          </details>
-          <details class="image-config-group">
-            <summary>横屏构图（image_landscape）</summary>
-            <div class="spec-heading-actions image-group-actions">
-              <button
-                type="button"
-                class="text-button"
-                @click="openDirectUpload('street-landscape')"
-                :disabled="isUploading"
-              >
-                <Upload :size="14" /> {{ uploadButtonLabel('上传横屏图') }}
-              </button>
-            </div>
-            <label class="url-field">
-              <span>图片链接（2560 × 1440 · WebP ≤350KB）</span>
-              <input
-                v-model="draftHero.image_landscape"
-                type="url"
-                placeholder="留空则回落品牌图"
-                @input="markDirty(selectedHero.id)"
-              />
-            </label>
-          </details>
-
-          <!-- 首屏文案（2026-09-24 起可配）：留空一律回落组件默认，见 StreetSceneHero.vue -->
-          <details open class="image-config-group">
-            <summary>首屏文案（问候语 / 底部提示）</summary>
-            <label class="url-field">
-              <span>问候语（{greeting} 会按访问时段替换 · 留空回落默认）</span>
-              <input
-                v-model="draftHero.greeting_text"
-                type="text"
-                maxlength="60"
-                placeholder="{greeting}，欢迎回到方块街"
-                @input="markDirty(selectedHero.id)"
-              />
-            </label>
-            <label class="url-field">
-              <span>底部提示文案（留空回落「往下逛逛」，↓ 箭头固定）</span>
-              <input
-                v-model="draftHero.hint_text"
-                type="text"
-                maxlength="20"
-                placeholder="往下逛逛"
-                @input="markDirty(selectedHero.id)"
-              />
-            </label>
-            <p class="quick-fill-hint">
-              填 <code>{'{greeting}'}</code> 会按访问时段变成「早上好 / 中午好 / 下午好 / 晚上好」；
-              不写占位符就是固定文案。两处都留空时与默认外观完全一致。
-            </p>
-          </details>
-
-          <p class="quick-fill-hint">
-            横竖同主题分别裁切，不要一张图硬拉两用；两个方向都留空时首页回落品牌图。
-            同一时刻只允许一条「已发布 + 未归档」的首屏街景。
-          </p>
-        </div>
-
-        <!-- split 模板：两张子卡片 -->
-        <div class="image-section" v-if="!isBuiltin && draftHero.template === 'split'">
-          <div class="spec-heading">
-            <span>分栏子卡片（左右两张）</span>
-          </div>
-          <div
-            class="split-card-editor"
-            v-for="(card, idx) in splitCardsDraft"
-            :key="`split-${idx}`"
-          >
-            <h4 class="split-card-title">卡片 {{ idx + 1 }}</h4>
-            <label class="field">
-              <span>标题</span>
-              <input
-                v-model="card.title"
-                type="text"
-                placeholder="如：BOH X 小猫主题"
-                @input="markDirty(selectedHero.id)"
-              />
-            </label>
-            <label class="field">
-              <span>副标题</span>
-              <input
-                v-model="card.subtitle"
-                type="text"
-                placeholder="如：快来体验萌萌小猫"
-                @input="markDirty(selectedHero.id)"
-              />
-            </label>
-            <label class="field">
-              <span>配色</span>
-              <select v-model="card.variant" @change="markDirty(selectedHero.id)">
-                <option value="light">浅色</option>
-                <option value="dark">深色</option>
-              </select>
-            </label>
-            <label class="url-field">
-              <span>图片链接</span>
-              <input
-                v-model="card.image_config.src"
-                type="url"
-                placeholder="https://"
-                @input="markDirty(selectedHero.id)"
-              />
-            </label>
-            <div class="image-position-editor">
-              <span>文字位置</span>
-              <div
-                class="position-layout-grid compact"
-                role="group"
-                :aria-label="`卡片 ${idx + 1} 文字位置`"
-              >
-                <button
-                  v-for="position in layoutPositions"
-                  :key="`card-${idx}-${position.align}-${position.valign}`"
-                  type="button"
-                  class="position-cell"
-                  :class="{
-                    active:
-                      getCardContentLayout(card).align === position.align &&
-                      getCardContentLayout(card).valign === position.valign,
-                  }"
-                  :title="position.label"
-                  :aria-label="position.label"
-                  @click="setCardContentPosition(card, position.align, position.valign)"
+              <label class="field">
+                <span>文字对齐</span>
+                <select
+                  :value="getCardContentLayout(card).text_align"
+                  @change="setCardTextAlign(card, $event.target.value)"
                 >
-                  <span></span>
-                </button>
-              </div>
-            </div>
-            <label class="field">
-              <span>文字对齐</span>
-              <select
-                :value="getCardContentLayout(card).text_align"
-                @change="setCardTextAlign(card, $event.target.value)"
-              >
-                <option value="left">左对齐</option>
-                <option value="center">居中</option>
-                <option value="right">右对齐</option>
-              </select>
-            </label>
-            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px">
-              <button
-                type="button"
-                class="text-button"
-                @click="openDirectUpload('split', idx)"
-                :disabled="isUploading"
-              >
-                <Upload :size="14" /> {{ uploadButtonLabel(`上传卡片 ${idx + 1}`) }}
-              </button>
-              <button type="button" class="text-button" @click="openCropper('split', idx)">
-                <Crop :size="14" /> 裁切卡片 {{ idx + 1 }} 图片
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="compression-settings" role="group" aria-label="图片压缩设置">
-          <label class="compression-toggle">
-            <input v-model="autoCompressImages" type="checkbox" />
-            <span>上传时自动压缩</span>
-          </label>
-          <label v-if="autoCompressImages" class="compression-quality">
-            <span>压缩质量 {{ compressionQuality }}%</span>
-            <input v-model.number="compressionQuality" type="range" min="40" max="100" step="1" />
-          </label>
-          <small>仅当文件超过 10MB 时自动压缩；10MB 以内保持原图质量。</small>
-        </div>
-
-        <!-- showcase 模板：设定集书页配置 -->
-        <div
-          class="image-section"
-          v-if="!isBuiltin && draftHero.template === 'showcase' && draftHero.showcase_config"
-        >
-          <div class="spec-heading">
-            <span>设定集配置</span>
-          </div>
-
-          <label class="field">
-            <span>发布徽标文案</span>
-            <input
-              v-model="draftHero.showcase_config.badge_text"
-              type="text"
-              placeholder="如：晚秋发布（留空则不显示徽标）"
-              @input="markDirty(selectedHero.id)"
-            />
-          </label>
-
-          <label class="toggle-row showcase-toggle">
-            <span><strong>飘落像素落叶</strong><small>晚秋氛围粒子，关闭后为静态舞台</small></span>
-            <input
-              type="checkbox"
-              :checked="draftHero.showcase_config.particles !== false"
-              @change="setShowcaseParticles($event.target.checked)"
-            />
-            <i aria-hidden="true"></i>
-          </label>
-
-          <div class="spec-heading showcase-subheading">
-            <span>书封</span>
-            <div class="spec-heading-actions">
-              <button
-                type="button"
-                class="text-button"
-                @click="openDirectUpload('cover')"
-                :disabled="isUploading"
-              >
-                <Upload :size="14" /> {{ uploadButtonLabel('上传书封') }}
-              </button>
-              <button type="button" class="text-button" @click="openCropper('cover')">
-                <Crop :size="14" /> 裁切书封
-              </button>
-            </div>
-          </div>
-          <label class="url-field">
-            <span>书封图片链接</span>
-            <input
-              v-model="draftHero.showcase_config.cover_src"
-              type="url"
-              placeholder="留空使用默认渐变封面"
-              @input="markDirty(selectedHero.id)"
-            />
-          </label>
-          <label class="field">
-            <span>书封 Alt 文本</span>
-            <input
-              v-model="draftHero.showcase_config.cover_alt"
-              type="text"
-              placeholder="如：方块之家设定集封面"
-              @input="markDirty(selectedHero.id)"
-            />
-          </label>
-
-          <div class="spec-heading showcase-subheading">
-            <span>环绕人物（{{ draftHero.showcase_config.characters.length }}/8）</span>
-            <div class="spec-heading-actions">
-              <button
-                type="button"
-                class="text-button"
-                @click="showcasePickerOpen = !showcasePickerOpen"
-              >
-                <Plus :size="14" /> {{ showcasePickerOpen ? '收起皮肤库' : '从皮肤库选择' }}
-              </button>
-            </div>
-          </div>
-
-          <div v-if="showcasePickerOpen" class="skin-picker">
-            <div v-for="group in skinLibraryGroups" :key="group.key" class="skin-picker-group">
-              <small>{{ group.label }}</small>
-              <div class="skin-picker-grid">
-                <button
-                  v-for="item in group.items"
-                  :key="item.key"
-                  type="button"
-                  class="skin-picker-item"
-                  :title="item.name"
-                  :aria-label="`添加人物 ${item.name}`"
-                  @click="addShowcaseCharacter(item)"
-                >
-                  <img :src="item.src" :alt="item.name" loading="lazy" draggable="false" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div
-            class="showcase-character-editor"
-            v-for="(char, idx) in draftHero.showcase_config.characters"
-            :key="`showcase-char-${char.key || char.src || idx}`"
-          >
-            <div class="showcase-char-head">
-              <img
-                v-if="showcaseCharacterThumb(char)"
-                :src="showcaseCharacterThumb(char)"
-                :alt="char.name || '人物立绘'"
-                class="showcase-char-thumb"
-              />
-              <strong>{{ char.name || getSkinLibraryItem(char.key)?.name || '自定义人物' }}</strong>
-              <span class="showcase-char-meta"
-                >{{ char.key ? '皮肤库' : '自定义' }} · 景深 {{ char.depth }}</span
-              >
-              <span class="showcase-char-actions">
+                  <option value="left">左对齐</option>
+                  <option value="center">居中</option>
+                  <option value="right">右对齐</option>
+                </select>
+              </label>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px">
                 <button
                   type="button"
                   class="text-button"
-                  @click="openDirectUpload('character', idx)"
+                  @click="openDirectUpload('split', idx)"
                   :disabled="isUploading"
                 >
-                  <Upload :size="13" /> {{ uploadButtonLabel('替换立绘') }}
+                  <Upload :size="14" /> {{ uploadButtonLabel(`上传卡片 ${idx + 1}`) }}
                 </button>
+                <button type="button" class="text-button" @click="openCropper('split', idx)">
+                  <Crop :size="14" /> 裁切卡片 {{ idx + 1 }} 图片
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="compression-settings" role="group" aria-label="图片压缩设置">
+            <label class="compression-toggle">
+              <input v-model="autoCompressImages" type="checkbox" />
+              <span>上传时自动压缩</span>
+            </label>
+            <label v-if="autoCompressImages" class="compression-quality">
+              <span>压缩质量 {{ compressionQuality }}%</span>
+              <input v-model.number="compressionQuality" type="range" min="40" max="100" step="1" />
+            </label>
+            <small>仅当文件超过 10MB 时自动压缩；10MB 以内保持原图质量。</small>
+          </div>
+
+          <!-- showcase 模板：设定集书页配置 -->
+          <div
+            class="image-section"
+            v-if="!isBuiltin && draftHero.template === 'showcase' && draftHero.showcase_config"
+          >
+            <div class="spec-heading">
+              <span>设定集配置</span>
+            </div>
+
+            <label class="field">
+              <span>发布徽标文案</span>
+              <input
+                v-model="draftHero.showcase_config.badge_text"
+                type="text"
+                placeholder="如：晚秋发布（留空则不显示徽标）"
+                @input="markDirty(selectedHero.id)"
+              />
+            </label>
+
+            <label class="toggle-row showcase-toggle">
+              <span
+                ><strong>飘落像素落叶</strong><small>晚秋氛围粒子，关闭后为静态舞台</small></span
+              >
+              <input
+                type="checkbox"
+                :checked="draftHero.showcase_config.particles !== false"
+                @change="setShowcaseParticles($event.target.checked)"
+              />
+              <i aria-hidden="true"></i>
+            </label>
+
+            <div class="spec-heading showcase-subheading">
+              <span>书封</span>
+              <div class="spec-heading-actions">
                 <button
                   type="button"
-                  class="spec-remove"
-                  title="移除人物"
-                  @click="removeShowcaseCharacter(idx)"
+                  class="text-button"
+                  @click="openDirectUpload('cover')"
+                  :disabled="isUploading"
                 >
+                  <Upload :size="14" /> {{ uploadButtonLabel('上传书封') }}
+                </button>
+                <button type="button" class="text-button" @click="openCropper('cover')">
+                  <Crop :size="14" /> 裁切书封
+                </button>
+              </div>
+            </div>
+            <label class="url-field">
+              <span>书封图片链接</span>
+              <input
+                v-model="draftHero.showcase_config.cover_src"
+                type="url"
+                placeholder="留空使用默认渐变封面"
+                @input="markDirty(selectedHero.id)"
+              />
+            </label>
+            <label class="field">
+              <span>书封 Alt 文本</span>
+              <input
+                v-model="draftHero.showcase_config.cover_alt"
+                type="text"
+                placeholder="如：方块之家设定集封面"
+                @input="markDirty(selectedHero.id)"
+              />
+            </label>
+
+            <div class="spec-heading showcase-subheading">
+              <span>环绕人物（{{ draftHero.showcase_config.characters.length }}/8）</span>
+              <div class="spec-heading-actions">
+                <button
+                  type="button"
+                  class="text-button"
+                  @click="showcasePickerOpen = !showcasePickerOpen"
+                >
+                  <Plus :size="14" /> {{ showcasePickerOpen ? '收起皮肤库' : '从皮肤库选择' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="showcasePickerOpen" class="skin-picker">
+              <div v-for="group in skinLibraryGroups" :key="group.key" class="skin-picker-group">
+                <small>{{ group.label }}</small>
+                <div class="skin-picker-grid">
+                  <button
+                    v-for="item in group.items"
+                    :key="item.key"
+                    type="button"
+                    class="skin-picker-item"
+                    :title="item.name"
+                    :aria-label="`添加人物 ${item.name}`"
+                    @click="addShowcaseCharacter(item)"
+                  >
+                    <img :src="item.src" :alt="item.name" loading="lazy" draggable="false" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="showcase-character-editor"
+              v-for="(char, idx) in draftHero.showcase_config.characters"
+              :key="`showcase-char-${char.key || char.src || idx}`"
+            >
+              <div class="showcase-char-head">
+                <img
+                  v-if="showcaseCharacterThumb(char)"
+                  :src="showcaseCharacterThumb(char)"
+                  :alt="char.name || '人物立绘'"
+                  class="showcase-char-thumb"
+                />
+                <strong>{{
+                  char.name || getSkinLibraryItem(char.key)?.name || '自定义人物'
+                }}</strong>
+                <span class="showcase-char-meta"
+                  >{{ char.key ? '皮肤库' : '自定义' }} · 景深 {{ char.depth }}</span
+                >
+                <span class="showcase-char-actions">
+                  <button
+                    type="button"
+                    class="text-button"
+                    @click="openDirectUpload('character', idx)"
+                    :disabled="isUploading"
+                  >
+                    <Upload :size="13" /> {{ uploadButtonLabel('替换立绘') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="spec-remove"
+                    title="移除人物"
+                    @click="removeShowcaseCharacter(idx)"
+                  >
+                    <X :size="14" />
+                  </button>
+                </span>
+              </div>
+              <div class="showcase-char-grid">
+                <label class="field">
+                  <span>站位</span>
+                  <select v-model="char.side" @change="markDirty(selectedHero.id)">
+                    <option value="left">左侧</option>
+                    <option value="right">右侧</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>景深层次</span>
+                  <select v-model.number="char.depth" @change="markDirty(selectedHero.id)">
+                    <option :value="1">前景（贴近书）</option>
+                    <option :value="2">中景</option>
+                    <option :value="3">后景（远景）</option>
+                  </select>
+                </label>
+                <label class="field showcase-char-scale">
+                  <span>缩放 {{ Number(char.scale || 1).toFixed(2) }}x</span>
+                  <input
+                    type="range"
+                    min="0.6"
+                    max="1.4"
+                    step="0.05"
+                    v-model.number="char.scale"
+                    @input="markDirty(selectedHero.id)"
+                  />
+                </label>
+                <label class="toggle-row showcase-toggle compact">
+                  <span><strong>移动端隐藏</strong></span>
+                  <input
+                    type="checkbox"
+                    v-model="char.mobile_hidden"
+                    @change="markDirty(selectedHero.id)"
+                  />
+                  <i aria-hidden="true"></i>
+                </label>
+              </div>
+              <label class="url-field">
+                <span>自定义立绘 URL（优先于皮肤库）</span>
+                <input
+                  v-model="char.src"
+                  type="url"
+                  placeholder="留空使用皮肤库立绘"
+                  @input="markDirty(selectedHero.id)"
+                />
+              </label>
+            </div>
+            <p v-if="!draftHero.showcase_config.characters.length" class="spec-empty">
+              还没有环绕人物，点击「从皮肤库选择」添加
+            </p>
+          </div>
+
+          <!-- 按钮配置 -->
+          <div class="spec-section" v-if="!isBuiltin && !isStreetScene">
+            <div class="spec-heading">
+              <span>按钮配置</span>
+              <button type="button" class="text-button" @click="addLink">
+                <Plus :size="14" /> 添加按钮
+              </button>
+            </div>
+            <div class="link-list">
+              <div class="link-row" v-for="(link, idx) in draftLinks" :key="`link-${idx}`">
+                <input
+                  v-model="link.text"
+                  type="text"
+                  placeholder="按钮文字"
+                  @input="markDirty(selectedHero.id)"
+                />
+                <select v-model="link.type" @change="markDirty(selectedHero.id)">
+                  <option value="primary">主按钮</option>
+                  <option value="secondary">次按钮</option>
+                </select>
+                <input
+                  v-model="link.to"
+                  type="text"
+                  placeholder="内部路由 /shop"
+                  @input="markDirty(selectedHero.id)"
+                />
+                <input
+                  v-model="link.href"
+                  type="text"
+                  placeholder="外部链接 https://"
+                  @input="markDirty(selectedHero.id)"
+                />
+                <select v-model="link.onClick" @change="markDirty(selectedHero.id)">
+                  <option value="">无弹窗</option>
+                  <option value="modal:fuzhou">福州弹窗</option>
+                  <option value="modal:cloud-plus">Cloud+弹窗</option>
+                  <option value="modal:anniversary-letter">周年信件弹窗</option>
+                </select>
+                <button
+                  type="button"
+                  class="text-button link-lottery-btn"
+                  title="关联抽奖活动"
+                  @click="openLotteryPicker({ type: 'link', linkIndex: idx })"
+                >
+                  <Gift :size="14" /> 抽奖
+                </button>
+                <button type="button" class="spec-remove" @click="removeLink(idx)">
                   <X :size="14" />
                 </button>
-              </span>
-            </div>
-            <div class="showcase-char-grid">
-              <label class="field">
-                <span>站位</span>
-                <select v-model="char.side" @change="markDirty(selectedHero.id)">
-                  <option value="left">左侧</option>
-                  <option value="right">右侧</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>景深层次</span>
-                <select v-model.number="char.depth" @change="markDirty(selectedHero.id)">
-                  <option :value="1">前景（贴近书）</option>
-                  <option :value="2">中景</option>
-                  <option :value="3">后景（远景）</option>
-                </select>
-              </label>
-              <label class="field showcase-char-scale">
-                <span>缩放 {{ Number(char.scale || 1).toFixed(2) }}x</span>
-                <input
-                  type="range"
-                  min="0.6"
-                  max="1.4"
-                  step="0.05"
-                  v-model.number="char.scale"
-                  @input="markDirty(selectedHero.id)"
-                />
-              </label>
-              <label class="toggle-row showcase-toggle compact">
-                <span><strong>移动端隐藏</strong></span>
-                <input
-                  type="checkbox"
-                  v-model="char.mobile_hidden"
-                  @change="markDirty(selectedHero.id)"
-                />
-                <i aria-hidden="true"></i>
-              </label>
-            </div>
-            <label class="url-field">
-              <span>自定义立绘 URL（优先于皮肤库）</span>
-              <input
-                v-model="char.src"
-                type="url"
-                placeholder="留空使用皮肤库立绘"
-                @input="markDirty(selectedHero.id)"
-              />
-            </label>
-          </div>
-          <p v-if="!draftHero.showcase_config.characters.length" class="spec-empty">
-            还没有环绕人物，点击「从皮肤库选择」添加
-          </p>
-        </div>
-
-        <!-- 按钮配置 -->
-        <div class="spec-section" v-if="!isBuiltin && !isStreetScene">
-          <div class="spec-heading">
-            <span>按钮配置</span>
-            <button type="button" class="text-button" @click="addLink">
-              <Plus :size="14" /> 添加按钮
-            </button>
-          </div>
-          <div class="link-list">
-            <div class="link-row" v-for="(link, idx) in draftLinks" :key="`link-${idx}`">
-              <input
-                v-model="link.text"
-                type="text"
-                placeholder="按钮文字"
-                @input="markDirty(selectedHero.id)"
-              />
-              <select v-model="link.type" @change="markDirty(selectedHero.id)">
-                <option value="primary">主按钮</option>
-                <option value="secondary">次按钮</option>
-              </select>
-              <input
-                v-model="link.to"
-                type="text"
-                placeholder="内部路由 /shop"
-                @input="markDirty(selectedHero.id)"
-              />
-              <input
-                v-model="link.href"
-                type="text"
-                placeholder="外部链接 https://"
-                @input="markDirty(selectedHero.id)"
-              />
-              <select v-model="link.onClick" @change="markDirty(selectedHero.id)">
-                <option value="">无弹窗</option>
-                <option value="modal:fuzhou">福州弹窗</option>
-                <option value="modal:cloud-plus">Cloud+弹窗</option>
-                <option value="modal:anniversary-letter">周年信件弹窗</option>
-              </select>
-              <button
-                type="button"
-                class="text-button link-lottery-btn"
-                title="关联抽奖活动"
-                @click="openLotteryPicker({ type: 'link', linkIndex: idx })"
-              >
-                <Gift :size="14" /> 抽奖
-              </button>
-              <button type="button" class="spec-remove" @click="removeLink(idx)">
-                <X :size="14" />
-              </button>
-            </div>
-            <p v-if="!draftLinks.length" class="spec-empty">还没有按钮，点击「添加按钮」开始配置</p>
-          </div>
-        </div>
-
-        <div class="editor-footer">
-          <span v-if="selectedHero.status === 'published'"
-            >已于 {{ formatDate(selectedHero.published_at) }} 发布</span
-          >
-          <span v-else>当前为草稿状态，发布后在首页显示</span>
-          <div class="footer-actions">
-            <button type="button" class="text-button" @click="showRevisions = !showRevisions">
-              <History :size="14" /> 历史版本
-            </button>
-          </div>
-        </div>
-
-        <!-- 历史版本面板 -->
-        <div v-if="showRevisions" class="revisions-panel">
-          <h4>发布历史</h4>
-          <div v-if="revisionsLoading" class="revisions-loading">加载中...</div>
-          <div v-else-if="!revisions.length" class="revisions-empty">暂无发布历史</div>
-          <div v-else class="revisions-list">
-            <div v-for="rev in revisions" :key="rev.id" class="revision-item">
-              <span class="revision-time">{{ formatDate(rev.published_at) }}</span>
-              <button type="button" class="text-button" @click="rollbackTo(rev.id)">回滚</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 未选中时的空状态 -->
-      <section v-else class="editor-panel glass-panel selection-empty">
-        <LayoutIcon :size="36" aria-hidden="true" />
-        <h2>选择一个英雄区开始编辑</h2>
-        <button type="button" class="primary-button" @click="startNewHero">
-          <Plus :size="17" aria-hidden="true" /> 新建英雄区
-        </button>
-      </section>
-    </main>
-
-    <!-- 图片裁切弹窗 -->
-    <AvatarCropModal
-      v-model:visible="cropVisible"
-      :image-src="cropSource"
-      :loading="isUploading"
-      title="裁切英雄区图片"
-      hint="自由拖动裁切框，调整宽高比例"
-      sub-hint="可随意裁切图片任意区域，不受固定比例限制"
-      :aspect-ratio="cropAspectRatio"
-      shape="rectangle"
-      output-type="image/webp"
-      :output-quality="0.92"
-      @confirm="handleCropConfirm"
-      @cancel="releaseCropSource"
-    />
-
-    <!-- 抽奖活动选择弹窗 -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div
-          v-if="lotteryPickerVisible"
-          class="lottery-picker-overlay"
-          @click.self="lotteryPickerVisible = false"
-        >
-          <div class="lottery-picker-modal glass-container-heavy">
-            <header class="lottery-picker-header">
-              <h3>选择抽奖活动</h3>
-              <button class="close-btn" @click="lotteryPickerVisible = false">
-                <X :size="20" />
-              </button>
-            </header>
-            <div class="lottery-picker-search">
-              <Search :size="16" />
-              <input
-                v-model.trim="lotteryPickerKeyword"
-                type="search"
-                placeholder="搜索抽奖标题或奖品"
-              />
-            </div>
-            <div class="lottery-picker-list">
-              <div v-if="lotteryPickerLoading" class="lottery-picker-loading">加载中...</div>
-              <div v-else-if="!filteredLotteries.length" class="lottery-picker-empty">
-                没有匹配的抽奖活动
               </div>
-              <button
-                v-for="lottery in filteredLotteries"
-                :key="lottery.id"
-                type="button"
-                class="lottery-picker-item"
-                @click="selectLottery(lottery)"
-              >
-                <span class="lottery-picker-thumb">
-                  <img
-                    v-if="lottery.cover_image_url"
-                    :src="lottery.cover_image_url"
-                    :alt="lottery.title"
-                    loading="lazy"
-                  />
-                  <span v-else class="lottery-picker-thumb-placeholder">🎲</span>
-                </span>
-                <span class="lottery-picker-info">
-                  <strong>{{ lottery.title || '未命名抽奖' }}</strong>
-                  <small>奖品：{{ lottery.prize_title || '未设置' }}</small>
-                  <small v-if="lottery.status === 'open'" class="lottery-status open">报名中</small>
-                  <small v-else-if="lottery.status === 'drawn'" class="lottery-status drawn"
-                    >已开奖</small
-                  >
-                  <small v-else-if="lottery.status === 'closed'" class="lottery-status closed"
-                    >已关闭</small
-                  >
-                  <small v-else class="lottery-status draft">草稿</small>
-                </span>
+              <p v-if="!draftLinks.length" class="spec-empty">
+                还没有按钮，点击「添加按钮」开始配置
+              </p>
+            </div>
+          </div>
+
+          <div class="editor-footer">
+            <span v-if="selectedHero.status === 'published'"
+              >已于 {{ formatDate(selectedHero.published_at) }} 发布</span
+            >
+            <span v-else>当前为草稿状态，发布后在首页显示</span>
+            <div class="footer-actions">
+              <button type="button" class="text-button" @click="showRevisions = !showRevisions">
+                <History :size="14" /> 历史版本
               </button>
             </div>
           </div>
-        </div>
-      </Transition>
-    </Teleport>
 
-    <div v-if="toast.show" class="console-toast" role="status">{{ toast.message }}</div>
-  </div>
+          <!-- 历史版本面板 -->
+          <div v-if="showRevisions" class="revisions-panel">
+            <h4>发布历史</h4>
+            <div v-if="revisionsLoading" class="revisions-loading">加载中...</div>
+            <div v-else-if="!revisions.length" class="revisions-empty">暂无发布历史</div>
+            <div v-else class="revisions-list">
+              <div v-for="rev in revisions" :key="rev.id" class="revision-item">
+                <span class="revision-time">{{ formatDate(rev.published_at) }}</span>
+                <button type="button" class="text-button" @click="rollbackTo(rev.id)">回滚</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 未选中时的空状态 -->
+        <section v-else class="editor-panel glass-panel selection-empty">
+          <LayoutIcon :size="36" aria-hidden="true" />
+          <h2>选择一个英雄区开始编辑</h2>
+          <button type="button" class="primary-button" @click="startNewHero">
+            <Plus :size="17" aria-hidden="true" /> 新建英雄区
+          </button>
+        </section>
+      </main>
+
+      <!-- 图片裁切弹窗 -->
+      <AvatarCropModal
+        v-model:visible="cropVisible"
+        :image-src="cropSource"
+        :loading="isUploading"
+        title="裁切英雄区图片"
+        hint="自由拖动裁切框，调整宽高比例"
+        sub-hint="可随意裁切图片任意区域，不受固定比例限制"
+        :aspect-ratio="cropAspectRatio"
+        shape="rectangle"
+        output-type="image/webp"
+        :output-quality="0.92"
+        @confirm="handleCropConfirm"
+        @cancel="releaseCropSource"
+      />
+
+      <!-- 抽奖活动选择弹窗 -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div
+            v-if="lotteryPickerVisible"
+            class="lottery-picker-overlay"
+            @click.self="lotteryPickerVisible = false"
+          >
+            <div class="lottery-picker-modal glass-container-heavy">
+              <header class="lottery-picker-header">
+                <h3>选择抽奖活动</h3>
+                <button class="close-btn" @click="lotteryPickerVisible = false">
+                  <X :size="20" />
+                </button>
+              </header>
+              <div class="lottery-picker-search">
+                <Search :size="16" />
+                <input
+                  v-model.trim="lotteryPickerKeyword"
+                  type="search"
+                  placeholder="搜索抽奖标题或奖品"
+                />
+              </div>
+              <div class="lottery-picker-list">
+                <div v-if="lotteryPickerLoading" class="lottery-picker-loading">加载中...</div>
+                <div v-else-if="!filteredLotteries.length" class="lottery-picker-empty">
+                  没有匹配的抽奖活动
+                </div>
+                <button
+                  v-for="lottery in filteredLotteries"
+                  :key="lottery.id"
+                  type="button"
+                  class="lottery-picker-item"
+                  @click="selectLottery(lottery)"
+                >
+                  <span class="lottery-picker-thumb">
+                    <img
+                      v-if="lottery.cover_image_url"
+                      :src="lottery.cover_image_url"
+                      :alt="lottery.title"
+                      loading="lazy"
+                    />
+                    <span v-else class="lottery-picker-thumb-placeholder">🎲</span>
+                  </span>
+                  <span class="lottery-picker-info">
+                    <strong>{{ lottery.title || '未命名抽奖' }}</strong>
+                    <small>奖品：{{ lottery.prize_title || '未设置' }}</small>
+                    <small v-if="lottery.status === 'open'" class="lottery-status open"
+                      >报名中</small
+                    >
+                    <small v-else-if="lottery.status === 'drawn'" class="lottery-status drawn"
+                      >已开奖</small
+                    >
+                    <small v-else-if="lottery.status === 'closed'" class="lottery-status closed"
+                      >已关闭</small
+                    >
+                    <small v-else class="lottery-status draft">草稿</small>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <div v-if="toast.show" class="console-toast" role="status">{{ toast.message }}</div>
+    </div>
+  </AdminConsoleShell>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import AdminConsoleShell from '@/views/DataManagement/components/AdminConsoleShell.vue';
 import {
-  ChevronLeft,
   Crop,
   Layout as LayoutIcon,
   Plus,
@@ -1359,7 +1380,6 @@ import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
 import { resolveGreetingText, resolveHintText } from '@/utils/street-scene-copy.js';
 
-const router = useRouter();
 const authStore = useAuthStore();
 const dialog = useConfirmDialog();
 const homeHeroesStore = useHomeHeroesStore();
@@ -2589,10 +2609,6 @@ const formatDate = (iso) => {
   } catch {
     return iso;
   }
-};
-
-const goBackToAdmin = () => {
-  router.push('/admin/data-management');
 };
 
 async function loadHeroes() {
