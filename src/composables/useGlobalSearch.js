@@ -2,7 +2,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { showIsland } from '@/composables/useIsland.js';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay.js';
-import { createPanelAsync } from '@/utils/async-component.js';
+import { createPanelAsync, AsyncPanelQuiet } from '@/utils/async-component.js';
 
 /**
  * 搜索面板懒加载。
@@ -15,12 +15,20 @@ import { createPanelAsync } from '@/utils/async-component.js';
  * 走统一工厂：失败退避重试 2 次 + `recoverDynamicImportFailure()` 恢复链，
  * 与导航 surface 内既有先例（BOHAIIsland → BOHAIMain）同款。
  *
+ * ⚠️ 必须显式传 `loadingComponent`：工厂不设默认值，不传 ⇒ chunk 到达前渲染
+ *    空占位，导航 surface 维持未展开高度，点开像「没反应」（ProfileHomePanel
+ *    修过同款，用户报障「点我一片白」）。这里与失败态共用 AsyncPanelQuiet
+ *    （三个点 + 正在加载…），预取成功时 chunk 即时 resolve，loading 不会出现。
+ *
  * ⚠️ 不要传 `silent: true`：silent 的失败态渲染 null，而本面板占的是导航 surface
  *    的 custom 槽位 —— surface 已因 `has-custom-card` 展开，会先冒出一条 0 高细边
- *    再长开。传 label 走 AsyncPanelQuiet（三个点 + 正在加载…），与 AI 岛加载态一致。
+ *    再长开。
  */
 const loadSearchIsland = () => import('@/components/UnifiedNavbar/GlobalSearchIsland.vue');
-const GlobalSearchIsland = createPanelAsync(loadSearchIsland, { label: 'GlobalSearchIsland' });
+const GlobalSearchIsland = createPanelAsync(loadSearchIsland, {
+  label: 'GlobalSearchIsland',
+  loadingComponent: AsyncPanelQuiet,
+});
 
 /**
  * 预热面板 chunk（空闲时 / 鼠标悬停搜索按钮时调用）。

@@ -98,7 +98,12 @@ export const AsyncPanelNotice = {
   },
 };
 
-const AsyncPanelQuiet = {
+/* 加载态 / 失败态共用的外观（三个点 + 文案）。
+   默认不给 defineAsyncComponent 配 loadingComponent 是有代价的：不传 ⇒ 加载中
+   渲染空占位 ⇒「点了没反应」的静默空窗（ProfileHomePanel 修过同款，用户报障
+   「点我一片白」）。内容型面板应当显式传 `loadingComponent: AsyncPanelQuiet`
+   （本导出就是为此）；浮层 / 触发器型（silent）不要传 —— 加载占位会裸露。 */
+export const AsyncPanelQuiet = {
   name: 'AsyncPanelQuiet',
   setup() {
     return () =>
