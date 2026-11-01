@@ -524,7 +524,7 @@
                   <span class="gs-text">
                     <span class="gs-label">关注的人邮件通知</span>
                     <span class="gs-desc"
-                      >关注的人发新帖、或评论/回复你的帖子时，发到你绑定的邮箱</span
+                      >关注的人发布新帖或评论、回复你的帖子时，发送至你绑定的邮箱</span
                     >
                   </span>
                   <span class="gs-side">
@@ -544,7 +544,7 @@
                   </span>
                   <span class="gs-text">
                     <span class="gs-label">提醒频率</span>
-                    <span class="gs-desc">同一个人的连续动作多久归并一次</span>
+                    <span class="gs-desc">同一个人的多条消息按周期合并发送</span>
                   </span>
                   <span class="gs-side">
                     <span class="gs-value">{{ mailWindowLabel }}</span>
@@ -595,7 +595,7 @@
                   </span>
                   <span class="gs-text">
                     <span class="gs-label">投递方式</span>
-                    <span class="gs-desc">多动作时怎么送进你的邮箱</span>
+                    <span class="gs-desc">对方连续发送多条时的送达方式</span>
                   </span>
                   <span class="gs-side">
                     <span class="gs-value">{{ mailDigestLabel }}</span>
@@ -633,6 +633,12 @@
                       <span class="gs-desc">{{ option.desc }}</span>
                     </span>
                   </button>
+                  <!-- 示例行：把「周期」这个抽象概念落到具体封数上。
+                       去掉它，「周期 / 合并 / 即时」三个词又要用户自己拼（2026-11-01 定稿）。 -->
+                  <p class="gs-mail-example">
+                    示例：对方连续发送 3 条——「及时与摘要」收到 2 封（1 封即时送达，1
+                    封周期末合并）；「减少干扰」收到 1 封（周期末送达）。
+                  </p>
                 </template>
 
                 <button type="button" class="gs-row" @click="$emit('open-pushplus')">
@@ -1165,21 +1171,24 @@ const exitSection = () => {
 /* ---------- 邮件通知提醒频率（2026-10-29） ----------
    15 = 实时（同一人 15 分钟内合并成一封，Max+ Only 订阅权益），60 = 标准（1 小时）。
    选项点击只 emit，权益校验在服务端 RPC（boh_set_follow_mail_window），
-   无权益时宿主会弹订阅引导 —— 面板不自己判权益（user_subscriptions 不归它管）。 */
+   无权益时宿主会弹订阅引导 —— 面板不自己判权益（user_subscriptions 不归它管）。
+   文案用词（2026-11-01 定稿）：面向用户说「周期 / 合并」，**不写「窗口」** ——
+   窗口是库内 dedupe_key 的分桶实现，用户看不到也不需要知道；「周期」足够正式且不晦涩。 */
 const MAIL_WINDOW_OPTIONS = [
-  { value: 15, label: '实时提醒', desc: '同一人的连续动作按 15 分钟窗口归并', maxOnly: true },
-  { value: 60, label: '标准提醒', desc: '同一人的连续动作按 1 小时窗口归并', maxOnly: false },
+  { value: 15, label: '实时提醒', desc: '15 分钟一个周期，合并为一封', maxOnly: true },
+  { value: 60, label: '标准提醒', desc: '1 小时一个周期，合并为一封', maxOnly: false },
 ];
 const mailWindowLabel = computed(() => (props.followMailWindow === 15 ? '15 分钟' : '1 小时'));
 
 /* 投递方式（2026-11-01 改名 + 语义修正）：
-   「及时与摘要」（默认）= 首条立刻发，同窗口其余动作攒到窗口结束汇总成一封（一条都不丢）；
-   「减少干扰」= 窗口内全部动作只发一封，窗口结束才发。
+   「及时与摘要」（默认）= 首条立刻发，同一周期其余动作在周期结束时合并成一封（一条都不丢）；
+   「减少干扰」= 周期内全部动作只发一封，周期结束才发。
    ⚠️ 旧文案「及时通知 / 首条动作立刻发送，其余动作不重复提醒」是**说少了一半** ——
-   旧实现里「其余」既不汇总也不延迟，而是直接丢弃。别把文案改回去。无权益门槛。 */
+   旧实现里「其余」既不合并也不延迟，而是直接丢弃。别把文案改回去。无权益门槛。
+   ⚠️ 展开区末尾的「示例」行是这组文案的锚点：去掉它，「周期 / 合并 / 即时」又变回抽象词。 */
 const MAIL_DIGEST_OPTIONS = [
-  { value: false, label: '及时与摘要', desc: '首条立刻发，其余动作在窗口结束时汇总成一封' },
-  { value: true, label: '减少干扰', desc: '窗口内全部动作只发一封，窗口结束才送达' },
+  { value: false, label: '及时与摘要', desc: '首条即时送达，其余在周期结束时合并为一封' },
+  { value: true, label: '减少干扰', desc: '周期内不即时发送，仅在周期结束时送达一封' },
 ];
 const mailDigestLabel = computed(() => (props.followMailDigest ? '减少干扰' : '及时与摘要'));
 const mailExpandedGroup = ref('');
@@ -1416,8 +1425,9 @@ const SETTINGS_ENTRIES = [
     id: 'follow-mail',
     group: '通知',
     label: '关注的人邮件通知',
-    desc: '关注的人发新帖、或评论/回复你的帖子时，发到你绑定的邮箱',
-    keywords: '邮件 邮箱 通知 提醒 关注 特别关注 发帖 回复 mail email notify follow',
+    desc: '关注的人发布新帖或评论、回复你的帖子时，发送至你绑定的邮箱',
+    keywords:
+      '邮件 邮箱 通知 提醒 关注 特别关注 发帖 回复 周期 频率 摘要 投递 合并 mail email notify follow',
     icon: Mail,
     iconClass: 'is-green',
     toggle: true,
@@ -2122,6 +2132,19 @@ html[data-theme='dark'] .gs-inline-back {
 
 .gs-nav-sub {
   font-size: 11px;
+  color: var(--liquid-text-tertiary, #8b9098);
+}
+
+/* ---------- 关注邮件「示例」说明（2026-11-01） ----------
+   放在「投递方式」展开区末尾：把「周期 / 合并 / 即时」这几个抽象词落到具体封数上。
+   刻意不加底色和边框（不用 .gs-note）—— 它是选项列表的收尾说明，不该比选项本身更重。
+   左内边距与展开选项的文字列对齐：行内边距 + 从属缩进(14) + 图标宽 + 图标与文字间距。 */
+.gs-mail-example {
+  margin: 0;
+  padding: 0 var(--gs-row-pad-x, 18px) 12px
+    calc(var(--gs-row-pad-x, 18px) + 14px + var(--gs-icon-size, 30px) + var(--gs-row-gap, 13px));
+  font-size: 12px;
+  line-height: 1.55;
   color: var(--liquid-text-tertiary, #8b9098);
 }
 

@@ -81,8 +81,8 @@
               <span class="gs-label">关注的人邮件通知</span>
               <span class="gs-desc">{{
                 mailEnabled
-                  ? '关注的人发帖、评论或回复你时，发邮件到你绑定的邮箱'
-                  : '开启后，关注的人发帖、评论或回复你都会发邮件提醒'
+                  ? '关注的人发布新帖或评论、回复你的帖子时，发送至绑定邮箱'
+                  : '开启后，关注的人发布新帖或评论、回复你的帖子都会发送邮件'
               }}</span>
             </span>
             <span class="gs-side">
@@ -102,7 +102,7 @@
             <span class="gs-text">
               <span class="gs-label">减少打扰</span>
               <span class="gs-desc"
-                >同一个人的连续动作会归并发送，不会每条都发；邮件带正文摘要和配图</span
+                >同一个人的多条消息按周期合并发送，不会每条都发；邮件带正文摘要和配图</span
               >
             </span>
           </div>
