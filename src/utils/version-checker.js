@@ -403,6 +403,11 @@ export const applyPendingUpdateBeforeNavigation = () => {
   const target = pendingUpdate?.remoteBuildId;
   if (!target) return false;
   if (!shouldAutoApplyVersion(target, readReloadTarget())) return false;
+  // 与 autoCheck 的四道护栏对齐，这里只需 upload 这一条：导航是用户主动发起的，
+  // 他本来就要离开当前页，typing/editing/media 的顾虑不成立；但上传中断的代价
+  // 照样是全部重传（Cloudinary 不可续传）。返回 false = 不刷新、照常导航，
+  // SPA 内切页不会打断 fetch/XHR，上传会继续跑完。
+  if (hasActiveUpload()) return false;
   logger.info('version', '导航时发现挂起的新构建，先切构建再继续', {
     from: currentBuildId,
     to: target,

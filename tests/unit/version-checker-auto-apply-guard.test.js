@@ -206,6 +206,32 @@ describe('version-checker 自动强刷护栏', () => {
     destroyVersionChecker();
   });
 
+  it('导航前应用挂起更新时，上传中不刷新（返回 false 让导航继续）', async () => {
+    stubDocument();
+    mockRemoteBuild();
+    const { beginUpload } = await import('../../src/utils/upload-activity.js');
+    const { markUpdateAvailable, applyPendingUpdateBeforeNavigation } =
+      await import('../../src/utils/version-checker.js');
+
+    markUpdateAvailable('5.0.0', 'remote-build');
+    beginUpload();
+
+    expect(applyPendingUpdateBeforeNavigation()).toBe(false);
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  it('对照：同样挂起更新，没有上传在跑 ⇒ 发起切构建并返回 true', async () => {
+    stubDocument();
+    mockRemoteBuild();
+    const { markUpdateAvailable, applyPendingUpdateBeforeNavigation } =
+      await import('../../src/utils/version-checker.js');
+
+    markUpdateAvailable('5.0.0', 'remote-build');
+
+    expect(applyPendingUpdateBeforeNavigation()).toBe(true);
+    await vi.waitFor(() => expect(window.location.replace).toHaveBeenCalled());
+  });
+
   it('复选框 / 下拉框不算「未提交内容」（否则列表页一碰筛选就永久禁用更新）', async () => {
     const checkbox = {
       nodeType: 1,

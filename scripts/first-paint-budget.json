@@ -1,18 +1,18 @@
 {
   "_comment": "首屏入口 gzip 基线（index.html 直接引用的 JS+CSS）。只许下调；上调必须 --update 并在 commit message 说明理由。",
-  "totalBytes": 248482,
+  "totalBytes": 248508,
   "toleranceBytes": 2048,
   "files": {
-    "static/js/app.js": 18547,
+    "static/js/app.js": 18552,
     "static/js/vue-vendor.js": 43654,
     "static/js/state-vendor.js": 2693,
-    "static/js/auth-store.js": 8386,
+    "static/js/auth-store.js": 8389,
     "static/js/vue-utils-vendor.js": 15388,
     "static/js/supabase-vendor.js": 55406,
     "static/js/ui-icons.js": 13485,
-    "static/js/ui-components.js": 53540,
+    "static/js/ui-components.js": 53559,
     "static/js/useGlobalAiPreferences.js": 847,
-    "static/js/auth-api.js": 5630,
+    "static/js/auth-api.js": 5629,
     "static/js/bag.js": 986,
     "static/css/ui-components.css": 7310,
     "static/css/index.css": 22610
