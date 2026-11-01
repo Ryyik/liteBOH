@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import { hasActiveUpload } from './upload-activity.js';
 
 // ============================================
 // 独立版本指纹检测器
@@ -563,20 +564,30 @@ export const initVersionChecker = () => {
         if (result.hasUpdate) {
           const attemptedTarget = readReloadTarget();
           if (autoApply && shouldAutoApplyVersion(result.remoteBuildId, attemptedTarget)) {
-            // 自动强刷的三道护栏，任一命中都退化成「弹提示，由用户决定何时更新」：
+            // 自动强刷的四道护栏，任一命中都退化成「弹提示，由用户决定何时更新」：
+            //   upload  —— 有文件正在上传（见下）
             //   typing  —— 焦点还在输入框里（正在打字）
             //   media   —— 有媒体在播（切回继续看的场景，刷了等于掐掉内容）
             //   editing —— 用户填过内容但焦点已离开（点了别处 / 切预览），
             //              这类没有焦点信号，只能靠 input 事件追踪兜住
-            const blockedBy = isTypingInForm(document.activeElement)
-              ? 'typing'
-              : isMediaPlaying()
-                ? 'media'
-                : hasUnsavedEditableContent()
-                  ? 'editing'
-                  : '';
+            //
+            // upload 排第一位是有原因的：它是唯一**不可恢复**的一种。typing/editing
+            // 丢掉的是 DOM 里的文本（多数表单还有草稿或暂存），media 丢的只是播放
+            // 进度；而上传一旦中断，Cloudinary 的 signed/unsigned 都不支持断点续传，
+            // 用户必须从第一张重新传，中断前的分片还会留下孤儿资源。
+            // 这个场景原来的三道护栏恰好都覆盖不到：只传图、一个字没打的（相册补图、
+            // Cloud+ 传素材、换封面），activeElement 是 body、没有脏输入、没有媒体在播。
+            const blockedBy = hasActiveUpload()
+              ? 'upload'
+              : isTypingInForm(document.activeElement)
+                ? 'typing'
+                : isMediaPlaying()
+                  ? 'media'
+                  : hasUnsavedEditableContent()
+                    ? 'editing'
+                    : '';
             if (blockedBy) {
-              logger.info('version', '用户正在输入/播放/有未提交内容，跳过本次自动强刷', {
+              logger.info('version', '用户正在输入/播放/上传/有未提交内容，跳过本次自动强刷', {
                 reason: blockedBy,
                 remoteBuildId: result.remoteBuildId,
               });

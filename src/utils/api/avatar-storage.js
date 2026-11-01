@@ -18,6 +18,7 @@
  */
 import { supabase } from '@/utils/supabase-client.js';
 import { compressImageFileToUploadLimit } from '@/utils/image-compression.js';
+import { beginUpload, endUpload } from '@/utils/upload-activity.js';
 
 const AVATAR_BUCKET = 'avatars';
 const AVATAR_CACHE_CONTROL = '3600';
@@ -78,11 +79,19 @@ export async function uploadAvatarFile(file, userId) {
   const contentType = file?.type || 'image/png';
   const filePath = buildAvatarPath(userId, timestamp, ext);
 
-  const { error } = await supabase.storage.from(AVATAR_BUCKET).upload(filePath, file, {
-    contentType,
-    cacheControl: AVATAR_CACHE_CONTROL,
-  });
-  if (error) throw error;
+  // 与 uploadImageToCloudinary 共用同一套「上传进行中」信号：强刷会掐断正在传的
+  // 头像请求，用户得重新选图。头像只有 15-40KB、通常瞬间完成，这里加信号主要是
+  // 保证全站上传都有覆盖；不包含前面的压缩阶段（本地耗时，与网络传输无关）。
+  beginUpload();
+  try {
+    const { error } = await supabase.storage.from(AVATAR_BUCKET).upload(filePath, file, {
+      contentType,
+      cacheControl: AVATAR_CACHE_CONTROL,
+    });
+    if (error) throw error;
+  } finally {
+    endUpload();
+  }
 
   const {
     data: { publicUrl },

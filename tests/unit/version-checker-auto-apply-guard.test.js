@@ -166,6 +166,46 @@ describe('version-checker 自动强刷护栏', () => {
     destroyVersionChecker();
   });
 
+  it('有文件正在上传 ⇒ 不自动强刷（传输不可续传，中断等于从头重传）', async () => {
+    // 这个场景原来三道护栏都覆盖不到：只传图、一个字没打的（相册补图 / Cloud+ 传
+    // 素材 / 换封面），activeElement 是 body、没有脏输入、也没有媒体在播。
+    stubDocument();
+    mockRemoteBuild();
+    const { beginUpload } = await import('../../src/utils/upload-activity.js');
+    const { initVersionChecker, destroyVersionChecker } =
+      await import('../../src/utils/version-checker.js');
+
+    // 必须在 autoCheck 拿到 fetch 结果前就置位
+    beginUpload();
+    initVersionChecker();
+    // upload 护栏排在最前，会短路掉后面的 media/editing 探测（所以不能等 querySelectorAll），
+    // 直接等流程的必经出口「弹提示」
+    await vi.waitFor(() => expect(window.dispatchEvent).toHaveBeenCalledOnce());
+
+    expect(window.location.replace).not.toHaveBeenCalled();
+    destroyVersionChecker();
+  });
+
+  it('对照：上传已结束（begin/end 净零）⇒ 确实会自动强刷', async () => {
+    // 防止护栏退化成「开过上传就永久禁止自动更新」
+    stubDocument();
+    mockRemoteBuild();
+    const { beginUpload, endUpload } = await import('../../src/utils/upload-activity.js');
+    const { initVersionChecker, destroyVersionChecker } =
+      await import('../../src/utils/version-checker.js');
+
+    beginUpload();
+    endUpload();
+    initVersionChecker();
+
+    await vi.waitFor(() =>
+      expect(window.location.replace).toHaveBeenCalledWith(
+        '/app/?from=test&__boh_update=remote-build#/forum',
+      ),
+    );
+    destroyVersionChecker();
+  });
+
   it('复选框 / 下拉框不算「未提交内容」（否则列表页一碰筛选就永久禁用更新）', async () => {
     const checkbox = {
       nodeType: 1,

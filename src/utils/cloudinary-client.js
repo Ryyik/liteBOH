@@ -6,6 +6,7 @@ import {
   validateCloudinaryUploadResult,
   validateImageFileBeforeUpload,
 } from './cloud-upload-guard.js';
+import { beginUpload, endUpload } from './upload-activity.js';
 
 const CLOUDINARY_CLOUD_NAME = String(
   import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'dkqae7j1m',
@@ -506,6 +507,9 @@ const buildSignBlockedError = (payload = {}) => {
 };
 
 export async function uploadImageToCloudinary(file, options = {}) {
+  // 上传进行中标记：version-checker 的自动强刷护栏靠它判断「现在刷会掐断传输」。
+  // 放在 try 之外、finally 之内兜住全部返回路径（校验抛错、签名被拒、网络重试失败）。
+  beginUpload();
   try {
     await validateImageFileBeforeUpload(file);
 
@@ -688,6 +692,8 @@ export async function uploadImageToCloudinary(file, options = {}) {
     return uploaded;
   } catch (error) {
     throw normalizeDbError(error, 'Cloudinary 上传失败');
+  } finally {
+    endUpload();
   }
 }
 
