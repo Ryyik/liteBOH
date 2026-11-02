@@ -6,6 +6,13 @@
  *
  * 抽奖条目表只存 lottery_id，不含标题/开奖状态 ⇒ 两步查询（先 entries、再 lotteries），
  * 不依赖 FK 内联 join —— 远端 FK 名称换过一次，内联写法在这里静默返回 null 的风险太高。
+ *
+ * ⚠️ 中奖判定不能只看 `lotteries.winner_user_id`：那一列只存**首位**中奖者
+ *    （开奖时 `winner_user_id = v_first_winner.user_id`），而 winner_count 支持多个名额，
+ *    完整名单在 `lottery_draw_logs`（RLS 只给管理员）里，客户端只能通过
+ *    get_community_lotteries / get_home_lottery 这两个 RPC 拿到的 `winners` 数组读。
+ *    ⇒ 判定 = RPC winners 命中 ∪ winner_user_id 命中。少了前一项，第 2..N 名中奖用户
+ *    会在「中奖」里看不到自己的记录。
  */
 
 import { supabase } from '@/utils/supabase-client.js';
@@ -126,6 +133,77 @@ export async function fetchMyShopOrders(userId) {
   return { data: (Array.isArray(data) ? data : []).map(normalizeShopOrder), error: null };
 }
 
+/**
+ * 中奖名单索引：lotteryId -> Set<userId>。
+ * 两个 RPC 都取（社区列表 + 首页单场）—— 用户参与的活动可能只挂在其中一边。
+ * 任一失败都只是让「多中奖名额」这一路退化回 winner_user_id，不影响主流程。
+ */
+const fetchWinnerIndex = async () => {
+  const index = new Map();
+  const addLottery = (lottery) => {
+    const id = String(lottery?.id || '');
+    if (!id) return;
+    const set = index.get(id) || new Set();
+    for (const winner of Array.isArray(lottery?.winners) ? lottery.winners : []) {
+      const uid = String(winner?.user_id || '');
+      if (uid) set.add(uid);
+    }
+    const legacy = String(lottery?.winner_user_id || '');
+    if (legacy) set.add(legacy);
+    index.set(id, set);
+  };
+
+  try {
+    const [community, home] = await Promise.all([
+      supabase.rpc('get_community_lotteries'),
+      supabase.rpc('get_home_lottery'),
+    ]);
+    if (!community?.error && Array.isArray(community?.data)) community.data.forEach(addLottery);
+    const homeData = home?.error ? null : home?.data;
+    if (homeData && typeof homeData === 'object' && !Array.isArray(homeData)) addLottery(homeData);
+  } catch (error) {
+    logger.warn('shop-orders', '加载中奖名单失败，回落到 winner_user_id 判定', error);
+  }
+  return index;
+};
+
+/**
+ * 纯函数：把我的抽奖参与记录收敛成「中奖订单」。
+ *
+ * 抽出来是为了能脱离 supabase 单测 —— 这条判定错一次的直接后果就是
+ * 用户在自己的订单里看不到中奖记录，或在订单里看到没中奖的活动。
+ *
+ * 规则：
+ *   1. 只保留中奖的（winners 命中 或 winner_user_id 命中），未中奖的参与记录一律不出现；
+ *   2. 同一活动多次参与只出一条（订单列表里同一活动重复三行毫无意义）；
+ *   3. 查不到活动行（已删除/不可见）跳过 —— 没有标题的状态没法展示。
+ */
+export function buildWinningLotteryOrders({ entries, lotteries, winnerIndex, userId } = {}) {
+  const me = String(userId || '');
+  if (!me) return [];
+
+  const lotteryMap = new Map(
+    (Array.isArray(lotteries) ? lotteries : []).map((row) => [String(row?.id || ''), row]),
+  );
+  const seen = new Set();
+  const orders = [];
+
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const lotteryId = String(entry?.lottery_id || '');
+    if (!lotteryId || seen.has(lotteryId)) continue;
+    const lottery = lotteryMap.get(lotteryId);
+    if (!lottery) continue;
+
+    const winners = winnerIndex instanceof Map ? winnerIndex.get(lotteryId) : null;
+    const isWinner = Boolean(winners?.has(me)) || String(lottery?.winner_user_id || '') === me;
+    if (!isWinner) continue;
+
+    seen.add(lotteryId);
+    orders.push(normalizeLotteryOrder({ ...entry, isWinner: true }, lottery));
+  }
+  return orders;
+}
+
 export async function fetchMyLotteryOrders(userId) {
   if (!userId) return { data: [], error: null };
 
@@ -143,33 +221,24 @@ export async function fetchMyLotteryOrders(userId) {
   if (!entries?.length) return { data: [], error: null };
 
   const lotteryIds = [...new Set(entries.map((entry) => entry.lottery_id).filter(Boolean))];
-  const { data: lotteries, error: lotteryError } = await supabase
-    .from('lotteries')
-    .select('id, title, prize_title, status, draw_at, drawn_at, winner_user_id, cover_image_url')
-    .in('id', lotteryIds);
+  const [{ data: lotteries, error: lotteryError }, winnerIndex] = await Promise.all([
+    supabase
+      .from('lotteries')
+      .select('id, title, prize_title, status, draw_at, drawn_at, winner_user_id, cover_image_url')
+      .in('id', lotteryIds),
+    fetchWinnerIndex(),
+  ]);
 
   if (lotteryError) {
     logger.warn('shop-orders', '加载抽奖活动信息失败', lotteryError);
     return { data: [], error: lotteryError };
   }
 
-  const lotteryMap = new Map((lotteries || []).map((row) => [String(row.id), row]));
+  /* 2026-11-01 用户口径：「购物袋页面订单只显示中奖的抽奖」。
+     中奖判定在客户端做（开奖日志只对管理员开放），过滤与去重都在
+     buildWinningLotteryOrders 里 —— 那里有单测，别在组件层再写一遍。 */
   return {
-    data: entries
-      .map((entry) => {
-        const lottery = lotteryMap.get(String(entry.lottery_id));
-        if (!lottery) return null;
-        return normalizeLotteryOrder(
-          { ...entry, isWinner: String(lottery.winner_user_id || '') === String(userId) },
-          lottery,
-        );
-      })
-      /* 2026-11-01 用户口径：「购物袋页面订单只显示中奖的抽奖」。
-         中奖判定在客户端做（winner_user_id vs uid），所以过滤必须放在
-         normalize 之后 —— 不能指望 lottery_entries 上有 is_winner 列。
-         未中奖的参与记录不再出现在订单里：那一批是「抽奖记录」，
-         正确的归宿是活动页本身，混进订单会把真实订单挤下去。 */
-      .filter((order) => Boolean(order && order.isWinner)),
+    data: buildWinningLotteryOrders({ entries, lotteries, winnerIndex, userId }),
     error: null,
   };
 }
