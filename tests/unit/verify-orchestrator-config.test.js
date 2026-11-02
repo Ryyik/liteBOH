@@ -55,6 +55,17 @@ describe('verify 编排器：清单单一真源与失败语义', () => {
     expect(src).toContain("const HEAVY = ['lint', 'type-check', 'test']");
     expect(src).toMatch(/const LIGHT = \[SUMMARY, 'lint', 'type-check'\]/);
   });
+
+  /* 2026-11-02 真的漂移过一次：代码从 clamp 6 改成 4，头部注释还写着 6/「省 10s」。
+     注释不是免责声明，是给人照着做判断的依据 ⇒ 让它跟着代码一起被断言。 */
+  it('头部注释里的并发上限与代码一致', () => {
+    const src = read('scripts/verify.mjs');
+    const code = src.match(/Math\.max\(2, Math\.min\((\d+), CORES - 2\)\)/);
+    const doc = src.match(/clamp\(核数-2, 2, (\d+)\)/);
+    expect(code, '没找到并发上限的代码表达式').toBeTruthy();
+    expect(doc, '没找到头部注释里的 clamp(核数-2, 2, N) 说明').toBeTruthy();
+    expect(doc[1]).toBe(code[1]);
+  });
 });
 
 describe('缓存目录不许污染仓库', () => {

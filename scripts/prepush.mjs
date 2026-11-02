@@ -21,7 +21,9 @@
  *
  * 用法：npm run prepush [--full]
  * 退出码：全部绿 = 0；任何一门红 = 1。
- * ⏱ 2026-11-02 实测（10 核 M 系）：默认档 ≈20s、--full ≈170s。
+ * ⏱ 2026-11-02 实测（10 核 M 系，load≈3）：默认档 40.6s（其中门禁批 18.9s，
+ *    其余是建临时检出、self-test、`npm ci --dry-run`）、--full 223.3s。
+ *    ⚠️ 别把这里的默认档估成 20s：临时检出的冷缓存比在仓库里直接跑 verify 贵得多。
  *    门禁批走 scripts/verify.mjs 的并行编排；--full 的 lint/type-check 也并行、test 独占。
  */
 import { spawnSync } from 'node:child_process';

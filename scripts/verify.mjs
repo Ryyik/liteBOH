@@ -6,16 +6,21 @@
  * 原来的 verify 是一条 `npm run A && npm run B && …` 的 18 段长链，全部串行。
  * 2026-11-02 在这台机器（10 核 / M 系）上逐段实测（`npm run` 口径）：
  *
- *     test 100.0s │ type-check 14.6s │ lint 10.9s │ 其余 15 道门禁合计 16.2s
+ *     test 100.0s │ type-check 14.6s │ lint 10.9s │ 门禁合计 ≈16s
  *     ────────────────────────────────────────────────────────────────
  *     串行总计 144s
  *
- * 那 16.2s 里，每道门禁还各自摊了 **约 0.3s 的 `npm run` 启动**（15 道≈4.5s）。
  * 门禁彼此**只读、互不依赖**（写文件的分支全在 `--update` 里，正常档不触发），
- * 所以串行跑它们纯粹是在浪费墙钟 —— 这是最容易安全拿到的一笔时间。
+ * 而且每道都要摊约 0.3s 的 `npm run` 启动 —— 串行跑它们纯粹是在浪费墙钟。
+ *
+ * ⚠️ 但「门禁合计 ≈16s」只在**空载**时成立。同日下午复测（机器 load≈3，同一时段
+ * 串行/并发交替各跑两轮）：**串行 28.5s、并发 4 是 21.5s、并发 6 是 22.0~26.2s**。
+ * 也就是说并发 4 已经吃到了收益，再往上没有了（这几道门禁是 fs 扫描，热在页缓存
+ * 不在核上），多出来的核留给 lint/type-check 更划算 ⇒ clamp 上限写 4，不是 6。
+ * **引用这类数字前先看 load**，否则很容易承诺出「省 10s」这种自己机器上兑不了现的数。
  *
  * ── 三档策略（按 CPU 自适应，**CI 上行为不变**）────────────────────
- *   ① 门禁：**并行**（并发数 = clamp(核数-2, 2, 6)）。已有红就不再启动新的，
+ *   ① 门禁：**并行**（并发数 = clamp(核数-2, 2, 4)）。已有红就不再启动新的，
  *      语义与 `&&` 链一致；已在飞的自然跑完，不留孤儿进程。
  *   ② 重活三件（lint / type-check / test）：
  *      · 核数 ≥ 8：lint 与 type-check **并行**跑（都是单线程，吃不满多核），
@@ -145,8 +150,9 @@ const printFailure = (f) => {
 
 /* ── ① 门禁（并行）+ ② 轻活（lint / type-check / 总账，与门禁同时起跑）──
    两者互不依赖：门禁是 fs 扫描，lint/tsc 是 CPU 编译，压在同一批核上互相填补等待。
-   实测（10 核 M 系，2026-11-02）：门禁独占 11.4s、轻活独占 15.2s，重叠后 ≈16s，
-   比「先门禁后轻活」的 26s 省 10s。 */
+   实测（10 核 M 系，2026-11-02，load≈3）：门禁批 21.5s、轻活 20.5s（瓶颈是
+   type-check 20.2s）。两批同时起跑，前段净耗时 25s 上下；先后串行则要 42s。
+   全量 verify 因此从 144s 降到 115.8s（其中 test 独占 83.0s 是硬底，压不动）。 */
 const t0 = process.hrtime.bigint();
 
 const LIGHT = [SUMMARY, 'lint', 'type-check'];
@@ -176,7 +182,12 @@ if (!HEAVY_ONLY) {
 /* ── ②③ 重活 + 汇总 ──────────────────────────────────────────────── */
 if (!GATES_ONLY) {
   if (CAN_PARALLEL_LIGHT) {
-    console.log('\n[verify] 重活：lint / type-check / 棘轮总账（已与门禁并行起跑），test 独占…');
+    /* --heavy-only（prepush --full）时没有门禁批陪跑，这批是刚起的，别照抄「已并行」 */
+    console.log(
+      HEAVY_ONLY
+        ? '\n[verify] 重活：lint / type-check / 棘轮总账并行，test 独占…'
+        : '\n[verify] 重活：lint / type-check / 棘轮总账（已与门禁并行起跑），test 独占…',
+    );
     const light = await heavyLightPromise;
     for (const r of light.filter((x) => x.name !== SUMMARY)) {
       console.log(`\n[verify] ${r.ok ? '✅' : '❌'} ${r.name}（${fmt(r.ms)}）`);
