@@ -1,37 +1,39 @@
 /**
- * 底部导航单源（2026-09-30 收敛为四席，2026-10-22 补回第五席「图库」）
+ * 底部导航单源（2026-09-30 收敛为四席，2026-10-22 补回「图库」，2026-11-01 去 AI 加购物袋）
  *
- * 全站唯一一组底栏 items（用户指定顺序）：**内容 / 消息 / AI / 图库 / 我**。
+ * 全站唯一一组底栏 items（用户指定顺序）：**内容 / 消息 / 图库 / 周边 / 我**。
  *
  * 「内容」= 论坛本体（官方 / 最新 / 关注 / 成员），落在首页 `/`（首屏街景 Hero 下滑直达），
  * 故 route 给 "/" —— 跨模块导航。
- * 「AI」是**跨模块全屏落点**（/ai-chat），`fullPage: true` —— 点它是离开本模块，
- * 不参与 UserSpace 的 tab 切换与选中态。岛 / 右边缘滑动 / 全局搜索三处入口仍保留，
- * 硬约束是它们必须收敛到**同一实例、同一份会话状态**。
- * 「图库」= BOH Cloud+（/user-space/note），`fullPage: true` —— 同样是独立页而非 UserSpace 的 tab。
+ * 「图库」= BOH Cloud+（/user-space/note），`fullPage: true` —— 独立页而非 UserSpace 的 tab。
+ * 「周边」= 周边商城（/shop，2026-11-01 起商城与抽奖合并为三 Tab：产品 / 抽奖 / 购物袋），
+ *   `fullPage: true`。⚠️ 席位是**周边**（整页），不是购物袋：
+ *   购物袋既是页内第三个 Tab，也有独立页 /shop/bag（右上角头像直达、看购物与抽奖订单），
+ *   但它不单独占席位 —— 用户口径「userspace 的底部导航栏是周边」。
  * 「我」= UserSpace 的个人页，内部三段（空间 / 资产 / 印象）。
+ *
+ * 2026-11-01 为什么下掉「AI」席（决策记录，别再翻案前先读这段）：
+ *   · 用户原话「底栏把 AI 下掉」—— 席位让给周边。底栏回到五席，390px 下每席仍有余量。
+ *   · AI 不是功能退场：它还有三处入口（灵动岛 / 右边缘滑动 / 全局搜索），
+ *     落点仍是 `/ai-chat`。只是不再占底栏一席。
+ *   · ⚠️ `aiOverlayOpen` 这条高亮通道保留 —— AI 全屏浮层打开时若底栏可见，
+ *     仍需把「AI」相关态压住（浮层自己会盖住底栏），别顺手删掉。
  *
  * 2026-09-30 撤掉的两席（收敛，不是砍功能）：
  *   · 「资产」→ 降为「我」页内的分段（与空间/印象同一套 SegmentTabs）
  *   · 「设置」→ 降为资料卡右上角的文字入口，不占导航席
  *
- * 2026-10-22 为什么补的是「图库」而不是「商城」（决策记录，别再翻案前先读这段）：
+ * 2026-10-22 补「图库」时的取舍（历史记录，仍有效）：
  *   · 频率：图库是私人照片/图文笔记，日-周频；商城 13 个 SKU、积分靠每周签到攒，月频。
- *     底栏是每天都会被看到的位置，放月频功能是浪费。
- *   · 语义：现有四席是「人 → 内容 → 自己」，图库是「我」的延伸（补全）；
- *     商城是交易，插在 AI 与「我」之间会让新用户第一眼读成电商 App。
- *   · 架构：商城自带四席底栏（为你推荐/产品/深入探索/购物袋），其中购物袋有 badge、
- *     cart-bounce 与独立结算流程，**降级不掉** ⇒ 进全局底栏必须先解决「购物袋放哪」。
- *     图库自带的三席（内容/分享/设置）是视图分段，可降级为页面内 SegmentTabs（2026-10-22 已改）。
- *   · 商业：图库的图片额度由订阅等级决定（`resolveCloudBenefitFromSubscriptions`），
- *     底栏是「额度快满」最自然的提醒位。
- *   ⇒ 商城的正确出口是「我」页资产段的积分卡 + 内容流商品卡，不是底栏席位。
+ *   · 语义：四席是「人 → 内容 → 自己」，图库是「我」的延伸（补全）。
+ *   ⇒ 2026-11-01 的购物袋席与这条不冲突：进底栏的是**购物袋/订单**（高频回访），
+ *     不是商城本身 —— 商城的正确出口仍是「我」页资产段 + 内容流商品卡。
  *
- * 消费方三处共用同一份：UserSpace 底栏（UserSpaceBottomNav）、横屏左栏
- * （UserSpaceSideRail）、首页底栏（Home/index.vue）—— 改这里三处同步生效。
- * 另有 Cloud+（CloudPlusMain.vue）与公开主页 ProfileMain.vue 复用。
+ * 消费方共用同一份：UserSpace 底栏（UserSpaceBottomNav）、横屏左栏
+ * （UserSpaceSideRail）、首页底栏（Home/index.vue）、购物袋页（Shop/BagPage.vue）
+ * —— 改这里各处同步生效。
  */
-import { Images, LayoutGrid, MessageCircle, Sparkles, User } from 'lucide-vue-next';
+import { Images, LayoutGrid, MessageCircle, ShoppingBag, User } from 'lucide-vue-next';
 import type { Component } from 'vue';
 
 export interface BottomNavItem {
@@ -58,7 +60,10 @@ export const BOTTOM_NAV_ITEMS: BottomNavItem[] = [
     route: '/user-space?tab=messages',
     badge: 'messages',
   },
-  { id: 'ai', label: 'AI', icon: Sparkles, route: '/ai-chat', fullPage: true },
+  /* 2026-11-01 用户口径：「周边页面的顺序与图库的位置互换」⇒ 周边回到第三席、
+     图库第四席。与旧版三席位置（内容 / 消息 / 图库 / 周边 / 我）的差异只在 3、4 位，
+     消费方全部读这份配置，无需改任何宿主。 */
+  { id: 'shop', label: '周边', icon: ShoppingBag, route: '/shop', fullPage: true },
   { id: 'cloud', label: '图库', icon: Images, route: '/user-space/note', fullPage: true },
   { id: 'posts', label: '我', icon: User, route: '/user-space?tab=posts' },
 ];

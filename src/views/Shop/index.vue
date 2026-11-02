@@ -1,557 +1,260 @@
 <template>
-  <div class="shop-page">
-    <header class="shop-header">
-      <div class="shop-header-inner">
-        <div>
-          <p class="shop-kicker">BOH STORE</p>
-          <h1>方块商店</h1>
-        </div>
-        <button
-          class="avatar-button"
-          type="button"
-          aria-label="我的方块"
-          @click="handleAvatarClick"
-        >
-          <img
-            v-if="isLoggedIn && userInfo.avatarUrl"
-            :src="userInfo.avatarUrl"
-            :alt="userInfo.username"
-            width="40"
-            height="40"
-          />
-          <span v-else-if="isLoggedIn">{{ avatarInitial }}</span>
-          <User v-else :size="20" :stroke-width="1.9" aria-hidden="true" />
-        </button>
+  <div class="store-page">
+    <header class="store-head">
+      <div class="head-copy">
+        <p class="head-kicker">BOH STORE</p>
+        <h1>周边</h1>
       </div>
-
-      <label class="shop-search">
-        <Search :size="18" :stroke-width="2" aria-hidden="true" />
-        <input
-          v-model.trim="searchQuery"
-          type="search"
-          placeholder="搜索商品"
-          @focus="openProductsForSearch"
+      <button
+        type="button"
+        class="avatar-btn"
+        :aria-label="isLoggedIn ? '打开购物袋与订单' : '登录'"
+        @click="goBag"
+      >
+        <img
+          v-if="isLoggedIn && userInfo.avatarUrl"
+          :src="userInfo.avatarUrl"
+          :alt="userInfo.username"
+          width="38"
+          height="38"
         />
-        <button v-if="searchQuery" type="button" aria-label="清除搜索" @click="searchQuery = ''">
-          <X :size="16" aria-hidden="true" />
-        </button>
-      </label>
+        <span v-else-if="isLoggedIn">{{ avatarInitial }}</span>
+        <User v-else :size="18" :stroke-width="1.9" aria-hidden="true" />
+      </button>
     </header>
 
-    <main class="shop-main">
-      <!-- 降级提示（2026-10-22）：store 在请求失败时会回退静态商品数据，页面照常渲染，
-           但原先**不告诉用户**——弱网下 8s 后看到的是一份内置清单，用户会当成实时价格。
-           ⚠️ 只在「有兜底数据可看」时提示；完全没有数据时由下面的骨架/空态负责。 -->
-      <p v-if="fetchError && allProducts.length > 0" class="shop-offline-hint" role="status">
-        当前展示的是内置商品数据，可能不是最新；网络恢复后刷新即可看到实时价格。
-      </p>
-
-      <section
-        v-if="isFetchingProducts && allProducts.length === 0"
-        class="catalog-grid"
-        aria-label="正在加载商品"
+    <nav class="store-tabs" role="tablist" aria-label="周边分区">
+      <button
+        v-for="tab in tabs"
+        :key="tab.id"
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === tab.id"
+        :class="{ active: activeTab === tab.id }"
+        @click="switchTab(tab.id)"
       >
-        <div v-for="item in 6" :key="item" class="product-card product-skeleton" aria-hidden="true">
-          <div class="product-media"></div>
-          <div class="skeleton-line skeleton-title"></div>
-          <div class="skeleton-line skeleton-price"></div>
-        </div>
-      </section>
+        {{ tab.label }}
+        <span v-if="tab.id === 'bag' && bagCount" class="tab-count">{{ bagCount }}</span>
+      </button>
+    </nav>
 
-      <template v-else-if="activeNavId === 'for-you'">
-        <section v-if="featuredProduct" class="mascot-hero">
-          <img :src="mascotHeroUrl" alt="BOH 吉祥物公仔" width="800" height="600" />
-          <div class="mascot-copy">
-            <span class="status-pill">2026 秋季新朋友</span>
-            <h2>把方块之家的温度，带回家。</h2>
-            <p>{{ featuredProduct.description }}</p>
-            <div class="hero-actions">
-              <button
-                type="button"
-                class="primary-button"
-                @click="openProductDetails(featuredProduct)"
-              >
-                查看公仔 <ArrowRight :size="17" aria-hidden="true" />
-              </button>
-              <button type="button" class="text-button" @click="switchToProducts">
-                浏览全部商品
-              </button>
+    <main class="store-main">
+      <!-- 页面切换动效（2026-11-01 用户口径）：
+           key 绑 activeTab ⇒ 切「产品 / 抽奖 / 购物袋」时这一层整体重建，
+           .store-panel 的进场动画（淡入 + 6px 上浮）随之重放。
+           与 UserSpace 的 .tab-page 同一套路：**只进场、无离场** ——
+           不做 mode="out-in"，否则每次切 Tab 都要先白等 150ms 的离场。
+           副作用是滚动位置保留（外层没重建），正是想要的手感。 -->
+      <section :key="activeTab" class="store-panel">
+        <template v-if="activeTab === 'products'">
+          <p v-if="fetchError && allProducts.length" class="store-hint" role="status">
+            当前展示的是内置商品数据，可能不是最新；网络恢复后刷新即可看到实时价格。
+          </p>
+
+          <!-- 2026-11-01 用户口径：「周边不再提供筛选，并且加入搜索框」。
+               原分类 chip（全部 / BOH Bag / 虚拟服务 / 装饰收藏 / 专属定制）整体下掉 ——
+               在售 SKU 只有个位数，分类反而把「全部」切成几段空列表；
+               搜索是更直接的找东西方式（按标题 / 描述 / 分类做包含匹配）。 -->
+          <div class="store-search">
+            <Search :size="16" :stroke-width="1.8" aria-hidden="true" />
+            <input
+              v-model.trim="searchKeyword"
+              type="search"
+              class="search-input"
+              placeholder="搜索周边"
+              aria-label="搜索周边"
+            />
+            <button
+              v-if="searchKeyword"
+              type="button"
+              class="search-clear"
+              aria-label="清空搜索"
+              @click="searchKeyword = ''"
+            >
+              <X :size="15" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div v-if="isFetchingProducts && !allProducts.length" class="product-grid">
+            <div v-for="item in 6" :key="item" class="p-card p-skeleton" aria-hidden="true">
+              <span class="p-media"></span>
+              <span class="p-meta"
+                ><span class="p-line"></span><span class="p-line short"></span
+              ></span>
             </div>
           </div>
-        </section>
 
-        <section v-if="recentProducts.length" class="content-section recent-section">
-          <div class="section-heading">
-            <div>
-              <p class="section-kicker">你的近期活动</p>
-              <h2>最近浏览</h2>
-            </div>
-            <button type="button" class="section-link" @click="clearRecentViews">清除记录</button>
-          </div>
-          <div class="recent-rail">
-            <button
-              v-for="product in recentProducts"
-              :key="`recent-${product.id}`"
-              type="button"
-              class="recent-card"
-              @click="openProductDetails(product)"
-            >
-              <span class="recent-media">
-                <img
-                  v-if="product.image"
-                  :src="displayImageUrl(product)"
-                  :alt="product.title"
-                  width="200"
-                  height="200"
-                  loading="lazy"
-                />
-                <Package v-else :size="34" :stroke-width="1.3" aria-hidden="true" />
-              </span>
-              <strong>{{ product.title }}</strong>
-              <small>{{ formatPriceDisplay(product) }}</small>
-            </button>
-          </div>
-        </section>
-
-        <section class="content-section">
-          <div class="section-heading">
-            <div>
-              <p class="section-kicker">本周精选</p>
-              <h2>值得带走的方块好物</h2>
-            </div>
-            <button type="button" class="section-link" @click="switchToProducts">
-              查看全部 <ChevronRight :size="17" aria-hidden="true" />
-            </button>
-          </div>
-          <div class="featured-grid">
-            <button
-              v-for="product in recommendedProducts"
-              :key="product.id"
-              type="button"
-              class="product-card"
-              @click="openProductDetails(product)"
-            >
-              <span class="product-media">
-                <img
-                  v-if="product.image"
-                  :src="displayImageUrl(product)"
-                  :alt="product.title"
-                  width="400"
-                  height="300"
-                  loading="lazy"
-                />
-                <Package v-else :size="52" :stroke-width="1.3" aria-hidden="true" />
-              </span>
-              <span class="product-info">
-                <small>{{ product.category }}</small>
-                <strong>{{ product.title }}</strong>
-                <span>{{ formatPriceDisplay(product) }}</span>
-              </span>
-            </button>
-          </div>
-        </section>
-
-        <section class="service-strip" aria-label="商城服务说明">
-          <div>
-            <PackageCheck :size="22" aria-hidden="true" /><span
-              ><strong>积分兑换</strong>使用 BOH 积分结算</span
-            >
-          </div>
-          <div>
-            <ShieldCheck :size="22" aria-hidden="true" /><span
-              ><strong>库存同步</strong>商品状态实时更新</span
-            >
-          </div>
-          <div>
-            <MessageCircle :size="22" aria-hidden="true" /><span
-              ><strong>订单确认</strong>提交后由管理员联系</span
-            >
-          </div>
-        </section>
-      </template>
-
-      <template v-else-if="activeNavId === 'products'">
-        <section class="catalog-section">
-          <div class="section-heading catalog-heading">
-            <div>
-              <p class="section-kicker">全部商品</p>
-              <h2>{{ catalogTitle }}</h2>
-            </div>
-            <span class="result-count">{{ filteredProducts.length }} 件</span>
-          </div>
-
-          <div v-if="categoryCards.length" class="category-rail" aria-label="按分类浏览">
-            <button
-              v-for="card in categoryCards"
-              :key="card.value"
-              type="button"
-              class="category-card"
-              :class="{ active: selectedCategory === card.value }"
-              :aria-pressed="selectedCategory === card.value"
-              @click="selectCategoryCard(card.value)"
-            >
-              <span class="category-card-media">
-                <img
-                  v-if="card.cover"
-                  :src="displayImageUrl(card.cover)"
-                  :alt="card.label"
-                  width="240"
-                  height="180"
-                  loading="lazy"
-                />
-                <Package v-else :size="34" :stroke-width="1.3" aria-hidden="true" />
-              </span>
-              <strong>{{ card.label }}</strong>
-              <small>{{ card.count }} 件</small>
-            </button>
-          </div>
-
-          <div class="category-tabs" role="tablist" aria-label="商品分类">
-            <button
-              v-for="category in categoryOptions"
-              :key="category.value"
-              type="button"
-              role="tab"
-              :aria-selected="selectedCategory === category.value"
-              :class="{ active: selectedCategory === category.value }"
-              @click="selectedCategory = category.value"
-            >
-              {{ category.label }}
-            </button>
-          </div>
-
-          <div v-if="filteredProducts.length" ref="catalogGridRef" class="catalog-grid">
+          <div v-else-if="filteredProducts.length" class="product-grid">
             <button
               v-for="product in filteredProducts"
               :key="product.id"
               type="button"
-              class="product-card"
-              @click="openProductDetails(product)"
+              class="p-card"
+              @click="openProductDetails(product, $event)"
             >
-              <span class="product-media">
+              <span class="p-media">
                 <img
                   v-if="product.image"
                   :src="displayImageUrl(product)"
                   :alt="product.title"
-                  width="400"
-                  height="300"
                   loading="lazy"
                 />
-                <Package v-else :size="52" :stroke-width="1.3" aria-hidden="true" />
+                <Package v-else :size="34" :stroke-width="1.2" aria-hidden="true" />
               </span>
-              <span class="product-info">
-                <small>{{ product.category }}</small>
-                <strong>{{ product.title }}</strong>
-                <span>{{ formatPriceDisplay(product) }}</span>
+              <span class="p-meta">
+                <span class="p-name">{{ product.title }}</span>
+                <span class="p-price">{{ formatPriceDisplay(product) }}</span>
               </span>
             </button>
           </div>
-          <div v-else class="empty-state">
-            <SearchX :size="34" aria-hidden="true" />
-            <h3>没有找到商品</h3>
-            <p>清除搜索或切换分类后再看看。</p>
-            <button type="button" class="secondary-button" @click="resetCatalog">
-              查看全部商品
+
+          <div v-else class="store-empty">
+            <p>{{ searchKeyword ? `没有找到「${searchKeyword}」` : '暂时还没有周边' }}</p>
+            <button
+              v-if="searchKeyword"
+              type="button"
+              class="ghost-btn"
+              @click="searchKeyword = ''"
+            >
+              清空搜索
             </button>
           </div>
-        </section>
-      </template>
+        </template>
 
-      <template v-else-if="activeNavId === 'explore'">
-        <section class="explore-intro">
-          <p class="section-kicker">按需要探索</p>
-          <h2>四种收藏方式，一次看清。</h2>
-          <p>这里只提供分类入口和关键信息，不再重复陈列同一批商品。</p>
-        </section>
+        <LotteryPanel v-else-if="activeTab === 'lottery'" />
 
-        <section class="collection-list">
-          <button
-            v-for="collection in collectionSummaries"
-            :key="collection.value"
-            type="button"
-            class="collection-row"
-            @click="openCollection(collection.value)"
-          >
-            <span class="collection-icon"
-              ><component :is="collection.icon" :size="24" aria-hidden="true"
-            /></span>
-            <span class="collection-copy">
-              <strong>{{ collection.label }}</strong>
-              <small>{{ collection.description }}</small>
-            </span>
-            <span class="collection-meta">
-              {{ collection.count }} 件
-              <small>{{ collection.range }}</small>
-            </span>
-            <ChevronRight :size="20" aria-hidden="true" />
-          </button>
-        </section>
-
-        <section class="points-panel">
-          <div class="points-copy">
-            <p class="section-kicker">兑换说明</p>
-            <h3>积分就是这里的货币。</h3>
-            <p>可兑换商品会明确显示积分价格；暂不可兑换的收藏品仍可浏览详情。</p>
-          </div>
-          <div class="points-notes">
-            <div><strong>积分怎么赚</strong><span>每周签到、发帖活动、管理员发放</span></div>
-            <div><strong>积分怎么花</strong><span>兑换实物周边、订阅 AI 服务</span></div>
-          </div>
-          <Coins :size="44" :stroke-width="1.5" aria-hidden="true" />
-        </section>
-      </template>
+        <BagPanel
+          v-else
+          ref="bagPanelRef"
+          initial-view="cart"
+          show-full-link
+          @checkout="startCheckout"
+          @browse="switchTab('products')"
+          @open-full="router.push('/shop/bag?view=orders')"
+        />
+      </section>
     </main>
 
-    <nav class="shop-bottom-nav" aria-label="商城导航">
-      <div class="nav-items" :style="navIndicatorStyle">
-        <button
-          v-for="item in bottomNavItems"
-          :key="item.id"
-          type="button"
-          class="nav-item"
-          :class="{
-            active: item.id === activeNavId,
-            'cart-bounce': item.id === 'bag' && cartAnimation,
-          }"
-          @click="handleBottomNav(item.id)"
-        >
-          <component
-            :is="item.icon"
-            class="nav-icon"
-            :size="19"
-            :stroke-width="1.9"
-            aria-hidden="true"
-          />
-          <span class="nav-label">{{ item.label }}</span>
-          <b v-if="item.id === 'bag' && shoppingBagCount" class="bag-badge">{{
-            shoppingBagCount > 99 ? '99+' : shoppingBagCount
-          }}</b>
-        </button>
-      </div>
-    </nav>
+    <ProductDetailSheet
+      v-if="selectedProduct"
+      :product="selectedProduct"
+      :spec-value="selectedSpecValue"
+      :origin-key="selectedOriginKey"
+      :disabled="!isProductExchangeable(selectedProduct) || Number(selectedProduct.stock) <= 0"
+      @update:spec-value="selectedSpecValue = $event"
+      @close="closeProductDetails"
+      @add="addToBagFromDetail"
+    />
 
     <Transition name="modal">
-      <div v-if="selectedProduct" class="modal-overlay" @click="closeProductDetails">
-        <article
-          class="product-sheet"
-          role="dialog"
-          aria-modal="true"
-          :aria-label="selectedProduct.title"
-          @click.stop
-        >
-          <button
-            class="close-button"
-            type="button"
-            aria-label="关闭商品详情"
-            @click="closeProductDetails"
-          >
-            <X :size="20" />
-          </button>
-          <div class="sheet-grabber" aria-hidden="true"></div>
-          <div class="detail-media">
-            <img
-              v-if="selectedProduct.image"
-              :src="displayImageUrl(selectedProduct)"
-              :alt="selectedProduct.title"
-              width="400"
-              height="400"
-            />
-            <Package v-else :size="64" :stroke-width="1.2" aria-hidden="true" />
-          </div>
-          <div class="detail-content">
-            <p class="detail-category">{{ selectedProduct.category }}</p>
-            <h2>{{ selectedProduct.title }}</h2>
-            <p class="detail-price">{{ formatPriceDisplay(selectedProduct) }}</p>
-            <p class="detail-description">{{ selectedProduct.description }}</p>
-            <div v-if="selectedProduct.specifications?.length" class="spec-section">
-              <span>选择规格</span>
-              <div class="spec-options">
-                <button
-                  v-for="spec in selectedProduct.specifications"
-                  :key="spec.value"
-                  type="button"
-                  :class="{ selected: selectedSpecValue === spec.value }"
-                  @click="selectedSpecValue = spec.value"
-                >
-                  {{ spec.label }}
-                </button>
-              </div>
-            </div>
-            <div class="stock-line">
-              <span>库存</span
-              ><strong>{{
-                selectedProduct.stock > 0 ? `${selectedProduct.stock} 件` : '暂时缺货'
-              }}</strong>
-            </div>
-            <p class="detail-delivery-note">
-              提交后由管理员通过你选择的联系方式确认交付细节；兑换成功时积分立即扣除。
-            </p>
-            <button
-              type="button"
-              class="detail-add-button"
-              :disabled="!isProductExchangeable(selectedProduct) || selectedProduct.stock <= 0"
-              @click="addToBagFromModal"
-            >
-              <ShoppingBag :size="18" aria-hidden="true" />
-              {{ isProductExchangeable(selectedProduct) ? '加入购物袋' : '暂不可兑换' }}
-            </button>
-          </div>
-        </article>
-      </div>
-    </Transition>
-
-    <Transition name="scrim"
-      ><div v-if="isSidebarOpen" class="sidebar-scrim" @click="closeSidebar"></div
-    ></Transition>
-    <Transition name="drawer">
-      <aside v-if="isSidebarOpen" class="bag-drawer" aria-label="购物袋">
-        <header>
-          <div>
-            <p class="section-kicker">BOH STORE</p>
-            <h2>购物袋</h2>
-          </div>
-          <button class="close-button" type="button" aria-label="关闭购物袋" @click="closeSidebar">
-            <X :size="20" />
-          </button>
-        </header>
-        <div v-if="shoppingBag.length === 0" class="empty-bag">
-          <ShoppingBag :size="40" :stroke-width="1.4" aria-hidden="true" />
-          <h3>购物袋还是空的</h3>
-          <p>从商品页挑一件喜欢的吧。</p>
-          <button type="button" class="secondary-button" @click="continueShopping">继续购物</button>
-        </div>
-        <div v-else class="bag-content">
-          <TransitionGroup name="bag-item" tag="div" class="bag-items">
-            <article
-              v-for="item in shoppingBag"
-              :key="`${item.id}-${item.selectedSpec}`"
-              class="bag-item"
-            >
-              <div class="bag-item-media">
-                <img :src="displayImageUrl(item)" :alt="item.title" width="80" height="80" />
-              </div>
-              <div class="bag-item-copy">
-                <h3>{{ item.title }}</h3>
-                <p>{{ item.selectedSpecLabel }}</p>
-                <div class="bag-item-bottom">
-                  <div class="quantity-control">
-                    <button
-                      type="button"
-                      aria-label="减少数量"
-                      @click="updateQuantity(item.id, item.selectedSpec, -1)"
-                    >
-                      <Minus :size="15" />
-                    </button>
-                    <span>{{ item.quantity }}</span>
-                    <button
-                      type="button"
-                      aria-label="增加数量"
-                      @click="updateQuantity(item.id, item.selectedSpec, 1)"
-                    >
-                      <Plus :size="15" />
-                    </button>
-                  </div>
-                  <strong>{{ formatPriceDisplay(item) }}</strong>
-                </div>
-              </div>
-            </article>
-          </TransitionGroup>
-          <footer class="bag-summary">
-            <div>
-              <span>积分</span><strong>{{ totalPointsText || '—' }}</strong>
-            </div>
-            <div v-if="totalRmb">
-              <span>现金</span><strong>{{ totalRmbText }}</strong>
-            </div>
-            <div v-if="pointsBalanceAfter">
-              <span>兑换后积分</span><span>{{ pointsBalanceAfter }}</span>
-            </div>
-            <div>
-              <span>当前积分</span><span>{{ isLoggedIn ? userPoints : '请先登录' }}</span>
-            </div>
-            <p v-if="bagBlockedHint" class="bag-blocked-hint">{{ bagBlockedHint }}</p>
-            <button
-              type="button"
-              class="checkout-button"
-              :disabled="!canCheckout"
-              @click="getSettlement"
-            >
-              提交订单
-            </button>
-          </footer>
-        </div>
-      </aside>
-    </Transition>
-
-    <Transition name="modal">
-      <div
-        v-if="showContactModal"
-        class="modal-overlay contact-modal-overlay"
-        @click="closeContactModal"
-      >
+      <div v-if="showContactModal" class="modal-scrim" @click="closeContactModal">
         <section
-          class="contact-sheet"
+          class="contact-card"
           role="dialog"
           aria-modal="true"
-          aria-label="填写联系方式"
+          aria-label="确认收货信息"
           @click.stop
         >
-          <button class="close-button" type="button" aria-label="关闭" @click="closeContactModal">
-            <X :size="20" />
+          <!-- 关闭按钮：surface 直属子元素（与商品/抽奖详情同款），
+               竖屏下这是唯一显式关闭入口 —— 点遮罩在 iOS 上可能被键盘/焦点吞掉 -->
+          <button type="button" class="contact-close" aria-label="关闭" @click="closeContactModal">
+            <X :size="16" :stroke-width="2" aria-hidden="true" />
           </button>
-          <p class="section-kicker">订单确认</p>
-          <h2>留下联系方式</h2>
-          <p>管理员会联系你确认兑换与交付方式。</p>
-          <div v-if="totalPoints" class="contact-summary-line">
-            <span>积分支付</span><strong>{{ totalPointsText }}</strong>
+
+          <p class="contact-kicker">订单确认</p>
+          <h2>确认收货信息</h2>
+          <!-- 2026-11-01 用户口径：结算不再填 QQ / 微信 —— 直接用资料里的收件信息，
+               缺项就地补全并写回个人资料，下单选「确认提交」即直接邮件通知管理员。 -->
+          <p class="contact-note">信息保存到你的资料，下次下单自动带出。</p>
+
+          <div class="field-grid-2">
+            <label class="contact-field">
+              <span>收件人</span>
+              <input v-model.trim="checkoutForm.recipient" type="text" placeholder="收件人姓名" />
+            </label>
+            <label class="contact-field">
+              <span>电话</span>
+              <input
+                v-model.trim="checkoutForm.phone"
+                type="tel"
+                inputmode="tel"
+                placeholder="手机号"
+              />
+            </label>
           </div>
-          <div v-if="totalRmb" class="contact-summary-line">
-            <span>现金支付</span><strong>{{ totalRmbText }}</strong>
+
+          <label class="contact-field">
+            <span>邮箱（账号）</span>
+            <input :value="userInfo.email || '未绑定邮箱'" type="text" readonly />
+          </label>
+
+          <label class="contact-field">
+            <span>收货地址</span>
+            <!-- 一键识别：粘贴整段地址（含从聊天/电商订单里复制的长文本）→ 自动拆成省 / 市 / 详细地址。
+                 识别是纯本地的（utils/address-parse.js），不联网、不上传；拆不出来就整段留在
+                 「详细地址」里，绝不丢字。 -->
+            <div class="addr-paste">
+              <input
+                ref="pasteInputRef"
+                v-model="checkoutForm.pasteText"
+                type="text"
+                :placeholder="awaitingPaste ? '粘贴到这里' : '粘贴整段地址自动拆分'"
+                @paste="handleAddressPaste"
+                @input="handleAddressTyping"
+              />
+              <button
+                type="button"
+                class="addr-paste-btn"
+                :class="{ 'is-awaiting': awaitingPaste }"
+                :disabled="recognizing"
+                @click="readClipboardAddress"
+              >
+                <ClipboardPaste :size="14" :stroke-width="1.8" aria-hidden="true" />
+                {{ recognizing ? '识别中' : awaitingPaste ? '等待粘贴' : '识别' }}
+              </button>
+            </div>
+            <div class="addr-row">
+              <div class="addr-select">
+                <select v-model="checkoutForm.province" aria-label="省份">
+                  <option value="">省份</option>
+                  <option v-for="province in PROVINCES" :key="province" :value="province">
+                    {{ province }}
+                  </option>
+                </select>
+              </div>
+              <input
+                v-model.trim="checkoutForm.city"
+                type="text"
+                placeholder="城市"
+                aria-label="城市"
+              />
+            </div>
+            <textarea
+              v-model.trim="checkoutForm.detail"
+              rows="2"
+              placeholder="区县 / 街道 / 门牌号"
+              aria-label="详细地址"
+            ></textarea>
+          </label>
+
+          <div v-if="totalPoints || totalRmb" class="contact-summary">
+            <div v-if="totalPoints" class="contact-line">
+              <span>积分支付</span><strong>{{ totalPoints }} 积分</strong>
+            </div>
+            <div v-if="totalRmb" class="contact-line">
+              <span>现金支付</span><strong>{{ totalRmbText }}</strong>
+            </div>
           </div>
-          <div class="contact-types">
-            <button
-              type="button"
-              :class="{ selected: contactType === 'qq' }"
-              @click="contactType = 'qq'"
-            >
-              QQ
-            </button>
-            <button
-              type="button"
-              :class="{ selected: contactType === 'vx' }"
-              @click="contactType = 'vx'"
-            >
-              微信
-            </button>
-          </div>
-          <label
-            ><span>{{ contactType === 'vx' ? '微信号' : 'QQ 号' }}</span
-            ><input
-              v-model.trim="contactValue"
-              type="text"
-              :placeholder="contactType === 'vx' ? '请输入微信号' : '请输入 QQ 号'"
-          /></label>
+
           <button
-            class="checkout-button"
             type="button"
-            :disabled="!contactType || !contactValue || submittingContact"
+            class="submit-btn"
+            :disabled="submittingContact"
             @click="submitContact"
           >
-            确认提交
+            {{ submittingContact ? '提交中…' : '确认提交' }}
           </button>
         </section>
-      </div>
-    </Transition>
-
-    <Transition name="reveal">
-      <div
-        v-if="showAccountOverlay"
-        class="modal-overlay account-overlay"
-        @click="showAccountOverlay = false"
-      >
-        <div class="account-card-overlay" @click.stop>
-          <ShopAccountPanel mode="overlay" @close="showAccountOverlay = false" />
-        </div>
       </div>
     </Transition>
 
@@ -566,38 +269,39 @@
       @close="closePaymentSuccess"
     />
 
-    <Transition name="toast"
-      ><div v-if="operationToast.show" class="operation-toast">
-        {{ operationToast.message }}
-      </div></Transition
-    >
+    <Transition name="toast">
+      <div v-if="operationToast.show" class="operation-toast">{{ operationToast.message }}</div>
+    </Transition>
+
+    <UserSpaceSideRail
+      :nav-items="BOTTOM_NAV_ITEMS"
+      current-tab="shop"
+      :has-unread-messages="hasUnreadMessages"
+      :unread-count="unreadCount"
+      :current-theme="currentTheme"
+      :is-logged-in="isLoggedIn"
+      @nav-click="handleNavClick"
+      @action="handleRailAction"
+    />
+
+    <UserSpaceBottomNav
+      :visible="true"
+      :hidden="bottomNavHidden"
+      :nav-items="BOTTOM_NAV_ITEMS"
+      current-tab="shop"
+      :nav-indicator-style="navIndicatorStyle"
+      :has-unread-messages="hasUnreadMessages"
+      :unread-count="unreadCount"
+      @nav-click="handleNavClick"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import {
-  ArrowRight,
-  ChevronRight,
-  Coins,
-  Compass,
-  Gift,
-  MessageCircle,
-  Minus,
-  Package,
-  PackageCheck,
-  Palette,
-  Plus,
-  Search,
-  SearchX,
-  ShieldCheck,
-  ShoppingBag,
-  Sparkles,
-  User,
-  X,
-} from 'lucide-vue-next';
+import { Package, Search, User, X, ClipboardPaste } from 'lucide-vue-next';
 import mascotHeroUrl from '@/assets/images/mascot-new-landscape-orig.webp';
 import { getImageUrl } from '@/utils/asset-helper.js';
 import { useAuthStore } from '@/stores/auth';
@@ -605,13 +309,34 @@ import { useBagStore } from '@/stores/bag';
 import { useProductsStore } from '@/stores/products';
 import { createNotification } from '@/utils/api/notifications-api.js';
 import { getAllProfiles } from '@/utils/api/auth-api.js';
-import { createShopOrderWithPoints, getProfileByUsername } from '@/utils/api/profile-api.js';
+import {
+  createShopOrderWithPoints,
+  getProfileByUsername,
+  updateProfile,
+} from '@/utils/api/profile-api.js';
 import { sendMerchandiseSettlementEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
 import { showIsland } from '@/composables/useIsland.js';
-import ShopAccountPanel from './ShopAccountPanel.vue';
+import { captureOrigin } from '@/utils/motion-origin.js';
+import {
+  PROVINCES,
+  composeAddress,
+  looksLikeFullAddress,
+  parseAddress,
+} from '@/utils/address-parse.js';
+import { themeManager } from '@/utils/theme-manager.js';
+import { logoutAndReload } from '@/utils/logout-and-reload.js';
+import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
+import { getNotificationStoreRef } from '@/stores/notification-loader';
+import UserSpaceBottomNav from '@/views/user-center/UserSpace/components/UserSpaceBottomNav.vue';
+import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpaceSideRail.vue';
+import { useScrollDirectionHide } from '@/views/user-center/UserSpace/composables/useScrollDirectionHide.js';
 import ShopPaymentSuccessModal from './ShopPaymentSuccessModal.vue';
+import ProductDetailSheet from './ProductDetailSheet.vue';
+import LotteryPanel from './LotteryPanel.vue';
+import BagPanel from './BagPanel.vue';
 
+const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const bagStore = useBagStore();
@@ -620,248 +345,141 @@ const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 const { userInfo } = authStore;
 const { shoppingBag } = storeToRefs(bagStore);
 const { productsData, isFetchingProducts, fetchError } = storeToRefs(productsStore);
-const { addToBag, updateBagItemQuantity, clearBag } = bagStore;
+const { addToBag, clearBag } = bagStore;
 
-const activeNavId = ref('for-you');
-const selectedCategory = ref('all');
-const searchQuery = ref('');
+const tabs = [
+  { id: 'products', label: '产品' },
+  { id: 'lottery', label: '抽奖' },
+  { id: 'bag', label: '购物袋' },
+];
+
+const activeTab = ref('products');
+const searchKeyword = ref('');
 const selectedProduct = ref(null);
 const selectedSpecValue = ref('');
-const isSidebarOpen = ref(false);
-const cartAnimation = ref(false);
+const selectedOriginKey = ref('');
 const showContactModal = ref(false);
-const contactType = ref('');
-const contactValue = ref('');
+/* 结算表单：直接从个人资料的 shipping_* 带出（2026-11-01 起不再手填 QQ/微信）。
+   缺项就地补填，提交时写回资料 —— 下一次下单自动带出，管理员邮件里也直接有。 */
+const checkoutForm = reactive({
+  recipient: '',
+  phone: '',
+  province: '',
+  city: '',
+  detail: '',
+  pasteText: '',
+});
 const submittingContact = ref(false);
 const operationToast = ref({ show: false, message: '' });
 const paymentSuccess = ref(null);
+const bagPanelRef = ref(null);
 let toastTimer = null;
 
-// 横屏/竖屏检测 & 账户面板
-const isLandscape = ref(false);
-const showAccountOverlay = ref(false);
-let orientationMql = null;
-let orientationHandler = null;
-
-const categoryOptions = [
-  { label: '全部', value: 'all' },
-  { label: 'BOH Bag', value: 'BOH Bag' },
-  { label: '虚拟服务', value: 'BOH 虚拟' },
-  { label: '装饰收藏', value: 'BOH 装饰' },
-  { label: '专属定制', value: 'BOH 定制' },
-];
-const collectionDefinitions = [
-  { label: 'BOH Bag', value: 'BOH Bag', icon: Package, description: '日常携带与实用周边' },
-  { label: '虚拟服务', value: 'BOH 虚拟', icon: Sparkles, description: '地图、身份与线上体验' },
-  { label: '装饰收藏', value: 'BOH 装饰', icon: Gift, description: '公仔、纪念册与收藏品' },
-  { label: '专属定制', value: 'BOH 定制', icon: Palette, description: '为你制作的独有作品' },
-];
-const bottomNavItems = [
-  { id: 'for-you', label: '为你推荐', icon: Sparkles },
-  { id: 'products', label: '产品', icon: Package },
-  { id: 'explore', label: '深入探索', icon: Compass },
-  { id: 'bag', label: '购物袋', icon: ShoppingBag },
-];
-
 const allProducts = computed(() => productsData.value || []);
-const featuredProduct = computed(
-  () =>
-    allProducts.value.find((product) => Number(product.id) === 501) || allProducts.value[0] || null,
-);
-const recommendedProducts = computed(() =>
-  allProducts.value.filter((product) => product.id !== featuredProduct.value?.id).slice(0, 6),
-);
+/* 搜索取代了原来的分类 chip：按标题 / 描述 / 分类做包含匹配（大小写不敏感），
+   空关键词 = 全量。没有分页，交集只有个位数 SKU，不必做防抖。 */
 const filteredProducts = computed(() => {
-  const query = searchQuery.value.toLocaleLowerCase();
-  return allProducts.value.filter((product) => {
-    const matchesCategory =
-      selectedCategory.value === 'all' || product.category === selectedCategory.value;
-    const matchesQuery =
-      !query ||
-      `${product.title} ${product.description} ${product.category}`
-        .toLocaleLowerCase()
-        .includes(query);
-    return matchesCategory && matchesQuery;
-  });
-});
-const catalogTitle = computed(() =>
-  searchQuery.value
-    ? `“${searchQuery.value}”的搜索结果`
-    : categoryOptions.find((item) => item.value === selectedCategory.value)?.label || '全部商品',
-);
-const collectionSummaries = computed(() =>
-  collectionDefinitions.map((definition) => {
-    const items = allProducts.value.filter((product) => product.category === definition.value);
-    const points = items
-      .map((item) => parsePointsCost(item.points_cost))
-      .filter((value) => value !== null);
-    const range = points.length ? `${Math.min(...points)}–${Math.max(...points)} 积分` : '浏览收藏';
-    return { ...definition, count: items.length, range };
-  }),
-);
-
-// 最近浏览（对照 Apple Store App「你的近期活动」）：本地只存商品 id，
-// 渲染时按当前商品数据解析，避免历史缓存把已下架商品的旧价格/旧图带回界面。
-const RECENT_VIEWS_KEY = 'boh_shop_recent_views_v1';
-const RECENT_VIEWS_MAX = 8;
-const recentViewIds = ref([]);
-function readRecentViews() {
-  try {
-    const raw = window.localStorage.getItem(RECENT_VIEWS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((id) => Number(id))
-      .filter((id) => Number.isFinite(id) && id > 0)
-      .slice(0, RECENT_VIEWS_MAX);
-  } catch {
-    return [];
-  }
-}
-function persistRecentViews(ids) {
-  try {
-    window.localStorage.setItem(RECENT_VIEWS_KEY, JSON.stringify(ids));
-  } catch {
-    /* 存储不可用（隐私模式等）时降级为仅本次会话可见 */
-  }
-}
-function recordRecentView(product) {
-  const id = Number(product?.id);
-  if (!Number.isFinite(id) || id <= 0) return;
-  const next = [id, ...recentViewIds.value.filter((item) => item !== id)].slice(
-    0,
-    RECENT_VIEWS_MAX,
+  const keyword = searchKeyword.value.trim().toLowerCase();
+  if (!keyword) return allProducts.value;
+  return allProducts.value.filter((product) =>
+    [product.title, product.description, product.category]
+      .filter(Boolean)
+      .some((field) => String(field).toLowerCase().includes(keyword)),
   );
-  recentViewIds.value = next;
-  persistRecentViews(next);
-}
-function clearRecentViews() {
-  recentViewIds.value = [];
-  try {
-    window.localStorage.removeItem(RECENT_VIEWS_KEY);
-  } catch {
-    /* 同上，忽略清理失败 */
-  }
-}
-const recentProducts = computed(() =>
-  recentViewIds.value
-    .map((id) => allProducts.value.find((product) => Number(product.id) === id))
-    .filter(Boolean),
-);
-
-// 分类大图卡（对照 App「产品」页顶部分类横滑）：封面取该分类首个有图商品，无图回退图标
-const categoryCards = computed(() =>
-  categoryOptions
-    .filter((option) => option.value !== 'all')
-    .map((option) => {
-      const items = allProducts.value.filter((product) => product.category === option.value);
-      return {
-        value: option.value,
-        label: option.label,
-        cover: items.find((product) => product.image) || null,
-        count: items.length,
-      };
-    })
-    .filter((card) => card.count > 0),
-);
-const catalogGridRef = ref(null);
-function selectCategoryCard(value) {
-  selectedCategory.value = value;
-  nextTick(() => {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    catalogGridRef.value?.scrollIntoView({
-      behavior: reduceMotion ? 'auto' : 'smooth',
-      block: 'start',
-    });
-  });
-}
-
-// 购物袋小结增强：兑换后积分余额预览 + 不可兑换拦截提示（对照 App 购物袋「小计」区）
-const pointsBalanceAfter = computed(() => {
-  const spend = totalPoints.value;
-  if (!spend || !isLoggedIn.value) return null;
-  const left = (Number(userInfo.points) || 0) - spend;
-  return left >= 0 ? `${left} 积分` : `还差 ${-left} 积分`;
 });
-const bagBlockedHint = computed(() => {
-  if (!shoppingBag.value.length || canCheckout.value || !isLoggedIn.value) return '';
-  return shoppingBag.value.some((item) => !isProductExchangeable(item))
-    ? '袋中有暂不可兑换的商品，移除后再提交'
-    : '订单内容无效，请检查购物袋';
-});
-const navIndicatorStyle = computed(() => {
-  const index = Math.max(
-    0,
-    bottomNavItems.findIndex((item) => item.id === activeNavId.value),
-  );
-  return {
-    '--nav-count': bottomNavItems.length,
-    '--active-nav-center': `${((index + 0.5) / bottomNavItems.length) * 100}%`,
-  };
-});
+const bagCount = computed(() => shoppingBag.value.reduce((sum, item) => sum + item.quantity, 0));
 const avatarInitial = computed(() =>
   String(userInfo.username || '?')
     .trim()
     .charAt(0)
     .toUpperCase(),
 );
-const shoppingBagCount = computed(() =>
-  shoppingBag.value.reduce((sum, item) => sum + item.quantity, 0),
-);
-const totalPoints = computed(() =>
-  shoppingBag.value.reduce(
-    (sum, item) => sum + (parsePointsCost(item.points_cost) || 0) * item.quantity,
+
+const navIndicatorStyle = computed(() => {
+  const index = Math.max(
     0,
-  ),
-);
-const totalPointsText = computed(() => (totalPoints.value ? `${totalPoints.value} 积分` : ''));
-const totalRmb = computed(() =>
-  shoppingBag.value.reduce((sum, item) => {
-    const rmb = Number(item.rmb_price);
-    return sum + (Number.isFinite(rmb) && rmb > 0 ? rmb * item.quantity : 0);
-  }, 0),
-);
-const totalRmbText = computed(() =>
-  totalRmb.value > 0 ? `¥${(totalRmb.value / 100).toFixed(2)}` : '',
-);
-const userPoints = computed(() => `${Number(userInfo.points) || 0} 积分`);
-const canCheckout = computed(() => {
-  if (!shoppingBag.value.length) return false;
-  return shoppingBag.value.every((item) => {
-    if (item.is_purchasable === false) return false;
-    const mode = String(item.payment_mode || 'points_only');
-    if (mode === 'points_only') return parsePointsCost(item.points_cost) !== null;
-    if (mode === 'rmb_only') return Number(item.rmb_price) > 0;
-    if (mode === 'combined')
-      return parsePointsCost(item.points_cost) !== null && Number(item.rmb_price) > 0;
-    return false;
-  });
+    BOTTOM_NAV_ITEMS.findIndex((item) => item.id === 'shop'),
+  );
+  return {
+    '--nav-count': BOTTOM_NAV_ITEMS.length,
+    '--active-nav-center': `${((index + 0.5) / BOTTOM_NAV_ITEMS.length) * 100}%`,
+  };
 });
 
-function parsePointsCost(value) {
+const notificationStoreRef = getNotificationStoreRef();
+const unreadCount = computed(() => notificationStoreRef.value?.unreadCount || 0);
+const hasUnreadMessages = computed(() => unreadCount.value > 0);
+
+/* 底栏「下滑隐藏 / 上滑显现」——2026-11-01 修：周边页虽然挂了同一颗 UserSpaceBottomNav，
+   但从来没人给它传 hidden，于是首页/我页都有的这条手势在周边页成了死交互。
+   复用同一份 composable（滚动容器自动判定，/shop 是 body 滚动 ⇒ document.scrollingElement），
+   不另写一套阈值 —— 三个宿主的隐藏手感必须一致。
+   forceVisible 恒 false：周边页没有「底栏还没就位」的入场期。 */
+const { hidden: bottomNavHidden } = useScrollDirectionHide({
+  forceVisible: computed(() => false),
+});
+
+const handleNavClick = (itemId) => {
+  if (itemId === 'shop') {
+    switchTab('products');
+    return;
+  }
+  const item = BOTTOM_NAV_ITEMS.find((entry) => entry.id === itemId);
+  if (!item) return;
+  if (route.path === item.route) return;
+  router.push(item.route);
+};
+
+/* 左栏「更多」菜单要按当前主题显示「深色 / 浅色模式」，所以跟一份只读的主题态。
+   ⚠️ 监听的是 themeManager 派发的 window 事件（全站唯一真源），不在本地改属性。 */
+const currentTheme = ref(themeManager.getTheme());
+const handleThemeChanged = () => {
+  currentTheme.value = themeManager.getTheme();
+};
+
+/* 横屏左栏的便捷 / 工具区动作分发（与 Home / Cloud+ / UserSpaceMain 同一套语义）。
+   周边页没有本地发布器，也没有资产页 —— 都按「全局可达落点」跳走：
+     发布 → 首页论坛层并带 ?compose=1 深链（论坛是发布的唯一宿主）
+     资产 → 「我」页的资产 tab（2026-10-26 全站收敛后的统一落点） */
+const handleRailAction = async (actionId) => {
+  switch (actionId) {
+    case 'compose':
+      router.push({ path: '/', query: { view: 'latest', compose: '1' } });
+      break;
+    case 'assets':
+      router.push('/user-space?tab=assets');
+      break;
+    case 'theme':
+      themeManager.toggle();
+      break;
+    case 'home':
+      router.push('/');
+      break;
+    case 'logout':
+      await logoutAndReload(authStore);
+      break;
+    default:
+      break;
+  }
+};
+
+const parsePointsCost = (value) => {
   const points = Number(value);
   return Number.isFinite(points) && points > 0 ? Math.round(points) : null;
-}
-function formatRmb(value) {
+};
+const formatRmb = (value) => {
   const cents = Number(value);
   if (!Number.isFinite(cents) || cents <= 0) return null;
   return `¥${(cents / 100).toFixed(2)}`;
-}
-function formatPriceDisplay(product) {
-  const mode = String(product?.payment_mode || 'points_only');
+};
+const formatPriceDisplay = (product) => {
   const points = parsePointsCost(product?.points_cost);
   const rmb = formatRmb(product?.rmb_price);
-
-  if (mode === 'points_only') return points !== null ? `${points} 积分` : '暂不可兑换';
-  if (mode === 'rmb_only') return rmb || '暂不可购买';
-  if (mode === 'combined') {
-    const parts = [];
-    if (points !== null) parts.push(`${points} 积分`);
-    if (rmb) parts.push(rmb);
-    return parts.length ? parts.join(' + ') : '暂不可兑换';
-  }
-  return '暂不可兑换';
-}
+  const parts = [];
+  if (points !== null) parts.push(`${points} 积分`);
+  if (rmb) parts.push(rmb);
+  return parts.length ? parts.join(' + ') : '暂不可兑换';
+};
 const isProductExchangeable = (product) => {
   if (product?.is_purchasable === false) return false;
   const mode = String(product?.payment_mode || 'points_only');
@@ -874,81 +492,70 @@ const isProductExchangeable = (product) => {
 const displayImageUrl = (product) =>
   Number(product?.id) === 501 ? mascotHeroUrl : getImageUrl(product?.image);
 
-function handleBottomNav(id) {
-  if (id === 'bag') return toggleSidebar();
-  activeNavId.value = id;
-  if (id !== 'products') searchQuery.value = '';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-function switchToProducts() {
-  activeNavId.value = 'products';
-  selectedCategory.value = 'all';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-function openProductsForSearch() {
-  activeNavId.value = 'products';
-}
-function openCollection(value) {
-  selectedCategory.value = value;
-  activeNavId.value = 'products';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-function resetCatalog() {
-  searchQuery.value = '';
-  selectedCategory.value = 'all';
-}
-function handleAvatarClick() {
+const totalPoints = computed(() =>
+  shoppingBag.value.reduce(
+    (sum, item) => sum + (parsePointsCost(item.points_cost) || 0) * item.quantity,
+    0,
+  ),
+);
+const totalRmb = computed(() =>
+  shoppingBag.value.reduce((sum, item) => {
+    const rmb = Number(item.rmb_price);
+    return sum + (Number.isFinite(rmb) && rmb > 0 ? rmb * item.quantity : 0);
+  }, 0),
+);
+const totalRmbText = computed(() =>
+  totalRmb.value > 0 ? `¥${(totalRmb.value / 100).toFixed(2)}` : '',
+);
+const canCheckout = computed(() => {
+  if (!shoppingBag.value.length) return false;
+  return shoppingBag.value.every((item) => isProductExchangeable(item));
+});
+
+const switchTab = (tabId) => {
+  activeTab.value = tabId;
+  router.replace({ path: '/shop', query: tabId === 'products' ? {} : { tab: tabId } });
+  window.scrollTo({ top: 0, behavior: 'auto' });
+};
+
+const goBag = () => {
   if (!isLoggedIn.value) {
     showLoginModal.value = true;
     return;
   }
-  if (isLandscape.value) {
-    showAccountOverlay.value = true;
-  } else {
-    router.push('/shop/account');
-  }
-}
+  router.push('/shop/bag?view=orders');
+};
 
-function openProductDetails(product) {
+const openProductDetails = (product, event) => {
   selectedProduct.value = product;
   selectedSpecValue.value = product.specifications?.[0]?.value || 'Default';
-  recordRecentView(product);
+  selectedOriginKey.value = `shop-product:${product.id}`;
+  const card = event?.currentTarget;
+  if (card) captureOrigin(selectedOriginKey.value, card, { radius: 16 });
   document.body.style.overflow = 'hidden';
-}
-function closeProductDetails() {
+};
+const closeProductDetails = () => {
   selectedProduct.value = null;
   selectedSpecValue.value = '';
   document.body.style.overflow = '';
-}
-function addToBagFromModal() {
+};
+const addToBagFromDetail = () => {
   const product = selectedProduct.value;
   if (!product || !isProductExchangeable(product)) return;
   const spec = product.specifications?.find((item) => item.value === selectedSpecValue.value);
   const result = addToBag(product, selectedSpecValue.value || 'Default', spec?.label || '默认规格');
   if (!result?.ok) return showOperationToast('该商品暂不可兑换');
-  cartAnimation.value = true;
-  setTimeout(() => {
-    cartAnimation.value = false;
-  }, 650);
   closeProductDetails();
   showOperationToast('已加入购物袋');
-}
-function toggleSidebar() {
-  isSidebarOpen.value = !isSidebarOpen.value;
-  document.body.style.overflow = isSidebarOpen.value ? 'hidden' : '';
-}
-function closeSidebar() {
-  isSidebarOpen.value = false;
-  document.body.style.overflow = '';
-}
-function continueShopping() {
-  closeSidebar();
-  switchToProducts();
-}
-function updateQuantity(id, spec, delta) {
-  updateBagItemQuantity(id, spec, delta);
-}
-function showShopIsland(title, message = '', icon = 'success', durationMs = 3000, onAction = null) {
+};
+
+const showShopIsland = (
+  title,
+  message = '',
+  icon = 'success',
+  durationMs = 3000,
+  onAction = null,
+) => {
   try {
     const payload = { title, message, icon, durationMs };
     if (typeof onAction === 'function') payload.onAction = onAction;
@@ -956,50 +563,26 @@ function showShopIsland(title, message = '', icon = 'success', durationMs = 3000
   } catch {
     return false;
   }
-}
+};
 function showOperationToast(message) {
   const text = String(message || '');
   const isError = /不可兑换|无效|不足|失败|错误|请先登录|请检查/.test(text);
-  const icon = isError ? 'warning' : 'success';
   let title = text;
-  let msg = '';
-  // 精细化标题映射
+  let detail = '';
   if (text === '已加入购物袋') {
     title = '已加入购物袋';
-    msg = selectedProduct.value?.title ? String(selectedProduct.value.title).slice(0, 32) : '';
+    detail = selectedProduct.value?.title ? String(selectedProduct.value.title).slice(0, 32) : '';
   } else if (text === '订单已提交') {
     title = '订单已提交';
-    msg = '管理员会尽快与你确认';
-  } else if (text === '订单已提交，但邮件通知发送失败') {
-    title = '订单已提交';
-    msg = '邮件通知发送失败';
+    detail = '已邮件通知管理员处理';
   } else if (text.startsWith('积分不足')) {
     title = '积分不足';
-    msg = text.replace(/^积分不足[:：]?\s*/, '');
-  } else if (text === '该商品暂不可兑换') {
-    title = '暂不可兑换';
-    msg = '该商品当前不可兑换';
-  } else if (text === '请先登录后再提交订单') {
-    title = '请先登录';
-    msg = '登录后可提交订单';
-  } else if (text === '订单内容无效，请检查购物袋') {
-    title = '订单无效';
-    msg = '请检查购物袋';
+    detail = text.replace(/^积分不足[:：]?\s*/, '');
   } else if (text.length > 24) {
     title = text.slice(0, 24);
-    msg = text.slice(24);
+    detail = text.slice(24);
   }
-  const ok = showShopIsland(
-    title,
-    msg,
-    icon,
-    isError ? 3600 : 3000,
-    isError && text === '请先登录后再提交订单'
-      ? () => {
-          showLoginModal.value = true;
-        }
-      : null,
-  );
+  const ok = showShopIsland(title, detail, isError ? 'warning' : 'success', isError ? 3600 : 3000);
   if (ok) return;
   if (toastTimer) clearTimeout(toastTimer);
   operationToast.value = { show: true, message };
@@ -1008,24 +591,161 @@ function showOperationToast(message) {
   }, 2600);
 }
 
-function closeContactModal() {
+const closeContactModal = () => {
   showContactModal.value = false;
-  contactType.value = '';
-  contactValue.value = '';
-}
-function closePaymentSuccess() {
+  stopPasteWatch();
+};
+const closePaymentSuccess = () => {
   paymentSuccess.value = null;
   document.body.style.overflow = '';
+};
+
+/* 打开结算：先把资料里的收件信息带出来（缺失就留空，让用户就地补）。
+   取的是 profiles 的 shipping_* 三列 —— authStore.userInfo 不带这三个字段。
+   地址在库里是**一整段文本**，这里用同一套解析器拆成 省 / 市 / 详细地址。 */
+const loadShippingProfile = async () => {
+  checkoutForm.recipient = String(userInfo.username || '').trim();
+  checkoutForm.phone = '';
+  checkoutForm.province = '';
+  checkoutForm.city = '';
+  checkoutForm.detail = '';
+  checkoutForm.pasteText = '';
+  try {
+    const username = String(userInfo.username || '').trim();
+    if (!username) return;
+    const { data, error } = await getProfileByUsername(username);
+    if (error || !data) return;
+    checkoutForm.recipient = String(data.shipping_recipient || '').trim() || checkoutForm.recipient;
+    checkoutForm.phone = String(data.shipping_phone || '').trim();
+    const parsed = parseAddress(data.shipping_address);
+    checkoutForm.province = parsed.province;
+    checkoutForm.city = parsed.city;
+    checkoutForm.detail = parsed.detail;
+  } catch (error) {
+    logger.warn('shop', '读取收货资料失败', error);
+  }
+};
+
+/* 把一段地址文本吃进表单（三个字段一起覆写）——
+   粘贴 / 剪贴板两条入口共用，避免两处解析逻辑漂移。 */
+const applyAddressText = (text) => {
+  const parsed = parseAddress(text);
+  if (!parsed.province && !parsed.city && !parsed.detail) return false;
+  checkoutForm.province = parsed.province || checkoutForm.province;
+  checkoutForm.city = parsed.city;
+  checkoutForm.detail = parsed.detail;
+  return true;
+};
+
+const handleAddressPaste = (event) => {
+  const text = event?.clipboardData?.getData('text') || '';
+  if (!looksLikeFullAddress(text)) return; // 普通粘贴（比如只贴门牌号）就正常落进输入框
+  event.preventDefault();
+  if (applyAddressText(text)) checkoutForm.pasteText = '';
+};
+
+/* 手打字时也识别：输入框内容一旦「像完整地址」就即时拆分（不打断开头的短文本） */
+const handleAddressTyping = () => {
+  if (!looksLikeFullAddress(checkoutForm.pasteText)) return;
+  if (applyAddressText(checkoutForm.pasteText)) checkoutForm.pasteText = '';
+};
+
+/* 「识别」按钮：点一下 = 读剪贴板 → 拆分 → 直接填进省/市/详细地址。
+   降级链（浏览器差别很大，必须给每一步都留活路）：
+   1) navigator.clipboard.readText() —— 标准路径，localhost / HTTPS + 用户手势下成功率最高；
+   2) 读不到 / 被拒（iOS WKWebView、iframe、浏览器未授权、剪贴板为空）→ 进入「等待粘贴」：
+      聚焦识别框 + 在**文档捕获阶段**挂一次性 paste 监听，用户随手 Ctrl+V 或长按「粘贴」
+      都能被接住并拆分 —— 不依赖焦点是否真的在输入框上（移动端点完按钮焦点常常跑掉）。
+      15s 无操作自动解除，避免长期劫持全局粘贴。 */
+const pasteInputRef = ref(null);
+const recognizing = ref(false);
+const awaitingPaste = ref(false);
+let pasteWatchTimer = null;
+
+function stopPasteWatch() {
+  awaitingPaste.value = false;
+  if (pasteWatchTimer) {
+    clearTimeout(pasteWatchTimer);
+    pasteWatchTimer = null;
+  }
+  document.removeEventListener('paste', onDocumentPaste, true);
 }
-function getSettlement() {
+
+/* 全局粘贴兜底：只处理文本；识别框自己的 @paste 优先（这里直接让开，避免重复处理） */
+function onDocumentPaste(event) {
+  if (!showContactModal.value) {
+    stopPasteWatch();
+    return;
+  }
+  if (event.target === pasteInputRef.value) return;
+  const text = String(event?.clipboardData?.getData('text') || '').trim();
+  if (!text) return;
+  event.preventDefault();
+  const ok = applyAddressText(text);
+  checkoutForm.pasteText = ok ? '' : text;
+  stopPasteWatch();
+  showOperationToast(ok ? '已识别粘贴的地址' : '这段拆不出省/市，已放进识别框');
+}
+
+const armPasteWatch = async (message) => {
+  showOperationToast(message);
+  await nextTick();
+  pasteInputRef.value?.focus?.();
+  awaitingPaste.value = true;
+  document.addEventListener('paste', onDocumentPaste, true);
+  if (pasteWatchTimer) clearTimeout(pasteWatchTimer);
+  pasteWatchTimer = setTimeout(stopPasteWatch, 15000);
+};
+
+const readClipboardAddress = async () => {
+  if (recognizing.value) return;
+  recognizing.value = true;
+  try {
+    let text = '';
+    if (navigator.clipboard?.readText) {
+      try {
+        text = await navigator.clipboard.readText();
+      } catch (error) {
+        logger.warn('shop', '读取剪贴板失败，转手动粘贴引导', error);
+      }
+    }
+    text = String(text || '').trim();
+
+    if (text) {
+      if (applyAddressText(text)) {
+        checkoutForm.pasteText = '';
+        showOperationToast('已识别剪贴板里的地址');
+      } else {
+        // 不是完整地址（比如只复制了门牌号）：原样放进输入框让人确认
+        checkoutForm.pasteText = text;
+        showOperationToast('剪贴板内容不像完整地址，已放进输入框');
+      }
+      return;
+    }
+
+    // 读不到（无权限 / 剪贴板为空）：进入等待粘贴态，下一次 Ctrl+V / 长按粘贴即识别
+    const coarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches;
+    await armPasteWatch(
+      coarsePointer ? '没读到剪贴板，长按识别框选「粘贴」' : '没读到剪贴板，按 Ctrl+V 粘贴即可',
+    );
+  } finally {
+    recognizing.value = false;
+  }
+};
+
+const startCheckout = async () => {
   if (!isLoggedIn.value) {
-    closeSidebar();
     showLoginModal.value = true;
     return showOperationToast('请先登录后再提交订单');
   }
   if (!canCheckout.value) return showOperationToast('订单内容无效，请检查购物袋');
+  await loadShippingProfile();
   showContactModal.value = true;
-}
+};
+
+/* 电话只需「像电话」：7~20 位数字，允许 + - 空格 括号（国际号/分机也可能出现） */
+const isPhoneLike = (value) => /^[+]?[\d\s()-]{7,20}$/.test(String(value || '').trim());
+
 const buildOrderItemsPayload = () =>
   shoppingBag.value.map((item) => ({
     id: Number(item.id),
@@ -1033,19 +753,23 @@ const buildOrderItemsPayload = () =>
     selectedSpec: String(item.selectedSpec || ''),
     selectedSpecLabel: String(item.selectedSpecLabel || ''),
   }));
+
 function resolveOrderErrorMessage(result) {
   const code = result?.data?.message || result?.error?.code || '';
   if (code === 'INSUFFICIENT_POINTS')
     return `积分不足：当前 ${Number(result?.data?.currentPoints || 0)}，需要 ${Number(result?.data?.requiredPoints || totalPoints.value)}`;
   if (code === 'PRODUCT_NOT_EXCHANGEABLE') return '购物袋中包含暂不可兑换商品';
   if (code === 'PRODUCT_NOT_FOUND') return '购物袋存在已下架商品';
-  if (code.startsWith('INVALID_') || code === 'EMPTY_ITEMS') return '订单信息不完整，请检查后重试';
+  if (String(code).startsWith('INVALID_') || code === 'EMPTY_ITEMS')
+    return '订单信息不完整，请检查后重试';
   return result?.error?.message || '积分支付失败，请稍后重试';
 }
+
 const formatDateTime = (date) => {
   const pad = (number) => String(number).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 };
+
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -1055,6 +779,7 @@ async function copyToClipboard(text) {
     return false;
   }
 }
+
 async function notifyAdministrators(content) {
   try {
     const { data: profiles, error } = await getAllProfiles();
@@ -1083,15 +808,41 @@ async function notifyAdministrators(content) {
     logger.error('shop', '发送管理员通知失败', error);
   }
 }
+
 async function submitContact() {
   if (submittingContact.value) return;
-  if (!contactType.value || !contactValue.value || !canCheckout.value) return;
+  if (!canCheckout.value) return;
+
+  /* 校验（2026-11-01 改成「资料即收货信息」后，这三项就是管理员唯一的联系依据）：
+     收件人 / 电话 / 地址缺一项就不给下单 —— 只填了 QQ 的历史路径已经退场，
+     少任何一项都会让管理员收到一封「联系不上人」的邮件。 */
+  const recipient = checkoutForm.recipient.trim();
+  const phone = checkoutForm.phone.trim();
+  /* 三段合成一段落库（profiles 只有一个 shipping_address 列，历史数据也是整段） */
+  const province = checkoutForm.province.trim();
+  const city = checkoutForm.city.trim();
+  const detail = checkoutForm.detail.trim();
+  const address = composeAddress({ province, city, detail });
+  if (!recipient) return showOperationToast('请填写收件人');
+  if (!isPhoneLike(phone)) return showOperationToast('请填写有效电话');
+  if (!province) return showOperationToast('请选择省份');
+  if (detail.length < 4) return showOperationToast('请填写详细地址（区县 / 街道 / 门牌号）');
+
   submittingContact.value = true;
   try {
+    /* 先把收货信息写回资料：既是为了下次自动带出，也是让管理员在后台/用户资料里
+       看到同一份信息（邮件是服务端按 order_id 读库发的，不信任页面快照）。 */
+    const saved = await updateProfile(userInfo.id, {
+      shipping_recipient: recipient,
+      shipping_phone: phone,
+      shipping_address: address,
+    });
+    if (!saved?.ok) return showOperationToast('收货信息保存失败，请重试');
+
     const result = await createShopOrderWithPoints({
       items: buildOrderItemsPayload(),
-      contactType: contactType.value,
-      contactValue: contactValue.value,
+      contactType: 'profile',
+      contactValue: phone,
     });
     if (!result.ok) return showOperationToast(resolveOrderErrorMessage(result));
 
@@ -1100,7 +851,6 @@ async function submitContact() {
     const remainingPoints = Number(result.data?.currentPoints || userInfo.points);
     const orderNo = result.data?.orderNo || '未知订单号';
     const time = formatDateTime(new Date());
-    const contactLabel = contactType.value === 'qq' ? 'QQ' : '微信';
     const paymentMode = result.data?.paymentMode || 'points_only';
     const orderedItems =
       Array.isArray(result.data?.items) && result.data.items.length
@@ -1118,12 +868,12 @@ async function submitContact() {
     else if (paymentMode === 'rmb_only') paymentSummary = `现金: ¥${(paidRmb / 100).toFixed(2)}`;
     else paymentSummary = `积分: ${paidPoints} + 现金: ¥${(paidRmb / 100).toFixed(2)}`;
 
-    const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n用户: ${userInfo.username}\n时间: ${time}\n${contactLabel}: ${contactValue.value}\n\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
+    const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${address}\n时间: ${time}\n\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
     userInfo.points = remainingPoints;
     await copyToClipboard(summary);
     closeContactModal();
     clearBag();
-    closeSidebar();
+    bagPanelRef.value?.refresh?.();
     paymentSuccess.value = { orderNo, paymentSummary };
     document.body.style.overflow = 'hidden';
     void sendMerchandiseSettlementEmail({ orderId: result.data.orderId }).catch((error) => {
@@ -1131,7 +881,7 @@ async function submitContact() {
       showOperationToast('订单已提交，但邮件通知发送失败');
     });
     void notifyAdministrators(
-      `收到新的周边订单！\n订单号: ${orderNo}\n用户: ${userInfo.username}\n支付: ${paymentSummary}\n商品: ${itemText}`,
+      `收到新的周边订单！\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${address}\n支付: ${paymentSummary}\n商品: ${itemText}`,
     );
     showOperationToast('订单已提交');
   } finally {
@@ -1139,48 +889,62 @@ async function submitContact() {
   }
 }
 
-onMounted(() => {
-  productsStore
-    .fetchProducts({ force: true })
-    .catch((error) => logger.error('shop', '商品加载失败', error));
-  recentViewIds.value = readRecentViews();
-  orientationMql = window.matchMedia('(orientation: landscape)');
-  isLandscape.value = orientationMql.matches;
-  orientationHandler = (e) => {
-    isLandscape.value = e.matches;
-  };
-  orientationMql.addEventListener('change', orientationHandler);
+const syncTabFromRoute = () => {
+  const tab = String(route.query.tab || '');
+  if (tab === 'lottery' || tab === 'bag' || tab === 'products') {
+    activeTab.value = tab;
+  } else {
+    activeTab.value = 'products';
+  }
+  if (route.query.checkout === '1') {
+    window.setTimeout(() => startCheckout(), 0);
+  }
+};
 
-  syncNavHeight();
-  navResizeObserver = new ResizeObserver(syncNavHeight);
-  const navEl = document.getElementById('unified-nav-container');
-  if (navEl && typeof ResizeObserver !== 'undefined') navResizeObserver.observe(navEl);
-});
+watch(
+  () => route.query.tab,
+  () => syncTabFromRoute(),
+);
 
-// 全局导航 position:fixed，实际高度与声明值不一致且灵动岛展开会变高
-// （Newsroom/ActivitiesList 同款方案）：实测导航高度写回页面根 --nav-h，
-// .shop-page 顶部 padding 据此避让。
 let navResizeObserver = null;
 const syncNavHeight = () => {
   const nav = document.getElementById('unified-nav-container');
-  const page = document.querySelector('.shop-page');
+  const page = document.querySelector('.store-page');
   if (!nav || !page) return;
-  const h = nav.getBoundingClientRect().height;
-  if (h > 0) page.style.setProperty('--nav-h', `${Math.ceil(h)}px`);
+  const height = nav.getBoundingClientRect().height;
+  if (height > 0) page.style.setProperty('--nav-h', `${Math.ceil(height)}px`);
 };
+
+onMounted(() => {
+  syncTabFromRoute();
+  productsStore
+    .fetchProducts({ force: true })
+    .catch((error) => logger.error('shop', '商品加载失败', error));
+
+  window.addEventListener('theme-changed', handleThemeChanged);
+
+  syncNavHeight();
+  if (typeof ResizeObserver !== 'undefined') {
+    navResizeObserver = new ResizeObserver(syncNavHeight);
+    const navEl = document.getElementById('unified-nav-container');
+    if (navEl) navResizeObserver.observe(navEl);
+  }
+});
 
 onBeforeUnmount(() => {
   if (toastTimer) clearTimeout(toastTimer);
+  stopPasteWatch();
   document.body.style.overflow = '';
   bagStore.flushShoppingBag();
+  window.removeEventListener('theme-changed', handleThemeChanged);
   navResizeObserver?.disconnect();
   navResizeObserver = null;
-  if (orientationMql && orientationHandler) {
-    orientationMql.removeEventListener('change', orientationHandler);
-    orientationMql = null;
-    orientationHandler = null;
-  }
 });
 </script>
 
+<style src="./store-tokens.css"></style>
 <style scoped src="./style.scoped.css"></style>
+<!-- 横屏左栏的定位 / 内容让位 / 条目状态色（body.page-shop 段）。
+     ⚠️ 必须非 scoped：它按 body 级 page class 命中，scoped 的 data-v 会把它废掉。
+     ⚠️ 与 Cloud+ / BOHAI / 首页共用同一份真源 —— 断点与栏宽档位只在那里改。 -->
+<style src="@/views/user-center/UserSpace/styles/landscape-rail.css"></style>

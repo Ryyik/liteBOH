@@ -272,7 +272,10 @@
      本文件把他人空间的挂在 .profile-page —— 首页没有那两类祖先，
      照他人空间的做法在本页根元素上补挂一份（亮色 + 暗色）。
      2026-10-03：BOH AI 整页（body.page-aichat）同样没有这两类祖先，
-     一并挂在这里 —— **共用同一条规则**而不是复制一份，色值只此一处。 */
+     一并挂在这里 —— **共用同一条规则**而不是复制一份，色值只此一处。
+     2026-11-01：周边（body.page-shop）接入同一条左栏，同样没有那两类祖先，
+     继续往这份清单里加宿主，**不要**在新宿主里另写一套 rgba。 */
+  body.page-shop,
   body.page-home,
   body.page-aichat {
     --rail-item-bg-hover: rgba(15, 23, 42, 0.05);
@@ -311,7 +314,10 @@
 
   /* 暗色：主题挂在 html 上（theme-manager 是唯一写入点），
      与 .profile-page[data-theme="dark"] 同值。
-     2026-10-03：body.page-aichat 复用同一条规则（AI 整页同样没有 .user-space-page 祖先）。 */
+     2026-10-03：body.page-aichat 复用同一条规则（AI 整页同样没有 .user-space-page 祖先）。
+     2026-11-01：body.page-shop 一并挂进来（顺序必须是 shop 在前 —— 现有单测
+     aichat-landscape-rail 用「home,\n aichat {」这两行相邻来认这条规则）。 */
+  html[data-theme="dark"] body.page-shop,
   html[data-theme="dark"] body.page-home,
   html[data-theme="dark"] body.page-aichat {
     --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
@@ -423,5 +429,70 @@ html[data-theme='dark'] body.page-bohcloudplus {
      （.unified-nav-surface 靠 margin auto 在满宽容器里居中，基准默认是整页） */
   body.page-aichat .unified-nav-surface {
     left: calc(var(--userspace-rail-w, 88px) / 2);
+  }
+}
+
+/* ================================================================
+   周边（/shop → body.page-shop）横屏左栏
+   ================================================================
+   2026-11-01 用户口径：「横屏不要忘记左栏导航栏右栏内容的适配」。
+   周边是底栏「周边」席的全屏落点（BOTTOM_NAV_ITEMS 的 shop 项 → `/shop`），
+   但 2026-11-01 的改版只挂了底栏，横屏电脑上进到周边页整条导航就只剩底部的
+   移动端胶囊 —— 与「我」「图库」「首页」的横屏结构对不上。
+
+   这里挂同一份 UserSpaceSideRail + 同一份 navItems（单源），current-tab='shop'，
+   规则与 UserSpace / 他人空间 / 首页 / 图库 / AI 六个宿主同构：
+
+     · 断点与 side-rail.css 完全一致（三处同步：本文件 / side-rail.css / 各宿主）
+     · 栏宽两档 88 → ≥1280 的 240，与其它宿主一字不差
+     · 周边是普通长文档流（.store-page 走 body 滚动，不是 100dvh 叠放层），
+       故 rail 必须 fixed —— absolute 会被拉成整个文档高，
+       品牌位与工具组随页面滚走（他人空间 / 首页 / 图库都踩过这个坑）
+     · 内容让位走 .store-page 的 padding-left：整页右移之后，
+       .store-head / .store-tabs / .store-main 的 `max-width + margin:auto`
+       自动在**剩下的宽度**里居中，不需要逐个改宽度
+     · 底部移动端胶囊在这一档隐藏：左栏已经接管导航，两者共存会出现两套同样的
+       五席（与 UserSpace 的 .bottom-nav-glass 处理同一条口径）
+     · --rail-* 条目状态底色与暗色复用文件上半部分 body.page-shop 那两条清单，
+       本段一个色值都不写
+   ================================================================ */
+
+@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
+  body.page-shop {
+    --userspace-rail-w: 88px;
+  }
+
+  body.page-shop .userspace-rail.liquid-glass {
+    position: fixed;
+  }
+
+  body.page-shop .store-page {
+    padding-left: var(--userspace-rail-w);
+    /* 底栏已隐藏 ⇒ 132px 的底栏占位收回常规页脚距离，
+       否则横屏下滚到底会白留一整屏的空 */
+    padding-bottom: 48px;
+    /* 左栏顶隙与页面自己的顶部避让同源：--nav-h 由 Shop/index.vue 的
+       ResizeObserver 实测写入（导航岛展开时它会变），左栏跟着一起下移，
+       两者不会一高一低 */
+    --userspace-rail-top-h: var(--nav-h, 78px);
+  }
+
+  /* 顶部导航以内容区居中（与 UserSpace 同一条杠杆：.unified-nav-surface
+     靠 margin auto 在满宽容器里居中，基准默认是整页，左栏一占就偏左 rail/2） */
+  body.page-shop .unified-nav-surface {
+    left: calc(var(--userspace-rail-w, 88px) / 2);
+  }
+
+  /* 左栏接管导航 ⇒ 底部移动端胶囊隐藏（竖屏 / 手机横屏仍用它） */
+  body.page-shop .bottom-nav-glass {
+    display: none;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 1280px) and (min-height: 600px) {
+  /* 宽档 240px：1280 − 240 = 1040 的内容区，周边网格自身限宽 760，
+     两侧各留 140 的呼吸，与图库 / 首页的观感一致 */
+  body.page-shop {
+    --userspace-rail-w: 240px;
   }
 }

@@ -77,7 +77,24 @@ const normalizeProduct = (item: Record<string, unknown>): Product => {
     image: (item.image as string) || '',
     is_active: item.is_active !== false,
     is_purchasable: purchasable,
+    /* 展示排序位（2026-11-01 引入，DB 列 products.sort_order）：
+       未排位的商品回落 1000 —— 与建表默认值同一口径，保证「有排位的在前、
+       其余按 id 升序」，DB 里没有该列时（旧缓存 / 静态兜底）也不会打乱顺序。 */
+    sort_order: Number.isFinite(Number(item.sort_order)) ? Number(item.sort_order) : 1000,
   } as Product;
+};
+
+/**
+ * 商城展示顺序：sort_order 升序 → id 升序。
+ *
+ * 单一实现：取数、缓存读回、静态兜底三条路径都走它，别再各写一份 sort ——
+ * 之前的毛病正是「DB 路径按 id 排、缓存路径原样返回」，同一屏刷新两次顺序会变。
+ */
+const compareByDisplayOrder = (a: Product, b: Product): number => {
+  const orderA = Number.isFinite(Number(a.sort_order)) ? Number(a.sort_order) : 1000;
+  const orderB = Number.isFinite(Number(b.sort_order)) ? Number(b.sort_order) : 1000;
+  if (orderA !== orderB) return orderA - orderB;
+  return Number(a.id) - Number(b.id);
 };
 
 interface ProductsCache {
@@ -94,7 +111,10 @@ const readProductsCache = (): Product[] | null => {
     const isExpired = Date.now() - parsed.timestamp > CACHE_TTL_MS;
     // 缓存版本号：管理后台修改商品后版本递增，强制失效缓存
     if (isExpired || getCacheVersion() !== (parsed as any)._cacheVersion) return null;
-    return parsed.data.map(normalizeProduct).filter((p) => p.is_active !== false);
+    return parsed.data
+      .map(normalizeProduct)
+      .filter((p) => p.is_active !== false)
+      .sort(compareByDisplayOrder);
   } catch {
     return null;
   }
@@ -153,6 +173,9 @@ export const useProductsStore = defineStore('products', () => {
       // fallback 商品会让 DB 里已下架的商品被复活」）。但那个函数自 4.9.0 起就不再被调用，已同日删除；
       // 现在的取数规则是「DB 有数据就完全信任 DB，只有 DB 为空才走静态兜底」——见下方 sourceData 那行。
       // 过滤位置保持不变（这是**当前**行为），只是不再引用一个已不存在的合并步骤当理由。
+      // ⚠️ 2026-11-01：DB 侧 order 仍按 id 取（稳定、走主键索引），**展示顺序在客户端排** ——
+      // 因为 sort_order 有默认值 1000 的并列情况，等价排序 `sort_order, id` 的前端版本
+      // 必须与缓存/兜底两条路径共用同一个比较器（compareByDisplayOrder）。
       const { data, error } = await supabase
         .from('products')
         .select('*')
@@ -166,7 +189,10 @@ export const useProductsStore = defineStore('products', () => {
       //   2) 管理员更换图片后仍显示旧图（缓存覆盖问题由 _cacheVersion 解决）
       // DB 为空时仍使用 fallback 兜底
       const sourceData = data && data.length > 0 ? data : await getFallbackProducts();
-      const latestProducts = sourceData.map(normalizeProduct).filter((p) => p.is_active !== false);
+      const latestProducts = sourceData
+        .map(normalizeProduct)
+        .filter((p) => p.is_active !== false)
+        .sort(compareByDisplayOrder);
 
       productsData.value = latestProducts;
       writeProductsCache(sourceData);
@@ -176,8 +202,13 @@ export const useProductsStore = defineStore('products', () => {
       fetchError.value = (error as Error)?.message || 'PRODUCTS_FETCH_FAILED';
 
       // 网络异常/权限异常时回退静态数据，保障商店可用
+      // ⚠️ 这里同样要过滤 is_active：静态兜底里也留着已下架的商品（2026-11-01 起
+      // 它们被标成 is_active: false），不过滤的话「网络一抖就把下架商品复活到商城里」。
       const fallback = await getFallbackProducts();
-      productsData.value = fallback.map((p: Record<string, unknown>) => normalizeProduct(p));
+      productsData.value = fallback
+        .map((p: Record<string, unknown>) => normalizeProduct(p))
+        .filter((p) => p.is_active !== false)
+        .sort(compareByDisplayOrder);
       writeProductsCache(fallback);
       return productsData.value;
     } finally {

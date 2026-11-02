@@ -90,6 +90,8 @@ export interface Product {
   specifications: ProductSpec[];
   is_active: boolean;
   is_purchasable: boolean;
+  /** 商城展示排序（小在前）；未排位 = 1000，同值按 id 升序。见 stores/products.ts */
+  sort_order?: number;
 }
 
 // --- Notification ---

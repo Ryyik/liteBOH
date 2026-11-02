@@ -48,6 +48,13 @@ export const publicRoutes: RouteRecordRaw[] = [
     meta: { requiresLogin: true },
   },
   {
+    // 购物袋独立页（2026-11-01 周边商城改版）：同时是用户中心底栏第五席的落点。
+    // 不挂 requiresLogin —— 未登录也能看购物车（本地存储），订单区自己引导登录。
+    path: '/shop/bag',
+    name: 'ShopBag',
+    component: () => import('../../views/Shop/BagPage.vue'),
+  },
+  {
     path: '/gift',
     name: 'Gift',
     component: () => import('../../views/Gift/index.vue'),

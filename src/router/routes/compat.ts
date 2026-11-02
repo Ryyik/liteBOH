@@ -212,4 +212,12 @@ export const compatRoutes: RouteRecordRaw[] = [
     name: 'Tutorial',
     redirect: '/download',
   },
+  {
+    // 社区抽奖页退场兼容（2026-11-01 周边改版）：抽奖并入周边页的第二个 Tab。
+    // 引入 2026-11-01 · 到期 2027-05-01（沿用 IA 类改造 6 个月生命期）。
+    // ⚠️ name 保留 'CommunityLotteries' —— 站内还有按 name 跳转的入口（导航/搜索/资产页）。
+    path: '/lotteries',
+    name: 'CommunityLotteries',
+    redirect: (to: any) => ({ path: '/shop', query: { ...to.query, tab: 'lottery' } }),
+  },
 ];

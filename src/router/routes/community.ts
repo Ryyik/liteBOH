@@ -26,11 +26,8 @@ export const communityRoutes: RouteRecordRaw[] = [
   // ⚠️ /activities-wall 已于 2026-10-20「内容页合并」退场 → /newsroom?tab=activities。
   // 重定向**只能**登记在 routes/compat.ts：本文件只放真页面，
   // compat-routes.test.js 会断言「各真页面路由文件里不再有 redirect 条目」。
-  {
-    path: '/lotteries',
-    name: 'CommunityLotteries',
-    component: () => import('../../views/CommunityLotteries/index.vue'),
-  },
+  // ⚠️ /lotteries 已于 2026-11-01「周边改版」退场 → /shop?tab=lottery。
+  // 重定向登记在 routes/compat.ts（本文件只放真页面），命名路由 CommunityLotteries 也一并迁到那里。
   {
     // 摄影集：社区影集区（封面入口卡网格，仅 published+shared，RLS 兜底）
     path: '/albums',

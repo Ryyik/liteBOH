@@ -2,7 +2,13 @@
   <div class="apple-panel" :class="{ 'is-page': mode === 'page' }">
     <!-- 页头 -->
     <header class="ap-header">
-      <button v-if="mode === 'page'" type="button" class="ap-nav-btn" @click="goBack" aria-label="返回商城">
+      <button
+        v-if="mode === 'page'"
+        type="button"
+        class="ap-nav-btn"
+        @click="goBack"
+        aria-label="返回商城"
+      >
         <ChevronLeft :size="21" :stroke-width="1.5" aria-hidden="true" />
       </button>
       <div class="ap-header-text">
@@ -10,7 +16,13 @@
         <h1>账户</h1>
         <p class="ap-username">{{ username }}</p>
       </div>
-      <button v-if="mode === 'overlay'" type="button" class="ap-nav-btn" @click="$emit('close')" aria-label="关闭">
+      <button
+        v-if="mode === 'overlay'"
+        type="button"
+        class="ap-nav-btn"
+        @click="$emit('close')"
+        aria-label="关闭"
+      >
         <X :size="20" :stroke-width="1.5" aria-hidden="true" />
       </button>
     </header>
@@ -29,7 +41,9 @@
       <div class="ap-section-head">
         <div>
           <h2 class="ap-label">收货地址</h2>
-          <p v-if="!loading && sortedAddresses.length" class="ap-count">{{ sortedAddresses.length }} 个地址</p>
+          <p v-if="!loading && sortedAddresses.length" class="ap-count">
+            {{ sortedAddresses.length }} 个地址
+          </p>
         </div>
         <button v-if="!isEditing" type="button" class="ap-btn-primary" @click="openCreateAddress">
           <Plus :size="15" :stroke-width="2" aria-hidden="true" />
@@ -91,7 +105,9 @@
         </label>
 
         <div class="ap-form-actions">
-          <button type="button" class="ap-btn-ghost" :disabled="saving" @click="closeAddressForm">取消</button>
+          <button type="button" class="ap-btn-ghost" :disabled="saving" @click="closeAddressForm">
+            取消
+          </button>
           <button type="button" class="ap-btn-filled" :disabled="saving" @click="saveAddress">
             {{ saving ? '保存中…' : '保存' }}
           </button>
@@ -114,17 +130,36 @@
               <span v-if="addr.tag && !addr.is_default" class="ap-addr-tag">{{ addr.tag }}</span>
             </div>
             <p class="ap-addr-text">
-              <span v-if="addr.region">{{ addr.region }} </span>{{ addr.detail || '未填写详细地址' }}
+              <span v-if="addr.region">{{ addr.region }} </span
+              >{{ addr.detail || '未填写详细地址' }}
             </p>
           </div>
           <div class="ap-addr-actions">
-            <button v-if="!addr.is_default" type="button" class="ap-action-link" :disabled="saving" @click="setDefaultAddress(addr)">
+            <button
+              v-if="!addr.is_default"
+              type="button"
+              class="ap-action-link"
+              :disabled="saving"
+              @click="setDefaultAddress(addr)"
+            >
               设为默认
             </button>
-            <button type="button" class="ap-action-icon" title="编辑" :disabled="saving" @click="openEditAddress(addr)">
+            <button
+              type="button"
+              class="ap-action-icon"
+              title="编辑"
+              :disabled="saving"
+              @click="openEditAddress(addr)"
+            >
               <Pencil :size="14" aria-hidden="true" />
             </button>
-            <button type="button" class="ap-action-icon ap-action-danger" title="删除" :disabled="saving" @click="deleteAddress(addr)">
+            <button
+              type="button"
+              class="ap-action-icon ap-action-danger"
+              title="删除"
+              :disabled="saving"
+              @click="deleteAddress(addr)"
+            >
               <Trash2 :size="14" aria-hidden="true" />
             </button>
           </div>
@@ -151,7 +186,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { ChevronLeft, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
@@ -161,13 +196,12 @@ import EmptyState from '@/components/ui/EmptyState.vue';
 import { showIsland } from '@/composables/useIsland.js';
 
 defineProps({
-  mode: { type: String, default: 'overlay' }
+  mode: { type: String, default: 'overlay' },
 });
 
 defineEmits(['close']);
 
 const router = useRouter();
-const route = useRoute();
 const authStore = useAuthStore();
 const { userInfo, isLoggedIn } = storeToRefs(authStore);
 
@@ -176,7 +210,14 @@ const addresses = ref([]);
 const isEditing = ref(false);
 const editingId = ref(null);
 const saving = ref(false);
-const form = reactive({ recipient: '', phone: '', region: '', detail: '', tag: '', is_default: false });
+const form = reactive({
+  recipient: '',
+  phone: '',
+  region: '',
+  detail: '',
+  tag: '',
+  is_default: false,
+});
 
 const toast = reactive({ show: false, message: '', type: 'info' });
 let toastTimer = null;
@@ -185,21 +226,55 @@ const _originShowToast = (message, type = 'info') => {
   toast.message = message;
   toast.type = type;
   toast.show = true;
-  toastTimer = setTimeout(() => { toast.show = false; }, 3000);
+  toastTimer = setTimeout(() => {
+    toast.show = false;
+  }, 3000);
 };
 const showToast = (message, type = 'info') => {
   const text = String(message || '');
-  const icon = type === 'error' ? 'warning' : (text.includes('请填写') || text.includes('长度需') ? 'warning' : 'success');
+  const icon =
+    type === 'error'
+      ? 'warning'
+      : text.includes('请填写') || text.includes('长度需')
+        ? 'warning'
+        : 'success';
   let title = text;
   let msg = '';
-  if (text === '已保存') { title = '已保存'; msg = '地址已更新'; }
-  else if (text === '已设为默认') { title = '已设为默认'; msg = '默认地址已更新'; }
-  else if (text === '已删除') { title = '已删除'; msg = '地址已移除'; }
-  else if (text === '保存失败' || text === '设置失败' || text === '删除失败' || text === '系统错误') { title = text; msg = '请稍后重试'; }
-  else if (text.startsWith('请先登录')) { title = '请先登录'; msg = '登录后可管理地址'; }
-  else if (text.length > 24) { title = text.slice(0, 24); msg = text.slice(24); }
+  if (text === '已保存') {
+    title = '已保存';
+    msg = '地址已更新';
+  } else if (text === '已设为默认') {
+    title = '已设为默认';
+    msg = '默认地址已更新';
+  } else if (text === '已删除') {
+    title = '已删除';
+    msg = '地址已移除';
+  } else if (
+    text === '保存失败' ||
+    text === '设置失败' ||
+    text === '删除失败' ||
+    text === '系统错误'
+  ) {
+    title = text;
+    msg = '请稍后重试';
+  } else if (text.startsWith('请先登录')) {
+    title = '请先登录';
+    msg = '登录后可管理地址';
+  } else if (text.length > 24) {
+    title = text.slice(0, 24);
+    msg = text.slice(24);
+  }
   let ok = false;
-  try { ok = showIsland.notify({ title, message: msg, icon, durationMs: icon === 'warning' ? 3600 : 2800 }); } catch { ok = false; }
+  try {
+    ok = showIsland.notify({
+      title,
+      message: msg,
+      icon,
+      durationMs: icon === 'warning' ? 3600 : 2800,
+    });
+  } catch {
+    ok = false;
+  }
   if (ok) return;
   return _originShowToast(message, type);
 };
@@ -222,7 +297,10 @@ const sortedAddresses = computed(() => {
 
 const loadAddresses = async () => {
   const uid = userInfo.value?.id;
-  if (!uid) { loading.value = false; return; }
+  if (!uid) {
+    loading.value = false;
+    return;
+  }
   const { data, error } = await supabase
     .from('user_addresses')
     .select('*')
@@ -299,7 +377,7 @@ const saveAddress = async () => {
       region: form.region.trim(),
       detail: form.detail.trim(),
       tag: form.tag,
-      is_default: isDefault
+      is_default: isDefault,
     };
 
     let error = null;
@@ -332,7 +410,10 @@ const setDefaultAddress = async (addr) => {
   saving.value = true;
   try {
     await clearDefaultOthers();
-    const { error } = await supabase.from('user_addresses').update({ is_default: true }).eq('id', addr.id);
+    const { error } = await supabase
+      .from('user_addresses')
+      .update({ is_default: true })
+      .eq('id', addr.id);
     if (error) {
       logger.warn('shop-account', '设置默认地址失败:', error);
       return showToast('设置失败', 'error');
@@ -395,7 +476,9 @@ onMounted(() => {
   max-width: 640px;
   margin: 0 auto;
   color: var(--ap-text);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'PingFang SC',
+    'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -406,7 +489,10 @@ onMounted(() => {
   gap: 16px;
   padding: 20px 0 28px;
 }
-.ap-header-text { flex: 1; min-width: 0; }
+.ap-header-text {
+  flex: 1;
+  min-width: 0;
+}
 .ap-eyebrow {
   display: block;
   margin-bottom: 6px;
@@ -432,7 +518,8 @@ onMounted(() => {
 }
 
 .ap-nav-btn {
-  width: 36px; height: 36px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -442,10 +529,16 @@ onMounted(() => {
   color: var(--ap-text);
   background: var(--ap-fill);
   cursor: pointer;
-  transition: background-color 160ms ease, transform 120ms ease;
+  transition:
+    background-color 160ms ease,
+    transform 120ms ease;
 }
-.ap-nav-btn:hover { background: var(--ap-border-subtle); }
-.ap-nav-btn:active { transform: scale(0.94); }
+.ap-nav-btn:hover {
+  background: var(--ap-border-subtle);
+}
+.ap-nav-btn:active {
+  transform: scale(0.94);
+}
 
 /* ===== Points ===== */
 .ap-points {
@@ -489,7 +582,9 @@ onMounted(() => {
   gap: 16px;
   margin-bottom: 16px;
 }
-.ap-section-head .ap-label { margin-bottom: 4px; }
+.ap-section-head .ap-label {
+  margin-bottom: 4px;
+}
 .ap-count {
   margin: 0;
   font-size: 13px;
@@ -510,12 +605,19 @@ onMounted(() => {
   color: var(--ap-text);
   background: var(--ap-fill);
   cursor: pointer;
-  transition: background-color 160ms ease, transform 120ms ease;
+  transition:
+    background-color 160ms ease,
+    transform 120ms ease;
 }
-.ap-btn-primary:hover { background: var(--ap-border-subtle); }
-.ap-btn-primary:active { transform: scale(0.97); }
+.ap-btn-primary:hover {
+  background: var(--ap-border-subtle);
+}
+.ap-btn-primary:active {
+  transform: scale(0.97);
+}
 
-.ap-btn-filled, .ap-btn-ghost {
+.ap-btn-filled,
+.ap-btn-ghost {
   height: 36px;
   padding: 0 18px;
   border: none;
@@ -523,32 +625,57 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 160ms ease, opacity 160ms ease, transform 120ms ease;
+  transition:
+    background-color 160ms ease,
+    opacity 160ms ease,
+    transform 120ms ease;
 }
 .ap-btn-filled {
   color: #ffffff;
   background: var(--ap-text);
 }
-.ap-btn-filled:hover { background: #3a3a3c; }
-.ap-btn-filled:active { transform: scale(0.97); }
-.ap-btn-filled:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+.ap-btn-filled:hover {
+  background: #3a3a3c;
+}
+.ap-btn-filled:active {
+  transform: scale(0.97);
+}
+.ap-btn-filled:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
 
 .ap-btn-ghost {
   color: var(--ap-text-secondary);
   background: transparent;
 }
-.ap-btn-ghost:hover { color: var(--ap-text); background: var(--ap-fill); }
-.ap-btn-ghost:disabled { opacity: 0.35; cursor: not-allowed; }
+.ap-btn-ghost:hover {
+  color: var(--ap-text);
+  background: var(--ap-fill);
+}
+.ap-btn-ghost:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
 /* ===== Loading ===== */
-.ap-loading { display: flex; flex-direction: column; gap: 8px; }
+.ap-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .ap-skeleton {
   height: 72px;
   border-radius: 14px;
   background: var(--ap-fill);
   animation: ap-skel 1.4s ease-in-out infinite alternate;
 }
-@keyframes ap-skel { to { opacity: 0.4; } }
+@keyframes ap-skel {
+  to {
+    opacity: 0.4;
+  }
+}
 
 /* ===== Form ===== */
 .ap-form {
@@ -563,9 +690,14 @@ onMounted(() => {
   justify-content: space-between;
   margin-bottom: 20px;
 }
-.ap-form-head h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.ap-form-head h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
 .ap-form-close {
-  width: 28px; height: 28px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -574,22 +706,33 @@ onMounted(() => {
   background: transparent;
   color: var(--ap-text-secondary);
   cursor: pointer;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
-.ap-form-close:hover { background: var(--ap-border-subtle); color: var(--ap-text); }
+.ap-form-close:hover {
+  background: var(--ap-border-subtle);
+  color: var(--ap-text);
+}
 
 .ap-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
-.ap-field { display: flex; flex-direction: column; gap: 6px; }
+.ap-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .ap-field span {
   font-size: 12px;
   font-weight: 600;
   color: var(--ap-text-secondary);
 }
-.ap-field input, .ap-field select, .ap-field textarea {
+.ap-field input,
+.ap-field select,
+.ap-field textarea {
   height: 40px;
   padding: 0 12px;
   border: 1px solid var(--ap-border-subtle);
@@ -599,17 +742,29 @@ onMounted(() => {
   font-size: 14px;
   color: var(--ap-text);
   font-family: inherit;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
-.ap-field textarea { height: auto; padding: 10px 12px; resize: vertical; min-height: 72px; }
-.ap-field input:focus, .ap-field select:focus, .ap-field textarea:focus {
+.ap-field textarea {
+  height: auto;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 72px;
+}
+.ap-field input:focus,
+.ap-field select:focus,
+.ap-field textarea:focus {
   border-color: var(--ap-blue);
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
 }
-.ap-field input::placeholder, .ap-field textarea::placeholder {
+.ap-field input::placeholder,
+.ap-field textarea::placeholder {
   color: var(--ap-text-tertiary);
 }
-.ap-field-full { grid-column: 1 / -1; }
+.ap-field-full {
+  grid-column: 1 / -1;
+}
 
 .ap-toggle {
   display: flex;
@@ -618,9 +773,12 @@ onMounted(() => {
   margin-top: 20px;
   cursor: pointer;
 }
-.ap-toggle input { display: none; }
+.ap-toggle input {
+  display: none;
+}
 .ap-toggle-track {
-  width: 44px; height: 26px;
+  width: 44px;
+  height: 26px;
   border-radius: 13px;
   background: #d1d1d6;
   position: relative;
@@ -629,17 +787,26 @@ onMounted(() => {
 }
 .ap-toggle-track::after {
   content: '';
-  width: 22px; height: 22px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   position: absolute;
-  top: 2px; left: 2px;
+  top: 2px;
+  left: 2px;
   transition: transform 200ms ease;
 }
-.ap-toggle input:checked + .ap-toggle-track { background: #34c759; }
-.ap-toggle input:checked + .ap-toggle-track::after { transform: translateX(18px); }
-.ap-toggle-label { font-size: 14px; color: var(--ap-text); }
+.ap-toggle input:checked + .ap-toggle-track {
+  background: #34c759;
+}
+.ap-toggle input:checked + .ap-toggle-track::after {
+  transform: translateX(18px);
+}
+.ap-toggle-label {
+  font-size: 14px;
+  color: var(--ap-text);
+}
 
 .ap-form-actions {
   display: flex;
@@ -649,7 +816,10 @@ onMounted(() => {
 }
 
 /* ===== Address list ===== */
-.ap-addr-list { display: flex; flex-direction: column; }
+.ap-addr-list {
+  display: flex;
+  flex-direction: column;
+}
 
 .ap-addr-row {
   display: flex;
@@ -659,8 +829,13 @@ onMounted(() => {
   padding: 16px 0;
   border-bottom: 1px solid var(--ap-border-subtle);
 }
-.ap-addr-row:last-of-type { border-bottom: none; }
-.ap-addr-main { flex: 1; min-width: 0; }
+.ap-addr-row:last-of-type {
+  border-bottom: none;
+}
+.ap-addr-main {
+  flex: 1;
+  min-width: 0;
+}
 
 .ap-addr-top {
   display: flex;
@@ -669,7 +844,10 @@ onMounted(() => {
   margin-bottom: 6px;
   flex-wrap: wrap;
 }
-.ap-addr-name { font-size: 15px; font-weight: 600; }
+.ap-addr-name {
+  font-size: 15px;
+  font-weight: 600;
+}
 .ap-addr-phone {
   font-size: 14px;
   color: var(--ap-text-secondary);
@@ -719,11 +897,17 @@ onMounted(() => {
   transition: background-color 150ms ease;
   white-space: nowrap;
 }
-.ap-action-link:hover { background: rgba(0, 122, 255, 0.06); }
-.ap-action-link:disabled { opacity: 0.35; cursor: not-allowed; }
+.ap-action-link:hover {
+  background: rgba(0, 122, 255, 0.06);
+}
+.ap-action-link:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
 .ap-action-icon {
-  width: 32px; height: 32px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -732,11 +916,22 @@ onMounted(() => {
   background: transparent;
   color: var(--ap-text-secondary);
   cursor: pointer;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
-.ap-action-icon:hover { background: var(--ap-fill); color: var(--ap-text); }
-.ap-action-icon.ap-action-danger:hover { background: rgba(255, 59, 48, 0.08); color: var(--ap-red); }
-.ap-action-icon:disabled { opacity: 0.35; cursor: not-allowed; }
+.ap-action-icon:hover {
+  background: var(--ap-fill);
+  color: var(--ap-text);
+}
+.ap-action-icon.ap-action-danger:hover {
+  background: rgba(255, 59, 48, 0.08);
+  color: var(--ap-red);
+}
+.ap-action-icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
 .ap-addr-add {
   width: 100%;
@@ -754,9 +949,14 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: border-color 160ms ease, color 160ms ease;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease;
 }
-.ap-addr-add:hover { border-color: var(--ap-text); color: var(--ap-text); }
+.ap-addr-add:hover {
+  border-color: var(--ap-text);
+  color: var(--ap-text);
+}
 
 .ap-empty {
   text-align: center;
@@ -783,25 +983,48 @@ onMounted(() => {
   white-space: nowrap;
   letter-spacing: -0.01em;
 }
-.ap-toast.error { background: rgba(255, 59, 48, 0.92); }
-.toast-fade-enter-active, .toast-fade-leave-active { transition: opacity 180ms ease, transform 200ms ease; }
-.toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translate(-50%, 8px); }
+.ap-toast.error {
+  background: rgba(255, 59, 48, 0.92);
+}
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 200ms ease;
+}
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+}
 
 /* ===== Page mode overrides ===== */
 .is-page {
   padding: 0 24px 64px;
 }
-.is-page .ap-points-number { font-size: 48px; }
+.is-page .ap-points-number {
+  font-size: 48px;
+}
 
 @media (max-width: 480px) {
-  .is-page { padding: 0 16px 48px; }
-  .is-page .ap-points-number { font-size: 40px; }
-  .ap-header h1 { font-size: 28px; }
-  .ap-form { padding: 18px; }
-  .ap-form-grid { grid-template-columns: 1fr; }
+  .is-page {
+    padding: 0 16px 48px;
+  }
+  .is-page .ap-points-number {
+    font-size: 40px;
+  }
+  .ap-header h1 {
+    font-size: 28px;
+  }
+  .ap-form {
+    padding: 18px;
+  }
+  .ap-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 /* ---- 暗色主题（dark audit 2026-09-08）：--ap-* 变量重定义 ---- */
-html[data-theme="dark"] .apple-panel {
+html[data-theme='dark'] .apple-panel {
   --ap-bg: #1c1c1e;
   --ap-text: #f5f5f7;
   --ap-text-secondary: #a1a1a6;
@@ -813,7 +1036,7 @@ html[data-theme="dark"] .apple-panel {
   --ap-blue: #409cff;
 }
 
-html[data-theme="dark"] .ap-eyebrow {
+html[data-theme='dark'] .ap-eyebrow {
   color: #98989d;
 }
 </style>
