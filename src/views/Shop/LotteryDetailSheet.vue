@@ -10,8 +10,13 @@
         tabindex="-1"
         :aria-label="lottery.title"
       >
-        <div class="surface-media" :class="{ plain: !coverUrl }">
-          <img v-if="coverUrl" :src="coverUrl" :alt="lottery.title" />
+        <div class="surface-media" :class="{ plain: !coverUrl || coverBroken }">
+          <img
+            v-if="coverUrl && !coverBroken"
+            :src="coverUrl"
+            :alt="lottery.title"
+            @error="markFailed(`lottery-detail-${lottery.id}`)"
+          />
           <span v-else class="media-mark">{{ initialOf(lottery.title) }}</span>
           <span class="media-status" :class="{ open: isOpen }">{{ statusText }}</span>
         </div>
@@ -78,6 +83,8 @@ import {
   peekOrigin,
 } from '@/utils/motion-origin.js';
 import { motionEase, motionMs } from '@/utils/motion.js';
+import { resolveDbDetailImage } from '@/utils/db-image-url.js';
+import { useImageFailure } from '@/composables/useImageFailure.js';
 
 /* 抽奖详情：窗口逻辑与 ProductDetailSheet **完全一致**（2026-11-01 用户口径
    「抽奖卡片支持点进去看详情，窗口逻辑与商品要求一样」）：
@@ -104,7 +111,11 @@ let mql = null;
 let onOrientationChange = null;
 let opened = false;
 
-const coverUrl = computed(() => String(props.lottery?.cover_image_url || ''));
+/* 详情大图：Cloudinary 原址 → 自建 CDN，本地文件名 → 打包产物。
+   `c_limit,w_1600` 只压不拉，小图不会被放大糊掉。 */
+const { isFailed, markFailed } = useImageFailure();
+const coverUrl = computed(() => resolveDbDetailImage(props.lottery?.cover_image_url) || '');
+const coverBroken = computed(() => isFailed(`lottery-detail-${props.lottery?.id}`));
 const isOpen = computed(() => String(props.lottery?.status || '') === 'open');
 const initialOf = (title) =>
   String(title || '抽')

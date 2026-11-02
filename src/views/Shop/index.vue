@@ -94,10 +94,11 @@
             >
               <span class="p-media">
                 <img
-                  v-if="product.image"
+                  v-if="product.image && !productImageFailed(product)"
                   :src="displayImageUrl(product)"
                   :alt="product.title"
                   loading="lazy"
+                  @error="markProductImageFailed(`product-${product.id}`)"
                 />
                 <Package v-else :size="34" :stroke-width="1.2" aria-hidden="true" />
               </span>
@@ -319,7 +320,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Package, Search, User, X, ClipboardPaste } from 'lucide-vue-next';
 import mascotHeroUrl from '@/assets/images/mascot-new-landscape-orig.webp';
-import { getImageUrl } from '@/utils/asset-helper.js';
+import { resolveDbCardImage } from '@/utils/db-image-url.js';
+import { useImageFailure } from '@/composables/useImageFailure.js';
 import { useAuthStore } from '@/stores/auth';
 import {
   fetchDefaultAddress,
@@ -518,8 +520,18 @@ const isProductExchangeable = (product) => {
     return parsePointsCost(product?.points_cost) !== null && Number(product?.rmb_price) > 0;
   return false;
 };
+/* 商品图三种形态混存（2026-11-02 线上实测）：
+     ① `mascot-new-landscape-orig.webp` —— 裸文件名，必须走 getImageUrl 找打包产物；
+     ② `https://res.cloudinary.com/...`  —— **中国大陆不可达**，必须改写自建 CDN；
+     ③ `https://cdn.blockofhome.cn/...`  —— 已是 CDN，原样。
+   resolveDbCardImage 三件事一起做（本地解析 → CDN 改写 → 卡面尺寸变换）。
+   只调 getImageUrl 时 ② 会裂图：线上 8 周年海报那张就是这样挂的。
+   id=501（围巾小狗）单独走横版原图 —— 产品图框是竖构图，那只狗放进去会被裁掉半张脸。 */
 const displayImageUrl = (product) =>
-  Number(product?.id) === 501 ? mascotHeroUrl : getImageUrl(product?.image);
+  Number(product?.id) === 501 ? mascotHeroUrl : resolveDbCardImage(product?.image);
+/* 图片挂了就退回 Package 占位图标，别在卡里留一个碎图问号 */
+const { isFailed: isProductImageFailed, markFailed: markProductImageFailed } = useImageFailure();
+const productImageFailed = (product) => isProductImageFailed(`product-${product?.id}`);
 
 const totalPoints = computed(() =>
   shoppingBag.value.reduce(

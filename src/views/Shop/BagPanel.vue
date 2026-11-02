@@ -11,7 +11,17 @@
     <template v-else>
       <ul class="bag-list">
         <li v-for="item in shoppingBag" :key="`${item.id}-${item.selectedSpec}`" class="bag-row">
-          <img class="bag-thumb" :src="itemImage(item)" :alt="String(item.title || '')" />
+          <img
+            v-if="itemImage(item) && !isFailed(`bag-${item.id}-${item.selectedSpec || ''}`)"
+            class="bag-thumb"
+            :src="itemImage(item)"
+            :alt="String(item.title || '')"
+            loading="lazy"
+            @error="markFailed(`bag-${item.id}-${item.selectedSpec || ''}`)"
+          />
+          <span v-else class="bag-thumb is-fallback" aria-hidden="true">
+            <ShoppingBag :size="18" :stroke-width="1.6" />
+          </span>
           <div class="bag-row-main">
             <!-- 删除入口（2026-11-01）：此前只有 −/+ 数量，把数量减到 1 就再也减不掉，
                  等于没有「移除」。× 是行级动作，和数量控件分开，避免误触 -->
@@ -58,13 +68,16 @@
 import { computed } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useBagStore } from '@/stores/bag';
-import { getImageUrl } from '@/utils/asset-helper.js';
-import { X } from 'lucide-vue-next';
+import { resolveDbCardImage } from '@/utils/db-image-url.js';
+import { ShoppingBag, X } from 'lucide-vue-next';
+import { useImageFailure } from '@/composables/useImageFailure.js';
 
 defineEmits(['checkout', 'browse']);
 
 const bagStore = useBagStore();
 const { shoppingBag } = storeToRefs(bagStore);
+/* 缩略图挂了退回图标占位（别再留给浏览器一个碎图问号） */
+const { isFailed, markFailed } = useImageFailure();
 
 const parsePoints = (value) => {
   const points = Number(value);
@@ -85,7 +98,9 @@ const priceText = (product) => {
   return points ? `${points} 积分` : '暂不可兑换';
 };
 const itemPriceText = priceText;
-const itemImage = (item) => getImageUrl(item?.image) || '';
+/* 购物袋缩略图：裸文件名 → 打包产物，Cloudinary 原址 → 自建 CDN。
+   袋里的图是「加购那一刻」的快照，可能来自任意历史形态，必须每次都过这层。 */
+const itemImage = (item) => resolveDbCardImage(item?.image) || '';
 
 const totalPoints = computed(() =>
   shoppingBag.value.reduce((sum, item) => sum + parsePoints(item.points_cost) * item.quantity, 0),
@@ -162,6 +177,13 @@ const removeItem = (item) => {
   border-radius: 12px;
   object-fit: cover;
   background: var(--boh-bg-secondary, #f5f5f7);
+}
+
+/* 占位态：<span> 不是替换元素，得自己撑出居中布局，否则图标会贴在左上角 */
+.bag-thumb.is-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--boh-text-tertiary, #a1a1a6);
 }
 
 .bag-row-main {

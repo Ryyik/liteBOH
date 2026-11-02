@@ -11,7 +11,12 @@
         :aria-label="product.title"
       >
         <div class="surface-media">
-          <img v-if="imageUrl" :src="imageUrl" :alt="product.title" />
+          <img
+            v-if="imageUrl && !imageBroken"
+            :src="imageUrl"
+            :alt="product.title"
+            @error="markFailed(`product-detail-${product.id}`)"
+          />
           <Package v-else :size="56" :stroke-width="1.2" aria-hidden="true" />
         </div>
 
@@ -74,7 +79,8 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { ChevronLeft, Package, ShoppingBag, X } from 'lucide-vue-next';
-import { getImageUrl } from '@/utils/asset-helper.js';
+import { resolveDbDetailImage } from '@/utils/db-image-url.js';
+import { useImageFailure } from '@/composables/useImageFailure.js';
 import {
   animateMorph,
   canMorph,
@@ -102,7 +108,11 @@ let mql = null;
 let onOrientationChange = null;
 let opened = false;
 
-const imageUrl = computed(() => getImageUrl(props.product?.image) || '');
+/* 详情大图：本地文件名 → 打包产物，Cloudinary 原址 → 自建 CDN（大陆可达）。
+   `c_limit,w_1600` 只压不拉，小图不会被放大糊掉。 */
+const { isFailed, markFailed } = useImageFailure();
+const imageUrl = computed(() => resolveDbDetailImage(props.product?.image) || '');
+const imageBroken = computed(() => isFailed(`product-detail-${props.product?.id}`));
 
 const parsePoints = (value) => {
   const points = Number(value);

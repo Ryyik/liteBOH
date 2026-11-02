@@ -55,11 +55,12 @@
         <button type="button" class="order-card" @click="openDetail(order)">
           <span class="order-thumb">
             <img
-              v-if="thumbOf(order)"
+              v-if="thumbVisible(order)"
               :src="thumbOf(order)"
               alt=""
               loading="lazy"
-              @error="$event.target.style.display = 'none'"
+              decoding="async"
+              @error="markThumbFailed(thumbKey(order))"
             />
             <ShoppingBag v-else :size="20" :stroke-width="1.7" aria-hidden="true" />
           </span>
@@ -99,6 +100,8 @@ import { storeToRefs } from 'pinia';
 import { ChevronRight, MapPin, ShoppingBag } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { fetchMyOrders } from '@/utils/api/shop-orders-api.js';
+import { resolveDbCardImage } from '@/utils/db-image-url.js';
+import { useImageFailure } from '@/composables/useImageFailure.js';
 import { fetchDefaultAddress } from '@/utils/api/address-api.js';
 import { logger } from '@/utils/logger.js';
 import OrderDetailSheet from './OrderDetailSheet.vue';
@@ -203,7 +206,14 @@ const detailOrder = ref(null);
 const openDetail = (order) => {
   detailOrder.value = order;
 };
-const thumbOf = (order) => String(order?.items?.[0]?.image || order?.image || '').trim();
+/* 订单里的图存的是**下单当时的原始值**，历史上有三种形态：裸文件名（本地资源）、
+   Cloudinary 原址（大陆不可达）、已是 CDN。必须逐次过 resolveDbCardImage ——
+   2026-11-02 线上实测：裸文件名被直接塞进 src，浏览器按当前路由解析成
+   `/mascot-new-landscape-orig.webp` 一律 404，整列缩略图都是空方块。 */
+const thumbOf = (order) => resolveDbCardImage(order?.items?.[0]?.image || order?.image || '') || '';
+const { isFailed: isThumbFailed, markFailed: markThumbFailed } = useImageFailure();
+const thumbKey = (order) => `order-thumb-${order?.kind}-${order?.id}`;
+const thumbVisible = (order) => Boolean(thumbOf(order)) && !isThumbFailed(thumbKey(order));
 
 watch(
   () => [isLoggedIn.value, authStore.userInfo?.id],

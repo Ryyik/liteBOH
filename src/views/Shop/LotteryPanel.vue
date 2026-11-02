@@ -11,12 +11,14 @@
           class="lt-card"
           @click="openDetail(item, $event)"
         >
-          <span class="lt-cover" :class="{ plain: !item.cover_image_url }">
+          <span class="lt-cover" :class="{ plain: !coverVisible(item) }">
             <img
-              v-if="item.cover_image_url"
-              :src="item.cover_image_url"
+              v-if="coverVisible(item)"
+              :src="coverOf(item)"
               :alt="item.title"
               loading="lazy"
+              decoding="async"
+              @error="markCoverFailed(coverKey(item))"
             />
             <span v-else class="cover-mark">{{ initialOf(item.title) }}</span>
             <span class="lt-status is-open">进行中</span>
@@ -44,12 +46,14 @@
           class="lt-card is-history"
           @click="openDetail(item, $event)"
         >
-          <span class="lt-cover" :class="{ plain: !item.cover_image_url }">
+          <span class="lt-cover" :class="{ plain: !coverVisible(item) }">
             <img
-              v-if="item.cover_image_url"
-              :src="item.cover_image_url"
+              v-if="coverVisible(item)"
+              :src="coverOf(item)"
               :alt="item.title"
               loading="lazy"
+              decoding="async"
+              @error="markCoverFailed(coverKey(item))"
             />
             <span v-else class="cover-mark">{{ initialOf(item.title) }}</span>
             <span class="lt-status">{{ item.status === 'drawn' ? '已开奖' : '已截止' }}</span>
@@ -94,12 +98,22 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import { getCommunityLotteries, joinCommunityLottery } from '@/utils/api/lottery-api.js';
+import { resolveDbCardImage } from '@/utils/db-image-url.js';
+import { useImageFailure } from '@/composables/useImageFailure.js';
 import { captureOrigin } from '@/utils/motion-origin.js';
 import { logger } from '@/utils/logger.js';
 import LotteryDetailSheet from './LotteryDetailSheet.vue';
 
 const authStore = useAuthStore();
 const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
+
+/* 封面地址两种形态：`cover_image_url` 存的多是 Cloudinary 原图（大陆不可达且动辄 1MB+），
+   裸文件名的是本地资源。resolveDbCardImage 一并做 CDN 改写 + 卡面尺寸变换，
+   中秋/七夕那两张 1.2MB 的封面因此降到几十 KB —— 之前是「灰着一块，等半天也不出图」。 */
+const coverOf = (item) => resolveDbCardImage(item?.cover_image_url) || '';
+const { isFailed: isCoverFailed, markFailed: markCoverFailed } = useImageFailure();
+const coverKey = (item) => `lottery-cover-${item?.id}`;
+const coverVisible = (item) => Boolean(coverOf(item)) && !isCoverFailed(coverKey(item));
 
 const lotteries = ref([]);
 const loading = ref(true);

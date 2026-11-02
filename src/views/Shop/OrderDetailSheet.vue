@@ -54,11 +54,11 @@
               <li v-for="(item, index) in items" :key="`${item.title}-${index}`" class="od-item">
                 <span class="od-thumb">
                   <img
-                    v-if="item.image"
-                    :src="item.image"
+                    v-if="item.imageUrl && !isItemImageFailed(index)"
+                    :src="item.imageUrl"
                     alt=""
                     loading="lazy"
-                    @error="$event.target.style.display = 'none'"
+                    @error="markItemImageFailed(index)"
                   />
                   <ShoppingBag v-else :size="20" :stroke-width="1.7" aria-hidden="true" />
                 </span>
@@ -114,6 +114,8 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Ban, ChevronLeft, ShoppingBag, Truck } from 'lucide-vue-next';
 import { cancelGift, cancelShopOrder } from '@/utils/api/shop-orders-api.js';
 import { logger } from '@/utils/logger.js';
+import { resolveDbCardImage } from '@/utils/db-image-url.js';
+import { useImageFailure } from '@/composables/useImageFailure.js';
 
 const props = defineProps({
   order: { type: Object, default: null },
@@ -200,7 +202,7 @@ const items = computed(() => {
       title: item.title || '周边商品',
       specLabel: item.specLabel || '默认规格',
       quantity: Math.max(1, Number(item.quantity) || 1),
-      image: item.image || '',
+      imageUrl: resolveDbCardImage(item.image) || '',
     }));
   }
   return [
@@ -208,10 +210,17 @@ const items = computed(() => {
       title: props.order?.title || '订单',
       specLabel: props.order?.subtitle || '',
       quantity: 1,
-      image: props.order?.image || '',
+      imageUrl: resolveDbCardImage(props.order?.image) || '',
     },
   ];
 });
+
+/* 商品图失败记账：key 与 v-for 的 key 同口径（标题 + 下标），
+   不用纯下标 —— 列表重排后下标会指到另一行，出现「这张挂了那张变占位」。 */
+const { isFailed, markFailed } = useImageFailure();
+const itemImageKey = (item, index) => `order-item-${item?.title || ''}-${index}`;
+const isItemImageFailed = (index) => isFailed(itemImageKey(items.value[index], index));
+const markItemImageFailed = (index) => markFailed(itemImageKey(items.value[index], index));
 
 const canCancel = computed(() => {
   if (!props.order?.id || isCancelled.value) return false;
