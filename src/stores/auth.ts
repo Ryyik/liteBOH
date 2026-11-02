@@ -976,15 +976,24 @@ export const useAuthStore = defineStore(
       }
     };
 
-    const logout = async (): Promise<void> => {
+    /**
+     * 退出登录。
+     *
+     * @param {{ reset?: boolean }} [options]
+     *   reset=false：**跳过多余的 pinia 清理**。只有「登录页外那条先退出再整页重载」的路径
+     *   （utils/logout-and-reload.js）该用它 —— reload 会把整张 pinia 连同组件树一起重建，
+     *   清理那三个 store（还带动态 import）纯属白等。不重载的退出（如路由守卫里那次）保持默认 true。
+     */
+    const logout = async ({ reset = true }: { reset?: boolean } = {}): Promise<void> => {
       try {
         const { signOut: supabaseSignOut } = await loadAuthApi();
         const { error } = await supabaseSignOut();
         if (error) throw error;
-        await resetState();
       } catch (error) {
         logger.error('auth-store', '退出登录失败', error);
-        await resetState();
+      } finally {
+        // 成败都要收尾（原实现两条分支各 await 一次 resetState，这里收成一处）
+        if (reset) await resetState();
       }
     };
 

@@ -26,6 +26,13 @@ const VIEWPORTS = [
   { label: '1440x816', width: 1440, height: 816 },
   { label: '1280x800', width: 1280, height: 800 },
   { label: '1024x768', width: 1024, height: 768 },
+  /* 769–1023 的横屏档（右侧折叠胶囊，没有左栏）：这一档导航被 fold-nav-rail.css
+     按**内容区**居中并收窄 gutter，登录卡片却按整页居中且宽度取
+     --boh-login-island-width ⇒ 2026-11-01 用户报障「登录岛又错位了」
+     （1010×364 实测上半岛 31 宽 860、下半岛 75 宽 860；900×600 实测 788@12 vs 860@20）。
+     900×600 同时落在 max-height ≤620 的短横屏分支里，顺带锁住左栏文案与
+     右栏按钮组的同轴（那条 8px 出自一个多余的 header margin-bottom）。 */
+  { label: '900x600', width: 900, height: 600 },
 ];
 
 const WHITE = 'rgb(255, 255, 255)';
@@ -122,7 +129,12 @@ try {
     }
     if (data.header && data.entry) {
       const dy = Math.abs(data.header.centerY - data.entry.centerY);
-      check('W5 左栏（文案组）与右栏按钮垂直中心对齐', dy <= 8, `ΔcenterY = ${dy}px`);
+      /* 阈值 4 而不是 8：两栏是「header 居中项 vs 绝对定位 top:50%」，
+         任何一条加在 header 上的下外边距都会让它整体上推一半 —— 曾经是
+         max-height≤620 分支里的 margin-bottom:16px ⇒ 实测正好 8px（等于旧阈值，
+         旧的 ≤8 会把它读成 PASS，等于没牙）。删掉那条后实测 0～2px，
+         余下的 2 是卡片上下 padding 30/34 的不对称，属正常量级。 */
+      check('W5 左栏（文案组）与右栏按钮垂直中心对齐', dy <= 4, `ΔcenterY = ${dy}px`);
     }
 
     // 第二阶段：展开表单，确认岛宽不变且无横向溢出

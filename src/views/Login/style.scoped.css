@@ -952,10 +952,12 @@
     padding-bottom: 24px;
   }
 
-  .boh-login-modal-container .boh-login-modal-header {
-    margin-bottom: 16px;
-  }
-
+  /* ⚠️ 本块刻意**不给** header 写 margin-bottom —— 选择态下 header 是卡片
+     flex 列里的居中项，一条下外边距会把它整体上推一半（16px → 8px），
+     而右栏按钮组是相对卡片 top:50% 绝对定位、纹丝不动 ⇒ 左栏文案比按钮高 8px。
+     2026-11-01 用户报障「登录岛又错位了」时，短横屏（≤620 高）就叠着这一条。
+     表单态自己要的间距写在 .mobile-form-open 那段（0,3,0，优先级更高），
+     与这里无关，删掉不影响展开后的排版。 */
   .boh-login-modal-container .mobile-login-entry {
     right: 24px;
     width: min(260px, 36%);

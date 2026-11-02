@@ -140,11 +140,24 @@
       所以「居中」这件事只对桌面版导航成立。
    ══════════════════════════════════════════════════════════════════════ */
 @media (orientation: landscape) and (min-width: 769px) and (max-width: 1023px) {
-  body.page-home #unified-nav-container .unified-nav-surface,
-  body.page-userspace #unified-nav-container .unified-nav-surface,
-  body.page-userprofile #unified-nav-container .unified-nav-surface,
-  body.page-bohcloudplus #unified-nav-container .unified-nav-surface,
-  body.page-aichat #unified-nav-container .unified-nav-surface {
+  /* ⚠️ `:not(.has-login-card)` 必须留着（2026-11-01 用户报障「登录岛又错位了」）：
+     本条把导航条按**内容区**居中（内容右让 gutter ⇒ 中心左移 gutter/2）并收窄
+     gutter，而登录卡片下半岛由 overlay 在**整页**居中、宽度取单一源
+     `--boh-login-island-width`（= min(860px, 100% - 24px)）。
+     ⇒ 769–1023 档一开登录，上半岛就同时**窄 88px 且左移 44px**，
+     两个半岛拼不成一张岛（1010×364 实测：上半岛 31..791、下半岛 75..935，
+     900×600 实测：788 宽 @12 vs 860 宽 @20）。
+     ≥1024 档没这个问题：landscape-rail.css 给导航的 left 偏移，登录卡片那边
+     有对应的同值补偿；本档是「右侧折叠胶囊」，卡片不参与让位，所以只能在
+     导航侧退出 —— 让 has-login-card 回落到基础居中 + 基础 max-width
+     （与 --boh-login-island-width 同式，仍是一处定义）。
+     ❗不要改成「给卡片补 left: 44px」：那会把卡片推出整页中心，
+       且两份数字会各自漂移。 */
+  body.page-home #unified-nav-container .unified-nav-surface:not(.has-login-card),
+  body.page-userspace #unified-nav-container .unified-nav-surface:not(.has-login-card),
+  body.page-userprofile #unified-nav-container .unified-nav-surface:not(.has-login-card),
+  body.page-bohcloudplus #unified-nav-container .unified-nav-surface:not(.has-login-card),
+  body.page-aichat #unified-nav-container .unified-nav-surface:not(.has-login-card) {
     max-width: min(860px, calc(100% - 24px - var(--fold-nav-gutter, 88px)));
     left: calc(var(--fold-nav-gutter, 88px) / -2);
   }

@@ -17,7 +17,9 @@
 import { supabase } from '../supabase-client.js';
 import { logger } from '../logger.js';
 
-const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
 const PUSH_FUNCTION_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/push-send` : '';
 const SUPABASE_ANON_KEY = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
@@ -80,8 +82,10 @@ export const isIosLike = () => {
 /** 是否已以「独立应用」形态运行（已添加到主屏幕 / 已安装 PWA）。 */
 export const isStandaloneMode = () => {
   if (typeof window === 'undefined') return false;
-  return window.matchMedia?.('(display-mode: standalone)').matches === true
-    || window.navigator?.standalone === true;
+  return (
+    window.matchMedia?.('(display-mode: standalone)').matches === true ||
+    window.navigator?.standalone === true
+  );
 };
 
 /** 把 base64url 的 applicationServerKey 转成 subscribe() 需要的 Uint8Array */
@@ -101,7 +105,8 @@ const urlBase64ToUint8Array = (base64Url) => {
 export const getPushCapability = () => {
   if (typeof window === 'undefined') return { supported: false, reason: '当前环境不支持通知' };
   if (!window.isSecureContext) return { supported: false, reason: '需要 HTTPS 环境' };
-  if (!('serviceWorker' in navigator)) return { supported: false, reason: '当前浏览器不支持 Service Worker' };
+  if (!('serviceWorker' in navigator))
+    return { supported: false, reason: '当前浏览器不支持 Service Worker' };
   if (!('PushManager' in window)) return { supported: false, reason: '当前浏览器不支持推送订阅' };
   if (!('Notification' in window)) return { supported: false, reason: '当前浏览器不支持系统通知' };
 
@@ -115,7 +120,8 @@ export const getPushCapability = () => {
 
 /** 取服务端配置（是否已部署 VAPID + 公钥）。5 分钟内存缓存。 */
 export const fetchPushConfig = async ({ force = false } = {}) => {
-  if (!PUSH_FUNCTION_URL) return { enabled: false, vapidPublicKey: '', error: '未配置 Supabase 地址' };
+  if (!PUSH_FUNCTION_URL)
+    return { enabled: false, vapidPublicKey: '', error: '未配置 Supabase 地址' };
   const now = Date.now();
   if (!force && configCache && now - configFetchedAt < CONFIG_CACHE_TTL_MS) return configCache;
 
@@ -125,8 +131,8 @@ export const fetchPushConfig = async ({ force = false } = {}) => {
       headers: {
         'Content-Type': 'application/json',
         // 函数网关默认校验 JWT，config 用 anon key 过网关即可（函数内部不再校验身份）
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'apikey': SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({ action: 'config' }),
     });
@@ -148,6 +154,15 @@ export const fetchPushConfig = async ({ force = false } = {}) => {
 /** 当前浏览器已有的推送订阅（没有则 null）。不触发任何权限请求。 */
 export const readLocalSubscription = async () => {
   if (!getPushCapability().supported) return null;
+  /* ⚠️ 权限没授予 ⇒ 这台设备**不可能**有订阅（订阅只能在 granted 之后创建）⇒ 直接返回，
+     别去等 SW。这是登出链路上的关键提速点，2026-11-01 实测：
+       permission=default（绝大多数用户，从没开过通知）+ 无 SW 注册
+       ⇒ 下面那次 waitForServiceWorker 会**等满 3s 上限**（它排在 signOut 之前，
+         用户点完「退出登录」要干等 3 秒页面才动）；
+       同一台机器整页 reload 只要 192ms ⇒ 慢的不是刷新，就是这条等待。
+     语义上无损：'denied'/'default' 下浏览器不会投递任何推送，订阅行留着也发不出去，
+     且下次登录 syncPushSubscription 会按当前权限重新对齐。 */
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return null;
   // 必须走带超时的等待：SW 未注册成功时 ready 会永久 pending（详见 waitForServiceWorker 注释）
   const registration = await waitForServiceWorker();
   if (!registration) return null;
@@ -254,9 +269,10 @@ export const enablePush = async (userId) => {
   if (permission !== 'granted') {
     return {
       success: false,
-      message: permission === 'denied'
-        ? '通知权限已被浏览器拒绝，需在网站设置里手动允许'
-        : '未获得通知权限',
+      message:
+        permission === 'denied'
+          ? '通知权限已被浏览器拒绝，需在网站设置里手动允许'
+          : '未获得通知权限',
     };
   }
 
@@ -371,14 +387,15 @@ export const sendTestPush = async ({ silent = false } = {}) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'apikey': SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
       },
       body: JSON.stringify({ action: 'test' }),
     });
     const payload = await response.json().catch(() => ({}));
     const ok = response.ok && payload?.ok;
-    if (!ok && !silent) throw new Error(String(payload?.message || `发送失败 (${response.status})`));
+    if (!ok && !silent)
+      throw new Error(String(payload?.message || `发送失败 (${response.status})`));
     return { ok, message: String(payload?.message || '') };
   } catch (error) {
     logger.warn('push-api', '测试推送失败', error);
