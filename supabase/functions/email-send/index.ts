@@ -93,7 +93,7 @@ const buildMerchandiseTemplateParams = async (
 
   const { data: profile } = await client
     .from('profiles')
-    .select('username, role')
+    .select('username, role, shipping_recipient, shipping_phone, shipping_address')
     .eq('id', user.userId)
     .maybeSingle();
 
@@ -118,8 +118,28 @@ const buildMerchandiseTemplateParams = async (
       : paymentMode === 'combined'
         ? `${points} 积分 + 现金 ¥${(rmb / 100).toFixed(2)}`
         : `${points} 积分`;
-  const contactLabel = order.contact_type === 'qq' ? 'QQ' : '微信';
+  /* 联系方式标签（2026-11-01）：新增 'profile' —— 结算改为一律取用户资料，
+     管理员邮件里要能直接看到「收件人 / 邮箱 / 电话 / 地址」，
+     不必再回后台翻订单。旧的 qq / vx 分支保留，历史订单重发邮件仍可读。 */
+  const contactLabel =
+    order.contact_type === 'qq' ? 'QQ' : order.contact_type === 'vx' ? '微信' : '电话';
   const buyerName = String(profile?.username || '未命名用户').trim();
+  const recipient = String(profile?.shipping_recipient || '').trim();
+  const phone = String(profile?.shipping_phone || '').trim();
+  const address = String(profile?.shipping_address || '').trim();
+
+  const contactLines = [
+    `订单号: ${order.order_no}`,
+    `昵称: ${buyerName}`,
+    `账户邮箱: ${user.email || '未绑定'}`,
+    `收件人: ${recipient || '（未填写）'}`,
+    `电话: ${phone || order.contact_value || '（未填写）'}`,
+    `地址: ${address || '（未填写）'}`,
+  ];
+  if (order.contact_type === 'qq' || order.contact_type === 'vx') {
+    // 历史订单：手填的 QQ / 微信号仍要出现在邮件里，否则管理员联系不上
+    contactLines.push(`原联系方式: ${contactLabel}: ${order.contact_value}`);
+  }
 
   return {
     product: '方块之家周边订单',
@@ -127,10 +147,10 @@ const buildMerchandiseTemplateParams = async (
     giftOptions: '周边购物',
     paymentMethod: paymentSummary,
     paymentAmount: paymentSummary,
-    deliveryMethod: '待管理员确认',
+    deliveryMethod: recipient || address ? '按资料地址寄送' : '待管理员确认',
     totalPrice: paymentSummary,
-    giftMessage: `订单号: ${order.order_no}\n账户邮箱: ${user.email || '未绑定'}\n联系方式: ${contactLabel}: ${order.contact_value}`,
-    buyerName,
+    giftMessage: contactLines.join('\n'),
+    buyerName: recipient || buyerName,
     buyerRole: String(profile?.role || '普通用户'),
     isLoggedIn: '是',
     orderTime: formatOrderTime(order.created_at),
