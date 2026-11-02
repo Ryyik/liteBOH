@@ -3,12 +3,13 @@
     <section v-if="activeLotteries.length || loading" class="lottery-group">
       <h3 class="group-title">进行中</h3>
       <p v-if="loading" class="lottery-hint">正在加载抽奖…</p>
-      <div v-else class="lt-grid">
+      <TransitionGroup v-else name="shop-card" tag="div" class="lt-grid">
         <button
-          v-for="item in activeLotteries"
+          v-for="(item, index) in activeLotteries"
           :key="item.id"
           type="button"
           class="lt-card"
+          :style="{ '--i': index }"
           @click="openDetail(item, $event)"
         >
           <span class="lt-cover" :class="{ plain: !coverVisible(item) }">
@@ -18,6 +19,8 @@
               :alt="item.title"
               loading="lazy"
               decoding="async"
+              :class="{ 'is-loading': !isImageLoaded(coverKey(item)) }"
+              @load="markImageLoaded(coverKey(item))"
               @error="markCoverFailed(coverKey(item))"
             />
             <span v-else class="cover-mark">{{ initialOf(item.title) }}</span>
@@ -33,17 +36,18 @@
             </span>
           </span>
         </button>
-      </div>
+      </TransitionGroup>
     </section>
 
     <section v-if="historyLotteries.length" class="lottery-group">
       <h3 class="group-title">历史</h3>
-      <div class="lt-grid">
+      <TransitionGroup name="shop-card" tag="div" class="lt-grid">
         <button
-          v-for="item in historyLotteries"
+          v-for="(item, index) in historyLotteries"
           :key="item.id"
           type="button"
           class="lt-card is-history"
+          :style="{ '--i': index }"
           @click="openDetail(item, $event)"
         >
           <span class="lt-cover" :class="{ plain: !coverVisible(item) }">
@@ -53,6 +57,8 @@
               :alt="item.title"
               loading="lazy"
               decoding="async"
+              :class="{ 'is-loading': !isImageLoaded(coverKey(item)) }"
+              @load="markImageLoaded(coverKey(item))"
               @error="markCoverFailed(coverKey(item))"
             />
             <span v-else class="cover-mark">{{ initialOf(item.title) }}</span>
@@ -68,15 +74,17 @@
             </span>
           </span>
         </button>
-      </div>
+      </TransitionGroup>
     </section>
 
-    <div
-      v-if="!loading && !activeLotteries.length && !historyLotteries.length"
-      class="lottery-empty"
-    >
-      <p>还没有抽奖活动</p>
-    </div>
+    <Transition name="shop-fade">
+      <div
+        v-if="!loading && !activeLotteries.length && !historyLotteries.length"
+        class="lottery-empty"
+      >
+        <p>还没有抽奖活动</p>
+      </div>
+    </Transition>
 
     <LotteryDetailSheet
       v-if="selectedLottery"
@@ -100,6 +108,7 @@ import { useAuthStore } from '@/stores/auth';
 import { getCommunityLotteries, joinCommunityLottery } from '@/utils/api/lottery-api.js';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
 import { captureOrigin } from '@/utils/motion-origin.js';
 import { logger } from '@/utils/logger.js';
 import LotteryDetailSheet from './LotteryDetailSheet.vue';
@@ -112,6 +121,8 @@ const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
    中秋/七夕那两张 1.2MB 的封面因此降到几十 KB —— 之前是「灰着一块，等半天也不出图」。 */
 const coverOf = (item) => resolveDbCardImage(item?.cover_image_url) || '';
 const { isFailed: isCoverFailed, markFailed: markCoverFailed } = useImageFailure();
+/* 封面解码完成后淡入，避免「灰底突然变图」的硬跳 */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 const coverKey = (item) => `lottery-cover-${item?.id}`;
 const coverVisible = (item) => Boolean(coverOf(item)) && !isCoverFailed(coverKey(item));
 
@@ -252,6 +263,7 @@ onBeforeUnmount(() => {
 }
 
 .lt-grid {
+  position: relative; /* leave 的绝对定位基准（shop-card-leave-active） */
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;

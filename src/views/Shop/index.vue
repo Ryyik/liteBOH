@@ -34,7 +34,9 @@
         @click="switchTab(tab.id)"
       >
         {{ tab.label }}
-        <span v-if="tab.id === 'bag' && bagCount" class="tab-count">{{ bagCount }}</span>
+        <span v-if="tab.id === 'bag' && bagCount" :key="bagCount" class="tab-count">{{
+          bagCount
+        }}</span>
       </button>
     </nav>
 
@@ -67,7 +69,7 @@
             <button
               v-if="searchKeyword"
               type="button"
-              class="search-clear"
+              class="search-clear shop-fade-in"
               aria-label="清空搜索"
               @click="searchKeyword = ''"
             >
@@ -84,12 +86,21 @@
             </div>
           </div>
 
-          <div v-else-if="filteredProducts.length" class="product-grid">
+          <!-- 搜索过滤是**增删**，不是整表重建 ⇒ 用 TransitionGroup 而不是 :key 重建：
+               留下的卡片走 .shop-card-move（FLIP 平滑归位），被过滤掉的走 leave（缩小淡出），
+               新出现的按 --i 逐个上浮。2026-11-02 用户口径：「确保没有任何硬切的部分」。 -->
+          <TransitionGroup
+            v-else-if="filteredProducts.length"
+            name="shop-card"
+            tag="div"
+            class="product-grid"
+          >
             <button
-              v-for="product in filteredProducts"
+              v-for="(product, index) in filteredProducts"
               :key="product.id"
               type="button"
               class="p-card"
+              :style="{ '--i': index }"
               @click="openProductDetails(product, $event)"
             >
               <span class="p-media">
@@ -98,6 +109,8 @@
                   :src="displayImageUrl(product)"
                   :alt="product.title"
                   loading="lazy"
+                  :class="{ 'is-loading': !isImageLoaded(`product-${product.id}`) }"
+                  @load="markImageLoaded(`product-${product.id}`)"
                   @error="markProductImageFailed(`product-${product.id}`)"
                 />
                 <Package v-else :size="34" :stroke-width="1.2" aria-hidden="true" />
@@ -107,9 +120,9 @@
                 <span class="p-price">{{ formatPriceDisplay(product) }}</span>
               </span>
             </button>
-          </div>
+          </TransitionGroup>
 
-          <div v-else class="store-empty">
+          <div v-else class="store-empty shop-fade-in">
             <p>{{ searchKeyword ? `没有找到「${searchKeyword}」` : '暂时还没有周边' }}</p>
             <button
               v-if="searchKeyword"
@@ -322,6 +335,7 @@ import { Package, Search, User, X, ClipboardPaste } from 'lucide-vue-next';
 import mascotHeroUrl from '@/assets/images/mascot-new-landscape-orig.webp';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
 import { useAuthStore } from '@/stores/auth';
 import {
   fetchDefaultAddress,
@@ -532,6 +546,8 @@ const displayImageUrl = (product) =>
 /* 图片挂了就退回 Package 占位图标，别在卡里留一个碎图问号 */
 const { isFailed: isProductImageFailed, markFailed: markProductImageFailed } = useImageFailure();
 const productImageFailed = (product) => isProductImageFailed(`product-${product?.id}`);
+/* 解码完成再淡入：灰底 → 一张图的那一下硬跳，是周边页最容易被看见的「硬切」 */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 
 const totalPoints = computed(() =>
   shoppingBag.value.reduce(

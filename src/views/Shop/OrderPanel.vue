@@ -39,19 +39,24 @@
       </button>
     </div>
 
-    <div v-if="!isLoggedIn" class="order-empty">
+    <div v-if="!isLoggedIn" class="order-empty shop-fade-in">
       <p>登录后查看购物、中奖与礼物记录</p>
       <button type="button" class="ghost-btn" @click="showLoginModal = true">登录</button>
     </div>
-    <p v-else-if="loading" class="order-hint">正在加载订单…</p>
-    <div v-else-if="!visibleOrders.length" class="order-empty">
+    <p v-else-if="loading" class="order-hint shop-fade-in">正在加载订单…</p>
+    <div v-else-if="!visibleOrders.length" class="order-empty shop-fade-in">
       <p>{{ emptyOrderText }}</p>
     </div>
-    <ul v-else class="order-list">
+    <TransitionGroup v-else name="shop-card" tag="ul" class="order-list">
       <!-- 整张卡是一个按钮：点开详情（2026-11-02 用户口径「支持点开详情」）。
            卡片左侧放商品首图 —— 主流电商的订单列表都是"图 + 标题 + 状态"，
            纯文字列表在一堆订单里认不出买了什么。 -->
-      <li v-for="order in visibleOrders" :key="`${order.kind}-${order.id}`" class="order-card-wrap">
+      <li
+        v-for="(order, index) in visibleOrders"
+        :key="`${order.kind}-${order.id}`"
+        class="order-card-wrap"
+        :style="{ '--i': index }"
+      >
         <button type="button" class="order-card" @click="openDetail(order)">
           <span class="order-thumb">
             <img
@@ -60,6 +65,8 @@
               alt=""
               loading="lazy"
               decoding="async"
+              :class="{ 'is-loading': !isImageLoaded(thumbKey(order)) }"
+              @load="markImageLoaded(thumbKey(order))"
               @error="markThumbFailed(thumbKey(order))"
             />
             <ShoppingBag v-else :size="20" :stroke-width="1.7" aria-hidden="true" />
@@ -83,7 +90,7 @@
           <ChevronRight class="order-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
         </button>
       </li>
-    </ul>
+    </TransitionGroup>
 
     <OrderDetailSheet
       :order="detailOrder"
@@ -102,6 +109,7 @@ import { useAuthStore } from '@/stores/auth';
 import { fetchMyOrders } from '@/utils/api/shop-orders-api.js';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
 import { fetchDefaultAddress } from '@/utils/api/address-api.js';
 import { logger } from '@/utils/logger.js';
 import OrderDetailSheet from './OrderDetailSheet.vue';
@@ -212,6 +220,8 @@ const openDetail = (order) => {
    `/mascot-new-landscape-orig.webp` 一律 404，整列缩略图都是空方块。 */
 const thumbOf = (order) => resolveDbCardImage(order?.items?.[0]?.image || order?.image || '') || '';
 const { isFailed: isThumbFailed, markFailed: markThumbFailed } = useImageFailure();
+/* 缩略图解码完成后淡入 */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 const thumbKey = (order) => `order-thumb-${order?.kind}-${order?.id}`;
 const thumbVisible = (order) => Boolean(thumbOf(order)) && !isThumbFailed(thumbKey(order));
 
@@ -340,6 +350,7 @@ defineExpose({ refresh: loadOrders });
 }
 
 .order-list {
+  position: relative; /* leave 的绝对定位基准（shop-card-leave-active） */
   display: flex;
   flex-direction: column;
   gap: 10px;

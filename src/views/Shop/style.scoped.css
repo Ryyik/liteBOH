@@ -143,7 +143,9 @@
   font-weight: 500;
 }
 
-.store-tabs button.active::after {
+/* 下划线用「从中间展开 + 淡入」出现，而不是凭空长出一根线（2026-11-02：
+   切 Tab 时那根 2px 线原来是硬切，这是整个周边页最高频的一次状态变化）。 */
+.store-tabs button::after {
   content: '';
   position: absolute;
   right: 0;
@@ -152,6 +154,16 @@
   height: 2px;
   border-radius: 2px;
   background: var(--boh-text-primary, #1d1d1f);
+  opacity: 0;
+  transform: scaleX(0.5);
+  transition:
+    opacity 180ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.store-tabs button.active::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 .tab-count {
@@ -164,6 +176,16 @@
   font-size: 11px;
   line-height: 16px;
   vertical-align: 1px;
+  /* 加购后数字凭空出现的硬切：给一个小的弹入（key 变化会重建元素 ⇒ 动画重放，
+     数字每变一次都弹一下，正好把「数量变了」这件事讲到用户眼前） */
+  animation: shopCountPop 280ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@keyframes shopCountPop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
 }
 
 /* ===== 内容区 ===== */

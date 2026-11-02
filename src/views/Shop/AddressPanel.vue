@@ -12,13 +12,19 @@
        顶栏已经写着「地址」，这个头既不提供新信息、又占掉一整行高度，
        所以只留瓷砖那一个入口：它同时在空态时充当唯一的新增引导。 -->
   <section class="addr-panel">
-    <div v-if="!isLoggedIn" class="addr-empty">
+    <div v-if="!isLoggedIn" class="addr-empty shop-fade-in">
       <MapPin :size="22" :stroke-width="1.6" aria-hidden="true" />
       <p>登录后管理收货地址</p>
       <button type="button" class="addr-login" @click="showLoginModal = true">登录</button>
     </div>
 
-    <AddressManager v-else variant="glass" :show-header="false" @loaded="$emit('loaded', $event)" />
+    <AddressManager
+      v-else
+      class="shop-fade-in"
+      variant="glass"
+      :show-header="false"
+      @loaded="$emit('loaded', $event)"
+    />
   </section>
 </template>
 

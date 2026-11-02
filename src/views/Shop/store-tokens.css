@@ -72,3 +72,110 @@
   --am-paste-bg: color-mix(in srgb, var(--boh-text-primary) 4%, transparent);
   --am-confirm-bg: color-mix(in srgb, var(--boh-text-primary) 4%, transparent);
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   列表 / 状态切换的过渡层（2026-11-02 用户口径：「确保没有任何硬切的部分」）
+   ================================================================
+   之前周边页只有「整页进场」和「切 Tab 时面板重建」两处动画，所有**内容层面**
+   的变化都是硬切：搜索把卡片筛掉是瞬间消失、骨架换成商品是瞬间替换、图片解码完
+   是灰底突然变图、空态是凭空出现。这一层按「变化类型」逐类补齐：
+
+   · enter  元素第一次进入（首屏 / 搜索命中的新卡）—— 按 --i 逐个上浮
+   · leave  元素被移除（搜索筛掉 / 数据刷新少了一条）—— 缩小淡出
+   · move   留下的元素重新排位 —— FLIP 平滑归位
+
+   leave 必须 position:absolute，否则它一边淡出一边占着格子，
+   后面的卡会先「跳」到新位置再被 move 拉回来，等于把硬切换成了抽搐。
+   ═══════════════════════════════════════════════════════════════ */
+
+.shop-card-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+}
+
+.shop-card-enter-active {
+  transition:
+    opacity 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  /* 序号 --i 由模板写，封顶 8 项（第 9 张起同时入场，不然长列表尾巴会等到心焦） */
+  transition-delay: calc(min(var(--i, 0), 8) * 40ms);
+}
+
+.shop-card-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
+.shop-card-leave-active {
+  position: absolute;
+  transition:
+    opacity 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.shop-card-move {
+  transition: transform 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+/* 空态 / 提示这类「整块出现」：淡入 + 4px 上浮，不抢卡片的位置。
+   刻意用 CSS animation 而不是 <Transition>：v-if 分支切换时元素是重新插入的，
+   动画自然会重放；而 <Transition> 套在 v-if/v-else 链上时，v-if 必须写在内层
+   元素上（写在外层组件上会触发 vue/require-toggle-inside-transition），
+   内层写法又会跟 v-else 的「相邻分支」规则打架。只进场、无离场，
+   与切 Tab 的 .store-panel 同一套权衡（不为 150ms 离场让用户白等）。 */
+.shop-fade-in {
+  animation: shopFadeIn 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) backwards;
+}
+
+@keyframes shopFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* 图片解码完成才淡入。基础态**必须**是可见的 —— 只有模板标了 .is-loading 才透明，
+   否则 load 事件没派发时图片会永远隐形（比硬切严重得多，见 useImageLoaded.js）。 */
+.p-media img,
+.lt-cover img,
+.order-thumb img,
+.bag-thumb img {
+  transition: opacity 260ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.p-media img.is-loading,
+.lt-cover img.is-loading,
+.order-thumb img.is-loading,
+.bag-thumb img.is-loading {
+  opacity: 0;
+}
+
+/* reduce-motion / 低端档：所有过渡压到瞬时，只保留「能看见结果」的语义 */
+@media (prefers-reduced-motion: reduce) {
+  .shop-card-enter-active,
+  .shop-card-leave-active,
+  .shop-card-move,
+  .shop-fade-in,
+  .store-tabs button::after,
+  .p-media img,
+  .lt-cover img,
+  .order-thumb img,
+  .bag-thumb img {
+    transition-duration: 1ms;
+    transition-delay: 0ms;
+  }
+}
+
+html.boh-perf-lite .shop-card-enter-active,
+html.boh-perf-lite .shop-card-leave-active,
+html.boh-perf-lite .shop-card-move,
+html.boh-perf-lite .shop-fade-in,
+html.boh-perf-lite .store-tabs button::after,
+html.boh-perf-lite .p-media img,
+html.boh-perf-lite .lt-cover img,
+html.boh-perf-lite .order-thumb img,
+html.boh-perf-lite .bag-thumb img {
+  transition-duration: 1ms;
+  transition-delay: 0ms;
+}

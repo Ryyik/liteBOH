@@ -3,20 +3,27 @@
        订单已提成一级分区（/shop?tab=order，见 OrderPanel.vue），这里只剩「还没买的东西」。
        原来那个「购物车 / 订单」二级分段随之去掉 —— 只剩一段的分段控件只是装饰。 -->
   <div class="bag-panel">
-    <div v-if="!shoppingBag.length" class="bag-empty">
+    <div v-if="!shoppingBag.length" class="bag-empty shop-fade-in">
       <p>购物袋还是空的</p>
       <button type="button" class="ghost-btn" @click="$emit('browse')">去看看周边</button>
     </div>
 
     <template v-else>
-      <ul class="bag-list">
-        <li v-for="item in shoppingBag" :key="`${item.id}-${item.selectedSpec}`" class="bag-row">
+      <TransitionGroup tag="ul" name="shop-card" class="bag-list">
+        <li
+          v-for="(item, index) in shoppingBag"
+          :key="`${item.id}-${item.selectedSpec}`"
+          class="bag-row"
+          :style="{ '--i': index }"
+        >
           <img
             v-if="itemImage(item) && !isFailed(`bag-${item.id}-${item.selectedSpec || ''}`)"
             class="bag-thumb"
             :src="itemImage(item)"
             :alt="String(item.title || '')"
             loading="lazy"
+            :class="{ 'is-loading': !isImageLoaded(`bag-${item.id}-${item.selectedSpec || ''}`) }"
+            @load="markImageLoaded(`bag-${item.id}-${item.selectedSpec || ''}`)"
             @error="markFailed(`bag-${item.id}-${item.selectedSpec || ''}`)"
           />
           <span v-else class="bag-thumb is-fallback" aria-hidden="true">
@@ -52,7 +59,7 @@
             </div>
           </div>
         </li>
-      </ul>
+      </TransitionGroup>
       <div class="bag-total">
         <span>合计</span>
         <span class="total-values">{{ totalText }}</span>
@@ -71,6 +78,7 @@ import { useBagStore } from '@/stores/bag';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { ShoppingBag, X } from 'lucide-vue-next';
 import { useImageFailure } from '@/composables/useImageFailure.js';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
 
 defineEmits(['checkout', 'browse']);
 
@@ -78,6 +86,8 @@ const bagStore = useBagStore();
 const { shoppingBag } = storeToRefs(bagStore);
 /* 缩略图挂了退回图标占位（别再留给浏览器一个碎图问号） */
 const { isFailed, markFailed } = useImageFailure();
+/* 缩略图解码完成后淡入 */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 
 const parsePoints = (value) => {
   const points = Number(value);
@@ -153,6 +163,7 @@ const removeItem = (item) => {
 }
 
 .bag-list {
+  position: relative; /* leave 的绝对定位基准（shop-card-leave-active） */
   display: flex;
   flex-direction: column;
   gap: 10px;
