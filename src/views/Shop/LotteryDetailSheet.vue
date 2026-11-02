@@ -10,7 +10,7 @@
         tabindex="-1"
         :aria-label="lottery.title"
       >
-        <div class="surface-media" :class="{ plain: !coverUrl || coverBroken }">
+        <div class="surface-media" :class="{ plain: !coverUrl || coverBroken }" style="--i: 0">
           <img
             v-if="coverUrl && !coverBroken"
             :src="coverUrl"
@@ -28,10 +28,10 @@
 
         <div class="surface-body">
           <div ref="scrollRef" class="surface-scroll">
-            <p class="surface-kicker">抽奖活动</p>
-            <h2 class="surface-title">{{ lottery.title }}</h2>
+            <p class="surface-kicker" style="--i: 1">抽奖活动</p>
+            <h2 class="surface-title" style="--i: 1">{{ lottery.title }}</h2>
 
-            <div v-if="lottery.prize_title" class="prize-block">
+            <div v-if="lottery.prize_title" class="prize-block" style="--i: 2">
               <p class="block-label">奖品</p>
               <p class="prize-title">{{ lottery.prize_title }}</p>
               <p v-if="lottery.prize_description" class="prize-desc">
@@ -40,15 +40,22 @@
             </div>
 
             <div class="info-list">
-              <p v-for="row in infoRows" :key="row.label" class="info-row">
+              <p
+                v-for="(row, index) in infoRows"
+                :key="row.label"
+                class="info-row"
+                :style="{ '--i': index + 3 }"
+              >
                 <span>{{ row.label }}</span>
                 <strong>{{ row.value }}</strong>
               </p>
             </div>
 
-            <p v-if="lottery.description" class="surface-desc">{{ lottery.description }}</p>
+            <p v-if="lottery.description" class="surface-desc" style="--i: 4">
+              {{ lottery.description }}
+            </p>
 
-            <div v-if="winners.length" class="winner-block">
+            <div v-if="winners.length" class="winner-block" style="--i: 5">
               <p class="block-label">中奖名单</p>
               <p v-for="winner in winners" :key="winner.key" class="winner-row">
                 <span>#{{ winner.position }}</span>
@@ -56,7 +63,7 @@
               </p>
             </div>
 
-            <p class="surface-note">
+            <p class="surface-note" style="--i: 6">
               报名即视为参与本次活动；开奖后由管理员通过站内通知联系中奖者确认发放方式。
             </p>
           </div>
@@ -89,10 +96,13 @@ import { useImageFailure } from '@/composables/useImageFailure.js';
 /* 抽奖详情：窗口逻辑与 ProductDetailSheet **完全一致**（2026-11-01 用户口径
    「抽奖卡片支持点进去看详情，窗口逻辑与商品要求一样」）：
      · 横屏 = 左右分栏（左封面 / 右信息），radius 20，居中在左栏右侧的右区
-     · 竖屏 = 全屏上下布局（封面上 / 信息下），关闭键在左上
+     · 竖屏 = 全屏详情页，**封面在滚动流内**（2026-11-02 用户口径「滚动的时候
+       封面也可以滚上去」），报名按钮 sticky 贴底；内容块按 --motion-stagger 逐个入场
      · 进出场 = 与论坛详情同款的「窗口 clip-path 从被点中的卡片推开 / 收回」
    两份文件刻意不抽象成一个通用弹层：内容结构差别太大（规格 / 库存 vs 奖品 / 名单），
-   抽出来的公共部分只剩 clip-path 这几行，已经在 utils/motion-origin.js 里了。 */
+   抽出来的公共部分只剩 clip-path 这几行，已经在 utils/motion-origin.js 里了。
+   ⚠️ 竖屏滚动策略与商品详情（封面固定）**有意分歧**：要同步过去时把 ProductDetailSheet
+   的竖屏 CSS 与这里的对齐，别只改一份。 */
 
 const props = defineProps({
   lottery: { type: Object, required: true },
@@ -215,8 +225,10 @@ const playOpen = async () => {
   opened = true;
   await nextTick();
   /* 滚动聚焦：与商品详情同一套（内容区归零 + 焦点进面板 + overscroll 兜住），
-     两份详情的手感必须一致，别只修一个 */
-  scrollRef.value?.scrollTo?.({ top: 0, behavior: 'auto' });
+     两份详情的手感必须一致，别只修一个。
+     ⚠️ 竖屏的滚动容器是整个 surface（封面要一起滚上去），横屏仍是内容区。 */
+  const scroller = isLandscape.value ? scrollRef.value : surfaceRef.value;
+  scroller?.scrollTo?.({ top: 0, behavior: 'auto' });
   surfaceRef.value?.focus?.({ preventScroll: true });
   const win = morphWindow();
   const el = surfaceRef.value;
@@ -301,11 +313,16 @@ onBeforeUnmount(() => {
   outline: none;
 }
 
-/* ── 竖屏：全屏详情页（上下布局） ── */
+/* ── 竖屏：全屏详情页 ──
+   滚动容器是**整个 surface**（不是内容区）：封面是滚动流的一部分，往上滑就跟着
+   滚出屏幕；报名按钮 sticky 贴底，内容多长都不离开视口。 */
 .is-portrait .detail-surface {
   inset: 0;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .is-portrait .surface-media {
@@ -321,10 +338,16 @@ onBeforeUnmount(() => {
 }
 
 .is-portrait .surface-body {
-  flex: 1;
+  flex: 1 0 auto; /* 内容不足一屏时也把 footer 顶到视口底 */
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* 竖屏下滚动发生在 surface 上，内容区只负责排版 */
+.is-portrait .surface-scroll {
+  flex: 1 0 auto;
+  overflow: visible;
 }
 
 /* ── 横屏：与论坛详情（PostDetailModal）同一套弹窗语言 ——
@@ -395,10 +418,18 @@ onBeforeUnmount(() => {
 }
 
 /* 竖屏的关闭键在左上（与商品详情一致），状态标签必须让到右上 ——
-   否则深色圆形关闭键正好压在这枚标签上，只剩半个「奖」字露在外面。 */
+   否则深色圆形关闭键正好压在这枚标签上，只剩半个「奖」字露在外面。
+   封面会随滚动离开屏幕，所以关闭键 fixed 在视口上，不跟着滚走。 */
 .is-portrait .media-status {
   left: auto;
   right: 12px;
+}
+
+.is-portrait .surface-close {
+  position: fixed; /* 封面滚走后仍在：fixed 相对视口（surface 全屏，等价原位） */
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 12px;
+  right: auto;
 }
 
 .surface-close {
@@ -417,11 +448,18 @@ onBeforeUnmount(() => {
   color: #fff;
   cursor: pointer;
   backdrop-filter: blur(6px);
+  transition:
+    transform 180ms var(--ease-out, ease),
+    background-color 180ms var(--ease-out, ease);
 }
 
-.is-portrait .surface-close {
-  left: 12px;
-  right: auto;
+.surface-close:hover {
+  background: rgba(0, 0, 0, 0.52);
+  transform: scale(1.06);
+}
+
+.surface-close:active {
+  transform: scale(0.9);
 }
 
 .surface-scroll {
@@ -534,14 +572,106 @@ onBeforeUnmount(() => {
   line-height: 1.6;
 }
 
+/* ── 入场：内容块逐个上浮（封面缩放入场，footer 从底部滑入）──
+   时长/步长/封顶只读 tokens.css 的 --motion-*，这里不写第二份毫秒数；
+   序号 --i 写在模板里，info-row 按行递增，封顶由 min(--i, --motion-stagger-max) 兜住。
+   fill 用 backwards：终态即自然状态，不残留 transform 干扰 sticky footer。 */
+@keyframes sheet-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes sheet-cover-in {
+  from {
+    opacity: 0;
+    transform: scale(1.045);
+  }
+}
+
+@keyframes sheet-footer-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+.surface-media {
+  animation: sheet-cover-in var(--motion-enter, 320ms) var(--ease-out, ease) backwards;
+}
+
+.surface-kicker,
+.surface-title,
+.prize-block,
+.info-row,
+.surface-desc,
+.winner-block,
+.surface-note {
+  animation: sheet-rise var(--motion-enter, 320ms) var(--ease-out, ease) backwards;
+  animation-delay: calc(
+    min(var(--i, 0), var(--motion-stagger-max, 6)) * var(--motion-stagger, 55ms)
+  );
+}
+
+/* reduce-motion：退化为快速淡入，无位移无 stagger（与 animations.css 同一口径） */
+@media (prefers-reduced-motion: reduce) {
+  .surface-media,
+  .surface-kicker,
+  .surface-title,
+  .prize-block,
+  .info-row,
+  .surface-desc,
+  .winner-block,
+  .surface-note,
+  .surface-footer {
+    animation-duration: 0.1s;
+    animation-delay: 0ms;
+  }
+
+  .surface-close,
+  .join-btn {
+    transition-duration: 0.1s;
+  }
+}
+
+/* 低端设备档（html.boh-perf-lite，判据由 utils/performance-profile.js 挂载）：
+   @media 里写不了类选择器，只能用选择器再写一遍 —— 两份清单改一处别忘了另一处 */
+html.boh-perf-lite .surface-media,
+html.boh-perf-lite .surface-kicker,
+html.boh-perf-lite .surface-title,
+html.boh-perf-lite .prize-block,
+html.boh-perf-lite .info-row,
+html.boh-perf-lite .surface-desc,
+html.boh-perf-lite .winner-block,
+html.boh-perf-lite .surface-note,
+html.boh-perf-lite .surface-footer {
+  animation-duration: 0.1s;
+  animation-delay: 0ms;
+}
+
+html.boh-perf-lite .surface-close,
+html.boh-perf-lite .join-btn {
+  transition-duration: 0.1s;
+}
+
 .surface-footer {
   flex: none;
   padding: 12px 22px calc(18px + env(safe-area-inset-bottom, 0px));
   background: var(--boh-bg-primary, #fff);
+  /* 竖屏：内容从按钮下方穿过，顶部 hairline 把操作区和正文分开 */
+  border-top: 1px solid var(--boh-divider, rgba(0, 0, 0, 0.06));
+  /* 报名按钮始终贴底：随 surface 滚动吸附（配合 .is-portrait .detail-surface 的滚动容器） */
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  animation: sheet-footer-in var(--motion-enter, 320ms) var(--ease-out, ease) backwards;
+  animation-delay: calc(2 * var(--motion-stagger, 55ms));
 }
 
 .is-landscape .surface-footer {
   padding-bottom: 18px;
+  position: static; /* 横屏是分栏弹窗，footer 本来就在右栏末尾，不需要吸附 */
 }
 
 .join-btn {
@@ -557,6 +687,21 @@ onBeforeUnmount(() => {
   color: #fff;
   font-size: 15px;
   cursor: pointer;
+  transition:
+    transform 180ms var(--ease-out, ease),
+    box-shadow 180ms var(--ease-out, ease),
+    background-color 180ms var(--ease-out, ease),
+    color 180ms var(--ease-out, ease);
+}
+
+.join-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(0, 113, 227, 0.32);
+}
+
+.join-btn:not(:disabled):active {
+  transform: scale(0.97);
+  box-shadow: none;
 }
 
 .join-btn:disabled {
