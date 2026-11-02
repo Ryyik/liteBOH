@@ -798,10 +798,10 @@
                   </span>
                   <span class="gs-text">
                     <span class="gs-label">版本</span>
-                    <span class="gs-desc">查看当前版本与 Beta 6 介绍</span>
+                    <span class="gs-desc">查看当前版本与 Beta 7.0.1 介绍</span>
                   </span>
                   <span class="gs-side">
-                    <span class="gs-value">Beta 6</span>
+                    <span class="gs-value">Beta 7.0.1</span>
                     <ChevronRight
                       class="gs-chevron"
                       :size="16"
@@ -1358,11 +1358,11 @@ const SETTINGS_ENTRIES = [
     id: 'version',
     group: '通用',
     label: '版本',
-    desc: '查看当前版本与 Beta 6 介绍',
+    desc: '查看当前版本与 Beta 7.0.1 介绍',
     keywords: '版本 beta 更新 升级 关于 version',
     icon: Info,
     iconClass: 'is-blue',
-    value: () => 'Beta 6',
+    value: () => 'Beta 7.0.1',
     run: () => emit('open-version-settings'),
   },
   {
