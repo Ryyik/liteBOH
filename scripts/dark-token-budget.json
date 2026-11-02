@@ -1,5 +1,5 @@
 {
-  "total": 2480,
+  "total": 2477,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
@@ -45,7 +45,6 @@
     "src/components/AddressManager.vue": 14,
     "src/components/UnifiedNavbar/GlobalNavTaskCard.vue": 14,
     "src/components/AccountBindPrompt/index.vue": 12,
-    "src/views/Shop/style.scoped.css": 12,
     "src/views/user-center/UserSpace/components/AccountSecurityPanel.vue": 12,
     "src/components/PushplusSettings/index.vue": 10,
     "src/views/Forum/components/ForumToolbar.vue": 10,
@@ -55,6 +54,7 @@
     "src/views/Home/components/BirthdayHero.vue": 9,
     "src/views/Home/components/HomeFooter.vue": 9,
     "src/views/ResetPassword/index.vue": 9,
+    "src/views/Shop/store-tokens.css": 9,
     "src/views/user-center/UserSpace/styles/landscape-rail.css": 9,
     "src/components/CreatorShowsPanel/style.scoped.css": 8,
     "src/components/UnifiedNavbar/NotificationSuggestIsland.vue": 8,
@@ -88,5 +88,5 @@
     "src/views/PhotoAlbums/index.vue": 1,
     "src/views/user-center/UserSpace/styles/profile-panels.css": 1
   },
-  "updatedAt": "2026-11-01"
+  "updatedAt": "2026-11-02"
 }
