@@ -6,6 +6,7 @@ import { publicRoutes } from '../../src/router/routes/public.js';
 import { userSpaceRoutes } from '../../src/router/routes/user-space.js';
 
 const findCompat = (path) => compatRoutes.find((route) => route.path === path);
+const findPublic = (path) => publicRoutes.find((route) => route.path === path);
 const userCenterFold = (rest) =>
   findCompat('/user-center/:rest(.*)').redirect({ query: {}, params: { rest } });
 
@@ -173,5 +174,41 @@ describe('compat route registry（兼容层唯一登记处）', () => {
       path: '/user-space',
       query: { from: 'userspace-settings', tab: 'settings', view: 'account-security' },
     });
+  });
+
+  it('礼物中心退场（2026-11-02）：礼物/历史礼物落商城「订单」分区，收货地址落商城「地址」分区', () => {
+    const gifts = findCompat('/user-space/gifts');
+    // name 保留：八周年页与历史跳转仍按 name 解析
+    expect(gifts.name).toBe('Gifts');
+
+    // 设置页当年指过来的正是 ?tab=address ⇒ 必须落到正主（不是订单）
+    expect(gifts.redirect({ query: { tab: 'address', from: 'userspace-settings' } })).toEqual({
+      path: '/shop',
+      query: { tab: 'address' },
+    });
+
+    // 其余（书签 / 八周年「地址管理」入口 / ?tab=history）⇒ 礼物记录所在的「订单」分区
+    expect(gifts.redirect({ query: {} })).toEqual({ path: '/shop', query: { tab: 'order' } });
+    expect(gifts.redirect({ query: { tab: 'history' } })).toEqual({
+      path: '/shop',
+      query: { tab: 'order' },
+    });
+    // 旧 query 不透传：`from=userspace-settings` 是那一页的返回栈语义，落商城后是脏参数
+    expect(gifts.redirect({ query: { from: 'userspace-settings' } })).toEqual({
+      path: '/shop',
+      query: { tab: 'order' },
+    });
+  });
+
+  it('/shop/bag?view=orders 在路由层转去「订单」分区（订单已不是购物袋的第二段）', () => {
+    const bag = findPublic('/shop/bag');
+    expect(bag.beforeEnter).toBeTypeOf('function');
+    expect(bag.beforeEnter({ query: { view: 'orders' } })).toEqual({
+      path: '/shop',
+      query: { tab: 'order' },
+    });
+    // 只是进购物车的老链接照旧放行（不制造一次多余跳转）
+    expect(bag.beforeEnter({ query: {} })).toBe(true);
+    expect(bag.beforeEnter({ query: { view: 'cart' } })).toBe(true);
   });
 });

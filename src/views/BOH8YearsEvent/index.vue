@@ -20,8 +20,14 @@
         <article class="glass-card poster-card" ref="posterCardRef">
           <div class="card-header">
             <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                 <circle cx="8.5" cy="8.5" r="1.5" />
                 <polyline points="21 15 16 10 5 21" />
@@ -52,11 +58,21 @@
                       <template v-if="!isLoggedIn">
                         <router-link to="/join" class="step-btn primary">注册</router-link>
                         <span class="step-or">或</span>
-                        <a href="javascript:;" class="step-btn secondary" @click="showLoginModal = true">登录</a>
+                        <a
+                          href="javascript:;"
+                          class="step-btn secondary"
+                          @click="showLoginModal = true"
+                          >登录</a
+                        >
                       </template>
                       <template v-else>
                         <span class="step-completed">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
                             <path d="M20 6L9 17l-5-5" />
                           </svg>
                           已完成
@@ -78,8 +94,12 @@
                     <h4 class="step-title">上传你的个人 MC 皮肤</h4>
                     <p class="step-desc">若是 Little Skin 皮肤站用户，请先下载皮肤文件</p>
                     <div class="step-actions">
-                      <a href="https://docs.qq.com/form/page/DRUJMRWNYTVBOckFS" target="_blank"
-                        rel="noopener noreferrer" class="step-btn primary">
+                      <a
+                        href="https://docs.qq.com/form/page/DRUJMRWNYTVBOckFS"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="step-btn primary"
+                      >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                           <polyline points="17 8 12 3 7 8" />
@@ -87,7 +107,12 @@
                         </svg>
                         上传皮肤
                       </a>
-                      <a href="https://littleskin.cn" target="_blank" rel="noopener noreferrer" class="step-link">
+                      <a
+                        href="https://littleskin.cn"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="step-link"
+                      >
                         Little Skin 下载皮肤 →
                       </a>
                     </div>
@@ -125,8 +150,14 @@
         <article class="glass-card map-card" ref="mapCardRef">
           <div class="card-header">
             <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <polygon points="1 6 1 22 8 18 16 22 21 18 21 2 16 6 8 2 1 6" />
                 <line x1="8" y1="2" x2="8" y2="18" />
                 <line x1="16" y1="6" x2="16" y2="22" />
@@ -157,8 +188,14 @@
         <article class="glass-card character-table-card">
           <div class="card-header">
             <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                 <circle cx="9" cy="7" r="4" />
                 <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
@@ -202,8 +239,14 @@
         <article class="glass-card campus-setting-card">
           <div class="card-header">
             <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M22 10L12 5 2 10l10 5 10-5z" />
                 <path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5" />
                 <path d="M22 10v6" />
@@ -239,8 +282,14 @@
         <article class="glass-card bead-skin-card">
           <div class="card-header">
             <div class="card-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <rect x="3" y="3" width="7" height="7" rx="1" />
                 <rect x="14" y="3" width="7" height="7" rx="1" />
                 <rect x="3" y="14" width="7" height="7" rx="1" />
@@ -257,8 +306,12 @@
                 <p class="bead-skin-text">上传你的 PCL 截图，即可免费获得拼豆。</p>
                 <p class="bead-skin-credit">拼豆感谢 @橙子</p>
               </div>
-              <a href="https://docs.qq.com/form/page/DVHRidUdzVnp2S1dm" target="_blank" rel="noopener noreferrer"
-                class="step-btn primary bead-skin-btn">
+              <a
+                href="https://docs.qq.com/form/page/DVHRidUdzVnp2S1dm"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="step-btn primary bead-skin-btn"
+              >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="17 8 12 3 7 8" />
@@ -279,14 +332,26 @@
 
     <!-- 海报详情弹窗 -->
     <Transition name="modal">
-      <div v-if="showPosterModal" class="modal-overlay" @click.self="closePosterDetail" role="dialog" aria-modal="true"
-        aria-labelledby="poster-modal-title">
+      <div
+        v-if="showPosterModal"
+        class="modal-overlay"
+        @click.self="closePosterDetail"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="poster-modal-title"
+      >
         <div class="modal-container glass-modal">
           <div class="modal-header">
             <h3 id="poster-modal-title" class="modal-title">八周年特别海报</h3>
             <button class="modal-close" @click="closePosterDetail" aria-label="关闭">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
@@ -304,13 +369,15 @@
               </div>
             </div>
             <div class="modal-actions">
-              <a href="https://docs.qq.com/form/page/DRUJMRWNYTVBOckFS" target="_blank" rel="noopener noreferrer"
-                class="modal-btn primary">
+              <a
+                href="https://docs.qq.com/form/page/DRUJMRWNYTVBOckFS"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="modal-btn primary"
+              >
                 上传自定义海报
               </a>
-              <button class="modal-btn secondary" @click="closePosterDetail">
-                关闭
-              </button>
+              <button class="modal-btn secondary" @click="closePosterDetail">关闭</button>
             </div>
           </div>
         </div>
@@ -320,20 +387,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { storeToRefs } from 'pinia'
-import { useAuthStore } from '@/stores/auth'
+import { ref, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import { useAuthStore } from '@/stores/auth';
 
-const router = useRouter()
-const authStore = useAuthStore()
-const { isLoggedIn, showLoginModal } = storeToRefs(authStore)
+const router = useRouter();
+const authStore = useAuthStore();
+const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 
 // 响应式状态
-const showPosterModal = ref(false)
-const heroRef = ref(null)
-const posterCardRef = ref(null)
-const mapCardRef = ref(null)
+const showPosterModal = ref(false);
+const heroRef = ref(null);
+const posterCardRef = ref(null);
+const mapCardRef = ref(null);
 const habitTrainPosterCharacters = [
   { id: 'ryyik-conductor', role: '列车长', member: 'ryyik', note: '' },
   { id: 'xiaoniu-coroner', role: '验尸官', member: '小牛', note: '' },
@@ -350,85 +417,85 @@ const habitTrainPosterCharacters = [
   { id: 'chengyan-spy', role: '间谍', member: '程言', note: '' },
   { id: 'pufferfish-voodoo', role: '巫毒师', member: '河豚', note: '' },
   { id: 'heibai-bell-ringer', role: '敲钟人', member: '黑白', note: '' },
-  { id: '91-apothecary', role: '制药师', member: '91', note: '' }
-]
-const campusSettingItems = []
+  { id: '91-apothecary', role: '制药师', member: '91', note: '' },
+];
+const campusSettingItems = [];
 
 //  Intersection Observer 实例
-let observer = null
+let observer = null;
 
-// 处理地址管理点击
+// 处理地址管理点击（地址簿唯一维护处 = 商城「地址」分区；老礼物页已退场）
 const handleAddressClick = () => {
   if (isLoggedIn.value) {
-    router.push('/user-space/gifts')
+    router.push('/shop?tab=address');
   } else {
-    showLoginModal.value = true
+    showLoginModal.value = true;
   }
-}
+};
 
 // 打开海报详情
 const _openPosterDetail = () => {
-  showPosterModal.value = true
-  document.body.style.overflow = 'hidden'
-}
+  showPosterModal.value = true;
+  document.body.style.overflow = 'hidden';
+};
 
 // 关闭海报详情
 const closePosterDetail = () => {
-  showPosterModal.value = false
-  document.body.style.overflow = ''
-}
+  showPosterModal.value = false;
+  document.body.style.overflow = '';
+};
 
 // 初始化滚动动画
 const initScrollAnimations = () => {
-  if (!window.IntersectionObserver) return
+  if (!window.IntersectionObserver) return;
 
   const options = {
     root: null,
     rootMargin: '0px 0px -50px 0px',
-    threshold: 0.1
-  }
+    threshold: 0.1,
+  };
 
   observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => {
       if (entry.isIntersecting) {
-        entry.target.classList.add('animate-in')
-        observer.unobserve(entry.target)
+        entry.target.classList.add('animate-in');
+        observer.unobserve(entry.target);
       }
-    })
-  }, options)
+    });
+  }, options);
 
   // 观察需要动画的元素
-  const animatedElements = document.querySelectorAll('.glass-card')
+  const animatedElements = document.querySelectorAll('.glass-card');
   animatedElements.forEach((el) => {
-    el.classList.add('animate-ready')
-    observer.observe(el)
-  })
-}
+    el.classList.add('animate-ready');
+    observer.observe(el);
+  });
+};
 
 // 键盘导航支持
 const handleKeydown = (e) => {
   if (e.key === 'Escape' && showPosterModal.value) {
-    closePosterDetail()
+    closePosterDetail();
   }
-}
+};
 
 onMounted(() => {
-  initScrollAnimations()
-  document.addEventListener('keydown', handleKeydown)
+  initScrollAnimations();
+  document.addEventListener('keydown', handleKeydown);
 
   // 初始动画
   if (heroRef.value) {
-    heroRef.value.classList.add('animate-in')
+    heroRef.value.classList.add('animate-in');
   }
-})
+});
 
 onUnmounted(() => {
   if (observer) {
-    observer.disconnect()
+    observer.disconnect();
   }
-  document.removeEventListener('keydown', handleKeydown)
-  document.body.style.overflow = ''
-})
+  document.removeEventListener('keydown', handleKeydown);
+  document.body.style.overflow = '';
+});
 </script>
 
 <style scoped>

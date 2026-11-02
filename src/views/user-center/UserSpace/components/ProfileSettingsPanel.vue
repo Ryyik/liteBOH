@@ -686,6 +686,23 @@
                     />
                   </span>
                 </button>
+                <button type="button" class="gs-row" @click="$emit('open-address')">
+                  <span class="gs-icon is-teal">
+                    <MapPin :size="16" :stroke-width="2" aria-hidden="true" />
+                  </span>
+                  <span class="gs-text">
+                    <span class="gs-label">收货地址</span>
+                    <span class="gs-desc">礼物与实物订单寄送时使用</span>
+                  </span>
+                  <span class="gs-side">
+                    <ChevronRight
+                      class="gs-chevron"
+                      :size="16"
+                      :stroke-width="2"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </button>
                 <button type="button" class="gs-row" @click="$emit('open-photo-albums')">
                   <span class="gs-icon is-blue">
                     <Images :size="16" :stroke-width="2" aria-hidden="true" />
@@ -846,6 +863,7 @@ import {
   KeyRound,
   LogOut,
   Mail,
+  MapPin,
   MessagesSquare,
   Moon,
   RotateCcw,
@@ -1024,6 +1042,8 @@ const emit = defineEmits([
   'open-cloud',
   /** 2026-10-26：资产 / 摄影集从主页收进设置后，这里多了两个出口 */
   'open-assets',
+  /** 2026-11-02：收货地址从资产页搬进设置（礼物与实物订单都用这份） */
+  'open-address',
   'open-photo-albums',
   /** 2026-10-26 身份卡：换头像（文件选择 + 裁剪）、头像框试戴、更多资料（入群时间/生日） */
   'change-avatar',
@@ -1354,6 +1374,16 @@ const SETTINGS_ENTRIES = [
     icon: Wallet,
     iconClass: 'is-teal',
     run: () => emit('open-assets'),
+  },
+  {
+    id: 'shipping-address',
+    group: '内容与存储',
+    label: '收货地址',
+    desc: '礼物与实物订单寄送时使用',
+    keywords: '收货地址 地址 物流 快递 邮寄 收件人 电话 寄送 address shipping',
+    icon: MapPin,
+    iconClass: 'is-teal',
+    run: () => emit('open-address'),
   },
   {
     id: 'photo-albums',

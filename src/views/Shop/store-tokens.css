@@ -20,7 +20,12 @@
   --boh-border-primary: rgba(0, 0, 0, 0.08);
   --boh-divider: rgba(0, 0, 0, 0.06);
   --boh-brand-blue: #0071e3;
-  --boh-brand-blue-soft: rgba(0, 113, 227, 0.08);
+  /* soft 一律从 accent 派生：改主色时底色自动跟上，也少一个裸色（暗色棘轮按裸色计数） */
+  --boh-brand-blue-soft: color-mix(in srgb, var(--boh-brand-blue) 8%, transparent);
+  /* 礼物记录专用（2026-11-02 礼物并入购物袋订单）：与「购物灰」「中奖蓝」区分开，
+     用户扫一眼就能把三类记录分开；暖色也和实物寄送这件事更贴 */
+  --boh-gift-accent: #a05a00;
+  --boh-gift-soft: color-mix(in srgb, var(--boh-gift-accent) 10%, transparent);
 }
 
 [data-theme='dark'] .store-page,
@@ -33,5 +38,37 @@
   --boh-border-primary: rgba(255, 255, 255, 0.12);
   --boh-divider: rgba(255, 255, 255, 0.08);
   --boh-brand-blue: #0a84ff;
-  --boh-brand-blue-soft: rgba(10, 132, 255, 0.16);
+  --boh-brand-blue-soft: color-mix(in srgb, var(--boh-brand-blue) 16%, transparent);
+  --boh-gift-accent: #f0b350;
+  --boh-gift-soft: color-mix(in srgb, var(--boh-gift-accent) 16%, transparent);
+}
+
+/**
+ * 收货地址组件（AddressManager）在周边页的配色修正。
+ *
+ * 为什么写在这里而不是组件里：组件自带的暗色块只认 `.user-space-page[data-theme]`
+ * （用户中心把主题挂在页面元素上），而周边页的主题挂在 `<html>` 上、容器是
+ * .store-page ⇒ 组件的暗色规则在周边永不命中，卡片会一直是"浅色玻璃"。
+ * 2026-11-02 地址成为商城一级分区（/shop?tab=address）后它常驻在 .store-page 里，必须补。
+ *
+ * 值全部由本文件的 --boh-* 派生（不写裸色）：既跟着周边页配色走，
+ * 也不会推高暗色裸色的棘轮总量。阴影不覆写 —— 浅色阴影在暗底上不可见，无害。
+ */
+/* 浅色：组件次级文字默认 #86868b，在白卡上只有 3.3:1 —— 12px 的「寄送默认使用该地址」
+   实测发虚，axe 报 color-contrast(serious)。由主文字色派生到 ~7:1，仍比正文轻一档。 */
+.store-page .address-manager.variant-glass {
+  --am-text-secondary: color-mix(in srgb, var(--boh-text-primary) 70%, transparent);
+}
+
+[data-theme='dark'] .store-page .address-manager.variant-glass {
+  --am-text: var(--boh-text-primary);
+  --am-text-secondary: var(--boh-text-secondary);
+  --am-fill: color-mix(in srgb, var(--boh-text-primary) 6%, transparent);
+  --am-card-bg: color-mix(in srgb, var(--boh-bg-primary) 55%, transparent);
+  --am-card-border: var(--boh-border-primary);
+  --am-input-bg: color-mix(in srgb, var(--boh-text-primary) 6%, transparent);
+  --am-input-border: var(--boh-border-primary);
+  --am-divider: var(--boh-divider);
+  --am-paste-bg: color-mix(in srgb, var(--boh-text-primary) 4%, transparent);
+  --am-confirm-bg: color-mix(in srgb, var(--boh-text-primary) 4%, transparent);
 }

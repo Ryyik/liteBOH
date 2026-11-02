@@ -577,8 +577,9 @@ export const SAVE_STRATEGIES = {
   },
 
   shopOrders: async ({ editingItem }) => {
-    const normalizedStatus = String(editingItem.status || 'pending').trim();
-    const allowedStatuses = new Set(['pending', 'processing', 'completed', 'cancelled']);
+    // 四态与 DB check 同源（2026-11-02）：preparing / shipped / completed / cancelled
+    const normalizedStatus = String(editingItem.status || 'preparing').trim();
+    const allowedStatuses = new Set(['preparing', 'shipped', 'completed', 'cancelled']);
     if (!allowedStatuses.has(normalizedStatus)) throw new Error('订单状态无效');
 
     return pickWritableFields('shopOrders', {

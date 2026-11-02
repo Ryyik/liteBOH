@@ -49,10 +49,15 @@ export const publicRoutes: RouteRecordRaw[] = [
   },
   {
     // 购物袋独立页（2026-11-01 周边商城改版）：同时是用户中心底栏第五席的落点。
-    // 不挂 requiresLogin —— 未登录也能看购物车（本地存储），订单区自己引导登录。
+    // 不挂 requiresLogin —— 未登录也能看购物车（本地存储）。
     path: '/shop/bag',
     name: 'ShopBag',
     component: () => import('../../views/Shop/BagPage.vue'),
+    // 2026-11-02 订单提成商城一级分区（/shop?tab=order）后，本页只剩购物车。
+    // 旧链接 ?view=orders（礼物中心退场时的落点、各处「查看订单」按钮）在**路由层**转走：
+    // 放在组件 onMounted 里会先渲染一次空购物车再跳，闪一下没必要。
+    beforeEnter: (to) =>
+      String(to.query.view || '') === 'orders' ? { path: '/shop', query: { tab: 'order' } } : true,
   },
   {
     path: '/gift',

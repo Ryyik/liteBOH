@@ -11,7 +11,8 @@
  *
  * 真源：pg_constraint 的
  *   shop_points_orders_contact_type_check = qq / vx / profile
- *   shop_points_orders_status_check       = pending / processing / completed / cancelled
+ *   shop_points_orders_status_check       = preparing / shipped / completed / cancelled
+ *   （2026-11-02 用户口径「准备中，已发货，完成，取消，就这四个状态」）
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -22,7 +23,7 @@ import { dataConfig } from '@/views/DataManagement/config/tables.js';
 import { SAVE_STRATEGIES } from '@/views/DataManagement/config/saveStrategies.js';
 
 const DB_CONTACT_TYPES = ['qq', 'vx', 'profile'];
-const DB_ORDER_STATUSES = ['pending', 'processing', 'completed', 'cancelled'];
+const DB_ORDER_STATUSES = ['preparing', 'shipped', 'completed', 'cancelled'];
 
 const valuesOf = (options) => options.map((item) => item.value);
 
@@ -31,9 +32,10 @@ describe('商城订单面板：选项必须与 DB CHECK 一致', () => {
     expect(valuesOf(ORDER_CONTACT_TYPE_OPTIONS)).toEqual(DB_CONTACT_TYPES);
   });
 
-  it('订单状态四档与表约束逐字相同（不能带 shipped，表里没有这一档）', () => {
+  it('订单状态四档与表约束逐字相同（准备中 / 已发货 / 完成 / 取消）', () => {
     expect(valuesOf(ORDER_STATUS_OPTIONS)).toEqual(DB_ORDER_STATUSES);
-    expect(valuesOf(ORDER_STATUS_OPTIONS)).not.toContain('shipped');
+    expect(valuesOf(ORDER_STATUS_OPTIONS)).not.toContain('pending');
+    expect(valuesOf(ORDER_STATUS_OPTIONS)).not.toContain('processing');
   });
 
   it('卡片视图的联系方式映射只用真实值，且覆盖 profile', () => {
@@ -48,17 +50,17 @@ describe('商城订单面板：选项必须与 DB CHECK 一致', () => {
     expect(mappingKeys).not.toContain('phone');
   });
 
-  it('卡片视图的状态映射不得超出四档（曾多一条 shipped ⇒ 保存 400）', () => {
+  it('卡片视图的状态映射不得超出四档（多一个值 ⇒ 保存 400）', () => {
     const statusMetaKeys = Object.keys(dataConfig.shopOrders.cardView.statusMeta || {});
     expect(statusMetaKeys.sort()).toEqual([...DB_ORDER_STATUSES].sort());
   });
 
-  it('保存策略接受 cancelled、拒绝 shipped —— 与表约束同向', async () => {
-    const cancelled = await SAVE_STRATEGIES.shopOrders({ editingItem: { status: 'cancelled' } });
-    expect(cancelled.status).toBe('cancelled');
+  it('保存策略接受 shipped、拒绝已废弃的 pending —— 与表约束同向', async () => {
+    const shipped = await SAVE_STRATEGIES.shopOrders({ editingItem: { status: 'shipped' } });
+    expect(shipped.status).toBe('shipped');
 
     await expect(
-      SAVE_STRATEGIES.shopOrders({ editingItem: { status: 'shipped' } }),
+      SAVE_STRATEGIES.shopOrders({ editingItem: { status: 'pending' } }),
     ).rejects.toThrow(/订单状态无效/);
   });
 });

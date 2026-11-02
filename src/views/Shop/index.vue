@@ -8,7 +8,7 @@
       <button
         type="button"
         class="avatar-btn"
-        :aria-label="isLoggedIn ? '打开购物袋与订单' : '登录'"
+        :aria-label="isLoggedIn ? '打开订单' : '登录'"
         @click="goBag"
       >
         <img
@@ -40,7 +40,7 @@
 
     <main class="store-main">
       <!-- 页面切换动效（2026-11-01 用户口径）：
-           key 绑 activeTab ⇒ 切「产品 / 抽奖 / 购物袋」时这一层整体重建，
+           key 绑 activeTab ⇒ 切「产品 / 抽奖 / 购物袋 / 地址」时这一层整体重建，
            .store-panel 的进场动画（淡入 + 6px 上浮）随之重放。
            与 UserSpace 的 .tab-page 同一套路：**只进场、无离场** ——
            不做 mode="out-in"，否则每次切 Tab 都要先白等 150ms 的离场。
@@ -124,14 +124,22 @@
         <LotteryPanel v-else-if="activeTab === 'lottery'" />
 
         <BagPanel
-          v-else
-          ref="bagPanelRef"
-          initial-view="cart"
-          show-full-link
+          v-else-if="activeTab === 'bag'"
           @checkout="startCheckout"
           @browse="switchTab('products')"
-          @open-full="router.push('/shop/bag?view=orders')"
         />
+
+        <OrderPanel
+          v-else-if="activeTab === 'order'"
+          @open-address="switchTab('address')"
+          @notify="showOperationToast"
+        />
+
+        <!-- 地址与「产品 / 抽奖 / 购物袋 / 订单」平级（2026-11-02 用户口径：
+             「地址是单独的子 Tab，不收在购物袋里」）—— 它是礼物与实物订单的前提条件，
+             独立成区才能在商品页直接找到，而不是先猜它在购物袋里再翻一层。
+             放在最后当兜底：syncTabFromRoute 已把未知 tab 归到 products，这里不会误命中。 -->
+        <AddressPanel v-else />
       </section>
     </main>
 
@@ -188,8 +196,15 @@
             <input :value="userInfo.email || '未绑定邮箱'" type="text" readonly />
           </label>
 
-          <label class="contact-field">
-            <span>收货地址</span>
+          <div class="contact-field">
+            <div class="contact-field-head">
+              <span>收货地址</span>
+              <!-- 地址簿只在「地址」分区维护（2026-11-02 用户口径：地址独立成子 Tab）。
+                   这里不再另起弹层：关掉结算、切到那一区，改完的默认地址下次结算自动带出 -->
+              <button type="button" class="field-manage" @click="manageAddressFromCheckout">
+                管理地址
+              </button>
+            </div>
             <!-- 一键识别：粘贴整段地址（含从聊天/电商订单里复制的长文本）→ 自动拆成省 / 市 / 详细地址。
                  识别是纯本地的（utils/address-parse.js），不联网、不上传；拆不出来就整段留在
                  「详细地址」里，绝不丢字。 -->
@@ -235,7 +250,7 @@
               placeholder="区县 / 街道 / 门牌号"
               aria-label="详细地址"
             ></textarea>
-          </label>
+          </div>
 
           <div v-if="totalPoints || totalRmb" class="contact-summary">
             <div v-if="totalPoints" class="contact-line">
@@ -266,6 +281,7 @@
       :image-url="userInfo.pointsCardImageUrl"
       :order-no="paymentSuccess?.orderNo || ''"
       :payment-summary="paymentSuccess?.paymentSummary || ''"
+      :email-state="paymentSuccess?.emailState || 'pending'"
       @close="closePaymentSuccess"
     />
 
@@ -305,6 +321,10 @@ import { Package, Search, User, X, ClipboardPaste } from 'lucide-vue-next';
 import mascotHeroUrl from '@/assets/images/mascot-new-landscape-orig.webp';
 import { getImageUrl } from '@/utils/asset-helper.js';
 import { useAuthStore } from '@/stores/auth';
+import {
+  fetchDefaultAddress,
+  syncDefaultAddress as syncDefaultAddressApi,
+} from '@/utils/api/address-api.js';
 import { useBagStore } from '@/stores/bag';
 import { useProductsStore } from '@/stores/products';
 import { createNotification } from '@/utils/api/notifications-api.js';
@@ -335,6 +355,8 @@ import ShopPaymentSuccessModal from './ShopPaymentSuccessModal.vue';
 import ProductDetailSheet from './ProductDetailSheet.vue';
 import LotteryPanel from './LotteryPanel.vue';
 import BagPanel from './BagPanel.vue';
+import OrderPanel from './OrderPanel.vue';
+import AddressPanel from './AddressPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -347,11 +369,19 @@ const { shoppingBag } = storeToRefs(bagStore);
 const { productsData, isFetchingProducts, fetchError } = storeToRefs(productsStore);
 const { addToBag, clearBag } = bagStore;
 
+/* 2026-11-02 用户口径：「把订单也做成一个子 Tab，放在购物袋后面」——
+   购物袋是「还没买的」，订单是「已经买的」，诉求不同（去结算 / 查进度），
+   挤在一个二级分段里每次都得先切一下，不如各占一个分区。 */
 const tabs = [
   { id: 'products', label: '产品' },
   { id: 'lottery', label: '抽奖' },
   { id: 'bag', label: '购物袋' },
+  { id: 'order', label: '订单' },
+  { id: 'address', label: '地址' },
 ];
+
+/* 值域单一真源：?tab= 的合法值与顶栏同源，加/删分区只改上面那一处 */
+const SHOP_TAB_IDS = tabs.map((tab) => tab.id);
 
 const activeTab = ref('products');
 const searchKeyword = ref('');
@@ -372,7 +402,6 @@ const checkoutForm = reactive({
 const submittingContact = ref(false);
 const operationToast = ref({ show: false, message: '' });
 const paymentSuccess = ref(null);
-const bagPanelRef = ref(null);
 let toastTimer = null;
 
 const allProducts = computed(() => productsData.value || []);
@@ -518,12 +547,14 @@ const switchTab = (tabId) => {
   window.scrollTo({ top: 0, behavior: 'auto' });
 };
 
+/* 右上角头像 → 订单分区（2026-11-02 订单独立成 Tab 后不再跳独立页 /shop/bag?view=orders：
+   那是"购物袋里的第二段"时代的落点，现在点一下就是同一个页面的另一分区，少一次整页跳转） */
 const goBag = () => {
   if (!isLoggedIn.value) {
     showLoginModal.value = true;
     return;
   }
-  router.push('/shop/bag?view=orders');
+  switchTab('order');
 };
 
 const openProductDetails = (product, event) => {
@@ -595,14 +626,64 @@ const closeContactModal = () => {
   showContactModal.value = false;
   stopPasteWatch();
 };
-const closePaymentSuccess = () => {
-  paymentSuccess.value = null;
-  document.body.style.overflow = '';
+/* 结算邮件的异步结果（2026-11-02）：弹窗还开着就更新弹窗内那行说明；
+   已经关掉了（用户点「完成」很快）才用岛补一条提醒 —— 岛挂在导航里，
+   弹窗开着时既会被弹窗盖住，又会挡支付成功的卡片翻转动画。 */
+const markSettlementEmailState = (state) => {
+  if (paymentSuccess.value) {
+    paymentSuccess.value = { ...paymentSuccess.value, emailState: state };
+    return;
+  }
+  if (state === 'failed') showOperationToast('订单已提交，但通知邮件发送失败');
 };
 
-/* 打开结算：先把资料里的收件信息带出来（缺失就留空，让用户就地补）。
-   取的是 profiles 的 shipping_* 三列 —— authStore.userInfo 不带这三个字段。
-   地址在库里是**一整段文本**，这里用同一套解析器拆成 省 / 市 / 详细地址。 */
+const closePaymentSuccess = () => {
+  const emailFailed = paymentSuccess.value?.emailState === 'failed';
+  paymentSuccess.value = null;
+  document.body.style.overflow = '';
+  if (emailFailed) showOperationToast('订单已提交，但通知邮件发送失败');
+};
+
+/* 结算里点「管理地址」：收掉结算弹层，切到「地址」分区。
+   地址簿只有那一处在维护（2026-11-02 地址独立成子 Tab），这里不再挂第二个弹层；
+   已经填好的内容留在 checkoutForm 里，管理完再开结算会按新的默认地址重新带出。 */
+const manageAddressFromCheckout = () => {
+  closeContactModal();
+  switchTab('address');
+};
+
+/* 打开结算时把默认地址同步回地址簿：用户在结算里改了地址，地址簿那条也得跟着变，
+   否则下次结算又回到旧地址（地址簿是 2026-11-02 后结算的首选来源）。失败不阻断下单。 */
+const syncDefaultAddress = async ({ recipient, phone, region, detail }) => {
+  const uid = userInfo.id;
+  if (!uid) return;
+  // 失败不阻断下单：地址簿没同步上顶多是下次结算要再填一遍，不该让这单付不出去
+  const result = await syncDefaultAddressApi({ userId: uid, recipient, phone, region, detail });
+  if (!result.ok && !result.skipped) {
+    logger.warn('shop', '同步默认收货地址失败（不阻断下单）', result.error);
+  }
+};
+
+const applySavedAddress = (row) => {
+  if (!row) return false;
+  checkoutForm.recipient = String(row.recipient || '').trim() || checkoutForm.recipient;
+  checkoutForm.phone = String(row.phone || '').trim() || checkoutForm.phone;
+  const parsed = parseAddress(
+    [String(row.region || '').trim(), String(row.detail || '').trim()].filter(Boolean).join(' '),
+  );
+  if (!parsed.province && !parsed.city && !parsed.detail) return false;
+  checkoutForm.province = parsed.province;
+  checkoutForm.city = parsed.city;
+  checkoutForm.detail = parsed.detail;
+  return true;
+};
+
+/* 打开结算：先把收件信息带出来（缺失就留空，让用户就地补）。
+   两条来源，按「用户在哪维护的」优先：
+     1) 地址簿 user_addresses 的默认地址 —— 商城「地址」分区与设置里的「收货地址」管的就是这份，
+        用户在那边改完，结算必须立刻反映出来；
+     2) 回落 profiles.shipping_*（2026-11-01 之前结算写回的那三列，历史用户只有这份）。
+   地址在库里都是**一整段/两段文本**，统一交给 parseAddress 拆成 省 / 市 / 详细地址。 */
 const loadShippingProfile = async () => {
   checkoutForm.recipient = String(userInfo.username || '').trim();
   checkoutForm.phone = '';
@@ -611,6 +692,15 @@ const loadShippingProfile = async () => {
   checkoutForm.detail = '';
   checkoutForm.pasteText = '';
   try {
+    // ① 地址簿默认地址
+    const uid = userInfo.id;
+    if (uid) {
+      const { data: address, error: addressError } = await fetchDefaultAddress(uid);
+      if (addressError) logger.warn('shop', '读取地址簿失败，回落到资料', addressError);
+      if (applySavedAddress(address)) return;
+    }
+
+    // ② 回落：资料里的 shipping_*
     const username = String(userInfo.username || '').trim();
     if (!username) return;
     const { data, error } = await getProfileByUsername(username);
@@ -839,6 +929,17 @@ async function submitContact() {
     });
     if (!saved?.ok) return showOperationToast('收货信息保存失败，请重试');
 
+    /* 同步回地址簿的默认地址。原因：结算读地址时地址簿优先（用户在那里维护），
+       只写 profiles 的话，这次在结算里改的内容下次会被旧地址盖回去。
+       只在「已存在默认地址」时更新，不自动新建 —— 地址簿是用户显式维护的清单。
+       同步失败不阻断下单（profiles 已经存好了，邮件能发出）。 */
+    await syncDefaultAddress({
+      recipient,
+      phone,
+      region: [province, city].filter(Boolean).join(' '),
+      detail,
+    });
+
     const result = await createShopOrderWithPoints({
       items: buildOrderItemsPayload(),
       contactType: 'profile',
@@ -873,17 +974,19 @@ async function submitContact() {
     await copyToClipboard(summary);
     closeContactModal();
     clearBag();
-    bagPanelRef.value?.refresh?.();
-    paymentSuccess.value = { orderNo, paymentSummary };
+    paymentSuccess.value = { orderNo, paymentSummary, emailState: 'pending' };
     document.body.style.overflow = 'hidden';
-    void sendMerchandiseSettlementEmail({ orderId: result.data.orderId }).catch((error) => {
-      logger.error('shop', '订单邮件发送失败', error);
-      showOperationToast('订单已提交，但邮件通知发送失败');
-    });
+    void sendMerchandiseSettlementEmail({ orderId: result.data.orderId })
+      .then(() => markSettlementEmailState('sent'))
+      .catch((error) => {
+        logger.error('shop', '订单邮件发送失败', error);
+        markSettlementEmailState('failed');
+      });
     void notifyAdministrators(
       `收到新的周边订单！\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${address}\n支付: ${paymentSummary}\n商品: ${itemText}`,
     );
-    showOperationToast('订单已提交');
+    /* 不再 showOperationToast('订单已提交')：支付成功弹窗本身就在说这件事，
+       而岛挂在导航里、层级低于弹窗（且会盖住卡片翻转动画）—— 2026-11-02 用户报障后去掉。 */
   } finally {
     submittingContact.value = false;
   }
@@ -891,7 +994,7 @@ async function submitContact() {
 
 const syncTabFromRoute = () => {
   const tab = String(route.query.tab || '');
-  if (tab === 'lottery' || tab === 'bag' || tab === 'products') {
+  if (SHOP_TAB_IDS.includes(tab)) {
     activeTab.value = tab;
   } else {
     activeTab.value = 'products';

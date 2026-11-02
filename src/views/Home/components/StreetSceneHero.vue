@@ -100,10 +100,13 @@ const setupOrientation = () => {
   }
 };
 
-// —— 品牌兜底（默认首屏形态）：纯白底 + 居中红 logo + 黑字 ——
-// public/icons/icon-512.png 是 BOH 红苹果像素 logo（透明底），静态路径直接引用。
+// —— 品牌兜底（默认首屏形态）：页面底色底 + 居中红 logo + 主文字色 ——
+// 用 icon-512-transparent.png 而不是 PWA 的 icon-512.png：后者四角是不透明白
+// （实测像素 alpha=255），暗色首屏会变成一块白方块（2026-11-02 用户截图报障）。
+// 透明版由前者去掉「与画布边界连通」的纯白生成，苹果内部浅色高光没动；
+// 浅色下页面底色本就是白，渲染结果与用白底版完全一致。
 // 像素图放大靠 image-rendering: pixelated 保持棱角，不做位图多档 —— 一张 512 到处够用。
-const BRAND_LOGO_SRC = '/icons/icon-512.png';
+const BRAND_LOGO_SRC = '/icons/icon-512-transparent.png';
 
 // hero 档位：c_limit 只压不裁（裁切交给 object-fit: cover），w_1440 覆盖到 1440 CSS 1x /
 // 720 CSS 2x；2560px 横屏原图从这里下到 CDN 压缩档。当前 home_heroes 的
@@ -417,14 +420,27 @@ onBeforeUnmount(() => {
   }
 }
 
-/* 白底态：文字翻转为暖黑、去阴影；整组文案做一次轻入场（logo 先落，文字随后） */
+/* 白底态：文字翻转为暖黑、去阴影；整组文案做一次轻入场（logo 先落，文字随后）
+   ⚠️ 2026-11-02 暗色修复：上面 .on-brand 的底色已在 2026-10-22 改走 --boh-page-bg，
+   但文字仍是硬编码暖黑 —— 暗色下底色 #16120e、问候语 #17130e，实测对比度 **1.01:1**
+   （整段开场白等于看不见），提示语 #52483c 也只有 2.09:1。
+   现在两处都从 --boh-text-primary 派生：它与 --boh-page-bg 定义在
+   themes/dark-mode.css 的同一份文件里，亮/暗永远同进同出，不会再出现
+   「底色翻黑了、文字没跟着翻」这种一半一半的组合。
+   浅色档渲染不变：dark-mode.css 不加载时走各自的暖色回退（问候 #17130e、
+   提示 #52483c 混 78%），加载过暗色再切回亮色时解析成 #1d1d1f（肉眼无差）。 */
 .street-hero.on-brand .street-hero-greeting {
-  color: #17130e;
+  color: var(--boh-text-primary, #17130e);
   text-shadow: none;
 }
 
 .street-hero.on-brand .street-hero-hint {
-  color: #52483c;
+  /* 次要文字从主文字派生，不直接用 --boh-text-secondary：后者一旦被 dark-mode.css
+     定义为浅色档 #86868b，压在白底上只有 3.5:1，会把目前达标的提示语拉到达标线下
+     （dark-mode.css 加载后常驻不卸载，「暗→亮」切换后这个浅色值照样在）。
+     78% 混合的实测值：浅色 4.86:1（原 #52483c 是 8.93:1，视觉上只淡一档但仍在 AA 内）、
+     暗色 10.61:1 —— 两档都过 AA，且都不依赖暗色块。 */
+  color: color-mix(in srgb, var(--boh-text-primary, #52483c) 78%, transparent);
   text-shadow: none;
 }
 

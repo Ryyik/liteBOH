@@ -313,6 +313,7 @@
             @close-edit="closeEditProfileModal"
             @open-theme="openThemeModal"
             @open-assets="openAssetsHub()"
+            @open-address="openShippingAddress"
             @open-photo-albums="openPhotoAlbums"
             @open-cloud="openCloudPlusArea"
             @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
@@ -1980,6 +1981,13 @@ const openSponsorPage = () => {
 const openPhotoAlbums = () => {
   // from=userspace-settings：摄影集是独立路由页，自带「返回设置」按钮，靠这个参数决定落点
   router.push('/user-space/albums?from=userspace-settings');
+};
+
+/** 收货地址（2026-11-02 从资产页搬进设置；同日礼物中心整页退场）。
+    地址簿只在商城「地址」分区维护 —— 那里是常驻位置，结算处与「订单」分区的地址条都指过去，
+    设置页不再绕经老的礼物页（该路径已退成 compat 重定向）。 */
+const openShippingAddress = () => {
+  router.push('/shop?tab=address');
 };
 
 /** 资产页入口（2026-10-26：资产从「我」页分段提升为独立 tab）。

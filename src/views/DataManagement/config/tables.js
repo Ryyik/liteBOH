@@ -417,9 +417,9 @@ export const dataConfig = {
         type: 'select',
         options: [
           { value: 'preparing', label: '准备中' },
-          { value: 'processing', label: '处理中' },
           { value: 'shipped', label: '已发货' },
-          { value: 'completed', label: '已完成' },
+          { value: 'completed', label: '完成' },
+          { value: 'cancelled', label: '取消' },
         ],
         group: 'time',
       },
@@ -466,11 +466,12 @@ export const dataConfig = {
       subtitleKey: 'username',
       subtitleLabel: '用户',
       statusKey: 'gift_status',
+      /* 四态（2026-11-02）：DB check_gift_status 同源，多写一个值就是 400 */
       statusMeta: {
         preparing: { label: '准备中', tone: 'muted' },
-        processing: { label: '处理中', tone: 'info' },
         shipped: { label: '已发货', tone: 'warning' },
-        completed: { label: '已完成', tone: 'success' },
+        completed: { label: '完成', tone: 'success' },
+        cancelled: { label: '取消', tone: 'muted' },
       },
       stats: [
         { label: '类型', key: 'gift_scope_label' },
@@ -2241,14 +2242,14 @@ export const dataConfig = {
       subtitleKey: 'username',
       subtitleLabel: '用户',
       statusKey: 'status',
-      /* 只列 DB CHECK 允许的四档（pending / processing / completed / cancelled）。
-         这里曾多一条 shipped —— 表上根本没有这个值，写进去必 400，
-         卡片上却会把它当合法状态展示，等于把「改不动」伪装成「能改」。 */
+      /* 四态（2026-11-02 用户口径「准备中，已发货，完成，取消」）。
+         DB 约束 shop_points_orders_status_check 同源 —— 这里多一个值，
+         后台改状态就必 400，卡片上却还当合法状态展示。 */
       statusMeta: {
-        pending: { label: '待处理', tone: 'warning' },
-        processing: { label: '处理中', tone: 'info' },
-        completed: { label: '已完成', tone: 'success' },
-        cancelled: { label: '已取消', tone: 'muted' },
+        preparing: { label: '准备中', tone: 'warning' },
+        shipped: { label: '已发货', tone: 'info' },
+        completed: { label: '完成', tone: 'success' },
+        cancelled: { label: '取消', tone: 'muted' },
       },
       stats: [
         {

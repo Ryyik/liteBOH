@@ -199,16 +199,6 @@
           <ChevronLeft :size="17" :stroke-width="2" aria-hidden="true" /> 资产
         </button>
         <span class="ah-subpage-title">{{ subpageTitle }}</span>
-        <button
-          v-if="view === 'orders'"
-          type="button"
-          class="ah-icon-command"
-          title="刷新礼物与订单"
-          aria-label="刷新礼物与订单"
-          @click="refreshFulfillment"
-        >
-          <RefreshCw :size="17" :stroke-width="2" aria-hidden="true" />
-        </button>
       </div>
 
       <!-- 装扮：头像框 + 积分卡面（原「装扮」页签内容，去掉自己的标题） -->
@@ -325,135 +315,14 @@
         </div>
       </div>
 
-      <!-- 订单与地址：原来的「订单」页签，去掉自己的页头（返回条已说明这是哪一页） -->
-      <div v-else-if="view === 'orders'" class="ah-fulfillment-section">
-        <article v-if="currentGift" class="ah-gift-card ah-current-gift-card">
-          <header class="ah-gift-header">
-            <span class="ah-gift-eyebrow"
-              ><Gift :size="14" :stroke-width="2" aria-hidden="true" />进行中的礼物</span
-            ><span class="ah-gift-header-date">更新于 {{ giftStatusDate }}</span>
-          </header>
-          <div class="ah-gift-overview">
-            <div class="ah-gift-thumb" :class="{ 'has-image': currentGift.gift_image }">
-              <img
-                v-if="currentGift.gift_image"
-                :src="currentGift.gift_image"
-                :alt="currentGift.gift_content"
-                loading="lazy"
-              /><Gift v-else :size="30" :stroke-width="1.6" aria-hidden="true" />
-            </div>
-            <div class="ah-gift-headinfo">
-              <div class="ah-gift-headtop">
-                <h3>{{ currentGift.gift_content || '待命中的礼物' }}</h3>
-                <span class="ah-gift-badge" :class="currentGift.gift_status">{{
-                  getGiftStatusLabel(currentGift.gift_status)
-                }}</span>
-              </div>
-              <div class="ah-gift-headsub">
-                <span v-if="currentGift.gift_price" class="ah-gift-amount"
-                  >RMB {{ currentGift.gift_price }}</span
-                ><span v-if="currentGift.gift_no" class="ah-gift-history-no">{{
-                  currentGift.gift_no
-                }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="ah-gift-status-panel" :class="currentGift.gift_status">
-            <div class="ah-gift-status-icon">
-              <PackageCheck :size="19" :stroke-width="1.8" aria-hidden="true" />
-            </div>
-            <div class="ah-gift-status-copy">
-              <strong>{{ giftStatusHeadline }}</strong>
-              <p>{{ giftStatusDesc }}</p>
-            </div>
-          </div>
-        </article>
-
-        <section class="ah-fulfillment-records" aria-label="礼物与订单记录">
-          <header class="ah-fulfillment-records-head">
-            <div>
-              <span>记录</span>
-              <h3>礼物与订单记录</h3>
-            </div>
-            <div class="ah-record-filter" role="tablist" aria-label="记录筛选">
-              <button
-                v-for="filter in fulfillmentFilters"
-                :key="filter.id"
-                type="button"
-                role="tab"
-                :aria-selected="recordFilter === filter.id"
-                :class="{ active: recordFilter === filter.id }"
-                @click="recordFilter = filter.id"
-              >
-                {{ filter.label }}
-              </button>
-            </div>
-          </header>
-          <div v-if="giftsLoading && ordersLoading" class="ah-order-skeleton">
-            <div v-for="n in 3" :key="n" class="ah-skeleton-block" />
-          </div>
-          <div v-else-if="visibleFulfillmentRecords.length" class="ah-fulfillment-record-list">
-            <article
-              v-for="record in visibleFulfillmentRecords"
-              :key="record.id"
-              class="ah-fulfillment-record"
-            >
-              <span class="ah-fulfillment-record-icon" :class="record.type"
-                ><Gift
-                  v-if="record.type === 'gift'"
-                  :size="17"
-                  :stroke-width="1.8"
-                  aria-hidden="true" /><Package
-                  v-else
-                  :size="17"
-                  :stroke-width="1.8"
-                  aria-hidden="true"
-              /></span>
-              <div class="ah-fulfillment-record-copy">
-                <strong>{{ record.title }}</strong
-                ><span>{{ record.detail }}</span>
-              </div>
-              <div class="ah-fulfillment-record-side">
-                <span>{{ formatDateShort(record.time) }}</span
-                ><span
-                  v-if="record.type === 'gift'"
-                  class="ah-gift-badge is-flat"
-                  :class="record.status"
-                  >{{ getGiftStatusLabel(record.status) }}</span
-                ><span v-else class="ah-fulfillment-record-points">-{{ record.points }} 积分</span>
-              </div>
-            </article>
-          </div>
-          <div v-else class="ah-empty-state">
-            <div class="ah-empty-icon"><Package :size="26" :stroke-width="1.5" /></div>
-            <h3>
-              {{
-                recordFilter === 'gifts'
-                  ? '还没有历史礼物'
-                  : recordFilter === 'orders'
-                    ? '还没有商城订单'
-                    : '还没有礼物或订单记录'
-              }}
-            </h3>
-            <p v-if="recordFilter !== 'gifts'">商城兑换与已归档礼物会出现在这里。</p>
-          </div>
-          <p v-if="giftsError || ordersError" class="ah-fulfillment-partial-error">
-            部分记录暂时无法更新，刷新后重试。
-          </p>
-        </section>
-
-        <section class="ah-fulfillment-address" aria-label="收货地址">
-          <div class="ah-fulfillment-address-head">
-            <span>收货地址</span>
-            <h3>管理你的收货地址</h3>
-            <p>礼物与实物兑换寄送时使用，建议至少保留一个有效地址。</p>
-          </div>
-          <AddressManager variant="glass" :show-header="false" />
-        </section>
-      </div>
+      <!-- 2026-11-02 用户口径：「礼物什么的已经进入周边订单了，收货地址管理也可以进入设置」
+           ⇒ 原「订单与地址」子页整块撤掉：
+             · 礼物、商城订单、中奖记录 → 周边「订单」分区（/shop?tab=order）
+             · 收货地址 → 设置 →「收货地址」（/shop?tab=address）
+           本页从此只讲「钱」：余额、充值、账本、会员、装扮（+ 待办/赞助入口）。 -->
 
       <!-- 积分明细：原来「积分」页签的下半段（两张操作卡已上移到首页钱包卡） -->
-      <div v-else-if="view === 'points'" class="ah-points-subpage">
+      <div v-else class="ah-points-subpage">
         <div class="ah-points-summary">
           <div>
             <span>当前积分</span>
@@ -474,7 +343,7 @@
             {{ filter.label }}
           </button>
         </div>
-        <div v-if="ledgerLoading" class="ah-order-skeleton">
+        <div v-if="ledgerLoading" class="ah-ledger-skeleton">
           <div v-for="n in 4" :key="n" class="ah-skeleton-block" />
         </div>
         <div v-else-if="ledgerError" class="ah-empty-state">
@@ -572,13 +441,8 @@ import {
   ChevronRight,
   Coins,
   Crown,
-  Gift,
   Heart,
   ImagePlus,
-  MapPin,
-  Package,
-  PackageCheck,
-  RefreshCw,
   ScrollText,
   Send,
   ShoppingBag,
@@ -588,13 +452,11 @@ import {
   X,
 } from 'lucide-vue-next';
 import SubscriptionPlans from '@/components/SubscriptionPlans.vue';
-import AddressManager from '@/components/AddressManager.vue';
 import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
-import { getExpiredActiveGiftIds, markGiftsAsHistory } from '@/utils/gift-archive.js';
 import { logger } from '@/utils/logger.js';
 import { getMyLotteryPityStatus, getMySubscriptions } from '@/utils/api/subscription-api.js';
 import PointsCard from './PointsCard.vue';
@@ -654,25 +516,27 @@ const handleCatsSkinClick = () => {
   emit('redeem-points-card-cats');
 };
 
-/* ---------- 视图（2026-10-26 重做：七段页签全部删除） ----------
-   只剩「一屏首页 + 三个二级页」。删除的依据：七个页签里有四个（概览 / 积分管理 /
-   抽奖 / 赞助）并不承载独立内容 —— 概览就是首页，积分管理只有两张入口卡，
-   抽奖与赞助是「跳出去」的动作。留着它们的结果是每个页签都填不满一屏。
+/* ---------- 视图（2026-10-26 重做：七段页签全部删除；2026-11-02 再收掉「订单与地址」） ----------
+   只剩「一屏首页 + 两个二级页（装扮 / 积分明细）」。删除依据：七个页签里有四个
+   （概览 / 积分管理 / 抽奖 / 赞助）并不承载独立内容；「订单与地址」则在 2026-11-02 搬到
+   周边购物袋（礼物 / 购物 / 中奖）与设置（收货地址）—— 本页只讲「钱」。
 
    值域与旧值映射放在这里（单一真源），宿主只透传 URL 的 ?panel=：
      · overview / lottery / sponsor / subscription → home（订阅方案改为首页内联展开）
      · cards → decor（我页积分卡的「设置卡面」按钮仍发这个旧值）
-     · gifts / addresses / fulfillment → orders */
-const VIEW_IDS = new Set(['home', 'decor', 'orders', 'points']);
+     · orders / gifts / addresses / fulfillment → home（内容已迁走，旧链接不落空） */
+const VIEW_IDS = new Set(['home', 'decor', 'points']);
 const LEGACY_VIEW_MAP = {
   overview: 'home',
   subscription: 'home',
   lottery: 'home',
   sponsor: 'home',
   cards: 'decor',
-  fulfillment: 'orders',
-  gifts: 'orders',
-  addresses: 'orders',
+  // 2026-11-02：订单与地址整块迁出（礼物/订单 → /shop?tab=order，地址 → /shop?tab=address）
+  orders: 'home',
+  fulfillment: 'home',
+  gifts: 'home',
+  addresses: 'home',
 };
 const normalizeView = (value) => {
   const raw = String(value || '').trim();
@@ -680,7 +544,7 @@ const normalizeView = (value) => {
   return VIEW_IDS.has(mapped) ? mapped : 'home';
 };
 const view = ref(normalizeView(props.initialView));
-const SUBPAGE_TITLES = { decor: '装扮', orders: '订单与地址', points: '积分明细' };
+const SUBPAGE_TITLES = { decor: '装扮', points: '积分明细' };
 const subpageTitle = computed(() => SUBPAGE_TITLES[view.value] || '');
 
 const avatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').trim());
@@ -691,10 +555,6 @@ const uidShort = computed(() => String(userInfo.value?.id || '').slice(0, 8));
 // 顶卡头像戴框：状态单源 useAvatarFrame（装扮页换框时此处实时同步）
 const { effectiveFrame: avatarFrame } = useAvatarFrame(tierCode);
 
-const ordersLoading = ref(false);
-const ordersLoaded = ref(false);
-const ordersError = ref('');
-const orders = ref([]);
 const ledgerLoading = ref(false);
 const ledgerLoaded = ref(false);
 const ledgerError = ref('');
@@ -735,7 +595,6 @@ const activeSubscription = ref(null);
 const annualGiftSubscription = ref(null);
 const pityStatus = ref(null);
 const showPlanComparison = ref(false);
-const addressCount = ref(0);
 
 const userPoints = computed(() => Number(userInfo.value?.points) || 0);
 const pointsDisplay = computed(() => userPoints.value.toLocaleString());
@@ -849,55 +708,6 @@ const isWithinDays = (dateValue, days) => {
   return Number.isFinite(timestamp) && timestamp >= Date.now() - days * 86400000;
 };
 
-const isMissingColumnError = (error, columnName) => {
-  const code = String(error?.code || '')
-    .trim()
-    .toUpperCase();
-  const detail =
-    `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
-  const column = String(columnName || '')
-    .trim()
-    .toLowerCase();
-  return (
-    code === '42703' ||
-    code === 'PGRST204' ||
-    (column && detail.includes(column) && detail.includes('column'))
-  );
-};
-
-const loadOrders = async () => {
-  if (ordersLoading.value || ordersLoaded.value) return;
-  if (!userInfo.value?.id) {
-    ordersLoaded.value = true;
-    return;
-  }
-  ordersLoading.value = true;
-  ordersError.value = '';
-  try {
-    const { data, error } = await supabase
-      .from('shop_points_orders')
-      .select('id, order_no, total_points, items, created_at')
-      .eq('user_id', userInfo.value.id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    if (error) throw error;
-    orders.value = Array.isArray(data)
-      ? data.map((o) => ({
-          ...o,
-          item_count: Array.isArray(o.items)
-            ? o.items.reduce((s, i) => s + (Number(i?.quantity) || 0), 0)
-            : 0,
-        }))
-      : [];
-    ordersLoaded.value = true;
-  } catch (error) {
-    ordersError.value = '加载失败';
-    logger.warn('assets-hub', '加载订单失败:', error);
-  } finally {
-    ordersLoading.value = false;
-  }
-};
-
 const WEEKLY_CHECKIN_POINTS = 5;
 // 2026-06-30 订阅体系重构：周签到改为每周 +5；此前为「连续 4 周才 +5」
 const CHECKIN_NEW_LOGIC_CUTOFF = new Date('2026-06-30T00:00:00.000Z').getTime();
@@ -951,22 +761,17 @@ const loadLedger = async () => {
         .order('created_at', { ascending: false })
         .limit(50),
     ];
-    // 概览已读取订单时直接复用，避免首次进入资产中心重复请求同一张表。
-    if (!ordersLoaded.value) {
-      ledgerRequests.push(
-        supabase
-          .from('shop_points_orders')
-          .select('id, order_no, total_points, created_at')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(50),
-      );
-    }
-    const settled = await Promise.allSettled(ledgerRequests);
-    const [checkinRes, adminRes] = settled;
-    const orderRes = ordersLoaded.value
-      ? { status: 'fulfilled', value: { data: orders.value, error: null } }
-      : settled[2];
+    /* 商城订单的扣分也要进账本（用户看到「-10 积分」才知道钱花在哪）。
+       2026-11-02 起本页不再缓存订单列表（订单已迁到购物袋），这一路固定并入请求。 */
+    ledgerRequests.push(
+      supabase
+        .from('shop_points_orders')
+        .select('id, order_no, total_points, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50),
+    );
+    const [checkinRes, adminRes, orderRes] = await Promise.allSettled(ledgerRequests);
 
     if (
       checkinRes.status === 'fulfilled' &&
@@ -1105,10 +910,6 @@ const openView = (next) => {
   emit('view-change', target);
   if (target === 'home') void loadHome();
   if (target === 'decor') emit('load-points-card-data');
-  if (target === 'orders') {
-    void loadOrders();
-    void loadGifts();
-  }
   if (target === 'points') void loadLedger();
 };
 
@@ -1122,196 +923,10 @@ watch(
   },
 );
 
-// ─── 礼物数据 ───
-const giftsLoading = ref(false);
-const giftsLoaded = ref(false);
-const giftsError = ref('');
-const currentGift = ref(null);
-const historyGifts = ref([]);
-const recordFilter = ref('all');
-const fulfillmentFilters = [
-  { id: 'all', label: '全部' },
-  { id: 'gifts', label: '礼物' },
-  { id: 'orders', label: '订单' },
-];
-
-const fulfillmentRecords = computed(() =>
-  [
-    ...historyGifts.value.map((gift) => ({
-      id: `gift-${gift.id}`,
-      type: 'gift',
-      title: gift.gift_content || '未命名礼物',
-      detail: gift.gift_no || '礼物记录',
-      status: gift.gift_status,
-      time: gift.completed_at || gift.updated_at || gift.created_at,
-    })),
-    ...orders.value.map((order) => ({
-      id: `order-${order.id}`,
-      type: 'order',
-      title: `商城订单 · ${order.item_count} 件商品`,
-      detail: order.order_no || '订单记录',
-      points: Number(order.total_points) || 0,
-      time: order.created_at,
-    })),
-  ]
-    .filter((record) => Number.isFinite(Date.parse(record.time || '')))
-    .sort((a, b) => Date.parse(b.time) - Date.parse(a.time)),
-);
-
-const visibleFulfillmentRecords = computed(() =>
-  recordFilter.value === 'all'
-    ? fulfillmentRecords.value
-    : fulfillmentRecords.value.filter((record) => record.type === recordFilter.value.slice(0, -1)),
-);
-
-const getGiftStatusLabel = (s) => {
-  const map = {
-    preparing: '备货中',
-    processing: '正在处理',
-    shipped: '已发货',
-    completed: '已完成',
-  };
-  return map[s] || s;
-};
-
-const giftStatusDate = computed(() => {
-  if (!currentGift.value) return '';
-  const status = currentGift.value.gift_status;
-  const dateSource =
-    status === 'completed'
-      ? currentGift.value.completed_at ||
-        currentGift.value.updated_at ||
-        currentGift.value.created_at
-      : currentGift.value.updated_at || currentGift.value.created_at;
-  return formatDateShort(dateSource);
-});
-
-const giftStatusHeadline = computed(() => {
-  const map = {
-    preparing: '礼物已进入备货',
-    processing: '礼物正在处理中',
-    shipped: '礼物已经寄出',
-    completed: '礼物已送达',
-  };
-  return map[currentGift.value?.gift_status] || '礼物状态已更新';
-});
-
-const giftStatusDesc = computed(() => {
-  if (!currentGift.value) return '方块之家正在为你构思一份特别的礼物。';
-  const status = currentGift.value.gift_status;
-  if (status === 'preparing') return '我们已收到你的礼物请求，正在准备精美礼品。';
-  if (status === 'processing') return '礼物正在快马加鞭包装中，即将离开方块之家。';
-  if (status === 'shipped') return '你的礼物已在路上，请留意快递信息或取货通知。';
-  if (status === 'completed') return '礼物已成功送达，希望它能为你带来快乐。';
-  return '';
-});
-
-const formatDateShort = (dateStr) => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return '';
-  return `${date.getMonth() + 1}月 ${date.getDate()}日`;
-};
-
-const loadGifts = async () => {
-  if (giftsLoading.value || giftsLoaded.value) return;
-  const uid = userInfo.value?.id;
-  if (!uid) {
-    giftsLoaded.value = true;
-    return;
-  }
-  giftsLoading.value = true;
-  giftsError.value = '';
-  try {
-    const [initialGiftsRes, addressesRes] = await Promise.all([
-      supabase
-        .from('user_gifts')
-        .select(
-          'id, user_id, gift_no, gift_content, gift_price, gift_image, gift_status, is_active, address_id, completed_at, created_at, updated_at',
-        )
-        .eq('user_id', uid)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('user_addresses')
-        .select('id, user_id, recipient, phone, region, detail, is_default, created_at')
-        .eq('user_id', uid)
-        .order('is_default', { ascending: false })
-        .order('created_at', { ascending: false }),
-    ]);
-    let giftsRes = initialGiftsRes;
-    if (isMissingColumnError(giftsRes.error, 'address_id')) {
-      giftsRes = await supabase
-        .from('user_gifts')
-        .select(
-          'id, user_id, gift_no, gift_content, gift_price, gift_image, gift_status, is_active, completed_at, created_at, updated_at',
-        )
-        .eq('user_id', uid)
-        .order('created_at', { ascending: false });
-    }
-    if (giftsRes.error) throw giftsRes.error;
-
-    // 构建地址 map：优先 address_id 匹配，否则取默认地址（列表已排序，首条为默认）
-    const addressList = Array.isArray(addressesRes.data) ? addressesRes.data : [];
-    addressCount.value = addressList.length;
-    const addressByUser = new Map();
-    addressList.forEach((addr) => {
-      if (!addressByUser.has(addr.user_id)) addressByUser.set(addr.user_id, []);
-      addressByUser.get(addr.user_id).push(addr);
-    });
-
-    const resolveAddress = (gift) => {
-      const userAddrs = addressByUser.get(gift.user_id) || [];
-      if (userAddrs.length === 0) return null;
-      // 若礼物绑定了 address_id（字段已部署），优先用绑定的地址；否则取默认地址
-      const matched = gift.address_id
-        ? userAddrs.find((a) => a.id === gift.address_id) || userAddrs[0]
-        : userAddrs[0];
-      return matched || null;
-    };
-
-    let normalizedGifts = (Array.isArray(giftsRes.data) ? giftsRes.data : []).map((g) => {
-      const addr = resolveAddress(g);
-      const region = addr?.region ? addr.region + ' ' : '';
-      return {
-        ...g,
-        shipping_recipient: addr?.recipient || '',
-        shipping_phone: addr?.phone || '',
-        shipping_address: (region + (addr?.detail || '')).trim(),
-        address_count: (addressByUser.get(g.user_id) || []).length,
-      };
-    });
-
-    const expiredGiftIds = getExpiredActiveGiftIds(normalizedGifts);
-    if (expiredGiftIds.length > 0) {
-      normalizedGifts = markGiftsAsHistory(normalizedGifts, expiredGiftIds);
-    }
-    // 当前礼物：激活中且未完成
-    const active = normalizedGifts.find((g) => g.is_active && g.gift_status !== 'completed');
-    currentGift.value = active || null;
-    // 历史礼物：已完成或非激活
-    const currentId = currentGift.value?.id;
-    historyGifts.value = normalizedGifts.filter(
-      (g) => g.id !== currentId && (!g.is_active || g.gift_status === 'completed'),
-    );
-    giftsLoaded.value = true;
-  } catch (err) {
-    logger.warn('assets-hub', '加载礼物数据失败:', err);
-    currentGift.value = null;
-    historyGifts.value = [];
-    addressCount.value = 0;
-    giftsError.value = '加载失败';
-  } finally {
-    giftsLoading.value = false;
-  }
-};
-
-const refreshFulfillment = () => {
-  ordersLoaded.value = false;
-  giftsLoaded.value = false;
-  void loadOrders();
-  void loadGifts();
-};
-
+/* 礼物 / 订单 / 地址的取数与展示 2026-11-02 全部迁出：
+   · 礼物、商城订单、中奖记录 → 周边「订单」分区（/shop?tab=order，utils/api/shop-orders-api.js）
+   · 收货地址 → 设置 →「收货地址」/ 周边「地址」分区（组件 AddressManager 原样复用）
+   本页不再持有这几份数据，也就没有「进资产页要先拉四张表」的开销。 */
 /* ═══ 首页派生数据（2026-10-26） ═══
    摘要条 + 四张卡各取所需，不再合成「智能洞察」。原来那套引擎（候选池 → 排序 →
    主洞察 → 最近动态 → 接下来）产出的是三段话术，用户要的只是余额、会员、待办。 */
@@ -1341,38 +956,11 @@ const openPlans = () => {
   showPlanComparison.value = true;
 };
 
-/** 待办：只收「需要你动手」的四件事，按紧迫度排。上限 3 条，多了就不是待办而是报表。 */
+/** 待办：只收「需要你动手」的事，按紧迫度排。上限 3 条，多了就不是待办而是报表。
+    2026-11-02：礼物相关的两条（缺地址 / 已寄出）随礼物迁去购物袋 —— 本页不再取礼物数据，
+    留着只会变成永远不出现或永远过期的提示。 */
 const todoItems = computed(() => {
   const items = [];
-  const gift = currentGift.value;
-  const giftTime = gift?.updated_at || gift?.created_at || '';
-
-  if (gift && addressCount.value === 0) {
-    items.push({
-      id: `gift-address-${gift.id}`,
-      tone: 'warn',
-      icon: MapPin,
-      title: '补充礼物收货地址',
-      detail:
-        gift.gift_status === 'shipped'
-          ? '礼物已寄出，补充地址便于后续联系'
-          : '礼物寄送前需要一个有效地址',
-      target: 'orders',
-      time: giftTime,
-      priority: 100,
-    });
-  } else if (gift && gift.gift_status === 'shipped') {
-    items.push({
-      id: `gift-shipped-${gift.id}`,
-      tone: 'warn',
-      icon: PackageCheck,
-      title: '礼物已寄出',
-      detail: gift.gift_no ? `快递单号 ${gift.gift_no}` : '请留意快递信息或取货通知',
-      target: 'orders',
-      time: giftTime,
-      priority: 80,
-    });
-  }
 
   if (subscriptionExpiryDays.value !== null && subscriptionExpiryDays.value <= 30) {
     const days = subscriptionExpiryDays.value;
@@ -1420,11 +1008,12 @@ const goToLotteries = () => {
   router.push('/lotteries').catch(() => {});
 };
 
-/* 首页取数：会员 + 订单 + 礼物 + 积分明细。
+/* 首页取数：会员 + 积分明细。
    2026-10-26 起不再拉 products（商品推荐属商城）与抽奖列表（属 /lotteries），
-   资产首页不为它们各付一次请求。 */
+   资产首页不为它们各付一次请求。
+   2026-11-02 起订单与礼物也迁去购物袋，首页只剩这两路。 */
 const loadHome = async () => {
-  await Promise.all([loadSubscription(), loadOrders(), loadGifts(), loadLedger()]);
+  await Promise.all([loadSubscription(), loadLedger()]);
 };
 
 onMounted(() => {

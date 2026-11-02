@@ -378,8 +378,8 @@
   height: 40px;
 }
 
-/* ─── 订单 ─── */
-.ah-order-skeleton {
+/* ─── 积分明细骨架（2026-11-02 从订单区改名：订单子页已迁去购物袋） ─── */
+.ah-ledger-skeleton {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1994,18 +1994,13 @@ html[data-theme='dark'] .ah-qr-close {
   padding: 0 2px;
 }
 
-/* 返回条与它下面的内容同宽：装扮 / 订单两页的内容是居中的窄列（620 / 720），
+/* 返回条与它下面的内容同宽：装扮页的内容是居中的窄列（620），
    返回条若撑满整行会看起来与内容脱节（实测装扮页：条 1131px 宽、内容 620px 居中，
-   刷新按钮甩到离内容 400px 外）。积分明细是通栏内容，保持通栏。 */
+   刷新按钮甩到离内容 400px 外）。积分明细是通栏内容，保持通栏。
+   2026-11-02：`.is-orders`（720px）随订单子页一起删除。 */
 .ah-subpage.is-decor .ah-subpage-bar {
   width: 100%;
   max-width: 620px;
-  margin-inline: auto;
-}
-
-.ah-subpage.is-orders .ah-subpage-bar {
-  width: 100%;
-  max-width: 720px;
   margin-inline: auto;
 }
 

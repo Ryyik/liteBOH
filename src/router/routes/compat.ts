@@ -14,13 +14,17 @@ import { resolveForumSection } from '../../config/forum-sections';
  *   · 改动本文件的验收：单测 tests/unit/compat-routes.test.js（折叠覆盖 + 落点对照）
  *     + 全量 verify。
  *
- * 现行清单（20 条 = 2 参数化 + 18 直条）：
+ * 现行清单（21 条 = 2 参数化 + 19 直条）：
  *   · 旧用户中心 /user-center/*（引入 ≤2026-06）：12 条折叠为 2 条（见下方分节）
  *   · 旧用户空间深链（引入 2026-09-30，tab 语义迁移）：8 条
  *   · Beta 6 退场（引入 2026-09-27）：/forum、/activities(×3)、/block-wall、/tutorial
  *   · 实验室退场（引入 2026-10-19）：/lab → BOHAI Work
+ *   · 礼物中心退场（引入 2026-11-02）：/user-space/gifts → 购物袋「订单」/ 商城「地址」
  *
  * 变更史：
+ *   2026-11-02 新增 1 条：/user-space/gifts（礼物中心整页废弃）→ 礼物与历史礼物并入
+ *     周边购物袋订单（礼物读的是 user_gifts 全量，含 is_active=false 的归档记录），
+ *     收货地址并入 /shop?tab=address；旧 `?tab=address` 深链按 query 分流。
  *   2026-10-26 新增 1 条：/user-space/account-security（独立页收进设置右栏）→
  *     /user-space?tab=settings&view=account-security
  *   2026-10-19 新增 1 条：/user-space/partners（孤儿页）收编 → 论坛「成员」分区
@@ -219,5 +223,21 @@ export const compatRoutes: RouteRecordRaw[] = [
     path: '/lotteries',
     name: 'CommunityLotteries',
     redirect: (to: any) => ({ path: '/shop', query: { ...to.query, tab: 'lottery' } }),
+  },
+  {
+    // 礼物中心退场兼容（2026-11-02）：老页 `/user-space/gifts` 的三个分段全部有了新家 ——
+    //   礼物进度 + 历史礼物 → 周边「订单」分区（/shop?tab=order，礼物是其中一格筛选，
+    //                         一份记录都不少；归档过的 also 在，见 shop-orders-api 不按 is_active 过滤）；
+    //   收货地址 → 商城「地址」分区（/shop?tab=address）。
+    // 落点按旧 query 判：设置页当年指过来的正是 `?tab=address`，其余（含无 query 的书签）
+    // 一律去礼物记录所在处。旧 query 不透传 —— `from=userspace-settings` 是那一页的
+    // 返回栈语义，落到商城后只会变成脏参数。
+    // 引入 2026-11-02 · 到期 2027-05-02（沿用 IA 类改造 6 个月生命期）。
+    path: '/user-space/gifts',
+    name: 'Gifts',
+    redirect: (to: any) =>
+      String(to?.query?.tab || '') === 'address'
+        ? { path: '/shop', query: { tab: 'address' } }
+        : { path: '/shop', query: { tab: 'order' } },
   },
 ];

@@ -40,7 +40,7 @@ const baseHero = (over = {}) => ({
   status: 'published',
   created_at: '2026-09-24T00:00:00.000Z',
   updated_at: '2026-09-24T00:00:00.000Z',
-  ...over
+  ...over,
 });
 
 /** 打开首页并等开场画稳定，返回关键视觉量 */
@@ -56,9 +56,9 @@ const measure = async (browser, { viewport, heroRows, tag }) => {
       contentType: 'application/json',
       headers: {
         'content-range': heroRows.length ? `0-${heroRows.length - 1}/${heroRows.length}` : '*/0',
-        'access-control-expose-headers': 'Content-Range'
+        'access-control-expose-headers': 'Content-Range',
       },
-      body: JSON.stringify(heroRows)
+      body: JSON.stringify(heroRows),
     });
   });
 
@@ -85,7 +85,9 @@ const measure = async (browser, { viewport, heroRows, tag }) => {
     const hint = cs('.street-hero-hint');
     const scrim = root.querySelector('.street-hero-scrim');
     // logo 中心与视口中心的偏差
-    const logoCenter = logo ? { x: logo.left + logo.width / 2, y: logo.top + logo.height / 2 } : null;
+    const logoCenter = logo
+      ? { x: logo.left + logo.width / 2, y: logo.top + logo.height / 2 }
+      : null;
     const offCenter = logoCenter
       ? { x: Math.abs(logoCenter.x - vw / 2), y: Math.abs(logoCenter.y - vh / 2) }
       : null;
@@ -96,13 +98,15 @@ const measure = async (browser, { viewport, heroRows, tag }) => {
       imgSrc,
       logoBox: logo ? { w: Math.round(logo.width), h: Math.round(logo.height) } : null,
       offCenter,
-      logoFits: logo ? logo.top >= 0 && logo.bottom <= vh && logo.left >= 0 && logo.right <= vw : false,
+      logoFits: logo
+        ? logo.top >= 0 && logo.bottom <= vh && logo.left >= 0 && logo.right <= vw
+        : false,
       greetingColor: greeting?.color ?? '',
       greetingShadow: greeting?.textShadow ?? '',
       hintColor: hint?.color ?? '',
       hintShadow: hint?.textShadow ?? '',
       hasScrim: Boolean(scrim),
-      scrimOpacity: scrim ? getComputedStyle(scrim).opacity : ''
+      scrimOpacity: scrim ? getComputedStyle(scrim).opacity : '',
     };
   });
 
@@ -113,7 +117,7 @@ const measure = async (browser, { viewport, heroRows, tag }) => {
 
 const browser = await chromium.launch({
   channel: 'chrome',
-  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*']
+  args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
 });
 
 // ---------- A. 竖屏 · 无街景图（默认形态） ----------
@@ -121,21 +125,31 @@ const browser = await chromium.launch({
   const m = await measure(browser, {
     viewport: { width: 430, height: 900 },
     heroRows: [baseHero()],
-    tag: 'portrait-default'
+    tag: 'portrait-default',
   });
   check('A1 进入品牌兜底形态（on-brand）', m.onBrand === true);
   check('A2 兜底层纯白背景', m.brandBg === 'rgb(255, 255, 255)', m.brandBg);
-  check('A3 logo 来自 BOH 红苹果图标', m.logoSrc.includes('/icons/icon-512.png'), m.logoSrc);
-  check('A4 logo 完整居中（中心偏差 ≤ 4px）',
+  check(
+    'A3 logo 来自 BOH 红苹果图标（透明底版）',
+    m.logoSrc.includes('/icons/icon-512-transparent.png'),
+    m.logoSrc,
+  );
+  check(
+    'A4 logo 完整居中（中心偏差 ≤ 4px）',
     m.offCenter && m.offCenter.x <= 4 && m.offCenter.y <= 4,
-    m.offCenter ? `dx=${m.offCenter.x.toFixed(1)} dy=${m.offCenter.y.toFixed(1)}` : '无 logo');
+    m.offCenter ? `dx=${m.offCenter.x.toFixed(1)} dy=${m.offCenter.y.toFixed(1)}` : '无 logo',
+  );
   check('A5 logo 不溢出视口', m.logoFits === true, JSON.stringify(m.logoBox));
-  check('A6 问候语为黑色且无阴影',
+  check(
+    'A6 问候语为黑色且无阴影',
     m.greetingColor === 'rgb(23, 19, 14)' && m.greetingShadow === 'none',
-    `${m.greetingColor} / shadow=${m.greetingShadow}`);
-  check('A7 提示为次级黑且无阴影',
-    m.hintColor === 'rgb(82, 72, 60)' && m.hintShadow === 'none',
-    `${m.hintColor} / shadow=${m.hintShadow}`);
+    `${m.greetingColor} / shadow=${m.greetingShadow}`,
+  );
+  check(
+    'A7 提示为主文字色 78% 混合（2026-11-02 起 token 派生）且无阴影',
+    m.hintColor === 'color(srgb 0.321569 0.282353 0.235294 / 0.78)' && m.hintShadow === 'none',
+    `${m.hintColor} / shadow=${m.hintShadow}`,
+  );
   check('A8 无黑色渐晕（scrim 不渲染）', m.hasScrim === false);
   check('A9 无运行时错误', m.errs.length === 0, m.errs.slice(0, 2).join(' | '));
 }
@@ -145,13 +159,25 @@ const browser = await chromium.launch({
   const m = await measure(browser, {
     viewport: { width: 900, height: 430 },
     heroRows: [baseHero()],
-    tag: 'landscape-default'
+    tag: 'landscape-default',
   });
-  check('B1 横屏仍为品牌兜底形态', m.onBrand === true && m.brandBg === 'rgb(255, 255, 255)', m.brandBg);
-  check('B2 logo 居中且不溢出',
+  check(
+    'B1 横屏仍为品牌兜底形态',
+    m.onBrand === true && m.brandBg === 'rgb(255, 255, 255)',
+    m.brandBg,
+  );
+  check(
+    'B2 logo 居中且不溢出',
     m.offCenter && m.offCenter.x <= 4 && m.offCenter.y <= 4 && m.logoFits,
-    m.offCenter ? `dx=${m.offCenter.x.toFixed(1)} dy=${m.offCenter.y.toFixed(1)} box=${JSON.stringify(m.logoBox)}` : '无 logo');
-  check('B3 横屏 logo 收一档（高 ≤ 176px）', m.logoBox && m.logoBox.h <= 176, JSON.stringify(m.logoBox));
+    m.offCenter
+      ? `dx=${m.offCenter.x.toFixed(1)} dy=${m.offCenter.y.toFixed(1)} box=${JSON.stringify(m.logoBox)}`
+      : '无 logo',
+  );
+  check(
+    'B3 横屏 logo 收一档（高 ≤ 176px）',
+    m.logoBox && m.logoBox.h <= 176,
+    JSON.stringify(m.logoBox),
+  );
   check('B4 文字仍为黑色', m.greetingColor === 'rgb(23, 19, 14)', m.greetingColor);
   check('B5 无运行时错误', m.errs.length === 0, m.errs.slice(0, 2).join(' | '));
 }
@@ -159,18 +185,22 @@ const browser = await chromium.launch({
 // ---------- C. 竖屏 · 配了街景图（照片形态回归） ----------
 {
   /* 街景图用 data URI（真实可加载），否则图 404 → 按设计回落品牌兜底，测不到照片形态。 */
-  const fakePhoto = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1170' height='2532'%3E%3Crect width='100%25' height='100%25' fill='%237a8ba3'/%3E%3C/svg%3E";
+  const fakePhoto =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1170' height='2532'%3E%3Crect width='100%25' height='100%25' fill='%237a8ba3'/%3E%3C/svg%3E";
   const m = await measure(browser, {
     viewport: { width: 430, height: 900 },
     heroRows: [baseHero({ image_portrait: fakePhoto })],
-    tag: 'portrait-with-photo'
+    tag: 'portrait-with-photo',
   });
   check('C1 退出品牌兜底（on-brand 移除）', m.onBrand === false);
   check('C2 不再渲染 logo 层', !m.logoSrc);
   check('C3 街景图渲染', Boolean(m.imgSrc), m.imgSrc.slice(0, 90));
   check('C4 scrim 回归（照片态需要渐晕）', m.hasScrim === true);
-  check('C5 文字回白 + 阴影', m.greetingColor === 'rgb(255, 255, 255)' && m.greetingShadow !== 'none',
-    `${m.greetingColor} / shadow=${m.greetingShadow}`);
+  check(
+    'C5 文字回白 + 阴影',
+    m.greetingColor === 'rgb(255, 255, 255)' && m.greetingShadow !== 'none',
+    `${m.greetingColor} / shadow=${m.greetingShadow}`,
+  );
   check('C6 无运行时错误', m.errs.length === 0, m.errs.slice(0, 2).join(' | '));
 }
 
@@ -181,7 +211,7 @@ const pass = results.filter((r) => r.pass).length;
 console.log(`品牌兜底首屏探针：${pass}/${results.length} 通过`);
 fs.writeFileSync(
   'output/street-scene-brand-scan.json',
-  JSON.stringify({ generatedAt: new Date().toISOString(), results }, null, 2)
+  JSON.stringify({ generatedAt: new Date().toISOString(), results }, null, 2),
 );
 console.log('明细已写入 output/street-scene-brand-scan.json');
 process.exit(pass === results.length ? 0 : 1);

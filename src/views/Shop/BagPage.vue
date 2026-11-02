@@ -22,32 +22,23 @@
     </header>
 
     <main class="bag-main">
-      <BagPanel
-        ref="panelRef"
-        :initial-view="initialView"
-        @checkout="goCheckout"
-        @browse="goShop"
-      />
+      <BagPanel @checkout="goCheckout" @browse="goShop" />
     </main>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { ChevronLeft, User } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import BagPanel from './BagPanel.vue';
 
-const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
 const { isLoggedIn } = storeToRefs(authStore);
 const { userInfo } = authStore;
-
-const panelRef = ref(null);
-const initialView = computed(() => (route.query.view === 'orders' ? 'orders' : 'cart'));
 
 const avatarInitial = computed(() =>
   String(userInfo.username || '?')

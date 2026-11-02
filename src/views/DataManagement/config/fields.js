@@ -380,12 +380,13 @@ export const PRODUCT_PAYMENT_MODE_OPTIONS = [
 ];
 
 // 商城订单状态
+// 单一真源 = DB CHECK shop_points_orders_status_check（2026-11-02 收敛为四态）：
+//   preparing 准备中 / shipped 已发货 / completed 完成 / cancelled 取消
 export const ORDER_STATUS_OPTIONS = [
-  // shop_points_orders.status 的 DB CHECK 只有这四档（没有 shipped）
-  { value: 'pending', label: '待处理（pending）' },
-  { value: 'processing', label: '处理中（processing）' },
-  { value: 'completed', label: '已完成（completed）' },
-  { value: 'cancelled', label: '已取消（cancelled）' },
+  { value: 'preparing', label: '准备中（preparing）' },
+  { value: 'shipped', label: '已发货（shipped）' },
+  { value: 'completed', label: '完成（completed）' },
+  { value: 'cancelled', label: '取消（cancelled）' },
 ];
 
 // 订单联系类型

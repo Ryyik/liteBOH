@@ -16,12 +16,8 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     // 订阅方案对访客可见；点击试用/订阅时由 SubscriptionPlans 打开登录灵动岛。
     meta: {},
   },
-  {
-    path: '/user-space/gifts',
-    name: 'Gifts',
-    component: () => import('../../views/user-center/Address/index.vue'),
-    meta: { ...userSpaceMeta },
-  },
+  // 2026-11-02 礼物中心（/user-space/gifts）退场：礼物与历史礼物并入周边购物袋「订单」，
+  // 收货地址并入商城「地址」分区。兼容重定向在 routes/compat.ts（单文件登记处）。
   {
     path: '/user-space',
     name: 'UserSpace',

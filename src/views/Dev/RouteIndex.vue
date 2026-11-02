@@ -135,7 +135,7 @@ const EXTRA_LABELS = {
   '/user-space/shared-memories': '共享记忆',
   '/user-space/pushplus-settings': '推送设置',
   '/user-space/settings/version': 'Beta 预览',
-  '/user-space/gifts': '礼物地址',
+  '/user-space/gifts': '礼物中心（已并入周边购物袋）',
   '/shop/account': '商城账户',
 };
 

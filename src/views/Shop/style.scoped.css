@@ -262,6 +262,19 @@
   }
 }
 
+/* 2026-11-02 分区增到五个（产品 / 抽奖 / 购物袋 / 订单 / 地址）：
+   26 的间距在 390 竖屏下已经顶到右边缘，购物袋再挂上件数徽标就会溢出一行。
+   收窄到 18、字号降一档 —— 仍是并列的一排分区，不会读成两簇。 */
+@media (max-width: 430px) {
+  .store-tabs {
+    gap: 18px;
+  }
+
+  .store-tabs button {
+    font-size: 14px;
+  }
+}
+
 @media (orientation: landscape) and (min-width: 1024px) {
   .product-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -480,6 +493,30 @@
 .contact-field span {
   color: var(--boh-text-secondary, #86868b);
   font-size: 12px;
+}
+
+/* 「收货地址」标签行的右侧「管理地址」：与标签同基线，不额外撑高行距 */
+.contact-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.field-manage {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--boh-brand-blue, #0071e3);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.field-manage:focus-visible {
+  outline: 2px solid var(--boh-brand-blue, #0071e3);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .contact-field input,
