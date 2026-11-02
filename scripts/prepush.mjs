@@ -53,7 +53,10 @@ const gates = QUICK
     // 基线余量假绿（self-test）、lockfile 失同步（ci --dry-run）。
     ['lint', 'check:doc-truth', 'check:gates-self-test', 'check:untracked-imports']
   : [
-      ...[...(pkg.scripts.verify || '').matchAll(/npm run ([A-Za-z0-9:_-]+)/g)]
+      /* ⚠️ 读 `verify:serial` 而不是 `verify`：`verify` 现在指向 `node scripts/verify.mjs`，
+         解析它一条都匹配不到 ⇒ 门禁清单变空 ⇒ 只剩 self-test 在跑，
+         而提示语还会说「全绿」。与本轮 verify.mjs 头部同一个坑，别改回去。 */
+      ...[...(pkg.scripts['verify:serial'] || '').matchAll(/npm run ([A-Za-z0-9:_-]+)/g)]
         .map((m) => m[1])
         .filter((name) => !SKIP.has(name)),
       // verify 链不跑自检（注入违规→断言变红，耗时数分钟），只有 CI Quality Gate 跑 ——

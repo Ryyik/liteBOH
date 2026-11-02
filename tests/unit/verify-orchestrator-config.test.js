@@ -82,4 +82,8 @@ describe('prepush 复用同一套编排（不写第二份门禁清单）', () =>
   it('self-test 仍单独补跑（它不在 verify 链里）', () => {
     expect(src).toContain('check:gates-self-test');
   });
+
+  it('门禁清单也从 verify:serial 解析（读 verify 会解析到 0 条 ⇒ 假绿）', () => {
+    expect(src).toContain("pkg.scripts['verify:serial']");
+  });
 });
