@@ -390,9 +390,12 @@ export const ORDER_STATUS_OPTIONS = [
 
 // 订单联系类型
 export const ORDER_CONTACT_TYPE_OPTIONS = [
-  // 商城下单端只写 qq / vx（Shop/index.vue）；DB CHECK 也是这两档
+  // 单一真源 = DB CHECK shop_points_orders_contact_type_check：qq / vx / profile。
+  // 2026-11-02 补 profile：结算改成「资料即收货信息」后下单写的是 contact_type='profile'，
+  // 而这里只有两档 ⇒ 这些订单在后台编辑抽屉里下拉显示空白，另存还会被判成无效值。
   { value: 'qq', label: 'QQ' },
   { value: 'vx', label: '微信' },
+  { value: 'profile', label: '资料（收货信息）' },
 ];
 
 // 生日祝福状态
