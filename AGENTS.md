@@ -31,7 +31,7 @@ Vue 3 + Vite 7 + Supabase 的 SPA，hash 路由，产品名「方块之家 BOH�
 
 ## 2. 改动 → 必跑门禁（不许跳过）
 
-`npm run verify` 是一条命令兜底（12 道 check → lint → type-check → test，末尾附**棘轮总账**，fail-fast：最贵的排最后，不需要构建）。
+`npm run verify` 命令兜底：14 道 check **并行** + lint/type-check 并行 + test **独占**，末尾附棘轮总账（不构建；`verify:serial` 串行逃生口）。
 只改 CSS 或小改动用 `npm run verify:fast`；发布前用 `npm run verify:full`（含构建与产物门禁）。
 
 > ⚠️ **判绿之前先确认门禁真的有牙**。这个仓库出过两次「检查在跑、但永远绿」：
