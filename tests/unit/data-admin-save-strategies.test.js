@@ -72,4 +72,31 @@ describe('data admin save strategies（DB 约束对齐）', () => {
       SAVE_STRATEGIES.campaignRewards({ editingItem: { status: 'pending' } }),
     ).rejects.toThrow(/发放状态无效/);
   });
+
+  // 2026-11-01 周边改版：users 收货三件套（资料即收货信息的后台修正通道）
+  it('users：收货三件套 trim 提交，空白落 null，可写字段在白名单内', async () => {
+    const payload = await SAVE_STRATEGIES.users({
+      editingItem: {
+        username: '  小方  ',
+        shipping_recipient: '  张三  ',
+        shipping_phone: ' 138 0000 0000 ',
+        shipping_address: '  浙江省杭州市西湖区文三路 100 号  ',
+      },
+    });
+    expect(payload.shipping_recipient).toBe('张三');
+    expect(payload.shipping_phone).toBe('138 0000 0000');
+    expect(payload.shipping_address).toBe('浙江省杭州市西湖区文三路 100 号');
+  });
+
+  it('users：联系电话格式非法要拒绝，空白电话/地址合法（用户可现场补填）', async () => {
+    await expect(
+      SAVE_STRATEGIES.users({ editingItem: { username: 'a', shipping_phone: 'abc@#1234567890' } }),
+    ).rejects.toThrow(/联系电话格式不正确/);
+    await expect(
+      SAVE_STRATEGIES.users({ editingItem: { username: 'a', shipping_phone: '  ' } }),
+    ).resolves.toMatchObject({ shipping_phone: null });
+    await expect(
+      SAVE_STRATEGIES.users({ editingItem: { username: 'a', shipping_address: '' } }),
+    ).resolves.toMatchObject({ shipping_address: null });
+  });
 });

@@ -374,7 +374,7 @@ export const TAB_SELECT_COLUMNS = {
   postReward:
     'id, title, status, points_per_post, daily_limit, monthly_limit, start_at, end_at, created_at',
   products:
-    'id, title, category, description, points_cost, rmb_price, payment_mode, stock, image, specifications, is_active, is_purchasable',
+    'id, title, category, description, points_cost, rmb_price, payment_mode, stock, image, specifications, is_active, is_purchasable, sort_order',
 
   // ========== 商城订单 ==========
   shopOrders: `
@@ -699,7 +699,9 @@ export const TAB_DEFAULT_SORT = {
   news: { column: 'date', ascending: false },
   activities: { column: 'date', ascending: false },
   postReward: { column: 'start_at', ascending: false },
-  products: { column: 'id', ascending: true },
+  // 与商城前台的展示顺序同一口径（sort_order 升序、同值 id 升序）：
+  // 后台看到的排列必须和用户看到的一致，否则「把某件商品排到第一个」在后台无从验证
+  products: { column: 'sort_order', ascending: true },
   shopOrders: { column: 'created_at', ascending: false },
   pointsTransactions: { column: 'created_at', ascending: false },
   notifications: { column: 'created_at', ascending: false },
@@ -794,7 +796,15 @@ export const TAB_SORT_COLUMNS = {
     'end_at',
     'created_at',
   ]),
-  products: new Set(['id', 'category', 'points_cost', 'rmb_price', 'payment_mode', 'stock']),
+  products: new Set([
+    'id',
+    'category',
+    'points_cost',
+    'rmb_price',
+    'payment_mode',
+    'stock',
+    'sort_order',
+  ]),
   shopOrders: new Set(['created_at', 'status', 'payment_mode', 'total_points', 'rmb_total']),
   pointsTransactions: new Set(['created_at', 'amount', 'reason', 'batch_id']),
   notifications: new Set(['created_at', 'type', 'status']),

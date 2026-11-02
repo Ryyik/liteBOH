@@ -1015,6 +1015,7 @@ const GROUP_RULES = {
     { key: 'basic', label: '基础信息' },
     { key: 'stats', label: '数据' },
     { key: 'profile', label: '个人资料' },
+    { key: 'shipping', label: '收货信息' },
   ],
   points: [
     { key: 'basic', label: '基础信息' },

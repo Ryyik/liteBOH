@@ -10,6 +10,11 @@ export const TAB_WRITABLE_FIELDS = {
     'points',
     'experience',
     'join_date',
+    // 收货三件套：profiles 列级权限实测 shipping_* 对 authenticated
+    // SELECT/UPDATE 均开放（2026-11-01 复查），可直接走统一保存链路。
+    'shipping_recipient',
+    'shipping_phone',
+    'shipping_address',
     'bio',
     'avatar_url',
     'tags',
@@ -170,6 +175,9 @@ export const TAB_WRITABLE_FIELDS = {
     'is_purchasable',
     'payment_mode',
     'rmb_price',
+    // 商城展示顺序（2026-11-01）：让运营能直接在后台把某件商品提前，
+    // 不必开 SQL —— 前台 stores/products.ts 读的就是这一列
+    'sort_order',
   ],
   shopOrders: ['status', 'updated_at'],
   birthdayEvents: [

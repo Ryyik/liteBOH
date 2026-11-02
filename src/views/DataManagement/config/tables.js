@@ -67,6 +67,11 @@ export const dataConfig = {
       { key: 'id', label: 'ID', maxLength: 12, copyable: true },
       { key: 'username', label: '用户名' },
       { key: 'email', label: '邮箱', copyable: true },
+      // 收货三件套：周边商城结算页写回 profiles 的默认收货信息（RPC 补列）。
+      // 2026-11-01 周边改版后这三列是「资料即收货信息」流程的存储端，管理员可直接修正。
+      { key: 'shipping_recipient', label: '收件人', maxLength: 10 },
+      { key: 'shipping_phone', label: '联系电话', maxLength: 18, copyable: true },
+      { key: 'shipping_address', label: '收货地址', maxLength: 24, copyable: true },
       { key: 'role', label: '角色', type: 'badge' },
       { key: 'is_banned', label: '封禁', type: 'badge' },
       { key: 'is_muted', label: '禁言', type: 'badge' },
@@ -99,6 +104,33 @@ export const dataConfig = {
         group: 'basic',
       },
       { key: 'role', label: '角色', type: 'select', options: USER_ROLE_OPTIONS, group: 'basic' },
+      // 收货信息（group: shipping，组登记见 EditDrawer GROUP_RULES.users）：
+      // 可编辑 —— 列级权限实测 shipping_* 对 authenticated SELECT/UPDATE 均开放，
+      // 走统一保存链路（saveStrategies users → from('profiles').update）。
+      {
+        key: 'shipping_recipient',
+        label: '收件人',
+        type: 'text',
+        maxLength: 32,
+        group: 'shipping',
+      },
+      {
+        key: 'shipping_phone',
+        label: '联系电话',
+        type: 'tel',
+        maxLength: 24,
+        placeholder: '如 13800000000',
+        group: 'shipping',
+      },
+      {
+        key: 'shipping_address',
+        label: '收货地址',
+        type: 'textarea',
+        maxLength: 200,
+        rows: 3,
+        hint: '周边商城结算页的默认收货信息（收件人 / 电话 / 地址），留空则用户下单时需现场补填。',
+        group: 'shipping',
+      },
       { key: 'points', label: '积分', type: 'number', min: 0, group: 'stats' },
       { key: 'experience', label: '经验值', type: 'number', min: 0, group: 'stats' },
       { key: 'join_date', label: '加群时间', type: 'date', group: 'time' },
@@ -2036,6 +2068,7 @@ export const dataConfig = {
       { key: 'stock', label: '库存', type: 'number' },
       { key: 'is_active', label: '商城展示', type: 'badge' },
       { key: 'is_purchasable', label: '允许购买', type: 'badge' },
+      { key: 'sort_order', label: '排序', type: 'number' },
     ],
     fields: [
       {
@@ -2118,6 +2151,13 @@ export const dataConfig = {
         hint: '推荐使用"上传到 Cloud"。',
         group: 'media',
       },
+      {
+        key: 'sort_order',
+        label: '展示排序',
+        type: 'number',
+        hint: '数字小的排在前面（空 = 1000）。商城前台按「排序值升序 → ID 升序」展示。',
+        group: 'pricing',
+      },
       { key: 'specifications', label: '规格选项', type: 'specifications', group: 'specs' },
     ],
     cardView: {
@@ -2141,6 +2181,7 @@ export const dataConfig = {
         { label: 'RMB', key: 'rmb_price', format: 'price' },
         { label: '库存', key: 'stock' },
         { label: '可购', key: 'is_purchasable', values: { true: '允许', false: '禁止' } },
+        { label: '排序', key: 'sort_order' },
       ],
     },
   },

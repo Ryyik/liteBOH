@@ -95,6 +95,22 @@ export const SAVE_STRATEGIES = {
       dataToSave.email = email || null;
     }
 
+    // 收货三件套（2026-11-01 周边改版）：trim + 电话宽松校验。
+    // 全部可空 —— 留空 = 用户在商城结算页需要现场补填，不阻断保存。
+    if (dataToSave.shipping_recipient !== undefined) {
+      dataToSave.shipping_recipient = String(dataToSave.shipping_recipient || '').trim() || null;
+    }
+    if (dataToSave.shipping_phone !== undefined) {
+      const phone = String(dataToSave.shipping_phone || '').trim();
+      if (phone && !/^[+\d][\d\s-]{4,19}$/.test(phone)) {
+        throw new Error('联系电话格式不正确（仅支持数字、空格、短横线，5–20 位）');
+      }
+      dataToSave.shipping_phone = phone || null;
+    }
+    if (dataToSave.shipping_address !== undefined) {
+      dataToSave.shipping_address = String(dataToSave.shipping_address || '').trim() || null;
+    }
+
     return dataToSave;
   },
 
@@ -549,6 +565,14 @@ export const SAVE_STRATEGIES = {
       specifications: normalizedSpecifications,
       is_active: editingItem.is_active === true || editingItem.is_active === 'true',
       is_purchasable: editingItem.is_purchasable === true || editingItem.is_purchasable === 'true',
+      /* 展示排序（2026-11-01）：留空 = 1000（排在有排位的商品之后），
+         与列默认值同一口径；非数字直接拒绝，不要静默写 NaN（numeric 列会 400） */
+      sort_order: ((value) => {
+        if (value === '' || value === null || value === undefined) return 1000;
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) throw new Error('展示排序必须是数字');
+        return Math.round(parsed);
+      })(editingItem.sort_order),
     });
   },
 
