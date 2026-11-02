@@ -90,6 +90,40 @@
  * 里写死的配置对象，**不经用户输入**。⇒ 浏览器侧攻击面为零。
  * 等 vite-plugin-pwa 把 workbox 升到带修复的版本后，`npm run security:audit:update` 下调基线。
  *
+ * ## 2026-11-02 登记：21 个 moderate（基线 0 → 21，全部 dev-only 且上游升不动）
+ *
+ * 起因：版本号提交动了 `package-lock.json`（根 `version` 字段），CI 按「谁动依赖谁清账」
+ * 走严格档；此时 npm 已新发布两条公告，而基线还是 10-28 的 `moderate: 0` ⇒ 判红。
+ * 与本次改动无关，属文件头说的「同一份 lock，昨天绿、今天红」。
+ *
+ * 21 条全部落在两条链上（`npm audit --json` 实测，2026-11-02）：
+ *
+ *   A. `minimatch <11.0.1`（GHSA-g3hv-75wg-m249，globparts 放大 DoS）
+ *      修复版 **11.0.1+**（当前 latest 11.0.4）。而消费方全都锁在旧大版本：
+ *      eslint@9 锁 `^3.1.2`、eslint@10.14 锁 `^10.2.6`、`@eslint/config-array`、
+ *      `@eslint/eslintrc`、`@typescript-eslint/typescript-estree`、`jsdom`、
+ *      `@vue/compiler-sfc` 同样要 3.x/10.x ⇒ **没有任何一个升级能把它抬到 11**。
+ *   B. `glob 9.0.0–14.0.1`（GHSA-3g3m-2fjr-6pw4，AbortSignal 取消绕过）+
+ *      其下游 `filelist` / `jake` / `ejs`（3.1.2–4.0.1）
+ *      唯一引入方是 `vite-plugin-pwa@1.3.0 → workbox-build@7.4.1`。
+ *      workbox-build **7.4.1 已是 latest**，它锁 `glob ^11` / `ejs ^3` / `jake ^10`
+ *      / `filelist ^1`；升 vite-plugin-pwa 到最新 2.0.0 也只是换成
+ *      `workbox-build ^7.4.1`（实测 `npm view vite-plugin-pwa@2.0.0 dependencies`）
+ *      ⇒ 同样升不动。
+ *   C. `@eslint-community/eslint-utils` 区间是 **`*`** —— 连最新 4.10.1 都在区间内，
+ *      **上游没有修复版**。经 eslint / eslint-plugin-vue / @typescript-eslint/utils 引入。
+ *
+ * 可达性（实证）：`grep -rl "minimatch\|eslint-utils\|workbox-build" dist/` **零命中**
+ * ⇒ 一个都不进运行时产物；全部是 `devDependencies` 传递（lint / 测试 / 构建期生成 SW）。
+ * 触发这些公告需要「构造恶意 glob 模式」或「污染构建期配置对象」，而输入是仓库自己
+ * 写死的配置与文件名，**不经用户输入** ⇒ 浏览器侧与线上请求面均为零。
+ *
+ * 结论：接受，基线登记 21。**不是「修不掉就算了」** —— 复核过 4 个候选升级方向
+ * （eslint 9→10、vite-plugin-pwa 1→2、typescript-eslint、eslint-plugin-vue 最新），
+ * 四条路都清不掉 A/B/C 中的任何一条，而 `overrides` 硬抬 minimatch@11 / glob@14
+ * 会踩 eslint 与 workbox-build 的 API/模块格式差异，属于「为告警拆工具链」。
+ * 等 workbox-build 与 eslint 上游换到带修复的依赖后，跑 `security:audit:update` 下调。
+ *
  * ## 2026-10-28 同日修掉的假绿（比上面那 4 个 low 严重得多）
  *
  * 同日排查时本地跑出「0 漏洞 ✅ 通过」，与 CI 的 4 个 low 冲突。真因是
