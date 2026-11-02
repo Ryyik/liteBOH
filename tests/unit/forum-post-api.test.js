@@ -41,7 +41,13 @@ const REJECTED_STATUS = 'rejected';
 const POST_ASYNC_MODERATION_TIMEOUT_MS = 45000;
 const BASE_DELAY_MS = 2000;
 
-async function schedulePostModerationWithRetry(post = {}) {
+/* ⏱ 退避等待可注入（2026-11-02）：这个文件原来用**真实** setTimeout 跑 2s+4s 退避，
+   三条用例各等 6s ⇒ 单文件 20s，是全量套件里唯一的重灾区（中位数 5ms）。
+   注入 wait 后立等可返回，断言反而更硬：直接比对**请求的毫秒序列** [2000, 4000]，
+   而不是「墙上时间 ≥ 5000ms」这种既慢又会被机器负载影响的写法。 */
+const realWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function schedulePostModerationWithRetry(post = {}, wait = realWait) {
   const postId = String(post.id || '').trim();
   const authorId = String(post.author_id || '').trim();
   const content = String(post.content || '').trim();
@@ -78,7 +84,7 @@ async function schedulePostModerationWithRetry(post = {}) {
         return;
       }
       const delayMs = BASE_DELAY_MS * Math.pow(2, attempt - 1);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      await wait(delayMs);
     }
   }
 }
@@ -112,11 +118,14 @@ describe('BUG-11: schedulePostModeration retry mechanism', { timeout: 15000 }, (
   it('retries up to 3 times when moderation fails', async () => {
     testMocks.runAsyncRelaxedModeration.mockRejectedValue(new Error('service unavailable'));
 
-    await schedulePostModerationWithRetry({
-      id: 'post-2',
-      author_id: 'author-2',
-      content: 'test content',
-    });
+    await schedulePostModerationWithRetry(
+      {
+        id: 'post-2',
+        author_id: 'author-2',
+        content: 'test content',
+      },
+      async () => {},
+    );
 
     expect(testMocks.runAsyncRelaxedModeration).toHaveBeenCalledTimes(3);
   });
@@ -125,11 +134,14 @@ describe('BUG-11: schedulePostModeration retry mechanism', { timeout: 15000 }, (
     testMocks.runAsyncRelaxedModeration.mockRejectedValue(new Error('persistent error'));
 
     await expect(
-      schedulePostModerationWithRetry({
-        id: 'post-3',
-        author_id: 'author-3',
-        content: 'test content',
-      }),
+      schedulePostModerationWithRetry(
+        {
+          id: 'post-3',
+          author_id: 'author-3',
+          content: 'test content',
+        },
+        async () => {},
+      ),
     ).resolves.toBeUndefined();
 
     expect(testMocks.warn).toHaveBeenCalledWith(
@@ -166,16 +178,20 @@ describe('BUG-11: schedulePostModeration retry mechanism', { timeout: 15000 }, (
 
   it('applies exponential backoff between retries', async () => {
     testMocks.runAsyncRelaxedModeration.mockRejectedValue(new Error('error'));
-    const start = Date.now();
+    const waits = [];
 
-    await schedulePostModerationWithRetry({
-      id: 'post-7',
-      author_id: 'author-7',
-      content: 'test',
-    });
+    await schedulePostModerationWithRetry(
+      {
+        id: 'post-7',
+        author_id: 'author-7',
+        content: 'test',
+      },
+      async (ms) => {
+        waits.push(ms);
+      },
+    );
 
-    const elapsed = Date.now() - start;
-    // Base delay 2000ms + 4000ms = at least 6000ms
-    expect(elapsed).toBeGreaterThanOrEqual(5000);
+    // 三次尝试 ⇒ 两次退避，2000ms 起翻倍。断的是**请求值**，不是墙上时间
+    expect(waits).toEqual([2000, 4000]);
   });
 });

@@ -20,7 +20,9 @@
  *   · `--full`：symlink node_modules 后再加跑 lint + type-check + test（约多 10 分钟；build:ci 会暴露「只有构建才炸」的坑，如 worker/静态资源缺失）。
  *
  * 用法：npm run prepush [--full]
- * 退出码：全部绿 = 0；任何一门红 = 1。⏱ 默认约 40s（最重的是全仓结构扫描）。
+ * 退出码：全部绿 = 0；任何一门红 = 1。
+ * ⏱ 2026-11-02 实测（10 核 M 系）：默认档 ≈20s、--full ≈170s。
+ *    门禁批走 scripts/verify.mjs 的并行编排；--full 的 lint/type-check 也并行、test 独占。
  */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
@@ -118,17 +120,51 @@ const run = (label, cmd, args, cwd) => {
 console.log(
   `[prepush]${QUICK ? '（quick 漏配快速档）' : ''} 跑 ${gates.length} 道门禁（对提交树）…`,
 );
-let allOk = true;
-for (const name of gates) allOk = run(name, 'npm', ['run', '--silent', name], wt) && allOk;
+/* 门禁批走并行编排器（scripts/verify.mjs --gates-only）：15 道只读门禁串行要 16s，
+   其中光 `npm run` 启动就摊了约 4.5s；并行后 ≈11s。
+   ⚠️ self-test 不在 verify 链里（它自己注入违规再断言变红），所以单独补跑一次。 */
+const gateNames = gates.filter((name) => name !== 'check:gates-self-test');
+const gateRun = spawnSync('node', ['scripts/verify.mjs', '--gates-only'], {
+  cwd: wt,
+  encoding: 'utf-8',
+  maxBuffer: 256 * 1024 * 1024,
+});
+process.stdout.write(gateRun.stdout || '');
+process.stdout.write(gateRun.stderr || '');
+results.push({
+  label: '门禁（并行）',
+  ok: gateRun.status === 0,
+  out: `${gateRun.stdout || ''}${gateRun.stderr || ''}`,
+});
+let allOk = gateRun.status === 0;
+console.log(`  ${allOk ? '✅' : '❌'} 门禁（并行，${gateNames.length} 道）`);
+if (gates.includes('check:gates-self-test')) {
+  allOk =
+    run('check:gates-self-test', 'npm', ['run', '--silent', 'check:gates-self-test'], wt) && allOk;
+}
 
 console.log('[prepush] npm ci --dry-run（抓 package.json / lock 失同步）…');
 allOk = run('lock 同步', 'npm', ['ci', '--dry-run'], wt) && allOk;
 
 if (FULL) {
   console.log('[prepush] --full：lint + type-check + test …');
-  for (const name of ['lint', 'type-check', 'test', 'build:ci']) {
-    allOk = run(name, 'npm', ['run', '--silent', name], wt) && allOk;
-  }
+  /* 同样走编排器：多核机器上 lint/type-check 并行、test 独占；4 核 CI 上退化为串行 */
+  const heavy = spawnSync('node', ['scripts/verify.mjs', '--heavy-only'], {
+    cwd: wt,
+    encoding: 'utf-8',
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  process.stdout.write(heavy.stdout || '');
+  process.stdout.write(heavy.stderr || '');
+  results.push({
+    label: 'lint+type-check+test',
+    ok: heavy.status === 0,
+    out: `${heavy.stdout || ''}${heavy.stderr || ''}`,
+  });
+  allOk = heavy.status === 0 && allOk;
+  console.log(`  ${heavy.status === 0 ? '✅' : '❌'} lint + type-check + test`);
+
+  allOk = run('build:ci', 'npm', ['run', '--silent', 'build:ci'], wt) && allOk;
 }
 
 // 失败的门禁把首条错误行带出来 —— 只报「红了」不给线索等于没修
