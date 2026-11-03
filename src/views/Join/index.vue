@@ -344,7 +344,7 @@
                           v-model="altchaPayload"
                           :challenge="altchaChallengeUrl"
                           :disabled="isSubmitting"
-                          auto="onload"
+                          auto="off"
                           @statechange="handleAltchaStateChange"
                           @verified="handleAltchaVerified"
                           @expired="handleAltchaExpired"

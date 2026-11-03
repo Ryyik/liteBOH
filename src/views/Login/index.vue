@@ -361,6 +361,16 @@ const handleLogin = async () => {
     return;
   }
 
+  // 闸门已经展示但没勾：本地先拦下。服务端对空 payload 会记一笔失败事件
+  // （requireCaptcha 的阈值越推越高），用户却只看到「请先完成人机验证」来回重复。
+  if (altchaEnabled.value && shouldShowAltcha.value && !altchaPayload.value) {
+    authError.value = '请先完成下方的人机验证';
+    return;
+  }
+
+  // 快照必须在 await 之前取：下面 `await warmLoginDeviceIdHash()` 会让出事件循环，
+  // 期间任何对 altchaPayload 的清理都会让真正发出去的证明变成空串。
+  const altchaPayloadSnapshot = altchaPayload.value;
   isSubmitting.value = true;
   authError.value = '';
 
@@ -371,7 +381,7 @@ const handleLogin = async () => {
 
     const result = await login(normalizedLoginId, loginForm.password, loginForm.rememberMe, {
       // 服务端按风险决定要不要校验；恒传可让「第 3 次失败后要求验证码」立刻生效
-      altchaPayload: altchaPayload.value,
+      altchaPayload: altchaPayloadSnapshot,
       deviceIdHash: loginDeviceIdHash.value,
     });
     if (result.success) {
@@ -630,7 +640,7 @@ onUnmounted(() => {
               v-model="altchaPayload"
               :challenge="altchaChallengeUrl"
               :disabled="isSubmitting"
-              auto="onload"
+              auto="off"
               @statechange="handleAltchaStateChange"
               @verified="handleAltchaVerified"
               @expired="handleAltchaExpired"
@@ -811,7 +821,7 @@ onUnmounted(() => {
                   v-model="altchaPayload"
                   :challenge="altchaChallengeUrl"
                   :disabled="isSubmitting"
-                  auto="onload"
+                  auto="off"
                   @statechange="handleAltchaStateChange"
                   @verified="handleAltchaVerified"
                   @expired="handleAltchaExpired"
