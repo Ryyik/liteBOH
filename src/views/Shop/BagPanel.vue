@@ -55,19 +55,39 @@
                   +
                 </button>
               </div>
-              <p class="row-price">{{ itemPriceText(item) }}</p>
+              <div class="row-price">
+                <!-- 单价 × 数量 = 小计：只写单价时，买了 3 件的人得自己乘一遍 -->
+                <span v-if="item.quantity > 1" class="row-unit">
+                  {{ itemPriceText(item) }} × {{ item.quantity }}
+                </span>
+                <strong>{{ subtotalText(item) }}</strong>
+              </div>
             </div>
           </div>
         </li>
       </TransitionGroup>
-      <div class="bag-total">
-        <span>合计</span>
-        <span class="total-values">{{ totalText }}</span>
-      </div>
-      <button type="button" class="primary-btn" :disabled="!canCheckout" @click="$emit('checkout')">
-        去结算
-      </button>
     </template>
+
+    <!-- 结算条（2026-11-03）：原来是列表末尾的一段普通内容，商品一多就被推出屏幕。
+         改成 position: sticky 后，长列表滚动时它一直贴在视口底部；列表短时
+         仍紧跟在商品下面 —— 两种情形都不需要算固定定位的左右内缩。
+         外层 Transition：清空购物袋时它不该"啪"地消失。 -->
+    <Transition name="bag-foot">
+      <div v-if="shoppingBag.length" class="bag-foot">
+        <div class="bag-total">
+          <span>合计</span>
+          <span class="total-values">{{ totalText }}</span>
+        </div>
+        <button
+          type="button"
+          class="primary-btn"
+          :disabled="!canCheckout"
+          @click="$emit('checkout')"
+        >
+          去结算
+        </button>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -108,6 +128,19 @@ const priceText = (product) => {
   return points ? `${points} 积分` : '暂不可兑换';
 };
 const itemPriceText = priceText;
+/* 小计 = 单价 × 数量。组合支付要两段分别乘，不能把「45 积分 + ¥6.90」整体乘 — */
+const subtotalText = (item) => {
+  const quantity = Math.max(1, Number(item?.quantity) || 1);
+  const mode = String(item?.payment_mode || 'points_only');
+  const points = parsePoints(item?.points_cost) * quantity;
+  const rmb = Number(item?.rmb_price) > 0 ? Number(item.rmb_price) * quantity : 0;
+  if (mode === 'rmb_only') return formatRmb(rmb) || '暂不可购买';
+  if (mode === 'combined')
+    return (
+      [points ? `${points} 积分` : '', formatRmb(rmb)].filter(Boolean).join(' + ') || '暂不可兑换'
+    );
+  return points ? `${points} 积分` : '暂不可兑换';
+};
 /* 购物袋缩略图：裸文件名 → 打包产物，Cloudinary 原址 → 自建 CDN。
    袋里的图是「加购那一刻」的快照，可能来自任意历史形态，必须每次都过这层。 */
 const itemImage = (item) => resolveDbCardImage(item?.image) || '';
@@ -277,8 +310,61 @@ const removeItem = (item) => {
 }
 
 .row-price {
-  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.row-unit {
+  color: var(--boh-text-tertiary, #a1a1a6);
+  font-size: 11px;
+}
+
+.row-price strong {
   font-size: 13px;
+  font-weight: 500;
+}
+
+/* 结算条：粘在视口底部（长列表滚到底才落回原位）。
+   底距让开悬浮底栏：竖屏 96px + 安全区；横屏底栏变成贴右的竖排胶囊 ⇒ 只需 12px。 */
+.bag-foot {
+  position: sticky;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 2px;
+  padding-top: 10px;
+  /* 与页面同色，滚上去的商品不会从字缝里透出来 */
+  background: var(--boh-bg-secondary, #f5f5f7);
+}
+
+@media (orientation: landscape) {
+  .bag-foot {
+    bottom: 12px;
+  }
+}
+
+/* 结算条自身的进出场：清空购物袋 / 加回商品时不该瞬间出现或消失 */
+.bag-foot-enter-from,
+.bag-foot-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.bag-foot-enter-active,
+.bag-foot-leave-active {
+  transition:
+    opacity 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+    transform 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bag-foot-enter-active,
+  .bag-foot-leave-active {
+    transition-duration: 1ms;
+  }
 }
 
 .bag-total {

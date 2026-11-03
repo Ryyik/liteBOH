@@ -11,7 +11,7 @@
           <button
             type="button"
             class="payment-success-close"
-            aria-label="关闭支付成功提示"
+            aria-label="关闭订单结果提示"
             @click="$emit('close')"
           >
             <X :size="19" aria-hidden="true" />
@@ -35,7 +35,7 @@
                   ><Check :size="25" :stroke-width="2.5" aria-hidden="true"
                 /></span>
                 <span class="payment-card-back-brand">方块商店</span>
-                <strong>支付成功</strong>
+                <strong>已提交</strong>
                 <span class="payment-card-back-order">{{ orderNo }}</span>
                 <span class="payment-card-back-footer">BOH STORE</span>
               </div>
@@ -43,19 +43,49 @@
           </div>
 
           <div class="payment-success-copy" :class="{ revealed: isComplete }">
-            <h2 id="payment-success-title">支付成功</h2>
-            <p>{{ paymentSummary }}</p>
+            <!-- 文案从「支付成功」改成「订单已提交」（2026-11-03）：
+                 现金部分是管理员线下确认的，这里说"支付成功"是事实性误导 ——
+                 用户会以为钱已经收到了，而实际还有一步没走完。 -->
+            <h2 id="payment-success-title">订单已提交</h2>
+            <p>{{ paymentSummary || '订单已确认' }}</p>
           </div>
+
           <dl class="payment-success-details" :class="{ revealed: isComplete }">
+            <!-- 订单号独占一行（grid-column 1/-1）：两列并排时 18 位单号必被截断，
+                 而截断的订单号等于没有 —— 用户报单号给管理员时读不全。 -->
             <div>
               <dt>订单号</dt>
-              <dd>{{ orderNo }}</dd>
+              <dd class="payment-success-orderno">
+                <span>{{ orderNo || '—' }}</span>
+                <button type="button" class="payment-success-copy-btn" @click="copyOrderNo">
+                  {{ copied ? '已复制' : '复制' }}
+                </button>
+              </dd>
             </div>
             <div>
               <dt>剩余积分</dt>
               <dd>{{ formattedPoints }}</dd>
             </div>
           </dl>
+
+          <div
+            v-if="itemSummary || shippingTo"
+            class="payment-success-extra"
+            :class="{ revealed: isComplete }"
+          >
+            <p v-if="itemSummary"><span>商品</span>{{ itemSummary }}</p>
+            <p v-if="shippingTo"><span>寄往</span>{{ shippingTo }}</p>
+          </div>
+
+          <!-- 后续三步：下单之后到底发生什么，是这一屏最该回答的问题 -->
+          <ol class="payment-success-steps" :class="{ revealed: isComplete }">
+            <li>
+              <strong>管理员确认</strong><span>通过资料里的电话联系你，核对现金与寄送方式</span>
+            </li>
+            <li><strong>备货发出</strong><span>进度会更新在「订单」里，可随时查看</span></li>
+            <li><strong>收货确认</strong><span>收到后订单自动转「完成」，中途可自助取消</span></li>
+          </ol>
+
           <!-- 邮件通知结果（2026-11-02）：以前失败时弹的是顶部灵动岛，而岛正好压在
                卡片翻转动画上。现在结果就地说清楚，岛只在弹窗关闭后才提醒。 -->
           <p
@@ -67,14 +97,15 @@
             <AlertTriangle :size="14" aria-hidden="true" />
             <span>通知邮件发送失败，订单已记录，管理员可在后台处理</span>
           </p>
-          <button
-            type="button"
-            class="payment-success-confirm"
-            :class="{ revealed: isComplete }"
-            @click="$emit('close')"
-          >
-            完成
-          </button>
+
+          <div class="payment-success-actions" :class="{ revealed: isComplete }">
+            <button type="button" class="payment-success-confirm" @click="$emit('view-orders')">
+              查看订单
+            </button>
+            <button type="button" class="payment-success-secondary" @click="$emit('continue')">
+              继续逛逛
+            </button>
+          </div>
         </section>
       </div>
     </Transition>
@@ -94,19 +125,41 @@ const props = defineProps({
   imageUrl: { type: String, default: '' },
   orderNo: { type: String, default: '' },
   paymentSummary: { type: String, default: '订单已确认' },
+  /** 商品摘要（「围巾小狗 等 2 件」）：成功页不显示买了什么，用户只能靠记忆核对 */
+  itemSummary: { type: String, default: '' },
+  /** 寄往哪儿（「张三 · 江苏省苏州市…」） */
+  shippingTo: { type: String, default: '' },
   /** pending | sent | failed —— 结算邮件是异步发的，结果可能晚于弹窗出现 */
   emailState: { type: String, default: 'pending' },
 });
 
-defineEmits(['close']);
+defineEmits(['close', 'view-orders', 'continue']);
 
 const isFlipping = ref(false);
 const isComplete = ref(false);
+const copied = ref(false);
+let copyTimer = null;
 let flipStartTimer = null;
 let flipCompleteTimer = null;
 const formattedPoints = computed(
   () => `${Math.max(0, Number(props.points) || 0).toLocaleString('zh-CN')} 积分`,
 );
+
+const copyOrderNo = async () => {
+  const text = String(props.orderNo || '').trim();
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    copied.value = true;
+    if (copyTimer) clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
+      copied.value = false;
+    }, 1800);
+  } catch {
+    // 剪贴板不可用（非安全上下文 / 未授权）时不弹错：订单号已经在屏幕上，
+    // 用户能手动选中 —— 这里只负责别把异常抛到控制台
+  }
+};
 
 watch(
   () => props.visible,
@@ -129,6 +182,7 @@ watch(
 onBeforeUnmount(() => {
   if (flipStartTimer) clearTimeout(flipStartTimer);
   if (flipCompleteTimer) clearTimeout(flipCompleteTimer);
+  if (copyTimer) clearTimeout(copyTimer);
 });
 </script>
 
@@ -299,8 +353,7 @@ onBeforeUnmount(() => {
     transform 320ms ease 260ms;
 }
 .payment-success-copy.revealed,
-.payment-success-details.revealed,
-.payment-success-confirm.revealed {
+.payment-success-details.revealed {
   opacity: 1;
   transform: none;
 }
@@ -321,7 +374,7 @@ onBeforeUnmount(() => {
   border: 1px solid color-mix(in srgb, var(--boh-text-primary, #4a5665) 12%, transparent);
   border-radius: 12px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
   background: color-mix(in srgb, var(--boh-page-bg, #f6f8fa) 80%, transparent);
   opacity: 0;
@@ -348,8 +401,129 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 .payment-success-details div + div {
-  padding-left: 12px;
-  border-left: 1px solid color-mix(in srgb, var(--boh-text-primary, #4a5665) 12%, transparent);
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--boh-text-primary, #4a5665) 12%, transparent);
+}
+
+/* 订单号：完整显示 + 就地复制。截断的订单号没法报给管理员。 */
+.payment-success-orderno {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  overflow: visible;
+  white-space: normal;
+}
+.payment-success-orderno span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+.payment-success-copy-btn {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--boh-text-primary, #4a5665) 18%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--boh-text-secondary, #5d6269);
+  font-size: 10px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.payment-success-copy-btn:hover {
+  color: var(--boh-text-primary, #1d2735);
+}
+/* 商品 / 寄往：成功页要能回答「买的是什么、寄给谁」 */
+.payment-success-extra {
+  margin: 12px 0 0;
+  padding: 0 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  opacity: 0;
+  transform: translateY(7px);
+  transition:
+    opacity 320ms ease 380ms,
+    transform 320ms ease 380ms;
+}
+.payment-success-extra p {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  color: var(--boh-text-primary, #333a42);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.payment-success-extra span {
+  flex: none;
+  min-width: 32px;
+  color: color-mix(in srgb, var(--boh-text-primary, #6d7279) 62%, transparent);
+}
+.payment-success-steps {
+  margin: 14px 0 0;
+  padding: 12px 13px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  list-style: none;
+  background: color-mix(in srgb, var(--boh-text-primary, #1d2735) 5%, transparent);
+  text-align: left;
+  opacity: 0;
+  transform: translateY(7px);
+  transition:
+    opacity 320ms ease 410ms,
+    transform 320ms ease 410ms;
+}
+.payment-success-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: relative;
+  padding-left: 14px;
+}
+.payment-success-steps li::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--boh-brand-blue, #0071e3);
+}
+.payment-success-steps strong {
+  color: var(--boh-text-primary, #333a42);
+  font-size: 12px;
+  font-weight: 500;
+}
+.payment-success-steps span {
+  color: color-mix(in srgb, var(--boh-text-primary, #6d7279) 66%, transparent);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.payment-success-extra.revealed,
+.payment-success-steps.revealed {
+  opacity: 1;
+  transform: none;
+}
+.payment-success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  opacity: 0;
+  transform: translateY(7px);
+  transition:
+    opacity 320ms ease 430ms,
+    transform 320ms ease 430ms;
+}
+.payment-success-actions.revealed {
+  opacity: 1;
+  transform: none;
 }
 /* 邮件通知失败：就地说明，替代原来那条压在动画上的灵动岛。
    --boh-warning 只有暗色档在 themes/dark-mode.css 里定义，浅色走回退 #8a5a00
@@ -383,7 +557,6 @@ onBeforeUnmount(() => {
 .payment-success-confirm {
   width: 100%;
   min-height: 44px;
-  margin-top: 18px;
   border: 0;
   border-radius: 12px;
   /* 按钮与卡片互为反色：浅色是深底白字，暗色自动翻成浅底深字 */
@@ -392,12 +565,7 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  opacity: 0;
-  transform: translateY(7px);
-  transition:
-    opacity 320ms ease 430ms,
-    transform 320ms ease 430ms,
-    filter 160ms ease;
+  transition: filter 160ms ease;
 }
 .payment-success-confirm:hover {
   /* 用 brightness 而不是换一个底色：亮暗两档方向一致，也不必再补一个反色值 */
@@ -405,6 +573,19 @@ onBeforeUnmount(() => {
 }
 .payment-success-confirm:active {
   transform: scale(0.985);
+}
+.payment-success-secondary {
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: color-mix(in srgb, var(--boh-text-primary, #1d2735) 62%, transparent);
+  font-size: 13px;
+  cursor: pointer;
+}
+.payment-success-secondary:hover {
+  color: var(--boh-text-primary, #1d2735);
 }
 .payment-success-enter-active,
 .payment-success-leave-active {
@@ -463,7 +644,9 @@ onBeforeUnmount(() => {
   }
   .payment-success-copy,
   .payment-success-details,
-  .payment-success-confirm {
+  .payment-success-extra,
+  .payment-success-steps,
+  .payment-success-actions {
     transition-duration: 1ms;
   }
 }

@@ -7,112 +7,136 @@
        状态用竖向时间线表达进度，而不是只丢一个「待处理」标签 —— 主流电商看的是
        「到哪一步了、下一步是什么」。 -->
   <Teleport to="body">
-    <div v-if="order" class="od-overlay" @click.self="$emit('close')">
-      <section class="od-sheet" role="dialog" aria-modal="true" aria-label="订单详情">
-        <header class="od-head">
-          <button type="button" class="od-back" aria-label="返回" @click="$emit('close')">
-            <ChevronLeft :size="20" :stroke-width="2" aria-hidden="true" />
-          </button>
-          <span class="od-head-title">订单详情</span>
-          <!-- 占位：让标题在视觉上居中，不依赖 flex 的 space-between 凑 -->
-          <span class="od-head-spacer" aria-hidden="true" />
-        </header>
+    <!-- 进出场（2026-11-03 用户口径「打开关闭任何操作都要有动画，不要硬切」）：
+         进场原本就有 od-slide-up；补的是**遮罩淡入**与**离场**——
+         v-if 直接摘节点会让整层瞬间消失，看起来像页面闪了一下。 -->
+    <Transition name="od">
+      <div v-if="order" class="od-overlay" @click.self="$emit('close')">
+        <section class="od-sheet" role="dialog" aria-modal="true" aria-label="订单详情">
+          <header class="od-head">
+            <button type="button" class="od-back" aria-label="返回" @click="$emit('close')">
+              <ChevronLeft :size="20" :stroke-width="2" aria-hidden="true" />
+            </button>
+            <span class="od-head-title">订单详情</span>
+            <!-- 占位：让标题在视觉上居中，不依赖 flex 的 space-between 凑 -->
+            <span class="od-head-spacer" aria-hidden="true" />
+          </header>
 
-        <div class="od-body">
-          <div class="od-status" :class="{ muted: isCancelled }">
-            <div class="od-status-copy">
-              <strong>{{ statusLabel }}</strong>
-              <small>{{ statusHint }}</small>
-            </div>
-            <component
-              :is="isCancelled ? Ban : Truck"
-              :size="22"
-              :stroke-width="1.8"
-              aria-hidden="true"
-            />
-          </div>
-
-          <ol class="od-steps" :class="{ 'is-cancelled': isCancelled }">
-            <li
-              v-for="(step, index) in steps"
-              :key="step.key"
-              class="od-step"
-              :class="{ done: index <= currentIndex, current: index === currentIndex }"
-            >
-              <span class="od-dot" aria-hidden="true" />
-              <div class="od-step-copy">
-                <strong>{{ step.label }}</strong>
-                <small>{{ step.hint }}</small>
+          <div class="od-body">
+            <div class="od-status" :class="{ muted: isCancelled }">
+              <div class="od-status-copy">
+                <strong>{{ statusLabel }}</strong>
+                <small>{{ statusHint }}</small>
               </div>
-              <time v-if="step.time" class="od-step-time">{{ step.time }}</time>
-            </li>
-          </ol>
+              <component
+                :is="isCancelled ? Ban : Truck"
+                :size="22"
+                :stroke-width="1.8"
+                aria-hidden="true"
+              />
+            </div>
 
-          <div class="od-section">
-            <h3 class="od-section-title">商品</h3>
-            <ul class="od-items">
-              <li v-for="(item, index) in items" :key="`${item.title}-${index}`" class="od-item">
-                <span class="od-thumb">
-                  <img
-                    v-if="item.imageUrl && !isItemImageFailed(index)"
-                    :src="item.imageUrl"
-                    alt=""
-                    loading="lazy"
-                    @error="markItemImageFailed(index)"
-                  />
-                  <ShoppingBag v-else :size="20" :stroke-width="1.7" aria-hidden="true" />
-                </span>
-                <span class="od-item-copy">
-                  <strong>{{ item.title }}</strong>
-                  <small>{{ item.specLabel }}</small>
-                </span>
-                <span class="od-item-qty">×{{ item.quantity }}</span>
+            <ol class="od-steps" :class="{ 'is-cancelled': isCancelled }">
+              <li
+                v-for="(step, index) in steps"
+                :key="step.key"
+                class="od-step"
+                :class="{ done: index <= currentIndex, current: index === currentIndex }"
+              >
+                <span class="od-dot" aria-hidden="true" />
+                <div class="od-step-copy">
+                  <strong>{{ step.label }}</strong>
+                  <small>{{ step.hint }}</small>
+                </div>
+                <time v-if="step.time" class="od-step-time">{{ step.time }}</time>
               </li>
-            </ul>
+            </ol>
+
+            <div class="od-section">
+              <h3 class="od-section-title">商品</h3>
+              <ul class="od-items">
+                <li v-for="(item, index) in items" :key="`${item.title}-${index}`" class="od-item">
+                  <span class="od-thumb">
+                    <img
+                      v-if="item.imageUrl && !isItemImageFailed(index)"
+                      :src="item.imageUrl"
+                      alt=""
+                      loading="lazy"
+                      @error="markItemImageFailed(index)"
+                    />
+                    <ShoppingBag v-else :size="20" :stroke-width="1.7" aria-hidden="true" />
+                  </span>
+                  <span class="od-item-copy">
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ item.specLabel }}</small>
+                  </span>
+                  <span class="od-item-qty">×{{ item.quantity }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <dl class="od-meta">
+              <div>
+                <dt>订单号</dt>
+                <dd>{{ order.orderNo || '—' }}</dd>
+              </div>
+              <div>
+                <dt>下单时间</dt>
+                <dd>{{ formatDateTime(order.createdAt) || '—' }}</dd>
+              </div>
+              <div>
+                <dt>支付</dt>
+                <dd>{{ order.priceText || '—' }}</dd>
+              </div>
+              <div v-if="order.updatedAt">
+                <dt>最近更新</dt>
+                <dd>{{ formatDateTime(order.updatedAt) }}</dd>
+              </div>
+            </dl>
+
+            <!-- 收货信息（2026-11-03）：时间线只回答「到哪一步」，回答不了「寄给谁、寄到哪」。
+               ⚠️ 订单表**没有地址快照列**（只存了收件人电话与 items），这里读的是
+               当前资料里登记的收货地址 —— 所以措辞必须写明「当前资料」，不能让人
+               以为这是下单当时的快照。补真快照要动表结构（见 plans/037 §5 P2）。 -->
+            <div v-if="shipping" class="od-section">
+              <h3 class="od-section-title">收货信息</h3>
+              <div class="od-shipping">
+                <p class="od-shipping-head">
+                  <strong>{{ shipping.recipient || '未填写' }}</strong>
+                  <span>{{ shipping.phone || '' }}</span>
+                </p>
+                <p class="od-shipping-addr">{{ shipping.address || '未填写' }}</p>
+                <small>按当前资料显示 · 下单时的地址未单独留档</small>
+              </div>
+            </div>
+
+            <p v-if="!canCancel" class="od-note">{{ cancelHint }}</p>
           </div>
 
-          <dl class="od-meta">
-            <div>
-              <dt>订单号</dt>
-              <dd>{{ order.orderNo || '—' }}</dd>
-            </div>
-            <div>
-              <dt>下单时间</dt>
-              <dd>{{ formatDateTime(order.createdAt) || '—' }}</dd>
-            </div>
-            <div>
-              <dt>支付</dt>
-              <dd>{{ order.priceText || '—' }}</dd>
-            </div>
-            <div v-if="order.updatedAt">
-              <dt>最近更新</dt>
-              <dd>{{ formatDateTime(order.updatedAt) }}</dd>
-            </div>
-          </dl>
-
-          <p v-if="!canCancel" class="od-note">{{ cancelHint }}</p>
-        </div>
-
-        <footer v-if="canCancel" class="od-foot">
-          <button
-            type="button"
-            class="od-cancel"
-            :class="{ armed }"
-            :disabled="cancelling"
-            @click="handleCancel"
-          >
-            {{ cancelling ? '处理中…' : armed ? '确认取消' : cancelLabel }}
-          </button>
-        </footer>
-      </section>
-    </div>
+          <footer v-if="canCancel" class="od-foot">
+            <button
+              type="button"
+              class="od-cancel"
+              :class="{ armed }"
+              :disabled="cancelling"
+              @click="handleCancel"
+            >
+              {{ cancelling ? '处理中…' : armed ? '确认取消' : cancelLabel }}
+            </button>
+          </footer>
+        </section>
+      </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Ban, ChevronLeft, ShoppingBag, Truck } from 'lucide-vue-next';
+import { storeToRefs } from 'pinia';
+import { useAuthStore } from '@/stores/auth';
 import { cancelGift, cancelShopOrder } from '@/utils/api/shop-orders-api.js';
+import { getProfileByUsername } from '@/utils/api/profile-api.js';
 import { logger } from '@/utils/logger.js';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
@@ -144,6 +168,37 @@ const CANCELABLE_GIFT = new Set(['preparing']);
 const kind = computed(() => (props.order?.kind === 'gift' ? 'gift' : 'shop'));
 const status = computed(() => String(props.order?.status || ''));
 const isCancelled = computed(() => status.value === 'cancelled');
+
+/* 收货信息：订单行里没有地址快照（表结构如此），从当前资料读一份用于核对。
+   只有购物订单需要 —— 礼物/中奖的联系方式走的是另一条线。
+   读失败就整块不显示，不要用一个空卡片占位。 */
+const authStore = useAuthStore();
+const { userInfo } = storeToRefs(authStore);
+const shipping = ref(null);
+const loadShipping = async () => {
+  if (props.order?.kind !== 'shop') {
+    shipping.value = null;
+    return;
+  }
+  const username = String(userInfo.value?.username || '').trim();
+  if (!username) return;
+  try {
+    const { data, error } = await getProfileByUsername(username);
+    if (error || !data) return;
+    const recipient = String(data.shipping_recipient || '').trim();
+    const phone = String(data.shipping_phone || '').trim();
+    const address = String(data.shipping_address || '').trim();
+    shipping.value = recipient || address ? { recipient, phone, address } : null;
+  } catch (error) {
+    logger.warn('shop-order', '读取收货信息失败', error);
+  }
+};
+
+watch(
+  () => props.order?.id,
+  () => void loadShipping(),
+  { immediate: true },
+);
 
 const statusLabel = computed(() => {
   if (isCancelled.value) return '取消';
@@ -349,6 +404,49 @@ onBeforeUnmount(() => {
   animation: od-slide-up 240ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/* 遮罩淡入（面板自己走 od-slide-up）；离场单独写一套 —— 进场若也交给
+   <Transition> 会和下面那条 keyframes 打架，所以这里只接管 leave。 */
+.od-overlay {
+  animation: od-fade-in 200ms ease;
+}
+
+@keyframes od-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.od-leave-active {
+  transition: opacity 200ms ease;
+}
+
+.od-leave-to {
+  opacity: 0;
+}
+
+.od-leave-active .od-sheet {
+  transition:
+    transform 220ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 200ms ease;
+}
+
+.od-leave-to .od-sheet {
+  transform: translateY(4%);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .od-overlay,
+  .od-sheet {
+    animation-duration: 1ms;
+  }
+
+  .od-leave-active,
+  .od-leave-active .od-sheet {
+    transition-duration: 1ms;
+  }
+}
+
 @keyframes od-slide-up {
   from {
     transform: translateY(3%);
@@ -366,7 +464,6 @@ onBeforeUnmount(() => {
     align-items: center;
     padding: 20px;
   }
-
   .od-sheet {
     width: min(560px, 100%);
     height: auto;
@@ -567,6 +664,48 @@ onBeforeUnmount(() => {
   color: var(--boh-text-secondary, #86868b);
   font-size: 12px;
   font-weight: 500;
+}
+
+/* 收货信息：与商品块同款卡片，但只放两行文字 */
+.od-shipping {
+  padding: 11px 12px;
+  border: 1px solid var(--boh-border-primary, rgba(0, 0, 0, 0.08));
+  border-radius: 14px;
+  background: var(--boh-bg-primary, #fff);
+}
+
+.od-shipping p {
+  margin: 0;
+}
+
+.od-shipping-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.od-shipping-head strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.od-shipping-head span {
+  color: var(--boh-text-secondary, #86868b);
+  font-size: 12px;
+}
+
+.od-shipping .od-shipping-addr {
+  margin-top: 4px;
+  color: var(--boh-text-primary, #1d1d1f);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.od-shipping small {
+  display: block;
+  margin-top: 6px;
+  color: var(--boh-text-tertiary, #a1a1a6);
+  font-size: 11px;
 }
 
 .od-items {

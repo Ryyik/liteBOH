@@ -62,6 +62,47 @@ export async function fetchDefaultAddress(userId) {
 }
 
 /**
+ * 新增一条收货地址（结算页「还没有地址」时就地补一条用）。
+ *
+ * 与 syncDefaultAddress 的分工：那个只改**已有的默认地址**，绝不新建；
+ * 这个只在地址簿为空 / 用户明确点「新增」时调用，并且：
+ *   · 地址簿里一条都没有 ⇒ 这条自动成为默认（否则用户填完仍没有默认地址，
+ *     下次结算又空白）；
+ *   · 已经有地址 ⇒ 不抢默认，默认地址是用户在地址页显式决定的。
+ *
+ * @returns {Promise<{ ok: boolean, error?: Error }>}
+ */
+export async function createAddress({ userId, recipient, phone, region, detail, tag = '' } = {}) {
+  const uid = String(userId || '').trim();
+  if (!uid) return { ok: false, error: new Error('MISSING_USER') };
+  try {
+    const { data: existing, error: readError } = await supabase
+      .from('user_addresses')
+      .select('id')
+      .eq('user_id', uid)
+      .limit(1);
+    if (readError) return { ok: false, error: readError };
+
+    // 不回读：insert 成功即算成功。带上 select 回读一旦被 RLS 挡掉，
+    // 就会把「已经插进去了」报成失败，用户重试反而插出两条。
+    const { error } = await supabase.from('user_addresses').insert({
+      user_id: uid,
+      recipient: String(recipient || '').trim(),
+      phone: String(phone || '').trim(),
+      region: String(region || '').trim(),
+      detail: String(detail || '').trim(),
+      tag: String(tag || '').trim(),
+      is_default: !(Array.isArray(existing) && existing.length),
+    });
+    if (error) return { ok: false, error };
+    return { ok: true };
+  } catch (error) {
+    logger.warn('address-api', '新增收货地址失败', error);
+    return { ok: false, error };
+  }
+}
+
+/**
  * 把结算表单里填的收件信息同步进「已有的默认地址」。
  *
  * 刻意**不新建**地址：结算页不是地址编辑器，用户在这里改一个错别字不该凭空长出一条

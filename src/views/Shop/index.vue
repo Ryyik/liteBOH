@@ -168,124 +168,24 @@
       @add="addToBagFromDetail"
     />
 
-    <Transition name="modal">
-      <div v-if="showContactModal" class="modal-scrim" @click="closeContactModal">
-        <section
-          class="contact-card"
-          role="dialog"
-          aria-modal="true"
-          aria-label="确认收货信息"
-          @click.stop
-        >
-          <!-- 关闭按钮：surface 直属子元素（与商品/抽奖详情同款），
-               竖屏下这是唯一显式关闭入口 —— 点遮罩在 iOS 上可能被键盘/焦点吞掉 -->
-          <button type="button" class="contact-close" aria-label="关闭" @click="closeContactModal">
-            <X :size="16" :stroke-width="2" aria-hidden="true" />
-          </button>
-
-          <p class="contact-kicker">订单确认</p>
-          <h2>确认收货信息</h2>
-          <!-- 2026-11-01 用户口径：结算不再填 QQ / 微信 —— 直接用资料里的收件信息，
-               缺项就地补全并写回个人资料，下单选「确认提交」即直接邮件通知管理员。 -->
-          <p class="contact-note">信息保存到你的资料，下次下单自动带出。</p>
-
-          <div class="field-grid-2">
-            <label class="contact-field">
-              <span>收件人</span>
-              <input v-model.trim="checkoutForm.recipient" type="text" placeholder="收件人姓名" />
-            </label>
-            <label class="contact-field">
-              <span>电话</span>
-              <input
-                v-model.trim="checkoutForm.phone"
-                type="tel"
-                inputmode="tel"
-                placeholder="手机号"
-              />
-            </label>
-          </div>
-
-          <label class="contact-field">
-            <span>邮箱（账号）</span>
-            <input :value="userInfo.email || '未绑定邮箱'" type="text" readonly />
-          </label>
-
-          <div class="contact-field">
-            <div class="contact-field-head">
-              <span>收货地址</span>
-              <!-- 地址簿只在「地址」分区维护（2026-11-02 用户口径：地址独立成子 Tab）。
-                   这里不再另起弹层：关掉结算、切到那一区，改完的默认地址下次结算自动带出 -->
-              <button type="button" class="field-manage" @click="manageAddressFromCheckout">
-                管理地址
-              </button>
-            </div>
-            <!-- 一键识别：粘贴整段地址（含从聊天/电商订单里复制的长文本）→ 自动拆成省 / 市 / 详细地址。
-                 识别是纯本地的（utils/address-parse.js），不联网、不上传；拆不出来就整段留在
-                 「详细地址」里，绝不丢字。 -->
-            <div class="addr-paste">
-              <input
-                ref="pasteInputRef"
-                v-model="checkoutForm.pasteText"
-                type="text"
-                :placeholder="awaitingPaste ? '粘贴到这里' : '粘贴整段地址自动拆分'"
-                @paste="handleAddressPaste"
-                @input="handleAddressTyping"
-              />
-              <button
-                type="button"
-                class="addr-paste-btn"
-                :class="{ 'is-awaiting': awaitingPaste }"
-                :disabled="recognizing"
-                @click="readClipboardAddress"
-              >
-                <ClipboardPaste :size="14" :stroke-width="1.8" aria-hidden="true" />
-                {{ recognizing ? '识别中' : awaitingPaste ? '等待粘贴' : '识别' }}
-              </button>
-            </div>
-            <div class="addr-row">
-              <div class="addr-select">
-                <select v-model="checkoutForm.province" aria-label="省份">
-                  <option value="">省份</option>
-                  <option v-for="province in PROVINCES" :key="province" :value="province">
-                    {{ province }}
-                  </option>
-                </select>
-              </div>
-              <input
-                v-model.trim="checkoutForm.city"
-                type="text"
-                placeholder="城市"
-                aria-label="城市"
-              />
-            </div>
-            <textarea
-              v-model.trim="checkoutForm.detail"
-              rows="2"
-              placeholder="区县 / 街道 / 门牌号"
-              aria-label="详细地址"
-            ></textarea>
-          </div>
-
-          <div v-if="totalPoints || totalRmb" class="contact-summary">
-            <div v-if="totalPoints" class="contact-line">
-              <span>积分支付</span><strong>{{ totalPoints }} 积分</strong>
-            </div>
-            <div v-if="totalRmb" class="contact-line">
-              <span>现金支付</span><strong>{{ totalRmbText }}</strong>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            class="submit-btn"
-            :disabled="submittingContact"
-            @click="submitContact"
-          >
-            {{ submittingContact ? '提交中…' : '确认提交' }}
-          </button>
-        </section>
-      </div>
-    </Transition>
+    <!-- 确认订单（2026-11-03）
+         原来是「确认收货信息」表单弹窗：点结算只弹地址表单，用户看不到买什么、付多少。
+         现在是一个整页的确认订单层：地址卡 / 商品清单 / 金额明细 / 预检 / 固定底栏，
+         形态与 ProductDetailSheet 同源（竖屏整页、横屏居中弹窗）。 -->
+    <CheckoutSheet
+      :visible="showCheckout"
+      :bag-items="shoppingBag"
+      :products="allProducts"
+      :points-balance="Number(userInfo.points) || 0"
+      :user-id="userInfo.id || ''"
+      :submitting="submittingContact"
+      :fallback-address="fallbackAddress"
+      @update:address="checkoutAddress = $event"
+      @submit="submitContact"
+      @close="closeCheckout"
+      @manage-addresses="manageAddressesFromCheckout"
+      @remove-invalid="removeInvalidBagItems"
+    />
 
     <ShopPaymentSuccessModal
       :visible="Boolean(paymentSuccess)"
@@ -295,8 +195,12 @@
       :image-url="userInfo.pointsCardImageUrl"
       :order-no="paymentSuccess?.orderNo || ''"
       :payment-summary="paymentSuccess?.paymentSummary || ''"
+      :item-summary="paymentSuccess?.itemSummary || ''"
+      :shipping-to="paymentSuccess?.shippingTo || ''"
       :email-state="paymentSuccess?.emailState || 'pending'"
       @close="closePaymentSuccess"
+      @view-orders="goOrdersFromSuccess"
+      @continue="continueShoppingFromSuccess"
     />
 
     <Transition name="toast">
@@ -328,19 +232,15 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Package, Search, User, X, ClipboardPaste } from 'lucide-vue-next';
+import { Package, Search, User, X } from 'lucide-vue-next';
 import mascotHeroUrl from '@/assets/images/mascot-new-landscape-orig.webp';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
 import { useImageLoaded } from '@/composables/useImageLoaded.js';
 import { useAuthStore } from '@/stores/auth';
-import {
-  fetchDefaultAddress,
-  syncDefaultAddress as syncDefaultAddressApi,
-} from '@/utils/api/address-api.js';
 import { useBagStore } from '@/stores/bag';
 import { useProductsStore } from '@/stores/products';
 import { createNotification } from '@/utils/api/notifications-api.js';
@@ -354,12 +254,7 @@ import { sendMerchandiseSettlementEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
 import { showIsland } from '@/composables/useIsland.js';
 import { captureOrigin } from '@/utils/motion-origin.js';
-import {
-  PROVINCES,
-  composeAddress,
-  looksLikeFullAddress,
-  parseAddress,
-} from '@/utils/address-parse.js';
+import { composeAddress } from '@/utils/address-parse.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { logoutAndReload } from '@/utils/logout-and-reload.js';
 import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
@@ -369,6 +264,8 @@ import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpac
 import { useScrollDirectionHide } from '@/views/user-center/UserSpace/composables/useScrollDirectionHide.js';
 import ShopPaymentSuccessModal from './ShopPaymentSuccessModal.vue';
 import ProductDetailSheet from './ProductDetailSheet.vue';
+import CheckoutSheet from './CheckoutSheet.vue';
+import { buildPaymentSummary } from './checkout-summary.js';
 import LotteryPanel from './LotteryPanel.vue';
 import BagPanel from './BagPanel.vue';
 import OrderPanel from './OrderPanel.vue';
@@ -404,17 +301,12 @@ const searchKeyword = ref('');
 const selectedProduct = ref(null);
 const selectedSpecValue = ref('');
 const selectedOriginKey = ref('');
-const showContactModal = ref(false);
-/* 结算表单：直接从个人资料的 shipping_* 带出（2026-11-01 起不再手填 QQ/微信）。
-   缺项就地补填，提交时写回资料 —— 下一次下单自动带出，管理员邮件里也直接有。 */
-const checkoutForm = reactive({
-  recipient: '',
-  phone: '',
-  province: '',
-  city: '',
-  detail: '',
-  pasteText: '',
-});
+const showCheckout = ref(false);
+/* 结算页选中的收货地址（由 CheckoutSheet 单向告知）。
+   id 为空 = 来自 profiles 的历史回落地址，不写地址簿、只写 profiles。 */
+const checkoutAddress = ref(null);
+/* 老用户兜底：地址簿为空时用资料里的三条 shipping_* 拼出来的地址 */
+const fallbackAddress = ref(null);
 const submittingContact = ref(false);
 const operationToast = ref({ show: false, message: '' });
 const paymentSuccess = ref(null);
@@ -555,15 +447,8 @@ const totalPoints = computed(() =>
     0,
   ),
 );
-const totalRmb = computed(() =>
-  shoppingBag.value.reduce((sum, item) => {
-    const rmb = Number(item.rmb_price);
-    return sum + (Number.isFinite(rmb) && rmb > 0 ? rmb * item.quantity : 0);
-  }, 0),
-);
-const totalRmbText = computed(() =>
-  totalRmb.value > 0 ? `¥${(totalRmb.value / 100).toFixed(2)}` : '',
-);
+/* 只有「能不能进结算」这一个判据留在页面上；金额明细全在 CheckoutSheet 里按实时价算
+   （总量的第二份实现会和它漂移，所以这里不再留 totalRmb）。 */
 const canCheckout = computed(() => {
   if (!shoppingBag.value.length) return false;
   return shoppingBag.value.every((item) => isProductExchangeable(item));
@@ -650,9 +535,9 @@ function showOperationToast(message) {
   }, 2600);
 }
 
-const closeContactModal = () => {
-  showContactModal.value = false;
-  stopPasteWatch();
+const closeCheckout = () => {
+  showCheckout.value = false;
+  document.body.style.overflow = '';
 };
 /* 结算邮件的异步结果（2026-11-02）：弹窗还开着就更新弹窗内那行说明；
    已经关掉了（用户点「完成」很快）才用岛补一条提醒 —— 岛挂在导航里，
@@ -672,182 +557,53 @@ const closePaymentSuccess = () => {
   if (emailFailed) showOperationToast('订单已提交，但通知邮件发送失败');
 };
 
-/* 结算里点「管理地址」：收掉结算弹层，切到「地址」分区。
-   地址簿只有那一处在维护（2026-11-02 地址独立成子 Tab），这里不再挂第二个弹层；
-   已经填好的内容留在 checkoutForm 里，管理完再开结算会按新的默认地址重新带出。 */
-const manageAddressFromCheckout = () => {
-  closeContactModal();
+/* 成功页的两个出口：主流电商都让用户「立刻能看到刚下的单」或「接着逛」，
+   只给一个「完成」等于把用户扔回商品列表自己找订单。 */
+const goOrdersFromSuccess = () => {
+  closePaymentSuccess();
+  switchTab('order');
+};
+const continueShoppingFromSuccess = () => {
+  closePaymentSuccess();
+  switchTab('products');
+};
+
+/* 结算里点「在地址簿里编辑 / 删除」：收掉结算层，切到「地址」分区。
+   地址簿只在那一处维护（2026-11-02 地址独立成子 Tab）—— 结算里只做"选哪一条"。
+   已经选好的地址与购物袋都在，回来再点「去结算」不会丢。 */
+const manageAddressesFromCheckout = () => {
+  closeCheckout();
   switchTab('address');
 };
 
-/* 打开结算时把默认地址同步回地址簿：用户在结算里改了地址，地址簿那条也得跟着变，
-   否则下次结算又回到旧地址（地址簿是 2026-11-02 后结算的首选来源）。失败不阻断下单。 */
-const syncDefaultAddress = async ({ recipient, phone, region, detail }) => {
-  const uid = userInfo.id;
-  if (!uid) return;
-  // 失败不阻断下单：地址簿没同步上顶多是下次结算要再填一遍，不该让这单付不出去
-  const result = await syncDefaultAddressApi({ userId: uid, recipient, phone, region, detail });
-  if (!result.ok && !result.skipped) {
-    logger.warn('shop', '同步默认收货地址失败（不阻断下单）', result.error);
+/* 预检里的「移除失效商品」：按 key（`id-spec`）精确删，不整袋清空 ——
+   用户可能只是其中一件下架了，另外两件还想买。 */
+const removeInvalidBagItems = (keys = []) => {
+  const targets = new Set(Array.isArray(keys) ? keys : []);
+  if (!targets.size) return;
+  for (const item of [...shoppingBag.value]) {
+    if (targets.has(`${item.id}-${item.selectedSpec || ''}`)) {
+      bagStore.removeFromBag(item.id, item.selectedSpec);
+    }
   }
 };
 
-const applySavedAddress = (row) => {
-  if (!row) return false;
-  checkoutForm.recipient = String(row.recipient || '').trim() || checkoutForm.recipient;
-  checkoutForm.phone = String(row.phone || '').trim() || checkoutForm.phone;
-  const parsed = parseAddress(
-    [String(row.region || '').trim(), String(row.detail || '').trim()].filter(Boolean).join(' '),
-  );
-  if (!parsed.province && !parsed.city && !parsed.detail) return false;
-  checkoutForm.province = parsed.province;
-  checkoutForm.city = parsed.city;
-  checkoutForm.detail = parsed.detail;
-  return true;
-};
-
-/* 打开结算：先把收件信息带出来（缺失就留空，让用户就地补）。
-   两条来源，按「用户在哪维护的」优先：
-     1) 地址簿 user_addresses 的默认地址 —— 商城「地址」分区与设置里的「收货地址」管的就是这份，
-        用户在那边改完，结算必须立刻反映出来；
-     2) 回落 profiles.shipping_*（2026-11-01 之前结算写回的那三列，历史用户只有这份）。
-   地址在库里都是**一整段/两段文本**，统一交给 parseAddress 拆成 省 / 市 / 详细地址。 */
-const loadShippingProfile = async () => {
-  checkoutForm.recipient = String(userInfo.username || '').trim();
-  checkoutForm.phone = '';
-  checkoutForm.province = '';
-  checkoutForm.city = '';
-  checkoutForm.detail = '';
-  checkoutForm.pasteText = '';
+/* 老用户兜底：地址簿为空时，用资料里的三条 shipping_* 拼一份「虚拟地址」。
+   2026-11-01 之前结算只写 profiles、不写地址簿，只读地址簿会让这批人打开结算就是空表。 */
+const loadFallbackAddress = async () => {
+  fallbackAddress.value = null;
+  const username = String(userInfo.username || '').trim();
+  if (!username) return;
   try {
-    // ① 地址簿默认地址
-    const uid = userInfo.id;
-    if (uid) {
-      const { data: address, error: addressError } = await fetchDefaultAddress(uid);
-      if (addressError) logger.warn('shop', '读取地址簿失败，回落到资料', addressError);
-      if (applySavedAddress(address)) return;
-    }
-
-    // ② 回落：资料里的 shipping_*
-    const username = String(userInfo.username || '').trim();
-    if (!username) return;
     const { data, error } = await getProfileByUsername(username);
     if (error || !data) return;
-    checkoutForm.recipient = String(data.shipping_recipient || '').trim() || checkoutForm.recipient;
-    checkoutForm.phone = String(data.shipping_phone || '').trim();
-    const parsed = parseAddress(data.shipping_address);
-    checkoutForm.province = parsed.province;
-    checkoutForm.city = parsed.city;
-    checkoutForm.detail = parsed.detail;
+    const recipient = String(data.shipping_recipient || '').trim();
+    const phone = String(data.shipping_phone || '').trim();
+    const region = String(data.shipping_address || '').trim();
+    if (!recipient && !phone && !region) return;
+    fallbackAddress.value = { id: '', recipient, phone, region, detail: '' };
   } catch (error) {
     logger.warn('shop', '读取收货资料失败', error);
-  }
-};
-
-/* 把一段地址文本吃进表单（三个字段一起覆写）——
-   粘贴 / 剪贴板两条入口共用，避免两处解析逻辑漂移。 */
-const applyAddressText = (text) => {
-  const parsed = parseAddress(text);
-  if (!parsed.province && !parsed.city && !parsed.detail) return false;
-  checkoutForm.province = parsed.province || checkoutForm.province;
-  checkoutForm.city = parsed.city;
-  checkoutForm.detail = parsed.detail;
-  return true;
-};
-
-const handleAddressPaste = (event) => {
-  const text = event?.clipboardData?.getData('text') || '';
-  if (!looksLikeFullAddress(text)) return; // 普通粘贴（比如只贴门牌号）就正常落进输入框
-  event.preventDefault();
-  if (applyAddressText(text)) checkoutForm.pasteText = '';
-};
-
-/* 手打字时也识别：输入框内容一旦「像完整地址」就即时拆分（不打断开头的短文本） */
-const handleAddressTyping = () => {
-  if (!looksLikeFullAddress(checkoutForm.pasteText)) return;
-  if (applyAddressText(checkoutForm.pasteText)) checkoutForm.pasteText = '';
-};
-
-/* 「识别」按钮：点一下 = 读剪贴板 → 拆分 → 直接填进省/市/详细地址。
-   降级链（浏览器差别很大，必须给每一步都留活路）：
-   1) navigator.clipboard.readText() —— 标准路径，localhost / HTTPS + 用户手势下成功率最高；
-   2) 读不到 / 被拒（iOS WKWebView、iframe、浏览器未授权、剪贴板为空）→ 进入「等待粘贴」：
-      聚焦识别框 + 在**文档捕获阶段**挂一次性 paste 监听，用户随手 Ctrl+V 或长按「粘贴」
-      都能被接住并拆分 —— 不依赖焦点是否真的在输入框上（移动端点完按钮焦点常常跑掉）。
-      15s 无操作自动解除，避免长期劫持全局粘贴。 */
-const pasteInputRef = ref(null);
-const recognizing = ref(false);
-const awaitingPaste = ref(false);
-let pasteWatchTimer = null;
-
-function stopPasteWatch() {
-  awaitingPaste.value = false;
-  if (pasteWatchTimer) {
-    clearTimeout(pasteWatchTimer);
-    pasteWatchTimer = null;
-  }
-  document.removeEventListener('paste', onDocumentPaste, true);
-}
-
-/* 全局粘贴兜底：只处理文本；识别框自己的 @paste 优先（这里直接让开，避免重复处理） */
-function onDocumentPaste(event) {
-  if (!showContactModal.value) {
-    stopPasteWatch();
-    return;
-  }
-  if (event.target === pasteInputRef.value) return;
-  const text = String(event?.clipboardData?.getData('text') || '').trim();
-  if (!text) return;
-  event.preventDefault();
-  const ok = applyAddressText(text);
-  checkoutForm.pasteText = ok ? '' : text;
-  stopPasteWatch();
-  showOperationToast(ok ? '已识别粘贴的地址' : '这段拆不出省/市，已放进识别框');
-}
-
-const armPasteWatch = async (message) => {
-  showOperationToast(message);
-  await nextTick();
-  pasteInputRef.value?.focus?.();
-  awaitingPaste.value = true;
-  document.addEventListener('paste', onDocumentPaste, true);
-  if (pasteWatchTimer) clearTimeout(pasteWatchTimer);
-  pasteWatchTimer = setTimeout(stopPasteWatch, 15000);
-};
-
-const readClipboardAddress = async () => {
-  if (recognizing.value) return;
-  recognizing.value = true;
-  try {
-    let text = '';
-    if (navigator.clipboard?.readText) {
-      try {
-        text = await navigator.clipboard.readText();
-      } catch (error) {
-        logger.warn('shop', '读取剪贴板失败，转手动粘贴引导', error);
-      }
-    }
-    text = String(text || '').trim();
-
-    if (text) {
-      if (applyAddressText(text)) {
-        checkoutForm.pasteText = '';
-        showOperationToast('已识别剪贴板里的地址');
-      } else {
-        // 不是完整地址（比如只复制了门牌号）：原样放进输入框让人确认
-        checkoutForm.pasteText = text;
-        showOperationToast('剪贴板内容不像完整地址，已放进输入框');
-      }
-      return;
-    }
-
-    // 读不到（无权限 / 剪贴板为空）：进入等待粘贴态，下一次 Ctrl+V / 长按粘贴即识别
-    const coarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches;
-    await armPasteWatch(
-      coarsePointer ? '没读到剪贴板，长按识别框选「粘贴」' : '没读到剪贴板，按 Ctrl+V 粘贴即可',
-    );
-  } finally {
-    recognizing.value = false;
   }
 };
 
@@ -857,8 +613,12 @@ const startCheckout = async () => {
     return showOperationToast('请先登录后再提交订单');
   }
   if (!canCheckout.value) return showOperationToast('订单内容无效，请检查购物袋');
-  await loadShippingProfile();
-  showContactModal.value = true;
+  /* 打开前先备好「老用户兜底地址」，CheckoutSheet 自己在打开时读地址簿；
+     两边都异步，先把这个 promise 等完再开层，避免卡片先空一下再跳成地址。 */
+  await loadFallbackAddress();
+  checkoutAddress.value = null;
+  showCheckout.value = true;
+  document.body.style.overflow = 'hidden';
 };
 
 /* 电话只需「像电话」：7~20 位数字，允许 + - 空格 括号（国际号/分机也可能出现） */
@@ -927,24 +687,27 @@ async function notifyAdministrators(content) {
   }
 }
 
-async function submitContact() {
+/* 提交订单。
+   address 由 CheckoutSheet 传入（用户在确认页选/填的那一条），字段：
+   { id, recipient, phone, region, detail }，id 为空表示来自 profiles 的历史回落。
+   ⚠️ 这里只写 profiles、**不再反写地址簿默认地址**：结算页只负责"这一单选谁"，
+      选一条新地址就把用户的默认地址改掉是越权（2026-11-03 的口径）。 */
+async function submitContact(address) {
   if (submittingContact.value) return;
   if (!canCheckout.value) return;
 
-  /* 校验（2026-11-01 改成「资料即收货信息」后，这三项就是管理员唯一的联系依据）：
-     收件人 / 电话 / 地址缺一项就不给下单 —— 只填了 QQ 的历史路径已经退场，
+  /* 校验：收件人 / 电话 / 地址是管理员唯一的联系与寄送依据，缺一项就不给下单 ——
      少任何一项都会让管理员收到一封「联系不上人」的邮件。 */
-  const recipient = checkoutForm.recipient.trim();
-  const phone = checkoutForm.phone.trim();
-  /* 三段合成一段落库（profiles 只有一个 shipping_address 列，历史数据也是整段） */
-  const province = checkoutForm.province.trim();
-  const city = checkoutForm.city.trim();
-  const detail = checkoutForm.detail.trim();
-  const address = composeAddress({ province, city, detail });
+  const recipient = String(address?.recipient || '').trim();
+  const phone = String(address?.phone || '').trim();
+  const fullAddress = composeAddress({
+    province: String(address?.region || '').trim(),
+    city: '',
+    detail: String(address?.detail || '').trim(),
+  });
   if (!recipient) return showOperationToast('请填写收件人');
   if (!isPhoneLike(phone)) return showOperationToast('请填写有效电话');
-  if (!province) return showOperationToast('请选择省份');
-  if (detail.length < 4) return showOperationToast('请填写详细地址（区县 / 街道 / 门牌号）');
+  if (fullAddress.length < 4) return showOperationToast('请填写收货地址');
 
   submittingContact.value = true;
   try {
@@ -953,20 +716,9 @@ async function submitContact() {
     const saved = await updateProfile(userInfo.id, {
       shipping_recipient: recipient,
       shipping_phone: phone,
-      shipping_address: address,
+      shipping_address: fullAddress,
     });
     if (!saved?.ok) return showOperationToast('收货信息保存失败，请重试');
-
-    /* 同步回地址簿的默认地址。原因：结算读地址时地址簿优先（用户在那里维护），
-       只写 profiles 的话，这次在结算里改的内容下次会被旧地址盖回去。
-       只在「已存在默认地址」时更新，不自动新建 —— 地址簿是用户显式维护的清单。
-       同步失败不阻断下单（profiles 已经存好了，邮件能发出）。 */
-    await syncDefaultAddress({
-      recipient,
-      phone,
-      region: [province, city].filter(Boolean).join(' '),
-      detail,
-    });
 
     const result = await createShopOrderWithPoints({
       items: buildOrderItemsPayload(),
@@ -992,17 +744,29 @@ async function submitContact() {
       })
       .join('\n- ');
 
-    let paymentSummary = '';
-    if (paymentMode === 'points_only') paymentSummary = `积分: ${paidPoints}`;
-    else if (paymentMode === 'rmb_only') paymentSummary = `现金: ¥${(paidRmb / 100).toFixed(2)}`;
-    else paymentSummary = `积分: ${paidPoints} + 现金: ¥${(paidRmb / 100).toFixed(2)}`;
+    const paymentSummary = buildPaymentSummary({
+      points: paidPoints,
+      cents: paidRmb,
+      mode: paymentMode,
+    });
 
-    const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${address}\n时间: ${time}\n\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
+    const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n时间: ${time}\n\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
     userInfo.points = remainingPoints;
     await copyToClipboard(summary);
-    closeContactModal();
+    closeCheckout();
     clearBag();
-    paymentSuccess.value = { orderNo, paymentSummary, emailState: 'pending' };
+    /* 成功页要能回答「买了什么、寄给谁」——只给一个订单号是核对不了的 */
+    const totalQty = orderedItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+    const firstTitle = String(orderedItems[0]?.title || '周边订单');
+    const itemSummaryText =
+      orderedItems.length > 1 ? `${firstTitle} 等 ${totalQty} 件` : `${firstTitle} × ${totalQty}`;
+    paymentSuccess.value = {
+      orderNo,
+      paymentSummary,
+      itemSummary: itemSummaryText,
+      shippingTo: `${recipient} · ${fullAddress}`,
+      emailState: 'pending',
+    };
     document.body.style.overflow = 'hidden';
     void sendMerchandiseSettlementEmail({ orderId: result.data.orderId })
       .then(() => markSettlementEmailState('sent'))
@@ -1011,7 +775,7 @@ async function submitContact() {
         markSettlementEmailState('failed');
       });
     void notifyAdministrators(
-      `收到新的周边订单！\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${address}\n支付: ${paymentSummary}\n商品: ${itemText}`,
+      `收到新的周边订单！\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n支付: ${paymentSummary}\n商品: ${itemText}`,
     );
     /* 不再 showOperationToast('订单已提交')：支付成功弹窗本身就在说这件事，
        而岛挂在导航里、层级低于弹窗（且会盖住卡片翻转动画）—— 2026-11-02 用户报障后去掉。 */
@@ -1064,7 +828,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (toastTimer) clearTimeout(toastTimer);
-  stopPasteWatch();
   document.body.style.overflow = '';
   bagStore.flushShoppingBag();
   window.removeEventListener('theme-changed', handleThemeChanged);
