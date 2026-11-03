@@ -213,33 +213,34 @@ describe('pushplus-api: getUserPushplusToken', () => {
     expect(result).toBe('tok-from-rpc');
   });
 
-  it('falls back to direct query when RPC missing', async () => {
+  // 2026-11-03：降级直连已删除 —— `pushplus_token` 不再对 authenticated 开放 SELECT
+  // （见 2026110308_profiles_restrict_authenticated_select.sql），回退查询只会拿到 403。
+  // 这条是**反向证明**：谁把降级直连加回来，`supabase.from` 就会被调用，本条立刻变红。
+  it('RPC 缺失时不再回退直连查询', async () => {
     pm.supabaseRpc.mockResolvedValue({
       data: null,
       error: { message: 'RPC not found', code: 'PGRST202' },
     });
-
     pm.supabaseFrom.mockReturnValue(makeQuery({
       data: { pushplus_token: 'tok-direct', pushplus_enabled: true },
       error: null,
     }));
 
     const result = await getUserPushplusToken('u1');
-    expect(result).toBe('tok-direct');
+
+    expect(result).toBeNull();
+    expect(pm.supabaseFrom).not.toHaveBeenCalled();
   });
 
-  it('returns null when both RPC and direct query fail', async () => {
+  it('RPC 报错时也不触碰 profiles（列级权限已收口）', async () => {
     pm.supabaseRpc.mockResolvedValue({
       data: null,
       error: { message: 'Error' },
     });
 
-    pm.supabaseFrom.mockReturnValue(makeQuery({
-      data: { pushplus_token: null, pushplus_enabled: false },
-      error: null,
-    }));
-
     const result = await getUserPushplusToken('u1');
+
     expect(result).toBeNull();
+    expect(pm.supabaseFrom).not.toHaveBeenCalled();
   });
 });
