@@ -1,9 +1,15 @@
 /**
- * follow-mail-send —— 关注邮件投递端
+ * follow-mail-send —— mail_outbox 的唯一投递端
+ *
+ * ⚠️ 名字是历史包袱：它现在消费**两种** kind，按 kind 在 sendOne 里分流 ——
+ *    · follow_post / follow_reply —— 关注动态（原职责，三形态模板见文末）
+ *    · shop_order                 —— 订单进度（2026-11-03 并入，模板见「订单进度邮件」段）
+ *    名字没改是因为改名要动 cron + 部署 + 排障手册三处，收益只是好看；
+ *    真正该记住的是：**往 mail_outbox 里塞新 kind，消费端就是这里**。
  *
  * 通道身份：
  *   1. POST action=send   —— 内部投递凭证（Bearer = BOH_PUSH_DISPATCH_KEY）。
- *      由 DB 触发器（boh_enqueue_follow_mail → net.http_post）调用，投递单条账本。
+ *      由 DB 触发器（boh_enqueue_follow_mail / notify_shop_order_progress → net.http_post）调用，投递单条账本。
  *   2. POST action=retry  —— 同上凭证。由 pg_cron 每 5 分钟调用，批量补投未成功的。
  *
  * ⚠️ 为什么复用 push 的内部投递 key 而不是新开一个 secret：
@@ -27,6 +33,20 @@
 
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
+/* 订单邮件用 Apple 极简主题；关注邮件仍用本文件自己的 FONT_STACK / TONE（那是杂志风，不该被拉平） */
+import {
+  MAIL_COLOR,
+  MAIL_GAP,
+  mailButton,
+  mailCard,
+  mailDivider,
+  mailDocument,
+  mailEyebrow,
+  mailFooter,
+  mailParagraph,
+  mailSpacer,
+  mailTitle,
+} from '../_shared/mail-theme.ts';
 
 const BREVO_API_KEY = String(Deno.env.get('BREVO_API_KEY') || '').trim();
 const DISPATCH_KEY = String(Deno.env.get('BOH_PUSH_DISPATCH_KEY') || '').trim();
@@ -51,9 +71,12 @@ type OutboxRow = {
   id: string;
   recipient_id: string;
   sender_id: string | null;
-  kind: 'follow_post' | 'follow_reply';
+  /** shop_order = 订单进度（2026-11-03 并入本账本）；其余是关注类 */
+  kind: 'follow_post' | 'follow_reply' | 'shop_order';
   post_id: string | null;
   comment_id: string | null;
+  /** kind=shop_order 时指向 shop_points_orders.id */
+  order_id: string | null;
   status: string;
   attempts: number;
   extra_items: Array<{
@@ -259,7 +282,8 @@ const buildCardsHtml = (senderName: string, entries: MailEntry[], digest: boolea
         </td></tr>`
       : '';
 
-  const buttonLabel = n === 1 ? (kind === 'follow_reply' ? '去回复 TA' : '去看看这条帖子') : '查看全部动态';
+  const buttonLabel =
+    n === 1 ? (kind === 'follow_reply' ? '去回复 TA' : '去看看这条帖子') : '查看全部动态';
   const targetUrl = entries[0].targetUrl;
   const headline =
     n === 1
@@ -363,12 +387,215 @@ const sendViaBrevo = async (payload: MailPayload) => {
   }
 };
 
+/* ────────────────────────── 订单进度邮件（2026-11-03）──────────────────────────
+ *
+ * 用户口径：「下单确认不用发邮件，订单有新进度的时候发给用户」。
+ *
+ * 与关注邮件共用同一张账本、同一个投递端、同一把内部凭证，但**模板语义完全不同**：
+ * 关注邮件是「有人跟你互动」（要展示是谁、说了什么），
+ * 订单邮件是「你买的东西到哪了」（只回答：哪一单、到哪一步、去哪看）。
+ * 所以这里不显示发件人、不带正文摘要，也不需要聚合。
+ *
+ * ⚠️ 订单分支**不读** follow_mail_enabled：进度通知是事务性邮件，
+ *    不是订阅内容，不该被「关注邮件开关」连带关掉。
+ */
+
+type OrderStatusKey = 'preparing' | 'shipped' | 'completed' | 'cancelled';
+
+/* ⚠️ 刻意**不带 tone / bg / label**：状态只由标题文案表达，不配彩色徽章、不画进度条。
+   一封信里出现 2~3 个色块或者一条流程线，这套极简版式立刻不成立。
+   要加状态色或进度条，先读 _shared/mail-theme.ts 的设计纪律第 1 条。 */
+const ORDER_STATUS_META: Record<OrderStatusKey, { headline: string; desc: string }> = {
+  preparing: {
+    headline: '订单已确认，正在准备',
+    desc: '我们正在为你打包，发货后会再通知你一次。',
+  },
+  shipped: {
+    headline: '你的订单已发货',
+    desc: '包裹已经寄出，请留意查收。',
+  },
+  completed: {
+    headline: '你的订单已完成',
+    desc: '订单已完结，感谢支持。',
+  },
+  cancelled: {
+    headline: '你的订单已取消',
+    desc: '支付积分已原路退回，订单流程已终止，无需等待发货。',
+  },
+};
+
+const resolveOrderStatus = (value: unknown): OrderStatusKey => {
+  const key = String(value || '') as OrderStatusKey;
+  return key in ORDER_STATUS_META ? key : 'preparing';
+};
+
+/**
+ * 商品行：有绝对地址的图才渲染（items 快照里的 image 可能是相对路径，邮件里会裂图）。
+ *
+ * ⚠️ 这里必须是 table，不能沿用卡片的 flex：Outlook 桌面版不认 flex，
+ *    原实现（display:flex）在 Outlook 里会塌成「图一行、标题一行、数量一行」。
+ */
+const buildOrderItemRows = (items: unknown[]) => {
+  const list = (Array.isArray(items) ? items : []).slice(0, 6);
+  if (!list.length) return '';
+  const rows = list
+    .map((raw, index) => {
+      const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+      const title = String(item.title || '商品');
+      const spec = String(item.selected_spec_label || '');
+      const quantity = Math.max(1, Number(item.quantity) || 1);
+      const image = String(item.image || '');
+      const thumb = /^https?:\/\//i.test(image)
+        ? `<img src="${escapeHtml(image)}" width="44" height="44" alt="" style="display:block;width:44px;height:44px;border-radius:10px;object-fit:cover;border:0" />`
+        : `<div style="width:44px;height:44px;border-radius:10px;background:${MAIL_COLOR.page}"></div>`;
+      const divider =
+        index === list.length - 1 ? '' : `border-bottom:0.5px solid ${MAIL_COLOR.hairline};`;
+      return `<tr>
+        <td width="44" valign="middle" style="padding:14px 0;${divider}">${thumb}</td>
+        <td valign="middle" style="padding:14px 12px 14px 14px;${divider}">
+          <div style="font-size:15px;line-height:1.4;color:${MAIL_COLOR.ink}">${escapeHtml(title)}</div>
+          ${spec ? `<div style="font-size:13px;line-height:1.4;color:${MAIL_COLOR.ink3};margin-top:4px">${escapeHtml(spec)}</div>` : ''}
+        </td>
+        <td valign="middle" align="right" style="padding:14px 0;${divider}font-size:14px;color:${MAIL_COLOR.ink2};white-space:nowrap">×${quantity}</td>
+      </tr>`;
+    })
+    .join('');
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">${rows}</table>`;
+};
+
+const buildShopOrderPayload = (order: Record<string, unknown>, to: string): MailPayload => {
+  const status = resolveOrderStatus(order.status);
+  const meta = ORDER_STATUS_META[status];
+  const orderNo = String(order.order_no || '').trim();
+  const targetUrl = `${SITE_ORIGIN}/#/shop?tab=order`;
+  const updatedAt = new Date(String(order.updated_at || order.created_at || ''));
+  const updatedText = Number.isNaN(updatedAt.getTime())
+    ? ''
+    : updatedAt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
+
+  const html = mailDocument({
+    preheader: `${meta.headline}${orderNo ? ` · 订单 ${orderNo}` : ''}`,
+    body: [
+      mailCard(
+        [
+          mailEyebrow('方块之家 BOH'),
+          mailTitle(escapeHtml(meta.headline)),
+          mailParagraph(escapeHtml(meta.desc)),
+          /*
+           * 刻意**不画进度条**（用户 2026-11-03 明确要求）。
+           * 三段线 + 圆点会把「哪一步」重复讲一遍 —— 标题已经说了「已发货」，
+           * 再画一条线只是多一层装饰。极简的做法是让标题承担状态，正文承担说明。
+           */
+          mailSpacer(MAIL_GAP.l),
+          mailDivider(),
+          mailSpacer(MAIL_GAP.m),
+          `<div style="font-size:13px;color:${MAIL_COLOR.ink3}">订单 ${escapeHtml(orderNo)}</div>`,
+          buildOrderItemRows((order.items as unknown[]) || []),
+          mailSpacer(MAIL_GAP.l),
+          `<div style="text-align:center">${mailButton(targetUrl, '查看订单')}</div>`,
+        ].join(''),
+      ),
+      mailFooter(
+        /*
+         * 主动断成两行：单行 27 个汉字在 375px 手机上会正好卡在行尾，
+         * 浏览器按 CJK 规则硬断，会把「退订」拆成「退 / 订」—— 视觉上像错字。
+         * 断点放在语义边界上，桌面和手机都不会出现拆词。
+         */
+        `${updatedText ? `更新于 ${escapeHtml(updatedText)}<br>` : ''}此邮件是订单进度通知<br>发送到你的账号邮箱，无法单独退订。`,
+      ),
+    ].join(''),
+  });
+
+  const text = [
+    meta.headline,
+    '',
+    `订单 ${orderNo}`,
+    meta.desc,
+    '',
+    `查看订单：${targetUrl}`,
+    '',
+    '此邮件是订单进度通知，会发送到你的账号邮箱，无法单独退订。',
+  ].join('\n');
+
+  return {
+    to,
+    subject: `${meta.headline}｜${orderNo}`,
+    html,
+    text,
+  };
+};
+
+/**
+ * 订单进度投递。与关注邮件共用账本，所以状态回写逻辑必须一致
+ * （sent / pending / failed + attempts），否则会被重投 cron 反复扫到。
+ */
+const sendShopOrderMail = async (
+  client: ReturnType<typeof createServiceClient>,
+  row: OutboxRow,
+  attempts: number,
+) => {
+  const markSkipped = async (detail: string) => {
+    await client
+      .from('mail_outbox')
+      .update({ status: 'skipped', attempts, last_error: detail })
+      .eq('id', row.id);
+    return { outcome: 'skipped' as const, detail };
+  };
+
+  if (!row.order_id) return markSkipped('订单缺失');
+
+  const { data: order, error: orderError } = await client
+    .from('shop_points_orders')
+    .select('id, order_no, items, status, updated_at, created_at')
+    .eq('id', row.order_id)
+    .maybeSingle<Record<string, unknown>>();
+
+  if (orderError) throw orderError;
+  if (!order) return markSkipped('订单不存在');
+
+  // 只发已验证邮箱（与关注邮件同口径：未验证邮箱会被 Brevo 拒，且伤域名信誉）
+  const { data: emailRows, error: emailError } = await client.rpc('boh_get_user_emails', {
+    p_ids: [row.recipient_id],
+  });
+  if (emailError) throw emailError;
+  const email = String(
+    (emailRows as Array<{ email: string | null }> | null)?.[0]?.email || '',
+  ).trim();
+  if (!email) return markSkipped('无可用邮箱');
+
+  const payload = buildShopOrderPayload(order, email);
+
+  try {
+    const result = await sendViaBrevo(payload);
+    await client
+      .from('mail_outbox')
+      .update({
+        status: 'sent',
+        attempts,
+        sent_at: new Date().toISOString(),
+        last_error: null,
+      })
+      .eq('id', row.id);
+    return { outcome: 'sent' as const, detail: result.messageId || undefined };
+  } catch (error) {
+    const detail = truncate(error instanceof Error ? error.message : String(error), 500);
+    const exhausted = attempts >= MAX_ATTEMPTS;
+    await client
+      .from('mail_outbox')
+      .update({ status: exhausted ? 'failed' : 'pending', attempts, last_error: detail })
+      .eq('id', row.id);
+    return { outcome: exhausted ? ('failed' as const) : ('retrying' as const), detail };
+  }
+};
+
 const sendOne = async (outboxId: string) => {
   const client = createServiceClient();
 
   const { data: row, error: rowError } = await client
     .from('mail_outbox')
-    .select('id, recipient_id, sender_id, kind, post_id, comment_id, status, attempts, extra_items')
+    .select(
+      'id, recipient_id, sender_id, kind, post_id, comment_id, order_id, status, attempts, extra_items',
+    )
     .eq('id', outboxId)
     .maybeSingle<OutboxRow>();
 
@@ -377,6 +604,12 @@ const sendOne = async (outboxId: string) => {
   if (row.status === 'sent') return { outcome: 'skipped' as const, detail: '已投递' };
 
   const attempts = Number(row.attempts || 0) + 1;
+
+  /* 订单进度走独立分支：必须在 follow_mail_enabled 判定**之前**分流 ——
+     进度通知是事务性邮件，不该被「关注邮件开关」连带关掉。 */
+  if (row.kind === 'shop_order') {
+    return sendShopOrderMail(client, row, attempts);
+  }
 
   // 用户可能中途把开关关了 —— 已入账但还没发的，尊重最新意图
   const { data: pref } = await client
@@ -397,7 +630,9 @@ const sendOne = async (outboxId: string) => {
     p_ids: [row.recipient_id],
   });
   if (emailError) throw emailError;
-  const email = String((emailRows as Array<{ email: string | null }> | null)?.[0]?.email || '').trim();
+  const email = String(
+    (emailRows as Array<{ email: string | null }> | null)?.[0]?.email || '',
+  ).trim();
   if (!email) {
     await client
       .from('mail_outbox')

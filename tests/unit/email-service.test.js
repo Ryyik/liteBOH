@@ -21,12 +21,14 @@ vi.mock('@/utils/supabase-client.js', () => ({
 // 因此必须先 stubEnv 再动态导入，保证不依赖仓库根目录 .env 的真实值。
 let sendGiftEmail;
 let sendMerchandiseSettlementEmail;
+let sendShopOrderCancelledEmail;
 
 beforeAll(async () => {
   vi.stubEnv('VITE_SUPABASE_URL', 'https://test.supabase.co');
   const mod = await import('@/utils/email-service.js');
   sendGiftEmail = mod.sendGiftEmail;
   sendMerchandiseSettlementEmail = mod.sendMerchandiseSettlementEmail;
+  sendShopOrderCancelledEmail = mod.sendShopOrderCancelledEmail;
 });
 
 describe('email-service', () => {
@@ -130,6 +132,27 @@ describe('email-service', () => {
 
     it('requires a persisted order ID', async () => {
       await expect(sendMerchandiseSettlementEmail({})).rejects.toThrow('订单 ID 缺失');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('sendShopOrderCancelledEmail（2026-11-03 取消通知管理员）', () => {
+    it('走 shop_order_cancelled 模板，且只把订单 ID 交给服务端', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ ok: true }),
+      });
+
+      await sendShopOrderCancelledEmail({ orderId: 'ca052c3d-77c6-461b-a1e0-eae4b1b8f169' });
+
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.templateType).toBe('shop_order_cancelled');
+      expect(body.templateParams).toEqual({ orderId: 'ca052c3d-77c6-461b-a1e0-eae4b1b8f169' });
+    });
+
+    it('缺订单 ID 直接抛错，不发网络请求', async () => {
+      await expect(sendShopOrderCancelledEmail({})).rejects.toThrow('订单 ID 缺失');
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });

@@ -91,6 +91,18 @@ describe('buildUnreadDigest 类型归组', () => {
     const rows = [...nOf('like', 2), ...nOf('mystery_type', 2)];
     expect(buildUnreadDigest(rows)).toBe('4 条未读：点赞 2 · 消息 2');
   });
+
+  /* 2026-11-03 新增商城订单类型：漏了这条，订单进度通知会在聚合文案里
+     落到「消息」兜底，与 Messages 的「系统」分组口径对不上。 */
+  it('订单进度（order）归入系统组，不落「消息」兜底', () => {
+    const rows = [
+      ...nOf('like', 2),
+      row({ type: 'order' }),
+      row({ type: 'order' }),
+      row({ type: 'system' }),
+    ];
+    expect(buildUnreadDigest(rows)).toBe('5 条未读：系统 3 · 点赞 2');
+  });
 });
 
 describe('buildUnreadDigest 总数口径', () => {

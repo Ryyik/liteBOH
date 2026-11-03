@@ -137,6 +137,7 @@ import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
 import { cancelGift, cancelShopOrder } from '@/utils/api/shop-orders-api.js';
 import { getProfileByUsername } from '@/utils/api/profile-api.js';
+import { sendShopOrderCancelledEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
@@ -333,6 +334,17 @@ const handleCancel = async () => {
       emit('notify', `订单已取消，${result.refundedPoints} 积分已退回`);
     } else {
       emit('notify', '订单已取消');
+    }
+
+    /* 取消 → 通知管理员（2026-11-03）。取消本身是 RPC 里的钱的事务，
+       邮件只是告知，所以**不阻塞、不影响结果提示**：发送失败只记日志，
+       用户看到的仍然是「订单已取消」。
+       幂等重放（alreadyCancelled）不再发第二封 —— 库里状态已是 cancelled，
+       服务端的「确实已取消」校验挡不住重复点击。 */
+    if (kind.value !== 'gift' && !result.alreadyCancelled) {
+      void sendShopOrderCancelledEmail({ orderId: props.order.id }).catch((error) => {
+        logger.warn('shop-order', '订单取消通知邮件发送失败', error);
+      });
     }
 
     emit('changed');

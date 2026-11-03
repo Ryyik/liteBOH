@@ -1,5 +1,17 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
+import {
+  MAIL_COLOR,
+  mailButton,
+  mailCard,
+  mailDivider,
+  mailDocument,
+  mailEyebrow,
+  mailFooter,
+  mailParagraph,
+  mailSpacer,
+  mailTitle,
+} from '../_shared/mail-theme.ts';
 
 // Supabase Edge Runtime 提供的全局，Deno 类型库未声明 ⇒ deno check 报 TS2304（本地声明一次）
 declare const EdgeRuntime: { waitUntil: (promise: Promise<unknown>) => void };
@@ -354,24 +366,40 @@ const notifyImageRejected = async (
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  const html = `<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:24px;background:#f5f6f8;font-family:-apple-system,'PingFang SC',sans-serif">
-  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:14px;padding:26px 24px">
-    <div style="font-size:16px;font-weight:600;color:#1f2329;margin-bottom:14px">图片未通过复审</div>
-    <p style="font-size:14px;line-height:1.8;color:#4a5058;margin:0 0 14px">
-      你在帖子《${safeTitle}》中上传的 ${rejectedCount} 张图片未通过内容安全复审，已从帖子中移除。
-      帖子本身与其余内容不受影响。
-    </p>
-    <p style="font-size:14px;line-height:1.8;color:#4a5058;margin:0 0 20px">
-      如果你认为这是误判，可以重新上传该图片；若仍被拦截，请联系管理员。
-    </p>
-    <a href="${targetUrl}" style="display:inline-block;padding:10px 18px;background:#2f6fed;color:#fff;border-radius:8px;text-decoration:none;font-size:14px">查看帖子</a>
-    <div style="margin-top:22px;padding-top:14px;border-top:0.5px solid #eef0f3;font-size:12px;color:#9aa0a6;line-height:1.7">
-      你在「通知设置」开启了审核结果邮件通知 · <a href="${siteOrigin}/#/user-space/pushplus-settings" style="color:#2f6fed">去关闭</a>
-    </div>
-  </div>
-</body></html>`;
+  /* Apple 极简（见 _shared/mail-theme.ts）。这类邮件是坏消息，设计目标和订单**相反**：
+     订单要信息密度，审核要「不让人生气且知道下一步」。所以这里的取舍是——
+       · 标题压到 24px（不放大坏消息）；
+       · 正文只给「发生了什么 + 其余内容不受影响」，不复述模型判定的具体理由
+         （理由写太细会变成「那这条为什么过了」的靶子，属于产品决策不是设计问题）；
+       · 主操作是**描边按钮**而不是实心主色：拒绝流程配实心蓝按钮像在推销。 */
+  const html = mailDocument({
+    preheader: `${rejectedCount} 张图片已从帖子中移除，帖子的其余内容不受影响`,
+    body: [
+      mailCard(
+        [
+          mailEyebrow('方块之家 BOH'),
+          mailTitle('图片未通过复审', 24),
+          mailParagraph(
+            `你在帖子《${safeTitle}》中上传的 ${rejectedCount} 张图片未通过内容安全复审，已从帖子中移除。帖子的其余内容不受影响。`,
+          ),
+          mailSpacer(32),
+          mailDivider(),
+          mailSpacer(24),
+          `<div style="font-size:15px;line-height:1.5;color:${MAIL_COLOR.ink}">接下来可以</div>`,
+          mailSpacer(6),
+          `<div style="font-size:15px;line-height:1.6;color:${MAIL_COLOR.ink2}">
+            <div style="padding-left:16px;text-indent:-16px">— 在原帖中重新上传该图片</div>
+            <div style="padding-left:16px;text-indent:-16px">— 若仍被拦截，联系管理员复核</div>
+          </div>`,
+          mailSpacer(32),
+          `<div style="text-align:center">${mailButton(targetUrl, '查看帖子', 'quiet')}</div>`,
+        ].join(''),
+      ),
+      mailFooter(
+        `你在「通知设置」开启了审核结果邮件通知 · <a href="${siteOrigin}/#/user-space/pushplus-settings" style="color:${MAIL_COLOR.accent};text-decoration:none">去关闭</a>`,
+      ),
+    ].join(''),
+  });
 
   try {
     await fetch('https://api.brevo.com/v3/smtp/email', {

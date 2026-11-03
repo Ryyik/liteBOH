@@ -1,11 +1,12 @@
-
 import { logger } from './logger.js';
 
 // email-service.js
 // 统一的邮件发送服务，用于处理礼物请求和其他相关邮件发送
 // 通过 Supabase Edge Function 发送，避免在客户端暴露 EmailJS 凭证。
 
-const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '')
+  .trim()
+  .replace(/\/+$/, '');
 const EMAIL_SEND_FUNCTION_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/email-send` : '';
 
 const callSendEmailFunction = async (templateType, templateParams) => {
@@ -25,7 +26,7 @@ const callSendEmailFunction = async (templateType, templateParams) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ templateType, templateParams }),
       signal: controller.signal,
@@ -78,4 +79,22 @@ export const sendMerchandiseSettlementEmail = async (data) => {
 
   // 服务端按订单 ID 读取已落库的商品与联系方式，避免使用页面上的可篡改快照。
   return callSendEmailFunction('merchandise_settlement', { orderId });
+};
+
+/**
+ * 用户自助取消订单后通知管理员（2026-11-03）。
+ *
+ * 口径：取消只退积分、改状态，**没有任何人收到通知** —— 管理员要翻后台才知道
+ * 少了一单。这里补一封站内之外的通知邮件，与下单通知同一条 Brevo 通道、
+ * 同一批收件人（管理员账号绑定邮箱）。
+ *
+ * @param {Object} data - { orderId: string }
+ * @returns {Promise<Object>}
+ */
+export const sendShopOrderCancelledEmail = async (data) => {
+  const orderId = String(data?.orderId || '').trim();
+  if (!orderId) throw new Error('订单 ID 缺失，无法发送取消通知');
+
+  // 服务端会再校验一次「这单确实已取消 + 确实属于你」，不只依赖前端时序。
+  return callSendEmailFunction('shop_order_cancelled', { orderId });
 };

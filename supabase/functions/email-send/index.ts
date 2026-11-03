@@ -2,6 +2,20 @@ import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
+/* 与用户侧订单邮件同一套 Apple 极简主题：管理员这封也是「同一家发的」，
+   不能再是 16px 圆角 + #2f6fed 的另一套壳。 */
+import {
+  MAIL_COLOR,
+  MAIL_GAP,
+  mailButton,
+  mailCard,
+  mailDivider,
+  mailDocument,
+  mailEyebrow,
+  mailFooter,
+  mailSpacer,
+  mailTitle,
+} from '../_shared/mail-theme.ts';
 
 /* ── 发信通道：Brevo HTTP API（2026-11-02 起唯一通道）──────────────────
  *
@@ -12,19 +26,31 @@ import { createServiceClient } from '../_shared/supabase.ts';
  * 密钥（BREVO_API_KEY）、发信域名（MAIL_SENDER_EMAIL）都是现成的 ——
  * 不再维护第二家供应商，这里直接用同一条通道。
  *
- * 收件人是**管理员**（订单通知本来就是给管理员看的）：
- *   ORDER_NOTICE_EMAIL 优先；没配就退回 MAIL_KEEPALIVE_RECIPIENT（站长邮箱）。
+ * 收件人（2026-11-03 修正）：**管理员账号绑定的邮箱**。
+ *   旧实现读 `ORDER_NOTICE_EMAIL`，线上从没配过 ⇒ 回落
+ *   `MAIL_KEEPALIVE_RECIPIENT`（站长个人 Gmail，那个值本来是保活探针用的），
+ *   结果订单邮件全进了私人 Gmail，QQ 邮箱一封都收不到。
+ *   现在按 `profiles.role='admin'` 反查 `auth.users.email` 动态解析：
+ *   管理员换登录邮箱会自动跟上，也不用再维护一份容易忘配的环境变量。
+ *   `ORDER_NOTICE_EMAIL` 只作**兜底**保留（管理员行读不到时才用），
+ *   **不再回落到 MAIL_KEEPALIVE_RECIPIENT** —— 回落回去就等于重放这个 bug。
  */
 const BREVO_API_KEY = String(Deno.env.get('BREVO_API_KEY') || '').trim();
 const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
-const ORDER_NOTICE_EMAIL = String(
-  Deno.env.get('ORDER_NOTICE_EMAIL') || Deno.env.get('MAIL_KEEPALIVE_RECIPIENT') || '',
-).trim();
+const FALLBACK_NOTICE_EMAIL = String(Deno.env.get('ORDER_NOTICE_EMAIL') || '').trim();
 const SENDER_EMAIL = String(Deno.env.get('MAIL_SENDER_EMAIL') || 'noreply@blockofhome.cn').trim();
 const SENDER_NAME = String(Deno.env.get('MAIL_SENDER_NAME') || '方块之家 BOH').trim();
+/** 后台深链要用绝对地址（邮件里没有当前站点上下文） */
+const SITE_ORIGIN = String(Deno.env.get('VITE_SITE_URL') || 'https://www.blockofhome.cn')
+  .trim()
+  .replace(/\/+$/, '');
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ORDER_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type AuthenticatedUser = {
   ok: true;
@@ -38,6 +64,9 @@ type AuthError = {
   code: string;
   message: string;
 };
+
+/** 'merchandise_settlement'=下单结算通知；'shop_order_cancelled'=用户取消订单通知 */
+type OrderMailKind = 'merchandise_settlement' | 'shop_order_cancelled';
 
 const verifyAuth = async (request: Request): Promise<AuthenticatedUser | AuthError> => {
   const authHeader = request.headers.get('authorization') || '';
@@ -69,6 +98,54 @@ const verifyAuth = async (request: Request): Promise<AuthenticatedUser | AuthErr
   return { ok: true, userId: data.user.id, email: String(data.user.email || '').trim() };
 };
 
+/**
+ * 解析管理员收件邮箱：profiles.role='admin' → auth.users.email。
+ *
+ * ⚠️ 邮箱只能从 auth.users 取 —— `profiles.email` 早已被收口（2026062202 /
+ *    2026110308），从 profiles 读只会得到空值或 403。
+ * ⚠️ 单个管理员读取失败只跳过本人，不让整封邮件失败（多管理员时互为冗余）。
+ */
+const resolveAdminRecipients = async (
+  client: ReturnType<typeof createServiceClient>,
+): Promise<string[]> => {
+  const collected: string[] = [];
+
+  const { data: admins, error: adminError } = await client
+    .from('profiles')
+    .select('id')
+    .eq('role', 'admin');
+
+  if (adminError) {
+    console.error('[email-send] 读取管理员列表失败', { detail: adminError.message });
+  }
+
+  for (const admin of Array.isArray(admins) ? admins : []) {
+    const id = String((admin as Record<string, unknown>)?.id || '').trim();
+    if (!id) continue;
+    const { data, error } = await client.auth.admin.getUserById(id);
+    if (error) {
+      console.error('[email-send] 读取管理员邮箱失败', { id, detail: error.message });
+      continue;
+    }
+    const email = String(data?.user?.email || '').trim();
+    if (EMAIL_PATTERN.test(email)) collected.push(email);
+  }
+
+  // 去重（大小写不敏感），保留首次出现的原始写法
+  const seen = new Set<string>();
+  const recipients = collected.filter((email) => {
+    const key = email.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  if (!recipients.length && EMAIL_PATTERN.test(FALLBACK_NOTICE_EMAIL)) {
+    recipients.push(FALLBACK_NOTICE_EMAIL);
+  }
+  return recipients;
+};
+
 const formatOrderTime = (value: unknown) => {
   const date = new Date(String(value || ''));
   if (Number.isNaN(date.getTime())) return '未知时间';
@@ -85,11 +162,12 @@ const sanitizeTemplateParams = (templateParams: Record<string, unknown>) => {
   return safeParams;
 };
 
-const buildMerchandiseTemplateParams = async (
+const buildOrderTemplateParams = async (
   user: AuthenticatedUser,
   orderId: string,
+  kind: OrderMailKind,
 ): Promise<Record<string, string>> => {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(orderId)) {
+  if (!ORDER_ID_PATTERN.test(orderId)) {
     throw new Error('订单 ID 格式无效。');
   }
 
@@ -97,7 +175,7 @@ const buildMerchandiseTemplateParams = async (
   const { data: order, error: orderError } = await client
     .from('shop_points_orders')
     .select(
-      'order_no, contact_type, contact_value, items, points_used, rmb_total, payment_mode, created_at',
+      'order_no, contact_type, contact_value, items, points_used, rmb_total, payment_mode, status, created_at, updated_at',
     )
     .eq('id', orderId)
     .eq('user_id', user.userId)
@@ -105,6 +183,11 @@ const buildMerchandiseTemplateParams = async (
 
   if (orderError) throw new Error('读取订单失败。');
   if (!order) throw new Error('订单不存在或无权发送该订单邮件。');
+  /* 取消通知只对「确实已取消」的订单发：否则这个模板就变成任意订单的群发口子
+     （EF 端鉴权只到「这是你的订单」，到不了「这单到底发生了什么」）。 */
+  if (kind === 'shop_order_cancelled' && String(order.status || '') !== 'cancelled') {
+    throw new Error('订单尚未取消，无法发送取消通知。');
+  }
 
   const { data: profile } = await client
     .from('profiles')
@@ -155,14 +238,28 @@ const buildMerchandiseTemplateParams = async (
     // 历史订单：手填的 QQ / 微信号仍要出现在邮件里，否则管理员联系不上
     contactLines.push(`原联系方式: ${contactLabel}: ${order.contact_value}`);
   }
+  if (kind === 'shop_order_cancelled') {
+    contactLines.push('当前状态: 已取消（用户自助）');
+    contactLines.push(`取消时间: ${formatOrderTime(order.updated_at)}`);
+    // cancel_shop_order 是全额退回 points_used，这里的数字就是实际到账积分
+    contactLines.push(points > 0 ? `已退回: ${points} 积分` : '已退回: 无积分退款');
+  }
 
+  const isCancelled = kind === 'shop_order_cancelled';
   return {
-    product: '方块之家周边订单',
+    /* 后台深链的定位参数。原来邮件里**一个链接都没有** —— 管理员读完商品和地址，
+       还得自己去后台列表里按订单号找那一行。 */
+    orderId,
+    product: isCancelled ? '方块之家周边订单（已取消）' : '方块之家周边订单',
     specifications: productList,
-    giftOptions: '周边购物',
+    giftOptions: isCancelled ? '周边订单取消' : '周边购物',
     paymentMethod: paymentSummary,
     paymentAmount: paymentSummary,
-    deliveryMethod: recipient || address ? '按资料地址寄送' : '待管理员确认',
+    deliveryMethod: isCancelled
+      ? '无需发货'
+      : recipient || address
+        ? '按资料地址寄送'
+        : '待管理员确认',
     totalPrice: paymentSummary,
     giftMessage: contactLines.join('\n'),
     buyerName: recipient || buyerName,
@@ -177,6 +274,12 @@ const escapeHtml = (value: string) =>
 
 type SendOutcome = { ok: true } | { ok: false; detail: string };
 
+const MAIL_TITLES: Record<string, string> = {
+  gift: '礼物申请通知',
+  merchandise_settlement: '周边订单通知',
+  shop_order_cancelled: '周边订单取消通知',
+};
+
 /**
  * 把模板参数渲染成一封「信息完整」的通知邮件。
  * 不做花哨版式 —— 管理员要的是能一眼看完商品 / 金额 / 收件人 / 电话 / 地址。
@@ -184,46 +287,100 @@ type SendOutcome = { ok: true } | { ok: false; detail: string };
 const sendBrevoMail = async (
   safeParams: Record<string, string>,
   templateType: string,
+  recipients: string[],
 ): Promise<SendOutcome> => {
-  if (!BREVO_API_KEY || !ORDER_NOTICE_EMAIL) {
-    return { ok: false, detail: '邮件通道未配置（缺 BREVO_API_KEY 或收件邮箱）' };
+  if (!BREVO_API_KEY) {
+    return { ok: false, detail: '邮件通道未配置（缺 BREVO_API_KEY）' };
+  }
+  if (!recipients.length) {
+    return { ok: false, detail: '未解析到管理员收件邮箱' };
   }
 
-  const title = templateType === 'merchandise_settlement' ? '周边订单通知' : '礼物申请通知';
-  const rows: Array<[string, string]> = [
+  const title = MAIL_TITLES[templateType] || '订单通知';
+  const isCancelled = templateType === 'shop_order_cancelled';
+
+  /** 多行值（规格明细 / 地址）必须显式换行 —— <td> 不认 \n，不转就直接挤成一行 */
+  const cell = (value: string) => escapeHtml(value).replace(/\n/g, '<br>');
+
+  /** 两列表：label 定宽灰、value 黑。无边框，靠行距承担分组 —— 与用户侧订单邮件同一套语言 */
+  const renderRows = (list: Array<[string, string]>) =>
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">${list
+      .map(
+        ([label, value]) =>
+          `<tr><td width="88" valign="top" style="padding:8px 12px 8px 0;font-size:13px;line-height:1.5;color:${MAIL_COLOR.ink3};white-space:nowrap">${escapeHtml(label)}</td><td valign="top" style="padding:8px 0;font-size:14px;line-height:1.55;color:${MAIL_COLOR.ink}">${cell(value)}</td></tr>`,
+      )
+      .join('')}</table>`;
+
+  const orderRows: Array<[string, string]> = [
     ['商品', safeParams.product || '—'],
     ['规格 / 明细', safeParams.specifications || '—'],
     [
       '支付',
       safeParams.paymentSummary || safeParams.paymentMethod || safeParams.paymentAmount || '—',
     ],
-    ['收件人', safeParams.buyerName || '—'],
+    ['配送', safeParams.deliveryMethod || '—'],
     ['下单时间', safeParams.orderTime || '—'],
   ];
 
-  /* giftMessage 里是多行联系方式（订单号 / 邮箱 / 电话 / 地址），单独一段等宽展示 */
-  const detailBlock = String(safeParams.giftMessage || '').trim();
+  /* 「收件人」刻意**不**放进上面那块：联系方式块里已经有一行「收件人」，两块都放会重复；
+     而且管理员核对地址时要连着电话一起看，拆到两块反而难对。 */
 
-  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f5f7;font-family:-apple-system,'PingFang SC',sans-serif;color:#1d1d1f">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:24px">
-    <p style="margin:0 0 4px;font-size:12px;letter-spacing:.08em;color:#86868b">BOH STORE</p>
-    <h1 style="margin:0 0 18px;font-size:20px">${escapeHtml(title)}</h1>
-    <table style="width:100%;border-collapse:collapse;font-size:14px">
-      ${rows
-        .map(
-          ([label, value]) =>
-            `<tr><td style="padding:7px 0;color:#86868b;white-space:nowrap;vertical-align:top">${escapeHtml(label)}</td><td style="padding:7px 0 7px 16px">${escapeHtml(value)}</td></tr>`,
-        )
-        .join('')}
-    </table>
-    ${
-      detailBlock
-        ? `<pre style="margin:18px 0 0;padding:14px;border-radius:12px;background:#f5f5f7;font-size:13px;line-height:1.6;white-space:pre-wrap">${escapeHtml(detailBlock)}</pre>`
-        : ''
-    }
-    <p style="margin:20px 0 0;font-size:12px;color:#86868b">订单数据以后台为准 · 本邮件由系统自动发送，请勿直接回复。</p>
-  </div>
-</body></html>`;
+  /** giftMessage 是服务端拼的「label: value」多行文本 → 拆成两列（原来的等宽 <pre> 块
+   *  在 Apple 体系里很突兀，而且等宽字体的中文是回落的，看着并不「等宽」）。 */
+  const contactRows: Array<[string, string]> = String(safeParams.giftMessage || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line): [string, string] => {
+      const at = line.indexOf(':');
+      return at < 0 ? ['', line] : [line.slice(0, at).trim(), line.slice(at + 1).trim()];
+    });
+
+  /* 取消类三行（状态 / 时间 / 已退回）属于**订单事实**，必须跟着商品与金额那一块走。
+     留在「联系方式」尾部的话，管理员得上下两头对「扣了多少 / 退了多少」，很容易看漏。
+     数据仍由服务端 giftMessage 统一拼装，这里只做分组，不改上游结构。 */
+  const CANCEL_LABELS = ['当前状态', '取消时间', '已退回'];
+  const isCancelRow = (row: [string, string]) => CANCEL_LABELS.includes(row[0]);
+  const cancelRows = contactRows.filter(isCancelRow);
+  const contactOnly = contactRows.filter((row) => !isCancelRow(row));
+
+  /* 后台深链：原来这封邮件**一个链接都没有**，管理员读完商品和地址还得去后台列表里
+     按订单号找那一行。路由真源 = /admin/data-management/:tab/:id，tab 用 tabs.js 的 id。 */
+  const orderId = String(safeParams.orderId || '').trim();
+  const adminLink = ORDER_ID_PATTERN.test(orderId)
+    ? `${SITE_ORIGIN}/#/admin/data-management/shopOrders/${orderId}`
+    : '';
+
+  const html = mailDocument({
+    preheader: `${title} · ${safeParams.buyerName || '用户'}${isCancelled ? '（已取消）' : ''}`,
+    body: [
+      mailCard(
+        [
+          mailEyebrow('方块之家 BOH'),
+          mailTitle(escapeHtml(title), 24),
+          mailSpacer(MAIL_GAP.m),
+          renderRows([...orderRows, ...cancelRows]),
+          contactOnly.length
+            ? [
+                mailSpacer(MAIL_GAP.l),
+                mailDivider(),
+                mailSpacer(MAIL_GAP.m),
+                `<div style="font-size:12px;letter-spacing:.12em;color:${MAIL_COLOR.ink3}">联系方式</div>`,
+                mailSpacer(MAIL_GAP.s),
+                renderRows(contactOnly),
+              ].join('')
+            : '',
+          adminLink
+            ? [
+                mailSpacer(MAIL_GAP.l),
+                `<div style="text-align:center">${mailButton(adminLink, '在后台打开')}</div>`,
+              ].join('')
+            : '',
+        ].join(''),
+      ),
+      mailFooter('订单数据以后台为准 · 本邮件由系统自动发送，请勿直接回复。'),
+    ].join(''),
+  });
 
   try {
     const response = await fetch(BREVO_ENDPOINT, {
@@ -235,7 +392,7 @@ const sendBrevoMail = async (
       },
       body: JSON.stringify({
         sender: { email: SENDER_EMAIL, name: SENDER_NAME },
-        to: [{ email: ORDER_NOTICE_EMAIL }],
+        to: recipients.map((email) => ({ email })),
         subject: `[BOH] ${title} · ${safeParams.buyerName || '用户'}`,
         htmlContent: html,
       }),
@@ -249,7 +406,7 @@ const sendBrevoMail = async (
       });
       return { ok: false, detail: `Brevo HTTP ${response.status}` };
     }
-    console.log('[email-send] Brevo 发送成功', { templateType });
+    console.log('[email-send] Brevo 发送成功', { templateType, recipients: recipients.length });
     return { ok: true };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -273,7 +430,7 @@ Deno.serve(async (request) => {
     );
   }
 
-  if (!BREVO_API_KEY || !ORDER_NOTICE_EMAIL) {
+  if (!BREVO_API_KEY) {
     return jsonResponse(
       { ok: false, code: 'MAIL_ENV_MISSING', message: '邮件服务未配置。' },
       500,
@@ -317,7 +474,7 @@ Deno.serve(async (request) => {
       );
     }
 
-    const allowedTemplates = ['gift', 'merchandise_settlement'];
+    const allowedTemplates = ['gift', 'merchandise_settlement', 'shop_order_cancelled'];
     if (!allowedTemplates.includes(templateType)) {
       return jsonResponse(
         { ok: false, code: 'INVALID_TEMPLATE', message: '不支持的邮件模板。' },
@@ -327,24 +484,38 @@ Deno.serve(async (request) => {
     }
 
     let safeParams: Record<string, string> = {};
-    if (templateType === 'merchandise_settlement') {
+    if (templateType === 'merchandise_settlement' || templateType === 'shop_order_cancelled') {
       const orderId = String(templateParams.orderId || '').trim();
       // H2: 结算邮件必须携带订单 ID，服务端始终以数据库快照为准，不再回退透传任意模板参数。
       if (!orderId) {
         return jsonResponse(
-          { ok: false, code: 'MISSING_ORDER_ID', message: '缺少订单参数，无法发送结算邮件。' },
+          { ok: false, code: 'MISSING_ORDER_ID', message: '缺少订单参数，无法发送订单邮件。' },
           400,
           origin,
         );
       }
-      safeParams = await buildMerchandiseTemplateParams(authResult, orderId);
+      safeParams = await buildOrderTemplateParams(
+        authResult,
+        orderId,
+        templateType as OrderMailKind,
+      );
     } else {
       safeParams = sanitizeTemplateParams(templateParams);
     }
 
-    const sent = await sendBrevoMail(safeParams, templateType);
+    const recipients = await resolveAdminRecipients(createServiceClient());
+    const sent = await sendBrevoMail(safeParams, templateType, recipients);
     if (sent.ok) {
-      return jsonResponse({ ok: true, message: '邮件发送成功。', channel: 'brevo' }, 200, origin);
+      return jsonResponse(
+        {
+          ok: true,
+          message: '邮件发送成功。',
+          channel: 'brevo',
+          recipients: recipients.length,
+        },
+        200,
+        origin,
+      );
     }
 
     return jsonResponse(

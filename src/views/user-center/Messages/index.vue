@@ -1089,6 +1089,10 @@ const currentUserId = ref(null);
 const currentTab = ref('all'); // 'all' | 'like' | 'comment' | 'impression' | 'system'
 const LOTTERY_WIN_NOTIFICATION_TYPE = 'lottery_win';
 const SUBSCRIPTION_NOTIFICATION_TYPE = 'subscription';
+/* 商城订单进度（2026-11-03）：发送端 = 迁移 2026110322 的 trg_notify_shop_order_progress。
+   与礼物通知（gift）拆成两个类型，是为了在「系统」分组里各自有正确的标题/文案 ——
+   合并成一个 gift 会让订单消息显示成「礼物进度更新」。 */
+const ORDER_NOTIFICATION_TYPE = 'order';
 const MESSAGE_PAGE_SIZE = 24;
 const MAX_CACHE_SIZE = 200; // LRU 缓存上限
 const VIRTUAL_SCROLL_THRESHOLD = 100; // 虚拟滚动阈值
@@ -1416,6 +1420,7 @@ const isSystemNotificationType = (type) =>
   [
     'system',
     'gift',
+    ORDER_NOTIFICATION_TYPE,
     LOTTERY_WIN_NOTIFICATION_TYPE,
     POST_REJECTED_NOTIFICATION_TYPE,
     POST_REPORT_LIMITED_NOTIFICATION_TYPE,
@@ -2883,6 +2888,7 @@ const getTypeLabel = (type) => {
     [SUBSCRIPTION_NOTIFICATION_TYPE]: '订阅通知',
     system: '系统消息',
     gift: '礼物通知',
+    [ORDER_NOTIFICATION_TYPE]: '订单通知',
   };
   return labels[type] || '消息';
 };
@@ -2902,6 +2908,7 @@ const getNotificationTypeLabel = (type) => {
     [SUBSCRIPTION_NOTIFICATION_TYPE]: '订阅通知',
     system: '系统通知',
     gift: '礼物通知',
+    [ORDER_NOTIFICATION_TYPE]: '订单通知',
   };
   return labels[type] || '消息';
 };
@@ -2933,6 +2940,8 @@ const getNotificationTitle = (notification) => {
       return '系统通知';
     case 'gift':
       return '礼物进度更新';
+    case ORDER_NOTIFICATION_TYPE:
+      return '订单进度更新';
     default:
       return '新消息';
   }
@@ -2945,6 +2954,9 @@ const getNotificationPreview = (notification) => {
   }
   if (notification.type === 'gift') {
     return notification.content || '查看礼物最新进度';
+  }
+  if (notification.type === ORDER_NOTIFICATION_TYPE) {
+    return notification.content || '查看订单最新进度';
   }
   if (notification.type === 'system') {
     return notification.content || '系统消息';
@@ -3005,6 +3017,9 @@ const getNotificationContent = (notification) => {
   }
   if (notification.type === 'gift') {
     return notification.content || '您的礼物进度有更新，请前往礼物中心查看。';
+  }
+  if (notification.type === ORDER_NOTIFICATION_TYPE) {
+    return notification.content || '您的订单进度有更新，请前往购物袋查看。';
   }
   if (notification.type === 'system') {
     return notification.content || '系统消息';
