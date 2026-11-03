@@ -147,6 +147,17 @@ describe('csp-report 解析：防御性行为', () => {
       line: null,
       disposition: '',
       format: 'unknown',
+      keys: '',
     });
+  });
+
+  it('keys 只记录键名（自证形状），不泄露值', () => {
+    const [report] = parseCspReports({
+      type: 'csp-violation',
+      body: { documentURL: 'https://secret.example/path?token=abc', effectiveDirective: 'img-src' },
+    });
+    expect(report.keys).toBe('documentURL,effectiveDirective');
+    expect(report.keys).not.toContain('secret.example');
+    expect(report.keys).not.toContain('abc');
   });
 });

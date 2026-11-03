@@ -30,6 +30,13 @@ export type NormalizedCspReport = {
   line: number | null;
   disposition: string;
   format: CspReportFormat;
+  /**
+   * 报告对象的键名清单（只有键名，不含值）。
+   * 为什么保留它：本轮就是因为「字段全空却不报错」才排查了很久 ——
+   * 有键名清单的话，一条上报就能自证形状，不必再猜是驼峰还是连字符、
+   * 也不必反复发版。键名不含用户数据，无隐私风险。
+   */
+  keys: string;
 };
 
 /** 单字段截断：既防日志膨胀，也防把控制字符注进日志行 */
@@ -122,6 +129,7 @@ export const normalizeReport = (raw: Record<string, unknown>): NormalizedCspRepo
     line: toLineNumber(pick(leaf, ['line-number', 'lineNumber', 'line_number'])),
     disposition: clip(pick(leaf, ['disposition']), 20),
     format: detectFormat(leaf),
+    keys: clip(Object.keys(leaf).slice(0, 12).join(','), 200),
   };
 };
 
