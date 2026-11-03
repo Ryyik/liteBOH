@@ -8,7 +8,7 @@ import TokenLoginPanel from './TokenLoginPanel.vue';
 import { userAgreementContent, privacyPolicyContent } from '@/data/agreementData.js';
 import DOMPurify from '@/utils/dompurify.js'; // 修复：添加 DOMPurify 防止 XSS
 import { getLoginDeviceIdHash } from '@/utils/device-trust.js';
-import { getAltchaChallengeUrl, isAltchaEnabled } from '@/utils/altcha.js';
+import { canRenderAltcha, getAltchaChallengeUrl } from '@/utils/altcha.js';
 import { getImageUrl } from '@/utils/asset-helper.js';
 import { isPasskeySupported } from '@/utils/api/auth-api.js';
 import { logger } from '@/utils/logger.js';
@@ -51,8 +51,10 @@ const isSubmitting = ref(false);
 const authError = ref('');
 const emailInvalid = ref(false);
 const passwordInvalid = ref(false);
-const altchaEnabled = computed(() => isAltchaEnabled());
 const altchaChallengeUrl = computed(() => getAltchaChallengeUrl('login'));
+// 渲染能力用 canRenderAltcha（与构建期开关解耦），原因见 utils/altcha.js 注释：
+// CI 构建不注入 VITE_ALTCHA_ENABLED，只看开关会让「服务端要验证码、前端不渲染」死锁。
+const altchaEnabled = computed(() => canRenderAltcha());
 const altchaWidgetRef = ref(null);
 const altchaPayload = ref('');
 const altchaState = ref('unverified');

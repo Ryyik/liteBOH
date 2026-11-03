@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  canRenderAltcha,
   isAltchaEnabled,
   ALTCHA_DEFAULT_FIELD_NAME,
   ALTCHA_DEFAULT_WORKERS,
@@ -22,6 +23,38 @@ describe('altcha', () => {
   describe('isAltchaEnabled', () => {
     it('returns a boolean', () => {
       expect(typeof isAltchaEnabled()).toBe('boolean');
+    });
+  });
+
+  describe('canRenderAltcha', () => {
+    // 这条是死锁的反向证明：服务端闸门一旦要求验证码，前端必须能渲染组件，
+    // 否则用户每次重试都会再记一笔失败 → 永久卡住。
+    // 若有人把 canRenderAltcha 改回「只看构建期开关」，下面的断言会红。
+    it('构建期开关为 false 时，只要配置了 SUPABASE_URL 仍必须可渲染', async () => {
+      vi.resetModules();
+      vi.stubEnv('VITE_ALTCHA_ENABLED', 'false');
+      vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co');
+      try {
+        const mod = await import('@/utils/altcha.js');
+        expect(mod.isAltchaEnabled()).toBe(false);
+        expect(mod.canRenderAltcha()).toBe(true);
+      } finally {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+      }
+    });
+
+    it('未配置 SUPABASE_URL 时无从渲染（没有挑战端点）', async () => {
+      vi.resetModules();
+      vi.stubEnv('VITE_ALTCHA_ENABLED', 'false');
+      vi.stubEnv('VITE_SUPABASE_URL', '');
+      try {
+        const mod = await import('@/utils/altcha.js');
+        expect(mod.canRenderAltcha()).toBe(false);
+      } finally {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+      }
     });
   });
 
