@@ -367,7 +367,11 @@ const handleLogin = async () => {
       loginDeviceIdHash.value = await warmLoginDeviceIdHash();
     }
 
-    const result = await login(normalizedLoginId, loginForm.password, loginForm.rememberMe);
+    const result = await login(normalizedLoginId, loginForm.password, loginForm.rememberMe, {
+      // 服务端按风险决定要不要校验；恒传可让「第 3 次失败后要求验证码」立刻生效
+      altchaPayload: altchaPayload.value,
+      deviceIdHash: loginDeviceIdHash.value,
+    });
     if (result.success) {
       localStorage.setItem(REMEMBER_ME_STORAGE_KEY, loginForm.rememberMe ? '1' : '0');
       showMobileSuccess();

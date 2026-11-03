@@ -471,15 +471,11 @@ const migrateLegacyAddress = async () => {
   if (!uid) return;
 
   try {
-    const [pubRes, secRes] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('shipping_recipient, shipping_phone, shipping_address')
-        .eq('id', uid)
-        .single(),
-      supabase.rpc('get_my_sensitive_profile'),
-    ]);
-    const profile = { ...(pubRes.data || {}), ...(secRes.data || {}) };
+    // 只走安全 RPC：shipping_* 已从 authenticated 的 SELECT 授予中移除
+    // （见 2026110308_profiles_restrict_authenticated_select.sql）。
+    // 原先那条直连 profiles 的查询会 403，且它本就是冗余的 —— RPC 返回同一份数据。
+    const { data: rawSensitive } = await supabase.rpc('get_my_sensitive_profile');
+    const profile = (Array.isArray(rawSensitive) ? rawSensitive[0] : rawSensitive) || {};
     const recipient = String(profile.shipping_recipient || '').trim();
     const phone = String(profile.shipping_phone || '').trim();
     const detail = String(profile.shipping_address || '').trim();

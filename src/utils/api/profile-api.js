@@ -582,7 +582,11 @@ export async function updateProfile(userId, updates) {
     .from('profiles')
     .update(safeUpdates)
     .eq('id', userId)
-    .select();
+    // 必须显式列名：`.select()` 空参会 returning 全部列，而
+    // shipping_* / pushplus_token 已从 authenticated 的 SELECT 授予中移除
+    // （见 2026110308_profiles_restrict_authenticated_select.sql），
+    // 空参会连写地址一起 403。调用方只判 ok，不消费返回值。
+    .select('id');
 
   if (!error) invalidateByTags(['profiles', `profiles:user:${userId}`]);
   return { ok: !error, data, error: normalizeDbError(error) };

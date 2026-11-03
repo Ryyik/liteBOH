@@ -852,6 +852,9 @@ export const useAuthStore = defineStore(
       loginId: string,
       password: string,
       rememberMe = false,
+      // 风控上下文：服务端只在判定需要时才校验 altchaPayload，
+      // 恒传不会造成额外拦截（见 supabase/functions/auth-login/index.ts 闸门②）
+      security: { altchaPayload?: string; deviceIdHash?: string } = {},
     ): Promise<LoginResult> => {
       const { signIn: loginWithEdgeGateway } = await loadAuthApi();
       const normalizedLoginId = String(loginId || '').trim();
@@ -859,7 +862,7 @@ export const useAuthStore = defineStore(
         return { success: false, message: '登录失败：请输入方块 ID 或邮箱地址。' };
       }
 
-      const { data, error } = await loginWithEdgeGateway(normalizedLoginId, password);
+      const { data, error } = await loginWithEdgeGateway(normalizedLoginId, password, security);
 
       if (error) {
         return {

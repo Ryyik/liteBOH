@@ -33,10 +33,28 @@ export function signUp(
 
 export function resendSignupConfirmation(email: string): Promise<AuthApiResult>;
 
+/** 登录风控上下文：服务端按风险决定是否校验 altcha（见 auth-login EF 闸门②） */
+export interface SignInSecurityContext {
+  altchaPayload?: string;
+  deviceIdHash?: string;
+}
+
 export function signIn(
   loginId: string,
   password: string,
-): Promise<AuthApiResult<{ user?: unknown; session?: { user: unknown } | null }>>;
+  security?: SignInSecurityContext,
+): Promise<
+  AuthApiResult<
+    | {
+        user?: unknown;
+        session?: { user: unknown } | null;
+        /** 服务端要求先完成人机验证（或触发限流）时返回 */
+        requireCaptcha?: boolean;
+        retryAfterSeconds?: number;
+      }
+    | null
+  >
+>;
 
 export function signInWithOAuth(provider: string): Promise<{ error: AuthApiError | null }>;
 

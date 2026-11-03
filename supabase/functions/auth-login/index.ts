@@ -5,6 +5,15 @@ import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
 // 登录标识解析：邮箱唯一真源是 auth.users（profiles.email 已 drop）。
 // 抽到 _shared 是为了可被 vitest 覆盖（本文件含 Deno.serve，无法直接单测）。
 import { resolveEmailFromLoginId } from '../_shared/resolve-login-id.ts';
+// 登录风控三件套。必须同时用：决策依赖计数，而计数表曾 5 个月零写入，
+// 只接验证器的话 requireAltcha 恒为 false（见 _shared/auth-attempt.ts 文件头）。
+import {
+  evaluateLoginGate,
+  hashClientIp,
+  hashLoginKey,
+  recordLoginAttempt,
+} from '../_shared/auth-attempt.ts';
+import { verifyAndConsumeAltchaProof } from '../_shared/altcha.ts';
 
 const normalizeErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
@@ -45,6 +54,9 @@ Deno.serve(async (request) => {
     const body = await request.json();
     const loginId = String(body?.loginId || '').trim();
     const password = String(body?.password || '');
+    const altchaPayload = String(body?.altchaPayload || '').trim();
+    const deviceIdHash = String(body?.deviceIdHash || '').trim().slice(0, 128);
+    const userAgent = request.headers.get('user-agent') || '';
     if (!loginId || !password) {
       return jsonResponse(
         { ok: false, code: 'INVALID_INPUT', message: '请输入账号和密码。' },
@@ -63,8 +75,86 @@ Deno.serve(async (request) => {
     }
 
     const serviceClient = createServiceClient();
+    // 账号与 IP 都以哈希入表：表里不留明文账号，IP 无盐哈希等于可逆
+    const loginKey = await hashLoginKey(loginId);
+    const ipHash = await hashClientIp(clientIp);
+
+    // ── 闸门①：先判是否该拦 / 是否该要人机验证 ────────────────────────────
+    // 这一步读的是 auth_attempt_events 的近 15 分钟计数，所以下面每次尝试
+    // 结束时都必须 recordLoginAttempt，否则计数恒 0、闸门永远放行。
+    const gate = await evaluateLoginGate(serviceClient, { loginKey, ipHash, deviceIdHash });
+
+    if (gate.blocked) {
+      await recordLoginAttempt(serviceClient, {
+        loginKey,
+        ipHash,
+        deviceIdHash,
+        succeeded: false,
+        usedAltcha: false,
+        failureCode: 'ACCOUNT_THROTTLED',
+        userAgent,
+      });
+      const retryAfter = gate.retryAfterSeconds || 60;
+      return jsonResponse(
+        {
+          ok: false,
+          code: 'ACCOUNT_THROTTLED',
+          message: `尝试过于频繁，请在 ${retryAfter} 秒后重试。`,
+          requireCaptcha: true,
+          retryAfterSeconds: retryAfter,
+        },
+        429,
+        origin,
+      );
+    }
+
+    // ── 闸门②：需要时校验人机证明（失败不消耗密码校验次数）─────────────────
+    let altchaVerified = false;
+    if (gate.requireAltcha) {
+      const verifyResult = await verifyAndConsumeAltchaProof(serviceClient, {
+        payload: altchaPayload,
+        scope: 'login',
+        loginKey,
+        deviceIdHash,
+      });
+
+      if (!verifyResult.ok) {
+        await recordLoginAttempt(serviceClient, {
+          loginKey,
+          ipHash,
+          deviceIdHash,
+          succeeded: false,
+          usedAltcha: Boolean(altchaPayload),
+          failureCode: verifyResult.code || 'ALTCHA_FAILED',
+          userAgent,
+        });
+        return jsonResponse(
+          {
+            ok: false,
+            code: verifyResult.code || 'ALTCHA_REQUIRED',
+            message: verifyResult.message || '请先完成人机验证。',
+            requireCaptcha: true,
+          },
+          400,
+          origin,
+        );
+      }
+      altchaVerified = true;
+    }
+
     const emailLookup = await resolveEmailFromLoginId(serviceClient, loginId);
     if (!emailLookup.ok || !emailLookup.email) {
+      // 账号不存在也计数：否则攻击者换随机账号就能永远不触发闸门
+      // （IP 维度仍会累计，两者是正交的）
+      await recordLoginAttempt(serviceClient, {
+        loginKey,
+        ipHash,
+        deviceIdHash,
+        succeeded: false,
+        usedAltcha: altchaVerified,
+        failureCode: 'INVALID_CREDENTIALS',
+        userAgent,
+      });
       return jsonResponse(
         {
           ok: false,
@@ -94,6 +184,16 @@ Deno.serve(async (request) => {
         message = '请先验证邮箱后再登录。';
         code = 'EMAIL_NOT_CONFIRMED';
       }
+
+      await recordLoginAttempt(serviceClient, {
+        loginKey,
+        ipHash,
+        deviceIdHash,
+        succeeded: false,
+        usedAltcha: altchaVerified,
+        failureCode: code,
+        userAgent,
+      });
 
       return jsonResponse(
         {
@@ -146,6 +246,16 @@ Deno.serve(async (request) => {
           banMessage += '（永久封禁）';
         }
 
+        await recordLoginAttempt(serviceClient, {
+          loginKey,
+          ipHash,
+          deviceIdHash,
+          succeeded: false,
+          usedAltcha: altchaVerified,
+          failureCode: 'USER_BANNED',
+          userAgent,
+        });
+
         return jsonResponse(
           {
             ok: false,
@@ -157,6 +267,18 @@ Deno.serve(async (request) => {
         );
       }
     }
+
+    // 成功也要计一笔：闸门用「近 15 分钟失败数」做判定，
+    // 成功行不进失败计数，但能让 1 分钟突发上限（≥20）反映真实流量
+    await recordLoginAttempt(serviceClient, {
+      loginKey,
+      ipHash,
+      deviceIdHash,
+      succeeded: true,
+      usedAltcha: altchaVerified,
+      failureCode: null,
+      userAgent,
+    });
 
     return jsonResponse(
       {

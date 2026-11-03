@@ -171,24 +171,13 @@ export async function getUserPushplusToken(userId) {
       return normalizePushplusToken(rpcToken);
     }
 
-    // 兼容旧环境：函数未部署时回退到原有直连查询逻辑
+    // 列级权限已收口：pushplus_token 不再对 authenticated 开放 SELECT
+    // （见 2026110308_profiles_restrict_authenticated_select.sql）。
+    // 旧的「直连回退」只会拿到 403，留着等于每次多打一次必失败的请求。
     if (rpcError.code !== 'PGRST202') {
-      logger.warn('pushplus-api', 'RPC 获取用户 Token 失败，回退直连查询', rpcError);
+      logger.warn('pushplus-api', 'RPC 获取用户 Token 失败', rpcError);
     }
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('pushplus_token, pushplus_enabled')
-      .eq('id', userId)
-      .eq('pushplus_enabled', true)
-      .single();
-
-    if (error) {
-      logger.warn('pushplus-api', '直连查询用户 Token 失败', error);
-      return null;
-    }
-
-    return normalizePushplusToken(data?.pushplus_token);
+    return null;
   } catch (error) {
     logger.error('pushplus-api', '获取用户 Token 失败', error);
     return null;

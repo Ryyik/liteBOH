@@ -61,11 +61,19 @@ const isCaptchaVerificationFailure = (message = '') => {
  */
 const EDGE_FUNCTION_UNAVAILABLE_STATUSES = new Set([0, 404, 501]);
 
-const invokeAuthLoginEdge = async (loginId, password) => {
+const invokeAuthLoginEdge = async (loginId, password, security = {}) => {
   let response;
+  // 风控字段按需携带：服务端只在 requireAltcha 为真时才校验 payload，
+  // 不带也不会导致首次登录失败（避免一上线就把所有人锁在门外）。
+  const body = { loginId, password };
+  const altchaPayload = String(security?.altchaPayload || '').trim();
+  const deviceIdHash = String(security?.deviceIdHash || '').trim();
+  if (altchaPayload) body.altchaPayload = altchaPayload;
+  if (deviceIdHash) body.deviceIdHash = deviceIdHash;
+
   try {
     response = await supabase.functions.invoke('auth-login', {
-      body: { loginId, password },
+      body,
     });
   } catch (invokeError) {
     // FunctionsFetchError / FunctionsRelayError / 网络中断
@@ -293,7 +301,7 @@ export async function signUp(username, email, password, metadata = {}) {
   return { ok: true, data, error: null };
 }
 
-export async function signIn(loginId, password) {
+export async function signIn(loginId, password, security = {}) {
   const safeLoginId = normalizeLoginId(loginId);
   const safePassword = String(password || '');
 
@@ -317,7 +325,7 @@ export async function signIn(loginId, password) {
   // 方块 ID 登录：只走 EF。邮箱不回传客户端，且**没有**降级路径
   // （EF 不可用时明确报错，绝不静默回落 —— 回落会让邮箱枚举面复活）
   if (!safeLoginId.includes('@')) {
-    const edge = await invokeAuthLoginEdge(safeLoginId, safePassword);
+    const edge = await invokeAuthLoginEdge(safeLoginId, safePassword, security);
 
     if (edge.unavailable) {
       logger.warn('auth-api', 'auth-login EF 不可用', {
@@ -338,12 +346,18 @@ export async function signIn(loginId, password) {
     const payload = edge.payload || {};
 
     if (payload.ok !== true) {
+      // 风控标志透传：store 的 login() 读 `data.requireCaptcha` 决定是否展示验证码。
+      // 出错时 data 本来没有内容，这里把标志挂上去 —— 比改 store 的读取路径更安全。
+      const riskData = {
+        requireCaptcha: Boolean(payload.requireCaptcha),
+        retryAfterSeconds: Number(payload.retryAfterSeconds) || undefined,
+      };
       // 邮箱验证开启后，GoTrue 对未验证邮箱返回 "Email not confirmed"，EF 会透传
       const edgeMessage = String(payload.message || '');
       if (edgeMessage.toLowerCase().includes('email not confirmed')) {
         return {
           ok: false,
-          data: null,
+          data: riskData,
           error: normalizeDbError({
             code: 'EMAIL_NOT_CONFIRMED',
             message: '该邮箱尚未完成验证，请查收注册确认邮件（注意垃圾箱）后再登录；若未收到，可回到注册页重新发送。'
@@ -352,7 +366,7 @@ export async function signIn(loginId, password) {
       }
       return {
         ok: false,
-        data: null,
+        data: riskData,
         error: normalizeDbError({
           code: payload.code || 'LOGIN_FAILED',
           message: payload.message || '登录失败，请稍后再试。'
