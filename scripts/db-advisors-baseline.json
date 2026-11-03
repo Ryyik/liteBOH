@@ -1,6 +1,12 @@
 {
-  "updatedAt": "2026-10-04",
+  "updatedAt": "2026-11-03",
   "searchPathMutable": [],
   "rlsDisabled": [],
-  "rlsNoPolicy": ["_rate_limits", "forum_post_submissions", "lottery_pity_backfill_runs"]
+  "rlsNoPolicy": [
+    "_rate_limits",
+    "forum_post_submissions",
+    "lottery_pity_backfill_runs",
+    "user_ai_endpoints",
+    "user_ai_models"
+  ]
 }
