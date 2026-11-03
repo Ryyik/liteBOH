@@ -27,6 +27,11 @@
 
 - 🔴 **沙箱内 `curl` 返回 `000` ≠ 外网不通**：判定「外部 API / 远端库不可达，只能靠推断」**之前**必须在沙箱外复测一次
   （2026-10-31 实证：`api.supabase.com` 沙箱内 `000`、`dangerouslyDisableSandbox` 下 `401` ⇒ 可达）。
+- 🔴 **但 `*.supabase.co` 是例外：沙箱外也一样不通**（2026-11-03 实证：同一 IP `104.18.38.10`
+  换 SNI 即 200/404，`supabase.co` 域族被 reset；代理、IPv6、HTTP/3 全无效）。要验证 EF 运行时别再说
+  「无法验证」——改查 `api.supabase.com` 的 `/analytics/endpoints/logs`：函数调用在
+  **`function_edge_logs`**（`edge_logs` 只有 REST）、过滤列是 `source`、必带 `iso_timestamp_start/end`
+  （否则默认只查 1 分钟且静默返空），连查多次会 429。DB 侧 `pg_net` 走不通（管理 API 是只读用户）。
 - `supabase` CLI 已登录（ref `nplnlefdwfgtyimfkyih`），`supabase secrets list` 能查 EF 变量**名**；
   Supabase MCP 是 `supabase_read_only_user`，查表级 ACL **必须** `has_table_privilege('anon',…)` ——
   `role_table_grants where grantee='anon'` 对只读角色**返回全空**（假阴性，78 张表读成 0 张）。
