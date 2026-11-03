@@ -1,9 +1,5 @@
 import { supabase } from '../supabase-client.js';
-import {
-  executeRead,
-  normalizeDbError,
-  invalidateByTags
-} from '../request-core.js';
+import { executeRead, normalizeDbError, invalidateByTags } from '../request-core.js';
 import { CACHE_TTL_LEVELS } from '../cache-strategy.js';
 import { logger } from '../logger.js';
 import { clearSensitiveLocalStorage } from '../safe-storage.js';
@@ -39,9 +35,11 @@ const PROFILE_ALL_COLUMNS = `
 
 const isCaptchaVerificationFailure = (message = '') => {
   const normalized = String(message || '').toLowerCase();
-  return normalized.includes('captcha')
-    || normalized.includes('turnstile')
-    || normalized.includes('verification process failed');
+  return (
+    normalized.includes('captcha') ||
+    normalized.includes('turnstile') ||
+    normalized.includes('verification process failed')
+  );
 };
 
 /**
@@ -118,14 +116,14 @@ const adoptEdgeSession = async (payload) => {
       data: null,
       error: normalizeDbError({
         code: 'LOGIN_FAILED',
-        message: payload?.message || '登录失败，请稍后再试。'
-      })
+        message: payload?.message || '登录失败，请稍后再试。',
+      }),
     };
   }
 
   const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
     access_token: accessToken,
-    refresh_token: refreshToken
+    refresh_token: refreshToken,
   });
 
   if (sessionError) {
@@ -137,7 +135,7 @@ const adoptEdgeSession = async (payload) => {
   return {
     ok: true,
     data: sessionData || { user: payload?.user || null, session },
-    error: null
+    error: null,
   };
 };
 
@@ -165,8 +163,14 @@ export async function isUsernameAvailable(username) {
       logger.warn('auth-api', 'Username availability check failed', error);
       return { ok: false, available: null };
     }
-    const taken = Array.isArray(data)
-      && data.some((row) => String(row?.username || '').trim().toLowerCase() === safeUsername.toLowerCase());
+    const taken =
+      Array.isArray(data) &&
+      data.some(
+        (row) =>
+          String(row?.username || '')
+            .trim()
+            .toLowerCase() === safeUsername.toLowerCase(),
+      );
     return { ok: true, available: !taken };
   } catch (error) {
     logger.warn('auth-api', 'Username availability check threw', error);
@@ -184,7 +188,7 @@ export async function signUp(username, email, password, metadata = {}) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: usernameValidationMessage, code: 'INVALID_USERNAME' })
+      error: normalizeDbError({ message: usernameValidationMessage, code: 'INVALID_USERNAME' }),
     };
   }
 
@@ -193,7 +197,7 @@ export async function signUp(username, email, password, metadata = {}) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: passwordValidationMessage, code: 'INVALID_PASSWORD' })
+      error: normalizeDbError({ message: passwordValidationMessage, code: 'INVALID_PASSWORD' }),
     };
   }
 
@@ -202,7 +206,7 @@ export async function signUp(username, email, password, metadata = {}) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' })
+      error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' }),
     };
   }
 
@@ -211,7 +215,7 @@ export async function signUp(username, email, password, metadata = {}) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '该方块 ID 已被使用', code: 'USERNAME_TAKEN' })
+      error: normalizeDbError({ message: '该方块 ID 已被使用', code: 'USERNAME_TAKEN' }),
     };
   }
 
@@ -225,25 +229,35 @@ export async function signUp(username, email, password, metadata = {}) {
       emailRedirectTo: `${window.location.origin}/`,
       data: {
         ...metadata,
-        username: safeUsername
-      }
-    }
+        username: safeUsername,
+      },
+    },
   });
 
   if (error) {
     const normalizedMessage = String(error.message || '').toLowerCase();
-    if (normalizedMessage.includes('user already registered') || normalizedMessage.includes('already registered')) {
+    if (
+      normalizedMessage.includes('user already registered') ||
+      normalizedMessage.includes('already registered')
+    ) {
       return {
         ok: false,
         data,
-        error: normalizeDbError({ message: '该邮箱已注册，请直接登录。', code: 'USER_ALREADY_REGISTERED' })
+        error: normalizeDbError({
+          message: '该邮箱已注册，请直接登录。',
+          code: 'USER_ALREADY_REGISTERED',
+        }),
       };
     }
     if (normalizedMessage.includes('rate limit')) {
       return {
         ok: false,
         data,
-        error: normalizeDbError({ ...error, code: 'EMAIL_RATE_LIMIT', message: '邮件发送过于频繁，请稍后再试。' })
+        error: normalizeDbError({
+          ...error,
+          code: 'EMAIL_RATE_LIMIT',
+          message: '邮件发送过于频繁，请稍后再试。',
+        }),
       };
     }
     if (isCaptchaVerificationFailure(normalizedMessage)) {
@@ -253,22 +267,25 @@ export async function signUp(username, email, password, metadata = {}) {
         error: normalizeDbError({
           ...error,
           code: 'CAPTCHA_FAILED',
-          message: '注册失败：检测到 Supabase Bot Detection 验证未通过。若已废除 Turnstile，请在 Supabase 控制台关闭 Authentication -> Bot Detection 后重试。'
-        })
+          message:
+            '注册失败：检测到 Supabase Bot Detection 验证未通过。若已废除 Turnstile，请在 Supabase 控制台关闭 Authentication -> Bot Detection 后重试。',
+        }),
       };
     }
     return { ok: false, data, error: normalizeDbError(error) };
   }
 
   const isExistingUserMaskedSuccess =
-    Array.isArray(data?.user?.identities)
-    && data.user.identities.length === 0;
+    Array.isArray(data?.user?.identities) && data.user.identities.length === 0;
 
   if (isExistingUserMaskedSuccess) {
     return {
       ok: false,
       data,
-      error: normalizeDbError({ message: '该邮箱已注册，请直接登录。', code: 'USER_ALREADY_REGISTERED' })
+      error: normalizeDbError({
+        message: '该邮箱已注册，请直接登录。',
+        code: 'USER_ALREADY_REGISTERED',
+      }),
     };
   }
 
@@ -281,7 +298,7 @@ export async function signUp(username, email, password, metadata = {}) {
       const profileData = {
         id: data.user.id,
         username: safeUsername,
-        join_date: new Date().toISOString().split('T')[0]
+        join_date: new Date().toISOString().split('T')[0],
       };
 
       const birthMonth = metadata.birth_month ? Number(metadata.birth_month) : NaN;
@@ -314,14 +331,14 @@ export async function signIn(loginId, password, security = {}) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '请输入方块 ID 或邮箱地址', code: 'INVALID_INPUT' })
+      error: normalizeDbError({ message: '请输入方块 ID 或邮箱地址', code: 'INVALID_INPUT' }),
     };
   }
   if (!safePassword) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '请输入密码', code: 'INVALID_INPUT' })
+      error: normalizeDbError({ message: '请输入密码', code: 'INVALID_INPUT' }),
     };
   }
 
@@ -339,7 +356,7 @@ export async function signIn(loginId, password, security = {}) {
   if (edge.unavailable) {
     logger.warn('auth-api', 'auth-login EF 不可用', {
       status: edge.status,
-      reason: edge.reason
+      reason: edge.reason,
     });
 
     return {
@@ -347,8 +364,8 @@ export async function signIn(loginId, password, security = {}) {
       data: null,
       error: normalizeDbError({
         code: 'LOGIN_GATEWAY_UNAVAILABLE',
-        message: '登录服务暂不可用，请稍后再试。'
-      })
+        message: '登录服务暂不可用，请稍后再试。',
+      }),
     };
   }
 
@@ -365,14 +382,18 @@ export async function signIn(loginId, password, security = {}) {
     const edgeCode = String(payload.code || '');
     // EF 自己已把「邮箱未验证」归一成 EMAIL_NOT_CONFIRMED 码；
     // 早期 GoTrue 原话也兼容，两者都给用户一句能行动的话。
-    if (edgeCode === 'EMAIL_NOT_CONFIRMED' || edgeMessage.toLowerCase().includes('email not confirmed')) {
+    if (
+      edgeCode === 'EMAIL_NOT_CONFIRMED' ||
+      edgeMessage.toLowerCase().includes('email not confirmed')
+    ) {
       return {
         ok: false,
         data: riskData,
         error: normalizeDbError({
           code: 'EMAIL_NOT_CONFIRMED',
-          message: '该邮箱尚未完成验证，请查收注册确认邮件（注意垃圾箱）后再登录；若未收到，可回到注册页重新发送。'
-        })
+          message:
+            '该邮箱尚未完成验证，请查收注册确认邮件（注意垃圾箱）后再登录；若未收到，可回到注册页重新发送。',
+        }),
       };
     }
     return {
@@ -380,8 +401,8 @@ export async function signIn(loginId, password, security = {}) {
       data: riskData,
       error: normalizeDbError({
         code: edgeCode || 'LOGIN_FAILED',
-        message: payload.message || '登录失败，请稍后再试。'
-      })
+        message: payload.message || '登录失败，请稍后再试。',
+      }),
     };
   }
 
@@ -401,13 +422,14 @@ let passkeyCapabilityCache = null;
 export async function isPasskeySupported() {
   if (typeof window === 'undefined') return false;
   if (!window.PublicKeyCredential) return false;
-  if (typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function') {
+  if (
+    typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable !== 'function'
+  ) {
     return false;
   }
   if (!passkeyCapabilityCache) {
-    passkeyCapabilityCache = window.PublicKeyCredential
-      .isUserVerifyingPlatformAuthenticatorAvailable()
-      .catch((error) => {
+    passkeyCapabilityCache =
+      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch((error) => {
         logger.warn('auth-api', '通行密钥能力检测失败', error);
         return false;
       });
@@ -424,8 +446,7 @@ export async function isPasskeySupported() {
  * 运行时方法会整个不存在 —— 此时引导毫无意义，必须在 UI 层降级，
  * 而不是把「registerPasskey is not a function」的英文 TypeError 甩给用户。
  */
-export const canRegisterPasskey = () =>
-  typeof supabase.auth?.registerPasskey === 'function';
+export const canRegisterPasskey = () => typeof supabase.auth?.registerPasskey === 'function';
 
 export const signInWithPasskey = () => supabase.auth.signInWithPasskey();
 export const registerPasskey = () => supabase.auth.registerPasskey();
@@ -438,8 +459,19 @@ export const renamePasskey = (passkeyId, friendlyName) =>
 export function toPasskeyLoginMessage(error) {
   const name = String(error?.name || '');
   const message = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
 
-  if (name === 'NotAllowedError' || message.includes('not allowed') || message.includes('timed out')) {
+  // 封禁优先判：GoTrue 在签发 token 前就会 403 `user_banned`（服务端拦截，
+  // 见迁移 2026110321 —— 封禁状态同步写入 auth.users.banned_until）。
+  // 这条不是「设备没注册通行密钥」，不能让用户按引导去反复试。
+  if (code.includes('banned') || message.includes('banned')) {
+    return '该账号已被封禁，无法登录。如有疑问请联系管理员。';
+  }
+  if (
+    name === 'NotAllowedError' ||
+    message.includes('not allowed') ||
+    message.includes('timed out')
+  ) {
     // 浏览器端最常见的失败：用户取消 / 该设备没有本站通行密钥
     return '这台设备还没有本站的通行密钥，或验证未完成。请先用密码登录，然后在 设置 → 账户安全 中添加通行密钥。';
   }
@@ -461,13 +493,25 @@ export function toPasskeyRegisterMessage(error) {
   const message = String(error?.message || '').toLowerCase();
 
   // supabase-js 无会话/会话过期（AuthSessionMissingError）——预览假登录态与登录过期都会走到这里
-  if (name === 'AuthSessionMissingError' || message.includes('session missing') || message.includes('not authenticated')) {
+  if (
+    name === 'AuthSessionMissingError' ||
+    message.includes('session missing') ||
+    message.includes('not authenticated')
+  ) {
     return '未检测到有效登录，请先登录后再开启。';
   }
-  if (name === 'InvalidStateError' || message.includes('already') || message.includes('invalid state')) {
+  if (
+    name === 'InvalidStateError' ||
+    message.includes('already') ||
+    message.includes('invalid state')
+  ) {
     return '这台设备上已经注册过通行密钥，无需重复添加。';
   }
-  if (name === 'NotAllowedError' || message.includes('not allowed') || message.includes('timed out')) {
+  if (
+    name === 'NotAllowedError' ||
+    message.includes('not allowed') ||
+    message.includes('timed out')
+  ) {
     return '已取消注册，或设备验证未通过。';
   }
   if (name === 'SecurityError' || message.includes('secure context') || message.includes('rp.id')) {
@@ -486,8 +530,11 @@ export async function updateUserEmail(newEmail, currentPassword) {
   const emailValidationMessage = validateEmail(safeEmail);
   if (emailValidationMessage) {
     return {
-      ok: false, data: null, changed: false, pendingEmail: '',
-      error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' })
+      ok: false,
+      data: null,
+      changed: false,
+      pendingEmail: '',
+      error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' }),
     };
   }
 
@@ -495,39 +542,59 @@ export async function updateUserEmail(newEmail, currentPassword) {
   const currentPasswordMessage = validateCurrentPassword(safePassword);
   if (currentPasswordMessage) {
     return {
-      ok: false, data: null, changed: false, pendingEmail: '',
-      error: normalizeDbError({ message: currentPasswordMessage, code: 'INVALID_PASSWORD' })
+      ok: false,
+      data: null,
+      changed: false,
+      pendingEmail: '',
+      error: normalizeDbError({ message: currentPasswordMessage, code: 'INVALID_PASSWORD' }),
     };
   }
 
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData?.user) {
     return {
-      ok: false, data: null, changed: false, pendingEmail: '',
-      error: normalizeDbError({ message: '登录状态读取失败，请重新登录后再试。', code: 'SESSION_READ_FAILED' })
+      ok: false,
+      data: null,
+      changed: false,
+      pendingEmail: '',
+      error: normalizeDbError({
+        message: '登录状态读取失败，请重新登录后再试。',
+        code: 'SESSION_READ_FAILED',
+      }),
     };
   }
 
   if (String(authData.user.email || '').toLowerCase() === safeEmail) {
     return {
-      ok: false, data: null, changed: false, pendingEmail: '',
-      error: normalizeDbError({ message: '新邮箱与当前邮箱相同。', code: 'SAME_EMAIL' })
+      ok: false,
+      data: null,
+      changed: false,
+      pendingEmail: '',
+      error: normalizeDbError({ message: '新邮箱与当前邮箱相同。', code: 'SAME_EMAIL' }),
     };
   }
 
   // 当前密码校验（与 updatePassword 的 verify 模式一致：确保操作者是账号主人）
   const { error: verifyError } = await supabase.auth.signInWithPassword({
     email: authData.user.email,
-    password: safePassword
+    password: safePassword,
   });
 
   if (verifyError) {
-    const message = String(verifyError.message || '') === 'Invalid login credentials'
-      ? '当前密码不正确，请重新输入。'
-      : (verifyError.message || '当前密码校验失败');
+    const message =
+      String(verifyError.message || '') === 'Invalid login credentials'
+        ? '当前密码不正确，请重新输入。'
+        : verifyError.message || '当前密码校验失败';
     return {
-      ok: false, data: null, changed: false, pendingEmail: '',
-      error: normalizeDbError({ ...verifyError, message, code: verifyError.code || 'CURRENT_PASSWORD_VERIFY_FAILED' })
+      ok: false,
+      data: null,
+      changed: false,
+      pendingEmail: '',
+      error: normalizeDbError({
+        ...verifyError,
+        message,
+        code: verifyError.code || 'CURRENT_PASSWORD_VERIFY_FAILED',
+      }),
     };
   }
 
@@ -537,11 +604,24 @@ export async function updateUserEmail(newEmail, currentPassword) {
     const normalizedMessage = String(error.message || '').toLowerCase();
     if (normalizedMessage.includes('already') || normalizedMessage.includes('registered')) {
       return {
-        ok: false, data: null, changed: false, pendingEmail: '',
-        error: normalizeDbError({ ...error, code: 'EMAIL_TAKEN', message: '该邮箱已被其他账号使用。' })
+        ok: false,
+        data: null,
+        changed: false,
+        pendingEmail: '',
+        error: normalizeDbError({
+          ...error,
+          code: 'EMAIL_TAKEN',
+          message: '该邮箱已被其他账号使用。',
+        }),
       };
     }
-    return { ok: false, data: null, changed: false, pendingEmail: '', error: normalizeDbError(error) };
+    return {
+      ok: false,
+      data: null,
+      changed: false,
+      pendingEmail: '',
+      error: normalizeDbError(error),
+    };
   }
 
   // changed=false = 进入待确认状态：邮件已发、邮箱尚未更换（user.email 仍是旧值）
@@ -559,24 +639,25 @@ export async function verifyEmailTokenHash(tokenHash, type = 'signup') {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '确认令牌无效', code: 'INVALID_TOKEN_HASH' })
+      error: normalizeDbError({ message: '确认令牌无效', code: 'INVALID_TOKEN_HASH' }),
     };
   }
 
   const { data, error } = await supabase.auth.verifyOtp({
     type: safeType,
-    token_hash: safeTokenHash
+    token_hash: safeTokenHash,
   });
   return { ok: !error, data, error: normalizeDbError(error) };
 }
 
-export async function resendSignupConfirmation(email) {  const safeEmail = normalizeEmail(email);
+export async function resendSignupConfirmation(email) {
+  const safeEmail = normalizeEmail(email);
   const emailValidationMessage = validateEmail(safeEmail);
   if (emailValidationMessage) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' })
+      error: normalizeDbError({ message: emailValidationMessage, code: 'INVALID_EMAIL' }),
     };
   }
 
@@ -584,8 +665,8 @@ export async function resendSignupConfirmation(email) {  const safeEmail = norma
     type: 'signup',
     email: safeEmail,
     options: {
-      emailRedirectTo: window.location.origin
-    }
+      emailRedirectTo: window.location.origin,
+    },
   });
 
   return { ok: !error, data, error: normalizeDbError(error) };
@@ -595,8 +676,8 @@ export async function signInWithOAuth(provider) {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: window.location.origin
-    }
+      redirectTo: window.location.origin,
+    },
   });
   return { ok: !error, data, error: normalizeDbError(error) };
 }
@@ -604,7 +685,7 @@ export async function signInWithOAuth(provider) {
 export async function resetPassword(email) {
   const redirectBase = `${window.location.origin}/#/reset-password`;
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: redirectBase
+    redirectTo: redirectBase,
   });
   return { ok: !error, data, error: normalizeDbError(error) };
 }
@@ -615,13 +696,13 @@ export async function verifyPasswordRecovery(tokenHash) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '恢复令牌无效', code: 'INVALID_TOKEN_HASH' })
+      error: normalizeDbError({ message: '恢复令牌无效', code: 'INVALID_TOKEN_HASH' }),
     };
   }
 
   const { data, error } = await supabase.auth.verifyOtp({
     type: 'recovery',
-    token_hash: safeTokenHash
+    token_hash: safeTokenHash,
   });
   return { ok: !error, data, error: normalizeDbError(error) };
 }
@@ -634,7 +715,7 @@ export async function updatePassword(newPassword, currentPassword = '') {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: passwordValidationMessage, code: 'INVALID_PASSWORD' })
+      error: normalizeDbError({ message: passwordValidationMessage, code: 'INVALID_PASSWORD' }),
     };
   }
 
@@ -644,22 +725,29 @@ export async function updatePassword(newPassword, currentPassword = '') {
       return {
         ok: false,
         data: null,
-        error: normalizeDbError(authError || { message: '未检测到登录用户', code: 'NOT_AUTHENTICATED' })
+        error: normalizeDbError(
+          authError || { message: '未检测到登录用户', code: 'NOT_AUTHENTICATED' },
+        ),
       };
     }
 
-    const currentEmail = String(authData.user.email || '').trim().toLowerCase();
+    const currentEmail = String(authData.user.email || '')
+      .trim()
+      .toLowerCase();
     if (!currentEmail) {
       return {
         ok: false,
         data: null,
-        error: normalizeDbError({ message: '当前账号未绑定邮箱，暂无法校验当前密码', code: 'EMAIL_REQUIRED' })
+        error: normalizeDbError({
+          message: '当前账号未绑定邮箱，暂无法校验当前密码',
+          code: 'EMAIL_REQUIRED',
+        }),
       };
     }
 
     const { data: verifyData, error: verifyError } = await supabase.auth.signInWithPassword({
       email: currentEmail,
-      password: safeCurrentPassword
+      password: safeCurrentPassword,
     });
 
     if (verifyError) {
@@ -667,12 +755,17 @@ export async function updatePassword(newPassword, currentPassword = '') {
       if (message === 'Invalid login credentials') {
         message = '当前密码不正确，请重新输入。';
       } else if (isCaptchaVerificationFailure(message)) {
-        message = '当前密码校验失败：检测到 Supabase Bot Detection 验证未通过。若已废除 Turnstile，请在 Supabase 控制台关闭 Authentication -> Bot Detection 后重试。';
+        message =
+          '当前密码校验失败：检测到 Supabase Bot Detection 验证未通过。若已废除 Turnstile，请在 Supabase 控制台关闭 Authentication -> Bot Detection 后重试。';
       }
       return {
         ok: false,
         data: null,
-        error: normalizeDbError({ ...verifyError, message, code: verifyError.code || 'CURRENT_PASSWORD_VERIFY_FAILED' })
+        error: normalizeDbError({
+          ...verifyError,
+          message,
+          code: verifyError.code || 'CURRENT_PASSWORD_VERIFY_FAILED',
+        }),
       };
     }
 
@@ -682,15 +775,15 @@ export async function updatePassword(newPassword, currentPassword = '') {
         data: null,
         error: normalizeDbError({
           message: '账号校验失败：当前会话与密码验证账号不一致',
-          code: 'USER_MISMATCH'
-        })
+          code: 'USER_MISMATCH',
+        }),
       };
     }
   }
 
   const { data, error } = await supabase.auth.updateUser({
     password: safePassword,
-    ...(safeCurrentPassword ? { current_password: safeCurrentPassword } : {})
+    ...(safeCurrentPassword ? { current_password: safeCurrentPassword } : {}),
   });
 
   return { ok: !error, data, error: normalizeDbError(error) };
@@ -703,7 +796,7 @@ export async function deleteMyAccount(password, reason = '') {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: currentPasswordMessage, code: 'INVALID_PASSWORD' })
+      error: normalizeDbError({ message: currentPasswordMessage, code: 'INVALID_PASSWORD' }),
     };
   }
 
@@ -712,23 +805,30 @@ export async function deleteMyAccount(password, reason = '') {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError(authError || { message: '未检测到登录用户', code: 'NOT_AUTHENTICATED' })
+      error: normalizeDbError(
+        authError || { message: '未检测到登录用户', code: 'NOT_AUTHENTICATED' },
+      ),
     };
   }
 
   const currentUser = authData.user;
-  const currentEmail = String(currentUser.email || '').trim().toLowerCase();
+  const currentEmail = String(currentUser.email || '')
+    .trim()
+    .toLowerCase();
   if (!currentEmail) {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ message: '当前账号未绑定邮箱，暂无法使用密码注销', code: 'EMAIL_REQUIRED' })
+      error: normalizeDbError({
+        message: '当前账号未绑定邮箱，暂无法使用密码注销',
+        code: 'EMAIL_REQUIRED',
+      }),
     };
   }
 
   const { data: verifyData, error: verifyError } = await supabase.auth.signInWithPassword({
     email: currentEmail,
-    password: safePassword
+    password: safePassword,
   });
 
   if (verifyError) {
@@ -736,12 +836,17 @@ export async function deleteMyAccount(password, reason = '') {
     if (message === 'Invalid login credentials') {
       message = '密码验证失败：请输入当前账号密码';
     } else if (isCaptchaVerificationFailure(message)) {
-      message = '密码验证失败：检测到 Supabase Bot Detection 验证未通过。若已废除 Turnstile，请在 Supabase 控制台关闭 Authentication -> Bot Detection 后重试。';
+      message =
+        '密码验证失败：检测到 Supabase Bot Detection 验证未通过。若已废除 Turnstile，请在 Supabase 控制台关闭 Authentication -> Bot Detection 后重试。';
     }
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ ...verifyError, message, code: verifyError.code || 'PASSWORD_VERIFY_FAILED' })
+      error: normalizeDbError({
+        ...verifyError,
+        message,
+        code: verifyError.code || 'PASSWORD_VERIFY_FAILED',
+      }),
     };
   }
 
@@ -751,14 +856,16 @@ export async function deleteMyAccount(password, reason = '') {
       data: null,
       error: normalizeDbError({
         message: '账号校验失败：当前会话与密码验证账号不一致',
-        code: 'USER_MISMATCH'
-      })
+        code: 'USER_MISMATCH',
+      }),
     };
   }
 
-  const safeReason = String(reason || '').trim().slice(0, 120);
+  const safeReason = String(reason || '')
+    .trim()
+    .slice(0, 120);
   const { data: rpcData, error: rpcError } = await supabase.rpc('delete_my_account', {
-    p_reason: safeReason || null
+    p_reason: safeReason || null,
   });
 
   if (rpcError) {
@@ -771,8 +878,8 @@ export async function deleteMyAccount(password, reason = '') {
       data: rpcData,
       error: normalizeDbError({
         message: rpcData.message || '注销失败，请稍后重试',
-        code: rpcData.code || 'ACCOUNT_DELETE_FAILED'
-      })
+        code: rpcData.code || 'ACCOUNT_DELETE_FAILED',
+      }),
     };
   }
 
@@ -781,7 +888,15 @@ export async function deleteMyAccount(password, reason = '') {
     logger.warn('auth-api', 'Sign out after account deletion failed', signOutError);
   }
 
-  invalidateByTags(['auth', 'notifications', 'profiles', 'posts', 'comments', 'messages', 'weekly-checkin']);
+  invalidateByTags([
+    'auth',
+    'notifications',
+    'profiles',
+    'posts',
+    'comments',
+    'messages',
+    'weekly-checkin',
+  ]);
   return { ok: true, data: rpcData || { ok: true, code: 'ACCOUNT_DELETED' }, error: null };
 }
 
@@ -798,7 +913,15 @@ export async function signOut() {
 
   const { error } = await supabase.auth.signOut();
   if (!error) {
-    invalidateByTags(['auth', 'notifications', 'profiles', 'posts', 'comments', 'messages', 'weekly-checkin']);
+    invalidateByTags([
+      'auth',
+      'notifications',
+      'profiles',
+      'posts',
+      'comments',
+      'messages',
+      'weekly-checkin',
+    ]);
     // 清理本地敏感数据(邮箱/草稿/偏好等),防止共享设备泄露
     clearSensitiveLocalStorage();
   }
@@ -813,13 +936,16 @@ export async function getCurrentUser() {
       const { data: authData, error } = await supabase.auth.getUser();
       return { data: authData?.user || null, error };
     },
-    { ttlMs: CACHE_TTL_LEVELS.REALTIME, tags: ['auth'], timeoutMs: 4000, retry: 0 }
+    { ttlMs: CACHE_TTL_LEVELS.REALTIME, tags: ['auth'], timeoutMs: 4000, retry: 0 },
   );
 
   if (error) {
-    const code = String(error.code || '').trim().toUpperCase();
+    const code = String(error.code || '')
+      .trim()
+      .toUpperCase();
     const message = String(error.message || '').toLowerCase();
-    const isSessionMissing = code === 'AUTH_SESSION_MISSING' || message.includes('auth session missing');
+    const isSessionMissing =
+      code === 'AUTH_SESSION_MISSING' || message.includes('auth session missing');
     if (!isSessionMissing) {
       logger.warn('auth-api', 'getCurrentUser failed', error);
     }
@@ -833,26 +959,43 @@ export async function getAllProfiles() {
     'profiles.getAllProfiles',
     {},
     async () => supabase.from('profiles').select(PROFILE_ALL_COLUMNS),
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['profiles'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['profiles'], timeoutMs: 8000, retry: 1 },
   );
 }
 
-export async function getProfilesPage({ page = 1, pageSize = 10, search = '', countMode = 'planned', onlyRecentActive = false } = {}) {
+export async function getProfilesPage({
+  page = 1,
+  pageSize = 10,
+  search = '',
+  countMode = 'planned',
+  onlyRecentActive = false,
+} = {}) {
   const safePage = Number.isFinite(page) ? Math.max(1, Math.trunc(page)) : 1;
-  const safePageSize = Number.isFinite(pageSize) ? Math.min(100, Math.max(1, Math.trunc(pageSize))) : 10;
+  const safePageSize = Number.isFinite(pageSize)
+    ? Math.min(100, Math.max(1, Math.trunc(pageSize)))
+    : 10;
   const safeSearch = String(search || '').trim();
-  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode) ? countMode : 'planned';
+  const safeCountMode = ['exact', 'planned', 'estimated'].includes(countMode)
+    ? countMode
+    : 'planned';
   const safeOnlyRecentActive = Boolean(onlyRecentActive);
   const from = (safePage - 1) * safePageSize;
   const to = from + safePageSize - 1;
 
   return executeRead(
     'profiles.getProfilesPage',
-    { page: safePage, pageSize: safePageSize, search: safeSearch, countMode: safeCountMode, onlyRecentActive: safeOnlyRecentActive },
+    {
+      page: safePage,
+      pageSize: safePageSize,
+      search: safeSearch,
+      countMode: safeCountMode,
+      onlyRecentActive: safeOnlyRecentActive,
+    },
     async () => {
       let query = supabase
         .from('profiles')
-        .select(`
+        .select(
+          `
           id,
           username,
           role,
@@ -865,7 +1008,9 @@ export async function getProfilesPage({ page = 1, pageSize = 10, search = '', co
           last_active_at,
           hide_online_status,
           hide_follow_data
-        `, { count: safeCountMode })
+        `,
+          { count: safeCountMode },
+        )
         .order('last_active_at', { ascending: false, nullsFirst: false })
         .order('username', { ascending: true })
         .range(from, to);
@@ -887,17 +1032,17 @@ export async function getProfilesPage({ page = 1, pageSize = 10, search = '', co
           total: count || 0,
           page: safePage,
           pageSize: safePageSize,
-          search: safeSearch
+          search: safeSearch,
         },
-        error
+        error,
       };
     },
     {
       ttlMs: CACHE_TTL_LEVELS.USER_DATA,
       tags: ['profiles'],
       timeoutMs: 8000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
@@ -908,8 +1053,9 @@ export async function getRecentBirthdayProfiles({ limit = 8 } = {}) {
     'profiles.getRecentBirthdayProfiles',
     { limit: safeLimit },
     async () => {
-      const { data, error } = await supabase
-        .rpc('get_recent_birthday_profiles', { p_limit: safeLimit });
+      const { data, error } = await supabase.rpc('get_recent_birthday_profiles', {
+        p_limit: safeLimit,
+      });
 
       if (error) {
         return { data: [], error };
@@ -917,15 +1063,15 @@ export async function getRecentBirthdayProfiles({ limit = 8 } = {}) {
 
       return {
         data: data || [],
-        error: null
+        error: null,
       };
     },
     {
       ttlMs: CACHE_TTL_LEVELS.STATIC_DATA,
       tags: ['profiles'],
       timeoutMs: 8000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
@@ -934,6 +1080,11 @@ export async function getUserInfo(userId) {
     'profiles.getUserInfo',
     { userId },
     async () => supabase.from('profiles').select(PROFILE_ALL_COLUMNS).eq('id', userId).single(),
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['profiles', `profiles:user:${userId}`], timeoutMs: 8000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
+      tags: ['profiles', `profiles:user:${userId}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
   );
 }

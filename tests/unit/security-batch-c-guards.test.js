@@ -32,6 +32,9 @@ const lotteryViewSql = read('supabase/migrations/2026110318_revoke_anon_lottery_
 const triggerSql = read('supabase/migrations/2026110319_revoke_trigger_execute_authenticated.sql');
 const refundSql = read('supabase/migrations/2026110320_refund_lab_usage_flow_type_guard.sql');
 const refundSqlNoComments = stripSqlComments(refundSql);
+const banMirrorSql = read('supabase/migrations/2026110321_mirror_ban_to_auth_users.sql');
+const banMirrorSqlNoComments = stripSqlComments(banMirrorSql);
+const authApi = read('src/utils/api/auth-api.js');
 
 describe('admin_supabase_project_status：storage 大小取值口径', () => {
   it('不再直接 SUM(size)（该列在 storage.objects 里不存在）', () => {
@@ -147,5 +150,56 @@ describe('refund_lab_usage：只补 flow_type 守卫，不能再加设备过滤'
     expect(refundSql).toMatch(
       /grant execute on function public\.refund_lab_usage\(uuid, text, text\) to anon, authenticated, service_role/,
     );
+  });
+});
+
+/* 外部审查 F1：passkey / OAuth 直连 GoTrue，绕过 auth-login EF 的封禁校验。
+ * 产品决定保留 passkey，所以收口点必须落在**签发方**（auth.users.banned_until），
+ * 而不是关掉登录方式，也不能靠前端 signOut。 */
+describe('封禁下沉到 GoTrue（保留 passkey，但封住签发路径）', () => {
+  const banFn = banMirrorSqlNoComments.slice(
+    banMirrorSqlNoComments.indexOf('create or replace function public.admin_ban_user'),
+    banMirrorSqlNoComments.indexOf('create or replace function public.admin_unban_user'),
+  );
+  const unbanFn = banMirrorSqlNoComments.slice(
+    banMirrorSqlNoComments.indexOf('create or replace function public.admin_unban_user'),
+  );
+
+  it('封禁同时写 auth.users.banned_until（GoTrue 在 issueRefreshToken 之前判 IsBanned）', () => {
+    expect(banFn).toMatch(/update auth\.users\s+set banned_until/);
+    expect(banFn).toMatch(/coalesce\(p_until, now\(\) \+ interval '100 years'\)/);
+  });
+
+  it('永久封禁不用 infinity（Go 侧解析依驱动版本而异）', () => {
+    expect(banMirrorSqlNoComments).not.toMatch(/'infinity'/i);
+  });
+
+  it('解封必须清掉 auth 封禁，否则「已解封但登不进来」', () => {
+    expect(unbanFn).toMatch(/update auth\.users\s+set banned_until = null/);
+  });
+
+  it('两条 UPDATE 都排在管理员判定之后（否则普通用户可探测 auth 侧状态）', () => {
+    for (const fn of [banFn, unbanFn]) {
+      const adminGate = fn.indexOf('current_user_is_admin()');
+      const authUpdate = fn.indexOf('update auth.users');
+      expect(adminGate).toBeGreaterThan(-1);
+      expect(authUpdate).toBeGreaterThan(adminGate);
+    }
+  });
+
+  it('迁移自带对账断言：历史「profiles 已封但 auth 未封」必须先清零', () => {
+    expect(banMirrorSql).toMatch(/where p\.is_banned = true/);
+    expect(banMirrorSql).toMatch(/u\.banned_until is null or u\.banned_until <= now\(\)/);
+    expect(banMirrorSql).toMatch(/raise exception '存在 % 个用户 profiles 已封禁但 auth 未封禁/);
+  });
+
+  it('前端把 user_banned 映射成中文，且优先于「设备没注册通行密钥」引导', () => {
+    expect(authApi).toContain('该账号已被封禁，无法登录');
+    const fnStart = authApi.indexOf('export function toPasskeyLoginMessage');
+    const fnEnd = authApi.indexOf('export function toPasskeyRegisterMessage');
+    const body = authApi.slice(fnStart, fnEnd);
+    expect(body.indexOf('banned')).toBeGreaterThan(-1);
+    // 封禁分支必须排在 NotAllowedError（引导加通行密钥）之前
+    expect(body.indexOf('banned')).toBeLessThan(body.indexOf('NotAllowedError'));
   });
 });
