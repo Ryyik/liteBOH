@@ -182,18 +182,25 @@ describe('auth-api integration: signIn', () => {
     expect(result.error.code).toBe('INVALID_INPUT');
   });
 
-  it('signs in with email directly', async () => {
-    mocks.authSignInWithPassword.mockResolvedValue({
-      data: { user: { id: 'u1', email: 'test@example.com' }, session: {} },
+  it('signs in with email through the Edge Function, never calling GoTrue directly', async () => {
+    // 2026-11-03 收口：邮箱与方块 ID 走同一个 EF 入口。
+    // 直连 signInWithPassword 会绕过失败计数/Altcha/服务端封禁校验。
+    mocks.invokeMock.mockResolvedValue({
+      data: { ok: true, session: { access_token: 'at', refresh_token: 'rt' } },
+      error: null,
+    });
+    mocks.authSetSession.mockResolvedValue({
+      data: { user: { id: 'u1', email: 'test@example.com' }, session: { access_token: 'at', refresh_token: 'rt' } },
       error: null,
     });
 
     const result = await signIn('test@example.com', 'password123');
+
     expect(result.ok).toBe(true);
-    expect(mocks.authSignInWithPassword).toHaveBeenCalledWith({
-      email: 'test@example.com',
-      password: 'password123',
+    expect(mocks.invokeMock).toHaveBeenCalledWith('auth-login', {
+      body: { loginId: 'test@example.com', password: 'password123' },
     });
+    expect(mocks.authSignInWithPassword).not.toHaveBeenCalled();
   });
 
   it('resolves username on the server via Edge Function, never calling the old RPC', async () => {
@@ -233,27 +240,42 @@ describe('auth-api integration: signIn', () => {
   });
 
   it('handles invalid credentials', async () => {
-    mocks.authSignInWithPassword.mockResolvedValue({
+    mocks.invokeMock.mockResolvedValue({
       data: null,
-      error: { message: 'Invalid login credentials', code: '401' },
+      error: {
+        message: 'Edge Function returned a non-2xx status code',
+        context: {
+          status: 401,
+          json: async () => ({ ok: false, code: 'INVALID_CREDENTIALS', message: '登录失败：账号或密码错误' }),
+        },
+      },
     });
 
     const result = await signIn('test@example.com', 'wrongpassword');
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('INVALID_CREDENTIALS');
+    expect(mocks.authSignInWithPassword).not.toHaveBeenCalled();
   });
 
   it('handles email not confirmed', async () => {
-    mocks.authSignInWithPassword.mockResolvedValue({
+    mocks.invokeMock.mockResolvedValue({
       data: null,
-      error: { message: 'Email not confirmed', code: '401' },
+      error: {
+        message: 'Edge Function returned a non-2xx status code',
+        context: {
+          status: 400,
+          json: async () => ({ ok: false, code: 'EMAIL_NOT_CONFIRMED', message: '请先验证邮箱后再登录。' }),
+        },
+      },
     });
 
     const result = await signIn('test@example.com', 'password123');
     expect(result.ok).toBe(false);
-    // signIn 把 GoTrue 的 401「Email not confirmed」归一化成 EMAIL_NOT_CONFIRMED，
-    // 前端才能给「去查收邮件 / 重发」的引导，而不是一句笼统的凭据无效
+    // EF 把 GoTrue 的「Email not confirmed」归一成 EMAIL_NOT_CONFIRMED 码（文案是中文），
+    // signIn 按 code 判定后给出「去查收邮件 / 重发」的引导，而不是笼统的凭据无效
     expect(result.error.code).toBe('EMAIL_NOT_CONFIRMED');
+    expect(result.error.message).toContain('验证');
+    expect(mocks.authSignInWithPassword).not.toHaveBeenCalled();
   });
 });
 
