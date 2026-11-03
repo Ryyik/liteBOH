@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方块之家 · 制作历程（2026.01 — 2026.11）</title>
+<style>
+  :root{
+    --ink:#1d2433;
+    --ink-2:#4c5568;
+    --ink-3:#7a8296;
+    --accent-1:#4f7df9;
+    --accent-2:#8f5cf5;
+    --accent-3:#ef6fb4;
+    --glass-bg:rgba(255,255,255,.62);
+    --glass-border:rgba(255,255,255,.72);
+    --card-shadow:0 10px 34px rgba(46,58,102,.10);
+    --card-shadow-hover:0 16px 44px rgba(46,58,102,.15);
+    --radius:22px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+    color:var(--ink);
+    background:linear-gradient(165deg,#f6f8ff 0%,#eef3fe 34%,#f7f1fb 66%,#fdf2f7 100%);
+    background-attachment:fixed;
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* ---------- 背景装饰 ---------- */
+  .bg-decor{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0;}
+  .blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;}
+  .blob-1{width:520px;height:520px;top:-160px;left:-120px;background:radial-gradient(circle,#bcd2ff,transparent 70%);}
+  .blob-2{width:460px;height:460px;top:18%;right:-140px;background:radial-gradient(circle,#e3ccff,transparent 70%);}
+  .blob-3{width:420px;height:420px;bottom:-120px;left:16%;background:radial-gradient(circle,#ffd3e8,transparent 70%);}
+  .wrap{position:relative;z-index:1;max-width:880px;margin:0 auto;padding:0 22px 80px;}
+
+  /* ---------- Hero ---------- */
+  .hero{padding:84px 0 40px;text-align:center;}
+  .hero-badge{
+    display:inline-block;padding:7px 18px;border-radius:999px;
+    background:var(--glass-bg);border:1px solid var(--glass-border);
+    backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);
+    font-size:13px;letter-spacing:.18em;color:var(--ink-2);font-weight:600;
+    box-shadow:0 4px 18px rgba(46,58,102,.08);
+  }
+  .hero h1{
+    margin:26px 0 14px;font-size:clamp(32px,6vw,52px);font-weight:800;letter-spacing:.02em;line-height:1.3;
+    background:linear-gradient(120deg,#2c4fd8 0%,#7b46f0 48%,#e0559f 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  }
+  .hero-sub{max-width:560px;margin:0 auto;color:var(--ink-2);font-size:16px;}
+  .hero-sub b{color:var(--ink);}
+  .stats{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:34px;}
+  .stat{
+    padding:10px 20px;border-radius:16px;
+    background:var(--glass-bg);border:1px solid var(--glass-border);
+    backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);
+    box-shadow:var(--card-shadow);text-align:center;
+  }
+  .stat .num{font-size:20px;font-weight:800;background:linear-gradient(120deg,#3a63e8,#9a4ff0);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .stat .lbl{font-size:12px;color:var(--ink-3);margin-top:1px;}
+
+  /* ---------- 时间轴 ---------- */
+  .timeline{margin-top:26px;}
+  .chapter{margin-top:56px;}
+  .ch-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:20px;padding-left:6px;}
+  .ch-date{
+    flex:none;padding:5px 14px;border-radius:999px;font-size:13px;font-weight:700;color:#fff;letter-spacing:.08em;
+    background:linear-gradient(120deg,var(--accent-1),var(--accent-2));
+    box-shadow:0 4px 14px rgba(94,92,245,.32);
+  }
+  .ch-head h2{font-size:22px;font-weight:800;letter-spacing:.01em;}
+  .ch-head .ch-count{font-size:13px;color:var(--ink-3);}
+  .entries{position:relative;margin-left:6px;padding-left:26px;}
+  .entries::before{
+    content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;
+    background:linear-gradient(180deg,rgba(79,125,249,.55),rgba(143,92,245,.55),rgba(239,111,180,.55));
+  }
+  .entry{position:relative;margin-bottom:18px;}
+  .entry::before{
+    content:"";position:absolute;left:-33px;top:22px;width:13px;height:13px;border-radius:50%;
+    background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+    border:3px solid #fff;box-shadow:0 0 0 4px rgba(120,110,245,.14),0 3px 10px rgba(94,92,245,.35);
+  }
+  .card{
+    background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius);
+    backdrop-filter:blur(22px) saturate(165%);-webkit-backdrop-filter:blur(22px) saturate(165%);
+    box-shadow:var(--card-shadow);padding:22px 26px;
+    transition:transform .25s ease,box-shadow .25s ease;
+  }
+  .card:hover{transform:translateY(-3px);box-shadow:var(--card-shadow-hover);}
+  .entry-date{font-size:12.5px;font-weight:700;color:var(--accent-2);letter-spacing:.06em;margin-bottom:6px;}
+  .card h3{font-size:17.5px;font-weight:800;margin-bottom:8px;}
+  .card p{color:var(--ink-2);font-size:14.5px;}
+  .card ul{margin:10px 0 2px;padding-left:2px;list-style:none;}
+  .card li{
+    position:relative;padding-left:18px;margin-bottom:7px;color:var(--ink-2);font-size:14.5px;
+  }
+  .card li::before{
+    content:"";position:absolute;left:2px;top:.72em;width:7px;height:7px;border-radius:50%;
+    background:linear-gradient(135deg,var(--accent-1),var(--accent-3));opacity:.85;
+  }
+  .card li b{color:var(--ink);font-weight:700;}
+  .entry-date .d{color:var(--ink-3);font-weight:600;margin-left:6px;letter-spacing:0;}
+  .ver{
+    display:inline-block;margin:2px 6px 0 0;padding:3px 11px;border-radius:999px;
+    font-size:12px;font-weight:700;letter-spacing:.04em;color:#fff;
+    background:linear-gradient(120deg,#7b46f0,#e0559f);
+    box-shadow:0 3px 10px rgba(224,85,159,.28);
+  }
+  .ver.blue{background:linear-gradient(120deg,#3a63e8,#5a8bff);box-shadow:0 3px 10px rgba(58,99,232,.28);}
+  .tags{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px;}
+  .tag{
+    padding:4px 12px;border-radius:999px;font-size:12.5px;color:var(--ink-2);
+    background:rgba(255,255,255,.55);border:1px solid rgba(120,120,180,.16);
+  }
+
+  /* ---------- 主线看板 ---------- */
+  .themes{margin-top:76px;}
+  .themes > h2{text-align:center;font-size:24px;font-weight:800;margin-bottom:10px;}
+  .themes > .sub{text-align:center;color:var(--ink-3);font-size:14px;margin-bottom:28px;}
+  .theme-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;}
+  .theme-card{
+    background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:20px;padding:22px;
+    backdrop-filter:blur(22px) saturate(165%);-webkit-backdrop-filter:blur(22px) saturate(165%);
+    box-shadow:var(--card-shadow);transition:transform .25s ease,box-shadow .25s ease;
+  }
+  .theme-card:hover{transform:translateY(-3px);box-shadow:var(--card-shadow-hover);}
+  .theme-card .t-icon{
+    width:40px;height:40px;border-radius:12px;margin-bottom:12px;
+    background:linear-gradient(135deg,var(--accent-1),var(--accent-2));
+    box-shadow:0 6px 16px rgba(94,92,245,.30);
+  }
+  .theme-card:nth-child(2) .t-icon{background:linear-gradient(135deg,#8f5cf5,#ef6fb4);}
+  .theme-card:nth-child(3) .t-icon{background:linear-gradient(135deg,#2fae8f,#5ad0b5);}
+  .theme-card:nth-child(4) .t-icon{background:linear-gradient(135deg,#f0803c,#f6b04e);}
+  .theme-card:nth-child(5) .t-icon{background:linear-gradient(135deg,#3a63e8,#39c2e8);}
+  .theme-card h3{font-size:15.5px;font-weight:800;margin-bottom:6px;}
+  .theme-card p{font-size:13.5px;color:var(--ink-2);}
+
+  /* ---------- 尾声 ---------- */
+  .outro{
+    margin-top:64px;text-align:center;padding:40px 28px;border-radius:26px;
+    background:linear-gradient(120deg,rgba(79,125,249,.14),rgba(143,92,245,.14),rgba(239,111,180,.14));
+    border:1px solid rgba(255,255,255,.7);box-shadow:var(--card-shadow);
+    backdrop-filter:blur(22px) saturate(165%);-webkit-backdrop-filter:blur(22px) saturate(165%);
+  }
+  .outro h2{font-size:22px;font-weight:800;margin-bottom:10px;}
+  .outro p{color:var(--ink-2);font-size:14.5px;max-width:520px;margin:0 auto;}
+  footer{text-align:center;margin-top:48px;color:var(--ink-3);font-size:12.5px;letter-spacing:.06em;}
+
+  @media (max-width:600px){
+    .hero{padding:56px 0 30px;}
+    .card{padding:18px 18px;}
+    .entries{padding-left:20px;}
+    .entry::before{left:-28px;width:11px;height:11px;}
+    .ch-head h2{font-size:19px;}
+  }
+</style>
+</head>
+<body>
+<div class="bg-decor">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
+
+<div class="wrap">
+
+  <!-- ================= HERO ================= -->
+  <header class="hero">
+    <span class="hero-badge">BOH · DEV LOG</span>
+    <h1>一块方块，慢慢长成一个家</h1>
+    <p class="hero-sub">
+      从 <b>2026 年 1 月 13 日</b> 的第一个提交，到今天——这是「方块之家」近 10 个月、<b>800 次提交</b>的制作历程。
+      小修小补没有写进来，这里挑的，是值得记住的那些。
+    </p>
+    <div class="stats">
+      <div class="stat"><div class="num">800</div><div class="lbl">次代码提交</div></div>
+      <div class="stat"><div class="num">10 个月</div><div class="lbl">2026.01 — 2026.11</div></div>
+      <div class="stat"><div class="num">10+</div><div class="lbl">个大版本迭代</div></div>
+      <div class="stat"><div class="num">2 端</div><div class="lbl">Web + Android</div></div>
+    </div>
+  </header>
+
+  <!-- ================= 时间轴 ================= -->
+  <main class="timeline">
+
+    <!-- 第一章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 01</span>
+        <h2>起点：把家安下来</h2>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">1 月 13 日</div>
+            <h3>第一个版本，悄悄上线</h3>
+            <p>「方块之家」的第一个版本部署上线。同一天就接好了「每次更新自动发布」的机制——这个习惯一直保留到今天：你每次打开，看到的都是最新的家。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第二章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 03</span>
+        <h2>悄悄换发动机</h2>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">3 月 16 日</div>
+            <h3>底层升级</h3>
+            <p>整个应用的状态管理迁移到 Pinia。你几乎看不到变化——但之后每一个新功能，都因此盖得更快、更稳。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第三章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 05</span>
+        <h2>论坛，初长成</h2>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">5 月 22 日 <span class="d">— 24 日</span></div>
+            <h3>家的客厅有了模样</h3>
+            <ul>
+              <li>论坛帖子列表样式定版，社区的第一块「主屏幕」成型</li>
+              <li><b>个人主页可以自定义背景图</b>，还能裁剪</li>
+              <li>主页帖子的浏览与翻页体验优化</li>
+            </ul>
+            <div class="tags"><span class="tag">论坛</span><span class="tag">个人主页</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第四章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 06</span>
+        <h2>大建设：一天一个功能</h2>
+        <span class="ch-count">68 次提交</span>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">6 月上旬</div>
+            <h3>论坛全面打磨</h3>
+            <ul>
+              <li>发帖、帖子详情、评论区体验整体翻新，论坛首页迎来<b>猫猫主题</b></li>
+              <li><b>长列表流畅化</b>：几百条帖子也能丝滑滚动，图片进入视野才加载</li>
+              <li>顶部导航栏统一，滚动时的毛玻璃质感登场</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">6 月 23 日</div>
+            <h3>社区更有生活气息</h3>
+            <ul>
+              <li><b>在线状态</b>与论坛位置显示上线</li>
+              <li>通知支持归档，消息不再越堆越多</li>
+              <li>签到面板重构</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">6 月 27 日</div>
+            <h3>灵动岛初登场</h3>
+            <ul>
+              <li>分享帖子时有了「灵动岛」动画——它后来成了方块之家的标志交互</li>
+              <li>发帖草稿增加取消确认，手滑也不怕丢内容</li>
+              <li>AI 配额系统上线</li>
+            </ul>
+            <div class="tags"><span class="tag">灵动岛</span><span class="tag">草稿保护</span></div>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">6 月 28 日</div>
+            <h3>BOHAI 学会了「思考」</h3>
+            <ul>
+              <li>AI 伙伴 BOHAI 支持思考速度分级——想快想慢，由你定</li>
+              <li>关注 / 粉丝可以隐藏了；关注动态流、用户印象上线</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">6 月 30 日</div>
+            <h3>会员体系定型 <span class="ver blue">Beta 4.x</span></h3>
+            <ul>
+              <li><b>Plus / Pro / Max / Ultra</b> 四档会员体系确立，一直沿用至今</li>
+              <li>等级昵称变色：金色昵称、Ultra 专属彩虹流光</li>
+              <li>签到改为每周奖励；PPT 生成功能上线</li>
+              <li>页面更新自动生效的 PWA 机制打通</li>
+            </ul>
+            <div class="tags"><span class="tag">会员体系</span><span class="tag">PPT 生成</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第五章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 07</span>
+        <h2>变美，和八周年</h2>
+        <span class="ch-count">30 次提交</span>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">7 月 1 日 — 8 日</div>
+            <h3>首页焕新</h3>
+            <ul>
+              <li>实验室全面改版：毛玻璃风格 + 三套设计系统，PPT / Word 生成按会员等级限额</li>
+              <li>首页迎来<b>「Halo，福州」像素落日英雄区</b>，还有「遇见福州」彩蛋弹窗</li>
+              <li><b>首页整体重构为 Apple 风格</b>，导航栏毛玻璃质感升级</li>
+            </ul>
+            <div class="tags"><span class="tag">Apple 风格</span><span class="tag">遇见福州</span></div>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">7 月 18 日 — 21 日</div>
+            <h3>八周年庆典</h3>
+            <ul>
+              <li><b>八周年旅程页</b>上线：一路走来的故事可以一路翻</li>
+              <li><b>周年咖啡馆</b>开张；旅程文案编辑器让每个人都能写下自己的故事</li>
+              <li>为了庆典的丝滑，做了一整波动画性能优化</li>
+            </ul>
+            <div class="tags"><span class="tag">八周年</span><span class="tag">周年咖啡馆</span></div>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">7 月 25 日</div>
+            <h3><span class="ver">v4.8.1</span></h3>
+            <p>版本发布，七月收官。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第六章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 08</span>
+        <h2>把热爱做成商城</h2>
+        <span class="ch-count">52 次提交</span>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">8 月 1 日 — 9 日</div>
+            <h3>八周年纪念 + 商城开张</h3>
+            <ul>
+              <li><b>八周年纪念海报申请</b>全流程上线：首页提交，礼物页看进度</li>
+              <li><b>吉祥物公仔商城开张</b>——方块之家的周边第一次有了自己的家</li>
+            </ul>
+            <div class="tags"><span class="tag">公仔商城</span><span class="tag">纪念海报</span></div>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">8 月 11 日 — 14 日</div>
+            <h3>积分与抽奖的夏天</h3>
+            <ul>
+              <li>积分发放管理上线；<b>地址管理</b>模块发布，还有 AI 帮你识别地址</li>
+              <li><b>抽奖运营工作台</b>上线，首页英雄区更灵活</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">8 月 16 日</div>
+            <h3><span class="ver">Beta 5</span> 正式发布</h3>
+            <ul>
+              <li><b>积分卡面</b>可以自定义了；数据导出功能上线</li>
+              <li>底部灵动岛升级为全局顶部导航状态提示</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">8 月 19 日 — 30 日</div>
+            <h3>社区周报与保底福利</h3>
+            <ul>
+              <li><b>AI 论坛周报</b>：每周自动总结社区动态</li>
+              <li><b>会员抽奖保底系统</b>上线，年度会员福利落地</li>
+              <li>帖子支持<b>完整编辑</b>（改图 + 排版）<span class="ver blue">v5.1.1</span></li>
+              <li>论坛视觉刷新：会员卡样式、Ultra 彩虹昵称动效</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第七章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 09 上旬</span>
+        <h2>Beta 6：一场焕新</h2>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">9 月 4 日</div>
+            <h3>离开几天？灵动岛告诉你错过了什么</h3>
+            <ul>
+              <li><b>智能离线概览</b>：几天后回来，开屏那刻灵动岛把社区的新动态讲给你听</li>
+              <li>深色模式打磨、积分充值上线</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">9 月 8 日</div>
+            <h3>「液态玻璃」成为标志</h3>
+            <ul>
+              <li><b>全站玻璃材质统一</b>——「液态玻璃」从此是方块之家的性格</li>
+              <li>帖子可以<b>引用转帖</b>，官方内容镜像进信息流，类型筛选更清晰</li>
+              <li>活动系统平台化：报名、参与、奖励一条龙</li>
+            </ul>
+            <div class="tags"><span class="tag">液态玻璃</span><span class="tag">引用转帖</span></div>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">9 月 9 日</div>
+            <h3><span class="ver">Beta 6</span> 正式发布</h3>
+            <p>名称也升级为「BOHLITE」。一场视觉与体验的整体焕新。</p>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">9 月 11 日 — 13 日</div>
+            <h3>头像框来了</h3>
+            <ul>
+              <li><b>头像框系统</b>全链路上线：奶牛框、仓鼠框打头阵</li>
+              <li>头像框接入个人主页、社区成员列表；资产中心同步改版</li>
+            </ul>
+            <div class="tags"><span class="tag">头像框</span><span class="tag">资产中心</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第八章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 09 中下旬</span>
+        <h2>更安全的家，更远的抵达</h2>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">9 月 17 日 — 18 日</div>
+            <h3>多端与温柔守护</h3>
+            <ul>
+              <li><b>BOHAI 心理访谈模式</b>上线——AI 伙伴多了一份认真倾听的守护</li>
+              <li><b>安卓 App</b> 打包链路打通（签名 APK），手机桌面也能放方块之家了</li>
+              <li><b>Web Push 推送</b>基础设施就绪；竖屏 Mini 导航栏形态上线</li>
+            </ul>
+            <div class="tags"><span class="tag">Android App</span><span class="tag">Web Push</span></div>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">9 月 20 日 — 21 日</div>
+            <h3>账号安全日</h3>
+            <ul>
+              <li><b>通行密钥（Passkey）登录</b>上线——指纹 / 面容一按就能进家</li>
+              <li>忘记密码也不怕：管理员可代发一次性登录令牌，粘贴即登录</li>
+              <li>图片上传全线切换签名加密通道；邮箱不再暴露给前端</li>
+              <li>横屏帖子详情弹窗、用户空间体系重构 <span class="ver blue">Beta 6.3</span></li>
+            </ul>
+            <div class="tags"><span class="tag">Passkey</span><span class="tag">令牌登录</span></div>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">9 月 22 日 — 24 日</div>
+            <h3>注册更顺，开场更美</h3>
+            <ul>
+              <li>注册改为<b>三步向导</b>，可选顺手开通通行密钥</li>
+              <li><b>Web Push 正式上线</b>，新帖回复不再错过；一键绑定引导弹窗</li>
+              <li><b>首页开场画体系</b>上线 <span class="ver blue">Beta 6.4.1</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">9 月 27 日 — 29 日</div>
+            <h3>摄影集与全局搜索</h3>
+            <ul>
+              <li><b>摄影集功能</b>第一版：自动初排、翻页阅读、导出离线网页、分享到社区</li>
+              <li><b>全局搜索</b>上线，全站内容一框直达</li>
+              <li>BOHAI 接入积分计费；云笔记支持公开 / 私密，公开笔记进「作品格」</li>
+            </ul>
+            <div class="tags"><span class="tag">摄影集</span><span class="tag">全局搜索</span><span class="tag">作品格</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第九章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 10</span>
+        <h2>AI 伙伴进化论</h2>
+        <span class="ch-count">425 次提交 · 全年最密集的一个月</span>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">10 月 1 日 — 5 日</div>
+            <h3>焕新开局</h3>
+            <ul>
+              <li>用户空间信息架构重设计；设置页支持搜索</li>
+              <li><b>Cloud+ 相册 iOS 图库化</b>，私密备份库上线</li>
+              <li>BOHAI 输入区改版：圆钮 + 三行面板 + 二级菜单</li>
+              <li>整站加载提速批次；联网搜索升级</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">10 月 6 日 — 8 日</div>
+            <h3>BOHAI 三天大手术</h3>
+            <ul>
+              <li>AI 内核整体重构：回答更快、更稳、更少失败</li>
+              <li>模式面板两视图重排；思考黑点分相，AI「在想什么」看得见</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">10 月 11 日 — 16 日</div>
+            <h3>它会记住这个家了</h3>
+            <ul>
+              <li><b>斜杠命令</b>与推理内容展示上线</li>
+              <li>AI 回复排版重做；<b>液态玻璃输入框</b>浮在消息流上</li>
+              <li><b>BOHAI 记忆上云</b>：官方记忆、社区知识库、新闻与活动自动进它的脑海</li>
+              <li><b>回答图文并茂</b>：聊到帖子，配图直接出现在回答里</li>
+            </ul>
+            <div class="tags"><span class="tag">官方记忆</span><span class="tag">图文回答</span></div>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">10 月 19 日 — 20 日</div>
+            <h3>一次「断舍离」，一次合并</h3>
+            <ul>
+              <li>人物实体识别 + <b>防编造闸门</b>：AI 不再不懂装懂</li>
+              <li>实验室、方块墙、健康中心、Agent 助手功成身退——把精力集中到核心体验</li>
+              <li><b>「资讯」页诞生</b>：活动 / 新闻 / 节目合成一页，追更不再跑三个地方</li>
+              <li>Beta 7 方案对齐，下一程启航</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">10 月 22 日</div>
+            <h3>竖屏与横屏，都认真对待</h3>
+            <ul>
+              <li><b>底栏新增第五席「图库」</b></li>
+              <li>用户空间<b>竖屏全宽化</b>：空间 / 印象 / 设置 / 消息四段通栏</li>
+              <li>横屏帖子详情弹窗全面打磨：面板定档、刷新不丢、比例自适应</li>
+            </ul>
+            <div class="tags"><span class="tag">图库</span><span class="tag">竖屏全宽</span></div>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">10 月 26 日 — 29 日</div>
+            <h3>发帖、签到与邮件</h3>
+            <ul>
+              <li><b>发帖草稿云端同步</b>：换台设备，草稿还在</li>
+              <li><b>签到重构为 3D 卡面舞台</b>：每周 +5，已签也能重播动画</li>
+              <li><b>关注邮件通知</b>上线：你关注的人发帖或回复你，邮件告诉你</li>
+              <li>发帖链路全面加固：草稿实时暂存、上传看门狗、图片档位升级</li>
+              <li>「我 / 设置 / 资产」三页信息架构重做；生成在途的 BohBeam 光束</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">10 月 30 日 — 31 日</div>
+            <h3>动效的连续性</h3>
+            <ul>
+              <li>论坛内部大治理：更稳、更快</li>
+              <li><b>页面动效统一为「从哪来、回哪去」</b>：每次进退都有了连续感</li>
+              <li>详情形变定稿 iOS 口径；开屏支持活动版开场画</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 第十章 -->
+    <section class="chapter">
+      <div class="ch-head">
+        <span class="ch-date">2026 · 11</span>
+        <h2>更快，更完整</h2>
+      </div>
+      <div class="entries">
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">11 月 1 日</div>
+            <h3>首屏提速 22%</h3>
+            <ul>
+              <li><b>首屏体积 310KB → 242KB</b>，并上了「字节预算」机制防止它悄悄变慢</li>
+              <li>关注邮件两种模式：<b>及时与摘要 / 减少干扰</b>，通知权交还给你</li>
+              <li>更新护栏：正在上传时不再被自动刷新打断</li>
+            </ul>
+          </div>
+        </div>
+        <div class="entry">
+          <div class="card">
+            <div class="entry-date">11 月 2 日</div>
+            <h3>周边商城大改版</h3>
+            <ul>
+              <li>商城<b>三列全宽</b>排版，抽奖独立卡片，<b>购物袋独立页面</b></li>
+              <li>订单 / 地址独立分区，<b>订单详情与自助退款</b>上线</li>
+              <li>邮件通知升级；商城图片全面走 CDN，裂图再见</li>
+            </ul>
+            <div class="tags"><span class="tag">商城改版</span><span class="tag">自助退款</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ================= 五条主线 ================= -->
+  <section class="themes">
+    <h2>时间轴背后，有五条一直延伸的主线</h2>
+    <p class="sub">如果把 800 次提交摊开看，能看到五件我们一直在做的事。</p>
+    <div class="theme-grid">
+      <div class="theme-card">
+        <div class="t-icon"></div>
+        <h3>一块玻璃的进化</h3>
+        <p>从实验室里的毛玻璃尝试，到全站统一的「液态玻璃」材质语言，再到支持折射的进阶质感——玻璃，成了方块之家的性格。</p>
+      </div>
+      <div class="theme-card">
+        <div class="t-icon"></div>
+        <h3>一个 AI 的成长</h3>
+        <p>BOHAI 从「会聊天」，到会思考、有记忆、回答图文并茂、不懂不装懂——它是在这个社区里长大的。</p>
+      </div>
+      <div class="theme-card">
+        <div class="t-icon"></div>
+        <h3>一道防线的加固</h3>
+        <p>列级权限、签名上传、通行密钥、一次性令牌……安全不是一次工程，而是十个月里持续收紧的每一小步。</p>
+      </div>
+      <div class="theme-card">
+        <div class="t-icon"></div>
+        <h3>一个论坛的打磨</h3>
+        <p>从最早的样式定版，到虚拟列表、详情弹窗、草稿云同步、3D 签到、动效连续性——论坛是投入最重的战场。</p>
+      </div>
+      <div class="theme-card">
+        <div class="t-icon"></div>
+        <h3>一种速度的执念</h3>
+        <p>拆包、懒加载、图片压缩、自托管模型提速 2 倍、首屏减重 22%……「快」从来不是一次优化，是一种习惯。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 尾声 ================= -->
+  <section class="outro">
+    <h2>未完待续</h2>
+    <p>10 月底，Beta 7 的方案已经对齐。这个家还在长——感谢每一位住在方块之家里的你。</p>
+  </section>
+
+  <footer>方块之家 BOH · 制作历程 · 2026.01.13 — 2026.11.02 · 800 commits</footer>
+</div>
+</body>
+</html>
