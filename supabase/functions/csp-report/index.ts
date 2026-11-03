@@ -19,52 +19,26 @@
  *   supabase functions deploy csp-report --no-verify-jwt
  *
  * 看报告：Supabase Dashboard → Edge Functions → csp-report → Logs，
- *   检索 `[csp-report]` 即可。
+ *   检索 `[csp-report]` 即可；`fmt` 字段标明本次走的是 report-uri(legacy)
+ *   还是 report-to(reporting-api)。
+ *
+ * 2026-11-03 线上取证修正：
+ *   上线后确实收到了真实浏览器的上报（POST 204），但解析结果里
+ *   directive/blocked/document/source 全空、只有 disposition 有值。
+ *   根因是 report-to 通道用驼峰键名（documentURL / effectiveDirective …），
+ *   而实现只认连字符键名。解析逻辑已抽到 `_shared/csp-report-parser.ts`
+ *   并同时支持两种命名，配套单测见 tests/unit/csp-report-parser.test.js。
  */
 
 import { buildCorsHeaders } from '../_shared/cors.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
+import { MAX_BODY_BYTES, parseCspReports } from '../_shared/csp-report-parser.ts';
 
-const MAX_BODY_BYTES = 8 * 1024;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 30;
 
-/** 单字段截断：既防日志膨胀，也防把控制字符注进日志行 */
-const clip = (value: unknown, max = 300): string => {
-  const text = String(value ?? '');
-  // 换行会伪造日志行，统一压平成空格
-  return text.replace(/[\r\n\t]+/g, ' ').slice(0, max);
-};
-
 const emptyResponse = (origin: string | null) =>
   new Response(null, { status: 204, headers: buildCorsHeaders(origin) });
-
-type CspReport = {
-  'document-uri'?: string;
-  'violated-directive'?: string;
-  'effective-directive'?: string;
-  'blocked-uri'?: string;
-  'source-file'?: string;
-  'line-number'?: number;
-  disposition?: string;
-};
-
-/** 兼容两种上报格式：application/csp-report 与 application/reports+json */
-const extractReports = (body: unknown): CspReport[] => {
-  if (!body) return [];
-  if (Array.isArray(body)) {
-    return body
-      .map((item: any) => (item && typeof item === 'object' ? item.body : null))
-      .filter(Boolean) as CspReport[];
-  }
-  if (typeof body === 'object') {
-    const legacy = (body as any)['csp-report'];
-    if (legacy && typeof legacy === 'object') return [legacy as CspReport];
-    const nested = (body as any).body;
-    if (nested && typeof nested === 'object') return [nested as CspReport];
-  }
-  return [];
-};
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
@@ -95,16 +69,8 @@ Deno.serve(async (request) => {
       return emptyResponse(origin);
     }
 
-    const reports = extractReports(parsed);
-    for (const report of reports.slice(0, 5)) {
-      console.log('[csp-report]', JSON.stringify({
-        directive: clip(report['effective-directive'] || report['violated-directive'], 120),
-        blocked: clip(report['blocked-uri'], 300),
-        document: clip(report['document-uri'], 300),
-        source: clip(report['source-file'], 240),
-        line: Number(report['line-number']) || null,
-        disposition: clip(report.disposition, 20),
-      }));
+    for (const report of parseCspReports(parsed)) {
+      console.log('[csp-report]', JSON.stringify(report));
     }
   } catch (error) {
     // 上报端点自身绝不报错给浏览器：静默吞掉，最多留一行诊断
