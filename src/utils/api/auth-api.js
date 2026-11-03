@@ -45,12 +45,17 @@ const isCaptchaVerificationFailure = (message = '') => {
 };
 
 /**
- * 登录标识（方块 ID）→ 会话，全部在服务端完成。
+ * 登录标识（方块 ID / 邮箱）→ 会话，全部在服务端完成。
  *
  * 为什么必须走 Edge Function：
  *   `resolve_email_for_login` RPC 会把邮箱**回传**给客户端，导致任何人（含未登录）
  *   都能用用户名反查邮箱。把「方块 ID → 邮箱 → 密码校验」整条链路放进
  *   `auth-login` EF（service_role 侧解析 auth.users.email），邮箱就不再离开服务端。
+ *
+ * 2026-11-03 收口：邮箱登录也不再直连 GoTrue。
+ *   此前按 `loginId.includes('@')` 分流，含 `@` 的直接 `signInWithPassword` ——
+ *   这条路径绕过了失败计数、Altcha 与服务端封禁校验，且闸门判据（auth_attempt_events）
+ *   只由 EF 写入，等于被撞库时闸门完全无声。现在两种标识都走同一个 EF 入口。
  *
  * 无降级（2026-09-21 收口）：
  *   EF 已部署并验证通过，旧的 RPC 路径与降级开关已**彻底删除** —— 本文件不再出现
@@ -320,108 +325,67 @@ export async function signIn(loginId, password, security = {}) {
     };
   }
 
-  const resolvedEmail = safeLoginId;
+  // 一切登录都走 auth-login EF：方块 ID 与邮箱一视同仁（2026-11-03 收口）。
+  //
+  // 为什么邮箱不能直连 GoTrue（旧实现就是那样，等于留了一条旁路）：
+  //   · 直连 `supabase.auth.signInWithPassword` 绕过失败计数、Altcha 与服务端封禁校验。
+  //     闸门的判据 `auth_attempt_events` 只由 EF 写入 ⇒ 旁路被撞库时闸门永远是哑的；
+  //     而 GoTrue 侧的 `security_captcha_enabled` 也是 false，两边都不设防。
+  //   · 邮箱走 EF **不增加枚举面**：`resolveEmailFromLoginId` 对含 `@` 的输入直接返回，
+  //     不做任何库查询；EF 又把所有失败收敛成 INVALID_CREDENTIALS。
+  //   · 仍然没有降级路径：EF 不可用时明确报错，绝不静默回落到直连。
+  const edge = await invokeAuthLoginEdge(safeLoginId, safePassword, security);
 
-  // 方块 ID 登录：只走 EF。邮箱不回传客户端，且**没有**降级路径
-  // （EF 不可用时明确报错，绝不静默回落 —— 回落会让邮箱枚举面复活）
-  if (!safeLoginId.includes('@')) {
-    const edge = await invokeAuthLoginEdge(safeLoginId, safePassword, security);
+  if (edge.unavailable) {
+    logger.warn('auth-api', 'auth-login EF 不可用', {
+      status: edge.status,
+      reason: edge.reason
+    });
 
-    if (edge.unavailable) {
-      logger.warn('auth-api', 'auth-login EF 不可用', {
-        status: edge.status,
-        reason: edge.reason
-      });
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({
+        code: 'LOGIN_GATEWAY_UNAVAILABLE',
+        message: '登录服务暂不可用，请稍后再试。'
+      })
+    };
+  }
 
-      return {
-        ok: false,
-        data: null,
-        error: normalizeDbError({
-          code: 'LOGIN_GATEWAY_UNAVAILABLE',
-          message: '登录服务暂不可用，请稍后再试。'
-        })
-      };
-    }
+  const payload = edge.payload || {};
 
-    const payload = edge.payload || {};
-
-    if (payload.ok !== true) {
-      // 风控标志透传：store 的 login() 读 `data.requireCaptcha` 决定是否展示验证码。
-      // 出错时 data 本来没有内容，这里把标志挂上去 —— 比改 store 的读取路径更安全。
-      const riskData = {
-        requireCaptcha: Boolean(payload.requireCaptcha),
-        retryAfterSeconds: Number(payload.retryAfterSeconds) || undefined,
-      };
-      // 邮箱验证开启后，GoTrue 对未验证邮箱返回 "Email not confirmed"，EF 会透传
-      const edgeMessage = String(payload.message || '');
-      if (edgeMessage.toLowerCase().includes('email not confirmed')) {
-        return {
-          ok: false,
-          data: riskData,
-          error: normalizeDbError({
-            code: 'EMAIL_NOT_CONFIRMED',
-            message: '该邮箱尚未完成验证，请查收注册确认邮件（注意垃圾箱）后再登录；若未收到，可回到注册页重新发送。'
-          })
-        };
-      }
+  if (payload.ok !== true) {
+    // 风控标志透传：store 的 login() 读 `data.requireCaptcha` 决定是否展示验证码。
+    // 出错时 data 本来没有内容，这里把标志挂上去 —— 比改 store 的读取路径更安全。
+    const riskData = {
+      requireCaptcha: Boolean(payload.requireCaptcha),
+      retryAfterSeconds: Number(payload.retryAfterSeconds) || undefined,
+    };
+    const edgeMessage = String(payload.message || '');
+    const edgeCode = String(payload.code || '');
+    // EF 自己已把「邮箱未验证」归一成 EMAIL_NOT_CONFIRMED 码；
+    // 早期 GoTrue 原话也兼容，两者都给用户一句能行动的话。
+    if (edgeCode === 'EMAIL_NOT_CONFIRMED' || edgeMessage.toLowerCase().includes('email not confirmed')) {
       return {
         ok: false,
         data: riskData,
         error: normalizeDbError({
-          code: payload.code || 'LOGIN_FAILED',
-          message: payload.message || '登录失败，请稍后再试。'
-        })
-      };
-    }
-
-    return adoptEdgeSession(payload);
-  }
-
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: resolvedEmail,
-    password: safePassword
-  });
-
-  if (error) {
-    const normalizedMessage = String(error.message || '').toLowerCase();
-    if (normalizedMessage.includes('invalid login credentials')) {
-      return {
-        ok: false,
-        data: null,
-        error: normalizeDbError({ ...error, code: 'INVALID_CREDENTIALS', message: '登录失败：账号或密码错误' })
-      };
-    }
-
-    // 邮箱验证开启后（mailer_autoconfirm=false），未验证邮箱登录被 GoTrue 拒绝
-    if (normalizedMessage.includes('email not confirmed')) {
-      return {
-        ok: false,
-        data: null,
-        error: normalizeDbError({
-          ...error,
           code: 'EMAIL_NOT_CONFIRMED',
           message: '该邮箱尚未完成验证，请查收注册确认邮件（注意垃圾箱）后再登录；若未收到，可回到注册页重新发送。'
         })
       };
     }
-
-    if (isCaptchaVerificationFailure(normalizedMessage)) {
-      return {
-        ok: false,
-        data: null,
-        error: normalizeDbError({
-          ...error,
-          code: 'CAPTCHA_FAILED',
-          message: '登录失败：检测到 Supabase Bot Detection 验证未通过。若已废除 Turnstile，请在 Supabase 控制台关闭 Authentication -> Bot Detection 后重试。'
-        })
-      };
-    }
-
-    return { ok: false, data, error: normalizeDbError(error) };
+    return {
+      ok: false,
+      data: riskData,
+      error: normalizeDbError({
+        code: edgeCode || 'LOGIN_FAILED',
+        message: payload.message || '登录失败，请稍后再试。'
+      })
+    };
   }
 
-  invalidateByTags(['auth', 'weekly-checkin']);
-  return { ok: true, data, error: null };
+  return adoptEdgeSession(payload);
 }
 
 /**

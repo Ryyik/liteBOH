@@ -302,36 +302,79 @@ describe('signIn：EF 不可用时明确报错（不再降级到旧 RPC）', () 
   });
 });
 
-describe('signIn：邮箱直登不需要任何解析（零枚举面）', () => {
-  it('输入是邮箱 → 既不走 EF 也不查 RPC', async () => {
-    signInWithPasswordMock.mockResolvedValue({
-      data: { session: { access_token: 'a' } },
+describe('signIn：邮箱也必须走 EF 闸门（2026-11-03 收口）', () => {
+  it('输入是邮箱 → 走 EF，且前端绝不 signInWithPassword', async () => {
+    invokeMock.mockResolvedValue({ data: { ok: true, session: EF_SESSION }, error: null });
+    setSessionMock.mockResolvedValue({
+      data: { user: EF_SESSION.user, session: EF_SESSION },
       error: null,
     });
 
     const result = await signIn('someone@example.com', 'pw');
 
-    expect(invokeMock).not.toHaveBeenCalled();
-    expect(rpcMock).not.toHaveBeenCalled();
-    expect(signInWithPasswordMock).toHaveBeenCalledWith({
-      email: 'someone@example.com',
-      password: 'pw',
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).toHaveBeenCalledWith('auth-login', {
+      body: { loginId: 'someone@example.com', password: 'pw' },
     });
+    // 反证点：旧实现下这里会是 1 次（直连 GoTrue，绕过闸门）
+    expect(signInWithPasswordMock).not.toHaveBeenCalled();
     expect(result.ok).toBe(true);
   });
 
-  it('邮箱登录失败仍归一化 invalid login credentials', async () => {
-    signInWithPasswordMock.mockResolvedValue({
+  it('邮箱登录失败 → 用 EF 的错误码，不回落直连', async () => {
+    invokeMock.mockResolvedValue({
       data: null,
-      error: { message: 'Invalid login credentials' },
+      error: httpError(401, { ok: false, code: 'INVALID_CREDENTIALS', message: '登录失败：账号或密码错误' }),
     });
 
     const result = await signIn('someone@example.com', 'bad');
 
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('INVALID_CREDENTIALS');
-    expect(invokeMock).not.toHaveBeenCalled();
+    expect(signInWithPasswordMock).not.toHaveBeenCalled();
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it('邮箱未验证：EF 给的是 EMAIL_NOT_CONFIRMED 码 + 中文文案 → 仍给可行动提示', async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: httpError(400, { ok: false, code: 'EMAIL_NOT_CONFIRMED', message: '请先验证邮箱后再登录。' }),
+    });
+
+    const result = await signIn('someone@example.com', 'pw');
+
+    expect(result.error.code).toBe('EMAIL_NOT_CONFIRMED');
+    // EF 的中文文案里没有 "email not confirmed"，只按文案匹配会漏掉友好提示
+    expect(result.error.message).toContain('验证');
+    expect(signInWithPasswordMock).not.toHaveBeenCalled();
+  });
+
+  it('风控要求验证码时，邮箱登录同样透传 requireCaptcha', async () => {
+    invokeMock.mockResolvedValue({
+      data: null,
+      error: httpError(401, {
+        ok: false,
+        code: 'INVALID_CREDENTIALS',
+        message: '登录失败：账号或密码错误',
+        requireCaptcha: true,
+      }),
+    });
+
+    const result = await signIn('someone@example.com', 'bad');
+
+    expect(result.data.requireCaptcha).toBe(true);
+  });
+
+  it('源码守卫：signIn 函数体内已不存在 signInWithPassword 调用点', async () => {
+    const source = await readFile('src/utils/api/auth-api.js', 'utf-8');
+    const start = source.indexOf('export async function signIn(');
+    const end = source.indexOf('export async function isPasskeySupported');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+
+    const signInBody = source.slice(start, end);
+    // 断言**调用点**而非字符串提及：函数内注释保留删除原因是有价值的文档
+    expect(signInBody).not.toMatch(/signInWithPassword\s*\(/);
   });
 });
 
