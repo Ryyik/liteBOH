@@ -18,12 +18,14 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   ALERT_DEDUPE_HOURS,
+  buildBearerFromVault,
   buildWatchdogCommand,
   buildWatchdogScheduleSql,
   evaluateKeepaliveHealth,
-  extractTokenFromCommand,
+  hasInlineToken,
   KEEPALIVE_ALERT_AFTER_FAILURES,
   KEEPALIVE_STALE_DAYS,
+  MAIL_KEEPALIVE_TOKEN_SECRET,
   MONTHLY_JOB_NAME,
   WATCHDOG_JOB_NAME,
   WATCHDOG_SCHEDULE,
@@ -118,7 +120,7 @@ describe('evaluateKeepaliveHealth —— 健康判定', () => {
 });
 
 describe('buildWatchdogCommand —— 巡检命令本体', () => {
-  const cmd = buildWatchdogCommand({ ref: 'abcdefghijklmnop', token: 'a'.repeat(64) });
+  const cmd = buildWatchdogCommand({ ref: 'abcdefghijklmnop' });
 
   it('只在「距上次成功 ≥ 阈值」时才发（否则每天一封垃圾邮件）', () => {
     expect(cmd).toContain(`interval '${KEEPALIVE_STALE_DAYS} days'`);
@@ -129,8 +131,10 @@ describe('buildWatchdogCommand —— 巡检命令本体', () => {
     expect(cmd).toContain('to_timestamp(0)'); // 底账为空 ⇒ 立即补发，而不是永远不发
   });
 
-  it('鉴权头是烘焙的 64 位 token（与心跳 job 同源）', () => {
-    expect(cmd).toContain(`'Authorization', 'Bearer ${'a'.repeat(64)}'`);
+  it('鉴权头从 Vault 读，命令里不留明文 token（cron.job 可被任意只读账号看见）', () => {
+    expect(cmd).toContain('vault.decrypted_secrets');
+    expect(cmd).toContain(`name = '${MAIL_KEEPALIVE_TOKEN_SECRET}'`);
+    expect(hasInlineToken(cmd)).toBe(false);
     expect(cmd).toContain('https://abcdefghijklmnop.supabase.co/functions/v1/mail-keepalive');
   });
 
@@ -148,14 +152,14 @@ describe('buildWatchdogCommand —— 巡检命令本体', () => {
     expect(realAttemptFilter.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('缺 ref / token 直接抛（不生成一条永远 401 的合法 job）', () => {
-    expect(() => buildWatchdogCommand({ ref: '', token: 'x' })).toThrow();
-    expect(() => buildWatchdogCommand({ ref: 'r', token: '' })).toThrow();
+  it('缺 ref / secret 名直接抛（不生成一条永远 401 的合法 job）', () => {
+    expect(() => buildWatchdogCommand({ ref: '' })).toThrow();
+    expect(() => buildWatchdogCommand({ ref: 'r', tokenSecretName: '' })).toThrow();
   });
 });
 
 describe('buildWatchdogScheduleSql —— cron 注册包装', () => {
-  const sqlText = buildWatchdogScheduleSql({ ref: 'abcdefghijklmnop', token: 'b'.repeat(64) });
+  const sqlText = buildWatchdogScheduleSql({ ref: 'abcdefghijklmnop' });
 
   it('幂等：先 unschedule 同名再 schedule', () => {
     expect(sqlText).toContain(`jobname = '${WATCHDOG_JOB_NAME}'`);
@@ -170,7 +174,7 @@ describe('buildWatchdogScheduleSql —— cron 注册包装', () => {
   it('$cmd$ 定界符不能被命令内部破坏（命令里出现 $cmd$ ⇒ 语法错在 cron 侧静默）', () => {
     const open = (sqlText.match(/\$cmd\$/g) || []).length;
     expect(open, '$cmd$ 必须恰好出现两次（开+闭）').toBe(2);
-    const body = buildWatchdogCommand({ ref: 'abcdefghijklmnop', token: 'b'.repeat(64) });
+    const body = buildWatchdogCommand({ ref: 'abcdefghijklmnop' });
     expect(body).not.toContain('$cmd$');
     expect(body).not.toContain('$$');
   });
@@ -181,17 +185,28 @@ describe('buildWatchdogScheduleSql —— cron 注册包装', () => {
   });
 });
 
-describe('extractTokenFromCommand —— token 单源提取', () => {
-  it('从标准命令文本提取 64 位 token', () => {
-    const token = 'c'.repeat(64);
-    expect(extractTokenFromCommand(`'Authorization', 'Bearer ${token}'`)).toBe(token);
+describe('Vault 引用 —— token 不再进 cron 命令', () => {
+  it('buildBearerFromVault 生成可拼进 jsonb_build_object 的表达式', () => {
+    const expr = buildBearerFromVault();
+    expect(expr).toBe(
+      `'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = '${MAIL_KEEPALIVE_TOKEN_SECRET}')`,
+    );
   });
 
-  it('过短 / 非十六进制 / 空 ⇒ 空串（不许把垃圾当 token 烘焙进新 job）', () => {
-    expect(extractTokenFromCommand("'Bearer abc'")).toBe('');
-    expect(extractTokenFromCommand(`'Bearer ${'z'.repeat(64)}'`)).toBe('');
-    expect(extractTokenFromCommand('')).toBe('');
-    expect(extractTokenFromCommand(null)).toBe('');
+  it('可指定别的 secret 名（同一套机制复用到别的 job）', () => {
+    expect(buildBearerFromVault('push_dispatch_key')).toContain("name = 'push_dispatch_key'");
+  });
+
+  it('hasInlineToken 只认 64 位十六进制（旧形态），不会误伤别的字符串', () => {
+    expect(hasInlineToken(`'Bearer ${'c'.repeat(64)}'`)).toBe(true);
+    expect(hasInlineToken("'Bearer abc'")).toBe(false);
+    expect(hasInlineToken(`'Bearer ${'z'.repeat(64)}'`)).toBe(false);
+    expect(hasInlineToken('')).toBe(false);
+    expect(hasInlineToken(null)).toBe(false);
+  });
+
+  it('生成的命令必须通过 hasInlineToken 的「干净」检查', () => {
+    expect(hasInlineToken(buildWatchdogCommand({ ref: 'r'.repeat(16) }))).toBe(false);
   });
 });
 
@@ -208,10 +223,22 @@ describe('ops 脚本接线', () => {
   });
 
   it('--cron 轮换 token 时必须连巡检 job 一起换（只换一边 ⇒ 巡检天天 401）', () => {
-    // 轮换分支里用的是本次新生成的那个变量名
-    expect(ops).toContain(
-      flattenSource('buildWatchdogScheduleSql({ ref: REF, token: keepaliveToken })'),
-    );
+    // 轮换后两条 job 都指向同一个 Vault 条目 ⇒ 只需改 vault 一处，两边同时生效
+    expect(ops).toContain(flattenSource('buildWatchdogScheduleSql({ ref: REF })'));
+  });
+
+  it('--cron 先写 Vault 再注册 job（顺序反了会注册出引空密文的 job）', () => {
+    // 用 check 标签定位：源码经 flattenSource 压平后空白不可靠，字符串常量是稳的
+    const vaultIdx = ops.indexOf(flattenSource('C0b token 已写入 Vault'));
+    const cronIdx = ops.indexOf(flattenSource('C1 cron job 已写入'));
+    expect(vaultIdx).toBeGreaterThan(-1);
+    expect(cronIdx).toBeGreaterThan(-1);
+    expect(vaultIdx).toBeLessThan(cronIdx);
+  });
+
+  it('脚本里不再从 cron 命令捞 token（旧路径已删除）', () => {
+    expect(ops).not.toContain('readTokenFromCronJob');
+    expect(ops).not.toContain('extractTokenFromCommand');
   });
 
   it('--verify 断言巡检 job 与阈值（缺了就是「装完没人验」）', () => {

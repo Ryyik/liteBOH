@@ -32,11 +32,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readAccessToken, readProjectRef, runQuery } from './lib/supabase-admin-api.mjs';
 import {
+  buildBearerFromVault,
   buildWatchdogScheduleSql,
   evaluateKeepaliveHealth,
-  extractTokenFromCommand,
+  hasInlineToken,
   KEEPALIVE_ALERT_AFTER_FAILURES,
   KEEPALIVE_STALE_DAYS,
+  MAIL_KEEPALIVE_TOKEN_SECRET,
   MONTHLY_JOB_NAME,
   WATCHDOG_JOB_NAME,
   WATCHDOG_SCHEDULE,
@@ -105,25 +107,22 @@ const fingerprint = (value) => (value ? `${String(value).slice(0, 8)}…` : '(�
 const fnUrl = () => `https://${REF}.supabase.co/functions/v1/${FN_SLUG}`;
 
 /**
- * 从 cron job 命令文本提取保活 token —— cron 命令就是 token 的**单一真源**
- * （--cron 同时写 EF secret 与烘焙进这里，两侧必然一致）。
- * ⚠️ 不从 GET /secrets 读：实测（2026-10-08）读回值与写入值不一致（ebae62e0 ≠ 7b6dc005）。
+ * 从 Vault 读保活 token（2026-11-03 起 token 不再内联在 cron 命令里）。
  *
- * 巡检 job 与月度心跳 job 用的是**同一个** token（--cron 一起写），所以两个都查，
- * 任一命中即可 —— 避免「只删了其中一个 job」时运维以为 token 丢了。
+ * 旧实现从 `cron.job.command` 正则捞 token —— 那意味着任何能读 cron.job 的人
+ * （备份、只读账号、排障截图）都能拿到 service 级凭证。现在：
+ *   写入：`--cron` 生成 token → 写 EF secret → 写 Vault（同名先删后建）
+ *   读取：本函数 / cron 命令里的 `vault.decrypted_secrets` 子查询
+ * ⚠️ 仍不从 GET /secrets 读：实测（2026-10-08）读回值与写入值指纹不一致。
  */
-const readTokenFromCronJob = async () => {
+const readTokenFromVault = async () => {
   const r = await sql(
-    `select jobname, command from cron.job
-      where jobname in ('${JOB_NAME}', '${WATCHDOG_JOB_NAME}')
-      order by case when jobname = '${WATCHDOG_JOB_NAME}' then 0 else 1 end`,
+    `select decrypted_secret as token from vault.decrypted_secrets
+      where name = '${MAIL_KEEPALIVE_TOKEN_SECRET}'`,
   );
   if (!r.ok) return '';
-  for (const row of r.rows) {
-    const token = extractTokenFromCommand(row.command);
-    if (token) return token;
-  }
-  return '';
+  const token = r.rows?.[0]?.token;
+  return typeof token === 'string' ? token : '';
 };
 
 // ---------------------------------------------------------------- --deploy
@@ -257,6 +256,27 @@ if (WANT('--cron')) {
       : `HTTP ${secretWritten.status}: ${secretWritten.text}`,
   );
   if (!secretWritten.ok) process.exit(2);
+
+  // token 的唯一落点改为 Vault（2026-11-03）：cron 命令里只留「从 vault 取」的
+  // 表达式，明文不再进 cron.job.command。先删同名再 create_secret ——
+  // create_secret 对重复 name 会违反唯一约束（vault.secrets.name 有 unique）。
+  const vaultSql = `
+begin;
+delete from vault.secrets where name = '${MAIL_KEEPALIVE_TOKEN_SECRET}';
+select vault.create_secret(
+  '${keepaliveToken}',
+  '${MAIL_KEEPALIVE_TOKEN_SECRET}',
+  'mail-keepalive EF bearer token (rotated by scripts/mail-keepalive-ops.mjs --cron)'
+);
+commit;`;
+  const vaultWritten = await sql(vaultSql, false);
+  check(
+    'C0b token 已写入 Vault（cron 命令不再内联凭证）',
+    vaultWritten.ok,
+    vaultWritten.ok ? `secret=${MAIL_KEEPALIVE_TOKEN_SECRET}` : vaultWritten.error,
+  );
+  if (!vaultWritten.ok) process.exit(2);
+
   // secrets 更新需要几十秒传播到函数运行时。
   console.log('  … 等待 40s 让 secret 传播到函数运行时');
   await new Promise((resolve) => setTimeout(resolve, 40_000));
@@ -273,7 +293,7 @@ select cron.schedule(
   select net.http_post(
     url := 'https://${REF}.supabase.co/functions/v1/${FN_SLUG}',
     headers := jsonb_build_object(
-      'Authorization', 'Bearer ${keepaliveToken}',
+      'Authorization', ${buildBearerFromVault()},
       'Content-Type', 'application/json'
     ),
     body := jsonb_build_object('trigger', 'pg_cron'),
@@ -285,9 +305,9 @@ commit;`;
   const applied = await sql(cronSql, false);
   check('C1 cron job 已写入（幂等替换同名）', applied.ok, applied.ok ? '' : applied.error);
 
-  // 巡检 job 与心跳 job 共用同一个 token ⇒ 轮换必须两边一起换。
-  // （否则「--cron 轮换后巡检还揣着旧 token」会天天 401，而那正是要消灭的静默失败。）
-  const watchdogSql = buildWatchdogScheduleSql({ ref: REF, token: keepaliveToken });
+  // 巡检 job 与心跳 job 共用同一个 Vault 条目 ⇒ 轮换只改 vault 一处，两个 job 同时生效
+  // （旧实现把 token 烘焙进两条命令，轮换漏一条就天天 401 —— 那正是要消灭的静默失败）。
+  const watchdogSql = buildWatchdogScheduleSql({ ref: REF });
   const watchdogApplied = await sql(watchdogSql, false);
   check(
     'C2 每日巡检 job 已写入（与心跳同一 token，含 21 天阈值与失败告警）',
@@ -297,17 +317,17 @@ commit;`;
 }
 
 // ---------------------------------------------------------------- --watchdog
-// 只重注册巡检 job，**不轮换 token**（token 从现有 cron 命令里读）。
+// 只重注册巡检 job，**不轮换 token**（token 在 Vault，命令里只存引用）。
 // 用途：调阈值 / 改告警文案 / 巡检 job 被误删后的单点修复。
 if (WANT('--watchdog')) {
-  console.log('== 注册/替换每日巡检 job（复用现有 token）==');
-  const token = await readTokenFromCronJob();
-  check('W0 从 cron 命令提取 token', Boolean(token), `token=${fingerprint(token)}`);
+  console.log('== 注册/替换每日巡检 job（复用 Vault 里的 token）==');
+  const token = await readTokenFromVault();
+  check('W0 Vault 里能读到 token', Boolean(token), `token=${fingerprint(token)}`);
   if (!token) {
-    console.error('提取不到 token ⇒ 先跑 --cron（会同时生成 token 并写两侧）。');
+    console.error('Vault 里没有 token ⇒ 先跑 --cron（会生成 token 并写 EF secrets + Vault）。');
     process.exit(2);
   }
-  const applied = await sql(buildWatchdogScheduleSql({ ref: REF, token }), false);
+  const applied = await sql(buildWatchdogScheduleSql({ ref: REF }), false);
   check('W1 巡检 job 已写入（幂等替换同名）', applied.ok, applied.ok ? '' : applied.error);
   if (!applied.ok) process.exit(2);
   const state = await sql(
@@ -382,6 +402,7 @@ if (WANT('--verify')) {
       (select count(*) from cron.job where jobname = '${WATCHDOG_JOB_NAME}' and active) as watchdog_jobs,
       (select schedule from cron.job where jobname = '${WATCHDOG_JOB_NAME}') as watchdog_schedule,
       (select command from cron.job where jobname = '${WATCHDOG_JOB_NAME}') as watchdog_command,
+      (select command from cron.job where jobname = '${JOB_NAME}') as cron_command,
       (select count(*) from supabase_migrations.schema_migrations where version = '${VERSION}') as ledger_rows`);
   if (!state.ok) {
     check('V0 状态查询失败', false, state.error);
@@ -426,10 +447,19 @@ if (WANT('--verify')) {
     watchdogCommand.includes("p.role = 'admin'") && watchdogCommand.includes('【邮件保活】'),
   );
   check(
-    'V11 巡检命令里的 token 与心跳 job 同源（都是 64 位十六进制）',
-    /'Bearer [0-9a-f]{64}'/.test(watchdogCommand),
+    'V11 巡检命令只存 Vault 引用，不再内联 64 位 token',
+    watchdogCommand.includes(`vault.decrypted_secrets`) &&
+      watchdogCommand.includes(MAIL_KEEPALIVE_TOKEN_SECRET) &&
+      !hasInlineToken(watchdogCommand),
+    hasInlineToken(watchdogCommand) ? '命令里仍有内联 token ⇒ 跑 --cron 重写' : '',
   );
 
+  const monthlyCommand = String(s.cron_command || '');
+  check(
+    'V11b 心跳命令同样只存 Vault 引用（凭证不出现在 cron.job.command）',
+    monthlyCommand.includes('vault.decrypted_secrets') && !hasInlineToken(monthlyCommand),
+    hasInlineToken(monthlyCommand) ? '命令里仍有内联 token ⇒ 跑 --cron 重写' : '',
+  );
   const advisors = await sql(`
     select c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public' and c.relkind = 'r' and c.relname = 'mail_keepalive_log'
@@ -449,12 +479,12 @@ if (WANT('--cloud-trigger')) {
   const day = target.getUTCDate();
   const month = target.getUTCMonth() + 1;
   const onceName = `${JOB_NAME}_once_${day}${month}_${hour}${String(minute).padStart(2, '0')}`;
-  const keepaliveToken = await readTokenFromCronJob();
+  const keepaliveToken = await readTokenFromVault();
   if (!keepaliveToken) {
-    check('CT0 从 cron 命令文本提取 token', false, '提取不到（先跑 --cron）');
+    check('CT0 从 Vault 读 token', false, '读不到（先跑 --cron）');
     process.exit(2);
   }
-  check('CT0 从 cron 命令文本提取 token', true, `token=${fingerprint(keepaliveToken)}`);
+  check('CT0 从 Vault 读 token', true, `token=${fingerprint(keepaliveToken)}`);
   const onceSql = `
 begin;
 select cron.unschedule(jobid) from cron.job where jobname like '${JOB_NAME}_once_%';
@@ -465,7 +495,7 @@ select cron.schedule(
   select net.http_post(
     url := 'https://${REF}.supabase.co/functions/v1/${FN_SLUG}',
     headers := jsonb_build_object(
-      'Authorization', 'Bearer ${keepaliveToken}',
+      'Authorization', ${buildBearerFromVault()},
       'Content-Type', 'application/json'
     ),
     body := jsonb_build_object('trigger', 'pg_cron_once_probe'),
@@ -590,9 +620,9 @@ commit;`;
 // ---------------------------------------------------------------- --trigger
 if (WANT('--trigger')) {
   console.log('== 手动触发（真实发一封保活邮件）==');
-  const keepaliveToken = await readTokenFromCronJob();
+  const keepaliveToken = await readTokenFromVault();
   check(
-    'T0 从 cron 命令文本提取 token',
+    'T0 从 Vault 读 token',
     Boolean(keepaliveToken),
     `token=${fingerprint(keepaliveToken)}`,
   );

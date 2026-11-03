@@ -25,6 +25,7 @@
 import * as webpush from 'jsr:@negrel/webpush@0.5.0';
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
+import { isAllowedPushEndpoint } from '../_shared/push-endpoint.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 
 // Supabase Edge Runtime 提供的全局，Deno 类型库未声明 ⇒ deno check 报 TS2304（本地声明一次）
@@ -309,7 +310,13 @@ const deliverOutboxCore = async (
 
   if (subscriptionError) throw subscriptionError;
 
-  const targets = (subscriptions || []) as SubscriptionRow[];
+  // 出站目标白名单（2026-11-03 B3）：endpoint 是用户可写的，不过滤就是
+  // 「让登录用户决定 Edge Function 往哪发请求」。名单与 DB 的
+  // is_allowed_push_endpoint() 一致（见 _shared/push-endpoint.ts 头注）。
+  const targets = ((subscriptions || []) as SubscriptionRow[]).filter((sub) =>
+    isAllowedPushEndpoint(sub.endpoint),
+  );
+
   if (targets.length === 0) {
     // 没有有效订阅 = 这人还没在任何设备开启推送，不是错误，不重投
     await client
@@ -478,7 +485,10 @@ Deno.serve(async (request) => {
       .select('id, endpoint, p256dh, auth')
       .eq('user_id', auth.userId)
       .is('disabled_at', null);
-    const targets = (subscriptions || []) as SubscriptionRow[];
+    // 同一个出站白名单（测试推送也走这条路径，不能只在正式投递里过滤）
+    const targets = ((subscriptions || []) as SubscriptionRow[]).filter((sub) =>
+      isAllowedPushEndpoint(sub.endpoint),
+    );
     if (targets.length === 0) {
       return jsonResponse(
         { ok: false, code: 'NO_SUBSCRIPTION', message: '当前设备还没有开启通知' },

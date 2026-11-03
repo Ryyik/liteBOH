@@ -43,6 +43,24 @@ export const WATCHDOG_SCHEDULE = '0 1 * * *';
 /** 告警去重窗口：同一管理员 20 小时内只收一条保活告警。 */
 export const ALERT_DEDUPE_HOURS = 20;
 
+/**
+ * 保活 token 在 Supabase Vault 里的条目名。
+ *
+ * 为什么不内联进 cron 命令（2026-11-03 改）：
+ *   `cron.job.command` 是明文可读的（`select * from cron.job`），会进
+ *   数据库备份、日志快照、排障截图。内联 service 级 token 等于把这些
+ *   副本全部变成凭证泄漏面。vault 里的密文只有 postgres / service_role
+ *   能解（`vault.decrypted_secrets`），cron 以 postgres 执行，读取无碍。
+ */
+export const MAIL_KEEPALIVE_TOKEN_SECRET = 'mail_keepalive_token';
+
+/** 生成「从 vault 取 token 拼 Bearer」的 SQL 片段（cron 命令里用）。 */
+export const buildBearerFromVault = (secretName = MAIL_KEEPALIVE_TOKEN_SECRET) =>
+  `'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = '${secretName}')`;
+
+/** 判断命令文本里是否还残留内联的 64 位十六进制 token（收口前的旧形态）。 */
+export const hasInlineToken = (command) => /'Bearer [0-9a-f]{64}'/.test(String(command || ''));
+
 const DAY_MS = 86_400_000;
 
 /**
@@ -123,19 +141,21 @@ const intervalLiteral = (days) => `interval '${Number(days)} days'`;
  */
 export const buildWatchdogCommand = ({
   ref,
-  token,
+  tokenSecretName = MAIL_KEEPALIVE_TOKEN_SECRET,
   staleDays = KEEPALIVE_STALE_DAYS,
   alertAfterFailures = KEEPALIVE_ALERT_AFTER_FAILURES,
   dedupeHours = ALERT_DEDUPE_HOURS,
 } = {}) => {
-  if (!ref || !token) throw new Error('buildWatchdogCommand 需要 ref 与 token');
+  if (!ref || !tokenSecretName) {
+    throw new Error('buildWatchdogCommand 需要 ref 与 tokenSecretName');
+  }
   const n = Number(alertAfterFailures);
   return `
   -- ① 自愈补发：距上次成功 >= ${Number(staleDays)} 天才发一封
   select net.http_post(
     url := 'https://${ref}.supabase.co/functions/v1/mail-keepalive',
     headers := jsonb_build_object(
-      'Authorization', 'Bearer ${token}',
+      'Authorization', ${buildBearerFromVault(tokenSecretName)},
       'Content-Type', 'application/json'
     ),
     body := jsonb_build_object('trigger', 'pg_cron_watchdog'),
@@ -179,14 +199,20 @@ export const buildWatchdogCommand = ({
 /** 生成「注册/替换巡检 job」的完整 SQL（幂等：先 unschedule 同名，再 schedule）。 */
 export const buildWatchdogScheduleSql = ({
   ref,
-  token,
+  tokenSecretName = MAIL_KEEPALIVE_TOKEN_SECRET,
   schedule = WATCHDOG_SCHEDULE,
   jobName = WATCHDOG_JOB_NAME,
   staleDays = KEEPALIVE_STALE_DAYS,
   alertAfterFailures = KEEPALIVE_ALERT_AFTER_FAILURES,
   dedupeHours = ALERT_DEDUPE_HOURS,
 } = {}) => {
-  const command = buildWatchdogCommand({ ref, token, staleDays, alertAfterFailures, dedupeHours });
+  const command = buildWatchdogCommand({
+    ref,
+    tokenSecretName,
+    staleDays,
+    alertAfterFailures,
+    dedupeHours,
+  });
   return `
 begin;
 -- job 不存在时本 select 返回 0 行 = 无操作（perform 只能用在 PL/pgSQL，SQL 里用 select）。
@@ -201,12 +227,9 @@ select cron.schedule(
 commit;`;
 };
 
-/**
- * 从 cron job 命令文本里提取保活 token。
- * token 的**单一真源就是 cron 命令本身**（`--cron` 同时写 EF secret 与这里）。
- * ⚠️ 不从 Management API 的 GET /secrets 读：读回值与写入值指纹不一致（2026-10-08 实测）。
- */
-export const extractTokenFromCommand = (command) => {
-  const m = String(command || '').match(/'Authorization',\s*'Bearer ([0-9a-f]{64})'/);
-  return m ? m[1] : '';
-};
+/* 已移除 `extractTokenFromCommand`（2026-11-03）。
+ *   旧设计把 token **内联在 cron 命令里**，再从命令文本正则捞回来给
+ *   `--watchdog` / `--trigger` 复用 —— 那等于把 cron.job.command 当凭证库。
+ *   现在 token 只在 Vault，需要值时走 `select decrypted_secret from
+ *   vault.decrypted_secrets where name = MAIL_KEEPALIVE_TOKEN_SECRET`。
+ *   保留一个「永远返回空串」的兼容函数只会让旧路径悄悄复活，故直接删除。 */

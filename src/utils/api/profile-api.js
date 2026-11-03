@@ -626,6 +626,15 @@ function normalizeShopItems(items = []) {
     .filter((item) => Number.isInteger(item.id) && item.id > 0 && Number.isInteger(item.quantity) && item.quantity > 0);
 }
 
+/* 数据库侧下单拒绝码 → 用户能看懂的话（2026-11-03 A3 新增两个码）
+ * RATE_LIMITED：同一用户 5 单/小时；TOO_MANY_OPEN_ORDERS：已付未发货 ≥ 10。
+ * 不在这张表里的码保持原样透传（沿用旧行为），避免新码悄悄变成英文。
+ */
+const SHOP_ORDER_REJECTION_TEXT = {
+  RATE_LIMITED: '下单太频繁了，请稍后再试',
+  TOO_MANY_OPEN_ORDERS: '你有太多还没发货的订单，等发货后再下单吧'
+};
+
 export async function createShopOrderWithPoints(payload = {}) {
   const {
     items = [],
@@ -658,10 +667,18 @@ export async function createShopOrderWithPoints(payload = {}) {
 
   const normalized = normalizeShopOrderPayload(data);
   if (!normalized.ok) {
+    const rejectionText = SHOP_ORDER_REJECTION_TEXT[normalized.message];
     return {
       ok: false,
       data: normalized,
-      error: normalizeDbError({ message: normalized.message || 'CREATE_ORDER_FAILED', code: 'CREATE_ORDER_FAILED' })
+      error: normalizeDbError(
+        rejectionText
+          ? { message: rejectionText, code: normalized.message }
+          : {
+              message: normalized.message || 'CREATE_ORDER_FAILED',
+              code: 'CREATE_ORDER_FAILED'
+            }
+      )
     };
   }
 

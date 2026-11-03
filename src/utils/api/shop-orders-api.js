@@ -345,6 +345,8 @@ const CANCEL_ERROR_TEXT = {
   ORDER_NOT_CANCELLABLE: '订单已发货，无法自助取消',
   GIFT_NOT_FOUND: '找不到这条礼物记录',
   GIFT_NOT_CANCELLABLE: '礼物已经发出，无法取消',
+  // 2026-11-03 A3：cancel_shop_order 加了 20 次/小时节流
+  RATE_LIMITED: '操作太频繁了，请稍后再试',
 };
 
 const readRpcFailure = (error, fallback) => {
