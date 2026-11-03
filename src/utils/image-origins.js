@@ -21,8 +21,25 @@
  *   已把 `cover_image_url` 统一改写为 CDN 地址，进上下文的本来就是 CDN URL。
  */
 
+/**
+ * Supabase Storage 桶的图片来源。
+ *
+ * ⚠️ 这一项含通配符，**只供 CSP 插值**，不能传给 `isAllowedImageSrc` ——
+ * 那个函数用 `origins.includes(parsed.origin)` 精确比较，通配符永远不匹配。
+ *
+ * 为什么必须放进来（2026-11-03 实测）：`profiles.avatar_url` 当前 17 条非空头像
+ * **全部**指向 `<ref>.supabase.co/storage/v1/object/public/avatars/…`，而原来的
+ * `img-src` 只有 Cloudinary 与自建 CDN —— 两个都不是头像的真实来源。
+ * Report-Only 期间表现为持续上报噪音；一旦转 enforce，全站头像会直接白框。
+ */
+const SUPABASE_STORAGE_IMAGE_ORIGIN = 'https://*.supabase.co';
+
 /** 页面级允许的图片来源（CSP `img-src` 用）。顺序不重要，内容即真源。 */
-export const CSP_IMAGE_ORIGINS = ['https://res.cloudinary.com', 'https://cdn.blockofhome.cn'];
+export const CSP_IMAGE_ORIGINS = [
+  'https://res.cloudinary.com',
+  'https://cdn.blockofhome.cn',
+  SUPABASE_STORAGE_IMAGE_ORIGIN,
+];
 
 /**
  * AI 回答里允许出现的图片来源（`CSP_IMAGE_ORIGINS` 的**子集**）。

@@ -121,6 +121,25 @@ describe('两个白名单的不变量', () => {
     expect(script).not.toContain('res.cloudinary.com');
     expect(script).not.toContain('cdn.blockofhome.cn');
   });
+
+  it('CSP 图片白名单必须覆盖头像的真实来源（Supabase Storage）', () => {
+    // 2026-11-03 线上实测：profiles 里 17 条非空头像 **全部** 是
+    // <ref>.supabase.co/storage/v1/object/public/avatars/…，而原清单只有
+    // Cloudinary 与自建 CDN。漏掉它的后果不是「少显示几张图」：Report-Only 期间
+    // 是持续上报噪音，转 enforce 就是全站头像白框。
+    expect(CSP_IMAGE_ORIGINS.some((origin) => origin.includes('supabase.co'))).toBe(true);
+  });
+
+  it('AI 回答白名单不因头像来源而放宽（仍是自建 CDN 的窄策略）', () => {
+    expect(AI_ANSWER_IMAGE_ORIGINS.some((origin) => origin.includes('supabase.co'))).toBe(false);
+  });
+
+  it('CSP 的 script-src 放行 Cloudflare Web Analytics（边缘自动注入）', () => {
+    // 该脚本不是项目代码引入的，由 Zone 级 Web Analytics 在边缘注入；
+    // 不放行就永远有一条 script-src-elem 上报，把真实信号淹掉。
+    const script = stripComments(read('scripts/cloudflare-security-headers.mjs'));
+    expect(script).toContain('https://static.cloudflareinsights.com');
+  });
 });
 
 describe('接线守卫', () => {

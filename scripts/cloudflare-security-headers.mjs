@@ -86,7 +86,10 @@ const SAFE_HEADERS = {
  */
 const CSP_VALUE = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  // static.cloudflareinsights.com：Zone 级 Web Analytics 由 Cloudflare 边缘自动注入，
+  // 不是项目代码引入的。放行它只为消掉一条已证实的上报（2026-11-03），
+  // 该脚本被拦不影响任何功能，只丢访问统计。
+  "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${CSP_IMAGE_ORIGINS.join(' ')}`,
   "font-src 'self' data:",
