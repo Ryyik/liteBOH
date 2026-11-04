@@ -641,6 +641,15 @@ const SHOP_ORDER_REJECTION_TEXT = {
   INVALID_REMARK: '备注最多 200 字，请缩短后再提交'
 };
 
+/* 下单 RPC 签名缺失的判定：PostgREST 对"函数不存在/参数不匹配"报 PGRST202，
+   部分版本会一并返回 'Could not find the function public.create_shop_order' 文案。 */
+const isMissingShopOrderSignature = (error) => {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  if (code === 'PGRST202') return true;
+  return /could not find the function/i.test(message) && /create_shop_order/i.test(message);
+};
+
 export async function createShopOrderWithPoints(payload = {}) {
   const {
     items = [],
@@ -670,13 +679,27 @@ export async function createShopOrderWithPoints(payload = {}) {
         }
       : null;
 
-  const { data, error } = await supabase.rpc('create_shop_order', {
+  const baseArgs = {
     p_items: normalizedItems,
     p_contact_type: String(contactType || '').trim(),
-    p_contact_value: String(contactValue || '').trim(),
+    p_contact_value: String(contactValue || '').trim()
+  };
+
+  let { data, error } = await supabase.rpc('create_shop_order', {
+    ...baseArgs,
     p_shipping: normalizedShipping,
     p_remark: String(remark || '').trim().slice(0, 200)
   });
+
+  /* 库还没跑迁移 2026110412 时，函数签名仍是 3 参 ⇒ 带 p_shipping/p_remark 调用会
+     报 PGRST202「Could not find the function ... in the schema cache」，下单直接失败。
+     前端（Pages 自动部署）可能先于迁移上线，所以这里退一步：按旧签名再下一次，
+     这一单没有地址快照与备注，但**用户能正常买到东西** —— 比"整站下不了单"好。
+     迁移上线后第一次调用就命中新签名，不会多打这一次请求。 */
+  if (error && isMissingShopOrderSignature(error)) {
+    logger.warn('shop-order', '下单 RPC 仍是旧签名（迁移未执行），本单跳过地址快照与备注');
+    ({ data, error } = await supabase.rpc('create_shop_order', baseArgs));
+  }
 
   if (error) {
     return {

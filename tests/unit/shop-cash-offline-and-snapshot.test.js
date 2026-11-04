@@ -121,6 +121,19 @@ describe('地址快照：下单时冻结，详情优先读快照', () => {
   });
 });
 
+describe('部署顺序：前端可以先于迁移上线', () => {
+  it('下单 RPC 仍是旧签名时降级重试（否则新前端上线即下不了单）', () => {
+    expect(PROFILE_API).toContain('isMissingShopOrderSignature');
+    expect(PROFILE_API).toContain("supabase.rpc('create_shop_order', baseArgs)");
+    expect(PROFILE_API).toContain('PGRST202');
+  });
+
+  it('订单列表查询缺列时退回旧列（42703 不能让整页订单挂掉）', () => {
+    expect(ORDERS_API).toContain('SHOP_ORDER_BASE_COLUMNS');
+    expect(ORDERS_API).toContain('42703');
+  });
+});
+
 describe('库存：服务端真实校验与扣减', () => {
   it('库存不足要能作为业务错误返回（而不是静默超卖）', () => {
     // 迁移里抛业务码，API 层把它翻译成一句人话 —— 两处都必须在
