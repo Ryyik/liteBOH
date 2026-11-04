@@ -45,7 +45,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Sparkles } from 'lucide-vue-next';
 import { useBohIsland, scheduleSearchPanelPrefetch } from '@/composables/useBohIsland.js';
-import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay.js';
 import BohIslandAnswer from '@/components/BohIslandAnswer.vue';
 
 /**
@@ -54,6 +53,7 @@ import BohIslandAnswer from '@/components/BohIslandAnswer.vue';
  * App 级挂载（App.vue），Teleport 到 body：
  *   · hideNavbar / user-space 子视图等无导航栏路由照样可用；
  *   · 与导航 surface 零几何耦合 —— 不再撑高、不再与任务岛/通知岛仲裁。
+ *   · P3 入口收敛后全站唯一 AI 岛：⌘K（App.vue）与 showIsland.ai() 都落在本岛。
  *
  * 落位：top = 导航栏底边 + 12（导航栏在场时实测其 bottom，缺席时退 safe-area + 12）；
  * 水平居中悬浮（plans/038 §3.1）。
@@ -70,7 +70,6 @@ const {
   runAction,
   SearchIslandPanel,
 } = useBohIsland();
-const aiOverlay = useGlobalAiOverlay();
 
 /* ---------------- Esc 分层（§3.3）：回答面退回搜索面，搜索面直接关岛 ---------------- */
 
@@ -123,10 +122,7 @@ const onNarrowChange = (e) => {
   isNarrow.value = e.matches;
 };
 
-/** 旧 AI 岛开着时收起胶囊（同位重叠；本岛 open 时也会收旧岛） */
-const pillVisible = computed(
-  () => canOpen.value && isNarrow.value && !isOpen.value && !aiOverlay.isOpen.value,
-);
+const pillVisible = computed(() => canOpen.value && isNarrow.value && !isOpen.value);
 
 /* ---------------- `/` 快捷键（自 useGlobalSearch.js 迁入 —— 岛必须不依赖导航栏） ---------------- */
 
@@ -146,6 +142,18 @@ const handleShortcut = (event) => {
   toggle();
 };
 
+/** ⌘K 再按 = 聚焦输入条（App.vue 派发 boh-ai-focus-composer；全页 useBohShell 也监听同一事件） */
+const handleFocusComposer = () => {
+  if (!isOpen.value) {
+    open();
+    return;
+  }
+  nextTick(() => {
+    const selector = face.value === 'answer' ? '.boh-answer-input' : '.gs-input';
+    document.querySelector(`.boh-island-root ${selector}`)?.focus?.();
+  });
+};
+
 const onResize = () => {
   if (isOpen.value) measureTop();
 };
@@ -153,6 +161,7 @@ const onResize = () => {
 onMounted(() => {
   window.addEventListener('keydown', handleShortcut);
   window.addEventListener('resize', onResize);
+  window.addEventListener('boh-ai-focus-composer', handleFocusComposer);
   narrowQuery?.addEventListener?.('change', onNarrowChange);
   // 首屏空闲预热搜索面板 chunk（弱网/省流量下跳过，见 useBohIsland.js）
   scheduleSearchPanelPrefetch();
@@ -161,6 +170,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleShortcut);
   window.removeEventListener('resize', onResize);
+  window.removeEventListener('boh-ai-focus-composer', handleFocusComposer);
   narrowQuery?.removeEventListener?.('change', onNarrowChange);
   document.removeEventListener('keydown', handleRootEsc);
   close();

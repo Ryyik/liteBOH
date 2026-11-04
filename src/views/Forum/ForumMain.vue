@@ -3245,16 +3245,12 @@ const askBohai = async () => {
 
     const opened = showIsland.ai({ prompt, mode: 'fast' });
     if (opened) {
-      aiSearchHint.value = 'BOHAI 正在顶部 AI 岛为你解答（Fast 模型）。';
+      aiSearchHint.value = 'BOHAI 正在悬浮岛为你解答。';
     } else {
-      /* ⚠️ 走到这里几乎只有一个原因：**当前视图没有导航栏**，而 AI 岛的岛体就挂在导航栏里
-         —— 没有宿主容器，open() 只会置位 isOpen、永远不渲染。
-         属于这一类的是「导航栏被隐藏但路由 meta 没标记」的视图：
-         user-space 的我的/设置子视图、详情页、embed=desktop 等
-         （判据见 utils/global-navbar-visibility.js，已与 App.vue 同源）。
-         旧文案「AI 岛当前不可用，请稍后再试」把「必然」说成「偶发」，用户只能反复点。 */
-      aiSearchHint.value =
-        '当前视图隐藏了顶部导航栏，AI 岛打不开 —— 到首页或完整论坛页再问 BOHAI。';
+      /* plans/038 P3 后 showIsland.ai 直达 App 级 BohIsland（Teleport 到 body），
+         无导航栏的视图照样能开 —— false 只剩「当前就在 /ai-chat 页」这一种可能，
+         此时用户已在完整对话页里，无需再开岛。 */
+      aiSearchHint.value = '你已在 AI 对话页，直接在页面里提问即可。';
     }
   } catch (error) {
     logger.warn('forum', '问 BOHAI 失败:', error);
@@ -4174,32 +4170,37 @@ const {
           class="forum-confirm-overlay"
           @click.self="closeQuoteRepost"
         >
-        <section class="forum-confirm-modal" role="dialog" aria-modal="true" aria-label="引用转发">
-          <h3>引用转发</h3>
-          <p class="quote-repost-source">
-            {{ quoteRepostState.post?.displayTitle || quoteRepostState.post?.title }}
-          </p>
-          <textarea
-            v-model="quoteRepostState.commentary"
-            maxlength="2000"
-            rows="4"
-            placeholder="添加你的想法..."
-          ></textarea>
-          <div class="forum-confirm-actions">
-            <button type="button" class="forum-confirm-btn secondary" @click="closeQuoteRepost">
-              取消
-            </button>
-            <button
-              type="button"
-              class="forum-confirm-btn danger"
-              :disabled="!quoteRepostState.commentary.trim()"
-              @click="submitQuoteRepost"
-            >
-              转发
-            </button>
-          </div>
-        </section>
-      </div>
+          <section
+            class="forum-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="引用转发"
+          >
+            <h3>引用转发</h3>
+            <p class="quote-repost-source">
+              {{ quoteRepostState.post?.displayTitle || quoteRepostState.post?.title }}
+            </p>
+            <textarea
+              v-model="quoteRepostState.commentary"
+              maxlength="2000"
+              rows="4"
+              placeholder="添加你的想法..."
+            ></textarea>
+            <div class="forum-confirm-actions">
+              <button type="button" class="forum-confirm-btn secondary" @click="closeQuoteRepost">
+                取消
+              </button>
+              <button
+                type="button"
+                class="forum-confirm-btn danger"
+                :disabled="!quoteRepostState.commentary.trim()"
+                @click="submitQuoteRepost"
+              >
+                转发
+              </button>
+            </div>
+          </section>
+        </div>
       </Transition>
     </Teleport>
   </div>

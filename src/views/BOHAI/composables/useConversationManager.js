@@ -433,13 +433,19 @@ export function useConversationManager({ scrollToBottom: scrollToBottomOption } 
     return chatSessions[index];
   };
 
-  const startNewChat = () => {
+  /**
+   * 新建会话。origin = 来源标记（plans/038 §3.4 快速会话）：
+   * 'quick-ask' = 岛内问答创建，侧栏「在搜索里问过」分组按此归档；空串 = 普通会话。
+   * 持久化白名单见 bohai-chat-session-store.js（origin 已登记）。
+   */
+  const startNewChat = (origin = '') => {
     chatSessions.unshift({
       title: '新对话',
       messages: [],
       timestamp: Date.now(),
       isLoading: false,
       isThinking: false,
+      ...(origin ? { origin: String(origin).slice(0, 24) } : {}),
     });
     currentSessionIndex.value = 0;
   };

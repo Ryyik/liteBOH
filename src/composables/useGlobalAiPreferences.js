@@ -6,12 +6,9 @@ export const GLOBAL_AI_PREFERENCES_KEY = 'boh_global_ai_preferences_v1';
 const defaults = Object.freeze({
   shortcutEnabled: true,
   shortcut: 'mod+k',
-  gestureEnabled: true,
-  gestureSide: 'right',
-  gestureSensitivity: 'medium',
-  hapticsEnabled: true,
-  initialHeight: 'comfortable',
-  openBehavior: 'resume',
+  /* plans/038 P3 退场的字段（gestureEnabled/gestureSide/gestureSensitivity/hapticsEnabled/
+     initialHeight/openBehavior）不再声明 —— 旧 localStorage 里残留的键会被 spread 进来但
+     无人消费，自然失效；不在这里保留死默认值。 */
   autoFocus: true,
   enterToSend: true,
   defaultWebSearch: false,

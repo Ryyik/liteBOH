@@ -1,16 +1,15 @@
 import { computed, ref } from 'vue';
-import { useRoute } from 'vue-router';
-import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay.js';
+import router from '@/router';
 import { createPanelAsync, AsyncPanelQuiet } from '@/utils/async-component.js';
 
 /**
  * BohIsland —— plans/038 的独立悬浮岛（搜索 + 问一句）。
  *
- * 与 useGlobalAiOverlay（旧 AI 岛，P2 退场）的关键差异：
+ * P3 入口收敛后全站唯一的 AI 岛（旧 useGlobalAiOverlay/BOHAIIsland 已退场）：
  *   · 岛体 Teleport 到 body、App 级挂载 —— 不依赖导航栏存在，hideNavbar 路由照样可用
  *     （这是 Teleport 的存在理由，probe-nav-ask 有专门断言）；
  *   · 不占 showIsland 的 custom 槽位 —— 与任务岛/通知岛/订阅岛零仲裁；
- *   · canOpen 不判 isGlobalNavbarVisible。
+ *   · showIsland.ai() 经 useIsland.ai() 直达本岛的 askDirect（原 opener 注册机制随旧岛删除）。
  *
  * 壳同步渲染 / 内容懒加载（§2.9.1 架构硬约束）：胶囊与展开壳是本组件的静态模板，
  * 搜索面板（GlobalSearchIsland chunk ≈20KB gzip 静态依赖）走下方 createPanelAsync 懒加载；
@@ -71,20 +70,17 @@ const pendingAsk = ref('');
 let actionExecutor = null;
 
 export function useBohIsland() {
-  const route = useRoute();
-  const aiOverlay = useGlobalAiOverlay();
-
+  // ⚠️ 路由读 router 单例（currentRoute），不读 useRoute() —— 本模块还要被
+  // useIsland.ai() 在任意事件处理器里调用（showIsland.ai 的落点），那里没有 setup 上下文。
   /** 当前路由/时机是否允许展开（胶囊可见性也用它） */
   const canOpen = computed(() => {
-    if (route.name === 'AiChat') return false;
+    if (router.currentRoute.value.name === 'AiChat') return false;
     if (isHomeGateActive()) return false;
     return true;
   });
 
   function open() {
     if (!canOpen.value) return false;
-    // 旧 AI 岛（P3 入口收敛时退场）与本岛在屏上同位重叠，打开本岛时收起它（overlay 单例，内容不丢）。
-    if (aiOverlay.isOpen.value) aiOverlay.close();
     // 每次打开都是新的一次「问一句」：回到搜索面（§3.3 打开语义）
     face.value = 'search';
     isOpen.value = true;
@@ -116,6 +112,23 @@ export function useBohIsland() {
     return true;
   }
 
+  /**
+   * showIsland.ai() 的落点（P3 入口收敛）：直接开岛并进回答面。
+   * 调用方（ForumMain 问 BOHAI、搜索面板旧宿主兜底等）零改动迁移。
+   * ⚠️ options.mode（如论坛的 'fast'）不再消费 —— 岛内快速会话无模型选择（§3.6 减法，
+   *   策略/模型选择在全页），默认档即 fast 位；调用方传了也不报错，静默忽略。
+   * @returns {boolean} 是否受理（false = AiChat 页 / 开场画在场）
+   */
+  function askDirect(options = {}) {
+    if (!open()) return false;
+    const q = String(options.prompt || '').trim();
+    if (q) {
+      pendingAsk.value = q;
+      face.value = 'answer';
+    }
+    return true;
+  }
+
   /** Esc 分层（§3.3）：回答面退回搜索面（保留原句），不关岛 */
   function backToSearch() {
     face.value = 'search';
@@ -138,6 +151,7 @@ export function useBohIsland() {
     close,
     toggle,
     ask,
+    askDirect,
     backToSearch,
     registerActionExecutor,
     runAction,

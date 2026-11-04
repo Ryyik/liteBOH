@@ -101,6 +101,12 @@ await withPage(async (page, errs) => {
   const rootCount = await page.evaluate(() => document.querySelectorAll('.boh-island-root').length);
   check('② 岛根节点全局唯一（不是两张卡）', rootCount === 1, `count=${rootCount}`);
 
+  // plans/038 P3：旧 AI 岛（导航 surface 宿主形态）已退场
+  check(
+    '②b 旧 AI 岛已退场（.bohai-island 不存在）',
+    (await page.evaluate(() => document.querySelectorAll('.bohai-island').length)) === 0,
+  );
+
   check(
     '③ 输入框自动聚焦（壳同步渲染，唤起即聚焦）',
     await page.evaluate(() => document.activeElement?.classList?.contains('gs-input') === true),
@@ -223,6 +229,20 @@ await withPage(async (page, errs) => {
     afterCmd.answerShown && afterCmd.islandOpen && !afterCmd.oldAiOpen,
     JSON.stringify(afterCmd),
   );
+
+  // plans/038 P3：⌘K 改线到新岛（App.vue handleGlobalAiKeydown）。放组尾 ——
+  // 中途按会扰动 ③ 的聚焦链路（面板重挂载后聚焦时序不稳）。
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await page.keyboard.press('Meta+k');
+  await page.waitForTimeout(600);
+  check(
+    '⑩b ⌘K 打开同一颗新岛',
+    (await islandOpen(page)) &&
+      (await page.evaluate(() => document.querySelectorAll('.boh-island-root').length)) === 1,
+  );
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
 
   check('⑪ 组 1 零 pageerror', errs.length === 0, errs.join(' | ').slice(0, 180));
 });
@@ -449,6 +469,21 @@ await withPage(
     check(
       '㊅ 流式结束后活动行消失',
       await page.evaluate(() => !document.querySelector('.boh-activity')),
+    );
+
+    // plans/038 P3b：快速会话打 origin 标记，全页侧栏「在搜索里问过」分组按此归档
+    const originDiag = await page.evaluate(() => {
+      try {
+        const rows = JSON.parse(localStorage.getItem('boh_chat_sessions') || '[]');
+        return rows.find((s) => s.origin === 'quick-ask') ? 'found' : `rows=${rows.length}`;
+      } catch (e) {
+        return String(e);
+      }
+    });
+    check(
+      '㊋ 快速会话已落 origin=quick-ask（可归入「在搜索里问过」）',
+      originDiag === 'found',
+      originDiag,
     );
 
     // Esc 分层：回答 → 搜索（保留原句）→ 关岛

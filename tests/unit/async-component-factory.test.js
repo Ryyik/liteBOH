@@ -116,9 +116,10 @@ describe('createPanelAsync', () => {
     const root = resolve(import.meta.dirname, '../..');
     const read = (p) => readFileSync(resolve(root, p), 'utf-8');
 
-    // App.vue 四个常驻 / 按需浮层（silent 或显式 errorComponent 都算有失败态主见）
+    // App.vue 常驻浮层（silent 或显式 errorComponent 都算有失败态主见）
+    // （2026-11-04 plans/038 P3：AiEdgeTrigger 随边缘手势退场，列表里随之移除）
     const app = read('src/App.vue');
-    for (const label of ['AiEdgeTrigger', 'AdminConfirmModal', 'AccountBindPrompt', 'LoginView']) {
+    for (const label of ['AdminConfirmModal', 'AccountBindPrompt', 'LoginView']) {
       const pattern = new RegExp(`label: '${label}',\\s*(?:silent: true|errorComponent)`);
       expect({ file: 'App.vue', label, hit: pattern.test(app) }).toMatchObject({
         file: 'App.vue',

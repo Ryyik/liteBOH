@@ -954,138 +954,8 @@
                       </button>
                     </div>
 
-                    <div
-                      class="ai-settings-row clickable"
-                      role="switch"
-                      tabindex="0"
-                      :aria-checked="preferences.gestureEnabled"
-                      @click="preferences.gestureEnabled = !preferences.gestureEnabled"
-                      @keydown.enter.prevent="
-                        preferences.gestureEnabled = !preferences.gestureEnabled
-                      "
-                      @keydown.space.prevent="
-                        preferences.gestureEnabled = !preferences.gestureEnabled
-                      "
-                    >
-                      <div class="ai-settings-label-stack">
-                        <span class="ai-settings-label">边缘手势</span>
-                        <span class="ai-settings-desc">从屏幕边缘横向滑动呼出</span>
-                      </div>
-                      <div class="ai-settings-row-right">
-                        <span
-                          :class="['ai-settings-switch', { enabled: preferences.gestureEnabled }]"
-                        ></span>
-                      </div>
-                    </div>
-
-                    <div v-if="preferences.gestureEnabled" class="ai-settings-row">
-                      <div class="ai-settings-label-stack">
-                        <span class="ai-settings-label">手势方向与灵敏度</span>
-                        <span class="ai-settings-desc">从哪一侧滑入、需要多长距离</span>
-                      </div>
-                      <div class="ai-settings-row-right">
-                        <div class="ai-settings-inline-segmented no-indent">
-                          <button
-                            :class="{ active: preferences.gestureSide === 'left' }"
-                            @click="preferences.gestureSide = 'left'"
-                          >
-                            左侧
-                          </button>
-                          <button
-                            :class="{ active: preferences.gestureSide === 'right' }"
-                            @click="preferences.gestureSide = 'right'"
-                          >
-                            右侧
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div v-if="preferences.gestureEnabled" class="ai-settings-inline-segmented">
-                      <button
-                        v-for="level in gestureSensitivityOptions"
-                        :key="level.id"
-                        :class="{ active: preferences.gestureSensitivity === level.id }"
-                        @click="preferences.gestureSensitivity = level.id"
-                      >
-                        {{ level.name }}
-                      </button>
-                    </div>
-
-                    <div
-                      v-if="preferences.gestureEnabled"
-                      class="ai-settings-row clickable"
-                      role="switch"
-                      tabindex="0"
-                      :aria-checked="preferences.hapticsEnabled"
-                      @click="preferences.hapticsEnabled = !preferences.hapticsEnabled"
-                      @keydown.enter.prevent="
-                        preferences.hapticsEnabled = !preferences.hapticsEnabled
-                      "
-                      @keydown.space.prevent="
-                        preferences.hapticsEnabled = !preferences.hapticsEnabled
-                      "
-                    >
-                      <div class="ai-settings-label-stack">
-                        <span class="ai-settings-label">触感反馈</span>
-                        <span class="ai-settings-desc">支持的设备在手势完成时轻触反馈</span>
-                      </div>
-                      <div class="ai-settings-row-right">
-                        <span
-                          :class="['ai-settings-switch', { enabled: preferences.hapticsEnabled }]"
-                        ></span>
-                      </div>
-                    </div>
-
-                    <div
-                      class="ai-settings-row clickable"
-                      :class="{ expanded: showOpenBehaviorPicker }"
-                      @click="showOpenBehaviorPicker = !showOpenBehaviorPicker"
-                    >
-                      <div class="ai-settings-label-stack">
-                        <span class="ai-settings-label">呼出后打开</span>
-                        <span class="ai-settings-desc"
-                          >{{ currentOpenBehaviorName }} ·
-                          {{ preferences.initialHeight === 'full' ? '全屏' : '舒适高度' }}</span
-                        >
-                      </div>
-                      <div class="ai-settings-row-right">
-                        <span
-                          class="ai-settings-chevron"
-                          :class="{ expanded: showOpenBehaviorPicker }"
-                          >›</span
-                        >
-                      </div>
-                    </div>
-                    <div v-if="showOpenBehaviorPicker" class="ai-settings-inline-options">
-                      <button
-                        v-for="option in openBehaviorOptions"
-                        :key="option.id"
-                        type="button"
-                        :class="[
-                          'ai-settings-inline-option',
-                          { active: preferences.openBehavior === option.id },
-                        ]"
-                        @click.stop="preferences.openBehavior = option.id"
-                      >
-                        <span class="ai-settings-option-main"
-                          ><strong>{{ option.name }}</strong
-                          ><small>{{ option.description }}</small></span
-                        ><Check v-if="preferences.openBehavior === option.id" size="16" />
-                      </button>
-                      <div class="ai-settings-inline-segmented no-indent">
-                        <button
-                          :class="{ active: preferences.initialHeight === 'comfortable' }"
-                          @click.stop="preferences.initialHeight = 'comfortable'"
-                        >
-                          舒适高度</button
-                        ><button
-                          :class="{ active: preferences.initialHeight === 'full' }"
-                          @click.stop="preferences.initialHeight = 'full'"
-                        >
-                          全屏
-                        </button>
-                      </div>
-                    </div>
+                    <!-- plans/038 P3：边缘手势 / 触感反馈 / 呼出后打开（全屏/舒适高度）三组设置
+                         随 AiEdgeTrigger 退场与 BohIsland 固定形态一起删除 —— 新岛没有这些概念。 -->
 
                     <div
                       class="ai-settings-row clickable"
@@ -1403,7 +1273,6 @@ const onBodyScroll = () => {
 const showModePicker = ref(false);
 const showStylePicker = ref(false);
 const showShortcutPicker = ref(false);
-const showOpenBehaviorPicker = ref(false);
 const quota = ref(null);
 const quotaLoading = ref(false);
 let focusRestore = null;
@@ -1421,27 +1290,12 @@ const shortcutOptions = [
   { id: 'mod+j', name: '⌘/Ctrl + J', description: '适合需要避开命令面板的页面' },
   { id: 'mod+space', name: '⌘/Ctrl + Space', description: '接近系统级助手的呼出习惯' },
 ];
-const gestureSensitivityOptions = [
-  { id: 'high', name: '灵敏' },
-  { id: 'medium', name: '标准' },
-  { id: 'low', name: '稳健' },
-];
-const openBehaviorOptions = [
-  { id: 'resume', name: '继续上次对话', description: '保留阅读位置和未发送内容' },
-  { id: 'new', name: '每次新对话', description: '每次呼出都创建可保存的新会话' },
-  { id: 'temporary', name: '临时对话', description: '关闭后不会写入历史记录' },
-];
 const appearanceOptions = [
   { id: 'system', name: '跟随网站' },
   { id: 'light', name: '浅色' },
   { id: 'dark', name: '深色' },
 ];
 const shortcutLabel = computed(() => getGlobalAiShortcutLabel(preferences.shortcut));
-const currentOpenBehaviorName = computed(
-  () =>
-    openBehaviorOptions.find((option) => option.id === preferences.openBehavior)?.name ||
-    '继续上次对话',
-);
 const formatTokenCount = (value) =>
   new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(
     Math.max(0, Number(value || 0)),
@@ -1760,7 +1614,6 @@ const close = () => {
   showModePicker.value = false;
   showStylePicker.value = false;
   showShortcutPicker.value = false;
-  showOpenBehaviorPicker.value = false;
   emit('update:modelValue', false);
   const el = focusRestore;
   focusRestore = null;
@@ -1814,7 +1667,6 @@ watch(
       showModePicker.value = false;
       showStylePicker.value = false;
       showShortcutPicker.value = false;
-      showOpenBehaviorPicker.value = false;
       if (focusRestore && typeof focusRestore.focus === 'function') {
         nextTick(() => focusRestore.focus());
       }

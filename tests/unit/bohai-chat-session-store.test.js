@@ -40,6 +40,21 @@ describe('bohai-chat-session: createBohAIChatSessionSanitizer', () => {
     expect(session.pinned).toBe(true);
   });
 
+  // plans/038 §3.4 快速会话：origin 必须登记白名单，否则保存时被静默丢弃
+  // （表现为「在搜索里问过」分组刷新后清空）。
+  it('persists origin when set and omits it when absent', () => {
+    const tagged = sanitize({ title: '岛内问答', origin: 'quick-ask' });
+    expect(tagged.origin).toBe('quick-ask');
+
+    const plain = sanitize({ title: '普通会话' });
+    expect('origin' in plain).toBe(false);
+  });
+
+  it('clamps origin to 24 chars', () => {
+    const session = sanitize({ origin: 'x'.repeat(40) });
+    expect(session.origin).toHaveLength(24);
+  });
+
   it('sanitizes session with messages', () => {
     const session = sanitize({
       messages: [

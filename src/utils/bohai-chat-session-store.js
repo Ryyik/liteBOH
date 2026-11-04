@@ -56,6 +56,9 @@ export const createBohAIChatSessionSanitizer = ({
     return {
       title: String(session.title || '新对话'),
       pinned: Boolean(session.pinned),
+      // plans/038 §3.4 快速会话来源标记（'quick-ask' = 岛内问答）：只在有值时落盘，
+      // 「提升为主会话」= 清掉这个字段。不登记白名单会在保存时被静默丢弃（expertState 同款坑）。
+      ...(session.origin ? { origin: String(session.origin).slice(0, 24) } : {}),
       messages,
       timestamp: Number.isFinite(Number(session.timestamp))
         ? Number(session.timestamp)

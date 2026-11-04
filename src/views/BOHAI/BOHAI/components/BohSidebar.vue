@@ -3,224 +3,242 @@
     <!-- 2026-11-04 硬切审计 P1-10：侧栏本体挂卸原先瞬现瞬失（open 滑入是挂载后的
          transform 过渡，管不了挂/卸那一帧），补 opacity 根过渡 -->
     <Transition name="boh-sb-root">
-    <aside
-      v-if="visible"
-      class="boh-sidebar"
-      :class="{ 'is-open': open, 'is-standalone': standalone }"
-      aria-label="会话列表"
-    >
-      <div class="boh-sb-head">
-        <button
-          type="button"
-          class="boh-surface-switch"
-          aria-haspopup="menu"
-          :aria-expanded="surfaceMenuOpen"
-          @click.stop="surfaceMenuOpen = !surfaceMenuOpen"
-        >
-          <BohLogo />
-          <span>{{ surfaceLabel }}</span>
-          <ChevronDown :size="14" aria-hidden="true" />
-        </button>
-        <span class="boh-sb-head-spacer"></span>
-        <button
-          type="button"
-          class="boh-icon-btn"
-          title="搜索会话"
-          aria-label="搜索会话"
-          @click="toggleSearch"
-        >
-          <Search :size="16" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          class="boh-icon-btn boh-sb-close"
-          title="收起侧栏"
-          aria-label="收起侧栏"
-          @click="close"
-        >
-          <X :size="16" aria-hidden="true" />
-        </button>
-
-        <!-- 2026-11-04 硬切审计 P1-10：大模式切换下拉补显隐过渡 -->
-        <Transition name="boh-sb-pop">
-          <nav v-if="surfaceMenuOpen" class="boh-surface-menu" aria-label="大模式">
+      <aside
+        v-if="visible"
+        class="boh-sidebar"
+        :class="{ 'is-open': open, 'is-standalone': standalone }"
+        aria-label="会话列表"
+      >
+        <div class="boh-sb-head">
           <button
-            v-for="option in SURFACE_OPTIONS"
-            :key="option.id"
             type="button"
-            class="boh-sm-item"
-            :class="{ 'is-on': surface === option.id }"
-            @click.stop="setSurface(option.id)"
+            class="boh-surface-switch"
+            aria-haspopup="menu"
+            :aria-expanded="surfaceMenuOpen"
+            @click.stop="surfaceMenuOpen = !surfaceMenuOpen"
           >
-            <span>
-              <b>{{ option.label }}</b>
-              <small>{{ option.tagline }}</small>
-            </span>
-            <Check class="boh-sm-check" :size="15" aria-hidden="true" />
+            <BohLogo />
+            <span>{{ surfaceLabel }}</span>
+            <ChevronDown :size="14" aria-hidden="true" />
           </button>
-          </nav>
-        </Transition>
-      </div>
+          <span class="boh-sb-head-spacer"></span>
+          <button
+            type="button"
+            class="boh-icon-btn"
+            title="搜索会话"
+            aria-label="搜索会话"
+            @click="toggleSearch"
+          >
+            <Search :size="16" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="boh-icon-btn boh-sb-close"
+            title="收起侧栏"
+            aria-label="收起侧栏"
+            @click="close"
+          >
+            <X :size="16" aria-hidden="true" />
+          </button>
 
-      <button type="button" class="boh-new-chat" @click="emit('new-chat')">
-        <Plus :size="16" aria-hidden="true" />新对话
-      </button>
-
-      <!-- 2026-11-04 硬切审计 P1-10：搜索框补显隐过渡 -->
-      <Transition name="boh-sb-pop">
-        <label v-if="searchOpen" class="boh-sb-search">
-          <Search :size="15" aria-hidden="true" />
-          <input v-model="query" type="text" placeholder="搜索会话" @keydown.escape="closeSearch" />
-        </label>
-      </Transition>
-
-      <nav class="boh-sb-groups">
-        <template v-for="group in filteredGroups" :key="group.id">
-          <div class="boh-sb-glabel">{{ group.label }}</div>
-          <TransitionGroup name="boh-sb">
-            <div
-              v-for="item in group.items"
-              :key="item.session.timestamp || item.index"
-              class="boh-sb-item"
-              :class="{ 'is-active': item.index === currentIndex }"
-              :data-session-index="item.index"
-              @click="selectSession(item.index)"
-            >
-              <Pin v-if="item.session.pinned" class="boh-sb-pin" :size="12" aria-hidden="true" />
-              <input
-                v-if="renamingIndex === item.index"
-                ref="renameInput"
-                v-model="renameValue"
-                class="boh-sb-rename"
-                maxlength="48"
-                @click.stop
-                @keydown.enter.stop="commitRename(item.index)"
-                @keydown.escape.stop="cancelRename"
-                @blur="commitRename(item.index)"
-              />
-              <span v-else class="boh-sb-title-wrap">
-                <span class="boh-sb-title">{{ item.session.title || '新对话' }}</span>
-                <small v-if="query && matchPreview(item.session)">{{
-                  matchPreview(item.session)
-                }}</small>
-              </span>
-              <span v-if="item.session.temporary" class="boh-sb-badge">临时</span>
+          <!-- 2026-11-04 硬切审计 P1-10：大模式切换下拉补显隐过渡 -->
+          <Transition name="boh-sb-pop">
+            <nav v-if="surfaceMenuOpen" class="boh-surface-menu" aria-label="大模式">
               <button
-                v-if="renamingIndex !== item.index"
+                v-for="option in SURFACE_OPTIONS"
+                :key="option.id"
                 type="button"
-                class="boh-sb-more"
-                title="更多操作"
-                aria-label="更多操作"
-                @click.stop="toggleMenu(item.index)"
+                class="boh-sm-item"
+                :class="{ 'is-on': surface === option.id }"
+                @click.stop="setSurface(option.id)"
               >
-                <MoreHorizontal :size="15" aria-hidden="true" />
+                <span>
+                  <b>{{ option.label }}</b>
+                  <small>{{ option.tagline }}</small>
+                </span>
+                <Check class="boh-sm-check" :size="15" aria-hidden="true" />
               </button>
-              <div v-if="menuIndex === item.index" class="boh-sb-menu" @click.stop>
-                <button type="button" @click="beginRename(item)">
-                  <Pencil :size="14" aria-hidden="true" />重命名
-                </button>
-                <button type="button" @click="togglePin(item.index)">
-                  <Pin :size="14" aria-hidden="true" />{{
-                    item.session.pinned ? '取消置顶' : '置顶'
-                  }}
-                </button>
-                <button
-                  v-if="sessions.length > 1"
-                  type="button"
-                  class="is-danger"
-                  @click="requestDelete(item.index)"
-                >
-                  <Trash2 :size="14" aria-hidden="true" />删除
-                </button>
-              </div>
-            </div>
-          </TransitionGroup>
-        </template>
-        <div v-if="filteredGroups.length === 0" class="boh-sb-empty">没有匹配的对话</div>
-      </nav>
+            </nav>
+          </Transition>
+        </div>
 
-      <!-- 左下角账号入口（2026-10-08 用户口径）：显示头像 + 名称，hover 或点击都弹出
+        <button type="button" class="boh-new-chat" @click="emit('new-chat')">
+          <Plus :size="16" aria-hidden="true" />新对话
+        </button>
+
+        <!-- 2026-11-04 硬切审计 P1-10：搜索框补显隐过渡 -->
+        <Transition name="boh-sb-pop">
+          <label v-if="searchOpen" class="boh-sb-search">
+            <Search :size="15" aria-hidden="true" />
+            <input
+              v-model="query"
+              type="text"
+              placeholder="搜索会话"
+              @keydown.escape="closeSearch"
+            />
+          </label>
+        </Transition>
+
+        <nav class="boh-sb-groups">
+          <template v-for="group in filteredGroups" :key="group.id">
+            <div class="boh-sb-glabel">{{ group.label }}</div>
+            <TransitionGroup name="boh-sb">
+              <div
+                v-for="item in group.items"
+                :key="item.session.timestamp || item.index"
+                class="boh-sb-item"
+                :class="{ 'is-active': item.index === currentIndex }"
+                :data-session-index="item.index"
+                @click="selectSession(item.index)"
+              >
+                <Pin v-if="item.session.pinned" class="boh-sb-pin" :size="12" aria-hidden="true" />
+                <input
+                  v-if="renamingIndex === item.index"
+                  ref="renameInput"
+                  v-model="renameValue"
+                  class="boh-sb-rename"
+                  maxlength="48"
+                  @click.stop
+                  @keydown.enter.stop="commitRename(item.index)"
+                  @keydown.escape.stop="cancelRename"
+                  @blur="commitRename(item.index)"
+                />
+                <span v-else class="boh-sb-title-wrap">
+                  <span class="boh-sb-title">{{ item.session.title || '新对话' }}</span>
+                  <small v-if="query && matchPreview(item.session)">{{
+                    matchPreview(item.session)
+                  }}</small>
+                </span>
+                <span v-if="item.session.temporary" class="boh-sb-badge">临时</span>
+                <span v-else-if="item.session.origin === 'quick-ask'" class="boh-sb-badge"
+                  >问一句</span
+                >
+                <button
+                  v-if="renamingIndex !== item.index"
+                  type="button"
+                  class="boh-sb-more"
+                  title="更多操作"
+                  aria-label="更多操作"
+                  @click.stop="toggleMenu(item.index)"
+                >
+                  <MoreHorizontal :size="15" aria-hidden="true" />
+                </button>
+                <div v-if="menuIndex === item.index" class="boh-sb-menu" @click.stop>
+                  <button type="button" @click="beginRename(item)">
+                    <Pencil :size="14" aria-hidden="true" />重命名
+                  </button>
+                  <button type="button" @click="togglePin(item.index)">
+                    <Pin :size="14" aria-hidden="true" />{{
+                      item.session.pinned ? '取消置顶' : '置顶'
+                    }}
+                  </button>
+                  <!-- plans/038 §3.4：快速会话可提升为主会话（清 origin，回到常规时间分组） -->
+                  <button
+                    v-if="item.session.origin === 'quick-ask'"
+                    type="button"
+                    @click="promoteSession(item.index)"
+                  >
+                    <ArrowUpRight :size="14" aria-hidden="true" />提升为主会话
+                  </button>
+                  <button
+                    v-if="sessions.length > 1"
+                    type="button"
+                    class="is-danger"
+                    @click="requestDelete(item.index)"
+                  >
+                    <Trash2 :size="14" aria-hidden="true" />删除
+                  </button>
+                </div>
+              </div>
+            </TransitionGroup>
+          </template>
+          <div v-if="filteredGroups.length === 0" class="boh-sb-empty">没有匹配的对话</div>
+        </nav>
+
+        <!-- 左下角账号入口（2026-10-08 用户口径）：显示头像 + 名称，hover 或点击都弹出
            额度 / 订阅计划浮层（形态参考 WorkBuddy 的账号菜单）。
            原「设置」行与「今日额度」行一起收进浮层 —— 底部只留这一个入口，避免三行堆叠。 -->
-      <div class="boh-sb-foot" @mouseenter="openAccountPop" @mouseleave="scheduleCloseAccountPop">
-        <button
-          type="button"
-          class="boh-sb-foot-row boh-account-btn"
-          :aria-expanded="accountPopOpen"
-          aria-haspopup="dialog"
-          aria-label="账号、额度与订阅"
-          @click.stop="handleAccountClick"
-        >
-          <img
-            v-if="account.avatarUrl"
-            class="boh-account-avatar"
-            :src="account.avatarUrl"
-            alt=""
-            aria-hidden="true"
-          />
-          <span v-else class="boh-account-avatar is-fallback" aria-hidden="true">
-            {{ account.initial }}
-          </span>
-          <span class="boh-account-name">{{ account.name }}</span>
-          <ChevronUp :size="15" aria-hidden="true" />
-        </button>
-
-        <!-- 2026-11-04 硬切审计 P1-10：账号气泡补显隐过渡（v-show 与 Transition 兼容） -->
-        <Transition name="boh-sb-pop">
-          <div
-            v-show="accountPopOpen"
-            class="boh-account-pop"
-            role="dialog"
+        <div class="boh-sb-foot" @mouseenter="openAccountPop" @mouseleave="scheduleCloseAccountPop">
+          <button
+            type="button"
+            class="boh-sb-foot-row boh-account-btn"
+            :aria-expanded="accountPopOpen"
+            aria-haspopup="dialog"
             aria-label="账号、额度与订阅"
-            @click.stop
+            @click.stop="handleAccountClick"
           >
-          <div class="boh-account-pop-head">
             <img
               v-if="account.avatarUrl"
-              class="boh-account-avatar is-lg"
+              class="boh-account-avatar"
               :src="account.avatarUrl"
               alt=""
               aria-hidden="true"
             />
-            <span v-else class="boh-account-avatar is-lg is-fallback" aria-hidden="true">
+            <span v-else class="boh-account-avatar is-fallback" aria-hidden="true">
               {{ account.initial }}
             </span>
-            <span class="boh-account-pop-id">
-              <strong>{{ account.name }}</strong>
-              <small>{{ plan.label || '未登录用户' }}</small>
-            </span>
-          </div>
+            <span class="boh-account-name">{{ account.name }}</span>
+            <ChevronUp :size="15" aria-hidden="true" />
+          </button>
 
-          <!-- 额度：今日**剩余**（数据源与输入区用量圆钮、设置页用量卡同源，都由壳传入） -->
-          <!-- 2026-10-08 用户口径第二版：主指标是剩余、尺子是「Plus = 100%」
+          <!-- 2026-11-04 硬切审计 P1-10：账号气泡补显隐过渡（v-show 与 Transition 兼容） -->
+          <Transition name="boh-sb-pop">
+            <div
+              v-show="accountPopOpen"
+              class="boh-account-pop"
+              role="dialog"
+              aria-label="账号、额度与订阅"
+              @click.stop
+            >
+              <div class="boh-account-pop-head">
+                <img
+                  v-if="account.avatarUrl"
+                  class="boh-account-avatar is-lg"
+                  :src="account.avatarUrl"
+                  alt=""
+                  aria-hidden="true"
+                />
+                <span v-else class="boh-account-avatar is-lg is-fallback" aria-hidden="true">
+                  {{ account.initial }}
+                </span>
+                <span class="boh-account-pop-id">
+                  <strong>{{ account.name }}</strong>
+                  <small>{{ plan.label || '未登录用户' }}</small>
+                </span>
+              </div>
+
+              <!-- 额度：今日**剩余**（数据源与输入区用量圆钮、设置页用量卡同源，都由壳传入） -->
+              <!-- 2026-10-08 用户口径第二版：主指标是剩余、尺子是「Plus = 100%」
                ⇒ Max 没消耗就显示 剩余 625%（不再显示那个恒为 100% 的「相对自己」口径）。
                进度条宽度走 meterPercent（已用 ÷ 总额）—— 直接把 625% 当 width 会撑破 track。 -->
-          <div class="boh-account-quota">
-            <div class="boh-account-quota-head" :title="quota ? quota.title : ''">
-              <span>今日剩余</span>
-              <b>{{ quota ? quota.remainingLabel : '—' }}</b>
-            </div>
-            <div class="boh-account-quota-track" aria-hidden="true">
-              <i :style="{ width: `${quota ? quota.meterPercent : 0}%` }"></i>
-            </div>
-            <p class="boh-account-quota-foot">{{ quota ? quota.detail : '暂无用量数据' }}</p>
-          </div>
+              <div class="boh-account-quota">
+                <div class="boh-account-quota-head" :title="quota ? quota.title : ''">
+                  <span>今日剩余</span>
+                  <b>{{ quota ? quota.remainingLabel : '—' }}</b>
+                </div>
+                <div class="boh-account-quota-track" aria-hidden="true">
+                  <i :style="{ width: `${quota ? quota.meterPercent : 0}%` }"></i>
+                </div>
+                <p class="boh-account-quota-foot">{{ quota ? quota.detail : '暂无用量数据' }}</p>
+              </div>
 
-          <div class="boh-account-plan-row">
-            <span class="boh-account-plan-label">订阅计划</span>
-            <strong>{{ plan.label || '未登录用户' }}</strong>
-          </div>
+              <div class="boh-account-plan-row">
+                <span class="boh-account-plan-label">订阅计划</span>
+                <strong>{{ plan.label || '未登录用户' }}</strong>
+              </div>
 
-          <div class="boh-account-actions">
-            <button type="button" class="is-primary" @click.stop="emit('upgrade')">升级套餐</button>
-            <button type="button" @click.stop="emit('open-settings')">
-              <Settings :size="14" aria-hidden="true" />设置
-            </button>
-          </div>
-          </div>
-        </Transition>
-      </div>
-    </aside>
+              <div class="boh-account-actions">
+                <button type="button" class="is-primary" @click.stop="emit('upgrade')">
+                  升级套餐
+                </button>
+                <button type="button" @click.stop="emit('open-settings')">
+                  <Settings :size="14" aria-hidden="true" />设置
+                </button>
+              </div>
+            </div>
+          </Transition>
+        </div>
+      </aside>
     </Transition>
   </Teleport>
 </template>
@@ -228,6 +246,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import {
+  ArrowUpRight,
   Check,
   ChevronDown,
   ChevronUp,
@@ -288,6 +307,7 @@ const emit = defineEmits([
   'delete-session',
   'rename-session',
   'toggle-pin',
+  'promote-session',
   'open-settings',
   'upgrade',
   'update:surface',
@@ -348,6 +368,12 @@ const requestDelete = (index) => {
   emit('delete-session', index);
 };
 
+/** 快速会话 → 主会话（plans/038 §3.4）：清 origin，由壳落账 */
+const promoteSession = (index) => {
+  menuIndex.value = null;
+  emit('promote-session', index);
+};
+
 const beginRename = (item) => {
   menuIndex.value = null;
   renamingIndex.value = item.index;
@@ -371,7 +397,8 @@ const commitRename = (index) => {
   cancelRename();
 };
 
-// ── 会话分组（口径沿用旧实现：置顶 / 今天 / 昨天 / 本周 / 本月 / 更早） ──
+// ── 会话分组（口径沿用旧实现：置顶 / 在搜索里问过 / 今天 / 昨天 / 本周 / 本月 / 更早） ──
+// plans/038 §3.4：origin==='quick-ask' 的会话单独成组（不参与时间分组），可「提升为主会话」。
 const getSessionGroupId = (timestamp) => {
   const value = Number(timestamp || Date.now());
   const date = Number.isFinite(value) ? new Date(value) : new Date();
@@ -390,6 +417,7 @@ const getSessionGroupId = (timestamp) => {
 const groupedSessions = computed(() => {
   const groups = [
     { id: 'pinned', label: '置顶', items: [] },
+    { id: 'quickAsk', label: '在搜索里问过', items: [] },
     { id: 'today', label: '今天', items: [] },
     { id: 'yesterday', label: '昨天', items: [] },
     { id: 'thisWeek', label: '本周', items: [] },
@@ -400,7 +428,9 @@ const groupedSessions = computed(() => {
   props.sessions.forEach((session, index) => {
     const group = session?.pinned
       ? groupMap.pinned
-      : groupMap[getSessionGroupId(session?.timestamp)] || groupMap.earlier;
+      : session?.origin === 'quick-ask'
+        ? groupMap.quickAsk
+        : groupMap[getSessionGroupId(session?.timestamp)] || groupMap.earlier;
     group.items.push({ session, index });
   });
   groups.forEach((group) =>

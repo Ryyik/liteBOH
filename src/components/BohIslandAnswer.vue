@@ -257,8 +257,9 @@ watch(streaming, (val) => {
 /* ---------------- 生命周期 ---------------- */
 
 onMounted(async () => {
-  // 快速会话（§3.4）：岛内问答不接主会话 —— 每次岛内问答链路都从全新会话开始
-  engine.startNewChat();
+  // 快速会话（§3.4）：岛内问答不接主会话 —— 每次岛内问答链路都从全新会话开始。
+  // origin 标记让全页侧栏把它归进「在搜索里问过」分组（可提升为主会话）。
+  engine.startNewChat('quick-ask');
   // 消费搜索面转来的种子问题（原句直传，见 GlobalSearchIsland.askAi）
   const seed = bohIsland.pendingAsk.value;
   bohIsland.pendingAsk.value = '';

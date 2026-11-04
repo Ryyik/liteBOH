@@ -1,4 +1,5 @@
-import { computed, reactive, ref, shallowReactive, shallowRef } from 'vue';
+import { computed, reactive, shallowReactive, shallowRef } from 'vue';
+import { useBohIsland } from '@/composables/useBohIsland.js';
 
 /** navbar 监听的通知岛事件名（由 showIsland.notify 派发） */
 export const GLOBAL_NAV_STATUS_EVENT = 'boh_global_nav_status';
@@ -67,22 +68,16 @@ const buildTaskState = (init = {}) =>
 
 const currentTask = shallowRef(null);
 const pendingTasks = [];
-// AI 岛占用标记：必须是响应式的，islandTaskView computed 依赖它触发卡片隐藏/恢复
-const aiPaused = ref(false);
 
 // ---------- 自定义岛槽位 ----------
 const customSlot = shallowReactive({ key: 0, component: null, props: null });
 
-// ---------- AI 岛 opener（由 UnifiedNavbar 注册，规避路由上下文依赖） ----------
-let aiOpener = null;
-
 const presentTask = (task) => {
   currentTask.value = task;
-  task.visible = !aiPaused.value;
+  task.visible = true;
 };
 
 const shiftTaskAfterLeave = () => {
-  if (aiPaused.value) return;
   const next = pendingTasks.shift() || null;
   currentTask.value = next;
   if (next) next.visible = true;
@@ -103,8 +98,8 @@ const attachHandle = (task) => {
       return;
     }
     if (currentTask.value === task) {
-      if (aiPaused.value || !task.visible) {
-        // AI 岛占用中（或尚未展示过）：卡本就不可见，直接让位给队列
+      if (!task.visible) {
+        // 尚未展示过：直接让位给队列
         shiftTaskAfterLeave();
       } else {
         task.visible = false; // 播放退场动画，由 islandTaskCardLeft() 接续队列
@@ -210,12 +205,8 @@ export const showIsland = {
    */
   task(init = {}) {
     const task = buildTaskState(init);
-    if (
-      currentTask.value &&
-      !currentTask.value.closed &&
-      (currentTask.value.visible || aiPaused.value)
-    ) {
-      // 已有任务在展示（或被 AI 岛暂停隐藏）：排队，保持先进先出
+    if (currentTask.value && !currentTask.value.closed && currentTask.value.visible) {
+      // 已有任务在展示：排队，保持先进先出
       pendingTasks.push(task);
     } else {
       presentTask(task);
@@ -224,12 +215,12 @@ export const showIsland = {
   },
 
   /**
-   * 打开 BOH AI 对话岛，可带种子 prompt 与期望模型模式（mode 如 'fast'，岛内在发送前静默切换）。
-   * @returns {boolean} 成功交给 AI 岛返回 true；opener 未注册或当前路由不可开返回 false（调用方可自行降级，如跳 /ai-chat）
+   * 打开 BOH AI 对话岛（plans/038 P3：直达 BohIsland 的回答面），可带种子 prompt。
+   * options.mode（如论坛的 'fast'）不再消费 —— 岛内快速会话无模型选择（§3.6 减法）。
+   * @returns {boolean} 成功交给 AI 岛返回 true；当前路由不可开返回 false（调用方可自行降级，如跳 /ai-chat）
    */
   ai(options = {}) {
-    if (typeof aiOpener !== 'function') return false;
-    return aiOpener(options) === true;
+    return useBohIsland().askDirect(options);
   },
 
   /**
@@ -257,26 +248,6 @@ export const showIsland = {
   },
 };
 
-/** UnifiedNavbar 挂载时注册 AI 岛 opener；卸载时传 null 注销。 */
-export const registerIslandAiOpener = (fn) => {
-  aiOpener = typeof fn === 'function' ? fn : null;
-};
-
-/** AI 岛开/关时由 navbar 调用：占用期间任务卡隐藏并暂停队列。 */
-export const setIslandAiPaused = (paused) => {
-  aiPaused.value = Boolean(paused);
-  if (!aiPaused.value) {
-    const task = currentTask.value;
-    if (!task) return;
-    if (task.closed) {
-      // 暂停期间已结束：让位给队列中的下一个
-      shiftTaskAfterLeave();
-    } else if (!task.visible) {
-      task.visible = true;
-    }
-  }
-};
-
 /** 任务卡退场动画结束后的接续（由 navbar 的 after-leave 回调触发）。 */
 export const islandTaskCardLeft = () => {
   const task = currentTask.value;
@@ -291,10 +262,10 @@ export const islandTaskAction = (actionId) => {
   task.onAction?.(String(actionId), task.id);
 };
 
-/** navbar 渲染任务卡使用的视图（AI 岛占用或任务不可见时为 null）。 */
+/** navbar 渲染任务卡使用的视图（任务不可见时为 null）。 */
 export const islandTaskView = computed(() => {
   const task = currentTask.value;
-  if (!task || task.closed || !task.visible || aiPaused.value) return null;
+  if (!task || task.closed || !task.visible) return null;
   return task;
 });
 

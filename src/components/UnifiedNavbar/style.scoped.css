@@ -673,9 +673,7 @@
 
 :global(
   #unified-nav-container.nav-immersive-on.nav-immersive-expanded
-    .unified-nav-surface:not(.has-status-card):not(.has-task-card):not(.has-custom-card):not(
-      .has-bohai-island
-    )
+    .unified-nav-surface:not(.has-status-card):not(.has-task-card):not(.has-custom-card)
 ) {
   position: static;
   transform: translateY(10px);
@@ -912,38 +910,8 @@
   transform: scale(0.95);
 }
 
-/* ============================================
-   BOHAI 灵动岛：surface 形态补丁
-   完整样式在 BOHAIIsland.vue 的样式里（用 :global() 包裹）。
-   这里只追加 surface 高度补丁，保证 has-bohai-island 优先级 ≥ has-status-card，
-   并在主样式表（vendor）未及时覆盖时兜底。
-   ============================================ */
-.unified-nav-surface.has-status-card.has-bohai-island,
-.unified-nav-surface.has-task-card.has-bohai-island,
-.unified-nav-surface.has-custom-card.has-bohai-island,
-.unified-nav-surface.has-bohai-island {
-  height: calc(var(--global-nav-status-top, 79px) + min(50vh, 520px) + 12px) !important;
-  border-radius: 30px !important;
-  /* transition 沿用默认 500ms，与岛的 Vue Transition 同步 */
-}
-
-/* 关键修复：岛展开时 nav-container 必须保持原高度（72px）并贴顶，
-   否则 height:100% 会让导航栏内容跟着 surface 一起拉长，
-   导致标题/按钮跑到中间或被遮挡。 */
-.unified-nav-surface.has-bohai-island > .nav-container {
-  height: var(--global-nav-rest-height, 72px) !important;
-  position: relative;
-  z-index: 3;
-}
-
-@media (max-width: 699px) {
-  .unified-nav-surface.has-status-card.has-bohai-island,
-  .unified-nav-surface.has-task-card.has-bohai-island,
-  .unified-nav-surface.has-custom-card.has-bohai-island,
-  .unified-nav-surface.has-bohai-island {
-    height: calc(var(--global-nav-status-top, 67px) + min(54vh, 460px) + 12px) !important;
-  }
-}
+/* BOHAI 灵动岛（BohAIIsland 宿主形态）已随 plans/038 P3 入口收敛退场：
+   AI 岛迁移为 App 级 BohIsland（Teleport 到 body），不再撑高 surface —— 相关补丁一并删除。 */
 
 /* ============================================
    导航岛搜索（新闻&节目页）：图标按钮 + 岛下展开的玻璃搜索条

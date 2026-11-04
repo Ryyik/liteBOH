@@ -626,6 +626,12 @@ export function useBohShell(props, emit) {
     if (session) session.pinned = !session.pinned;
   };
 
+  /** 快速会话 → 主会话（plans/038 §3.4）：清 origin，回到常规时间分组 */
+  const promoteSession = (index) => {
+    const session = chatSessions[index];
+    if (session) delete session.origin;
+  };
+
   const requestDeleteSession = (index) => {
     const session = chatSessions[index];
     if (!session) return;
@@ -2345,6 +2351,7 @@ export function useBohShell(props, emit) {
     requestDeleteSession,
     renameSession,
     togglePinSession,
+    promoteSession,
     openSettings,
     openUsageInSettings,
     openSettingsFromComposer,

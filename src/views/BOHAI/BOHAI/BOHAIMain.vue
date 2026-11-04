@@ -54,6 +54,7 @@
         @delete-session="requestDeleteSession"
         @rename-session="renameSession"
         @toggle-pin="togglePinSession"
+        @promote-session="promoteSession"
         @open-settings="openSettings"
         @upgrade="goUpgradePlan"
         @update:surface="setSurface"
@@ -278,6 +279,7 @@ const {
   requestDeleteSession,
   renameSession,
   togglePinSession,
+  promoteSession,
   openSettings,
   openUsageInSettings,
   openSettingsFromComposer,

@@ -13,16 +13,12 @@ import { storeToRefs } from 'pinia';
 import { ensureNotificationStore, getNotificationStoreRef } from '@/stores/notification-loader';
 import { logger } from '@/utils/logger.js';
 import { recoverIfStaleBuild } from '@/utils/version-checker.js';
-import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
-/* 下面四个都是「隐形直到被调用」的浮层 / 触发器：chunk 失败时**必须静默**
+import { useBohIsland } from '@/composables/useBohIsland.js';
+/* 下面三个都是「隐形直到被调用」的浮层：chunk 失败时**必须静默**
    （silent: true，什么都不渲染）—— 它们常驻模板，若走默认的 AsyncPanelQuiet，
    部署窗口期一失败就会在每页底部裸露三块「正在加载…」文档流占位
    （2026-10-29 用户报障「更新完第一次进网页很多加载中」的根因）。
    失败出口交给 onError 里的恢复链强刷，上报照常。 */
-const AiEdgeTrigger = createPanelAsync(() => import('@/components/AiEdgeTrigger.vue'), {
-  label: 'AiEdgeTrigger',
-  silent: true,
-});
 const AdminConfirmModal = createPanelAsync(() => import('@/components/AdminConfirmModal.vue'), {
   label: 'AdminConfirmModal',
   silent: true,
@@ -203,12 +199,9 @@ const LoginView = createPanelAsync(() => import('./views/Login/index.vue'), {
 });
 const showToast = computed(() => notificationStoreRef.value?.showToast || false);
 
-const {
-  isOpen: globalAiOpen,
-  open: openGlobalAi,
-  close: closeGlobalAi,
-  theme: globalAiTheme,
-} = useGlobalAiOverlay();
+// plans/038 P3：AI 岛统一为 App 级 BohIsland（旧 useGlobalAiOverlay/BOHAIIsland 已退场），
+// ⌘K 快捷键经此改线到新岛（偏好里的 shortcutEnabled/shortcut 设置沿用）。
+const bohIsland = useBohIsland();
 const { preferences: globalAiPreferences } = useGlobalAiPreferences();
 const toastTitle = computed(() => notificationStoreRef.value?.toastTitle || '');
 const toastDesc = computed(() => notificationStoreRef.value?.toastDesc || '');
@@ -292,7 +285,7 @@ onUnmounted(() => {
   notificationStoreRef.value?.stopNotificationListener();
 });
 
-// 全局 AI 覆盖层：键盘快捷键 (Cmd+K / Ctrl+K)
+// 全局 AI 岛：键盘快捷键 (Cmd+K / Ctrl+K) —— plans/038 P3 起直达 BohIsland
 const handleGlobalAiKeydown = (e) => {
   if (
     globalAiPreferences.shortcutEnabled &&
@@ -301,14 +294,11 @@ const handleGlobalAiKeydown = (e) => {
     // Lab 自带命令面板使用 Mod+K；保留该页面原有快捷键，用户仍可在设置中改为 Mod+J/Space。
     if (route.name === 'Lab' && globalAiPreferences.shortcut === 'mod+k') return;
     if (route.name === 'AiChat') return;
-    // 灵动岛挂在 UnifiedNavbar 内：导航栏被隐藏的路由（admin/user-space 子页等）
-    // 没有宿主容器，open() 只会置位 isOpen 而永远不渲染，必须直接忽略
-    if (!showGlobalNavbar.value) return;
     e.preventDefault();
-    if (globalAiOpen.value) {
+    if (bohIsland.isOpen.value) {
       window.dispatchEvent(new CustomEvent('boh-ai-focus-composer'));
     } else {
-      openGlobalAi({ snap: globalAiPreferences.initialHeight === 'full' ? 2 : 1 });
+      bohIsland.open();
     }
   }
 };
@@ -553,20 +543,8 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
   <!-- 帖子详情弹窗宿主（横屏）：壳很轻可常驻；重的 PostDetailMain 在弹窗内异步加载 -->
   <PostDetailModal />
 
-  <!-- AI 边缘触发区（移动端侧拉唤起 BOHAI 灵动岛）；导航栏隐藏的路由上岛无宿主，一并隐藏 -->
-  <AiEdgeTrigger
-    :show="
-      showGlobalNavbar &&
-      !globalAiOpen &&
-      globalAiPreferences.gestureEnabled &&
-      route.name !== 'AiChat'
-    "
-    :side="globalAiPreferences.gestureSide"
-    :sensitivity="globalAiPreferences.gestureSensitivity"
-    :haptics="globalAiPreferences.hapticsEnabled"
-    :animations="globalAiPreferences.animationsEnabled"
-    @trigger="openGlobalAi({ snap: globalAiPreferences.initialHeight === 'full' ? 2 : 1 })"
-  />
+  <!-- AI 边缘触发区已随 plans/038 P3 退场：竖屏入口 = BohIsland 常驻胶囊 +
+       抓导航栏下拉（§2.9），两个手势并存会让用户学不会，留一个砍一个。 -->
 
   <!-- 首次进入提示 & 消息通知 -->
   <Transition name="toast">

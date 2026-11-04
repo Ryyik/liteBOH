@@ -697,8 +697,9 @@ export function useChatEngine() {
   _scrollToBottom = scrollToBottom;
 
   // Session Management — 会话 CRUD 已委托给 useConversationManager
-  const startNewChat = () => {
-    _startNewChat();
+  // origin：会话来源标记（plans/038 §3.4），透传给 startNewChat（'quick-ask' = 岛内快速会话）
+  const startNewChat = (origin = '') => {
+    _startNewChat(origin);
     isSearching.value = false;
     // ⚠️ 这里**不要**再重置 isKnowledgeBaseEnabled —— 它是持久化的用户偏好
     //（localStorage `boh_ai_knowledge_base_enabled_v1`，默认开），不是 per-session 状态。

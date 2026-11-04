@@ -15,7 +15,6 @@
         'has-status-card': statusCardItem.visible,
         'has-long-status-card': statusCardItem.visible && statusCardItem.isLong,
         'has-login-card': showLoginModal,
-        'has-bohai-island': isBohaiIslandOpen,
         'has-task-card': isTaskCardShown,
         'has-custom-card': !!islandCustomSlot.component,
         // 新闻中心的搜索/筛选是从灵动导航栏向下衍生的扩展卡片，不占用导航文字行。
@@ -425,16 +424,15 @@
         @resize="handleStatusCardResize"
       />
       <div
-        v-show="!isTaskCardShown && !isBohaiIslandOpen"
+        v-show="!isTaskCardShown"
         v-if="islandCustomSlot.component"
         :key="`island-custom-${islandCustomSlot.key}`"
         ref="islandCustomHost"
         class="island-custom-host"
       >
-        <!-- 仲裁：任务岛/AI 岛占用 surface 时自定义岛让位（v-show 保状态，隐藏后高度上报 0，收起后自动回归） -->
+        <!-- 仲裁：任务岛占用 surface 时自定义岛让位（v-show 保状态，隐藏后高度上报 0，收起后自动回归） -->
         <component :is="islandCustomSlot.component" v-bind="islandCustomSlot.props || {}" />
       </div>
-      <BOHAIIsland />
     </div>
   </div>
 </template>
@@ -459,13 +457,9 @@ import { useRoutePrefetch, scheduleIdleRoutePrefetch } from '@/composables/useRo
 import { SITE_NAV_ITEMS } from '@/config/site-nav';
 import GlobalNavStatusCard from './GlobalNavStatusCard.vue';
 import GlobalNavTaskCard from './GlobalNavTaskCard.vue';
-import BOHAIIsland from './BOHAIIsland.vue';
-import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay.js';
 import {
   GLOBAL_NAV_STATUS_EVENT,
   GLOBAL_NAV_PREEMPT_EVENT,
-  registerIslandAiOpener,
-  setIslandAiPaused,
   islandTaskAction,
   islandTaskCardLeft,
   islandTaskView,
@@ -484,20 +478,8 @@ const { isLoggedIn, isInitialized, showLoginModal, isAdmin } = storeToRefs(authS
 // 导航栏侧只用 DEV 手动触发按钮；自动触发点已迁到「进入论坛（首屏解锁落定）」——
 // 见 views/Home/index.vue 的 watch([gateSettled, isLoggedIn])。
 const { forceShowOverviewIsland } = useOverviewIsland();
-// BOHAI 灵动岛：岛组件内部已订阅 isExpanded，navbar 仅读取用于 surface 类名联动
-// （原 useBohaiIsland 薄包装已内联，状态统一来自 useGlobalAiOverlay 单例）
-const {
-  isOpen: isBohaiOverlayOpen,
-  canOpen: isBohaiIslandAllowed,
-  open: openBohaiOverlay,
-} = useGlobalAiOverlay();
-const isBohaiIslandOpen = computed(() => isBohaiOverlayOpen.value && isBohaiIslandAllowed.value);
-// 注册 AI 岛 opener：showIsland.ai() 由这里真正打开 BOH AI 岛（可带种子 prompt 与期望模型模式）
-registerIslandAiOpener(({ prompt, mode } = {}) => {
-  if (!isBohaiIslandAllowed.value) return false;
-  openBohaiOverlay({ prompt, mode });
-  return true;
-});
+// BOH AI 岛已迁移为 App 级 BohIsland（plans/038 P3 入口收敛）—— surface 内不再有 AI 岛宿主，
+// showIsland.ai() 由 useIsland 直连新岛，本组件只保留任务岛/通知岛/自定义岛的仲裁。
 // DEV-TEST：仅开发环境显示灵动岛测试按钮（与模板中 DEV-TEST 块一起删除）
 const isDevMode = import.meta.env.DEV;
 const notificationStoreRef = getNotificationStoreRef();
@@ -539,7 +521,7 @@ const isTaskCardShown = computed(() => !!islandTaskView.value);
 
 // 任务岛/AI 岛占用期间通知卡暂停展示（转为隐藏并保持队列，收起后自动恢复）
 const statusCardItem = computed(() => {
-  if (isBohaiIslandOpen.value || isTaskCardShown.value) {
+  if (isTaskCardShown.value) {
     return { ...navStatus.value, visible: false };
   }
   return navStatus.value;
@@ -637,7 +619,7 @@ const presentNavStatus = (item) => {
 };
 
 const flushNavStatusQueue = () => {
-  if (navStatus.value.visible || isTaskCardShown.value || isBohaiIslandOpen.value) return;
+  if (navStatus.value.visible || isTaskCardShown.value) return;
   const next = navStatusQueue.shift();
   if (!next) return;
   const gap = islandNotifyGapMs();
@@ -653,7 +635,7 @@ const flushNavStatusQueue = () => {
 
 const handleGlobalNavStatus = (event) => {
   const item = normalizeNavStatus(event?.detail || {});
-  const busy = navStatus.value.visible || isTaskCardShown.value || isBohaiIslandOpen.value;
+  const busy = navStatus.value.visible || isTaskCardShown.value;
   const verdict = admitIslandNotification(item, { busy, queueLength: navStatusQueue.length });
   if (!verdict.admit) return;
   if (busy) {
@@ -740,17 +722,6 @@ const handleIslandTaskAfterLeave = () => {
 watch(isTaskCardShown, (shown, prev) => {
   if (!shown && prev) flushNavStatusQueue();
 });
-
-// AI 岛开关：占用期间暂停任务卡展示，收起后恢复并冲刷通知队列
-// immediate：navbar 卸载期间 AI 岛仍可能保持展开，重挂载时需同步一次
-watch(
-  isBohaiIslandOpen,
-  (open) => {
-    setIslandAiPaused(open);
-    if (!open) flushNavStatusQueue();
-  },
-  { immediate: true },
-);
 
 // ---- 自定义岛（showIsland.custom）高度上报 ----
 
@@ -1130,7 +1101,7 @@ watch(
 // ============================================
 // 竖屏 Mini 形态（plans/009-portrait-nav-mini-bar.md）
 // 展开态是纯派生：非竖屏 / 菜单开 / 任意岛在 → 长条，其余为 mini。
-// 岛仲裁复用 statusCardItem / isTaskCardShown / isBohaiIslandOpen / islandCustomSlot，
+// 岛仲裁复用 statusCardItem / isTaskCardShown / islandCustomSlot（AI 岛已迁 BohIsland，不在 surface），
 // 岛组件零改动。
 // ============================================
 
@@ -1168,13 +1139,11 @@ const isExpandedLooking = computed(() =>
       isMobileMenuOpen.value ||
       statusCardItem.value.visible ||
       isTaskCardShown.value ||
-      isBohaiIslandOpen.value ||
       !!islandCustomSlot.component
     : !navMini.value ||
       isMobileMenuOpen.value ||
       statusCardItem.value.visible ||
       isTaskCardShown.value ||
-      isBohaiIslandOpen.value ||
       !!islandCustomSlot.component,
 );
 
@@ -1312,11 +1281,7 @@ watch(
 
 // 任意岛唤起时收起移动菜单（岛需要全宽 surface，菜单与岛互斥）
 watch(
-  () =>
-    statusCardItem.value.visible ||
-    isTaskCardShown.value ||
-    isBohaiIslandOpen.value ||
-    !!islandCustomSlot.component,
+  () => statusCardItem.value.visible || isTaskCardShown.value || !!islandCustomSlot.component,
   (anyIsland) => {
     if (anyIsland && isMobileMenuOpen.value) closeMobileMenu();
   },
@@ -1327,10 +1292,7 @@ const handleSurfaceTap = () => {
   // 沉浸态：点球展开完整胶囊；展开后点空白收回球（岛卡展示中不抢行为）
   if (immersiveNav.value) {
     const islandShowing =
-      statusCardItem.value.visible ||
-      isTaskCardShown.value ||
-      isBohaiIslandOpen.value ||
-      !!islandCustomSlot.component;
+      statusCardItem.value.visible || isTaskCardShown.value || !!islandCustomSlot.component;
     if (islandShowing || isMobileMenuOpen.value) return;
     // 竖屏沉浸：点球直接开移动菜单（2026-10-16 用户报障「导航栏无法点击切换跳转」）。
     // 展开胶囊里桌面菜单（.nav-menu）在 ≤768px 是 display:none —— 先展开再点汉堡是
@@ -1523,7 +1485,6 @@ onUnmounted(() => {
   window.removeEventListener(GLOBAL_NAV_PREEMPT_EVENT, handleGlobalNavPreempt);
   clearNavStatusDismissTimer();
   navStatusQueue.length = 0;
-  registerIslandAiOpener(null);
   customHostResizeObserver?.disconnect();
   customHostResizeObserver = null;
   if (unreadRefreshInterval) {

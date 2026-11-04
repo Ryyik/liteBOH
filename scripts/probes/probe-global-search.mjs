@@ -258,7 +258,8 @@ await withPage(async (page, errs) => {
     );
   });
   await page.waitForTimeout(600);
-  check('⑮b ⌘K 不打开搜索面板（该键归 BOH AI 岛）', (await panelOpen(page)) === false);
+  // plans/038 P3：⌘K 改线到 App 级新岛（面板长在岛里）—— 断言随语义重写
+  check('⑮b ⌘K 打开新岛（搜索面板就长在岛里）', await islandOpen(page));
 
   // ---- 点外部关闭 ----
   await page.locator('.nav-search-btn').click();
@@ -290,33 +291,37 @@ await withPage(async (page, errs) => {
   await page.mouse.click(24, 760);
   await page.waitForTimeout(450);
 
-  // 旧 AI 岛：⌘K 是它的既有快捷键（见 useGlobalAiPreferences）；P2 退场前仍与本岛同位互斥
+  // plans/038 P3：AI 岛统一为 App 级 BohIsland，⌘K 直达它 —— 搜索面板就长在岛里，
+  // 「互斥」概念随旧岛退场：同一颗岛，两个召唤入口。
   await page.evaluate(() => {
     window.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }),
     );
   });
   await page.waitForTimeout(800);
-  check(
-    '⑱c AI 岛已被唤起（互斥前置条件）',
-    await page.evaluate(
-      () =>
-        !!document.querySelector('.unified-nav-surface')?.classList.contains('has-bohai-island'),
-    ),
-  );
+  check('⑱c ⌘K 打开 App 级新岛（互斥前置条件改为「岛已开」）', await islandOpen(page));
 
   await page.locator('.nav-search-btn').click();
   await page.waitForTimeout(800);
   const mutex = await page.evaluate(() => ({
     islandOpen: !!document.querySelector('.boh-island-root')?.classList.contains('open'),
-    oldAiOpen:
-      document.querySelector('.unified-nav-surface')?.className.includes('has-bohai-island') ||
-      false,
+    rootCount: document.querySelectorAll('.boh-island-root').length,
   }));
   check(
-    '⑱d AI 岛在场时开搜索岛：搜索岛展开且旧 AI 岛收起（useBohIsland.open 互斥）',
-    mutex.islandOpen && !mutex.oldAiOpen,
+    '⑱d 岛开着时点搜索按钮 = 收起（toggle 语义，同一个真源）',
+    mutex.islandOpen === false && mutex.rootCount === 1,
     JSON.stringify(mutex),
+  );
+  await page.locator('.nav-search-btn').click();
+  await page.waitForTimeout(800);
+  const reopened = await page.evaluate(() => ({
+    islandOpen: !!document.querySelector('.boh-island-root')?.classList.contains('open'),
+    panelThere: !!document.querySelector('.global-search'),
+  }));
+  check(
+    '⑱e 再点搜索按钮：岛重开且面板在场',
+    reopened.islandOpen && reopened.panelThere,
+    JSON.stringify(reopened),
   );
 
   check('⑲ 组 1 零 pageerror', errs.length === 0, errs.join(' | ').slice(0, 180));
@@ -362,13 +367,17 @@ await withPage(async (page) => {
   check('㉒ hideNavbar 路由下没有导航栏搜索入口', noHost);
 
   await page.keyboard.press('Meta+k');
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(600);
+  // plans/038 P3：⌘K 改线到 App 级新岛（面板长在岛里）—— 无导航栏路由照样能开
   check(
-    '㉓ hideNavbar 路由下 ⌘K 不打开搜索面板（该键归旧 AI 岛）',
-    (await panelOpen(page)) === false,
+    '㉓ hideNavbar 路由下 ⌘K 打开新岛（岛内含搜索面板，不再归旧 AI 岛）',
+    (await islandOpen(page)) === true,
   );
 
-  // plans/038：岛 Teleport 到 body，不依赖导航栏 —— `/` 在无导航栏路由照样可用
+  // plans/038：岛 Teleport 到 body，不依赖导航栏 —— `/` 在无导航栏路由照样可用。
+  // （⌘K 刚把它打开 —— `/` 的语义是 toggle，先 Esc 复位再验证 `/` 的召唤路径。）
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
   const handled = await pressSlash(page);
   await page.waitForTimeout(600);
   check(

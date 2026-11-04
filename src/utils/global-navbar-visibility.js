@@ -2,22 +2,14 @@
  * 全局导航栏是否显示 —— **单一真源**。
  *
  * 为什么必须单源：`<UnifiedNavbar v-if="showGlobalNavbar" />`（App.vue）决定导航栏是否渲染，
- * 而 AI 岛（BOH AI 对话岛）的岛体是**挂在导航栏内部**的。导航栏不渲染 = 没有宿主容器，
- * `openBohaiOverlay()` 只会把 `isOpen` 置位而永远不显示任何东西 —— 更糟的是
- * `showIsland.ai()` 还会返回 true，调用方以为开成功了。
+ * 导航 surface 内的任务岛/通知岛/自定义岛随宿主生灭。
  *
- * ⚠️ 这里踩过一次：`useGlobalAiOverlay.canOpen` 曾只判 `route.name === 'AiChat'` 与
- * `route.meta.hideNavbar` 两条，而本函数有六条。于是下面这几类路由上
- * canOpen=true 但导航栏已隐藏：
- *   · `?embed=desktop`
- *   · `?from=userspace*`（从用户空间跳出的详情等）
- *   · `/user-space?tab=profile&view=…`（我的 → 子视图）
- *   · `/user-space?tab=settings&view=…`（设置 → 子视图）
- * 论坛列表在这些视图里照常渲染（ForumToolbar 带「问 BOHAI」按钮），点下去就是
- * 「AI 岛当前不可用，请稍后再试」—— 一个看起来像偶发、实则必然的静默失败。
+ * ⚠️ 历史坑（保留档案）：旧 AI 岛挂在导航栏内时，「导航栏已隐藏但 meta 没标记」的路由上
+ * `showIsland.ai()` 会静默假成功。2026-11-04 plans/038 P3 后 AI 岛已迁移为 App 级
+ * BohIsland（Teleport 到 body、canOpen 不看本函数），这类路由不再有黑洞 ——
+ * 但 ForumToolbar 等带「问 BOHAI」按钮的视图列表留在这里作背景。
  *
- * 所以：App.vue 的 showGlobalNavbar 与 useGlobalAiOverlay 的 canOpen **都调用本函数**。
- * 要加新的隐藏条件，只改这里一处。
+ * 所以：App.vue 的 showGlobalNavbar 调用本函数。要加新的隐藏条件，只改这里一处。
  *
  * @param {import('vue-router').RouteLocationNormalizedLoaded | null | undefined} route
  * @returns {boolean} 导航栏是否应该显示

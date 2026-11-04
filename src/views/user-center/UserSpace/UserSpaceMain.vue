@@ -7,16 +7,10 @@
       'tab-transition-back': tabTransitionDirection === 'back',
       // 切回已显示过的 tab：跳过入场动画（否则每次切回来都从 opacity 0 重放一遍 = 闪白）
       'tab-no-replay': tabNoReplay,
-      'edge-swipe-active': isEdgeSwiping,
       'community-tab-active': currentTab === 'community' && !isForumFeedSection(communitySection),
     }"
     :data-theme="currentTheme"
   >
-    <!-- 边缘滑动提示线 -->
-    <transition name="edge-ind">
-      <div v-if="edgeIndicatorVisible" class="edge-swipe-indicator"></div>
-    </transition>
-
     <input
       type="file"
       ref="avatarInputRef"
@@ -493,14 +487,13 @@ import { useRouter, useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
-import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
+import { useBohIsland } from '@/composables/useBohIsland.js';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import {
   prepareAvatarUpload,
   uploadAvatarFile,
   removeAvatarByUrl,
 } from '@/utils/api/avatar-storage.js';
-import { useEdgeSwipeGesture } from '@/composables/useEdgeSwipeGesture';
 import UserSpaceBottomNav from './components/UserSpaceBottomNav.vue';
 import UserSpaceSideRail from './components/UserSpaceSideRail.vue';
 // 方块（论坛）分区壳：与首页 `/` 下滑直达共用同一份（2026-09-23 单源）
@@ -739,23 +732,9 @@ const navItems = userSpaceNavItems;
 const activeBottomNavId = computed(
   () => resolveBottomNavIdForUserSpaceTab(currentTab.value) || currentTab.value,
 );
-const {
-  isOpen: isAiOverlayOpen,
-  canOpen: isAiOverlayAllowed,
-  open: openGlobalAi,
-  close: closeGlobalAi,
-} = useGlobalAiOverlay();
-// 与 UnifiedNavbar 的 has-bohai-island 同源判定：岛展开时容器实测高度会被面板撑大
-const isAiIslandOpen = computed(() => isAiOverlayOpen.value && isAiOverlayAllowed.value);
-
-// 边缘滑动手势检测：从右侧边缘向左滑动唤起AI
-const { isSwiping: isEdgeSwiping, edgeIndicatorVisible } = useEdgeSwipeGesture({
-  edgeWidth: 20,
-  minSwipeDistance: 80,
-  maxSwipeTime: 800,
-  velocityThreshold: 0.5,
-  onTrigger: openGlobalAi,
-});
+// plans/038 P3：AI 岛统一为 App 级 BohIsland —— 本页只消费 isOpen 做底栏联动（ai 项高亮 +
+// 底栏不滚隐藏），边缘滑动手势已退场（两种手势并存用户学不会，竖屏入口 = 常驻胶囊）。
+const { isOpen: isAiOverlayOpen, open: openGlobalAi, close: closeGlobalAi } = useBohIsland();
 
 const bottomNavIndicatorStyle = computed(() => navIndicatorStyle.value);
 const validTabs = USER_SPACE_VALID_TABS;
@@ -3546,44 +3525,22 @@ watch(
    surface 内的浮层、不与左侧栏重叠，展开期间顶隙冻结在展开前高度，
    收场等 surface 500ms 高度过渡走完再恢复跟随（避免回落中间值写进去）。 */
 let navIslandResizeObserver = null;
-let railNavSyncHeld = false;
-let railNavSyncTimer = null;
 
 const syncUserspaceNavHeight = () => {
   const root = pageRootRef.value;
   if (!root) return;
   const island = document.getElementById('unified-nav-container');
   if (!island) return;
-  /* ⚠️ 只上报「收起态」高度（钳制到 container 的 min-height）：岛展开——不管 AI 岛、
+  /* ⚠️ 只上报「收起态」高度（钳制到 container 的 min-height）：岛展开——不管
      状态卡还是全局搜索面板——都是悬浮层，页面内容不应为它让位。
      2026-09-27 用户实测：全局搜索一出结果，内容区被推下去 200px+。
-     （钳制后，下方 AI 岛的 railNavSync 冻结逻辑变成无害冗余，保留不动。） */
+     （AI 岛已迁 App 级 BohIsland，原先针对它的 railNavSync 冻结逻辑随之删除。） */
   const measured = Math.ceil(island.getBoundingClientRect().height);
   const restHeight = Number.parseFloat(getComputedStyle(island).minHeight) || 0;
   const h = restHeight > 0 ? Math.min(measured, Math.ceil(restHeight)) : measured;
   if (h > 0) root.style.setProperty('--userspace-nav-h', `${h}px`);
-  if (railNavSyncHeld) return;
   if (h > 0) root.style.setProperty('--userspace-rail-top-h', `${h}px`);
 };
-
-watch(
-  isAiIslandOpen,
-  (open) => {
-    if (open) {
-      railNavSyncHeld = true;
-      return;
-    }
-    if (!railNavSyncHeld) return;
-    if (railNavSyncTimer) clearTimeout(railNavSyncTimer);
-    railNavSyncTimer = setTimeout(() => {
-      railNavSyncTimer = null;
-      if (isAiIslandOpen.value) return;
-      railNavSyncHeld = false;
-      syncUserspaceNavHeight();
-    }, 600);
-  },
-  { immediate: true },
-);
 
 onMounted(() => {
   void nextTick(syncUserspaceNavHeight);
@@ -3762,10 +3719,6 @@ onUnmounted(() => {
   if (navIslandResizeObserver) {
     navIslandResizeObserver.disconnect();
     navIslandResizeObserver = null;
-  }
-  if (railNavSyncTimer) {
-    clearTimeout(railNavSyncTimer);
-    railNavSyncTimer = null;
   }
   // ✅ 性能优化：取消所有未完成的请求
   cleanupAbortControllers();
