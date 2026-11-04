@@ -100,7 +100,8 @@
         </div>
       </div>
 
-      <div v-else>
+      <!-- 2026-11-04 硬切审计：骨架⇄内容同帧瞬切，内容侧补淡入（工具类真源 style.css） -->
+      <div v-else class="content-swap-in">
         <section v-if="currentNews.length" class="featured-news" aria-labelledby="featured-heading">
           <div class="section-heading-row">
             <h2 id="featured-heading">最新头条</h2>
@@ -132,6 +133,8 @@
                   loading="eager"
                   fetchpriority="high"
                   decoding="async"
+                  :class="{ 'is-loading': !isImageLoaded('news-feat-' + featuredNews.id) }"
+                  @load="markImageLoaded('news-feat-' + featuredNews.id)"
                   @error="onImgError"
                 />
                 <span v-if="featuredNews.kind === 'show'" class="show-play" aria-hidden="true"
@@ -181,6 +184,8 @@
                     :alt="news.title"
                     loading="lazy"
                     decoding="async"
+                    :class="{ 'is-loading': !isImageLoaded('news-sec-' + news.id) }"
+                    @load="markImageLoaded('news-sec-' + news.id)"
                     @error="onImgError"
                   /><span v-if="news.kind === 'show'" class="show-play mini" aria-hidden="true"
                     ><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg
@@ -235,6 +240,8 @@
                   loading="lazy"
                   decoding="async"
                   fetchpriority="low"
+                  :class="{ 'is-loading': !isImageLoaded('news-card-' + news.id) }"
+                  @load="markImageLoaded('news-card-' + news.id)"
                   @error="onImgError"
                 />
                 <span v-if="news.kind === 'show'" class="show-play" aria-hidden="true"
@@ -306,6 +313,10 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick, computed, watch } from 'vue';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
+
+/* 封面淡入记账（2026-11-04 硬切审计 P0-4，机制单源 useImageLoaded） */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 import { useRoute, useRouter } from 'vue-router';
 import { getImageUrl } from '../../utils/asset-helper.js';
 import { getCloudinaryTransformedUrl } from '@/utils/cloudinary-client.js';

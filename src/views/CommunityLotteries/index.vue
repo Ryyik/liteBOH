@@ -145,7 +145,8 @@
       </section>
 
       <template v-else-if="activeTab === 'active'">
-        <section v-if="primaryActiveLottery" class="lottery-featured-section">
+        <!-- 2026-11-04 硬切审计：骨架⇄内容补内容侧淡入 -->
+        <section v-if="primaryActiveLottery" class="lottery-featured-section content-swap-in">
           <article
             class="lottery-featured-card"
             :class="{ 'no-cover': !primaryActiveLottery.cover_image_url }"
@@ -302,6 +303,8 @@
                   height="480"
                   loading="lazy"
                   decoding="async"
+                  :class="{ 'is-loading': !isImageLoaded('cl-' + lottery.id) }"
+                  @load="markImageLoaded('cl-' + lottery.id)"
                 />
               </div>
               <div v-else class="community-lottery-cover lottery-cover-fallback">
@@ -415,7 +418,10 @@
       </template>
 
       <template v-else>
-        <section v-if="visibleHistoryLotteries.length" class="community-lottery-grid">
+        <section
+          v-if="visibleHistoryLotteries.length"
+          class="community-lottery-grid content-swap-in"
+        >
           <article
             v-for="lottery in visibleHistoryLotteries"
             :key="lottery.id"
@@ -430,6 +436,8 @@
                 height="480"
                 loading="lazy"
                 decoding="async"
+                :class="{ 'is-loading': !isImageLoaded('cl-' + lottery.id) }"
+                @load="markImageLoaded('cl-' + lottery.id)"
               />
             </div>
             <div v-else class="community-lottery-cover lottery-cover-fallback">
@@ -629,6 +637,10 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
+
+/* 封面淡入记账（2026-11-04 硬切审计 P0-4，机制单源 useImageLoaded） */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {

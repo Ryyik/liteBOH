@@ -38,7 +38,8 @@
             <button type="button" @click="fetchData()">重试</button>
           </div>
 
-          <div v-else class="heatmap-grid" :style="gridStyle">
+          <!-- 2026-11-04 硬切审计：骨架格⇄真实格补内容侧淡入 -->
+          <div v-else class="heatmap-grid content-swap-in-fade" :style="gridStyle">
             <div
               v-for="(day, index) in days"
               :key="index"

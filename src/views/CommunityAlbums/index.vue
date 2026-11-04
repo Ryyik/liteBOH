@@ -36,12 +36,21 @@
         <RouterLink v-if="isLoggedIn" to="/user-space/albums" class="ca-btn primary">去做一本影集</RouterLink>
       </section>
 
+      <!-- 2026-11-04 硬切审计：骨架⇄社区影集网格补内容侧淡入 -->
       <template v-else>
-        <section class="ca-grid">
+        <section class="ca-grid content-swap-in">
           <article v-for="album in albums" :key="album.id" class="ca-card">
             <RouterLink :to="`/albums/${album.id}`" class="ca-cover" :aria-label="`阅读 ${album.title}`">
-              <img v-if="album.coverUrl" :src="album.coverUrl" :alt="album.title" loading="lazy" decoding="async"
-                @error="onCoverError(album, $event)" />
+              <img
+                v-if="album.coverUrl"
+                :src="album.coverUrl"
+                :alt="album.title"
+                loading="lazy"
+                decoding="async"
+                :class="{ 'is-loading': !isImageLoaded(`ca-${album.id}`) }"
+                @load="markImageLoaded(`ca-${album.id}`)"
+                @error="onCoverError(album, $event)"
+              />
               <span v-else class="ca-cover-placeholder"><Camera :size="26" :stroke-width="1.6" aria-hidden="true" /></span>
               <span class="ca-photo-count"><Images :size="12" :stroke-width="2.2" aria-hidden="true" /> {{ album.photoCount }}</span>
             </RouterLink>
@@ -73,6 +82,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
 import { Camera, Images, BookOpen } from 'lucide-vue-next';
 import { useAuthStore } from '@/stores/auth';
 import { listCommunityAlbums } from '@/utils/api/photo-albums-api.js';
@@ -94,6 +104,9 @@ function formatTime(value) {
   const d = new Date(t);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 }
+
+/* 封面淡入记账（2026-11-04 硬切审计 P0-4，机制单源 useImageLoaded） */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 
 function onCoverError(album, event) {
   if (event?.target) event.target.style.display = 'none';
@@ -230,7 +243,14 @@ onMounted(loadAlbums);
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    opacity 260ms var(--ease-out, ease);
+}
+
+/* 封面淡入（2026-11-04 硬切审计 P0-4）：记账开关在 useImageLoaded */
+.ca-cover img.is-loading {
+  opacity: 0;
 }
 
 .ca-card:hover .ca-cover img { transform: scale(1.04); }

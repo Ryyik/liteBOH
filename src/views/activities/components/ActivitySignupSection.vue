@@ -61,8 +61,9 @@ const buttonLabel = (camp) => {
       <div class="signup-skeleton-bar signup-skeleton-bar--line"></div>
     </div>
 
+    <!-- 2026-11-04 硬切审计：骨架⇄报名卡补内容侧淡入（纯 opacity，不碰 stage 编排） -->
     <template v-else-if="primary">
-      <article class="signup-hero liquid-glass" :data-stage="primary.stage">
+      <article class="signup-hero liquid-glass content-swap-in-fade" :data-stage="primary.stage">
         <div class="signup-hero__main">
           <div class="signup-hero__top">
             <span class="signup-stage-chip" :data-stage="primary.stage">{{

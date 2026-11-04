@@ -58,9 +58,9 @@
       </section>
 
       <template v-else>
-        <!-- 书本舞台 -->
+        <!-- 书本舞台（2026-11-04 硬切审计：装载骨架⇄书页补内容侧淡入；翻页过渡 ar-turn 不变） -->
         <section
-          class="ar-book-stage"
+          class="ar-book-stage content-swap-in-fade"
           @touchstart.passive="onTouchStart"
           @touchend.passive="onTouchEnd"
         >

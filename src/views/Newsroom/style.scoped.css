@@ -479,6 +479,18 @@
 }
 .news-image-fallback.mini { font-size: 32px; }
 .news-image img { position: relative; z-index: 1; background: #eaecf0; }
+
+/* 封面淡入（2026-11-04 硬切审计 P0-4）：解码完成前透出下层字母 fallback，
+   记账开关在 useImageLoaded；load 不派发时图片照常出现（is-loading 是唯一隐藏态） */
+.news-image img,
+.secondary-thumb img {
+  transition: opacity 260ms var(--ease-out, ease);
+}
+
+.news-image img.is-loading,
+.secondary-thumb img.is-loading {
+  opacity: 0;
+}
 .news-image.is-empty img { display: none; }
 .featured-card {
   --card-radius: var(--radius-card-lg);

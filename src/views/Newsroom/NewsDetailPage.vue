@@ -12,6 +12,10 @@
  * 同档 Cloudinary 封面变换（c_limit,w_1600），液态玻璃卡 + 明暗双主题。
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
+
+/* 封面淡入记账（2026-11-04 硬切审计 P0-4，机制单源 useImageLoaded） */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, CalendarDays, ExternalLink, Newspaper, User } from 'lucide-vue-next';
 import DOMPurify from '@/utils/dompurify.js';
@@ -152,7 +156,8 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 正文 -->
-      <article v-else-if="news" class="ndp-card">
+      <!-- 正文（2026-11-04 硬切审计：骨架⇄正文补内容侧淡入） -->
+      <article v-else-if="news" class="ndp-card content-swap-in">
         <p class="ndp-kicker">
           <Newspaper :size="13" :stroke-width="2.2" aria-hidden="true" />
           <span>BOH 新闻社 · {{ getCategoryName(news.category) }}</span>
@@ -174,9 +179,11 @@ onBeforeUnmount(() => {
           :src="coverUrl"
           :alt="news.title"
           class="ndp-cover"
+          :class="{ 'is-loading': !isImageLoaded('ndp-cover') }"
           loading="eager"
           fetchpriority="high"
           decoding="async"
+          @load="markImageLoaded('ndp-cover')"
           @error="onCoverError"
         />
 
@@ -318,6 +325,12 @@ onBeforeUnmount(() => {
   border-radius: 18px;
   border: 1px solid var(--liquid-border, rgba(0, 0, 0, 0.06));
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+  /* 封面淡入（2026-11-04 硬切审计 P0-4）：记账开关在 useImageLoaded */
+  transition: opacity 260ms var(--ease-out, ease);
+}
+
+.ndp-cover.is-loading {
+  opacity: 0;
 }
 
 .ndp-rich {

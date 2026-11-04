@@ -93,7 +93,8 @@
         </div>
       </section>
 
-      <section v-else class="pa-grid">
+      <!-- 2026-11-04 硬切审计：骨架⇄影集网格补内容侧淡入；增删位移动画见下方 TransitionGroup -->
+      <TransitionGroup tag="section" name="pa-grid-anim" class="pa-grid content-swap-in">
         <article v-for="album in albums" :key="album.id" class="pa-card">
           <RouterLink
             :to="`/studio/albums/${album.id}`"
@@ -106,6 +107,8 @@
               :alt="album.title"
               loading="lazy"
               decoding="async"
+              :class="{ 'is-loading': !isImageLoaded(`album-${album.id}`) }"
+              @load="markImageLoaded(`album-${album.id}`)"
               @error="onCoverError(album, $event)"
             />
             <span v-else class="pa-cover-placeholder"
@@ -159,7 +162,7 @@
             </div>
           </div>
         </article>
-      </section>
+      </TransitionGroup>
     </main>
 
     <!-- 新建影集弹窗 -->
@@ -245,6 +248,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Camera,
@@ -344,6 +348,9 @@ function formatTime(value) {
   const d = new Date(t);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 }
+
+/* 封面淡入记账（2026-11-04 硬切审计 P0-4，机制单源 useImageLoaded） */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 
 function onCoverError(album, event) {
   if (event?.target) {
@@ -610,6 +617,30 @@ onMounted(loadAlbums);
 </script>
 
 <style scoped>
+/* 影集网格增删位移动画（2026-11-04 硬切审计 P0-6）：
+   删除影集后卡片 FLIP 补位，不再瞬跳；leave 项淡出缩小。 */
+.pa-grid-anim-move {
+  transition: transform 0.28s var(--ease-out, ease);
+}
+
+.pa-grid-anim-enter-active {
+  transition: opacity 0.24s var(--ease-out, ease), transform 0.24s var(--ease-out, ease);
+}
+
+.pa-grid-anim-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.pa-grid-anim-enter-from {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
+.pa-grid-anim-leave-to {
+  opacity: 0;
+  transform: scale(0.92);
+}
+
 .photo-albums-page {
   min-height: 100vh;
   background: var(--boh-page-bg, #f4f4f6);
@@ -844,6 +875,13 @@ onMounted(loadAlbums);
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* 封面淡入（2026-11-04 硬切审计 P0-4）：记账开关在 useImageLoaded；
+     is-loading 是唯一隐藏态，load 不派发时图片照常出现，不会永久隐形 */
+  transition: opacity 260ms var(--ease-out, ease);
+}
+
+.pa-cover img.is-loading {
+  opacity: 0;
 }
 
 .pa-cover-placeholder {
