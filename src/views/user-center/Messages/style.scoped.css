@@ -1543,18 +1543,21 @@
   border-radius: 16px;
   box-shadow: var(--liquid-shadow-overlay), var(--liquid-highlight);
   padding: 6px;
-  animation: filter-dropdown-in 0.12s ease both;
+  /* 进出场过渡改由 <Transition name="x-pop"> 承担（2026-11-04 硬切审计）：
+     原先的 filter-dropdown-in 单向动画只覆盖进场、出场仍瞬切，已删。 */
 }
 
-@keyframes filter-dropdown-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* 下拉/菜单显隐过渡（2026-11-04 硬切审计 P0-5）：
+   x-select-actions-menu（原先双向硬切）与两处 x-filter-dropdown（原先只有进场）共用。 */
+.x-pop-enter-active,
+.x-pop-leave-active {
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.x-pop-enter-from,
+.x-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .x-filter-option {

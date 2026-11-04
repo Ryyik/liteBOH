@@ -163,9 +163,10 @@
         <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
         <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
       </div>
+      <!-- 2026-11-04 硬切审计 P1-5：登录成功后内容侧补淡入（login-prompt ⇄ 面板瞬替） -->
       <div
         v-else
-        class="profile-page-content"
+        class="profile-page-content content-swap-in-fade"
         :class="{ 'assets-active': assetsSection === 'hub' }"
       >
         <!-- ⚠️ 内层档位（hub ↔ sponsor）**刻意不用 `<transition mode="out-in">`**。
@@ -269,7 +270,8 @@
         <p class="login-prompt-desc">登录后可以访问我的空间和更多功能</p>
         <button class="login-prompt-btn" @click="showLoginModal = true">立即登录</button>
       </div>
-      <div v-else class="profile-page-content">
+      <!-- 2026-11-04 硬切审计 P1-5：登录成功后内容侧补淡入 -->
+      <div v-else class="profile-page-content content-swap-in-fade">
         <transition name="profile-panel-fade" mode="out-in">
           <!-- 设置主页与「个人信息」**共用同一个面板实例**（2026-10-26 用户纠偏：
                「不单独开一页，还是在右栏变换」）：

@@ -661,3 +661,30 @@
     display: none;
   }
 }
+
+/* 显隐过渡（2026-11-04 硬切审计 P1-10）：
+   · boh-sb-pop —— surface 菜单 / 搜索框 / 账号气泡三个浮层；
+   · boh-sb-root —— 侧栏本体挂卸（open 的滑入仍由 .is-open transform 过渡承担，
+     这里只补 opacity，避免与位移过渡叠加）。 */
+.boh-sb-pop-enter-active,
+.boh-sb-pop-leave-active {
+  transition:
+    opacity 0.18s var(--boh-ease, ease),
+    transform 0.18s var(--boh-ease, ease);
+}
+
+.boh-sb-pop-enter-from,
+.boh-sb-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.boh-sb-root-enter-active,
+.boh-sb-root-leave-active {
+  transition: opacity 0.2s var(--boh-ease, ease);
+}
+
+.boh-sb-root-enter-from,
+.boh-sb-root-leave-to {
+  opacity: 0;
+}

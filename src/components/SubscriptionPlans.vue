@@ -538,23 +538,11 @@ const confirmPlan = ref(null);
 const openFaqIndex = ref(0);
 let revealObserver = null;
 
-/* 价格数字滚动：rAF tween，只动展示 */
+/* 价格数字滚动：rAF tween，只动展示。
+   2026-11-04 实现抽为 utils/tween-number.js 单源（签到/钱包/积分共用），此处只导入。 */
+import { tweenNumber } from '@/utils/tween-number.js';
+
 const displayPrices = reactive({});
-function tweenNumber(from, to, onUpdate) {
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || from === to) {
-    onUpdate(to);
-    return;
-  }
-  const t0 = performance.now();
-  const dur = 320;
-  const step = (t) => {
-    const k = Math.min(1, (t - t0) / dur);
-    const e = 1 - Math.pow(1 - k, 3);
-    onUpdate(Math.round(from + (to - from) * e));
-    if (k < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
 watch(billingCycle, (nv, ov) => {
   priceDir.value = nv === BILLING_YEARLY ? 1 : -1;
   if (!ov || nv === ov) return;

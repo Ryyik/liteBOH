@@ -1,5 +1,8 @@
 <template>
   <Teleport to="body">
+    <!-- 2026-11-04 硬切审计 P1-10：侧栏本体挂卸原先瞬现瞬失（open 滑入是挂载后的
+         transform 过渡，管不了挂/卸那一帧），补 opacity 根过渡 -->
+    <Transition name="boh-sb-root">
     <aside
       v-if="visible"
       class="boh-sidebar"
@@ -38,7 +41,9 @@
           <X :size="16" aria-hidden="true" />
         </button>
 
-        <nav v-if="surfaceMenuOpen" class="boh-surface-menu" aria-label="大模式">
+        <!-- 2026-11-04 硬切审计 P1-10：大模式切换下拉补显隐过渡 -->
+        <Transition name="boh-sb-pop">
+          <nav v-if="surfaceMenuOpen" class="boh-surface-menu" aria-label="大模式">
           <button
             v-for="option in SURFACE_OPTIONS"
             :key="option.id"
@@ -53,17 +58,21 @@
             </span>
             <Check class="boh-sm-check" :size="15" aria-hidden="true" />
           </button>
-        </nav>
+          </nav>
+        </Transition>
       </div>
 
       <button type="button" class="boh-new-chat" @click="emit('new-chat')">
         <Plus :size="16" aria-hidden="true" />新对话
       </button>
 
-      <label v-if="searchOpen" class="boh-sb-search">
-        <Search :size="15" aria-hidden="true" />
-        <input v-model="query" type="text" placeholder="搜索会话" @keydown.escape="closeSearch" />
-      </label>
+      <!-- 2026-11-04 硬切审计 P1-10：搜索框补显隐过渡 -->
+      <Transition name="boh-sb-pop">
+        <label v-if="searchOpen" class="boh-sb-search">
+          <Search :size="15" aria-hidden="true" />
+          <input v-model="query" type="text" placeholder="搜索会话" @keydown.escape="closeSearch" />
+        </label>
+      </Transition>
 
       <nav class="boh-sb-groups">
         <template v-for="group in filteredGroups" :key="group.id">
@@ -156,13 +165,15 @@
           <ChevronUp :size="15" aria-hidden="true" />
         </button>
 
-        <div
-          v-show="accountPopOpen"
-          class="boh-account-pop"
-          role="dialog"
-          aria-label="账号、额度与订阅"
-          @click.stop
-        >
+        <!-- 2026-11-04 硬切审计 P1-10：账号气泡补显隐过渡（v-show 与 Transition 兼容） -->
+        <Transition name="boh-sb-pop">
+          <div
+            v-show="accountPopOpen"
+            class="boh-account-pop"
+            role="dialog"
+            aria-label="账号、额度与订阅"
+            @click.stop
+          >
           <div class="boh-account-pop-head">
             <img
               v-if="account.avatarUrl"
@@ -206,9 +217,11 @@
               <Settings :size="14" aria-hidden="true" />设置
             </button>
           </div>
-        </div>
+          </div>
+        </Transition>
       </div>
     </aside>
+    </Transition>
   </Teleport>
 </template>
 

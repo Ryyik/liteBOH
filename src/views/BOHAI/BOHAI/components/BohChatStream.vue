@@ -33,13 +33,16 @@
         显示更早 {{ hiddenCount }} 条消息
       </button>
 
-      <div
-        v-for="{ message: msg, index: idx } in messages"
-        :key="msg.id || idx"
-        class="boh-msg"
-        :class="msg.role === 'user' ? 'is-user' : 'is-ai'"
-        :data-message-index="idx"
-      >
+      <!-- 2026-11-04 硬切审计 P1-9：新气泡原先瞬现；TransitionGroup 只对新挂载的气泡播入场
+           （流式更新 key 稳定不重播），列表位移走 move -->
+      <TransitionGroup name="boh-msg-pop">
+        <div
+          v-for="{ message: msg, index: idx } in messages"
+          :key="msg.id || idx"
+          class="boh-msg"
+          :class="msg.role === 'user' ? 'is-user' : 'is-ai'"
+          :data-message-index="idx"
+        >
         <!-- ── 用户：气泡（右下角单独 4px，DESIGN §2.3） ── -->
         <div v-if="msg.role === 'user'" class="boh-bubble">{{ msg.content }}</div>
 
@@ -187,7 +190,10 @@
               <span>{{ planCard.summary }}</span>
               <span v-if="planCard.elapsed">{{ planCard.elapsed }}</span>
             </div>
-            <div v-show="planCard.expanded" class="boh-plan-list">
+            <!-- 2026-11-04 硬切审计 P1-9：v-show(display) 无法过渡，改 is-expanded 类 +
+                 grid-rows 0fr→1fr 高度过渡（CSS 真源 boh-stream.css .boh-plan-list） -->
+            <div class="boh-plan-list" :class="{ 'is-expanded': planCard.expanded }">
+              <div class="boh-plan-list-clip">
               <div
                 v-for="todo in planCard.items"
                 :key="todo.id"
@@ -205,6 +211,7 @@
                   <strong>{{ todo.title }}</strong>
                   <span>{{ todo.detail }}</span>
                 </span>
+              </div>
               </div>
             </div>
             <div
@@ -387,6 +394,7 @@
           </div>
         </div>
       </div>
+      </TransitionGroup>
     </div>
 
     <nav v-if="navItems.length > 1" class="boh-jump" aria-label="用户消息导航">

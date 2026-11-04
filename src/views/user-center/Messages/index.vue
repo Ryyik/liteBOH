@@ -98,7 +98,8 @@
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </button>
-                <div v-if="actionsDropdownOpen" class="x-select-actions-menu" @click.stop>
+                <Transition name="x-pop">
+                  <div v-if="actionsDropdownOpen" class="x-select-actions-menu" @click.stop>
                   <button
                     type="button"
                     class="x-select-action-item"
@@ -144,7 +145,8 @@
                   >
                     已读{{ selectedMessageCount ? ` ${selectedMessageCount}` : '' }}
                   </button>
-                </div>
+                  </div>
+                </Transition>
               </div>
             </div>
           </template>
@@ -169,7 +171,8 @@
                 </svg>
                 {{ filterSummaryText }}
               </button>
-              <div v-if="filterDropdownOpen" class="x-filter-dropdown" @click.stop>
+              <Transition name="x-pop">
+                <div v-if="filterDropdownOpen" class="x-filter-dropdown" @click.stop>
                 <div class="x-filter-section">
                   <button
                     v-for="tab in typeFilterTabs"
@@ -207,7 +210,8 @@
                     }}</span>
                   </button>
                 </div>
-              </div>
+                </div>
+              </Transition>
             </div>
             <button v-if="currentTab !== 'archived'" class="x-select-btn" @click="toggleSelectMode">
               选择
@@ -300,7 +304,8 @@
                   </svg>
                   {{ filterSummaryText }}
                 </button>
-                <div v-if="filterDropdownOpen" class="x-filter-dropdown" @click.stop>
+                <Transition name="x-pop">
+                  <div v-if="filterDropdownOpen" class="x-filter-dropdown" @click.stop>
                   <div class="x-filter-section">
                     <button
                       v-for="tab in typeFilterTabs"
@@ -338,7 +343,8 @@
                       }}</span>
                     </button>
                   </div>
-                </div>
+                  </div>
+                </Transition>
               </div>
             </template>
           </div>
@@ -465,7 +471,7 @@
         </div>
         <div
           v-else-if="filteredMessages.length > 0"
-          class="x-inbox-list"
+          class="x-inbox-list content-swap-in-fade"
           role="listbox"
           aria-label="消息列表"
           :aria-multiselectable="isSelectMode ? 'true' : 'false'"

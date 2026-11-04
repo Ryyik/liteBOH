@@ -759,11 +759,11 @@
                       <section v-if="pointsMode" class="ai-settings-usage-section">
                         <div class="ai-settings-usage-section-head">
                           <div><strong>积分</strong><span>AI 对话按量消耗积分，不过期</span></div>
-                          <b>{{ formatTokenCount(pointsBalance) }} 分</b>
+                          <b>{{ pointsBalanceDisplay }} 分</b>
                         </div>
                         <div class="ai-settings-usage-values">
                           <span>今日已耗 {{ formatTokenCount(pointsUsedToday) }} 积分</span
-                          ><span>余额 {{ formatTokenCount(pointsBalance) }} 积分</span>
+                          ><span>余额 {{ pointsBalanceDisplay }} 积分</span>
                         </div>
                         <div class="ai-settings-usage-remaining">
                           1 积分 = {{ formatTokenCount(rateTokensPerPoint) }} Tokens × 档位倍率
@@ -1181,6 +1181,7 @@ import {
   getGlobalAiShortcutLabel,
 } from '@/composables/useGlobalAiPreferences.js';
 import { LIQUID_GLASS_SPEC } from '@/config/liquid-glass-spec.js';
+import { tweenNumber } from '@/utils/tween-number.js';
 import { getAiQuotaStatus } from '@/utils/api/api-key-runtime-api.js';
 import {
   deleteUserAiEndpoint,
@@ -1485,6 +1486,14 @@ const webPercentLabel = computed(() => formatQuotaPercent(webPercent.value));
 // 积分计费（quota-status 在 ai_pricing_config.enabled 且 free 档时下发 pointsMode）
 const pointsMode = computed(() => quota.value?.pointsMode === true);
 const pointsBalance = computed(() => Math.max(0, Number(quota.value?.pointsBalance ?? 0)));
+/* 余额补间展示（2026-11-04 硬切审计 P1-11，tween 单源 utils/tween-number.js） */
+const pointsBalanceShown = ref(pointsBalance.value);
+watch(pointsBalance, (nv, ov) => {
+  tweenNumber(ov ?? nv, nv, (v) => {
+    pointsBalanceShown.value = v;
+  });
+});
+const pointsBalanceDisplay = computed(() => formatTokenCount(pointsBalanceShown.value));
 const pointsUsedToday = computed(() => Math.max(0, Number(quota.value?.pointsUsedToday ?? 0)));
 const pointsMultiplierLabel = computed(() =>
   String(Math.round(Number(quota.value?.pointsMultiplier ?? 1) * 100) / 100),

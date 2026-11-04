@@ -917,6 +917,10 @@ watch(
 .account-security-page.is-inline {
   min-height: 0;
   background: transparent;
+  /* 对齐三兄弟（DataExport/DataPrivacy 经 .profile-subpage-shell 拿到的入场，
+     2026-11-04 硬切审计 P1-6）：只摘动画，不挂 shell 类（它的 flex/gap/padding
+     是另一套布局，挂上会破本组件样式）。keyframes 真源 profile-base.css。 */
+  animation: userspace-subpage-in 260ms var(--ease-out) both;
 }
 
 .account-security-page.is-inline .settings-page-container {

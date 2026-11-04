@@ -730,10 +730,63 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
   font-size: 11.5px;
 }
 
+/* 展开收起高度过渡（2026-11-04 硬切审计 P1-9）：
+   原 v-show 的 display 切换无法过渡，改 grid-template-rows 0fr→1fr
+   （0fr 会真正释放高度，不会像 visibility:hidden 那样留空洞）。
+   模板侧 v-show 已换成 is-expanded 类；分隔线/间距挪进 clip 层，收起时不留孤线 */
 .boh-plan-list {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s var(--boh-ease, ease);
+}
+
+.boh-plan-list.is-expanded {
+  grid-template-rows: 1fr;
+}
+
+.boh-plan-list > .boh-plan-list-clip {
+  overflow: hidden;
+  min-height: 0;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--boh-border);
+}
+
+/* 新消息气泡入场（TransitionGroup boh-msg-pop，挂载时播一次；流式更新不重播） */
+.boh-msg-pop-enter-active {
+  transition:
+    opacity 0.24s var(--boh-ease, ease),
+    transform 0.24s var(--boh-ease, ease);
+}
+
+.boh-msg-pop-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* 生成结束后的操作栏淡入（原先状态翻转瞬间弹出） */
+.boh-msg-actions {
+  animation: boh-msg-actions-in 0.24s var(--boh-ease, ease) both;
+}
+
+@keyframes boh-msg-actions-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boh-msg-pop-enter-active,
+  .boh-msg-actions {
+    animation: none;
+    transition: none;
+  }
 }
 
 .boh-plan-item {

@@ -121,7 +121,7 @@
                   class="ck-balance"
                   :class="{ 'is-short': summary.insufficientPoints }"
                 >
-                  当前余额 {{ pointsBalance }} 积分，本单后剩
+                  当前余额 {{ pointsBalanceShown }} 积分，本单后剩
                   {{ Math.max(0, summary.remainingPoints) }}
                 </p>
               </section>
@@ -339,6 +339,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { tweenNumber } from '@/utils/tween-number.js';
 import { Check, ChevronLeft, ClipboardPaste, MapPin, Package, Plus, X } from 'lucide-vue-next';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
@@ -396,6 +397,18 @@ const { isFailed, markFailed } = useImageFailure();
 const lineImage = (line) => resolveDbCardImage(line?.image) || '';
 const isImageFailed = (key) => isFailed(key);
 const markImageFailed = (key) => markFailed(key);
+
+/* 余额数字补间展示（2026-11-04 硬切审计 P1-11，tween 单源 utils/tween-number.js）：
+   真值仍走 props.pointsBalance / summary，这里只 tween 显示 */
+const pointsBalanceShown = ref(props.pointsBalance);
+watch(
+  () => props.pointsBalance,
+  (nv, ov) => {
+    tweenNumber(ov ?? nv, nv, (v) => {
+      pointsBalanceShown.value = v;
+    });
+  },
+);
 
 const summary = computed(() =>
   buildCheckoutSummary({

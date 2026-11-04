@@ -1,5 +1,10 @@
 <template>
-  <div class="page-content community-page-grid">
+  <!-- 2026-11-04 硬切审计：骨架⇄内容补内容侧淡入。template 分支挂不了 class，
+       改为在网格容器上按加载完成条件挂（翻转那一刻动画恰好播一次） -->
+  <div
+    class="page-content community-page-grid"
+    :class="{ 'content-swap-in-fade': hasLoadedCommunity }"
+  >
     <div
       v-if="isLoadingCommunity && !hasLoadedCommunity"
       class="community-skeleton"

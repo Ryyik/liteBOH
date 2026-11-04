@@ -42,8 +42,10 @@
         </div>
 
         <!-- 斜杠命令：锚承载定位（无 z-index），玻璃与面板做兄弟（§21.7 采样根）；
-             回滚 = 删锚 + 玻璃两层。 -->
-        <div v-if="slashOpen" class="boh-slash-anchor">
+             回滚 = 删锚 + 玻璃两层。
+             2026-11-04 硬切审计：同文件三个菜单都包 boh-pop，唯独这里裸切，补齐。 -->
+        <Transition name="boh-pop">
+          <div v-if="slashOpen" class="boh-slash-anchor">
           <!-- 2026-10-20：材质改为**面板自带**的方块之家标准液态玻璃
                （`--glass-bg` / `--glass-filter-sm`，见 CSS 同名注释）——
                不再挂 `BohGlassRefract` 覆盖层。两层玻璃叠在一起会让底下的
@@ -77,7 +79,8 @@
             </template>
             <div v-if="slashCommands.length === 0" class="boh-slash-empty">没有匹配的命令</div>
           </div>
-        </div>
+          </div>
+        </Transition>
 
         <textarea
           ref="textareaEl"
@@ -126,7 +129,9 @@
 
             <div class="boh-menu-anchor">
               <!-- 折射玻璃（v-if 与菜单同开同关；材质由它提供，CSS 六消费者段已让位） -->
-              <BohGlassRefract v-if="activeMenu === 'model'" :radius="12" frosted />
+              <Transition name="boh-pop">
+                <BohGlassRefract v-if="activeMenu === 'model'" :radius="12" frosted />
+              </Transition>
               <Transition name="boh-pop">
                 <div
                   v-show="activeMenu === 'model'"
@@ -282,7 +287,9 @@
             </button>
             <div class="boh-menu-anchor">
               <!-- 折射玻璃（同模型菜单） -->
-              <BohGlassRefract v-if="activeMenu === 'tools'" :radius="12" frosted />
+              <Transition name="boh-pop">
+                <BohGlassRefract v-if="activeMenu === 'tools'" :radius="12" frosted />
+              </Transition>
               <Transition name="boh-pop">
                 <div
                   v-show="activeMenu === 'tools'"
@@ -357,7 +364,9 @@
                  锚必须**无 z-index**，否则堆叠上下文会裁掉玻璃的背板采样（§21.7「采样根」硬约束）。
                  回滚 = 删锚 + 玻璃两层。 -->
             <div class="boh-usage-anchor">
-              <BohGlassRefract v-if="usagePopOpen" :radius="12" frosted />
+              <Transition name="boh-pop">
+                <BohGlassRefract v-if="usagePopOpen" :radius="12" frosted />
+              </Transition>
               <Transition name="boh-pop">
                 <div
                   v-show="usagePopOpen"
@@ -419,27 +428,32 @@
             </div>
           </div>
 
-          <button
-            v-if="isLoading"
-            type="button"
-            class="boh-send is-stop"
-            title="停止生成"
-            aria-label="停止生成"
-            @click="emit('stop')"
-          >
-            <Square :size="15" aria-hidden="true" />
-          </button>
-          <button
-            v-else
-            type="button"
-            class="boh-send"
-            :disabled="!modelValue.trim() || isCompressing"
-            title="发送"
-            aria-label="发送"
-            @click="emit('send')"
-          >
-            <ArrowUp :size="15" aria-hidden="true" />
-          </button>
+          <!-- 2026-11-04 硬切审计：发送⇄停止图标原先瞬跳；同 tag 需 key，out-in 避免两颗按钮同帧并存 -->
+          <Transition name="boh-pop" mode="out-in">
+            <button
+              v-if="isLoading"
+              key="stop"
+              type="button"
+              class="boh-send is-stop"
+              title="停止生成"
+              aria-label="停止生成"
+              @click="emit('stop')"
+            >
+              <Square :size="15" aria-hidden="true" />
+            </button>
+            <button
+              v-else
+              key="send"
+              type="button"
+              class="boh-send"
+              :disabled="!modelValue.trim() || isCompressing"
+              title="发送"
+              aria-label="发送"
+              @click="emit('send')"
+            >
+              <ArrowUp :size="15" aria-hidden="true" />
+            </button>
+          </Transition>
         </div>
       </div>
     </div>

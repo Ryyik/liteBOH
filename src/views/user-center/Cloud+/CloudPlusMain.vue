@@ -202,7 +202,8 @@
                   <!-- 2026-10-01 极简排版：原来这里连着三条同义说明
                        （「只有拿到令牌的人可以查看」/「仅持有令牌的人可以查看」/「只有拿到令牌的人可以访问」），
                        合并为一句，把「不公开 + 需令牌」两点讲完就停。 -->
-                  <p class="share-card-copy">
+                  <!-- 2026-11-04 硬切审计：骨架⇄分享状态补内容侧淡入 -->
+                  <p class="share-card-copy content-swap-in-fade">
                     系统提供 1 个私密令牌频道。它不会出现在社区列表，只有持有令牌的人可以查看。
                   </p>
                   <button
@@ -299,7 +300,8 @@
                       <p v-else-if="shareViewers.length === 0" class="share-token-hint">
                         暂时还没有已登录用户通过令牌访问过你的私密频道。
                       </p>
-                      <div v-else class="share-viewer-list">
+                      <!-- 2026-11-04 硬切审计：访客骨架⇄列表补内容侧淡入 -->
+                      <div v-else class="share-viewer-list content-swap-in-fade">
                         <div
                           v-for="viewer in shareViewers"
                           :key="viewer.viewerUserId"
@@ -391,7 +393,11 @@
               </div>
             </section>
 
-            <section v-else-if="sharedChannel" class="gallery-section shared-channel-section">
+            <!-- 2026-11-04 硬切审计：共享频道骨架⇄画廊补内容侧淡入 -->
+            <section
+              v-else-if="sharedChannel"
+              class="gallery-section shared-channel-section content-swap-in-fade"
+            >
               <div class="section-heading">
                 <div>
                   <span class="section-kicker">Shared Channel</span>

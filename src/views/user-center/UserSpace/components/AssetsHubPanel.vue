@@ -363,7 +363,8 @@
           <h3>这个时间段暂无记录</h3>
           <p>试试选择更长的时间范围</p>
         </div>
-        <div v-else class="ah-ledger">
+        <!-- 2026-11-04 硬切审计：流水骨架⇄列表补内容侧淡入 -->
+        <div v-else class="ah-ledger content-swap-in">
           <section v-for="group in ledgerGroups" :key="group.label" class="ah-ledger-group">
             <h2>{{ group.label }}</h2>
             <div class="ah-ledger-list">
@@ -456,6 +457,7 @@ import sponsorQrImage from '@/assets/images/qrcode.webp';
 import { useAuthStore } from '@/stores/auth';
 import { supabase } from '@/utils/supabase-client.js';
 import { useUserTier } from '@/composables/useUserTier.js';
+import { tweenNumber } from '@/utils/tween-number.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
 import { logger } from '@/utils/logger.js';
 import { getMyLotteryPityStatus, getMySubscriptions } from '@/utils/api/subscription-api.js';
@@ -597,7 +599,15 @@ const pityStatus = ref(null);
 const showPlanComparison = ref(false);
 
 const userPoints = computed(() => Number(userInfo.value?.points) || 0);
-const pointsDisplay = computed(() => userPoints.value.toLocaleString());
+/* 余额变化做 320ms 补间（2026-11-04 硬切审计 P1-11，tween 单源 utils/tween-number.js）：
+   展示值跟随真值补间；reduced-motion 下 tween 直接落终值 */
+const pointsShown = ref(userPoints.value);
+watch(userPoints, (nv, ov) => {
+  tweenNumber(ov ?? nv, nv, (v) => {
+    pointsShown.value = v;
+  });
+});
+const pointsDisplay = computed(() => pointsShown.value.toLocaleString());
 const cloudImageLimit = computed(
   () => ({ free: 150, plus: 300, pro: 450, max: 900, ultra: 1200 })[tierCode.value] || 150,
 );
