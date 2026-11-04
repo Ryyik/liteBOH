@@ -45,9 +45,19 @@
           <div class="payment-success-copy" :class="{ revealed: isComplete }">
             <!-- 文案从「支付成功」改成「订单已提交」（2026-11-03）：
                  现金部分是管理员线下确认的，这里说"支付成功"是事实性误导 ——
-                 用户会以为钱已经收到了，而实际还有一步没走完。 -->
-            <h2 id="payment-success-title">订单已提交</h2>
+                 用户会以为钱已经收到了，而实际还有一步没走完。
+                 2026-11-04 再补一层：**含现金的单必须写清"待付多少、谁来收"**，
+                 否则「已提交」三个字照样让人不知道还欠一笔钱。 -->
+            <span class="payment-success-state" :class="{ 'is-due': cashDue > 0 }">
+              {{ cashDue > 0 ? '待付款' : '积分已扣除' }}
+            </span>
+            <h2 id="payment-success-title">
+              {{ cashDue > 0 ? '订单已提交，还差一步' : '订单已提交' }}
+            </h2>
             <p>{{ paymentSummary || '订单已确认' }}</p>
+            <p v-if="cashDue > 0" class="payment-success-due">
+              现金 {{ cashDueText }} 由管理员联系你收取，收款后安排寄送
+            </p>
           </div>
 
           <dl class="payment-success-details" :class="{ revealed: isComplete }">
@@ -66,6 +76,12 @@
               <dt>剩余积分</dt>
               <dd>{{ formattedPoints }}</dd>
             </div>
+            <div>
+              <!-- 运费口径 2026-11-04 定档「全场包邮」：结果页也写一句，
+                   这样"我到底付了多少钱、还有没有别的费用"在同一个屏里闭环 -->
+              <dt>运费</dt>
+              <dd>包邮</dd>
+            </div>
           </dl>
 
           <div
@@ -80,7 +96,12 @@
           <!-- 后续三步：下单之后到底发生什么，是这一屏最该回答的问题 -->
           <ol class="payment-success-steps" :class="{ revealed: isComplete }">
             <li>
-              <strong>管理员确认</strong><span>通过资料里的电话联系你，核对现金与寄送方式</span>
+              <strong>{{ cashDue > 0 ? '管理员联系收款' : '管理员确认' }}</strong
+              ><span>{{
+                cashDue > 0
+                  ? `通过资料里的电话联系你，收取现金 ${cashDueText}`
+                  : '通过资料里的电话联系你，确认寄送细节'
+              }}</span>
             </li>
             <li><strong>备货发出</strong><span>进度会更新在「订单」里，可随时查看</span></li>
             <li><strong>收货确认</strong><span>收到后订单自动转「完成」，中途可自助取消</span></li>
@@ -129,6 +150,10 @@ const props = defineProps({
   itemSummary: { type: String, default: '' },
   /** 寄往哪儿（「张三 · 江苏省苏州市…」） */
   shippingTo: { type: String, default: '' },
+  /** 现金待收金额（分）。> 0 表示这单还有一笔线下要收的钱，结果页必须说清 */
+  cashDue: { type: Number, default: 0 },
+  /** points_only | rmb_only | combined —— 决定"待付款"这个态是否存在 */
+  paymentMode: { type: String, default: 'points_only' },
   /** pending | sent | failed —— 结算邮件是异步发的，结果可能晚于弹窗出现 */
   emailState: { type: String, default: 'pending' },
 });
@@ -144,6 +169,11 @@ let flipCompleteTimer = null;
 const formattedPoints = computed(
   () => `${Math.max(0, Number(props.points) || 0).toLocaleString('zh-CN')} 积分`,
 );
+/* 现金待收：分 → ¥x.xx。0 或负数一律当"没有待付款"，不显示这一态 */
+const cashDueText = computed(() => {
+  const cents = Math.max(0, Number(props.cashDue) || 0);
+  return cents > 0 ? `¥${(cents / 100).toFixed(2)}` : '¥0.00';
+});
 
 const copyOrderNo = async () => {
   const text = String(props.orderNo || '').trim();
@@ -367,6 +397,32 @@ onBeforeUnmount(() => {
   margin: 8px 0 0;
   color: color-mix(in srgb, var(--boh-text-primary, #6d7279) 64%, transparent);
   font-size: 14px;
+}
+/* 「待付款 / 积分已扣除」：结果页最该被一眼看到的一行状态。
+   待付款用琥珀色（要办的事），已扣除用中性色（无需行动）。 */
+.payment-success-state {
+  display: inline-block;
+  margin-bottom: 9px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--boh-text-primary, #1d2735) 8%, transparent);
+  color: color-mix(in srgb, var(--boh-text-primary, #1d2735) 72%, transparent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.payment-success-state.is-due {
+  /* 语义色走全局真源（src/styles/themes/dark-mode.css 的 --boh-warning），
+     不在组件里另写一份琥珀值 —— 深色档会自动翻亮，也不需要 data-theme 覆盖 */
+  background: color-mix(in srgb, var(--boh-warning, #8a5a00) 14%, transparent);
+  color: var(--boh-warning, #8a5a00);
+}
+/* 待收现金的说明：比正文重一档，因为这是"还要不要掏钱"的答案 */
+.payment-success-copy .payment-success-due {
+  margin-top: 6px;
+  color: var(--boh-warning, #8a5a00);
+  font-size: 13px;
+  font-weight: 600;
 }
 .payment-success-details {
   margin: 20px 0 0;

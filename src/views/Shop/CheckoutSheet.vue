@@ -101,7 +101,9 @@
             </div>
 
             <div class="ck-col">
-              <!-- 金额明细：一次把"付多少"说死。运费不在这里编 —— 寄送方式由管理员确认 -->
+              <!-- 金额明细：一次把"付多少"说死。运费口径 2026-11-04 定档「全场包邮」——
+                   原来那句「确认寄送方式时与管理员核对」看起来像还要另付邮费，
+                   用户在结算页最怕的就是这种没写死的数字。 -->
               <section class="ck-block ck-amount" aria-label="金额明细">
                 <div v-if="summary.totalPoints" class="ck-row">
                   <span>商品积分</span><strong>{{ summary.totalPoints }} 积分</strong>
@@ -109,9 +111,7 @@
                 <div v-if="summary.totalCents" class="ck-row">
                   <span>现金</span><strong>{{ rmbText(summary.totalCents) }}</strong>
                 </div>
-                <div class="ck-row">
-                  <span>运费</span><strong class="is-muted">确认寄送方式时与管理员核对</strong>
-                </div>
+                <div class="ck-row"><span>运费</span><strong class="is-free">包邮</strong></div>
                 <div class="ck-row is-total">
                   <span>应付</span><strong>{{ summary.totalText }}</strong>
                 </div>
@@ -126,8 +126,28 @@
               </section>
 
               <p class="ck-note">
-                提交后积分立即扣除；管理员会通过资料里的电话联系你，确认现金部分的支付与寄送细节。
+                提交后积分立即扣除，全场包邮。现金部分由管理员通过资料里的电话联系你收取，
+                收款后安排寄送。
               </p>
+
+              <!-- 订单备注（2026-11-04）：尺码、收货时间这类要求以前只能事后私聊，
+                   商家备货时看不到、退款换货时也说不清当初要求过什么。
+                   限 200 字（DB 侧同约束），随订单落库，不进用户资料。 -->
+              <section class="ck-block ck-remark" aria-label="订单备注">
+                <label class="ck-remark-head" for="ck-remark-input">
+                  订单备注
+                  <span class="ck-remark-opt">选填 · 最多 200 字</span>
+                </label>
+                <input
+                  id="ck-remark-input"
+                  v-model="remark"
+                  class="ck-remark-input"
+                  type="text"
+                  maxlength="200"
+                  autocomplete="off"
+                  placeholder="尺码 / 收货时间 / 其他要求"
+                />
+              </section>
             </div>
           </div>
 
@@ -367,6 +387,8 @@ const form = reactive({
 });
 const formError = ref('');
 const saving = ref(false);
+/* 订单备注：跟着订单走，不属于用户资料。关闭面板时不清空 —— 用户可能只是去换个地址 */
+const remark = ref('');
 
 const { isFailed, markFailed } = useImageFailure();
 const lineImage = (line) => resolveDbCardImage(line?.image) || '';
@@ -608,6 +630,9 @@ const handleSubmit = () => {
     phone: String(selected.value.phone || '').trim(),
     region: String(selected.value.region || '').trim(),
     detail: String(selected.value.detail || '').trim(),
+    remark: String(remark.value || '')
+      .trim()
+      .slice(0, 200),
   });
 };
 
@@ -958,9 +983,11 @@ onBeforeUnmount(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.ck-row strong.is-muted {
-  color: var(--boh-text-tertiary, #a1a1a6);
-  font-size: 12px;
+.ck-row strong.is-free {
+  /* 包邮是「让用户放心」的信息，用品牌色而不是灰色 —— 灰色等于告诉用户"这项还没定" */
+  color: var(--boh-brand-blue, #0071e3);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .ck-row.is-total {
@@ -983,6 +1010,49 @@ onBeforeUnmount(() => {
 
 .ck-balance.is-short {
   color: var(--boh-danger, #d70015);
+}
+
+/* 订单备注：和金额区同宽、同圆角，视觉上属于"这一单的信息"而不是另一个表单 */
+.ck-remark {
+  padding: 10px 12px;
+}
+
+.ck-remark-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: var(--boh-text-primary, #1d1d1f);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.ck-remark-opt {
+  color: var(--boh-text-tertiary, #a1a1a6);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.ck-remark-input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--boh-border-primary, rgba(0, 0, 0, 0.08));
+  border-radius: 9px;
+  background: var(--boh-bg-secondary, #f5f5f7);
+  color: var(--boh-text-primary, #1d1d1f);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.ck-remark-input::placeholder {
+  color: var(--boh-text-tertiary, #a1a1a6);
+}
+
+.ck-remark-input:focus {
+  border-color: var(--boh-brand-blue, #0071e3);
+  outline: none;
 }
 
 .ck-note {

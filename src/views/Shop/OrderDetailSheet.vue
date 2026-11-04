@@ -88,16 +88,22 @@
                 <dt>支付</dt>
                 <dd>{{ order.priceText || '—' }}</dd>
               </div>
+              <div>
+                <!-- 运费口径 2026-11-04 定档「全场包邮」：订单详情是核对总价的地方，
+                     这里缺一行会让人怀疑"是不是还有笔邮费没算" -->
+                <dt>运费</dt>
+                <dd>包邮</dd>
+              </div>
               <div v-if="order.updatedAt">
                 <dt>最近更新</dt>
                 <dd>{{ formatDateTime(order.updatedAt) }}</dd>
               </div>
             </dl>
 
-            <!-- 收货信息（2026-11-03）：时间线只回答「到哪一步」，回答不了「寄给谁、寄到哪」。
-               ⚠️ 订单表**没有地址快照列**（只存了收件人电话与 items），这里读的是
-               当前资料里登记的收货地址 —— 所以措辞必须写明「当前资料」，不能让人
-               以为这是下单当时的快照。补真快照要动表结构（见 plans/037 §5 P2）。 -->
+            <!-- 收货信息（2026-11-04 起读**下单快照**）：
+                 2026-11-03 那版只能读当前资料并注明「下单时的地址未单独留档」——
+                 用户改了默认地址，这张单就永久说不清寄给谁了。快照列上线后优先用它；
+                 历史订单没有快照，仍然回落资料，并把"当前"两个字写出来。 -->
             <div v-if="shipping" class="od-section">
               <h3 class="od-section-title">收货信息</h3>
               <div class="od-shipping">
@@ -106,9 +112,21 @@
                   <span>{{ shipping.phone || '' }}</span>
                 </p>
                 <p class="od-shipping-addr">{{ shipping.address || '未填写' }}</p>
-                <small>按当前资料显示 · 下单时的地址未单独留档</small>
+                <small v-if="shipping.isSnapshot">下单时留档，之后改地址不影响这一单</small>
+                <small v-else>按当前资料显示 · 该订单下单较早，没有留地址快照</small>
               </div>
             </div>
+
+            <!-- 买家备注：只在当时真写了才出现，空备注不占版面 -->
+            <div v-if="order.remark" class="od-section">
+              <h3 class="od-section-title">订单备注</h3>
+              <p class="od-remark">{{ order.remark }}</p>
+            </div>
+
+            <!-- 现金待收：线上下单、线下收款，不写清会让人以为"提交完就没事了" -->
+            <p v-if="cashDue" class="od-note is-due">
+              现金 {{ cashDueText }} 由管理员联系收取，收款后安排寄送。
+            </p>
 
             <p v-if="!canCancel" class="od-note">{{ cancelHint }}</p>
           </div>
@@ -181,6 +199,18 @@ const loadShipping = async () => {
     shipping.value = null;
     return;
   }
+  /* ① 优先用订单自带的下单快照（2026-11-04 起的新单都有） */
+  const snapshot = props.order?.shipping;
+  if (snapshot && (snapshot.address || snapshot.recipient)) {
+    shipping.value = {
+      recipient: String(snapshot.recipient || '').trim(),
+      phone: String(snapshot.phone || '').trim(),
+      address: String(snapshot.address || '').trim(),
+      isSnapshot: true,
+    };
+    return;
+  }
+  /* ② 历史订单没有快照：回落当前资料，并且措辞上不能冒充"当时" */
   const username = String(userInfo.value?.username || '').trim();
   if (!username) return;
   try {
@@ -189,7 +219,7 @@ const loadShipping = async () => {
     const recipient = String(data.shipping_recipient || '').trim();
     const phone = String(data.shipping_phone || '').trim();
     const address = String(data.shipping_address || '').trim();
-    shipping.value = recipient || address ? { recipient, phone, address } : null;
+    shipping.value = recipient || address ? { recipient, phone, address, isSnapshot: false } : null;
   } catch (error) {
     logger.warn('shop-order', '读取收货信息失败', error);
   }
@@ -205,6 +235,20 @@ const statusLabel = computed(() => {
   if (isCancelled.value) return '取消';
   return props.order?.statusLabel || '准备中';
 });
+
+/* 现金待收（2026-11-04 口径：现金线下人工收）。
+   ⚠️ 不新造订单状态 —— 表里只有 preparing/shipped/completed/cancelled 四态，
+   这里只是「这笔钱还没结」的**展示层事实**：已发货/已完成/已取消都不再提示，
+   因为那时要么已经收过、要么这一单作废了。 */
+const cashDue = computed(() => {
+  const order = props.order;
+  if (order?.kind !== 'shop') return 0;
+  if (String(order?.paymentMode || 'points_only') === 'points_only') return 0;
+  if (['completed', 'cancelled', 'shipped'].includes(String(order?.status || ''))) return 0;
+  const cents = Number(order?.rmb) || 0;
+  return cents > 0 ? cents : 0;
+});
+const cashDueText = computed(() => `¥${(cashDue.value / 100).toFixed(2)}`);
 
 const statusHint = computed(() => {
   if (isCancelled.value) return '订单已取消，积分已退回账户';
@@ -823,6 +867,27 @@ onBeforeUnmount(() => {
   color: color-mix(in srgb, var(--boh-text-primary, #1d1d1f) 62%, transparent);
   font-size: 11px;
   line-height: 1.6;
+}
+
+/* 现金待收：用语义警告色，和"取消订单"这类提示区分开 */
+.od-note.is-due {
+  margin-top: 14px;
+  color: var(--boh-warning, #8a5a00);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* 买家备注：原文照排，保留换行可能性（用户可能写了多行要求） */
+.od-remark {
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--boh-bg-secondary, #f5f5f7);
+  color: var(--boh-text-primary, #1d1d1f);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .od-foot {

@@ -130,14 +130,17 @@ describe('地址识别（剪贴板 + 粘贴兜底）契约', () => {
 });
 
 /**
- * 结果页话术契约（2026-11-03）：
- * 现金部分是管理员线下确认的，说「支付成功」是事实性误导 —— 只能叫「订单已提交」。
+ * 结果页话术契约（2026-11-03 定「不说支付成功」，2026-11-04 补「含现金要说待付」）：
+ * 现金部分是管理员线下收的，说「支付成功」是事实性误导；而只写「订单已提交」
+ * 也漏了半句 —— 用户不知道自己还欠一笔钱、以及谁来收。
  */
 describe('下单结果页话术', () => {
   const modal = compact(read('src/views/Shop/ShopPaymentSuccessModal.vue'));
 
   it('标题与卡片背面都不许再出现「支付成功」', () => {
-    expect(modal).toContain('<h2id="payment-success-title">订单已提交</h2>');
+    // 标题按是否含现金分两档：纯积分「订单已提交」，含现金「订单已提交，还差一步」
+    expect(modal).toContain('id="payment-success-title"');
+    expect(modal).toContain("'订单已提交，还差一步'");
     expect(modal).not.toContain('<strong>支付成功</strong>');
   });
 

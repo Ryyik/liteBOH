@@ -108,6 +108,14 @@ const normalizeShopOrder = (row) => {
           ? [points ? `${points} 积分` : '', formatRmb(rmb)].filter(Boolean).join(' + ')
           : `${points} 积分`,
     items,
+    /* 下单当时的收货快照（2026-11-04）。历史订单没有这三列，前端按 null 处理并
+       回落到「当前资料」—— 但要说清那是"当前"，不是"当时"。 */
+    shipping: {
+      recipient: String(row?.shipping_recipient || ''),
+      phone: String(row?.shipping_phone || ''),
+      address: String(row?.shipping_address || ''),
+    },
+    remark: String(row?.remark || ''),
   };
 };
 
@@ -154,16 +162,41 @@ const normalizeGiftOrder = (row) => {
   };
 };
 
+/* 收货快照与备注是 2026-11-04 的新列（迁移 2026110412）。前端可能先于迁移上线，
+   那时按新列查会直接 42703（column does not exist）⇒ 整页订单挂掉。
+   所以：先按新列查，失败再退回旧列 —— 代价只发生在"库还没迁移"的那段时间，
+   一旦迁移完成，第一次查询就命中，不再多打一次请求。 */
+const SHOP_ORDER_BASE_COLUMNS =
+  'id, order_no, items, total_points, points_used, rmb_total, payment_mode, status, created_at, updated_at';
+const SHOP_ORDER_SNAPSHOT_COLUMNS = 'shipping_recipient, shipping_phone, shipping_address, remark';
+
 export async function fetchMyShopOrders(userId) {
   if (!userId) return { data: [], error: null };
-  const { data, error } = await supabase
-    .from('shop_points_orders')
-    .select(
-      'id, order_no, items, total_points, points_used, rmb_total, payment_mode, status, created_at, updated_at',
-    )
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(ORDER_LIMIT);
+
+  const query = (columns) =>
+    supabase
+      .from('shop_points_orders')
+      .select(columns)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(ORDER_LIMIT);
+
+  let result = await query(`${SHOP_ORDER_BASE_COLUMNS}, ${SHOP_ORDER_SNAPSHOT_COLUMNS}`);
+
+  if (result.error) {
+    const code = String(result.error?.code || '');
+    const message = String(result.error?.message || '');
+    const isMissingColumn =
+      code === '42703' || /column .* does not exist/i.test(message) || code === 'PGRST204';
+    if (!isMissingColumn) {
+      logger.warn('shop-orders', '加载购物订单失败', result.error);
+      return { data: [], error: result.error };
+    }
+    // 库还没迁移：用旧列再查一次，订单列表仍然可用（只是没有快照与备注可显示）
+    result = await query(SHOP_ORDER_BASE_COLUMNS);
+  }
+
+  const { data, error } = result;
 
   if (error) {
     logger.warn('shop-orders', '加载购物订单失败', error);

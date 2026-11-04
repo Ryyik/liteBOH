@@ -76,8 +76,15 @@
               <span class="order-kind" :class="[`is-${order.kind}`, { win: order.isWinner }]">{{
                 kindLabel(order)
               }}</span>
-              <span class="order-status" :class="{ win: order.isWinner }">
-                {{ statusText(order) }}
+              <span class="order-head-tail">
+                <span class="order-status" :class="{ win: order.isWinner }">
+                  {{ statusText(order) }}
+                </span>
+                <!-- 现金待收（2026-11-04 用户口径「现金接人工」）：列表是用户判断
+                     "我还要不要付钱"的第一现场，只写「准备中」等于没说。 -->
+                <span v-if="cashDueText(order)" class="order-due">
+                  待收 {{ cashDueText(order) }}
+                </span>
               </span>
             </span>
             <span class="order-title">{{ order.title }}</span>
@@ -164,6 +171,15 @@ const kindLabel = (order) => KIND_LABELS[order?.kind] || '订单';
 const statusText = (order) => {
   if (order?.kind === 'lottery') return order.resultText || order.statusLabel || '';
   return order?.statusLabel || '';
+};
+/* 待收现金：与订单详情同一口径（现金线下人工收，四态之外不新造状态）。
+   已发货/完成/取消都不再提示 —— 要么收过了，要么这单作废了。 */
+const cashDueText = (order) => {
+  if (order?.kind !== 'shop') return '';
+  if (String(order?.paymentMode || 'points_only') === 'points_only') return '';
+  if (['completed', 'cancelled', 'shipped'].includes(String(order?.status || ''))) return '';
+  const cents = Number(order?.rmb) || 0;
+  return cents > 0 ? `¥${(cents / 100).toFixed(2)}` : '';
 };
 const footText = (order) => {
   if (order?.kind === 'lottery') return `中奖编号 #${order.orderNo || ''}`;
@@ -426,7 +442,17 @@ defineExpose({ refresh: loadOrders });
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 8px;
+}
+
+/* 状态词与「待收」一起靠右：.order-head 是 space-between，
+   第三个子项直接放进来的话会被推到中间 */
+.order-head-tail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
 }
 
 .order-kind {
@@ -444,6 +470,17 @@ defineExpose({ refresh: loadOrders });
 
 .order-status.win {
   color: var(--boh-brand-blue, #0071e3);
+}
+
+/* 「待收 ¥x」：比状态词更"要办"，所以给一点底色而不是纯文字 */
+.order-due {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--boh-warning, #8a5a00) 12%, transparent);
+  color: var(--boh-warning, #8a5a00);
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* 中奖的单子：类别徽标也走品牌色，一眼能和购物单分开 */

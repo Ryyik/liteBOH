@@ -197,6 +197,8 @@
       :payment-summary="paymentSuccess?.paymentSummary || ''"
       :item-summary="paymentSuccess?.itemSummary || ''"
       :shipping-to="paymentSuccess?.shippingTo || ''"
+      :cash-due="Number(paymentSuccess?.cashDue || 0)"
+      :payment-mode="paymentSuccess?.paymentMode || 'points_only'"
       :email-state="paymentSuccess?.emailState || 'pending'"
       @close="closePaymentSuccess"
       @view-orders="goOrdersFromSuccess"
@@ -708,6 +710,9 @@ async function submitContact(address) {
   if (!recipient) return showOperationToast('请填写收件人');
   if (!isPhoneLike(phone)) return showOperationToast('请填写有效电话');
   if (fullAddress.length < 4) return showOperationToast('请填写收货地址');
+  const remark = String(address?.remark || '')
+    .trim()
+    .slice(0, 200);
 
   submittingContact.value = true;
   try {
@@ -724,6 +729,10 @@ async function submitContact(address) {
       items: buildOrderItemsPayload(),
       contactType: 'profile',
       contactValue: phone,
+      /* 地址快照随订单落库（2026-11-04）：不能只写 profiles —— 用户之后改地址，
+         历史订单就再也说不清当时寄给谁了。 */
+      shipping: { recipient, phone, address: fullAddress },
+      remark,
     });
     if (!result.ok) return showOperationToast(resolveOrderErrorMessage(result));
 
@@ -750,7 +759,7 @@ async function submitContact(address) {
       mode: paymentMode,
     });
 
-    const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n时间: ${time}\n\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
+    const summary = `--- 方块之家周边结算单 ---\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n时间: ${time}\n${remark ? `备注: ${remark}\n` : ''}\n支付方式: ${paymentSummary}\n\n商品清单:\n- ${itemText}\n\n剩余积分: ${remainingPoints}`;
     userInfo.points = remainingPoints;
     await copyToClipboard(summary);
     closeCheckout();
@@ -765,6 +774,11 @@ async function submitContact(address) {
       paymentSummary,
       itemSummary: itemSummaryText,
       shippingTo: `${recipient} · ${fullAddress}`,
+      /* 现金待收金额（分）：结果页要说「待付 ¥x」，而不是笼统的"已提交" ——
+         现金是线下人工收的，用户必须知道自己还欠一笔钱、以及谁来联系他。 */
+      cashDue: paidRmb,
+      paymentMode,
+      remark,
       emailState: 'pending',
     };
     document.body.style.overflow = 'hidden';
@@ -775,7 +789,7 @@ async function submitContact(address) {
         markSettlementEmailState('failed');
       });
     void notifyAdministrators(
-      `收到新的周边订单！\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n支付: ${paymentSummary}\n商品: ${itemText}`,
+      `收到新的周边订单！\n订单号: ${orderNo}\n昵称: ${userInfo.username}\n邮箱: ${userInfo.email || '未绑定'}\n收件人: ${recipient}\n电话: ${phone}\n地址: ${fullAddress}\n${remark ? `备注: ${remark}\n` : ''}支付: ${paymentSummary}\n商品: ${itemText}`,
     );
     /* 不再 showOperationToast('订单已提交')：支付成功弹窗本身就在说这件事，
        而岛挂在导航里、层级低于弹窗（且会盖住卡片翻转动画）—— 2026-11-02 用户报障后去掉。 */
@@ -812,8 +826,19 @@ const syncNavHeight = () => {
 
 onMounted(() => {
   syncTabFromRoute();
+  /* 商品拿到之后就给购物袋对一次账（2026-11-04）：袋里存的是加购时的快照，
+     不对账就会出现「显示价 ≠ 实扣价」「下架商品一直躺在袋里」。
+     对账结果只在真发生变动时提示一次，正常进站不打扰。 */
   productsStore
     .fetchProducts({ force: true })
+    .then(() => {
+      const { removed, updated } = bagStore.reconcileBag(allProducts.value);
+      if (removed) {
+        showOperationToast(`购物袋里 ${removed} 件商品已下架，已自动移出`);
+      } else if (updated) {
+        showOperationToast('购物袋价格已按最新信息更新');
+      }
+    })
     .catch((error) => logger.error('shop', '商品加载失败', error));
 
   window.addEventListener('theme-changed', handleThemeChanged);

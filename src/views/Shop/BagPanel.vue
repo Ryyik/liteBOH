@@ -44,7 +44,12 @@
                 <X :size="14" :stroke-width="2" aria-hidden="true" />
               </button>
             </div>
-            <p class="row-sub">{{ item.selectedSpecLabel || '默认规格' }}</p>
+            <p class="row-sub">
+              {{ item.selectedSpecLabel || '默认规格' }}
+              <!-- 售罄 / 超库存就地标注（2026-11-04）：以前这两个状态只在结算页被拦，
+                   用户得自己回袋子猜是哪一件。标注与移除入口都留在这一行。 -->
+              <em v-if="rowIssue(item)" class="row-issue">{{ rowIssue(item) }}</em>
+            </p>
             <div class="row-bottom">
               <div class="qty">
                 <button type="button" aria-label="减少数量" @click="changeQuantity(item, -1)">
@@ -66,6 +71,15 @@
           </div>
         </li>
       </TransitionGroup>
+
+      <!-- 清理条：只在真有失效项时出现。一件一件点 × 是惩罚用户，
+           所以给一个批量入口，并说清"要移除几件、为什么"。 -->
+      <Transition name="bag-foot">
+        <div v-if="invalidItems.length" class="bag-clean" role="status">
+          <span>{{ invalidItems.length }} 件已售罄或超出库存，结算前需要移除</span>
+          <button type="button" class="bag-clean-btn" @click="removeInvalid">移除</button>
+        </div>
+      </Transition>
     </template>
 
     <!-- 结算条（2026-11-03）：原来是列表末尾的一段普通内容，商品一多就被推出屏幕。
@@ -78,6 +92,9 @@
           <span>合计</span>
           <span class="total-values">{{ totalText }}</span>
         </div>
+        <!-- 运费口径 2026-11-04 定档「全场包邮」：在袋子这里就先说清，
+             别让用户带着"还要付邮费吗"的疑问点结算 -->
+        <p class="bag-ship">全场包邮</p>
         <button
           type="button"
           class="primary-btn"
@@ -161,16 +178,52 @@ const totalText = computed(() => {
   return parts.join(' + ') || '—';
 });
 
-const canCheckout = computed(() =>
-  shoppingBag.value.every((item) => {
-    if (item.is_purchasable === false) return false;
-    const mode = String(item.payment_mode || 'points_only');
-    if (mode === 'points_only') return parsePoints(item.points_cost) > 0;
-    if (mode === 'rmb_only') return Number(item.rmb_price) > 0;
-    if (mode === 'combined') return parsePoints(item.points_cost) > 0 && Number(item.rmb_price) > 0;
-    return false;
-  }),
+/* 库存状态：reconcileBag 在进商城时已把 stock 同步成实时值（见 stores/bag.ts），
+   所以这里读 item.stock 就是实时库存。stock 为 null / 缺失表示「不限库存」，不拦。 */
+const stockOf = (item) => {
+  const raw = item?.stock;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+};
+const isSoldOut = (item) => {
+  const stock = stockOf(item);
+  return stock !== null && stock <= 0;
+};
+const isOverStock = (item) => {
+  const stock = stockOf(item);
+  return stock !== null && stock > 0 && Number(item.quantity) > stock;
+};
+/* 一行右侧的状态词。返回空串表示这一行可以结算。 */
+const rowIssue = (item) => {
+  if (item?.is_purchasable === false) return '已下架';
+  if (isSoldOut(item)) return '已售罄';
+  if (isOverStock(item)) return `仅剩 ${stockOf(item)} 件`;
+  return '';
+};
+
+const invalidItems = computed(() => shoppingBag.value.filter((item) => Boolean(rowIssue(item))));
+
+const canCheckout = computed(
+  () =>
+    shoppingBag.value.length > 0 &&
+    shoppingBag.value.every((item) => {
+      if (rowIssue(item)) return false;
+      const mode = String(item.payment_mode || 'points_only');
+      if (mode === 'points_only') return parsePoints(item.points_cost) > 0;
+      if (mode === 'rmb_only') return Number(item.rmb_price) > 0;
+      if (mode === 'combined')
+        return parsePoints(item.points_cost) > 0 && Number(item.rmb_price) > 0;
+      return false;
+    }),
 );
+
+/* 批量移除失效项：只删有问题的行，正常的商品留着 */
+const removeInvalid = () => {
+  for (const item of [...invalidItems.value]) {
+    bagStore.removeFromBag(item.id, item.selectedSpec);
+  }
+};
 
 const changeQuantity = (item, delta) => {
   bagStore.updateBagItemQuantity(item.id, item.selectedSpec, delta);
@@ -277,6 +330,53 @@ const removeItem = (item) => {
   font-size: 12px;
 }
 
+/* 售罄 / 仅剩 N 件：跟着规格走一行，不另起一块 —— 它修饰的是"这一行能不能买" */
+.row-issue {
+  margin-left: 6px;
+  color: var(--boh-danger, #d70015);
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* 清理条：与行内标注同一个红，但整条只说明"要移除几件" */
+.bag-clean {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--boh-danger-soft, rgba(215, 0, 21, 0.08));
+  color: var(--boh-danger, #d70015);
+  font-size: 12px;
+}
+
+.bag-clean-btn {
+  flex: none;
+  padding: 4px 12px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.bag-clean-btn:hover {
+  background: var(--boh-bg-primary, #ffffff);
+}
+
+.bag-ship {
+  margin: 6px 2px 0;
+  color: var(--boh-brand-blue, #0071e3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
 .row-bottom {
   display: flex;
   align-items: center;
@@ -309,15 +409,19 @@ const removeItem = (item) => {
   font-size: 12px;
 }
 
+/* 单价与小计上下排（右对齐）：并排时「45 积分 + ¥6.90 × 2」在 390 宽下会
+   把「× 2」折到下一行，看起来像两行价格（实测截图踩到）。 */
 .row-price {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
 }
 
 .row-unit {
   color: var(--boh-text-tertiary, #a1a1a6);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .row-price strong {

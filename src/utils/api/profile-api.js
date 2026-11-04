@@ -628,18 +628,26 @@ function normalizeShopItems(items = []) {
 
 /* 数据库侧下单拒绝码 → 用户能看懂的话（2026-11-03 A3 新增两个码）
  * RATE_LIMITED：同一用户 5 单/小时；TOO_MANY_OPEN_ORDERS：已付未发货 ≥ 10。
+ * 2026-11-04 新增 INSUFFICIENT_STOCK / INVALID_SHIPPING / INVALID_REMARK：
+ * 库存改成服务端真实校验并扣减之后，"这件已经卖完了"会成为正常业务分支，
+ * 必须有一句人话，而不是把业务码直接丢给用户。
  * 不在这张表里的码保持原样透传（沿用旧行为），避免新码悄悄变成英文。
  */
 const SHOP_ORDER_REJECTION_TEXT = {
   RATE_LIMITED: '下单太频繁了，请稍后再试',
-  TOO_MANY_OPEN_ORDERS: '你有太多还没发货的订单，等发货后再下单吧'
+  TOO_MANY_OPEN_ORDERS: '你有太多还没发货的订单，等发货后再下单吧',
+  INSUFFICIENT_STOCK: '有商品库存不足了，请回购物袋调整数量',
+  INVALID_SHIPPING: '收货信息不完整，请检查收件人、电话与地址',
+  INVALID_REMARK: '备注最多 200 字，请缩短后再提交'
 };
 
 export async function createShopOrderWithPoints(payload = {}) {
   const {
     items = [],
     contactType = '',
-    contactValue = ''
+    contactValue = '',
+    shipping = null,
+    remark = ''
   } = payload;
 
   const normalizedItems = normalizeShopItems(items);
@@ -651,10 +659,23 @@ export async function createShopOrderWithPoints(payload = {}) {
     };
   }
 
+  /* 收货快照与备注（2026-11-04）：地址必须随订单落库，不能靠 order_id 回读
+     profiles —— 用户改了默认地址，历史订单就再也说不清当时寄给谁了。 */
+  const normalizedShipping =
+    shipping && typeof shipping === 'object'
+      ? {
+          recipient: String(shipping.recipient || '').trim(),
+          phone: String(shipping.phone || '').trim(),
+          address: String(shipping.address || '').trim()
+        }
+      : null;
+
   const { data, error } = await supabase.rpc('create_shop_order', {
     p_items: normalizedItems,
     p_contact_type: String(contactType || '').trim(),
-    p_contact_value: String(contactValue || '').trim()
+    p_contact_value: String(contactValue || '').trim(),
+    p_shipping: normalizedShipping,
+    p_remark: String(remark || '').trim().slice(0, 200)
   });
 
   if (error) {
