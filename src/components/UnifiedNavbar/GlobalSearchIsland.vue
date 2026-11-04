@@ -223,13 +223,23 @@ import { logger } from '@/utils/logger.js';
  */
 const props = defineProps({
   placeholder: { type: String, default: '搜索帖子、用户、商城、教程…' },
-  /** 关闭面板（由 navbar 传入：它会调 showIsland 的 handle.close()） */
+  /** 关闭面板（由宿主传入：Esc 与点外部共用；宿主自行决定收层还是关岛） */
   onClose: { type: Function, default: null },
+  /**
+   * Esc 的分层出口（plans/038 §3.3）：宿主在回答面时退层不关岛。
+   * 不传时退回 onClose（兼容旧宿主）。
+   */
+  onEsc: { type: Function, default: null },
   /**
    * 动作搜索的执行器（由 navbar 透传 handleMenuAction —— 单一真相源）。
    * 命中 hit.action 时由面板调用，面板自身不实现任何动作逻辑。
    */
   onAction: { type: Function, default: null },
+  /**
+   * 第 0 项「问 BOHAI」的出口（plans/038 P2）：原句交给岛的回答面。
+   * 不传时退回 showIsland.ai（兼容旧宿主）。
+   */
+  onAsk: { type: Function, default: null },
 });
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -598,6 +608,12 @@ const askAi = () => {
   const keyword = trimmedQuery.value;
   if (!keyword) return;
   recordSourceClick('ai');
+  // 岛宿主：原句交给回答面（不关岛，输入条语义切换为追问 §3.3）
+  if (props.onAsk) {
+    props.onAsk(keyword);
+    return;
+  }
+  // 兼容旧宿主：关面板 + 召唤 AI 岛
   props.onClose?.();
   const opened = showIsland.ai({ prompt: keyword });
   // opener 未注册（navbar 未挂载等）时兜底进 AI 对话页，不让点击落空
@@ -620,7 +636,9 @@ const handleKeydown = (event) => {
   if (event.key === 'Escape') {
     event.preventDefault();
     event.stopPropagation();
-    props.onClose?.();
+    // Esc 分层（§3.3）：宿主在回答面时退层不关岛；未提供 onEsc 时关面板
+    if (props.onEsc) props.onEsc();
+    else props.onClose?.();
     return;
   }
   const total = flatHits.value.length;
@@ -671,6 +689,10 @@ const handleKeydown = (event) => {
 const handleDocumentClick = (event) => {
   const target = event.target;
   if (!target) return;
+  // ⚠️ 本面板在岛里与回答面共存（v-show 互斥显示）：本面被隐藏时不响应「点外部」
+  //    —— 此时可见的是回答面，外点关岛由岛的根逻辑处理，不该由本组件隔着
+  //    display:none 判「外部」把整座岛关掉。
+  if (rootRef.value?.offsetParent === null) return;
   // ⚠️ 点击目标在派发中途被换下树（如点「最近搜索」条目 → query 变化 → 空态历史块
   // v-if 卸载 → 冒泡到 document 时 target.isConnected=false）——这是面板自己的交互，
   // 绝不能判成「点外部」而关面板（实测会把面板整个关掉、回填失效）。

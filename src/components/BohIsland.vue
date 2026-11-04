@@ -17,7 +17,7 @@
         <span class="boh-pill-text">问一句</span>
       </button>
 
-      <!-- 展开卡：输入条（gs-bar）恒为第一个子元素 ⇒ 四态之间输入框逐像素不动 -->
+      <!-- 展开卡：输入条恒为第一个可见子元素 ⇒ 各面之间输入框逐像素不动 -->
       <div
         v-if="isOpen"
         class="boh-card"
@@ -25,7 +25,17 @@
         role="dialog"
         aria-label="搜索与问一句"
       >
-        <SearchIslandPanel :on-close="close" :on-action="runAction" />
+        <!-- 搜索面：v-show 保活（查询词/历史/滚动位在 Esc 往返间不丢） -->
+        <SearchIslandPanel
+          v-show="face === 'search'"
+          :on-close="close"
+          :on-esc="handleEsc"
+          :on-action="runAction"
+          :on-ask="ask"
+        />
+        <!-- 回答面（§3.5）：引擎长在组件里，只在首次进入回答面时挂载；
+             关岛即卸载（引擎 onScopeDispose 中止流，不留后台生成） -->
+        <BohIslandAnswer v-if="answerMounted" v-show="face === 'answer'" :on-close="close" />
       </div>
     </div>
   </Teleport>
@@ -36,6 +46,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Sparkles } from 'lucide-vue-next';
 import { useBohIsland, scheduleSearchPanelPrefetch } from '@/composables/useBohIsland.js';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay.js';
+import BohIslandAnswer from '@/components/BohIslandAnswer.vue';
 
 /**
  * BohIsland —— plans/038：一颗岛装下搜索与「问一句」。
@@ -47,8 +58,44 @@ import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay.js';
  * 落位：top = 导航栏底边 + 12（导航栏在场时实测其 bottom，缺席时退 safe-area + 12）；
  * 水平居中悬浮（plans/038 §3.1）。
  */
-const { isOpen, canOpen, open, close, toggle, runAction, SearchIslandPanel } = useBohIsland();
+const {
+  isOpen,
+  face,
+  canOpen,
+  open,
+  close,
+  toggle,
+  ask,
+  backToSearch,
+  runAction,
+  SearchIslandPanel,
+} = useBohIsland();
 const aiOverlay = useGlobalAiOverlay();
+
+/* ---------------- Esc 分层（§3.3）：回答面退回搜索面，搜索面直接关岛 ---------------- */
+
+const handleEsc = () => {
+  if (face.value === 'answer') backToSearch();
+  else close();
+};
+
+// 根级 Esc：岛开着时接住焦点不在搜索输入框上的 Esc（回答面输入框、点过页面之后等）。
+// 搜索面输入框自己的 Esc handler 会 stopPropagation，不会到这里 —— 不双发。
+const handleRootEsc = (event) => {
+  if (event.key !== 'Escape' || !isOpen.value) return;
+  event.preventDefault();
+  handleEsc();
+};
+document.addEventListener('keydown', handleRootEsc);
+
+/** 回答组件只在首次进入回答面时挂载；关岛即卸载（不留后台生成） */
+const answerMounted = ref(false);
+watch(face, (val) => {
+  if (val === 'answer') answerMounted.value = true;
+});
+watch(isOpen, (val) => {
+  if (!val) answerMounted.value = false;
+});
 
 /* ---------------- 落位：跟随导航栏底边 ---------------- */
 
@@ -115,6 +162,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleShortcut);
   window.removeEventListener('resize', onResize);
   narrowQuery?.removeEventListener?.('change', onNarrowChange);
+  document.removeEventListener('keydown', handleRootEsc);
   close();
 });
 </script>

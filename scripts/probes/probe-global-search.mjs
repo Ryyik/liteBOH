@@ -502,9 +502,9 @@ await withPage(async (page, errs) => {
     JSON.stringify(afterAlt),
   );
 
-  // ---- 常驻 AI 入口：有词就在；点击 → 面板关 + AI 岛开 + 点击频率落库 ----
+  // ---- 第 0 项「问 BOHAI」：有词就在；点击 → 岛内切回答面（plans/038 P2）----
   check(
-    '㉚a AI 常驻入口存在且带搜索词',
+    '㉚a 问 BOHAI 入口存在且带搜索词',
     await page.evaluate(() => {
       const el = document.querySelector('.gs-ai');
       return !!el && el.textContent.includes('教程');
@@ -513,17 +513,32 @@ await withPage(async (page, errs) => {
   await page.locator('.gs-ai').click();
   await page.waitForTimeout(800);
   const afterAi = await page.evaluate(() => ({
-    panelOpen: !!document.querySelector('.global-search'),
-    bohaiOpen:
+    // P2 起点问不关岛：搜索面 v-show 隐藏（高度 0），回答面可见
+    searchHidden:
+      !document.querySelector('.global-search') ||
+      document.querySelector('.global-search')?.getBoundingClientRect().height === 0,
+    answerShown: !!document.querySelector('.boh-answer'),
+    islandOpen: !!document.querySelector('.boh-island-root')?.classList.contains('open'),
+    oldAiOpen:
       document.querySelector('.unified-nav-surface')?.className.includes('has-bohai-island') ||
       false,
     clicks: localStorage.getItem('boh-site-search-source-clicks') || '',
   }));
   check(
-    '㉚b 点 AI 入口：面板关、AI 岛开、点击频率已记录',
-    !afterAi.panelOpen && afterAi.bohaiOpen && afterAi.clicks.includes('ai'),
+    '㉚b 点问 BOHAI：岛内切回答面（不召唤旧 AI 岛）、点击频率已记录',
+    afterAi.searchHidden &&
+      afterAi.answerShown &&
+      afterAi.islandOpen &&
+      !afterAi.oldAiOpen &&
+      afterAi.clicks.includes('ai'),
     JSON.stringify(afterAi),
   );
+
+  // 复位到搜索面再关岛（Esc 分层：回答 → 搜索 → 关岛），保证下一组从关闭态开始
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
 
   // ---- 频率排序：命中的来源（教程）下一轮排到最前 ----
   await page.locator('.nav-search-btn').click();

@@ -61,6 +61,10 @@ const isHomeGateActive = () =>
 // ---------------- 单例状态 ----------------
 
 const isOpen = ref(false);
+/** 岛内面：'search' = 搜索/列表；'answer' = 回答（§3.5）。输入条在两面间 top 恒定。 */
+const face = ref('search');
+/** 搜索面 → 回答面的种子问题（一次性，由 BohIslandAnswer 挂载后消费） */
+const pendingAsk = ref('');
 
 // 动作搜索执行器：执行权仍归导航栏 handleMenuAction（单一真相源），
 // 导航栏经 useGlobalSearch({ onAction }) 注册，岛代为转发。
@@ -79,8 +83,10 @@ export function useBohIsland() {
 
   function open() {
     if (!canOpen.value) return false;
-    // 旧 AI 岛（P2 退场前）与本岛在屏上同位重叠，打开本岛时收起它（overlay 单例，内容不丢）。
+    // 旧 AI 岛（P3 入口收敛时退场）与本岛在屏上同位重叠，打开本岛时收起它（overlay 单例，内容不丢）。
     if (aiOverlay.isOpen.value) aiOverlay.close();
+    // 每次打开都是新的一次「问一句」：回到搜索面（§3.3 打开语义）
+    face.value = 'search';
     isOpen.value = true;
     scheduleSearchPanelPrefetch();
     return true;
@@ -88,11 +94,31 @@ export function useBohIsland() {
 
   function close() {
     isOpen.value = false;
+    face.value = 'search';
+    pendingAsk.value = '';
   }
 
   function toggle() {
     if (isOpen.value) close();
     else open();
+  }
+
+  /**
+   * 进入回答面（§3.5）。种子问题由 BohIslandAnswer 挂载后消费——
+   * 引擎实例长在回答组件里（有自己的快速会话，§3.4），本函数只负责切面与传话。
+   * @returns {boolean} 是否受理
+   */
+  function ask(prompt) {
+    const q = String(prompt || '').trim();
+    if (!q || !isOpen.value) return false;
+    pendingAsk.value = q;
+    face.value = 'answer';
+    return true;
+  }
+
+  /** Esc 分层（§3.3）：回答面退回搜索面（保留原句），不关岛 */
+  function backToSearch() {
+    face.value = 'search';
   }
 
   function registerActionExecutor(fn) {
@@ -105,10 +131,14 @@ export function useBohIsland() {
 
   return {
     isOpen,
+    face,
+    pendingAsk,
     canOpen,
     open,
     close,
     toggle,
+    ask,
+    backToSearch,
     registerActionExecutor,
     runAction,
     SearchIslandPanel,

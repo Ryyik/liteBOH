@@ -6,12 +6,15 @@ import { chromium } from 'playwright';
 //   3) 默认高亮两档（§3.2，缺一即假绿）：
 //        非问句 + 有结果 → 第一个搜索结果；问句 / 零结果 → 第 0 项「问 BOHAI」
 //   4) 零结果文案「站内没找到，问一下 BOHAI」
-//   5) ⌘↵ 强制问 AI（岛关、旧 AI 岛开）
+//   5) ⌘↵ 进岛内回答面（旧 AI 岛不再接管）
 //   6) 键盘：注入 --kb-inset 后卡片底边 ≤ 视口 − 键盘高（卡片消费键盘真源）
 //   7) 竖屏：常驻胶囊可见、点击展开
 //   8) 无导航栏路由（hideNavbar）上 `/` 仍可召唤 —— Teleport 的存在理由
 //   9) 深色岛材质：根节点恒 data-theme=dark，面板底色为低透明叠色
 //  10) 零 pageerror
+//  11) 回答面（P2）：⌘↵ 进回答、输入条 top 恒定、活动行、岛高随字数生长、
+//      Esc 分层（回答→搜索→关岛）、追问、去全页 —— 流式由本地 SSE mock 服务器驱动
+//  12) 零 pageerror
 
 const BASE = 'http://localhost:5173';
 
@@ -58,7 +61,7 @@ const islandOpen = (page) =>
     return !!root?.classList.contains('open') && !!card && !!search;
   });
 
-const withPage = async (fn, { viewport = { width: 1440, height: 900 } } = {}) => {
+const withPage = async (fn, { viewport = { width: 1440, height: 900 }, setupPage } = {}) => {
   const context = await browser.newContext({ viewport });
   await context.addInitScript(() => {
     // 跳过首页开场画（开场画在场时岛按设计不响应）
@@ -72,6 +75,8 @@ const withPage = async (fn, { viewport = { width: 1440, height: 900 } } = {}) =>
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e.message).slice(0, 160)));
   await mockApi(page);
+  // 追加路由（注册晚于 catch-all → 逆序匹配优先生效）
+  if (setupPage) await setupPage(page);
   try {
     await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => !!document.querySelector('#unified-nav-container'), null, {
@@ -170,8 +175,7 @@ await withPage(async (page, errs) => {
       (await page.evaluate(() => document.querySelectorAll('.boh-island-root').length)) === 1,
   );
 
-  // ---- 键盘真源：注入 --kb-inset 后卡片底边让位（放在 ⌘↵ 之前 —— 旧 AI 岛的
-  //      输入框若在焦点上会吞掉 `/` 的输入态豁免，污染后续步骤）----
+  // ---- 键盘真源：注入 --kb-inset 后卡片底边让位（在 ⌘↵ 前量，状态最干净）----
   await page.locator('.gs-input').fill('教程');
   await page.waitForTimeout(900);
   const kb = await page.evaluate(() => {
@@ -194,7 +198,7 @@ await withPage(async (page, errs) => {
   );
   await page.evaluate(() => document.documentElement.style.setProperty('--kb-inset', '0px'));
 
-  // ---- ⌘↵ 强制问 AI（放组尾：会唤起旧 AI 岛并占据输入焦点）----
+  // ---- ⌘↵ 进岛内回答面（P2 起：岛内直接回答，不再召唤旧 AI 岛）----
   await page.evaluate(() => {
     const input = document.querySelector('.gs-input');
     input.dispatchEvent(
@@ -206,16 +210,17 @@ await withPage(async (page, errs) => {
       }),
     );
   });
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(1200);
   const afterCmd = await page.evaluate(() => ({
+    answerShown: !!document.querySelector('.boh-answer'),
     islandOpen: !!document.querySelector('.boh-island-root')?.classList.contains('open'),
     oldAiOpen:
       document.querySelector('.unified-nav-surface')?.className.includes('has-bohai-island') ||
       false,
   }));
   check(
-    '⑩ ⌘↵ 强制问 AI：岛关、AI 岛开',
-    !afterCmd.islandOpen && afterCmd.oldAiOpen,
+    '⑩ ⌘↵ 进岛内回答面（旧 AI 岛不再接管）',
+    afterCmd.answerShown && afterCmd.islandOpen && !afterCmd.oldAiOpen,
     JSON.stringify(afterCmd),
   );
 
@@ -335,6 +340,208 @@ await withPage(async (page) => {
     JSON.stringify(diag),
   );
 });
+
+// ============================================================
+// 组 5：回答面（P2）—— ⌘↵ 进回答面 / 输入条 top 恒定 / 活动行 / 高度随字数生长 /
+//       Esc 分层（回答→搜索→关岛）/ 再问一轮 / 去全页
+//
+// 流式真源：引擎走内置默认模型 boh:fast → 站方 API-Key 代理 EF（runtime-chat-stream），
+// 探针按请求体嗅探 mock functions/v1：流式请求延迟 1.2s 再整段 fulfill SSE
+// （Playwright fulfill 无法逐帧推流 ⇒ 「每帧生长」的真机属性由原型验证，
+//  这里断言机制本身：早期无内容的高度 < 内容到齐后的高度）。
+// ⚠️ functions/v1 不 mock 会打到被墙的 supabase.co —— 检索段挂死 24s，全组超时。
+// ============================================================
+const SSE_CHUNKS = [
+  '八周年庆典将在主广场举行。',
+  '时间是本周六下午两点，地点在社区中央的主广场舞台区，现场会搭建签到拱门与合影墙。',
+  '报名入口在「活动」页，打开后选择「八周年庆典」卡片即可填写同行人数与饮食偏好。',
+  '欢迎带朋友一起来，现场有限定徽章和抽奖环节，奖品包括周年纪念礼盒与限定坐骑兑换码，记得提前十分钟入场排队领取手环。',
+];
+const SSE_BODY =
+  SSE_CHUNKS.map(
+    (c) => `data: ${JSON.stringify({ choices: [{ delta: { content: c } }] })}\n\n`,
+  ).join('') + 'data: [DONE]\n\n';
+
+const MOCK_MODE_ROW = [
+  {
+    id: 'mock-fast',
+    mode_id: 'fast',
+    model_id: 'mock-llm',
+    display_name: 'Fast',
+    provider: 'siliconflow',
+    api_url: 'http://127.0.0.1:1/v1/chat/completions',
+    status: 'active',
+    capability: 'chat',
+    min_tier: 'free',
+    sort_order: 1,
+    quota_multiplier: 0,
+  },
+];
+
+await withPage(
+  async (page, errs) => {
+    await page.locator('.nav-search-btn').click();
+    await page.waitForTimeout(500);
+    const searchBarTop = await page.evaluate(
+      () => document.querySelector('.gs-bar')?.getBoundingClientRect().top ?? -1,
+    );
+
+    await page.locator('.gs-input').fill('八周年的活动什么时候开始');
+    await page.waitForTimeout(900);
+    await page.evaluate(() => {
+      const input = document.querySelector('.gs-input');
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          metaKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    await page.waitForTimeout(700);
+
+    check(
+      '㉜ ⌘↵ 进入回答面（岛不关，回答组件挂载）',
+      await page.evaluate(() => {
+        const answer = document.querySelector('.boh-answer');
+        const root = document.querySelector('.boh-island-root');
+        return !!answer && !!root?.classList.contains('open');
+      }),
+    );
+
+    const ansBarTop = await page.evaluate(
+      () => document.querySelector('.boh-answer-bar')?.getBoundingClientRect().top ?? -1,
+    );
+    check(
+      '㉝ 输入条 top 恒定：搜索面 = 回答面（≤1px）',
+      Math.abs(ansBarTop - searchBarTop) <= 1 && ansBarTop > 0,
+      `search=${searchBarTop} answer=${ansBarTop}`,
+    );
+
+    check(
+      '㉞ 问题回显（一行小字）',
+      await page.evaluate(() =>
+        (document.querySelector('.boh-q-echo')?.textContent || '').includes('八周年'),
+      ),
+    );
+
+    // 流式中：活动行可见 + 内容未到时的「早期高度」
+    await page.waitForTimeout(300);
+    const h1 = await page.evaluate(() =>
+      Math.round(document.querySelector('.boh-card')?.getBoundingClientRect().height || 0),
+    );
+    check(
+      '㉟ 流式期间有活动行',
+      await page.evaluate(() => !!document.querySelector('.boh-activity')),
+    );
+    await page.waitForTimeout(2500); // 代理 mock 延迟 1.2s + 渲染余量
+    const h2 = await page.evaluate(() =>
+      Math.round(document.querySelector('.boh-card')?.getBoundingClientRect().height || 0),
+    );
+    check('㊃ 岛高随字数生长（回答完 > 流式早期）', h2 > h1 + 20, `early=${h1} final=${h2}`);
+    check(
+      '㊄ 回答正文渲染（SSE 内容落到 markdown）',
+      await page.evaluate(() =>
+        (document.querySelector('.boh-answer-text')?.textContent || '').includes('主广场'),
+      ),
+    );
+    check(
+      '㊅ 流式结束后活动行消失',
+      await page.evaluate(() => !document.querySelector('.boh-activity')),
+    );
+
+    // Esc 分层：回答 → 搜索（保留原句）→ 关岛
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    const layered = await page.evaluate(() => ({
+      islandOpen: !!document.querySelector('.boh-island-root')?.classList.contains('open'),
+      query: document.querySelector('.gs-input')?.value || '',
+    }));
+    check(
+      '㊆ Esc 退回搜索面且保留原句（不关岛）',
+      layered.islandOpen && layered.query === '八周年的活动什么时候开始',
+      JSON.stringify(layered),
+    );
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    check('㊇ 再 Esc 关岛', (await islandOpen(page)) === false);
+
+    // 再问一轮：重开岛 → ⌘↵ → 第二轮回答（引擎新实例，startNewChat）
+    await pressSlash(page);
+    await page.waitForTimeout(500);
+    await page.locator('.gs-input').fill('报名要带什么');
+    await page.waitForTimeout(600);
+    await page.evaluate(() => {
+      const input = document.querySelector('.gs-input');
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          metaKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    await page.waitForTimeout(3000);
+    check(
+      '㊈ 再问一轮：新回答内容出现',
+      await page.evaluate(() =>
+        (document.querySelector('.boh-answer-text')?.textContent || '').includes('八周年庆典'),
+      ),
+    );
+
+    // 去全页
+    await page.locator('.boh-foot-btn').click();
+    await page.waitForTimeout(900);
+    const afterFull = await page.evaluate(() => ({
+      hash: location.hash,
+      islandOpen: !!document.querySelector('.boh-island-root')?.classList.contains('open'),
+    }));
+    check(
+      '㊉ 去全页：跳 /ai-chat 且岛关闭',
+      afterFull.hash.startsWith('#/ai-chat') && !afterFull.islandOpen,
+      JSON.stringify(afterFull),
+    );
+
+    check('㊊ 组 5 零 pageerror', errs.length === 0, errs.join(' | ').slice(0, 180));
+  },
+  {
+    setupPage: (page) => {
+      void page.route('**/rest/v1/rpc/list_public_bohai_modes', (r) =>
+        r.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(MOCK_MODE_ROW),
+        }),
+      );
+      void page.route('**/functions/v1/**', async (r) => {
+        const post = r.request().postData() || '';
+        // 流式主生成（站方代理 passthrough）：延迟后整段 SSE
+        if (post.includes('runtime-chat-stream') || post.includes('"stream":true')) {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          await r.fulfill({ status: 200, contentType: 'text/event-stream', body: SSE_BODY });
+          return;
+        }
+        // 非流式模型调用兜底
+        if (post.includes('messages')) {
+          await r.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ok: true,
+              status: 200,
+              data: { choices: [{ message: { content: '（非流式兜底回答）' } }] },
+            }),
+          });
+          return;
+        }
+        // 其余（Tavily 搜索 / 连接器 / 记忆等）一律空结果
+        await r.fulfill({ status: 200, contentType: 'application/json', body: '{"results":[]}' });
+      });
+    },
+  },
+);
 
 const passed = results.filter((r) => r.pass).length;
 console.log(`\n${passed}/${results.length} PASS`);
