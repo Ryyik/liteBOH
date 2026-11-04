@@ -206,10 +206,18 @@
 
 | 阶段 | 内容 | 验收 |
 | --- | --- | --- |
-| **P0** | 旧岛三个纯 bug：岛高扣 `--kb-inset`、岛内隐藏模型/工具/用量、删 header | `probe-bohai-island` 键盘档 |
-| **P1** | 起 `BohIsland`（Teleport + 胶囊/输入/列表三态）+ 搜索并入，第 0 项原句直传 | `probe-nav-ask` 前两档 |
-| **P2** | 回答形态 + `Esc` 分层 + 快速会话；旧岛退场 | `probe-nav-ask` 回答档 + `probe-global-search` 回归 |
+| **P0**（✅ 2026-11-04 `73ced89e`） | 旧岛三个纯 bug：岛高扣 `--kb-inset`、岛内隐藏模型/工具/用量、删 header | 自证 14/14 + 两探针绿 |
+| **P1**（✅ 2026-11-04 本笔） | 起 `BohIsland`（Teleport + 胶囊/展开两态，展开卡承载 `GlobalSearchIsland`）+ 搜索并入 + 第 0 项原句直传 + `/` 归岛（无导航栏路由可用）+ 深色岛材质 | `probe-nav-ask` 22/22 + `probe-global-search` 58/58 |
+| **P2** | 回答形态（高度随字数生长）+ `Esc` 分层 + 快速会话；旧岛退场 | `probe-nav-ask` 回答档 |
 | **P3** | 入口收敛（`⌘K`）、概览岛改「一句结论 + 3 锚点」、周报并入概览时间窗 | `probe-overview-island-guards`（38 条） |
+
+> **P1 实现记录**（与 §4 的差异）：展开卡直接承载整块 `GlobalSearchIsland`（其输入条本就是
+> 第一个子元素，输入条 top 恒定由探针 ④ 断言：空态 = 出结果 = 101px）；胶囊/展开是同一根节点的
+> 两个形态（`v-if` 切换，探针 ⑧/⑮ 断言根唯一）；动作搜索执行器经 `useBohIsland.registerActionExecutor`
+> 注册、导航栏 `handleMenuAction` 仍是单一真相源；岛根节点恒 `data-theme="dark"`（深色岛材质，
+> 搜索面板的暗色叠色分支因此任意页面主题下成立，`:is(#unified-nav-container, .boh-island-root)` 前缀）。
+> 踩坑记录：卡片自适应高度 + flex 子项 `flex: 1 1 0`（basis 0）会把内容高度算成 0 —— 必须 basis auto。
+> 动画分工（先变宽再长高）随 P2 回答形态一起做，P1 用弹簧入场过渡。
 
 ### 探针要断言的（`scripts/probes/probe-nav-ask.mjs`）
 
