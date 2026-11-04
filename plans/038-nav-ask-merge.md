@@ -209,7 +209,9 @@
 | **P0**（✅ 2026-11-04 `73ced89e`） | 旧岛三个纯 bug：岛高扣 `--kb-inset`、岛内隐藏模型/工具/用量、删 header | 自证 14/14 + 两探针绿 |
 | **P1**（✅ 2026-11-04 `abe16fa4`） | 起 `BohIsland`（Teleport + 胶囊/展开两态，展开卡承载 `GlobalSearchIsland`）+ 搜索并入 + 第 0 项原句直传 + `/` 归岛（无导航栏路由可用）+ 深色岛材质 | `probe-nav-ask` 22/22 + `probe-global-search` 58/58 |
 | **P2**（✅ 2026-11-04 本笔） | 回答形态（`BohIslandAnswer`：自有引擎实例 + 流式 + 高度随字数生长 + 来源 chip + 展开全文/去全页）+ Esc 分层 + 快速会话（岛内独立会话） | `probe-nav-ask` **34/34**（回答档 12 条）+ `probe-global-search` 58/58 |
-| **P3** | 入口收敛（`⌘K`）+ **旧 AI 岛退场**（从 P2 顺延：退场必须与 ⌘K/边缘手势改线同笔，否则出现无入口真空期）+ 概览岛改「一句结论 + 3 锚点」+ 周报并入概览时间窗 | `probe-overview-island-guards`（38 条） |
+| **P3a**（✅ 2026-11-04 本笔） | **入口收敛 + 旧 AI 岛退场（同笔）**：`⌘K` 改线新岛；`AiEdgeTrigger`/`useEdgeSwipeGesture`/`BOHAIIsland.vue`/`useGlobalAiOverlay.js` 四文件删除；`showIsland.ai()` 直连 `useBohIsland.askDirect`（opener 注册机制废除）；导航栏 surface 全部 `has-bohai-island` 联动拆除；设置面板手势/呼出高度组删除；UserSpace railNavSync 冻结与边缘手势拆除 | `probe-nav-ask` **37/37**（+旧岛退场/⌘K 三条）+ `probe-global-search` **59/59**（互斥段随语义重写） |
+| **P3b**（✅ 2026-11-04 本笔） | 快速会话「在搜索里问过」：`startNewChat(origin)` 透传 + 会话持久化白名单登记 `origin`（'quick-ask'）；侧栏独立分组（置顶之下）+「问一句」徽标 + 菜单「提升为主会话」（清 origin） | `probe-nav-ask` ㊋（origin 落账）+ store 单测 22/22 + 侧栏 DOM 断言（groups/badges） |
+| **P4**（方向已冻结，设计待做） | **概览与周报融合**（2026-11-04 用户口径）：今日总结（今日无新帖不显示）、周总结（周无新帖不显示）；**暂时下掉智能概览**，改为「离开这段时间摘要」+ 从离开那天起可回看 —— 回看交互需设计，暂缓 | 设计稿 + 概览探针 |
 
 > **P2 实现记录**（与 §3.5 的差异与踩坑）：
 > · 回答面 = 自有 `useChatEngine()` 实例（快速会话 §3.4），共写 `boh_chat_sessions` 由写入守卫仲裁
@@ -224,6 +226,22 @@
 > · 探针 mock 踩坑：站方模型走内置 `boh:fast` → API-Key 代理 EF（`runtime-chat-stream`），
 >   mock 必须打 `**/functions/v1/**` 并按请求体嗅探（不打会撞被墙的 supabase.co，检索段挂死 24s）；
 >   另：`[...].map(...)` 忘 `.join('')` 时数组转字符串插入逗号，粘坏 SSE 行首，表现是「只收到第 1 片」。
+
+> **P3 实现记录**（2026-11-04，与 §4 的差异与踩坑）：
+> · `useBohIsland` 路由读 router 单例（`router.currentRoute`）不读 `useRoute()` —— `showIsland.ai()`
+>   的落点要在任意事件处理器里可用，那里没有 setup 上下文。
+> · `useIsland.ai()` 直接调 `useBohIsland().askDirect(options)`：opener 注册机制（`registerIslandAiOpener`）
+>   与 `setIslandAiPaused`/`aiPaused` 一起废除 —— AI 岛不在 surface，任务岛/通知岛的暂停概念随之消失。
+>   `options.mode`（论坛 'fast'）静默忽略：岛内快速会话无模型选择（§3.6 减法），默认档即 fast 位。
+> · 按钮语义：导航栏搜索按钮保持 toggle（岛开着点它 = 收起，探针 ⑱d/⑱e 断言）。
+> · 快速会话 origin 落盘：`bohai-chat-session-store` 白名单**必须登记** origin（不登记在保存时被
+>   静默丢弃 —— expertState 同款坑）；`temporary` 会话本就被保存过滤，两者正交。
+> · AGENTS.md 数字门禁的「脚本数」口径与 `ls | wc -l` 不一致（门禁实测 284/223 vs ls 283/222）——
+>   以门禁实测为准回填，别用 ls 硬怼。
+>
+> **P4 方向冻结**（2026-11-04 用户口径，设计暂缓）：概览与周报融合为「今日总结 / 周总结 /
+> 离开这段时间摘要（+ 从离开那天起回看）」，无新帖的窗不显示；智能概览暂时下掉。
+> 原方案的「一句结论 + 3 锚点」被此口径取代。
 
 > **P1 实现记录**（与 §4 的差异）：展开卡直接承载整块 `GlobalSearchIsland`（其输入条本就是
 > 第一个子元素，输入条 top 恒定由探针 ④ 断言：空态 = 出结果 = 101px）；胶囊/展开是同一根节点的
