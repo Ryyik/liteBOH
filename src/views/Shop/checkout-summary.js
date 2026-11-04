@@ -116,7 +116,7 @@ function buildLine(item, product) {
 
 const ISSUE_TEXT = {
   [CHECKOUT_ISSUE.PRODUCT_MISSING]: '已下架',
-  [CHECKOUT_ISSUE.NOT_PURCHASABLE]: '暂不可兑换',
+  [CHECKOUT_ISSUE.NOT_PURCHASABLE]: '暂不可购买',
   [CHECKOUT_ISSUE.OUT_OF_STOCK]: '已售罄',
   [CHECKOUT_ISSUE.OVER_STOCK]: '超出库存',
   [CHECKOUT_ISSUE.PRICE_CHANGED]: '价格已更新',
@@ -184,21 +184,21 @@ export function buildCheckoutSummary({
     issues.push({
       code: CHECKOUT_ISSUE.PRODUCT_MISSING,
       level: 'block',
-      message: `${missing.length} 件商品已下架，移除后才能提交`,
+      message: `${missing.length} 件已下架，移除后提交`,
     });
   }
   if (unavailable.length) {
     issues.push({
       code: CHECKOUT_ISSUE.OUT_OF_STOCK,
       level: 'block',
-      message: `${unavailable.length} 件商品已售罄或不可兑换，移除后才能提交`,
+      message: `${unavailable.length} 件已售罄或暂不可购买，移除后提交`,
     });
   }
   if (overStock.length) {
     issues.push({
       code: CHECKOUT_ISSUE.OVER_STOCK,
       level: 'block',
-      message: '有商品数量超过库存，请减少数量',
+      message: '数量超过库存，请减少',
     });
   }
   const insufficientPoints = totalPoints > balance;
@@ -206,21 +206,21 @@ export function buildCheckoutSummary({
     issues.push({
       code: CHECKOUT_ISSUE.INSUFFICIENT_POINTS,
       level: 'block',
-      message: `积分不足：还差 ${totalPoints - balance} 积分`,
+      message: `积分不足，还差 ${totalPoints - balance}`,
     });
   }
   if (priceChanged) {
     issues.push({
       code: CHECKOUT_ISSUE.PRICE_CHANGED,
       level: 'warn',
-      message: '商品价格已更新，本页金额按最新价格计算',
+      message: '价格已更新，金额按最新价计算',
     });
   }
   if (!addressReady) {
     issues.push({
       code: CHECKOUT_ISSUE.MISSING_ADDRESS,
       level: 'warn',
-      message: '还没有收货地址，补一个才能提交',
+      message: '还缺收货地址',
     });
   }
 

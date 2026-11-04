@@ -56,7 +56,7 @@
             </h2>
             <p>{{ paymentSummary || '订单已确认' }}</p>
             <p v-if="cashDue > 0" class="payment-success-due">
-              现金 {{ cashDueText }} 由管理员联系你收取，收款后安排寄送
+              现金 {{ cashDueText }} 由管理员联系收取，收款后寄出
             </p>
           </div>
 
@@ -77,10 +77,10 @@
               <dd>{{ formattedPoints }}</dd>
             </div>
             <div>
-              <!-- 运费口径 2026-11-04 定档「全场包邮」：结果页也写一句，
+              <!-- 运费口径 2026-11-04「大部分地区不收邮费」：结果页也写一句，
                    这样"我到底付了多少钱、还有没有别的费用"在同一个屏里闭环 -->
               <dt>运费</dt>
-              <dd>包邮</dd>
+              <dd>大部分地区包邮</dd>
             </div>
           </dl>
 
@@ -99,12 +99,12 @@
               <strong>{{ cashDue > 0 ? '管理员联系收款' : '管理员确认' }}</strong
               ><span>{{
                 cashDue > 0
-                  ? `通过资料里的电话联系你，收取现金 ${cashDueText}`
-                  : '通过资料里的电话联系你，确认寄送细节'
+                  ? `通过资料电话联系你，收取现金 ${cashDueText}`
+                  : '通过资料电话联系你，确认寄送细节'
               }}</span>
             </li>
-            <li><strong>备货发出</strong><span>进度会更新在「订单」里，可随时查看</span></li>
-            <li><strong>收货确认</strong><span>收到后订单自动转「完成」，中途可自助取消</span></li>
+            <li><strong>备货发出</strong><span>进度可在「订单」查看</span></li>
+            <li><strong>收货确认</strong><span>收到后自动转「完成」，中途可取消</span></li>
           </ol>
 
           <!-- 邮件通知结果（2026-11-02）：以前失败时弹的是顶部灵动岛，而岛正好压在
@@ -116,7 +116,7 @@
             role="status"
           >
             <AlertTriangle :size="14" aria-hidden="true" />
-            <span>通知邮件发送失败，订单已记录，管理员可在后台处理</span>
+            <span>进度 Email 发送失败，订单已记录</span>
           </p>
 
           <div class="payment-success-actions" :class="{ revealed: isComplete }">

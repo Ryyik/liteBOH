@@ -20,7 +20,7 @@
       </span>
       <span class="order-address-copy">
         <strong>还没有收货地址</strong>
-        <small>补一个地址，礼物才不会卡在发货前</small>
+        <small>礼物与周边都要用它寄出</small>
       </span>
       <span class="order-address-btn">去添加</span>
     </button>
@@ -43,7 +43,7 @@
       <p>登录后查看购物、中奖与礼物记录</p>
       <button type="button" class="ghost-btn" @click="showLoginModal = true">登录</button>
     </div>
-    <p v-else-if="loading" class="order-hint shop-fade-in">正在加载订单…</p>
+    <p v-else-if="loading" class="order-hint shop-fade-in">正在加载…</p>
     <div v-else-if="!visibleOrders.length" class="order-empty shop-fade-in">
       <p>{{ emptyOrderText }}</p>
     </div>

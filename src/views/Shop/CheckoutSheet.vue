@@ -59,7 +59,7 @@
                   </span>
                   <span class="ck-addr-copy">
                     <strong>添加收货地址</strong>
-                    <span class="ck-addr-detail">实物要用它寄出，填一次以后自动带出</span>
+                    <span class="ck-addr-detail">用于实物寄送，下次自动带出</span>
                   </span>
                   <span class="ck-addr-change">去填写</span>
                 </button>
@@ -101,9 +101,8 @@
             </div>
 
             <div class="ck-col">
-              <!-- 金额明细：一次把"付多少"说死。运费口径 2026-11-04 定档「全场包邮」——
-                   原来那句「确认寄送方式时与管理员核对」看起来像还要另付邮费，
-                   用户在结算页最怕的就是这种没写死的数字。 -->
+              <!-- 金额明细：一次把"付多少"说死。运费口径 2026-11-04：
+                   「大部分地区包邮」—— 不写死成 0，因为少数地区的费用在人工环节确认。 -->
               <section class="ck-block ck-amount" aria-label="金额明细">
                 <div v-if="summary.totalPoints" class="ck-row">
                   <span>商品积分</span><strong>{{ summary.totalPoints }} 积分</strong>
@@ -111,7 +110,9 @@
                 <div v-if="summary.totalCents" class="ck-row">
                   <span>现金</span><strong>{{ rmbText(summary.totalCents) }}</strong>
                 </div>
-                <div class="ck-row"><span>运费</span><strong class="is-free">包邮</strong></div>
+                <div class="ck-row">
+                  <span>运费</span><strong class="is-free">大部分地区包邮</strong>
+                </div>
                 <div class="ck-row is-total">
                   <span>应付</span><strong>{{ summary.totalText }}</strong>
                 </div>
@@ -125,9 +126,10 @@
                 </p>
               </section>
 
+              <!-- 运费口径 2026-11-04：大部分地区不收邮费、积分之外的支付人工对接。
+                   一句话说清「提交后会发生什么」，不再复述金额区已有内容。 -->
               <p class="ck-note">
-                提交后积分立即扣除，全场包邮。现金部分由管理员通过资料里的电话联系你收取，
-                收款后安排寄送。
+                BOH 大部分地区不收寄送邮费；积分之外的支付，管理员会与你联系。
               </p>
 
               <!-- 订单备注（2026-11-04）：尺码、收货时间这类要求以前只能事后私聊，
@@ -145,7 +147,7 @@
                   type="text"
                   maxlength="200"
                   autocomplete="off"
-                  placeholder="尺码 / 收货时间 / 其他要求"
+                  placeholder="尺码 / 时间 / 其他要求"
                 />
               </section>
             </div>
@@ -167,7 +169,7 @@
                 class="ck-issue-fix"
                 @click="$emit('remove-invalid', summary.removableKeys)"
               >
-                移除失效商品
+                移除 {{ summary.removableKeys.length }} 件失效商品
               </button>
             </div>
 
@@ -205,7 +207,7 @@
 
               <Transition name="ck-step" mode="out-in">
                 <div v-if="pickerMode === 'list'" key="list" class="ck-picker-body">
-                  <p v-if="addressLoading" class="ck-picker-hint">正在读取地址簿…</p>
+                  <p v-if="addressLoading" class="ck-picker-hint">正在读取地址…</p>
                   <template v-else>
                     <button
                       v-for="addr in addresses"
@@ -232,7 +234,7 @@
                       </span>
                     </button>
                     <p v-if="!addresses.length" class="ck-picker-hint">
-                      地址簿还是空的，先添加一个。
+                      地址簿是空的，先添加一个。
                     </p>
                   </template>
                   <button type="button" class="ck-pick-add" @click="startCreate">
@@ -501,7 +503,7 @@ const saveNewAddress = async () => {
     return;
   }
   if (detail.length < 4) {
-    formError.value = '请填写详细地址（区县 / 街道 / 门牌号）';
+    formError.value = '请填写详细地址';
     return;
   }
   formError.value = '';
@@ -984,7 +986,7 @@ onBeforeUnmount(() => {
 }
 
 .ck-row strong.is-free {
-  /* 包邮是「让用户放心」的信息，用品牌色而不是灰色 —— 灰色等于告诉用户"这项还没定" */
+  /* 包邮信息是「让用户放心」的内容，用品牌色而不是灰色 —— 灰色等于告诉用户"这项还没定" */
   color: var(--boh-brand-blue, #0071e3);
   font-size: 13px;
   font-weight: 600;

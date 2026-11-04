@@ -89,10 +89,10 @@
                 <dd>{{ order.priceText || '—' }}</dd>
               </div>
               <div>
-                <!-- 运费口径 2026-11-04 定档「全场包邮」：订单详情是核对总价的地方，
+                <!-- 运费口径 2026-11-04「大部分地区不收邮费」：订单详情是核对总价的地方，
                      这里缺一行会让人怀疑"是不是还有笔邮费没算" -->
                 <dt>运费</dt>
-                <dd>包邮</dd>
+                <dd>大部分地区包邮</dd>
               </div>
               <div v-if="order.updatedAt">
                 <dt>最近更新</dt>
@@ -112,8 +112,8 @@
                   <span>{{ shipping.phone || '' }}</span>
                 </p>
                 <p class="od-shipping-addr">{{ shipping.address || '未填写' }}</p>
-                <small v-if="shipping.isSnapshot">下单时留档，之后改地址不影响这一单</small>
-                <small v-else>按当前资料显示 · 该订单下单较早，没有留地址快照</small>
+                <small v-if="shipping.isSnapshot">下单时留档，改地址不影响此单</small>
+                <small v-else>按当前资料显示 · 此单未留下单时地址</small>
               </div>
             </div>
 
@@ -125,7 +125,7 @@
 
             <!-- 现金待收：线上下单、线下收款，不写清会让人以为"提交完就没事了" -->
             <p v-if="cashDue" class="od-note is-due">
-              现金 {{ cashDueText }} 由管理员联系收取，收款后安排寄送。
+              现金 {{ cashDueText }} 由管理员联系收取，收款后寄出。
             </p>
 
             <p v-if="!canCancel" class="od-note">{{ cancelHint }}</p>
@@ -171,8 +171,8 @@ const emit = defineEmits(['close', 'notify', 'changed']);
 /* 四态（2026-11-02 用户口径）：准备中 → 已发货 → 完成；取消是终止态。
    订单和礼物共用同一条流程 —— 对用户来说两者都是「一件实物在寄」。 */
 const FLOW = [
-  { key: 'preparing', label: '准备中', hint: '正在为你打包' },
-  { key: 'shipped', label: '已发货', hint: '包裹已交给承运方' },
+  { key: 'preparing', label: '准备中', hint: '正在打包' },
+  { key: 'shipped', label: '已发货', hint: '已交给承运方' },
   { key: 'completed', label: '完成', hint: '已送达' },
 ];
 
@@ -332,10 +332,10 @@ const canCancel = computed(() => {
 const cancelLabel = computed(() => (kind.value === 'gift' ? '取消礼物' : '取消订单'));
 const cancelHint = computed(() => {
   if (isCancelled.value) return '';
-  if (kind.value === 'gift') return '礼物已发出，无法自助取消。如需帮助请联系管理员。';
+  if (kind.value === 'gift') return '礼物已发出，无法自助取消，请联系管理员。';
   return status.value === 'completed'
-    ? '订单已完成，无法自助取消。如需售后请联系管理员。'
-    : '订单已发货，无法自助取消。如需售后请联系管理员。';
+    ? '订单已完成，无法自助取消，售后请联系管理员。'
+    : '订单已发货，无法自助取消，售后请联系管理员。';
 });
 
 const armed = ref(false);

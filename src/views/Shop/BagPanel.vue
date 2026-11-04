@@ -4,8 +4,8 @@
        原来那个「购物车 / 订单」二级分段随之去掉 —— 只剩一段的分段控件只是装饰。 -->
   <div class="bag-panel">
     <div v-if="!shoppingBag.length" class="bag-empty shop-fade-in">
-      <p>购物袋还是空的</p>
-      <button type="button" class="ghost-btn" @click="$emit('browse')">去看看周边</button>
+      <p>购物袋是空的</p>
+      <button type="button" class="ghost-btn" @click="$emit('browse')">去逛逛</button>
     </div>
 
     <template v-else>
@@ -76,8 +76,8 @@
            所以给一个批量入口，并说清"要移除几件、为什么"。 -->
       <Transition name="bag-foot">
         <div v-if="invalidItems.length" class="bag-clean" role="status">
-          <span>{{ invalidItems.length }} 件已售罄或超出库存，结算前需要移除</span>
-          <button type="button" class="bag-clean-btn" @click="removeInvalid">移除</button>
+          <span>{{ invalidItems.length }} 件已售罄或超出库存，需先移除</span>
+          <button type="button" class="bag-clean-btn" @click="removeInvalid">全部移除</button>
         </div>
       </Transition>
     </template>
@@ -94,7 +94,7 @@
         </div>
         <!-- 运费口径 2026-11-04 定档「全场包邮」：在袋子这里就先说清，
              别让用户带着"还要付邮费吗"的疑问点结算 -->
-        <p class="bag-ship">全场包邮</p>
+        <p class="bag-ship">大部分地区包邮</p>
         <button
           type="button"
           class="primary-btn"
@@ -140,9 +140,9 @@ const priceText = (product) => {
   const rmb = formatRmb(product?.rmb_price);
   if (mode === 'rmb_only') return rmb || '暂不可购买';
   if (mode === 'combined') {
-    return [points ? `${points} 积分` : '', rmb].filter(Boolean).join(' + ') || '暂不可兑换';
+    return [points ? `${points} 积分` : '', rmb].filter(Boolean).join(' + ') || '暂不可购买';
   }
-  return points ? `${points} 积分` : '暂不可兑换';
+  return points ? `${points} 积分` : '暂不可购买';
 };
 const itemPriceText = priceText;
 /* 小计 = 单价 × 数量。组合支付要两段分别乘，不能把「45 积分 + ¥6.90」整体乘 — */
@@ -154,9 +154,9 @@ const subtotalText = (item) => {
   if (mode === 'rmb_only') return formatRmb(rmb) || '暂不可购买';
   if (mode === 'combined')
     return (
-      [points ? `${points} 积分` : '', formatRmb(rmb)].filter(Boolean).join(' + ') || '暂不可兑换'
+      [points ? `${points} 积分` : '', formatRmb(rmb)].filter(Boolean).join(' + ') || '暂不可购买'
     );
-  return points ? `${points} 积分` : '暂不可兑换';
+  return points ? `${points} 积分` : '暂不可购买';
 };
 /* 购物袋缩略图：裸文件名 → 打包产物，Cloudinary 原址 → 自建 CDN。
    袋里的图是「加购那一刻」的快照，可能来自任意历史形态，必须每次都过这层。 */

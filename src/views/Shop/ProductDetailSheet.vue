@@ -37,7 +37,7 @@
               </p>
             </div>
 
-            <p class="surface-desc">{{ product.description || '暂无商品介绍。' }}</p>
+            <p class="surface-desc">{{ product.description || '暂无介绍。' }}</p>
 
             <div v-if="product.specifications?.length" class="spec-block">
               <p class="block-label">规格</p>
@@ -56,18 +56,16 @@
 
             <div class="stock-row">
               <span>库存</span>
-              <strong>{{ Number(product.stock) > 0 ? `${product.stock} 件` : '暂时缺货' }}</strong>
+              <strong>{{ Number(product.stock) > 0 ? `${product.stock} 件` : '已售罄' }}</strong>
             </div>
 
-            <p class="surface-note">
-              提交后由管理员通过你留下的联系方式确认交付细节；兑换成功时积分立即扣除。
-            </p>
+            <p class="surface-note">订单提交后将会有进度Email，同时管理员会与你联系。</p>
           </div>
 
           <div class="surface-footer">
             <button type="button" class="add-btn" :disabled="disabled" @click="$emit('add')">
               <ShoppingBag :size="18" :stroke-width="1.8" aria-hidden="true" />
-              {{ disabled ? '暂不可兑换' : '加入购物袋' }}
+              {{ disabled ? '暂不可购买' : '加入购物袋' }}
             </button>
           </div>
         </div>
@@ -129,7 +127,7 @@ const priceLines = computed(() => {
   const lines = [];
   if (points) lines.push({ label: '积分价', value: `${points} 积分` });
   if (rmb) lines.push({ label: '现金价', value: rmb });
-  if (!lines.length) lines.push({ label: '价格', value: '暂不可兑换' });
+  if (!lines.length) lines.push({ label: '价格', value: '暂无报价' });
   return lines;
 });
 

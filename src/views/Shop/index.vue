@@ -50,7 +50,7 @@
       <section :key="activeTab" class="store-panel">
         <template v-if="activeTab === 'products'">
           <p v-if="fetchError && allProducts.length" class="store-hint" role="status">
-            当前展示的是内置商品数据，可能不是最新；网络恢复后刷新即可看到实时价格。
+            当前为内置商品数据，价格可能已变动。联网后刷新即可。
           </p>
 
           <!-- 2026-11-01 用户口径：「周边不再提供筛选，并且加入搜索框」。
@@ -123,7 +123,7 @@
           </TransitionGroup>
 
           <div v-else class="store-empty shop-fade-in">
-            <p>{{ searchKeyword ? `没有找到「${searchKeyword}」` : '暂时还没有周边' }}</p>
+            <p>{{ searchKeyword ? `没有找到「${searchKeyword}」` : '还没有周边' }}</p>
             <button
               v-if="searchKeyword"
               type="button"
@@ -417,7 +417,7 @@ const formatPriceDisplay = (product) => {
   const parts = [];
   if (points !== null) parts.push(`${points} 积分`);
   if (rmb) parts.push(rmb);
-  return parts.length ? parts.join(' + ') : '暂不可兑换';
+  return parts.length ? parts.join(' + ') : '暂无报价';
 };
 const isProductExchangeable = (product) => {
   if (product?.is_purchasable === false) return false;
@@ -490,7 +490,7 @@ const addToBagFromDetail = () => {
   if (!product || !isProductExchangeable(product)) return;
   const spec = product.specifications?.find((item) => item.value === selectedSpecValue.value);
   const result = addToBag(product, selectedSpecValue.value || 'Default', spec?.label || '默认规格');
-  if (!result?.ok) return showOperationToast('该商品暂不可兑换');
+  if (!result?.ok) return showOperationToast('该商品暂不可购买');
   closeProductDetails();
   showOperationToast('已加入购物袋');
 };
@@ -549,14 +549,14 @@ const markSettlementEmailState = (state) => {
     paymentSuccess.value = { ...paymentSuccess.value, emailState: state };
     return;
   }
-  if (state === 'failed') showOperationToast('订单已提交，但通知邮件发送失败');
+  if (state === 'failed') showOperationToast('订单已提交，进度邮件发送失败');
 };
 
 const closePaymentSuccess = () => {
   const emailFailed = paymentSuccess.value?.emailState === 'failed';
   paymentSuccess.value = null;
   document.body.style.overflow = '';
-  if (emailFailed) showOperationToast('订单已提交，但通知邮件发送失败');
+  if (emailFailed) showOperationToast('订单已提交，进度邮件发送失败');
 };
 
 /* 成功页的两个出口：主流电商都让用户「立刻能看到刚下的单」或「接着逛」，
@@ -636,9 +636,12 @@ const buildOrderItemsPayload = () =>
 
 function resolveOrderErrorMessage(result) {
   const code = result?.data?.message || result?.error?.code || '';
-  if (code === 'INSUFFICIENT_POINTS')
-    return `积分不足：当前 ${Number(result?.data?.currentPoints || 0)}，需要 ${Number(result?.data?.requiredPoints || totalPoints.value)}`;
-  if (code === 'PRODUCT_NOT_EXCHANGEABLE') return '购物袋中包含暂不可兑换商品';
+  if (code === 'INSUFFICIENT_POINTS') {
+    const current = Number(result?.data?.currentPoints || 0);
+    const required = Number(result?.data?.requiredPoints || totalPoints.value);
+    return `积分不足，还差 ${Math.max(0, required - current)}`;
+  }
+  if (code === 'PRODUCT_NOT_EXCHANGEABLE') return '购物袋中包含暂不可购买商品';
   if (code === 'PRODUCT_NOT_FOUND') return '购物袋存在已下架商品';
   if (String(code).startsWith('INVALID_') || code === 'EMPTY_ITEMS')
     return '订单信息不完整，请检查后重试';

@@ -110,7 +110,7 @@ describe('buildCheckoutSummary', () => {
     expect(summary.insufficientPoints).toBe(true);
     expect(summary.blocking).toBe(true);
     const issue = summary.issues.find((item) => item.code === CHECKOUT_ISSUE.INSUFFICIENT_POINTS);
-    expect(issue.message).toBe('积分不足：还差 40 积分');
+    expect(issue.message).toBe('积分不足，还差 40');
   });
 
   it('纯现金商品不消耗积分', () => {

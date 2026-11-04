@@ -4,10 +4,10 @@ import { resolve } from 'node:path';
 import { stripComments } from '../helpers/source.js';
 
 /**
- * 「现金线下人工 + 全场包邮 + 订单备注 + 地址快照」的口径契约（2026-11-04 用户定档）。
+ * 「现金线下人工 + 大部分地区包邮 + 订单备注 + 地址快照」的口径契约（2026-11-04 用户定档）。
  *
  * 这四条单独看都是文案/一列 SQL，合起来才是**一件事实**：
- *   · 运费包邮 ⇒ 金额区不能留「与管理员核对」这种没写死的说法；
+ *   · 运费（大部分地区不收邮费）⇒ 金额区不能留「与管理员核对」这种没写死的说法；
  *   · 现金人工 ⇒ 结果页/列表/详情都要出现「待付多少、谁来收」，且**不许说支付成功**；
  *   · 备注     ⇒ 确认页有入口、订单表有列、详情页能读到；
  *   · 地址快照 ⇒ 下单时落库，详情页优先读快照而不是回读 profiles。
@@ -33,16 +33,16 @@ const PROFILE_API = read('src/utils/api/profile-api.js');
 const ORDERS_API = read('src/utils/api/shop-orders-api.js');
 const MIGRATION = read('supabase/migrations/2026110412_shop_order_shipping_snapshot_and_stock.sql');
 
-describe('运费：全场包邮', () => {
+describe('运费：大部分地区包邮', () => {
   it('确认页金额区写「包邮」，不再留「与管理员核对」这种没写死的说法', () => {
     expect(CHECKOUT).toContain('is-free');
-    expect(CHECKOUT).toContain('包邮');
+    expect(CHECKOUT).toContain('大部分地区包邮');
     expect(withoutHtmlComments(CHECKOUT)).not.toContain('确认寄送方式时与管理员核对');
   });
 
   it('购物袋与订单详情也各有一处交代（用户在三处都会看总价）', () => {
     expect(BAG).toContain('bag-ship');
-    expect(BAG).toContain('全场包邮');
+    expect(BAG).toContain('大部分地区包邮');
     expect(DETAIL).toContain('<dt>运费</dt>');
   });
 });
@@ -117,7 +117,7 @@ describe('地址快照：下单时冻结，详情优先读快照', () => {
 
   it('详情页优先用快照；历史订单才回落当前资料，并写明「当前」', () => {
     expect(DETAIL).toContain('isSnapshot: true');
-    expect(DETAIL).toContain('没有留地址快照');
+    expect(DETAIL).toContain('按当前资料显示 · 此单未留下单时地址');
   });
 });
 
