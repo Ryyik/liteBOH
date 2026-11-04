@@ -3130,6 +3130,15 @@
   min-height: 160px;
 }
 
+/* 笔记封面淡入（2026-11-04 硬切审计 P0-4）：记账开关在 useImageLoaded */
+.profile-post-cover img {
+  transition: opacity 260ms var(--ease-out, ease);
+}
+
+.profile-post-cover img.is-loading {
+  opacity: 0;
+}
+
 .profile-post-copy {
   padding: 14px 16px 16px;
   display: flex;

@@ -72,3 +72,17 @@
     bottom: calc(18px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* 显隐过渡（2026-11-04 硬切审计 P0-5）：FAB 随滚动/分区生灭原先瞬跳。
+   挂在 <Transition name="compose-fab-pop">（ForumMain.vue）上；
+   transition-property 与上面 .mobile-compose-fab 的 hover/active 过渡同源，不冲突。 */
+.compose-fab-pop-enter-active,
+.compose-fab-pop-leave-active {
+  transition: opacity 0.22s var(--ease-out, ease), transform 0.22s var(--ease-out, ease);
+}
+
+.compose-fab-pop-enter-from,
+.compose-fab-pop-leave-to {
+  opacity: 0;
+  transform: scale(0.6);
+}

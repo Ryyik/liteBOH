@@ -17,7 +17,8 @@
             <div v-else-if="users.length === 0" class="follow-list-empty">
               <p>{{ emptyText }}</p>
             </div>
-            <div v-else class="follow-list">
+            <!-- 2026-11-04 硬切审计 P0-6：取关后行瞬消 → TransitionGroup 淡出 + FLIP 补位 -->
+            <TransitionGroup tag="div" name="fl-item" class="follow-list" v-else>
               <div v-for="user in users" :key="user.id" class="follow-list-item" @click="goToProfile(user.username)">
                 <div class="follow-list-avatar">
                   <img v-if="user.avatar_url" :src="user.avatar_url" :alt="user.username" loading="lazy" />
@@ -34,7 +35,7 @@
                   @click.stop="handleUnfollow(user)"
                 >{{ user._unfollowing ? '取消中...' : '取消关注' }}</button>
               </div>
-            </div>
+            </TransitionGroup>
             <div v-if="hasMore" class="follow-list-load-more">
               <button class="load-more-btn" :disabled="loadingMore" @click="$emit('load-more')">
                 {{ loadingMore ? '加载中...' : '加载更多' }}
@@ -101,6 +102,28 @@ const formatDate = (dateStr) => {
 </script>
 
 <style scoped>
+/* 列表增删动画（2026-11-04 硬切审计 P0-6）：取关行淡出，其余行 FLIP 补位 */
+.fl-item-move {
+  transition: transform 0.26s var(--ease-out, ease);
+}
+
+.fl-item-enter-active {
+  transition: opacity 0.22s var(--ease-out, ease), transform 0.22s var(--ease-out, ease);
+}
+
+.fl-item-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fl-item-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.fl-item-leave-to {
+  opacity: 0;
+}
+
 .follow-list-modal {
   width: 420px;
   max-width: 90vw;

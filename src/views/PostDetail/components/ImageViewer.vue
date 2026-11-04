@@ -636,6 +636,28 @@ onUnmounted(() => {
   transition: none;
 }
 
+/* 翻页淡入（2026-11-04 硬切审计 P1-3）：img 换 key 重挂时播放；
+   形变开/关期间让位给 WAAPI，不叠动画 */
+.detail-image-viewer:not(.is-morph-in):not(.is-morph-out) .detail-image-viewer-img {
+  animation: detail-viewer-img-in 0.24s var(--ease-out, ease) both;
+}
+
+@keyframes detail-viewer-img-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-image-viewer:not(.is-morph-in):not(.is-morph-out) .detail-image-viewer-img {
+    animation: none;
+  }
+}
+
 @media (max-width: 768px) {
   .detail-image-viewer {
     padding: 12px;

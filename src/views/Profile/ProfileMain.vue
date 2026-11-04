@@ -135,7 +135,8 @@
       <p>请尝试搜索其他内容。</p>
     </div>
 
-    <div v-else class="profile-home-shell">
+    <!-- 2026-11-04 硬切审计：整页骨架⇄内容补内容侧淡入 -->
+    <div v-else class="profile-home-shell content-swap-in-fade">
       <section class="profile-hero-panel">
         <div
           class="profile-cover-band"
@@ -677,7 +678,8 @@
               去方块社区看看
             </button>
           </div>
-          <div v-else class="profile-post-grid">
+          <!-- 2026-11-04 硬切审计：骨架⇄帖子网格补内容侧淡入 -->
+          <div v-else class="profile-post-grid content-swap-in">
             <template v-for="(item, index) in profileWorkItems" :key="item.key">
               <article
                 v-if="item.kind === 'note'"
@@ -697,6 +699,8 @@
                     :alt="noteDisplayTitle(item.card)"
                     loading="lazy"
                     decoding="async"
+                    :class="{ 'is-loading': !isImageLoaded(`pn-${item.key}`) }"
+                    @load="markImageLoaded(`pn-${item.key}`)"
                   />
                 </div>
                 <div v-else class="profile-note-text-cover" aria-hidden="true">
@@ -819,7 +823,8 @@
               去方块社区互动
             </button>
           </div>
-          <div v-else class="replies-list">
+          <!-- 2026-11-04 硬切审计：骨架⇄回复列表补内容侧淡入 -->
+          <div v-else class="replies-list content-swap-in">
             <article v-for="comment in comments" :key="comment.id" class="feed-item reply-item">
               <div class="item-avatar">
                 <div class="avatar-mini">
@@ -1015,6 +1020,10 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, reactive, watch, nextTick } from 'vue';
+import { useImageLoaded } from '@/composables/useImageLoaded.js';
+
+/* 笔记封面淡入记账（2026-11-04 硬切审计 P0-4，机制单源 useImageLoaded） */
+const { isImageLoaded, markImageLoaded } = useImageLoaded();
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { logoutAndReload } from '@/utils/logout-and-reload.js';

@@ -2610,7 +2610,7 @@ const handleChangeCommentSortMode = async (mode) => {
 
         <div
           v-else-if="modalMode"
-          class="pd-modal-body"
+          class="pd-modal-body content-swap-in-fade"
           :class="{ 'pd-modal-body--has-media': hasMedia }"
         >
           <div v-if="hasMedia" class="pd-modal-media">
@@ -2971,7 +2971,7 @@ const handleChangeCommentSortMode = async (mode) => {
           </div>
         </div>
 
-        <div v-else class="post-x-layout">
+        <div v-else class="post-x-layout content-swap-in-fade">
           <div class="x-main-column">
             <article
               class="x-post-card glass-panel"

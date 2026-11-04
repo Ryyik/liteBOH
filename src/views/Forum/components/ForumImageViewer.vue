@@ -792,6 +792,28 @@ onUnmounted(() => {
   transition: none;
 }
 
+/* 翻页淡入（2026-11-04 硬切审计 P1-3）：img 换 key 重挂时播放；
+   形变开/关期间让位给 WAAPI，不叠动画 */
+.forum-image-viewer:not(.is-morph-in):not(.is-morph-out) .forum-image-viewer-img {
+  animation: forum-viewer-img-in 0.24s var(--ease-out, ease) both;
+}
+
+@keyframes forum-viewer-img-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forum-image-viewer:not(.is-morph-in):not(.is-morph-out) .forum-image-viewer-img {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .forum-image-viewer-fade-enter-active .forum-image-viewer-stage,
   .forum-image-viewer-fade-leave-active .forum-image-viewer-stage {

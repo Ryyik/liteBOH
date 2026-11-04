@@ -3916,16 +3916,20 @@ const {
     </div>
 
     <Teleport to="body">
-      <button
-        v-if="isForumComposerFabVisible"
-        type="button"
-        class="mobile-compose-fab"
-        :class="{ 'embedded-compose-fab': embedded }"
-        aria-label="发布帖子"
-        @click="openMobileComposer"
-      >
-        <span>+</span>
-      </button>
+      <!-- 2026-11-04 硬切审计 P0-5：FAB 随滚动生灭原先瞬跳，补缩放+淡入淡出
+           （类真源 compose-fab.css 的 .compose-fab-pop-*） -->
+      <Transition name="compose-fab-pop">
+        <button
+          v-if="isForumComposerFabVisible"
+          type="button"
+          class="mobile-compose-fab"
+          :class="{ 'embedded-compose-fab': embedded }"
+          aria-label="发布帖子"
+          @click="openMobileComposer"
+        >
+          <span>+</span>
+        </button>
+      </Transition>
     </Teleport>
 
     <Teleport to="body">
@@ -4162,11 +4166,14 @@ const {
     />
 
     <Teleport to="body">
-      <div
-        v-if="quoteRepostState.show"
-        class="forum-confirm-overlay"
-        @click.self="closeQuoteRepost"
-      >
+      <!-- 2026-11-04 硬切审计 P0-5：同文件 4119 行的删除确认框有 forum-confirm-fade，
+           这个同类弹窗此前漏包（进出场双硬切），补齐同一套过渡 -->
+      <Transition name="forum-confirm-fade">
+        <div
+          v-if="quoteRepostState.show"
+          class="forum-confirm-overlay"
+          @click.self="closeQuoteRepost"
+        >
         <section class="forum-confirm-modal" role="dialog" aria-modal="true" aria-label="引用转发">
           <h3>引用转发</h3>
           <p class="quote-repost-source">
@@ -4193,6 +4200,7 @@ const {
           </div>
         </section>
       </div>
+      </Transition>
     </Teleport>
   </div>
 </template>

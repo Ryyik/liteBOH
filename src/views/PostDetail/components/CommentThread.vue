@@ -285,7 +285,14 @@ const onReplyInput = (event) => {
         </div>
       </div>
 
-      <div v-else-if="comments.length > 0" class="comments-list custom-scrollbar">
+      <!-- 2026-11-04 硬切审计 P0-3/P0-6：TransitionGroup 让新评论入场淡入、
+           删除/刷新时其余条目 FLIP 补位；骨架⇄列表的内容侧另有 content-swap-in-fade -->
+      <TransitionGroup
+        v-else-if="comments.length > 0"
+        tag="div"
+        name="cr-fade"
+        class="comments-list custom-scrollbar content-swap-in-fade"
+      >
         <div
           v-for="reply in comments"
           :key="reply.id"
@@ -409,13 +416,15 @@ const onReplyInput = (event) => {
                 </div>
               </div>
 
-              <div
-                v-for="child in visibleChildRepliesMap[reply.id]"
-                :key="child.id"
-                :id="`comment-${child.id}`"
-                class="child-reply-item"
-                :class="{ 'is-highlighted': highlightedCommentId === String(child.id) }"
-              >
+              <!-- 2026-11-04 硬切审计 P0-6：子回复展开/追加原先瞬现，TransitionGroup 补 enter/move -->
+              <TransitionGroup name="cr-fade">
+                <div
+                  v-for="child in visibleChildRepliesMap[reply.id]"
+                  :key="child.id"
+                  :id="`comment-${child.id}`"
+                  class="child-reply-item"
+                  :class="{ 'is-highlighted': highlightedCommentId === String(child.id) }"
+                >
                 <div class="ci-avatar-col">
                   <div
                     class="mini-avatar small"
@@ -510,7 +519,8 @@ const onReplyInput = (event) => {
                     </div>
                   </div>
                 </div>
-              </div>
+                </div>
+                </TransitionGroup>
 
               <button
                 v-if="showExpandChildMap[reply.id]"
@@ -535,7 +545,7 @@ const onReplyInput = (event) => {
           </div>
         </div>
 
-        <div v-if="hasMore" class="top-load-more-wrap">
+        <div v-if="hasMore" key="load-more" class="top-load-more-wrap">
           <button
             class="load-more-comments-btn"
             :disabled="isLoading"
@@ -547,12 +557,13 @@ const onReplyInput = (event) => {
 
         <div
           v-if="!hasMore && comments.length > 0 && !isLoading"
+          key="end-mark"
           class="comments-end-mark"
           aria-hidden="true"
         >
           - 到底啦 -
         </div>
-      </div>
+      </TransitionGroup>
 
       <div v-else class="no-comments-state">
         <HomeCatMascot v-if="isHomeCatActive" type="decorAlt" size="md" decorative />
@@ -564,6 +575,20 @@ const onReplyInput = (event) => {
 </template>
 
 <style scoped>
+/* 子回复 enter/move（2026-11-04 硬切审计 P0-6）：展开/追加/收起不再瞬现瞬失。
+   时长口径对齐全站 240ms；reduced-motion 由布局层的令牌归零兜不到这里，就地声明。 */
+.cr-fade-enter-active,
+.cr-fade-leave-active,
+.cr-fade-move {
+  transition: opacity 0.24s var(--ease-out, ease), transform 0.24s var(--ease-out, ease);
+}
+
+.cr-fade-enter-from,
+.cr-fade-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
 /* 重复类名提特异性，稳压全局 .glass-panel（顺序无关，免 !important） */
 .x-side-content.x-side-content {
   height: 100%;
