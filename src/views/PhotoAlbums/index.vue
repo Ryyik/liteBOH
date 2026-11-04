@@ -94,7 +94,7 @@
       </section>
 
       <!-- 2026-11-04 硬切审计：骨架⇄影集网格补内容侧淡入；增删位移动画见下方 TransitionGroup -->
-      <TransitionGroup tag="section" name="pa-grid-anim" class="pa-grid content-swap-in">
+      <TransitionGroup v-else tag="section" name="pa-grid-anim" class="pa-grid content-swap-in">
         <article v-for="album in albums" :key="album.id" class="pa-card">
           <RouterLink
             :to="`/studio/albums/${album.id}`"
