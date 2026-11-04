@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>周边商城 · 下一步（可交互原型）</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     周边商城「下一步」原型 demo
+     变量与真实仓库 src/views/Shop/store-tokens.css 同值（浅/暗两档），
+     改动这里的色值等于改原型与线上的一致性，别随手调。
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --app-bg: #eef1f6;
+    --app-card: #ffffff;
+    --app-ink: #1f2430;
+    --app-ink2: #5a6377;
+    --app-ink3: #8a92a6;
+    --app-line: rgba(31, 41, 66, 0.1);
+    --app-blue: #1459d9;
+    --app-blue-soft: #eef4ff;
+    --app-amber: #b45309;
+    --app-amber-soft: rgba(180, 83, 9, 0.09);
+    --app-red: #b3261e;
+    --app-red-soft: rgba(179, 38, 30, 0.08);
+    --app-green: #0f8a6a;
+    --app-green-soft: rgba(15, 138, 106, 0.09);
+    --app-violet: #7c3aed;
+    --app-violet-soft: rgba(124, 58, 237, 0.08);
+  }
+
+  html[data-theme='dark'] {
+    --app-bg: #101114;
+    --app-card: #1b1c20;
+    --app-ink: #f2f3f5;
+    --app-ink2: #a9aeb9;
+    --app-ink3: #7c818d;
+    --app-line: rgba(255, 255, 255, 0.12);
+    --app-blue: #6fa8ff;
+    --app-blue-soft: rgba(111, 168, 255, 0.12);
+    --app-amber: #f0b350;
+    --app-amber-soft: rgba(240, 179, 80, 0.13);
+    --app-red: #ff7b72;
+    --app-red-soft: rgba(255, 123, 114, 0.13);
+    --app-green: #5dd3ab;
+    --app-green-soft: rgba(93, 211, 171, 0.13);
+    --app-violet: #b79bff;
+    --app-violet-soft: rgba(183, 155, 255, 0.13);
+  }
+
+  /* 商城自身的 token（对应 store-tokens.css） */
+  .device {
+    --boh-bg-primary: #ffffff;
+    --boh-bg-secondary: #f5f5f7;
+    --boh-text-primary: #1d1d1f;
+    --boh-text-secondary: #86868b;
+    --boh-text-tertiary: #a1a1a6;
+    --boh-border-primary: rgba(0, 0, 0, 0.08);
+    --boh-divider: rgba(0, 0, 0, 0.06);
+    --boh-brand-blue: #0071e3;
+    --boh-brand-blue-soft: rgba(0, 113, 227, 0.08);
+    --boh-danger: #d70015;
+    --boh-danger-soft: rgba(215, 0, 21, 0.08);
+    --boh-warn: #8a5a00;
+    --boh-warn-soft: rgba(138, 90, 0, 0.09);
+  }
+  [data-theme='dark'] .device {
+    --boh-bg-primary: #1c1c1e;
+    --boh-bg-secondary: #0c0c0e;
+    --boh-text-primary: #f5f5f7;
+    --boh-text-secondary: #98989f;
+    --boh-text-tertiary: #6e6e73;
+    --boh-border-primary: rgba(255, 255, 255, 0.12);
+    --boh-divider: rgba(255, 255, 255, 0.08);
+    --boh-brand-blue: #0a84ff;
+    --boh-brand-blue-soft: rgba(10, 132, 255, 0.16);
+    --boh-danger: #ff6961;
+    --boh-danger-soft: rgba(255, 105, 97, 0.14);
+    --boh-warn: #f0b350;
+    --boh-warn-soft: rgba(240, 179, 80, 0.14);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 26px 20px 60px;
+    background:
+      radial-gradient(900px 420px at 12% -6%, rgba(20, 89, 217, 0.09), transparent 62%),
+      radial-gradient(760px 380px at 88% 4%, rgba(124, 58, 237, 0.08), transparent 60%),
+      radial-gradient(800px 420px at 50% 108%, rgba(15, 138, 106, 0.07), transparent 62%),
+      var(--app-bg);
+    color: var(--app-ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app { max-width: 1040px; margin: 0 auto; }
+
+  /* ── 顶栏 ── */
+  .topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 14px 24px;
+    padding: 20px 22px;
+    border: 1px solid var(--app-line);
+    border-radius: 18px;
+    background: var(--app-card);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -18px rgba(16, 24, 40, 0.36);
+  }
+  .tb-title h1 { margin: 0 0 4px; font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+  .tb-title p { margin: 0; color: var(--app-ink3); font-size: 12px; }
+  .tb-ctrls { display: flex; flex-wrap: wrap; gap: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 7px; }
+  .ctrl-l { color: var(--app-ink3); font-size: 11px; }
+
+  .seg {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid var(--app-line);
+    border-radius: 999px;
+    background: var(--app-bg);
+  }
+  .seg-item {
+    padding: 4px 12px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--app-ink2);
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  }
+  .seg-item:hover { color: var(--app-ink); }
+  .seg-item.is-on {
+    background: var(--app-card);
+    color: var(--app-ink);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.14);
+  }
+  .seg-sm .seg-item { padding: 3px 10px; font-size: 11.5px; }
+
+  /* ── 面板 tab ── */
+  .tabs { display: flex; gap: 8px; margin: 16px 0 14px; }
+  .tab {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 10px 14px;
+    border: 1px solid var(--app-line);
+    border-radius: 12px;
+    background: var(--app-card);
+    color: var(--app-ink2);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  }
+  .tab span { color: var(--app-ink3); font-size: 11px; font-weight: 400; }
+  .tab:hover { transform: translateY(-1px); }
+  .tab.is-on { border-color: var(--app-blue); background: var(--app-blue-soft); color: var(--app-blue); }
+  .tab.is-on span { color: var(--app-blue); opacity: 0.72; }
+
+  /* ── 面板容器 ── */
+  .panel { animation: rise 220ms cubic-bezier(0.23, 1, 0.32, 1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .p-row { display: grid; grid-template-columns: minmax(0, 1fr) 316px; gap: 16px; align-items: start; }
+  @media (max-width: 880px) { .p-row { grid-template-columns: minmax(0, 1fr); } }
+
+  .vp-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .vp-hint { color: var(--app-ink3); font-size: 11.5px; }
+
+  /* ── 视口（container 查询挂在这里，不许挂 .device 自己） ── */
+  .vp { container-type: inline-size; width: 390px; max-width: 100%; margin: 0 auto; }
+  .vp.is-desk { width: 100%; margin: 0; }
+
+  .device {
+    padding: 14px;
+    border: 1px solid var(--boh-border-primary);
+    border-radius: 22px;
+    background: var(--boh-bg-primary);
+    color: var(--boh-text-primary);
+    box-shadow: 0 18px 48px -26px rgba(16, 24, 40, 0.5);
+  }
+  .vp.is-desk .device { border-radius: 16px; padding: 18px 20px 22px; }
+
+  .d-status {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    color: var(--boh-text-tertiary);
+    font-size: 10.5px;
+    letter-spacing: 0.2px;
+  }
+  .d-head h2 { margin: 0 0 8px; font-size: 17px; font-weight: 700; }
+  .d-search {
+    padding: 7px 11px;
+    border-radius: 9px;
+    background: var(--boh-bg-secondary);
+    color: var(--boh-text-tertiary);
+    font-size: 12px;
+  }
+  .d-tabs {
+    display: flex;
+    gap: 16px;
+    margin: 12px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--boh-divider);
+    color: var(--boh-text-secondary);
+    font-size: 12.5px;
+  }
+  .d-tabs .is-on { color: var(--boh-text-primary); font-weight: 700; }
+
+  /* ── 商品网格：列数是这个 demo 的第三个论点 ── */
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  @container (min-width: 640px) {
+    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .grid.is-fix { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .d-search { max-width: 320px; }
+  }
+  @container (min-width: 1180px) {
+    .grid.is-fix { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  }
+
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--boh-border-primary);
+    border-radius: 14px;
+    background: var(--boh-bg-primary);
+    text-align: left;
+  }
+  .thumb {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    background: var(--boh-bg-secondary);
+  }
+  .thumb::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.92), transparent 58%);
+  }
+  .meta { display: flex; flex-direction: column; gap: 3px; padding: 9px 11px 11px; }
+  .name {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.35;
+    /* 两行截断：卡片高度一致，价格行才对得齐 */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .price { margin: 0; color: var(--boh-text-secondary); font-size: 12px; }
+  .price b { font-size: 12px; font-weight: 500; }
+  .price em { margin-left: 3px; font-style: normal; font-size: 11.5px; }
+  .sub { margin: 0; color: var(--boh-text-tertiary); font-size: 11px; }
+
+  /* 建议态：价格成为卡片上最重的元素 */
+  .grid.is-fix .price {
+    margin-top: 1px;
+    color: var(--boh-brand-blue);
+    font-size: 12px;
+    line-height: 1.25;
+  }
+  .grid.is-fix .price b { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  .grid.is-fix .price em { font-size: 12px; font-weight: 600; }
+
+  /* 售罄：现状无差异，建议灰化 + 角标 + 不可点 */
+  .grid.is-fix .card[data-sold='1'] .thumb { filter: grayscale(1); opacity: 0.42; }
+  .grid.is-fix .card[data-sold='1'] .name { color: var(--boh-text-secondary); }
+  .grid.is-fix .card[data-sold='1'] .price { color: var(--boh-text-tertiary); }
+  .grid.is-fix .card[data-sold='1'] .price b { font-size: 12px; font-weight: 500; }
+  .badge {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    z-index: 2;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(29, 29, 31, 0.72);
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 600;
+    backdrop-filter: blur(4px);
+  }
+  .badge-stock {
+    background: var(--boh-warn-soft);
+    color: var(--boh-warn);
+    backdrop-filter: none;
+  }
+
+  /* ── 标注圆标 ── */
+  .anno {
+    position: absolute;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--app-violet);
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 700;
+    font-style: normal;
+    cursor: help;
+    box-shadow: 0 2px 6px rgba(124, 58, 237, 0.36);
+  }
+  .anno-1 { right: 8px; top: 8px; }
+  .anno-2 { right: 8px; bottom: 8px; }
+  .anno-3 { right: 6px; top: 6px; }
+  .anno-4 { right: 6px; bottom: 6px; }
+
+  /* ── 右侧说明栏 ── */
+  .legend {
+    padding: 16px 18px;
+    border: 1px solid var(--app-line);
+    border-radius: 16px;
+    background: var(--app-card);
+  }
+  .legend h3 { margin: 0 0 10px; font-size: 13px; font-weight: 700; }
+  .legend ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .legend li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; }
+  .lg-n {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    border-radius: 50%;
+    background: var(--app-violet-soft);
+    color: var(--app-violet);
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+  .lg-t { display: block; font-size: 12px; font-weight: 600; }
+  .lg-d { display: block; color: var(--app-ink2); font-size: 11.5px; line-height: 1.55; }
+  .lg-d code {
+    padding: 0 3px;
+    border-radius: 3px;
+    background: var(--app-bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+  }
+  .legend-foot {
+    margin: 12px 0 0;
+    padding-top: 10px;
+    border-top: 1px dashed var(--app-line);
+    color: var(--app-ink3);
+    font-size: 11px;
+  }
+
+  /* ── 购物袋 ── */
+  .bag { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px;
+    border: 1px solid var(--boh-border-primary);
+    border-radius: 12px;
+    background: var(--boh-bg-primary);
+    transition: border-color 160ms ease, background 160ms ease, opacity 160ms ease;
+  }
+  .row .thumb { aspect-ratio: 1 / 1; border-radius: 8px; }
+  .row-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .row-name { margin: 0; font-size: 12.5px; font-weight: 600; }
+  .row-spec { margin: 0; color: var(--boh-text-tertiary); font-size: 11px; }
+  .row-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 2px; }
+  .row-price { margin: 0; font-size: 12px; color: var(--boh-text-primary); font-weight: 600; }
+  .row-price small { color: var(--boh-text-tertiary); font-weight: 400; }
+  .row-qty { color: var(--boh-text-secondary); font-size: 11.5px; }
+
+  /* 推荐态：失效行整行降级 + 标签 */
+  .bag.is-fix .row[data-valid='0'] { background: var(--boh-bg-secondary); border-style: dashed; }
+  .bag.is-fix .row[data-valid='0'] .thumb { filter: grayscale(1); opacity: 0.4; }
+  .bag.is-fix .row[data-valid='0'] .row-name { color: var(--boh-text-secondary); }
+  .bag.is-fix .row[data-valid='0'] .row-price { color: var(--boh-text-tertiary); text-decoration: line-through; }
+
+  .row-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    margin-top: 2px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+  .row-tag.is-danger { background: var(--boh-danger-soft); color: var(--boh-danger); }
+  .row-tag.is-warn { background: var(--boh-warn-soft); color: var(--boh-warn); }
+
+  .row-x {
+    position: absolute;
+    right: 6px;
+    top: 6px;
+    width: 20px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--boh-bg-secondary);
+    color: var(--boh-text-secondary);
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .row-x:hover { color: var(--boh-danger); }
+
+  .bag-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+  .btn-mini {
+    padding: 5px 12px;
+    border: 1px solid var(--boh-border-primary);
+    border-radius: 999px;
+    background: var(--boh-bg-primary);
+    color: var(--boh-text-primary);
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 160ms ease, border-color 160ms ease;
+  }
+  .btn-mini:hover { transform: translateY(-1px); border-color: var(--boh-brand-blue); }
+  .btn-mini.is-accent { border-color: transparent; background: var(--boh-brand-blue); color: #fff; }
+  .btn-mini[disabled] { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+  .bag-foot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 12px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--boh-divider);
+  }
+  .bag-sum { color: var(--boh-text-secondary); font-size: 11.5px; }
+  .bag-sum strong { display: block; color: var(--boh-text-primary); font-size: 15px; font-weight: 700; }
+  .bag-sum em { font-style: normal; color: var(--boh-text-tertiary); font-size: 11px; }
+  .cta {
+    padding: 9px 20px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--boh-brand-blue);
+    color: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 160ms ease, opacity 160ms ease;
+  }
+  .cta:hover { filter: brightness(1.08); }
+  .cta[disabled] { background: var(--boh-bg-secondary); color: var(--boh-text-tertiary); cursor: not-allowed; }
+  .cta-why {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--boh-danger);
+    font-size: 11px;
+  }
+
+  /* ── 决策面板 ── */
+  .decide { display: grid; grid-template-columns: minmax(0, 1fr) 392px; gap: 16px; align-items: start; }
+  @media (max-width: 980px) { .decide { grid-template-columns: minmax(0, 1fr); } }
+
+  .dgroups { display: flex; flex-direction: column; gap: 12px; }
+  .dgroup {
+    padding: 14px 16px;
+    border: 1px solid var(--app-line);
+    border-radius: 14px;
+    background: var(--app-card);
+  }
+  .dg-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .dg-head h3 { margin: 0; font-size: 13px; font-weight: 700; }
+  .dg-q { margin: 0 0 9px; color: var(--app-ink3); font-size: 11.5px; }
+  .dg-flag {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--app-violet-soft);
+    color: var(--app-violet);
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+  .dgroup .seg { flex-wrap: wrap; border-radius: 12px; }
+  .dgroup .seg-item { border-radius: 9px; }
+  .dg-note {
+    margin: 10px 0 0;
+    padding: 9px 11px;
+    border-radius: 10px;
+    background: var(--app-bg);
+    color: var(--app-ink2);
+    font-size: 11.5px;
+    line-height: 1.6;
+  }
+  .dg-note b { color: var(--app-ink); }
+  .dg-note code {
+    padding: 0 3px;
+    border-radius: 3px;
+    background: var(--app-card);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10.5px;
+  }
+
+  .preview { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 16px; }
+  @media (max-width: 980px) { .preview { position: static; } }
+  .pv-card {
+    padding: 14px 16px;
+    border: 1px solid var(--app-line);
+    border-radius: 14px;
+    background: var(--app-card);
+  }
+  .pv-card h4 {
+    margin: 0 0 10px;
+    color: var(--app-ink3);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .amt { display: flex; flex-direction: column; gap: 6px; }
+  .amt-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12px; }
+  .amt-row span { color: var(--app-ink2); }
+  .amt-row b { font-weight: 600; }
+  .amt-row.is-total {
+    margin-top: 2px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--app-line);
+    font-size: 13px;
+  }
+  .amt-row.is-total b { color: var(--app-blue); font-size: 16px; font-weight: 700; }
+  .amt-extra {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    margin: 9px 0 0;
+    padding: 8px 10px;
+    border-radius: 9px;
+    background: var(--app-blue-soft);
+    color: var(--app-blue);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .pv-title { margin: 0 0 3px; font-size: 14px; font-weight: 700; }
+  .pv-sub { margin: 0 0 9px; color: var(--app-ink2); font-size: 11.5px; line-height: 1.55; }
+  .pv-btns { display: flex; gap: 7px; }
+  .pv-btn {
+    padding: 6px 13px;
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+    background: var(--app-card);
+    color: var(--app-ink);
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+  .pv-btn.is-primary { border-color: transparent; background: var(--app-ink); color: var(--app-card); }
+  .pv-chip {
+    display: inline-block;
+    margin-bottom: 8px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--app-amber-soft);
+    color: var(--app-amber);
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+  .pv-chip.is-ok { background: var(--app-green-soft); color: var(--app-green); }
+  .pv-chip.is-none { display: none; }
+
+  .foot-note {
+    margin: 18px 0 0;
+    color: var(--app-ink3);
+    font-size: 11.5px;
+    line-height: 1.7;
+  }
+  .foot-note b { color: var(--app-ink2); }
+
+  /* 必须放最后：class 里的 display 不能盖掉 hidden */
+  [hidden] { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::after, *::before { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app" data-theme="light">
+
+  <header class="topbar">
+    <div class="tb-title">
+      <h1>周边商城 · 下一步</h1>
+      <p>P1 视觉与转化、购物袋失效清理、三个待拍板的口径 —— 点着看后果，不用读文档</p>
+    </div>
+    <div class="tb-ctrls">
+      <div class="ctrl">
+        <span class="ctrl-l">设备</span>
+        <div class="seg" id="seg-device">
+          <button type="button" class="seg-item is-on" data-device="phone">手机</button>
+          <button type="button" class="seg-item" data-device="desk">桌面</button>
+        </div>
+      </div>
+      <div class="ctrl">
+        <span class="ctrl-l">主题</span>
+        <div class="seg" id="seg-theme">
+          <button type="button" class="seg-item is-on" data-theme="light">浅色</button>
+          <button type="button" class="seg-item" data-theme="dark">深色</button>
+        </div>
+      </div>
+      <div class="ctrl">
+        <span class="ctrl-l">标注</span>
+        <div class="seg" id="seg-anno">
+          <button type="button" class="seg-item is-on" data-anno="on">开</button>
+          <button type="button" class="seg-item" data-anno="off">关</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button type="button" class="tab is-on" data-tab="list">① 商品列表<span>价格 / 售罄 / 列宽</span></button>
+    <button type="button" class="tab" data-tab="bag">② 购物袋<span>失效清理 / 实时价</span></button>
+    <button type="button" class="tab" data-tab="decide">③ 待拍板<span>运费 / 备注 / 收款</span></button>
+  </nav>
+
+  <main class="stage">
+
+    <!-- ══════════ ① 商品列表 ══════════ -->
+    <section class="panel" data-panel="list">
+      <div class="p-row">
+        <div>
+          <div class="vp-head">
+            <div class="seg seg-sm" id="seg-mode">
+              <button type="button" class="seg-item is-on" data-mode="now">现状</button>
+              <button type="button" class="seg-item" data-mode="fix">建议</button>
+            </div>
+            <span class="vp-hint" id="mode-hint"></span>
+          </div>
+
+          <div class="vp is-phone" id="vp">
+            <div class="device">
+              <div class="d-status"><span>9:41</span><span>方块之家</span></div>
+              <div class="d-head">
+                <h2>周边商城</h2>
+                <div class="d-search">搜索周边</div>
+              </div>
+              <div class="d-tabs"><span class="is-on">商品</span><span>抽奖</span><span>购物袋</span><span>订单</span></div>
+              <div class="grid" id="grid"></div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="legend" id="legend">
+          <h3>这三处为什么拖低转化</h3>
+          <ol>
+            <li>
+              <span class="lg-n">1</span>
+              <span>
+                <span class="lg-t">价格是注脚，不是主视觉</span>
+                <span class="lg-d">现在 <code>.p-price</code> 是 12px + <code>--boh-text-secondary</code>，和商品名同权重。主流电商价格是卡片上最重的元素：17~19px、700、品牌色 —— 用户扫列表就是在扫价格。</span>
+              </span>
+            </li>
+            <li>
+              <span class="lg-n">2</span>
+              <span>
+                <span class="lg-t">售罄卡和可买卡一模一样的</span>
+                <span class="lg-d">只有点进详情才看到「暂时缺货」。列表页就该灰化图片 + 角标 + 不可点，省掉用户那一次白点。</span>
+              </span>
+            </li>
+            <li>
+              <span class="lg-n">3</span>
+              <span>
+                <span class="lg-t">桌面只有一档三列</span>
+                <span class="lg-d">全站只有 <code>(min-width:1024px)</code> 一档，1440 实测卡片 373px 宽、一屏两行。切到「桌面」看建议态：4~5 列 + 内容限宽才像电商。</span>
+              </span>
+            </li>
+          </ol>
+          <p class="legend-foot">建议态的价格字号/颜色走的是品牌色与 17px，不是新造一套视觉 —— 和确认订单页的金额区同一口径。</p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ══════════ ② 购物袋 ══════════ -->
+    <section class="panel" data-panel="bag" hidden>
+      <div class="p-row">
+        <div>
+          <div class="vp-head">
+            <div class="seg seg-sm" id="seg-bag">
+              <button type="button" class="seg-item is-on" data-bag="old">现在的行为</button>
+              <button type="button" class="seg-item" data-bag="new">推荐行为</button>
+            </div>
+            <span class="vp-hint" id="bag-hint"></span>
+          </div>
+
+          <div class="vp is-phone">
+            <div class="device">
+              <div class="d-status"><span>9:41</span><span>方块之家</span></div>
+              <div class="d-head"><h2>购物袋</h2></div>
+              <ul class="bag" id="bag"></ul>
+              <div class="bag-tools" id="bag-tools"></div>
+              <div class="bag-foot">
+                <div class="bag-sum">
+                  合计
+                  <strong id="bag-total">—</strong>
+                  <em id="bag-sub"></em>
+                </div>
+                <button type="button" class="cta" id="bag-cta">去结算</button>
+                <p class="cta-why" id="bag-why" hidden></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="legend" id="legend-bag">
+          <h3>袋子里有两个陈年问题</h3>
+          <ol>
+            <li>
+              <span class="lg-n">1</span>
+              <span>
+                <span class="lg-t">价格是加购那一刻的快照</span>
+                <span class="lg-d">袋里的 <code>points_cost / rmb_price</code> 存在浏览器里，进袋和进结算都不刷新；服务端下单按 <code>products</code> 表重算 ⇒ 显示 ¥11.90、实扣可能 ¥13.90。确认页我已经改成实时价，但袋子本身还写着旧价。</span>
+              </span>
+            </li>
+            <li>
+              <span class="lg-n">2</span>
+              <span>
+                <span class="lg-t">下架/售罄商品一直躺着</span>
+                <span class="lg-d">加载时只做格式归一化，不和商品表对账。用户看到「共 4 件」，到结算页才被一句「有商品已下架」拦住，还得自己回去猜是哪件。</span>
+              </span>
+            </li>
+          </ol>
+          <p class="legend-foot">点「推荐行为」看就地标注；再点「移除失效」看数量与合计怎么跟着变。</p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ══════════ ③ 决定 ══════════ -->
+    <section class="panel" data-panel="decide" hidden>
+      <div class="decide">
+        <div class="dgroups" id="dgroups"></div>
+        <div class="preview">
+          <div class="pv-card">
+            <h4>确认订单页 · 金额区</h4>
+            <div class="amt" id="pv-amount"></div>
+          </div>
+          <div class="pv-card">
+            <h4>提交后 · 结果页</h4>
+            <div id="pv-result"></div>
+          </div>
+        </div>
+      </div>
+      <p class="foot-note">
+        三个开关都会改变<b>确认页金额区</b>与<b>结果页文案</b>，这就是它们必须一起定的原因：<b>运费</b>决定金额能不能在页面上算准，<b>收款</b>决定结果页敢不敢说「支付成功」。
+      </p>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── 数据：只用于演示，不代表线上真实商品 ── */
+  var ART = [
+    'radial-gradient(circle at 32% 26%, rgba(255,255,255,.9), transparent 56%), linear-gradient(135deg,#dfe7ff,#a9bcfa 56%,#7f9bf2)',
+    'radial-gradient(circle at 32% 26%, rgba(255,255,255,.9), transparent 56%), linear-gradient(135deg,#ffe6d9,#ffc2a0 56%,#ef9d74)',
+    'radial-gradient(circle at 32% 26%, rgba(255,255,255,.9), transparent 56%), linear-gradient(135deg,#e4f6ec,#b9e6c9 56%,#86cda6)',
+    'radial-gradient(circle at 32% 26%, rgba(255,255,255,.9), transparent 56%), linear-gradient(135deg,#f3e6ff,#d6b9f6 56%,#b291e6)',
+    'radial-gradient(circle at 32% 26%, rgba(255,255,255,.9), transparent 56%), linear-gradient(135deg,#e8eef7,#c3cfdf 56%,#9aa9c0)'
+  ];
+
+  var PRODUCTS = [
+    { id: 1, name: '亚克力立牌 · 初代', points: 128, cents: 990, stock: 12, art: 0, sub: '官方周边 · 现货' },
+    { id: 2, name: '限定帆布袋', points: 0, cents: 3900, stock: 5, art: 1, sub: '棉质 · 单肩' },
+    { id: 3, name: '复古钥匙扣', points: 60, cents: 0, stock: 0, art: 2, sub: '金属 · 已售罄' },
+    { id: 4, name: '贴纸套装 12 枚', points: 30, cents: 0, stock: 40, art: 3, sub: '防水 · 现货' },
+    { id: 5, name: 'BOH 帆布挂件', points: 88, cents: 0, stock: 3, art: 4, sub: '仅剩 3 件' }
+  ];
+
+  /* 袋子里的四项：一项正常、一项涨价、一项下架、一项售罄 */
+  var BAG = [
+    { key: 'a', name: '亚克力立牌 · 初代', spec: '初代 / 单个', qty: 1, art: 0, snapP: 55, snapC: 1190, liveP: 55, liveC: 1190, stock: 12, state: 'ok' },
+    { key: 'b', name: '限定徽章', spec: '银底 / 58mm', qty: 2, art: 1, snapP: 40, snapC: 0, liveP: 60, liveC: 0, stock: 8, state: 'price' },
+    { key: 'c', name: '旧版贴纸 · 12 枚', spec: '已停止售卖', qty: 1, art: 3, snapP: 30, snapC: 0, liveP: null, liveC: null, stock: null, state: 'gone' },
+    { key: 'd', name: '限定帆布袋', spec: '米白 / 单肩', qty: 1, art: 2, snapP: 0, snapC: 3900, liveP: 0, liveC: 3900, stock: 0, state: 'sold' }
+  ];
+
+  var state = {
+    device: 'phone',
+    theme: 'light',
+    anno: 'on',
+    tab: 'list',
+    mode: 'now',
+    bag: 'old',
+    decisions: { freight: 'free', remark: 'none', pay: 'offline' }
+  };
+
+  var $ = function (sel, root) { return (root || document).querySelector(sel); };
+  var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
+
+  function money(cents) {
+    return '¥' + (Math.max(0, cents || 0) / 100).toFixed(2);
+  }
+  function priceHtml(points, cents, opts) {
+    var html = '';
+    if (points > 0) html += '<b>' + points + '</b><em> 积分</em>';
+    if (cents > 0) {
+      if (points > 0) html += '<em> + ' + money(cents) + '</em>';
+      else html += '<b>' + money(cents) + '</b>';
+    }
+    if (!html && opts && opts.empty) html = '<b>—</b>';
+    return html;
+  }
+
+  /* ────────────────── ① 商品列表 ────────────────── */
+  function renderGrid() {
+    var grid = $('#grid');
+    grid.classList.toggle('is-fix', state.mode === 'fix');
+    grid.innerHTML = PRODUCTS.map(function (p) {
+      var sold = p.stock <= 0;
+      var badge = '';
+      if (state.mode === 'fix') {
+        if (sold) badge += '<span class="badge">已售罄</span>';
+        else if (p.stock <= 3) badge += '<span class="badge badge-stock">仅剩 ' + p.stock + ' 件</span>';
+      }
+      var annos = '';
+      if (state.anno === 'on') {
+        if (p.id === 1) annos += '<span class="anno anno-1" title="① 价格：12px 灰色 → 17px 700 品牌色">1</span>';
+        if (p.id === 3) annos += '<span class="anno anno-2" title="② 售罄：灰化图片 + 角标 + 不可点">2</span>';
+        if (p.id === 4) annos += '<span class="anno anno-3" title="③ 列宽：桌面 3 列 → 4/5 列">3</span>';
+      }
+      return '' +
+        '<article class="card" data-id="' + p.id + '" data-sold="' + (sold ? 1 : 0) + '">' +
+          '<div class="thumb" style="background:' + ART[p.art] + '">' + badge + '</div>' +
+          '<div class="meta">' +
+            '<p class="name">' + p.name + '</p>' +
+            '<p class="price">' + priceHtml(p.points, p.cents) + '</p>' +
+            (state.mode === 'fix' ? '<p class="sub">' + p.sub + '</p>' : '') +
+          '</div>' +
+          annos +
+        '</article>';
+    }).join('');
+
+    $('#mode-hint').textContent = state.mode === 'now'
+      ? '现状：价格 12px 灰色注脚，售罄和可买完全同款'
+      : '建议：价格 17px 品牌色、售罄灰化加角标、桌面 4~5 列';
+  }
+
+  /* ────────────────── ② 购物袋 ────────────────── */
+  var bagRemoved = {};
+
+  function bagRows() {
+    return BAG.filter(function (item) { return !bagRemoved[item.key]; });
+  }
+  function isInvalid(item) {
+    return item.state === 'gone' || item.state === 'sold';
+  }
+  function tagFor(item) {
+    if (item.state === 'gone') return '<span class="row-tag is-danger">已下架</span>';
+    if (item.state === 'sold') return '<span class="row-tag is-danger">已售罄</span>';
+    if (item.state === 'price') return '<span class="row-tag is-warn">价格已更新</span>';
+    return '';
+  }
+  function linePoints(item) {
+    var p = state.bag === 'new' && item.liveP !== null ? item.liveP : item.snapP;
+    return (p || 0) * item.qty;
+  }
+  function lineCents(item) {
+    var c = state.bag === 'new' && item.liveC !== null ? item.liveC : item.snapC;
+    return (c || 0) * item.qty;
+  }
+
+  function renderBag() {
+    var list = $('#bag');
+    var rows = bagRows();
+    list.classList.toggle('is-fix', state.bag === 'new');
+
+    list.innerHTML = rows.map(function (item) {
+      var valid = !isInvalid(item);
+      var annos = '';
+      if (state.anno === 'on' && state.bag === 'new' && !valid) {
+        annos = '<span class="anno anno-4" title="失效商品就地标注 + 单独移除，不必去结算页才知道">4</span>';
+      }
+      var tag = state.bag === 'new' ? tagFor(item) : '';
+      return '' +
+        '<li class="row" data-key="' + item.key + '" data-valid="' + (valid ? 1 : 0) + '">' +
+          '<div class="thumb" style="background:' + ART[item.art] + '"></div>' +
+          '<div class="row-main">' +
+            '<p class="row-name">' + item.name + '</p>' +
+            '<p class="row-spec">' + item.spec + '</p>' +
+            '<div class="row-line">' +
+              '<p class="row-price">' + priceHtml(
+                state.bag === 'new' && item.liveP !== null ? item.liveP : item.snapP,
+                state.bag === 'new' && item.liveC !== null ? item.liveC : item.snapC
+              ) + ' <small>× ' + item.qty + '</small></p>' +
+            '</div>' +
+            tag +
+          '</div>' +
+          (state.bag === 'new' ? '<button type="button" class="row-x" data-remove="' + item.key + '" aria-label="移除">×</button>' : '') +
+          annos +
+        '</li>';
+    }).join('');
+
+    /* 合计：旧行为全算快照；推荐行为只算可结算行、按实时价 */
+    var counted = state.bag === 'new' ? rows.filter(function (i) { return !isInvalid(i); }) : rows;
+    var pts = counted.reduce(function (sum, i) { return sum + linePoints(i); }, 0);
+    var cts = counted.reduce(function (sum, i) { return sum + lineCents(i); }, 0);
+    $('#bag-total').innerHTML = priceHtml(pts, cts, { empty: true });
+
+    var invalidCount = state.bag === 'new' ? rows.filter(isInvalid).length : 0;
+    $('#bag-sub').textContent = state.bag === 'new'
+      ? (invalidCount ? '共 ' + (rows.length - invalidCount) + ' 件 · 已排除 ' + invalidCount + ' 件失效' : '共 ' + rows.length + ' 件 · 按最新价格计算')
+      : '共 ' + rows.length + ' 件 · 按加购时价格计算';
+
+    /* 工具条 */
+    var tools = $('#bag-tools');
+    if (state.bag === 'new' && invalidCount) {
+      tools.innerHTML = '<button type="button" class="btn-mini is-accent" id="btn-clean">移除 ' + invalidCount + ' 件失效商品</button>';
+    } else if (state.bag === 'new') {
+      tools.innerHTML = '<button type="button" class="btn-mini" id="btn-reset">恢复 4 件（重放）</button>';
+    } else {
+      tools.innerHTML = '';
+    }
+
+    /* CTA */
+    var cta = $('#bag-cta');
+    var why = $('#bag-why');
+    if (state.bag === 'new' && invalidCount) {
+      cta.disabled = true;
+      why.hidden = false;
+      why.textContent = invalidCount + ' 件商品已下架或售罄，移除后才能提交。';
+    } else if (!rows.length) {
+      cta.disabled = true;
+      why.hidden = false;
+      why.textContent = '购物袋是空的。';
+    } else {
+      cta.disabled = false;
+      why.hidden = true;
+      why.textContent = '';
+    }
+
+    $('#bag-hint').textContent = state.bag === 'old'
+      ? '现在：4 件全在，价格按快照，结算按钮照样可点'
+      : '推荐：失效就地标注、合计按实时价、拦住提交并说清原因';
+  }
+
+  /* ────────────────── ③ 决策 ────────────────── */
+  var DECISIONS = [
+    {
+      key: 'freight',
+      title: '运费怎么算',
+      q: '现在一个字都没写，确认页没有运费这一行。',
+      flag: '必须拍板',
+      options: [
+        { id: 'free', label: '全场包邮' },
+        { id: 'threshold', label: '满 ¥99 包邮，否则 ¥8' },
+        { id: 'cod', label: '运费到付' }
+      ],
+      notes: {
+        free: '<b>代价最低</b>：不动表结构、不动服务端，确认页写一句「全场包邮」。但单价 ¥9.9 的小件也要贴 12~15 元邮费，卖得越多亏得越多。',
+        threshold: '<b>要前后端同口径</b>：确认页算一遍、<code>create_shop_order</code> 里必须再算一遍（现在它完全不认运费），还要配凑单提示。两边算法一旦不一致，就会出现「页面 ¥8、实扣 ¥0」。',
+        cod: '<b>金额里不体现，但必须写醒目</b>：确认页要把「到付」做成视觉标记，否则用户默认包邮，投诉会集中在快递员收钱那一刻。'
+      }
+    },
+    {
+      key: 'remark',
+      title: '要不要订单备注',
+      q: '用户想写「要 XXL」「周末送」时，现在只能事后私聊管理员。',
+      flag: '要就得迁一次',
+      options: [
+        { id: 'none', label: '不加' },
+        { id: 'column', label: '加 remark 列 + 输入框（100 字）' },
+        { id: 'profile', label: '借用户资料备注（不推荐）' }
+      ],
+      notes: {
+        none: '<b>0 迁移</b>。代价是所有特殊要求走私下沟通，管理员容易漏；退款/换货时也说不清当初要求过什么。',
+        column: '<b>一次小迁移</b>：<code>shop_points_orders</code> 加一列 + 确认页输入 + 订单详情展示 + 结算邮件带上。风险低，是电商的标准配置。',
+        profile: '<b>看起来 0 成本，实际会写脏数据</b>：这条备注只属于这一单，写进 <code>profiles</code> 后下一单会自动带出来，用户会看到「上次说的话还在」。不推荐。'
+      }
+    },
+    {
+      key: 'pay',
+      title: '现金怎么收',
+      q: '现在现金部分是线下人工收，结果页却说「支付成功」。',
+      flag: '影响结果页敢说什么',
+      options: [
+        { id: 'points', label: '只做积分' },
+        { id: 'offline', label: '现金线下人工（现状）' },
+        { id: 'wechat', label: '接微信支付' }
+      ],
+      notes: {
+        points: '<b>最干净</b>：结果页只谈积分，没有「待付款」这一态。但 <code>rmb_only</code> / <code>combined</code> 的商品得全部改价或下架。',
+        offline: '<b>0 代码，但必须把话说清</b>：结果页写「订单已提交 · 待付 ¥x」，订单状态补一态「待付款」，并交代「管理员 1 个工作日内联系你」。现在的「支付成功」是错的。',
+        wechat: '<b>P2 里最大的一块</b>：下单 → 预支付 → 回调 → 对账四段，还要处理超时关单与退款，前置条件是商户号与备案。做完才能真的在结果页说「支付成功」。'
+      }
+    }
+  ];
+
+  function renderDecisions() {
+    $('#dgroups').innerHTML = DECISIONS.map(function (group) {
+      var current = state.decisions[group.key];
+      return '' +
+        '<section class="dgroup" data-key="' + group.key + '">' +
+          '<div class="dg-head"><h3>' + group.title + '</h3><span class="dg-flag">' + group.flag + '</span></div>' +
+          '<p class="dg-q">' + group.q + '</p>' +
+          '<div class="seg" data-segkey="' + group.key + '">' +
+            group.options.map(function (opt) {
+              return '<button type="button" class="seg-item' + (opt.id === current ? ' is-on' : '') + '" data-val="' + opt.id + '">' + opt.label + '</button>';
+            }).join('') +
+          '</div>' +
+          '<p class="dg-note" data-note="' + group.key + '">' + group.notes[current] + '</p>' +
+        '</section>';
+    }).join('');
+    renderPreview();
+  }
+
+  function freightInfo() {
+    var id = state.decisions.freight;
+    if (id === 'threshold') return { label: money(800) + ' · 满 ¥99 包邮', add: 800, text: '运费 ¥8.00（满 ¥99 包邮）' };
+    if (id === 'cod') return { label: '到付', add: 0, text: '运费 到付（不预收）' };
+    return { label: '包邮', add: 0, text: '运费 包邮' };
+  }
+
+  function renderPreview() {
+    var goodsPoints = 175;
+    var goodsCents = 1190;
+    var freight = freightInfo();
+    var totalCents = goodsCents + freight.add;
+
+    var rows = '' +
+      '<div class="amt-row"><span>商品金额</span><b>' + priceHtml(goodsPoints, goodsCents) + '</b></div>' +
+      '<div class="amt-row"><span>运费</span><b>' + freight.label + '</b></div>' +
+      '<div class="amt-row is-total"><span>应付</span><b>' + priceHtml(goodsPoints, totalCents) + '</b></div>';
+
+    if (state.decisions.remark === 'column') {
+      rows += '<p class="amt-extra"><span>备注</span><span>限 100 字，写进订单的快照，管理员备货时能看到</span></p>';
+    }
+    if (state.decisions.remark === 'profile') {
+      rows += '<p class="amt-extra"><span>备注</span><span>不落订单表 —— 会写进用户资料，下一单自动带出</span></p>';
+    }
+    $('#pv-amount').innerHTML = rows;
+
+    var pay = state.decisions.pay;
+    var html = '';
+    if (pay === 'wechat') {
+      html = '' +
+        '<span class="pv-chip is-ok">已付款</span>' +
+        '<p class="pv-title">支付成功</p>' +
+        '<p class="pv-sub">微信支付已完成，管理员会按订单顺序发货。这是唯一能说「支付成功」的口径。</p>' +
+        '<div class="pv-btns"><button type="button" class="pv-btn is-primary">查看订单</button><button type="button" class="pv-btn">继续逛</button></div>';
+    } else if (pay === 'offline') {
+      html = '' +
+        '<span class="pv-chip">待付款</span>' +
+        '<p class="pv-title">订单已提交 · 待付 ' + money(totalCents) + '</p>' +
+        '<p class="pv-sub">管理员会在 1 个工作日内联系你收款与确认寄送；积分部分已扣除。</p>' +
+        '<div class="pv-btns"><button type="button" class="pv-btn is-primary">查看订单</button><button type="button" class="pv-btn">继续逛</button></div>';
+    } else {
+      html = '' +
+        '<span class="pv-chip is-none">-</span>' +
+        '<p class="pv-title">订单已提交</p>' +
+        '<p class="pv-sub">' + goodsPoints + ' 积分已扣除，等待管理员发货。没有现金环节，就没有「待付款」这一态。</p>' +
+        '<div class="pv-btns"><button type="button" class="pv-btn is-primary">查看订单</button><button type="button" class="pv-btn">继续逛</button></div>';
+    }
+    $('#pv-result').innerHTML = html;
+  }
+
+  /* ────────────────── 交互接线 ────────────────── */
+  function setSeg(container, attr, value) {
+    $$('.seg-item', container).forEach(function (btn) {
+      btn.classList.toggle('is-on', btn.getAttribute(attr) === value);
+    });
+  }
+
+  function switchTab(tab) {
+    state.tab = tab;
+    $$('#tabs .tab').forEach(function (btn) {
+      btn.classList.toggle('is-on', btn.getAttribute('data-tab') === tab);
+    });
+    $$('.panel').forEach(function (panel) {
+      var on = panel.getAttribute('data-panel') === tab;
+      panel.hidden = !on;
+      if (on) {
+        panel.style.animation = 'none';
+        void panel.offsetWidth;
+        panel.style.animation = '';
+      }
+    });
+  }
+
+  $('#seg-device').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-device]');
+    if (!btn) return;
+    state.device = btn.getAttribute('data-device');
+    setSeg($('#seg-device'), 'data-device', state.device);
+    $('#vp').classList.toggle('is-phone', state.device === 'phone');
+    $('#vp').classList.toggle('is-desk', state.device === 'desk');
+  });
+
+  $('#seg-theme').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-theme]');
+    if (!btn) return;
+    state.theme = btn.getAttribute('data-theme');
+    setSeg($('#seg-theme'), 'data-theme', state.theme);
+    $('#app').setAttribute('data-theme', state.theme);
+    document.documentElement.setAttribute('data-theme', state.theme);
+  });
+
+  $('#seg-anno').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-anno]');
+    if (!btn) return;
+    state.anno = btn.getAttribute('data-anno');
+    setSeg($('#seg-anno'), 'data-anno', state.anno);
+    $$('.legend').forEach(function (el) { el.hidden = state.anno !== 'on'; });
+    renderGrid();
+    renderBag();
+  });
+
+  $('#tabs').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-tab]');
+    if (!btn) return;
+    switchTab(btn.getAttribute('data-tab'));
+  });
+
+  $('#seg-mode').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-mode]');
+    if (!btn) return;
+    state.mode = btn.getAttribute('data-mode');
+    setSeg($('#seg-mode'), 'data-mode', state.mode);
+    renderGrid();
+  });
+
+  $('#seg-bag').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-bag]');
+    if (!btn) return;
+    state.bag = btn.getAttribute('data-bag');
+    setSeg($('#seg-bag'), 'data-bag', state.bag);
+    renderBag();
+  });
+
+  $('#bag').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-remove]');
+    if (!btn) return;
+    bagRemoved[btn.getAttribute('data-remove')] = true;
+    renderBag();
+  });
+
+  $('#bag-tools').addEventListener('click', function (e) {
+    if (e.target.closest('#btn-clean')) {
+      bagRows().forEach(function (item) {
+        if (isInvalid(item)) bagRemoved[item.key] = true;
+      });
+      renderBag();
+    }
+    if (e.target.closest('#btn-reset')) {
+      bagRemoved = {};
+      renderBag();
+    }
+  });
+
+  $('#dgroups').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-val]');
+    if (!btn) return;
+    var seg = btn.closest('[data-segkey]');
+    if (!seg) return;
+    var key = seg.getAttribute('data-segkey');
+    state.decisions[key] = btn.getAttribute('data-val');
+    setSeg(seg, 'data-val', state.decisions[key]);
+    var group = DECISIONS.filter(function (g) { return g.key === key; })[0];
+    var note = $('[data-note="' + key + '"]');
+    if (group && note) note.innerHTML = group.notes[state.decisions[key]];
+    renderPreview();
+  });
+
+  /* 供探针读取，不要在页面里依赖它 */
+  window.__demo = state;
+  window.__demoApi = {
+    switchTab: switchTab,
+    renderGrid: renderGrid,
+    renderBag: renderBag,
+    renderDecisions: renderDecisions
+  };
+
+  renderGrid();
+  renderBag();
+  renderDecisions();
+})();
+</script>
+</body>
+</html>
