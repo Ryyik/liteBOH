@@ -6,6 +6,7 @@ import Footer from './components/Footer.vue';
 import { isGlobalNavbarVisible } from '@/utils/global-navbar-visibility.js';
 import { shouldMarkBootReady } from '@/utils/boot-readiness.js';
 import UnifiedNavbar from '@/components/UnifiedNavbar/index.vue';
+import BohIsland from '@/components/BohIsland.vue';
 import GlobalErrorBoundary from '@/components/GlobalErrorBoundary.vue';
 import { useAuthStore } from '@/stores/auth';
 import { storeToRefs } from 'pinia';
@@ -391,6 +392,11 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
     <UnifiedNavbar v-if="showGlobalNavbar" />
   </Transition>
 
+  <!-- BohIsland（plans/038）：搜索 + 「问一句」的独立悬浮岛。Teleport 到 body、
+       App 级常驻（壳同步渲染、内容懒加载）—— 不依赖导航栏存在，
+       hideNavbar / user-space 子视图等路由照样可用；`/` 快捷键归它管 -->
+  <BohIsland />
+
   <!-- 首屏加载态：路由就绪前替代主体空白（骨架样式来自 index.html 内联样式） -->
   <div
     v-if="!bootReady"
@@ -510,9 +516,7 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
               「刷新后进了远古详情页」。跳过后只有弹窗那一棵，历史与深链不受影响。
             -->
             <component
-              v-else-if="
-                !(isModalOwningDetail && activeRoute.name === 'PostDetail')
-              "
+              v-else-if="!(isModalOwningDetail && activeRoute.name === 'PostDetail')"
               :is="Component"
               :key="activeRoute.path"
             />

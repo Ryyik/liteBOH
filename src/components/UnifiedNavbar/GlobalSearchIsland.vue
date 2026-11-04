@@ -107,6 +107,27 @@
         没有找到「{{ trimmedQuery }}」相关内容
       </p>
 
+      <!-- 第 0 项「问 BOHAI」（plans/038 §3.2）：参与键盘序号（flatHits[0]），不是独立按钮。
+           零结果时文案换成「站内没找到，问一下 BOHAI」—— 那时它是唯一有意义的动作。 -->
+      <button
+        v-if="trimmedQuery"
+        type="button"
+        class="gs-hit gs-ai"
+        :class="{ active: currentHit?.isAsk === true }"
+        @click="askAi"
+        @mouseenter="selectedIndex = 0"
+      >
+        <span class="gs-hit-main">
+          <span class="gs-ask-title">
+            <Sparkles :size="13" aria-hidden="true" />
+            <span v-if="!loading && !visibleGroups.length" class="gs-ask-none">
+              站内没找到，问一下 BOHAI
+            </span>
+            <span v-else class="gs-ask-q">问 BOHAI：{{ trimmedQuery }}</span>
+          </span>
+        </span>
+      </button>
+
       <div
         v-for="group in visibleGroups"
         :key="group.id"
@@ -163,12 +184,6 @@
           </button>
         </div>
       </div>
-
-      <!-- 常驻 AI 入口（Spotlight 的「在网页中搜索」同款位）：有词就在，不只零结果兜底 -->
-      <button v-if="trimmedQuery" type="button" class="gs-ai" @click="askAi">
-        <Sparkles :size="14" aria-hidden="true" />
-        <span>用 BOH AI 深度搜索「{{ trimmedQuery }}」</span>
-      </button>
     </div>
 
     <div class="gs-foot">
@@ -435,8 +450,34 @@ const visibleGroups = computed(() => {
   }));
 });
 
-/** 键盘导航用：按展示顺序拍平所有可见结果 */
-const flatHits = computed(() => visibleGroups.value.flatMap((group) => group.hits));
+/** 结果拍平（不含第 0 项）：按展示顺序 */
+const resultHits = computed(() => visibleGroups.value.flatMap((group) => group.hits));
+
+/** 第 0 项「问 BOHAI：<原句>」（plans/038 §3.2）：参与键盘序号，不是独立按钮 */
+const askHit = computed(() => {
+  const q = trimmedQuery.value;
+  if (!q) return null;
+  return { key: '__boh_ask__', source: 'ai', isAsk: true, title: q };
+});
+
+/** 键盘导航用：第 0 项（问 BOHAI）+ 结果拍平 */
+const flatHits = computed(() =>
+  askHit.value ? [askHit.value, ...resultHits.value] : resultHits.value,
+);
+
+/* ---------------- 意图路由（plans/038 §3.2）：不猜「问不问」，只决定默认高亮谁 ---------------- */
+
+/* 「像问句」判据：纯本地轻规则，不调模型。
+   ⚠️ 问句词表必须逐个补全 —— 首版漏了「什么时候」，导致
+   「八周年的活动什么时候开始」被当成普通搜索（原型实测踩过）。 */
+const QUESTION_RE = /怎么|为什么|能不能|可不可以|帮我|是什么|什么时候|在哪|哪个|哪家|多少|吗|？|\?/;
+const isQuestionLike = (q) => q.length >= 8 && QUESTION_RE.test(q);
+
+/** 默认高亮：问句 / 零结果 → 第 0 项；否则第一个搜索结果（与合并前行为一致，老用户零学习成本） */
+const applyDefaultHighlight = () => {
+  const q = trimmedQuery.value;
+  selectedIndex.value = !q || isQuestionLike(q) || orderedGroups.value.length === 0 ? 0 : 1;
+};
 
 const chips = computed(() => {
   const list = orderedGroups.value.map((group) => ({
@@ -489,7 +530,7 @@ const runSearch = async () => {
         : await runInstantSearch(keyword, { limitPerSource: PER_GROUP_LIMIT, signal });
     if (signal.aborted) return;
     groups.value = next;
-    selectedIndex.value = 0;
+    applyDefaultHighlight();
   } catch (error) {
     if (!signal.aborted) logger.warn('site-search', '搜索失败', error);
   } finally {
@@ -511,7 +552,7 @@ watch(query, () => {
 const selectSource = (sourceId) => {
   if (activeSource.value === sourceId) return;
   activeSource.value = sourceId;
-  selectedIndex.value = 0;
+  applyDefaultHighlight();
   runSearch();
 };
 
@@ -524,6 +565,11 @@ const clearQuery = () => {
 
 const openHit = async (hit) => {
   if (!hit) return;
+  // 第 0 项：交给 askAi（记录点击频率、关面板、原句直传 BOHAI）
+  if (hit.isAsk) {
+    askAi();
+    return;
+  }
   recordSourceClick(hit.source);
   recordHistory(trimmedQuery.value);
   recordItemClick(hit);
@@ -547,15 +593,13 @@ const openHit = async (hit) => {
   }
 };
 
-/** 常驻 AI 入口：把搜索词交给 BOH AI 岛（通路 = showIsland.ai，AI 岛优先级最高无需抢占） */
+/** 第 0 项「问 BOHAI」（plans/038 §3.2）：原句直传 —— AI 自己懂上下文，不拼「请帮我在站内找…」模板 */
 const askAi = () => {
   const keyword = trimmedQuery.value;
   if (!keyword) return;
   recordSourceClick('ai');
   props.onClose?.();
-  const opened = showIsland.ai({
-    prompt: `请帮我在站内找与「${keyword}」相关的内容（帖子、新闻、活动、商城、教程），并总结要点`,
-  });
+  const opened = showIsland.ai({ prompt: keyword });
   // opener 未注册（navbar 未挂载等）时兜底进 AI 对话页，不让点击落空
   if (!opened) router.push('/ai-chat');
 };
@@ -610,6 +654,11 @@ const handleKeydown = (event) => {
   }
   if (event.key === 'Enter') {
     event.preventDefault();
+    // ⌘↵ / Ctrl+↵：强制问 AI，不看当前高亮（plans/038 §3.2）
+    if (event.metaKey || event.ctrlKey) {
+      askAi();
+      return;
+    }
     openHit(flatHits.value[selectedIndex.value]);
   }
 };
@@ -760,7 +809,11 @@ onBeforeUnmount(() => {
 }
 
 .gs-body {
-  max-height: min(52vh, 360px);
+  /* 岛形态（BohIsland）下由卡片 max-height 封顶、内容超出时这里收缩并内部滚动；
+     内容矮时卡片收缩到内容高（「岛装的就是它说的」）。
+     ⚠️ 必须 basis auto：卡片是自适应高度，basis 0 会把本区高度算成 0（实测踩坑） */
+  flex: 0 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   display: flex;
@@ -1024,29 +1077,40 @@ onBeforeUnmount(() => {
 }
 
 /* 常驻 AI 入口：虚线框弱化存在感，位置固定在结果列表末尾（Spotlight「在网页中搜索」同款位） */
+/* 第 0 项「问 BOHAI」：灰阶低调（plans/038 §6 —— 不抢搜索结果的第一眼），
+   仅在问句 / 零结果时默认高亮；行内 Sparkles 用主题紫点缀 */
 .gs-ai {
+  border: none;
+  background: transparent;
+}
+
+.gs-ai .gs-ask-title {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
-  margin-top: 2px;
-  padding: 9px 10px;
-  border: 1px dashed rgba(100, 116, 139, 0.3);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.4);
-  color: #526174;
-  font: inherit;
   font-size: 12.5px;
-  cursor: pointer;
-  transition:
-    background 0.18s ease,
-    border-color 0.18s ease,
-    color 0.18s ease;
+  color: #526174;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.gs-ai svg {
+  flex-shrink: 0;
+  color: #7c5cd6;
+}
+
+.gs-ask-q {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gs-ask-none {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .gs-ai:hover {
-  background: rgba(255, 255, 255, 0.78);
-  border-color: rgba(100, 116, 139, 0.5);
   color: #1d1d1f;
 }
 
@@ -1074,139 +1138,139 @@ onBeforeUnmount(() => {
 /* 暗色：与统一导航栏同前缀（surface 带 data-theme）。
    写法对齐 style.scoped.css 的既有惯例 —— 直接用 ID 前缀 + 本组件 scope 属性，
    不用 :global() 包裹（实测那样写规则不会输出到产物里，暗色态恒失效）。 */
-#unified-nav-container[data-theme='dark'] .global-search {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .global-search {
   color: #f5f5f7;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-bar {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-bar {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.14);
   box-shadow: none;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-bar-icon {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-bar-icon {
   color: #86868b;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-input {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-input {
   color: #f5f5f7;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-input::placeholder {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-input::placeholder {
   color: #636366;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-clear {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-clear {
   background: rgba(255, 255, 255, 0.1);
   color: #a1a1a6;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-chip {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-chip {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.14);
   color: #e5e5ea;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-chip:hover {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-chip:hover {
   background: rgba(255, 255, 255, 0.14);
 }
 
-#unified-nav-container[data-theme='dark'] .gs-chip.active {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-chip.active {
   background: #f5f5f7;
   border-color: #f5f5f7;
   color: #1d1d1f;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-hint,
-#unified-nav-container[data-theme='dark'] .gs-group-title,
-#unified-nav-container[data-theme='dark'] .gs-hit-meta,
-#unified-nav-container[data-theme='dark'] .gs-foot {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-hint,
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-group-title,
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-hit-meta,
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-foot {
   color: #8e8e93;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-hit.active,
-#unified-nav-container[data-theme='dark'] .gs-hit:hover {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-hit.active,
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-hit:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-#unified-nav-container[data-theme='dark'] .gs-hit-title {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-hit-title {
   color: #f5f5f7;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-hit-excerpt {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-hit-excerpt {
   color: #a1a1a6;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-hit-badge {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-hit-badge {
   background: rgba(70, 130, 255, 0.18);
   color: #8ab4ff;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-mark {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-mark {
   background: rgba(70, 130, 255, 0.26);
   color: #9cc3ff;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-group-all {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-group-all {
   color: #8ab4ff;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-foot kbd {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-foot kbd {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.14);
 }
 
-#unified-nav-container[data-theme='dark'] .gs-ai {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-ai {
   border-color: rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.06);
   color: #a1a1a6;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-ai:hover {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-ai:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.32);
   color: #f5f5f7;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-history-clear {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-history-clear {
   color: #8e8e93;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-history-clear:hover {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-history-clear:hover {
   color: #c7c7cc;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-history-item {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-history-item {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.16);
   color: #c7c7cc;
 }
 
-#unified-nav-container[data-theme='dark'] .gs-history-item:hover {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-history-item:hover {
   background: rgba(255, 255, 255, 0.14);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-#unified-nav-container[data-theme='dark'] .gs-hit-copy {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-hit-copy {
   background: rgba(30, 30, 32, 0.96);
   border-color: rgba(138, 180, 255, 0.5);
   color: #8ab4ff;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
-#unified-nav-container[data-theme='dark'] .gs-hit-copy.done {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-hit-copy.done {
   color: #6fd592;
   border-color: rgba(111, 213, 146, 0.5);
 }
 
-#unified-nav-container[data-theme='dark'] .gs-group--answer .gs-hit {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-group--answer .gs-hit {
   background: rgba(70, 130, 255, 0.12);
   border-color: rgba(70, 130, 255, 0.28);
 }
 
-#unified-nav-container[data-theme='dark'] .gs-group--answer .gs-hit.active,
-#unified-nav-container[data-theme='dark'] .gs-group--answer .gs-hit:hover {
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-group--answer .gs-hit.active,
+:is(#unified-nav-container, .boh-island-root)[data-theme='dark'] .gs-group--answer .gs-hit:hover {
   background: rgba(70, 130, 255, 0.2);
   border-color: rgba(138, 180, 255, 0.42);
 }

@@ -1,23 +1,26 @@
 import { chromium } from 'playwright';
 
-// 探针：全局搜索（导航栏灵动岛形态）—— plans/020-site-global-search.md
-//   1) 入口可达 + 点击展开 + surface 高度上报 + 输入框自动聚焦
+// 探针：全局搜索（BohIsland 独立悬浮岛形态）—— plans/020 + plans/038（P1 宿主迁移）
+//   1) 入口可达 + 点击展开 + 岛卡承载 + 输入框自动聚焦（面板不再撑高导航 surface）
 //   2) 本地索引源命中（教程 / 页面 / 下载 / 设定集 / MBTI 不依赖网络）
 //   3) 「全部」视图每组上限 3 条；类型 chip 切换后只展示该组
 //   4) 点结果跳转 + 面板自动关闭
 //   5) 键盘：↑↓ 选择 / Enter 打开 / Esc 关闭
-//   6) ⌘K / Ctrl+K 开关
-//   7) ⚠️ 仲裁：通知岛在场时打开搜索仍可见（守 showIsland.preempt —— 去掉它这条必红）
-//   8) 竖屏 mini 未展开态隐藏按钮（否则会撑爆精算过的胶囊宽度）
-//   9) hideNavbar 路由下无宿主、⌘K 不响应
-//  10) 暗色底色 + 零 pageerror
-//  11) Spotlight 式优化：动作搜索（搜到即执行）/ Alt+数字切类型 / 常驻 AI 入口 / 点击频率排序
+//   6) ⌘K / Ctrl+K 开关（⌘K 归旧 AI 岛，搜索不抢）
+//   7) ⚠️ plans/038：岛与 surface 卡片（通知/任务）分属不同层，无仲裁关系；
+//      与旧 AI 岛（P2 退场前）同位互斥 —— 开岛收旧岛（useBohIsland.open）
+//   8) 竖屏 mini 未展开态隐藏按钮（胶囊由 BohIsland 的 .boh-pill 承担）
+//   9) hideNavbar 路由：无导航入口，但 `/` 仍可召唤岛（Teleport）；⌘K 不开搜索
+//  10) 深色岛材质（根恒 data-theme=dark）+ 零 pageerror
+//  11) Spotlight 式优化：动作搜索（搜到即执行）/ Alt+数字切类型 / 第 0 项问 BOHAI / 点击频率排序
 //  12) Spotlight 第三批：MC 速查卡（版本→Java 即答）/ 复制链接 / 搜索历史（落账·回填·清除）
 //  13) Spotlight 第四批：计算器即答 / 关键词高亮 / 空态热门词+猜你想去 / 评论与笔记源 /
 //      Modrinth（deferred 常驻 chip 显式触发 + 外链新标签）/ @与# 前缀指令
 //
 // ⚠️ Playwright 的 page.route 按「注册逆序」匹配：catch-all 必须最先注册。
 // 全程 mock 后端（返回空数组），所以只有「本地索引」来源会出结果 —— 这正是要测的那部分。
+// ⚠️ 第 0 项「问 BOHAI」带 .gs-hit 类但不属于任何 .gs-group —— 凡「点第一条结果」
+//    的断言一律用 `.gs-group .gs-hit`，别让第 0 项截胡。
 
 const BASE = 'http://localhost:5173';
 
@@ -54,6 +57,28 @@ const groupTitles = (page) =>
   page.evaluate(() =>
     [...document.querySelectorAll('.gs-group-title')].map((e) => e.textContent.trim()),
   );
+
+const islandOpen = (page) =>
+  page.evaluate(() => {
+    const root = document.querySelector('.boh-island-root');
+    return (
+      !!root?.classList.contains('open') &&
+      !!root?.querySelector('.boh-card') &&
+      !!root?.querySelector('.global-search')
+    );
+  });
+
+/** `/` 快捷键（DOM 派发 —— 带修饰键的组合会被浏览器抢先处理，见组 1 内注释） */
+const pressSlash = (page) =>
+  page.evaluate(() => {
+    const evt = new KeyboardEvent('keydown', {
+      key: '/',
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(evt);
+    return evt.defaultPrevented;
+  });
 
 const withPage = async (
   fn,
@@ -95,21 +120,22 @@ const withPage = async (
 await withPage(async (page, errs) => {
   check('① 导航栏存在搜索入口', (await page.locator('.nav-search-btn').count()) > 0);
 
-  const surfaceRest = await page.evaluate(
-    () => document.querySelector('.unified-nav-surface')?.getBoundingClientRect().height || 0,
-  );
-
   await page.locator('.nav-search-btn').click();
   await page.waitForTimeout(500);
-  check('② 点击后搜索面板展开', await panelOpen(page));
+  check('② 点击后搜索面板展开', await islandOpen(page));
 
-  const surfaceOpen = await page.evaluate(
-    () => document.querySelector('.unified-nav-surface')?.getBoundingClientRect().height || 0,
-  );
+  const cardDiag = await page.evaluate(() => {
+    const card = document.querySelector('.boh-island-root .boh-card');
+    const surface = document.querySelector('.unified-nav-surface');
+    return {
+      cardH: Math.round(card?.getBoundingClientRect().height || 0),
+      surfaceH: Math.round(surface?.getBoundingClientRect().height || 0),
+    };
+  });
   check(
-    '③ surface 高度被撑开（> 静止高度）',
-    surfaceOpen > surfaceRest + 60,
-    `rest=${surfaceRest} open=${surfaceOpen}`,
+    '③ 面板悬浮于岛卡（plans/038：不再撑高导航 surface）',
+    cardDiag.cardH > 60,
+    JSON.stringify(cardDiag),
   );
 
   check(
@@ -150,7 +176,7 @@ await withPage(async (page, errs) => {
   );
 
   // ---- 点结果 → 跳转 + 关闭 ----
-  await page.locator('.gs-hit').first().click();
+  await page.locator('.gs-group .gs-hit').first().click();
   await page.waitForTimeout(1000);
   const hash = await page.evaluate(() => location.hash);
   check('⑩ 点教程结果跳到资源中心', hash.startsWith('#/download'), hash);
@@ -204,31 +230,20 @@ await withPage(async (page, errs) => {
   const handled = await pressSearchShortcut();
   await page.waitForTimeout(450);
   const shortcutDiag = await page.evaluate(() => {
-    const host = document.querySelector('.island-custom-host');
-    const btn = document.querySelector('.nav-search-btn');
-    const surface = document.querySelector('.unified-nav-surface');
+    const root = document.querySelector('.boh-island-root');
+    const card = root?.querySelector('.boh-card');
     return {
       hash: location.hash,
       homeGate: !!document.querySelector('.home-gate'),
       navCount: document.querySelectorAll('#unified-nav-container').length,
-      // 按钮的 .active 直接反映 isSearchOpen（逻辑开关），可与 DOM 可见性对照
-      btnActive: btn ? btn.classList.contains('active') : null,
-      hostExists: !!host,
-      hostDisplay: host ? getComputedStyle(host).display : '',
-      hostH: host ? Math.round(host.getBoundingClientRect().height) : 0,
-      innerSearch: !!document.querySelector('.global-search'),
-      innerH: Math.round(
-        document.querySelector('.global-search')?.getBoundingClientRect().height || 0,
-      ),
-      surfaceCls: surface ? surface.className : '',
-      hasTaskCard: !!document.querySelector('.global-nav-task-card'),
-      hasStatusCard: !!document.querySelector('.global-nav-status-card'),
-      hasBohaiIsland: surface ? surface.classList.contains('has-bohai-island') : null,
+      rootOpen: !!root?.classList.contains('open'),
+      cardH: Math.round(card?.getBoundingClientRect().height || 0),
+      innerSearch: !!root?.querySelector('.global-search'),
     };
   });
   check(
-    '⑭ / 键打开面板',
-    await panelOpen(page),
+    '⑭ / 键打开面板（岛承载）',
+    await islandOpen(page),
     `handler 收到事件=${handled} ${JSON.stringify(shortcutDiag)}`,
   );
   await pressSearchShortcut();
@@ -252,42 +267,30 @@ await withPage(async (page, errs) => {
   await page.waitForTimeout(450);
   check('⑯ 点面板外部关闭', (await panelOpen(page)) === false);
 
-  // ---- ⚠️ 仲裁 ----
-  // 注意两个对手的性质不同：
-  //   · 通知岛：custom 槽位的 v-show（`!isTaskCardShown && !isBohaiIslandOpen`）**不看它**，
-  //     所以它本来就不会挡住面板 —— preempt 对它的作用是「清掉通知卡与队列」，
-  //     否则面板打开后队列里的下一条会冒出来盖住面板。判据是「通知卡被清掉」。
-  //   · AI 岛 / 任务岛：优先级高于 custom 槽位，会让面板 v-show 让位隐藏 —— 必须主动收起。
+  // ---- plans/038：岛与 surface 卡片分属不同层（Teleport 到 body），无仲裁关系 ----
+  // 通知卡在导航 surface 上，岛悬浮其上互不干扰 —— 旧「preempt 清队列」条款随
+  // custom 槽位迁移一并失效（preempt 仍属任务岛/通知岛自身，由各自的探针守）。
   await page.evaluate(() => {
     window.dispatchEvent(
       new CustomEvent('boh_global_nav_status', {
-        detail: { title: '仲裁测试通知', message: '占位中' },
+        detail: { title: '共存测试通知', message: '占位中' },
       }),
     );
   });
   await page.waitForTimeout(600);
   const notifyShown =
     (await page.evaluate(() => document.querySelectorAll('.global-nav-status-card').length)) > 0;
-  check('⑰ 通知岛已展示（仲裁前置条件）', notifyShown);
+  check('⑰ 通知岛已展示（共存前置条件）', notifyShown);
 
   await page.locator('.nav-search-btn').click();
   await page.waitForTimeout(700);
-  check('⑱ 通知岛在场时搜索面板可见', await panelOpen(page));
-  const notifyCleared =
-    (await page.evaluate(() => document.querySelectorAll('.global-nav-status-card').length)) === 0;
-  // ⚠️ 必须带上前置条件：只判「现在没有通知卡」的话，通知卡压根没出现过时也会假通过 ——
-  // 那样这条就守不住 preempt（反证实测过：停用 preempt 时它会假绿）。
-  check(
-    '⑱b preempt 清掉了通知卡（队列不会在面板打开后冒出来盖住它）',
-    notifyShown && notifyCleared,
-    `shown=${notifyShown} cleared=${notifyCleared}`,
-  );
+  check('⑱ 通知岛在场时搜索岛照常展开', await islandOpen(page));
 
-  // 收起面板，进入 AI 岛场景
+  // 收起搜索岛，进入旧 AI 岛场景
   await page.mouse.click(24, 760);
   await page.waitForTimeout(450);
 
-  // AI 岛：⌘K 是它的既有快捷键（见 useGlobalAiPreferences）
+  // 旧 AI 岛：⌘K 是它的既有快捷键（见 useGlobalAiPreferences）；P2 退场前仍与本岛同位互斥
   await page.evaluate(() => {
     window.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }),
@@ -295,7 +298,7 @@ await withPage(async (page, errs) => {
   });
   await page.waitForTimeout(800);
   check(
-    '⑱c AI 岛已被唤起（仲裁前置条件）',
+    '⑱c AI 岛已被唤起（互斥前置条件）',
     await page.evaluate(
       () =>
         !!document.querySelector('.unified-nav-surface')?.classList.contains('has-bohai-island'),
@@ -304,7 +307,17 @@ await withPage(async (page, errs) => {
 
   await page.locator('.nav-search-btn').click();
   await page.waitForTimeout(800);
-  check('⑱d AI 岛在场时搜索面板仍可见（AI 岛已让位给搜索）', await panelOpen(page));
+  const mutex = await page.evaluate(() => ({
+    islandOpen: !!document.querySelector('.boh-island-root')?.classList.contains('open'),
+    oldAiOpen:
+      document.querySelector('.unified-nav-surface')?.className.includes('has-bohai-island') ||
+      false,
+  }));
+  check(
+    '⑱d AI 岛在场时开搜索岛：搜索岛展开且旧 AI 岛收起（useBohIsland.open 互斥）',
+    mutex.islandOpen && !mutex.oldAiOpen,
+    JSON.stringify(mutex),
+  );
 
   check('⑲ 组 1 零 pageerror', errs.length === 0, errs.join(' | ').slice(0, 180));
 });
@@ -336,7 +349,7 @@ await withPage(
 );
 
 // ============================================================
-// 组 3：hideNavbar 路由
+// 组 3：hideNavbar 路由 —— 无导航入口，但 `/` 仍可召唤岛（Teleport 的存在理由）
 // ============================================================
 await withPage(async (page) => {
   await page.evaluate(() => {
@@ -346,49 +359,49 @@ await withPage(async (page) => {
   const noHost = await page.evaluate(
     () => !document.querySelector('#unified-nav-container .nav-search-btn'),
   );
-  check('㉒ hideNavbar 路由下没有搜索入口（无导航宿主）', noHost);
+  check('㉒ hideNavbar 路由下没有导航栏搜索入口', noHost);
 
   await page.keyboard.press('Meta+k');
   await page.waitForTimeout(500);
-  check('㉓ hideNavbar 路由下 ⌘K 不打开面板', (await panelOpen(page)) === false);
+  check(
+    '㉓ hideNavbar 路由下 ⌘K 不打开搜索面板（该键归旧 AI 岛）',
+    (await panelOpen(page)) === false,
+  );
+
+  // plans/038：岛 Teleport 到 body，不依赖导航栏 —— `/` 在无导航栏路由照样可用
+  const handled = await pressSlash(page);
+  await page.waitForTimeout(600);
+  check(
+    '㉓b 无导航栏路由上 / 仍召唤岛（Teleport）',
+    await islandOpen(page),
+    `handler 收到=${handled}`,
+  );
 });
 
 // ============================================================
-// 组 4：暗色
+// 组 4：深色岛材质 —— 岛根节点恒 data-theme=dark，不随页面主题翻转
 // ============================================================
 await withPage(async (page) => {
   await page.locator('.nav-search-btn').click();
   await page.waitForTimeout(500);
+  // 把页面主题强行设为浅色 —— 岛内面板仍应是暗色叠色（深色岛材质）
   await page.evaluate(() => {
-    document.querySelector('#unified-nav-container')?.setAttribute('data-theme', 'dark');
+    document.querySelector('#unified-nav-container')?.setAttribute('data-theme', 'light');
   });
   await page.waitForTimeout(300);
   const bg = await page.evaluate(
     () => getComputedStyle(document.querySelector('.gs-bar')).backgroundColor,
   );
-  // 暗色态是「白色低透明度叠色」（叠在暗色 surface 上呈现暗面），不是深色实底，
+  // 暗色态是「白色低透明度叠色」（叠在深色岛卡上呈现暗面），不是深色实底，
   // 所以判据是 alpha 低，不是 R 值小。
   const alpha = parseFloat(String(bg).split(',').pop() || '1') || 0;
-  const darkDiag = await page.evaluate(() => {
-    const found = [];
-    for (const sheet of document.styleSheets) {
-      let list;
-      try {
-        list = sheet.cssRules;
-      } catch {
-        continue;
-      }
-      for (const rule of list) {
-        const text = rule.cssText || '';
-        if (text.includes('gs-bar') && text.includes('dark')) found.push(text.slice(0, 180));
-      }
-    }
-    return found;
-  });
+  const rootTheme = await page.evaluate(() =>
+    document.querySelector('.boh-island-root')?.getAttribute('data-theme'),
+  );
   check(
-    '㉔ 暗色下面板底色为低透明叠色（alpha < 0.2）',
-    alpha < 0.2,
-    `${bg} rules=${JSON.stringify(darkDiag)}`,
+    '㉔ 岛根恒 dark：页面浅色主题下面板仍为低透明叠色（alpha < 0.2）',
+    rootTheme === 'dark' && alpha < 0.2,
+    `root=${rootTheme} bg=${bg}`,
   );
 });
 
@@ -451,7 +464,7 @@ await withPage(async (page, errs) => {
   const themeBefore = await page.evaluate(() =>
     document.getElementById('unified-nav-container')?.getAttribute('data-theme'),
   );
-  await page.locator('.gs-hit').first().click(); // 动作组排最前，第一条就是主题切换
+  await page.locator('.gs-group .gs-hit').first().click(); // 动作组排最前，第一条就是主题切换
   await page.waitForTimeout(700);
   const themeAfter = await page.evaluate(() => ({
     theme: document.getElementById('unified-nav-container')?.getAttribute('data-theme'),
@@ -565,7 +578,7 @@ await withPage(
     // 断言路由会漂；Frp 只在 q12 出现，route 恒为 /download#q12。
     await page.locator('.gs-input').fill('Frp');
     await page.waitForTimeout(800);
-    await page.locator('.gs-hit').first().hover();
+    await page.locator('.gs-group .gs-hit').first().hover();
     await page.waitForTimeout(300);
     await page.locator('.gs-hit-copy').first().click();
     await page.waitForTimeout(300);
@@ -583,7 +596,7 @@ await withPage(
     // ---- 搜索历史：点结果落账 → 空态展示 → 回填 → 清除 ----
     await page.locator('.gs-input').fill('教程'); // 复制测试用的 Frp 不入账，历史记「教程」
     await page.waitForTimeout(800);
-    await page.locator('.gs-hit').first().click(); // 打开一条结果（会跳 /download 并关面板）
+    await page.locator('.gs-group .gs-hit').first().click(); // 打开一条结果（会跳 /download 并关面板）
     await page.waitForTimeout(900);
     const afterOpen = await page.evaluate(() => ({
       panelOpen: !!document.querySelector('.global-search'),
@@ -781,7 +794,7 @@ await withPage(async (page, errs) => {
     .context()
     .waitForEvent('page', { timeout: 8000 })
     .catch(() => null);
-  await page.locator('.gs-hit').first().click();
+  await page.locator('.gs-group .gs-hit').first().click(); // Mod chip 已选中，唯一组的首条 = OptiFine
   const popup = await popupPromise;
   const popupUrl = popup ? popup.url() : '';
   check('㊵c 外链新标签打开 modrinth.com', popupUrl.includes('modrinth.com'), popupUrl);

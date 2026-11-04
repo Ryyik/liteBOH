@@ -701,8 +701,8 @@ const handleGlobalNavPreempt = () => {
   navStatus.value = { ...navStatus.value, visible: false };
 };
 
-// 全局搜索：入口按钮 + `/` 快捷键。面板经 showIsland.custom 渲染进本组件的
-// surface（高度由下方 ResizeObserver 上报 customCardHeight），逻辑见 useGlobalSearch.js。
+// 全局搜索：入口按钮（/ 快捷键归 BohIsland）。plans/038（P1）起面板由独立悬浮岛
+// BohIsland.vue（Teleport 到 body、App 级挂载）承载，不再渲染进本组件 surface；
 // onAction：动作搜索（Spotlight 式「搜到即执行」）的执行权统一归 handleMenuAction ——
 // 闭包在调用时才解引用，规避 handleMenuAction 定义在 setup 更靠后位置的 TDZ。
 const { isSearchOpen, toggleSearch, prefetchSearchPanel } = useGlobalSearch({
