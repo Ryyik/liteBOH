@@ -46,39 +46,39 @@
              2026-11-04 硬切审计：同文件三个菜单都包 boh-pop，唯独这里裸切，补齐。 -->
         <Transition name="boh-pop">
           <div v-if="slashOpen" class="boh-slash-anchor">
-          <!-- 2026-10-20：材质改为**面板自带**的方块之家标准液态玻璃
+            <!-- 2026-10-20：材质改为**面板自带**的方块之家标准液态玻璃
                （`--glass-bg` / `--glass-filter-sm`，见 CSS 同名注释）——
                不再挂 `BohGlassRefract` 覆盖层。两层玻璃叠在一起会让底下的
                backdrop-filter 采样重复，观感发灰。 -->
-          <div class="boh-slash" role="listbox" aria-label="快捷命令">
-            <!-- 2026-10-20 布局改版（用户口径：参考「分组标题 + 双列行」那种感觉）：
+            <div class="boh-slash" role="listbox" aria-label="快捷命令">
+              <!-- 2026-10-20 布局改版（用户口径：参考「分组标题 + 双列行」那种感觉）：
                  分组标题（灰色的组名）+ 每行「图标 名称 关键词 …… 右侧描述」。
                  ⚠️ 分组不是视觉分组，是**数据分组**：`group` 字段来自
                     `bohai-slash-commands.js`（单一真源），这里只做归并，
                     不许在模板里写死组名 —— 那样新增命令会悄悄落进错组。
                  ⚠️ `commandIndex` 仍是**全局序号**（跨组连续），因为它要和
                     `slashActiveIndex` 对齐；分组只影响渲染，不影响键盘上下选。 -->
-            <template v-for="(group, groupIndex) in slashGroups" :key="`g-${group.name}`">
-              <div v-if="groupIndex > 0" class="boh-slash-divider" aria-hidden="true"></div>
-              <p class="boh-slash-group">{{ group.name }}</p>
-              <button
-                v-for="item in group.items"
-                :key="item.command.id"
-                type="button"
-                class="boh-slash-item"
-                :class="{ 'is-current': slashActiveIndex === item.index }"
-                role="option"
-                :aria-selected="slashActiveIndex === item.index"
-                @mouseenter="emit('update:slashActiveIndex', item.index)"
-                @mousedown.prevent="emit('run-slash-command', item.command)"
-              >
-                <span class="boh-slash-cmd">/{{ item.command.keyword }}</span>
-                <span class="boh-slash-label">{{ item.command.label }}</span>
-                <span class="boh-slash-desc">{{ item.command.description }}</span>
-              </button>
-            </template>
-            <div v-if="slashCommands.length === 0" class="boh-slash-empty">没有匹配的命令</div>
-          </div>
+              <template v-for="(group, groupIndex) in slashGroups" :key="`g-${group.name}`">
+                <div v-if="groupIndex > 0" class="boh-slash-divider" aria-hidden="true"></div>
+                <p class="boh-slash-group">{{ group.name }}</p>
+                <button
+                  v-for="item in group.items"
+                  :key="item.command.id"
+                  type="button"
+                  class="boh-slash-item"
+                  :class="{ 'is-current': slashActiveIndex === item.index }"
+                  role="option"
+                  :aria-selected="slashActiveIndex === item.index"
+                  @mouseenter="emit('update:slashActiveIndex', item.index)"
+                  @mousedown.prevent="emit('run-slash-command', item.command)"
+                >
+                  <span class="boh-slash-cmd">/{{ item.command.keyword }}</span>
+                  <span class="boh-slash-label">{{ item.command.label }}</span>
+                  <span class="boh-slash-desc">{{ item.command.description }}</span>
+                </button>
+              </template>
+              <div v-if="slashCommands.length === 0" class="boh-slash-empty">没有匹配的命令</div>
+            </div>
           </div>
         </Transition>
 
@@ -105,14 +105,28 @@
             <Globe :size="17" aria-hidden="true" />
           </button>
 
+          <!-- plans/038 P0：岛形态的「引用当前页面」从工具菜单提升为底行常驻 icon ——
+               岛内工具菜单整体隐藏（见下），这个岛独有的能力不能跟着一起消失。 -->
+          <button
+            v-if="overlayMode"
+            type="button"
+            class="boh-cp-icon"
+            title="引用当前页面"
+            aria-label="引用当前页面"
+            @click="requestAttachPage"
+          >
+            <FileText :size="17" aria-hidden="true" />
+          </button>
+
           <!-- 模型选择（2026-10-11 用户样稿：底行「模型名 ⌄」独立成一颗胶囊 + 一个玻璃浮层；
              胶囊样式沿用原 `.boh-mode-pill`，未改视觉。
              ⚠️ 三条契约：① 行按钮保留 `.boh-mm-item` + `data-mode-id`
              （probe-bohai-user-models B6/B11、probe-bohai-mode-loading 直接查 DOM）；
              ② `.boh-mm-body` 是**内层滚动容器**（矮横屏封顶的安全网），详情卡挂在它**外面**，
              否则会被 `overflow-y: auto` 裁掉；③ 面板改**左对齐**（触发键搬到了底行左侧），
-             hover 详情卡随之镜像到面板**右侧**，越界时由 `is-flipped` 翻回左侧。 -->
-          <div class="boh-mode-wrap" @click.stop>
+             hover 详情卡随之镜像到面板**右侧**，越界时由 `is-flipped` 翻回左侧。
+             plans/038 P0：岛形态不渲染（模型切换属「管理型」能力，只在全页；探针全在页面形态）。 -->
+          <div v-if="!overlayMode" class="boh-mode-wrap" @click.stop>
             <button
               type="button"
               class="boh-mode-pill"
@@ -270,8 +284,10 @@
             </div>
           </div>
 
-          <!-- 工具（原「高级」四工具的落点，2026-10-11 从模式面板里独立出来） -->
-          <div class="boh-tools-wrap" @click.stop>
+          <!-- 工具（原「高级」四工具的落点，2026-10-11 从模式面板里独立出来）
+               plans/038 P0：岛形态不渲染 —— 「引用当前页面」已提升为底行常驻（见上），
+               Cloud+ / 心理分析属「管理型 / 深流程」能力，只在全页。 -->
+          <div v-if="!overlayMode" class="boh-tools-wrap" @click.stop>
             <button
               type="button"
               class="boh-tools-pill"
@@ -340,8 +356,9 @@
 
           <span class="boh-cp-spacer"></span>
 
+          <!-- plans/038 P0：用量环岛形态不渲染（限流时由壳的 notice / rateLimitMessage 出一行提示） -->
           <div
-            v-if="usage.visible"
+            v-if="!overlayMode && usage.visible"
             class="boh-usage-wrap"
             @mouseenter="openUsagePop"
             @mouseleave="scheduleCloseUsagePop"

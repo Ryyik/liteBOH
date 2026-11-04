@@ -8,17 +8,11 @@
       role="dialog"
       aria-label="BOH AI 灵动岛"
     >
-      <!-- 顶部 header：状态 + 全屏按钮 -->
+      <!-- 顶部 header（plans/038 P0 瘦身）：左侧「图标 + 状态文字」整块删除 ——
+           状态（正在思考 / 对话中）与 BohChatStream 的活动行完全重复，48px 换一句废话不值。
+           只保留右侧三颗功能键（新对话 / 去全页 / 关闭）—— 全页出口在回答形态落地前不能丢。
+           高度 48 → 40。 -->
       <div class="bohai-island-header">
-        <span class="bohai-island-header-icon" aria-hidden="true">
-          <Sparkles v-if="!isThinking" :size="16" :stroke-width="2.1" />
-          <LoaderCircle v-else class="spin" :size="16" :stroke-width="2.1" />
-        </span>
-        <span class="bohai-island-header-text">
-          <template v-if="isEmpty"><strong>BOH AI</strong> 已就绪</template>
-          <template v-else-if="isThinking"><strong>BOH AI</strong> 正在思考...</template>
-          <template v-else><strong>BOH AI</strong> 对话中</template>
-        </span>
         <div class="bohai-island-header-actions">
           <button
             type="button"
@@ -70,7 +64,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { createPanelAsync } from '@/utils/async-component.js';
 import { useRoute, useRouter } from 'vue-router';
-import { LoaderCircle, Maximize2, Plus, Sparkles, X } from 'lucide-vue-next';
+import { Maximize2, Plus, X } from 'lucide-vue-next';
 import { useGlobalAiOverlay } from '@/composables/useGlobalAiOverlay';
 
 const BOHAIMain = createPanelAsync(() => import('@/views/BOHAI/BOHAI/BOHAIMain.vue'), {
@@ -253,7 +247,11 @@ function onNewChat() {
 :global(.unified-nav-surface.has-bohai-island) {
   --bohai-island-top: var(--global-nav-rest-height, 72px);
   --bohai-island-bottom-gap: 12px;
-  --bohai-island-height: min(50vh, 520px);
+  /* plans/038 P0：岛高必须扣键盘遮挡高度（--kb-inset，useKeyboardInset.js 单一真源）。
+     iOS 键盘弹起不改变 layout viewport ⇒ vh/dvh 都不会缩，必须显式减；
+     下限 240px 防小屏 + 键盘把岛压没（极限时岛体内部滚动兜底）。
+     2026-10-31 实测：竖屏键盘 ~336px，旧值 460px 时输入框在键盘背后。 */
+  --bohai-island-height: max(240px, calc(min(50vh, 520px) - var(--kb-inset, 0px)));
   height: calc(
     var(--bohai-island-top) + var(--bohai-island-height) + var(--bohai-island-bottom-gap)
   ) !important;
@@ -308,55 +306,18 @@ function onNewChat() {
    不再用元素自身 keyframes，避免进场双动画叠加。 */
 
 /* ============================================
-   顶部 header
+   顶部 header（P0 瘦身后只承载三颗功能键，40px）
    ============================================ */
 :global(.bohai-island-header) {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
-  height: 48px;
-  padding: 0 14px;
+  height: 40px;
+  padding: 0 12px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
   color: #334155;
-}
-
-:global(.bohai-island-header-icon) {
-  flex: 0 0 auto;
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  color: #6d38c8;
-  background: linear-gradient(135deg, #eee4ff, #f6efff);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-}
-
-:global(.bohai-island-header-icon .spin) {
-  animation: bohaiIslandSpin 1.2s linear infinite;
-}
-
-@keyframes bohaiIslandSpin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-:global(.bohai-island-header-text) {
-  flex: 1;
-  min-width: 0;
-  font-size: 12.5px;
-  font-weight: 560;
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-:global(.bohai-island-header-text strong) {
-  color: #1d2938;
-  font-weight: 700;
 }
 
 :global(.bohai-island-header-actions) {
@@ -429,15 +390,6 @@ function onNewChat() {
   color: rgba(226, 232, 240, 0.86);
 }
 
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-header-text strong) {
-  color: #f8fafc;
-}
-
-:global(#unified-nav-container[data-theme='dark'] .bohai-island-header-icon) {
-  background: linear-gradient(135deg, rgba(109, 56, 200, 0.32), rgba(79, 70, 229, 0.22));
-  color: #c4b5fd;
-}
-
 :global(#unified-nav-container[data-theme='dark'] .bohai-island-icon-btn) {
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.1);
@@ -457,7 +409,7 @@ function onNewChat() {
    ============================================ */
 @media (max-width: 768px) {
   :global(.unified-nav-surface.has-bohai-island) {
-    --bohai-island-height: min(54vh, 460px);
+    --bohai-island-height: max(240px, calc(min(54vh, 460px) - var(--kb-inset, 0px)));
   }
 
   :global(.bohai-island) {
@@ -467,11 +419,6 @@ function onNewChat() {
 }
 
 @media (max-width: 480px) {
-  :global(.bohai-island-header-icon) {
-    width: 26px;
-    height: 26px;
-  }
-
   :global(.bohai-island-icon-btn) {
     width: 26px;
     height: 26px;
