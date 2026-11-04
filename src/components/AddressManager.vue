@@ -103,7 +103,7 @@
         </div>
 
         <label class="am-default-toggle">
-          <input type="checkbox" v-model="form.is_default" />
+          <input type="checkbox" v-model="form.is_default" class="boh-switch" />
           <span class="am-toggle-ui"></span>
           <span>设为默认收货地址</span>
         </label>
@@ -196,20 +196,23 @@
     </template>
 
     <!-- AI 识别确认弹窗 -->
-    <div v-if="showAiConfirm" class="am-modal-overlay" @click.self="showAiConfirm = false">
-      <div class="am-confirm-modal">
-        <h3>确认识别结果</h3>
-        <div class="am-confirm-content">
-          <p><strong>收件人:</strong> {{ aiResult.recipient || '—' }}</p>
-          <p><strong>电话:</strong> {{ aiResult.phone || '—' }}</p>
-          <p><strong>地址:</strong> {{ aiResult.region }} {{ aiResult.detail }}</p>
-        </div>
-        <div class="am-modal-actions">
-          <button @click="showAiConfirm = false">重试</button>
-          <button class="primary" @click="applyAiResult">确认填充</button>
+    <!-- 2026-11-04 硬切审计：卡片进场有 am-form-in，出场原先瞬切，补 fade 过渡 -->
+    <Transition name="am-fade">
+      <div v-if="showAiConfirm" class="am-modal-overlay" @click.self="showAiConfirm = false">
+        <div class="am-confirm-modal">
+          <h3>确认识别结果</h3>
+          <div class="am-confirm-content">
+            <p><strong>收件人:</strong> {{ aiResult.recipient || '—' }}</p>
+            <p><strong>电话:</strong> {{ aiResult.phone || '—' }}</p>
+            <p><strong>地址:</strong> {{ aiResult.region }} {{ aiResult.detail }}</p>
+          </div>
+          <div class="am-modal-actions">
+            <button @click="showAiConfirm = false">重试</button>
+            <button class="primary" @click="applyAiResult">确认填充</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
@@ -1274,6 +1277,16 @@ onMounted(async () => {
   background: var(--am-overlay-bg);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+}
+
+/* 显隐过渡（2026-11-04 硬切审计）：进场淡入由 .am-confirm-modal 的 am-form-in 承担，
+   这里补原先缺失的出场淡出。 */
+.am-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.am-fade-leave-to {
+  opacity: 0;
 }
 .am-confirm-modal {
   width: min(420px, 90vw);

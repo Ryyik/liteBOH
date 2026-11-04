@@ -44,9 +44,12 @@ describe('输入区浮层进场（模式 / 工具 / 用量）', () => {
   const vue = read(COMPOSER_VUE);
   const css = squeezeSource(read(COMPOSER_CSS));
 
-  it('三个面板都包了 `<Transition name="boh-pop">`', () => {
-    expect((vue.match(/<Transition name="boh-pop">/g) || []).length).toBe(3);
-    expect((vue.match(/<\/Transition>/g) || []).length).toBe(3);
+  it('输入区全部浮层都包了 `<Transition name="boh-pop">`', () => {
+    // 2026-11-04 硬切审计补齐后实况 8 处：模式 / 工具 / 用量三菜单（原有 3）+
+    // 斜杠命令面板（此前唯一裸切）+ 发送⇄停止图标 + 三个 BohGlassRefract 折射玻璃层
+    // （玻璃原先裸挂，菜单体 260ms 淡出时背板同帧蒸发 ⇒ 收尾帧材质跳变，P1-13）。
+    expect((vue.match(/<Transition name="boh-pop"/g) || []).length).toBe(8);
+    expect((vue.match(/<\/Transition>/g) || []).length).toBe(8);
   });
 
   it('进场只动 opacity + 4px 位移，不用 scale（探针 200ms 就量几何）', () => {
@@ -128,15 +131,19 @@ describe('两条硬约束（改这四处时别踩）', () => {
     }
   });
 
-  it('⭐ 关键帧不变量：BOHAI 仍是 5 处（新增动画请用 transition）', () => {
-    // 现行 5 处（2026-10-25 按实况对齐；此前断言写 3 却实测 4，长期是红的）：
+  it('⭐ 关键帧不变量：BOHAI 仍是 6 处（新增动画请用 transition）', () => {
+    // 现行 6 处（2026-10-25 按实况对齐；此前断言写 3 却实测 4，长期是红的）：
     //   1. boh-spin              boh-work.css    工作台步骤点的无限旋转（唯一用 transition 表达不了的一类）
     //   2. boh-search-shimmer    boh-stream.css  「网页搜索 / 正在思考」的流光
     //   3. boh-activity-swap-in  boh-stream.css  动作行换字的一次性淡入（2026-10-19，见下方注释为何不用 Transition）
     //   4. boh-activity-icon-in  boh-stream.css  同上，图标侧的一次性入场
     //   5. boh-beam-spin         boh-beam.css    输入框生成在途的边界光束旋转（2026-10-25）
+    //   6. boh-msg-actions-in    boh-stream.css  生成结束后的操作栏一次性入场（2026-11-04 硬切审计
+    //                                              P1-9；与 #3/#4 同类：挂载即播的一次性淡入，
+    //                                              transition 无从触发，挂 <Transition> 反而多一层包裹）
     // 变更史：`boh-search-fade`（网页标题轮换）已于 2026-10-19 被 `boh-activity-swap-in` 取代
-    //        （08ad8476 删 1 增 2，净 +1 ⇒ 3 → 4）；2026-10-25 加边界光束 ⇒ 4 → 5。
+    //        （08ad8476 删 1 增 2，净 +1 ⇒ 3 → 4）；2026-10-25 加边界光束 ⇒ 4 → 5；
+    //        2026-11-04 加操作栏入场 ⇒ 5 → 6。
     //        ⚠️ 第 5 条同样过不了「能不能用 transition」那一问 —— 旋转角度要**无限循环**，
     //        transition 没有 `infinite`，只能走关键帧。它是**条件性**的（只在 `is-active` 时 running），
     //        不是常驻循环，这一点与第 1、2 条不同。
@@ -145,6 +152,6 @@ describe('两条硬约束（改这四处时别踩）', () => {
       (sum, file) => sum + (read(file).match(/@keyframes\s/g) || []).length,
       0,
     );
-    expect(total).toBe(5);
+    expect(total).toBe(6);
   });
 });

@@ -30,7 +30,10 @@ describe('ProfileMain 作品格模板：post 访问必须走 item.post（2026-10
    */
   const workGrid = () => {
     const tpl = template();
-    const start = tpl.indexOf('v-else class="profile-post-grid"');
+    // ⚠️ 锚点只匹配到类名开头、不含闭合引号（2026-11-04）：作品格 v-else 的 class
+    // 追加了 content-swap-in（硬切审计），前缀锚 `v-else class="profile-post-grid`
+    // 仍足以与前面那处非 v-else 的 `.profile-post-grid` 区分开。
+    const start = tpl.indexOf('v-else class="profile-post-grid');
     const end = tpl.indexOf('list-load-more-wrap');
     expect(start, '未找到作品格的 v-else .profile-post-grid').toBeGreaterThan(-1);
     expect(end, '未找到 list-load-more-wrap（切片终点）').toBeGreaterThan(start);

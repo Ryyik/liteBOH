@@ -235,8 +235,11 @@ describe('百分比口径的源码守卫：三个页面都不再自算 Token 数
     // 条宽用归一值（已用 ÷ 总额）；aria 量程固定 0–100，读屏不会把 625% 报成量程
     expect(src).toContain('quotaDisplay.meterPercent');
     expect(src).toContain('aria-valuemax="100"');
-    // 积分余额是「余额」不是「日额度」，仍显示绝对值 —— 别被这轮口径一起改掉
-    expect(src).toContain('formatTokenCount(pointsBalance)');
+    // 积分余额是「余额」不是「日额度」，仍显示绝对值 —— 别被这轮口径一起改掉。
+    // 2026-11-04 硬切审计 P1-11：模板侧改走 pointsBalanceDisplay（tween 展示值），
+    // 但格式化真源仍是 formatTokenCount、数据真源仍是 pointsBalance，口径未变。
+    expect(src).toContain('formatTokenCount(pointsBalanceShown');
+    expect(src).toContain('pointsBalanceDisplay');
   });
 
   it('侧栏账号浮层写「今日剩余」并用归一后的条宽', () => {
