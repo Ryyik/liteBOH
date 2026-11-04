@@ -16,6 +16,8 @@ class ThemeManager {
     this.uiStyle = 'glass';
     this.listeners = [];
     this.initialized = false;
+    // 首次 applyTheme（启动）之前为 false ⇒ 启动路径不做切换动画
+    this.readyForTransition = false;
     this.systemThemeQuery = null;
     this.handleSystemThemeChange = () => {
       if (this.preference !== 'system') return;
@@ -79,58 +81,79 @@ class ThemeManager {
 
   /**
    * 应用指定主题
+   *
+   * 启动后的用户触发切换走 View Transitions 做全页交叉淡入（不支持的浏览器 /
+   * prefers-reduced-motion 自动降级为瞬切）；首次应用（init / 冷启动）不动画。
    * @param {string} theme - 'light'、'dark' 或自定义主题
    */
   applyTheme(theme, preference = this.preference) {
-    this.theme = theme;
-    this.preference = preference;
+    const mutate = () => {
+      this.theme = theme;
+      this.preference = preference;
 
-    // 设置到 documentElement
-    document.documentElement.setAttribute('data-theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+      // 设置到 documentElement
+      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.classList.toggle('dark', theme === 'dark');
 
-    // 为特定容器设置主题属性
-    const containers = [
-      '.forum-page',
-      '.post-detail-page',
-      '.user-space-page',
-      '.account-security-page',
-      '.address-page',
-      '.subscription-page',
-      '.pushplus-settings-page',
-      '.shared-memory-page',
-      '#unified-nav-container',
-      '.bohai-page',
-      '.x-notifications-container',
-    ];
+      // 为特定容器设置主题属性
+      const containers = [
+        '.forum-page',
+        '.post-detail-page',
+        '.user-space-page',
+        '.account-security-page',
+        '.address-page',
+        '.subscription-page',
+        '.pushplus-settings-page',
+        '.shared-memory-page',
+        '#unified-nav-container',
+        '.bohai-page',
+        '.x-notifications-container',
+      ];
 
-    containers.forEach((selector) => {
-      const elements = document.querySelectorAll(selector);
-      elements.forEach((el) => {
-        if (el) {
-          el.setAttribute('data-theme', theme);
-          el.setAttribute('data-ui-style', this.uiStyle);
-        }
+      containers.forEach((selector) => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach((el) => {
+          if (el) {
+            el.setAttribute('data-theme', theme);
+            el.setAttribute('data-ui-style', this.uiStyle);
+          }
+        });
       });
-    });
 
-    // 触发主题变化事件
-    this.notifyListeners(theme, this.preference, this.uiStyle);
+      // 触发主题变化事件
+      this.notifyListeners(theme, this.preference, this.uiStyle);
 
-    // 更新 meta theme-color
-    this.updateMetaThemeColor(theme);
+      // 更新 meta theme-color
+      this.updateMetaThemeColor(theme);
 
-    // 触发自定义事件，通知所有页面组件
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('theme-changed', { detail: { theme, uiStyle: this.uiStyle } }),
-      );
+      // 触发自定义事件，通知所有页面组件
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('theme-changed', { detail: { theme, uiStyle: this.uiStyle } }),
+        );
+      }
+
+      // 按需加载深色主题 CSS（首次切换时动态加载，不阻塞首屏）
+      if (theme === 'dark') {
+        ensureThemeCSS('dark').catch(() => {});
+      }
+    };
+
+    const canViewTransition =
+      this.readyForTransition &&
+      typeof document !== 'undefined' &&
+      typeof document.startViewTransition === 'function' &&
+      typeof window.matchMedia === 'function' &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (canViewTransition) {
+      document.startViewTransition(mutate);
+      return;
     }
 
-    // 按需加载深色主题 CSS（首次切换时动态加载，不阻塞首屏）
-    if (theme === 'dark') {
-      ensureThemeCSS('dark').catch(() => {});
-    }
+    mutate();
+    // 第一次应用（启动路径）之后，后续切换才允许带过渡动画
+    this.readyForTransition = true;
   }
 
   /**

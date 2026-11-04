@@ -1305,3 +1305,19 @@
   background: rgba(255, 255, 255, 0.1);
   color: #a1a1a6;
 }
+
+/* 出入场过渡（2026-11-04 硬切审计 P1-1）：hideNavbar 路由（详情页/管理端等）往返时，
+   App.vue 的 <Transition name="unified-nav-slide"> 补滑入滑出；
+   类挂在 .unified-nav 根上（scoped data-v 与本文件一致，能命中）。 */
+.unified-nav-slide-enter-active,
+.unified-nav-slide-leave-active {
+  transition:
+    opacity 0.22s var(--ease-out, ease),
+    transform 0.22s var(--ease-out, ease);
+}
+
+.unified-nav-slide-enter-from,
+.unified-nav-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-14px);
+}

@@ -385,7 +385,11 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
 </script>
 
 <template>
-  <UnifiedNavbar v-if="showGlobalNavbar" />
+  <!-- 2026-11-04 硬切审计 P1-1：hideNavbar 路由往返时导航条瞬现瞬失，补滑入滑出
+       （过渡类在 UnifiedNavbar/style.scoped.css 的 .unified-nav-slide-*） -->
+  <Transition name="unified-nav-slide">
+    <UnifiedNavbar v-if="showGlobalNavbar" />
+  </Transition>
 
   <!-- 首屏加载态：路由就绪前替代主体空白（骨架样式来自 index.html 内联样式） -->
   <div
@@ -459,6 +463,16 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
             剩下的怀疑点在外层 Suspense（它对 RouterView 的接管与 Transition 的解析顺序），
             需专门一轮验证；在验证通过之前不该把这个改动留在最关键的壳层文件里。
 
+            ── 2026-11-04 硬切审计再试（P0-1，plans/005）──
+            当年失败的另一个候选根因：RouterView 槽内是 **两个并列的条件分支**
+            （KeepAlive 分支 + 普通分支），<Transition> 要求单根 —— 类名自然从未挂上。
+            本版把两分支收进同一个 Transition 的 v-if / v-else-if 链，并**只做 enter、
+            不定义 leave 类**（leave 无过渡时长 ⇒ 旧页立即卸载、新页 200ms 淡入，
+            不会像 mode="out-in" 那样给每次切换硬加等待 —— 与 2026-09-20 的设计意图一致）。
+            有效性由 scripts/probes/probe-route-switch.mjs 巡检（主内容可见、不卡
+            opacity:0、无报错）；若过渡类名依旧不生效，表现等于原状（退回瞬切），
+            不会更坏 —— 这是本改动被允许留下的前提。
+
             与此无关、且**已经生效**的是分区/档位级过渡：见 shell-community.css 的
             .tab-page / .is-leaving / .tab-transition-forward|back（280ms 进、250ms 出、
             方向感知、reduced-motion 齐备）。
@@ -483,23 +497,26 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
             守：tests/unit/global-error-boundary.test.js（源码级不变量）+
                 scripts/probes/probe-dm-lottery-entries-jump.mjs（切表只发 1 次列表请求）。
           -->
-          <KeepAlive>
-            <component v-if="activeRoute.meta?.keepAlive" :is="Component" :key="activeRoute.name" />
-          </KeepAlive>
-          <!--
-            刷新还原弹窗时（isModalOwningDetail=true）跳过整页详情组件：
-            路由名仍是 PostDetail，照渲染会得到「弹窗 + 整页详情」两棵树同时在跑
-            （实测 pageCount=2），关掉弹窗后旧版整页详情会露出来 —— 就是用户报的
-            「刷新后进了远古详情页」。跳过后只有弹窗那一棵，历史与深链不受影响。
-          -->
-          <component
-            v-if="
-              !activeRoute.meta?.keepAlive &&
-              !(isModalOwningDetail && activeRoute.name === 'PostDetail')
-            "
-            :is="Component"
-            :key="activeRoute.path"
-          />
+          <Transition name="route-fade">
+            <!-- v-if 必须在 KeepAlive 上（不是里面的 component）：Transition 要求
+                 子节点是 v-if / v-else-if 单链，否则两分支并列 = 又一次「类名从未挂上」 -->
+            <KeepAlive v-if="activeRoute.meta?.keepAlive">
+              <component :is="Component" :key="activeRoute.name" />
+            </KeepAlive>
+            <!--
+              刷新还原弹窗时（isModalOwningDetail=true）跳过整页详情组件：
+              路由名仍是 PostDetail，照渲染会得到「弹窗 + 整页详情」两棵树同时在跑
+              （实测 pageCount=2），关掉弹窗后旧版整页详情会露出来 —— 就是用户报的
+              「刷新后进了远古详情页」。跳过后只有弹窗那一棵，历史与深链不受影响。
+            -->
+            <component
+              v-else-if="
+                !(isModalOwningDetail && activeRoute.name === 'PostDetail')
+              "
+              :is="Component"
+              :key="activeRoute.path"
+            />
+          </Transition>
         </RouterView>
       </template>
       <template #fallback>
@@ -518,13 +535,16 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
   </GlobalErrorBoundary>
   <Footer v-if="bootReady && !route.meta?.hideFooter" />
 
-  <!-- 全局登录模态框 -->
-  <LoginView
-    v-if="showLoginModal"
-    :show="showLoginModal"
-    :is-modal="true"
-    @close="showLoginModal = false"
-  />
+  <!-- 全局登录模态框（2026-11-04 硬切审计 P1-2：竖屏形态原先瞬现瞬失，
+       补淡入淡出；横屏岛形动画在 Login 自身样式里，两层互不冲突） -->
+  <Transition name="login-modal-fade">
+    <LoginView
+      v-if="showLoginModal"
+      :show="showLoginModal"
+      :is-modal="true"
+      @close="showLoginModal = false"
+    />
+  </Transition>
 
   <!-- 帖子详情弹窗宿主（横屏）：壳很轻可常驻；重的 PostDetailMain 在弹窗内异步加载 -->
   <PostDetailModal />

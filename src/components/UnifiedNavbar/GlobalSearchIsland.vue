@@ -780,6 +780,26 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* 2026-11-04 硬切审计：结果组原先逐键瞬换；keyed 复用 ⇒ 老组不重播、新组淡入 */
+  animation: gs-group-in 0.2s var(--ease-out, ease) both;
+}
+
+@keyframes gs-group-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gs-group {
+    animation: none;
+  }
 }
 
 .gs-group-head {

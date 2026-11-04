@@ -696,3 +696,170 @@ progress,
 meter {
   accent-color: var(--boh-brand-blue, #0071e3);
 }
+
+/* ============================================================
+   主题切换交叉淡入（View Transitions API）
+   —— 触发点在 theme-manager.js applyTheme()（启动路径不动画）；
+   不支持 startViewTransition 的浏览器自动瞬切，无需兜底。
+   ::view-transition 组不需要 dark 变体（截的是像素快照，与主题无关）。
+   ============================================================ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.28s;
+  animation-timing-function: ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   骨架屏⇄内容替换的内容侧入场（2026-11-04 硬切审计 P0-3）
+   —— 用法：挂在骨架 v-if 对应的 v-else 内容根节点上。
+   为什么不做双分支 crossfade：骨架与内容同处文档流，同时动画会短暂
+   双倍高度，只有绝对定位才能交叉 —— 逐点改造风险大于收益。
+   折中口径：骨架瞬失、内容 280ms 淡入上移，观感从「瞬跳」变「浮现」。
+   ============================================================ */
+.content-swap-in {
+  animation: content-swap-in 280ms var(--ease-out, ease) both;
+}
+
+@keyframes content-swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-swap-in {
+    animation: none;
+  }
+}
+
+/* 纯透明度变体：给含 position:fixed 后代的大布局用
+   （transform 动画期间会把 fixed 后代的包含块改成动画容器，280ms 内底栏会跳） */
+.content-swap-in-fade {
+  animation: content-swap-in-fade 280ms var(--ease-out, ease) both;
+}
+
+@keyframes content-swap-in-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-swap-in-fade {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   .boh-switch —— 原生 checkbox 的开关化外观（2026-11-04 硬切审计 P2-4）
+   用法：<input type="checkbox" class="boh-switch"> 。保持原生语义
+   （键盘/读屏/表单行为不变），只换皮：thumb 220ms 滑动过渡。
+   正确范式的组件版见 user-space/components/SettingToggle.vue；
+   管理端零散勾选框不值得逐个换组件，挂本类即可对齐观感。
+   ============================================================ */
+input[type='checkbox'].boh-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--boh-bg-tertiary, #d7d7dc);
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background-color 0.2s var(--ease-out, ease);
+}
+
+input[type='checkbox'].boh-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.22s var(--ease-out, ease);
+}
+
+input[type='checkbox'].boh-switch:checked {
+  background: var(--boh-brand-blue, #0071e3);
+}
+
+input[type='checkbox'].boh-switch:checked::after {
+  transform: translateX(14px);
+}
+
+input[type='checkbox'].boh-switch:focus-visible {
+  outline: 2px solid var(--boh-brand-blue, #0071e3);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[type='checkbox'].boh-switch,
+  input[type='checkbox'].boh-switch::after {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   全局登录模态出入场（2026-11-04 硬切审计 P1-2）：
+   App.vue 的 <Transition name="login-modal-fade">；竖屏形态原先瞬现瞬失，
+   横屏岛形动画在 Login 组件自身样式里，本过渡只做整体淡入淡出不与之冲突。
+   ============================================================ */
+.login-modal-fade-enter-active,
+.login-modal-fade-leave-active {
+  transition: opacity 0.22s var(--ease-out, ease);
+}
+
+.login-modal-fade-enter-from,
+.login-modal-fade-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-modal-fade-enter-active,
+  .login-modal-fade-leave-active {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   路由级过渡（2026-11-04 硬切审计 P0-1，plans/005 落地）：
+   App.vue RouterView 内 <Transition name="route-fade">，**只做 enter、
+   不定义 leave 类** —— leave 无时长 ⇒ 旧页立即卸载、新页 200ms 淡入，
+   不给切换硬加等待。类名不生效时的最坏表现 = 退回瞬切（原状）。
+   ============================================================ */
+.route-fade-enter-active {
+  transition: opacity 0.2s var(--ease-out, ease);
+}
+
+.route-fade-enter-from {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-fade-enter-active {
+    transition: none;
+  }
+}
