@@ -207,9 +207,23 @@
 | 阶段 | 内容 | 验收 |
 | --- | --- | --- |
 | **P0**（✅ 2026-11-04 `73ced89e`） | 旧岛三个纯 bug：岛高扣 `--kb-inset`、岛内隐藏模型/工具/用量、删 header | 自证 14/14 + 两探针绿 |
-| **P1**（✅ 2026-11-04 本笔） | 起 `BohIsland`（Teleport + 胶囊/展开两态，展开卡承载 `GlobalSearchIsland`）+ 搜索并入 + 第 0 项原句直传 + `/` 归岛（无导航栏路由可用）+ 深色岛材质 | `probe-nav-ask` 22/22 + `probe-global-search` 58/58 |
-| **P2** | 回答形态（高度随字数生长）+ `Esc` 分层 + 快速会话；旧岛退场 | `probe-nav-ask` 回答档 |
-| **P3** | 入口收敛（`⌘K`）、概览岛改「一句结论 + 3 锚点」、周报并入概览时间窗 | `probe-overview-island-guards`（38 条） |
+| **P1**（✅ 2026-11-04 `abe16fa4`） | 起 `BohIsland`（Teleport + 胶囊/展开两态，展开卡承载 `GlobalSearchIsland`）+ 搜索并入 + 第 0 项原句直传 + `/` 归岛（无导航栏路由可用）+ 深色岛材质 | `probe-nav-ask` 22/22 + `probe-global-search` 58/58 |
+| **P2**（✅ 2026-11-04 本笔） | 回答形态（`BohIslandAnswer`：自有引擎实例 + 流式 + 高度随字数生长 + 来源 chip + 展开全文/去全页）+ Esc 分层 + 快速会话（岛内独立会话） | `probe-nav-ask` **34/34**（回答档 12 条）+ `probe-global-search` 58/58 |
+| **P3** | 入口收敛（`⌘K`）+ **旧 AI 岛退场**（从 P2 顺延：退场必须与 ⌘K/边缘手势改线同笔，否则出现无入口真空期）+ 概览岛改「一句结论 + 3 锚点」+ 周报并入概览时间窗 | `probe-overview-island-guards`（38 条） |
+
+> **P2 实现记录**（与 §3.5 的差异与踩坑）：
+> · 回答面 = 自有 `useChatEngine()` 实例（快速会话 §3.4），共写 `boh_chat_sessions` 由写入守卫仲裁
+>   （2026-10-11「/ai-chat KeepAlive 与旧岛共存」的既有先例）；每次关岛重开 = 新会话，`startNewChat` 隔离。
+> · 活动行复用 `boh-activity.js` 单源（`resolveBohActivityStage` + `resolveActivityLine`），流式结束整行消失；
+>   markdown 复用 `boh-markdown.js`（安全渲染含 DOMPurify）。
+> · Esc 分层收敛在岛根监听（回答面退层 / 搜索面关岛）——组件内各自处理会出现「退层后焦点落 body、
+>   第二次 Esc 无人接」的洞；搜索面输入框自己的 Esc handler stopPropagation，不双发。
+> · 「展开全文」的溢出检测不能拿 `scrollHeight > clientHeight`（不裁剪就永不溢出，鸡生蛋）——
+>   直接与裁剪阈值 132px 比较。
+> · 快速会话的「在搜索里问过」分组与「提升为主会话」→ P3（现以独立新会话形式出现在全页侧栏）。
+> · 探针 mock 踩坑：站方模型走内置 `boh:fast` → API-Key 代理 EF（`runtime-chat-stream`），
+>   mock 必须打 `**/functions/v1/**` 并按请求体嗅探（不打会撞被墙的 supabase.co，检索段挂死 24s）；
+>   另：`[...].map(...)` 忘 `.join('')` 时数组转字符串插入逗号，粘坏 SSE 行首，表现是「只收到第 1 片」。
 
 > **P1 实现记录**（与 §4 的差异）：展开卡直接承载整块 `GlobalSearchIsland`（其输入条本就是
 > 第一个子元素，输入条 top 恒定由探针 ④ 断言：空态 = 出结果 = 101px）；胶囊/展开是同一根节点的
