@@ -255,6 +255,7 @@
          --border / --radius / --spacing）都挂在页根上，挂到 body 会全部丢失
          （ApiKeyConsole 的 discovery 弹层就因为挂 body 改用 :root 级 token）。 -->
     <Teleport :to="dialogHost">
+      <Transition name="g-dialog-fade">
       <div
         v-if="keyDialog"
         class="g-dialog-overlay"
@@ -358,6 +359,7 @@
               <input
                 type="checkbox"
                 v-model="keyDialog.form.fetchAfterSave"
+                class="boh-switch"
                 :disabled="!canDiscover(keyDialog.form.provider)"
               />
               <span>保存后自动拉取这个平台的模型（推荐）</span>
@@ -373,8 +375,10 @@
           </form>
         </div>
       </div>
+      </Transition>
 
       <!-- ============ 拉取结果勾选 ============ -->
+      <Transition name="g-dialog-fade">
       <div
         v-if="pickDialog"
         class="g-dialog-overlay"
@@ -446,8 +450,10 @@
           </footer>
         </div>
       </div>
+      </Transition>
 
       <!-- ============ 模型表单 ============ -->
+      <Transition name="g-dialog-fade">
       <div
         v-if="modelDialog"
         class="g-dialog-overlay"
@@ -557,6 +563,7 @@
           </form>
         </div>
       </div>
+      </Transition>
     </Teleport>
   </section>
 </template>

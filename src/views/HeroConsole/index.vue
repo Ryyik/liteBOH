@@ -963,7 +963,7 @@
 
           <div class="compression-settings" role="group" aria-label="图片压缩设置">
             <label class="compression-toggle">
-              <input v-model="autoCompressImages" type="checkbox" />
+              <input v-model="autoCompressImages" type="checkbox" class="boh-switch" />
               <span>上传时自动压缩</span>
             </label>
             <label v-if="autoCompressImages" class="compression-quality">

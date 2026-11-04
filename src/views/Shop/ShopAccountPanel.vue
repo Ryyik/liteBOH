@@ -99,7 +99,7 @@
         </div>
 
         <label class="ap-toggle">
-          <input type="checkbox" v-model="form.is_default" />
+          <input type="checkbox" v-model="form.is_default" class="boh-switch" />
           <span class="ap-toggle-track"></span>
           <span class="ap-toggle-label">设为默认地址</span>
         </label>

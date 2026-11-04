@@ -1425,6 +1425,7 @@ onUnmounted(() => {
    模型发现 Modal
    ============================================================ */
 .g-discovery-overlay {
+  animation: dm-fade-in 0.18s ease both;
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -1675,6 +1676,23 @@ onUnmounted(() => {
 @media (max-width: 767px) {
   .g-api-key-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 发现弹层进场淡入（2026-11-04 硬切审计 P2-1） */
+@keyframes dm-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g-discovery-overlay {
+    animation: none;
   }
 }
 </style>

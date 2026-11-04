@@ -416,6 +416,8 @@ defineExpose({ searchModel });
   display: block;
 }
 .g-user-menu {
+  animation: dm-pop-in 0.16s var(--ease-out, ease) both;
+  transform-origin: top right;
   position: absolute;
   right: 0;
   top: calc(100% + 8px);
@@ -516,6 +518,24 @@ defineExpose({ searchModel });
   .g-topbar-left .g-icon-btn {
     min-height: 40px;
     min-width: 40px;
+  }
+}
+
+@keyframes dm-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g-user-menu {
+    animation: none;
   }
 }
 </style>

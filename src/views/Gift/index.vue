@@ -3,14 +3,17 @@
     <!-- 统一导航栏 -->
 
     <!-- 时间校验弹窗 -->
-    <div v-if="showTimeAlert" class="modal-overlay">
-      <div class="modal-content">
-        <div class="modal-icon">🕐</div>
-        <h3 class="modal-title">开奖时间未到</h3>
-        <p class="modal-message">请于 <strong>2026年2月16日</strong> 再来开启幸运时刻！</p>
-        <button class="modal-btn" @click="goBackHome">返回首页</button>
+    <!-- 2026-11-04 硬切审计：原先进场靠 CSS 动画、出场瞬切；补上同页中奖弹窗同款的 fade -->
+    <transition name="fade">
+      <div v-if="showTimeAlert" class="modal-overlay">
+        <div class="modal-content">
+          <div class="modal-icon">🕐</div>
+          <h3 class="modal-title">开奖时间未到</h3>
+          <p class="modal-message">请于 <strong>2026年2月16日</strong> 再来开启幸运时刻！</p>
+          <button class="modal-btn" @click="goBackHome">返回首页</button>
+        </div>
       </div>
-    </div>
+    </transition>
 
     <!-- 抽奖主舞台 -->
     <main class="lottery-stage" v-if="!showTimeAlert">

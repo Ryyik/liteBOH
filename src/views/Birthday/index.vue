@@ -201,10 +201,11 @@
                         <span class="flip-author">{{ wish.author_name }}</span>
                         <button
                           class="flip-like"
-                          :class="{ liked: likedWishes.has(wish.id) }"
+                          :class="{ liked: likedWishes.has(wish.id), 'is-pulsing': pulsingLikeId === wish.id }"
                           @click.stop="toggleLike(wish)"
                         >
                           <Heart
+                            class="flip-like-heart"
                             :size="14"
                             stroke-width="2"
                             :fill="likedWishes.has(wish.id) ? '#ff453a' : 'none'"
@@ -374,15 +375,18 @@
       </div>
     </div>
 
-    <div v-if="showPosterModal" class="poster-modal" @click="closePosterModal">
-      <div class="poster-preview" @click.stop>
-        <button class="close-modal-btn" aria-label="关闭" @click="closePosterModal">
-          <X :size="20" stroke-width="2.5" />
-        </button>
-        <img :src="posterImage" alt="生日分享海报" loading="lazy" />
-        <p>长按或右键保存这张生日海报</p>
+    <!-- 2026-11-04 硬切审计：海报弹窗原先进出场全裸切，补同页 toast 同款 fade -->
+    <transition name="fade">
+      <div v-if="showPosterModal" class="poster-modal" @click="closePosterModal">
+        <div class="poster-preview" @click.stop>
+          <button class="close-modal-btn" aria-label="关闭" @click="closePosterModal">
+            <X :size="20" stroke-width="2.5" />
+          </button>
+          <img :src="posterImage" alt="生日分享海报" loading="lazy" />
+          <p>长按或右键保存这张生日海报</p>
+        </div>
       </div>
-    </div>
+    </transition>
   </div>
 </template>
 
@@ -659,11 +663,20 @@ const onPointerUp = () => {
   }
 };
 
+/* 点赞 pop（2026-11-04 硬切审计 P2-5）：心形填充变化已有颜色渐变，
+   这里补一次 400ms 的 scale 脉冲（对齐 Forum/PostDetail 的 like 动效口径） */
+const pulsingLikeId = ref(null);
+let pulsingLikeTimer = null;
 const toggleLike = (wish) => {
   if (likedWishes.value.has(wish.id)) {
     likedWishes.value.delete(wish.id);
   } else {
     likedWishes.value.add(wish.id);
+    pulsingLikeId.value = wish.id;
+    clearTimeout(pulsingLikeTimer);
+    pulsingLikeTimer = setTimeout(() => {
+      pulsingLikeId.value = null;
+    }, 420);
   }
   likedWishes.value = new Set(likedWishes.value);
 };

@@ -65,7 +65,7 @@
             <div class="gc-section-head">
               <h2>状态</h2>
               <label class="gc-switch">
-                <input v-model="draft.enabled" type="checkbox" />
+                <input v-model="draft.enabled" type="checkbox" class="boh-switch" />
                 <span>{{ draft.enabled ? '已启用' : '已停用' }}</span>
               </label>
             </div>

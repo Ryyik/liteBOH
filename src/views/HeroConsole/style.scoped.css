@@ -987,3 +987,31 @@
     background: #2c2c2e;
   }
 }
+
+/* 浮层进场（2026-11-04 硬切审计 P2-6）：
+   · .skin-picker 皮肤选择器此前全仓无任何样式（裸现），这里只补进场动画，
+     不发明布局样式 —— 布局归位属后续功能项；
+   · .revisions-panel 历史版本面板同批补进场。 */
+.skin-picker,
+.revisions-panel {
+  animation: hc-panel-in 0.18s var(--ease-out, ease) both;
+}
+
+@keyframes hc-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skin-picker,
+  .revisions-panel {
+    animation: none;
+  }
+}

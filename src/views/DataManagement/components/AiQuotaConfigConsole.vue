@@ -131,7 +131,7 @@
             </p>
           </div>
           <label class="pricing-toggle">
-            <input v-model="pricing.enabled" type="checkbox" />
+            <input v-model="pricing.enabled" type="checkbox" class="boh-switch" />
             <span>{{ pricing.enabled ? '已开启' : '已关闭' }}</span>
           </label>
         </div>

@@ -239,3 +239,26 @@ button { letter-spacing: 0; }
 @media (prefers-reduced-transparency: reduce) {
   .console-toolbar, .glass-panel { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
+
+/* 控制台 toast 进场（2026-11-04 硬切审计 P2-2）；ShopConsole / HeroConsole 共用本文件 */
+.console-toast {
+  animation: console-toast-in 0.2s var(--ease-out, ease) both;
+}
+
+@keyframes console-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-toast {
+    animation: none;
+  }
+}

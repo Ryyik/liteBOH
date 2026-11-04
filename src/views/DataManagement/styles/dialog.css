@@ -81,3 +81,37 @@
   border-top: 1px solid var(--border);
   margin-top: calc(var(--spacing) * 2);
 }
+
+/* 显隐过渡（2026-11-04 硬切审计 P2-1）：五个 g-dialog 的 <Transition name="g-dialog-fade">
+   共用；进场遮罩淡入 + 卡片上浮，出场遮罩淡出（卡片随遮罩一起走）。 */
+.g-dialog-fade-enter-active {
+  transition: opacity 0.16s ease;
+}
+
+.g-dialog-fade-leave-active {
+  transition: opacity 0.14s ease;
+}
+
+.g-dialog-fade-enter-from,
+.g-dialog-fade-leave-to {
+  opacity: 0;
+}
+
+.g-dialog-fade-enter-active .g-dialog {
+  transition:
+    transform 0.18s var(--ease-out, ease),
+    opacity 0.18s ease;
+}
+
+.g-dialog-fade-enter-from .g-dialog {
+  transform: translateY(10px) scale(0.98);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g-dialog-fade-enter-active,
+  .g-dialog-fade-leave-active,
+  .g-dialog-fade-enter-active .g-dialog {
+    transition: none;
+  }
+}

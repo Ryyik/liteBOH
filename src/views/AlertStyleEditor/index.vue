@@ -515,12 +515,15 @@ const generatedCSS = computed(() => {
 
 const copyCSS = () => {
   navigator.clipboard.writeText(generatedCSS.value);
-  // Show toast notification
+  // Show toast notification（2026-11-04 硬切审计：原先 remove() 瞬间蒸发，补出场淡出）
   const toast = document.createElement('div');
   toast.className = 'copy-toast';
   toast.textContent = 'CSS 已复制到剪贴板！';
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 2000);
+  setTimeout(() => {
+    toast.classList.add('copy-toast-out');
+    setTimeout(() => toast.remove(), 220);
+  }, 2000);
 };
 
 // Watch for style changes to apply to document

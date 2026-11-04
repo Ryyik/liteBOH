@@ -8864,6 +8864,8 @@ onUnmounted(() => {
 
 /* 行级 ⋯ 浮动菜单 */
 .row-float-menu {
+  animation: dm-pop-in 0.14s var(--ease-out, ease) both;
+  transform-origin: top left;
   position: fixed;
   z-index: 2000;
   width: 188px;
@@ -8915,6 +8917,25 @@ onUnmounted(() => {
   15%,
   55% {
     background: color-mix(in srgb, var(--primary) 14%, transparent);
+  }
+}
+
+/* 行级菜单进场（2026-11-04 硬切审计 P2-1） */
+@keyframes dm-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-float-menu {
+    animation: none;
   }
 }
 </style>

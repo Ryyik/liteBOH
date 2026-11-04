@@ -648,6 +648,7 @@
   white-space: nowrap;
 }
 .product-picker-dropdown {
+  animation: dm-pop-in 0.16s var(--ease-out, ease) both;
   max-height: 240px;
   overflow-y: auto;
   border: 1px solid var(--border);
@@ -1317,4 +1318,23 @@
 .drawer-embedded-leave-to {
   opacity: 1;
   transform: none;
+}
+
+/* 浮层进场（2026-11-04 硬切审计 P2-1）；reduced-motion 就地声明 */
+@keyframes dm-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-picker-dropdown {
+    animation: none;
+  }
 }

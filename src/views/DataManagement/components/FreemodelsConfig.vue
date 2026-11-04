@@ -157,6 +157,7 @@
     <!-- ⚠️ Teleport 原因与 KeysAndModels.vue 同（2026-10-17 P1-1）：`.management-section`
          的 backdrop-filter 会成为 fixed 后代的包含块，遮罩铺不满视口。 -->
     <Teleport :to="dialogHost">
+      <Transition name="g-dialog-fade">
       <div
         v-if="editingModel"
         class="g-dialog-overlay"
@@ -272,8 +273,10 @@
           </form>
         </div>
       </div>
+      </Transition>
 
       <!-- 批量添加对话框 -->
+      <Transition name="g-dialog-fade">
       <div
         v-if="showBatchAddDialog"
         class="g-dialog-overlay"
@@ -355,6 +358,7 @@
           </form>
         </div>
       </div>
+      </Transition>
     </Teleport>
   </section>
 </template>

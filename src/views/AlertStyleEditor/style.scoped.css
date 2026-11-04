@@ -755,6 +755,23 @@ input[type="color"]::-webkit-color-swatch {
   }
 }
 
+/* 出场淡出（2026-11-04 硬切审计）：加在 toast.remove() 前 220ms，与 toastIn 同位移基线 */
+:global(.copy-toast-out) {
+  animation: toastOut 0.2s ease forwards;
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .editor-sidebar {
