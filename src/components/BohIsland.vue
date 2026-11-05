@@ -18,10 +18,23 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useBohIsland } from '@/composables/useBohIsland.js';
-import BohIslandAnswer from '@/components/BohIslandAnswer.vue';
+
+/**
+ * 回答面必须**懒加载**（2026-11-05，plans/038 P3 的代价修正）。
+ *
+ * 它是全站唯一渲染 markdown + DOMPurify 的地方（markdown-vendor 29KB +
+ * ui-sanitize 11KB）。BohIsland 挂在 App 级 ⇒ 静态 import 会把这两个 chunk
+ * 拽进入口静态图：实测首屏 449KB vs 基线 243KB，app.js 18KB → 187KB。
+ * 岛是「下拉才开」的交互，首屏根本用不到它；改异步后按需加载，
+ * 首屏与 ui-sanitize 的 PWA 预缓存名单（见 vite.config.js SHELL_CHUNKS）一并复原。
+ *
+ * 关岛即卸载是既有口径（v-if="rendered"），所以这里不需要 keepAlive ——
+ * 每次开岛重新 import 走的是浏览器模块缓存，不会重复下载。
+ */
+const BohIslandAnswer = defineAsyncComponent(() => import('@/components/BohIslandAnswer.vue'));
 
 /**
  * BohIsland —— plans/038：一颗岛装下搜索与「问一句」。

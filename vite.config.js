@@ -126,13 +126,18 @@ const SHELL_CHUNKS = [
   'useGlobalAiPreferences',
   'auth-api',
   'bag',
-  // 2026-11-05：这条注释里预警的那件事发生了 —— plans/038 P3 把回答面搬进 App 级
-  // BohIslandAnswer（渲染 markdown + DOMPurify），两个 chunk 重新回到入口静态 import 图
-  // ⇒ check:shell-precache 断言 B 变红（弱网/离线整站白屏）。按原注释的指引加回名单：
-  // 它们同时决定 CSS 归属（bohShellCssScopePlugin 从 shell chunk 的 importedCss 取），
-  // 所以 markdown-vendor 的样式表也会跟着留在预缓存里。
-  'ui-sanitize',
-  'markdown-vendor',
+  // 2026-11-05：回答面改懒加载后，rollup 重排模块图，这四个原来被内联进 app.js
+  // 的小模块被单独拆成 chunk（async-component 是 defineAsyncComponent 的宿主）。
+  // 它们仍在入口静态 import 图里 ⇒ 必须预缓存，否则弱网/离线缺模块。
+  'async-component',
+  'motion-origin',
+  'usePostDetailModal',
+  'useKeyboardInset',
+  // 2026-11-05：plans/038 P3 一次误入 —— 回答面（markdown + DOMPurify）被静态 import
+  // 进 App 级 BohIsland，两个 chunk 回到入口图，check:shell-precache 断言 B 正确变红。
+  // **修法不是把它们加进本名单，而是把回答面改回懒加载**（BohIsland.vue 用
+  // defineAsyncComponent）：加进名单只是让白屏不白，首屏仍要多下 40KB，
+  // frontend-performance 的反向断言也会拦住。名单保持不含它们。
 ];
 // 入口 chunk 的产物名由 entryFileNames 固定为 app-[hash].js
 const SHELL_CHUNKS_WITH_ENTRY = ['app', ...SHELL_CHUNKS];
