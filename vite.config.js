@@ -126,6 +126,13 @@ const SHELL_CHUNKS = [
   'useGlobalAiPreferences',
   'auth-api',
   'bag',
+  // 2026-11-05：这条注释里预警的那件事发生了 —— plans/038 P3 把回答面搬进 App 级
+  // BohIslandAnswer（渲染 markdown + DOMPurify），两个 chunk 重新回到入口静态 import 图
+  // ⇒ check:shell-precache 断言 B 变红（弱网/离线整站白屏）。按原注释的指引加回名单：
+  // 它们同时决定 CSS 归属（bohShellCssScopePlugin 从 shell chunk 的 importedCss 取），
+  // 所以 markdown-vendor 的样式表也会跟着留在预缓存里。
+  'ui-sanitize',
+  'markdown-vendor',
 ];
 // 入口 chunk 的产物名由 entryFileNames 固定为 app-[hash].js
 const SHELL_CHUNKS_WITH_ENTRY = ['app', ...SHELL_CHUNKS];
