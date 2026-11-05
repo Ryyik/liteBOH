@@ -25,18 +25,27 @@ export const IMAGE_EDITOR_EXPORT_MAX_DIMENSION = 1600;
 export const IMAGE_EDITOR_EXPORT_QUALITY = 0.9;
 
 /** 计算导出尺寸：等比、不超过 maxDimension（纯函数，测试直接吃）。 */
-export function computeExportDimensions(width, height, maxDimension = IMAGE_EDITOR_EXPORT_MAX_DIMENSION) {
+export function computeExportDimensions(
+  width,
+  height,
+  maxDimension = IMAGE_EDITOR_EXPORT_MAX_DIMENSION,
+) {
   const w = Math.max(0, Number(width) || 0);
   const h = Math.max(0, Number(height) || 0);
   const limit = Math.max(1, Number(maxDimension) || 1);
   const longest = Math.max(w, h);
-  if (longest <= limit || longest === 0) return { width: Math.round(w), height: Math.round(h), scaled: false };
+  if (longest <= limit || longest === 0)
+    return { width: Math.round(w), height: Math.round(h), scaled: false };
   const ratio = limit / longest;
   return { width: Math.round(w * ratio), height: Math.round(h * ratio), scaled: true };
 }
 
 /** 计算工作位图尺寸：等比、不超过 maxDimension。 */
-export function computeWorkingDimensions(width, height, maxDimension = IMAGE_EDITOR_WORKING_MAX_DIMENSION) {
+export function computeWorkingDimensions(
+  width,
+  height,
+  maxDimension = IMAGE_EDITOR_WORKING_MAX_DIMENSION,
+) {
   return computeExportDimensions(width, height, maxDimension);
 }
 
@@ -87,7 +96,11 @@ export async function createWorkingSource(file, maxDimension = IMAGE_EDITOR_WORK
   const sourceWidth = Number(drawable?.width) || 0;
   const sourceHeight = Number(drawable?.height) || 0;
   if (!sourceWidth || !sourceHeight) throw new Error('图片尺寸异常');
-  const { width, height, scaled } = computeWorkingDimensions(sourceWidth, sourceHeight, maxDimension);
+  const { width, height, scaled } = computeWorkingDimensions(
+    sourceWidth,
+    sourceHeight,
+    maxDimension,
+  );
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = true;
@@ -104,6 +117,17 @@ function rotateCanvasCW(source) {
   const ctx = canvas.getContext('2d');
   ctx.translate(canvas.width, 0);
   ctx.rotate(Math.PI / 2);
+  ctx.drawImage(source, 0, 0, width, height);
+  return canvas;
+}
+
+/** 逆时针旋转 90°。 */
+function rotateCanvasCCW(source) {
+  const { width, height } = source;
+  const canvas = createCanvas(height, width);
+  const ctx = canvas.getContext('2d');
+  ctx.translate(0, canvas.height);
+  ctx.rotate(-Math.PI / 2);
   ctx.drawImage(source, 0, 0, width, height);
   return canvas;
 }
@@ -132,17 +156,77 @@ function cropCanvasByRect(source, rect) {
   return canvas;
 }
 
+/** 复制一份 canvas（贴纸层要就地画，不能改到工作位图本身）。 */
+function cloneCanvas(source) {
+  const canvas = createCanvas(source.width, source.height);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(source, 0, 0);
+  return canvas;
+}
+
+/**
+ * 套一层 CSS filter（滤镜预设）。
+ * `ctx.filter` 在少数环境不可用（jsdom / 老 Safari），此时**原样返回**——
+ * 宁可导出「没滤镜的原图」，也不要抛错让整条发布链失败。
+ */
+function applyCanvasFilter(source, filterString) {
+  const canvas = createCanvas(source.width, source.height);
+  const ctx = canvas.getContext('2d');
+  try {
+    ctx.filter = filterString;
+    if (typeof ctx.filter !== 'string' || ctx.filter === 'none') return source;
+  } catch {
+    return source;
+  }
+  ctx.drawImage(source, 0, 0);
+  return canvas;
+}
+
+/**
+ * 贴纸层（遮挡用）。
+ * 贴纸按「宽度占画布比例」定位，高度按位图自身比例推 —— 永不拉伸变形。
+ * 没有位图的贴纸直接跳过（预载失败不该让导出整体失败）。
+ */
+function drawStickers(source, stickers, stickerImages) {
+  const canvas = cloneCanvas(source);
+  const ctx = canvas.getContext('2d');
+  for (const sticker of stickers) {
+    const image = stickerImages?.get?.(sticker.asset) || stickerImages?.[sticker.asset] || null;
+    if (!image) continue;
+    const naturalWidth = Number(image.naturalWidth || image.width) || 0;
+    const naturalHeight = Number(image.naturalHeight || image.height) || 0;
+    if (!naturalWidth || !naturalHeight) continue;
+    const width = Math.max(8, Number(sticker.size) * canvas.width);
+    const height = (width * naturalHeight) / naturalWidth;
+    ctx.drawImage(
+      image,
+      Number(sticker.x) * canvas.width - width / 2,
+      Number(sticker.y) * canvas.height - height / 2,
+      width,
+      height,
+    );
+  }
+  return canvas;
+}
+
 /**
  * 由命令序列从工作位图合成 canvas（预览与导出共用这一个合成器）。
  * 每次都从 source 全量重放命令 —— 非破坏模型的核心：中间不落有损文件。
+ *
+ * options.filter —— 已解析好的 CSS filter 串（由调用方从文档模型取出）
+ * options.stickers / options.stickerImages —— 已折叠的贴纸列表与其位图表
+ *
+ * ⚠️ 这里刻意**不** import 文档模型的 fold 函数：utils 不许反向依赖 views，
+ * 贴纸列表由调用方（编辑器的 composable）fold 好再传进来。
  */
-export function renderDocToCanvas(source, commands = []) {
+export function renderDocToCanvas(source, commands = [], options = {}) {
   if (!source) throw new Error('缺少工作位图');
+  const { filter = 'none', stickers = [], stickerImages = null } = options || {};
   let current = source;
   for (const command of Array.isArray(commands) ? commands : []) {
     if (!command || typeof command !== 'object') continue;
     if (command.type === 'rotate') {
-      current = rotateCanvasCW(current);
+      current = command.dir === 'ccw' ? rotateCanvasCCW(current) : rotateCanvasCW(current);
     } else if (command.type === 'flip') {
       current = flipCanvasHorizontal(current);
     } else if (command.type === 'crop') {
@@ -151,6 +235,9 @@ export function renderDocToCanvas(source, commands = []) {
       current = cropCanvasByRect(current, rect);
     }
   }
+  if (filter && filter !== 'none') current = applyCanvasFilter(current, filter);
+  if (Array.isArray(stickers) && stickers.length)
+    current = drawStickers(current, stickers, stickerImages);
   return current;
 }
 
@@ -188,10 +275,18 @@ export function buildEditedFileName(originalName = '') {
  */
 export async function exportCanvasToJpegFile(
   canvas,
-  { name = '', maxDimension = IMAGE_EDITOR_EXPORT_MAX_DIMENSION, quality = IMAGE_EDITOR_EXPORT_QUALITY } = {},
+  {
+    name = '',
+    maxDimension = IMAGE_EDITOR_EXPORT_MAX_DIMENSION,
+    quality = IMAGE_EDITOR_EXPORT_QUALITY,
+  } = {},
 ) {
   if (!canvas) throw new Error('缺少导出画布');
-  const { width, height, scaled } = computeExportDimensions(canvas.width, canvas.height, maxDimension);
+  const { width, height, scaled } = computeExportDimensions(
+    canvas.width,
+    canvas.height,
+    maxDimension,
+  );
   let output = canvas;
   if (scaled) {
     output = createCanvas(width, height);

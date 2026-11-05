@@ -50,7 +50,11 @@ function createFakeCanvasFactory() {
 
 describe('computeExportDimensions / computeWorkingDimensions', () => {
   it('未超限原样返回且不标记 scaled', () => {
-    expect(computeExportDimensions(1200, 800, 1600)).toEqual({ width: 1200, height: 800, scaled: false });
+    expect(computeExportDimensions(1200, 800, 1600)).toEqual({
+      width: 1200,
+      height: 800,
+      scaled: false,
+    });
   });
 
   it('超限等比压到上限（宽为最长边）', () => {
@@ -139,9 +143,7 @@ describe('renderDocToCanvas', () => {
     ]);
     expect(result.width).toBe(50);
     expect(result.height).toBe(50);
-    expect(result.__calls).toEqual([
-      ['drawImage', source, 50, 0, 50, 50, 0, 0, 50, 50],
-    ]);
+    expect(result.__calls).toEqual([['drawImage', source, 50, 0, 50, 50, 0, 0, 50, 50]]);
   });
 
   it('命令按序 fold：rotate 后 crop 相对旋转后的画布', () => {
@@ -200,7 +202,9 @@ describe('createWorkingSource / exportCanvasToJpegFile / canvasToObjectUrl', () 
     const ctx = source.canvas.getContext('2d');
     expect(ctx.imageSmoothingEnabled).toBe(true);
     expect(ctx.imageSmoothingQuality).toBe('high');
-    expect(ctx.__calls).toEqual([['drawImage', expect.anything(), 0, 0, source.width, source.height]]);
+    expect(ctx.__calls).toEqual([
+      ['drawImage', expect.anything(), 0, 0, source.width, source.height],
+    ]);
     expect(globalThis.createImageBitmap).toHaveBeenCalledWith(file);
   });
 
@@ -222,7 +226,11 @@ describe('createWorkingSource / exportCanvasToJpegFile / canvasToObjectUrl', () 
     const scaled = canvases.at(-1);
     expect(scaled.width).toBe(IMAGE_EDITOR_EXPORT_MAX_DIMENSION);
     expect(scaled.height).toBe(800);
-    expect(scaled.toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/jpeg', IMAGE_EDITOR_EXPORT_QUALITY);
+    expect(scaled.toBlob).toHaveBeenCalledWith(
+      expect.any(Function),
+      'image/jpeg',
+      IMAGE_EDITOR_EXPORT_QUALITY,
+    );
     expect(bigCanvas.width).toBe(4000); // 原画布不被改动
   });
 
@@ -247,5 +255,73 @@ describe('createWorkingSource / exportCanvasToJpegFile / canvasToObjectUrl', () 
     const url = await canvasToObjectUrl(canvas);
     expect(url).toBe('blob:preview');
     expect(canvas.toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/jpeg', 0.9);
+  });
+});
+
+/**
+ * 滤镜与贴纸层（2026-11-05 新增）。
+ * 这两层都挂在 renderDocToCanvas 的 options 上：几何折叠只管 rotate/flip/crop，
+ * 滤镜与贴纸在最后叠加 —— 顺序反了会出现「贴纸被滤镜一起调色」的错。
+ */
+describe('renderDocToCanvas · 滤镜与贴纸层', () => {
+  beforeEach(() => {
+    const { factory } = createFakeCanvasFactory();
+    vi.stubGlobal('document', { createElement: () => factory() });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const makeSource = (width, height) => ({ width, height, __source: true });
+
+  it('filter 会复制一份新画布（不改工作位图）', () => {
+    const source = makeSource(100, 80);
+    const result = renderDocToCanvas(source, [], { filter: 'grayscale(1)' });
+    expect(result).not.toBe(source);
+    expect(result.width).toBe(100);
+    expect(result.height).toBe(80);
+    expect(result.__calls[0]).toEqual(['drawImage', source, 0, 0]);
+  });
+
+  it('filter 为 none 时不复制（省一次全量位图拷贝）', () => {
+    const source = makeSource(100, 80);
+    expect(renderDocToCanvas(source, [], { filter: 'none' })).toBe(source);
+    expect(renderDocToCanvas(source, [], {})).toBe(source);
+  });
+
+  it('贴纸按「宽度占比」定位，高度按位图比例推（永不拉伸）', () => {
+    const source = makeSource(100, 100);
+    const stickerImage = { naturalWidth: 100, naturalHeight: 50 };
+    const result = renderDocToCanvas(source, [], {
+      stickers: [{ id: 's1', asset: 'cat', x: 0.5, y: 0.5, size: 0.5 }],
+      stickerImages: new Map([['cat', stickerImage]]),
+    });
+    // 宽 50、高 25，中心对齐 (50,50) ⇒ 左上角 (25, 37.5)
+    expect(result.__calls[1]).toEqual(['drawImage', stickerImage, 25, 37.5, 50, 25]);
+  });
+
+  it('位图缺失的贴纸跳过，不让导出整体失败', () => {
+    const source = makeSource(100, 100);
+    const result = renderDocToCanvas(source, [], {
+      stickers: [{ id: 's1', asset: 'missing', x: 0.5, y: 0.5, size: 0.4 }],
+      stickerImages: new Map(),
+    });
+    // 只有克隆那一次 drawImage
+    expect(result.__calls).toHaveLength(1);
+  });
+
+  it('滤镜先于贴纸：贴纸不会被一起调色', () => {
+    const source = makeSource(100, 100);
+    const stickerImage = { naturalWidth: 10, naturalHeight: 10 };
+    const result = renderDocToCanvas(source, [], {
+      filter: 'grayscale(1)',
+      stickers: [{ id: 's1', asset: 'cat', x: 0.5, y: 0.5, size: 0.2 }],
+      stickerImages: new Map([['cat', stickerImage]]),
+    });
+    // 两次 drawImage：先「滤镜层画上一步结果」，再「贴纸画在滤镜结果之上」。
+    // 贴纸是最后一步，所以它一定不是被滤镜调过色的那一层
+    expect(result.__calls).toHaveLength(2);
+    expect(result.__calls[0][0]).toBe('drawImage');
+    expect(result.__calls.at(-1)[1]).toBe(stickerImage);
   });
 });

@@ -123,23 +123,26 @@ await page.setInputFiles('.mobile-composer-overlay .post-image-input', {
   buffer: Buffer.from(bigPng),
 });
 
-// B1：选图先进**确认页**（横滑卡片 + 编辑/移除/全部确认），不直接进网格
+// B1：选图先进**确认页**（一屏一张大图 + 编辑/移除/全部确认），不直接进网格
 const confirmOverlay = page.locator('.imgedit-overlay');
 await confirmOverlay.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-const confirmCardCount = await page.locator('.imgedit-overlay .imgedit-card').count();
+const confirmSlideCount = await page.locator('.imgedit-overlay .imgedit-slide').count();
 assert(
-  'B1 选图后先出确认页（卡片 + 全部确认按钮）',
+  'B1 选图后先出确认页（大图 + 全部确认按钮）',
   (await confirmOverlay.isVisible().catch(() => false)) &&
-    confirmCardCount === 1 &&
-    (await page.locator('.imgedit-overlay .imgedit-head-primary').isVisible().catch(() => false)),
-  `cards=${confirmCardCount}`,
+    confirmSlideCount === 1 &&
+    (await page
+      .locator('.imgedit-overlay .imgedit-pill.is-primary')
+      .isVisible()
+      .catch(() => false)),
+  `slides=${confirmSlideCount}`,
 );
 // B2：确认前缩略图不回填网格（编辑发生在上传前 = 零浪费零竞态的锚点）
 const gridCountBeforeConfirm = await page
   .locator('.mobile-composer-overlay .post-image-preview-grid img')
   .count();
 assert('B2 确认前网格无缩略图', gridCountBeforeConfirm === 0, `count=${gridCountBeforeConfirm}`);
-await page.locator('.imgedit-overlay .imgedit-head-primary').click();
+await page.locator('.imgedit-overlay .imgedit-pill.is-primary').click();
 await confirmOverlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
 
 const gridImg = page.locator('.mobile-composer-overlay .post-image-preview-grid img').first();

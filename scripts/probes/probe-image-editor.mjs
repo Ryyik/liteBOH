@@ -1,23 +1,26 @@
 import fs from 'node:fs';
 import { chromium } from 'playwright';
 
-// 发帖图片编辑器探针（P0，2026-11-05 落地）
+// 发帖图片编辑器探针（2026-11-05：P0 骨架 + 滤镜 + 猫贴纸遮挡 + UI 对齐发帖器）
 //
-// 覆盖「流法 C」全链路：系统面板选图 → 确认页（横滑 + 编辑/移除/全部确认）→
-// 确认后回填网格启动管线 → 网格画笔角标再编辑（编辑产物重启管线保位）。
-// 编辑器本体：裁切（vue-advanced-cropper 自由比例）/ 旋转 90° / 水平翻转 /
-// 撤销栈（上限 30，见 useImageEditorDoc 单测的纯逻辑部分，这里只测接线）。
+// 覆盖「流法 C」全链路：系统面板选图 → 确认页（一屏一张大图 + 编辑/移除 +
+// 全部确认）→ 确认后回填网格启动管线 → 网格画笔角标再编辑（产物重启管线保位）。
+// 编辑器本体：裁切（vue-advanced-cropper 自由比例）/ 左右各转 90° / 水平翻转 /
+// 滤镜预设（CSS filter，导出走 ctx.filter）/ 猫贴纸（拖动 = 遮挡，canvas 合成）/
+// 撤销栈（上限 30，纯逻辑见 useImageEditorDoc 单测）。
 //
 // 断言（反证敏感对标注 *）：
-//   A1* 选图后先出确认页：2 张卡片 + 每张「编辑/移除」+「全部确认」（删确认页直接选图 → 红）
+//   A1* 选图后先出确认页：2 张 slide + 编辑本张/移除 + 全部确认（删确认页直接选图 → 红）
 //   A2* 确认前网格零缩略图（编辑发生在上传前 = 流法 C 锚点）
-//   A3  移除一张 → 剩 1 张卡片
-//   B1  「编辑」进编辑器：标题/工具条三键（撤销/旋转/翻转），确认页入口的取消文案是「返回」
+//   A3  移除一张 → 剩 1 张 slide
+//   B1  编辑器：标题「编辑图片」+ 工具条五项（裁切/旋转/滤镜/贴纸/撤销）+「返回」
 //   B2  初始撤销 disabled（命令栈空）
-//   B3* 旋转 → 撤销 enabled + 裁切图上屏（cropper 内 blob 图）（不重渲染预览 → 红）
-//   B4  翻转 → 仍 enabled
-//   B5* 撤销×2 → 撤销回到 disabled（栈清空；撤销不生效 → 红）
-//   B6  旋转 → 完成 → 返回确认页，卡片带「已编辑」徽标
+//   B3* 旋转面板「右转 90°」→ 撤销 enabled（不重渲染预览 → 红）
+//   B4* 滤镜面板 9 档；点「黑白」→ chip 选中 + 图片 computed filter 含 grayscale(1)
+//   B5* 贴纸面板 10 只猫；点一只 → 浮层出现 1 枚，且浮层矩形 = 照片实际矩形（±2px）
+//       （归一化坐标算错 → 贴纸位置/遮挡范围全错）
+//   B6* 拖动贴纸 → 位置变化且撤销 enabled（拖动只落一条 update 命令）
+//   B7  完成 → 返回确认页，slide 带「已编辑」徽标
 //   C1  全部确认 → 确认页关闭 → 网格 1 张缩略图
 //   C2  网格缩略图带画笔角标
 //   C3  画笔 → 编辑器（单图再编辑，取消文案「取消」）
@@ -138,84 +141,163 @@ async function openPortraitComposer() {
     { name: 'probe-edit-b.png', mimeType: 'image/png', buffer: Buffer.from(png2) },
   ]);
   await overlay.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
-  const cardCount = await page.locator('.imgedit-overlay .imgedit-card').count();
-  const editBtnCount = await page.locator('.imgedit-overlay .imgedit-card-btn', { hasText: '编辑' }).count();
-  const removeBtnCount = await page.locator('.imgedit-overlay .imgedit-card-btn', { hasText: '移除' }).count();
+  const slideCount = await page.locator('.imgedit-overlay .imgedit-slide').count();
+  const actionCount = await page.locator('.imgedit-overlay .imgedit-action').count();
   check(
-    'A1 选图后先出确认页（2 卡片 + 编辑/移除 + 全部确认）',
+    'A1 选图后先出确认页（2 slide + 编辑本张/移除 + 全部确认）',
     (await overlay.isVisible().catch(() => false)) &&
-      cardCount === 2 &&
-      editBtnCount === 2 &&
-      removeBtnCount === 2 &&
-      (await page.locator('.imgedit-overlay .imgedit-head-primary', { hasText: '全部确认' }).isVisible()),
-    `cards=${cardCount} edit=${editBtnCount} remove=${removeBtnCount}`,
+      slideCount === 2 &&
+      actionCount === 2 &&
+      (await page.locator('.imgedit-overlay .imgedit-pill.is-primary').isVisible()),
+    `slides=${slideCount} actions=${actionCount}`,
   );
   const gridCountBefore = await page
     .locator('.mobile-composer-overlay .post-image-preview-grid img')
     .count();
   check('A2 确认前网格零缩略图', gridCountBefore === 0, `count=${gridCountBefore}`);
 
-  // A3：移除第二张
-  await page.locator('.imgedit-overlay .imgedit-card', { hasText: '移除' }).nth(1).getByRole('button', { name: /移除/ }).click();
+  // A4：底栏「下一张」按钮（显式翻页入口 —— 横滑撞到浏览器边缘返回手势时会整页退出，
+  // 所以这条不能只靠横滑。断言点点的选中位跟着走，而不是只断言按钮存在）
+  const pageBtns = await page.locator('.imgedit-overlay .imgedit-page-btn').count();
+  await page.locator('.imgedit-overlay .imgedit-page-btn').nth(1).click();
+  await page.waitForTimeout(700);
+  const secondDotOn = await page
+    .locator('.imgedit-overlay .imgedit-dot')
+    .nth(1)
+    .evaluate((el) => el.classList.contains('is-on'))
+    .catch(() => false);
+  check(
+    'A4 底栏「上一张/下一张」按钮存在且能切到第 2 张',
+    pageBtns === 2 && secondDotOn === true,
+    `btns=${pageBtns} onSecond=${secondDotOn}`,
+  );
+
+  // A3：移除当前张
+  await page.locator('.imgedit-overlay .imgedit-action.is-danger').click();
   await page.waitForTimeout(400);
-  const cardCountAfterRemove = await page.locator('.imgedit-overlay .imgedit-card').count();
-  check('A3 移除一张后剩 1 张卡片', cardCountAfterRemove === 1, `count=${cardCountAfterRemove}`);
+  const slideCountAfterRemove = await page.locator('.imgedit-overlay .imgedit-slide').count();
+  check(
+    'A3 移除一张后剩 1 张 slide',
+    slideCountAfterRemove === 1,
+    `count=${slideCountAfterRemove}`,
+  );
 
   // —— B：编辑器（命令栈 + 预览重渲染）——
-  await page.locator('.imgedit-overlay .imgedit-card-btn', { hasText: '编辑' }).first().click();
-  await page.waitForTimeout(600);
-  const editorTitle = (await page.locator('.imgedit-overlay .imgedit-head-title').textContent()) || '';
+  await page.locator('.imgedit-overlay .imgedit-action', { hasText: '编辑本张' }).click();
+  await page.waitForTimeout(700);
+  const editorTitle = (await page.locator('.imgedit-overlay .imgedit-title').textContent()) || '';
   const toolLabels = await page.locator('.imgedit-overlay .imgedit-tool span').allTextContents();
-  const backLabel = (await page.locator('.imgedit-overlay .imgedit-head-btn').textContent()) || '';
+  const backLabel =
+    (await page.locator('.imgedit-overlay .imgedit-pill').first().textContent()) || '';
   check(
-    'B1 编辑器视图（标题 + 撤销/旋转/翻转 + 确认页入口「返回」）',
+    'B1 编辑器视图（标题 + 五项工具条 + 确认页入口「返回」）',
     editorTitle.trim() === '编辑图片' &&
-      toolLabels.join(',') === '撤销,旋转,翻转' &&
+      toolLabels.join(',') === '裁切,旋转,滤镜,贴纸,撤销' &&
       backLabel.trim() === '返回',
     `title=${editorTitle.trim()} tools=${toolLabels.join(',')}`,
   );
   const undoBtn = page.locator('.imgedit-overlay .imgedit-tool', { hasText: '撤销' }).first();
-  const undoDisabledInitial = await undoBtn.isDisabled();
-  check('B2 初始撤销 disabled（命令栈空）', undoDisabledInitial === true);
+  check('B2 初始撤销 disabled（命令栈空）', (await undoBtn.isDisabled()) === true);
 
+  // B3：旋转面板 → 右转 90°
   await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '旋转' }).click();
+  await page.waitForTimeout(400);
+  await page.locator('.imgedit-overlay .imgedit-sheet-btn', { hasText: '右转 90°' }).click();
   await page.waitForTimeout(900);
-  const cropperImg = page.locator('.imgedit-overlay .imgedit-cropper img').first();
-  const cropperImgVisible = await cropperImg.isVisible().catch(() => false);
-  const cropperImgSrc = (await cropperImg.getAttribute('src').catch(() => '')) || '';
-  check(
-    'B3 旋转后撤销 enabled + 裁切图上屏（blob 预览）',
-    (await undoBtn.isDisabled()) === false && cropperImgVisible && cropperImgSrc.startsWith('blob:'),
-    `src=${cropperImgSrc.slice(0, 24)}`,
-  );
-  await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '翻转' }).click();
-  await page.waitForTimeout(500);
-  check('B4 翻转后撤销仍 enabled', (await undoBtn.isDisabled()) === false);
-  await undoBtn.click();
-  await page.waitForTimeout(300);
-  await undoBtn.click();
-  await page.waitForTimeout(300);
-  check('B5 撤销×2 后回到 disabled（栈清空）', (await undoBtn.isDisabled()) === true);
+  check('B3 旋转后撤销 enabled', (await undoBtn.isDisabled()) === false);
 
-  // B6：旋转一次 → 完成 → 已编辑徽标
-  await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '旋转' }).click();
+  // B4：滤镜（预设 9 档 + 选中态 + 图片 CSS filter）
+  await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '滤镜' }).click();
   await page.waitForTimeout(500);
-  await page.locator('.imgedit-overlay .imgedit-head-primary', { hasText: '完成' }).click();
-  await page.waitForTimeout(800);
-  const editedBadge = await page.locator('.imgedit-overlay .imgedit-card-edited').count();
-  const confirmTitle = (await page.locator('.imgedit-overlay .imgedit-head-title').textContent()) || '';
+  const filterChips = await page.locator('.imgedit-overlay .imgedit-chip').count();
+  await page.locator('.imgedit-overlay .imgedit-chip', { hasText: '黑白' }).click();
+  await page.waitForTimeout(400);
+  const monoOn = await page
+    .locator('.imgedit-overlay .imgedit-chip', { hasText: '黑白' })
+    .evaluate((el) => el.classList.contains('is-on'))
+    .catch(() => false);
+  const photoFilter = await page
+    .locator('.imgedit-overlay .imgedit-photo')
+    .evaluate((el) => getComputedStyle(el).filter)
+    .catch(() => '');
   check(
-    'B6 完成后返回确认页且带「已编辑」徽标',
-    confirmTitle.trim() === '确认图片' && editedBadge === 1,
-    `badge=${editedBadge}`,
+    'B4 滤镜面板 9 档 + 选中「黑白」后图片 grayscale',
+    filterChips === 9 && monoOn && /grayscale\(1\)/.test(photoFilter),
+    `chips=${filterChips} filter=${photoFilter.slice(0, 48)}`,
+  );
+
+  // B5：贴纸（10 只猫 + 浮层矩形与照片一致）
+  await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '贴纸' }).click();
+  await page.waitForTimeout(600);
+  const stickerChips = await page.locator('.imgedit-overlay .imgedit-chip.is-sticker').count();
+  await page.locator('.imgedit-overlay .imgedit-chip.is-sticker').first().click();
+  await page.waitForTimeout(500);
+  const stickerCount = await page.locator('.imgedit-overlay .imgedit-sticker').count();
+  const align = await page.evaluate(() => {
+    const stage = document.querySelector('.imgedit-stage')?.getBoundingClientRect();
+    const layer = document.querySelector('.imgedit-sticker-layer')?.getBoundingClientRect();
+    const img = document.querySelector('.imgedit-photo');
+    if (!stage || !layer || !img) return null;
+    const nw = img.naturalWidth;
+    const nh = img.naturalHeight;
+    const scale = Math.min(stage.width / nw, stage.height / nh);
+    return {
+      layerW: Math.round(layer.width),
+      expectW: Math.round(nw * scale),
+      offsetLeft: Math.round(layer.left - (stage.left + (stage.width - nw * scale) / 2)),
+    };
+  });
+  check(
+    'B5 贴纸面板 10 只猫 + 浮层贴合照片矩形',
+    stickerChips === 10 &&
+      stickerCount === 1 &&
+      Boolean(align) &&
+      Math.abs(align.layerW - align.expectW) <= 2 &&
+      Math.abs(align.offsetLeft) <= 2,
+    align
+      ? `chips=${stickerChips} layer=${align.layerW}/${align.expectW} dx=${align.offsetLeft}`
+      : 'null',
+  );
+
+  // B6：拖动贴纸 → 位置变化（一条 update 命令）
+  const before = await page.locator('.imgedit-overlay .imgedit-sticker').boundingBox();
+  if (before) {
+    await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(before.x + before.width / 2 - 40, before.y + before.height / 2 - 30, {
+      steps: 8,
+    });
+    await page.mouse.up();
+  }
+  await page.waitForTimeout(400);
+  const after = await page.locator('.imgedit-overlay .imgedit-sticker').boundingBox();
+  check(
+    'B6 拖动贴纸后位置改变',
+    Boolean(before && after) && Math.abs(after.x - before.x) > 10,
+    before && after ? `dx=${Math.round(after.x - before.x)}` : 'null',
+  );
+
+  // B7：完成 → 回确认页 + 已编辑徽标
+  await page.screenshot({ path: `${OUT}/portrait-editor.png` });
+  await page.locator('.imgedit-overlay .imgedit-pill.is-primary', { hasText: '完成' }).click();
+  await page.waitForTimeout(1200);
+  const editedTag = await page.locator('.imgedit-overlay .imgedit-slide-tag').count();
+  const confirmTitle = (await page.locator('.imgedit-overlay .imgedit-title').textContent()) || '';
+  check(
+    'B7 完成后返回确认页且带「已编辑」徽标',
+    confirmTitle.trim() === '确认图片' && editedTag === 1,
+    `tag=${editedTag}`,
   );
 
   // —— C：全部确认 → 网格 → 画笔再编辑 ——
-  await page.locator('.imgedit-overlay .imgedit-head-primary', { hasText: '全部确认' }).click();
+  await page.locator('.imgedit-overlay .imgedit-pill.is-primary').click();
   await overlay.waitFor({ state: 'hidden', timeout: 6000 }).catch(() => {});
   const gridImg = page.locator('.mobile-composer-overlay .post-image-preview-grid img').first();
   await gridImg.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
-  check('C1 全部确认后网格回填 1 张缩略图', (await gridImg.isVisible().catch(() => false)) === true);
+  check(
+    'C1 全部确认后网格回填 1 张缩略图',
+    (await gridImg.isVisible().catch(() => false)) === true,
+  );
 
   const pencil = page.locator('.mobile-composer-overlay .post-image-edit-btn').first();
   await pencil.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
@@ -224,15 +306,15 @@ async function openPortraitComposer() {
   // C3/C4：画笔 → 编辑器（mode=edit，取消文案「取消」）→ 取消 → 网格不动
   await pencil.click();
   await overlay.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
-  await page.waitForTimeout(600);
-  const editModeCancel = (await page.locator('.imgedit-overlay .imgedit-head-btn').textContent()) || '';
+  await page.waitForTimeout(700);
+  const editModeCancel =
+    (await page.locator('.imgedit-overlay .imgedit-pill').first().textContent()) || '';
   check(
     'C3 画笔进入单图编辑器（取消文案「取消」）',
-    editModeCancel.trim() === '取消' &&
-      (await overlay.isVisible().catch(() => false)) === true,
+    editModeCancel.trim() === '取消' && (await overlay.isVisible().catch(() => false)) === true,
     `btn=${editModeCancel.trim()}`,
   );
-  await page.locator('.imgedit-overlay .imgedit-head-btn', { hasText: '取消' }).click();
+  await page.locator('.imgedit-overlay .imgedit-pill', { hasText: '取消' }).click();
   await overlay.waitFor({ state: 'hidden', timeout: 6000 }).catch(() => {});
   const gridCountAfterCancel = await page
     .locator('.mobile-composer-overlay .post-image-preview-grid img')
@@ -244,14 +326,20 @@ async function openPortraitComposer() {
   await overlay.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
   await page.waitForTimeout(800);
   await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '旋转' }).click();
-  await page.waitForTimeout(600);
-  await page.locator('.imgedit-overlay .imgedit-head-primary', { hasText: '完成' }).click();
+  await page.waitForTimeout(400);
+  await page.locator('.imgedit-overlay .imgedit-sheet-btn', { hasText: '右转 90°' }).click();
+  await page.waitForTimeout(700);
+  await page.locator('.imgedit-overlay .imgedit-pill.is-primary', { hasText: '完成' }).click();
   await overlay.waitFor({ state: 'hidden', timeout: 6000 }).catch(() => {});
   await page.waitForTimeout(1200);
   const gridCountAfterEdit = await page
     .locator('.mobile-composer-overlay .post-image-preview-grid img')
     .count();
-  check('C5 再编辑完成后网格仍 1 张（重启管线保位）', gridCountAfterEdit === 1, `count=${gridCountAfterEdit}`);
+  check(
+    'C5 再编辑完成后网格仍 1 张（重启管线保位）',
+    gridCountAfterEdit === 1,
+    `count=${gridCountAfterEdit}`,
+  );
 
   await page.screenshot({ path: `${OUT}/portrait-final.png` });
   await context.close();
@@ -276,7 +364,9 @@ async function openPortraitComposer() {
   await page.route('**/api.cloudinary.com/**', (route) => route.abort('failed'));
   await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
   await injectAuth(page);
-  await page.waitForSelector('.userspace-rail-item[data-rail-action="compose"]', { timeout: 20000 });
+  await page.waitForSelector('.userspace-rail-item[data-rail-action="compose"]', {
+    timeout: 20000,
+  });
   // 横屏发布入口在左栏（rail 的 click 用页面内 click，避免玻璃层遮挡）
   await page.evaluate(() => {
     document.querySelector('.userspace-rail-item[data-rail-action="compose"]').click();
@@ -291,16 +381,21 @@ async function openPortraitComposer() {
   });
   const overlay = page.locator('.imgedit-overlay');
   await overlay.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
-  const confirmBox = await page.locator('.imgedit-overlay .imgedit-confirm').boundingBox();
+  const confirmBox = await page.locator('.imgedit-overlay .imgedit-card').boundingBox();
   check(
     'D1 桌面确认页卡片居中限宽（≤900px，居中偏差 ≤40px）',
-    Boolean(confirmBox) && confirmBox.width <= 900 && Math.abs(confirmBox.x + confirmBox.width / 2 - 720) <= 40,
+    Boolean(confirmBox) &&
+      confirmBox.width <= 900 &&
+      Math.abs(confirmBox.x + confirmBox.width / 2 - 720) <= 40,
     confirmBox ? `w=${Math.round(confirmBox.width)} x=${Math.round(confirmBox.x)}` : 'null',
   );
-  await page.locator('.imgedit-overlay .imgedit-card-btn', { hasText: '编辑' }).first().click();
-  await page.waitForTimeout(800);
-  const editorBox = await page.locator('.imgedit-overlay .imgedit-editor').boundingBox();
-  const stageVisible = await page.locator('.imgedit-overlay .imgedit-stage').isVisible().catch(() => false);
+  await page.locator('.imgedit-overlay .imgedit-action', { hasText: '编辑本张' }).click();
+  await page.waitForTimeout(900);
+  const editorBox = await page.locator('.imgedit-overlay .imgedit-card').boundingBox();
+  const stageVisible = await page
+    .locator('.imgedit-overlay .imgedit-stage')
+    .isVisible()
+    .catch(() => false);
   check(
     'D2 桌面编辑器卡片居中限宽 + 舞台可见',
     Boolean(editorBox) &&
@@ -313,7 +408,11 @@ async function openPortraitComposer() {
   await context.close();
 }
 
-check('E 全程无 pageerror', errors.length === 0, errors.length ? errors.slice(0, 4).join(' | ') : '');
+check(
+  'E 全程无 pageerror',
+  errors.length === 0,
+  errors.length ? errors.slice(0, 4).join(' | ') : '',
+);
 console.log(`RESULT: ${pass} pass / ${fail} fail`);
 await browser.close();
 process.exit(fail > 0 ? 1 : 0);
