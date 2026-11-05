@@ -31,8 +31,10 @@ describe('⌘K 二次触发 · 派发端（App.vue）', () => {
   it('浮层**已经开着**时才派发（不是无条件派发）', () => {
     const at = app.indexOf(`dispatchEvent(new CustomEvent('${EVENT}'))`);
     expect(at).toBeGreaterThan(-1);
-    // 守卫（globalAiOpen）必须紧邻在派发之前 —— 否则「没开时也派发」这条链是空的
-    const guard = app.lastIndexOf('globalAiOpen.value', at);
+    // 守卫必须紧邻在派发之前 —— 否则「没开时也派发」这条链是空的。
+    // 2026-11-05：守卫的真源随 plans/038 P3 从 `globalAiOpen` 换成 `bohIsland.isOpen`
+    // （⌘K 直达独立悬浮岛，不再有全局 AI 浮层开关）⇒ 断言跟着换名字，语义不变。
+    const guard = app.lastIndexOf('bohIsland.isOpen.value', at);
     expect(guard).toBeGreaterThan(-1);
     expect(at - guard).toBeLessThan(120);
   });
