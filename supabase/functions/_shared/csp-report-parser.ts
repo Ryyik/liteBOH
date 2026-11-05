@@ -75,9 +75,7 @@ export const extractRawReports = (body: unknown): Record<string, unknown>[] => {
   if (!body || typeof body !== 'object') return [];
 
   if (Array.isArray(body)) {
-    return body
-      .map((item) => (isPlainObject(item) ? item.body : undefined))
-      .filter(isPlainObject);
+    return body.map((item) => (isPlainObject(item) ? item.body : undefined)).filter(isPlainObject);
   }
 
   const record = body as Record<string, unknown>;
@@ -100,7 +98,12 @@ export const extractRawReports = (body: unknown): Record<string, unknown>[] => {
 };
 
 const detectFormat = (raw: Record<string, unknown>): CspReportFormat => {
-  if ('effectiveDirective' in raw || 'documentURL' in raw || 'blockedURL' in raw || 'lineNumber' in raw) {
+  if (
+    'effectiveDirective' in raw ||
+    'documentURL' in raw ||
+    'blockedURL' in raw ||
+    'lineNumber' in raw
+  ) {
     return 'reporting-api';
   }
   if ('document-uri' in raw || 'effective-directive' in raw || 'violated-directive' in raw) {
@@ -120,7 +123,12 @@ export const normalizeReport = (raw: Record<string, unknown>): NormalizedCspRepo
   const leaf = reportRefs(raw)[0] ?? raw;
   return {
     directive: clip(
-      pick(leaf, ['effective-directive', 'effectiveDirective', 'violated-directive', 'violatedDirective']),
+      pick(leaf, [
+        'effective-directive',
+        'effectiveDirective',
+        'violated-directive',
+        'violatedDirective',
+      ]),
       120,
     ),
     blocked: clip(pick(leaf, ['blocked-uri', 'blockedURL', 'blockedUri']), 300),
@@ -143,3 +151,84 @@ export const parseCspReports = (body: unknown, limit = 5): NormalizedCspReport[]
   }
   return out.slice(0, limit);
 };
+
+/**
+ * 浏览器给 `blocked-uri` 的特殊关键字（不是 URL）。
+ * 这几个值的含义是「被拦的是内联脚本 / eval / data: 资源」，本身就是要观察的重点，
+ * 不能当成 URL 去取 host（会变成空字符串，全被归进同一个 unknown 桶）。
+ */
+const BLOCKED_KEYWORDS = new Set([
+  'inline',
+  'eval',
+  'data',
+  'blob',
+  'filesystem',
+  'wasm-eval',
+  'self',
+  'none',
+]);
+
+/**
+ * `blocked-uri` → 可用于聚合的来源标识。
+ * 目的：把「同一个第三方域名」的上报收敛成一行，而不是每条 URL 各占一行。
+ */
+export const toBlockedHost = (value: unknown, max = 160): string => {
+  const text = clip(value, 300).trim();
+  if (!text) return 'unknown';
+
+  const lower = text.toLowerCase();
+  if (BLOCKED_KEYWORDS.has(lower)) return lower;
+
+  try {
+    const url = new URL(text);
+    if (url.host) return clip(url.host, max);
+    const protocol = url.protocol.replace(/:$/, '');
+    return clip(protocol || 'unknown', max);
+  } catch {
+    // 不是绝对 URL：原样保留（截断），至少还能看出是哪个来源
+    return clip(lower, max);
+  }
+};
+
+/**
+ * `document-uri` → 只保留路径。
+ *
+ * ⚠️ 这是隐私边界，不是格式化：
+ *   报告的 document-uri 是完整 URL，**查询串里可能带分享 token、邀请码、邮箱确认链接**。
+ *   原样入库等于把用户凭证写进一张「所有人都可能来查」的台账。
+ *   ⇒ 这里必须剥掉 `?` 之后的部分，别在图省事把它挪到 SQL 里做。
+ *
+ * 非 http(s) 的（about:blank、chrome-extension:// 等）只保留协议：
+ *   扩展 URL 里带扩展 ID，属于浏览器指纹的一部分，没有留存价值。
+ */
+export const toPathOnly = (value: unknown, max = 200): string => {
+  const text = clip(value, 300).trim();
+  if (!text) return '';
+
+  try {
+    const url = new URL(text);
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return clip(url.pathname || '/', max);
+    }
+    return clip(url.protocol.replace(/:$/, ''), max);
+  } catch {
+    return clip(text.split('?')[0].split('#')[0], max);
+  }
+};
+
+/** 落库行：与 `public.csp_violations` 的列一一对应（天由数据库算，不传） */
+export type CspLedgerRow = {
+  directive: string;
+  blocked_host: string;
+  disposition: string;
+  document_path: string;
+  format: CspReportFormat;
+};
+
+export const toLedgerRow = (report: NormalizedCspReport): CspLedgerRow => ({
+  directive: report.directive || 'unknown',
+  blocked_host: toBlockedHost(report.blocked),
+  disposition: report.disposition || 'report',
+  document_path: toPathOnly(report.document),
+  format: report.format,
+});
