@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
+import { getClientIp } from '../_shared/client-ip.ts';
 
 /* ── 游客每日对话次数上限（2026-10-20 用户口径：「游客直接按次限额，一天 10 次对话」）──
    为什么按**次数**而不是 token：游客只能用 `fast`（GLM4，quota_multiplier = 0.00），
@@ -10,6 +11,26 @@ import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
    「今天用完了，明天 0 点重置」，滑动窗口会变成「随时可能突然恢复一次」。
    key 带日期戳 ⇒ 跨天自动换 key，旧 key 由 `check_rate_limit` 的过期清理回收。 */
 const GUEST_DAILY_CHAT_LIMIT = 10;
+
+/**
+ * 审核通道的每日调用上限（2026-11-05 审查补）。
+ *
+ * 为什么需要：`purpose` 是**请求体字段**，闸门只能判「你自称在审核」（见
+ * resolveRuntimeModelPolicy 的 MODE_INTERNAL_ONLY），拦不住有人拿 moderation-*
+ * 那行 0.1x 的内部模式当廉价聊天通道用。真正的修法是审核调用整体搬到服务端
+ * （forum-async-worker 已经是这么做的：直接用环境里的 key，不走本 EF）；
+ * 在那之前，这里先用日配额把这个通道的滥用面压到「正常发帖量」级别 ——
+ * 一次发帖 = 1 次文本审核 + 1 次批量图片审核，240 次/日对真实用户足够宽松。
+ */
+const MODERATION_DAILY_LIMIT = 240;
+
+/**
+ * 归一化 runtime 的 purpose：只认 'moderation'，其余一律按 'chat'。
+ * 原来是 `toText(body.purpose || 'chat', 60).toLowerCase()` —— 任意字符串都会
+ * 原样参与判定，语义上比白名单更松，也没有任何审计价值。
+ */
+const normalizeRuntimePurpose = (raw: unknown): 'chat' | 'moderation' =>
+  toText(raw, 60).toLowerCase() === 'moderation' ? 'moderation' : 'chat';
 
 /**
  * 游客每日对话次数闸门。
@@ -101,13 +122,66 @@ const toMetadata = (value: unknown) => {
 };
 
 // 安全修复 C-3：校验 runtime-chat / test 的目标 apiUrl，防止 SSRF。
-// 规则：仅允许 https:（开发环境允许 http: 但拒绝私有地址）；
-// 拒绝 localhost、私有 IP 段、链路本地地址（含云元数据 169.254.169.254）。
+// 规则：仅允许 http(s)（http 只为兼容用户自建端点），但拒绝一切「不是公网」
+// 的解析结果；fetch 统一 redirect:'manual'（见 safeUpstreamFetch），
+// 不让 302 把请求带去内网。
+//
+// 2026-11-05 审查补：原实现只按 **hostname 字符串**判断，三个已确认的绕过：
+//   ① `https://[::1]/` —— WHATWG 的 `url.hostname` 带方括号，`=== '::1'` 永不命中；
+//   ② `https://2130706433/` —— 十进制整数 IP，正则不匹配，fetch 却会解析成 127.0.0.1；
+//   ③ `https://127.0.0.1.nip.io/` —— 通配 DNS 指回内网，字符串里没有私有段。
+// 现在：先规范化（去方括号 / 还原十进制·十六进制·八进制·简写 IPv4），
+// 再把任何「主机名本身就是 IP 字面量」的情况按段判定；
+// 主机名不是 IP 的一律要求至少两个标签（挡 nip.io 这类单段解析 + 内网回环的域名
+// 只能靠 DNS 解析挡，Edge Runtime 没有同步 DNS 接口 ⇒ 记在这里作为已知残余面）。
+const normalizeHostLiteral = (rawHostname: string): string => {
+  let h = rawHostname.toLowerCase();
+  if (h.startsWith('[') && h.endsWith(']')) h = h.slice(1, -1);
+  if (h.endsWith('.')) h = h.slice(0, -1);
+
+  // 单段整数形式（十进制 2130706433 / 十六进制 0x7f000001 / 八进制 0177.0.0.1 的最后一段）
+  const toIpv4 = (value: string): number[] | null => {
+    const parts = value.split('.');
+    if (parts.length > 4) return null;
+    const nums = parts.map((part) => {
+      if (/^0x[0-9a-f]+$/.test(part)) return Number.parseInt(part, 16);
+      if (/^0[0-7]+$/.test(part)) return Number.parseInt(part, 8);
+      if (/^\d+$/.test(part)) return Number.parseInt(part, 10);
+      return Number.NaN;
+    });
+    if (nums.some((n) => !Number.isInteger(n) || n < 0)) return null;
+    // a.b.c.d 里最后一段可以是 24 位，前面每段 8 位 —— 与 inet_aton 一致
+    if (nums.length === 1) {
+      const v = nums[0];
+      if (v > 0xffffffff) return null;
+      return [Math.floor(v / 0x1000000), (v >> 16) & 255, (v >> 8) & 255, v & 255];
+    }
+    const last = nums[nums.length - 1];
+    if (last > 0xffffff || nums.slice(0, -1).some((n) => n > 255)) return null;
+    const head = nums.slice(0, -1);
+    const tailBytes = 4 - head.length;
+    const tail = [];
+    for (let i = tailBytes - 1; i >= 0; i -= 1) tail.push((last >> (8 * i)) & 255);
+    return [...head, ...tail];
+  };
+
+  // 只对「看起来全是数字/十六进制段」的主机尝试还原，避免把普通域名误判成 IP
+  if (/^[0-9a-fx.]+$/i.test(h) && /^[0-9]|^0x/.test(h)) {
+    const octets = toIpv4(h);
+    if (octets) return octets.join('.');
+  }
+  // IPv6 简写归一：:: → 0:0:...（只处理本地/链路本地/ULA/映射这几族的判定）
+  return h;
+};
+
 const isPrivateOrLocalHost = (hostname: string): boolean => {
-  const h = hostname.toLowerCase();
+  const h = normalizeHostLiteral(hostname);
   if (h === 'localhost' || h.endsWith('.localhost')) return true;
-  if (h === '::1' || h === '0:0:0:0:0:0:0:1') return true;
-  // IPv4 私有/保留段
+  if (h === '0.0.0.0' || h === '::' || h === '::1' || h === '0:0:0:0:0:0:0:1') return true;
+  // 云元数据与保留段
+  if (h === '169.254.169.254' || h.startsWith('169.254.')) return true;
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h)) return true; // CGNAT 100.64/10
+
   const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (m) {
     const [a, b] = [Number(m[1]), Number(m[2])];
@@ -117,10 +191,14 @@ const isPrivateOrLocalHost = (hostname: string): boolean => {
     if (a === 169 && b === 254) return true; // 链路本地 / 云元数据
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
+    if (a === 198 && (b === 18 || b === 19)) return true; // 基准测试段
     if (a >= 224) return true; // 组播/保留
+    return false;
   }
-  // IPv6 私有/链路本地
-  if (h.startsWith('fe80:') || h.startsWith('fc') || h.startsWith('fd')) return true;
+  // IPv6：链路本地 fe80::/10、ULA fc00::/7、映射到 IPv4 的 ::ffff:*、回环
+  if (h.startsWith('fe80:') || h.startsWith('fe8') || h.startsWith('feb')) return true;
+  if (h.startsWith('fc') || h.startsWith('fd')) return true;
+  if (h.startsWith('::ffff:')) return true;
   return false;
 };
 
@@ -140,8 +218,20 @@ const validateRuntimeApiUrl = (rawUrl: string, fallback: string): string => {
   if (isPrivateOrLocalHost(parsed.hostname)) {
     return fallback;
   }
+  // 主机名不是 IP 字面量时，至少要求两个标签（挡 `http://intranet/` 这类单标签内网名）
+  if (!parsed.hostname.includes('.') && !parsed.hostname.startsWith('[')) {
+    return fallback;
+  }
   return candidate;
 };
+
+/**
+ * 出站 fetch 的统一入口：禁止自动跟随重定向。
+ * 只靠 URL 白名单挡不住 SSRF —— 攻击者域名 302 到 169.254.169.254 就够了，
+ * 而 `fetch` 默认 redirect:'follow'。所有打到「用户可配置上游」的请求都要走这里。
+ */
+const safeUpstreamFetch = (url: string, init: RequestInit = {}) =>
+  fetch(url, { ...init, redirect: 'manual' });
 
 const bytesToBase64 = (bytes: Uint8Array) => {
   let binary = '';
@@ -280,25 +370,10 @@ const requireUser = async (request: Request, client: ReturnType<typeof createSer
   return { ok: true as const, userId };
 };
 
-const getClientIp = (request: Request) => {
-  // L16: cf-connecting-ip 由网关设置最可信；x-real-ip 次之。
-  // x-forwarded-for 取最后一跳（由可信代理追加，比首段更难被客户端伪造）。
-  // 注意：Guest 用户按 IP 计量额度，仍可能被代理池轮换 IP 绕过，
-  // 该问题需结合 C 段限额 / 设备指纹等风控进一步治理，此处仅作 IP 取值加固。
-  const cfIp = request.headers.get('cf-connecting-ip')?.trim();
-  if (cfIp) return cfIp;
-  const realIp = request.headers.get('x-real-ip')?.trim();
-  if (realIp) return realIp;
-  const xff = request.headers.get('x-forwarded-for');
-  if (xff) {
-    const parts = xff
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (parts.length) return parts[parts.length - 1];
-  }
-  return 'unknown';
-};
+/* IP 口径统一走 _shared/client-ip.ts（cf-connecting-ip → x-real-ip → xff 最后一跳）。
+   2026-11-05 审查补：原来是本文件私有的一份，同一仓库另外四个函数取的是 xff 首段
+   （客户端可写）⇒ 登录/注册/游客额度的限流都能靠轮换该头绕过。收成一份之后
+   两边不可能再漂移。 */
 
 const resolveRuntimeIdentity = async (
   request: Request,
@@ -603,7 +678,7 @@ const testSiliconFlow = async (apiKey: string, metadata: Record<string, unknown>
     'https://api.siliconflow.cn/v1/chat/completions',
   );
   const model = toText(metadata.model, 120) || 'Qwen/Qwen2.5-7B-Instruct';
-  const response = await fetch(apiUrl, {
+  const response = await safeUpstreamFetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -634,7 +709,7 @@ const testZhipu = async (apiKey: string, metadata: Record<string, unknown>) => {
     'https://open.bigmodel.cn/api/paas/v4/chat/completions',
   );
   const model = toText(metadata.model, 120) || 'glm-4.7-flash';
-  const response = await fetch(apiUrl, {
+  const response = await safeUpstreamFetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -664,7 +739,7 @@ const testOpenRouter = async (apiKey: string, metadata: Record<string, unknown>)
     'https://openrouter.ai/api/v1/chat/completions',
   );
   const model = toText(metadata.model, 120) || 'openai/gpt-4o-mini';
-  const response = await fetch(apiUrl, {
+  const response = await safeUpstreamFetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -814,7 +889,7 @@ const discoverProviderModels = async (
   }
   let response: Response;
   try {
-    response = await fetch(modelsUrl, {
+    response = await safeUpstreamFetch(modelsUrl, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -3250,7 +3325,7 @@ const testUserEndpoint = async (
   let status = 0;
   let message = '';
   try {
-    const response = await fetch(baseUrl, {
+    const response = await safeUpstreamFetch(baseUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
@@ -3398,14 +3473,35 @@ Deno.serve(async (request) => {
         );
       }
       const tier = identity.tier;
+      // purpose 走白名单归一（见 normalizeRuntimePurpose）—— 只有审核链路会传
+      // 'moderation'，其余一律 'chat'，审核模式的白名单判定就吃这个值
+      // （见 resolveRuntimeModelPolicy 内的 MODE_INTERNAL_ONLY）。
+      const runtimePurpose = normalizeRuntimePurpose(body.purpose);
+      if (runtimePurpose === 'moderation') {
+        const modGate = await checkRateLimitDb(
+          `ai_mod_rt:${identity.userId || `guest:${identity.ipAddress}`}`,
+          MODERATION_DAILY_LIMIT,
+          86_400_000,
+        );
+        if (!modGate.ok) {
+          return jsonResponse(
+            {
+              ok: false,
+              status: 429,
+              code: 'MODERATION_DAILY_LIMIT',
+              message: `审核通道今日调用已达上限（${MODERATION_DAILY_LIMIT} 次）。`,
+            },
+            429,
+            origin,
+          );
+        }
+      }
       const policies = await resolveRuntimePolicyChain(
         client,
         toText(body.mode, 80),
         tier,
         identity.userId,
-        // 只有审核链路会传 purpose='moderation'；普通聊天一律落到 'chat'。
-        // 审核模式的白名单判定就吃这个值（见 resolveRuntimeModelPolicy 内的 MODE_INTERNAL_ONLY）。
-        toText(body.purpose || 'chat', 60).toLowerCase(),
+        runtimePurpose,
       );
       // 首个是主模型：额度预约/计费口径仍以它为准（降级链各行必须同 max_tokens 与倍率）。
       const policy = policies[0];
@@ -3580,14 +3676,35 @@ Deno.serve(async (request) => {
         );
       }
       const tier = identity.tier;
+      // purpose 走白名单归一（见 normalizeRuntimePurpose）—— 只有审核链路会传
+      // 'moderation'，其余一律 'chat'，审核模式的白名单判定就吃这个值
+      // （见 resolveRuntimeModelPolicy 内的 MODE_INTERNAL_ONLY）。
+      const runtimePurpose = normalizeRuntimePurpose(body.purpose);
+      if (runtimePurpose === 'moderation') {
+        const modGate = await checkRateLimitDb(
+          `ai_mod_rt:${identity.userId || `guest:${identity.ipAddress}`}`,
+          MODERATION_DAILY_LIMIT,
+          86_400_000,
+        );
+        if (!modGate.ok) {
+          return jsonResponse(
+            {
+              ok: false,
+              status: 429,
+              code: 'MODERATION_DAILY_LIMIT',
+              message: `审核通道今日调用已达上限（${MODERATION_DAILY_LIMIT} 次）。`,
+            },
+            429,
+            origin,
+          );
+        }
+      }
       const policies = await resolveRuntimePolicyChain(
         client,
         toText(body.mode, 80),
         tier,
         identity.userId,
-        // 只有审核链路会传 purpose='moderation'；普通聊天一律落到 'chat'。
-        // 审核模式的白名单判定就吃这个值（见 resolveRuntimeModelPolicy 内的 MODE_INTERNAL_ONLY）。
-        toText(body.purpose || 'chat', 60).toLowerCase(),
+        runtimePurpose,
       );
       // 首个是主模型：额度预约/计费口径仍以它为准（降级链各行必须同 max_tokens 与倍率）。
       const policy = policies[0];
