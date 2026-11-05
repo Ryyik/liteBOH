@@ -18,9 +18,10 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useBohIsland } from '@/composables/useBohIsland.js';
+import { createPanelAsync } from '@/utils/async-component.js';
 
 /**
  * 回答面必须**懒加载**（2026-11-05，plans/038 P3 的代价修正）。
@@ -31,10 +32,14 @@ import { useBohIsland } from '@/composables/useBohIsland.js';
  * 岛是「下拉才开」的交互，首屏根本用不到它；改异步后按需加载，
  * 首屏与 ui-sanitize 的 PWA 预缓存名单（见 vite.config.js SHELL_CHUNKS）一并复原。
  *
- * 关岛即卸载是既有口径（v-if="rendered"），所以这里不需要 keepAlive ——
+ * 走 createPanelAsync 而不是裸 defineAsyncComponent：chunk 拉不到时要有人兜底
+ * （加载态 + 退避重试 + 恢复强刷），否则卡片里是一片空白，用户以为岛坏了。
+ * 关岛即卸载是既有口径（v-if="rendered"），所以不需要 keepAlive ——
  * 每次开岛重新 import 走的是浏览器模块缓存，不会重复下载。
  */
-const BohIslandAnswer = defineAsyncComponent(() => import('@/components/BohIslandAnswer.vue'));
+const BohIslandAnswer = createPanelAsync(() => import('@/components/BohIslandAnswer.vue'), {
+  label: 'boh-island-answer',
+});
 
 /**
  * BohIsland —— plans/038：一颗岛装下搜索与「问一句」。
