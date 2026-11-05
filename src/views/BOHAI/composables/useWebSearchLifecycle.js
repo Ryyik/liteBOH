@@ -23,15 +23,21 @@ export function useWebSearchLifecycle({ search }) {
       const result = await search(query, signal);
       if (result?.ok && Array.isArray(result.results)) {
         webSearchResults.value = result.results
-          .map((item) => ({
-            title: String(item?.title || '').trim(),
-            /* 结果是第三方给的，url 可能被投毒成 `javascript:`（SEO 投毒 / 恶意结果）。
-               下游两处都把它绑进 `<a :href>`，Vue 不会拦伪协议 ⇒ 在这里收一次。
-               拿不到 http(s) 地址的结果对用户也没有价值（点不动），直接丢弃。 */
-            url: toSafeExternalHref(item?.url),
-          }))
-          .filter((item) => item.url && (item.title || item.url))
-          .slice(0, 8);
+          .map((item) => {
+            const rawUrl = String(item?.url || '').trim();
+            const safeUrl = rawUrl ? toSafeExternalHref(rawUrl) : '';
+            return {
+              title: String(item?.title || '').trim(),
+              url: safeUrl,
+              // 有 url 但过不了协议闸门 ⇒ 整条丢弃：既不显示一个点不动的「结果」，
+              // 也不给它任何进 <a :href> 的机会（2026-11-05 审查补，见 utils/external-link.js）
+              unsafeUrl: Boolean(rawUrl) && !safeUrl,
+            };
+          })
+          // 没有 url 但有标题的仍然保留 —— 展示层用纯文本兜（`v-if="page.url"` 那条分支）
+          .filter((item) => !item.unsafeUrl && (item.title || item.url))
+          .slice(0, 8)
+          .map(({ title, url }) => ({ title, url }));
       }
       return result;
     } catch (error) {
