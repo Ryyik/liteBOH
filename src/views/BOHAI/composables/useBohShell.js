@@ -434,6 +434,7 @@ export function useBohShell(props, emit) {
     clearCurrentSession,
     clearAllSessions,
     deleteSession,
+    clearQuickAskSessions,
     switchSession,
     sendMessage,
     stopGeneration,
@@ -642,6 +643,24 @@ export function useBohShell(props, emit) {
     confirmState.resolve = (ok) => {
       confirmState.show = false;
       if (ok) deleteSession(index);
+    };
+  };
+
+  /**
+   * 一键清理「在搜索里问过」（2026-11-05 用户口径）。
+   * 这一组是**唯一会无限堆积**的分组（每次关岛重开都是一条新快速会话），
+   * 所以给它一个批量出口；删的是记录不是数据，仍走确认弹层（不可撤销）。
+   */
+  const requestClearQuickAsks = () => {
+    const count = chatSessions.filter((session) => session?.origin === 'quick-ask').length;
+    if (!count) return;
+    confirmState.type = 'warning';
+    confirmState.title = '清空「在搜索里问过」';
+    confirmState.message = `将删除 ${count} 条岛内问答记录，此操作不可撤销。想保留的可以先在单条菜单里「提升为主会话」。`;
+    confirmState.show = true;
+    confirmState.resolve = (ok) => {
+      confirmState.show = false;
+      if (ok) clearQuickAskSessions();
     };
   };
 
@@ -2349,6 +2368,7 @@ export function useBohShell(props, emit) {
     startTemporaryChat,
     switchSession,
     requestDeleteSession,
+    requestClearQuickAsks,
     renameSession,
     togglePinSession,
     promoteSession,

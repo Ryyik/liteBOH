@@ -137,6 +137,97 @@
   height: var(--global-nav-rest-height);
 }
 
+/* BOHAI 岛（BohIsland）：与任务岛/通知岛/自定义岛同一套写法 ——
+   **surface 自己向下长高**，岛的内容坐在长出来的这块玻璃里（不是导航下方再浮一张卡）。
+   高度由 BohIsland 用 ResizeObserver 实测卡片高度后写入 --global-nav-island-height。
+   ⚠️ max-width 必须 !important：竖屏 mini 规则 `#unified-nav-container .unified-nav-surface
+      .nav-mini-caps:not(.nav-expanded)` 带 ID，权重更高；不压掉的话胶囊还是 188 宽，
+      岛却按展开宽度长，就会「错位」（2026-11-04 实拍）。 */
+:global(#unified-nav-container .unified-nav-surface.has-boh-island) {
+  /* 展开态收窄一档（920 → 780）：岛里是一颗点环 + 一行状态，920 宽会显得空荡；
+     导航行本体（logo + 5 个菜单 + 右侧按钮）在 780 下仍放得下。 */
+  max-width: min(780px, calc(100% - 20px)) !important;
+  /* height 不带 !important：基础规则 (1,1,0) 会被这里的 (1,2,0) 压掉，
+     同时给 WAAPI 留出动画空间（!important 声明会压过动画，岛就「长」不动了） */
+  height: calc(
+    var(--global-nav-island-base, var(--global-nav-status-top)) +
+      var(--global-nav-island-height, 58px) + var(--global-nav-status-bottom-gap)
+  );
+  border-radius: 30px !important;
+  /* 岛展开态要读得清：比常态导航更实的底 + 更大半径的模糊（用户口径：加模糊方便阅读）。
+     ⚠️ 叠了 brightness(0.36)：底部要做「渐隐到透」时，纯靠降 alpha 会让白页面透上来
+        变成一片浅灰（看着像褪色，不是透）。先把**背后那层**压暗再让它透，
+        观感才是"黑玻璃渐隐、露出后面被压暗的页面"，文字也不会掉进亮背景里。
+        只影响 backdrop（页面），不会压暗岛自己的内容。 */
+  background-color: var(--liquid-bg-strong);
+  backdrop-filter: blur(16px) saturate(140%) brightness(0.7);
+  -webkit-backdrop-filter: blur(16px) saturate(140%) brightness(0.7);
+}
+
+/* ── 唤起 BOHAI：整块 surface 变深色胶囊（2026-11-05 用户口径） ─────────────────
+   岛仍是从导航长出来的**同一块**（docked 架构没变），只是这块玻璃由白转黑：
+   上灰 → 中黑 → 纯黑的三段渐变 + 1px 亮边 + 顶部内高光，与 BOHAI 全页的黑胶囊同观感。
+   导航行的文字/图标会跟着白 —— 那是 UnifiedNavbar 把容器 `data-theme` 切成 dark 的结果
+   （复用 `src/styles/themes/navbar-dark.css` 那一整套现成规则，这里不重复写颜色）。
+
+   ⚠️ 选择器里 `.has-boh-island` 刻意写两遍（specificity 1,3,0 → 1,4,0）：
+      navbar-dark.css 有一条 `[data-theme="dark"] #unified-nav-container
+      .unified-nav-surface:not(.has-login-card) { background: rgba(20,27,37,.9) !important }`
+      —— 那是给**常态**深色导航用的偏蓝底，会把这里的黑胶囊刷成蓝灰。
+      同分只能靠加载顺序取胜（不可靠），所以直接把权重抬高一级。 */
+:global(#unified-nav-container .unified-nav-surface.has-boh-island.has-boh-island) {
+  /* 顶部纯黑 → 底部微透（2026-11-05 用户口径「黑色到底部慢慢渐变成微透」）。
+     底下那层 backdrop blur 一直在，所以越往下越能看见**被糊过的**页面内容，
+     而不是干脆变透明 —— 文字仍然压在雾面黑上，不会掉进背景里。
+     ⚠️ 不能只给 background-color（会整块同色）：渐隐全靠 background-image 这条。 */
+  /* ⚠️ background-color 必须 !important：基础规则 `:global(#… .unified-nav-surface)`
+     的 `background-color: var(--liquid-bg)` 会被编译成带 data-v 的形态参战，
+     双类名在这里压不住它（实测仍读到 rgba(28,28,36,.72)）⇒ 底色一旦不是透明，
+     下面那条渐隐就变成「叠在一层实底上」，底部永远透不出来。 */
+  background-color: transparent !important;
+  /* ⚠️ 停靠点用 **px 反推**、不用百分比：岛的展开高度是内容驱动的（竖屏 130、
+     桌面 136、有回答时更高），百分比停靠点会让「渐隐带」随高度伸缩 ——
+     岛一矮，透的那段只剩十几像素，肉眼就是「没区别」。固定成最后 60px 渐隐，
+     观感在任何高度/任何断点都一致。 */
+  background-image: linear-gradient(
+    180deg,
+    #000000 0,
+    /* 渐隐带 = min(px, 百分比)：岛矮（竖屏 130）时按百分比收窄，
+       否则 84px 会吃掉大半个岛、输入行落在半透明区不好读；
+       岛高（有回答 200+）时按 84px，底部才不会「糊一片」。 */
+    rgba(0, 0, 0, 0.96) calc(100% - min(84px, 45%)),
+    rgba(0, 0, 0, 0.72) calc(100% - min(44px, 24%)),
+    rgba(0, 0, 0, 0.3) calc(100% - min(14px, 8%)),
+    rgba(0, 0, 0, 0.08) 100%
+  );
+  /* 亮边要压得住黑底（0.1 在黑上等于没有）—— 参考图里胶囊的轮廓线是清楚可见的，
+     底部渐透后**形体仍然立得住**，靠的就是这条边。 */
+  border-color: rgba(255, 255, 255, 0.24);
+  /* 底部那一道亮边（2026-11-05 用户口径「底部有一点亮的白边」）：
+     黑渐隐到近乎透明后，如果只剩渐变会像「蒙版」；底部一圈较亮的描边
+     把胶囊的**下沿**钉住，形体才成立。 */
+  border-bottom-color: rgba(255, 255, 255, 0.5);
+  /* 投影刻意收小（原 0 26px 70px .42）：大偏移+大模糊的黑影正好落在渐隐带下沿，
+     把透出来的内容又压回一片黑 —— 2026-11-05 实拍「看得出透」的必要条件。 */
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    /* 顶部大半径内辉：模拟玻璃的立体反光（参考图左上圆角那圈弧光）。
+       负 spread 把它压在边缘内侧，只吃到顶边，不会把中部提亮。 */
+    inset 0 22px 34px -26px rgba(255, 255, 255, 0.16),
+    /* 底边亮线 + 底部内发光：黑在下沿「消失」的同时露出一道光，
+       这是参考图最容易被忽略、也最关键的一笔。 */
+    inset 0 -1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -8px 16px -10px rgba(255, 255, 255, 0.4);
+}
+
+.unified-nav-surface.has-boh-island > .nav-container {
+  position: relative;
+  z-index: 2;
+  height: var(--global-nav-rest-height);
+}
+
 /* 自定义岛（showIsland.custom）宿主：与状态卡同位，内容高度经 ResizeObserver 上报撑开 surface */
 .island-custom-host {
   position: absolute;
@@ -292,7 +383,12 @@
    所以这里**没有**也不该硬换成令牌：换了就是全站暗色观感决策，不是收敛。
    ⇒ 本块的角色只剩**兜底**：暗色 CSS 懒加载失败 / 被测试手动塞 data-theme 时，
       让岛不至于变成透明（那就又是一次「白底上玻璃隐形」）。 */
-#unified-nav-container[data-theme='dark'] .unified-nav-surface {
+/* ⚠️ 必须 :not(.has-boh-island)：这条是**暗色兜底**，但它编译后会带 `[data-v-x]`
+   ⇒ 权重 (1,3,0)，与 `.has-boh-island.has-boh-island` 那条**同权重**，而它在文件里
+   更靠后 ⇒ 静默压掉岛的 `border-color`（2026-11-05 实测：底部亮边 0.5 被刷回
+   `--liquid-border` 的 0.12，肉眼就是「没有亮边」）。岛展开时自有一套黑色材质，
+   本来也不该被这条兜底管。 */
+#unified-nav-container[data-theme='dark'] .unified-nav-surface:not(.has-boh-island) {
   border-color: var(--liquid-border);
   background-color: var(--liquid-bg);
 }
@@ -388,7 +484,7 @@
     bottom: auto;
     width: auto;
     padding: 8px 0 0;
-    background-color: transparent !important;
+    background-color: transparent;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     /* 收起态**不占位**。vendor 只给了 visibility: hidden —— 它不释放高度，
@@ -557,7 +653,7 @@
 
 /* 沉浸态（球）：白条退场且不拦截页面点击；surface 自身恢复可点 */
 :global(#unified-nav-container.nav-immersive-on .unified-nav) {
-  background-color: transparent !important;
+  background-color: transparent;
   border-bottom-color: transparent !important;
   box-shadow: none !important;
   pointer-events: none;

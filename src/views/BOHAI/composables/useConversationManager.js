@@ -509,6 +509,57 @@ export function useConversationManager({ scrollToBottom: scrollToBottomOption } 
     }
   };
 
+  /**
+   * 一键清理「在搜索里问过」（plans/038 §3.4 快速会话，2026-11-05 用户口径）。
+   *
+   * 只删 `origin === 'quick-ask'` 的会话；**正在生成的那条跳过**（删了会让流式写回
+   * 一个已经不存在的下标，引擎里的 generationSessionIndex 当场错位）。
+   *
+   * ⚠️ 不能用「倒序 deleteSession」实现：deleteSession 在只剩一条时是「重置成新对话」
+   *    而不是删 —— 倒序走到最后会凭空留下一条空会话，且它的 origin 已被重置掉。
+   *    这里直接重建数组，索引一次性重映射。
+   *
+   * @returns {number} 实际删除的会话数（0 = 本来就没有）
+   */
+  const clearQuickAskSessions = () => {
+    const kept = [];
+    const indexMap = new Map();
+    chatSessions.forEach((session, index) => {
+      const generating = activeGenerationSessionIndex.value === index;
+      if (!generating && session?.origin === 'quick-ask') return;
+      indexMap.set(index, kept.length);
+      kept.push(session);
+    });
+    const removedCount = chatSessions.length - kept.length;
+    if (!removedCount) return 0;
+
+    if (!kept.length) {
+      kept.push({
+        title: '新对话',
+        messages: [],
+        timestamp: Date.now(),
+        isLoading: false,
+        isThinking: false,
+      });
+    }
+
+    const prevCurrent = currentSessionIndex.value;
+    const prevGenerating = activeGenerationSessionIndex.value;
+    const prevCompressing = compressingSessionIndex.value;
+
+    chatSessions.splice(0, chatSessions.length, ...kept);
+
+    currentSessionIndex.value = indexMap.get(prevCurrent) ?? 0;
+    activeGenerationSessionIndex.value =
+      prevGenerating === null ? null : (indexMap.get(prevGenerating) ?? 0);
+    compressingSessionIndex.value =
+      prevCompressing < 0 ? -1 : (indexMap.get(prevCompressing) ?? -1);
+
+    // 立即落盘：清理是「一次性把几十条冲掉」，不能留给防抖窗口
+    saveSessions();
+    return removedCount;
+  };
+
   const switchSession = (index) => {
     currentSessionIndex.value = index;
     nextTick(() => {
@@ -608,6 +659,7 @@ export function useConversationManager({ scrollToBottom: scrollToBottomOption } 
     clearCurrentSession,
     clearAllSessions,
     deleteSession,
+    clearQuickAskSessions,
     switchSession,
     setMemoryCaptureStatusMessage,
   };

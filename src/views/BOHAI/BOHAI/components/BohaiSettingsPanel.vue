@@ -1177,7 +1177,7 @@ const NAV_GROUPS = [
         id: 'trigger',
         label: '呼出方式',
         icon: Command,
-        keywords: '快捷键 手势 灵敏度 触感 呼出 聚焦 高度',
+        keywords: '快捷键 呼出 聚焦 自动聚焦 搜索',
       },
       {
         id: 'data',

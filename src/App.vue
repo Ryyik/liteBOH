@@ -543,8 +543,8 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
   <!-- 帖子详情弹窗宿主（横屏）：壳很轻可常驻；重的 PostDetailMain 在弹窗内异步加载 -->
   <PostDetailModal />
 
-  <!-- AI 边缘触发区已随 plans/038 P3 退场：竖屏入口 = BohIsland 常驻胶囊 +
-       抓导航栏下拉（§2.9），两个手势并存会让用户学不会，留一个砍一个。 -->
+  <!-- AI 边缘触发区已随 plans/038 P3 退场；竖屏常驻气泡也已于 2026-11-04 下线：
+       竖屏唯一入口 = 抓导航栏胶囊往下拉（§2.9/§3.7，UnifiedNavbar 的 onPullTouch*）。 -->
 
   <!-- 首次进入提示 & 消息通知 -->
   <Transition name="toast">

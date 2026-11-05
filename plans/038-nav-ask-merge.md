@@ -209,7 +209,7 @@
 | **P0**（✅ 2026-11-04 `73ced89e`） | 旧岛三个纯 bug：岛高扣 `--kb-inset`、岛内隐藏模型/工具/用量、删 header | 自证 14/14 + 两探针绿 |
 | **P1**（✅ 2026-11-04 `abe16fa4`） | 起 `BohIsland`（Teleport + 胶囊/展开两态，展开卡承载 `GlobalSearchIsland`）+ 搜索并入 + 第 0 项原句直传 + `/` 归岛（无导航栏路由可用）+ 深色岛材质 | `probe-nav-ask` 22/22 + `probe-global-search` 58/58 |
 | **P2**（✅ 2026-11-04 本笔） | 回答形态（`BohIslandAnswer`：自有引擎实例 + 流式 + 高度随字数生长 + 来源 chip + 展开全文/去全页）+ Esc 分层 + 快速会话（岛内独立会话） | `probe-nav-ask` **34/34**（回答档 12 条）+ `probe-global-search` 58/58 |
-| **P3a**（✅ 2026-11-04 本笔） | **入口收敛 + 旧 AI 岛退场（同笔）**：`⌘K` 改线新岛；`AiEdgeTrigger`/`useEdgeSwipeGesture`/`BOHAIIsland.vue`/`useGlobalAiOverlay.js` 四文件删除；`showIsland.ai()` 直连 `useBohIsland.askDirect`（opener 注册机制废除）；导航栏 surface 全部 `has-bohai-island` 联动拆除；设置面板手势/呼出高度组删除；UserSpace railNavSync 冻结与边缘手势拆除 | `probe-nav-ask` **37/37**（+旧岛退场/⌘K 三条）+ `probe-global-search` **59/59**（互斥段随语义重写） |
+| **P3a**（✅ 2026-11-04 本笔） | **入口收敛 + 旧 AI 岛退场（同笔）**：`⌘K` 改线新岛；`AiEdgeTrigger`/`useEdgeSwipeGesture`/`BOHAIIsland.vue`/`useGlobalAiOverlay.js` 四文件删除；`showIsland.ai()` 直连 `useBohIsland.askDirect`（opener 注册机制废除）；导航栏 surface 全部 `has-bohai-island` 联动拆除；设置面板手势/呼出高度组删除；UserSpace railNavSync 冻结与边缘手势拆除 | `probe-nav-ask` **39/39**（+旧岛退场/⌘K/连问两轮/提升落盘）+ `probe-global-search` **59/59**（互斥段随语义重写） |
 | **P3b**（✅ 2026-11-04 本笔） | 快速会话「在搜索里问过」：`startNewChat(origin)` 透传 + 会话持久化白名单登记 `origin`（'quick-ask'）；侧栏独立分组（置顶之下）+「问一句」徽标 + 菜单「提升为主会话」（清 origin） | `probe-nav-ask` ㊋（origin 落账）+ store 单测 22/22 + 侧栏 DOM 断言（groups/badges） |
 | **P4**（方向已冻结，设计待做） | **概览与周报融合**（2026-11-04 用户口径）：今日总结（今日无新帖不显示）、周总结（周无新帖不显示）；**暂时下掉智能概览**，改为「离开这段时间摘要」+ 从离开那天起可回看 —— 回看交互需设计，暂缓 | 设计稿 + 概览探针 |
 
@@ -232,12 +232,30 @@
 >   的落点要在任意事件处理器里可用，那里没有 setup 上下文。
 > · `useIsland.ai()` 直接调 `useBohIsland().askDirect(options)`：opener 注册机制（`registerIslandAiOpener`）
 >   与 `setIslandAiPaused`/`aiPaused` 一起废除 —— AI 岛不在 surface，任务岛/通知岛的暂停概念随之消失。
->   `options.mode`（论坛 'fast'）静默忽略：岛内快速会话无模型选择（§3.6 减法），默认档即 fast 位。
+>   `options.mode`（论坛 'fast'）静默忽略：岛内档位恒 **balance（平衡档）**（§3.6 减法，档位指定落在
+>   `BohIslandAnswer` 一处；复核补记里修的是「只忽略不指定」导致实际跑用户上次的档位）。
 > · 按钮语义：导航栏搜索按钮保持 toggle（岛开着点它 = 收起，探针 ⑱d/⑱e 断言）。
 > · 快速会话 origin 落盘：`bohai-chat-session-store` 白名单**必须登记** origin（不登记在保存时被
 >   静默丢弃 —— expertState 同款坑）；`temporary` 会话本就被保存过滤，两者正交。
 > · AGENTS.md 数字门禁的「脚本数」口径与 `ls | wc -l` 不一致（门禁实测 284/223 vs ls 283/222）——
 >   以门禁实测为准回填，别用 ls 硬怼。
+>
+> **P3 复核补记**（2026-11-04 晚，提交后复核抓到的两个真缺陷，均已修 + 反证）：
+> · **岛内第二次提问被静默吞掉**：`pendingAsk` 的唯一消费者曾是 `BohIslandAnswer.onMounted`，
+>   而组件 `v-if="answerMounted" v-show` ⇒ 岛不关就不重挂载。症状：问一句 → Esc 回搜索面 →
+>   再问，界面停在上一轮（echo 不变、无请求）。旧岛有 `watch(pendingPrompt)` 治这条，迁移时丢了。
+>   修法：`watch(pendingAsk)` 持续消费 + 流式中排队（不丢问题）；探针 ㊆b 锁死。
+> · **「提升为主会话」不落盘**：`promoteSession` 只 `delete session.origin`，而持久化 watcher 的
+>   签名只含 `title:pinned:temporary` ⇒ 不触发保存，侧栏当场重排、刷新回滚。
+>   修法：签名纳入 `origin`（这份签名就是「会话级元字段落盘触发清单」，加字段必须同步）；
+>   探针 ㊉b 锁死（storage 层断言，不信 DOM）。
+> · 附带修：岛内档位恒 balance 落回唯一实现处（`BohIslandAnswer` 里指定，产品口径：
+>   岛里没有模型选择 UI，不能继承全页上次选的 fast/pro）—— P3 时
+>   `mode:'fast'` 只是「静默忽略」，实际跑的是用户上次的档位，与「岛内问答成本一致」的
+>   预期不符；探针 ㊉c 锁在请求体上（`"mode":"balance"`），`island:smoke` T5 随仲裁退场
+>   改写为「岛与任务卡共存 + 不重叠」。
+> · ⚠️ 新出现的耦合：岛挂在「导航容器底边 + 12」，而任务卡会把 surface 撑高 ⇒ 岛必须用
+>   ResizeObserver 跟随（实测不跟会重叠 52px）。P3 之前这条由 surface 仲裁兜着。
 >
 > **P4 方向冻结**（2026-11-04 用户口径，设计暂缓）：概览与周报融合为「今日总结 / 周总结 /
 > 离开这段时间摘要（+ 从离开那天起回看）」，无新帖的窗不显示；智能概览暂时下掉。
@@ -297,3 +315,221 @@
 
 > 已实测（Playwright，390×760）：胶囊 148×40 → 输入 344×212 → 列表 352×293 → 回答 352×412（自适应）；
 > 四个形态输入条 `top` 恒为 **68px**；键盘弹起后岛收短到 344，输入框底边 120px，余量 304px。
+
+---
+
+## 9. 补记：生成中的形态（2026-11-05 用户口径）
+
+原话：「整个玻璃容器有彩虹光效；关闭『生成中，可停止』；回答的时候收起输入区，
+整个变成一个条然后流动彩虹光，回答完毕后输入框重新返场，优雅的过渡动画」。
+
+落地口径（唯一实现处见注释）：
+
+- **彩虹只表达「正在生成/执行」**，与 BohBeam 同一条语义（DESIGN §0.1 的彩色例外），
+  生成结束立刻消失。
+- **光效形态（2026-11-05 第二轮，用户否掉前两版后定稿）**：不要整块染色（白玻璃会变
+  「粉红蒙版」）、不要 1px conic 描边环（像贴了一圈彩色胶带）。改成 **Gemini 式底部虹彩**：
+  `::before` 四团大半径 radial（柔和青 / 霓虹紫 / 柔粉）叠成 mesh 光雾，整层 `blur(22–26px)`，
+  18s `translate+scale` 缓慢呼吸；`::after` 底部一条 2.5px、左右各收 4% 的柔光边，
+  青→紫→粉横向 16s 流动。**色相只有三支**（用户明确「避免颜色过于杂乱刺眼」），
+  BohBeam 那套红橙绿蓝紫只留在 BOHAI 全页。
+- **输入区收起（2026-11-05 第三次）**：生成中**整条输入区不渲染**
+  （`<Transition name="boh-bar">` + `v-if="!streaming"`，max-height/padding/opacity 一起收）。
+  中途试过的「彩虹条 + 方块暂停按钮」已被用户否掉（原话「不要暂停条和暂停按钮，
+  那根彩虹条太难看了」）——**不要再加回来**，守卫里有否定断言。
+- **停止入口**：脚部右侧文字「停止生成」（生成中替换「去全页」），不占一条、不抢光效。
+- **返场**：生成结束 `is-flow` 摘掉，padding/opacity 各走 260/240ms 过渡；卡片高度逐帧变化，
+  由既有 ResizeObserver 上报 navigation surface ⇒ 外层玻璃跟着平滑长/缩，不需要额外动画。
+- **跨组件信号只有一条**：`useBohIsland().generating`（回答面单向写、壳单向读、卸载复位）。
+- 守卫：`tests/unit/boh-island-flow.test.js`（15 条，已反证会变红；含「五色旧调色板不许回到岛里」的否定断言）。
+
+---
+
+## 10. 补记：Siri 式形态（2026-11-05 第五次口径，已落地）
+
+用户给了两张 iOS 参考（加载态「Searching events」、回复态灵动岛），并明确
+**「不再执着于做彩虹」**、**「仍然需要岛的形态，只不过唤起 BOHAI 整个岛自动变成深色」**。
+后续三次细化：不要进度数字、不要加载态停止按钮、底色要「黑色到底部慢慢渐变成微透」。
+
+### 10.1 架构：docked 不变，只换材质
+
+- **没有**改成独立悬浮胶囊。`measureTop` / `has-boh-island` / `--global-nav-island-height`
+  / WAAPI 高度动画一条都没动 —— 岛仍然是从导航 surface 向下长出来的同一块。
+- 变的是**这块玻璃的颜色**：`UnifiedNavbar` 新增 `surfaceTheme`，
+  `bohIsland.isOpen ? 'dark' : currentTheme`，只切容器的 `data-theme`，
+  白字/图标全部复用 `src/styles/themes/navbar-dark.css`（不另抄一份颜色）。
+- surface 底色在 `.has-boh-island` 里改成分层渐变，配 `background-color: transparent` +
+  `backdrop-filter: blur(20px) saturate(150%) brightness(.3)` ⇒ 越往下越透出**被压暗的**页面
+  （2026-11-05 三次调整：`.72` 那版实拍「不够透」）。
+- **停靠点必须是 px 反推、不能是百分比**（2026-11-05 定稿）：
+  `#000 0 → .98 calc(100% - 62px) → .62 calc(100% - 30px) → .08 100%`。
+  岛高是内容驱动的（竖屏 130 / 桌面 136 / 有回答更高），百分比会让渐隐带跟着伸缩 ——
+  竖屏矮岛时透区只剩十几像素，**肉眼等于没改**（用户原话「为啥我看得没区别」）。
+  固定最后 ~60px 渐隐，任何高度观感一致。
+- 同时把展开态投影从 `0 26px 70px .42` 收到 `0 10px 24px .16`：大偏移大模糊的黑影正好
+  压住渐隐带下沿，会把「透」重新糊回一片黑。
+- **backdrop 的 brightness 不能压太狠**（2026-11-05 第三次）：`.3` 时背后白色被压成
+  rgb(76) 的近黑，虽然"透"在物理上成立，**肉眼完全看不出**（用户第二次反馈"仍未发现区别"）。
+  现在 `.78` ＋ `blur(14px)`：透出来是"被柔化的浅灰页面"，亮度差可感知，同时不至于糊成脏白。
+  当前定稿（对标 iOS 灵动岛样图）：**不是「上黑下渐隐消失」**，而是**实心黑胶囊 + 底部微透**：
+  `#000 0 → .97 calc(100% - 58px) → .86 calc(100% - 26px) → .62 100%`
+  ＋ `blur(18px) saturate(140%) brightness(.62)`。
+  末段 0.62 是刻意留的：再低（试过 .12）胶囊形体就塌了、底边看不见，样图里轮廓是清楚的。
+- **最终形态（2026-11-05 用户定稿）**：底部渐隐到近乎透明（末段 `.08`），
+  **靠一道亮白边把下沿钉住**：`border-bottom-color: rgba(255,255,255,.5)` +
+  `inset 0 -1px 0 rgba(255,255,255,.45)` + `inset 0 -8px 16px -10px rgba(255,255,255,.4)`。
+  渐隐带用 `calc(100% - min(84px, 45%))`：岛矮（竖屏 130）按百分比收窄，岛高（有回答）按 84px。
+- ⚠️ **最大的坑（静默失效）**：`#unified-nav-container[data-theme='dark'] .unified-nav-surface`
+  是 scoped 规则，编译后带 `[data-v-x]` ⇒ 权重 (1,3,0)，与
+  `.has-boh-island.has-boh-island`(1,3,0) **同权重**，而它在文件里更靠后 ⇒ 把岛的
+  `border-color` 静默刷回 `--liquid-border`(0.12)。表现为「改了但看不到」。
+  ⇒ 该兜底规则必须加 `:not(.has-boh-island)`（守卫里有断言）。
+- **立体感三件套**（2026-11-05 与样图对齐）：`border 1px rgba(255,255,255,.24)` +
+  `inset 0 1px 0 rgba(255,255,255,.2)`（顶边亮线）+
+  `inset 0 22px 34px -26px rgba(255,255,255,.16)`（顶部大半径弧光）+
+  `inset 0 -1px 0 rgba(255,255,255,.07)`（底边反光）。
+- ⚠️ 只降 alpha 不压暗 backdrop，浅色站点会透成一片浅灰（像褪色）；两条必须成对。
+  ⚠️ `background-color` 必须 `!important`：基础规则的 `var(--liquid-bg)` 会被编译成
+  带 data-v 的形态参战，双类名压不住（实测仍读到 rgba(28,28,36,.72)）。
+  `navbar-dark.css` 那条 `rgba(20,27,37,.9) !important` 已加 `:not(.has-boh-island)` 让位。
+- 岛内墨色改成**恒为纸白**（`--boh-ink: #ffffff`），不再按 data-theme 分叉 —— 岛是黑的，
+  浅色站点下也不跟。
+
+### 10.2 三态
+
+| 态 | 条件 | 形态 |
+|---|---|---|
+| 空闲 | 未生成且无内容 | 一行输入条（`问 BOHAI…` + `↵ 发送`） |
+| 加载 | `streaming && !answerText && !pageLinks` | 54px 白点环 + 一行进行时状态 |
+| 回复 | 有正文 / 页面命中 | 问题（15.5px 白）+ 正文 + 「查看完整回答」胶囊 + 输入条返场 |
+
+- 加载态**不提供停止**（无按钮、无脚部文字）；回复态生成中脚部是「停止生成」文字。
+- **不显示 1/3、2/3 这类进度**（试过一版，用户否掉）。
+- 点环 = 8 个 `<i>`，`--a` 转角 + `--i × -0.115s` 延迟；`scale` 只走 0.95→1.06
+  （差值放大会看成「散落的点」）。
+
+### 10.3 顺手修掉的两个真 bug
+
+1. 空闲态凭空多一枚「查看完整回答」胶囊 —— 门条件写成 `!showLoading`，
+   空闲态也满足；改 `hasAnswer && !showLoading`。
+2. **岛展开时点汉堡＝灾难**：移动菜单与岛面板落在同一区域，叠成一半透明菜单压在岛上。
+   `toggleMobileMenu` 里岛开着就先 `close()` 并 return（一次点击只做一件事）；
+   同时把 `bohIsland.isOpen` 补进「任意岛唤起时收起菜单」的 watch（⌘K / 下拉手势
+   唤起的岛不在 statusCard/taskCard/custom 三个槽位里，菜单会滞留）。
+
+### 10.4 自证
+
+- 守卫 `tests/unit/boh-island-flow.test.js` 20 条（含「彩虹全族不许回来」「无进度」
+  「加载态无停止」「汉堡互斥」否定断言）。
+- `probe-nav-ask` 26/26；`island-smoke` 17/17；相关单测 40；eslint 0；
+  `check:important-budget` 608/609；`check:dark-tokens` 2410/2419。
+- 截图肉眼过：桌面浅/深、竖屏浅、加载/空闲/回复三态（加载态用临时强制
+  `showLoading` 截，截图后已还原）。
+
+### 10.5 与 Demo 的差异（不是 bug）
+
+Demo（仓库外 `../boh-island-demo.html`）是**独立悬浮**的 700px 胶囊；
+真实实现是 **docked**（跟导航同宽，当前 780），因为用户要求「仍然需要岛的形态」。
+所以 Demo 里那种「导航是白的、岛是黑的」的分离感在真实实现里不存在 ——
+真实是「整块导航岛变黑」。
+
+---
+
+## 11. 第六次口径（2026-11-05）：全文直出 + 封顶内滚；侧栏这组能收能清
+
+用户原话两句：
+
+1. 「默认显示完整回答，只是会根据 AI 的回答自动延长岛，但是会设置最大限制，
+   支持内部滚动，不显示滚动条。」
+2. 「在搜索里问过支持折叠和一键清理。」
+
+### 11.1 回答面：从「裁剪 + 展开」改成「直出 + 封顶 + 内滚」
+
+| 项 | 旧（§3.5 / P2） | 新 |
+|---|---|---|
+| 正文 | 首屏 132px 渐隐 +「展开全文」按钮 | **全文直出**，不再裁剪 |
+| 高度 | 内容撑 + `docked` 只有 `calc(100dvh - …)` 裸算式 | 内容撑 + **两态统一封顶** `min(clamp(320px,62dvh,600px), calc(100dvh - top - gap - kb))` |
+| 溢出 | 渐隐 + 点按钮展开 | `.boh-answer-body` 内部滚动，`overflow-y:auto` |
+| 滚动条 | — | **隐藏轨道**（`scrollbar-width:none` + `::-webkit-scrollbar{display:none}`），但滚动能力保留 |
+| 可滚暗示 | 滚动条 | 未到底时容器底部 22px `mask-image` 淡出（到底即摘掉） |
+
+被否的旧形态原因：用户要「默认看全」，点第二下才看全不符合「一颗岛给答案」的定位。
+
+#### 三个踩坑（都会静默失败）
+
+1. **贴底贴不住（只溢出一点点时最明显）**：末段内容到达时 body 往往还是自然高度
+   （实测 475/475，未溢出），**卡片被 `max-height` 夹紧是之后的布局步骤** ——
+   夹紧后 `clientHeight` 掉到 447，凭空多出 28px 可滚量，但此时 `answerText` 没变、
+   `showLoading` 没变、也没有 scroll 事件 ⇒ 没有任何东西触发贴底。
+   修法：`ResizeObserver` 盯 `.boh-answer-body` 自身尺寸（夹紧那一刻正好触发）。
+2. **程序滚动被误判成「用户往上翻了」**：`scrollTop` 赋值的 scroll 事件是异步派发的，
+   和「内容变长把 scrollTop 夹回 0」长得一样。只按位置判断（`atBottom < 24`）时，
+   28px 的溢出会被判定成用户已离开底部，从此不再跟随。
+   修法：`lastPinAt` 时间窗（160ms）内收到的 scroll 事件一律不计。
+3. **滚动容器在加载态那一支根本不挂载**：`v-if="showLoading"` / `v-else` 两棵子树，
+   首 token 一次到齐时 `watch(answerText)` 可能跑在容器挂载之前（`bodyRef` 为 null），
+   之后再无变化 ⇒ 一次都不贴。修法：`watch(showLoading)` + `watch(bodyRef)` 各补一次。
+
+#### 跟随策略
+
+只在「用户本来就在底部」（距底 < 48px）时跟随；用户往上翻过就不再拽回去。
+新一轮发送（`send`）重置为贴底。
+
+### 11.2 侧栏「在搜索里问过」：折叠 + 一键清理
+
+- **折叠**：分组头整行是按钮（`aria-expanded`），箭头 −90°；折叠体走
+  `grid-template-rows: 1fr ↔ 0fr`（高度未知也能过渡）。
+  状态落 `localStorage: boh_sidebar_collapsed_groups`；**搜索中强制展开**
+  （否则命中项藏在收起的组里，读起来像「没搜到」）。所有分组都可折叠，不只这一组。
+- **一键清理**：只给 `quickAsk` 分组（唯一会无限堆积的组：每次关岛重开都是一条新
+  快速会话）。常显低对比「清理」（0.55），hover 变亮；触屏 `@media (hover:none)` 常显。
+  点击 → 壳的确认弹层（列出条数、提示可先「提升为主会话」）→ `clearQuickAskSessions()`。
+
+#### 批量清理为什么不用「倒序 deleteSession」
+
+`deleteSession` 在只剩一条时是**重置成新对话**而不是删 —— 倒序走到最后会凭空留下
+一条空会话，且它的 `origin` 已被重置掉（分组里看不到，时间分组里多一条垃圾）。
+所以 `clearQuickAskSessions` 直接重建数组 + 索引一次性重映射（`currentSessionIndex` /
+`activeGenerationSessionIndex` / `compressingSessionIndex`），并**跳过正在生成的那条**
+（删了会让流式写回一个不存在的下标）。
+
+### 11.3 自证
+
+- 守卫 `tests/unit/boh-island-flow.test.js` 34 条（新增 12 条：全文直出不许回裁剪、
+  滚动条隐藏但能力保留、贴底只在 near-bottom 生效、程序滚动不许误判为用户上翻、两态都有封顶、折叠持久化 +
+  搜索强制展开、0fr 过渡、清理只给 quickAsk、信号三段接通、批量清理跳过生成中）。
+- `probe-nav-ask` 26/26。
+- 实机：桌面 1440×900（卡高 558 = 62dvh，溢出 28px，`scrollTop=28` 到底）、
+  竖屏 390×844（卡高 523，`scrollTop=587` 到底）；`scrollWidth-clientWidth=0`（无滚动条）；
+  侧栏折叠 83px → 0 → 83、`localStorage` 落账 `["quickAsk"]`、清理弹层文案与
+  删后会话只剩 `新对话` 均已实测。
+
+### 11.4 修掉「从帖子详情返回后多出一块空的黑岛」（2026-11-05 用户报障）
+
+**复现**：首页唤起岛 → 点帖子（`/forum/post/:id`，`hideNavbar`）→ 返回。
+
+实测状态机（playwright 逐帧读 DOM）：
+
+| 时刻 | isOpen | 卡片 | 卡片 top | 卡片背景 | surface |
+|---|---|---|---|---|---|
+| 首页开岛 | true | 有 | 76（docked） | transparent | `has-boh-island`，高 136 |
+| 帖子详情 | **true** | 有 | **12** | **深色渐变（悬浮态）** | 不存在 |
+| 返回后 | **true** | 有（66px 高） | **12** | 深色渐变 | `has-boh-island=false`，高 58 |
+
+即：导航栏一卸载，`measureTop` 走「无导航栏」分支 ⇒ 岛退成 `top:12` 的悬浮深色胶囊
+（里面只剩输入条，看着就是「空的黑岛」）；返回时导航是**新建的 DOM**，旧实现
+`if (!nav || navResizeObserver) return;` 一直盯着已销毁的节点，新容器永远等不到一次 measure
+⇒ 卡片停在那副悬浮形态上。
+
+**修法两条**：
+
+1. **跳页即关岛**（产品口径，主修）：`BohIsland` 里 `watch(route.fullPath)` → `close()`。
+   岛是「当前这一页的搜索 / 问一句」入口，换页就该收。既有跳转路径
+   （回答面的 `goPage` / `goFullPage`）本来就先 `onClose()` 再 push，这条只是把同一口径
+   提到壳层，兜住「点页面上的链接跳走」。
+2. **导航容器换了要重新 observe**（健壮性）：`watchNavHeight` 记住 `observedNav`，
+   容器不一致时 `disconnect()` 后重挂 —— 以后即使出现「岛开着而导航被重建」的场景也不会静默失效。
+
+**自证**：`probe-nav-ask` 新增 ㉕㉖（切到详情页 → 岛关闭且卡片卸载；返回后无卡片、
+`has-boh-island=false`、surface 回 58），**28/28**；守卫 36/36（新增 2 条）；
+返回后再开岛实测 `cardTop=76` / `islandVar=64px`（重新 dock 正常）。

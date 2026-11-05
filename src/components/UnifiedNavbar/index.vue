@@ -7,9 +7,10 @@
       'nav-immersive-on': immersiveNav,
       'nav-immersive-expanded': immersiveNav && isExpandedLooking,
     }"
-    :data-theme="currentTheme"
+    :data-theme="surfaceTheme"
   >
     <div
+      ref="navSurface"
       class="unified-nav-surface"
       :class="{
         'has-status-card': statusCardItem.visible,
@@ -185,8 +186,6 @@
             aria-label="搜索全站内容"
             title="搜索（/）"
             @click.stop="toggleSearch"
-            @pointerenter="prefetchSearchPanel"
-            @focus="prefetchSearchPanel"
           >
             <Search :size="16" :stroke-width="2.2" aria-hidden="true" />
           </button>
@@ -453,6 +452,7 @@ import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { useVersionCheck } from '@/composables/useVersionCheck.js';
 import { useOverviewIsland } from '@/composables/useOverviewIsland.js';
 import { useGlobalSearch } from '@/composables/useGlobalSearch.js';
+import { useBohIsland } from '@/composables/useBohIsland.js';
 import { useRoutePrefetch, scheduleIdleRoutePrefetch } from '@/composables/useRoutePrefetch.js';
 import { SITE_NAV_ITEMS } from '@/config/site-nav';
 import GlobalNavStatusCard from './GlobalNavStatusCard.vue';
@@ -514,14 +514,19 @@ let navStatusGapTimer = null;
 
 // ============================================
 // 灵动岛统一仲裁（useIsland 调度中心）
-// 优先级：AI 岛 > 任务岛 > 通知岛，同一时刻 surface 只展示一张卡
+// surface 内优先级：任务岛 > 自定义岛 > 通知岛，同一时刻 surface 只展示一张卡。
+//   · 任务岛压制通知岛与自定义岛（通知 visible 置 false、自定义岛 v-show 让位保状态）
+//   · 自定义岛压制通知岛（2026-11-04 补：此前只判任务岛 ⇒ 概览加载岛与通知卡同屏重叠 52px，
+//     两者 top 都取自 --global-nav-status-top，绝对定位直接叠在一起）
+// AI 岛不在这个仲裁里（plans/038 P3：已迁 App 级 BohIsland，Teleport 到 body）。
 // ============================================
 
 const isTaskCardShown = computed(() => !!islandTaskView.value);
+const isCustomCardShown = computed(() => !!islandCustomSlot.component);
 
-// 任务岛/AI 岛占用期间通知卡暂停展示（转为隐藏并保持队列，收起后自动恢复）
+// 任务岛 / 自定义岛占用期间通知卡暂停展示（转为隐藏并保持队列，收起后自动恢复）
 const statusCardItem = computed(() => {
-  if (isTaskCardShown.value) {
+  if (isTaskCardShown.value || isCustomCardShown.value) {
     return { ...navStatus.value, visible: false };
   }
   return navStatus.value;
@@ -589,11 +594,17 @@ const normalizeNavStatus = (payload = {}) => {
   };
 };
 
-const presentNavStatus = (item) => {
+/**
+ * 为「当前这条」通知安排自动收起。
+ *
+ * ⚠️ 抽成独立函数（2026-11-04）而不是内联在 presentNavStatus 里，是为了让「压制解除后
+ * 恢复展示」这条路径能重新排一次计时 —— 见下方 statusCardItem.visible 的 watch。
+ * 原实现里恢复后无人负责收卡：压制会让卡片走完整离场动画，而 after-leave 会
+ * clearNavStatusDismissTimer（handleNavStatusAfterLeave），把本条的计时一并清掉 ⇒
+ * 任务岛收起后通知淡回来再也不会自动走（实测 10s 仍在屏）。
+ */
+const scheduleStatusDismiss = (item) => {
   clearNavStatusDismissTimer();
-  navStatusCardHeight.value = 58;
-  navStatus.value = item;
-  noteIslandNotificationShown(item);
   if (item.persistent) return;
   navStatusDismissTimer = setTimeout(() => {
     navStatusDismissTimer = null;
@@ -618,8 +629,16 @@ const presentNavStatus = (item) => {
   }, item.durationMs);
 };
 
+const presentNavStatus = (item) => {
+  navStatusCardHeight.value = 58;
+  navStatus.value = item;
+  noteIslandNotificationShown(item);
+  scheduleStatusDismiss(item);
+};
+
 const flushNavStatusQueue = () => {
-  if (navStatus.value.visible || isTaskCardShown.value) return;
+  // 三个占位者任一在场都不该弹：通知会被 statusCardItem 立刻压回去（等于白闪一下再消失）
+  if (navStatus.value.visible || isTaskCardShown.value || isCustomCardShown.value) return;
   const next = navStatusQueue.shift();
   if (!next) return;
   const gap = islandNotifyGapMs();
@@ -635,7 +654,7 @@ const flushNavStatusQueue = () => {
 
 const handleGlobalNavStatus = (event) => {
   const item = normalizeNavStatus(event?.detail || {});
-  const busy = navStatus.value.visible || isTaskCardShown.value;
+  const busy = navStatus.value.visible || isTaskCardShown.value || isCustomCardShown.value;
   const verdict = admitIslandNotification(item, { busy, queueLength: navStatusQueue.length });
   if (!verdict.admit) return;
   if (busy) {
@@ -687,9 +706,85 @@ const handleGlobalNavPreempt = () => {
 // BohIsland.vue（Teleport 到 body、App 级挂载）承载，不再渲染进本组件 surface；
 // onAction：动作搜索（Spotlight 式「搜到即执行」）的执行权统一归 handleMenuAction ——
 // 闭包在调用时才解引用，规避 handleMenuAction 定义在 setup 更靠后位置的 TDZ。
-const { isSearchOpen, toggleSearch, prefetchSearchPanel } = useGlobalSearch({
+const { isSearchOpen, toggleSearch } = useGlobalSearch({
   onAction: (action) => handleMenuAction(action),
 });
+
+// ============================================
+// 竖屏唤起 BOHAI：抓导航胶囊往下拉（plans/038 §3.7；2026-11-04 用户口径）
+// 竖屏不再有常驻悬浮气泡 —— 导航本身是唯一定位点，拉它就是「把岛拉出来」。
+//   · 起手 12px 内不判定：点击（logo / 菜单 / 头像）与横向滑动都放行；
+//   · 竖向位移过 48px 松手才开，避免误触；
+//   · 拉的过程中吃掉 touchmove，免得页面跟着滚（iOS 还会橡皮筋/下拉刷新）；
+//   · 桌面不接管（有 ⌘K 与 /）；岛已开、登录弹窗、移动菜单展开时也不接管。
+// ============================================
+
+const navSurface = ref(null);
+const bohIsland = useBohIsland();
+
+/**
+ * 岛展开了 ⇒ 整块 surface 切到 dark（2026-11-05 用户口径「唤起 BOHAI 整个岛自动变成深色」）。
+ *
+ * 只切 `data-theme` 这一个开关，其余全部复用现成的暗色导航样式
+ * （`src/styles/themes/navbar-dark.css` 里 .nav-logo-text / .nav-menu a / .nav-link-wrapper
+ *  等一整套白字规则）——不在这里再抄一份颜色，否则两处真源必然漂移。
+ * surface 自己的深色底由 style.scoped.css 的 `.has-boh-island` 提供。
+ *
+ * ⚠️ 只在**容器**上切，不动 `<html data-theme>`：站点主题、BOHAI 全页、其它岛都不受影响。
+ */
+const surfaceTheme = computed(() => (bohIsland.isOpen.value ? 'dark' : currentTheme.value));
+
+const PULL_OPEN_PX = 48;
+const PULL_START_PX = 12;
+let pullState = null;
+
+const isPullZone = () => window.matchMedia('(max-width: 1023px)').matches;
+
+const onPullTouchStart = (event) => {
+  if (!isPullZone() || event.touches.length !== 1) return;
+  if (bohIsland.isOpen.value || isMobileMenuOpen.value || showLoginModal.value) return;
+  const touch = event.touches[0];
+  pullState = { x: touch.clientX, y: touch.clientY, dy: 0, armed: false };
+};
+
+const onPullTouchMove = (event) => {
+  if (!pullState || event.touches.length !== 1) return;
+  const touch = event.touches[0];
+  const dy = touch.clientY - pullState.y;
+  const dx = touch.clientX - pullState.x;
+  if (!pullState.armed) {
+    if (dy < PULL_START_PX || Math.abs(dy) <= Math.abs(dx)) return;
+    pullState.armed = true;
+  }
+  if (dy <= 0) {
+    pullState.dy = 0;
+    return;
+  }
+  pullState.dy = dy;
+  if (event.cancelable) event.preventDefault();
+};
+
+const resetPull = () => {
+  pullState = null;
+};
+
+const onPullTouchEnd = () => {
+  if (!pullState) return;
+  const shouldOpen = pullState.armed && pullState.dy >= PULL_OPEN_PX;
+  pullState = null;
+  // 下拉 = 「我想问点什么」：直接进对话面（openChat），不是先落搜索列表
+  if (!shouldOpen || !bohIsland.openChat()) return;
+  // 回答面是异步组件：首次打开可能还没挂上，重试几次把光标落进对话输入条
+  const focusInput = (tries = 0) => {
+    const input = document.querySelector('.boh-island-root .boh-answer-input');
+    if (input) {
+      input.focus();
+      return;
+    }
+    if (tries < 6) setTimeout(() => focusInput(tries + 1), 80);
+  };
+  nextTick(() => focusInput());
+};
 
 const handleStatusCardResize = (height) => {
   const nextHeight = Math.ceil(Number(height) || 58);
@@ -722,6 +817,28 @@ const handleIslandTaskAfterLeave = () => {
 watch(isTaskCardShown, (shown, prev) => {
   if (!shown && prev) flushNavStatusQueue();
 });
+
+// 自定义岛收起后同理（2026-11-04：自定义岛也压通知卡了，恢复路径必须成对补上，
+// 否则「概览加载岛 → 收起」这一下会把排队的通知永久卡住，等到下次别的事件才弹）
+watch(isCustomCardShown, (shown, prev) => {
+  if (!shown && prev) flushNavStatusQueue();
+});
+
+// 压制解除后「重新计时」。
+// 压制不是隐藏而是让卡片走完整离场动画，动画结束触发 after-leave → handleNavStatusAfterLeave
+// 会 clearNavStatusDismissTimer ⇒ 本条通知的自动收起计时被清掉；不在这里重排，
+// 卡片淡回来之后就永远停在导航栏上（2026-11-04 实测：任务 5s 结束后通知回来 10s 仍不消失）。
+// 语义：压制期间不计时（用户没真正看到的那段时长不算），恢复后完整展示一次 durationMs。
+watch(
+  () => statusCardItem.value.visible,
+  (shown, prev) => {
+    if (!shown || prev) return;
+    if (!navStatus.value.visible || navStatus.value.persistent) return;
+    // 正常上屏路径（presentNavStatus）已经排好计时了，别重排成双份
+    if (navStatusDismissTimer) return;
+    scheduleStatusDismiss(navStatus.value);
+  },
+);
 
 // ---- 自定义岛（showIsland.custom）高度上报 ----
 
@@ -1066,6 +1183,18 @@ const mobileMenuOpenCount = ref(0);
  * 切换移动端菜单显示状态
  */
 const toggleMobileMenu = () => {
+  /**
+   * 岛展开时，汉堡 = 「先退出岛」，这一下不开菜单。
+   *
+   * 岛的面板（surface 向下撑高的那块）与移动菜单落在**同一块区域**，同时展开就是叠影：
+   * 菜单半透明地压在自己的岛上，导航行还留着一排按钮（2026-11-05 实拍「非常灾难」）。
+   * 一次点击只做一件事：第一下收岛、第二下才开菜单 —— 用户不会遇到中间态。
+   */
+  if (!isMobileMenuOpen.value && bohIsland.isOpen.value) {
+    bohIsland.close();
+    return;
+  }
+
   isMobileMenuOpen.value = !isMobileMenuOpen.value;
   if (isMobileMenuOpen.value) {
     mobileMenuOpenCount.value += 1;
@@ -1280,8 +1409,14 @@ watch(
 );
 
 // 任意岛唤起时收起移动菜单（岛需要全宽 surface，菜单与岛互斥）
+// ⚠️ 必须把 bohIsland 也算进来：它不占 statusCard/isTaskCard/custom 这三个槽位，
+//    漏掉的话 ⌘K / 下拉手势 / 外部 showIsland.ai() 唤起时会和已展开的菜单叠在一起。
 watch(
-  () => statusCardItem.value.visible || isTaskCardShown.value || !!islandCustomSlot.component,
+  () =>
+    statusCardItem.value.visible ||
+    isTaskCardShown.value ||
+    !!islandCustomSlot.component ||
+    bohIsland.isOpen.value,
   (anyIsland) => {
     if (anyIsland && isMobileMenuOpen.value) closeMobileMenu();
   },
@@ -1463,6 +1598,13 @@ onMounted(() => {
   themeManager.addListener(handleThemeChange);
   // 添加点击外部关闭下拉菜单的事件监听
   document.addEventListener('click', handleClickOutside);
+
+  // 竖屏下拉唤起 BOHAI：touchmove 必须 non-passive 才能 preventDefault 掉页面滚动
+  const surfaceEl = navSurface.value;
+  surfaceEl?.addEventListener('touchstart', onPullTouchStart, { passive: true });
+  surfaceEl?.addEventListener('touchmove', onPullTouchMove, { passive: false });
+  surfaceEl?.addEventListener('touchend', onPullTouchEnd);
+  surfaceEl?.addEventListener('touchcancel', resetPull);
 });
 
 /**
@@ -1506,6 +1648,13 @@ onUnmounted(() => {
   themeManager.removeListener(handleThemeChange);
   // 移除点击外部关闭下拉菜单的事件监听
   document.removeEventListener('click', handleClickOutside);
+
+  const surfaceEl = navSurface.value;
+  surfaceEl?.removeEventListener('touchstart', onPullTouchStart);
+  surfaceEl?.removeEventListener('touchmove', onPullTouchMove);
+  surfaceEl?.removeEventListener('touchend', onPullTouchEnd);
+  surfaceEl?.removeEventListener('touchcancel', resetPull);
+  resetPull();
 });
 
 watch(isLoggedIn, (loggedIn) => {

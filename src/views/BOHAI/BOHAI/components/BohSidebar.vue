@@ -81,76 +81,111 @@
 
         <nav class="boh-sb-groups">
           <template v-for="group in filteredGroups" :key="group.id">
-            <div class="boh-sb-glabel">{{ group.label }}</div>
-            <TransitionGroup name="boh-sb">
-              <div
-                v-for="item in group.items"
-                :key="item.session.timestamp || item.index"
-                class="boh-sb-item"
-                :class="{ 'is-active': item.index === currentIndex }"
-                :data-session-index="item.index"
-                @click="selectSession(item.index)"
+            <!-- 分组头：整行可点 = 折叠/展开（2026-11-05 用户口径「在搜索里问过支持折叠」）。
+                 折叠状态记在 localStorage，跨会话保持；搜索时强制展开 ——
+                 否则命中项藏在收起的组里，看起来像「没搜到」。 -->
+            <div class="boh-sb-ghead" :class="{ 'is-collapsed': isGroupCollapsed(group.id) }">
+              <button
+                type="button"
+                class="boh-sb-glabel"
+                :aria-expanded="!isGroupCollapsed(group.id)"
+                @click="toggleGroup(group.id)"
               >
-                <Pin v-if="item.session.pinned" class="boh-sb-pin" :size="12" aria-hidden="true" />
-                <input
-                  v-if="renamingIndex === item.index"
-                  ref="renameInput"
-                  v-model="renameValue"
-                  class="boh-sb-rename"
-                  maxlength="48"
-                  @click.stop
-                  @keydown.enter.stop="commitRename(item.index)"
-                  @keydown.escape.stop="cancelRename"
-                  @blur="commitRename(item.index)"
-                />
-                <span v-else class="boh-sb-title-wrap">
-                  <span class="boh-sb-title">{{ item.session.title || '新对话' }}</span>
-                  <small v-if="query && matchPreview(item.session)">{{
-                    matchPreview(item.session)
-                  }}</small>
-                </span>
-                <span v-if="item.session.temporary" class="boh-sb-badge">临时</span>
-                <span v-else-if="item.session.origin === 'quick-ask'" class="boh-sb-badge"
-                  >问一句</span
-                >
-                <button
-                  v-if="renamingIndex !== item.index"
-                  type="button"
-                  class="boh-sb-more"
-                  title="更多操作"
-                  aria-label="更多操作"
-                  @click.stop="toggleMenu(item.index)"
-                >
-                  <MoreHorizontal :size="15" aria-hidden="true" />
-                </button>
-                <div v-if="menuIndex === item.index" class="boh-sb-menu" @click.stop>
-                  <button type="button" @click="beginRename(item)">
-                    <Pencil :size="14" aria-hidden="true" />重命名
-                  </button>
-                  <button type="button" @click="togglePin(item.index)">
-                    <Pin :size="14" aria-hidden="true" />{{
-                      item.session.pinned ? '取消置顶' : '置顶'
-                    }}
-                  </button>
-                  <!-- plans/038 §3.4：快速会话可提升为主会话（清 origin，回到常规时间分组） -->
-                  <button
-                    v-if="item.session.origin === 'quick-ask'"
-                    type="button"
-                    @click="promoteSession(item.index)"
+                <ChevronDown class="boh-sb-gchev" :size="12" aria-hidden="true" />
+                <span class="boh-sb-gtext">{{ group.label }}</span>
+                <span class="boh-sb-gcount">{{ group.items.length }}</span>
+              </button>
+              <!-- 一键清理：只给「在搜索里问过」—— 这是唯一会无限堆积的分组
+                   （每次关岛重开都是一条新快速会话）。确认与落账都由壳做。 -->
+              <button
+                v-if="group.id === 'quickAsk'"
+                type="button"
+                class="boh-sb-gclear"
+                title="清空「在搜索里问过」"
+                aria-label="清空在搜索里问过"
+                @click.stop="requestClearQuickAsk"
+              >
+                清理
+              </button>
+            </div>
+            <div class="boh-sb-gbody" :class="{ 'is-collapsed': isGroupCollapsed(group.id) }">
+              <div class="boh-sb-gbody-inner">
+                <TransitionGroup name="boh-sb">
+                  <div
+                    v-for="item in group.items"
+                    :key="item.session.timestamp || item.index"
+                    class="boh-sb-item"
+                    :class="{ 'is-active': item.index === currentIndex }"
+                    :data-session-index="item.index"
+                    @click="selectSession(item.index)"
                   >
-                    <ArrowUpRight :size="14" aria-hidden="true" />提升为主会话
-                  </button>
-                  <button
-                    v-if="sessions.length > 1"
-                    type="button"
-                    class="is-danger"
-                    @click="requestDelete(item.index)"
-                  >
-                    <Trash2 :size="14" aria-hidden="true" />删除
-                  </button>
-                </div>
+                    <Pin
+                      v-if="item.session.pinned"
+                      class="boh-sb-pin"
+                      :size="12"
+                      aria-hidden="true"
+                    />
+                    <input
+                      v-if="renamingIndex === item.index"
+                      ref="renameInput"
+                      v-model="renameValue"
+                      class="boh-sb-rename"
+                      maxlength="48"
+                      @click.stop
+                      @keydown.enter.stop="commitRename(item.index)"
+                      @keydown.escape.stop="cancelRename"
+                      @blur="commitRename(item.index)"
+                    />
+                    <span v-else class="boh-sb-title-wrap">
+                      <span class="boh-sb-title">{{ item.session.title || '新对话' }}</span>
+                      <small v-if="query && matchPreview(item.session)">{{
+                        matchPreview(item.session)
+                      }}</small>
+                    </span>
+                    <span v-if="item.session.temporary" class="boh-sb-badge">临时</span>
+                    <span v-else-if="item.session.origin === 'quick-ask'" class="boh-sb-badge"
+                      >问一句</span
+                    >
+                    <button
+                      v-if="renamingIndex !== item.index"
+                      type="button"
+                      class="boh-sb-more"
+                      title="更多操作"
+                      aria-label="更多操作"
+                      @click.stop="toggleMenu(item.index)"
+                    >
+                      <MoreHorizontal :size="15" aria-hidden="true" />
+                    </button>
+                    <div v-if="menuIndex === item.index" class="boh-sb-menu" @click.stop>
+                      <button type="button" @click="beginRename(item)">
+                        <Pencil :size="14" aria-hidden="true" />重命名
+                      </button>
+                      <button type="button" @click="togglePin(item.index)">
+                        <Pin :size="14" aria-hidden="true" />{{
+                          item.session.pinned ? '取消置顶' : '置顶'
+                        }}
+                      </button>
+                      <!-- plans/038 §3.4：快速会话可提升为主会话（清 origin，回到常规时间分组） -->
+                      <button
+                        v-if="item.session.origin === 'quick-ask'"
+                        type="button"
+                        @click="promoteSession(item.index)"
+                      >
+                        <ArrowUpRight :size="14" aria-hidden="true" />提升为主会话
+                      </button>
+                      <button
+                        v-if="sessions.length > 1"
+                        type="button"
+                        class="is-danger"
+                        @click="requestDelete(item.index)"
+                      >
+                        <Trash2 :size="14" aria-hidden="true" />删除
+                      </button>
+                    </div>
+                  </div>
+                </TransitionGroup>
               </div>
-            </TransitionGroup>
+            </div>
           </template>
           <div v-if="filteredGroups.length === 0" class="boh-sb-empty">没有匹配的对话</div>
         </nav>
@@ -308,6 +343,7 @@ const emit = defineEmits([
   'rename-session',
   'toggle-pin',
   'promote-session',
+  'clear-quick-asks',
   'open-settings',
   'upgrade',
   'update:surface',
@@ -476,6 +512,51 @@ const matchPreview = (session) => {
   return String(matched?.content || '')
     .replace(/\s+/g, ' ')
     .slice(0, 62);
+};
+
+/* ── 分组折叠 + 一键清理（2026-11-05 用户口径）─────────────────────────────
+   · 折叠：整行分组头是按钮，点一下收起/展开；状态落 localStorage（跨会话保持）。
+   · 清理：只给 quickAsk 分组。落在壳里（那里有会话数组与确认弹层），
+     本组件只发一个信号 —— 不在这里碰数据。
+   ⚠️ 搜索中强制展开：`filteredGroups` 已经把空组滤掉，若折叠态还生效，
+      命中项会被藏在一个「收起的组」里，用户会读成「没搜到」。 */
+
+const COLLAPSED_GROUPS_KEY = 'boh_sidebar_collapsed_groups';
+
+const readCollapsedGroups = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(COLLAPSED_GROUPS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const collapsedGroups = ref(readCollapsedGroups());
+
+const isGroupCollapsed = (id) => {
+  if (String(query.value || '').trim()) return false;
+  return collapsedGroups.value.includes(id);
+};
+
+const toggleGroup = (id) => {
+  // 搜索中折叠被强制展开 ⇒ 此时点分组头没有视觉反馈，就不要再偷偷改持久化状态
+  // （否则「搜索时点了一下」会在下次清空搜索后莫名生效）。
+  if (String(query.value || '').trim()) return;
+  const next = new Set(collapsedGroups.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  collapsedGroups.value = [...next];
+  try {
+    localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(collapsedGroups.value));
+  } catch {
+    // 隐私模式/配额满：折叠状态只是记忆，写不进去不影响本次交互
+  }
+};
+
+const requestClearQuickAsk = () => {
+  menuIndex.value = null;
+  emit('clear-quick-asks');
 };
 
 /* 会话切换 / 侧栏开合时，关掉临时的浮层状态 */

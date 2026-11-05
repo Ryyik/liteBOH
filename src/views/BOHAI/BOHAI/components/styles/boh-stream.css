@@ -366,22 +366,32 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
            ② 思考中的活动行（同上，`activityStage === 'thinking'`）。
    2026-10-19 合并前是「网页搜索行」+「正在思考行」两个节点各挂一次 ⇒ 同屏两条光带在闪；
    现在两阶段共用同一条行 + 同一份定义 ⇒ **任何时刻全屏只有一条光带**。
-   亮/底都走令牌（暗色下 text-1 更亮，天然成立），时长复用 `--boh-dur-bob` 单源。
+   时长复用 `--boh-dur-bob` 单源。
    ⚠️ **只许挂在纯文本节点上**：挂在含 SVG 的容器上会让 caret 一起 `color: transparent`
       而消失（旧版 `.boh-reason-head span` 的教训）。
-   ⚠️ 想加第三个消费者？**追加到这个选择器组**，别再抄一份属性。 */
+   ⚠️ 想加第三个消费者？**追加到这个选择器组**，别再抄一份属性。
+   ⚠️ 2026-11-04 用户口径「等待 UI 改用彩虹光效流动」：原来的灰白亮带换成 BohBeam 那套
+      彩虹调色板（`--boh-beam-c*`，**同一份色值单源，不新增裸色**），语义仍是同一个
+      「正在执行」——DESIGN §0.1 的彩色例外本来就只给这一个语义，等待行是它的文字形态。
+      白底上亮色对比不足 ⇒ 只切 `--boh-rainbow-lift`（浅 0.7 / 暗 1.15），色相不动。 */
 .boh-search-text.is-shimmer,
 .boh-reason.is-live .boh-search-text {
   background: linear-gradient(
     90deg,
-    var(--boh-text-3) 38%,
-    var(--boh-text-1) 50%,
-    var(--boh-text-3) 62%
+    var(--boh-beam-c1) 0%,
+    var(--boh-beam-c7) 16%,
+    var(--boh-beam-c3) 32%,
+    var(--boh-beam-c4) 48%,
+    var(--boh-beam-c2) 64%,
+    var(--boh-beam-c9) 80%,
+    var(--boh-beam-c8) 92%,
+    var(--boh-beam-c1) 100%
   );
-  background-size: 220% 100%;
+  background-size: 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  filter: brightness(var(--boh-rainbow-lift, 1));
   animation: boh-search-shimmer var(--boh-dur-bob, 2s) linear infinite;
 }
 
@@ -393,6 +403,7 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
   .boh-reason.is-live .boh-search-text {
     background: none;
     color: inherit;
+    filter: none;
     animation: none;
   }
 }
@@ -402,6 +413,7 @@ body.page-aichat.nav-orb-mode .boh-stream-pad {
 .bohai-page.reduce-motion .boh-search-text.is-shimmer {
   background: none;
   color: inherit;
+  filter: none;
   animation: none;
 }
 

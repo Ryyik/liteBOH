@@ -52,6 +52,7 @@
         @new-chat="startNewChat"
         @switch-session="switchSession"
         @delete-session="requestDeleteSession"
+        @clear-quick-asks="requestClearQuickAsks"
         @rename-session="renameSession"
         @toggle-pin="togglePinSession"
         @promote-session="promoteSession"
@@ -277,6 +278,7 @@ const {
   startNewChat,
   switchSession,
   requestDeleteSession,
+  requestClearQuickAsks,
   renameSession,
   togglePinSession,
   promoteSession,

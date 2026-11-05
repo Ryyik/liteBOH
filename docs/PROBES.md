@@ -15,7 +15,6 @@
 | 横屏左栏落位 | `probe-rail-landing.mjs` | 45 |
 | **横屏左栏「更多」浮层**（窄栏 88px 下主题 / 退出登录不被滚动容器裁成半个字、不被内容层遮挡；含反证自检） | `probe-rail-more-menu.mjs` | 16 |
 | 首屏拉动入场动效 | `probe-home-gate-pull.mjs` | 50 |
-| 全局搜索 / 灵动岛 | `probe-global-search.mjs` | 58 |
 | 论坛搜索 | `probe-forum-search.mjs` | 27 |
 | **论坛/详情「从哪来、回哪去」空间连续性**（图片查看器从缩略图 rect 起、关闭缩回同一张；详情正文卡从列表卡片 rect 形变入场；返程克隆层末帧落回入口卡片矩形；落定后 `transform: none`；reduce 下形变全跳过） | `probe-forum-motion.mjs` | 22 |
 | **帖子列表大图浏览**（翻页左箭头不被 stage/图片盖住；点空白关闭、点图片不关闭、拖拽不误关；开合动效逐帧采样 + reduce 口径） | `probe-forum-image-viewer.mjs` | 27 |
@@ -57,7 +56,6 @@
 | `probe-datamanagement-validator.mjs` | — | 数据管理面板校验器回归测试：复现"新闻模板保存报 Cannot read properties of undefined (reading 'includes')" |
 | `probe-forum-search.mjs` | — | 探针：论坛搜索体验增强（清除按钮 / ⌘K 聚焦 / 最近搜索 / 结果计数 / 无结果引导），网络全程 mock |
 | `probe-forum-motion.mjs` | — | 探针：空间连续性（plans/035）—— 来源 rect 对齐 / 落点回归 / 落定 transform 归零 / 克隆层无残留 / reduce 降级 |
-| `probe-global-search.mjs` | — | 探针：全局搜索（导航栏灵动岛形态）—— plans/020-site-global-search.md |
 | `probe-home-forum-rail.mjs` | — | 探针：首页（论坛层）横屏左栏 —— 修复「换个入口进论坛，左右栏结构就没了」 |
 | `probe-home-gate-pull.mjs` | — | 探针：首页开场画「跟手拖拽」入场（2026-09-27 由阈值触发改为 progress 派生） |
 | `probe-rail-landing.mjs` | — | 探针：横屏左栏改造落地验收（plans/011 B 组 + C1/C2） |
@@ -89,7 +87,6 @@
 
 | 文件 | npm script | 说明 |
 | --- | --- | --- |
-| `probe-ai-island-rail.mjs` | — | 探针：AI 岛展开时左侧横屏栏不随容器高度下移（--userspace-rail-top-h） |
 | `probe-detail-island.mjs` | — | 探针：新闻/活动详情灵动岛 + 管理员投稿弹窗（玻璃/层级/上传入口） |
 | `probe-forum-toolbar-hero.mjs` | — | 探针：论坛工具栏横屏 hero 改版（2026-09-15） |
 | `probe-gate-bottomnav.mjs` | — | 首屏底栏浮现诊断：量化「位置偏移」到底偏在哪。 流程：新会话打开首页 → 滚轮触发进论坛 → 在底栏浮现动画的多个时刻采样 |

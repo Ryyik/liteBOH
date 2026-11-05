@@ -237,11 +237,116 @@
   background-clip: content-box;
 }
 
-.boh-sb-glabel {
+/* ── 分组头：整行可点 = 折叠 / 展开（2026-11-05 用户口径）────────────────
+   原先是纯文字 .boh-sb-glabel；现在是「箭头 + 标题 + 条数 (+ 清理)」的一行。
+   点击区域做成整行（按钮撑满），不做小热区 —— 侧栏里一行 20px 高的文字很难点中。 */
+.boh-sb-ghead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 12px 8px 5px;
+}
+
+.boh-sb-glabel {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--boh-text-3);
+  font-family: inherit;
   font-size: 11.5px;
   letter-spacing: 0.02em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.boh-sb-glabel:hover {
+  color: var(--boh-text-2);
+}
+
+.boh-sb-gchev {
+  flex: none;
+  transition: transform var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-sb-ghead.is-collapsed .boh-sb-gchev {
+  transform: rotate(-90deg);
+}
+
+.boh-sb-gtext {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.boh-sb-gcount {
+  flex: none;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.boh-sb-gclear {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--boh-text-3);
+  font-family: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+  /* 常显（0.55）而不是 hover 才出现：这组的清理入口本来就不显眼，
+     完全藏起来等于没有（用户不会去 hover 一个看起来是纯文字的分组头）。 */
+  opacity: 0.55;
+  transition:
+    opacity var(--boh-dur-fast) var(--boh-ease),
+    color var(--boh-dur-fast) var(--boh-ease),
+    border-color var(--boh-dur-fast) var(--boh-ease),
+    background var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-sb-ghead:hover .boh-sb-gclear,
+.boh-sb-gclear:focus-visible {
+  opacity: 1;
+}
+
+.boh-sb-gclear:hover {
+  border-color: var(--boh-border-strong);
+  background: var(--boh-bg-hover);
+  color: var(--boh-text-1);
+}
+
+/* 触屏没有 hover：清理入口必须常显，否则永远点不到 */
+@media (hover: none) {
+  .boh-sb-gclear {
+    opacity: 1;
+  }
+}
+
+/* ── 分组体：折叠靠 0fr↔1fr（高度未知也能过渡）────────────────────────────
+   ⚠️ 不支持 grid-template-rows 过渡的老内核上就是瞬切 —— 功能不受影响，
+      所以不写 @supports 分流。 */
+.boh-sb-gbody {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--boh-dur-med) var(--boh-ease),
+    opacity var(--boh-dur-fast) var(--boh-ease);
+}
+
+.boh-sb-gbody.is-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.boh-sb-gbody-inner {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .boh-sb-item {

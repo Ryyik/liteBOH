@@ -251,6 +251,7 @@ export function useChatEngine() {
     clearCurrentSession,
     clearAllSessions,
     deleteSession,
+    clearQuickAskSessions,
     switchSession,
     setMemoryCaptureStatusMessage,
   } = useConversationManager({
@@ -292,8 +293,15 @@ export function useChatEngine() {
     },
   );
 
+  // ⚠️ 这份签名就是「会话级元字段的落盘触发清单」：字段改了但不在这里，改动只活在内存里，
+  //    刷新即回滚（不报错、不打日志）。2026-11-04 复核抓到的正是这一条 ——
+  //    「提升为主会话」只 `delete session.origin`，origin 不在签名里 ⇒ 侧栏当场重组、刷新又回去。
+  //    新增会话级字段时，先问「要不要落盘」，要就补进这里。
   watch(
-    () => chatSessions.map((s) => `${s?.title || ''}:${s?.pinned ? 1 : 0}:${s?.temporary ? 1 : 0}`),
+    () =>
+      chatSessions.map(
+        (s) => `${s?.title || ''}:${s?.pinned ? 1 : 0}:${s?.temporary ? 1 : 0}:${s?.origin || ''}`,
+      ),
     () => {
       if (isStreamingGeneration.value) return;
       scheduleSaveSessions();
@@ -2099,6 +2107,7 @@ export function useChatEngine() {
     clearCurrentSession,
     clearAllSessions,
     deleteSession,
+    clearQuickAskSessions,
     switchSession,
     sendMessage,
     toggleMemoryCapture,

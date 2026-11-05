@@ -3187,8 +3187,9 @@ const submitQuoteRepost = async () => {
   await fetchForumData(false, { background: true });
 };
 
-// 问 BOHAI：先在论坛库中检索相关内容，再把问题 + 检索结果交给顶部导航栏 AI 岛回复。
-// 检索本身不消耗额度；岛内回答走用户 AI 额度，默认使用 Fast 模型（mode: 'fast'）。
+// 问 BOHAI：先在论坛库中检索相关内容，再把问题 + 检索结果交给悬浮岛回复。
+// 检索本身不消耗额度；岛内回答走用户 AI 额度，恒走 fast 档（档位在 BohIslandAnswer 里定，
+// 岛内没有模型选择 UI —— plans/038 §3.6；这里不再传 mode，传了也会被忽略）。
 const askBohai = async () => {
   if (isAiSearchLoading.value) return;
   const question = stripTagTokens(searchQuery.value);
@@ -3243,14 +3244,14 @@ const askBohai = async () => {
         : '请用中文简洁回答用户的问题；如果问题适合社区讨论，可以建议用户发一个带 #提问 标签的帖子来获得更多帮助。',
     ].join('\n');
 
-    const opened = showIsland.ai({ prompt, mode: 'fast' });
+    const opened = showIsland.ai({ prompt });
     if (opened) {
       aiSearchHint.value = 'BOHAI 正在悬浮岛为你解答。';
     } else {
       /* plans/038 P3 后 showIsland.ai 直达 App 级 BohIsland（Teleport 到 body），
-         无导航栏的视图照样能开 —— false 只剩「当前就在 /ai-chat 页」这一种可能，
-         此时用户已在完整对话页里，无需再开岛。 */
-      aiSearchHint.value = '你已在 AI 对话页，直接在页面里提问即可。';
+         无导航栏的视图照样能开 —— false 只剩两种：已在 /ai-chat 页，或首页开场画在场
+         （canOpen 的两条否定条件，见 useBohIsland.js）。 */
+      aiSearchHint.value = '当前无法唤起悬浮岛 —— 你已在 AI 对话页，或首页开场动画还没结束。';
     }
   } catch (error) {
     logger.warn('forum', '问 BOHAI 失败:', error);

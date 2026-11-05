@@ -216,7 +216,7 @@ export const showIsland = {
 
   /**
    * 打开 BOH AI 对话岛（plans/038 P3：直达 BohIsland 的回答面），可带种子 prompt。
-   * options.mode（如论坛的 'fast'）不再消费 —— 岛内快速会话无模型选择（§3.6 减法）。
+   * options.mode 不再消费 —— 岛内档位恒 balance（无模型选择 UI，§3.6 减法）。
    * @returns {boolean} 成功交给 AI 岛返回 true；当前路由不可开返回 false（调用方可自行降级，如跳 /ai-chat）
    */
   ai(options = {}) {

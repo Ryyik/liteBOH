@@ -68,8 +68,11 @@
    必须与下半岛的实色 #1c1c1e 一致。这条 !important 会压过组件里
    .has-login-card 的暗色底色（组件侧无 !important，赢不了），所以在此放行：
    登录态交给组件自己定义。选择器权重靠 :not() 提高，!important 数量不变。 */
-[data-theme="dark"] #unified-nav-container .unified-nav-surface:not(.has-login-card),
-#unified-nav-container[data-theme="dark"] .unified-nav-surface:not(.has-login-card) {
+/* ⚠️ 排除 BOHAI 岛展开态：那条 `has-boh-island` 有自己的黑色渐隐底（顶部纯黑 →
+   底部微透），这里若继续用 !important 刷 rgba(20,27,37,.9) 会把它盖成蓝灰。
+   加了 :not() 之后岛才能用普通优先级覆盖，也不必再为此新增 !important。 */
+[data-theme="dark"] #unified-nav-container .unified-nav-surface:not(.has-login-card):not(.has-boh-island),
+#unified-nav-container[data-theme="dark"] .unified-nav-surface:not(.has-login-card):not(.has-boh-island) {
   background: rgba(20, 27, 37, 0.9) !important;
   border-color: rgba(220, 235, 255, 0.16) !important;
 }

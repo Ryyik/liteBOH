@@ -46,6 +46,5 @@ export function useGlobalSearch({ onAction } = {}) {
     openSearch,
     closeSearch,
     toggleSearch,
-    prefetchSearchPanel: bohIsland.prefetchSearchPanel,
   };
 }

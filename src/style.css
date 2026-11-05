@@ -376,9 +376,7 @@ body.page-aichat.nav-orb-mode {
      特异性远高于 style.scoped.css 里那条 :global 规则，不依赖加载顺序。 */
   body.page-aichat
     #unified-nav-container.nav-immersive-on.nav-immersive-expanded
-    .unified-nav-surface:not(.has-status-card):not(.has-task-card):not(.has-custom-card):not(
-      .has-bohai-island
-    ) {
+    .unified-nav-surface:not(.has-status-card):not(.has-task-card):not(.has-custom-card) {
     transform: translate(calc(var(--userspace-rail-w, 88px) / 2), 10px);
   }
 }

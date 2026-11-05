@@ -1,6 +1,5 @@
 import { computed, ref } from 'vue';
 import router from '@/router';
-import { createPanelAsync, AsyncPanelQuiet } from '@/utils/async-component.js';
 
 /**
  * BohIsland —— plans/038 的独立悬浮岛（搜索 + 问一句）。
@@ -11,47 +10,9 @@ import { createPanelAsync, AsyncPanelQuiet } from '@/utils/async-component.js';
  *   · 不占 showIsland 的 custom 槽位 —— 与任务岛/通知岛/订阅岛零仲裁；
  *   · showIsland.ai() 经 useIsland.ai() 直达本岛的 askDirect（原 opener 注册机制随旧岛删除）。
  *
- * 壳同步渲染 / 内容懒加载（§2.9.1 架构硬约束）：胶囊与展开壳是本组件的静态模板，
- * 搜索面板（GlobalSearchIsland chunk ≈20KB gzip 静态依赖）走下方 createPanelAsync 懒加载；
- * 预取机制原样保留（首屏空闲 / 悬停触发），点开时 chunk 通常已在本地。
+ * 2026-11-04 用户口径（终版）：岛 = 和 BOHAI 聊天的入口，只有对话面。
+ * 搜索列表面板（GlobalSearchIsland）整体退场；站内导航不走列表，由对话回复给出。
  */
-
-// ---------------- 搜索面板懒加载（自 useGlobalSearch.js 原样迁入，注释保留） ----------------
-
-const loadSearchIsland = () => import('@/components/UnifiedNavbar/GlobalSearchIsland.vue');
-const SearchIslandPanel = createPanelAsync(loadSearchIsland, {
-  label: 'GlobalSearchIsland',
-  loadingComponent: AsyncPanelQuiet,
-});
-
-let searchPanelPrefetched = false;
-export const prefetchSearchPanel = () => {
-  if (searchPanelPrefetched) return;
-  searchPanelPrefetched = true;
-  loadSearchIsland().catch(() => {
-    searchPanelPrefetched = false;
-  });
-};
-
-const isSlowOrMeteredConnection = () => {
-  if (typeof navigator === 'undefined') return false;
-  const conn = navigator.connection;
-  if (!conn) return false;
-  if (conn.saveData === true) return true;
-  return conn.effectiveType === 'slow-2g' || conn.effectiveType === '2g';
-};
-
-/** 首屏空闲时预热：requestIdleCallback 优先，不支持则退 2.5s 定时器 */
-export const scheduleSearchPanelPrefetch = () => {
-  if (typeof window === 'undefined') return;
-  if (isSlowOrMeteredConnection()) return;
-  const run = () => prefetchSearchPanel();
-  if (typeof window.requestIdleCallback === 'function') {
-    window.requestIdleCallback(run, { timeout: 5000 });
-  } else {
-    window.setTimeout(run, 2500);
-  }
-};
 
 /** 首页开场画在场时岛不响应（fixed 覆盖层 + 锁滚动，层叠会错位 —— 与旧搜索面板同规则） */
 const isHomeGateActive = () =>
@@ -64,27 +25,38 @@ const isOpen = ref(false);
 const face = ref('search');
 /** 搜索面 → 回答面的种子问题（一次性，由 BohIslandAnswer 挂载后消费） */
 const pendingAsk = ref('');
+/**
+ * ⚠️ 这里**不再有** `generating` 跨组件信号（2026-11-05 第五次口径）。
+ * 上一版靠它把「生成中」传给岛壳去画彩虹光效；现在生成态的视觉全在岛内
+ * （点环 + 状态文字 + 步骤，见 BohIslandAnswer），壳不需要知道生成进度。
+ * 岛变深色是**开岛就有**（不是生成中才有），由 UnifiedNavbar 的 data-theme 合成负责。
+ */
 
 // 动作搜索执行器：执行权仍归导航栏 handleMenuAction（单一真相源），
 // 导航栏经 useGlobalSearch({ onAction }) 注册，岛代为转发。
 let actionExecutor = null;
 
-export function useBohIsland() {
-  // ⚠️ 路由读 router 单例（currentRoute），不读 useRoute() —— 本模块还要被
-  // useIsland.ai() 在任意事件处理器里调用（showIsland.ai 的落点），那里没有 setup 上下文。
-  /** 当前路由/时机是否允许展开（胶囊可见性也用它） */
-  const canOpen = computed(() => {
-    if (router.currentRoute.value.name === 'AiChat') return false;
-    if (isHomeGateActive()) return false;
-    return true;
-  });
+/**
+ * 当前路由/时机是否允许展开（胶囊可见性也用它）。
+ * ⚠️ 路由读 router 单例（currentRoute），不读 useRoute() —— 本模块还要被 useIsland.ai()
+ *    在任意事件处理器里调用（showIsland.ai 的落点），那里没有 setup 上下文。
+ * ⚠️ 必须是**模块级单例**，不能在 useBohIsland() 里新建：无 setup 上下文的调用点
+ *    （事件处理器）没有 effectScope 可回收，每次调用都会留下一个订阅 router.currentRoute
+ *    且永不销毁的 computed。
+ */
+const canOpen = computed(() => {
+  if (router.currentRoute.value.name === 'AiChat') return false;
+  if (isHomeGateActive()) return false;
+  return true;
+});
 
+export function useBohIsland() {
   function open() {
     if (!canOpen.value) return false;
-    // 每次打开都是新的一次「问一句」：回到搜索面（§3.3 打开语义）
-    face.value = 'search';
+    // 2026-11-04 用户口径：这颗岛只有对话面 —— 搜索列表面板整体退场，
+    // 站内导航由 BohIslandAnswer 判命中后以「为你找到以下页面」的对话回复给出。
+    face.value = 'answer';
     isOpen.value = true;
-    scheduleSearchPanelPrefetch();
     return true;
   }
 
@@ -92,6 +64,19 @@ export function useBohIsland() {
     isOpen.value = false;
     face.value = 'search';
     pendingAsk.value = '';
+  }
+
+  /**
+   * 竖屏下拉唤起（2026-11-04 用户口径）：直接进**回答面**，也就是「和 BOHAI 聊天」的入口。
+   * 不再先落搜索列表 —— 下拉这个动作的语义是「我想问点什么」，不是「我想翻站内」。
+   * 站内导航不走列表：输入后由 BohIslandAnswer 判命中，用一句
+   * 「为你找到以下页面：…」的对话回复给出，UI 与 AI 回答同一条通道。
+   */
+  function openChat() {
+    if (!canOpen.value) return false;
+    isOpen.value = true;
+    face.value = 'answer';
+    return true;
   }
 
   function toggle() {
@@ -114,9 +99,7 @@ export function useBohIsland() {
 
   /**
    * showIsland.ai() 的落点（P3 入口收敛）：直接开岛并进回答面。
-   * 调用方（ForumMain 问 BOHAI、搜索面板旧宿主兜底等）零改动迁移。
-   * ⚠️ options.mode（如论坛的 'fast'）不再消费 —— 岛内快速会话无模型选择（§3.6 减法，
-   *   策略/模型选择在全页），默认档即 fast 位；调用方传了也不报错，静默忽略。
+   * ⚠️ options.mode 不再消费 —— 岛内档位恒为 balance（唯一实现处 BohIslandAnswer）。
    * @returns {boolean} 是否受理（false = AiChat 页 / 开场画在场）
    */
   function askDirect(options = {}) {
@@ -127,11 +110,6 @@ export function useBohIsland() {
       face.value = 'answer';
     }
     return true;
-  }
-
-  /** Esc 分层（§3.3）：回答面退回搜索面（保留原句），不关岛 */
-  function backToSearch() {
-    face.value = 'search';
   }
 
   function registerActionExecutor(fn) {
@@ -148,14 +126,12 @@ export function useBohIsland() {
     pendingAsk,
     canOpen,
     open,
+    openChat,
     close,
     toggle,
     ask,
     askDirect,
-    backToSearch,
     registerActionExecutor,
     runAction,
-    SearchIslandPanel,
-    prefetchSearchPanel,
   };
 }

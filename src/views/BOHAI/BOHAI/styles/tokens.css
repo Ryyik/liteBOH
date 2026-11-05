@@ -190,6 +190,14 @@
   --boh-beam-shadow-dark: rgba(255, 255, 255, 0.27);
   --boh-beam-shadow: var(--boh-beam-shadow-light);
 
+  /* 等待态彩虹流光的**亮度档**（2026-11-04 用户口径「等待 UI 改用彩虹光效流动」）。
+     九个彩虹色不跟主题变（上面那组是单源），但同一组亮色写在 12px 小字上时：
+     白底对比不足（绿/黄最糟）、暗底又偏灰 ⇒ 只切一个 brightness 系数。
+     成对命名 + 暗色块 var() 引用，与上面 beam 那几对同口径（纪律 1：暗色块零字面量）。 */
+  --boh-rainbow-lift-light: 0.7;
+  --boh-rainbow-lift-dark: 1.15;
+  --boh-rainbow-lift: var(--boh-rainbow-lift-light);
+
   /* ── 布局常量 ── */
   /* 左栏宽度真源是**全局**的 `--userspace-rail-w`（`UserSpace/styles/landscape-rail.css`，
      AI 页 `body.page-aichat` 恒 88）。BOHAI 自己那份**同义的左栏令牌**已于 2026-10-12 删除 ——
@@ -285,5 +293,7 @@
   --boh-beam-stroke-o: var(--boh-beam-stroke-o-dark);
   --boh-beam-bloom: var(--boh-beam-bloom-dark);
   --boh-beam-shadow: var(--boh-beam-shadow-dark);
+  /* 等待态彩虹流光：只切亮度档（色相仍是 :root 那九个） */
+  --boh-rainbow-lift: var(--boh-rainbow-lift-dark);
   /* 折射级白膜：**不在这里切** —— 见文件末尾的 `.bohai-page` 作用域块（§21.11）。 */
 }
