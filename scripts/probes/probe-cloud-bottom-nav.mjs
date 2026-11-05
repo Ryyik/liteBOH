@@ -105,6 +105,15 @@ const railState = (page) =>
     };
   });
 
+/* 图库是底栏席位（与 内容 / 消息 / 周边 / 我 平级），页头不该有返回按钮：
+   2026-11-05 删掉的那个「返回」恒落「我」页（只有带 ?from=userspace* 才认来路，
+   而首页 hero / 页脚 / 历史页 / 全站搜索都是裸 push('/user-space/note')），
+   从首页点「立即体验」进来按返回却落到「我」，比没有按钮更误导。
+   这条断言防它被「子页都要有返回」的直觉加回来 —— 真需要回上一级时，
+   动画片段的出口是 SegmentTabs 的「内容」，跨页的出口是底栏 / 左栏。 */
+const backButtonPresent = (page) =>
+  page.evaluate(() => Boolean(document.querySelector('.user-center-page-header .header-back')));
+
 /** 确认真的落在目标路由（否则后面所有「没有底栏」的读数都是在别的页面上量的） */
 const assertLanded = async (page, hash, label) => {
   const actual = await page.evaluate(() => window.location.hash);
@@ -164,6 +173,15 @@ const assertLanded = async (page, hash, label) => {
     );
   }
   if (backToTop.hiddenClass) violations.push('A：回到顶部后底栏没有恢复显示');
+
+  // 页头返回按钮：底栏席位不该有（见 backButtonPresent 上的注释）
+  const hasBackButton = await backButtonPresent(page);
+  rows.push({ name: 'A 竖屏：页头无返回按钮', value: hasBackButton ? '有 ✗' : '无 ✓' });
+  if (hasBackButton) {
+    violations.push(
+      'A：图库页头又出现了返回按钮 —— 它是底栏席位，且那个返回恒落「我」页（与来路无关）',
+    );
+  }
   await ctx.close();
 }
 

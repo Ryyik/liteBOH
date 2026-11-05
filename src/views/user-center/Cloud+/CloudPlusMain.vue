@@ -1,10 +1,21 @@
 <template>
   <div class="cloud-page" :class="{ embedded: isDesktopEmbed, 'with-topbar': !isDesktopEmbed }">
+    <!-- 页头只剩「BOH Cloud+」这一个标题。
+         ⚠️ 返回按钮 2026-11-05 删除（`:show-back="false"`），别再凭「子页都要有返回」加回来：
+         图库自 2026-10-22 起是**全站底栏第五席**（/user-space/note，与 内容 / 消息 / 周边 / 我 平级），
+         而「我」这一席的页头本来就没有返回 —— 顶栏给一个 tab 根页配返回，语义上就是错的。
+         更实际的问题是它**回不到原地**：goBack 走 `resolveSettingsBackLocation`，只有带
+         `?from=userspace*` 才认，而首页 hero / 首页页脚 / 历史页 / 全站搜索这几个入口都是裸
+         `router.push('/user-space/note')` ⇒ 一律回落到「我」页。从首页点「立即体验」进来，
+         按「返回」却落在「我」，比没有按钮更误导。
+         离开图库始终有出口：竖屏 / 手机横屏是底栏（左起第四席），≥1024 横屏是左栏。
+         页头容器是 `grid-template-columns: 52px 1fr 52px`、标题固定在第二列，
+         所以少掉返回那一格**不会**让标题偏移。 -->
     <UserCenterPageHeader
       v-if="!isDesktopEmbed"
       title="BOH Cloud+"
       max-width="1200px"
-      @back="goBack"
+      :show-back="false"
     />
 
     <!-- 2026-11-04 第二轮（用户口径：其他 tab 的位置和布局要和内容 tab 一样）：
@@ -1307,11 +1318,7 @@ import {
   resolveCloudBenefitFromSubscriptions,
 } from '@/utils/subscription-benefits.js';
 import { logger } from '@/utils/logger.js';
-import {
-  createCloudSettingsSubscriptionLocation,
-  createUserSpaceProfileReturnLocation,
-  resolveSettingsBackLocation,
-} from '@/utils/user-space-navigation.js';
+import { createCloudSettingsSubscriptionLocation } from '@/utils/user-space-navigation.js';
 import { isDialogBusy, useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { showIsland } from '@/composables/useIsland.js';
 /* 2026-10-22：Cloud+ 接入全站底栏第五席。
@@ -1601,9 +1608,9 @@ const cloudPageHero = computed(() => {
     subtitle: '私密空间 · 全部存储。这里陈列私密笔记；公开笔记在作品格展示，占用同一份额度。',
   };
 });
-const goBack = () => {
-  router.push(resolveSettingsBackLocation(route, createUserSpaceProfileReturnLocation()));
-};
+/* 页头的返回按钮已删除（2026-11-05，理由见模板顶部注释）：图库是底栏席位，
+   离开靠底栏 / 左栏；原先那个返回恒落「我」页，与用户来路无关。
+   两个「返回落点」工具只服务于它，一并下掉，避免留下无调用方的 import。 */
 const openSubscriptionsFromCloudSettings = () => {
   router.push(createCloudSettingsSubscriptionLocation());
 };
