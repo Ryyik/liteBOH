@@ -13,8 +13,10 @@ import {
   buildFilterString,
   getEditorFilter,
   getEditorFilterString,
+  isDefaultFilterTune,
+  normalizeFilterTune,
   resolveFilterLook,
-} from '@/views/Forum/composables/image-editor-filters.js';
+} from '@/utils/image-editor-filters.js';
 
 describe('buildFilterString', () => {
   it('空设置返回 none（不是空串 —— 空串在部分浏览器里是非法值）', () => {
@@ -48,10 +50,32 @@ describe('buildFilterString', () => {
 });
 
 describe('预设表', () => {
-  it('14 档、id 唯一、首档是原图', () => {
-    expect(IMAGE_EDITOR_FILTERS).toHaveLength(14);
-    expect(new Set(IMAGE_EDITOR_FILTERS.map((item) => item.id)).size).toBe(14);
+  it('12 档、id 唯一、首档是原图', () => {
+    expect(IMAGE_EDITOR_FILTERS).toHaveLength(12);
+    expect(new Set(IMAGE_EDITOR_FILTERS.map((item) => item.id)).size).toBe(12);
     expect(IMAGE_EDITOR_FILTERS[0].id).toBe('none');
+  });
+
+  /**
+   * 染色层（cast）是「一眼看出是哪卷」的那一层，而混合模式决定它是否成立：
+   * soft-light 配亮色只会提亮（实测 Kodak Gold 亮度 134→155、饱和度 0.54→0.37，
+   * 观感是加了一层雾）；overlay 才真正改色相。这条断言防的是「层被删掉」或
+   * 「混合模式被改回去」两种回归。
+   */
+  it('每档都有 cast 染色层，且用 overlay（soft-light 只会提亮不加色）', () => {
+    for (const preset of IMAGE_EDITOR_FILTERS.slice(1)) {
+      const look = resolveFilterLook(preset.id, 1);
+      expect(look.cast.opacity, preset.id).toBeGreaterThan(0);
+      expect(look.cast.color, preset.id).not.toBe('transparent');
+      expect(look.cast.blend, preset.id).toBe('overlay');
+    }
+  });
+
+  it('阴影染色走 multiply（胶片暗部是被染料压暗，不是被抬亮）', () => {
+    for (const preset of IMAGE_EDITOR_FILTERS.slice(1)) {
+      const look = resolveFilterLook(preset.id, 1);
+      expect(look.shadow.blend, preset.id).toBe('multiply');
+    }
   });
 
   it('除原图外每档都至少有一层真的会改变画面（调色或物理层）', () => {
@@ -100,12 +124,13 @@ describe('resolveFilterLook', () => {
   });
 
   it('强度 50% 的调色落在「恒等值 → 目标值」的中点', () => {
+    const preset = IMAGE_EDITOR_FILTERS.find((item) => item.id === 'mono');
     const full = resolveFilterLook('mono', 1);
     const half = resolveFilterLook('mono', 0.5);
-    // mono 的 grade: brightness 1.03 / contrast 1.16 / grayscale 1
+    const mid = (target) => (1 + target) / 2;
     expect(full.css).toContain('grayscale(1)');
-    expect(half.css).toContain('brightness(1.015)');
-    expect(half.css).toContain('contrast(1.08)');
+    expect(half.css).toContain(`brightness(${mid(preset.grade.brightness)})`);
+    expect(half.css).toContain(`contrast(${mid(preset.grade.contrast)})`);
     expect(half.css).toContain('grayscale(0.5)');
   });
 
@@ -136,5 +161,62 @@ describe('resolveFilterLook', () => {
     expect(look.leak.x).toBeLessThanOrEqual(1);
     expect(look.leak.y).toBeGreaterThanOrEqual(0);
     expect(look.leak.y).toBeLessThanOrEqual(1);
+  });
+});
+
+/**
+ * 微调（v3，用户口径「还想自己调颗粒质感」）。
+ *
+ * 这一层最容易出的两个错：
+ *  1. 倍率乘错位置 —— 微调是「在强度缩放之后再乘」，先乘再缩放会让
+ *     强度 0 也留下颗粒（用户拖回 0 却发现画面还在抖）；
+ *  2. 没有上限 —— 暗角×2 直接黑角、褪色×2 整幅发白。
+ */
+describe('微调（tune）', () => {
+  it('默认值全为 1，脏数据回落 1，超上限被夹住', () => {
+    expect(normalizeFilterTune()).toEqual({ grain: 1, vignette: 1, halation: 1, cast: 1, lift: 1 });
+    expect(normalizeFilterTune({ grain: 'abc', vignette: -3, halation: 99 })).toMatchObject({
+      grain: 1,
+      vignette: 0,
+      halation: 2,
+    });
+  });
+
+  it('isDefaultFilterTune 只在五项都为 1 时为真（UI 靠它显示「已改」）', () => {
+    expect(isDefaultFilterTune({})).toBe(true);
+    expect(isDefaultFilterTune({ grain: 1.4 })).toBe(false);
+  });
+
+  it('颗粒倍率真的作用在 opacity 上，且被上限夹住', () => {
+    const base = resolveFilterLook('gold', 1, { grain: 1 });
+    const more = resolveFilterLook('gold', 1, { grain: 1.5 });
+    expect(more.grain.opacity).toBeCloseTo(Math.min(1, base.grain.opacity * 1.5), 5);
+    // 倍率不设上限的话，暗角与颗粒会先撞到 1（再高就不是胶片而是噪声/黑角）
+    expect(resolveFilterLook('mono', 1, { grain: 1.6 }).grain.opacity).toBeLessThanOrEqual(1);
+    expect(resolveFilterLook('disposable', 1, { vignette: 2 }).vignette).toBeLessThanOrEqual(0.92);
+  });
+
+  it('微调是「先强度、后倍率」：强度 0 时任何微调都不该留下痕迹', () => {
+    const look = resolveFilterLook('gold', 0, { grain: 2, vignette: 2, halation: 2, cast: 2 });
+    expect(look.grain.opacity).toBe(0);
+    expect(look.vignette).toBe(0);
+    expect(look.halation.opacity).toBe(0);
+    expect(look.cast.opacity).toBe(0);
+  });
+
+  it('五项各自独立：调颗粒不动暗角与染色', () => {
+    const base = resolveFilterLook('gold', 1);
+    const onlyGrain = resolveFilterLook('gold', 1, { grain: 1.8 });
+    expect(onlyGrain.vignette).toBeCloseTo(base.vignette, 6);
+    expect(onlyGrain.cast.opacity).toBeCloseTo(base.cast.opacity, 6);
+    expect(onlyGrain.grain.opacity).toBeGreaterThan(base.grain.opacity);
+  });
+
+  it('褪色（lift）有硬上限 0.22：×2 也不会把画面洗白', () => {
+    expect(resolveFilterLook('mono', 1, { lift: 2 }).lift).toBeLessThanOrEqual(0.22);
+  });
+
+  it('resolveFilterLook 把 tune 原样带出来（渲染层与 UI 读同一份）', () => {
+    expect(resolveFilterLook('gold', 1, { grain: 1.25 }).tune.grain).toBe(1.25);
   });
 });

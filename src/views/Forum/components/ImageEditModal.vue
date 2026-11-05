@@ -89,7 +89,11 @@
         </section>
 
         <!-- ══ 编辑器：分层非破坏编辑（裁切 / 旋转 / 滤镜 / 贴纸） ══ -->
-        <section v-else class="imgedit-card is-editor">
+        <section
+          v-else
+          class="imgedit-card is-editor"
+          :class="{ 'has-sheet': activeTool !== 'crop' }"
+        >
           <header class="imgedit-head">
             <button type="button" class="imgedit-pill" @click="handleEditorCancel">
               {{ mode === 'confirm' ? '返回' : '取消' }}
@@ -263,6 +267,43 @@
               />
               <span class="imgedit-strength-value">{{ filterStrength }}%</span>
             </div>
+
+            <!-- 微调：默认收起。强度是「一眼就要」的，微调是「想再狠一点」才展开的，
+                 常驻会把竖屏的舞台挤掉一半高度 -->
+            <div v-if="currentFilterId !== 'none'" class="imgedit-tune">
+              <button
+                type="button"
+                class="imgedit-tune-toggle"
+                :class="{ 'is-open': showTune, 'is-dirty': tuneDirty }"
+                :aria-expanded="showTune"
+                @click="showTune = !showTune"
+              >
+                <span class="imgedit-tune-title">微调</span>
+                <span v-if="!showTune" class="imgedit-tune-hint">颗粒 · 暗角 · 泛光</span>
+                <span v-if="tuneDirty" class="imgedit-tune-dot" aria-hidden="true"></span>
+                <ChevronDown :size="14" class="imgedit-tune-chev" aria-hidden="true" />
+              </button>
+              <button v-if="tuneDirty" type="button" class="imgedit-tune-reset" @click="resetTune">
+                还原
+              </button>
+            </div>
+            <div v-if="currentFilterId !== 'none' && showTune" class="imgedit-tune-grid">
+              <label v-for="slider in tuneSliders" :key="slider.key" class="imgedit-tune-item">
+                <span class="imgedit-tune-item-label">{{ slider.label }}</span>
+                <input
+                  class="imgedit-tune-range"
+                  type="range"
+                  min="0"
+                  :max="tuneMax(slider)"
+                  step="5"
+                  :value="tuneValue(slider.key)"
+                  :aria-label="`${slider.label}强度`"
+                  @input="previewTune(slider.key, $event)"
+                  @change="commitTune(slider.key, $event)"
+                />
+                <span class="imgedit-tune-item-value">{{ tuneValue(slider.key) }}%</span>
+              </label>
+            </div>
           </div>
 
           <div v-else-if="activeTool === 'sticker'" class="imgedit-sheet">
@@ -336,6 +377,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Crop,
@@ -360,13 +402,17 @@ import {
   isFullRect,
   resolveFilterId,
   resolveFilterStrength,
+  resolveFilterTune,
   useImageEditorDoc,
 } from '../composables/useImageEditorDoc.js';
 import {
   getEditorFilterString,
+  isDefaultFilterTune,
+  normalizeFilterTune,
   resolveFilterLook,
   IMAGE_EDITOR_FILTERS,
-} from '../composables/image-editor-filters.js';
+  TUNE_SLIDERS,
+} from '@/utils/image-editor-filters.js';
 import {
   EDITOR_STICKER_DEFAULT_SIZE,
   EDITOR_STICKERS,
@@ -435,9 +481,52 @@ const currentFilterStrength = computed(() => {
   return resolveFilterStrength(commands.value);
 });
 const filterStrength = computed(() => Math.round(currentFilterStrength.value * 100));
+
+/**
+ * 微调（颗粒/暗角/泛光/染色/褪色）。
+ * 与强度同一个纪律：拖动时只改本地草稿（预览立刻变），松手才 push 一条命令，
+ * 于是一次拖动 = 一条撤销，而不是几十条。
+ */
+const tuneDraft = ref(null);
+const tuneSliders = TUNE_SLIDERS;
+const showTune = ref(false);
+const currentFilterTune = computed(() => {
+  const source = tuneDraft.value ?? resolveFilterTune(commands.value);
+  return normalizeFilterTune(source);
+});
+const tuneDirty = computed(() => !isDefaultFilterTune(currentFilterTune.value));
+const previewTune = (key, event) => {
+  const percent = Number(event?.target?.value);
+  if (!Number.isFinite(percent)) return;
+  tuneDraft.value = { ...currentFilterTune.value, [key]: percent / 100 };
+};
+const commitTune = (key, event) => {
+  const percent = Number(event?.target?.value);
+  const next = Number.isFinite(percent) ? percent / 100 : 1;
+  tuneDraft.value = null;
+  if (currentFilterId.value === 'none') return;
+  const tune = normalizeFilterTune({ ...currentFilterTune.value, [key]: next });
+  pushCommand({
+    type: 'filter',
+    id: currentFilterId.value,
+    strength: currentFilterStrength.value,
+    tune,
+  });
+};
+const resetTune = () => {
+  tuneDraft.value = null;
+  if (currentFilterId.value === 'none' || !tuneDirty.value) return;
+  pushCommand({
+    type: 'filter',
+    id: currentFilterId.value,
+    strength: currentFilterStrength.value,
+    tune: normalizeFilterTune({}),
+  });
+};
+
 /** 胶片模拟的完整参数（调色 + 物理层）；预览与导出都吃这一份 */
 const currentFilterLook = computed(() =>
-  resolveFilterLook(currentFilterId.value, currentFilterStrength.value),
+  resolveFilterLook(currentFilterId.value, currentFilterStrength.value, currentFilterTune.value),
 );
 const currentFilterCss = computed(() => currentFilterLook.value.css);
 const filterStringOf = (id) => getEditorFilterString(id);
@@ -555,16 +644,26 @@ const stopPhotoObserver = () => {
   photoObserver = null;
 };
 
+/**
+ * 舞台元素是 v-if 切出来的（确认页没有它），所以**不能**只在 visible 变化时挂观察器：
+ * 那一刻 stageRef 还是 null，观察器永远挂不上，之后面板一变高照片框就停在旧尺寸，
+ * 底部被 overflow:hidden 裁掉（实测 1440×900 下照片框 385px 塞在 331px 的舞台里）。
+ */
+watch(
+  () => stageRef.value,
+  async (stage) => {
+    stopPhotoObserver();
+    if (!stage) return;
+    await nextTick();
+    syncPhotoBox();
+    startPhotoObserver();
+  },
+  { flush: 'post' },
+);
+
 onMounted(() => {
   if (props.visible) startPhotoObserver();
 });
-watch(
-  () => props.visible,
-  (visible) => {
-    if (visible) startPhotoObserver();
-    else stopPhotoObserver();
-  },
-);
 onBeforeUnmount(() => {
   stopPhotoObserver();
   cleanupObjectUrls();
@@ -684,10 +783,13 @@ const handleFlip = async () => {
 
 const applyFilter = (id) => {
   if (toolBusy.value || id === currentFilterId.value) return;
-  // 切档时沿用当前强度（正在 60% 的比较状态不该被重置回 100%）
+  // 切档时沿用当前强度与微调：正在 60% 的比较状态不该被重置回 100%，
+  // 用户调好的颗粒量也是「口味」而不是「这一档的参数」，换档时不该丢
   const strength = resolveFilterStrength(commands.value);
+  const tune = currentFilterTune.value;
   filterStrengthDraft.value = null;
-  pushCommand({ type: 'filter', id, strength });
+  tuneDraft.value = null;
+  pushCommand({ type: 'filter', id, strength, tune });
 };
 
 /**
@@ -706,8 +808,18 @@ const commitFilterStrength = (event) => {
   if (!Number.isFinite(percent) || currentFilterId.value === 'none') return;
   const next = Math.min(1, Math.max(0, percent / 100));
   if (Math.abs(next - resolveFilterStrength(commands.value)) < 0.005) return;
-  pushCommand({ type: 'filter', id: currentFilterId.value, strength: next });
+  // ⚠️ 必须带上 tune：filter 命令是「后写覆盖」，少一个字段会把微调一起清掉
+  pushCommand({
+    type: 'filter',
+    id: currentFilterId.value,
+    strength: next,
+    tune: currentFilterTune.value,
+  });
 };
+
+/** 模板里不能直接调 Math（Vue 模板只暴露白名单全局），所以读值走两个小函数。 */
+const tuneValue = (key) => Math.round((Number(currentFilterTune.value[key]) || 0) * 100);
+const tuneMax = (slider) => Math.round((Number(slider?.max) || 2) * 100);
 
 const selectTool = async (id) => {
   if (toolBusy.value || id === activeTool.value) return;
@@ -1433,6 +1545,164 @@ const handleConfirmAll = () => {
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
 }
 
+/* ── 微调（颗粒 / 暗角 / 泛光 / 染色 / 褪色） ─────────────────────────
+   与「强度」分开：强度是整卷的浓淡（一眼就要），微调是单层倍率（想再狠一点
+   才展开）。收起态只留一行 32px，展开态每项一行 34px —— 竖屏下多占约 200px，
+   舞台用 object-fit: contain 让出这部分高度，不会裁到照片。 */
+.imgedit-tune {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 0 4px;
+}
+
+.imgedit-tune-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--liquid-border-hairline, rgba(15, 23, 42, 0.06));
+  border-radius: 12px;
+  background: var(--liquid-bg-subtle, rgba(255, 255, 255, 0.58));
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.imgedit-tune-toggle.is-dirty {
+  border-color: rgba(10, 132, 255, 0.4);
+}
+
+.imgedit-tune-title {
+  flex: 0 0 auto;
+}
+
+.imgedit-tune-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--liquid-text-tertiary, #8e8e93);
+}
+
+.imgedit-tune-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--apple-blue, #0a84ff);
+}
+
+.imgedit-tune-chev {
+  flex: 0 0 auto;
+  color: var(--liquid-text-tertiary, #8e8e93);
+  transition: transform 0.22s var(--ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+
+.imgedit-tune-toggle.is-open .imgedit-tune-chev {
+  transform: rotate(180deg);
+}
+
+.imgedit-tune-reset {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.07);
+  color: var(--liquid-text-secondary, #6e6e73);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.imgedit-tune-grid {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 0 4px;
+  /* 矮屏（横屏 390 高）下不能让五项把面板撑爆：内部自己滚 */
+  max-height: min(42vh, 200px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.imgedit-tune-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.imgedit-tune-item-label {
+  flex: 0 0 30px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--liquid-text-secondary, #6e6e73);
+}
+
+.imgedit-tune-item-value {
+  flex: 0 0 38px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--liquid-text-primary, #1d1d1f);
+}
+
+.imgedit-tune-range {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.imgedit-tune-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.imgedit-tune-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6.5px;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
+}
+
+.imgedit-tune-range::-moz-range-track {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.imgedit-tune-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
+}
+
 .imgedit-sheet-btn {
   flex: 1;
   min-height: 40px;
@@ -1594,6 +1864,142 @@ const handleConfirmAll = () => {
 .imgedit-fade-enter-from,
 .imgedit-fade-leave-to {
   opacity: 0;
+}
+
+/* ── 横屏：面板挪到右侧竖排 ──────────────────────────────────────────────
+ * 横屏唯一充裕的是横向空间，而底部 sheet 吃掉的正是照片最缺的高度：
+ * 修前 1440×900 下舞台只剩 331px 高（照片还被裁掉 54px），844×390 的手机横屏
+ * 更只剩 45px。这里把 sheet 变成右侧一列，照片拿走整条高度，两边互不遮挡。
+ *
+ * ⚠️ 只在编辑态生效（确认页是一屏一张大图的横滑，不需要侧栏）。 */
+@media (min-width: 901px), (orientation: landscape) and (max-height: 620px) {
+  .imgedit-card.is-editor {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'head'
+      'stage'
+      'toolbar';
+  }
+
+  .imgedit-card.is-editor.has-sheet {
+    grid-template-columns: minmax(0, 1fr) 268px;
+    grid-template-areas:
+      'head head'
+      'stage side'
+      'toolbar toolbar';
+  }
+
+  .imgedit-card.is-editor > .imgedit-head {
+    grid-area: head;
+  }
+
+  .imgedit-card.is-editor > .imgedit-stage {
+    grid-area: stage;
+    margin: 10px 8px 6px 12px;
+  }
+
+  .imgedit-card.is-editor > .imgedit-sheet {
+    grid-area: side;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: 10px 12px 6px 0;
+    overflow: hidden;
+  }
+
+  .imgedit-card.is-editor > .imgedit-toolbar {
+    grid-area: toolbar;
+  }
+
+  /* 侧栏里的滤镜/贴纸改成竖排栅格：一行 3 个，超出的纵向滚动 */
+  .imgedit-card.is-editor .imgedit-chips {
+    flex: 1;
+    min-height: 0;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding-bottom: 0;
+  }
+
+  /* 旋转面板三个按钮在窄列里横排会挤成三条细缝，改竖排 */
+  .imgedit-card.is-editor .imgedit-sheet-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .imgedit-card.is-editor .imgedit-sheet-row .imgedit-sheet-btn {
+    flex: 0 0 auto;
+  }
+
+  /* 强度条固定在侧栏底部，不跟着 chip 一起滚 */
+  .imgedit-card.is-editor .imgedit-strength {
+    flex: 0 0 auto;
+    margin-top: 6px;
+  }
+
+  /* 微调展开时侧栏只有 244px 高：chip 条继续保持「自己滚」（否则四行 chip
+     会把强度与微调全推到可视区之外，实测滑块整块跑到屏幕外），
+     微调区则压到约两行半并自己滚 —— 两块各自有边界，比一个长列表好找。 */
+  .imgedit-card.is-editor .imgedit-chips {
+    /* 一整行 chip（缩略图 + 标签）刚好 58px：只露半行会让人以为标签丢了 */
+    min-height: 68px;
+  }
+
+  .imgedit-card.is-editor .imgedit-tune-grid {
+    flex: 0 0 auto;
+    max-height: 68px;
+    overflow-y: auto;
+  }
+
+  .imgedit-card.is-editor .imgedit-sheet-hint {
+    flex: 0 0 auto;
+  }
+}
+
+/* 手机横屏 / 矮窗口：头部与工具条压缩，再给照片腾 40px */
+@media (orientation: landscape) and (max-height: 620px) {
+  .imgedit-card.is-editor > .imgedit-head {
+    padding: 7px 12px;
+  }
+
+  .imgedit-card.is-editor .imgedit-title {
+    font-size: 14px;
+  }
+
+  .imgedit-card.is-editor > .imgedit-toolbar {
+    margin: 0 12px 10px;
+    padding: 4px;
+  }
+
+  .imgedit-card.is-editor .imgedit-tool {
+    flex-direction: row;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 4px;
+    border-radius: 16px;
+    font-size: 11.5px;
+  }
+
+  .imgedit-card.is-editor.has-sheet {
+    grid-template-columns: minmax(0, 1fr) 212px;
+  }
+
+  .imgedit-card.is-editor .imgedit-chip-thumb {
+    width: 44px;
+    height: 44px;
+  }
+
+  .imgedit-card.is-editor .imgedit-chip {
+    padding: 2px;
+  }
+
+  .imgedit-card.is-editor .imgedit-chip-label {
+    font-size: 10px;
+  }
 }
 
 /* ── 桌面：卡片居中限宽，与发帖器桌面态的 860px 内容宽对齐 ── */

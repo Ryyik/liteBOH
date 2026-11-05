@@ -18,6 +18,7 @@
  */
 
 import { GRAIN_TILE_SIZE, getGrainTile, grainSpeckSize } from './image-editor-grain.js';
+import { buildHalationGlow } from './image-editor-halation.js';
 
 /** 工作位图最长边（进编辑器一次性降采样）。 */
 export const IMAGE_EDITOR_WORKING_MAX_DIMENSION = 2560;
@@ -292,8 +293,9 @@ function drawStickers(source, stickers, stickerImages) {
 
 /* ── 胶片模拟层 ────────────────────────────────────────────────────────
  * 顺序不是随便排的，它对应「光进入胶片到成为一张照片」的物理顺序：
- *   调色（显影的色偏）→ halation（片基反射）→ 阴影/高光染色（染料分层）
- *   → 提升黑场（片基灰雾）→ 颗粒（银盐）→ 暗角（镜头失光）→ 漏光（后背）
+ *   调色（显影的色偏）→ 整体染色（胶卷底色）→ halation（片基反射）
+ *   → 阴影/高光染色（染料分层）→ 提升黑场（片基灰雾）→ 颗粒（银盐）
+ *   → 暗角（镜头失光）→ 漏光（后背）
  * 把颗粒放在染色之前会被染色盖掉一半、放在暗角之后则会连暗角一起加噪，
  * 这两种错在缩略图上看不出来，放大后一眼假。
  *
@@ -316,22 +318,20 @@ function fillWithBlend(ctx, color, opacity, blend, width, height) {
   }
 }
 
-/** 高光泛光：把画面自身模糊+提亮后叠加（'screen' 只会抬起亮部）。 */
+/**
+ * 高光泛光：只让**强光**发光（阈值见 utils/image-editor-halation.js）。
+ * 早先用「整幅模糊 + screen」，暗部也被抬亮，成片发灰掉饱和 —— 那是雾，不是光晕。
+ */
 function drawHalation(ctx, source, halation, width, height) {
   const opacity = Number(halation?.opacity) || 0;
   if (opacity <= 0) return;
-  const radius = Math.max(1, Math.round((Number(halation.blur) || 0) * width));
-  const glow = createCanvas(width, height);
-  const glowCtx = glow.getContext('2d');
+  const glow = buildHalationGlow(source, halation);
+  if (!glow) return;
   try {
-    glowCtx.filter = `blur(${radius}px) saturate(1.4) brightness(1.15)`;
-    // 不支持 ctx.filter 的环境里赋值会被静默忽略，属性仍是 undefined
-    if (typeof glowCtx.filter !== 'string' || glowCtx.filter === 'none') return;
-    glowCtx.drawImage(source, 0, 0);
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     ctx.globalAlpha = Math.min(1, opacity);
-    ctx.drawImage(glow, 0, 0);
+    ctx.drawImage(glow, 0, 0, width, height);
     ctx.restore();
   } catch {
     /* ignore */
@@ -419,6 +419,7 @@ function drawLightLeak(ctx, leak, width, height) {
 function applyFilmLook(source, look) {
   const cssActive = Boolean(look?.css) && look.css !== 'none';
   const layersActive =
+    (Number(look?.cast?.opacity) || 0) > 0 ||
     (Number(look?.halation?.opacity) || 0) > 0 ||
     (Number(look?.shadow?.opacity) || 0) > 0 ||
     (Number(look?.highlight?.opacity) || 0) > 0 ||
@@ -433,9 +434,35 @@ function applyFilmLook(source, look) {
   const canvas = base === source ? cloneCanvas(source) : base;
   const ctx = canvas.getContext('2d');
   const { width, height } = canvas;
+  /* 整体染色：胶卷底色。soft-light 作用在整幅（含中间调），是「一眼能看出是哪卷」
+     的那一层；shadow/highlight 各只影响一端，替代不了它。 */
+  fillWithBlend(
+    ctx,
+    look?.cast?.color,
+    look?.cast?.opacity,
+    look?.cast?.blend || 'soft-light',
+    width,
+    height,
+  );
   drawHalation(ctx, canvas, look?.halation, width, height);
-  fillWithBlend(ctx, look?.shadow?.color, look?.shadow?.opacity, 'screen', width, height);
-  fillWithBlend(ctx, look?.highlight?.color, look?.highlight?.opacity, 'soft-light', width, height);
+  // 混合模式由预设决定（shadow 用 multiply 压暗染色、highlight 用 soft-light 提亮），
+  // 写死 'screen' 会和预览分叉 —— 预览读的是 look.shadow.blend。
+  fillWithBlend(
+    ctx,
+    look?.shadow?.color,
+    look?.shadow?.opacity,
+    look?.shadow?.blend || 'multiply',
+    width,
+    height,
+  );
+  fillWithBlend(
+    ctx,
+    look?.highlight?.color,
+    look?.highlight?.opacity,
+    look?.highlight?.blend || 'soft-light',
+    width,
+    height,
+  );
   // 'lighten' + 白色 + 低透明度 = 只抬黑场，不动高光
   fillWithBlend(ctx, '#ffffff', look?.lift, 'lighten', width, height);
   drawGrain(ctx, look?.grain, width, height);

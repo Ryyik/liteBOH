@@ -16,7 +16,7 @@ import { chromium } from 'playwright';
 //   B1  编辑器：标题「编辑图片」+ 工具条五项（裁切/旋转/滤镜/贴纸/撤销）+「返回」
 //   B2  初始撤销 disabled（命令栈空）
 //   B3* 旋转面板「右转 90°」→ 撤销 enabled（不重渲染预览 → 红）
-//   B4* 滤镜面板 14 档；点「黑白」→ chip 选中 + 图片 computed filter 含 grayscale(1)
+//   B4* 滤镜面板 12 档；点「黑白」→ chip 选中 + 图片 computed filter 含 grayscale(1)
 //       且胶片物理层（泛光/染色/提黑场/颗粒/暗角）真的挂上了 + 强度滑块出现
 //   B5* 贴纸面板 10 只猫；点一只 → 浮层出现 1 枚，且浮层矩形 = 照片实际矩形（±2px）
 //       （归一化坐标算错 → 贴纸位置/遮挡范围全错）
@@ -207,7 +207,7 @@ async function openPortraitComposer() {
   await page.waitForTimeout(900);
   check('B3 旋转后撤销 enabled', (await undoBtn.isDisabled()) === false);
 
-  // B4：滤镜（预设 14 档 + 选中态 + 图片 CSS filter + 胶片物理层）
+  // B4：滤镜（预设 12 档 + 选中态 + 图片 CSS filter + 胶片物理层）
   await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '滤镜' }).click();
   await page.waitForTimeout(500);
   const filterChips = await page.locator('.imgedit-overlay .imgedit-chip').count();
@@ -223,6 +223,12 @@ async function openPortraitComposer() {
     .catch(() => '');
   // 胶片层：黑白档应挂上泛光/阴影染色/高光染色/提黑场/颗粒/暗角
   const fxLayers = await page.locator('.imgedit-overlay .film-fx__layer').count();
+  // 泛光是「按阈值提取高光」的小图，不是把整幅模糊后 screen（那会发灰）
+  const glowSrc = await page
+    .locator('.imgedit-overlay .film-fx__layer.is-glow')
+    .first()
+    .evaluate((el) => (el.getAttribute('src') || '').slice(0, 22))
+    .catch(() => '');
   const grainBg = await page
     .locator('.imgedit-overlay .film-fx__layer')
     .evaluateAll((els) =>
@@ -234,14 +240,62 @@ async function openPortraitComposer() {
     .isVisible()
     .catch(() => false);
   check(
-    'B4 滤镜面板 14 档 + 选中「黑白」后 grayscale + 胶片层与强度滑块',
-    filterChips === 14 &&
+    'B4 滤镜面板 12 档 + 选中「黑白」后 grayscale + 胶片层与强度滑块',
+    filterChips === 12 &&
       monoOn &&
       /grayscale\(1\)/.test(photoFilter) &&
-      fxLayers >= 5 &&
+      fxLayers >= 6 &&
+      glowSrc.startsWith('data:image/png') &&
       grainBg &&
       strengthVisible,
-    `chips=${filterChips} fx=${fxLayers} grain=${grainBg} strength=${strengthVisible}`,
+    `chips=${filterChips} fx=${fxLayers} glow=${Boolean(glowSrc)} grain=${grainBg} strength=${strengthVisible}`,
+  );
+
+  // B4b：微调（用户口径「想自己调颗粒质感」）。
+  // 微调面板默认收起，展开后 5 项；把颗粒拖到 180% 必须真的改变渲染，
+  // 点「还原」必须回到预设原样 —— 只看 DOM 有没有滑块是不够的。
+  const readGrainOpacity = () =>
+    page
+      .locator('.imgedit-overlay .film-fx__layer')
+      .evaluateAll((els) => {
+        const grain = els.find((el) =>
+          (getComputedStyle(el).backgroundImage || '').includes('data:image/png'),
+        );
+        return grain ? Number(getComputedStyle(grain).opacity) : -1;
+      })
+      .catch(() => -1);
+  const grainBefore = await readGrainOpacity();
+  await page.locator('.imgedit-overlay .imgedit-tune-toggle').click();
+  await page.waitForTimeout(300);
+  const tuneItems = await page.locator('.imgedit-overlay .imgedit-tune-item').count();
+  await page
+    .locator('.imgedit-overlay .imgedit-tune-item')
+    .first()
+    .locator('input[type="range"]')
+    .evaluate((el) => {
+      el.value = String(Math.min(200, Number(el.max)));
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  await page.waitForTimeout(400);
+  const grainAfter = await readGrainOpacity();
+  const resetVisible = await page
+    .locator('.imgedit-overlay .imgedit-tune-reset')
+    .isVisible()
+    .catch(() => false);
+  if (resetVisible) {
+    await page.locator('.imgedit-overlay .imgedit-tune-reset').click();
+    await page.waitForTimeout(400);
+  }
+  const grainReset = await readGrainOpacity();
+  check(
+    'B4b 微调 5 项可展开 + 颗粒倍率真的改变渲染 + 「还原」回到预设原样',
+    tuneItems === 5 &&
+      grainBefore > 0 &&
+      grainAfter > grainBefore &&
+      resetVisible &&
+      Math.abs(grainReset - grainBefore) < 0.03,
+    `items=${tuneItems} grain ${grainBefore}→${grainAfter}→${grainReset}`,
   );
 
   // B5：贴纸（10 只猫 + 浮层矩形与照片一致）
@@ -444,6 +498,38 @@ async function openPortraitComposer() {
       Math.abs(editorBox.x + editorBox.width / 2 - 720) <= 40 &&
       stageVisible,
     editorBox ? `w=${Math.round(editorBox.width)} x=${Math.round(editorBox.x)}` : 'null',
+  );
+  // D3*：横屏把面板挪到右侧（底部 sheet 会吃掉照片最缺的高度）
+  // 修前实测：1440×900 下 stage 331px、photoFrame 385px（底部被裁 54px）
+  await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '滤镜' }).click();
+  await page.waitForTimeout(700);
+  const rects = await page.evaluate(() => {
+    const pick = (sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom, right: r.right };
+    };
+    return {
+      card: pick('.imgedit-overlay .imgedit-card'),
+      stage: pick('.imgedit-overlay .imgedit-stage'),
+      frame: pick('.imgedit-overlay .imgedit-photo-frame'),
+      sheet: pick('.imgedit-overlay .imgedit-sheet'),
+    };
+  });
+  const fitsStage =
+    rects.stage && rects.frame
+      ? rects.frame.h <= rects.stage.h + 2 && rects.frame.bottom <= rects.stage.bottom + 2
+      : false;
+  const sideBySide = rects.stage && rects.sheet ? rects.sheet.x >= rects.stage.right - 1 : false;
+  check(
+    'D3 横屏侧栏：照片完整落在舞台内（无裁切）+ 面板不压照片',
+    fitsStage && sideBySide,
+    rects.stage
+      ? `stage=${Math.round(rects.stage.w)}x${Math.round(rects.stage.h)} frame=${Math.round(
+          rects.frame.w,
+        )}x${Math.round(rects.frame.h)} sheet.x=${Math.round(rects.sheet?.x ?? -1)}`
+      : 'null',
   );
   await page.screenshot({ path: `${OUT}/desktop-editor.png` });
   await context.close();

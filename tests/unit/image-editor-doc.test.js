@@ -9,6 +9,8 @@ import {
   deriveEditorOutputSize,
   isFullRect,
   isValidEditorCommand,
+  resolveFilterStrength,
+  resolveFilterTune,
   useImageEditorDoc,
 } from '@/views/Forum/composables/useImageEditorDoc.js';
 
@@ -84,9 +86,13 @@ describe('deriveEditorOutputSize', () => {
   });
 
   it('crop 按归一化比例缩尺寸（相对当前态）', () => {
-    expect(deriveEditorOutputSize([{ type: 'crop', rect: { x: 0, y: 0, width: 0.5, height: 1 } }], 4000, 3000)).toEqual(
-      { width: 2000, height: 3000 },
-    );
+    expect(
+      deriveEditorOutputSize(
+        [{ type: 'crop', rect: { x: 0, y: 0, width: 0.5, height: 1 } }],
+        4000,
+        3000,
+      ),
+    ).toEqual({ width: 2000, height: 3000 });
   });
 
   it('rotate 后 crop 相对旋转后的尺寸', () => {
@@ -99,7 +105,11 @@ describe('deriveEditorOutputSize', () => {
   });
 
   it('crop 出 0 尺寸时保底 1px（canvas 不允许 0）', () => {
-    const size = deriveEditorOutputSize([{ type: 'crop', rect: { x: 0, y: 0, width: 0.0001, height: 0.0001 } }], 100, 100);
+    const size = deriveEditorOutputSize(
+      [{ type: 'crop', rect: { x: 0, y: 0, width: 0.0001, height: 0.0001 } }],
+      100,
+      100,
+    );
     expect(size.width).toBeGreaterThanOrEqual(1);
     expect(size.height).toBeGreaterThanOrEqual(1);
   });
@@ -116,11 +126,15 @@ describe('isValidEditorCommand', () => {
   it('rotate / flip / crop(正矩形) 合法', () => {
     expect(isValidEditorCommand({ type: 'rotate' })).toBe(true);
     expect(isValidEditorCommand({ type: 'flip' })).toBe(true);
-    expect(isValidEditorCommand({ type: 'crop', rect: { x: 0, y: 0, width: 0.5, height: 0.5 } })).toBe(true);
+    expect(
+      isValidEditorCommand({ type: 'crop', rect: { x: 0, y: 0, width: 0.5, height: 0.5 } }),
+    ).toBe(true);
   });
 
   it('零面积 crop / 未知类型 / 空值非法', () => {
-    expect(isValidEditorCommand({ type: 'crop', rect: { x: 0, y: 0, width: 0, height: 0 } })).toBe(false);
+    expect(isValidEditorCommand({ type: 'crop', rect: { x: 0, y: 0, width: 0, height: 0 } })).toBe(
+      false,
+    );
     expect(isValidEditorCommand({ type: 'crop' })).toBe(false);
     expect(isValidEditorCommand({ type: 'mosaic' })).toBe(false);
     expect(isValidEditorCommand(null)).toBe(false);
@@ -173,5 +187,34 @@ describe('useImageEditorDoc', () => {
     const crop = { type: 'crop', rect: { x: 0.1, y: 0.1, width: 0.5, height: 0.5 } };
     doc.pushCommand(crop);
     expect(doc.undo()).toEqual(crop);
+  });
+});
+
+/**
+ * 微调读取（v3）：与强度同一条「后写覆盖」规则。
+ * 这里守的是「拖动颗粒滑块后再拖强度，颗粒不能丢」——
+ * 两条命令都写 filter，只看最后一条会让前一次微调凭空消失。
+ */
+describe('resolveFilterTune', () => {
+  it('没有 filter 命令时返回空对象（老数据照常按预设原样渲染）', () => {
+    expect(resolveFilterTune([])).toEqual({});
+    expect(resolveFilterTune([{ type: 'rotate' }])).toEqual({});
+  });
+
+  it('只认最后一条 filter 的 tune（后写覆盖）', () => {
+    const commands = [
+      { type: 'filter', id: 'gold', strength: 1, tune: { grain: 1.6 } },
+      { type: 'filter', id: 'gold', strength: 0.6, tune: { grain: 1.2, vignette: 1.4 } },
+    ];
+    expect(resolveFilterTune(commands)).toEqual({ grain: 1.2, vignette: 1.4 });
+  });
+
+  it('最后一条 filter 没带 tune 时回落空对象（切档即恢复该卷本人的性格）', () => {
+    const commands = [
+      { type: 'filter', id: 'gold', strength: 1, tune: { grain: 1.6 } },
+      { type: 'filter', id: 'vista', strength: 1 },
+    ];
+    expect(resolveFilterTune(commands)).toEqual({});
+    expect(resolveFilterStrength(commands)).toBe(1);
   });
 });

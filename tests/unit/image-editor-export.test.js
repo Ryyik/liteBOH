@@ -343,7 +343,7 @@ describe('renderDocToCanvas · 胶片模拟层', () => {
   const makeSource = (width, height) => ({ width, height, __source: true });
 
   it('有 look 时产出新画布，且先画调色层', async () => {
-    const { resolveFilterLook } = await import('@/views/Forum/composables/image-editor-filters.js');
+    const { resolveFilterLook } = await import('@/utils/image-editor-filters.js');
     const source = makeSource(100, 80);
     const look = resolveFilterLook('portra', 1);
     const result = renderDocToCanvas(source, [], { look });
@@ -353,13 +353,13 @@ describe('renderDocToCanvas · 胶片模拟层', () => {
   });
 
   it('强度 0 的 look 不复制位图（等同原图，省一次全量拷贝）', async () => {
-    const { resolveFilterLook } = await import('@/views/Forum/composables/image-editor-filters.js');
+    const { resolveFilterLook } = await import('@/utils/image-editor-filters.js');
     const source = makeSource(100, 80);
     expect(renderDocToCanvas(source, [], { look: resolveFilterLook('mono', 0) })).toBe(source);
   });
 
   it('贴纸画在胶片层之后（贴纸不该被颗粒/暗角/调色污染）', async () => {
-    const { resolveFilterLook } = await import('@/views/Forum/composables/image-editor-filters.js');
+    const { resolveFilterLook } = await import('@/utils/image-editor-filters.js');
     const source = makeSource(100, 100);
     const stickerImage = { naturalWidth: 10, naturalHeight: 10 };
     const result = renderDocToCanvas(source, [], {
@@ -375,7 +375,7 @@ describe('renderDocToCanvas · 胶片模拟层', () => {
   });
 
   it('噪声块不可用（jsdom）时颗粒层静默跳过，导出不失败', async () => {
-    const { resolveFilterLook } = await import('@/views/Forum/composables/image-editor-filters.js');
+    const { resolveFilterLook } = await import('@/utils/image-editor-filters.js');
     const source = makeSource(100, 100);
     const result = renderDocToCanvas(source, [], { look: resolveFilterLook('faded', 1) });
     expect(result.width).toBe(100);

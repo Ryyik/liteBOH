@@ -152,6 +152,21 @@ export function resolveFilterStrength(commands = []) {
   return strength;
 }
 
+/**
+ * 当前滤镜微调（颗粒/暗角/泛光/染色/褪色，各自 0~2 倍率，缺省 1）。
+ *
+ * 与强度同一条「后写覆盖」规则：一次滑块拖动只落一条命令，所以最后一条就是当前值。
+ * 缺省 1 是为了老数据（没有 tune 字段）照常按预设原样渲染。
+ */
+export function resolveFilterTune(commands = []) {
+  let tune = {};
+  for (const command of Array.isArray(commands) ? commands : []) {
+    if (command?.type !== 'filter') continue;
+    tune = command.tune && typeof command.tune === 'object' ? command.tune : {};
+  }
+  return tune;
+}
+
 /** 命令是否结构合法（防外部注入畸形命令进栈）。 */
 export function isValidEditorCommand(command) {
   if (!command || typeof command !== 'object') return false;
