@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const testMocks = vi.hoisted(() => ({
   callVaultSiliconChat: vi.fn(),
@@ -585,5 +585,84 @@ describe('image-moderation-pipeline（两级都不可用 ⇒ 放行待复审）'
     const result = await moderateImageWithFallback(new File([], 'c.jpg'));
 
     expect(result.status).toBe('rejected');
+  });
+});
+
+describe('image-moderation-pipeline（移动端跳过本地模型 · 方案 A 2026-11-05）', () => {
+  const originalMatchMedia = globalThis.matchMedia;
+
+  const setCoarsePointer = (coarse) => {
+    globalThis.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: coarse, media: '(pointer: coarse)' });
+  };
+
+  beforeEach(() => {
+    testMocks.callVaultSiliconChat.mockReset();
+    testMocks.moderateForumImageFile.mockReset();
+    mockEncoding();
+    markCloudModerationSuccess();
+    localStorage.removeItem('boh_moderation_force_layer');
+  });
+
+  afterEach(() => {
+    globalThis.matchMedia = originalMatchMedia;
+    localStorage.removeItem('boh_moderation_force_layer');
+  });
+
+  it('触屏设备云端不可达 ⇒ 不碰本地模型，直接 pending_review 转后台复审', async () => {
+    setCoarsePointer(true);
+    testMocks.callVaultSiliconChat.mockResolvedValue(cloudFail({ status: 503 }));
+
+    const result = await moderateImageWithFallback(new File([], 'm1.jpg'));
+
+    expect(result.status).toBe('pending_review');
+    expect(result.source).toBe('pending_server_review');
+    // 关键：本地模型一次都不能被调用（调用即意味着 tfjs/WebGL 初始化重新入场）
+    expect(testMocks.moderateForumImageFile).not.toHaveBeenCalled();
+  });
+
+  it('批量路径同口径：云端整批不可达时，触屏设备全部转 pending_review', async () => {
+    setCoarsePointer(true);
+    testMocks.callVaultSiliconChat.mockResolvedValue(cloudFail({ status: 503 }));
+
+    const results = await moderateImagesWithFallback([
+      new File([], 'm2a.jpg'),
+      new File([], 'm2b.jpg'),
+    ]);
+
+    expect(results).toHaveLength(2);
+    expect(results.every((r) => r.status === 'pending_review')).toBe(true);
+    expect(testMocks.moderateForumImageFile).not.toHaveBeenCalled();
+  });
+
+  it('调试开关 force_layer=local 旁路基线：触屏设备也必须真的跑本地模型', async () => {
+    setCoarsePointer(true);
+    localStorage.setItem('boh_moderation_force_layer', 'local');
+    testMocks.moderateForumImageFile.mockResolvedValue({
+      status: 'rejected',
+      score: 0.95,
+      reason: '本地检测拦截',
+    });
+
+    const result = await moderateImageWithFallback(new File([], 'm3.jpg'));
+
+    expect(testMocks.moderateForumImageFile).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('rejected');
+  });
+
+  it('桌面（pointer: fine）不受门控：云端不可达仍走本地兜底', async () => {
+    setCoarsePointer(false);
+    testMocks.callVaultSiliconChat.mockResolvedValue(cloudFail({ status: 503 }));
+    testMocks.moderateForumImageFile.mockResolvedValue({
+      status: 'approved',
+      score: 0.01,
+      reason: '本地兜底检测通过',
+    });
+
+    const result = await moderateImageWithFallback(new File([], 'm4.jpg'));
+
+    expect(testMocks.moderateForumImageFile).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe('approved');
   });
 });

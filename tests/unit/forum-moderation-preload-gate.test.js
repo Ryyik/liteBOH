@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// 只 mock 冷却判定，避免把整条审核管线（含 supabase 客户端）拖进来
+// 只 mock 冷却判定与移动端门控，避免把整条审核管线（含 supabase 客户端）拖进来
 vi.mock('@/utils/image-moderation-pipeline.js', () => ({
   isCloudModerationCoolingDown: vi.fn(),
+  shouldSkipLocalModel: vi.fn(),
 }));
 
-import { isCloudModerationCoolingDown } from '@/utils/image-moderation-pipeline.js';
+import {
+  isCloudModerationCoolingDown,
+  shouldSkipLocalModel,
+} from '@/utils/image-moderation-pipeline.js';
 import { useForumImageModerationPreload } from '@/views/Forum/composables/useForumImageModerationPreload.js';
 
 // =====================================================================
@@ -35,6 +39,9 @@ describe('useForumImageModerationPreload：本地模型预载守卫', () => {
     //    `hasUsableConnection()` 的省流量/2g 判定天然走「可用」分支，正是被测前提。
     globalThis.window = { setTimeout, clearTimeout };
     isCloudModerationCoolingDown.mockReset();
+    // 方案 A（2026-11-05）：默认桌面口径，移动端场景由用例自行改写
+    shouldSkipLocalModel.mockReset();
+    shouldSkipLocalModel.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -87,6 +94,16 @@ describe('useForumImageModerationPreload：本地模型预载守卫', () => {
     const preload = vi.fn(() => Promise.resolve());
 
     await scheduleAndFlush(preload, {});
+
+    expect(preload).not.toHaveBeenCalled();
+  });
+
+  it('移动端（跳过本地模型）即使冷却中也不预载（方案 A：classify 不跑，下载纯卡顿）', async () => {
+    isCloudModerationCoolingDown.mockReturnValue(true);
+    shouldSkipLocalModel.mockReturnValue(true);
+    const preload = vi.fn(() => Promise.resolve());
+
+    await scheduleAndFlush(preload, { immediate: true });
 
     expect(preload).not.toHaveBeenCalled();
   });

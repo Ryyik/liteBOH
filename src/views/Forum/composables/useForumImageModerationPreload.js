@@ -1,4 +1,7 @@
-import { isCloudModerationCoolingDown } from '@/utils/image-moderation-pipeline.js';
+import {
+  isCloudModerationCoolingDown,
+  shouldSkipLocalModel,
+} from '@/utils/image-moderation-pipeline.js';
 
 export const useForumImageModerationPreload = (preloadForumImageModeration) => {
   let preloadTimer = null;
@@ -71,6 +74,10 @@ export const useForumImageModerationPreload = (preloadForumImageModeration) => {
     if (hasScheduledPreload) return;
     // §9.3 P3：云端可达就不下本地模型（见 shouldPreloadLocalModel 注释）
     if (!shouldPreloadLocalModel()) return;
+    // 方案 A（2026-11-05）：移动端 classify 永不运行（跳过本地模型转后台复审），
+    // 预载只是白下 3.5MB 权重 + 主线程 tfjs/WebGL 初始化 —— 这正是 iPhone
+    // 传图卡死（用户报障）的触发器，必须与 classify 同一处关门。
+    if (shouldSkipLocalModel()) return;
     const allowed = immediate ? hasUsableConnection() : shouldPreload();
     if (!allowed) return;
     hasScheduledPreload = true;

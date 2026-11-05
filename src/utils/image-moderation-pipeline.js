@@ -433,7 +433,39 @@ async function callCloudImageModeration(dataUrls, { timeoutMs = CLOUD_TIMEOUT_MS
 // 会漏。这里的互斥对**所有**入口生效（论坛预热、影集分享复审、强制 local 调试开关）。
 let localFallbackChain = Promise.resolve();
 
+/* ── 移动端跳过本地模型（2026-11-05 方案 A，用户拍板）──────────────────────
+ * 本地 nsfwjs 兜底的 tfjs 模块解析、权重下载（3.5MB）、WebGL 初始化与 classify
+ * 全部发生在主线程 —— iPhone 上是数秒级冻结（2026-11-05 用户报障：传图几秒后
+ * 整页卡死、无法打字，只能杀掉浏览器重进）。而本地兜底本就「从宽判定」（只拦
+ * ≥0.75 的明显违规，needs_review 放行），移动端放弃这层拦截面换「不卡死」。
+ * 云端不可达时直接走既有的 pending_review + 后台复审（约 6 分钟内真实裁决，
+ * 违规则软删该图）—— 与「本地模型未就绪」路径完全同一出口（2026-10-29 决策）。
+ *
+ * ⚠️ 调试开关 boh_moderation_force_layer='local' 不受此门控：显式要求测本地
+ * 模型时必须真的跑本地模型。导出给 useForumImageModerationPreload 复用 ——
+ * 否则移动端 classify 永不运行、预载却照下 3.5MB 权重，卡顿原样保留。
+ */
+export function shouldSkipLocalModel() {
+  if (getForcedLayer() === 'local') return false;
+  try {
+    // 用 globalThis 而不是 window：浏览器里两者相同，node 测试环境里 window 不存在
+    const matchMedia = globalThis.matchMedia;
+    return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches === true;
+  } catch {
+    return false;
+  }
+}
+
 async function localFallbackModerate(file) {
+  // 方案 A：移动端不加载/不运行本地模型，直接转后台复审（见 shouldSkipLocalModel 注释）
+  if (shouldSkipLocalModel()) {
+    return {
+      status: 'pending_review',
+      score: 0,
+      reason: '云端审核暂不可用，已放行并提交后台复审',
+      source: 'pending_server_review',
+    };
+  }
   // 排队取锁：先接住上一位的 promise，再把自己的 release 挂上去。
   const prev = localFallbackChain;
   let release;
