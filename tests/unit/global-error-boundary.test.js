@@ -105,7 +105,15 @@ describe('GlobalErrorBoundary wiring in App.vue', () => {
     // 也不能用 name：/news/1 → /news/2 的 name 相同，而 NewsDetailPage 只靠 onMounted
     // 取数、没有 watch(params)，用 name 会在切换新闻时显示上一条。path 对 params 变化
     // 敏感，正好保住「换页面即重建」的原意。
-    expect(appTemplate).toContain(':key="activeRoute.path"');
+    //
+    // 2026-11-05 起 key 是个三元式（路由级 KeepAlive 改常驻 + include 白名单）：
+    //   缓存页 → name（同页换 query 不重建）／不缓存页 → path（换 params 必须重建）。
+    // 这里断言的仍是那两条不变量，只是认了新写法：**不缓存那半必须是 path**。
+    // 配套：tests/unit/keep-alive-names.test.js 锁的是「哪些页进白名单」，
+    // scripts/probes/probe-cloud-keepalive.mjs 端到端验「实例到底有没有复用」。
+    expect(appTemplate).toMatch(
+      /:key="activeRoute\.meta\?\.keepAlive\s*\?\s*activeRoute\.name\s*:\s*activeRoute\.path"/,
+    );
     expect(appTemplate).not.toContain(':key="activeRoute.fullPath"');
   });
 

@@ -131,7 +131,7 @@ export const publicRoutes: RouteRecordRaw[] = [
     //    同一个 localStorage 键 `boh_chat_sessions` ⇒ 写入侧由
     //    `bohai-chat-session-store.js` 的 `createBohAISessionWriteGuard` 挡住互相覆盖，
     //    重载时机在 `BOHAIMain` 的 `onActivated`（流式中不换，避免冲掉在飞的消息）。
-    meta: { immersiveNav: true, keepAlive: true },
+    meta: { immersiveNav: true, keepAlive: true, keepAliveName: 'BohAiChatPage' },
     component: () => import('../../views/BOHAI/BOHAI/index.vue'),
   },
   {

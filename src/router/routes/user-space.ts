@@ -2,6 +2,12 @@ import type { RouteRecordRaw } from 'vue-router';
 
 const userSpaceMeta = { requiresLogin: true };
 
+/* ⚠️ `keepAliveName` 是 App.vue 的 <KeepAlive :include> 白名单（2026-11-05）。
+   它必须与路由组件里 `defineOptions({ name })` 的字符串**逐字相同** —— include
+   匹配的是组件名、不是路由名，写错/漏写不会报错，只会「默默不缓存」。
+   加新页面时三条都要给：`meta.keepAlive: true` + `meta.keepAliveName` + 组件里的
+   `defineOptions({ name })`；tests/unit/keep-alive-names.test.js 会拦下前两条。 */
+
 // ⚠️ 兼容重定向（/user-center/*、/mailbox、/user-space/{posts,community,ai,assets,settings,
 // profile,messages,tags-impressions}、/user-space/settings/beta-preview 等）已全部收进
 // routes/compat.ts 单一登记处（2026-10-15 起）。本文件只放真页面，别再往回加 redirect。
@@ -22,7 +28,7 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: '/user-space',
     name: 'UserSpace',
     component: () => import('../../views/user-center/UserSpace/index.vue'),
-    meta: { keepAlive: true },
+    meta: { keepAlive: true, keepAliveName: 'UserSpacePage' },
   },
   {
     // 摄影集：我的影集列表（创建/编辑/阅读/导出/分享入口）
@@ -43,7 +49,7 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
        针对的是**低频子页**；一旦它变成底栏常驻席位，切换手感优先，新鲜度改由页面内的
        onActivated 兜（超过 TTL 才静默补拉，不重建 DOM）。改这里前先读 CloudPlusMain 的
        onActivated 段。 */
-    meta: { ...userSpaceMeta, keepAlive: true },
+    meta: { ...userSpaceMeta, keepAlive: true, keepAliveName: 'CloudPlusPage' },
   },
   {
     path: '/user-space/shared-memories',
@@ -62,6 +68,12 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     name: 'VersionSettings',
     component: () => import('../../views/user-center/BetaPreview/BetaPreviewMain.vue'),
     // keepAlive：版本/预览信息与当前构建绑定，在一次会话内不会变，缓存无新鲜度代价。
-    meta: { ...userSpaceMeta, hideNavbar: true, hideFooter: true, keepAlive: true },
+    meta: {
+      ...userSpaceMeta,
+      hideNavbar: true,
+      hideFooter: true,
+      keepAlive: true,
+      keepAliveName: 'BetaPreviewPage',
+    },
   },
 ];

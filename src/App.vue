@@ -49,6 +49,22 @@ const { isModalOwningDetail } = usePostDetailModal();
 const authStore = useAuthStore();
 
 // ============================================
+// 路由级 KeepAlive 白名单（2026-11-05）
+// 「哪些页面要缓存」的唯一真源是**路由表**的 `meta.keepAlive` + `meta.keepAliveName`，
+// 这里只把它翻译成 <KeepAlive :include> 需要的名字数组 —— 别在模板里手写第二份清单。
+// 组件侧 `defineOptions({ name })` 必须与 `keepAliveName` 逐字一致；漏写不会报错，
+// 只会「默默不缓存」，所以由 tests/unit/keep-alive-names.test.js（路由表侧）+
+// scripts/probes/probe-cloud-keepalive.mjs（端到端：DOM 是否复用）双重守。
+// ============================================
+const keepAliveNames = computed(() =>
+  router
+    .getRoutes()
+    .filter((record) => record.meta?.keepAlive)
+    .map((record) => String(record.meta?.keepAliveName || ''))
+    .filter(Boolean),
+);
+
+// ============================================
 // 首屏加载态
 // 说明：RouterView 在首屏导航确认之前不会渲染任何东西，而 vue-router 是在
 // 导航阶段就 await 懒加载组件的，所以 <Suspense> 的 fallback 永远不会进入
@@ -462,9 +478,10 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
             ── 2026-11-04 硬切审计再试（P0-1，plans/005）──
             当年失败的另一个候选根因：RouterView 槽内是 **两个并列的条件分支**
             （KeepAlive 分支 + 普通分支），<Transition> 要求单根 —— 类名自然从未挂上。
-            本版把两分支收进同一个 Transition 的 v-if / v-else-if 链，并**只做 enter、
-            不定义 leave 类**（leave 无过渡时长 ⇒ 旧页立即卸载、新页 200ms 淡入，
-            不会像 mode="out-in" 那样给每次切换硬加等待 —— 与 2026-09-20 的设计意图一致）。
+            本版把两分支收成 **一棵常驻的 KeepAlive 子节点**（缓存与否交给 include，
+            见下方注释），并**只做 enter、不定义 leave 类**（leave 无过渡时长 ⇒
+            旧页立即卸载、新页 200ms 淡入，不会像 mode="out-in" 那样给每次切换硬加
+            等待 —— 与 2026-09-20 的设计意图一致）。
             有效性由 scripts/probes/probe-route-switch.mjs 巡检（主内容可见、不卡
             opacity:0、无报错）；若过渡类名依旧不生效，表现等于原状（退回瞬切），
             不会更坏 —— 这是本改动被允许留下的前提。
@@ -494,22 +511,50 @@ const showGlobalNavbar = computed(() => isGlobalNavbarVisible(route));
                 scripts/probes/probe-dm-lottery-entries-jump.mjs（切表只发 1 次列表请求）。
           -->
           <Transition name="route-fade">
-            <!-- v-if 必须在 KeepAlive 上（不是里面的 component）：Transition 要求
-                 子节点是 v-if / v-else-if 单链，否则两分支并列 = 又一次「类名从未挂上」 -->
-            <KeepAlive v-if="activeRoute.meta?.keepAlive">
-              <component :is="Component" :key="activeRoute.name" />
-            </KeepAlive>
+            <!--
+              ⚠️ KeepAlive **必须常驻**，不要再写回 `v-if="activeRoute.meta?.keepAlive"`。
+
+              旧写法把「要不要缓存」挂在了**容器自身的有无**上：导航目标一旦是不缓存的页
+              （首页 `/`、`/shop` —— 恰恰是最常去的两个落点），KeepAlive 整个被卸载，
+              它缓存的「图库 / 我 / /ai-chat」跟着一起销毁。于是：
+                · 我 ↔ 图库 来回切是好的（两个都 keepAlive，容器不重建，这一半 11-04 已经修好）；
+                · 但只要中间经过「内容」或「周边」，再点图库就是一次完整重挂 ——
+                  骨架 + 全量取数 + 回顶。用户原话「切换到图库还是会整页重载」。
+                · /ai-chat 更严重：离开去首页会真的卸载，onScopeDispose 触发 abort，
+                  正在生成的回答当场停住（2026-10-11「切页不再掐流」只在缓存页↔缓存页时成立）。
+              2026-11-05 实测（scripts/probes/probe-cloud-keepalive.mjs）：首页→图库→首页→图库，
+              第二次进图库是全新 DOM（埋点标记丢失、scrollY 归零、重新打请求）。
+
+              现在的结构 = **容器常驻 + 白名单**：KeepAlive 一直在，`include` 只放行
+              路由表里声明了 `meta.keepAlive` 的组件（名字取自 `meta.keepAliveName`）。
+              不在白名单里的页面照旧不缓存（渲染完正常卸载，首页的开场画/取数不受影响），
+              白名单里的实例在路过它们时只是 deactivated，缓存原样留着。
+
+              ⚠️ 三个容易踩的点：
+                · `include` 匹配的是**组件名**，不是路由名 ⇒ 每个 keepAlive 路由的组件
+                  必须在 `<script setup>` 里 `defineOptions({ name: 'X' })`，且与路由表的
+                  `keepAliveName` 逐字一致。漏写**不会报错**，只会「默默不缓存」——
+                  与本 bug 的表现一模一样，所以这条由单测 + 探针双重守。
+                · `:key` 必须按「缓存 / 不缓存」分开：缓存页用 name（同页换 query 不重建），
+                  不缓存页用 path（/news/1 → /news/2 要重建，见下方长注释）。
+                · `:max` 是兜底而不是策略：白名单最多 4 条，6 只用来防将来加页时无限涨。
+            -->
             <!--
               刷新还原弹窗时（isModalOwningDetail=true）跳过整页详情组件：
               路由名仍是 PostDetail，照渲染会得到「弹窗 + 整页详情」两棵树同时在跑
               （实测 pageCount=2），关掉弹窗后旧版整页详情会露出来 —— 就是用户报的
               「刷新后进了远古详情页」。跳过后只有弹窗那一棵，历史与深链不受影响。
+              ⚠️ 这条 v-if 只能写在 KeepAlive 的**唯一子节点**上：<KeepAlive> 不接受
+              两个子节点，dev 下 HTML 注释也算一个（会直接报
+              「expects exactly one child component」），所以解释文字只能放在标签外面。
             -->
-            <component
-              v-else-if="!(isModalOwningDetail && activeRoute.name === 'PostDetail')"
-              :is="Component"
-              :key="activeRoute.path"
-            />
+            <KeepAlive :include="keepAliveNames" :max="6">
+              <component
+                v-if="!(isModalOwningDetail && activeRoute.name === 'PostDetail')"
+                :is="Component"
+                :key="activeRoute.meta?.keepAlive ? activeRoute.name : activeRoute.path"
+              />
+            </KeepAlive>
           </Transition>
         </RouterView>
       </template>

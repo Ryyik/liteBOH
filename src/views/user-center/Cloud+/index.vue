@@ -1,8 +1,14 @@
 <script setup>
 /**
  * Cloud+ 页面入口 — 异步懒加载，减少首屏 JS 体积。
+ *
+ * ⚠️ `defineOptions({ name })` 不能删：App.vue 的 <KeepAlive :include> 按**组件名**
+ * 放行缓存，本名必须与路由表 `/user-space/note` 的 `meta.keepAliveName` 逐字一致，
+ * 否则「图库」会静默退回每次重挂（2026-11-05 的整页重载就是这条断的）。
  */
 import { createPanelAsync } from '@/utils/async-component.js';
+
+defineOptions({ name: 'CloudPlusPage' });
 
 const CloudPlusMain = createPanelAsync(() => import('./CloudPlusMain.vue'), {
   label: 'CloudPlusMain',

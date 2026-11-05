@@ -80,6 +80,9 @@ import { Images, PanelBottomClose, PanelTopOpen, Send, Sparkles } from 'lucide-v
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { themeManager } from '@/utils/theme-manager.js';
 
+/* ⚠️ 与路由表 `keepAliveName` 逐字一致（App.vue 的 <KeepAlive :include> 按组件名匹配）。 */
+defineOptions({ name: 'BetaPreviewPage' });
+
 const router = useRouter();
 const currentTheme = ref(themeManager.getTheme());
 
