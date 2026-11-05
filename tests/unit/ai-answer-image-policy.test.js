@@ -114,12 +114,18 @@ describe('两个白名单的不变量', () => {
   });
 
   it('CSP 的图片域名由 CSP_IMAGE_ORIGINS 插值，不再手写', () => {
+    // 2026-11-05：CSP 头模板从外壳脚本搬进 `scripts/lib/security-headers-config.mjs`
+    // （发布后探测脚本要与它共用同一份），拦截点必须跟着搬到真源 ——
+    // 继续读外壳脚本只会读到 `buildSecurityHeaders(...)` 调用，守卫生效但「守的是空」。
+    const config = stripComments(read('scripts/lib/security-headers-config.mjs'));
+    expect(config).toMatch(/img-src[^`\n]*\$\{imageOrigins\.join\(/);
+    // 负向：域名清单不该再出现字面量（手写就会漂移）
+    expect(config).not.toContain('res.cloudinary.com');
+    expect(config).not.toContain('cdn.blockofhome.cn');
+    // 接线：外壳脚本必须把 CSP_IMAGE_ORIGINS 传进模板，否则上面的插值只是形式
     const script = stripComments(read('scripts/cloudflare-security-headers.mjs'));
     expect(script).toContain("import { CSP_IMAGE_ORIGINS } from '../src/utils/image-origins.js'");
-    expect(script).toMatch(/img-src[^`\n]*\$\{CSP_IMAGE_ORIGINS\.join\(/);
-    // 负向：域名清单不该再出现字面量（手写就会漂移）
-    expect(script).not.toContain('res.cloudinary.com');
-    expect(script).not.toContain('cdn.blockofhome.cn');
+    expect(script).toMatch(/buildSecurityHeaders\(\{[\s\S]*?imageOrigins: CSP_IMAGE_ORIGINS/);
   });
 
   it('CSP 图片白名单必须覆盖头像的真实来源（Supabase Storage）', () => {
@@ -137,8 +143,9 @@ describe('两个白名单的不变量', () => {
   it('CSP 的 script-src 放行 Cloudflare Web Analytics（边缘自动注入）', () => {
     // 该脚本不是项目代码引入的，由 Zone 级 Web Analytics 在边缘注入；
     // 不放行就永远有一条 script-src-elem 上报，把真实信号淹掉。
-    const script = stripComments(read('scripts/cloudflare-security-headers.mjs'));
-    expect(script).toContain('https://static.cloudflareinsights.com');
+    // 2026-11-05：同样改为读 CSP 模板真源（见上一条）。
+    const config = stripComments(read('scripts/lib/security-headers-config.mjs'));
+    expect(config).toContain('https://static.cloudflareinsights.com');
   });
 });
 
