@@ -10,13 +10,20 @@
  *
  *   1. 骨架色值 === 对应 token 的值（tokens.css / themes/dark-mode.css）；
  *   2. 骨架 <style> 位于 </head> 之前，且之前没有任何 <link rel=stylesheet>；
- *   3. index.html 内联的 VALID_THEMES === src/utils/theme-manager.js 的同名常量。
+ *   3. 启动脚本里的 VALID_THEMES === src/utils/theme-manager.js 的同名常量。
+ *
+ * ⚠️ 2026-11-05：主题白名单**已从 index.html 外置**到 `public/boot.js`
+ *   （为去掉 CSP 的 `script-src 'unsafe-inline'`，那 4 段内联脚本是唯一来源）。
+ *   所以第 3 条改成优先读 boot.js、回退读 index.html —— 两处都读不到才算违约。
+ *   这一条守的本质没变：「早于 theme-manager 执行的那份白名单必须与它一致」。
  *
  * 退出码 1 表示违反（可挂进 build:ci）。
  */
 import { readFileSync } from "node:fs";
 
 const INDEX_HTML = "index.html";
+/** 首屏启动脚本（原 index.html 内联 4 段的宿主，见文件头 ⚠️） */
+const BOOT_JS = "public/boot.js";
 const TOKENS_CSS = "src/styles/common/tokens.css";
 const DARK_MODE_CSS = "src/styles/themes/dark-mode.css";
 const THEME_MANAGER_JS = "src/utils/theme-manager.js";
@@ -63,6 +70,7 @@ const normColor = (value) => {
 
 // ---------- 取材 ----------
 const html = read(INDEX_HTML);
+const bootJs = read(BOOT_JS);
 const tokensCss = read(TOKENS_CSS);
 const darkModeCss = read(DARK_MODE_CSS);
 const themeManagerJs = read(THEME_MANAGER_JS);
@@ -170,16 +178,20 @@ const extractList = (source) => {
     .filter(Boolean);
 };
 
-const htmlThemes = extractList(html);
+const htmlThemes = extractList(bootJs) || extractList(html);
 const managerThemes = extractList(themeManagerJs);
 
-if (!htmlThemes) fail(`${INDEX_HTML} 里读不到内联 VALID_THEMES`);
+if (!htmlThemes) {
+  fail(`${BOOT_JS}（及回退的 ${INDEX_HTML}）里读不到 VALID_THEMES`);
+}
 if (!managerThemes) fail(`${THEME_MANAGER_JS} 里读不到 VALID_THEMES`);
 if (htmlThemes && managerThemes) {
   const a = htmlThemes.join(",");
   const b = managerThemes.join(",");
   if (a !== b) {
-    fail(`主题白名单不一致：index.html = [${a}]，theme-manager.js = [${b}]`);
+    fail(
+      `主题白名单不一致：启动脚本(${BOOT_JS}) = [${a}]，theme-manager.js = [${b}]`,
+    );
   }
 }
 

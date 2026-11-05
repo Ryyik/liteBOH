@@ -180,7 +180,20 @@ const inspect = (headers) => {
       notes.push('CSP 为 Report-Only（未强制）；确认收敛后加 --expect-enforce 锁定');
     }
     if (/'unsafe-inline'/.test(csp)) {
-      notes.push("CSP 含 'unsafe-inline'（已知待收敛：index.html 的 4 段内联脚本）");
+      // 动态指出是哪条指令还开着：script-src 与 style-src 的风险不是一个量级，
+      // 写死文案会在收敛掉一条之后开始说谎。
+      const offenders = csp
+        .split(';')
+        .map((part) => part.trim())
+        .filter((part) => /'unsafe-inline'/.test(part))
+        .map((part) => part.split(/\s+/)[0]);
+      const scriptOffender = offenders.some((name) => name.startsWith('script-src'));
+      notes.push(
+        `${scriptOffender ? '⚠️ ' : ''}CSP 仍在 ${offenders.join(' / ')} 里带 'unsafe-inline'` +
+          (scriptOffender
+            ? '（script-src 带它 = XSS 边界失效）'
+            : '（只剩样式类，风险较低）'),
+      );
     }
     // 指令骨架漂移：防止有人手改 CSP 时误删整条指令以外的部分
     const declared = new Set(CSP_DIRECTIVE_SKELETON);

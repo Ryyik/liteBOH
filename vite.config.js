@@ -355,6 +355,13 @@ export default defineConfig({
         // manifestTransforms 里按壳样式允许清单过滤（见 bohShellCssScopePlugin）。
         globPatterns: [
           'index.html',
+          // 首屏启动脚本（原 index.html 内联 4 段的宿主，2026-11-05 外置）。
+          // ⚠️ 它不在 static/js/ 下，上面那条壳 chunk 的 glob 匹配不到 ——
+          // 漏掉它的后果是**弱网/离线时主题不生效（暗色用户白闪）+ 骨架超时兜底失效**，
+          // 而且不会报错。2026-11-05 实测：不加这条时产物 sw.js 清单里查不到 boot.js，
+          // 而 check:shell-precache 当时也没覆盖到它（它只从 app-*.js 的 import 图反推）。
+          // 该门禁现已补上「index.html 直接引用的本地脚本必须在预缓存里」这条断言。
+          'boot.js',
           `static/js/{${SHELL_CHUNKS_WITH_ENTRY.join(',')}}-*.js`,
           'static/css/*.css',
           // 无自托管字体（首屏走系统字体栈，见 index.html），故不列 static/fonts——

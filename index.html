@@ -3,28 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <!--
-      早期主题应用（必须早于骨架样式生效、早于任何模块脚本执行）
-      骨架的暗色分支与 body 兜底底色都依赖 html[data-theme]，而主题管理器
-      （src/utils/theme-manager.js）是在应用挂载之后才 init，暗色主题 CSS 更是
-      懒加载 —— 不提前设属性，暗色用户会先看到整屏白再切黑。
-      注意：VALID_THEMES 与 theme-manager.js 的同名常量重复（这里必须早于
-      模块执行，无法 import）。两处必须同步修改，由 scripts/check-first-paint.mjs 断言。
+      首屏启动脚本（2026-11-05 从 4 段内联 <script> 外置到 public/boot.js）
+      内容：主题预置 / PWA 强制刷新 / 资源恢复 / 骨架超时兜底。
+      为什么外置：这 4 段是 CSP `script-src 'unsafe-inline'` 的**唯一来源**，
+      不搬走就永远删不掉那条；而只要它还在，注入型 XSS 就同样被放行，
+      CSP 也就等于没有边界。
+      ⚠️ 同步、无 defer/async，且必须放在最前：主题属性要早于任何 CSS 应用
+      与首次绘制，否则暗色用户会先看到整屏白再切黑。
     -->
-    <script>
-      (function () {
-        var VALID_THEMES = ['light', 'dark', 'system', 'home-cat', 'anniversary-mc'];
-        try {
-          var saved = localStorage.getItem('boh-theme');
-          var pref = VALID_THEMES.indexOf(saved) >= 0 ? saved : 'light';
-          var theme = pref === 'system'
-            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-            : pref;
-          var root = document.documentElement;
-          root.setAttribute('data-theme', theme);
-          root.classList.toggle('dark', theme === 'dark');
-        } catch (e) { /* localStorage 不可用（隐私模式等）时按浅色默认走 */ }
-      })();
-    </script>
+    <script src="/boot.js"></script>
     <!-- 资源预取与预连接优化 (使用国内镜像加速) -->
     <link rel="preconnect" href="https://cdn.blockofhome.cn" crossorigin>
     <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin>
@@ -322,93 +309,11 @@
       }
     </style>
 
-    <!-- 强制清除旧 Service Worker 的最早执行脚本 -->
-    <script>
-      (function() {
-        // 检测强制更新 URL 参数
-        if (window.location.search.includes('forceUpdate=true') ||
-            window.location.search.includes('clearCache=true')) {
-          console.log('[PWA] 检测到强制更新参数，开始清除缓存');
-
-          // 保留资源恢复标记。该标记会让 CDN 将这次导航视为新请求，避免在
-          // 刚发布后再次拿到仍引用已删除 hash 资源的旧 index.html。
-          var cleanUrl = new URL(window.location.href);
-          cleanUrl.searchParams.delete('forceUpdate');
-          cleanUrl.searchParams.delete('clearCache');
-
-          // SW 注销任务（不支持 SW 时返回空数组）
-          var swTask = ('serviceWorker' in navigator)
-            ? navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                console.log('[PWA] 找到 ' + registrations.length + ' 个 Service Worker 注册');
-                return Promise.all(registrations.map(function(registration) {
-                  return registration.unregister().then(function() {
-                    console.log('[PWA] 已注销 Service Worker: ' + registration.scope);
-                  });
-                }));
-              })
-            : Promise.resolve([]);
-
-          // Cache Storage 清除任务（不支持时跳过，仅清理 SW 后重定向）
-          var cacheTask = ('caches' in window)
-            ? caches.keys().then(function(cacheNames) {
-                console.log('[PWA] 找到 ' + cacheNames.length + ' 个缓存');
-                return Promise.all(cacheNames.map(function(cacheName) {
-                  console.log('[PWA] 删除缓存: ' + cacheName);
-                  return caches.delete(cacheName);
-                }));
-              })
-            : Promise.resolve([]);
-
-          // 合并为单条 Promise 链，等待 SW 注销与缓存清除全部完成后再重定向，
-          // 避免重定向先于 SW 注销发生
-          Promise.all([swTask, cacheTask]).then(function() {
-            console.log('[PWA] 所有缓存已清除');
-            console.log('[PWA] 重定向到: ' + cleanUrl);
-            window.location.replace(cleanUrl.href);
-          }).catch(function(err) {
-            console.error('[PWA] 清理失败:', err);
-            // 即使失败也尝试重定向
-            window.location.replace(cleanUrl.href);
-          });
-        }
-      })();
-    </script>
     <!--
-      GitHub Pages 发布会替换带 hash 的构建文件，但旧 index.html 可能仍被
-      CDN 或浏览器短暂缓存。若它引用的 CSS/应用入口已不存在，自动清除
-      PWA 缓存并使用唯一 URL 请求最新入口，避免页面退化为默认浏览器样式。
+      PWA 强制刷新 与 资源恢复 两段已外置到 public/boot.js（2026-11-05）。
+      两者都必须早于任何资源请求挂上监听，所以同属首屏启动脚本。
     -->
-    <script>
-      (function () {
-        var recoveryParam = 'bohAssetRecovery';
-        var hasRecovered = new URL(window.location.href).searchParams.has(recoveryParam);
 
-        window.addEventListener('error', function (event) {
-          if (hasRecovered) return;
-
-          var target = event.target;
-          var isStylesheet = target && target.tagName === 'LINK' && target.rel === 'stylesheet';
-          var isAppModule = target && target.tagName === 'SCRIPT' && target.type === 'module';
-          var assetUrl = target && (target.href || target.src);
-
-          if ((!isStylesheet && !isAppModule) || !assetUrl || assetUrl.indexOf('/static/') === -1) return;
-
-          var recoveryUrl = new URL(window.location.href);
-          recoveryUrl.searchParams.set('forceUpdate', 'true');
-          recoveryUrl.searchParams.set(recoveryParam, Date.now().toString());
-          window.location.replace(recoveryUrl.href);
-        }, true);
-
-        // 成功恢复后移除 URL 中的内部标记，避免影响分享和普通导航。
-        if (hasRecovered && window.history && window.history.replaceState) {
-          window.addEventListener('load', function () {
-            var cleanUrl = new URL(window.location.href);
-            cleanUrl.searchParams.delete(recoveryParam);
-            window.history.replaceState(null, '', cleanUrl.href);
-          }, { once: true });
-        }
-      }());
-    </script>
   </head>
   <body>
     <div id="app">
@@ -435,48 +340,5 @@
     </div>
     <!-- mcdmsc.js 已移除，BOH服务器端口号通过其他方式获取 -->
     <script type="module" src="src/main.js"></script>
-    <script>
-      // 启动骨架超时兜底：12s 后若 #app 仍未被 Vue 接管（骨架节点还在 DOM 里），
-      // 说明应用壳或路由 chunk 没到位（常见于刚发布后旧 hash 已 404），
-      // 给出一个可点的自救入口。纯内联、零网络请求；Vue 一旦挂载即自然失效。
-      // ⚠️ 这里是"Vue 完全没起来"的兜底；src/App.vue 另有一道 10s 兜底负责
-      // "Vue 已挂载但路由 chunk 没到位"。两处文案与超时长度必须同步修改。
-      (function () {
-        var boot = document.getElementById('boh-boot');
-        var body = document.getElementById('boh-boot-body');
-        var dotsRow = document.getElementById('boh-boot-dots');
-        var loadingText = document.getElementById('boh-boot-text');
-        var errorBox = document.getElementById('boh-boot-error');
-        var retry = document.getElementById('boh-boot-retry');
-        if (!boot || !retry) return;
-
-        var timer = window.setTimeout(function () {
-          if (!document.body.contains(boot)) return;
-          // ⚠️ 这里只切到「报错态」，不做自动强刷：内联环境拿不到 version-checker，
-          // 手写第二份「拉 version.json 比对构建指纹」会违反单一真源；且入口脚本/CSS
-          // 的 404 已由上方资源监听自动强刷覆盖，能活到 12s 的残留场景（Vue 完全没挂载）
-          // 极少，保留手动自救即可。自动强刷由 src/App.vue 的 10s 兜底负责
-          // （recoverIfStaleBuild → forceCleanAndReload）。
-          // ⚠️ 文案与 src/App.vue 超时分支保持一致，改一处必须同步另一处。
-          if (loadingText) loadingText.hidden = true;
-          if (errorBox) errorBox.hidden = false;
-          if (body) body.classList.add('is-error');
-          // 点淡出收场（0.18s，见 .boh-boot-body.is-error 规则）后从布局中收起；
-          // 这块骨架的报错态是终态、不会再回到加载态，收起是安全的
-          if (dotsRow) window.setTimeout(function () { dotsRow.style.display = 'none'; }, 220);
-        }, 12000);
-
-        retry.addEventListener('click', function () {
-          if (retry.disabled) return;
-          retry.disabled = true;
-          // forceUpdate 会触发上方内联脚本的 SW 注销 + 缓存清理流程
-          var url = new URL(window.location.href);
-          url.searchParams.set('forceUpdate', 'true');
-          window.location.replace(url.href);
-        });
-
-        window.__bohBootSkeletonTimer = timer;
-      })();
-    </script>
   </body>
 </html>

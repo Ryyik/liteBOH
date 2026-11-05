@@ -66,14 +66,28 @@ export const CSP_REQUIRED_DIRECTIVES = [
   'report-to',
 ];
 
-/** @param {{ cspReportUri: string, imageOrigins: string[] }} opts */
+/**
+ * @param {{ cspReportUri: string, imageOrigins: string[] }} opts
+ */
 export const buildCspValue = ({ cspReportUri, imageOrigins }) =>
   [
     "default-src 'self'",
+    // ⚠️ script-src 里**不再有 'unsafe-inline'**（2026-11-05）。
+    //
+    // 它唯一的来源是 index.html 的 4 段内联启动脚本，已全部外置到 public/boot.js。
+    // 只要那条还在，CSP 对注入型 XSS 就没有边界 —— 攻击者注入的 <script> 同样被放行，
+    // 等于把 CSP 最大的价值让掉了。
+    //
     // static.cloudflareinsights.com：Zone 级 Web Analytics 由 Cloudflare 边缘自动注入，
     // 不是项目代码引入的。放行它只为消掉一条已证实的上报（2026-11-03），
     // 该脚本被拦不影响任何功能，只丢访问统计。
-    "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
+    //
+    // ⚠️ 已知待观察：Cloudflare 的自动注入若以内联形式出现，去掉 unsafe-inline 后
+    // 它会开始出现在违规报告里。当前 CSP 是 Report-Only，不拦截，所以先观察——
+    // 若确实是它，再改成手动 beacon（外链 script，不需要 unsafe-inline）。
+    "script-src 'self' https://static.cloudflareinsights.com",
+    // style-src 的 'unsafe-inline' 仍保留：index.html 的内联骨架 <style> 还在
+    // （它必须早于所有 CSS 生效，外置会引入一次渲染阻塞往返）。下一批用 hash 收敛。
     "style-src 'self' 'unsafe-inline'",
     `img-src 'self' data: blob: ${imageOrigins.join(' ')}`,
     "font-src 'self' data:",

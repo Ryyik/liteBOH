@@ -143,6 +143,33 @@ if (missingShellCss.length) {
   );
 }
 
+// ---------- 断言 A2：index.html 直接引用的本地脚本必须在预缓存里 ----------
+// 为什么单独一条：断言 B 只覆盖「入口 chunk 的静态 import 图」，而 index.html
+// 可以**直接** <script src> 引一个不在那张图里的文件（首屏启动脚本 public/boot.js）。
+// 2026-11-05 实测就漏了这一个：globPatterns 里没写它，产物 sw.js 清单查不到，
+// 而本门禁当时全绿 —— 后果是弱网/离线时客户端拿不到启动脚本：主题不生效
+// （暗色用户白闪）、骨架超时兜底失效，且不会有任何报错。
+const indexScripts = [...html.matchAll(/<script\b[^>]*\bsrc="\.\/([^"]+)"/g)]
+  .map((m) => m[1])
+  // 外链（http(s)、协议相对）不归预缓存管
+  .filter((u) => !/^(?:[a-z]+:)?\/\//i.test(u));
+
+if (indexScripts.length === 0) {
+  fail(
+    `${INDEX_HTML} 里解析不到任何 <script src="./..."> —— 解析规则可能已失效（当前预期至少有启动脚本与入口），请不要放行`,
+  );
+}
+
+const missingIndexScripts = indexScripts.filter(
+  (u) => !precached.has(u) && !precached.has(baseName(u)),
+);
+if (missingIndexScripts.length) {
+  fail(
+    `index.html 直接引用的脚本未进 SW 预缓存（弱网/离线时首屏启动逻辑缺失）：${missingIndexScripts.join(", ")}\n` +
+      `  修法：把对应文件名补进 vite.config.js 的 workbox.globPatterns`,
+  );
+}
+
 // ---------- 断言 B：壳脚本（入口静态 import）必须在预缓存里 ----------
 const missingJs = [...shellDeps].filter((f) => !precachedJs.has(f));
 if (missingJs.length) {

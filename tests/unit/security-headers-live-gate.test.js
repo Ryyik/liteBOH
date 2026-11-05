@@ -187,3 +187,61 @@ describe('安全头定义单一真源', () => {
     expect(source).not.toMatch(/['"]Strict-Transport-Security['"]\s*:/);
   });
 });
+
+/**
+ * CSP 内联收敛守卫（2026-11-05）
+ *
+ * `script-src 'unsafe-inline'` 的唯一来源曾是 index.html 的 4 段内联启动脚本。
+ * 它们已外置到 public/boot.js，所以那条必须从 CSP 里消失 —— 否则 CSP 对注入型
+ * XSS 依然没有边界。这组断言防的是「有人图省事又写回一段内联」：
+ * 这类回退不会报错、不会让任何页面坏掉，只会在下一次安全审查时才发现边界又没了。
+ */
+describe('CSP 内联收敛守卫', () => {
+  const readRepo = (relPath) => readFileSync(new URL(`../../${relPath}`, import.meta.url), 'utf8');
+
+  it('index.html 里没有内联 <script>（注释里的字面量不算）', () => {
+    const html = readRepo('index.html');
+    const withoutComments = html.replace(/<!--[\s\S]*?-->/g, '');
+    const tags = [...withoutComments.matchAll(/<script\b[^>]*>/gi)].map((m) => m[0]);
+    const inline = tags.filter((tag) => !/\bsrc=/.test(tag));
+
+    expect(inline, `发现内联脚本：${inline.join(' | ')}`).toEqual([]);
+  });
+
+  it('启动脚本 public/boot.js 存在，且带着主题白名单', () => {
+    const boot = readRepo('public/boot.js');
+
+    // 主题预置必须仍在最前面执行，否则暗色用户会白闪
+    expect(boot).toMatch(/VALID_THEMES\s*=\s*\[/);
+    expect(boot.indexOf('data-theme')).toBeGreaterThan(-1);
+  });
+
+  it("script-src 不含 'unsafe-inline'（含了就等于没有 XSS 边界）", () => {
+    const csp = buildSecurityHeaders({
+      cspEnforce: false,
+      cspReportUri: 'https://example.invalid/csp-report',
+      imageOrigins: ['https://cdn.example.com'],
+    })['Content-Security-Policy-Report-Only'];
+
+    const scriptSrc = csp
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('script-src'));
+
+    expect(scriptSrc).toBeDefined();
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
+    // 反向保证：上一步不是靠「script-src 整条被删掉」才通过的
+    expect(scriptSrc).toContain("'self'");
+  });
+
+  it('CSP 仍带 report-uri / report-to（否则收敛了也拿不到证据）', () => {
+    const csp = buildSecurityHeaders({
+      cspEnforce: false,
+      cspReportUri: 'https://example.invalid/csp-report',
+      imageOrigins: [],
+    })['Content-Security-Policy-Report-Only'];
+
+    expect(csp).toContain('report-uri https://example.invalid/csp-report');
+    expect(csp).toContain('report-to csp-endpoint');
+  });
+});
