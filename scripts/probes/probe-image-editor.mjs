@@ -18,6 +18,8 @@ import { chromium } from 'playwright';
 //   B3* 旋转面板「右转 90°」→ 撤销 enabled（不重渲染预览 → 红）
 //   B4* 滤镜面板 12 档；点「黑白」→ chip 选中 + 图片 computed filter 含 grayscale(1)
 //       且胶片物理层（泛光/染色/提黑场/颗粒/暗角）真的挂上了 + 强度滑块出现
+//   B4b 微调 5 项可展开；颗粒 180% 真的改变渲染；「还原」回到预设原样
+//   B4c* 微调后撤销：命令回滚且本地草稿作废（草稿盖住命令 → 画面不回落 → 红）
 //   B5* 贴纸面板 10 只猫；点一只 → 浮层出现 1 枚，且浮层矩形 = 照片实际矩形（±2px）
 //       （归一化坐标算错 → 贴纸位置/遮挡范围全错）
 //   B6* 拖动贴纸 → 位置变化且撤销 enabled（拖动只落一条 update 命令）
@@ -279,13 +281,15 @@ async function openPortraitComposer() {
     });
   await page.waitForTimeout(400);
   const grainAfter = await readGrainOpacity();
+
+  // 「还原」把五项一次性推回默认（收起态带脏点、展开态才出现还原按钮）
   const resetVisible = await page
     .locator('.imgedit-overlay .imgedit-tune-reset')
     .isVisible()
     .catch(() => false);
   if (resetVisible) {
     await page.locator('.imgedit-overlay .imgedit-tune-reset').click();
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
   }
   const grainReset = await readGrainOpacity();
   check(
@@ -296,6 +300,34 @@ async function openPortraitComposer() {
       resetVisible &&
       Math.abs(grainReset - grainBefore) < 0.03,
     `items=${tuneItems} grain ${grainBefore}→${grainAfter}→${grainReset}`,
+  );
+
+  // 微调与强度的组合：先调颗粒再拖强度，颗粒必须跟着强度缩放、而不是被清掉。
+  // filter 命令是「后写覆盖」，早先 commitFilterStrength 少带 tune 字段，
+  // 于是「拖完颗粒再拖强度」= 微调静默归零（0.36→0.14 而不是 0.36×1.5×0.4）。
+  await page
+    .locator('.imgedit-overlay .imgedit-tune-item')
+    .first()
+    .locator('input[type="range"]')
+    .evaluate((el) => {
+      el.value = '150';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  await page.waitForTimeout(500);
+  const grainTuned = await readGrainOpacity();
+  await page.locator('.imgedit-overlay .imgedit-strength-range').evaluate((el) => {
+    el.value = '40';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(600);
+  const grainAfterStrength = await readGrainOpacity();
+  const expected = grainBefore * 1.5 * 0.4;
+  check(
+    'B4c* 调完颗粒再拖强度：微调被保留并跟着强度缩放（少带 tune → 归零 → 红）',
+    grainTuned > grainBefore + 0.05 && Math.abs(grainAfterStrength - expected) < 0.04,
+    `grain 预设 ${grainBefore} → 颗粒150% ${grainTuned} → 强度40% ${grainAfterStrength}（应 ≈${expected.toFixed(2)}）`,
   );
 
   // B5：贴纸（10 只猫 + 浮层矩形与照片一致）

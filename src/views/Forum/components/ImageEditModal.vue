@@ -841,6 +841,22 @@ const handleUndo = async () => {
   await renderForTool();
 };
 
+/**
+ * 命令栈一变（撤销 / 换图 / 重开编辑器），两个本地草稿必须就地作废。
+ *
+ * ⚠️ 漏了这条的后果是「撤销看起来没生效」：草稿优先级高于命令栈，
+ * 用户拖完颗粒松手再点撤销，命令已经回滚了，画面却还在读草稿值。
+ * 重开编辑器更糟 —— 上一张图的草稿会盖到新图上。
+ */
+watch(
+  commands,
+  () => {
+    filterStrengthDraft.value = null;
+    tuneDraft.value = null;
+  },
+  { deep: true },
+);
+
 /* ── 贴纸 ─────────────────────────────────────────────────────────── */
 
 const syncLiveStickers = () => {

@@ -405,6 +405,3 @@ export function resolveFilterLook(id = 'none', strength = 1, tune = {}) {
 export function getEditorFilterString(id = 'none', strength = 1) {
   return resolveFilterLook(id, strength).css;
 }
-
-/** 空 look（原图）—— 模板里当常量用，避免每次新建对象。 */
-export const EMPTY_FILTER_LOOK = resolveFilterLook('none', 1);
