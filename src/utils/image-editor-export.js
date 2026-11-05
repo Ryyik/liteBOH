@@ -17,6 +17,8 @@
  * 会叠一层「预览编码 → 再解码 → 再编码」的代际损耗。cropper 只提供交互坐标。
  */
 
+import { GRAIN_TILE_SIZE, getGrainTile, grainSpeckSize } from './image-editor-grain.js';
+
 /** 工作位图最长边（进编辑器一次性降采样）。 */
 export const IMAGE_EDITOR_WORKING_MAX_DIMENSION = 2560;
 /** 导出最长边（= 发帖上传压缩档，见 forum-format.js 的 FORUM_UPLOAD_IMAGE_MAX_DIMENSION）。 */
@@ -54,6 +56,83 @@ function createCanvas(width, height) {
   canvas.width = Math.max(1, Math.round(width));
   canvas.height = Math.max(1, Math.round(height));
   return canvas;
+}
+
+/* ── 高质量降采样（pica，MIT） ─────────────────────────────────────────────
+ * canvas 自带的 drawImage 缩放在多数实现里是双线性 + 少量预滤波，缩到 1/2 以下
+ * 会明显发糊、细节糊成色块。pica 是 Lanczos 重采样 + 可选反锐化，正是「导出
+ * 1600 宽」这一步最需要的东西。
+ *
+ * 三个约束：
+ *  1. **动态 import** —— pica 只在这一步用，不能进首屏包；
+ *  2. **必须能降级** —— jsdom / 老浏览器 / 被 CSP 拦 worker 时退回 drawImage，
+ *     导出宁可略糊也不能抛错（发布链断在这里体验最差）；
+ *  3. 只缩不放 —— 放大用 pica 除了慢没有收益，画质也不会更好。
+ */
+let picaPromise = null;
+
+function loadPica() {
+  if (!picaPromise) {
+    picaPromise = import('pica')
+      .then((module) => {
+        const Pica = module?.default || module?.Pica || module;
+        return typeof Pica === 'function' ? new Pica() : null;
+      })
+      .catch(() => null);
+  }
+  return picaPromise;
+}
+
+function drawScaled(from, target) {
+  const ctx = target.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(from, 0, 0, target.width, target.height);
+  return target;
+}
+
+/**
+ * 逐级减半再落到目标尺寸。
+ * 单次大幅降采样会丢细节（每个输出像素只采样到极少数源像素），连续减半
+ * 相当于近似一次盒式滤波。pica 不可用时这是第二道保险。
+ * `target` 传入时直接画进去，省一张中间画布（也让「函数只产出 1 个画布」
+ * 这条性质在单测里成立）。
+ */
+function downscaleByHalving(from, width, height, target = null) {
+  let current = from;
+  while (current.width / 2 >= width * 2 && current.height / 2 >= height * 2) {
+    const next = createCanvas(current.width / 2, current.height / 2);
+    current = drawScaled(current, next);
+  }
+  return drawScaled(current, target || createCanvas(width, height));
+}
+
+/**
+ * 等比缩到指定尺寸的高质量版本（Lanczos + 轻反锐化）。
+ * 失败一律降级，永不抛错。
+ */
+export async function resizeCanvasHighQuality(from, width, height) {
+  const targetWidth = Math.max(1, Math.round(Number(width) || 0));
+  const targetHeight = Math.max(1, Math.round(Number(height) || 0));
+  const canvas = createCanvas(targetWidth, targetHeight);
+  if (!from) return canvas;
+  // 不放大：pica 放大既慢也不会更清晰
+  if (from.width <= targetWidth && from.height <= targetHeight) return drawScaled(from, canvas);
+  const pica = await loadPica();
+  if (pica) {
+    try {
+      await pica.resize(from, canvas, {
+        quality: 3,
+        unsharpAmount: 80,
+        unsharpRadius: 0.6,
+        unsharpThreshold: 2,
+      });
+      return canvas;
+    } catch {
+      /* 落到下面的降级路径（画布就地复用，不再新建） */
+    }
+  }
+  return downscaleByHalving(from, targetWidth, targetHeight, canvas);
 }
 
 /**
@@ -101,11 +180,13 @@ export async function createWorkingSource(file, maxDimension = IMAGE_EDITOR_WORK
     sourceHeight,
     maxDimension,
   );
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(drawable, 0, 0, width, height);
+  // 超大原图（单反/48MP 直拍）走逐级减半：pica 虽然更锐，但 40MP 以上要跑
+  // 一两秒，而这只是「进编辑器前的缓冲位图」，交互延迟比画质更值得优先。
+  const pixels = sourceWidth * sourceHeight;
+  const canvas =
+    scaled && pixels > 12000000
+      ? downscaleByHalving(drawable, width, height)
+      : await resizeCanvasHighQuality(drawable, width, height);
   if (typeof drawable?.close === 'function') drawable.close();
   return { canvas, width, height, scaled, sourceWidth, sourceHeight };
 }
@@ -209,6 +290,160 @@ function drawStickers(source, stickers, stickerImages) {
   return canvas;
 }
 
+/* ── 胶片模拟层 ────────────────────────────────────────────────────────
+ * 顺序不是随便排的，它对应「光进入胶片到成为一张照片」的物理顺序：
+ *   调色（显影的色偏）→ halation（片基反射）→ 阴影/高光染色（染料分层）
+ *   → 提升黑场（片基灰雾）→ 颗粒（银盐）→ 暗角（镜头失光）→ 漏光（后背）
+ * 把颗粒放在染色之前会被染色盖掉一半、放在暗角之后则会连暗角一起加噪，
+ * 这两种错在缩略图上看不出来，放大后一眼假。
+ *
+ * 预览侧的对应实现见 components/ImageEditorFilmFx.vue —— 两边的数值全部来自
+ * 同一份 resolveFilterLook()，唯一允许的差异是颗粒图案位置（随机纹理）。
+ */
+
+/** 一层纯色，按指定混合模式叠上去。 */
+function fillWithBlend(ctx, color, opacity, blend, width, height) {
+  if (!(opacity > 0) || !color || color === 'transparent') return;
+  try {
+    ctx.save();
+    ctx.globalCompositeOperation = blend;
+    ctx.globalAlpha = Math.min(1, opacity);
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  } catch {
+    /* 混合模式不被支持：跳过这一层，别让导出失败 */
+  }
+}
+
+/** 高光泛光：把画面自身模糊+提亮后叠加（'screen' 只会抬起亮部）。 */
+function drawHalation(ctx, source, halation, width, height) {
+  const opacity = Number(halation?.opacity) || 0;
+  if (opacity <= 0) return;
+  const radius = Math.max(1, Math.round((Number(halation.blur) || 0) * width));
+  const glow = createCanvas(width, height);
+  const glowCtx = glow.getContext('2d');
+  try {
+    glowCtx.filter = `blur(${radius}px) saturate(1.4) brightness(1.15)`;
+    // 不支持 ctx.filter 的环境里赋值会被静默忽略，属性仍是 undefined
+    if (typeof glowCtx.filter !== 'string' || glowCtx.filter === 'none') return;
+    glowCtx.drawImage(source, 0, 0);
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = Math.min(1, opacity);
+    ctx.drawImage(glow, 0, 0);
+    ctx.restore();
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 颗粒：把共享噪声块按「单颗尺寸」平铺，用 overlay 让中间调不受影响。 */
+function drawGrain(ctx, grain, width, height) {
+  const opacity = Number(grain?.opacity) || 0;
+  if (opacity <= 0) return;
+  const tile = getGrainTile();
+  if (!tile?.canvas) return;
+  const speck = Math.max(1, grainSpeckSize(grain.scale, width) * 1);
+  const size = Math.max(2, Math.round(GRAIN_TILE_SIZE * speck));
+  try {
+    ctx.save();
+    ctx.globalCompositeOperation = 'overlay';
+    ctx.globalAlpha = Math.min(1, opacity);
+    for (let y = 0; y < height; y += size) {
+      for (let x = 0; x < width; x += size) {
+        ctx.drawImage(tile.canvas, x, y, size, size);
+      }
+    }
+    ctx.restore();
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 暗角：径向渐变 + multiply，边缘压暗而不是加黑圈。 */
+function drawVignette(ctx, strength, width, height) {
+  const amount = Number(strength) || 0;
+  if (amount <= 0 || typeof ctx.createRadialGradient !== 'function') return;
+  try {
+    const inner = Math.min(width, height) * 0.28;
+    const outer = Math.max(width, height) * 0.72;
+    const gradient = ctx.createRadialGradient(
+      width / 2,
+      height / 2,
+      inner,
+      width / 2,
+      height / 2,
+      outer,
+    );
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, `rgba(0,0,0,${Math.min(0.95, amount)})`);
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 漏光：从归一化坐标点发散的暖色光斑，screen 混合。 */
+function drawLightLeak(ctx, leak, width, height) {
+  const opacity = Number(leak?.opacity) || 0;
+  if (opacity <= 0 || !leak?.color || leak.color === 'transparent') return;
+  if (typeof ctx.createRadialGradient !== 'function') return;
+  try {
+    const cx = (Number(leak.x) || 0.5) * width;
+    const cy = (Number(leak.y) || 0.5) * height;
+    const radius = Math.max(1, (Number(leak.radius) || 0.6) * Math.max(width, height));
+    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    gradient.addColorStop(0, leak.color);
+    gradient.addColorStop(0.55, leak.color);
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = Math.min(1, opacity);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * 套一整份胶片 look（调色 + 物理层）。
+ * 传入的 look 必须来自 resolveFilterLook()，这里只负责画。
+ */
+function applyFilmLook(source, look) {
+  const cssActive = Boolean(look?.css) && look.css !== 'none';
+  const layersActive =
+    (Number(look?.halation?.opacity) || 0) > 0 ||
+    (Number(look?.shadow?.opacity) || 0) > 0 ||
+    (Number(look?.highlight?.opacity) || 0) > 0 ||
+    (Number(look?.lift) || 0) > 0 ||
+    (Number(look?.grain?.opacity) || 0) > 0 ||
+    (Number(look?.vignette) || 0) > 0 ||
+    (Number(look?.leak?.opacity) || 0) > 0;
+  // 原图 / 强度 0：一层都不画，省掉一次全量位图拷贝
+  if (!cssActive && !layersActive) return source;
+  const base = cssActive ? applyCanvasFilter(source, look.css) : source;
+  // 后面全是就地绘制，必须是独立画布（不能改到工作位图本身）
+  const canvas = base === source ? cloneCanvas(source) : base;
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  drawHalation(ctx, canvas, look?.halation, width, height);
+  fillWithBlend(ctx, look?.shadow?.color, look?.shadow?.opacity, 'screen', width, height);
+  fillWithBlend(ctx, look?.highlight?.color, look?.highlight?.opacity, 'soft-light', width, height);
+  // 'lighten' + 白色 + 低透明度 = 只抬黑场，不动高光
+  fillWithBlend(ctx, '#ffffff', look?.lift, 'lighten', width, height);
+  drawGrain(ctx, look?.grain, width, height);
+  drawVignette(ctx, look?.vignette, width, height);
+  drawLightLeak(ctx, look?.leak, width, height);
+  return canvas;
+}
+
 /**
  * 由命令序列从工作位图合成 canvas（预览与导出共用这一个合成器）。
  * 每次都从 source 全量重放命令 —— 非破坏模型的核心：中间不落有损文件。
@@ -221,7 +456,7 @@ function drawStickers(source, stickers, stickerImages) {
  */
 export function renderDocToCanvas(source, commands = [], options = {}) {
   if (!source) throw new Error('缺少工作位图');
-  const { filter = 'none', stickers = [], stickerImages = null } = options || {};
+  const { filter = 'none', look = null, stickers = [], stickerImages = null } = options || {};
   let current = source;
   for (const command of Array.isArray(commands) ? commands : []) {
     if (!command || typeof command !== 'object') continue;
@@ -235,7 +470,8 @@ export function renderDocToCanvas(source, commands = [], options = {}) {
       current = cropCanvasByRect(current, rect);
     }
   }
-  if (filter && filter !== 'none') current = applyCanvasFilter(current, filter);
+  if (look) current = applyFilmLook(current, look);
+  else if (filter && filter !== 'none') current = applyCanvasFilter(current, filter);
   if (Array.isArray(stickers) && stickers.length)
     current = drawStickers(current, stickers, stickerImages);
   return current;
@@ -288,13 +524,7 @@ export async function exportCanvasToJpegFile(
     maxDimension,
   );
   let output = canvas;
-  if (scaled) {
-    output = createCanvas(width, height);
-    const ctx = output.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(canvas, 0, 0, width, height);
-  }
+  if (scaled) output = await resizeCanvasHighQuality(canvas, width, height);
   const blob = await new Promise((resolve, reject) => {
     try {
       output.toBlob(

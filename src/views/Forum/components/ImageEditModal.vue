@@ -106,11 +106,12 @@
           </header>
 
           <div ref="stageRef" class="imgedit-stage">
-            <!-- 裁切工具：cropper 负责框选，滤镜用 CSS 预览（与导出同一根串） -->
+            <!-- 裁切工具：cropper 负责框选，调色只作用在它的图片元素上（遮罩不染色），
+                 胶片物理层另起一层盖在照片矩形上 -->
             <div
               v-if="activeTool === 'crop'"
               class="imgedit-crop-layer"
-              :style="[photoBoxStyle, { filter: currentFilterCss }]"
+              :style="[photoBoxStyle, { '--imgedit-grade': currentFilterCss }]"
             >
               <Cropper
                 v-if="editor.previewUrl"
@@ -121,22 +122,38 @@
                 :default-size="fullImageDefaultSize"
                 :default-position="fullImageDefaultPosition"
               />
+              <ImageEditorFilmFx
+                v-if="editor.previewUrl"
+                :look="currentFilterLook"
+                :src="editor.previewUrl"
+                :box-width="photoBox.width"
+              />
             </div>
 
-            <!-- 非裁切工具：照片满铺 + 贴纸浮层（用 DOM 摆位，拖动零重渲染） -->
+            <!-- 非裁切工具：照片满铺在「照片矩形」里，胶片层与贴纸层都按同一矩形定位 -->
             <template v-else-if="editor.previewUrl">
-              <img
-                ref="photoImgRef"
-                class="imgedit-photo"
-                :src="stickerBaseUrl || editor.previewUrl"
-                :style="{ filter: currentFilterCss }"
-                alt="正在编辑的图片"
-                decoding="async"
-                @load="syncPhotoBox"
-              />
+              <div class="imgedit-photo-frame" :style="photoBoxStyle">
+                <img
+                  ref="photoImgRef"
+                  class="imgedit-photo"
+                  :src="editor.previewUrl"
+                  :style="{ filter: currentFilterCss }"
+                  alt="正在编辑的图片"
+                  decoding="async"
+                  @load="syncPhotoBox"
+                />
+                <ImageEditorFilmFx
+                  :look="currentFilterLook"
+                  :src="editor.previewUrl"
+                  :box-width="photoBox.width"
+                />
+              </div>
+              <!-- 贴纸常驻 DOM 浮层（不再烘焙进预览位图）：这样胶片滤镜只作用于照片，
+                   贴纸不会被一起调色 —— 与导出「先胶片层、后贴纸」的顺序一致 -->
               <div
-                v-if="activeTool === 'sticker'"
+                v-if="liveStickers.length"
                 class="imgedit-sticker-layer"
+                :class="{ 'is-editable': activeTool === 'sticker' }"
                 :style="photoBoxStyle"
               >
                 <div
@@ -149,6 +166,7 @@
                 >
                   <img :src="sticker.asset" alt="" aria-hidden="true" draggable="false" />
                   <button
+                    v-if="activeTool === 'sticker'"
                     type="button"
                     class="imgedit-sticker-del"
                     aria-label="删除这枚贴纸"
@@ -158,6 +176,7 @@
                     ×
                   </button>
                   <span
+                    v-if="activeTool === 'sticker'"
                     class="imgedit-sticker-handle"
                     aria-hidden="true"
                     @pointerdown.stop="beginStickerResize($event, sticker)"
@@ -227,6 +246,22 @@
                 ></span>
                 <span class="imgedit-chip-label">{{ preset.label }}</span>
               </button>
+            </div>
+            <!-- 强度：胶片档位本身很浓，不给自己调就只剩「全都要」这一个选择 -->
+            <div v-if="currentFilterId !== 'none'" class="imgedit-strength">
+              <span class="imgedit-strength-label">强度</span>
+              <input
+                class="imgedit-strength-range"
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                :value="filterStrength"
+                aria-label="滤镜强度"
+                @input="previewFilterStrength"
+                @change="commitFilterStrength"
+              />
+              <span class="imgedit-strength-value">{{ filterStrength }}%</span>
             </div>
           </div>
 
@@ -311,6 +346,7 @@ import {
 } from 'lucide-vue-next';
 import { Cropper } from 'vue-advanced-cropper';
 import 'vue-advanced-cropper/dist/style.css';
+import ImageEditorFilmFx from './ImageEditorFilmFx.vue';
 import { useBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 import {
   canvasToObjectUrl,
@@ -323,10 +359,12 @@ import {
   foldStickers,
   isFullRect,
   resolveFilterId,
+  resolveFilterStrength,
   useImageEditorDoc,
 } from '../composables/useImageEditorDoc.js';
 import {
   getEditorFilterString,
+  resolveFilterLook,
   IMAGE_EDITOR_FILTERS,
 } from '../composables/image-editor-filters.js';
 import {
@@ -368,7 +406,6 @@ const cropperRef = ref(null);
 const stageRef = ref(null);
 const photoImgRef = ref(null);
 const swipeRef = ref(null);
-const stickerBaseUrl = ref('');
 const liveStickers = ref([]);
 const selectedStickerId = ref('');
 const photoBox = reactive({ left: 0, top: 0, width: 0, height: 0 });
@@ -391,12 +428,21 @@ const editor = reactive({
 const { commands, canUndo, pushCommand, undo, reset } = useImageEditorDoc();
 
 const currentFilterId = computed(() => resolveFilterId(commands.value));
-const currentFilterCss = computed(() => getEditorFilterString(currentFilterId.value));
-const filterStringOf = (id) => getEditorFilterString(id);
-/** 滤镜 chip 的缩略图：贴纸工具下预览图是「含贴纸」的旧帧，要用底图代替。 */
-const chipThumbUrl = computed(() =>
-  activeTool.value === 'sticker' ? stickerBaseUrl.value || editor.previewUrl : editor.previewUrl,
+/** 拖动强度滑块时的本地草稿（松手才入命令栈，一次拖动 = 一条撤销） */
+const filterStrengthDraft = ref(null);
+const currentFilterStrength = computed(() => {
+  if (filterStrengthDraft.value !== null) return filterStrengthDraft.value / 100;
+  return resolveFilterStrength(commands.value);
+});
+const filterStrength = computed(() => Math.round(currentFilterStrength.value * 100));
+/** 胶片模拟的完整参数（调色 + 物理层）；预览与导出都吃这一份 */
+const currentFilterLook = computed(() =>
+  resolveFilterLook(currentFilterId.value, currentFilterStrength.value),
 );
+const currentFilterCss = computed(() => currentFilterLook.value.css);
+const filterStringOf = (id) => getEditorFilterString(id);
+/** 滤镜 chip 的缩略图：预览画布已不含贴纸，直接用即可 */
+const chipThumbUrl = computed(() => editor.previewUrl);
 const photoBoxStyle = computed(() => ({
   left: `${photoBox.left}px`,
   top: `${photoBox.top}px`,
@@ -462,8 +508,6 @@ const makeEntry = (file, fileIndex) => {
 const cleanupObjectUrls = () => {
   entries.value.forEach((entry) => revokePreviewUrl(entry.previewUrl));
   revokePreviewUrl(editor.previewUrl);
-  revokePreviewUrl(stickerBaseUrl.value);
-  stickerBaseUrl.value = '';
   editor.previewUrl = '';
   editor.source = null;
   editor.previewWidth = 0;
@@ -550,33 +594,24 @@ const syncPhotoBox = () => {
 
 /* ── 渲染 ─────────────────────────────────────────────────────────── */
 
-const renderPreview = async ({ includeStickers = true } = {}) => {
+const renderPreview = async () => {
   if (!editor.source) return;
-  const stickerList = includeStickers ? foldStickers(commands.value) : [];
-  const canvas = renderDocToCanvas(editor.source, commands.value, {
-    stickers: stickerList,
-    stickerImages: getLoadedStickerImages(),
-  });
+  // 预览画布**永远不含贴纸**：贴纸走 DOM 浮层（.imgedit-sticker-layer）。
+  // 这样胶片滤镜的 CSS 只会作用在照片上，贴纸不会被一起调色 —— 导出时
+  // renderDocToCanvas 也是「先胶片层、后贴纸」，两边口径一致。
+  const canvas = renderDocToCanvas(editor.source, commands.value);
   const url = await canvasToObjectUrl(canvas);
-  if (includeStickers) {
-    releaseUrlLater(editor.previewUrl);
-    editor.previewUrl = url;
-    // 含贴纸的预览已是最新 ⇒ 贴纸底图作废（留着会被当成 chip 缩略图用成旧图）
-    releaseUrlLater(stickerBaseUrl.value);
-    stickerBaseUrl.value = '';
-  } else {
-    releaseUrlLater(stickerBaseUrl.value);
-    stickerBaseUrl.value = url;
-  }
+  releaseUrlLater(editor.previewUrl);
+  editor.previewUrl = url;
   editor.previewWidth = canvas.width;
   editor.previewHeight = canvas.height;
   await nextTick();
   syncPhotoBox();
 };
 
-const renderForTool = async (toolId = activeTool.value) => {
-  // 贴纸工具要一张「不含贴纸」的底图，否则浮层会与烘焙进预览的贴纸重影
-  await renderPreview({ includeStickers: toolId !== 'sticker' });
+const renderForTool = async () => {
+  syncLiveStickers();
+  await renderPreview();
 };
 
 const openEditorForEntry = async (entry) => {
@@ -649,7 +684,29 @@ const handleFlip = async () => {
 
 const applyFilter = (id) => {
   if (toolBusy.value || id === currentFilterId.value) return;
-  pushCommand({ type: 'filter', id });
+  // 切档时沿用当前强度（正在 60% 的比较状态不该被重置回 100%）
+  const strength = resolveFilterStrength(commands.value);
+  filterStrengthDraft.value = null;
+  pushCommand({ type: 'filter', id, strength });
+};
+
+/**
+ * 强度滑块（0~100）。
+ * 拖动过程中只改本地草稿（实时预览），松手（change）才提交一条命令 ——
+ * 否则一次拖动会往撤销栈里塞几十条 filter 命令。
+ */
+const previewFilterStrength = (event) => {
+  const percent = Number(event?.target?.value);
+  if (!Number.isFinite(percent)) return;
+  filterStrengthDraft.value = percent;
+};
+const commitFilterStrength = (event) => {
+  const percent = Number(event?.target?.value);
+  filterStrengthDraft.value = null;
+  if (!Number.isFinite(percent) || currentFilterId.value === 'none') return;
+  const next = Math.min(1, Math.max(0, percent / 100));
+  if (Math.abs(next - resolveFilterStrength(commands.value)) < 0.005) return;
+  pushCommand({ type: 'filter', id: currentFilterId.value, strength: next });
 };
 
 const selectTool = async (id) => {
@@ -799,7 +856,8 @@ const handleEditorDone = async () => {
   isExporting.value = true;
   try {
     const finalCanvas = renderDocToCanvas(editor.source, commands.value, {
-      filter: currentFilterCss.value,
+      // 胶片层：调色 + halation + 染色 + 提黑场 + 颗粒 + 暗角 + 漏光
+      look: currentFilterLook.value,
       stickers: foldStickers(commands.value),
       stickerImages: getLoadedStickerImages(),
     });
@@ -1153,6 +1211,19 @@ const handleConfirmAll = () => {
    还给 cropper，遮罩又变成一整块灰板 */
 .imgedit-crop-layer {
   position: absolute;
+  overflow: hidden;
+}
+
+/* 调色只作用在 cropper 的图片元素上：套在图层上会连裁切遮罩一起染色 */
+.imgedit-crop-layer :deep(.vue-advanced-cropper__image) {
+  filter: var(--imgedit-grade, none);
+}
+
+/* 照片矩形：胶片层要在这里面裁剪，漏光/暗角才不会糊到照片外面 */
+.imgedit-photo-frame {
+  position: absolute;
+  overflow: hidden;
+  /* ⚠️ 不能加 isolation：那会让 film-fx 的混合模式只和透明底混合（见组件注释） */
 }
 
 .imgedit-cropper {
@@ -1184,6 +1255,13 @@ const handleConfirmAll = () => {
   position: absolute;
   z-index: 3;
   touch-action: none;
+  /* 贴纸常驻显示，但只有贴纸工具下才接手势 —— 否则在裁切/滤镜工具里
+     贴纸会挡住照片上的操作（长按、缩放都不该被它吃掉） */
+  pointer-events: none;
+}
+
+.imgedit-sticker-layer.is-editable {
+  pointer-events: auto;
 }
 
 .imgedit-sticker {
@@ -1283,6 +1361,76 @@ const handleConfirmAll = () => {
 .imgedit-sheet-row {
   display: flex;
   gap: 8px;
+}
+
+/* 滤镜强度：一行三段（标签 / 滑杆 / 百分比）。滑杆的命中高度用 padding 撑到
+   44px，但视觉上仍是 4px 轨道 —— 手指够得着，界面不至于变笨 */
+.imgedit-strength {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 0 4px;
+}
+
+.imgedit-strength-label {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--liquid-text-secondary, #6e6e73);
+}
+
+.imgedit-strength-value {
+  flex: 0 0 38px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--liquid-text-primary, #1d1d1f);
+}
+
+.imgedit-strength-range {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.imgedit-strength-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.imgedit-strength-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -8px;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
+}
+
+.imgedit-strength-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.imgedit-strength-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.28);
 }
 
 .imgedit-sheet-btn {

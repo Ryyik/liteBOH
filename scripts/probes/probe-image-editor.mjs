@@ -16,14 +16,15 @@ import { chromium } from 'playwright';
 //   B1  编辑器：标题「编辑图片」+ 工具条五项（裁切/旋转/滤镜/贴纸/撤销）+「返回」
 //   B2  初始撤销 disabled（命令栈空）
 //   B3* 旋转面板「右转 90°」→ 撤销 enabled（不重渲染预览 → 红）
-//   B4* 滤镜面板 9 档；点「黑白」→ chip 选中 + 图片 computed filter 含 grayscale(1)
+//   B4* 滤镜面板 14 档；点「黑白」→ chip 选中 + 图片 computed filter 含 grayscale(1)
+//       且胶片物理层（泛光/染色/提黑场/颗粒/暗角）真的挂上了 + 强度滑块出现
 //   B5* 贴纸面板 10 只猫；点一只 → 浮层出现 1 枚，且浮层矩形 = 照片实际矩形（±2px）
 //       （归一化坐标算错 → 贴纸位置/遮挡范围全错）
 //   B6* 拖动贴纸 → 位置变化且撤销 enabled（拖动只落一条 update 命令）
 //   B7  完成 → 返回确认页，slide 带「已编辑」徽标
 //   C1  全部确认 → 确认页关闭 → 网格 1 张缩略图
-//   C2  网格缩略图带画笔角标
-//   C3  画笔 → 编辑器（单图再编辑，取消文案「取消」）
+//   C2* 网格缩略图**没有**画笔角标（「编辑/删除」两枚小圆点只隔 12px，触屏误触源）
+//   C3  缩略图 → 大图预览 → 「编辑」→ 编辑器（单图再编辑，取消文案「取消」）
 //   C4  取消 → 编辑器关闭，网格仍 1 张（未动）
 //   C5* 画笔 → 旋转 → 完成 → 网格仍 1 张（编辑重启管线且保位；丢失/重复 → 红）
 //   D1/D2 桌面 1440×900：确认页与编辑器卡片居中限宽（≤900px，居中偏差 ≤40px）
@@ -206,7 +207,7 @@ async function openPortraitComposer() {
   await page.waitForTimeout(900);
   check('B3 旋转后撤销 enabled', (await undoBtn.isDisabled()) === false);
 
-  // B4：滤镜（预设 9 档 + 选中态 + 图片 CSS filter）
+  // B4：滤镜（预设 14 档 + 选中态 + 图片 CSS filter + 胶片物理层）
   await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '滤镜' }).click();
   await page.waitForTimeout(500);
   const filterChips = await page.locator('.imgedit-overlay .imgedit-chip').count();
@@ -220,10 +221,27 @@ async function openPortraitComposer() {
     .locator('.imgedit-overlay .imgedit-photo')
     .evaluate((el) => getComputedStyle(el).filter)
     .catch(() => '');
+  // 胶片层：黑白档应挂上泛光/阴影染色/高光染色/提黑场/颗粒/暗角
+  const fxLayers = await page.locator('.imgedit-overlay .film-fx__layer').count();
+  const grainBg = await page
+    .locator('.imgedit-overlay .film-fx__layer')
+    .evaluateAll((els) =>
+      els.some((el) => (getComputedStyle(el).backgroundImage || '').includes('data:image/png')),
+    )
+    .catch(() => false);
+  const strengthVisible = await page
+    .locator('.imgedit-overlay .imgedit-strength-range')
+    .isVisible()
+    .catch(() => false);
   check(
-    'B4 滤镜面板 9 档 + 选中「黑白」后图片 grayscale',
-    filterChips === 9 && monoOn && /grayscale\(1\)/.test(photoFilter),
-    `chips=${filterChips} filter=${photoFilter.slice(0, 48)}`,
+    'B4 滤镜面板 14 档 + 选中「黑白」后 grayscale + 胶片层与强度滑块',
+    filterChips === 14 &&
+      monoOn &&
+      /grayscale\(1\)/.test(photoFilter) &&
+      fxLayers >= 5 &&
+      grainBg &&
+      strengthVisible,
+    `chips=${filterChips} fx=${fxLayers} grain=${grainBg} strength=${strengthVisible}`,
   );
 
   // B5：贴纸（10 只猫 + 浮层矩形与照片一致）
@@ -299,18 +317,42 @@ async function openPortraitComposer() {
     (await gridImg.isVisible().catch(() => false)) === true,
   );
 
+  // C2：编辑入口**两处都在**（用户口径「里外都放一个」）：
+  // 瓦片右下角的画笔 + 大图预览里的「编辑」按钮。
+  // 同时校验画笔与删除钮不再贴着：两者中心纵向距离应 ≥ 50px
   const pencil = page.locator('.mobile-composer-overlay .post-image-edit-btn').first();
-  await pencil.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-  check('C2 网格缩略图带画笔角标', (await pencil.isVisible().catch(() => false)) === true);
+  const pencilVisible = await pencil.isVisible().catch(() => false);
+  const gap = await page.evaluate(() => {
+    const item = document.querySelector('.mobile-composer-overlay .post-image-preview-item');
+    const edit = item?.querySelector('.post-image-edit-btn')?.getBoundingClientRect();
+    const remove = item?.querySelector('.post-image-remove-btn')?.getBoundingClientRect();
+    if (!edit || !remove) return null;
+    return Math.round(
+      Math.hypot(
+        edit.left + edit.width / 2 - (remove.left + remove.width / 2),
+        edit.top + edit.height / 2 - (remove.top + remove.height / 2),
+      ),
+    );
+  });
+  check(
+    'C2 瓦片画笔角标存在且与删除钮拉开 ≥50px',
+    pencilVisible && typeof gap === 'number' && gap >= 50,
+    `gap=${gap}`,
+  );
 
-  // C3/C4：画笔 → 编辑器（mode=edit，取消文案「取消」）→ 取消 → 网格不动
-  await pencil.click();
-  await overlay.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
-  await page.waitForTimeout(700);
+  const openGridEditor = async () => {
+    await page.locator('.mobile-composer-overlay .post-image-preview-open').first().click();
+    const editBtn = page.locator('.composer-image-preview-edit').first();
+    await editBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await editBtn.click();
+    await overlay.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
+    await page.waitForTimeout(700);
+  };
+  await openGridEditor();
   const editModeCancel =
     (await page.locator('.imgedit-overlay .imgedit-pill').first().textContent()) || '';
   check(
-    'C3 画笔进入单图编辑器（取消文案「取消」）',
+    'C3 预览「编辑」进入单图编辑器（取消文案「取消」）',
     editModeCancel.trim() === '取消' && (await overlay.isVisible().catch(() => false)) === true,
     `btn=${editModeCancel.trim()}`,
   );
@@ -321,10 +363,9 @@ async function openPortraitComposer() {
     .count();
   check('C4 取消后网格仍 1 张', gridCountAfterCancel === 1, `count=${gridCountAfterCancel}`);
 
-  // C5：画笔 → 旋转 → 完成 → 网格仍 1 张（编辑重启管线且保位）
-  await pencil.click();
-  await overlay.waitFor({ state: 'visible', timeout: 6000 }).catch(() => {});
-  await page.waitForTimeout(800);
+  // C5：预览编辑 → 旋转 → 完成 → 网格仍 1 张（编辑重启管线且保位）
+  await openGridEditor();
+  await page.waitForTimeout(400);
   await page.locator('.imgedit-overlay .imgedit-tool', { hasText: '旋转' }).click();
   await page.waitForTimeout(400);
   await page.locator('.imgedit-overlay .imgedit-sheet-btn', { hasText: '右转 90°' }).click();

@@ -277,10 +277,17 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
     if (phase === 'pending') {
       const slop = isTouch ? TOUCH_SLOP_PX : MOUSE_SLOP_PX;
       const horizontal = Math.abs(dx) > Math.abs(dy) * 1.15 && Math.abs(dx) > slop;
-      if (horizontal) {
+      const strip = stripRef.value;
+      /* 条带自身是否需要横向滚动。不需要时「横滑」这个手势根本无意义 ——
+         2026-11-05 实测：3 张 108px 的卡在 390 宽下完全放得下，
+         横向拖动永远被判定成 pan，于是这块看起来「拖不动」。
+         只有在真的能滚的时候，横向手势才让给滚动。 */
+      const scrollable = Boolean(strip) && strip.scrollWidth > strip.clientWidth + 2;
+      /* 鼠标：横向拖动一律当排序（桌面用户的心智模型是 drag & drop，
+         滚轮/触控板才是滚动）。触屏：条带能滚时横滑让给滚动。 */
+      if (horizontal && scrollable && isTouch) {
         clearPressTimer();
         clearPressed();
-        const strip = stripRef.value;
         if (strip) {
           // 手指横滑 = 胶片条滚动（touch-action: pan-y 把横轴判给了我们）
           phase = 'pan';
@@ -288,6 +295,13 @@ export function useImageStripDrag({ canDragIndex, isLocked, onReorder }) {
         } else {
           phase = 'idle';
         }
+        return;
+      }
+      if (horizontal) {
+        // 鼠标，或触屏但条带不需要滚 ⇒ 横向手势直接进拖动
+        clearPressTimer();
+        clearPressed();
+        startDrag();
         return;
       }
       if (Math.abs(dy) > slop) {

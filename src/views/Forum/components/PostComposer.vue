@@ -212,8 +212,14 @@ const shouldShowImageStatus = (image) =>
   // （.post-image-upload-status），不走图片徽章。
   // （旧注释「进度由灵动岛展示」不实——灵动岛只在发布中出现，已删。）
   String(image?.uploadStatus || '') === 'failed';
+/**
+ * 能不能拖这张图换序。
+ * 上传中（uploading/processing）不让拖：管线按 index 回填结果，中途换序会错位。
+ * **失败态（failed）允许拖** —— 它只是本地一条记录，换序不影响任何在途请求；
+ * 之前把它排除在外，结果是「上传断流时整条胶片条都拖不动」，看起来像功能坏了。
+ */
 const canReorderImage = (image) =>
-  !image?.uploadStatus || ['approved', 'staged'].includes(image.uploadStatus);
+  !image?.uploadStatus || ['approved', 'staged', 'failed'].includes(image.uploadStatus);
 
 const updateTitle = (value) => {
   emit('update:newPost', { ...props.newPost, title: value });
@@ -441,6 +447,15 @@ const openImagePreview = (image) => {
 
 const closeImagePreview = () => {
   previewImage.value = null;
+};
+
+/** 从「看大图」进编辑器。索引按当前数组重新求 —— 拖拽排序后旧 index 会错位。 */
+const editPreviewImage = () => {
+  const image = previewImage.value;
+  if (!image?.file) return;
+  const index = props.postImages.findIndex((item) => item === image);
+  closeImagePreview();
+  openImageEditor(image, index);
 };
 
 const isLocating = ref(false);
@@ -936,7 +951,9 @@ onUnmounted(() => {
                   <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
                   <span>重试</span>
                 </button>
-                <!-- 画笔角标：再编辑（有本地文件且不在忙态才可进；编辑会重启该图管线） -->
+                <!-- 画笔角标：再编辑（有本地文件且不在忙态才可进；编辑会重启该图管线）。
+                     放在右下角，与右上角删除钮隔 62px（108px 瓦片上），不会误触；
+                     大图预览里也有一个同功能入口（两处都能进） -->
                 <button
                   v-if="image.file && !isPostBusy"
                   type="button"
@@ -944,7 +961,7 @@ onUnmounted(() => {
                   :aria-label="`编辑第 ${index + 1} 张图片`"
                   @click="openImageEditor(image, index)"
                 >
-                  <Pencil :size="13" :stroke-width="2.4" aria-hidden="true" />
+                  <Pencil :size="14" :stroke-width="2.4" aria-hidden="true" />
                 </button>
                 <div
                   v-if="canReorderImage(image)"
@@ -1304,6 +1321,20 @@ onUnmounted(() => {
                 previewImage.format ? previewImage.format.toUpperCase() : 'IMAGE'
               }}</strong>
             </div>
+            <!-- 编辑入口从缩略图角标搬到了这里：缩略图上原来「画笔 + 删除」两个
+                 小圆点只隔 12px，触屏上很难分清楚（用户反馈误触）。看大图的
+                 时候顺手点编辑，动作语义也更顺 -->
+            <div v-if="previewImage?.file" class="composer-image-preview-actions">
+              <button
+                type="button"
+                class="composer-image-preview-edit"
+                :disabled="isPostBusy"
+                @click="editPreviewImage"
+              >
+                <Pencil :size="16" :stroke-width="2.2" aria-hidden="true" />
+                <span>编辑</span>
+              </button>
+            </div>
           </section>
         </div>
       </transition>
@@ -1389,28 +1420,6 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--liquid-text-tertiary, #8b9098);
   line-height: 1.2;
-}
-
-/* 画笔角标（图片编辑器入口）：右下角，与左下角排序箭头、底部重试条错位 */
-.post-image-edit-btn {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.58);
-  color: #fff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.post-image-edit-btn:hover {
-  background: rgba(0, 0, 0, 0.72);
 }
 
 /* 位置选择面板 */

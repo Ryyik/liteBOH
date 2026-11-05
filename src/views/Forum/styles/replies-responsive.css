@@ -949,36 +949,37 @@
   .post-image-preview-grid {
     margin-inline: -16px;
     padding: 6px 16px 10px;
-    gap: 8px;
+    gap: 10px;
   }
 
+  /* 竖屏瓦片 72 → 108px（2026-11-05）：72px 时一块瓦片里要塞「拖拽把手 +
+     画笔 + 删除」三枚 20~24px 的圆钮，手指落点根本避不开（用户口径
+     「编辑和删除容易误触」）。现在只剩左下把手（纯提示、不接手势）与
+     右上删除钮，两个对角之间隔着一整块图。 */
   .post-image-preview-grid .post-image-preview-item {
-    width: 72px;
-    border-radius: 14px;
+    width: 108px;
+    border-radius: 18px;
   }
 
-  /* 72px 的格子里，26px 把手 + 28px 删除钮原本各占一角、中间只剩 2px，
-     看起来是两个黑圆贴在一起。缩小并分到对角的上下位：
-     把手在左下（20px）当"可拖"的暗示，× 在右上（24px）。 */
   .post-image-preview-grid .post-image-drag-handle {
-    left: 4px;
+    left: 8px;
     top: auto;
-    bottom: 4px;
-    width: 20px;
-    height: 20px;
+    bottom: 8px;
+    width: 24px;
+    height: 24px;
   }
 
   .post-image-preview-grid .post-image-drag-handle svg {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
   }
 
   .post-image-preview-grid .post-image-remove-btn {
-    top: 4px;
-    right: 4px;
-    width: 24px;
-    height: 24px;
-    font-size: 16px;
+    top: 8px;
+    right: 8px;
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
   }
 
   .post-card-v2 {

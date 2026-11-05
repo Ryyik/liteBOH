@@ -325,3 +325,59 @@ describe('renderDocToCanvas · 滤镜与贴纸层', () => {
     expect(result.__calls.at(-1)[1]).toBe(stickerImage);
   });
 });
+
+/**
+ * 胶片模拟层（2026-11-05 v2）。
+ * 只断言「顺序与开关」：像素内容由浏览器探针负责，这里管的是
+ * ① 强度 0 必须真的等于原图（不复制位图）；② 贴纸永远在胶片层之上。
+ */
+describe('renderDocToCanvas · 胶片模拟层', () => {
+  beforeEach(() => {
+    const { factory } = createFakeCanvasFactory();
+    vi.stubGlobal('document', { createElement: () => factory() });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const makeSource = (width, height) => ({ width, height, __source: true });
+
+  it('有 look 时产出新画布，且先画调色层', async () => {
+    const { resolveFilterLook } = await import('@/views/Forum/composables/image-editor-filters.js');
+    const source = makeSource(100, 80);
+    const look = resolveFilterLook('portra', 1);
+    const result = renderDocToCanvas(source, [], { look });
+    expect(result).not.toBe(source);
+    expect(result.width).toBe(100);
+    expect(result.__calls[0]).toEqual(['drawImage', source, 0, 0]);
+  });
+
+  it('强度 0 的 look 不复制位图（等同原图，省一次全量拷贝）', async () => {
+    const { resolveFilterLook } = await import('@/views/Forum/composables/image-editor-filters.js');
+    const source = makeSource(100, 80);
+    expect(renderDocToCanvas(source, [], { look: resolveFilterLook('mono', 0) })).toBe(source);
+  });
+
+  it('贴纸画在胶片层之后（贴纸不该被颗粒/暗角/调色污染）', async () => {
+    const { resolveFilterLook } = await import('@/views/Forum/composables/image-editor-filters.js');
+    const source = makeSource(100, 100);
+    const stickerImage = { naturalWidth: 10, naturalHeight: 10 };
+    const result = renderDocToCanvas(source, [], {
+      look: resolveFilterLook('disposable', 1),
+      stickers: [{ id: 's1', asset: 'cat', x: 0.5, y: 0.5, size: 0.2 }],
+      stickerImages: new Map([['cat', stickerImage]]),
+    });
+    // 贴纸层是最后一步：先克隆「胶片层结果」再画贴纸，所以第一笔画的
+    // 是那张已调色的中间画布（而不是原图），最后一笔才是贴纸
+    expect(result.__calls).toHaveLength(2);
+    expect(result.__calls[0][1]).not.toBe(source);
+    expect(result.__calls.at(-1)[1]).toBe(stickerImage);
+  });
+
+  it('噪声块不可用（jsdom）时颗粒层静默跳过，导出不失败', async () => {
+    const { resolveFilterLook } = await import('@/views/Forum/composables/image-editor-filters.js');
+    const source = makeSource(100, 100);
+    const result = renderDocToCanvas(source, [], { look: resolveFilterLook('faded', 1) });
+    expect(result.width).toBe(100);
+  });
+});

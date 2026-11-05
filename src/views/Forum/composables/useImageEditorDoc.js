@@ -137,6 +137,21 @@ export function resolveFilterId(commands = []) {
   return filterId;
 }
 
+/**
+ * 当前滤镜强度（0~1）。
+ * 缺省 1 —— 老数据里没有 strength 字段，按满强度解释才不会让已存的帖子变样。
+ * 后写的覆盖先写的，与 resolveFilterId 同一条规则（同一档滤镜反复调强度只留最后一条）。
+ */
+export function resolveFilterStrength(commands = []) {
+  let strength = 1;
+  for (const command of Array.isArray(commands) ? commands : []) {
+    if (command?.type !== 'filter') continue;
+    const value = Number(command.strength);
+    strength = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+  }
+  return strength;
+}
+
 /** 命令是否结构合法（防外部注入畸形命令进栈）。 */
 export function isValidEditorCommand(command) {
   if (!command || typeof command !== 'object') return false;
