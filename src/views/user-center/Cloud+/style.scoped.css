@@ -202,12 +202,24 @@
 }
 
 /* 图库页在宽屏铺满（2026-10-02 对齐 iPad 图库）：网格是全宽的，
-   980px 居中会让两侧各空一大块。设置页 / 分享页继续窄栏居中，保证文字行宽可读。
+   980px 居中会让两侧各空一大块。
+   2026-11-04 第二轮：所有 tab 都走这一档（模板里 .is-gallery 恒开），
+   设置 / 分享的正文限宽改到页内 —— 见下面的 .cloud-settings-page / .cloud-share-page，
+   这样切 tab 时标题左缘不动，只是卡片宽度不同。
    横向留白收到 24px —— iPad 图库的网格几乎贴边。 */
 @media (min-width: 1024px) {
   .cloud-shell.is-gallery {
     max-width: none;
     padding-inline: 24px;
+  }
+
+  /* 表单/说明类页面：限的是**内容**宽度，标题仍与图库同一条左缘。
+     原先是 shell 整体 980 居中，切 tab 会让整个页头左右横移 ~150px。 */
+  .cloud-settings-page,
+  .cloud-share-page {
+    width: 100%;
+    max-width: 980px;
+    margin-right: auto;
   }
 }
 
@@ -2034,7 +2046,6 @@
      顶部不应留带；关闭按钮自己负责避让安全区。 */
 }
 
-
 .detail-modal {
   width: 100%;
   height: 100%;
@@ -2064,7 +2075,6 @@
 .detail-modal::-webkit-scrollbar-thumb:hover {
   background: var(--apple-text-tertiary);
 }
-
 
 .detail-close {
   /* fixed（相对视口）而不是 absolute（相对弹窗内容）：弹窗是滚动容器，
@@ -2443,7 +2453,6 @@
     align-items: flex-start;
     flex-direction: column;
   }
-
 
   .share-token-row {
     flex-direction: column;
@@ -2964,6 +2973,9 @@
   border-radius: 0;
   overflow: hidden;
   background: var(--apple-bg-secondary);
+  /* 长按进入多选：必须关掉 iOS 的图片长按菜单（否则会先弹「存储图像」）与文字选择 */
+  -webkit-touch-callout: none;
+  user-select: none;
   /* LQIP 占位：模板把 Cloudinary 的 32px 模糊图写进 background-image，铺在 <img> 之下。
      之前格子只有一块 `--apple-bg-secondary`（近白）当占位，原图淡入时就是一次「闪白」。 */
   background-size: cover;
@@ -3124,6 +3136,241 @@
   transform: scale(0.96);
 }
 
+/* ── 相册多选 + 回收站（plans/039）───────────────────────────────────────────
+   选择态只用「勾选圈 + 内描边」两个通道，不复用任何既有 active 类 ——
+   之前左栏那次教训：加了 class 但和既有规则同优先级，视觉零变化。
+
+   2026-11-04 第二轮：
+   ① 选择入口从网格上方那行 ghost-link 换成头部动作区里的 .refresh-btn 按钮，
+      这里只补「按钮内图标与文字的间距」和「选中态」，外观完全沿用 .refresh-btn；
+   ② 回收站从底部弹层升成 ?view=trash 的独立页面，弹层那套（.trash-panel*）
+      已整段删除，只保留网格/格子的通用部分。 */
+.album-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* 选择态：按钮本身变成主色描边，与「筛选已生效」的 .filter-trigger.is-filtering 同一套视觉语言 */
+.album-select-trigger.is-selecting {
+  background: var(--apple-bg);
+  border: 1px solid var(--apple-blue);
+  color: var(--apple-blue);
+}
+
+.gallery-tile.is-selectable {
+  cursor: pointer;
+}
+
+.gallery-tile.is-selected {
+  box-shadow: inset 0 0 0 3px var(--apple-blue);
+}
+
+.gallery-tile.is-selected .tile-cover {
+  transform: scale(0.92);
+}
+
+.tile-check,
+.trash-check {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.tile-check {
+  right: 6px;
+  bottom: 6px;
+}
+
+.tile-check.checked,
+.trash-check.checked {
+  background: var(--apple-blue);
+  border-color: var(--apple-blue);
+}
+
+.album-select-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 9100;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 14px;
+  border-radius: var(--radius-full);
+  background: var(--apple-bg);
+  border: 1px solid var(--apple-border);
+  box-shadow: var(--shadow-lg);
+}
+
+.album-select-count {
+  font-size: 13px;
+  color: var(--apple-text-secondary);
+  white-space: nowrap;
+}
+
+.album-select-delete {
+  min-height: 34px;
+  padding: 0 16px;
+}
+
+/* ── 回收站页面（?view=trash）────────────────────────────────────────────────
+   与 .cloud-share-page / .cloud-settings-page 同级，是「页面」不是「弹层」：
+   宽度跟随 .cloud-shell，纵向由页面本身滚动 ⇒ 网格**不能**再自带 overflow-y
+   （弹层时代那条会让网格变成第二个滚动容器，手机上滚到一半就滚不动了）。 */
+.cloud-trash-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 24px;
+}
+
+.trash-page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.trash-page-hint {
+  flex: 1 1 320px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--apple-text-secondary);
+}
+
+.trash-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ≤640：说明占满一行，按钮组靠右（与图库头部动作区同一套折行逻辑）。
+   回收站有「全选 / 刷新 / 恢复 / 永久删除」四个动作，390 宽刚好一行；
+   真放不下时允许换行，不要压成竖排字（图库头部那次踩过）。 */
+@media (max-width: 640px) {
+  .trash-page-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .trash-page-actions > .refresh-btn,
+  .trash-page-actions > .primary-btn,
+  .trash-page-actions > .danger-btn {
+    width: auto;
+    flex: 0 0 auto;
+    padding-inline: 14px;
+    white-space: nowrap;
+  }
+}
+
+.trash-page-restore {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* 永久删除：与恢复并排但保持 danger 档（.danger-btn 已有配色，这里只补图标间距） */
+.trash-page-purge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.trash-empty {
+  padding: 32px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--apple-text-secondary);
+}
+
+.trash-page-empty {
+  padding: 56px 16px;
+}
+
+.trash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+/* 宽屏用更密的列数上限：回收站里图多时，一行 8 张比 4 张好扫 */
+@media (min-width: 900px) {
+  .trash-grid {
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  }
+}
+
+.trash-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--apple-bg-secondary);
+  cursor: pointer;
+}
+
+.trash-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.trash-tile.is-selected {
+  box-shadow: inset 0 0 0 3px var(--apple-blue);
+}
+
+.trash-tile.is-expired {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.trash-days {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11px;
+}
+
+.trash-check {
+  right: 6px;
+  top: 6px;
+  width: 20px;
+  height: 20px;
+}
+
+.trash-page-foot {
+  margin: 0;
+  font-size: 12px;
+  color: var(--apple-text-secondary);
+}
+
 /* ---- 响应式 ---- */
 @media (max-width: 900px) {
   .gallery-title-block h2 {
@@ -3276,7 +3523,6 @@
     right: 16px;
     bottom: calc(88px + env(safe-area-inset-bottom, 0px));
   }
-
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4037,11 +4283,13 @@
 }
 
 .cp-tray-enter-active {
-  animation: cpTrayHeightIn var(--duration-base, 240ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation: cpTrayHeightIn var(--duration-base, 240ms)
+    var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
 .cp-tray-leave-active {
-  animation: cpTrayHeightOut var(--duration-fast, 180ms) var(--ease-in-out, cubic-bezier(0.77, 0, 0.175, 1)) both;
+  animation: cpTrayHeightOut var(--duration-fast, 180ms)
+    var(--ease-in-out, cubic-bezier(0.77, 0, 0.175, 1)) both;
 }
 
 @keyframes cpTrayHeightIn {
@@ -4106,11 +4354,13 @@
 }
 
 .cp-status-enter-active {
-  animation: cpStatusHeightIn var(--duration-base, 240ms) var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation: cpStatusHeightIn var(--duration-base, 240ms)
+    var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
 .cp-status-leave-active {
-  animation: cpStatusHeightOut var(--duration-fast, 180ms) var(--ease-in-out, cubic-bezier(0.77, 0, 0.175, 1)) both;
+  animation: cpStatusHeightOut var(--duration-fast, 180ms)
+    var(--ease-in-out, cubic-bezier(0.77, 0, 0.175, 1)) both;
 }
 
 @keyframes cpStatusHeightIn {

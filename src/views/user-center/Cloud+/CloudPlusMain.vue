@@ -7,9 +7,12 @@
       @back="goBack"
     />
 
-    <!-- is-gallery：图库页在宽屏要铺满（iPad 图库的网格是全宽的，
-         980px 居中会让两侧各空一大块）；设置页 / 分享页仍是窄栏居中，保持文字可读性。 -->
-    <div class="cloud-shell" :class="{ 'is-gallery': cloudTab === 'content' }">
+    <!-- 2026-11-04 第二轮（用户口径：其他 tab 的位置和布局要和内容 tab 一样）：
+         shell **恒为全宽**，不再按 tab 在「980 居中 / 全宽」之间切 ——
+         那是切一次 tab 标题就从最左跳到页面中间的主因。
+         设置 / 分享的正文限宽移到页内（见 style.scoped.css 的 .cloud-settings-page /
+         .cloud-share-page），限的是卡片宽度，不是标题左缘。 -->
+    <div class="cloud-shell is-gallery">
       <main class="cloud-main" :class="{ 'is-view-entering': isViewEntering }">
         <!-- 视图切换（2026-10-22 从底部胶囊上移到这里）：Cloud+ 成为全站底栏第五席后，
              底部那套位置要让给全局底栏（UserSpaceBottomNav），否则同屏两套底栏。
@@ -105,17 +108,39 @@
               <span>{{ showRefreshIndicator ? '同步中' : '刷新' }}</span>
             </button>
 
-            <button type="button" class="primary-btn" @click="openComposer">＋ 新建</button>
+            <!-- 选择入口（2026-11-04 第二轮）：原先是相册网格上方一行 ghost-link 文字，
+                 用户要求「选择应该是一个按钮样式」⇒ 收进头部动作区，与筛选/刷新同一套 .refresh-btn，
+                 ≤640 那条 `.gallery-header-actions > .refresh-btn` 规则会自动让它跟其它按钮平分第二行。
+                 选择态下同一个按钮变「完成」，底部操作条仍保留「取消」（两处都能退）。 -->
+            <button
+              type="button"
+              class="refresh-btn album-select-trigger"
+              :class="{ 'is-selecting': isSelectMode }"
+              :aria-pressed="isSelectMode ? 'true' : 'false'"
+              @click="isSelectMode ? exitSelectMode() : enterSelectMode()"
+            >
+              <CheckSquare :size="15" :stroke-width="1.9" aria-hidden="true" />
+              <span>{{ isSelectMode ? '完成' : '选择' }}</span>
+            </button>
+
+            <!-- 选择态下不给「新建」：选中格子时点开编辑器会把选择态和草稿搅在一起 -->
+            <button v-if="!isSelectMode" type="button" class="primary-btn" @click="openComposer">
+              ＋ 新建
+            </button>
           </div>
         </header>
 
+        <!-- 分享 / 设置 / 回收站的页头（2026-11-04 第二轮用户口径：
+             「其他页面 Tab 切换位置和布局保持和内容 Tab 的时候一样」）。
+             原先这里是 hero 档：11px 英文 eyebrow + 36px 大标题 + 15px 副标题，
+             而内容页是 28px 标题 + 13px 副标题 —— 同一排 SegmentTabs 下面，
+             切一次 tab 标题就换一次字号、整块内容往下跳 ~40px。
+             现在直接复用内容页的 .gallery-title-block / .gallery-subtitle 口径，
+             eyebrow 一并删掉（内容页没有，它就是跳动的主因之一）。 -->
         <header v-else class="cloud-header">
-          <div>
-            <div class="hero-copy">
-              <span class="hero-eyebrow">{{ cloudPageHero.eyebrow }}</span>
-              <h2>{{ cloudPageHero.title }}</h2>
-              <p>{{ cloudPageHero.subtitle }}</p>
-            </div>
+          <div class="gallery-title-block">
+            <h2>{{ cloudPageHero.title }}</h2>
+            <p class="gallery-subtitle">{{ cloudPageHero.subtitle }}</p>
           </div>
         </header>
 
@@ -482,6 +507,104 @@
             </section>
           </section>
 
+          <!-- 回收站（2026-11-04 第二轮）：从底部弹层升成**独立页面**，与内容/分享/设置同级。
+               弹层里只有 76vh 的滚动区，图一多就得在「页面滚动 + 弹层滚动」两层里点勾，
+               而且恢复后看不出图片回到了哪条内容 —— 页面形态才能给出完整说明与空态。
+               页面头（标题/副标题）由上面共用的 .cloud-header 走 cloudPageHero 提供。 -->
+          <section v-else-if="cloudTab === 'trash'" class="cloud-trash-page">
+            <div class="trash-page-toolbar">
+              <p class="trash-page-hint">
+                删除的图片在这里保留
+                {{ TRASH_RETENTION_DAYS }} 天，到期自动清理。恢复后图片回到原内容；
+                来自论坛帖的图片会同时回到原帖。
+              </p>
+              <div class="trash-page-actions">
+                <button
+                  v-if="restorableTrashIds.length"
+                  type="button"
+                  class="ghost-link"
+                  @click="toggleSelectAllRestorableTrash"
+                >
+                  {{ isAllRestorableTrashSelected ? '取消全选' : '全选' }}
+                </button>
+                <button
+                  type="button"
+                  class="refresh-btn"
+                  :disabled="isTrashLoading"
+                  @click="loadTrashedImages"
+                >
+                  <span>{{ isTrashLoading ? '读取中' : '刷新' }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="primary-btn trash-page-restore"
+                  :disabled="trashSelectedIds.size === 0 || isRestoringTrash || isPurgingTrash"
+                  @click="restoreSelectedTrashImages"
+                >
+                  <RotateCcw :size="15" :stroke-width="2" aria-hidden="true" />
+                  {{
+                    isRestoringTrash
+                      ? '恢复中…'
+                      : trashSelectedIds.size
+                        ? `恢复 ${trashSelectedIds.size} 张`
+                        : '恢复'
+                  }}
+                </button>
+                <!-- 永久删除（2026-11-04）：与恢复并排，但用 danger 档 ——
+                     这是整页唯一不可撤销的动作，视觉上不能和恢复同权重。 -->
+                <button
+                  type="button"
+                  class="danger-btn trash-page-purge"
+                  :disabled="trashSelectedIds.size === 0 || isRestoringTrash || isPurgingTrash"
+                  @click="purgeSelectedTrashImages"
+                >
+                  <Trash2 :size="15" :stroke-width="2" aria-hidden="true" />
+                  {{ isPurgingTrash ? '删除中…' : '永久删除' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="isTrashLoading && !trashItems.length" class="trash-empty">
+              正在读取回收站…
+            </div>
+            <div v-else-if="!trashItems.length" class="empty-state trash-page-empty">
+              <Trash2 class="empty-icon" :size="40" :stroke-width="1.6" aria-hidden="true" />
+              <h4>回收站是空的</h4>
+              <p>在图库里删除的图片会先放到这里，{{ TRASH_RETENTION_DAYS }} 天内都能恢复。</p>
+            </div>
+            <div v-else class="trash-grid">
+              <button
+                v-for="item in trashItems"
+                :key="item.id"
+                type="button"
+                class="trash-tile"
+                :class="{
+                  'is-selected': trashSelectedIds.has(item.id),
+                  'is-expired': item.expired,
+                }"
+                :disabled="item.expired"
+                @click="toggleTrashSelection(item)"
+              >
+                <img :src="resolveDbCloudTileImage(item.imageUrl)" alt="" loading="lazy" />
+                <span class="trash-days">{{
+                  item.expired ? '已过期' : `剩 ${item.daysLeft} 天`
+                }}</span>
+                <span class="trash-check" :class="{ checked: trashSelectedIds.has(item.id) }">
+                  <Check
+                    v-if="trashSelectedIds.has(item.id)"
+                    :size="12"
+                    :stroke-width="3.2"
+                    aria-hidden="true"
+                  />
+                </span>
+              </button>
+            </div>
+
+            <p v-if="trashItems.length" class="trash-page-foot">
+              共 {{ trashItems.length }} 张 · 已选 {{ trashSelectedIds.size }} 张
+            </p>
+          </section>
+
           <template v-else>
             <section v-if="cloudModeBanner" class="cloud-mode-banner">
               <div>
@@ -758,10 +881,14 @@
               class="gallery-section album-gallery-section"
               :style="{ '--album-columns': resolvedAlbumColumns }"
               @touchstart.passive="onAlbumTouchStart"
+              @touchmove.passive="cancelTileLongPress"
               @touchend.passive="onAlbumPinchEnd"
               @touchcancel.passive="onAlbumPinchEnd"
               @wheel="onAlbumWheel"
             >
+              <!-- 2026-11-04 第二轮：原「相册工具行」（选择 / 回收站）已拆掉 ——
+                   选择收进头部动作区当按钮、回收站升成顶部 tab 的独立页面。
+                   这里不再占一行，网格直接从顶部开始（竖屏那行 32px 对图库密度是实打实的损失）。 -->
               <div
                 v-if="entriesLoadError && entries.length > 0"
                 class="gallery-inline-feedback warning"
@@ -841,10 +968,29 @@
                     v-for="tile in albumTiles"
                     :key="tile.key"
                     class="gallery-tile"
-                    :class="`tile-${tile.entry.entryType}`"
+                    :class="[
+                      `tile-${tile.entry.entryType}`,
+                      {
+                        'is-selectable': isSelectMode && Boolean(tile.imageUrl),
+                        'is-selected': isTileSelected(tile),
+                      },
+                    ]"
                     :style="tile.lqipUrl ? { backgroundImage: `url(${tile.lqipUrl})` } : undefined"
-                    @click="openEntry(tile.entry, 'mine', $event)"
+                    @pointerdown="handleTilePointerDown(tile, $event)"
+                    @pointerup="cancelTileLongPress"
+                    @pointerleave="cancelTileLongPress"
+                    @pointercancel="cancelTileLongPress"
+                    @contextmenu.prevent="handleTileContextMenu(tile)"
+                    @click="handleTileClick(tile, $event)"
                   >
+                    <span
+                      v-if="isSelectMode && tile.imageUrl"
+                      class="tile-check"
+                      :class="{ checked: isTileSelected(tile) }"
+                      aria-hidden="true"
+                    >
+                      <Check v-if="isTileSelected(tile)" :size="13" :stroke-width="3.2" />
+                    </span>
                     <template v-if="tile.imageUrl">
                       <img
                         :src="tile.displayUrl"
@@ -905,7 +1051,9 @@
     </div>
 
     <button
-      v-if="cloudTab === 'content' && isLoggedIn && !isComposerOpen && !selectedEntry"
+      v-if="
+        cloudTab === 'content' && isLoggedIn && !isComposerOpen && !selectedEntry && !isSelectMode
+      "
       type="button"
       class="gallery-fab"
       aria-label="新建 Cloud+ 内容"
@@ -913,6 +1061,25 @@
     >
       ＋
     </button>
+
+    <!-- 多选操作条：固定在全局底栏上方（与 .gallery-fab 同一底距口径） -->
+    <Transition name="cp-status">
+      <div v-if="isSelectMode" class="album-select-bar" role="toolbar" aria-label="图片选择操作">
+        <span class="album-select-count">已选 {{ selectedTileCount }} 张</span>
+        <button type="button" class="ghost-link" @click="toggleSelectAllVisibleImages">
+          {{ isAllVisibleImagesSelected ? '取消全选' : '全选' }}
+        </button>
+        <button type="button" class="ghost-link" @click="exitSelectMode">取消</button>
+        <button
+          type="button"
+          class="danger-btn album-select-delete"
+          :disabled="selectedTileCount === 0 || isDeletingSelected"
+          @click="deleteSelectedImages"
+        >
+          {{ isDeletingSelected ? '删除中…' : '删除' }}
+        </button>
+      </div>
+    </Transition>
 
     <!-- 横屏左栏（2026-10-26）：图库补齐「左右栏布局」，与「我」/ 首页 / 他人空间 / BOH
          共用同一份组件与同一份 navItems 单源，current-tab 传 'cloud' —— 进图库后左栏仍高亮
@@ -937,6 +1104,7 @@
          bottom-nav.css 由 UserSpaceBottomNav.vue 自己的 <style src> 带进来，这里不用再引。 -->
     <UserSpaceBottomNav
       :visible="true"
+      :hidden="bottomNavHidden"
       :nav-items="BOTTOM_NAV_ITEMS"
       current-tab="cloud"
       :nav-indicator-style="bottomNavIndicatorStyle"
@@ -1036,14 +1204,39 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, onUnmounted, reactive } from 'vue';
+import {
+  computed,
+  ref,
+  watch,
+  onMounted,
+  onUnmounted,
+  onActivated,
+  onDeactivated,
+  reactive,
+} from 'vue';
 import { useDebounce } from '@/composables/useDebounceThrottle';
 import { storeToRefs } from 'pinia';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
-import { ChevronDown, Cloud, ImagePlus, Search, Smile, X } from 'lucide-vue-next';
+import {
+  Check,
+  CheckSquare,
+  ChevronDown,
+  Cloud,
+  ImagePlus,
+  RotateCcw,
+  Search,
+  Smile,
+  Trash2,
+  X,
+} from 'lucide-vue-next';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import CloudStorageBar from './CloudStorageBar.vue';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
+/* 底栏滚动方向隐藏（2026-11-04 用户报障「竖屏滚动时底部导航栏不会消失」）：
+   首页 / 我 / 周边三个宿主都接了同一个 composable，图库接底栏时漏了这一步 ——
+   于是图库是唯一一个「滚到底栏还钉在屏底」的主页面。
+   它是 document 级 scroll 捕获（Cloud+ 走 body 滚动），与 .cloud-page 的长文档流同构。 */
+import { useScrollDirectionHide } from '@/views/user-center/UserSpace/composables/useScrollDirectionHide.js';
 import { useAuthStore } from '@/stores/auth';
 import { moodChoices, getMoodMeta } from './config.js';
 import { getMySubscriptions } from '@/utils/api/subscription-api.js';
@@ -1063,9 +1256,9 @@ import {
 import {
   resolveDbCloudCoverImage,
   resolveDbCloudTileImage,
-  resolveDbCloudTileLqip,
   resolveDbDetailImage,
 } from '@/utils/db-image-url.js';
+import { buildAlbumTiles } from '@/utils/cloud-album-tiles.js';
 import {
   CLOUD_UPLOAD_BURST_LIMIT,
   CLOUD_UPLOAD_BURST_WINDOW_MS,
@@ -1095,6 +1288,20 @@ import {
   normalizeCloudVisibility,
 } from '@/utils/cloud-storage-accounting.js';
 import { deleteCloudEntryWithAssets } from '@/utils/cloud-entry-maintenance.js';
+import {
+  deleteCloudEntryImages,
+  listMyTrashedImages,
+  purgeCloudImageTrash,
+  restoreCloudImageTrash,
+} from '@/utils/api/cloud-image-trash-api.js';
+import {
+  TRASH_RETENTION_DAYS,
+  groupSelectedTileKeys,
+  isForumEntryTitleOnly,
+  listDeletableImageBlocks,
+  removeImageBlocks,
+  resolveCoverAfterRemoval,
+} from '@/utils/cloud-image-trash.js';
 import {
   DEFAULT_CLOUD_IMAGE_LIMIT,
   resolveCloudBenefitFromSubscriptions,
@@ -1152,6 +1359,39 @@ const sharedEntries = ref([]);
 const selectedEntry = ref(null);
 const selectedEntrySource = ref('mine');
 const isSharedContentCollapsed = ref(false);
+
+/* ── 多选删除 + 回收站（plans/039）───────────────────────────────────────────
+   多选粒度 = **格子**（一张图），不是条目：图库本来就把一条内容摊平成多个格子，
+   而删除 RPC 的入参是「一条内容 + 一组 block 下标」⇒ 这里存 key，提交前按条目归组。
+
+   key 口径与 albumTiles 完全一致（`${entryId}::${index}`），不另造一套 id；
+   纸片格（纯文字条目）不参与选择 —— 那类删除走详情页整条删除。 */
+const isSelectMode = ref(false);
+const selectedTileKeys = ref(new Set());
+const isDeletingSelected = ref(false);
+const suppressTileClick = ref(false);
+let tileLongPressTimer = null;
+
+/* 回收站（2026-11-04 第二轮）：从弹层改成独立页面后，开合状态不再存在 ——
+   页面在不在由 `cloudTab === 'trash'` 决定，加载时机交给 applyCloudPlusRouteView。 */
+const isTrashLoading = ref(false);
+const trashItems = ref([]);
+const trashSelectedIds = ref(new Set());
+const isRestoringTrash = ref(false);
+const isPurgingTrash = ref(false);
+const restorableTrashIds = computed(() =>
+  trashItems.value.filter((item) => !item.expired).map((item) => item.id),
+);
+const isAllRestorableTrashSelected = computed(() => {
+  const ids = restorableTrashIds.value;
+  return ids.length > 0 && ids.every((id) => trashSelectedIds.value.has(id));
+});
+
+const selectedTileCount = computed(() => selectedTileKeys.value.size);
+const isAllVisibleImagesSelected = computed(() => {
+  const keys = albumTiles.value.filter((tile) => tile.imageUrl).map((tile) => tile.key);
+  return keys.length > 0 && keys.every((key) => selectedTileKeys.value.has(key));
+});
 const noticeText = ref('');
 const draftTitle = ref('');
 const draftText = ref('');
@@ -1291,7 +1531,7 @@ const { textareaRef: draftTextareaRef } = useAutoGrowTextarea({
 });
 const cloudTab = computed(() => {
   const view = String(route.query.view || route.query.mode || '').trim();
-  if (['settings', 'share'].includes(view)) return view;
+  if (['settings', 'share', 'trash'].includes(view)) return view;
   return 'content';
 });
 
@@ -1327,10 +1567,20 @@ const composerSubtitle = computed(() =>
    SegmentTabs 的 `update:modelValue` —— 路由机制没变，只是切换控件从底部搬到顶部。 */
 const cloudTabSections = [
   { id: 'content', label: '内容' },
+  // 回收站是**独立页面**而不是内容页里的弹层（2026-11-04 第二轮用户口径）：
+  // 它有自己的标题/说明/空态，恢复后要能说清图片回到了哪条内容。
+  { id: 'trash', label: '回收站' },
   { id: 'share', label: '分享' },
   { id: 'settings', label: '设置' },
 ];
 const cloudPageHero = computed(() => {
+  if (cloudTab.value === 'trash') {
+    return {
+      eyebrow: 'Recycle Bin',
+      title: '回收站',
+      subtitle: `删除的图片保留 ${TRASH_RETENTION_DAYS} 天，期间可以恢复到原内容。`,
+    };
+  }
   if (cloudTab.value === 'share') {
     return {
       eyebrow: 'Share',
@@ -1503,32 +1753,10 @@ const canLoadMoreEntries = computed(
  *   · 纯文字条目 → 1 个 tile，走 .tile-paper
  * 点任一格都是 openEntry(该条目)：详情里能看到这条内容的全貌。
  */
-const albumTiles = computed(() =>
-  visibleFilteredEntries.value.flatMap((entry) => {
-    const images = collectEntryImageUrls(entry);
-    if (!images.length) {
-      return [
-        {
-          key: `${entry.id}::paper`,
-          entry,
-          imageUrl: '',
-          displayUrl: '',
-          lqipUrl: '',
-          isFirstOfEntry: true,
-        },
-      ];
-    }
-    return images.map((imageUrl, index) => ({
-      key: `${entry.id}::${index}`,
-      entry,
-      imageUrl,
-      // 缩略图（400px 方形）+ LQIP 占位：格子只有 78~200px，拉原图既慢又闪
-      displayUrl: resolveDbCloudTileImage(imageUrl),
-      lqipUrl: resolveDbCloudTileLqip(imageUrl),
-      isFirstOfEntry: index === 0,
-    }));
-  }),
-);
+// key 的后半段是 contentBlocks 的真实下标（不是「第几张图」）——
+// 删除 RPC 按 block 下标定位，论坛备份的 blocks 永远是 [标题文字, 图1, 图2…]，
+// 用图片序号会整体错位一位（详见 utils/cloud-album-tiles.js 的注释与单测）。
+const albumTiles = computed(() => buildAlbumTiles(visibleFilteredEntries.value));
 
 /** 取一条内容的全部图片地址（口径与 utils/cloud-storage-accounting 的图片计数一致：contentBlocks 里 type==='image'） */
 function collectEntryImageUrls(entry) {
@@ -2112,7 +2340,7 @@ function refreshSharePanelState() {
 }
 
 function switchCloudTab(tabId) {
-  const safeTab = ['content', 'share', 'settings'].includes(String(tabId))
+  const safeTab = ['content', 'share', 'settings', 'trash'].includes(String(tabId))
     ? String(tabId)
     : 'content';
   router.replace({
@@ -2138,6 +2366,17 @@ const bottomNavIndicatorStyle = computed(() => {
     '--active-nav-center': `${((index + 0.5) / BOTTOM_NAV_ITEMS.length) * 100}%`,
     '--nav-count': BOTTOM_NAV_ITEMS.length,
   };
+});
+
+/* 底栏随滚动方向隐藏（与首页 / 我 / 周边同一条实现）：图库是长文档流 + body 滚动，
+   下滑 20px 收起、上滑 8px 回来、回到顶部一定显现。
+   浮层打开时强制显示 —— 否则关闭详情/发布器后底栏可能停在 hidden，
+   要等用户再滑一下才回来（那两个浮层都是覆盖层，底栏本就该在下面备着）。 */
+const isBottomNavForceVisible = computed(
+  () => isComposerOpen.value || Boolean(selectedEntry.value),
+);
+const { hidden: bottomNavHidden, reset: resetBottomNavAutoHide } = useScrollDirectionHide({
+  forceVisible: isBottomNavForceVisible,
 });
 
 // 未读徽标：与首页 / UserSpace 底栏读同一个 store，三处数字必然一致
@@ -2210,6 +2449,10 @@ async function handleRailAction(actionId) {
 function applyCloudPlusRouteView() {
   if (cloudTab.value === 'share') {
     refreshSharePanelState();
+  }
+  // 回收站升成页面后，取数时机跟 share 一样挂在「切到这一档」上（深链 ?view=trash 也走这里）。
+  if (cloudTab.value === 'trash') {
+    void loadTrashedImages();
   }
 }
 
@@ -3093,6 +3336,341 @@ async function publishEntry() {
  */
 const detailOrigin = reactive({ x: '50%', y: '50%' });
 
+/* ── 多选删除 + 回收站（plans/039）─────────────────────────────────────────── */
+function enterSelectMode() {
+  if (!isLoggedIn.value) return;
+  if (!albumTiles.value.some((tile) => tile.imageUrl)) {
+    showNotice('这里还没有可以选择的图片');
+    return;
+  }
+  isSelectMode.value = true;
+  selectedTileKeys.value = new Set();
+}
+
+function exitSelectMode() {
+  isSelectMode.value = false;
+  selectedTileKeys.value = new Set();
+  cancelTileLongPress();
+}
+
+function cancelTileLongPress() {
+  if (tileLongPressTimer) {
+    clearTimeout(tileLongPressTimer);
+    tileLongPressTimer = null;
+  }
+}
+
+function isTileSelected(tile) {
+  return selectedTileKeys.value.has(tile?.key);
+}
+
+function toggleTileSelection(tile) {
+  if (!tile?.imageUrl) return;
+  const next = new Set(selectedTileKeys.value);
+  if (next.has(tile.key)) next.delete(tile.key);
+  else next.add(tile.key);
+  selectedTileKeys.value = next;
+}
+
+/** 长按 500ms 进入多选（iOS 图库同款）；随后的 click 必须被吞掉，否则会顺带打开详情。 */
+function handleTilePointerDown(tile, event) {
+  if (isSelectMode.value || !tile?.imageUrl) return;
+  if (event?.button !== undefined && event.button !== 0) return;
+  cancelTileLongPress();
+  tileLongPressTimer = setTimeout(() => {
+    tileLongPressTimer = null;
+    isSelectMode.value = true;
+    selectedTileKeys.value = new Set([tile.key]);
+    suppressTileClick.value = true;
+    // 长按后若没有触发 click（例如 pointercancel），600ms 后自动解除吞点击
+    setTimeout(() => {
+      suppressTileClick.value = false;
+    }, 600);
+  }, 500);
+}
+
+function handleTileClick(tile, event) {
+  if (suppressTileClick.value) {
+    suppressTileClick.value = false;
+    return;
+  }
+  if (isSelectMode.value) {
+    toggleTileSelection(tile);
+    return;
+  }
+  openEntry(tile.entry, 'mine', event);
+}
+
+/** 右键（桌面）/ 长按系统菜单（移动端会被 contextmenu 拦下）：统一当作「进入多选」。 */
+function handleTileContextMenu(tile) {
+  if (!tile?.imageUrl) return;
+  if (!isSelectMode.value) enterSelectMode();
+  if (!isTileSelected(tile)) toggleTileSelection(tile);
+}
+
+function toggleSelectAllVisibleImages() {
+  const imageKeys = albumTiles.value.filter((tile) => tile.imageUrl).map((tile) => tile.key);
+  if (isAllVisibleImagesSelected.value) {
+    selectedTileKeys.value = new Set();
+    return;
+  }
+  selectedTileKeys.value = new Set(imageKeys);
+}
+
+/** 删除成功后本地摘块：不整页重拉，避免相册回顶/闪烁；缓存同步写回。 */
+function applyLocalImageRemoval(entryId, indexes) {
+  entries.value = entries.value
+    .map((entry) => {
+      if (entry.id !== entryId) return entry;
+      const blocks = removeImageBlocks(entry.contentBlocks, indexes);
+      // 删光且整条被服务端删除时走 removeEntryLocally；这里只剩「文字块还在」的兜底。
+      if (!blocks.length) return null;
+      const hasImage = blocks.some((block) => block?.type === 'image');
+      const hasText = blocks.some((block) => block?.type === 'text');
+      return {
+        ...entry,
+        contentBlocks: blocks,
+        coverImageUrl: resolveCoverAfterRemoval(blocks),
+        entryType: hasImage ? (hasText ? 'mixed' : 'image') : 'text',
+      };
+    })
+    .filter(Boolean);
+}
+
+function removeEntryLocally(entryId) {
+  entries.value = entries.value.filter((entry) => entry.id !== entryId);
+  if (selectedEntry.value?.id === entryId) {
+    selectedEntry.value = null;
+    selectedEntrySource.value = 'mine';
+  }
+}
+
+/**
+ * 确认文案按「这次选中会不会把整条内容带走」分三档（2026-11-04 用户口径）：
+ *   · 纯图片帖删光 → 该帖同步删除
+ *   · 带文字帖删光 → 帖子保留，文字还在
+ *   · 纯图片手记删光 → 整条内容移除
+ * 判据用「正文是否为空」而不是 entryType：删第一张图后守卫会把 entry_type
+ * 从 image 改写成 mixed（content_blocks 里永远有标题行），第二次就判不出来了。
+ */
+function resolveDeleteConfirmMessage(groups) {
+  let deletesPost = false;
+  let keepsPostText = false;
+  let deletesEntry = false;
+
+  for (const [entryId, indexes] of groups) {
+    const entry = entries.value.find((item) => item.id === entryId);
+    if (!entry) continue;
+    // 下标口径与 albumTiles / RPC 一致：都是 contentBlocks 的真实下标。
+    const imageIndexes = listDeletableImageBlocks(entry.contentBlocks).map(
+      ({ blockIndex }) => blockIndex,
+    );
+    const coversAllImages =
+      imageIndexes.length > 0 && imageIndexes.every((index) => indexes.includes(index));
+    if (!coversAllImages) continue;
+
+    if (String(entry.source || '').trim() === 'forum') {
+      // 判据同服务端：看正文是否为空（entryType 会在删第一张图后被改写成 mixed）
+      if (isForumEntryTitleOnly(entry)) deletesPost = true;
+      else keepsPostText = true;
+    } else {
+      const remaining = removeImageBlocks(entry.contentBlocks, indexes);
+      const hasText = remaining.some(
+        (block) => block?.type === 'text' && String(block.text || '').trim(),
+      );
+      if (!hasText) deletesEntry = true;
+    }
+  }
+
+  const tail = '图片在回收站保留 30 天，期间可以恢复。';
+  if (deletesPost) return `所选内容包含该帖所有内容，该帖将会同步删除。${tail}`;
+  if (keepsPostText) return `所选内容包含该帖的全部图片，该帖的文字将保留。${tail}`;
+  if (deletesEntry) return `所选内容包含这条内容的全部图片，删除后这条内容将被移除。${tail}`;
+  return `删除后会同时从论坛原帖移除。${tail}`;
+}
+
+async function deleteSelectedImages() {
+  if (isDeletingSelected.value) return;
+  const groups = groupSelectedTileKeys([...selectedTileKeys.value]);
+  if (groups.size === 0) return;
+
+  const count = selectedTileKeys.value.size;
+  let confirmed = false;
+  try {
+    confirmed = await dialog.confirm({
+      title: count === 1 ? '删除这张图片' : `删除 ${count} 张图片`,
+      message: resolveDeleteConfirmMessage(groups),
+      tone: 'danger',
+      confirmText: '删除',
+    });
+  } catch (error) {
+    if (isDialogBusy(error)) return;
+    throw error;
+  }
+  if (!confirmed) return;
+
+  isDeletingSelected.value = true;
+  let removed = 0;
+  let alreadyGone = 0;
+  const failures = [];
+  try {
+    for (const [entryId, indexes] of groups) {
+      try {
+        // publicId 是幂等定位键：服务端按它找 block，重试不会误删下一张。
+        const entry = entries.value.find((item) => item.id === entryId);
+        const publicIds = indexes
+          .map((index) => entry?.contentBlocks?.[index])
+          .map((block) => String(block?.publicId || block?.public_id || '').trim())
+          .filter(Boolean);
+
+        const result = await deleteCloudEntryImages(entryId, indexes, publicIds);
+        if (!result.ok) {
+          failures.push(result.error?.message || '删除失败');
+          continue;
+        }
+        const payload = result.data || {};
+        if (payload.alreadyDeleted) {
+          // 幂等返回：这批图在别处（重试/双端）已经删掉了，本地同步摘掉即可。
+          alreadyGone += indexes.length;
+          applyLocalImageRemoval(entryId, indexes);
+          continue;
+        }
+        removed += Number(payload.removed ?? 0);
+        if (payload.entryDeleted) removeEntryLocally(entryId);
+        else applyLocalImageRemoval(entryId, indexes);
+      } catch (error) {
+        failures.push(error?.message || '删除失败');
+      }
+    }
+    const userId = String(userInfo.value?.id || '').trim();
+    if (userId) persistCachedEntries(userId, entries.value);
+  } finally {
+    isDeletingSelected.value = false;
+    exitSelectMode();
+  }
+
+  if (failures.length) {
+    showNotice(`已删除 ${removed} 张，${failures.length} 组失败：${failures[0]}`);
+  } else if (removed === 0 && alreadyGone > 0) {
+    showNotice('这些图片已经删除过了');
+  } else {
+    showNotice(`已删除 ${removed} 张图片，可在回收站恢复`);
+  }
+}
+
+async function loadTrashedImages() {
+  if (!isLoggedIn.value) {
+    trashItems.value = [];
+    return;
+  }
+  // 页面切换（watch immediate + onMounted）会连着触发两次，这里挡掉重复请求；
+  // 恢复流程在 finally 之后才调用，不会撞上这个闸。
+  if (isTrashLoading.value) return;
+  isTrashLoading.value = true;
+  try {
+    const result = await listMyTrashedImages({ limit: 240 });
+    if (!result.ok) {
+      trashItems.value = [];
+      showNotice(result.error?.message || '回收站加载失败');
+      return;
+    }
+    trashItems.value = result.data;
+    trashSelectedIds.value = new Set();
+  } finally {
+    isTrashLoading.value = false;
+  }
+}
+
+/* 离开回收站页面时只清选择态：页面本身由 tab 决定，不再有「关面板」这个动作。
+   不清的话，切去图库删几张再切回来，会看到一批早已不存在的勾选（keepAlive 让它活得很久）。 */
+function resetTrashSelection() {
+  trashSelectedIds.value = new Set();
+}
+
+function toggleTrashSelection(item) {
+  if (!item?.id || item.expired) return;
+  const next = new Set(trashSelectedIds.value);
+  if (next.has(item.id)) next.delete(item.id);
+  else next.add(item.id);
+  trashSelectedIds.value = next;
+}
+
+function toggleSelectAllRestorableTrash() {
+  if (isAllRestorableTrashSelected.value) {
+    trashSelectedIds.value = new Set();
+    return;
+  }
+  trashSelectedIds.value = new Set(restorableTrashIds.value);
+}
+
+async function restoreSelectedTrashImages() {
+  if (isRestoringTrash.value) return;
+  const ids = [...trashSelectedIds.value];
+  if (!ids.length) return;
+
+  isRestoringTrash.value = true;
+  try {
+    const result = await restoreCloudImageTrash(ids);
+    if (!result.ok) {
+      showNotice(result.error?.message || '恢复失败');
+      return;
+    }
+    const restored = Number(result.data?.restored ?? 0);
+    trashSelectedIds.value = new Set();
+    await Promise.all([loadTrashedImages(), loadEntries()]);
+    showNotice(`已恢复 ${restored} 张图片`);
+  } catch (error) {
+    showNotice(error?.message || '恢复失败');
+  } finally {
+    isRestoringTrash.value = false;
+  }
+}
+
+/** 永久删除：立即销毁云端资产，不可撤销 —— 必须先过一道 danger 确认。 */
+async function purgeSelectedTrashImages() {
+  if (isPurgingTrash.value || isRestoringTrash.value) return;
+  const ids = [...trashSelectedIds.value];
+  if (!ids.length) return;
+
+  let confirmed = false;
+  try {
+    confirmed = await dialog.confirm({
+      title: `永久删除 ${ids.length} 张图片`,
+      message: '永久删除后无法恢复，图片会立即从云端销毁。',
+      tone: 'danger',
+      confirmText: '永久删除',
+    });
+  } catch (error) {
+    if (isDialogBusy(error)) return;
+    throw error;
+  }
+  if (!confirmed) return;
+
+  isPurgingTrash.value = true;
+  try {
+    const result = await purgeCloudImageTrash(ids);
+    if (!result.ok) {
+      showNotice(result.error?.message || '永久删除失败');
+      return;
+    }
+    // ⚠️ 不能用 `purged || ids.length`：函数在「一条都没匹配到」时也返回 200/ok，
+    //    purged=0 会被 `||` 兜成 ids.length，变成「假成功」。
+    //    （双端同时操作 / 另一个标签页已经恢复过，就会命中。）
+    const purged = Number(result.data?.purged ?? 0);
+    trashSelectedIds.value = new Set();
+    await loadTrashedImages();
+    if (purged === 0) {
+      showNotice('这些图片已经不在回收站了');
+      return;
+    }
+    showNotice(`已永久删除 ${purged} 张图片`);
+  } catch (error) {
+    showNotice(error?.message || '永久删除失败');
+  } finally {
+    isPurgingTrash.value = false;
+  }
+}
+
 function openEntry(entry, source = 'mine', originEvent = null) {
   const rect = originEvent?.currentTarget?.getBoundingClientRect?.();
   if (rect && rect.width > 0 && rect.height > 0) {
@@ -3382,9 +3960,67 @@ onUnmounted(() => {
   }
 });
 
+/* ── keepAlive 激活 / 失活（2026-11-04）───────────────────────────────────
+   底栏「图库」与「我」相邻，来回切不该整页重挂 ⇒ 路由加了 meta.keepAlive。
+   缓存之后**离开页面不再走 onUnmounted**，原先靠卸载收尾的三件事必须显式搬过来，
+   否则会以「不报错的静默残留」出现：
+
+   ① body 滚动锁：发布面板打开时 watch(isComposerOpen) 把 body 设成 overflow:hidden。
+      缓存实例离开时若不摘，底下的「我」页整页滚不动。
+   ② 编辑态：路由离开时 onBeforeRouteLeave 已经把这批图从 Cloudinary 删了，
+      缓存里再留一份「指向已删资源」的 uploadedImages 会让下次打开面板显示裂图。
+      与不缓存时的「离开即丢弃」保持一致 —— 底栏那条路更早一步被 handleBottomNavClick
+      拦成「放弃编辑？」确认，不会静默丢内容。
+   ③ 数据新鲜度：见 onActivated 的 TTL 补拉。
+
+   ⚠️ 实测口径（别再想当然）：本组件是 Cloud+/index.vue 里 Suspense + createPanelAsync
+   包出来的，**首次挂载不会触发 onActivated**（探针实测：第一次进图库只有 loadEntries，
+   没有任何 activated 回调），所以这里**不能**用「首调闩一次」的写法 —— 那会把第一次
+   真正的重新激活吞掉。防重复取数靠下面两个条件：`loading`（setup 里的 immediate 取数
+   正在飞）与 TTL（刚取过就不取），两条都满足才补拉。 */
+const CLOUD_ACTIVATION_REFRESH_TTL_MS = 60 * 1000;
+
+onDeactivated(() => {
+  if (typeof document !== 'undefined') document.body.style.overflow = '';
+  if (!isPublishing.value && !isUploadingImages.value && uploadedImages.value.length) {
+    uploadedImages.value = [];
+    cloudState.upload.failedImages = [];
+  }
+  isComposerOpen.value = false;
+  isMoodTrayOpen.value = false;
+  // 多选态与回收站勾选不跨页存活：KeepAlive 回来后不该自动停在选择模式
+  exitSelectMode();
+  resetTrashSelection();
+});
+
+onActivated(() => {
+  if (isComposerOpen.value && typeof document !== 'undefined') {
+    document.body.style.overflow = 'hidden';
+  }
+  // 缓存实例回来时滚动位置可能已被 route-scroll-memory 还原到中途，
+  // 但 hidden 是上一段滚动留下的状态 ⇒ 显式复位，避免「刚回来底栏就是收起的」。
+  resetBottomNavAutoHide();
+  // 深链 ?entry=… 靠 entries 就位后由 loadEntries 打开；缓存实例不会重跑它，这里补一次
+  tryOpenEntryFromQuery();
+  if (cloudTab.value === 'share') refreshSharePanelState();
+  // 回收站是「删完马上来看」的页面，缓存实例回来必须重取，否则会展示已恢复/已过期的旧列表
+  if (cloudTab.value === 'trash') void loadTrashedImages();
+  // 资产数据允许短暂陈旧，但不该无限期陈旧：超 TTL 才静默补拉（DOM 与滚动位置不动，不回骨架）
+  const lastFetchedAt = Number(cloudState.content.lastFetchTime || 0);
+  if (!cloudState.content.loading && Date.now() - lastFetchedAt > CLOUD_ACTIVATION_REFRESH_TTL_MS) {
+    void loadEntries();
+  }
+});
+
 watch(
   cloudTab,
-  () => {
+  (nextTab) => {
+    if (nextTab !== 'content') {
+      exitSelectMode();
+    }
+    if (nextTab !== 'trash') {
+      resetTrashSelection();
+    }
     applyCloudPlusRouteView();
   },
   { immediate: true },
