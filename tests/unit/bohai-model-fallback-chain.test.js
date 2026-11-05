@@ -29,12 +29,17 @@ const MIGRATION = 'supabase/migrations/2026102904_moderation_fallback_chain.sql'
 const EF = 'supabase/functions/api-key-vault/index.ts';
 
 /**
- * 审核链**当前**的模型顺序写在「最后一条 moderation 相关迁移」里
+ * 审核链**当前**的模型顺序写在「最后一条 moderation 链相关迁移」里
  * （904 建链 → 905 首修正 → 906 按延迟排序）。按文件名取最后一条，
  * 以后再加修正迁移会自动跟上，不用回来改这个常量。
+ *
+ * ⚠️ 过滤词必须带 `chain`（2026-11-05 修）：原来只按 /moderation/ 取，
+ *    任何**新加的**审核类迁移（哪怕与降级链无关，例如 2026110517 的审核留痕
+ *    归属绑定）都会把它挤成「最后一条」，于是这条守卫读到一份没有链定义的 SQL
+ *    而以 `expected 0 to be 3` 变红 —— 守卫本身成了「谁加迁移谁背锅」。
  */
 const LATEST_CHAIN_MIGRATION = readdirSync(resolve(root, 'supabase/migrations'))
-  .filter((f) => f.endsWith('.sql') && /moderation/i.test(f))
+  .filter((f) => f.endsWith('.sql') && /moderation.*chain/i.test(f))
   .sort()
   .pop();
 

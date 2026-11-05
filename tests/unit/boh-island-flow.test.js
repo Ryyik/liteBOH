@@ -30,6 +30,8 @@ const ISLAND_VUE = 'src/components/BohIsland.vue';
 const ANSWER_VUE = 'src/components/BohIslandAnswer.vue';
 const NAV_VUE = 'src/components/UnifiedNavbar/index.vue';
 const NAV_CSS = 'src/components/UnifiedNavbar/style.scoped.css';
+/* 材质真源：岛的 scrim 档在这里定义（2026-11-05 收口，见 check:liquid-glass） */
+const TOKENS_CSS = 'src/styles/common/tokens.css';
 const STORE = 'src/composables/useBohIsland.js';
 
 describe('岛恒为深色：纸白墨色 + 彩虹那一套彻底退场', () => {
@@ -84,11 +86,17 @@ describe('唤起 BOHAI：整块 surface 切深色', () => {
     );
   });
 
-  it('透出来的是「被压暗的页面」，不是一片浅灰（backdrop 必须 brightness）', () => {
-    // 只降 alpha 不让 backdrop 变暗 ⇒ 浅色站点上透出白页面，看着像褪色
+  it('透出来的是「被压暗的页面」，不是一片浅灰（backdrop 必须带 brightness）', () => {
+    // 只降 alpha 不让 backdrop 变暗 ⇒ 浅色站点上透出白页面，看着像褪色。
+    // 2026-11-05 起材质收进 tokens 单源（check:liquid-glass 要求）：这条断言
+    // 不能再只认组件里的裸值 —— 要顺着 `var(--liquid-filter-scrim)` 找到定义处，
+    // 否则「把 brightness 从 token 里删掉」这种回归照样全绿。
     const block = (css.match(/\.has-boh-island\)\s*\{[^}]*\}/) || [''])[0];
-    expect(block).toContain('brightness(');
-    expect(css).toMatch(/backdrop-filter:\s*blur\([^)]*\)[^;]*brightness\(0\.[0-9]+\)/);
+    expect(block).toContain('var(--liquid-filter-scrim)');
+
+    const tokens = read(TOKENS_CSS);
+    const declaration = (tokens.match(/--liquid-filter-scrim\s*:[^;]+;/) || [''])[0];
+    expect(declaration).toContain('brightness(0.');
   });
 
   it('⭐ 暗色兜底规则必须 `:not(.has-boh-island)`（同权重靠后，会静默压掉底部亮边）', () => {

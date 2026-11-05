@@ -55,6 +55,28 @@ describe('useWebSearchLifecycle — 结果清单', () => {
     expect(lifecycle.webSearchActive.value).toBe(false);
   });
 
+  it('链路带伪协议的结果整条丢弃（2026-11-05 审查补：SEO 投毒 → javascript: XSS）', async () => {
+    // 搜索结果来自第三方，url 是攻击者可影响的字段；下游直接绑 <a :href>，
+    // Vue 不拦伪协议 ⇒ 必须在数据源就掐掉。这里同时锁住「标题仍要有出路」：
+    // 没有 url 的条目照旧保留（展示层退化成纯文本），有 url 但过不了闸门的才丢。
+    const lifecycle = useWebSearchLifecycle({
+      search: async () => ({
+        ok: true,
+        results: [
+          PAGE('正常结果', 'https://example.com/ok'),
+          PAGE('投毒结果', 'javascript:alert(document.cookie)'),
+          PAGE('大小写绕过', 'JaVaScRiPt:alert(1)'),
+          PAGE('只有标题', ''),
+        ],
+      }),
+    });
+    await lifecycle.runWebSearch('任意', undefined);
+    expect(lifecycle.webSearchResults.value).toEqual([
+      { title: '正常结果', url: 'https://example.com/ok' },
+      { title: '只有标题', url: '' },
+    ]);
+  });
+
   it('搜索抛错 → 返回 ok:false 且清单为空、激活态复位', async () => {
     const lifecycle = useWebSearchLifecycle({
       search: async () => {

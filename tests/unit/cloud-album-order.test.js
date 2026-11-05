@@ -64,12 +64,20 @@ describe('Cloud+ 相册排序与形态（2026-10-02 定稿，防回退）', () =
     expect(view).toContain('album-tile-grid');
   });
 
-  it('多图贴按「一张图一格」展开（key 必须带下标）', () => {
+  it('多图贴按「一张图一格」展开（key 必须带 block 下标）', () => {
     // 一条含 N 张图的内容要铺成 N 个格子；key 只用 entry.id 会让同一条目的多个格子撞 key，
     // Vue 复用节点时会串图。这条同时锁住「不再回到 封面 + N 图角标」的老形态。
+    //
+    // 2026-11-04 起展开逻辑抽到 utils/cloud-album-tiles.js（plans/039：key 的后半段必须
+    // 是 contentBlocks 的**真实下标**，不是「第几张图」）⇒ 断言改在新真源上，
+    // 并额外锁住「视图侧不许自带一份展开逻辑」。
+    const tiles = squeezeSource(read('src/utils/cloud-album-tiles.js'));
+    expect(tiles).toContain('flatMap');
+    expect(tiles).toMatch(/key:\s*`\$\{entry\.id\}::\$\{blockIndex\}`/);
+
     const code = squeezeSource(viewCode());
-    expect(code).toContain('flatMap');
-    expect(code).toMatch(/key:\s*`\$\{entry\.id\}::\$\{index\}`/);
+    expect(code).toContain('buildAlbumTiles');
+    expect(code).not.toContain('groupedVisibleEntries');
     expect(read('src/views/user-center/Cloud+/CloudPlusMain.vue')).not.toContain(
       'tile-count-badge',
     );
