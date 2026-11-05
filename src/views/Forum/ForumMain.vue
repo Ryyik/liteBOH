@@ -3299,6 +3299,7 @@ const {
   handlePostImageSelection,
   retryPostImageUpload,
   removePostImage,
+  editPostImage,
   reorderPostImage,
   clearPostImages,
   discardDraftPostImages,
@@ -4086,6 +4087,7 @@ const {
               @retry-image="retryPostImageUpload"
               @reorder-image="reorderPostImage"
               @clear-images="clearPostImages"
+              @edit-image="editPostImage"
             />
           </div>
         </div>

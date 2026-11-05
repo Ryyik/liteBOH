@@ -10,12 +10,14 @@ import {
   Image as ImageIcon,
   MapPin,
   MoreHorizontal,
+  Pencil,
   Plus,
   RefreshCcw,
   Sparkles,
   X,
 } from 'lucide-vue-next';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
+import ImageEditModal from './ImageEditModal.vue';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
 import { FORUM_POST_TITLE_MAX_LENGTH } from '../forum-config.js';
 import {
@@ -60,6 +62,7 @@ const emit = defineEmits([
   'retry-image',
   'reorder-image',
   'clear-images',
+  'edit-image',
 ]);
 
 const isEditMode = computed(() => Boolean(props.editMode));
@@ -367,11 +370,42 @@ const handleCameraRequest = () => {
   emit('request-camera', () => postCameraInputRef.value?.click?.());
 };
 
+/* ── 图片编辑器（P0，2026-11-05 定稿「流法 C」）─────────────────────────
+   选图先经确认页（横滑预览 + 编辑 / 移除 / 全部确认），确认后才 emit
+   image-selection 启动「压缩 → 审核 → 上传」管线 —— 编辑全部发生在上传前，
+   零浪费零竞态。限额闸门在 openPostImagePicker（选图入口）已拦过一轮。
+   网格缩略图带画笔角标可再编辑：产物交宿主（ForumMain → 编辑管线重启）。 */
+
+const imageEditRequest = ref(null);
+
 const handleImageChange = (event) => {
   const files = Array.from(event?.target?.files || []);
   if (postImageInputRef.value) postImageInputRef.value.value = '';
   if (postCameraInputRef.value) postCameraInputRef.value.value = '';
-  emit('image-selection', { files, event });
+  if (!files.length) return;
+  imageEditRequest.value = { mode: 'confirm', files };
+};
+
+const closeImageEditRequest = () => {
+  imageEditRequest.value = null;
+};
+
+const handleImageEditConfirm = (files) => {
+  imageEditRequest.value = null;
+  if (Array.isArray(files) && files.length) emit('image-selection', { files });
+};
+
+/* 网格缩略图的画笔角标：再编辑 = 以编辑产物重启该图的管线（宿主收口） */
+const openImageEditor = (image, index) => {
+  if (isPostBusy.value || !image?.file) return;
+  imageEditRequest.value = { mode: 'edit', files: [image.file], image, index };
+};
+
+const handleImageEditSave = (file) => {
+  const request = imageEditRequest.value;
+  imageEditRequest.value = null;
+  if (!file || request?.mode !== 'edit') return;
+  emit('edit-image', request.image, request.index, file);
 };
 
 const requestImageReorder = (fromIndex, toIndex) => {
@@ -902,6 +936,16 @@ onUnmounted(() => {
                   <RefreshCcw :size="14" :stroke-width="2.3" aria-hidden="true" />
                   <span>重试</span>
                 </button>
+                <!-- 画笔角标：再编辑（有本地文件且不在忙态才可进；编辑会重启该图管线） -->
+                <button
+                  v-if="image.file && !isPostBusy"
+                  type="button"
+                  class="post-image-edit-btn"
+                  :aria-label="`编辑第 ${index + 1} 张图片`"
+                  @click="openImageEditor(image, index)"
+                >
+                  <Pencil :size="13" :stroke-width="2.4" aria-hidden="true" />
+                </button>
                 <div
                   v-if="canReorderImage(image)"
                   class="post-image-sort-actions"
@@ -1264,6 +1308,16 @@ onUnmounted(() => {
         </div>
       </transition>
     </Teleport>
+
+    <!-- 图片编辑器：确认页（选图后）与单图再编辑（网格画笔角标）共用 -->
+    <ImageEditModal
+      :visible="Boolean(imageEditRequest)"
+      :mode="imageEditRequest?.mode || 'confirm'"
+      :files="imageEditRequest?.files || []"
+      @close="closeImageEditRequest"
+      @confirm="handleImageEditConfirm"
+      @save="handleImageEditSave"
+    />
   </section>
 </template>
 
@@ -1335,6 +1389,28 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--liquid-text-tertiary, #8b9098);
   line-height: 1.2;
+}
+
+/* 画笔角标（图片编辑器入口）：右下角，与左下角排序箭头、底部重试条错位 */
+.post-image-edit-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.post-image-edit-btn:hover {
+  background: rgba(0, 0, 0, 0.72);
 }
 
 /* 位置选择面板 */

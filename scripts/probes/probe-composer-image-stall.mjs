@@ -9,7 +9,9 @@ import { chromium } from 'playwright';
 // ③ 上传完成后编辑器 url 保留 blob（远端写 uploadedUrl，发布快照归一）。
 //
 // 断言（反证敏感对标注 *）：
-//   A1  首帧：选图后 ≤1500ms 网格出现 <img src^="blob:">
+//   B1  流法 C（2026-11-05）：选图先进确认页（imgedit 卡片 + 全部确认按钮）
+//   B2* 确认前缩略图不回填网格（编辑发生在上传前；删掉确认页直接选图 → 红）
+//   A1  首帧：全部确认后 ≤8s 网格出现 <img src^="blob:">
 //   A2* 无 lazy：网格 img 不带 loading="lazy"（旧行为有 lazy → 红）
 //   A3  安静：选图后 3s 内底部状态行不可见（防常驻反馈回流；旧行为同样安静，非反证锚点）
 //   A4* 卡顿提示：大图 + 云端审核不可达（route abort）下，4s 观察器写一次性提示
@@ -113,13 +115,32 @@ const bigPng = await page.evaluate(async () => {
   return new Uint8Array(await blob.arrayBuffer());
 });
 
-// A1/A2：选图 → 首帧
+// A1/A2：选图 → 确认页（流法 C，2026-11-05）→ 全部确认 → 首帧
 const t0 = Date.now();
 await page.setInputFiles('.mobile-composer-overlay .post-image-input', {
   name: 'probe-big-noise.png',
   mimeType: 'image/png',
   buffer: Buffer.from(bigPng),
 });
+
+// B1：选图先进**确认页**（横滑卡片 + 编辑/移除/全部确认），不直接进网格
+const confirmOverlay = page.locator('.imgedit-overlay');
+await confirmOverlay.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+const confirmCardCount = await page.locator('.imgedit-overlay .imgedit-card').count();
+assert(
+  'B1 选图后先出确认页（卡片 + 全部确认按钮）',
+  (await confirmOverlay.isVisible().catch(() => false)) &&
+    confirmCardCount === 1 &&
+    (await page.locator('.imgedit-overlay .imgedit-head-primary').isVisible().catch(() => false)),
+  `cards=${confirmCardCount}`,
+);
+// B2：确认前缩略图不回填网格（编辑发生在上传前 = 零浪费零竞态的锚点）
+const gridCountBeforeConfirm = await page
+  .locator('.mobile-composer-overlay .post-image-preview-grid img')
+  .count();
+assert('B2 确认前网格无缩略图', gridCountBeforeConfirm === 0, `count=${gridCountBeforeConfirm}`);
+await page.locator('.imgedit-overlay .imgedit-head-primary').click();
+await confirmOverlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
 
 const gridImg = page.locator('.mobile-composer-overlay .post-image-preview-grid img').first();
 await gridImg.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});

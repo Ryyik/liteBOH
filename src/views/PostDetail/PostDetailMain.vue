@@ -70,7 +70,7 @@ import { clearForumFeedSnapshots } from '@/utils/forum-feed-cache.js';
 import { isForumPortraitComposer, onForumPortraitComposerChange } from '@/utils/forum-viewport.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { themeManager } from '@/utils/theme-manager.js';
-import { buildReplyDraft, shouldShowReplyTarget } from '@/utils/forum-helpers.js';
+import { buildReplyDraft, restoreImageAtPosition, shouldShowReplyTarget } from '@/utils/forum-helpers.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { isFollowing, followUser, unfollowUser } from '../../utils/api/profile-api.js';
 import { isNarrowDetailViewport, onNarrowDetailChange } from '@/utils/forum-viewport.js';
@@ -2208,6 +2208,22 @@ const handleEditRemoveImage = (image, index) => {
     .map((item, itemIndex) => ({ ...item, sortOrder: itemIndex }));
 };
 
+/* 网格画笔角标的再编辑：移除旧图（沿用 remove 的收口）+ 以编辑产物重传并保位 */
+const handleEditImageEdited = async (image, index, file) => {
+  if (!file || isEditSubmitting.value || isEditUploadingPostImage.value) return;
+  handleEditRemoveImage(image, index);
+  const previousCount = editPostImages.value.length;
+  await enqueueEditImageUpload(file);
+  if (editPostImages.value.length > previousCount) {
+    const newImages = editPostImages.value.slice(previousCount);
+    editPostImages.value = restoreImageAtPosition(
+      editPostImages.value.slice(0, previousCount),
+      newImages,
+      index,
+    ).map((item, itemIndex) => ({ ...item, sortOrder: itemIndex }));
+  }
+};
+
 const handleEditReorderImage = ({ fromIndex, toIndex } = {}) => {
   const from = Number(fromIndex);
   const to = Number(toIndex);
@@ -3438,6 +3454,7 @@ const handleChangeCommentSortMode = async (mode) => {
                 @remove-image="handleEditRemoveImage"
                 @reorder-image="handleEditReorderImage"
                 @clear-images="handleEditClearImages"
+                @edit-image="handleEditImageEdited"
               />
             </div>
           </div>

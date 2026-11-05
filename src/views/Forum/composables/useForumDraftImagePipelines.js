@@ -224,6 +224,23 @@ export function useForumDraftImagePipelines(deps) {
     }
   };
 
+  // ===== 网格缩略图再编辑（图片编辑器 P0）：编辑产物重启管线并回到原位 =====
+  const editPostImage = async (image, index, editedFile) => {
+    if (!image || !editedFile) return;
+    // 旧图按 remove 同口径收口：取消在途管线；已上传的旧图走云端清理
+    // （在途上传 cancel 后登记 pending 兜底，见 removePostImage 注释）
+    await removePostImage(image, index);
+    // 编辑产物走全新管线（压缩 → 审核 → 上传），插回原位置保持网格顺序
+    const previousCount = postImages.value.length;
+    await handlePostImageSelection({ files: [editedFile] });
+    if (postImages.value.length > previousCount) {
+      const newImages = postImages.value.slice(previousCount);
+      postImages.value = normalizePostImageSortState(
+        restoreImageAtPosition(postImages.value.slice(0, previousCount), newImages, index),
+      );
+    }
+  };
+
   // ===== 边选边传：选图后立刻后台预热「压缩(2 路) → 检测(3 路) → 上传(3 路)」 =====
   // 用户打字期间图片往往已传完，点发布时只需等待剩余部分 + 一次发帖 RPC，感知接近秒发。
   // 取消发帖/移除图片时中断对应预热；已传完但未发帖的图由 cloudinary_pending_uploads 兜底清理。
@@ -633,6 +650,7 @@ export function useForumDraftImagePipelines(deps) {
     handlePostImageSelection,
     retryPostImageUpload,
     removePostImage,
+    editPostImage,
     reorderPostImage,
     clearPostImages,
     discardDraftPostImages,
