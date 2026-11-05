@@ -127,3 +127,13 @@ repro-import-tmp.mjs
 # 截图、console 日志、trace：每次排查都会生成，属于本机临时取证，不是项目资产。
 # 需要长期留存的截图请走 scripts/probes/ 里的探针脚本重跑，不要把它们入库。
 .playwright-mcp/
+
+# ── 吉祥物产品页的原始取证件（2026-11-05） ───────────────────────────────
+# 判据：`mascot-refs/` 下除 `product/web/` 外全是**扒站截图 / 抠图中间产物 / 实拍原图**
+# （57MB，一次抓取即可重来），`shots/` 是整轮视觉走查的截图（26MB，随 UI 改动立刻失效）。
+# 两者都不是产品资产 ⇒ 与 debug-screenshots/ 同一口径，本机保留、不入库。
+# ⚠️ 例外：`product/web/` 是 demo 页面真正引用的成品图，已随页面迁到
+#    docs/demos/mascot-refs/product/web/（被跟踪，别在这里连带忽略）。
+#    `mascot-refs/` 这条只匹配根目录那一份，不会命中 docs/demos 下的同名目录。
+/mascot-refs/
+/shots/

@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>软软 — BOH 吉祥物</title>
+<style>
+  /* ==========================================================
+     规格来源：Apple 单品页实测 computed style
+     字号 96/64/56/28/21/17/12 · 按钮 980px 44h 17px
+     页边距 6.25vw（1440→90px，390→24px）· 卡片圆角 28px
+     ========================================================== */
+  :root{
+    --ink:#1d1d1f;
+    --muted:#6e6e73;
+    --tertiary:#86868b;
+    --grey:#f5f5f7;
+    --line:#d2d2d7;
+    --blue:#0071e3;
+    --blue-hover:#0077ed;
+    --link:#0066cc;
+    --orange:#b64400;
+    --pad:6.25vw;
+    --ease:cubic-bezier(.32,.72,0,1);
+    --radius:28px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:#fff;color:var(--ink);
+    font-family:"SF Pro SC","SF Pro Text","SF Pro Icons","PingFang SC","Helvetica Neue",Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    overflow-x:hidden;
+  }
+  img{display:block;max-width:100%}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:rgba(0,113,227,.18)}
+
+  /* ---------- 全局导航 44px ---------- */
+  .gnav{
+    position:fixed;top:0;left:0;right:0;height:44px;z-index:80;
+    background:rgba(255,255,255,.86);
+    backdrop-filter:saturate(180%) blur(20px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);
+    transition:transform .4s var(--ease);
+  }
+  .gnav.hide{transform:translateY(-100%)}
+  .gnav-in{
+    max-width:1024px;margin:0 auto;height:100%;padding:0 22px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .gnav-mark{font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1}
+  .gnav-links{display:flex;gap:clamp(14px,2.1vw,34px);font-size:12px;color:rgba(0,0,0,.8)}
+  .gnav-links a{transition:opacity .2s}
+  .gnav-links a:hover{opacity:.55}
+  .gnav-tools{display:flex;align-items:center;gap:22px;font-size:12px;color:rgba(0,0,0,.8)}
+
+  /* ---------- 本地导航 44px ---------- */
+  .lnav{
+    position:fixed;top:0;left:0;right:0;height:44px;z-index:75;
+    background:rgba(255,255,255,.86);
+    backdrop-filter:saturate(180%) blur(20px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);
+    border-bottom:1px solid rgba(0,0,0,.12);
+    transform:translateY(-100%);
+    transition:transform .4s var(--ease),background .3s,border-color .3s;
+  }
+  .lnav.show{transform:translateY(0)}
+  .lnav-in{
+    max-width:980px;margin:0 auto;height:100%;padding:0 22px;
+    display:flex;align-items:center;justify-content:space-between;gap:20px;
+  }
+  .lnav .pname{font-size:21px;font-weight:600;letter-spacing:-.01em}
+  .lnav-mid{display:flex;align-items:center;gap:28px;margin-left:auto;font-size:12px}
+  .lnav-mid a{color:rgba(0,0,0,.72);transition:color .2s}
+  .lnav-mid a:hover{color:#000}
+  .lnav-mid a.on{color:var(--ink);position:relative}
+  .lnav-mid a.on::after{
+    content:'';position:absolute;left:0;right:0;bottom:-13px;height:1px;background:var(--ink);
+  }
+  .btn-xs{
+    height:24px;padding:3px 10px;border-radius:980px;
+    background:var(--blue);color:#fff;font-size:12px;font-weight:400;
+    display:inline-flex;align-items:center;white-space:nowrap;
+    transition:background .2s;
+  }
+  .btn-xs:hover{background:var(--blue-hover)}
+  .lnav.dark{background:rgba(22,22,23,.82);border-bottom-color:rgba(255,255,255,.16)}
+  .lnav.dark .pname{color:#f5f5f7}
+  .lnav.dark .lnav-mid a{color:rgba(255,255,255,.7)}
+  .lnav.dark .lnav-mid a.on{color:#f5f5f7}
+  .lnav.dark .lnav-mid a.on::after{background:#f5f5f7}
+
+  /* ---------- 按钮 ---------- */
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    height:44px;padding:11px 21px;border-radius:980px;
+    background:var(--blue);color:#fff;font-size:17px;font-weight:400;
+    white-space:nowrap;transition:background .2s var(--ease);
+  }
+  .btn:hover{background:var(--blue-hover)}
+  .btn-ghost{
+    background:transparent;color:var(--link);
+    box-shadow:inset 0 0 0 1px var(--link);
+    transition:background .2s var(--ease),color .2s;
+  }
+  .btn-ghost:hover{background:rgba(0,113,227,.06);color:var(--link)}
+
+  /* ---------- 首屏 ---------- */
+  .hero{
+    position:relative;height:100vh;min-height:600px;
+    background:var(--grey);overflow:hidden;
+    display:grid;
+  }
+  .hero-visual{
+    position:absolute;right:3.5%;bottom:0;
+    height:92%;display:flex;align-items:flex-end;justify-content:flex-end;
+    pointer-events:none;
+  }
+  .hero-visual img{
+    height:100%;width:auto;max-width:none;
+    filter:drop-shadow(0 30px 60px rgba(0,0,0,.07));
+    animation:heroIn 1.6s var(--ease) both;
+  }
+  @keyframes heroIn{
+    from{opacity:0;transform:translateY(28px) scale(.985)}
+    to{opacity:1;transform:none}
+  }
+  .hero-copy{
+    position:relative;z-index:2;
+    align-self:end;
+    padding:0 var(--pad) clamp(96px,10vh,132px);
+    max-width:760px;
+  }
+  .hero-copy .pname{
+    font-size:21px;font-weight:600;color:var(--muted);
+    margin-bottom:10px;letter-spacing:-.01em;
+  }
+  .hero-copy h1{
+    font-size:clamp(40px,4.45vw,64px);font-weight:600;
+    line-height:1.09;letter-spacing:-.015em;
+    margin-bottom:14px;
+  }
+  .hero-copy .note{
+    font-size:12px;line-height:16px;color:var(--muted);
+  }
+  .price-pill{
+    position:absolute;right:var(--pad);bottom:clamp(96px,10vh,132px);z-index:3;
+    display:flex;align-items:center;gap:12px;
+    height:44px;padding:0 5px 0 20px;border-radius:980px;
+    background:rgba(255,255,255,.76);
+    backdrop-filter:saturate(180%) blur(20px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);
+    box-shadow:0 1px 3px rgba(0,0,0,.04);
+    animation:heroIn 1.6s var(--ease) .15s both;
+  }
+  .price-pill .amount{font-size:17px;font-weight:400;white-space:nowrap}
+  .price-pill .amount em{font-style:normal;color:var(--muted);font-size:12px}
+  .price-pill .btn-mini{
+    height:34px;padding:6px 16px;border-radius:980px;
+    background:var(--blue);color:#fff;font-size:12px;
+    display:inline-flex;align-items:center;transition:background .2s;
+  }
+  .price-pill .btn-mini:hover{background:var(--blue-hover)}
+
+  /* ---------- 通用区块 ---------- */
+  .sec{padding:clamp(72px,11.2vw,160px) 0}
+  .sec.grey{background:var(--grey)}
+  .pad{padding-left:var(--pad);padding-right:var(--pad)}
+  .eyebrow{
+    font-size:12px;line-height:16px;font-weight:600;
+    color:var(--orange);margin-bottom:10px;
+  }
+  .h-sec{
+    font-size:clamp(32px,3.9vw,56px);font-weight:600;
+    line-height:1.07;letter-spacing:-.012em;
+  }
+  .h-head{
+    font-size:clamp(38px,6.6vw,96px);font-weight:600;
+    line-height:1.04;letter-spacing:-.018em;
+  }
+  .lede{
+    font-size:clamp(19px,1.46vw,21px);line-height:1.4;font-weight:600;
+    color:var(--muted);
+  }
+  .body-copy{
+    font-size:17px;line-height:25px;font-weight:400;
+  }
+  .body-copy strong{font-weight:600}
+  .body-copy + .body-copy{margin-top:18px}
+
+  /* ---------- 先刷重点 ---------- */
+  .hl-head{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    gap:24px;margin-bottom:32px;
+  }
+  .hl-link{
+    font-size:17px;color:var(--link);white-space:nowrap;
+    display:inline-flex;align-items:center;gap:6px;padding-bottom:6px;
+  }
+  .hl-link:hover{text-decoration:underline}
+  .hl-link svg{width:17px;height:17px}
+
+  .rail{
+    display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;
+    padding:0 var(--pad) 4px;
+    scrollbar-width:none;-ms-overflow-style:none;
+  }
+  .rail::-webkit-scrollbar{display:none}
+  .hl-card{
+    position:relative;flex:0 0 min(1260px,calc(100vw - 12.5vw));
+    aspect-ratio:1260/612;
+    border-radius:var(--radius);
+    background:var(--grey);
+    overflow:hidden;scroll-snap-align:start;
+    display:flex;flex-direction:column;
+  }
+  .hl-card .cap{
+    position:relative;z-index:2;
+    padding:clamp(28px,3.4vw,48px) clamp(24px,4vw,56px) 0;
+    text-align:center;font-size:clamp(17px,1.46vw,21px);
+    line-height:1.4;font-weight:600;
+  }
+  .hl-card .cap span{display:block;color:var(--muted);font-weight:400;font-size:17px;line-height:25px;margin-top:6px}
+  .hl-card .art{
+    position:absolute;left:0;right:0;top:25%;bottom:0;
+    display:flex;align-items:flex-end;justify-content:center;
+    pointer-events:none;
+  }
+  .hl-card .art img{
+    height:100%;width:auto;max-width:none;
+    object-fit:contain;
+    transform:translateY(9%);
+    transition:transform .8s var(--ease);
+  }
+  .hl-card:hover .art img{transform:translateY(6%) scale(1.015)}
+
+  .rail-dots{display:flex;gap:9px;justify-content:center;margin-top:26px}
+  .rail-dots i{
+    width:7px;height:7px;border-radius:50%;background:#d2d2d7;
+    transition:background .25s,width .25s;
+  }
+  .rail-dots i.on{background:#86868b;width:20px;border-radius:4px}
+
+  /* ---------- 章节标语页 ---------- */
+  .chapter{
+    position:relative;
+    padding-top:clamp(72px,11.2vw,160px);
+    overflow:hidden;
+  }
+  .chapter .headline{
+    position:relative;z-index:2;
+    text-align:center;padding:0 var(--pad);
+    margin-bottom:clamp(32px,4.2vw,56px);
+  }
+  .chapter .headline .kicker{
+    font-size:12px;font-weight:600;color:var(--orange);
+    margin-bottom:12px;letter-spacing:.01em;
+  }
+  .chapter .stage{
+    position:relative;
+    padding:0 var(--pad);
+    display:flex;justify-content:center;
+  }
+  .chapter .stage img{
+    width:min(70%,620px);height:auto;
+    filter:drop-shadow(0 30px 60px rgba(0,0,0,.06));
+  }
+  .chapter.grey{background:var(--grey)}
+  .chapter.grey .stage img{filter:drop-shadow(0 24px 48px rgba(0,0,0,.05))}
+
+  /* ---------- 正文三栏 ---------- */
+  .cols{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,367px));
+    gap:clamp(24px,3.4vw,40px);
+    justify-content:space-between;
+    margin-top:clamp(40px,5vw,64px);
+  }
+  .cols .col h3{
+    font-size:17px;line-height:25px;font-weight:600;margin-bottom:8px;
+  }
+  .cols .col p{font-size:17px;line-height:25px;color:var(--muted)}
+
+  /* ---------- 数据块 ---------- */
+  .stats{
+    display:grid;grid-template-columns:repeat(3,1fr);
+    gap:clamp(20px,3vw,40px);
+    margin-top:clamp(48px,6vw,80px);
+  }
+  .stat{border-top:1px solid var(--line);padding-top:20px}
+  .stat .label{font-size:12px;line-height:16px;color:var(--muted);margin-bottom:6px}
+  .stat .value{
+    font-size:clamp(44px,4.6vw,64px);line-height:1.02;font-weight:600;
+    letter-spacing:-.02em;
+  }
+  .stat .value small{font-size:.34em;font-weight:400;color:var(--muted);margin-left:2px;letter-spacing:0}
+  .stat .desc{font-size:14px;line-height:19px;color:var(--muted);margin-top:10px}
+
+  /* ---------- 配色 ---------- */
+  .colors{background:#000;color:#f5f5f7;padding:clamp(72px,11.2vw,160px) 0}
+  .colors .headline{text-align:center;padding:0 var(--pad)}
+  .colors .headline .kicker{
+    font-size:12px;font-weight:600;color:#f56300;margin-bottom:12px;
+  }
+  .colors .sub{
+    font-size:clamp(17px,1.46vw,21px);line-height:1.4;color:#86868b;
+    margin-top:18px;font-weight:400;
+  }
+  .sw-grid{
+    display:grid;grid-template-columns:repeat(4,1fr);
+    gap:clamp(20px,3.4vw,44px);
+    margin:clamp(48px,6vw,84px) auto 0;
+    max-width:1180px;padding:0 var(--pad);
+  }
+  .sw{text-align:center;min-width:0}
+  .sw .chip{
+    width:100%;aspect-ratio:1/1;border-radius:24px;
+    background:var(--grey);overflow:hidden;position:relative;
+    display:flex;align-items:flex-end;justify-content:center;
+    margin-bottom:16px;
+  }
+  .sw .chip img{width:100%;height:100%;object-fit:contain}
+  .sw .chip .fill{
+    position:absolute;inset:0;display:grid;place-items:center;
+    font-size:11px;color:rgba(255,255,255,.5);letter-spacing:.04em;
+  }
+  .sw b{display:block;font-size:14px;font-weight:600;line-height:20px}
+  .sw em{display:block;font-style:normal;font-size:12px;color:#86868b;margin-top:3px;letter-spacing:.02em}
+
+  /* ---------- 参数表 ---------- */
+  .spec-wrap{margin-top:clamp(32px,4vw,48px);overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:17px;line-height:25px}
+  thead th{
+    font-size:12px;line-height:16px;font-weight:600;color:var(--muted);
+    text-align:left;padding:0 16px 14px;border-bottom:1px solid var(--line);
+  }
+  thead th:first-child{padding-left:0}
+  thead th strong{display:block;font-size:17px;color:var(--ink);font-weight:600;margin-bottom:2px}
+  tbody th{
+    font-size:14px;font-weight:400;color:var(--muted);
+    text-align:left;padding:17px 16px;border-bottom:1px solid #e8e8ed;
+    white-space:nowrap;width:22%;
+  }
+  tbody th:first-child{padding-left:0}
+  tbody td{
+    padding:17px 16px;border-bottom:1px solid #e8e8ed;vertical-align:top;
+  }
+  tbody td strong{font-weight:600}
+  tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+  .table-note{font-size:12px;line-height:16px;color:var(--tertiary);margin-top:18px}
+
+  /* ---------- 购买 ---------- */
+  .buy{text-align:center;background:var(--grey);padding:clamp(72px,11.2vw,160px) 0}
+  .buy h2{margin-bottom:14px}
+  .buy-visual{display:flex;justify-content:center;margin-bottom:clamp(20px,2.6vw,32px)}
+  .buy-visual img{height:clamp(160px,17vw,240px);width:auto;filter:drop-shadow(0 24px 48px rgba(0,0,0,.06))}
+  .buy .price-big{
+    font-size:clamp(21px,1.46vw,28px);font-weight:600;margin:26px 0 6px;
+  }
+  .buy .price-big small{font-size:17px;font-weight:400;color:var(--muted);display:block;margin-top:6px}
+  .buy .actions{display:flex;gap:17px;justify-content:center;margin-top:28px;flex-wrap:wrap}
+  .buy .ship{font-size:12px;line-height:16px;color:var(--muted);margin-top:22px}
+
+  /* ---------- 页脚 ---------- */
+  footer{
+    background:var(--grey);border-top:1px solid var(--line);
+    padding:26px 0 40px;font-size:12px;line-height:16px;color:var(--muted);
+  }
+  .foot-in{max-width:980px;margin:0 auto;padding:0 22px}
+  .foot-links{display:flex;flex-wrap:wrap;gap:8px 22px;padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:18px}
+  .foot-links a:hover{color:var(--ink);text-decoration:underline}
+  .foot-row{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+  /* ---------- 渐显 ---------- */
+  .rev{opacity:0;transform:translateY(20px);transition:opacity .7s var(--ease),transform .7s var(--ease)}
+  .rev.in{opacity:1;transform:none}
+
+  /* ---------- 桌面卡片：文字左、图右 ---------- */
+  @media (min-width:735px){
+    .hl-card .cap{
+      position:absolute;left:0;top:0;right:auto;
+      max-width:46%;text-align:left;
+      padding:52px 0 0 56px;
+      font-size:28px;line-height:1.28;
+    }
+    .hl-card .cap span{
+      font-size:17px;line-height:25px;margin-top:10px;max-width:330px;
+    }
+    .hl-card .art{
+      left:40%;right:0;top:0;bottom:0;
+      justify-content:center;
+    }
+    .hl-card .art img{
+      height:106%;transform:translateY(6%);
+    }
+    .hl-card:hover .art img{transform:translateY(4%) scale(1.012)}
+  }
+
+  /* ==========================================================
+     移动端 390
+     ========================================================== */
+  @media (max-width:734px){
+    :root{--pad:24px;--radius:28px}
+    .gnav-links{display:none}
+    .gnav-tools{gap:18px}
+    .lnav-mid{display:none}
+    .lnav .pname{font-size:17px}
+
+    .hero{height:auto;min-height:0;padding:96px 0 0;display:block}
+    .hero-visual{
+      position:relative;right:auto;bottom:auto;
+      height:auto;padding:8px 0 0;justify-content:center;
+    }
+    .hero-visual img{
+      height:min(46vh,380px);width:auto;
+      animation:none;opacity:1;transform:none;
+    }
+    .hero-copy{
+      padding:24px var(--pad) 0;max-width:none;text-align:center;
+    }
+    .hero-copy .pname{font-size:17px;margin-bottom:8px}
+    .hero-copy h1{font-size:40px;line-height:1.1;margin-bottom:12px}
+    .hero-copy .note{font-size:12px}
+    .price-pill{
+      position:relative;right:auto;bottom:auto;
+      margin:26px auto 0;width:max-content;
+      height:44px;padding:0 5px 0 18px;
+      animation:none;opacity:1;transform:none;
+    }
+
+    .sec{padding:72px 0}
+    .h-sec{font-size:32px;line-height:1.14}
+    .h-head{font-size:40px;line-height:1.12}
+    .lede{font-size:19px}
+
+    .hl-head{margin-bottom:24px;align-items:baseline}
+    .hl-link{font-size:14px}
+    .hl-card{
+      flex:0 0 calc(100vw - 69px);
+      aspect-ratio:321/480;
+      border-radius:28px;
+    }
+    .hl-card .cap{padding:32px 32px 0;font-size:19px;line-height:26px}
+    .hl-card .cap span{font-size:14px;line-height:19px;margin-top:5px}
+    .hl-card .art{top:28%}
+    .hl-card .art img{height:100%;transform:translateY(7%)}
+    .rail{gap:14px}
+    .rail-dots{margin-top:20px}
+
+    .chapter{padding-top:72px}
+    .chapter .headline{margin-bottom:28px}
+    .chapter .stage{padding:0}
+    .chapter .stage img{width:100%;filter:none}
+
+    .cols{grid-template-columns:1fr;gap:26px;margin-top:36px}
+    .cols .col p{color:var(--ink)}
+    .stats{grid-template-columns:1fr;gap:0;margin-top:44px}
+    .stat{
+      border-top:0;border-bottom:1px solid var(--line);
+      padding:16px 0;display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+    }
+    .stat:first-child{border-top:1px solid var(--line)}
+    .stat .label{margin-bottom:0;flex:0 0 auto}
+    .stat .value{font-size:34px;order:2;text-align:right}
+    .stat .desc{display:none}
+
+    .colors{padding:72px 0}
+    .sw-grid{grid-template-columns:repeat(2,1fr);gap:26px 18px;max-width:340px;padding:0 24px}
+    .sw .chip{border-radius:18px;margin-bottom:12px}
+    .sw b{font-size:14px}
+
+    .spec-wrap{margin:28px 0 0}
+    table{font-size:12.5px;line-height:18px;table-layout:fixed;min-width:0}
+    thead th{font-size:11px;padding:0 8px 12px}
+    thead th strong{font-size:14px}
+    tbody th{font-size:11.5px;padding:12px 6px;white-space:normal;width:21%}
+    tbody td{padding:12px 6px;word-break:break-word}
+
+    .buy{padding:72px 0}
+    .buy .actions{gap:12px}
+    .btn{height:44px;padding:11px 21px;font-size:17px}
+    .buy .actions .btn{flex:1 1 100%}
+
+    footer{padding:22px 0 34px}
+    .foot-links{gap:6px 18px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    .rev{opacity:1!important;transform:none!important;transition:none}
+    *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  }
+</style>
+</head>
+<body>
+
+<!-- 全局导航 -->
+<nav class="gnav" id="gnav">
+  <div class="gnav-in">
+    <span class="gnav-mark">BOH</span>
+    <div class="gnav-links">
+      <a href="#">商店</a><a href="#">积分</a><a href="#">论坛</a>
+      <a href="#">周边</a><a href="#">新品</a><a href="#">支持</a>
+    </div>
+    <div class="gnav-tools"><span>搜索</span><span>袋</span></div>
+  </div>
+</nav>
+
+<!-- 本地导航 -->
+<nav class="lnav" id="lnav">
+  <div class="lnav-in">
+    <span class="pname">软软</span>
+    <div class="lnav-mid">
+      <a href="#overview" class="on">概览</a>
+      <a href="#specs">技术规格</a>
+      <a href="#colors">配色</a>
+      <a href="#buy" class="btn-xs">购买</a>
+    </div>
+  </div>
+</nav>
+
+<!-- 首屏 -->
+<header class="hero" id="overview">
+  <div class="hero-visual">
+    <img src="mascot-refs/product/web/orange-front-1800.webp" alt="BOH 吉祥物软软，橘白配色">
+  </div>
+  <div class="hero-copy">
+    <div class="pname">BOH 吉祥物</div>
+    <h1>软软。<br>一坐下就不走了。</h1>
+    <div class="note">双层羊羔绒 · 四种配色 · 20cm 与 30cm</div>
+  </div>
+  <div class="price-pill">
+    <span class="amount">¥29 <em>或 45 积分</em></span>
+    <a class="btn-mini" href="#buy">购买</a>
+  </div>
+</header>
+
+<!-- 先刷重点 -->
+<section class="sec" id="highlights">
+  <div class="pad">
+    <div class="hl-head rev">
+      <h2 class="h-sec">先刷重点。</h2>
+      <a class="hl-link" href="#f1">
+        细看绒毛
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="12" cy="12" r="9"/><path d="M11 8.5 14.5 12 11 15.5"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+  <div class="rail" id="rail">
+    <article class="hl-card">
+      <div class="cap">每一根毛，都朝同一个方向。<span>外层短密卷绒，内层长软底绒</span></div>
+      <div class="art"><img src="mascot-refs/product/web/gray-front-1800.webp" alt="灰白配色的毛绒质感"></div>
+    </article>
+    <article class="hl-card">
+      <div class="cap">一条围巾，两种冬天。<span>可可棕平绒布，左肩垂一条米杏色尾巴</span></div>
+      <div class="art"><img src="mascot-refs/product/web/orange-front-1800.webp" alt="围巾细节"></div>
+    </article>
+    <article class="hl-card">
+      <div class="cap">翻过来，有一颗心。<span>同一种奶白绒，和身体长在一起</span></div>
+      <div class="art"><img src="mascot-refs/product/web/gray-back-1800.webp" alt="背面心形斑块"></div>
+    </article>
+  </div>
+  <div class="rail-dots" id="dots"><i class="on"></i><i></i><i></i></div>
+</section>
+
+<!-- 章节：绒毛 -->
+<section class="chapter" id="f1">
+  <div class="headline rev">
+    <div class="kicker">绒毛</div>
+    <h2 class="h-head">每一根，<br>都朝同一个方向。</h2>
+  </div>
+  <div class="stage rev">
+    <img src="mascot-refs/product/web/gray-front-1800.webp" alt="羊羔绒绒毛细节">
+  </div>
+  <div class="pad" style="max-width:1100px;margin:0 auto">
+    <div class="cols">
+      <div class="col rev">
+        <h3>双层结构</h3>
+        <p>外层是短而密的卷毛，内层是长一点的软绒。手放上去不会滑走，会陷进去半指。</p>
+      </div>
+      <div class="col rev">
+        <h3>看不见线</h3>
+        <p>缝线全部走内测，外面看不到一根线头。洗完毛圈会重新立起来，不会打结。</p>
+      </div>
+      <div class="col rev">
+        <h3>不塌</h3>
+        <p>填充用的是回弹棉，坐久了按一下就能起来。抱着睡一晚，第二天形状还在。</p>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat rev">
+        <div class="label">绒毛</div>
+        <div class="value" data-count="2">2<small>层</small></div>
+        <div class="desc">外层卷绒 + 内层底绒</div>
+      </div>
+      <div class="stat rev">
+        <div class="label">坐高</div>
+        <div class="value" data-count="20">20<small>cm</small></div>
+        <div class="desc">另有 30cm 大号</div>
+      </div>
+      <div class="stat rev">
+        <div class="label">手缝工时</div>
+        <div class="value" data-count="4">4<small>小时</small></div>
+        <div class="desc">单只，含围巾缝制</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 章节：围巾 -->
+<section class="chapter grey" id="f2">
+  <div class="headline rev">
+    <div class="kicker">围巾</div>
+    <h2 class="h-head">一条围巾，<br>两种冬天。</h2>
+  </div>
+  <div class="stage rev">
+    <img src="mascot-refs/product/web/orange-front-1800.webp" alt="围巾细节">
+  </div>
+  <div class="pad" style="max-width:1100px;margin:0 auto">
+    <div class="cols">
+      <div class="col rev">
+        <h3>不是针织</h3>
+        <p>可可棕的平绒布绕脖子一圈，没有毛球，也没有织纹。摸起来是布的手感。</p>
+      </div>
+      <div class="col rev">
+        <h3>米杏色的尾巴</h3>
+        <p>左肩垂下一条，和身体形成两种颜色。这个比例调了三版才定下来。</p>
+      </div>
+      <div class="col rev">
+        <h3>缝死的</h3>
+        <p>围巾和身体缝在一起，不会掉，也不会被小朋友一把拽下来。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 章节：背面 -->
+<section class="chapter" id="f3">
+  <div class="headline rev">
+    <div class="kicker">背面</div>
+    <h2 class="h-head">翻过来，<br>有一颗心。</h2>
+  </div>
+  <div class="stage rev">
+    <img src="mascot-refs/product/web/gray-back-1800.webp" alt="背面心形斑块">
+  </div>
+  <div class="pad" style="max-width:980px;margin:0 auto">
+    <p class="body-copy rev" style="text-align:center">
+      尾巴上方有一块白色的心形斑，用的还是同一种奶白绒，<strong>和身体长在一起</strong>，不是贴布，也不是绣上去的。
+    </p>
+    <p class="body-copy rev" style="text-align:center;color:var(--muted)">
+      它不太会说话。但你知道它在那儿。
+    </p>
+  </div>
+</section>
+
+<!-- 配色 -->
+<section class="colors" id="colors">
+  <div class="headline rev">
+    <div class="kicker">配色</div>
+    <h2 class="h-head">四种性格。</h2>
+    <p class="sub">围巾的颜色跟着身体走，每一只都不太一样。</p>
+  </div>
+  <div class="sw-grid">
+    <div class="sw rev"><div class="chip"><img src="mascot-refs/product/web/gray-front-1800.webp" alt="灰白"></div><b>灰白</b><em>GREY</em></div>
+    <div class="sw rev"><div class="chip"><img src="mascot-refs/product/web/orange-front-1800.webp" alt="橘白"></div><b>橘白</b><em>ORANGE</em></div>
+    <div class="sw rev"><div class="chip"><img src="mascot-refs/product/web/camel-front-1800.webp" alt="驼白"></div><b>驼白</b><em>CAMEL</em></div>
+    <div class="sw rev"><div class="chip"><img src="mascot-refs/product/web/black-front-1800.webp" alt="黑白"></div><b>黑白</b><em>BLACK</em></div>
+  </div>
+</section>
+
+<!-- 参数 -->
+<section class="sec" id="specs">
+  <div class="pad" style="max-width:980px;margin:0 auto">
+    <div class="eyebrow rev">技术规格</div>
+    <h2 class="h-sec rev">看看哪一只适合你。</h2>
+    <div class="spec-wrap rev">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th><strong>软软</strong>标准版</th>
+            <th><strong>软软</strong>大号</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><th>坐高</th><td><strong>20 cm</strong></td><td><strong>30 cm</strong></td></tr>
+          <tr><th>重量</th><td>约 180 g</td><td>约 320 g</td></tr>
+          <tr><th>材质</th><td>双层羊羔绒</td><td>双层羊羔绒</td></tr>
+          <tr><th>填充</th><td>回弹棉</td><td>回弹棉</td></tr>
+          <tr><th>围巾</th><td>平绒布，缝制固定</td><td>平绒布，缝制固定</td></tr>
+          <tr><th>配色</th><td>驼白 / 橘白 / 灰白 / 黑白</td><td>驼白 / 橘白 / 灰白 / 黑白</td></tr>
+          <tr><th>适合</th><td>放在桌上、抱着睡</td><td>沙发靠垫、送人</td></tr>
+          <tr><th>价格</th><td><strong>¥29</strong> / 45 积分</td><td><strong>¥39</strong> / 60 积分</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="table-note rev">重量与工时数据为示例，上线前以实际生产参数为准。</p>
+  </div>
+</section>
+
+<!-- 购买 -->
+<section class="buy" id="buy">
+  <div class="pad">
+    <div class="buy-visual rev"><img src="mascot-refs/product/web/gray-front-900.webp" alt="软软"></div>
+    <h2 class="h-sec rev">把它带回家。</h2>
+    <p class="lede rev" style="margin-top:12px">积分兑换或直接购买，全国包邮。</p>
+    <div class="price-big rev">¥29<small>或 45 积分 + ¥29</small></div>
+    <div class="actions rev">
+      <a class="btn" href="#">立即购买</a>
+      <a class="btn btn-ghost" href="#colors">看看四种配色</a>
+    </div>
+    <p class="ship rev">今日下单，48 小时内发出 · 七天无理由</p>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-in">
+    <div class="foot-links">
+      <a href="#">关于 BOH</a><a href="#">积分规则</a><a href="#">配送与退换</a>
+      <a href="#">联系客服</a><a href="#">隐私政策</a>
+    </div>
+    <div class="foot-row">
+      <span>BOH 方块之家 · 吉祥物软软 · 页面原型</span>
+      <span>图片为实物拍摄</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  const gnav = document.getElementById('gnav');
+  const lnav = document.getElementById('lnav');
+  const hero = document.getElementById('overview');
+  const rail = document.getElementById('rail');
+  const dots = [...document.getElementById('dots').children];
+
+  /* 滚过首屏：全局导航收起，本地导航落下 */
+  const heroObs = new IntersectionObserver(([e])=>{
+    const away = !e.isIntersecting;
+    lnav.classList.toggle('show', away);
+    gnav.classList.toggle('hide', away);
+  }, {rootMargin:'-60px 0px 0px 0px', threshold:0});
+  heroObs.observe(hero);
+
+  /* 渐显 */
+  const revObs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){ e.target.classList.add('in'); revObs.unobserve(e.target); }
+    });
+  }, {threshold:.12, rootMargin:'0px 0px -40px 0px'});
+  document.querySelectorAll('.rev').forEach((el,i)=>{
+    el.style.transitionDelay = (Math.min(i%3,2)*70)+'ms';
+    revObs.observe(el);
+  });
+
+  /* 深色节：本地导航跟着变深 */
+  const darkSec = document.getElementById('colors');
+  window.addEventListener('scroll', ()=>{
+    const r = darkSec.getBoundingClientRect();
+    lnav.classList.toggle('dark', r.top <= 44 && r.bottom >= 44);
+  }, {passive:true});
+
+  /* 卡片横滑指示 */
+  if(rail && dots.length){
+    rail.addEventListener('scroll', ()=>{
+      const max = rail.scrollWidth - rail.clientWidth;
+      const i = max > 0 ? Math.round(rail.scrollLeft / (max / Math.max(1, dots.length-1))) : 0;
+      dots.forEach((d,j)=>d.classList.toggle('on', j === Math.min(i, dots.length-1)));
+    }, {passive:true});
+  }
+
+  /* 数字计数 */
+  const numObs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(!e.isIntersecting) return;
+      const el = e.target;
+      const target = parseInt(el.dataset.count, 10);
+      const suffix = el.querySelector('small');
+      if(!target || !suffix || isNaN(target)) return;
+      const dur = 900;
+      let t0 = null;
+      function step(ts){
+        if(!t0) t0 = ts;
+        const k = Math.min(1, (ts - t0) / dur);
+        const eased = 1 - Math.pow(1 - k, 3);
+        el.childNodes[0].nodeValue = Math.round(target * eased);
+        if(k < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+      numObs.unobserve(el);
+    });
+  }, {threshold:.6});
+  document.querySelectorAll('[data-count]').forEach(el=>numObs.observe(el));
+
+  /* 本地导航当前项 */
+  const secs = ['overview','specs','colors'].map(id=>document.getElementById(id)).filter(Boolean);
+  const links = [...document.querySelectorAll('.lnav-mid a[href^="#"]')];
+  window.addEventListener('scroll', ()=>{
+    let cur = secs[0];
+    for(const s of secs){
+      if(s.getBoundingClientRect().top <= 120) cur = s;
+    }
+    links.forEach(a=>a.classList.toggle('on', a.getAttribute('href') === '#'+cur.id));
+  }, {passive:true});
+})();
+</script>
+</body>
+</html>
