@@ -161,7 +161,6 @@
   body.page-userspace .mobile-composer-overlay .mobile-composer-bar {
     box-sizing: border-box;
   }
-
 }
 
 @keyframes userspace-tab-enter {
@@ -229,7 +228,7 @@
     position: fixed;
   }
 
-  .profile-page[data-theme="dark"] {
+  .profile-page[data-theme='dark'] {
     --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
     --rail-item-bg-active: rgba(255, 255, 255, 0.12);
     --rail-pill-bg: rgba(255, 255, 255, 0.12);
@@ -317,9 +316,9 @@
      2026-10-03：body.page-aichat 复用同一条规则（AI 整页同样没有 .user-space-page 祖先）。
      2026-11-01：body.page-shop 一并挂进来（顺序必须是 shop 在前 —— 现有单测
      aichat-landscape-rail 用「home,\n aichat {」这两行相邻来认这条规则）。 */
-  html[data-theme="dark"] body.page-shop,
-  html[data-theme="dark"] body.page-home,
-  html[data-theme="dark"] body.page-aichat {
+  html[data-theme='dark'] body.page-shop,
+  html[data-theme='dark'] body.page-home,
+  html[data-theme='dark'] body.page-aichat {
     --rail-item-bg-hover: rgba(255, 255, 255, 0.08);
     --rail-item-bg-active: rgba(255, 255, 255, 0.12);
     --rail-pill-bg: rgba(255, 255, 255, 0.12);
@@ -369,6 +368,17 @@
     left: calc(var(--userspace-rail-w, 88px) / 2);
   }
 
+  /* 底部固定胶囊隐藏（2026-11-04 用户报障「横屏又出现不该出现的底部导航栏」）：
+     这一档左栏已经接管导航，底栏再出现就是**两套同样的五席**。
+     UserSpace（本文件 :94 `.user-space-page .bottom-nav-glass`）与周边
+     （:487 `body.page-shop .bottom-nav-glass`）都有这条，图库当年只补了左栏、
+     漏了这条 —— 于是 ≥1024 横屏下图库是「左栏 + 底部胶囊」并存。
+     ⚠️ 不能写成 `.cloud-page .bottom-nav-glass`：底栏是 .cloud-page 的**兄弟**节点
+     （挂在 CloudPlusMain 根层、与 .cloud-page 平级），后代选择器匹配不到。 */
+  body.page-bohcloudplus .bottom-nav-glass {
+    display: none;
+  }
+
   /* 详情浮层是 inset:0 的满屏层，同样要避开左栏，否则左栏压在它上面且遮住返回区 */
   body.page-bohcloudplus .detail-overlay {
     left: var(--userspace-rail-w);
@@ -386,7 +396,6 @@ html[data-theme='dark'] body.page-bohcloudplus {
   --rail-item-bg-active: rgba(255, 255, 255, 0.12);
   --rail-pill-bg: rgba(255, 255, 255, 0.12);
 }
-
 
 /* ================================================================
    BOH AI 整页（/ai-chat → body.page-aichat）横屏同体系左栏
