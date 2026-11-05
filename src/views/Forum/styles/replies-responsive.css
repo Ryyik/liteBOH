@@ -838,6 +838,10 @@
     line-height: 1.65;
     padding: 6px 0 28px;
     color: var(--liquid-text-primary, #0f1419);
+    /* textarea 默认是 inline-block，行盒会多留一段基线空隙（实测 9.4px）。
+       它算在外壳高度里、却又不是可写区域 —— 键盘态下这 9px 是图片条能否
+       留在首屏的余量，直接改成块级。 */
+    display: block;
     /* 只清底色，保留 `.is-polishing` 的文字渐变。 */
     background-color: transparent;
     border: none;
@@ -870,6 +874,14 @@
     border-radius: 0;
     background: transparent;
     border: 0;
+  }
+
+  /* 内容区（`.composer-content-scroll`）已经用 gap:12px 隔开子项，面板自带的
+     margin-top 会叠成 24px 的空隙。键盘态只有 345px 可视高度，这 12px 直接
+     决定图片条底部落在可视区内还是外（实测 451.6 vs 431）。只在「直接子项」
+     这一层清零，桌面编辑器不经过 gap 布局，保持原样。 */
+  .mobile-composer-overlay .composer-content-scroll > .post-image-panel {
+    margin-top: 0;
   }
 
   .mobile-composer-section .post-btn {
