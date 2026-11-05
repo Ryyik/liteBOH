@@ -24,6 +24,8 @@ const CLOUDINARY_API_SECRET = String(Deno.env.get('CLOUDINARY_API_SECRET') || ''
 
 const BATCH_LIMIT = 200;
 const MAX_ATTEMPTS = 5;
+/** ids 列表的体积上限：正常一屏最多几十个 id，64KB 已足够宽松（见下方鉴权前的体积闸门）。 */
+const MAX_BODY_BYTES = 64 * 1024;
 
 const sha1Hex = async (input: string) => {
   const data = new TextEncoder().encode(input);
@@ -87,8 +89,34 @@ const destroyAsset = async (publicId: string) => {
 
 type TrashRow = {
   id: string;
+  user_id: string | null;
   public_id: string | null;
   purge_attempts: number | null;
+};
+
+/**
+ * 归属登记表：cloudinary_pending_uploads 在上传成功时按 (user_id, public_id) 落一行
+ * （见 src/utils/cloudinary-client.js 的 upsert），是「这张图是谁传的」在服务端的
+ * 唯一证据。批量查一次，避免每行一次往返。
+ */
+const loadUploadOwners = async (
+  serviceClient: ReturnType<typeof createServiceClient>,
+  publicIds: string[],
+) => {
+  const owners = new Map<string, string>();
+  const unique = Array.from(new Set(publicIds.filter(Boolean)));
+  if (unique.length === 0) return owners;
+
+  const { data, error } = await serviceClient
+    .from('cloudinary_pending_uploads')
+    .select('public_id, user_id')
+    .in('public_id', unique);
+
+  if (error) throw error;
+  for (const row of data || []) {
+    owners.set(String(row.public_id || ''), String(row.user_id || ''));
+  }
+  return owners;
 };
 
 Deno.serve(async (request) => {
@@ -99,11 +127,33 @@ Deno.serve(async (request) => {
     return jsonResponse({ ok: false, code: 'CLOUDINARY_ENV_MISSING' }, 500);
   }
 
-  const payload = await request.json().catch(() => ({}));
+  /* 鉴权之前先卡体积（2026-11-05 审查补）：原来是直接 `await request.json()`，
+     任何能发 POST 的人（不必有 key）都能用一个超大 body 打内存。
+     ids 也先按 BATCH_LIMIT 裁剪再去重 —— 反过来写，Set 会先把整份数组展开。 */
+  const declaredLength = Number(request.headers.get('content-length') || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+    return jsonResponse({ ok: false, code: 'PAYLOAD_TOO_LARGE' }, 413);
+  }
+  const rawBody = await request.text();
+  if (rawBody.length > MAX_BODY_BYTES) {
+    return jsonResponse({ ok: false, code: 'PAYLOAD_TOO_LARGE' }, 413);
+  }
+  let payload: { ids?: unknown[] } = {};
+  try {
+    payload = JSON.parse(rawBody || '{}');
+  } catch {
+    payload = {};
+  }
+
   const requestedIds = Array.isArray(payload?.ids)
     ? Array.from(
-        new Set(payload.ids.map((value: unknown) => String(value || '').trim()).filter(Boolean)),
-      ).slice(0, BATCH_LIMIT)
+        new Set(
+          payload.ids
+            .slice(0, BATCH_LIMIT)
+            .map((value: unknown) => String(value || '').trim())
+            .filter(Boolean),
+        ),
+      )
     : [];
 
   const trusted = hasTrustedAuthorization(request);
@@ -122,7 +172,7 @@ Deno.serve(async (request) => {
   const serviceClient = createServiceClient();
   let query = serviceClient
     .from('boh_cloud_image_trash')
-    .select('id, public_id, purge_attempts')
+    .select('id, user_id, public_id, purge_attempts')
     .eq('state', 'pending');
 
   if (requestedIds.length > 0) {
@@ -144,11 +194,47 @@ Deno.serve(async (request) => {
 
   let purged = 0;
   let retried = 0;
+  let skipped = 0;
   const failed: Array<{ id: string; message: string }> = [];
+
+  /* 归属闸门（2026-11-05 审查补，本次改动的核心）：
+     public_id 来自用户可写的 content_blocks（上传守卫只校验格式，不校验归属），
+     所以「行是我的」不等于「图是我的」。销毁前必须证明这张图是我传的 ——
+     证据只有 cloudinary_pending_uploads 的登记行。
+       · 登记在别人名下      ⇒ ownership_mismatch，绝不销毁
+       · 查不到登记行（旧资产）⇒ ownership_unverified，也不销毁
+     两种都标 state='skipped'（迁移 2026110516），让它们退出 pending 扫描、不再
+     每天重试，同时在表里留下可排查的痕迹。宁可留孤儿资产，不能误删别人的图。 */
+  let uploadOwners = new Map<string, string>();
+  try {
+    uploadOwners = await loadUploadOwners(
+      serviceClient,
+      ((rows || []) as TrashRow[]).map((row) => String(row?.public_id || '').trim()),
+    );
+  } catch (error) {
+    // 查不到归属就不敢销毁任何东西：整批按失败返回，巡检明天再来。
+    console.error('[purge-cloud-image-trash] ownership lookup failed:', error);
+    return jsonResponse({ ok: false, code: 'OWNERSHIP_LOOKUP_FAILED' }, 500);
+  }
+
+  const markSkipped = async (id: string, reason: string) => {
+    const { error } = await serviceClient
+      .from('boh_cloud_image_trash')
+      .update({ state: 'skipped', skipped_reason: reason })
+      .eq('id', id)
+      .eq('state', 'pending');
+    if (error) {
+      console.error('[purge-cloud-image-trash] mark skipped failed:', id, error);
+      return false;
+    }
+    console.warn('[purge-cloud-image-trash] asset NOT destroyed (ownership):', { id, reason });
+    return true;
+  };
 
   for (const row of (rows || []) as TrashRow[]) {
     const id = String(row?.id || '').trim();
     const publicId = String(row?.public_id || '').trim();
+    const ownerUserId = String(row?.user_id || '').trim();
     const attempts = Number(row?.purge_attempts || 0);
 
     if (!id) continue;
@@ -165,6 +251,16 @@ Deno.serve(async (request) => {
     }
 
     try {
+      const owner = uploadOwners.get(publicId) || '';
+      if (!owner) {
+        if (await markSkipped(id, 'ownership_unverified')) skipped += 1;
+        continue;
+      }
+      if (owner !== ownerUserId) {
+        if (await markSkipped(id, 'ownership_mismatch')) skipped += 1;
+        continue;
+      }
+
       await destroyAsset(publicId);
       const { error } = await serviceClient
         .from('boh_cloud_image_trash')
@@ -198,15 +294,20 @@ Deno.serve(async (request) => {
     }
   }
 
+  /* 用户模式下的 skipped 也要算「没成功」：资产确实还在，不能回 ok:true 让前端
+     提示「已永久删除」。巡检模式同理不计入 failed（那是管理面日志的事，
+     每天把同一批 skipped 当失败返 207 只会让监控噪声）—— 但会在 skipped 里报数。 */
+  const userFailed = Boolean(callerUserId) && skipped > 0;
   return jsonResponse(
     {
-      ok: failed.length === 0,
+      ok: failed.length === 0 && !userFailed,
       mode: callerUserId ? 'user' : 'sweep',
       claimed: (rows || []).length,
       purged,
       retried,
+      skipped,
       failed,
     },
-    failed.length ? 207 : 200,
+    failed.length || userFailed ? 207 : 200,
   );
 });
