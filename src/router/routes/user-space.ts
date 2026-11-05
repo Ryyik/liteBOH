@@ -35,7 +35,15 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     path: '/user-space/note',
     name: 'BOHCloudPlus',
     component: () => import('../../views/user-center/Cloud+/index.vue'),
-    meta: { ...userSpaceMeta },
+    /* keepAlive（2026-11-04）：底栏「图库」与「我」是**相邻两席**，来回切是高频动作。
+       不给缓存时，两页各自是独立路由：每次切都走「卸载一棵树 + 挂载另一棵」——
+       App.vue 的 KeepAlive 容器还会随 meta 切换而销毁重建，把「我」的缓存一起带走。
+       用户报障原话「相册和我的切换底栏还是会整页重挂」，指的就是骨架/取数/滚动位置全丢。
+       ⚠️ 2026-09-20 审计里曾按「资产类页面宁可每次重新取数」判过不加缓存 —— 那条判据
+       针对的是**低频子页**；一旦它变成底栏常驻席位，切换手感优先，新鲜度改由页面内的
+       onActivated 兜（超过 TTL 才静默补拉，不重建 DOM）。改这里前先读 CloudPlusMain 的
+       onActivated 段。 */
+    meta: { ...userSpaceMeta, keepAlive: true },
   },
   {
     path: '/user-space/shared-memories',

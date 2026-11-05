@@ -8,6 +8,7 @@ import {
 } from '../utils/version-checker.js';
 import { logger } from '../utils/logger.js';
 import { reportUnknownRoute } from '../utils/monitoring.js';
+import { recallRouteScroll, rememberRouteScroll } from '../utils/route-scroll-memory.js';
 import { adminRoutes } from './routes/admin';
 import { communityRoutes } from './routes/community';
 import { compatRoutes } from './routes/compat';
@@ -52,6 +53,15 @@ const router = createRouter({
 
     if (savedPosition) {
       return savedPosition;
+    }
+
+    /* keepAlive 路由的「切回来还在原处」（2026-11-04）：底栏「图库」/「我」相邻，
+       来回切时组件被缓存、内容没重建，但 Cloud+ 的滚动在 window 上，不补这一段就会
+       一眼回顶 = 用户感知仍是「重挂」。记忆只收 keepAlive 路由，按 fullPath 分开记；
+       捕获点在下面的 beforeEach（旧页面还没被换掉时读 window.scrollY）。 */
+    const remembered = recallRouteScroll(to);
+    if (remembered !== undefined) {
+      return { top: remembered, behavior: 'auto' };
     }
 
     if (
@@ -109,6 +119,11 @@ const isActiveBanned = (): boolean => {
 };
 
 router.beforeEach(async (to, from, next) => {
+  // 记下离开页面的滚动位置（只对 keepAlive 路由生效）：必须在任何 early return 之前，
+  // 否则「待更新强制刷新」那条短路会让这一段永远跑不到。此时旧页面还在 DOM 上，
+  // window.scrollY 读到的就是用户眼前的位置。见 utils/route-scroll-memory.js 的三条口径。
+  if (typeof window !== 'undefined') rememberRouteScroll(from, window.scrollY);
+
   // 已知有新构建时，把「强制刷新」放在**用户本来就要换页的这一拍**再应用：
   // 他继续在旧构建上点的下一次导航，正好会去请求已被新部署删掉的 hash 资源
   // （实测：点底栏毫无反应 / 半样式，只能等恢复链整页兜）。同一目标 buildId 只试一次

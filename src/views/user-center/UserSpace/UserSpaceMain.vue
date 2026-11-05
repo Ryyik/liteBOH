@@ -3612,6 +3612,12 @@ onMounted(() => {
 watch(
   () => route.query.tab,
   (newTab) => {
+    /* keepAlive 闸门（2026-11-04）：本页被缓存后，离开期间 `route.query` 是**目标页**的
+       （`/user-space/note` 没有 tab 参数）⇒ 不设闸的话，缓存实例会在后台把 currentTab
+       悄悄切回 community，返回「我」时再播一次 community→posts 的切换动画与滚动复位，
+       用户看到内容平白滑一下 = 仍像「重挂」。判据是「当前路由是不是本页」。
+       ⚠️ 返回那一次不会漏：route.name 在导航确认时就已是 UserSpace，watch 跑在新路由上。 */
+    if (route.name !== 'UserSpace') return;
     const nextTab = resolveAccessibleTab(resolveRequestedUserSpaceTab(newTab), {
       promptLogin: true,
     });
@@ -3672,6 +3678,8 @@ watch(isAiOverlayOpen, (open) => {
 watch(
   () => route.query.view,
   () => {
+    // 同 tab 闸门：缓存实例不再采信「别的路由」的 query（见 route.query.tab 那条注释）
+    if (route.name !== 'UserSpace') return;
     resolveSectionFromRoute();
     void openSettingsPanelFromRoute();
   },
@@ -3682,6 +3690,7 @@ watch(
 watch(
   () => route.query.panel,
   () => {
+    if (route.name !== 'UserSpace') return;
     resolveSectionFromRoute();
   },
 );
@@ -3689,6 +3698,7 @@ watch(
 watch(
   () => route.query.setting,
   () => {
+    if (route.name !== 'UserSpace') return;
     void openSettingsPanelFromRoute();
   },
 );
@@ -3835,8 +3845,15 @@ const presentSuggestIsland = async () => {
 };
 
 // 用户「来看消息」= 消息 tab 且停在收件箱分区；切走 tab / 切到 AI 分区即收
+// ⚠️ 2026-11-04 keepAlive：本页被缓存后，导航离开时 currentTab 不再变（route.query 的
+// tab 参数会变成目标页的、已被上面的闸门挡掉）⇒ 只看内存态的话，「一键全部已读」建议岛
+// 会继续挂在**别的页面**的导航槽位上（它渲染在全局导航区，不在本页 DOM 里）。
+// 因此判据补一条「当前路由就是本页」——离开即 false，返回再按未读数重新弹。
 const isMessagesInboxActive = computed(
-  () => currentTab.value === 'messages' && messagesSection.value === 'inbox',
+  () =>
+    currentTab.value === 'messages' &&
+    messagesSection.value === 'inbox' &&
+    route.name === 'UserSpace',
 );
 // 直达 ?tab=messages 时 notificationStoreRef 是 setup 期的 null 快照（mount 逻辑只在不为 messages
 // 的 tab 刷未读数），unreadCount computed 会恒 0 —— 建议岛不弹、底部导航徽标也丢。先确保 store 就位。
