@@ -1,5 +1,5 @@
 {
-  "total": 2419,
+  "total": 2410,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
@@ -49,7 +49,6 @@
     "src/views/Forum/styles/feed.css": 10,
     "src/views/Shop/ShopAccountPanel.vue": 10,
     "src/views/activities/ActivitiesList.vue": 10,
-    "src/components/BohIsland.vue": 9,
     "src/views/Home/components/BirthdayHero.vue": 9,
     "src/views/Home/components/HomeFooter.vue": 9,
     "src/views/ResetPassword/index.vue": 9,
@@ -87,5 +86,5 @@
     "src/views/PhotoAlbums/index.vue": 1,
     "src/views/user-center/UserSpace/styles/profile-panels.css": 1
   },
-  "updatedAt": "2026-11-04"
+  "updatedAt": "2026-11-05"
 }
