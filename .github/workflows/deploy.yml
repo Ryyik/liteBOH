@@ -138,3 +138,17 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: node scripts/cloudflare-security-headers.mjs
+
+      # 发布后**从外面看一眼真实响应头**（2026-11-03 外部审查 F8）。
+      #
+      # 上一步按设计把「token 缺失 / 权限不足 / 网络失败」处理成告警 + exit 0 ——
+      # 门禁不该卡死发布，这个取舍是对的。但它留下的洞是：token 过期、权限被收、
+      # Cloudflare API 变更时，CI 依然全绿，线上却是一个没有 CSP / HSTS / XFO 的裸站。
+      # ⇒ 所以必须有这一步：断言失败即 exit 1，让 run 变红，而不是让它静默降级。
+      #
+      # 断言清单与注入侧共用 `scripts/lib/security-headers-config.mjs`（单一真源），
+      # 不会出现「注入改成 A、断言还按 B 校验」的分叉。
+      # 边缘规则有传播延迟，脚本内部会对「缺头」做 6 次 × 2s 的有界重试。
+      # 观察期可临时加 `-- --warn-only` 降级为告警；CSP 切 enforce 当天加 --expect-enforce 锁定。
+      - name: Verify live security headers
+        run: npm run security:headers:verify

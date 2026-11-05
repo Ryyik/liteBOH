@@ -102,6 +102,7 @@
     "import:boh-kb": "node scripts/import-boh-knowledge-base.mjs",
     "security:headers": "node scripts/cloudflare-security-headers.mjs",
     "security:headers:dry": "node scripts/cloudflare-security-headers.mjs --dry-run",
+    "security:headers:verify": "node scripts/check-security-headers-live.mjs",
     "security:anon-check": "node scripts/check-anon-execute.mjs",
     "security:audit": "node scripts/check-npm-audit.mjs",
     "security:audit:advisory": "node scripts/check-npm-audit.mjs --advisory",

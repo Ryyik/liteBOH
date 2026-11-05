@@ -28,8 +28,10 @@
  *                            （对应 supabase/functions/csp-report，部署需 --no-verify-jwt）
  */
 
-// 图片域名白名单单一真源（渲染白名单也从这里取，见文件头 CSP_VALUE 注释）
+// 图片域名白名单单一真源（渲染白名单也从这里取）
 import { CSP_IMAGE_ORIGINS } from '../src/utils/image-origins.js';
+// 头的定义单一真源（发布后探测脚本共用同一份，见该文件头）
+import { buildSecurityHeaders } from './lib/security-headers-config.mjs';
 
 const RULE_MARKER = '[boh-security-headers]';
 const PHASE = 'http_response_headers_transform';
@@ -54,61 +56,29 @@ const hosts = String(process.env.SECURITY_HEADER_HOSTS || 'www.blockofhome.cn,bl
  * 按 CSP3 规范浏览器会直接丢弃违规报告，于是「观察期」形同虚设：
  * 既收不到数据，也永远没有依据把 'unsafe-inline' 换掉、转成 enforce。
  */
-const CSP_REPORT_GROUP = 'csp-endpoint';
 const SUPABASE_URL = String(
-  process.env.CSP_REPORT_SUPABASE_URL
-    || process.env.VITE_SUPABASE_URL
-    || 'https://nplnlefdwfgtyimfkyih.supabase.co',
-).trim().replace(/\/+$/, '');
+  process.env.CSP_REPORT_SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL ||
+    'https://nplnlefdwfgtyimfkyih.supabase.co',
+)
+  .trim()
+  .replace(/\/+$/, '');
 const CSP_REPORT_URI = String(
   process.env.CSP_REPORT_URI || `${SUPABASE_URL}/functions/v1/csp-report`,
 ).trim();
 
-/** 零风险四件套 + HSTS：只收紧默认行为，不拦截任何现有资源，可随时上 */
-const SAFE_HEADERS = {
-  'X-Content-Type-Options': 'nosniff',
-  'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'X-Frame-Options': 'DENY',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
-  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-  // Reporting API 的端点声明：Chrome 系通过 `report-to` 走这里
-  'Reporting-Endpoints': `${CSP_REPORT_GROUP}="${CSP_REPORT_URI}"`,
-};
-
 /**
- * CSP：收得很紧，必须逐步放开。
- * 先以 Report-Only 观察（--csp-enforce 前不要强制）。
- *
- * ⚠️ `img-src` 的域名清单**不在这里手写** —— 从 `src/utils/image-origins.js` 的
- * `CSP_IMAGE_ORIGINS` 生成。原因（2026-10-16）：AI 回答的渲染白名单也要用同一份清单，
- * 两处手写必然漂移，而漂移的表现是「渲染器放行、CSP 拦截」的**静默裂图**，
- * 且 CSP 当前是 Report-Only，本地根本看不出来。单测会断言两者的包含关系。
+ * ⚠️ 头的**定义**不在这里 —— 全部在 `./lib/security-headers-config.mjs`。
+ * 本文件只负责「把那份定义推到 Cloudflare」，不负责决定有哪些头。
+ * 这样发布后探测脚本（`check-security-headers-live.mjs`）断言的就是同一份数据，
+ * 不会出现「注入改成 A、断言还按 B 校验」的静默分叉。
  */
-const CSP_VALUE = [
-  "default-src 'self'",
-  // static.cloudflareinsights.com：Zone 级 Web Analytics 由 Cloudflare 边缘自动注入，
-  // 不是项目代码引入的。放行它只为消掉一条已证实的上报（2026-11-03），
-  // 该脚本被拦不影响任何功能，只丢访问统计。
-  "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
-  "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${CSP_IMAGE_ORIGINS.join(' ')}`,
-  "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.cloudinary.com https://*.cloudinary.com",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-  // 上报：report-uri 覆盖 Safari/Firefox，report-to 覆盖 Chrome（配 Reporting-Endpoints）
-  `report-uri ${CSP_REPORT_URI}`,
-  `report-to ${CSP_REPORT_GROUP}`,
-].join('; ');
-
-const buildHeaders = () => {
-  const headers = { ...SAFE_HEADERS };
-  headers[CSP_ENFORCE ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only'] =
-    CSP_VALUE;
-  return headers;
-};
+const buildHeaders = () =>
+  buildSecurityHeaders({
+    cspEnforce: CSP_ENFORCE,
+    cspReportUri: CSP_REPORT_URI,
+    imageOrigins: CSP_IMAGE_ORIGINS,
+  });
 
 const buildRule = () => {
   const headerEntries = {};
