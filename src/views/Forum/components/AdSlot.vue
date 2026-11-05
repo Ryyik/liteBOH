@@ -1,6 +1,6 @@
 <template>
   <a
-    :href="ad.link_url || 'javascript:;'"
+    :href="safeLinkUrl || undefined"
     :class="['post-card-v2', 'glass-panel', 'ad-slot', { 'ad-slot-fixed': hasFixedHeight }]"
     :style="heightVars"
     :aria-label="`广告：${ad.title || '推广内容'}`"
@@ -22,13 +22,20 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { supabase } from '../../../utils/supabase-client.js';
+import { toSafeNavHref } from '../../../utils/external-link.js';
 
 const props = defineProps({
-  ad: { type: Object, required: true }
+  ad: { type: Object, required: true },
 });
 
 const router = useRouter();
 const imageFailed = ref(false);
+
+/* 落地地址过一遍协议闸门（2026-11-05 审查补）：
+   原模板是 `:href="ad.link_url || 'javascript:;'"` —— 把伪协议当「空链接占位」用。
+   左键被 @click.prevent 拦住，但中键 / Ctrl+点击会走浏览器默认行为，`javascript:`
+   照样执行。现在非法值直接不出 href（<a> 变不可点，卡片仍可读）。 */
+const safeLinkUrl = computed(() => toSafeNavHref(props.ad?.link_url));
 
 const onImageError = () => {
   imageFailed.value = true;
@@ -57,7 +64,7 @@ const heightVars = computed(() => {
     : POST_CARD_HEIGHT.portrait;
   return {
     '--ad-h-landscape': `${landscape}px`,
-    '--ad-h-portrait': `${portrait}px`
+    '--ad-h-portrait': `${portrait}px`,
   };
 });
 
@@ -70,7 +77,8 @@ const handleClick = () => {
       .then(() => {})
       .catch(() => {});
   }
-  const target = props.ad?.link_url;
+  // 同 safeLinkUrl：只认 http(s) 或站内路径，其余当没配落地页
+  const target = safeLinkUrl.value;
   if (!target) return;
   if (isExternal(target)) {
     window.open(target, '_blank', 'noopener,noreferrer');

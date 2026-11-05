@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { toSafeExternalHref } from '../../../utils/external-link.js';
 
 /**
  * useWebSearchLifecycle — 联网搜索的**生命周期**包装（激活态 + 结果清单）。
@@ -24,9 +25,12 @@ export function useWebSearchLifecycle({ search }) {
         webSearchResults.value = result.results
           .map((item) => ({
             title: String(item?.title || '').trim(),
-            url: String(item?.url || '').trim(),
+            /* 结果是第三方给的，url 可能被投毒成 `javascript:`（SEO 投毒 / 恶意结果）。
+               下游两处都把它绑进 `<a :href>`，Vue 不会拦伪协议 ⇒ 在这里收一次。
+               拿不到 http(s) 地址的结果对用户也没有价值（点不动），直接丢弃。 */
+            url: toSafeExternalHref(item?.url),
           }))
-          .filter((item) => item.title || item.url)
+          .filter((item) => item.url && (item.title || item.url))
           .slice(0, 8);
       }
       return result;

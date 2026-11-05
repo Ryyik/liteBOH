@@ -60,7 +60,7 @@
         </button>
         <ul v-if="sourcesOpen" class="boh-sources-list">
           <li v-for="(s, i) in webSources" :key="i">
-            <a :href="s.url" target="_blank" rel="noopener">{{ s.title || s.url }}</a>
+            <a :href="s.url || undefined" target="_blank" rel="noopener">{{ s.title || s.url }}</a>
           </li>
         </ul>
       </div>
@@ -118,6 +118,7 @@ import {
 } from '@/views/BOHAI/BOHAI/components/boh-activity.js';
 import { renderMarkdown } from '@/views/BOHAI/BOHAI/components/boh-markdown.js';
 import { logger } from '@/utils/logger.js';
+import { toSafeExternalHref } from '@/utils/external-link.js';
 import { useBohIsland } from '@/composables/useBohIsland.js';
 import { SITE_SEARCH_PAGES } from '@/config/site-search-sources';
 
@@ -172,7 +173,13 @@ const answerHtml = computed(() => (answerText.value ? renderMarkdown(answerText.
 
 const webSources = computed(() => {
   const rows = engine.webSearchResults.value;
-  return Array.isArray(rows) ? rows.filter((r) => r?.url || r?.title) : [];
+  if (!Array.isArray(rows)) return [];
+  /* 数据源已在校验（useWebSearchLifecycle 只留 http/https），这里再收一次是
+     因为本组件是**渲染汇点**：将来多一条喂结果的路径，漏改这里就等于漏了 XSS。
+     没通过校验的条目降级成纯文本（没有 href 的 <a> 点不动，不会执行伪协议）。 */
+  return rows
+    .filter((r) => r?.url || r?.title)
+    .map((r) => ({ title: r?.title || '', url: toSafeExternalHref(r?.url) }));
 });
 
 /* ---------------- 活动行（唯一真源 = boh-activity.js） ---------------- */
