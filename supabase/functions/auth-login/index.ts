@@ -2,6 +2,7 @@ import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createAnonClient, createServiceClient } from '../_shared/supabase.ts';
 import { validateLoginId } from '../_shared/auth-validation.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
+import { getClientIp } from '../_shared/client-ip.ts';
 // 登录标识解析：邮箱唯一真源是 auth.users（profiles.email 已 drop）。
 // 抽到 _shared 是为了可被 vitest 覆盖（本文件含 Deno.serve，无法直接单测）。
 import { resolveEmailFromLoginId } from '../_shared/resolve-login-id.ts';
@@ -38,13 +39,17 @@ Deno.serve(async (request) => {
     );
   }
 
-  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')
-    || 'unknown';
+  // 限流 key 的 IP 口径统一走 _shared/client-ip.ts：xff 首段是客户端可写的，
+  // 取首段等于「自己给自己发通行证」（2026-11-05 审查补）。
+  const clientIp = getClientIp(request);
   const rateCheck = await checkRateLimitDb(clientIp, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
   if (!rateCheck.ok) {
     return jsonResponse(
-      { ok: false, code: 'RATE_LIMITED', message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。` },
+      {
+        ok: false,
+        code: 'RATE_LIMITED',
+        message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。`,
+      },
       429,
       origin,
     );
@@ -55,7 +60,9 @@ Deno.serve(async (request) => {
     const loginId = String(body?.loginId || '').trim();
     const password = String(body?.password || '');
     const altchaPayload = String(body?.altchaPayload || '').trim();
-    const deviceIdHash = String(body?.deviceIdHash || '').trim().slice(0, 128);
+    const deviceIdHash = String(body?.deviceIdHash || '')
+      .trim()
+      .slice(0, 128);
     const userAgent = request.headers.get('user-agent') || '';
     if (!loginId || !password) {
       return jsonResponse(

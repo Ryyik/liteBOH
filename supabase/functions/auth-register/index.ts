@@ -2,6 +2,7 @@ import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createAnonClient, createServiceClient } from '../_shared/supabase.ts';
 import { validateEmail, validatePassword, validateUsername } from '../_shared/auth-validation.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
+import { getClientIp } from '../_shared/client-ip.ts';
 
 const normalizeErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : fallback;
@@ -26,13 +27,16 @@ Deno.serve(async (request) => {
     );
   }
 
-  const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')
-    || 'unknown';
+  // 限流 key 的 IP 口径统一走 _shared/client-ip.ts（xff 首段可伪造，取最后一跳）
+  const clientIp = getClientIp(request);
   const rateCheck = await checkRateLimitDb(clientIp, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
   if (!rateCheck.ok) {
     return jsonResponse(
-      { ok: false, code: 'RATE_LIMITED', message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。` },
+      {
+        ok: false,
+        code: 'RATE_LIMITED',
+        message: `请求过于频繁，请在 ${rateCheck.retryAfter} 秒后重试。`,
+      },
       429,
       origin,
     );
@@ -41,14 +45,17 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json();
     const username = String(body?.username || '').trim();
-    const email = String(body?.email || '').trim().toLowerCase();
+    const email = String(body?.email || '')
+      .trim()
+      .toLowerCase();
     const password = String(body?.password || '');
     // 安全修复：对 metadata 做白名单过滤，仅允许无害字段透传，
     // 严禁 role/points/join_date 等敏感字段进入 user_metadata，
     // 防止通过 sync_profile_from_auth_user_insert 触发器自注册管理员。
-    const rawMetadata = body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
-      ? body.metadata
-      : {};
+    const rawMetadata =
+      body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+        ? body.metadata
+        : {};
     const ALLOWED_METADATA_KEYS = new Set(['birth_month', 'birth_day']);
     const metadata: Record<string, unknown> = {};
     for (const key of Object.keys(rawMetadata)) {
@@ -108,21 +115,24 @@ Deno.serve(async (request) => {
       );
     }
 
-    const { data: createdUserData, error: createUserError } = await serviceClient.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        ...metadata,
-        username,
-      },
-    });
+    const { data: createdUserData, error: createUserError } =
+      await serviceClient.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          ...metadata,
+          username,
+        },
+      });
 
     if (createUserError) {
       const normalizedMessage = String(createUserError.message || '').toLowerCase();
-      if (normalizedMessage.includes('already been registered')
-        || normalizedMessage.includes('already registered')
-        || normalizedMessage.includes('user already exists')) {
+      if (
+        normalizedMessage.includes('already been registered') ||
+        normalizedMessage.includes('already registered') ||
+        normalizedMessage.includes('user already exists')
+      ) {
         return jsonResponse(
           { ok: false, code: 'USER_ALREADY_REGISTERED', message: '该邮箱已注册，请直接登录。' },
           409,
@@ -130,9 +140,12 @@ Deno.serve(async (request) => {
         );
       }
 
-      if (normalizedMessage.includes('idx_profiles_username_lower_unique')
-        || normalizedMessage.includes('profiles_username_key')
-        || (normalizedMessage.includes('duplicate key value') && normalizedMessage.includes('username'))) {
+      if (
+        normalizedMessage.includes('idx_profiles_username_lower_unique') ||
+        normalizedMessage.includes('profiles_username_key') ||
+        (normalizedMessage.includes('duplicate key value') &&
+          normalizedMessage.includes('username'))
+      ) {
         return jsonResponse(
           { ok: false, code: 'USERNAME_TAKEN', message: '该方块 ID 已被使用。' },
           409,

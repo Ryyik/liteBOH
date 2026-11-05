@@ -1,6 +1,7 @@
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.116.0';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
+import { getClientIp } from '../_shared/client-ip.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
 /* 与用户侧订单邮件同一套 Apple 极简主题：管理员这封也是「同一家发的」，
    不能再是 16px 圆角 + #2f6fed 的另一套壳。 */
@@ -443,10 +444,8 @@ Deno.serve(async (request) => {
     return jsonResponse(authResult, authResult.status, origin);
   }
 
-  const clientIp =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
+  // IP 口径统一走 _shared/client-ip.ts（xff 首段是客户端可写的）
+  const clientIp = getClientIp(request);
   const rateKey = `${authResult.userId}:${clientIp}`;
   const rateCheck = await checkRateLimitDb(rateKey, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
   if (!rateCheck.ok) {

@@ -32,6 +32,7 @@
 
 import { buildCorsHeaders } from '../_shared/cors.ts';
 import { checkRateLimitDb } from '../_shared/rate-limiter.ts';
+import { getClientIp } from '../_shared/client-ip.ts';
 import { MAX_BODY_BYTES, parseCspReports } from '../_shared/csp-report-parser.ts';
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -51,12 +52,15 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || request.headers.get('x-real-ip')
-      || 'unknown';
+    // 匿名端点的唯一防线就是这条限流 ⇒ IP 必须取不可伪造的那一段
+    const clientIp = getClientIp(request);
 
     // 匿名端点：限流是唯一防线。超限静默丢弃（浏览器不关心响应体）。
-    const rateCheck = await checkRateLimitDb(clientIp, RATE_LIMIT_MAX_REQUESTS, RATE_LIMIT_WINDOW_MS);
+    const rateCheck = await checkRateLimitDb(
+      clientIp,
+      RATE_LIMIT_MAX_REQUESTS,
+      RATE_LIMIT_WINDOW_MS,
+    );
     if (!rateCheck.ok) return emptyResponse(origin);
 
     const raw = await request.text();
@@ -74,7 +78,10 @@ Deno.serve(async (request) => {
     }
   } catch (error) {
     // 上报端点自身绝不报错给浏览器：静默吞掉，最多留一行诊断
-    console.error('[csp-report] handler failed:', error instanceof Error ? error.message : 'unknown');
+    console.error(
+      '[csp-report] handler failed:',
+      error instanceof Error ? error.message : 'unknown',
+    );
   }
 
   return emptyResponse(origin);
