@@ -471,8 +471,9 @@ onBeforeUnmount(() => {
     0 26px 70px rgba(0, 0, 0, 0.42),
     0 2px 8px rgba(0, 0, 0, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(26px) saturate(150%);
-  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  /* 材质走 tokens 的 --liquid-filter-island（26px/150% 与定稿一致，不是三档之一） */
+  backdrop-filter: var(--liquid-filter-island);
+  -webkit-backdrop-filter: var(--liquid-filter-island);
   overflow: hidden;
   /* 从导航底边「长出来」：origin 在顶边中点，纵向展开 */
   transform-origin: top center;

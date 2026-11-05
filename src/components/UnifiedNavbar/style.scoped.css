@@ -160,8 +160,9 @@
         观感才是"黑玻璃渐隐、露出后面被压暗的页面"，文字也不会掉进亮背景里。
         只影响 backdrop（页面），不会压暗岛自己的内容。 */
   background-color: var(--liquid-bg-strong);
-  backdrop-filter: blur(16px) saturate(140%) brightness(0.7);
-  -webkit-backdrop-filter: blur(16px) saturate(140%) brightness(0.7);
+  /* 材质走 tokens 的 --liquid-filter-scrim（16px + 压暗档，同样是单源登记） */
+  backdrop-filter: var(--liquid-filter-scrim);
+  -webkit-backdrop-filter: var(--liquid-filter-scrim);
 }
 
 /* ── 唤起 BOHAI：整块 surface 变深色胶囊（2026-11-05 用户口径） ─────────────────

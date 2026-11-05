@@ -156,6 +156,13 @@
   --liquid-filter: blur(var(--liquid-blur)) saturate(var(--liquid-saturate)) brightness(1.02);
   --liquid-filter-sm: blur(var(--liquid-blur-sm)) saturate(var(--liquid-saturate)) brightness(1.02);
   --liquid-filter-lg: blur(var(--liquid-blur-lg)) saturate(var(--liquid-saturate)) brightness(1.02);
+  /* 两颗「不跟三档走」的专用材质（2026-11-05 单源登记）。
+     它们原来以裸值散在组件里（BohIsland.vue / UnifiedNavbar/style.scoped.css），
+     check:liquid-glass 报的正是这件事：材质必须只在 tokens 里定义一次。
+     ⚠️ 值**刻意不等于**上面三档（26px vs 28px、scrim 还带 brightness(0.7) 压暗），
+        所以不要「顺手」换成 --liquid-filter* —— 那是改视觉，不是重构。 */
+  --liquid-filter-island: blur(26px) saturate(150%);
+  --liquid-filter-scrim: blur(16px) saturate(140%) brightness(0.7);
   --liquid-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.86);
   --liquid-highlight-subtle: inset 0 1px 0 rgba(255, 255, 255, 0.55);
   --liquid-shadow: 0 20px 60px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.06);
