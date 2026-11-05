@@ -89,8 +89,10 @@ Deno.serve(async (request) => {
   }
 
   // 仅接受持有保活 token 的调用方（pg_cron / 运维手动探活；token 见顶部注释）。
-  // ⚠️ 鉴权失败也写底账（error=UNAUTHORIZED_TOKEN + 前 8 位指纹）：把「请求没到 EF」
-  //    与「到了但没过鉴权」区分开，并留下排查 token 差异的线索（不泄露全文）。
+  // ⚠️ 鉴权失败也写底账，把「请求没到 EF」与「到了但没过鉴权」区分开。
+  //   **但绝不落 token 的任何片段**（2026-11-05 审查补）：原来写的是
+  //   `want=${keepaliveToken.slice(0, 8)}`，等于把密钥前 8 位长期存在可读的表里，
+  //   而这张表恰恰是「谁能查谁就能缩小爆破空间」的地方。现在只记形态。
   const token = bearer(request);
   if (!keepaliveToken || !token || token !== keepaliveToken) {
     await writeLog({
@@ -98,7 +100,7 @@ Deno.serve(async (request) => {
       httpStatus: null,
       responseBody: null,
       ok: false,
-      error: `UNAUTHORIZED_TOKEN got=${token.slice(0, 8) || '(空)'} want=${keepaliveToken.slice(0, 8) || '(空)'}`,
+      error: `UNAUTHORIZED_TOKEN got=${token ? `present(${token.length})` : 'empty'} want=${keepaliveToken ? 'configured' : 'missing'}`,
     });
     return jsonResponse(
       { ok: false, code: 'UNAUTHORIZED', message: '缺少有效的服务凭证。' },
