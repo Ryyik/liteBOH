@@ -52,6 +52,15 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     meta: { ...userSpaceMeta, keepAlive: true, keepAliveName: 'CloudPlusPage' },
   },
   {
+    /* BOH Camera Beta（plans/041）：图库头部相机图标的落点。
+       不挂 keepAlive —— 每次进页面都必须重新取流，缓存下来的只是一个已 stop 的
+       MediaStream（表现为第二次进来黑屏，直到用户点重试）。 */
+    path: '/user-space/note/camera',
+    name: 'BOHCamera',
+    component: () => import('../../views/Camera/index.vue'),
+    meta: { ...userSpaceMeta, hideNavbar: true, hideFooter: true },
+  },
+  {
     path: '/user-space/shared-memories',
     name: 'SharedMemoryManagement',
     component: () => import('../../views/user-center/SharedMemoryManagement.vue'),

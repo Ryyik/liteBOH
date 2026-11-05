@@ -119,6 +119,21 @@
               <span>{{ showRefreshIndicator ? '同步中' : '刷新' }}</span>
             </button>
 
+            <!-- BOH Camera Beta（plans/041）：实时滤镜取景 → 成片直接进下面「新建」的图片队列。
+                 图标按钮 + 角标；前置检查与 openImagePicker 同源（额度/Cloudinary），
+                 不让用户拍完一张才被告知存不进去。 -->
+            <button
+              v-if="!isSelectMode"
+              type="button"
+              class="refresh-btn gallery-camera-entry"
+              data-testid="gallery-camera-entry"
+              aria-label="相机（Beta）"
+              @click="openCamera"
+            >
+              <Camera :size="16" :stroke-width="1.9" aria-hidden="true" />
+              <span class="gallery-camera-entry__beta" aria-hidden="true">Beta</span>
+            </button>
+
             <!-- 选择入口（2026-11-04 第二轮）：原先是相册网格上方一行 ghost-link 文字，
                  用户要求「选择应该是一个按钮样式」⇒ 收进头部动作区，与筛选/刷新同一套 .refresh-btn，
                  ≤640 那条 `.gallery-header-actions > .refresh-btn` 规则会自动让它跟其它按钮平分第二行。
@@ -1229,6 +1244,7 @@ import { useDebounce } from '@/composables/useDebounceThrottle';
 import { storeToRefs } from 'pinia';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import {
+  Camera,
   Check,
   CheckSquare,
   ChevronDown,
@@ -1240,6 +1256,7 @@ import {
   Trash2,
   X,
 } from 'lucide-vue-next';
+import { takeCameraCapture } from '@/utils/camera-capture-bridge.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import CloudStorageBar from './CloudStorageBar.vue';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
@@ -2956,9 +2973,33 @@ function openImagePicker() {
   imageInputRef.value?.click();
 }
 
+/** BOH Camera Beta 入口：与 openImagePicker 同一套前置检查，过了才跳取景页。 */
+function openCamera() {
+  if (!isLoggedIn.value) return;
+  if (!isCloudinaryNoteUploadConfigured()) {
+    showNotice('请先配置 Cloudinary 后再上传图片');
+    return;
+  }
+  if (remainingImageQuota.value <= 0) {
+    showNotice(`你的 Cloud+ 图片额度已满，当前最多可保存 ${currentCloudImageLimit.value} 张图片`);
+    return;
+  }
+  void router.push('/user-space/note/camera');
+}
+
 async function handleImageSelection(event) {
   const input = event?.target;
   const files = Array.from(input?.files || []);
+  await addFilesToDraft(files, input);
+}
+
+/**
+ * 把一批文件塞进当前草稿的上传队列。
+ * 两个调用方：图片选择器（input[change]）与相机（拍完从 bridge 接过来）。
+ * 校验/额度/并发/压缩全在这里，**别在调用方复制一份** —— 复制出来的那份
+ * 一定会和这里漂移，表现为「拍照这条路绕过了额度检查」。
+ */
+async function addFilesToDraft(files, input = null) {
   if (!files.length) {
     if (input) input.value = '';
     return;
@@ -3948,6 +3989,8 @@ onMounted(() => {
 
 onMounted(() => {
   applyCloudPlusRouteView();
+  // 首次挂载不会走 onActivated：直接深链进来 / 相机首次返回都要在这里接一次
+  consumeCameraCapture();
   if (typeof window !== 'undefined') {
     const cachedToken = readStoredSharedToken();
     if (cachedToken && !sharedTokenInput.value) {
@@ -3987,6 +4030,23 @@ onUnmounted(() => {
    正在飞）与 TTL（刚取过就不取），两条都满足才补拉。 */
 const CLOUD_ACTIVATION_REFRESH_TTL_MS = 60 * 1000;
 
+/**
+ * 消费相机成片（plans/041）。
+ *
+ * 相机页把 File 放进 `camera-capture-bridge` 后返回图库，这里把它接进「新建」的
+ * 图片队列 —— 用户补不补标题都能发布（`publishEntry` 允许纯图片条目）。
+ *
+ * ⚠️ onMounted 与 onActivated 都要调（见上面那段「首次挂载不触发 activated」），
+ * 只挂一个的话，其中一条返回路径会「什么都不发生」，而 bridge 里的 File 已经被
+ * 取走（不是没取），表现为照片凭空消失。
+ */
+function consumeCameraCapture() {
+  const file = takeCameraCapture();
+  if (!file) return;
+  openComposer();
+  void addFilesToDraft([file]);
+}
+
 onDeactivated(() => {
   if (typeof document !== 'undefined') document.body.style.overflow = '';
   if (!isPublishing.value && !isUploadingImages.value && uploadedImages.value.length) {
@@ -4004,6 +4064,8 @@ onActivated(() => {
   if (isComposerOpen.value && typeof document !== 'undefined') {
     document.body.style.overflow = 'hidden';
   }
+  // 相机回来：成片接进「新建」的图片队列（plans/041）
+  consumeCameraCapture();
   // 缓存实例回来时滚动位置可能已被 route-scroll-memory 还原到中途，
   // 但 hidden 是上一段滚动留下的状态 ⇒ 显式复位，避免「刚回来底栏就是收起的」。
   resetBottomNavAutoHide();
