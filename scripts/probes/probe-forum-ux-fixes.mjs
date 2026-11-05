@@ -621,7 +621,7 @@ const browser = await launch();
       menu: m.classList.contains('active'),
       hash: location.hash,
       // 岛唤起会合法地强制长条（plans/009 决策 2），断言时需排除
-      island: /has-status-card|has-task-card|has-bohai-island|has-custom-card/.test(s.className),
+      island: /has-status-card|has-task-card|has-custom-card/.test(s.className),
     };
   });
   report.info.navAfterRoute = afterNav;
