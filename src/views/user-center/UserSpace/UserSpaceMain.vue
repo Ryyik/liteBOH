@@ -119,6 +119,8 @@
               @cloud-plus="openCloudPlusArea"
               @open-assets="openAssetsHub"
               @post-click="openProfilePost"
+              @post-edit="editProfilePost"
+              @post-delete="deleteProfilePost"
               @switch-tab="switchTab"
               @load-more="loadMoreProfilePosts"
               @note-open="openProfileCloudNote"
@@ -488,7 +490,7 @@ import { storeToRefs } from 'pinia';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import { useBohIsland } from '@/composables/useBohIsland.js';
-import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
+import { useConfirmDialog, isDialogBusy } from '@/composables/useConfirmDialog.js';
 import {
   prepareAvatarUpload,
   uploadAvatarFile,
@@ -637,6 +639,8 @@ import {
   DEFAULT_CLOUD_IMAGE_LIMIT,
   resolveCloudBenefitFromSubscriptions,
 } from '@/utils/subscription-benefits.js';
+// 作品卡「⋯」→ 删除（2026-11-05）：与详情页共用同一个接口，权限判据（作者/管理员）在接口内
+import { deletePost } from '@/utils/api/forum-api.js';
 
 const { loadImageCompression } = useImageCompressionLoader();
 
@@ -1243,6 +1247,63 @@ const openProfilePost = (postId) => {
     params: { id: safePostId },
     query: { from: 'user-space', tab: 'posts' },
   });
+};
+
+/** 作品卡「⋯」→ 编辑（2026-11-05）。
+ *  编辑态只有详情页有（含图片增删、排序、标签），所以这里只负责把「打开即编辑」
+ *  这个意图交过去，由详情页自己展开编辑器 —— 主页再实现一套编辑表单就是第二份口径。
+ *  ⚠️ 必须走 openForumPost（而不是直接 router.push）：横屏下详情是**弹窗**，
+ *  直接 push 会把整个页面顶进整页详情，顶栏/评论栏一起带进来。 */
+const editProfilePost = (postId) => {
+  const safePostId = String(postId || '').trim();
+  if (!safePostId) return;
+  openForumPost({
+    router,
+    postId: safePostId,
+    query: { from: 'user-space', tab: 'posts' },
+    edit: true,
+  });
+};
+
+/** 作品卡「⋯」→ 删除（2026-11-05）：确认 → 接口 → 本地摘掉 → 后台刷新统计。
+ *  先本地摘掉是为了「点完立刻消失」；统计（发帖数）由 fetchProfileContent 重新拉。 */
+const deleteProfilePost = async (postId) => {
+  const safePostId = String(postId || '').trim();
+  const userId = String(userInfo.value.id || '').trim();
+  if (!safePostId || !userId) return;
+
+  let confirmed = false;
+  try {
+    confirmed = await dialog.confirm({
+      title: '删除帖子',
+      message: '帖子和评论将一并删除，且无法恢复。确定继续吗？',
+      tone: 'danger',
+      confirmText: '删除',
+    });
+  } catch (err) {
+    if (!isDialogBusy(err)) logger.warn('user-space', '删除确认弹窗打开失败', err);
+    return;
+  }
+  if (!confirmed) return;
+
+  try {
+    const { success, error } = await deletePost(safePostId, userId, userInfo.value.role);
+    if (!success) {
+      showAlert('error', '删除失败', error || '请稍后重试');
+      return;
+    }
+    profilePosts.value = (profilePosts.value || []).filter(
+      (item) => String(item?.id) !== safePostId,
+    );
+    // 论坛流 / 详情页的本地快照都靠这个事件失效，否则返回列表还能看到已删的帖子
+    window.dispatchEvent(
+      new CustomEvent('boh:forum-post-deleted', { detail: { postId: safePostId } }),
+    );
+    void fetchProfileContent({ force: true });
+  } catch (err) {
+    logger.error('user-space', '删除帖子失败:', err);
+    showAlert('error', '删除失败', err?.message || '请稍后重试');
+  }
 };
 
 // ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理

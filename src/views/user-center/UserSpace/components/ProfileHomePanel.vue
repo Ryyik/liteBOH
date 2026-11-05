@@ -97,31 +97,31 @@
                 {{ bioExpanded ? '收起' : '全文' }}
               </button>
             </div>
-          <div
-            class="profile-stats profile-hero-stats profile-stats-compact"
-            :class="{ 'is-loading': isStatsLoading }"
-          >
-            <template v-if="isStatsLoading">
-              <span class="stat-skeleton stat-skeleton-line"></span>
-            </template>
-            <template v-else>
-              <!-- 2026-10-26（参考小红书的纯数据流）：三个统计是一行**无分隔**的纯文本 ——
+            <div
+              class="profile-stats profile-hero-stats profile-stats-compact"
+              :class="{ 'is-loading': isStatsLoading }"
+            >
+              <template v-if="isStatsLoading">
+                <span class="stat-skeleton stat-skeleton-line"></span>
+              </template>
+              <template v-else>
+                <!-- 2026-10-26（参考小红书的纯数据流）：三个统计是一行**无分隔**的纯文本 ——
                    不再有圆点、边框、胶囊底。数字加粗、标签灰、紧邻排列。
                    顺序按参考产品的习惯：关注 → 粉丝 → 发帖。 -->
-              <button type="button" class="stat-text" @click="openFollowList('followers')">
-                <strong class="stat-text-num">{{ stats.followers || 0 }}</strong>
-                <span class="stat-text-label">粉丝</span>
-              </button>
-              <button type="button" class="stat-text" @click="openFollowList('following')">
-                <strong class="stat-text-num">{{ stats.following || 0 }}</strong>
-                <span class="stat-text-label">关注</span>
-              </button>
-              <button type="button" class="stat-text" @click="$emit('switch-tab', 'posts')">
-                <strong class="stat-text-num">{{ stats.posts || 0 }}</strong>
-                <span class="stat-text-label">发帖</span>
-              </button>
-            </template>
-          </div>
+                <button type="button" class="stat-text" @click="openFollowList('followers')">
+                  <strong class="stat-text-num">{{ stats.followers || 0 }}</strong>
+                  <span class="stat-text-label">粉丝</span>
+                </button>
+                <button type="button" class="stat-text" @click="openFollowList('following')">
+                  <strong class="stat-text-num">{{ stats.following || 0 }}</strong>
+                  <span class="stat-text-label">关注</span>
+                </button>
+                <button type="button" class="stat-text" @click="$emit('switch-tab', 'posts')">
+                  <strong class="stat-text-num">{{ stats.posts || 0 }}</strong>
+                  <span class="stat-text-label">发帖</span>
+                </button>
+              </template>
+            </div>
             <!-- 主操作行（2026-10-27 定稿）：编辑资料 + 活跃轨迹，并排两枚胶囊。
                  · 编辑资料是**实心主按钮** —— 原来是无底浅灰胶囊，用户反馈「不明显不清晰」；
                  · 活跃轨迹原来在资料卡下面独占一条 48px 通栏，现在收成这里的一枚次按钮胶囊，
@@ -143,7 +143,6 @@
             </div>
           </div>
         </div>
-
       </div>
     </section>
 
@@ -248,9 +247,23 @@
           <article
             v-if="item.kind === 'post'"
             class="profile-post-card"
-            :class="{ 'text-only': !postCover(item.post) }"
+            :class="{
+              'text-only': !postCover(item.post),
+              'has-pin': isShowcased(item.post.id),
+              'has-menu': true,
+            }"
             @click="$emit('post-click', item.post.id)"
           >
+            <!-- 置顶角标（2026-11-05）：只有被置顶的那几条才带，普通作品不带。
+                 代表作不再是单独一栏，就是列表里的普通卡片，只是排在最前 + 这一枚角标。 -->
+            <span v-if="isShowcased(item.post.id)" class="profile-post-pin-badge">置顶</span>
+            <ProfilePostMenu
+              :pinned="isShowcased(item.post.id)"
+              :limit-reached="showcaseIds.length >= MAX_SHOWCASE"
+              @toggle="toggleShowcase(item.post)"
+              @edit="$emit('post-edit', item.post.id)"
+              @delete="$emit('post-delete', item.post.id)"
+            />
             <div
               v-if="postCover(item.post)"
               class="profile-post-cover"
@@ -424,7 +437,6 @@
       @load-more="loadFollowListMore"
       @unfollow="handleUnfollow"
     />
-
   </div>
 </template>
 
@@ -438,6 +450,7 @@ import {
   getCommentsByUsername,
   getFollowers,
   getFollowing,
+  getPostsByIds,
   unfollowUser,
 } from '@/utils/api/profile-api.js';
 import { fetchQuotedPostsByIds } from '@/utils/api/forum-api.js';
@@ -448,6 +461,8 @@ import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { useAvatarFrame } from '@/composables/useAvatarFrame.js';
 import { PLAN_DISPLAY_NAMES } from '@/utils/subscription-benefits.js';
+import ProfilePostMenu from './ProfilePostMenu.vue';
+import { useAuthStore } from '@/stores/auth';
 
 const followModal = reactive({
   show: false,
@@ -461,6 +476,7 @@ const followModal = reactive({
 const FOLLOW_PAGE_SIZE = 20;
 const activeContentTab = ref('posts');
 const replies = ref([]);
+
 const repliesLoading = ref(false);
 const repliesLoaded = ref(false);
 const contentTabs = computed(() => {
@@ -639,11 +655,86 @@ const props = defineProps({
   },
 });
 
+/* ── 代表作置顶（2026-11-05）───────────────────────────────────────────
+   这个功能原来只在他人空间（views/Profile）有 UI：`showcase_post_ids` 能设能看，
+   回到自己的「我」页反而什么都看不到 —— 「只有别人能看见」的状态。
+   显示形态（2026-11-05 二改，按用户要求）：代表作不是单独一栏展示，
+   就是作品流里的普通卡片 —— 被置顶的那几条排到最前，右上角一枚「置顶」角标；
+   置顶动作收进卡片右上角「⋯」菜单（ProfilePostMenu）。
+   数据仍然只有一份真源 `profile.showcasePostIds`（authStore.userInfo 映射自
+   `showcase_post_ids`），本组件只负责读它 + 调 updateUserProfile 写它。 */
+const MAX_SHOWCASE = 3;
+const authStore = useAuthStore();
+const showcasePosts = ref([]);
+const showcaseSaving = ref(false);
+
+const normalizeShowcaseIds = (raw) =>
+  Array.isArray(raw)
+    ? raw
+        .filter(Boolean)
+        .map((id) => String(id))
+        .slice(0, MAX_SHOWCASE)
+    : [];
+
+const showcaseIds = computed(() =>
+  normalizeShowcaseIds(props.profile?.showcasePostIds || props.profile?.showcase_post_ids),
+);
+
+const isShowcased = (postId) => showcaseIds.value.includes(String(postId));
+
+/** 先用已加载的作品列表里的对象，缺的按 id 补拉 —— 置顶帖可能不在第一页 */
+const hydrateShowcase = async () => {
+  const ids = showcaseIds.value;
+  if (!ids.length) {
+    showcasePosts.value = [];
+    return;
+  }
+  const byId = new Map();
+  for (const post of props.posts || []) byId.set(String(post.id), post);
+  const missing = ids.filter((id) => !byId.has(id));
+  if (missing.length) {
+    try {
+      const res = await getPostsByIds(missing);
+      for (const post of res?.data || []) byId.set(String(post.id), post);
+    } catch {
+      /* 拉不到就只展示已在列表里的那几张，不阻塞主页 */
+    }
+  }
+  showcasePosts.value = ids.map((id) => byId.get(id)).filter(Boolean);
+};
+
+const toggleShowcase = async (post) => {
+  if (showcaseSaving.value) return;
+  const id = String(post.id);
+  const current = showcaseIds.value;
+  const exists = current.includes(id);
+  if (!exists && current.length >= MAX_SHOWCASE) return;
+  const next = exists
+    ? current.filter((item) => item !== id)
+    : [id, ...current].slice(0, MAX_SHOWCASE);
+
+  showcaseSaving.value = true;
+  try {
+    const result = await authStore.updateUserProfile({ showcase_post_ids: next });
+    if (!result?.success) return;
+    await hydrateShowcase();
+  } finally {
+    showcaseSaving.value = false;
+  }
+};
+
+watch(showcaseIds, () => hydrateShowcase(), { immediate: true });
+watch(
+  () => props.posts,
+  () => hydrateShowcase(),
+);
+
 const publicNotesCount = computed(() =>
   Array.isArray(props.publicNotes) ? props.publicNotes.length : 0,
 );
 
-// 作品格合并流：帖子 + 公开笔记按时间混排（笔记折成统一卡片视图模型）
+// 作品格合并流：帖子 + 公开笔记按时间混排（笔记折成统一卡片视图模型），
+// 置顶帖排在最前（按 showcase 里的顺序），其余仍按时间倒序。
 const workItems = computed(() => {
   const postItems = (Array.isArray(props.posts) ? props.posts : []).map((post) => ({
     key: `post-${post.id}`,
@@ -651,6 +742,22 @@ const workItems = computed(() => {
     date: String(post.created_at || post.published_at || post.updated_at || ''),
     post,
   }));
+
+  // 置顶帖可能不在已加载的那一页（首屏只有前 N 条），hydrateShowcase 会按 id 补拉；
+  // 补拉到的对象在这里并进列表，否则「置顶」的帖子得翻到第 N 页才看得见。
+  const knownIds = new Set(postItems.map((item) => String(item.post.id)));
+  for (const post of showcasePosts.value) {
+    const id = String(post?.id ?? '');
+    if (!id || knownIds.has(id)) continue;
+    knownIds.add(id);
+    postItems.push({
+      key: `post-${id}`,
+      kind: 'post',
+      date: String(post.created_at || post.published_at || post.updated_at || ''),
+      post,
+    });
+  }
+
   const noteItems = (Array.isArray(props.publicNotes) ? props.publicNotes : [])
     .map((entry) => buildCloudNoteWorkCard(entry))
     .filter(Boolean)
@@ -660,7 +767,26 @@ const workItems = computed(() => {
       date: card.dateValue,
       card,
     }));
-  return [...postItems, ...noteItems].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  const pinOrder = new Map(showcaseIds.value.map((id, index) => [id, index]));
+  const unpinned = Number.POSITIVE_INFINITY;
+  const rankOf = (item) => {
+    if (item.kind !== 'post') return unpinned;
+    const index = pinOrder.get(String(item.post.id));
+    return index === undefined ? unpinned : index;
+  };
+  const timeOf = (item) => new Date(item.date || 0).getTime() || 0;
+
+  return [...postItems, ...noteItems].sort((a, b) => {
+    const rankA = rankOf(a);
+    const rankB = rankOf(b);
+    if (rankA !== rankB) {
+      if (rankA === unpinned) return 1;
+      if (rankB === unpinned) return -1;
+      return rankA - rankB;
+    }
+    return timeOf(b) - timeOf(a);
+  });
 });
 
 const noteDisplayTitle = (card = {}) =>
@@ -682,6 +808,12 @@ const emit = defineEmits([
   'cloud-plus',
   'photo-albums',
   'post-click',
+  /** 作品卡「⋯」菜单里的编辑 / 删除（2026-11-05）。
+   *  本组件只负责把动作抛出去：编辑要带 `?edit=1` 跳详情，删除要过确认弹窗 +
+   *  调 deletePost + 刷新列表，这些都属于页面级职责（宿主 UserSpaceMain 已有
+   *  dialog / showAlert / 列表状态），组件里再做一遍只会出现第二套口径。 */
+  'post-edit',
+  'post-delete',
   'switch-tab',
   'load-more',
   'note-open',
@@ -937,572 +1069,6 @@ watch(
   }
 }
 
-@media (max-width: 767px) {
-  /* ================================================================
-     竖屏全宽（2026-10-22）
-     设计语言：内容 edge-to-edge，区块方角、无边框、无投影，
-     靠 8px 页面底色缝 + 1px 分隔线分区；所有「窄卡」排版在这里重排
-     （· 分隔的统计行、给编辑按钮留的 150px 右留白、居中小卡、圆角卡片流）。
-     ⚠️ 两个必须遵守的写法：
-     1) 规则写在这个 scoped 块里 —— 本文件选择器编译后是 `.x[data-v-*]`，
-        特异性高于 responsive-integrations.css 的同名全局规则（写全局看不到效果，已实测）；
-     2) 每条都带 `.profile-home-shell` 前缀 —— 本块位于基础规则**之前**，
-        同特异性下会被后面的基础规则反超（首版就是这么静默失效的：封面仍 120px、
-        统计行仍缩进 24px、编辑按钮仍是小胶囊）。前缀把它提到 (0,2,0)，稳定生效。
-     ================================================================ */
-  .profile-home-shell {
-    padding: 0 0 0;
-    gap: 8px;
-  }
-
-  .profile-home-shell > .profile-hero-panel,
-  .profile-home-shell > .profile-points-card-section,
-  .profile-home-shell > .profile-content-panel {
-    border-radius: 0;
-    border-left-width: 0;
-    border-right-width: 0;
-    box-shadow: none;
-  }
-
-  /* 顶部贴顶（2026-10-26 用户要求）：不再给导航岛让出一条空白带 ——
-     封面背景从 y=0 起铺、导航岛浮在它上面。上边框因此也要去掉，
-     否则页顶会留一条 1px 的线，反而把「压在上面」的观感破坏掉。 */
-  .profile-home-shell > .profile-hero-panel {
-    border-top-width: 0;
-  }
-
-  /* 父容器 padding 归零后，hero 的负边距会把它推出视口 —— 显式归零。 */
-  .profile-home-shell > .profile-hero-panel {
-    margin-left: 0;
-    margin-right: 0;
-  }
-
-  /* ── 封面：200px + 导航岛高度（2026-10-26 顶部贴顶 + 多露背景）───────────
-     封面从页顶 y=0 铺起，导航岛压在它上面；多出来的 nav-h 让头像与名字
-     落回岛下方，不会真的被盖住。--userspace-nav-h 由宿主 ResizeObserver 实测写入。 */
-  .profile-home-shell .profile-cover-band {
-    height: calc(200px + var(--userspace-nav-h, 78px));
-  }
-
-  /* ── 资料卡：头像与文案**并排**（2026-10-27 用户定稿）───────────────────
-     原来竖屏是 column（头像独占一行 88px + 文案一行），资料卡实测 520px。
-     并排后头像与昵称共用一行，收掉约 88px，同时数据行不再被挤成独立一块。
-
-     ⚠️⚠️ 三条铁律，改这里之前先读：
-     ① `--hero-cover-overlap` = 头像探进封面的深度，**负边距与文案列的
-        padding-top 由同一个变量算**。两者一脱钩，昵称/签名就浮到封面图上
-        （用户明确指出的那个 bug）。文案列那条在 responsive-integrations.css
-        的 `.user-space-page .profile-hero-copy`，读的就是本行定义的变量。
-     ② 负边距必须写在这里，不能只写在 responsive-integrations.css ——
-        本组件基础规则里有一条 `.profile-hero-body { margin-top: -36px }`，
-        它与全局那条**同特异性且加载更晚**，会静默反超（实测：变量写了 28，
-        实际生效的仍是 36，昵称因此正好贴在封面底线上、零间隙）。
-     ③ gap 不写：全局那条 `gap: 14px !important` 恒定胜出，本文件的
-        !important 预算基线是 0（check:important-budget），不许为它新增。 */
-  .profile-home-shell .profile-hero-body {
-    --hero-cover-overlap: 28px;
-    flex-direction: row;
-    align-items: flex-start;
-    margin-top: calc(var(--hero-cover-overlap) * -1);
-    padding: 0 16px 14px;
-  }
-
-  .profile-home-shell .profile-hero-avatar .apple-avatar {
-    width: 88px;
-    height: 88px;
-    border-width: 3px;
-  }
-
-  /* 宽屏给「编辑资料」胶囊留的 150px 右留白，在 390 下会把名字挤成两行。
-     copy 基础是 flex row（名字/徽章同行），竖屏改 column 才能让按钮独占一行、
-     否则 width:100% 在 row 里只是内容宽（实测仍是 140px 的小胶囊）。 */
-  .profile-home-shell .profile-hero-copy {
-    padding-right: 0;
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  /* 竖屏缩一下名字与签名之间的空隙：并排后文案列变窄，原来的 8px 在
-     22px 名字下面显得断开。 */
-  .profile-home-shell .profile-bio-wrap {
-    margin-top: 6px;
-  }
-
-  /* 主操作行（2026-10-27）：竖屏收紧上边距，与数据行之间不再留 14px。 */
-  .profile-home-shell .profile-hero-actions {
-    margin-top: 10px;
-    gap: 8px;
-  }
-
-  /* 竖屏两枚胶囊都压到 32px 高、12.5px 字：文案列窄，32/13 会先把行折成两行。
-     高度必须**两枚一致** —— 不同高会破坏同一行里的中线（见上方 margin 归零那条）。 */
-  .profile-home-shell .profile-edit-btn {
-    min-height: 32px;
-    padding: 0 14px;
-    font-size: 12.5px;
-    box-shadow: none;
-  }
-
-  /* ── 统计行（2026-10-26 纯数据流）：一行无分隔的纯文本，不要分割线、不要圆点、
-        不要等分格子。数字加粗、标签灰、彼此紧邻 —— 与参考产品的数据行一致。 */
-  .profile-home-shell .profile-hero-stats {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    /* ⚠️ 必须显式写 flex-start（2026-10-27 实测补）：元素同时挂着 .profile-stats
-       和 .profile-hero-stats，前者在 profile-panels.css 里是 `justify-content: center`
-       且加载更晚 ⇒ 不加这条，三个数字会居中飘在文案列中间
-       （用户报的「数据被单独居中」就是这个来源）。 */
-    justify-content: flex-start;
-    gap: 14px;
-    margin: 0;
-    padding: 10px 0 0;
-    border-top: 0;
-  }
-
-  .profile-home-shell .profile-hero-stats .stat-text {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 4px;
-    padding: 0;
-    border: 0;
-    background: none;
-  }
-
-  .profile-home-shell .profile-hero-stats .stat-text-num {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--text-primary);
-  }
-
-  .profile-home-shell .profile-hero-stats .stat-text-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-secondary);
-  }
-
-  /* 骨架期只有一个 span，让它横跨 4 格，避免加载完成时行高跳变 */
-  .profile-home-shell .profile-hero-stats .stat-skeleton {
-    grid-column: 1 / -1;
-  }
-
-  /* ── 积分卡：去掉 420 上限，卡面吃满内容宽 ─────────────────── */
-  .profile-home-shell .profile-points-card-wrap .points-card {
-    max-width: none;
-  }
-
-  /* ── 内容列表：2026-10-26 一度改成「通栏分隔线列表」（gap:0 / 无边距 / 每张卡一条下边框），
-        当天下班前定稿为**四列错位图墙**，那三条随之作废 —— 留着会压过下面的网格定义
-        （这两条带 .profile-home-shell 前缀，特异性 0,2,0 > 网格块的 0,1,0，
-         表现为「四列完全贴在一起、还没有左右边距」）。网格几何见文件末尾的竖屏块。 */
-
-  .profile-home-shell .profile-post-card:hover {
-    box-shadow: none;
-  }
-}
-
-.profile-hero-panel {
-  position: relative;
-  overflow: hidden;
-  min-height: 300px;
-  border-radius: 20px;
-  border: 1px solid var(--stroke);
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  animation: userspace-panel-in 280ms cubic-bezier(0.23, 1, 0.32, 1) both;
-}
-
-.profile-cover-band {
-  appearance: none;
-  -webkit-appearance: none;
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 120px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  overflow: hidden;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  background:
-    linear-gradient(180deg, rgba(15, 23, 42, 0.18), rgba(15, 23, 42, 0.02)),
-    radial-gradient(circle at 16% 24%, rgba(255, 255, 255, 0.95) 0 12%, transparent 13%),
-    radial-gradient(circle at 72% 20%, rgba(255, 255, 255, 0.72) 0 7%, transparent 8%),
-    linear-gradient(135deg, #b8d7ce 0%, #e7d7b6 48%, #c7d7ef 100%);
-  background-color: transparent;
-  background-position: center;
-  background-size: cover;
-  box-shadow: none;
-}
-
-.profile-cover-band:hover {
-  background-color: transparent;
-}
-
-.profile-cover-band:disabled {
-  cursor: wait;
-}
-
-.profile-cover-band.has-background-image {
-  background-size: cover;
-}
-
-.profile-cover-glass {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
-  opacity: 0.86;
-  pointer-events: none;
-  transition: opacity 0.18s ease;
-}
-
-.profile-cover-band:hover .profile-cover-glass,
-.profile-cover-band:focus-visible .profile-cover-glass {
-  opacity: 1;
-}
-
-.profile-cover-action {
-  position: absolute;
-  right: 18px;
-  bottom: 16px;
-  min-height: 30px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.34);
-  color: rgba(17, 24, 39, 0.78);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 0;
-  transform: translateY(4px);
-  box-shadow:
-    0 8px 22px rgba(15, 23, 42, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.62);
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-  pointer-events: none;
-}
-
-.profile-cover-band:hover .profile-cover-action,
-.profile-cover-band:focus-visible .profile-cover-action,
-.profile-cover-band.is-uploading .profile-cover-action {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.profile-cover-band:focus-visible {
-  outline: 2px solid rgba(0, 113, 227, 0.45);
-  outline-offset: -3px;
-}
-
-.profile-settings-btn {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 2;
-  min-height: 32px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.84);
-  color: #111827;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.01em;
-  /* 文字胶囊：宽度由 padding 撑开，绝不允许「设/置」竖排换行。
-     任何断点若再写死 width，本条 nowrap 会把它变成溢出而不是换行 —— 那是更好的故障形态。 */
-  white-space: nowrap;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
-  transition:
-    transform 0.16s ease,
-    background-color 0.16s ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .profile-settings-btn:hover {
-    transform: translateY(-1px);
-    background: #ffffff;
-  }
-}
-
-.profile-hero-body {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 18px;
-  align-items: end;
-  padding: 0 24px 18px;
-  margin-top: -36px;
-}
-
-.profile-hero-body .boh-avatar-wrap {
-  align-self: start;
-}
-
-.profile-hero-avatar .apple-avatar {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  border: 4px solid var(--surface);
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.2);
-  transition:
-    transform 180ms var(--ease-out),
-    box-shadow 180ms var(--ease-out);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .profile-hero-avatar:hover .apple-avatar {
-    transform: scale(1.025);
-    box-shadow: 0 18px 38px rgba(15, 23, 42, 0.22);
-  }
-}
-
-.profile-hero-copy {
-  position: relative;
-  min-width: 0;
-  padding-top: 52px;
-  padding-right: 150px;
-}
-
-.profile-hero-name-row {
-  margin-bottom: 2px;
-}
-
-.profile-handle,
-.profile-bio-wrap {
-  margin: 0;
-}
-
-.profile-handle {
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.profile-bio-wrap {
-  margin-top: 8px;
-}
-
-.profile-bio {
-  margin: 0;
-  max-width: 560px;
-  color: var(--text-primary);
-  font-size: 15px;
-  line-height: 1.55;
-  word-break: break-word;
-  overflow-wrap: break-word;
-}
-
-.profile-bio.clamped {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
-  animation: bio-clamp 150ms ease-out;
-}
-
-.profile-bio.expanded {
-  display: block;
-  animation: bio-reveal 200ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-@keyframes bio-reveal {
-  from {
-    opacity: 0.4;
-    transform: translateY(3px);
-  }
-}
-
-@keyframes bio-clamp {
-  from {
-    opacity: 0.4;
-  }
-}
-
-.profile-bio-toggle {
-  display: inline-block;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--text-tertiary);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color 0.16s ease;
-}
-
-.profile-bio-toggle:hover {
-  color: var(--text-primary);
-}
-
-/* ── 主操作行：编辑资料 + 活跃轨迹（2026-10-27 定稿）────────────────────
-   键盘/读屏视角它们是一组并列的操作，所以用一个 flex 行包起来。
-   ⚠️ 走**正常流**而不是绝对定位：2026-10-26 的单按钮版本是 `position:absolute;
-   right:0; bottom:0`，一个 78px 宽的胶囊贴在右下角不挡谁；现在一排两枚（≈221px），
-   绝对定位会压到数据行（同一个 bottom 锚点）。落地成流式行后，它与昵称、数据行
-   共用同一条左边界 —— 和「数据不要单独居中」是同一个要求。 */
-.profile-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-/* 子项外边距归零（2026-10-27 实测补）：
-   `responsive-integrations.css` 在这个断点给 .profile-edit-btn 挂着
-   `margin-top: 10px`（它还兼职「单按钮绝对定位」那个旧形态），
-   进 flex 行后这条 margin 会把「编辑资料」的 margin-box 撑到 40px，
-   在 align-items:center 下被推到行底 —— 实测同一行里编辑资料 t=420、
-   活跃轨迹 t=414，两枚胶囊上下错开 6px，看着就是「没对齐」。
-   ⚠️ 只写 `.profile-edit-btn`：活跃轨迹已是子组件（ActivityHeatmapLauncher），
-   而**多根组件（button + Teleport）不会继承父组件的 scopeId**，
-   父级 `> .profile-activity-trigger` 编译后带 [data-v-父] 却命中不到它。
-   它自己的 margin 归零写在组件内部（那边是自身作用域，一定生效）。 */
-.profile-hero-actions > .profile-edit-btn {
-  margin: 0;
-}
-
-/* 编辑资料（2026-10-27 用户反馈「不明显不清晰」）：
-   2026-10-26 曾把它降级成「无底浅灰胶囊」，实测在白资料卡上几乎与背景同色——
-   一枚按钮看起来像一行说明文字。现在改回**实心主按钮**：深底浅字、白字加粗、
-   1px 同色描边（防高对比模式下只剩一块色块）＋ 极轻投影。
-   它是「我的」页唯一的主操作，重一点是对的；重量的控制交给尺寸（32px）而不是颜色。 */
-.profile-edit-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 32px;
-  padding: 0 16px;
-  border: 1px solid var(--liquid-text-primary, #1d1d1f);
-  border-radius: 999px;
-  background: var(--liquid-text-primary, #1d1d1f);
-  /* 暗色下 --liquid-text-primary 变浅 ⇒ 文字必须跟着反色，否则白字压浅底看不见。
-     --boh-bg-primary 是主题里唯一天然反向的底色（亮 #fff / 暗 #0a0a0f），
-     正好当「实心按钮上的字色」用。 */
-  color: var(--boh-bg-primary, #ffffff);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  cursor: pointer;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18);
-  transition:
-    transform 160ms var(--ease-out),
-    opacity 180ms ease,
-    box-shadow 180ms ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .profile-edit-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
-  }
-}
-
-.profile-edit-btn:active {
-  transform: scale(0.98);
-}
-
-.profile-edit-btn:focus-visible {
-  outline: 2px solid var(--liquid-text-primary, #1d1d1f);
-  outline-offset: 2px;
-}
-
-.profile-hero-stats {
-  margin: 0 24px 22px;
-  padding-top: 18px;
-}
-
-/* 数据行：与昵称同一左边界（2026-10-27，全断点统一）。
-   ⚠️ 为什么必须带 `.profile-home-shell` 前缀：这个元素同时挂着 `.profile-stats`，
-   而后者在 profile-panels.css 里写着 `justify-content: center`，加载顺序更晚、
-   特异性相同 ⇒ 会把 profile-base.css 那条 `justify-content: flex-start` 静默压掉。
-   实测横屏 844 下三个数字居中在文案列中间（statBtn 339 / 昵称 159），
-   正是用户说的「数据被单独居中」。
-   margin 归零同理：基础规则里的 24px 左右缩进会让数据行比昵称右移 24px。 */
-.profile-home-shell .profile-hero-stats {
-  justify-content: flex-start;
-  margin: 0;
-}
-
-
-/* ── 积分卡：去掉白色外壳（2026-10-27 用户定稿）──────────────────────────
-   原来是「白色圆角壳（边框 + 20px 圆角 + 16px 内边距 + 投影）套着卡面」，
-   再加一行「方块积分卡 / 设置卡面 ›」标题 —— 三层框套一个卡，视觉上卡面像是被装裱的展品。
-   现在外壳归零：透明、无边框、无圆角、无内边距、无投影、无入场动画，
-   卡面自己就是这一块的全部内容（它本来就写着「方块积分」）。
-   ⚠️ 必须带 `.profile-home-shell` 前缀：这条要压的是 profile-base.css 里的
-   `.profile-points-card-section`（0,1,0）以及它的暗色覆盖 —— 前缀把它提到 (0,2,0)。
-   `overflow: visible` 是配套的：原规则是 hidden，卡面 focus-visible 的 outline
-   会被裁掉一半。 */
-.profile-home-shell .profile-points-card-section {
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  overflow: visible;
-  gap: 0;
-  animation: none;
-}
-
-/* 外壳撤掉后卡面自己就是这一块的全部内容 —— 位置按「展品」摆：水平居中。
-   （左侧留 16px 内边距、右侧一大片空地的那一版实测很失衡：宽屏下它像一张
-   没人认领的卡片贴在页边。居中后左右留白对称，留白才读成「呼吸」。） */
-.profile-home-shell .profile-points-card-wrap {
-  justify-content: center;
-}
-
-/* 竖屏：卡面自己带 14px 圆角，通栏贴边会变成「一条圆角毯子」。
-   补回原先白壳那 16px 内边距（白壳撤了，内边距的活要有人接）。
-   ⚠️ 这条必须写在本段之后：与上方 base 规则同特异性，源序在前会被压掉。 */
-@media (max-width: 767px) {
-  .profile-home-shell .profile-points-card-section {
-    padding: 0 16px;
-  }
-}
-
-/* 点击即设置（2026-10-27）：标题行里那个「设置卡面 ›」按钮已删，
-   整张卡面就是入口。这里补两件小事，让「可点」这件事在视觉上成立：
-   ① hover 时给卡面一圈极淡的主色描边（不改变尺寸，避免抖动）；
-   ② 光标 pointer + 触控态轻微下沉（PointsCard 自带 is-interactive 的 hover/active）。 */
-@media (hover: hover) and (pointer: fine) {
-  .profile-home-shell .profile-points-card-wrap .points-card.is-interactive {
-    outline: 1.5px solid transparent;
-    outline-offset: 3px;
-    transition:
-      outline-color 180ms ease,
-      transform 160ms var(--ease-out),
-      box-shadow 160ms var(--ease-out);
-  }
-
-  .profile-home-shell .profile-points-card-wrap .points-card.is-interactive:hover {
-    outline-color: color-mix(in srgb, var(--liquid-text-primary, #1d1d1f) 22%, transparent);
-  }
-}
-
-.profile-home-shell .profile-points-card-wrap .points-card.is-interactive:focus-visible {
-  outline: 2px solid var(--liquid-text-primary, #1d1d1f);
-  outline-offset: 3px;
-}
-
 /* 2026-10-26：原「服务」段（Cloud+ / 摄影集两行）已删除 —— 摄影集并入资产卡第二行，
    Cloud+ 由底栏「图库」席与设置页承担。对应的 .profile-service* 样式整块移除。 */
 
@@ -1729,10 +1295,13 @@ watch(
     6px 6px 0 1px var(--surface-elevated, #fff);
 }
 
+/* 多图张数角标（2026-11-05 移到底部）：原来贴 top-right，与作品卡右上角的「⋯」
+   菜单按钮完全重合（同一个 right:8px / top:8px）—— 两个都是小药丸，叠在一起就废了。
+   现在固定底部：右上角让给操作按钮，计数留在封面右下角（惯例位置）。 */
 .profile-post-multi-count {
   position: absolute;
   right: 8px;
-  top: 8px;
+  bottom: 8px;
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -2035,5 +1604,32 @@ watch(
   .profile-content-count-skeleton::after {
     animation: none;
   }
+}
+
+/* 作品卡的置顶角标与「⋯」菜单位置由共享层（profile-base.css / ProfilePostMenu.vue）
+   负责，两页同一套；这里只保留「我的」页独有的排版修正。 */
+
+/* 竖屏内容面板贴边（2026-11-05：身份卡规则提到 profile-base.css 之后补的一条）。
+   ⚠️ 为什么它必须留在组件里：全局那条 `.profile-home-shell > .profile-content-panel`
+   与本文件的基础 `.profile-content-panel` 特异性相同（0,2,0），而组件 scoped 样式
+   在全局样式之后注入 ⇒ 不加这条，页签卡在竖屏会重新长出 20px 圆角和投影。 */
+@media (max-width: 767px) {
+  .profile-home-shell > .profile-content-panel {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    box-shadow: none;
+  }
+}
+
+/* 纯文字作品卡：没有封面挡着，「置顶」角标和「⋯」会直接压在标题上（长标题更明显）。
+   ⚠️ 为什么写在这里而不是 profile-base.css：组件 scoped 样式在全局样式之后注入，
+   同特异性会把全局那条压掉（2026-11-05 实测全局 padding-top:34px 被本文件的 12/14px 覆盖）。 */
+.profile-post-card.text-only.has-pin .profile-post-copy {
+  padding-top: 34px;
+}
+
+.profile-post-card.text-only.has-menu .profile-post-copy h3 {
+  padding-right: 26px;
 }
 </style>

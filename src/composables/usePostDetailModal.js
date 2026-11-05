@@ -15,6 +15,14 @@ const MODAL_HISTORY_KEY = 'bohPdModal';
 
 const isOpen = ref(false);
 const postId = ref('');
+/**
+ * 本次打开是否直接进编辑态（2026-11-05）。
+ *
+ * 起因：主页作品卡的「⋯ → 编辑」在横屏被路由成了**整页详情**，用户看到的是
+ * 带顶栏/评论栏的阅读页，还要再点一次「⋯ → 编辑」——与「横屏详情是弹窗」的既有约定冲突。
+ * 现在由列表侧传 `edit: true`，这里记一个一次性标记，弹窗挂载后交给详情页自行展开编辑器。
+ */
+const initialEdit = ref(false);
 
 let offLandscape = null;
 
@@ -82,10 +90,11 @@ const unbindListeners = () => {
 /**
  * 打开详情弹窗。repeat 调用（如弹窗内切换引用帖）传 replace=true 复用当前历史条目。
  */
-function open(id, { replace = false } = {}) {
+function open(id, { replace = false, edit = false } = {}) {
   const safeId = String(id || '').trim();
   if (!safeId || typeof window === 'undefined') return;
   postId.value = safeId;
+  initialEdit.value = Boolean(edit);
   const wasOpen = isOpen.value;
   isOpen.value = true;
   isRestoredDetailModal.value = false; // 主动打开：整页详情照常渲染在背后
@@ -108,6 +117,7 @@ function close({ restoreHistory = true } = {}) {
   if (!isOpen.value) return;
   isOpen.value = false;
   isRestoredDetailModal.value = false;
+  initialEdit.value = false;
   unbindListeners();
   syncScrollLock();
   if (
@@ -123,17 +133,21 @@ function close({ restoreHistory = true } = {}) {
  * 帖子详情统一入口（单源分流）：横屏弹窗，否则整页路由。
  * 各列表页（ForumMain / UserSpaceMain / ProfileMain）一律调用本函数，禁止自行判据。
  */
-export function openForumPost({ router, postId: id, query } = {}) {
+export function openForumPost({ router, postId: id, query, edit = false } = {}) {
   const safeId = String(id || '').trim();
   if (!safeId || !router) return;
   if (isForumLandscape()) {
-    open(safeId);
+    open(safeId, { edit });
     return;
   }
+  const nextQuery = {
+    ...(query || {}),
+    ...(edit ? { edit: '1' } : {}),
+  };
   router.push({
     name: 'PostDetail',
     params: { id: safeId },
-    ...(query ? { query } : {}),
+    ...(Object.keys(nextQuery).length ? { query: nextQuery } : {}),
   });
 }
 
@@ -210,5 +224,5 @@ const isModalOwningDetail = computed(
 );
 
 export function usePostDetailModal() {
-  return { isOpen, postId, isModalOwningDetail, open, close, openForumPost };
+  return { isOpen, postId, initialEdit, isModalOwningDetail, open, close, openForumPost };
 }

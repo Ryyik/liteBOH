@@ -100,20 +100,20 @@
           ></div>
         </div>
       </section>
-      <div class="profile-tabs" style="opacity: 0.6; pointer-events: none">
-        <span class="tab-item" style="background: var(--surface)"
+      <div class="profile-content-tabs" style="opacity: 0.6; pointer-events: none">
+        <span class="profile-content-tab" style="background: var(--surface)"
           ><span
             class="skeleton-item"
             style="width: 40px; height: 12px; border-radius: 999px"
           ></span
         ></span>
-        <span class="tab-item" style="background: var(--surface)"
+        <span class="profile-content-tab" style="background: var(--surface)"
           ><span
             class="skeleton-item"
             style="width: 40px; height: 12px; border-radius: 999px"
           ></span
         ></span>
-        <span class="tab-item" style="background: var(--surface)"
+        <span class="profile-content-tab" style="background: var(--surface)"
           ><span
             class="skeleton-item"
             style="width: 40px; height: 12px; border-radius: 999px"
@@ -145,102 +145,103 @@
         >
           <span class="profile-cover-glass" aria-hidden="true"></span>
         </div>
-
-        <div class="profile-hero-body">
-          <span class="boh-avatar-wrap">
-            <div
-              class="apple-avatar-wrapper profile-hero-avatar"
-              :class="{ clickable: isOwnProfile }"
-              @click="isOwnProfile && handleAvatarClick()"
-            >
-              <div v-if="profile.avatar_url" class="apple-avatar has-avatar">
-                <img :src="profile.avatar_url" alt="头像" class="avatar-img" loading="lazy" />
-              </div>
-              <div v-else class="apple-avatar">
-                {{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}
-              </div>
-              <div v-if="isOwnProfile && isUploadingAvatar" class="avatar-upload-spinner">
-                <div class="spinner-ring animate-upload-spin"></div>
-              </div>
-              <div v-if="isOwnProfile && showUploadSuccess" class="avatar-success-overlay">
-                <svg
-                  class="success-icon"
-                  width="48"
-                  height="48"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M20 6L9 17l-5-5"
-                    stroke="currentColor"
-                    stroke-width="3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </div>
-              <div v-if="isOwnProfile" class="avatar-edit-overlay">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  stroke-width="2"
-                >
-                  <path
-                    d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
-                  />
-                  <circle cx="12" cy="13" r="4" />
-                </svg>
+        <div class="profile-identity-stack">
+          <div class="profile-hero-body">
+            <span class="boh-avatar-wrap">
+              <div
+                class="apple-avatar-wrapper profile-hero-avatar"
+                :class="{ clickable: isOwnProfile }"
+                @click="isOwnProfile && handleAvatarClick()"
+              >
+                <div v-if="profile.avatar_url" class="apple-avatar has-avatar">
+                  <img :src="profile.avatar_url" alt="头像" class="avatar-img" loading="lazy" />
+                </div>
+                <div v-else class="apple-avatar">
+                  {{ profile.username?.charAt(0)?.toUpperCase?.() || 'U' }}
+                </div>
+                <div v-if="isOwnProfile && isUploadingAvatar" class="avatar-upload-spinner">
+                  <div class="spinner-ring animate-upload-spin"></div>
+                </div>
+                <div v-if="isOwnProfile && showUploadSuccess" class="avatar-success-overlay">
+                  <svg
+                    class="success-icon"
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M20 6L9 17l-5-5"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+                <div v-if="isOwnProfile" class="avatar-edit-overlay">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                    />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                </div>
+                <span
+                  v-if="
+                    !isOwnProfile &&
+                    profile.last_active_at &&
+                    !profile.hide_online_status &&
+                    !profile.hideOnlineStatus
+                  "
+                  class="avatar-online-indicator"
+                  :class="{ online: isUserOnline(profile) }"
+                  :title="formatOnlineStatusTooltip(profile)"
+                  aria-hidden="true"
+                ></span>
               </div>
               <span
-                v-if="
-                  !isOwnProfile &&
-                  profile.last_active_at &&
-                  !profile.hide_online_status &&
-                  !profile.hideOnlineStatus
-                "
-                class="avatar-online-indicator"
-                :class="{ online: isUserOnline(profile) }"
-                :title="formatOnlineStatusTooltip(profile)"
+                v-if="ownFrame"
+                class="boh-avatar-frame"
+                :style="{
+                  '--boh-avatar-frame-url': `url(${ownFrame.url})`,
+                  '--boh-avatar-frame-scale': String(ownFrame.scale),
+                }"
                 aria-hidden="true"
               ></span>
-            </div>
-            <span
-              v-if="ownFrame"
-              class="boh-avatar-frame"
-              :style="{
-                '--boh-avatar-frame-url': `url(${ownFrame.url})`,
-                '--boh-avatar-frame-scale': String(ownFrame.scale),
-              }"
-              aria-hidden="true"
-            ></span>
-          </span>
+            </span>
 
-          <div class="profile-hero-copy">
-            <div class="name-row profile-hero-name-row">
-              <h1 class="profile-name" :class="nicknameClass">{{ profile.username }}</h1>
-              <span
-                v-if="tierCode && tierCode !== 'free'"
-                class="tier-badge"
-                :class="`tier-${tierCode}`"
-                >{{ tierDisplayName }}</span
-              >
-              <span class="level-badge" :title="`等级 ${levelInfo.level}`"
-                >Lv.{{ levelInfo.level }}</span
-              >
-            </div>
-            <div class="profile-meta-row">
-              <span class="profile-handle">@{{ profile.username }}</span>
-              <template
+            <div class="profile-hero-copy">
+              <div class="name-row profile-hero-name-row">
+                <h1 class="profile-name" :class="nicknameClass">{{ profile.username }}</h1>
+                <span
+                  v-if="tierCode && tierCode !== 'free'"
+                  class="tier-badge"
+                  :class="`tier-${tierCode}`"
+                  >{{ tierDisplayName }}</span
+                >
+                <span class="level-badge" :title="`等级 ${levelInfo.level}`"
+                  >Lv.{{ levelInfo.level }}</span
+                >
+              </div>
+              <!-- 在线状态（2026-11-05 对齐「我的」：原「@昵称」行删除，
+                   它和上一行昵称完全重复；在线状态改为这一行小字，仅访客可见） -->
+              <p
                 v-if="
                   !isOwnProfile &&
                   profile.last_active_at &&
                   !profile.hide_online_status &&
                   !profile.hideOnlineStatus
                 "
+                class="profile-meta-line"
               >
                 <span
                   class="profile-online-dot"
@@ -250,474 +251,290 @@
                 <span class="profile-online-text" :class="{ online: isUserOnline(profile) }">{{
                   formatUserOnlineStatus(profile)
                 }}</span>
-              </template>
-            </div>
-
-            <div class="profile-bio-wrap">
-              <p
-                ref="bioRef"
-                class="profile-bio"
-                :class="{ clamped: !bioExpanded, expanded: bioExpanded }"
-              >
-                {{
-                  profile.bio ||
-                  (isOwnProfile ? '点击编辑资料，向大家介绍一下自己吧。' : '还没有介绍。')
-                }}
               </p>
-              <button
-                v-if="bioHasOverflow"
-                type="button"
-                class="profile-bio-toggle"
-                @click="toggleBio"
-              >
-                {{ bioExpanded ? '收起' : '全文' }}
-              </button>
-            </div>
-
-            <div class="profile-hero-actions">
-              <button
-                v-if="isOwnProfile"
-                class="profile-edit-btn profile-edit-btn--primary"
-                @click="openEditModal"
-              >
-                编辑资料
-              </button>
-              <template v-else-if="isLoggedIn">
-                <button
-                  class="profile-follow-btn"
-                  :class="{
-                    'is-following': followState.isFollowing,
-                    'is-toggling': followState.toggling,
-                  }"
-                  :disabled="followState.toggling"
-                  @click="handleToggleFollow"
+              <div class="profile-bio-wrap">
+                <p
+                  ref="bioRef"
+                  class="profile-bio"
+                  :class="{ clamped: !bioExpanded, expanded: bioExpanded }"
                 >
-                  <svg
-                    v-if="!followState.isFollowing"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M20 8v6" />
-                    <path d="M23 11v2" />
-                    <path d="M17 11v2" />
-                  </svg>
-                  <svg
-                    v-else
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
                   {{
-                    followState.toggling ? '处理中...' : followState.isFollowing ? '已关注' : '关注'
+                    profile.bio ||
+                    (isOwnProfile ? '点击编辑资料，向大家介绍一下自己吧。' : '还没有介绍。')
                   }}
+                </p>
+                <button
+                  v-if="bioHasOverflow"
+                  type="button"
+                  class="profile-bio-toggle"
+                  @click="toggleBio"
+                >
+                  {{ bioExpanded ? '收起' : '全文' }}
                 </button>
-                <button class="profile-message-btn" @click="openImpressionModal">发印象</button>
-              </template>
-              <button
-                v-else
-                class="profile-follow-btn profile-follow-btn--ghost"
-                @click="authStore.showLoginModal = true"
+              </div>
+              <!-- 统计行（2026-11-05 对齐「我的」：三项纯文本、无圆点无胶囊，
+                   顺序 粉丝 → 关注 → 发帖；「积分」删除 —— 积分卡已经承担那个数字） -->
+              <div class="profile-stats profile-hero-stats profile-stats-compact">
+                <button type="button" class="stat-text" @click="openFollowModal('followers')">
+                  <strong class="stat-text-num">{{ followState.followersCount }}</strong>
+                  <span class="stat-text-label">粉丝</span>
+                </button>
+                <button type="button" class="stat-text" @click="openFollowModal('following')">
+                  <strong class="stat-text-num">{{ followState.followingCount }}</strong>
+                  <span class="stat-text-label">关注</span>
+                </button>
+                <button type="button" class="stat-text" @click="setActiveTab('posts')">
+                  <strong class="stat-text-num">{{ totalPostCount }}</strong>
+                  <span class="stat-text-label">发帖</span>
+                </button>
+              </div>
+              <div class="profile-hero-actions">
+                <button
+                  v-if="isOwnProfile"
+                  class="profile-edit-btn profile-edit-btn--primary"
+                  @click="openEditModal"
+                >
+                  编辑资料
+                </button>
+                <template v-else-if="isLoggedIn">
+                  <button
+                    class="profile-follow-btn"
+                    :class="{
+                      'is-following': followState.isFollowing,
+                      'is-toggling': followState.toggling,
+                    }"
+                    :disabled="followState.toggling"
+                    @click="handleToggleFollow"
+                  >
+                    <svg
+                      v-if="!followState.isFollowing"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M20 8v6" />
+                      <path d="M23 11v2" />
+                      <path d="M17 11v2" />
+                    </svg>
+                    <svg
+                      v-else
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                    {{
+                      followState.toggling
+                        ? '处理中...'
+                        : followState.isFollowing
+                          ? '已关注'
+                          : '关注'
+                    }}
+                  </button>
+                  <button class="profile-message-btn" @click="openImpressionModal">发印象</button>
+                </template>
+                <button
+                  v-else
+                  class="profile-follow-btn profile-follow-btn--ghost"
+                  @click="authStore.showLoginModal = true"
+                >
+                  关注
+                </button>
+                <!-- 活跃轨迹（2026-10-27 与「我的」页同步）：
+                     原来是资料卡下面一张常驻热力图卡（约 200px），现在收成这里的一枚
+                     次按钮胶囊，完整点阵搬进弹窗。组件与「我的」页共用同一个
+                     ActivityHeatmapLauncher —— 弹窗的焦点管理 / 滚动锁 / 暗色桥接只有一份。 -->
+                <ActivityHeatmapLauncher
+                  :payload="activityHeatmap"
+                  :loading="isHeatmapLoading"
+                  :is-owner="isOwnProfile"
+                />
+              </div>
+              <!-- 元信息与平台主页（他人空间独有，2026-11-05 由「服务面板」4 行卡片压成两行）：
+                   陌生人需要的是「这是谁」，不是一张可点的管理列表。 -->
+              <p v-if="profileMetaText" class="profile-meta-line profile-meta-line--foot">
+                {{ profileMetaText }}
+              </p>
+              <p
+                v-if="creatorBindings.length"
+                class="profile-meta-line profile-meta-line--foot profile-meta-links"
               >
-                关注
-              </button>
-              <!-- 活跃轨迹（2026-10-27 与「我的」页同步）：
-                   原来是资料卡下面一张常驻热力图卡（约 200px），现在收成这里的一枚
-                   次按钮胶囊，完整点阵搬进弹窗。组件与「我的」页共用同一个
-                   ActivityHeatmapLauncher —— 弹窗的焦点管理 / 滚动锁 / 暗色桥接只有一份。 -->
-              <ActivityHeatmapLauncher
-                :payload="activityHeatmap"
-                :loading="isHeatmapLoading"
-                :is-owner="isOwnProfile"
-              />
+                <button
+                  v-for="binding in creatorBindings"
+                  :key="binding.key"
+                  type="button"
+                  class="profile-meta-link"
+                  @click="openCreatorBindingHomepage(binding)"
+                >
+                  {{ binding.label
+                  }}<template v-if="isOwnProfile && binding.visibility === 'private'"
+                    >（私密）</template
+                  >
+                </button>
+              </p>
             </div>
           </div>
-        </div>
-
-        <div class="profile-stats profile-hero-stats">
-          <button class="stat-chip" @click="setActiveTab('posts')">
-            <span class="stat-chip-num">{{ totalPostCount }}</span>
-            <span class="stat-chip-label">帖子</span>
-          </button>
-          <span class="stat-dot">·</span>
-          <span class="stat-chip stat-chip-static">
-            <span class="stat-chip-num">{{ profile.points || 0 }}</span>
-            <span class="stat-chip-label">积分</span>
-          </span>
-          <span class="stat-dot">·</span>
-          <button class="stat-chip clickable-follow-stat" @click="openFollowModal('followers')">
-            <span class="stat-chip-num">{{ followState.followersCount }}</span>
-            <span class="stat-chip-label">粉丝</span>
-          </button>
-          <span class="stat-dot">·</span>
-          <button class="stat-chip clickable-follow-stat" @click="openFollowModal('following')">
-            <span class="stat-chip-num">{{ followState.followingCount }}</span>
-            <span class="stat-chip-label">关注</span>
-          </button>
         </div>
       </section>
 
-      <!-- 横屏（≥1024）时积分卡与用户信息并排一行；窄屏 display:contents 布局隐形，节奏不变 -->
-      <div class="profile-info-row">
-        <section
-          class="profile-points-card-section"
-          :class="{ 'is-own': isOwnProfile }"
-          aria-label="方块积分卡"
-        >
-          <div class="profile-points-card-head">
-            <span class="profile-points-card-kicker">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.9"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="2" y="5" width="20" height="14" rx="2" />
-                <line x1="2" y1="10" x2="22" y2="10" />
-              </svg>
-              方块积分卡
-              <span
-                v-if="tierDisplayName"
-                class="tier-badge"
-                :class="`tier-${tierCode}`"
-                style="margin-left: 4px; height: 18px; font-size: 9px; padding: 0 7px"
-                >{{ tierDisplayName }}</span
-              >
-            </span>
-            <button
-              v-if="isOwnProfile"
-              type="button"
-              class="profile-points-card-action"
-              @click="handlePointsCardClick"
-            >
-              设置卡面
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-            <span v-else class="profile-points-card-hint" style="text-align: right; margin: 0"
-              >{{ pointsCardPoints.toLocaleString('zh-CN') }} 积分</span
-            >
-          </div>
-          <div class="profile-points-card-wrap">
-            <PointsCard
-              :points="pointsCardPoints"
-              :username="profile.username || '未命名用户'"
-              :tier-label="tierDisplayName || 'BOH'"
-              :skin="pointsCardSkin"
-              :image-url="pointsCardImageUrl"
-              :interactive="isOwnProfile"
-              @click="handlePointsCardClick"
-            />
-          </div>
-          <p v-if="isOwnProfile" class="profile-points-card-hint">
-            点击卡面去设置空白/小猫或自定义卡面
-          </p>
-          <p v-else class="profile-points-card-hint">做任务、发帖与签到可获得积分</p>
-        </section>
+      <!-- 方块积分卡（2026-11-05 对齐「我的」）：撤白壳、撤标题行、撤说明，
+           只留 compact 卡面。访客侧只读（!isOwnProfile 时 interactive 为 false）。 -->
+      <section class="profile-points-card-section is-own" aria-label="方块积分卡">
+        <div class="profile-points-card-wrap">
+          <PointsCard
+            :points="pointsCardPoints"
+            :username="profile.username || '未命名用户'"
+            :tier-label="tierDisplayName || 'BOH'"
+            :skin="pointsCardSkin"
+            :image-url="pointsCardImageUrl"
+            compact
+            :interactive="isOwnProfile"
+            :title="isOwnProfile ? '点击设置卡面' : '方块积分卡'"
+            @click="handlePointsCardClick"
+          />
+        </div>
+      </section>
 
-        <section class="profile-service-panel" aria-label="用户信息">
+      <!-- 页签（2026-11-05 对齐「我的」）：无壳左对齐文字 + 计数气泡，
+           替掉原来的白壳分段控件（那个样式在私有 CSS 里有三份互相覆盖的定义）。 -->
+      <section class="profile-content-panel">
+        <div class="profile-content-tabs" role="tablist" aria-label="内容分类">
           <button
-            v-for="binding in creatorBindings"
-            :key="binding.key"
             type="button"
-            class="profile-service-row"
-            @click="openCreatorBindingHomepage(binding)"
-          >
-            <span class="profile-service-icon bg-purple">
-              <svg
-                width="17"
-                height="17"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M14 3h7v7"></path>
-                <path d="M10 14L21 3"></path>
-                <path d="M21 14v7h-7"></path>
-                <path d="M3 10L14 21"></path>
-              </svg>
-            </span>
-            <span class="profile-service-body">
-              <strong
-                >{{ binding.label
-                }}{{
-                  isOwnProfile && binding.visibility === 'private' ? '（私密）' : ''
-                }}主页</strong
-              >
-              <small>{{ binding.id }}</small>
-            </span>
-            <span class="profile-action-chevron">›</span>
-          </button>
-          <button type="button" class="profile-service-row" @click="setActiveTab('posts')">
-            <span class="profile-service-icon bg-blue">
-              <svg
-                width="17"
-                height="17"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-            </span>
-            <span class="profile-service-body">
-              <strong>{{ formatDate(profile.join_date) }} 加入</strong>
-              <small>加入社区的时间</small>
-            </span>
-            <span class="profile-action-chevron">›</span>
-          </button>
-          <button
-            v-if="profile.join_date"
-            type="button"
-            class="profile-service-row"
+            role="tab"
+            class="profile-content-tab"
+            :class="{ active: activeTab === 'posts' }"
+            :aria-selected="activeTab === 'posts'"
             @click="setActiveTab('posts')"
           >
-            <span class="profile-service-icon bg-teal">
-              <svg
-                width="17"
-                height="17"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
-                />
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                <line x1="12" y1="22.08" x2="12" y2="12" />
-              </svg>
-            </span>
-            <span class="profile-service-body">
-              <strong>方块年龄 {{ calculateBlockAge(profile.join_date) }} 天</strong>
-              <small>在方块世界中度过的日子</small>
-            </span>
-            <span class="profile-action-chevron">›</span>
+            作品 <span class="profile-content-count">{{ totalPostCount }}</span>
           </button>
-          <div
-            v-if="profile.birth_month && profile.birth_day"
-            class="profile-service-row is-static"
+          <button
+            type="button"
+            role="tab"
+            class="profile-content-tab"
+            :class="{ active: activeTab === 'replies' }"
+            :aria-selected="activeTab === 'replies'"
+            @click="setActiveTab('replies')"
           >
-            <span class="profile-service-icon bg-pink">
-              <svg
-                width="17"
-                height="17"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
-                <path d="M4 16h16" />
-                <path d="M12 11V7" />
-                <path d="M12 7c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" />
-              </svg>
-            </span>
-            <span class="profile-service-body">
-              <strong>{{ profile.birth_month }}月{{ profile.birth_day }}日 生日</strong>
-              <small>每年都会收到祝福</small>
-            </span>
-          </div>
-        </section>
-      </div>
-
-      <div class="profile-tabs" role="tablist" aria-label="内容分类">
-        <button
-          class="tab-item"
-          :class="{ active: activeTab === 'posts' }"
-          role="tab"
-          :aria-selected="activeTab === 'posts'"
-          @click="setActiveTab('posts')"
-        >
-          帖子 <span v-if="totalPostCount > 0" class="tab-count">{{ totalPostCount }}</span>
-          <div class="tab-indicator"></div>
-        </button>
-        <button
-          class="tab-item"
-          :class="{ active: activeTab === 'replies' }"
-          role="tab"
-          :aria-selected="activeTab === 'replies'"
-          @click="setActiveTab('replies')"
-        >
-          回复 <span v-if="comments.length > 0" class="tab-count">{{ comments.length }}</span>
-          <div class="tab-indicator"></div>
-        </button>
-        <button
-          class="tab-item"
-          :class="{ active: activeTab === 'impressions' }"
-          role="tab"
-          :aria-selected="activeTab === 'impressions'"
-          @click="setActiveTab('impressions')"
-        >
-          印象 <span v-if="impressions.length > 0" class="tab-count">{{ impressions.length }}</span>
-          <div class="tab-indicator"></div>
-        </button>
-      </div>
-
-      <div class="tab-content-list">
-        <div v-if="activeTab === 'posts'" class="posts-list">
-          <section
-            v-if="showcasePosts.length > 0 || (isOwnProfile && posts.length > 0)"
-            class="profile-showcase-section"
+            回复 <span class="profile-content-count">{{ comments.length }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="profile-content-tab"
+            :class="{ active: activeTab === 'impressions' }"
+            :aria-selected="activeTab === 'impressions'"
+            @click="setActiveTab('impressions')"
           >
-            <div class="showcase-header">
-              <h3>代表作置顶</h3>
-              <span>{{ showcasePosts.length }}/3</span>
-            </div>
-            <p v-if="showcasePosts.length === 0" class="showcase-empty-tip">
-              你还没有设置置顶帖子，点击帖子右上角的"置顶"即可展示代表作。
-            </p>
-            <div v-else class="showcase-list">
-              <article
-                v-for="post in showcasePosts"
-                :key="`showcase-${post.id}`"
-                class="showcase-item"
-                @click="navigateToPost(post.id)"
-              >
-                <div class="showcase-item-header">
-                  <h4>{{ post.title || '无标题' }}</h4>
-                  <button
-                    v-if="isOwnProfile"
-                    class="showcase-unpin-btn"
-                    @click.stop="toggleShowcasePost(post)"
-                  >
-                    取消置顶
-                  </button>
-                </div>
-                <p>{{ post.content }}</p>
-              </article>
-            </div>
-          </section>
+            印象 <span class="profile-content-count">{{ impressions.length }}</span>
+          </button>
+        </div>
 
-          <div
-            v-if="isTabLoading.posts && posts.length === 0"
-            class="profile-post-grid"
-            aria-hidden="true"
-          >
+        <div class="tab-content-list">
+          <div v-if="activeTab === 'posts'" class="posts-list">
             <div
-              v-for="item in 4"
-              :key="`posts-loading-${item}`"
-              class="profile-post-card"
-              style="padding: 0; overflow: hidden"
+              v-if="isTabLoading.posts && posts.length === 0"
+              class="profile-post-grid"
+              aria-hidden="true"
             >
-              <div class="profile-skeleton-block" style="height: 160px; background: #eef2f7"></div>
               <div
-                style="padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px"
+                v-for="item in 4"
+                :key="`posts-loading-${item}`"
+                class="profile-post-card"
+                style="padding: 0; overflow: hidden"
               >
                 <div
                   class="profile-skeleton-block"
-                  style="height: 16px; width: 70%; border-radius: 999px"
+                  style="height: 160px; background: #eef2f7"
                 ></div>
                 <div
-                  class="profile-skeleton-block"
-                  style="height: 12px; width: 90%; border-radius: 999px"
-                ></div>
-                <div
-                  class="profile-skeleton-block"
-                  style="height: 12px; width: 60%; border-radius: 999px"
-                ></div>
+                  style="padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px"
+                >
+                  <div
+                    class="profile-skeleton-block"
+                    style="height: 16px; width: 70%; border-radius: 999px"
+                  ></div>
+                  <div
+                    class="profile-skeleton-block"
+                    style="height: 12px; width: 90%; border-radius: 999px"
+                  ></div>
+                  <div
+                    class="profile-skeleton-block"
+                    style="height: 12px; width: 60%; border-radius: 999px"
+                  ></div>
+                </div>
               </div>
             </div>
-          </div>
-          <div v-else-if="profileWorkItems.length === 0" class="empty-list-state">
-            <h3>暂无发布过的帖子</h3>
-            <p>发布的帖子和公开的 Cloud+ 笔记会出现在这里。</p>
-            <button v-if="isOwnProfile" class="empty-action-btn" @click="showPostModal = true">
-              立即发帖
-            </button>
-            <button
-              v-else
-              class="empty-action-btn"
-              @click="router.push('/user-space?tab=community')"
-            >
-              去方块社区看看
-            </button>
-          </div>
-          <!-- 2026-11-04 硬切审计：骨架⇄帖子网格补内容侧淡入 -->
-          <div v-else class="profile-post-grid content-swap-in">
-            <template v-for="(item, index) in profileWorkItems" :key="item.key">
-              <article
-                v-if="item.kind === 'note'"
-                class="profile-post-card profile-note-card"
-                :class="[
-                  `note-cover-theme-${item.card.coverTheme}`,
-                  {
-                    'text-only': !item.card.coverImageUrl,
-                    'image-post-card-v2': item.card.coverImageUrl,
-                  },
-                ]"
-                :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
+            <div v-else-if="profileWorkItems.length === 0" class="empty-list-state">
+              <h3>暂无发布过的帖子</h3>
+              <p>发布的帖子和公开的 Cloud+ 笔记会出现在这里。</p>
+              <button v-if="isOwnProfile" class="empty-action-btn" @click="showPostModal = true">
+                立即发帖
+              </button>
+              <button
+                v-else
+                class="empty-action-btn"
+                @click="router.push('/user-space?tab=community')"
               >
-                <div class="profile-post-cover" v-if="item.card.coverImageUrl">
-                  <img
-                    :src="resolveDbCardImage(item.card.coverImageUrl)"
-                    :alt="noteDisplayTitle(item.card)"
-                    loading="lazy"
-                    decoding="async"
-                    :class="{ 'is-loading': !isImageLoaded(`pn-${item.key}`) }"
-                    @load="markImageLoaded(`pn-${item.key}`)"
-                  />
-                </div>
-                <div v-else class="profile-note-text-cover" aria-hidden="true">
-                  <span class="profile-note-cover-kicker">Cloud+ 笔记</span>
-                  <strong>{{ noteDisplayTitle(item.card) }}</strong>
-                </div>
-                <div class="profile-post-copy">
-                  <h3>{{ noteDisplayTitle(item.card) }}</h3>
-                  <p>{{ item.card.summary || '暂无文字预览' }}</p>
-                  <div class="profile-post-meta">
-                    <span>{{ formatProfilePostDate({ created_at: item.card.dateValue }) }}</span>
-                    <span v-if="item.card.imageCount">{{ item.card.imageCount }} 图</span>
-                    <span class="profile-note-public-badge">公开笔记</span>
+                去方块社区看看
+              </button>
+            </div>
+            <!-- 2026-11-04 硬切审计：骨架⇄帖子网格补内容侧淡入 -->
+            <div v-else class="profile-post-grid content-swap-in">
+              <template v-for="(item, index) in profileWorkItems" :key="item.key">
+                <article
+                  v-if="item.kind === 'note'"
+                  class="profile-post-card profile-note-card"
+                  :class="[
+                    `note-cover-theme-${item.card.coverTheme}`,
+                    {
+                      'text-only': !item.card.coverImageUrl,
+                      'image-post-card-v2': item.card.coverImageUrl,
+                    },
+                  ]"
+                  :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
+                >
+                  <div class="profile-post-cover" v-if="item.card.coverImageUrl">
+                    <img
+                      :src="resolveDbCardImage(item.card.coverImageUrl)"
+                      :alt="noteDisplayTitle(item.card)"
+                      loading="lazy"
+                      decoding="async"
+                      :class="{ 'is-loading': !isImageLoaded(`pn-${item.key}`) }"
+                      @load="markImageLoaded(`pn-${item.key}`)"
+                    />
                   </div>
-                </div>
-              </article>
-              <!-- ⚠️ 这一支的别名必须是 item.post。
+                  <div v-else class="profile-note-text-cover" aria-hidden="true">
+                    <span class="profile-note-cover-kicker">Cloud+ 笔记</span>
+                    <strong>{{ noteDisplayTitle(item.card) }}</strong>
+                  </div>
+                  <div class="profile-post-copy">
+                    <h3>{{ noteDisplayTitle(item.card) }}</h3>
+                    <p>{{ item.card.summary || '暂无文字预览' }}</p>
+                    <div class="profile-post-meta">
+                      <span>{{ formatProfilePostDate({ created_at: item.card.dateValue }) }}</span>
+                      <span v-if="item.card.imageCount">{{ item.card.imageCount }} 图</span>
+                      <span class="profile-note-public-badge">公开笔记</span>
+                    </div>
+                  </div>
+                </article>
+                <!-- ⚠️ 这一支的别名必须是 item.post。
                    profileWorkItems 的元素形如 { key, kind: 'post'|'note', date, post?, card? }：
                    kind==='note' 走上一支（item.card），kind==='post' 走这里（item.post）。
                    2026-10-03 之前这一支写的是裸 post 前缀（模板里根本没有 post 这个绑定，
@@ -725,252 +542,259 @@
                    渲染时先求值 :class 里的 post 图片长度就抛
                    "undefined is not an object (evaluating 'e.post.images')"，
                    表现为打开他人主页整页报错（/profile/:username → ProfileMain）。 -->
-              <article
-                v-else
-                class="profile-post-card"
-                :class="{
-                  'text-only': !item.post.images?.length,
-                  'image-post-card-v2': item.post.images?.length,
-                }"
-                :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
-                @click="navigateToPost(item.post.id)"
-              >
-                <div v-if="isOwnProfile" class="profile-post-pin-action">
-                  <button
-                    class="pin-post-btn"
-                    @click.stop="toggleShowcasePost(item.post)"
-                    :disabled="!isShowcasedPost(item.post.id) && showcasePosts.length >= 3"
+                <article
+                  v-else
+                  class="profile-post-card"
+                  :class="{
+                    'text-only': !item.post.images?.length,
+                    'image-post-card-v2': item.post.images?.length,
+                    'has-pin': isShowcasedPost(item.post.id),
+                    'has-menu': isOwnProfile,
+                  }"
+                  :style="{ '--post-appear-delay': `${Math.min(index, 8) * 45}ms` }"
+                  @click="navigateToPost(item.post.id)"
+                >
+                  <!-- 置顶角标：只有被置顶的那几条才有。代表作不再是列表上方独立一栏，
+                       就是这里的一张普通帖子卡，只是排在最前（见 profileWorkItems）。 -->
+                  <span v-if="isShowcasedPost(item.post.id)" class="profile-post-pin-badge"
+                    >置顶</span
                   >
-                    {{ isShowcasedPost(item.post.id) ? '已置顶' : '置顶' }}
-                  </button>
+                  <ProfilePostMenu
+                    v-if="isOwnProfile"
+                    :pinned="isShowcasedPost(item.post.id)"
+                    :limit-reached="normalizedShowcaseIds.length >= 3"
+                    @toggle="toggleShowcasePost(item.post)"
+                    @edit="editPostFromCard(item.post)"
+                    @delete="deletePostFromCard(item.post)"
+                  />
+                  <figure
+                    v-if="isHomeCatActive"
+                    class="post-card-theme-cat"
+                    :class="getPostCardCatVariant(index)"
+                    aria-hidden="true"
+                  >
+                    <img
+                      :src="getPostCardCatSrc(item.post, index)"
+                      alt=""
+                      draggable="false"
+                      loading="lazy"
+                    />
+                  </figure>
+                  <figure
+                    v-if="isHomeCatActive && shouldShowPostBackgroundCat(item.post, index)"
+                    class="post-card-background-cat"
+                    aria-hidden="true"
+                  >
+                    <img
+                      :src="getPostBackgroundCatSrc(item.post, index)"
+                      alt=""
+                      draggable="false"
+                      loading="lazy"
+                    />
+                  </figure>
+                  <div class="profile-post-cover" v-if="getProfilePostCover(item.post)">
+                    <img
+                      :src="getProfilePostCover(item.post)"
+                      :alt="item.post.title || '帖子封面'"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
+                  <div class="profile-post-copy">
+                    <h3>{{ item.post.title || '无标题' }}</h3>
+                    <p>{{ getProfilePostSummary(item.post) }}</p>
+                    <div class="profile-post-meta">
+                      <span>{{ formatProfilePostDate(item.post) }}</span>
+                      <span>{{ item.post.like_count || 0 }}赞</span>
+                      <span>{{ item.post.comment_count || 0 }}评</span>
+                    </div>
+                  </div>
+                </article>
+              </template>
+            </div>
+            <div v-if="posts.length > 0 && hasMorePosts" class="list-load-more-wrap">
+              <button class="load-more-btn" :disabled="isTabLoading.posts" @click="loadMorePosts">
+                {{ isTabLoading.posts ? '加载中...' : '加载更多帖子' }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="activeTab === 'replies'" class="profile-replies-list">
+            <div
+              v-if="isTabLoading.replies && comments.length === 0"
+              class="profile-feed-skeleton"
+              aria-hidden="true"
+            >
+              <div
+                v-for="item in 3"
+                :key="`replies-loading-${item}`"
+                class="profile-feed-skeleton-item"
+              >
+                <div class="profile-skeleton-block profile-feed-avatar"></div>
+                <div class="profile-feed-skeleton-body">
+                  <div class="profile-skeleton-block profile-feed-line name"></div>
+                  <div class="profile-skeleton-block profile-feed-line title"></div>
+                  <div class="profile-skeleton-block profile-feed-line text"></div>
+                  <div class="profile-skeleton-block profile-feed-line short"></div>
                 </div>
-                <figure
-                  v-if="isHomeCatActive"
-                  class="post-card-theme-cat"
-                  :class="getPostCardCatVariant(index)"
-                  aria-hidden="true"
-                >
-                  <img
-                    :src="getPostCardCatSrc(item.post, index)"
-                    alt=""
-                    draggable="false"
-                    loading="lazy"
-                  />
-                </figure>
-                <figure
-                  v-if="isHomeCatActive && shouldShowPostBackgroundCat(item.post, index)"
-                  class="post-card-background-cat"
-                  aria-hidden="true"
-                >
-                  <img
-                    :src="getPostBackgroundCatSrc(item.post, index)"
-                    alt=""
-                    draggable="false"
-                    loading="lazy"
-                  />
-                </figure>
-                <div class="profile-post-cover" v-if="getProfilePostCover(item.post)">
-                  <img
-                    :src="getProfilePostCover(item.post)"
-                    :alt="item.post.title || '帖子封面'"
-                    loading="lazy"
-                    decoding="async"
-                  />
+              </div>
+            </div>
+            <div v-else-if="comments.length === 0" class="empty-list-state">
+              <h3>暂无回复</h3>
+              <p>对他人的回复会出现在这里。</p>
+              <button class="empty-action-btn" @click="router.push('/user-space?tab=community')">
+                去方块社区互动
+              </button>
+            </div>
+            <!-- 2026-11-04 硬切审计：骨架⇄回复列表补内容侧淡入 -->
+            <div v-else class="replies-list content-swap-in">
+              <article v-for="comment in comments" :key="comment.id" class="feed-item reply-item">
+                <div class="item-avatar">
+                  <div class="avatar-mini">
+                    <img
+                      v-if="comment.author?.avatar_url"
+                      :src="comment.author.avatar_url"
+                      alt="avatar"
+                      class="avatar-mini-img"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <span v-else>{{
+                      comment.author?.username?.charAt(0)?.toUpperCase?.() || 'U'
+                    }}</span>
+                  </div>
                 </div>
-                <div class="profile-post-copy">
-                  <h3>{{ item.post.title || '无标题' }}</h3>
-                  <p>{{ getProfilePostSummary(item.post) }}</p>
-                  <div class="profile-post-meta">
-                    <span>{{ formatProfilePostDate(item.post) }}</span>
-                    <span>{{ item.post.like_count || 0 }}赞</span>
-                    <span>{{ item.post.comment_count || 0 }}评</span>
+                <div class="item-main">
+                  <div class="item-header">
+                    <span class="item-author" :class="commentTierMap[comment.author_id]">{{
+                      comment.author?.username || '用户'
+                    }}</span>
+                    <span class="item-handle"
+                      >@{{ comment.author?.username || '未知' }} ·
+                      {{ formatTime(comment.created_at) }}</span
+                    >
+                  </div>
+                  <div class="replying-to" v-if="comment.post">
+                    回复
+                    <span class="mention">@{{ comment.post?.author_username || '未知用户' }}</span>
+                  </div>
+                  <div class="item-text">{{ comment.content }}</div>
+                  <div
+                    class="quoted-post"
+                    v-if="comment.post"
+                    @click="navigateToPost(comment.post_id)"
+                  >
+                    <p class="quoted-text">{{ comment.post.content?.substring(0, 100) }}...</p>
                   </div>
                 </div>
               </article>
-            </template>
+            </div>
+            <div v-if="comments.length > 0 && hasMoreComments" class="list-load-more-wrap">
+              <button
+                class="load-more-btn"
+                :disabled="isTabLoading.replies"
+                @click="loadMoreComments"
+              >
+                {{ isTabLoading.replies ? '加载中...' : '加载更多回复' }}
+              </button>
+            </div>
           </div>
-          <div v-if="posts.length > 0 && hasMorePosts" class="list-load-more-wrap">
-            <button class="load-more-btn" :disabled="isTabLoading.posts" @click="loadMorePosts">
-              {{ isTabLoading.posts ? '加载中...' : '加载更多帖子' }}
-            </button>
-          </div>
-        </div>
 
-        <div v-if="activeTab === 'replies'" class="profile-replies-list">
-          <div
-            v-if="isTabLoading.replies && comments.length === 0"
-            class="profile-feed-skeleton"
-            aria-hidden="true"
-          >
+          <div v-if="activeTab === 'impressions'" class="impressions-list-tab">
             <div
-              v-for="item in 3"
-              :key="`replies-loading-${item}`"
-              class="profile-feed-skeleton-item"
+              v-if="isTabLoading.impressions && impressions.length === 0"
+              class="profile-feed-skeleton"
+              aria-hidden="true"
             >
-              <div class="profile-skeleton-block profile-feed-avatar"></div>
-              <div class="profile-feed-skeleton-body">
+              <div
+                v-for="item in 3"
+                :key="`impression-loading-${item}`"
+                class="profile-feed-skeleton-item"
+              >
                 <div class="profile-skeleton-block profile-feed-line name"></div>
-                <div class="profile-skeleton-block profile-feed-line title"></div>
                 <div class="profile-skeleton-block profile-feed-line text"></div>
                 <div class="profile-skeleton-block profile-feed-line short"></div>
               </div>
             </div>
-          </div>
-          <div v-else-if="comments.length === 0" class="empty-list-state">
-            <h3>暂无回复</h3>
-            <p>对他人的回复会出现在这里。</p>
-            <button class="empty-action-btn" @click="router.push('/user-space?tab=community')">
-              去方块社区互动
-            </button>
-          </div>
-          <!-- 2026-11-04 硬切审计：骨架⇄回复列表补内容侧淡入 -->
-          <div v-else class="replies-list content-swap-in">
-            <article v-for="comment in comments" :key="comment.id" class="feed-item reply-item">
-              <div class="item-avatar">
-                <div class="avatar-mini">
-                  <img
-                    v-if="comment.author?.avatar_url"
-                    :src="comment.author.avatar_url"
-                    alt="avatar"
-                    class="avatar-mini-img"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <span v-else>{{
-                    comment.author?.username?.charAt(0)?.toUpperCase?.() || 'U'
-                  }}</span>
-                </div>
-              </div>
-              <div class="item-main">
-                <div class="item-header">
-                  <span class="item-author" :class="commentTierMap[comment.author_id]">{{
-                    comment.author?.username || '用户'
-                  }}</span>
-                  <span class="item-handle"
-                    >@{{ comment.author?.username || '未知' }} ·
-                    {{ formatTime(comment.created_at) }}</span
-                  >
-                </div>
-                <div class="replying-to" v-if="comment.post">
-                  回复
-                  <span class="mention">@{{ comment.post?.author_username || '未知用户' }}</span>
-                </div>
-                <div class="item-text">{{ comment.content }}</div>
-                <div
-                  class="quoted-post"
-                  v-if="comment.post"
-                  @click="navigateToPost(comment.post_id)"
-                >
-                  <p class="quoted-text">{{ comment.post.content?.substring(0, 100) }}...</p>
-                </div>
-              </div>
-            </article>
-          </div>
-          <div v-if="comments.length > 0 && hasMoreComments" class="list-load-more-wrap">
-            <button
-              class="load-more-btn"
-              :disabled="isTabLoading.replies"
-              @click="loadMoreComments"
-            >
-              {{ isTabLoading.replies ? '加载中...' : '加载更多回复' }}
-            </button>
-          </div>
-        </div>
-
-        <div v-if="activeTab === 'impressions'" class="impressions-list-tab">
-          <div
-            v-if="isTabLoading.impressions && impressions.length === 0"
-            class="profile-feed-skeleton"
-            aria-hidden="true"
-          >
-            <div
-              v-for="item in 3"
-              :key="`impression-loading-${item}`"
-              class="profile-feed-skeleton-item"
-            >
-              <div class="profile-skeleton-block profile-feed-line name"></div>
-              <div class="profile-skeleton-block profile-feed-line text"></div>
-              <div class="profile-skeleton-block profile-feed-line short"></div>
-            </div>
-          </div>
-          <div v-if="!isOwnProfile && isLoggedIn" class="add-impression-section">
-            <textarea
-              v-model="newImpressionContent"
-              placeholder="写下你对 TA 的印象..."
-              rows="3"
-              maxlength="100"
-            ></textarea>
-            <div class="add-imp-actions">
-              <span class="char-hint">{{ newImpressionContent.length }}/100</span>
-              <button
-                class="submit-imp-btn"
-                :disabled="!newImpressionContent.trim() || submittingImpression"
-                @click="handleSubmitImpression"
-              >
-                {{ submittingImpression ? '发布中...' : '发布印象' }}
-              </button>
-            </div>
-          </div>
-          <div
-            v-if="!isTabLoading.impressions && impressions.length === 0"
-            class="empty-list-state"
-          >
-            <EmptyState
-              variant="inbox"
-              title="暂无他人印象"
-              :description="`关于 ${profile.username} 的印象会出现在这里。`"
-            />
-          </div>
-          <div v-if="impressions.length > 0" class="impressions-wall-profile">
-            <div
-              v-for="(imp, index) in impressions"
-              :key="imp.id"
-              class="impression-card-profile"
-              :style="{ '--stagger-delay': `${Math.min(index, 8) * 55}ms` }"
-            >
-              <span class="imp-quote-mark" aria-hidden="true">"</span>
-              <p class="imp-text">{{ imp.content }}</p>
-              <div class="imp-footer">
-                <span class="imp-author-chip" @click="goToProfileRoute(imp.author?.username)">
-                  <span class="imp-avatar" aria-hidden="true">
-                    <img
-                      v-if="getAvatarUrl(imp.author?.avatar_url, 'sm')"
-                      :src="getAvatarUrl(imp.author?.avatar_url, 'sm')"
-                      :alt="`${imp.author?.username || '匿名'} 的头像`"
-                      loading="lazy"
-                      decoding="async"
-                    />
-                    <i v-else>{{ (imp.author?.username || '匿').charAt(0).toUpperCase() }}</i>
-                  </span>
-                  <span class="imp-author-meta">
-                    <span class="imp-author" :class="impressionTierMap[imp.author_id]"
-                      >@{{ imp.author?.username || '匿名' }}</span
-                    >
-                    <span class="imp-date">{{ formatTime(imp.created_at) }}</span>
-                  </span>
-                </span>
+            <div v-if="!isOwnProfile && isLoggedIn" class="add-impression-section">
+              <textarea
+                v-model="newImpressionContent"
+                placeholder="写下你对 TA 的印象..."
+                rows="3"
+                maxlength="100"
+              ></textarea>
+              <div class="add-imp-actions">
+                <span class="char-hint">{{ newImpressionContent.length }}/100</span>
                 <button
-                  v-if="canDeleteImpression(imp)"
-                  class="delete-imp-btn"
-                  aria-label="删除这条印象"
-                  @click="handleDeleteImpression(imp)"
+                  class="submit-imp-btn"
+                  :disabled="!newImpressionContent.trim() || submittingImpression"
+                  @click="handleSubmitImpression"
                 >
-                  <Trash2 :size="14" :stroke-width="2" />
+                  {{ submittingImpression ? '发布中...' : '发布印象' }}
                 </button>
               </div>
             </div>
-          </div>
-          <div v-if="impressions.length > 0 && hasMoreImpressions" class="list-load-more-wrap">
-            <button
-              class="load-more-btn"
-              :disabled="isTabLoading.impressions"
-              @click="loadMoreImpressions"
+            <div
+              v-if="!isTabLoading.impressions && impressions.length === 0"
+              class="empty-list-state"
             >
-              {{ isTabLoading.impressions ? '加载中...' : '加载更多印象' }}
-            </button>
+              <EmptyState
+                variant="inbox"
+                title="暂无他人印象"
+                :description="`关于 ${profile.username} 的印象会出现在这里。`"
+              />
+            </div>
+            <div v-if="impressions.length > 0" class="impressions-wall-profile">
+              <div
+                v-for="(imp, index) in impressions"
+                :key="imp.id"
+                class="impression-card-profile"
+                :style="{ '--stagger-delay': `${Math.min(index, 8) * 55}ms` }"
+              >
+                <span class="imp-quote-mark" aria-hidden="true">"</span>
+                <p class="imp-text">{{ imp.content }}</p>
+                <div class="imp-footer">
+                  <span class="imp-author-chip" @click="goToProfileRoute(imp.author?.username)">
+                    <span class="imp-avatar" aria-hidden="true">
+                      <img
+                        v-if="getAvatarUrl(imp.author?.avatar_url, 'sm')"
+                        :src="getAvatarUrl(imp.author?.avatar_url, 'sm')"
+                        :alt="`${imp.author?.username || '匿名'} 的头像`"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <i v-else>{{ (imp.author?.username || '匿').charAt(0).toUpperCase() }}</i>
+                    </span>
+                    <span class="imp-author-meta">
+                      <span class="imp-author" :class="impressionTierMap[imp.author_id]"
+                        >@{{ imp.author?.username || '匿名' }}</span
+                      >
+                      <span class="imp-date">{{ formatTime(imp.created_at) }}</span>
+                    </span>
+                  </span>
+                  <button
+                    v-if="canDeleteImpression(imp)"
+                    class="delete-imp-btn"
+                    aria-label="删除这条印象"
+                    @click="handleDeleteImpression(imp)"
+                  >
+                    <Trash2 :size="14" :stroke-width="2" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div v-if="impressions.length > 0 && hasMoreImpressions" class="list-load-more-wrap">
+              <button
+                class="load-more-btn"
+                :disabled="isTabLoading.impressions"
+                @click="loadMoreImpressions"
+              >
+                {{ isTabLoading.impressions ? '加载中...' : '加载更多印象' }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
 
     <ProfileEditModal
@@ -1050,6 +874,7 @@ import { getAvatarUrl } from '@/utils/avatar.js';
 import ProfileEditModal from './components/ProfileEditModal.vue';
 import PostCreateModal from './components/PostCreateModal.vue';
 import PointsCard from '@/views/user-center/UserSpace/components/PointsCard.vue';
+import ProfilePostMenu from '@/views/user-center/UserSpace/components/ProfilePostMenu.vue';
 import ActivityHeatmapLauncher from '@/views/user-center/UserSpace/components/ActivityHeatmapLauncher.vue';
 import { supabase } from '@/utils/supabase-client.js';
 import {
@@ -1073,7 +898,7 @@ import {
   getFollowers,
   getFollowing,
 } from '@/utils/api/profile-api.js';
-import { createPost } from '@/utils/api/forum-api.js';
+import { createPost, deletePost } from '@/utils/api/forum-api.js';
 import { getCloudinaryDisplayUrl } from '@/utils/cloudinary-client.js';
 import { listUserPublicCloudEntries } from '@/utils/api/boh-cloud-api.js';
 import { buildCloudNoteWorkCard } from '@/utils/cloud-note-cover.js';
@@ -1378,6 +1203,21 @@ const formatProfilePostDate = (post = {}) => {
 
 // 等级信息计算
 const levelInfo = computed(() => getLevelInfo(profile.value.experience || 0));
+
+/* 副信息行（2026-11-05）：替代原「服务面板」那四行白色卡片。
+   陌生人只想知道「这是谁」—— 加入时间 / 方块年龄 / 生日各取一段，用 · 连接；
+   平台主页单独一行（可点，带私密标注），因为它是社交导流而不是身份信息。 */
+const profileMetaText = computed(() => {
+  const p = profile.value;
+  if (!p) return '';
+  const parts = [];
+  if (p.join_date) {
+    parts.push(`${formatDate(p.join_date)} 加入`);
+    parts.push(`方块 ${calculateBlockAge(p.join_date)} 天`);
+  }
+  if (p.birth_month && p.birth_day) parts.push(`${p.birth_month}月${p.birth_day}日 生日`);
+  return parts.join(' · ');
+});
 
 const normalizedShowcaseIds = computed(() =>
   normalizeShowcasePostIds(profile.value?.showcase_post_ids),
@@ -1727,6 +1567,22 @@ const profileWorkItems = computed(() => {
     date: String(post.created_at || post.published_at || post.updated_at || ''),
     post,
   }));
+
+  // 置顶帖可能不在已加载的那一页：loadShowcasePostsForProfile 已按 id 补拉，
+  // 这里把补拉到的对象并进列表 —— 否则「置顶」的帖子要翻到后面几页才看得见。
+  const knownIds = new Set(postItems.map((item) => String(item.post.id)));
+  for (const post of showcasePosts.value) {
+    const id = String(post?.id ?? '');
+    if (!id || knownIds.has(id)) continue;
+    knownIds.add(id);
+    postItems.push({
+      key: `post-${id}`,
+      kind: 'post',
+      date: String(post.created_at || post.published_at || post.updated_at || ''),
+      post,
+    });
+  }
+
   const noteItems = (publicCloudNotes.value || [])
     .map((entry) => buildCloudNoteWorkCard(entry))
     .filter(Boolean)
@@ -1736,7 +1592,27 @@ const profileWorkItems = computed(() => {
       date: card.dateValue,
       card,
     }));
-  return [...postItems, ...noteItems].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
+  // 置顶排最前（按 showcase 里的顺序），其余按时间倒序。
+  const pinOrder = new Map(normalizedShowcaseIds.value.map((id, index) => [id, index]));
+  const unpinned = Number.POSITIVE_INFINITY;
+  const rankOf = (item) => {
+    if (item.kind !== 'post') return unpinned;
+    const index = pinOrder.get(String(item.post.id));
+    return index === undefined ? unpinned : index;
+  };
+  const timeOf = (item) => new Date(item.date || 0).getTime() || 0;
+
+  return [...postItems, ...noteItems].sort((a, b) => {
+    const rankA = rankOf(a);
+    const rankB = rankOf(b);
+    if (rankA !== rankB) {
+      if (rankA === unpinned) return 1;
+      if (rankB === unpinned) return -1;
+      return rankA - rankB;
+    }
+    return timeOf(b) - timeOf(a);
+  });
 });
 
 /**
@@ -2057,6 +1933,71 @@ const toggleShowcasePost = async (post) => {
     exists ? '已取消置顶' : '已置顶',
     exists ? '帖子已从代表作移除' : '帖子已加入代表作',
   );
+};
+
+/** 作品卡「⋯」→ 编辑（2026-11-05）：编辑态在详情页，这里只把「打开即编辑」交过去。
+ *  ⚠️ 走 openForumPost 而不是 router.push：横屏的详情是弹窗，push 会整页跳进详情。 */
+const editPostFromCard = (post) => {
+  const postId = String(post?.id || '').trim();
+  if (!postId) return;
+  const sourceUsername = String(profile.value?.username || route.params.username || '').trim();
+  const origin = route.query.from || '';
+  openForumPost({
+    router,
+    postId,
+    query: sourceUsername ? { from: 'profile', username: sourceUsername, origin } : undefined,
+    edit: true,
+  });
+};
+
+/** 作品卡「⋯」→ 删除（2026-11-05）：确认 → 接口 → 本地摘掉 → 顺带清置顶位。 */
+const deletePostFromCard = async (post) => {
+  const postId = String(post?.id || '').trim();
+  if (!postId || !isOwnProfile.value) return;
+
+  let confirmed = false;
+  try {
+    confirmed = await dialog.confirm({
+      title: '删除帖子',
+      message: '帖子和评论将一并删除，且无法恢复。确定继续吗？',
+      tone: 'danger',
+      confirmText: '删除',
+    });
+  } catch (_err) {
+    // 弹窗互斥（已经有一个开着）时视同「用户取消」，不冒泡成错误
+    return;
+  }
+  if (!confirmed) return;
+
+  try {
+    const { success, error } = await deletePost(postId, userInfo.value.id, userInfo.value.role);
+    if (!success) {
+      showAlert('error', '删除失败', error || '请稍后重试');
+      return;
+    }
+
+    posts.value = (posts.value || []).filter((item) => String(item?.id) !== postId);
+    showcasePostsFetched.value = (showcasePostsFetched.value || []).filter(
+      (item) => String(item?.id) !== postId,
+    );
+
+    // 置顶表里也要摘掉：不然一条已经不存在的帖子会一直占着「最多 3 条」的名额
+    const current = normalizeShowcasePostIds(profile.value?.showcase_post_ids);
+    if (current.includes(postId)) {
+      const result = await updateUserProfile({
+        showcase_post_ids: current.filter((id) => id !== postId),
+      });
+      if (!result?.success) {
+        // 帖子已经删掉了，置顶清理失败不该拦住用户 —— 下次进页面会按 id 过滤掉
+        console.warn('[profile] 清理已删除帖子的置顶位失败', result?.message);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('boh:forum-post-deleted', { detail: { postId } }));
+    showAlert('success', '帖子已删除', '帖子及其评论已删除');
+  } catch (err) {
+    showAlert('error', '删除失败', err?.message || '请稍后重试');
+  }
 };
 
 const handleProfileSync = (event) => {

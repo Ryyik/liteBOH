@@ -68,7 +68,7 @@ const PostDetailMain = defineAsyncComponent({
   },
 });
 
-const { isOpen, postId, close, open } = usePostDetailModal();
+const { isOpen, postId, initialEdit, close, open } = usePostDetailModal();
 
 /* 关闭一律只调 close()，形变交给下面的 isOpen watcher —— 关闭有五条路径
    （遮罩 / 关闭钮 / 详情内 @close / Esc / 浏览器后退），只有前三条经过本组件，
@@ -332,6 +332,7 @@ const panelWidth = computed(() => {
           <div class="pd-modal-scroll">
             <PostDetailMain
               :post-id-override="postId"
+              :initial-edit="initialEdit"
               modal-mode
               @close="handleClose"
               @open-post="handleOpenPost"

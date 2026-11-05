@@ -538,146 +538,6 @@
   opacity: 0.7;
 }
 
-/* Tabs */
-.profile-tabs {
-  display: flex;
-  border-bottom: 1px solid #eff3f4;
-  padding: 0 40px;
-}
-
-.tab-item {
-  flex: 1;
-  height: 53px;
-  background: transparent;
-  border: none;
-  font-weight: 600;
-  font-size: 16px;
-  color: #536471;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.2s;
-}
-
-.tab-item:hover {
-  background: rgba(15, 20, 25, 0.1);
-}
-
-.tab-item.active {
-  color: #0f1419;
-  font-weight: 800;
-}
-
-.tab-indicator {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 56px;
-  height: 4px;
-  background: #1d9bf0;
-  border-radius: 9999px;
-  display: none;
-}
-
-.tab-item.active .tab-indicator {
-  display: block;
-}
-
-.profile-showcase-section {
-  padding: 20px 40px 12px;
-  border-bottom: 1px solid var(--stroke);
-  background: linear-gradient(180deg, rgba(29, 155, 240, 0.04), rgba(29, 155, 240, 0.01));
-}
-
-.showcase-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.showcase-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text-primary);
-}
-
-.showcase-header span {
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.showcase-empty-tip {
-  margin: 0 0 4px;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.showcase-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-
-.showcase-item {
-  border: 1px solid var(--stroke);
-  border-radius: 14px;
-  background: var(--surface-elevated);
-  padding: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.showcase-item:hover {
-  border-color: #9fc4ea;
-  transform: translateY(-1px);
-}
-
-.showcase-item-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.showcase-item-header h4 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--text-primary);
-}
-
-.showcase-item p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.showcase-unpin-btn {
-  border: 1px solid var(--stroke);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-  padding: 4px 10px;
-  cursor: pointer;
-}
-
-.showcase-unpin-btn:hover {
-  color: #1d9bf0;
-  border-color: #1d9bf0;
-}
-
 /* Feed List */
 .feed-item {
   padding: 16px 40px;
@@ -1758,14 +1618,6 @@
 }
 
 @media (max-width: 768px) {
-  .profile-showcase-section {
-    padding: 16px 20px 10px;
-  }
-
-  .showcase-list {
-    grid-template-columns: 1fr;
-  }
-
   .profile-container {
     border: none;
     min-height: 100vh;
@@ -2139,53 +1991,74 @@
   line-height: 1.2;
 }
 
-.profile-tabs {
-  overflow: hidden;
-  padding: 0;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+
+/* 内容面板（2026-11-05 对齐「我的」）：卡壳从 .tab-content-list 上提到这一层，
+   页签也搬进来 —— 「我的」页的页签就在 panel 里，两页要同一棵树。 */
+.profile-content-panel {
+  border: 1px solid var(--stroke);
   border-radius: 20px;
-  background: #ffffff;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
-}
-
-.tab-item {
-  height: 52px;
-}
-
-.tab-item:hover {
-  background: rgba(15, 23, 42, 0.035);
-}
-
-.tab-indicator {
-  width: 28px;
-  height: 3px;
-  background: #ff2d55;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 .tab-content-list {
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 20px;
-  background: #ffffff;
-  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  background: transparent;
 }
 
 .posts-list {
   padding: 16px;
 }
 
-.profile-showcase-section,
+/* ── 副信息行（2026-11-05，他人空间独有）────────────────────────────────
+   原「服务面板」是四行白卡 + 图标 + 右侧箭头，读起来像管理台；
+   放在别人主页等于拿他的资料区当导航。现在压成三行小字：
+   在线状态 / 加入·方块年龄·生日 / 平台主页文字链接。
+   「我的」页没有这些内容（进设置页），所以只有他人生效。 */
+.profile-meta-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.profile-meta-line--foot {
+  margin-top: 8px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+
+.profile-meta-links {
+  gap: 10px;
+}
+
+.profile-meta-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(15, 23, 42, 0.18);
+  text-underline-offset: 3px;
+  transition: color 0.16s ease;
+}
+
+.profile-meta-link:hover {
+  color: var(--text-primary);
+}
+
 .empty-list-state,
 .list-load-more-wrap {
   break-inside: avoid;
   column-span: all;
-}
-
-.profile-showcase-section {
-  margin: 0 0 14px;
-  padding: 16px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 16px;
-  background: #f8fafc;
 }
 
 .posts-list .public-profile-post-card {
@@ -2228,36 +2101,6 @@
     opacity: 1;
     transform: translateY(0) scale(1);
   }
-}
-
-.profile-post-pin-action {
-  position: absolute;
-  top: 12px;
-  right: 14px;
-  z-index: 2;
-}
-
-.pin-post-btn {
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.8);
-  color: #536471;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: var(--liquid-filter-sm);
-}
-
-.pin-post-btn:hover:not(:disabled) {
-  color: #1d9bf0;
-  border-color: #1d9bf0;
-}
-
-.pin-post-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .posts-list .public-profile-post-card .post-header-v2,
@@ -2939,182 +2782,9 @@
   flex-direction: column;
 }
 
-/* --- Hero 增强：更通透的封面与信息层级 --- */
-.profile-hero-panel {
-  min-height: 320px;
-  border-radius: 20px;
-  background: var(--surface);
-  border: 1px solid var(--stroke);
-  box-shadow: 0 8px 32px rgba(15,23,42,0.06);
-}
 
-.profile-cover-band {
-  height: 148px;
-}
 
-.profile-hero-body {
-  margin-top: -44px;
-  gap: 20px;
-}
 
-.profile-hero-avatar .apple-avatar {
-  box-shadow: 0 14px 32px rgba(15,23,42,0.18), 0 0 0 1px rgba(255,255,255,0.6) inset;
-}
-
-/* 统计行（2026-10-27 与「我的」页同步）：
-   原来是「居中 + 每项 flex:1 等分 + 圆点分隔」—— 四个数字均匀铺满整宽，
-   读起来是一条独立的居中横条，跟上面的昵称、签名不在同一条左边界上。
-   改成纯文本流：不伸缩、靠左、只用 gap 分隔（圆点在模板里保留，这里隐藏）。
-   padding 左右 24px 与 `.profile-hero-body` 的内边距同值 ⇒ 与头像左边缘齐。 */
-.profile-hero-stats {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 14px;
-  margin: 0;
-  padding: 16px 24px 18px;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
-}
-
-.profile-hero-stats .stat-chip {
-  flex: 0 0 auto;
-  justify-content: flex-start;
-  padding: 6px 0;
-  border-radius: 10px;
-  transition:
-    background 0.16s ease,
-    transform 0.16s ease;
-}
-
-.profile-hero-stats .stat-chip:hover {
-  background: rgba(15, 23, 42, 0.04);
-  color: var(--text-primary);
-}
-
-.profile-hero-stats .stat-dot {
-  display: none;
-}
-
-/* 服务面板：统一图标背景与文案层级 */
-.profile-service-panel {
-  border-radius: 20px;
-  background: var(--surface);
-  border: 1px solid var(--stroke);
-  box-shadow: 0 8px 32px rgba(15,23,42,0.05);
-}
-
-.profile-service-row {
-  min-height: 64px;
-  padding: 12px 16px;
-}
-
-/* Tabs：胶囊容器 + 选中指示 + 计数气泡 */
-.profile-tabs {
-  display: flex;
-  align-items: stretch;
-  overflow: hidden;
-  padding: 6px;
-  gap: 6px;
-  border: 1px solid rgba(15,23,42,0.08);
-  border-radius: 20px;
-  background: var(--surface);
-  box-shadow: 0 4px 16px rgba(15,23,42,0.06);
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-}
-
-.tab-item {
-  flex: 1;
-  height: 42px;
-  background: transparent;
-  border: none;
-  border-radius: 12px;
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  position: relative;
-  transition: all 0.18s var(--ease-out);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.tab-item:hover {
-  background: rgba(15,23,42,0.04);
-  color: var(--text-primary);
-}
-
-.tab-item.active {
-  background: #0f172a;
-  color: #fff;
-  font-weight: 800;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.16);
-}
-
-.tab-item.active .tab-indicator {
-  display: none;
-}
-
-.tab-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.16);
-  color: inherit;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.tab-item:not(.active) .tab-count {
-  background: rgba(15,23,42,0.08);
-  color: var(--text-secondary);
-}
-
-.tab-content-list {
-  border: 1px solid rgba(15,23,42,0.08);
-  border-radius: 20px;
-  background: var(--surface);
-  box-shadow: 0 4px 16px rgba(15,23,42,0.06);
-  overflow: hidden;
-}
-
-.posts-list,
-.profile-replies-list,
-.impressions-list-tab {
-  padding: 16px;
-}
-
-/* 代表作：更精致的卡片与空状态 */
-.profile-showcase-section {
-  margin: 0 0 16px;
-  padding: 16px;
-  border: 1px solid rgba(15,23,42,0.06);
-  border-radius: 16px;
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-}
-
-.showcase-header h3 {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-
-.showcase-item {
-  border-radius: 14px;
-  transition: all 0.18s var(--ease-out);
-}
-
-.showcase-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(15,23,42,0.08);
-}
 
 /* 帖子网格：在 base 的 grid 基础上增强卡片细节 */
 .profile-post-grid {
@@ -3190,20 +2860,6 @@
   content: "·";
   color: rgba(15,23,42,0.22);
   margin-right: 8px;
-}
-
-/* 固定置顶按钮：在卡片右上角更精致 */
-.profile-post-pin-action {
-  top: 10px;
-  right: 10px;
-}
-
-.pin-post-btn {
-  backdrop-filter: var(--liquid-filter-sm);
-  -webkit-backdrop-filter: var(--liquid-filter-sm);
-  font-size: 11px;
-  padding: 5px 10px;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.08);
 }
 
 /* 回复：卡片化、更易读 */
@@ -3447,10 +3103,8 @@
 }
 
 .profile-page[data-theme="dark"] .profile-hero-panel,
-.profile-page[data-theme="dark"] .profile-service-panel,
-.profile-page[data-theme="dark"] .profile-tabs,
+.profile-page[data-theme="dark"] .profile-content-panel,
 .profile-page[data-theme="dark"] .tab-content-list,
-.profile-page[data-theme="dark"] .profile-showcase-section,
 .profile-page[data-theme="dark"] .add-impression-section {
   background: rgba(24,26,32,0.96) !important;
   border-color: rgba(255,255,255,0.08) !important;
@@ -3460,7 +3114,6 @@
 .profile-page[data-theme="dark"] .profile-post-card,
 .profile-page[data-theme="dark"] .replies-list .feed-item,
 .profile-page[data-theme="dark"] .impression-card-profile,
-.profile-page[data-theme="dark"] .showcase-item,
 .profile-page[data-theme="dark"] .quoted-post {
   background: #1a1a24 !important;
   border-color: rgba(255,255,255,0.06) !important;
@@ -3496,118 +3149,102 @@
   color: #a1a1aa !important;
 }
 
-.profile-page[data-theme="dark"] .profile-service-icon.bg-blue { background: rgba(59,130,246,0.12); color: #60a5fa; }
-.profile-page[data-theme="dark"] .profile-service-icon.bg-teal { background: rgba(20,184,166,0.12); color: #2dd4bf; }
-
-/* 分段点分隔符：亮色是深色 18% 透明，暗色下等于隐形（对比度 1:1）。
-   「我」页那条在 profile-base.css:803，这里补「他人空间」这一份 ——
-   两个宿主同一元素，缺一边就会出现「我的空间看得见、别人主页看不见」。
-   ⚠️ 用 var(--text-muted)（该页暗色 #71717a，在 #181a20 上 3.6:1）而不是写裸 rgba：
-   后者会被 check:dark-tokens:strict 记成新增裸值，当场被门禁拦下。 */
-.profile-page[data-theme="dark"] .profile-hero-stats .stat-dot {
-  color: var(--text-muted);
-}
-.profile-page[data-theme="dark"] .profile-service-icon.bg-purple { background: rgba(168,85,247,0.12); color: #c084fc; }
-.profile-page[data-theme="dark"] .profile-service-icon.bg-pink { background: rgba(244,63,94,0.12); color: #fb7185; }
-
 /* 移动端：他人空间专用微调 */
 @media (max-width: 768px) {
+  /* 竖屏：与「我的」完全同一套骨架（2026-11-05 对齐）。
+     贴边铺满、区块方角、无左右边框、无投影，靠 8px 底色缝分区；
+     所有值都从「我的」页原样搬来 —— 身份卡的共用真源在
+     profile-base.css 末尾「身份卡 / 积分卡 / 页签 共用视觉层」段，改那里两页一起变。 */
   .profile-home-shell,
   .profile-skeleton-wrap {
-    padding: 14px 14px 100px;
-    gap: 14px;
+    padding: 0 0 100px;
+    gap: 8px;
   }
 
   .profile-hero-panel {
-    border-radius: 18px;
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-top-width: 0;
+    box-shadow: none;
   }
 
+  /* 封面高度与「我的」同一条公式：200px 内容 + 导航岛实测高度，
+     封面从 y=0 起铺、岛浮在它上面（旧值 112px 会在岛下面留一条空白带）。 */
   .profile-cover-band {
-    height: 112px;
-  }
-
-  /* 2026-10-27（用户定稿「同步更新他人空间」）：身份区从「头像一行、文案一行」
-     改成**头像与文案并排**，与「我的」页同一形态 —— 竖屏下这一改省掉约 60px，
-     首屏能多露出一块内容。
-     ⚠️ 封面避让只有一个真源 `--hero-cover-overlap`：负边距与文案列的 padding-top
-     都由它算。两者一旦各写一个数（这里是 -32px / padding-top:0），
-     文案就会浮到封面上（「我的」页踩过，实测 nameGap=0px 昵称正贴封面底线）。 */
-  .profile-hero-body {
-    --hero-cover-overlap: 28px;
-    flex-direction: row;
-    align-items: flex-start;
-    margin-top: calc(var(--hero-cover-overlap) * -1);
-    padding: 0 16px 16px;
-    gap: 12px;
+    height: calc(200px + var(--userspace-nav-h, 78px));
   }
 
   .profile-hero-avatar .apple-avatar {
-    width: 82px;
-    height: 82px;
+    width: 88px;
+    height: 88px;
     border-radius: 50%;
+    border-width: 3px;
   }
 
+  /* 文案列避开封面：唯一真源是 `--hero-cover-overlap`（负边距与 padding-top 同源）。
+     responsive-integrations.css 那条 `padding: var(--hero-copy-top) 0 0 !important`
+     只认这个变量 —— 直接写 padding-top 会被它压掉，昵称当场飘到封面图上。
+
+     这条「我的」页写成 `.user-space-page .profile-hero-copy`；他人空间的宿主类是
+     `.profile-page`，两边各留一条页面级例外，共用值仍来自上面那个变量。 */
   .profile-hero-copy {
-    /* 头像探进封面 N px ⇒ 文案列起点必须在封面底边之下，再留 8px 呼吸。
-       ⚠️ 必须改**变量**而不是 padding-top：responsive-integrations.css 里有一条
-       `.profile-hero-copy { padding: var(--hero-copy-top) 0 0 !important }`
-       （!important），直接写 padding-top 会被它压掉 —— 实测昵称 t=181 而封面底边
-       199，文字整整压进封面 18px，正是用户反复强调不能出现的「飘上去」。 */
     --hero-copy-top: calc(var(--hero-cover-overlap, 28px) + 8px);
-    gap: 8px;
     flex: 1 1 auto;
     min-width: 0;
+    gap: 8px;
   }
 
   .profile-hero-actions {
+    margin-top: 10px;
     gap: 8px;
   }
 
-  /* 数据行：与昵称同一左边界（2026-10-27，同「我的」页）
-     原来是 `justify-content: center` + 每项 flex:1 等分 ⇒ 四个数字均匀铺满整宽，
-     看起来像一条单独的居中横条。改成纯文本流：不伸缩、靠左、只用 gap 分隔。 */
+  /* 数据行：三项纯文本、靠左、无圆点无边框（与「我的」同一形态） */
   .profile-hero-stats {
+    align-items: baseline;
+    flex-wrap: wrap;
     justify-content: flex-start;
     margin: 0;
-    padding: 12px 16px 14px;
+    padding: 10px 0 0;
+    border-top: 0;
     gap: 14px;
   }
 
-  .profile-hero-stats .stat-chip {
-    flex: 0 0 auto;
+  /* 页签与作品网格的同一条内边距（24px）：否则首屏左边缘会比资料卡多缩进一截 */
+  .profile-content-panel {
+    border-radius: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    box-shadow: none;
   }
 
-  /* 「我的」页的数据行是纯文本无分隔点（2026-10-26 定稿），这里同步去掉圆点 ——
-     留着就是同一种数据在两张页面上两种形态。 */
-  .profile-hero-stats .stat-dot {
-    display: none;
+  .profile-content-tabs {
+    margin: 0 0 10px;
+    padding: 8px 24px 10px;
+    background: transparent;
   }
 
-  .profile-tabs {
-    padding: 4px;
-    gap: 4px;
-    border-radius: 16px;
+  .posts-list {
+    padding: 0 24px;
   }
 
-  .tab-item {
-    height: 38px;
-    font-size: 13px;
-    border-radius: 10px;
-  }
-
-  .posts-list,
   .profile-replies-list,
   .impressions-list-tab {
     padding: 12px;
   }
 
   .profile-post-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding-inline: 0;
   }
 
+  /* 单列封面：横向 16:10 + 限高 220px（同「我的」，避免 3:4 竖图吃掉大半屏） */
   .profile-post-cover {
-    min-height: 180px;
+    min-height: 0;
+    max-height: 220px;
+    aspect-ratio: 16 / 10;
   }
 
   .impressions-wall-profile {
@@ -3898,38 +3535,15 @@
   color: #ff3b30;
 }
 
-/* ============================================================
-   横屏并排：积分卡 + 用户信息同一行（2026-09-15）
-   只在他人主页存在这两个区块（自己的空间 ProfileHomePanel 无此类名）。
-   窄屏/竖屏 display:contents —— 包装层在布局里完全隐形，原纵向节奏零变化。
-   ============================================================ */
-.profile-info-row {
-  display: contents;
+
+/* 纯文字作品卡：没有封面挡着，「置顶」角标和「⋯」会直接压在标题上（长标题更明显）。
+   ⚠️ 为什么写在这里而不是 profile-base.css：组件 scoped 样式在全局样式之后注入，
+   同特异性会把全局那条压掉（2026-11-05 实测全局 padding-top:34px 被本文件的 14px 覆盖）。
+   所以让位规则必须和竞争规则同源、并排在它们后面。 */
+.profile-post-card.text-only.has-pin .profile-post-copy {
+  padding-top: 34px;
 }
 
-/* 断点与 UserSpace 横屏左栏同一组（landscape + ≥1024 + ≥600 高），
-   天然排除全部手机横屏；768–1023 平板横屏维持原居中单列。 */
-@media (orientation: landscape) and (min-width: 1024px) and (min-height: 600px) {
-  .profile-info-row {
-    display: flex;
-    align-items: stretch;
-    gap: 20px;
-  }
-
-  /* 覆盖 profile-base.css 横屏段的 width:min(100%,430px) + align-self:center
-     （那里是 (0,1,0)，这里带 scope 属性 (0,2,1) 稳赢） */
-  .profile-info-row .profile-points-card-section {
-    flex: 0 0 430px;
-    width: auto;
-    align-self: stretch;
-  }
-
-  .profile-info-row .profile-service-panel {
-    flex: 1 1 auto;
-    min-width: 0;
-    /* 行数（3±1）比积分卡面板矮，等高后让行垂直居中，避免底部大片空白 */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
+.profile-post-card.text-only.has-menu .profile-post-copy h3 {
+  padding-right: 26px;
 }

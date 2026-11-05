@@ -70,7 +70,11 @@ import { clearForumFeedSnapshots } from '@/utils/forum-feed-cache.js';
 import { isForumPortraitComposer, onForumPortraitComposerChange } from '@/utils/forum-viewport.js';
 import { getHomeCatAsset, isHomeCatTheme } from '@/utils/home-cat-theme.js';
 import { themeManager } from '@/utils/theme-manager.js';
-import { buildReplyDraft, restoreImageAtPosition, shouldShowReplyTarget } from '@/utils/forum-helpers.js';
+import {
+  buildReplyDraft,
+  restoreImageAtPosition,
+  shouldShowReplyTarget,
+} from '@/utils/forum-helpers.js';
 import { useUserTier } from '@/composables/useUserTier.js';
 import { isFollowing, followUser, unfollowUser } from '../../utils/api/profile-api.js';
 import { isNarrowDetailViewport, onNarrowDetailChange } from '@/utils/forum-viewport.js';
@@ -86,6 +90,9 @@ const { userInfo } = authStore;
 const props = defineProps({
   postIdOverride: { type: [String, Number], default: '' },
   modalMode: { type: Boolean, default: false },
+  /** 打开即编辑（2026-11-05）：横屏弹窗由 usePostDetailModal 的 initialEdit 传入，
+   *  竖屏整页由路由 `?edit=1` 传入 —— 两条入口最终都落到同一个 startEditPost()。 */
+  initialEdit: { type: Boolean, default: false },
 });
 const emit = defineEmits(['close', 'open-post', 'media-ratio']);
 
@@ -2091,6 +2098,33 @@ const startEditPost = () => {
   isEditingPost.value = true;
 };
 
+/* 横屏弹窗入口（2026-11-05）：详情以弹窗形态挂载，编辑标记走 prop 而不是 query。 */
+watch(
+  () => [post.value?.id, props.initialEdit, canManagePost.value],
+  ([postIdValue, wantEdit, canManage]) => {
+    if (!postIdValue || !wantEdit || !canManage) return;
+    if (isEditingPost.value) return;
+    startEditPost();
+  },
+  { immediate: true },
+);
+
+/* 从主页作品卡的「⋯ → 编辑」进来（2026-11-05）：带 `?edit=1` 的路由，
+   详情加载完成且本人可管理时自动展开编辑态 —— 用户点的是「编辑」，不该先看到阅读态。
+   处理完立刻把 query 里的 edit 抹掉：否则刷新或从浏览器返回会又跳进编辑器。 */
+watch(
+  () => [post.value?.id, route.query.edit, canManagePost.value],
+  ([postId, editFlag, canManage]) => {
+    if (!postId || String(editFlag || '') !== '1' || !canManage) return;
+    if (isEditingPost.value) return;
+    const nextQuery = { ...route.query };
+    delete nextQuery.edit;
+    void router.replace({ query: nextQuery });
+    startEditPost();
+  },
+  { immediate: true },
+);
+
 const hasEditUnsavedChanges = () => {
   if (!post.value) return false;
   if (String(editNewPost.value.title || '') !== extractPostTitle(post.value)) return true;
@@ -3558,18 +3592,32 @@ const handleChangeCommentSortMode = async (mode) => {
   margin-top: 4px;
 }
 
-/* ---- 编辑帖子：竖屏全屏毛玻璃 / 横屏居中弹窗 ---- */
+/* ---- 编辑帖子：整屏纯白（2026-11-05 改）----------------------------------
+   改前是「半透明黑遮罩 + 毛玻璃居中卡片」：竖屏虽然铺满，但半透明背景会把详情页
+   顶栏（作者/关注条）和底部评论栏透出来，看着像「详情页里嵌了个表单」，
+   用户明确要的是**独立的编辑界面**。现在：遮罩与卡片都改成实色、铺满整个视口、
+   无圆角无投影 —— 编辑态和详情态在视觉上彻底切开。
+   深色主题下仍然跟随主题（纯白在暗色里是刺眼的），由下面的变量覆盖。 */
 .post-edit-overlay {
+  --post-edit-surface: #ffffff;
   position: fixed;
   inset: 0;
-  z-index: 220300;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
-  padding: 28px;
-  background: rgba(0, 0, 0, 0.38);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
+  padding: 0;
+  /* 必须盖过详情页的固定顶栏（.pd-author-bar 2147481000）和底部评论栏：
+     原先写的 220300 比它们小，编辑页虽铺满全屏，顶栏和评论栏仍会浮在上面
+     —— 用户看到的就是「详情页里嵌了个表单」。层级取在详情弹窗(2147482400)之上、
+     图片查看器(2147483000)/确认弹窗(2147483600)/全局 alert(2147483647) 之下。 */
+  z-index: 2147482500;
+  background: var(--post-edit-surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html[data-theme='dark'] .post-edit-overlay {
+  --post-edit-surface: #1c1c1e;
 }
 
 .post-edit-overlay.is-portrait {
@@ -3579,16 +3627,17 @@ const handleChangeCommentSortMode = async (mode) => {
 
 .post-edit-shell {
   width: 100%;
-  max-width: 720px;
-  max-height: 88vh;
+  max-width: none;
+  max-height: none;
+  height: 100%;
   overflow-y: auto;
   padding: 24px;
-  border-radius: 32px;
-  border: 1px solid var(--glass-border, rgba(0, 0, 0, 0.06));
-  background: var(--glass-bg, rgba(255, 255, 255, 0.8));
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18);
+  border-radius: 0;
+  border: 0;
+  background: var(--post-edit-surface, #ffffff);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
   isolation: isolate;
 }
 
@@ -3606,6 +3655,12 @@ const handleChangeCommentSortMode = async (mode) => {
   overflow: hidden;
 }
 
+/* 横屏：画面铺满、但正文按 720px 收成一栏 —— 1280 宽下整行文字横跨屏幕读不下去。
+   用 padding 收窄而不是给 shell 设 max-width，是为了保住「整屏纯白」的观感。 */
+.post-edit-shell:not(.is-portrait) {
+  padding-inline: max(24px, calc((100% - 720px) / 2));
+}
+
 /* 竖屏顶栏：移动端布局下 PostComposer footer 被隐藏，保存按钮由此承担 */
 .post-edit-bar {
   flex-shrink: 0;
@@ -3615,9 +3670,8 @@ const handleChangeCommentSortMode = async (mode) => {
   grid-template-columns: 1fr auto 1fr;
   gap: 12px;
   align-items: center;
-  background: rgba(255, 255, 255, 0.32);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
+  /* 顶栏同样实色：半透明时下面滚动的正文会透上来，和「纯白编辑页」冲突 */
+  background: var(--post-edit-surface, #ffffff);
   border-bottom: 1px solid rgba(15, 20, 25, 0.06);
 }
 
