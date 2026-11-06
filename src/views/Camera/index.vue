@@ -14,7 +14,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { SwitchCamera, X } from 'lucide-vue-next';
+import { ChevronLeft, ChevronRight, SwitchCamera, X } from 'lucide-vue-next';
 import ImageEditorFilmFx from '@/views/Forum/components/ImageEditorFilmFx.vue';
 import { useCameraStream } from '@/composables/useCameraStream.js';
 import { IMAGE_EDITOR_FILTERS, resolveFilterLook } from '@/utils/image-editor-filters.js';
@@ -37,6 +37,7 @@ const ROLL_LENGTH = 36;
 const FILM_STOCK = {
   none: 'RAW',
   ccd: 'CCD 200',
+  ins: 'INS',
   gold: 'GOLD 200',
   ektar: 'EKTAR 100',
   pro400h: 'PRO 400H',
@@ -81,9 +82,12 @@ const flyLayerRef = ref(null);
 const frameWidth = ref(320);
 
 const isCapturing = ref(false);
-/** 暂存的成片：{ id, file, url } */
+/** 暂存的成片：{ id, file, url, stock } */
 const shots = ref([]);
 const isReviewOpen = ref(false);
+/** 大图预览下标：-1 = 未打开 */
+const previewIndex = ref(-1);
+const previewShot = computed(() => shots.value[previewIndex.value] || null);
 
 /** 卷号：这一卷已拍多少格（0 起，与真实计数器一致） */
 const rollLabel = computed(() => String(shots.value.length).padStart(2, '0'));
@@ -193,47 +197,92 @@ const reducedMotion =
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/** 飞行副本的边长，与片位卡片完全一致 */
+const FLY_SIZE = 46;
+
 /**
  * 过片动效。
  *
- * 落点必须**与最新那张卡片完全重合**（46px、无旋转）：副本在终点直接移除，
- * 底下就是真卡片，视觉上没有接缝。所以末帧的 scale/rotate 要回到 1 / 0，
- * 中途的倾斜只是"甩过去"的感觉。
+ * ⚠️ 副本是 `document.createElement` 建的，**scoped CSS 对它无效** ——
+ * Vue 的 `data-v-*` 属性只在模板编译时写入，动态创建的元素没有它，
+ * 选择器匹配不上。所以尺寸 / 定位 / 外观**必须全部走内联样式**。
+ *
+ * 这一条踩过：`.boh-cam__fly { width: 46px }` 完全不生效，`<img>` 按整屏宽
+ * 渲染、`left/top` 也不生效 ⇒ 用户看到的是"屏幕左边闪过一片画面"，
+ * 而不是"一张小卡飞进口袋"。探针现在会断言真实宽度，别再退回 CSS。
+ *
+ * 落点是**最新那张卡片的中心**（不能用 stack 容器：卡片在容器里左上对齐，
+ * 容器 52px、卡片 46px，两者中心不重合）。
  */
 function playFilmAdvance(url) {
   const layer = flyLayerRef.value;
   const shutter = shutterRef.value;
   const stack = stackRef.value;
   if (reducedMotion || !layer || !shutter || !stack) return;
+
+  const cards = stack.querySelectorAll('.boh-cam__stack-card');
+  const card = cards[cards.length - 1] || stack;
   const base = layer.getBoundingClientRect();
   const from = shutter.getBoundingClientRect();
-  const to = stack.getBoundingClientRect();
+  const to = card.getBoundingClientRect();
   if (!from.width || !to.width) return;
+
+  const half = FLY_SIZE / 2;
+  const fromX = from.left + from.width / 2;
+  const fromY = from.top + from.height / 2;
+  const toX = to.left + to.width / 2;
+  const toY = to.top + to.height / 2;
 
   const el = document.createElement('img');
   el.className = 'boh-cam__fly';
   el.src = url;
   el.alt = '';
-  el.style.left = `${from.left - base.left + from.width / 2 - 23}px`;
-  el.style.top = `${from.top - base.top + from.height / 2 - 23}px`;
+  Object.assign(el.style, {
+    position: 'absolute',
+    left: `${fromX - base.left - half}px`,
+    top: `${fromY - base.top - half}px`,
+    width: `${FLY_SIZE}px`,
+    height: `${FLY_SIZE}px`,
+    borderRadius: '9px',
+    objectFit: 'cover',
+    border: '1.5px solid rgba(255, 255, 255, 0.9)',
+    boxShadow: '0 10px 22px -8px rgba(0, 0, 0, 0.85)',
+    willChange: 'transform',
+  });
   layer.appendChild(el);
 
-  const dx = to.left + 23 - (from.left + from.width / 2);
-  const dy = to.top + 23 - (from.top + from.height / 2);
-  const anim = el.animate(
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+
+  /* 位移和「缩放/旋转」拆成两个动画。
+   *
+   * 为什么拆：位移必须是一条**速率可控**的曲线。把 scale/rotate 塞进同一个
+   * keyframes 就多出中间帧，easing 会被中间帧的 offset 切碎 —— 试过四段，
+   * 中段出现 150ms 位移停滞（实测 x 从 93 到 83），看起来是「飞一半卡住再掉」。
+   *
+   * 为什么用 cubic-bezier(.33,.33,.4,1)：实测旧曲线 (.16,.86,.28,1) 在 15%
+   * 的时间点就走完 59% 的位移 ⇒ 人眼直接读成「闪一下」。这条曲线在
+   * 15/30/45/60% 时间点分别是 19/46/70/86%，全程都在动，末段自然减速。
+   *
+   * duration：480ms。430ms 配 160px 的位移信息量不足，480ms 仍不拖沓。
+   */
+  const FLY_MS = 480;
+  const move = el.animate(
+    [{ transform: 'translate(0px, 0px)' }, { transform: `translate(${dx}px, ${dy}px)` }],
+    { duration: FLY_MS, easing: 'cubic-bezier(.33,.33,.4,1)', fill: 'forwards' },
+  );
+  // 甩出去时略微缩小并倾斜，落位时轻轻弹一下 —— 这是「过片」的机械感来源
+  const settle = el.animate(
     [
-      { transform: 'translate(0,0) scale(1) rotate(0deg)', offset: 0 },
-      {
-        transform: `translate(${dx * 0.45}px, ${dy * 0.3 - 24}px) scale(0.86) rotate(-9deg)`,
-        offset: 0.5,
-      },
-      { transform: `translate(${dx}px, ${dy}px) scale(1) rotate(0deg)`, offset: 1 },
+      { scale: '1', rotate: '0deg' },
+      { scale: '0.86', rotate: '-7deg', offset: 0.5 },
+      { scale: '1.02', rotate: '1deg', offset: 0.86 },
+      { scale: '1', rotate: '0deg' },
     ],
-    { duration: 430, easing: 'cubic-bezier(.34,.06,.2,1)', fill: 'forwards' },
+    { duration: FLY_MS, fill: 'forwards' },
   );
   const drop = () => el.remove();
-  anim.onfinish = drop;
-  anim.oncancel = drop;
+  Promise.all([move.finished, settle.finished]).then(drop, drop);
 }
 
 /* ── 快门 ────────────────────────────────────────────────────────────── */
@@ -278,13 +327,158 @@ function removeShot(id) {
   if (index < 0) return;
   URL.revokeObjectURL(shots.value[index].url);
   shots.value.splice(index, 1);
+  // 预览开着时同步收口：删掉的在它前面就整体前移；删的是它自己就让下一张顶上来
+  if (previewIndex.value >= 0) {
+    if (!shots.value.length) previewIndex.value = -1;
+    else if (index < previewIndex.value) previewIndex.value -= 1;
+    else previewIndex.value = Math.min(previewIndex.value, shots.value.length - 1);
+  }
   if (!shots.value.length) isReviewOpen.value = false;
+}
+
+/* ── 大图预览 ────────────────────────────────────────────────────────── */
+function openPreview(index) {
+  if (index < 0 || index >= shots.value.length) return;
+  previewIndex.value = index;
+}
+
+function closePreview() {
+  previewIndex.value = -1;
+}
+
+function stepPreview(delta) {
+  if (!previewShot.value) return;
+  const next = previewIndex.value + delta;
+  if (next < 0 || next >= shots.value.length) return;
+  previewIndex.value = next;
+}
+
+function removePreviewShot() {
+  if (!previewShot.value) return;
+  removeShot(previewShot.value.id);
+}
+
+let previewPointer = null;
+function onPreviewDown(event) {
+  previewPointer = { x: event.clientX, y: event.clientY };
+}
+function onPreviewUp(event) {
+  if (!previewPointer) return;
+  const dx = event.clientX - previewPointer.x;
+  const dy = event.clientY - previewPointer.y;
+  previewPointer = null;
+  // 横向要够远、且明显大于纵向：否则会和上下拖动抢
+  if (Math.abs(dx) < 44 || Math.abs(dx) <= Math.abs(dy)) return;
+  stepPreview(dx < 0 ? 1 : -1);
+}
+function onPreviewKeydown(event) {
+  if (previewIndex.value < 0) return;
+  if (event.key === 'Escape') {
+    closePreview();
+    return;
+  }
+  if (event.key === 'ArrowLeft') stepPreview(-1);
+  else if (event.key === 'ArrowRight') stepPreview(1);
+}
+
+/* ── 存到本地 ────────────────────────────────────────────────────────── */
+const isSaving = ref(false);
+/** 保存成功后的短暂文案反馈（1.8s 复原），没有全局 toast 就用按钮自己说话 */
+const saveFlash = ref(false);
+let saveFlashTimer = 0;
+
+/**
+ * 存到本地。
+ *
+ * 两条通道，**优先系统分享**：`navigator.share({ files })` 在 iOS / 安卓都会
+ * 弹系统面板，用户选「存储图像」就真进相册了 —— 这是 Web 上唯一能进相册的路径。
+ * 不支持时才退回 `<a download>`（落进「下载 / 文件」，iOS 叫「存储到文件」）。
+ *
+ * ⚠️ `share()` 必须在用户手势里**同步**发起。所以这里不做任何 await 前置，
+ * 文件从 shots 里同步取；先 await 别的东西再调，Safari 会直接拒绝。
+ *
+ * 文件名统一重建成「卷名-序号」，否则一批存下来全是 boh-camera-edited.jpg，
+ * 用户在相册里根本分不清哪张是哪张。
+ */
+async function saveShotsToDevice(list, offset = 0) {
+  if (!list.length) return;
+  const files = list.map((shot, index) => {
+    const stock = (shot.stock || 'BOH').replace(/[^A-Za-z0-9]+/g, '').slice(0, 12) || 'BOH';
+    const name = `${stock}-${padNo(offset + index + 1)}.jpg`;
+    try {
+      return new File([shot.file], name, { type: shot.file.type || 'image/jpeg' });
+    } catch {
+      return shot.file;
+    }
+  });
+  if (typeof navigator.canShare === 'function' && typeof navigator.share === 'function') {
+    if (navigator.canShare({ files })) {
+      try {
+        // share() 在用户把面板划走、或系统不响应时**可能永不 resolve**
+        // （实测：按钮会一直停在 disabled）。这里加超时兜底，
+        // 超时按「已交给系统」处理、不再退回下载，避免重复存一遍。
+        await Promise.race([
+          navigator.share({ files }),
+          new Promise((resolve) => window.setTimeout(resolve, 15000)),
+        ]);
+        return;
+      } catch (error) {
+        // 用户自己取消：别再偷偷退回下载（会突然开始存文件）
+        if (error?.name === 'AbortError') return;
+        // 其他错误（部分安卓机型对 files 报 NotSupportedError）继续走下载
+      }
+    }
+  }
+  files.forEach((file) => {
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.name || 'boh-camera.jpg';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // 立刻 revoke 会让部分浏览器的下载中断，留一段时间
+    window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+  });
+}
+
+function flashSaved() {
+  saveFlash.value = true;
+  window.clearTimeout(saveFlashTimer);
+  saveFlashTimer = window.setTimeout(() => {
+    saveFlash.value = false;
+  }, 1800);
+}
+
+/** 整批存到本地。**不清空暂存** —— 想「既存又传」的用户接着点完成就行 */
+async function saveAllShots() {
+  if (!shots.value.length || isSaving.value) return;
+  isSaving.value = true;
+  try {
+    await saveShotsToDevice(shots.value, 0);
+    flashSaved();
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+async function savePreviewShot() {
+  if (!previewShot.value || isSaving.value) return;
+  isSaving.value = true;
+  try {
+    await saveShotsToDevice([previewShot.value], previewIndex.value);
+    flashSaved();
+  } finally {
+    isSaving.value = false;
+  }
 }
 
 function releaseAllShots() {
   for (const shot of shots.value) URL.revokeObjectURL(shot.url);
   shots.value = [];
   isReviewOpen.value = false;
+  previewIndex.value = -1;
 }
 
 /* ── 交接 / 离开 ─────────────────────────────────────────────────────── */
@@ -319,6 +513,7 @@ function leaveToGallery() {
 /* ── 生命周期 ────────────────────────────────────────────────────────── */
 onMounted(async () => {
   observeFrame();
+  window.addEventListener('keydown', onPreviewKeydown);
   // 首次取流放在挂载后尝试；若浏览器要求手势（iOS 常见），会落到 unavailable
   // 并给出「重试」按钮 —— 那一次点击就是合法手势，不用用户重新进页面。
   await start();
@@ -329,6 +524,8 @@ onBeforeUnmount(() => {
   frameObserver = null;
   if (focusTimer) window.clearTimeout(focusTimer);
   focusTimer = null;
+  window.clearTimeout(saveFlashTimer);
+  window.removeEventListener('keydown', onPreviewKeydown);
   releaseAllShots();
   stop();
 });
@@ -528,10 +725,18 @@ onBeforeUnmount(() => {
 
         <div class="boh-cam__review-grid">
           <figure v-for="(shot, index) in shots" :key="shot.id" class="boh-cam__review-item">
-            <img :src="shot.url" alt="拍到的照片" />
-            <figcaption class="boh-cam__review-cap">
-              {{ shot.stock || stockName }} · {{ padNo(index + 1) }}
-            </figcaption>
+            <!-- 点图放大：选片要看清细节才敢删 -->
+            <button
+              type="button"
+              class="boh-cam__review-open"
+              :aria-label="`查看第 ${index + 1} 张`"
+              @click="openPreview(index)"
+            >
+              <img :src="shot.url" alt="" draggable="false" />
+              <figcaption class="boh-cam__review-cap">
+                {{ shot.stock || stockName }} · {{ padNo(index + 1) }}
+              </figcaption>
+            </button>
             <button
               type="button"
               class="boh-cam__review-remove"
@@ -544,10 +749,96 @@ onBeforeUnmount(() => {
         </div>
 
         <footer class="boh-cam__review-foot">
+          <button
+            type="button"
+            class="boh-cam__ghost"
+            :disabled="isSaving"
+            data-testid="camera-save-all"
+            @click="saveAllShots"
+          >
+            {{ saveFlash ? '已存到本地' : '存到本地' }}
+          </button>
           <button type="button" class="boh-cam__ghost" @click="isReviewOpen = false">继续拍</button>
           <button type="button" class="boh-cam__primary" @click="finish">
             完成（{{ shots.length }}）
           </button>
+        </footer>
+      </div>
+    </Transition>
+
+    <!-- 大图预览：看细节 / 左右切换 / 删除 / 存到本地 -->
+    <Transition name="boh-cam-fade">
+      <div
+        v-if="previewShot"
+        class="boh-cam__preview"
+        role="dialog"
+        aria-modal="true"
+        aria-label="查看照片"
+        data-testid="camera-preview"
+        @click.self="closePreview"
+        @pointerdown="onPreviewDown"
+        @pointerup="onPreviewUp"
+      >
+        <img
+          class="boh-cam__preview-img"
+          :src="previewShot.url"
+          alt="拍到的照片"
+          draggable="false"
+        />
+
+        <header class="boh-cam__preview-head">
+          <span class="boh-cam__preview-count">{{ previewIndex + 1 }} / {{ shots.length }}</span>
+          <button
+            type="button"
+            class="boh-cam__preview-close"
+            aria-label="收起大图"
+            data-testid="camera-preview-close"
+            @click="closePreview"
+          >
+            <X :size="18" :stroke-width="2" aria-hidden="true" />
+          </button>
+        </header>
+
+        <button
+          v-if="previewIndex > 0"
+          type="button"
+          class="boh-cam__preview-nav is-prev"
+          aria-label="上一张"
+          @click.stop="stepPreview(-1)"
+        >
+          <ChevronLeft :size="22" :stroke-width="1.8" aria-hidden="true" />
+        </button>
+        <button
+          v-if="previewIndex < shots.length - 1"
+          type="button"
+          class="boh-cam__preview-nav is-next"
+          aria-label="下一张"
+          @click.stop="stepPreview(1)"
+        >
+          <ChevronRight :size="22" :stroke-width="1.8" aria-hidden="true" />
+        </button>
+
+        <footer class="boh-cam__preview-foot">
+          <span class="boh-cam__preview-cap">
+            {{ previewShot.stock || stockName }} · {{ padNo(previewIndex + 1) }}
+          </span>
+          <div class="boh-cam__preview-actions">
+            <button
+              type="button"
+              class="boh-cam__ghost"
+              :disabled="isSaving"
+              data-testid="camera-preview-save"
+              @click.stop="savePreviewShot"
+            >
+              {{ saveFlash ? '已保存' : '存到本地' }}
+            </button>
+            <button type="button" class="boh-cam__ghost is-danger" @click.stop="removePreviewShot">
+              删除这张
+            </button>
+            <button type="button" class="boh-cam__primary" @click.stop="finish">
+              完成（{{ shots.length }}）
+            </button>
+          </div>
         </footer>
       </div>
     </Transition>
@@ -1091,23 +1382,124 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 
+/* ── 大图预览 ────────────────────────────────────────────────────────── */
+.boh-cam__preview {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  background: #000;
+  /* 横向滑动自己判定，纵向留给系统 */
+  touch-action: pan-y;
+}
+
+.boh-cam__preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.boh-cam__preview-head {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+
+.boh-cam__preview-count {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  font-family: var(--boh-cam-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.boh-cam__preview-close {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.boh-cam__preview-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.boh-cam__preview-nav.is-prev {
+  left: 8px;
+}
+
+.boh-cam__preview-nav.is-next {
+  right: 8px;
+}
+
+.boh-cam__preview-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(12px + env(safe-area-inset-bottom));
+  padding: 0 16px;
+}
+
+.boh-cam__preview-cap {
+  display: block;
+  margin-bottom: 10px;
+  text-align: center;
+  font-family: var(--boh-cam-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.boh-cam__preview-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.boh-cam__ghost.is-danger {
+  border-color: rgba(255, 130, 110, 0.42);
+  color: #ff9f90;
+}
+
 /* ── 过片飞行层 ──────────────────────────────────────────────────────── */
+/* 飞行副本的样式写在 playFilmAdvance() 的内联 style 里，不在这里：
+   副本是 createElement 建的，没有 data-v-* 属性，scoped 选择器对它无效。
+   曾经在这里写过 .boh-cam__fly { width: 46px }，实测完全不生效（img 撑成
+   整屏宽），所以别把样式搬回来 —— 加了也是死的。 */
 .boh-cam__fly-layer {
   position: absolute;
   inset: 0;
   z-index: 2;
   pointer-events: none;
-}
-
-/* 尺寸与最新那张片位卡片（46px）完全一致：末帧无缩放无旋转，落地即重合 */
-.boh-cam__fly {
-  position: absolute;
-  width: 46px;
-  height: 46px;
-  border-radius: 9px;
-  object-fit: cover;
-  border: 1.5px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.85);
 }
 
 .boh-cam__done {
@@ -1195,6 +1587,16 @@ onBeforeUnmount(() => {
   aspect-ratio: 3 / 4;
   object-fit: cover;
   border-radius: 1px;
+}
+
+/* 缩略图本身是按钮：点开大图看细节（cursor 用 zoom-in 提示可放大） */
+.boh-cam__review-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
 }
 
 /* 齿孔是小方孔，不是虚线：间距 8px、孔宽 3px，肉眼才像底片 */

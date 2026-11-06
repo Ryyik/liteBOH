@@ -168,8 +168,8 @@ async function main() {
     };
   });
   check(
-    'K1 15 档都渲染成胶卷盒，色块已隐藏',
-    filmUi.boxes === 15 && filmUi.swatchHidden,
+    'K1 16 档都渲染成胶卷盒，色块已隐藏',
+    filmUi.boxes === 16 && filmUi.swatchHidden,
     JSON.stringify(filmUi),
   );
   check(
@@ -270,15 +270,48 @@ async function main() {
   await page.screenshot({ path: `${OUT}/camera-B-zoom.png` });
 
   // E 快门 → 过片 → 暂存
+  // 采样器必须在点击前装好：动画只有 520ms，waitForFunction 的轮询可能整段错过。
+  await page.evaluate(() => {
+    window.__fly = { samples: [], t0: 0 };
+    const tick = () => {
+      const el = document.querySelector('.boh-cam__fly');
+      if (el) {
+        if (!window.__fly.t0) window.__fly.t0 = performance.now();
+        const r = el.getBoundingClientRect();
+        window.__fly.samples.push({
+          t: Math.round(performance.now() - window.__fly.t0),
+          x: Math.round(r.left),
+          y: Math.round(r.top),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        });
+      }
+      if (!window.__fly.t0 || performance.now() - window.__fly.t0 < 900) {
+        requestAnimationFrame(tick);
+      }
+    };
+    requestAnimationFrame(tick);
+  });
   await page.click('[data-testid="camera-shutter"]');
-  const sawFly = await page
-    .waitForFunction(() => Boolean(document.querySelector('.boh-cam__fly')), null, {
-      timeout: 4000,
-    })
-    .then(() => true)
-    .catch(() => false);
-  check('E0 成片有「过片」飞行动画', sawFly);
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(1500);
+  const fly = await page.evaluate(() => window.__fly);
+  const flyFirst = fly.samples[0] || {};
+  const flyLast = fly.samples[fly.samples.length - 1] || {};
+  check('E0 成片有「过片」飞行动画', fly.samples.length > 0, `${fly.samples.length} 帧`);
+  // 这条是反证用的核心断言：scoped CSS 对 createElement 的元素无效时，
+  // 副本会按整屏宽渲染（实测 390px），看起来像「屏幕左边闪一下」而不是飞卡片。
+  check(
+    'E0b 副本是 46px 小卡，不是整屏宽',
+    fly.samples.length > 0 && fly.samples.every((s) => s.w >= 44 && s.w <= 60),
+    JSON.stringify(fly.samples.slice(0, 3)),
+  );
+  check(
+    'E0c 从快门飞到片位（横向位移 > 100px）',
+    Math.abs((flyLast.x || 0) - (flyFirst.x || 0)) > 100,
+    `Δx=${(flyLast.x || 0) - (flyFirst.x || 0)}`,
+  );
+  check('E0d 动画时长够看清（> 400ms）', (flyLast.t || 0) > 400, `${flyLast.t}ms`);
+  await page.waitForTimeout(400);
   const afterOne = await page.evaluate(() => {
     const cards = document.querySelectorAll('.boh-cam__stack-card');
     return {
@@ -324,12 +357,60 @@ async function main() {
   );
   await page.screenshot({ path: `${OUT}/camera-D-review.png` });
 
+  // F5–F11 选片：大图预览 / 切换 / 预览内删除 / 存到本地入口
+  await page.locator('.boh-cam__review-open').first().click();
+  await page.waitForTimeout(420);
+  const preview1 = await page.evaluate(() => ({
+    open: Boolean(document.querySelector('.boh-cam__preview')),
+    count: document.querySelector('.boh-cam__preview-count')?.textContent?.trim() || '',
+    hasPrev: Boolean(document.querySelector('.boh-cam__preview-nav.is-prev')),
+    hasNext: Boolean(document.querySelector('.boh-cam__preview-nav.is-next')),
+    imgW: Math.round(
+      document.querySelector('.boh-cam__preview-img')?.getBoundingClientRect().width || 0,
+    ),
+  }));
+  check(
+    'F5 点缩略图打开大图预览（1 / 3）',
+    preview1.open && preview1.count === '1 / 3',
+    JSON.stringify(preview1),
+  );
+  check('F6 第一张没有「上一张」、有「下一张」', !preview1.hasPrev && preview1.hasNext);
+  check('F7 大图铺满可视宽度', preview1.imgW >= 380, String(preview1.imgW));
+  await page.screenshot({ path: `${OUT}/camera-I-preview.png` });
+
+  await page.click('.boh-cam__preview-nav.is-next');
+  await page.waitForTimeout(260);
+  check('F8 下一张切到 2 / 3', (await page.textContent('.boh-cam__preview-count')) === '2 / 3');
+
+  // 预览内删除最危险：删的是当前张时，索引要自动落到下一张而不是越界
+  await page.click('.boh-cam__preview-actions .boh-cam__ghost.is-danger');
+  await page.waitForTimeout(320);
+  const afterPreviewRemove = await page.evaluate(() => ({
+    count: document.querySelector('.boh-cam__preview-count')?.textContent?.trim() || 'closed',
+    tiles: document.querySelectorAll('.boh-cam__review-open').length,
+  }));
+  check(
+    'F9 预览内删除后停在下一张（2 / 2）',
+    afterPreviewRemove.count === '2 / 2' && afterPreviewRemove.tiles === 2,
+    JSON.stringify(afterPreviewRemove),
+  );
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  check('F10 Esc 关闭预览', (await page.locator('.boh-cam__preview').count()) === 0);
+
+  const saveBtn = page.locator('[data-testid="camera-save-all"]');
+  check(
+    'F11 暂存相册有「存到本地」入口',
+    (await saveBtn.count()) === 1 && (await saveBtn.isEnabled()),
+  );
+
   await page.locator('.boh-cam__review-remove').first().click();
   await page.waitForTimeout(320);
   const afterRemove = await page.evaluate(
     () => document.querySelectorAll('.boh-cam__review-item').length,
   );
-  check('F3 删掉一张后剩 2 张', afterRemove === 2, String(afterRemove));
+  check('F3 网格删除再删一张后剩 1 张', afterRemove === 1, String(afterRemove));
 
   // H 完成 → 交接 + 停流
   await page.evaluate(() => {

@@ -326,3 +326,24 @@ function consumeCameraCapture() {
 连拍计数/暂存相册增删/完成后回图库且新建面板已开/轨道全部 ended/无摄像头环境的文案。
 反证：去掉 `scale(${digitalZoom})` → G1 红（matrix 恒为 1）。
 单测：`camera-capture.test.js`（21）+ `camera-capture-bridge.test.js`（5）+ 滤镜 23 条。
+
+### 12.7 2026-11-06 第二轮（用户反馈驱动）
+
+| 反馈 | 真因 | 处置 |
+|---|---|---|
+| 「过片就是一闪」 | 飞行副本是 `createElement` 建的，**scoped CSS 对它无效**（没有 `data-v-*`）⇒ `.boh-cam__fly{width:46px}` 与 `left/top` 全部失效，`<img>` 按**整屏宽**渲染并停在 (0,0)。叠加旧曲线 `.16,.86,.28,1` 在 15% 时间点就走完 59% 位移 | 尺寸/定位/外观改**内联样式**；位移与「缩放/旋转」拆成两个 WAAPI 动画；曲线换 `.33,.33,.4,1`，时长 480ms |
+| 「选片不能放大」 | 暂存相册只有 3 列网格 | 点缩略图进全屏预览：左右按钮/键盘/横向滑动切换、预览内删除（索引自动收口）、卷号与计数 |
+| 「只能全上传云端」 | 只有「完成 → 图库新建」一条路 | 加「存到本地」：优先 `navigator.share({files})`（唯一能进系统相册的 Web 路径），退回 `<a download>`；**保存不清空暂存**，想「既存又传」接着点完成 |
+| 「变焦能到 128×？」 | `zoom.max` 常是**数码**上限 | `MAX_USABLE_ZOOM = 10` 封顶；真实上限只在 ≤10 时单独列档；文案去掉「镜头」二字 |
+
+自证：探针 38 条（新增 E0b 副本宽度 44–60px、E0c 位移 >100px、E0d 时长 >400ms、
+F5–F11 预览与保存入口）；INS 滤镜用离屏渲染测像素（饱和度 0.374→0.334、lumaStd 0.227→0.243）。
+
+### 12.8 INS 滤镜（2026-11-06）
+
+对应 Instagram 的 **Ludwig** 那一类（"slightly desaturates colours while increasing
+contrast"），不是 Clarendon（那个是提饱和 + 冷高光）。中文语境的「INS 风」＝低饱和、
+高对比、干净灰调，所以 `grain`/`vignette` 压到全表最低 —— 有颗粒或暗角就变「胶片」不是「INS」。
+
+`grade: brightness 1.03 / contrast 1.16 / saturate 0.82`，冷灰 overlay 0.12，
+位置紧跟 CCD（两者都是社交热门风格，不是某一卷胶片）。

@@ -105,12 +105,14 @@ const TUNE_LIMITS = {
 
 /**
  * 预设表。`grade` 的键与 CSS filter 函数同名（数值语义也一致）。
- * 11 档 + 原图：再多样例会让 chip 条变成「必须滑才能选完」，而手机横向滑动
- * 的手感成本明显高于桌面。
+ * 15 档 + 原图：再多样例会让 chip 条变成「必须滑才能选完」，而手机横向滑动
+ * 的手感成本明显高于桌面。16 档是当前上限，再加就要考虑分组了。
  *
- * 顺序（2026-11-05 用户口径）：原图 → CCD → 品牌胶卷（Gold/Ektar/400H/Provia/Vista）
+ * 顺序（2026-11-05 用户口径，11-06 插入 INS）：
+ * 原图 → CCD → INS → 品牌胶卷（Gold/Ektar/400H/Provia/Vista）
  * → 通用风格（负片/日光/反转/黑白/傻瓜机）→ 场景档（夜景/室内/空气感）。
  * 「最后几个胶卷模拟」原本排在末尾，用户要求提到前面；CCD 是热门风格，紧随原图。
+ * INS 跟 CCD 相邻：两者都是「数码/社交」热门风格，不是某一卷胶片。
  * 场景档放末尾：它们不是"某一卷胶片"，而是"某个拍摄场景"的解法，
  * 混进品牌序列会让"我在挑胶卷"这件事失去意义。
  * ⚠️ 这个数组同时是发帖图片编辑器的 chip 顺序 —— 改顺序会影响两处，这是有意的单一真源。
@@ -135,6 +137,26 @@ export const IMAGE_EDITOR_FILTERS = [
     halation: { color: '#ff6a3d', opacity: 0.2, blur: 0.022 },
     grain: { opacity: 0.1, scale: 2.4 },
     vignette: 0.16,
+  },
+  {
+    // INS 风：降饱和 + 提对比，冷灰调、几乎无颗粒与暗角。
+    // 对应 Instagram 的 Ludwig 那一类（"slightly desaturates colours while
+    // increasing contrast"），不是 Clarendon（那个是提饱和 + 冷高光）。
+    // 与胶片档的分界线在「干净」：胶片靠颗粒和暗角立住风格，INS 一有这两样就脏，
+    // 所以 grain / vignette 压到全表最低。
+    id: 'ins',
+    label: 'INS',
+    swatch: 'linear-gradient(135deg,#c6d2dc,#f2f0eb)',
+    grade: { brightness: 1.03, contrast: 1.16, saturate: 0.82 },
+    // 冷灰只铺很薄一层：太重会从「干净的灰」变成「阴天发闷」
+    cast: { color: '#c8d4de', opacity: 0.12, blend: 'overlay' },
+    lift: 0.028,
+    shadow: { color: '#4a5761', opacity: 0.1, blend: 'multiply' },
+    highlight: { color: '#ffffff', opacity: 0.05, blend: 'soft-light' },
+    // 泛光也几乎不要：光晕是胶片特征，会立刻破坏「干净」
+    halation: { color: '#ffffff', opacity: 0.04, blur: 0.01 },
+    grain: { opacity: 0.04, scale: 2 },
+    vignette: 0.03,
   },
   {
     // Kodak Gold 200：蜜黄色调、暗部偏暖、颗粒明显（消费卷的"胶片味"主要来自它）
