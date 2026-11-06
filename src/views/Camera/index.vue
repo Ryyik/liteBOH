@@ -146,6 +146,15 @@ const isActiveZoom = (step) => Math.abs(zoom.value - step) < 0.01;
 const stackShots = computed(() => shots.value.slice(-3));
 const isFull = computed(() => shots.value.length >= MAX_SHOTS);
 
+/**
+ * 暂存相册的「空片位」。
+ *
+ * 3 列网格里只放 1～2 张时，右侧空出来的格子配上下面大片留白，看起来像
+ * 「照片没加载完」。补齐到 3 的倍数（最多 2 个）就能读成「底片盘还有空位」，
+ * 这也是唯一不改变 3 列布局的补法。
+ */
+const emptySlots = computed(() => (shots.value.length ? (3 - (shots.value.length % 3)) % 3 : 0));
+
 const videoStyle = computed(() => ({
   filter: look.value.css === 'none' ? 'none' : look.value.css,
   // 数码变焦只是把画面放大；成片由 computeCaptureRect 把这块裁出来
@@ -807,7 +816,7 @@ onBeforeUnmount(() => {
         <div v-if="gateOpen" class="boh-cam__gate" data-testid="camera-gate">
           <p class="boh-cam__gate-kicker">BOH CAMERA</p>
           <h1 class="boh-cam__gate-title">点一下，开启取景器</h1>
-          <p class="boh-cam__gate-sub">首次会请求摄像头权限。画面只在本机实时处理，不上传。</p>
+          <p class="boh-cam__gate-sub">首次会请求摄像头权限<br />画面只在本机处理，不上传</p>
           <button type="button" class="boh-cam__gate-btn" @click="beginCamera">
             <Camera :size="18" :stroke-width="1.9" aria-hidden="true" />
             开启相机
@@ -853,7 +862,10 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="boh-cam__controls">
+    <!-- 控制区只在「有画面」或「手里已经有照片」时出现。
+         开机台/错误态还摆着滤镜条和快门，看起来像功能半坏；
+         但已拍的照片必须还能「完成」交出去，所以 shots 非空时留着。 -->
+    <div v-if="status === 'live' || shots.length" class="boh-cam__controls">
       <div class="boh-cam__filters" role="radiogroup" aria-label="滤镜">
         <button
           v-for="preset in presets"
@@ -983,6 +995,11 @@ onBeforeUnmount(() => {
               <X :size="14" :stroke-width="2.2" aria-hidden="true" />
             </button>
           </figure>
+
+          <!-- 空片位：补齐到最后一行满格，避免「照片像是没加载完」 -->
+          <div v-for="slot in emptySlots" :key="`pad-${slot}`" class="boh-cam__review-pad">
+            <span aria-hidden="true"></span>
+          </div>
         </div>
 
         <footer class="boh-cam__review-foot">
@@ -1177,6 +1194,19 @@ onBeforeUnmount(() => {
     aspect-ratio: 3 / 4;
     max-width: 100%;
     border-radius: 18px;
+  }
+
+  /* 桌面上把控制区放宽到能一行放下 16 档滤镜（手机上仍然是横向滑动）：
+     有 820px 却只能看到 9 个，会让人以为只有 9 档。 */
+  .boh-cam__controls {
+    width: min(100%, 820px);
+  }
+
+  .boh-cam__filters {
+    flex-wrap: wrap;
+    justify-content: center;
+    overflow-x: visible;
+    row-gap: 10px;
   }
 }
 
@@ -1418,6 +1448,15 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 
+/* 长文案（「权限被记住拒绝」那条有 5 行）居中排会每行长度不一、右端参差，
+   中文尤其难读 —— 限定宽度后左对齐，块本身仍然居中。 */
+.boh-cam__fallback p {
+  margin: 0;
+  max-width: 300px;
+  text-align: left;
+  text-wrap: pretty;
+}
+
 .boh-cam__retry {
   min-height: 40px;
   padding: 0 20px;
@@ -1449,6 +1488,10 @@ onBeforeUnmount(() => {
 
 .boh-cam__controls {
   flex: none;
+  /* 桌面上不给拉满整宽：滤镜条与强度滑块横跨 1280px 会散架，
+     限成一列居中，与取景框同一视觉轴线 */
+  width: min(100%, 560px);
+  align-self: center;
   padding: 8px 0 calc(16px + env(safe-area-inset-bottom));
 }
 
@@ -1659,13 +1702,13 @@ onBeforeUnmount(() => {
 /* 三张卡各自往右下错开一点并轻微旋转，才看得出是「一摞」而不是一张
    （实测 2px/3deg 太保守：拍同样的场景时几乎看不出来） */
 .boh-cam__stack-card.is-0 {
-  transform: translate(6px, 6px) rotate(9deg);
-  opacity: 0.7;
+  transform: translate(8px, 8px) rotate(12deg);
+  opacity: 0.72;
 }
 
 .boh-cam__stack-card.is-1 {
-  transform: translate(3px, 3px) rotate(4deg);
-  opacity: 0.88;
+  transform: translate(4px, 4px) rotate(5deg);
+  opacity: 0.9;
 }
 
 .boh-cam__stack-card.is-2 {
@@ -1973,6 +2016,21 @@ onBeforeUnmount(() => {
   letter-spacing: 0.1em;
   color: rgba(60, 48, 35, 0.72);
   white-space: nowrap;
+}
+
+/* 空片位：与真实片基同高（同样的 padding + 3:4 画面区），只是虚线不填充 */
+.boh-cam__review-pad {
+  padding: 8px 8px 20px;
+  border-radius: 2px;
+  /* 极淡的暖白底：让它和真实片基同高，否则虚线框会比照片矮一截 */
+  background: rgba(239, 230, 214, 0.045);
+}
+
+.boh-cam__review-pad span {
+  display: block;
+  aspect-ratio: 3 / 4;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
 }
 
 /* 已存标记：贴在片基左上角。用深绿（照片「已归档」的语义），

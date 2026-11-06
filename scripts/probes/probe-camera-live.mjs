@@ -607,6 +607,11 @@ async function main() {
   await savePage.click('[data-testid="camera-stack"]');
   await savePage.waitForTimeout(420);
   const firstSaveLabel = await savePage.textContent('[data-testid="camera-save-all"]');
+  // 只有 2 张时右侧那一格必须是「空片位」而不是纯黑：否则整片像没加载完
+  const pads = await savePage.evaluate(
+    () => document.querySelectorAll('.boh-cam__review-pad').length,
+  );
+  check('P0 2 张时补 1 个空片位', pads === 1, String(pads));
   await savePage.click('[data-testid="camera-save-all"]');
   await waitDownloads(2);
   check('P1 整批保存前按钮写明待存张数', firstSaveLabel.includes('2'), firstSaveLabel.trim());
