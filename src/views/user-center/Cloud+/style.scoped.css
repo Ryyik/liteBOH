@@ -3224,6 +3224,12 @@
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
+  /* ⚠️ 必须显式给宽度。fixed + left:50% + width:auto 的 shrink-to-fit 可用宽度
+     只有**视口的一半**（390 宽时剩 195px），而「已选 N 张 / 取消全选 / 取消 / 删除」
+     需要约 270px ⇒ flex 把按钮压到 min-content，中文就逐字竖排了。
+     max-content 让条子按内容撑开；max-width 兜住窄屏，超出时宁可收缩到边上。 */
+  width: max-content;
+  max-width: calc(100vw - 24px);
   bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   z-index: 9100;
   display: flex;
@@ -3234,6 +3240,11 @@
   background: var(--apple-bg);
   border: 1px solid var(--apple-border);
   box-shadow: var(--shadow-lg);
+}
+
+/* 条内任何一项都不许折行：竖排比溢出更难读 */
+.album-select-bar > * {
+  white-space: nowrap;
 }
 
 .album-select-count {
