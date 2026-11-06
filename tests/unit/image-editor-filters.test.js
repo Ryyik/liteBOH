@@ -50,9 +50,9 @@ describe('buildFilterString', () => {
 });
 
 describe('预设表', () => {
-  it('12 档、id 唯一、首档是原图', () => {
-    expect(IMAGE_EDITOR_FILTERS).toHaveLength(12);
-    expect(new Set(IMAGE_EDITOR_FILTERS.map((item) => item.id)).size).toBe(12);
+  it('15 档（12 胶卷/风格 + 3 场景）、id 唯一、首档是原图', () => {
+    expect(IMAGE_EDITOR_FILTERS).toHaveLength(15);
+    expect(new Set(IMAGE_EDITOR_FILTERS.map((item) => item.id)).size).toBe(15);
     expect(IMAGE_EDITOR_FILTERS[0].id).toBe('none');
   });
 

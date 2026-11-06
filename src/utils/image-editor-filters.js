@@ -107,6 +107,13 @@ const TUNE_LIMITS = {
  * 预设表。`grade` 的键与 CSS filter 函数同名（数值语义也一致）。
  * 11 档 + 原图：再多样例会让 chip 条变成「必须滑才能选完」，而手机横向滑动
  * 的手感成本明显高于桌面。
+ *
+ * 顺序（2026-11-05 用户口径）：原图 → CCD → 品牌胶卷（Gold/Ektar/400H/Provia/Vista）
+ * → 通用风格（负片/日光/反转/黑白/傻瓜机）→ 场景档（夜景/室内/空气感）。
+ * 「最后几个胶卷模拟」原本排在末尾，用户要求提到前面；CCD 是热门风格，紧随原图。
+ * 场景档放末尾：它们不是"某一卷胶片"，而是"某个拍摄场景"的解法，
+ * 混进品牌序列会让"我在挑胶卷"这件事失去意义。
+ * ⚠️ 这个数组同时是发帖图片编辑器的 chip 顺序 —— 改顺序会影响两处，这是有意的单一真源。
  */
 export const IMAGE_EDITOR_FILTERS = [
   {
@@ -114,78 +121,6 @@ export const IMAGE_EDITOR_FILTERS = [
     label: '原图',
     swatch: 'linear-gradient(135deg,#d8d8dd,#f4f4f6)',
     grade: {},
-  },
-  {
-    // Kodak Portra 400：肤色准、对比柔和、暗部略偏青、高光偏奶黄
-    id: 'portra',
-    label: '负片',
-    swatch: 'linear-gradient(135deg,#f0c9a4,#7d8f96)',
-    grade: { brightness: 1.03, contrast: 1.08, saturate: 0.94, sepia: 0.08 },
-    cast: { color: '#ffd0a0', opacity: 0.3, blend: 'overlay' },
-    lift: 0.035,
-    shadow: { color: '#2a4a63', opacity: 0.14, blend: 'multiply' },
-    highlight: { color: '#ffd9b0', opacity: 0.1, blend: 'soft-light' },
-    halation: { color: '#ff8a5c', opacity: 0.14, blur: 0.014 },
-    grain: { opacity: 0.22, scale: 3.2 },
-    vignette: 0.16,
-  },
-  {
-    // Fuji Superia 400：青绿阴影、肤色略红、日常感强（「日本街拍」那一挂）
-    id: 'superia',
-    label: '日光',
-    swatch: 'linear-gradient(135deg,#9fd6c2,#f2e6c8)',
-    grade: { brightness: 1.02, contrast: 1.12, saturate: 1.1 },
-    cast: { color: '#0f9c78', opacity: 0.36, blend: 'overlay' },
-    lift: 0.025,
-    shadow: { color: '#14705c', opacity: 0.18, blend: 'multiply' },
-    highlight: { color: '#f3ffdc', opacity: 0.06, blend: 'soft-light' },
-    halation: { color: '#e8fff0', opacity: 0.1, blur: 0.012 },
-    grain: { opacity: 0.24, scale: 3.2 },
-    vignette: 0.2,
-  },
-  {
-    // Fuji Velvia 50：反转片，极高饱和、深蓝、几乎无颗粒
-    id: 'velvia',
-    label: '反转',
-    swatch: 'linear-gradient(135deg,#1d4f8c,#e0453c)',
-    grade: { brightness: 0.97, contrast: 1.36, saturate: 1.52 },
-    cast: { color: '#0b3b74', opacity: 0.42, blend: 'overlay' },
-    shadow: { color: '#0e3a6e', opacity: 0.22, blend: 'multiply' },
-    highlight: { color: '#fff1e0', opacity: 0.05, blend: 'soft-light' },
-    halation: { color: '#ffd0b0', opacity: 0.1, blur: 0.01 },
-    grain: { opacity: 0.08, scale: 2 },
-    vignette: 0.22,
-  },
-  {
-    // Ilford HP5 Plus：冷调阴影 + 暖高光的硒调，颗粒粗
-    id: 'mono',
-    label: '黑白',
-    swatch: 'linear-gradient(135deg,#3a3f4a,#e8e2d6)',
-    grade: { brightness: 1.02, contrast: 1.24, grayscale: 1 },
-    lift: 0.05,
-    cast: { color: '#b9c2cc', opacity: 0.16, blend: 'overlay' },
-    shadow: { color: '#2f3540', opacity: 0.16, blend: 'multiply' },
-    highlight: { color: '#fff3e2', opacity: 0.08, blend: 'soft-light' },
-    halation: { color: '#ffffff', opacity: 0.12, blur: 0.014 },
-    grain: { opacity: 0.36, scale: 4.2 },
-    vignette: 0.28,
-  },
-  {
-    // 一次性相机：闪光灯直打 + 重度暗角 + 角落漏光
-    id: 'disposable',
-    label: '傻瓜机',
-    swatch: 'linear-gradient(135deg,#ffb347,#2b3550)',
-    grade: { brightness: 1.05, contrast: 1.12, saturate: 1.18 },
-    // 高饱和暖色 overlay 打在饱和蓝上会转紫，所以这里用「降饱和的暖底」
-    cast: { color: '#f2d0ad', opacity: 0.26, blend: 'overlay' },
-    lift: 0.02,
-    shadow: { color: '#12203a', opacity: 0.2, blend: 'multiply' },
-    highlight: { color: '#ffe6c2', opacity: 0.09, blend: 'soft-light' },
-    halation: { color: '#ff7a3d', opacity: 0.14, blur: 0.02 },
-    grain: { opacity: 0.3, scale: 4.6 },
-    vignette: 0.46,
-    // 漏光是「角落一抹」，不是半幅染色：radius 0.62 会盖住整片天空，screen 上去就是粉紫
-    leak: { color: '#ff8a2b', x: 0.9, y: 0.04, radius: 0.34, opacity: 0.24 },
   },
   {
     // 千禧年 CCD：青橙分离、高光容易溢出（那代小底机器的宽容度就是这样）
@@ -267,6 +202,133 @@ export const IMAGE_EDITOR_FILTERS = [
     halation: { color: '#ff5c8a', opacity: 0.14, blur: 0.016 },
     grain: { opacity: 0.34, scale: 4 },
     vignette: 0.26,
+  },
+  {
+    // Kodak Portra 400：肤色准、对比柔和、暗部略偏青、高光偏奶黄
+    id: 'portra',
+    label: '负片',
+    swatch: 'linear-gradient(135deg,#f0c9a4,#7d8f96)',
+    grade: { brightness: 1.03, contrast: 1.08, saturate: 0.94, sepia: 0.08 },
+    cast: { color: '#ffd0a0', opacity: 0.3, blend: 'overlay' },
+    lift: 0.035,
+    shadow: { color: '#2a4a63', opacity: 0.14, blend: 'multiply' },
+    highlight: { color: '#ffd9b0', opacity: 0.1, blend: 'soft-light' },
+    halation: { color: '#ff8a5c', opacity: 0.14, blur: 0.014 },
+    grain: { opacity: 0.22, scale: 3.2 },
+    vignette: 0.16,
+  },
+  {
+    // Fuji Superia 400：青绿阴影、肤色略红、日常感强（「日本街拍」那一挂）
+    id: 'superia',
+    label: '日光',
+    swatch: 'linear-gradient(135deg,#9fd6c2,#f2e6c8)',
+    grade: { brightness: 1.02, contrast: 1.12, saturate: 1.1 },
+    cast: { color: '#0f9c78', opacity: 0.36, blend: 'overlay' },
+    lift: 0.025,
+    shadow: { color: '#14705c', opacity: 0.18, blend: 'multiply' },
+    highlight: { color: '#f3ffdc', opacity: 0.06, blend: 'soft-light' },
+    halation: { color: '#e8fff0', opacity: 0.1, blur: 0.012 },
+    grain: { opacity: 0.24, scale: 3.2 },
+    vignette: 0.2,
+  },
+  {
+    // Fuji Velvia 50：反转片，极高饱和、深蓝、几乎无颗粒
+    id: 'velvia',
+    label: '反转',
+    swatch: 'linear-gradient(135deg,#1d4f8c,#e0453c)',
+    grade: { brightness: 0.97, contrast: 1.36, saturate: 1.52 },
+    cast: { color: '#0b3b74', opacity: 0.42, blend: 'overlay' },
+    shadow: { color: '#0e3a6e', opacity: 0.22, blend: 'multiply' },
+    highlight: { color: '#fff1e0', opacity: 0.05, blend: 'soft-light' },
+    halation: { color: '#ffd0b0', opacity: 0.1, blur: 0.01 },
+    grain: { opacity: 0.08, scale: 2 },
+    vignette: 0.22,
+  },
+  {
+    // Ilford HP5 Plus：冷调阴影 + 暖高光的硒调，颗粒粗
+    id: 'mono',
+    label: '黑白',
+    swatch: 'linear-gradient(135deg,#3a3f4a,#e8e2d6)',
+    grade: { brightness: 1.02, contrast: 1.24, grayscale: 1 },
+    lift: 0.05,
+    cast: { color: '#b9c2cc', opacity: 0.16, blend: 'overlay' },
+    shadow: { color: '#2f3540', opacity: 0.16, blend: 'multiply' },
+    highlight: { color: '#fff3e2', opacity: 0.08, blend: 'soft-light' },
+    halation: { color: '#ffffff', opacity: 0.12, blur: 0.014 },
+    grain: { opacity: 0.36, scale: 4.2 },
+    vignette: 0.28,
+  },
+  {
+    // 一次性相机：闪光灯直打 + 重度暗角 + 角落漏光
+    id: 'disposable',
+    label: '傻瓜机',
+    swatch: 'linear-gradient(135deg,#ffb347,#2b3550)',
+    grade: { brightness: 1.05, contrast: 1.12, saturate: 1.18 },
+    // 高饱和暖色 overlay 打在饱和蓝上会转紫，所以这里用「降饱和的暖底」
+    cast: { color: '#f2d0ad', opacity: 0.26, blend: 'overlay' },
+    lift: 0.02,
+    shadow: { color: '#12203a', opacity: 0.2, blend: 'multiply' },
+    highlight: { color: '#ffe6c2', opacity: 0.09, blend: 'soft-light' },
+    halation: { color: '#ff7a3d', opacity: 0.14, blur: 0.02 },
+    grain: { opacity: 0.3, scale: 4.6 },
+    vignette: 0.46,
+    // 漏光是「角落一抹」，不是半幅染色：radius 0.62 会盖住整片天空，screen 上去就是粉紫
+    leak: { color: '#ff8a2b', x: 0.9, y: 0.04, radius: 0.34, opacity: 0.24 },
+  },
+  /* ── 场景档（2026-11-05）：前 12 档是「胶卷/风格」，这三档按拍摄场景调 ──
+   * 夜景与室内是现有 11 档都不擅长的两块：
+   *  · 夜景：Gold/Vista 在暗光下会把灯光糊成一片暖黄，CCD 的青橙分离又太"数码"；
+   *  · 室内：负片(Portra)的暖调会把室内钨丝灯的黄再叠一层，脸直接变蜡。
+   */
+  {
+    // CineStill 800T 的逻辑：钨丝灯平衡（3200K）⇒ 阴影压青、灯光留暖，
+    // 亮点周围一圈红橙光晕（800T 去掉 remjet 层，这是它的招牌）。
+    // 关键在 lift：夜景暗部一旦死黑就变成数码噪点，抬一点黑场才像胶片。
+    id: 'night',
+    label: '夜景',
+    swatch: 'linear-gradient(135deg,#0a2c3d,#ff8f4d)',
+    grade: { brightness: 1.05, contrast: 1.06, saturate: 1.08 },
+    // 冷调只走阴影层：整幅 overlay 会把灯光一起染青，暗部出绿（实测）
+    cast: { color: '#2a6b93', opacity: 0.1, blend: 'overlay' },
+    lift: 0.05,
+    shadow: { color: '#0d3157', opacity: 0.22, blend: 'multiply' },
+    highlight: { color: '#ffb066', opacity: 0.13, blend: 'soft-light' },
+    // 泛光要「大而弱」：小半径强泛光会变成每个灯泡套个红圈，一眼假；
+    // 但全画幅红橙 screen 叠深蓝底会混出黄绿（实测），强度必须压到 0.2 以下
+    halation: { color: '#ff5a32', opacity: 0.24, blur: 0.026 },
+    grain: { opacity: 0.26, scale: 3.4 },
+    vignette: 0.22,
+  },
+  {
+    // 日系室内：室内混光（钨丝灯 + 荧光灯）先把暖黄中和掉（cast 偏青），
+    // 再轻过曝 + 低反差把暗部提起来 —— 这两步就是「清透」的全部来源。
+    // contrast < 1 是有意的：日系室内就是要软一点，锐利反而脏。
+    id: 'indoor',
+    label: '室内',
+    swatch: 'linear-gradient(135deg,#bfe3e6,#f6efe2)',
+    grade: { brightness: 1.14, contrast: 0.93, saturate: 0.9 },
+    cast: { color: '#a9cde0', opacity: 0.18, blend: 'overlay' },
+    lift: 0.05,
+    shadow: { color: '#43738f', opacity: 0.11, blend: 'multiply' },
+    highlight: { color: '#fff6e8', opacity: 0.1, blend: 'soft-light' },
+    halation: { color: '#ffe8cc', opacity: 0.07, blur: 0.014 },
+    grain: { opacity: 0.14, scale: 2.4 },
+    vignette: 0.1,
+  },
+  {
+    // 日系「空气感」：轻过曝 + 低反差 + 淡青，高光轻微溢出。
+    // 颗粒要最细、暗角要最弱 —— 一有暗角画面就不「轻」了。
+    id: 'airy',
+    label: '空气感',
+    swatch: 'linear-gradient(135deg,#d9eef2,#fffdf6)',
+    grade: { brightness: 1.1, contrast: 0.88, saturate: 0.86 },
+    cast: { color: '#d5e6f0', opacity: 0.26, blend: 'overlay' },
+    lift: 0.075,
+    shadow: { color: '#84a3bc', opacity: 0.14, blend: 'multiply' },
+    highlight: { color: '#ffffff', opacity: 0.12, blend: 'soft-light' },
+    halation: { color: '#ffffff', opacity: 0.12, blur: 0.022 },
+    grain: { opacity: 0.1, scale: 2.2 },
+    vignette: 0.06,
   },
 ];
 
