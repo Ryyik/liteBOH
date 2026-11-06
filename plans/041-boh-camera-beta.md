@@ -347,3 +347,34 @@ contrast"），不是 Clarendon（那个是提饱和 + 冷高光）。中文语�
 
 `grade: brightness 1.03 / contrast 1.16 / saturate 0.82`，冷灰 overlay 0.12，
 位置紧跟 CCD（两者都是社交热门风格，不是某一卷胶片）。
+
+### 12.9 「打开就黑屏、不弹权限框」（2026-11-06 线上反馈）
+
+**真因**：`onMounted` 里直接调 `getUserMedia`。iOS Safari 要求这次调用发生在用户手势的
+**同步调用栈**里，落在 `onMounted` / `setTimeout` / `Promise.then` 中会被**静默拒绝** ——
+不弹权限框、不抛给用户，错误名还偏偏是 `NotAllowedError`（和「用户点了不允许」同构）。
+用户看到的就是一块黑屏。
+
+**改法（四层）**：
+
+1. **取流只从点击进入** —— 新增「开机台」屏（`data-testid="camera-gate"`），
+   `beginCamera()` 是调用 `getUserMedia` 的唯一入口。唯一的例外是 `permissions`
+   已明确 `granted`（此时不会弹窗，也就不需要手势）。
+2. **静态预检**（`detectCameraBlocker()`）挡住三类「永远不会弹窗」的环境：
+   `insecure`（非 https）、`webview`（微信/QQ 等内置浏览器）、`unsupported`。
+   这三种连请求都不发，直接给准确原因和下一步动作。
+3. **`denied` 与 `blocked` 分开** —— 前者是刚被拒（可以再试一次），后者是浏览器
+   已记住拒绝（再点也不会弹窗，只能去站点设置改 + 刷新）。后者不给「重试」，
+   给「我已改好，刷新页面」。
+4. **两道死线** —— 授权框 12s 不返回按 `timeout` 收尾（部分安卓 WebView 会永远挂着）；
+   流拿到但 3.5s 内 `videoWidth` 仍为 0 按 `stalled` 收尾（autoplay 被拦的真黑屏）。
+
+**为什么不靠 `permissions.query` 一路走到底**：iOS Safari 对 `camera` 这个名字支持
+不稳定，多数版本抛错 ⇒ 我们退化成 `''`，每次都让用户再点一次。所以加了一层
+`sessionStorage` 记号：本会话成功过一次就允许静默开（已授权时不需要手势）；
+缓存过期则自然落到 `denied` 文案，仍是有说明的界面。
+
+自证：`camera-stream-guards.test.js`（12 条，覆盖四类判定与超时分类）+
+`probe-camera-live` N/O 组（未授权时 `getUserMedia` 调用数必须为 **0**，点击后才 1 并出画面；
+已拒绝时不发请求、文案指向站点设置、按钮是刷新）。
+反证：把 `start()` 挪回 `onMounted` → N1 立刻变红。

@@ -19,6 +19,9 @@ import fs from 'node:fs';
 //     G 变焦 2× → video 的 transform 矩阵缩放为 2（数码变焦必须真的作用在画面上）
 //     H 点「完成」→ 回到图库且「新建」面板打开；离开后原 stream 的 track 全部 ended
 //     I 无 mediaDevices 的环境 → 显示不可用文案，且不出现「重试」（没有可重试的东西）
+//     N 未授权首次进入 → **不进页面就调 getUserMedia**（调用数 0）、显示开机台；
+//       点「开启相机」后才请求一次并出画面（iOS 手势链的回归测试）
+//     O 权限已被记住「拒绝」→ 不发起注定失败的请求，文案指向站点设置，给的是刷新而非重试
 //
 //   counter-proof（做过）：
 //     把 videoStyle 里的 `scale(${digitalZoom})` 去掉 → G 必红（矩阵恒为 1）；
@@ -438,7 +441,126 @@ async function main() {
   check('X1 页面无未捕获异常', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
   await context.close();
 
-  /* ── 场景 2：不支持摄像头的环境 ──────────────────────────────────────── */
+  /* ── 场景 2：首次进入（未授权）—— 不许自动请求，必须先等一次点击 ──────
+   *
+   * 这是 2026-11-06 用户报的「打开就黑屏、系统不弹权限框」的回归测试。
+   * 真因是 onMounted 里直接调 getUserMedia：iOS Safari 会**静默拒绝**（不弹窗、
+   * 不抛给用户），页面就停在黑帧上。所以这里断言两件事：
+   *   ① 进页面时 getUserMedia 的调用次数必须是 0
+   *   ② 点「开启相机」后才变成 1，并且真的出画面
+   * 只要有人把取流挪回 onMounted，①立刻变红。
+   *
+   * ⚠️ 必须 stub `permissions.query`：Chromium 在本套件的启动参数下
+   * （`--use-fake-ui-for-media-stream`）会把 camera 直接报成 granted，
+   * 那条真实分支走的是「已授权静默开」，测不到首次授权。 */
+  const stubPermission = (permState) => {
+    window.__gumCalls = 0;
+    const originalGum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = (...args) => {
+      window.__gumCalls += 1;
+      return originalGum(...args);
+    };
+    const originalQuery = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = (desc) =>
+      desc?.name === 'camera'
+        ? Promise.resolve({ state: permState, onchange: null })
+        : originalQuery(desc);
+  };
+
+  /* ⚠️ 这一组用**独立浏览器实例**：Chromium 的假摄像头在前一个上下文刚关闭时
+   * 偶尔会给出「流起来了但没有帧」的轨道（实测过一次偶发红），
+   * 那会让这条回归测试本身变得不可信。 */
+  const gateBrowser = await launch();
+
+  const openGatePage = async (state) => {
+    const context = await gateBrowser.newContext({ viewport: VIEWPORT });
+    // ⚠️ 参数必须走 addInitScript 的第二个实参：闭包变量会被序列化丢掉
+    await context.addInitScript(stubPermission, state);
+    const page = await context.newPage();
+    await page.bringToFront();
+    await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
+    await injectLogin(page);
+    await gotoHash(page, '#/user-space/note/camera');
+    await page.waitForSelector('.boh-cam', { timeout: 15000 });
+    await page.waitForTimeout(1500);
+    return { context, page };
+  };
+
+  const gateRun = await openGatePage('prompt');
+  const gatePage = gateRun.page;
+  const gateState = await gatePage.evaluate(() => ({
+    calls: window.__gumCalls,
+    title: document.querySelector('.boh-cam__gate-title')?.textContent?.trim() || '',
+    hasFallback: Boolean(document.querySelector('.boh-cam__fallback')),
+  }));
+  check(
+    'N1 进页面不自动请求摄像头（未授权时必须等点击）',
+    gateState.calls === 0,
+    `getUserMedia 调用 ${gateState.calls} 次`,
+  );
+  check('N2 显示「开启相机」中转屏而不是黑屏', gateState.title.length > 0, gateState.title);
+  check('N3 未授权时不误报「不可用」', !gateState.hasFallback);
+  await gatePage.screenshot({ path: `${OUT}/camera-N-gate.png` });
+
+  await gatePage.click('.boh-cam__gate-btn');
+  await gatePage.waitForFunction(
+    () => {
+      const video = document.querySelector('.boh-cam__video');
+      return video && video.readyState >= 2 && video.videoWidth > 0;
+    },
+    null,
+    { timeout: 20000 },
+  );
+  const afterTap = await gatePage.evaluate(() => ({
+    calls: window.__gumCalls,
+    gateGone: !document.querySelector('[data-testid="camera-gate"]'),
+    width: document.querySelector('.boh-cam__video')?.videoWidth || 0,
+  }));
+  check(
+    'N4 点「开启相机」后才真正请求，且只请求一次',
+    afterTap.calls === 1,
+    String(afterTap.calls),
+  );
+  check(
+    'N5 点击后中转屏消失并出画面',
+    afterTap.gateGone && afterTap.width > 0,
+    JSON.stringify(afterTap),
+  );
+  await gatePage.screenshot({ path: `${OUT}/camera-N-live.png` });
+  await gateRun.context.close();
+
+  /* ── 场景 2b：权限已被浏览器记住「拒绝」—— 不能再装作能重试 ────────── */
+  const deniedRun = await openGatePage('denied');
+  const deniedPage = deniedRun.page;
+  const deniedState = await deniedPage.evaluate(() => ({
+    calls: window.__gumCalls,
+    text:
+      document.querySelector('.boh-cam__fallback')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    buttons: Array.from(document.querySelectorAll('.boh-cam__retry')).map((el) =>
+      el.textContent.trim(),
+    ),
+  }));
+  check(
+    'N6 已被拒绝时不去调 getUserMedia（调了也不会弹窗）',
+    deniedState.calls === 0,
+    String(deniedState.calls),
+  );
+  check(
+    'N7 文案指出去站点设置改，而不是让人点「重试」',
+    deniedState.text.includes('站点设置'),
+    deniedState.text,
+  );
+  check(
+    'N8 给的是「刷新页面」而不是无效的「重试」',
+    deniedState.buttons.some((label) => label.includes('刷新')) &&
+      !deniedState.buttons.includes('重试'),
+    deniedState.buttons.join(' / '),
+  );
+  await deniedPage.screenshot({ path: `${OUT}/camera-O-blocked.png` });
+  await deniedRun.context.close();
+  await gateBrowser.close();
+
+  /* ── 场景 3：不支持摄像头的环境 ──────────────────────────────────────── */
   const plainContext = await newContext(browser, false);
   await plainContext.addInitScript(() => {
     // 模拟「没有开放摄像头接口」的浏览器（HTTP 或受限 WebView）

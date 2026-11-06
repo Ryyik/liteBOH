@@ -14,9 +14,13 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { ChevronLeft, ChevronRight, SwitchCamera, X } from 'lucide-vue-next';
+import { Camera, ChevronLeft, ChevronRight, SwitchCamera, X } from 'lucide-vue-next';
 import ImageEditorFilmFx from '@/views/Forum/components/ImageEditorFilmFx.vue';
-import { useCameraStream } from '@/composables/useCameraStream.js';
+import {
+  useCameraStream,
+  detectCameraBlocker,
+  readCameraPermission,
+} from '@/composables/useCameraStream.js';
 import { IMAGE_EDITOR_FILTERS, resolveFilterLook } from '@/utils/image-editor-filters.js';
 import { exportCanvasToJpegFile, renderDocToCanvas } from '@/utils/image-editor-export.js';
 import { stashCameraCapture } from '@/utils/camera-capture-bridge.js';
@@ -148,9 +152,28 @@ const videoStyle = computed(() => ({
   transform: `scale(${digitalZoom.value}) scaleX(${mirrored.value ? -1 : 1})`,
 }));
 
+/**
+ * 起不来的原因 → 文案。
+ *
+ * 分这么细的理由：这四种情况的**用户动作完全不同**，混成一句「相机不可用」
+ * 等于把人晾在原地。
+ *   insecure  → 换 https 地址（非安全上下文永远不会弹权限框）
+ *   webview   → 换浏览器打开（微信内嵌内核不给摄像头）
+ *   blocked   → 去站点设置改（浏览器已经记住「拒绝」，不会再弹窗）
+ *   timeout   → 关掉别的用相机的 App 再试
+ *   stalled   → 流拿到了但没有画面（autoplay 被拦），重试一次通常就好
+ */
 const UNAVAILABLE_TEXT = {
   unsupported: '这个浏览器没有开放摄像头接口，请用 Safari 或 Chrome 直接打开本站。',
-  denied: '摄像头权限被拒绝了。在地址栏的站点设置里允许摄像头，然后点重试。',
+  insecure:
+    '当前地址不是 https，浏览器不会把摄像头交给网页。请用 https://www.blockofhome.cn 打开。',
+  webview: '微信 / QQ 等内置浏览器不开放摄像头。点右上角「···」，选「在浏览器打开」。',
+  denied:
+    '摄像头权限被拒绝了。点「重试」再选一次「允许」；如果不再弹窗，就去浏览器的站点设置里把「相机」改成「允许」，然后刷新页面。',
+  blocked:
+    '本站的摄像头权限被记住了「拒绝」，之后怎么点都不会再弹窗。请到浏览器的站点设置里，把「相机」改成「允许」或「每次询问」，然后刷新页面。',
+  timeout: '相机一直没有响应。可能被别的应用占着，关掉它再点重试。',
+  stalled: '摄像头已连上，但画面没有出来。点「重试」再要一次。',
   'in-use': '摄像头正被别的应用占用，关掉它再试。',
   'not-found': '没有找到可用的摄像头。',
   error: '相机启动失败，可以重试一次。',
@@ -159,22 +182,98 @@ const unavailableText = computed(
   () => UNAVAILABLE_TEXT[errorReason.value] || UNAVAILABLE_TEXT.error,
 );
 const canRetry = computed(
-  () => status.value === 'unavailable' && errorReason.value !== 'unsupported',
+  () =>
+    status.value === 'unavailable' &&
+    !['unsupported', 'insecure', 'webview', 'blocked'].includes(errorReason.value),
 );
 
+/**
+ * 「开机台」：取流之前的中转屏。
+ *
+ * ⚠️ 这是本页最重要的一处设计约束 —— **不能进页面就自动调 getUserMedia**。
+ * iOS Safari 要求它发生在用户手势里（click / touchend 的同步调用栈）；
+ * 放在 onMounted / setTimeout / Promise.then 里会被**静默拒绝**：不弹权限框、
+ * 不报错给用户，只在控制台留一条 NotAllowedError。用户看到的就是黑屏。
+ *
+ * 所以默认落在这一屏，等一次真实点击。只有一种例外：`permissions` 已经明确
+ * 是 granted —— 那一次调用不会弹窗，也就不需要手势。
+ */
+const gateOpen = computed(() => status.value === 'idle' && !blocker.value);
+/** 静态预检结论（insecure / webview / unsupported，空串=没问题） */
+const blocker = ref('');
+const permissionState = ref('');
+
+/**
+ * 本次会话内「已经授权成功过」的记号。
+ *
+ * 为什么需要它：iOS Safari 对 `permissions.query({ name: 'camera' })` 支持不稳定，
+ * 多数版本直接抛错（我们这边退化成 ''），于是每次进页面都会被当成「未授权」，
+ * 让用户再点一次开机按钮 —— 这会变成无意义的重复劳动。
+ *
+ * 记住一次成功之后就能静默开：**已经授权的情况下不需要手势**，iOS 也不会再弹窗。
+ * 万一缓存过期（用户后来撤销了权限），调用会失败并落到「被拒绝」文案，
+ * 仍然是有说明的界面，不会退回黑屏。
+ */
+const GRANT_KEY = 'boh-camera-granted';
+function readGrantCache() {
+  try {
+    return window.sessionStorage.getItem(GRANT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeGrantCache(value) {
+  try {
+    if (value) window.sessionStorage.setItem(GRANT_KEY, '1');
+    else window.sessionStorage.removeItem(GRANT_KEY);
+  } catch {
+    /* 隐私模式下 sessionStorage 会抛，忽略即可 */
+  }
+}
+
 /* ── 流绑定 ──────────────────────────────────────────────────────────── */
+/**
+ * 「有流但没有画面」的兜底。
+ *
+ * 授权给了、`status` 也是 live、`<video>` 却一直是黑的 —— 真实存在，两种成因：
+ *   · `play()` 被自动播放策略拦下（不在手势调用栈里 play，或用户开了低电量模式）
+ *   · 轨道拿到了但一直没有首帧（部分安卓机型首帧要几百毫秒，个别机型永远不来）
+ * 这时候界面和「没有权限」长得一模一样，用户只会说「黑屏」。所以给死线：
+ * 3.5s 内 `videoWidth` 还是 0 就转成可重试的错误态，并给出对应文案。
+ */
+let frameWatchdog = 0;
+function armFrameWatchdog() {
+  window.clearTimeout(frameWatchdog);
+  frameWatchdog = window.setTimeout(() => {
+    if (status.value !== 'live') return;
+    const video = videoRef.value;
+    if (video && video.videoWidth > 0) return;
+    errorReason.value = 'stalled';
+    status.value = 'unavailable';
+    stop();
+  }, 3500);
+}
+
 watch(
   stream,
   async (current) => {
     const video = videoRef.value;
     if (!video) return;
     if (video.srcObject !== current) video.srcObject = current || null;
-    if (!current) return;
+    if (!current) {
+      window.clearTimeout(frameWatchdog);
+      return;
+    }
+    armFrameWatchdog();
+    // 首帧到了就撤掉死线（loadeddata 比轮询可靠，也不会漏掉 play() 结算后才有帧的情况）
+    video.addEventListener('loadeddata', () => window.clearTimeout(frameWatchdog), {
+      once: true,
+    });
     // iOS 上这行偶发抛 NotAllowedError（同一路流二次 play），不 catch 会冒到全局
     try {
       await video.play();
     } catch {
-      /* 交给 status 兜底：黑屏时用户会看到「重试」 */
+      /* 不在这里判死：play() 抛错也偶有「其实有画面」的情况，交给上面的死线 */
     }
   },
   { flush: 'post' },
@@ -511,17 +610,80 @@ function leaveToGallery() {
 }
 
 /* ── 生命周期 ────────────────────────────────────────────────────────── */
+
+/**
+ * 用户点「开启相机」——**这必须是调用 getUserMedia 的唯一入口**。
+ * 这里处在 click 的同步调用栈里，iOS 才会正常弹权限框。
+ */
+async function beginCamera() {
+  const media = await start();
+  if (!media) {
+    // 明确被拒就把缓存清掉，下次别自作聪明地静默重试
+    if (errorReason.value === 'denied' || errorReason.value === 'blocked') writeGrantCache(false);
+    return;
+  }
+  writeGrantCache(true);
+  // 权限刚被允许：把状态回读一次，后续「重试」才知道该不该提「去设置里改」
+  permissionState.value = await readCameraPermission();
+}
+
+/** 站点设置改完必须刷新才生效（iOS Safari 尤其如此） */
+function reloadPage() {
+  if (typeof window !== 'undefined') window.location.reload();
+}
+
+/** 内置浏览器里没法直接「在浏览器打开」，只能把地址递出去 */
+const linkCopied = ref(false);
+async function copyLink() {
+  const url = 'https://www.blockofhome.cn/#/user-space/note/camera';
+  try {
+    await navigator.clipboard.writeText(url);
+    linkCopied.value = true;
+  } catch {
+    // 老 WebView 常常没有 clipboard：退回到手选
+    window.prompt('复制这个地址到浏览器打开：', url);
+  }
+}
+
 onMounted(async () => {
   observeFrame();
   window.addEventListener('keydown', onPreviewKeydown);
-  // 首次取流放在挂载后尝试；若浏览器要求手势（iOS 常见），会落到 unavailable
-  // 并给出「重试」按钮 —— 那一次点击就是合法手势，不用用户重新进页面。
-  await start();
+
+  // 第一层：静态预检。这三类问题不会弹窗、也不因用户允许而好转，
+  // 所以连 getUserMedia 都不该调 —— 直接给准确原因。
+  blocker.value = detectCameraBlocker();
+  if (blocker.value) {
+    status.value = 'unavailable';
+    errorReason.value = blocker.value;
+    return;
+  }
+
+  // 第二层：已经授权过就直接开（不会弹窗，也就不需要手势）。
+  // 其余情况（prompt / 读不到）一律停在「开机台」等一次真实点击。
+  permissionState.value = await readCameraPermission();
+  if (permissionState.value === 'denied') {
+    // 浏览器已经记住「拒绝」，再调只会立刻失败且不弹窗 —— 直接说清怎么改
+    writeGrantCache(false);
+    status.value = 'unavailable';
+    errorReason.value = 'blocked';
+    return;
+  }
+  // granted，或本会话内成功过（iOS 读不到 permissions 的兜底）→ 静默开
+  if (permissionState.value === 'granted' || readGrantCache()) {
+    const media = await start();
+    // 缓存过期（用户后来撤销了权限）：别装作没事，落到明确文案上
+    if (!media && (errorReason.value === 'denied' || errorReason.value === 'blocked')) {
+      writeGrantCache(false);
+    }
+    return;
+  }
+  // 否则停在 gateOpen（status 仍是 idle），等用户点「开启相机」
 });
 
 onBeforeUnmount(() => {
   frameObserver?.disconnect();
   frameObserver = null;
+  window.clearTimeout(frameWatchdog);
   if (focusTimer) window.clearTimeout(focusTimer);
   focusTimer = null;
   window.clearTimeout(saveFlashTimer);
@@ -586,7 +748,8 @@ onBeforeUnmount(() => {
         ></span>
 
         <!-- 变焦：档位由本机 `getCapabilities().zoom` 决定，没有硬件变焦就退回数码 -->
-        <div class="boh-cam__zoom" aria-label="变焦">
+        <!-- 有画面之后才有意义：取流前显示「数码变焦」是没依据的断言 -->
+        <div v-if="status === 'live'" class="boh-cam__zoom" aria-label="变焦">
           <div role="radiogroup" aria-label="变焦档位" class="boh-cam__zoom-pills">
             <button
               v-for="step in zoomSteps"
@@ -605,9 +768,47 @@ onBeforeUnmount(() => {
           <span class="boh-cam__zoom-caption">{{ zoomCaption }}</span>
         </div>
 
+        <!-- 开机台：取流前的中转屏。任何自动取流都会在 iOS 上被静默拒绝，-->
+        <!-- 所以第一次 getUserMedia 必须由这里的点击触发（见 beginCamera）。 -->
+        <div v-if="gateOpen" class="boh-cam__gate" data-testid="camera-gate">
+          <p class="boh-cam__gate-kicker">BOH CAMERA</p>
+          <h1 class="boh-cam__gate-title">点一下，开启取景器</h1>
+          <p class="boh-cam__gate-sub">首次会请求摄像头权限。画面只在本机实时处理，不上传。</p>
+          <button type="button" class="boh-cam__gate-btn" @click="beginCamera">
+            <Camera :size="18" :stroke-width="1.9" aria-hidden="true" />
+            开启相机
+          </button>
+          <p class="boh-cam__gate-hint">
+            没反应？确认是用 Safari / Chrome 打开，且没有在无痕模式下禁用摄像头。
+          </p>
+        </div>
+
         <div v-if="status === 'unavailable'" class="boh-cam__fallback" role="alert">
           <p>{{ unavailableText }}</p>
-          <button v-if="canRetry" type="button" class="boh-cam__retry" @click="start">重试</button>
+          <div class="boh-cam__fallback-actions">
+            <button v-if="canRetry" type="button" class="boh-cam__retry" @click="beginCamera">
+              重试
+            </button>
+            <!-- 改完站点设置后刷新才会重新走一遍权限判定，给一个明确的下一步 -->
+            <button
+              v-if="errorReason === 'blocked' || errorReason === 'denied'"
+              type="button"
+              class="boh-cam__retry"
+              :class="{ 'is-secondary': canRetry }"
+              @click="reloadPage"
+            >
+              我已改好，刷新页面
+            </button>
+            <!-- 内置浏览器里没有「在浏览器打开」这种能力，只能把地址复制出去 -->
+            <button
+              v-if="errorReason === 'webview'"
+              type="button"
+              class="boh-cam__retry"
+              @click="copyLink"
+            >
+              {{ linkCopied ? '已复制，去浏览器粘贴' : '复制本站链接' }}
+            </button>
+          </div>
         </div>
 
         <div v-if="status === 'requesting'" class="boh-cam__fallback is-quiet">
@@ -1057,6 +1258,92 @@ onBeforeUnmount(() => {
 .boh-cam__zoom-step:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* ── 开机台 ──────────────────────────────────────────────────────────────
+ * 不是错误页，是「取景器还没通电」。所以用取景器的语言：暗底、字距拉开的
+ * 小标、银色按钮（与银圈快门同色系），不用红色告警色。
+ * 这一屏存在的唯一理由是拿到一次真实点击 —— 它是权限弹窗的前提。 */
+.boh-cam__gate {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 30px;
+  text-align: center;
+  background: radial-gradient(120% 80% at 50% 34%, #1b1b1f 0%, #0b0b0c 62%);
+}
+
+.boh-cam__gate-kicker {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.boh-cam__gate-title {
+  margin: 6px 0 0;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #f5f5f7;
+}
+
+.boh-cam__gate-sub {
+  margin: 0;
+  max-width: 260px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.boh-cam__gate-btn {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 26px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fdfdfb 0%, #d8d8d2 100%);
+  color: #14141a;
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 10px 26px -12px rgba(0, 0, 0, 0.9);
+  transition: transform 140ms ease;
+}
+
+.boh-cam__gate-btn:active {
+  transform: scale(0.97);
+}
+
+.boh-cam__gate-hint {
+  margin: 10px 0 0;
+  max-width: 268px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.boh-cam__fallback-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 次要动作：与主「重试」并列时不能抢眼，否则用户会先点刷新、又跑一遍权限流程 */
+.boh-cam__retry.is-secondary {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .boh-cam__fallback {

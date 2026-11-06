@@ -23,16 +23,68 @@ export function isCameraSupported() {
 }
 
 /**
- * 把 getUserMedia 抛出的错误归成四类，UI 文案按类给 ——
+ * 站内/App 内置浏览器（WebView）。这些环境的共同特征是**宿主 App 决定要不要给摄像头**，
+ * 网页侧既拿不到弹窗也拿不到说明 —— 用户看到的就是「点了没反应」。
+ * 必须提前判出来并给出「在浏览器中打开」，否则文案会误报成「权限被拒」。
+ */
+const WEBVIEW_UA =
+  /MicroMessenger|QQ\/|Weibo|AlipayClient|DingTalk|aweme|Douyin|BytedanceWebview|FBAN|FBAV|Instagram|Line\//i;
+
+/**
+ * 起流前的**静态**预检（不发请求、不需要手势）。返回空串表示「值得一试」。
+ *
+ * 这三类问题都**不会**弹权限框，也永远不会因为用户点「允许」而变好，
+ * 所以必须在调 getUserMedia 之前拦下来并说清原因：
+ *   insecure  —— 非安全上下文（http、或 https 页面里嵌的 http iframe）
+ *   webview   —— 微信/QQ 等内置浏览器
+ *   unsupported —— 浏览器压根没有这个 API
+ */
+export function detectCameraBlocker() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return 'unsupported';
+  if (window.isSecureContext === false) return 'insecure';
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return WEBVIEW_UA.test(navigator.userAgent || '') ? 'webview' : 'unsupported';
+  }
+  return '';
+}
+
+/**
+ * 读本站的摄像头权限状态：`granted` / `denied` / `prompt` / `''`（读不到）。
+ *
+ * 用途不是「判断能不能用」，而是两个体验分叉：
+ *   granted → 可以静默开（不用手势也不会弹窗），进页面直接出画面；
+ *   denied  → **浏览器以后不会再弹窗了**，这时候只显示「重试」是骗人的，
+ *             必须告诉用户去站点设置里改。
+ * Safari 对 `camera` 这个名字支持不稳定，读不到就返回 '' 当作 prompt 处理。
+ */
+export async function readCameraPermission() {
+  try {
+    const status = await navigator.permissions?.query?.({ name: 'camera' });
+    return String(status?.state || '');
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 把 getUserMedia 抛出的错误归类，UI 文案按类给 ——
  * 「权限被拒」和「设备被其他应用占用」给同一句「相机不可用」等于没说话。
  */
 export function describeCameraError(error) {
   const name = String(error?.name || '');
+  if (name === 'TimeoutError') return 'timeout';
   if (name === 'NotAllowedError' || name === 'SecurityError') return 'denied';
   if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'not-found';
   if (name === 'NotReadableError' || name === 'AbortError') return 'in-use';
   return 'error';
 }
+
+/**
+ * 授权框的等待上限。超时按失败处理是**必要的**：
+ * 部分安卓 WebView 会永远挂着不 resolve，界面就一直停在「正在打开相机」，
+ * 用户看到的就是一块不动的黑屏，连「重试」都没有。
+ */
+const REQUEST_TIMEOUT_MS = 12000;
 
 export function useCameraStream() {
   const stream = shallowRef(null);
@@ -54,6 +106,8 @@ export function useCameraStream() {
   const digitalZoom = ref(1);
   /** 隐藏前是否在用 —— 只有「正在用」才在回前台时自动重取 */
   let resumeOnVisible = false;
+  /** 请求代号：stop() / 再次 start() 都会 +1，用来作废还在路上的那一路上 */
+  let requestTicket = 0;
 
   /** 读变焦能力：读不到就当没有（别瞎调 applyConstraints） */
   function readZoomRange(track) {
@@ -131,6 +185,8 @@ export function useCameraStream() {
   }
 
   function stop() {
+    // 作废在途请求：迟到返回的那路流会在 start() 里被自己停掉
+    requestTicket += 1;
     const current = stream.value;
     stream.value = null;
     if (!current) return;
@@ -154,17 +210,45 @@ export function useCameraStream() {
     stop();
     status.value = 'requesting';
     errorReason.value = '';
+    // 每次请求一个代号：超时后若原 promise 迟到返回，要能认出「这路流没人要了」
+    const ticket = ++requestTicket;
+    let settled = false;
+    const request = navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        // iOS 只认 'environment' / 'user' 两个字符串，别传数组或 { exact }
+        facingMode: facing.value,
+        // 取景只需要够看清；成片上限 1600，1920 已经有余量
+        width: { ideal: 1920 },
+        height: { ideal: 1440 },
+      },
+    });
+    // 迟到的流必须自己停掉，否则相机指示灯会一直亮着（信任问题）
+    request.then(
+      (late) => {
+        if (settled && ticket === requestTicket) {
+          for (const track of late.getTracks()) track.stop();
+        }
+      },
+      () => {},
+    );
     try {
-      const media = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          // iOS 只认 'environment' / 'user' 两个字符串，别传数组或 { exact }
-          facingMode: facing.value,
-          // 取景只需要够看清；成片上限 1600，1920 已经有余量
-          width: { ideal: 1920 },
-          height: { ideal: 1440 },
-        },
-      });
+      const media = await Promise.race([
+        request,
+        new Promise((_, reject) => {
+          setTimeout(() => {
+            const error = new Error('camera request timeout');
+            error.name = 'TimeoutError';
+            reject(error);
+          }, REQUEST_TIMEOUT_MS);
+        }),
+      ]);
+      settled = true;
+      if (ticket !== requestTicket) {
+        // 期间被 stop() 或重新 start()：这路流已经过期，直接还回去
+        for (const track of media.getTracks()) track.stop();
+        return null;
+      }
       stream.value = media;
       const [track] = media.getVideoTracks();
       zoomRange.value = readZoomRange(track);
@@ -180,6 +264,8 @@ export function useCameraStream() {
       void setZoom(zoom.value);
       return media;
     } catch (error) {
+      settled = true;
+      if (ticket !== requestTicket) return null;
       errorReason.value = describeCameraError(error);
       status.value = 'unavailable';
       return null;
