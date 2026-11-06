@@ -22,6 +22,7 @@ import fs from 'node:fs';
 //     N 未授权首次进入 → **不进页面就调 getUserMedia**（调用数 0）、显示开机台；
 //       点「开启相机」后才请求一次并出画面（iOS 手势链的回归测试）
 //     O 权限已被记住「拒绝」→ 不发起注定失败的请求，文案指向站点设置，给的是刷新而非重试
+//     P 保存的幂等性 → 二轮只存新增那张（文件名 -03），前两张不重复下载、序号不前移
 //
 //   counter-proof（做过）：
 //     把 videoStyle 里的 `scale(${digitalZoom})` 去掉 → G 必红（矩阵恒为 1）；
@@ -558,6 +559,108 @@ async function main() {
   );
   await deniedPage.screenshot({ path: `${OUT}/camera-O-blocked.png` });
   await deniedRun.context.close();
+
+  /* ── 场景 2c：保存的幂等性 —— 第二轮不许把第一轮再存一遍 ──────────────
+   *
+   * 用户反馈：存过一轮，再拍几张点保存，相册里会出现重复照片。
+   * 真因是 saveAllShots() 永远把整个 shots 数组交出去，且没有「已存」标记。
+   * 断言口径用**真实下载文件名**：第一轮 `-01/-02`，第二轮只应出现 `-03`。
+   * 序号错位（变成 -01）同样算红 —— 那会让用户以为存错了。 */
+  const saveContext = await gateBrowser.newContext({ viewport: VIEWPORT });
+  // ⚠️ 必须关掉 Web Share：无头 Chrome 里 `navigator.share` 存在但**会挂住**
+  //    （实测：既不 resolve 也不 reject，按钮一直 disabled），
+  //    不关掉就永远测不到下载通道。分享通道本身没法在无人值守下验证（要人点面板）。
+  await saveContext.addInitScript(() => {
+    for (const name of ['share', 'canShare']) {
+      try {
+        Object.defineProperty(navigator, name, { value: undefined, configurable: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  });
+  const savePage = await saveContext.newPage();
+  const downloads = [];
+  savePage.on('download', (item) => downloads.push(item.suggestedFilename()));
+  await savePage.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' });
+  await injectLogin(savePage);
+  await gotoHash(savePage, '#/user-space/note/camera');
+  // 这个实例带 `--use-fake-ui-for-media-stream`，通常直接就是 granted；
+  // 万一落到开机台，先点一下再等画面（与真实用户动作一致）
+  await savePage.waitForSelector('.boh-cam', { timeout: 15000 });
+  if (await savePage.$('.boh-cam__gate-btn')) await savePage.click('.boh-cam__gate-btn');
+  await waitCameraReady(savePage);
+
+  const waitDownloads = async (expected) => {
+    const start = Date.now();
+    while (downloads.length < expected && Date.now() - start < 9000) {
+      await savePage.waitForTimeout(120);
+    }
+    return downloads.length;
+  };
+
+  // 第一轮：拍 2 张 → 存整批
+  for (let i = 0; i < 2; i += 1) {
+    await savePage.click('[data-testid="camera-shutter"]');
+    await savePage.waitForTimeout(1000);
+  }
+  await savePage.click('[data-testid="camera-stack"]');
+  await savePage.waitForTimeout(420);
+  const firstSaveLabel = await savePage.textContent('[data-testid="camera-save-all"]');
+  await savePage.click('[data-testid="camera-save-all"]');
+  await waitDownloads(2);
+  check('P1 整批保存前按钮写明待存张数', firstSaveLabel.includes('2'), firstSaveLabel.trim());
+  // 卷名跟着当前滤镜走（默认「原图」= RAW），这里只钉序号，不钉卷名
+  check(
+    'P2 一轮 2 张全部落盘，文件名按序号',
+    downloads.length === 2 && /-01\.jpg$/.test(downloads[0]) && /-02\.jpg$/.test(downloads[1]),
+    downloads.join(','),
+  );
+
+  const afterSave = await savePage.evaluate(() => ({
+    savedMarks: document.querySelectorAll('.boh-cam__review-saved').length,
+    label: document.querySelector('[data-testid="camera-save-all"]')?.textContent?.trim() || '',
+    disabled: document.querySelector('[data-testid="camera-save-all"]')?.disabled ?? null,
+  }));
+  check('P3 已存的每张都有 ✓ 标记', afterSave.savedMarks === 2, String(afterSave.savedMarks));
+  check(
+    'P4 全部存过后按钮变成不可点的「已存到本地」',
+    afterSave.disabled === true && afterSave.label.includes('已存'),
+    JSON.stringify(afterSave),
+  );
+
+  // 第二轮：回去再拍 1 张 → 再存
+  await savePage.click('[data-testid="camera-review-continue"]');
+  await savePage.waitForTimeout(400);
+  await savePage.click('[data-testid="camera-shutter"]');
+  await savePage.waitForTimeout(1100);
+  await savePage.click('[data-testid="camera-stack"]');
+  await savePage.waitForTimeout(420);
+  const secondLabel = await savePage.textContent('[data-testid="camera-save-all"]');
+  // 混态截图：前两张带 ✓、第三张没有 —— 正是用户反馈的那个场景
+  await savePage.screenshot({ path: `${OUT}/camera-Q2-mixed.png` });
+  await savePage.click('[data-testid="camera-save-all"]');
+  await waitDownloads(3);
+
+  check(
+    'P5 第二轮待存数只算新增的那一张',
+    secondLabel.includes('1') && !secondLabel.includes('3'),
+    secondLabel.trim(),
+  );
+  check(
+    'P6 🔴 第二轮不重复存前两张（只多出 -03）',
+    downloads.length === 3 && /-03\.jpg$/.test(downloads[2]),
+    downloads.join(','),
+  );
+  check(
+    'P7 第一轮的两张没有被二次下载',
+    downloads.filter((name) => /-01\.jpg$/.test(name)).length === 1 &&
+      downloads.filter((name) => /-02\.jpg$/.test(name)).length === 1,
+    downloads.join(','),
+  );
+  await savePage.screenshot({ path: `${OUT}/camera-Q-saved.png` });
+  await saveContext.close();
+
   await gateBrowser.close();
 
   /* ── 场景 3：不支持摄像头的环境 ──────────────────────────────────────── */

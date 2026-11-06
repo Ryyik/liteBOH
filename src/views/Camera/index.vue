@@ -413,6 +413,8 @@ async function capture() {
       url,
       // 记下这张用的卷名：切滤镜之后再回看，底片上的字不能跟着变
       stock: stockName.value,
+      // 是否已存到本地：暂存相册跨轮次，「第二轮保存不许把第一轮再存一遍」
+      saved: false,
     });
     // 必须等 DOM 把这张卡片渲染出来，飞行落点才量得到真实位置
     void nextTick().then(() => playFilmAdvance(url));
@@ -483,27 +485,44 @@ function onPreviewKeydown(event) {
 /* ── 存到本地 ────────────────────────────────────────────────────────── */
 const isSaving = ref(false);
 /** 保存成功后的短暂文案反馈（1.8s 复原），没有全局 toast 就用按钮自己说话 */
-const saveFlash = ref(false);
+const saveFlashText = ref('');
 let saveFlashTimer = 0;
 
 /**
- * 存到本地。
+ * 还没存到本地的那些张（带原始序号）。
+ *
+ * ⚠️ 这里必须按「是否已存」筛，不能整批传 `shots`：暂存相册是跨轮次的
+ * （存完不清空，好让用户「既存又传」），整批传会导致**第二轮保存把第一轮
+ * 又存一遍** —— 用户在相册里看到重复照片，只会认为功能坏了。
+ * 序号用**原数组下标**，这样文件名始终是 `CCD-03.jpg`，
+ * 不会因为筛掉已存的那几张而整体前移。
+ */
+const unsavedShots = computed(() =>
+  shots.value.map((shot, index) => ({ shot, index })).filter((entry) => !entry.shot.saved),
+);
+const unsavedCount = computed(() => unsavedShots.value.length);
+
+/**
+ * 存到本地（支持一次多张）。
  *
  * 两条通道，**优先系统分享**：`navigator.share({ files })` 在 iOS / 安卓都会
  * 弹系统面板，用户选「存储图像」就真进相册了 —— 这是 Web 上唯一能进相册的路径。
  * 不支持时才退回 `<a download>`（落进「下载 / 文件」，iOS 叫「存储到文件」）。
  *
  * ⚠️ `share()` 必须在用户手势里**同步**发起。所以这里不做任何 await 前置，
- * 文件从 shots 里同步取；先 await 别的东西再调，Safari 会直接拒绝。
+ * 文件从入参同步构造；先 await 别的东西再调，Safari 会直接拒绝。
+ *
+ * 返回值是「这批到底有没有交付出去」：用户取消 share 返回 false（不标记已存，
+ * 下次点还能再存）；超时按已交付处理（面板已经弹过了，避免重复存一遍）。
  *
  * 文件名统一重建成「卷名-序号」，否则一批存下来全是 boh-camera-edited.jpg，
  * 用户在相册里根本分不清哪张是哪张。
  */
-async function saveShotsToDevice(list, offset = 0) {
-  if (!list.length) return;
-  const files = list.map((shot, index) => {
+async function saveShotsToDevice(entries) {
+  if (!entries.length) return false;
+  const files = entries.map(({ shot, index }) => {
     const stock = (shot.stock || 'BOH').replace(/[^A-Za-z0-9]+/g, '').slice(0, 12) || 'BOH';
-    const name = `${stock}-${padNo(offset + index + 1)}.jpg`;
+    const name = `${stock}-${padNo(index + 1)}.jpg`;
     try {
       return new File([shot.file], name, { type: shot.file.type || 'image/jpeg' });
     } catch {
@@ -520,15 +539,18 @@ async function saveShotsToDevice(list, offset = 0) {
           navigator.share({ files }),
           new Promise((resolve) => window.setTimeout(resolve, 15000)),
         ]);
-        return;
+        return true;
       } catch (error) {
-        // 用户自己取消：别再偷偷退回下载（会突然开始存文件）
-        if (error?.name === 'AbortError') return;
+        // 用户自己取消：别再偷偷退回下载（会突然开始存文件），也不算已存
+        if (error?.name === 'AbortError') return false;
         // 其他错误（部分安卓机型对 files 报 NotSupportedError）继续走下载
       }
     }
   }
-  files.forEach((file) => {
+  // 下载通道：多张必须**串行且留间隔**。
+  // 连续同步 click() 会被 Chrome 判成「自动批量下载」直接拦掉第二张起的那几个。
+  for (let i = 0; i < files.length; i += 1) {
+    const file = files[i];
     const url = URL.createObjectURL(file);
     const link = document.createElement('a');
     link.href = url;
@@ -539,35 +561,47 @@ async function saveShotsToDevice(list, offset = 0) {
     link.remove();
     // 立刻 revoke 会让部分浏览器的下载中断，留一段时间
     window.setTimeout(() => URL.revokeObjectURL(url), 10000);
-  });
+    if (i < files.length - 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 260));
+    }
+  }
+  return true;
 }
 
-function flashSaved() {
-  saveFlash.value = true;
+function flashSaved(text) {
+  saveFlashText.value = text;
   window.clearTimeout(saveFlashTimer);
   saveFlashTimer = window.setTimeout(() => {
-    saveFlash.value = false;
+    saveFlashText.value = '';
   }, 1800);
 }
 
-/** 整批存到本地。**不清空暂存** —— 想「既存又传」的用户接着点完成就行 */
+/** 整批存到本地：**只存还没存过的那些**。不清空暂存 —— 想「既存又传」接着点完成 */
 async function saveAllShots() {
-  if (!shots.value.length || isSaving.value) return;
+  const pending = unsavedShots.value;
+  if (!pending.length || isSaving.value) return;
   isSaving.value = true;
   try {
-    await saveShotsToDevice(shots.value, 0);
-    flashSaved();
+    const delivered = await saveShotsToDevice(pending);
+    if (delivered) {
+      for (const { shot } of pending) shot.saved = true;
+      flashSaved(pending.length > 1 ? `已存 ${pending.length} 张` : '已存到本地');
+    }
   } finally {
     isSaving.value = false;
   }
 }
 
 async function savePreviewShot() {
-  if (!previewShot.value || isSaving.value) return;
+  const shot = previewShot.value;
+  if (!shot || isSaving.value) return;
   isSaving.value = true;
   try {
-    await saveShotsToDevice([previewShot.value], previewIndex.value);
-    flashSaved();
+    const delivered = await saveShotsToDevice([{ shot, index: previewIndex.value }]);
+    if (delivered) {
+      shot.saved = true;
+      flashSaved('已保存');
+    }
   } finally {
     isSaving.value = false;
   }
@@ -930,7 +964,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="boh-cam__review-open"
-              :aria-label="`查看第 ${index + 1} 张`"
+              :aria-label="`查看第 ${index + 1} 张${shot.saved ? '（已存到本地）' : ''}`"
               @click="openPreview(index)"
             >
               <img :src="shot.url" alt="" draggable="false" />
@@ -938,6 +972,8 @@ onBeforeUnmount(() => {
                 {{ shot.stock || stockName }} · {{ padNo(index + 1) }}
               </figcaption>
             </button>
+            <!-- 已存标记做成角标而不是卷号里的字符：6.4px 的 ✓ 肉眼看不见 -->
+            <span v-if="shot.saved" class="boh-cam__review-saved" aria-hidden="true">✓</span>
             <button
               type="button"
               class="boh-cam__review-remove"
@@ -950,17 +986,30 @@ onBeforeUnmount(() => {
         </div>
 
         <footer class="boh-cam__review-foot">
-          <button
-            type="button"
-            class="boh-cam__ghost"
-            :disabled="isSaving"
-            data-testid="camera-save-all"
-            @click="saveAllShots"
-          >
-            {{ saveFlash ? '已存到本地' : '存到本地' }}
-          </button>
-          <button type="button" class="boh-cam__ghost" @click="isReviewOpen = false">继续拍</button>
-          <button type="button" class="boh-cam__primary" @click="finish">
+          <!-- 两行：上面是「还能做什么」，下面整条是出口。
+               三个按钮挤一行时，「存到本地（3）」这种带计数的长文案会先被压扁。 -->
+          <div class="boh-cam__review-row">
+            <button
+              type="button"
+              class="boh-cam__ghost"
+              :disabled="isSaving || !unsavedCount"
+              data-testid="camera-save-all"
+              @click="saveAllShots"
+            >
+              <template v-if="saveFlashText">{{ saveFlashText }}</template>
+              <template v-else-if="unsavedCount">存到本地（{{ unsavedCount }}）</template>
+              <template v-else>已存到本地</template>
+            </button>
+            <button
+              type="button"
+              class="boh-cam__ghost"
+              data-testid="camera-review-continue"
+              @click="isReviewOpen = false"
+            >
+              继续拍
+            </button>
+          </div>
+          <button type="button" class="boh-cam__primary is-wide" @click="finish">
             完成（{{ shots.length }}）
           </button>
         </footer>
@@ -1031,7 +1080,10 @@ onBeforeUnmount(() => {
               data-testid="camera-preview-save"
               @click.stop="savePreviewShot"
             >
-              {{ saveFlash ? '已保存' : '存到本地' }}
+              <template v-if="saveFlashText">{{ saveFlashText }}</template>
+              <!-- 已存过的允许再存一次（存到别的 App），但文案要说清，别让人以为刚才没成 -->
+              <template v-else-if="previewShot.saved">再存一次</template>
+              <template v-else>存到本地</template>
             </button>
             <button type="button" class="boh-cam__ghost is-danger" @click.stop="removePreviewShot">
               删除这张
@@ -1923,6 +1975,25 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+/* 已存标记：贴在片基左上角。用深绿（照片「已归档」的语义），
+   与右上角删除按钮的黑色圆圈错开，不重叠。 */
+.boh-cam__review-saved {
+  position: absolute;
+  top: 13px;
+  left: 13px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(38, 92, 60, 0.92);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
 .boh-cam__review-remove {
   position: absolute;
   top: 3px;
@@ -1941,8 +2012,20 @@ onBeforeUnmount(() => {
 
 .boh-cam__review-foot {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   padding-top: 14px;
+}
+
+.boh-cam__review-row {
+  display: flex;
+  gap: 10px;
+}
+
+/* 出口独占一行：它是这一屏唯一「离开」的动作，不该和次要按钮抢宽度 */
+.boh-cam__primary.is-wide {
+  width: 100%;
+  flex: none;
 }
 
 .boh-cam__ghost,
