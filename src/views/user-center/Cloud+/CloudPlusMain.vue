@@ -1256,7 +1256,7 @@ import {
   Trash2,
   X,
 } from 'lucide-vue-next';
-import { takeCameraCapture } from '@/utils/camera-capture-bridge.js';
+import { takeCameraCaptures } from '@/utils/camera-capture-bridge.js';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import CloudStorageBar from './CloudStorageBar.vue';
 import { useAutoGrowTextarea } from '@/composables/useAutoGrowTextarea.js';
@@ -4041,10 +4041,10 @@ const CLOUD_ACTIVATION_REFRESH_TTL_MS = 60 * 1000;
  * 取走（不是没取），表现为照片凭空消失。
  */
 function consumeCameraCapture() {
-  const file = takeCameraCapture();
-  if (!file) return;
+  const files = takeCameraCaptures();
+  if (!files.length) return;
   openComposer();
-  void addFilesToDraft([file]);
+  void addFilesToDraft(files);
 }
 
 onDeactivated(() => {

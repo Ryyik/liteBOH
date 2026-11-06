@@ -80,6 +80,8 @@ const props = defineProps({
   halationStream: { type: Object, default: null },
   /** 前置摄像头取景要镜像；泛光层用的第二路 video 必须同步镜像，否则光晕和画面错位 */
   mirror: { type: Boolean, default: false },
+  /** 数码变焦倍率：泛光层必须和主画面同倍率缩放，否则光晕会「缩回去」 */
+  zoom: { type: Number, default: 1 },
 });
 
 const layerBase = {
@@ -169,12 +171,14 @@ const halationStyle = computed(() => {
   };
   if (!live) return style;
   const radius = Math.max(1, scaled(halation.blur) * props.boxWidth);
+  const zoom = Math.max(1, Number(props.zoom) || 1);
   return {
     ...style,
     filter: `${LIVE_HALATION_BRIGHT_PASS} blur(${radius.toFixed(2)}px)`,
-    // 只镜像这一路 video：染色/暗角/漏光是对称或按归一化坐标定位的，
-    // 跟着镜像会让光斑位置和成片对不上
-    transform: props.mirror ? 'scaleX(-1)' : 'none',
+    // 只镜像/缩放这一路 video：染色/暗角/漏光是对称或按归一化坐标定位的，
+    // 跟着变换会让光斑位置和成片对不上。
+    // 缩放必须与主画面同倍率 —— 否则 2× 时主画面放大了、光晕还停在 1×。
+    transform: `scale(${zoom}) scaleX(${props.mirror ? -1 : 1})`,
   };
 });
 

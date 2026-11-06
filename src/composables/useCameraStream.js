@@ -14,6 +14,7 @@
  */
 
 import { getCurrentScope, onScopeDispose, ref, shallowRef } from 'vue';
+import { DIGITAL_ZOOM_RANGE, normalizeZoom, splitZoom } from '@/utils/camera-capture.js';
 
 /** 当前环境是否有摄像头 API（HTTPS 下才有 mediaDevices，HTTP 恒为 undefined）。 */
 export function isCameraSupported() {
@@ -40,8 +41,94 @@ export function useCameraStream() {
   const errorReason = ref('');
   const facing = ref('environment');
   const supports = isCameraSupported();
+  /** 用户选的倍率 */
+  const zoom = ref(1);
+  /**
+   * 本机这一路流的变焦能力（`getCapabilities().zoom`）。
+   * 这是**唯一**能真实反映「这台手机能到多少倍」的信号：
+   * iOS Safari 多数没有这个约束 ⇒ supported=false，退回数码档；
+   * 安卓 Chrome 常见 1~8×，有些机型还能到 0.5×（超广角）。
+   */
+  const zoomRange = ref({ ...DIGITAL_ZOOM_RANGE });
+  /** 硬件吃不下、要靠 CSS scale 兑现的那一段倍率（抓帧时按它裁切） */
+  const digitalZoom = ref(1);
   /** 隐藏前是否在用 —— 只有「正在用」才在回前台时自动重取 */
   let resumeOnVisible = false;
+
+  /** 读变焦能力：读不到就当没有（别瞎调 applyConstraints） */
+  function readZoomRange(track) {
+    try {
+      const caps = track?.getCapabilities?.() || {};
+      const min = Number(caps.zoom?.min);
+      const max = Number(caps.zoom?.max);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+        return { ...DIGITAL_ZOOM_RANGE };
+      }
+      return { min, max, step: Number(caps.zoom?.step) || 0.1, supported: true };
+    } catch {
+      return { ...DIGITAL_ZOOM_RANGE };
+    }
+  }
+
+  /**
+   * 设置倍率：先喂硬件、剩下的交给数码（CSS scale + 抓帧裁切）。
+   * ⚠️ 两段必须分开，不能把同一个倍率同时喂给两边（会变成 z²）。
+   */
+  async function setZoom(next) {
+    const range = zoomRange.value;
+    const target = normalizeZoom(next, range);
+    zoom.value = target;
+    const { hardware, digital } = splitZoom(target, range);
+    const track = stream.value?.getVideoTracks?.()[0];
+    if (range.supported && track) {
+      try {
+        await track.applyConstraints({ advanced: [{ zoom: hardware }] });
+        // 回读真实生效值：有的机型会吸到最近档位，差额用数码补，才是「真的到这个倍率」
+        const actual = Number(track.getSettings?.().zoom);
+        const applied = Number.isFinite(actual) && actual > 0 ? actual : hardware;
+        digitalZoom.value = Math.max(1, target / applied);
+        return;
+      } catch {
+        // 声明支持但实际拒绝（部分安卓机型）：整段退回数码变焦
+      }
+    }
+    digitalZoom.value = digital;
+  }
+
+  /**
+   * 点按对焦 —— 先说清能做到的上限，别夸大：
+   * 浏览器**没有**「对到手指那一点」的 API（`pointsOfInterest` 只存在于
+   * ImageCapture 规范草案，至今没有浏览器实现）。能做的最多是：
+   * 设备声明支持 `focusMode: 'single-shot'` 时，**重新触发一次自动对焦**。
+   *   · 安卓 Chrome 部分机型：会真的重新对一次（对画面中心，不是点击点）；
+   *   · iOS Safari：没有 focusMode 约束 ⇒ 什么都不做，界面只显示对焦框。
+   *
+   * 返回「本次点击是否真的触发了 AF」——调用方据此决定反馈，别对没发生的对焦
+   * 说「已对上」。
+   */
+  async function focusAt() {
+    const track = stream.value?.getVideoTracks?.()[0];
+    if (!track) return false;
+    let modes = [];
+    try {
+      modes = track.getCapabilities?.().focusMode || [];
+    } catch {
+      modes = [];
+    }
+    if (!modes.includes('single-shot')) return false;
+    try {
+      await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] });
+      // 必须切回连续对焦，否则第二次点击不会再触发单次对焦
+      if (typeof window !== 'undefined') {
+        window.setTimeout(() => {
+          void track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+        }, 600);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   function stop() {
     const current = stream.value;
@@ -80,6 +167,7 @@ export function useCameraStream() {
       });
       stream.value = media;
       const [track] = media.getVideoTracks();
+      zoomRange.value = readZoomRange(track);
       track?.addEventListener?.('ended', () => {
         // 系统收回镜头（来电、别的 App 抢占）时不要静默黑屏
         if (stream.value === media) {
@@ -88,6 +176,8 @@ export function useCameraStream() {
         }
       });
       status.value = 'live';
+      // 新流是一条新的轨道，之前的 zoom 约束不会跟过来 —— 重新施加一次
+      void setZoom(zoom.value);
       return media;
     } catch (error) {
       errorReason.value = describeCameraError(error);
@@ -98,6 +188,10 @@ export function useCameraStream() {
 
   async function flip() {
     facing.value = facing.value === 'user' ? 'environment' : 'user';
+    // 换镜头 = 换物理模组，倍率与硬件能力都不再成立
+    zoom.value = 1;
+    digitalZoom.value = 1;
+    zoomRange.value = { ...DIGITAL_ZOOM_RANGE };
     if (status.value === 'live') await start();
   }
 
@@ -130,5 +224,19 @@ export function useCameraStream() {
     });
   }
 
-  return { stream, status, errorReason, facing, supports, start, stop, flip };
+  return {
+    stream,
+    status,
+    errorReason,
+    facing,
+    supports,
+    zoom,
+    zoomRange,
+    digitalZoom,
+    start,
+    stop,
+    flip,
+    setZoom,
+    focusAt,
+  };
 }
