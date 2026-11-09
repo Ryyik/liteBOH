@@ -13,7 +13,7 @@
 ## 1. 开工三步
 
 ```bash
-npm run env:doctor     # 35 项环境自检（实测，不靠平台名推断）；诊断档，永远 exit 0
+npm run env:doctor     # 36 项环境自检（实测，不靠平台名推断）；诊断档，永远 exit 0
 npm run gate:plan      # 按本次改动路径，列出「额外要跑」的探针/命令清单（--json 可机读）
 npm run verify:fast    # 6 道秒级门禁，约 10s
 git status --porcelain | wc -l   # 工作区有多脏（并行会话判断依据）
@@ -109,7 +109,7 @@ npm run lint:delta -- --all   # 只看当前全量聚合
 
 | 命令 | 作用 | 定位 |
 | --- | --- | --- |
-| `npm run env:doctor` | 35 项环境自检（实测） | 诊断，永远 exit 0 |
+| `npm run env:doctor` | 36 项环境自检（实测） | 诊断，永远 exit 0 |
 | `npm run gate:plan` | 改动路径 → 额外要跑什么（真源 `scripts/lib/gate-map.json`） | 诊断，永远 exit 0 |
 | `npm run session:start` | env:doctor + verify:fast 并一条 | 诊断 |
 | `npm run env:doctor:strict` | 有 ❌ 时 exit 1 | 门禁（预检脚本用） |

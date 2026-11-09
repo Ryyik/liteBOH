@@ -28,7 +28,7 @@
  *   node scripts/env-doctor.mjs --deep     # 额外做联网探测（GitHub :443 可达性等）
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = process.cwd();
@@ -331,23 +331,53 @@ if (dirty.length > 12) {
   report(OK, '未提交改动', `${dirty.length} 项`);
 }
 
-// pre-commit 是**仓库自带**的（非 husky）。新克隆 / 新机器上它不会自动存在。
-const hookSrc = join(ROOT, 'scripts', 'git-hooks', 'pre-commit');
-const hookDst = join(ROOT, '.git', 'hooks', 'pre-commit');
-if (!existsSync(hookDst)) {
-  report(
-    FAIL,
-    'pre-commit 钩子',
-    '未安装',
-    'cp scripts/git-hooks/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit',
-  );
-} else if (
-  existsSync(hookSrc) &&
-  readFileSync(hookDst, 'utf-8') !== readFileSync(hookSrc, 'utf-8')
-) {
-  report(WARN, 'pre-commit 钩子', '与 scripts/git-hooks/pre-commit 不一致', '重新 cp 覆盖');
-} else {
-  report(OK, 'pre-commit 钩子', '已安装且与仓库版本一致');
+// pre-commit / pre-push 都是**仓库自带**的（非 husky），由 `npm run hooks:install`
+// （挂在 npm `prepare` 上）建成指向 scripts/git-hooks/ 的软链；新克隆上不会自动存在。
+//
+// ⚠️ 2026-11-09 事故级坑，必须单独报「断链」：断链的钩子对 `existsSync` 是「不存在」，
+// 对 git 是「静默跳过、不报警」。当时 `npm run prepush` 会把它们改成指向临时 worktree
+// 的软链（worktree 一删即断，见 install-git-hooks.sh 的闸），于是 pre-commit 的
+// lint-staged 和 pre-push 的漏配快速档**双双失效且无人察觉** —— push 没跑 prepush
+// 就是这个原因。这类「静默失效」只能在开工自检里显式喊出来。
+for (const name of ['pre-commit', 'pre-push']) {
+  const src = join(ROOT, 'scripts', 'git-hooks', name);
+  const dst = join(ROOT, '.git', 'hooks', name);
+  const fix = 'npm run hooks:install';
+
+  let link = null;
+  try {
+    link = lstatSync(dst);
+  } catch {
+    report(FAIL, `${name} 钩子`, '未安装（提交/推送不会跑任何门禁）', fix);
+    continue;
+  }
+
+  if (link.isSymbolicLink()) {
+    const target = readlinkSync(dst);
+    if (!existsSync(dst)) {
+      report(FAIL, `${name} 钩子`, `软链接已断开 → ${target}`, `${fix}（修复断链）`);
+      continue;
+    }
+    if (target !== src) {
+      report(WARN, `${name} 钩子`, `指向 ${target}（非仓库源文件）`, fix);
+      continue;
+    }
+  } else if (existsSync(src) && readFileSync(dst, 'utf-8') !== readFileSync(src, 'utf-8')) {
+    report(WARN, `${name} 钩子`, '与 scripts/git-hooks 内容不一致（可能是 cp 装的旧副本）', fix);
+    continue;
+  }
+
+  // 软链本身恒为 755，可执行位要跟着链接看目标文件
+  if ((statSync(dst).mode & 0o111) === 0) {
+    report(
+      WARN,
+      `${name} 钩子`,
+      '已安装但不可执行（git 会直接跳过）',
+      `chmod +x .git/hooks/${name}`,
+    );
+    continue;
+  }
+  report(OK, `${name} 钩子`, '已安装，指向仓库源文件');
 }
 
 for (const stub of ['post-commit', 'post-checkout']) {

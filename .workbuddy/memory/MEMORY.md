@@ -42,7 +42,10 @@
 
 ## 提交
 
-- pre-commit 在 `.git/hooks/pre-commit`（**非 husky**；新环境 `cp scripts/git-hooks/pre-commit .git/hooks/ && chmod +x`）。
+- 钩子（**非 husky**）：`npm run hooks:install`（= npm `prepare`，装 pre-commit + pre-push 两个软链）。
+  🔴 **别用 `cp`**：那会变成静态副本、源改动不生效。🔴 **别在 linked worktree 里跑安装**：
+  它会把主仓共享的 `.git/hooks` 改成指向临时目录的软链，临时目录一删**双钩静默全断**
+  （2026-11-09 事故，`install-git-hooks.sh` 已加闸）。判断：`[ -f .git/hooks/pre-push ]` 为假 ＝ 断链/未装。
 - 🔴 lint-staged 会卷进无关未暂存文件 ⇒ 每次 commit 后核对 `git show --stat HEAD`。
   误入修法：`git reset --soft HEAD~1` → `git restore --staged <侵入文件>` → 路径式 `git commit -F <msg> -- <路径…>`。
 - 🔴 **`git status` 里的 ` M` 可能混着别人的在途改动** ⇒ 提交前对自己要提交的**每个**文件先 `git diff <file>` 扫一眼。

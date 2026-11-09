@@ -13,6 +13,29 @@
 # 已有真实文件时：与源相同 → 升级为 symlink；不同 → 不动并警告（防吞本机自定义钩子）。
 
 set -e
+
+# ⚠️ linked worktree 里**绝不能**安装（2026-11-09 事故级坑）。
+#
+# 触发链：`npm run prepush` → 建临时 worktree（$TMPDIR/boh-prepush-XXXX）→
+#   `npm ci --dry-run` → npm 跑 `prepare` → 本脚本。
+# 此时：worktree 与主仓**共享**同一个 .git/hooks，而 `$0` 在临时目录里，
+#   SRC_DIR 于是指向临时目录 ⇒ 主仓的 pre-commit / pre-push 被改成
+#   「指向临时目录」的软链 ⇒ prepush 收尾删临时目录 ⇒ 两个钩子全部断链。
+# 后果是静默的：git 对断链钩子直接跳过、不报警，于是 pre-commit 的 lint-staged
+#   和 pre-push 的漏配快速档**双双失效且无人知道**（本次 push 没跑 prepush
+#   就是这个原因）。
+# 判据：linked worktree 的 git-dir 是 `<主仓>/.git/worktrees/<名字>`，
+#   而 git-common-dir 是 `<主仓>/.git` —— 两者不同即说明不是主检出。
+GIT_DIR_ABS="$(git rev-parse --path-format=absolute --git-dir 2>/dev/null || echo '')"
+GIT_COMMON_ABS="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo '')"
+if [ -n "$GIT_DIR_ABS" ] && [ "$GIT_DIR_ABS" != "$GIT_COMMON_ABS" ]; then
+  # 变量必须写 ${...}：本机 sh 在 `$VAR` 紧跟中文全角括号时会吞掉括号首字节
+  # （实测输出 `（��`），花括号是唯一可靠的边界。
+  echo "[install-git-hooks] 当前是 linked worktree（${GIT_DIR_ABS}），跳过："
+  echo "                    共享的 .git/hooks 只应由主检出写入，否则会把它改成临时路径软链。"
+  exit 0
+fi
+
 SRC_DIR="$(cd "$(dirname "$0")/git-hooks" && pwd)"
 HOOKS_DIR="$(git rev-parse --git-path hooks 2>/dev/null || echo ".git/hooks")"
 

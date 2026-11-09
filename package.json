@@ -14,6 +14,7 @@
   "type": "module",
   "scripts": {
     "prepare": "sh scripts/install-git-hooks.sh",
+    "hooks:install": "sh scripts/install-git-hooks.sh",
     "dev": "vite",
     "predev": "npm run nsfw:assets",
     "build": "npm run check:views && npm run check:structure && npm run type-check && npm run compress-images && npm run nsfw:assets && vite build",
