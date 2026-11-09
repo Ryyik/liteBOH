@@ -110,12 +110,8 @@
               :style="{ '--i': index }"
               @click="openProductDetails(product, $event)"
             >
-              <EditableImage
-                class="p-media"
-                :row="product"
-                field="image"
-                @uploaded="onImageUploaded(product, $event)"
-              >
+              <!-- 换图的上传与落库都由原语内部完成（含失败回滚），这里不用再接 handler -->
+              <EditableImage v-model="product.image" class="p-media" :row="product" field="image">
                 <img
                   v-if="product.image && !productImageFailed(product)"
                   :src="displayImageUrl(product)"
@@ -204,6 +200,7 @@
       :origin-key="selectedOriginKey"
       :disabled="!isProductExchangeable(selectedProduct) || Number(selectedProduct.stock) <= 0"
       @update:spec-value="selectedSpecValue = $event"
+      @update-field="handleProductFieldUpdate"
       @close="closeProductDetails"
       @add="addToBagFromDetail"
     />
@@ -496,16 +493,15 @@ const { isImageLoaded, markImageLoaded } = useImageLoaded();
 const inlineEditor = useInlineEditor();
 const isInlineEditing = computed(() => Boolean(inlineEditor?.active));
 
-/* 换图走宿主注入的 uploadImage 落库后回填；失败就把本地值退回旧图，
-   否则会出现「界面显示新图、刷新后变回旧图」的分叉。 */
-const onImageUploaded = async (product, url) => {
-  const previous = product.image;
-  product.image = url;
-  try {
-    await inlineEditor?.commit?.(product, 'image', url, previous);
-  } catch {
-    product.image = previous;
-  }
+/**
+ * 详情页里的就地编辑回写。
+ * 弹层不能直接改 prop 对象，所以把改动交回这里。`selectedProduct` 就是 productsData
+ * 里的那一项（同一个对象引用），改属性即可让卡片、详情、购物袋一起更新；
+ * 写库由原语内部的 commit 完成，这里不重复发请求。
+ */
+const handleProductFieldUpdate = ({ field, value } = {}) => {
+  const product = selectedProduct.value;
+  if (product && field) product[field] = value;
 };
 
 const totalPoints = computed(() =>

@@ -13,7 +13,13 @@
         tabindex="-1"
         :aria-label="product.title"
       >
-        <div class="surface-media">
+        <EditableImage
+          :model-value="product.image"
+          class="surface-media"
+          :row="product"
+          field="image"
+          @update:model-value="setField('image', $event)"
+        >
           <img
             v-if="imageUrl && !imageBroken"
             :src="imageUrl"
@@ -21,7 +27,7 @@
             @error="markFailed(`product-detail-${product.id}`)"
           />
           <Package v-else :size="56" :stroke-width="1.2" aria-hidden="true" />
-        </div>
+        </EditableImage>
 
         <button type="button" class="surface-close" aria-label="关闭" @click="requestClose">
           <ChevronLeft v-if="!isLandscape" :size="22" :stroke-width="1.8" aria-hidden="true" />
@@ -31,16 +37,54 @@
         <div class="surface-body">
           <div ref="scrollRef" class="surface-scroll">
             <p class="surface-category">{{ product.category }}</p>
-            <h2 class="surface-title">{{ product.title }}</h2>
+            <h2 class="surface-title">
+              <EditableText
+                :model-value="product.title"
+                :row="product"
+                field="title"
+                label="商品名称"
+                :max-length="25"
+                fallback="未命名商品"
+                @update:model-value="setField('title', $event)"
+              />
+            </h2>
 
             <div class="surface-prices">
               <p v-for="line in priceLines" :key="line.label" class="price-line">
                 <span class="price-label">{{ line.label }}</span>
-                <span class="price-value">{{ line.value }}</span>
+                <span class="price-value">
+                  <!-- 价格是换算后的展示值（库里存分、界面显示元），
+                       所以用 EditableNumber 而不是 EditableText：scale 负责换算回来 -->
+                  <EditableNumber
+                    v-if="line.field"
+                    :model-value="product[line.field]"
+                    :row="product"
+                    :field="line.field"
+                    :label="line.label"
+                    :prefix="line.prefix || ''"
+                    :suffix="line.suffix || ''"
+                    :scale="line.scale || 1"
+                    :decimals="line.decimals ?? null"
+                    :min="0"
+                    @update:model-value="setField(line.field, $event)"
+                  />
+                  <template v-else>{{ line.value }}</template>
+                </span>
               </p>
             </div>
 
-            <p class="surface-desc">{{ product.description || '暂无介绍。' }}</p>
+            <p class="surface-desc">
+              <EditableText
+                :model-value="product.description || ''"
+                :row="product"
+                field="description"
+                label="商品描述"
+                multiline
+                fallback="暂无介绍。"
+                placeholder="写给用户看的商品介绍"
+                @update:model-value="setField('description', $event)"
+              />
+            </p>
 
             <div v-if="product.specifications?.length" class="spec-block">
               <p class="block-label">规格</p>
@@ -59,7 +103,18 @@
 
             <div class="stock-row">
               <span>库存</span>
-              <strong>{{ Number(product.stock) > 0 ? `${product.stock} 件` : '已售罄' }}</strong>
+              <strong>
+                <EditableNumber
+                  :model-value="product.stock"
+                  :row="product"
+                  field="stock"
+                  label="库存"
+                  suffix=" 件"
+                  :min="0"
+                  empty-text="已售罄"
+                  @update:model-value="setField('stock', $event)"
+                />
+              </strong>
             </div>
 
             <p class="surface-note">订单提交后将会有进度Email，同时管理员会与你联系。</p>
@@ -90,6 +145,9 @@ import {
   peekOrigin,
 } from '@/utils/motion-origin.js';
 import { motionEase, motionMs } from '@/utils/motion.js';
+import EditableText from '@/components/inline-editor/EditableText.vue';
+import EditableNumber from '@/components/inline-editor/EditableNumber.vue';
+import EditableImage from '@/components/inline-editor/EditableImage.vue';
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -99,7 +157,7 @@ const props = defineProps({
   originKey: { type: String, default: '' },
 });
 
-const emit = defineEmits(['close', 'add', 'update:specValue']);
+const emit = defineEmits(['close', 'add', 'update:specValue', 'update-field']);
 
 const surfaceRef = ref(null);
 const scrollRef = ref(null);
@@ -128,11 +186,40 @@ const priceLines = computed(() => {
   const points = parsePoints(props.product?.points_cost);
   const rmb = formatRmb(props.product?.rmb_price);
   const lines = [];
-  if (points) lines.push({ label: '积分价', value: `${points} 积分` });
-  if (rmb) lines.push({ label: '现金价', value: rmb });
-  if (!lines.length) lines.push({ label: '价格', value: '暂无报价' });
+  /* 每行带上「这一行对应哪个字段、怎么换算」，就地编辑才有依据：
+     金额库里存分、界面显示元，scale=100 负责双向换算。 */
+  if (points) {
+    lines.push({
+      label: '积分价',
+      value: `${points} 积分`,
+      field: 'points_cost',
+      suffix: ' 积分',
+      scale: 1,
+    });
+  }
+  if (rmb) {
+    lines.push({
+      label: '现金价',
+      value: rmb,
+      field: 'rmb_price',
+      prefix: '¥',
+      scale: 100,
+      decimals: 2,
+    });
+  }
+  if (!lines.length) lines.push({ label: '价格', value: '暂无报价', field: '' });
   return lines;
 });
+
+/**
+ * 就地编辑回写。
+ *
+ * 原语会自己 commit 写库，这里只负责把新值交回父级去改数据（`vue/no-mutating-props`：
+ * 组件不能直接改 prop 对象）。父级持有的是 store 里的同一个对象引用，改完即全站生效。
+ */
+const setField = (field, value) => {
+  if (field) emit('update-field', { field, value });
+};
 
 const surfaceRadius = () => {
   const el = surfaceRef.value;

@@ -41,11 +41,13 @@ import { useInlineEditor } from '@/composables/useInlineEditor.js';
  * 上传模块，前台 bundle 会跟着变胖，而前台永远用不到这段代码。
  */
 const props = defineProps({
+  /** 当前图片地址。原语不直接改宿主数据，只通过 v-model 通知 */
+  modelValue: { type: String, default: '' },
   row: { type: Object, default: null },
   field: { type: String, default: 'image' },
 });
 
-const emit = defineEmits(['uploaded']);
+const emit = defineEmits(['update:modelValue', 'uploaded']);
 
 const editor = useInlineEditor();
 const fileEl = ref(null);
@@ -69,11 +71,18 @@ const onFileChange = async (event) => {
   }
   if (!editor?.uploadImage) return;
 
+  const previous = props.row?.[props.field];
   isBusy.value = true;
   try {
     const url = await editor.uploadImage(props.row, props.field, file);
-    if (url) emit('uploaded', url);
+    if (!url) return;
+    /* 值通过 v-model 交回宿主改，原语不碰 prop 对象（vue/no-mutating-props）。
+       写库仍由原语 commit —— 否则每个宿主都得重写一遍，漏一处就「图换了但没落库」。 */
+    emit('update:modelValue', url);
+    await editor.commit?.(props.row, props.field, url, previous);
+    emit('uploaded', url);
   } catch (error) {
+    emit('update:modelValue', previous ?? '');
     editor?.notify?.(`图片上传失败：${error?.message || '未知错误'}`, 'error');
   } finally {
     isBusy.value = false;

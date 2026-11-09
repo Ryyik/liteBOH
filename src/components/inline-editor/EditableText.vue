@@ -14,8 +14,21 @@
     @click="onRootClick"
     @keydown="onRootKeydown"
   >
+    <textarea
+      v-if="isEditing && multiline"
+      ref="inputEl"
+      class="iet-input iet-textarea"
+      :value="draft"
+      :maxlength="maxLength"
+      :placeholder="placeholder"
+      :aria-label="label || field"
+      rows="3"
+      @input="onTextareaInput"
+      @keydown.stop="onTextareaKeydown"
+      @blur="commit"
+    ></textarea>
     <input
-      v-if="isEditing"
+      v-else-if="isEditing"
       ref="inputEl"
       class="iet-input"
       :value="draft"
@@ -26,7 +39,7 @@
       @keydown.stop="onInputKeydown"
       @blur="commit"
     />
-    <template v-else>{{ modelValue }}</template>
+    <template v-else>{{ modelValue || fallback }}</template>
   </span>
 </template>
 
@@ -53,6 +66,10 @@ const props = defineProps({
   label: { type: String, default: '' },
   maxLength: { type: Number, default: undefined },
   placeholder: { type: String, default: '' },
+  /** 多行（商品描述这类正文）：Enter 是换行，提交用 Cmd/Ctrl+Enter 或失焦 */
+  multiline: { type: Boolean, default: false },
+  /** 值为空时的展示文案（如「暂无介绍。」）。点击仍然进入编辑，不会变成不可点。 */
+  fallback: { type: String, default: '' },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -74,7 +91,30 @@ const begin = async () => {
   isEditing.value = true;
   await nextTick();
   inputEl.value?.focus();
-  inputEl.value?.select();
+  if (props.multiline) autoGrow(inputEl.value);
+  else inputEl.value?.select();
+};
+
+/** textarea 跟着内容长高，避免描述被压成三行还要内部滚动 */
+const autoGrow = (el) => {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
+
+const onTextareaInput = (event) => {
+  draft.value = event.target.value;
+  autoGrow(event.target);
+};
+
+const onTextareaKeydown = (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    cancel();
+  } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault();
+    commit();
+  }
 };
 
 const cancel = () => {
@@ -176,5 +216,13 @@ const onInputKeydown = (event) => {
   font: inherit;
   line-height: inherit;
   outline: none;
+}
+
+/* 描述这类正文：跟内容长高、不出现内部滚动条（外层已经有滚动容器了） */
+.iet-textarea {
+  min-height: 4.5em;
+  overflow: hidden;
+  line-height: 1.5;
+  resize: none;
 }
 </style>

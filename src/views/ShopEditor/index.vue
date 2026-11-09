@@ -39,7 +39,13 @@
     </div>
 
     <div v-if="toast.show" class="se-toast" :class="`is-${toast.tone}`" role="status">
-      {{ toast.message }}
+      <span>{{ toast.message }}</span>
+      <!-- 撤销放在提示条里而不是只靠顶部工具栏：商品详情弹层的 z-index 接近 int32
+           上限（2147482400），工具栏盖不上去；弹层里改完一个字，撤销入口必须在
+           手边，否则得先关掉详情才能退回去。 -->
+      <button v-if="editor.canUndo" type="button" class="se-toast-action" @click="editor.undo()">
+        撤销
+      </button>
     </div>
   </div>
 </template>
@@ -300,9 +306,13 @@ onBeforeUnmount(() => {
   /* 抬到移动端底部导航之上：底栏约 88px + 安全区，78px 会被压住半截 */
   bottom: calc(104px + env(safe-area-inset-bottom, 0px));
   left: 50%;
-  z-index: 9001;
+  /* 必须压过商品详情弹层（2147482400），否则在详情页里改完看不到「已保存」 */
+  z-index: 2147482501;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   max-width: 86vw;
-  padding: 9px 16px;
+  padding: 9px 12px 9px 16px;
   border-radius: 999px;
   /* 固定深底白字：两套主题下都是系统 toast 的标准观感，
      也不依赖 dark-mode.css（那条链在本路由是懒加载的） */
@@ -316,6 +326,24 @@ onBeforeUnmount(() => {
 
 .se-toast.is-error {
   background: #c4261f;
+}
+
+.se-toast-action {
+  flex: none;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.se-toast-action:hover {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 @keyframes se-toast-in {
