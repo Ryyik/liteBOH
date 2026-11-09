@@ -621,6 +621,53 @@
                   </div>
                 </div>
 
+                <!-- 最近删除（本机快照）：物理删除后的唯一找回入口，说明见 script 里的注释 -->
+                <div v-if="showDeletedSnapshotsPanel" class="editor-panel">
+                  <div class="advanced-filter-head">
+                    <strong>最近删除</strong>
+                    <span
+                      >本机保留 {{ deletedSnapshots.length }} /
+                      {{ DELETED_SNAPSHOT_LIMIT }} 条</span
+                    >
+                  </div>
+                  <div class="change-log-list">
+                    <div v-for="entry in deletedSnapshots" :key="entry.key" class="change-log-item">
+                      <strong>
+                        {{ entry.tabLabel || entry.table }} ·
+                        {{
+                          entry.snapshot?.title || entry.snapshot?.username || entry.snapshot?.id
+                        }}
+                      </strong>
+                      <span>{{ formatDateTime(entry.deletedAt) }}</span>
+                      <div class="change-log-item-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-sm"
+                          @click="restoreDeletedSnapshot(entry)"
+                        >
+                          恢复
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-sm"
+                          @click="removeDeletedSnapshot(entry)"
+                        >
+                          移除
+                        </button>
+                      </div>
+                    </div>
+                    <p v-if="!deletedSnapshots.length" class="panel-empty-text">最近没有删除记录</p>
+                  </div>
+                  <button
+                    v-if="deletedSnapshots.length"
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    @click="clearDeletedSnapshots"
+                  >
+                    清空最近删除
+                  </button>
+                </div>
+
                 <div v-if="isLotteryOpsTab" class="lottery-scheduler-panel">
                   <div
                     class="lottery-scheduler-card"
@@ -1982,7 +2029,7 @@ import LotteryJoinGrant from './components/LotteryJoinGrant.vue';
 import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
 import ExportMenu from './components/shared/ExportMenu.vue';
-import { fetchAllRows } from '@/utils/api/data-admin-table-api.js';
+import { fetchAllRows, insertAdminRow } from '@/utils/api/data-admin-table-api.js';
 import { resolveEmptyState } from './composables/data-admin-empty-state.js';
 import { resolveKanbanConfig } from './composables/kanban-config.js';
 import { resolveQueryTotal } from './composables/resolve-query-total.js';
@@ -5769,6 +5816,88 @@ const refreshCurrentViewAfterMutation = async () => {
 };
 
 // ==================== 第二阶段: createMutationsCenter 工厂注入 ====================
+/* ══ 最近删除（本机快照，2026-11-09）═════════════════════════════
+   删除走的是物理 delete，误删只能翻数据库备份；但"当场发现删错"才是高频场景。
+   删除成功后把整行 JSON 存进 localStorage（最多 30 条），从这里能原样插回去。
+   ⚠️ 边界（刻意如此）：只覆盖**本浏览器**删的记录，换设备/清缓存即失效 —— 它不是
+   跨设备回收站。要做跨设备回收站得给 products / lotteries 加 deleted_at，并同步改
+   前台所有读取路径与 get_community_lotteries 这类 RPC，改表结构风险远大于本次收益。 */
+const DELETED_SNAPSHOT_LIMIT = 30;
+const deletedSnapshots = ref(readLocalJson(STORAGE_KEYS.deletedSnapshots, []));
+const showDeletedSnapshotsPanel = ref(false);
+
+const persistDeletedSnapshots = () => {
+  writeLocalJson(STORAGE_KEYS.deletedSnapshots, deletedSnapshots.value);
+};
+
+/** 删除成功后由 mutations 中心回调（单条与批量两条路径都接） */
+const recordDeletedSnapshots = ({ table, tab, tabLabel, items } = {}) => {
+  const list = (Array.isArray(items) ? items : []).filter(
+    (item) => item && item.id !== undefined && item.id !== null,
+  );
+  if (!list.length) return;
+  const deletedAt = new Date().toISOString();
+  const entries = list.map((item) => ({
+    /* key 带随机尾：同一毫秒批量删同 id 两次也不会撞（例如删了又恢复又删） */
+    key: `${table}:${item.id}:${deletedAt}:${Math.random().toString(36).slice(2, 8)}`,
+    table,
+    tab,
+    tabLabel,
+    snapshot: JSON.parse(JSON.stringify(item)),
+    deletedAt,
+  }));
+  deletedSnapshots.value = [...entries, ...deletedSnapshots.value].slice(0, DELETED_SNAPSHOT_LIMIT);
+  persistDeletedSnapshots();
+};
+
+const removeDeletedSnapshot = (entry) => {
+  deletedSnapshots.value = deletedSnapshots.value.filter((item) => item.key !== entry?.key);
+  persistDeletedSnapshots();
+};
+
+const restoreDeletedSnapshot = async (entry) => {
+  if (!entry?.table || !entry?.snapshot) return;
+  const row = entry.snapshot;
+  const label = String(row.title ?? row.username ?? row.name ?? row.id ?? '');
+  const confirmed = await dialog.confirm({
+    title: '恢复到原表？',
+    message: `把「${label}」插回「${entry.tabLabel || entry.table}」。\n若同 ID 的记录已存在，会因主键冲突失败。`,
+    confirmText: '恢复',
+  });
+  if (!confirmed) return;
+  try {
+    assertAdminAction();
+    await insertAdminRow(entry.table, row);
+    removeDeletedSnapshot(entry);
+    /* 审计仍记 create（服务端 action 白名单只有 create/update/delete/... 那七种），
+       用 meta 标明这是从删除快照恢复的，便于事后追 */
+    logAdminAction({
+      action: 'create',
+      table: entry.table,
+      id: row.id ?? null,
+      meta: { tab: entry.tab, restored_from: 'deleted-snapshot' },
+    });
+    showToast('已恢复', 'success');
+    await refreshCurrentViewAfterMutation();
+  } catch (error) {
+    logger.error('data-admin', '恢复删除快照失败:', error);
+    showToast('恢复失败: ' + buildActionErrorMessage(error, '恢复失败'), 'error');
+  }
+};
+
+const clearDeletedSnapshots = async () => {
+  if (!deletedSnapshots.value.length) return;
+  const confirmed = await dialog.confirm({
+    title: '清空最近删除',
+    message: `将丢弃本机保存的 ${deletedSnapshots.value.length} 条删除快照（不影响数据库）。`,
+    tone: 'danger',
+    confirmText: '清空',
+  });
+  if (!confirmed) return;
+  deletedSnapshots.value = [];
+  persistDeletedSnapshots();
+};
+
 // 在 refreshCurrentViewAfterMutation 之后注入, 这样 mutations 工厂可以引用真实函数
 const {
   deleteItem,
@@ -5831,6 +5960,8 @@ const {
   switchTab,
   // P1 修复: 传入 dataStore 用于封禁/禁言状态联动
   dataStore,
+  // 删除成功后落本机快照，供「最近删除」恢复
+  recordDeletedSnapshots,
 });
 
 const refreshAllData = async () => {
@@ -7733,6 +7864,14 @@ const commandPaletteItems = computed(() => {
     hint: '',
     run: () => {
       showChangeLogPanel.value = true;
+    },
+  });
+  items.push({
+    id: 'deleted-snapshots',
+    label: `最近删除${deletedSnapshots.value.length ? ` (${deletedSnapshots.value.length})` : ''}`,
+    hint: '',
+    run: () => {
+      showDeletedSnapshotsPanel.value = !showDeletedSnapshotsPanel.value;
     },
   });
   if (

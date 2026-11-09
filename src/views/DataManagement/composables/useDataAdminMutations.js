@@ -53,6 +53,8 @@ import { logAdminAction } from '@/utils/api/admin-audit-api.js';
  * @param {Object} deps.addRecentRecord              - (item, tabId) => void
  * @param {Function} deps.switchTab                  - (tabId, options) => void
  * @param {Object} deps.dataStore                    - shallowReactive<{users: [], ...}> (P1 修复: 状态联动)
+ * @param {Function} [deps.recordDeletedSnapshots]   - ({table, tab, tabLabel, items}) => void
+ *   删除成功后落一份本机快照，供「最近删除」恢复（物理删除无法从库里找回）
  */
 export const createMutationsCenter = (deps) => {
   const {
@@ -67,6 +69,7 @@ export const createMutationsCenter = (deps) => {
     currentTabLabel,
     getRelatedTypeLabels,
     currentConfig,
+    recordDeletedSnapshots,
     selectedItems,
     buildActionErrorMessage,
     setLotteryActionPending,
@@ -161,6 +164,13 @@ export const createMutationsCenter = (deps) => {
       }
       if (currentTab.value === 'products') invalidateProductsCache();
       if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
+      /* 快照必须在删除成功之后写：删除失败却留下一条"已删除"，会让人白高兴一场 */
+      recordDeletedSnapshots?.({
+        table: currentConfig.value.table,
+        tab: currentTab.value,
+        tabLabel: currentTabLabel.value,
+        items: [item],
+      });
       addChangeLogEntry('delete', item, { recordId: item?.id || '' });
       // 审计留痕（plans/027 E6.1）：失败静默，不阻断业务
       logAdminAction({
@@ -230,6 +240,12 @@ export const createMutationsCenter = (deps) => {
       if (currentTab.value === 'subscriptions') {
         selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
       }
+      recordDeletedSnapshots?.({
+        table,
+        tab: currentTab.value,
+        tabLabel: currentTabLabel.value,
+        items: [...selectedItems.value],
+      });
       addChangeLogEntry('batch_delete', { id: ids.join(',') }, { count: ids.length });
       logAdminAction({
         action: 'batch_delete',

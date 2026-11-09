@@ -16,7 +16,10 @@ export const ADMIN_STORAGE_KEYS = Object.freeze({
   pinnedTabs: 'boh-admin-pinned-tabs-v1',
   recentRecords: 'boh-admin-recent-records-v1',
   changeLog: 'boh-admin-change-log-v1',
-  drafts: 'boh-admin-edit-drafts-v1'
+  drafts: 'boh-admin-edit-drafts-v1',
+  /* 删除前快照（2026-11-09）：删除是物理删除、无法从库里找回，这里留一份本机副本，
+     误删后能原样插回去。只覆盖本浏览器、保留最近 30 条 —— 不是跨设备回收站。 */
+  deletedSnapshots: 'boh-admin-deleted-snapshots-v1',
 });
 
 /**
@@ -62,9 +65,12 @@ export const hydrateAdminPreferences = (refs) => {
  *   使用方式: const { persistColumnSettings, persistSavedViews } = createPersisters({ columnSettings, ... });
  */
 export const createPersisters = (refs) => ({
-  persistColumnSettings: () => writeLocalJson(ADMIN_STORAGE_KEYS.columns, refs.columnSettings.value),
-  persistSavedViews: () => writeLocalJson(ADMIN_STORAGE_KEYS.savedViews, refs.savedFilterViews.value),
+  persistColumnSettings: () =>
+    writeLocalJson(ADMIN_STORAGE_KEYS.columns, refs.columnSettings.value),
+  persistSavedViews: () =>
+    writeLocalJson(ADMIN_STORAGE_KEYS.savedViews, refs.savedFilterViews.value),
   persistPinnedTabs: () => writeLocalJson(ADMIN_STORAGE_KEYS.pinnedTabs, refs.pinnedTabIds.value),
-  persistRecentRecords: () => writeLocalJson(ADMIN_STORAGE_KEYS.recentRecords, refs.recentRecords.value),
-  persistChangeLog: () => writeLocalJson(ADMIN_STORAGE_KEYS.changeLog, refs.changeLogEntries.value)
+  persistRecentRecords: () =>
+    writeLocalJson(ADMIN_STORAGE_KEYS.recentRecords, refs.recentRecords.value),
+  persistChangeLog: () => writeLocalJson(ADMIN_STORAGE_KEYS.changeLog, refs.changeLogEntries.value),
 });

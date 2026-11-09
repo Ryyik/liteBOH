@@ -150,3 +150,46 @@ describe('数据管理 · 抽奖开奖失败可见性', () => {
     expect(mount[1]).toContain('refreshLotteryOperationsSnapshot()');
   });
 });
+
+describe('数据管理 · 最近删除（本机快照）', () => {
+  const admin = read('src/views/DataManagement/DataAdmin.vue');
+  const mut = read('src/views/DataManagement/composables/useDataAdminMutations.js');
+  const persist = read('src/views/DataManagement/composables/useDataAdminPersistence.js');
+
+  it('存储键独立，不与草稿/变更日志混用', () => {
+    expect(persist).toContain("deletedSnapshots: 'boh-admin-deleted-snapshots-v1'");
+  });
+
+  it('单条与批量删除成功后都落一份快照', () => {
+    const calls = mut.match(/recordDeletedSnapshots\?\.\(\{/g) || [];
+    expect(calls.length, '单条与批量两条删除路径都要接上').toBe(2);
+  });
+
+  it('快照写在删除成功之后，不是删除之前', () => {
+    const block = mut.match(/const deleteItem = async \(item\) => \{([\s\S]*?)\n  \};/);
+    expect(block, '找不到 deleteItem').toBeTruthy();
+    const throwAt = block[1].indexOf('if (error) throw error;');
+    const recordAt = block[1].indexOf('recordDeletedSnapshots?.({');
+    expect(throwAt).toBeGreaterThan(-1);
+    expect(recordAt).toBeGreaterThan(throwAt);
+  });
+
+  it('最多留 30 条，恢复走 API 模块 insert 回原表并从快照里移除', () => {
+    expect(admin).toContain('const DELETED_SNAPSHOT_LIMIT = 30;');
+    const record = admin.match(
+      /const recordDeletedSnapshots = \(\{ table, tab, tabLabel, items \} = \{\}\) => \{([\s\S]*?)\n\};/,
+    );
+    expect(record, '找不到 recordDeletedSnapshots').toBeTruthy();
+    expect(record[1]).toContain('.slice(0, DELETED_SNAPSHOT_LIMIT)');
+
+    const restore = admin.match(
+      /const restoreDeletedSnapshot = async \(entry\) => \{([\s\S]*?)\n\};/,
+    );
+    expect(restore, '找不到 restoreDeletedSnapshot').toBeTruthy();
+    /* 视图里不许直连 supabase（check:layering 对 DataAdmin 的直连次数有棘轮），
+       恢复统一走 data-admin-table-api 的 insertAdminRow */
+    expect(restore[1]).toContain('await insertAdminRow(entry.table, row)');
+    expect(restore[1]).not.toContain('supabase.from(');
+    expect(restore[1]).toContain('removeDeletedSnapshot(entry)');
+  });
+});

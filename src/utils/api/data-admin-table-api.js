@@ -28,6 +28,21 @@ export const fetchRecordById = async ({ table, selectColumns, id }) => {
   return data;
 };
 
+/**
+ * 把一行插回原表（数据管理「最近删除」的恢复动作）。
+ *
+ * 收口在这里而不是视图里：`check:layering` 对 DataAdmin 的 supabase 直连次数有棘轮，
+ * 视图直接 `.from().insert()` 会把它推高 —— 而且表名来自快照（运行期字符串），
+ * 放在 API 层更容易在写之前统一校验。
+ *
+ * @param {string} table 表名（调用方负责白名单，来源是删除时的 dataConfig.table）
+ * @param {Object} row 删除时保存的整行快照
+ */
+export const insertAdminRow = async (table, row) => {
+  const { error } = await supabase.from(table).insert([row]);
+  if (error) throw error;
+};
+
 export const fetchAllRows = async ({
   table,
   selectColumns,
