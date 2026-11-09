@@ -95,15 +95,27 @@
             tag="div"
             class="product-grid"
           >
-            <button
+            <!-- 编辑态用 div 承载：<button> 里不能再嵌「删除」按钮（嵌套 button 不合法，
+                 浏览器会把内层按钮提出去，DOM 直接错位）。浏览态仍然是原来的 <button>，
+                 键盘/语义/样式一字未改。 -->
+            <component
+              :is="isInlineEditing ? 'div' : 'button'"
               v-for="(product, index) in filteredProducts"
               :key="product.id"
-              type="button"
+              :type="isInlineEditing ? undefined : 'button'"
+              :role="isInlineEditing ? 'button' : undefined"
+              :tabindex="isInlineEditing ? 0 : undefined"
               class="p-card"
+              :class="{ 'is-edit-target': isInlineEditing }"
               :style="{ '--i': index }"
               @click="openProductDetails(product, $event)"
             >
-              <span class="p-media">
+              <EditableImage
+                class="p-media"
+                :row="product"
+                field="image"
+                @uploaded="onImageUploaded(product, $event)"
+              >
                 <img
                   v-if="product.image && !productImageFailed(product)"
                   :src="displayImageUrl(product)"
@@ -114,12 +126,28 @@
                   @error="markProductImageFailed(`product-${product.id}`)"
                 />
                 <Package v-else :size="34" :stroke-width="1.2" aria-hidden="true" />
-              </span>
+              </EditableImage>
               <span class="p-meta">
-                <span class="p-name">{{ product.title }}</span>
+                <EditableText
+                  v-model="product.title"
+                  class="p-name"
+                  :row="product"
+                  field="title"
+                  label="商品名称"
+                  :max-length="25"
+                />
                 <span class="p-price">{{ formatPriceDisplay(product) }}</span>
               </span>
-            </button>
+              <button
+                v-if="isInlineEditing"
+                class="p-card-remove"
+                type="button"
+                title="删除商品"
+                @click.stop="inlineEditor.remove?.(product)"
+              >
+                <X :size="12" :stroke-width="2.4" aria-hidden="true" />
+              </button>
+            </component>
           </TransitionGroup>
 
           <div v-else class="store-empty shop-fade-in">
@@ -133,6 +161,18 @@
               清空搜索
             </button>
           </div>
+
+          <!-- 「添加」按钮：只在编辑态出现。刻意放在 v-if/v-else 链**之外**——
+               塞进链中间会把 v-else 打断（Vue 要求三者相邻），整块渲染逻辑就坏了。 -->
+          <button
+            v-if="isInlineEditing"
+            class="p-card-new"
+            type="button"
+            @click="inlineEditor.create?.()"
+          >
+            <Plus :size="16" :stroke-width="2" aria-hidden="true" />
+            <span>新增商品</span>
+          </button>
         </template>
 
         <LotteryPanel v-else-if="activeTab === 'lottery'" />
@@ -237,7 +277,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Package, Search, User, X } from 'lucide-vue-next';
+import { Package, Plus, Search, User, X } from 'lucide-vue-next';
 import mascotHeroUrl from '@/assets/images/mascot-new-landscape-orig.webp';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
@@ -272,6 +312,9 @@ import LotteryPanel from './LotteryPanel.vue';
 import BagPanel from './BagPanel.vue';
 import OrderPanel from './OrderPanel.vue';
 import AddressPanel from './AddressPanel.vue';
+import EditableText from '@/components/inline-editor/EditableText.vue';
+import EditableImage from '@/components/inline-editor/EditableImage.vue';
+import { useInlineEditor } from '@/composables/useInlineEditor.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -442,6 +485,28 @@ const { isFailed: isProductImageFailed, markFailed: markProductImageFailed } = u
 const productImageFailed = (product) => isProductImageFailed(`product-${product?.id}`);
 /* 解码完成再淡入：灰底 → 一张图的那一下硬跳，是周边页最容易被看见的「硬切」 */
 const { isImageLoaded, markImageLoaded } = useImageLoaded();
+
+/* ── 就地编辑 ────────────────────────────────────────────────────────────
+   后台路由（/admin/shop-editor）直接渲染本页面组件，并通过 provide 注入编辑
+   上下文；前台 /shop 没有注入 ⇒ inlineEditor 为 null、isInlineEditing 恒 false，
+   下面所有编辑 UI（标题点击、换图按钮、删除角标、新增卡）都不会渲染。
+
+   这里刻意用「可选链 + 条件渲染」而不是给整页套一个 v-if：编辑态和浏览态必须是
+   同一份 DOM（用户要的就是「整个页面跟前端一样」），任何结构分叉都会立刻产生漂移。 */
+const inlineEditor = useInlineEditor();
+const isInlineEditing = computed(() => Boolean(inlineEditor?.active));
+
+/* 换图走宿主注入的 uploadImage 落库后回填；失败就把本地值退回旧图，
+   否则会出现「界面显示新图、刷新后变回旧图」的分叉。 */
+const onImageUploaded = async (product, url) => {
+  const previous = product.image;
+  product.image = url;
+  try {
+    await inlineEditor?.commit?.(product, 'image', url, previous);
+  } catch {
+    product.image = previous;
+  }
+};
 
 const totalPoints = computed(() =>
   shoppingBag.value.reduce(

@@ -360,6 +360,65 @@
   font-size: 12px;
 }
 
+/* ===== 就地编辑（只有后台宿主会渲染这些节点） ===== */
+/* 删除角标是 absolute，必须给卡片建立包含块。卡片本身 overflow:hidden，
+   所以按钮内缩 6px 贴圆角内侧，不做外挂。 */
+.p-card.is-edit-target {
+  position: relative;
+}
+
+.p-card-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.p-card-remove:hover {
+  background: #e30000;
+}
+
+/* 新增卡做成网格下方的一条虚线块：它是真实商品卡之外的额外入口，
+   样式上刻意不与 .p-card 同形，避免被当成「一个空商品」。
+   margin-bottom 是给移动端底部导航让位：.store-main 本身没有 padding-bottom，
+   否则这条会正好落在导航栏底下（只在编辑态出现，不影响前台）。 */
+.p-card-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 12px;
+  margin-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  padding: 15px 0;
+  border: 1px dashed var(--boh-border-primary, rgba(0, 0, 0, 0.18));
+  border-radius: 16px;
+  background: transparent;
+  color: var(--boh-text-secondary, #86868b);
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.p-card-new:hover {
+  border-color: var(--boh-brand-blue, #0071e3);
+  color: var(--boh-brand-blue, #0071e3);
+}
+
 /* 骨架 */
 .p-skeleton {
   cursor: default;

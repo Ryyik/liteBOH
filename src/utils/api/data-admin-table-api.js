@@ -39,8 +39,50 @@ export const fetchRecordById = async ({ table, selectColumns, id }) => {
  * @param {Object} row 删除时保存的整行快照
  */
 export const insertAdminRow = async (table, row) => {
-  const { error } = await supabase.from(table).insert([row]);
+  const { data, error } = await supabase.from(table).insert([row]).select('*').maybeSingle();
   if (error) throw error;
+  return data;
+};
+
+/**
+ * 物理删除一行。
+ *
+ * ⚠️ 没有软删兜底：调用方**必须**在调用前把整行快照写进本机删除快照
+ * （`ADMIN_STORAGE_KEYS.deletedSnapshots`），否则误删只能翻数据库备份。
+ * 顺序不能反 —— 先删再存等于什么都没有。
+ *
+ * @param {string} table 表名（调用方负责白名单）
+ * @param {string|number} id 主键
+ */
+export const deleteAdminRow = async (table, id) => {
+  const { error } = await supabase.from(table).delete().eq('id', id);
+  if (error) throw error;
+};
+
+/**
+ * 就地编辑的单字段写入通道。
+ *
+ * 收口在这里的理由同 insertAdminRow：`check:layering` 对视图直连 supabase 的次数
+ * 有棘轮。就地编辑是**高频**路径（每次失焦一次请求），放在 API 层也便于统一挂
+ * 表名/列名上下文，出错时日志能直接定位是哪一格。
+ *
+ * 返回值刻意带上 `.select()`：调用方拿更新后的整行做校准（DB 默认值、触发器回填
+ * 的列都可能在写入后变化），避免本地乐观值和服务端值长期分叉。
+ *
+ * @param {string} table 表名（调用方负责白名单，来源是 dataConfig.table）
+ * @param {string|number} id 主键
+ * @param {Object} patch 只包含要改的列
+ * @returns {Promise<Object|null>} 写入后的整行
+ */
+export const patchAdminRow = async (table, id, patch) => {
+  const { data, error } = await supabase
+    .from(table)
+    .update(patch)
+    .eq('id', id)
+    .select('*')
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 };
 
 export const fetchAllRows = async ({

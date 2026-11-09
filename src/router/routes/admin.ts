@@ -46,6 +46,15 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavbar: true },
   },
   {
+    // 就地编辑宿主（2026-11-09）：直接渲染前台商城页，页面上叠一整层编辑能力。
+    // 与 ShopConsole 的分工不要混：那边是「左列表 + 右表单」的批量维护台，
+    // 这边是「所见即所得」的单点微调 —— 改标题、换图、删/增商品这些高频小动作走这里。
+    path: '/admin/shop-editor',
+    name: 'ShopEditor',
+    component: () => import('../../views/ShopEditor/index.vue'),
+    meta: { requiresAdmin: true, hideNavbar: true },
+  },
+  {
     path: '/admin/hero-console',
     name: 'HeroConsole',
     component: () => import('../../views/HeroConsole/index.vue'),
