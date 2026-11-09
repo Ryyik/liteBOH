@@ -44,68 +44,12 @@
 
       <div class="grant-body">
         <template v-if="mode === 'selected'">
-          <div class="grant-search-row">
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="搜索用户名或用户ID..."
-              aria-label="搜索用户"
-              @input="handleSearch"
-            />
-            <button
-              class="quota-btn ghost"
-              type="button"
-              :disabled="searching"
-              @click="handleSearch"
-            >
-              <Search :size="15" />{{ searching ? '搜索中…' : '搜索' }}
-            </button>
-          </div>
-          <div v-if="searchResults.length > 0" class="grant-user-grid">
-            <button
-              v-for="user in searchResults"
-              :key="user.id"
-              type="button"
-              class="grant-user-card"
-              :class="{ 'is-selected': isSelected(user.id) }"
-              @click="toggleUser(user)"
-            >
-              <span class="grant-user-avatar">
-                <span class="grant-user-avatar-letter">{{ avatarText(user.username) }}</span>
-                <img
-                  v-if="user.avatar_url"
-                  :src="user.avatar_url"
-                  alt=""
-                  loading="lazy"
-                  @error="onAvatarError"
-                />
-              </span>
-              <span class="grant-user-info">
-                <span class="grant-user-name">{{ user.username || '未命名用户' }}</span>
-                <span class="grant-user-sub">
-                  <em class="grant-user-role" :class="`role-${user.role || 'user'}`">{{
-                    user.role || 'user'
-                  }}</em>
-                  <span>{{ user.points }} 积分</span>
-                </span>
-              </span>
-              <span class="grant-user-check" aria-hidden="true">✓</span>
-            </button>
-          </div>
-          <div class="grant-selected-wrap" v-if="selectedUsers.length > 0">
-            <div class="grant-selected-head">
-              <span>已选择 {{ selectedUsers.length }} 位用户</span>
-              <button type="button" class="grant-clear-all" @click="selectedUsers = []">
-                清空
-              </button>
-            </div>
-            <div class="grant-selected-list">
-              <span v-for="user in selectedUsers" :key="user.id" class="grant-chip">
-                {{ user.username || '未命名用户' }}
-                <button type="button" aria-label="移除" @click="removeUser(user.id)">×</button>
-              </span>
-            </div>
-          </div>
+          <UserPicker
+            v-model="selectedUsers"
+            :search="searchSubscriptionTargetUsers"
+            recent-key="boh-admin-grant-recent-subscriptions-v1"
+            @error="notify($event, 'error')"
+          />
         </template>
 
         <div class="grant-duration-block" role="group" aria-label="赠送时长">
@@ -387,7 +331,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { Inbox, RefreshCw, Search, Send } from 'lucide-vue-next';
+import { Inbox, RefreshCw, Send } from 'lucide-vue-next';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { invalidateByTags } from '@/utils/request-core.js';
 import { clearUserTierCache } from '@/utils/api/api-key-runtime-api.js';
@@ -408,14 +352,12 @@ import {
 import { logger } from '@/utils/logger.js';
 import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 import DashboardPagination from './shared/DashboardPagination.vue';
+import UserPicker from './shared/UserPicker.vue';
 import SubscriptionEditModal from './SubscriptionEditModal.vue';
 
 const { confirm } = useConfirmDialog();
 
 const mode = ref('all');
-const searchQuery = ref('');
-const searchResults = ref([]);
-const searching = ref(false);
 const selectedUsers = ref([]);
 const allUserCount = ref(0);
 
@@ -579,34 +521,6 @@ const notify = (text, tone = 'success') => {
   messageTone.value = tone;
 };
 
-const isSelected = (id) => selectedUsers.value.some((u) => u.id === id);
-
-const toggleUser = (user) => {
-  if (isSelected(user.id)) {
-    selectedUsers.value = selectedUsers.value.filter((u) => u.id !== user.id);
-  } else {
-    selectedUsers.value = [...selectedUsers.value, user];
-  }
-};
-
-const removeUser = (id) => {
-  selectedUsers.value = selectedUsers.value.filter((u) => u.id !== id);
-};
-
-const avatarText = (username) => {
-  const name = String(username || '').trim();
-  return name ? name.slice(0, 1).toUpperCase() : '?';
-};
-
-const onAvatarError = (event) => {
-  event.target.style.display = 'none';
-};
-
-const onPlanCodeChange = () => {
-  planName.value = SUBSCRIPTION_PLAN_NAMES[planCode.value] || planCode.value;
-  void loadExistingSubscribers();
-};
-
 const computeExpiresAt = () => {
   const startIso = toISO(startedAt.value);
   if (!startIso) return;
@@ -734,17 +648,6 @@ const cancelBatch = async (batch) => {
   }
 };
 
-const handleSearch = async () => {
-  searching.value = true;
-  try {
-    searchResults.value = await searchSubscriptionTargetUsers(searchQuery.value);
-  } catch (error) {
-    notify(error?.message || '搜索用户失败', 'error');
-  } finally {
-    searching.value = false;
-  }
-};
-
 const submitGrant = async () => {
   if (!canSubmit.value) return;
   const userIds = mode.value === 'all' ? null : selectedUsers.value.map((u) => u.id);
@@ -811,7 +714,6 @@ const submitGrant = async () => {
     notify(summary);
     invalidateByTags(['subscriptions']);
     selectedUsers.value = [];
-    searchResults.value = [];
     void loadExistingSubscribers();
     void loadRecent(1);
   } catch (error) {

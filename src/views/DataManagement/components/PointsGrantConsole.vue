@@ -44,51 +44,12 @@
 
       <div class="grant-body">
         <template v-if="mode === 'selected'">
-          <div class="grant-search-row">
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="搜索用户名或用户ID..."
-              aria-label="搜索用户"
-              @input="handleSearch"
-            />
-            <button
-              class="quota-btn ghost"
-              type="button"
-              :disabled="searching"
-              @click="handleSearch"
-            >
-              <Search :size="15" />{{ searching ? '搜索中…' : '搜索' }}
-            </button>
-          </div>
-          <div v-if="searchResults.length > 0" class="grant-search-results">
-            <button
-              v-for="user in searchResults"
-              :key="user.id"
-              type="button"
-              class="grant-user-item"
-              :class="{ 'is-selected': isSelected(user.id) }"
-              @click="toggleUser(user)"
-            >
-              <span class="grant-user-name">{{ user.username || '未命名用户' }}</span>
-              <code>{{ user.id.slice(0, 8) }}</code>
-              <span class="grant-user-points">{{ user.points }} 积分</span>
-            </button>
-          </div>
-          <div class="grant-selected-wrap" v-if="selectedUsers.length > 0">
-            <div class="grant-selected-head">
-              <span>已选择 {{ selectedUsers.length }} 位用户</span>
-              <button type="button" class="grant-clear-all" @click="selectedUsers = []">
-                清空
-              </button>
-            </div>
-            <div class="grant-selected-list">
-              <span v-for="user in selectedUsers" :key="user.id" class="grant-chip">
-                {{ user.username || '未命名用户' }}
-                <button type="button" aria-label="移除" @click="removeUser(user.id)">×</button>
-              </span>
-            </div>
-          </div>
+          <UserPicker
+            v-model="selectedUsers"
+            :search="searchGrantTargetUsers"
+            recent-key="boh-admin-grant-recent-points-v1"
+            @error="notify($event, 'error')"
+          />
         </template>
 
         <div class="grant-fields">
@@ -210,7 +171,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { Inbox, RefreshCw, Search, Send, Undo2 } from 'lucide-vue-next';
+import { Inbox, RefreshCw, Send, Undo2 } from 'lucide-vue-next';
 import { useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import {
   fetchRecentGrants,
@@ -221,13 +182,11 @@ import {
 import { logger } from '@/utils/logger.js';
 import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 import DashboardPagination from './shared/DashboardPagination.vue';
+import UserPicker from './shared/UserPicker.vue';
 
 const { confirm } = useConfirmDialog();
 
 const mode = ref('all');
-const searchQuery = ref('');
-const searchResults = ref([]);
-const searching = ref(false);
 const selectedUsers = ref([]);
 const amount = ref(0);
 const remark = ref('');
@@ -253,31 +212,6 @@ const canSubmit = computed(() => {
 const notify = (text, tone = 'success') => {
   message.value = text;
   messageTone.value = tone;
-};
-
-const isSelected = (id) => selectedUsers.value.some((u) => u.id === id);
-
-const toggleUser = (user) => {
-  if (isSelected(user.id)) {
-    selectedUsers.value = selectedUsers.value.filter((u) => u.id !== user.id);
-  } else {
-    selectedUsers.value = [...selectedUsers.value, user];
-  }
-};
-
-const removeUser = (id) => {
-  selectedUsers.value = selectedUsers.value.filter((u) => u.id !== id);
-};
-
-const handleSearch = async () => {
-  searching.value = true;
-  try {
-    searchResults.value = await searchGrantTargetUsers(searchQuery.value);
-  } catch (error) {
-    notify(error?.message || '搜索用户失败', 'error');
-  } finally {
-    searching.value = false;
-  }
 };
 
 const submitGrant = async () => {
@@ -310,7 +244,6 @@ const submitGrant = async () => {
     amount.value = 0;
     remark.value = '';
     selectedUsers.value = [];
-    searchResults.value = [];
     void loadRecent(1);
   } catch (error) {
     logger.error('PointsGrantConsole', '发放积分失败:', error);

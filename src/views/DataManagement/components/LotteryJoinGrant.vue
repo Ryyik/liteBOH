@@ -64,40 +64,20 @@
       <!-- 用户 + 提交 -->
       <div class="ljg-col">
         <label class="ljg-label" for="ljg-user">2 · 选用户</label>
-        <input
-          id="ljg-user"
-          v-model="userKeyword"
-          class="ljg-input"
-          type="search"
+        <UserPicker
+          :model-value="selectedUser"
+          :multiple="false"
+          :search="searchUsersForGrant"
+          recent-key="boh-admin-grant-recent-lottery-join-v1"
           placeholder="输入用户名搜索…"
-          autocomplete="off"
-          @input="onUserInput"
+          @update:model-value="selectedUser = $event"
+          @error="notice = { type: 'bad', text: $event }"
         />
 
         <!-- 提交前把「加谁 → 加到哪」摆在同一行：两栏分开时最容易加错抽奖 -->
-        <p v-if="selectedUser" class="ljg-picked">
-          已选：<strong>{{ selectedUser.username }}</strong>
-          <template v-if="currentLottery">
-            → <strong>{{ currentLottery.title }}</strong>
-          </template>
-          <button type="button" class="ljg-link" @click="clearUser">换一个</button>
-        </p>
-
-        <ul
-          v-else-if="userResults.length"
-          class="ljg-list is-short"
-          role="listbox"
-          aria-label="用户搜索结果"
-        >
-          <li v-for="user in userResults" :key="user.id">
-            <button type="button" class="ljg-item" @click="pickUser(user)">
-              <span class="ljg-item-main">{{ user.username }}</span>
-              <span class="ljg-item-meta ljg-sub">{{ user.id.slice(0, 8) }}</span>
-            </button>
-          </li>
-        </ul>
-        <p v-else-if="userKeyword.trim() && !searchingUsers" class="ljg-empty is-inline">
-          没有匹配的用户
+        <p v-if="selectedUser && currentLottery" class="ljg-picked">
+          已选：<strong>{{ selectedUser.username || selectedUser.id.slice(0, 8) }}</strong> →
+          <strong>{{ currentLottery.title }}</strong>
         </p>
 
         <label class="ljg-label" for="ljg-reason">3 · 原因（强制加人时必填）</label>
@@ -129,21 +109,19 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import {
   adminJoinLottery,
   listLotteriesForGrant,
   searchUsersForGrant,
 } from '@/utils/api/lottery-admin-api.js';
+import UserPicker from './shared/UserPicker.vue';
 
 const lotteries = ref([]);
 const loadingLotteries = ref(false);
 const lotteryKeyword = ref('');
 const lotteryId = ref('');
 
-const userKeyword = ref('');
-const userResults = ref([]);
-const searchingUsers = ref(false);
 const selectedUser = ref(null);
 
 const reason = ref('');
@@ -205,44 +183,10 @@ const pickLottery = (item) => {
   notice.value = null;
 };
 
-const pickUser = (user) => {
-  selectedUser.value = user;
-  userResults.value = [];
-  userKeyword.value = user.username;
-  force.value = false;
-  notice.value = null;
-};
-
 const clearUser = () => {
   selectedUser.value = null;
-  userResults.value = [];
-  userKeyword.value = '';
-};
-
-/* 防抖搜索：一次输入一个字符就发一次请求，会把 profiles 打得很难看 */
-let searchTimer = 0;
-const onUserInput = () => {
-  selectedUser.value = null;
-  window.clearTimeout(searchTimer);
-  const keyword = userKeyword.value.trim();
-  if (!keyword) {
-    userResults.value = [];
-    return;
-  }
-  searchTimer = window.setTimeout(async () => {
-    searchingUsers.value = true;
-    try {
-      const { data, error } = await searchUsersForGrant(keyword);
-      if (error) {
-        notice.value = { type: 'bad', text: `搜索用户失败：${error.message}` };
-        userResults.value = [];
-        return;
-      }
-      userResults.value = data;
-    } finally {
-      searchingUsers.value = false;
-    }
-  }, 280);
+  force.value = false;
+  notice.value = null;
 };
 
 const submit = async () => {
@@ -300,7 +244,6 @@ const reset = () => {
 };
 
 onMounted(loadLotteries);
-onBeforeUnmount(() => window.clearTimeout(searchTimer));
 </script>
 
 <style scoped>
