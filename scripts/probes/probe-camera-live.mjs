@@ -21,7 +21,7 @@ import fs from 'node:fs';
 //     I 无 mediaDevices 的环境 → 显示不可用文案，且不出现「重试」（没有可重试的东西）
 //     N 未授权首次进入 → **不进页面就调 getUserMedia**（调用数 0）、显示开机台；
 //       点「开启相机」后才请求一次并出画面（iOS 手势链的回归测试）
-//     O 权限已被记住「拒绝」→ 不发起注定失败的请求，文案指向站点设置，给的是刷新而非重试
+//     O permissions 报「拒绝」→ 给说明 + 保留「再试一次」（改好设置后点它要能进画面，N9）
 //     P 保存的幂等性 → 二轮只存新增那张（文件名 -03），前两张不重复下载、序号不前移
 //
 //   counter-proof（做过）：
@@ -530,7 +530,16 @@ async function main() {
   await gatePage.screenshot({ path: `${OUT}/camera-N-live.png` });
   await gateRun.context.close();
 
-  /* ── 场景 2b：权限已被浏览器记住「拒绝」—— 不能再装作能重试 ────────── */
+  /* ── 场景 2b：permissions 报「拒绝」，但用户其实已经改好了 ─────────────
+   *
+   * 这是 2026-11-09 的线上反馈：用户在 Chrome 里把摄像头设成允许，页面仍停在
+   * 「被拒绝」文案上，且只有一个「刷新页面」——没有出口。
+   * 教训：**「不会弹窗」≠「一定失败」**。改好设置后 getUserMedia 会直接成功，
+   * 所以我们既不能替用户断定失败（不给重试），也不能不提示（静默黑屏）。
+   * 正确姿势：给出说明 + 保留「再试一次」，点下去用真实结果说话。
+   *
+   * 这里的 stub 让 query 恒为 denied，但假摄像头是可用的 ⇒ 点重试必须进画面，
+   * 正好复现用户那个「设置已经允许」的场景。 */
   const deniedRun = await openGatePage('denied');
   const deniedPage = deniedRun.page;
   const deniedState = await deniedPage.evaluate(() => ({
@@ -547,17 +556,39 @@ async function main() {
     String(deniedState.calls),
   );
   check(
-    'N7 文案指出去站点设置改，而不是让人点「重试」',
-    deniedState.text.includes('站点设置'),
+    'N7 文案说清是「站点级」权限、并指出去哪里改',
+    deniedState.text.includes('站点级') && deniedState.text.includes('摄像头'),
     deniedState.text,
   );
   check(
-    'N8 给的是「刷新页面」而不是无效的「重试」',
+    'N8 同时给「重试」和「刷新页面」（重试才是真正的出口）',
     deniedState.buttons.some((label) => label.includes('刷新')) &&
-      !deniedState.buttons.includes('重试'),
+      deniedState.buttons.some((label) => label.includes('再试一次')),
     deniedState.buttons.join(' / '),
   );
   await deniedPage.screenshot({ path: `${OUT}/camera-O-blocked.png` });
+
+  // N9：用户已经在设置里改好 ⇒ 点「重试」必须真的能进画面（不是刷新才行）
+  await deniedPage.click('.boh-cam__retry');
+  await deniedPage.waitForFunction(
+    () => {
+      const video = document.querySelector('.boh-cam__video');
+      return video && video.readyState >= 2 && video.videoWidth > 0;
+    },
+    null,
+    { timeout: 20000 },
+  );
+  const afterBlockedRetry = await deniedPage.evaluate(() => ({
+    width: document.querySelector('.boh-cam__video')?.videoWidth || 0,
+    fallback: Boolean(document.querySelector('.boh-cam__fallback')),
+    calls: window.__gumCalls,
+  }));
+  check(
+    'N9 🔴 query 误报 denied 时，点「重试」能直接进画面',
+    afterBlockedRetry.width > 0 && !afterBlockedRetry.fallback,
+    JSON.stringify(afterBlockedRetry),
+  );
+  await deniedPage.screenshot({ path: `${OUT}/camera-O2-retry-ok.png` });
   await deniedRun.context.close();
 
   /* ── 场景 2c：保存的幂等性 —— 第二轮不许把第一轮再存一遍 ──────────────

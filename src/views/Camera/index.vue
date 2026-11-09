@@ -178,9 +178,9 @@ const UNAVAILABLE_TEXT = {
     '当前地址不是 https，浏览器不会把摄像头交给网页。请用 https://www.blockofhome.cn 打开。',
   webview: '微信 / QQ 等内置浏览器不开放摄像头。点右上角「···」，选「在浏览器打开」。',
   denied:
-    '摄像头权限被拒绝了。点「重试」再选一次「允许」；如果不再弹窗，就去浏览器的站点设置里把「相机」改成「允许」，然后刷新页面。',
+    '摄像头权限被拒绝了。点「再试一次」会重新请求一次；如果不再弹窗，说明浏览器记住了拒绝：请点地址栏左侧的图标 → 权限 → 摄像头改成「允许」，再回来点「再试一次」。',
   blocked:
-    '摄像头权限被浏览器记住了「拒绝」，怎么点都不会再弹窗。请到「站点设置 → 相机」改成「允许」；如果那里本来就是允许，就再检查手机系统设置里 Safari / Chrome 的相机权限是不是被关掉了。改完刷新页面。',
+    '本站的摄像头权限被设成了「拒绝」。这是站点级设置，和手机系统里给 Chrome 的相机权限是两层——系统里允许了，本站也可能仍然是拒绝。请点地址栏左侧的图标 → 权限 → 摄像头改成「允许」，再点下面的「再试一次」。',
   timeout: '相机一直没有响应。可能被别的应用占着，关掉它再点重试。',
   stalled: '摄像头已连上，但画面没有出来。点「重试」再要一次。',
   'in-use': '摄像头正被别的应用占用，关掉它再试。',
@@ -190,10 +190,20 @@ const UNAVAILABLE_TEXT = {
 const unavailableText = computed(
   () => UNAVAILABLE_TEXT[errorReason.value] || UNAVAILABLE_TEXT.error,
 );
+/**
+ * 「再试一次」允许出现在哪些原因下。
+ *
+ * ⚠️ `blocked` **必须**在这里 —— 曾经把它排除掉，理由是「浏览器已经记住拒绝，
+ * 再点也不会弹窗」。这个推理错在把「不弹窗」当成了「一定失败」：
+ * 用户在设置里改成允许之后，getUserMedia 会直接成功、根本不需要弹窗。
+ * 排除它等于让改对了设置的用户无路可走（2026-11-09 线上反馈：Chrome 里已允许
+ * 摄像头，页面仍停在「被拒绝」且只能刷新）。
+ * 只有「注定不可能成功」的三种（不支持 / 非 https / 内置浏览器）才不给重试。
+ */
 const canRetry = computed(
   () =>
     status.value === 'unavailable' &&
-    !['unsupported', 'insecure', 'webview', 'blocked'].includes(errorReason.value),
+    !['unsupported', 'insecure', 'webview'].includes(errorReason.value),
 );
 
 /**
@@ -701,18 +711,15 @@ onMounted(async () => {
     return;
   }
 
-  // 第二层：已经授权过就直接开（不会弹窗，也就不需要手势）。
-  // 其余情况（prompt / 读不到）一律停在「开机台」等一次真实点击。
+  // 第二层：判断「值不值得直接开」。
+  //
+  // ⚠️ 顺序有讲究：**本会话成功过的证据（缓存）优先于 permissions.query**。
+  // query 会返回陈旧值/误报（用户刚在设置里改完、或某些 Chrome 版本对 camera
+  // 报 denied 但实际可用），而缓存是我们亲眼看到流起来过的记录。
+  // 已授权时 getUserMedia 不需要手势、也不会弹窗，直接开最稳。
   permissionState.value = await readCameraPermission();
-  if (permissionState.value === 'denied') {
-    // 浏览器已经记住「拒绝」，再调只会立刻失败且不弹窗 —— 直接说清怎么改
-    writeGrantCache(false);
-    status.value = 'unavailable';
-    errorReason.value = 'blocked';
-    return;
-  }
-  // granted，或本会话内成功过（iOS 读不到 permissions 的兜底）→ 静默开
-  if (permissionState.value === 'granted' || readGrantCache()) {
+  const trusted = permissionState.value === 'granted' || readGrantCache();
+  if (trusted) {
     const media = await start();
     // 缓存过期（用户后来撤销了权限）：别装作没事，落到明确文案上
     if (!media && (errorReason.value === 'denied' || errorReason.value === 'blocked')) {
@@ -720,7 +727,14 @@ onMounted(async () => {
     }
     return;
   }
-  // 否则停在 gateOpen（status 仍是 idle），等用户点「开启相机」
+  if (permissionState.value === 'denied') {
+    // 没缓存 + 明确 denied：确实被记住了拒绝。给说明，但**仍保留「再试一次」**——
+    // 用户可能已经改好了设置，只是这个值还没刷新
+    status.value = 'unavailable';
+    errorReason.value = 'blocked';
+    return;
+  }
+  // 其余（prompt / 读不到）停在 gateOpen（status 仍是 idle），等一次真实点击
 });
 
 onBeforeUnmount(() => {
@@ -830,7 +844,7 @@ onBeforeUnmount(() => {
           <p>{{ unavailableText }}</p>
           <div class="boh-cam__fallback-actions">
             <button v-if="canRetry" type="button" class="boh-cam__retry" @click="beginCamera">
-              重试
+              再试一次
             </button>
             <!-- 改完站点设置后刷新才会重新走一遍权限判定，给一个明确的下一步 -->
             <button
