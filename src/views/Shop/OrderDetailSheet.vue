@@ -11,7 +11,7 @@
          进场原本就有 od-slide-up；补的是**遮罩淡入**与**离场**——
          v-if 直接摘节点会让整层瞬间消失，看起来像页面闪了一下。 -->
     <Transition name="od">
-      <div v-if="order" class="od-overlay" @click.self="$emit('close')">
+      <div v-if="order" class="od-overlay shop-sheet-tokens" @click.self="$emit('close')">
         <section class="od-sheet" role="dialog" aria-modal="true" aria-label="订单详情">
           <header class="od-head">
             <button type="button" class="od-back" aria-label="返回" @click="$emit('close')">

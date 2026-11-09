@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="payment-success">
-      <div v-if="visible" class="payment-success-overlay" role="presentation">
+      <div v-if="visible" class="payment-success-overlay shop-sheet-tokens" role="presentation">
         <section
           class="payment-success-dialog"
           role="dialog"

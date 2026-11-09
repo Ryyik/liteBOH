@@ -25,6 +25,12 @@
   --boh-brand-blue: #0071e3;
   /* soft 一律从 accent 派生：改主色时底色自动跟上，也少一个裸色（暗色棘轮按裸色计数） */
   --boh-brand-blue-soft: color-mix(in srgb, var(--boh-brand-blue) 8%, transparent);
+  /* 弹层用到的「页面底色」（2026-11-09 补）：商品详情 / 订单详情 / 支付成功三个弹层
+     都 Teleport 到 body，靠 --boh-page-bg 铺底。全站这个变量由 common/tokens.css 的
+     :root 给白值、暗色值在 dark-mode.css —— 那份是按路由懒加载的，/shop 这条链上取不到
+     ⇒ 暗色主题下三个弹层一起回落成白纸。这里挂在商城档里，**引用商城主底而不是再写一个色值**
+     （暗色块重定义 --boh-bg-primary 时它会跟着变，不需要第二处维护）。 */
+  --boh-page-bg: var(--boh-bg-primary);
   /* ⚠️ 危险/警告**不在这里定义**：它们的真源是 src/styles/themes/dark-mode.css 的
      语义色（浅 #d70015 / 暗 #ff6961），在本文件里再写一份会让暗色裸色棘轮 +2，
      也等于给同一个语义留了第二个值。消费方一律写 var(--boh-danger, #d70015)

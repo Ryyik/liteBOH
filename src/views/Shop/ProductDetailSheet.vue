@@ -1,6 +1,9 @@
 <template>
   <Teleport to="body">
-    <div class="detail-root" :class="isLandscape ? 'is-landscape' : 'is-portrait'">
+    <div
+      class="detail-root shop-sheet-tokens"
+      :class="isLandscape ? 'is-landscape' : 'is-portrait'"
+    >
       <div class="detail-scrim" @click="requestClose"></div>
       <article
         ref="surfaceRef"
