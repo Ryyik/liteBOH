@@ -54,11 +54,14 @@
             <component :is="mod.icon" :size="16" class="g-nav-glyph" />
             <span class="g-nav-label">{{ mod.label }}</span>
             <Lock v-if="mod.denied" :size="12" class="g-nav-lock" aria-hidden="true" />
+            <!-- 未保存草稿角标：数字比红点更该看见「有几条」，所以单开一格 -->
             <span
-              v-else-if="mod.id === 'moderation' && hasUnmoderated"
-              class="g-nav-dot"
-              aria-hidden="true"
-            ></span>
+              v-if="badgeCount(mod.id)"
+              class="g-nav-badge"
+              :title="`${badgeCount(mod.id)} 条未保存草稿`"
+              >{{ badgeCount(mod.id) }}</span
+            >
+            <span v-else-if="hasAlert(mod.id)" class="g-nav-dot" aria-hidden="true"></span>
           </button>
         </div>
       </template>
@@ -119,6 +122,16 @@ const props = defineProps({
    */
   hasUnmoderated: { type: Boolean, default: false },
   /**
+   * 未保存草稿的模块级计数：`{ moduleId: count }`。
+   * 只来自数据管理面板（草稿存在它的 localStorage 里），独立控制台页不传 ⇒ 不显示。
+   */
+  moduleBadges: { type: Object, default: () => ({}) },
+  /**
+   * 需要「亮红点」的模块 id（不含角标那种计数语义）：
+   * 目前是审核待办（由 hasUnmoderated 表达）与抽奖到期未开奖（宿主传入）。
+   */
+  alertModules: { type: Array, default: () => [] },
+  /**
    * 是否显示「快捷操作」区（新增记录 / 刷新数据）。
    * 两者的实现都在数据管理面板里（当前列表上下文）；没有列表的宿主传 false。
    */
@@ -143,6 +156,15 @@ watch(
 );
 
 const deniedSet = computed(() => new Set(props.deniedIds || []));
+/** 未保存草稿计数：0 / 非法值一律当作无角标 */
+const badgeCount = (moduleId) => {
+  const count = Number(props.moduleBadges?.[moduleId] || 0);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+};
+/** 红点是「有事要处理」的布尔语义：审核待办 + 宿主传入的告警模块 */
+const alertSet = computed(() => new Set(props.alertModules || []));
+const hasAlert = (moduleId) =>
+  (moduleId === 'moderation' && props.hasUnmoderated) || alertSet.value.has(moduleId);
 const normalizedQuery = computed(() => localSearchQuery.value.trim().toLowerCase());
 
 const filteredModules = computed(() => {
@@ -429,6 +451,22 @@ const goHome = () => {
 .g-nav-btn.is-active .g-nav-dot {
   background: var(--sidebar-primary-foreground);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar-primary-foreground) 28%, transparent);
+}
+
+/* 未保存草稿角标：与审核红点同色系但带数字，且不占满行 —— 右侧留白靠 margin-left:auto */
+.g-nav-badge {
+  flex: 0 0 auto;
+  min-width: 17px;
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--chart-2, #f59e0b);
+  color: var(--sidebar-primary-foreground, #fff);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Quick action row (bottom) */

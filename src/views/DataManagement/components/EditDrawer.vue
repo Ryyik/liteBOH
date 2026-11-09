@@ -759,6 +759,9 @@
                 </template>
               </div>
               <div v-if="isEditing" class="field-group-save-row">
+                <!-- ⚠️ 这个按钮的处理器在 DataAdmin 的 handleSaveGroup（2026-11-09 补）。
+                     之前它只 emit 没人接 —— 点了既不保存也不提示，是死 UI；
+                     用户把字段改完点它，以为存了，其实什么都没发生。 -->
                 <button
                   type="button"
                   class="btn btn-secondary btn-sm"
@@ -774,6 +777,17 @@
           <span class="drawer-footer-hint"> <kbd>Esc</kbd> 关闭 </span>
           <div class="drawer-footer-actions">
             <button class="btn btn-secondary" @click="$emit('close')">取消</button>
+            <!-- 以此为模板：抽奖每期要填 15+ 个字段，复制上一条比从空白开始省事 -->
+            <button
+              v-if="isEditing"
+              class="btn btn-secondary"
+              type="button"
+              :disabled="isSaving"
+              title="复制这条的内容新建一条（主键、开奖与统计字段会清空，时间顺延）"
+              @click="$emit('duplicate-template')"
+            >
+              以此为模板
+            </button>
             <button
               v-if="isEditing"
               class="btn btn-secondary"
@@ -1239,6 +1253,7 @@ const emit = defineEmits([
   'save-and-next',
   'save-and-create',
   'saveGroup',
+  'duplicate-template',
   'regenerateId',
   'regenerateNewsId',
   'injectNewsTemplate',

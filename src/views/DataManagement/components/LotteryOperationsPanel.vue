@@ -215,14 +215,25 @@ const tasks = computed(() =>
       action: 'retry',
       source: item,
     })),
-    ...(props.snapshot.dueLotteries || []).map((item) => ({
-      id: `lottery-${item.id}`,
-      title: `${item.title || '未命名抽奖'}等待开奖`,
-      meta: item.draw_at ? `计划开奖 ${formatDateTime(item.draw_at)}` : '未设置开奖时间',
-      tone: 'info',
-      action: 'open',
-      tab: 'lotteries',
-    })),
+    ...(props.snapshot.dueLotteries || []).map((item) => {
+      /* 开奖失败与"还没到点"必须长得不一样：前者是事故（要人介入），后者只是排队。
+         失败原因截断到 80 字 —— 完整信息在抽奖表的「失败原因」字段里。 */
+      const failed = Boolean(item.draw_failed_at);
+      return {
+        id: `lottery-${item.id}`,
+        title: failed
+          ? `${item.title || '未命名抽奖'}开奖失败`
+          : `${item.title || '未命名抽奖'}等待开奖`,
+        meta: failed
+          ? String(item.draw_failure_message || '上次开奖未成功，请手动处理').slice(0, 80)
+          : item.draw_at
+            ? `计划开奖 ${formatDateTime(item.draw_at)}`
+            : '未设置开奖时间',
+        tone: failed ? 'danger' : 'info',
+        action: 'open',
+        tab: 'lotteries',
+      };
+    }),
   ].slice(0, 6),
 );
 

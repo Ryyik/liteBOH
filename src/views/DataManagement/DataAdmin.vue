@@ -5,7 +5,9 @@
         :active-module="activeModule"
         :denied-ids="deniedModuleIds"
         :has-unmoderated="moderationPendingCount > 0"
+        :alert-modules="lotteryAlertModules"
         :is-open="isAdminSidebarOpen"
+        :module-badges="draftBadges"
         :modules="sidebarModules"
         :search-query="sidebarSearchQuery"
         @denied-click="handleDeniedModuleClick"
@@ -1731,6 +1733,8 @@
         :record-nav-label="editDrawerNav.label"
         @close="onDrawerClose"
         @save="saveData"
+        @save-group="handleSaveGroup"
+        @duplicate-template="handleCreateFromTemplate"
         @save-and-next="saveAndEditNext"
         @save-and-create="saveAndCreateNext"
         @prev-record="navigateEditRecord(-1)"
@@ -1803,6 +1807,8 @@
       :record-nav-label="editDrawerNav.label"
       @close="onDrawerClose"
       @save="saveData"
+      @save-group="handleSaveGroup"
+      @duplicate-template="handleCreateFromTemplate"
       @save-and-next="saveAndEditNext"
       @save-and-create="saveAndCreateNext"
       @prev-record="navigateEditRecord(-1)"
@@ -2835,6 +2841,12 @@ const isCurrentUserAdmin = computed(() => String(userInfo.value?.role || '').tri
 const currentUserRole = computed(() => getUserRole(userInfo.value));
 const { lotteryOperationsSnapshot, refreshLotteryOperationsSnapshot } =
   createLotteryOperationsCenter({ isCurrentUserAdmin, showToast });
+/* 抽奖到期未开奖 / 开奖失败 ⇒ 侧栏「抽奖管理」亮红点（2026-11-09）。
+   用精确计数 dueLotteryCount，不受工作台列表 limit(6) 截断影响；
+   不切到抽奖模块也能看见"有事要处理"，这是原来的盲区。 */
+const lotteryAlertModules = computed(() =>
+  lotteryOperationsSnapshot.dueLotteryCount > 0 ? ['lottery'] : [],
+);
 const canRegenerateAutoId = computed(
   () => !isEditing.value && ['news', 'activities', 'products'].includes(currentTab.value),
 );
@@ -5915,6 +5927,24 @@ const getDraftKey = () =>
 
 const readDrafts = () => readLocalJson(STORAGE_KEYS.drafts, {});
 
+/* ── 未保存草稿角标（2026-11-09）──
+   草稿本身早就持久化在 localStorage（`boh-admin-edit-drafts-v1`），但没有任何地方
+   提示"还有几条没存"：换设备 / 清缓存就静默丢了，而分组保存按钮曾经还是死 UI
+   （见 handleSaveGroup）。这里按 tab 统计后映射到侧栏模块，让它在没打开那条记录时也可见。 */
+const draftBadges = ref({});
+const refreshDraftBadges = () => {
+  const counts = {};
+  for (const draft of Object.values(readDrafts() || {})) {
+    const tabId = String(draft?.tabId || '');
+    if (!tabId) continue;
+    /* tabs.js 的 module 字段是唯一映射真源，别在这里另写一张 tab→module 表 */
+    const moduleId = tabs.find((tab) => tab.id === tabId)?.module;
+    if (!moduleId) continue;
+    counts[moduleId] = (counts[moduleId] || 0) + 1;
+  }
+  draftBadges.value = counts;
+};
+
 const saveCurrentDraft = () => {
   if (!showModal.value || suppressDraftSave.value) return;
   const key = getDraftKey();
@@ -5929,12 +5959,14 @@ const saveCurrentDraft = () => {
     updatedAt: new Date().toISOString(),
   };
   writeLocalJson(STORAGE_KEYS.drafts, drafts);
+  refreshDraftBadges();
 };
 
 const clearCurrentDraft = () => {
   const drafts = readDrafts();
   delete drafts[getDraftKey()];
   writeLocalJson(STORAGE_KEYS.drafts, drafts);
+  refreshDraftBadges();
 };
 
 const maybeRestoreDraft = async () => {
@@ -6791,6 +6823,68 @@ const saveData = async ({ keepOpen = false } = {}) => {
 // 已迁移至 composables/useDataAdminMutations.js (createMutationsCenter 工厂)
 // 工厂在 refreshCurrentViewAfterMutation 之后注入, 上述 let 变量会被重新赋值为真实函数
 // 这里删除内联的重复实现, 避免命名冲突与重复定义
+
+/* ── 编辑抽屉的两个补充动作（2026-11-09）─────────────────────────
+   ① 「保存「××」」分组按钮：它一直在 emit saveGroup，但两个 EditDrawer 实例
+      都没绑处理器 ⇒ 点了既不保存也不提示（死 UI）。保存管线是按整条 payload 提交的
+      （saveStrategies 没有"只写这一组"的通道），所以这里等价于一次 keepOpen 保存：
+      存完整条、抽屉不关，用户接着改下一组。
+   ② 「以此为模板」：抽奖每期要填 15+ 个字段，从空白开始是纯粹的重复劳动。 */
+const handleSaveGroup = () => saveData({ keepOpen: true });
+
+/** 模板复制时一律清掉的字段：主键、插入/更新时间，以及开奖与统计的运行时结果 */
+const TEMPLATE_STRIP_KEYS = new Set([
+  'id',
+  'created_at',
+  'updated_at',
+  'entry_count',
+  'current_user_entry_id',
+  'current_user_entry_created_at',
+  'current_user_entry_number',
+  'winner_user_id',
+  'winner_username',
+  'winners',
+  'drawn_at',
+  'draw_attempted_at',
+  'draw_failed_at',
+  'draw_failure_message',
+  'draw_candidate_hash',
+  'draw_algorithm_version',
+]);
+
+/** 把 datetime 值整体往后推 N 天（编辑态的值是 `YYYY-MM-DDTHH:mm`，走本地时区往返） */
+const shiftDateTimeValue = (value, days) => {
+  if (!value) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  date.setDate(date.getDate() + days);
+  return toDateTimeInputValue(date);
+};
+
+const handleCreateFromTemplate = () => {
+  if (!isEditing.value) return;
+  const source = { ...(editingItem.value || {}) };
+  const next = {};
+  for (const field of currentFields.value) {
+    if (TEMPLATE_STRIP_KEYS.has(field.key)) continue;
+    if (source[field.key] !== undefined) next[field.key] = source[field.key];
+  }
+  /* 抽奖额外两步：状态退回草稿（模板不该直接以"报名中"上线），两个时间顺延一周
+     —— 保留原有"截止 → 开奖"的间隔，只把整段窗口往后挪。 */
+  if (currentTab.value === 'lotteries') {
+    next.status = 'draft';
+    next.entry_deadline_at = shiftDateTimeValue(next.entry_deadline_at, 7);
+    next.draw_at = shiftDateTimeValue(next.draw_at, 7);
+  }
+  editingItem.value = next;
+  editingOriginalItem.value = {};
+  isEditing.value = false;
+  clearFieldErrors();
+  jsonBuffers.value = {};
+  /* 草稿 key 从 `<tab>:<id>` 变成了 `<tab>:new`，旧的别留着冒充"这条还有未保存内容" */
+  refreshDraftBadges();
+  showToast('已按这条内容新建草稿，确认无误后保存', 'success');
+};
 
 // ==================== 辅助方法（已拆分到 useDataAdminHelpers.js） ====================
 // formatCellValue / formatDate / formatDateTime / getBadgeType / getTags /
@@ -7722,6 +7816,11 @@ onMounted(() => {
   // 不再读 dm-theme / 不再自己判断系统偏好 —— 那正是"后台与全站主题不一致"的来源。
   currentTheme.value = normalizeTheme(themeManager.getTheme());
   themeManager.addListener(handleThemeChange);
+  /* 冷启动就把「有几条草稿没存」算出来：角标要在用户还没打开任何记录时就可见 */
+  refreshDraftBadges();
+  /* 抽奖告警同理：原实现只在切到抽奖模块时才拉一次快照，
+     直接进「商品管理」或刷新后停在别的 tab ⇒ 红点永远不亮（漏报）。 */
+  if (isCurrentUserAdmin.value) refreshLotteryOperationsSnapshot();
 });
 onUnmounted(() => {
   stopAutoRefresh();
