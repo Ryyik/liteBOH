@@ -93,6 +93,7 @@
       :joining="joiningId === selectedLottery.id"
       @close="closeDetail"
       @join="join(selectedLottery)"
+      @notify="showMessage"
     />
 
     <transition name="lottery-toast">
@@ -104,6 +105,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { storeToRefs } from 'pinia';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { getCommunityLotteries, joinCommunityLottery } from '@/utils/api/lottery-api.js';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
@@ -114,6 +116,8 @@ import { logger } from '@/utils/logger.js';
 import LotteryDetailSheet from './LotteryDetailSheet.vue';
 
 const authStore = useAuthStore();
+const route = useRoute();
+const router = useRouter();
 const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
 
 /* 封面地址两种形态：`cover_image_url` 存的多是 Cloudinary 原图（大陆不可达且动辄 1MB+），
@@ -231,12 +235,38 @@ const openDetail = (item, event) => {
   document.body.style.overflow = 'hidden';
 };
 
+/* ── 分享深链（2026-11-09）──
+   详情里的「分享」发出去的是 `#/shop?tab=lottery&lottery=<id>`：
+   · `lottery` 存在 ⇒ 列表加载完后直接展开这一条（对方点开就看到，不用自己在列表里找）；
+   · 找不到（活动已删 / 已归档）⇒ 静默清参数，不留一条指不到实体的深链；
+   · 关闭详情时也一并清掉，否则刷新一次又弹出来。 */
+const clearDeepLinkQuery = () => {
+  if (!route.query.lottery) return;
+  const query = { ...route.query };
+  delete query.lottery;
+  router.replace({ path: '/shop', query });
+};
+
+const consumeDeepLink = () => {
+  const id = String(route.query.lottery || '').trim();
+  if (!id) return;
+  const target = lotteries.value.find((item) => String(item.id) === id);
+  /* 无 originKey：不是从卡片点起来的，morphWindow 返回 null，详情按自身入场播，
+     不要为了深链伪造一次卡片矩形 */
+  if (target) openDetail(target, null);
+  else clearDeepLinkQuery();
+};
+
 const closeDetail = () => {
   selectedId.value = '';
+  clearDeepLinkQuery();
   document.body.style.overflow = '';
 };
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  consumeDeepLink();
+});
 onBeforeUnmount(() => {
   if (messageTimer) clearTimeout(messageTimer);
   document.body.style.overflow = '';

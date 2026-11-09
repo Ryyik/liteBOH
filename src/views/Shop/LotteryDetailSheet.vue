@@ -1,6 +1,9 @@
 <template>
   <Teleport to="body">
-    <div class="detail-root" :class="isLandscape ? 'is-landscape' : 'is-portrait'">
+    <div
+      class="detail-root shop-sheet-tokens"
+      :class="isLandscape ? 'is-landscape' : 'is-portrait'"
+    >
       <div class="detail-scrim" @click="requestClose"></div>
       <article
         ref="surfaceRef"
@@ -69,6 +72,24 @@
           </div>
 
           <div class="surface-footer">
+            <!-- 分享（2026-11-09）：与报名按钮同一行，次要操作在左。
+                 抽奖页面迁到周边「抽奖」分区后丢了老版的分享入口，这里补回来。 -->
+            <button
+              type="button"
+              class="share-btn"
+              :class="{ 'is-copied': shareState === 'copied' }"
+              :aria-label="shareState === 'copied' ? '链接已复制' : '分享这个抽奖'"
+              @click="shareLottery"
+            >
+              <template v-if="shareState === 'copied'">
+                <Check :size="18" :stroke-width="2.2" aria-hidden="true" />
+                <span>已复制</span>
+              </template>
+              <template v-else>
+                <Share2 :size="18" :stroke-width="1.9" aria-hidden="true" />
+                <span>分享</span>
+              </template>
+            </button>
             <button type="button" class="join-btn" :disabled="joinDisabled" @click="requestJoin">
               {{ joinLabel }}
             </button>
@@ -81,7 +102,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronLeft, X } from 'lucide-vue-next';
+import { Check, ChevronLeft, Share2, X } from 'lucide-vue-next';
 import {
   animateMorph,
   canMorph,
@@ -102,7 +123,11 @@ import { useImageFailure } from '@/composables/useImageFailure.js';
    两份文件刻意不抽象成一个通用弹层：内容结构差别太大（规格 / 库存 vs 奖品 / 名单），
    抽出来的公共部分只剩 clip-path 这几行，已经在 utils/motion-origin.js 里了。
    ⚠️ 竖屏滚动策略与商品详情（封面固定）**有意分歧**：要同步过去时把 ProductDetailSheet
-   的竖屏 CSS 与这里的对齐，别只改一份。 */
+   的竖屏 CSS 与这里的对齐，别只改一份。
+   ⚠️ 根元素必须带 `shop-sheet-tokens`（2026-11-09 补）：本组件 Teleport 到 body，
+   已经不在 .store-page 里，而 --boh-* 在 /shop 这条链上只由 store-tokens.css 提供
+   （dark-mode.css 是按路由懒加载的）⇒ 没有这个类时暗色主题下整片回落到浅色 fallback，
+   详情刷成一张白纸。CheckoutSheet 同样原因带着它。 */
 
 const props = defineProps({
   lottery: { type: Object, required: true },
@@ -111,7 +136,7 @@ const props = defineProps({
   joining: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['close', 'join']);
+const emit = defineEmits(['close', 'join', 'notify']);
 
 const surfaceRef = ref(null);
 const scrollRef = ref(null);
@@ -198,6 +223,79 @@ const requestJoin = () => {
   emit('join');
 };
 
+/* ── 分享（2026-11-09 用户口径「新版的抽奖页面没有分享，请添加一个」）──
+   落点是「周边页的抽奖分区 + 这条活动的深链参数」：
+     `#/shop?tab=lottery&lottery=<id>`
+   只给 `#/shop?tab=lottery` 等于把对方丢进列表里自己找；带 id 由 LotteryPanel
+   加载完后自动展开这一条（见那边的 consumeDeepLink）。
+   通道与 ContentDetailIsland 一致：原生分享面板优先，不支持或失败才降级复制，
+   复制成功按钮自身切成「已复制」2.2s —— 弹层里没有第二个 toast 位，按钮态最直接。 */
+const shareState = ref('idle');
+let shareResetTimer = null;
+
+const resolveShareUrl = () => {
+  if (typeof window === 'undefined') return '';
+  const id = encodeURIComponent(String(props.lottery?.id ?? ''));
+  return `${window.location.origin}${window.location.pathname}#/shop?tab=lottery&lottery=${id}`;
+};
+
+const showCopiedHint = () => {
+  shareState.value = 'copied';
+  if (shareResetTimer) clearTimeout(shareResetTimer);
+  shareResetTimer = setTimeout(() => {
+    shareState.value = 'idle';
+    shareResetTimer = null;
+  }, 2200);
+};
+
+const copyShareUrl = async (url) => {
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      return true;
+    }
+  } catch {
+    /* 权限拒绝 / 非安全上下文 → 走 execCommand 降级 */
+  }
+  try {
+    const helper = document.createElement('textarea');
+    helper.value = url;
+    helper.setAttribute('readonly', '');
+    helper.style.cssText = 'position:fixed;top:-999px;opacity:0;';
+    document.body.appendChild(helper);
+    helper.select();
+    const done = document.execCommand('copy');
+    document.body.removeChild(helper);
+    return done;
+  } catch {
+    return false;
+  }
+};
+
+const shareLottery = async () => {
+  const url = resolveShareUrl();
+  if (!url) return;
+  const title = String(props.lottery?.title || '方块之家抽奖');
+  const prize = String(props.lottery?.prize_title || '').trim();
+  /* ⚠️ share() 必须在用户手势里**同步**发起，前面不能先 await 复制之类的东西 */
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      await navigator.share({
+        title,
+        text: prize ? `${title} · 奖品：${prize}` : title,
+        url,
+      });
+      return; // 系统面板自带反馈
+    } catch (error) {
+      if (error?.name === 'AbortError') return; // 用户划走面板，不算失败
+      /* 其余失败（非用户激活 / 系统不支持该组合）→ 落到复制 */
+    }
+  }
+  const copied = await copyShareUrl(url);
+  if (copied) showCopiedHint();
+  else emit('notify', '复制失败，请手动复制地址栏链接');
+};
+
 const surfaceRadius = () => {
   const el = surfaceRef.value;
   if (!el) return 0;
@@ -275,6 +373,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeydown);
+  if (shareResetTimer) {
+    clearTimeout(shareResetTimer);
+    shareResetTimer = null;
+  }
   if (mql && onOrientationChange) {
     mql.removeEventListener('change', onOrientationChange);
     mql = null;
@@ -657,6 +759,9 @@ html.boh-perf-lite .join-btn {
 
 .surface-footer {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 12px 22px calc(18px + env(safe-area-inset-bottom, 0px));
   background: var(--boh-bg-primary, #fff);
   /* 竖屏：内容从按钮下方穿过，顶部 hairline 把操作区和正文分开 */
@@ -669,6 +774,46 @@ html.boh-perf-lite .join-btn {
   animation-delay: calc(2 * var(--motion-stagger, 55ms));
 }
 
+/* 分享：次要操作 —— 描边胶囊，视觉权重压在报名按钮之下，但高度与它齐平。
+   竖屏 390 宽下留给报名按钮 300+，分享只占「图标 + 两字」的固定宽。 */
+.share-btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 46px;
+  padding: 0 16px;
+  border: 1px solid var(--boh-border-primary, rgba(0, 0, 0, 0.12));
+  border-radius: 999px;
+  background: var(--boh-bg-secondary, #f5f5f7);
+  color: var(--boh-text-primary, #1d1d1f);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    transform 180ms var(--ease-out, ease),
+    background-color 180ms var(--ease-out, ease),
+    border-color 180ms var(--ease-out, ease),
+    color 180ms var(--ease-out, ease);
+}
+
+.share-btn:hover {
+  border-color: var(--boh-brand-blue, #0071e3);
+  color: var(--boh-brand-blue, #0071e3);
+}
+
+.share-btn:active {
+  transform: scale(0.97);
+}
+
+/* 复制成功：图标 + 文案一起换（模板里两套 <template> 切换），颜色改走品牌绿语义
+   —— 这里没有绿 token，用蓝色主色即可，避免额外定义一套颜色 */
+.share-btn.is-copied {
+  border-color: var(--boh-brand-blue, #0071e3);
+  color: var(--boh-brand-blue, #0071e3);
+}
+
 .is-landscape .surface-footer {
   padding-bottom: 18px;
   position: static; /* 横屏是分栏弹窗，footer 本来就在右栏末尾，不需要吸附 */
@@ -676,10 +821,12 @@ html.boh-perf-lite .join-btn {
 
 .join-btn {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  width: 100%;
+  width: auto;
+  min-width: 0;
   height: 46px;
   border: 0;
   border-radius: 999px;

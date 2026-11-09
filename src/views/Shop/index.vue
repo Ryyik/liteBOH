@@ -805,6 +805,11 @@ const syncTabFromRoute = () => {
   const tab = String(route.query.tab || '');
   if (SHOP_TAB_IDS.includes(tab)) {
     activeTab.value = tab;
+  } else if (String(route.query.lottery || '').trim()) {
+    /* 抽奖分享深链（`?lottery=<id>`，见 LotteryPanel 的 consumeDeepLink）：
+       没带 tab 时必须落在抽奖分区 —— 停在「产品」的话 LotteryPanel 根本不渲染，
+       深链参数就成了一条永远不生效的死链。 */
+    activeTab.value = 'lottery';
   } else {
     activeTab.value = 'products';
   }
