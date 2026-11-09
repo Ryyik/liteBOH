@@ -93,21 +93,82 @@ export const buildContainsPattern = (keyword) =>
 export const buildStartsWithPattern = (keyword) =>
   quoteFilterPattern(`${escapeLikePattern(normalizeKeyword(keyword))}%`);
 
+/* ==================== 快捷前缀（plans/042 C3） ==================== */
+
+export const SEARCH_MODE_TEXT = 'text';
+export const SEARCH_MODE_ID = 'id';
+export const SEARCH_MODE_TAB = 'tab';
+export const SEARCH_MODE_USER = 'user';
+
+/** 输入框空态时展示的前缀提示（同时也是唯一一份「有哪些前缀」的说明） */
+export const SEARCH_PREFIX_HINTS = [
+  { prefix: 'id:', mode: SEARCH_MODE_ID, hint: '按记录 ID 精查（UUID 精确匹配）' },
+  { prefix: 'tab:', mode: SEARCH_MODE_TAB, hint: '跳到某张表' },
+  { prefix: '@', mode: SEARCH_MODE_USER, hint: '只在用户名里搜' },
+];
+
+/* 用户名类列：`@` 前缀只在这些列里匹配 */
+const USERNAME_COLUMN_RE = /^(username|user_name|author_username|nickname|name)$/i;
+
 /**
- * 根据 tabId + 关键词构造 supabase or() 过滤器数组。
+ * 解析快捷前缀：`id:xxx` / `tab:xxx` / `@xxx` / 其余按普通关键词。
+ * 前缀只认**开头**且大小写不敏感；值仍走 normalizeKeyword（不删字符）。
+ */
+export const parseSearchQuery = (raw) => {
+  const text = String(raw ?? '').trimStart();
+  if (/^id:/i.test(text)) {
+    return { mode: SEARCH_MODE_ID, prefix: 'id:', value: normalizeKeyword(text.slice(3)) };
+  }
+  if (/^tab:/i.test(text)) {
+    return { mode: SEARCH_MODE_TAB, prefix: 'tab:', value: normalizeKeyword(text.slice(4)) };
+  }
+  if (text.startsWith('@')) {
+    return { mode: SEARCH_MODE_USER, prefix: '@', value: normalizeKeyword(text.slice(1)) };
+  }
+  return { mode: SEARCH_MODE_TEXT, prefix: '', value: normalizeKeyword(text) };
+};
+
+/**
+ * 用于「打分 / 高亮 / 展示」的词：去掉前缀后的值。
+ * 打分必须用它，否则 `id:abc` 会拿整串去比分数字段，永远 0 分。
+ */
+export const searchTermOf = (raw) => parseSearchQuery(raw).value;
+
+/** 根据 tabId + 关键词构造 supabase or() 过滤器数组。
  *   - `uuid` 字段仅在关键词本身是合法 UUID 时精确匹配（否则 contains 命中无意义）
  *   - `number` 字段仅在关键词是纯整数时精确匹配
  *   - 其余字段大小写不敏感包含，**通配符转义后**再拼
+ *
+ * 支持三个快捷前缀（plans/042 C3，见 parseSearchQuery）：
+ *   - `id:`  只按主键匹配（UUID 精确 / 否则包含）
+ *   - `@`    只在用户名类字段里搜（避免长文本命中一堆无关行）
+ *   - `tab:` 不构造条件（跳表由调用方处理）
  */
 export const buildSearchFilters = (tabId, keyword, tabSearchFields) => {
-  const cleaned = normalizeKeyword(keyword);
+  const parsed = parseSearchQuery(keyword);
+  const cleaned = parsed.value;
   if (!cleaned) return [];
+  if (parsed.mode === SEARCH_MODE_TAB) return [];
+
+  const fields = tabSearchFields?.[tabId] || [];
+
+  if (parsed.mode === SEARCH_MODE_ID) {
+    return [
+      UUID_PATTERN.test(cleaned) ? `id.eq.${cleaned}` : `id.ilike.${buildContainsPattern(cleaned)}`,
+    ];
+  }
 
   const isUuid = UUID_PATTERN.test(cleaned);
   const isInteger = /^\d+$/.test(cleaned);
   const contains = buildContainsPattern(cleaned);
+  const scoped =
+    parsed.mode === SEARCH_MODE_USER
+      ? fields.filter((field) => USERNAME_COLUMN_RE.test(String(field?.column || '')))
+      : fields;
+  // `@` 但没有用户名列的表：退回全字段搜，宁可宽一点也不给「搜不到」
+  const effective = scoped.length ? scoped : fields;
 
-  return (tabSearchFields?.[tabId] || []).flatMap((field) => {
+  return effective.flatMap((field) => {
     const column = field?.column;
     if (!column) return [];
     if (field.type === 'uuid') return isUuid ? [`${column}.eq.${cleaned}`] : [];

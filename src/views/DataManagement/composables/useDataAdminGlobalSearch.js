@@ -7,7 +7,12 @@ import {
   buildSearchFilters as buildSearchFiltersUtil,
   getSearchablePreviewFields as getSearchablePreviewFieldsUtil,
 } from './useDataAdminFilters.js';
-import { findMatchedField, groupByTab, normalizeKeyword } from '@/utils/search-core.js';
+import {
+  findMatchedField,
+  groupByTab,
+  parseSearchQuery,
+  SEARCH_MODE_TAB,
+} from '@/utils/search-core.js';
 
 /** 单表单次取多少条（plans/042 C6：原 5 条太少，合并后容易漏掉更相关的行） */
 const PER_TAB_LIMIT = 8;
@@ -45,9 +50,12 @@ export const createGlobalSearchCenter = ({
     abortController = new AbortController();
     const signal = abortController.signal;
 
-    const keyword = normalizeKeyword(rawKeyword ?? searchQueryRef.value);
-    globalSearchKeyword.value = keyword;
-    if (!keyword) {
+    // 快捷前缀（plans/042 C3）：`id:` / `@` 都按去前缀后的词搜；
+    // `tab:` 是跳表语义，跨表搜索没有可执行的查询 —— 直接清空，别给出假结果。
+    const parsed = parseSearchQuery(rawKeyword ?? searchQueryRef.value);
+    const keyword = parsed.value;
+    globalSearchKeyword.value = parsed.value || parsed.prefix;
+    if (!keyword || parsed.mode === SEARCH_MODE_TAB) {
       globalSearchResults.value = [];
       showGlobalSearchPanel.value = false;
       return;

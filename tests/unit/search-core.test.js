@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   MATCH_CONTAINS,
+  SEARCH_MODE_ID,
+  SEARCH_MODE_TAB,
+  SEARCH_MODE_TEXT,
+  SEARCH_MODE_USER,
+  parseSearchQuery,
+  searchTermOf,
   MATCH_EXACT,
   MATCH_NONE,
   MATCH_PREFIX,
@@ -182,5 +188,67 @@ describe('UUID 形状与校验模块同源', () => {
     samples.forEach((sample) => {
       expect(UUID_PATTERN.test(sample)).toBe(UUID_REGEX.test(sample));
     });
+  });
+});
+
+describe('快捷前缀（plans/042 C3）', () => {
+  const FIELDS = {
+    products: [
+      { column: 'id', type: 'uuid' },
+      { column: 'title', type: 'text' },
+      { column: 'description', type: 'text' },
+    ],
+    forum: [
+      { column: 'id', type: 'uuid' },
+      { column: 'author_username', type: 'text' },
+      { column: 'content', type: 'text' },
+    ],
+  };
+
+  it('parseSearchQuery 只认开头的三种前缀', () => {
+    expect(parseSearchQuery('id:abc').mode).toBe(SEARCH_MODE_ID);
+    expect(parseSearchQuery('ID:abc').mode).toBe(SEARCH_MODE_ID);
+    expect(parseSearchQuery('tab:商品').mode).toBe(SEARCH_MODE_TAB);
+    expect(parseSearchQuery('@小明').mode).toBe(SEARCH_MODE_USER);
+    expect(parseSearchQuery('围巾 id:abc').mode).toBe(SEARCH_MODE_TEXT);
+    expect(parseSearchQuery('  @小明  ').value).toBe('小明');
+  });
+
+  it('searchTermOf 去掉前缀，供打分/高亮使用', () => {
+    expect(searchTermOf('id:00ac36b4-6594-440f-a9c1-38b7bd47ee8b')).toBe(
+      '00ac36b4-6594-440f-a9c1-38b7bd47ee8b',
+    );
+    expect(searchTermOf('@小明')).toBe('小明');
+    expect(searchTermOf('围巾')).toBe('围巾');
+  });
+
+  it('id: + 合法 UUID → 只精确匹配主键', () => {
+    expect(
+      buildSearchFilters('products', 'id:00ac36b4-6594-440f-a9c1-38b7bd47ee8b', FIELDS),
+    ).toEqual(['id.eq.00ac36b4-6594-440f-a9c1-38b7bd47ee8b']);
+  });
+
+  it('id: + 半截 ID → 主键包含匹配，不再散到其它列', () => {
+    const filters = buildSearchFilters('products', 'id:00ac36', FIELDS);
+    expect(filters).toEqual(['id.ilike.%00ac36%']);
+  });
+
+  it('@ 只在用户名类列里搜（不碰正文）', () => {
+    expect(buildSearchFilters('forum', '@小明', FIELDS)).toEqual(['author_username.ilike.%小明%']);
+  });
+
+  it('@ 但表里没有用户名列 → 退回全字段，宁宽不漏', () => {
+    expect(buildSearchFilters('products', '@小明', FIELDS)).toEqual([
+      'title.ilike.%小明%',
+      'description.ilike.%小明%',
+    ]);
+  });
+
+  it('tab: 不产生任何查询条件（跳表由 UI 处理）', () => {
+    expect(buildSearchFilters('products', 'tab:商品', FIELDS)).toEqual([]);
+  });
+
+  it('id: 后面是空的 → 无条件，不发请求', () => {
+    expect(buildSearchFilters('products', 'id:', FIELDS)).toEqual([]);
   });
 });

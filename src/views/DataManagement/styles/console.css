@@ -402,6 +402,61 @@
   background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
+/* 搜索联想（plans/042 C3）：贴在搜索框下方，宽度与搜索框对齐 */
+.search-suggest-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 42;
+  width: 340px;
+  max-width: 88vw;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  /* 与 .search-scope-panel 同一条教训：--card 半透明会透底 */
+  background: var(--popover-solid, #ffffff);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+}
+
+.search-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-suggest-item.is-active,
+.search-suggest-item:hover {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.search-suggest-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-suggest-hint {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted-foreground);
+}
+
 .search-scope-panel {
   position: absolute;
   top: calc(100% + 6px);
@@ -813,13 +868,29 @@
 .command-palette-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
   color: var(--foreground);
+}
+/* plans/042 B1：结果类型前缀（表/筛选/记录），command-palette-label 吃掉剩余宽度 */
+.command-palette-kind {
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+.command-palette-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .command-palette-item.is-active {
   background: rgba(66, 133, 244, 0.12);

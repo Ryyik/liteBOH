@@ -20,6 +20,8 @@ export const ADMIN_STORAGE_KEYS = Object.freeze({
   /* 删除前快照（2026-11-09）：删除是物理删除、无法从库里找回，这里留一份本机副本，
      误删后能原样插回去。只覆盖本浏览器、保留最近 30 条 —— 不是跨设备回收站。 */
   deletedSnapshots: 'boh-admin-deleted-snapshots-v1',
+  /* 最近搜索（plans/042 C3）：只存关键词字符串，10 条封顶。 */
+  recentSearches: 'boh-admin-recent-searches-v1',
 });
 
 /**
@@ -73,4 +75,6 @@ export const createPersisters = (refs) => ({
   persistRecentRecords: () =>
     writeLocalJson(ADMIN_STORAGE_KEYS.recentRecords, refs.recentRecords.value),
   persistChangeLog: () => writeLocalJson(ADMIN_STORAGE_KEYS.changeLog, refs.changeLogEntries.value),
+  persistRecentSearches: () =>
+    writeLocalJson(ADMIN_STORAGE_KEYS.recentSearches, refs.recentSearches.value),
 });

@@ -221,7 +221,12 @@
                         isGlobalSearchScope ? '搜索全部表：用户 / 商品 / 帖子...' : '搜索当前表...'
                       "
                       :aria-label="isGlobalSearchScope ? '搜索全部表' : '搜索当前表'"
+                      aria-autocomplete="list"
+                      :aria-expanded="showSearchSuggestions"
                       @input="onSearchInput"
+                      @focus="openSearchSuggestions"
+                      @blur="closeSearchSuggestions"
+                      @keydown="onSearchKeydown"
                       @keydown.enter.prevent="onSearchEnter"
                     />
                     <button
@@ -232,6 +237,28 @@
                       @click="clearSearchEverywhere"
                     >
                       ×
+                    </button>
+                  </div>
+                  <!-- 搜索联想（plans/042 C3）：最近搜索 / 枚举值 / 快捷前缀；本表范围才出 -->
+                  <div
+                    v-if="showSearchSuggestions && !isGlobalSearchScope && searchSuggestions.length"
+                    class="search-suggest-panel"
+                    role="listbox"
+                    aria-label="搜索联想"
+                  >
+                    <button
+                      v-for="(item, idx) in searchSuggestions"
+                      :key="item.id"
+                      type="button"
+                      role="option"
+                      :aria-selected="idx === suggestionActiveIndex"
+                      class="search-suggest-item"
+                      :class="{ 'is-active': idx === suggestionActiveIndex }"
+                      @mousedown.prevent="applySearchSuggestion(item)"
+                      @mouseenter="suggestionActiveIndex = idx"
+                    >
+                      <span class="search-suggest-label">{{ item.label }}</span>
+                      <span class="search-suggest-hint">{{ item.hint }}</span>
                     </button>
                   </div>
                   <button
@@ -401,13 +428,6 @@
                   </button>
                   <button class="clear-filters-btn" type="button" @click="saveCurrentFilterView">
                     保存视图
-                  </button>
-                  <button
-                    class="clear-filters-btn"
-                    type="button"
-                    @click="togglePinnedTab(currentTab)"
-                  >
-                    {{ isTabPinned(currentTab) ? '取消置顶' : '置顶表' }}
                   </button>
                   <div v-if="showStatusSelect" class="filter-select">
                     <select v-model="statusFilter" @change="handleFilterChange">
@@ -1983,7 +2003,7 @@
               v-model="commandQuery"
               type="text"
               class="command-palette-input"
-              placeholder="输入命令或模块名称..."
+              placeholder="搜索命令 / 表名 / 字段名 / 任意记录…"
               aria-label="命令搜索"
               @keydown="onCommandInputKeydown"
             />
@@ -2004,11 +2024,14 @@
               @mouseenter="commandActiveIndex = idx"
               @click="runCommandPaletteItem(item)"
             >
+              <span v-if="item.kind" class="command-palette-kind">
+                {{ COMMAND_KIND_LABELS[item.kind] }}
+              </span>
               <span class="command-palette-label">{{ item.label }}</span>
               <span v-if="item.hint" class="command-palette-hint">{{ item.hint }}</span>
             </li>
           </ul>
-          <p v-else class="command-palette-empty">没有匹配的命令</p>
+          <p v-else class="command-palette-empty">{{ commandPaletteEmptyText }}</p>
         </div>
       </div>
     </Transition>
@@ -2182,7 +2205,12 @@ import {
   applySearchAndSort as applySearchAndSortUtil,
   sanitizeSearchTerm,
 } from './composables/useDataAdminFilters.js';
-import { normalizeKeyword, rankRows } from '@/utils/search-core.js';
+import { parseSearchQuery, rankRows, searchTermOf } from '@/utils/search-core.js';
+import {
+  buildSearchSuggestions,
+  collectEnumOptions,
+  pushRecentSearch,
+} from './composables/data-admin-search-suggestions.js';
 import { createChangeLogCenter } from './composables/useDataAdminChangeLog.js';
 import { createFilterState } from './composables/useDataAdminFilterState.js';
 import { createMutationsCenter } from './composables/useDataAdminMutations.js';
@@ -2698,6 +2726,8 @@ const savedFilterViews = ref({});
 const pinnedTabIds = ref([]);
 const recentRecords = ref([]);
 const changeLogEntries = ref([]);
+// 最近搜索（plans/042 C3）：本机 10 条，联想面板用；读一次即可，写入走 createPersisters
+const recentSearches = ref(readLocalJson(STORAGE_KEYS.recentSearches, []));
 // 持久化工厂 (替换原先内联的 persist* / writeLocalJson 调用)
 const {
   persistColumnSettings,
@@ -2705,12 +2735,14 @@ const {
   persistPinnedTabs,
   persistRecentRecords,
   persistChangeLog,
+  persistRecentSearches,
 } = createPersisters({
   columnSettings,
   savedFilterViews,
   pinnedTabIds,
   recentRecords,
   changeLogEntries,
+  recentSearches,
 });
 const inlineEditState = reactive({
   rowId: '',
@@ -4417,9 +4449,7 @@ const paginateQuery = (query) => {
  */
 const SEARCH_RANK_WINDOW = 120;
 const fetchPageQuery = (query) =>
-  normalizeKeyword(searchQuery.value)
-    ? query.range(0, SEARCH_RANK_WINDOW - 1)
-    : paginateQuery(query);
+  searchTermOf(searchQuery.value) ? query.range(0, SEARCH_RANK_WINDOW - 1) : paginateQuery(query);
 
 const normalizeJoinedObject = (value) => (Array.isArray(value) ? value[0] || {} : value || {});
 
@@ -4785,7 +4815,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
 
     /* 搜索态：候选窗口是「前 120 条里最相关的」，这里切出当前页。
        无关键词时不重排，保持数据库的排序口径（sortKey / tabDefaultSort）。 */
-    const rankKeyword = normalizeKeyword(searchQuery.value);
+    const rankKeyword = searchTermOf(searchQuery.value);
     if (rankKeyword) {
       const pageLimit = Math.max(1, Number(pageSize.value) || 20);
       rows = rankRows(rows, rankKeyword, { fields: TAB_SEARCH_FIELDS[tabId] || [] }).slice(
@@ -5525,11 +5555,125 @@ const adminAvatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').tr
 const onSearchInput = () => {
   if (isGlobalSearchScope.value) scheduleGlobalSearch();
   else handleSearch();
+  if (!isGlobalSearchScope.value) showSearchSuggestions.value = true;
 };
 
 const onSearchEnter = () => {
+  // 只有用户**用方向键选过**才让回车去应用候选；
+  // 否则回车必须搜「他自己敲的词」—— 拿第一条联想替换用户输入是灾难
+  if (showSearchSuggestions.value && suggestionNavMoved.value) {
+    const picked = searchSuggestions.value[suggestionActiveIndex.value];
+    if (picked) {
+      applySearchSuggestion(picked);
+      return;
+    }
+  }
+  closeSearchSuggestions();
+  if (applyTabPrefixJump()) return;
+  // 只记「普通关键词」：`id:<uuid>` / `tab:xx` 记进历史对下次没有帮助，只会挤掉真有用的词
+  if (parseSearchQuery(searchQuery.value).mode === 'text') rememberSearch(searchQuery.value);
   if (isGlobalSearchScope.value) runGlobalSearch();
   else handleSearch();
+};
+
+// ==================== 搜索联想（plans/042 C3）====================
+const showSearchSuggestions = ref(false);
+const suggestionActiveIndex = ref(0);
+// 用户是否用方向键在候选里移动过（决定回车是「选中候选」还是「搜我自己敲的词」）
+const suggestionNavMoved = ref(false);
+
+const searchSuggestions = computed(() =>
+  buildSearchSuggestions({
+    query: searchQuery.value,
+    recent: recentSearches.value,
+    enumOptions: collectEnumOptions([
+      ...(currentFields.value || []),
+      ...(currentColumns.value || []),
+    ]),
+    tabs: tabs.map((tab) => ({ id: tab.id, label: tab.label })),
+  }),
+);
+
+const openSearchSuggestions = () => {
+  // 「全部表」范围已经有结果面板，再叠一层联想等于两个浮层抢同一块位置
+  if (isGlobalSearchScope.value) return;
+  showSearchSuggestions.value = true;
+  suggestionActiveIndex.value = 0;
+  suggestionNavMoved.value = false;
+};
+
+const closeSearchSuggestions = () => {
+  showSearchSuggestions.value = false;
+  suggestionNavMoved.value = false;
+};
+
+const moveSuggestion = (delta) => {
+  const total = searchSuggestions.value.length;
+  if (!total) return;
+  showSearchSuggestions.value = true;
+  suggestionNavMoved.value = true;
+  suggestionActiveIndex.value = (suggestionActiveIndex.value + delta + total) % total;
+};
+
+/** 记一条最近搜索（空词不记：点 × 清空不该污染历史） */
+const rememberSearch = (raw) => {
+  const next = pushRecentSearch(recentSearches.value, raw);
+  if (next.length === recentSearches.value.length && next[0] === recentSearches.value[0]) return;
+  recentSearches.value = next;
+  persistRecentSearches();
+};
+
+/** `tab:关键词` → 跳表（有剩余词就顺手带过去做关键词） */
+const applyTabPrefixJump = () => {
+  const parsed = parseSearchQuery(searchQuery.value);
+  if (parsed.mode !== 'tab') return false;
+  const hit = tabs.find(
+    (tab) =>
+      !parsed.value ||
+      String(tab.label).toLowerCase().includes(parsed.value.toLowerCase()) ||
+      tab.id === parsed.value,
+  );
+  if (!hit) {
+    showToast('没找到匹配的表，试试「tab:商品」这样的写法', 'warning');
+    return true;
+  }
+  searchQuery.value = '';
+  switchTab(hit.id);
+  return true;
+};
+
+const applySearchSuggestion = (item) => {
+  if (!item) return;
+  closeSearchSuggestions();
+  if (item.kind === 'tab') {
+    searchQuery.value = '';
+    switchTab(item.tabId);
+    return;
+  }
+  // 前缀提示：只把前缀填进去，让用户接着敲
+  if (item.kind === 'prefix') {
+    searchQuery.value = item.value || '';
+    nextTick(() => searchInputRef.value?.focus());
+    return;
+  }
+  // 最近搜索 / 枚举值：直接按这个词搜
+  searchQuery.value = item.value;
+  rememberSearch(item.value);
+  if (isGlobalSearchScope.value) runGlobalSearch();
+  else handleSearch();
+};
+
+const onSearchKeydown = (event) => {
+  if (!showSearchSuggestions.value || !searchSuggestions.value.length) return;
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    moveSuggestion(1);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    moveSuggestion(-1);
+  } else if (event.key === 'Escape') {
+    closeSearchSuggestions();
+  }
 };
 
 const toggleSearchScope = () => {
@@ -5910,6 +6054,12 @@ const toolbarMenuItems = computed(() => {
       run: () => {
         showChangeLogPanel.value = !showChangeLogPanel.value;
       },
+    },
+    // plans/042 A2：置顶表从展开的筛选区下沉到 ⋯（它不是筛选动作，放筛选条里纯占位）
+    {
+      id: 'pin-tab',
+      label: isTabPinned(currentTab) ? '取消置顶本表' : '置顶本表',
+      run: () => togglePinnedTab(currentTab),
     },
   ];
   if (currentTab.value === 'lotterySchedulerLogs') {
@@ -8143,7 +8293,16 @@ const commandPaletteItems = computed(() => {
 const filteredCommandPaletteItems = computed(() => {
   const q = commandQuery.value.trim().toLowerCase();
   if (!q) return commandPaletteItems.value;
-  return commandPaletteItems.value.filter((it) => it.label.toLowerCase().includes(q));
+  const commands = commandPaletteItems.value.filter((it) => it.label.toLowerCase().includes(q));
+  // 先给「跳转/筛选/记录」，再给命令（plans/042 B1）
+  return [...commandSearchDerivedItems.value, ...commands];
+});
+
+/** 面板空态文案：区分「还在搜」「搜完了没有」「还没输入」 */
+const commandPaletteEmptyText = computed(() => {
+  if (commandSearch.isGlobalSearching.value) return '正在搜索全部表…';
+  if (commandQuery.value.trim()) return '没有匹配的命令、表名、字段名或记录';
+  return '输入命令、表名、字段名或任意关键词';
 });
 
 const openCommandPalette = () => {
@@ -8290,8 +8449,114 @@ watch(currentTab, () => {
   closeGlobalSearchPanel();
 });
 
-// ==================== 高亮/关联跳转/异常检测 Helpers 注入 ====================
-// 全部表模式下当前表格没被这个关键词过滤，高亮会误导 ⇒ 只在「本表」范围高亮
+// ==================== ⌘K 里的全库搜索（plans/042 B1）====================
+// 独立实例：不能和工具栏那个共用状态 —— 在 ⌘K 里输入不该把工具栏的「全部表」浮层也点着，
+// 反之亦然（两个关键词互相清空就是「同一屏幕两套结论」的老问题）。
+const commandSearch = createGlobalSearchCenter({
+  searchQueryRef: commandQuery,
+  showToast,
+  buildActionErrorMessage,
+  switchTab,
+  addRecentRecord,
+});
+
+/** ⌘K 面板里每类结果的前缀标签 */
+const COMMAND_KIND_LABELS = { tab: '表', field: '筛选', record: '记录' };
+
+/** 已经打开详情：直接按「tab + 记录 id」跳，不再回到列表再点一次 */
+const openCommandRecord = (result) => {
+  if (!result?.tabId || !result.id) return;
+  closeCommandPalette();
+  addRecentRecord(result.row || { id: result.id, title: result.title }, result.tabId);
+  if (currentTab.value !== result.tabId) switchTab(result.tabId);
+  router.push({
+    name: 'DataManagementRecord',
+    params: { tab: result.tabId, id: String(result.id) },
+  });
+};
+
+/**
+ * 关键词派生的候选：表跳转 → 字段筛选 → 记录。命令（新增/刷新/主题…）排在最后，
+ * 因为输入了具体词的人多半是在找东西，而不是找命令。
+ */
+const commandSearchDerivedItems = computed(() => {
+  const raw = commandQuery.value.trim();
+  if (!raw) return [];
+  const keyword = raw.toLowerCase();
+  const items = [];
+
+  for (const tab of tabs) {
+    const label = String(tab.label || '');
+    if (!label.toLowerCase().includes(keyword) && String(tab.id) !== keyword) continue;
+    items.push({
+      id: `tab-${tab.id}`,
+      kind: 'tab',
+      label: `切换到表：${label}`,
+      hint: '跳转',
+      run: () => switchTab(tab.id),
+    });
+    if (items.length >= 3) break;
+  }
+
+  const fieldHits = (currentColumns.value || []).filter((col) =>
+    String(col.label || '')
+      .toLowerCase()
+      .includes(keyword),
+  );
+  fieldHits.slice(0, 3).forEach((col) => {
+    items.push({
+      id: `field-${col.key}`,
+      kind: 'field',
+      label: `按「${col.label}」筛选：包含 ${raw}`,
+      hint: '高级筛选',
+      run: () => {
+        showAdvancedFilterPanel.value = true;
+        advancedFilterRules.value = [
+          ...advancedFilterRules.value,
+          { id: `${Date.now()}`, field: col.key, operator: 'contains', value: raw },
+        ];
+        handleFilterChange();
+      },
+    });
+  });
+
+  commandSearch.globalSearchResults.value.slice(0, 8).forEach((result) => {
+    items.push({
+      id: `record-${result.tabId}-${result.id}`,
+      kind: 'record',
+      label: result.title || result.id,
+      hint: result.matchedColumn
+        ? `${result.tabLabel} · 命中 ${result.matchedColumn}`
+        : result.tabLabel,
+      run: () => openCommandRecord(result),
+    });
+  });
+
+  return items;
+});
+
+// 输入即搜（去抖 250ms 在 composable 内，plans/042 C6）
+watch(commandQuery, (value) => {
+  commandActiveIndex.value = 0;
+  const keyword = String(value || '').trim();
+  if (!keyword) {
+    commandSearch.abortGlobalSearch();
+    commandSearch.globalSearchResults.value = [];
+    return;
+  }
+  commandSearch.scheduleGlobalSearch(keyword);
+});
+
+// 面板关闭就掐掉在途请求（否则 ESC 之后回来的结果会写进下一次打开的面板）
+watch(showCommandPalette, (open) => {
+  if (!open) {
+    commandSearch.abortGlobalSearch();
+    commandSearch.globalSearchResults.value = [];
+    commandQuery.value = '';
+  }
+});
+
+// ==================== 高亮/关联跳转/异常检测 Helpers 注入 ====================// 全部表模式下当前表格没被这个关键词过滤，高亮会误导 ⇒ 只在「本表」范围高亮
 const { getHighlightKeyword, highlightCellValue } = createHighlightHelpers({
   searchQueryRef: searchQuery,
   isGlobalScopeRef: isGlobalSearchScope,
