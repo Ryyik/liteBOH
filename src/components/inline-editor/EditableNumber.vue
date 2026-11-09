@@ -192,10 +192,12 @@ const onInputKeydown = (event) => {
   outline-color: currentColor;
 }
 
-/* 编辑态用 inline-block 才能给输入框一个可用的宽度（inline 会塌成几个字符宽） */
+/* 编辑态用 inline-block 并**限宽**：数字字段都在 flex 行里（「积分价 40 积分」
+   与「现金价 ¥19.00」并排），给 100% 宽会把这行挤成两行，标签被拆成「积分 / 价」 */
 .ien.is-editing {
   display: inline-block;
-  min-width: 4.5em;
+  min-width: 3.5em;
+  max-width: 7em;
   outline-color: var(--boh-brand-blue, #0071e3);
   background: var(--boh-bg-primary, #fff);
 }
@@ -218,5 +220,12 @@ const onInputKeydown = (event) => {
   font: inherit;
   line-height: inherit;
   outline: none;
+}
+
+/* 就地编辑是「直接输入」，微调箭头只会让 7em 的框更挤，去掉 */
+.ien-input::-webkit-outer-spin-button,
+.ien-input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
 }
 </style>
