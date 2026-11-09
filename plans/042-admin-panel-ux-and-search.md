@@ -511,3 +511,54 @@ B1 ⌘K 合并全库搜索、B2 编辑入口唯一化（需先定灰度，见 §
 > 另记：`users` 曾经因为 `hide_online_status` 被误判而多跑 2 个 head count，现已随 §12.2-2 消失；若日后新增「/status/ 命名的偏好字段」，务必同时补 `STRUCTURE` 侧的 hint，否则会被当成状态列。
 
 
+---
+
+## 13. 实施记录（P1 其余：A2 / B1 / B2 / B4 / C3 / C5 / C6 / D2，2026-11-09）
+
+### 13.1 落地的改动
+
+| 项 | 实际做法 | 落点 |
+|---|---|---|
+| **B1** | ⌘K 面板内输入即搜（独立 `createGlobalSearchCenter` 实例，避免和工具栏「全部表」共用关键词互相清空）。候选顺序 **表跳转 → 字段筛选 → 记录 → 命令**，每条带类型前缀；点记录直接 `router.push` 到详情子页；关闭面板即 abort | `DataAdmin.vue`、`useDataAdminGlobalSearch.js`、`console.css` |
+| **B1 字段候选** | 匹配到字段名不跳列配置，而是「按该字段加一条 `contains` 高级筛选」——输入 `标题` 的人想筛标题，不是想改列宽 | `commandSearchDerivedItems` |
+| **C3** | 新增 `buildSearchSuggestions` / `pushRecentSearch` / `collectEnumOptions` 纯函数。联想面板三类：快捷前缀提示、最近搜索（本机 10 条）、当前表 ≤24 值的枚举 | `composables/data-admin-search-suggestions.js`（新）、`useDataAdminPersistence.js`（新增 key `boh-admin-recent-searches-v1`） |
+| **C3 前缀** | `parseSearchQuery`：`id:` → 主键精确（UUID）/ 主键包含；`@` → 只在用户名列里搜（无该列则退回全字段）；`tab:` → 跳表。打分/高亮统一走 `searchTermOf`（去前缀） | `utils/search-core.js` |
+| **C3 回车语义** | 回车**只搜用户自己敲的词**；只有用方向键在候选里移动过，回车才应用候选（否则第一条联想会顶掉输入，这是最容易写错的一处） | `onSearchEnter` / `suggestionNavMoved` |
+| **C6** | 联想去抖 250ms、`requestId` 只让最后一次结果落地、跨表 `limit 8` 合并取 50（P0 已做） | 同上 |
+| **B4** | 新增 `UserPicker.vue`：去抖 250ms + 回车立即搜、按 `scoreRow` 相关性排序、空结果给「粘贴 UUID」、保留最近选择（按 `recentKey` 分发放台）、多选/单选共用、结果行带头像/角色/积分 | `components/shared/UserPicker.vue`（新） |
+| **B4 接入** | 积分发放 / 订阅发放 / 抽奖补参与三处删除本地 `searchQuery/searchResults/searching/handleSearch/isSelected/toggleUser/removeUser`，抽奖那处连 280ms 定时器一起删 | 三个 Console |
+| **B2** | 行内铅笔（表格 + 卡片两种视图）改成进详情（`openRecordDetail`），`aria-label` 改为「在详情中编辑」；抽屉作为**灰度逃生口**留在行 `⋯` 菜单「快速编辑（抽屉）」，详情页「编辑」仍走 `embedded` 模式 | `DataAdmin.vue` |
+| **A2 收尾** | 「置顶表」从展开的筛选区下沉到 `⋯`（它不是筛选动作） | `DataAdmin.vue` |
+| **C5** | 复核结论：表格行内命中高亮**此前已落地**（`createHighlightHelpers` + `highlightCellValue` 已在单元格 `v-html`），实测「本表 + 有关键词」时 `<mark>` 正常。本次未重复实现，只在文档里销账 | — |
+| **D2** | 新增两条源码守卫：`user-picker-shared.test.js`（三处必须 import UserPicker、不得再有本地选人状态）、`data-admin-row-edit-entry.test.js`（铅笔不许改回 `openEditModal`、抽屉逃生口必须在） | `tests/unit/` |
+
+### 13.2 实测证据（1440×900，mock 数据）
+
+| 断言 | 结果 |
+|---|---|
+| 聚焦搜索框 | 面板给 3 条前缀提示 + 最近搜索（`围巾`/`50%`，来自 localStorage） |
+| 输入「围巾」后回车 | 关键词仍是「围巾」（未被联想顶掉），出「关键词：围巾 ×」chip，行数 2 |
+| 输入 `tab:用户` | 候选只剩表跳转：「用户管理」「用户数据导出」；回车后 URL `...&tab=users` |
+| ⌘K 输入「围巾」 | 候选首条为「记录 · 围巾小狗 · 商品管理 · 命中 title」 |
+| 点该记录 | 直达 `#/admin/data-management/products/<uuid>`（详情页渲染，面包屑 商城 › 商品管理 › id） |
+| 积分发放搜「user」 | 结果 `user_one` 在前、`admin_user` 在后（前缀优先于包含，旧实现无排序） |
+| 订阅发放搜「admin」 | `admin_user` 在前；选中出 chip |
+| 抽奖补参与（单选） | 选中出 chip，不出现多选 |
+| 页面异常 | 0 |
+
+> 探针里 `detailVisible` 一度为 false 是我把断言写成匹配 `/record/` 而实际路由是 `/<tab>/<id>`；截图确认详情页已正常渲染，至于「JSON object requested…」是 mock 对 `.single()` 返回了两行的假错误。
+
+### 13.3 P1 完成度
+
+| 项 | 状态 |
+|---|---|
+| A1 / A2 / A3 / A4 | ✅ 全部落地 |
+| B1 / B2（灰度） / B4 | ✅ 落地 |
+| C1 / C2 / C3 / C4 / C5 / C6 | ✅ 落地（C5 为复核销账） |
+| D1 / D2 | ✅ 落地（新增 5 个守卫/纯函数测试文件） |
+| **未做** | B3 批量删除解除限制、C7 邮箱精确检索、§10 就地编辑推广（P2 / 并行线） |
+
+### 13.4 需要拍板的两件事
+
+1. **B2 是否「切到底」**：现在是灰度版 —— 铅笔进详情，抽屉留在 `⋯` 里。稳定跑一段时间后可删掉「快速编辑（抽屉）」，真正一条路径；也可以反过来（详情页出问题时把灰度关掉只需改一处）。
+2. **B3 批量删除解除限制**：方案里是 P2，但风险最高（涉及物理删除）。要在「高级筛选下也能全选删除」上加两道闸：删除前必须回显条件 + 条数，且审计失败要可见。要不要做、按什么口径做，需要你定。

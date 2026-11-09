@@ -1318,9 +1318,9 @@
                         <button
                           v-if="canEditCurrentTab"
                           class="icon-btn edit"
-                          @click="openEditModal(item)"
-                          title="编辑"
-                          aria-label="编辑"
+                          @click="openRecordDetail(item)"
+                          title="在详情中编辑"
+                          aria-label="在详情中编辑"
                         >
                           <Pencil :size="15" />
                         </button>
@@ -1761,9 +1761,9 @@
                               <button
                                 v-if="canEditCurrentTab"
                                 class="icon-btn edit"
-                                @click="openEditModal(item)"
-                                title="编辑"
-                                aria-label="编辑"
+                                @click="openRecordDetail(item)"
+                                title="在详情中编辑"
+                                aria-label="在详情中编辑"
                               >
                                 <Pencil :size="14" />
                               </button>
@@ -5923,10 +5923,20 @@ const getRowActionModel = (item) => {
 // 页面核心动作，保留双按钮。
 const getRowTableActions = (item) => {
   const model = getRowActionModel(item);
-  if (isModerationTab.value || model.primary.length <= 1) return model;
+  /**
+   * plans/042 B2（灰度）：行内铅笔改成「进详情再编辑」，一条记录只有一条编辑主路径；
+   * 但抽屉没有立刻拿掉 —— 它留在 ⋯ 里当逃生口，运营习惯了旧路径也不会被卡住。
+   * 等详情页的就地编辑跑一段时间没出问题，再把这个入口删掉即可。
+   */
+  const drawerEscape = canEditCurrentTab.value
+    ? [{ id: 'quick-edit', label: '快速编辑（抽屉）', run: () => openEditModal(item) }]
+    : [];
+  if (isModerationTab.value || model.primary.length <= 1) {
+    return { primary: model.primary, menu: [...model.menu, ...drawerEscape] };
+  }
   return {
     primary: model.primary.slice(0, 1),
-    menu: [...model.primary.slice(1), ...model.menu],
+    menu: [...model.primary.slice(1), ...model.menu, ...drawerEscape],
   };
 };
 
