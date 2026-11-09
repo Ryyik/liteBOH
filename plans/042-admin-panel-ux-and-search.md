@@ -562,3 +562,68 @@ B1 / B2 / B4 / C3 / C5 / C6 / D2 已在 §13 落地。仍未做：B3 批量删�
 
 1. **B2 是否「切到底」**：现在是灰度版 —— 铅笔进详情，抽屉留在 `⋯` 里。稳定跑一段时间后可删掉「快速编辑（抽屉）」，真正一条路径；也可以反过来（详情页出问题时把灰度关掉只需改一处）。
 2. **B3 批量删除解除限制**：方案里是 P2，但风险最高（涉及物理删除）。要在「高级筛选下也能全选删除」上加两道闸：删除前必须回显条件 + 条数，且审计失败要可见。要不要做、按什么口径做，需要你定。
+
+---
+
+## 14. 实施记录（B3 + 条件同源 + B2 计数，2026-11-09）
+
+### 14.1 先修「口径」，再谈放开
+
+准备做 B3 时把整条链路读了一遍，发现「按筛选全量删除」与列表查询**并不是同一套条件**，
+而且差异全是「静默失败」型（RPC 的 count 预检会拒绝，界面只说一句通用错误）：
+
+| # | 既有缺陷 | 后果 |
+|---|---|---|
+| 1 | 搜索词拼 `%${kw}%` **没有转义**（列表侧 P0 已经转义） | 搜「50%」再全量删除必然 `count mismatch`，功能不可用 |
+| 2 | `dateTo` 传 `2026-01-31`（当天 00:00），列表传当天 `23:59:59` | 日期范围 + 全量删除必失败 |
+| 3 | 搜索条件用 `or_ilike` 覆盖**所有**搜索列，含 uuid / 数字主键 | `uuid ilike` 直接报错；列表侧对这些列是「跳过或 eq」，两边根本不是一批行 |
+| 4 | `bohaiModels` 的基础过滤是 `not_like`，RPC op 白名单里没有 | 该表全量删除必失败 |
+
+这四条不修，B3 做了也是「点了没反应」。所以本轮的顺序是：**先让两条链路取同一份条件，再放开高级筛选**。
+
+### 14.2 做法：三段纯函数成为单一真源
+
+| 件 | 位置 | 作用 |
+|---|---|---|
+| `buildSearchMatchSpec()` | `utils/search-core.js` | 关键词 → `[{column, op, value, pattern}]`。`value` 给 PostgREST or() 用（含保留字符时加引号），`pattern` 给 SQL 字面量用（**裸模式，不带引号**）。`buildSearchFilters()` 退化成它的字符串投影，行为未变 |
+| `resolveAdvancedRules()` | `composables/useDataAdminFilters.js` | 高级规则的白名单/空值/算子过滤只写一次，列表与删除共用 —— 否则会出现「列表跳过的规则，删除却执行了」 |
+| `endOfDayIso()` | 同上 | 截止日换算，列表与删除共用 |
+| `buildBatchDeleteScope()` | `composables/data-admin-batch-scope.js` | 返回 `{ conditions, blocked }`；**翻译不出语义等价条件时返回 blocked，绝不翻译成「差不多」的条件** |
+
+`blocked` 的三种情形，都是「宁可拒绝，不可猜」：
+
+1. `base-scope-op`：基础过滤用了服务端不支持的算子（`not_like`）。丢掉它等于把「排除内部模型」变成「连内部模型一起删」。
+2. `mixed-search`：关键词会同时命中 ID 与文本列（完整 UUID / 纯数字），列表是 `id.eq OR text ilike`，RPC 顶层只有 AND，表达不出来。这类关键词通常只想删一条，行内删除更合适。
+3. `base-scope-op` 之外没有别的静默降级 —— 其余情况都用与列表**同一份** spec/规则/换算。
+
+### 14.3 B3 落地
+
+- 删掉 `batchDeleteAll` 里「高级筛选下不支持」的硬拦截，改为把 `advancedRules` + `allowedAdvancedFields`（与 `applySearchAndSort` 同一份白名单，排除虚拟列）交给条件装配。
+- 算子映射：`eq/neq/gt/gte/lt/lte` 原样；`starts → ilike 'x%'`；`contains / ilike → ilike '%x%'`，LIKE 类一律先 `escapeLikePattern`。
+- **保留的两道闸没动**：① `hasActiveFilters` 为假直接拒绝；② `conditions.length <= baseScope.length` 差值判定（防止「有筛选但字段映射不到」时退化成删整张表）。RPC 侧的 count 预检、5000 上限、单语句原子删除、表白名单也照旧。
+- 提示顺序调整：先判「有没有筛选」，再说「这张表支不支持」—— 没筛选时说「不支持」会误导。
+
+### 14.4 审计失败要看得见（但不阻断）
+
+`logAdminAction` 原先返回 `undefined`，删除成功、审计没写进去时界面完全看不出来。现在返回 `{ ok, error }`，
+**仍然不 throw、不回滚**（原规范「审计失败不得阻断业务」不变），由 `deleteItem` / `batchDelete` 把
+`ok === false` 换成一句 warning：`已删除，但审计日志未写入：本次操作没有留痕`。
+全量删除（`batchDeleteAll`）不需要这层 —— RPC 的审计 insert 与 delete 在同一事务里，写不进去就整体回滚。
+
+### 14.5 B2 灰度判据：从「感觉」改成「读得出来」
+
+新增 `composables/data-admin-usage-counter.js`（只写本机 localStorage，不上报）：
+
+| 计数名 | 打点位置 |
+|---|---|
+| `detail-edit` | 详情页「编辑」（`onEditRecord`，`embedded` 模式） |
+| `drawer-quick-edit` | 行 `⋯` →「快速编辑（抽屉）」 |
+
+四周后读一次 `boh-admin-usage-counters-v1`：抽屉为 0 就用证据删掉这个入口；不为 0 说明详情页有覆盖不到的场景，
+该修的是详情页而不是删入口。写失败（隐私模式/配额）返回新计数而不抛错 —— 计数绝不影响业务动作。
+
+### 14.6 自证
+
+- 新增/重写单测：`data-admin-batch-scope.test.js`（17 条，含「列表 vs 删除同口径」的逐条对照、blocked 三种情形、高级算子映射、接线守卫）、`data-admin-usage-counter.test.js`（4 条）、`data-admin-audit-log.test.js` 改为断言返回契约（7 条）。
+- `npm run verify` 全绿：335 测试文件 / 4412 通过 / 1 skipped，耗时 235.1s；首屏预算 256251 / 255584 **未变**（超基线 667 为改动前既有）。
+- 仍未做：C7 邮箱精确检索、§10 就地编辑推广。
