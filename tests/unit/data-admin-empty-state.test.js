@@ -105,10 +105,15 @@ describe('empty state wiring', () => {
     expect(pure.indexOf('no-match')).toBeLessThan(pure.indexOf('filtered-out'));
   });
 
-  it('空状态样式挂在 console.css（筛选行摘要 + 操作区）', () => {
+  it('空状态样式挂在 console.css（条件 chips + 操作区）', () => {
     const css = read('src/views/DataManagement/styles/console.css');
-    expect(css).toContain('.empty-state-filters');
+    // plans/042 A4：空态里的「已生效条件」由 ActiveFilterChips 渲染（可单条删除），
+    // 原来是 .empty-state-filters 一行纯文字摘要 —— 那个类随改动一起删掉了。
+    expect(css).toContain('.empty-state .empty-state-chips');
     expect(css).toContain('.empty-state-actions');
+    const view = read('src/views/DataManagement/DataAdmin.vue');
+    expect(view).toContain('class="empty-state-chips"');
+    expect(view).toContain('@remove="removeFilterCondition"');
   });
 
   it('空态按钮由 actions 驱动，不是写死的两个按钮', () => {

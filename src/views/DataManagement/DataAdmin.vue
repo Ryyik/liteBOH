@@ -335,6 +335,15 @@
                   筛选
                 </button>
 
+                <!-- 当前生效条件（plans/042 A4）：常驻可单条删除，不必展开筛选面板 -->
+                <ActiveFilterChips
+                  v-if="activeFilterChips.length"
+                  class="toolbar-filter-chips"
+                  :chips="activeFilterChips"
+                  @remove="removeFilterCondition"
+                  @clear="clearAllFilters"
+                />
+
                 <!-- 状态分布 chips：常驻在筛选行（plans/027 4.1.5，不再独立占一行） -->
                 <section v-if="statusBreakdownForCurrentTab.length" class="collection-overview">
                   <span class="collection-overview-label">状态分布</span>
@@ -352,7 +361,7 @@
                       <span class="collection-chip-count">{{ chip.count }}</span>
                     </button>
                   </div>
-                  <span class="collection-overview-hint">当前筛选 {{ totalRecordCount }} 条</span>
+                  <span class="collection-overview-hint">{{ statusOverviewHint }}</span>
                 </section>
 
                 <!-- 低频操作收进 ⋯（plans/042 A2）：列配置与命令面板都不是每屏必用，
@@ -400,7 +409,7 @@
                   >
                     {{ isTabPinned(currentTab) ? '取消置顶' : '置顶表' }}
                   </button>
-                  <div v-if="statusFilterOptions.length > 0" class="filter-select">
+                  <div v-if="showStatusSelect" class="filter-select">
                     <select v-model="statusFilter" @change="handleFilterChange">
                       <option value="">全部状态</option>
                       <option
@@ -464,14 +473,13 @@
                     </option>
                   </select>
                   <select v-model="rule.operator" class="form-select">
-                    <option value="contains">包含</option>
-                    <option value="eq">等于</option>
-                    <option value="neq">不等于</option>
-                    <option value="gt">大于</option>
-                    <option value="gte">大于等于</option>
-                    <option value="lt">小于</option>
-                    <option value="lte">小于等于</option>
-                    <option value="starts">开头是</option>
+                    <option
+                      v-for="operator in ADVANCED_OPERATOR_OPTIONS"
+                      :key="operator"
+                      :value="operator"
+                    >
+                      {{ ADVANCED_OPERATOR_LABELS[operator] }}
+                    </option>
                   </select>
                   <input
                     v-model="rule.value"
@@ -770,10 +778,14 @@
                   <h3>{{ emptyState.title }}</h3>
                   <p>{{ emptyState.description }}</p>
 
-                  <!-- 已生效条件（仅筛选/搜索分支显示） -->
-                  <p v-if="emptyState.showClear && hasActiveFilters" class="empty-state-filters">
-                    {{ activeFilterSummary }}
-                  </p>
+                  <!-- 已生效条件：可单条移除（plans/042 A4 / C4），不再只是一行摘要文字 -->
+                  <ActiveFilterChips
+                    v-if="emptyState.showClear && activeFilterChips.length"
+                    class="empty-state-chips"
+                    :chips="activeFilterChips"
+                    @remove="removeFilterCondition"
+                    @clear="clearAllFilters"
+                  />
 
                   <div class="empty-state-actions">
                     <button
@@ -2083,6 +2095,7 @@ import DashboardSheet from './components/shared/DashboardSheet.vue';
 import ExportMenu from './components/shared/ExportMenu.vue';
 import { fetchAllRows, insertAdminRow } from '@/utils/api/data-admin-table-api.js';
 import { EMPTY_ACTIONS, resolveEmptyState } from './composables/data-admin-empty-state.js';
+import { RULE_CHIP_PREFIX } from './composables/data-admin-filter-chips.js';
 import { resolveKanbanConfig } from './composables/kanban-config.js';
 import { resolveQueryTotal } from './composables/resolve-query-total.js';
 import ShortcutHelp from './components/shared/ShortcutHelp.vue';
@@ -2093,6 +2106,7 @@ import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 import { adminBatchDelete } from '@/utils/api/admin-batch-api.js';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
+import ActiveFilterChips from './components/shared/ActiveFilterChips.vue';
 import { getImageUrl } from '../../utils/asset-helper';
 import { supabase } from '@/utils/supabase-client.js';
 import { invalidateByTags } from '@/utils/request-core.js';
@@ -2163,6 +2177,8 @@ import {
   ADMIN_STORAGE_KEYS as STORAGE_KEYS,
 } from './composables/useDataAdminPersistence.js';
 import {
+  ADVANCED_OPERATOR_LABELS,
+  ADVANCED_OPERATOR_OPTIONS,
   applySearchAndSort as applySearchAndSortUtil,
   sanitizeSearchTerm,
 } from './composables/useDataAdminFilters.js';
@@ -2412,7 +2428,11 @@ const hasCardView = computed(() => Boolean(currentCardViewConfig.value));
 
 // 看板配置：kanban.statusKey/statusMeta 显式 > cardView.statusKey/statusMeta > 自动推断 status select 字段
 // （解析规则单源于 composables/kanban-config.js —— 状态分布的服务端计数也走它）
-const kanbanViewConfig = computed(() => resolveKanbanConfig(currentConfig.value));
+const kanbanViewConfig = computed(() =>
+  resolveKanbanConfig(currentConfig.value, {
+    statusField: STATUS_FILTER_FIELDS[currentTab.value],
+  }),
+);
 
 // 时间线配置：timeline.dateKey/titleKey/bodyKeys 显式 > 自动推断 datetime 列 + 首文本列
 const timelineViewConfig = computed(() => {
@@ -3109,7 +3129,7 @@ const buildStatusBreakdownSignature = (tabId) =>
 
 const fetchStatusBreakdownCounts = async (tabId) => {
   const cfg = dataConfig[tabId];
-  const kb = resolveKanbanConfig(cfg);
+  const kb = resolveKanbanConfig(cfg, { statusField: STATUS_FILTER_FIELDS[tabId] });
   if (!cfg?.table || !kb) return;
   const signature = buildStatusBreakdownSignature(tabId);
   if (statusBreakdownCache[tabId]?.signature === signature) return;
@@ -3185,6 +3205,47 @@ const statusBreakdownForCurrentTab = computed(() => {
       active: statusFilter.value === col.value,
     })),
   ];
+});
+
+/**
+ * 状态单一口径（plans/042 A3）：chips 的值域来自配置声明，**且筛的就是同一个列**时，
+ * 它就是权威值域 —— 筛选面板里的「全部状态」下拉退场，避免同一屏两套列表。
+ *
+ * 必须比对列名：`resolveKanbanConfig` 会把任何 /status/ + select 的字段当成状态分布
+ * （users 的 `hide_online_status` 就被误认），那是另一列，替不掉 role 的下拉。
+ */
+const showStatusSelect = computed(
+  () =>
+    statusFilterOptions.value.length > 0 &&
+    !(
+      kanbanViewConfig.value?.source &&
+      kanbanViewConfig.value.statusKey === currentStatusFilterField.value
+    ),
+);
+
+/**
+ * chips 之外还有没有「未归类状态」：服务端计数总和小于总数时即为有。
+ * 不引入新的查询能力（PostgREST 拿不到 distinct），只把这件事明账化，
+ * 免得那些行在分布条上「静默消失」。
+ */
+const statusResidualCount = computed(() => {
+  const counts = statusBreakdownCache[currentTab.value];
+  const kanban = kanbanViewConfig.value;
+  // 只对「chips 表示的就是状态筛选那一列」的表计算；误认的列（users 的在线状态）
+  // 报「未归类状态」只会误导，宁可不显示。
+  if (!kanban || kanban.statusKey !== currentStatusFilterField.value || !counts) return 0;
+  const known = Object.values(counts.byStatus || {}).reduce(
+    (sum, value) => sum + (Number(value) || 0),
+    0,
+  );
+  return Math.max(0, (Number(counts.total) || 0) - known);
+});
+
+const statusOverviewHint = computed(() => {
+  const base = `当前筛选 ${totalRecordCount.value} 条`;
+  return statusResidualCount.value
+    ? `${base} · 另有 ${statusResidualCount.value} 条未归类状态`
+    : base;
 });
 
 const diagnosticIssueCount = computed(() => {
@@ -3958,8 +4019,8 @@ const addAdvancedFilterRule = () => {
 };
 
 const removeAdvancedFilterRule = (ruleId) => {
-  advancedFilterRules.value = advancedFilterRules.value.filter((rule) => rule.id !== ruleId);
-  handleFilterChange();
+  // 与「生效条件 chips」同一条移除路径（plans/042 A4），避免两处各写一遍过滤逻辑
+  removeFilterCondition(`${RULE_CHIP_PREFIX}${ruleId}`);
 };
 
 const setColumnVisible = (columnKey, visible) => {
@@ -5279,11 +5340,13 @@ const {
   statusFilterLabel,
   currentDateFilterLabel,
   currentSavedViews,
+  activeFilterChips,
   resetFiltersForTab,
   handleSearch,
   handleFilterChange,
   clearSearch,
   clearAllFilters,
+  removeFilterCondition,
 } = createFilterState({
   currentTab,
   searchQuery,
@@ -5301,6 +5364,13 @@ const {
   getCurrentFields: () => currentFields.value,
   getCurrentData: () => currentData.value,
   getCurrentColumns: () => currentColumns.value,
+  // 状态值 → 中文标签：看板/状态分布的声明优先，但只在「同一列」时才可用
+  // （没有 select 字段的表，statusFilterOptions 只能按当前页行反推，标签就是裸值）
+  getStatusLabel: (value) => {
+    const kanban = kanbanViewConfig.value;
+    if (!kanban || kanban.statusKey !== currentStatusFilterField.value) return '';
+    return kanban.columns?.find((item) => item.value === value)?.label || '';
+  },
 });
 
 // ==================== 数据操作 ====================

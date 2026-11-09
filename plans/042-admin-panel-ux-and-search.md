@@ -463,5 +463,51 @@ HeroConsole 改成整页                      ← 已有预览能力的返工
 
 ### 11.4 仍未做（原 P1 / P2）
 
-A3 状态单一口径、A4 条件 chips 可单条删除、B1 ⌘K 合并全库搜索、B2 编辑入口唯一化、B3 批量删除解除限制、B4 `UserPicker`、C3 输入联想、C5 表格行内命中高亮（结果浮层已有）、C7 邮箱精确检索、§10 的就地编辑推广。
+B1 ⌘K 合并全库搜索、B2 编辑入口唯一化（需先定灰度，见 §9-2）、B3 批量删除解除限制、B4 `UserPicker`、C3 输入联想、C5 表格行内命中高亮（结果浮层已有）、C7 邮箱精确检索、§10 的就地编辑推广。
+
+---
+
+## 12. 实施记录（P1 第一批：A3 + A4，2026-11-09）
+
+### 12.1 落地的改动
+
+| 项 | 实际做法 | 落点 |
+|---|---|---|
+| **A4 条件可见** | 新增 `buildFilterChips()` 纯函数（关键词 / 状态 / 日期 / 每条高级规则 → `{id,kind,label,title}`）；`createFilterState` 出 `activeFilterChips` + `removeFilterCondition(id)`，`rule:<id>` 走同一条删除路径（`removeAdvancedFilterRule` 改为委托，删掉重复的 filter 逻辑） | `composables/data-admin-filter-chips.js`（新）、`useDataAdminFilterState.js`、`components/shared/ActiveFilterChips.vue`（新） |
+| **A4 两处复用** | 同一个组件挂在①工具栏「筛选」按钮右侧（常驻，不展开面板也能删）②空结果态（替代原来一行纯文字摘要 `.empty-state-filters`） | `DataAdmin.vue` |
+| **A3 状态单一口径** | `showStatusSelect`：**chips 描述的列 === 状态筛选的列** 时，筛选面板里的「全部状态」下拉退场；两者不是同一列时下拉必须留着 | `DataAdmin.vue` |
+| **A3 其他兜底** | chips 之外若还有行：`statusResidualCount = total − Σ(已知状态)`，在分布条右侧明账「· 另有 N 条未归类状态」。不做 `not in` 查询（PostgREST 拿不到 distinct），也不新增筛选能力 —— 那些行仍可用高级筛选定位 | `DataAdmin.vue` + `console.css` |
+| **算子标签单一真源** | `ADVANCED_OPERATOR_LABELS` / `ADVANCED_OPERATOR_OPTIONS` 进 `useDataAdminFilters.js`，下拉由 `v-for` 生成，chips 复用同一张表 | 同上 |
+
+### 12.2 顺带修掉的两个既有 bug（都是 A3 的前置条件，不修就是「用错的 chips 替掉对的下拉」）
+
+1. **`cardView.statusMeta` 被合并了却从不参与值域**：`resolveKanbanConfig` 只看 `explicit.statusMeta`，所以声明在 `cardView` 里的表（礼物等）只能退回字段 options，声明里的 tone 全丢；没有 options 的表干脆没有分布条。改成「显式 > cardView > 字段 options」同一个顺序（与文件头注释的推断优先级一致）。
+2. **`/status/i` 自动推断猜错列**：users 的 `hide_online_status`（一个 select 偏好项）被当成状态分布字段，于是用户管理的「状态分布」显示 **隐藏 0 / 显示 0**，而状态筛选筛的是 `role`。现在 `resolveKanbanConfig(cfg, { statusField })` 接受「本 tab 状态筛选真正用的列」并**锁死列名**，调用点从 `STATUS_FILTER_FIELDS` 传入。
+   - 全库审计（一次性脚本，跑完即删）：只有 3 个 tab 的值域变化，且都是修正 —— `users` 在线状态(2) → role(3)、`points` null → role(3)、`campaigns` null → stage(6)；**没有任何 tab 丢看板**。
+3. **状态筛选 chip 的标签是裸值**：`statusFilterLabel` 原来只查 `statusFilterOptions`，对没有 select 字段的表（`reviewPosts` 等）那份列表是按当前页行反推的，于是 chip 显示「状态：approved」。现在先问看板/分布的中文标签（且必须同列），实测变成「状态：已通过」。
+
+### 12.3 实测证据（1440×900，mock 4 条 posts / 6 条 users）
+
+| 断言 | 结果 |
+|---|---|
+| `reviewPosts` 分布 chips | 全部 4 / 已通过 1 / 仅作者可见 1 / 已拒绝 1 |
+| 分布条提示 | 「当前筛选 4 条 · 另有 1 条未归类状态」（数据里真有 1 条 `pending`） |
+| `reviewPosts` 筛选面板里的状态下拉 | **0**（已退场） |
+| 输入关键词后的生效条件 chips | 「关键词：围巾 ×」 |
+| 点状态 chip 后 | 「关键词：围巾 ×」+「状态：已通过 ×」 |
+| 点关键词 chip 的 × | 搜索框清空、chip 消失、状态 chip 保留 |
+| 空结果态（搜不到） | `kind=no-match`，条件 chips 居中回显，× 可清空关键词 |
+| `users` 状态分布 | 全部 6 / 普通用户（user）/ 管理员（admin）/ 版主（moderator）（原来错成 隐藏/显示） |
+| `users` 筛选面板里的状态下拉 | **0**（chips 现在就是 role 分布、与筛选同列 → 退场；选项与原来下拉完全一致，筛选能力没丢） |
+| 暗色主题 chip 计算值 | 文字 `rgb(239,241,244)`、边框/底色由 `--primary` 派生（无硬编码色值） |
+| 页面异常 | 0 |
+
+> 样式踩坑（已写进组件注释）：`console.css` 是 `DataAdmin.vue` 的 `<style scoped>` 导入，`[data-v-x]` 只落在子组件**根节点**，内部元素一律匹配不到 —— chip 的视觉样式必须写在 `ActiveFilterChips.vue` 自己的 `<style scoped>` 里。第一次就是这么写的，实测 chip 是 16px 裸文本。
+
+### 12.4 仍未做（P1 余项）
+
+B1 ⌘K 合并全库搜索、B2 编辑入口唯一化（需先定灰度，见 §9-2）、B3 批量删除解除限制、B4 `UserPicker`、C3 输入联想、C5 表格行内命中高亮、C7 邮箱精确检索、§10 就地编辑推广。
+
+> 另记：`users` 曾经因为 `hide_online_status` 被误判而多跑 2 个 head count，现已随 §12.2-2 消失；若日后新增「/status/ 命名的偏好字段」，务必同时补 `STRUCTURE` 侧的 hint，否则会被当成状态列。
+
 

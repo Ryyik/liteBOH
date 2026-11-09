@@ -15,6 +15,14 @@
 
 import { computed } from 'vue';
 
+import {
+  buildFilterChips,
+  DATE_CHIP_ID,
+  RULE_CHIP_PREFIX,
+  SEARCH_CHIP_ID,
+  STATUS_CHIP_ID,
+} from './data-admin-filter-chips.js';
+
 /**
  * 创建筛选状态中心
  * @param {Object} deps
@@ -52,7 +60,8 @@ export const createFilterState = (deps) => {
     fetchTabData,
     getCurrentFields,
     getCurrentData,
-    getCurrentColumns
+    getCurrentColumns,
+    getStatusLabel = () => '',
   } = deps;
 
   // 当前 tab 的状态字段名
@@ -73,7 +82,7 @@ export const createFilterState = (deps) => {
     if (Array.isArray(configuredField?.options)) {
       return configuredField.options.map((item) => ({
         value: item.value,
-        label: item.label
+        label: item.label,
       }));
     }
 
@@ -89,22 +98,25 @@ export const createFilterState = (deps) => {
 
   // 是否有任何活跃的筛选条件
   const hasActiveFilters = computed(() =>
-    Boolean(searchQuery.value.trim()
-      || statusFilter.value
-      || dateFromFilter.value
-      || dateToFilter.value
-      || activeAdvancedRules.value.length)
+    Boolean(
+      searchQuery.value.trim() ||
+      statusFilter.value ||
+      dateFromFilter.value ||
+      dateToFilter.value ||
+      activeAdvancedRules.value.length,
+    ),
   );
 
   // 当前生效的高级筛选规则 (从 advancedFilterRules 中提取启用的)
   const activeAdvancedRules = computed(() =>
-    advancedFilterRules.value.filter((rule) =>
-      String(rule.field || '').trim()
-      && String(rule.operator || '').trim()
-      && rule.value !== undefined
-      && rule.value !== null
-      && String(rule.value).trim() !== ''
-    )
+    advancedFilterRules.value.filter(
+      (rule) =>
+        String(rule.field || '').trim() &&
+        String(rule.operator || '').trim() &&
+        rule.value !== undefined &&
+        rule.value !== null &&
+        String(rule.value).trim() !== '',
+    ),
   );
 
   // 活跃筛选的简明摘要(供 UI badge 展示)
@@ -113,22 +125,33 @@ export const createFilterState = (deps) => {
     if (searchQuery.value.trim()) parts.push(`关键词「${searchQuery.value.trim()}」`);
     if (statusFilter.value) parts.push(`状态 ${statusFilterLabel.value}`);
     if (dateFromFilter.value || dateToFilter.value) {
-      parts.push(`${currentDateFilterLabel.value}${dateFromFilter.value || '最早'} - ${dateToFilter.value || '现在'}`);
+      parts.push(
+        `${currentDateFilterLabel.value}${dateFromFilter.value || '最早'} - ${dateToFilter.value || '现在'}`,
+      );
     }
-    if (activeAdvancedRules.value.length) parts.push(`${activeAdvancedRules.value.length} 个高级条件`);
+    if (activeAdvancedRules.value.length)
+      parts.push(`${activeAdvancedRules.value.length} 个高级条件`);
     return parts.length ? `已应用 ${parts.join('、')}` : '未应用筛选';
   });
 
   // 状态筛选 chip 标签
   const statusFilterLabel = computed(() => {
     if (!statusFilter.value) return '';
-    return statusFilterOptions.value.find((item) => String(item.value) === String(statusFilter.value))?.label || statusFilter.value;
+    // 先问「看板/状态分布」的中文标签：没有 select 字段的表（reviewPosts 等）
+    // statusFilterOptions 只能按当前页行反推，标签就是裸值 approved（plans/042 A3 实测）。
+    return (
+      getStatusLabel(statusFilter.value) ||
+      statusFilterOptions.value.find((item) => String(item.value) === String(statusFilter.value))
+        ?.label ||
+      statusFilter.value
+    );
   });
 
   // 日期筛选 chip 标签
   const currentDateFilterLabel = computed(() => {
-    const field = getCurrentColumns().find((item) => item.key === currentDateFilterField.value)
-      || getCurrentFields().find((item) => item.key === currentDateFilterField.value);
+    const field =
+      getCurrentColumns().find((item) => item.key === currentDateFilterField.value) ||
+      getCurrentFields().find((item) => item.key === currentDateFilterField.value);
     return field?.label || '日期';
   });
 
@@ -184,6 +207,52 @@ export const createFilterState = (deps) => {
     handleFilterChange();
   };
 
+  // 当前生效条件（plans/042 A4）：工具栏与空结果态共用的**唯一**回显源。
+  // 只读 activeAdvancedRules（已剔除空值规则），保证「显示的」=「查询带的」。
+  const activeFilterChips = computed(() =>
+    buildFilterChips({
+      keyword: searchQuery.value,
+      status: statusFilter.value,
+      statusLabel: statusFilterLabel.value,
+      dateFieldLabel: currentDateFilterLabel.value,
+      dateFrom: dateFromFilter.value,
+      dateTo: dateToFilter.value,
+      rules: activeAdvancedRules.value,
+      fieldLabels: Object.fromEntries(
+        (getCurrentColumns() || [])
+          .map((column) => [column.key, column.label])
+          .filter(([key]) => key),
+      ),
+    }),
+  );
+
+  // 单条条件移除：id 来自 activeFilterChips，规则类为 `rule:<ruleId>`
+  const removeFilterCondition = (id) => {
+    const chipId = String(id || '');
+    if (chipId === SEARCH_CHIP_ID) {
+      clearSearch();
+      return;
+    }
+    if (chipId === STATUS_CHIP_ID) {
+      statusFilter.value = '';
+      handleFilterChange();
+      return;
+    }
+    if (chipId === DATE_CHIP_ID) {
+      dateFromFilter.value = '';
+      dateToFilter.value = '';
+      handleFilterChange();
+      return;
+    }
+    if (chipId.startsWith(RULE_CHIP_PREFIX)) {
+      const ruleId = chipId.slice(RULE_CHIP_PREFIX.length);
+      advancedFilterRules.value = advancedFilterRules.value.filter(
+        (rule) => String(rule.id) !== ruleId,
+      );
+      handleFilterChange();
+    }
+  };
+
   return {
     // 衍生 computed
     currentStatusFilterField,
@@ -195,11 +264,13 @@ export const createFilterState = (deps) => {
     statusFilterLabel,
     currentDateFilterLabel,
     currentSavedViews,
+    activeFilterChips,
     // actions
     resetFiltersForTab,
     handleSearch,
     handleFilterChange,
     clearSearch,
-    clearAllFilters
+    clearAllFilters,
+    removeFilterCondition,
   };
 };

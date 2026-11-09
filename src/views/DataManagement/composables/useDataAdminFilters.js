@@ -24,6 +24,35 @@ export const ALLOWED_ADVANCED_OPERATORS = new Set([
 ]);
 
 /**
+ * 高级筛选算子的中文标签（单一真源）。
+ * 下拉选项与「生效条件 chips」都从这里取 —— 以前只在下拉里写死过一份，
+ * chips 再写一份就会出现「下拉叫『开头是』、chip 叫『starts』」的两种说法。
+ */
+export const ADVANCED_OPERATOR_LABELS = {
+  contains: '包含',
+  eq: '等于',
+  neq: '不等于',
+  gt: '大于',
+  gte: '大于等于',
+  lt: '小于',
+  lte: '小于等于',
+  starts: '开头是',
+  ilike: '包含',
+};
+
+/** 高级筛选下拉的算子顺序（推荐顺序，不是白名单；白名单见 ALLOWED_ADVANCED_OPERATORS） */
+export const ADVANCED_OPERATOR_OPTIONS = [
+  'contains',
+  'eq',
+  'neq',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'starts',
+];
+
+/**
  * 清理用户输入的搜索词（plans/042 C1）。
  *
  * **不再删除** `, % ( )`：旧实现把「50%」替换成「50 」，用户看到的输入与实际
