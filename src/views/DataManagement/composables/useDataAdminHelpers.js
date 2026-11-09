@@ -9,10 +9,10 @@ const BADGE_STATUS_MAP = {
   ongoing: 'success',
   paused: 'warning',
   ended: 'muted',
-  '即将开始': 'info',
-  '进行中': 'success',
-  '已停用': 'warning',
-  '已结束': 'muted',
+  即将开始: 'info',
+  进行中: 'success',
+  已停用: 'warning',
+  已结束: 'muted',
   banned: 'danger',
   trialing: 'info',
   active_trial: 'info',
@@ -58,40 +58,40 @@ const BADGE_STATUS_MAP = {
   danger: 'danger',
   admin: 'success',
   管理员: 'success',
-  '进行中': 'success',
+  进行中: 'success',
   open: 'success',
-  '首页显示': 'success',
+  首页显示: 'success',
   confirmed: 'success',
   fulfilled: 'success',
   joined: 'success',
   sent: 'success',
   准点: 'success',
-  '定时任务': 'success',
-  '当前礼物': 'success',
+  定时任务: 'success',
+  当前礼物: 'success',
   'current gift': 'success',
   delivered: 'success',
   signed: 'success',
   drawn: 'success',
   user: 'info',
-  '普通用户': 'info',
+  普通用户: 'info',
   upcoming: 'info',
-  '即将开始': 'info',
+  即将开始: 'info',
   manual_admin: 'info',
-  '手动补跑': 'info',
-  '未开奖': 'info',
+  手动补跑: 'info',
+  未开奖: 'info',
   processing: 'info',
-  '处理中': 'info',
-  '历史礼物': 'warning',
+  处理中: 'info',
+  历史礼物: 'warning',
   'history gift': 'warning',
-  '已隐藏': 'warning',
+  已隐藏: 'warning',
   pending_contact: 'warning',
   rate_limited: 'warning',
   already_joined: 'warning',
   running: 'warning',
   partial_failure: 'warning',
-  '待调度': 'warning',
+  待调度: 'warning',
   ended: 'warning',
-  '已结束': 'warning',
+  已结束: 'warning',
   voided: 'warning',
   entry_closed: 'warning',
   not_open: 'warning',
@@ -99,10 +99,10 @@ const BADGE_STATUS_MAP = {
   account_too_new: 'warning',
   limited: 'warning',
   preparing: 'warning',
-  '封禁': 'danger',
+  封禁: 'danger',
   not_found: 'danger',
   profile_not_found: 'danger',
-  reject: 'danger'
+  reject: 'danger',
 };
 
 export const formatCellValue = (val, maxLength) => {
@@ -129,7 +129,7 @@ export const formatDateTime = (dateStr) => {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
 };
 
@@ -146,8 +146,11 @@ export const getTags = (value) => {
   return [String(value)];
 };
 
-export const createHighlightHelpers = ({ searchQueryRef, globalSearchQueryRef }) => {
-  const getHighlightKeyword = () => sanitizeSearchTerm(searchQueryRef.value || globalSearchQueryRef.value);
+export const createHighlightHelpers = ({ searchQueryRef, isGlobalScopeRef }) => {
+  /* 「全部表」模式下当前表格并没有被这个关键词过滤，给表格行加高亮会误导，
+     所以只在「当前表」范围里高亮；跨表结果面板自己显式传 keyword。 */
+  const getHighlightKeyword = () =>
+    isGlobalScopeRef?.value ? '' : sanitizeSearchTerm(searchQueryRef.value);
 
   // 高亮结果缓存：key = `${value}|${keyword}`，避免表格每行每列重复执行 escape+replace
   const highlightCache = new Map();
@@ -156,10 +159,11 @@ export const createHighlightHelpers = ({ searchQueryRef, globalSearchQueryRef })
 
   // 监听 keyword 变化时清空缓存（搜索关键词改变后旧缓存失效）
   watch(searchQueryRef, () => highlightCache.clear());
-  watch(globalSearchQueryRef, () => highlightCache.clear());
+  if (isGlobalScopeRef) watch(isGlobalScopeRef, () => highlightCache.clear());
 
-  const highlightCellValue = (value, maxLength) => {
-    const keyword = getHighlightKeyword();
+  const highlightCellValue = (value, maxLength, keywordOverride) => {
+    const keyword =
+      keywordOverride === undefined ? getHighlightKeyword() : sanitizeSearchTerm(keywordOverride);
     const cacheKey = `${maxLength}|${keyword}|${value}`;
     if (highlightCache.has(cacheKey)) return highlightCache.get(cacheKey);
 
@@ -210,7 +214,7 @@ const RELATED_JUMP_MAP = {
   post_id: 'forum',
   lottery_id: 'lotteries',
   entry_id: 'lotteryEntries',
-  winner_entry_id: 'lotteryEntries'
+  winner_entry_id: 'lotteryEntries',
 };
 
 export const createRelatedJumpHelpers = ({ currentTabRef }) => {
@@ -222,7 +226,7 @@ export const createRelatedJumpHelpers = ({ currentTabRef }) => {
     if (!targetTab || targetTab === currentTabRef.value) return null;
     return {
       tabId: targetTab,
-      search: String(value)
+      search: String(value),
     };
   };
 
@@ -269,15 +273,19 @@ export const createAnomalyHelpers = ({ currentTabRef }) => {
     if (tabId === 'products') return Number(item?.stock ?? 0) <= 0;
     if (tabId === 'subscriptions') {
       const expiresAt = Date.parse(item?.expires_at || '');
-      return String(item?.status || '') === 'expired' || (Number.isFinite(expiresAt) && expiresAt < now);
+      return (
+        String(item?.status || '') === 'expired' || (Number.isFinite(expiresAt) && expiresAt < now)
+      );
     }
     if (tabId === 'lotteries') {
       const drawAt = Date.parse(item?.draw_at || '');
       return String(item?.status || '') === 'open' && Number.isFinite(drawAt) && drawAt < now;
     }
     if (['reportedPosts', 'reviewPosts', 'reviewComments'].includes(tabId)) return true;
-    if (tabId === 'lotteryNotificationJobs') return ['failed', 'pending'].includes(String(item?.status || ''));
-    if (tabId === 'lotteryJoinAttempts') return !['joined', 'success'].includes(String(item?.result_code || ''));
+    if (tabId === 'lotteryNotificationJobs')
+      return ['failed', 'pending'].includes(String(item?.status || ''));
+    if (tabId === 'lotteryJoinAttempts')
+      return !['joined', 'success'].includes(String(item?.result_code || ''));
     return false;
   };
 

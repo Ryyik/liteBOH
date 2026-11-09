@@ -24,6 +24,9 @@
       ></div>
 
       <main class="admin-main">
+        <!-- 顶栏搜索已并入表格工具栏（plans/042 A1）：一个关键词 + 一个范围开关，
+             不再让「顶部一个框、筛选面板里又一个框」各持一份关键词。
+             顶栏这个框在概览/页面型 tab 上从来没能展示结果，属于无效控件。 -->
         <AdminHeader
           :can-create="canCreateCurrentTab && !isModerationTab"
           :can-toggle-sidebar="isMobileView"
@@ -31,9 +34,7 @@
           :is-refreshing="isRefreshing"
           :is-sidebar-open="sidebarToggleOpen"
           :notification-count="moderationPendingCount"
-          :searchable="true"
-          :search-placeholder="'全局搜索：用户 / 抽奖 / 帖子...'"
-          :search-value="globalSearchQuery"
+          :searchable="false"
           :theme="currentTheme"
           :title="currentAdminPageMeta.title"
           :user-label="adminUserLabel"
@@ -43,8 +44,6 @@
           @refresh="refreshAllData"
           @toggle-sidebar="toggleSidebar"
           @toggle-theme="() => toggleAdminTheme()"
-          @search="onHeaderGlobalSearch"
-          @update:searchValue="globalSearchQuery = $event"
           @notify="goNotificationsTab"
           @home="goSiteHome"
           @logout="handleAdminLogout"
@@ -208,16 +207,128 @@
                  时间下沉到表脚，首屏让位给数据行） -->
             <template v-else>
               <div class="toolbar-secondary">
-                <div class="search-box">
-                  <Search class="search-icon" :size="18" aria-hidden="true" />
-                  <input
-                    v-model="searchQuery"
-                    type="text"
-                    placeholder="搜索数据..."
-                    aria-label="搜索数据"
-                    @input="handleSearch"
-                  />
-                  <button v-if="searchQuery" class="clear-search" @click="clearSearch">×</button>
+                <!-- 单一搜索入口（plans/042 A1）：同一个关键词 + 一个范围开关。
+                     原「筛选 → 跨表搜索」面板需要再输一遍关键词，同一个词在两处各有一份状态，
+                     而两处口径还不一样（列表 ilike 无排序 / 跨表按 tab 顺序拼接）。 -->
+                <div class="search-entry">
+                  <div class="search-box">
+                    <Search class="search-icon" :size="18" aria-hidden="true" />
+                    <input
+                      ref="searchInputRef"
+                      v-model="searchQuery"
+                      type="text"
+                      :placeholder="
+                        isGlobalSearchScope ? '搜索全部表：用户 / 商品 / 帖子...' : '搜索当前表...'
+                      "
+                      :aria-label="isGlobalSearchScope ? '搜索全部表' : '搜索当前表'"
+                      @input="onSearchInput"
+                      @keydown.enter.prevent="onSearchEnter"
+                    />
+                    <button
+                      v-if="searchQuery"
+                      class="clear-search"
+                      type="button"
+                      aria-label="清空搜索"
+                      @click="clearSearchEverywhere"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <button
+                    class="search-scope"
+                    type="button"
+                    :class="{ 'is-global': isGlobalSearchScope }"
+                    :aria-pressed="isGlobalSearchScope"
+                    :title="
+                      isGlobalSearchScope
+                        ? '当前搜索全部表，点击只搜本表'
+                        : '当前只搜本表，点击搜索全部表'
+                    "
+                    @click="toggleSearchScope"
+                  >
+                    {{ isGlobalSearchScope ? '全部表' : '本表' }}
+                  </button>
+
+                  <div
+                    v-if="isGlobalSearchScope && showGlobalSearchPanel"
+                    class="search-scope-panel"
+                    role="region"
+                    aria-label="全部表搜索结果"
+                  >
+                    <div class="search-scope-panel-head">
+                      <span v-if="isGlobalSearching">搜索中…</span>
+                      <span v-else>
+                        命中 {{ globalSearchResults.length }} 条
+                        <template v-if="globalSearchResults.length">· 按相关性排序</template>
+                      </span>
+                      <button
+                        type="button"
+                        class="search-scope-close"
+                        @click="closeGlobalSearchPanel"
+                      >
+                        收起
+                      </button>
+                    </div>
+
+                    <div
+                      v-if="!isGlobalSearching && !globalSearchResults.length"
+                      class="search-scope-empty"
+                    >
+                      <p>全部表里没有包含「{{ globalSearchKeyword }}」的记录。</p>
+                      <div class="search-scope-empty-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary"
+                          @click="searchOnlyCurrentTable"
+                        >
+                          只在「{{ currentTabLabel }}」里搜
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary"
+                          @click="clearSearchEverywhere"
+                        >
+                          清空关键词
+                        </button>
+                      </div>
+                    </div>
+
+                    <div v-else class="search-scope-groups">
+                      <section
+                        v-for="group in globalSearchGroups"
+                        :key="group.tabId"
+                        class="search-scope-group"
+                      >
+                        <button
+                          type="button"
+                          class="search-scope-group-head"
+                          @click="openGlobalSearchGroup(group)"
+                        >
+                          <span>{{ group.tabLabel }}</span>
+                          <span class="search-scope-group-count">{{ group.items.length }}</span>
+                        </button>
+                        <button
+                          v-for="result in group.items"
+                          :key="`${result.tabId}-${result.id}`"
+                          type="button"
+                          class="global-result-item"
+                          @click="openGlobalSearchResult(result)"
+                        >
+                          <strong>{{ result.title || result.id }}</strong>
+                          <span
+                            v-if="resultPreviewText(result)"
+                            v-html="
+                              highlightCellValue(
+                                resultPreviewText(result),
+                                120,
+                                globalSearchKeyword,
+                              )
+                            "
+                          ></span>
+                        </button>
+                      </section>
+                    </div>
+                  </div>
                 </div>
                 <button class="filter-toggle" type="button" @click="showFilterBar = !showFilterBar">
                   <Filter :size="16" />
@@ -244,28 +355,14 @@
                   <span class="collection-overview-hint">当前筛选 {{ totalRecordCount }} 条</span>
                 </section>
 
-                <!-- 原 content-toolbar 并入筛选行右侧（plans/027 阶段 1.4） -->
+                <!-- 低频操作收进 ⋯（plans/042 A2）：列配置与命令面板都不是每屏必用，
+                     常驻会让「新增」被挤到一堆同级按钮里 -->
                 <div class="filter-row-tools">
-                  <button
-                    class="btn btn-secondary"
-                    type="button"
-                    @click="showColumnPanel = !showColumnPanel"
-                  >
-                    列配置
-                  </button>
                   <RowActionMenu
                     :items="toolbarMenuItems"
                     title="更多表格操作"
                     @open="openRowMenu"
                   />
-                  <button
-                    class="btn btn-secondary command-palette-trigger"
-                    type="button"
-                    title="命令面板（⌘K / Ctrl+K）"
-                    @click="openCommandPalette"
-                  >
-                    命令 ⌘K
-                  </button>
                 </div>
 
                 <!-- 右侧动作组：原 toolbar-primary 的「新增 / 导出」并入本行（C 批 -87px） -->
@@ -286,13 +383,6 @@
                 </div>
 
                 <div v-if="showFilterBar" class="filter-bar">
-                  <button
-                    class="clear-filters-btn"
-                    type="button"
-                    @click="showGlobalSearchPanel = !showGlobalSearchPanel"
-                  >
-                    跨表搜索
-                  </button>
                   <button
                     class="clear-filters-btn"
                     type="button"
@@ -344,38 +434,6 @@
                     @click="clearAllFilters"
                   >
                     清空筛选
-                  </button>
-                </div>
-              </div>
-
-              <div v-if="showGlobalSearchPanel" class="editor-panel search-panel">
-                <div class="panel-inline-form">
-                  <input
-                    v-model="globalSearchQuery"
-                    class="form-input"
-                    type="text"
-                    placeholder="跨表搜索用户 ID / 邮箱 / 抽奖 ID / 帖子关键词"
-                    @keydown.enter.prevent="runGlobalSearch"
-                  />
-                  <button
-                    class="btn btn-primary"
-                    type="button"
-                    :disabled="isGlobalSearching"
-                    @click="runGlobalSearch"
-                  >
-                    {{ isGlobalSearching ? '搜索中...' : '搜索' }}
-                  </button>
-                </div>
-                <div v-if="globalSearchResults.length" class="global-result-list">
-                  <button
-                    v-for="result in globalSearchResults"
-                    :key="`${result.tabId}-${result.id}`"
-                    type="button"
-                    class="global-result-item"
-                    @click="openGlobalSearchResult(result)"
-                  >
-                    <strong>{{ result.tabLabel }} · {{ result.title || result.id }}</strong>
-                    <span v-html="highlightCellValue(result.preview, 120)"></span>
                   </button>
                 </div>
               </div>
@@ -719,21 +777,15 @@
 
                   <div class="empty-state-actions">
                     <button
-                      v-if="emptyState.showClear"
-                      class="btn btn-primary"
+                      v-for="action in emptyState.actions"
+                      :key="action.id"
+                      class="btn"
+                      :class="action.tone === 'primary' ? 'btn-primary' : 'btn-secondary'"
                       type="button"
-                      @click="clearAllFilters"
+                      @click="runEmptyStateAction(action.id)"
                     >
-                      清除全部筛选
-                    </button>
-                    <button
-                      v-if="emptyState.showCreate"
-                      class="btn btn-primary"
-                      type="button"
-                      @click="openEditModal()"
-                    >
-                      <Plus :size="16" />
-                      新增数据
+                      <Plus v-if="action.id === EMPTY_ACTIONS.CREATE" :size="16" />
+                      {{ action.label }}
                     </button>
                   </div>
                 </div>
@@ -2030,7 +2082,7 @@ import EditDrawer from './components/EditDrawer.vue';
 import DashboardSheet from './components/shared/DashboardSheet.vue';
 import ExportMenu from './components/shared/ExportMenu.vue';
 import { fetchAllRows, insertAdminRow } from '@/utils/api/data-admin-table-api.js';
-import { resolveEmptyState } from './composables/data-admin-empty-state.js';
+import { EMPTY_ACTIONS, resolveEmptyState } from './composables/data-admin-empty-state.js';
 import { resolveKanbanConfig } from './composables/kanban-config.js';
 import { resolveQueryTotal } from './composables/resolve-query-total.js';
 import ShortcutHelp from './components/shared/ShortcutHelp.vue';
@@ -2114,6 +2166,7 @@ import {
   applySearchAndSort as applySearchAndSortUtil,
   sanitizeSearchTerm,
 } from './composables/useDataAdminFilters.js';
+import { normalizeKeyword, rankRows } from '@/utils/search-core.js';
 import { createChangeLogCenter } from './composables/useDataAdminChangeLog.js';
 import { createFilterState } from './composables/useDataAdminFilterState.js';
 import { createMutationsCenter } from './composables/useDataAdminMutations.js';
@@ -2228,7 +2281,14 @@ const fieldErrors = reactive({});
 // 被销毁重建，组件内关键词会归零。跳转携带的关键词经模块级暂存跨过重建，
 // 保证重建后 onMounted 的 fetchData 仍按目标关键词查询（否则退回全量列表）。
 const searchQuery = ref(consumeAdminTabJumpSearch());
-// globalSearchQuery / globalSearchResults / isGlobalSearching / showGlobalSearchPanel
+/**
+ * 搜索范围（plans/042 A1）：'current' | 'all'。
+ * 和关键词一起构成唯一一份搜索状态；不再有第二份关键词 ref。
+ */
+const searchScope = ref('current');
+const isGlobalSearchScope = computed(() => searchScope.value === 'all');
+const searchInputRef = ref(null);
+// globalSearchResults / globalSearchGroups / isGlobalSearching / showGlobalSearchPanel
 // 由下方 createGlobalSearchCenter 工厂注入
 const statusFilter = ref('');
 const dateFromFilter = ref('');
@@ -3535,6 +3595,25 @@ const emptyState = computed(() => {
     canCreate: canCreateCurrentTab.value && !isModerationTab.value,
   });
 });
+
+/**
+ * 空态动作分发（plans/042 C4）。
+ * 所有分支都至少有一个出口：搜不到 → 去全部表搜 / 清空；筛选挡住 → 清除；
+ * 真空表 → 新增（无权限时退化成去全部表搜）。
+ */
+const runEmptyStateAction = (actionId) => {
+  if (actionId === EMPTY_ACTIONS.CREATE) {
+    openEditModal();
+    return;
+  }
+  if (actionId === EMPTY_ACTIONS.GLOBAL_SEARCH) {
+    searchScope.value = 'all';
+    scheduleGlobalSearch();
+    searchInputRef.value?.focus();
+    return;
+  }
+  clearAllFilters();
+};
 const totalCountAllTables = computed(() => tabs.reduce((sum, tab) => sum + getTabCount(tab.id), 0));
 const liveStatusCards = computed(() => [
   {
@@ -3571,8 +3650,7 @@ const liveStatusCards = computed(() => [
   },
 ]);
 // 分页
-const totalPages = computed(() => Math.max(1, Math.ceil(totalRecordCount.value / pageSize.value)));
-// 服务端已通过 range() 真分页返回当前页数据, 直接展示
+const totalPages = computed(() => Math.max(1, Math.ceil(totalRecordCount.value / pageSize.value))); // 服务端已通过 range() 真分页返回当前页数据, 直接展示
 const paginatedData = computed(() => currentData.value || []);
 
 // 为每行缓存身份字符串,避免 v-for 中 itemIndex() O(N) 线性扫描
@@ -4259,14 +4337,28 @@ const syncForumMemoryIndex = async () => {
 //   - getSearchablePreviewFields(tab.id) -> getSearchablePreviewFieldsUtil(tab.id, dataConfig, TAB_SEARCH_FIELDS)
 
 // 跨表搜索已迁移至 composables/useDataAdminGlobalSearch.js (createGlobalSearchCenter)
-// globalSearchQuery / globalSearchResults / isGlobalSearching / showGlobalSearchPanel /
+// globalSearchResults / globalSearchGroups / isGlobalSearching / showGlobalSearchPanel /
 // runGlobalSearch / openGlobalSearchResult 由下方 createGlobalSearchCenter 工厂注入
+// 关键词与范围只有一份：searchQuery + searchScope（plans/042 A1）
 
 const paginateQuery = (query) => {
   const limit = Math.max(1, Number(pageSize.value) || 20);
   const from = Math.max(0, (Math.max(1, Number(currentPage.value) || 1) - 1) * limit);
   return query.range(from, from + limit - 1);
 };
+
+/**
+ * 搜索态的取数窗口（plans/042 C2）。
+ *
+ * 直接在服务端分页只能对「当前 20 行」排序 —— 真正最相关的那条可能在第二页。
+ * 所以有关键词时先拉一个固定窗口，客户端按相关性排完再切页；
+ * `count: 'exact'` 不受 range 影响，总数与分页仍然准确。
+ */
+const SEARCH_RANK_WINDOW = 120;
+const fetchPageQuery = (query) =>
+  normalizeKeyword(searchQuery.value)
+    ? query.range(0, SEARCH_RANK_WINDOW - 1)
+    : paginateQuery(query);
 
 const normalizeJoinedObject = (value) => (Array.isArray(value) ? value[0] || {} : value || {});
 
@@ -4567,7 +4659,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
     let query = supabase.from(table).select(selectColumns, { count: 'exact' });
     query = applyTabBaseFilters(query, tabId);
 
-    let { data, error, count } = await paginateQuery(
+    let { data, error, count } = await fetchPageQuery(
       applySearchAndSortUtil({
         query,
         tabId,
@@ -4596,7 +4688,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       let fallbackQuery = supabase
         .from(table)
         .select(LOTTERY_LEGACY_SELECT_COLUMNS, { count: 'exact' });
-      ({ data, error, count } = await paginateQuery(
+      ({ data, error, count } = await fetchPageQuery(
         applySearchAndSortUtil({
           query: fallbackQuery,
           tabId,
@@ -4629,6 +4721,17 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       0,
       ((Number(currentPage.value) || 1) - 1) * (Number(pageSize.value) || 20),
     );
+
+    /* 搜索态：候选窗口是「前 120 条里最相关的」，这里切出当前页。
+       无关键词时不重排，保持数据库的排序口径（sortKey / tabDefaultSort）。 */
+    const rankKeyword = normalizeKeyword(searchQuery.value);
+    if (rankKeyword) {
+      const pageLimit = Math.max(1, Number(pageSize.value) || 20);
+      rows = rankRows(rows, rankKeyword, { fields: TAB_SEARCH_FIELDS[tabId] || [] }).slice(
+        offset,
+        offset + pageLimit,
+      );
+    }
 
     if (tabId === 'users' || tabId === 'points') {
       // H-1 修复：profiles 敏感字段已通过列级权限收窄，
@@ -5346,11 +5449,62 @@ const adminUserLabel = computed(
 const adminUserSub = computed(() => getRoleLabel(currentUserRole.value));
 const adminAvatarUrl = computed(() => String(userInfo.value?.avatarUrl || '').trim());
 
-// 顶栏全局搜索：复用跨表搜索通道
-const onHeaderGlobalSearch = (value) => {
-  if (typeof value === 'string') globalSearchQuery.value = value;
-  showGlobalSearchPanel.value = true;
-  runGlobalSearch();
+// ==================== 单一搜索入口（plans/042 A1）====================
+// 一个关键词 + 一个范围开关。范围切换即取消在飞的旧请求，避免两套结果互相覆盖。
+
+const onSearchInput = () => {
+  if (isGlobalSearchScope.value) scheduleGlobalSearch();
+  else handleSearch();
+};
+
+const onSearchEnter = () => {
+  if (isGlobalSearchScope.value) runGlobalSearch();
+  else handleSearch();
+};
+
+const toggleSearchScope = () => {
+  searchScope.value = isGlobalSearchScope.value ? 'current' : 'all';
+  if (isGlobalSearchScope.value) {
+    scheduleGlobalSearch();
+    return;
+  }
+  // 回到「本表」：撤掉全部表的请求，按当前关键词重新查本表
+  abortGlobalSearch();
+  closeGlobalSearchPanel();
+  handleSearch();
+};
+
+/** 空结果时的出路：把范围收回本表，至少能看到本表有没有 */
+const searchOnlyCurrentTable = () => {
+  searchScope.value = 'current';
+  closeGlobalSearchPanel();
+  handleSearch();
+  searchInputRef.value?.focus();
+};
+
+const clearSearchEverywhere = () => {
+  abortGlobalSearch();
+  closeGlobalSearchPanel();
+  clearSearch();
+};
+
+/** 点分组标题：切到该表，用同一关键词过滤（不跳详情） */
+const openGlobalSearchGroup = (group) => {
+  if (!group?.tabId) return;
+  closeGlobalSearchPanel();
+  searchScope.value = 'current';
+  switchTab(group.tabId, { search: globalSearchKeyword.value });
+};
+
+/**
+ * 结果条目的第二行文案。
+ * 命中字段与标题相同时（例如 username 既是标题又是命中列）原文会重复一遍，
+ * 这里改成「命中：xxx」，至少让高亮有处可落。
+ */
+const resultPreviewText = (result) => {
+  const preview = String(result?.preview || '');
+  if (!preview) return '';
+  return preview === result.title ? `命中：${preview}` : preview;
 };
 
 // 通知铃铛：跳转到通知管理（无权则提示）
@@ -5668,6 +5822,18 @@ const undoModeration = async (snap) => {
 // 内容工具栏 ⋯ 菜单：低频操作收纳（变更日志/备份/清理/到期开奖/全选）
 const toolbarMenuItems = computed(() => {
   const items = [
+    {
+      id: 'columns',
+      label: showColumnPanel.value ? '隐藏列配置' : '列配置',
+      run: () => {
+        showColumnPanel.value = !showColumnPanel.value;
+      },
+    },
+    {
+      id: 'command',
+      label: '命令面板（⌘K）',
+      run: () => openCommandPalette(),
+    },
     {
       id: 'changelog',
       label: '变更日志',
@@ -7024,7 +7190,7 @@ const handleCreateFromTemplate = () => {
 // isAnomalyRow / getAnomalyReason 已迁移到 composable
 
 // createHighlightHelpers / createRelatedJumpHelpers / createAnomalyHelpers
-// 已下移至 createGlobalSearchCenter 之后 (依赖 globalSearchQuery)
+// 已下移至 createGlobalSearchCenter 之后 (依赖 searchQuery / 搜索范围)
 
 const jumpToRelatedRecord = (jump, item) => {
   if (!jump?.tabId) return;
@@ -7836,10 +8002,13 @@ const commandPaletteItems = computed(() => {
   items.push({ id: 'backup', label: '备份全部数据', hint: '', run: () => exportBackupData() });
   items.push({
     id: 'global-search',
-    label: '跨表搜索',
+    label: '搜索全部表',
     hint: '/',
     run: () => {
-      showGlobalSearchPanel.value = true;
+      // 不再需要「先展开筛选面板再输入一遍」：直接把范围切到全部表并聚焦同一个搜索框
+      searchScope.value = 'all';
+      searchInputRef.value?.focus();
+      scheduleGlobalSearch();
     },
   });
   items.push({
@@ -8024,12 +8193,15 @@ const {
 });
 
 const {
-  globalSearchQuery,
+  globalSearchKeyword,
   globalSearchResults,
+  globalSearchGroups,
   isGlobalSearching,
   showGlobalSearchPanel,
   runGlobalSearch,
+  scheduleGlobalSearch,
   openGlobalSearchResult,
+  closeGlobalSearchPanel,
   abortGlobalSearch,
 } = createGlobalSearchCenter({
   searchQueryRef: searchQuery,
@@ -8039,11 +8211,20 @@ const {
   addRecentRecord,
 });
 
+// 换 tab 时把范围收回「本表」：上一个 tab 的全部表结果没有意义，
+// 留着会让人以为当前 tab 也被这个关键词过滤过。
+watch(currentTab, () => {
+  if (!isGlobalSearchScope.value) return;
+  searchScope.value = 'current';
+  abortGlobalSearch();
+  closeGlobalSearchPanel();
+});
+
 // ==================== 高亮/关联跳转/异常检测 Helpers 注入 ====================
-// 在 createGlobalSearchCenter 之后注入 (createHighlightHelpers 依赖 globalSearchQuery)
+// 全部表模式下当前表格没被这个关键词过滤，高亮会误导 ⇒ 只在「本表」范围高亮
 const { getHighlightKeyword, highlightCellValue } = createHighlightHelpers({
   searchQueryRef: searchQuery,
-  globalSearchQueryRef: globalSearchQuery,
+  isGlobalScopeRef: isGlobalSearchScope,
 });
 
 const { getRelatedJump } = createRelatedJumpHelpers({ currentTabRef: currentTab });

@@ -365,6 +365,145 @@
   justify-content: center;
 }
 
+/* ==================== 单一搜索入口（plans/042 A1） ====================
+   搜索框 + 范围开关 + 结果浮层。浮层挂在这个容器上而不是 .search-box，
+   否则受 280px 宽限制，分组结果会被挤成一条细柱。 */
+.search-entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.search-scope {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--dm-text-subtle);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: 'DM Sans', ui-sans-serif, sans-serif, system-ui;
+}
+
+.search-scope:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+/* 选中「全部表」时用主色描边：范围是有状态的，不能只靠一个词 */
+.search-scope.is-global {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.search-scope-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: min(520px, 88vw);
+  max-height: min(64vh, 520px);
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  /* 必须用 -solid：--card 是半透明玻璃材质（rgba(...,0.62)），
+     浮层用它会让下面的空状态文字透上来，看起来像面板本身在闪烁 */
+  background: var(--popover-solid, #ffffff);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+}
+
+.search-scope-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px 8px;
+  color: var(--dm-text-subtle);
+  font-size: 12px;
+}
+
+.search-scope-close {
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.search-scope-empty {
+  padding: 8px 4px 4px;
+}
+
+.search-scope-empty p {
+  margin: 0 0 10px;
+  color: var(--dm-text-subtle);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.search-scope-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.search-scope-groups {
+  display: grid;
+  gap: 10px;
+}
+
+.search-scope-group {
+  display: grid;
+  gap: 6px;
+}
+
+.search-scope-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--dm-text-subtle);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-scope-group-head:hover {
+  color: var(--foreground);
+}
+
+.search-scope-group-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--dm-text-subtle);
+  font-weight: 500;
+}
+
+/* 浮层里的结果条目用透明底：外层面板已经是实底，再叠一层半透明卡片会显脏 */
+.search-scope-panel .global-result-item {
+  background: transparent;
+  border-color: var(--border);
+}
+
+.search-scope-panel .global-result-item:hover {
+  background: var(--muted);
+}
+
+
 .filter-select select,
 .date-filter input {
   min-height: 36px;
@@ -2472,6 +2611,13 @@
   align-items: center;
   gap: 8px;
   margin-left: auto;
+}
+
+/* plans/042 A2：列配置 / 命令面板收进 ⋯ 之后，右侧只剩「⋯ + 新增 + 导出」。
+   两者都带 margin-left:auto 时浏览器会把空白对半分，⋯ 会飘到行中间；
+   这里让 ⋯ 独占自动外边距，动作组紧贴它。 */
+.toolbar-secondary > .toolbar-actions {
+  margin-left: 8px;
 }
 
 /* 全局异常 banner（plans/027 E6.5）：v-if 渲染，正常态零高度 */
