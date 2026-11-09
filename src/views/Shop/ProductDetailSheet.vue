@@ -43,7 +43,6 @@
                 :row="product"
                 field="title"
                 label="商品名称"
-                :max-length="25"
                 fallback="未命名商品"
                 @update:model-value="setField('title', $event)"
               />

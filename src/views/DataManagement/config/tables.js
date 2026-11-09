@@ -2080,7 +2080,14 @@ export const dataConfig = {
         hint: '新增商品自动生成 ID。',
         group: 'basic',
       },
-      { key: 'title', label: '商品名称', type: 'text', required: true, group: 'basic' },
+      {
+        key: 'title',
+        label: '商品名称',
+        type: 'text',
+        required: true,
+        maxLength: 25,
+        group: 'basic',
+      },
       {
         key: 'category',
         label: '分类',

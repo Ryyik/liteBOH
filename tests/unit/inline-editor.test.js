@@ -173,3 +173,123 @@ describe('路由', () => {
     expect(block).toContain('requiresAdmin: true');
   });
 });
+
+/* ── 以下是 2026-11-09 全量复核发现的问题，逐条锁住 ────────────────────── */
+
+describe('复核修复：多行与键盘可达性', () => {
+  const text = stripComments(read('src/components/inline-editor/EditableText.vue'));
+
+  it('多行正文必须保留换行（white-space: pre-wrap）', () => {
+    expect(text).toContain("'is-multiline': multiline");
+    expect(text).toMatch(/\.iet\.is-multiline\s*\{[^}]*white-space:\s*pre-wrap/);
+  });
+
+  it('编辑态卡片换成 div 后要补回 Enter/Space 打开详情', () => {
+    const shop = stripComments(read('src/views/Shop/index.vue'));
+    expect(shop).toMatch(/@keydown="onCardKeydown/);
+    const fn = shop.match(/const onCardKeydown = \(event, product\) => \{([\s\S]*?)\n\};/);
+    expect(fn, '找不到 onCardKeydown').toBeTruthy();
+    // 焦点在内部输入框时不能抢键
+    expect(fn[1]).toContain('event.target !== event.currentTarget');
+    expect(fn[1]).toContain('openProductDetails');
+  });
+});
+
+describe('复核修复：写入一致性', () => {
+  const source = stripComments(read('src/composables/useInlineEditor.js'));
+  const commitBody = () => {
+    const match = source.match(
+      /const commit = \(row, field, next, previous\) => \{([\s\S]*?)\n  \};/,
+    );
+    expect(match, '找不到 commit').toBeTruthy();
+    return match[1];
+  };
+
+  it('同一字段的写入必须排队（并发 PATCH 乱序会用旧值覆盖新值）', () => {
+    expect(source).toContain('enqueueWrite');
+    expect(commitBody()).toContain('enqueueWrite(key');
+  });
+
+  it('撤销要先入栈再落库（否则改完立刻点撤销会扑空）', () => {
+    const body = commitBody();
+    const pushAt = body.indexOf('pushHistory(entry)');
+    const saveAt = body.indexOf('enqueueWrite(key');
+    expect(pushAt).toBeGreaterThan(-1);
+    expect(saveAt).toBeGreaterThan(-1);
+    expect(pushAt, 'pushHistory 必须在写库之前').toBeLessThan(saveAt);
+  });
+
+  it('撤销也走同一个队列，否则会被未完成的 commit 覆盖', () => {
+    const undo = source.match(/const undo = async \(\) => \{([\s\S]*?)\n  \};/);
+    expect(undo, '找不到 undo').toBeTruthy();
+    expect(undo[1]).toContain('enqueueWrite(key');
+  });
+
+  it('失败红边要自动消退，不能只等「下次写成功」', () => {
+    expect(source).toMatch(/setTimeout\([\s\S]{0,120}markFailed\(key, false\)/);
+  });
+
+  it('删除记录后要把它从撤销栈摘掉（否则会对着已删 id 报「已撤销」）', () => {
+    expect(source).toContain('const forget = (row) =>');
+    expect(source).toMatch(/remove: async \(row\) => \{[\s\S]{0,160}forget\(row\)/);
+  });
+});
+
+describe('复核修复：长度上限只有一份真源', () => {
+  it('商品名称的 maxLength 写在字段配置里', () => {
+    const tables = read('src/views/DataManagement/config/tables.js');
+    const at = tables.indexOf("key: 'title', label: '商品名称'");
+    expect(at).toBeGreaterThan(-1);
+    expect(tables.slice(at, at + 140)).toContain('maxLength: 25');
+  });
+
+  it('原语从注入的字段声明读上限，宿主不再各写数字', () => {
+    const text = stripComments(read('src/components/inline-editor/EditableText.vue'));
+    expect(text).toContain('editor?.metaOf?.(props.field)?.maxLength');
+    const shop = stripComments(read('src/views/Shop/index.vue'));
+    expect(shop, '宿主不该再硬编码 max-length').not.toContain(':max-length="25"');
+  });
+
+  it('宿主把 metaOf 注入上下文', () => {
+    const host = stripComments(read('src/views/ShopEditor/index.vue'));
+    expect(host).toContain('metaOf');
+    expect(host).toMatch(/metaOf,\s*\n\s*notify/);
+  });
+});
+
+describe('EditableNumber 的换算契约', () => {
+  const source = stripComments(read('src/components/inline-editor/EditableNumber.vue'));
+
+  it('金额按 scale 双向换算，显示用固定小数位', () => {
+    expect(source).toContain('props.scale');
+    expect(source).toContain('toFixed(props.decimals)');
+  });
+
+  it('提交前走同一套字段校验', () => {
+    expect(source).toContain('editor?.validate?.');
+  });
+
+  it('编辑态限宽，避免把 flex 价格行挤成两行', () => {
+    expect(source).toMatch(/\.ien\.is-editing\s*\{[^}]*max-width/);
+  });
+});
+
+describe('宿主必须继承前台的 body 级布局', () => {
+  /* 2026-11-09 复核发现的真问题：编辑页少了 body.page-shop，导致同一个 Shop 组件
+     在两条路由下宽度不同（前台三列 320、编辑页三列 400），左侧竖栏也不让位。
+     根因是 App.vue 用 `page-${route.name}` 生成 body 类，ShopEditor 得到 page-shopeditor。 */
+
+  it('App.vue 允许路由用 meta.bodyClass 覆盖默认类名', () => {
+    const app = read('src/App.vue');
+    expect(app).toContain('route.meta?.bodyClass');
+    // watch 必须同时盯 name 和 bodyClass，否则同类不同名的路由切换不会重算
+    expect(app).toMatch(/watch\(\(\) => \[route\.name, route\.meta\?\.bodyClass\]/);
+  });
+
+  it('/admin/shop-editor 声明复用 page-shop', () => {
+    const routes = read('src/router/routes/admin.ts');
+    const at = routes.indexOf("'/admin/shop-editor'");
+    expect(at).toBeGreaterThan(-1);
+    expect(routes.slice(at, at + 600)).toContain("bodyClass: 'page-shop'");
+  });
+});

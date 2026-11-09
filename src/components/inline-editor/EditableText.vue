@@ -6,6 +6,7 @@
       'is-editing': isEditing,
       'is-busy': isBusy,
       'is-failed': isFailed,
+      'is-multiline': multiline,
     }"
     :tabindex="isEditable && !isEditing ? 0 : undefined"
     :role="isEditable && !isEditing ? 'button' : undefined"
@@ -19,7 +20,7 @@
       ref="inputEl"
       class="iet-input iet-textarea"
       :value="draft"
-      :maxlength="maxLength"
+      :maxlength="effectiveMaxLength"
       :placeholder="placeholder"
       :aria-label="label || field"
       rows="3"
@@ -32,7 +33,7 @@
       ref="inputEl"
       class="iet-input"
       :value="draft"
-      :maxlength="maxLength"
+      :maxlength="effectiveMaxLength"
       :placeholder="placeholder"
       :aria-label="label || field"
       @input="draft = $event.target.value"
@@ -83,6 +84,12 @@ const previous = ref('');
 const isEditable = computed(() => Boolean(editor?.active) && Boolean(props.row));
 const isBusy = computed(() => Boolean(editor?.isBusy?.(props.row, props.field)));
 const isFailed = computed(() => Boolean(editor?.isFailed?.(props.row, props.field)));
+
+/* 长度上限的真源是字段配置（tables.js 的 maxLength）：宿主不必再各写一份数字，
+   否则改上限时总有一处漏改 —— 输入框限住了、校验没限，或者反过来。 */
+const effectiveMaxLength = computed(
+  () => props.maxLength ?? editor?.metaOf?.(props.field)?.maxLength ?? undefined,
+);
 
 const begin = async () => {
   if (!isEditable.value || isEditing.value) return;
@@ -137,9 +144,10 @@ const commit = () => {
 
   // 乐观更新：先让界面变，再落库；失败回滚到旧值
   emit('update:modelValue', next);
-  editor
-    ?.commit(props.row, props.field, next, previous.value)
-    .catch(() => emit('update:modelValue', previous.value));
+  /* 用「先取回 promise 再 catch」而不是链式 `.catch()`：`editor?.commit(...)` 在
+     editor 为 null 时整体短路成 undefined，后面接 `.catch` 会直接 TypeError。 */
+  const task = editor?.commit?.(props.row, props.field, next, previous.value);
+  task?.catch(() => emit('update:modelValue', previous.value));
 };
 
 const onRootClick = (event) => {
@@ -189,6 +197,14 @@ const onInputKeydown = (event) => {
 
 .iet.is-editable:focus-visible {
   outline-color: currentColor;
+}
+
+/* 多行正文：显示态必须保留换行。默认 white-space: normal 会把用户敲的回车折叠成
+   空格 —— 输入时是多行、保存后变一整段，是「所见非所得」里最难被察觉的一种。
+   同时必须成块：inline 元素的虚线框会**按行拆成好几段**，看起来像多个独立字段。 */
+.iet.is-multiline {
+  display: block;
+  white-space: pre-wrap;
 }
 
 /* 编辑态改成块级：内层 input 才能撑满父容器宽度，否则光标框只有几个字宽 */

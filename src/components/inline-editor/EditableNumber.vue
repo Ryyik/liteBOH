@@ -139,9 +139,9 @@ const commit = () => {
   }
 
   emit('update:modelValue', next);
-  editor
-    ?.commit(props.row, props.field, next, previous.value)
-    .catch(() => emit('update:modelValue', previous.value));
+  // 同 EditableText：先取 promise 再 catch，避免 editor 缺失时对 undefined 调 .catch
+  const task = editor?.commit?.(props.row, props.field, next, previous.value);
+  task?.catch(() => emit('update:modelValue', previous.value));
 };
 
 const onRootClick = (event) => {

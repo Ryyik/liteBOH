@@ -13,6 +13,7 @@ import {
   Activity,
   Palette,
   DoorOpen,
+  Pencil,
 } from 'lucide-vue-next';
 
 export const tabs = [
@@ -137,7 +138,7 @@ export const tabModules = [
     section: 'data',
     defaultTab: 'shopOrders',
     tabIds: ['shopOrders', 'products'],
-    subPages: ['shop-console'],
+    subPages: ['shop-console', 'shop-editor'],
     description: '商品、订单和商城装修',
   },
   {
@@ -184,6 +185,17 @@ export const tabModules = [
     section: 'data',
     type: 'page',
     description: '可视化编辑商城商品与展示',
+  },
+  {
+    /* 就地编辑（2026-11-09）：后台直接渲染前台商城页，点字段即改。
+       ⚠️ 必须登记进 tabModules + ROUTE_MAP —— 只建路由的话侧栏和命令面板都找不到，
+       只能手敲地址。gate-console 当初就是这么漏的（见下面那条注释）。 */
+    id: 'shop-editor',
+    label: '就地编辑',
+    icon: Pencil,
+    section: 'data',
+    type: 'page',
+    description: '在真实商城页面上直接改标题、图片、价格和库存',
   },
   {
     id: 'hero-console',

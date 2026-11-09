@@ -109,6 +109,7 @@
               :class="{ 'is-edit-target': isInlineEditing }"
               :style="{ '--i': index }"
               @click="openProductDetails(product, $event)"
+              @keydown="onCardKeydown($event, product)"
             >
               <!-- 换图的上传与落库都由原语内部完成（含失败回滚），这里不用再接 handler -->
               <EditableImage v-model="product.image" class="p-media" :row="product" field="image">
@@ -130,7 +131,6 @@
                   :row="product"
                   field="title"
                   label="商品名称"
-                  :max-length="25"
                 />
                 <span class="p-price">{{ formatPriceDisplay(product) }}</span>
               </span>
@@ -502,6 +502,19 @@ const isInlineEditing = computed(() => Boolean(inlineEditor?.active));
 const handleProductFieldUpdate = ({ field, value } = {}) => {
   const product = selectedProduct.value;
   if (product && field) product[field] = value;
+};
+
+/**
+ * 编辑态卡片是 `<div role="button">`（`<button>` 里不能嵌删除按钮），换成 div 就丢了
+ * `<button>` 的原生键盘支持 —— 这里补回来：Enter / Space 打开详情。
+ * 只处理卡片自身：焦点在内部的标题输入框时，那条 keydown 已经被原语 stop 掉了。
+ */
+const onCardKeydown = (event, product) => {
+  if (!isInlineEditing.value) return;
+  if (event.target !== event.currentTarget) return;
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  openProductDetails(product, event);
 };
 
 const totalPoints = computed(() =>

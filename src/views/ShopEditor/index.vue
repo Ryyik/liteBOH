@@ -224,8 +224,11 @@ const validate = (field, value) =>
     value,
   );
 
+/** 字段声明：长度上限等约束从 tables.js 读，宿主不再各写一份数字 */
+const metaOf = (field) => PRODUCT_FIELDS.find((item) => item.key === field) || null;
+
 /** 字段中文名：撤销/提示文案里用它，避免把 `title` 这类列名抛给运营看 */
-const labelOf = (field) => PRODUCT_FIELDS.find((item) => item.key === field)?.label || field;
+const labelOf = (field) => metaOf(field)?.label || field;
 
 const editor = provideInlineEditor({
   startActive: true,
@@ -234,6 +237,7 @@ const editor = provideInlineEditor({
   create,
   validate,
   labelOf,
+  metaOf,
   notify,
   uploadImage,
 });

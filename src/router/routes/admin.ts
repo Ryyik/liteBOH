@@ -52,7 +52,10 @@ export const adminRoutes: RouteRecordRaw[] = [
     path: '/admin/shop-editor',
     name: 'ShopEditor',
     component: () => import('../../views/ShopEditor/index.vue'),
-    meta: { requiresAdmin: true, hideNavbar: true },
+    /* bodyClass 复用前台的 `page-shop`：本页渲染的就是 `<Shop />` 本身，
+       前台那套 `body.page-shop` 的布局规则（左侧竖栏让位 240px、底栏占位 48px、
+       rail 固定定位）必须一起生效，否则同一个组件在两条路由下宽度不同。 */
+    meta: { requiresAdmin: true, hideNavbar: true, bodyClass: 'page-shop' },
   },
   {
     path: '/admin/hero-console',

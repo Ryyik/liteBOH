@@ -259,7 +259,13 @@ const updateBodyClass = () => {
 
   // 根据路由添加对应的class，确保route.name存在
   if (route.name) {
-    const pageClass = `page-${route.name.toLowerCase()}`;
+    /* `meta.bodyClass` 可覆盖默认的 `page-<name>`：后台「就地编辑」这类页面
+       渲染的是**前台同一个页面组件**，必须继承前台的 body 级布局规则
+       （如 body.page-shop 给左侧竖栏让出的 padding-left），否则同一个组件在
+       两条路由下会长成两个宽度 —— 卡片尺寸、栏位让位全都不一样。 */
+    const override = route.meta?.bodyClass;
+    const pageClass =
+      (typeof override === 'string' && override) || `page-${route.name.toLowerCase()}`;
     document.body.classList.add(pageClass);
   }
 };
@@ -275,7 +281,7 @@ onMounted(() => {
 });
 
 // 监听路由变化
-watch(() => route.name, updateBodyClass);
+watch(() => [route.name, route.meta?.bodyClass], updateBodyClass);
 
 // 监听 notify 自定义事件（来自路由守卫等非组件上下文）
 let notifyListener = null;
