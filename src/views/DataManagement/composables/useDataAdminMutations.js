@@ -172,14 +172,15 @@ export const createMutationsCenter = (deps) => {
         items: [item],
       });
       addChangeLogEntry('delete', item, { recordId: item?.id || '' });
-      // 审计留痕（plans/027 E6.1）：失败静默，不阻断业务
-      logAdminAction({
+      // 审计留痕（plans/027 E6.1）：失败不阻断业务，但要让人看见
+      const audit = await logAdminAction({
         action: 'delete',
         table: currentConfig.value.table,
         id: item?.id ?? null,
         meta: { tab: currentTab.value },
       });
-      showToast('删除成功', 'success');
+      if (audit.ok) showToast('删除成功', 'success');
+      else showToast('已删除，但审计日志未写入：本次操作没有留痕', 'warning');
       await refreshCurrentViewAfterMutation();
     } catch (error) {
       logger.error('data-admin', '删除失败:', error);
@@ -247,13 +248,14 @@ export const createMutationsCenter = (deps) => {
         items: [...selectedItems.value],
       });
       addChangeLogEntry('batch_delete', { id: ids.join(',') }, { count: ids.length });
-      logAdminAction({
+      const audit = await logAdminAction({
         action: 'batch_delete',
         table,
         id: ids.join(','),
         meta: { count: ids.length, tab: currentTab.value },
       });
-      showToast('批量删除成功', 'success');
+      if (audit.ok) showToast('批量删除成功', 'success');
+      else showToast(`已删除 ${ids.length} 条，但审计日志未写入：本次操作没有留痕`, 'warning');
       selectedItems.value = [];
       await refreshCurrentViewAfterMutation();
     } catch (error) {

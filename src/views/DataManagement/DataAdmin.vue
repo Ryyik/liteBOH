@@ -2245,10 +2245,15 @@ import { createNavigationCenter } from './composables/useDataAdminNavigation.js'
 import { consumeAdminTabJumpSearch } from './composables/useAdminTabIntent.js';
 import { resolveInitialAdminTab } from './composables/resolveInitialAdminTab.js';
 import {
-  buildBatchDeleteConditions as buildBatchDeleteConditionsFor,
+  buildBatchDeleteScope,
   getBaseScopeConditions as getBaseScopeConditionsFor,
 } from './composables/data-admin-batch-scope.js';
 import { sumDiagnosticIssues } from './composables/data-admin-diagnostics.js';
+import {
+  USAGE_DETAIL_EDIT,
+  USAGE_DRAWER_QUICK_EDIT,
+  bumpUsageCounter,
+} from './composables/data-admin-usage-counter.js';
 
 const CACHE_TTL = 45_000;
 
@@ -5929,7 +5934,18 @@ const getRowTableActions = (item) => {
    * 等详情页的就地编辑跑一段时间没出问题，再把这个入口删掉即可。
    */
   const drawerEscape = canEditCurrentTab.value
-    ? [{ id: 'quick-edit', label: '快速编辑（抽屉）', run: () => openEditModal(item) }]
+    ? [
+        {
+          id: 'quick-edit',
+          label: '快速编辑（抽屉）',
+          run: () => {
+            // 计数（plans/042 B2）：四周后读 boh-admin-usage-counters-v1，
+            // 抽屉为 0 就用证据删掉这个入口，而不是靠「感觉没人用了」
+            bumpUsageCounter(USAGE_DRAWER_QUICK_EDIT);
+            openEditModal(item);
+          },
+        },
+      ]
     : [];
   if (isModerationTab.value || model.primary.length <= 1) {
     return { primary: model.primary, menu: [...model.menu, ...drawerEscape] };
@@ -8071,6 +8087,7 @@ const recordPaneRef = ref(null);
 
 const onEditRecord = (record) => {
   if (!record?.id) return openEditModal(record);
+  bumpUsageCounter(USAGE_DETAIL_EDIT);
   openEditModal(record, { embedded: true });
   detailEditing.value = true;
 };
@@ -8149,35 +8166,40 @@ const enterSelectAllScope = () => {
   selectAllResultsMode.value = true;
   selectedItems.value = [];
 };
-const buildBatchDeleteConditions = () =>
-  buildBatchDeleteConditionsFor({
+const buildBatchDeleteScopeFor = () =>
+  buildBatchDeleteScope({
     tabId: currentTab.value,
     statusField: currentStatusFilterField.value,
     statusFilter: statusFilter.value,
     dateField: currentDateFilterField.value,
     dateFrom: dateFromFilter.value,
     dateTo: dateToFilter.value,
-    searchColumns: (TAB_SEARCH_FIELDS[currentTab.value] || []).map((f) => f.column),
+    searchFields: TAB_SEARCH_FIELDS[currentTab.value] || [],
     searchQuery: searchQuery.value,
+    advancedRules: activeAdvancedRules.value,
+    // 与列表查询同一份白名单（applySearchAndSort 的 allowedAdvancedFields）：
+    // 列表忽略的规则，删除也必须忽略，否则删掉的不是屏幕上那批
+    allowedAdvancedFields: (currentColumns.value || []).filter((c) => !c.virtual).map((c) => c.key),
   });
 const batchDeleteAll = async () => {
   if (isBatchDeleteAll.value) return;
-  if (activeAdvancedRules.value?.length) {
-    showToast('高级筛选下的全量删除暂不支持：请清除高级规则后重试', 'warning');
-    return;
-  }
   // 基础过滤（reportedPosts 等）只是 tab 的数据边界，不算用户筛选；
   // 没有用户可见条件时必须仍然拒绝，否则会退化成「删掉整个基础集合」。
+  // 这一句放在 blocked 之前：没有筛选时先说「请先设置条件」，比说「这个表不支持」有用。
   if (!hasActiveFilters.value) {
     showToast('拒绝无条件全表删除：请先设置筛选条件', 'warning');
     return;
   }
-  const conditions = buildBatchDeleteConditions();
+  const { conditions, blocked } = buildBatchDeleteScopeFor();
+  if (blocked) {
+    showToast(blocked.message, 'warning');
+    return;
+  }
   // 必须至少有 1 条「用户条件」，不能只有 tab 的基础过滤（否则等于删掉整个基础集合）。
   // 这里用 conditions 与 baseScope 的差值判定，避免「hasActiveFilters 为真但字段
   // 映射不到条件」（例如该 tab 没有搜索列）时误放行。
   if (conditions.length <= getBaseScopeConditionsFor(currentTab.value).length) {
-    showToast('拒绝无条件全表删除：请先设置筛选条件', 'warning');
+    showToast('拒绝无条件全表删除：当前筛选没能翻译成有效的删除条件', 'warning');
     return;
   }
   const expected = totalRecordCount.value;

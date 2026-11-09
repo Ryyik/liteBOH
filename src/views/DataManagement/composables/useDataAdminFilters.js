@@ -78,6 +78,28 @@ export const buildSearchFilters = (tabId, keyword, tabSearchFields) =>
   buildSearchFiltersCore(tabId, keyword, tabSearchFields);
 
 /**
+ * 高级筛选 → 规范化后的生效规则（列表查询与「按筛选全量删除」共用）。
+ *
+ * 白名单过滤（字段必须在 allowedFieldKeys 里、算子必须在白名单里、值不能为空）
+ * 只写在这里 —— 两条链路各自实现一次的话，必然出现「列表跳过了这条规则、
+ * 删除却执行了它」，那是最坏的一种不一致（删掉的不是屏幕上看到的）。
+ */
+export const resolveAdvancedRules = (rules, allowedFieldKeys) => {
+  const allowedFields = new Set(allowedFieldKeys || []);
+  const resolved = [];
+  (rules || []).forEach((rule) => {
+    const field = String(rule.field || '').trim();
+    const operator = String(rule.operator || 'contains').trim();
+    const value = normalizeFilterValue(rule.value);
+    if (!field || !value) return;
+    if (allowedFields.size > 0 && !allowedFields.has(field)) return;
+    if (!ALLOWED_ADVANCED_OPERATORS.has(operator)) return;
+    resolved.push({ field, operator, value });
+  });
+  return resolved;
+};
+
+/**
  * 高级筛选应用:
  *   - 白名单: 仅允许 currentColumns 中声明的字段, 防止探测敏感列
  *   - 算子白名单: 仅允许 ALLOWED_ADVANCED_OPERATORS 中的
@@ -88,16 +110,8 @@ export const buildSearchFilters = (tabId, keyword, tabSearchFields) =>
  */
 export const applyAdvancedFilters = (query, rules, allowedFieldKeys) => {
   let nextQuery = query;
-  const allowedFields = new Set(allowedFieldKeys || []);
 
-  (rules || []).forEach((rule) => {
-    const field = String(rule.field || '').trim();
-    const operator = String(rule.operator || 'contains').trim();
-    const value = normalizeFilterValue(rule.value);
-    if (!field || !value) return;
-    if (allowedFields.size > 0 && !allowedFields.has(field)) return;
-    if (!ALLOWED_ADVANCED_OPERATORS.has(operator)) return;
-
+  resolveAdvancedRules(rules, allowedFieldKeys).forEach(({ field, operator, value }) => {
     if (operator === 'eq') nextQuery = nextQuery.eq(field, value);
     else if (operator === 'neq') nextQuery = nextQuery.neq(field, value);
     else if (operator === 'gt') nextQuery = nextQuery.gt(field, value);
@@ -111,6 +125,16 @@ export const applyAdvancedFilters = (query, rules, allowedFieldKeys) => {
   });
 
   return nextQuery;
+};
+
+/**
+ * 日期筛选的「截止日」取值：日期控件选的是 2026-01-31，用户的意思是**这一天结束**，
+ * 不是这一天 00:00。列表与全量删除必须用同一个换算 —— 否则列表 12 条、
+ * 删除条件只匹配到 9 条，RPC 的 count 预检直接拒绝。
+ */
+export const endOfDayIso = (date) => {
+  const endDate = new Date(`${date}T23:59:59`);
+  return Number.isNaN(endDate.getTime()) ? String(date) : endDate.toISOString();
 };
 
 /**
@@ -160,11 +184,7 @@ export const applySearchAndSort = (params) => {
     nextQuery = nextQuery.gte(dateField, dateFrom);
   }
   if (dateField && dateTo) {
-    const endDate = new Date(`${dateTo}T23:59:59`);
-    nextQuery = nextQuery.lte(
-      dateField,
-      Number.isNaN(endDate.getTime()) ? dateTo : endDate.toISOString(),
-    );
+    nextQuery = nextQuery.lte(dateField, endOfDayIso(dateTo));
   }
 
   nextQuery = applyAdvancedFilters(nextQuery, advancedRules, allowedAdvancedFields);

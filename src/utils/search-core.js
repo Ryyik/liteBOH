@@ -134,33 +134,55 @@ export const parseSearchQuery = (raw) => {
  */
 export const searchTermOf = (raw) => parseSearchQuery(raw).value;
 
-/** 根据 tabId + 关键词构造 supabase or() 过滤器数组。
+/**
+ * 关键词 → **结构化**匹配清单（列表查询与「按筛选全量删除」的唯一口径）。
+ *
+ * 为什么要结构而不是拼好的字符串：列表走 PostgREST 的 `or(a.ilike.%x%,b.ilike.%x%)`，
+ * 全量删除走 RPC 的 `p_filters` 条件数组 —— 两者语法不同但**语义必须逐字段一致**，
+ * 否则 RPC 的 count 预检会 `count mismatch` 拒绝（表现成「删不掉」），或者更糟：
+ * 删掉的行和屏幕上看到的不是同一批。抽成 spec 后两条链路都从这里取，
+ * 不再各写一份「哪些列、什么算子、什么模式」。
+ *
+ * 每条 `{ column, op, value, pattern }`：
+ *   - `value`   给 PostgREST or() 用（含保留字符时会加引号）
+ *   - `pattern` 给 SQL 字面量用（**不带引号**，否则引号会被当成要匹配的字符）
+ *   - `eq` 条目没有 pattern（精确比较不需要 LIKE 模式）
+ *
+ * 规则：
  *   - `uuid` 字段仅在关键词本身是合法 UUID 时精确匹配（否则 contains 命中无意义）
  *   - `number` 字段仅在关键词是纯整数时精确匹配
  *   - 其余字段大小写不敏感包含，**通配符转义后**再拼
- *
- * 支持三个快捷前缀（plans/042 C3，见 parseSearchQuery）：
- *   - `id:`  只按主键匹配（UUID 精确 / 否则包含）
- *   - `@`    只在用户名类字段里搜（避免长文本命中一堆无关行）
- *   - `tab:` 不构造条件（跳表由调用方处理）
+ *   - `id:` 只按主键匹配（UUID 精确 / 否则包含）；`@` 只在用户名类字段里搜；
+ *     `tab:` 不构造条件（跳表由调用方处理）
  */
-export const buildSearchFilters = (tabId, keyword, tabSearchFields) => {
+export const buildSearchMatchSpec = (tabId, keyword, tabSearchFields) => {
   const parsed = parseSearchQuery(keyword);
-  const cleaned = parsed.value;
-  if (!cleaned) return [];
-  if (parsed.mode === SEARCH_MODE_TAB) return [];
+  const term = parsed.value;
+  const empty = { mode: parsed.mode, term, pattern: '', columns: [] };
+  if (!term) return empty;
+  if (parsed.mode === SEARCH_MODE_TAB) return empty;
 
   const fields = tabSearchFields?.[tabId] || [];
+  const pattern = `%${escapeLikePattern(term)}%`;
+  const textEntry = (column) => ({
+    column,
+    op: 'ilike',
+    value: quoteFilterPattern(pattern),
+    pattern,
+  });
+  const exactEntry = (column) => ({ column, op: 'eq', value: term, pattern: '' });
 
   if (parsed.mode === SEARCH_MODE_ID) {
-    return [
-      UUID_PATTERN.test(cleaned) ? `id.eq.${cleaned}` : `id.ilike.${buildContainsPattern(cleaned)}`,
-    ];
+    return {
+      mode: parsed.mode,
+      term,
+      pattern: UUID_PATTERN.test(term) ? '' : pattern,
+      columns: [UUID_PATTERN.test(term) ? exactEntry('id') : textEntry('id')],
+    };
   }
 
-  const isUuid = UUID_PATTERN.test(cleaned);
-  const isInteger = /^\d+$/.test(cleaned);
-  const contains = buildContainsPattern(cleaned);
+  const isUuid = UUID_PATTERN.test(term);
+  const isInteger = /^\d+$/.test(term);
   const scoped =
     parsed.mode === SEARCH_MODE_USER
       ? fields.filter((field) => USERNAME_COLUMN_RE.test(String(field?.column || '')))
@@ -168,14 +190,22 @@ export const buildSearchFilters = (tabId, keyword, tabSearchFields) => {
   // `@` 但没有用户名列的表：退回全字段搜，宁可宽一点也不给「搜不到」
   const effective = scoped.length ? scoped : fields;
 
-  return effective.flatMap((field) => {
+  const columns = effective.flatMap((field) => {
     const column = field?.column;
     if (!column) return [];
-    if (field.type === 'uuid') return isUuid ? [`${column}.eq.${cleaned}`] : [];
-    if (field.type === 'number') return isInteger ? [`${column}.eq.${cleaned}`] : [];
-    return [`${column}.ilike.${contains}`];
+    if (field.type === 'uuid') return isUuid ? [exactEntry(column)] : [];
+    if (field.type === 'number') return isInteger ? [exactEntry(column)] : [];
+    return [textEntry(column)];
   });
+
+  return { mode: parsed.mode, term, pattern, columns };
 };
+
+/** 根据 tabId + 关键词构造 supabase or() 过滤器数组（`buildSearchMatchSpec` 的字符串投影）。 */
+export const buildSearchFilters = (tabId, keyword, tabSearchFields) =>
+  buildSearchMatchSpec(tabId, keyword, tabSearchFields).columns.map(
+    (item) => `${item.column}.${item.op}.${item.value}`,
+  );
 
 /* ==================== 相关性打分 ==================== */
 

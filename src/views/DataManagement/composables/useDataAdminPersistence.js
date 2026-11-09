@@ -22,6 +22,8 @@ export const ADMIN_STORAGE_KEYS = Object.freeze({
   deletedSnapshots: 'boh-admin-deleted-snapshots-v1',
   /* 最近搜索（plans/042 C3）：只存关键词字符串，10 条封顶。 */
   recentSearches: 'boh-admin-recent-searches-v1',
+  /* 本机使用计数（plans/042 B2）：判断抽屉逃生口还有没有人用。 */
+  usageCounters: 'boh-admin-usage-counters-v1',
 });
 
 /**
