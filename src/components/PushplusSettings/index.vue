@@ -137,6 +137,34 @@
         </div>
       </section>
 
+      <!-- 生日邮件：默认开启（生日是用户自己填的），一年只发一封，与上面两个开关互相独立 -->
+      <section class="gs-group">
+        <div class="gs-group-title">生日</div>
+        <div class="gs-rows">
+          <div class="gs-row">
+            <span class="gs-icon" :class="birthdayMailEnabled ? 'is-purple' : 'is-blue'">
+              <Cake :size="16" :stroke-width="2" aria-hidden="true" />
+            </span>
+            <span class="gs-text">
+              <span class="gs-label">生日邮件</span>
+              <span class="gs-desc">{{
+                birthdayMailEnabled
+                  ? '生日当天 00:00 给你发一封邮件（一年一封）'
+                  : '开启后，生日当天 00:00 会收到一封生日祝福邮件'
+              }}</span>
+            </span>
+            <span class="gs-side">
+              <SettingToggle
+                :model-value="birthdayMailEnabled"
+                :disabled="isBirthdayMailBusy || !birthdayMailLoaded"
+                label="生日邮件"
+                @update:model-value="handleBirthdayMailToggle"
+              />
+            </span>
+          </div>
+        </div>
+      </section>
+
       <!-- 推送状态 -->
       <section class="gs-group">
         <div class="gs-group-title">推送状态</div>
@@ -357,6 +385,7 @@ import {
   Bell,
   BellOff,
   BellRing,
+  Cake,
   CheckCircle2,
   Clock,
   HelpCircle,
@@ -382,8 +411,10 @@ import {
 import { sendPushplusMessage } from '@/utils/pushplus.js';
 import { getPushStatus, enablePush, disablePush, sendTestPush } from '@/utils/api/push-api.js';
 import {
+  getBirthdayMailEnabled,
   getFollowMailEnabled,
   getModerationMailEnabled,
+  toggleBirthdayMail,
   toggleFollowMail,
   toggleModerationMail,
 } from '@/utils/api/mail-notify-api.js';
@@ -569,6 +600,55 @@ const handleModerationMailToggle = async (value) => {
   }
 };
 
+// ---------- 生日邮件通知 ----------
+// 默认开启（生日是用户自己在资料里填的，一年一封、不含推销），
+// 但「默认开」必须配「随手能关」——否则用户想停收只能把生日删掉，
+// 那会把生日墙之类的站内功能一起废掉。真源 profiles.birthday_mail_enabled。
+const birthdayMailEnabled = ref(false);
+const birthdayMailLoaded = ref(false);
+const isBirthdayMailBusy = ref(false);
+
+const loadBirthdayMailSetting = async () => {
+  const userId = authStore.userInfo?.id;
+  if (!userId) {
+    birthdayMailLoaded.value = true;
+    return;
+  }
+  let result;
+  try {
+    result = await getBirthdayMailEnabled(userId);
+  } catch (_error) {
+    // 读取异常与「读到了 false」是两件事，交给下面同一套处理
+    result = { enabled: false, error: _error };
+  }
+  /* ⚠️ 读失败时**不要**把开关渲染成「已关闭」——
+     服务端默认是开启的（列默认 true），而这里的初始值恰好是 false，
+     一旦把失败当结果写进去，用户会以为自己没开、然后点一下「开启」，
+     实际是往一个本来就开着的开关上再写一次 true（无害但让人困惑）。
+     保持 loaded=false ⇒ 开关置灰不可点，是「不知道」而不是「没开」。 */
+  if (result.error) return;
+  birthdayMailEnabled.value = Boolean(result.enabled);
+  birthdayMailLoaded.value = true;
+};
+
+const handleBirthdayMailToggle = async (value) => {
+  if (isBirthdayMailBusy.value) return;
+  const userId = authStore.userInfo?.id;
+  if (!userId) {
+    showMessage('请先登录', 'error');
+    return;
+  }
+  isBirthdayMailBusy.value = true;
+  try {
+    const result = await toggleBirthdayMail(userId, value);
+    if (result.success) birthdayMailEnabled.value = Boolean(value);
+    showMessage(result.message, result.success ? 'success' : 'error');
+  } finally {
+    isBirthdayMailBusy.value = false;
+    await loadBirthdayMailSetting();
+  }
+};
+
 const showMessage = (msg, type = 'info') => {
   message.value = msg;
   messageType.value = type;
@@ -743,6 +823,7 @@ onMounted(() => {
   loadPushStatus();
   loadMailSetting();
   loadModerationMailSetting();
+  loadBirthdayMailSetting();
 });
 
 onUnmounted(() => {

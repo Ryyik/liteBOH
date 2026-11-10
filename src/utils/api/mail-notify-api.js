@@ -287,3 +287,86 @@ export async function toggleModerationMail(userId, enabled) {
     };
   }
 }
+
+/* ───────────────── 生日邮件（2026-11-10）─────────────────
+   第三个独立开关（profiles.birthday_mail_enabled）。默认 **true** ——
+   与关注邮件（默认 false）刻意相反：生日是用户在资料里自己填的，
+   一年只发一封、不含推销，属于服务性问候而不是订阅内容。
+   但「默认开」必须配「随手能关」，否则用户唯一的关闭方式是把生日删掉
+   （那会把生日墙之类的站内功能一起废掉），所以这个开关不能省。
+   列级 UPDATE 授权见迁移 2026111001。 */
+
+/**
+ * 读取当前用户是否接收生日邮件。
+ * @param {string} userId
+ * @returns {Promise<{enabled: boolean, error: Error|null}>}
+ */
+export async function getBirthdayMailEnabled(userId) {
+  if (!userId) return { enabled: false, error: null };
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('birthday_mail_enabled')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      logger.error('mail-notify-api', '读取生日邮件开关失败', error);
+      return { enabled: false, error: normalizeDbError(error) };
+    }
+    /* 列默认 true（存量与新增用户都是），所以「读不到」绝不能等同于「关着」：
+       失败时 error 非空，调用方必须按「未知」处理（置灰），不要渲染成已关闭。 */
+    return { enabled: Boolean(data?.birthday_mail_enabled), error: null };
+  } catch (error) {
+    logger.error('mail-notify-api', '读取生日邮件开关异常', error);
+    return { enabled: false, error: normalizeDbError(error) };
+  }
+}
+
+/**
+ * 切换生日邮件开关。
+ * @param {string} userId
+ * @param {boolean} enabled
+ * @returns {Promise<{success: boolean, message: string, error: Error|null}>}
+ */
+export async function toggleBirthdayMail(userId, enabled) {
+  if (!userId) {
+    return { success: false, message: '请先登录', error: null };
+  }
+  try {
+    const next = Boolean(enabled);
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ birthday_mail_enabled: next })
+      .eq('id', userId)
+      .select('id');
+
+    if (error) {
+      logger.error('mail-notify-api', '保存生日邮件开关失败', error);
+      return {
+        success: false,
+        message: '设置保存失败，请稍后重试',
+        error: normalizeDbError(error),
+      };
+    }
+
+    // 与上面两个开关同口径：RLS 挡掉时是 200 + 0 行，必须核对行数（审查 P3-1）。
+    if (!Array.isArray(data) || data.length === 0) {
+      logger.error('mail-notify-api', '保存生日邮件开关未命中任何行', { userId });
+      return { success: false, message: '设置未保存，请刷新页面后重试', error: null };
+    }
+
+    return {
+      success: true,
+      message: next ? '已开启：生日当天 00:00 会给你发一封邮件' : '已关闭生日邮件',
+      error: null,
+    };
+  } catch (error) {
+    logger.error('mail-notify-api', '保存生日邮件开关异常', error);
+    return {
+      success: false,
+      message: '设置保存失败，请稍后重试',
+      error: normalizeDbError(error),
+    };
+  }
+}

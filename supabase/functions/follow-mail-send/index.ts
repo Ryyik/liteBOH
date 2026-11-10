@@ -1,9 +1,10 @@
 /**
  * follow-mail-send —— mail_outbox 的唯一投递端
  *
- * ⚠️ 名字是历史包袱：它现在消费**两种** kind，按 kind 在 sendOne 里分流 ——
+ * ⚠️ 名字是历史包袱：它现在消费**三种** kind，按 kind 在 sendOne 里分流 ——
  *    · follow_post / follow_reply —— 关注动态（原职责，三形态模板见文末）
  *    · shop_order                 —— 订单进度（2026-11-03 并入，模板见「订单进度邮件」段）
+ *    · birthday                   —— 生日祝福（2026-11-10 并入，模板在 _shared/birthday-mail.ts）
  *    名字没改是因为改名要动 cron + 部署 + 排障手册三处，收益只是好看；
  *    真正该记住的是：**往 mail_outbox 里塞新 kind，消费端就是这里**。
  *
@@ -33,6 +34,8 @@
 
 import { buildCorsHeaders, jsonResponse } from '../_shared/cors.ts';
 import { createServiceClient } from '../_shared/supabase.ts';
+/* 生日邮件（kind=birthday）：模板单独成文件，因为它是纯函数、可被单测断言 */
+import { renderBirthdayMail } from '../_shared/birthday-mail.ts';
 /* 订单邮件用 Apple 极简主题；关注邮件仍用本文件自己的 FONT_STACK / TONE（那是杂志风，不该被拉平） */
 import {
   MAIL_COLOR,
@@ -71,8 +74,8 @@ type OutboxRow = {
   id: string;
   recipient_id: string;
   sender_id: string | null;
-  /** shop_order = 订单进度（2026-11-03 并入本账本）；其余是关注类 */
-  kind: 'follow_post' | 'follow_reply' | 'shop_order';
+  /** shop_order = 订单进度（2026-11-03 并入本账本）；birthday = 生日祝福（2026-11-10）；其余是关注类 */
+  kind: 'follow_post' | 'follow_reply' | 'shop_order' | 'birthday';
   post_id: string | null;
   comment_id: string | null;
   /** kind=shop_order 时指向 shop_points_orders.id */
@@ -588,6 +591,107 @@ const sendShopOrderMail = async (
   }
 };
 
+/* ────────────────────────── 生日邮件（2026-11-10）──────────────────────────
+ *
+ * 入账口是 DB 的 boh_enqueue_birthday_mails()（cron 每天 16:00 UTC = 00:00 CST），
+ * 这里只负责「按账本发出去」。模板在 _shared/birthday-mail.ts。
+ *
+ * 与另外两类邮件的关键差异：
+ *   · **不读** follow_mail_enabled —— 阅读偏好跟生日祝福没关系；
+ *     它有自己的开关 profiles.birthday_mail_enabled。
+ *   · 一个寿星一天只可能有一封（DB 侧 dedupe_key=birthday:<uid>:<年>），
+ *     所以这里不需要聚合、不需要窗口。
+ *   · 发送失败仍然走统一的 attempts / pending / failed 回写，
+ *     否则会被 5 分钟的重投 cron 反复扫到。
+ */
+const sendBirthdayMail = async (
+  client: ReturnType<typeof createServiceClient>,
+  row: OutboxRow,
+  attempts: number,
+) => {
+  const markSkipped = async (detail: string) => {
+    await client
+      .from('mail_outbox')
+      .update({ status: 'skipped', attempts, last_error: detail })
+      .eq('id', row.id);
+    return { outcome: 'skipped' as const, detail };
+  };
+
+  const { data: profile, error: profileError } = await client
+    .from('profiles')
+    .select('username, birthday_mail_enabled, join_date')
+    .eq('id', row.recipient_id)
+    .maybeSingle<{
+      username: string | null;
+      birthday_mail_enabled: boolean | null;
+      join_date: string | null;
+    }>();
+  if (profileError) throw profileError;
+  if (!profile) return markSkipped('收件人不存在');
+
+  // 入账到今天之间用户可能已经把开关关了 —— 尊重最新意图（与关注邮件同口径）
+  if (!profile.birthday_mail_enabled) return markSkipped('收件人已关闭生日邮件');
+
+  const { data: emailRows, error: emailError } = await client.rpc('boh_get_user_emails', {
+    p_ids: [row.recipient_id],
+  });
+  if (emailError) throw emailError;
+  const email = String(
+    (emailRows as Array<{ email: string | null }> | null)?.[0]?.email || '',
+  ).trim();
+  if (!email) return markSkipped('无可用邮箱');
+
+  /* 「来了多久」：profiles.**join_date**（date 列，站内语义的加入日期），
+     ⚠️ 这张表**没有 created_at** —— 2026-11-10 首版就写错成 created_at，
+     线上实测整封邮件 500「投递失败」，账本停在 pending/attempts=0。
+     join_date 是 date（无时区），按 UTC 午夜解析后换算成「北京时间的今天」再取整，
+     否则晚上 8 点后会出现「差一天」。解析失败就传 null ——
+     宁可少一行，也不要显示 NaN 天。 */
+  const joinedAt = Date.parse(`${String(profile.join_date || '')}T00:00:00Z`);
+  const DAY_MS = 86_400_000;
+  const daysTogether = Number.isNaN(joinedAt)
+    ? null
+    : Math.max(
+        0,
+        Math.floor((Date.now() + 8 * 3_600_000) / DAY_MS) - Math.floor(joinedAt / DAY_MS),
+      );
+
+  const rendered = renderBirthdayMail({
+    name: profile.username || '',
+    daysTogether,
+    siteOrigin: SITE_ORIGIN,
+  });
+
+  const payload: MailPayload = {
+    to: email,
+    subject: rendered.subject,
+    html: rendered.html,
+    text: rendered.text,
+  };
+
+  try {
+    const result = await sendViaBrevo(payload);
+    await client
+      .from('mail_outbox')
+      .update({
+        status: 'sent',
+        attempts,
+        sent_at: new Date().toISOString(),
+        last_error: null,
+      })
+      .eq('id', row.id);
+    return { outcome: 'sent' as const, detail: result.messageId || undefined };
+  } catch (error) {
+    const detail = truncate(error instanceof Error ? error.message : String(error), 500);
+    const exhausted = attempts >= MAX_ATTEMPTS;
+    await client
+      .from('mail_outbox')
+      .update({ status: exhausted ? 'failed' : 'pending', attempts, last_error: detail })
+      .eq('id', row.id);
+    return { outcome: exhausted ? ('failed' as const) : ('retrying' as const), detail };
+  }
+};
+
 const sendOne = async (outboxId: string) => {
   const client = createServiceClient();
 
@@ -609,6 +713,12 @@ const sendOne = async (outboxId: string) => {
      进度通知是事务性邮件，不该被「关注邮件开关」连带关掉。 */
   if (row.kind === 'shop_order') {
     return sendShopOrderMail(client, row, attempts);
+  }
+
+  /* 生日祝福同理：它有自己的开关（birthday_mail_enabled），
+     读 follow_mail_enabled 会把「关了关注摘要但想收生日祝福」的人一起丢掉。 */
+  if (row.kind === 'birthday') {
+    return sendBirthdayMail(client, row, attempts);
   }
 
   // 用户可能中途把开关关了 —— 已入账但还没发的，尊重最新意图
@@ -757,11 +867,19 @@ Deno.serve(async (request) => {
       const result = await sendOne(outboxId);
       return jsonResponse({ ok: true, ...result }, 200, origin);
     } catch (error) {
+      /* ⚠️ 必须把非 Error 的 message 也透出来：supabase-js 的 PostgrestError 是
+         **普通对象**（不是 Error 实例），旧写法 `error instanceof Error ? … : '投递失败'`
+         会把「column profiles.created_at does not exist」这种决定性信息吞成四个字，
+         2026-11-10 线上实测就被它挡了整整一轮排障。 */
+      const detail =
+        error instanceof Error
+          ? error.message
+          : String((error as { message?: unknown } | null)?.message || '投递失败');
       return jsonResponse(
         {
           ok: false,
           code: 'SEND_FAILED',
-          message: error instanceof Error ? error.message : '投递失败',
+          message: detail,
         },
         500,
         origin,
