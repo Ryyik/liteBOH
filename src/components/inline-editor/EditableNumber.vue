@@ -50,6 +50,8 @@ import { useInlineEditor } from '@/composables/useInlineEditor.js';
 const props = defineProps({
   modelValue: { type: [Number, String], default: null },
   row: { type: Object, default: null },
+  /** 目标表名（与 EditableText 同义）：一页多表时用它区分写入目标 */
+  table: { type: String, default: '' },
   field: { type: String, required: true },
   label: { type: String, default: '' },
   prefix: { type: String, default: '' },
@@ -76,8 +78,8 @@ const isEditing = ref(false);
 const previous = ref(null);
 
 const isEditable = computed(() => Boolean(editor?.active) && Boolean(props.row));
-const isBusy = computed(() => Boolean(editor?.isBusy?.(props.row, props.field)));
-const isFailed = computed(() => Boolean(editor?.isFailed?.(props.row, props.field)));
+const isBusy = computed(() => Boolean(editor?.isBusy?.(props.row, props.field, props.table)));
+const isFailed = computed(() => Boolean(editor?.isFailed?.(props.row, props.field, props.table)));
 
 const numeric = computed(() => {
   const value = Number(props.modelValue);
@@ -132,7 +134,7 @@ const commit = () => {
   const next = Math.round(parsed * (props.scale || 1));
   if (next === previous.value) return;
 
-  const error = editor?.validate?.(props.field, next, props.row) || '';
+  const error = editor?.validate?.(props.field, next, props.row, props.table) || '';
   if (error) {
     editor?.notify?.(error, 'error');
     return;
@@ -140,7 +142,7 @@ const commit = () => {
 
   emit('update:modelValue', next);
   // 同 EditableText：先取 promise 再 catch，避免 editor 缺失时对 undefined 调 .catch
-  const task = editor?.commit?.(props.row, props.field, next, previous.value);
+  const task = editor?.commit?.(props.row, props.field, next, previous.value, props.table);
   task?.catch(() => emit('update:modelValue', previous.value));
 };
 
@@ -171,17 +173,15 @@ const onInputKeydown = (event) => {
 </script>
 
 <style scoped>
-.ien {
+/* 同 EditableText：无上下文时不写任何视觉属性，前台 span 的 computedStyle 保持原样 */
+.ien.is-editable {
   border-radius: 4px;
   outline: 1px dashed transparent;
   outline-offset: 2px;
+  cursor: text;
   transition:
     outline-color 0.15s ease,
     background-color 0.15s ease;
-}
-
-.ien.is-editable {
-  cursor: text;
 }
 
 .ien.is-editable:hover {

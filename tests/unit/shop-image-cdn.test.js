@@ -71,7 +71,8 @@ describe('周边各视图：图片必须经解析函数，不得直用库里的�
     'src/views/Shop/index.vue': 'resolveDbCardImage',
     'src/views/Shop/ProductDetailSheet.vue': 'resolveDbDetailImage',
     'src/views/Shop/BagPanel.vue': 'resolveDbCardImage',
-    'src/views/Shop/LotteryPanel.vue': 'resolveDbCardImage',
+    // 抽奖卡 2026-11-10 抽成独立组件，封面解析随渲染一起搬过去
+    'src/views/Shop/LotteryCard.vue': 'resolveDbCardImage',
     'src/views/Shop/LotteryDetailSheet.vue': 'resolveDbDetailImage',
     'src/views/Shop/OrderPanel.vue': 'resolveDbCardImage',
     'src/views/Shop/OrderDetailSheet.vue': 'resolveDbCardImage',
@@ -101,9 +102,9 @@ describe('周边各视图：图片必须经解析函数，不得直用库里的�
   });
 
   it('抽奖封面先解析再渲染（1MB 原图 + 大陆不可达 = 一直灰着）', () => {
-    const panel = read('src/views/Shop/LotteryPanel.vue');
-    expect(panel).toMatch(/const coverOf = \(item\) =>\s*resolveDbCardImage\(/);
-    expect(panel).not.toContain(':src="item.cover_image_url"');
+    const card = read('src/views/Shop/LotteryCard.vue');
+    expect(card).toMatch(/const coverOf = computed\(\(\) =>\s*resolveDbCardImage\(/);
+    expect(card).not.toContain(':src="item.cover_image_url"');
   });
 });
 
@@ -113,7 +114,7 @@ describe('裂图兜底：失败后退回占位图标，不留碎图问号', () =
       'src/views/Shop/index.vue',
       'src/views/Shop/ProductDetailSheet.vue',
       'src/views/Shop/BagPanel.vue',
-      'src/views/Shop/LotteryPanel.vue',
+      'src/views/Shop/LotteryCard.vue',
       'src/views/Shop/LotteryDetailSheet.vue',
       'src/views/Shop/OrderPanel.vue',
       'src/views/Shop/OrderDetailSheet.vue',

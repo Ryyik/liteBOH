@@ -90,14 +90,37 @@ import { logger } from '@/utils/logger.js';
  * 为什么校验规则来自 `dataConfig.products.fields` 而不是在这里重写：
  * 就地编辑最容易出的事故就是**绕过校验**（表单里的 required 在页面上并不存在）。
  * 复用同一份字段配置，才能保证「页面上能存进去的东西」和「表单能存进去的东西」一致。
+ *
+ * 2026-11-10 起这里同时承载**两张表**：商品（`/shop?tab=products`）与抽奖
+ * （`/shop?tab=lottery`）。原语用 `table` prop 声明目标表，宿主按表取字段配置与
+ * 表名；不声明的一律按商品处理，商城原有调用点不用改。
  */
 const router = useRouter();
 const productsStore = useProductsStore();
 const { confirm } = useConfirmDialog();
 
 const TABLE = dataConfig.products.table;
+const LOTTERY_TABLE = dataConfig.lotteries.table;
 const PRODUCT_FIELDS = dataConfig.products.fields;
+const LOTTERY_FIELDS = dataConfig.lotteries.fields;
 const DELETED_SNAPSHOT_LIMIT = 30;
+
+/**
+ * 一张前台页面里现在有两张表的内容：商品卡（`products`）与抽奖卡（`lotteries`）。
+ * 原语通过 `table` prop 声明目标表，宿主据此取**对应的**字段配置 —— 否则
+ * 抽奖卡的 `title` 会按商品的 `title` 校验/取长度上限，看着都能过，实际两套规则。
+ * 传空 = 默认商品（商城原有的所有调用点都不用改）。
+ */
+const TABLE_TABS = {
+  [LOTTERY_TABLE]: {
+    table: LOTTERY_TABLE,
+    tab: 'lotteries',
+    label: '抽奖管理',
+    fields: LOTTERY_FIELDS,
+  },
+  [TABLE]: { table: TABLE, tab: 'products', label: '商品管理', fields: PRODUCT_FIELDS },
+};
+const metaOfTable = (table) => TABLE_TABS[table] || TABLE_TABS[TABLE];
 
 const toast = reactive({ show: false, tone: 'ok', message: '' });
 let toastTimer = null;
@@ -120,22 +143,25 @@ const refreshList = async () => {
   await productsStore.fetchProducts({ force: true });
 };
 
-const save = async (row, field, value) => {
-  await patchAdminRow(TABLE, row.id, { [field]: value });
-  productsStore.bumpCacheVersion();
+const save = async (row, field, value, table = '') => {
+  await patchAdminRow(metaOfTable(table).table, row.id, { [field]: value });
+  // 只有商品进 store 缓存；抽奖列表由 LotteryPanel 自己持有，乐观更新已经生效
+  if (metaOfTable(table).table === TABLE) productsStore.bumpCacheVersion();
   notify('已保存', 'ok');
 };
 
 /** 删除前先把库里那一行原样存进本机快照，数据管理的「最近删除」可以直接恢复 */
-const recordDeletedSnapshot = (row) => {
+const recordDeletedSnapshot = (row, table = '') => {
   if (!row?.id) return;
+  const target = table || TABLE;
+  const meta = metaOfTable(target);
   const list = readLocalJson(ADMIN_STORAGE_KEYS.deletedSnapshots, []);
   const deletedAt = new Date().toISOString();
   const entry = {
-    key: `${TABLE}:${row.id}:${deletedAt}:${Math.random().toString(36).slice(2, 8)}`,
-    table: TABLE,
-    tab: 'products',
-    tabLabel: '商品管理',
+    key: `${target}:${row.id}:${deletedAt}:${Math.random().toString(36).slice(2, 8)}`,
+    table: target,
+    tab: meta.tab,
+    tabLabel: meta.label,
     snapshot: JSON.parse(JSON.stringify(row)),
     deletedAt,
   };
@@ -145,13 +171,18 @@ const recordDeletedSnapshot = (row) => {
   );
 };
 
-const remove = async (row) => {
+const remove = async (row, table = '') => {
   if (!row?.id) return;
+  const target = table || TABLE;
+  const isLottery = target === LOTTERY_TABLE;
+  const name = row.title || row.id;
   let confirmed = false;
   try {
     confirmed = await confirm({
-      title: '删除这个商品？',
-      message: `「${row.title || row.id}」会从商城消失。本机会留一份快照，可以在数据管理 → 命令面板 →「最近删除」里恢复。`,
+      title: isLottery ? '删除这个抽奖？' : '删除这个商品？',
+      message: isLottery
+        ? `「${name}」会从商城抽奖区消失，已报名的记录也会一起删除。本机会留一份快照，可以在数据管理 → 命令面板 →「最近删除」里恢复。`
+        : `「${name}」会从商城消失。本机会留一份快照，可以在数据管理 → 命令面板 →「最近删除」里恢复。`,
       tone: 'danger',
       confirmText: '删除',
     });
@@ -166,16 +197,16 @@ const remove = async (row) => {
     // 先取库里的原始行再删：页面上的 row 已被 normalizeProduct 补过默认值，
     // 直接拿它当快照会在恢复时写进一批并不存在的列差异。
     const original = await fetchRecordById({
-      table: TABLE,
+      table: target,
       selectColumns: '*',
       id: row.id,
     });
-    recordDeletedSnapshot(original || row);
-    await deleteAdminRow(TABLE, row.id);
-    await refreshList();
+    recordDeletedSnapshot(original || row, target);
+    await deleteAdminRow(target, row.id);
+    if (!isLottery) await refreshList();
     notify('已删除，可在「最近删除」中恢复', 'ok');
   } catch (error) {
-    logger.error('shop-inline-editor', '删除商品失败', error);
+    logger.error('shop-inline-editor', '删除失败', error);
     notify(`删除失败：${error?.message || '未知错误'}`, 'error');
   }
 };
@@ -203,12 +234,16 @@ const create = async () => {
   }
 };
 
-const uploadImage = async (row, field, file) => {
+const uploadImage = async (row, field, file, table = '') => {
   if (!isCloudinaryNoteUploadConfigured()) {
     throw new Error('未配置 Cloudinary 上传');
   }
   const uploaded = await uploadImageToCloudinary(file, {
-    folder: 'boh-cloud-plus/admin-shop-inline',
+    // 抽奖封面与商品图分开放，出问题时能按目录定位是哪条链路传的
+    folder:
+      metaOfTable(table).table === LOTTERY_TABLE
+        ? 'boh-cloud-plus/admin-lottery-inline'
+        : 'boh-cloud-plus/admin-shop-inline',
     pendingSource: 'shop-inline-editor',
     claimPendingUpload: true,
   });
@@ -217,18 +252,16 @@ const uploadImage = async (row, field, file) => {
   return uploaded.url;
 };
 
-/** 字段级校验：规则与数据管理表单同源（dataConfig.products.fields） */
-const validate = (field, value) =>
-  validateInlineField(
-    PRODUCT_FIELDS.find((item) => item.key === field),
-    value,
-  );
-
 /** 字段声明：长度上限等约束从 tables.js 读，宿主不再各写一份数字 */
-const metaOf = (field) => PRODUCT_FIELDS.find((item) => item.key === field) || null;
+const metaOf = (field, table = '') =>
+  metaOfTable(table).fields.find((item) => item.key === field) || null;
+
+/** 字段级校验：规则与数据管理表单同源（按目标表取对应的 fields） */
+const validate = (field, value, row, table = '') =>
+  validateInlineField(metaOf(field, table), value);
 
 /** 字段中文名：撤销/提示文案里用它，避免把 `title` 这类列名抛给运营看 */
-const labelOf = (field) => metaOf(field)?.label || field;
+const labelOf = (field, table = '') => metaOf(field, table)?.label || field;
 
 const editor = provideInlineEditor({
   startActive: true,

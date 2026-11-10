@@ -134,7 +134,8 @@ describe('ShopEditor 宿主', () => {
   });
 
   it('删除前先落快照，顺序不能反', () => {
-    const remove = host.match(/const remove = async \(row\) => \{([\s\S]*?)\n\};/);
+    // 签名带 table（2026-11-10 起一页两表：商品 / 抽奖）
+    const remove = host.match(/const remove = async \(row, table = ''\) => \{([\s\S]*?)\n\};/);
     expect(remove, '找不到 remove 函数').toBeTruthy();
     const body = remove[1];
     const snapshotAt = body.indexOf('recordDeletedSnapshot(');
@@ -199,7 +200,7 @@ describe('复核修复：写入一致性', () => {
   const source = stripComments(read('src/composables/useInlineEditor.js'));
   const commitBody = () => {
     const match = source.match(
-      /const commit = \(row, field, next, previous\) => \{([\s\S]*?)\n  \};/,
+      /const commit = \(row, field, next, previous, table = ''\) => \{([\s\S]*?)\n  \};/,
     );
     expect(match, '找不到 commit').toBeTruthy();
     return match[1];
@@ -231,7 +232,7 @@ describe('复核修复：写入一致性', () => {
 
   it('删除记录后要把它从撤销栈摘掉（否则会对着已删 id 报「已撤销」）', () => {
     expect(source).toContain('const forget = (row) =>');
-    expect(source).toMatch(/remove: async \(row\) => \{[\s\S]{0,160}forget\(row\)/);
+    expect(source).toMatch(/remove: async \(row, table = ''\) => \{[\s\S]{0,160}forget\(row\)/);
   });
 });
 
@@ -245,7 +246,8 @@ describe('复核修复：长度上限只有一份真源', () => {
 
   it('原语从注入的字段声明读上限，宿主不再各写数字', () => {
     const text = stripComments(read('src/components/inline-editor/EditableText.vue'));
-    expect(text).toContain('editor?.metaOf?.(props.field)?.maxLength');
+    // 带 table：同名字段在不同表里约束可以不同（商品 title / 抽奖 title）
+    expect(text).toContain('editor?.metaOf?.(props.field, props.table)?.maxLength');
     const shop = stripComments(read('src/views/Shop/index.vue'));
     expect(shop, '宿主不该再硬编码 max-length').not.toContain(':max-length="25"');
   });

@@ -44,6 +44,8 @@ const props = defineProps({
   /** 当前图片地址。原语不直接改宿主数据，只通过 v-model 通知 */
   modelValue: { type: String, default: '' },
   row: { type: Object, default: null },
+  /** 目标表名（与 EditableText 同义）：一页多表时用它区分写入目标 */
+  table: { type: String, default: '' },
   field: { type: String, default: 'image' },
 });
 
@@ -74,12 +76,12 @@ const onFileChange = async (event) => {
   const previous = props.row?.[props.field];
   isBusy.value = true;
   try {
-    const url = await editor.uploadImage(props.row, props.field, file);
+    const url = await editor.uploadImage(props.row, props.field, file, props.table);
     if (!url) return;
     /* 值通过 v-model 交回宿主改，原语不碰 prop 对象（vue/no-mutating-props）。
        写库仍由原语 commit —— 否则每个宿主都得重写一遍，漏一处就「图换了但没落库」。 */
     emit('update:modelValue', url);
-    await editor.commit?.(props.row, props.field, url, previous);
+    await editor.commit?.(props.row, props.field, url, previous, props.table);
     emit('uploaded', url);
   } catch (error) {
     emit('update:modelValue', previous ?? '');

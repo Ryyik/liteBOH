@@ -29,16 +29,24 @@ export const INLINE_EDITOR_KEY = Symbol('boh-inline-editor');
 /** 原语里取上下文：前台拿不到就返回 null，据此降级。 */
 export const useInlineEditor = () => inject(INLINE_EDITOR_KEY, null);
 
-const keyOf = (row, field) => `${row?.id ?? 'new'}:${field}`;
+/**
+ * 写入键 = 表 + 主键 + 字段。
+ *
+ * 为什么必须带表：一个宿主页面可以同时挂两张表的内容（商城页里商品与抽奖卡
+ * 同在 `/shop`，抽奖卡在 `lotteries`、商品卡在 `products`）。若键只到 `id:field`，
+ * 两张表里恰好同名的字段（`title` / `status`）在「忙碌/失败红边」上会互相串，
+ * 而且撤销栈靠 key 排序写入时也会排到别人的队列后面。
+ */
+const keyOf = (row, field, table = '') => `${table}#${row?.id ?? 'new'}:${field}`;
 
 /**
  * 在后台页面里建立编辑上下文。
  *
  * @param {Object} options
  * @param {boolean} [options.startActive=false] 是否一进页面就处于编辑态
- * @param {(row: Object, field: string, value: unknown) => Promise<void>} options.save
- *   单字段写入。宿主负责落库、并发/失败处理。
- * @param {(row: Object) => Promise<void>} [options.remove] 删除一条
+ * @param {(row: Object, field: string, value: unknown, table: string) => Promise<void>} options.save
+ *   单字段写入。宿主负责落库、并发/失败处理。`table` 是原语声明的目标表（空 = 宿主默认表）。
+ * @param {(row: Object, table: string) => Promise<void>} [options.remove] 删除一条
  * @param {() => Promise<void>} [options.create] 新增一条
  * @param {(row: Object) => void} [options.openFull] 打开完整表单（复杂字段的唯一正道）
  * @param {(field: string, value: unknown, row: Object) => string} [options.validate]
@@ -122,18 +130,21 @@ export const provideInlineEditor = (options = {}) => {
   /**
    * 写一个字段。乐观更新由原语自己做（先改 modelValue），这里只负责落库与记录。
    * 失败时抛出，让原语回滚。
+   *
+   * `table` 由原语声明（见各原语的 `table` prop）：宿主据此决定写哪张表、取哪套
+   * 字段配置。传空则宿主用它的默认表（商城宿主默认 products）。
    */
-  const commit = (row, field, next, previous) => {
+  const commit = (row, field, next, previous, table = '') => {
     if (!save) return Promise.resolve();
-    const key = keyOf(row, field);
-    const entry = { row, field, previous, next };
+    const key = keyOf(row, field, table);
+    const entry = { row, field, previous, next, table };
 
     /* **先入撤销栈、再落库**。反过来（等 save 成功才入栈）会让「改完立刻点撤销」
        扑空 —— 请求还在路上时栈是空的，undo 直接 return，用户看到的是「点了没反应」。 */
     pushHistory(entry);
     markBusy(key, true);
 
-    return enqueueWrite(key, () => save(row, field, next))
+    return enqueueWrite(key, () => save(row, field, next, table))
       .then(() => {
         markFailed(key, false);
       })
@@ -155,16 +166,17 @@ export const provideInlineEditor = (options = {}) => {
     history.value = history.value.slice(0, -1);
 
     const { row, field, previous, next } = entry;
-    const key = keyOf(row, field);
+    const table = entry.table || '';
+    const key = keyOf(row, field, table);
     /* 就地编辑的乐观更新是**双向**的：只写库不写界面，用户点撤销会看到「什么都没发生」，
        而库其实已经改回去了 —— 下一次刷新才突然变，是最难排查的那种不一致。 */
     if (row) row[field] = previous;
 
     try {
       // 走同一个队列：撤销必须排在那次还没写完的 commit 之后，否则会被它覆盖
-      await enqueueWrite(key, () => save(row, field, previous));
+      await enqueueWrite(key, () => save(row, field, previous, table));
       /* 文案用字段的中文标签，不要把 `title` 这种列名直接抛给运营 */
-      notify?.(`已撤销「${labelOf?.(field) || field}」的修改`, 'ok');
+      notify?.(`已撤销「${labelOf?.(field, table) || field}」的修改`, 'ok');
     } catch (error) {
       // 撤销失败：界面和栈都要还原，否则这条改动永久失去撤销入口
       if (row) row[field] = next;
@@ -190,9 +202,9 @@ export const provideInlineEditor = (options = {}) => {
     forget,
     /* 包装一层：删掉的记录不能留在撤销栈里 —— undo 会对一个已不存在的 id 发 PATCH，
        影响 0 行却不报错，用户会看到「已撤销」但页面上什么都没变。 */
-    remove: async (row) => {
+    remove: async (row, table = '') => {
       if (!remove) return;
-      await remove(row);
+      await remove(row, table);
       forget(row);
     },
     create,
@@ -200,10 +212,12 @@ export const provideInlineEditor = (options = {}) => {
     validate,
     notify,
     uploadImage,
-    /** 字段声明（tables.js 那一项）：原语据此拿 maxLength 等约束，宿主不用各写一份 */
+    /** 字段声明（tables.js 那一项）：原语据此拿 maxLength 等约束，宿主不用各写一份。
+     *  带 table 是因为同名字段在不同表里约束不同（商品 title 120 / 抽奖 title 120 但
+     *  卡片只显示 28 字），宿主按表取配置才不会张冠李戴。 */
     metaOf,
-    isBusy: (row, field) => busyKeys.value.has(keyOf(row, field)),
-    isFailed: (row, field) => failedKeys.value.has(keyOf(row, field)),
+    isBusy: (row, field, table = '') => busyKeys.value.has(keyOf(row, field, table)),
+    isFailed: (row, field, table = '') => failedKeys.value.has(keyOf(row, field, table)),
     toggle: () => {
       active.value = !active.value;
     },

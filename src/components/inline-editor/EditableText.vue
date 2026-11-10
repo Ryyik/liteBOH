@@ -63,6 +63,11 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   /** 整行数据：写入时需要定位主键，所以原语要拿到 row 而不只是值 */
   row: { type: Object, default: null },
+  /**
+   * 目标表名（如 `lotteries`）。一个前台页面里可能同时有商品卡与抽奖卡，
+   * 它们在两张表里都有 `title`。空串 = 用宿主的默认表。
+   */
+  table: { type: String, default: '' },
   field: { type: String, required: true },
   label: { type: String, default: '' },
   maxLength: { type: Number, default: undefined },
@@ -82,13 +87,14 @@ const isEditing = ref(false);
 const previous = ref('');
 
 const isEditable = computed(() => Boolean(editor?.active) && Boolean(props.row));
-const isBusy = computed(() => Boolean(editor?.isBusy?.(props.row, props.field)));
-const isFailed = computed(() => Boolean(editor?.isFailed?.(props.row, props.field)));
+const isBusy = computed(() => Boolean(editor?.isBusy?.(props.row, props.field, props.table)));
+const isFailed = computed(() => Boolean(editor?.isFailed?.(props.row, props.field, props.table)));
 
 /* 长度上限的真源是字段配置（tables.js 的 maxLength）：宿主不必再各写一份数字，
-   否则改上限时总有一处漏改 —— 输入框限住了、校验没限，或者反过来。 */
+   否则改上限时总有一处漏改 —— 输入框限住了、校验没限，或者反过来。
+   `table` 一起传：不同表里同名字段的约束可以不同。 */
 const effectiveMaxLength = computed(
-  () => props.maxLength ?? editor?.metaOf?.(props.field)?.maxLength ?? undefined,
+  () => props.maxLength ?? editor?.metaOf?.(props.field, props.table)?.maxLength ?? undefined,
 );
 
 const begin = async () => {
@@ -136,7 +142,7 @@ const commit = () => {
   if (next === previous.value) return;
 
   // 校验口径由宿主注入（来源是 tables.js 的字段配置），原语不硬编码业务规则
-  const error = editor?.validate?.(props.field, next, props.row) || '';
+  const error = editor?.validate?.(props.field, next, props.row, props.table) || '';
   if (error) {
     editor?.notify?.(error, 'error');
     return;
@@ -146,7 +152,7 @@ const commit = () => {
   emit('update:modelValue', next);
   /* 用「先取回 promise 再 catch」而不是链式 `.catch()`：`editor?.commit(...)` 在
      editor 为 null 时整体短路成 undefined，后面接 `.catch` 会直接 TypeError。 */
-  const task = editor?.commit?.(props.row, props.field, next, previous.value);
+  const task = editor?.commit?.(props.row, props.field, next, previous.value, props.table);
   task?.catch(() => emit('update:modelValue', previous.value));
 };
 
@@ -178,17 +184,17 @@ const onInputKeydown = (event) => {
 </script>
 
 <style scoped>
-.iet {
+/* 无编辑上下文时这里**一个视觉属性都不写**：只给「可编辑」状态加圆角/虚线框。
+   写成无条件 `.iet { border-radius: 4px }` 会让前台 span 的 computedStyle 从 0 变 4px
+   —— 肉眼看不见，但「前台零影响」这句话就不再成立了（plans/042 AC-15 要求可断言）。 */
+.iet.is-editable {
   border-radius: 4px;
   outline: 1px dashed transparent;
   outline-offset: 2px;
+  cursor: text;
   transition:
     outline-color 0.15s ease,
     background-color 0.15s ease;
-}
-
-.iet.is-editable {
-  cursor: text;
 }
 
 .iet.is-editable:hover {
