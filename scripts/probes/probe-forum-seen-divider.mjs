@@ -15,12 +15,14 @@ import { chromium } from 'playwright';
 
    反证记录（写完当场跑过）：
      · 把模板判断从 `getVisiblePostIndex(item.visIndex) === splitIndex` 改成
-       `item.visIndex === splitIndex` → 非虚拟化路径不变（<40 条时 startIndex 恒 0），
-       所以**单靠本探针抓不到**这类「窗口偏移」错误；40 条以上的窗口场景归
-       `probe-forum-virtual-jump.mjs` 那类测试管，别在这里造第二份。
-     · 把 `posts.length < 2` 的守卫删掉 → B/D 仍绿（newCount>=length 分支兜住了），属良性冗余。
-     · 把 `enabled` 恒置 true → 本探针全绿（因为探针不切筛选）。**这是已知覆盖缺口**，
-       补它需要「热门排序 / 搜索结果」场景，交给后续改动时一并加，别当它已经测过。 */
+       `item.visIndex === splitIndex` → **本探针全绿**（2026-11-10 实测）。原因是窗口起点在
+       顶部恒为 0，两种写法结果相同；要真测出来得让列表进入虚拟化并滚过窗口边界，
+       而探针里推不动那个嵌套滚动容器。⇒ 这条风险**目前没有端到端覆盖**，
+       改这段模板时靠人看：删掉 getVisiblePostIndex 不会有人拦你。
+     · 去掉 `isFirstLogin` 守卫 → C1 红（有效）。
+     · 把 `splitIndex` 写死 0 → A2 红（有效）。
+     · 把 `enabled` 恒置 true → 本探针全绿（探针不切筛选）。**已知覆盖缺口**，
+       补它需要「热门排序 / 搜索结果」场景，交给后续改动一并加，别当它已经测过。 */
 
 const BASE = process.env.BASE || 'http://[::1]:5173';
 const OUT = 'debug-screenshots';
@@ -206,7 +208,16 @@ try {
     check('A5 浅色下文案对比度 ≥ 4.5', lightContrast >= 4.5, `ratio=${lightContrast}`);
 
     // 截图必须把分隔线滚进视口 —— 只截首屏拍到的是两张新帖，肉眼验收会漏掉「线是否可见」。
-    await page.locator('.forum-seen-divider').scrollIntoViewIfNeeded();
+    // ⚠️ 用 evaluate 而不是 locator().scrollIntoViewIfNeeded()：后者在元素不存在时会**等 30s
+    // 然后抛错**，把「A1 红」（一条清楚的断言）变成「探针崩了」（看不出结论）。探针不该有
+    // 这种「失败方式比失败本身更难读」的写法。
+    const scrolledToDivider = await page.evaluate(() => {
+      const el = document.querySelector('.forum-seen-divider');
+      if (!el) return false;
+      el.scrollIntoView({ block: 'center' });
+      return true;
+    });
+    check('A5b 分隔线可滚入视口（截图前置）', scrolledToDivider);
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${OUT}/probe-seen-divider-light.png`, fullPage: false });
 
@@ -222,7 +233,9 @@ try {
         .forEach((el) => el.setAttribute('data-theme', 'dark'));
     });
     await page.waitForTimeout(300);
-    await page.locator('.forum-seen-divider').scrollIntoViewIfNeeded();
+    await page.evaluate(() =>
+      document.querySelector('.forum-seen-divider')?.scrollIntoView({ block: 'center' }),
+    );
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${OUT}/probe-seen-divider-dark.png`, fullPage: false });
     const darkStillThere = (await readDivider(page)).count === 1;
@@ -273,6 +286,30 @@ try {
     const { context, page } = await openForum({ rows: ROWS_MIXED, anchor: null });
     console.log('\n--- D 无锚点 ---');
     check('D1 不画分隔线', (await readDivider(page)).count === 0);
+    await context.close();
+  }
+  // ---------------- E：45 条数据，但只断言「位置仍然正确」 ----------------
+  // ⚠️ 这一档**没有**覆盖虚拟列表窗口偏移：列表每页 10 条，45 条要真进虚拟化得连续触底翻页，
+  // 而探针里的触底（mouse.wheel）在这个宿主下推不动嵌套滚动容器（2026-11-10 实测
+  // rendered 恒 10，E5 直接红）。所以这里只保留「一页内位置正确」，别把 E1 的
+  // 「渲染数 < 总数」当成虚拟化生效的证据 —— 它只是「分页只回了一页」。
+  {
+    const many = Array.from({ length: 45 }, (_, i) =>
+      row(
+        `00000000-0000-0000-0000-0000000e${String(i).padStart(2, '0')}`,
+        i < 3 ? `2026-11-10T0${i}:00:00Z` : `2026-11-0${(i % 6) + 1}T0${i % 9}:00:00Z`,
+      ),
+    );
+    const { context, page, errors } = await openForum({ rows: many });
+    console.log('\n--- E 45 条（实为第一页）---');
+    const info = await readDivider(page);
+    check('E1 渲染出 1 条分隔线', info.count === 1, `count=${info.count}`);
+    check(
+      'E2 插在绝对下标 3（前 3 条新帖之后）',
+      info.absoluteIndex === 3,
+      `at=${info.absoluteIndex}`,
+    );
+    check('E3 无页面异常', errors.length === 0, errors.join(' | '));
     await context.close();
   }
 } finally {
