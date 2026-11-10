@@ -68,6 +68,11 @@ export const resolveForumSeenDivider = ({
     if (!Number.isFinite(ts) || ts <= anchorMs) break;
     newCount += 1;
   }
+  // newCount >= list.length：已加载的全都比锚点新 ⇒ 这一页里没有「旧内容」可作参照，
+  // 画在哪都是错的（画在末尾会被读成「下面还有旧的」，其实没有；画在顶部就是一句废话）。
+  // **2026-11-10 用户拍板：这种情形不提示任何东西**，别改成「以下是新内容」那种顶部条 ——
+  // 提过、被否了。副作用是「久未登录（新帖 ≥ 一页 10 条）时看不到这条线」，
+  // 但用户往下翻到第 2 页、newCount 小于已加载数之后，线会自己出现在真实位置，不算漏判。
   if (newCount <= 0 || newCount >= list.length) return FORUM_SEEN_DIVIDER_HIDDEN;
 
   return { visible: true, splitIndex: newCount, newCount };

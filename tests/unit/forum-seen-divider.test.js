@@ -34,7 +34,7 @@ describe('resolveForumSeenDivider', () => {
     expect(resolveForumSeenDivider({ posts, anchorIso: 'not-a-date' }).visible).toBe(false);
   });
 
-  it('全部是新帖时不画：线会落在列表末尾，看不到旧内容', () => {
+  it('全部是新帖时不提示（2026-11-10 拍板：整页都新就不显示任何东西）', () => {
     const posts = [postAt(120), postAt(60), postAt(30)];
     expect(resolveForumSeenDivider({ posts, anchorIso }).visible).toBe(false);
   });
