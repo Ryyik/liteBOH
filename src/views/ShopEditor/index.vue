@@ -4,57 +4,17 @@
          用户要的就是「整个页面跟前端一样」，所以这里必须是同一个组件实例化。 -->
     <Shop />
 
-    <!-- 玻璃材质走站点统一真源（styles/common/liquid-glass.css），
-         这里绝不自己写 backdrop-filter：check:liquid-glass 会判为第二材质源，
-         而且暗色/折射级的取值也会跟不上下一次全局调整。 -->
-    <div
-      class="se-bar liquid-glass liquid-glass--subtle liquid-glass--pill"
-      role="toolbar"
-      aria-label="就地编辑工具栏"
-    >
-      <button
-        type="button"
-        class="se-btn"
-        :class="{ 'is-on': editor.active }"
-        :aria-pressed="editor.active"
-        @click="editor.toggle()"
-      >
-        <Pencil v-if="!editor.active" :size="14" :stroke-width="2" aria-hidden="true" />
-        <Check v-else :size="14" :stroke-width="2.4" aria-hidden="true" />
-        <span>{{ editor.active ? '编辑中' : '浏览模式' }}</span>
-      </button>
-
-      <button
-        v-if="editor.active"
-        type="button"
-        class="se-btn"
-        :disabled="!editor.canUndo"
-        @click="editor.undo()"
-      >
-        <Undo2 :size="14" :stroke-width="2" aria-hidden="true" />
-        <span>撤销{{ editor.undoCount ? ` ${editor.undoCount}` : '' }}</span>
-      </button>
-
-      <button type="button" class="se-btn" @click="exit">退出</button>
-    </div>
-
-    <div v-if="toast.show" class="se-toast" :class="`is-${toast.tone}`" role="status">
-      <span>{{ toast.message }}</span>
-      <!-- 撤销放在提示条里而不是只靠顶部工具栏：商品详情弹层的 z-index 接近 int32
-           上限（2147482400），工具栏盖不上去；弹层里改完一个字，撤销入口必须在
-           手边，否则得先关掉详情才能退回去。 -->
-      <button v-if="editor.canUndo" type="button" class="se-toast-action" @click="editor.undo()">
-        撤销
-      </button>
-    </div>
+    <!-- 工具栏与提示条是**多个宿主共用**的组件（材质、z-index、撤销入口都在里面），
+         不要在宿主里再写一份定位样式。 -->
+    <InlineEditorBar :toast="toast" @exit="exit" />
   </div>
 </template>
 
 <script setup>
 import { onBeforeUnmount, reactive } from 'vue';
 import { useRouter } from 'vue-router';
-import { Check, Pencil, Undo2 } from 'lucide-vue-next';
 import Shop from '@/views/Shop/index.vue';
+import InlineEditorBar from '@/components/inline-editor/InlineEditorBar.vue';
 import { provideInlineEditor } from '@/composables/useInlineEditor.js';
 import { dataConfig } from '@/views/DataManagement/config/tables.js';
 import {
@@ -263,7 +223,7 @@ const validate = (field, value, row, table = '') =>
 /** 字段中文名：撤销/提示文案里用它，避免把 `title` 这类列名抛给运营看 */
 const labelOf = (field, table = '') => metaOf(field, table)?.label || field;
 
-const editor = provideInlineEditor({
+provideInlineEditor({
   startActive: true,
   save,
   remove,
@@ -285,118 +245,9 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* 工具栏 / 提示条的定位、材质与 z-index 都在 InlineEditorBar.vue 里；
+   这里只留宿主自身的最小布局，避免同一套浮动 UI 出现第二份样式。 */
 .shop-editor {
   min-height: 100vh;
-}
-
-/* 材质（背景/描边/投影/blur）全部来自 .liquid-glass*，这里只管定位与排布。
-   ⚠️ 文字色必须用 --liquid-text-primary 而不是 --foreground：后者来自 dark-mode.css，
-   那个文件按路由懒加载，/admin/shop-editor 这条链上拿不到 ⇒ 暗色下会是深字压深底。 */
-.se-bar {
-  position: fixed;
-  top: max(10px, env(safe-area-inset-top, 0px));
-  left: 50%;
-  z-index: 9000;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--liquid-text-primary, #1d1d1f);
-  transform: translateX(-50%);
-}
-
-.se-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 12px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-  font-size: 13px;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    opacity 0.15s ease;
-}
-
-.se-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, currentColor 10%, transparent);
-}
-
-/* 反色胶囊不能用 --foreground/--background 做配对（两者都受懒加载影响）：
-   直接钉品牌蓝 + 白字，两种主题下对比都够，且与「编辑态」的语义一致。 */
-.se-btn.is-on {
-  background: #0071e3;
-  color: #fff;
-}
-
-.se-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.se-toast {
-  position: fixed;
-  /* 抬到移动端底部导航之上：底栏约 88px + 安全区，78px 会被压住半截 */
-  bottom: calc(104px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  /* 必须压过商品详情弹层（2147482400），否则在详情页里改完看不到「已保存」 */
-  z-index: 2147482501;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  max-width: 86vw;
-  padding: 9px 12px 9px 16px;
-  border-radius: 999px;
-  /* 固定深底白字：两套主题下都是系统 toast 的标准观感，
-     也不依赖 dark-mode.css（那条链在本路由是懒加载的） */
-  background: rgba(28, 28, 30, 0.94);
-  color: #fff;
-  font-size: 13px;
-  line-height: 1.35;
-  transform: translateX(-50%);
-  animation: se-toast-in 0.2s ease;
-}
-
-.se-toast.is-error {
-  background: #c4261f;
-}
-
-.se-toast-action {
-  flex: none;
-  padding: 4px 10px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.2;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.se-toast-action:hover {
-  background: rgba(255, 255, 255, 0.32);
-}
-
-@keyframes se-toast-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 6px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .se-toast {
-    animation: none;
-  }
 }
 </style>

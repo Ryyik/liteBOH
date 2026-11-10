@@ -122,7 +122,14 @@
               :aria-label="`${featuredNews.kind === 'show' ? '观看节目：' : '阅读：'}${featuredNews.title}`"
               ref="newsCards"
             >
-              <div class="news-image" :class="{ 'is-empty': !hasNewsImage(featuredNews) }">
+              <EditableImage
+                v-model="featuredNews.image"
+                class="news-image"
+                :class="{ 'is-empty': !hasNewsImage(featuredNews) }"
+                :row="featuredNews.kind === 'news' ? featuredNews : null"
+                table="news"
+                field="image"
+              >
                 <div class="news-image-fallback" aria-hidden="true">
                   <span>{{ (featuredNews.title || '新').charAt(0) }}</span>
                 </div>
@@ -141,11 +148,45 @@
                   ><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg
                 ></span>
                 <span class="news-date">{{ formatDate(featuredNews.date) }}</span>
-              </div>
+                <button
+                  v-if="isInlineNewsEditing && featuredNews.kind === 'news'"
+                  type="button"
+                  class="news-card-remove"
+                  title="删除这条资讯"
+                  @click.stop="inlineEditor.remove(featuredNews, 'news')"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.4"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
+              </EditableImage>
               <div class="news-content">
                 <span class="news-category">{{ kindCategoryLabel(featuredNews) }}</span>
-                <h3 class="news-title-card">{{ featuredNews.title }}</h3>
-                <p class="news-excerpt">{{ featuredNews.excerpt }}</p>
+                <h3 class="news-title-card">
+                  <EditableText
+                    v-model="featuredNews.title"
+                    :row="featuredNews.kind === 'news' ? featuredNews : null"
+                    table="news"
+                    field="title"
+                    label="资讯标题"
+                  />
+                </h3>
+                <p class="news-excerpt">
+                  <EditableText
+                    v-model="featuredNews.excerpt"
+                    :row="featuredNews.kind === 'news' ? featuredNews : null"
+                    table="news"
+                    field="excerpt"
+                    label="摘要"
+                    placeholder="补一句摘要"
+                  />
+                </p>
                 <div class="news-meta">
                   <span>{{
                     featuredNews.kind === 'show'
@@ -174,7 +215,14 @@
                 :aria-label="`${news.kind === 'show' ? '观看节目：' : '阅读：'}${news.title}`"
                 ref="newsCards"
               >
-                <div class="secondary-thumb" :class="{ 'is-empty': !hasNewsImage(news) }">
+                <EditableImage
+                  v-model="news.image"
+                  class="secondary-thumb"
+                  :class="{ 'is-empty': !hasNewsImage(news) }"
+                  :row="news.kind === 'news' ? news : null"
+                  table="news"
+                  field="image"
+                >
                   <div class="news-image-fallback mini" aria-hidden="true">
                     <span>{{ (news.title || '新').charAt(0) }}</span>
                   </div>
@@ -190,10 +238,35 @@
                   /><span v-if="news.kind === 'show'" class="show-play mini" aria-hidden="true"
                     ><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg
                   ></span>
-                </div>
+                  <button
+                    v-if="isInlineNewsEditing && news.kind === 'news'"
+                    type="button"
+                    class="news-card-remove"
+                    title="删除这条资讯"
+                    @click.stop="inlineEditor.remove(news, 'news')"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.4"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 6l12 12M18 6L6 18" />
+                    </svg>
+                  </button>
+                </EditableImage>
                 <div class="secondary-copy">
                   <span class="news-category">{{ kindCategoryLabel(news) }}</span>
-                  <h3>{{ news.title }}</h3>
+                  <h3>
+                    <EditableText
+                      v-model="news.title"
+                      :row="news.kind === 'news' ? news : null"
+                      table="news"
+                      field="title"
+                      label="资讯标题"
+                    />
+                  </h3>
                   <time>{{ formatDate(news.date) }}</time>
                 </div>
               </article>
@@ -229,7 +302,17 @@
               :aria-label="`${news.kind === 'show' ? '观看节目：' : '阅读：'}${news.title}`"
               ref="newsCards"
             >
-              <div class="news-image" :class="{ 'is-empty': !hasNewsImage(news) }">
+              <!-- 封面本身就是可换图的目标：根节点仍是 `.news-image`，只是从 div 换成
+                   原语的 span（样式里补了 display:block，视觉同一）。节目卡传 row=null，
+                   原语退化成纯容器，一个编辑控件都不渲染。 -->
+              <EditableImage
+                v-model="news.image"
+                class="news-image"
+                :class="{ 'is-empty': !hasNewsImage(news) }"
+                :row="news.kind === 'news' ? news : null"
+                table="news"
+                field="image"
+              >
                 <div class="news-image-fallback" aria-hidden="true">
                   <span>{{ (news.title || '新').charAt(0) }}</span>
                 </div>
@@ -248,11 +331,47 @@
                   ><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg
                 ></span>
                 <div class="news-date">{{ formatDate(news.date) }}</div>
-              </div>
+                <!-- 删除只出现在编辑态，且只对资讯（节目来自静态数据，删不掉）。
+                     放在封面右上角：日期在左上、「换图」在右下，三个控件不抢位置。 -->
+                <button
+                  v-if="isInlineNewsEditing && news.kind === 'news'"
+                  type="button"
+                  class="news-card-remove"
+                  title="删除这条资讯"
+                  @click.stop="inlineEditor.remove(news, 'news')"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.4"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 6l12 12M18 6L6 18" />
+                  </svg>
+                </button>
+              </EditableImage>
               <div class="news-content">
                 <span class="news-category">{{ kindCategoryLabel(news) }}</span>
-                <h3 class="news-title-card">{{ news.title }}</h3>
-                <p class="news-excerpt">{{ news.excerpt }}</p>
+                <h3 class="news-title-card">
+                  <EditableText
+                    v-model="news.title"
+                    :row="news.kind === 'news' ? news : null"
+                    table="news"
+                    field="title"
+                    label="资讯标题"
+                  />
+                </h3>
+                <p class="news-excerpt">
+                  <EditableText
+                    v-model="news.excerpt"
+                    :row="news.kind === 'news' ? news : null"
+                    table="news"
+                    field="excerpt"
+                    label="摘要"
+                    placeholder="补一句摘要"
+                  />
+                </p>
                 <div class="news-meta">
                   <div class="news-author">
                     <div class="author-avatar" aria-hidden="true">
@@ -329,6 +448,11 @@ import ContentDetailIsland from '@/components/UnifiedNavbar/ContentDetailIsland.
 import CreatorShowsPanel from '@/components/CreatorShowsPanel/index.vue';
 import SegmentTabs from '@/views/user-center/UserSpace/components/SegmentTabs.vue';
 import ActivitiesList from '@/views/activities/ActivitiesList.vue';
+// 就地编辑原语（plans/042 §10.4 A 档）：前台没有注入编辑上下文时，
+// 它们分别退化成 `<span>{{ text }}</span>` 与纯容器，视觉零影响。
+import EditableText from '@/components/inline-editor/EditableText.vue';
+import EditableImage from '@/components/inline-editor/EditableImage.vue';
+import { useInlineEditor } from '@/composables/useInlineEditor.js';
 import { SHOW_ITEMS, SHOW_CATEGORIES } from '@/data/shows.js';
 // 消毒白名单与封面变换收口到 news-shared.js（详情岛 / 独立详情页共用，防两处漂移）
 import {
@@ -391,6 +515,11 @@ watch(
 
 // 新闻数据（kind: news）+ 节目混排
 const newsData = ref([]);
+
+/* 后台「就地编辑」宿主会注入上下文；前台 /newsroom 没有 ⇒ 恒为 null，
+   所有编辑控件都不渲染（`.news-card-remove` 与「换图」都挂在 isInlineNewsEditing 上）。 */
+const inlineEditor = useInlineEditor();
+const isInlineNewsEditing = computed(() => Boolean(inlineEditor?.active));
 
 // 当前显示的内容（新闻+节目混排，按 date 倒序，最大卡片恒为最新发布）
 const currentNews = ref([]);

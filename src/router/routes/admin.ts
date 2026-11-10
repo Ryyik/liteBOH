@@ -58,6 +58,15 @@ export const adminRoutes: RouteRecordRaw[] = [
     meta: { requiresAdmin: true, hideNavbar: true, bodyClass: 'page-shop' },
   },
   {
+    // 资讯就地编辑宿主（2026-11-10）：与 shop-editor 同构，渲染的是前台 `/newsroom` 本身。
+    // bodyClass 必须覆盖成 `page-newsroom`：`body.page-newsroom` 下有一整套
+    // 顶栏配色与内容区让位规则，默认的 `page-newseditor` 一条都不会命中。
+    path: '/admin/news-editor',
+    name: 'NewsEditor',
+    component: () => import('../../views/NewsEditor/index.vue'),
+    meta: { requiresAdmin: true, hideNavbar: true, bodyClass: 'page-newsroom' },
+  },
+  {
     path: '/admin/hero-console',
     name: 'HeroConsole',
     component: () => import('../../views/HeroConsole/index.vue'),

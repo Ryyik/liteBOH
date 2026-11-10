@@ -176,6 +176,8 @@ export const tabModules = [
       'campaignRewards',
       'posterRequests',
     ],
+    // 资讯就地编辑（2026-11-10）：后台直接渲染前台资讯页，点标题/摘要/封面即改
+    subPages: ['news-editor'],
     description: '新闻、活动、官方事实、创作者和生日运营',
   },
   {
@@ -196,6 +198,17 @@ export const tabModules = [
     section: 'data',
     type: 'page',
     description: '在真实商城页面上直接改标题、图片、价格和库存',
+  },
+  {
+    /* 资讯就地编辑（2026-11-10）：与 shop-editor 同构 —— 后台渲染前台资讯页，
+       点标题 / 摘要 / 封面直接改。同样必须登记在这里 + ROUTE_MAP，否则侧栏与
+       命令面板都找不到，只能手敲地址。 */
+    id: 'news-editor',
+    label: '资讯编辑',
+    icon: Pencil,
+    section: 'data',
+    type: 'page',
+    description: '在真实资讯页面上直接改标题、摘要与封面',
   },
   {
     id: 'hero-console',

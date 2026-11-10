@@ -462,6 +462,9 @@
 
 .news-image {
   width: 100%; height: auto; aspect-ratio: 16 / 9;
+  /* 就地编辑把本节点换成了原语的 span：div 本来就是 block，这里显式写出来，
+     否则 span 的 inline 会让 aspect-ratio 直接失效（前台视觉不变）。 */
+  display: block;
   background: linear-gradient(135deg, #eef1f5, #e2e7ee);
   position: relative; overflow: hidden;
   /* 图片自身的圆角必须与卡片一致。原先这里没有兜底值（实测 computed 0px），
@@ -478,6 +481,20 @@
   pointer-events: none;
 }
 .news-image-fallback.mini { font-size: 32px; }
+/* 编辑态删除（就地编辑宿主注入上下文时才渲染）：右上角圆形角标。
+   封面右上原本是空的（日期在左上、换图在右下），三个控件互不遮挡。 */
+.news-card-remove {
+  position: absolute; top: 10px; right: 10px; z-index: 3;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff; cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.news-card-remove:hover { background: #c4261f; }
+.news-card-remove svg { width: 13px; height: 13px; }
+
 .news-image img { position: relative; z-index: 1; background: #eaecf0; }
 
 /* 封面淡入（2026-11-04 硬切审计 P0-4）：解码完成前透出下层字母 fallback，
