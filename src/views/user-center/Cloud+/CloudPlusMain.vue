@@ -1360,10 +1360,25 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /* 2026-11-10：设置里的「Cloud+ 页面」改成同一个设置壳的右栏三级页。
+     内嵌时视图档位不再读 ?view=（那会和设置壳的 view 抢同一个参数 ——
+     设置侧把 view 当「哪个子页」，写 'settings' 会被判成非法值回落到首页），
+     改用本组件自己的 ref，初始档由宿主给。 */
+  initialView: {
+    type: String,
+    default: 'content',
+  },
 });
 
 const isDesktopEmbed = computed(
   () => props.embedded || String(route.query.embed || '') === 'desktop',
+);
+
+/* 内嵌时的视图档（唯一写入点见 switchCloudTab） */
+const embeddedTab = ref(
+  ['content', 'share', 'settings', 'trash'].includes(String(props.initialView))
+    ? String(props.initialView)
+    : 'content',
 );
 
 /* 左栏「更多」菜单要按当前主题显示「深色 / 浅色模式」，所以这里跟一份只读的主题态。
@@ -1554,6 +1569,8 @@ const { textareaRef: draftTextareaRef } = useAutoGrowTextarea({
   value: () => draftText.value,
 });
 const cloudTab = computed(() => {
+  // 内嵌（设置右栏）：档位是组件内存态，不读也不写 URL
+  if (props.embedded) return embeddedTab.value;
   const view = String(route.query.view || route.query.mode || '').trim();
   if (['settings', 'share', 'trash'].includes(view)) return view;
   return 'content';
@@ -2367,6 +2384,12 @@ function switchCloudTab(tabId) {
   const safeTab = ['content', 'share', 'settings', 'trash'].includes(String(tabId))
     ? String(tabId)
     : 'content';
+  /* 内嵌时只改内存档位：`?view=` 在 /user-space 上是设置壳的分区参数，
+     写进去会把设置页自己顶掉（这是内嵌必须绕开路由的原因，不是省事）。 */
+  if (props.embedded) {
+    embeddedTab.value = safeTab;
+    return;
+  }
   router.replace({
     path: route.path,
     query: {

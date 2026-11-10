@@ -301,23 +301,20 @@
             :edit-open="settingsSection === 'edit-profile'"
             :inline-panel="settingsInlinePanel"
             :inline-panel-title="settingsInlinePanelTitle"
-            :inline-panel-section="settingsInlinePanelSection"
             @back="switchTab('posts')"
             @close-panel="backToProfileSettings"
             @change-avatar="handleAvatarClick"
-            @open-avatar-frames="openAvatarFrameModal"
+            @open-avatar-frames="openAvatarFramePanel"
             @open-edit-profile="openEditProfileModal"
             @close-edit="closeEditProfileModal"
-            @open-theme="openThemeModal"
-            @open-assets="openAssetsHub()"
-            @open-address="openShippingAddress"
-            @open-photo-albums="openPhotoAlbums"
-            @open-cloud="openCloudPlusArea"
-            @open-notification-settings="
-              router.push('/user-space/pushplus-settings?from=userspace-settings')
-            "
+            @open-theme="openThemePanel"
+            @open-assets="openAssetsPanel()"
+            @open-address="openShippingAddressPanel"
+            @open-photo-albums="openPhotoAlbumsPanel"
+            @open-cloud="openCloudPlusPanel"
+            @open-notification-settings="jumpWithSection('settings', 'notification-settings')"
             @open-security="openAccountSecurityPanel"
-            @open-version-settings="router.push('/user-space/settings/version')"
+            @open-version-settings="openVersionPanel"
             @open-data="openProfileDataManagement"
             @open-data-management="openProfileDataManagement"
             @open-data-export="openProfileDataExport"
@@ -348,7 +345,7 @@
                 :is-submitting-profile-edit="isSubmittingProfileEdit"
                 @close="closeEditProfileModal"
                 @avatar-click="handleAvatarClick"
-                @open-avatar-frames="openAvatarFrameModal"
+                @open-avatar-frames="openAvatarFramePanel"
                 @save="submitEditProfile"
                 @update-username="editProfileForm.username = $event"
                 @update-bio="editProfileForm.bio = $event"
@@ -381,6 +378,44 @@
                 inline
                 :initial-panel="settingsSecurityPanel"
                 @back="backToProfileSettings"
+              />
+              <AvatarFramePanel
+                v-else-if="settingsSection === 'avatar-frame'"
+                :avatar-url="avatarUrl"
+                @close="backToProfileSettings"
+              />
+              <NotificationSettingsInline v-else-if="settingsSection === 'notification-settings'" />
+              <!-- 2026-11-10 第四批：主题 / 版本 / 收货地址 / 摄影集也走右栏。
+                   四者都是「原来会离开设置壳」的入口（弹层 / 独立路由 / 跳商城）。 -->
+              <ThemePanel
+                v-else-if="settingsSection === 'theme'"
+                :current-theme-preference="currentThemePreference"
+                @select="setThemePreference"
+                @close="backToProfileSettings"
+              />
+              <VersionPanel v-else-if="settingsSection === 'version'" />
+              <ShippingAddressPanel v-else-if="settingsSection === 'shipping-address'" />
+              <PhotoAlbumsPanel v-else-if="settingsSection === 'photo-albums'" />
+              <CloudPlusPanel v-else-if="settingsSection === 'cloud-plus'" />
+              <!-- 资产：与 assets tab 同一份面板，只是外壳换成设置右栏（横屏）/ 整页（竖屏） -->
+              <AssetsHubPanel
+                v-else-if="settingsSection === 'assets'"
+                class="assets-inline"
+                :initial-view="assetsInitialView"
+                :points-card-presets="pointsCardPresets"
+                :is-points-card-presets-loading="isPointsCardPresetsLoading"
+                :points-card-preset-capacity="pointsCardPresetQuota.capacity"
+                :is-points-card-preset-quota-loading="isPointsCardPresetQuotaLoading"
+                :points-card-cats-unlocked="isPointsCardCatsUnlocked"
+                :is-redeeming-points-card-cats="isRedeemingPointsCardCats"
+                @upload-points-card="handlePointsCardClick"
+                @set-points-card-skin="setPointsCardSkin"
+                @select-points-card-preset="selectPointsCardPreset"
+                @delete-points-card-preset="deletePointsCardPreset"
+                @redeem-points-card-cats="redeemPointsCardCats"
+                @load-points-card-data="loadPointsCardData"
+                @sponsor="openSponsorPage"
+                @view-change="handleAssetsViewChange"
               />
             </template>
           </ProfileSettingsPanel>
@@ -418,18 +453,8 @@
       @nav-click="handleBottomNavClick"
     />
 
-    <ThemeModal
-      :open="showThemeModal"
-      :current-theme-preference="currentThemePreference"
-      @close="closeThemeModal"
-      @select="setThemePreference"
-    />
-
-    <AvatarFramePickerModal
-      :open="showAvatarFrameModal"
-      :avatar-url="avatarUrl"
-      @close="closeAvatarFrameModal"
-    />
+    <!-- 主题已改为设置三级页（ThemePanel），这里不再挂弹层：
+         弹层在横屏两栏里会把左目录一起压暗，与「所有子页都用左右栏」的口径冲突。 -->
 
     <CommonAlertModal
       v-model:visible="alertState.visible"
@@ -532,9 +557,13 @@ const ProfileSettingsPanel = createPanelAsync(
 const EditProfilePanel = createPanelAsync(() => import('./components/EditProfilePanel.vue'), {
   label: 'EditProfilePanel',
 });
-const AvatarFramePickerModal = createPanelAsync(
-  () => import('./components/AvatarFramePickerModal.vue'),
-  { label: 'AvatarFramePickerModal', silent: true },
+const AvatarFramePanel = createPanelAsync(() => import('./components/AvatarFramePanel.vue'), {
+  label: 'AvatarFramePanel',
+  silent: true,
+});
+const NotificationSettingsInline = createPanelAsync(
+  () => import('@/components/NotificationSettings/index.vue'),
+  { label: 'NotificationSettings', silent: true },
 );
 const SponsorPanel = createPanelAsync(() => import('./components/SponsorPanel.vue'), {
   label: 'SponsorPanel',
@@ -554,9 +583,30 @@ const AccountSecurityPanel = createPanelAsync(
 const AssetsHubPanel = createPanelAsync(() => import('./components/AssetsHubPanel.vue'), {
   label: 'AssetsHubPanel',
 });
+/* 2026-11-10：剩下几个「跳独立路由 / 弹层」的设置入口一并收进右栏 ——
+   主题（原 ThemeModal 弹层）、版本（原 /user-space/settings/version 整页）、
+   收货地址（原跳 /shop?tab=address）、摄影集（原跳 /user-space/albums）。
+   口径与资产/头像框一致：横屏出右栏、竖屏整页，返回条只有一个。 */
+const ThemePanel = createPanelAsync(() => import('./components/ThemePanel.vue'), {
+  label: 'ThemePanel',
+  silent: true,
+});
+const VersionPanel = createPanelAsync(() => import('./components/VersionPanel.vue'), {
+  label: 'VersionPanel',
+  silent: true,
+});
+const ShippingAddressPanel = createPanelAsync(
+  () => import('./components/ShippingAddressPanel.vue'),
+  { label: 'ShippingAddressPanel' },
+);
+const PhotoAlbumsPanel = createPanelAsync(() => import('./components/PhotoAlbumsPanel.vue'), {
+  label: 'PhotoAlbumsPanel',
+});
+const CloudPlusPanel = createPanelAsync(() => import('./components/CloudPlusPanel.vue'), {
+  label: 'CloudPlusPanel',
+});
 // 2026-10-26：ProfileImpressionsSection 不再由本层异步挂载 —— 印象降为空间页内容面板的
 // 一个 tab，由 ProfileHomePanel 静态引入（同 chunk，少一次动态请求）。
-import ThemeModal from './components/ThemeModal.vue';
 import NotificationSuggestIsland from '@/components/UnifiedNavbar/NotificationSuggestIsland.vue';
 import { showIsland, islandTaskView } from '@/composables/useIsland.js';
 import { buildUnreadDigest, UNREAD_DIGEST_MIN } from '@/utils/notification-digest.js';
@@ -817,19 +867,56 @@ const SETTINGS_SECTIONS = [
   'data-management',
   'data-export',
   'account-security',
+  /* 2026-11-10：头像框从「弹层」改为设置三级页（横屏右栏 / 竖屏整页） */
+  'avatar-frame',
+  /* 2026-11-10：通知设置从独立路由页改为设置子页（用户报障「没有适配左右栏」）。
+     独立路由 /user-space/pushplus-settings 仍保留给历史邮件直链（页脚「去关闭」）。 */
+  'notification-settings',
+  /* 2026-11-10：资产从「切到 assets tab」改为设置子页（用户报障「资产页面又变成单独的了」）。
+     assets tab 仍保留（底栏 / 我页积分卡仍会进它），这里是设置里那条入口的新落点。 */
+  'assets',
+  /* 2026-11-10 第四批：主题 / 版本 / 收货地址 / 摄影集 / Cloud+ 也进右栏（原来分别是
+     弹层、独立路由页、跳商城、跳独立页、跳图库 tab）。
+     注意 Cloud+ 只有「设置里那一条」改成内嵌；底栏/左栏的「图库」席与「我」页用量卡
+     仍是独立 tab（openCloudPlusArea），两者不要混。 */
+  'theme',
+  'version',
+  'shipping-address',
+  'photo-albums',
+  'cloud-plus',
 ];
 /** 账户与隐私的子面板（2026-10-26 起全部在设置页右栏内展开，不再跳独立路由页）。
     只存内存、不进 URL：`?panel=` 已属资产页语义，混用会互相清参。 */
 const settingsSecurityPanel = ref('email');
 /** 右栏子页 id（空 = 分组列表）；标题与归属分类见下面两个 computed */
 const settingsInlinePanel = computed(() =>
-  ['data-export', 'data-management', 'account-security'].includes(settingsSection.value)
+  [
+    'data-export',
+    'data-management',
+    'account-security',
+    'avatar-frame',
+    'notification-settings',
+    'assets',
+    'theme',
+    'version',
+    'shipping-address',
+    'photo-albums',
+    'cloud-plus',
+  ].includes(settingsSection.value)
     ? settingsSection.value
     : '',
 );
 const SETTINGS_INLINE_TITLES = {
   'data-export': '导出我的数据',
   'data-management': '数据与隐私',
+  'avatar-frame': '头像框',
+  'notification-settings': '通知设置',
+  assets: '资产',
+  theme: '主题设置',
+  version: '版本',
+  'shipping-address': '收货地址',
+  'photo-albums': '摄影集',
+  'cloud-plus': 'Cloud+',
 };
 const settingsInlinePanelTitle = computed(() => {
   if (!settingsInlinePanel.value) return '';
@@ -837,14 +924,6 @@ const settingsInlinePanelTitle = computed(() => {
     return resolveAccountSecurityPanelTitle(settingsSecurityPanel.value);
   }
   return SETTINGS_INLINE_TITLES[settingsInlinePanel.value] || '';
-});
-/** 子页打开时左目录高亮它所属的分组（2026-10-26 三分组后不再全属「账户与隐私」）：
-    更换邮箱挂在「账户」的「登录邮箱」行上 ⇒ 高亮账户；改密 / 通行密钥 / 注销与两个数据页 ⇒ 账户与隐私 */
-const settingsInlinePanelSection = computed(() => {
-  if (!settingsInlinePanel.value) return '';
-  const isEmailPanel =
-    settingsInlinePanel.value === 'account-security' && settingsSecurityPanel.value === 'email';
-  return isEmailPanel ? 'account' : 'privacy';
 });
 /**
  * 空间页内容面板的当前 tab（作品 / 回复 / 印象）。
@@ -1604,15 +1683,11 @@ const SUPPORTED_AVATAR_TYPES = new Set([
 ]);
 const PROFILE_BACKGROUND_MAX_FILE_SIZE_BYTES = CLOUD_UPLOAD_MAX_IMAGE_SIZE_BYTES;
 
-// 主题设置
-const showThemeModal = ref(false);
-// 头像框试戴弹层（编辑资料页入口；佩戴状态单源 useAvatarFrame）
-const showAvatarFrameModal = ref(false);
-const openAvatarFrameModal = () => {
-  showAvatarFrameModal.value = true;
-};
-const closeAvatarFrameModal = () => {
-  showAvatarFrameModal.value = false;
+// 主题设置（2026-11-10：弹层已退场，主题改成设置三级页，见 openThemePanel）
+/* 头像框（2026-11-10 去弹窗）：改成一个设置三级页，走与「数据导出 / 账户安全」同一条链路。
+   佩戴状态仍是 useAvatarFrame 单例，进页即生效，不需要「完成」才写回。 */
+const openAvatarFramePanel = () => {
+  jumpWithSection('settings', 'avatar-frame');
 };
 const currentTheme = ref(themeManager.getTheme());
 const currentThemePreference = ref(themeManager.getPreference?.() || currentTheme.value);
@@ -1897,12 +1972,11 @@ const handleThemeChange = (theme, preference = themeManager.getPreference?.() ||
   }
 };
 
+/* 2026-11-10：主题从弹层改为设置三级页（ThemeModal 在「我」页已退场）。
+   保留同名别名给历史调用点（深链 ?setting=theme、左栏「更多 → 主题」），
+   语义从「开弹窗」变成「切到设置的主题档」。 */
 const openThemeModal = () => {
-  showThemeModal.value = true;
-};
-
-const closeThemeModal = () => {
-  showThemeModal.value = false;
+  openThemePanel();
 };
 
 const activateForumTab = async () => {
@@ -1941,17 +2015,12 @@ const openSponsorPage = () => {
   switchTab('assets');
 };
 
-const openPhotoAlbums = () => {
-  // from=userspace-settings：摄影集是独立路由页，自带「返回设置」按钮，靠这个参数决定落点
-  router.push('/user-space/albums?from=userspace-settings');
-};
+/** 摄影集（2026-11-10 起不再整页跳转）：设置里点它开在右栏三级页，
+    独立路由 /user-space/albums 仍保留（图库底栏 / 分享链 / 历史直链会用）。 */
 
-/** 收货地址（2026-11-02 从资产页搬进设置；同日礼物中心整页退场）。
-    地址簿只在商城「地址」分区维护 —— 那里是常驻位置，结算处与「订单」分区的地址条都指过去，
-    设置页不再绕经老的礼物页（该路径已退成 compat 重定向）。 */
-const openShippingAddress = () => {
-  router.push('/shop?tab=address');
-};
+/** 收货地址（2026-11-02 从资产页搬进设置）。2026-11-10 起不再跳商城：
+    设置里点它直接开在右栏的三级页（ShippingAddressPanel），
+    商城「地址」分区仍是同一个 AddressManager 的另一处常驻位置。 */
 
 /** 资产页入口（2026-10-26：资产从「我」页分段提升为独立 tab）。
     值域归一交给 AssetsHubPanel 的 normalizeView（单一真源，含旧值映射与非法回落）：
@@ -1967,6 +2036,33 @@ const openAssetsHub = (initialView = '') => {
   assetsInitialView.value = panel;
   pendingAssetsView = panel;
   switchTab('assets');
+};
+
+/** 设置页「资产」行：就地开在设置右栏（横屏）/ 整页（竖屏），不再切 assets tab。
+    ⚠️ 只改设置页那条入口；底栏与「我页积分卡」仍走 openAssetsHub（独立 tab 语义不变）。 */
+const openAssetsPanel = () => {
+  assetsInitialView.value = '';
+  jumpWithSection('settings', 'assets');
+};
+
+/* 2026-11-10 第四批：以下四个入口原来都会离开设置壳（弹层 / 独立路由 / 跳商城），
+   现在统一落成设置三级页。函数只负责「切到哪一档」，页面实现各自还在原组件里。 */
+const openThemePanel = () => {
+  jumpWithSection('settings', 'theme');
+};
+const openVersionPanel = () => {
+  jumpWithSection('settings', 'version');
+};
+const openShippingAddressPanel = () => {
+  jumpWithSection('settings', 'shipping-address');
+};
+const openPhotoAlbumsPanel = () => {
+  jumpWithSection('settings', 'photo-albums');
+};
+/* Cloud+ 也进右栏（2026-11-10）：它自己那四个视图档位在内嵌时改走组件内存态，
+   所以这里只切设置分区，不再 push /user-space/note（独立 tab 仍从底栏/左栏进）。 */
+const openCloudPlusPanel = () => {
+  jumpWithSection('settings', 'cloud-plus');
 };
 
 const backToAssetsHub = () => {
@@ -3864,6 +3960,12 @@ watch(unreadCount, (count) => {
 <style src="./styles/landscape-rail.css"></style>
 
 <style scoped>
+/* 资产内嵌进设置右栏（2026-11-10）：它自己的 .ah-page 顶部避让是为独立 tab 写的，
+   嵌进设置壳后外壳已经有返回条，再补 78px 就是第二道空档。 */
+.assets-inline {
+  padding-top: 0;
+}
+
 /* 冷启动直达 posts 的「就绪门」：profile 三样式就位前先不亮内容，避免「先裸后穿」。
    用 visibility 而不是 display —— 保留盒模型，内容已在 DOM 里（高度算得出来），
    切换时不会因「从 0 高度长出来」再抖一下。

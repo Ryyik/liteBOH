@@ -2,10 +2,13 @@
   <div class="notification-settings">
     <!-- 单一液态玻璃连续面板（与设置主页同一设计体系，2026-09-09） -->
     <div class="glass-settings">
-      <!-- 应用内通知（Web Push）：无需第三方账号，是主通道 -->
+      <!-- 单卡（2026-11-10 用户口径「通知设置不要分类了」）：
+           原来四段（应用内 / 邮件 / 审核 / 生日）各有组头 = 四张卡 + 26px 组距，
+           一屏被切成四块；而且「应用内通知」「邮件通知」这类组名与行名重复了一遍。
+           现在只有一张卡，渠道差异交给每行自己的说明文字。 -->
       <section class="gs-group">
-        <div class="gs-group-title">应用内通知</div>
         <div class="gs-rows">
+          <!-- ① 应用内通知（Web Push）：无需第三方账号，是主通道 -->
           <div v-if="!pushLoaded" class="gs-row is-static">
             <span class="gs-icon is-blue">
               <Bell :size="16" :stroke-width="2" aria-hidden="true" />
@@ -66,13 +69,8 @@
               </button>
             </div>
           </div>
-        </div>
-      </section>
 
-      <!-- 关注的人邮件通知：服务端发信到账号绑定邮箱，与上面这条通道互相独立 -->
-      <section class="gs-group">
-        <div class="gs-group-title">邮件通知</div>
-        <div class="gs-rows">
+          <!-- ② 关注的人邮件通知：服务端发信到账号绑定邮箱，与上面的通道互相独立 -->
           <div class="gs-row">
             <span class="gs-icon" :class="mailEnabled ? 'is-green' : 'is-blue'">
               <Mail :size="16" :stroke-width="2" aria-hidden="true" />
@@ -106,13 +104,8 @@
               >
             </span>
           </div>
-        </div>
-      </section>
 
-      <!-- 审核结果邮件：只在「图片被复审撤下」时发，与上面的关注邮件互相独立 -->
-      <section class="gs-group">
-        <div class="gs-group-title">审核通知</div>
-        <div class="gs-rows">
+          <!-- ③ 审核结果邮件：只在「图片被复审撤下」时发 -->
           <div class="gs-row">
             <span class="gs-icon" :class="moderationMailEnabled ? 'is-green' : 'is-blue'">
               <Shield :size="16" :stroke-width="2" aria-hidden="true" />
@@ -134,13 +127,8 @@
               />
             </span>
           </div>
-        </div>
-      </section>
 
-      <!-- 生日邮件：默认开启（生日是用户自己填的），一年只发一封，与上面两个开关互相独立 -->
-      <section class="gs-group">
-        <div class="gs-group-title">生日</div>
-        <div class="gs-rows">
+          <!-- ④ 生日邮件：默认开启，一年只发一封 -->
           <div class="gs-row">
             <span class="gs-icon" :class="birthdayMailEnabled ? 'is-purple' : 'is-blue'">
               <Cake :size="16" :stroke-width="2" aria-hidden="true" />

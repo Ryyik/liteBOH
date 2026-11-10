@@ -26,12 +26,15 @@
     <!-- 内联形态（2026-10-26）：设置页两栏时，个人信息在**右栏内就地展开** ——
          左目录不动，切到别的分类即离开。Apple 的 macOS 系统设置正是这样：
          右边换内容，左边始终在。 -->
-    <div v-else class="ep-inline-head">
-      <button type="button" class="ep-back" @click="$emit('close')">
-        <ChevronLeft :size="15" :stroke-width="2.4" aria-hidden="true" />
-        <span>返回</span>
+    <!-- 2026-11-10：原来这里是私有的一套返回行（描边药丸 + 15px 标题），
+         与设置二级页的 .gs-inline-bar 两套语言。统一成 gs 返回条，保存是唯一主操作。
+         竖屏也走这里 —— 设置页个人信息不再是弹窗/另开页，而是就地展开的三级页。 -->
+    <div v-else class="gs-inline-bar ep-inline-head">
+      <button type="button" class="gs-inline-back" @click="$emit('close')">
+        <ChevronLeft :size="17" :stroke-width="2.2" aria-hidden="true" />
+        <span>设置</span>
       </button>
-      <span class="ep-inline-title">个人信息</span>
+      <h2 class="gs-inline-title">个人信息</h2>
       <button
         type="button"
         class="ep-save"
@@ -279,7 +282,8 @@ const { textareaRef: bioRef } = useAutoGrowTextarea({
 
 /* ---------- 内联形态：在设置页右栏就地展开 ---------- */
 .ep-shell.is-inline {
-  gap: 12px;
+  /* 与设置壳 .gs-main 的 26px 组间节奏对齐：返回条 → 首张卡的间距三个子页必须一致 */
+  gap: 26px;
   padding-bottom: 0;
   animation: ep-inline-in 200ms var(--ease-out) both;
 }
@@ -296,49 +300,6 @@ const { textareaRef: bioRef } = useAutoGrowTextarea({
   }
 }
 
-/* 右栏没有独立页头，就地给一条「‹ 返回　个人信息　　保存」工具行 */
-.ep-inline-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 34px;
-}
-
-.ep-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  height: 30px;
-  padding: 0 12px 0 6px;
-  border: 1px solid var(--liquid-border);
-  border-radius: 999px;
-  background: var(--liquid-bg-strong);
-  color: var(--liquid-text-secondary, #6e6e73);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    color 150ms ease,
-    background-color 150ms ease;
-}
-
-.ep-back:hover {
-  color: var(--liquid-text-primary, #1d1d1f);
-}
-
-.ep-inline-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--liquid-text-primary, #1d1d1f);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* 页头右侧的保存按钮（2026-10-27 用户反馈「不明显不清晰」）：
    原来是**无底纯蓝字**（Apple 的「完成」位），落在白色页头上与一行普通链接没有区别，
    而它其实是这一页唯一能落地的动作 —— 用户不知道点哪保存。
@@ -347,6 +308,7 @@ const { textareaRef: bioRef } = useAutoGrowTextarea({
    actions 列只有 52px，药丸一超就把「保存」压成两行（2026-10-26 已踩过一次）。
    13px 下「保存」≈ 26px + 左右各 10px 内边距 = 46px，留在 52px 以内。 */
 .ep-save {
+  margin-left: auto;
   height: 32px;
   padding: 0 10px;
   border: 0;

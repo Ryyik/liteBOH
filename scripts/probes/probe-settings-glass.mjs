@@ -1,6 +1,6 @@
 // 探针：设置子页液态玻璃统一验证
-// - settings 主页（含登录邮箱行）
-// - 通知设置（原 pushplus 页，路径沿用旧 slug）/ 账户与隐私（设置右栏内嵌）/ data-export / data-management
+// - settings 主页（2026-11-10 平铺改版：组头 + 全部条目一页列完，无分类钻取层）
+// - 通知设置（原 pushplus 页，路径沿用旧 slug）/ 数据与隐私（右栏内嵌）/ data-export
 // - 明暗双主题 + 手机横竖屏
 // 运行：node probe-settings-glass.mjs（dev 5173 需已启动）
 import { chromium } from 'playwright';
@@ -76,17 +76,10 @@ const assertSettingsCardAndSearch = async (page) => {
     // ⚠️ 「账户」组只有一行，取相邻行必须找第一张**多行**卡片
     const multiCard = cards.find((el) => el.children.length > 1);
     const secondRow = multiCard?.children[1];
-    const titles = [...document.querySelectorAll('.gs-group-title')];
     return {
       containerGap: parseFloat(cs(container, 'gap')),
       cardRadius: cs(firstCard, 'borderTopLeftRadius'),
       groupGap: groups.length > 1 ? Math.round(r(groups[1]).top - r(groups[0]).bottom) : -1,
-      // 组标题在卡片外：标题底边应不越过它下方卡片的顶边
-      titleAboveCard:
-        titles.length > 1 && groups.length > 1
-          ? Math.round(r(titles[1]).bottom) <=
-            Math.round(r(groups[1].querySelector('.gs-rows')).top)
-          : false,
       // 分隔线内缩：::before 的 left 应为「内边距 + 图标宽 + 间距」，而不是 0（通栏）
       lineLeft: secondRow ? parseFloat(getComputedStyle(secondRow, '::before').left) : -1,
       // 卡片所在行的左内边距，用于核对内缩量是否真的越过图标
@@ -108,7 +101,6 @@ const assertSettingsCardAndSearch = async (page) => {
     card.groupGap >= 20,
     `groupGap=${card.groupGap}px`,
   );
-  assert('骨架：分组标题在卡片外部（不叠在卡片里）', card.titleAboveCard === true);
   assert(
     '骨架：行分隔线内缩到文字起始处（越过图标宽度）',
     card.lineLeft > card.rowPadLeft,
@@ -138,8 +130,9 @@ const assertSettingsCardAndSearch = async (page) => {
       labels: [...document.querySelectorAll('.glass-settings .gs-label')].map((n) =>
         n.textContent.trim(),
       ),
-      hasGroupList: [...document.querySelectorAll('.gs-group-title')].some(
-        (n) => n.textContent.trim() === '账户',
+      // 2026-11-10 层级定稿：首页不再有组头（组是行不是标题），用 6 个组行是否齐全代替
+      hasGroupList: ['个人信息', '账户与安全', '数据', '通知', '内容与存储', '通用'].every((t) =>
+        [...document.querySelectorAll('.gs-label')].some((n) => n.textContent.trim() === t),
       ),
       clearBtn: !!document.querySelector('.gs-search-clear'),
     }));
@@ -147,12 +140,22 @@ const assertSettingsCardAndSearch = async (page) => {
   await page.fill('.gs-search-input', '深色');
   await page.waitForTimeout(300);
   const hitTheme = await readSearch();
+  const titleAboveCard = await page.evaluate(() => {
+    const group = [...document.querySelectorAll('.gs-group')].find(
+      (el) => el.querySelector('.gs-group-title')?.textContent.trim() === '搜索结果',
+    );
+    if (!group) return false;
+    const title = group.querySelector('.gs-group-title').getBoundingClientRect();
+    const card = group.querySelector('.gs-rows').getBoundingClientRect();
+    return Math.round(title.bottom) <= Math.round(card.top);
+  });
+  assert('骨架：搜索组标题在卡片外部（不叠在卡片里）', titleAboveCard);
   assert(
     '搜索：「深色」命中主题设置',
     hitTheme.labels.includes('主题设置'),
     hitTheme.labels.join(' / '),
   );
-  assert('搜索：命中时分组列表让位（不再渲染「账户」组）', hitTheme.hasGroupList === false);
+  assert('搜索：命中时一级组列表让位', hitTheme.hasGroupList === false);
   assert('搜索：有输入时出现清除按钮', hitTheme.clearBtn === true);
 
   await page.fill('.gs-search-input', '推送');
@@ -172,7 +175,7 @@ const assertSettingsCardAndSearch = async (page) => {
   await page.fill('.gs-search-input', '');
   await page.waitForTimeout(300);
   const restored = await readSearch();
-  assert('搜索：清空后回到分组列表', restored.hasGroupList === true);
+  assert('搜索：清空后回到一级组列表', restored.hasGroupList === true);
 };
 
 // 返回按钮可按性体检：滚到中部后对按钮中心做 elementFromPoint 命中测试
@@ -292,9 +295,12 @@ for (const theme of ['light', 'dark']) {
     `[account-security-${theme}] 右栏子页标题: ${inlineTitle || 'MISSING'} / 返回条: ${backCount ? 'OK' : 'MISSING'}`,
   );
   await hitTestBack(page, `account-security-${theme}`);
-  // 返回条 → 分组列表，再点「修改密码」进改密面板
+  // 返回条 → 一级首页，经「账户与安全」组页点「修改密码」进改密面板
+  //   （2026-11-10 层级定稿：一级组 → 二级组页 → 三级表单）
   await page.locator('.gs-inline-back').first().click();
   await page.waitForTimeout(500);
+  await page.getByText('账户与安全').first().click();
+  await page.waitForTimeout(600);
   await page.getByText('修改密码').first().click();
   await page.waitForTimeout(700);
   await shot(page, `账户与隐私-改密面板-${theme}`, `account-security-password-${theme}.png`);

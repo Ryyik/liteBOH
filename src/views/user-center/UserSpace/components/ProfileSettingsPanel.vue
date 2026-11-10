@@ -1,23 +1,24 @@
 <template>
-  <div key="profile-settings" class="profile-subpage-shell">
-    <!-- 页头：钻取时标题变分类名、返回按钮隐藏（返回职责交给悬浮钮，见下方 .gs-floating-back）。
-         页头本身随内容滚走 —— 竖屏钻取时不出现任何吸顶横条。 -->
-    <UserCenterPageHeader
-      :title="headerTitle"
-      :back-label="headerBackLabel"
-      max-width="1200px"
-      :show-back="headerShowBack"
-      @back="handleHeaderBack"
-    />
-
-    <!-- 竖屏钻取的悬浮返回钮（2026-10-29，用户定稿）：
-         不加横条、没有背景色，position: fixed 固定在屏幕左上、不随内容滚动。
-         看起来就像一枚裸露的「‹ 设置」，但它一直在那里 —— 这是和上一版
-         （吸顶横条）最大的差别：横条太重，这颗钮什么都没有。 -->
-    <button v-if="isDrilldown" type="button" class="gs-floating-back" @click="exitSection">
-      <ChevronLeft :size="19" :stroke-width="2" aria-hidden="true" />
-      <span>设置</span>
-    </button>
+  <div
+    key="profile-settings"
+    class="profile-subpage-shell"
+    :style="{ '--userspace-nav-h': navTopOffset + 'px', paddingTop: navTopOffset + 'px' }"
+  >
+    <!-- 页头（2026-11-10 层级定稿：一级组 → 二级组页 → 三级表单）：
+         一级首页才有「设置」标题 + 大返回 + 搜索；往下每一层只有一个返回条。 -->
+    <!-- 页头只在一级首页出现（2026-11-10 用户口径）：二级 / 三级页不显示「设置」标题、
+         大返回与搜索 —— 子页的返回交给它们自己的返回条（.gs-inline-bar）。 -->
+    <!-- 页头用过渡收起（2026-11-10：「点进二级页整页会顿一下再上移」——
+         原来 v-if 一刀切掉 76px 高的页头，内容瞬间上跳。现在高度/透明度一起过渡）。 -->
+    <Transition name="gs-header-collapse">
+      <UserCenterPageHeader
+        v-if="isHome"
+        title="设置"
+        max-width="1200px"
+        :show-back="showBack"
+        @back="handleBack"
+      />
+    </Transition>
 
     <div class="profile-subpage-body">
       <HomeCatMascot
@@ -29,17 +30,11 @@
         decorative
       />
 
-      <!-- iOS 式分离卡片（2026-09-30 重构）：
-           卡片本体是 .gs-rows，分组标题移到卡片外上方，组间靠留白分隔。
-           骨架规则在 styles/settings-glass.css（5 个设置类页面共用）。 -->
       <div ref="panelRootRef" class="glass-settings" :class="{ 'is-two-pane': twoPane }">
-        <!-- 左栏（仅横屏两栏时可见）：搜索 + 分类目录。竖屏下这个 div 只包着搜索框，
-           视觉与改造前一致（.gs-aside 在非两栏时不产生任何布局差异）。
-           2026-10-29：单栏时只在「菜单视图」渲染 —— 子页 / 分类页 / 编辑态都不带搜索框，
-           搜索是「设置主页」的能力，不是每个下级页面的。 -->
-        <div v-if="twoPane || isMenuView" class="gs-aside">
-          <!-- 设置搜索：索引覆盖本页所有行 + 各子页入口，命中后直接执行入口动作 -->
-          <div class="gs-search" role="search">
+        <!-- 左栏：桌面 = 一级组目录（与手机首页同源，都是 GROUPS）；
+             手机 = 只在首页出现搜索框（二级 / 三级页不带搜索，见下方 isHome）。 -->
+        <div v-if="twoPane || isHome" class="gs-aside">
+          <div v-if="isHome" class="gs-search" role="search">
             <span class="gs-search-icon"
               ><Search :size="16" :stroke-width="2" aria-hidden="true"
             /></span>
@@ -64,190 +59,81 @@
             </button>
           </div>
 
-          <!-- 分类目录（2026-10-26 横屏两栏）：条目 = 右侧的分组，退出登录跟着「账户」走。
-               首项照 macOS 系统设置侧栏做「账户行」：头像 + 昵称 + 「账户」，比其它条目高一档 -->
-          <nav v-if="twoPane" class="gs-nav" aria-label="设置分类">
+          <nav v-if="twoPane" class="gs-nav" aria-label="设置目录">
+            <!-- 账户行：头像 + 昵称 + 邮箱，点它右栏回到「概览」（身份卡） -->
             <button
-              v-for="item in SETTINGS_SECTIONS"
-              :key="item.id"
+              type="button"
+              class="gs-nav-account"
+              :class="{ active: !railActiveId }"
+              :aria-current="!railActiveId ? 'page' : undefined"
+              @click="showOverview"
+            >
+              <FramedAvatar
+                class="gs-nav-avatar"
+                :src="avatarUrl"
+                :initial="avatarInitial"
+                :size="34"
+                :frame-url="frameUrl"
+                :frame-scale="frameScale"
+              />
+              <span class="gs-nav-text">
+                <span class="gs-nav-name">{{ username || '未设置昵称' }}</span>
+                <span class="gs-nav-sub">{{ userEmail || '未绑定邮箱' }}</span>
+              </span>
+            </button>
+
+            <button
+              v-for="entry in groupEntries"
+              :key="entry.id"
               type="button"
               class="gs-nav-item"
-              :class="{ active: navActiveSection === item.id, 'is-account': item.id === 'account' }"
-              :aria-current="navActiveSection === item.id ? 'page' : undefined"
-              @click="selectSection(item.id)"
+              :class="{ active: railActiveId === entry.id }"
+              :aria-current="railActiveId === entry.id ? 'page' : undefined"
+              @click="onRowClick(entry)"
             >
-              <template v-if="item.id === 'account'">
-                <FramedAvatar
-                  class="gs-nav-avatar"
-                  :src="avatarUrl"
-                  :initial="avatarInitial"
-                  :size="26"
-                  :frame-url="frameUrl"
-                  :frame-scale="frameScale"
-                />
-                <span class="gs-nav-text">
-                  <span class="gs-nav-name">{{ username || '未设置昵称' }}</span>
-                  <span class="gs-nav-sub">账户</span>
-                </span>
-              </template>
-              <template v-else>
-                <component :is="item.icon" :size="15" :stroke-width="1.9" aria-hidden="true" />
-                <span class="gs-nav-label">{{ item.label }}</span>
-              </template>
+              <component :is="entry.icon" :size="17" :stroke-width="1.9" aria-hidden="true" />
+              <span class="gs-nav-label">{{ entry.label }}</span>
+            </button>
+
+            <div class="gs-nav-sep" aria-hidden="true"></div>
+            <button type="button" class="gs-nav-item is-danger" @click="onRowClick(logoutEntry)">
+              <LogOut :size="16" :stroke-width="1.9" aria-hidden="true" />
+              <span class="gs-nav-label">退出登录</span>
             </button>
           </nav>
         </div>
 
         <div class="gs-main" :class="'is-direction-' + paneDirection">
-          <!-- 右栏内容三态（2026-10-26）：
-               ① editOpen → 个人信息就地展开（宿主经由 #inline-edit 插槽塞进来）；
-               ② 搜索中  → 命中结果；
-               ③ 常态    → 身份卡 + 4 个分组（两栏下按 activeSection 只显示一组）。
-               ⚠️ 个人信息**不另开一页** —— 左目录必须一直在，像 macOS 系统设置那样
-               只在右栏换内容。离开分类 / 一开搜就收起编辑态，避免「看不见的编辑中」。 -->
+          <!-- ①「个人信息」就地展开（宿主经 #inline-edit 插槽塞进来，左栏不动） -->
           <template v-if="editOpen && !isSearching">
             <slot name="inline-edit"></slot>
           </template>
 
-          <!-- 搜索结果（替代分组列表） -->
-          <section v-else-if="isSearching" class="gs-group">
-            <div class="gs-group-title">搜索结果</div>
-            <div class="gs-rows">
-              <button
-                v-for="item in searchResults"
-                :key="item.id"
-                type="button"
-                class="gs-row"
-                @click="runEntry(item)"
-              >
-                <span class="gs-icon" :class="entryIconClass(item)">
-                  <component
-                    :is="entryIcon(item)"
-                    :size="16"
-                    :stroke-width="2"
-                    aria-hidden="true"
-                  />
-                </span>
-                <span class="gs-text">
-                  <span class="gs-label" :class="{ 'gs-label-danger': item.danger }">{{
-                    item.label
-                  }}</span>
-                  <span class="gs-desc">{{ item.group }} · {{ item.desc }}</span>
-                </span>
-                <span class="gs-side">
-                  <SettingToggle
-                    v-if="item.toggle"
-                    :model-value="entryToggleValue(item)"
-                    :label="item.label"
-                    @update:model-value="runEntry(item)"
-                  />
-                  <template v-else>
-                    <span v-if="item.value" class="gs-value">{{ item.value() }}</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </template>
-                </span>
-              </button>
-
-              <div v-if="!searchResults.length" class="gs-row is-static">
-                <span class="gs-icon is-gray"
-                  ><SearchX :size="16" :stroke-width="2" aria-hidden="true"
-                /></span>
-                <span class="gs-text">
-                  <span class="gs-label">没有找到设置项</span>
-                  <span class="gs-desc">换个词试试，例如「主题」「密码」「推送」「导出」</span>
-                </span>
-              </div>
-            </div>
-          </section>
-
-          <!-- 子页（导出我的数据 / 数据与隐私 / 账户安全的表单）
-               2026-10-26：**所有子页都进右栏，不再单独开页** —— 左目录始终在，
-               右栏换内容，顶部这条返回条就是这一层的「上一级」（竖屏没有左目录时，
-               它也是唯一的返回入口，替代原来子页自己的宽页头）。 -->
+          <!-- ② 右栏子页：导出 / 数据与隐私 / 账户安全表单（宿主经 #inline-panel 塞进来） -->
           <template v-else-if="inlinePanel">
             <div class="gs-inline-bar">
               <button type="button" class="gs-inline-back" @click="$emit('close-panel')">
                 <ChevronLeft :size="17" :stroke-width="2.2" aria-hidden="true" />
-                <span>{{ inlineBackLabel }}</span>
+                <span>设置</span>
               </button>
               <h2 class="gs-inline-title">{{ inlinePanelTitle }}</h2>
             </div>
             <slot name="inline-panel"></slot>
           </template>
 
-          <!-- 单栏菜单视图（2026-10-29）：竖屏首页只列分类，点进去才看某一组的内容。
-               与横屏左目录同一心智（账户行在最上、其余分类跟在后面），只是把「左右分栏」
-               换成「上下钻取」。搜索不受影响 —— 搜索仍全局命中，命中即执行。 -->
-          <template v-else-if="isMenuView">
-            <section class="gs-group">
-              <div class="gs-rows">
-                <button type="button" class="gs-row" @click="enterSection('account')">
-                  <FramedAvatar
-                    class="gs-menu-avatar"
-                    :src="avatarUrl"
-                    :initial="avatarInitial"
-                    :size="30"
-                    :frame-url="frameUrl"
-                    :frame-scale="frameScale"
-                  />
-                  <span class="gs-text">
-                    <span class="gs-label">{{ username || '未设置昵称' }}</span>
-                    <span class="gs-desc">{{ userEmail || '未绑定邮箱' }}</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            <section class="gs-group">
-              <div class="gs-rows">
-                <button
-                  v-for="item in menuSections"
-                  :key="item.id"
-                  type="button"
-                  class="gs-row"
-                  @click="enterSection(item.id)"
-                >
-                  <span class="gs-icon" :class="sectionIconClass(item.id)">
-                    <component :is="item.icon" :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">{{ item.label }}</span>
-                    <span class="gs-desc">{{ sectionDesc(item.id) }}</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-              </div>
-            </section>
-          </template>
-
+          <!-- ③ 列表 / 详情。左侧内容全部由 catalog 驱动，行样式只有这一处。 -->
           <template v-else>
-            <!-- 身份卡（2026-10-26 Apple 账户页形态）
-               ⚠️ 只在「账户」分类出现（showIdentityCard）：两栏下切到别的分类它就该消失，
-               不是一条钉在所有分类上方的横幅。
-               结构照参考图：居中大头像 → 昵称 → 简介 → 邮箱 → 三行入口
-               （个人信息 / 头像 / 头像框），随后才是本页原有的「绑定邮箱」与退出登录。
-               「个人信息」不走整页跳转 —— 见宿主 #inline-edit 插槽。 -->
-            <section v-if="showIdentityCard" class="gs-identity" aria-label="个人账户">
+            <!-- 二级页（如「密码与通行密钥」）与开关详情共用同一条返回条 -->
+            <div v-if="activeEntry" class="gs-inline-bar">
+              <button type="button" class="gs-inline-back" @click="showOverview">
+                <ChevronLeft :size="17" :stroke-width="2.2" aria-hidden="true" />
+                <span>设置</span>
+              </button>
+              <h2 class="gs-inline-title">{{ activeEntry.label }}</h2>
+            </div>
+
+            <!-- 身份卡：手机首页顶部（桌面「概览」也是它） -->
+            <section v-if="!activeEntry" class="gs-identity" aria-label="个人账户">
               <div class="gs-id-hero">
                 <button
                   type="button"
@@ -268,8 +154,6 @@
                 </button>
                 <h2 class="gs-id-name">{{ username || '未设置昵称' }}</h2>
                 <p v-if="bio" class="gs-id-bio">{{ bio }}</p>
-                <!-- 邮箱在这张卡上已经有了，原「绑定邮箱（点击复制）」行就是它的第三份拷贝。
-                     2026-10-26：复制能力搬到这行字上（点一下复制），列表里不再有重复行。 -->
                 <button
                   v-if="userEmail"
                   type="button"
@@ -284,551 +168,59 @@
                 </button>
                 <p v-else class="gs-id-sub">未绑定邮箱</p>
               </div>
-
-              <div class="gs-id-rows">
-                <button type="button" class="gs-row" @click="$emit('open-edit-profile')">
-                  <span class="gs-icon is-blue">
-                    <UserRound :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-id-row-label">个人信息</span>
-                  <span class="gs-side">
-                    <span class="gs-value">昵称 · 简介 · 生日</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('change-avatar')">
-                  <span class="gs-icon is-teal">
-                    <Camera :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-id-row-label">头像</span>
-                  <span class="gs-side">
-                    <span class="gs-value">更换照片</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('open-avatar-frames')">
-                  <span class="gs-icon is-purple">
-                    <Sparkles :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-id-row-label">头像框</span>
-                  <span class="gs-side">
-                    <span class="gs-value">{{ frameDisplayName }}</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-              </div>
             </section>
 
-            <!-- 账户
-               2026-10-26 三改：原「绑定邮箱（点击复制）」与「更换邮箱」是同一份数据的两种动作，
-               分在两处（账户 / 账户与隐私）看着像两条不同的设置。现在只留这一行「登录邮箱」：
-               点它 = 换绑（真要做的事），右侧值仍是邮箱本身；复制搬到身份卡的邮箱字上。 -->
-            <section v-show="isGroupVisible('account')" class="gs-group">
-              <div class="gs-group-title">账户</div>
+            <!-- 分组列表（首页 / 二级页 / 搜索结果共用同一段行渲染） -->
+            <section
+              v-for="group in renderedGroups"
+              :key="group.id"
+              class="gs-group"
+              :class="{ 'gs-danger': group.danger }"
+            >
+              <div v-if="group.label" class="gs-group-title">{{ group.label }}</div>
               <div class="gs-rows">
-                <button type="button" class="gs-row" @click="$emit('open-security', 'email')">
-                  <span class="gs-icon is-blue">
-                    <Mail :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">登录邮箱</span>
-                    <span class="gs-desc">{{
-                      userEmail ? '登录与找回密码，点击更换' : '当前账号未绑定邮箱'
-                    }}</span>
-                  </span>
-                  <span class="gs-side">
-                    <!-- 不重复展示邮箱地址：身份卡顶上就是它，且长地址会把描述挤成两行 -->
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            <!-- 账户与隐私（2026-10-26 合并；三改去重）
-               原先「账户安全」是一个二级页：本页只有一行入口，点进去还要再点一次才到表单。
-               现在把子页里的设置项拆成行摆到本页，与原来的「数据与隐私」并成一组 ——
-               凭据、可见性、数据处置本来就是「谁能动你的账号、别人能看你什么」一件事。
-               排序按「改自己 → 藏给别人看 → 拿走/删除数据」：凭据 → 隐私 → 数据 → 注销。
-               行点击仍复用 AccountSecurity 页的表单（带 panel 直落对应面板），
-               表单逻辑只有一份，不在这里复制一套密码/通行密钥流程。
-               ⚠️「更换邮箱」不在这里：它跟身份卡上的邮箱是同一份数据，挪去了「账户」的「登录邮箱」行。 -->
-            <section v-show="isGroupVisible('privacy')" class="gs-group">
-              <div class="gs-group-title">账户与隐私</div>
-              <div class="gs-rows">
-                <button type="button" class="gs-row" @click="$emit('open-security', 'password')">
-                  <span class="gs-icon is-blue">
-                    <KeyRound :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">修改密码</span>
-                    <span class="gs-desc">输入当前密码并设置新密码，更新登录凭证</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <!-- 通行密钥：与 AccountSecurity 菜单同一条件（能力检测通过才出现） -->
-                <button
-                  v-if="passkeySupported"
-                  type="button"
-                  class="gs-row"
-                  @click="$emit('open-security', 'passkey')"
-                >
-                  <span class="gs-icon is-blue">
-                    <Fingerprint :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">通行密钥</span>
-                    <span class="gs-desc">用指纹 / 面容在本设备上快速登录，免输密码</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('toggle-hide-online')">
-                  <span class="gs-icon is-indigo">
-                    <EyeOff :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">隐藏在线状态</span>
-                    <span class="gs-desc"
-                      >开启后，他人将看不到你的在线状态，你也无法查看他人的在线状态</span
-                    >
-                  </span>
-                  <span class="gs-side">
-                    <SettingToggle
-                      :model-value="hideOnlineStatus"
-                      label="隐藏在线状态"
-                      @update:model-value="$emit('toggle-hide-online')"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('toggle-hide-follow-data')">
-                  <span class="gs-icon is-indigo">
-                    <Users :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">隐藏关注数据</span>
-                    <span class="gs-desc"
-                      >开启后，他人在你主页看不到你的详细关注列表和粉丝列表，但仍能看到数量</span
-                    >
-                  </span>
-                  <span class="gs-side">
-                    <SettingToggle
-                      :model-value="hideFollowData"
-                      label="隐藏关注数据"
-                      @update:model-value="$emit('toggle-hide-follow-data')"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('open-data-management')">
-                  <span class="gs-icon is-indigo">
-                    <Database :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">数据与隐私</span>
-                    <span class="gs-desc">公共记忆与管理工具</span>
-                  </span>
-                  <span class="gs-side">
-                    <span class="gs-value">{{ dataPrivacyStatusText }}</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('open-data-export')">
-                  <span class="gs-icon is-indigo">
-                    <Archive :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">导出我的数据</span>
-                    <span class="gs-desc">打包个人资料、帖子、云空间等为 ZIP 下载</span>
-                  </span>
-                  <span class="gs-side">
-                    <span class="gs-value">ZIP 打包</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <!-- 注销账号：留在本组末尾（与 iOS 账户页一致），与下方「退出登录」分开 -->
-                <button type="button" class="gs-row" @click="$emit('open-security', 'delete')">
-                  <span class="gs-icon is-red">
-                    <TriangleAlert :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label gs-label-danger">注销账号</span>
-                    <span class="gs-desc">高风险操作，三步确认后永久注销账号</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron gs-chevron-danger"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            <!-- 通知（2026-10-29 新增；2026-11-10 去 Pushplus）
-                 最高频的邮件开关直接摆到主页（点整行或点开关都行），
-                 其余渠道（应用内推送 / 审核 / 生日）留在子页，入口名「通知设置」。 -->
-            <section v-show="isGroupVisible('notify')" class="gs-group">
-              <div class="gs-group-title">通知</div>
-              <div class="gs-rows">
-                <button type="button" class="gs-row" @click="$emit('toggle-follow-mail')">
-                  <span class="gs-icon" :class="followMailEnabled ? 'is-green' : 'is-blue'">
-                    <Mail :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">关注的人邮件通知</span>
-                    <span class="gs-desc"
-                      >关注的人发布新帖或评论、回复你的帖子时，发送至你绑定的邮箱</span
-                    >
-                  </span>
-                  <span class="gs-side">
-                    <SettingToggle
-                      :model-value="followMailEnabled"
-                      label="关注的人邮件通知"
-                      @update:model-value="$emit('toggle-follow-mail')"
-                    />
-                  </span>
-                </button>
-
-                <!-- 提醒频率：点行展开两个选项。权益校验在服务端 RPC（boh_set_follow_mail_window），
-                     无 Max+ 选「实时」会收到 MAX_ONLY_REQUIRED，宿主弹订阅引导。 -->
-                <button type="button" class="gs-row" @click="toggleMailExpanded('freq')">
-                  <span class="gs-icon is-blue">
-                    <Clock :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">提醒频率</span>
-                    <span class="gs-desc">同一个人的多条消息按周期合并发送</span>
-                  </span>
-                  <span class="gs-side">
-                    <span class="gs-value">{{ mailWindowLabel }}</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :class="{ 'is-expanded': mailExpandedGroup === 'freq' }"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <template v-if="mailExpandedGroup === 'freq'">
+                <template v-for="item in group.rows" :key="item.uid">
+                  <p v-if="item.note" class="gs-mail-example">{{ item.note }}</p>
                   <button
-                    v-for="option in MAIL_WINDOW_OPTIONS"
-                    :key="option.value"
+                    v-else
                     type="button"
-                    class="gs-row gs-mail-freq-option"
-                    @click="$emit('choose-mail-window', option.value)"
+                    class="gs-row"
+                    :class="{ 'is-static': item.static, 'gs-mail-freq-option': item.option }"
+                    @click="onRowClick(item)"
                   >
-                    <span
-                      class="gs-icon"
-                      :class="followMailWindow === option.value ? 'is-green' : 'is-gray'"
-                    >
-                      <Check
-                        v-if="followMailWindow === option.value"
-                        :size="16"
-                        :stroke-width="2"
-                        aria-hidden="true"
-                      />
-                      <Clock v-else :size="16" :stroke-width="2" aria-hidden="true" />
+                    <span class="gs-icon" :class="item.iconClass">
+                      <component :is="item.icon" :size="16" :stroke-width="2" aria-hidden="true" />
                     </span>
                     <span class="gs-text">
-                      <span class="gs-label">{{ option.label }}</span>
-                      <span class="gs-desc">{{ option.desc }}</span>
+                      <span class="gs-label" :class="{ 'gs-label-danger': item.danger }">{{
+                        item.label
+                      }}</span>
+                      <span v-if="item.desc" class="gs-desc">{{ item.desc }}</span>
                     </span>
-                    <span v-if="option.maxOnly" class="gs-side">
-                      <span class="gs-badge-max">Max+ Only</span>
+                    <span class="gs-side">
+                      <SettingToggle
+                        v-if="item.kind === 'toggle'"
+                        :model-value="!!item.on"
+                        :label="item.label"
+                        @update:model-value="onRowClick(item)"
+                      />
+                      <template v-else-if="!item.static && !item.option">
+                        <span v-if="item.value" class="gs-value">{{ item.value }}</span>
+                        <ChevronRight
+                          class="gs-chevron"
+                          :class="{
+                            'is-expanded': item.expanded,
+                            'gs-chevron-danger': item.danger,
+                          }"
+                          :size="16"
+                          :stroke-width="2"
+                          aria-hidden="true"
+                        />
+                      </template>
+                      <span v-else-if="item.badge" class="gs-badge-max">{{ item.badge }}</span>
                     </span>
                   </button>
                 </template>
-
-                <!-- 投递方式：及时与摘要（首条即时 + 窗口末补一封汇总）vs 减少干扰（窗口末只发一封）。
-                     无权益门槛 —— 减少干扰是省心，及时与摘要是快且不丢，各取所需。 -->
-                <button type="button" class="gs-row" @click="toggleMailExpanded('delivery')">
-                  <span class="gs-icon is-indigo">
-                    <Inbox :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">投递方式</span>
-                    <span class="gs-desc">对方连续发送多条时的送达方式</span>
-                  </span>
-                  <span class="gs-side">
-                    <span class="gs-value">{{ mailDigestLabel }}</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :class="{ 'is-expanded': mailExpandedGroup === 'delivery' }"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <template v-if="mailExpandedGroup === 'delivery'">
-                  <button
-                    v-for="option in MAIL_DIGEST_OPTIONS"
-                    :key="String(option.value)"
-                    type="button"
-                    class="gs-row gs-mail-freq-option"
-                    @click="$emit('choose-mail-digest', option.value)"
-                  >
-                    <span
-                      class="gs-icon"
-                      :class="followMailDigest === option.value ? 'is-green' : 'is-gray'"
-                    >
-                      <Check
-                        v-if="followMailDigest === option.value"
-                        :size="16"
-                        :stroke-width="2"
-                        aria-hidden="true"
-                      />
-                      <Inbox v-else :size="16" :stroke-width="2" aria-hidden="true" />
-                    </span>
-                    <span class="gs-text">
-                      <span class="gs-label">{{ option.label }}</span>
-                      <span class="gs-desc">{{ option.desc }}</span>
-                    </span>
-                  </button>
-                  <!-- 示例行：把「周期」这个抽象概念落到具体封数上。
-                       去掉它，「周期 / 合并 / 即时」三个词又要用户自己拼（2026-11-01 定稿）。 -->
-                  <p class="gs-mail-example">
-                    示例：对方连续发送 3 条——「及时与摘要」收到 2 封（1 封即时送达，1
-                    封周期末合并）；「减少干扰」收到 1 封（周期末送达）。
-                  </p>
-                </template>
-
-                <button type="button" class="gs-row" @click="$emit('open-notification-settings')">
-                  <span class="gs-icon is-blue">
-                    <Bell :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">通知设置</span>
-                    <span class="gs-desc">应用内推送、邮件通知与生日邮件，按渠道开关</span>
-                  </span>
-                  <span class="gs-side">
-                    <span class="gs-value">应用内 · 邮件</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            <!-- 内容与存储（2026-10-26 三改）
-               原「我的内容」+ 单行分组「Cloud+」合并：资产花钱、摄影集成册、Cloud+ 存东西，
-               三行说的是同一件事 —— 你名下有什么。单行 Cloud+ 独占一个目录项不划算。
-               资产页本身仍是独立 tab（内层面板不变），摄影集的常用入口就是这一行。 -->
-            <section v-show="isGroupVisible('content')" class="gs-group">
-              <div class="gs-group-title">内容与存储</div>
-              <div class="gs-rows">
-                <button type="button" class="gs-row" @click="$emit('open-assets')">
-                  <span class="gs-icon is-teal">
-                    <Wallet :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">资产</span>
-                    <span class="gs-desc">积分明细、订阅、订单、抽奖与赞助</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('open-address')">
-                  <span class="gs-icon is-teal">
-                    <MapPin :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">收货地址</span>
-                    <span class="gs-desc">礼物与实物订单寄送时使用</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('open-photo-albums')">
-                  <span class="gs-icon is-blue">
-                    <Images :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">摄影集</span>
-                    <span class="gs-desc">照片自动排版，装帧一本可带走的影集</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('open-cloud', 'settings')">
-                  <span class="gs-icon is-teal">
-                    <MessagesSquare :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">Cloud+ 页面</span>
-                    <span class="gs-desc">进入完整 Cloud+ 设置与管理页面</span>
-                  </span>
-                  <span class="gs-side">
-                    <span class="gs-value">{{ cloudPlusUsageText }}</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            <!-- 通用（2026-10-26 三改；2026-10-29 推送迁出）
-               原「外观与浏览」（2 行）+「通知」（1 行）各自占一个目录项，左栏 7 项里三项是短组。
-               2026-10-29 起通知独立成「通知」分类（入口「通知设置」），
-               本组只剩「App 长什么样 + 多新」：主题 / 开场画 / 版本。 -->
-            <section v-show="isGroupVisible('general')" class="gs-group">
-              <div class="gs-group-title">通用</div>
-              <div class="gs-rows">
-                <button type="button" class="gs-row" @click="$emit('open-theme')">
-                  <span
-                    class="gs-icon"
-                    :class="currentTheme === 'dark' ? 'is-purple' : 'is-yellow'"
-                  >
-                    <Moon
-                      v-if="currentTheme === 'dark'"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                    <Sun v-else :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">主题设置</span>
-                    <span class="gs-desc">选择浅色、深色或跟随系统</span>
-                  </span>
-                  <span class="gs-side">
-                    <span class="gs-value">{{ themeDisplayText }}</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="replayHomeGate">
-                  <span class="gs-icon is-blue">
-                    <RotateCcw :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">重播首屏开场画</span>
-                    <span class="gs-desc">清除「已看过」标记，回到首屏再看一次</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-                <button type="button" class="gs-row" @click="$emit('open-version-settings')">
-                  <span class="gs-icon is-blue">
-                    <Info :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label">版本</span>
-                    <span class="gs-desc">查看当前版本与 Beta 7.0.1 介绍</span>
-                  </span>
-                  <span class="gs-side">
-                    <span class="gs-value">Beta 7.0.1</span>
-                    <ChevronRight
-                      class="gs-chevron"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
-              </div>
-            </section>
-
-            <!-- 危险操作 -->
-            <section v-show="isGroupVisible('account')" class="gs-group gs-danger">
-              <div class="gs-rows">
-                <button type="button" class="gs-row" @click="$emit('logout')">
-                  <span class="gs-icon is-red">
-                    <LogOut :size="16" :stroke-width="2" aria-hidden="true" />
-                  </span>
-                  <span class="gs-text">
-                    <span class="gs-label gs-label-danger">退出登录</span>
-                  </span>
-                  <span class="gs-side">
-                    <ChevronRight
-                      class="gs-chevron gs-chevron-danger"
-                      :size="16"
-                      :stroke-width="2"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </button>
               </div>
             </section>
           </template>
@@ -839,7 +231,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import HomeCatMascot from '@/components/HomeCatMascot.vue';
 import {
@@ -866,6 +258,7 @@ import {
   RotateCcw,
   Search,
   SearchX,
+  Settings,
   Shield,
   Sparkles,
   Sun,
@@ -1022,11 +415,6 @@ const props = defineProps({
     type: String,
     default: '',
   },
-  /** 子页归属的左目录分类 id：子页打开期间高亮它，别让目录看起来「什么都没选」 */
-  inlinePanelSection: {
-    type: String,
-    default: '',
-  },
 });
 
 const emit = defineEmits([
@@ -1089,69 +477,69 @@ onMounted(async () => {
   }
 });
 
-/* ---------- 横屏左右栏：左目录 + 右详情（2026-10-26） ----------
-   目录条目 = 右栏的分组，首项是「账户行」（头像 + 昵称），退出登录也挂在这组末尾。
-   竖屏 / 窄窗（twoPane=false）不渲染目录，全部分组展开。
+/* ---------- 设置目录（2026-11-10 平铺改版） ----------
+   用户口径：「不要再做选项分组了，直接拼起来」「功能是一个组的可以聚合起来点进去是三级页面」
+   「桌面左栏直接装总体的大目录」。
 
-   2026-10-26 三次调整的统一原则：**目录项 = 一类问题，不是一张卡片**。
-     ① 合并（本次）：外观与浏览 + 通知 + 版本 → 「通用」；我的内容 + Cloud+ → 「内容与存储」；
-        7 项 → 4 项。原来左栏有三项点开只是一两行，目录比内容还长。
-     ② 去重：「绑定邮箱（点击复制）」与「更换邮箱」是同一份数据 → 只留「账户」里的「登录邮箱」，
-        复制搬到身份卡的邮箱字上（点一下复制）。
-     ③ 不拆：账户与隐私仍然是一组 7 行 —— 上一轮刚并起来，内部按「凭据 → 隐私 → 数据 → 注销」
-        排序代替再加一层目录。 */
-const SETTINGS_SECTIONS = [
-  { id: 'account', label: '账户', icon: Mail },
-  /* 2026-10-29 新增：通知从「通用」里独立出来。
-     原先通知相关只有一行叫「推送」，用户找「邮件通知」不会想到点它 ——
-     分类目录里给出「通知」这一席，是让用户「按目的找」而不是「按名字猜」。 */
-  { id: 'notify', label: '通知', icon: Bell },
-  { id: 'privacy', label: '账户与隐私', icon: Shield },
-  { id: 'content', label: '内容与存储', icon: Wallet },
-  { id: 'general', label: '通用', icon: Info },
+   于是本页只剩一层列表：组头是**视觉分段**（不可点、不承载任何设置），条目就是设置本身。
+   唯一保留聚合的是「密码与通行密钥」—— 改密码 / 通行密钥各自是独立表单页，合一行点进去再选，
+   正好是用户说的「三级页面」（首页 → 聚合页 → 表单）。
+
+   ⚠️ GROUPS 的顺序就是首页与桌面左栏的来源顺序，改这里两处同时变（单一真源）。 */
+const GROUPS = [
+  {
+    id: 'profile',
+    label: '个人信息',
+    desc: '昵称、简介、头像与头像框',
+    icon: UserRound,
+    iconClass: 'is-blue',
+  },
+  {
+    id: 'security',
+    label: '账户与安全',
+    desc: '登录邮箱、密码、通行密钥与可见性',
+    icon: Shield,
+    iconClass: 'is-indigo',
+  },
+  {
+    id: 'data',
+    label: '数据',
+    desc: '公共记忆、管理工具与数据导出',
+    icon: Database,
+    iconClass: 'is-teal',
+  },
+  {
+    id: 'notify',
+    label: '通知',
+    desc: '应用内推送、邮件通知与提醒频率',
+    icon: Bell,
+    iconClass: 'is-green',
+  },
+  {
+    id: 'storage',
+    label: '内容与存储',
+    desc: '资产、收货地址、摄影集与 Cloud+',
+    icon: Wallet,
+    iconClass: 'is-yellow',
+  },
+  {
+    id: 'general',
+    label: '通用',
+    desc: '主题、首屏开场画与版本信息',
+    icon: Settings,
+    iconClass: 'is-blue',
+  },
 ];
-const activeSection = ref('account');
+const GROUP_LABEL = Object.fromEntries(GROUPS.map((group) => [group.id, group.label]));
+
+/** 当前打开的二级页 / 详情（'' = 首页；桌面下 = 右栏「概览」） */
+const activeEntryId = ref('');
+/** 进入 = forward（新内容从右滑入），返回 = back（从左滑回）—— iOS push/pop 的方向记忆 */
+const paneDirection = ref('forward');
 const panelRootRef = ref(null);
 
-/* ---------- 单栏钻取（2026-10-29） ----------
-   竖屏不再把所有分组平铺：改成「分类列表 → 点进去只看一组」，
-   与横屏双栏同一个心智（左目录 + 右内容），只是把左右换成上下。
-   为什么值得做：平铺时 15 个条目要滚 2~3 屏，用户找「邮件通知」得先滚到「通用」；
-   钻取后首页只有 5 个分类，目标一眼可见。
-   状态空串 = 分类列表；非空 = 正在看那个分类。双栏下不使用本状态。 */
-const singlePaneSection = ref('');
-/**
- * 钻取方向（2026-10-29 第二版）：进入 = forward（新内容从右滑入），
- * 返回 = back（从左滑回）。iOS push/pop 的方向记忆 —— 没有方向感的淡入
- * 用户读不出「我是在前进还是后退」，这也是第一版动画显得不够优雅的主因。
- */
-const paneDirection = ref('forward');
-const isMenuView = computed(() => !props.twoPane && !singlePaneSection.value);
-
-/** 分类列表里不重复出现「账户」—— 顶部那条账户行就是它 */
-const menuSections = computed(() => SETTINGS_SECTIONS.filter((item) => item.id !== 'account'));
-
-/** 分类副标题：让用户在列表页就知道这组里有什么，不用点进去试 */
-const SECTION_DESC = {
-  account: '头像、昵称、登录邮箱',
-  notify: '应用内推送、邮件通知',
-  privacy: '密码、通行密钥、隐私与数据',
-  content: '资产、摄影集、Cloud 空间',
-  general: '主题、开场画、版本',
-};
-const SECTION_ICON_CLASS = {
-  account: 'is-blue',
-  notify: 'is-green',
-  privacy: 'is-indigo',
-  content: 'is-teal',
-  general: 'is-yellow',
-};
-const sectionDesc = (id) => SECTION_DESC[id] || '';
-const sectionIconClass = (id) => SECTION_ICON_CLASS[id] || 'is-gray';
-const sectionLabel = (id) => SETTINGS_SECTIONS.find((item) => item.id === id)?.label || '';
-
-/* 切分类 / 返回列表时把滚动位置归零。
-   不重置的话，从列表底部点进一组会停在半空 —— 这是「点进去很突兀」的一半原因
+/* 切页 / 返回时把滚动位置归零。
+   不重置的话，从列表中部点进二级页会停在半空 —— 这是「点进去很突兀」的一半原因
    （另一半是没有过渡动效，见 style 段的 gsPaneIn）。 */
 const resetPaneScroll = () => {
   requestAnimationFrame(() => {
@@ -1165,20 +553,6 @@ const resetPaneScroll = () => {
     }
     root.scrollIntoView?.({ block: 'start', behavior: 'auto' });
   });
-};
-
-const enterSection = (id) => {
-  paneDirection.value = 'forward';
-  singlePaneSection.value = id;
-  // 同步 activeSection：双栏高亮、搜索结果归属都读它，两边口径不能分叉
-  activeSection.value = id;
-  resetPaneScroll();
-};
-
-const exitSection = () => {
-  paneDirection.value = 'back';
-  singlePaneSection.value = '';
-  resetPaneScroll();
 };
 
 /* ---------- 邮件通知提醒频率（2026-10-29） ----------
@@ -1209,71 +583,72 @@ const toggleMailExpanded = (group) => {
   mailExpandedGroup.value = mailExpandedGroup.value === group ? '' : group;
 };
 
-/* 竖屏钻取：标题 = 分类名；页头的返回按钮隐藏（两处返回会重叠），
-   返回职责完全交给悬浮钮（.gs-floating-back）—— 用户定稿「不加横条、没背景色、
-   固定在屏幕」。 */
-const isDrilldown = computed(() => !props.twoPane && Boolean(singlePaneSection.value));
-const headerTitle = computed(() =>
-  isDrilldown.value ? sectionLabel(singlePaneSection.value) : '设置',
-);
-const headerShowBack = computed(() => props.showBack && !isDrilldown.value);
-const handleHeaderBack = () => {
-  if (isDrilldown.value) {
-    exitSection();
+/* 顶部留白必须跟着「导航岛在不在」走（2026-11-10 用户报障「顶部空隙过大」）。
+   实测：`?tab=settings` 有 #unified-nav-container（78px），
+   而 `?tab=settings&view=account-security` 这类子页里导航岛整个不渲染 ⇒ 固定写死 78px
+   就白留一道 78px 空档，内容被压到屏幕中段。
+   所以这里实测一次、并在子页开关时重测；同时把 --userspace-nav-h 覆写成实测值，
+   让 sticky 返回条 / 左栏吸附也停到正确位置。 */
+const navTopOffset = ref(78);
+const syncNavTopOffset = () => {
+  /* 设置子页（?view=…）一律隐藏导航岛 ⇒ 留白必须是 0，别再拿 DOM 去"校准"：
+     实测时序是「点击瞬间岛还在」→ 校准会把乐观归零又写回 78px，正是那一下上跳。 */
+  if (props.inlinePanel || props.editOpen) {
+    navTopOffset.value = 0;
     return;
   }
-  emit('back');
+  const el = document.getElementById('unified-nav-container');
+  if (!el) {
+    navTopOffset.value = 0;
+    return;
+  }
+  const h = Math.round(el.getBoundingClientRect().height);
+  const minH = Math.round(Number.parseFloat(getComputedStyle(el).minHeight) || 0);
+  navTopOffset.value = minH > 0 ? Math.min(h, minH) : h;
 };
-
-/** 双栏 ↔ 单栏切换时清掉钻取态，否则窗口变宽后残留一个看不见的「当前分类」 */
+/* ⚠️ 只靠 prop 变化时测一次不够：导航岛是**路由切换后**才被卸载的（实测 L3 点击瞬间
+   还有岛，下一帧才没），rAF 抢在它前面就测到旧高度。所以两条腿：
+   ① 监听 body 下的增删（岛的挂载/卸载都会触发），② 再用 rAF 补一次同步。 */
+let navIslandObserver = null;
+const resyncNavTopOffset = () => {
+  requestAnimationFrame(() => {
+    syncNavTopOffset();
+    requestAnimationFrame(syncNavTopOffset);
+  });
+};
 watch(
-  () => props.twoPane,
-  (two) => {
-    if (two) singlePaneSection.value = '';
+  [() => props.inlinePanel, () => props.editOpen],
+  ([panel, edit]) => {
+    /* 乐观归零（2026-11-10 报障「点进二级/三级页会顿一下再上移」）：
+       设置子页（?view=…）一定隐藏导航岛，所以**先**把留白设成 0，再实测校准。
+       原来只靠实测 ⇒ 先按 78px 画一帧、岛卸载后再跳成 0，视觉上就是内容整体上跳一下。 */
+    if (panel || edit) navTopOffset.value = 0;
+    resyncNavTopOffset();
   },
+  { immediate: true },
 );
-
-/** 单栏：菜单视图下不显示任何组；进入某组后只显示该组。双栏：只显示当前分类。 */
-const isGroupVisible = (id) => {
-  if (props.twoPane) return activeSection.value === id;
-  return Boolean(singlePaneSection.value) && singlePaneSection.value === id;
-};
-
-/** 左目录高亮：子页打开时跟着子页归属走（否则目录看起来「什么都没选」） */
-const navActiveSection = computed(() =>
-  props.inlinePanel ? props.inlinePanelSection || activeSection.value : activeSection.value,
-);
-
-/** 返回条文案 = 子页归属分类的名字（「账户与隐私」），让用户知道退回哪里 */
-const inlineBackLabel = computed(() => {
-  const section = SETTINGS_SECTIONS.find((item) => item.id === navActiveSection.value);
-  return section?.label || '设置';
+onMounted(() => {
+  syncNavTopOffset();
+  window.addEventListener('resize', syncNavTopOffset, { passive: true });
+  if (typeof MutationObserver !== 'undefined') {
+    navIslandObserver = new MutationObserver(syncNavTopOffset);
+    /* subtree 必须为 true：岛不在 body 的直接子层，挂在中间容器里 */
+    navIslandObserver.observe(document.body, { childList: true, subtree: true });
+  }
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncNavTopOffset);
+  navIslandObserver?.disconnect();
+  navIslandObserver = null;
 });
 
-/**
- * 身份卡可见性（2026-10-26 用户纠偏）：它属于「账户」这一页，不是全站横幅 ——
- * 两栏下切到「外观与浏览」等分类时必须一起消失（对齐 macOS 系统设置：账户页才有大头像区）。
- * 单栏（竖屏 / 窄窗）本来就没有分类概念、8 组全量展开，身份卡按 iOS 设置的做法待在列表最前，
- * 此时恒显示；搜索态另由模板的 isSearching 收掉。
- *
- * 2026-10-29 去掉 `!twoPane ||`：那是「单栏平铺」时代的逻辑 —— 所有分组挤在一页，
- * 身份卡自然该在顶部。现在单栏是钻取式（分类列表 → 点进去只看一组），
- * 身份卡属于「账户」这一组的**内容**，钻到通知 / 隐私里还带着它就成了每个子分页
- * 都顶着一头像昵称 —— 正是用户报的那种「每个子分页都出现」。
- */
-const showIdentityCard = computed(() => activeSection.value === 'account');
-
-/** 切分类后回到顶部 —— 滚动容器是宿主的 .tab-page（不是 window），取最近的祖先 */
-const selectSection = (id) => {
-  // 编辑态 / 子页下点其它分类 = 离开当前右栏内容，先把右栏收回分组列表
-  if (props.editOpen) emit('close-edit');
-  if (props.inlinePanel) emit('close-panel');
-  if (activeSection.value === id) return;
-  activeSection.value = id;
-  const scroller = panelRootRef.value?.closest('.tab-page');
-  if (scroller?.scrollTo) scroller.scrollTo({ top: 0 });
-  else window.scrollTo({ top: 0 });
-};
+/* 横竖切换时清掉选中态：竖屏没有「右栏详情」，留着会在转回横屏时莫名其妙地打开一项 */
+watch(
+  () => props.twoPane,
+  () => {
+    activeEntryId.value = '';
+  },
+);
 
 /* ---------- 绑定邮箱（点击复制） ---------- */
 const emailCopied = ref(false);
@@ -1314,215 +689,471 @@ const copyEmail = async () => {
    索引 = 本页所有行 + 各子页入口，命中后直接执行该行动作（等于跳转/切换），
    与 iOS 设置搜索同思路：搜到就能去，不必先找分组。
    ⚠️ 新增设置项时必须同步补一条，否则它搜不到 —— 这里是搜索的唯一真源。 */
-const SETTINGS_ENTRIES = [
-  {
-    id: 'email',
-    group: '账户',
-    label: '复制邮箱',
-    desc: '把当前登录邮箱复制到剪贴板（身份卡上的邮箱字同款动作）',
-    keywords: 'email 邮箱 邮件 登录 找回密码 复制 绑定 账号',
-    icon: Mail,
-    iconClass: 'is-blue',
-    value: () => emailDisplayText.value,
-    run: () => copyEmail(),
-  },
-  {
-    id: 'theme',
-    group: '通用',
-    label: '主题设置',
-    desc: '选择浅色、深色或跟随系统',
-    keywords: '主题 深色 浅色 暗色 暗黑 夜间 跟随系统 外观 dark light theme',
-    icon: Moon,
-    iconClass: 'is-purple',
-    value: () => props.themeDisplayText,
-    run: () => emit('open-theme'),
-  },
-  {
-    id: 'home-gate',
-    group: '通用',
-    label: '重播首屏开场画',
-    desc: '清除「已看过」标记，回到首屏再看一次',
-    keywords: '重播 首屏 开场 动画 引导 重置 首页',
-    icon: RotateCcw,
-    iconClass: 'is-blue',
-    run: () => replayHomeGate(),
-  },
-  {
-    id: 'version',
-    group: '通用',
-    label: '版本',
-    desc: '查看当前版本与 Beta 7.0.1 介绍',
-    keywords: '版本 beta 更新 升级 关于 version',
-    icon: Info,
-    iconClass: 'is-blue',
-    value: () => 'Beta 7.0.1',
-    run: () => emit('open-version-settings'),
-  },
-  {
-    id: 'assets',
-    group: '内容与存储',
-    label: '资产',
-    desc: '积分明细、订阅、订单、抽奖与赞助',
-    keywords: '资产 积分 余额 订阅 订单 抽奖 赞助 钱包 wallet',
-    icon: Wallet,
-    iconClass: 'is-teal',
-    run: () => emit('open-assets'),
-  },
-  {
-    id: 'shipping-address',
-    group: '内容与存储',
-    label: '收货地址',
-    desc: '礼物与实物订单寄送时使用',
-    keywords: '收货地址 地址 物流 快递 邮寄 收件人 电话 寄送 address shipping',
-    icon: MapPin,
-    iconClass: 'is-teal',
-    run: () => emit('open-address'),
-  },
-  {
-    id: 'photo-albums',
-    group: '内容与存储',
-    label: '摄影集',
-    desc: '照片自动排版，装帧一本可带走的影集',
-    keywords: '摄影集 相册 照片 影集 排版 打印 album photo',
-    icon: Images,
-    iconClass: 'is-blue',
-    run: () => emit('open-photo-albums'),
-  },
-  {
-    id: 'cloud-plus',
-    group: '内容与存储',
-    label: 'Cloud+ 页面',
-    desc: '进入完整 Cloud+ 设置与管理页面',
-    keywords: 'cloud 云 空间 存储 配额 网盘 容量',
-    icon: MessagesSquare,
-    iconClass: 'is-teal',
-    value: () => props.cloudPlusUsageText,
-    run: () => emit('open-cloud', 'settings'),
-  },
-  {
-    id: 'login-email',
-    group: '账户',
-    label: '登录邮箱',
-    desc: '登录与找回密码，点击更换',
-    keywords: '更换 邮箱 邮件 email 换绑 改邮箱 登录 找回密码 账号 账户安全',
-    icon: Mail,
-    iconClass: 'is-blue',
-    value: () => emailDisplayText.value,
-    run: () => emit('open-security', 'email'),
-  },
-  {
-    id: 'password',
-    group: '账户与隐私',
-    label: '修改密码',
-    desc: '输入当前密码并设置新密码，更新登录凭证',
-    keywords: '修改密码 改密 重设密码 密码 password 登录 安全 账户安全',
-    icon: KeyRound,
-    iconClass: 'is-blue',
-    run: () => emit('open-security', 'password'),
-  },
-  {
-    id: 'passkey',
-    group: '账户与隐私',
-    label: '通行密钥',
-    desc: '用指纹 / 面容在本设备上快速登录，免输密码',
-    keywords: '通行密钥 passkey 指纹 面容 webauthn 免密 登录 设备 账户安全',
-    icon: Fingerprint,
-    iconClass: 'is-blue',
-    run: () => emit('open-security', 'passkey'),
-  },
-  {
-    /* 2026-10-29：原 id='pushplus' / label='推送' → 改成分组「通知」下的「通知设置」。
-       keywords 里刻意塞满同义词：用户搜「通知」「推送」「提醒」「邮件」「生日」都该命中。 */
-    id: 'notify-settings',
-    group: '通知',
-    label: '通知设置',
-    desc: '应用内推送、邮件通知与生日邮件，按渠道开关',
-    keywords: '通知 推送 提醒 消息 应用内 浏览器 邮件 生日 设置 notify push mail',
-    icon: Bell,
-    iconClass: 'is-blue',
-    value: () => '应用内 · 邮件',
-    run: () => emit('open-notification-settings'),
-  },
-  {
-    id: 'follow-mail',
-    group: '通知',
-    label: '关注的人邮件通知',
-    desc: '关注的人发布新帖或评论、回复你的帖子时，发送至你绑定的邮箱',
-    keywords:
-      '邮件 邮箱 通知 提醒 关注 特别关注 发帖 回复 周期 频率 摘要 投递 合并 mail email notify follow',
-    icon: Mail,
-    iconClass: 'is-green',
-    toggle: true,
-    run: () => emit('toggle-follow-mail'),
-  },
-  {
-    id: 'hide-online',
-    group: '账户与隐私',
-    label: '隐藏在线状态',
-    desc: '开启后他人看不到你的在线状态，你也无法查看他人的在线状态',
-    keywords: '隐藏 在线 状态 隐身 隐私',
-    icon: EyeOff,
-    iconClass: 'is-indigo',
-    toggle: true,
-    run: () => emit('toggle-hide-online'),
-  },
-  {
-    id: 'hide-follow',
-    group: '账户与隐私',
-    label: '隐藏关注数据',
-    desc: '开启后他人在你主页看不到详细关注与粉丝列表，但仍能看到数量',
-    keywords: '隐藏 关注 粉丝 列表 隐私',
-    icon: Users,
-    iconClass: 'is-indigo',
-    toggle: true,
-    run: () => emit('toggle-hide-follow-data'),
-  },
-  {
-    id: 'data-privacy',
-    group: '账户与隐私',
-    label: '数据与隐私',
-    desc: '公共记忆与管理工具',
-    keywords: '数据 隐私 记忆 管理 清除 工具',
-    icon: Database,
-    iconClass: 'is-indigo',
-    value: () => props.dataPrivacyStatusText,
-    run: () => emit('open-data-management'),
-  },
-  {
-    id: 'data-export',
-    group: '账户与隐私',
-    label: '导出我的数据',
-    desc: '打包个人资料、帖子、云空间等为 ZIP 下载',
-    keywords: '导出 下载 备份 zip 打包 数据',
-    icon: Archive,
-    iconClass: 'is-indigo',
-    value: () => 'ZIP 打包',
-    run: () => emit('open-data-export'),
-  },
-  {
-    id: 'delete-account',
-    group: '账户与隐私',
-    label: '注销账号',
-    desc: '高风险操作，三步确认后永久注销账号',
-    keywords: '注销 删除账号 关闭账号 永久 危险 delete',
-    icon: TriangleAlert,
-    iconClass: 'is-red',
-    danger: true,
-    run: () => emit('open-security', 'delete'),
-  },
-  {
-    id: 'logout',
-    group: '账户',
-    label: '退出登录',
-    desc: '退出当前账号',
-    keywords: '退出 登出 注销 换号 账号 logout',
-    icon: LogOut,
-    iconClass: 'is-red',
-    danger: true,
-    run: () => emit('logout'),
-  },
-];
+const MAIL_DIGEST_NOTE =
+  '示例：对方连续发送 3 条——「及时与摘要」收到 2 封（1 封即时送达，1 封周期末合并）；「减少干扰」收到 1 封（周期末送达）。';
 
+/* ---------- 设置目录条目（单一真源） ----------
+   首页列表、桌面左栏、设置搜索**都读这一份**。以前搜索索引（SETTINGS_ENTRIES）与模板里手写的行
+   是两处，新增一项必须两边都改，漏一处就是「搜不到」。现在只有这里。
+
+   kind 语义：
+     · 'toggle' 开关行 —— 手机点整行即切换；桌面右栏出一张带大开关的详情
+     · 'choice' 选项行 —— 手机就地展开选项；桌面右栏出选项详情
+     · 'group'  聚合行 —— 点进去是这一组条目（三级页面：列表 → 聚合页 → 表单）
+     · 其它     普通行，run() 直接执行（跳页 / 弹层 / 打开右栏表单）
+
+   parent   = 挂在某个聚合行下面（不在首页与左栏出现，但参与搜索）
+   searchOnly = 只进搜索结果（如「复制邮箱」，它是身份卡上的动作，不是一条设置） */
+const catalog = computed(() => {
+  const entries = [
+    /* ── 个人信息 ── */
+    {
+      id: 'profile-edit',
+      group: 'profile',
+      label: '个人信息',
+      desc: '昵称、简介与生日',
+      keywords: '个人信息 资料 昵称 名字 简介 签名 生日 编辑 profile name bio',
+      icon: UserRound,
+      iconClass: 'is-blue',
+      value: '昵称 · 简介 · 生日',
+      run: () => emit('open-edit-profile'),
+    },
+    {
+      id: 'avatar',
+      group: 'profile',
+      label: '头像',
+      desc: '换一张照片，或从影集里挑',
+      keywords: '头像 照片 图片 上传 更换 裁剪 avatar photo',
+      icon: Camera,
+      iconClass: 'is-teal',
+      value: '更换照片',
+      run: () => emit('change-avatar'),
+    },
+    {
+      id: 'avatar-frame',
+      group: 'profile',
+      label: '头像框',
+      desc: '挑一枚挂在头像上',
+      keywords: '头像框 装饰 框 frame 挂件 装扮',
+      icon: Sparkles,
+      iconClass: 'is-purple',
+      value: frameDisplayName.value,
+      run: () => emit('open-avatar-frames'),
+    },
+
+    /* ── 账户与安全 ── */
+    {
+      id: 'login-email',
+      group: 'security',
+      label: '登录邮箱',
+      desc: '登录与找回密码，点击更换',
+      keywords: '更换 邮箱 邮件 email 换绑 改邮箱 登录 找回密码 账号 账户安全',
+      icon: Mail,
+      iconClass: 'is-blue',
+      run: () => emit('open-security', 'email'),
+    },
+    {
+      id: 'password',
+      group: 'security',
+      label: '修改密码',
+      desc: '输入当前密码并设置新密码，更新登录凭证',
+      keywords: '修改密码 改密 重设密码 密码 password 登录 安全 账户安全',
+      icon: KeyRound,
+      iconClass: 'is-blue',
+      run: () => emit('open-security', 'password'),
+    },
+    {
+      id: 'passkey',
+      group: 'security',
+      label: '通行密钥',
+      desc: '用指纹 / 面容在本设备上快速登录，免输密码',
+      keywords: '通行密钥 passkey 指纹 面容 webauthn 免密 登录 设备 账户安全',
+      icon: Fingerprint,
+      iconClass: 'is-blue',
+      /* 浏览器不支持 WebAuthn 时整条不出现 —— 点进去只剩一个注定失败的「添加」按钮 */
+      visible: passkeySupported.value,
+      run: () => emit('open-security', 'passkey'),
+    },
+    {
+      id: 'hide-online',
+      group: 'security',
+      kind: 'toggle',
+      label: '隐藏在线状态',
+      desc: '开启后，他人将看不到你的在线状态，你也无法查看他人的在线状态',
+      keywords: '隐藏 在线 状态 隐身 隐私',
+      icon: EyeOff,
+      iconClass: 'is-indigo',
+      on: props.hideOnlineStatus,
+      onLabel: '他人看不到你的在线状态，你也看不到他人的',
+      offLabel: '他人能看到你的在线状态，你也可以看到他人的',
+      run: () => emit('toggle-hide-online'),
+    },
+    {
+      id: 'hide-follow',
+      group: 'security',
+      kind: 'toggle',
+      label: '隐藏关注数据',
+      desc: '开启后，他人在你主页看不到你的详细关注列表和粉丝列表，但仍能看到数量',
+      keywords: '隐藏 关注 粉丝 列表 隐私',
+      icon: Users,
+      iconClass: 'is-indigo',
+      on: props.hideFollowData,
+      onLabel: '主页只显示关注与粉丝数量，不显示列表',
+      offLabel: '主页可以看到完整的关注与粉丝列表',
+      run: () => emit('toggle-hide-follow-data'),
+    },
+    {
+      id: 'delete-account',
+      group: 'security',
+      label: '注销账号',
+      desc: '高风险操作，三步确认后永久注销账号',
+      keywords: '注销 删除账号 关闭账号 永久 危险 delete',
+      icon: TriangleAlert,
+      iconClass: 'is-red',
+      danger: true,
+      run: () => emit('open-security', 'delete'),
+    },
+
+    /* ── 数据 ── */
+    {
+      id: 'data-privacy',
+      group: 'data',
+      label: '数据与隐私',
+      desc: '公共记忆与管理工具',
+      keywords: '数据 隐私 记忆 管理 清除 工具',
+      icon: Database,
+      iconClass: 'is-indigo',
+      value: props.dataPrivacyStatusText,
+      run: () => emit('open-data-management'),
+    },
+    {
+      id: 'data-export',
+      group: 'data',
+      label: '导出我的数据',
+      desc: '打包个人资料、帖子、云空间等为 ZIP 下载',
+      keywords: '导出 下载 备份 zip 打包 数据',
+      icon: Archive,
+      iconClass: 'is-indigo',
+      value: 'ZIP 打包',
+      run: () => emit('open-data-export'),
+    },
+
+    /* ── 通知 ── */
+    {
+      id: 'notify-settings',
+      group: 'notify',
+      label: '通知设置',
+      desc: '应用内推送、邮件通知与生日邮件，按渠道开关',
+      keywords: '通知 推送 提醒 消息 应用内 浏览器 邮件 生日 设置 notify push mail',
+      icon: Bell,
+      iconClass: 'is-blue',
+      value: '应用内 · 邮件',
+      run: () => emit('open-notification-settings'),
+    },
+    {
+      id: 'follow-mail',
+      group: 'notify',
+      kind: 'toggle',
+      label: '关注的人邮件通知',
+      desc: '关注的人发布新帖或评论、回复你的帖子时，发送至你绑定的邮箱',
+      keywords:
+        '邮件 邮箱 通知 提醒 关注 特别关注 发帖 回复 周期 频率 摘要 投递 合并 mail email notify follow',
+      icon: Mail,
+      iconClass: 'is-green',
+      on: props.followMailEnabled,
+      onLabel: '有新动态会发到你的绑定邮箱',
+      offLabel: '不发送邮件，只在站内通知',
+      run: () => emit('toggle-follow-mail'),
+    },
+    {
+      id: 'mail-window',
+      group: 'notify',
+      kind: 'choice',
+      label: '提醒频率',
+      desc: '同一个人的多条消息按周期合并发送',
+      keywords: '提醒 频率 周期 实时 合并 15分钟 1小时 邮件',
+      icon: Clock,
+      iconClass: 'is-blue',
+      value: mailWindowLabel.value,
+      options: MAIL_WINDOW_OPTIONS.map((option) => ({
+        value: option.value,
+        label: option.label,
+        desc: option.desc,
+        badge: option.maxOnly ? 'Max+ Only' : '',
+      })),
+      optionValue: props.followMailWindow,
+      optionIcon: Clock,
+      choose: (value) => emit('choose-mail-window', value),
+      /* 手机：点行就地展开选项；桌面走 openEntry 出右栏详情，不执行 run */
+      run: () => toggleMailExpanded('mail-window'),
+    },
+    {
+      id: 'mail-digest',
+      group: 'notify',
+      kind: 'choice',
+      label: '投递方式',
+      desc: '对方连续发送多条时的送达方式',
+      keywords: '投递 方式 摘要 即时 减少干扰 合并 邮件',
+      icon: Inbox,
+      iconClass: 'is-indigo',
+      value: mailDigestLabel.value,
+      options: MAIL_DIGEST_OPTIONS.map((option) => ({
+        value: option.value,
+        label: option.label,
+        desc: option.desc,
+        badge: '',
+      })),
+      optionValue: props.followMailDigest,
+      optionIcon: Inbox,
+      note: MAIL_DIGEST_NOTE,
+      choose: (value) => emit('choose-mail-digest', value),
+      run: () => toggleMailExpanded('mail-digest'),
+    },
+
+    /* ── 内容与存储 ── */
+    {
+      id: 'assets',
+      group: 'storage',
+      label: '资产',
+      desc: '积分明细、订阅、订单、抽奖与赞助',
+      keywords: '资产 积分 余额 订阅 订单 抽奖 赞助 钱包 wallet',
+      icon: Wallet,
+      iconClass: 'is-teal',
+      run: () => emit('open-assets'),
+    },
+    {
+      id: 'shipping-address',
+      group: 'storage',
+      label: '收货地址',
+      desc: '礼物与实物订单寄送时使用',
+      keywords: '收货地址 地址 物流 快递 邮寄 收件人 电话 寄送 address shipping',
+      icon: MapPin,
+      iconClass: 'is-teal',
+      run: () => emit('open-address'),
+    },
+    {
+      id: 'photo-albums',
+      group: 'storage',
+      label: '摄影集',
+      desc: '照片自动排版，装帧一本可带走的影集',
+      keywords: '摄影集 相册 照片 影集 排版 打印 album photo',
+      icon: Images,
+      iconClass: 'is-blue',
+      run: () => emit('open-photo-albums'),
+    },
+    {
+      id: 'cloud-plus',
+      group: 'storage',
+      label: 'Cloud+ 页面',
+      desc: '进入完整 Cloud+ 设置与管理页面',
+      keywords: 'cloud 云 空间 存储 配额 网盘 容量',
+      icon: MessagesSquare,
+      iconClass: 'is-teal',
+      value: props.cloudPlusUsageText,
+      run: () => emit('open-cloud', 'settings'),
+    },
+
+    /* ── 通用 ── */
+    {
+      id: 'theme',
+      group: 'general',
+      label: '主题设置',
+      desc: '选择浅色、深色或跟随系统',
+      keywords: '主题 深色 浅色 暗色 暗黑 夜间 跟随系统 外观 dark light theme',
+      icon: props.currentTheme === 'dark' ? Moon : Sun,
+      iconClass: props.currentTheme === 'dark' ? 'is-purple' : 'is-yellow',
+      value: props.themeDisplayText,
+      run: () => emit('open-theme'),
+    },
+    {
+      id: 'home-gate',
+      group: 'general',
+      label: '重播首屏开场画',
+      desc: '清除「已看过」标记，回到首屏再看一次',
+      keywords: '重播 首屏 开场 动画 引导 重置 首页',
+      icon: RotateCcw,
+      iconClass: 'is-blue',
+      run: () => replayHomeGate(),
+    },
+    {
+      id: 'version',
+      group: 'general',
+      label: '版本',
+      desc: '查看当前版本与 Beta 7.0.1 介绍',
+      keywords: '版本 beta 更新 升级 关于 version',
+      icon: Info,
+      iconClass: 'is-blue',
+      value: 'Beta 7.0.1',
+      run: () => emit('open-version-settings'),
+    },
+
+    /* ── 危险 ── */
+    {
+      id: 'logout',
+      group: 'danger',
+      label: '退出登录',
+      desc: '',
+      keywords: '退出 登出 注销 换号 账号 logout',
+      icon: LogOut,
+      iconClass: 'is-red',
+      danger: true,
+      run: () => emit('logout'),
+    },
+
+    /* ── 只进搜索：身份卡上的邮箱动作 ── */
+    {
+      id: 'copy-email',
+      group: 'profile',
+      searchOnly: true,
+      label: '复制邮箱',
+      desc: '把当前登录邮箱复制到剪贴板（身份卡上的邮箱字同款动作）',
+      keywords: 'email 邮箱 邮件 登录 找回密码 复制 绑定 账号',
+      icon: Mail,
+      iconClass: 'is-blue',
+      value: emailDisplayText.value,
+      run: () => copyEmail(),
+    },
+  ];
+
+  const visible = entries.filter((entry) => entry.visible !== false);
+  /* 一级组行：首页与桌面左栏列的**就是它们**（组不是标题，是入口）。
+     条数由本组条目实时算出来，新增条目不用再手改「N 项」。 */
+  const groupRows = GROUPS.map((group) => ({
+    id: `g-${group.id}`,
+    groupId: group.id,
+    isGroupRow: true,
+    kind: 'group',
+    label: group.label,
+    desc: group.desc,
+    keywords: `${group.label} ${group.desc}`,
+    icon: group.icon,
+    iconClass: group.iconClass,
+    value: `${visible.filter((entry) => entry.group === group.id && !entry.searchOnly).length} 项`,
+    run: () => {},
+  }));
+  return groupRows.concat(visible);
+});
+
+/** 一级组行（首页与桌面左栏列的条目） */
+const groupEntries = computed(() => catalog.value.filter((entry) => entry.isGroupRow));
+
+/** 二级页里的条目：属于该组的叶子条目（searchOnly 只进搜索，不进列表） */
+const groupLeaves = (groupId) =>
+  catalog.value.filter(
+    (entry) => entry.group === groupId && !entry.isGroupRow && !entry.searchOnly,
+  );
+
+const activeEntry = computed(
+  () => catalog.value.find((entry) => entry.id === activeEntryId.value) || null,
+);
+
+const logoutEntry = computed(() => catalog.value.find((entry) => entry.id === 'logout'));
+
+/** 一级首页：只有它带「设置」页头、大返回与搜索；二级组页 / 三级表单都只有返回条 */
+const isHome = computed(() => !activeEntry.value && !props.inlinePanel && !props.editOpen);
+
+/* 左栏高亮：左栏是一级组，所以三级表单打开时高亮它**所属的组**（而不是某一条）。
+   editOpen / inlinePanel 是宿主状态，本组件按 props 反推 —— 组 id 固定是 g-<groupId>。
+   2026-11-10：新增的右栏子页（主题 / 版本 / 收货地址 / 摄影集）也在这里登记，
+   否则从「我」页或左栏直接跳进来时，左栏会一条都不亮。 */
+const INLINE_PANEL_RAIL_GROUP = {
+  'data-export': 'g-data',
+  'data-management': 'g-data',
+  'account-security': 'g-security',
+  'avatar-frame': 'g-profile',
+  'notification-settings': 'g-notify',
+  assets: 'g-storage',
+  'shipping-address': 'g-storage',
+  'photo-albums': 'g-storage',
+  theme: 'g-general',
+  version: 'g-general',
+};
+const railActiveId = computed(() => {
+  if (props.editOpen) return 'g-profile';
+  if (props.inlinePanel) return INLINE_PANEL_RAIL_GROUP[props.inlinePanel] || activeEntryId.value;
+  return activeEntryId.value;
+});
+
+/* 选项行就地展开（手机）：把「提醒频率 / 投递方式」的选择项插在父行后面，
+   与二级页的行同一套样式（.gs-row + .gs-mail-freq-option），不新造控件。 */
+const expandRows = (entries) =>
+  entries.flatMap((entry) => {
+    const rows = [{ ...entry, uid: entry.id, expanded: mailExpandedGroup.value === entry.id }];
+    if (entry.kind !== 'choice' || mailExpandedGroup.value !== entry.id) return rows;
+    const options = entry.options.map((option) => ({
+      uid: `${entry.id}-${option.value}`,
+      option: true,
+      label: option.label,
+      desc: option.desc,
+      icon: entry.optionValue === option.value ? Check : entry.optionIcon,
+      iconClass: entry.optionValue === option.value ? 'is-green' : 'is-gray',
+      badge: option.badge,
+      run: () => entry.choose(option.value),
+    }));
+    if (entry.note) options.push({ uid: `${entry.id}-note`, note: entry.note });
+    return rows.concat(options);
+  });
+
+/** 搜索无结果时的占位行（走同一条行渲染，不再单独写一套空态样式） */
+const NO_RESULT_ROW = {
+  uid: 'no-result',
+  static: true,
+  icon: SearchX,
+  iconClass: 'is-gray',
+  label: '没有找到设置项',
+  desc: '换个词试试，例如「主题」「密码」「推送」「导出」',
+};
+
+/**
+ * 当前要渲染的分组。三个视图共用同一段行渲染：
+ *   · 搜索中 → 单组「搜索结果」
+ *   · 二级页（kind='group'）→ 单个无标题组，内容是这一组的条目
+ *   · 首页 → 全部分组（桌面右栏不重复左栏目录，所以桌面「概览」返回空）
+ */
+const renderedGroups = computed(() => {
+  if (isSearching.value) {
+    const rows = searchResults.value.length
+      ? searchResults.value.map((entry) => ({ ...entry, uid: `hit-${entry.id}` }))
+      : [NO_RESULT_ROW];
+    return [{ id: 'search', label: '搜索结果', rows }];
+  }
+  // 二级页：该组的条目（组名已由返回条承担，卡里不再重复一个组头）
+  if (activeEntry.value) {
+    if (activeEntry.value.kind !== 'group') return [];
+    return [
+      {
+        id: activeEntry.value.groupId,
+        label: '',
+        rows: expandRows(groupLeaves(activeEntry.value.groupId)),
+      },
+    ];
+  }
+  // 桌面「概览」：身份卡下方补上「个人信息」的行 ——
+  //   2026-11-10 用户报障「这个页面是空白的」：原实现在两栏下概览只画身份卡，
+  //   右栏其余面积全空，看起来像没加载出来。概览 = 我是谁 + 个人信息的快捷入口。
+  if (props.twoPane) {
+    return [
+      {
+        id: 'profile',
+        label: '',
+        rows: expandRows(groupLeaves('profile')),
+      },
+    ];
+  }
+  // 一级首页：组行（一张卡）+ 退出登录（另一张卡）
+  return [
+    {
+      id: 'groups',
+      label: '',
+      rows: groupEntries.value.map((entry) => ({ ...entry, uid: entry.id })),
+    },
+    { id: 'danger', label: '', danger: true, rows: [{ ...logoutEntry.value, uid: 'logout' }] },
+  ];
+});
+
+/* ---------- 设置搜索 ----------
+   索引 = catalog 本身（见上），命中后直接执行该行动作：搜到就能去，不必先找分组。
+   iOS 设置同思路。 */
 const searchQuery = ref('');
 const isSearching = computed(() => searchQuery.value.trim().length > 0);
 
@@ -1544,39 +1175,58 @@ const normalizeQueryText = (value) =>
 const searchResults = computed(() => {
   const terms = searchQuery.value.trim().split(/\s+/).map(normalizeQueryText).filter(Boolean);
   if (!terms.length) return [];
-  return SETTINGS_ENTRIES.filter((entry) => {
-    // 浏览器不支持 WebAuthn 时「通行密钥」行不渲染，搜索结果也不能把它翻出来
-    if (entry.id === 'passkey' && !passkeySupported.value) return false;
+  return catalog.value.filter((entry) => {
     const haystack = normalizeQueryText(
-      [entry.label, entry.desc, entry.group, entry.keywords].join(' '),
+      [entry.label, entry.desc, GROUP_LABEL[entry.group], entry.keywords].join(' '),
     );
     return terms.every((term) => haystack.includes(term));
   });
 });
 
-const entryIcon = (entry) => {
-  if (entry.id === 'theme') return props.currentTheme === 'dark' ? Moon : Sun;
-  return entry.icon;
+/* ---------- 行点击 ----------
+   手机：一行的动作就是它的动作（切换 / 展开 / 跳页）。
+   桌面：能出详情的就地出在右栏（开关 / 选项 / 聚合页），其余照旧执行 ——
+        左栏是目录，右栏是这一项的详情。 */
+const openEntry = (item) => {
+  if (props.editOpen) emit('close-edit');
+  if (props.inlinePanel) emit('close-panel');
+  paneDirection.value = 'forward';
+  activeEntryId.value = item.id;
+  resetPaneScroll();
 };
 
-const entryIconClass = (entry) => {
-  if (entry.id === 'theme') return props.currentTheme === 'dark' ? 'is-purple' : 'is-yellow';
-  return entry.iconClass;
+/** 右栏回到「概览」（桌面）/ 回到首页列表（手机） */
+const showOverview = () => {
+  if (props.editOpen) emit('close-edit');
+  if (props.inlinePanel) emit('close-panel');
+  paneDirection.value = 'back';
+  activeEntryId.value = '';
+  resetPaneScroll();
 };
 
-/* 搜索结果的开关取哪个值 —— 新增 toggle 类条目时**必须**在这里补一行，
-   否则会静默落到 hideFollowData 上（搜「邮件」看到的却是「隐藏关注数据」的开关状态）。 */
-const entryToggleValue = (entry) => {
-  if (entry.id === 'hide-online') return props.hideOnlineStatus;
-  if (entry.id === 'follow-mail') return props.followMailEnabled;
-  return props.hideFollowData;
+const onRowClick = (item) => {
+  if (!item || item.static || item.note) return;
+  if (item.option) {
+    item.run?.();
+    return;
+  }
+  // 从搜索结果点走之后回到普通列表，别把搜索态留在背后
+  if (isSearching.value) searchQuery.value = '';
+  // 一级组 → 二级组页；其余（开关 / 选项 / 跳页 / 打开表单）就地执行
+  if (item.kind === 'group') {
+    openEntry(item);
+    return;
+  }
+  item.run?.();
 };
 
-/* 执行后清空搜索：复制邮箱这类动作留在本页，清空即可回到原列表；
-   跳转类动作清空与否用户都看不到。 */
-const runEntry = (entry) => {
-  searchQuery.value = '';
-  entry.run?.();
+/** 页头返回：二级页先回上一级，否则回「我」 */
+const handleBack = () => {
+  if (activeEntryId.value) {
+    showOverview();
+    return;
+  }
+  emit('back');
 };
 </script>
 
@@ -1599,39 +1249,35 @@ const runEntry = (entry) => {
      同时改写 --user-center-nav-offset，让 sticky 的页头也停在导航栏下方。 */
   --user-center-nav-offset: var(--userspace-nav-h, 78px);
   padding-top: var(--userspace-nav-h, 78px);
+  /* 进出子页时留白 78 ↔ 0 会变：做成过渡，避免整页「硬跳一下」 */
+  transition: padding-top 240ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* 竖屏钻取的悬浮返回钮（2026-10-29，用户定稿） ----------
-   「不加横条、没有背景色、固定在屏幕上（fixed）」—— 不随内容滚动。
-   与被放弃的两版的差别：
-     · 吸顶横条（不透明底 + 发丝线）：视觉太重，整条压在内容上
-     · 半透明渐变淡出（2026-10-01 被砍）：滚过去的行没淡干净，露白条
-   现在：什么都不带，就是「‹ 设置」两个字浮在那里。
-   ⚠️ fixed 相对**视口**：导航岛也是视口内的 fixed 浮层，top 必须用 --userspace-nav-h
-      才能落在岛下方，写小了会撞岛。
-   ⚠️ 钻取时页头的返回按钮已隐藏（headerShowBack=false），否则两处返回重叠。
-   ⚠️ 无背景 = 滚动到图标密集区时文字会与内容重叠 —— 这是「不要背景」的必然代价，
-      先按用户要求做，观感不行再补一层极淡的毛玻璃圆片。 */
-.gs-floating-back {
-  position: fixed;
-  top: calc(var(--userspace-nav-h, 78px) + env(safe-area-inset-top, 0px) + 12px);
-  left: 14px;
-  z-index: 7;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 6px 12px 6px 6px;
-  border: 0;
-  background: transparent;
-  color: var(--liquid-text-primary, #1d1d1f);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+@media (prefers-reduced-motion: reduce) {
+  .profile-subpage-shell {
+    transition: none;
+  }
 }
 
-.gs-floating-back:active {
-  opacity: 0.5;
+/* 页头收起 / 展开：进出二级页时高度渐变，避免内容整体上跳 */
+.gs-header-collapse-enter-active,
+.gs-header-collapse-leave-active {
+  overflow: hidden;
+  transition:
+    max-height 240ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 180ms ease;
+}
+
+.gs-header-collapse-enter-from,
+.gs-header-collapse-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+.gs-header-collapse-enter-to,
+.gs-header-collapse-leave-from {
+  max-height: 130px;
+  opacity: 1;
 }
 
 /* ---------- 设置搜索 ---------- */
@@ -1725,13 +1371,20 @@ const runEntry = (entry) => {
    「右边一长条、左边目录才用到一半」的失衡。 */
 .glass-settings.is-two-pane {
   display: grid;
-  grid-template-columns: 208px minmax(0, 1fr);
-  gap: 32px;
-  align-items: start;
+  /* 2026-11-10 用户口径「侧边目录再大一些长一些」：
+     208 → 244px，且左栏拉伸到与右栏同高（align-self: stretch + .gs-nav flex:1），
+     不再是一块「内容一少就短一截」的小卡片。 */
+  grid-template-columns: 244px minmax(0, 1fr);
+  gap: 30px;
+  align-items: stretch;
 }
 
 .gs-aside {
   min-width: 0;
+}
+
+.glass-settings.is-two-pane .gs-aside {
+  align-self: stretch;
 }
 
 /* 单栏（竖屏 / 窄屏）搜索框吸顶（2026-10-29）
@@ -1757,7 +1410,7 @@ const runEntry = (entry) => {
   top: calc(var(--userspace-nav-h, 78px) + 12px);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   max-height: calc(100dvh - var(--userspace-nav-h, 78px) - 32px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1835,59 +1488,15 @@ const runEntry = (entry) => {
   }
 }
 
-/* ---------- 右栏子页返回条（2026-10-26）
-   所有子页都进右栏后，这一条取代子页原来的宽页头：左边「‹ 账户与隐私」返回上一级，
-   右边子页标题。两栏下左目录也在，两条路都能回；竖屏只剩这一条。 */
-.gs-inline-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 32px;
-}
-
-.gs-inline-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 10px 4px 4px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #0071e3;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 160ms var(--ease-out, ease-out);
-}
-
-/* 异步 chunk 的 scoped 样式晚于 themes/*.css 落地 ⇒ 暗色必须带 html 前缀（写平会被压掉） */
-html[data-theme='dark'] .gs-inline-back {
-  color: #2997ff;
-}
-
-.gs-inline-back:hover {
-  background: var(--liquid-bg-nested);
-}
-
-/* 双写伪类保证键盘焦点环盖过全局 .bohai-page :focus-visible（特异性打平会静默失效） */
-.gs-inline-back:focus-visible:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-.gs-inline-title {
-  margin: 0;
-  color: var(--liquid-text-primary, #1d1d1f);
-  font-size: 15px;
-  font-weight: 600;
-}
-
-/* ---------- 分类目录 ---------- */
+/* ---------- 设置目录（2026-11-10 大目录） ----------
+   左栏现在装的是整份设置（22 条 + 6 个组头），不再只是 5 个分类，
+   所以行高压到 30px、组头 11px —— 目的一屏尽量看全；装不下时 .gs-aside 自己滚。 */
 .gs-nav {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 2px;
+  min-height: 0;
   padding: 6px;
   border: 1px solid var(--liquid-border);
   border-radius: var(--liquid-radius-md, 12px);
@@ -1896,24 +1505,33 @@ html[data-theme='dark'] .gs-inline-back {
   -webkit-backdrop-filter: var(--liquid-filter-sm);
 }
 
+.gs-nav-sep {
+  height: 1px;
+  margin: 4px 10px;
+  background: var(--liquid-border, rgba(15, 23, 42, 0.1));
+}
+
 .gs-nav-item {
   position: relative;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 9px;
   width: 100%;
-  min-height: 34px;
-  padding: 7px 10px;
+  min-height: 40px;
+  line-height: 20px;
+  padding: 9px 12px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 10px;
   background: transparent;
   /* 状态色全部走既有 token（--rail-pill-bg / --rail-item-bg-hover 由
      side-rail.css 挂在 .user-space-page，暗色已翻转过）——
      这里写裸 rgba 会变成第 N 处需要跟着调色板走的字面量 */
   color: var(--liquid-text-secondary, #6e6e73);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
+  letter-spacing: 0.01em;
   text-align: left;
   cursor: pointer;
   transition:
@@ -2091,40 +1709,36 @@ html[data-theme='dark'] .gs-inline-back {
   outline-offset: 2px;
 }
 
-/* ---------- 下段三行入口（真正的卡片本体） ---------- */
-.gs-id-rows {
-  /* 与 .gs-rows 同一套行几何变量：.gs-row 的 padding / 发丝线内缩都读它们 */
-  --gs-row-pad-x: 18px;
-  --gs-row-gap: 13px;
-  --gs-icon-size: 30px;
-  --gs-row-inset: calc(var(--gs-row-pad-x) + var(--gs-icon-size) + var(--gs-row-gap));
-
+/* ---------- 侧栏账户行（对齐 macOS 系统设置：头像 + 昵称 + 邮箱两行） ----------
+   2026-11-10：它不再是「目录里的一项」，而是「回到概览」的入口 ——
+   所以单独成类，不复用 .gs-nav-item 的 34px 行高与 13px 字号。 */
+.gs-nav-account {
+  box-sizing: border-box;
   display: flex;
-  flex-direction: column;
-  background: var(--liquid-bg-strong);
-  backdrop-filter: var(--liquid-filter);
-  -webkit-backdrop-filter: var(--liquid-filter);
-  border: 1px solid var(--liquid-border);
-  border-radius: var(--liquid-radius-md);
-  box-shadow: var(--liquid-shadow-sm);
-  /* 这里的 overflow:hidden 是**必须**的：行 hover 底色要跟着卡片圆角走。
-     人像区不在这层里，所以它不会裁到头像框。 */
-  overflow: hidden;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 56px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 
-.gs-id-row-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--liquid-text-primary, #1d1d1f);
+@media (hover: hover) and (pointer: fine) {
+  .gs-nav-account:hover {
+    background: var(--rail-item-bg-hover, rgba(15, 23, 42, 0.05));
+  }
 }
 
-/* ---------- 侧栏账户行（对齐 macOS 系统设置：头像 + 昵称 + 「账户」两行） ---------- */
-.gs-nav-item.is-account {
-  min-height: 46px;
-  padding-top: 6px;
-  padding-bottom: 6px;
+.gs-nav-account.active {
+  background: var(--rail-pill-bg, rgba(15, 23, 42, 0.075));
 }
 
 .gs-nav-avatar {
@@ -2184,13 +1798,6 @@ html[data-theme='dark'] .gs-inline-back {
 
   .gs-identity {
     gap: 12px;
-  }
-
-  .gs-id-rows {
-    border-radius: 0;
-    border-left-width: 0;
-    border-right-width: 0;
-    box-shadow: none;
   }
 
   /* 竖屏一屏高度有限：头像与上下留白各收一档，名字与「我」页昵称同级 */

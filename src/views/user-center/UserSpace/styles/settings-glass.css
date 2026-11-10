@@ -76,6 +76,14 @@
 
   display: flex;
   flex-direction: column;
+}
+
+/* 卡片皮肤单一真源：行列表与「表单 / 导出 / 说明」块共用同一张卡。
+   2026-11-10：账户安全的三个表单、数据导出的操作区原来直接摊在灰底上
+   （只有 .gs-group 包着、没有 .gs-rows），所以它们是另一种视觉语言 ——
+   白输入框浮在浅灰上、没有卡片边界。要给这些块套同一张卡，就用 .gs-card。 */
+.gs-rows,
+.gs-card {
   background: var(--liquid-bg-strong);
   backdrop-filter: var(--liquid-filter);
   -webkit-backdrop-filter: var(--liquid-filter);
@@ -83,6 +91,11 @@
   border-radius: var(--liquid-radius-md);
   box-shadow: var(--liquid-shadow-sm);
   overflow: hidden;
+}
+
+.gs-card {
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---------- 行 ---------- */
@@ -802,4 +815,62 @@
   .gs-progress-fill {
     transition-duration: 1ms;
   }
+}
+
+/* ---------- 子页返回条（2026-11-10 层级定稿） ----------
+   二级 / 三级页唯一的返回入口（页头与大返回只属于一级首页）。
+   ⚠️ 必须 sticky：数据导出这类长表单滚下去之后，返回条还停在上面，
+      不然「怎么回去」要靠用户往上划半屏。 */
+.gs-inline-bar {
+  position: sticky;
+  top: calc(var(--userspace-nav-h, 78px) + 6px);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 5px 6px 5px 0;
+  margin-bottom: 2px;
+  background: var(--liquid-bg, rgba(255, 255, 255, 0.78));
+  backdrop-filter: var(--liquid-filter-sm);
+  -webkit-backdrop-filter: var(--liquid-filter-sm);
+  border-radius: var(--liquid-radius-sm, 10px);
+}
+
+.gs-inline-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 10px 4px 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #0071e3;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 160ms var(--ease-out, ease-out);
+}
+
+/* 异步 chunk 的 scoped 样式晚于 themes/*.css 落地 ⇒ 暗色必须带 html 前缀（写平会被压掉） */
+html[data-theme='dark'] .gs-inline-back {
+  color: #2997ff;
+}
+
+.gs-inline-back:hover {
+  background: var(--liquid-bg-nested);
+}
+
+/* 双写伪类保证键盘焦点环盖过全局 .bohai-page :focus-visible（特异性打平会静默失效） */
+.gs-inline-back:focus-visible:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.gs-inline-title {
+  margin: 0;
+  color: var(--liquid-text-primary, #1d1d1f);
+  font-size: 15px;
+  font-weight: 600;
 }

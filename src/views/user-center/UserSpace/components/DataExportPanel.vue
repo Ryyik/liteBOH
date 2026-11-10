@@ -22,8 +22,9 @@
               <span class="gs-text">
                 <span class="gs-label">导出我的数据</span>
                 <span class="gs-desc">
-                  打包你的个人资料、论坛帖子与评论、Cloud+ 云空间、树洞、互动记录等全部个人数据（含图片文件）为
-                  ZIP 压缩包，内附一个双击即可离线浏览的网页，下载到本地留存。
+                  打包你的个人资料、论坛帖子与评论、Cloud+
+                  云空间、树洞、互动记录等全部个人数据（含图片文件）为 ZIP
+                  压缩包，内附一个双击即可离线浏览的网页，下载到本地留存。
                 </span>
               </span>
             </div>
@@ -32,13 +33,14 @@
 
         <!-- 状态与操作 -->
         <section class="gs-group">
-          <div class="export-body">
+          <div class="export-body gs-card">
             <div v-if="statusLoading" class="gs-note export-loading">正在获取导出状态…</div>
 
             <!-- 空闲：未申请过 -->
             <template v-else-if="!job">
               <div class="gs-note">
-                导出需要一些时间处理，完成后此处会显示下载入口。你可以离开页面，进度不会丢失。每 7 天可申请一次。
+                导出需要一些时间处理，完成后此处会显示下载入口。你可以离开页面，进度不会丢失。每 7
+                天可申请一次。
               </div>
               <div class="gs-actions">
                 <button class="gs-btn primary" :disabled="actionLoading" @click="handleRequest">
@@ -53,13 +55,20 @@
                 <span class="export-stage">{{ job.stage || '准备中' }}</span>
                 <span class="export-percent">{{ job.progress ?? 0 }}%</span>
               </div>
-              <div class="gs-progress-track" role="progressbar" :aria-valuenow="job.progress ?? 0" aria-valuemin="0"
-                aria-valuemax="100">
+              <div
+                class="gs-progress-track"
+                role="progressbar"
+                :aria-valuenow="job.progress ?? 0"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
                 <div class="gs-progress-fill" :style="{ width: (job.progress ?? 0) + '%' }" />
               </div>
               <div class="gs-note">正在打包你的数据，你可以离开此页面，稍后回来查看进度。</div>
               <div class="gs-actions">
-                <button class="gs-btn ghost-danger" :disabled="actionLoading" @click="handleCancel">取消导出</button>
+                <button class="gs-btn ghost-danger" :disabled="actionLoading" @click="handleCancel">
+                  取消导出
+                </button>
               </div>
             </template>
 
@@ -74,7 +83,9 @@
                   {{ downloadLoading ? '正在生成下载链接…' : `下载 ZIP${fileSizeText}` }}
                 </button>
               </div>
-              <div class="gs-note">下载链接 10 分钟内有效，可重复获取。文件将于{{ expireText }}过期，过期后需重新申请。</div>
+              <div class="gs-note">
+                下载链接 10 分钟内有效，可重复获取。文件将于{{ expireText }}过期，过期后需重新申请。
+              </div>
               <div class="gs-actions">
                 <button class="gs-btn ghost" :disabled="actionLoading" @click="handleRequest">
                   {{ actionLoading ? '正在提交申请…' : '重新申请导出' }}
@@ -98,7 +109,11 @@
             <!-- 已过期 / 已取消：允许重新申请 -->
             <template v-else>
               <div class="gs-note">
-                {{ job.status === 'expired' ? '上一次导出的文件已过期，请重新申请导出。' : '导出已取消，你可以重新申请。' }}
+                {{
+                  job.status === 'expired'
+                    ? '上一次导出的文件已过期，请重新申请导出。'
+                    : '导出已取消，你可以重新申请。'
+                }}
               </div>
               <div class="gs-actions">
                 <button class="gs-btn primary" :disabled="actionLoading" @click="handleRequest">
@@ -127,7 +142,7 @@ import {
   cancelExport,
   createExportRequest,
   getExportDownloadUrl,
-  getExportStatus
+  getExportStatus,
 } from '@/utils/api/user-data-export-api';
 
 defineProps({
@@ -155,7 +170,9 @@ const formatBytes = (bytes) => {
   return ` ${(n / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const fileSizeText = computed(() => (job.value?.file_size ? `（${formatBytes(job.value.file_size).trim()}）` : ''));
+const fileSizeText = computed(() =>
+  job.value?.file_size ? `（${formatBytes(job.value.file_size).trim()}）` : '',
+);
 
 const expireText = computed(() => {
   if (!job.value?.expires_at) return ' 7 天后';
@@ -203,9 +220,10 @@ const handleRequest = async () => {
   errorText.value = '';
   const ok = await confirm({
     title: '申请导出个人数据',
-    message: '导出内容包含你的个人资料、论坛帖子与评论、Cloud+ 云空间、树洞、互动记录等全部个人数据，并打包相关图片文件，同时生成一个可离线浏览的网页。导出需要一些时间处理，完成后将显示下载入口，期间你可以离开页面，进度不会丢失。',
+    message:
+      '导出内容包含你的个人资料、论坛帖子与评论、Cloud+ 云空间、树洞、互动记录等全部个人数据，并打包相关图片文件，同时生成一个可离线浏览的网页。导出需要一些时间处理，完成后将显示下载入口，期间你可以离开页面，进度不会丢失。',
     confirmText: '申请导出',
-    tone: 'default'
+    tone: 'default',
   }).catch(() => false);
   if (!ok) return;
 
@@ -232,7 +250,7 @@ const handleCancel = async () => {
     title: '取消导出',
     message: '确定取消当前导出任务吗？取消后可以重新申请。',
     confirmText: '取消任务',
-    tone: 'danger'
+    tone: 'danger',
   }).catch(() => false);
   if (!ok) return;
 
@@ -276,6 +294,12 @@ const handleDownload = async () => {
 @import '../styles/settings-glass.css';
 
 .profile-subpage-shell {
+  padding-top: 0;
+}
+
+/* 嵌入设置壳：外层已有 .gs-main 的 26px 组间节奏，这里再补 8px 会让三个子页的
+   卡片起点各不相同（数据导出/隐私比账户安全低 8px）—— 归零对齐。 */
+.profile-subpage-body {
   padding-top: 0;
 }
 

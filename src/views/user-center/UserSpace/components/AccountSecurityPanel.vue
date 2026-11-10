@@ -39,7 +39,12 @@
                 </span>
                 <span class="gs-side">
                   <span class="gs-value">{{ emailValue }}</span>
-                  <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+                  <ChevronRight
+                    class="gs-chevron"
+                    :size="16"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
                 </span>
               </button>
             </div>
@@ -57,11 +62,21 @@
                   <span class="gs-desc">输入当前密码并设置新密码，更新登录凭证</span>
                 </span>
                 <span class="gs-side">
-                  <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+                  <ChevronRight
+                    class="gs-chevron"
+                    :size="16"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
                 </span>
               </button>
 
-              <button v-if="passkeySupported" type="button" class="gs-row" @click="openPasskeyPanel">
+              <button
+                v-if="passkeySupported"
+                type="button"
+                class="gs-row"
+                @click="openPasskeyPanel"
+              >
                 <span class="gs-icon is-blue">
                   <Fingerprint :size="16" :stroke-width="2" aria-hidden="true" />
                 </span>
@@ -70,7 +85,12 @@
                   <span class="gs-desc">用指纹 / 面容在本设备上快速登录，免输密码</span>
                 </span>
                 <span class="gs-side">
-                  <ChevronRight class="gs-chevron" :size="16" :stroke-width="2" aria-hidden="true" />
+                  <ChevronRight
+                    class="gs-chevron"
+                    :size="16"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
                 </span>
               </button>
 
@@ -83,7 +103,12 @@
                   <span class="gs-desc">高风险操作，三步确认后永久注销账号</span>
                 </span>
                 <span class="gs-side">
-                  <ChevronRight class="gs-chevron gs-chevron-danger" :size="16" :stroke-width="2" aria-hidden="true" />
+                  <ChevronRight
+                    class="gs-chevron gs-chevron-danger"
+                    :size="16"
+                    :stroke-width="2"
+                    aria-hidden="true"
+                  />
                 </span>
               </button>
             </div>
@@ -107,10 +132,12 @@
           </section>
 
           <section class="gs-group">
-            <div class="sec-form">
+            <div class="sec-form gs-card">
               <div class="gs-banner info">
                 <Info :size="16" :stroke-width="2" aria-hidden="true" />
-                <span>为防止账号被盗，确认邮件会同时发送到当前邮箱和新邮箱：请先在当前邮箱完成确认，再到新邮箱确认，两边都完成后更换即生效。生效前旧邮箱仍可登录。</span>
+                <span
+                  >为防止账号被盗，确认邮件会同时发送到当前邮箱和新邮箱：请先在当前邮箱完成确认，再到新邮箱确认，两边都完成后更换即生效。生效前旧邮箱仍可登录。</span
+                >
               </div>
 
               <label class="gs-field-label" for="new-email">新邮箱</label>
@@ -118,8 +145,15 @@
                 <span class="gs-input-icon">
                   <Mail :size="15" :stroke-width="2" aria-hidden="true" />
                 </span>
-                <input id="new-email" v-model.trim="emailForm.newEmail" type="email" class="gs-input"
-                  placeholder="请输入新邮箱地址" autocomplete="email" :disabled="isUpdatingEmail">
+                <input
+                  id="new-email"
+                  v-model.trim="emailForm.newEmail"
+                  type="email"
+                  class="gs-input"
+                  placeholder="请输入新邮箱地址"
+                  autocomplete="email"
+                  :disabled="isUpdatingEmail"
+                />
               </div>
 
               <label class="gs-field-label" for="email-current-password">当前密码</label>
@@ -127,8 +161,15 @@
                 <span class="gs-input-icon">
                   <Lock :size="15" :stroke-width="2" aria-hidden="true" />
                 </span>
-                <input id="email-current-password" v-model="emailForm.currentPassword" type="password" class="gs-input"
-                  placeholder="请输入当前账号密码" autocomplete="current-password" :disabled="isUpdatingEmail">
+                <input
+                  id="email-current-password"
+                  v-model="emailForm.currentPassword"
+                  type="password"
+                  class="gs-input"
+                  placeholder="请输入当前账号密码"
+                  autocomplete="current-password"
+                  :disabled="isUpdatingEmail"
+                />
               </div>
 
               <div v-if="emailUpdateError" class="gs-banner error">
@@ -141,8 +182,11 @@
               </div>
 
               <div class="gs-actions sec-actions">
-                <button class="gs-btn ghost" :disabled="isUpdatingEmail" @click="backFromPanel">返回</button>
-                <button class="gs-btn primary" :disabled="isUpdatingEmail" @click="submitEmailChange">
+                <button
+                  class="gs-btn primary"
+                  :disabled="isUpdatingEmail"
+                  @click="submitEmailChange"
+                >
                   {{ isUpdatingEmail ? '提交中...' : '发送确认邮件' }}
                 </button>
               </div>
@@ -160,19 +204,23 @@
                 </span>
                 <span class="gs-text">
                   <span class="gs-label">修改密码</span>
-                  <span class="gs-desc">{{ tokenLoginActive
-                    ? '检测到你通过一次性 token 登录，本次可直接设置新密码。'
-                    : '为安全起见，请先输入当前密码，再设置一个新的登录密码。' }}</span>
+                  <span class="gs-desc">{{
+                    tokenLoginActive
+                      ? '检测到你通过一次性 token 登录，本次可直接设置新密码。'
+                      : '为安全起见，请先输入当前密码，再设置一个新的登录密码。'
+                  }}</span>
                 </span>
               </div>
             </div>
           </section>
 
           <section class="gs-group">
-            <div class="sec-form">
+            <div class="sec-form gs-card">
               <div v-if="tokenLoginActive" class="gs-banner info">
                 <Info :size="16" :stroke-width="2" aria-hidden="true" />
-                <span>检测到你刚通过一次性 token 登录（15 分钟内），本次修改无需输入当前密码。</span>
+                <span
+                  >检测到你刚通过一次性 token 登录（15 分钟内），本次修改无需输入当前密码。</span
+                >
               </div>
 
               <template v-if="!tokenLoginActive">
@@ -181,8 +229,15 @@
                   <span class="gs-input-icon">
                     <Lock :size="15" :stroke-width="2" aria-hidden="true" />
                   </span>
-                  <input id="current-password" v-model="passwordForm.currentPassword" type="password" class="gs-input"
-                    placeholder="请输入当前密码" autocomplete="current-password" :disabled="isUpdatingPassword">
+                  <input
+                    id="current-password"
+                    v-model="passwordForm.currentPassword"
+                    type="password"
+                    class="gs-input"
+                    placeholder="请输入当前密码"
+                    autocomplete="current-password"
+                    :disabled="isUpdatingPassword"
+                  />
                 </div>
               </template>
 
@@ -191,8 +246,15 @@
                 <span class="gs-input-icon">
                   <KeyRound :size="15" :stroke-width="2" aria-hidden="true" />
                 </span>
-                <input id="new-password" v-model="passwordForm.newPassword" type="password" class="gs-input"
-                  placeholder="请输入新密码" autocomplete="new-password" :disabled="isUpdatingPassword">
+                <input
+                  id="new-password"
+                  v-model="passwordForm.newPassword"
+                  type="password"
+                  class="gs-input"
+                  placeholder="请输入新密码"
+                  autocomplete="new-password"
+                  :disabled="isUpdatingPassword"
+                />
               </div>
 
               <label class="gs-field-label" for="confirm-password">确认新密码</label>
@@ -200,8 +262,15 @@
                 <span class="gs-input-icon">
                   <ShieldCheck :size="15" :stroke-width="2" aria-hidden="true" />
                 </span>
-                <input id="confirm-password" v-model="passwordForm.confirmPassword" type="password" class="gs-input"
-                  placeholder="请再次输入新密码" autocomplete="new-password" :disabled="isUpdatingPassword">
+                <input
+                  id="confirm-password"
+                  v-model="passwordForm.confirmPassword"
+                  type="password"
+                  class="gs-input"
+                  placeholder="请再次输入新密码"
+                  autocomplete="new-password"
+                  :disabled="isUpdatingPassword"
+                />
               </div>
 
               <p class="gs-hint">
@@ -219,8 +288,11 @@
               </div>
 
               <div class="gs-actions sec-actions">
-                <button class="gs-btn ghost" :disabled="isUpdatingPassword" @click="backFromPanel">返回</button>
-                <button class="gs-btn primary" :disabled="isUpdatingPassword" @click="submitPasswordChange">
+                <button
+                  class="gs-btn primary"
+                  :disabled="isUpdatingPassword"
+                  @click="submitPasswordChange"
+                >
                   {{ isUpdatingPassword ? '修改中...' : '确认修改密码' }}
                 </button>
               </div>
@@ -238,7 +310,9 @@
                 </span>
                 <span class="gs-text">
                   <span class="gs-label">通行密钥</span>
-                  <span class="gs-desc">绑定在这台设备上，登录时用指纹 / 面容代替密码。凭据不会离开设备。</span>
+                  <span class="gs-desc"
+                    >绑定在这台设备上，登录时用指纹 / 面容代替密码。凭据不会离开设备。</span
+                  >
                 </span>
               </div>
             </div>
@@ -251,7 +325,9 @@
                 <span class="gs-text"><span class="gs-desc">加载中...</span></span>
               </div>
               <div v-else-if="passkeyListError" class="gs-row is-static">
-                <span class="gs-text"><span class="gs-desc">{{ passkeyListError }}</span></span>
+                <span class="gs-text"
+                  ><span class="gs-desc">{{ passkeyListError }}</span></span
+                >
               </div>
               <div v-else-if="passkeyList.length === 0" class="gs-row is-static">
                 <span class="gs-text">
@@ -268,8 +344,12 @@
                   <span class="gs-desc">添加于 {{ formatPasskeyDate(item.created_at) }}</span>
                 </span>
                 <span class="gs-side">
-                  <button type="button" class="gs-btn ghost" :disabled="isDeletingPasskey"
-                    @click="removePasskey(item)">
+                  <button
+                    type="button"
+                    class="gs-btn ghost"
+                    :disabled="isDeletingPasskey"
+                    @click="removePasskey(item)"
+                  >
                     {{ pendingDeletePasskeyId === item.id ? '确认删除' : '删除' }}
                   </button>
                 </span>
@@ -287,8 +367,7 @@
           </div>
 
           <section class="gs-group">
-            <div class="gs-actions sec-actions">
-              <button class="gs-btn ghost" @click="backFromPanel">返回</button>
+            <div class="gs-actions sec-actions is-card">
               <button class="gs-btn primary" :disabled="isRegisteringPasskey" @click="addPasskey">
                 {{ isRegisteringPasskey ? '请在设备上完成验证…' : '添加通行密钥' }}
               </button>
@@ -306,14 +385,16 @@
                 </span>
                 <span class="gs-text">
                   <span class="gs-label gs-label-danger">注销账号</span>
-                  <span class="gs-desc">账号注销后不可恢复，系统会尝试删除你的账号资料与关联数据，请谨慎操作。</span>
+                  <span class="gs-desc"
+                    >账号注销后不可恢复，系统会尝试删除你的账号资料与关联数据，请谨慎操作。</span
+                  >
                 </span>
               </div>
             </div>
           </section>
 
           <section class="gs-group">
-            <div class="sec-form">
+            <div class="sec-form gs-card">
               <p class="sec-step-badge">账号注销 · 步骤 {{ deleteAccountStep }}/3</p>
 
               <template v-if="deleteAccountStep === 1">
@@ -325,12 +406,19 @@
 
                 <p class="sec-export-hint">
                   建议先在「设置 → 导出我的数据」中打包下载你的数据副本，注销后将无法再导出。
-                  <router-link :to="{ path: '/user-space', query: { tab: 'settings', view: 'data-export' } }"
-                    class="sec-export-link">前往导出</router-link>
+                  <router-link
+                    :to="{ path: '/user-space', query: { tab: 'settings', view: 'data-export' } }"
+                    class="sec-export-link"
+                    >前往导出</router-link
+                  >
                 </p>
 
                 <label class="sec-check-row">
-                  <input v-model="deleteRiskAccepted" type="checkbox" :disabled="isDeletingAccount">
+                  <input
+                    v-model="deleteRiskAccepted"
+                    type="checkbox"
+                    :disabled="isDeletingAccount"
+                  />
                   <span>我已阅读并理解以上风险</span>
                 </label>
               </template>
@@ -343,8 +431,13 @@
                   <span class="gs-input-icon">
                     <Keyboard :size="15" :stroke-width="2" aria-hidden="true" />
                   </span>
-                  <input v-model.trim="deleteConfirmKeyword" type="text" class="gs-input"
-                    :placeholder="`请输入：${DELETE_ACCOUNT_CONFIRM_TEXT}`" :disabled="isDeletingAccount">
+                  <input
+                    v-model.trim="deleteConfirmKeyword"
+                    type="text"
+                    class="gs-input"
+                    :placeholder="`请输入：${DELETE_ACCOUNT_CONFIRM_TEXT}`"
+                    :disabled="isDeletingAccount"
+                  />
                 </div>
               </template>
 
@@ -355,8 +448,14 @@
                   <span class="gs-input-icon">
                     <Lock :size="15" :stroke-width="2" aria-hidden="true" />
                   </span>
-                  <input v-model="deletePassword" type="password" class="gs-input" placeholder="请输入当前账号密码"
-                    autocomplete="current-password" :disabled="isDeletingAccount">
+                  <input
+                    v-model="deletePassword"
+                    type="password"
+                    class="gs-input"
+                    placeholder="请输入当前账号密码"
+                    autocomplete="current-password"
+                    :disabled="isDeletingAccount"
+                  />
                 </div>
               </template>
 
@@ -366,12 +465,20 @@
               </div>
 
               <div class="gs-actions sec-actions">
-                <button class="gs-btn ghost" :disabled="isDeletingAccount" @click="backFromPanel">返回</button>
-                <button v-if="deleteAccountStep < 3" class="gs-btn danger" :disabled="isDeletingAccount"
-                  @click="goDeleteAccountNextStep">
+                <button
+                  v-if="deleteAccountStep < 3"
+                  class="gs-btn danger"
+                  :disabled="isDeletingAccount"
+                  @click="goDeleteAccountNextStep"
+                >
                   {{ deleteAccountStep === 1 ? '继续' : '下一步' }}
                 </button>
-                <button v-else class="gs-btn danger" :disabled="isDeletingAccount" @click="confirmDeleteAccount">
+                <button
+                  v-else
+                  class="gs-btn danger"
+                  :disabled="isDeletingAccount"
+                  @click="confirmDeleteAccount"
+                >
                   {{ isDeletingAccount ? '正在注销...' : '确认注销账号' }}
                 </button>
               </div>
@@ -381,8 +488,12 @@
       </Transition>
     </div>
 
-    <CommonAlertModal v-model:visible="alertState.visible" :type="alertState.type" :title="alertState.title"
-      :message="alertState.message" />
+    <CommonAlertModal
+      v-model:visible="alertState.visible"
+      :type="alertState.type"
+      :title="alertState.title"
+      :message="alertState.message"
+    />
   </div>
 </template>
 
@@ -390,7 +501,19 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { AlertCircle, CheckCircle2, ChevronRight, Fingerprint, Info, KeyRound, Keyboard, Lock, Mail, ShieldCheck, TriangleAlert } from 'lucide-vue-next';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronRight,
+  Fingerprint,
+  Info,
+  KeyRound,
+  Keyboard,
+  Lock,
+  Mail,
+  ShieldCheck,
+  TriangleAlert,
+} from 'lucide-vue-next';
 import CommonAlertModal from '@/components/CommonAlertModal.vue';
 import UserCenterPageHeader from '@/components/UserCenterPageHeader.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -402,14 +525,18 @@ import {
   listPasskeys,
   deletePasskey,
   toPasskeyRegisterMessage,
-  updateUserEmail
+  updateUserEmail,
 } from '@/utils/api/auth-api.js';
 import { resolveSettingsBackLocation } from '@/utils/user-space-navigation.js';
 import {
   normalizeAccountSecurityPanel,
   resolveAccountSecurityPanelTitle,
 } from '@/config/account-security-panels.js';
-import { PASSWORD_MIN_LENGTH, validateCurrentPassword, validatePassword } from '@/utils/auth-validation.js';
+import {
+  PASSWORD_MIN_LENGTH,
+  validateCurrentPassword,
+  validatePassword,
+} from '@/utils/auth-validation.js';
 import { logger } from '@/utils/logger.js';
 
 const DELETE_ACCOUNT_CONFIRM_TEXT = '确认注销';
@@ -443,7 +570,7 @@ const activePanel = ref('menu');
 const passwordForm = reactive({
   currentPassword: '',
   newPassword: '',
-  confirmPassword: ''
+  confirmPassword: '',
 });
 const isUpdatingPassword = ref(false);
 const passwordUpdateError = ref('');
@@ -457,7 +584,9 @@ const tokenLoginActive = ref(false);
 
 const refreshTokenLoginState = async () => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     tokenLoginActive.value = isRecentTokenLogin(session);
   } catch (error) {
     logger.warn('account-security', '读取会话判定 token 登录态失败:', error);
@@ -583,7 +712,7 @@ const alertState = reactive({
   visible: false,
   type: 'success',
   title: '',
-  message: ''
+  message: '',
 });
 
 const currentEmail = computed(() => userInfo.value?.email || '未读取到邮箱');
@@ -617,23 +746,15 @@ const headerTitle = computed(() => resolveAccountSecurityPanelTitle(activePanel.
  */
 const entryPanel = ref('');
 
-const isBusy = () =>
-  isDeletingAccount.value || isUpdatingPassword.value || isUpdatingEmail.value;
+const isBusy = () => isDeletingAccount.value || isUpdatingPassword.value || isUpdatingEmail.value;
 
 const backToMenu = () => {
   if (isBusy()) return;
   activePanel.value = 'menu';
 };
 
-const backFromPanel = () => {
-  if (isBusy()) return;
-  // 内嵌 / 深链进来都没有「菜单」这一层：直接回设置
-  if (props.inline || entryPanel.value) {
-    goBack();
-    return;
-  }
-  activePanel.value = 'menu';
-};
+/* 2026-11-10：表单底部那颗「返回」已删 —— 顶部返回条是唯一返回入口，
+   同屏两个返回按钮既重复又让人犹豫点哪个（用户口径「底部返回按钮没必要」）。 */
 
 const openPanelById = (panel) => {
   if (panel === 'email') openChangeEmailPanel();
@@ -669,7 +790,7 @@ const openChangePasswordPanel = () => {
 // ---- 更换邮箱（双重确认：新旧邮箱各收一封确认邮件） ----
 const emailForm = reactive({
   newEmail: '',
-  currentPassword: ''
+  currentPassword: '',
 });
 const isUpdatingEmail = ref(false);
 const emailUpdateError = ref('');
@@ -769,10 +890,7 @@ const submitPasswordChange = async () => {
     // 与 /reset-password 既有找回流程同一代码路径）。
     const result = tokenLoginActive.value
       ? await authStore.updatePassword(passwordForm.newPassword)
-      : await authStore.updatePassword(
-        passwordForm.newPassword,
-        passwordForm.currentPassword
-      );
+      : await authStore.updatePassword(passwordForm.newPassword, passwordForm.currentPassword);
 
     if (!result?.success) {
       passwordUpdateError.value = result?.message || '密码修改失败，请稍后重试。';
@@ -940,6 +1058,11 @@ watch(
   margin-top: 6px;
 }
 
+/* 独立成卡的纯按钮区（通行密钥「添加」）：没有表单字段，也要落在同一张卡上 */
+.sec-actions.is-card {
+  padding: 14px 16px;
+}
+
 .sec-actions .gs-btn {
   flex: 1;
 }
@@ -1036,7 +1159,9 @@ watch(
 /* ---------- 面板切换动画 ---------- */
 .security-panel-enter-active,
 .security-panel-leave-active {
-  transition: opacity 200ms var(--ease-out, ease-out), transform 200ms var(--ease-out, ease-out);
+  transition:
+    opacity 200ms var(--ease-out, ease-out),
+    transform 200ms var(--ease-out, ease-out);
 }
 
 .security-panel-enter-from,
@@ -1046,43 +1171,43 @@ watch(
 }
 
 /* ---------- 暗色补充 ---------- */
-[data-theme="dark"] .sec-step-badge {
+[data-theme='dark'] .sec-step-badge {
   background: rgba(255, 105, 97, 0.14);
   color: #ff6961;
 }
 
-[data-theme="dark"] .sec-check-row {
+[data-theme='dark'] .sec-check-row {
   color: #f4f6f8;
 }
 
-[data-theme="dark"] .sec-help-text {
+[data-theme='dark'] .sec-help-text {
   color: #a7afba;
 }
 
-[data-theme="dark"] .sec-account-line {
+[data-theme='dark'] .sec-account-line {
   color: #8b9098;
 }
 
-[data-theme="dark"] .sec-risk-list li {
+[data-theme='dark'] .sec-risk-list li {
   color: #a7afba;
 }
 
-[data-theme="dark"] .sec-export-hint {
+[data-theme='dark'] .sec-export-hint {
   color: #a7afba;
 }
 
-[data-theme="dark"] .sec-risk-list {
+[data-theme='dark'] .sec-risk-list {
   background: rgba(255, 105, 97, 0.08);
   border-color: rgba(255, 105, 97, 0.16);
 }
 
-[data-theme="dark"] .sec-export-hint {
+[data-theme='dark'] .sec-export-hint {
   background: rgba(41, 151, 255, 0.08);
   border-color: rgba(41, 151, 255, 0.14);
 }
 
-[data-theme="dark"] .sec-export-link,
-[data-theme="dark"] .sec-help-text strong {
+[data-theme='dark'] .sec-export-link,
+[data-theme='dark'] .sec-help-text strong {
   color: #2997ff;
 }
 

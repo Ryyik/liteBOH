@@ -1,12 +1,18 @@
 <template>
-  <div class="photo-albums-page">
+  <!-- embed（2026-11-10）：同一份页面组件有两种外壳 ——
+       ① 独立路由 /user-space/albums（自带返回按钮，页头 + 整页底色）；
+       ② 设置三级页（横屏右栏 / 竖屏整页）。后者由 `embed` 打开：
+          去掉返回按钮（返回条由设置壳统一提供）、去掉整屏底色与 100vh 撑高、
+          收掉页头大标题与四周留白 —— 否则嵌进右栏会多出一整屏空白。 -->
+  <div class="photo-albums-page" :class="{ 'is-embed': embed }">
     <main class="pa-main">
       <!-- 返回设置（2026-10-26）：摄影集的常用入口在「我的 → 设置 → 摄影集」，
            但本页是独立路由（/user-space/albums），不在 UserSpace 的 tab 壳里 ——
            底栏与左栏都不存在，之前进来就是一个没有出口的死页。
            落点由 from 决定（单源 utils/user-space-navigation.js），
-           直链进入时兜底回设置，而不是把人丢回首页。 -->
-      <button type="button" class="pa-back-btn" @click="goBack">
+           直链进入时兜底回设置，而不是把人丢回首页。
+           embed 时不出：那时它在设置右栏里，返回条由设置壳提供。 -->
+      <button v-if="!embed" type="button" class="pa-back-btn" @click="goBack">
         <ChevronLeft :size="16" :stroke-width="2.2" aria-hidden="true" />
         返回设置
       </button>
@@ -19,7 +25,10 @@
           <h1>我的摄影集</h1>
           <p>上传照片，自动初排成页，亲手装帧一本可以翻阅、可以带走的影集。</p>
         </div>
-        <div class="pa-header-actions">
+        <!-- 页头动作：embed 且还没有影集时不出 ——
+             空态自己已经有「先看一本示例 / 新建影集」两个按钮，同屏两套就是重复入口
+             （竖屏尤其明显：页头按钮换行后正好压在空态按钮上方）。 -->
+        <div v-if="!(embed && !albums.length)" class="pa-header-actions">
           <RouterLink to="/albums/demo" class="pa-demo-btn">
             <PlayCircle :size="15" :stroke-width="2.2" aria-hidden="true" />
             查看示例影集
@@ -290,6 +299,12 @@ import {
 const router = useRouter();
 const route = useRoute();
 const { confirm } = useConfirmDialog();
+
+/* embed（2026-11-10）：被设置壳当成三级页渲染时置真。
+   只改外壳（底色 / 撑高 / 返回按钮 / 留白），取数与建册逻辑一行不动。 */
+defineProps({
+  embed: { type: Boolean, default: false },
+});
 
 /** 返回设置：from 值域与其它设置子页共用同一份解析（utils/user-space-navigation.js）。
     兜底显式给「设置」而不是默认的「我的」—— 摄影集永远是从设置进来的子页。 */
@@ -624,11 +639,15 @@ onMounted(loadAlbums);
 }
 
 .pa-grid-anim-enter-active {
-  transition: opacity 0.24s var(--ease-out, ease), transform 0.24s var(--ease-out, ease);
+  transition:
+    opacity 0.24s var(--ease-out, ease),
+    transform 0.24s var(--ease-out, ease);
 }
 
 .pa-grid-anim-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .pa-grid-anim-enter-from {
@@ -645,6 +664,34 @@ onMounted(loadAlbums);
   min-height: 100vh;
   background: var(--boh-page-bg, #f4f4f6);
   color: var(--text-primary, #1d1d1f);
+}
+
+/* 设置三级页形态（2026-11-10）：不铺整屏底色、不撑 100vh、不留页头大留白 ——
+   嵌在右栏里时它只是右栏的一段内容，返回条与左右边界都归设置壳管。 */
+.photo-albums-page.is-embed {
+  min-height: 0;
+  background: transparent;
+}
+
+.photo-albums-page.is-embed .pa-main {
+  max-width: none;
+  padding: 0 0 8px;
+}
+
+.photo-albums-page.is-embed .pa-header h1 {
+  font-size: 22px;
+}
+
+.photo-albums-page.is-embed .pa-header p {
+  font-size: 13px;
+}
+
+/* 竖屏（手机整页形态）：设置壳在窄屏不给左右内边距，页头文字会贴到屏幕边上；
+   横屏不动 —— 那时右栏自带内边距，加了反而与返回条左缘错开。 */
+@media (max-width: 767px) {
+  .photo-albums-page.is-embed .pa-main {
+    padding: 0 12px 8px;
+  }
 }
 
 .pa-main {

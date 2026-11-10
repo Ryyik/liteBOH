@@ -44,9 +44,7 @@
 
         <section class="gs-group">
           <div class="privacy-note-wrap">
-            <p class="gs-note">
-              隐藏在线状态与隐藏关注数据等隐私开关，可在「账户与隐私」分组的上一级列表中调整。
-            </p>
+            <p class="gs-note">隐藏在线状态、隐藏关注列表等隐私开关，在「账户与安全」里调整。</p>
           </div>
         </section>
       </div>
@@ -58,6 +56,12 @@
 @import '../styles/settings-glass.css';
 
 .profile-subpage-shell {
+  padding-top: 0;
+}
+
+/* 嵌入设置壳：外层已有 .gs-main 的 26px 组间节奏，这里再补 8px 会让三个子页的
+   卡片起点各不相同（数据导出/隐私比账户安全低 8px）—— 归零对齐。 */
+.profile-subpage-body {
   padding-top: 0;
 }
 

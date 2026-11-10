@@ -130,7 +130,8 @@ describe('createPanelAsync', () => {
 
     // UserSpaceMain 的两个弹窗型面板
     const userspace = read('src/views/user-center/UserSpace/UserSpaceMain.vue');
-    for (const label of ['AvatarCropModal', 'AvatarFramePickerModal']) {
+    // 2026-11-10：AvatarFramePickerModal 已改为内联页 AvatarFramePanel（去弹窗），换断言
+    for (const label of ['AvatarCropModal', 'AvatarFramePanel']) {
       const pattern = new RegExp(`label: '${label}',\\s*silent: true`);
       expect({ file: 'UserSpaceMain.vue', label, hit: pattern.test(userspace) }).toMatchObject({
         file: 'UserSpaceMain.vue',
