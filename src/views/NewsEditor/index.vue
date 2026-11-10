@@ -117,8 +117,9 @@ const remove = async (row) => {
     const original = await fetchRecordById({ table: TABLE, selectColumns: '*', id: row.id });
     const snapshot = { ...(original || row) };
     delete snapshot.kind; // 展示用的字段，不是表列
-    recordDeletedSnapshot(snapshot);
     await deleteAdminRow(TABLE, row.id);
+    // 删除成功后才落快照：失败时留下「可恢复」条目会让人点恢复撞主键冲突
+    recordDeletedSnapshot(snapshot);
     invalidateByTags(['news']);
     notify('已删除，可在「最近删除」中恢复', 'ok');
   } catch (error) {

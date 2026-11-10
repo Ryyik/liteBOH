@@ -71,6 +71,18 @@ export const normalizeFilterValue = (value) =>
     .slice(0, 160);
 
 /**
+ * 「这个筛选值算不算生效」的唯一判定（2026-11-10）。
+ *
+ * 不能用真值判断：布尔型状态列（生日运营的 `is_active`）的「否」就是 `false`，
+ * 真值判断会把它当成「没筛选」—— 列表已经按 `is_active=false` 过滤了，chips 却不显示、
+ * `hasActiveFilters` 为假、「清空筛选」消失，全量删除还会被误判成「无条件全表删除」。
+ *
+ * 唯一例外是 `''`（下拉的「全部状态」占位值）。
+ */
+export const hasFilterValue = (value) =>
+  value !== undefined && value !== null && String(value).trim() !== '';
+
+/**
  * 根据 tabId + 搜索词构造 supabase or() 过滤器数组。
  * 规则（含转义）在 utils/search-core.js，这里只是旧的调用点适配。
  */
@@ -175,7 +187,8 @@ export const applySearchAndSort = (params) => {
   }
 
   const statusField = configs.statusFilterFields[tabId];
-  if (statusField && statusFilter !== '') {
+  // 与 hasActiveFilters / chips / 全量删除共用同一个「算不算筛上了」的判定
+  if (statusField && hasFilterValue(statusFilter)) {
     nextQuery = nextQuery.eq(statusField, statusFilter);
   }
 

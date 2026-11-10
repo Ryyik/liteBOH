@@ -10,6 +10,8 @@
  * @returns {null | {kind, title, description, showClear, showCreate, actions}}
  */
 
+import { isInvalidIdQuery } from '@/utils/search-core.js';
+
 /** 空态动作 id：DataAdmin 侧按它分发 */
 export const EMPTY_ACTIONS = {
   GLOBAL_SEARCH: 'global-search',
@@ -27,6 +29,22 @@ export const resolveEmptyState = ({
 
   const keyword = String(searchQuery || '').trim();
   if (keyword) {
+    /* `id:` + 半截 ID 不是「没有匹配」，而是「这条查询根本没执行」——
+       主键是 uuid/bigint，没有 ilike 算子，列表刻意短路成 0 条。
+       文案必须说清楚，否则用户会以为记录不存在（2026-11-10）。 */
+    if (isInvalidIdQuery(keyword)) {
+      return {
+        kind: 'no-match',
+        title: 'ID 精查需要完整 ID',
+        description: `「${keyword}」不是完整的记录 ID（UUID 是 36 位）。请粘贴完整 ID，或去掉 id: 前缀按关键词搜。`,
+        showClear: true,
+        showCreate: false,
+        actions: [
+          { id: EMPTY_ACTIONS.CLEAR_FILTERS, label: '清空搜索与筛选', tone: 'primary' },
+          { id: EMPTY_ACTIONS.GLOBAL_SEARCH, label: '搜索全部表', tone: 'secondary' },
+        ],
+      };
+    }
     return {
       kind: 'no-match',
       title: '没有匹配的记录',

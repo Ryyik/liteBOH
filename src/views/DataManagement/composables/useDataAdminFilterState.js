@@ -15,6 +15,7 @@
 
 import { computed } from 'vue';
 
+import { hasFilterValue } from './useDataAdminFilters.js';
 import {
   buildFilterChips,
   DATE_CHIP_ID,
@@ -97,12 +98,13 @@ export const createFilterState = (deps) => {
   });
 
   // 是否有任何活跃的筛选条件
+  // ⚠️ 状态值必须用 hasFilterValue：布尔列的「否」是 false，真值判断会漏掉它
   const hasActiveFilters = computed(() =>
     Boolean(
       searchQuery.value.trim() ||
-      statusFilter.value ||
-      dateFromFilter.value ||
-      dateToFilter.value ||
+      hasFilterValue(statusFilter.value) ||
+      hasFilterValue(dateFromFilter.value) ||
+      hasFilterValue(dateToFilter.value) ||
       activeAdvancedRules.value.length,
     ),
   );
@@ -123,7 +125,7 @@ export const createFilterState = (deps) => {
   const activeFilterSummary = computed(() => {
     const parts = [];
     if (searchQuery.value.trim()) parts.push(`关键词「${searchQuery.value.trim()}」`);
-    if (statusFilter.value) parts.push(`状态 ${statusFilterLabel.value}`);
+    if (hasFilterValue(statusFilter.value)) parts.push(`状态 ${statusFilterLabel.value}`);
     if (dateFromFilter.value || dateToFilter.value) {
       parts.push(
         `${currentDateFilterLabel.value}${dateFromFilter.value || '最早'} - ${dateToFilter.value || '现在'}`,
@@ -136,14 +138,14 @@ export const createFilterState = (deps) => {
 
   // 状态筛选 chip 标签
   const statusFilterLabel = computed(() => {
-    if (!statusFilter.value) return '';
+    if (!hasFilterValue(statusFilter.value)) return '';
     // 先问「看板/状态分布」的中文标签：没有 select 字段的表（reviewPosts 等）
     // statusFilterOptions 只能按当前页行反推，标签就是裸值 approved（plans/042 A3 实测）。
     return (
       getStatusLabel(statusFilter.value) ||
       statusFilterOptions.value.find((item) => String(item.value) === String(statusFilter.value))
         ?.label ||
-      statusFilter.value
+      String(statusFilter.value)
     );
   });
 

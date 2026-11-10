@@ -1021,8 +1021,11 @@
                 <div v-if="isMobileView && totalRecordCount > 0" class="mobile-data-pagination">
                   <span class="g-sheet-foot-text">
                     显示 {{ (currentPage - 1) * pageSize + 1 }} -
-                    {{ Math.min(currentPage * pageSize, totalRecordCount) }} 条 / 共
+                    {{ Math.min(currentPage * pageSize, rankedRowLimit) }} 条 / 共
                     {{ totalRecordCount }} 条
+                    <template v-if="rankedRowLimit < totalRecordCount">
+                      （仅前 {{ rankedRowLimit }} 条参与相关度排序）
+                    </template>
                   </span>
                   <div class="mobile-pagination-controls">
                     <label class="mobile-page-size">
@@ -1037,7 +1040,7 @@
                     </label>
                     <DashboardPagination
                       v-model="currentPage"
-                      :total="totalRecordCount"
+                      :total="rankedRowLimit"
                       :page-size="pageSize"
                     />
                   </div>
@@ -1113,13 +1116,16 @@
                     </div>
                     <span v-if="totalRecordCount > 0" class="g-sheet-foot-text">
                       显示 {{ (currentPage - 1) * pageSize + 1 }} -
-                      {{ Math.min(currentPage * pageSize, totalRecordCount) }} 条 / 共
+                      {{ Math.min(currentPage * pageSize, rankedRowLimit) }} 条 / 共
                       {{ totalRecordCount }} 条
+                      <template v-if="rankedRowLimit < totalRecordCount">
+                        （仅前 {{ rankedRowLimit }} 条参与相关度排序）
+                      </template>
                     </span>
                     <DashboardPagination
                       v-if="totalRecordCount > 0"
                       v-model="currentPage"
-                      :total="totalRecordCount"
+                      :total="rankedRowLimit"
                       :page-size="pageSize"
                     />
                   </template>
@@ -2203,9 +2209,16 @@ import {
   ADVANCED_OPERATOR_LABELS,
   ADVANCED_OPERATOR_OPTIONS,
   applySearchAndSort as applySearchAndSortUtil,
+  hasFilterValue,
   sanitizeSearchTerm,
 } from './composables/useDataAdminFilters.js';
-import { parseSearchQuery, rankRows, searchTermOf } from '@/utils/search-core.js';
+import {
+  isInvalidIdQuery,
+  parseSearchQuery,
+  rankRows,
+  SEARCH_MODE_TAB,
+  searchTermOf,
+} from '@/utils/search-core.js';
 import {
   buildSearchSuggestions,
   collectEnumOptions,
@@ -2355,6 +2368,15 @@ const selectedItems = ref([]);
 const selectAllResultsMode = ref(false);
 const currentPage = ref(1);
 const pageSize = ref(20);
+/**
+ * 搜索态的取数窗口（plans/042 C2）。
+ *
+ * 直接在服务端分页只能对「当前 20 行」排序 —— 真正最相关的那条可能在第二页。
+ * 所以有关键词时先拉一个固定窗口，客户端按相关性排完再切页；
+ * `count: 'exact'` 不受 range 影响，总数仍然准确 —— 也正因为如此，
+ * `totalPages` 必须按这个窗口收敛（否则能翻到恒空的第 7 页起）。
+ */
+const SEARCH_RANK_WINDOW = 120;
 // 表格密度：compact 紧凑 | standard 标准（默认）| comfortable 舒适，持久化到 localStorage
 const density = ref(
   (() => {
@@ -3168,6 +3190,9 @@ const fetchStatusBreakdownCounts = async (tabId) => {
   const cfg = dataConfig[tabId];
   const kb = resolveKanbanConfig(cfg, { statusField: STATUS_FILTER_FIELDS[tabId] });
   if (!cfg?.table || !kb) return;
+  // 无效 ID 查询（`id:` + 半截）在列表侧已短路成 0 条；分布条不能再按「无条件」数，
+  // 否则会退回全表分布，与「没有匹配」的空态自相矛盾。
+  if (isInvalidIdQuery(searchQuery.value)) return;
   const signature = buildStatusBreakdownSignature(tabId);
   if (statusBreakdownCache[tabId]?.signature === signature) return;
 
@@ -3233,13 +3258,22 @@ const statusBreakdownForCurrentTab = computed(() => {
     }
   }
   return [
-    { value: '', label: '全部', count: total, tone: 'muted', active: statusFilter.value === '' },
+    {
+      value: '',
+      label: '全部',
+      count: total,
+      tone: 'muted',
+      active: !hasFilterValue(statusFilter.value),
+    },
     ...kb.columns.map((col) => ({
       value: col.value,
       label: col.label,
       count: counts.get(col.value) || 0,
       tone: col.tone,
-      active: statusFilter.value === col.value,
+      // 用 String 比较：下拉里的布尔状态（is_active=false）与 chips 的字符串键
+      // 混在一起时，严格相等会让「已结束」明明筛上了却不高亮（2026-11-10 修）
+      active:
+        hasFilterValue(statusFilter.value) && String(statusFilter.value) === String(col.value),
     })),
   ];
 });
@@ -3748,7 +3782,27 @@ const liveStatusCards = computed(() => [
   },
 ]);
 // 分页
-const totalPages = computed(() => Math.max(1, Math.ceil(totalRecordCount.value / pageSize.value))); // 服务端已通过 range() 真分页返回当前页数据, 直接展示
+/**
+ * 搜索态只拉了前 `SEARCH_RANK_WINDOW` 行候选窗口 ⇒ 可翻页数必须按窗口收敛，
+ * 否则页脚按完整 count 画出 15 页、第 7 页起永远是空表，而且因为
+ * totalCount > 0 连空态都不显示（2026-11-10 修）。
+ *
+ * `isRankedSearch` 是「列表确实被关键词过滤、且结果被客户端重排」的唯一判定：
+ * `tab:` 是跳表语义（不产生查询条件）、半截 `id:` 已被短路上报空态，两者都不该
+ * 按窗口收敛，否则会把没被过滤的全量列表也砍到 120 条。
+ */
+const isRankedSearch = computed(() => {
+  const parsed = parseSearchQuery(searchQuery.value);
+  return (
+    Boolean(parsed.value) && parsed.mode !== SEARCH_MODE_TAB && !isInvalidIdQuery(searchQuery.value)
+  );
+});
+const rankedRowLimit = computed(() =>
+  isRankedSearch.value
+    ? Math.min(totalRecordCount.value, SEARCH_RANK_WINDOW)
+    : totalRecordCount.value,
+);
+const totalPages = computed(() => Math.max(1, Math.ceil(rankedRowLimit.value / pageSize.value))); // 服务端已通过 range() 真分页返回当前页数据, 直接展示
 const paginatedData = computed(() => currentData.value || []);
 
 // 为每行缓存身份字符串,避免 v-for 中 itemIndex() O(N) 线性扫描
@@ -4445,16 +4499,9 @@ const paginateQuery = (query) => {
   return query.range(from, from + limit - 1);
 };
 
-/**
- * 搜索态的取数窗口（plans/042 C2）。
- *
- * 直接在服务端分页只能对「当前 20 行」排序 —— 真正最相关的那条可能在第二页。
- * 所以有关键词时先拉一个固定窗口，客户端按相关性排完再切页；
- * `count: 'exact'` 不受 range 影响，总数与分页仍然准确。
- */
-const SEARCH_RANK_WINDOW = 120;
+/** 有搜索词时拉固定候选窗口（口径常量在 currentPage 旁边：分页数要按它收敛） */
 const fetchPageQuery = (query) =>
-  searchTermOf(searchQuery.value) ? query.range(0, SEARCH_RANK_WINDOW - 1) : paginateQuery(query);
+  isRankedSearch.value ? query.range(0, SEARCH_RANK_WINDOW - 1) : paginateQuery(query);
 
 const normalizeJoinedObject = (value) => (Array.isArray(value) ? value[0] || {} : value || {});
 
@@ -4752,6 +4799,13 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       return;
     }
 
+    /* `id:` + 半截 ID 刻意不产生查询条件（主键是 uuid / bigint，没有 ilike 算子，
+       发了就是 42883 整表失败）。这里短路成「0 条」：列表走空态，可一键清空关键词。 */
+    if (isInvalidIdQuery(searchQuery.value)) {
+      assignTabRows(tabId, [], 0);
+      return;
+    }
+
     let query = supabase.from(table).select(selectColumns, { count: 'exact' });
     query = applyTabBaseFilters(query, tabId);
 
@@ -4821,7 +4875,7 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
     /* 搜索态：候选窗口是「前 120 条里最相关的」，这里切出当前页。
        无关键词时不重排，保持数据库的排序口径（sortKey / tabDefaultSort）。 */
     const rankKeyword = searchTermOf(searchQuery.value);
-    if (rankKeyword) {
+    if (isRankedSearch.value && rankKeyword) {
       const pageLimit = Math.max(1, Number(pageSize.value) || 20);
       rows = rankRows(rows, rankKeyword, { fields: TAB_SEARCH_FIELDS[tabId] || [] }).slice(
         offset,
@@ -6267,6 +6321,25 @@ const removeDeletedSnapshot = (entry) => {
   persistDeletedSnapshots();
 };
 
+/**
+ * 快照恢复失败的归因（2026-11-10）。
+ *
+ * 三种失败都不是「网络抖动」，笼统提示会让人反复重试：
+ *   · PGRST204 / 42703：快照里有表里不存在的列 —— 旧版本把列表派生列
+ *     （entry_count / gift_scope_label …）一起存了；这条快照已不可用。
+ *   · 23503：外键不存在 —— 账号类记录连 auth.users 一起删了，插不回来。
+ *   · 23505：主键冲突 —— 同 ID 记录已存在（别重复恢复）。
+ */
+const describeRestoreError = (error) => {
+  const code = String(error?.code || '').toUpperCase();
+  if (code === 'PGRST204' || code === '42703') {
+    return '这条快照由旧版本写入，含有表里不存在的展示字段，无法直接恢复';
+  }
+  if (code === '23503') return '关联的账号/记录已不存在（账号删除不可逆），无法恢复';
+  if (code === '23505') return '同 ID 记录已存在，无需恢复';
+  return buildActionErrorMessage(error, '恢复失败');
+};
+
 const restoreDeletedSnapshot = async (entry) => {
   if (!entry?.table || !entry?.snapshot) return;
   const row = entry.snapshot;
@@ -6293,7 +6366,7 @@ const restoreDeletedSnapshot = async (entry) => {
     await refreshCurrentViewAfterMutation();
   } catch (error) {
     logger.error('data-admin', '恢复删除快照失败:', error);
-    showToast('恢复失败: ' + buildActionErrorMessage(error, '恢复失败'), 'error');
+    showToast('恢复失败: ' + describeRestoreError(error), 'error');
   }
 };
 
@@ -7406,6 +7479,7 @@ const shiftDateTimeValue = (value, days) => {
 
 const handleCreateFromTemplate = () => {
   if (!isEditing.value) return;
+  const previousDraftKey = `${currentTab.value}:${editingItem.value?.id || 'unknown'}`;
   const source = { ...(editingItem.value || {}) };
   const next = {};
   for (const field of currentFields.value) {
@@ -7424,7 +7498,14 @@ const handleCreateFromTemplate = () => {
   isEditing.value = false;
   clearFieldErrors();
   jsonBuffers.value = {};
-  /* 草稿 key 从 `<tab>:<id>` 变成了 `<tab>:new`，旧的别留着冒充"这条还有未保存内容" */
+  /* 草稿 key 从 `<tab>:<id>` 变成了 `<tab>:new`：旧的那条必须一起删掉，
+     否则它还留在 localStorage 里 —— 角标数字不减，下次打开原记录还会被
+     「检测到未保存草稿」拦一次（2026-11-10 修，之前只重算了角标）。 */
+  const drafts = readDrafts();
+  if (drafts[previousDraftKey]) {
+    delete drafts[previousDraftKey];
+    writeLocalJson(STORAGE_KEYS.drafts, drafts);
+  }
   refreshDraftBadges();
   showToast('已按这条内容新建草稿，确认无误后保存', 'success');
 };

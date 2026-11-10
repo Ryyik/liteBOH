@@ -14,13 +14,26 @@ export const buildItemLabel = (item) =>
  * @param {Object} options.item                待删记录
  * @param {string} options.tabLabel            当前 tab 中文名
  * @param {string[]} options.relatedLabels     关联类型中文名（去重后）
+ * @param {boolean} options.accountMode        true = 这一步删的是用户账号（users / points 都是 profiles 表），
+ *                                             走 admin_delete_user_account，连 auth 用户一起删
  */
-export const buildDeleteConfirmMessage = ({ item, tabLabel = '', relatedLabels = [] } = {}) => {
+export const buildDeleteConfirmMessage = ({
+  item,
+  tabLabel = '',
+  relatedLabels = [],
+  accountMode = false,
+} = {}) => {
   const lines = [
-    `即将删除「${buildItemLabel(item)}」${tabLabel ? `（${tabLabel}）` : ''}`,
+    accountMode
+      ? `即将删除用户账号「${buildItemLabel(item)}」${tabLabel ? `（${tabLabel}）` : ''}`
+      : `即将删除「${buildItemLabel(item)}」${tabLabel ? `（${tabLabel}）` : ''}`,
     item?.id ? `ID：${item.id}` : '',
     relatedLabels.length ? `关联记录 ${relatedLabels.length} 类（${relatedLabels.join('/')}）` : '',
-    '此操作不可恢复。',
+    /* 「不可恢复」与「最近删除」并不矛盾，两句都要说：库里确实找不回来，
+       本机快照能撑一次误删 —— 只说前者会让人以为没有退路（2026-11-10 对齐文案）。 */
+    accountMode
+      ? '会同时删除登录凭证与该用户的全部关联数据（帖子、评论、积分流水、订单等），无法通过「最近删除」找回。'
+      : '此操作不可恢复（本机「最近删除」可临时找回，账号删除除外）。',
   ];
   return lines.filter(Boolean).join('\n');
 };
@@ -31,14 +44,26 @@ export const buildDeleteConfirmMessage = ({ item, tabLabel = '', relatedLabels =
  * @param {number} options.count        选中条数
  * @param {string} options.tabLabel     当前 tab 中文名
  * @param {Array}  options.items        选中记录（取前 3 条做标识）
+ * @param {boolean} options.accountMode true = 删的是用户账号（users / points 都是 profiles 表）。
+ *                  必须与「删记录」区分：这两条路径的实际后果差着一整个 auth 账号，
+ *                  而旧文案在「积分」tab 只写「删除 N 条记录」，等于把删号说成删行。
  */
-export const buildBatchDeleteConfirmMessage = ({ count = 0, tabLabel = '', items = [] } = {}) => {
+export const buildBatchDeleteConfirmMessage = ({
+  count = 0,
+  tabLabel = '',
+  items = [],
+  accountMode = false,
+} = {}) => {
   const labels = (items || []).slice(0, 3).map((item) => buildItemLabel(item));
   const lines = [
-    `即将删除 ${count} 条${tabLabel ? `「${tabLabel}」` : ''}记录`,
+    accountMode
+      ? `即将删除 ${count} 个用户账号${tabLabel ? `（${tabLabel}）` : ''}`
+      : `即将删除 ${count} 条${tabLabel ? `「${tabLabel}」` : ''}记录`,
     labels.join('、'),
     count > 3 ? `…等 ${count} 条` : '',
-    '此操作不可恢复。',
+    accountMode
+      ? '会同时删除登录凭证与该用户的全部关联数据（帖子、评论、积分流水、订单等），无法通过「最近删除」找回。'
+      : '此操作不可恢复（本机「最近删除」可临时找回，账号删除除外）。',
   ];
   return lines.filter(Boolean).join('\n');
 };

@@ -57,7 +57,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
@@ -66,11 +66,15 @@ import { captureOrigin } from '@/utils/motion-origin.js';
 import { logger } from '@/utils/logger.js';
 import LotteryCard from './LotteryCard.vue';
 import LotteryDetailSheet from './LotteryDetailSheet.vue';
+import { useInlineEditor } from '@/composables/useInlineEditor.js';
 
 const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 const { isLoggedIn, showLoginModal } = storeToRefs(authStore);
+
+/** 后台「就地编辑」上下文；前台没有注入 ⇒ null（见下方 dataRevision watch） */
+const inlineEditor = useInlineEditor();
 
 const lotteries = ref([]);
 const loading = ref(true);
@@ -103,8 +107,9 @@ const showMessage = (text) => {
   }, 2600);
 };
 
-const load = async () => {
-  loading.value = true;
+const load = async ({ silent = false } = {}) => {
+  // silent：就地编辑删除后重取用；不亮骨架，避免整块列表闪一下
+  if (!silent) loading.value = true;
   try {
     const { data } = await getCommunityLotteries();
     lotteries.value = Array.isArray(data) ? data : [];
@@ -112,7 +117,7 @@ const load = async () => {
     logger.warn('shop-lottery', '加载抽奖失败', error);
     lotteries.value = [];
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 };
 
@@ -185,6 +190,16 @@ onMounted(async () => {
   await load();
   consumeDeepLink();
 });
+/* 就地编辑宿主删除抽奖后广播 dataRevision：列表归本组件持有，必须重新取数，
+   否则已删卡片会留在页面上（再点开就是对不存在的行发请求）。前台没有编辑
+   上下文 ⇒ inlineEditor 为 null，watch 的 getter 恒为 undefined，永不触发。 */
+watch(
+  () => inlineEditor?.dataRevision,
+  (next, prev) => {
+    if (next === undefined || next === prev) return;
+    void load({ silent: true });
+  },
+);
 onBeforeUnmount(() => {
   if (messageTimer) clearTimeout(messageTimer);
   document.body.style.overflow = '';

@@ -29,6 +29,28 @@ describe('buildBatchDeleteConditions（plans/027 E6.3）', () => {
     ]);
   });
 
+  it('布尔状态列的「否」也落成条件（false 不是「没筛选」）', () => {
+    // 反证：旧实现用 `if (statusFilter && statusField)`，false 会被静默丢掉，
+    // 列表按 is_active=false 过滤、删除却覆盖全量 —— 只能靠 count 预检兜底拒绝。
+    expect(
+      buildBatchDeleteConditions({
+        tabId: 'birthdayEvents',
+        statusField: 'is_active',
+        statusFilter: false,
+        searchColumns: ['title'],
+        searchQuery: '生日',
+      }),
+    ).toContainEqual({ column: 'is_active', op: 'eq', value: 'false' });
+    // 空串仍然视为「没有这条条件」
+    expect(
+      buildBatchDeleteConditions({
+        tabId: 'birthdayEvents',
+        statusField: 'is_active',
+        statusFilter: '',
+      }),
+    ).toEqual([]);
+  });
+
   it('reportedPosts：基础过滤 status=limited 必须在条件里（否则 count 对不上）', () => {
     const conditions = buildBatchDeleteConditions({
       tabId: 'reportedPosts',

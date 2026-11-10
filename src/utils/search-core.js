@@ -152,8 +152,16 @@ export const searchTermOf = (raw) => parseSearchQuery(raw).value;
  *   - `uuid` 字段仅在关键词本身是合法 UUID 时精确匹配（否则 contains 命中无意义）
  *   - `number` 字段仅在关键词是纯整数时精确匹配
  *   - 其余字段大小写不敏感包含，**通配符转义后**再拼
- *   - `id:` 只按主键匹配（UUID 精确 / 否则包含）；`@` 只在用户名类字段里搜；
+ *   - `id:` 只接受**完整 UUID**（见下方 why）；`@` 只在用户名类字段里搜；
  *     `tab:` 不构造条件（跳表由调用方处理）
+ *
+ * 🔴 `id:` + 半截 ID **不能**退化成 `id.ilike.%xxx%`（2026-11-10 修复）：
+ *   所有表的 `id` 都是 `uuid` / `bigint`，两者都没有 `~~*` 算子 —— 实测
+ *   `select count(*) from products where id ilike '%1%'` 直接
+ *   `42883: operator does not exist: bigint ~~* unknown`（uuid 同样），
+ *   整张表的列表请求会整体失败（界面上表现为「获取数据失败」+ 空表）。
+ *   因此这里返回 `columns: []` + `reason: 'invalid-id'`，由调用方短路成
+ *   「没有匹配的记录」空态；`isInvalidIdQuery()` 是给调用方的判定入口。
  */
 export const buildSearchMatchSpec = (tabId, keyword, tabSearchFields) => {
   const parsed = parseSearchQuery(keyword);
@@ -173,11 +181,15 @@ export const buildSearchMatchSpec = (tabId, keyword, tabSearchFields) => {
   const exactEntry = (column) => ({ column, op: 'eq', value: term, pattern: '' });
 
   if (parsed.mode === SEARCH_MODE_ID) {
+    // 只有完整 UUID 才是可执行的条件；半截 ID 交给调用方短路成空结果
+    if (!UUID_PATTERN.test(term)) {
+      return { mode: parsed.mode, term, pattern: '', columns: [], reason: 'invalid-id' };
+    }
     return {
       mode: parsed.mode,
       term,
-      pattern: UUID_PATTERN.test(term) ? '' : pattern,
-      columns: [UUID_PATTERN.test(term) ? exactEntry('id') : textEntry('id')],
+      pattern: '',
+      columns: [exactEntry('id')],
     };
   }
 
@@ -206,6 +218,19 @@ export const buildSearchFilters = (tabId, keyword, tabSearchFields) =>
   buildSearchMatchSpec(tabId, keyword, tabSearchFields).columns.map(
     (item) => `${item.column}.${item.op}.${item.value}`,
   );
+
+/**
+ * `id:` 后面跟的不是完整 UUID ⇒ 这条查询**故意**不产生任何条件（见 buildSearchMatchSpec）。
+ *
+ * 调用方拿到 true 时不要发请求：主键是 uuid / bigint，任何「包含匹配」都会让
+ * PostgREST 返回 42883；正确表现是「没有匹配的记录」而不是「获取数据失败」。
+ */
+export const isInvalidIdQuery = (raw) => {
+  const parsed = parseSearchQuery(raw);
+  return (
+    parsed.mode === SEARCH_MODE_ID && Boolean(parsed.value) && !UUID_PATTERN.test(parsed.value)
+  );
+};
 
 /* ==================== 相关性打分 ==================== */
 

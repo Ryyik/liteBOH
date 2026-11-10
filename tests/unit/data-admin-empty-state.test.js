@@ -83,6 +83,20 @@ describe('空态一定是可行动的（plans/042 C4 / AC-4）', () => {
     expect(state.actions.map((a) => a.id)).toContain(EMPTY_ACTIONS.CLEAR_FILTERS);
   });
 
+  it('id: + 半截 ID → 说明这是格式问题，不是「记录不存在」', () => {
+    const state = resolveEmptyState({ totalCount: 0, searchQuery: 'id:00ac36' });
+    expect(state.kind).toBe('no-match');
+    expect(state.title).toContain('完整');
+    expect(state.description).toContain('00ac36');
+    expect(state.actions.map((a) => a.id)).toContain(EMPTY_ACTIONS.CLEAR_FILTERS);
+    // 完整 UUID 仍走普通「没有匹配」
+    const normal = resolveEmptyState({
+      totalCount: 0,
+      searchQuery: 'id:00ac36b4-6594-440f-a9c1-38b7bd47ee8b',
+    });
+    expect(normal.title).toBe('没有匹配的记录');
+  });
+
   it('真空表有权限给新增，无权限退化为去全部表搜', () => {
     expect(
       resolveEmptyState({ totalCount: 0, canCreate: true }).actions.map((a) => a.id),
@@ -120,6 +134,15 @@ describe('empty state wiring', () => {
     const view = read('src/views/DataManagement/DataAdmin.vue');
     expect(view).toContain('runEmptyStateAction');
     expect(view).toContain('v-for="action in emptyState.actions"');
+  });
+
+  it('id: 半截 ID 在列表侧短路成空态，分页按候选窗口收敛', () => {
+    const view = read('src/views/DataManagement/DataAdmin.vue');
+    // 短路：不发请求（主键 uuid/bigint 没有 ilike 算子，发了就是 42883 整表失败）
+    expect(view).toContain('isInvalidIdQuery(searchQuery.value)');
+    // 分页总数必须用「候选窗口上限」而不是完整 count，否则第 7 页起恒空
+    expect(view).toContain(':total="rankedRowLimit"');
+    expect(view).toContain('SEARCH_RANK_WINDOW');
   });
 
   it('搜索只有一个关键词状态（globalSearchQuery 已并入 searchQuery）', () => {

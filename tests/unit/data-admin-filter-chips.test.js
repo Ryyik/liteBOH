@@ -22,6 +22,16 @@ describe('buildFilterChips：无筛选时不出 chip', () => {
   it('高级规则为空数组时不出 rule chip', () => {
     expect(buildFilterChips({ rules: [] })).toEqual([]);
   });
+
+  it('布尔状态列的「否」也要出 chip（false 不是「没筛选」）', () => {
+    // 反证：旧实现用 `if (status)`，false 会被静默丢掉 —— 列表已按
+    // is_active=false 过滤，chips 却什么都不显示。
+    const [chip] = buildFilterChips({ status: false, statusLabel: '已结束' });
+    expect(chip.id).toBe(STATUS_CHIP_ID);
+    expect(chip.label).toBe('状态：已结束');
+    expect(buildFilterChips({ status: '' })).toEqual([]);
+    expect(buildFilterChips({ status: null })).toEqual([]);
+  });
 });
 
 describe('buildFilterChips：四类条件各自的 id 与文案', () => {

@@ -20,7 +20,7 @@
  * 三处都是列表查询已经在用的同一份实现。
  */
 import { buildSearchMatchSpec, escapeLikePattern } from '@/utils/search-core.js';
-import { endOfDayIso, resolveAdvancedRules } from './useDataAdminFilters.js';
+import { endOfDayIso, hasFilterValue, resolveAdvancedRules } from './useDataAdminFilters.js';
 import { INTERNAL_MODE_PREFIX } from '../config/bohai-internal-modes.js';
 
 /** tab 级基础过滤 → RPC 条件（与 DataAdmin 的 fetchTabData 逐条对应） */
@@ -133,7 +133,8 @@ export const buildBatchDeleteScope = ({
     );
   }
 
-  if (statusFilter && statusField) {
+  // 状态值与列表侧同口径：布尔列的「否」(false) 也必须落成条件，真值判断会静默丢掉它
+  if (hasFilterValue(statusFilter) && statusField) {
     conditions.push({ column: statusField, op: 'eq', value: String(statusFilter) });
   }
   if (dateField && dateFrom) {

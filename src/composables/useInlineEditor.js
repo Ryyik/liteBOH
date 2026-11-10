@@ -72,6 +72,15 @@ export const provideInlineEditor = (options = {}) => {
   const history = shallowRef([]);
   const busyKeys = ref(new Set());
   const failedKeys = ref(new Set());
+  /**
+   * 数据集的版本号：宿主**删除**一条记录后 +1（2026-11-10）。
+   *
+   * 为什么需要它：就地编辑的写入是乐观更新（原语直接改内存行），但「删除」没法
+   * 乐观更新 —— 卡片/列表归各自组件持有，宿主删完只通知了 DB。没有这个信号时，
+   * 抽奖卡删掉后仍留在页面上，再点开就是对一个已不存在的行发请求。
+   * 持有列表的组件 watch 它即可重新拉取。
+   */
+  const dataRevision = ref(0);
   /** 失败红边的自动消退定时器（key → timeout），见 markFailed */
   const failedTimers = new Map();
   /** 同一字段的写入队列（key → Promise），见 enqueueWrite */
@@ -197,6 +206,8 @@ export const provideInlineEditor = (options = {}) => {
     history,
     canUndo: computed(() => history.value.length > 0),
     undoCount: computed(() => history.value.length),
+    /** 数据集版本：删除成功后 +1，持有列表的宿主 watch 它重新取数 */
+    dataRevision,
     commit,
     undo,
     forget,
@@ -206,6 +217,8 @@ export const provideInlineEditor = (options = {}) => {
       if (!remove) return;
       await remove(row, table);
       forget(row);
+      /* 删除是唯一无法乐观更新的动作：持有列表的组件靠这个版本号重新取数 */
+      dataRevision.value += 1;
     },
     create,
     openFull,

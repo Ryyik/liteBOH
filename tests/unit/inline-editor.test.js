@@ -133,16 +133,23 @@ describe('ShopEditor 宿主', () => {
     expect(host).not.toMatch(/supabase\s*\.from\(/);
   });
 
-  it('删除前先落快照，顺序不能反', () => {
+  it('先取原始行 → 删除成功 → 再落快照（两个顺序都不能反）', () => {
     // 签名带 table（2026-11-10 起一页两表：商品 / 抽奖）
     const remove = host.match(/const remove = async \(row, table = ''\) => \{([\s\S]*?)\n\};/);
     expect(remove, '找不到 remove 函数').toBeTruthy();
     const body = remove[1];
-    const snapshotAt = body.indexOf('recordDeletedSnapshot(');
+    const fetchAt = body.indexOf('fetchRecordById(');
     const deleteAt = body.indexOf('deleteAdminRow(');
-    expect(snapshotAt).toBeGreaterThan(-1);
+    const snapshotAt = body.indexOf('recordDeletedSnapshot(');
+    expect(fetchAt).toBeGreaterThan(-1);
     expect(deleteAt).toBeGreaterThan(-1);
-    expect(snapshotAt, '必须先存快照再删除，否则误删无法恢复').toBeLessThan(deleteAt);
+    expect(snapshotAt).toBeGreaterThan(-1);
+    /* 取原始行必须在删除**之前**：删完就查不到了，只能拿页面对象当快照，
+       而页面对象带展示派生列，恢复时 insert 会因 unknown column 整体失败。 */
+    expect(fetchAt, '取原始行必须在删除之前').toBeLessThan(deleteAt);
+    /* 快照必须等删除**成功**之后写：删除失败却留下一条「可恢复」，
+       用户点恢复会撞主键冲突（2026-11-10 修，旧断言把顺序写反了）。 */
+    expect(snapshotAt, '快照必须在删除成功之后写').toBeGreaterThan(deleteAt);
   });
 });
 

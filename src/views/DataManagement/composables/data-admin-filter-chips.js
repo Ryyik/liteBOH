@@ -9,7 +9,7 @@
  * 约束：本文件只做「状态 → 展示标签」的映射，不读 ref、不发请求。
  */
 
-import { ADVANCED_OPERATOR_LABELS } from './useDataAdminFilters.js';
+import { ADVANCED_OPERATOR_LABELS, hasFilterValue } from './useDataAdminFilters.js';
 
 /** chip id 公约：单例条件用固定 id，高级条件用 `rule:<ruleId>` */
 export const SEARCH_CHIP_ID = 'search';
@@ -60,7 +60,8 @@ export const buildFilterChips = ({
     });
   }
 
-  if (status) {
+  // 布尔状态列的「否」是 false —— 真值判断会让这条 chip 静默消失
+  if (hasFilterValue(status)) {
     chips.push({
       id: STATUS_CHIP_ID,
       kind: 'status',

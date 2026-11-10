@@ -161,8 +161,10 @@ const remove = async (row, table = '') => {
       selectColumns: '*',
       id: row.id,
     });
-    recordDeletedSnapshot(original || row, target);
     await deleteAdminRow(target, row.id);
+    /* 快照必须在删除成功之后写：删除失败却留下一条「可恢复」，点恢复会主键冲突。
+       取原始行则必须在删除之前 —— 删完就查不到了（2026-11-10 修正顺序）。 */
+    recordDeletedSnapshot(original || row, target);
     if (!isLottery) await refreshList();
     notify('已删除，可在「最近删除」中恢复', 'ok');
   } catch (error) {

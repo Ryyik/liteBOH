@@ -17,6 +17,7 @@ import {
   buildStartsWithPattern,
   escapeLikePattern,
   groupByTab,
+  isInvalidIdQuery,
   normalizeKeyword,
   rankRows,
   scoreFieldValue,
@@ -228,9 +229,14 @@ describe('快捷前缀（plans/042 C3）', () => {
     ).toEqual(['id.eq.00ac36b4-6594-440f-a9c1-38b7bd47ee8b']);
   });
 
-  it('id: + 半截 ID → 主键包含匹配，不再散到其它列', () => {
-    const filters = buildSearchFilters('products', 'id:00ac36', FIELDS);
-    expect(filters).toEqual(['id.ilike.%00ac36%']);
+  it('id: + 半截 ID → 不产生条件（主键 uuid/bigint 没有 ilike 算子）', () => {
+    // 反证：旧实现返回 ['id.ilike.%00ac36%']，PostgREST 侧会 42883
+    // （operator does not exist: bigint ~~* unknown），整表列表直接失败。
+    expect(buildSearchFilters('products', 'id:00ac36', FIELDS)).toEqual([]);
+    expect(isInvalidIdQuery('id:00ac36')).toBe(true);
+    expect(isInvalidIdQuery('id:')).toBe(false);
+    expect(isInvalidIdQuery('id:00ac36b4-6594-440f-a9c1-38b7bd47ee8b')).toBe(false);
+    expect(isInvalidIdQuery('00ac36')).toBe(false);
   });
 
   it('@ 只在用户名类列里搜（不碰正文）', () => {

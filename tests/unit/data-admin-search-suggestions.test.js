@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import {
   RECENT_SEARCH_LIMIT,
@@ -108,5 +110,39 @@ describe('buildSearchSuggestions', () => {
 
   it('没有匹配时返回空数组（面板据此不渲染）', () => {
     expect(buildSearchSuggestions({ query: 'zzz', enumOptions, tabs, recent: [] })).toEqual([]);
+  });
+});
+
+describe('跨表搜索接线（plans/042 A1 / C3，2026-11-10 复核修复）', () => {
+  const source = readFileSync(
+    resolve(
+      import.meta.dirname,
+      '../../src/views/DataManagement/composables/useDataAdminGlobalSearch.js',
+    ),
+    'utf8',
+  );
+
+  it('前缀必须原样传给 buildSearchFilters（否则 @ / id: 退化成全字段）', () => {
+    // 反证：旧实现传的是 parsed.value（已去前缀）⇒ 重新解析成 text 模式
+    expect(source).toContain('buildSearchFiltersUtil(tab.id, rawText');
+    expect(source).not.toContain('buildSearchFiltersUtil(tab.id, keyword');
+  });
+
+  it('取消请求走 builder 的 abortSignal，而不是塞进 select(options)', () => {
+    // postgrest-js 的 select(columns, options) 只消费 { head, count }，signal 会被静默丢弃
+    expect(source).toContain('.abortSignal(signal)');
+    expect(source).not.toContain('.select(selectColumns, { signal })');
+  });
+
+  it('abort 时把 isGlobalSearching 复位（否则停在「搜索中…」）', () => {
+    const abort = source.match(/const abortGlobalSearch = \(\) => \{([\s\S]*?)\n  \};/);
+    expect(abort, '找不到 abortGlobalSearch').toBeTruthy();
+    expect(abort[1]).toContain('isGlobalSearching.value = false');
+  });
+
+  it('收起面板要撤掉待触发的去抖（否则 250ms 后自己弹回来）', () => {
+    const close = source.match(/const closeGlobalSearchPanel = \(\) => \{([\s\S]*?)\n  \};/);
+    expect(close, '找不到 closeGlobalSearchPanel').toBeTruthy();
+    expect(close[1]).toContain('clearTimeout(debounceTimer)');
   });
 });

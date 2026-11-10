@@ -50,11 +50,14 @@ export const createGlobalSearchCenter = ({
     abortController = new AbortController();
     const signal = abortController.signal;
 
-    // 快捷前缀（plans/042 C3）：`id:` / `@` 都按去前缀后的词搜；
-    // `tab:` 是跳表语义，跨表搜索没有可执行的查询 —— 直接清空，别给出假结果。
-    const parsed = parseSearchQuery(rawKeyword ?? searchQueryRef.value);
+    /* 前缀必须保留：`@小明` 只在用户名列搜、`id:<uuid>` 只精确匹配主键。
+       ⚠️ 不能把 `parsed.value`（已去前缀）再喂给 buildSearchFilters —— 那会重新
+       解析成 text 模式，`@` 退化成全字段、`id:` 多出一堆文本列命中（2026-11-10 修）。 */
+    const rawText = String(rawKeyword ?? searchQueryRef.value ?? '').trim();
+    const parsed = parseSearchQuery(rawText);
     const keyword = parsed.value;
     globalSearchKeyword.value = parsed.value || parsed.prefix;
+    // `tab:` 是跳表语义，跨表搜索没有可执行的查询 —— 直接清空，别给出假结果。
     if (!keyword || parsed.mode === SEARCH_MODE_TAB) {
       globalSearchResults.value = [];
       showGlobalSearchPanel.value = false;
@@ -70,14 +73,18 @@ export const createGlobalSearchCenter = ({
         if (signal.aborted) return [];
         const table = dataConfig[tab.id]?.table;
         const selectColumns = TAB_SELECT_COLUMNS[tab.id];
-        const filters = buildSearchFiltersUtil(tab.id, keyword, TAB_SEARCH_FIELDS);
+        const filters = buildSearchFiltersUtil(tab.id, rawText, TAB_SEARCH_FIELDS);
         if (!table || !selectColumns || filters.length === 0) return [];
 
         let query = supabase
           .from(table)
-          .select(selectColumns, { signal })
+          .select(selectColumns)
           .or(filters.join(','))
           .limit(PER_TAB_LIMIT);
+        /* 取消必须走 builder 的 abortSignal：postgrest-js 的 select(columns, options)
+           只消费 { head, count }，把 signal 塞进 options 会被静默丢弃，
+           请求照样跑完（2026-11-10 修）。 */
+        query = query.abortSignal(signal);
 
         if (tab.id === 'reportedPosts') query = query.eq('status', 'limited');
         if (tab.id === 'reviewPosts') query = query.ilike('status', 'rejected');
@@ -158,6 +165,11 @@ export const createGlobalSearchCenter = ({
   };
 
   const closeGlobalSearchPanel = () => {
+    // 收起时把待触发的去抖一起撤掉：否则 250ms 后 runGlobalSearch 会把面板又打开
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
     showGlobalSearchPanel.value = false;
     globalSearchResults.value = [];
   };
@@ -168,6 +180,9 @@ export const createGlobalSearchCenter = ({
       debounceTimer = null;
     }
     if (abortController) abortController.abort();
+    /* 被取消的请求不会走 finally 的复位分支（那里判了 signal.aborted），
+       不在这里清掉的话 `isGlobalSearching` 会一直停在 true。 */
+    isGlobalSearching.value = false;
   };
 
   return {

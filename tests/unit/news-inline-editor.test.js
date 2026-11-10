@@ -69,13 +69,20 @@ describe('NewsEditor 宿主', () => {
     expect(host()).toContain("invalidateByTags(['news'])");
   });
 
-  it('删除前先落快照，快照不带展示用的 kind', () => {
+  it('先取原始行 → 删除成功 → 再落快照，快照不带展示用的 kind', () => {
     const source = host();
     const remove = source.match(/const remove = async \(row\) => \{([\s\S]*?)\n\};/);
     expect(remove, '找不到 remove').toBeTruthy();
     const body = remove[1];
-    expect(body.indexOf('recordDeletedSnapshot(')).toBeGreaterThan(-1);
-    expect(body.indexOf('recordDeletedSnapshot(')).toBeLessThan(body.indexOf('deleteAdminRow('));
+    const fetchAt = body.indexOf('fetchRecordById(');
+    const deleteAt = body.indexOf('deleteAdminRow(');
+    const snapshotAt = body.indexOf('recordDeletedSnapshot(');
+    expect(fetchAt).toBeGreaterThan(-1);
+    expect(deleteAt).toBeGreaterThan(-1);
+    expect(snapshotAt).toBeGreaterThan(-1);
+    // 原始行必须在删除前取（删完查不到）；快照必须在删除成功后写（失败不留幽灵条目）
+    expect(fetchAt, '取原始行必须在删除之前').toBeLessThan(deleteAt);
+    expect(snapshotAt, '快照必须在删除成功之后写').toBeGreaterThan(deleteAt);
     expect(body).toContain('delete snapshot.kind');
   });
 

@@ -29,6 +29,23 @@ export const fetchRecordById = async ({ table, selectColumns, id }) => {
 };
 
 /**
+ * 按 id 批量取原始行（「最近删除」的批量快照用）。
+ *
+ * 为什么要单独一个函数：批量删除快照必须来自**库里的原始行**，不能直接把列表行
+ * 存下来 —— 列表行带展示派生列（`entry_count` / `shipping_*` / `gift_scope_label` …），
+ * 恢复时 `insert` 会因「unknown column」整体失败（2026-11-10 修）。
+ */
+export const fetchRecordsByIds = async ({ table, selectColumns = '*', ids = [] }) => {
+  const cleanIds = (Array.isArray(ids) ? ids : []).filter(
+    (id) => id !== undefined && id !== null && id !== '',
+  );
+  if (!cleanIds.length) return [];
+  const { data, error } = await supabase.from(table).select(selectColumns).in('id', cleanIds);
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
+};
+
+/**
  * 把一行插回原表（数据管理「最近删除」的恢复动作）。
  *
  * 收口在这里而不是视图里：`check:layering` 对 DataAdmin 的 supabase 直连次数有棘轮，
@@ -47,9 +64,10 @@ export const insertAdminRow = async (table, row) => {
 /**
  * 物理删除一行。
  *
- * ⚠️ 没有软删兜底：调用方**必须**在调用前把整行快照写进本机删除快照
- * （`ADMIN_STORAGE_KEYS.deletedSnapshots`），否则误删只能翻数据库备份。
- * 顺序不能反 —— 先删再存等于什么都没有。
+ * ⚠️ 没有软删兜底：调用方**必须**保证「删除前先把整行取到内存」，删除成功后再写
+ * 本机删除快照（`ADMIN_STORAGE_KEYS.deletedSnapshots`）。两件事的先后不能合并成
+ * 「先写快照再删」—— 删除失败时会在「最近删除」里留下一条其实还在库里的幽灵记录，
+ * 恢复必然主键冲突。取原始行同理必须在删除**之前**：删完就查不到了。
  *
  * @param {string} table 表名（调用方负责白名单）
  * @param {string|number} id 主键

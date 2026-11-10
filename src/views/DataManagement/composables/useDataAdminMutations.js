@@ -21,6 +21,7 @@
 import { supabase } from '@/utils/supabase-client.js';
 import { logger } from '@/utils/logger.js';
 import { invalidateProductsCache } from '@/views/DataManagement/config.js';
+import { fetchRecordById, fetchRecordsByIds } from '@/utils/api/data-admin-table-api.js';
 import {
   buildDeleteConfirmMessage,
   buildBatchDeleteConfirmMessage,
@@ -112,6 +113,56 @@ export const createMutationsCenter = (deps) => {
 
   // ==================== 删除 ====================
 
+  /**
+   * 删的是「账号」而不是「一行数据」的 tab。
+   *
+   * `users` 和 `points` 指向同一张表（`profiles`），但删除语义是删账号：
+   * 必须走 `admin_delete_user_account`（删 profile + auth.users，且带
+   * `CANNOT_DELETE_SELF` 保护）。裸 `delete from profiles` 会级联清空该用户
+   * 70+ 张表的关联数据（posts / comments / 积分流水 / 云盘 / 订单 …），
+   * 却把 auth 那行留在原地 —— 用户还能登录、后台却查不到人，只能连库手工修。
+   *
+   * 单条、批量、全量三条路径都必须认这个集合（全量那条在 DataAdmin 的
+   * `BATCH_ALL_EXCLUDED_TABS` 里直接禁掉了）。
+   *
+   * 同一集合也决定了「不写最近删除快照」：删账号连 auth.users 一起删、
+   * `profiles.id` 又有 `ON DELETE CASCADE` 外键 —— 快照**结构上无法恢复**，
+   * 写进去只是在「最近删除」里制造假承诺。
+   */
+  const ACCOUNT_TABS = new Set(['users', 'points']);
+
+  /**
+   * 「最近删除」快照的取数（2026-11-10 修）。
+   *
+   * 列表行不是原始行：`fetchTabData` 会往里补展示派生列（`entry_count` /
+   * `shipping_*` / `gift_scope_label` / `address_count` / `entry_number` …），
+   * 恢复时 insert 会因 `PGRST204 unknown column` 整条失败 —— 用户看到
+   * 「可在最近删除中恢复」，实际恢复不了。
+   *
+   * 所以快照必须来自库里的原始行，且必须在**删除之前**取（删完就查不到了）。
+   * 取不到（网络/列权限）时不阻断删除：记一条 warn，退回列表行快照。
+   */
+  const loadRawRowForSnapshot = async (table, id) => {
+    if (!table || id === undefined || id === null) return null;
+    try {
+      return await fetchRecordById({ table, selectColumns: '*', id });
+    } catch (error) {
+      logger.warn('data-admin', '取删除前原始行失败，退回列表行快照:', error);
+      return null;
+    }
+  };
+
+  const loadRawRowsForSnapshot = async (table, ids) => {
+    if (!table || !Array.isArray(ids) || !ids.length) return [];
+    try {
+      const rows = await fetchRecordsByIds({ table, selectColumns: '*', ids });
+      return Array.isArray(rows) ? rows : [];
+    } catch (error) {
+      logger.warn('data-admin', '批量取删除前原始行失败，退回列表行快照:', error);
+      return [];
+    }
+  };
+
   // 管理员删除用户账号(走 RPC, 失败时报错)
   const deleteAdminUser = async (item) => {
     const { data: rpcData, error: rpcError } = await supabase.rpc('admin_delete_user_account', {
@@ -126,8 +177,48 @@ export const createMutationsCenter = (deps) => {
     }
 
     if (!rpcData?.ok) {
-      throw new Error(String(rpcData?.message || '用户删除失败，未返回成功状态'));
+      const failure = new Error(String(rpcData?.message || '用户删除失败，未返回成功状态'));
+      /* 保留服务端 code：批量删除要区分「这条本来就不该删」（不许删自己 / 已不存在）
+         和「真失败」，靠 message 字符串匹配太脆。buildActionErrorMessage 只认
+         42501 / PGRST116，多挂一个自定义 code 不会影响既有归因。 */
+      failure.code = String(rpcData?.code || '');
+      throw failure;
     }
+  };
+
+  /** RPC 明确拒绝、但不算失败的 code：跳过并告知即可 */
+  const NON_FATAL_ACCOUNT_DELETE_CODES = new Set(['CANNOT_DELETE_SELF', 'USER_NOT_FOUND']);
+
+  /**
+   * 批量删账号（users / points 两个 tab 都是 profiles 表）。
+   *
+   * 逐条走 `admin_delete_user_account`，不裸删 profiles —— 理由见 `ACCOUNT_TABS`。
+   *
+   * 逐条而不是一把 `Promise.all`，是为了「部分失败」可归因：任一条出错只影响它自己，
+   * 不会让已经删掉的账号被一句「批量删除失败」掩盖过去（旧实现第一条例外就跳出
+   * for 循环，前面删掉的真删了，报告却说全失败）。
+   *
+   * @returns {Promise<{deleted: Array, skipped: Array, failed: Array}>}
+   *   deleted 删除成功；skipped 服务端拒绝（当前登录账号 / 已不存在）；
+   *   failed 其它错误（网络 / 权限 / 未部署 RPC）。
+   */
+  const deleteAdminAccounts = async (items = []) => {
+    const result = { deleted: [], skipped: [], failed: [] };
+    for (const item of items) {
+      try {
+        await deleteAdminUser(item);
+        result.deleted.push(item);
+      } catch (error) {
+        const entry = {
+          item,
+          code: String(error?.code || ''),
+          message: buildActionErrorMessage(error, '删除失败'),
+        };
+        if (NON_FATAL_ACCOUNT_DELETE_CODES.has(entry.code)) result.skipped.push(entry);
+        else result.failed.push(entry);
+      }
+    }
+    return result;
   };
 
   // 单条删除
@@ -140,6 +231,7 @@ export const createMutationsCenter = (deps) => {
           item,
           tabLabel: currentTabLabel.value,
           relatedLabels: getRelatedTypeLabels?.(item) || [],
+          accountMode: ACCOUNT_TABS.has(currentTab.value),
         }),
         tone: 'danger',
         confirmText: '删除',
@@ -149,35 +241,38 @@ export const createMutationsCenter = (deps) => {
 
     try {
       assertAdminAction();
-      if ((currentTab.value === 'users' || currentTab.value === 'points') && item?.id) {
+      const tabId = currentTab.value;
+      const table = currentConfig.value.table;
+      const skipSnapshot = ACCOUNT_TABS.has(tabId);
+      // 原始行必须在删除**之前**取（删完就查不到了）；用户/积分不留快照（见上方说明）
+      const rawRow = skipSnapshot ? null : await loadRawRowForSnapshot(table, item?.id);
+      if (ACCOUNT_TABS.has(tabId) && item?.id) {
         await deleteAdminUser(item);
       } else {
-        const { data, error } = await supabase
-          .from(currentConfig.value.table)
-          .delete()
-          .eq('id', item.id)
-          .select('id');
+        const { data, error } = await supabase.from(table).delete().eq('id', item.id).select('id');
         if (error) throw error;
         if (!Array.isArray(data) || data.length === 0) {
           throw new Error('删除失败：没有记录被删除，请检查管理员权限或记录是否存在');
         }
       }
-      if (currentTab.value === 'products') invalidateProductsCache();
-      if (currentTab.value === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
+      if (tabId === 'products') invalidateProductsCache();
+      if (tabId === 'subscriptions') invalidateSubscriptionCache(item?.user_id);
       /* 快照必须在删除成功之后写：删除失败却留下一条"已删除"，会让人白高兴一场 */
-      recordDeletedSnapshots?.({
-        table: currentConfig.value.table,
-        tab: currentTab.value,
-        tabLabel: currentTabLabel.value,
-        items: [item],
-      });
+      if (!skipSnapshot) {
+        recordDeletedSnapshots?.({
+          table,
+          tab: tabId,
+          tabLabel: currentTabLabel.value,
+          items: [rawRow || item],
+        });
+      }
       addChangeLogEntry('delete', item, { recordId: item?.id || '' });
       // 审计留痕（plans/027 E6.1）：失败不阻断业务，但要让人看见
       const audit = await logAdminAction({
         action: 'delete',
-        table: currentConfig.value.table,
+        table,
         id: item?.id ?? null,
-        meta: { tab: currentTab.value },
+        meta: { tab: tabId },
       });
       if (audit.ok) showToast('删除成功', 'success');
       else showToast('已删除，但审计日志未写入：本次操作没有留痕', 'warning');
@@ -191,6 +286,7 @@ export const createMutationsCenter = (deps) => {
   // 批量删除
   const batchDelete = async () => {
     const count = selectedItems.value.length;
+    const accountMode = ACCOUNT_TABS.has(currentTab.value);
     if (
       !(await dialog.confirm({
         title: '批量删除',
@@ -199,6 +295,7 @@ export const createMutationsCenter = (deps) => {
           count,
           tabLabel: currentTabLabel.value,
           items: selectedItems.value,
+          accountMode,
         }),
         tone: 'danger',
         confirmText: `删除 ${count} 条`,
@@ -220,39 +317,99 @@ export const createMutationsCenter = (deps) => {
 
     try {
       assertAdminAction();
+      const tabId = currentTab.value;
       const table = currentConfig.value.table;
       const ids = selectedItems.value.map((item) => item.id);
 
-      if (currentTab.value === 'users') {
-        for (const item of selectedItems.value) {
-          await deleteAdminUser(item);
-        }
-      } else {
-        const { data, error } = await supabase.from(table).delete().in('id', ids).select('id');
+      if (accountMode) {
+        /* 账号删除单独收尾：逐条 RPC 天然会「部分成功」，不能沿用下面
+           「全删成功 → 清空选中」的假设，否则失败项被一起清掉，人也不知道删没删成（2026-11-10 修）。 */
+        const result = await deleteAdminAccounts([...selectedItems.value]);
+        const deletedIds = result.deleted.map((item) => item.id);
+        // 失败项留在选中列表，可直接重试，不用重新勾一遍
+        selectedItems.value = result.failed.map((entry) => entry.item);
 
-        if (error) throw error;
-        if (!Array.isArray(data) || data.length !== ids.length) {
-          throw new Error(
-            `批量删除未完全生效：请求 ${ids.length} 条，实际删除 ${Array.isArray(data) ? data.length : 0} 条`,
+        const parts = [`已删除 ${result.deleted.length} 个账号`];
+        if (result.skipped.length) {
+          const allSelf = result.skipped.every((entry) => entry.code === 'CANNOT_DELETE_SELF');
+          parts.push(
+            `跳过 ${result.skipped.length} 个（${allSelf ? '当前登录账号不能删除' : '已不存在或当前登录账号'}）`,
           );
         }
+        if (result.failed.length) parts.push(`失败 ${result.failed.length} 个`);
+        const summary = parts.join('，');
+
+        if (result.deleted.length) {
+          addChangeLogEntry(
+            'batch_delete',
+            { id: deletedIds.join(',') },
+            { count: result.deleted.length, tab: tabId },
+          );
+          const audit = await logAdminAction({
+            action: 'batch_delete',
+            table,
+            id: deletedIds.join(','),
+            meta: {
+              tab: tabId,
+              deleted: result.deleted.length,
+              skipped: result.skipped.length,
+              failed: result.failed.length,
+            },
+          });
+          if (result.failed.length) {
+            showToast(`${summary}；失败项已留在选中列表，可重试`, 'error');
+          } else if (!audit.ok) {
+            showToast(`${summary}，但审计日志未写入：本次操作没有留痕`, 'warning');
+          } else {
+            showToast(summary, 'success');
+          }
+        } else {
+          const firstMessage = result.failed[0]?.message || result.skipped[0]?.message || '';
+          showToast(
+            `账号删除未生效：${summary}${firstMessage ? `（${firstMessage}）` : ''}`,
+            'error',
+          );
+        }
+        await refreshCurrentViewAfterMutation();
+        return;
       }
-      if (currentTab.value === 'products') invalidateProductsCache();
-      if (currentTab.value === 'subscriptions') {
+
+      /* 走到这里一定不是账号 tab（上面已 return），所以快照一律要写。
+         同单条删除：原始行必须在删除前批量取到，否则快照里是列表派生列，恢复必失败。 */
+      const rawRows = await loadRawRowsForSnapshot(table, ids);
+
+      const { data, error } = await supabase.from(table).delete().in('id', ids).select('id');
+
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length !== ids.length) {
+        throw new Error(
+          `批量删除未完全生效：请求 ${ids.length} 条，实际删除 ${Array.isArray(data) ? data.length : 0} 条`,
+        );
+      }
+      if (tabId === 'products') invalidateProductsCache();
+      if (tabId === 'subscriptions') {
         selectedItems.value.forEach((item) => invalidateSubscriptionCache(item?.user_id));
       }
+      /* 按 id 逐个对齐：原始行可能比 ids 少（并发删掉了），缺的那条退回列表行，
+         保证「删了几条就有几条快照」，不会静默少一条。 */
+      const snapshotItems = ids
+        .map((id, index) => {
+          const raw = rawRows.find((row) => String(row?.id) === String(id));
+          return raw || selectedItems.value[index];
+        })
+        .filter(Boolean);
       recordDeletedSnapshots?.({
         table,
-        tab: currentTab.value,
+        tab: tabId,
         tabLabel: currentTabLabel.value,
-        items: [...selectedItems.value],
+        items: snapshotItems,
       });
       addChangeLogEntry('batch_delete', { id: ids.join(',') }, { count: ids.length });
       const audit = await logAdminAction({
         action: 'batch_delete',
         table,
         id: ids.join(','),
-        meta: { count: ids.length, tab: currentTab.value },
+        meta: { count: ids.length, tab: tabId },
       });
       if (audit.ok) showToast('批量删除成功', 'success');
       else showToast(`已删除 ${ids.length} 条，但审计日志未写入：本次操作没有留痕`, 'warning');
