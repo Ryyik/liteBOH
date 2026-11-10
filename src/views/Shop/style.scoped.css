@@ -611,7 +611,9 @@
 .p-card.is-dragging {
   z-index: 3;
   border-color: var(--boh-accent, #0071e3);
-  animation: none !important;
+  /* 不用 !important：`.is-dragging` 与 `.is-sorting` 同特异性，源序在后者之后即生效；
+     本仓 !important 是零基线的棘轮（check:important-budget），新增一条就红。 */
+  animation: none;
 }
 
 /* 落点指示线：三种档位高度不同，用「卡片中线 + 指示线」而不是让邻卡位移让位 ——
