@@ -60,7 +60,6 @@ import {
   getUserPostsPrivateContext,
   getUserGiftPrivateContext,
   getUserBirthdayPrivateContext,
-  getUserPushplusPrivateContext,
   getUserSubscriptionPrivateContext,
 } from './useUserPrivateRetrieval.js';
 import {
@@ -886,7 +885,6 @@ export function useKnowledgeRetrieval(deps) {
           join_date,
           birth_month,
           birth_day,
-          pushplus_enabled,
           gift_status
         `,
         )
@@ -959,7 +957,6 @@ export function useKnowledgeRetrieval(deps) {
       join_date: userInfo.value?.joinDate || null,
       birth_month: userInfo.value?.birthMonth || '',
       birth_day: userInfo.value?.birthDay || '',
-      pushplus_enabled: false,
       gift_status: '',
       gift_content: '',
       gift_no: '',
@@ -968,7 +965,6 @@ export function useKnowledgeRetrieval(deps) {
     };
     mergedProfile.points = Number(mergedProfile.points || 0);
     mergedProfile.gift_price = Number(mergedProfile.gift_price || 0);
-    mergedProfile.pushplus_enabled = Boolean(mergedProfile.pushplus_enabled);
 
     const snapshot = {
       userId,
@@ -996,7 +992,7 @@ export function useKnowledgeRetrieval(deps) {
     if (!isLoggedIn.value || !userInfo.value?.id) {
       return {
         context:
-          '【用户私域证据 [U1]】\n未检测到登录用户。若需要查询"我的帖子/礼物/生日会/Pushplus/订阅积分"，请先登录账号。',
+          '【用户私域证据 [U1]】\n未检测到登录用户。若需要查询"我的帖子/礼物/生日会/订阅积分"，请先登录账号。',
         labels: ['登录状态(未登录)'],
       };
     }
@@ -1038,14 +1034,6 @@ export function useKnowledgeRetrieval(deps) {
 
     if (plan.birthday) {
       const result = getUserBirthdayPrivateContext(snapshot);
-      if (result?.context) {
-        blocks.push(result.context);
-        if (result.label) labels.push(result.label);
-      }
-    }
-
-    if (plan.pushplus) {
-      const result = getUserPushplusPrivateContext(snapshot);
       if (result?.context) {
         blocks.push(result.context);
         if (result.label) labels.push(result.label);

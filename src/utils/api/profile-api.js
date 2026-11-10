@@ -10,7 +10,7 @@ import {
   runKeywordPrecheck,
   runAsyncRelaxedModeration,
   writeModerationAuditLog,
-  isMissingDbColumnError
+  isMissingDbColumnError,
 } from '../unified-content-moderation.js';
 
 const CONTENT_STATUS_FILTER = 'status.is.null,status.eq.approved';
@@ -27,7 +27,9 @@ function normalizePageArgs(options = {}) {
   }
 
   const safePage = Number.isFinite(options.page) ? Math.max(1, Math.trunc(options.page)) : 1;
-  const safePageSize = Number.isFinite(options.pageSize) ? Math.min(100, Math.max(1, Math.trunc(options.pageSize))) : 20;
+  const safePageSize = Number.isFinite(options.pageSize)
+    ? Math.min(100, Math.max(1, Math.trunc(options.pageSize)))
+    : 20;
   const from = (safePage - 1) * safePageSize;
   const to = from + safePageSize - 1;
 
@@ -41,11 +43,11 @@ function normalizeProfileCommentRows(rows = []) {
       ...comment,
       post: comment?.post
         ? {
-          ...comment.post,
-          title: postParts.title,
-          content: postParts.body
-        }
-        : comment?.post
+            ...comment.post,
+            title: postParts.title,
+            content: postParts.body,
+          }
+        : comment?.post,
     };
   });
 }
@@ -64,7 +66,7 @@ function normalizeProfilePostImages(images = []) {
         width: Number(image?.width || 0),
         height: Number(image?.height || 0),
         format: String(image?.format || '').trim(),
-        sortOrder: Number(image?.sort_order ?? image?.sortOrder ?? 0) || 0
+        sortOrder: Number(image?.sort_order ?? image?.sortOrder ?? 0) || 0,
       };
     })
     .filter(Boolean)
@@ -87,7 +89,8 @@ export async function getUserImpressions(targetId, options = {}) {
     async () => {
       let query = supabase
         .from('user_impressions')
-        .select(`
+        .select(
+          `
           id,
           content,
           created_at,
@@ -96,7 +99,8 @@ export async function getUserImpressions(targetId, options = {}) {
           moderation_status,
           moderation_reason,
           author:author_id(username, avatar_url)
-        `)
+        `,
+        )
         .eq('target_id', targetId)
         .eq('moderation_status', UNIFIED_APPROVED_STATUS)
         .order('created_at', { ascending: false });
@@ -112,17 +116,21 @@ export async function getUserImpressions(targetId, options = {}) {
         return result;
       }
 
-      logger.warn('profile-api', 'user_impressions 缺少审核列，读取降级为旧版兼容', { error: result.error });
+      logger.warn('profile-api', 'user_impressions 缺少审核列，读取降级为旧版兼容', {
+        error: result.error,
+      });
       let fallbackQuery = supabase
         .from('user_impressions')
-        .select(`
+        .select(
+          `
           id,
           content,
           created_at,
           author_id,
           target_id,
           author:author_id(username, avatar_url)
-        `)
+        `,
+        )
         .eq('target_id', targetId)
         .order('created_at', { ascending: false });
 
@@ -133,7 +141,12 @@ export async function getUserImpressions(targetId, options = {}) {
       result = await fallbackQuery;
       return result;
     },
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['impressions', `impressions:target:${targetId}`], timeoutMs: 8000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
+      tags: ['impressions', `impressions:target:${targetId}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
   );
 }
 
@@ -145,10 +158,12 @@ function buildImpressionModerationInput(content = '') {
 async function updateImpressionModerationDecision(impressionId, status, reason = '') {
   const safeId = String(impressionId || '').trim();
   if (!safeId) return;
-  const normalizedStatus = status === UNIFIED_REJECTED_STATUS ? UNIFIED_REJECTED_STATUS : UNIFIED_APPROVED_STATUS;
+  const normalizedStatus =
+    status === UNIFIED_REJECTED_STATUS ? UNIFIED_REJECTED_STATUS : UNIFIED_APPROVED_STATUS;
   const payload = {
     moderation_status: normalizedStatus,
-    moderation_reason: normalizedStatus === UNIFIED_APPROVED_STATUS ? null : (String(reason || '').trim() || null)
+    moderation_reason:
+      normalizedStatus === UNIFIED_APPROVED_STATUS ? null : String(reason || '').trim() || null,
   };
 
   let result = await supabase
@@ -160,7 +175,10 @@ async function updateImpressionModerationDecision(impressionId, status, reason =
   if (!result.error) return;
   if (!isMissingDbColumnError(result.error, 'moderation_status')) return;
 
-  logger.warn('profile-api', 'user_impressions 缺少审核列，跳过异步回写', { error: result.error, impressionId: safeId });
+  logger.warn('profile-api', 'user_impressions 缺少审核列，跳过异步回写', {
+    error: result.error,
+    impressionId: safeId,
+  });
 }
 
 async function scheduleImpressionModeration(impression = {}) {
@@ -173,14 +191,14 @@ async function scheduleImpressionModeration(impression = {}) {
     const moderationInput = buildImpressionModerationInput(content);
     const moderationResult = await runAsyncRelaxedModeration(moderationInput, {
       scene: 'user_impression',
-      timeoutMs: IMPRESSION_ASYNC_MODERATION_TIMEOUT_MS
+      timeoutMs: IMPRESSION_ASYNC_MODERATION_TIMEOUT_MS,
     });
 
     await writeModerationAuditLog({
       targetId: impressionId,
       targetType: 'impression',
       result: moderationResult,
-      moderatorId: null
+      moderatorId: null,
     });
 
     if (moderationResult.status !== UNIFIED_REJECTED_STATUS) return;
@@ -188,7 +206,7 @@ async function scheduleImpressionModeration(impression = {}) {
     await updateImpressionModerationDecision(
       impressionId,
       UNIFIED_REJECTED_STATUS,
-      moderationResult.message || moderationResult.reason || '内容审查未通过'
+      moderationResult.message || moderationResult.reason || '内容审查未通过',
     );
     invalidateByTags(['impressions', `impressions:target:${impression.target_id || ''}`]);
   } catch (error) {
@@ -206,8 +224,8 @@ export async function addUserImpression(authorId, targetId, content) {
       data: null,
       error: normalizeDbError({
         code: 'LOCAL_KEYWORD_BLOCK',
-        message: keywordCheckResult.message || '命中高风险违禁词，已拒绝发布'
-      })
+        message: keywordCheckResult.message || '命中高风险违禁词，已拒绝发布',
+      }),
     };
   }
 
@@ -215,15 +233,19 @@ export async function addUserImpression(authorId, targetId, content) {
   // 重复填写 = 覆盖更新（upsert），并刷新 created_at 让新印象排序到最前；
   // 通知触发器为 AFTER INSERT，冲突走 UPDATE 路径不会重复发通知。
   const nowIso = new Date().toISOString();
-  const enhancedPayload = [{
-    author_id: authorId,
-    target_id: targetId,
-    content: safeContent,
-    moderation_status: UNIFIED_APPROVED_STATUS,
-    moderation_reason: null,
-    created_at: nowIso
-  }];
-  const legacyPayload = [{ author_id: authorId, target_id: targetId, content: safeContent, created_at: nowIso }];
+  const enhancedPayload = [
+    {
+      author_id: authorId,
+      target_id: targetId,
+      content: safeContent,
+      moderation_status: UNIFIED_APPROVED_STATUS,
+      moderation_reason: null,
+      created_at: nowIso,
+    },
+  ];
+  const legacyPayload = [
+    { author_id: authorId, target_id: targetId, content: safeContent, created_at: nowIso },
+  ];
 
   let { data, error } = await supabase
     .from('user_impressions')
@@ -249,7 +271,7 @@ export async function addUserImpression(authorId, targetId, content) {
       id: insertedImpressionId,
       author_id: authorId,
       target_id: targetId,
-      content: safeContent
+      content: safeContent,
     });
   }
 
@@ -272,13 +294,13 @@ export async function deleteUserImpression(impressionId, currentUserId) {
   }
 
   if (impression.author_id !== currentUserId && impression.target_id !== currentUserId) {
-    return { ok: false, error: normalizeDbError({ message: '没有权限删除此印象', code: 'NO_PERMISSION' }) };
+    return {
+      ok: false,
+      error: normalizeDbError({ message: '没有权限删除此印象', code: 'NO_PERMISSION' }),
+    };
   }
 
-  const { error } = await supabase
-    .from('user_impressions')
-    .delete()
-    .eq('id', impressionId);
+  const { error } = await supabase.from('user_impressions').delete().eq('id', impressionId);
 
   if (!error) invalidateByTags(['impressions', 'notifications']);
   return { ok: !error, error: normalizeDbError(error) };
@@ -288,9 +310,11 @@ export async function getProfileByUsername(username) {
   return executeRead(
     'profiles.getProfileByUsername',
     { username },
-    async () => supabase
-      .from('profiles')
-      .select(`
+    async () =>
+      supabase
+        .from('profiles')
+        .select(
+          `
         id,
         username,
         bio,
@@ -316,10 +340,16 @@ export async function getProfileByUsername(username) {
         points_card_skin,
         points_card_image_url,
         points_card_image_public_id
-      `)
-      .eq('username', username)
-      .single(),
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['profiles', `profiles:username:${username}`], timeoutMs: 8000, retry: 1 }
+      `,
+        )
+        .eq('username', username)
+        .single(),
+    {
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
+      tags: ['profiles', `profiles:username:${username}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
   );
 }
 
@@ -338,11 +368,13 @@ export async function getPostsByIds(postIds = [], options = {}) {
     async () => {
       let query = supabase
         .from('posts')
-        .select(`
+        .select(
+          `
           *,
           comments:comments(count),
           likes:likes(count)
-        `)
+        `,
+        )
         .in('id', ids);
 
       if (!options.includeUnapprovedForAuthor) {
@@ -354,21 +386,21 @@ export async function getPostsByIds(postIds = [], options = {}) {
       if (error) return { data: [], error };
 
       const postMap = new Map();
-      for (const post of (data || [])) {
+      for (const post of data || []) {
         const parsed = getForumPostParts(post);
         postMap.set(post.id, {
           ...post,
           title: parsed.title,
           content: parsed.body,
           comment_count: post.comments?.[0]?.count || 0,
-          like_count: post.likes?.[0]?.count || 0
+          like_count: post.likes?.[0]?.count || 0,
         });
       }
 
       const ordered = ids.map((id) => postMap.get(id)).filter(Boolean);
       return { data: ordered, error: null };
     },
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['posts'], timeoutMs: 8000, retry: 1 },
   );
 }
 
@@ -377,21 +409,31 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
   const includeUnapprovedForAuthor = Boolean(options.includeUnapprovedForAuthor);
   return executeRead(
     'posts.getPostsByUsername',
-    { username, userId, page: paging.page, pageSize: paging.pageSize, paging: paging.enabled, includeUnapprovedForAuthor },
+    {
+      username,
+      userId,
+      page: paging.page,
+      pageSize: paging.pageSize,
+      paging: paging.enabled,
+      includeUnapprovedForAuthor,
+    },
     async () => {
       const safeUsername = String(username || '').trim();
       // 清理 username 中的 Supabase 过滤器特殊字符
       const filterSafeUsername = String(safeUsername).replace(/[,.\()']/g, '');
 
-      const baseQuery = () => supabase
-        .from('posts')
-        .select(`
+      const baseQuery = () =>
+        supabase
+          .from('posts')
+          .select(
+            `
           *,
           forum_post_images(id, url, public_id, width, height, format, sort_order, moderation_status),
           comments:comments(count),
           likes:likes(count)
-        `)
-        .order('created_at', { ascending: false });
+        `,
+          )
+          .order('created_at', { ascending: false });
 
       const visibleQuery = () => {
         const query = baseQuery();
@@ -403,7 +445,9 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
 
       // 同时按 author_id 和 author_username 匹配，确保不会遗漏只有其中之一的帖子。
       if (userId && safeUsername) {
-        let query = baseQuery().or(`author_id.eq.${userId},author_username.eq.${filterSafeUsername}`);
+        let query = baseQuery().or(
+          `author_id.eq.${userId},author_username.eq.${filterSafeUsername}`,
+        );
         if (!includeUnapprovedForAuthor) {
           query = query.or(CONTENT_STATUS_FILTER);
         }
@@ -446,7 +490,7 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
           images,
           image_count: Math.max(Number(post.image_count || 0), images.length),
           comment_count: post.comments?.[0]?.count || 0,
-          like_count: post.likes?.[0]?.count || 0
+          like_count: post.likes?.[0]?.count || 0,
         };
       });
 
@@ -456,8 +500,8 @@ export async function getPostsByUsername(username, userId = null, options = {}) 
       ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
       tags: ['posts', `posts:username:${username}`, ...(userId ? [`posts:user:${userId}`] : [])],
       timeoutMs: 8000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
@@ -470,9 +514,11 @@ export async function getCommentsByUsername(username, userId = null, options = {
       const safeUsername = String(username || '').trim();
       // 清理 username 中的 Supabase 过滤器特殊字符
       const filterSafeUsername = String(safeUsername).replace(/[,.\()']/g, '');
-      const baseQuery = () => supabase
-        .from('comments')
-        .select(`
+      const baseQuery = () =>
+        supabase
+          .from('comments')
+          .select(
+            `
           id,
           post_id,
           content,
@@ -482,15 +528,17 @@ export async function getCommentsByUsername(username, userId = null, options = {
           status,
           author:author_id(username, avatar_url),
           post:posts(title, body, content, author_username)
-        `)
-        .or(CONTENT_STATUS_FILTER)
-        .order('created_at', { ascending: false });
+        `,
+          )
+          .or(CONTENT_STATUS_FILTER)
+          .order('created_at', { ascending: false });
 
       // 同时按 author_id 和 author_username 匹配，确保不会遗漏只有其中之一的回复。
       if (userId && safeUsername) {
         let query = supabase
           .from('comments')
-          .select(`
+          .select(
+            `
             id,
             post_id,
             content,
@@ -500,7 +548,8 @@ export async function getCommentsByUsername(username, userId = null, options = {
             status,
             author:author_id(username, avatar_url),
             post:posts(title, body, content, author_username)
-          `)
+          `,
+          )
           .or(`author_id.eq.${userId},author_username.eq.${filterSafeUsername}`)
           .or(CONTENT_STATUS_FILTER)
           .order('created_at', { ascending: false });
@@ -530,7 +579,10 @@ export async function getCommentsByUsername(username, userId = null, options = {
           byUsernameQuery = byUsernameQuery.range(paging.from, paging.to);
         }
         const byUsername = await byUsernameQuery;
-        return { data: normalizeProfileCommentRows(byUsername.data || []), error: byUsername.error };
+        return {
+          data: normalizeProfileCommentRows(byUsername.data || []),
+          error: byUsername.error,
+        };
       }
 
       if (!safeUsername) {
@@ -546,25 +598,41 @@ export async function getCommentsByUsername(username, userId = null, options = {
     },
     {
       ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
-      tags: ['comments', `comments:username:${username}`, ...(userId ? [`comments:user:${userId}`] : [])],
+      tags: [
+        'comments',
+        `comments:username:${username}`,
+        ...(userId ? [`comments:user:${userId}`] : []),
+      ],
       timeoutMs: 8000,
-      retry: 1
-    }
+      retry: 1,
+    },
   );
 }
 
 const ALLOWED_PROFILE_FIELDS = new Set([
-  'username', 'bio', 'avatar_url',
-  'birth_month', 'birth_day',
-  'shipping_recipient', 'shipping_phone', 'shipping_address',
-  'pushplus_token', 'pushplus_enabled',
-  'gift_status', 'gift_content', 'gift_no', 'gift_price',
-  'profile_background_url', 'profile_background_public_id',
+  'username',
+  'bio',
+  'avatar_url',
+  'birth_month',
+  'birth_day',
+  'shipping_recipient',
+  'shipping_phone',
+  'shipping_address',
+  'gift_status',
+  'gift_content',
+  'gift_no',
+  'gift_price',
+  'profile_background_url',
+  'profile_background_public_id',
 ]);
 
 export async function updateProfile(userId, updates) {
   if (!updates || typeof updates !== 'object') {
-    return { ok: false, data: null, error: normalizeDbError({ message: '无效的更新数据', code: 'INVALID_INPUT' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '无效的更新数据', code: 'INVALID_INPUT' }),
+    };
   }
 
   const safeUpdates = {};
@@ -575,7 +643,11 @@ export async function updateProfile(userId, updates) {
   }
 
   if (Object.keys(safeUpdates).length === 0) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '没有可更新的字段', code: 'NO_ALLOWED_FIELDS' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '没有可更新的字段', code: 'NO_ALLOWED_FIELDS' }),
+    };
   }
 
   const { data, error } = await supabase
@@ -606,7 +678,7 @@ function normalizeShopOrderPayload(payload = {}) {
     requiredPoints: Number(safe.required_points || 0),
     paymentMode: safe.payment_mode || 'points_only',
     rmbTotal: safe.rmb_total ? Number(safe.rmb_total) : null,
-    items: Array.isArray(safe.items) ? safe.items : []
+    items: Array.isArray(safe.items) ? safe.items : [],
   };
 }
 
@@ -620,10 +692,16 @@ function normalizeShopItems(items = []) {
         id: Number.isInteger(id) ? id : null,
         quantity: Number.isInteger(quantity) ? quantity : 0,
         selected_spec: String(item?.selectedSpec || item?.selected_spec || ''),
-        selected_spec_label: String(item?.selectedSpecLabel || item?.selected_spec_label || '')
+        selected_spec_label: String(item?.selectedSpecLabel || item?.selected_spec_label || ''),
       };
     })
-    .filter((item) => Number.isInteger(item.id) && item.id > 0 && Number.isInteger(item.quantity) && item.quantity > 0);
+    .filter(
+      (item) =>
+        Number.isInteger(item.id) &&
+        item.id > 0 &&
+        Number.isInteger(item.quantity) &&
+        item.quantity > 0,
+    );
 }
 
 /* 数据库侧下单拒绝码 → 用户能看懂的话（2026-11-03 A3 新增两个码）
@@ -638,7 +716,7 @@ const SHOP_ORDER_REJECTION_TEXT = {
   TOO_MANY_OPEN_ORDERS: '你有太多还没发货的订单，等发货后再下单吧',
   INSUFFICIENT_STOCK: '有商品库存不足了，请回购物袋调整数量',
   INVALID_SHIPPING: '收货信息不完整，请检查收件人、电话与地址',
-  INVALID_REMARK: '备注最多 200 字，请缩短后再提交'
+  INVALID_REMARK: '备注最多 200 字，请缩短后再提交',
 };
 
 /* 下单 RPC 签名缺失的判定：PostgREST 对"函数不存在/参数不匹配"报 PGRST202，
@@ -651,20 +729,14 @@ const isMissingShopOrderSignature = (error) => {
 };
 
 export async function createShopOrderWithPoints(payload = {}) {
-  const {
-    items = [],
-    contactType = '',
-    contactValue = '',
-    shipping = null,
-    remark = ''
-  } = payload;
+  const { items = [], contactType = '', contactValue = '', shipping = null, remark = '' } = payload;
 
   const normalizedItems = normalizeShopItems(items);
   if (!normalizedItems.length) {
     return {
       ok: false,
       data: normalizeShopOrderPayload(),
-      error: normalizeDbError({ message: '订单商品为空或格式错误', code: 'EMPTY_ITEMS' })
+      error: normalizeDbError({ message: '订单商品为空或格式错误', code: 'EMPTY_ITEMS' }),
     };
   }
 
@@ -675,20 +747,22 @@ export async function createShopOrderWithPoints(payload = {}) {
       ? {
           recipient: String(shipping.recipient || '').trim(),
           phone: String(shipping.phone || '').trim(),
-          address: String(shipping.address || '').trim()
+          address: String(shipping.address || '').trim(),
         }
       : null;
 
   const baseArgs = {
     p_items: normalizedItems,
     p_contact_type: String(contactType || '').trim(),
-    p_contact_value: String(contactValue || '').trim()
+    p_contact_value: String(contactValue || '').trim(),
   };
 
   let { data, error } = await supabase.rpc('create_shop_order', {
     ...baseArgs,
     p_shipping: normalizedShipping,
-    p_remark: String(remark || '').trim().slice(0, 200)
+    p_remark: String(remark || '')
+      .trim()
+      .slice(0, 200),
   });
 
   /* 库还没跑迁移 2026110412 时，函数签名仍是 3 参 ⇒ 带 p_shipping/p_remark 调用会
@@ -705,7 +779,7 @@ export async function createShopOrderWithPoints(payload = {}) {
     return {
       ok: false,
       data: normalizeShopOrderPayload(),
-      error: normalizeDbError(error)
+      error: normalizeDbError(error),
     };
   }
 
@@ -720,9 +794,9 @@ export async function createShopOrderWithPoints(payload = {}) {
           ? { message: rejectionText, code: normalized.message }
           : {
               message: normalized.message || 'CREATE_ORDER_FAILED',
-              code: 'CREATE_ORDER_FAILED'
-            }
-      )
+              code: 'CREATE_ORDER_FAILED',
+            },
+      ),
     };
   }
 
@@ -741,7 +815,7 @@ export async function updateProfileAvatar(userId, avatarUrl) {
 export async function updateProfileBackground(userId, { url = '', publicId = '' } = {}) {
   return updateProfile(userId, {
     profile_background_url: url,
-    profile_background_public_id: publicId
+    profile_background_public_id: publicId,
   });
 }
 
@@ -749,10 +823,18 @@ export async function updateProfileBackground(userId, { url = '', publicId = '' 
 
 export async function followUser(followerId, followingId) {
   if (!followerId || !followingId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '参数错误', code: 'MISSING_PARAMS' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '参数错误', code: 'MISSING_PARAMS' }),
+    };
   }
   if (followerId === followingId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '不能关注自己', code: 'SELF_FOLLOW' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '不能关注自己', code: 'SELF_FOLLOW' }),
+    };
   }
 
   const { data, error } = await supabase
@@ -763,7 +845,11 @@ export async function followUser(followerId, followingId) {
 
   if (error) {
     if (error.code === '23505') {
-      return { ok: false, data: null, error: normalizeDbError({ message: '已关注该用户', code: 'ALREADY_FOLLOWING' }) };
+      return {
+        ok: false,
+        data: null,
+        error: normalizeDbError({ message: '已关注该用户', code: 'ALREADY_FOLLOWING' }),
+      };
     }
     return { ok: false, data: null, error: normalizeDbError(error) };
   }
@@ -778,7 +864,11 @@ export async function followUser(followerId, followingId) {
 
 export async function unfollowUser(followerId, followingId) {
   if (!followerId || !followingId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '参数错误', code: 'MISSING_PARAMS' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '参数错误', code: 'MISSING_PARAMS' }),
+    };
   }
 
   const { data, error } = await supabase
@@ -805,11 +895,13 @@ export async function getFollowers(userId, options = {}) {
     async () => {
       let query = supabase
         .from('user_follows')
-        .select(`
+        .select(
+          `
           follower_id,
           created_at,
           follower:follower_id(id, username, avatar_url, last_active_at, hide_online_status)
-        `)
+        `,
+        )
         .eq('following_id', userId)
         .order('created_at', { ascending: false });
 
@@ -826,12 +918,17 @@ export async function getFollowers(userId, options = {}) {
         avatar_url: row.follower?.avatar_url,
         last_active_at: row.follower?.last_active_at,
         hide_online_status: row.follower?.hide_online_status,
-        followed_at: row.created_at
+        followed_at: row.created_at,
       }));
 
       return { data: items, error: null };
     },
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 8000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
+      tags: ['user_follows', `follows:user:${userId}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
   );
 }
 
@@ -843,11 +940,13 @@ export async function getFollowing(userId, options = {}) {
     async () => {
       let query = supabase
         .from('user_follows')
-        .select(`
+        .select(
+          `
           following_id,
           created_at,
           following:following_id(id, username, avatar_url, last_active_at, hide_online_status)
-        `)
+        `,
+        )
         .eq('follower_id', userId)
         .order('created_at', { ascending: false });
 
@@ -864,12 +963,17 @@ export async function getFollowing(userId, options = {}) {
         avatar_url: row.following?.avatar_url,
         last_active_at: row.following?.last_active_at,
         hide_online_status: row.following?.hide_online_status,
-        followed_at: row.created_at
+        followed_at: row.created_at,
       }));
 
       return { data: items, error: null };
     },
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 8000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
+      tags: ['user_follows', `follows:user:${userId}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
   );
 }
 
@@ -890,7 +994,7 @@ export async function isFollowing(followerId, followingId) {
       if (error) return { data: false, error };
       return { data: Boolean(data), error: null };
     },
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows'], timeoutMs: 5000, retry: 0 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows'], timeoutMs: 5000, retry: 0 },
   );
 }
 
@@ -907,18 +1011,23 @@ export async function getFollowCounts(userId) {
         supabase
           .from('user_follows')
           .select('id', { count: 'exact', head: true })
-          .eq('follower_id', userId)
+          .eq('follower_id', userId),
       ]);
 
       return {
         data: {
           followersCount: followersResult.count ?? 0,
-          followingCount: followingResult.count ?? 0
+          followingCount: followingResult.count ?? 0,
         },
-        error: followersResult.error || followingResult.error
+        error: followersResult.error || followingResult.error,
       };
     },
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows', `follows:user:${userId}`], timeoutMs: 5000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
+      tags: ['user_follows', `follows:user:${userId}`],
+      timeoutMs: 5000,
+      retry: 1,
+    },
   );
 }
 
@@ -931,14 +1040,8 @@ export async function getFollowCountsBatch(userIds) {
     { ids: ids.join(',') },
     async () => {
       const [followersResult, followingResult] = await Promise.all([
-        supabase
-          .from('user_follows')
-          .select('following_id')
-          .in('following_id', ids),
-        supabase
-          .from('user_follows')
-          .select('follower_id')
-          .in('follower_id', ids)
+        supabase.from('user_follows').select('following_id').in('following_id', ids),
+        supabase.from('user_follows').select('follower_id').in('follower_id', ids),
       ]);
 
       if (followersResult.error || followingResult.error) {
@@ -946,12 +1049,12 @@ export async function getFollowCountsBatch(userIds) {
       }
 
       const followersMap = {};
-      for (const row of (followersResult.data || [])) {
+      for (const row of followersResult.data || []) {
         followersMap[row.following_id] = (followersMap[row.following_id] || 0) + 1;
       }
 
       const followingMap = {};
-      for (const row of (followingResult.data || [])) {
+      for (const row of followingResult.data || []) {
         followingMap[row.follower_id] = (followingMap[row.follower_id] || 0) + 1;
       }
 
@@ -959,12 +1062,12 @@ export async function getFollowCountsBatch(userIds) {
       for (const id of ids) {
         result[id] = {
           followersCount: followersMap[id] || 0,
-          followingCount: followingMap[id] || 0
+          followingCount: followingMap[id] || 0,
         };
       }
 
       return { data: result, error: null };
     },
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows'], timeoutMs: 8000, retry: 1 }
+    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['user_follows'], timeoutMs: 8000, retry: 1 },
   );
 }

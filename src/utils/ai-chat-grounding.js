@@ -32,7 +32,7 @@ const DEFAULT_FACTUALITY_QUESTION_PATTERNS = [
 const DEFAULT_UNCERTAINTY_PATTERN =
   /(未检索到明确依据|目前无法确认|暂时无法确认|不确定|信息不足|证据不足)/;
 const BOH_INTERNAL_SOURCE_PATTERN = new RegExp(
-  `(方块之家|block of home|\\bboh\\b|boh\\s*ai|boh\\s*cloud\\+?|cloud\\+|论坛|帖子|公告|周年庆|内战|pushplus|订阅|会员)`,
+  `(方块之家|block of home|\\bboh\\b|boh\\s*ai|boh\\s*cloud\\+?|cloud\\+|论坛|帖子|公告|周年庆|内战|订阅|会员)`,
   'i',
 );
 const BOH_INTERNAL_FACT_PATTERN =

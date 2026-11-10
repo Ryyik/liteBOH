@@ -17,7 +17,6 @@ vi.mock('../../src/utils/logger.js', () => ({
 }));
 vi.mock('../../src/utils/api/notifications-api.js', () => ({
   createNotification: vi.fn(),
-  sendPushplusForNotification: vi.fn(),
 }));
 vi.mock('../../src/utils/unified-content-moderation.js', () => ({
   writeModerationAuditLog: vi.fn(),

@@ -44,16 +44,13 @@ export function signIn(
   password: string,
   security?: SignInSecurityContext,
 ): Promise<
-  AuthApiResult<
-    | {
-        user?: unknown;
-        session?: { user: unknown } | null;
-        /** 服务端要求先完成人机验证（或触发限流）时返回 */
-        requireCaptcha?: boolean;
-        retryAfterSeconds?: number;
-      }
-    | null
-  >
+  AuthApiResult<{
+    user?: unknown;
+    session?: { user: unknown } | null;
+    /** 服务端要求先完成人机验证（或触发限流）时返回 */
+    requireCaptcha?: boolean;
+    retryAfterSeconds?: number;
+  } | null>
 >;
 
 export function signInWithOAuth(provider: string): Promise<{ error: AuthApiError | null }>;
@@ -162,9 +159,6 @@ export function getUnreadNotificationCount(userId: string): Promise<{
 export function filterSelfActionNotifications(
   notifications: NotificationItem[],
 ): NotificationItem[];
-export function sendPushplusForNotification(
-  notification: Record<string, unknown>,
-): Promise<{ success: boolean; message: string }>;
 
 // --- Profile API ---
 export function getUserImpressions(userId: string): Promise<AuthApiResult>;

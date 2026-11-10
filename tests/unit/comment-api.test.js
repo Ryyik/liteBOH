@@ -19,7 +19,6 @@ const {
   mockIsMissingRpcFunctionError,
   mockWriteAsyncModerationLog,
   mockEnsureModerationNotification,
-  mockNotifyPostAuthorForComment,
   getUserMock,
 } = vi.hoisted(() => {
   const fromMock = vi.fn();
@@ -71,7 +70,6 @@ const {
   const mockIsMissingRpcFunctionError = vi.fn();
   const mockWriteAsyncModerationLog = vi.fn();
   const mockEnsureModerationNotification = vi.fn();
-  const mockNotifyPostAuthorForComment = vi.fn();
   return {
     fromMock,
     rpcMock,
@@ -89,7 +87,6 @@ const {
     mockIsMissingRpcFunctionError,
     mockWriteAsyncModerationLog,
     mockEnsureModerationNotification,
-    mockNotifyPostAuthorForComment,
   };
 });
 
@@ -158,7 +155,6 @@ vi.mock('../../src/utils/api/forum/_shared.js', async (importOriginal) => {
     isMissingRpcFunctionError: mockIsMissingRpcFunctionError,
     writeAsyncModerationLog: mockWriteAsyncModerationLog,
     ensureModerationNotification: mockEnsureModerationNotification,
-    notifyPostAuthorForComment: mockNotifyPostAuthorForComment,
   };
 });
 

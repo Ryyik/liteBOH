@@ -67,9 +67,12 @@ export const userSpaceRoutes: RouteRecordRaw[] = [
     meta: { ...userSpaceMeta },
   },
   {
+    /* 通知设置。⚠️ 路径保留 pushplus 这个历史 slug：它已写进**已发出的邮件**页脚
+       （生日 / 关注动态 / 审核结果三封的「去关闭」），改名会让历史邮件 404。
+       对外名与组件名已改为 NotificationSettings（2026-11-10 移除 Pushplus 时）。 */
     path: '/user-space/pushplus-settings',
-    name: 'PushplusSettings',
-    component: () => import('../../views/user-center/PushplusSettingsPage.vue'),
+    name: 'NotificationSettings',
+    component: () => import('../../views/user-center/NotificationSettingsPage.vue'),
     meta: { ...userSpaceMeta },
   },
   {

@@ -2,7 +2,7 @@ export { supabase } from './supabase-client.js';
 export {
   clearRequestCache as clearAuthReadCache,
   invalidateByTags,
-  normalizeDbError
+  normalizeDbError,
 } from './request-core.js';
 
 export {
@@ -26,7 +26,7 @@ export {
   deletePasskey,
   renamePasskey,
   toPasskeyLoginMessage,
-  toPasskeyRegisterMessage
+  toPasskeyRegisterMessage,
 } from './api/auth-api.js';
 
 export {
@@ -42,7 +42,7 @@ export {
   updatePost,
   retryPostModeration,
   getWeeklyCheckinStatus,
-  submitWeeklyCheckin
+  submitWeeklyCheckin,
 } from './api/forum-api.js';
 
 export {
@@ -56,7 +56,6 @@ export {
   createNotification,
   getUnreadNotificationCount,
   filterSelfActionNotifications,
-  sendPushplusForNotification
 } from './api/notifications-api.js';
 
 export {
@@ -69,10 +68,7 @@ export {
   updateProfile,
   updateProfileBio,
   updateProfileAvatar,
-  createShopOrderWithPoints
+  createShopOrderWithPoints,
 } from './api/profile-api.js';
 
-export {
-  getMySubscriptions,
-  subscribeWithPoints
-} from './api/subscription-api.js';
+export { getMySubscriptions, subscribeWithPoints } from './api/subscription-api.js';

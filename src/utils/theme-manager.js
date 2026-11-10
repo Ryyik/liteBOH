@@ -103,7 +103,7 @@ class ThemeManager {
         '.account-security-page',
         '.address-page',
         '.subscription-page',
-        '.pushplus-settings-page',
+        '.notification-settings-page',
         '.shared-memory-page',
         '#unified-nav-container',
         '.bohai-page',

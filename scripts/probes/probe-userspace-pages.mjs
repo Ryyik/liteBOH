@@ -95,7 +95,7 @@ const SUB_ROUTES = [
   { id: 'BOH 云盘', hash: '/user-space/note', guarded: true },
   { id: '共享记忆', hash: '/user-space/shared-memories', guarded: true },
   { id: '标签与印象', hash: '/user-space/tags-impressions', guarded: true },
-  { id: 'PushPlus 设置', hash: '/user-space/pushplus-settings', guarded: true },
+  { id: '通知设置', hash: '/user-space/pushplus-settings', guarded: true },
   { id: '版本/预览', hash: '/user-space/settings/version', guarded: true },
 ];
 

@@ -22,12 +22,12 @@
  *    （toggle 自己的 update:modelValue + 外层 button 的 click）⇒ 两次切换互相抵消，
  *    表现就是「开关点了没反应」。这类「看着像后端/权限问题、其实是双触发」的坑，
  *    排查顺序应该是：先看事件是否冒泡两次，再怀疑权限。
- *    在 div 容器里用（如 PushplusSettings）加 .stop 无副作用。
+ *    在 div 容器里用（如 NotificationSettings）加 .stop 无副作用。
  */
 defineProps({
   modelValue: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
-  label: { type: String, default: '开关' }
+  label: { type: String, default: '开关' },
 });
 
 const emit = defineEmits(['update:modelValue']);
@@ -45,7 +45,8 @@ const emit = defineEmits(['update:modelValue']);
   cursor: pointer;
   flex: 0 0 auto;
   display: inline-block;
-  transition: background-color 180ms var(--ease-out, ease-out),
+  transition:
+    background-color 180ms var(--ease-out, ease-out),
     transform 160ms var(--ease-out, ease-out);
   -webkit-tap-highlight-color: transparent;
 }
@@ -79,15 +80,15 @@ const emit = defineEmits(['update:modelValue']);
   cursor: not-allowed;
 }
 
-:global([data-theme="dark"] .setting-toggle:not(.on) ){
+:global([data-theme='dark'] .setting-toggle:not(.on)) {
   background: rgba(255, 255, 255, 0.22);
 }
 
-:global([data-theme="dark"] .setting-toggle.on ){
+:global([data-theme='dark'] .setting-toggle.on) {
   background: #30d158;
 }
 
-:global([data-theme="dark"] .setting-toggle-knob ){
+:global([data-theme='dark'] .setting-toggle-knob) {
   background: #ffffff;
 }
 

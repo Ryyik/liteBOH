@@ -1,5 +1,5 @@
 {
-  "total": 2420,
+  "total": 2410,
   "perFile": {
     "src/styles/themes/bohai-dark.css": 225,
     "src/styles/themes/forum-dark.css": 178,
@@ -45,7 +45,6 @@
     "src/components/UnifiedNavbar/GlobalNavTaskCard.vue": 14,
     "src/components/AccountBindPrompt/index.vue": 12,
     "src/views/user-center/UserSpace/components/AccountSecurityPanel.vue": 12,
-    "src/components/PushplusSettings/index.vue": 10,
     "src/views/Forum/components/ForumToolbar.vue": 10,
     "src/views/Forum/styles/feed.css": 10,
     "src/views/Shop/ShopAccountPanel.vue": 10,
@@ -88,5 +87,5 @@
     "src/views/PostDetail/PostDetailMain.vue": 1,
     "src/views/user-center/UserSpace/styles/profile-panels.css": 1
   },
-  "updatedAt": "2026-11-05"
+  "updatedAt": "2026-11-10"
 }

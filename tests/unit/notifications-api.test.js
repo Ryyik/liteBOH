@@ -4,23 +4,15 @@ const testMocks = vi.hoisted(() => ({
   fromMock: vi.fn(),
   rpcMock: vi.fn(),
   channelMock: vi.fn(),
-  subscribeMock: vi.fn()
+  subscribeMock: vi.fn(),
 }));
 
 vi.mock('../../src/utils/supabase-client.js', () => ({
   supabase: {
     from: testMocks.fromMock,
     rpc: testMocks.rpcMock,
-    channel: testMocks.channelMock
-  }
-}));
-
-vi.mock('../../src/utils/api/pushplus-api.js', () => ({
-  getUserPushplusToken: vi.fn()
-}));
-
-vi.mock('../../src/utils/pushplus.js', () => ({
-  sendNotificationPush: vi.fn()
+    channel: testMocks.channelMock,
+  },
 }));
 
 vi.mock('../../src/utils/logger.js', () => ({
@@ -33,7 +25,11 @@ vi.mock('../../src/utils/logger.js', () => ({
 }));
 
 import { clearRequestCache } from '../../src/utils/request-core.js';
-import { filterSelfActionNotifications, getUnreadNotificationCount, subscribeToNotifications } from '../../src/utils/api/notifications-api.js';
+import {
+  filterSelfActionNotifications,
+  getUnreadNotificationCount,
+  subscribeToNotifications,
+} from '../../src/utils/api/notifications-api.js';
 
 function createThenableQuery(result, calls = []) {
   const query = {
@@ -43,7 +39,7 @@ function createThenableQuery(result, calls = []) {
       return query;
     }),
     is: vi.fn(() => query),
-    then: (resolve) => Promise.resolve(result).then(resolve)
+    then: (resolve) => Promise.resolve(result).then(resolve),
   };
   return query;
 }
@@ -60,7 +56,7 @@ describe('notifications-api', () => {
       { sender_id: 'u1', recipient_id: 'u1', type: 'like' },
       { sender_id: 'u1', recipient_id: 'u1', type: 'comment' },
       { sender_id: 'u1', recipient_id: 'u1', type: 'impression' },
-      { sender_id: 'u2', recipient_id: 'u1', type: 'like' }
+      { sender_id: 'u2', recipient_id: 'u1', type: 'like' },
     ];
 
     const output = filterSelfActionNotifications(input);
@@ -72,7 +68,7 @@ describe('notifications-api', () => {
   it('counts unread notifications via RPC', async () => {
     testMocks.rpcMock.mockResolvedValue({
       data: [{ count: 1 }],
-      error: null
+      error: null,
     });
 
     const result = await getUnreadNotificationCount('u1');
@@ -82,23 +78,30 @@ describe('notifications-api', () => {
     expect(result.mailCount).toBe(0);
     expect(result.count).toBe(1);
     expect(testMocks.rpcMock).toHaveBeenCalledTimes(1);
-    expect(testMocks.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', { p_recipient_id: 'u1' });
+    expect(testMocks.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', {
+      p_recipient_id: 'u1',
+    });
   });
 
   it('falls back to direct query when RPC function is missing', async () => {
     // RPC 返回函数缺失错误
     testMocks.rpcMock.mockResolvedValue({
       data: null,
-      error: { code: 'PGRST202', message: 'could not find the function get_unread_notification_count' }
+      error: {
+        code: 'PGRST202',
+        message: 'could not find the function get_unread_notification_count',
+      },
     });
 
     // 降级查询返回结果
     const mockNotifications = [
       { id: 'n1', sender_id: 'u2', recipient_id: 'u1', type: 'like' },
       { id: 'n2', sender_id: 'u1', recipient_id: 'u1', type: 'like' }, // 自操作，应被过滤
-      { id: 'n3', sender_id: 'u3', recipient_id: 'u1', type: 'comment' }
+      { id: 'n3', sender_id: 'u3', recipient_id: 'u1', type: 'comment' },
     ];
-    testMocks.fromMock.mockReturnValue(createThenableQuery({ data: mockNotifications, error: null }));
+    testMocks.fromMock.mockReturnValue(
+      createThenableQuery({ data: mockNotifications, error: null }),
+    );
 
     const result = await getUnreadNotificationCount('u1');
 
@@ -112,7 +115,7 @@ describe('notifications-api', () => {
     // RPC 返回非函数缺失错误（如网络错误）
     testMocks.rpcMock.mockResolvedValue({
       data: null,
-      error: { code: 'NETWORK_ERROR', message: 'Connection timeout' }
+      error: { code: 'NETWORK_ERROR', message: 'Connection timeout' },
     });
 
     const result = await getUnreadNotificationCount('u1');
@@ -135,7 +138,7 @@ describe('notifications-api', () => {
         subscribe: vi.fn((callback) => {
           if (callback) callback('SUBSCRIBED');
           return mockChannel;
-        })
+        }),
       };
       testMocks.channelMock.mockReturnValue(mockChannel);
     });
@@ -143,7 +146,9 @@ describe('notifications-api', () => {
     it('creates channel with correct configuration', async () => {
       const channelPromise = subscribeToNotifications('user-123', mockCallback);
 
-      expect(testMocks.channelMock).toHaveBeenCalledWith(expect.stringMatching(/^notifications:user-123:[1-9]\d*$/));
+      expect(testMocks.channelMock).toHaveBeenCalledWith(
+        expect.stringMatching(/^notifications:user-123:[1-9]\d*$/),
+      );
       expect(mockChannel.on).toHaveBeenCalled();
       expect(mockChannel.subscribe).toHaveBeenCalled();
 
@@ -161,7 +166,7 @@ describe('notifications-api', () => {
 
       // 获取 postgres_changes 事件的 handler
       const onCalls = mockChannel.on.mock.calls;
-      const postgresChangesCall = onCalls.find(call => call[0] === 'postgres_changes');
+      const postgresChangesCall = onCalls.find((call) => call[0] === 'postgres_changes');
       const handler = postgresChangesCall?.[2];
 
       // 模拟 payload
@@ -194,7 +199,9 @@ describe('notifications-api', () => {
 
       if (statusCallback) {
         statusCallback('SUBSCRIBED');
-        expect(logger.info).toHaveBeenCalledWith('notifications-api', '实时订阅成功', { userId: 'user-123' });
+        expect(logger.info).toHaveBeenCalledWith('notifications-api', '实时订阅成功', {
+          userId: 'user-123',
+        });
       }
 
       await expect(channelPromise).resolves.toBe(mockChannel);

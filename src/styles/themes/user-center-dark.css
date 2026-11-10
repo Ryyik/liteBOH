@@ -24,7 +24,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) {
   color: var(--uc-dark-text);
@@ -38,7 +38,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(.x-header-title, .page-title, .section-title, .list-title, .card-title) {
   color: var(--uc-dark-text) !important;
@@ -48,7 +48,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle) {
   background: var(--uc-dark-surface-strong) !important;
@@ -61,7 +61,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(.history-toggle-btn, .page-btn, .pag-btn, .collapse-toggle):hover:not(:disabled) {
   background: #1a2840 !important;
@@ -73,7 +73,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(
   .glass-card,
@@ -115,7 +115,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(
   h1,
@@ -140,7 +140,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(
   p,
@@ -177,7 +177,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(
   .security-input,
@@ -199,7 +199,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(
   .security-input,
@@ -218,7 +218,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(
   .security-input,
@@ -238,7 +238,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear) {
   background: var(--uc-dark-surface-strong) !important;
@@ -250,7 +250,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(.secondary-btn, .ghost-btn, .btn-secondary, .action-btn-outline, .filter-chip, .btn-clear):hover:not(:disabled) {
   background: #1a2840 !important;
@@ -272,7 +272,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
 }
 
-[data-theme="dark"] :is(.account-security-page, .shared-memory-page, .pushplus-settings-page) :is(.primary-danger-btn, .danger-btn, .confirm-danger) {
+[data-theme="dark"] :is(.account-security-page, .shared-memory-page, .notification-settings-page) :is(.primary-danger-btn, .danger-btn, .confirm-danger) {
   background: var(--uc-dark-danger-soft) !important;
   color: #ffc1c1 !important;
   border-color: rgba(255, 140, 140, 0.26) !important;
@@ -302,21 +302,21 @@
 
 [data-theme="dark"] .shared-memory-page .meta-status.archived,
 
-[data-theme="dark"] .pushplus-settings-page .card-header {
+[data-theme="dark"] .notification-settings-page .card-header {
   background: linear-gradient(135deg, #13233a 0%, #18304d 100%) !important;
 }
 
-[data-theme="dark"] .pushplus-settings-page :is(.status-card, .guide-card) {
+[data-theme="dark"] .notification-settings-page :is(.status-card, .guide-card) {
   background: var(--uc-dark-surface-strong) !important;
   border-color: var(--uc-dark-border) !important;
 }
 
-[data-theme="dark"] .pushplus-settings-page .guide-card:hover {
+[data-theme="dark"] .notification-settings-page .guide-card:hover {
   background: #17293d !important;
   border-color: rgba(99, 214, 162, 0.28) !important;
 }
 
-[data-theme="dark"] .pushplus-settings-page :is(.divider::before, .divider::after) {
+[data-theme="dark"] .notification-settings-page :is(.divider::before, .divider::after) {
   background: rgba(255, 255, 255, 0.08) !important;
 }
 
@@ -324,7 +324,7 @@
   .account-security-page,
   .address-page,
   .subscription-page,
-  .pushplus-settings-page,
+  .notification-settings-page,
   .shared-memory-page
 ) :is(.loading-state, .empty-state, .login-card) {
   background: rgba(15, 24, 39, 0.74) !important;

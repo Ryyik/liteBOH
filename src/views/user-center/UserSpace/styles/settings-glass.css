@@ -1,13 +1,13 @@
 /* ================================================================
    settings-glass.css —— 用户空间「设置」子页液态玻璃单一源
-   （2026-09-09 统一：ProfileSettingsPanel / PushplusSettings /
+   （2026-09-09 统一：ProfileSettingsPanel / NotificationSettings /
     DataExportPanel / DataPrivacyPanel / AccountSecurity 共用）
    依赖：src/styles/common/tokens.css 的 --liquid-* 全局 token；
    品牌蓝 #0071e3（拍板），暗色链接蓝 #2997ff。
    引入方式：<style scoped> 内 @import 本文件（规则会带 scoped 属性）。
    ================================================================ */
 
-/* ---------- 独立路由页壳（pushplus / account-security 等） ---------- */
+/* ---------- 独立路由页壳（notification-settings / account-security 等） ---------- */
 .settings-page {
   min-height: 100dvh;
   background:

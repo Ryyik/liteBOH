@@ -28,7 +28,6 @@ const PROFILE_ALL_COLUMNS = `
   avatar_url,
   experience,
   gift_status,
-  pushplus_enabled,
   last_active_at,
   hide_online_status
 `;

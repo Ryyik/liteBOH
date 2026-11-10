@@ -20,7 +20,6 @@ export const TAB_WRITABLE_FIELDS = {
     'tags',
     'birth_month',
     'birth_day',
-    'pushplus_enabled',
     'is_boh_creator',
     'creator_platform_ids',
     'creator_platform_visibility',

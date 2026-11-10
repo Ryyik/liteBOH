@@ -5,7 +5,7 @@ import { logger } from '../../logger.js';
 import {
   runKeywordPrecheck,
   runAsyncRelaxedModeration,
-  runSyncStrictModeration
+  runSyncStrictModeration,
 } from '../../unified-content-moderation.js';
 import {
   ALLOWED_CONTENT_STATUS,
@@ -13,7 +13,7 @@ import {
   REJECTED_STATUS,
   buildCommentModerationInput,
   normalizeContentStatus,
-  shouldSyncModerateComment
+  shouldSyncModerateComment,
 } from '../forum-format.js';
 import {
   canMutateForumContent,
@@ -22,13 +22,11 @@ import {
   toPositiveInt,
   writeAsyncModerationLog,
   ensureModerationNotification,
-  notifyPostAuthorForComment
 } from './_shared.js';
 
 const COMMENT_ASYNC_MODERATION_TIMEOUT_MS = 45000;
 const COMMENT_SYNC_MODERATION_TIMEOUT_MS = 12000;
 const COMMENT_REJECTED_NOTIFICATION_TYPE = 'comment_rejected';
-
 
 async function scheduleCommentModeration(comment = {}) {
   const commentId = String(comment.id || '').trim();
@@ -42,16 +40,12 @@ async function scheduleCommentModeration(comment = {}) {
     const moderationInput = buildCommentModerationInput(content);
     const moderationResult = await runAsyncRelaxedModeration(moderationInput, {
       scene: 'forum_comment',
-      timeoutMs: COMMENT_ASYNC_MODERATION_TIMEOUT_MS
+      timeoutMs: COMMENT_ASYNC_MODERATION_TIMEOUT_MS,
     });
     await writeAsyncModerationLog(commentId, 'comment', moderationResult);
 
+    // 2026-11-10：Pushplus 下线后这里不再有推送分支 —— 评论通知由 DB 触发器落库。
     if (moderationResult.status !== REJECTED_STATUS) {
-      await notifyPostAuthorForComment({
-        postId,
-        senderId: authorId,
-        commentId
-      });
       return;
     }
 
@@ -59,7 +53,7 @@ async function scheduleCommentModeration(comment = {}) {
       .from('comments')
       .update({
         status: REJECTED_STATUS,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', commentId)
       .eq('author_id', authorId)
@@ -69,7 +63,7 @@ async function scheduleCommentModeration(comment = {}) {
       logger.warn('forum-api', '异步评论审查回写失败', {
         commentId,
         postId,
-        error: updateError
+        error: updateError,
       });
       return;
     }
@@ -84,7 +78,7 @@ async function scheduleCommentModeration(comment = {}) {
       logger.warn('forum-api', '删除已拒绝评论关联通知失败（不阻断）', {
         commentId,
         postId,
-        error: purgeError
+        error: purgeError,
       });
     }
 
@@ -92,7 +86,7 @@ async function scheduleCommentModeration(comment = {}) {
       recipientId: authorId,
       type: COMMENT_REJECTED_NOTIFICATION_TYPE,
       postId,
-      commentId
+      commentId,
     });
 
     invalidateByTags(['comments', `comments:post:${postId}`, 'posts', 'notifications']);
@@ -100,7 +94,7 @@ async function scheduleCommentModeration(comment = {}) {
     logger.warn('forum-api', '异步评论审查失败（不阻断已发送）', {
       commentId,
       postId,
-      error
+      error,
     });
   }
 }
@@ -109,28 +103,50 @@ export async function getComments(postId, currentUserId = null, options = {}) {
   const safePostId = String(postId || '').trim();
   const parentId = options.parentId;
   const topLevelOnly = Boolean(options.topLevelOnly);
-  const normalizedOrder = String(options.order || 'asc').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
+  const normalizedOrder =
+    String(options.order || 'asc')
+      .trim()
+      .toLowerCase() === 'desc'
+      ? 'desc'
+      : 'asc';
   const page = toPositiveInt(options.page, 1);
   const pageSize = Math.min(100, toPositiveInt(options.pageSize, 20));
   // 注意：hasPagination 仍按**原始入参**判定（`?page=abc` 时 Number() 是 NaN ⇒ 不分页），
   // 这是既有行为，不在本次归一里改动 —— 改了会让「非法 page」从「不分页」变成「第 1 页」。
-  const hasPagination = Number.isFinite(Number(options.page)) || Number.isFinite(Number(options.pageSize));
+  const hasPagination =
+    Number.isFinite(Number(options.page)) || Number.isFinite(Number(options.pageSize));
   const offset = (page - 1) * pageSize;
   const limit = pageSize + 1;
   if (!safePostId) {
-    return { ok: false, data: [], hasMore: false, error: normalizeDbError({ message: '缺少帖子 ID' }) };
+    return {
+      ok: false,
+      data: [],
+      hasMore: false,
+      error: normalizeDbError({ message: '缺少帖子 ID' }),
+    };
   }
 
   return executeRead(
     'comments.getComments',
-    { safePostId, currentUserId, parentId: parentId || null, topLevelOnly, normalizedOrder, page, pageSize, hasPagination },
+    {
+      safePostId,
+      currentUserId,
+      parentId: parentId || null,
+      topLevelOnly,
+      normalizedOrder,
+      page,
+      pageSize,
+      hasPagination,
+    },
     async () => {
       let query = supabase
         .from('comments')
-        .select(`
+        .select(
+          `
           *,
           author:author_id(avatar_url, avatar_frame_url, is_banned)
-        `)
+        `,
+        )
         .eq('post_id', safePostId)
         .or('status.is.null,status.eq.approved');
 
@@ -158,23 +174,38 @@ export async function getComments(postId, currentUserId = null, options = {}) {
         ...comment,
         author_avatar_url: comment.author?.avatar_url,
         author_avatar_frame_url: comment.author?.avatar_frame_url || null,
-        author_is_banned: Boolean(comment.author?.is_banned)
+        author_is_banned: Boolean(comment.author?.is_banned),
       }));
 
       return { data: formattedData, error: null, hasMore };
     },
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 8000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
+      tags: ['comments', `comments:post:${safePostId}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
   );
 }
 
-export async function getCommentThreadReplies(postId, rootCommentId, currentUserId = null, options = {}) {
+export async function getCommentThreadReplies(
+  postId,
+  rootCommentId,
+  currentUserId = null,
+  options = {},
+) {
   const safePostId = String(postId || '').trim();
   const safeRootCommentId = String(rootCommentId || '').trim();
   const page = toPositiveInt(options.page, 1);
   const pageSize = Math.min(100, toPositiveInt(options.pageSize, 50));
 
   if (!safePostId || !safeRootCommentId) {
-    return { ok: false, data: [], hasMore: false, error: normalizeDbError({ message: '评论参数不完整' }) };
+    return {
+      ok: false,
+      data: [],
+      hasMore: false,
+      error: normalizeDbError({ message: '评论参数不完整' }),
+    };
   }
 
   return executeRead(
@@ -185,7 +216,7 @@ export async function getCommentThreadReplies(postId, rootCommentId, currentUser
         p_post_id: safePostId,
         p_root_comment_id: safeRootCommentId,
         p_page: page,
-        p_page_size: pageSize
+        p_page_size: pageSize,
       });
 
       if (!rpcError) {
@@ -194,10 +225,11 @@ export async function getCommentThreadReplies(postId, rootCommentId, currentUser
         return {
           data: safeRows.map((comment) => ({
             ...comment,
-            author_avatar_url: comment.author_avatar_url || comment.author?.avatar_url
+            author_avatar_url: comment.author_avatar_url || comment.author?.avatar_url,
           })),
           error: null,
-          hasMore: typeof hasMoreFromRpc === 'boolean' ? hasMoreFromRpc : safeRows.length >= pageSize
+          hasMore:
+            typeof hasMoreFromRpc === 'boolean' ? hasMoreFromRpc : safeRows.length >= pageSize,
         };
       }
 
@@ -208,10 +240,12 @@ export async function getCommentThreadReplies(postId, rootCommentId, currentUser
       const offset = (page - 1) * pageSize;
       const { data, error } = await supabase
         .from('comments')
-        .select(`
+        .select(
+          `
           *,
           author:author_id(avatar_url, avatar_frame_url, is_banned)
-        `)
+        `,
+        )
         .eq('post_id', safePostId)
         .or('status.is.null,status.eq.approved')
         .eq('parent_id', safeRootCommentId)
@@ -225,13 +259,18 @@ export async function getCommentThreadReplies(postId, rootCommentId, currentUser
           ...comment,
           author_avatar_url: comment.author?.avatar_url,
           author_avatar_frame_url: comment.author?.avatar_frame_url || null,
-          author_is_banned: Boolean(comment.author?.is_banned)
+          author_is_banned: Boolean(comment.author?.is_banned),
         })),
         error: null,
-        hasMore: safeRows.length > pageSize
+        hasMore: safeRows.length > pageSize,
       };
     },
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 8000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
+      tags: ['comments', `comments:post:${safePostId}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
   );
 }
 
@@ -245,7 +284,12 @@ export async function getCommentAncestors(commentId, postId) {
   const safePostId = String(postId || '').trim();
 
   if (!safeCommentId || !safePostId) {
-    return { ok: false, data: null, error: normalizeDbError({ message: '评论参数不完整' }), fallback: false };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ message: '评论参数不完整' }),
+      fallback: false,
+    };
   }
 
   return executeRead(
@@ -254,7 +298,7 @@ export async function getCommentAncestors(commentId, postId) {
     async () => {
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_comment_ancestors', {
         p_comment_id: safeCommentId,
-        p_post_id: safePostId
+        p_post_id: safePostId,
       });
 
       if (!rpcError) {
@@ -266,7 +310,12 @@ export async function getCommentAncestors(commentId, postId) {
       }
       return { data: null, error: rpcError, fallback: false };
     },
-    { ttlMs: CACHE_TTL_LEVELS.USER_DATA, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 5000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.USER_DATA,
+      tags: ['comments', `comments:post:${safePostId}`],
+      timeoutMs: 5000,
+      retry: 1,
+    },
   );
 }
 
@@ -282,7 +331,12 @@ export async function getCommentThreadPreviewsBatch(postId, commentIds) {
     : [];
 
   if (!safePostId || safeCommentIds.length === 0) {
-    return { ok: false, data: [], error: normalizeDbError({ message: '评论参数不完整' }), fallback: false };
+    return {
+      ok: false,
+      data: [],
+      error: normalizeDbError({ message: '评论参数不完整' }),
+      fallback: false,
+    };
   }
 
   return executeRead(
@@ -291,7 +345,7 @@ export async function getCommentThreadPreviewsBatch(postId, commentIds) {
     async () => {
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_comment_thread_previews', {
         p_post_id: safePostId,
-        p_comment_ids: safeCommentIds
+        p_comment_ids: safeCommentIds,
       });
 
       if (!rpcError) {
@@ -303,11 +357,24 @@ export async function getCommentThreadPreviewsBatch(postId, commentIds) {
       }
       return { data: null, error: rpcError, fallback: false };
     },
-    { ttlMs: CACHE_TTL_LEVELS.LIST_DATA, tags: ['comments', `comments:post:${safePostId}`], timeoutMs: 8000, retry: 1 }
+    {
+      ttlMs: CACHE_TTL_LEVELS.LIST_DATA,
+      tags: ['comments', `comments:post:${safePostId}`],
+      timeoutMs: 8000,
+      retry: 1,
+    },
   );
 }
 
-export async function createComment(postId, content, authorId, authorUsername, status = 'approved', parentId = null, replyToUsername = null) {
+export async function createComment(
+  postId,
+  content,
+  authorId,
+  authorUsername,
+  status = 'approved',
+  parentId = null,
+  replyToUsername = null,
+) {
   const safePostId = String(postId || '').trim();
   const safeContent = String(content || '').trim();
   const safeAuthorId = String(authorId || '').trim();
@@ -318,8 +385,8 @@ export async function createComment(postId, content, authorId, authorUsername, s
       data: null,
       error: normalizeDbError({
         code: 'INVALID_COMMENT_PARAMS',
-        message: '评论信息不完整，请刷新页面后重试'
-      })
+        message: '评论信息不完整，请刷新页面后重试',
+      }),
     };
   }
 
@@ -333,15 +400,15 @@ export async function createComment(postId, content, authorId, authorUsername, s
       data: null,
       error: normalizeDbError({
         code: 'LOCAL_KEYWORD_BLOCK',
-        message: keywordModerationResult.message || '命中高风险违禁词，已拒绝发布'
-      })
+        message: keywordModerationResult.message || '命中高风险违禁词，已拒绝发布',
+      }),
     };
   }
 
   if (normalizedStatus === APPROVED_STATUS && shouldSyncModerateComment(content)) {
     const strictModerationResult = await runSyncStrictModeration(moderationInput, {
       scene: 'forum_comment',
-      timeoutMs: COMMENT_SYNC_MODERATION_TIMEOUT_MS
+      timeoutMs: COMMENT_SYNC_MODERATION_TIMEOUT_MS,
     });
     if (strictModerationResult.status === REJECTED_STATUS) {
       return {
@@ -349,8 +416,8 @@ export async function createComment(postId, content, authorId, authorUsername, s
         data: null,
         error: normalizeDbError({
           code: 'SYNC_MODERATION_BLOCK',
-          message: strictModerationResult.message || '评论需要先通过内容审查，请调整后再发送'
-        })
+          message: strictModerationResult.message || '评论需要先通过内容审查，请调整后再发送',
+        }),
       };
     }
   }
@@ -360,7 +427,7 @@ export async function createComment(postId, content, authorId, authorUsername, s
     content: safeContent,
     author_id: safeAuthorId,
     author_username: authorUsername,
-    status: normalizedStatus
+    status: normalizedStatus,
   };
 
   if (parentId) commentData.parent_id = parentId;
@@ -372,7 +439,9 @@ export async function createComment(postId, content, authorId, authorUsername, s
 
   if (!error && Array.isArray(data) && data[0]?.id) {
     const inserted = data[0];
-    const insertedStatus = String(inserted.status || '').trim().toLowerCase();
+    const insertedStatus = String(inserted.status || '')
+      .trim()
+      .toLowerCase();
     if (!ALLOWED_CONTENT_STATUS.has(insertedStatus)) {
       const { error: normalizeError } = await supabase
         .from('comments')
@@ -385,7 +454,7 @@ export async function createComment(postId, content, authorId, authorUsername, s
           commentId: inserted.id,
           status: inserted.status,
           normalizeTo: normalizedStatus,
-          error: normalizeError
+          error: normalizeError,
         });
       } else {
         inserted.status = normalizedStatus;
@@ -400,7 +469,7 @@ export async function createComment(postId, content, authorId, authorUsername, s
         id: insertedCommentId,
         post_id: safePostId,
         author_id: safeAuthorId,
-        content: safeContent
+        content: safeContent,
       });
     }
   }
@@ -431,8 +500,14 @@ export async function deleteComment(commentId, userId, _userRole) {
   const { error: deleteError } = await supabase.from('comments').delete().eq('id', commentId);
   if (deleteError) {
     logger.error('forum-api', '删除评论失败', deleteError);
-    const denied = deleteError.code === '42501' || /permission|policy|authorized/i.test(String(deleteError.message || ''));
-    return { ok: false, success: false, error: denied ? '没有权限删除此评论' : `删除失败: ${deleteError.message}` };
+    const denied =
+      deleteError.code === '42501' ||
+      /permission|policy|authorized/i.test(String(deleteError.message || ''));
+    return {
+      ok: false,
+      success: false,
+      error: denied ? '没有权限删除此评论' : `删除失败: ${deleteError.message}`,
+    };
   }
 
   invalidateByTags(['comments', 'posts', 'notifications']);

@@ -1,6 +1,6 @@
 // 探针：设置子页液态玻璃统一验证
 // - settings 主页（含登录邮箱行）
-// - pushplus / 账户与隐私（设置右栏内嵌）/ data-export / data-management
+// - 通知设置（原 pushplus 页，路径沿用旧 slug）/ 账户与隐私（设置右栏内嵌）/ data-export / data-management
 // - 明暗双主题 + 手机横竖屏
 // 运行：node probe-settings-glass.mjs（dev 5173 需已启动）
 import { chromium } from 'playwright';
@@ -159,8 +159,8 @@ const assertSettingsCardAndSearch = async (page) => {
   await page.waitForTimeout(300);
   const hitPush = await readSearch();
   assert(
-    '搜索：跨子页命中「Pushplus 推送」',
-    hitPush.labels.includes('Pushplus 推送'),
+    '搜索：跨子页命中「通知设置」',
+    hitPush.labels.includes('通知设置'),
     hitPush.labels.join(' / '),
   );
 
@@ -258,20 +258,22 @@ for (const theme of ['light', 'dark']) {
   await context.close();
 }
 
-// ---------- 3. Pushplus 推送页（明暗 + 横屏） ----------
+// ---------- 3. 通知设置页（明暗 + 横屏） ----------
+// 2026-11-10：Pushplus 下线，这一页现在是「应用内推送 / 邮件 / 审核 / 生日」四个开关，
+// 根容器类名同步改成 .notification-settings（页面在暗色主题里的钩子是 .notification-settings-page）。
 for (const theme of ['light', 'dark']) {
   const { context, page } = await newPage({ theme });
   await loginThenGo(page, '#/user-space/pushplus-settings?from=userspace-settings');
-  await shot(page, `Pushplus-${theme}`, `pushplus-${theme}.png`);
-  const panel = await page.locator('.pushplus-settings .glass-settings').count();
-  console.log(`[pushplus-${theme}] 玻璃面板: ${panel > 0 ? 'OK' : 'MISSING'}`);
-  await hitTestBack(page, `pushplus-${theme}`);
+  await shot(page, `通知设置-${theme}`, `notification-settings-${theme}.png`);
+  const panel = await page.locator('.notification-settings .glass-settings').count();
+  console.log(`[notification-settings-${theme}] 玻璃面板: ${panel > 0 ? 'OK' : 'MISSING'}`);
+  await hitTestBack(page, `notification-settings-${theme}`);
   await context.close();
 }
 {
   const { context, page } = await newPage({ viewport: { width: 844, height: 420 } });
   await loginThenGo(page, '#/user-space/pushplus-settings?from=userspace-settings');
-  await shot(page, 'Pushplus-横屏', 'pushplus-landscape-light.png');
+  await shot(page, '通知设置-横屏', 'notification-settings-landscape-light.png');
   await context.close();
 }
 
@@ -281,7 +283,10 @@ for (const theme of ['light', 'dark']) {
   const { context, page } = await newPage({ theme });
   await loginThenGo(page, '#/user-space?tab=settings&view=account-security');
   await shot(page, `账户与隐私-更换邮箱-${theme}`, `account-security-${theme}.png`);
-  const inlineTitle = await page.locator('.gs-inline-title').innerText().catch(() => '');
+  const inlineTitle = await page
+    .locator('.gs-inline-title')
+    .innerText()
+    .catch(() => '');
   const backCount = await page.locator('.gs-inline-back').count();
   console.log(
     `[account-security-${theme}] 右栏子页标题: ${inlineTitle || 'MISSING'} / 返回条: ${backCount ? 'OK' : 'MISSING'}`,

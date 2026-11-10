@@ -25,7 +25,7 @@ export const SITE_OPERATION_MEMORY = `
 - 收货地址: /shop?tab=address（地址簿唯一维护处）
 - 礼物 / 中奖 / 购物订单: /shop?tab=order（周边「订单」分区，可按 购物/中奖/礼物 筛）
 - 订阅计划: /user-space/subscriptions；积分与资产: /user-space?tab=posts&view=assets
-- Pushplus 推送设置: /user-space/pushplus-settings
+- 通知设置（应用内推送 / 邮件 / 生日）: /user-space/pushplus-settings
 - 资讯（新闻 + 节目 + 活动同页）: /newsroom（分段：?tab=activities 是活动）；节目筛选态加 ?filter=show:all
 - 登录: /login
 
@@ -52,6 +52,6 @@ export const SITE_OPERATION_MEMORY = `
 
 5) 如何查看我的常用功能
    - /user-space “我”页：空间（动态）/ 资产（装扮、积分明细）/ 印象；订单与抽奖已并入周边
-   - 收货地址: /shop?tab=address；订单与礼物: /shop?tab=order；推送设置: /user-space/pushplus-settings
+   - 收货地址: /shop?tab=address；订单与礼物: /shop?tab=order；通知设置: /user-space/pushplus-settings
    - /profile/:username -> 查看帖子、评论、印象等个人主页内容
 `;

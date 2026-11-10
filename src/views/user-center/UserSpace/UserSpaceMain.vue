@@ -283,7 +283,6 @@
             key="settings-shell"
             :show-back="true"
             :user-email="userInfo?.email || ''"
-            :pushplus-status-text="pushplusStatusText"
             :cloud-plus-usage-text="cloudPlusUsageText"
             :data-privacy-status-text="dataPrivacyStatusText"
             :theme-display-text="themeDisplayText"
@@ -314,7 +313,9 @@
             @open-address="openShippingAddress"
             @open-photo-albums="openPhotoAlbums"
             @open-cloud="openCloudPlusArea"
-            @open-pushplus="router.push('/user-space/pushplus-settings?from=userspace-settings')"
+            @open-notification-settings="
+              router.push('/user-space/pushplus-settings?from=userspace-settings')
+            "
             @open-security="openAccountSecurityPanel"
             @open-version-settings="router.push('/user-space/settings/version')"
             @open-data="openProfileDataManagement"
@@ -604,7 +605,6 @@ import {
   getFollowing,
 } from '@/utils/api/profile-api.js';
 import FollowListModal from '@/components/FollowListModal.vue';
-import { getPushplusSettings } from '@/utils/api/pushplus-api.js';
 // 关注的人邮件通知（2026-10-29）：开关真源是 profiles.follow_mail_enabled。
 // 不走 authStore.updateUserProfile —— 那是字段白名单式的，为一个开关去改 store 不划算。
 // 窗口与实时权益走 RPC（boh_get_follow_mail_prefs / boh_set_follow_mail_window）：
@@ -673,7 +673,6 @@ let userSpaceWarmupTimeoutId = null;
 const USERSPACE_CACHE_TTL = markRaw({
   stats: 60 * 1000,
   cloudUsage: 60 * 1000,
-  pushplus: 60 * 1000,
   profilePosts: 60 * 1000,
   // 热力图跨一年 371 天，服务端要扫 posts + comments 两张表；变化频率远低于
   // 计数类数据，独立放宽到 5 分钟，避免每次进「内容」tab 都重算一次全窗口聚合。
@@ -687,7 +686,6 @@ const setUserSpaceCache = (key, value) => userSpaceMemoryCache.set(key, value);
 const dataState = reactive({
   stats: { loading: false, error: null },
   cloud: { loading: false, error: null },
-  pushplus: { loading: false, error: null },
   profile: { loading: false, error: null },
   heatmap: { loading: false, error: null },
 });
@@ -704,7 +702,6 @@ const cleanupAbortControllers = () => {
 const lastFetchTime = reactive({
   stats: 0,
   cloudUsage: 0,
-  pushplus: 0,
   profilePosts: 0,
   heatmap: 0,
 });
@@ -1008,7 +1005,6 @@ const resolveSectionFromRoute = () => {
       settingsSection.value = 'home';
     }
     if (settingsSection.value === 'home') {
-      void fetchPushplusStatus();
       void fetchCloudPlusUsage();
     }
     if (settingsSection.value === 'edit-profile') {
@@ -1638,18 +1634,6 @@ const themeDisplayText = computed(() => {
 const dataPrivacyStatusText = computed(() =>
   isProfileBasicsComplete.value ? '资料已完善' : '待补充资料',
 );
-// ✅ 性能优化：使用 shallowReactive 优化 Pushplus 和 Cloud+ 状态
-const pushplusStatus = shallowReactive({
-  loaded: false,
-  hasToken: false,
-  enabled: false,
-});
-const pushplusStatusText = computed(() => {
-  if (dataState.pushplus.loading) return '检查中';
-  if (!pushplusStatus.loaded) return '未检查';
-  if (!pushplusStatus.hasToken) return '未绑定';
-  return pushplusStatus.enabled ? '已启用' : '已暂停';
-});
 // ✅ 性能优化：使用 shallowReactive 优化 Cloud+ 使用情况数据
 const cloudPlusUsage = shallowReactive({
   loaded: false,
@@ -1776,68 +1760,6 @@ const showUnreadTopNavStatus = async (detail = {}) => {
   latestUnreadNavStatusAt = now;
 
   showTopNavStatus(buildUnreadIslandMessage(detail));
-};
-
-// ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
-const fetchPushplusStatus = async ({ force = false } = {}) => {
-  const userId = String(userInfo.value.id || '').trim();
-  if (!userId || dataState.pushplus.loading) return;
-
-  const cacheKey = `pushplus:${userId}`;
-  const now = Date.now();
-
-  // ✅ 检查 lastFetchTime，避免频繁重复请求
-  if (!force && now - lastFetchTime.pushplus < 5000) {
-    const cachedStatus = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.pushplus);
-    if (cachedStatus) {
-      pushplusStatus.loaded = true;
-      pushplusStatus.hasToken = Boolean(cachedStatus.hasToken);
-      pushplusStatus.enabled = Boolean(cachedStatus.enabled);
-      return;
-    }
-  }
-
-  if (!force) {
-    const cachedStatus = getUserSpaceCache(cacheKey, USERSPACE_CACHE_TTL.pushplus);
-    if (cachedStatus) {
-      pushplusStatus.loaded = true;
-      pushplusStatus.hasToken = Boolean(cachedStatus.hasToken);
-      pushplusStatus.enabled = Boolean(cachedStatus.enabled);
-      return;
-    }
-  }
-
-  const abortController = createKeyedAbortController(abortControllers, 'pushplus-status');
-  dataState.pushplus.loading = true;
-  try {
-    const { data, error } = await getPushplusSettings(userId, { signal: abortController.signal });
-    if (abortController.signal.aborted) return;
-    if (error) {
-      pushplusStatus.loaded = true;
-      pushplusStatus.hasToken = false;
-      pushplusStatus.enabled = false;
-      dataState.pushplus.error = error;
-      return;
-    }
-    pushplusStatus.loaded = true;
-    pushplusStatus.hasToken = Boolean(data?.token);
-    pushplusStatus.enabled = Boolean(data?.enabled);
-    setUserSpaceCache(cacheKey, {
-      hasToken: pushplusStatus.hasToken,
-      enabled: pushplusStatus.enabled,
-    });
-    lastFetchTime.pushplus = now;
-    dataState.pushplus.error = null;
-  } catch (error) {
-    if (error.name === 'AbortError') return;
-    logger.warn('user-space', '获取 Pushplus 状态失败:', error);
-    pushplusStatus.loaded = true;
-    pushplusStatus.hasToken = false;
-    pushplusStatus.enabled = false;
-    dataState.pushplus.error = error;
-  } finally {
-    dataState.pushplus.loading = false;
-  }
 };
 
 // ✅ 性能优化：使用 AbortController 和 lastFetchTime 优化请求管理
@@ -2003,7 +1925,6 @@ const setThemePreference = (preference) => {
 };
 
 const openProfileSettings = () => {
-  void fetchPushplusStatus();
   void fetchCloudPlusUsage();
   jumpWithSection('settings', 'home');
 };
@@ -2088,7 +2009,6 @@ const handleDataPrivacyNavigate = (route) => {
 const backToProfileSettings = () => {
   settingsSection.value = 'home';
   setSectionRoute('settings', 'home');
-  void fetchPushplusStatus();
   void fetchCloudPlusUsage();
 };
 
@@ -3532,7 +3452,6 @@ watch(
           scheduleUserSpaceWarmup({ force: true });
         }
         if (currentTab.value === 'settings' && settingsSection.value === 'home') {
-          void fetchPushplusStatus({ force: true });
           void fetchCloudPlusUsage({ force: true });
         }
       } else {
@@ -3544,9 +3463,6 @@ watch(
         activityHeatmap.value = null;
         dataState.heatmap.error = null;
         resetUserStats();
-        pushplusStatus.loaded = false;
-        pushplusStatus.hasToken = false;
-        pushplusStatus.enabled = false;
         cloudPlusUsage.loaded = false;
         cloudPlusUsage.used = 0;
         cloudPlusUsage.limit = DEFAULT_CLOUD_IMAGE_LIMIT;
@@ -3657,7 +3573,6 @@ onMounted(() => {
       scheduleUserSpaceWarmup();
     }
     if (currentTab.value === 'settings' && settingsSection.value === 'home') {
-      void fetchPushplusStatus();
       void fetchCloudPlusUsage();
     }
   }

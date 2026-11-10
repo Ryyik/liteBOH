@@ -12,7 +12,6 @@ import {
   USER_PRIVATE_POST_KEYWORDS,
   USER_PRIVATE_GIFT_KEYWORDS,
   USER_PRIVATE_BIRTHDAY_KEYWORDS,
-  USER_PRIVATE_PUSHPLUS_KEYWORDS,
   USER_PRIVATE_SUBSCRIPTION_KEYWORDS,
   USER_PRIVATE_CONTEXT_MAX_ITEMS,
   USER_PRIVATE_CONTEXT_MAX_ITEM_CHARS,
@@ -31,7 +30,6 @@ export const resolveUserPrivateRetrievalPlan = (queryText = '') => {
       posts: false,
       gifts: false,
       birthday: false,
-      pushplus: false,
       subscriptions: false,
     };
   }
@@ -53,15 +51,11 @@ export const resolveUserPrivateRetrievalPlan = (queryText = '') => {
   const birthday =
     containsAnyKeyword(normalized, USER_PRIVATE_BIRTHDAY_KEYWORDS) ||
     (hasPersonalPronoun && /生日/.test(normalized));
-  const pushplus =
-    containsAnyKeyword(normalized, USER_PRIVATE_PUSHPLUS_KEYWORDS) ||
-    (hasPersonalPronoun && /推送/.test(normalized));
   const subscriptions =
     containsAnyKeyword(normalized, USER_PRIVATE_SUBSCRIPTION_KEYWORDS) ||
     (hasPersonalPronoun && /(订阅|会员|积分|套餐)/.test(normalized));
 
-  const shouldUseByIntent =
-    asksSummary || asksAll || posts || gifts || birthday || pushplus || subscriptions;
+  const shouldUseByIntent = asksSummary || asksAll || posts || gifts || birthday || subscriptions;
   if (!shouldUseByIntent) {
     return {
       shouldUse: false,
@@ -69,7 +63,6 @@ export const resolveUserPrivateRetrievalPlan = (queryText = '') => {
       posts: false,
       gifts: false,
       birthday: false,
-      pushplus: false,
       subscriptions: false,
     };
   }
@@ -81,7 +74,6 @@ export const resolveUserPrivateRetrievalPlan = (queryText = '') => {
     !asksAll &&
     !gifts &&
     !birthday &&
-    !pushplus &&
     !subscriptions &&
     !containsAnyKeyword(normalized, ['我的帖子', '我发的帖子', '我的发帖'])
   ) {
@@ -91,18 +83,16 @@ export const resolveUserPrivateRetrievalPlan = (queryText = '') => {
       posts: false,
       gifts: false,
       birthday: false,
-      pushplus: false,
       subscriptions: false,
     };
   }
 
   return {
     shouldUse: true,
-    overview: asksSummary || asksAll || posts || gifts || birthday || pushplus || subscriptions,
+    overview: asksSummary || asksAll || posts || gifts || birthday || subscriptions,
     posts: asksAll || posts,
     gifts: asksAll || gifts,
     birthday: asksAll || birthday,
-    pushplus: asksAll || pushplus,
     subscriptions: asksAll || subscriptions,
   };
 };
@@ -259,16 +249,6 @@ export const getUserBirthdayPrivateContext = (snapshot) => {
   return {
     context: `【当前用户生日会信息】\n生日: ${countdown.month} 月 ${countdown.day} 日\n下一个生日: ${countdown.nextDate}（${daysHint}）`,
     label: countdown.daysUntil === 0 ? '生日会(今天)' : '生日会',
-  };
-};
-
-export const getUserPushplusPrivateContext = (snapshot) => {
-  const profile = snapshot?.profile || {};
-  const enabled = Boolean(profile?.pushplus_enabled);
-  return {
-    context: `【当前用户 Pushplus 状态】\nPushplus 离线推送: ${enabled ? '已开启' : '未开启'}`,
-    enabled,
-    label: enabled ? 'Pushplus(已开启)' : 'Pushplus(未开启)',
   };
 };
 

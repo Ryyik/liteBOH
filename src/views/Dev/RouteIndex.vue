@@ -133,7 +133,7 @@ const EXTRA_LABELS = {
   '/user-space/account-security': '账号安全（已并入设置·账户与隐私）',
   '/user-space/note': '云笔记 Cloud+',
   '/user-space/shared-memories': '共享记忆',
-  '/user-space/pushplus-settings': '推送设置',
+  '/user-space/pushplus-settings': '通知设置',
   '/user-space/settings/version': 'Beta 预览',
   '/user-space/gifts': '礼物中心（已并入周边购物袋）',
   '/shop/account': '商城账户',

@@ -156,17 +156,6 @@ export const dataConfig = {
         placeholder: '1-31',
         group: 'extra',
       },
-      // 推送通知
-      {
-        key: 'pushplus_enabled',
-        label: 'PushPlus推送',
-        type: 'select',
-        options: [
-          { value: true, label: '已启用' },
-          { value: false, label: '未启用' },
-        ],
-        group: 'extra',
-      },
       // 个人主页背景
       {
         key: 'profile_background_url',

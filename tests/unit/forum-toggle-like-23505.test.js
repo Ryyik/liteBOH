@@ -14,7 +14,6 @@ const fm = vi.hoisted(() => ({
   fromMock: vi.fn(),
   rpcMock: vi.fn(),
   invalidate: vi.fn(),
-  notifyLike: vi.fn(),
   loggerError: vi.fn(),
 }));
 
@@ -38,8 +37,6 @@ vi.mock('../../src/utils/forum-format.js', () => ({
 vi.mock('../../src/utils/api/forum/_shared.js', () => ({
   // 恒判「RPC 函数缺失」⇒ 强制走降级通道（这是本文件唯一关心的路径）
   isMissingRpcFunctionError: () => true,
-  notifyPostAuthorForLike: fm.notifyLike,
-  notifyPostAuthorForRepost: vi.fn(),
 }));
 
 import { toggleLike } from '../../src/utils/api/forum/forum-interaction-api.js';
@@ -76,11 +73,17 @@ function mockLikesTable({ existingLike = null, checkError = null, insertError = 
 describe('toggleLike 降级通道：23505 归一（P3-9）', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fm.rpcMock.mockResolvedValue({ data: null, error: { message: 'function not found', code: '42883' } });
+    fm.rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: 'function not found', code: '42883' },
+    });
   });
 
   it('insert 撞唯一约束时返回成功而不是失败', async () => {
-    mockLikesTable({ existingLike: null, insertError: { code: '23505', message: 'duplicate key' } });
+    mockLikesTable({
+      existingLike: null,
+      insertError: { code: '23505', message: 'duplicate key' },
+    });
 
     const result = await toggleLike('post-1', 'user-1');
 
@@ -90,16 +93,11 @@ describe('toggleLike 降级通道：23505 归一（P3-9）', () => {
     expect(result.error).toBeNull();
   });
 
-  it('23505 不重复发作者推送（真正插入的那次已发过）', async () => {
-    mockLikesTable({ existingLike: null, insertError: { code: '23505', message: 'duplicate key' } });
-
-    await toggleLike('post-1', 'user-1');
-
-    expect(fm.notifyLike).not.toHaveBeenCalled();
-  });
-
   it('23505 不重复 invalidate（真正插入的那次已 invalidate 过）', async () => {
-    mockLikesTable({ existingLike: null, insertError: { code: '23505', message: 'duplicate key' } });
+    mockLikesTable({
+      existingLike: null,
+      insertError: { code: '23505', message: 'duplicate key' },
+    });
 
     await toggleLike('post-1', 'user-1');
 
@@ -107,7 +105,10 @@ describe('toggleLike 降级通道：23505 归一（P3-9）', () => {
   });
 
   it('23505 时 likeCount 为 null（无准确计数，调用方须沿用乐观值）', async () => {
-    mockLikesTable({ existingLike: null, insertError: { code: '23505', message: 'duplicate key' } });
+    mockLikesTable({
+      existingLike: null,
+      insertError: { code: '23505', message: 'duplicate key' },
+    });
 
     const result = await toggleLike('post-1', 'user-1');
 
@@ -129,7 +130,7 @@ describe('toggleLike 降级通道：23505 归一（P3-9）', () => {
     expect(result.error).toContain('row-level security');
   });
 
-  it('插入成功时照常 invalidate 并推送', async () => {
+  it('插入成功时照常 invalidate', async () => {
     mockLikesTable({ existingLike: null, insertError: null });
 
     const result = await toggleLike('post-1', 'user-1');
@@ -137,7 +138,6 @@ describe('toggleLike 降级通道：23505 归一（P3-9）', () => {
     expect(result.ok).toBe(true);
     expect(result.action).toBe('liked');
     expect(fm.invalidate).toHaveBeenCalledWith(['likes', 'posts', 'notifications']);
-    expect(fm.notifyLike).toHaveBeenCalledWith({ postId: 'post-1', senderId: 'user-1' });
   });
 
   it('已点赞时走 delete 分支，返回 unliked', async () => {

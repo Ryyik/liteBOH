@@ -14,10 +14,6 @@ vi.mock('../../src/utils/supabase-client.js', () => ({
   },
 }));
 
-vi.mock('../../src/utils/pushplus.js', () => ({
-  sendNotificationPush: vi.fn(() => Promise.resolve({ success: true })),
-}));
-
 import { clearRequestCache } from '../../src/utils/request-core.js';
 import {
   getHomeLottery,
@@ -25,10 +21,7 @@ import {
   getCommunityLotteries,
   joinCommunityLottery,
 } from '../../src/utils/api/lottery-api.js';
-import {
-  getMySubscriptions,
-  subscribeWithPoints,
-} from '../../src/utils/api/subscription-api.js';
+import { getMySubscriptions, subscribeWithPoints } from '../../src/utils/api/subscription-api.js';
 import {
   getUserNotifications,
   getUnreadNotificationCount,
@@ -40,8 +33,14 @@ import {
 function makeQuery(result, calls = []) {
   const q = {
     select: vi.fn(() => q),
-    eq: vi.fn((col, val) => { calls.push({ method: 'eq', col, val }); return q; }),
-    is: vi.fn((col, val) => { calls.push({ method: 'is', col, val }); return q; }),
+    eq: vi.fn((col, val) => {
+      calls.push({ method: 'eq', col, val });
+      return q;
+    }),
+    is: vi.fn((col, val) => {
+      calls.push({ method: 'is', col, val });
+      return q;
+    }),
     order: vi.fn(() => q),
     limit: vi.fn(() => q),
     lt: vi.fn(() => q),
@@ -52,7 +51,10 @@ function makeQuery(result, calls = []) {
     insert: vi.fn(() => q),
     update: vi.fn(() => q),
     delete: vi.fn(() => q),
-    then: (resolve) => { Promise.resolve(result).then(resolve); return q; },
+    then: (resolve) => {
+      Promise.resolve(result).then(resolve);
+      return q;
+    },
   };
   return q;
 }
@@ -92,15 +94,17 @@ describe('lottery-api integration: getHomeLottery', () => {
       error: { message: 'RPC error', code: 'PGRST202' },
     });
 
-    lm.fromMock.mockReturnValue(makeQuery({
-      data: {
-        id: 'lottery-2',
-        title: 'Fallback Draw',
-        status: 'open',
-        is_home_visible: true,
-      },
-      error: null,
-    }));
+    lm.fromMock.mockReturnValue(
+      makeQuery({
+        data: {
+          id: 'lottery-2',
+          title: 'Fallback Draw',
+          status: 'open',
+          is_home_visible: true,
+        },
+        error: null,
+      }),
+    );
 
     const result = await getHomeLottery();
     expect(result.error).toBeNull();
@@ -142,8 +146,22 @@ describe('lottery-api integration: getCommunityLotteries', () => {
   it('returns community lotteries from RPC', async () => {
     lm.rpcMock.mockResolvedValue({
       data: [
-        { id: 'l1', title: 'Draw 1', status: 'open', is_community_visible: true, winner_count: 1, entry_count: 3 },
-        { id: 'l2', title: 'Draw 2', status: 'drawn', is_community_visible: true, winner_count: 1, entry_count: 10 },
+        {
+          id: 'l1',
+          title: 'Draw 1',
+          status: 'open',
+          is_community_visible: true,
+          winner_count: 1,
+          entry_count: 3,
+        },
+        {
+          id: 'l2',
+          title: 'Draw 2',
+          status: 'drawn',
+          is_community_visible: true,
+          winner_count: 1,
+          entry_count: 10,
+        },
       ],
       error: null,
     });
@@ -157,7 +175,14 @@ describe('lottery-api integration: getCommunityLotteries', () => {
     lm.rpcMock.mockResolvedValue({
       data: [
         null,
-        { id: 'l1', title: 'Valid', status: 'open', is_community_visible: true, winner_count: 1, entry_count: 0 },
+        {
+          id: 'l1',
+          title: 'Valid',
+          status: 'open',
+          is_community_visible: true,
+          winner_count: 1,
+          entry_count: 0,
+        },
       ],
       error: null,
     });
@@ -187,7 +212,9 @@ describe('lottery-api integration: joinCommunityLottery', () => {
 
     const result = await joinCommunityLottery('lottery-1');
     expect(result.error).toBeNull();
-    expect(lm.rpcMock).toHaveBeenCalledWith('join_community_lottery', { p_lottery_id: 'lottery-1' });
+    expect(lm.rpcMock).toHaveBeenCalledWith('join_community_lottery', {
+      p_lottery_id: 'lottery-1',
+    });
   });
 });
 
@@ -205,23 +232,25 @@ describe('subscription-api integration: getMySubscriptions', () => {
   });
 
   it('returns active subscriptions', async () => {
-    lm.fromMock.mockReturnValue(makeQuery({
-      data: [
-        {
-          id: 'sub-1',
-          user_id: 'u1',
-          plan_code: 'premium',
-          plan_name: 'Premium',
-          billing_cycle: 'monthly',
-          points_cost: 100,
-          duration_months: 1,
-          started_at: '2026-01-01',
-          expires_at: '2026-07-01',
-          status: 'active',
-        },
-      ],
-      error: null,
-    }));
+    lm.fromMock.mockReturnValue(
+      makeQuery({
+        data: [
+          {
+            id: 'sub-1',
+            user_id: 'u1',
+            plan_code: 'premium',
+            plan_name: 'Premium',
+            billing_cycle: 'monthly',
+            points_cost: 100,
+            duration_months: 1,
+            started_at: '2026-01-01',
+            expires_at: '2026-07-01',
+            status: 'active',
+          },
+        ],
+        error: null,
+      }),
+    );
 
     const result = await getMySubscriptions('u1');
     expect(result.ok).toBe(true);
@@ -272,10 +301,13 @@ describe('subscription-api integration: subscribeWithPoints', () => {
     expect(result.ok).toBe(true);
     expect(result.data.subscriptionId).toBe('sub-new');
     expect(result.data.pointsDeducted).toBe(100);
-    expect(lm.rpcMock).toHaveBeenCalledWith('subscribe_with_points', expect.objectContaining({
-      p_plan_code: 'premium',
-      p_points_cost: 100,
-    }));
+    expect(lm.rpcMock).toHaveBeenCalledWith(
+      'subscribe_with_points',
+      expect.objectContaining({
+        p_plan_code: 'premium',
+        p_points_cost: 100,
+      }),
+    );
   });
 
   it('handles insufficient points', async () => {
@@ -312,13 +344,15 @@ describe('notifications-api integration', () => {
   });
 
   it('getUserNotifications returns paginated list', async () => {
-    lm.fromMock.mockReturnValue(makeQuery({
-      data: [
-        { id: 'n1', type: 'like', status: 'unread', created_at: '2026-06-15T10:00:00Z' },
-        { id: 'n2', type: 'comment', status: 'read', created_at: '2026-06-14T10:00:00Z' },
-      ],
-      error: null,
-    }));
+    lm.fromMock.mockReturnValue(
+      makeQuery({
+        data: [
+          { id: 'n1', type: 'like', status: 'unread', created_at: '2026-06-15T10:00:00Z' },
+          { id: 'n2', type: 'comment', status: 'read', created_at: '2026-06-14T10:00:00Z' },
+        ],
+        error: null,
+      }),
+    );
 
     const result = await getUserNotifications('u1', { limit: 20 });
     expect(result.ok).toBe(true);
@@ -334,7 +368,9 @@ describe('notifications-api integration', () => {
     const result = await getUnreadNotificationCount('u1');
     expect(result.ok).toBe(true);
     expect(result.count).toBe(2);
-    expect(lm.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', { p_recipient_id: 'u1' });
+    expect(lm.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', {
+      p_recipient_id: 'u1',
+    });
   });
 
   it('markNotificationAsRead via RPC', async () => {
@@ -354,10 +390,12 @@ describe('notifications-api integration', () => {
   });
 
   it('createNotification inserts and triggers push', async () => {
-    lm.fromMock.mockReturnValue(makeQuery({
-      data: [{ id: 'n-new', type: 'like', status: 'unread' }],
-      error: null,
-    }));
+    lm.fromMock.mockReturnValue(
+      makeQuery({
+        data: [{ id: 'n-new', type: 'like', status: 'unread' }],
+        error: null,
+      }),
+    );
 
     const result = await createNotification('u1', 'u2', 'like', { post_id: 'p1' });
     expect(result.ok).toBe(true);

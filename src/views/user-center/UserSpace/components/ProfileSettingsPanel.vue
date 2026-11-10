@@ -508,12 +508,9 @@
               </div>
             </section>
 
-            <!-- 通知（2026-10-29 新增）
-                 原状：通知相关全藏在「Pushplus 推送」这个子页里，主页只有一行叫
-                 「Pushplus 推送」的入口 —— 用户想开「关注的人邮件通知」，
-                 看名字根本不会想到点它。这是「找不到」的真实原因，不是布局问题。
-                 现在：最高频的邮件开关直接摆到主页（点整行或点开关都行），
-                 其余渠道（应用内 / 微信）留在子页，入口改名「通知设置」。 -->
+            <!-- 通知（2026-10-29 新增；2026-11-10 去 Pushplus）
+                 最高频的邮件开关直接摆到主页（点整行或点开关都行），
+                 其余渠道（应用内推送 / 审核 / 生日）留在子页，入口名「通知设置」。 -->
             <section v-show="isGroupVisible('notify')" class="gs-group">
               <div class="gs-group-title">通知</div>
               <div class="gs-rows">
@@ -641,16 +638,16 @@
                   </p>
                 </template>
 
-                <button type="button" class="gs-row" @click="$emit('open-pushplus')">
+                <button type="button" class="gs-row" @click="$emit('open-notification-settings')">
                   <span class="gs-icon is-blue">
                     <Bell :size="16" :stroke-width="2" aria-hidden="true" />
                   </span>
                   <span class="gs-text">
                     <span class="gs-label">通知设置</span>
-                    <span class="gs-desc">应用内通知、微信推送，以及各渠道详细配置</span>
+                    <span class="gs-desc">应用内推送、邮件通知与生日邮件，按渠道开关</span>
                   </span>
                   <span class="gs-side">
-                    <span class="gs-value">{{ pushplusStatusText }}</span>
+                    <span class="gs-value">应用内 · 邮件</span>
                     <ChevronRight
                       class="gs-chevron"
                       :size="16"
@@ -743,7 +740,7 @@
 
             <!-- 通用（2026-10-26 三改；2026-10-29 推送迁出）
                原「外观与浏览」（2 行）+「通知」（1 行）各自占一个目录项，左栏 7 项里三项是短组。
-               2026-10-29 起「Pushplus 推送」升级成独立的「通知」分类（入口改名「通知设置」），
+               2026-10-29 起通知独立成「通知」分类（入口「通知设置」），
                本组只剩「App 长什么样 + 多新」：主题 / 开场画 / 版本。 -->
             <section v-show="isGroupVisible('general')" class="gs-group">
               <div class="gs-group-title">通用</div>
@@ -919,10 +916,6 @@ const props = defineProps({
     type: String,
     default: '',
   },
-  pushplusStatusText: {
-    type: String,
-    default: '',
-  },
   cloudPlusUsageText: {
     type: String,
     default: '',
@@ -1053,7 +1046,7 @@ const emit = defineEmits([
   'close-edit',
   /** 右栏子页收起（同一批触发点，回到分组列表） */
   'close-panel',
-  'open-pushplus',
+  'open-notification-settings',
   /** 2026-10-26：带面板 id（email / password / passkey / delete），宿主拼成 ?panel= 直落表单 */
   'open-security',
   'open-version-settings',
@@ -1110,7 +1103,7 @@ onMounted(async () => {
 const SETTINGS_SECTIONS = [
   { id: 'account', label: '账户', icon: Mail },
   /* 2026-10-29 新增：通知从「通用」里独立出来。
-     原先通知相关只有一行叫「Pushplus 推送」，用户找「邮件通知」不会想到点它 ——
+     原先通知相关只有一行叫「推送」，用户找「邮件通知」不会想到点它 ——
      分类目录里给出「通知」这一席，是让用户「按目的找」而不是「按名字猜」。 */
   { id: 'notify', label: '通知', icon: Bell },
   { id: 'privacy', label: '账户与隐私', icon: Shield },
@@ -1141,7 +1134,7 @@ const menuSections = computed(() => SETTINGS_SECTIONS.filter((item) => item.id !
 /** 分类副标题：让用户在列表页就知道这组里有什么，不用点进去试 */
 const SECTION_DESC = {
   account: '头像、昵称、登录邮箱',
-  notify: '邮件通知、微信推送',
+  notify: '应用内推送、邮件通知',
   privacy: '密码、通行密钥、隐私与数据',
   content: '资产、摄影集、Cloud 空间',
   general: '主题、开场画、版本',
@@ -1438,18 +1431,17 @@ const SETTINGS_ENTRIES = [
     run: () => emit('open-security', 'passkey'),
   },
   {
-    /* 2026-10-29：原 id='pushplus' / label='Pushplus 推送' → 改成分组「通知」下的「通知设置」。
-       keywords 里刻意塞满同义词：用户搜「通知」「推送」「提醒」「微信」「邮件」都该命中，
-       而不是只有记住「Pushplus」这个名字的人找得到。 */
+    /* 2026-10-29：原 id='pushplus' / label='推送' → 改成分组「通知」下的「通知设置」。
+       keywords 里刻意塞满同义词：用户搜「通知」「推送」「提醒」「邮件」「生日」都该命中。 */
     id: 'notify-settings',
     group: '通知',
     label: '通知设置',
-    desc: '应用内通知、微信推送，以及各渠道详细配置',
-    keywords: '通知 推送 提醒 消息 微信 pushplus 应用内 浏览器 离线 邮件 设置 notify push',
+    desc: '应用内推送、邮件通知与生日邮件，按渠道开关',
+    keywords: '通知 推送 提醒 消息 应用内 浏览器 邮件 生日 设置 notify push mail',
     icon: Bell,
     iconClass: 'is-blue',
-    value: () => props.pushplusStatusText,
-    run: () => emit('open-pushplus'),
+    value: () => '应用内 · 邮件',
+    run: () => emit('open-notification-settings'),
   },
   {
     id: 'follow-mail',

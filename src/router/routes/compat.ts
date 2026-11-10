@@ -70,6 +70,7 @@ const userCenterTarget = (to: any) => {
   }
   if (head === 'partners') return toForumMembers(to);
   if (head === 'pushplus' || head === 'pushplus-settings') {
+    // 2026-11-10：Pushplus 已下线，这条旧链落到「通知设置」页（路径沿用旧 slug，见 user-space.ts）
     return toPage('/user-space/pushplus-settings')(to);
   }
   if (head === 'shared-memories') return toPage('/user-space/shared-memories')(to);

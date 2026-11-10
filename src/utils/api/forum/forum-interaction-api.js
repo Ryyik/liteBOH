@@ -1,14 +1,8 @@
 import { supabase } from '../../supabase-client.js';
 import { normalizeDbError, invalidateByTags } from '../../request-core.js';
 import { logger } from '../../logger.js';
-import {
-  normalizeForumReportError
-} from '../forum-format.js';
-import {
-  isMissingRpcFunctionError,
-  notifyPostAuthorForLike,
-  notifyPostAuthorForRepost
-} from './_shared.js';
+import { normalizeForumReportError } from '../forum-format.js';
+import { isMissingRpcFunctionError } from './_shared.js';
 
 /**
  * 切换帖子点赞状态。
@@ -30,7 +24,7 @@ import {
 export async function toggleLike(postId, userId) {
   try {
     const { data: rpcData, error: rpcError } = await supabase.rpc('toggle_forum_like', {
-      p_post_id: postId
+      p_post_id: postId,
     });
 
     if (!rpcError) {
@@ -38,17 +32,14 @@ export async function toggleLike(postId, userId) {
       const action = String(resultRow?.action || '').trim();
       if (action) {
         invalidateByTags(['likes', 'posts', 'notifications']);
-        if (action === 'liked') {
-          void notifyPostAuthorForLike({ postId, senderId: userId });
-        }
         return {
           ok: true,
           action,
           data: {
             likeCount: Number(resultRow?.like_count || 0),
-            isLiked: Boolean(resultRow?.is_liked)
+            isLiked: Boolean(resultRow?.is_liked),
           },
-          error: null
+          error: null,
         };
       }
     } else if (!isMissingRpcFunctionError(rpcError, 'toggle_forum_like')) {
@@ -79,7 +70,7 @@ export async function toggleLike(postId, userId) {
         ok: !deleteError,
         action: 'unliked',
         data: { likeCount: null, isLiked: false },
-        error: normalizeDbError(deleteError)
+        error: normalizeDbError(deleteError),
       };
     }
 
@@ -99,19 +90,18 @@ export async function toggleLike(postId, userId) {
         ok: true,
         action: 'liked',
         data: { likeCount: null, isLiked: true },
-        error: null
+        error: null,
       };
     }
 
     if (!insertError) {
       invalidateByTags(['likes', 'posts', 'notifications']);
-      void notifyPostAuthorForLike({ postId, senderId: userId });
     }
     return {
       ok: !insertError,
       action: insertError ? null : 'liked',
       data: { likeCount: null, isLiked: !insertError },
-      error: normalizeDbError(insertError)
+      error: normalizeDbError(insertError),
     };
   } catch (error) {
     logger.error('forum-api', 'toggleLike 异常', error);
@@ -135,7 +125,7 @@ export async function checkIfLiked(postId, userId) {
     logger.warn('forum-api', '查询点赞状态失败，按未点赞处理', {
       postId: safePostId,
       userId: safeUserId,
-      error
+      error,
     });
     return false;
   }
@@ -153,7 +143,7 @@ export async function toggleCommentLike(commentId, userId) {
 
   try {
     const { data: rpcData, error: rpcError } = await supabase.rpc('toggle_forum_comment_like', {
-      p_comment_id: safeCommentId
+      p_comment_id: safeCommentId,
     });
 
     if (!rpcError) {
@@ -166,14 +156,18 @@ export async function toggleCommentLike(commentId, userId) {
           action,
           data: {
             likeCount: Number(resultRow?.like_count || 0),
-            isLiked: Boolean(resultRow?.is_liked)
+            isLiked: Boolean(resultRow?.is_liked),
           },
-          error: null
+          error: null,
         };
       }
     } else if (!isMissingRpcFunctionError(rpcError, 'toggle_forum_comment_like')) {
       if (String(rpcError?.message || '').includes('NOT_AUTHENTICATED')) {
-        return { ok: false, action: null, error: { message: '请先登录', code: 'NOT_AUTHENTICATED' } };
+        return {
+          ok: false,
+          action: null,
+          error: { message: '请先登录', code: 'NOT_AUTHENTICATED' },
+        };
       }
       logger.error('forum-api', 'toggle_forum_comment_like RPC 失败', rpcError);
       return { ok: false, action: null, error: normalizeDbError(rpcError) };
@@ -198,7 +192,12 @@ export async function toggleCommentLike(commentId, userId) {
         .delete()
         .eq('id', existingLike.id);
       if (!deleteError) invalidateByTags(['comment_likes', 'comments']);
-      return { ok: !deleteError, action: 'unliked', data: { likeCount: null, isLiked: false }, error: normalizeDbError(deleteError) };
+      return {
+        ok: !deleteError,
+        action: 'unliked',
+        data: { likeCount: null, isLiked: false },
+        error: normalizeDbError(deleteError),
+      };
     }
 
     const { error: insertError } = await supabase
@@ -210,7 +209,7 @@ export async function toggleCommentLike(commentId, userId) {
       ok: !insertError,
       action: insertError ? null : 'liked',
       data: { likeCount: null, isLiked: !insertError },
-      error: normalizeDbError(insertError)
+      error: normalizeDbError(insertError),
     };
   } catch (error) {
     logger.error('forum-api', 'toggleCommentLike 异常', error);
@@ -239,23 +238,27 @@ export async function getLikedCommentIds(commentIds, userId) {
   return new Set((data || []).map((row) => String(row.comment_id)));
 }
 
-export async function createQuoteRepost(postId, commentary, { senderId } = {}) {
+/* 第三个参数（{ senderId }）随 Pushplus 一起下线（2026-11-10）：它只喂微信推送，
+   通知行由 create_forum_quote_repost RPC 自己落库。调用方多传一个参数无害。 */
+export async function createQuoteRepost(postId, commentary) {
   const safePostId = String(postId || '').trim();
   const safeCommentary = String(commentary || '').trim();
   if (!safePostId || !safeCommentary) {
-    return { ok: false, data: null, error: normalizeDbError({ code: 'INVALID_REPOST', message: '转发留言不能为空' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ code: 'INVALID_REPOST', message: '转发留言不能为空' }),
+    };
   }
   const { data, error } = await supabase.rpc('create_forum_quote_repost', {
     p_post_id: safePostId,
-    p_commentary: safeCommentary
+    p_commentary: safeCommentary,
   });
   if (error) {
     logger.error('forum-api', '引用转发失败', error);
     return { ok: false, data: null, error: normalizeDbError(error) };
   }
   invalidateByTags(['posts', 'notifications']);
-  // 通知行由 create_forum_quote_repost RPC 落库（migration 2026091101），这里补 Pushplus 推送
-  void notifyPostAuthorForRepost({ postId: safePostId, senderId });
   return { ok: true, data, error: null };
 }
 
@@ -267,14 +270,20 @@ export async function createQuoteRepost(postId, commentary, { senderId } = {}) {
  * @returns {{ ok: boolean, data: { postId: string, created: boolean } | null, error: object|null }}
  */
 export async function publishOfficialForumCard(sourceType, sourceId) {
-  const safeType = String(sourceType || '').trim().toLowerCase();
+  const safeType = String(sourceType || '')
+    .trim()
+    .toLowerCase();
   const safeSourceId = String(sourceId ?? '').trim();
   if (!safeType || !safeSourceId) {
-    return { ok: false, data: null, error: normalizeDbError({ code: 'INVALID_SOURCE', message: '来源类型或 ID 无效' }) };
+    return {
+      ok: false,
+      data: null,
+      error: normalizeDbError({ code: 'INVALID_SOURCE', message: '来源类型或 ID 无效' }),
+    };
   }
   const { data, error } = await supabase.rpc('publish_official_forum_card', {
     p_source_type: safeType,
-    p_source_id: safeSourceId
+    p_source_id: safeSourceId,
   });
   if (error) {
     logger.error('forum-api', '官方内容投稿失败', error);
@@ -286,9 +295,9 @@ export async function publishOfficialForumCard(sourceType, sourceId) {
     ok: true,
     data: {
       postId: String(row?.post_id || ''),
-      created: Boolean(row?.created)
+      created: Boolean(row?.created),
     },
-    error: null
+    error: null,
   };
 }
 
@@ -299,7 +308,9 @@ export async function publishOfficialForumCard(sourceType, sourceId) {
  * @returns {{ id: string|null, error: object|null }}
  */
 export async function findQuoteRepostSourceId(sourceType, sourceId) {
-  const safeType = String(sourceType || '').trim().toLowerCase();
+  const safeType = String(sourceType || '')
+    .trim()
+    .toLowerCase();
   const safeSourceId = String(sourceId ?? '').trim();
   if (!safeType || !safeSourceId) {
     return { id: null, error: null };
@@ -327,14 +338,14 @@ export async function reportPost(postId, reason = 'other', detail = '') {
     return {
       ok: false,
       data: null,
-      error: normalizeDbError({ code: 'INVALID_POST_ID', message: '帖子不存在或已被删除' })
+      error: normalizeDbError({ code: 'INVALID_POST_ID', message: '帖子不存在或已被删除' }),
     };
   }
 
   const { data, error } = await supabase.rpc('submit_forum_post_report', {
     p_post_id: safePostId,
     p_reason: safeReason,
-    p_detail: safeDetail
+    p_detail: safeDetail,
   });
 
   if (error) {
@@ -344,8 +355,8 @@ export async function reportPost(postId, reason = 'other', detail = '') {
         data: null,
         error: normalizeDbError({
           code: 'FORUM_REPORT_MIGRATION_REQUIRED',
-          message: '举报功能的数据库迁移尚未部署，请先执行最新 Supabase migration'
-        })
+          message: '举报功能的数据库迁移尚未部署，请先执行最新 Supabase migration',
+        }),
       };
     }
     return { ok: false, data: null, error: normalizeForumReportError(error) };
@@ -357,8 +368,8 @@ export async function reportPost(postId, reason = 'other', detail = '') {
       data,
       error: normalizeForumReportError({
         code: data?.code || 'REPORT_FAILED',
-        message: data?.message || '举报提交失败'
-      })
+        message: data?.message || '举报提交失败',
+      }),
     };
   }
 
@@ -370,8 +381,8 @@ export async function reportPost(postId, reason = 'other', detail = '') {
       reportCount: Number(data?.reportCount ?? data?.report_count ?? 0),
       threshold: Number(data?.threshold || 0),
       limited: Boolean(data?.limited),
-      message: String(data?.message || '举报已提交，感谢反馈')
+      message: String(data?.message || '举报已提交，感谢反馈'),
     },
-    error: null
+    error: null,
   };
 }

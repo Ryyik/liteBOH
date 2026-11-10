@@ -29,7 +29,7 @@ const PAGES = [
   ['us-messages', '/#/user-space?tab=messages'],
   ['us-settings', '/#/user-space?tab=settings'],
   ['account-security', '/#/user-space/account-security'],
-  ['pushplus', '/#/user-space/pushplus-settings'],
+  ['notification-settings', '/#/user-space/pushplus-settings'],
   ['shared-memory', '/#/user-space/shared-memories'],
   ['tags-impressions', '/#/user-space/tags-impressions'],
   ['ai-chat', '/#/ai-chat'],
@@ -41,15 +41,24 @@ const browser = await chromium.launch({
   channel: 'chrome',
   args: ['--no-proxy-server', '--proxy-server=direct://', '--proxy-bypass-list=*'],
 });
-const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
-await ctx.addInitScript(() => { try { localStorage.setItem('boh-theme', 'dark'); } catch {} });
+const ctx = await browser.newContext({
+  viewport: { width: 1280, height: 900 },
+  deviceScaleFactor: 1,
+});
+await ctx.addInitScript(() => {
+  try {
+    localStorage.setItem('boh-theme', 'dark');
+  } catch {}
+});
 
 const page = await ctx.newPage();
 
 const injectSession = async () => {
   // 必须等 vue app 挂载后再注入（固定 sleep 会在 store 未初始化时静默失败，
   // 受保护路由随之被重定向到首页——表现为多张截图内容相同）
-  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('#app')?.__vue_app__, null, {
+    timeout: 30000,
+  });
   await page.evaluate(() => {
     try {
       const pinia = document.querySelector('#app').__vue_app__.config.globalProperties.$pinia;

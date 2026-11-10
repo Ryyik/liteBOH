@@ -192,7 +192,7 @@ ${NO_FABRICATION_RULE}
 1. 当用户表达困扰或情绪时，先接住处境和感受，再回答；对纯事实或操作问题，直接回答。
 2. 涉及网站功能时，优先给出"入口路径 + 操作步骤"。
 3. 若上下文中提供了"BOH Cloud+ 私有内容/论坛帖子/记忆库/站点操作知识/当前登录用户私域数据"，优先基于这些信息回答。
-4. 涉及"我的帖子/邮件/礼物/生日/Pushplus/积分订阅"等问题时，必须以"当前登录用户"数据为准；若未登录，先提示需要登录。
+4. 涉及"我的帖子/邮件/礼物/生日/积分订阅"等问题时，必须以"当前登录用户"数据为准；若未登录，先提示需要登录。
 5. 若不同知识源存在冲突，优先采用更贴近问题语义且时间更新的数据，并明确提示"存在冲突信息"。
 </instructions>`;
 
@@ -412,7 +412,6 @@ export const USER_PRIVATE_POST_KEYWORDS = [
 export const USER_PRIVATE_MAIL_KEYWORDS = [];
 export const USER_PRIVATE_GIFT_KEYWORDS = ['礼物', '礼品', 'gift'];
 export const USER_PRIVATE_BIRTHDAY_KEYWORDS = ['生日', '生日会', 'birthday'];
-export const USER_PRIVATE_PUSHPLUS_KEYWORDS = ['pushplus', '推送', '离线推送', '微信推送'];
 export const USER_PRIVATE_SUBSCRIPTION_KEYWORDS = [
   '订阅',
   '会员',

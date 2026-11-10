@@ -4,7 +4,9 @@ const fm = vi.hoisted(() => ({
   fromMock: vi.fn(),
   rpcMock: vi.fn(),
   channelMock: {
-    on: vi.fn(function () { return fm.channelMock; }),
+    on: vi.fn(function () {
+      return fm.channelMock;
+    }),
     subscribe: vi.fn(function (callback) {
       // 模拟真实异步行为
       setTimeout(() => {
@@ -23,19 +25,6 @@ vi.mock('../../src/utils/supabase-client.js', () => ({
   },
 }));
 
-vi.mock('../../src/utils/pushplus.js', () => ({
-  sendNotificationPush: vi.fn(() => Promise.resolve({ success: true })),
-}));
-
-vi.mock('../../src/utils/api/pushplus-api.js', () => ({
-  getUserPushplusToken: vi.fn(() => Promise.resolve('test-pushplus-token')),
-}));
-
-vi.mock('../../src/utils/forum-post-format.js', () => ({
-  getForumPostExcerpt: vi.fn(() => 'excerpt'),
-  getForumPostParts: vi.fn(() => ({ title: '', body: '' })),
-}));
-
 import { clearRequestCache } from '../../src/utils/request-core.js';
 import {
   filterSelfActionNotifications,
@@ -45,14 +34,19 @@ import {
   createNotification,
   getUnreadNotificationCount,
   subscribeToNotifications,
-  sendPushplusForNotification,
 } from '../../src/utils/api/notifications-api.js';
 
 function createQueryBuilder(result, calls = []) {
   const query = {
     select: vi.fn(() => query),
-    eq: vi.fn((col, val) => { calls.push({ method: 'eq', col, val }); return query; }),
-    is: vi.fn((col, val) => { calls.push({ method: 'is', col, val }); return query; }),
+    eq: vi.fn((col, val) => {
+      calls.push({ method: 'eq', col, val });
+      return query;
+    }),
+    is: vi.fn((col, val) => {
+      calls.push({ method: 'is', col, val });
+      return query;
+    }),
     lt: vi.fn(() => query),
     limit: vi.fn(() => query),
     order: vi.fn(() => query),
@@ -83,9 +77,7 @@ describe('notifications-api integration', () => {
     });
 
     it('keeps non-self-action notifications', () => {
-      const notifications = [
-        { id: '1', sender_id: 'u1', recipient_id: 'u1', type: 'impression' },
-      ];
+      const notifications = [{ id: '1', sender_id: 'u1', recipient_id: 'u1', type: 'impression' }];
       const filtered = filterSelfActionNotifications(notifications);
       expect(filtered).toHaveLength(1);
     });
@@ -169,10 +161,12 @@ describe('notifications-api integration', () => {
     it('creates notification successfully', async () => {
       const insertQuery = {
         select: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({
-            data: { id: 'new-n1', type: 'like', recipient_id: 'u2', sender_id: 'u1' },
-            error: null,
-          })),
+          single: vi.fn(() =>
+            Promise.resolve({
+              data: { id: 'new-n1', type: 'like', recipient_id: 'u2', sender_id: 'u1' },
+              error: null,
+            }),
+          ),
         })),
       };
       fm.fromMock.mockReturnValue({ insert: vi.fn(() => insertQuery) });
@@ -185,10 +179,12 @@ describe('notifications-api integration', () => {
     it('creates notification with extra data', async () => {
       const insertQuery = {
         select: vi.fn(() => ({
-          single: vi.fn(() => Promise.resolve({
-            data: { id: 'n1', type: 'comment', post_id: 'p1', comment_id: 'c1' },
-            error: null,
-          })),
+          single: vi.fn(() =>
+            Promise.resolve({
+              data: { id: 'n1', type: 'comment', post_id: 'p1', comment_id: 'c1' },
+              error: null,
+            }),
+          ),
         })),
       };
       fm.fromMock.mockReturnValue({ insert: vi.fn(() => insertQuery) });
@@ -211,7 +207,9 @@ describe('notifications-api integration', () => {
       const result = await getUnreadNotificationCount('u1');
       expect(result.ok).toBe(true);
       expect(result.count).toBe(2);
-      expect(fm.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', { p_recipient_id: 'u1' });
+      expect(fm.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', {
+        p_recipient_id: 'u1',
+      });
     });
 
     it('filters out self-action notifications via RPC', async () => {
@@ -222,7 +220,9 @@ describe('notifications-api integration', () => {
 
       const result = await getUnreadNotificationCount('u1');
       expect(result.count).toBe(1);
-      expect(fm.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', { p_recipient_id: 'u1' });
+      expect(fm.rpcMock).toHaveBeenCalledWith('get_unread_notification_count', {
+        p_recipient_id: 'u1',
+      });
     });
   });
 
@@ -232,52 +232,6 @@ describe('notifications-api integration', () => {
       const channel = await subscribeToNotifications('u1', callback);
 
       expect(channel).toBe(fm.channelMock);
-    });
-  });
-
-  describe('sendPushplusForNotification', () => {
-    it('skips for unsupported notification types', async () => {
-      const result = await sendPushplusForNotification({
-        recipient_id: 'u1',
-        sender_id: 'u2',
-        type: 'lottery_win',
-      });
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('不发送 Pushplus');
-    });
-
-    it('skips self-action notifications', async () => {
-      const result = await sendPushplusForNotification({
-        recipient_id: 'u1',
-        sender_id: 'u1',
-        type: 'like',
-      });
-      expect(result.success).toBe(false);
-      expect(result.message).toContain('自操作');
-    });
-
-    it('sends push for like notification', async () => {
-      // Mock profile query for sender username
-      const profileQuery = createQueryBuilder({
-        data: { id: 'u2', username: 'testuser' },
-        error: null,
-      });
-      // Mock post query for content
-      const postQuery = createQueryBuilder({
-        data: { title: 'Test', body: 'Content' },
-        error: null,
-      });
-      fm.fromMock
-        .mockReturnValueOnce(profileQuery)
-        .mockReturnValueOnce(postQuery);
-
-      const result = await sendPushplusForNotification({
-        recipient_id: 'u1',
-        sender_id: 'u2',
-        type: 'like',
-        post_id: 'p1',
-      });
-      expect(result.success).toBe(true);
     });
   });
 });
