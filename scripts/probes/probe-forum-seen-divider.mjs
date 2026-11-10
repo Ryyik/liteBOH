@@ -82,6 +82,14 @@ const ROWS_MIXED = [
 
 const ROWS_ALL_NEW = ROWS_MIXED.slice(0, 3).map((r, i) => row(r.id, `2026-11-10T0${i}:00:00Z`));
 
+/** 整整一页（POSTS_PER_PAGE = 10）全是新帖 —— 复现「越久没来、线越不出现」那一档 */
+const ROWS_FULL_PAGE_NEW = Array.from({ length: 10 }, (_, i) =>
+  row(
+    `00000000-0000-0000-0000-0000000f${String(i).padStart(2, '0')}`,
+    `2026-11-10T0${i % 9}:00:00Z`,
+  ),
+);
+
 const openForum = async ({ rows, anchor = ANCHOR, isFirstLogin = false, seen = null }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await context.addInitScript(() => {
@@ -271,6 +279,19 @@ try {
     const info = await readDivider(page);
     check('B1 不画分隔线', info.count === 0, `count=${info.count}`);
     check('B2 列表本身正常渲染', info.itemCount === ROWS_ALL_NEW.length, `items=${info.itemCount}`);
+    await context.close();
+  }
+
+  // ---------------- H：整整一页都是新帖（真实场景：久未登录 ≥ 10 条新帖） ----------------
+  // 记录**现状**，不是理想行为：一条新帖都不剩时线无处可画，只能不画。代价是
+  // 「越久没来、越看不到这条线」—— 恰恰是最需要它的时候它消失。
+  // 修法见 docs/未完成任务清单.md §7：改成向服务端要「新帖数」，或接受「滑到交界处才出现」。
+  {
+    const { context, page } = await openForum({ rows: ROWS_FULL_PAGE_NEW });
+    console.log('\n--- H 整页新帖（≥10 条）---');
+    const info = await readDivider(page);
+    check('H1 整页都是新帖时不画（当前既定行为）', info.count === 0, `count=${info.count}`);
+    check('H2 一页 10 条都渲染出来了', info.itemCount === 10, `items=${info.itemCount}`);
     await context.close();
   }
 
