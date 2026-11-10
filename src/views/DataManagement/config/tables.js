@@ -4,6 +4,7 @@ import {
   FORUM_STATUS_OPTIONS,
   PRODUCT_CATEGORY_OPTIONS,
   PRODUCT_PAYMENT_MODE_OPTIONS,
+  PRODUCT_CARD_LAYOUT_OPTIONS,
   SUBSCRIPTION_PLAN_OPTIONS,
   SUBSCRIPTION_BILLING_OPTIONS,
   SUBSCRIPTION_STATUS_OPTIONS,
@@ -2059,6 +2060,11 @@ export const dataConfig = {
       { key: 'is_active', label: '商城展示', type: 'badge' },
       { key: 'is_purchasable', label: '允许购买', type: 'badge' },
       { key: 'sort_order', label: '排序', type: 'number' },
+      {
+        label: '形态',
+        key: 'card_layout',
+        values: { small: '小卡', banner: '横幅', large: '大图' },
+      },
     ],
     fields: [
       {
@@ -2155,6 +2161,15 @@ export const dataConfig = {
         hint: '数字小的排在前面（空 = 1000）。商城前台按「排序值升序 → ID 升序」展示。',
         group: 'pricing',
       },
+      {
+        key: 'card_layout',
+        label: '卡片形态',
+        type: 'select',
+        // 选项来自 @/config/product-card-layout.js（与前台渲染同一份真源）
+        options: PRODUCT_CARD_LAYOUT_OPTIONS,
+        hint: '小卡 = 两列密排；横幅 = 一行一个（默认）；大图 = 通栏封面。',
+        group: 'pricing',
+      },
       { key: 'specifications', label: '规格选项', type: 'specifications', group: 'specs' },
     ],
     cardView: {
@@ -2179,6 +2194,11 @@ export const dataConfig = {
         { label: '库存', key: 'stock' },
         { label: '可购', key: 'is_purchasable', values: { true: '允许', false: '禁止' } },
         { label: '排序', key: 'sort_order' },
+        {
+          label: '形态',
+          key: 'card_layout',
+          values: { small: '小卡', banner: '横幅', large: '大图' },
+        },
       ],
     },
   },

@@ -7,6 +7,7 @@ import {
 import { getDefaultApiUrlForBohaiProvider } from '@/utils/api/bohai-model-config-api.js';
 import { TAB_WRITABLE_FIELDS } from './index.js';
 import { normalizeActivityDateInput } from '@/utils/activity-date.js';
+import { normalizeCardLayout } from '@/config/product-card-layout.js';
 import {
   normalizeCampaignSlug,
   toIsoOrNull,
@@ -588,6 +589,10 @@ export const SAVE_STRATEGIES = {
       specifications: normalizedSpecifications,
       is_active: editingItem.is_active === true || editingItem.is_active === 'true',
       is_purchasable: editingItem.is_purchasable === true || editingItem.is_purchasable === 'true',
+      /* 卡片形态档位（2026-11-10，products.card_layout；迁移 2026111003 已执行）：
+         脏值 / 空值一律回落 banner —— 与前台 stores/products.ts 同一口径。
+         不能直接透传：DB 的 check 只认三个字面量，透传脏值会 400。 */
+      card_layout: normalizeCardLayout(editingItem.card_layout),
       /* 展示排序（2026-11-01）：留空 = 1000（排在有排位的商品之后），
          与列默认值同一口径；非数字直接拒绝，不要静默写 NaN（numeric 列会 400） */
       sort_order: ((value) => {

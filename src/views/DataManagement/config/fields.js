@@ -177,6 +177,10 @@ export const TAB_WRITABLE_FIELDS = {
     // 商城展示顺序（2026-11-01）：让运营能直接在后台把某件商品提前，
     // 不必开 SQL —— 前台 stores/products.ts 读的就是这一列
     'sort_order',
+    // 卡片形态档位（2026-11-10，迁移 2026111003 已执行）：
+    // small 两列 / banner 一行一个 / large 通栏大图。
+    // 选项真源在 @/config/product-card-layout.js，这里只重导出，别另写一份字面量。
+    'card_layout',
   ],
   shopOrders: ['status', 'updated_at'],
   birthdayEvents: [
@@ -451,3 +455,6 @@ export const CAMPAIGN_REWARD_TYPE_OPTIONS = [
   { value: 'shop_coupon', label: '商城券（shop_coupon）' },
   { value: 'custom', label: '自定义（custom）' },
 ];
+
+/* 商品卡片形态选项：真源在 @/config/product-card-layout.js，此处只对后台表单重导出 */
+export { PRODUCT_CARD_LAYOUT_OPTIONS } from '@/config/product-card-layout.js';

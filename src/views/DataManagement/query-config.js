@@ -374,7 +374,7 @@ export const TAB_SELECT_COLUMNS = {
   postReward:
     'id, title, status, points_per_post, daily_limit, monthly_limit, start_at, end_at, created_at',
   products:
-    'id, title, category, description, points_cost, rmb_price, payment_mode, stock, image, specifications, is_active, is_purchasable, sort_order',
+    'id, title, category, description, points_cost, rmb_price, payment_mode, stock, image, specifications, is_active, is_purchasable, sort_order, card_layout',
 
   // ========== 商城订单 ==========
   shopOrders: `
