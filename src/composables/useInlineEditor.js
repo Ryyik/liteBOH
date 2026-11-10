@@ -48,6 +48,12 @@ const keyOf = (row, field, table = '') => `${table}#${row?.id ?? 'new'}:${field}
  *   单字段写入。宿主负责落库、并发/失败处理。`table` 是原语声明的目标表（空 = 宿主默认表）。
  * @param {(row: Object, table: string) => Promise<void>} [options.remove] 删除一条
  * @param {() => Promise<void>} [options.create] 新增一条
+ * @param {(row: Object, delta: number) => Promise<void>} [options.move]
+ *   调整顺序：delta = -1 上移 / +1 下移。**顺序是「列表语义」，不是单字段写入** ——
+ *   宿主自己决定用哪份列表算位置、怎么落库（商品走 `sort_order` 重编号），
+ *   所以这里只透传，不实现任何排序策略。
+ * @param {(row: Object, to: number) => Promise<void>} [options.moveTo]
+ *   拖拽落点：`to` 是「去掉该行之后」的插入下标（splice 语义）。宿主负责夹边界。
  * @param {(row: Object) => void} [options.openFull] 打开完整表单（复杂字段的唯一正道）
  * @param {(field: string, value: unknown, row: Object) => string} [options.validate]
  *   返回错误文案；空串表示通过。校验口径来自 tables.js 的字段配置，宿主注入。
@@ -60,6 +66,8 @@ export const provideInlineEditor = (options = {}) => {
     save,
     remove,
     create,
+    move,
+    moveTo,
     openFull,
     validate,
     notify,
@@ -221,6 +229,8 @@ export const provideInlineEditor = (options = {}) => {
       dataRevision.value += 1;
     },
     create,
+    move,
+    moveTo,
     openFull,
     validate,
     notify,

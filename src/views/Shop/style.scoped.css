@@ -360,6 +360,153 @@
   font-size: 12px;
 }
 
+/* ===== 三种卡片形态（2026-11-10） =====
+   档位来自 products.card_layout（small / banner / large），默认 banner。
+   网格只负责「占几列」：small 占 1 列，banner / large 通栏 —— 等价于 iOS 小组件的
+   2×2 / 4×2 / 4×4，而不用自由坐标（自由坐标换视口就散架）。 */
+.p-card.is-banner,
+.p-card.is-large {
+  grid-column: 1 / -1;
+}
+
+/* 横幅：96px 方图 + 名称/价格/规格 chips。图片尺寸是 2026-11-10 用户口径定的
+   （60px 只有「图标」感；96px 一屏还能放 5 条以上，112px 是上限）。 */
+.p-card.is-banner {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 9px;
+}
+
+.p-card.is-banner .p-media {
+  width: 96px;
+  height: 96px;
+  flex: none;
+  aspect-ratio: auto;
+  border-radius: 14px;
+  /* 圆角靠祖先裁剪：.p-media 自己不裁的话，img 的四个直角会从圆角里探出来 */
+  overflow: hidden;
+}
+
+.p-card.is-banner .p-meta {
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+  padding: 0;
+}
+
+.p-card.is-banner .p-name {
+  font-size: 15px;
+}
+
+.p-card.is-banner .p-price {
+  font-size: 13px;
+}
+
+/* 宽屏才把价格甩到右端（列表式排版）。窄屏必须留在名称下方：
+   390px 下「名称 + 价格」挤一行时，名称只剩 ~130px，「BOH 特别礼物围巾小狗」
+   会被折成两行 —— 图变大了、字反而更难读。 */
+@media (min-width: 720px) {
+  .p-card.is-banner .p-meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    column-gap: 12px;
+    row-gap: 4px;
+  }
+
+  .p-card.is-banner .p-name {
+    grid-column: 1;
+  }
+
+  .p-card.is-banner .p-price {
+    grid-column: 2;
+    justify-self: end;
+    white-space: nowrap;
+  }
+
+  .p-card.is-banner .p-specs {
+    grid-column: 1 / -1;
+  }
+}
+
+/* 宽屏把图放大到 112px（2026-11-10 用户口径的上限）：
+   96px 在 390 竖屏约占卡宽 1/4，在 1100px 的横屏内容区里只剩 8%，会显得又小又空。 */
+@media (min-width: 720px) {
+  .p-card.is-banner .p-media {
+    width: 112px;
+    height: 112px;
+  }
+}
+
+/* 大图：16:9 封面在上、文案在下（主推单品）。封面用 object-fit: cover 裁切，
+   不新增 CDN 变换档 —— 现有 c_fill 竖构图裁成 16:9 也成立。 */
+.p-card.is-large {
+  padding: 0;
+}
+
+.p-card.is-large .p-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.p-card.is-large .p-meta {
+  gap: 4px;
+  padding: 12px 14px 14px;
+}
+
+.p-card.is-large .p-name {
+  font-size: 15px;
+}
+
+/* 规格 chips：只在横幅/大图有位置放；小卡两列太窄，塞进去会把名称挤成两行 */
+.p-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.p-card.is-small .p-specs {
+  display: none;
+}
+
+/* 商品描述：默认不渲染（display:none），只有宽屏横幅露出单行 ——
+   1000px+ 的行里只有「名称 + 价格」两端对齐会空一大截，描述正好补中段；
+   大图档给两行，撑住封面下的信息区。 */
+.p-desc {
+  display: none;
+  overflow: hidden;
+  color: var(--boh-text-tertiary, #a1a1a6);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 720px) {
+  .p-card.is-banner .p-desc {
+    display: block;
+    grid-column: 1 / -1;
+  }
+}
+
+.p-card.is-large .p-desc {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.p-spec {
+  padding: 1px 6px;
+  border: 1px solid var(--boh-border-primary, rgba(0, 0, 0, 0.08));
+  border-radius: 6px;
+  color: var(--boh-text-secondary, #86868b);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 /* ===== 就地编辑（只有后台宿主会渲染这些节点） ===== */
 /* 删除角标是 absolute，必须给卡片建立包含块。卡片本身 overflow:hidden，
    所以按钮内缩 6px 贴圆角内侧，不做外挂。 */
@@ -388,6 +535,149 @@
 
 .p-card-remove:hover {
   background: #e30000;
+}
+
+/* 规格入口：左上角半透明胶囊。三个角分工 —— 左上规格、右上删除、右下排序，
+   竖屏 170px 宽的卡上互不重叠，也不用给卡片额外留高度。 */
+.p-card-specs {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.p-card-specs:hover {
+  background: rgba(0, 0, 0, 0.72);
+}
+
+/* 形态胶囊：贴在规格徽标下方（左上角第二行）。点一次循环 small → banner → large。 */
+.p-card-layout {
+  position: absolute;
+  top: 34px;
+  left: 6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.p-card-layout:hover {
+  background: rgba(0, 0, 0, 0.68);
+}
+
+.p-card-layout-mark {
+  width: 10px;
+  height: 8px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+}
+
+/* ===== 长按抖动排序（iOS 小组件式，2026-11-10） =====
+   抖动挂在卡片本身（不套内层壳）：拖拽时只有被拖那张会写 inline transform，
+   `.is-dragging` 用 !important 关掉动画即可，两者不会互相覆盖。 */
+.p-card.is-sorting {
+  animation: p-card-jig 0.32s ease-in-out infinite alternate;
+}
+
+.p-card.is-sorting:nth-child(2n) {
+  animation-delay: -0.16s;
+}
+
+.p-card.is-dragging {
+  z-index: 3;
+  border-color: var(--boh-accent, #0071e3);
+  animation: none !important;
+}
+
+/* 落点指示线：三种档位高度不同，用「卡片中线 + 指示线」而不是让邻卡位移让位 ——
+   固定步长在混排里会算错落点，指示线只依赖中线，混排也准。 */
+.p-card.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--boh-accent, #0071e3);
+}
+
+.p-card.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--boh-accent, #0071e3);
+}
+
+@keyframes p-card-jig {
+  from {
+    transform: rotate(-0.5deg);
+  }
+
+  to {
+    transform: rotate(0.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .p-card.is-sorting {
+    animation: none;
+  }
+}
+
+/* 顺序调整：贴右下角竖排两颗（删除在右上，互不遮挡）。
+   卡片宽度在竖屏只有 ~170px，横排三颗会压住商品名，所以走竖排小圆点。 */
+.p-card-order {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 2;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.p-card-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--boh-bg-secondary, #f5f5f7);
+  color: var(--boh-text-secondary, #86868b);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.p-card-move:hover:not(:disabled) {
+  background: var(--boh-bg-tertiary, #e8e8ed);
+  color: var(--boh-text-primary, #1d1d1f);
+}
+
+/* 首/末位禁用而不是隐藏：隐藏会让卡片高度跳一下，禁用保留可读的「到头了」 */
+.p-card-move:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 /* 新增卡做成网格下方的一条虚线块：它是真实商品卡之外的额外入口，

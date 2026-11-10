@@ -36,6 +36,7 @@ import {
 import { isDialogBusy, useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { validateInlineField } from '@/utils/inline-editor-validate.js';
 import { logger } from '@/utils/logger.js';
+import { reorderList } from '@/utils/shop-order.js';
 
 /**
  * 商城「就地编辑」宿主（/admin/shop-editor）。
@@ -104,7 +105,18 @@ const refreshList = async () => {
 };
 
 const save = async (row, field, value, table = '') => {
-  await patchAdminRow(metaOfTable(table).table, row.id, { [field]: value });
+  try {
+    await patchAdminRow(metaOfTable(table).table, row.id, { [field]: value });
+  } catch (error) {
+    /* 迁移没执行时，`card_layout` 这类「新列」的写入会回 42703/PGRST204。
+       PostgREST 原文是英文列名，运营不可能看懂；换成一句可执行的话再抛。 */
+    const message = String(error?.message || '');
+    if (field === 'card_layout' && /card_layout|column|PGRST204|42703/i.test(message)) {
+      notify('数据库还没有 products.card_layout 列，请先执行迁移 2026111003', 'error');
+      throw error;
+    }
+    throw error;
+  }
   // 只有商品进 store 缓存；抽奖列表由 LotteryPanel 自己持有，乐观更新已经生效
   if (metaOfTable(table).table === TABLE) productsStore.bumpCacheVersion();
   notify('已保存', 'ok');
@@ -175,16 +187,33 @@ const remove = async (row, table = '') => {
 
 const create = async () => {
   const categoryField = PRODUCT_FIELDS.find((field) => field.key === 'category');
+  /* 载荷必须把「非空 / 受约束」的列写全，不能指望 DB 兜底。2026-11-10 用户报障
+     「就地编辑新增商品失败」的两个真因，都是漏传列（`ShopConsole.buildPayload`
+     早就把这三项写全了，两条新增链路口径不一致才漏出这一处）：
+       ① `chk_products_points_required`（见 2026081102 迁移）：
+          `payment_mode = 'points_only'` 且 `points_cost = 0` 时，必须
+          `is_purchasable = false`；该列 DB 默认 `true` ⇒ 漏传必然违反约束（23514）。
+       ② `products.specifications` 是 NOT NULL（2025-04 结构快照确认）且默认值不可依赖
+          ⇒ 漏传会撞 23502。
+     两者在 PostgREST 里都只是一句英文「新增失败」，运营看不出是缺列还是价格问题。 */
+  const list = Array.isArray(productsStore.productsData) ? productsStore.productsData : [];
+  const maxOrder = list.reduce((max, item) => Math.max(max, Number(item.sort_order) || 0), 0);
   const payload = {
     title: '新商品',
     category: categoryField?.options?.[0]?.value ?? '',
+    description: '',
     payment_mode: 'points_only',
     points_cost: 0,
+    rmb_price: null,
     stock: 0,
+    image: '',
+    specifications: [],
     /* 刻意上架：下架后会被 store 过滤掉，用户会以为「没创建成功」。
-       0 价 + 0 库存会让它自动判定为不可购买，所以不会误卖。 */
+       0 价 = 不可购买（`is_purchasable: false`），所以上架也不会误卖。 */
     is_active: true,
-    sort_order: 1000,
+    is_purchasable: false,
+    /* 排到现有商品之后：整十递增，留出手工插位的空隙（sort_order 升序 → id 升序） */
+    sort_order: maxOrder + 10,
   };
   try {
     await insertAdminRow(TABLE, payload);
@@ -194,6 +223,84 @@ const create = async () => {
     logger.error('shop-inline-editor', '新增商品失败', error);
     notify(`新增失败：${error?.message || '未知错误'}`, 'error');
   }
+};
+
+/**
+ * 把「新的展示顺序」落库（上移 / 下移 / 拖拽共用的唯一出口）。
+ *
+ * 口径真源是前台看到的那份列表（`productsStore.productsData`，已按
+ * `sort_order 升序 → id 升序` 排好），不是 v-for 的 index —— 搜索过滤后的下标
+ * 与全量顺序不是一回事，拿它算排序会把商品挪到搜索命中的邻居旁边。
+ *
+ * 为什么整表重编号成 10/20/30…，而不是只交换相邻两行的值：库里绝大多数商品
+ * 是列默认值 1000（并列），两行都等于 1000 时「交换」等于什么都没做，
+ * 点十次也不动。落成互不相同的序号后顺序才是可复现的。
+ * 只 PATCH 值真的变了的行，没排位的商品不会被无谓地刷一遍。
+ */
+const persistOrderNow = async (next) => {
+  if (!Array.isArray(next) || next.length === 0) return;
+  const changed = [];
+  next.forEach((item, index) => {
+    const value = (index + 1) * 10;
+    if (Number(item.sort_order) !== value) changed.push({ id: item.id, sort_order: value });
+  });
+  if (!changed.length) return;
+
+  // 乐观更新：先换 store 里的顺序，TransitionGroup 的 move 过渡才有得可动
+  next.forEach((item, index) => {
+    item.sort_order = (index + 1) * 10;
+  });
+  productsStore.productsData = next;
+
+  try {
+    for (const item of changed) {
+      await patchAdminRow(TABLE, item.id, { sort_order: item.sort_order });
+    }
+    productsStore.bumpCacheVersion();
+    productsStore.clearProductCache();
+    notify('顺序已更新', 'ok');
+  } catch (error) {
+    logger.error('shop-inline-editor', '调整商品顺序失败', error);
+    notify(`排序失败：${error?.message || '未知错误'}`, 'error');
+    // 乐观值可能与库分叉：回拉一次，别让界面停在一个并不存在的顺序上
+    await refreshList();
+  }
+};
+
+/**
+ * 排序写入必须串行：拖完立刻再拖一次（或连点 ↑↓）时，两次 persistOrder 会并发
+ * 发 PATCH，网络乱序返回就可能让「后一次的顺序」被「前一次的旧值」覆盖，
+ * 表现为「拖了没反应，刷新才变」。队列化的成本只有一次 Promise 链。
+ */
+let orderQueue = Promise.resolve();
+const persistOrder = (next) => {
+  orderQueue = orderQueue.then(() => persistOrderNow(next)).catch(() => {});
+  return orderQueue;
+};
+
+/** 上移 / 下移一格（编辑态卡片右下角的 ↑↓） */
+const move = async (row, delta) => {
+  const list = Array.isArray(productsStore.productsData) ? productsStore.productsData : [];
+  const from = list.findIndex((item) => Number(item.id) === Number(row?.id));
+  const to = from + (Number(delta) || 0);
+  if (from < 0 || to < 0 || to >= list.length) return;
+  const next = list.slice();
+  [next[from], next[to]] = [next[to], next[from]];
+  await persistOrder(next);
+};
+
+/**
+ * 拖拽落点（长按抖动排序）。
+ *
+ * `to` 是**去掉被拖那张之后**的插入下标 —— 与 `splice(from,1)` 之后再
+ * `splice(to,0,item)` 的语义完全一致，调用方（Shop 页）算出来的值可以直接用。
+ * 越界一律夹到合法区间，避免一次异常手势把整张表写成乱序。
+ */
+const moveTo = async (row, to) => {
+  const list = Array.isArray(productsStore.productsData) ? productsStore.productsData : [];
+  const from = list.findIndex((item) => Number(item.id) === Number(row?.id));
+  if (from < 0) return;
+  await persistOrder(reorderList(list, from, to));
 };
 
 const uploadImage = async (row, field, file, table = '') => {
@@ -230,6 +337,8 @@ provideInlineEditor({
   save,
   remove,
   create,
+  move,
+  moveTo,
   validate,
   labelOf,
   metaOf,

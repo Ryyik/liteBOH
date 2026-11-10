@@ -94,6 +94,7 @@
             name="shop-card"
             tag="div"
             class="product-grid"
+            @pointerdown="onCardPointerDown"
           >
             <!-- 编辑态用 div 承载：<button> 里不能再嵌「删除」按钮（嵌套 button 不合法，
                  浏览器会把内层按钮提出去，DOM 直接错位）。浏览态仍然是原来的 <button>，
@@ -106,12 +107,41 @@
               :role="isInlineEditing ? 'button' : undefined"
               :tabindex="isInlineEditing ? 0 : undefined"
               class="p-card"
-              :class="{ 'is-edit-target': isInlineEditing }"
+              :class="[
+                `is-${cardLayoutOf(product)}`,
+                { 'is-edit-target': isInlineEditing, 'is-sorting': isSorting },
+              ]"
+              :data-product-id="product.id"
               :style="{ '--i': index }"
               @click="openProductDetails(product, $event)"
               @keydown="onCardKeydown($event, product)"
             >
               <!-- 换图的上传与落库都由原语内部完成（含失败回滚），这里不用再接 handler -->
+              <!-- 规格入口（2026-11-10 用户口径：「新增规格 / 删除规格 / 更改规格」）。
+                   卡片只有 ~170px 宽，规格是列表级字段（增删会改变卡片高度），
+                   所以卡片上只留一个计数徽标，编辑在独立面板里做。 -->
+              <button
+                v-if="isInlineEditing"
+                type="button"
+                class="p-card-specs"
+                :aria-label="`编辑规格，当前 ${(product.specifications || []).length} 条`"
+                @click.stop="openSpecs(product)"
+              >
+                <ListChecks :size="12" :stroke-width="2" aria-hidden="true" />
+                <span>规格 {{ (product.specifications || []).length }}</span>
+              </button>
+              <!-- 卡片形态档位（2026-11-10）：点一次循环 small → banner → large。
+                   与规格同理，档位是「整卡形态」，放到卡片上的小胶囊里，不占正文位置。 -->
+              <button
+                v-if="isInlineEditing"
+                type="button"
+                class="p-card-layout"
+                :aria-label="`切换卡片形态，当前 ${cardLayoutLabel(product.card_layout)}`"
+                @click.stop="cycleCardLayout(product)"
+              >
+                <span class="p-card-layout-mark" aria-hidden="true"></span>
+                <span>{{ cardLayoutLabel(product.card_layout) }}</span>
+              </button>
               <EditableImage v-model="product.image" class="p-media" :row="product" field="image">
                 <img
                   v-if="product.image && !productImageFailed(product)"
@@ -133,6 +163,49 @@
                   label="商品名称"
                 />
                 <span class="p-price">{{ formatPriceDisplay(product) }}</span>
+                <!-- 描述只在宽屏的横幅里出现（窄屏/小卡会把行撑高、挤掉名称）。
+                     宽度 1000px 以上的横幅行，只有「名称 + 价格」两端对齐会留下
+                     一大片空白；一行描述正好把中段填满，也更像列表该有的信息量。 -->
+                <span v-if="product.description" class="p-desc">{{ product.description }}</span>
+                <!-- 横幅/大图档才有位置放规格 chips；小卡两列太窄，硬塞会把名称挤成两行 -->
+                <span v-if="product.specifications?.length" class="p-specs">
+                  <span
+                    v-for="spec in product.specifications.slice(0, 3)"
+                    :key="spec.value"
+                    class="p-spec"
+                    >{{ spec.label }} {{ spec.value }}</span
+                  >
+                </span>
+              </span>
+              <!-- 顺序调整（2026-11-10 用户口径：「支持调整商品顺序」）。
+                   只在**没有搜索过滤**时出现：过滤后的下标不是真实展示顺序，
+                   拿它上移会把商品挪到「搜索命中的邻居」旁边，看着像乱序。
+                   上下移是「整表重编号」的入口（sort_order = 10/20/30…），
+                   不是交换两行的值 —— 库里默认值全是 1000，交换等于没动。 -->
+              <span
+                v-if="isInlineEditing && !searchKeyword && filteredProducts.length > 1"
+                class="p-card-order"
+              >
+                <button
+                  type="button"
+                  class="p-card-move"
+                  title="上移"
+                  aria-label="上移"
+                  :disabled="index === 0"
+                  @click.stop="inlineEditor.move?.(product, -1)"
+                >
+                  <ChevronUp :size="13" :stroke-width="2.4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  class="p-card-move"
+                  title="下移"
+                  aria-label="下移"
+                  :disabled="index === filteredProducts.length - 1"
+                  @click.stop="inlineEditor.move?.(product, 1)"
+                >
+                  <ChevronDown :size="13" :stroke-width="2.4" aria-hidden="true" />
+                </button>
               </span>
               <button
                 v-if="isInlineEditing"
@@ -205,6 +278,16 @@
       @add="addToBagFromDetail"
     />
 
+    <!-- 规格编辑面板：只有后台宿主注入了编辑上下文才存在（前台零节点、零样式） -->
+    <ProductSpecsSheet
+      v-if="isInlineEditing"
+      :visible="Boolean(specEditingProduct)"
+      :product="specEditingProduct"
+      :saving="specsSaving"
+      @close="specEditingProduct = null"
+      @save="handleSpecsSave"
+    />
+
     <!-- 确认订单（2026-11-03）
          原来是「确认收货信息」表单弹窗：点结算只弹地址表单，用户看不到买什么、付多少。
          现在是一个整页的确认订单层：地址卡 / 商品清单 / 金额明细 / 预检 / 固定底栏，
@@ -274,7 +357,16 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { Package, Plus, Search, User, X } from 'lucide-vue-next';
+import {
+  ChevronDown,
+  ChevronUp,
+  ListChecks,
+  Package,
+  Plus,
+  Search,
+  User,
+  X,
+} from 'lucide-vue-next';
 import mascotHeroUrl from '@/assets/images/mascot-new-landscape-orig.webp';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
@@ -297,12 +389,19 @@ import { composeAddress } from '@/utils/address-parse.js';
 import { themeManager } from '@/utils/theme-manager.js';
 import { logoutAndReload } from '@/utils/logout-and-reload.js';
 import { BOTTOM_NAV_ITEMS } from '@/config/bottom-nav';
+import { resolveDropIndex } from '@/utils/shop-order.js';
+import {
+  cardLayoutLabel,
+  nextCardLayout,
+  normalizeCardLayout,
+} from '@/config/product-card-layout.js';
 import { getNotificationStoreRef } from '@/stores/notification-loader';
 import UserSpaceBottomNav from '@/views/user-center/UserSpace/components/UserSpaceBottomNav.vue';
 import UserSpaceSideRail from '@/views/user-center/UserSpace/components/UserSpaceSideRail.vue';
 import { useScrollDirectionHide } from '@/views/user-center/UserSpace/composables/useScrollDirectionHide.js';
 import ShopPaymentSuccessModal from './ShopPaymentSuccessModal.vue';
 import ProductDetailSheet from './ProductDetailSheet.vue';
+import ProductSpecsSheet from './ProductSpecsSheet.vue';
 import CheckoutSheet from './CheckoutSheet.vue';
 import { buildPaymentSummary } from './checkout-summary.js';
 import LotteryPanel from './LotteryPanel.vue';
@@ -504,6 +603,188 @@ const handleProductFieldUpdate = ({ field, value } = {}) => {
   if (product && field) product[field] = value;
 };
 
+/* ── 规格编辑（只在就地编辑态可达） ────────────────────────────────────────
+   面板只负责「增删改 + 校验」，落库一律走 `inlineEditor.commit` ——
+   与标题/图片同一条写入通道（串行队列、撤销栈、失败回滚都现成）。
+   如果这里自己 `supabase.update()`，规格就成了绕过校验与撤销的第二条路。 */
+const specEditingProduct = ref(null);
+const specsSaving = ref(false);
+
+const openSpecs = (product) => {
+  if (!isInlineEditing.value || !product) return;
+  specEditingProduct.value = product;
+};
+
+const handleSpecsSave = async (specs) => {
+  const product = specEditingProduct.value;
+  if (!product || !inlineEditor) return;
+  const previous = Array.isArray(product.specifications)
+    ? product.specifications.map((item) => ({ ...item }))
+    : [];
+  specsSaving.value = true;
+  try {
+    // 乐观更新：面板关闭后卡片上的「规格 N」要立刻变成新数量
+    product.specifications = specs;
+    await inlineEditor.commit?.(product, 'specifications', specs, previous);
+    specEditingProduct.value = null;
+  } catch {
+    // commit 已经把失败红边 / 撤销栈处理完了，这里只需把本地值还原
+    product.specifications = previous;
+  } finally {
+    specsSaving.value = false;
+  }
+};
+
+/* ── 卡片形态档位（2026-11-10） ──────────────────────────────────────────
+   档位存在 `products.card_layout`（迁移 2026111003）；读到脏值 / 没有该列时
+   一律回落 banner（`normalizeCardLayout` 是唯一判定处）。
+   切档就是一次单字段写入 —— 复用 `inlineEditor.commit`，撤销栈与失败回滚免费。 */
+const cardLayoutOf = (product) => normalizeCardLayout(product?.card_layout);
+
+const cycleCardLayout = async (product) => {
+  if (!inlineEditor || !isInlineEditing.value || !product) return;
+  const previous = product.card_layout;
+  const next = nextCardLayout(previous);
+  product.card_layout = next; // 乐观更新：卡片立刻换形态
+  try {
+    await inlineEditor.commit?.(product, 'card_layout', next, previous);
+  } catch {
+    product.card_layout = previous;
+  }
+};
+
+/* ── 长按拖动排序（iOS 小组件式，2026-11-10） ────────────────────────────
+   为什么用 pointer events 而不是 HTML5 拖放：后者在触屏上根本不触发。
+   为什么用「落点指示线」而不是让邻卡位移让位：三种档位高度不同（小卡 / 横幅 /
+   大图），固定步长的位移算法在混排里会算错落点；指示线只依赖各卡中线，混排也准。
+   拖拽只改 translateY，不动文档流 —— 松手才调 moveTo 落库（整表重编号）。 */
+const isSorting = ref(false);
+let pressCleanup = null;
+let dragState = null;
+let sortExitTimer = null;
+
+const cardOf = (target) => (target instanceof Element ? target.closest('.p-card') : null);
+
+const clearSortExit = () => {
+  if (sortExitTimer) clearTimeout(sortExitTimer);
+  sortExitTimer = null;
+};
+
+/* 松手后不立刻退出抖动：连续微调是常态。2.6s 无新动作再收，避免「拖一次就要重新长按」 */
+const scheduleSortExit = () => {
+  clearSortExit();
+  sortExitTimer = setTimeout(() => {
+    isSorting.value = false;
+  }, 2600);
+};
+
+const onCardPointerDown = (event) => {
+  if (!isInlineEditing.value || event.button !== 0) return;
+  // 搜索过滤时的下标不是真实顺序，与上下移按钮同一口径：不允许重排
+  if (searchKeyword.value) return;
+  const card = cardOf(event.target);
+  if (!card) return;
+  // 点卡片上的编辑控件（规格 / 形态 / 上移 / 删除 / 输入框）不进入长按拖拽
+  if (event.target.closest('button, input, textarea, select')) return;
+  const product = allProducts.value.find((item) => String(item.id) === card.dataset.productId);
+  if (!product) return;
+
+  clearSortExit();
+  const listEl = event.currentTarget;
+  const startX = event.clientX;
+  const startY = event.clientY;
+
+  function cancelPress() {
+    clearTimeout(timer);
+    window.removeEventListener('pointermove', watchMove);
+    window.removeEventListener('pointerup', cancelPress);
+    window.removeEventListener('pointercancel', cancelPress);
+    pressCleanup = null;
+  }
+
+  function watchMove(moveEvent) {
+    // 超过 8px 视为滚动/点按，取消长按计时
+    if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > 8) cancelPress();
+  }
+
+  const timer = setTimeout(() => {
+    cancelPress();
+    beginDrag(card, product, listEl, startY);
+  }, 380);
+
+  // 页面在长按计时器还没触发时就被卸载，也要能收干净（否则回调落到已销毁的 DOM 上）
+  pressCleanup = cancelPress;
+  window.addEventListener('pointermove', watchMove);
+  window.addEventListener('pointerup', cancelPress);
+  window.addEventListener('pointercancel', cancelPress);
+};
+
+const beginDrag = (card, product, listEl, startY) => {
+  const cards = [...listEl.querySelectorAll(':scope > .p-card')];
+  const index = cards.indexOf(card);
+  if (index < 0) return;
+  isSorting.value = true;
+  dragState = {
+    card,
+    product,
+    cards,
+    rects: cards.map((el) => el.getBoundingClientRect()),
+    index,
+    startY,
+    dropIndex: index,
+  };
+  card.classList.add('is-dragging');
+  card.style.transition = 'none';
+  window.addEventListener('pointermove', onDragMove, { passive: false });
+  window.addEventListener('pointerup', onDragEnd, { once: true });
+  window.addEventListener('pointercancel', onDragEnd, { once: true });
+};
+
+const onDragMove = (event) => {
+  if (!dragState) return;
+  event.preventDefault();
+  const { card, cards, rects, index, startY } = dragState;
+  card.style.transform = `translateY(${event.clientY - startY}px)`;
+
+  /* 落点 = 指针越过了第几张卡的中线。算法在 @/utils/shop-order.js（有单测），
+     下标语义与 moveTo 的「先删后插」一致，这里只负责画指示线。 */
+  const insertAt = resolveDropIndex(rects, index, event.clientY);
+  dragState.dropIndex = insertAt;
+
+  const others = rects.map((rect, i) => i).filter((i) => i !== index);
+  cards.forEach((el) => el.classList.remove('is-drop-before', 'is-drop-after'));
+  if (others.length) {
+    if (insertAt < others.length) cards[others[insertAt]].classList.add('is-drop-before');
+    else cards[others[others.length - 1]].classList.add('is-drop-after');
+  }
+};
+
+const onDragEnd = () => {
+  if (!dragState) return;
+  // 两个监听都在这里统一摘掉：Esc 手动收尾时 pointerup/pointercancel 不会再触发一次
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  window.removeEventListener('pointercancel', onDragEnd);
+  const { card, product, cards, index, dropIndex } = dragState;
+  card.style.transform = '';
+  card.style.transition = '';
+  cards.forEach((el) => el.classList.remove('is-drop-before', 'is-drop-after', 'is-dragging'));
+  dragState = null;
+  if (dropIndex !== index) inlineEditor?.moveTo?.(product, dropIndex);
+  scheduleSortExit();
+};
+
+/** Esc = 退出抖动排序（拖拽中途按也给一个「收尾」路径，不留半截 transform） */
+const handleSortKeydown = (event) => {
+  if (event.key !== 'Escape' || !isSorting.value) return;
+  if (dragState) {
+    onDragEnd();
+    return;
+  }
+  isSorting.value = false;
+  clearSortExit();
+};
+
 /**
  * 编辑态卡片是 `<div role="button">`（`<button>` 里不能嵌删除按钮），换成 div 就丢了
  * `<button>` 的原生键盘支持 —— 这里补回来：Enter / Space 打开详情。
@@ -547,6 +828,14 @@ const goBag = () => {
 };
 
 const openProductDetails = (product, event) => {
+  /* 抖动排序态下的点击 = 「结束排序」，不弹详情：拖完松手浏览器会补发一次 click，
+     不挡的话「拖完就跳详情」。但也不能静默吞掉 —— 那会变成「点卡片没反应」，
+     所以这一下直接把排序态收掉，第二下就能正常打开。 */
+  if (isSorting.value) {
+    isSorting.value = false;
+    clearSortExit();
+    return;
+  }
   selectedProduct.value = product;
   selectedSpecValue.value = product.specifications?.[0]?.value || 'Default';
   selectedOriginKey.value = `shop-product:${product.id}`;
@@ -924,6 +1213,8 @@ onMounted(() => {
     .catch((error) => logger.error('shop', '商品加载失败', error));
 
   window.addEventListener('theme-changed', handleThemeChanged);
+  // Esc 退出抖动排序：拖拽是「模式」，必须有一个不依赖鼠标的出口
+  window.addEventListener('keydown', handleSortKeydown);
 
   syncNavHeight();
   if (typeof ResizeObserver !== 'undefined') {
@@ -938,6 +1229,11 @@ onBeforeUnmount(() => {
   document.body.style.overflow = '';
   bagStore.flushShoppingBag();
   window.removeEventListener('theme-changed', handleThemeChanged);
+  // 抖动排序模式必须彻底收干净：定时器 / 拖拽监听 / Esc 监听
+  window.removeEventListener('keydown', handleSortKeydown);
+  clearSortExit();
+  pressCleanup?.();
+  if (dragState) onDragEnd();
   navResizeObserver?.disconnect();
   navResizeObserver = null;
 });

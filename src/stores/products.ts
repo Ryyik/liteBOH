@@ -81,6 +81,13 @@ const normalizeProduct = (item: Record<string, unknown>): Product => {
        未排位的商品回落 1000 —— 与建表默认值同一口径，保证「有排位的在前、
        其余按 id 升序」，DB 里没有该列时（旧缓存 / 静态兜底）也不会打乱顺序。 */
     sort_order: Number.isFinite(Number(item.sort_order)) ? Number(item.sort_order) : 1000,
+    /* 卡片形态（2026-11-10，DB 列 products.card_layout）：
+       迁移未执行 / 旧缓存 / 静态兜底里都没有这一列，统一回落 banner ——
+       与 src/config/product-card-layout.js 的 normalizeCardLayout 同一口径。 */
+    card_layout:
+      item.card_layout === 'small' || item.card_layout === 'large'
+        ? item.card_layout
+        : ('banner' as const),
   } as Product;
 };
 

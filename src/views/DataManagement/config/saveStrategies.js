@@ -552,6 +552,29 @@ export const SAVE_STRATEGIES = {
           .filter((spec) => spec.label && spec.value)
       : [];
 
+    /* 与 DB 的两条价格约束**逐字对齐**（2026081102 迁移）：
+         chk_products_points_required → points_only 且 points_cost = 0 时，必须 is_purchasable = false
+         chk_products_rmb_required    → rmb_only / combined 且 rmb_price 为空或 0 时，同上
+       不在这里拦，PostgREST 只会回一句 check constraint 的英文原文，运营看不出
+       是「价格没填」还是「允许购买没关」—— 2026-11-10 商城就地编辑新增失败同一类问题。 */
+    const wantsPurchasable =
+      editingItem.is_purchasable === true || editingItem.is_purchasable === 'true';
+    if (wantsPurchasable) {
+      if (normalizedPaymentMode === 'points_only' && Math.round(normalizedPointsCost) <= 0) {
+        throw new Error(
+          '积分定价为 0 时不能勾选「允许购买」：请填写积分价，或把「允许购买」设为不可购买',
+        );
+      }
+      if (
+        (normalizedPaymentMode === 'rmb_only' || normalizedPaymentMode === 'combined') &&
+        (normalizedRmbPrice === null || Math.round(normalizedRmbPrice) <= 0)
+      ) {
+        throw new Error(
+          'RMB 定价为 0 时不能勾选「允许购买」：请填写 RMB 价格，或把「允许购买」设为不可购买',
+        );
+      }
+    }
+
     return pickWritableFields('products', {
       id: normalizedId,
       title: String(editingItem.title || '').trim(),

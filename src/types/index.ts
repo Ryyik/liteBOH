@@ -92,6 +92,8 @@ export interface Product {
   is_purchasable: boolean;
   /** 商城展示排序（小在前）；未排位 = 1000，同值按 id 升序。见 stores/products.ts */
   sort_order?: number;
+  /** 卡片形态档位：small 两列 / banner 一行一个 / large 通栏大图。缺省按 banner */
+  card_layout?: 'small' | 'banner' | 'large';
 }
 
 // --- Notification ---

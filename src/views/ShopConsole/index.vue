@@ -705,6 +705,14 @@ function validateDraft(draft) {
       return '现金价格必须大于 0';
   }
   if (!Number.isFinite(Number(draft.stock)) || Number(draft.stock) < 0) return '库存不能小于 0';
+  /* DB 侧两条价格约束（2026081102 迁移）：0 价 + 「允许购买」会被 check constraint 拒掉。
+     在这里拦一道，运营看到的是中文原因，而不是 PostgREST 的英文约束名。 */
+  if (draft.is_purchasable !== false) {
+    if (mode === 'points_only' && Number(draft.points_cost) <= 0)
+      return '积分定价为 0 时不能勾选「允许购买」：请填写积分价，或关闭「允许购买」';
+    if (mode === 'rmb_only' && Number(draft.rmb_price) <= 0)
+      return 'RMB 定价为 0 时不能勾选「允许购买」：请填写 RMB 价格，或关闭「允许购买」';
+  }
   return '';
 }
 const buildPayload = (draft) => {
