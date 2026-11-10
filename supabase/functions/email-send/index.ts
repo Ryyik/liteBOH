@@ -232,7 +232,7 @@ const buildOrderTemplateParams = async (
     `昵称: ${buyerName}`,
     `账户邮箱: ${user.email || '未绑定'}`,
     `收件人: ${recipient || '（未填写）'}`,
-    `电话: ${phone || order.contact_value || '（未填写）'}`,
+    `电话: ${maskPhone(phone || order.contact_value) || '（未填写）'}`,
     `地址: ${address || '（未填写）'}`,
   ];
   if (order.contact_type === 'qq' || order.contact_type === 'vx') {
@@ -273,12 +273,31 @@ const buildOrderTemplateParams = async (
 const escapeHtml = (value: string) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+/**
+ * 手机号脱敏（2026-11-10）。
+ *
+ * 起因：订单通知邮件被 QQ 在 SMTP 层硬退（`blocked by Admin`），同一发件人/收件人/IP 段的
+ * 生日邮件、密码重置、回复通知都能送达 —— 差别只在正文。订单模板正文里同时出现
+ * 「姓名 + 完整手机号 + 详细地址 + 金额」，是反垃圾系统判定诈骗/钓鱼的典型特征组合。
+ *
+ * 这里保留首 3 末 4（管理员核对身份够用），完整号码走「在后台打开」的深链。
+ * ⚠️ 不要把这里改成完整号码 —— 那是刚被 QQ 拒收的那个版本。
+ */
+const maskPhone = (value: string) => {
+  const digits = String(value || '').replace(/\s/g, '');
+  if (digits.length < 8) return digits;
+  return `${digits.slice(0, 3)}****${digits.slice(-4)}`;
+};
+
 type SendOutcome = { ok: true } | { ok: false; detail: string };
 
+/* 标题刻意不带「通知」二字、也不再套 `[BOH]` 方括号前缀（2026-11-10）：
+   方括号品牌前缀 + 「通知」是国内邮箱反垃圾最常命中的两个营销特征，而这类信只是
+   给管理员看的业务提醒，不需要品牌前缀。改完仍要能一眼看出是什么事，所以保留事件词。 */
 const MAIL_TITLES: Record<string, string> = {
-  gift: '礼物申请通知',
-  merchandise_settlement: '周边订单通知',
-  shop_order_cancelled: '周边订单取消通知',
+  gift: '礼物申请',
+  merchandise_settlement: '周边订单',
+  shop_order_cancelled: '周边订单已取消',
 };
 
 /**
@@ -383,6 +402,22 @@ const sendBrevoMail = async (
     ].join(''),
   });
 
+  /* 纯文本替代部分（2026-11-10）：原来只发 htmlContent。
+     只有 HTML 的邮件在国内邮箱的评分里明显吃亏，而 follow-mail-send 一直是带 textContent 的。
+     文本版按「label: value」逐行拼，与 HTML 两列表同源，避免两处描述打架。 */
+  const plainRows = (list: Array<[string, string]>) =>
+    list.map(([label, value]) => (label ? `${label}: ${value}` : value)).join('\n');
+  const textBody = [
+    title,
+    '',
+    plainRows([...orderRows, ...cancelRows]),
+    contactOnly.length ? `\n联系方式\n${plainRows(contactOnly)}` : '',
+    adminLink ? `\n在后台打开: ${adminLink}` : '',
+    '\n订单数据以后台为准 · 本邮件由系统自动发送，请勿直接回复。',
+  ]
+    .filter((part) => part !== '')
+    .join('\n');
+
   try {
     const response = await fetch(BREVO_ENDPOINT, {
       method: 'POST',
@@ -394,8 +429,9 @@ const sendBrevoMail = async (
       body: JSON.stringify({
         sender: { email: SENDER_EMAIL, name: SENDER_NAME },
         to: recipients.map((email) => ({ email })),
-        subject: `[BOH] ${title} · ${safeParams.buyerName || '用户'}`,
+        subject: `${title} · ${safeParams.buyerName || '用户'}`,
         htmlContent: html,
+        textContent: textBody,
       }),
     });
 
