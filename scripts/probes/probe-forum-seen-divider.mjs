@@ -82,7 +82,7 @@ const ROWS_MIXED = [
 
 const ROWS_ALL_NEW = ROWS_MIXED.slice(0, 3).map((r, i) => row(r.id, `2026-11-10T0${i}:00:00Z`));
 
-const openForum = async ({ rows, anchor = ANCHOR, isFirstLogin = false }) => {
+const openForum = async ({ rows, anchor = ANCHOR, isFirstLogin = false, seen = null }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await context.addInitScript(() => {
     try {
@@ -106,7 +106,8 @@ const openForum = async ({ rows, anchor = ANCHOR, isFirstLogin = false }) => {
     }),
   );
 
-  await page.goto(`${BASE}/#/user-space?tab=community`, { waitUntil: 'domcontentloaded' });
+  const forumUrl = `${BASE}/#/user-space?tab=community${seen === null ? '' : `&seen=${seen}`}`;
+  await page.goto(forumUrl, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.forum-page', { timeout: 25000 });
   await page.waitForTimeout(800);
 
@@ -311,6 +312,44 @@ try {
     );
     check('E3 无页面异常', errors.length === 0, errors.join(' | '));
     await context.close();
+  }
+
+  // ---------------- F：DEV 预览开关 ?seen=N ----------------
+  // 这一档防的是「开关自己坏了」：本地开发造不出真实锚点，若 ?seen= 静默失效，
+  // 人就会以为是功能没生效而去改业务代码。锚点故意给 null —— 有真锚点时开关才该被忽略。
+  {
+    const { context, page } = await openForum({ rows: ROWS_MIXED, anchor: null, seen: 2 });
+    console.log('\n--- F DEV 开关 ?seen=2（无真实锚点）---');
+    const info = await readDivider(page);
+    check('F1 无真实锚点时开关仍能画出线', info.count === 1, `count=${info.count}`);
+    check('F2 前 2 条算新帖', info.absoluteIndex === 2, `at=${info.absoluteIndex}`);
+    // 位置对但文案空 = 判定与展示吃了两个不同的锚点（2026-11-10 实测踩过的坑：
+    // 开关只喂给判定、模板还写着 authStore.offlineAnchorAt ⇒ 只剩「上次看到这里」四个字）。
+    check(
+      'F3 文案里带上了时间（判定与展示同源）',
+      /上次看到这里 · \d{2}-\d{2} \d{2}:\d{2}/.test(info.label),
+      info.label,
+    );
+    await context.close();
+  }
+
+  // ---------------- G：开关的边界（N=1 与 N 超出范围） ----------------
+  {
+    const one = await openForum({ rows: ROWS_MIXED, anchor: null, seen: 1 });
+    const info1 = await readDivider(one.page);
+    console.log('\n--- G 开关边界 ---');
+    check('G1 ?seen=1 只把第 1 条算新帖', info1.absoluteIndex === 1, `at=${info1.absoluteIndex}`);
+    await one.context.close();
+
+    const over = await openForum({ rows: ROWS_MIXED, anchor: null, seen: 99 });
+    const info2 = await readDivider(over.page);
+    // 越界被夹到 length-1 → 只剩最后一条是旧帖，线落在最后一条之前
+    check(
+      'G2 ?seen=99 夹到列表末尾而不是画到别处',
+      info2.absoluteIndex === ROWS_MIXED.length - 1,
+      `at=${info2.absoluteIndex}`,
+    );
+    await over.context.close();
   }
 } finally {
   await browser.close();

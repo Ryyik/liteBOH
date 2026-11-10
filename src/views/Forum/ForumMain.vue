@@ -402,11 +402,37 @@ const isChronologicalUnfilteredFeed = computed(
     !showFollowingOnly.value,
 );
 
+/* ── DEV 预览开关：`?seen=N` 把前 N 条帖子当成新帖 ──────────────────────────
+   为什么需要：分隔线靠真实锚点（`profiles.last_active_at`）判断，本地开发时
+   「隔一天再回来」这种前置条件造不出来，于是功能看着像没生效。
+   ⚠️ 实现方式费了点心思：这里**只伪造锚点时间**，不伪造 splitIndex —— 锚点取第 N+1 条
+   （第一条旧帖）的发布时间，判定照样走 `resolveForumSeenDivider` 那条唯一真源。
+   好处是「线上标签时间」与「线的位置」天然自洽；如果在这里直接塞 splitIndex，就多了一份
+   与真源并行的判定，演示能看到的效果和线上不一定一致（那种预览开关最容易骗自己）。
+   ⚠️ `import.meta.env.DEV` 守卫：生产构建时这段被静态剔除，线上带 ?seen= 无效。 */
+const devSeenAnchor = computed(() => {
+  if (!import.meta.env.DEV) return null;
+  const raw = getQueryString(route.query.seen);
+  if (!raw) return null;
+  const posts = forumData.value;
+  if (posts.length < 2) return null;
+  const index = Math.min(Math.max(Math.round(Number(raw)) || 1, 1), posts.length - 1);
+  const anchor = posts[index]?.created_at;
+  return anchor ? new Date(anchor).toISOString() : null;
+});
+
+/* 判定与展示必须吃**同一个**锚点。2026-11-10 实测踩过：开关只喂给了判定、模板里
+   还写着 `authStore.offlineAnchorAt`，于是演示时线画出来了、时间标签却是空的（「上次看到这里」
+   后面什么都没有）—— 探针当时只断言了位置没断言文案，没拦住。这类「两处取同一个值」的地方
+   一律走一个 computed，别再各写各的。 */
+const seenAnchorIso = computed(() => devSeenAnchor.value || authStore.offlineAnchorAt || '');
+
 const forumSeenDivider = computed(() =>
   resolveForumSeenDivider({
     posts: forumData.value,
-    anchorIso: authStore.offlineAnchorAt,
-    isFirstLogin: authStore.isFirstLoginSession,
+    anchorIso: seenAnchorIso.value || null,
+    // 演示态一律按「有历史」处理：否则开发者账号一旦被标成首登，?seen= 就静默失效
+    isFirstLogin: devSeenAnchor.value ? false : authStore.isFirstLoginSession,
     enabled: isChronologicalUnfilteredFeed.value,
   }),
 );
@@ -3645,7 +3671,7 @@ const {
                       forumSeenDivider.visible &&
                       getVisiblePostIndex(item.visIndex) === forumSeenDivider.splitIndex
                     "
-                    :anchor-iso="authStore.offlineAnchorAt || ''"
+                    :anchor-iso="seenAnchorIso"
                     :new-count="forumSeenDivider.newCount"
                   />
                   <article
