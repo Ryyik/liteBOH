@@ -502,6 +502,7 @@ import AddressPanel from './AddressPanel.vue';
 import EditableText from '@/components/inline-editor/EditableText.vue';
 import EditableImage from '@/components/inline-editor/EditableImage.vue';
 import { useInlineEditor } from '@/composables/useInlineEditor.js';
+import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -513,6 +514,20 @@ const { userInfo } = authStore;
 const { shoppingBag } = storeToRefs(bagStore);
 const { productsData, isFetchingProducts, fetchError } = storeToRefs(productsStore);
 const { addToBag, clearBag } = bagStore;
+
+/* ── 页面滚动锁（2026-11-10 修「商品详情里滚动，滚的还是背后的列表」）──
+   本页是长文档流，滚动发生在 **html** 上（`src/style.css` 把 body 的 overflow-y 钉成
+   visible !important），所以这里曾经那 7 处 `document.body.style.overflow = 'hidden'`
+   全是空操作：详情 / 结算 / 支付成功打开后，背后的列表照样跟着滚。
+   现在统一走单源（引用计数 + 同时锁 documentElement），多层叠着也不会互相解锁。 */
+let pageScrollLock = null;
+const lockPageScroll = () => {
+  pageScrollLock ??= acquireBodyScrollLock('shop-overlay');
+};
+const unlockPageScroll = () => {
+  pageScrollLock?.();
+  pageScrollLock = null;
+};
 
 /* 2026-11-02 用户口径：「把订单也做成一个子 Tab，放在购物袋后面」——
    购物袋是「还没买的」，订单是「已经买的」，诉求不同（去结算 / 查进度），
@@ -1063,12 +1078,12 @@ const openProductDetails = (product, event) => {
   selectedOriginKey.value = `shop-product:${product.id}`;
   const card = event?.currentTarget;
   if (card) captureOrigin(selectedOriginKey.value, card, { radius: 16 });
-  document.body.style.overflow = 'hidden';
+  lockPageScroll();
 };
 const closeProductDetails = () => {
   selectedProduct.value = null;
   selectedSpecValue.value = '';
-  document.body.style.overflow = '';
+  unlockPageScroll();
 };
 const addToBagFromDetail = () => {
   const product = selectedProduct.value;
@@ -1124,7 +1139,7 @@ function showOperationToast(message) {
 
 const closeCheckout = () => {
   showCheckout.value = false;
-  document.body.style.overflow = '';
+  unlockPageScroll();
 };
 /* 结算邮件的异步结果（2026-11-02）：弹窗还开着就更新弹窗内那行说明；
    已经关掉了（用户点「完成」很快）才用岛补一条提醒 —— 岛挂在导航里，
@@ -1140,7 +1155,7 @@ const markSettlementEmailState = (state) => {
 const closePaymentSuccess = () => {
   const emailFailed = paymentSuccess.value?.emailState === 'failed';
   paymentSuccess.value = null;
-  document.body.style.overflow = '';
+  unlockPageScroll();
   if (emailFailed) showOperationToast('订单已提交，进度邮件发送失败');
 };
 
@@ -1205,7 +1220,7 @@ const startCheckout = async () => {
   await loadFallbackAddress();
   checkoutAddress.value = null;
   showCheckout.value = true;
-  document.body.style.overflow = 'hidden';
+  lockPageScroll();
 };
 
 /* 电话只需「像电话」：7~20 位数字，允许 + - 空格 括号（国际号/分机也可能出现） */
@@ -1369,7 +1384,7 @@ async function submitContact(address) {
       remark,
       emailState: 'pending',
     };
-    document.body.style.overflow = 'hidden';
+    lockPageScroll();
     void sendMerchandiseSettlementEmail({ orderId: result.data.orderId })
       .then(() => markSettlementEmailState('sent'))
       .catch((error) => {
@@ -1448,7 +1463,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (toastTimer) clearTimeout(toastTimer);
-  document.body.style.overflow = '';
+  unlockPageScroll();
   bagStore.flushShoppingBag();
   window.removeEventListener('theme-changed', handleThemeChanged);
   // 头像菜单的 document 级监听必须显式摘掉：组件卸载后它还在，会一直拦 pointerdown

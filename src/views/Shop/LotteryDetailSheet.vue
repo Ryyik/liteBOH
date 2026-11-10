@@ -113,6 +113,7 @@ import {
 import { motionEase, motionMs } from '@/utils/motion.js';
 import { resolveDbDetailImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
+import { acquireBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 
 /* 抽奖详情：窗口逻辑与 ProductDetailSheet **完全一致**（2026-11-01 用户口径
    「抽奖卡片支持点进去看详情，窗口逻辑与商品要求一样」）：
@@ -145,6 +146,8 @@ const closing = ref(false);
 let mql = null;
 let onOrientationChange = null;
 let opened = false;
+/** 页面滚动锁的释放函数（挂载时取、卸载时还，见 onMounted 注释） */
+let releaseScrollLock = null;
 
 /* 详情大图：Cloudinary 原址 → 自建 CDN，本地文件名 → 打包产物。
    `c_limit,w_1600` 只压不拉，小图不会被放大糊掉。 */
@@ -368,10 +371,15 @@ onMounted(() => {
   };
   mql.addEventListener('change', onOrientationChange);
   document.addEventListener('keydown', onKeydown);
+  /* 本层是盖在 /shop 长文档流上的整页层，不锁页面时滚轮会滚到背后的抽奖列表
+     （2026-11-10 商品详情同一类报障）。只在 selectedLottery 存在时挂载 ⇒ 挂载即上锁。 */
+  releaseScrollLock = acquireBodyScrollLock('shop-lottery-detail');
   void playOpen();
 });
 
 onBeforeUnmount(() => {
+  releaseScrollLock?.();
+  releaseScrollLock = null;
   document.removeEventListener('keydown', onKeydown);
   if (shareResetTimer) {
     clearTimeout(shareResetTimer);

@@ -18,7 +18,40 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
    改为「每条用例结束把所有 release 跑一遍」，把持锁者集合清回 0。 */
 
 const env = vi.hoisted(() => {
-  const style = { overflow: '' };
+  /** 最小 CSSStyleDeclaration：够本模块用的四条（含 important 优先级）。 */
+  const makeStyle = () => {
+    const props = new Map();
+    const style = {
+      setProperty(name, value, priority = '') {
+        props.set(name, { value: String(value), priority: priority || '' });
+      },
+      getPropertyValue(name) {
+        return props.get(name)?.value ?? '';
+      },
+      getPropertyPriority(name) {
+        return props.get(name)?.priority ?? '';
+      },
+      removeProperty(name) {
+        props.delete(name);
+      },
+    };
+    // body 侧是直赋 `style.overflow`，映射到同一份存储，读写才一致
+    Object.defineProperty(style, 'overflow', {
+      get: () => style.getPropertyValue('overflow'),
+      set: (v) => (v ? style.setProperty('overflow', v) : style.removeProperty('overflow')),
+    });
+    return style;
+  };
+
+  const style = makeStyle();
+  /* 根元素（真正的滚动容器）：clientWidth 比 innerWidth 少 8px ⇒ 量出常驻滚动条宽度，
+     用来验证「上锁时补位、解锁时摘掉」那条。 */
+  const rootStyle = makeStyle();
+  const documentElement = {
+    style: rootStyle,
+    clientWidth: 1000,
+    ownerDocument: { defaultView: { innerWidth: 1008 } },
+  };
   const makeEl = () => ({
     style: {},
     content: {},
@@ -29,13 +62,14 @@ const env = vi.hoisted(() => {
   });
   globalThis.document = {
     body: { style },
+    documentElement,
     createElement: makeEl,
     createTextNode: () => ({}),
     querySelector: () => null,
     addEventListener() {},
     removeEventListener() {},
   };
-  return { style, makeDoc: () => globalThis.document };
+  return { style, rootStyle, makeDoc: () => globalThis.document };
 });
 
 import {
@@ -44,6 +78,7 @@ import {
 } from '../../src/composables/useBodyScrollLock.js';
 
 const style = env.style;
+const rootStyle = env.rootStyle;
 const createdDoc = env.makeDoc();
 
 /** 记下所有 release，afterEach 统一释放，保证用例之间持锁集合归零。 */
@@ -57,6 +92,8 @@ const lock = (owner) => {
 beforeEach(() => {
   globalThis.document = createdDoc;
   style.overflow = '';
+  rootStyle.removeProperty('overflow-y');
+  rootStyle.removeProperty('padding-right');
 });
 
 afterEach(() => {
@@ -147,5 +184,53 @@ describe('acquireBodyScrollLock 引用计数（P3-1）', () => {
     expect(() => release()).not.toThrow();
     // 没有 document 就不该占用计数，否则回到浏览器后会「凭空多一把锁」
     expect(getBodyScrollLockCount()).toBe(0);
+  });
+});
+
+/* 2026-11-10（用户报障「商城详情的滚动还是在滚动商品列表页，而不是详情页」）：
+   本站真正的滚动容器是 **html** —— `src/style.css` 写死了
+     `html { overflow-y: auto !important }` + `body { overflow-y: visible !important }`
+   于是只写 `document.body.style.overflow = 'hidden'` 会被样式表盖掉，锁了个寂寞。
+   这组用例锁住修法本身：必须同时锁根元素、必须带 important、必须补滚动条宽度。 */
+describe('acquireBodyScrollLock 锁的是真正的滚动容器（html）', () => {
+  it('上锁同时写根元素：hidden + important', () => {
+    lock('shop');
+
+    expect(rootStyle.getPropertyValue('overflow-y')).toBe('hidden');
+    // 少这个 important 就会被样式表里那条 `!important` 压回去 —— 等于没锁
+    expect(rootStyle.getPropertyPriority('overflow-y')).toBe('important');
+  });
+
+  it('上锁补回滚动条宽度，解锁整条摘掉（不留 padding 垃圾）', () => {
+    const release = lock('shop');
+
+    // 1008 - 1000 = 8px 常驻滚动条
+    expect(rootStyle.getPropertyValue('padding-right')).toBe('8px');
+
+    release();
+
+    expect(rootStyle.getPropertyValue('padding-right')).toBe('');
+    expect(rootStyle.getPropertyValue('overflow-y')).toBe('');
+  });
+
+  it('多层叠着时只有最后一层释放才解锁根元素', () => {
+    const releaseDetail = lock('detail');
+    const releaseCheckout = lock('checkout');
+
+    releaseDetail();
+    expect(rootStyle.getPropertyValue('overflow-y')).toBe('hidden');
+
+    releaseCheckout();
+    expect(rootStyle.getPropertyValue('overflow-y')).toBe('');
+  });
+
+  it('根元素被外部接管后不抢着还原（防整站永久锁死）', () => {
+    const release = lock('shop');
+
+    rootStyle.setProperty('overflow-y', 'auto'); // 外部按自己的口径接管（无 important）
+
+    release();
+
+    expect(rootStyle.getPropertyValue('overflow-y')).toBe('auto');
   });
 });

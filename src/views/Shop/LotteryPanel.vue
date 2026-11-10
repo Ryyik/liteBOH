@@ -148,14 +148,16 @@ const join = async (item) => {
   }
 };
 
-/* 卡片 → 详情：与商品卡同一套（点击时采集卡片矩形，详情用 clip-path 从这一格推开） */
+/* 卡片 → 详情：与商品卡同一套（点击时采集卡片矩形，详情用 clip-path 从这一格推开）
+   ⚠️ 滚动锁不在这里：`/shop` 的页面滚动发生在 html 上（见 useBodyScrollLock 文件头），
+   本组件原来的 `document.body.style.overflow` 直写是空操作。锁已交给 LotteryDetailSheet
+   自己在挂载/卸载时取还（它只在 selectedLottery 存在时挂载）。 */
 const openDetail = (item, event) => {
   if (!item?.id) return;
   selectedId.value = String(item.id);
   selectedOriginKey.value = `shop-lottery:${item.id}`;
   const card = event?.currentTarget;
   if (card) captureOrigin(selectedOriginKey.value, card, { radius: 16 });
-  document.body.style.overflow = 'hidden';
 };
 
 /* ── 分享深链（2026-11-09）──
@@ -183,7 +185,6 @@ const consumeDeepLink = () => {
 const closeDetail = () => {
   selectedId.value = '';
   clearDeepLinkQuery();
-  document.body.style.overflow = '';
 };
 
 onMounted(async () => {
@@ -202,7 +203,6 @@ watch(
 );
 onBeforeUnmount(() => {
   if (messageTimer) clearTimeout(messageTimer);
-  document.body.style.overflow = '';
 });
 </script>
 

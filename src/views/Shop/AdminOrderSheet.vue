@@ -99,12 +99,17 @@ import {
   shopStatusLabel,
 } from '@/utils/api/shop-orders-api.js';
 import { logger } from '@/utils/logger.js';
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close', 'notify']);
+
+/* 订单管理也是盖在 /shop 长文档流上的整页层（2026-11-10 商品详情同一类报障：
+   不锁页面时滚轮滚的是背后的列表）。组件常驻挂载、靠 `visible` 显示 ⇒ 用声明式锁。 */
+useBodyScrollLock(() => props.visible, 'shop-admin-orders');
 
 const FILTERS = [
   { value: 'all', label: '全部' },

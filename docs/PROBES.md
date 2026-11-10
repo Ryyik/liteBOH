@@ -31,6 +31,7 @@
 | 活动页封面图 / 活动页报名区与月份轨道 | `probe-activities-images.mjs` / `probe-campaign-ui.mjs` | 7 / 35 |
 | 方块积分卡自定义卡面裂图 | `probe-points-card-image.mjs` | 7 |
 | 订阅权益 / 配额 | `probe-subscription-benefits.mjs` | 49 |
+| **商城商品详情的滚动归属**（详情打开期间背后列表必须一动不动；竖屏详情内容区自己能滚；关闭后页面恢复可滚；上锁不引起横向位移；抽奖/订单分区不误上锁） | `probe-shop-detail-scroll.mjs` | 11 |
 | 竖屏导航菜单的接缝与内部几何（一级/二级/三级 + 窄横屏档） | `probe-nav-mobile-menu.mjs` | 48 |
 | 头像框发放 | `probe-avatar-frame-grant.mjs` | 23 |
 | 头像框控制台 | `probe-avatar-frame-console.mjs` | 44 |
@@ -235,6 +236,12 @@ F5 后不得掉回整页详情：A 横屏刷新仍是弹窗 / B 仍是同一帖 
 | `probe-ledger-shop-checkin.mjs` | — | 探针：2026090905 商城/签到流水改造的远程契约验证（anon 视角） |
 | `probe-ledger-verify.mjs` | — | 积分账本补全验证探针（2026090903 迁移后）： 1) subscribe_with_points anon 调用 → 期望 NOT_AUTHENTICATED（函数已替换且入口活着） |
 | `probe-production-preview.mjs` | — | 生产预览验证探针（vite preview @4173，覆盖 dev 探针覆盖不到的盲区）： |
+
+### 商城 / 周边（1）
+
+| 文件 | npm script | 说明 |
+| --- | --- | --- |
+| `probe-shop-detail-scroll.mjs` | — | 探针：商品详情的「滚动归属」（2026-11-10 用户报障「商城详情的滚动还是在滚动商品列表页」）。真因是页面滚动发生在 `html` 上（`html{overflow-y:auto!important}` + `body{overflow-y:visible!important}`），而代码只锁 `body` 的 inline 样式 ⇒ 等于没锁。A 组（横屏）钉：打开即锁根元素 / 封面·遮罩·内容三处滚轮都不带动背后列表 / 上锁不横向位移 / 关闭后恢复可滚；B 组（竖屏）钉内容区自己能滚且页面不动；C 组钉抽奖·订单分区没有误上锁。**反证**：撤掉 `useBodyScrollLock` 里锁 `documentElement` 那几行 → A1–A3 立刻红（2026-11-10 实测） |
 
 ### 数据管理面板 / RLS / 权限（8）
 

@@ -180,12 +180,18 @@ import { sendShopOrderCancelledEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
 import { resolveDbCardImage } from '@/utils/db-image-url.js';
 import { useImageFailure } from '@/composables/useImageFailure.js';
+import { useBodyScrollLock } from '@/composables/useBodyScrollLock.js';
 
 const props = defineProps({
   order: { type: Object, default: null },
 });
 
 const emit = defineEmits(['close', 'notify', 'changed']);
+
+/* 订单详情是盖在 /shop 长文档流上的整页层：不锁页面，滚轮会一路滚到背后的订单列表
+   （2026-11-10 商品详情同一类报障）。本组件常驻挂载、靠 `order` 判空显示，
+   所以用声明式锁（随 prop 自动开关），不能用「挂载即上锁」。 */
+useBodyScrollLock(() => Boolean(props.order), 'shop-order-detail');
 
 /* 状态词与进度条真源 —— 和数据库 status / gift_status 的取值一一对应。
    顺序即进度顺序；cancelled 不在流程里，单独走「已取消」分支。 */
@@ -476,7 +482,9 @@ const formatDateTime = (value) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
-/* 打开期间锁滚动 + Esc 关闭：详情是覆盖层，背后列表不该跟着滚 */
+/* 打开期间锁滚动 + Esc 关闭：详情是覆盖层，背后列表不该跟着滚。
+   滚动锁已交给上面的 useBodyScrollLock（声明式，随 order 开关）；
+   这里只管键盘 —— 别再往这里写 body.style.overflow。 */
 const onKeydown = (event) => {
   if (event.key === 'Escape') emit('close');
 };
@@ -486,19 +494,13 @@ watch(
   (value) => {
     disarm();
     cancelling.value = false;
-    if (value) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', onKeydown);
-    } else {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', onKeydown);
-    }
+    if (value) window.addEventListener('keydown', onKeydown);
+    else window.removeEventListener('keydown', onKeydown);
   },
 );
 
 onBeforeUnmount(() => {
   disarm();
-  document.body.style.overflow = '';
   window.removeEventListener('keydown', onKeydown);
 });
 </script>

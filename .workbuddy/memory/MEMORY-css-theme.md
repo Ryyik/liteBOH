@@ -52,6 +52,14 @@
   （**撑高有意**，接「点外部关闭」，别改高度）；带实心背景就成页顶一块矩形 ⇒ 容器只定位＋接点击，
   **视觉全交 `.unified-nav-surface`**。
 
+## 滚动锁 / 穿透
+
+- ⚠️ **本站的滚动容器是 `html`，不是 `body`**：`style.css` 写死 `html{overflow-y:auto!important}` +
+  `body{overflow-y:visible!important}` ⇒ `document.body.style.overflow='hidden'`（inline、无 important）
+  **被样式表盖掉**，浮层背后照样滚（2026-11-10 商城详情报障真因；`Shop/index.vue` 曾 7 处这么写）。
+  一律用 `acquireBodyScrollLock`（它已改成同时锁 `documentElement` + `important` + 补滚动条宽度）。
+  护栏 `probe-shop-detail-scroll`(11，判别性只有 A1–A3) + `body-scroll-lock-single-source`。
+
 ## 布局细节
 
 - ⚠️ 窄屏一行硬压三连（nowrap + min-width:0 + 子项 shrink:0）＝压 0 宽/竖排字/被裁；修法是折行。
