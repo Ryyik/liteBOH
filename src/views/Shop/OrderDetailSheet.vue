@@ -131,8 +131,25 @@
             <p v-if="!canCancel" class="od-note">{{ cancelHint }}</p>
           </div>
 
-          <footer v-if="canCancel" class="od-foot">
+          <!-- 底部动作区（2026-11-10）：管理员多一档「推进进度」。
+               之前商城页里**没有任何推进入口**，只能去「数据管理 → 商城订单」改一行
+               status —— 现金单尤其别扭：钱是线下收的，收完就该能立刻落库。
+               通知（站内信 + 进度邮件）由数据库触发器发，这里不重复发。 -->
+          <footer v-if="canCancel || adminNextStatus" class="od-foot">
             <button
+              v-if="adminNextStatus"
+              type="button"
+              class="od-advance"
+              :disabled="advancing"
+              @click="handleAdvance"
+            >
+              {{ advancing ? '处理中…' : adminAdvanceLabel }}
+            </button>
+            <small v-if="adminNextStatus && cashDue" class="od-advance-hint">
+              现金 {{ cashDueText }} 收到后再推进；用户会同时收到站内信与邮件
+            </small>
+            <button
+              v-if="canCancel"
               type="button"
               class="od-cancel"
               :class="{ armed }"
@@ -153,7 +170,11 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Ban, ChevronLeft, ShoppingBag, Truck } from 'lucide-vue-next';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/auth';
-import { cancelGift, cancelShopOrder } from '@/utils/api/shop-orders-api.js';
+import {
+  cancelGift,
+  cancelShopOrder,
+  advanceShopOrderStatus,
+} from '@/utils/api/shop-orders-api.js';
 import { getProfileByUsername } from '@/utils/api/profile-api.js';
 import { sendShopOrderCancelledEmail } from '@/utils/email-service.js';
 import { logger } from '@/utils/logger.js';
@@ -398,6 +419,52 @@ const handleCancel = async () => {
     emit('notify', '取消失败，请稍后再试');
   } finally {
     cancelling.value = false;
+  }
+};
+
+/* ── 管理员推进进度（2026-11-10）──────────────────────────────────────
+ *
+ * 为什么入口在这里而不是后台：现金单的推进是「收到钱 → 发出货 → 确认收货」，
+ * 发生在聊天/收款现场，不该要求管理员切到数据管理后台去改一行。
+ *
+ * ⚠️ 只做 shop 订单：礼物进度走 user_gifts.gift_status，后台另有那一路，
+ *    别在这里顺手扩（两套状态词不同，混在一起会互相覆盖）。
+ * ⚠️ 通知（站内信 + 进度邮件）由数据库触发器 `trg_notify_shop_order_progress`
+ *    与 mail_outbox 发出，这里**不再调 EF** —— 再调一次就是重复发信。
+ * ⚠️ 只往前推一档：preparing → shipped → completed。cancelled 不在这条路上
+ *    （用户自助走 cancel_shop_order，管理员作废走后台）。
+ */
+const isAdmin = computed(() => Boolean(authStore.isAdmin));
+const advancing = ref(false);
+const adminNextStatus = computed(() => {
+  if (!isAdmin.value) return '';
+  if (props.order?.kind !== 'shop' || isCancelled.value) return '';
+  if (status.value === 'preparing') return 'shipped';
+  if (status.value === 'shipped') return 'completed';
+  return '';
+});
+const adminAdvanceLabel = computed(() =>
+  adminNextStatus.value === 'shipped' ? '标记已发货' : '标记完成',
+);
+
+const handleAdvance = async () => {
+  const next = adminNextStatus.value;
+  if (!next || advancing.value) return;
+  advancing.value = true;
+  try {
+    const result = await advanceShopOrderStatus(props.order.id, next);
+    if (!result.ok) {
+      emit('notify', result.message || '推进失败，请稍后再试');
+      return;
+    }
+    emit('notify', next === 'shipped' ? '已标记发货，用户已收到通知' : '订单已标记完成');
+    emit('changed');
+    emit('close');
+  } catch (error) {
+    logger.warn('shop-order', '推进订单进度失败', error);
+    emit('notify', '推进失败，请稍后再试');
+  } finally {
+    advancing.value = false;
   }
 };
 
@@ -894,6 +961,40 @@ onBeforeUnmount(() => {
   flex: none;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--boh-divider, rgba(0, 0, 0, 0.06));
+  /* 管理员同时有「推进进度」与「取消订单」两档时竖排，不并排挤成两个半宽按钮 */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 管理员主操作：实心蓝。与「取消」刻意拉开层级 —— 推进是常规动作，取消是例外 */
+.od-advance {
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--boh-brand-blue, #0071e3);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 160ms ease;
+}
+
+.od-advance:hover {
+  filter: brightness(1.08);
+}
+
+.od-advance:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.od-advance-hint {
+  color: var(--boh-text-secondary, #86868b);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .od-cancel {

@@ -48,6 +48,19 @@
               <Package :size="15" :stroke-width="1.9" aria-hidden="true" />
               <span>我的订单</span>
             </button>
+            <!-- 订单管理（2026-11-10 用户口径「点击头像出现一个订单管理」）：
+                 管理员的操作台 —— 全部订单 + 就地推进进度。现金单收完钱不用再进
+                 数据管理改表格。 -->
+            <button
+              v-if="isAdmin"
+              type="button"
+              role="menuitem"
+              class="avatar-menu-item"
+              @click="runAvatarMenu('manage')"
+            >
+              <ClipboardList :size="15" :stroke-width="1.9" aria-hidden="true" />
+              <span>订单管理</span>
+            </button>
             <!-- 编辑态里已经有 InlineEditorBar 的退出入口，两个入口并存会让
                  「我现在到底在哪种模式」变得可疑，所以这一项只在浏览态出现。 -->
             <button
@@ -389,6 +402,14 @@
       @continue="continueShoppingFromSuccess"
     />
 
+    <!-- 订单管理（管理员，2026-11-10）：头像菜单 →「订单管理」。
+         只列订单与推进按钮；改价/改库存仍在「编辑商品」那条链上。 -->
+    <AdminOrderSheet
+      :visible="adminOrdersOpen"
+      @close="adminOrdersOpen = false"
+      @notify="showOperationToast"
+    />
+
     <Transition name="toast">
       <div v-if="operationToast.show" class="operation-toast">{{ operationToast.message }}</div>
     </Transition>
@@ -424,6 +445,7 @@ import { storeToRefs } from 'pinia';
 import {
   ChevronDown,
   ChevronUp,
+  ClipboardList,
   ListChecks,
   Package,
   Pencil,
@@ -475,6 +497,7 @@ import { buildPaymentSummary } from './checkout-summary.js';
 import LotteryPanel from './LotteryPanel.vue';
 import BagPanel from './BagPanel.vue';
 import OrderPanel from './OrderPanel.vue';
+import AdminOrderSheet from './AdminOrderSheet.vue';
 import AddressPanel from './AddressPanel.vue';
 import EditableText from '@/components/inline-editor/EditableText.vue';
 import EditableImage from '@/components/inline-editor/EditableImage.vue';
@@ -511,6 +534,9 @@ const selectedProduct = ref(null);
 const selectedSpecValue = ref('');
 const selectedOriginKey = ref('');
 const showCheckout = ref(false);
+/* 订单管理（管理员）：头像菜单的第二项，与「我的订单」并列 —— 一个是买家视角，
+   一个是卖家视角，共用同一条购物数据。 */
+const adminOrdersOpen = ref(false);
 /* 结算页选中的收货地址（由 CheckoutSheet 单向告知）。
    id 为空 = 来自 profiles 的历史回落地址，不写地址簿、只写 profiles。 */
 const checkoutAddress = ref(null);
@@ -739,6 +765,7 @@ const runAvatarMenu = (action) => {
   // 先关：跳路由后组件不一定马上卸载，菜单留着会盖在新页面上
   closeAvatarMenu();
   if (action === 'edit') enterInlineEdit();
+  else if (action === 'manage') adminOrdersOpen.value = true;
   else goBag();
 };
 

@@ -63,6 +63,10 @@ const toInt = (value) => {
   return Number.isFinite(number) ? Math.round(number) : 0;
 };
 
+/** 订单状态 → 中文（单一真源：列表、详情、后台管理都读这里，别再各写一份词表） */
+export const shopStatusLabel = (status) =>
+  SHOP_STATUS_LABELS[String(status || '')] || String(status || '准备中');
+
 const normalizeShopItems = (items) => {
   if (!Array.isArray(items)) return [];
   return items
@@ -96,8 +100,7 @@ const normalizeShopOrder = (row) => {
     createdAt: row?.created_at || null,
     updatedAt: row?.updated_at || null,
     status: String(row?.status || 'preparing'),
-    statusLabel:
-      SHOP_STATUS_LABELS[String(row?.status || 'preparing')] || String(row?.status || '准备中'),
+    statusLabel: shopStatusLabel(row?.status || 'preparing'),
     paymentMode,
     points,
     rmb,
@@ -432,4 +435,112 @@ export async function cancelGift(giftId) {
     };
   }
   return { ok: true, alreadyCancelled: String(result.message || '') === 'ALREADY_CANCELLED' };
+}
+
+/* ── 管理员推进订单进度（2026-11-10）──────────────────────────────────
+ *
+ * 用户口径：「现金订单那里管理员可以推进进度吗？」——之前**商城页里没有任何入口**，
+ * 只能去「数据管理 → 商城订单」改一行 status。现金单尤其别扭：钱是线下收的，
+ * 收完要能立刻把「已收款、已发出」落库，而不是开后台找那一行。
+ *
+ * 三条边界，改之前先看：
+ *   ① **不新造状态**：表里只有 preparing / shipped / completed / cancelled
+ *      （shop_points_orders_status_check）。这里只允许往前推一档，
+ *      cancelled 不在这条路上（用户自助走 cancel_shop_order，管理员作废走后台）。
+ *   ② **通知不在这里发**：站内信由 trg_notify_shop_order_progress、进度邮件由
+ *      mail_outbox 的同批触发器负责，两者都挂在 `UPDATE OF status` 上。
+ *      这里再调一次 EF 就是重复发信 —— 所以只写 status，别的什么都不做。
+ *   ③ **updated_at 要自己写**：这张表没有 updated_at 自动更新触发器（线上 pg_trigger
+ *      里只有进度通知那一个），不显式写的话「最近更新」会永远停在下单时间。
+ *
+ * 权限：走 RLS `shop_points_orders_admin_update`（current_user_is_admin()）。
+ * 非管理员调用时 update 影响 0 行 ⇒ 统一翻译成「没有权限」。
+ */
+const ADVANCE_STATUSES = new Set(['shipped', 'completed']);
+
+export async function advanceShopOrderStatus(orderId, nextStatus) {
+  const id = String(orderId || '').trim();
+  const target = String(nextStatus || '').trim();
+  if (!id) return { ok: false, message: '找不到这个订单' };
+  if (!ADVANCE_STATUSES.has(target)) return { ok: false, message: '不支持的订单状态' };
+
+  try {
+    const { data, error } = await supabase
+      .from('shop_points_orders')
+      .update({ status: target, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id, status')
+      .maybeSingle();
+
+    if (error) {
+      logger.warn('shop-orders', '推进订单进度失败', error);
+      return { ok: false, message: '推进失败，请稍后再试' };
+    }
+    /* 影响 0 行：要么订单不存在，要么当前账号不是管理员（RLS 直接过滤掉） */
+    if (!data) return { ok: false, message: '没有权限或订单不存在' };
+    return { ok: true, status: String(data.status || target) };
+  } catch (error) {
+    logger.warn('shop-orders', '推进订单进度异常', error);
+    return { ok: false, message: '推进失败，请稍后再试' };
+  }
+}
+
+/* ── 管理员订单列表（2026-11-10）──────────────────────────────────────
+ *
+ * 用户口径：「点击头像出现一个订单管理」——之前管理员只能进「数据管理」看表格，
+ * 而推进发货、收现金这些动作发生在聊天/收款现场，需要一张能直接点的列表。
+ *
+ * 权限：RLS `shop_points_orders_admin_select` 让管理员读到**全部**订单，
+ * 所以这里刻意**不加 user_id 过滤**（加了就又变成"只看自己的单"）。
+ * 用户名不在订单表里（只有 user_id），单独查 profiles 补一列 buyerName。
+ *
+ * ⚠️ 先取最近 60 条、不做服务端分页：目前订单量是个位数，加游标只会增加状态。
+ *    真到上百单再上分页（那时也应该同时加状态/时间筛选的服务端条件）。
+ */
+const ADMIN_ORDER_LIMIT = 60;
+
+export async function fetchAllShopOrders({ limit = ADMIN_ORDER_LIMIT } = {}) {
+  const take = Math.max(1, Math.min(200, Number(limit) || ADMIN_ORDER_LIMIT));
+  try {
+    const { data, error } = await supabase
+      .from('shop_points_orders')
+      .select(
+        'id, order_no, user_id, items, points_used, total_points, rmb_total, payment_mode, status, created_at, updated_at, shipping_recipient, shipping_phone, shipping_address, remark',
+      )
+      .order('created_at', { ascending: false })
+      .limit(take);
+
+    if (error) {
+      logger.warn('shop-orders', '加载全部订单失败', error);
+      return { data: [], error };
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    const userIds = [...new Set(rows.map((row) => String(row?.user_id || '')).filter(Boolean))];
+    let nameById = new Map();
+    if (userIds.length) {
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .in('id', userIds);
+      if (profileError) logger.warn('shop-orders', '读取买家用户名失败', profileError);
+      nameById = new Map(
+        (Array.isArray(profiles) ? profiles : []).map((profile) => [
+          String(profile?.id || ''),
+          String(profile?.username || ''),
+        ]),
+      );
+    }
+
+    return {
+      data: rows.map((row) => ({
+        ...normalizeShopOrder(row),
+        buyerName: nameById.get(String(row?.user_id || '')) || '未知用户',
+      })),
+      error: null,
+    };
+  } catch (error) {
+    logger.warn('shop-orders', '加载全部订单异常', error);
+    return { data: [], error };
+  }
 }
