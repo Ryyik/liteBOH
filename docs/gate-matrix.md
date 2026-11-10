@@ -267,3 +267,36 @@ npm run mail:health   # 一条命令回答「还活着吗」，异常 exit 1
   `cron.job_run_details.status = succeeded`、`return_message = INSERT 0 0` ⇒ pg_cron 的 `SPI_execute`
   确实执行多语句，不需要包 `DO $$`。
 - 告警分支的「插一次 + 再插一次」在事务内实测 `first=1 second=1` ⇒ 去重生效；回滚后底账/通知零残留。
+
+### C-10 「发现新版本 → 立即更新」点完仍是旧页面，弹窗反复出现（2026-11-10）
+
+**用户口径**：刚推一版，之后「发现新版本」的提示循环出现，点「立即更新」还是弹同一个提示。
+
+**真因链**（已用 `probe-version-update-click --stale-sw` 复现，旧代码两轮都落在旧构建）：
+1. `updateServiceWorkerBeforeReload()` 把「`update()` 完成后既无 `installing` 也无 `waiting`」
+   当成「当前活跃 SW 的预缓存已是最新」→ 直接 `return true` 导航。
+2. 这个假设在两种情况下同时为假：**sw.js 本身被缓存住**（GitHub Pages 给 `.js` 发
+   `max-age=14400`，Cloudflare 默认又把 `.js` 纳入边缘缓存；Safari 还会忽略
+   `updateViaCache:'none'`），或**新 SW 安装中途失败**（预缓存任一 URL 拉不到）。
+3. 旧 SW 仍控制页面 ⇒ 它的 NavigationRoute 用**旧预缓存里的 index.html** 应答导航
+   （`__boh_update` 只影响 HTTP 缓存，影响不了 SW 预缓存）⇒ 落地还是旧壳。
+4. 但 `boh_version_reload_target` 已写入目标 ⇒ `shouldAutoApplyVersion` 判定「这个目标试过了」
+   ⇒ 自动强刷被关掉，只剩反复弹窗。**防循环护栏本身变成了死循环的锁**。
+
+**修法（三条，缺一条就还会踩）**：
+- `forceCleanAndReload` 不再信「没有 pending worker」，改为**正面核对**：翻 Cache Storage 里
+  `index.html` 条目的 `boh-build-id`，与目标不一致就降级走「注销 SW + 清缓存」兜底
+  （`readPrecachedShellBuildId`）。读不到（无 Cache API / 无壳条目）时保持旧行为，别乱清缓存。
+- 启动时 `recoverStaleLanding`：带着 `__boh_update=<目标>` 回来却仍是旧壳 ⇒ **一次性**硬重置
+  （注销 + 清空 Cache Storage + 去掉更新查询串）。闸门是 `boh_version_hard_reset` 记目标，
+  同一目标只干一次；**标记写不进/读不回就绝不重置**（否则每次加载都重置 = 无限刷新，
+  比反复弹窗更糟）。有上传在跑 / 有未提交输入时同样不重置。
+- `forceCleanAndReload` 在调用方不给目标时（`main.js` 的 SW `updatefound` 补充路径就是这样）
+  先问 `version.json` 要目标 buildId —— 否则防循环的两道护栏同时失效。
+
+**门禁**：`node scripts/probes/probe-version-update-click.mjs A B PORT --stale-sw --expect fresh`
+（新增 `--stale-sw`：切到新目录后 sw.js 仍回旧字节，模拟边缘缓存 HIT）。
+反证：修复前同一命令两轮都落地旧构建、弹窗各出现一次。
+
+**已踩过的相邻结论别推翻**：`--static-delay-ms` 那条（新 SW 预缓存慢于接管窗口）走的是
+「超时 → 注销兜底」分支，与本次的「没有 pending worker」分支是两条不同的坏路径。

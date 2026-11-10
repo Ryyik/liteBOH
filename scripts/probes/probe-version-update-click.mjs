@@ -18,6 +18,14 @@
  * 可选 --static-delay-ms N：切换到新目录后给 /static/* 每个响应加 N 毫秒延迟，
  *   用于模拟真实网络下新 SW 预缓存下载慢于接管等待窗口（复现超时分支）。
  *
+ * 可选 --stale-sw：切换到新目录后 **sw.js 仍然回旧字节**，模拟 sw.js 被边缘/中间层
+ *   缓存住（GitHub Pages 给 .js 发 max-age=14400，Cloudflare 默认又把 .js 纳入边缘
+ *   缓存）。这是「点更新 → 还是弹」死循环的第二条入口：
+ *     registration.update() 逐字节相同 ⇒ 浏览器判定「没有新 SW」
+ *     ⇒ 不存在 installing/waiting ⇒ 旧代码据此认定「预缓存已是最新」直接导航
+ *     ⇒ 旧 SW 用旧预缓存的 index.html 应答 ⇒ 落地还是旧壳。
+ *   2026-11-10 用户报障即此形态。断言取 --expect fresh（修复前会落在 stale）。
+ *
  * 断言模式：
  *   --expect stale   → 期望落地后仍是旧构建（用于旧代码复现 bug，即"反证"）
  *   --expect fresh   → 期望落地后就是新构建（用于修复后验证）
@@ -25,6 +33,7 @@
  * 用法：
  *   node scripts/probes/probe-version-update-click.mjs dist dist-check 4191 --expect stale --static-delay-ms 900
  *   node scripts/probes/probe-version-update-click.mjs dist dist-check 4191 --expect fresh
+ *   node scripts/probes/probe-version-update-click.mjs dist dist-check 4191 --stale-sw --expect fresh
  */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
@@ -39,6 +48,9 @@ const expectIdx = argv.indexOf('--expect');
 const EXPECT = expectIdx >= 0 ? argv[expectIdx + 1] : 'fresh';
 const delayIdx = argv.indexOf('--static-delay-ms');
 const STATIC_DELAY_MS = delayIdx >= 0 ? Number(argv[delayIdx + 1]) || 0 : 0;
+// sw.js 被边缘缓存住：切到新目录后仍回旧字节（见文件头 --stale-sw）
+const STALE_SW = argv.includes('--stale-sw');
+let frozenSw = null;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -67,6 +79,16 @@ const server = createServer((req, res) => {
   }
   const respond = () => {
     try {
+      // --stale-sw：边缘缓存住的 sw.js —— 与旧目录逐字节相同
+      if (STALE_SW && frozenSw && urlPath === '/sw.js') {
+        res.writeHead(200, {
+          'Content-Type': MIME['.js'],
+          'Cache-Control': 'no-store',
+          'Service-Worker-Allowed': '/',
+        });
+        res.end(frozenSw);
+        return;
+      }
       const body = readFileSync(filePath);
       res.writeHead(200, {
         'Content-Type': MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
@@ -160,6 +182,7 @@ try {
   console.log(`[ver-click] 页面当前 buildId：${pageOldBuildId}`);
 
   // ---------- ② 切到新目录，走真实版本检查 → 弹窗 → 点击 ----------
+  if (STALE_SW) frozenSw = readFileSync(path.join(OLD_DIR, 'sw.js'));
   servedDir = NEW_DIR;
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
 

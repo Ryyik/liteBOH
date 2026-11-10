@@ -343,4 +343,151 @@ describe('version-checker behavior', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(window.location.replace).not.toHaveBeenCalled();
   });
+
+  /* ============================================
+     预缓存壳核对（2026-11-10「点更新 → 还是弹」循环的回归）
+     ============================================
+     病根：「没有 pending worker」被当成「预缓存里的壳已是最新」。sw.js 被边缘
+     缓存住、或新 SW 安装失败时两者同时为假却都看不到 installing/waiting ⇒
+     旧 SW 用旧预缓存应答导航 ⇒ 落地还是旧壳 ⇒ 防循环护栏把更新降级成反复弹窗。
+     下面三条锁住「读预缓存 → 判定 → 该拆就拆」。 */
+  const stubPrecache = (shellBuildId) => {
+    const deleteCache = vi.fn(async () => true);
+    vi.stubGlobal('caches', {
+      keys: vi.fn(async () => ['workbox-precache-v2-https://example.com/']),
+      open: vi.fn(async () => ({
+        keys: vi.fn(async () => [
+          new Request('https://example.com/app/index.html?__WB_REVISION__=abc123'),
+        ]),
+        match: vi.fn(async () => ({
+          text: async () =>
+            `<html><head><meta name="boh-build-id" content="${shellBuildId}" /></head></html>`,
+        })),
+      })),
+      delete: deleteCache,
+    });
+    return deleteCache;
+  };
+
+  const stubRegistration = (extra = {}) => {
+    const unregister = vi.fn(async () => true);
+    vi.stubGlobal('navigator', {
+      serviceWorker: {
+        getRegistrations: vi.fn(async () => [
+          { update: vi.fn(async () => undefined), unregister, ...extra },
+        ]),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
+    return unregister;
+  };
+
+  it('dismantles the old SW when the precached shell is still the old build', async () => {
+    const unregister = stubRegistration(); // 无 installing/waiting（sw.js 被缓存住时的真实形态）
+    const deleteCache = stubPrecache('stale-build-local');
+    const { forceCleanAndReload } = await import('../../src/utils/version-checker.js');
+
+    await forceCleanAndReload('remote-build');
+
+    // 预缓存里还是旧壳 ⇒ 必须注销 + 清缓存，否则导航被旧预缓存应答
+    expect(unregister).toHaveBeenCalledOnce();
+    expect(deleteCache).toHaveBeenCalled();
+    expect(window.location.replace).toHaveBeenCalledWith(
+      '/app/?from=test&__boh_update=remote-build#/user-space',
+    );
+  });
+
+  it('navigates without dismantling when the precached shell already matches the target', async () => {
+    const unregister = stubRegistration();
+    stubPrecache('remote-build');
+    const { forceCleanAndReload } = await import('../../src/utils/version-checker.js');
+
+    await forceCleanAndReload('remote-build');
+
+    // 预缓存已是目标壳（新 SW 装好并 claim）⇒ 直接导航，别多清一次缓存
+    expect(unregister).not.toHaveBeenCalled();
+    expect(window.location.replace).toHaveBeenCalledWith(
+      '/app/?from=test&__boh_update=remote-build#/user-space',
+    );
+  });
+
+  it('falls back to the previous behavior when the cache API is unavailable', async () => {
+    const unregister = stubRegistration();
+    vi.stubGlobal('caches', undefined);
+    const { forceCleanAndReload } = await import('../../src/utils/version-checker.js');
+
+    await forceCleanAndReload('remote-build');
+
+    // 判定不了就别乱清缓存（旧行为），导航照旧
+    expect(unregister).not.toHaveBeenCalled();
+    expect(window.location.replace).toHaveBeenCalledWith(
+      '/app/?from=test&__boh_update=remote-build#/user-space',
+    );
+  });
+
+  /* ============================================
+     落地失败的一次性自救
+     ============================================ */
+  const createStatefulStorage = (initial = {}) => {
+    const map = new Map(Object.entries(initial));
+    return {
+      getItem: vi.fn((key) => (map.has(key) ? map.get(key) : null)),
+      setItem: vi.fn((key, value) => map.set(key, String(value))),
+      removeItem: vi.fn((key) => map.delete(key)),
+    };
+  };
+
+  it('hard-resets once when the update target landed on the old shell', async () => {
+    vi.stubGlobal(
+      'sessionStorage',
+      createStatefulStorage({ boh_version_reload_target: 'remote-build' }),
+    );
+    const unregister = stubRegistration();
+    const deleteCache = stubPrecache('local-build');
+    vi.stubGlobal('fetch', vi.fn());
+    const { recoverStaleLanding } = await import('../../src/utils/version-checker.js');
+
+    const handled = await recoverStaleLanding();
+
+    expect(handled).toBe(true);
+    expect(unregister).toHaveBeenCalledOnce();
+    expect(deleteCache).toHaveBeenCalled();
+    // 必须回到不带 __boh_update 的干净地址
+    expect(window.location.replace).toHaveBeenCalledWith('/app/?from=test#/user-space');
+  });
+
+  it('never hard-resets the same target twice (硬重置也只许一次)', async () => {
+    vi.stubGlobal(
+      'sessionStorage',
+      createStatefulStorage({
+        boh_version_reload_target: 'remote-build',
+        boh_version_hard_reset: 'remote-build',
+      }),
+    );
+    const unregister = stubRegistration();
+    stubPrecache('local-build');
+    vi.stubGlobal('fetch', vi.fn());
+    const { recoverStaleLanding } = await import('../../src/utils/version-checker.js');
+
+    const handled = await recoverStaleLanding();
+
+    expect(handled).toBe(false);
+    expect(unregister).not.toHaveBeenCalled();
+    expect(window.location.replace).not.toHaveBeenCalled();
+  });
+
+  it('decides a stale landing from target vs local build (纯判定，不碰 DOM)', async () => {
+    const { shouldHardResetStaleLanding } = await import('../../src/utils/version-checker.js');
+
+    // 带着目标回来却仍是旧壳 ⇒ 该硬重置
+    expect(shouldHardResetStaleLanding('local-build', 'remote-build', '')).toBe(true);
+    // 已落地到目标 ⇒ 正常
+    expect(shouldHardResetStaleLanding('remote-build', 'remote-build', '')).toBe(false);
+    // 同一目标已硬重置过 ⇒ 绝不重复（防刷新循环的唯一闸门）
+    expect(shouldHardResetStaleLanding('local-build', 'remote-build', 'remote-build')).toBe(false);
+    // 目标/本机构建缺失 ⇒ 无从判定，不动
+    expect(shouldHardResetStaleLanding('', 'remote-build', '')).toBe(false);
+    expect(shouldHardResetStaleLanding('local-build', '', '')).toBe(false);
+  });
 });

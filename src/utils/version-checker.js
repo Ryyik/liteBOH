@@ -221,6 +221,68 @@ const dismantleServiceWorkers = async () => {
   }
 };
 
+/* ============================================
+   预缓存里的应用壳是哪个构建（「没有 pending worker」不能当结论）
+   ============================================
+   为什么必须有这一层：
+     `updateServiceWorkerBeforeReload` 原先把「update() 完成后既无 installing 也无
+     waiting」当成「当前活跃 SW 的预缓存已是最新」→ 直接导航。这个假设在两种情况下
+     不成立，而两种情况的后果都一模一样（用户点「立即更新」拿回一模一样的旧页面）：
+       · sw.js 本身被中间层缓存住 —— GitHub Pages 给 .js 发 max-age=14400，
+         Cloudflare 默认又把 .js 纳入边缘缓存 ⇒ registration.update() 逐字节相同、
+         浏览器判定「没有新 SW」；
+       · 新 SW 安装中途失败（预缓存任一 URL 拉不到）⇒ installing 变 null。
+     两情况下旧 SW 仍然控制页面，它的 NavigationRoute 会用**旧预缓存里的
+     index.html** 应答导航：__boh_update 只影响 HTTP 缓存，影响不了 SW 预缓存。
+     接着 sessionStorage 里已写入目标 buildId ⇒ 启动自检的
+     shouldAutoApplyVersion 判定「这个目标试过了」⇒ 不自动强刷，只再弹一次窗
+     ⇒ 表现就是「点更新 → 还是弹」，永远出不来（2026-11-10 用户报障）。
+   判据不用缓存实现细节，只用标准 Cache API：翻一遍 Cache Storage 里名为
+   index.html 的条目，读出它 HTML 里的 boh-build-id。
+   ============================================ */
+const readBuildIdFromHtml = (html) => {
+  const source = String(html || '');
+  const byNameFirst = /<meta[^>]*name=["']boh-build-id["'][^>]*content=["']([^"']+)["']/i.exec(
+    source,
+  );
+  if (byNameFirst) return byNameFirst[1];
+  const byContentFirst = /<meta[^>]*content=["']([^"']+)["'][^>]*name=["']boh-build-id["']/i.exec(
+    source,
+  );
+  return byContentFirst ? byContentFirst[1] : '';
+};
+
+/**
+ * 读「当前活跃 SW 预缓存里的应用壳」是哪个构建。
+ * @returns {Promise<string>} buildId；'' 表示读不到（无 Cache API / 没有壳条目 / 读失败）
+ *   ⇒ 调用方按「无法判定」处理，退回改动前的行为，不要因为读不到就清缓存。
+ */
+const readPrecachedShellBuildId = async () => {
+  if (typeof caches === 'undefined' || typeof caches.keys !== 'function') return '';
+  try {
+    const names = await caches.keys();
+    for (const name of names) {
+      const cache = await caches.open(name);
+      const requests = await cache.keys();
+      const shellRequest = requests.find((request) => {
+        try {
+          return /(^|\/)index\.html$/i.test(new URL(request.url).pathname);
+        } catch {
+          return false;
+        }
+      });
+      if (!shellRequest) continue;
+      const response = await cache.match(shellRequest);
+      if (!response) continue;
+      const buildId = readBuildIdFromHtml(await response.text());
+      if (buildId) return buildId;
+    }
+  } catch (err) {
+    logger.warn('version', '读取预缓存应用壳失败，按无法判定处理', err?.message || err);
+  }
+  return '';
+};
+
 const readReloadTarget = () => {
   let storedTarget = '';
   try {
@@ -307,16 +369,41 @@ const fetchRemoteVersion = () => {
 };
 
 /**
+ * 解析本次更新要落到哪个构建。
+ *
+ * 调用方不给目标时（main.js 的 SW updatefound 那条补充路径就是这种：它只知道
+ * 「有新 SW 装好了」，不知道版本号），必须先问 version.json 要到目标的 buildId ——
+ * 否则 `boh_version_reload_target` 记不下目标、`__boh_update` 只是时间戳，
+ * 两道防循环护栏同时失效，一旦落地失败就会无限重试。
+ *
+ * @returns {Promise<string>} '' = 确实拿不到（离线 / version.json 不可读），
+ *   此时退回「没有目标的旧流程」，不做预缓存判定。
+ */
+const resolveTargetBuildId = async (targetBuildId) => {
+  const given = String(targetBuildId || '').trim();
+  if (given) return given;
+  if (pendingUpdate?.remoteBuildId) return String(pendingUpdate.remoteBuildId);
+  try {
+    const remote = await fetchRemoteVersion();
+    if (remote?.buildId && remote.buildId !== currentBuildId) return String(remote.buildId);
+  } catch (err) {
+    logger.warn('version', '解析更新目标失败，按无目标流程更新', err?.message || err);
+  }
+  return '';
+};
+
+/**
  * 让最新 Service Worker 接管后，使用带构建指纹的导航刷新页面。
  * 不主动删除 Workbox 缓存：旧 SW 仍控制当前页面时清缓存会让导航继续命中旧应用壳。
  */
 export const forceCleanAndReload = async (targetBuildId = '') => {
-  const safeTargetBuildId = String(targetBuildId || '').trim();
+  const safeTargetBuildId = await resolveTargetBuildId(targetBuildId);
   const reloadPath = buildVersionReloadPath(window.location.href, safeTargetBuildId);
 
   logger.info('version', '用户确认更新，正在切换到最新应用壳', {
     from: currentVersion,
     buildId: currentBuildId,
+    target: safeTargetBuildId || '(未知)',
   });
 
   let takeoverReady = false;
@@ -327,6 +414,21 @@ export const forceCleanAndReload = async (targetBuildId = '') => {
 
     if ('serviceWorker' in navigator) {
       takeoverReady = await updateServiceWorkerBeforeReload();
+      // ⚠️ 「没有 pending worker」≠「预缓存里的壳已是最新」：sw.js 被边缘/中间层
+      // 缓存住、或新 SW 安装中途失败时，两者同时为假却都看不到 installing/waiting。
+      // 这里必须**正面核对**预缓存里的 index.html 是不是目标构建，否则导航会被
+      // 旧 SW 的旧预缓存应答 → 用户点「立即更新」拿回一模一样的旧页面。
+      if (takeoverReady && safeTargetBuildId) {
+        const precachedBuildId = await readPrecachedShellBuildId();
+        if (precachedBuildId && precachedBuildId !== safeTargetBuildId) {
+          logger.warn(
+            'version',
+            '无 pending worker，但预缓存里的应用壳仍是旧构建（sw.js 很可能被缓存住），改走注销兜底',
+            { precachedBuildId, target: safeTargetBuildId },
+          );
+          takeoverReady = false;
+        }
+      }
     }
   } catch (err) {
     logger.error('version', '强制更新流程出错', err);
@@ -390,6 +492,98 @@ export const recoverIfStaleBuild = async () => {
 
 // 标记本次会话是否已派发过更新提示，避免重复弹窗打扰
 let updateNotified = false;
+
+/* ============================================
+   落地失败的一次性自救（打断「点更新 → 还是弹」的死循环）
+   ============================================
+   症状：带着 `__boh_update=<目标>` 回来，自己的壳却还是旧构建。
+   成因：上一跳导航被旧 SW 的旧预缓存应答了（sw.js 被缓存住 / 新 SW 安装失败 /
+   任何我们没枚举到的中间层）。此时 `boh_version_reload_target` 已写入目标，
+   `shouldAutoApplyVersion` 判定「这个目标试过了」⇒ 自动强刷被关掉，只剩反复弹窗。
+
+   这里做**一次性**硬重置：注销所有 SW + 清空全部 Cache Storage，再回到不带
+   `__boh_update` 的干净地址（清空缓存后旧 SW 的预缓存必然落空 → 导航直连网络，
+   这是 probe-version-update-click 已验证过的兜底路径）。
+   `boh_version_hard_reset` 记住已硬重置过的目标 ⇒ 同一目标只干一次；再失败就
+   老实弹提示，绝不无限刷新。
+
+   护栏与自动强刷同一套：有上传在跑 / 有填了没提交的输入就不动，退化成弹提示。
+   ============================================ */
+const HARD_RESET_TARGET_KEY = 'boh_version_hard_reset';
+
+const readHardResetTarget = () => {
+  try {
+    return sessionStorage.getItem(HARD_RESET_TARGET_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+const writeHardResetTarget = (targetBuildId) => {
+  try {
+    sessionStorage.setItem(HARD_RESET_TARGET_KEY, targetBuildId);
+    // 写完必须读回来核对：某些隐私模式/配额异常下 setItem 静默失败或 getItem 抛错，
+    // 那样闸门等于不存在 —— 宁可退回弹提示，也不能冒无限刷新的风险。
+    if (sessionStorage.getItem(HARD_RESET_TARGET_KEY) !== targetBuildId) {
+      logger.warn('version', '硬重置标记写入后读不回，跳过硬重置');
+      return false;
+    }
+    return true;
+  } catch (err) {
+    // ⚠️ 写不进标记就**绝不能**硬重置：标记是唯一的防循环闸门，
+    // 落不了盘意味着每次加载都会重置一次 = 无限刷新，比反复弹窗更糟。
+    logger.warn('version', '无法记录硬重置标记，跳过硬重置', err?.message || err);
+    return false;
+  }
+};
+
+/**
+ * 本次加载是否该做「落地失败」的硬重置。抽成纯函数是为了可测。
+ * @param {string} localBuildId  当前页面 meta 里的构建指纹
+ * @param {string} target        上一次导航想落到哪个构建
+ * @param {string} alreadyReset  已经硬重置过的目标（空 = 还没重置过）
+ */
+export const shouldHardResetStaleLanding = (localBuildId, target, alreadyReset) => {
+  if (!localBuildId || !target) return false;
+  if (target === localBuildId) return false; // 已经落地到目标
+  return String(alreadyReset || '') !== String(target);
+};
+
+/**
+ * 若「带着更新目标回来却仍是旧壳」，做一次硬重置并导航。
+ * @returns {Promise<boolean>} true = 已发起导航（调用方不要再做版本检查/弹窗）
+ */
+export const recoverStaleLanding = async () => {
+  if (import.meta.env.DEV) return false;
+  const localBuildId = readCurrentBuildId();
+  const target = readReloadTarget();
+  // 同一目标只硬重置一次（这是防刷新循环的唯一闸门，别删）
+  if (!shouldHardResetStaleLanding(localBuildId, target, readHardResetTarget())) return false;
+  // 上传中的代价不可恢复、未提交内容是用户的字 —— 一律退化成弹提示
+  if (hasActiveUpload() || hasUnsavedEditableContent()) {
+    logger.info('version', '落地仍是旧壳，但用户正在上传/有未提交内容，暂不硬重置');
+    return false;
+  }
+  // 标记写不下就别重置（否则每次加载都会重置 = 无限刷新）
+  if (!writeHardResetTarget(target)) return false;
+
+  logger.warn('version', '带着更新目标回来却仍是旧壳，执行一次性硬重置', {
+    localBuildId,
+    target,
+  });
+
+  await dismantleServiceWorkers();
+
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete(UPDATE_QUERY_KEY);
+  try {
+    window.location.replace(`${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+  } catch (err) {
+    logger.error('version', '硬重置导航失败，退回普通刷新', err);
+    window.location.reload();
+  }
+  return true;
+};
 
 /* 「已知有新构建但还没应用」的状态。
    启动时那条 autoApply 只覆盖「冷启动就发现是旧构建」；用户一直开着页面时，
@@ -672,7 +866,14 @@ export const initVersionChecker = () => {
 
   // 页面启动时若发现自己属于旧构建，自动应用一次新构建。同一目标 buildId
   // 只尝试一次，CDN 尚未完成切换时会退回更新提示，避免刷新循环。
-  void autoCheck({ autoApply: true });
+  //
+  // 先做「上一次更新是否根本没落地」的自救：带着目标回来却还是旧壳时，
+  // 「同一目标只试一次」的护栏会让它退化成反复弹窗 —— 由 recoverStaleLanding
+  // 做一次性硬重置彻底跳出循环（详见该函数注释）。
+  void (async () => {
+    if (await recoverStaleLanding()) return; // 已发起硬重置导航，本次不再检查/弹窗
+    await autoCheck({ autoApply: true });
+  })();
 
   // 定时轮询
   intervalId = setInterval(() => {
