@@ -40,6 +40,27 @@
       </button>
     </nav>
 
+    <!-- 管理员「编辑」页签（2026-11-10 用户口径：想在正式页直接进编辑态）。
+         只对 admin 且**非编辑态**渲染 —— 编辑态里已经有 InlineEditorBar 的退出入口，
+         两个入口并存会让「我现在到底在哪种模式」变得可疑。
+
+         实现方式是**跳转到就地编辑宿主路由**，不是原地切换：编辑能力靠
+         provide/inject 注入，而 inject 只在 setup 时求值一次。想原地开关就得
+         把 provider 提到 App 层 —— 那会把上传/校验/浮层这些编辑依赖拖进前台
+         bundle（本页是首屏高频页）。跳过去渲染的还是同一个 <Shop />，
+         用户看到的是同一张页面多了工具栏，URL 变化无感。 -->
+    <button
+      v-if="canEnterInlineEdit"
+      type="button"
+      class="admin-edit-tab"
+      title="进入就地编辑模式（改标题、换图、调价、排序）"
+      aria-label="进入就地编辑模式"
+      @click="enterInlineEdit"
+    >
+      <Pencil :size="13" :stroke-width="2.3" aria-hidden="true" />
+      <span>编辑</span>
+    </button>
+
     <main class="store-main">
       <!-- 页面切换动效（2026-11-01 用户口径）：
            key 绑 activeTab ⇒ 切「产品 / 抽奖 / 购物袋 / 地址」时这一层整体重建，
@@ -116,32 +137,6 @@
               @click="openProductDetails(product, $event)"
               @keydown="onCardKeydown($event, product)"
             >
-              <!-- 换图的上传与落库都由原语内部完成（含失败回滚），这里不用再接 handler -->
-              <!-- 规格入口（2026-11-10 用户口径：「新增规格 / 删除规格 / 更改规格」）。
-                   卡片只有 ~170px 宽，规格是列表级字段（增删会改变卡片高度），
-                   所以卡片上只留一个计数徽标，编辑在独立面板里做。 -->
-              <button
-                v-if="isInlineEditing"
-                type="button"
-                class="p-card-specs"
-                :aria-label="`编辑规格，当前 ${(product.specifications || []).length} 条`"
-                @click.stop="openSpecs(product)"
-              >
-                <ListChecks :size="12" :stroke-width="2" aria-hidden="true" />
-                <span>规格 {{ (product.specifications || []).length }}</span>
-              </button>
-              <!-- 卡片形态档位（2026-11-10）：点一次循环 small → banner → large。
-                   与规格同理，档位是「整卡形态」，放到卡片上的小胶囊里，不占正文位置。 -->
-              <button
-                v-if="isInlineEditing"
-                type="button"
-                class="p-card-layout"
-                :aria-label="`切换卡片形态，当前 ${cardLayoutLabel(product.card_layout)}`"
-                @click.stop="cycleCardLayout(product)"
-              >
-                <span class="p-card-layout-mark" aria-hidden="true"></span>
-                <span>{{ cardLayoutLabel(product.card_layout) }}</span>
-              </button>
               <EditableImage v-model="product.image" class="p-media" :row="product" field="image">
                 <img
                   v-if="product.image && !productImageFailed(product)"
@@ -162,7 +157,21 @@
                   field="title"
                   label="商品名称"
                 />
-                <span class="p-price">{{ formatPriceDisplay(product) }}</span>
+                <!-- 价格：编辑态是可点入口（打开定价面板），浏览态仍是纯文本。
+                     之前这里始终是一个 <span>，所以「点价格想改」根本没反应 ——
+                     不是交互坏了，是入口没做。 -->
+                <button
+                  v-if="isInlineEditing"
+                  type="button"
+                  class="p-price p-price-editable"
+                  :aria-label="`编辑商品设置，当前定价 ${formatPriceDisplay(product)}`"
+                  :title="`支付方式：${paymentModeLabel(product.payment_mode)} · 库存 ${Math.max(0, Math.round(Number(product.stock) || 0))} 件，点击修改定价 / 库存 / 说明`"
+                  @click.stop="openProductSettings(product)"
+                >
+                  <SlidersHorizontal :size="12" :stroke-width="2.2" aria-hidden="true" />
+                  <span>{{ formatPriceDisplay(product) }}</span>
+                </button>
+                <span v-else class="p-price">{{ formatPriceDisplay(product) }}</span>
                 <!-- 描述只在宽屏的横幅里出现（窄屏/小卡会把行撑高、挤掉名称）。
                      宽度 1000px 以上的横幅行，只有「名称 + 价格」两端对齐会留下
                      一大片空白；一行描述正好把中段填满，也更像列表该有的信息量。 -->
@@ -175,6 +184,29 @@
                     class="p-spec"
                     >{{ spec.label }} {{ spec.value }}</span
                   >
+                </span>
+                <!-- 编辑工具（规格 / 形态）放在 meta 之内：小卡里靠 CSS 绝对定位浮到
+                     左上角（那一档的图是整张卡，浮着才不占高度）；横幅/大图里留在
+                     正文流中 —— 那两档的图在左侧，角上的胶囊会正好压住商品图。 -->
+                <span v-if="isInlineEditing" class="p-card-tools">
+                  <button
+                    type="button"
+                    class="p-card-specs"
+                    :aria-label="`编辑规格，当前 ${(product.specifications || []).length} 条`"
+                    @click.stop="openSpecs(product)"
+                  >
+                    <ListChecks :size="12" :stroke-width="2" aria-hidden="true" />
+                    <span>规格 {{ (product.specifications || []).length }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="p-card-layout"
+                    :aria-label="`切换卡片形态，当前 ${cardLayoutLabel(product.card_layout)}`"
+                    @click.stop="cycleCardLayout(product)"
+                  >
+                    <span class="p-card-layout-mark" aria-hidden="true"></span>
+                    <span>{{ cardLayoutLabel(product.card_layout) }}</span>
+                  </button>
                 </span>
               </span>
               <!-- 顺序调整（2026-11-10 用户口径：「支持调整商品顺序」）。
@@ -288,6 +320,17 @@
       @save="handleSpecsSave"
     />
 
+    <!-- 商品设置面板：定价（三档支付方式）/ 库存 / 说明。
+         三项都是列表级字段，卡片单个输入框改不了；合成一个面板还能一次 UPDATE 写完。 -->
+    <ProductEditSheet
+      v-if="isInlineEditing"
+      :visible="Boolean(settingsProduct)"
+      :product="settingsProduct"
+      :saving="settingsSaving"
+      @close="settingsProduct = null"
+      @save="handleSettingsSave"
+    />
+
     <!-- 确认订单（2026-11-03）
          原来是「确认收货信息」表单弹窗：点结算只弹地址表单，用户看不到买什么、付多少。
          现在是一个整页的确认订单层：地址卡 / 商品清单 / 金额明细 / 预检 / 固定底栏，
@@ -362,8 +405,10 @@ import {
   ChevronUp,
   ListChecks,
   Package,
+  Pencil,
   Plus,
   Search,
+  SlidersHorizontal,
   User,
   X,
 } from 'lucide-vue-next';
@@ -402,6 +447,8 @@ import { useScrollDirectionHide } from '@/views/user-center/UserSpace/composable
 import ShopPaymentSuccessModal from './ShopPaymentSuccessModal.vue';
 import ProductDetailSheet from './ProductDetailSheet.vue';
 import ProductSpecsSheet from './ProductSpecsSheet.vue';
+import ProductEditSheet from './ProductEditSheet.vue';
+import { formatPriceDisplay, parsePointsCost, paymentModeLabel } from '@/utils/product-pricing.js';
 import CheckoutSheet from './CheckoutSheet.vue';
 import { buildPaymentSummary } from './checkout-summary.js';
 import LotteryPanel from './LotteryPanel.vue';
@@ -541,30 +588,17 @@ const handleRailAction = async (actionId) => {
   }
 };
 
-const parsePointsCost = (value) => {
-  const points = Number(value);
-  return Number.isFinite(points) && points > 0 ? Math.round(points) : null;
-};
-const formatRmb = (value) => {
-  const cents = Number(value);
-  if (!Number.isFinite(cents) || cents <= 0) return null;
-  return `¥${(cents / 100).toFixed(2)}`;
-};
-const formatPriceDisplay = (product) => {
-  const points = parsePointsCost(product?.points_cost);
-  const rmb = formatRmb(product?.rmb_price);
-  const parts = [];
-  if (points !== null) parts.push(`${points} 积分`);
-  if (rmb) parts.push(rmb);
-  return parts.length ? parts.join(' + ') : '暂无报价';
-};
+/* 价格的解析与展示口径统一在 @/utils/product-pricing.js —— 面板要复用同一份
+   判据（「> 0 才算有价」），在这里再写一份必然漂移。
+   注意该模块的 `parsePointsCost` 返回 **0** 而不是 null（DB 列是 NOT NULL），
+   所以判断「有没有积分价」一律用 `> 0`，不要再用 `!== null`。 */
 const isProductExchangeable = (product) => {
   if (product?.is_purchasable === false) return false;
   const mode = String(product?.payment_mode || 'points_only');
-  if (mode === 'points_only') return parsePointsCost(product?.points_cost) !== null;
+  if (mode === 'points_only') return parsePointsCost(product?.points_cost) > 0;
   if (mode === 'rmb_only') return Number(product?.rmb_price) > 0;
   if (mode === 'combined')
-    return parsePointsCost(product?.points_cost) !== null && Number(product?.rmb_price) > 0;
+    return parsePointsCost(product?.points_cost) > 0 && Number(product?.rmb_price) > 0;
   return false;
 };
 /* 商品图三种形态混存（2026-11-02 线上实测）：
@@ -591,6 +625,22 @@ const { isImageLoaded, markImageLoaded } = useImageLoaded();
    同一份 DOM（用户要的就是「整个页面跟前端一样」），任何结构分叉都会立刻产生漂移。 */
 const inlineEditor = useInlineEditor();
 const isInlineEditing = computed(() => Boolean(inlineEditor?.active));
+
+/* 正式页上的「编辑」页签：仅管理员、且当前**不在**编辑态时出现。
+   `isAdmin` 是 auth store 的 computed（未初始化 / 非 admin 恒 false），
+   所以未登录游客与普通用户拿到的都是 false，前台不多任何节点。 */
+const canEnterInlineEdit = computed(() => Boolean(authStore.isAdmin) && !isInlineEditing.value);
+
+/**
+ * 进入就地编辑：跳到宿主路由，并带上来源地址。
+ *
+ * 带 `from` 是为了让「退出编辑器」回到他刚才看的那一页（/shop#bag 这种带
+ * tab 的地址也一起带回），而不是一律落到数据管理台 —— 从正式页点进来的
+ * 人，心里想的是「改完继续逛」。
+ */
+const enterInlineEdit = () => {
+  router.push({ path: '/admin/shop-editor', query: { from: route.fullPath } });
+};
 
 /**
  * 详情页里的就地编辑回写。
@@ -632,6 +682,51 @@ const handleSpecsSave = async (specs) => {
     product.specifications = previous;
   } finally {
     specsSaving.value = false;
+  }
+};
+
+/* ── 商品设置编辑（只在就地编辑态可达）：定价 / 库存 / 说明 ────────────────
+   卡片上的价格原本是一个不可点的 `<span>` —— 用户「点价格想输入，没反应」
+   不是交互坏了，而是这个入口从来没做。库存与说明同理（说明在窄卡里根本不渲染，
+   库存卡片上根本不显示），所以统一由这个面板承接。
+
+   为什么不像标题那样就地改单格：价格是 **4 列联动**
+   （payment_mode / points_cost / rmb_price / is_purchasable），DB 上有
+   `chk_products_points_required` 逐条语句校验 —— 切成纯积分时分两步写，
+   「points_cost 还是 0 + is_purchasable 还是 true」的中间态当场 23514（实测）。
+   所以 6 列（含 stock / description）必须走 `commitMany` 一次 UPDATE。 */
+const settingsProduct = ref(null);
+const settingsSaving = ref(false);
+
+const openProductSettings = (product) => {
+  if (!isInlineEditing.value || !product) return;
+  settingsProduct.value = product;
+};
+
+const handleSettingsSave = async (patch) => {
+  const product = settingsProduct.value;
+  if (!product || !inlineEditor) return;
+
+  /* 撤销要退回「改动前的完整状态」，所以先留一份全部列的旧值。
+     只记变化的字段会让撤销后的中间态又踩一次 CHECK。 */
+  const previous = {
+    payment_mode: product.payment_mode,
+    points_cost: product.points_cost,
+    rmb_price: product.rmb_price,
+    is_purchasable: product.is_purchasable,
+    stock: product.stock,
+    description: product.description,
+  };
+
+  settingsSaving.value = true;
+  try {
+    Object.assign(product, patch); // 乐观更新：卡片上的价 / 说明立刻变
+    await inlineEditor.commitMany?.(product, patch, previous, '', '商品设置');
+    settingsProduct.value = null;
+  } catch {
+    Object.assign(product, previous);
+  } finally {
+    settingsSaving.value = false;
   }
 };
 

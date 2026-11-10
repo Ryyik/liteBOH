@@ -12,7 +12,7 @@
 
 <script setup>
 import { onBeforeUnmount, reactive } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import Shop from '@/views/Shop/index.vue';
 import InlineEditorBar from '@/components/inline-editor/InlineEditorBar.vue';
 import { provideInlineEditor } from '@/composables/useInlineEditor.js';
@@ -36,7 +36,8 @@ import {
 import { isDialogBusy, useConfirmDialog } from '@/composables/useConfirmDialog.js';
 import { validateInlineField } from '@/utils/inline-editor-validate.js';
 import { logger } from '@/utils/logger.js';
-import { reorderList } from '@/utils/shop-order.js';
+import { nextSortOrderForInsert, reorderList } from '@/utils/shop-order.js';
+import { DEFAULT_CARD_LAYOUT } from '@/config/product-card-layout.js';
 
 /**
  * 商城「就地编辑」宿主（/admin/shop-editor）。
@@ -57,6 +58,7 @@ import { reorderList } from '@/utils/shop-order.js';
  * 表名；不声明的一律按商品处理，商城原有调用点不用改。
  */
 const router = useRouter();
+const route = useRoute();
 const productsStore = useProductsStore();
 const { confirm } = useConfirmDialog();
 
@@ -120,6 +122,23 @@ const save = async (row, field, value, table = '') => {
   // 只有商品进 store 缓存；抽奖列表由 LotteryPanel 自己持有，乐观更新已经生效
   if (metaOfTable(table).table === TABLE) productsStore.bumpCacheVersion();
   notify('已保存', 'ok');
+};
+
+/**
+ * 多字段**原子**写入 —— 定价面板的专用通道（payment_mode / points_cost /
+ * rmb_price / is_purchasable 四列一次 UPDATE）。
+ *
+ * 绝不能改成循环调 `save()`：`chk_products_points_required` 是逐条语句校验的，
+ * 把「纯现金」切成「纯积分」时先写 payment_mode，那一刻 points_cost 还是 0、
+ * is_purchasable 还是 true ⇒ 当场 23514（2026-11-10 服务端 SQL 实测复现）。
+ * 反方向（→ 纯现金）反而被 SQL 的三值逻辑放过（`rmb_price > 0` 遇 NULL 得 NULL，
+ * CHECK 只拒 FALSE），所以「有时挂有时不挂」比必挂更难排查 —— 更要用原子写。
+ */
+const saveMany = async (row, patch, table = '') => {
+  const target = metaOfTable(table).table;
+  await patchAdminRow(target, row.id, { ...patch });
+  if (target === TABLE) productsStore.bumpCacheVersion();
+  notify('已更新定价', 'ok');
 };
 
 /** 删除前先把库里那一行原样存进本机快照，数据管理的「最近删除」可以直接恢复 */
@@ -197,7 +216,10 @@ const create = async () => {
           ⇒ 漏传会撞 23502。
      两者在 PostgREST 里都只是一句英文「新增失败」，运营看不出是缺列还是价格问题。 */
   const list = Array.isArray(productsStore.productsData) ? productsStore.productsData : [];
-  const maxOrder = list.reduce((max, item) => Math.max(max, Number(item.sort_order) || 0), 0);
+  /* 新条目插到**列表最前面**（2026-11-10 用户口径）。
+     序号算法在 @/utils/shop-order.js 的 nextSortOrderForInsert（有单测）——
+     前台按「sort_order 升序 → id 升序」排，所以「最前」等于「取比最小值更小的值」。 */
+  const nextOrder = nextSortOrderForInsert(list);
   const payload = {
     title: '新商品',
     category: categoryField?.options?.[0]?.value ?? '',
@@ -212,8 +234,13 @@ const create = async () => {
        0 价 = 不可购买（`is_purchasable: false`），所以上架也不会误卖。 */
     is_active: true,
     is_purchasable: false,
-    /* 排到现有商品之后：整十递增，留出手工插位的空隙（sort_order 升序 → id 升序） */
-    sort_order: maxOrder + 10,
+    /* 排在列表最前：见上面 nextOrder 的注释（min - 10） */
+    sort_order: nextOrder,
+    /* 卡片形态默认档（2026-11-10 用户口径：「默认新建都是小卡」）。
+       显式传值而不是吃 DB 默认：迁移可能还没跑（离线环境 / 新库），
+       而且这一行同时也是「默认档在哪里」的可读注释。
+       值取 DEFAULT_CARD_LAYOUT，与 db 列默认值、后台下拉框同一真源。 */
+    card_layout: DEFAULT_CARD_LAYOUT,
   };
   try {
     await insertAdminRow(TABLE, payload);
@@ -335,6 +362,7 @@ const labelOf = (field, table = '') => metaOf(field, table)?.label || field;
 provideInlineEditor({
   startActive: true,
   save,
+  saveMany,
   remove,
   create,
   move,
@@ -346,8 +374,21 @@ provideInlineEditor({
   uploadImage,
 });
 
+/**
+ * 退出编辑器。
+ *
+ * 从正式页的「编辑」页签进来时会带 `?from=/shop...`，退出应当回到他刚才看的
+ * 那一页，而不是一律落到数据管理台 —— 从商城点进编辑的人心里想的是
+ * 「改完继续逛」。直接访问 /admin/shop-editor（书签、后台菜单）时没有 from，
+ * 仍旧回数据管理台。
+ */
 const exit = () => {
-  router.push('/admin/data-management');
+  const from = String(route.query.from || '');
+  /* 只接受站内绝对路径：`//evil.com` 是协议相对 URL，会被当成外部跳转；
+     `/admin` 开头的一律忽略，避免从编辑器里再次进入编辑器。 */
+  const isSafeInternal =
+    from.startsWith('/') && !from.startsWith('//') && !from.startsWith('/admin');
+  router.push(isSafeInternal ? from : '/admin/data-management');
 };
 
 onBeforeUnmount(() => {

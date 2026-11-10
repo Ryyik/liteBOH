@@ -313,6 +313,10 @@
 
 .p-card {
   display: flex;
+  /* 角标（删除 / 排序 / 小卡工具条）都是 position:absolute，必须由卡片自己当
+     包含块。缺这一行时它们会挂到更外层的定位祖先上 —— 单卡时不明显，
+     一旦外层因别的原因变成定位元素（浮层、过渡包裹），角标就会整体错位。 */
+  position: relative;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
@@ -358,6 +362,34 @@
 .p-price {
   color: var(--boh-text-secondary, #86868b);
   font-size: 12px;
+}
+
+/* 编辑态的价格入口（2026-11-10）：外观仍是一行价格，但整块可点。
+   用虚线边框而不是实心按钮 —— 商城页里已经有「规格 / 形态 / 删除 / 上下移」
+   四类角标，再多一个实心控件会把卡片压成工具栏。 */
+.p-price-editable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 6px;
+  border: 1px dashed transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--boh-text-secondary, #86868b);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.p-price-editable:hover {
+  border-color: currentColor;
+}
+
+.p-price-editable:focus-visible {
+  border-color: var(--boh-accent, #0071e3);
+  outline: none;
 }
 
 /* ===== 三种卡片形态（2026-11-10） =====
@@ -537,13 +569,38 @@
   background: #e30000;
 }
 
-/* 规格入口：左上角半透明胶囊。三个角分工 —— 左上规格、右上删除、右下排序，
-   竖屏 170px 宽的卡上互不重叠，也不用给卡片额外留高度。 */
-.p-card-specs {
+/* 编辑工具条（规格 / 形态）—— 2026-11-10 从「绝对定位三个角」改成
+   「小卡浮角、横幅与大图进正文流」：
+   横幅/大图的商品图在**左侧**，角上的胶囊会正好盖住图（竖屏 390 实测）。
+   进流后它排在 meta 末尾，既不盖图，也不用给卡片预留固定高度。 */
+.p-card-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* 小卡：图就是整张卡，工具浮在左上角才不占高度（半透明黑底，压住图片也能读） */
+.p-card.is-small .p-card-tools {
   position: absolute;
   top: 6px;
   left: 6px;
   z-index: 2;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+}
+
+/* 横幅宽屏：meta 是两列网格，工具条要跨满整行，否则会被挤进价格那一格 */
+@media (min-width: 720px) {
+  .p-card.is-banner .p-card-tools {
+    grid-column: 1 / -1;
+  }
+}
+
+/* 规格入口：半透明小胶囊。三个角分工 —— 左上规格、右上删除、右下排序。 */
+.p-card-specs {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -564,12 +621,8 @@
   background: rgba(0, 0, 0, 0.72);
 }
 
-/* 形态胶囊：贴在规格徽标下方（左上角第二行）。点一次循环 small → banner → large。 */
+/* 形态胶囊：点一次循环 small → banner → large。 */
 .p-card-layout {
-  position: absolute;
-  top: 34px;
-  left: 6px;
-  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -595,6 +648,14 @@
   height: 8px;
   border: 1px solid currentColor;
   border-radius: 2px;
+}
+
+/* 横幅/大图在编辑态要给右侧角标让位：×（右上）与上下移（右下）都贴 right:6，
+   而这两档的文字区是**通栏**的，价格 justify-self:end 会正好钻到 × 底下
+   （1200px 实测：¥9.90 被 × 压住半个字符）。让出 34px 即可，不影响浏览态。 */
+.p-card.is-banner.is-edit-target .p-meta,
+.p-card.is-large.is-edit-target .p-meta {
+  padding-right: 34px;
 }
 
 /* ===== 长按抖动排序（iOS 小组件式，2026-11-10） =====
@@ -759,6 +820,46 @@
   background: transparent;
   font-size: 13px;
   cursor: pointer;
+}
+
+/* ===== 管理员「编辑」页签（2026-11-10） =====
+   贴在右侧屏幕边缘的竖排小签，只有 admin 且不在编辑态时才渲染。
+   为什么不做成底部大按钮：这一页已经有底栏导航，再加一个常驻按钮会抢主操作位；
+   竖排贴边是「工具入口」的通用形态，也不遮挡商品卡的可点区域（宽 30px 左右）。 */
+.admin-edit-tab {
+  position: fixed;
+  right: 0;
+  top: 42%;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 5px;
+  border: 1px solid var(--boh-border-primary, rgba(0, 0, 0, 0.08));
+  border-right: 0;
+  border-radius: 12px 0 0 12px;
+  background: var(--boh-bg-primary, #fff);
+  box-shadow: -2px 2px 12px rgba(0, 0, 0, 0.1);
+  color: var(--boh-text-secondary, #86868b);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  /* 竖排：与「贴边的小签」这一形态一致，也不会在窄屏上占掉商品卡的横向空间 */
+  writing-mode: vertical-rl;
+}
+
+/* 图标不跟着竖排：lucide 的铅笔本身就是斜的，再转 90° 会变成一根斜杠 */
+.admin-edit-tab svg {
+  writing-mode: horizontal-tb;
+}
+
+.admin-edit-tab:hover,
+.admin-edit-tab:focus-visible {
+  color: var(--boh-accent, #0071e3);
+  border-color: var(--boh-accent, #0071e3);
+  outline: none;
 }
 
 /* ===== 兜底 toast ===== */

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { reorderList, resolveDropIndex } from '../../src/utils/shop-order.js';
+import {
+  nextSortOrderForInsert,
+  reorderList,
+  resolveDropIndex,
+} from '../../src/utils/shop-order.js';
 
 /**
  * 拖拽排序的落点算法。
@@ -81,5 +85,28 @@ describe('reorderList', () => {
     expect(reorderList([], 0, 1)).toEqual([]);
     expect(reorderList(['a'], 0, 0)).toEqual(['a']);
     expect(reorderList(null, 0, 1)).toEqual([]);
+  });
+});
+
+describe('nextSortOrderForInsert（新建商品排最前）', () => {
+  it('空列表给 10（与整表重编号的起点一致）', () => {
+    expect(nextSortOrderForInsert([])).toBe(10);
+    expect(nextSortOrderForInsert(null)).toBe(10);
+  });
+
+  it('取最小值 - 10，保证比所有现有项都小（前台 sort_order 升序 → 排最前）', () => {
+    expect(nextSortOrderForInsert([{ sort_order: 10 }, { sort_order: 20 }])).toBe(0);
+    expect(nextSortOrderForInsert([{ sort_order: 1000 }, { sort_order: 1000 }])).toBe(990);
+    // 库里的老数据：默认值全是 1000，同值时按 id 升序；990 仍然排最前
+    expect(nextSortOrderForInsert([{ sort_order: 1000 }])).toBe(990);
+  });
+
+  it('已经有 0 时必须继续往下取，不能返回 0（重号会靠 id 升序，新 id 最大 ⇒ 反而排最后）', () => {
+    expect(nextSortOrderForInsert([{ sort_order: 0 }, { sort_order: 10 }])).toBe(-10);
+  });
+
+  it('脏值参与比较时被忽略，不会算出 NaN', () => {
+    expect(nextSortOrderForInsert([{ sort_order: '120' }, { sort_order: null }])).toBe(110);
+    expect(Number.isFinite(nextSortOrderForInsert([{ sort_order: 'abc' }]))).toBe(true);
   });
 });

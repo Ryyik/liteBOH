@@ -46,6 +46,12 @@ const keyOf = (row, field, table = '') => `${table}#${row?.id ?? 'new'}:${field}
  * @param {boolean} [options.startActive=false] 是否一进页面就处于编辑态
  * @param {(row: Object, field: string, value: unknown, table: string) => Promise<void>} options.save
  *   单字段写入。宿主负责落库、并发/失败处理。`table` 是原语声明的目标表（空 = 宿主默认表）。
+ * @param {(row: Object, patch: Object, table: string) => Promise<void>} [options.saveMany]
+ *   **多字段一次写入**（价格这类「几列互相约束」的字段必须用它）。
+ *   为什么不循环调 `save`：`products` 上有 `chk_products_points_required`，
+ *   它是**逐条语句**校验的。把「纯现金」切成「纯积分」时，先写 payment_mode
+ *   的那个瞬间 points_cost 还是 0、is_purchasable 还是 true ⇒ 当场 23514
+ *   （2026-11-10 用服务端 SQL 实测复现，不是推断）。一次 UPDATE 才没有中间态。
  * @param {(row: Object, table: string) => Promise<void>} [options.remove] 删除一条
  * @param {() => Promise<void>} [options.create] 新增一条
  * @param {(row: Object, delta: number) => Promise<void>} [options.move]
@@ -64,6 +70,7 @@ export const provideInlineEditor = (options = {}) => {
   const {
     startActive = false,
     save,
+    saveMany,
     remove,
     create,
     move,
@@ -177,10 +184,72 @@ export const provideInlineEditor = (options = {}) => {
       });
   };
 
+  /**
+   * 多字段**原子**写入（价格三件套：payment_mode / points_cost / rmb_price）。
+   *
+   * 与 `commit` 的区别只在下发那一步：一次 `saveMany` 就是一条 UPDATE，
+   * 不存在「改完 A 还没改 B」的中间态。中间态在 products 上是致命的 ——
+   * 两条 CHECK 会逐条校验，分次写必然有一条踩空（详见 options.saveMany 的注释）。
+   *
+   * 撤销栈仍然只有**一条**记录：用户点一次「撤销」应该退回改价前的完整状态，
+   * 而不是退三次、每次还夹着一个违反约束的中间态。
+   */
+  const commitMany = (row, patch, previous, table = '', label = '') => {
+    if (!saveMany) return Promise.resolve();
+    const fields = Object.keys(patch || {});
+    if (!fields.length) return Promise.resolve();
+
+    const entry = { row, batch: true, fields, previous, next: patch, table, label };
+    pushHistory(entry);
+    fields.forEach((field) => markBusy(keyOf(row, field, table), true));
+
+    /* 队列键用通配字段名：同一行的多字段写入必须互斥，否则「先改积分、再改模式」
+       两次操作会并发，后落地的那个把前一个覆盖掉。 */
+    const key = keyOf(row, '*', table);
+
+    return enqueueWrite(key, () => saveMany(row, patch, table))
+      .then(() => {
+        fields.forEach((field) => markFailed(keyOf(row, field, table), false));
+      })
+      .catch((error) => {
+        history.value = history.value.filter((item) => item !== entry);
+        fields.forEach((field) => markFailed(keyOf(row, field, table), true));
+        logger.error('inline-editor', '多字段写入失败', error);
+        throw error;
+      })
+      .finally(() => {
+        fields.forEach((field) => markBusy(keyOf(row, field, table), false));
+      });
+  };
+
   const undo = async () => {
     const entry = history.value[history.value.length - 1];
-    if (!entry || !save) return;
+    if (!entry || (!save && !saveMany)) return;
     history.value = history.value.slice(0, -1);
+
+    /* 批量条目（定价 / 库存 / 说明一次写多列）单独一条分支。
+       单字段那条路径刻意保持不变 —— 它被源码级守卫测试盯着
+       （tests/unit/inline-editor.test.js 断言 `row[field] = previous`），
+       而且「把一条简单路径也写成通用形态」只会让两边都更难读。 */
+    if (entry.batch) {
+      const { row, previous, next } = entry;
+      const table = entry.table || '';
+      /* 队列键必须与 commitMany 的通配键一致，否则撤销会和那次没写完的
+         多字段写入并行跑，后落地的覆盖前面的。 */
+      const key = keyOf(row, '*', table);
+      if (row) Object.assign(row, previous);
+
+      try {
+        await enqueueWrite(key, () => saveMany(row, previous, table));
+        notify?.(`已撤销「${entry.label || '本次修改'}」的修改`, 'ok');
+      } catch (error) {
+        if (row) Object.assign(row, next);
+        history.value = [...history.value, entry];
+        logger.error('inline-editor', '撤销失败', error);
+        notify?.('撤销失败，请重试', 'error');
+      }
+      return;
+    }
 
     const { row, field, previous, next } = entry;
     const table = entry.table || '';
@@ -217,6 +286,7 @@ export const provideInlineEditor = (options = {}) => {
     /** 数据集版本：删除成功后 +1，持有列表的宿主 watch 它重新取数 */
     dataRevision,
     commit,
+    commitMany,
     undo,
     forget,
     /* 包装一层：删掉的记录不能留在撤销栈里 —— undo 会对一个已不存在的 id 发 PATCH，

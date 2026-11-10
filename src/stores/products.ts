@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { supabase } from '@/utils/supabase-client';
 import { logger } from '@/utils/logger.js';
+import { normalizeCardLayout } from '@/config/product-card-layout.js';
 import type { Product, ProductSpec } from '@/types';
 
 // 延迟加载 fallback 产品数据，避免打包到初始 chunk
@@ -82,12 +83,11 @@ const normalizeProduct = (item: Record<string, unknown>): Product => {
        其余按 id 升序」，DB 里没有该列时（旧缓存 / 静态兜底）也不会打乱顺序。 */
     sort_order: Number.isFinite(Number(item.sort_order)) ? Number(item.sort_order) : 1000,
     /* 卡片形态（2026-11-10，DB 列 products.card_layout）：
-       迁移未执行 / 旧缓存 / 静态兜底里都没有这一列，统一回落 banner ——
-       与 src/config/product-card-layout.js 的 normalizeCardLayout 同一口径。 */
-    card_layout:
-      item.card_layout === 'small' || item.card_layout === 'large'
-        ? item.card_layout
-        : ('banner' as const),
+       迁移未执行 / 旧缓存 / 静态兜底里都没有这一列时统一回落 DEFAULT_CARD_LAYOUT。
+       **不要再在这里写一份 `=== 'small' || === 'large'` 的三元** —— 2026-11-10
+       把默认档从 banner 改成 small 时，正是这种第二份判据让「配置改了、前台没变」。
+       单一真源是 src/config/product-card-layout.js。 */
+    card_layout: normalizeCardLayout(item.card_layout),
   } as Product;
 };
 

@@ -49,3 +49,29 @@ export const reorderList = (list, from, to) => {
   source.splice(target, 0, moved);
   return source;
 };
+
+/**
+ * 新建商品时该用的 `sort_order` —— 让新条目落在列表**最前面**。
+ *
+ * 前台排序口径是「sort_order 升序 → id 升序」（stores/products.ts 的
+ * compareByDisplayOrder）。所以「排最前」= 取一个比现有最小值更小的值：
+ *   · 取 min - 10，**不是 0**：已有 0/10/20 这类序号时，0 会与最小值重号，
+ *     重号回落到 id 升序 ⇒ 新商品 id 最大 ⇒ 反而排到最后，与预期正好相反；
+ *   · 取 min - 10 而不是 min - 1：留出整十间隔，之后手工插位不用重编号；
+ *   · 列表为空时给 10，与首次整表重编号（10/20/30…）的起点一致。
+ *
+ * @param {Array<{sort_order:number}>} list 当前全量商品（已按展示顺序排好也行，未排也行 ——
+ *   这里只取最小值，与顺序无关）
+ * @returns {number} 新商品的 sort_order
+ */
+export const nextSortOrderForInsert = (list) => {
+  const orders = (Array.isArray(list) ? list : [])
+    /* 空值必须显式跳过：`Number(null)` 是 0 而不是 NaN，会被当成「有人的序号是 0」，
+       于是新商品被推到 -10 —— 序号越低越靠前，这个偏差会一路累积。
+       （列是 NOT NULL，正常不会有 null；但静态兜底数据 / 旧缓存里出现过。） */
+    .filter((item) => item?.sort_order !== null && item?.sort_order !== undefined)
+    .map((item) => Number(item.sort_order))
+    .filter((value) => Number.isFinite(value));
+  if (!orders.length) return 10;
+  return Math.min(...orders) - 10;
+};
