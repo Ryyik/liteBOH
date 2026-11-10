@@ -118,3 +118,36 @@ export const buildSecurityHeaders = ({ cspEnforce, cspReportUri, imageOrigins })
 export const SECURITY_HEADER_NAMES = Object.keys(
   buildSecurityHeaders({ cspEnforce: false, cspReportUri: 'x', imageOrigins: [] }),
 ).map((name) => name.toLowerCase());
+
+/* ============================================
+   Service Worker 脚本的缓存策略
+   ============================================
+   为什么这两个文件要单独钉住：
+
+   · 它们**名字不带 hash**，内容却每次构建都变（sw.js 里的预缓存清单带 revision）。
+   · GitHub Pages 对 `.js` 发 `Cache-Control: max-age=14400`（4 小时），
+     Cloudflare 默认把 `.js` 纳入边缘缓存并按 origin 的 max-age 定 TTL。
+   · 后果：新版本发布后，`registration.update()` 可能拿到**与旧版逐字节相同**的
+     sw.js ⇒ 浏览器判定「没有新 SW」⇒ 旧 SW 继续用旧预缓存的 index.html 应答导航。
+     用户点「立即更新」拿回一模一样的旧页面（2026-11-10 的弹窗循环，见
+     `docs/gate-matrix.md` §C-10）。Safari 更糟：它不认 `updateViaCache:'none'`，
+     4 小时窗口对它无条件成立。
+
+   部署后 purge 只覆盖「purge 成功且该 POP 命中」的情形，补不上这个缺口；
+   唯一可靠的办法是让这两个 URL 本身不可缓存。
+
+   ⚠️ 值只在这里定义一次：注入侧（`cloudflare-security-headers.mjs`）与
+   发布后断言（`check-security-headers-live.mjs`）都从这里取。
+   ============================================ */
+export const SW_CACHE_PATHS = ['/sw.js', '/push-sw.js'];
+
+/**
+ * `no-cache` 而不是 `max-age=0, must-revalidate`：前者在 Safari/Chrome 上都等价于
+ * 「用之前必须回源校验」，且不依赖缓存实现怎么解释 must-revalidate。
+ * 后果只是每个页面会话多一到两次条件请求（sw.js 只在 registration.update() 时被拉，
+ * 90s 轮询走的是 version.json），代价可忽略。
+ */
+export const SW_CACHE_CONTROL = 'no-cache';
+
+/** 注入侧与断言侧共用的头集合 */
+export const buildServiceWorkerCacheHeaders = () => ({ 'Cache-Control': SW_CACHE_CONTROL });

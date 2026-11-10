@@ -44,6 +44,8 @@
 
 import {
   CSP_REQUIRED_DIRECTIVES,
+  SW_CACHE_CONTROL,
+  SW_CACHE_PATHS,
   buildCspValue,
   buildSafeHeaders,
 } from './lib/security-headers-config.mjs';
@@ -70,6 +72,26 @@ const urls = argv
   .filter(Boolean);
 
 const TARGETS = urls.length > 0 ? urls : ['https://www.blockofhome.cn/'];
+
+/**
+ * 无 hash 入口脚本的探测目标（同源推导，不另写域名）。
+ * 它们的内容每次构建都变，却被 GitHub Pages 发了 `max-age=14400` ⇒ 必须断言
+ * 「已经不可缓存」，否则 `registration.update()` 可能拿到旧字节，用户点「立即更新」
+ * 仍落在旧壳（`docs/gate-matrix.md` §C-10）。
+ */
+const SW_TARGETS = [
+  ...new Set(
+    TARGETS.map((url) => {
+      try {
+        return new URL(url).origin;
+      } catch {
+        return '';
+      }
+    }),
+  ),
+]
+  .filter(Boolean)
+  .flatMap((origin) => SW_CACHE_PATHS.map((path) => `${origin}${path}`));
 
 /** 探测用的占位配置：只取「头名」与「CSP 指令骨架」，不参与值比对 */
 const PLACEHOLDER_REPORT_URI = 'https://example.invalid/csp-report';
@@ -190,9 +212,7 @@ const inspect = (headers) => {
       const scriptOffender = offenders.some((name) => name.startsWith('script-src'));
       notes.push(
         `${scriptOffender ? '⚠️ ' : ''}CSP 仍在 ${offenders.join(' / ')} 里带 'unsafe-inline'` +
-          (scriptOffender
-            ? '（script-src 带它 = XSS 边界失效）'
-            : '（只剩样式类，风险较低）'),
+          (scriptOffender ? '（script-src 带它 = XSS 边界失效）' : '（只剩样式类，风险较低）'),
       );
     }
     // 指令骨架漂移：防止有人手改 CSP 时误删整条指令以外的部分
@@ -207,6 +227,20 @@ const inspect = (headers) => {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * sw.js / push-sw.js 必须不可缓存。
+ * 只看 `Cache-Control` 的「不可缓存」语义，不逐字比对（`no-cache` 与
+ * `max-age=0, must-revalidate` 是等价意图，边缘或平台可能做规范化）。
+ */
+const inspectServiceWorkerCache = (headers) => {
+  const value = headers.get('cache-control');
+  if (value === null) {
+    return [`缺少 Cache-Control —— 浏览器会按启发式缓存 sw.js，更新检查可能看到旧字节`];
+  }
+  if (/no-cache/i.test(value) || /max-age=0\b/i.test(value)) return [];
+  return [`仍可缓存：期望含 ${SW_CACHE_CONTROL}，实际 "${value}"`];
+};
 
 const main = async () => {
   let failed = false;
@@ -256,6 +290,59 @@ const main = async () => {
         '   → 排查顺序：CLOUDFLARE_API_TOKEN 是否失效/缺 Transform Rules 权限 → ' +
           '`node scripts/cloudflare-security-headers.mjs --dry-run` 看规则内容 → ' +
           'Cloudflare 控制台 Rules → Transform Rules 是否仍有 [boh-security-headers] 那条',
+      );
+    }
+  }
+
+  // 无 hash 入口脚本：必须不可缓存（缓存住 = 更新检查看到旧字节 = 落地仍是旧壳）
+  for (const target of SW_TARGETS) {
+    let lastProblems = null;
+
+    for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt += 1) {
+      let result;
+      try {
+        result = await probe(target);
+      } catch (error) {
+        console.error(`[security-headers-live] ${target} 请求失败：${error?.message || error}`);
+        failed = true;
+        lastProblems = null;
+        break;
+      }
+
+      // 该文件不在本次构建里（例如推送下线时）就没有可断言的响应头，跳过而不是误红
+      if (result.response.status === 404) {
+        console.log(`[security-headers-live] ${target} 404，跳过缓存断言`);
+        lastProblems = [];
+        break;
+      }
+
+      lastProblems = inspectServiceWorkerCache(result.response.headers);
+
+      if (lastProblems.length === 0) {
+        console.log(
+          `[security-headers-live] ✅ ${target} HTTP ${result.response.status}，` +
+            `Cache-Control: ${result.response.headers.get('cache-control')}`,
+        );
+        break;
+      }
+
+      if (attempt < RETRY_ATTEMPTS) {
+        console.log(
+          `[security-headers-live] ${target} 第 ${attempt}/${RETRY_ATTEMPTS} 次探测未通过` +
+            `（${lastProblems[0]}），${RETRY_DELAY_MS}ms 后重试（边缘规则传播延迟）`,
+        );
+        await sleep(RETRY_DELAY_MS);
+      }
+    }
+
+    if (lastProblems && lastProblems.length > 0) {
+      failed = true;
+      console.error(`[security-headers-live] ❌ ${target} 缓存断言失败：`);
+      for (const problem of lastProblems) console.error(`   - ${problem}`);
+      console.error(
+        '   → 这两个 URL 无 hash、内容每次构建都变。排查：' +
+          '`node scripts/cloudflare-security-headers.mjs --dry-run` 看 [boh-sw-cache] 规则 → ' +
+          '确认该规则作用于 http.request.uri.path，而不是 http.request.uri.query',
       );
     }
   }

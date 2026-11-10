@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CSP_REQUIRED_DIRECTIVES,
   buildSecurityHeaders,
+  buildServiceWorkerCacheHeaders,
 } from '../../scripts/lib/security-headers-config.mjs';
 
 /**
@@ -28,11 +29,16 @@ const SCRIPT = fileURLToPath(
 );
 
 /** 与线上同构的一套完整头（值由单一真源生成，不手写） */
-const FULL_HEADERS = buildSecurityHeaders({
-  cspEnforce: false,
-  cspReportUri: 'https://nplnlefdwfgtyimfkyih.supabase.co/functions/v1/csp-report',
-  imageOrigins: ['https://res.cloudinary.com'],
-});
+const FULL_HEADERS = {
+  ...buildSecurityHeaders({
+    cspEnforce: false,
+    cspReportUri: 'https://nplnlefdwfgtyimfkyih.supabase.co/functions/v1/csp-report',
+    imageOrigins: ['https://res.cloudinary.com'],
+  }),
+  // sw.js / push-sw.js 在线上是 no-cache（[boh-sw-cache] 规则）；基线场景必须带上，
+  // 否则「完整头 ⇒ 通过」这条会因为 SW 缓存断言而红，掩盖它真正要守的东西。
+  ...buildServiceWorkerCacheHeaders(),
+};
 
 const withoutHeader = (name) =>
   Object.fromEntries(Object.entries(FULL_HEADERS).filter(([key]) => key !== name));
@@ -48,10 +54,20 @@ const cspWithout = (directive) =>
 /**
  * 起一个临时假站 + 跑一次探测。
  * `--attempts=1`：反证要的是「第一次就红」，不能让默认的 6 次重试把测试拖到 12 秒。
+ * `swOverride`：单独给 sw.js / push-sw.js 换一组响应（缓存断言要能分路径做反证）。
  */
-const probeAgainst = (headers, args = []) =>
+const probeAgainst = (headers, args = [], swOverride = null) =>
   new Promise((resolve, reject) => {
-    const server = createServer((_req, res) => {
+    const server = createServer((req, res) => {
+      const pathname = new URL(req.url || '/', 'http://127.0.0.1').pathname;
+      const isServiceWorkerScript = /^\/(sw|push-sw)\.js$/.test(pathname);
+
+      if (isServiceWorkerScript && swOverride) {
+        res.writeHead(swOverride.status || 200, swOverride.headers || headers);
+        res.end('/* sw */');
+        return;
+      }
+
       res.writeHead(200, headers);
       res.end('<!doctype html><title>probe</title>');
     });
@@ -169,6 +185,51 @@ describe('线上安全头探测门禁', () => {
     for (const directive of CSP_REQUIRED_DIRECTIVES) {
       expect(declared.has(directive), `CSP 真源缺少 ${directive}`).toBe(true);
     }
+  });
+});
+
+describe('无 hash 入口脚本的缓存门禁（2026-11-10 弹窗循环）', () => {
+  const CACHEABLE_SW_HEADERS = { ...FULL_HEADERS, 'Cache-Control': 'public, max-age=14400' };
+
+  it('sw.js 仍被缓存 4 小时 ⇒ 红（这正是弹窗循环的原形态）', async () => {
+    const { code, output } = await probeAgainst(FULL_HEADERS, [], {
+      headers: CACHEABLE_SW_HEADERS,
+    });
+
+    // GitHub Pages 对 .js 发 max-age=14400 ⇒ registration.update() 可能拿到旧字节
+    // ⇒ 旧 SW 用旧预缓存应答导航 ⇒ 点「立即更新」仍落旧壳
+    expect(code).toBe(1);
+    expect(output).toContain('仍可缓存');
+    expect(output).toContain('max-age=14400');
+  }, 30000);
+
+  it('sw.js 完全没有 Cache-Control ⇒ 红（浏览器按启发式缓存，同样等于旧字节）', async () => {
+    const { code, output } = await probeAgainst(FULL_HEADERS, [], {
+      headers: withoutHeader('Cache-Control'),
+    });
+
+    expect(code).toBe(1);
+    expect(output).toContain('缺少 Cache-Control');
+  }, 30000);
+
+  it('该文件 404（不参与本次构建）⇒ 跳过，不误红', async () => {
+    const { code, output } = await probeAgainst(FULL_HEADERS, [], { status: 404 });
+
+    expect(code).toBe(0);
+    expect(output).toContain('跳过缓存断言');
+  }, 30000);
+
+  it('注入脚本的规则按 http.request.uri.path 匹配，值取自单一真源', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('../../scripts/cloudflare-security-headers.mjs', import.meta.url)),
+      'utf8',
+    );
+
+    expect(source).toContain('[boh-sw-cache]');
+    // 必须按 path 匹配：按 query 匹配会让 ?__boh_update= / ?_t= 之类绕过规则
+    expect(source).toContain('http.request.uri.path');
+    // 值不许在本文件里手写一份
+    expect(source).not.toMatch(/['"]Cache-Control['"]\s*:/);
   });
 });
 

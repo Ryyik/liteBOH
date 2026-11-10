@@ -6,10 +6,17 @@
  *       域名在 Cloudflare 之后，所以边缘注入是唯一落点。
  *
  * 安全设计：
- *   1. 只管理带 `[boh-security-headers]` 标记的那一条规则，读-改-写，
- *      **不会覆盖**你手工加在该 phase 里的其他规则。
+ *   1. 只管理带 `[boh-security-headers]` 与 `[boh-sw-cache]` 标记的**两条**规则，
+ *      读-改-写，**不会覆盖**你手工加在该 phase 里的其他规则。
+ *      · `[boh-security-headers]` —— host 级，6 个安全头 + CSP。
+ *      · `[boh-sw-cache]` —— 路径级，只对 sw.js / push-sw.js 下发 `Cache-Control: no-cache`。
+ *        它们名字不带 hash、内容每次构建都变，却被 GitHub Pages 发了 max-age=14400；
+ *        缓存住就等于「更新检查看到旧字节 → 点立即更新仍落旧壳」
+ *        （2026-11-10 弹窗循环，见 `docs/gate-matrix.md` §C-10）。
  *   2. 未配置 token / 权限不足 / 任何网络失败 → 一律「告警 + exit 0」，
  *      绝不阻断发布（与仓库现有 purge 步骤同一策略）。
+ *      ⚠️ 但**发布后**的 `check-security-headers-live.mjs` 是硬断言：
+ *      规则没生效就让它红，别让「防护/新鲜度静默失效」穿过 CI。
  *   3. CSP 默认只以 Report-Only 下发（--csp-enforce 才强制）。
  *
  * 用法：
@@ -31,9 +38,18 @@
 // 图片域名白名单单一真源（渲染白名单也从这里取）
 import { CSP_IMAGE_ORIGINS } from '../src/utils/image-origins.js';
 // 头的定义单一真源（发布后探测脚本共用同一份，见该文件头）
-import { buildSecurityHeaders } from './lib/security-headers-config.mjs';
+import {
+  buildSecurityHeaders,
+  buildServiceWorkerCacheHeaders,
+  SW_CACHE_PATHS,
+} from './lib/security-headers-config.mjs';
 
 const RULE_MARKER = '[boh-security-headers]';
+// sw.js / push-sw.js 的缓存钉死规则：同一 phase，独立的 marker 与路径表达式。
+// 为什么不并进上面那条：那条是 host 级、作用于全站所有响应；
+// 这条只对两个无 hash 的入口脚本生效，混在一起会让「谁负责什么」变模糊。
+const SW_CACHE_RULE_MARKER = '[boh-sw-cache]';
+const MANAGED_RULE_MARKERS = [RULE_MARKER, SW_CACHE_RULE_MARKER];
 const PHASE = 'http_response_headers_transform';
 const API_BASE = 'https://api.cloudflare.com/client/v4';
 
@@ -97,6 +113,32 @@ const buildRule = () => {
   };
 };
 
+/**
+ * sw.js / push-sw.js：无 hash 的入口脚本必须每次回源校验，否则浏览器/中间层会用满
+ * origin 的 `max-age=14400`（GitHub Pages 对 .js 的默认值）—— 那是「点立即更新
+ * 还是弹新版本」的直接成因之一（见 `docs/gate-matrix.md` §C-10）。
+ * 值来自 `lib/security-headers-config.mjs`，与发布后断言共用。
+ */
+const buildSwCacheRule = () => {
+  const headerEntries = {};
+  for (const [name, value] of Object.entries(buildServiceWorkerCacheHeaders())) {
+    headerEntries[name] = { operation: 'set', value };
+  }
+
+  const hostExpression = hosts.map((host) => `(http.host eq "${host}")`).join(' or ');
+  const pathExpression = SW_CACHE_PATHS.map((path) => `(http.request.uri.path eq "${path}")`).join(
+    ' or ',
+  );
+
+  return {
+    action: 'rewrite',
+    action_parameters: { headers: headerEntries },
+    expression: `(${hostExpression}) and (${pathExpression})`,
+    description: `${SW_CACHE_RULE_MARKER} 无 hash 入口脚本不缓存`,
+    enabled: true,
+  };
+};
+
 const api = async (method, path, body) => {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
@@ -114,11 +156,11 @@ const api = async (method, path, body) => {
 const entrypointPath = `/zones/${zoneId}/rulesets/phases/${PHASE}/entrypoint`;
 
 const main = async () => {
-  const rule = buildRule();
+  const managedRules = [buildRule(), buildSwCacheRule()];
 
   if (DRY_RUN) {
     console.log('[security-headers] DRY RUN，将提交以下规则：');
-    console.log(JSON.stringify({ rules: [rule] }, null, 2));
+    console.log(JSON.stringify({ rules: managedRules }, null, 2));
     return;
   }
 
@@ -148,10 +190,11 @@ const main = async () => {
     ? existing.payload.result.rules
     : [];
   const foreignRules = currentRules.filter(
-    (item) => !String(item?.description || '').startsWith(RULE_MARKER),
+    (item) =>
+      !MANAGED_RULE_MARKERS.some((marker) => String(item?.description || '').startsWith(marker)),
   );
 
-  const nextRules = REMOVE ? foreignRules : [...foreignRules, rule];
+  const nextRules = REMOVE ? foreignRules : [...foreignRules, ...managedRules];
 
   const result = await api('PUT', entrypointPath, { rules: nextRules });
 
@@ -165,9 +208,13 @@ const main = async () => {
     ? result.payload.result.rules.length
     : nextRules.length;
   console.log(
-    `[security-headers] ${REMOVE ? '已移除' : '已应用'}安全响应头规则；该 phase 现有 ${applied} 条规则（其中本脚本管理 1 条）。`,
+    `[security-headers] ${REMOVE ? '已移除' : '已应用'}安全响应头规则；该 phase 现有 ${applied} 条规则（其中本脚本管理 ${managedRules.length} 条）。`,
   );
-  console.log(`[security-headers] 头：${Object.keys(rule.action_parameters.headers).join(', ')}`);
+  for (const rule of managedRules) {
+    console.log(
+      `[security-headers] ${rule.description}：${Object.keys(rule.action_parameters.headers).join(', ')}`,
+    );
+  }
 };
 
 main().catch((error) => {
