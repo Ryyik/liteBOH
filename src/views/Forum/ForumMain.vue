@@ -31,6 +31,8 @@ import AdSlot from './components/AdSlot.vue';
 import ForumToolbar from './components/ForumToolbar.vue';
 import ForumImageViewer from './components/ForumImageViewer.vue';
 import CheckinRewardStage from './components/CheckinRewardStage.vue';
+import ForumSeenDivider from './components/ForumSeenDivider.vue';
+import { resolveForumSeenDivider } from '@/composables/useForumSeenDivider.js';
 import { useForumPublishQueueStore } from '@/stores/forumPublishQueue.js';
 import {
   useForumPostDraftStorage,
@@ -381,6 +383,33 @@ const feedWithAds = computed(() => {
   });
   return out;
 });
+
+/* 「上次看到这里」分隔线（2026-11-10）：判定真源在 @/composables/useForumSeenDivider.js，
+   这里只负责三件事 —— ① 喂锚点；② 判「当前列表是不是全量时间流」；③ 交给模板渲染。
+
+   ⚠️ 只有「时间倒序 + 无任何筛选」才允许画。热门排序不是时间序；搜索结果 / 标签筛选 /
+   我的帖子 / 只看关注下面那条列表不是全量时间流，标「上次看到这里」会指向一个不存在的位置。
+   新增筛选维度时**必须**同步加进这个 enabled 判据，否则线会画错地方（这类错误没有报错，
+   只有用户自己能看出来）。 */
+const isChronologicalUnfilteredFeed = computed(
+  () =>
+    feedMode.value === 'posts' &&
+    sortMode.value === 'latest' &&
+    viewMode.value === 'all' &&
+    !searchKeyword.value &&
+    !selectedTagFilter.value &&
+    !selectedContentType.value &&
+    !showFollowingOnly.value,
+);
+
+const forumSeenDivider = computed(() =>
+  resolveForumSeenDivider({
+    posts: forumData.value,
+    anchorIso: authStore.offlineAnchorAt,
+    isFirstLogin: authStore.isFirstLoginSession,
+    enabled: isChronologicalUnfilteredFeed.value,
+  }),
+);
 
 const getForumScrollMetrics = () => {
   const scroller = getForumScrollContainer();
@@ -3608,6 +3637,17 @@ const {
                   class="forum-virtual-post"
                   :data-forum-virtual-index="getVisiblePostIndex(item.visIndex)"
                 >
+                  <!-- 「上次看到这里」：插在**第一条旧帖**之前（绝对下标 = splitIndex）。
+                       虚拟列表下它只在窗口覆盖到该下标时才渲染 —— 用户已经滚过去时它本就
+                       在视口上方，不渲染是对的，不要为了让线「一直在」而按相对下标判断。 -->
+                  <ForumSeenDivider
+                    v-if="
+                      forumSeenDivider.visible &&
+                      getVisiblePostIndex(item.visIndex) === forumSeenDivider.splitIndex
+                    "
+                    :anchor-iso="authStore.offlineAnchorAt || ''"
+                    :new-count="forumSeenDivider.newCount"
+                  />
                   <article
                     v-if="item.post._optimistic"
                     class="post-card-v2 glass-panel optimistic-post-card"
