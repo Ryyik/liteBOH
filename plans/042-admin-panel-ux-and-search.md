@@ -627,3 +627,75 @@ B1 / B2 / B4 / C3 / C5 / C6 / D2 已在 §13 落地。仍未做：B3 批量删�
 - 新增/重写单测：`data-admin-batch-scope.test.js`（17 条，含「列表 vs 删除同口径」的逐条对照、blocked 三种情形、高级算子映射、接线守卫）、`data-admin-usage-counter.test.js`（4 条）、`data-admin-audit-log.test.js` 改为断言返回契约（7 条）。
 - `npm run verify` 全绿：335 测试文件 / 4412 通过 / 1 skipped，耗时 235.1s；首屏预算 256251 / 255584 **未变**（超基线 667 为改动前既有）。
 - 仍未做：C7 邮箱精确检索、§10 就地编辑推广。
+
+---
+
+## 15. 实施记录（§10 就地编辑推广：抽奖卡 / 资讯，2026-11-10）
+
+### 15.1 先补一个 A 档清单没写到的前置：一页两表
+
+商城的抽奖卡与商品卡在**同一个页面**（`/shop?tab=lottery` 与 `?tab=products`），
+但它们是两张表（`lotteries` / `products`），而且都有 `title`。原语只带 `field`
+不带表时，三件事会错：
+
+| 错在哪 | 后果 |
+|---|---|
+| 写入键 `id:field` 不含表 | 两张表的同名行/同名字段共用「忙碌 / 失败红边」状态 |
+| `metaOf(field)` 取不到表 | 抽奖标题按商品 `title` 的约束校验与截断 |
+| 宿主 `save()` 写死表 | 抽奖卡改完写进 `products`（真机上会静默改错表） |
+
+所以给 `useInlineEditor` 与三个原语加了 `table` 维度：键变成 `${table}#${id}:${field}`，
+`save / validate / metaOf / labelOf / remove / uploadImage` 全部透传；**不传 = 宿主默认表**，
+商城原有调用点一处都不用改。
+
+### 15.2 抽奖卡（提交 7410af13）
+
+- 先抽 `LotteryCard.vue`：原来「进行中 / 历史」两份 `.lt-card` 是逐行重复，只在状态
+  文案与 meta 行不同 —— 改封面兜底要改两处。抽组件是纯重构，**用指纹证明**：
+  390×844 与 1440×900 两档，卡片 box 与 title/prize/cover/status/body 的
+  computedStyle 逐项一致（`FRONTEND IDENTICAL`）。
+- 接原语：标题 / 奖品 / 封面。**状态、报名数、开奖时间不做**（枚举、服务端投影、
+  datetime）—— 就地输入表达不了，走完整表单。
+- 编辑态根节点 `button → div`（卡片内现在有可点元素），补回 Enter/Space；删除按钮
+  只在编辑态渲染。
+- 顺手修掉原语在前台也写 `border-radius` 的问题：`.iet` / `.ien` 的视觉属性改为
+  只在 `is-editable` 下生效，否则前台 span 的 computedStyle 会从 0 变 4px，
+  「前台零影响」就不再是可断言的。
+
+### 15.3 资讯（提交 4d674111）
+
+- 三种卡片形态（主卡 / 次级列表 / 网格卡）都接：标题、摘要、封面。
+- **节目卡不可编辑**：`kind: 'show'` 来自静态 `data/shows.js`，原语拿到的 `row` 是
+  null ⇒ 一个编辑控件都不渲染（真机 3 张节目卡上 ×/换图 数量为 0）。
+- 写完 `invalidateByTags(['news'])`：列表走 `executeRead` 的 `news` tag 缓存，
+  不失效则下次进前台还是旧字（页面上是乐观更新，看不出问题，下次才炸）。
+- 一处必要 CSS：封面根节点从 `div` 换成原语的 `span` 后必须显式 `display: block`，
+  否则 `aspect-ratio` 直接失效（div 本来就是 block，加法对前台零影响）。
+- 工具栏抽成 `InlineEditorBar.vue` 给两个宿主共用：它包含 200 行定位/材质样式、
+  两个 z-index 决策（工具栏 9000、提示条压过 2147482400 的弹层）和「撤销必须在
+  提示条里」这条踩坑结论，复制一份必然漂移。
+- 注册三处齐（路由 `requiresAdmin` + `bodyClass: 'page-newsroom'`、`tabs.js` 的
+  `subPages` 与 page 条目、`useDataAdminNavigation` 的 PAGE 列表与 ROUTE_MAP）。
+
+### 15.4 首页 hero：本轮未做（有意识的取舍）
+
+`HeroConsole` 是 2635 行的**多能力**控制台：侧栏列表 + 预览工作区 + 编辑面板 +
+版本历史 + 皮肤库 + 图片压缩 + 头像裁切，模板还分 `standard / overlay / responsive`
+三种。把它改成「整页渲染 + 原语」不是接线，而是**换掉它的主结构**：
+
+- 现有三种模板的编辑面板要全部重做成「在哪块上点就改哪块」；
+- 版本历史（revisions）与画布预览是它独有的能力，不能因为改结构而丢掉；
+- 它已经有 `DynamicHomeHero` 实时预览，收益（少一次来回）比抽奖/资讯小一个量级。
+
+结论：**单独一批做**，先定「保留哪几种模板 + 版本历史怎么进新结构」，再动代码。
+把它硬塞进这一批，风险是「为了统一而砍掉运营已经在用的能力」。
+
+### 15.5 验收
+
+| 项 | 结果 |
+|---|---|
+| 前台渲染不变（抽奖卡） | 两档视口指纹逐项一致 |
+| 前台渲染不变（资讯） | 封面 `display: block`、高度 376、首卡高 583 与改动前一致；标题/摘要 clamp 2 行；页面上编辑控件 0、工具栏 0 |
+| 编辑链路 | 抽奖：PATCH/DELETE 只打 `lotteries`；资讯：只打 `news`；商城回归：`PATCH products` 单字段 + 撤销 |
+| 缓存 | 资讯写完按 tag 失效；抽奖由面板自身持有（乐观值即真值） |
+| 门禁 | `npm run verify` 全绿（337 测试文件），首屏预算 256251 未变 |
