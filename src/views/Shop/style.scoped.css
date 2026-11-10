@@ -822,44 +822,69 @@
   cursor: pointer;
 }
 
-/* ===== 管理员「编辑」页签（2026-11-10） =====
-   贴在右侧屏幕边缘的竖排小签，只有 admin 且不在编辑态时才渲染。
-   为什么不做成底部大按钮：这一页已经有底栏导航，再加一个常驻按钮会抢主操作位；
-   竖排贴边是「工具入口」的通用形态，也不遮挡商品卡的可点区域（宽 30px 左右）。 */
-.admin-edit-tab {
-  position: fixed;
-  right: 0;
-  top: 42%;
-  z-index: 1200;
+/* ===== 头像菜单（2026-11-10） =====
+   编辑入口从「贴屏幕右侧的竖排小签」搬进头像：点一下头像弹出「我的订单 / 编辑商品」。
+   菜单锚在头像左下，`position: relative` 挂在 .head-actions 上（锚点必须是这个
+   包裹层，不能是按钮本身 —— 按钮 overflow:hidden 会把菜单裁掉）。 */
+.head-actions {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 5px;
-  padding: 12px 5px;
+}
+
+.avatar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 1200;
+  min-width: 164px;
+  padding: 6px;
   border: 1px solid var(--boh-border-primary, rgba(0, 0, 0, 0.08));
-  border-right: 0;
-  border-radius: 12px 0 0 12px;
+  border-radius: 14px;
   background: var(--boh-bg-primary, #fff);
-  box-shadow: -2px 2px 12px rgba(0, 0, 0, 0.1);
-  color: var(--boh-text-secondary, #86868b);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+  /* 菜单是「工具层」：不吃页面滚动，触点也不会穿透到下面的商品卡 */
+  transform-origin: top right;
+}
+
+.avatar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--boh-text-primary, #1d1d1f);
   font: inherit;
-  font-size: 11px;
-  letter-spacing: 0.12em;
+  font-size: 13.5px;
+  text-align: left;
   cursor: pointer;
-  /* 竖排：与「贴边的小签」这一形态一致，也不会在窄屏上占掉商品卡的横向空间 */
-  writing-mode: vertical-rl;
 }
 
-/* 图标不跟着竖排：lucide 的铅笔本身就是斜的，再转 90° 会变成一根斜杠 */
-.admin-edit-tab svg {
-  writing-mode: horizontal-tb;
-}
-
-.admin-edit-tab:hover,
-.admin-edit-tab:focus-visible {
-  color: var(--boh-accent, #0071e3);
-  border-color: var(--boh-accent, #0071e3);
+.avatar-menu-item:hover,
+.avatar-menu-item:focus-visible {
+  background: var(--boh-bg-secondary, rgba(0, 0, 0, 0.05));
   outline: none;
+}
+
+.avatar-menu-item svg {
+  flex: none;
+  color: var(--boh-text-secondary, #86868b);
+}
+
+.avatar-menu-enter-active,
+.avatar-menu-leave-active {
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+}
+
+.avatar-menu-enter-from,
+.avatar-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.97);
 }
 
 /* ===== 兜底 toast ===== */

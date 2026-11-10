@@ -5,22 +5,64 @@
         <p class="head-kicker">BOH STORE</p>
         <h1>周边</h1>
       </div>
-      <button
-        type="button"
-        class="avatar-btn"
-        :aria-label="isLoggedIn ? '打开订单' : '登录'"
-        @click="goBag"
-      >
-        <img
-          v-if="isLoggedIn && userInfo.avatarUrl"
-          :src="userInfo.avatarUrl"
-          :alt="userInfo.username"
-          width="38"
-          height="38"
-        />
-        <span v-else-if="isLoggedIn">{{ avatarInitial }}</span>
-        <User v-else :size="18" :stroke-width="1.9" aria-hidden="true" />
-      </button>
+      <!-- 头像即入口（2026-11-10 用户口径）：管理员点一下头像弹出选项
+           （我的订单 / 编辑商品），不再往屏幕右侧贴一个竖排小签 —— 那个位置
+           既和页面没有视觉关系，窄屏上还会压住商品卡。
+
+           非管理员**不弹菜单**：他们只有一个选项，弹出来等于让「看订单」多点一次。 -->
+      <div ref="avatarMenuAnchor" class="head-actions">
+        <button
+          ref="avatarBtnEl"
+          type="button"
+          class="avatar-btn"
+          :aria-label="avatarButtonLabel"
+          :aria-haspopup="isAdmin ? 'menu' : undefined"
+          :aria-expanded="isAdmin ? avatarMenuOpen : undefined"
+          @click="onAvatarClick"
+        >
+          <img
+            v-if="isLoggedIn && userInfo.avatarUrl"
+            :src="userInfo.avatarUrl"
+            :alt="userInfo.username"
+            width="38"
+            height="38"
+          />
+          <span v-else-if="isLoggedIn">{{ avatarInitial }}</span>
+          <User v-else :size="18" :stroke-width="1.9" aria-hidden="true" />
+        </button>
+
+        <Transition name="avatar-menu">
+          <div
+            v-if="avatarMenuOpen"
+            ref="avatarMenuEl"
+            class="avatar-menu"
+            role="menu"
+            aria-label="账号菜单"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              class="avatar-menu-item"
+              @click="runAvatarMenu('order')"
+            >
+              <Package :size="15" :stroke-width="1.9" aria-hidden="true" />
+              <span>我的订单</span>
+            </button>
+            <!-- 编辑态里已经有 InlineEditorBar 的退出入口，两个入口并存会让
+                 「我现在到底在哪种模式」变得可疑，所以这一项只在浏览态出现。 -->
+            <button
+              v-if="canEnterInlineEdit"
+              type="button"
+              role="menuitem"
+              class="avatar-menu-item"
+              @click="runAvatarMenu('edit')"
+            >
+              <Pencil :size="15" :stroke-width="1.9" aria-hidden="true" />
+              <span>编辑商品</span>
+            </button>
+          </div>
+        </Transition>
+      </div>
     </header>
 
     <nav class="store-tabs" role="tablist" aria-label="周边分区">
@@ -39,27 +81,6 @@
         }}</span>
       </button>
     </nav>
-
-    <!-- 管理员「编辑」页签（2026-11-10 用户口径：想在正式页直接进编辑态）。
-         只对 admin 且**非编辑态**渲染 —— 编辑态里已经有 InlineEditorBar 的退出入口，
-         两个入口并存会让「我现在到底在哪种模式」变得可疑。
-
-         实现方式是**跳转到就地编辑宿主路由**，不是原地切换：编辑能力靠
-         provide/inject 注入，而 inject 只在 setup 时求值一次。想原地开关就得
-         把 provider 提到 App 层 —— 那会把上传/校验/浮层这些编辑依赖拖进前台
-         bundle（本页是首屏高频页）。跳过去渲染的还是同一个 <Shop />，
-         用户看到的是同一张页面多了工具栏，URL 变化无感。 -->
-    <button
-      v-if="canEnterInlineEdit"
-      type="button"
-      class="admin-edit-tab"
-      title="进入就地编辑模式（改标题、换图、调价、排序）"
-      aria-label="进入就地编辑模式"
-      @click="enterInlineEdit"
-    >
-      <Pencil :size="13" :stroke-width="2.3" aria-hidden="true" />
-      <span>编辑</span>
-    </button>
 
     <main class="store-main">
       <!-- 页面切换动效（2026-11-01 用户口径）：
@@ -397,7 +418,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import {
@@ -626,10 +647,14 @@ const { isImageLoaded, markImageLoaded } = useImageLoaded();
 const inlineEditor = useInlineEditor();
 const isInlineEditing = computed(() => Boolean(inlineEditor?.active));
 
-/* 正式页上的「编辑」页签：仅管理员、且当前**不在**编辑态时出现。
+/* 正式页的头像菜单：仅管理员可展开（菜单里有「编辑商品」这一项）。
    `isAdmin` 是 auth store 的 computed（未初始化 / 非 admin 恒 false），
    所以未登录游客与普通用户拿到的都是 false，前台不多任何节点。 */
-const canEnterInlineEdit = computed(() => Boolean(authStore.isAdmin) && !isInlineEditing.value);
+const isAdmin = computed(() => Boolean(authStore.isAdmin));
+
+/* 编辑入口只在**浏览态**出现：编辑态里已经有一条 InlineEditorBar，
+   再给一个「进入编辑」会让「我现在到底在哪种模式」变得可疑。 */
+const canEnterInlineEdit = computed(() => isAdmin.value && !isInlineEditing.value);
 
 /**
  * 进入就地编辑：跳到宿主路由，并带上来源地址。
@@ -640,6 +665,81 @@ const canEnterInlineEdit = computed(() => Boolean(authStore.isAdmin) && !isInlin
  */
 const enterInlineEdit = () => {
   router.push({ path: '/admin/shop-editor', query: { from: route.fullPath } });
+};
+
+/* ── 头像菜单开合（2026-11-10 用户口径：编辑入口放进头像） ────────────────
+   为什么不原地切换编辑态、而是跳路由：编辑能力靠 provide/inject 注入，inject 只在
+   setup 时求值一次。想原地开关就得把 provider 提到 App 层 —— 那会把上传/校验/浮层
+   这些编辑依赖拖进前台 bundle（本页是首屏高频页）。跳过去渲染的还是同一个
+   <Shop />，用户看到的是同一张页面多了工具栏，URL 变化无感。 */
+const avatarMenuOpen = ref(false);
+const avatarMenuAnchor = ref(null);
+const avatarMenuEl = ref(null);
+const avatarBtnEl = ref(null);
+
+const avatarButtonLabel = computed(() => {
+  if (isAdmin.value) return avatarMenuOpen.value ? '收起账号菜单' : '打开账号菜单';
+  return isLoggedIn.value ? '打开订单' : '登录';
+});
+
+const handleAvatarMenuPointerDown = (event) => {
+  // 点在头像或菜单内部不算「点外面」——否则刚点开就被这一下关掉
+  if (avatarMenuAnchor.value?.contains(event.target)) return;
+  closeAvatarMenu();
+};
+
+const handleAvatarMenuKeydown = (event) => {
+  if (event.key !== 'Escape') return;
+  /* 拦在 document 上：页面还挂着一个 window 级的 Esc 监听（退出抖动排序），
+     不 stopPropagation 的话一次 Esc 会同时收菜单和排序态。 */
+  event.stopPropagation();
+  closeAvatarMenu({ restoreFocus: true });
+};
+
+const attachAvatarMenuGuards = () => {
+  // capture 阶段收：卡片上的 click 处理器会 stopPropagation，冒泡阶段会漏
+  document.addEventListener('pointerdown', handleAvatarMenuPointerDown, true);
+  document.addEventListener('keydown', handleAvatarMenuKeydown);
+};
+
+const detachAvatarMenuGuards = () => {
+  document.removeEventListener('pointerdown', handleAvatarMenuPointerDown, true);
+  document.removeEventListener('keydown', handleAvatarMenuKeydown);
+};
+
+const closeAvatarMenu = ({ restoreFocus = false } = {}) => {
+  if (!avatarMenuOpen.value) return;
+  avatarMenuOpen.value = false;
+  detachAvatarMenuGuards();
+  if (restoreFocus) avatarBtnEl.value?.focus();
+};
+
+const openAvatarMenu = async () => {
+  avatarMenuOpen.value = true;
+  attachAvatarMenuGuards();
+  await nextTick();
+  // 键盘用户展开后要能直接 Tab 进菜单，所以先把焦点交给第一项
+  avatarMenuEl.value?.querySelector('[role="menuitem"]')?.focus();
+};
+
+/**
+ * 头像是「菜单按钮」还是「直达订单」：
+ * 管理员有第二项可选，所以弹菜单；普通用户只有一个目的地，弹出来只是多一次点击。
+ */
+const onAvatarClick = () => {
+  if (!isAdmin.value) {
+    goBag();
+    return;
+  }
+  if (avatarMenuOpen.value) closeAvatarMenu();
+  else void openAvatarMenu();
+};
+
+const runAvatarMenu = (action) => {
+  // 先关：跳路由后组件不一定马上卸载，菜单留着会盖在新页面上
+  closeAvatarMenu();
+  if (action === 'edit') enterInlineEdit();
+  else goBag();
 };
 
 /**
@@ -1324,6 +1424,8 @@ onBeforeUnmount(() => {
   document.body.style.overflow = '';
   bagStore.flushShoppingBag();
   window.removeEventListener('theme-changed', handleThemeChanged);
+  // 头像菜单的 document 级监听必须显式摘掉：组件卸载后它还在，会一直拦 pointerdown
+  detachAvatarMenuGuards();
   // 抖动排序模式必须彻底收干净：定时器 / 拖拽监听 / Esc 监听
   window.removeEventListener('keydown', handleSortKeydown);
   clearSortExit();
