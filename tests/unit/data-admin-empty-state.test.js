@@ -136,10 +136,12 @@ describe('empty state wiring', () => {
     expect(view).toContain('v-for="action in emptyState.actions"');
   });
 
-  it('id: 半截 ID 在列表侧短路成空态，分页按候选窗口收敛', () => {
+  it('构造不出条件的搜索在列表侧短路成空态，分页按候选窗口收敛', () => {
     const view = read('src/views/DataManagement/DataAdmin.vue');
-    // 短路：不发请求（主键 uuid/bigint 没有 ilike 算子，发了就是 42883 整表失败）
-    expect(view).toContain('isInvalidIdQuery(searchQuery.value)');
+    // 短路：不发请求（主键 uuid/bigint 没有 ilike 算子、日期列同样没有，发了就是 42883 整表失败）
+    expect(view).toContain('isUnexecutableKeyword(tabId, searchQuery.value, TAB_SEARCH_FIELDS)');
+    // 空态文案要区分「搜不了」和「没有」
+    expect(view).toContain('unsearchable: isUnexecutableKeyword(');
     // 分页总数必须用「候选窗口上限」而不是完整 count，否则第 7 页起恒空
     expect(view).toContain(':total="rankedRowLimit"');
     expect(view).toContain('SEARCH_RANK_WINDOW');

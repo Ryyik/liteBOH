@@ -53,18 +53,53 @@ export const saveAiQuotaAdminConfig = async ({ tiers = [], modes = [], pricing =
       }
     : null;
 
-  const [tierResult, modeResults, pricingResult] = await Promise.all([
-    supabase.from('ai_quota_config').upsert(tierRows, { onConflict: 'tier' }),
-    Promise.all(modeUpdates),
-    pricingRow
-      ? supabase.from('ai_pricing_config').upsert(pricingRow)
-      : Promise.resolve({ error: null }),
-  ]);
-  if (tierResult.error) throw tierResult.error;
-  if (pricingResult?.error) throw pricingResult.error;
-  const failedMode = modeResults.find((result) => result.error);
-  if (failedMode?.error) throw failedMode.error;
-  return { ok: true };
+  // 三块配置分属三张表，此前用 Promise.all + 首个 error 直接 throw：
+  // 定价表一旦失败（历史上它缺 INSERT/UPDATE 授权，2026111101 已补），
+  // tiers / modes 明明写成功了也会被判定为「保存失败」并弹红。
+  // 改为 allSettled + 逐项回执，调用方可以准确说清哪块没存进去。
+  const tasks = [
+    {
+      key: 'tiers',
+      label: '额度档位',
+      run: () => supabase.from('ai_quota_config').upsert(tierRows, { onConflict: 'tier' }),
+    },
+    {
+      key: 'modes',
+      label: '模型倍率',
+      run: async () => {
+        const results = await Promise.all(modeUpdates);
+        const failed = results.find((result) => result?.error);
+        return { error: failed?.error || null };
+      },
+    },
+    {
+      key: 'pricing',
+      label: '积分定价',
+      run: () =>
+        pricingRow
+          ? supabase.from('ai_pricing_config').upsert(pricingRow)
+          : Promise.resolve({ error: null }),
+    },
+  ];
+
+  const settled = await Promise.allSettled(tasks.map((task) => task.run()));
+  const failures = [];
+  const saved = [];
+  settled.forEach((result, index) => {
+    const task = tasks[index];
+    const error = result.status === 'rejected' ? result.reason : result.value?.error;
+    if (error) {
+      failures.push({
+        key: task.key,
+        label: task.label,
+        message: error.message || String(error),
+      });
+    } else {
+      saved.push(task.label);
+    }
+  });
+
+  return { ok: failures.length === 0, saved, failures };
 };
 
 export const resetAllAiQuotas = async () => {

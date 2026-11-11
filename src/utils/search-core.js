@@ -30,6 +30,15 @@ const LIKE_ESCAPE_RE = /[\\%_]/g;
 export const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * 日期形状判定（`2026-11-11`）。
+ * `date` / `timestamptz` 列同样没有 `~~*` 算子 —— `start_at ilike '%x%'` 直接
+ * `42883 operator does not exist: timestamp with time zone ~~* unknown`，
+ * 整张表查询 400（2026-11-11 实测「发帖有奖」「每周签到」两页签搜索全废）。
+ * 所以日期列只在关键词本身就是完整日期时做精确匹配，其余情况不产生条件。
+ */
+export const DATE_TERM_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 /* 长文本列：命中的信息量低，权重压低 */
 const CONTENT_COLUMNS = new Set([
   'content',
@@ -181,8 +190,14 @@ export const buildSearchMatchSpec = (tabId, keyword, tabSearchFields) => {
   const exactEntry = (column) => ({ column, op: 'eq', value: term, pattern: '' });
 
   if (parsed.mode === SEARCH_MODE_ID) {
-    // 只有完整 UUID 才是可执行的条件；半截 ID 交给调用方短路成空结果
-    if (!UUID_PATTERN.test(term)) {
+    /* 主键类型随表而变（uuid / bigint）。用**配置里声明的** id 类型决定
+       什么形状才算合法，否则 `id:<uuid>` 打到 bigint 主键上是 22P02
+       （invalid input syntax for type bigint），又是一次整表 400。 */
+    const idField = (tabSearchFields?.[tabId] || []).find((field) => field?.column === 'id');
+    const idIsNumeric = idField?.type === 'number';
+    const validId = idIsNumeric ? /^\d+$/.test(term) : UUID_PATTERN.test(term);
+    // 半截 ID 交给调用方短路成空结果
+    if (!validId) {
       return { mode: parsed.mode, term, pattern: '', columns: [], reason: 'invalid-id' };
     }
     return {
@@ -195,6 +210,7 @@ export const buildSearchMatchSpec = (tabId, keyword, tabSearchFields) => {
 
   const isUuid = UUID_PATTERN.test(term);
   const isInteger = /^\d+$/.test(term);
+  const isDate = DATE_TERM_PATTERN.test(term);
   const scoped =
     parsed.mode === SEARCH_MODE_USER
       ? fields.filter((field) => USERNAME_COLUMN_RE.test(String(field?.column || '')))
@@ -207,6 +223,8 @@ export const buildSearchMatchSpec = (tabId, keyword, tabSearchFields) => {
     if (!column) return [];
     if (field.type === 'uuid') return isUuid ? [exactEntry(column)] : [];
     if (field.type === 'number') return isInteger ? [exactEntry(column)] : [];
+    // date / timestamptz：只认完整日期，绝不 ilike（42883）
+    if (field.type === 'date') return isDate ? [exactEntry(column)] : [];
     return [textEntry(column)];
   });
 
@@ -230,6 +248,24 @@ export const isInvalidIdQuery = (raw) => {
   return (
     parsed.mode === SEARCH_MODE_ID && Boolean(parsed.value) && !UUID_PATTERN.test(parsed.value)
   );
+};
+
+/**
+ * 这个关键词放到这张表上**一条可执行条件都构造不出来**吗？
+ *
+ * 是 ⇒ 调用方应当直接显示「没有匹配的记录」，**不要发请求**。
+ * 为什么必须要这个判定：`applySearchAndSort` 在 `filters.length === 0` 时
+ * 只是**不加**过滤条件（不是加一个假条件），于是列表会原样显示全表 ——
+ * 搜索框里明明有词、结果却是全部数据，用户只能认为「搜索没反应」
+ * （2026-11-11 实测：「每周签到」只配了 uuid/date 列，搜任何词都是全表）。
+ *
+ * 与 `isInvalidIdQuery` 的区别：那个只看 `id:` 前缀的形状（不依赖表配置）；
+ * 这个按**具体表**的字段类型判断，是列表链路上更准确的那一个。
+ */
+export const isUnexecutableKeyword = (tabId, keyword, tabSearchFields) => {
+  const parsed = parseSearchQuery(keyword);
+  if (!parsed.value || parsed.mode === SEARCH_MODE_TAB) return false;
+  return buildSearchMatchSpec(tabId, keyword, tabSearchFields).columns.length === 0;
 };
 
 /* ==================== 相关性打分 ==================== */

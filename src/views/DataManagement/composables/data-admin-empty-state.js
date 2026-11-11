@@ -24,6 +24,7 @@ export const resolveEmptyState = ({
   searchQuery = '',
   hasActiveFilters = false,
   canCreate = false,
+  unsearchable = false,
 } = {}) => {
   if (Number(totalCount) > 0) return null;
 
@@ -42,6 +43,22 @@ export const resolveEmptyState = ({
         actions: [
           { id: EMPTY_ACTIONS.CLEAR_FILTERS, label: '清空搜索与筛选', tone: 'primary' },
           { id: EMPTY_ACTIONS.GLOBAL_SEARCH, label: '搜索全部表', tone: 'secondary' },
+        ],
+      };
+    }
+    /* 这张表的关键词列全是 uuid / 日期（例如「每周签到」）⇒ 一条条件都构造不出来，
+       列表被刻意短路成 0 条。说「没有匹配」是错的 —— 是「这张表压根搜不了这个词」。
+       2026-11-11 补：以前这句会退化成通用文案，用户只会以为记录不存在。 */
+    if (unsearchable) {
+      return {
+        kind: 'no-match',
+        title: '这张表没有可搜索的文本字段',
+        description: `「${keyword}」无法在「这张表」的字段里匹配（该表只有编号/日期类字段）。可以换到「全部表」搜，或用筛选条件定位。`,
+        showClear: true,
+        showCreate: false,
+        actions: [
+          { id: EMPTY_ACTIONS.GLOBAL_SEARCH, label: '搜索全部表', tone: 'primary' },
+          { id: EMPTY_ACTIONS.CLEAR_FILTERS, label: '清空搜索与筛选', tone: 'secondary' },
         ],
       };
     }

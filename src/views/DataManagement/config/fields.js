@@ -1,5 +1,39 @@
 import { FORUM_TAG_OPTIONS } from '@/views/Forum/forum-config.js';
 
+// profiles 里「列级 UPDATE 被刻意收窄」的敏感列 —— 只能经 SECURITY DEFINER RPC
+// `admin_update_user_profile` 写入。
+// 依据：supabase/migrations/2026090803_security_hardening.sql:68-84 的列级白名单
+// 有意排除了它们。⚠️ 不要改成「补 GRANT 让直更通过」：实测补 update(role) 之后，
+// 普通用户可借 profiles_update_self（qual 仅 auth.uid() = id）把自己改成 admin。
+export const PROFILE_ADMIN_RPC_FIELDS = [
+  'role',
+  'points',
+  'experience',
+  'tags',
+  'hide_online_status',
+];
+
+// profiles 没有表级 SELECT（列级收窄：shipping_* / pushplus_token 按 H-1 收回），
+// 所以保存后的回读必须给显式列 —— `.select()` 无参等于 RETURNING *，会 42501。
+// 依据：supabase/migrations/2026070802_fix_high_security_issues.sql。
+export const PROFILE_SAVE_SELECT_COLUMNS = [
+  'id',
+  'username',
+  'role',
+  'points',
+  'experience',
+  'join_date',
+  'bio',
+  'avatar_url',
+  'avatar_frame_url',
+  'tags',
+  'hide_online_status',
+  'is_banned',
+  'is_muted',
+  'birth_month',
+  'birth_day',
+].join(', ');
+
 export const TAB_WRITABLE_FIELDS = {
   // ⚠️ 邮箱不在此列表：email 属于 auth.users，profiles 表根本没有 email 列
   //    （后台展示的邮箱是 admin_list_users_with_sensitive RPC 补的，只读）。
@@ -10,8 +44,9 @@ export const TAB_WRITABLE_FIELDS = {
     'points',
     'experience',
     'join_date',
-    // 收货三件套：profiles 列级权限实测 shipping_* 对 authenticated
-    // SELECT/UPDATE 均开放（2026-11-01 复查），可直接走统一保存链路。
+    // 收货三件套：UPDATE 对 authenticated 开放，但 **SELECT 已按 H-1 收回**
+    // （2026070802），所以只能写不能读；列表展示走 admin_list_users_with_sensitive。
+    // 2026-11-11 更正：旧注释写的「SELECT/UPDATE 均开放」是错的，那次只验了 UPDATE。
     'shipping_recipient',
     'shipping_phone',
     'shipping_address',

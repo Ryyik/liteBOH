@@ -314,7 +314,12 @@ export const tabModules = [
 ];
 
 export const TABS_ACTIONS = {
-  users: ['view', 'create', 'edit', 'delete', 'ban', 'mute'],
+  // 2026-11-11 移除 'create'：profiles 只有 profiles_insert_self（with check auth.uid() = id），
+  // 没有管理员 INSERT 分支 —— 补授权后实测仍是 `new row violates row-level security policy`；
+  // 而且即便绕过，也只会造出没有 auth.users 的孤儿 profile（用户登不进来）。
+  // 真要支持后台建号，得走 Edge Function（service_role + auth.admin.createUser）成对创建，
+  // 不是加个按钮的事。见 docs/2026-11-11-数据管理面板功能可行性全量审查.md §2 P0-2。
+  users: ['view', 'edit', 'delete', 'ban', 'mute'],
   points: ['view', 'edit'],
   pointsTransactions: ['view'],
   subscriptions: ['view', 'create', 'edit', 'delete'],

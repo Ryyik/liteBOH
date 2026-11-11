@@ -293,14 +293,22 @@ const saveConfig = async () => {
   if (error) return notify(error, 'error');
   saving.value = true;
   try {
-    await saveAiQuotaAdminConfig({
+    const result = await saveAiQuotaAdminConfig({
       tiers: tiers.value,
       modes: modes.value,
       pricing: pricing.value,
     });
     // 让 Edge Function 的内存缓存（模型倍率 / 额度策略 / 积分开关）立即失效
     clearVaultModelCache().catch(() => undefined);
-    notify('AI 额度与积分策略已保存，运行时缓存已即时刷新。');
+    if (result?.ok !== false) {
+      notify('AI 额度与积分策略已保存，运行时缓存已即时刷新。');
+    } else {
+      const detail = (result.failures || [])
+        .map((item) => `${item.label}：${item.message}`)
+        .join('；');
+      const savedHint = result.saved?.length ? `（已保存：${result.saved.join('、')}）` : '';
+      notify(`部分保存失败 —— ${detail}${savedHint}`, 'error');
+    }
   } catch (err) {
     notify(err?.message || '保存失败', 'error');
   } finally {

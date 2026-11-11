@@ -23,7 +23,9 @@ export {
   LOTTERY_COMMUNITY_VISIBLE_OPTIONS,
   LOTTERY_FULFILLMENT_STATUS_OPTIONS,
   TAB_WRITABLE_FIELDS,
+  PROFILE_ADMIN_RPC_FIELDS,
+  PROFILE_SAVE_SELECT_COLUMNS,
   dataConfig,
   PRODUCTS_CACHE_KEY,
-  invalidateProductsCache
+  invalidateProductsCache,
 } from './config/index.js';

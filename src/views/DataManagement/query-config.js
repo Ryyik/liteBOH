@@ -888,6 +888,23 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'placement', type: 'text' },
     { column: 'status', type: 'text' },
   ],
+  /* 这两个页签此前**完全没有搜索字段**（2026-11-11 补）：跨表搜索里它们被
+     `filters.length === 0` 静默跳过，表现为「地址/摄影集怎么搜都没有」。
+     只列真实文本列，别把 timestamptz / uuid 混成 text（见 postReward 的注释）。 */
+  addresses: [
+    { column: 'id', type: 'uuid' },
+    { column: 'recipient', type: 'text' },
+    { column: 'phone', type: 'text' },
+    { column: 'region', type: 'text' },
+    { column: 'detail', type: 'text' },
+    { column: 'tag', type: 'text' },
+  ],
+  photoAlbums: [
+    { column: 'id', type: 'uuid' },
+    { column: 'title', type: 'text' },
+    { column: 'subtitle', type: 'text' },
+    { column: 'status', type: 'text' },
+  ],
   reportedPosts: [
     { column: 'id', type: 'uuid' },
     { column: 'author_id', type: 'uuid' },
@@ -1021,8 +1038,11 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'id', type: 'number' },
     { column: 'title', type: 'text' },
     { column: 'status', type: 'text' },
-    { column: 'start_at', type: 'text' },
-    { column: 'end_at', type: 'text' },
+    /* 🔴 不能放 start_at / end_at（2026-11-11 修）：两列是 `timestamptz`，
+       一旦按 text 拼成 `start_at.ilike.%kw%`，PostgreSQL 直接
+       `42883 operator does not exist: timestamp with time zone ~~* unknown`
+       —— 整张表的搜索请求 400，列表和跨表搜索一起返回空。
+       日期区间用 DATE_FILTER_FIELDS（start_at）走范围筛选，不走关键词。 */
   ],
   products: [
     { column: 'id', type: 'number' },
@@ -1067,7 +1087,8 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'status', type: 'text' },
   ],
   forumWeeklyCheckins: [
-    { column: 'id', type: 'uuid' },
+    // 主键是 bigint（2026-11-11 核对线上 information_schema 修正，原写 uuid）
+    { column: 'id', type: 'number' },
     { column: 'user_id', type: 'uuid' },
     { column: 'week_start_date', type: 'date' },
   ],
@@ -1133,7 +1154,8 @@ export const TAB_SEARCH_FIELDS = {
     { column: 'status', type: 'text' },
   ],
   userFollows: [
-    { column: 'id', type: 'uuid' },
+    // 主键是 bigint（2026-11-11 核对线上 information_schema 修正，原写 uuid）
+    { column: 'id', type: 'number' },
     { column: 'follower_id', type: 'uuid' },
     { column: 'following_id', type: 'uuid' },
   ],

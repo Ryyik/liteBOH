@@ -286,6 +286,9 @@
                       <span v-if="isGlobalSearching">搜索中…</span>
                       <span v-else>
                         命中 {{ globalSearchResults.length }} 条
+                        <template v-if="globalSearchTabMatches.length">
+                          · 功能 {{ globalSearchTabMatches.length }} 个
+                        </template>
                         <template v-if="globalSearchResults.length">· 按相关性排序</template>
                       </span>
                       <button
@@ -297,8 +300,32 @@
                       </button>
                     </div>
 
+                    <!-- 功能 / 页签命中排在数据前面（2026-11-11）：
+                         用户搜「广告」时想要的往往不是某条广告记录，而是「广告管理」这个功能。
+                         以前这里只有数据结果，功能名压根不参与匹配。 -->
+                    <div v-if="globalSearchTabMatches.length" class="search-scope-tabs">
+                      <div class="search-scope-tabs-head">功能</div>
+                      <button
+                        v-for="tab in globalSearchTabMatches"
+                        :key="`tab-${tab.id}`"
+                        type="button"
+                        class="search-scope-tab-item"
+                        @click="jumpToTabFromGlobalSearch(tab)"
+                      >
+                        <span class="search-scope-tab-item-icon" aria-hidden="true">
+                          {{ tab.icon || '📄' }}
+                        </span>
+                        <span class="search-scope-tab-item-label">{{ tab.label }}</span>
+                        <span class="search-scope-tab-item-hint">打开</span>
+                      </button>
+                    </div>
+
                     <div
-                      v-if="!isGlobalSearching && !globalSearchResults.length"
+                      v-if="
+                        !isGlobalSearching &&
+                        !globalSearchResults.length &&
+                        !globalSearchTabMatches.length
+                      "
                       class="search-scope-empty"
                     >
                       <p>全部表里没有包含「{{ globalSearchKeyword }}」的记录。</p>
@@ -354,6 +381,20 @@
                           ></span>
                         </button>
                       </section>
+                    </div>
+
+                    <!-- 查询失败必须可见（P1-2）：原来只 logger.warn，
+                         面板照样显示「没有记录」—— 把「查不动」说成「没有」。 -->
+                    <div v-if="globalSearchFailures.length" class="search-scope-failures">
+                      <p>
+                        ⚠️ 有 {{ globalSearchFailures.length }} 张表没查成功，结果可能不完整：
+                        <span class="search-scope-failures-list">
+                          {{ failedSearchTabLabels }}
+                        </span>
+                      </p>
+                      <button type="button" class="btn btn-secondary" @click="retryGlobalSearch">
+                        重试
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2133,6 +2174,7 @@ import RecordPane from './components/detail/RecordPane.vue';
 import BatchJobResult from './components/shared/BatchJobResult.vue';
 import { logAdminAction } from '@/utils/api/admin-audit-api.js';
 import { adminBatchDelete } from '@/utils/api/admin-batch-api.js';
+import { adminUpdateUserProfile, updateProfileRow } from '@/utils/api/data-admin-profile-api.js';
 import DashboardPagination from './components/shared/DashboardPagination.vue';
 import RowActionMenu from './components/shared/RowActionMenu.vue';
 import ActiveFilterChips from './components/shared/ActiveFilterChips.vue';
@@ -2176,7 +2218,8 @@ import {
   getRoleLabel,
   getUserRole,
 } from './config/rbac.js';
-import { BOHAI_MODEL_PROVIDER_OPTIONS } from './config/fields.js';
+import { BOHAI_MODEL_PROVIDER_OPTIONS, PROFILE_SAVE_SELECT_COLUMNS } from './config/fields.js';
+import { splitProfileWritePayload } from './composables/data-admin-profile-write.js';
 import { excludeInternalBohaiModes } from './config/bohai-internal-modes.js';
 import {
   DATA_CONSOLE_SECTIONS,
@@ -2214,7 +2257,7 @@ import {
   sanitizeSearchTerm,
 } from './composables/useDataAdminFilters.js';
 import {
-  isInvalidIdQuery,
+  isUnexecutableKeyword,
   parseSearchQuery,
   rankRows,
   SEARCH_MODE_TAB,
@@ -2347,10 +2390,22 @@ const searchQuery = ref(consumeAdminTabJumpSearch());
 /**
  * 搜索范围（plans/042 A1）：'current' | 'all'。
  * 和关键词一起构成唯一一份搜索状态；不再有第二份关键词 ref。
+ *
+ * 默认 'all'（2026-11-11 改）：默认「本表」时，用户在任意页签里搜一个
+ * 跨表概念（比如「广告」）会得到**零反馈** —— 既不提示范围，也没有结果，
+ * 只能判定「搜索坏了」。管理台的搜索框就应该先全库找，再一键收窄到本表。
+ * 切 tab 时仍会收回 'current'（见下方 watch(currentTab)），保持「我正在看这张表」的语境。
  */
-const searchScope = ref('current');
+const searchScope = ref('all');
 const isGlobalSearchScope = computed(() => searchScope.value === 'all');
 const searchInputRef = ref(null);
+/**
+ * 当前角色可见的页签 id（跨表搜索只打这些表）。
+ * 原来无差别遍历全量 56 个页签：无权模块白打请求，点进去还会被守卫拦下。
+ */
+const searchableTabIds = computed(() =>
+  tabs.filter((tab) => canViewModule(currentUserRole.value, tab.module)).map((tab) => tab.id),
+);
 // globalSearchResults / globalSearchGroups / isGlobalSearching / showGlobalSearchPanel
 // 由下方 createGlobalSearchCenter 工厂注入
 const statusFilter = ref('');
@@ -3195,9 +3250,9 @@ const fetchStatusBreakdownCounts = async (tabId) => {
   const cfg = dataConfig[tabId];
   const kb = resolveKanbanConfig(cfg, { statusField: STATUS_FILTER_FIELDS[tabId] });
   if (!cfg?.table || !kb) return;
-  // 无效 ID 查询（`id:` + 半截）在列表侧已短路成 0 条；分布条不能再按「无条件」数，
+  // 关键词在这张表上构造不出任何条件时，列表侧已短路成 0 条；分布条不能再按「无条件」数，
   // 否则会退回全表分布，与「没有匹配」的空态自相矛盾。
-  if (isInvalidIdQuery(searchQuery.value)) return;
+  if (isUnexecutableKeyword(tabId, searchQuery.value, TAB_SEARCH_FIELDS)) return;
   const signature = buildStatusBreakdownSignature(tabId);
   if (statusBreakdownCache[tabId]?.signature === signature) return;
 
@@ -3730,6 +3785,8 @@ const emptyState = computed(() => {
     searchQuery: searchQuery.value,
     hasActiveFilters: hasActiveFilters.value,
     canCreate: canCreateCurrentTab.value && !isModerationTab.value,
+    // 关键词在本表构造不出任何条件（只有编号/日期列）时，文案要说「搜不了」而不是「没有」
+    unsearchable: isUnexecutableKeyword(currentTab.value, searchQuery.value, TAB_SEARCH_FIELDS),
   });
 });
 
@@ -3793,13 +3850,15 @@ const liveStatusCards = computed(() => [
  * totalCount > 0 连空态都不显示（2026-11-10 修）。
  *
  * `isRankedSearch` 是「列表确实被关键词过滤、且结果被客户端重排」的唯一判定：
- * `tab:` 是跳表语义（不产生查询条件）、半截 `id:` 已被短路上报空态，两者都不该
- * 按窗口收敛，否则会把没被过滤的全量列表也砍到 120 条。
+ * `tab:` 是跳表语义（不产生查询条件）、构造不出条件的 `id:` 已被短路上报空态，
+ * 两者都不该按窗口收敛，否则会把没被过滤的全量列表也砍到 120 条。
  */
 const isRankedSearch = computed(() => {
   const parsed = parseSearchQuery(searchQuery.value);
   return (
-    Boolean(parsed.value) && parsed.mode !== SEARCH_MODE_TAB && !isInvalidIdQuery(searchQuery.value)
+    Boolean(parsed.value) &&
+    parsed.mode !== SEARCH_MODE_TAB &&
+    !isUnexecutableKeyword(currentTab.value, searchQuery.value, TAB_SEARCH_FIELDS)
   );
 });
 const rankedRowLimit = computed(() =>
@@ -4731,13 +4790,19 @@ const fetchStats = async () => {
   applyCountMap(fallbackCounts);
 };
 
-// 敏感用户数据缓存: admin_list_users_with_sensitive 每次最多返回 500 行,
-// 翻页/搜索/筛选/刷新都会重复拉取同样的大载荷, 会话内按参数缓存复用
+// 敏感用户数据缓存。2026-11-11 起改按**当前页 id** 精确取：
+// 原实现固定 p_limit:500 拉全量再按 id 合并，用户超过 500 人时排在后面的人
+// 邮箱/收货信息静默为空（不报错、不提示）。现在只问这几个人，与总人数无关。
 const SENSITIVE_USERS_CACHE_TTL = 90 * 1000;
 const sensitiveUsersCacheMap = new Map();
 
-const fetchSensitiveUsers = async ({ p_search = null, p_limit = 500 } = {}) => {
-  const key = `${p_search === null ? '' : String(p_search)}|${Math.max(1, Number(p_limit) || 500)}`;
+const buildSensitiveCacheKey = ({ p_search, p_limit, p_ids }) => {
+  if (Array.isArray(p_ids) && p_ids.length) return `ids:${[...p_ids].sort().join(',')}`;
+  return `${p_search === null ? '' : String(p_search)}|${Math.max(1, Number(p_limit) || 500)}`;
+};
+
+const fetchSensitiveUsers = async ({ p_search = null, p_limit = 500, p_ids = null } = {}) => {
+  const key = buildSensitiveCacheKey({ p_search, p_limit, p_ids });
   const now = Date.now();
   const cached = sensitiveUsersCacheMap.get(key);
   if (cached?.data && now - cached.fetchedAt < SENSITIVE_USERS_CACHE_TTL) {
@@ -4748,7 +4813,7 @@ const fetchSensitiveUsers = async ({ p_search = null, p_limit = 500 } = {}) => {
   const entry = { data: null, fetchedAt: 0, pending: null };
   sensitiveUsersCacheMap.set(key, entry);
   entry.pending = supabase
-    .rpc('admin_list_users_with_sensitive', { p_search, p_limit })
+    .rpc('admin_list_users_with_sensitive', { p_search, p_limit, p_ids })
     .then(({ data }) => {
       entry.data = Array.isArray(data) ? data : [];
       entry.fetchedAt = Date.now();
@@ -4804,9 +4869,12 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       return;
     }
 
-    /* `id:` + 半截 ID 刻意不产生查询条件（主键是 uuid / bigint，没有 ilike 算子，
-       发了就是 42883 整表失败）。这里短路成「0 条」：列表走空态，可一键清空关键词。 */
-    if (isInvalidIdQuery(searchQuery.value)) {
+    /* 关键词在这张表上**构造不出任何条件**时，必须短路成 0 条：
+       `applySearchAndSort` 在条件为空时只是「不加过滤」，列表会原样显示全表 ——
+       搜索框里有词、结果却是全部数据，看起来就是「搜索没反应」。
+       覆盖两种情形：`id:` 形状不合法（主键是 uuid / bigint，没有 ilike），
+       以及这张表全是 uuid/date 列、关键词匹配不上任何一列的形态。 */
+    if (isUnexecutableKeyword(tabId, searchQuery.value, TAB_SEARCH_FIELDS)) {
       assignTabRows(tabId, [], 0);
       return;
     }
@@ -4894,8 +4962,8 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       try {
         const userIds = rows.map((r) => r.id).filter(Boolean);
         if (userIds.length > 0) {
-          // 获取当前页用户的敏感字段（会话内缓存复用，避免翻页/搜索时重复拉取 500 行）
-          const sensitiveList = await fetchSensitiveUsers({ p_search: null, p_limit: 500 });
+          // 只取当前页这几个人（会话内按 id 集合缓存），不再拉全量 500 行
+          const sensitiveList = await fetchSensitiveUsers({ p_ids: userIds });
           if (Array.isArray(sensitiveList)) {
             const sensitiveMap = new Map(sensitiveList.map((s) => [s.id, s]));
             rows.forEach((row) => {
@@ -4930,7 +4998,8 @@ const fetchTabData = async (tabId = currentTab.value, options = {}) => {
       try {
         const userIds = rows.map((r) => r.user_id).filter(Boolean);
         if (userIds.length > 0) {
-          const sensitiveList = await fetchSensitiveUsers({ p_search: null, p_limit: 500 });
+          // 同上：按当前页的 user_id 精确取，避免 500 行上限导致邮箱成片为空
+          const sensitiveList = await fetchSensitiveUsers({ p_ids: userIds });
           if (Array.isArray(sensitiveList)) {
             const emailMap = new Map(sensitiveList.map((s) => [s.id, s.email || '-']));
             enrichedRows.forEach((row) => {
@@ -5758,6 +5827,31 @@ const searchOnlyCurrentTable = () => {
   closeGlobalSearchPanel();
   handleSearch();
   searchInputRef.value?.focus();
+};
+
+/**
+ * 点「功能」条目：打开那个页签（2026-11-11）。
+ * 关键词要清掉 —— 用户找的是功能，不是拿这个词去过滤目标表的记录；
+ * 留着会让他以为新页面「一条数据都没有」。
+ */
+const jumpToTabFromGlobalSearch = (tab) => {
+  if (!tab?.id) return;
+  closeGlobalSearchPanel();
+  abortGlobalSearch();
+  searchQuery.value = '';
+  searchScope.value = 'current';
+  switchTab(tab.id);
+};
+
+/** 失败表的展示名（面板里只给名字，细节去 console 看） */
+const failedSearchTabLabels = computed(() =>
+  globalSearchFailures.value.map((item) => item.tabLabel || item.tabId).join('、'),
+);
+
+/** 重试：同一关键词再搜一次（失败往往是瞬时权限/网络） */
+const retryGlobalSearch = () => {
+  if (!globalSearchKeyword.value) return;
+  runGlobalSearch(globalSearchKeyword.value);
 };
 
 const clearSearchEverywhere = () => {
@@ -7338,15 +7432,49 @@ const saveData = async ({ keepOpen = false } = {}) => {
 
     let savedRowPatched = false;
     if (isEditing.value) {
-      const { data, error } = await supabase
-        .from(table)
-        .update(dataToSave)
-        .eq('id', editingItem.value.id)
-        .select();
-      if (error) throw error;
-      if (!Array.isArray(data) || data.length === 0) {
-        throw new Error('保存失败：没有记录被更新，请检查管理员权限或记录是否存在');
+      const targetId = editingItem.value.id;
+      let savedRow = null;
+
+      // profiles（users / points 两页签）走双通道，原因见
+      // docs/2026-11-11-数据管理面板功能可行性全量审查.md §2 P0-1：
+      //   ① role/points/experience/tags/hide_online_status 的列级 UPDATE 是
+      //      2026090803 有意收窄的 ⇒ 直更必然 42501；而「补 GRANT」会让普通用户
+      //      借 profiles_update_self 自升 admin（已实测）⇒ 只能走 SECURITY DEFINER RPC。
+      //   ② profiles 没有表级 SELECT，`.select()`（= RETURNING *）会撞
+      //      shipping_*/pushplus_token 的列级收窄 ⇒ 回读必须给显式列。
+      if (table === 'profiles') {
+        const { adminPatch, rest: restPayload } = splitProfileWritePayload(dataToSave);
+
+        if (Object.keys(adminPatch).length) {
+          const rpcRow = await adminUpdateUserProfile(targetId, adminPatch);
+          if (rpcRow) savedRow = rpcRow;
+        }
+
+        if (Object.keys(restPayload).length) {
+          const restRow = await updateProfileRow(
+            targetId,
+            restPayload,
+            PROFILE_SAVE_SELECT_COLUMNS,
+          );
+          savedRow = { ...(savedRow || {}), ...restRow };
+        }
+
+        if (!savedRow) {
+          throw new Error('保存失败：没有可提交的字段变更');
+        }
+      } else {
+        const { data, error } = await supabase
+          .from(table)
+          .update(dataToSave)
+          .eq('id', targetId)
+          .select();
+        if (error) throw error;
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error('保存失败：没有记录被更新，请检查管理员权限或记录是否存在');
+        }
+        savedRow = data[0];
       }
+
       if (currentTab.value === 'products') invalidateProductsCache();
       if (currentTab.value === 'subscriptions')
         invalidateSubscriptionCache(dataToSave.user_id || editingItem.value.user_id);
@@ -7365,12 +7493,12 @@ const saveData = async ({ keepOpen = false } = {}) => {
       logAdminAction({
         action: 'update',
         table,
-        id: data[0]?.id ?? editingItem.value?.id ?? null,
+        id: savedRow?.id ?? editingItem.value?.id ?? null,
         diff: getPayloadDiffs(editingOriginalItem.value || {}, dataToSave).slice(0, 20),
         meta: { tab: currentTab.value },
       });
       // C1: 命中当前页则单行 patch，跳过整表刷新（保留滚动与勾选）
-      savedRowPatched = patchStoreRow(currentTab.value, data[0]);
+      savedRowPatched = patchStoreRow(currentTab.value, savedRow);
       if (savedRowPatched) clearTabFetchCache(currentTab.value);
       showToast('数据更新成功', 'success');
     } else {
@@ -8551,6 +8679,8 @@ const {
   globalSearchKeyword,
   globalSearchResults,
   globalSearchGroups,
+  globalSearchTabMatches,
+  globalSearchFailures,
   isGlobalSearching,
   showGlobalSearchPanel,
   runGlobalSearch,
@@ -8564,6 +8694,7 @@ const {
   buildActionErrorMessage,
   switchTab,
   addRecentRecord,
+  allowedTabIds: searchableTabIds,
 });
 
 // 换 tab 时把范围收回「本表」：上一个 tab 的全部表结果没有意义，
@@ -8584,6 +8715,7 @@ const commandSearch = createGlobalSearchCenter({
   buildActionErrorMessage,
   switchTab,
   addRecentRecord,
+  allowedTabIds: searchableTabIds,
 });
 
 /** ⌘K 面板里每类结果的前缀标签 */

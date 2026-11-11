@@ -18,6 +18,8 @@ import {
 const PER_TAB_LIMIT = 8;
 /** 合并后最多展示多少条 */
 const MERGED_LIMIT = 50;
+/** 「页签 / 功能」命中最多了几条（搜「广告」时它才是第一等公民） */
+const TAB_MATCH_LIMIT = 6;
 /** 输入去抖：与列表搜索同一个量级，避免每敲一个字打 N 张表 */
 const DEBOUNCE_MS = 250;
 
@@ -27,6 +29,16 @@ const DEBOUNCE_MS = 250;
  * 与列表搜索**共用同一个关键词**（searchQueryRef）和同一个转义口径，
  * 不再有自己的输入框与 globalSearchQuery —— 那正是「同一关键词四种结论」的来源之一。
  * 结果合并后按相关性统一排序，而不是按 tabs 的声明顺序拼接。
+ *
+ * 2026-11-11 三处修补（用户实测「搜广告什么都搜不到」）：
+ *   1. **页签/功能也是搜索对象**：`globalSearchTabMatches` 按 label / id 匹配，
+ *      搜「广告」能直接跳到「广告管理」。此前只有 `tab:` 前缀能匹配页签名，
+ *      而用户不会知道有这个前缀。
+ *   2. **失败必须可见**：某张表查询报错（如 42883）原来只 `logger.warn`，
+ *      面板照样显示「没有记录」—— 把「查不动」说成「没有」是最坏的一种撒谎。
+ *      现在收进 `globalSearchFailures`，由面板如实告知。
+ *   3. **只搜当前角色看得见的页签**：原来无差别遍历 56 个页签，
+ *      无权模块白打请求且结果点进去会被拦。
  */
 export const createGlobalSearchCenter = ({
   searchQueryRef,
@@ -34,16 +46,50 @@ export const createGlobalSearchCenter = ({
   buildActionErrorMessage,
   switchTab,
   addRecentRecord,
+  /** 当前角色可见的页签 id 集合（不传则全量搜，兼容旧调用） */
+  allowedTabIds = null,
 }) => {
   const globalSearchResults = ref([]);
   const isGlobalSearching = ref(false);
   const showGlobalSearchPanel = ref(false);
   const globalSearchKeyword = ref('');
+  const globalSearchFailures = ref([]);
   let abortController = null;
   let debounceTimer = null;
 
+  const searchTabs = computed(() => {
+    const allow = allowedTabIds?.value ?? allowedTabIds;
+    if (!allow) return tabs;
+    const set = allow instanceof Set ? allow : new Set(allow);
+    return tabs.filter((tab) => set.has(tab.id));
+  });
+
   /** 结果按表分组（A1 的分组视图；items 已按相关性排好） */
   const globalSearchGroups = computed(() => groupByTab(globalSearchResults.value));
+
+  /**
+   * 关键词命中的「页签 / 功能」。
+   * 这是用户找功能的主路径：他记得名字，但不记得在哪个模块下。
+   */
+  const globalSearchTabMatches = computed(() => {
+    const keyword = String(globalSearchKeyword.value || '')
+      .trim()
+      .toLowerCase();
+    if (!keyword) return [];
+    return searchTabs.value
+      .filter((tab) => {
+        const label = String(tab.label || '').toLowerCase();
+        const id = String(tab.id || '').toLowerCase();
+        return label.includes(keyword) || id.includes(keyword);
+      })
+      .slice(0, TAB_MATCH_LIMIT)
+      .map((tab) => ({
+        id: tab.id,
+        label: tab.label,
+        icon: tab.icon || '',
+        type: tab.type || 'table',
+      }));
+  });
 
   const runGlobalSearch = async (rawKeyword) => {
     if (abortController) abortController.abort();
@@ -60,6 +106,7 @@ export const createGlobalSearchCenter = ({
     // `tab:` 是跳表语义，跨表搜索没有可执行的查询 —— 直接清空，别给出假结果。
     if (!keyword || parsed.mode === SEARCH_MODE_TAB) {
       globalSearchResults.value = [];
+      globalSearchFailures.value = [];
       showGlobalSearchPanel.value = false;
       return;
     }
@@ -67,9 +114,10 @@ export const createGlobalSearchCenter = ({
     isGlobalSearching.value = true;
     showGlobalSearchPanel.value = true;
     globalSearchResults.value = [];
+    globalSearchFailures.value = [];
 
     try {
-      const tasks = tabs.map(async (tab) => {
+      const tasks = searchTabs.value.map(async (tab) => {
         if (signal.aborted) return [];
         const table = dataConfig[tab.id]?.table;
         const selectColumns = TAB_SELECT_COLUMNS[tab.id];
@@ -93,6 +141,17 @@ export const createGlobalSearchCenter = ({
         const { data, error } = await query;
         if (error) {
           logger.warn('data-admin', `跨表搜索 ${tab.id} 失败:`, error);
+          /* 被 abort 的请求不算「失败」，否则每敲一个字都会攒一堆假故障 */
+          if (!signal.aborted) {
+            globalSearchFailures.value = [
+              ...globalSearchFailures.value,
+              {
+                tabId: tab.id,
+                tabLabel: tab.label,
+                message: buildActionErrorMessage(error, '查询失败'),
+              },
+            ];
+          }
           return [];
         }
 
@@ -172,6 +231,7 @@ export const createGlobalSearchCenter = ({
     }
     showGlobalSearchPanel.value = false;
     globalSearchResults.value = [];
+    globalSearchFailures.value = [];
   };
 
   const abortGlobalSearch = () => {
@@ -189,6 +249,8 @@ export const createGlobalSearchCenter = ({
     globalSearchKeyword,
     globalSearchResults,
     globalSearchGroups,
+    globalSearchTabMatches,
+    globalSearchFailures,
     isGlobalSearching,
     showGlobalSearchPanel,
     runGlobalSearch,

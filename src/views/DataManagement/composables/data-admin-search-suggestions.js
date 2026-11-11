@@ -20,6 +20,8 @@ import {
 export const RECENT_SEARCH_LIMIT = 10;
 /** 面板最多显示几条候选（超过就失去「一眼扫」的意义） */
 export const SUGGESTION_LIMIT = 8;
+/** 普通关键词最多给几条「跳到某功能」候选（再多就把最近搜索挤没了） */
+export const SUGGESTION_TAB_LIMIT = 3;
 
 /**
  * 把一次搜索写进「最近搜索」：去重（大小写不敏感）→ 提前 → 截断。
@@ -121,6 +123,25 @@ export const buildSearchSuggestions = ({
         value: hint.prefix,
       });
     });
+  }
+
+  /* 关键词命中「页签 / 功能」名 → 先给跳转候选（2026-11-11 修）。
+     以前**只有** `tab:` 前缀才匹配页签名，普通关键词一律不匹配，
+     用户搜「广告」时既没有数据命中、也没有任何功能入口 —— 只能判定「搜索坏了」。
+     排在最近搜索之前：找功能的人不该先被历史关键词挡住（联想只显示 8 条）。 */
+  if (keyword) {
+    (tabs || [])
+      .filter((tab) => matches(tab.label) || String(tab.id).toLowerCase().includes(keyword))
+      .slice(0, SUGGESTION_TAB_LIMIT)
+      .forEach((tab) => {
+        suggestions.push({
+          id: `tab-${tab.id}`,
+          kind: 'tab',
+          label: `跳到「${tab.label}」`,
+          hint: '功能',
+          tabId: tab.id,
+        });
+      });
   }
 
   (recent || [])
